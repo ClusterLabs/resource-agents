@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.226 $) dnl cvs revision
+AC_REVISION($Revision: 1.227 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -181,6 +181,17 @@ AC_PATH_PROGS(STRINGSCMD, strings)
 AC_DEFINE_UNQUOTED(STRINGSCMD, "$STRINGSCMD", path to strings command)
 AC_SUBST(STRINGSCMD)
 
+dnl ************************************************************************
+dnl checks for libraries
+dnl Needed for libnet test.
+dnl ************************************************************************
+AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
+AC_CHECK_LIB(socket, socket)			dnl -lsocket
+AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
+AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
+AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
+AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
+
 AC_MSG_CHECKING(which glib config exists)
 if test "X${GLIBCONFIG}" = "X"; then
         AC_MSG_ERROR(You need the glib development package to continue.
@@ -196,7 +207,14 @@ if test x"${LIBNETCONFIG}" = x""; then
       AC_CHECK_LIB(net, libnet_get_hwaddr, [],
       [AC_MSG_ERROR(You need libnet to continue.  You can get libnet from http://www.packetfactory.net/libnet Note that some RPMs split libnet up into libnet and libnet-devel. In this case you have to install libnet-devel)])
       LIBNETDEFINES=""
-      LIBNETLIBS="-lnet"
+      LIBNETLIBS=" -lnet"
+      if test "$ac_cv_lib_nsl_t_open" = yes; then
+         LIBNETLIBS="-lnsl $LIBNETLIBS"
+      fi
+      if test "$ac_cv_lib_socket_socket" = yes; then
+         LIBNETLIBS="-lsocket $LIBNETLIBS"
+      fi
+
       libnet=net
 else
       LIBNETDEFINES="`$LIBNETCONFIG --defines` `$LIBNETCONFIG --cflags`";
@@ -207,11 +225,13 @@ else
         *)	libnet=$LIBNETLIBS;;
       esac
 fi
-AC_CHECK_LIB($libnet,libnet_init,
-[AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
-[AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)])
+
 AC_SUBST(LIBNETDEFINES)
 AC_SUBST(LIBNETLIBS)
+
+AC_CHECK_LIB($libnet,libnet_init,
+[AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
+[AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)],$LIBNETLIBS)
 
 AC_MSG_CHECKING(where is python installed)
 if test "x${PYTHON}" = x; then
@@ -343,16 +363,6 @@ fi
 RPMDIR=`FindADir warn "RPM" /usr/src/packages /usr/src/redhat`
 
 
-dnl ************************************************************************
-dnl checks for libraries
-dnl
-AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
-AC_CHECK_LIB(socket, socket)			dnl -lsocket
-AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
-AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
-AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
-AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
-
 if test x"${HAVE_LIBRT}" = x""; then
 	LIBRT=""
 else
@@ -449,13 +459,38 @@ AC_CHECK_HEADERS(db.h)
 AC_CHECK_HEADERS(asm/page.h)
 AC_CHECK_HEADERS(time.h)
 AC_CHECK_HEADERS(stdarg.h)
+
+AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
 
-AC_CHECK_HEADERS(netinet/in_systm.h)
-AC_CHECK_HEADERS(netinet/ip.h)
-AC_CHECK_HEADERS(netinet/ip_var.h)
-AC_CHECK_HEADERS(netinet/ip_compat.h)
-AC_CHECK_HEADERS(netinet/ip_fw.h)
+dnl ************************************************************************
+dnl  FreeBSD requires sys/param.h and in.h to compile test netinet headers.
+dnl ************************************************************************
+if test "$ac_cv_header_sys_param_h" -a "$ac_cv_header_netinet_in_h" = no; then
+	AC_CHECK_HEADERS(netinet/in_systm.h)
+	AC_CHECK_HEADERS(netinet/ip.h)
+	AC_CHECK_HEADERS(netinet/ip_var.h)
+	AC_CHECK_HEADERS(netinet/ip_compat.h)
+	AC_CHECK_HEADERS(netinet/ip_fw.h)
+else
+	AC_CHECK_HEADERS(netinet/in_systm.h,[],[],[#include <sys/param.h>
+	#include <netinet/in.h>])
+	if test "$ac_cv_header_in_systm_h" = no; then
+		AC_CHECK_HEADERS(netinet/ip.h,[],[],[#include <sys/param.h>
+		#include <netinet/in.h>])
+	else
+		AC_CHECK_HEADERS(netinet/ip.h,[],[],[#include <sys/param.h>
+		#include <netinet/in_systm.h>
+		#include <netinet/in.h>])
+	fi
+	AC_CHECK_HEADERS(netinet/ip_var.h,[],[],[#include <sys/param.h>
+	#include <netinet/in.h>])
+	AC_CHECK_HEADERS(netinet/ip_compat.h,[],[],[#include <sys/param.h>
+	#include <netinet/in.h>])
+	AC_CHECK_HEADERS(netinet/ip_fw.h,[],[],[#include <sys/param.h>
+	#include <netinet/in.h>])
+fi
+
 AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
 AC_CHECK_HEADERS(sys/types.h)
@@ -464,10 +499,16 @@ AC_CHECK_HEADERS(arpa/inet.h)
 AC_CHECK_HEADERS(net/ethernet.h)
 AC_CHECK_HEADERS(strings.h malloc.h)
 AC_CHECK_HEADERS(termio.h)
+AC_CHECK_HEADERS(getopt.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On BSD
-AC_CHECK_HEADERS(sys/syslimits.h sys/ucred.h)
+AC_CHECK_HEADERS(sys/syslimits.h)
+if test "$ac_cv_header_sys_param_h" = no; then
+	AC_CHECK_HEADERS(sys/ucred.h)
+else
+	AC_CHECK_HEADERS(sys/ucred.h,[],[],[#include <sys/param.h>])
+fi
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On Solaris
@@ -1346,9 +1387,9 @@ if test "${enable_crm}"  = "yes"; then
 		  crm/admin/Makefile			    \
 )
 else
- 	CRM_ENABLED=0
- 	AC_SUBST(CRM_ENABLED)
- 	CRM_DIR=""
+	CRM_ENABLED=0
+	AC_SUBST(CRM_ENABLED)
+	CRM_DIR=""
 dnl For when the CRM is manditory...
 dnl	if "${enable_crm}" = "no (libxml2 not found)"; then
 dnl	   exit(1);
@@ -1406,4 +1447,3 @@ AC_MSG_RESULT([  Build New CRM        = ${enable_crm}])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
-
