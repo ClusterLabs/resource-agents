@@ -270,6 +270,7 @@ static int handle_cluster_event(int fd){
     break;
   case CE_QUORATE:
     log_dbg("*E* Quorum formed\n");
+    log_msg("Cluster is quorate.  Allowing connections.\n");
     quorate = 1;
     break;
   case CE_INQUORATE:

@@ -158,6 +158,9 @@ static int setup_interface(int *sp){
       error = AF_INET;
       break;
     }
+    if(error == -ECONNREFUSED){
+      break;
+    }
 
     /* Connections could have colided, giving ECONNREFUSED, or **
     ** the port we are trying to bind to may already be in use **
