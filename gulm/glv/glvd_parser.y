@@ -74,12 +74,16 @@ int yylex();
 
 %token NOFLAGS
 %token DOCB
+%token NOCB
 %token TRY
 %token ANY
 %token IGNOREEXP
 %token CACHABLE
 %token PIORITY
 %token FLAGOR
+
+%token LSBRACE
+%token RSBRACE
 
 %token <str> STRING
 %token <num> NUMBER
@@ -148,9 +152,26 @@ action : LOCK nodeidx subid STRING state flags lvb
           tmp->nodeidx = $2;
           tmp->subid = $3;
           tmp->key = $4;
+          tmp->start = 0;
+          tmp->stop = ~0;
           tmp->state = $5;
           tmp->flags = $6;
           tmp->lvb = $7;
+          $$ = tmp;
+        }
+       | LOCK nodeidx subid STRING LSBRACE NUMBER NUMBER RSBRACE state flags lvb
+        { struct glv_action *tmp;
+          tmp = malloc(sizeof(struct glv_action));
+          tmp->line = linenumber;
+          tmp->action = glv_lock;
+          tmp->nodeidx = $2;
+          tmp->subid = $3;
+          tmp->key = $4;
+          tmp->start = $6;
+          tmp->stop = $7;
+          tmp->state = $9;
+          tmp->flags = $10;
+          tmp->lvb = $11;
           $$ = tmp;
         }
        | ACTION nodeidx subid STRING actname lvb
@@ -161,6 +182,8 @@ action : LOCK nodeidx subid STRING state flags lvb
           tmp->nodeidx = $2;
           tmp->subid = $3;
           tmp->key = $4;
+          tmp->start = 0;
+          tmp->stop = 0;
           tmp->state = $5;
           tmp->flags = 0;
           tmp->lvb = $6;
@@ -174,6 +197,8 @@ action : LOCK nodeidx subid STRING state flags lvb
           tmp->nodeidx = $2;
           tmp->subid = $3;
           tmp->key = $4;
+          tmp->start = 0;
+          tmp->stop = 0;
           tmp->state = 0;
           tmp->flags = 0;
           tmp->lvb = NULL;
@@ -187,6 +212,8 @@ action : LOCK nodeidx subid STRING state flags lvb
           tmp->nodeidx = $2;
           tmp->subid = 0;
           tmp->key = $3;
+          tmp->start = 0;
+          tmp->stop = 0;
           tmp->state = 0;
           tmp->flags = 0;
           tmp->lvb = $4;
@@ -211,10 +238,30 @@ reaction : LRPL nodeidx subid STRING state flags errorcode lvb
             tmp->nodeidx = $2;
             tmp->subid = $3;
             tmp->key = $4;
+            tmp->start = 0;
+            tmp->stop = ~0;
             tmp->state = $5;
             tmp->flags = $6;
             tmp->error = $7;
             tmp->lvb = $8;
+            tmp->matched = 0;
+            tmp->next = NULL;
+            $$ = tmp;
+          }
+         | LRPL nodeidx subid STRING LSBRACE NUMBER NUMBER RSBRACE state flags errorcode lvb
+          { struct glv_reaction *tmp;
+            tmp = malloc(sizeof(struct glv_reaction));
+            tmp->line = linenumber;
+            tmp->react = glv_lrpl;
+            tmp->nodeidx = $2;
+            tmp->subid = $3;
+            tmp->key = $4;
+            tmp->start = $6;
+            tmp->stop = $7;
+            tmp->state = $9;
+            tmp->flags = $10;
+            tmp->error = $11;
+            tmp->lvb = $12;
             tmp->matched = 0;
             tmp->next = NULL;
             $$ = tmp;
@@ -227,6 +274,8 @@ reaction : LRPL nodeidx subid STRING state flags errorcode lvb
             tmp->nodeidx = $2;
             tmp->subid = $3;
             tmp->key = $4;
+            tmp->start = 0;
+            tmp->stop = 0;
             tmp->state = $5;
             tmp->flags = 0;
             tmp->error = $6;
@@ -243,6 +292,8 @@ reaction : LRPL nodeidx subid STRING state flags errorcode lvb
             tmp->nodeidx = $2;
             tmp->subid = $3;
             tmp->key = $4;
+            tmp->start = 0;
+            tmp->stop = 0;
             tmp->state = $5;
             tmp->flags = 0;
             tmp->error = 0;
@@ -292,6 +343,8 @@ iflags : iflags FLAGOR flag
        ;
 flag : DOCB
        { $$ = lg_lock_flag_DoCB; }
+     | NOCB
+       { $$ = lg_lock_flag_NoCallBacks; }
      | TRY
        { $$ = lg_lock_flag_Try; }
      | ANY
@@ -347,6 +400,7 @@ char *flagsstr(int f)
    buffy[0] = '\0';
    if( f & lg_lock_flag_Try) strcat(buffy, "try|");
    if( f & lg_lock_flag_DoCB ) strcat(buffy, "docb|");
+   if( f & lg_lock_flag_NoCallBacks) strcat(buffy, "nocb|");
    if( f & lg_lock_flag_Any) strcat(buffy, "any|");
    if( f & lg_lock_flag_IgnoreExp) strcat(buffy, "ignoreexp|");
    if( f & lg_lock_flag_Cachable) strcat(buffy, "cachable|");
@@ -362,11 +416,20 @@ void print_action(FILE *fp, struct glv_action *action)
 {
    switch(action->action) {
       case glv_lock:
+         if( action->start != 0 || action->stop != ~0 ) {
+         fprintf(fp, "  lock %d %d %s [%u %u] %s %s %s\n", action->nodeidx,
+                action->subid, action->key,
+                action->start, action->stop,
+                statestrings(action->state),
+                flagsstr(action->flags),
+                action->lvb==NULL?"nolvb":action->lvb);
+         }else{
          fprintf(fp, "  lock %d %d %s %s %s %s\n", action->nodeidx,
                 action->subid, 
                 action->key, statestrings(action->state),
                 flagsstr(action->flags),
                 action->lvb==NULL?"nolvb":action->lvb);
+         }
          break;
       case glv_act:
          fprintf(fp, "  action %d %d %s %s %s\n", action->nodeidx,
@@ -390,11 +453,20 @@ void print_reaction(FILE *fp, struct glv_reaction *ract)
 {
    switch(ract->react) {
       case glv_lrpl:
+         if( ract->start != 0 || ract->stop != ~0 ) {
+         fprintf(fp, "  lrpl %d %d %s [%u %u] %s %s %s %s\n", ract->nodeidx,
+                ract->subid, ract->key,
+                ract->start, ract->stop,
+                statestrings(ract->state),
+                flagsstr(ract->flags), errstring(ract->error),
+                ract->lvb==NULL?"nolvb":ract->lvb);
+         }else{
          fprintf(fp, "  lrpl %d %d %s %s %s %s %s\n", ract->nodeidx,
                 ract->subid,
                 ract->key, statestrings(ract->state),
                 flagsstr(ract->flags), errstring(ract->error),
                 ract->lvb==NULL?"nolvb":ract->lvb);
+         }
          break;
       case glv_arpl:
          fprintf(fp, "  arpl %d %d %s %s %s\n", ract->nodeidx,

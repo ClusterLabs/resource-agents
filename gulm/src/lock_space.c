@@ -48,21 +48,25 @@ extern gulm_config_t gulm_config;
  * sending dropall requests to the clients.
  */
 unsigned long max_locks     = 1024 * 1024;
-unsigned long cnt_locks     = 0; /* aka used_locks */
+
+
+/* these four ar not really accurate anymore */
 unsigned long cnt_unl_locks = 0;
 unsigned long cnt_exl_locks = 0;
 unsigned long cnt_shd_locks = 0;
 unsigned long cnt_dfr_locks = 0;
+
 unsigned long cnt_lvb_holds = 0;
 unsigned long cnt_exp_locks = 0;
+
 unsigned long cur_lops = 0;
+unsigned long cnt_conflicts = 0;
 
 unsigned long cnt_inq = 0;
 unsigned long cnt_confq = 0;
 unsigned long cnt_replyq = 0;
 
-unsigned long cnt_conflicts = 0;
-
+unsigned long cnt_locks     = 0; /* aka used_locks */
 unsigned long free_locks = 0;
 unsigned long free_lkrqs = 0;
 unsigned long used_lkrqs = 0;
@@ -321,7 +325,8 @@ void print_holder(FILE *FP, Holders_t *h)
    }
    fprintf(FP,"   start  : %"PRIu64"\n", h->start);
    fprintf(FP,"   stop   : %"PRIu64"\n", h->stop);
-   fprintf(FP,"   pollidx: %d\n", h->idx);
+   fprintf(FP,"   flags  : %#x\n", h->flags);
+   fprintf(FP,"   idx    : %d\n", h->idx);
 }
 
 /**
@@ -479,10 +484,6 @@ int send_stats(xdr_enc_t *enc)
    int err;
    char tmp[256];
 
-   if((err = xdr_enc_string(enc, "locks")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_locks);
-   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
-
    if((err = xdr_enc_string(enc, "unlocked")) != 0) return err;
    snprintf(tmp, 256, "%lu", cnt_unl_locks);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
@@ -525,6 +526,10 @@ int send_stats(xdr_enc_t *enc)
 
    if((err = xdr_enc_string(enc, "reply_queue")) != 0) return err;
    snprintf(tmp, 256, "%lu", cnt_replyq);
+   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
+
+   if((err = xdr_enc_string(enc, "used_locks")) != 0) return err;
+   snprintf(tmp, 256, "%lu", cnt_locks);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "free_locks")) != 0) return err;
@@ -751,6 +756,38 @@ void delete_entire_holder_list(LLi_t *list)
 }
 
 /*****************************************************************************/
+/**
+ * increment_global_state_counters - 
+ * @state: 
+ * 
+ * 
+ * Returns: void
+ */
+void increment_global_state_counters(int state)
+{
+   switch(state) {
+      case gio_lck_st_Exclusive: cnt_exl_locks++; break;
+      case gio_lck_st_Deferred: cnt_dfr_locks++; break;
+      case gio_lck_st_Shared: cnt_shd_locks++; break;
+   }
+}
+/**
+ * decrement_global_state_counters - 
+ * @state: 
+ * 
+ * 
+ * Returns: void
+ */
+void decrement_global_state_counters(int state)
+{
+   switch(state) {
+      case gio_lck_st_Exclusive: cnt_exl_locks--; break;
+      case gio_lck_st_Deferred: cnt_dfr_locks--; break;
+      case gio_lck_st_Shared: cnt_shd_locks--; break;
+   }
+}
+/*****************************************************************************/
+
 
 /**
  * add_to_holders - 
@@ -777,13 +814,9 @@ int add_to_holders(Lock_t *lk, Waiters_t *lkrq)
    h->state = lkrq->state;
    h->start = lkrq->start;
    h->stop = lkrq->stop;
+   h->flags = lkrq->flags;
 
-   /* increment state counters. */
-   switch(h->state) {
-      case gio_lck_st_Exclusive: cnt_exl_locks++; break;
-      case gio_lck_st_Deferred: cnt_dfr_locks++; break;
-      case gio_lck_st_Shared: cnt_shd_locks++; break;
-   }
+   increment_global_state_counters(h->state);
 
    LLi_add_after( &lk->Holders, &h->cl_list);
    lk->HolderCount++;
@@ -833,12 +866,7 @@ int drop_holder(Lock_t *lk, Waiters_t *lkrq)
          if( compare_holder_waiter_names(h, lkrq) ) {
             LLi_del(tp);
             lk->HolderCount--;
-            /* decrement state counter. */
-            switch(h->state) {
-               case gio_lck_st_Exclusive: cnt_exl_locks--; break;
-               case gio_lck_st_Deferred: cnt_dfr_locks--; break;
-               case gio_lck_st_Shared: cnt_shd_locks--; break;
-            }
+            decrement_global_state_counters(h->state);
             recycle_holder(h);
             return 0;
          }
@@ -846,6 +874,7 @@ int drop_holder(Lock_t *lk, Waiters_t *lkrq)
    }
    return -1;
 }
+
 
 /*****************************************************************************/
 /**
@@ -1440,6 +1469,361 @@ void check_fullness(void)
    }
 }
 
+/*****************************************************************************/
+/**
+ * drop_holder_by_range - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * For every holder that matches name, shrink/split/drop
+ *
+ * Note that the order of the range check below is important.  Certain
+ * cases are know not to exist as things fall down the checks.  (for
+ * example, we know that by the time we get the the shrink operations, that
+ * we won't be setting a holder to have a start after its stop.  Because if
+ * it was that close, it got matched above by a drop.)
+ *
+ * This may not be the most efficent impementation, but we can always fix
+ * that later.
+ * 
+ * Returns: int
+ */
+int drop_holder_by_range(Lock_t *lk, Waiters_t *lkrq)
+{
+   LLi_t *tp,*nxt;
+   Holders_t *h;
+   int ret = -1;
+
+   if( ! LLi_empty( &lk->Holders ) ) {
+      for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp = nxt ) {
+         nxt = LLi_next(tp);
+         h = LLi_data(tp);
+         if( compare_holder_waiter_names(h, lkrq) ) {
+            /* alright, matching name. now, does it over lap? */
+
+            /* Drop holder */
+            /* |-- lkrq --|
+             *   |- h -|
+             */
+            if( lkrq->start <  h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  >  h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+               ret = 0;
+            }else
+            /* |- lkrq -|
+             * |-- h ---|
+             */
+            if( lkrq->start == h->start &&
+                lkrq->stop  == h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+               ret = 0;
+            }else
+            /* |- lkrq -|
+             *    |- h -|
+             */
+            if( lkrq->start <  h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  == h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+               ret = 0;
+            }else
+            /* |- lkrq -|
+             * |- h -|
+             */
+            if( lkrq->start == h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  >  h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+               ret = 0;
+            }else
+
+            /* Shrink holder */
+            /* |-- lkrq --|
+             * |---------- h -|
+             */
+            /* |-- lkrq --|
+             *          |- h -|
+             */
+            if( lkrq->start <= h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  <  h->stop ) {
+               h->start = lkrq->stop + 1;
+               ret = 0;
+            }else
+            /*  |-- lkrq --|
+             * |- h -------|
+             */
+            /*  |-- lkrq --|
+             * |- h -|
+             */
+            if( lkrq->start >  h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  >= h->stop ) {
+               h->stop = lkrq->start - 1;
+               ret = 0;
+            }else
+
+            /* Split Holder */
+            /*   |- lkrq -|
+             * |----- h -----|
+             *  N           O
+             */
+            if( lkrq->start >  h->start &&
+                lkrq->start <  h->stop  &&
+                lkrq->stop  >  h->start &&
+                lkrq->stop  <  h->stop ) {
+               Holders_t *new;
+               new = get_new_holder();
+               LLi_init( &new->cl_list, new);
+               new->name = strdup(h->name);
+               GULMD_ASSERT(new->name != NULL, );
+               new->subid = h->subid;
+               new->idx = h->idx;
+               new->state = h->state;
+               new->flags = h->flags;
+               new->start = h->start;
+               new->stop = lkrq->start - 1;
+
+               increment_global_state_counters(new->state);
+               LLi_add_before( &h->cl_list, &new->cl_list);
+               lk->HolderCount++;
+
+               h->start = lkrq->stop + 1;
+               ret = 0;
+            }
+
+            /* No overlap */
+            /* |-- lkrq --|
+             *              |- h -|
+             */
+            /*         |-- lkrq --|
+             * |- h -|
+             */
+            /* Don't need to actually match these, just let things cycle to
+             * the next in the list.
+             */
+
+         }/*compare_holder_waiter_names(h, lkrq)*/
+      }/*for()*/
+   }/*! LLi_empty( &lk->Holders )*/
+   return ret;
+}
+
+/**
+ * merge_by_range - 
+ * @lk: 
+ * @lkrq: 
+ *
+ * Merges the lkrq into the holders list.
+ * This goes and combines and splits range holders as needed.
+ * 
+ * Basicly this goes through the Holder list and clears out a place for the
+ * new lkrq.  Then it adds the lkrq.  This is slightly weird for merge
+ * cases, because with these, the start/stop values of the lkrq change.
+ *
+ * The trick here is, that the values in the lkrq struct cannot change.
+ * If they change, the caller will see the new values, and they might be
+ * doing lookup based on that.
+ * (ok not that much of a trick, just means local values.)
+ *
+ *
+ * If it wans't for merge, this would be exactly like the drop_holder_by_range
+ * 
+ * This isn't optimised at all.
+ *
+ * Returns: int
+ */
+int merge_by_range(Lock_t *lk, Waiters_t *lkrq)
+{
+   LLi_t *tp, *nxt, *after = &lk->Holders;
+   Holders_t *h, *new;
+   /* merge matches below will change the realstart/stop */
+   uint64_t realstart = lkrq->start;
+   uint64_t realstop = lkrq->stop;
+
+   /* make space for the new guy. */
+   if( ! LLi_empty( &lk->Holders ) ) {
+      for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp = nxt ) {
+         nxt = LLi_next(tp);
+         h = LLi_data(tp);
+         if( compare_holder_waiter_names(h, lkrq) ) {
+
+            /* Replace Holder with lkrq.  */
+            /* |-- lkrq --|
+             *   |- h -|
+             */
+            if( realstart <  h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  >  h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+            }else
+            /* |- lkrq -|
+             * |-- h ---|
+             */
+            if( realstart == h->start &&
+                realstop  == h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+            }else
+            /* |- lkrq -|
+             *    |- h -|
+             */
+            if( realstart <  h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  == h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+            }else
+            /* |- lkrq -|
+             * |- h -|
+             */
+            if( realstart == h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  >  h->stop ) {
+               LLi_del(tp);
+               lk->HolderCount--;
+               decrement_global_state_counters(h->state);
+               recycle_holder(h);
+            }else
+
+            /* XXX
+             * The thing with the merges, is that it changes not only the
+             * list, but what we are trying to insert.  So this brings the
+             * question of the state of the merge scan we're doing.
+             * I almost think we need to start it over, I think if the
+             * holder list is sorted by start value, we can avoid this.
+             *
+             * So, what happens if I don't merge?  Well, from user
+             * perspective, should not be anything.  Internally, two
+             * things, First we could have many more Holders_t. Second,
+             * because of more holders_t, things could be slower.
+             */
+            /* Merge/Shrink lkrq into Holder */
+            /* |-- lkrq --|
+             *          |- h -|
+             */
+            if( realstart <  h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  <  h->stop ) {
+               if( lkrq->state == h->state ) {
+                  realstop = h->stop;
+                  LLi_del(tp);
+                  lk->HolderCount--;
+                  decrement_global_state_counters(h->state);
+                  recycle_holder(h);
+               }else{
+                  h->start = realstop + 1;
+               }
+            }else
+            /*  |-- lkrq --|
+             * |- h -|
+             */
+            if( realstart >  h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  >  h->stop ) {
+               if( lkrq->state == h->state ) {
+                  realstart = h->start;
+                  LLi_del(tp);
+                  lk->HolderCount--;
+                  decrement_global_state_counters(h->state);
+                  recycle_holder(h);
+               }else{
+                  h->stop = realstart - 1;
+               }
+            }else
+
+            /* Split Holder */
+            /*   |- lkrq -|
+             * |----- h -----|
+             *  N           O
+             */
+            if( realstart >  h->start &&
+                realstart <  h->stop  &&
+                realstop  >  h->start &&
+                realstop  <  h->stop ) {
+               Holders_t *new;
+               new = get_new_holder();
+               LLi_init( &new->cl_list, new);
+               new->name = strdup(h->name);
+               GULMD_ASSERT(new->name != NULL, );
+               new->subid = h->subid;
+               new->idx = h->idx;
+               new->state = h->state;
+               new->flags = h->flags;
+               new->start = h->start;
+               new->stop = realstart - 1;
+
+               increment_global_state_counters(new->state);
+               LLi_add_before( &h->cl_list, &new->cl_list);
+               lk->HolderCount++;
+
+               h->start = realstop + 1;
+
+            }
+
+            /* Just add */
+            /* |-- lkrq --|
+             *              |- h -|
+             */
+            /*         |-- lkrq --|
+             * |- h -|
+             */
+            /* Nothing to do here. will get added below. */
+
+         }/*compare_holder_waiter_names(h, lkrq)*/
+         if( h->start <= realstart ) after = nxt;
+         /* after is being set too soon. */
+      }/*for()*/
+   }/*! LLi_empty( &lk->Holders )*/
+
+   /* ok, now that we have a place for the new holder, add it. */
+   new = get_new_holder();
+   LLi_init( &new->cl_list, new);
+   new->name = strdup(lkrq->name);
+   GULMD_ASSERT(new->name != NULL, );
+   new->subid = lkrq->subid;
+   new->idx = lkrq->idx;
+   new->state = lkrq->state;
+   new->flags = lkrq->flags;
+   new->start = realstart;
+   new->stop = realstop;
+
+   increment_global_state_counters(new->state);
+   LLi_add_before( after, &new->cl_list);
+   lk->HolderCount++;
+   return 0;
+}
+
 /**
  * conflict_queue_empty - 
  * @lk: 
@@ -1477,10 +1861,6 @@ int Do_Holder_Waiter_conflict(Holders_t *h, Waiters_t *w)
    if( h->start > w->stop || h->stop < w->start ) return FALSE;
 
    /* if overlap, and same name, no conflict */ /* its a xmot */
-   /* need to check sub ID here.
-    * sub ID, if exists, behaves like it is part of name for conflict
-    * checking. (for expire commands it is ignored.)
-    * */
    if( compare_holder_waiter_names(h,w) ) return FALSE;
 
    /* if overlap, different names, but compatible states, no conflict */
@@ -1565,9 +1945,7 @@ void send_Try_Failed(Lock_t *lk, Waiters_t *lkrq)
 void put_onto_conflict_queue(Lock_t *lk, Waiters_t *lkrq)
 {
    if( lkrq->flags & gio_lck_fg_Piority ) {
-      /* not fully sure if this will do what is wanted.
-       * it seems to.
-       */
+      /* uncarefuly calling with piority could deadlock. */
       Qu_EnQu_Front(&lk->High_Waiters, &lkrq->wt_list);
    }else
    if( lkrq->flags & gio_lck_fg_NoExp ) {
@@ -1643,6 +2021,19 @@ void check_for_any_flag(Lock_t *lk, Waiters_t *lkrq)
  * @incomming: < TRUE if this is called from the incomming Queue.
  * 
  * this is called by both incomming queue runer and conflict queue runner.
+ *
+ * XXX
+ * ranging.
+ * - Need to have a drop_range().  Much like drop_holder, except it will
+ *   shrink and split if needed.
+ *  - ?drop_holder_by_range()?
+ * - Need a merge_range(). This does the merge/split/shrink/grow
+ *   add/remove/xmote actions. This is the painful function.
+ *  - would really like to maintain a flag that tells if there are any sub
+ *    range holders on a lock.  If there aren't then I can skip calling
+ *    merge_range(), which I feel will be a improvement.  But I do not know
+ *    this.
+ *
  * 
  * Returns: =0:Queue Emptied !0:Items still in Queue.
  */
@@ -1676,7 +2067,7 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
 
    if( lkrq->state == gio_lck_st_Unlock ) {
       /* do unlock */
-      ret = drop_holder(lk, lkrq);
+      ret = drop_holder_by_range(lk, lkrq);
       lkrq->flags &= ~gio_lck_fg_Cachable;
       if( lk->HolderCount == 0 ) cnt_unl_locks ++;
       /* check lvb save */
@@ -1700,8 +2091,9 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
       }else
       {
          /* Internal Unlock */
-         drop_holder(lk, lkrq);
+         drop_holder_by_range(lk, lkrq);
          lkrq->flags &= ~gio_lck_fg_Cachable;
+         if( lk->HolderCount == 0 ) cnt_unl_locks ++;
 
          /* then queue me on conflict. */
          put_onto_conflict_queue(lk, lkrq);
@@ -1722,7 +2114,6 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
       }
    }else
    {
-      if( lk->HolderCount == 0 ) cnt_unl_locks--;
       /* Do we currently have a hold? if yes, we're mutating, not adding
        * So we can either write a new loop function that does a 'if found
        * change, else add' or just do a drop followed by an add.
@@ -1730,7 +2121,31 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
        * Easier to reuse code for now, even though it feels like it is
        * doing extra work.  Will need to change for ranges anyways.
        * */
+#if 0
+      if( lk->HolderCount == 0 ) cnt_unl_locks--;
       drop_holder(lk, lkrq);
+      add_to_holders(lk, lkrq);
+#endif
+
+#if 0
+      merge_by_range(lk, lkrq);
+#endif
+      /* Lazy merging.
+       * Basically we don't bother merging at all.  To add a new range
+       * holder, we first clearout the area we want to add the new range,
+       * then just add the new range.
+       *
+       * The up side is that the code is a lot cleaner.
+       * The down side is that certain range activity will end up with a
+       * lot more memory used that if real merges happened.
+       */
+      if( lk->HolderCount == 0 ) {
+         /* no current holders, so just add. */
+         cnt_unl_locks--;
+      }else{
+         /* maybe stuff to drop. */
+         drop_holder_by_range(lk, lkrq);
+      }
       add_to_holders(lk, lkrq);
 
       /* check lvb save */
@@ -2058,13 +2473,15 @@ int force_lock_state(Waiters_t *lkrq)
    }
 
    if( lkrq->state == gio_lck_st_Unlock ) {
-      drop_holder(lk, lkrq);
+      drop_holder_by_range(lk, lkrq);
       if( lk->HolderCount == 0 ) cnt_unl_locks++;
       check_for_recycle(lk);
    }else
    {
-      if( lk->HolderCount == 0 ) cnt_unl_locks--;
-      drop_holder(lk, lkrq);
+      if( lk->HolderCount == 0 )
+         cnt_unl_locks--;
+      else
+         drop_holder_by_range(lk, lkrq);
       add_to_holders(lk, lkrq);
    }
 
@@ -2789,11 +3206,7 @@ int deserialize_lockspace(int fd)
          h->idx = 0;
          if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
          if( (err=xdr_dec_uint8(xdr, &h->state)) != 0 ) goto fail;
-         switch(h->state) {
-            case gio_lck_st_Exclusive: cnt_exl_locks++; break;
-            case gio_lck_st_Deferred: cnt_dfr_locks++; break;
-            case gio_lck_st_Shared: cnt_shd_locks++; break;
-         }
+         increment_global_state_counters(h->state);
          if( (err=xdr_dec_uint64(xdr, &h->start)) != 0 ) goto fail;
          if( (err=xdr_dec_uint64(xdr, &h->stop)) != 0 ) goto fail;
          LLi_add_after( &lk->Holders, &h->cl_list);

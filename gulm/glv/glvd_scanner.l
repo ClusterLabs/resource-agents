@@ -61,6 +61,7 @@ synclvb   { return SYNCLVB; }
 
 noflags   { return NOFLAGS; }
 docb      { return DOCB; }
+nocb      { return NOCB; }
 try       { return TRY; }
 any       { return ANY; }
 ignoreexp { return IGNOREEXP; }
@@ -68,6 +69,9 @@ cachable  { return CACHABLE; }
 piority   { return PIORITY; }
 
 \| { return FLAGOR; }
+
+\[ { return LSBRACE; }
+\] { return RSBRACE; }
 
 [0-9]+ { yylval.num = atoi(yytext); return NUMBER; }
 

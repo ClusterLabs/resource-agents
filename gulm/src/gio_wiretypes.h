@@ -420,9 +420,14 @@
 #define gio_lck_fg_Cachable    (0x00000020)
 #define gio_lck_fg_Piority     (0x00000040)
  /* this is just an idea, but it might be useful.  Basically just says to
-  * not keep the exp hold, just drop this hold like a shared would eb.
+  * not keep the exp hold, just drop this hold like a shared would be.
   */
 #define gio_lck_fg_DropOnExp   (0x00000080)
+ /* this is saved on each holder, basically, you are gonna ignore any
+  * callbacks about this lock, so tell the server not to even bother
+  * sending them.  A tiny performance boost by lowering the network load.
+  */
+#define gio_lck_fg_NoCallBacks (0x00000100)
 
 #endif /*__gio_wiretypes_h__*/
 /* vim: set ai cin et sw=3 ts=3 : */

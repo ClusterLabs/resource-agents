@@ -1,0 +1,39 @@
+# like basiclockconflict.glv, but with one node and subids.
+nodecount 1
+
+test
+	lock 0 42 testlock exclusive noflags nolvb
+	lrpl 0 42 testlock exclusive cachable ok nolvb
+end
+
+test
+	lock 0 66 testlock exclusive try nolvb
+	lrpl 0 66 testlock exclusive try tryfailed nolvb
+end
+
+test
+	lock 0 66 testlock exclusive try|docb nolvb
+	lrpl 0 66 testlock exclusive try|docb tryfailed nolvb
+	drop 0 42 testlock exclusive
+end
+
+test
+	lock 0 66 testlock shared noflags nolvb
+	drop 0 42 testlock shared
+end
+
+test
+	lock 0 42 testlock shared noflags nolvb
+	lrpl 0 42 testlock shared cachable ok nolvb
+	lrpl 0 66 testlock shared cachable ok nolvb
+end
+
+test
+	lock 0 42 testlock unlock noflags nolvb
+	lrpl 0 42 testlock unlock noflags ok nolvb
+end
+
+test
+	lock 0 66 testlock unlock noflags nolvb
+	lrpl 0 66 testlock unlock noflags ok nolvb
+end

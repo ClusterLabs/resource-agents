@@ -1,0 +1,33 @@
+# This verifies that the NoCB flag is working.
+nodecount 3
+
+test
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
+end
+
+test
+	lock 2 0 testlock shared nocb nolvb
+	lrpl 2 0 testlock shared cachable ok nolvb
+end
+
+test
+	lock 1 0 testlock exclusive noflags nolvb
+	drop 0 0 testlock exclusive
+end
+
+test
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
+end
+
+test
+	lock 2 0 testlock unlock noflags nolvb
+	lrpl 2 0 testlock unlock noflags ok nolvb
+	lrpl 1 0 testlock exclusive cachable ok nolvb
+end
+
+test
+	lock 1 0 testlock unlock noflags nolvb
+	lrpl 1 0 testlock unlock noflags ok nolvb
+end

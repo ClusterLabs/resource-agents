@@ -601,6 +601,7 @@ static int master_probe_top(void)
    /* socket connect to CM */
    if((cmFD = socket(AF_INET6, SOCK_STREAM, 0)) <0) return -1;
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    memcpy(&adr.sin6_addr, &in->ip, sizeof(struct in6_addr));
    adr.sin6_port = htons(gulm_config.corePort);

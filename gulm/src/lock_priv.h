@@ -41,8 +41,11 @@ typedef struct waiters_s {
    uint64_t stoptime;  /* when did we make it history? */
 #endif
 }Waiters_t;
-/* uses 168 bytes on 32bits
- *      200 bytes on 64bits
+/* uses 71 bytes on 32bits
+ *      103 bytes on 64bits
+ * with history on:
+ *      87 bytes on 32bits
+ *      119 bytes on 64bits
  */
 
 typedef struct Holders_s {
@@ -51,15 +54,16 @@ typedef struct Holders_s {
    uint64_t subid;
    uint8_t  state;
    uint64_t start; /* range start */
-   uint64_t stop;  /* reange stop */
+   uint64_t stop;  /* range stop */
+   uint32_t flags;
    int      idx; /* used by the send_drp_req() function.  It is a caching of
                  * the idx offset into the pollers.  It is checked to be
                  * valid before use, and if wrong updated.  As such, it
                  * should be inited to 0 and ignored by others.
                  */
 } Holders_t;
-/* uses 37 on 32bits
- *      57 on 64bits
+/* uses 45 on 32bits
+ *      61 on 64bits
  */
 
 typedef struct Lock_s {
@@ -95,8 +99,11 @@ typedef struct Lock_s {
 #endif
 
 } Lock_t;
-/* uses 271 on 32bits
- *      391 on 64bits
+/* uses 122 on 32bits
+ *      230 on 64bits
+ * with history on:
+ *      138 bytes on 32bits
+ *      258 bytes on 64bits
  */
 
 /* About the queues in Lock_t
@@ -118,6 +125,11 @@ typedef struct Lock_s {
  *    lock, and must wait for a change before it can be completed, it is
  *    placed onto this queue.
  *    
+ * Then if you are in for some major debugging, you can turn on the History
+ * queue.  This just saves the last couple of lock requests so you can see
+ * what is happening on the lock. (do a lock dump to see.)  This really
+ * sucks up memory, so you don't want it around unless you are debugging
+ * something deep.
  *
  *
  */

@@ -8,14 +8,14 @@ All the rest are fairly free form. Since the client is mostly just a
 pass-through for stuff to gulm.
 
 glvd sends:
- lock <subid> <key> <state> <flags> <lvb>\n
+ lock <subid> <key> <rstart> <rstop> <state> <flags> <lvb>\n
  action <subid> <key> <action> <lvb>\n
  cancel <subid> <key>\n
  dropexp <nodename> <mask>\n
  GOODBYE\n
 
 glvc send:
- lrpl <subid> <key> <state> <flags> <error> <lvb>\n
+ lrpl <subid> <key> <rstart> <rstop> <state> <flags> <error> <lvb>\n
  arpl <subid> <key> <action> <error>\n
  drop <subid> <key> <state>\n
  GOODBYE\n

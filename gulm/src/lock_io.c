@@ -523,6 +523,7 @@ int open_lt_to_core(void)
       return -1;
    }
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    adr.sin6_addr = in6addr_loopback;
    adr.sin6_port = htons(gulm_config.corePort);
@@ -607,9 +608,6 @@ int open_lt_to_core(void)
  * ssearch for the name *every* time a drop lock request is made (which is
  * nearly every lock op with multiple clients) is unacceptable.  So we
  * search once and cache it.
- * 
- * If I start having multiple connection from one node, this will need to
- * be changed some more to be able to determin each from eachother.
  * 
  * Returns: poller idx
  */
@@ -1136,7 +1134,8 @@ void send_drp_req(Lock_t *lk, Waiters_t *lkrq)
    if( ! LLi_empty( &lk->Holders ) ) {
       for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
          h = LLi_data(tp);
-         if( ! compare_holder_waiter_names(h, lkrq) ) {
+         if( !(h->flags & gio_lck_fg_NoCallBacks) &&
+             ! compare_holder_waiter_names(h, lkrq) ) {
 
             new = get_new_lkrq();
             GULMD_ASSERT( new != NULL, );
@@ -1377,6 +1376,7 @@ static int logintoMaster(void)
       return -1;
    }
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    memcpy(&adr.sin6_addr, &MasterIN.ip, sizeof(struct in6_addr));
    adr.sin6_port = htons( gulm_config.lt_port + LTid );

@@ -422,6 +422,7 @@ int open_ltpx_to_core(void)
       return -1;
    }
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    adr.sin6_addr = in6addr_loopback;
    adr.sin6_port = htons(gulm_config.corePort);
@@ -771,6 +772,7 @@ static int logintoMaster(int lt_id)
       return -1;
    }
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    memcpy(&adr.sin6_addr, &MasterIN.ip, sizeof(struct in6_addr));
    adr.sin6_port = htons(gulm_config.lt_port + lt_id);

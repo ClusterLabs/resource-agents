@@ -1,0 +1,16 @@
+# this leaves residue so I can see how merging is working by dumping out
+# the lock state.
+nodecount 1
+test
+	lock 0 0 leftside [500 2000] shared noflags nolvb
+	lrpl 0 0 leftside [500 2000] shared cachable ok nolvb
+end
+
+test
+	lock 0 0 leftside [0 1000] shared noflags nolvb
+	lrpl 0 0 leftside [0 1000] shared cachable ok nolvb
+end
+
+# Two possible results here
+# True Merging: one shared holder from 0 to 2000
+# Lazy Merging: Two shared holders, [0 1000] and [1001 2000]

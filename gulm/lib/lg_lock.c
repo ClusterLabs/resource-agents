@@ -339,7 +339,6 @@ int lg_lock_state_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
    gulm_interface_t *lg = (gulm_interface_t *)lgp;
    struct iovec iov[2];
    xdr_enc_t *enc;
-   uint32_t iflgs = 0;
    int err;
 
    /* make sure it is a gulm_interface_p. */
@@ -355,21 +354,16 @@ int lg_lock_state_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
        state != lg_lock_state_Shared )
       return -EINVAL;
 
+   if( stop < start ) return -EINVAL;
+
    /* make sure only the accepted flags get passed through. */
-   if( (flags & lg_lock_flag_DoCB ) ==  lg_lock_flag_DoCB)
-      iflgs |= lg_lock_flag_DoCB;
-   if( (flags & lg_lock_flag_Try ) == lg_lock_flag_Try )
-      iflgs |= lg_lock_flag_Try;
-   if( (flags & lg_lock_flag_Any ) == lg_lock_flag_Any )
-      iflgs |= lg_lock_flag_Any;
-   if( (flags & lg_lock_flag_IgnoreExp ) == lg_lock_flag_IgnoreExp )
-      iflgs |= lg_lock_flag_IgnoreExp;
-   if( (flags & lg_lock_flag_Piority ) == lg_lock_flag_Piority )
-      iflgs |= lg_lock_flag_Piority;
+   flags &= lg_lock_flag_DoCB|lg_lock_flag_Try|lg_lock_flag_Any|
+            lg_lock_flag_IgnoreExp|lg_lock_flag_Piority|
+            lg_lock_flag_NoCallBacks;
 
    enc = lg->lock_enc;
 
-   if( LVB != NULL && LVBlen > 0) iflgs |= gio_lck_fg_hasLVB;
+   if( LVB != NULL && LVBlen > 0) flags |= gio_lck_fg_hasLVB;
 
    iov[0].iov_base = lg->lockspace;
    iov[0].iov_len = 4;
@@ -384,8 +378,8 @@ int lg_lock_state_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
       if((err = xdr_enc_uint64(enc, start)) != 0) break;
       if((err = xdr_enc_uint64(enc, stop)) != 0) break;
       if((err = xdr_enc_uint8(enc, state)) != 0 ) break;
-      if((err = xdr_enc_uint32(enc, iflgs)) != 0 ) break;
-      if( iflgs & gio_lck_fg_hasLVB )
+      if((err = xdr_enc_uint32(enc, flags)) != 0 ) break;
+      if( flags & gio_lck_fg_hasLVB )
          if((err = xdr_enc_raw(enc, LVB, LVBlen)) != 0 ) break;
       if((err = xdr_enc_flush(enc)) != 0 ) break;
    }while(0);

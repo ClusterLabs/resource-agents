@@ -90,7 +90,8 @@ int glv_lock_state(void *misc, uint8_t *key, uint16_t keylen,
    /* kinda a cheet here. */
    if( strlen(LVB) == 0 ) LVBlen = 0;
 
-   actual = snprintf(buffy, 160, "lrpl %d %s %d %d %d %s\n", sid, key,
+   actual = snprintf(buffy, 160, "lrpl %d %s %u %u %d %d %d %s\n", sid, key,
+         (unsigned int)start, (unsigned int)stop,
          state, flags, error, LVBlen==0?"nolvb":(char*)LVB);
    verb(3, "Sending to glvd: %s", buffy);
    send(masterSK, buffy, actual, 0);
@@ -138,7 +139,7 @@ error: glv_lock_error
 void parse_action(int sk)
 {
    char buffy[160], *key=NULL, *lvb=NULL;
-   int cnt, state, flags, subid;
+   int cnt, state, flags, subid, start, stop;
    
    if( (cnt=recv(sk, buffy, 160, 0)) <0)
       die("read failed. %d\n");
@@ -150,12 +151,12 @@ void parse_action(int sk)
    buffy[cnt-1] = '\0';
    verb(3, "Got from glvd: %s\n", buffy);
 
-   if(sscanf(buffy, "lock %d %as %d %d %as",
-            &subid, &key, &state, &flags, &lvb) == 5) {
+   if(sscanf(buffy, "lock %d %as %u %u %d %d %as",
+            &subid, &key, &start, &stop, &state, &flags, &lvb) == 7) {
       if( strcmp(lvb, "nolvb") == 0 ) {free(lvb); lvb=NULL;}
       verb(3, "Matched lock.\n");
-      lg_lock_state_req(hookup, key, strlen(key)+1, subid, 0, 0, state,
-            flags, lvb, lvb==NULL?0:(strlen(lvb)+1) );
+      lg_lock_state_req(hookup, key, strlen(key)+1, subid, start, stop,
+            state, flags, lvb, lvb==NULL?0:(strlen(lvb)+1) );
    }else
    if(sscanf(buffy, "action %d %as %d %as", &subid, &key, &state, &lvb) == 4) {
       if( strcmp(lvb, "nolvb") == 0 ) {free(lvb); lvb=NULL;}

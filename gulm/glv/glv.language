@@ -25,6 +25,7 @@ action: lock
       | dropexp
 
 lock: lock <nodeidx> <subid> <keyname> <state> <flags> <lvb>
+lock: lock <nodeidx> <subid> <keyname> [<start> <stop>] <state> <flags> <lvb>
 
 act: action <nodeidx> <subid> <keyname> <actname> <lvb>
 
@@ -33,6 +34,7 @@ cancel: cancel <nodeidx> <subid> <keyname>
 dropexp: dropexp <nodeidx> <string> <keyname>
 
 lrpl: lrpl <nodeidx> <subid> <keyname> <state> <flags> <error> <lvb>
+lrpl: lrpl <nodeidx> <subid> <keyname> [<start> <stop>] <state> <flags> <error> <lvb>
 
 arpl: arpl <nodeidx> <subid> <keyname> <actname> <error>
 

@@ -98,6 +98,16 @@ void verify_reaction(struct glv_reaction *in, struct glv_test *running)
                   tmp->line);
             errors = TRUE;
          }
+         if( in->start != tmp->start ) {
+            perr("Expected start range(%u) is not what we got(%u) on line%d\n",
+                  tmp->start, in->start, tmp->line);
+            errors = TRUE;
+         }
+         if( in->stop != tmp->stop ) {
+            perr("Expected stop range(%u) is not what we got(%u) on line%d\n",
+                  tmp->stop, in->stop, tmp->line);
+            errors = TRUE;
+         }
          if( in->lvb == NULL && tmp->lvb == NULL ) {
             /* both NULL, things are ok. so a nop. */
          }else
@@ -166,10 +176,11 @@ void check_reactions(int sk, struct glv_test *running)
    buffy[cnt-1] = '\0';
    verb(3, "Got from glvc[%d]: %s\n", incomming.nodeidx, buffy);
 
-   if(sscanf(buffy, "lrpl %d %s %d %d %d %s", 
+   if(sscanf(buffy, "lrpl %d %s %u %u %d %d %d %s", 
                &incomming.subid, 
-               key, &incomming.state, &incomming.flags,
-               &incomming.error, lvb) == 6) {
+               key, &incomming.start, &incomming.stop,
+               &incomming.state, &incomming.flags,
+               &incomming.error, lvb) == 8) {
       if( strcmp(lvb, "nolvb") == 0 ) {
          incomming.lvb = NULL;
       }else{
@@ -211,9 +222,10 @@ void do_action(struct glv_action *action)
    int actual;
    switch(action->action) {
       case glv_lock:
-         actual = snprintf(buffy, 160, "lock %d %s %d %d %s\n",
+         actual = snprintf(buffy, 160, "lock %d %s %u %u %d %d %s\n",
                action->subid,
-               action->key, action->state, action->flags,
+               action->key, action->start, action->stop,
+               action->state, action->flags,
                action->lvb==NULL?"nolvb":action->lvb);
          verb(3, "Sending to glvc[%d] %s", action->nodeidx, buffy);
          send(NodeSKs[action->nodeidx], buffy, actual, 0);

@@ -18,6 +18,8 @@ struct glv_action {
    int nodeidx;
    int subid;
    char *key;
+   unsigned int start;
+   unsigned int stop;
    int state;
    int flags;
    char *lvb;
@@ -28,6 +30,8 @@ struct glv_reaction {
    int nodeidx;
    int subid;
    char *key;
+   unsigned int start;
+   unsigned int stop;
    int state;
    int flags;
    int error;

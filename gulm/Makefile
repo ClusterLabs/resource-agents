@@ -10,23 +10,7 @@
 ##
 ###############################################################################
 ###############################################################################
-# You should always run configure first.
-# ignore this stunt. since if you did not run configure, it assumes things
-# are setup for my private build/test environment.
-ifeq (make/defines.mk, $(wildcard make/defines.mk))
 include make/defines.mk
-else
-#working in my private playground, thus set the location of things.
-sbindir=${DESTDIR}/sbin
-mandir=${DESTDIR}/usr/share/man
-libdir=${DESTDIR}/lib
-incdir=${DESTDIR}/usr/include
-RELEASE=internalonly
-INCLUDE+=-I../ccs/lib
-LDFLAGS+=-L../ccs/lib
-CFLAGS+=-Wall
-CC=ccache distcc gcc
-endif
 UNINSTALL=scripts/uninstall.pl
 
 #source lists.
