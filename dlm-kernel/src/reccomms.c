@@ -301,8 +301,8 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		 * The other node wants to know the master of a named resource.
 		 */
 
-		status = dlm_dir_lookup_recovery(ls, nodeid, rc->rc_buf,
-						 rc->rc_datalen, &r_nodeid);
+		status = dlm_dir_lookup(ls, nodeid, rc->rc_buf, rc->rc_datalen,
+					&r_nodeid);
 		if (status != 0) {
 			free_rcom_buffer(reply);
 			reply = NULL;

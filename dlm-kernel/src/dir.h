@@ -19,8 +19,6 @@ uint32_t get_directory_nodeid(struct dlm_rsb *rsb);
 
 int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 			uint32_t *r_nodeid);
-int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
-                            int namelen, uint32_t *r_nodeid);
 void dlm_dir_remove(struct dlm_ls *ls, uint32_t nodeid, char *name,
 		    int namelen);
 int dlm_dir_rebuild_local(struct dlm_ls *ls);

@@ -345,7 +345,7 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 }
 
 static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
-		     int namelen, uint32_t *r_nodeid, int recovery)
+		     int namelen, uint32_t *r_nodeid)
 {
 	struct dlm_direntry *de, *tmp;
 	uint32_t bucket;
@@ -388,13 +388,7 @@ static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
 int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 		   uint32_t *r_nodeid)
 {
-	return get_entry(ls, nodeid, name, namelen, r_nodeid, 0);
-}
-
-int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
-			    int namelen, uint32_t *r_nodeid)
-{
-	return get_entry(ls, nodeid, name, namelen, r_nodeid, 1);
+	return get_entry(ls, nodeid, name, namelen, r_nodeid);
 }
 
 /* 

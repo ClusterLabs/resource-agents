@@ -461,8 +461,8 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 	dir_nodeid = get_directory_nodeid(rsb);
 
 	if (dir_nodeid == our_nodeid()) {
-		error = dlm_dir_lookup_recovery(ls, dir_nodeid, rsb->res_name,
-				    	        rsb->res_length, &r_nodeid);
+		error = dlm_dir_lookup(ls, dir_nodeid, rsb->res_name,
+				       rsb->res_length, &r_nodeid);
 		if (error)
 			goto fail;
 
@@ -589,8 +589,8 @@ int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 		uint32_t r_nodeid, be_nodeid;
 		int status;
 
-		status = dlm_dir_lookup_recovery(ls, nodeid, inbufptr + 1,
-						 *inbufptr, &r_nodeid);
+		status = dlm_dir_lookup(ls, nodeid, inbufptr + 1, *inbufptr,
+					&r_nodeid);
 		if (status != 0)
 			goto fail;
 
