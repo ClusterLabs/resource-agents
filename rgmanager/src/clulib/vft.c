@@ -1468,7 +1468,8 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 
 		if ((hdrp->vm_msg.vf_datalen + sizeof(*hdrp)) != nbytes) {
 			fprintf(stderr, "VF: JOIN_VIEW: Invalid size %d/%d\n",
-				nbytes, hdrp->vm_msg.vf_datalen + sizeof(*hdrp));
+				nbytes, hdrp->vm_msg.vf_datalen +
+				(uint32_t)sizeof(*hdrp));
 
 			return VFR_ERROR;
 		}

@@ -258,7 +258,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
 
 	if (datalen != sizeof(*svcblk)) {
 		printf("Size mismatch; expected %d got %d\n",
-		       sizeof(*svcblk), datalen);
+		       (int)sizeof(*svcblk), datalen);
 		if (data)
 			free(data);
 		cml_free(membership);
