@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.96 $) dnl cvs revision
+AC_REVISION($Revision: 1.97 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -126,6 +126,9 @@ AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 AC_PATH_PROGS(NETSTAT, netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
 AC_PATH_PROGS(IFCONFIG, ifconfig)
+AC_PATH_PROGS(SSH, ssh)
+AC_PATH_PROGS(SCP, scp)
+AC_PATH_PROGS(PYTHON, python)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
@@ -148,6 +151,11 @@ else
       AC_MSG_RESULT("using $GLIBCONFIG")
 fi
 
+AC_MSG_CHECKING(where is python installed)
+if test "x${PYTHON}" = x; then
+  PYTHON="/usr/bin/env python";
+fi
+AC_MSG_RESULT("using $PYTHON");
 
 AC_MSG_CHECKING(if netstat supports -f inet flag)
 $NETSTAT -rn -f inet > /dev/null 2>&1
@@ -775,8 +783,14 @@ AC_SUBST(XPERIMENTALDIRS)
 AC_CONFIG_SUBDIRS(libltdl)
 
 dnl The Makefiles and shell scripts we output
-AC_OUTPUT(heartbeat.spec \
+AC_OUTPUT(heartbeat.spec 					\
 Makefile						        \
+	cts/CM_fs.py						\
+	cts/CM_hb.py						\
+	cts/CTS.py						\
+	cts/CTSaudits.py					\
+	cts/CTSlab.py						\
+	cts/CTStests.py						\
 debian/Makefile							\
 doc/Makefile							\
 include/Makefile						\
