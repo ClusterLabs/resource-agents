@@ -259,11 +259,11 @@ static int ls_pthread_cleanup(struct dlm_ls_info *lsinfo)
 }
 #endif
 
-static void set_version(struct dlm_lock_params *params)
+static void set_version(struct dlm_write_request *req)
 {
-    params->version[0] = DLM_DEVICE_VERSION_MAJOR;
-    params->version[1] = DLM_DEVICE_VERSION_MINOR;
-    params->version[2] = DLM_DEVICE_VERSION_PATCH;
+    req->version[0] = DLM_DEVICE_VERSION_MAJOR;
+    req->version[1] = DLM_DEVICE_VERSION_MINOR;
+    req->version[2] = DLM_DEVICE_VERSION_PATCH;
 }
 
 /* Open the default lockspace */
@@ -348,23 +348,69 @@ static int open_control_device()
 
 static int do_dlm_dispatch(int fd)
 {
-    struct dlm_lock_result result;
+    char resultbuf[sizeof(struct dlm_lock_result)];
+    struct dlm_lock_result *result = (struct dlm_lock_result *)resultbuf;
+    char *fullresult=NULL;
     int status;
+    void (*astaddr)(void *astarg);
 
-    status = read(fd, &result, sizeof(result));
-    if (status != sizeof(result))
+    /* Just read the header first */
+    status = read(fd, result, sizeof(struct dlm_lock_result));
+    if (status <= 0)
 	return -1;
 
+    if (result->length != status)
+    {
+        int newstat;
+
+	fullresult = malloc(result->length);
+	if (!fullresult)
+	    return -1;
+
+	newstat = read(fd, fullresult, result->length);
+
+	/* If it read OK then use the new data. otherwise we can
+	   still deliver the AST, it just might not have all the
+	   info in it...hmmm */
+	if (newstat == result->length)
+		result = (struct dlm_lock_result *)fullresult;
+    }
+
     /* Copy lksb to user's buffer - except the LVB ptr */
-    memcpy(result.user_lksb, &result.lksb, sizeof(struct dlm_lksb) - sizeof(char*));
+    memcpy(result->user_lksb, &result->lksb, sizeof(struct dlm_lksb) - sizeof(char*));
 
     /* Flip the status. Kernel space likes negative return codes,
        userspace positive ones */
-    result.user_lksb->sb_status = -result.user_lksb->sb_status;
+    result->user_lksb->sb_status = -result->user_lksb->sb_status;
+
+    /* Copy optional items */
+    if (result->lvb_offset)
+	memcpy(result->user_lksb->sb_lvbptr, fullresult+result->lvb_offset, DLM_LVB_LEN);
+
+    if (result->qinfo_offset)
+    {
+	/* Just need the lockcount written out here */
+	struct dlm_queryinfo *qi = (struct dlm_queryinfo *)(fullresult+result->qinfo_offset);
+	result->user_qinfo->gqi_lockcount = qi->gqi_lockcount;
+    }
+
+    if (result->qresinfo_offset)
+	memcpy(result->user_qinfo->gqi_resinfo, fullresult+result->qresinfo_offset,
+	       sizeof(struct dlm_resinfo));
+
+    if (result->qlockinfo_offset)
+	memcpy(result->user_qinfo->gqi_lockinfo, fullresult+result->qlockinfo_offset,
+	       sizeof(struct dlm_lockinfo) * result->user_qinfo->gqi_lockcount);
 
     /* Call AST */
-    if (result.astaddr)
-       result.astaddr(result.astparam);
+    if (result->user_astaddr)
+    {
+	astaddr = result->user_astaddr;
+	astaddr(result->user_astparam);
+    }
+
+    if (fullresult)
+	free(fullresult);
     return 0;
 }
 
@@ -375,7 +421,7 @@ static int do_dlm_dispatch(int fd)
    operation to complete. This hides the different completion mechanism
    used when called from the main thread or the DLM 'AST' thread.
 */
-static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params, int len)
+static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req, int len)
 {
     int	status;
     struct lock_wait lwait;
@@ -383,13 +429,14 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params
     if (pthread_self() == lsinfo->tid)
     {
         /* This is the DLM worker thread, don't use lwait to sync */
-	params->castaddr  = dummy_ast_routine;
-	params->castparam = NULL;
+	req->i.lock.castaddr  = dummy_ast_routine;
+	req->i.lock.castparam = NULL;
 
-	status = write(lsinfo->fd, params, len);
-	if (status != len)
+	status = write(lsinfo->fd, req, len);
+	if (status < 0)
 	    return -1;
-	while (params->lksb->sb_status == EINPROG) {
+
+	while (req->i.lock.lksb->sb_status == EINPROG) {
 	    do_dlm_dispatch(lsinfo->fd);
 	}
     }
@@ -399,16 +446,17 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params
 	pthread_mutex_init(&lwait.mutex, NULL);
 	pthread_mutex_lock(&lwait.mutex);
 
-	params->castaddr  = sync_ast_routine;
-	params->castparam = &lwait;
+	req->i.lock.castaddr  = sync_ast_routine;
+	req->i.lock.castparam = &lwait;
 
-	status = write(lsinfo->fd, params, len);
-	if (status != len)
+	status = write(lsinfo->fd, req, len);
+	if (status < 0)
 	    return -1;
+
 	pthread_cond_wait(&lwait.cond, &lwait.mutex);
 	pthread_mutex_unlock(&lwait.mutex);
     }
-    return 0;	/* lock status is in the lksb */
+    return status;	/* lock status is in the lksb */
 }
 #endif
 
@@ -474,36 +522,36 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 		struct dlm_range *range)
 {
     int len;
-    char param_buf[sizeof(struct dlm_lock_params) + DLM_RESNAME_MAXLEN];
-    struct dlm_lock_params *params =  (struct dlm_lock_params *)param_buf;
+    char param_buf[sizeof(struct dlm_write_request) + DLM_RESNAME_MAXLEN];
+    struct dlm_write_request *req =  (struct dlm_write_request *)param_buf;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
     int status;
 
-    set_version(params);
+    set_version(req);
 
-    params->cmd = DLM_USER_LOCK;
-    params->mode = mode;
-    params->flags = flags;
-    params->lkid = lksb->sb_lkid;
-    params->parent = parent;
-    params->lksb = lksb;
-    params->castaddr  = astaddr;
-    params->bastaddr = bastaddr;
-    params->castparam = astarg;	/* completion and blocking ast arg are the same */
-    params->bastparam = astarg;
+    req->cmd = DLM_USER_LOCK;
+    req->i.lock.mode = mode;
+    req->i.lock.flags = flags;
+    req->i.lock.lkid = lksb->sb_lkid;
+    req->i.lock.parent = parent;
+    req->i.lock.lksb = lksb;
+    req->i.lock.castaddr  = astaddr;
+    req->i.lock.bastaddr = bastaddr;
+    req->i.lock.castparam = astarg;	/* completion and blocking ast arg are the same */
+    req->i.lock.bastparam = astarg;
     if (range)
     {
-	params->range.ra_start = range->ra_start;
-	params->range.ra_end = range->ra_end;
+	req->i.lock.range.ra_start = range->ra_start;
+	req->i.lock.range.ra_end = range->ra_end;
     }
     else
     {
-	params->range.ra_start = 0L;
-	params->range.ra_end = 0L;
+	req->i.lock.range.ra_start = 0L;
+	req->i.lock.range.ra_end = 0L;
     }
     if (flags & LKF_CONVERT)
     {
-	params->namelen = 0;
+	req->i.lock.namelen = 0;
     }
     else
     {
@@ -512,17 +560,33 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 	    errno = EINVAL;
 	    return -1;
 	}
-	params->namelen = namelen;
-	memcpy(params->name, name, namelen);
+	req->i.lock.namelen = namelen;
+	memcpy(req->i.lock.name, name, namelen);
     }
-    len = sizeof(struct dlm_lock_params) + params->namelen - 1;
+    if (flags & LKF_VALBLK)
+    {
+	memcpy(req->i.lock.lvb, lksb->sb_lvbptr, DLM_LVB_LEN);
+    }
+    len = sizeof(struct dlm_write_request) + namelen - 1;
     lksb->sb_status = EINPROG;
 
-    status = write(lsinfo->fd, params, len);
-    if (status != len)
-	return -1;
+#ifdef _REENTRANT
+    if (flags & LKF_WAIT)
+	status = sync_write(lsinfo, req, len);
     else
+#endif
+	status = write(lsinfo->fd, req, len);
+
+    if (status < 0)
+    {
+	return -1;
+    }
+    else
+    {
+	if (status > 0)
+	    lksb->sb_lkid = status;
 	return 0;
+    }
 }
 
 #ifdef _REENTRANT
@@ -539,8 +603,9 @@ int dlm_lock_wait(uint32_t mode,
     if (open_default_lockspace())
 	    return -1;
 
-    return dlm_ls_lock_wait(default_ls, mode, lksb, flags, name, namelen, parent,
-			    bastarg, bastaddr, range);
+    return dlm_ls_lock(default_ls, mode, lksb, flags | LKF_WAIT,
+		       name, namelen, parent, NULL, bastarg,
+		       bastaddr, range);
 }
 
 /*
@@ -557,90 +622,26 @@ int dlm_ls_lock_wait(dlm_lshandle_t ls,
 		     void (*bastaddr) (void *bastarg),
 		     struct dlm_range *range)
 {
-    int len;
-    char param_buf[sizeof(struct dlm_lock_params) + DLM_RESNAME_MAXLEN];
-    struct dlm_lock_params *params =  (struct dlm_lock_params *)param_buf;
-    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
-    int status;
 
-    set_version(params);
-
-    params->cmd = DLM_USER_LOCK;
-    params->mode = mode;
-    params->flags = flags;
-    params->lkid = lksb->sb_lkid;
-    params->parent = parent;
-    params->lksb = lksb;
-    params->bastaddr = bastaddr;
-    params->bastparam = bastarg;
-
-    if (range)
-    {
-        params->range.ra_start = range->ra_start;
-	params->range.ra_end = range->ra_end;
-    }
-    else
-    {
-	params->range.ra_start = 0L;
-	params->range.ra_end = 0L;
-    }
-    if (flags & LKF_CONVERT)
-    {
-	params->namelen = 0;
-    }
-    else
-    {
-	if (namelen > DLM_RESNAME_MAXLEN)
-	{
-	    errno = EINVAL;
-	    return -1;
-	}
-	params->namelen = namelen;
-	memcpy(params->name, name, namelen);
-    }
-    len = sizeof(struct dlm_lock_params) + params->namelen - 1;
-    lksb->sb_status = EINPROG;
-
-    status = sync_write(lsinfo, params, len);
-    return status;
+    return dlm_ls_lock(ls, mode, lksb, flags | LKF_WAIT,
+		       name, namelen, parent, NULL, bastarg,
+		       bastaddr, range);
 }
 
 int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
 		       uint32_t flags, struct dlm_lksb *lksb)
 {
-    struct dlm_lock_params params;
-    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
-    int status;
 
-    if (ls == NULL)
-    {
-        errno = ENOTCONN;
-	return -1;
-    }
-
-    if (!lkid)
-    {
-	errno = EINVAL;
-	return -1;
-    }
-
-    set_version(&params);
-    params.cmd = DLM_USER_UNLOCK;
-    params.lkid = lkid;
-    params.flags = flags;
-    params.lksb  = lksb;
-    lksb->sb_status = EINPROG;
-
-    status = sync_write(lsinfo, &params, sizeof(params));
-    return status;
+	return dlm_ls_unlock(ls, lkid, flags | LKF_WAIT,
+			     lksb, NULL);
 }
 
 int dlm_ls_query_wait(dlm_lshandle_t lockspace,
-		 struct dlm_lksb *lksb,
-		 int query,
-		 struct dlm_queryinfo *qinfo)
+		      struct dlm_lksb *lksb,
+		      int query,
+		      struct dlm_queryinfo *qinfo)
 {
-    struct dlm_lock_params params;
+    struct dlm_write_request req;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)lockspace;
     int status;
 
@@ -662,25 +663,30 @@ int dlm_ls_query_wait(dlm_lshandle_t lockspace,
 	return -1;
     }
 
-    set_version(&params);
-    params.cmd = DLM_USER_QUERY;
-    params.flags = query;
-    params.lksb  = lksb;
-    lksb->sb_lvbptr = (char *)qinfo;
+    set_version(&req);
+    req.cmd = DLM_USER_QUERY;
+    req.i.query.query = query;
+    req.i.query.lksb  = lksb;
+    req.i.query.lkid  = lksb->sb_lkid;
+    req.i.query.qinfo = qinfo;
+    req.i.query.lockinfo_max = qinfo->gqi_locksize;
+    req.i.query.lockinfo = qinfo->gqi_lockinfo;
+    req.i.query.lockinfo_max = qinfo->gqi_locksize;
     lksb->sb_status = EINPROG;
-    status = sync_write(lsinfo, &params, sizeof(params));
-    return status;
+
+    status = sync_write(lsinfo, &req, sizeof(req));
+    return (status >= 0);
 }
 
 int dlm_unlock_wait(uint32_t lkid,
-               uint32_t flags, struct dlm_lksb *lksb)
+		    uint32_t flags, struct dlm_lksb *lksb)
 {
-    return dlm_ls_unlock_wait(default_ls, lkid, flags, lksb);
+    return dlm_ls_unlock_wait(default_ls, lkid, flags | LKF_WAIT, lksb);
 }
 
 int dlm_query_wait(struct dlm_lksb *lksb,
-	      int query,
-	      struct dlm_queryinfo *qinfo)
+		   int query,
+		   struct dlm_queryinfo *qinfo)
 {
     return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
 }
@@ -698,7 +704,7 @@ int dlm_unlock(uint32_t lkid,
 int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 		  uint32_t flags, struct dlm_lksb *lksb, void *astarg)
 {
-    struct dlm_lock_params params;
+    struct dlm_write_request req;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
     int status;
 
@@ -714,18 +720,24 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 	return -1;
     }
 
-    set_version(&params);
-    params.cmd = DLM_USER_UNLOCK;
-    params.lkid = lkid;
-    params.flags = flags;
-    params.lksb  = lksb;
-    params.castparam = astarg;
+    set_version(&req);
+    req.cmd = DLM_USER_UNLOCK;
+    req.i.lock.lkid = lkid;
+    req.i.lock.flags = flags;
+    req.i.lock.lksb  = lksb;
+    req.i.lock.castparam = astarg;
 	    /* DLM_USER_UNLOCK will default to existing completion AST */
-    params.castaddr = 0;
+    req.i.lock.castaddr = 0;
     lksb->sb_status = EINPROG;
 
-    status = write(lsinfo->fd, &params, sizeof(params));
-    if (status != sizeof(params))
+#ifdef _REENTRANT
+    if (flags & LKF_WAIT)
+	    status = sync_write(lsinfo, &req, sizeof(req));
+    else
+#endif
+	    status = write(lsinfo->fd, &req, sizeof(req));
+
+    if (status < 0)
 	return -1;
     else
 	return 0;
@@ -739,7 +751,7 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
 		 void (*astaddr) (void *astarg),
 		 void *astarg)
 {
-    struct dlm_lock_params params;
+    struct dlm_write_request req;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)lockspace;
     int status;
 
@@ -761,17 +773,21 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
 	return -1;
     }
 
-    set_version(&params);
-    params.cmd = DLM_USER_QUERY;
-    params.flags = query;
-    params.lksb  = lksb;
-    params.castparam = astarg;
-    params.castaddr = astaddr;
-    lksb->sb_lvbptr = (char *)qinfo;
+    set_version(&req);
+    req.cmd = DLM_USER_QUERY;
+    req.i.query.query = query;
+    req.i.query.lksb  = lksb;
+    req.i.query.lkid  = lksb->sb_lkid;
+    req.i.query.castparam = astarg;
+    req.i.query.castaddr = astaddr;
+    req.i.query.qinfo = qinfo;
+    req.i.query.resinfo = qinfo->gqi_resinfo;
+    req.i.query.lockinfo = qinfo->gqi_lockinfo;
+    req.i.query.lockinfo_max = qinfo->gqi_locksize;
     lksb->sb_status = EINPROG;
 
-    status = write(lsinfo->fd, &params, sizeof(params));
-    if (status != sizeof(params))
+    status = write(lsinfo->fd, &req, sizeof(req));
+    if (status != sizeof(req))
 	return -1;
     else
 	return 0;
@@ -899,6 +915,8 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     int create_dev = 1;
     char dev_name[PATH_MAX];
     struct dlm_ls_info *newls;
+    char reqbuf[sizeof(struct dlm_write_request) + strlen(name)];
+    struct dlm_write_request *req = (struct dlm_write_request *)reqbuf;
 
     /* We use the control device for creating lockspaces. */
     if (open_control_device())
@@ -910,7 +928,12 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 
     ls_dev_name(name, dev_name, sizeof(dev_name));
 
-    minor = ioctl(control_fd, DLM_CREATE_LOCKSPACE, name);
+    req->cmd = DLM_USER_CREATE_LOCKSPACE;
+    set_version(req);
+    req->i.lspace.flags = 0;
+    strcpy(req->i.lspace.name, name);
+    minor = write(control_fd, req, sizeof(*req) + strlen(name));
+
     if (minor < 0 && errno != EEXIST)
     {
 	free(newls);
@@ -918,7 +941,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     }
 
     /* If the lockspace already exists, we don't get the minor
-     * number returned. If the device exists we assume it is correct.
+     * number returned. If the device exists we check the minor number.
      * If the device doesn't exist then we have to look in /proc/misc
      * to find the minor number.
      */
@@ -944,7 +967,9 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	if (status == -1 && errno != EEXIST)
 	{
 	    /* Try to remove it */
-	    ioctl(control_fd, DLM_RELEASE_LOCKSPACE, minor);
+	    req->cmd = DLM_USER_REMOVE_LOCKSPACE;
+	    req->i.lspace.minor = minor;
+	    write(control_fd, req, sizeof(*req));
 	    free(newls);
 	    return NULL;
 	}
@@ -971,10 +996,10 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 {
     int status;
-    int cmd = DLM_RELEASE_LOCKSPACE;
     char dev_name[PATH_MAX];
     struct stat st;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
+    struct dlm_write_request req;
 
     /* We need the minor number */
     if (fstat(lsinfo->fd, &st))
@@ -987,10 +1012,16 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 	return -1;
 
     if (force)
-	cmd = DLM_FORCE_RELEASE_LOCKSPACE;
+        req.i.lspace.flags = 2;
+    else
+	req.i.lspace.flags = 0;
 
-    status = ioctl(control_fd, cmd, minor(st.st_rdev));
-    if (status)
+    set_version(&req);
+    req.cmd = DLM_USER_REMOVE_LOCKSPACE;
+    req.i.lspace.minor = minor(st.st_rdev);
+
+    status = write(control_fd, &req, sizeof(req));
+    if (status < 0)
 	return status;
 
     /* Remove the device */

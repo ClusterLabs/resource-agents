@@ -16,49 +16,86 @@
  */
 
 /* Version of the device interface */
-#define DLM_DEVICE_VERSION_MAJOR 2
+#define DLM_DEVICE_VERSION_MAJOR 3
 #define DLM_DEVICE_VERSION_MINOR 0
 #define DLM_DEVICE_VERSION_PATCH 0
 
+#ifndef __KERNEL
+#define __user
+#endif
+
 /* struct passed to the lock write */
 struct dlm_lock_params {
-	uint32_t version[3];
-	uint8_t cmd;
 	uint8_t mode;
 	uint16_t flags;
 	uint32_t lkid;
 	uint32_t parent;
 	struct dlm_range range;
 	uint8_t namelen;
-        void *castparam;
-	void *castaddr;
-	void *bastparam;
-        void *bastaddr;
-        struct dlm_lksb *lksb;
+        void __user *castparam;
+	void __user *castaddr;
+	void __user *bastparam;
+        void __user *bastaddr;
+	struct dlm_lksb __user *lksb;
+	char lvb[DLM_LVB_LEN];
 	char name[1];
 };
 
+struct dlm_query_params {
+	uint32_t query;
+	struct dlm_queryinfo __user *qinfo;
+	struct dlm_resinfo   __user *resinfo;
+	struct dlm_lockinfo  __user *lockinfo;
+	void __user *castparam;
+	void __user *castaddr;
+	void __user *lksb;
+	uint32_t lkid;
+	int lockinfo_max;
+};
+
+
+struct dlm_lspace_params {
+	uint32_t flags;
+	uint32_t minor;
+	char name[1];
+};
+
+struct dlm_write_request {
+	uint32_t version[3];
+	uint8_t cmd;
+
+	union  {
+		struct dlm_lock_params   lock;
+		struct dlm_query_params  query;
+		struct dlm_lspace_params lspace;
+	} i;
+};
 
 /* struct read from the "device" fd,
    consists mainly of userspace pointers for the library to use */
 struct dlm_lock_result {
-    	uint8_t cmd;
-        void *astparam;
-        void (*astaddr)(void *astparam);
-        struct dlm_lksb *user_lksb;
-        struct dlm_lksb lksb;  /* But this has real data in it */
-        uint8_t bast_mode; /* Not yet used */
+	uint32_t length;
+	void __user *user_astaddr;
+	void __user *user_astparam;
+	struct dlm_lksb      __user *user_lksb;
+	struct dlm_queryinfo __user *user_qinfo;
+	struct dlm_lksb      lksb;
+	uint8_t  bast_mode;
+	/* Offsets may be zero if no data is present */
+	uint32_t lvb_offset;
+	uint32_t qinfo_offset;
+	uint32_t qresinfo_offset;
+	uint32_t qlockinfo_offset;
 };
 
-/* commands passed to the device */
-#define DLM_USER_LOCK       1
-#define DLM_USER_UNLOCK     2
-#define DLM_USER_QUERY      3
+/* Commands passed to the device */
+#define DLM_USER_LOCK         1
+#define DLM_USER_UNLOCK       2
+#define DLM_USER_QUERY        3
+#define DLM_USER_CREATE_LOCKSPACE  4
+#define DLM_USER_REMOVE_LOCKSPACE  5
 
 /* Arbitrary length restriction */
 #define MAX_LS_NAME_LEN 64
 
-/* ioctls on the device */
-#define DLM_CREATE_LOCKSPACE         _IOW('D', 0x01, char *)
-#define DLM_RELEASE_LOCKSPACE        _IOW('D', 0x02, char *)
-#define DLM_FORCE_RELEASE_LOCKSPACE  _IOW('D', 0x03, char *)
+

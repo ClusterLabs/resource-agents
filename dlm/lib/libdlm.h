@@ -281,7 +281,10 @@ extern int dlm_pthread_cleanup();
 #define LKF_HEADQUE        (0x00001000)
 #define LKF_NOORDER        (0x00002000)
 
-
+/* Userspace flag only, for synchronous API calls */
+#ifdef _REENTRANT
+#define LKF_WAIT           (0x80000000)
+#endif
 /*
  * Extra return codes used by the DLM
  */
