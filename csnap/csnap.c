@@ -1790,7 +1790,7 @@ int incoming(struct superblock *sb, struct client *client)
 
 	if ((err = readpipe(sock, &message.head, sizeof(message.head))))
 		goto pipe_error;
-	trace(warn("%x/%u %i", message.head.code, message.head.length, maxbody);)
+	trace(warn("%x/%u", message.head.code, message.head.length);)
 	if (message.head.length > maxbody)
 		goto message_too_long;
 	if ((err = readpipe(sock, &message.body, message.head.length)))

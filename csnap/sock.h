@@ -26,10 +26,10 @@ static inline int open_socket(char *name, unsigned port)
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 		error("Can't get socket");
 	if (!(host = gethostbyname(name)))
-		error("Unknown host '%s'", name);
+		-h_errno;
 	memcpy(&addr.sin_addr.s_addr, host->h_addr, host->h_length);
 	if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-		error("Cannot connect to %s:%i", name, port);
+		return -errno;
 	return sock;
 }
 

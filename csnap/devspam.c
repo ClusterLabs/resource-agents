@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 	if (command == ncommands)
 		goto usage;
 
-	int code = atoi(argv[3]), iterations = atoi(argv[4]);
+	int code = atoi(argv[4]), iterations = atoi(argv[3]);
 	int is_write = command & 1;
 	int is_rand = command >> 1;
 	typeof(pread) *fn = is_write? ((typeof(pread) *)pwrite): pread;

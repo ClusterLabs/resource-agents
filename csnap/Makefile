@@ -1,4 +1,4 @@
-utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-agent csnap-test devpoke devspam
+utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-agent sendagent testclient devpoke devspam
 headers = csnap.h ../dm-csnap.h trace.h sock.h
 
 all: $(utilities)
@@ -16,8 +16,11 @@ csnap-create csnap-delete: create.c $(headers)
 	cc -Wall create.c -DCREATE -o csnap-create
 	cc -Wall create.c -DDELETE -o csnap-delete
 
-csnap-test: testclient.c $(headers)
+testclient: testclient.c $(headers)
 	cc -Wall testclient.c -o csnap-test
+
+sendagent: sendagent.c $(headers)
+	cc -Wall sendagent.c -o sendagent
 
 devpoke: devpoke.c
 	cc -Wall devpoke.c -o devpoke
@@ -34,10 +37,7 @@ kernel:
 kern:
 	cd ../../.. && make bzImage SUBDIRS=drivers/md
 
-test: test1 delay test2 test3
-
-delay:
-	echo Bogus delay...
+test: test1 test2 test3
 
 test1:
 	killall csnap-server || true
@@ -55,7 +55,7 @@ test3:
 	sudo ./devpoke /dev/mapper/testdev read 2
 
 test4:
-	sudo ./devspam /dev/mapper/testdev write 77 1
+	sudo ./devspam /dev/mapper/testdev write 1 77
 
 test9:
 	sudo /sbin/dmsetup remove testdev
