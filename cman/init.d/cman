@@ -72,6 +72,8 @@ start()
 
 	if [ $rtrn -eq 0 ]
 	then
+		# try to load the dlm module
+		modprobe dlm &>/dev/null
 		success
 	else
 		failure
@@ -105,6 +107,9 @@ stop()
 			sleep 1
 		done
 
+		# try to unload dlm module
+		modprobe -r dlm &>/dev/null
+ 
 		modprobe -r cman && rtrn=0
 	else
 		# cman is not loaded
