@@ -127,7 +127,6 @@ static int update_config(int do_remote){
     char *buffer;
     int size;
 
-    log_msg("Update failed.\n");
     rename("/etc/cluster/cluster.conf", "/etc/cluster/cluster.conf-rej");
     if(tmp_odoc){
       free(tmp_odoc);
@@ -135,6 +134,9 @@ static int update_config(int do_remote){
     if(tmp_doc){
       xmlFreeDoc(tmp_doc);
     }
+
+    v2 = get_doc_version(master_doc->od_doc);
+    log_dbg("%d should equal %d\n", v2, v1);
 
     xmlDocDumpFormatMemory(master_doc->od_doc, (xmlChar **)&buffer, &size, 0);
 
