@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.63 $) dnl cvs revision
+AC_REVISION($Revision: 1.64 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -88,16 +88,16 @@ AC_PATH_PROGS(NETSTAT, netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
 AC_PATH_PROGS(IFCONFIG, ifconfig)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(GLIBCCONFIG, glib-config, glib12-config)
-AC_PATH_PROGS(GLIBCCONFIG, glib12-config, glib13-config)
-AC_PATH_PROGS(GLIBCCONFIG, glib13-config)
-AC_MSG_CHECKING(which glibc config exists)
-if test x"${GLIBCCONFIG}" = x""; then
+AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
+AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
+AC_PATH_PROGS(GLIBCONFIG, glib13-config)
+AC_MSG_CHECKING(which glib config exists)
+if test x"${GLIBCONFIG}" = x""; then
         AC_MSG_ERROR(You need the glib development package to continue.
       You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
       or you can locate it via http://www.gtk.org/download/)
 else
-      AC_MSG_RESULT("using $GLIBCCONFIG")
+      AC_MSG_RESULT("using $GLIBCONFIG")
 fi
 
 
@@ -215,30 +215,29 @@ dnl
 AC_CHECK_LIB(nsl, t_open)                dnl -lnsl
 AC_CHECK_LIB(socket, socket)             dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler) dnl -lposix4
-AC_CHECK_LIB(dl, dlopen)		 dnl -ldl (for Linux)
 AC_CHECK_LIB(c, dlopen)		 	 dnl -ldl (for Linux)
-AC_CHECK_LIB(glib, g_string_new)	 dnl -lglib
+AC_CHECK_LIB(dl, dlopen)		 dnl -ldl (for Linux)
+AC_CHECK_LIB(c, gettext)	 	 dnl -lc (for Linux)
+AC_CHECK_LIB(intl, gettext)	 	 dnl -lintl (for BSD, AIX)
 #
-#	Is dlopen in library -ldl?
+#	Where is dlopen?
 #
-if test "$ac_cv_lib_dl_dlopen" = yes; then
+if test "$ac_cv_lib_c_dlopen" != yes; then
+	LIBADD_DL=""
+elif test "$ac_cv_lib_dl_dlopen" = yes; then
 	LIBADD_DL=-ldl
 else
+	AC_MSG_ERROR(no library providing dlopen found)
+fi
 #
-#	Is dlopen in library -lintl?
+#	Where is gettext()?
 #
-	AC_CHECK_LIB(intl, gettext)	 dnl -lintl (for FreeBsd)
-	if test "$ac_cv_lib_intl_gettext" = yes; then
-		LIBADD_DL=-lintl
-	else
-#
-#	How about libc?
-#
-	        AC_CHECK_LIB(c, dlopen)	 dnl -lc - for FreeBSD
-	        if test "$ac_cv_lib_c_dlopen" != yes; then
-		  AC_MSG_ERROR(no lib providing dlopen found)
-                fi
-	fi
+if test "$ac_cv_lib_c_gettext" = yes; then
+	LIBADD_INTL=""
+elif test "$ac_cv_lib_intl_gettext" = yes; then
+	LIBADD_INTL=-lintl
+else
+	AC_MSG_ERROR(no library providing gettext found)
 fi
 
 AC_MSG_CHECKING(whether we need to include /usr/local/include)
@@ -249,7 +248,6 @@ if
 then
   AC_MSG_RESULT(yes)
   CPPFLAGS="$CPPFLAGS -I/usr/local/include"
-  LIBADD_DL="$LIBADD_DL -lintl"
 else
   AC_MSG_RESULT(no)
 fi
@@ -260,12 +258,12 @@ dnl	And they provide a command to let you know where they are.
 dnl	This is nice, but having them in standard places is nicer ;-)
 dnl
 AC_MSG_CHECKING(for special glib includes: )
-GLHEAD=`$GLIBCCONFIG --cflags`
+GLHEAD=`$GLIBCONFIG --cflags`
 AC_MSG_RESULT($GLHEAD)
 
 CPPFLAGS="$CPPFLAGS $GLHEAD"
 AC_MSG_CHECKING(for glib library flags)
-GLIBLIB=`$GLIBCCONFIG --libs`
+GLIBLIB=`$GLIBCONFIG --libs`
 LIBS="$LIBS $GLIBLIB"
 AC_MSG_RESULT($GLIBLIB)
 
@@ -403,9 +401,8 @@ case "$host_os" in
 *solaris*)	HEARTBEAT_LIBS="-lposix4"
 		;;
 *bsd*)		LIBS="$LIBS -L/usr/local/lib"
-dnl		STONITH_LDADD="-lintl"
 		;;
-dnl *linux*)	STONITH_LDADD="-ldl"
+dnl *linux*)	
 dnl 		;;
 esac
 
@@ -563,9 +560,8 @@ Xsed="sed -e s/^X//"
 LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 AC_SUBST(LTLIBOBJS)
 
-dnl STONITH_LDADD=LIBADD_DL
-dnl AC_SUBST(STONITH_LDADD)
-AC_SUBST(LIBADD_DL)
+AC_SUBST(LIBADD_DL)	dnl extra flags for dynamic linking libraries
+AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
 
