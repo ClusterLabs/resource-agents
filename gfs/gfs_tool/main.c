@@ -30,7 +30,8 @@
 
 #include <linux/gfs_ioctl.h>
 #include <linux/gfs_ondisk.h>
-typedef int osi_module_t;
+struct file { int x; };
+struct file_lock { int x; };
 #include <linux/lm_interface.h>
 
 #include "copyright.cf"
