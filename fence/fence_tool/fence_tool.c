@@ -59,7 +59,6 @@ while (0)
 char *prog_name;
 int debug;
 int operation;
-int skip_unfence;
 int child_wait;
 int quorum_wait = TRUE;
 int cl_sock;
@@ -114,18 +113,6 @@ static int setup_sock(void)
 	if (cl_sock < 0)
 		die("cannot create cluster socket %d", cl_sock);
 
-	return 0;
-}
-
-static int self_unfence(int cd)
-{
-	if (skip_unfence)
-		return 0;
-
-	if (debug)
-		printf("%s: unfence ourself\n", prog_name);
-
-	dispatch_fence_agent(cd, our_name, 1);
 	return 0;
 }
 
@@ -267,7 +254,6 @@ static int do_join(int argc, char *argv[])
 	get_our_name();
 	close(cl_sock);
 	cd = check_ccs();
-	self_unfence(cd);
 	ccs_disconnect(cd);
 
 	/* Options for fenced can be given to this program which then passes
@@ -381,7 +367,6 @@ static void print_usage(void)
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
-	printf("  -S               Skip self unfencing on join\n");
 	printf("  -D               Enable debugging, don't fork (also passed to fenced)\n");
 	printf("\n");
 	printf("Fenced options:\n");
@@ -416,10 +401,6 @@ static void decode_arguments(int argc, char *argv[])
 
 		case 'Q':
 			quorum_wait = FALSE;
-			break;
-
-		case 'S':
-			skip_unfence = TRUE;
 			break;
 
 		case 'D':

@@ -29,11 +29,6 @@ waiting for quorum.  It's generally nicer to block waiting for quorum here
 than to have the fence daemon itself waiting to join or leave the domain
 while the cluster is inquorate.
 
-Before joining the domain, fence_tool unfences the node it's being run on.
-(Unfencing only applies to certain fencing agents, e.g. SAN-based.  It
-does nothing when the agents for the target node don't support unfencing,
-e.g. NPS-based.)  The unfencing step can be skipped with the -S option.
-
 Since \fBfence_tool join\fP is the usual way of starting fenced, the
 fenced options -j, -f, and -c can also be passed to fence_tool which
 passes them on to fenced.
@@ -52,9 +47,6 @@ Help.  Print out the usage syntax.
 .TP
 \fB-V\fP
 Print version information.
-.TP
-\fB-S\fP
-Skip self unfencing before joining.
 .TP
 \fB-D\fP
 Enable debugging output and don't fork (also passed to fenced)

@@ -34,8 +34,6 @@
 #define FENCE_DEVICE_ARGS_PATH  "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@*"
 
 
-static int use_device(int cd, char *victim, char *method, char *device, int in);
-
 
 static void display_agent_output(char *agent, int fd)
 {
@@ -251,7 +249,32 @@ static int count_devices(int cd, char *victim, char *method)
 	return i;
 }
 
-int dispatch_fence_agent(int cd, char *victim, int in)
+static int use_device(int cd, char *victim, char *method, char *device)
+{
+	char path[256], *agent, *args = NULL;
+	int error;
+
+	memset(path, 0, 256);
+	sprintf(path, AGENT_NAME_PATH, device);
+
+	error = ccs_get(cd, path, &agent);
+	if (error)
+		goto out;
+
+	error = make_args(cd, victim, method, device, &args);
+	if (error)
+		goto out_agent;
+	
+	error = run_agent(agent, args);
+
+	free(args);
+ out_agent:
+	free(agent);
+ out:
+	return error;
+}
+
+int dispatch_fence_agent(int cd, char *victim)
 {
 	char *method, *device;
 	int num_methods, num_devices, m, d, error = -1;
@@ -271,7 +294,7 @@ int dispatch_fence_agent(int cd, char *victim, int in)
 			if (error)
 				break;
 
-			error = use_device(cd, victim, method, device, in);
+			error = use_device(cd, victim, method, device);
 			if (error)
 				break;
 
@@ -287,97 +310,6 @@ int dispatch_fence_agent(int cd, char *victim, int in)
 			break;
 	}
 
-	return error;
-}
-
-struct unfence_info {
-	char *agent;
-	char *option;
-};
-
-/* FIXME: find a better way of knowing which agents support unfencing
-   than this static table, e.g. something we look up in cluster.conf. */
-
-static struct unfence_info unfence_opts[] = {
-	{ .agent = "fence_brocade",
-	  .option = "option=enable", },
-
-	{ .agent = "fence_sanbox2",
-	  .option = "option=enable", },
-
-	{ .agent = "fence_vixel",
-	  .option = "option=enable", },
-};
-
-static int get_unfence_option(char *agent, char **option)
-{
-	int i, n = sizeof(unfence_opts) / sizeof(struct unfence_info);
-
-	for (i = 0; i < n; i++) {
-		if (!strcmp(agent, unfence_opts[i].agent)) {
-			*option = unfence_opts[i].option;
-			return 0;
-		}
-	}
-
-	return -1;
-}
-
-/* replace the args string with one that has the unfence option appended */
-
-static int append_unfence_option(char *agent, char **argsp)
-{
-	char *option = NULL, *args2 = NULL, *args = *argsp;
-	int error, len;
-
-	error = get_unfence_option(agent, &option);
-	if (error)
-		return error;
-
-	len = strlen(args) + strlen(option) + 3;
-	args2 = malloc(len);
-	if (!args2)
-		return -ENOMEM;
-	memset(args2, 0, len);
-
-	strncpy(args2, args, strlen(args));
-	strcat(args2, option);
-	strcat(args2, "\n");
-
-	free(*argsp);
-	*argsp = args2;
-	return 0;
-}
-
-static int use_device(int cd, char *victim, char *method, char *device, int in)
-{
-	char path[256], *agent, *args = NULL;
-	int error;
-
-	memset(path, 0, 256);
-	sprintf(path, AGENT_NAME_PATH, device);
-
-	error = ccs_get(cd, path, &agent);
-	if (error)
-		goto out;
-
-	error = make_args(cd, victim, method, device, &args);
-	if (error)
-		goto out_agent;
-	
-	if (in) {
-		error = append_unfence_option(agent, &args);
-		if (error)
-			goto out_args;
-	}
-
-	error = run_agent(agent, args);
-
- out_args:
-	free(args);
- out_agent:
-	free(agent);
- out:
 	return error;
 }
 

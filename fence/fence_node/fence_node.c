@@ -32,7 +32,6 @@ do \
 while (0)
 
 static char *prog_name;
-static int unfence;
 static int force;
 
 int dispatch_fence_agent(int cd, char *victim, int in);
@@ -47,7 +46,6 @@ static void print_usage(void)
 	printf("\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -O               Force connection to CCS\n");
-	printf("  -u               Unfence the node\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 }
@@ -71,10 +69,6 @@ int main(int argc, char *argv[])
 
 		case 'O':
 			force = 1;
-			break;
-
-		case 'u':
-			unfence = 1;
 			break;
 
 		case 'V':
@@ -114,13 +108,6 @@ int main(int argc, char *argv[])
 		cd = ccs_force_connect(NULL, 0);
 	else
 		cd = ccs_connect();
-
-	if (unfence) {
-		if (cd < 0)
-			die("cannot connect to ccs %d", cd);
-		dispatch_fence_agent(cd, victim, 1);
-		exit(EXIT_SUCCESS);
-	}
 
 	openlog("fence_node", LOG_PID, LOG_USER);
 
