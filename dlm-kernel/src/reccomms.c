@@ -204,6 +204,18 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 
 	case RECCOMM_RECOVERNAMES:
 
+		/*
+		 * We can't run dlm_dir_rebuild_send (which uses ls_nodes)
+		 * while dlm_recoverd is running ls_nodes_reconfig (which
+		 * changes ls_nodes).  It could only happen in rare cases where
+		 * we get a late RECOVERNAMES message from a previous instance
+		 * of recovery.
+		 */
+		if (!test_bit(LSFL_NODES_VALID, &ls->ls_flags)) {
+			log_error(ls, "ignoring RECOVERNAMES from %u", nodeid);
+			return;
+		}
+
 		reply = allocate_rcom_buffer(ls);
 		DLM_ASSERT(reply,);
 		maxlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);

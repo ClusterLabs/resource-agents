@@ -325,6 +325,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_node_array = NULL;
 	ls->ls_recoverd_task = NULL;
 	init_MUTEX(&ls->ls_recoverd_lock);
+	init_MUTEX(&ls->ls_recoverd_active);
 	INIT_LIST_HEAD(&ls->ls_recover);
 	spin_lock_init(&ls->ls_recover_lock);
 	INIT_LIST_HEAD(&ls->ls_recover_list);
@@ -642,11 +643,19 @@ static int dlm_ls_stop(void *servicedata)
 	if (new)
 		down_write(&ls->ls_in_recovery);
 
+	/*
+	 * The recoverd suspend/resume makes sure that dlm_recoverd (if
+	 * running) has noticed the clearing of LS_RUN above and quit
+	 * processing the previous recovery.  This will be true for all nodes
+	 * before any nodes get the start.
+	 */
+
+	dlm_recoverd_suspend(ls);
 	clear_bit(LSFL_RESDIR_VALID, &ls->ls_flags);
 	clear_bit(LSFL_ALL_RESDIR_VALID, &ls->ls_flags);
 	clear_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	clear_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
-
+	dlm_recoverd_resume(ls);
 	dlm_recoverd_kick(ls);
 
 	return 0;

@@ -266,9 +266,9 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	}
 
 	ls->ls_low_nodeid = low;
-	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;
 	make_node_array(ls);
+	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 
 	error = nodes_reconfig_wait(ls);
 

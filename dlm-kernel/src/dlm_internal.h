@@ -274,6 +274,7 @@ struct dlm_ls {
 
 	struct task_struct *	ls_recoverd_task;
 	struct semaphore	ls_recoverd_lock;
+	struct semaphore	ls_recoverd_active;
 	struct list_head	ls_recover;	/* dlm_recover structs */
 	spinlock_t		ls_recover_lock;
 	int			ls_last_stop;

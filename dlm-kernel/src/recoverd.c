@@ -59,6 +59,8 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	log_debug(ls, "recover event %u (first)", rv->event_id);
 
+	down(&ls->ls_recoverd_active);
+
 	kcl_global_service_id(ls->ls_local_id, &ls->ls_global_id);
 
 	error = ls_nodes_init(ls, rv);
@@ -83,6 +85,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 	kcl_start_done(ls->ls_local_id, rv->event_id);
 
  out:
+	up(&ls->ls_recoverd_active);
 	return error;
 }
 
@@ -103,6 +106,8 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	int error, neg = 0;
 
 	log_debug(ls, "recover event %u", rv->event_id);
+
+	down(&ls->ls_recoverd_active);
 
 	/*
 	 * Suspending and resuming dlm_astd ensures that no lkb's from this ls
@@ -208,10 +213,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	log_debug(ls, "recover event %u done", rv->event_id);
 	kcl_start_done(ls->ls_local_id, rv->event_id);
+	up(&ls->ls_recoverd_active);
 	return 0;
 
  fail:
 	log_debug(ls, "recover event %d error %d", rv->event_id, error);
+	up(&ls->ls_recoverd_active);
 	return error;
 }
 
@@ -732,5 +739,15 @@ void dlm_recoverd_stop(struct dlm_ls *ls)
 		up(&ls->ls_recoverd_lock);
 		msleep(1000);
 	}
+}
+
+void dlm_recoverd_suspend(struct dlm_ls *ls)
+{
+	down(&ls->ls_recoverd_active);
+}
+
+void dlm_recoverd_resume(struct dlm_ls *ls)
+{
+	up(&ls->ls_recoverd_active);
 }
 
