@@ -48,9 +48,9 @@ static void put_node(struct dlm_node *node)
 {
 	spin_lock(&node_lock);
 	if (atomic_dec_and_test(&node->refcount)) {
-		lowcomms_close(node->nodeid);
 		list_del(&node->list);
 		spin_unlock(&node_lock);
+		lowcomms_close(node->nodeid);
 		kfree(node);
 		return;
 	}
