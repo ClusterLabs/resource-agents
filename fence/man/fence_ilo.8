@@ -26,8 +26,11 @@ Out (iLO) PCI card.  The agent opens an SSL connection to the iLO card.  Once th
 SSL connection is established, the agent is able to communicate with the iLO
 card through an XML stream.  
 .sp
-fence_ilo depends on the Net::SSLeay perl module in order to establish the SSL 
-connection to the iLO card.  Net::SSLeay is available at http://www.cpan.org.
+fence_ilo depends on the Net::SSLeay or Net::SSL perl module in order to establish 
+the SSL connection to the iLO card.  Net::SSL is available in the perl-Crypt-SSLeay package
+on RHN (http://rhn.redhat.com). Net::SSLeay is available at http://www.cpan.org.
+.sp
+NOTE: fence_ilo deprecates fence_rib.  
 .sp
 .in
 \fBOPTIONS\fP

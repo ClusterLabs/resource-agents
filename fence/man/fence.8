@@ -28,15 +28,20 @@ command/feature you are looking for.
 
 I/O Fencing agents
 
- fence_apc           for the APC MasterSwitch
- fence_brocade       for Brocade switches (PortDisable)
+ fence_apc           for APC MasterSwitch and APC 79xx models
+ fence_bladecenter   for IBM Bladecenters w/ telnet interface
+ fence_brocade       for Brocade fibre channel switches (PortDisable)
+ fence_egenera       for Egenera blades
  fence_gnbd          for GNBD-based GFS clusters
+ fence_ilo           for HP ILO interfaces (formerly fence_rib)
+ fence_manual        for manual intervention
+ fence_mcdata        for McData fibre channel switches
+ fence_ack_manual    for manual intervention
+ fence_sanbox2       for Qlogic SAN Box fibre channel switches
  fence_vixel         for Vixel switches (PortDisable)
  fence_wti           for WTI Network Power Switch
- fence_rib           for Compaq RILOE cards
- fence_manual        for manual intervention
- fence_ack_manual    for manual intervention
  fence_node          for use by lock_gulmd
+
 .sp
 .in
 \fBSEE ALSO\fP
