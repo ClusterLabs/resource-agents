@@ -1132,16 +1132,26 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	struct posix_acl *acl = NULL;
 	struct gfs_alloc *al;
 	struct gfs_inode *ip;
-	unsigned int gid;
+	unsigned int uid, gid;
 	int alloc_required;
 	int error;
+
+	if (sdp->sd_args.ar_suiddir &&
+	    (dip->i_di.di_mode & S_ISUID) &&
+	    dip->i_di.di_uid) {
+		if (type == GFS_FILE_DIR)
+			mode |= S_ISUID;
+		else if (dip->i_di.di_uid != current->fsuid)
+			mode &= ~07111;
+		uid = dip->i_di.di_uid;
+	} else
+		uid = current->fsuid;
 
 	if (dip->i_di.di_mode & S_ISGID) {
 		if (type == GFS_FILE_DIR)
 			mode |= S_ISGID;
 		gid = dip->i_di.di_gid;
-	}
-	else
+	} else
 		gid = current->fsgid;
 
 	error = gfs_setup_new_acl(dip, type, &mode, &acl);
@@ -1150,13 +1160,11 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 
 	al = gfs_alloc_get(dip);
 
-	error = gfs_quota_lock_m(dip,
-				 current->fsuid,
-				 gid);
+	error = gfs_quota_lock_m(dip, uid, gid);
 	if (error)
 		goto fail;
 
-	error = gfs_quota_check(dip, current->fsuid, gid);
+	error = gfs_quota_check(dip, uid, gid);
 	if (error)
 		goto fail_gunlock_q;
 
@@ -1206,13 +1214,13 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	if (error)
 		goto fail_end_trans;
 
-	error = make_dinode(dip, gl, inum, type, mode, current->fsuid, gid);
+	error = make_dinode(dip, gl, inum, type, mode, uid, gid);
 	if (error)
 		goto fail_end_trans;
 
 	al->al_ul = gfs_trans_add_unlinked(sdp, GFS_LOG_DESC_IDA,
 					   &(struct gfs_inum){0, inum->no_addr});
-	gfs_trans_add_quota(sdp, +1, current->fsuid, gid);
+	gfs_trans_add_quota(sdp, +1, uid, gid);
 
 	/* Gfs_inode_get() can't fail here.  But then again, it shouldn't be
 	   here (it should be in gfs_createi()).  Gfs_init_acl() has no

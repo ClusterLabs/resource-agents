@@ -128,6 +128,9 @@ gfs_make_args(char *data, struct gfs_args *args)
 		else if (!strcmp(x, "acl"))
 			args->ar_posixacls = TRUE;
 
+		else if (!strcmp(x, "suiddir"))
+			args->ar_suiddir = TRUE;
+
 		/*  Unknown  */
 
 		else {

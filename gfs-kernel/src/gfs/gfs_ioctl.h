@@ -213,6 +213,7 @@ struct gfs_args {
 	unsigned int ar_num_glockd;
 
 	int ar_posixacls;	/* Enable posix acls */
+	int ar_suiddir;         /* suiddir support */
 };
 
 #endif /* ___GFS_IOCTL_DOT_H__ */

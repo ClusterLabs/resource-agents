@@ -398,6 +398,8 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",num_glockd=%u", args->ar_num_glockd);
 	if (args->ar_posixacls)
 		seq_printf(s, ",acl");
+	if (args->ar_suiddir)
+		seq_printf(s, ",suiddir");
 
 	return 0;
 }
