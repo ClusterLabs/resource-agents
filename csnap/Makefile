@@ -38,14 +38,15 @@ test: test1 test2 test3
 
 test1:
 	killall csnap-server || true
-	./mksnapstore /dev/test-origin /dev/test-snapstore 8080
-	./csnap-server /dev/test-origin /dev/test-snapstore 8080
+	sudo killall csnap-agent || true
+	./mksnapstore /dev/test-origin /dev/test-snapstore
 	sudo /sbin/dmsetup remove testdev || true
-	sudo ./csnap-agent @testdev-control localhost:8080
+	sudo ./csnap-agent @test
+	./csnap-server /dev/test-origin /dev/test-snapstore @test 8080
 
 test2:
 	sudo ./csnap-create localhost:8080 0
-	echo 0 497976 csnapshot 0 /dev/test-origin /dev/test-snapstore @testdev-control | sudo /sbin/dmsetup create testdev
+	echo 0 497976 csnapshot /dev/test-origin /dev/test-snapstore @test 0 | sudo /sbin/dmsetup create testdev
 
 test3:
 #	sudo ./devpoke /dev/mapper/testdev write 2

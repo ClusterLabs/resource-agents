@@ -1990,7 +1990,7 @@ int resolve_self(int family, void *result, int length)
 	return resolve_host(name, family, result, length);
 }
 
-int csnap_server(struct superblock *sb, int port, char *sockname)
+int csnap_server(struct superblock *sb, char *sockname, int port)
 {
 	unsigned maxclients = 100, clients = 0, others = 2;
 	struct client clientvec[maxclients];
@@ -2137,21 +2137,22 @@ int main(int argc, char *argv[])
 	struct superblock *sb = &(struct superblock){};
 
 	memset(buffer_table, 0, sizeof(buffer_table));
-
+#ifdef SERVER
+	if (argc < 5)
+		error("usage: %s dev/snapshot dev/origin socket port", argv[0]);
+#else
+	if (argc < 3)
+		error("usage: %s dev/snapshot dev/origin", argv[0]);
+#endif
 	if (!(sb->snapdev = open(argv[1], O_RDWR | O_DIRECT)))
 		error("Could not open snapshot store %s", argv[1]);
 
 	if (!(sb->orgdev = open(argv[2], O_RDONLY | O_DIRECT)))
 		error("Could not open origin volume %s", argv[2]);
-
 #ifdef SERVER
-	if (argc < 4)
-		error("usage: %s dev/snapshot dev/origin port", argv[0]);
-
-	return csnap_server(sb, atoi(argv[3]), argv[4]);
-
-#else /* ~SERVER */
+	return csnap_server(sb, argv[3], atoi(argv[4]));
+#else
 	return init_snapstore(sb); 
-#endif /* SERVER */
+#endif
 
 }

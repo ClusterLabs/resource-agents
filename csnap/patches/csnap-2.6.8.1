@@ -30,7 +30,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 16:58:07.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-17 05:41:49.000000000 +0000
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-21 22:09:24.000000000 +0000
 @@ -0,0 +1,1025 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
@@ -189,6 +189,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	struct list_head queries;
 +	struct list_head releases;
 +	spinlock_t pending_lock;
++	spinlock_t end_io_lock;
 +};
 +
 +static inline int is_snapshot(struct snapinfo *info)
@@ -313,9 +314,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	struct snapinfo *info = hook->info;
 +
 +	trace(warn("sector %Lx", (long long)hook->sector);)
-+	spin_lock(&info->pending_lock);
++	spin_lock(&info->end_io_lock);
 +	list_add(&hook->list, &info->releases);
-+	spin_unlock(&info->pending_lock);
++	spin_unlock(&info->end_io_lock);
 +	up(&info->more_work_sem);
 +
 +	bio->bi_private = hook->old_private;
@@ -587,10 +588,11 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	trace(warn("Worker thread started, pid=%i", current->pid);)
 +	down(&info->exit1_sem);
 +	while (running(info)) {
++		unsigned long irqflags;
 +		down(&info->more_work_sem);
 +
-+		spin_lock(&info->pending_lock);
 +		/* Send message for each pending request. */
++		spin_lock(&info->pending_lock);
 +		while (!list_empty(&info->queries) && running(info)) {
 +			struct list_head *entry = info->queries.prev;
 +			struct pending *pending = list_entry(entry, struct pending, list);
@@ -610,23 +612,26 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			up(&info->server_out_sem);
 +			spin_lock(&info->pending_lock);
 +		}
++		spin_unlock(&info->pending_lock);
++
 +		/* Send message for each pending read release. */
++		spin_lock_irqsave(&info->end_io_lock, irqflags);
 +		while (!list_empty(&info->releases) && running(info)) {
 +			struct list_head *entry = info->releases.prev;
 +			struct end_io_hook *hook = list_entry(entry, struct end_io_hook, list);
 +			chunk_t chunk = hook->sector >> info->chunkshift;
 +
 +			list_del(entry);
-+			spin_unlock(&info->pending_lock);
++			spin_unlock_irqrestore(&info->end_io_lock, irqflags);
 +			trace(warn("%u. release sector %Lx, chunk %Lx", ++events, (long long)hook->sector, chunk);)
 +			kmem_cache_free(end_io_cache, hook);
 +			down(&info->server_out_sem);
 +			outbead(info->sock, FINISH_SNAPSHOT_READ, struct rw_request1,
 +				.count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1);
 +			up(&info->server_out_sem);
-+			spin_lock(&info->pending_lock);
++			spin_lock_irqsave(&info->end_io_lock, irqflags);
 +		}
-+		spin_unlock(&info->pending_lock);
++		spin_unlock_irqrestore(&info->end_io_lock, irqflags);
 +
 +		trace(warn("Yowza! More work?");)
 +	}
@@ -885,45 +890,56 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +static int csnap_create(struct dm_target *target, unsigned argc, char **argv)
 +{
 +	u64 chunksize_bits = 12; // !!! when chunksize isn't always 4K, have to move all this to identify reply handler
-+	struct dm_dev *orgdev, *snapdev;
 +	struct snapinfo *info;
-+	struct file *control_sock;
 +	int err, i, snap, flags = 0;
++	char *error;
 +#ifdef CACHE
 +	unsigned bm_size;
 +#endif
-+	char *error;
 +
-+	error = "csnap usage: snapnum orgdev snapdev sockname";
++	error = "csnap usage: orgdev snapdev sockname snapnum";
 +	err = -EINVAL;
-+	if (argc < 3 || argc > 4)
++	if (argc != 4)
 +		goto eek;
-+	error = "Can't get origin device";
-+	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &orgdev)))
-+		goto eek;
-+	error = "Can't get snapshot device";
-+	if ((err = dm_get_device(target, argv[2], 0, target->len, dm_table_get_mode(target->table), &snapdev)))
-+		goto eek;
-+	error = "Can't connect control socket";
-+	if ((err = get_control_socket(argv[3])) < 0)
-+		goto eek;
-+	control_sock = fget(err);
-+	sys_close(err);
 +
-+	snap = simple_strtol(argv[0], NULL, 0);
-+	if (snap != -1)
++	snap = simple_strtol(argv[3], NULL, 0);
++	if (snap >= 0)
 +		flags |= IS_SNAP_FLAG;
 +
 +	err = -ENOMEM;
++	error = "can't get kernel memory";
 +	if (!(info = kmalloc(sizeof(struct snapinfo), GFP_KERNEL)))
 +		goto eek;
 +
 +	*info = (struct snapinfo){ 
-+		.flags = flags, .orgdev = orgdev, .snapdev = snapdev, .snap = snap,
++		.flags = flags, .snap = snap,
 +		.chunksize_bits = chunksize_bits,
-+		.chunkshift = chunksize_bits - SECTOR_SHIFT,
-+		.control_socket = control_sock};
++		.chunkshift = chunksize_bits - SECTOR_SHIFT};
 +	target->private = info;
++	sema_init(&info->server_in_sem, 0);
++	sema_init(&info->server_out_sem, 0);
++	sema_init(&info->exit1_sem, 1);
++	sema_init(&info->exit2_sem, 1);
++	sema_init(&info->exit3_sem, 1);
++	sema_init(&info->more_work_sem, 0);
++	spin_lock_init(&info->pending_lock);
++	spin_lock_init(&info->end_io_lock);
++	INIT_LIST_HEAD(&info->queries);
++	INIT_LIST_HEAD(&info->releases);
++	for (i = 0; i < NUM_BUCKETS; i++)
++		INIT_LIST_HEAD(&info->pending[i]);
++
++	error = "Can't get origin device";
++	if ((err = dm_get_device(target, argv[0], 0, target->len, dm_table_get_mode(target->table), &info->orgdev)))
++		goto eek;
++	error = "Can't get snapshot device";
++	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &info->snapdev)))
++		goto eek;
++	error = "Can't connect control socket";
++	if ((err = get_control_socket(argv[2])) < 0)
++		goto eek;
++	info->control_socket = fget(err);
++	sys_close(err);
 +
 +#ifdef CACHE
 +	bm_size = round_up((target->len  + 7) >> (chunksize_bits + 3), sizeof(u32)); // !!! wrong
@@ -935,22 +951,6 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		goto eek;
 +#endif
 +
-+	sema_init(&info->server_in_sem, 0);
-+	sema_init(&info->server_out_sem, 0);
-+	sema_init(&info->exit1_sem, 1);
-+	sema_init(&info->exit2_sem, 1);
-+	sema_init(&info->exit3_sem, 1);
-+	sema_init(&info->more_work_sem, 0);
-+	spin_lock_init(&info->pending_lock);
-+
-+	{
-+	struct list_head *bucket = info->pending;
-+	for (i = 0; i < NUM_BUCKETS; i++, bucket++)
-+		INIT_LIST_HEAD(bucket);
-+	}
-+	INIT_LIST_HEAD(&info->queries);
-+	INIT_LIST_HEAD(&info->releases);
-+
 +	error = "Can't start daemon";
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
@@ -958,7 +958,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		goto eek;
 +	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	warn("Created snapshot device snapshot=%i origin=%s snapstore=%s socket=%s", snap, argv[1], argv[2], argv[3]);
++	warn("Created snapshot device origin=%s snapstore=%s socket=%s snapshot=%i", snap, argv[0], argv[1], argv[2], snap);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
 +	return 0;
 +
