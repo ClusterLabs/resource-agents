@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.17 $) dnl cvs revision
+AC_REVISION($Revision: 1.18 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -67,6 +67,7 @@ AC_CHECK_LIB(nsl, t_open)                dnl -lnsl
 AC_CHECK_LIB(socket, socket)             dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler) dnl -lposix4
 AC_CHECK_LIB(dl, dlopen)		 dnl -ldl (for Linux)
+AC_CHECK_LIB(glib, g_string_new)	 dnl -dl
 if test "$ac_cv_lib_dl_dlopen" = yes; then
 	LIBADD_DL=-ldl
 else
