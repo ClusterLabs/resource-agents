@@ -53,6 +53,10 @@ int main(int argc, char *argv[]){
     if(force){
       desc = ccs_force_connect(cluster_name, blocking);
     } else {
+      if(cluster_name){
+	fprintf(stderr, "A cluster name can only be specified when using 'force'.\n");
+	exit(EXIT_FAILURE);
+      }
       desc = ccs_connect();
     }
     if(desc < 0){
