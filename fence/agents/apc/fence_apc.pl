@@ -232,6 +232,9 @@ sub navigate
 
 			# "MasterSwitch plus 1", "1- Outlet 1:1  Outlet #1  ON"
 			/--\s*$masterswitch.*(\d+)\s*-\s*Outlet\s+$switchnum:$opt_n\s[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+	
+			# Administrator outlet control menu
+			/--\s*Outlet $switchnum:$opt_n\D.*(\d+)\s*-\s*outlet control\s*$switchnum:?$opt_n\D/ism || 
 
 
 			#
@@ -243,11 +246,8 @@ sub navigate
 			# "Device Manager", "1- Cluster Node 0   ON"
 			/--\s*Outlet Control.*(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
-			#
-			# Common reboot menu option
-			#
-			# Outlet Control
-			/(\d+)\s*-\s*(Control\s+)?Outlet\s+(control\s+)?\s*($switchnum:)?$opt_n\D/i
+			# Administrator Outlet Control menu
+			/--\s*Outlet $opt_n\D.*(\d+)\s*-\s*control outlet\s+$opt_n\D/ism
 		) {
 			$t->print($1);
 			next;
