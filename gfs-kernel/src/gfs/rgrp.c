@@ -951,12 +951,13 @@ recent_rgrp_first(struct gfs_sbd *sdp, uint64_t rglast)
 /**
  * recent_rgrp_next - get next RG from "recent" list
  * @cur_rgd: current rgrp
+ * @remove:
  *
  * Returns: The next rgrp in the recent list
  */
 
 static struct gfs_rgrpd *
-recent_rgrp_next(struct gfs_rgrpd *cur_rgd)
+recent_rgrp_next(struct gfs_rgrpd *cur_rgd, int remove)
 {
 	struct gfs_sbd *sdp = cur_rgd->rd_sbd;
 	struct list_head *tmp, *head;
@@ -969,36 +970,27 @@ recent_rgrp_next(struct gfs_rgrpd *cur_rgd)
 	     tmp = tmp->next) {
 		rgd = list_entry(tmp, struct gfs_rgrpd, rd_recent);
 		if (rgd == cur_rgd) {
-			if (cur_rgd->rd_recent.next != &sdp->sd_rg_recent)
+			if (cur_rgd->rd_recent.next != head)
 				rgd = list_entry(cur_rgd->rd_recent.next,
 						 struct gfs_rgrpd, rd_recent);
 			else
 				rgd = NULL;
+
+			if (remove)
+				list_del(&cur_rgd->rd_recent);
 
 			goto out;
 		}
 	}
 
 	rgd = NULL;
+	if (!list_empty(head))
+		rgd = list_entry(head->next, struct gfs_rgrpd, rd_recent);
 
  out:
 	spin_unlock(&sdp->sd_rg_recent_lock);
 
 	return rgd;
-}
-
-/**
- * recent_rgrp_remove - remove an RG from "recent" list
- * @rgd: The rgrp to remove
- *
- */
-
-static void
-recent_rgrp_remove(struct gfs_rgrpd *rgd)
-{
-	spin_lock(&rgd->rd_sbd->sd_rg_recent_lock);
-	list_del(&rgd->rd_recent);
-	spin_unlock(&rgd->rd_sbd->sd_rg_recent_lock);
 }
 
 /**
@@ -1104,13 +1096,12 @@ static int
 get_local_rgrp(struct gfs_inode *ip)
 {
 	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_rgrpd *rgd, *begin, *next = NULL;
+	struct gfs_rgrpd *rgd, *begin = NULL;
 	struct gfs_alloc *al = ip->i_alloc;
 	int flags = LM_FLAG_TRY;
-	int error = 0;
 	int skipped = 0;
 	int loops = 0;
-	int update_recent = FALSE;
+	int error;
 
 	/* Try recently successful rgrps */
 
@@ -1124,15 +1115,12 @@ get_local_rgrp(struct gfs_inode *ip)
 		case 0:
 			if (try_rgrp_fit(rgd, al))
 				goto out;
-
-			next = recent_rgrp_next(rgd);
-			recent_rgrp_remove(rgd);
 			gfs_glock_dq_uninit(&al->al_rgd_gh);
-			rgd = next;
+			rgd = recent_rgrp_next(rgd, TRUE);
 			break;
 
 		case GLR_TRYFAILED:
-			rgd = recent_rgrp_next(rgd);
+			rgd = recent_rgrp_next(rgd, FALSE);
 			break;
 
 		default:
@@ -1143,7 +1131,6 @@ get_local_rgrp(struct gfs_inode *ip)
 
 	/* Go through full list of rgrps */
 
-	update_recent = TRUE;
 	begin = rgd = forward_rgrp_get(sdp);
 
 	for (;;) {
@@ -1182,9 +1169,11 @@ get_local_rgrp(struct gfs_inode *ip)
  out:
 	ip->i_last_rg_alloc = rgd->rd_ri.ri_addr;
 
-	if (update_recent) {
+	if (begin) {
 		recent_rgrp_add(rgd);
 		rgd = gfs_rgrpd_get_next(rgd);
+		if (!rgd)
+			rgd = gfs_rgrpd_get_first(rgd);
 		forward_rgrp_set(sdp, rgd);
 	}
 
