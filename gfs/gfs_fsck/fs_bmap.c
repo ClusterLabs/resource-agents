@@ -235,12 +235,12 @@ static int build_height(struct fsck_inode *ip, int height)
 			  gfs_buffer_copy_tail(bh, sizeof(struct gfs_indirect),
 			  dibh, sizeof(struct gfs_dinode));
 			*/
-			printf("ATTENTION -- Not doing copy_tail...\n");
+			log_err("ATTENTION -- Not doing copy_tail...\n");
 			exit(1);
 			error = -1;
 			goto fail_drelse;
 			if((error = write_buf(sdp, bh, 0))){
-				fprintf(stderr, "Unable to write new buffer #%"PRIu64".\n",
+				log_err( "Unable to write new buffer #%"PRIu64".\n",
 					BH_BLKNO(bh));
 				goto fail_drelse;
 			}
@@ -485,7 +485,7 @@ int fs_block_map(struct fsck_inode *ip, uint64 lblock, int *new,
 		if (!*dblock)
 			goto out;
 
-		printf("ATTENTION -- not doing gfs_get_meta_buffer...\n");
+		log_err("ATTENTION -- not doing gfs_get_meta_buffer...\n");
 		error = -1;
 		exit(1);
 		/*
@@ -509,7 +509,7 @@ int fs_block_map(struct fsck_inode *ip, uint64 lblock, int *new,
 				error = get_datablock(ip, bh, &mp, 0, &tmp_new,
 						      &tmp_dblock);
 				if(error){
-					fprintf(stderr, "Unable to perform get_datablock.\n");
+					log_err( "Unable to perform get_datablock.\n");
 					goto fail;
 				}
 

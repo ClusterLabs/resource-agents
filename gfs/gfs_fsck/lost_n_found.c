@@ -65,8 +65,16 @@ int add_inode_to_lf(struct fsck_inode *ip){
 			 ip->i_num.no_addr);
 		sprintf(tmp_name, "..");
 		filename.len = strlen(tmp_name);  /* no trailing NULL */
-		filename.name = malloc(sizeof(char) * filename.len);
-		memset(filename.name, 0, sizeof(char) * filename.len);
+		if(!(filename.name = malloc(sizeof(char) * filename.len))) {
+			log_err("Unable to allocate name\n");
+			stack;
+			return -1;
+		}
+		if(!memset(filename.name, 0, sizeof(char) * filename.len)) {
+			log_err("Unable to zero name\n");
+			stack;
+			return -1;
+		}
 		memcpy(filename.name, tmp_name, filename.len);
 
 		if(fs_dirent_del(ip, NULL, &filename)){
@@ -92,8 +100,16 @@ int add_inode_to_lf(struct fsck_inode *ip){
 		break;
 	}
 	filename.len = strlen(tmp_name);  /* no trailing NULL */
-	filename.name = malloc(sizeof(char) * filename.len);
-	memset(filename.name, 0, sizeof(char) * filename.len);
+	if(!(filename.name = malloc(sizeof(char) * filename.len))) {
+		log_err("Unable to allocate name\n");
+			stack;
+			return -1;
+		}
+	if(!memset(filename.name, 0, sizeof(char) * filename.len)) {
+		log_err("Unable to zero name\n");
+		stack;
+		return -1;
+	}
 	memcpy(filename.name, tmp_name, filename.len);
 
 	if(fs_dir_add(lf_ip, &filename, &(ip->i_num), ip->i_di.di_type)){

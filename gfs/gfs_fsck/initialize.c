@@ -234,7 +234,8 @@ static int fill_super_block(struct fsck_sb *sdp)
 		sdp->sb.sb_bsize = GFS_BASIC_BLOCK;
 
 	if(sizeof(struct gfs_sb) > sdp->sb.sb_bsize){
-		fprintf(stderr, "sizeof(struct gfs_sb) > sdp->sb.sb_bsize\n");
+		log_crit("GFS superblock is larger than the blocksize!\n");
+		log_debug("sizeof(struct gfs_sb) > sdp->sb.sb_bsize\n");
 		return -1;
 	}
 

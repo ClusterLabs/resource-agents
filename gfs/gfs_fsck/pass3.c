@@ -38,8 +38,16 @@ static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 	 * this case? */
 
 	filename.len = strlen("..");
-	filename.name = malloc(sizeof(char) * filename.len);
-	memset(filename.name, 0, sizeof(char) * filename.len);
+	if(!(filename.name = malloc(sizeof(char) * filename.len))) {
+		log_err("Unable to allocate name\n");
+		stack;
+		return -1;
+	}
+	if(!memset(filename.name, 0, sizeof(char) * filename.len)) {
+		log_err("Unable to zero name\n");
+		stack;
+		return -1;
+	}
 	memcpy(filename.name, "..", filename.len);
 	if(fs_dirent_del(ip, NULL, &filename)){
 		log_warn("Unable to remove \"..\" directory entry.\n");

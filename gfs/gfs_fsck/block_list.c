@@ -55,6 +55,10 @@ struct block_list *block_list_create(uint64_t size, enum block_list_type type)
 	log_info("Creating a block list of size %"PRIu64"...\n", size);
 
 	if ((il = malloc(sizeof(*il)))) {
+		if(!memset(il, 0, sizeof(*il))) {
+			log_err("Cannot set block list to zero\n");
+			return NULL;
+		}
 		il->type = type;
 
 		switch(type) {
@@ -112,7 +116,7 @@ int block_mark(struct block_list *il, uint64_t block, enum mark_block mark)
 
 		break;
 	default:
-		fprintf(stderr, "block list type %d not implemented\n",
+		log_err("block list type %d not implemented\n",
 			il->type);
 		err = -1;
 		break;
@@ -153,7 +157,7 @@ int block_clear(struct block_list *il, uint64_t block, enum mark_block m)
 
 		break;
 	default:
-		fprintf(stderr, "block list type %d not implemented\n",
+		log_err("block list type %d not implemented\n",
 			il->type);
 		err = -1;
 		break;

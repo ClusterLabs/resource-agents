@@ -36,7 +36,7 @@ static void fs_setbit(unsigned char *buffer, unsigned int buflen,
 	end = buffer + buflen;
 
 	if(byte >= end){
-		fprintf(stderr,"fs_setbit:  byte >= end\n");
+		log_err("fs_setbit:  byte >= end\n");
 		exit(1);
 	}
 	cur_state = (*byte >> bit) & GFS_BIT_MASK;
@@ -261,7 +261,7 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 	int local_rgd = 0;
 
 	if(check_range(sdp, blkno)){
-		printf( "Block #%"PRIu64" is out of range.\n", blkno);
+		log_warn("Block #%"PRIu64" is out of range.\n", blkno);
 		return -1;
 	}
 	if(rgd == NULL) {
@@ -269,11 +269,11 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 		rgd = fs_blk2rgrpd(sdp, blkno);
 	}
 	if(rgd == NULL){
-		fprintf(stderr, "Unable to get rgrp for block #%"PRIu64"\n", blkno);
+		log_err( "Unable to get rgrp for block #%"PRIu64"\n", blkno);
 		return -1;
 	}
 	if(fs_rgrp_read(rgd)){
-		fprintf(stderr, "Unable to read rgrp.\n");
+		log_err( "Unable to read rgrp.\n");
 		return -1;
 	}
 
@@ -287,7 +287,7 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 	}
 
 	if(buf >= rgd->rd_ri.ri_length){
-		fprintf(stderr, "Unable to locate bitmap entry for block #%"PRIu64"\n",
+		log_err( "Unable to locate bitmap entry for block #%"PRIu64"\n",
 			blkno);
 		fs_rgrp_relse(rgd);
 		return -1;

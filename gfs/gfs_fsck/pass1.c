@@ -103,7 +103,7 @@ static int check_metalist(struct fsck_inode *ip, uint64_t block,
 
 	if (check_range(ip->i_sbd, block)){ /* blk outside of FS */
 		block_set(sdp->bl, ip->i_di.di_num.no_addr, bad_block);
-		printf( "Bad indirect block pointer (out of range).\n");
+		log_debug("Bad indirect block pointer (out of range).\n");
 
 		return 1;
         }
@@ -121,7 +121,7 @@ static int check_metalist(struct fsck_inode *ip, uint64_t block,
 
         /** Attention -- experimental code **/
         if (check_meta(nbh, GFS_METATYPE_IN)){
-		printf( "Bad indirect block pointer "
+		log_debug("Bad indirect block pointer "
 			"(points to something that is not an indirect block).\n");
 		if(!found_dup) {
 			block_set(sdp->bl, block, meta_inval);

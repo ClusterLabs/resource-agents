@@ -477,8 +477,14 @@ static int dir_e_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 			log_err("dir_e_search:  Illegal parameter.  inum must be NULL.\n");
 			exit(1);
 		}
-		id->inum = (struct gfs_inum *)malloc(sizeof(struct gfs_inum));
-		memset(id->inum, 0, sizeof(struct gfs_inum));
+		if(!(id->inum = (struct gfs_inum *)malloc(sizeof(struct gfs_inum)))) {
+			log_err("Unable to allocate inum structure\n");
+			return -1;
+		}
+		if(!memset(id->inum, 0, sizeof(struct gfs_inum))) {
+			log_err("Unable to zero inum structure\n");
+			return -1;
+		}
 
 		gfs_inum_in(id->inum, (char *)&dent->de_inum);
 	} else {
@@ -486,14 +492,27 @@ static int dir_e_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 			log_err("dir_e_search:  Illegal parameter.  name must be NULL.\n");
 			exit(1);
 		}
-		id->filename = (osi_filename_t *)malloc(sizeof(osi_filename_t));
-		memset(id->filename, 0, sizeof(osi_filename_t));
+		if(!(id->filename = (osi_filename_t *)malloc(sizeof(osi_filename_t)))) {
+			log_err("Unable to allocate osi_filename structure\n");
+			return -1;
+		}
+		if(!(memset(id->filename, 0, sizeof(osi_filename_t)))) {
+			log_err("Unable to zero osi_filename structure\n");
+			return -1;
+		}
 
 		id->filename->len = gfs16_to_cpu(dent->de_name_len);
-		id->filename->name = malloc(id->filename->len);
-		memset(id->filename->name, 0, id->filename->len);
-
-		memset(id->filename->name, 0, id->filename->len);
+		if(!(id->filename->name = malloc(id->filename->len))) {
+			log_err("Unable to allocate name in osi_filename structure\n");
+			free(id->filename);
+			return -1;
+		}
+		if(!(memset(id->filename->name, 0, id->filename->len))) {
+			log_err("Unable to zero name in osi_filename structure\n");
+			free(id->inum);
+			free(id->filename);
+			return -1;
+		}
 
 		memcpy(id->filename->name, (char *)dent+sizeof(struct gfs_dirent),
 		       id->filename->len);

@@ -172,7 +172,14 @@ int ji_update(struct fsck_sb *sdp)
 		return -1;
 	}
 
-	sdp->jindex = (struct gfs_jindex *)malloc(ip->i_di.di_size);
+	if(!(sdp->jindex = (struct gfs_jindex *)malloc(ip->i_di.di_size))) {
+		log_err("Unable to allocate journal index\n");
+		return -1;
+	}
+	if(!memset(sdp->jindex, 0, ip->i_di.di_size)) {
+		log_err("Unable to zero journal index\n");
+		return -1;
+	}
 
 	for (j = 0; ; j++){
 		error = readi(ip, buf, j * sizeof(struct gfs_jindex),

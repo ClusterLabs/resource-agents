@@ -15,19 +15,7 @@
 #include "fs_bits.h"
 
 #include "util.h"
-char query_char;
-/* The query macro is used inside of if statements, like this:           **
-** if(query("Do you want to remove block #%"PRIu64"? (y/n) ", block)){  **
-**   remove_block_function(block);                                       **
-** } else {                                                              **
-**   printf("Block not removed.\n");                                     **
-** }                                                                     */
-#define query(fmt, args...) \
-( \
-  (((printf(fmt "\n" , ## args)) && (!fflush(NULL)) &&\
-  (scanf(" %c", &query_char)) && \
-  ((query_char == 'y') || (query_char == 'Y')))) \
-)
+#include "log.h"
 
 /**
  * compute_height
@@ -165,7 +153,7 @@ int next_rg_meta(struct fsck_rgrp *rgd, uint64 *block, int first)
   int i;
 
   if(!first && (*block < rgd->rd_ri.ri_data1)){
-    fprintf(stderr, "next_rg_meta:  Start block is outside rgrp bounds.\n");
+    log_err("next_rg_meta:  Start block is outside rgrp bounds.\n");
     exit(1);
   }
 
@@ -218,7 +206,7 @@ int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first)
   int i;
 
   if(!first && (*block < rgd->rd_ri.ri_data1)){
-    fprintf(stderr, "next_rg_meta:  Start block is outside rgrp bounds.\n");
+    log_err("next_rg_meta:  Start block is outside rgrp bounds.\n");
     exit(1);
   }
 
@@ -275,14 +263,14 @@ int next_rg_metatype(struct fsck_rgrp *rgd, uint64 *block, uint32 type, int firs
       return -1;
 
     if(get_and_read_buf(sdp, *block, &bh, 0)){
-      fprintf(stderr, "next_rg_metatype:  Unable to read meta block "
-          "#%"PRIu64" from disk\n", *block);
+      log_err("next_rg_metatype:  Unable to read meta block "
+	      "#%"PRIu64" from disk\n", *block);
       exit(1);
     }
 
     if(check_meta(bh,0)){
-      fprintf(stderr, "next_rg_metatype:  next_rg_meta returned block #%"PRIu64",\n"
-	  "                   which is not a valid meta block.\n", *block);
+      log_err("next_rg_metatype:  next_rg_meta returned block #%"PRIu64",\n"
+	      "                   which is not a valid meta block.\n", *block);
       exit(1);
     }
 

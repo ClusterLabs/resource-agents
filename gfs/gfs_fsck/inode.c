@@ -182,13 +182,13 @@ static int make_dinode(struct fsck_inode *dip, struct fsck_sb *sdp,
 
 	if(check_meta(dibh, 0)){
 		struct gfs_meta_header mh;
-		printf( "make_dinode:  Buffer #%"PRIu64" has no meta header.\n",
-			BH_BLKNO(dibh));
+	        log_debug("Buffer #%"PRIu64" has no meta header.\n",
+			  BH_BLKNO(dibh));
 		memset(&mh, 0, sizeof(struct gfs_meta_header));
 		mh.mh_magic = GFS_MAGIC;
 		mh.mh_type = GFS_METATYPE_NONE;
 		gfs_meta_header_out(&mh, BH_DATA(dibh));
-		printf( "meta header added.\n");
+		log_debug("meta header added.\n");
 	}
 
 	((struct gfs_meta_header *)BH_DATA(dibh))->mh_type =
@@ -223,7 +223,7 @@ static int make_dinode(struct fsck_inode *dip, struct fsck_sb *sdp,
 
 	rgd = fs_blk2rgrpd(sdp, inum->no_addr);
 	if(!rgd){
-		fprintf(stderr, "Unable to map block #%"PRIu64" to rgrp\n", inum->no_addr);
+		log_crit("Unable to map block #%"PRIu64" to rgrp\n", inum->no_addr);
 		exit(1);
 	}
 
@@ -235,7 +235,7 @@ static int make_dinode(struct fsck_inode *dip, struct fsck_sb *sdp,
 
 	gfs_dinode_out(&di, BH_DATA(dibh));
 	if(write_buf(sdp, dibh, 0)){
-		fprintf(stderr, "make_dinode:  bad write_buf()\n");
+		log_err("make_dinode:  bad write_buf()\n");
 		error = -EIO;
 	}
 
@@ -318,7 +318,7 @@ int create_inode(struct fsck_sb *sbp, unsigned int type, struct fsck_inode **ip)
 
 	if(!inum.no_addr){
 		if(allocate){
-			fprintf(stderr, "No space available for new file or directory.\n");
+			log_err("No space available for new file or directory.\n");
 			return -1;
 		} else {
 			allocate = 1;

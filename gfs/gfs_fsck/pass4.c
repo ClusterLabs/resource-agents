@@ -25,6 +25,8 @@
 int fix_inode_count(struct fsck_sb *sbp, struct inode_info *ii,
 		    struct fsck_inode *ip)
 {
+	log_info("Fixing inode count for %"PRIu64"\n",
+		 ip->i_di.di_num.no_addr);
 	if(ip->i_di.di_nlink == ii->counted_links)
 		return 0;
 	ip->i_di.di_nlink = ii->counted_links;
@@ -47,7 +49,10 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 	/* FIXME: should probably factor this out into a generic
 	 * scanning fxn */
 	osi_list_foreach(tmp, list) {
-		ii = osi_list_entry(tmp, struct inode_info, list);
+		if(!(ii = osi_list_entry(tmp, struct inode_info, list))) {
+			log_crit("osi_list_foreach broken in scan_info_list!!\n");
+			exit(1);
+		}
 		/* Don't check reference counts on the special gfs files */
 		if((ii->inode == sbp->sb.sb_rindex_di.no_addr) ||
 		   (ii->inode == sbp->sb.sb_jindex_di.no_addr) ||
@@ -135,9 +140,12 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 	}
  end:
 	if (lf_addition) {
-		ii = inode_hash_search(sbp->inode_hash,
-				       sbp->lf_dip->i_num.no_addr);
-		fix_inode_count(sbp, ii, sbp->lf_dip);
+		if(!(ii = inode_hash_search(sbp->inode_hash,
+					    sbp->lf_dip->i_num.no_addr))) {
+			log_err("Unable to find l+f inode in inode_hash!!\n");
+		} else {
+			fix_inode_count(sbp, ii, sbp->lf_dip);
+		}
 	}
 
 

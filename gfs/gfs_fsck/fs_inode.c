@@ -16,24 +16,11 @@
 #include "fs_bits.h"
 #include "fs_dir.h"
 #include "rgrp.h"
+#include "log.h"
 
 #include "fs_inode.h"
 
 #define ST_CREATE 1
-
-char query_char;
-/* The query macro is used inside of if statements, like this:           **
-** if(query("Do you want to remove block #%"PRIu64"? (y/n) ", block)){  **
-**   remove_block_function(block);                                       **
-** } else {                                                              **
-**   printf("Block not removed.\n");                                     **
-** }                                                                     */
-#define query(fmt, args...) \
-( \
-  (((printf(fmt "\n" , ## args)) && (!fflush(NULL)) &&\
-  (scanf(" %c", &query_char)) && \
-  ((query_char == 'y') || (query_char == 'Y')))) \
-)
 
 /**
  * fs_get_istruct - Get an inode given its number
@@ -56,7 +43,17 @@ static int fs_get_istruct(struct fsck_sb *sdp, struct gfs_inum *inum,
 		goto out;
 	}
 
-	ip = (struct fsck_inode *)malloc(sizeof(struct fsck_inode));
+	if(!(ip = (struct fsck_inode *)malloc(sizeof(struct fsck_inode)))) {
+		log_err("Unable to allocate fsck_inode structure\n");
+		error = -1;
+		goto out;
+	}
+	if(!memset(ip, 0, sizeof(struct fsck_inode))) {
+		log_err("Unable to zero fsck_inode structure\n");
+		error = -1;
+		goto out;
+	}
+
 	ip->i_num = *inum;
 
 	ip->i_sbd = sdp;
@@ -127,14 +124,14 @@ int fs_copyout_dinode(struct fsck_inode *ip){
 
 	error = get_and_read_buf(ip->i_sbd, ip->i_num.no_addr, &dibh, 0);
 	if(error){
-		fprintf(stderr, "Unable to get a buffer to write dinode to disk.\n");
+		log_err( "Unable to get a buffer to write dinode to disk.\n");
 		return -1;
 	}
 
 	gfs_dinode_out(&ip->i_di, BH_DATA(dibh));
 
 	if(write_buf(ip->i_sbd, dibh, 0)){
-		fprintf(stderr, "Unable to commit dinode buffer to disk.\n");
+		log_err( "Unable to commit dinode buffer to disk.\n");
 		relse_buf(ip->i_sbd, dibh);
 		return -1;
 	}
@@ -167,17 +164,17 @@ static int make_dinode(struct fsck_inode *dip, struct gfs_inum *inum,
 		goto out;
 
 	if(check_meta(dibh, 0)){
-		printf( "make_dinode:  Buffer #%"PRIu64" has no meta header.\n",
+		log_err("make_dinode:  Buffer #%"PRIu64" has no meta header.\n",
 			BH_BLKNO(dibh));
-		if(query("Add header? (y/n) ")){
+		if(query(dip->i_sbd, "Add header? (y/n) ")){
 			struct gfs_meta_header mh;
 			memset(&mh, 0, sizeof(struct gfs_meta_header));
 			mh.mh_magic = GFS_MAGIC;
 			mh.mh_type = GFS_METATYPE_NONE;
 			gfs_meta_header_out(&mh, BH_DATA(dibh));
-			printf( "meta header added.\n");
+			log_warn("meta header added.\n");
 		} else {
-			fprintf(stderr, "meta header not added.  Failing make_dinode.\n");
+			log_err("meta header not added.  Failing make_dinode.\n");
 			relse_buf(sdp, dibh);
 			return -1;
 		}
@@ -215,7 +212,7 @@ static int make_dinode(struct fsck_inode *dip, struct gfs_inum *inum,
 
 	rgd = fs_blk2rgrpd(sdp, inum->no_addr);
 	if(!rgd){
-		fprintf(stderr, "Unable to map block #%"PRIu64" to rgrp\n", inum->no_addr);
+		log_err( "Unable to map block #%"PRIu64" to rgrp\n", inum->no_addr);
 		exit(1);
 	}
 
@@ -227,7 +224,7 @@ static int make_dinode(struct fsck_inode *dip, struct gfs_inum *inum,
 
 	gfs_dinode_out(&di, BH_DATA(dibh));
 	if(write_buf(dip->i_sbd, dibh, 0)){
-		fprintf(stderr, "make_dinode:  bad write_buf()\n");
+		log_err( "make_dinode:  bad write_buf()\n");
 		error = -EIO;
 	}
 
@@ -257,7 +254,7 @@ static int fs_change_nlink(struct fsck_inode *ip, int diff)
 
 	if (diff < 0)
 		if(nlink >= ip->i_di.di_nlink)
-			fprintf(stderr, "fs_change_nlink:  Bad link count detected in dinode.\n");
+			log_err( "fs_change_nlink:  Bad link count detected in dinode.\n");
 
 	error = get_and_read_buf(ip->i_sbd, ip->i_num.no_addr, &dibh, 0);
 	if (error)
@@ -414,7 +411,7 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 			rgd->rd_rg.rg_useddi++;
 
 			if(fs_rgrp_recount(rgd)){
-				fprintf(stderr,  "fs_createi:  Unable to recount rgrp blocks.\n");
+				log_err(  "fs_createi:  Unable to recount rgrp blocks.\n");
 				fs_rgrp_relse(rgd);
 				error = -EIO;
 				goto fail;
@@ -444,7 +441,7 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 					rgd->rd_rg.rg_useddi++;
 
 					if(fs_rgrp_recount(rgd)){
-						fprintf(stderr, "fs_createi:  Unable to recount rgrp blocks.\n");
+						log_err( "fs_createi:  Unable to recount rgrp blocks.\n");
 						fs_rgrp_relse(rgd);
 						error = -EIO;
 						goto fail;
@@ -463,7 +460,7 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 
 	if(!inum.no_addr){
 		if(allocate){
-			fprintf(stderr, "No space available for new file or directory.\n");
+			log_err( "No space available for new file or directory.\n");
 			return -1;
 		} else {
 			allocate = 1;
@@ -534,7 +531,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 	}
 
 	if(!ip){
-		fprintf(stderr,  "fs_mkdir:  fs_createi() failed.\n");
+		log_err(  "fs_mkdir:  fs_createi() failed.\n");
 		error = -1;
 		goto fail;
 	}
@@ -547,7 +544,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	error = get_and_read_buf(ip->i_sbd, ip->i_num.no_addr, &dibh, 0);
 	if(error){
-		fprintf(stderr, "fs_mkdir:  Unable to aquire directory buffer.\n");
+		log_err( "fs_mkdir:  Unable to aquire directory buffer.\n");
 		goto fail;
 	}
 
@@ -555,7 +552,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	error = fs_dirent_alloc(ip, dibh, 1, &dent);
 	if(error){  /*  This should never fail  */
-		fprintf(stderr, "fs_mkdir:  fs_dirent_alloc() failed for \".\" entry.\n");
+		log_err( "fs_mkdir:  fs_dirent_alloc() failed for \".\" entry.\n");
 		goto fail;
 	}
 
@@ -568,7 +565,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	error = fs_dirent_alloc(ip, dibh, 2, &dent);
 	if(error){  /*  This should never fail  */
-		fprintf(stderr, "fs_mkdir:  fs_dirent_alloc() failed for \"..\" entry.\n");
+		log_err( "fs_mkdir:  fs_dirent_alloc() failed for \"..\" entry.\n");
 		goto fail;
 	}
 	gfs_inum_out(&dip->i_num, (char *)&dent->de_inum);
@@ -579,7 +576,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	gfs_dinode_out(&ip->i_di, (char *)di);
 	if(write_buf(ip->i_sbd, dibh, 0)){
-		fprintf(stderr, "fs_mkdir:  Bad write_buf()\n");
+		log_err( "fs_mkdir:  Bad write_buf()\n");
 		error = -EIO;
 		goto fail;
 	}
@@ -593,7 +590,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	error = fs_change_nlink(dip, +1);
 	if(error){
-		fprintf(stderr, "fs_mkdir:  fs_change_nlink() failed.\n");
+		log_err( "fs_mkdir:  fs_change_nlink() failed.\n");
 		goto fail;
 		} */
 

@@ -709,8 +709,16 @@ int check_root_dir(struct fsck_sb *sbp)
 		log_err("No '.' entry found\n");
 		sprintf(tmp_name, ".");
 		filename.len = strlen(tmp_name);  /* no trailing NULL */
-		filename.name = malloc(sizeof(char) * filename.len);
-		memset(filename.name, 0, sizeof(char) * filename.len);
+		if(!(filename.name = malloc(sizeof(char) * filename.len))) {
+			log_err("Unable to allocate name string\n");
+			stack;
+			return -1;
+		}
+		if(!(memset(filename.name, 0, sizeof(char) * filename.len))) {
+			log_err("Unable to zero name string\n");
+			stack;
+			return -1;
+		}
 		memcpy(filename.name, tmp_name, filename.len);
 		log_warn("Adding '.' entry\n");
 		if(fs_dir_add(ip, &filename, &(ip->i_num),
@@ -880,8 +888,16 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 			log_err("No '.' entry found\n");
 			sprintf(tmp_name, ".");
 			filename.len = strlen(tmp_name);  /* no trailing NULL */
-			filename.name = malloc(sizeof(char) * filename.len);
-			memset(filename.name, 0, sizeof(char) * filename.len);
+			if(!(filename.name = malloc(sizeof(char) * filename.len))) {
+				log_err("Unable to allocate name string\n");
+				stack;
+				return -1;
+			}
+			if(!memset(filename.name, 0, sizeof(char) * filename.len)) {
+				log_err("Unable to zero name string\n");
+				stack;
+				return -1;
+			}
 			memcpy(filename.name, tmp_name, filename.len);
 
 			if(fs_dir_add(ip, &filename, &(ip->i_num),

@@ -74,7 +74,11 @@ int increment_link(struct fsck_sb *sbp, uint64_t inode_no)
 		stack;
 		return -1;
 	}
-	memset(ii, 0, sizeof(*ii));
+	if(!memset(ii, 0, sizeof(*ii))) {
+		log_err("Unable to zero inode_info structure\n");
+		stack;
+		return -1;
+	}
 	ii->inode = inode_no;
 	ii->counted_links = 1;
 	inode_hash_insert(sbp->inode_hash, inode_no, ii);

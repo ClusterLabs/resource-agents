@@ -35,6 +35,17 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	uint32 bytes_left, bytes;
 	int x;
 	rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t));
+	if(!(rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t)))) {
+		log_err("Unable to allocate bitmap structure\n");
+		stack;
+		return -1;
+	}
+	if(!memset(rgd->rd_bits, 0, length * sizeof(fs_bitmap_t))) {
+		log_err("Unable to zero bitmap structure\n");
+		stack;
+		return -1;
+	}
+	
 	memset(rgd->rd_bits, 0, length * sizeof(fs_bitmap_t));
 
 	bytes_left = rgd->rd_ri.ri_bitbytes;
@@ -71,14 +82,14 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	}
 
 	if(bytes_left){
-		fprintf(stderr, "fs_compute_bitstructs:  Too many blocks in rgrp to "
+		log_err( "fs_compute_bitstructs:  Too many blocks in rgrp to "
 			"fit into available bitmap.\n");
 		return -1;
 	}
 
 	if((rgd->rd_bits[length - 1].bi_start +
 	    rgd->rd_bits[length - 1].bi_len) * GFS_NBBY != rgd->rd_ri.ri_data){
-		fprintf(stderr, "fs_compute_bitstructs:  # of blks in rgrp do not equal "
+		log_err( "fs_compute_bitstructs:  # of blks in rgrp do not equal "
 			"# of blks represented in bitmap.\n"
 			"\tbi_start = %u\n"
 			"\tbi_len   = %u\n"
@@ -92,8 +103,16 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	}
 
 
-	rgd->rd_bh = (osi_buf_t **)malloc(length * sizeof(osi_buf_t *));
-	memset(rgd->rd_bh, 0, length * sizeof(osi_buf_t *));
+	if(!(rgd->rd_bh = (osi_buf_t **)malloc(length * sizeof(osi_buf_t *)))) {
+		log_err("Unable to allocate osi_buf structure\n");
+		stack;
+		return -1;
+	}
+	if(!memset(rgd->rd_bh, 0, length * sizeof(osi_buf_t *))) {
+		log_err("Unable to zero osi_buf structure\n");
+		stack;
+		return -1;
+	}
 
 	return 0;
 }
@@ -441,12 +460,12 @@ int fs_blkalloc(struct fsck_inode *ip, uint64 *block)
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
 
 		if(!rgd){
-			fprintf(stderr, "fs_blkalloc:  Bad rgrp list!\n");
+			log_err( "fs_blkalloc:  Bad rgrp list!\n");
 			return -1;
 		}
 
 		if(fs_rgrp_read(rgd)){
-			fprintf(stderr, "fs_blkalloc:  Unable to read rgrp.\n");
+			log_err( "fs_blkalloc:  Unable to read rgrp.\n");
 			return -1;
 		}
 
@@ -479,7 +498,7 @@ int fs_blkalloc(struct fsck_inode *ip, uint64 *block)
 
 		gfs_rgrp_out(&rgd->rd_rg, BH_DATA(rgd->rd_bh[0]));
 		if(write_buf(sdp, rgd->rd_bh[0], 0)){
-			fprintf(stderr, "Unable to write out rgrp block #%"
+			log_err( "Unable to write out rgrp block #%"
 				PRIu64".\n",
 				BH_BLKNO(rgd->rd_bh[0]));
 			fs_rgrp_relse(rgd);
@@ -514,12 +533,12 @@ int fs_metaalloc(struct fsck_inode *ip, uint64 *block)
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
 
 		if(!rgd){
-			fprintf(stderr, "fs_metaalloc:  Bad rgrp list!\n");
+			log_err( "fs_metaalloc:  Bad rgrp list!\n");
 			return -1;
 		}
 
 		if(fs_rgrp_read(rgd)){
-			fprintf(stderr, "fs_metaalloc:  Unable to read rgrp.\n");
+			log_err( "fs_metaalloc:  Unable to read rgrp.\n");
 			return -1;
 		}
 
