@@ -230,7 +230,7 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 	list_del(&lsinfo->ls_list);
 	set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
 	lsinfo->ls_lockspace = NULL;
-	if (atomic_dec_and_test(&lsinfo->ls_refcnt)) {
+	if (atomic_read(&lsinfo->ls_refcnt) == 0) {
 		kfree(lsinfo->ls_miscinfo.name);
 		kfree(lsinfo);
 	}
@@ -539,10 +539,12 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 	/* If this is the last reference, and the lockspace has been deleted
 	   then free the struct */
+	down(&user_ls_lock);
 	if (atomic_dec_and_test(&lsinfo->ls_refcnt) && !lsinfo->ls_lockspace) {
 		kfree(lsinfo->ls_miscinfo.name);
 		kfree(lsinfo);
 	}
+	up(&user_ls_lock);
 
 	/* Restore signals */
 	sigprocmask(SIG_SETMASK, &tmpsig, NULL);
