@@ -45,7 +45,6 @@
 
 extern char *             prog_name;
 extern int                fenced_debug;
-extern int                fenced_wait;
 extern int                debug_sock;
 extern char               debug_buf[256];
 extern struct sockaddr_un debug_addr;
