@@ -20,6 +20,8 @@
 #include <errno.h>
 #include <syslog.h>
 #include <inttypes.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 #include "trans.h"
 #include "gnbd_utils.h"
@@ -134,6 +136,7 @@ int retry_write(int fd, void *buf, size_t count)
   return 0;
 }
 
+/* FIXME -- Are you ever called from a process that has stdout/err closed */
 int connect_to_comm_device(char *name)
 {
   struct sockaddr_un server;
@@ -153,6 +156,84 @@ int connect_to_comm_device(char *name)
     return -1;
   }
   return sock_fd;
+}
+
+int do_ipv4_connect(struct in_addr addr, uint16_t port)
+{
+  struct sockaddr_in server;
+  int fd;
+
+  fd = socket(PF_INET, SOCK_STREAM, 0);
+  if (fd < 0)
+    return -1;
+  server.sin_family = AF_INET;
+  server.sin_port = htons(port);
+  memcpy(&server.sin_addr, &addr, sizeof(server.sin_addr));
+  
+  if (connect(fd, (struct sockaddr *)&server, sizeof(server)) < 0){
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+
+int do_ipv6_connect(struct in6_addr addr, uint16_t port)
+{
+  struct sockaddr_in6 server;
+  int fd;
+
+  fd = socket(PF_INET6, SOCK_STREAM, 0);
+  if (fd < 0)
+    return -1;
+  server.sin6_family = AF_INET6;
+  server.sin6_port = htons(port);
+  server.sin6_flowinfo = 0;
+  memcpy(&server.sin6_addr, &addr, sizeof(server.sin6_addr));
+  
+  if (connect(fd, (struct sockaddr *)&server, sizeof(server)) < 0){
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+ 
+/* FIXME -- for non-blocking reasons, I need to be able to set a timeout
+   on connections */
+/* FIXME -- I really need some macros so that I can print out messages
+   in and out of daemons */
+int connect_to_server(char *hostname, uint16_t port)
+{
+  int ret;
+  struct addrinfo *ai, *tmp;
+  
+  ret = getaddrinfo(hostname, NULL, NULL, &ai);
+  if (ret)
+    return ret;
+  for (tmp = ai; tmp; tmp = tmp->ai_next){
+    if (tmp->ai_family != AF_INET6)
+      continue;
+    if (tmp->ai_socktype != SOCK_STREAM)
+      continue;
+    ret = do_ipv6_connect(((struct sockaddr_in6 *)tmp->ai_addr)->sin6_addr,
+                          port);
+    if (ret >= 0){
+      freeaddrinfo(ai);
+      return ret;
+    }
+  }
+  for (tmp = ai; tmp; tmp = tmp->ai_next){
+    if (tmp->ai_family != AF_INET)
+      continue;
+    if (tmp->ai_socktype != SOCK_STREAM)
+      continue;
+    ret = do_ipv4_connect(((struct sockaddr_in *)tmp->ai_addr)->sin_addr,
+                          port);
+    if (ret >= 0){
+      freeaddrinfo(ai);
+      return ret;
+    }
+  }
+  return -1;
 }
 
 int send_cmd(int fd, uint32_t cmd, char *type)

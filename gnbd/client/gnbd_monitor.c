@@ -37,6 +37,7 @@
 
 struct pollfd *polls;
 int max_id;
+char node_name[65];
 
 cluster_member_list_t *cluster_members;
 
@@ -44,7 +45,6 @@ cluster_member_list_t *cluster_members;
 #define CONNECT 1
 
 list_t monitor_list;
-char sysfs_buf[4096];
 
 struct monitor_s {
   int minor_nr;
@@ -87,37 +87,6 @@ int monitor_device(int minor_nr, int timeout)
   dev->reset = 0;
   list_add(&dev->list, &monitor_list);
   return 0;
-}
-
-char *get_sysfs_attr(int minor, char *attr_name)
-{
-  int sysfs_fd;
-  int bytes;
-  int count = 0;
-  char sysfs_path[40];
-  
-  snprintf(sysfs_path, 40, "/sys/class/gnbd/gnbd%d/%s", minor, attr_name);
-  if( (sysfs_fd = open(sysfs_path, O_RDONLY)) < 0){
-    printe("cannot open %s : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  while (count < 4095){
-    bytes = read(sysfs_fd, &sysfs_buf[count], 4095 - count);
-    if (bytes < 0 && errno != EINTR){
-      printe("cannot read %s : %s\n", sysfs_path, strerror(errno));
-      exit(1);
-    }
-    if (bytes == 0)
-      break;
-    count += bytes;
-  }
-  /* overwrite the '\n' with '\0' */
-  sysfs_buf[count - 1] = 0;
-  if (close(sysfs_fd) < 0){
-    printe("close on %s returned error : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  return sysfs_buf;
 }
 
 int start_request_sock(void)
@@ -258,31 +227,30 @@ int get_monitor_list(char **buffer, unsigned int *list_size)
   return 0;
 }
 
-
-cluster_member_t *memb_ip_to_p(cluster_member_list_t *list, uint32_t beip)
+cluster_member_t *check_for_host(cluster_member_list_t *list, char *host)
 {
-  int x;
+  int err, x;
   struct addrinfo *ai;
-
-  if (!list)
-    return NULL;
   
+  err = getaddrinfo(host, NULL, NULL, &ai);
+  if (err){
+    printe("cannot get address info for %s : %s\n", host,
+           (err = EAI_SYSTEM)? strerror(errno) : gai_strerror(err));
+    exit(1);
+  }
+
   for (x = 0; x < list->cml_count; x++){
     if (!list->cml_members[x].cm_addrs){
       log_err("cluster member %s doesn't have ipaddrs resolved\n",
               list->cml_members[x].cm_name);
       exit(1);
     }
-    for(ai = list->cml_members[x].cm_addrs; ai; ai = ai->ai_next){
-      if (ai->ai_family != AF_INET){
-        /* FIXME -- need to not do this */
-        log_err("FIXME -- cannot handle any addr types other that AF_INET\n");
-        exit(1);
-      }
-      if (beip == ((struct sockaddr_in *)ai->ai_addr)->sin_addr.s_addr)
-        return &list->cml_members[x];
+    if (check_addr_info(ai, list->cml_members[x].cm_addrs)){
+      freeaddrinfo(ai);
+      return &list->cml_members[x];
     }
   }
+  freeaddrinfo(ai);
   return NULL;
 }
 
@@ -314,17 +282,17 @@ void fail_devices(cluster_member_list_t *nodes)
   monitor_t *dev;
   list_t *item, *next;
   cluster_member_t *node;
-  ip_t ip;
+  char host[256];
   unsigned short port;
   
   list_foreach_safe(item, &monitor_list, next){
     dev = list_entry(item, monitor_t, list);
-    if (sscanf(get_sysfs_attr(dev->minor_nr, "server"), "%8x:%4hx",
-               &ip, &port) != 2){
+    if (sscanf(get_sysfs_attr(dev->minor_nr, "server"), "%255s/%4hx",
+               host, &port) != 2){
       printe("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
       exit(1);
     }
-    node = memb_ip_to_p(nodes, cpu_to_be32(ip));
+    node = check_for_host(nodes, host);
     if (node)
       fail_device(dev);
   }
@@ -409,45 +377,29 @@ void handle_request(int index){
   close_poller(index);
 }
 
-int do_server_connect(ip_t ip, unsigned short port){
-  struct sockaddr_in server;
-  int sock_fd;
-  sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock_fd < 0){
-    log_err("error creating socket: %s\n", strerror(errno));
-    exit(1);
-  }
-  server.sin_addr.s_addr = ip;
-  server.sin_port = htons(port);
-  server.sin_family = AF_INET;
-  if (connect(sock_fd, (struct sockaddr *)&server, sizeof(server)) < 0){
-    log_err("error connecting to server: %s\n", strerror(errno));
-    exit(1);
-  }
-  return sock_fd;
-}
-
 int cleanup_server(monitor_t *dev){
-  ip_t ip;
+  char host[256];
   unsigned short port;
   device_req_t kill_req;
+  node_req_t node;
   int sock;
   uint32_t msg = EXTERN_KILL_GSERV_REQ;
   
+  strncpy(node.node_name, node_name, 65);
+
   if (sscanf(get_sysfs_attr(dev->minor_nr, "server"),
-             "%8lx:%hx\n", (unsigned long *)&ip, &port) != 2){
+             "%255s:%hx\n", host, &port) != 2){
       printe("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
       exit(1);
   }
-  ip = cpu_to_beip(ip);
   if (sscanf(get_sysfs_attr(dev->minor_nr, "name"),
              "%s\n", kill_req.name) != 1){
       printe("cannot parse /sys/class/gnbd/gnbd%d/name\n", dev->minor_nr);
       exit(1);
   }
   /* FIXME -- This needs to be timed */
-  if( (sock = do_server_connect(ip, port)) < 0){
-    log_err("cannot connect to the server\n");
+  if( (sock = connect_to_server(host, port)) < 0){
+    log_err("cannot connect to %s (%d) : %s\n", host, sock, strerror(errno));
     return -1;
   }
   if (send_u32(sock, msg)){
@@ -458,12 +410,17 @@ int cleanup_server(monitor_t *dev){
     log_err("cannot send data to server\n");
     return -1;
   }
+  if (retry_write(sock, &node, sizeof(node)) < 0){
+    log_err("transfer of my node name to %s failed : %s\n", host,
+             strerror(errno));
+    return -1;
+  }
   if (recv_u32(sock, &msg)){
     log_err("cannot receive reply from server\n");
     return -1;
   }
   if (msg != EXTERN_SUCCESS_REPLY){
-    log_err("cannot remove existing server from %s\n", beip_to_str(ip));
+    log_err("cannot remove existing server from %s\n", host);
     return -1;
   }
   return 0;
@@ -471,24 +428,22 @@ int cleanup_server(monitor_t *dev){
     
 void fence_server(monitor_t *dev)
 {
-  ip_t ip;
+  char host[256];
   unsigned short port;
   cluster_member_t *server;
 
   if (sscanf(get_sysfs_attr(dev->minor_nr, "server"),
-             "%8lx:%hx\n", (unsigned long *)&ip, &port) != 2){
+             "%255s/%hx\n", host, &port) != 2){
     log_err("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
     exit(1);
   }
-  ip = cpu_to_beip(ip);
-  server = memb_ip_to_p(cluster_members, ip);
+  server = check_for_host(cluster_members, host);
   if (!server){
-    log_err("server %s is not a cluster member, cannot fence.\n",
-            beip_to_str(ip));
+    log_err("server %s is not a cluster member, cannot fence.\n", host);
     return;
   }
   if (clu_fence(server) < 0)
-    log_err("fence of %s failed\n", beip_to_str(ip));
+    log_err("fence of %s failed\n", host);
 }  
 
 void check_devices(void)
@@ -592,6 +547,9 @@ int main(int argc, char *argv[])
   if (!pid_lock(""))
     fail_startup("Temporary problem running gnbd_monitor. Please retry");
     
+  if (get_my_nodename(node_name) < 0)
+    fail_startup("cannot get node name : %s\n", strerror(errno));
+  
   list_init(&monitor_list);
 
   setup_poll();

@@ -230,7 +230,7 @@ int remove_device(char *name)
     log_fail("cannot find gnbd device '%s' to remove\n", name);
     return -ENODEV;
   }
-  if (find_gserv_info(0, dev)){
+  if (find_gserv_info(NULL, dev)){
     log_fail("device '%s' is in use. Cannot remove\n", name);
     return -EBUSY;
   }

@@ -40,7 +40,6 @@ struct connecter_s {
   int type;    /* LOCAL or EXTERNAL */
   uint32_t req; /* EXTERN_XXX or LOCAL_XXX, 0 for no request read yet */
   int size;
-  ip_t ip;
   char *buf;
 };
 typedef struct connecter_s connecter_t;
@@ -95,7 +94,7 @@ void setup_poll(void)
   max_id = 1;
 }  
 
-void add_poller(int fd, ip_t ip){
+void add_poller(int fd, int type){
   int i;
   
   if (fd < 0)
@@ -115,10 +114,9 @@ void add_poller(int fd, ip_t ip){
   }
   polls[i].fd  = fd;
   polls[i].events = POLLIN;
-  connecters[i].type = (ip)? EXTERNAL : LOCAL;
+  connecters[i].type = type;
   connecters[i].req = 0;
   connecters[i].size = 0;
-  connecters[i].ip = ip;
   if (i > max_id)
     max_id = i;
 }
@@ -192,7 +190,7 @@ void handle_request(int index)
     if (ret < 0)
       close_poller(index);
     else if (ret) {
-      handle_extern_request(polls[index].fd, connecter->req, connecter->ip,
+      handle_extern_request(polls[index].fd, connecter->req,
                             connecter->buf + sizeof(uint32_t));
         remove_poller(index);
     }
@@ -221,13 +219,12 @@ void do_poll(void)
     }
     if (polls[i].revents & POLLIN){
       if (i == LOCAL)
-        add_poller(accept_local_connection(polls[i].fd), 0);
+        add_poller(accept_local_connection(polls[i].fd), LOCAL);
       else if (i == EXTERNAL){
-        ip_t ip;
         int fd;
         
-        fd = accept_extern_connection(polls[i].fd, &ip);
-        add_poller(fd, ip);
+        fd = accept_extern_connection(polls[i].fd);
+        add_poller(fd, EXTERNAL);
       }
       else
         handle_request(i);

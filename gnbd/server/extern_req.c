@@ -72,7 +72,7 @@ int start_extern_socket(short unsigned int port){
   return sock;
 }
 
-int accept_extern_connection(int listening_sock, ip_t *ip)
+int accept_extern_connection(int listening_sock)
 {
   int sock;
   struct sockaddr_in addr;
@@ -83,8 +83,6 @@ int accept_extern_connection(int listening_sock, ip_t *ip)
     log_err("error accepting connect to socket : %s\n", strerror(errno));
     return -1;
   }
-  *ip = addr.sin_addr.s_addr;
-  
   log_verbose("opened external connection\n");
 
   return sock;
@@ -97,13 +95,13 @@ int check_extern_data_len(uint32_t req, int size)
     return 1;
   case EXTERN_FENCE_REQ:
   case EXTERN_UNFENCE_REQ:
-    return (size >= sizeof(ip_t));
+    return (size >= sizeof(node_req_t));
   case EXTERN_LIST_BANNED_REQ:
     return 1;
   case EXTERN_KILL_GSERV_REQ:
-    return (size >= sizeof(device_req_t));
+    return (size >= sizeof(device_req_t) + sizeof(node_req_t));
   case EXTERN_LOGIN_REQ:
-    return (size >= sizeof(login_req_t));
+    return (size >= sizeof(login_req_t) + sizeof(node_req_t));
   case EXTERN_HOSTNAME_REQ:
     return 1;
   default:
@@ -122,7 +120,7 @@ do {\
   }\
 } while(0)
 
-void handle_extern_request(int sock, uint32_t cmd, ip_t client_ip, void *buf)
+void handle_extern_request(int sock, uint32_t cmd, void *buf)
 {
   int err;
   uint32_t reply = EXTERN_SUCCESS_REPLY;
@@ -152,13 +150,13 @@ void handle_extern_request(int sock, uint32_t cmd, ip_t client_ip, void *buf)
     }
   case EXTERN_FENCE_REQ:
     {
-      ip_t fence_ip;
+      node_req_t fence_node;
 
-      memcpy(&fence_ip, buf, sizeof(fence_ip));
+      memcpy(&fence_node, buf, sizeof(fence_node));
 
-      err = add_to_banned_list(fence_ip);
+      err = add_to_banned_list(fence_node.node_name);
       if (!err)
-        err = kill_gserv(fence_ip, NULL, sock);
+        err = kill_gserv(fence_node.node_name, NULL, sock);
       if (err < 0){
         reply = -err;
         DO_TRANS(send_u32(sock, reply), exit);
@@ -168,10 +166,10 @@ void handle_extern_request(int sock, uint32_t cmd, ip_t client_ip, void *buf)
     }
   case EXTERN_UNFENCE_REQ:
     {
-      ip_t unfence_ip;
+      node_req_t unfence_node;
 
-      memcpy(&unfence_ip, buf, sizeof(unfence_ip));
-      remove_from_banned_list(unfence_ip);
+      memcpy(&unfence_node, buf, sizeof(unfence_node));
+      remove_from_banned_list(unfence_node.node_name);
       DO_TRANS(send_u32(sock, reply), exit);
       break;
     }
@@ -199,17 +197,22 @@ void handle_extern_request(int sock, uint32_t cmd, ip_t client_ip, void *buf)
     }
   case EXTERN_KILL_GSERV_REQ:
     {
-      device_req_t *kill_req = (device_req_t *)buf;
+      device_req_t kill_req;
+      node_req_t node;
+
+      memcpy(&kill_req, buf, sizeof(kill_req)); 
+      memcpy(&node, buf + sizeof(device_req_t), sizeof(node));
+
       dev_info_t *dev;
 
-      dev = find_device(kill_req->name);
+      dev = find_device(kill_req.name);
       if (!dev){
         reply = ENODEV;
         DO_TRANS(send_u32(sock, reply), exit);
         break;
       }
       /* FIXME -- I also need the fence list for this */
-      err = kill_gserv(client_ip, dev, sock);
+      err = kill_gserv(node.node_name, dev, sock);
       if (err < 0){
         reply = -err;
         DO_TRANS(send_u32(sock, reply), exit);
@@ -219,13 +222,17 @@ void handle_extern_request(int sock, uint32_t cmd, ip_t client_ip, void *buf)
     }
   case EXTERN_LOGIN_REQ:
     {
-      login_req_t *login_req = (login_req_t *)buf;
+      login_req_t login_req;
+      node_req_t node;
       dev_info_t *dev;
       int devfd;
 
-      err = gserv_login(sock, client_ip, login_req, &dev, &devfd);
+      memcpy(&login_req, buf, sizeof(login_req));
+      memcpy(&node, buf + sizeof(login_req_t), sizeof(node));
+
+      err = gserv_login(sock, node.node_name, &login_req, &dev, &devfd);
       if (!err){
-        fork_gserv(sock, client_ip, dev, devfd);
+        fork_gserv(sock, node.node_name, dev, devfd);
         close(devfd);
       }
       break;

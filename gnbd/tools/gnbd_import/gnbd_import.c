@@ -43,7 +43,7 @@
 struct gnbd_info_s{
   char name[32];
   int minor_nr;
-  ip_t ip;
+  char server_name[256];
   uint16_t port;
   int usage;
   int connected;
@@ -60,11 +60,12 @@ typedef struct gnbd_info_s gnbd_info_t;
 
 int gnbd_major = -1;
 list_t gnbd_list;
+/* FIXME -- why unsigned int */
 unsigned int server_port = 14567;
 int maxminor = -1;
 char *sysfs_class = "/sys/class/gnbd";
-char sysfs_buf[4096];
 int override = 0;
+char node_name[65];
 
 #define MODE_MASK (S_IRWXU | S_IRWXG | S_IRWXO)
 
@@ -186,7 +187,7 @@ int usage(void){
 "\n"
 "Options:\n"
 "  -a               validate all imported GNBDs, and remove the invalid ones\n"
-"  -c <server>      list all IPs currently IO fenced from the server\n"
+"  -c <server>      list all nodes currently IO fenced from the server\n"
 "  -e <server>      list all GNBDs exported by the server\n"
 "  -h               print this help message\n"
 "  -i <server>      import all GNBDs from the server\n"
@@ -310,101 +311,24 @@ void create_gnbd_dir(void){
   printm("created directory /dev/gnbd\n");
 }
 
-/* This version allows writes to fail */
-int __set_dev_info(int minor_nr, char *attribute, char *val)
-{
-  int sysfs_fd;
-  int bytes;
-  int count = 0;
-  char sysfs_path[40];
-  int len;
-
-  len = strlen(val);
-  if (len >= 4096){
-    printe("cannot set %s, value too large\n", attribute);
-    exit(1);
-  }
-  snprintf(sysfs_path, 40, "%s/gnbd%d/%s", sysfs_class, minor_nr, attribute);
-  if( (sysfs_fd = open(sysfs_path, O_WRONLY)) < 0){
-    printe("cannot open %s : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  while (count < len){
-    bytes = write(sysfs_fd, &val[count], len - count);
-    if (bytes < 0 && errno != EINTR){
-      printe("cannot write to %s : %s\n", sysfs_path, strerror(errno));
-      close(sysfs_fd);
-      return -1;
-    }
-    if (bytes == 0){
-      printe("unexpectedly reached end-of-file while writing to %s\n",
-             sysfs_path);
-      exit(1);
-    }
-    count += bytes;
-  }
-  if (close(sysfs_fd) < 0){
-    printe("close on %s returned error : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  return 0;
-}
-
-void set_dev_info(int minor_nr, char *attribute, char *val)
-{
-  if (__set_dev_info(minor_nr, attribute, val) < 0)
-    exit(0);
-}
-
-char *get_dev_info(int minor_nr, char *attribute)
-{
-  int sysfs_fd;
-  int bytes;
-  int count = 0;
-  char sysfs_path[40];
-  
-  snprintf(sysfs_path, 40, "%s/gnbd%d/%s", sysfs_class, minor_nr, attribute);
-  if( (sysfs_fd = open(sysfs_path, O_RDONLY)) < 0){
-    printe("cannot open %s : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  while (count < 4095){
-    bytes = read(sysfs_fd, &sysfs_buf[count], 4095 - count);
-    if (bytes < 0 && errno != EINTR){
-      printe("cannot read %s : %s\n", sysfs_path, strerror(errno));
-      exit(1);
-    }
-    if (bytes == 0)
-      break;
-    count += bytes;
-  }
-  /* overwrite the '\n' with '\0' */
-  sysfs_buf[count - 1] = 0;
-  if (close(sysfs_fd) < 0){
-    printe("close on %s returned error : %s\n", sysfs_path, strerror(errno));
-    exit(1);
-  }
-  return sysfs_buf;
-}
-
 int find_empty_minor(){
   int minor;
   gnbd_info_t info;
 
   for (minor = 0; minor < MAX_GNBD; minor++){
-    if (sscanf(get_dev_info(minor, "usage"), "%d", &info.usage) != 1){
+    if (sscanf(get_sysfs_attr(minor, "usage"), "%d", &info.usage) != 1){
       printe("cannot parse %s/gnbd%d/usage\n", sysfs_class, minor);
       exit(1);
     }
     if (info.usage)
       continue;
-    if (sscanf(get_dev_info(minor, "pid"), "%d", &info.pid) != 1){
+    if (sscanf(get_sysfs_attr(minor, "pid"), "%d", &info.pid) != 1){
       printe("cannot parse %s/gnbd%d/pid\n", sysfs_class, minor);
       exit(1);
     }
     if (info.pid != -1)
       continue; 
-    if (sscanf(get_dev_info(minor, "sectors"), "%llu", &info.sectors) != 1){
+    if (sscanf(get_sysfs_attr(minor, "sectors"), "%llu", &info.sectors) != 1){
       printe("cannot parse %s/gnbd%d/sectors\n", sysfs_class, minor);
       exit(1);
     }
@@ -420,42 +344,41 @@ int get_info(gnbd_info_t *entry)
 {
   int minor = entry->minor_nr;
   if (entry->name[0] != 0){
-    if (strncmp(entry->name, get_dev_info(minor, "name"), 32) != 0){
+    if (strncmp(entry->name, get_sysfs_attr(minor, "name"), 32) != 0){
       printv("/dev/gnbd/%s doesn't match up with %s/gnbd%d entry\n",
              entry->name, sysfs_class, minor);
       return -1;
     }
   } else{
-    strncpy(entry->name, get_dev_info(minor, "name"), 32);
+    strncpy(entry->name, get_sysfs_attr(minor, "name"), 32);
     entry->name[31] = 0;
   }
-  if (sscanf(get_dev_info(minor, "server"), "%8x:%4hx", &entry->ip,
-             &entry->port) != 2){
+  if (parse_server(get_sysfs_attr(minor, "server"), entry->server_name,
+                   &entry->port) < 0){
     printe("cannot parse %s/gnbd%d/server\n", sysfs_class, minor);
     exit(1);
   }
-  entry->ip = cpu_to_beip(entry->ip);
-  if (sscanf(get_dev_info(minor, "sectors"), "%llu", &entry->sectors) != 1){
+  if (sscanf(get_sysfs_attr(minor, "sectors"), "%llu", &entry->sectors) != 1){
     printe("cannot parse %s/gnbd%d/sectors\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_dev_info(minor, "usage"), "%d\n", &entry->usage) != 1){
+  if (sscanf(get_sysfs_attr(minor, "usage"), "%d\n", &entry->usage) != 1){
     printe("cannot parse %s/gnbd%d/usage\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_dev_info(minor, "connected"), "%d", &entry->connected) != 1){
+  if (sscanf(get_sysfs_attr(minor, "connected"), "%d", &entry->connected) != 1){
     printe("cannot parse %s/gnbd%d/connected\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_dev_info(minor, "waittime"), "%ld", &entry->waittime) != 1){
+  if (sscanf(get_sysfs_attr(minor, "waittime"), "%ld", &entry->waittime) != 1){
     printe("cannot parse %s/gnbd%d/waittime\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_dev_info(minor, "flags"), "%hx", &entry->flags) != 1){
+  if (sscanf(get_sysfs_attr(minor, "flags"), "%hx", &entry->flags) != 1){
     printe("cannot parse %s/gnbd%d/flags\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_dev_info(minor, "pid"), "%d", &entry->pid) != 1){
+  if (sscanf(get_sysfs_attr(minor, "pid"), "%d", &entry->pid) != 1){
     printe("cannot parse %s/gnbd%d/pid\n", sysfs_class, minor);
     exit(1);
   }
@@ -521,9 +444,42 @@ void create_generic_gnbd_file(int minor)
   }
 }
 
-void remove_gnbd(char *name, int minor, int pid){
-  int fd;
+void cleanup_device(char *name, int minor, int fd)
+{
   char path[LINE_MAX];
+
+  if (override){
+    printm("waiting for all users to close device %s\n", name);
+    while (1){
+      int usage;
+      if (sscanf(get_sysfs_attr(minor, "usage"), "%d\n", &usage) != 1){
+        printe("cannot parse %s/gnbd%d/usage\n", sysfs_class, minor);
+        exit(1);
+      }
+      if (usage == 0)
+        break;
+      sleep(2);
+    }
+  }
+  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)minor) < 0){
+    printe("cannot clear gnbd device #%d queue : %s\n", minor,
+           strerror(errno));
+    exit(1);
+  }
+  set_sysfs_attr(minor, "sectors", "0\n");
+  if (name){
+    snprintf(path, LINE_MAX, "/dev/gnbd/%s", name);
+    if (unlink(path) < 0 && errno != ENOENT){
+      printe("cannot remove fale %s : %s\n", path, strerror(errno));
+      exit(1);
+    }
+    printm("removed gnbd device %s\n", name);
+  }
+}
+
+void remove_gnbd(char *name, int minor, int pid)
+{
+  int fd;
 
   if( (fd = open("/dev/gnbd_ctl", O_RDWR)) < 0){
     printe("cannot open /dev/gnbd_ctl : %s\n", strerror(errno));
@@ -538,40 +494,15 @@ void remove_gnbd(char *name, int minor, int pid){
   }
   if (check_lock("gnbd_monitor.pid", NULL)){
     if (do_remove_monitored_dev(minor) < 0){
-      printe("unable to stop monitoring device %s. removing anyway\n",
-             name);
       if (!override)
         exit(1);
+      printe("unable to stop monitoring device %s. removing anyway\n",
+             name);
     }
   }
   kill(pid, SIGKILL);
-  if (override){
-    printm("waiting for all users to close device %s\n", name);
-    while (1){
-      int usage;
-      if (sscanf(get_dev_info(minor, "usage"), "%d\n", &usage) != 1){
-        printe("cannot parse %s/gnbd%d/usage\n", sysfs_class, minor);
-        exit(1);
-      }
-      if (usage == 0)
-        break;
-      sleep(2);
-    }
-  }
-  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)minor) < 0){
-    printe("cannot clear gnbd device #%d queue : %s\n", minor,
-           strerror(errno));
-    exit(1);
-  }
-  set_dev_info(minor, "sectors", "0\n");
-  if (name){
-    snprintf(path, LINE_MAX, "/dev/gnbd/%s", name);
-    if (unlink(path) < 0 && errno != ENOENT){
-      printe("cannot remove fale %s : %s\n", path, strerror(errno));
-      exit(1);
-    }
-    printm("removed gnbd device %s\n", name);
-  }
+  cleanup_device(name, minor, fd);
+  close(fd);
 }
 
 void update_devs(void){
@@ -680,110 +611,69 @@ void remove_clients(char *names[], int num){
   }
 }
 
-int do_server_connect(struct in_addr ipaddr, uint16_t port){
-  struct sockaddr_in server;
-  int sock_fd;
-  sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock_fd < 0){
-    printe("error creating socket: %s\n", strerror(errno));
-    exit(1);
-  }
-  server.sin_addr.s_addr = ipaddr.s_addr;
-  server.sin_port = htons((uint16_t)port);
-  server.sin_family = AF_INET;
-  if (connect(sock_fd, (struct sockaddr *)&server, sizeof(server)) < 0){
-    printe("error connecting to server: %s\n", strerror(errno));
-    exit(1);
-  }
-  return sock_fd;
-}
-
-int connect_to_server(char *hostname, uint16_t port,
-		      struct in_addr *ip_addr){
-  struct in_addr ip;
-  struct hostent *hp;
-  hp = gethostbyname(hostname);
-  if (hp == NULL){
-    printe("cannot resolve host ip from name %s: %s\n", hostname, 
-	   hstrerror(h_errno));
-    exit(1);
-  }
-  if (memcpy(&(ip.s_addr), hp->h_addr, 4) == NULL){
-    printe("cannot copy host address: %s\n", strerror(errno));
-    exit(1);
-  }
-  if (ip_addr != NULL)
-    ip_addr->s_addr = ip.s_addr;
-  return do_server_connect(ip, port);
-}
-
 void fence(char *host, char *server, int is_fence)
 {
-  ip_t fenceip;
+  node_req_t node;
   int sock_fd;
   uint32_t msg;
-  struct hostent *hp;
+  int err = 0;
+  char *fence_str;
 
-  hp = gethostbyname(host);
-  if (hp == NULL){
-    printe("cannot resolve host ip from name %s: %s\n", host,
-	   hstrerror(h_errno));
+  if (is_fence)
+    fence_str = "fence";
+  else
+    fence_str = "unfence";
+
+  if (strlen(host) > 64){
+    printe("name of node to %s must be <= 64 characters\n", fence_str);
     exit(1);
   }
-  memcpy(&fenceip, hp->h_addr, 4);
-  sock_fd = connect_to_server(server, (uint16_t)server_port, NULL);
+  strncpy(node.node_name, host, 65);
+  sock_fd = connect_to_server(server, (uint16_t)server_port);
+  if (sock_fd < 0){
+    printe("cannot connect to %s (%d) : %s\n", host, sock_fd, strerror(errno));
+    exit(1);
+  }
   if (is_fence)
-    msg = cpu_to_be32(EXTERN_FENCE_REQ);
+    err = send_u32(sock_fd, EXTERN_FENCE_REQ);
   else
-    msg = cpu_to_be32(EXTERN_UNFENCE_REQ);
-  if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    if (errno)
-      printe("can't send request to server : %s\n", strerror(errno));
-    else
-      printe("can't send request to server\n");
+    err = send_u32(sock_fd, EXTERN_UNFENCE_REQ);
+  if (err < 0){
+    printe("cannot send %s request to server : %s\n", fence_str,
+           gstrerror(errno));
     exit(SERVER_ERR);
   }
-  if (write(sock_fd, &fenceip, sizeof(fenceip)) != sizeof(fenceip)){
-    if (errno)
-      printe("can't send ip to server : %s\n", strerror(errno));
-    else
-      printe("can't send ip to server\n");
+  if (retry_write(sock_fd, &node, sizeof(node)) < 0){
+    printe("cannot send %s node to server : %s\n", fence_str,
+           gstrerror(errno));
     exit(SERVER_ERR);
   }
-  if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    if (errno)
-      printe("can't read reply from server : %s\n", strerror(errno));
-    else
-      printe("can't read reply from server\n");
+  if (recv_u32(sock_fd, &msg) < 0){
+    printe("cannot read %s reply from server : %s\n", fence_str,
+           gstrerror(errno));
     exit(SERVER_ERR);
   }
   close(sock_fd);
   msg = be32_to_cpu(msg);
   if (msg != EXTERN_SUCCESS_REPLY){
-    if (is_fence)
-      printe("fence failed : %s\n", strerror(REPLY_ERR(msg)));
-    else
-      printe("unfence failed : %s\n", strerror(REPLY_ERR(msg)));
+    printe("%s failed : %s\n", fence_str, strerror(msg));
     exit(SERVER_ERR);
   }
-  if (is_fence){
-    printv("%s fenced\n", host);
-  }
-  else{
-    printv("%s unfenced\n", host);
-  }
+  printv("%s %sd\n", host, fence_str);
 }
 
-
-int read_from_server(char *host, uint32_t request, char **buf,
-                     struct in_addr *ip)
+int read_from_server(char *host, uint32_t request, char **buf)
 {
-  struct in_addr ipaddr;
   int sock_fd;
   int n, total;
   uint32_t msg;
 
-  sock_fd = connect_to_server(host, (unsigned int)server_port, &ipaddr);
+  sock_fd = connect_to_server(host, (uint16_t)server_port);
+  if (sock_fd < 0){
+    printe("cannot connect to server %s (%d) : %s\n", host, sock_fd,
+           strerror(errno));
+    exit(1);
+  }
   msg = cpu_to_be32(request);
   if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
     printe("error sending list request to %s : %s\n", host, strerror(errno));
@@ -820,8 +710,6 @@ int read_from_server(char *host, uint32_t request, char **buf,
     }
     total += n;
   }
-  if (ip)
-    *ip = ipaddr;
   close(sock_fd);
   return total;
 }
@@ -865,7 +753,7 @@ int restart_device(gnbd_info_t *gnbd){
   return -1;
 }
 
-void reimport_device(import_info_t *info, struct in_addr ipaddr,
+void reimport_device(import_info_t *info, char *host,
                      gnbd_info_t *gnbd)
 {
   if (check_lock("gnbd_monitor.pid", NULL)){
@@ -886,9 +774,8 @@ void reimport_device(import_info_t *info, struct in_addr ipaddr,
     }
     free(devs);
   }
-  snprintf(sysfs_buf, 4096, "%08x:%hx\n", beip_to_cpu(ipaddr.s_addr),
-           server_port);
-  if (__set_dev_info(gnbd->minor_nr, "server", sysfs_buf) < 0){
+  snprintf(sysfs_buf, 4096, "%s/%hx\n", host, server_port);
+  if (__set_sysfs_attr(gnbd->minor_nr, "server", sysfs_buf) < 0){
     if (errno == EBUSY)
       printe("cannot reimport already connected device %s\n", info->name);
     return;
@@ -896,17 +783,41 @@ void reimport_device(import_info_t *info, struct in_addr ipaddr,
   restart_device(gnbd);
 }
 
-int create_device(import_info_t *info, struct in_addr ipaddr)
+int are_nodes_equal(char *node1, char *node2){
+  struct addrinfo *ai1, *ai2;
+  int ret = 0;
+ 
+  ret = getaddrinfo(node1, NULL, NULL, &ai1);
+  if (ret){
+    printe("cannot get address info for %s : %s\n", node1,
+           (ret == EAI_SYSTEM)? strerror(errno) : gai_strerror(ret));
+    exit(1);
+  }
+  ret = getaddrinfo(node2, NULL, NULL, &ai2);
+  if (ret){
+    printe("cannot get address info for %s : %s\n", node2,
+           (ret == EAI_SYSTEM)? strerror(errno) : gai_strerror(ret));
+    exit(1);
+  }
+  ret = check_addr_info(ai1, ai2);
+
+  freeaddrinfo(ai1);
+  freeaddrinfo(ai2);
+  return ret;
+}    
+
+int create_device(import_info_t *info, char *host)
 {
   int minor;
   mode_t mode;
   char path[LINE_MAX];
   gnbd_info_t *entry;
-
+  
   entry = match_info_name(info->name);
   if (entry){
     printv("There is already a GNBD with the name %s.", info->name);
-    if ((server_port == entry->port && ipaddr.s_addr == entry->ip)){
+    if (server_port == entry->port &&
+        are_nodes_equal(host, entry->server_name)){
       restart_device(entry);
       return -1;
     }
@@ -919,16 +830,15 @@ int create_device(import_info_t *info, struct in_addr ipaddr)
              info->name);
       return -1;
     }
-    reimport_device(info, ipaddr, entry);
+    reimport_device(info, host, entry);
     return -1;
   }
   minor = find_empty_minor();
-  set_dev_info(minor, "name", info->name);
+  set_sysfs_attr(minor, "name", info->name);
   snprintf(sysfs_buf, 4096, "0x%hx", info->flags);
-  set_dev_info(minor, "flags", sysfs_buf);
-  snprintf(sysfs_buf, 4096, "%08x:%hx\n", beip_to_cpu(ipaddr.s_addr),
-           server_port);
-  set_dev_info(minor, "server", sysfs_buf);
+  set_sysfs_attr(minor, "flags", sysfs_buf);
+  snprintf(sysfs_buf, 4096, "%s/%hx\n", host, server_port);
+  set_sysfs_attr(minor, "server", sysfs_buf);
   if (info->flags & GNBD_READ_ONLY)
     mode = S_IFBLK | S_IRUSR | S_IRGRP | S_IROTH;
   else
@@ -950,15 +860,14 @@ int create_device(import_info_t *info, struct in_addr ipaddr)
 
 void setclients(char *host)
 {
-  struct in_addr ipaddr;
   char *buf;
   import_info_t *ptr;
   int size;
   int minor_nr;
-  size = read_from_server(host, EXTERN_NAMES_REQ, &buf, &ipaddr);
+  size = read_from_server(host, EXTERN_NAMES_REQ, &buf);
   ptr = (import_info_t *)buf;
   while ((char *)ptr < buf + size){
-    minor_nr = create_device(ptr, ipaddr);
+    minor_nr = create_device(ptr, host);
     if (minor_nr >= 0){
       if (start_gnbd_monitor(minor_nr, (int)ptr->timeout) < 0)
         exit(1);
@@ -974,7 +883,7 @@ void get_serv_list(char *host)
   char *buf;
   import_info_t *ptr;
   int size;
-  size = read_from_server(host, EXTERN_NAMES_REQ, &buf, NULL);
+  size = read_from_server(host, EXTERN_NAMES_REQ, &buf);
   ptr = (import_info_t *)buf;
   while ((char *)ptr < buf + size){
     printf("%s\n", ptr->name);
@@ -987,14 +896,12 @@ void get_serv_list(char *host)
 void get_banned_list(char *host)
 {
   char *buf;
-  ip_t *ptr;
+  node_req_t *ptr;
   int size;
-  struct in_addr ipaddr;
-  size = read_from_server(host, EXTERN_LIST_BANNED_REQ, &buf, NULL);
-  ptr = (ip_t *)buf;
+  size = read_from_server(host, EXTERN_LIST_BANNED_REQ, &buf);
+  ptr = (node_req_t *)buf;
   while ((char *)ptr < buf + size){
-    memcpy(&ipaddr.s_addr, ptr, sizeof(ip_t));
-    printf("%s\n", inet_ntoa(ipaddr));
+    printf("%s\n", ptr->node_name);
     ptr++;
   }
   printf("\n");
@@ -1011,7 +918,7 @@ void list(void){
            "----------------------\n"
            "    Minor # : %d\n"
            "  Proc name : /dev/gnbd%d\n"
-           "         IP : %s\n"
+           "     Server : %s\n"
            "       Port : %d\n"
            "      State : %s %s %s\n"
            "   Readonly : %s\n"
@@ -1019,7 +926,7 @@ void list(void){
            info->name,
            info->minor_nr,
            info->minor_nr,
-           beip_to_str(info->ip),
+           info->server_name,
            info->port,
            (info->usage > 0)? "Open" : "Close",
            (info->connected > 0)? "Connected" : "Disconnected",
@@ -1041,26 +948,19 @@ void validate_gnbds(void){
       continue;
     if (override == 1){
       int fd;
-      char path[LINE_MAX];
-      /* FIXME -- need to notify monitor.  I should probably not duplicate
-         the remove code here */
       printm("removing device\n");
       if( (fd = open("/dev/gnbd_ctl", O_RDWR)) < 0){
         printe("cannot open /dev/gnbd_ctl : %s\n", strerror(errno));
         exit(1);
       }
-      if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)gnbd->minor_nr) < 0){
-        printe("cannot clear gnbd device %s queue : %s\n", gnbd->name,
-               strerror(errno));
-        exit(1);
+      if (check_lock("gnbd_monitor.pid", NULL)){
+        if (do_remove_monitored_dev(gnbd->minor_nr) < 0){
+          printe("unable to stop monitoring device %s. removing anyway\n",
+                 gnbd->name);
+        }
       }
-      set_dev_info(gnbd->minor_nr, "sectors", "0\n");
-      snprintf(path, LINE_MAX, "/dev/gnbd/%s", gnbd->name);
-      if (unlink(path) < 0 && errno != ENOENT){
-        printe("cannot remove fale %s : %s\n", path, strerror(errno));
-        exit(1);
-      }
-      printm("removed gnbd device %s\n", gnbd->name);
+      cleanup_device(gnbd->name, gnbd->minor_nr, fd);
+      close(fd);
     }
   }
 }
@@ -1071,7 +971,6 @@ int main(int argc, char **argv)
   int action = 0;
   char *host = NULL;
   char *fence_server = NULL;
-  struct utsname nodeinfo;
   int c;
 
   list_init(&gnbd_list);
@@ -1159,18 +1058,17 @@ int main(int argc, char **argv)
   }
   if (!action)
     action = ACTION_LIST;
+  if (get_my_nodename(node_name) < 0){
+    printe("cannot get node name : %s\n", strerror(errno));
+    return 1;
+  }
   if (fence_server && action != ACTION_FENCE && action != ACTION_UNFENCE){
     printe("-t can only be used with -s or -u\n" MAN_MSG);
     return 1;
-  } 
+  }
   if ((action == ACTION_FENCE || action == ACTION_UNFENCE) &&
       !strcmp(host, "localhost")){
-    if (uname(&nodeinfo) < 0){
-      printe("couldn't get change localhost to actual hostname\n");
-      printe("because uname failed : %s\n", strerror(errno));
-      return 1;
-    }
-    host = nodeinfo.nodename;
+    host = node_name;
   }
   if (argc != optind && action != ACTION_REMOVE){
     printe("extra operand for action: %s\n", argv[optind]);
@@ -1188,7 +1086,8 @@ int main(int argc, char **argv)
   case ACTION_FENCE:
   case ACTION_UNFENCE:
     if (!fence_server){
-      printe("you must use -t with -e\n" MAN_MSG);
+      printe("you must use -t with %s\n" MAN_MSG,
+             (action == ACTION_FENCE)? "-s" : "-u");
       return 1;
     }
     fence(host, fence_server, (action == ACTION_FENCE)? 1 : 0);

@@ -228,7 +228,7 @@ int gserv_list(void){
   printf("  pid       client      device\n");
   printf("--------------------------------\n");
   while((void *)info < buf + size){
-    printf("%5d  %15s  %s\n", info->pid, beip_to_str(info->client_ip),
+    printf("%5d  %15s  %s\n", info->pid, info->node,
            info->name);
     info++;
   }

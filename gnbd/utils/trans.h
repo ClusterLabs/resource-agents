@@ -26,6 +26,7 @@ int retry_read(int fd, void *buf, size_t count);
 int retry_write(int fd, void *buf, size_t count);
 char *gstrerror(int errcode);
 int connect_to_comm_device(char *name);
+int connect_to_server(char *hostname, uint16_t port);
 int send_cmd(int fd, uint32_t cmd, char *type);
 int recv_reply(int fd, char *type);
 int send_u32(int fd, uint32_t msg);

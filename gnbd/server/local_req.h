@@ -41,7 +41,7 @@ struct name_req_s {
 typedef struct name_req_s name_req_t;
 
 struct gserv_req_s {
-  ip_t client_ip;
+  char node[65];
   uint32_t pid;
   char name[32];
 };

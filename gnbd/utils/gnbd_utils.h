@@ -23,6 +23,7 @@ extern verbosity_level verbosity;
 extern char *program_name;
 extern pid_t program_pid;
 extern char *program_dir;
+extern char sysfs_buf[4096];
 
 #define printm(fmt, args...)\
 do{\
@@ -98,9 +99,16 @@ char *beip_to_str(ip_t ip);
 
 
 int daemonize(void);
+int get_my_nodename(char *buf);
 int check_lock(char *file, int *pid);
 int pid_lock(char *extra_info);
 void daemonize_and_exit_parent(void);
 int open_max(void);
+int parse_server(char *buf, char *name, uint16_t *port);
+char *get_sysfs_attr(int minor, char *attr_name);
+char *do_get_sysfs_attr(int minor, char *attr_name);
+int do_set_sysfs_attr(int minor_nr, char *attribute, char *val);
+int __set_sysfs_attr(int minor_nr, char *attribute, char *val);
+void set_sysfs_attr(int minor_nr, char *attribute, char *val);
 
 #endif /* __gnbd_utils_h__ */

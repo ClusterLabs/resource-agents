@@ -90,25 +90,39 @@ static CLASS_DEVICE_ATTR(pid, S_IRUGO, show_pid, NULL);
 static ssize_t show_server(struct class_device *class_dev, char *buf)
 {
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
-	return sprintf(buf, "%08x:%hx\n", dev->server_addr.s_addr,
-			dev->server_port);
+	if (dev->server_name)
+		return sprintf(buf, "%s/%hx\n", dev->server_name,
+				dev->server_port);
+	else
+		return sprintf(buf, "\n");
 }
 
+/* FIXME -- should a empty store free the memory */
 static ssize_t store_server(struct class_device *class_dev,
 		const char *buf, size_t count)
 {
 	int res;
-	struct in_addr addr;
 	short unsigned int port;
+	char *ptr;
 	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 	if (down_trylock(&dev->do_it_lock))
 		return -EBUSY;
-	res = sscanf(buf, "%8x:%4hx", &addr.s_addr, &port);
-	if (res != 2){
+	if (dev->server_name)
+		kfree(dev->server_name);
+	dev->server_name = kmalloc(count + 1, GFP_KERNEL);
+	if (!dev->server_name)
+		return -ENOMEM;
+	memcpy(dev->server_name, buf, count);
+	dev->server_name[count] = 0;
+	ptr = strchr(dev->server_name, '/');
+	if (!ptr)
+		return -EINVAL;
+	*ptr++ = 0;
+	res = sscanf(ptr, "%4hx", &port);
+	if (res != 1){
 		up(&dev->do_it_lock);
 		return -EINVAL;
 	}
-	dev->server_addr = addr;
 	dev->server_port = port;
 	up(&dev->do_it_lock);
 	return count;
@@ -947,7 +961,7 @@ static int __init gnbd_init(void)
 		gnbd_dev[i].flags = 0;
 		gnbd_dev[i].open_count = 0;
 		gnbd_dev[i].receiver_pid = -1;
-		gnbd_dev[i].server_addr.s_addr = 0;
+		gnbd_dev[i].server_name = NULL;
 		gnbd_dev[i].server_port = 0;
 		gnbd_dev[i].name[0] = '\0';
 		gnbd_dev[i].bdev = NULL;
@@ -1041,6 +1055,8 @@ static void __exit gnbd_cleanup(void)
 			blk_cleanup_queue(disk->queue);
 			put_disk(disk);
 		}
+		if (gnbd_dev[i].server_name)
+			kfree(gnbd_dev[i].server_name);
 	}
 	class_unregister(&gnbd_class);
 	devfs_remove("gnbd");

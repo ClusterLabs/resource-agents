@@ -38,9 +38,8 @@ uint64_t timestamp;
 int daemon_mode = 0;
 int forget_mode = 0;
 int have_connected = 0;
-char sysfs_base[25];
-char sysfs_path[40];
 char devname[32];
+char node_name[65];
 
 #define fail(fmt, args...) \
 do { \
@@ -101,6 +100,7 @@ void parse_cmdline(int argc, char **argv)
   int c;
   struct stat stat_buf;
   program_name = "gnbd_recvd";
+  char sysfs_base[25];
 
   while((c = getopt(argc, argv, "dfhqvV")) != -1){
     switch(c){
@@ -178,14 +178,10 @@ void parse_cmdline(int argc, char **argv)
 
 void get_devname(void)
 {
-  FILE *server_file;
-
-  snprintf(sysfs_path, 40, "%s/name", sysfs_base);
-  if( (server_file = fopen(sysfs_path, "r")) == NULL)
-    fail("cannot open %s : %s\n", sysfs_path, strerror(errno));
-  if (fscanf(server_file, "%31s\n", devname) != 1)
-    fail("cannot read device name from %s\n", sysfs_path);
-  fclose(server_file);
+  if (do_get_sysfs_attr(minor_num, "name") == NULL)
+    fail("cannot get /sys/class/gnbd/gnbd%d/name value : %s\n", minor_num,
+         strerror(errno));
+  strncpy(devname, sysfs_buf, 32);
 }
 
 void open_device(void)
@@ -196,62 +192,44 @@ void open_device(void)
     fail("cannot get timestamp : %s\n", strerror(errno));
 }
 
-int connect_to_server(ip_t server_ip, unsigned short port)
-{
-  int sock;
-  struct sockaddr_in addr;
-  int trueint = 1;
-  
-  if( (sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
-    tell_err("cannot create socket : %s\n", strerror(errno));
-    return -1;
-  }
-  
-  if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &trueint, sizeof(int)) < 0){
-    tell_err("cannot set socket options : %s\n", strerror(errno));
-    close(sock);
-    return -1;
-  }
-  
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);
-  addr.sin_addr.s_addr = server_ip;
-  
-  if(connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0){
-    tell_err("cannot connect to server %s : %s\n",
-             beip_to_str(server_ip), strerror(errno));
-    close(sock);
-    return -1;
-  }
-  return sock;
-}
-
-int kill_old_gservs(ip_t server_ip, unsigned short port)
+int kill_old_gservs(char *host, unsigned short port)
 {
   int sock;
   device_req_t device;
+  node_req_t node;
   uint32_t cmd = EXTERN_KILL_GSERV_REQ;
 
-  if( (sock = connect_to_server(server_ip, port)) < 0)
+  strncpy(device.name, devname, 32);
+  strncpy(node.node_name, node_name, 65);
+
+  if( (sock = connect_to_server(host, port)) < 0){
+    printe("cannot connect to server %s (%d) : %s\n", host, sock,
+           strerror(errno));
     return -1;
+  }
   if (send_u32(sock, cmd) < 0){
-    tell_err("cannot send loign request to %s : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("cannot send kill server request to %s : %s\n", host,
+             strerror(errno));
     goto fail;
   }
   if (retry_write(sock, &device, sizeof(device)) < 0){
-    tell_err("transfer of device name to %s failed : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("transfer of device name to %s failed : %s\n", host,
+             strerror(errno));
+    goto fail;
+  }
+  if (retry_write(sock, &node, sizeof(node)) < 0){
+    tell_err("transfer of my node name to %s failed : %s\n", host,
+             strerror(errno));
     goto fail;
   }
   if (recv_u32(sock, &cmd) < 0){
-    tell_err("reading kill server reply from %s failed : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("reading kill server reply from %s failed : %s\n", host,
+             strerror(errno));
     goto fail;
   }
   if (cmd && cmd != ENODEV){
-    tell_err("kill server request from %s failed : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("kill server request from %s failed : %s\n", host,
+             strerror(errno));
     goto fail;
   }
   close(sock);
@@ -264,16 +242,17 @@ int kill_old_gservs(ip_t server_ip, unsigned short port)
 
 
 /* If communication fails, retry.  If I receive a failure reply, just exit */
-int gnbd_login(int sock, ip_t server_ip)
+int gnbd_login(int sock, char *host)
 {
   login_req_t login_req;
   login_reply_t login_reply;
+  node_req_t node;
   uint32_t cmd = EXTERN_LOGIN_REQ;
-  FILE *server_file;
+
+  strncpy(node.node_name, node_name, 65);
 
   if (send_u32(sock, cmd) < 0){
-    tell_err("cannot send loign request to %s : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("cannot send login request to %s : %s\n", host, strerror(errno));
     return -1;
   }
 
@@ -283,13 +262,18 @@ int gnbd_login(int sock, ip_t server_ip)
   login_req.devname[31] = 0;
   CPU_TO_BE_LOGIN_REQ(&login_req);
   if (retry_write(sock, &login_req, sizeof(login_req)) < 0){
-    tell_err("transfer of login request to %s failed : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("transfer of login request to %s failed : %s\n", host,
+             strerror(errno));
+    return -1;
+  }
+  if (retry_write(sock, &node, sizeof(node)) < 0){
+    tell_err("transfer of my node name to %s failed : %s\n", host,
+             strerror(errno));
     return -1;
   }
   if (retry_read(sock, &login_reply, sizeof(login_reply)) < 0){
-    tell_err("transfer of login reply from %s failed : %s\n",
-             beip_to_str(server_ip), strerror(errno));
+    tell_err("transfer of login reply from %s failed : %s\n", host,
+             strerror(errno));
     return -1;
   }
   BE_LOGIN_REPLY_TO_CPU(&login_reply);
@@ -306,42 +290,35 @@ int gnbd_login(int sock, ip_t server_ip)
       fail("login refused by the server, quitting : %s\n",
            strerror(login_reply.err));
   }
-  snprintf(sysfs_path, 40, "%s/sectors", sysfs_base);
-  if( (server_file = fopen(sysfs_path, "w")) == NULL)
-    fail("cannot open %s : %s\n", sysfs_path, strerror(errno));
-  if (fprintf(server_file, "%llu\n", login_reply.sectors) < 0)
-    fail("cannot write sector value %llu to %s : %s\n", login_reply.sectors,
-         sysfs_path, strerror(errno));
-  fclose(server_file);
+  snprintf(sysfs_buf, 4096, "%llu", login_reply.sectors);
+  if (do_set_sysfs_attr(minor_num, "sectors", sysfs_buf) < 0)
+    fail("cannot set /sys/class/gnbd/gnbd%d/sectors value : %s\n", minor_num,
+         strerror(errno));
   return 0;
 }
 
 void do_receiver(void)
 {
-  ip_t server_ip;
+  char host[256];
   unsigned short port;
-  FILE *server_file;
   int sock;
   do_it_req_t req;
-  int res;
 
   /* FIXME -- I don't think that these can ever return a failure when
      a simple retry would work... if they can, then I should not exit */
-  snprintf(sysfs_path, 40, "%s/server", sysfs_base);
-  if( (server_file = fopen(sysfs_path, "r")) == NULL)
-    fail("cannot open %s : %s\n", sysfs_path, strerror(errno));
-  if( (res = fscanf(server_file, "%8lx:%hx\n", (unsigned long *)&server_ip,
-             &port)) != 2)
-    fail("cannot read server information from %s (%d)\n", sysfs_path, res);
-  fclose(server_file);
-  server_ip = cpu_to_beip(server_ip);
-  /* FIXME -- I should pull the above stuff into connect_to_server.
-     It would keep this function easy to read */
-  if (kill_old_gservs(server_ip, port) < 0)
+  if (do_get_sysfs_attr(minor_num, "server") == NULL)
+    fail("cannot get /sys/class/gnbd/gnbd%d/server value : %s\n", minor_num,
+         strerror(errno));
+  if (parse_server(sysfs_buf, host, (uint16_t *)&port) < 0)
+    fail("cannot parse /sys/class/gnbd/gnbd%d/server\n", minor_num);
+  if (kill_old_gservs(host, port) < 0)
     return;
-  if( (sock = connect_to_server(server_ip, port)) < 0)
+  if( (sock = connect_to_server(host, port)) < 0){
+    tell_err("cannot connect to %s (%d) : %s\n", host, sock,
+             strerror(errno));
     return;
-  if (gnbd_login(sock, server_ip) < 0){
+  }
+  if (gnbd_login(sock, host) < 0){
     close(sock);
     return;
   }
@@ -355,11 +332,10 @@ void do_receiver(void)
   req.minor = minor_num;
   req.sock_fd = sock;
   if (ioctl(devfd, GNBD_DO_IT, &req) == 0){
-    log_msg("client shutting down connect with %s\n", beip_to_str(server_ip));
+    log_msg("client shutting down connect with %s\n", host);
     exit(0);
   }
-  log_msg("client lost connection with %s : %s\n", beip_to_str(server_ip),
-          strerror(errno));
+  log_msg("client lost connection with %s : %s\n", host, strerror(errno));
   close(sock);
   return;
 }
@@ -380,6 +356,9 @@ int main(int argc, char **argv)
 
   /* FIXME -- is this necessary */
   unblock_sighup();
+
+  if (get_my_nodename(node_name) < 0)
+    fail("cannot get node name : %s\n", strerror(errno));
 
   snprintf(minor_str, 20, "-%u", minor_num);
   minor_str[19] = 0;

@@ -47,16 +47,14 @@ typedef struct login_reply_s login_reply_t;
 (x)->sectors = cpu_to_be64((x)->sectors);\
 (x)->version = cpu_to_be16((x)->version);
 
-void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
+void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
            char *name, int devfd);
-int add_gserv_info(int sock, ip_t client_ip, dev_info_t *dev, pid_t pid);
-/* FIXME -- should this be in extern_req.c */
-void fork_gserv(int sock, ip_t client_ip, dev_info_t *dev, int devfd);
-int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
-                dev_info_t **dev, int *devfd);
-int kill_gserv(ip_t client_ip, dev_info_t * dev, int sock);
-void kill_gserv_by_name(ip_t client_ip, char *name);
-int find_gserv_info(ip_t client_ip, dev_info_t * dev);
+int add_gserv_info(int sock, char *node, dev_info_t *dev, pid_t pid);
+void fork_gserv(int sock, char *node, dev_info_t *dev, int devfd);
+int gserv_login(int sock, char *node, login_req_t *login_req, dev_info_t **dev,
+                int *devfd);
+int kill_gserv(char *node, dev_info_t * dev, int sock);
+int find_gserv_info(char *node, dev_info_t * dev);
 void sig_chld(int sig);
 void kill_all_gserv(void);
 int get_gserv_info(char **buffer, uint32_t *size_size);

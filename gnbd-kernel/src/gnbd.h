@@ -52,7 +52,7 @@ struct gnbd_device {
 	int open_count;
 	struct class_device class_dev;
 	unsigned short int server_port;
-	struct in_addr server_addr;
+	char *server_name;
 	char name[32];
 	unsigned long last_received;
 	struct block_device *bdev;

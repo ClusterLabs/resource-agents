@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <syslog.h>
+#include <sys/utsname.h>
 #include <string.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -33,6 +34,8 @@ verbosity_level verbosity = NORMAL;
 char *program_dir = "/var/run/gnbd";
 int daemon_status;
 char ip_str[16];
+char sysfs_buf[4096];
+
 
 char *beip_to_str(ip_t ip)
 {
@@ -61,7 +64,17 @@ static void sig_usr2(int sig)
   daemon_status = 1;
 }
 
-/*FIXME -- does this belong here */
+/*buffer must be 65 charaters long */
+int get_my_nodename(char *buf){
+  struct utsname nodeinfo;
+
+  if (uname(&nodeinfo) < 0)
+    /*FIXME -- can I print something out here?? */
+    return -1;
+  strcpy(buf, nodeinfo.nodename);
+  return 0;
+}
+
 int check_lock(char *file, int *pid){
   int fd;
   char path[1024];
@@ -179,7 +192,7 @@ int pid_lock(char *extra_info)
 int daemonize(void)
 {
   int pid, i;
-
+ 
   if( (pid = fork()) < 0){
     printe("Failed first fork: %s\n", strerror(errno));
     return -1;
@@ -245,6 +258,116 @@ void daemonize_and_exit_parent(void)
                  strerror(errno));
 }
 
+int parse_server(char *buf, char *name, uint16_t *port)
+{
+  char *ptr;
+
+  if (strlen(buf) == 0){
+    strcpy(name, "");
+    *port = 0;
+    return 0;
+  }
+
+  ptr = strchr(buf, '/');
+  if (!ptr)
+    return -1;
+  *ptr++ = 0;
+  strncpy(name, buf, 256);
+  if (sscanf(ptr, "%4hx", port) != 1)
+    return -1;
+  return 0;
+}
+
+char *do_get_sysfs_attr(int minor, char *attr_name)
+{
+  int sysfs_fd;
+  int bytes;
+  int count = 0;
+  char sysfs_path[40];
+  
+  snprintf(sysfs_path, 40, "/sys/class/gnbd/gnbd%d/%s", minor, attr_name);
+  if( (sysfs_fd = open(sysfs_path, O_RDONLY)) < 0)
+    return NULL;
+  while (count < 4095){
+    bytes = read(sysfs_fd, &sysfs_buf[count], 4095 - count);
+    if (bytes < 0 && errno != EINTR){
+      close (sysfs_fd);
+      return NULL;
+    }
+    if (bytes == 0)
+      break;
+    count += bytes;
+  }
+  /* overwrite the '\n' with '\0' */
+  sysfs_buf[count - 1] = 0;
+  if (close(sysfs_fd) < 0)
+    return NULL;
+  return sysfs_buf;
+}
+
+char *get_sysfs_attr(int minor, char *attr_name)
+{
+  char *buf;
+  buf = do_get_sysfs_attr(minor, attr_name);
+  if (buf == NULL){
+    printe("cannot get /sys/class/gnbd/gnbd%d/%s value : %s\n",
+           minor, attr_name, strerror(errno));
+    exit(1);
+  }
+  return buf;
+}
+
+int do_set_sysfs_attr(int minor_nr, char *attribute, char *val)
+{
+  int sysfs_fd;
+  int bytes;
+  int count = 0;
+  char sysfs_path[40];
+  int len;
+
+  len = strlen(val);
+  if (len >= 4096)
+    return -1;
+  snprintf(sysfs_path, 40, "/sys/class/gnbd/gnbd%d/%s", minor_nr, attribute);
+  if( (sysfs_fd = open(sysfs_path, O_WRONLY)) < 0)
+    return -1;
+  while (count < len){
+    bytes = write(sysfs_fd, &val[count], len - count);
+    if (bytes < 0 && errno != EINTR){
+      close(sysfs_fd);
+      return -2;
+    }
+    if (bytes == 0){
+      close(sysfs_fd);
+      return -1;
+    }
+    count += bytes;
+  }
+  if (close(sysfs_fd) < 0)
+    return -1;
+  return 0;
+}
+
+/* This version allows writes to fail */
+int __set_sysfs_attr(int minor_nr, char *attribute, char *val)
+{
+  int err = do_set_sysfs_attr(minor_nr, attribute, val);
+  if (err == -1){
+    printe("cannot set /sys/class/gnbd/gnbd%d/%s value : %s\n", minor_nr,
+           attribute, strerror(errno));
+    exit(1);
+  }
+  return err; 
+}
+
+void set_sysfs_attr(int minor_nr, char *attribute, char *val)
+{
+  if (do_set_sysfs_attr(minor_nr, attribute, val) < 0){
+    printe("cannot set /sys/class/gnbd/gnbd%d/%s value : %s\n", minor_nr,
+           attribute, strerror(errno));
+    exit(1);
+  }
+}
 
 #ifdef OPEN_MAX
 static int openmax = OPEN_MAX;

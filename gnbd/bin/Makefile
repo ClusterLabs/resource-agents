@@ -18,7 +18,11 @@ UNINSTALL= ${top_srcdir}/scripts/uninstall.pl
 SBINPROGS= \
 	gnbd_export \
 	gnbd_import \
-	fence_gnbd
+	fence_gnbd \
+	gnbd_recvd \
+	gnbd_serv \
+	gnbd_monitor \
+	gnbd_clusterd
 
 include ${top_srcdir}/make/defines.mk
 

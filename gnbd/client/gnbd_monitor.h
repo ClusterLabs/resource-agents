@@ -27,5 +27,6 @@ typedef struct monitor_info_s monitor_info_t;
 int do_add_monitored_dev(int minor_nr, int timeout);
 int do_remove_monitored_dev(int minor_nr);
 int do_list_monitored_devs(monitor_info_t **devs, int *count);
+int check_addr_info(struct addrinfo *ai1, struct addrinfo *ai2);
 
 #endif /* __gnbd_monitor_h__ */

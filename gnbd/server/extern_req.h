@@ -18,6 +18,11 @@ struct device_req_s {
 };
 typedef struct device_req_s device_req_t;
 
+struct node_req_s {
+  char node_name[65];
+};
+typedef struct node_req_s node_req_t;
+
 struct import_info_s {
   uint32_t timeout;
   uint16_t flags;
@@ -42,8 +47,8 @@ typedef struct import_info_s import_info_t;
 #define REPLY_ERR(x) (-((int)(x)))
 
 int start_extern_socket(short unsigned int port);
-int accept_extern_connection(int listening_sock, ip_t *ip);
+int accept_extern_connection(int listening_sock);
 int check_extern_data_len(uint32_t req, int size);
-void handle_extern_request(int sock, uint32_t cmd, ip_t ip, void *buf);
+void handle_extern_request(int sock, uint32_t cmd, void *buf);
 
 #endif /* __extern_req_h__ */

@@ -49,7 +49,7 @@ typedef struct waiter_s waiter_t;
 void send_keep_alive(int sock);
 
 struct gserv_info_s {
-  ip_t client_ip;
+  char node[65];
   dev_info_t *dev;
   pid_t pid;
   list_t list;
@@ -207,7 +207,7 @@ int get_gserv_info(char **buffer, uint32_t *list_size)
   *list_size = (uint32_t)(sizeof(gserv_req_t) * count);
   list_foreach(list_item, &gserv_list){
     server = list_entry(list_item, gserv_info_t, list);
-    ptr->client_ip = server->client_ip;
+    strncpy(ptr->node, server->node, 65);
     ptr->pid = (uint32_t)server->pid;
     strncpy(ptr->name, server->dev->name, 32);
     ptr->name[31] = 0;
@@ -217,7 +217,7 @@ int get_gserv_info(char **buffer, uint32_t *list_size)
   return 0;
 }
 
-void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
+void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
            char *name, int devfd)
 {
   char *buf;
@@ -227,8 +227,8 @@ void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
   uint64_t offset;
   uint32_t len;
   uint32_t type;
-  char from_str[21];
-  char to_str[19];
+  char from_str[70];
+  char to_str[70];
 
   /* FIXME -- This should be done when I first open the file.. maybe */
   if (posix_memalign((void **)&buf, fpathconf(devfd, _PC_REC_XFER_ALIGN),
@@ -237,8 +237,8 @@ void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
     exit(1);
   }
 
-  snprintf(from_str, 21, "from %s", beip_to_str(client_ip));
-  snprintf(to_str, 19, "to %s", beip_to_str(client_ip));
+  sprintf(from_str, "from %s", node);
+  sprintf(to_str, "to %s", node);
 
   /* FIXME -- setup signal handling*/
   reply.magic = be32_to_cpu(GNBD_REPLY_MAGIC);
@@ -311,7 +311,7 @@ void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
 }
 
 /* This must be called with SIGCHLD blocked */
-int add_gserv_info(int sock, ip_t client_ip, dev_info_t *dev, pid_t pid)
+int add_gserv_info(int sock, char *node, dev_info_t *dev, pid_t pid)
 {
   gserv_info_t *info;
   
@@ -320,7 +320,7 @@ int add_gserv_info(int sock, ip_t client_ip, dev_info_t *dev, pid_t pid)
     printe("couldn't allocate memory for server info\n");
     return -1;
   }
-  info->client_ip = client_ip;
+  strncpy(info->node, node, 65);
   info->dev = dev;
   info->pid = pid;
   list_add(&info->list, &gserv_list);
@@ -386,7 +386,7 @@ void sig_chld(int sig)
   }
 }
 
-void fork_gserv(int sock, ip_t client_ip, dev_info_t *dev, int devfd)
+void fork_gserv(int sock, char *node, dev_info_t *dev, int devfd)
 {
   struct sigaction act;
   pid_t pid;
@@ -397,7 +397,7 @@ void fork_gserv(int sock, ip_t client_ip, dev_info_t *dev, int devfd)
     return;
   }
   if (pid != 0){
-    if (add_gserv_info(sock, client_ip, dev, pid) < 0)
+    if (add_gserv_info(sock, node, dev, pid) < 0)
       kill(pid, SIGTERM);
     unblock_sigchld();
     return;
@@ -426,11 +426,11 @@ void fork_gserv(int sock, ip_t client_ip, dev_info_t *dev, int devfd)
   /* FIXME -- need to close and free things, like the external socket, and
      useless memory, and the log... I need to open a new one.
      There is probably some signal stuff that I should do */
-  gserv(sock, client_ip, dev->sectors, dev->flags, dev->name, devfd);
+  gserv(sock, node, dev->sectors, dev->flags, dev->name, devfd);
   exit(0);
 }
 
-int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
+int gserv_login(int sock, char *node, login_req_t *login_req,
                 dev_info_t **devptr, int *devfd)
 {
   uint64_t sectors;
@@ -455,12 +455,12 @@ int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
     goto fail_reply;
   }
 
-  err = update_timestamp_list(client_ip, login_req->timestamp);
+  err = update_timestamp_list(node, login_req->timestamp);
   if (err)
     goto fail_reply;
   
-  if (check_banned_list(client_ip)) {
-    log_err("client %s is banned. Canceling login\n", beip_to_str(client_ip));
+  if (check_banned_list(node)) {
+    log_err("client %s is banned. Canceling login\n", node);
     err = -EPERM;
     goto fail_reply;
   }
@@ -498,8 +498,8 @@ int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
 
   if (retry_write(sock, &login_reply, sizeof(login_reply)) < 0){
     err = -errno;
-    log_err("cannot set login reply to %s failed : %s\n",
-            beip_to_str(client_ip), strerror(errno));
+    log_err("cannot set login reply to %s failed : %s\n", node,
+            strerror(errno));
     goto fail_file;
   }
   
@@ -517,13 +517,13 @@ int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
   return err;
 }
 
-int __find_gserv_info(ip_t client_ip, dev_info_t *dev)
+int __find_gserv_info(char *node, dev_info_t *dev)
 {
   list_t *list_item;
   gserv_info_t *info = NULL;
   foreach_gserv(list_item, &gserv_list) {
     info = list_entry(list_item, gserv_info_t, list);
-    if ((!client_ip || client_ip == info->client_ip) &&
+    if ((!node || strncmp(info->node, node, 65) == 0) &&
         (!dev || dev == info->dev)){
       return 1;
     }
@@ -531,11 +531,11 @@ int __find_gserv_info(ip_t client_ip, dev_info_t *dev)
   return 0;
 }
 
-int find_gserv_info(ip_t client_ip, dev_info_t *dev)
+int find_gserv_info(char *node, dev_info_t *dev)
 {
   int ret;
   block_sigchld();
-  ret = __find_gserv_info(client_ip, dev);
+  ret = __find_gserv_info(node, dev);
   unblock_sigchld();
   return ret;
 }
@@ -562,7 +562,7 @@ void validate_gservs(void)
   }
 }
 
-int kill_gserv(ip_t client_ip, dev_info_t *dev, int sock)
+int kill_gserv(char *node, dev_info_t *dev, int sock)
 {
   int err = 0;
   list_t *list_item, *tmp;
@@ -593,7 +593,7 @@ int kill_gserv(ip_t client_ip, dev_info_t *dev, int sock)
   waiter->pids = NULL;
   foreach_gserv(list_item, &gserv_list) {
     info = list_entry(list_item, gserv_info_t, list);
-    if ((!client_ip || client_ip == info->client_ip) &&
+    if ((!node || strncmp(info->node, node, 65) == 0) &&
         (!dev || dev == info->dev))
       waiter->count++;
   }
@@ -612,7 +612,7 @@ int kill_gserv(ip_t client_ip, dev_info_t *dev, int sock)
   list_add(&waiter->list, &waiter_list);
   foreach_gserv(list_item, &gserv_list) {
     info = list_entry(list_item, gserv_info_t, list);
-    if ((!client_ip || client_ip == info->client_ip) &&
+    if ((!node || strncmp(info->node, node, 65) == 0) &&
         (!dev || dev == info->dev)){
       waiter->pids[count] = info->pid;
       count++;

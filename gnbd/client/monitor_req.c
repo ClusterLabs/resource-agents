@@ -15,10 +15,44 @@
 #include <sys/types.h>
 #include <inttypes.h>
 #include <errno.h>
+#include <netdb.h>
 
 #include "gnbd_utils.h"
 #include "trans.h"
 #include "gnbd_monitor.h"
+
+int check_addr_info(struct addrinfo *ai1, struct addrinfo *ai2)
+{
+  int ret = 0;
+
+  for(; ai1; ai1 = ai1->ai_next){
+    for(; ai2; ai2 = ai2->ai_next){
+      if (ai1->ai_family != ai2->ai_family)
+        continue;
+      if (ai1->ai_family != AF_INET && ai1->ai_family != AF_INET6)
+        continue;
+      if (ai1->ai_family == AF_INET){
+        struct sockaddr_in *addr4_1, *addr4_2;
+
+        addr4_1 = (struct sockaddr_in *)ai1->ai_addr;
+        addr4_2 = (struct sockaddr_in *)ai2->ai_addr;
+        if (addr4_1->sin_addr.s_addr == addr4_2->sin_addr.s_addr)
+          ret = 1;
+      }
+      if (ai1->ai_family == AF_INET6){
+        struct sockaddr_in6 *addr6_1, *addr6_2;
+
+        addr6_1 = (struct sockaddr_in6 *)ai1->ai_addr;
+        addr6_2 = (struct sockaddr_in6 *)ai2->ai_addr;
+        if (IN6_ARE_ADDR_EQUAL(&addr6_1->sin6_addr, &addr6_2->sin6_addr))
+          ret = 1;
+      }
+      if (ret == 1)
+        break;
+    }
+  }
+  return ret;
+}
 
 int do_add_monitored_dev(int minor_nr, int timeout)
 {
