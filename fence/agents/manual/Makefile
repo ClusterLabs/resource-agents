@@ -19,7 +19,7 @@ fence_ack_manual_SOURCE= ack.c
 top_srcdir=../..
 
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${incdir}
 
 
 include ${top_srcdir}/make/defines.mk

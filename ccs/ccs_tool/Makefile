@@ -14,7 +14,7 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 
 ccs_libdir=${top_srcdir}/lib
-INCLUDE= -I. -I${top_srcdir}/config -I${top_srcdir}/include -I${ccs_libdir}
+INCLUDE= -I. -I${top_srcdir}/config -I${top_srcdir}/include -I${ccs_libdir} -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
