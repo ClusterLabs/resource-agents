@@ -145,18 +145,12 @@ fill_super(struct super_block *sb, void *data, int silent)
 	/*  Set up the buffer cache and fill in some fake values
 	   to allow us to read in the superblock.  */
 
-	sdp->sd_sb.sb_bsize = bdev_hardsect_size(sb->s_bdev);
-	if (sdp->sd_sb.sb_bsize < GFS_BASIC_BLOCK)
-		sdp->sd_sb.sb_bsize = GFS_BASIC_BLOCK;
-	sdp->sd_sb.sb_bsize_shift = ffs(sdp->sd_sb.sb_bsize) - 1;
+	sdp->sd_sb.sb_bsize = sb_min_blocksize(sb, GFS_BASIC_BLOCK);
+	sdp->sd_sb.sb_bsize_shift = sb->s_blocksize_bits;
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift - GFS_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 
 	GFS_ASSERT_SBD(sizeof(struct gfs_sb) <= sdp->sd_sb.sb_bsize, sdp,);
-
-	set_blocksize(sb->s_bdev, sdp->sd_sb.sb_bsize);
-	sb->s_blocksize = sdp->sd_sb.sb_bsize;
-	sb->s_blocksize_bits = sdp->sd_sb.sb_bsize_shift;
 
 	error = gfs_mount_lockproto(sdp, silent);
 	if (error)
@@ -256,9 +250,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sb_gh.gh_gl->gl_ops->go_inval(sb_gh.gh_gl, DIO_METADATA | DIO_DATA);
 	sb_gh.gh_gl->gl_aspace->i_blkbits = sdp->sd_sb.sb_bsize_shift;
 
-	set_blocksize(sb->s_bdev, sdp->sd_sb.sb_bsize);
-	sb->s_blocksize = sdp->sd_sb.sb_bsize;
-	sb->s_blocksize_bits = sdp->sd_sb.sb_bsize_shift;
+	sb_set_blocksize(sb, sdp->sd_sb.sb_bsize);
 
 	/*  Read in journal index inode  */
 
@@ -606,21 +598,10 @@ struct super_block *gfs_get_sb(struct file_system_type *fs_type, int flags,
 	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
 }
 
-/**
- * gfs_kill_sb - 
- * @sb:
- *
- */
-
-void gfs_kill_sb(struct super_block *sb)
-{
-	kill_block_super(sb);
-}
-
 struct file_system_type gfs_fs_type = {
 	.name = "gfs",
-	.fs_flags = FS_REQUIRES_DEV /*| FS_REVAL_DOT*/,
+	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = gfs_get_sb,
-	.kill_sb = gfs_kill_sb,
+	.kill_sb = kill_block_super,
 	.owner = THIS_MODULE,
 };
