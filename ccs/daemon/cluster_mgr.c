@@ -70,6 +70,7 @@ static void cluster_communicator(void){
   memb_resolve_list(membership, NULL);
 
   while(1) {
+    FD_ZERO(&rset);
     max_fds = msg_fill_fdset(&rset, MSG_ALL, MSGP_ALL);
     log_dbg("Waiting for cluster event.\n");
     n = select(max_fds+1, &rset, NULL, NULL, NULL);
