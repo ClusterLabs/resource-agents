@@ -44,11 +44,11 @@ extern char *prog_name;
 #endif
 
 #define die(fmt, args...) \
-{ \
-  fprintf(stderr, "%s: ", prog_name); \
-  fprintf(stderr, fmt "\n", ##args); \
-  exit(EXIT_FAILURE); \
-}
+do { \
+	fprintf(stderr, "%s: ", prog_name); \
+	fprintf(stderr, fmt "\n", ##args); \
+	exit(EXIT_FAILURE); \
+} while (0)
 
 
 #define DEFAULT_PORT 6809
