@@ -612,7 +612,11 @@ static void do_ls_recovery(struct dlm_ls *ls)
 
 		case DO_FINISH:
 			next_state = LSST_CLEAR;
+
 			enable_locking(ls, finish_event);
+
+			process_requestqueue(ls);
+
 			log_all(ls, "recover event %u finished", finish_event);
 			break;
 
