@@ -204,7 +204,7 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	       sdp->sd_fsname);
 
 	atomic_inc(&sdp->sd_lm_outstanding);
-	sdp->sd_lockstruct.ls_ops->lm_withdraw(sdp->sd_lockstruct.ls_lockspace);
+	lm_withdraw(&sdp->sd_lockstruct);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
 	printk("GFS: fsid=%s: withdrawn\n",

@@ -186,6 +186,22 @@ lm_unmount(struct lm_lockstruct *lockstruct)
 }
 
 /**
+ * lm_withdraw - abnormally unmount a lock module
+ * @lockstruct: the lockstruct passed into mount
+ *
+ */
+
+void
+lm_withdraw(struct lm_lockstruct *lockstruct)
+{
+	down(&lmh_lock);
+	lockstruct->ls_ops->lm_withdraw(lockstruct->ls_lockspace);
+	if (lockstruct->ls_ops->lm_owner)
+		module_put(lockstruct->ls_ops->lm_owner);
+	up(&lmh_lock);
+}
+
+/**
  * init_lmh - Initialize the lock module harness
  *
  * Returns: 0 on success, -EXXX on failure
@@ -225,3 +241,4 @@ EXPORT_SYMBOL_GPL(lm_register_proto);
 EXPORT_SYMBOL_GPL(lm_unregister_proto);
 EXPORT_SYMBOL_GPL(lm_mount);
 EXPORT_SYMBOL_GPL(lm_unmount);
+EXPORT_SYMBOL_GPL(lm_withdraw);

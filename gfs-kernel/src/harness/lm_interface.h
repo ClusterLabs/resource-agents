@@ -242,5 +242,6 @@ int lm_mount(char *proto_name,
 	     lm_callback_t cb, lm_fsdata_t *fsdata,
 	     unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
 void lm_unmount(struct lm_lockstruct *lockstruct);
+void lm_withdraw(struct lm_lockstruct *lockstruct);
 
 #endif /* __LM_INTERFACE_DOT_H__ */
