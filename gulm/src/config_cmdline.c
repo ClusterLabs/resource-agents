@@ -37,15 +37,15 @@ extern char *ProgramName;
 
 void parse_cmdline_servers(gulm_config_t *gf, char *servers)
 {
-   char *workspace;
+   char *workspace = NULL;
    char *token, *next;
    int wl, tl;
    ip_name_t *in;
 
-   if( servers == NULL ) return;
+   if( servers == NULL ) goto exit;
 
    workspace = strdup(servers);
-   if( workspace == NULL ) return;
+   if( workspace == NULL ) goto exit;
 
    /* this `overwrites' previous entries so... */
    if( !LLi_empty(&gf->node_list) ) {
@@ -55,7 +55,7 @@ void parse_cmdline_servers(gulm_config_t *gf, char *servers)
    }
 
    wl = strlen(workspace);
-   if( wl == 0 ) return;/* right, so I'm not using strtok why? */
+   if( wl == 0 ) goto exit;/* right, so I'm not using strtok why? */
    for(token = workspace, tl=0; tl < wl &&
          token[tl] != ',' &&
          token[tl] != ' ' &&
@@ -72,11 +72,11 @@ void parse_cmdline_servers(gulm_config_t *gf, char *servers)
          /* figure out name and ip from whatever they gave us */
          in = get_ipname(token);
 
-         if( in == NULL ) return;
+         if( in == NULL ) goto exit;
          if( in->name == NULL ) {
             fprintf(stderr, "I cannot find the name for ip \"%s\". Stopping.\n",
                   token);
-            return;
+            goto exit;
          }
 
          if( gf->node_cnt < 5 ) {
@@ -90,7 +90,7 @@ void parse_cmdline_servers(gulm_config_t *gf, char *servers)
 
       }
 
-      if( next >= workspace + wl ) return;
+      if( next >= workspace + wl ) goto exit;
       for(token = next, tl = 0;
             tl < wl &&
             token[tl] != ',' &&
@@ -101,6 +101,8 @@ void parse_cmdline_servers(gulm_config_t *gf, char *servers)
       next = token + tl +1;
    }
 
+exit:
+   if( workspace != NULL ) free(workspace);
 }
 
 void usage(void)
