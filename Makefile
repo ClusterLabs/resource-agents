@@ -129,6 +129,9 @@ latest_tags:
 	${LATEST_TAG} magma-plugins
 	echo "Beware, your directories are now in sync with their last tag." > TAG
 
+setrelease:
+	for i in `ls */make/release.mk.input`; do ${EDITOR} $$i; done
+
 tarballs: TAG
 	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball
 	make -s COMPONENT=dlm-kernel RELEASE_FILE=dlm-kernel/make/release.mk.input tarball
