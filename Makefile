@@ -10,6 +10,7 @@
 ###############################################################################
 # Order is important
 LATEST_TAG=scripts/latest_tag.pl
+BUILD_SRPMS=scripts/build_srpms.pl
 BUILDDIR = $(shell pwd)/build
 MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module sharedir=${BUILDDIR}
 
@@ -138,6 +139,9 @@ latest_tags:
 
 setrelease:
 	for i in `ls */make/release.mk.input`; do ${EDITOR} $$i; done
+
+srpms:
+	$(BUILD_SRPMS)
 
 tarballs: TAG
 	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball

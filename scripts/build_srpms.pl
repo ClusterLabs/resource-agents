@@ -20,17 +20,7 @@ foreach $target (@targets) {
   close IFILE;
   close OFILE;
 
-  open IFILE, "<make/release.mk.input";
-  open OFILE, ">make/release.mk.output";
-  while (<IFILE>) {
-    $_ =~ s/(^RELEASE_MAJOR = ).*/$1$version/;
-    $_ =~ s/(^RELEASE_MINOR = ).*/$1$date/;
-    print OFILE "$_";
-  }
-  close IFILE;
-  close OFILE;
-  print `cp make/release.mk.output make/release.mk.input`;
-
+  setReleaseFile(0,$version,$date);
 
   chdir "..";
   $newdir = $target."-".$version."-".$date;
@@ -41,6 +31,7 @@ foreach $target (@targets) {
   print `rpmbuild -ts $newdir.tar.gz`;
   print `rm $newdir.tar.gz`;
   chdir $target;
+  setReleaseFile(1);
 }
 chdir "..";
 }
@@ -61,3 +52,24 @@ sub getVersion {
     if ($_ =~ /^symbolic names:$/) { $finished = 1;}
   }
 }
+
+sub setReleaseFile {
+  my ($reset,$version,$date) = @_;
+  if ($reset == 1) {
+    print `mv make/release.mk.input.bak make/release.mk.input`;
+     return;
+  }
+
+  open IFILE, "<make/release.mk.input";
+  open OFILE, ">make/release.mk.output";
+  while (<IFILE>) {
+    $_ =~ s/(^RELEASE_MAJOR = ).*/$1$version/;
+    $_ =~ s/(^RELEASE_MINOR = ).*/$1$date/;
+    print OFILE "$_";
+  }
+  close IFILE;
+  close OFILE;
+
+  print `mv make/release.mk.input make/release.mk.input.bak`;
+  print `mv make/release.mk.output make/release.mk.input`;
+} 
