@@ -297,19 +297,11 @@ struct dlm_ls {
 	int			ls_recover_list_count;
 	wait_queue_head_t	ls_wait_general;
 
-	struct list_head	ls_rootres;	/* List of root resources */
-
-	struct rw_semaphore	ls_rec_rsblist;	/* To prevent incoming recovery
-						   operations happening while
-						   we are purging */
-
-	struct rw_semaphore	ls_gap_rsblist;	/* To protect rootres list
-						   in grant_after_purge() which
-						   runs outside recovery */
+	struct list_head	ls_rootres;	/* root resources */
+	struct rw_semaphore	ls_root_lock;	/* protect rootres list */
 
 	struct list_head	ls_rebuild_rootrsb_list; /* Root of lock trees
-							    we are
-							    deserialising */
+							  we're deserialising */
 	int			ls_namelen;
 	char			ls_name[1];
 };

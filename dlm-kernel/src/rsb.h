@@ -16,6 +16,7 @@
 
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode);
 void release_rsb(struct dlm_rsb *r);
+void release_rsb_locked(struct dlm_rsb *r);
 void hold_rsb(struct dlm_rsb *r);
 int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
 		       int namelen, int create, struct dlm_rsb **rp);

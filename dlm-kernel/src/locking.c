@@ -663,15 +663,20 @@ int dlm_unlock(void *lockspace,
 		goto out;
 
 	lkb = find_lock_by_id(ls, lkid);
-	if (!lkb)
+	if (!lkb) {
+		log_debug(ls, "unlock %x no id", lkid);
 		goto out;
+	}
 
 	/* Can't dequeue a master copy (a remote node's mastered lock) */
-	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY)
+	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
+		log_debug(ls, "unlock %x lkb_flags %x", lkid, lkb->lkb_flags);
 		goto out;
+	}
 
 	/* Already waiting for a remote lock operation */
 	if (lkb->lkb_lockqueue_state) {
+		log_debug(ls, "unlock %x lq%d", lkid, lkb->lkb_lockqueue_state);
 		ret = -EBUSY;
 		goto out;
 	}
@@ -681,13 +686,17 @@ int dlm_unlock(void *lockspace,
 	 * (which may be on the master) under the semaphore.
 	 */
 	if ((flags & DLM_LKF_CANCEL) &&
-	    (lkb->lkb_status == GDLM_LKSTS_GRANTED))
+	    (lkb->lkb_status == GDLM_LKSTS_GRANTED)) {
+		log_debug(ls, "unlock %x %x %d", lkid, flags, lkb->lkb_status);
 		goto out;
+	}
 
 	/* "Normal" unlocks must operate on a granted lock */
 	if (!(flags & DLM_LKF_CANCEL) &&
-	    (lkb->lkb_status != GDLM_LKSTS_GRANTED))
+	    (lkb->lkb_status != GDLM_LKSTS_GRANTED)) {
+		log_debug(ls, "unlock %x %x %d", lkid, flags, lkb->lkb_status);
 		goto out;
+	}
 
 	down_write(&ls->ls_unlock_sem);
 	/* Can't dequeue a lock with sublocks */

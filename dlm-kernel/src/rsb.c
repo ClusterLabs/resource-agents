@@ -53,7 +53,7 @@ void hold_rsb(struct dlm_rsb *r)
  * queue's or anywhere else.
  */
 
-void release_rsb(struct dlm_rsb *r)
+static void _release_rsb(struct dlm_rsb *r, int locked)
 {
 	struct dlm_ls *ls = r->res_ls;
 	uint32_t nodeid;
@@ -72,12 +72,14 @@ void release_rsb(struct dlm_rsb *r)
 	if (!removed)
 		return;
 
-	down_read(&ls->ls_gap_rsblist);
+	if (!locked)
+		down_write(&ls->ls_root_lock);
 	if (r->res_parent)
 		list_del(&r->res_subreslist);
 	else
 		list_del(&r->res_rootlist);
-	up_read(&ls->ls_gap_rsblist);
+	if (!locked)
+		up_write(&ls->ls_root_lock);
 
 	if (r->res_parent || !test_bit(RESFL_MASTER, &r->res_flags))
 		goto out;
@@ -93,6 +95,16 @@ void release_rsb(struct dlm_rsb *r)
 		free_lvb(r->res_lvbptr);
 
 	free_rsb(r);
+}
+
+void release_rsb(struct dlm_rsb *r)
+{
+	_release_rsb(r, 0);
+}
+
+void release_rsb_locked(struct dlm_rsb *r)
+{
+	_release_rsb(r, 1);
 }
 
 struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb)
@@ -174,13 +186,13 @@ int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
 		list_add(&r->res_hashchain, &ls->ls_rsbtbl[bucket].list);
 		write_unlock(&ls->ls_rsbtbl[bucket].lock);
 
-		down_read(&ls->ls_gap_rsblist);
+		down_write(&ls->ls_root_lock);
 		if (parent)
 			list_add_tail(&r->res_subreslist,
 				      &r->res_root->res_subreslist);
 		else
 			list_add(&r->res_rootlist, &ls->ls_rootres);
-		up_read(&ls->ls_gap_rsblist);
+		up_write(&ls->ls_root_lock);
 	}
 
       out_set:

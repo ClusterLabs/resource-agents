@@ -174,7 +174,7 @@ static int purge_queue(struct dlm_ls *ls, struct list_head *queue)
 				remove_from_deadlockqueue(lkb);
 
 			release_lkb(ls, lkb);
-			release_rsb(rsb);
+			release_rsb_locked(rsb);
 			count++;
 		}
 	}
@@ -194,6 +194,7 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 	struct dlm_rsb *rootrsb, *safe, *rsb;
 
 	log_all(ls, "purge locks of departed nodes");
+	down_write(&ls->ls_root_lock);
 
 	list_for_each_entry_safe(rootrsb, safe, &ls->ls_rootres, res_rootlist) {
 
@@ -215,16 +216,17 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 			purge_queue(ls, &rsb->res_grantqueue);
 			purge_queue(ls, &rsb->res_convertqueue);
 			purge_queue(ls, &rsb->res_waitqueue);
-			release_rsb(rsb);
+			release_rsb_locked(rsb);
 		}
 		count += purge_queue(ls, &rootrsb->res_grantqueue);
 		count += purge_queue(ls, &rootrsb->res_convertqueue);
 		count += purge_queue(ls, &rootrsb->res_waitqueue);
 
 		up_write(&rootrsb->res_lock);
-		release_rsb(rootrsb);
+		release_rsb_locked(rootrsb);
 	}
 
+	up_write(&ls->ls_root_lock);
 	log_all(ls, "purged %d locks", count);
 
 	return 0;
@@ -239,7 +241,7 @@ int restbl_grant_after_purge(struct dlm_ls *ls)
 	struct dlm_rsb *root, *rsb, *safe;
 	int error = 0;
 
-	down_write(&ls->ls_gap_rsblist);
+	down_read(&ls->ls_root_lock);
 
 	list_for_each_entry_safe(root, safe, &ls->ls_rootres, res_rootlist) {
 		/* only the rsb master grants locks */
@@ -249,7 +251,7 @@ int restbl_grant_after_purge(struct dlm_ls *ls)
 		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
 			log_debug(ls, "restbl_grant_after_purge aborted");
 			error = -EINTR;
-			up_write(&ls->ls_gap_rsblist);
+			up_read(&ls->ls_root_lock);
 			goto out;
 		}
 
@@ -263,7 +265,7 @@ int restbl_grant_after_purge(struct dlm_ls *ls)
 			up_write(&rsb->res_lock);
 		}
 	}
-	up_write(&ls->ls_gap_rsblist);
+	up_read(&ls->ls_root_lock);
 	wake_astd();
  out:
 	return error;
@@ -435,25 +437,6 @@ static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
 	return rsb;
 }
 
-#if 0
-static void recover_list_clear(struct dlm_ls *ls)
-{
-	struct dlm_rsb *rsb;
-
-
-	spin_lock(&ls->ls_recover_list_lock);
-
-	while (!list_empty(&ls->ls_recover_list)) {
-		rsb = list_entry(ls->ls_recover_list.next, struct dlm_rsb,
-			         res_recover_list);
-		list_del(&rsb->res_recover_list);
-		ls->ls_recover_list_count--;
-	}
-	spin_unlock(&ls->ls_recover_list_lock);
-
-}
-#endif
-
 static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 {
 	struct dlm_ls *ls = rsb->res_ls;
@@ -488,7 +471,7 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 			goto fail;
 	}
 
-      fail:
+ fail:
 	return error;
 }
 
@@ -529,27 +512,32 @@ int restbl_rsb_update(struct dlm_ls *ls)
 	if (!rc)
 		goto out;
 
+	down_read(&ls->ls_root_lock);
+
 	list_for_each_entry_safe(rsb, safe, &ls->ls_rootres, res_rootlist) {
 		error = dlm_recovery_stopped(ls);
-		if (error)
+		if (error) {
+			up_read(&ls->ls_root_lock);
 			goto out_free;
+		}
 
 		if (needs_update(ls, rsb)) {
 			error = rsb_master_lookup(rsb, rc);
-			if (error)
+			if (error) {
+				up_read(&ls->ls_root_lock);
 				goto out_free;
+			}
 			count++;
 		}
 	}
+	up_read(&ls->ls_root_lock);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
 	log_all(ls, "updated %d resources", count);
-
-      out_free:
+ out_free:
 	free_rcom_buffer(rc);
-
-      out:
+ out:
 	return error;
 }
 
@@ -572,7 +560,7 @@ int restbl_rsb_update_recv(struct dlm_ls *ls, uint32_t nodeid, char *buf,
 	if (recover_list_empty(ls))
 		wake_up(&ls->ls_wait_general);
 
-      out:
+ out:
 	return 0;
 }
 
@@ -615,7 +603,6 @@ int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 	}
 
 	return (outbufptr - outbuf);
-
-      fail:
+ fail:
 	return -1;
 }

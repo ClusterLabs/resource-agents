@@ -821,6 +821,8 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 	if (!rc)
 		goto ret;
 
+	down_read(&ls->ls_root_lock);
+
 	error = 0;
 	memset(&fill, 0, sizeof(rcom_fill_t));
 	fill.outbuf = rc->rc_buf;
@@ -833,15 +835,21 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 
 		rc->rc_datalen = fill.offset;
 		error = rcom_send_message(ls, nodeid, RECCOMM_NEWLOCKS, rc, 0);
-		if (error)
+		if (error) {
+			up_read(&ls->ls_root_lock);
 			goto out;
+		}
 
 		schedule();
 		error = dlm_recovery_stopped(ls);
-		if (error)
+		if (error) {
+			up_read(&ls->ls_root_lock);
 			goto out;
+		}
 	}
 	while (fill.more);
+
+	up_read(&ls->ls_root_lock);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 

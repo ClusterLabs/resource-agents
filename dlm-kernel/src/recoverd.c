@@ -194,11 +194,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		 * doesn't involve communicating with other nodes.
 		 */
 
-		down_write(&ls->ls_rec_rsblist);
 		restbl_lkb_purge(ls);
-		up_write(&ls->ls_rec_rsblist);
-
-		down_read(&ls->ls_rec_rsblist);
 
 		/* 
 		 * Get new master id's for rsb's of departed nodes.  This fails
@@ -208,7 +204,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		error = restbl_rsb_update(ls);
 		if (error) {
 			log_error(ls, "restbl_rsb_update failed %d", error);
-			goto fail_up;
+			goto fail;
 		}
 
 		/* 
@@ -219,9 +215,8 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		error = rebuild_rsbs_send(ls);
 		if (error) {
 			log_error(ls, "rebuild_rsbs_send failed %d", error);
-			goto fail_up;
+			goto fail;
 		}
-		up_read(&ls->ls_rec_rsblist);
 	}
 
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
@@ -230,8 +225,6 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	kcl_start_done(ls->ls_local_id, rv->event_id);
 	return 0;
 
- fail_up:
-	up_read(&ls->ls_rec_rsblist);
  fail:
 	log_all(ls, "recover event %d error %d", rv->event_id, error);
 	return error;
@@ -284,6 +277,18 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 		rv = list_entry(ls->ls_recover.next, struct dlm_recover, list);
 		list_del(&rv->list);
 		list_add_tail(&rv->list, &events);
+	}
+
+	/* Reset things when the last stop aborted our first
+	   start, i.e. there was no finish; we got a
+	   start/stop/start immediately upon joining. */
+
+	if (!last_finish && last_stop) {
+		log_all(ls, "move reset stop %d start %d finish %d",
+			last_stop, last_start, last_finish);
+		ls->ls_last_stop = 0;
+		last_stop = 0;
+
 	}
 	spin_unlock(&ls->ls_recover_lock);
 

@@ -318,8 +318,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	init_MUTEX(&ls->ls_rcom_lock);
 	init_rwsem(&ls->ls_in_recovery);
 	init_rwsem(&ls->ls_unlock_sem);
-	init_rwsem(&ls->ls_rec_rsblist);
-	init_rwsem(&ls->ls_gap_rsblist);
+	init_rwsem(&ls->ls_root_lock);
 	down_write(&ls->ls_in_recovery);
 
 	if (flags & DLM_LSF_NOTIMERS)
@@ -662,6 +661,9 @@ static int dlm_ls_start(void *servicedata, uint32_t *nodeids, int count,
 	rv->event_id = event_id;
 
 	spin_lock(&ls->ls_recover_lock);
+	if (ls->ls_last_start == event_id)
+		log_all(ls, "repeated start %d stop %d finish %d",
+			event_id, ls->ls_last_stop, ls->ls_last_finish);
 	ls->ls_last_start = event_id;
 	list_add_tail(&rv->list, &ls->ls_recover);
 	set_bit(LSFL_LS_START, &ls->ls_flags);

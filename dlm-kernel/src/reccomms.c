@@ -479,8 +479,8 @@ void process_recovery_comm(uint32_t nodeid, struct dlm_header *header)
 	struct dlm_rcom *rc = (struct dlm_rcom *) header;
 
 	/* If the lockspace doesn't exist then still send a status message
-	   back, it's possible that it just doesn't have it's global_id
-  	   yet. */
+	   back; it's possible that it just doesn't have its global_id yet. */
+
 	if (!ls) {
 	      send_ls_not_ready(nodeid, header);
 	      return;
@@ -488,9 +488,7 @@ void process_recovery_comm(uint32_t nodeid, struct dlm_header *header)
 
 	switch (header->rh_cmd) {
 	case GDLM_REMCMD_RECOVERMESSAGE:
-		down_read(&ls->ls_rec_rsblist);
 		rcom_process_message(ls, nodeid, rc);
-		up_read(&ls->ls_rec_rsblist);
 		break;
 
 	case GDLM_REMCMD_RECOVERREPLY:

@@ -334,7 +334,7 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	 * matches the requesting node.
 	 */
 
-	down_read(&ls->ls_rec_rsblist);
+	down_read(&ls->ls_root_lock);
 	if (start_rsb)
 		list = start_rsb->res_rootlist.next;
 	else
@@ -386,7 +386,7 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	}
 
  out:
-	up_read(&ls->ls_rec_rsblist);
+	up_read(&ls->ls_root_lock);
 	return offset;
 }
 
