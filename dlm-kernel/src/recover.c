@@ -398,6 +398,26 @@ static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
 	return rsb;
 }
 
+static void recover_list_clear(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r, *s;
+
+	spin_lock(&ls->ls_recover_list_lock);
+	list_for_each_entry_safe(r, s, &ls->ls_recover_list, res_recover_list) {
+		list_del(&r->res_recover_list);
+		clear_bit(RESFL_RECOVER_LIST, &r->res_flags);
+		release_rsb(r);
+		ls->ls_recover_list_count--;
+	}
+
+	if (ls->ls_recover_list_count != 0) {
+		log_error(ls, "warning: recover_list_count %d",
+			  ls->ls_recover_list_count);
+		ls->ls_recover_list_count = 0;
+	}
+	spin_unlock(&ls->ls_recover_list_lock);
+}
+
 static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 {
 	struct dlm_ls *ls = rsb->res_ls;
@@ -510,6 +530,8 @@ int restbl_rsb_update(struct dlm_ls *ls)
 
 	log_debug(ls, "updated %d resources", count);
  out_free:
+	if (error)
+		recover_list_clear(ls);
 	free_rcom_buffer(rc);
  out:
 	return error;
