@@ -28,6 +28,48 @@ struct resmov {
 	uint16_t rm_pad;
 };
 
+static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
+{
+	spin_lock(&ls->ls_recover_list_lock);
+	list_add(&de->list, &ls->ls_recover_list);
+	spin_unlock(&ls->ls_recover_list_lock);
+}
+
+static struct dlm_direntry *get_free_de(struct dlm_ls *ls, int len)
+{
+	int found = FALSE;
+	struct dlm_direntry *de;
+
+	spin_lock(&ls->ls_recover_list_lock);
+	list_for_each_entry(de, &ls->ls_recover_list, list) {
+		if (de->length == len) {
+			list_del(&de->list);
+			de->master_nodeid = 0;
+			memset(de->name, 0, len);
+			found = TRUE;
+			break;
+		}
+	}
+	spin_unlock(&ls->ls_recover_list_lock);
+
+	if (!found)
+		de = allocate_direntry(ls, len);
+	return de;
+}
+
+static void clear_free_de(struct dlm_ls *ls)
+{
+	struct dlm_direntry *de;
+
+	spin_lock(&ls->ls_recover_list_lock);
+	while (!list_empty(&ls->ls_recover_list)) {
+		de = list_entry(ls->ls_recover_list.next, struct dlm_direntry,
+				list);
+		list_del(&de->list);
+		free_direntry(de);
+	}
+	spin_unlock(&ls->ls_recover_list_lock);
+}
 
 /* 
  * We use the upper 16 bits of the hash value to select the directory node.
@@ -145,7 +187,7 @@ void dlm_dir_clear(struct dlm_ls *ls)
 		while (!list_empty(head)) {
 			de = list_entry(head->next, struct dlm_direntry, list);
 			list_del(&de->list);
-			free_direntry(de);
+			put_free_de(ls, de);
 		}
 		write_unlock(&ls->ls_dirtbl[i].lock);
 	}
@@ -221,7 +263,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 				DLM_ASSERT(mov.rm_nodeid == csb->node->nodeid,);
 
 				error = -ENOMEM;
-				de = allocate_direntry(ls, mov.rm_length);
+				de = get_free_de(ls, mov.rm_length);
 				if (!de)
 					goto free_last;
 
@@ -254,6 +296,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 	free_rcom_buffer(rc);
 
       out:
+	clear_free_de(ls);
 	return error;
 }
 
