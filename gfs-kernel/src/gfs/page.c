@@ -104,7 +104,7 @@ gfs_sync_page_i(struct inode *inode, int flags)
 	if (flags & DIO_START)
 		error = filemap_fdatawrite(mapping);
 	if (!error && (flags & DIO_WAIT))
-		filemap_fdatawait(mapping);
+		error = filemap_fdatawait(mapping);
 
 	if (error)
 		gfs_io_error_inode(vn2ip(inode));
