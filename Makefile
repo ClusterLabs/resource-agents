@@ -140,6 +140,8 @@ latest_tags:
 setrelease:
 	for i in `ls */make/release.mk.input`; do ${EDITOR} $$i; done
 
+.PHONY: srpms
+
 srpms:
 	$(BUILD_SRPMS)
 
