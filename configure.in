@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.43 $) dnl cvs revision
+AC_REVISION($Revision: 1.44 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -28,8 +28,28 @@ AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
-AC_PATH_PROGS(ROUTE, route)
-AC_PATH_PROGS(NETSTAT, netstat)
+
+SYSPATH="/sbin /usr/sbin /bin /usr/bin /usr/local/sbin /usr/local/bin"
+locatecmd(){
+  for p in $SYSPATH
+  do
+    if
+      test -f "$p/$1" -a -x "$p/$1"
+    then
+      echo "$p/$1"
+      return 0
+    fi
+  done
+  AC_MSG_ERROR(cannot find command $1)
+  return 1
+}
+
+ROUTE=`locatecmd route`
+IFCONFIG=`locatecmd ifconfig`
+NETSTAT=`locatecmd netstat`
+AC_SUBST(ROUTE)
+AC_SUBST(IFCONFIG)
+AC_SUBST(NETSTAT)
 
 AC_MSG_CHECKING(if netstat supports -f inet flag)
 $NETSTAT -rn -f inet > /dev/null 2>&1
@@ -252,20 +272,39 @@ dnl the option "fatal_warnings", by specifying --enable-fatal_warnings.
 dnl Or, you can disable it with --disable-fatal_warnings.
 dnl
 
-        dnl Horms 10th August 2001
+dnl Horms 10th August 2001
         dnl Don't do this, it seems to cause configure in
         dnl the libltdl/ directory to die under Debian Woody
         dnl I'm suspecting it will be a problem on other systems too.
         dnl For this reason it now defaults to off.
-        dnl                                      
-	dnl case "$host_os" in
-  	dnl *linux*)
-        dnl   	if test "$enable_fatal_warnings" = ""; then
-        dnl   	echo "defaulting  --enable-fatal_warnings on this platform"
-        dnl       	enable_fatal_warnings=yes
-        dnl   	fi
-        dnl   	;;
-	dnl esac
+
+dnl AlanR 11 August 2001
+dnl Show no mercy to broken OSes and other software.  If you have broken
+dnl software, turn this feature off.
+
+dnl NO warnings WHATSOVER will be tolerated without good reason.
+dnl A distribution being broken isn't a good reason.
+dnl The cure for that is fix the distribution, not destroy the integrity
+dnl of the entire project by defaulting it to "off".
+
+dnl In my experience, there are ways of making individual warnings go
+dnl away.
+
+dnl The only way I know to keep them out is to make them an absolute
+dnl pain to deal with.  Otherwise they're a pain to fix.
+
+dnl This policy is not an accident, nor was it chosen without significant
+dnl thought and experience.
+dnl 
+
+	case "$host_os" in
+  	*linux*)
+          	if test "$enable_fatal_warnings" = ""; then
+          	echo "defaulting  --enable-fatal_warnings on this platform"
+              	enable_fatal_warnings=yes
+          	fi
+          	;;
+	esac
 
 
 	EXTRA_WARNINGS=""
