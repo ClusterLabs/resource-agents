@@ -83,15 +83,7 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_DLM_UNLOCK, &lp->flags)) {
-
-		/* FIXME: Add an assertion to catch NOFAIL promotions from
-		 * non-NL modes? */
-
 		if (lp->lksb.sb_status == -DLM_ECANCEL) {
-
-			/* lp->cur remains the same, is there anything to clear
-			 * or reset to put this lp into an "ordinary" state? */
-
 			printk("lock_dlm: -DLM_ECANCEL num=%x,%"PRIx64"\n",
 			       lp->lockname.ln_type, lp->lockname.ln_number);
 		} else {
@@ -101,10 +93,15 @@ static void process_complete(dlm_lock_t *lp)
 					  lp->lockname.ln_number,
 					  lp->lksb.sb_status););
 			lp->cur = DLM_LOCK_IV;
+			lp->req = DLM_LOCK_IV;
+			lp->lksb.sb_lkid = 0;
 		}
 
+		/*
 		complete(&lp->uast_wait);
 		return;
+		*/
+		goto out;
 	}
 
 	/*

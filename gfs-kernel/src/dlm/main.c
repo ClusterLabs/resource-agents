@@ -16,7 +16,7 @@
 #include <linux/proc_fs.h>
 
 #if defined(LOCK_DLM_DEBUG)
-#define LOCK_DLM_DEBUG_SIZE     (1024)
+#define LOCK_DLM_DEBUG_SIZE     (4096)
 #define MAX_DEBUG_MSG_LEN       (64)
 #else
 #define LOCK_DLM_DEBUG_SIZE     (0)

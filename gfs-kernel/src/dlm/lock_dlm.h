@@ -21,7 +21,11 @@
 #include <linux/types.h>
 #include <linux/string.h>
 #include <linux/list.h>
+#include <linux/socket.h>
+#include <net/sock.h>
 #include <linux/lm_interface.h>
+#include <cluster/cnxman.h>
+#include <cluster/service.h>
 #include <cluster/dlm.h>
 
 /* We take a shortcut and use lm_lockname structs for internal locks.  This
@@ -232,41 +236,46 @@ extern struct lm_lockops lock_dlm_ops;
 
 /* group.c */
 
-int init_mountgroup(dlm_t * dlm);
-void release_mountgroup(dlm_t * dlm);
-void process_start(dlm_t * dlm, dlm_start_t * ds);
-void process_finish(dlm_t * dlm);
-void jid_recovery_done(dlm_t * dlm, unsigned int jid, unsigned int message);
+int init_mountgroup(dlm_t *dlm);
+void release_mountgroup(dlm_t *dlm);
+void process_start(dlm_t *dlm, dlm_start_t *ds);
+void process_finish(dlm_t *dlm);
+void jid_recovery_done(dlm_t *dlm, unsigned int jid, unsigned int message);
 
 /* thread.c */
 
-int init_async_thread(dlm_t * dlm);
-void release_async_thread(dlm_t * dlm);
+int init_async_thread(dlm_t *dlm);
+void release_async_thread(dlm_t *dlm);
 
 /* lock.c */
 
 int16_t make_lmstate(int16_t dlmmode);
-void queue_delayed(dlm_lock_t * lp, int type);
-void process_submit(dlm_lock_t * lp);
+void queue_delayed(dlm_lock_t *lp, int type);
+void process_submit(dlm_lock_t *lp);
 int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp);
-void do_lock(dlm_lock_t *lp, struct dlm_range *range);
-int do_unlock(dlm_lock_t *lp);
 
-int lm_dlm_get_lock(lm_lockspace_t * lockspace, struct lm_lockname * name,
-		 lm_lock_t ** lockp);
-void lm_dlm_put_lock(lm_lock_t * lock);
-unsigned int lm_dlm_lock(lm_lock_t * lock, unsigned int cur_state,
-		      unsigned int req_state, unsigned int flags);
-int lm_dlm_lock_sync(lm_lock_t * lock, unsigned int cur_state,
-		  unsigned int req_state, unsigned int flags);
-unsigned int lm_dlm_unlock(lm_lock_t * lock, unsigned int cur_state);
-void lm_dlm_unlock_sync(lm_lock_t * lock, unsigned int cur_state);
-void lm_dlm_cancel(lm_lock_t * lock);
-int lm_dlm_hold_lvb(lm_lock_t * lock, char **lvbp);
-void lm_dlm_unhold_lvb(lm_lock_t * lock, char *lvb);
-void lm_dlm_sync_lvb(lm_lock_t * lock, char *lvb);
-void lm_dlm_recovery_done(lm_lockspace_t * lockspace, unsigned int jid,
-		       unsigned int message);
+int lm_dlm_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		    lm_lock_t **lockp);
+void lm_dlm_put_lock(lm_lock_t *lock);
+
+void do_dlm_lock(dlm_lock_t *lp, struct dlm_range *range);
+int do_dlm_lock_sync(dlm_lock_t *lp, struct dlm_range *range);
+void do_dlm_unlock(dlm_lock_t *lp);
+void do_dlm_unlock_sync(dlm_lock_t *lp);
+
+unsigned int lm_dlm_lock(lm_lock_t *lock, unsigned int cur_state,
+			 unsigned int req_state, unsigned int flags);
+int lm_dlm_lock_sync(lm_lock_t *lock, unsigned int cur_state,
+		     unsigned int req_state, unsigned int flags);
+unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state);
+void lm_dlm_unlock_sync(lm_lock_t *lock, unsigned int cur_state);
+
+void lm_dlm_cancel(lm_lock_t *lock);
+int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp);
+void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb);
+void lm_dlm_sync_lvb(lm_lock_t *lock, char *lvb);
+void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
+		          unsigned int message);
 
 /* plock.c */
 

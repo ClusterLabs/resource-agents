@@ -21,7 +21,18 @@ static void queue_complete(dlm_lock_t *lp)
 {
 	dlm_t *dlm = lp->dlm;
 
+	if (!test_bit(LFL_WAIT_COMPLETE, &lp->flags)) {
+		printk("lock_dlm: extra completion %x,%"PRIx64" %d,%d id %x\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number,
+		       lp->cur, lp->req, lp->lksb.sb_lkid);
+		return;
+	}
+
 	clear_bit(LFL_WAIT_COMPLETE, &lp->flags);
+
+	log_debug("qc %x,%"PRIx64" %d,%d id %x sts %d",
+		  lp->lockname.ln_type, lp->lockname.ln_number,
+		  lp->cur, lp->req, lp->lksb.sb_lkid, lp->lksb.sb_status);
 
 	spin_lock(&dlm->async_lock);
 	list_add_tail(&lp->clist, &dlm->complete);
@@ -256,31 +267,31 @@ int lm_dlm_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	return error;
 }
 
-int do_unlock(dlm_lock_t *lp)
+/**
+ * dlm_put_lock - get rid of a lock structure
+ * @lock: the lock to throw away
+ *
+ */
+
+void lm_dlm_put_lock(lm_lock_t *lock)
 {
-	int error;
+	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	init_completion(&lp->uast_wait);
+	/*
+	if (lp->cur != DLM_LOCK_IV)
+		do_unlock(lp);
+	*/
 
-	set_bit(LFL_DLM_UNLOCK, &lp->flags);
-
-	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, &lp->lksb,
-			    (void *) lp);
-
-	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
-			      lp->dlm->fsname, error, lp->lockname.ln_type,
-			      lp->lockname.ln_number););
-
-	wait_for_completion(&lp->uast_wait);
-
+	/* FIXME: get rid of these checks */
 	spin_lock(&lp->dlm->async_lock);
 	if (test_bit(LFL_CLIST, &lp->flags)) {
-		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",		       lp->lockname.ln_type, lp->lockname.ln_number);
+		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number);
 		list_del(&lp->clist);
 	}
 	if (test_bit(LFL_BLIST, &lp->flags)) {
 		printk("lock_dlm: dlm_put_lock lp on blist num=%x,%"PRIx64"\n",
-		        lp->lockname.ln_type, lp->lockname.ln_number);
+		       lp->lockname.ln_type, lp->lockname.ln_number);
 		list_del(&lp->blist);
 	}
 	if (test_bit(LFL_DLIST, &lp->flags)) {
@@ -295,31 +306,35 @@ int do_unlock(dlm_lock_t *lp)
 	}
 	spin_unlock(&lp->dlm->async_lock);
 
-	return 0;
-}
-
-/**
- * dlm_put_lock - get rid of a lock structure
- * @lock: the lock to throw away
- *
- */
-
-void lm_dlm_put_lock(lm_lock_t *lock)
-{
-	dlm_lock_t *lp = (dlm_lock_t *) lock;
-
-	if (lp->cur != DLM_LOCK_IV)
-		do_unlock(lp);
 	kfree(lp);
 }
 
-/**
- * do_lock - acquire a lock
- * @lp: the DLM lock 
- * @range: optional range
- */
+void do_dlm_unlock(dlm_lock_t *lp)
+{
+	int error;
 
-void do_lock(dlm_lock_t *lp, struct dlm_range *range)
+	set_bit(LFL_DLM_UNLOCK, &lp->flags);
+	set_bit(LFL_WAIT_COMPLETE, &lp->flags);
+
+	log_debug("un %x,%"PRIx64" id %x cur %d", lp->lockname.ln_type,
+		  lp->lockname.ln_number, lp->lksb.sb_lkid, lp->cur);
+
+	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, &lp->lksb,
+			    (void *) lp);
+
+	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
+			      lp->dlm->fsname, error, lp->lockname.ln_type,
+			      lp->lockname.ln_number););
+}
+
+void do_dlm_unlock_sync(dlm_lock_t *lp)
+{
+	init_completion(&lp->uast_wait);
+	do_dlm_unlock(lp);
+	wait_for_completion(&lp->uast_wait);
+}
+
+void do_dlm_lock(dlm_lock_t *lp, struct dlm_range *range)
 {
 	dlm_t *dlm = lp->dlm;
 	strname_t str;
@@ -345,6 +360,10 @@ void do_lock(dlm_lock_t *lp, struct dlm_range *range)
 
 	set_bit(LFL_WAIT_COMPLETE, &lp->flags);
 
+	log_debug("lk %x,%"PRIx64" id %x %d,%d %x", lp->lockname.ln_type,
+		  lp->lockname.ln_number, lp->lksb.sb_lkid,
+		  lp->cur, lp->req, lp->lkf);
+
 	error = dlm_lock(dlm->gdlm_lsp, lp->req, &lp->lksb, lp->lkf, str.name,
 			  str.namelen, 0, lock_ast, (void *) lp,
 			  lp->posix ? NULL : lock_bast, range);
@@ -360,6 +379,15 @@ void do_lock(dlm_lock_t *lp, struct dlm_range *range)
 			  dlm->fsname, lp->lockname.ln_type,
 			  lp->lockname.ln_number, error, lp->cur, lp->req,
 			  lp->lkf););
+}
+
+int do_dlm_lock_sync(dlm_lock_t *lp, struct dlm_range *range)
+{
+	init_completion(&lp->uast_wait);
+	do_dlm_lock(lp, range);
+	wait_for_completion(&lp->uast_wait);
+
+	return lp->lksb.sb_status;
 }
 
 /**
@@ -384,7 +412,7 @@ unsigned int lm_dlm_lock(lm_lock_t *lock, unsigned int cur_state,
 	lp->req = make_mode(req_state);
 	lp->lkf = make_flags(lp, flags, lp->cur, lp->req);
 
-	do_lock(lp, NULL);
+	do_dlm_lock(lp, NULL);
 	return LM_OUT_ASYNC;
 }
 
@@ -412,12 +440,16 @@ unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
+	/*
 	check_cur_state(lp, cur_state);
 	lp->req = DLM_LOCK_NL;
 	lp->lkf = make_flags(lp, 0, lp->cur, lp->req);
+	do_dlm_lock(lp, NULL);
+	*/
 
-	do_lock(lp, NULL);
-
+	if (lp->cur == DLM_LOCK_IV)
+		return 0;
+	do_dlm_unlock(lp);
 	return LM_OUT_ASYNC;
 }
 
@@ -519,7 +551,7 @@ void lm_dlm_sync_lvb(lm_lock_t *lock, char *lvb)
 	lp->req = DLM_LOCK_EX;
 	lp->lkf = make_flags(lp, 0, lp->cur, lp->req);
 
-	do_lock(lp, NULL);
+	do_dlm_lock(lp, NULL);
 	wait_for_completion(&lp->uast_wait);
 }
 
@@ -556,5 +588,5 @@ void process_submit(dlm_lock_t *lp)
 		r = &range;
 	}
 
-	do_lock(lp, r);
+	do_dlm_lock(lp, r);
 }

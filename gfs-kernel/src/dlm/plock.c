@@ -48,10 +48,7 @@ static int lock_resource(struct dlm_resource *r)
 
 	set_bit(LFL_IDLOCK, &lp->flags);
 	lp->req = DLM_LOCK_EX;
-	do_lock(lp, NULL);
-	wait_for_completion(&lp->uast_wait);
-
-	error = lp->lksb.sb_status;
+	error = do_dlm_lock_sync(lp, NULL);
 	if (error) {
 		kfree(lp);
 		lp = NULL;
@@ -63,7 +60,7 @@ static int lock_resource(struct dlm_resource *r)
 
 static void unlock_resource(struct dlm_resource *r)
 {
-	do_unlock(r->update);
+	do_dlm_unlock_sync(r->update);
 	kfree(r->update);
 }
 
@@ -318,7 +315,7 @@ static unsigned int make_flags_posix(dlm_lock_t *lp, int wait)
 static void do_range_lock(dlm_lock_t *lp)
 {
 	struct dlm_range range = { lp->posix->start, lp->posix->end };
-	do_lock(lp, &range);
+	do_dlm_lock(lp, &range);
 }
 
 static void request_lock(dlm_lock_t *lp, int wait)
@@ -411,7 +408,7 @@ static int remove_lock(dlm_lock_t *lp)
 	log_debug("remove %x,%"PRIx64" %u",
 		  r->name.ln_type, r->name.ln_number, current->pid);
 
-	do_unlock(lp);
+	do_dlm_unlock_sync(lp);
 	put_lock(lp);
 	put_resource(r);
 	return 0;
@@ -893,8 +890,7 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 
 	lp->req = DLM_LOCK_NL;
 	set_bit(LFL_IDLOCK, &lp->flags);
-	do_lock(lp, NULL);
-	wait_for_completion(&lp->uast_wait);
+	do_dlm_lock_sync(lp, NULL);
 
 	/* do query, repeating if insufficient space */
 
@@ -956,7 +952,7 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 	kfree(qinfo.gqi_lockinfo);
 
  out:
-	do_unlock(lp);
+	do_dlm_unlock_sync(lp);
 	kfree(lp);
  ret:
 	return error;

@@ -11,12 +11,7 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <linux/socket.h>
-#include <net/sock.h>
-
 #include "lock_dlm.h"
-#include <cluster/cnxman.h>
-#include <cluster/service.h>
 
 
 struct kcl_service_ops mg_ops;
