@@ -85,6 +85,12 @@ Displays the local view of the cluster services.
 
 .SH "LEAVE" OPTIONS
 .TP
+.I -w
+Normally, "cman_tool leave" will fail if the cluster is in transition (ie
+another node is joining or leaving the cluster). By adding the -w flag,
+cman_tool will wait and retry the leave operation repeatedly until it succeeds
+or a more serious error occurs.
+.TP
 .I force
 Shuts down the cluster manager without first telling any of the subsystems
 to close down. Use this option with extreme care as it could easily cause data
