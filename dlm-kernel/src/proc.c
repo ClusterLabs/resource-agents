@@ -109,7 +109,6 @@ static struct ls_dumpinfo *next_rsb(struct ls_dumpinfo *di)
 			/* End of list - move to next bucket */
 			di->next = NULL;
 			di->entry++;
-			printk("next %d\n", di->entry);
 			read_unlock(&di->ls->ls_rsbtbl[i].lock);
 			return next_rsb(di);	/* do the top half of this conditional */
 		}
