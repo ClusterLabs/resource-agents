@@ -1,0 +1,79 @@
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+%define vers @VERS@
+%define rel @REL@
+
+Name: gulm
+Version: %{vers}
+Release: %{rel}
+License: GPL
+Group: System Environment/Daemons
+Summary: gulm - One possible lock manager for GFS
+BuildRequires: ccs-devel
+Conflicts: GFS <= 6.0
+Conflicts: GFS-modules
+Requires: ccs
+
+Source0: %{name}-%{version}-%{release}.tar.gz
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+
+%description
+gulm - One possible lock manager for GFS
+
+%package devel
+Group: Development/Libraries
+Summary: gulm libraries
+
+%description devel
+gulm libraries
+
+%prep
+%setup -q -n %{name}-%{version}-%{release}
+
+%build
+./configure --libdir=%{_libdir} --incdir=%{_includedir} --mandir=%{_mandir}
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-,root,root,-)
+/sbin/gulm_tool
+/sbin/lock_gulmd
+%{_mandir}/man5/lock_gulmd.5.gz
+%{_mandir}/man8/gulm_tool.8.gz
+%{_mandir}/man8/lock_gulmd.8.gz
+%doc
+
+%files devel
+%defattr(-,root,root,-)
+%{_includedir}/libgulm.h
+%{_libdir}/libgulm.a
+
+
+%changelog
+* Fri Oct 22 2004 Chris Feist <cfeist@redhat.com> 
+- various bug fixes (new upstream sources)
+* Mon Aug 16 2004 Jon Brassow <jbrassow@redhat.com> 
+- add requires field
+* Sat Aug 14 2004 Jon Brassow <jbrassow@redhat.com> 
+- various bug fixes (new upstream sources)
+* Thu Jun 17 2004 Jon Brassow <jbrassow@redhat.com> 
+- Initial build.
+
+

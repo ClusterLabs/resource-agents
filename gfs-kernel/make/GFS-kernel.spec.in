@@ -1,0 +1,145 @@
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+%define vers @VERS@
+%define rel @REL@
+%define buildup 1
+%define buildsmp 1
+
+%ifnarch i686 x86_64 athlon
+%define buildsmp 0
+%endif 
+
+
+# ATTENTION -- do we need to obsolete GFS-[modules-][smp | hugemem]?
+# Need to set a kernel version for the Requires
+Name: GFS-kernel
+Version: %{vers}
+Release: %{rel}
+License: GPL
+Group: System Environment/Kernel
+Summary: GFS-kernel - The Global File System kernel modules
+BuildRequires: iddev-devel gulm-devel dlm-devel
+BuildRequires: kernel >= 2.6.9-1.648_EL
+%ifarch i686 x86_64 athlon
+BuildRequires: kernel-smp
+%endif
+Conflicts: GFS <= 6.0
+Conflicts: GFS-modules
+Requires: kernel GFS
+Provides: kernel-modules
+
+Source0: gfs-kernel-%{version}-%{release}.tar.gz
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+
+%description
+GFS - The Global File System is a symmetric, shared-disk, cluster file
+system.
+
+%package -n GFS-kernheaders
+Group: Development/System
+Summary: GFS kernel header files
+
+%description -n GFS-kernheaders
+The GFS kernel headers are used by the GFS tool set for compilation.
+
+####################################################################################
+##  THE PREP SECTION
+####################################################################################
+%prep
+%setup -q -n gfs-kernel-%{version}-%{release}
+
+####################################################################################
+##  THE BUILD SECTION
+####################################################################################
+%build
+BUILD_TOPDIR=`pwd`
+
+# When we go production, we must not use TMP_KVERSION.  Instead, we should
+# ensure we are using all the right patches, etc.  Use kernel_version, set
+# at top of this file.
+TMP_KVERSION=`rpm -q --qf '%%{version}-%%{release}' kernel`
+
+cp -r `pwd` ../smp
+
+Build_gfs(){
+	cpu_type=$1
+	flavor=$2
+	kernel_src=/lib/modules/${TMP_KVERSION}$flavor/build
+	# Kernel tree setup
+	if [ -d $kernel_src/. ]; then
+		echo "Kernel ${TMP_KVERSION} found."
+		echo $kernel_src
+	else
+		echo "Kernel ${TMP_KVERSION} not found."
+		echo $kernel_src
+		ls /lib/modules/*
+		exit 1
+	fi
+
+        ./configure --kernel_src=$kernel_src --incdir=%{_includedir}
+        make
+}
+
+%if %{buildup}
+Build_gfs %{_target_cpu}
+%endif
+
+%if %{buildsmp}
+cd ../smp
+Build_gfs %{_target_cpu} smp
+%endif
+
+####################################################################################
+##  THE INSTALL SECTION
+####################################################################################
+%install
+rm -rf $RPM_BUILD_ROOT
+
+%if %{buildup}
+make install DESTDIR=$RPM_BUILD_ROOT
+%endif
+ 
+%if %{buildsmp}
+cd ../smp
+make install DESTDIR=$RPM_BUILD_ROOT
+%endif
+
+####################################################################################
+##  THE CLEAN SECTION
+####################################################################################
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-,root,root,-)
+/lib/modules
+%doc
+
+%files -n GFS-kernheaders
+%defattr(-,root,root,-)
+%{_includedir}/linux
+%doc
+
+
+%changelog
+* Mon Nov 1 2004 Chris Feist <cfeist@redhat.com> 
+- new upstream sources w/ fix for __you_cannot_kmalloc_that_much
+* Mon Oct 25 2004 Chris Feist <cfeist@redhat.com> 
+- new upstream sources
+* Sat Aug 14 2004 Jon Brassow <jbrassow@redhat.com> 
+- new upstream sources
+- smp was building but not being packaged
+* Wed Jul 14 2004 Jon Brassow <jbrassow@redhat.com> 
+- add patch for make file
+* Thu Jun 17 2004 Jon Brassow <jbrassow@redhat.com> 
+- Initial build.
