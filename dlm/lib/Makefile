@@ -46,7 +46,7 @@ $(LIBNAME)_lt.a: libdlm_lt.o
 	${RANLIB} libdlm_lt.a 
 
 $(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po
-	$(LD) -shared -o $@ -soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
+	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
 
 $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
 	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
@@ -74,7 +74,7 @@ copytobin: all
 
 install: all
 	install -d ${incdir}
-	install libdlm.h ${incdir}
+	install -m644 libdlm.h ${incdir}
 	install -d ${libdir}
 	install $(LIBNAME).a ${libdir}
 	install $(LIBNAME)_lt.a ${libdir}
