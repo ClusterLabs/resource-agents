@@ -1,0 +1,517 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#include "dlm_internal.h"
+#include "member_ioctl.h"
+#include "lockspace.h"
+#include "member.h"
+#include "recoverd.h"
+#include "recover.h"
+#include "reccomms.h"
+
+
+int              dlm_local_nodeid;
+char             dlm_local_addr[DLM_ADDR_LEN];
+struct list_head dlm_nodes;
+struct semaphore dlm_nodes_sem;
+
+
+/* FIXME: get rid of this function */
+int our_nodeid(void)
+{
+	return dlm_local_nodeid;
+}
+
+static struct dlm_node *search_node(int nodeid)
+{
+	struct dlm_node *node;
+
+	list_for_each_entry(node, &dlm_nodes, list) {
+		if (node->nodeid == nodeid)
+			goto out;
+	}
+	node = NULL;
+ out:
+	return node;
+}
+
+static int _get_node(int nodeid, struct dlm_node **node_ret)
+{
+	struct dlm_node *node;
+	int error = 0;
+
+	node = search_node(nodeid);
+	if (node)
+		goto out;
+
+	node = kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
+	if (!node) {
+		error = -ENOMEM;
+		goto out;
+	}
+	memset(node, 0, sizeof(struct dlm_node));
+	node->nodeid = nodeid;
+	list_add_tail(&node->list, &dlm_nodes);
+ out:
+	*node_ret = node;
+	return error;
+}
+
+static int get_node(int nodeid, struct dlm_node **node_ret)
+{
+	int error;
+	down(&dlm_nodes_sem);
+	error = _get_node(nodeid, node_ret);
+	up(&dlm_nodes_sem);
+	return error;
+}
+
+void dlm_node_addr(int nodeid, char *addr)
+{
+	struct dlm_node *node;
+	if (!get_node(nodeid, &node))
+		memcpy(addr, node->addr, DLM_ADDR_LEN);
+}
+
+static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
+{
+	struct dlm_member *memb = NULL;
+	struct list_head *tmp;
+	struct list_head *newlist = &new->list;
+	struct list_head *head = &ls->ls_nodes;
+
+	list_for_each(tmp, head) {
+		memb = list_entry(tmp, struct dlm_member, list);
+		if (new->node->nodeid < memb->node->nodeid)
+			break;
+	}
+
+	if (!memb)
+		list_add_tail(newlist, head);
+	else {
+		/* FIXME: can use list macro here */
+		newlist->prev = tmp->prev;
+		newlist->next = tmp;
+		tmp->prev->next = newlist;
+		tmp->prev = newlist;
+	}
+}
+
+int dlm_add_member(struct dlm_ls *ls, int nodeid)
+{
+	struct dlm_node *node;
+	struct dlm_member *memb;
+	int error;
+
+	error = get_node(nodeid, &node);
+	if (error)
+		return error;
+
+	memb = kmalloc(sizeof(struct dlm_member), GFP_KERNEL);
+	if (!memb)
+		return -ENOMEM;
+
+	memb->node = node;
+	add_ordered_member(ls, memb);
+	ls->ls_num_nodes++;
+	return 0;
+}
+
+void dlm_remove_member(struct dlm_ls *ls, struct dlm_member *memb)
+{
+	list_move(&memb->list, &ls->ls_nodes_gone);
+	ls->ls_num_nodes--;
+}
+
+int dlm_is_member(struct dlm_ls *ls, int nodeid)
+{
+	struct dlm_member *memb;
+
+	list_for_each_entry(memb, &ls->ls_nodes, list) {
+		if (memb->node->nodeid == nodeid)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+int dlm_is_removed(struct dlm_ls *ls, int nodeid)
+{
+	struct dlm_member *memb;
+
+	list_for_each_entry(memb, &ls->ls_nodes_gone, list) {
+		if (memb->node->nodeid == nodeid)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static void clear_memb_list(struct list_head *head)
+{
+	struct dlm_member *memb;
+
+	while (!list_empty(head)) {
+		memb = list_entry(head->next, struct dlm_member, list);
+		list_del(&memb->list);
+		kfree(memb);
+	}
+}
+
+void dlm_clear_members(struct dlm_ls *ls)
+{
+	clear_memb_list(&ls->ls_nodes);
+	ls->ls_num_nodes = 0;
+}
+
+void dlm_clear_members_gone(struct dlm_ls *ls)
+{
+	clear_memb_list(&ls->ls_nodes_gone);
+}
+
+void dlm_clear_members_finish(struct dlm_ls *ls, int finish_event)
+{
+	struct dlm_member *memb, *safe;
+
+	list_for_each_entry_safe(memb, safe, &ls->ls_nodes_gone, list) {
+		if (memb->gone_event <= finish_event) {
+			list_del(&memb->list);
+			kfree(memb);
+		}
+	}
+}
+
+static void make_member_array(struct dlm_ls *ls)
+{
+	struct dlm_member *memb;
+	int i = 0, *array;
+
+	if (ls->ls_node_array) {
+		kfree(ls->ls_node_array);
+		ls->ls_node_array = NULL;
+	}
+
+	array = kmalloc(sizeof(int) * ls->ls_num_nodes, GFP_KERNEL);
+	if (!array)
+		return;
+
+	list_for_each_entry(memb, &ls->ls_nodes, list)
+		array[i++] = memb->node->nodeid;
+
+	ls->ls_node_array = array;
+}
+
+int dlm_recover_members_wait(struct dlm_ls *ls)
+{
+	int error;
+
+	if (ls->ls_low_nodeid == dlm_local_nodeid) {
+		error = dlm_wait_status_all(ls, NODES_VALID);
+		if (!error)
+			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
+
+		/* Experimental: this delay should allow any final messages
+		 * from the previous node to be received before beginning
+		 * recovery. */
+
+		if (ls->ls_num_nodes == 1) {
+			current->state = TASK_UNINTERRUPTIBLE;
+			schedule_timeout((2) * HZ);
+		}
+	} else
+		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
+
+	return error;
+}
+
+int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
+{
+	struct dlm_member *memb, *safe;
+	int i, error, found, pos = 0, neg = 0, low = -1;
+
+	/* move departed members from ls_nodes to ls_nodes_gone */
+
+	list_for_each_entry_safe(memb, safe, &ls->ls_nodes, list) {
+		found = FALSE;
+		for (i = 0; i < rv->node_count; i++) {
+			if (memb->node->nodeid == rv->nodeids[i]) {
+				found = TRUE;
+				break;
+			}
+		}
+
+		if (!found) {
+			neg++;
+			memb->gone_event = rv->event_id;
+			dlm_remove_member(ls, memb);
+		}
+	}
+
+	/* add new members to ls_nodes */
+
+	for (i = 0; i < rv->node_count; i++) {
+		if (dlm_is_member(ls, rv->nodeids[i]))
+			continue;
+		dlm_add_member(ls, rv->nodeids[i]);
+		pos++;
+	}
+
+	list_for_each_entry(memb, &ls->ls_nodes, list) {
+		if (low == -1 || memb->node->nodeid < low)
+			low = memb->node->nodeid;
+	}
+	ls->ls_low_nodeid = low;
+
+	make_member_array(ls);
+	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
+	*neg_out = neg;
+
+	error = dlm_recover_members_wait(ls);
+	return error;
+}
+
+int dlm_recover_members_init(struct dlm_ls *ls, struct dlm_recover *rv)
+{
+	int i, error, nodeid, low = -1;
+
+	dlm_clear_members(ls);
+
+	for (i = 0; i < rv->node_count; i++) {
+		nodeid = rv->nodeids[i];
+		dlm_add_member(ls, nodeid);
+
+		if (low == -1 || nodeid < low)
+			low = nodeid;
+	}
+	ls->ls_low_nodeid = low;
+
+	make_member_array(ls);
+	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
+
+	error = dlm_recover_members_wait(ls);
+	return error;
+}
+
+/*
+ * Membership of all lockspaces controlled through single misc device.
+ */
+
+int __init dlm_member_init(void)
+{
+	INIT_LIST_HEAD(&dlm_nodes);
+	init_MUTEX(&dlm_nodes_sem);
+	return dlm_member_ioctl_init();
+}
+
+void dlm_member_exit(void)
+{
+	dlm_member_ioctl_exit();
+}
+
+static struct dlm_ls *find_lockspace(struct dlm_member_ioctl *param)
+{
+	return find_lockspace_by_name(param->name, strlen(param->name));
+}
+
+static int make_rv(struct dlm_member_ioctl *param, struct dlm_recover **rv_ret)
+{
+	struct dlm_recover *rv;
+	char *t, *buf = (char *) param + param->data_start;
+	int id, *nodeids;
+	int i, error = -EINVAL;
+
+	rv = kmalloc(sizeof(struct dlm_recover), GFP_KERNEL);
+	if (!rv)
+		return -ENOMEM;
+	memset(rv, 0, sizeof(struct dlm_recover));
+
+	rv->event_id = param->start_event;
+	rv->node_count = param->node_count;
+	rv->global_id = param->global_id;
+
+	nodeids = kmalloc(sizeof(int) * rv->node_count, GFP_KERNEL);
+	if (!nodeids) {
+		error = -ENOMEM;
+		goto fail;
+	}
+
+	for (i = 0; ; i++) {
+		if ((t = strsep(&buf, " ")) == NULL)
+			break;
+
+		if (sscanf(t, "%u", &id) != 1)
+			break;
+
+		nodeids[i] = id;
+	}
+
+	if (i != rv->node_count) {
+		kfree(nodeids);
+		goto fail;
+	}
+
+	rv->nodeids = nodeids;
+	*rv_ret = rv;
+	return 0;
+
+ fail:
+	kfree(rv);
+	return error;
+}
+
+int dlm_set_node(struct dlm_member_ioctl *param)
+{
+	struct dlm_node *node;
+	int error;
+
+	down(&dlm_nodes_sem);
+	error = _get_node(param->nodeid, &node);
+	if (!error) {
+		memcpy(node->addr, param->addr, DLM_ADDR_LEN);
+		node->weight = param->weight;
+	}
+	up(&dlm_nodes_sem);
+	return error;
+}
+
+int dlm_set_local(struct dlm_member_ioctl *param)
+{
+	dlm_local_nodeid = param->nodeid;
+	memcpy(dlm_local_addr, param->addr, DLM_ADDR_LEN);
+	return 0;
+}
+
+int dlm_ls_status(struct dlm_member_ioctl *param)
+{
+	struct dlm_ls *ls;
+
+	ls = find_lockspace(param);
+	if (!ls)
+		return -ENXIO;
+
+	spin_lock(&ls->ls_recover_lock);
+	param->start_event = ls->ls_last_start;
+	param->stop_event = ls->ls_last_stop;
+	param->finish_event = ls->ls_last_finish;
+	param->startdone_event = ls->ls_startdone;
+	param->node_count = ls->ls_num_nodes;
+	spin_unlock(&ls->ls_recover_lock);
+	return 0;
+}
+
+int dlm_ls_terminate(struct dlm_member_ioctl *param)
+{
+	struct dlm_ls *ls;
+
+	ls = find_lockspace(param);
+	if (!ls)
+		return -ENXIO;
+
+	set_bit(LSFL_LS_TERMINATE, &ls->ls_flags);
+	set_bit(LSFL_JOIN_DONE, &ls->ls_flags);
+	set_bit(LSFL_LEAVE_DONE, &ls->ls_flags);
+	wake_up(&ls->ls_wait_member);
+	return 0;
+}
+
+int dlm_ls_stop(struct dlm_member_ioctl *param)
+{
+	struct dlm_ls *ls;
+	int new;
+
+	ls = find_lockspace(param);
+	if (!ls)
+		return -ENXIO;
+
+	spin_lock(&ls->ls_recover_lock);
+	ls->ls_last_stop = ls->ls_last_start;
+	set_bit(LSFL_LS_STOP, &ls->ls_flags);
+	new = test_and_clear_bit(LSFL_LS_RUN, &ls->ls_flags);
+	spin_unlock(&ls->ls_recover_lock);
+
+	/*
+	 * This in_recovery lock does two things:
+	 *
+	 * 1) Keeps this function from returning until all threads are out
+	 *    of locking routines and locking is truely stopped.
+	 * 2) Keeps any new requests from being processed until it's unlocked
+	 *    when recovery is complete.
+	 */
+
+	if (new)
+		down_write(&ls->ls_in_recovery);
+
+	/*
+	 * The recoverd suspend/resume makes sure that dlm_recoverd (if
+	 * running) has noticed the clearing of LS_RUN above and quit
+	 * processing the previous recovery.  This will be true for all nodes
+	 * before any nodes get the start.
+	 */
+
+	dlm_recoverd_suspend(ls);
+	clear_bit(LSFL_RESDIR_VALID, &ls->ls_flags);
+	clear_bit(LSFL_ALL_RESDIR_VALID, &ls->ls_flags);
+	clear_bit(LSFL_NODES_VALID, &ls->ls_flags);
+	clear_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
+	dlm_recoverd_resume(ls);
+	dlm_recoverd_kick(ls);
+	put_lockspace(ls);
+	return 0;
+}
+
+int dlm_ls_start(struct dlm_member_ioctl *param)
+{
+	struct dlm_ls *ls;
+	struct dlm_recover *rv;
+	int error;
+
+	ls = find_lockspace(param);
+	if (!ls)
+		return -ENXIO;
+
+	error = make_rv(param, &rv);
+	if (error)
+		goto out;
+
+	spin_lock(&ls->ls_recover_lock);
+	if (ls->ls_last_start == rv->event_id)
+		log_debug(ls, "repeated start %d stop %d finish %d",
+			  rv->event_id, ls->ls_last_stop, ls->ls_last_finish);
+	ls->ls_last_start = rv->event_id;
+	list_add_tail(&rv->list, &ls->ls_recover);
+	set_bit(LSFL_LS_START, &ls->ls_flags);
+	spin_unlock(&ls->ls_recover_lock);
+
+	set_bit(LSFL_JOIN_DONE, &ls->ls_flags);
+	wake_up(&ls->ls_wait_member);
+	dlm_recoverd_kick(ls);
+ out:
+	put_lockspace(ls);
+	return error;
+}
+
+int dlm_ls_finish(struct dlm_member_ioctl *param)
+{
+	struct dlm_ls *ls;
+	int error = 0;
+
+	ls = find_lockspace(param);
+	if (!ls)
+		return -ENXIO;
+
+	spin_lock(&ls->ls_recover_lock);
+	ls->ls_last_finish = param->finish_event;
+	set_bit(LSFL_LS_FINISH, &ls->ls_flags);
+	spin_unlock(&ls->ls_recover_lock);
+	dlm_recoverd_kick(ls);
+	put_lockspace(ls);
+	return error;
+}
+
