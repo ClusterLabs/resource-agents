@@ -487,6 +487,12 @@ build_tree(int ccsfd, resource_node_t **tree,
 		/* TODO: Search for children with new-fangled CCS stuff */
 		for (y = 0; rule->rr_childtypes &&
 		     rule->rr_childtypes[y].rc_name; y++) {
+
+			/* Don't even bother looking for resources which
+			   aren't valid children */
+			if (rule->rr_childtypes[y].rc_forbid)
+				continue;
+
 			childrule = find_rule_by_type(rulelist,
 					rule->rr_childtypes[y].rc_name);
 			if (!childrule) {
