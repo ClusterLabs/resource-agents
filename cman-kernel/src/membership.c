@@ -843,7 +843,8 @@ static void hello_timer_expired(unsigned long arg)
 	mod_timer(&hello_timer, jiffies + cman_config.hello_timer * HZ);
 
 	if (node_state >= TRANSITION) {
-		wake_up_process(hello_task);
+		if (!wake_up_process(hello_task))
+			P_MEMB("Failed to wake up hello thread\n");
 	}
 }
 
@@ -1747,8 +1748,7 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 		node = joining_node;
 	}
 
-	/* This should be a TRANS_CHECK but start_transition needs some node
-	 * info */
+	/* Start_transition needs some node info */
 	if (node == NULL)
 		node = us;
 	start_transition(startmsg->reason, node);
@@ -1791,7 +1791,9 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 				return 0;
 			}
 			else {	/* Node leaving the cluster */
-				recalculate_quorum(leavereason);
+				int total_votes;
+				quorum = calculate_quorum(leavereason, leavereason?cluster_members:0, &total_votes);
+				set_quorate(total_votes);
 				leavereason = 0;
 				joining_temp_nodeid = 0;
 				node_state = MEMBER;
@@ -1918,6 +1920,7 @@ static void remove_joiner(void)
 		return;
 
 	if (joining_node->incarnation == 0) {
+		P_MEMB("Removing joining node %s\n", joining_node->name);
 		down(&cluster_members_lock);
 		list_del(&joining_node->list);
 		up(&cluster_members_lock);
