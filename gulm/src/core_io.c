@@ -119,6 +119,15 @@ struct {
    uint64_t lasttry;
 } Login_state;
 
+/* This is only true when we are first starting up the server.  This is
+ * because GenerationID miss-matches can be handled differently durring
+ * this time.  Since we know that we have never had quorum and thus we've
+ * never had usable state; we can reset things without restarting the app.
+ *
+ * Once we are Slave or Master, we are no longer in startup.
+ */
+int startup = TRUE;
+
 /**
  * login_setup - 
  * 
@@ -757,6 +766,7 @@ static int master_probe_bottom(void)
       /* Not trying again, so we must be the new master. */
       if( gulm_config.quorum == 1 ) {
          I_am_the = gio_Mbr_ama_Master;
+         startup = FALSE;
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
          log_msg(lgm_Network,
                "I see no Masters, So I am becoming the Master.\n");
@@ -946,10 +956,24 @@ static int master_probe_middle(int idx)
                         "me:%"PRIu64" they:%"PRIu64"\n",
                         GenerationID, generation);
                }
-               log_msg(lgm_Always, "GenertationID missmatch: "
+               if( startup ) {
+                  /* We have never had quorum and thus never had useable
+                   * state.  So we can flip back to pending with GenID 0
+                   * and keep going without issue.
+                   */
+                  log_msg(lgm_Always, "GenertationID missmatch: "
                      "me:%"PRIu64" they:%"PRIu64" "
-                     "Continuing to scan.\n",
+                     "In startup, reseting. Continuing to scan.\n",
                    GenerationID, generation);
+                  GenerationID = 0;
+                  I_am_the = gio_Mbr_ama_Pending;
+               } else {
+                  log_msg(lgm_Always, "GenertationID missmatch: "
+                        "me:%"PRIu64" they:%"PRIu64" "
+                        "Continuing to scan.\n",
+                      GenerationID, generation);
+               }
+
                /* send logout */
                xdr_enc_uint32(enc, gulm_core_logout_req);
                xdr_enc_string(enc, myName);
@@ -988,6 +1012,7 @@ static int master_probe_middle(int idx)
                poller.type[idx] = poll_Internal; /* connection to Master. */
                poller.times[idx] = 0;
                I_am_the = gio_Mbr_ama_Slave;
+               startup = FALSE;
                log_msg(lgm_ServerState, "In state: %s\n",
                      gio_I_am_to_str(I_am_the));
                GenerationID = generation; /* slaves copy master's gen. */
@@ -1010,6 +1035,7 @@ static int master_probe_middle(int idx)
                 * send a Killed message to resources.
                 * umm, really?
                 * lets try.
+                * Uh, this looks like it conflicts with Logout_leftovers().
                 */
                if( Login_state.LastMasterIN != NULL ) {
                   /* the lookup is just an easy test to see if the node is
@@ -1053,6 +1079,13 @@ static int master_probe_middle(int idx)
        */
       close_by_idx(idx);
       Login_state.try_again = TRUE;
+      if( rpl_err == gio_Err_BadGeneration && startup ) {
+         /* In startup, we can recover from this without dieing.
+          */
+         GenerationID = 0;
+         I_am_the = gio_Mbr_ama_Pending;
+         log_msg(lgm_Always, "In startup, reseting. Continuing to scan.\n");
+      }else
       if( rpl_err == gio_Err_BadGeneration ||
           rpl_err == gio_Err_BadCluster    ||
           rpl_err == gio_Err_BadConfig
@@ -1362,8 +1395,10 @@ static void do_new_login(int idx)
       log_msg(lgm_Always, "Generation ID of client(%s) (%"PRIu64") is not "
              "the same as ours (%"PRIu64")\n", x_name,
              x_generation, GenerationID);
+#if 0
       /* mantis thinks we should fence here.  */
       queue_node_for_fencing(x_name);
+#endif
    }else
    if( x_config_crc != 0 && x_config_crc != gulm_config.hashval ) {
       err = gio_Err_BadConfig;
@@ -1422,6 +1457,7 @@ static void do_new_login(int idx)
       if( quorumcount >= gulm_config.quorum ) {
          log_msg(lgm_Network, "Now have Slave quorum, going full Master.\n");
          I_am_the = gio_Mbr_ama_Master;
+         startup = FALSE;
          quorate = TRUE;
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
          send_core_state_to_children();
