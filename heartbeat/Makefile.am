@@ -23,6 +23,7 @@ ocfdir		     = @OCF_RA_DIR@/heartbeat
 
 ocf_SCRIPTS	     = IPaddr \
 		       IPaddr2 \
+		       drbd \
 		       Dummy
 
 commondir	     = @hb_libdir@

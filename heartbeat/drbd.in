@@ -1,0 +1,282 @@
+#!/bin/sh
+#
+#	$Id: drbd.in,v 1.1 2004/09/06 10:20:35 lars Exp $
+#
+#       OCF Resource Agent compliant drbd resource script.
+#
+# WARNING: This is proof of concept code and likely doesn't work at all!
+#
+# Copyright (c) 2003 Tuomo Soini
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+# TODO: 
+# - All calls to external commands should use the ocf_exec function
+#   which should be implemented.
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+DRBDADM="@DRBDADM@"
+DRBDSETUP="@DRBDSETUP@"
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPaddr2" version="0.9">
+<version>1.0</version>
+<parameters>
+<parameter name="drbd" unique="1">
+<longdesc lang="en">
+The name of the drbd resource from the drbd.conf file.
+</longdesc>
+<shortdesc lang="en">drbd name</shortdesc>
+<content type="string" default="drbd0" />
+</parameter>
+
+<parameter name="drbdconf">
+<longdesc lang="en">
+Full path to the drbd.conf file.
+</longdesc>
+<shortdesc lang="en">Path to drbd.conf</shortdesc>
+<content type="string" default="/etc/drbd.conf"/>
+</parameter>
+
+<parameter name="incarnations_max_global">
+<longdesc lang="en">
+Number of total incarnations of this drbd.
+</longdesc>
+<shortdesc lang="en">Number of nodes</shortdesc>
+<content type="integer" default="2"/>
+</parameter>
+
+<parameter name="incarnations_max_node">
+<longdesc lang="en">
+How many incarnations on one node. Don't mess.
+</longdesc>
+<shortdesc lang="en">Set to one</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="incarnations_max_active_global">
+<longdesc lang="en">
+How many incarnations can be primary. Don't mess.
+</longdesc>
+<shortdesc lang="en">Set to one</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="promote"   timeout="90" />
+<action name="demote"   timeout="90" />
+<action name="notify"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="xstatus"    timeout="100" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
+<action name="meta-data"  timeout="5" />
+<action name="verify-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+	exit $OCF_SUCCESS
+}
+
+drbd_init() {
+	if [ $UID -ne 0 ]; then
+		ha_log "ERROR: You must be root."
+		exit $OCF_ERR_PERM
+	fi
+	
+	if [ ! -x "$DRBDADM" ]; then
+		ha_log "ERROR: drbdadm not installed."
+		exit $OCF_ERR_INSTALLED
+	fi
+	
+	DRBD="$OCF_RESKEY_drbd"
+	INC_NO="$OCF_RESKEY_incarnation_no"
+	DRBDCONF="$OCF_RESKEY_drbdconf"
+	
+	if [ ! -f "$DRBDCONF" ]; then
+		ha_log "ERROR: drbd.conf not installed."
+		exit $OCF_ERR_CONFIGURED
+	fi
+
+	DRBD_STATE=$($DRBDADM state $DRBD)
+	DRBD_STATE_LOCAL=$(echo $DRBD_STATE | sed -e 's#/.*##')
+	DRBD_STATE_REMOTE=$(echo $DRBD_STATE | sed -e 's#.*/##')
+	DRBD_CSTATE=$($DRBDADM state $DRBD)
+
+	# TODO: Inherit max primary etc from configuration and do
+	# something about them. Right now, we just assume 1/1.
+}
+
+
+#######################################################################
+
+drbd_usage() {
+	cat <<END
+usage: $0 {meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+drbd_start() {
+	$DRBDADM -c $DRBDCONF up $DRBD
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+drbd_stop() {
+	$DRBDADM -c $DRBDCONF down $DRBD
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+drbd_monitor() {
+	# TODO: Think about how to monitor drbd and what constitutes
+	# failure cases...
+	# diskless etc?
+	# A secondary node which is supposed to be primary?
+	return $OCF_SUCCESS
+}
+
+drbd_promote() {
+	if [ "x$DRBD_STATE_LOCAL" = "xPrimary" ]; then
+		return $OCF_SUCCESS
+	fi
+	$DRBDADM -c $DRBDCONF primary $DRBD
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_GENERIC
+	fi
+	return $OCF_SUCCESS
+}
+
+drbd_demote() {
+	if [ "x$DRBD_STATE_LOCAL" = "xSecondary" ]; then
+		return $OCF_SUCCESS
+	fi
+	$DRBDADM -c $DRBDCONF secondary $DRBD
+	if [ $? -eq 0 ]; then
+		return $OCF_SUCCESS
+	else
+		return $OCF_ERR_GENERIC
+	fi
+}
+
+drbd_notify() {
+	local target_action="$OCF_RESKEY_target_action"
+	local notify_type="$OCF_RESKEY_notify_type"
+	local target_status="${OCF_RESKEY_target_status:-1}"
+
+	if [ "x$notify_type" = "xpost" ]; then
+		case $target_action in
+		stop|fence)
+			# On the primary, this would unblock waiting for
+			# ACKs from the secondary.
+			# On the secondary, this would un-taint the
+			# local data and allow the node to be promoted
+			# to primary.
+			#
+			if [ "$target_status" -eq 0 ]; then
+				$DRBDADM mark_peer_down $DRBD
+			fi
+			;;
+		monitor)
+			if [ "$target_status" -ne 0 ]; then
+				# TODO: Anything we should do about this?
+			fi
+		esac
+	fi
+	
+	return $OCF_SUCCESS
+}
+
+drbd_xstatus() {
+	# TODO: This extended status is PROOF OF CONCEPT CODE FOR
+	# DISCUSSION only.
+
+	local preference=0
+	local ability=1
+
+	case $DRBD_CSTATE in
+	SyncSource|PausedSyncS|WFBitMapS|SkippedSyncS)
+		preference=10
+		;;
+	Diskless|Inconsistent)
+		# TODO: drbd doesn't actually tell us about these two.
+		ability=0
+		;;
+	*)	preference=5
+		;;
+	esac
+	
+	case $DRBD_STATE_LOCAL in
+	Primary)
+		preference=100
+		;;
+	esac
+
+	cat <<END
+<resource_status name="$OCF_INSTANCE" incarnation="$INC_NO">
+<promotion_data preference="$drbd_preference" ability="$ability" />
+</resource_status>
+END
+
+	return $OCF_SUCCESS
+}
+
+case $ACTION in
+meta-data)	meta_data
+		;;
+start|stop|monitor|xstatus|validate-all|promote|demote|notify)
+		drbd_init
+		drbd_$ACTION
+		exit $?
+		;;
+usage|help)	drbd_usage
+		exit $OCF_SUCCESS
+		;;
+*)		drbd_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+

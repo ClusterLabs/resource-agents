@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.314 $) dnl cvs revision
+AC_REVISION($Revision: 1.315 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -221,6 +221,8 @@ AC_PATH_PROGS(PERL, perl)
 AC_SUBST(PERL)
 AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
+AC_PATH_PROGS(DRBDADM, drbdadm)
+AC_PATH_PROGS(DRBDSETUP, drbdsetup)
 
 
 dnl ************************************************************************
@@ -1829,6 +1831,7 @@ resources/Makefile						\
 	resources/OCF/IPaddr					\
 	resources/OCF/IPaddr2					\
 	resources/OCF/Dummy					\
+	resources/OCF/drbd					\
 	resources/OCF/ocf-shellfuncs				\
 	resources/heartbeat/Makefile				\
 	resources/heartbeat/apache				\
