@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -13,6 +13,7 @@
 
 #include "sm.h"
 #include "config.h"
+#include <linux/seq_file.h>
 
 #define MAX_DEBUG_MSG_LEN	(40)
 
@@ -208,6 +209,14 @@ void sm_debug_setup(int size)
 }
 
 #ifdef CONFIG_PROC_FS
+static struct seq_operations sm_info_op;
+
+struct sm_seq_info
+{
+    int pos;
+    int level;
+    sm_group_t *sg;
+};
 
 int sm_debug_info(char *b, char **start, off_t offset, int length)
 {
@@ -227,143 +236,207 @@ int sm_debug_info(char *b, char **start, off_t offset, int length)
 	return n;
 }
 
-int sm_procdata(char *b, char **start, off_t offset, int length)
+
+
+static sm_group_t *sm_walk(loff_t offset, int *rlevel)
 {
 	sm_group_t *sg;
-	sm_node_t *node;
-	int n = 0, level, i;
-
-	n += sprintf(b + n, "\n");
-
-	/* 
-	 * Header
-	 */
-
-	n += sprintf(b + n,
-		     "Service          Name                              GID LID State     Code\n");
+	int  level;
+	loff_t n = 0;
 
 	down(&sm_sglock);
 
 	for (level = 0; level < SG_LEVELS; level++) {
 		list_for_each_entry(sg, &sm_sg[level], list) {
-
-			/* 
-			 * Cluster Service
-			 */
-
-			switch (level) {
-			case SERVICE_LEVEL_FENCE:
-				n += sprintf(b + n, "Fence Domain:    ");
-				break;
-			case SERVICE_LEVEL_GDLM:
-				n += sprintf(b + n, "DLM Lock Space:  ");
-				break;
-			case SERVICE_LEVEL_GFS:
-				n += sprintf(b + n, "GFS Mount Group: ");
-				break;
-			case SERVICE_LEVEL_USER:
-				n += sprintf(b + n, "User:            ");
-				break;
-			}
-
-			/* 
-			 * Name
-			 */
-
-			n += sprintf(b + n, "\"");
-			for (i = 0; i < sg->namelen; i++)
-				n += sprintf(b + n, "%c", sg->name[i]);
-			n += sprintf(b + n, "\"");
-
-			for (; i < MAX_SERVICE_NAME_LEN-1; i++)
-				n += sprintf(b + n, " ");
-
-			/* 
-			 * GID LID (sans level from top byte)
-			 */
-
-			n += sprintf(b + n, "%3u %3u ",
-				     (sg->global_id & 0x00FFFFFF),
-				     (sg->local_id & 0x00FFFFFF));
-
-			/* 
-			 * State
-			 */
-
-			switch (sg->state) {
-			case SGST_NONE:
-				n += sprintf(b + n, "none      ");
-				break;
-			case SGST_JOIN:
-				n += sprintf(b + n, "join      ");
-				break;
-			case SGST_RUN:
-				n += sprintf(b + n, "run       ");
-				break;
-			case SGST_RECOVER:
-				n += sprintf(b + n, "recover %u ",
-						sg->recover_state);
-				break;
-			case SGST_UEVENT:
-				n += sprintf(b + n, "update    ");
-				break;
-			}
-
-			/* 
-			 * Code
-			 */
-
-			if (test_bit(SGFL_SEVENT, &sg->flags))
-				n += sprintf(b + n, "S");
-			if (test_bit(SGFL_UEVENT, &sg->flags))
-				n += sprintf(b + n, "U");
-			if (test_bit(SGFL_NEED_RECOVERY, &sg->flags))
-				n += sprintf(b + n, "N");
-
-			n += sprintf(b + n, "-");
-
-			if (test_bit(SGFL_SEVENT, &sg->flags)
-			    && sg->sevent) {
-				n += sprintf(b + n, "%u,%lx,%u",
-					     sg->sevent->se_state,
-					     sg->sevent->se_flags,
-					     sg->sevent->se_reply_count);
-			}
-
-			if (test_bit(SGFL_UEVENT, &sg->flags)) {
-				n += sprintf(b + n, "%u,%lx,%u",
-					     sg->uevent.ue_state,
-					     sg->uevent.ue_flags,
-					     sg->uevent.ue_nodeid);
-			}
-
-			n += sprintf(b + n, "\n");
-
-			/* 
-			 * node list
-			 */
-
-			i = 0;
-
-			n += sprintf(b + n, "[");
-
-			list_for_each_entry(node, &sg->memb, list) {
-				if (i && !(i % 24))
-					n += sprintf(b + n, "\n");
-
-				if (i)
-					n += sprintf(b + n, " ");
-
-				n += sprintf(b + n, "%u", node->id);
-				i++;
-			}
-
-			n += sprintf(b + n, "]\n\n");
+			if (++n == offset)
+			        goto walk_finish;
 		}
 	}
+	sg = NULL;
 
+ walk_finish:
 	up(&sm_sglock);
+	*rlevel = level;
 
-	return n;
+	return sg;
 }
+
+
+static void *sm_seq_start(struct seq_file *m, loff_t * pos)
+{
+	struct sm_seq_info *ssi =
+	        kmalloc(sizeof (struct sm_seq_info), GFP_KERNEL);
+
+	if (!ssi)
+		return NULL;
+
+	ssi->pos = *pos;
+	ssi->level = 0;
+	ssi->sg = NULL;
+
+	/* Print the header */
+	if (*pos == 0) {
+		seq_printf(m,
+			   "Service          Name                              GID LID State     Code\n");
+	}
+	return ssi;
+}
+
+static void *sm_seq_next(struct seq_file *m, void *p, loff_t * pos)
+{
+	struct sm_seq_info *ssi = p;
+
+	*pos = ++ssi->pos;
+
+	if ( !(ssi->sg = sm_walk(ssi->pos, &ssi->level)) )
+		return NULL;
+
+	return ssi;
+}
+
+/* Called from /proc when /proc/cluster/services is opened */
+int sm_proc_open(struct inode *inode, struct file *file)
+{
+    	return seq_open(file, &sm_info_op);
+}
+
+static int sm_seq_show(struct seq_file *s, void *p)
+{
+    struct sm_seq_info *ssi = p;
+    sm_node_t *node;
+    int i;
+
+    if (!ssi || !ssi->sg)
+	    return 0;
+
+    /*
+     * Cluster Service
+     */
+
+    switch (ssi->level) {
+    case SERVICE_LEVEL_FENCE:
+	seq_printf(s, "Fence Domain:    ");
+	break;
+    case SERVICE_LEVEL_GDLM:
+	seq_printf(s, "DLM Lock Space:  ");
+	break;
+    case SERVICE_LEVEL_GFS:
+	seq_printf(s, "GFS Mount Group: ");
+	break;
+    case SERVICE_LEVEL_USER:
+	seq_printf(s, "User:            ");
+	break;
+    }
+
+    /*
+     * Name
+     */
+
+    seq_printf(s, "\"");
+    for (i = 0; i < ssi->sg->namelen; i++)
+	    seq_printf(s, "%c", ssi->sg->name[i]);
+    seq_printf(s, "\"");
+
+    for (; i < MAX_SERVICE_NAME_LEN-1; i++)
+	seq_printf(s, " ");
+
+    /*
+     * GID LID (sans level from top byte)
+     */
+
+    seq_printf(s, "%3u %3u ",
+	       (ssi->sg->global_id & 0x00FFFFFF),
+	       (ssi->sg->local_id & 0x00FFFFFF));
+
+    /*
+     * State
+     */
+
+    switch (ssi->sg->state) {
+    case SGST_NONE:
+	seq_printf(s, "none      ");
+	break;
+    case SGST_JOIN:
+	seq_printf(s, "join      ");
+	break;
+    case SGST_RUN:
+	seq_printf(s, "run       ");
+	break;
+    case SGST_RECOVER:
+	seq_printf(s, "recover %u ",
+		   ssi->sg->recover_state);
+	break;
+    case SGST_UEVENT:
+	seq_printf(s, "update    ");
+	break;
+    }
+
+    /*
+     * Code
+     */
+
+    if (test_bit(SGFL_SEVENT, &ssi->sg->flags))
+	    seq_printf(s, "S");
+    if (test_bit(SGFL_UEVENT, &ssi->sg->flags))
+	    seq_printf(s, "U");
+    if (test_bit(SGFL_NEED_RECOVERY, &ssi->sg->flags))
+	    seq_printf(s, "N");
+
+    seq_printf(s, "-");
+
+    if (test_bit(SGFL_SEVENT, &ssi->sg->flags)
+	&& ssi->sg->sevent) {
+	seq_printf(s, "%u,%lx,%u",
+		   ssi->sg->sevent->se_state,
+		   ssi->sg->sevent->se_flags,
+		   ssi->sg->sevent->se_reply_count);
+    }
+
+    if (test_bit(SGFL_UEVENT, &ssi->sg->flags)) {
+	seq_printf(s, "%u,%lx,%u",
+		   ssi->sg->uevent.ue_state,
+		   ssi->sg->uevent.ue_flags,
+		   ssi->sg->uevent.ue_nodeid);
+    }
+
+    seq_printf(s, "\n");
+
+    /*
+     * node list
+     */
+
+    i = 0;
+
+    seq_printf(s, "[");
+
+    list_for_each_entry(node, &ssi->sg->memb, list) {
+	    if (i && !(i % 24))
+	            seq_printf(s, "\n");
+
+	    if (i)
+	            seq_printf(s, " ");
+
+	seq_printf(s, "%u", node->id);
+	i++;
+    }
+
+    seq_printf(s, "]\n\n");
+
+    return 0;
+}
+
+static void sm_seq_stop(struct seq_file *m, void *p)
+{
+	kfree(p);
+}
+
+
+static struct seq_operations sm_info_op = {
+	.start = sm_seq_start,
+	.next = sm_seq_next,
+	.stop = sm_seq_stop,
+	.show = sm_seq_show
+};
+
+
 #endif

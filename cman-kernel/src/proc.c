@@ -41,7 +41,7 @@ extern char cluster_name[];
 extern struct cluster_node *us;
 static struct seq_operations cluster_info_op;
 
-int sm_procdata(char *b, char **start, off_t offset, int length);
+int sm_proc_open(struct inode *inode, struct file *file);
 int sm_debug_info(char *b, char **start, off_t offset, int length);
 
 /* /proc interface to the configuration struct */
@@ -269,6 +269,13 @@ static struct file_operations cluster_fops = {
 	.release = seq_release,
 };
 
+static struct file_operations service_fops = {
+	.open = sm_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+};
+
 static int cman_config_read_proc(char *page, char **start, off_t off, int count,
 				 int *eof, void *data)
 {
@@ -319,7 +326,7 @@ void create_proc_entries(void)
 
 	procentry = create_proc_entry("cluster/services", S_IRUGO, NULL);
 	if (procentry)
-		procentry->get_info = sm_procdata;
+	        procentry->proc_fops = &service_fops;
 
 	/* Config entries */
 	proc_cman_config = proc_mkdir("cluster/config/cman", 0);
