@@ -55,8 +55,9 @@ start()
 		# loaded
 		modprobe cman || break
 		
-		[ -n "$CMAN_TRANSITION_RESTARTS" ] && 
-			echo $CMAN_TRANSITION_RESTARTS > /proc/cluster/config/cman/transition_restarts
+		# TODO -- configure tunable paramters?
+		# [ -n "$CMAN_TRANSITION_RESTARTS" ] && 
+		#	echo $CMAN_TRANSITION_RESTARTS > /proc/cluster/config/cman/transition_restarts
 
 		if in_cluster
 		then
@@ -64,24 +65,15 @@ start()
 			break
 		fi
 
-		cman_tool join $cman_join_opts || break
+		# specify -w to make sure we have joined the cluster
+		# TODO -- add timer to abort if not connected after 
+		#         CMAN_CLUSTER_TIMEOUT seconds
+		cman_tool -w join $cman_join_opts || break
 
-		# make sure that we are in the correct state
-       		stoptime=$(($SECONDS + $CMAN_CLUSTER_TIMEOUT))
-		while [ $CMAN_CLUSTER_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
-		do
-			if in_cluster
-			then
-				rtrn=0
-				break
-			fi
-			
-			sleep 1
-		done
-		[ $CMAN_CLUSTER_TIMEOUT -lt 0 ] && rtrn=0
+		# TODO -- make sure that we are quorate?  
+		# cman_tool -q wait
 
-		# FIXME -- make sure that we are quorate?  
-		# probably not a good idea since we may need to fence nodes.
+		rtrn=0
 	done
 
 	if [ $rtrn -eq 0 ]
