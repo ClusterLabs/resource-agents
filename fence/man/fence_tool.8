@@ -4,21 +4,19 @@
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
-.tl 'fence_tool(8)''fence_tool(8)'
-'\"     View with 'groff -t -e -mandoc -Tlatin1 fence_tool.8 | less'
 
-\fBNAME\fP
-.in +7
+.TH fence_tool 8
+
+.SH NAME
 fence_tool - A program to join and leave the fence domain
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_tool\fP <\fBjoin | leave\fP> [\fBoptions\fP]
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH SYNOPSIS
+.B
+fence_tool
+<\fBjoin | leave\fP> 
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
 \fBfence_tool\fP is a program used to join or leave the default fence
 domain.  Specifically, it starts the fence daemon (fenced) to join the
 domain and kills fenced to leave the domain.  Fenced can be started
@@ -42,54 +40,29 @@ passes them on to fenced.
 
 A node must not leave the fence domain (fenced must not be terminated)
 while CLVM or GFS are in use.
-.in
 
-\fBOPTIONS\fP
-
-.in +7
-
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Help.  Print out the usage syntax.
-.sp
-.in
-
+.TP
 \fB-V\fP
-.in +7
 Print version information.
-.sp
-.in
-
+.TP
 \fB-S\fP
-.in +7
 Skip self unfencing before joining.
-.sp
-.in
-
+.TP
 \fB-D\fP
-.in +7
 Enable debugging output and don't fork (also passed to fenced)
-.sp
-.in
-
+.TP
 \fB-j\fP \fIsecs\fP
-.in +7
 Post-join fencing delay (passed to fenced)
-.sp
-.in
-
+.TP
 \fB-f\fP \fIsecs\fP
-.in +7
 Post-fail fencing delay (passed to fenced)
-.sp
-.in
-
+.TP
 \fB-c\fP
-.in +7
 All nodes are in a clean state to start (passed to fenced)
-.sp
-.in -7
-.in -7
-\fBSEE ALSO\fP
-.in +7
+
+.SH SEE ALSO
 fenced(8), fence(8), fence_node(8)

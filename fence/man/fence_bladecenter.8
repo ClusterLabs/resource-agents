@@ -5,115 +5,73 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_bladecenter(8)''fence_bladecenter(8)'
+.TH fence_bladecenter 8
 
-\fBNAME\fP
-.in +7
-fence_brocade - I/O Fencing agent for IBM Bladecenter
+.SH NAME
+fence_bladecenter - I/O Fencing agent for IBM Bladecenter
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_bladecenter-a\fP \fIIPaddress\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIblade\fR \fB-o\fP \fIaction\fR
+.SH SYNOPSIS
+.B
+fence_bladecenter
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_bladecenter is an I/O Fencing agent which can be used with IBM Bladecenters 
 with recent enough firmware that includes telnet support.  It logs into a Brocade 
 chasis via telnet and uses the command line interface to power on and off blades.
 fence_bladecenter accepts options on the command line or from stdin.
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIIPaddress\fP
-.in +7 
 IP address of the Bladecenter.
-.sp
-.in
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-l\fP \fIlogin\fP
-.in +7
 Login name for the Bladecenter.
-.sp
-.in
+.TP
 \fB-n\fP \fIblade\fP
-.in +7
 The blade to operate on.
-.in
-.sp
+.TP
 \fB-o\fP \fIaction\fP
-.in +7
 The action required.  Valid actions are on, off, reboot (default) and status.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fP
-.in +7
 Password for login.
-.sp
-.in
+.TP
 \fB-q\fP
-.in +7
 Quiet mode: print only error messages.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
-.in
+.TP
 \fB-v\fP \fIdebuglog\fP
-.in +7
 Log the telnet session to \fIdebuglog\fP for debugging purposes.
-.sp
-.in
 
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
-
-\fI agent = < param >\fR
-.sp
-This option is used by fence_node(8) and is ignored by fence_brocade.
-.sp
-
+.SH STDIN PARAMETERS
+.TP
+\fIagent = < param >\fR
+This option is used by fence_node(8) and is ignored by fence_bladecenter.
+.TP
 \fIipaddr = < hostname | ip >\fR
-.sp
 IP address or hostname of the switch.
-.sp
-
-\fI login = < param >\fR
-.sp
+.TP
+\fIlogin = < param >\fR
 Login name.
-.sp
-
-\fI option = < param >\fR
-.sp
+.TP
+\fIoption = < param >\fR
 The action required.  disable (default) or enable.
-.sp
-
-\fI passwd = < param >\fR
-.sp
+.TP
+\fIpasswd = < param >\fR
 Password for login.
-.sp
-
-\fI blade = < param >\fR
-.sp
+.TP
+\fIblade = < param >\fR
 The blade to operate on.
-.sp
-
-\fI debuglog = < param>\fR
-.sp
+.TP
+\fIdebuglog = < param>\fR
 Optional parameter to send debug transcript of the telnet session to a log file
-.sp
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8)

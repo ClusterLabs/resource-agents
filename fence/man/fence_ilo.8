@@ -5,110 +5,72 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_ilo(8)''fence_ilo(8)'
+.TH fence_ilo 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_ilo - I/O Fencing agent for HP Integrated Lights Out card
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_ilo -a\fP \fIIPaddress[:SSLport]\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR  
-[\fB-o\fP action] [\fB-vqVh\fP] 
+.SH SYNOPSIS
+.B
+fence_ilo
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_ilo is an I/O Fencing agent used for HP servers with the Integrated Light 
 Out (iLO) PCI card.  The agent opens an SSL connection to the iLO card.  Once the
 SSL connection is established, the agent is able to communicate with the iLO
 card through an XML stream.  
-.sp
+
 fence_ilo depends on the Net::SSLeay or Net::SSL perl module in order to establish 
 the SSL connection to the iLO card.  Net::SSL is available in the perl-Crypt-SSLeay package
 on RHN (http://rhn.redhat.com). Net::SSLeay is available at http://www.cpan.org.
-.sp
+
 NOTE: fence_ilo deprecates fence_rib.  
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIIPaddress[:port]\fR
-.in +7
 IP address or hostname of the iLO card.  If the SSL server of the card is
 not running on the default SSL port, 443, then [:port] will also need to be
 specified.
-.sp
-.in
+.TP
 \fB-h\fP 
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-l\fP \fIlogin\fR
-.in +7
 Login name.
-.sp
-.in
+.TP
 \fB-o\fP \fIaction\fR
-.in +7
 The action required.  reboot (default), off, on or status.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fR
-.in +7
 Password for login.
-.sp
-.in
+.TP
 \fB-v\fP
-.in +7
 Verbose.  
-.in
-.sp
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.in
-.sp
 
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
-
+.SH STDIN PARAMETERS
+.TP
 \fIaction = < param >\fR
-.sp
 The action required.  reboot (default), off, on or status.
-.sp
-
+.TP
 \fIagent = < param >\fR
-.sp
 This option is used by fence_node(8) and is ignored by fence_ilo.
-.sp
-
+.TP
 \fIhostname = < hostname | ip >\fR
-.sp
 IP address or hostname of the iLO card.
-.sp
-
+.TP
 \fIlogin = < param >\fR
-.sp
 Login name.
-.sp
-
+.TP
 \fIpasswd = < param >\fR
-.sp
 Password for login.
-.sp
-
+.TP
 \fIverbose = < param >\fR
-.sp
 Verbose mode.
-.sp
 
-
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8), fence_rib(8)

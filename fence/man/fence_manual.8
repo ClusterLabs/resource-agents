@@ -5,76 +5,52 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_manual(8)''fence_manual(8)'
+.TH fence_manual 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_manual - program run by fenced as a part of manual I/O Fencing
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_manual -n\fP \fInodename\fP
+.SH SYNOPSIS
+.B
+fence_manual
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_manual is run by fenced.  It creates a fifo and waits for 
 its counter-part fence_ack_manual(8) to acknowledge that a failed node
 has been reset.  fence_ack_manual(8) should only be run after the operator
 has reset the faulty node.  While waiting for the manual acknowledgement,
 fence_manual also watches for the faulty node to rejoin the cluster;
 if it does, it's taken as an acknowledgement and completes.
-.sp
+
 Note:  fence_manual is provided for use during testing and evaluation
 only.  Sites should not use fence_manual as the primary fencing method
 on a production cluster.
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-q\fP
-.in +7
 quiet mode, no output.
-.sp
-.in
+.TP
 \fB-n\fP \fInodename\fP
-.in +7
 The node name (usually hostname) of the machine that needs to be reset or disconnected from shared storage.
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
-.in
-.in -7
 
-\fBSTDIN PARAMETERS\fP
-.in
-
-\fI agent = < param >\fR
-.sp
+.SH STDIN PARAMETERS
+.TP
+\fIagent = < param >\fR
 This option is used by fence_node(8) and is ignored by fence_manual.
-.sp
-
-\fI nodename = < param >\fR
-.sp
+.TP
+\fInodename = < param >\fR
 The node name (usually hostname) of the machine that needs to be reset or disconnected from storage.
-.sp
-
-\fI ipaddr = < param >\fR
-.sp
+.TP
+\fIipaddr = < param >\fR
 IP address or hostname of the machine that needs to be reset or disconnected from storage.  (Deprecated; use nodename instead.)
 
-.in -7
-
-
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8), fence_ack_manual(8)

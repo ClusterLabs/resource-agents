@@ -5,21 +5,17 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_cpint(8)''fence_cpint(8)'
+.TH fence_cpint 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_cpint - I/O Fencing agent for GFS on s390 and zSeries VM clusters
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_cpint -u\fP \fIuserid\fP
+.SH SYNOPSIS
+.B
+fence_cpint
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_cpint is an I/O Fencing agent used on a virtual machine running GFS in a
 s390 or zSeries VM cluster.
 It uses the cpint package to send a CP LOGOFF command to the specified virtual
@@ -31,55 +27,33 @@ machine executing it must either be a privilege class C user or it must be
 the secondary user of the virtual machine to be fenced.  This means that unless
 all of you gulm server nodes are privilege class C, fence_cpint can only be
 used with SLM.
-.sp
 
 fence_cpint accepts options on the command line as well as from stdin.
 fence_node sends the options through stdin when it execs the agent.
 fence_cpint can be run by itself with command line options which is useful for
 testing.
-.sp
 
-.in
-\fBOPTIONS\fP
-.in
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-
-.in
+.TP
 \fB-u\fP \fIuserid\fP
-.in +7
 userid of the virtual machine to fence (required).
-.sp
-
-.in
+.TP
 \fB-q\fP
-.in +7
 quiet mode, no output.
-.sp
-
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
 
-.in
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
+.SH STDIN PARAMETERS
+.TP
 \fIagent = < param >\fR
-.sp
 This option is used by fence_node(8) and is ignored by fence_cpint.
-.sp
-
+.TP
 \fIuserid = < parm >\fP
-.sp
 userid of the virtual machine to fence (required).
-.sp
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8)

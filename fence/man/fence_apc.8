@@ -5,132 +5,85 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_apc(8)''fence_apc(8)'
+.TH fence_apc 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_apc - I/O Fencing agent for APC MasterSwitch
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_apc -a\fP \fIIPaddress\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIoutlet\fR 
-[\fB-o\fP action] [\fB-T\fP] [\fB-v\fP]
+.SH SYNOPSIS
+.B 
+fence_apc
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_apc is an I/O Fencing agent which can be used with the APC MasterSwitch
 network power switch.  It logs into a MasterSwitch via telnet and reboots
 a specified outlet.  Lengthy telnet connections to the MasterSwitch should
 be avoided while a GFS cluster is running because the connection will
 block any necessary fencing actions.
-.sp
+
 fence_apc accepts options on the command line as well as from stdin.  
 Fenced sends parameters through stdin when it execs the agent.  fence_apc 
 can be run by itself with command line options.  This is useful for testing 
 and for turning outlets on or off from scripts.
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIIPaddress\fR
-.in +7
 IP address or hostname of the switch.
-.sp
-.in
+.TP
 \fB-h\fP 
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-l\fP \fIlogin\fR
-.in +7
 Login name.
-.sp
-.in
+.TP
 \fB-n\fP \fI[<switch>:]outlet\fR
-.in +7
 The outlet number to act upon.  
-.sp
-.in
+.TP
 \fB-o\fP \fIaction\fR
-.in +7
 The action required.  Reboot (default), Off or On.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fR
-.in +7
 Password for login.
-.sp
-.in
+.TP
 \fB-T\fP
-.in +7
 Test only.  Answer NO to the confirmation prompt instead of YES.
-.in
-.sp
+.TP
 \fB-v\fP
-.in +7
 Verbose.  Record telnet session in /tmp/apclog.
-.in
-.sp
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.in
-.sp
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
 
-\fI agent = < param >\fR
-.sp
+.SH STDIN PARAMETERS
+.TP
+\fIagent = < param >\fR
 This option is used by fence_node(8) and is ignored by fence_apc.
-.sp
-
+.TP
 \fIipaddr = < hostname | ip >\fR
-.sp
 IP address or hostname of the switch.
-.sp
-
-\fI login = < param >\fR
-.sp
+.TP
+\fIlogin = < param >\fR
 Login name.
-.sp
-
-\fI option = < param >\fR
-.sp
+.TP
+\fIoption = < param >\fR
 The action required.  Reboot (default), Off or On.
-.sp
-
-\fI passwd = < param >\fR
-.sp
+.TP
+\fIpasswd = < param >\fR
 Password for login.
-.sp
-
-\fI port = < param >\fR
-.sp
+.TP
+\fIport = < param >\fR
 The outlet number to act upon.
-.sp
-
-\fI switch = < param >\fR
-.sp
+.TP
+\fIswitch = < param >\fR
 The switch to operate on.  Defaults to "1" if not specified.
-.sp
-
-\fI test = < param >\fR
-.sp
+.TP
+\fItest = < param >\fR
 Test only.  Answer NO to the confirmation prompt instead of YES.
-.sp
-
-\fI verbose = < param >\fR
-.sp
+.TP
+\fIverbose = < param >\fR
 Verbose.  Record telnet session in /tmp/apclog.
-.sp
 
-
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8)

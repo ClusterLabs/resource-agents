@@ -5,45 +5,66 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence(8)''fence(8)'
+.TH fence 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 I/O Fencing reference guide
 
-.in
-\fBSYNOPSIS\fP
-.in +7
+.SH SYNOPSIS
 Overview of related manual pages
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 The I/O Fencing documentation has been split into a number of sections.  Please
 refer to the table below to determine which man page coincides with the
 command/feature you are looking for.
-.sp
- fence          I/O Fencing overview (this man page)
- fenced         I/O Fencing daemon
 
-I/O Fencing agents
+.TP 10
+fence
+I/O Fencing overview (this man page)
+.TP
+fenced
+I/O Fencing daemon
 
- fence_apc           for APC MasterSwitch and APC 79xx models
- fence_bladecenter   for IBM Bladecenters w/ telnet interface
- fence_brocade       for Brocade fibre channel switches (PortDisable)
- fence_egenera       for Egenera blades
- fence_gnbd          for GNBD-based GFS clusters
- fence_ilo           for HP ILO interfaces (formerly fence_rib)
- fence_manual        for manual intervention
- fence_mcdata        for McData fibre channel switches
- fence_ack_manual    for manual intervention
- fence_sanbox2       for Qlogic SAN Box fibre channel switches
- fence_vixel         for Vixel switches (PortDisable)
- fence_wti           for WTI Network Power Switch
- fence_node          for use by lock_gulmd
+.SS I/O Fencing agents
 
-.sp
-.in
-\fBSEE ALSO\fP
-.in +7
+.TP 20
+fence_apc
+for APC MasterSwitch and APC 79xx models
+.TP
+fence_bladecenter
+for IBM Bladecenters w/ telnet interface
+.TP
+fence_brocade
+for Brocade fibre channel switches (PortDisable)
+.TP
+fence_egenera
+for Egenera blades
+.TP
+fence_gnbd
+for GNBD-based GFS clusters
+.TP
+fence_ilo
+for HP ILO interfaces (formerly fence_rib)
+.TP
+fence_manual
+for manual intervention
+.TP
+fence_mcdata
+for McData fibre channel switches
+.TP
+fence_ack_manual
+for manual intervention
+.TP
+fence_sanbox2
+for Qlogic SAN Box fibre channel switches
+.TP
+fence_vixel
+for Vixel switches (PortDisable)
+.TP
+fence_wti
+for WTI Network Power Switch
+.TP
+fence_node
+for use by lock_gulmd
+
+.SH SEE ALSO
 gnbd(8), gfs(8)

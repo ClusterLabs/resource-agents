@@ -5,97 +5,67 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_vixel(8)''fence_vixel(8)'
+.TH fence_vixel 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_vixel - I/O Fencing agent for Vixel FC switches
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_vixel [-hV] -a\fP \fIIPaddress\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIport\fR
+.SH SYNOPSIS
+.B
+fence_vixel
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_vixel is an I/O Fencing agent which can be used with Vixel FC switches.
 It logs into a Vixel switch via telnet and removes the specified port from the
 zone.  Removing the zone access from the port disables the port from being able
 to access the storage.  
-.sp
+
 fence_vixel accepts options on the command line as well as from stdin.
 fenced sends parameters through stdin when it execs the agent.  fence_vixel 
 can be run by itself with command line options which is useful for testing.
-.sp
+
 After a fence operation has taken place the fenced machine can no longer 
 connect to the Vixel FC switch.  When the fenced machine is ready to be brought
 back into the GFS cluster (after reboot) the port on the Vixel FC switch needs 
 to be enabled. In order to do this, log into the Vixel FC switch. Then go to:
-.in
-.in +7
+
 config->zones->config <port> <comma-separated-list-of-ports-in-the-zone>
-.in
-.in +7
+
 Then apply
-.sp
+
 Consult the Vixel manual for details
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIIPaddress\fP
-.in +7
 IP address of the switch.
-.sp
-.in
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-n\fP \fIport\fP
-.in +7
 The port number to remove zoning from on the switch.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fP
-.in +7
 Password for login.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
-.in
 
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
-
+.SH STDIN PARAMETERS
+.TP
 \fIagent = < param >\fR
-.sp
 This option is used by fence_node(8) and is ignored by fence_vixel.
-.sp
-
+.TP
 \fIipaddr = < hostname | ip >\fR
-.sp
 IP address or hostname of the switch.
-.sp
-
+.TP
 \fIpasswd = < param >\fR
-.sp
 Password for login.
-.sp
-
+.TP
 \fIport = < param >\fR
-.sp
 The port number to remove zoning from on the switch.
-.sp
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH BSEE ALSO
 fence(8), fence_node(8)

@@ -5,21 +5,17 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_baytech(8)''fence_baytech(8)'
+.TH fence_baytech 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_baytech - I/O Fencing agent for Baytech RPC switches in combination with a Cyclades Terminal Server
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_baytech -a\fP \fIhost\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIoutletname\fR \fB-o\fP \fIaction\fR
+.SH SYNOPSIS
+.B
+fence_baytech
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 
 This fencing agent is written for the Baytech RPC27-20nc in combination with
 a Cyclades terminal server.  The Cyclades TS exports the RPC's serial port
@@ -27,95 +23,61 @@ via a Telnet interface.  Other interfaces, such as SSH, are possible.
 However, this script relys upon the assumption that Telnet is used.  Future
 features to this agent would allow the agent to work with a mulitude of 
 different communication protocols such as Telnet, SSH or Kermit.
-.sp
+
 The other assumption that is made is that Outlet names do not end in space.
 The name "Foo" and "Foo    " are identical when the RPC prints them with
 the status command.
-.sp
+
 fence_baytech accepts options on the command line as well as from stdin.
 fenced sends parameters through stdin when it execs the agent.  fence_baytech
 can be run by itself with command line options which is useful for testing.
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIhost\fP
-.in +7 
 IP address or hostname to connect to.
-.sp
-.in
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-l\fP \fIlogin\fP
-.in +7
 Username name for the switch.
-.sp
-.in
+.TP
 \fB-n\fP \fIport\fP
-.in +7
 The name of the outlet to act upon.
-.in
-.sp
+.TP
 \fB-o\fP \fIaction\fP
-.in +7
 The action required.  disable (default) or enable.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fP
-.in +7
 Password for login.
-.sp
-.in
+.TP
 \fB-q\fP
-.in +7
 Quiet mode: print only error messages.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
-.in
 
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
+.SH STDIN PARAMETERS
 
-\fI agent = < param >\fR
-.sp
+.TP
+\fIagent = < param >\fR
 This option is used by fence_node(8) and is ignored by fence_baytech.
-.sp
-
-\fI host = < hostname | ip >\fR
-.sp
+.TP
+\fIhost = < hostname | ip >\fR
 IP address or hostname to connect to.
-.sp
-
-\fI login = < param >\fR
-.sp
+.TP
+\fIlogin = < param >\fR
 Login name.
-.sp
-
-\fI action = < param >\fR
-.sp
+.TP
+\fIaction = < param >\fR
 The action required.  On, Off, Status or Reboot (default)
-.sp
-
-\fI passwd = < param >\fR
-.sp
+.TP
+\fIpasswd = < param >\fR
 Password for login.
-.sp
-
-\fI outlet = < param >\fR
-.sp
+.TP
+\fIoutlet = < param >\fR
 The name of the outlet to act upon.
-.sp
 
-
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8)

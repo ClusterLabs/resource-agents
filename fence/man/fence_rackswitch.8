@@ -5,102 +5,65 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fence_rackswitch(8)''fence_rackswitch(8)'
+.TH fence_rackswitch 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_rackswitch - I/O Fencing agent for RackSaver RackSwitch
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_rackswitch -a\fP \fIIPaddress\fR \fB-p\fP \fIpassword\fR \fB-l\fP \fIusername\fR \fB-n\fP \fIplug\fR 
+.SH SYNOPSIS
+.B
+fence_rackswitch
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_rackswitch is an I/O Fencing agent which can be used with the RackSaver 
 RackSwitch.  It logs into the RackSwitch and boots a specified plug.
 Using the http interface to the RackSwitch should be avoided while a GFS cluster is 
 running because the connection may interfere with the operation of this agent.
-.sp
+
 fence_rackswitch accepts options on the command line as well as from stdin.  
 fenced sends the options through stdin when it execs the agent.  fence_rackswitch 
 can be run by itself with command line options which is useful for testing.
-.sp
-.in 
-\fBOPTIONS\fP
-.in 
+
+.SH OPTIONS
+.TP
 \fB-a\fP \fIIPaddress\fP
-.in +7
 IP address of the switch.
-.sp
-.in
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.in
-.sp
+.TP
 \fB-n\fP \fIplug\fP
-.in +7
 The plug number to power cycle.
-.in
-.sp
+.TP
 \fB-p\fP \fIpassword\fP
-.in +7
 Password for login.
-.sp
-.in
-.sp
+.TP
 \fB-l\fP \fIusername\fP
-.in +7
 Username for login.
-.in
-.sp
+.TP
 \fB-q\fP
-.in +7
 Quiet operation.  Only print out error messages.
-.in
-.sp
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.in
-.sp
 
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in
-
-\fI agent = < param >\fR
-.sp
+.SH STDIN PARAMETERS
+.TP
+\fIagent = < param >\fR
 This option is used by fence_node(8) and is ignored by fence_rackswitch.
-.sp
-
+.TP
 \fIipaddr = < ip >\fR
-.sp
 IP address of the switch.
-.sp
-
-\fI username = < param >\fR
-.sp
+.TP
+\fIusername = < param >\fR
 Username for login.
-.sp
-
-\fI password = < param >\fR
-.sp
+.TP
+\fIpassword = < param >\fR
 Password for login.
-.sp
-
-\fI port = < param >\fR
-.sp
+.TP
+\fIport = < param >\fR
 The port (outlet) number to act upon.
-.sp
 
-.in
-.sp
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 fence(8), fence_node(8)
