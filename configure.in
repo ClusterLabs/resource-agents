@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.281 $) dnl cvs revision
+AC_REVISION($Revision: 1.282 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -614,31 +614,29 @@ AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 SNMPLIB=""
 SNMPCONFIG=""
-if test "${enable_snmp_subagent}"  = "yes"; then
-	if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
-		AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
-		if test "X${SNMPCONFIG}" = "X"; then
-			AC_MSG_RESULT(You need the net snmp development package to continue.)
-			enable_snmp_subagent="no"
-		else
-			AC_MSG_CHECKING(for special snmp libraries: )
-			SNMPLIB=`net-snmp-config --netsnmp-libs`
-			AC_MSG_RESULT($SNMPLIB)
-		fi
-	elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
-		# UCD SNMP
-		# ucd-snmp-config does not seem to exist, so just 
-		# rely on people having their LDFLAGS set to the path where
-		AC_CHECK_LIB(snmp, init_snmp, SNMPLIB="-lsnmp")
-		if test "X${SNMPLIB}" = "X"; then
-			AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
-		fi
-		if test "X${SNMPLIB}" = "X"; then
-			enable_snmp_subagent="no"
-			AC_MSG_RESULT("Could not find ucdsnmp libary."
-				"Please make sure that libsnmp or libucdsnmp"
-				"are in your libaray path. Or the path to LDFLAGS")
-		fi
+if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
+	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
+	if test "X${SNMPCONFIG}" = "X"; then
+		AC_MSG_RESULT(You need the net snmp development package to continue.)
+		enable_snmp_subagent="no"
+	else
+		AC_MSG_CHECKING(for special snmp libraries: )
+		SNMPLIB=`net-snmp-config --netsnmp-libs`
+		AC_MSG_RESULT($SNMPLIB)
+	fi
+elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
+	# UCD SNMP
+	# ucd-snmp-config does not seem to exist, so just 
+	# rely on people having their LDFLAGS set to the path where
+	AC_CHECK_LIB(snmp, init_snmp, SNMPLIB="-lsnmp")
+	if test "X${SNMPLIB}" = "X"; then
+		AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
+	fi
+	if test "X${SNMPLIB}" = "X"; then
+		enable_snmp_subagent="no"
+		AC_MSG_RESULT("Could not find ucdsnmp libary."
+			"Please make sure that libsnmp or libucdsnmp"
+			"are in your libaray path. Or the path to LDFLAGS")
 	fi
 fi
 AC_SUBST(SNMPCONFIG)
