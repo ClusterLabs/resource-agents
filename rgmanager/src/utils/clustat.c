@@ -121,8 +121,9 @@ txt_rg_state(rg_state_t *rs, cluster_member_list_t *members)
 void
 xml_rg_state(rg_state_t *rs, cluster_member_list_t *members)
 {
-	printf("    <group state=\"%d\" state_str=\"%s\" owner=\"%s\" "
-	             "last_owner=\"%s\" restarts=\"%d\"/>\n",
+	printf("    <group name=\"%s\" state=\"%d\" state_str=\"%s\" "
+	       " owner=\"%s\" last_owner=\"%s\" restarts=\"%d\"/>\n",
+	       rs->rs_name,
 	       rs->rs_state,
 	       rg_state_str(rs->rs_state),
 	       memb_id_to_name(members, rs->rs_owner),
