@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.244 $) dnl cvs revision
+AC_REVISION($Revision: 1.245 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1464,7 +1464,6 @@ telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
 	telecom/checkpointd/Makefile
-	telecom/eventd/Makefile
 )
 
 dnl testing again makes the eventual output a little easier to read
