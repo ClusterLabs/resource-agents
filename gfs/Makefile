@@ -45,8 +45,10 @@ distclean: clean
 install:
 	cd bin && ${MAKE} install
 	cd man && ${MAKE} install
+	cd init.d && ${MAKE} install
 
 deinstall uninstall:
 	cd bin && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
+	cd init.d && ${MAKE} uninstall
 
