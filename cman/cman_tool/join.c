@@ -16,7 +16,7 @@
 #include "cman_tool.h"
 
 /* Size of buffer for gethostbyname2_r */
-#define HE_BUFSIZE 512
+#define HE_BUFSIZE 2048
 
 static int cluster_sock;
 
@@ -106,7 +106,7 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 			       &realbhe, he_buffer, sizeof(he_buffer), &bhe,
 			       &he_errno);
 	if (!bhe)
-	    die("Can't resolve multicast address %s\n", comline->multicast_names[num]);
+	    die("Can't resolve multicast address %s: %s\n", comline->multicast_names[num], strerror(errno));
 
 	if (bhe->h_addr_list[1])
 	    die("multicast address %s is ambiguous\n", comline->multicast_names[num]);
@@ -218,7 +218,7 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
 			   &he_errno);
 
     if (!bhe)
-	die("Can't resolve multicast address %s\n", comline->multicast_names[num]);
+	die("Can't resolve multicast address %s: %s\n", comline->multicast_names[num], strerror(errno));
 
     mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
     if (mcast_sock < 0)
@@ -295,7 +295,7 @@ static int setup_interface(commandline_t *comline, int num)
 			       &he_errno);
     }
     if (!he)
-	die("can't resolve node name %s\n", comline->nodenames[num]);
+	die("can't resolve node name %s: %s\n", comline->nodenames[num], strerror(errno));
 
     if (he->h_addr_list[1])
 	die("node name %s is ambiguous\n", comline->nodenames[num]);
