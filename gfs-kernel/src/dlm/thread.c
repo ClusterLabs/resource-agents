@@ -95,6 +95,7 @@ static void process_complete(dlm_lock_t *lp)
 			lp->cur = DLM_LOCK_IV;
 			lp->req = DLM_LOCK_IV;
 			lp->lksb.sb_lkid = 0;
+			atomic_dec(&dlm->lock_count);
 		}
 
 		if (!test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags))
@@ -231,6 +232,9 @@ static void process_complete(dlm_lock_t *lp)
 	    (lp->cur > DLM_LOCK_NL) && (prev_mode > DLM_LOCK_NL))
 		acb.lc_ret |= LM_OUT_CACHEABLE;
 
+	if (prev_mode == DLM_LOCK_IV && lp->cur > DLM_LOCK_IV)
+		atomic_inc(&dlm->lock_count);
+
 	dlm->fscb(dlm->fsdata, LM_CB_ASYNC, &acb);
 }
 
@@ -311,10 +315,10 @@ static int dlm_async(void *data)
 			finish = 1;
 		}
 
-		if (atomic_read(&dlm->lock_count) >= DROP_LOCKS_COUNT &&
-		    check_timeout(dlm->drop_time, DROP_LOCKS_TIME)) {
+		if (check_timeout(dlm->drop_time, DROP_LOCKS_TIME)) {
 			dlm->drop_time = jiffies;
-			drop = 1;
+			if (atomic_read(&dlm->lock_count) >= DROP_LOCKS_COUNT)
+				drop = 1;
 		}
 		spin_unlock(&dlm->async_lock);
 

@@ -45,7 +45,7 @@
 
 #define LOCK_DLM_MAX_NODES	(128)
 
-#define DROP_LOCKS_COUNT	(20000)
+#define DROP_LOCKS_COUNT	(10000)
 #define DROP_LOCKS_TIME		(60)
 
 struct dlm;

@@ -409,9 +409,6 @@ unsigned int lm_dlm_lock(lm_lock_t *lock, unsigned int cur_state,
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	if (cur_state == LM_ST_UNLOCKED)
-		atomic_inc(&lp->dlm->lock_count);
-
 	if (flags & LM_FLAG_NOEXP)
 		set_bit(LFL_NOBLOCK, &lp->flags);
 
@@ -446,9 +443,6 @@ int lm_dlm_lock_sync(lm_lock_t *lock, unsigned int cur_state,
 unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
-
-	if (cur_state != LM_ST_UNLOCKED)
-		atomic_dec(&lp->dlm->lock_count);
 
 	if (lp->lvb) {
 		check_cur_state(lp, cur_state);
