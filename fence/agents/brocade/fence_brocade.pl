@@ -43,7 +43,7 @@ sub usage
     print "  -a <ip>          IP address or hostname of switch\n";
     print "  -h               usage\n";
     print "  -l <name>        Login name\n";
-    print "  -n <num>         Port number to disable\n";
+    print "  -n <num>         Port number to operate on\n";
     print "  -o <string>      Action:  disable (default) or enable\n";
     print "  -p <string>      Password for login\n";
     print "  -q               quiet mode\n";
