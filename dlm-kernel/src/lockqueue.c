@@ -290,7 +290,8 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 			    print_rsb(rsb);
 			    print_reply(reply););
 
-		GDLM_ASSERT(rsb->res_nodeid == -1,
+		GDLM_ASSERT(rsb->res_nodeid == -1 ||
+			    rsb->res_nodeid == 0,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_reply(reply););
