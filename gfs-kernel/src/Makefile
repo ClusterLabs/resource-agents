@@ -11,14 +11,40 @@
 ###############################################################################
 ###############################################################################
 
+all:
+	cd harness && ${MAKE} all
+	cd nolock && ${MAKE} all
+	cd dlm && ${MAKE} all
+	cd gulm && ${MAKE} all
+	cd gfs && ${MAKE} all
+
+install:
+	cd harness && ${MAKE} install
+	cd nolock && ${MAKE} install
+	cd dlm && ${MAKE} install
+	cd gulm && ${MAKE} install
+	cd gfs && ${MAKE} install
+
+uninstall:
+	cd harness && ${MAKE} uninstall
+	cd nolock && ${MAKE} uninstall
+	cd dlm && ${MAKE} uninstall
+	cd gulm && ${MAKE} uninstall
+	cd gfs && ${MAKE} uninstall
+
+clean:
+	rm -rf *.patch linux-patched
+	cd harness && ${MAKE} clean
+	cd nolock && ${MAKE} clean
+	cd dlm && ${MAKE} clean
+	cd gulm && ${MAKE} clean
+	cd gfs && ${MAKE} clean
+
 patches:
 	cd gfs && ${MAKE} patches
 	cd harness && ${MAKE} patches
 	cd nolock && ${MAKE} patches
 	cd dlm && ${MAKE} patches
 	cd gulm && ${MAKE} patches
-
-clean:
-	rm -rf *.patch linux-patched
 
 

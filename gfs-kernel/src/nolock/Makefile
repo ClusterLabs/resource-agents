@@ -11,13 +11,41 @@
 ###############################################################################
 ###############################################################################
 
-top_srcdir = ..
-linux_orig = ${top_srcdir}/linux-orig
-linux_patched = ${top_srcdir}/linux-patched
+top_srcdir = ../..
+ifndef USING_KBUILD
+include ${top_srcdir}/make/defines.mk
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+endif
+
+linux_orig = ${top_srcdir}/src/linux-orig
+linux_patched = ${top_srcdir}/src/linux-patched
 
 
 TARGET = lock_nolock.patch
 
+PWD := $(shell pwd)
+  
+obj-m := lock_nolock.o
+lock_nolock-objs := main.o
+
+EXTRA_CFLAGS += -I$(obj)
+
+all:
+	rm -f linux lm_interface.h
+	ln -s . linux
+	ln -s ${top_srcdir}/src/harness/lm_interface.h .
+	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+ 
+install: all
+	install -d ${module_dir}/fs/gfs_locking/lock_nolock
+	install lock_nolock.ko ${module_dir}/fs/gfs_locking/lock_nolock
+
+uninstall:
+	${UNINSTALL} lock_nolock.ko ${module_dir}/fs/gfs_locking/lock_nolock
+
+clean:
+	rm -rf linux lm_interface.h *.mod.c .lock_nolock.ko.cmd \
+		.tmp_versions *o .*.o.cmd *~
 
 patches: pre add post
 
@@ -30,11 +58,8 @@ pre:
 	rsync -a --delete ${linux_orig}/ ${linux_patched}/
 
 post:
-	( cd ${top_srcdir} ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
+	( cd ${top_srcdir}/src ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
 
 add:
 	mkdir -p ${linux_patched}/fs/gfs_locking/lock_nolock
 	cp *.[ch] ${linux_patched}/fs/gfs_locking/lock_nolock
-
-clean:
-
