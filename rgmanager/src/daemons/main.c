@@ -226,7 +226,7 @@ membership_update(void)
 	/*
 	 * Handle nodes lost.  Do our local node event first.
 	 */
-	node_delta = clu_members_lost(old_membership, new_ml);
+	node_delta = memb_lost(old_membership, new_ml);
 
 	me = memb_online(node_delta, my_id());
 	if (me) {
@@ -251,7 +251,7 @@ membership_update(void)
 	/*
 	 * Handle nodes gained.  Do our local node event first.
 	 */
-	node_delta = clu_members_gained(old_membership, new_ml);
+	node_delta = memb_gained(old_membership, new_ml);
 
 	me = memb_online(node_delta, my_id());
 	if (me) {

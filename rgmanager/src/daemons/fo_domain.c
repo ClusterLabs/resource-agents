@@ -405,8 +405,8 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 		 */
 		/* In this case, we can ignore 'restricted' */
 #ifdef DEBUG
-		clulog(LOG_DEBUG, "Member #%d is not a member of domain %d "
-		       "and a member is online\n", nodeid, domainid);
+		clulog(LOG_DEBUG, "Member #%d is not a member of domain %s "
+		       "and a member is online\n", nodeid, domainname);
 #endif
 		if (!restricted) {
 #ifdef DEBUG

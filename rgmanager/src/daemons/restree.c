@@ -818,10 +818,12 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		   have the operation performed as well. */
 		me = !first || (node->rn_resource == first);
 
+		/*
 		printf("begin %s: %s %s [0x%x]\n", res_ops[op],
 		       node->rn_resource->r_rule->rr_type,
 		       primary_attr_value(node->rn_resource),
 		       node->rn_flags);
+		 */
 
 		if (me) {
 			/*
@@ -839,17 +841,21 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 			 */
 		       	if ((op == RS_CONDSTART) &&
 			    (node->rn_flags & RF_NEEDSTART)) {
+				/*
 				printf("Node %s:%s - CONDSTART\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
+				 */
 				op = RS_START;
 			}
 
 			if ((op == RS_CONDSTOP) &&
 			    (node->rn_flags & RF_NEEDSTOP)) {
+				/*
 				printf("Node %s:%s - CONDSTOP\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
+				 */
 				op = RS_STOP;
 			}
 		}
@@ -889,9 +895,11 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				return rv;
 		}
 
+		/*
 		printf("end %s: %s %s\n", res_ops[op],
 		       node->rn_resource->r_rule->rr_type,
 		       primary_attr_value(node->rn_resource));
+		 */
 	} while (!list_done(tree, node));
 
 	return 0;
