@@ -54,18 +54,18 @@ gulm_shutdown()
 	return $rtrn
 }
 
-# get the servers list and stuff them into $nodes_list
-get_servers_list()
+# get the servers list and stuff them into $serverlist
+get_serverlist()
 {
-	servers_list=$( gulm_tool config localhost 2>/dev/null | 
+	serverlist=$( gulm_tool config localhost 2>/dev/null | 
 		grep "servernames" | sed "s/^.*= //;s/,/ /g" )
 }
 
 # get the nodelist names that have logged into the cluster
-# and stuff them into $nodes_list
-get_nodes_list()
+# and stuff them into $nodelist
+get_nodelist()
 {
-	nodes_list=$( gulm_tool nodelist localhost | 
+	nodelist=$( gulm_tool nodelist localhost | 
 		grep Name | sed "s/^.*Name: //" )
 }
 
@@ -101,9 +101,9 @@ find_master()
 			;;
 
 		*)	# This might mean we are in the expired state
-			[ -z "$servers_list" ] && get_servers_list
+			[ -z "$serverlist" ] && get_serverlist
 
-			for server in $servers_list
+			for server in $serverlist
 			do
 				if gulm_tool nodeinfo $server $(uname -n) 2>/dev/null |
 					grep -iq "^ *state = expired"
@@ -208,13 +208,14 @@ stop()
 {
 	if [ "$1" = "force" ] ; then force=0 ; else force=1 ; fi
 
-	service_list=1
+	do_shutdown=0
 	if gulm_tool servicelist localhost &> /dev/null
 	then
 		echo "Checking for Gulm Services..."
 
 		# ignore LTPX and LT000-LT999  and Magma services
-		if gulm_tool servicelist localhost | grep -vE "^(LTPX|LT[0-9][0-9][0-9]|Magma::[0-9]*)\$"
+		if gulm_tool servicelist localhost | 
+			grep -vE "^(LTPX|LT[0-9][0-9][0-9]|Magma::[0-9]*)\$"
 		then
 			if [ $force -ne 0 ]
 			then
@@ -224,9 +225,9 @@ stop()
 				echo "lock_gulmd in use.  force shutdown in 5 seconds. " \
 					"Ctrl-C to abort..."
 				sleep 5
+				do_shutdown=1
 			fi
 		fi
-		service_list=0
 	else
 		echo "unable to comminucate to lock_gulmd"
 		return 1
@@ -236,60 +237,77 @@ stop()
 
 	rank=$( gulm_tool getstats localhost | grep rank | sed "s/^ *rank = //")
 
-	if [ $rank -ge 0 ]
+	if [ $rank -ge 0 -a $force -ne 0 ]
 	then
 		# we are in the servers list
 		myname=$(uname -n)
-		get_servers_list
+		my_gid=$(gulm_tool getstats localhost 2>/dev/null | grep GenerationID)
+		get_serverlist
 		warn_msg=" waiting for clients to logout "
+
+		while [ $do_shutdown -eq 0 ]
+		do
+			get_nodelist
+	
+			# remove servers from nodelist
+			for server in $serverlist
+			do
+				nodelist=$( echo "$nodelist" | grep -v $server )
+			done
+	
+			# check to see if there are any clients logged in.  If there
+			# are not, we shutdown
+			cli_logged_in=0
+			for client in $nodelist
+			do
+				node_gid=$( gulm_tool getstats $client 2>/dev/null | 
+					grep GenerationID )
+				if [ "$node_gid" = "$my_gid" ] 
+				then
+					cli_logged_in=1
+					break
+				fi
+			done
+			if [ $cli_logged_in -eq 0 ]
+			then
+				do_shutdown=1
+				break
+			fi
+
+			# check to see if there are servers logged in.  If 
+			# there are, then it is OK to shut down
+			srv_logged_in=0
+			for server in $serverlist
+			do
+				[ $myname = $server ] && continue
+					
+				node_gid=$( gulm_tool getstats $server 2>/dev/null | grep GenerationID )
+
+				if [ "$node_gid" = "$my_gid" ]
+				then
+					srv_logged_in=1	
+					break
+				fi
+			done
+			if [ $srv_logged_in -eq 1 ]
+			then
+				do_shutdown=1
+				break
+			fi
+
+			if [ -n "$warn_msg" ] 
+			then
+				echo -n "$warn_msg"
+				warn_msg=""
+			fi
+
+			sleep 1
+		done
+	else
+		do_shutdown=1
 	fi
 
-	while [ $rank -ge 0 -a $force -ne 0 ]
-	do
-		get_nodes_list
-		logged_in=0
-
-		# check to see if there are servers logged in.  If there are, 
-		# then it is OK to shut down
-		for server in $servers_list
-		do
-			# remove servers from the nodelist
-			nodes_list=$( echo "$nodes_list" | grep -v $server )
-
-			[ $myname = $server ] && continue
-				
-			if gulm_tool nodeinfo localhost $server | 
-				grep -qi "^ *state = Logged in"
-			then
-				logged_in=1	
-				break
-			fi
-			
-		done
-		[ $logged_in -eq 1 ] && break
-
-
-		# check to see if there are any clients logged in.  If there
-		# are, there are no other servers running, so we had better
-		# not shutdown just yet.  
-		for client in $nodes_list
-		do
-			if gulm_tool nodeinfo localhost $client | 
-				grep -qi "^ *state = Logged in"
-			then
-				logged_in=0
-				break
-			fi
-		done
-		[ $logged_in -eq 0 ] && break
-
-		[ -n "$warn_msg" ] && echo -n "$warn_msg"
-		warn_msg=""
-
-		sleep 1
-	done
-
-	if [ $service_list -eq 0 ] && gulm_shutdown
+	if [ $do_shutdown -eq 1 ] && gulm_shutdown
 	then
 		success
 		sts=0
