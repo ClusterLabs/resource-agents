@@ -102,12 +102,19 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
     int c = 0;
     char node_buf[MAX_CLUSTER_MEMBER_NAME_LEN];
 
-    if (!we_are_a_cluster_member) {
-	c += sprintf(b+c, "Not a cluster member. State: %s\n",
-		     membership_state(node_buf,
-				      sizeof (node_buf)));
+    c += sprintf(b+c,
+		 "Version: %d.%d.%d\n",
+		 CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
+		 CNXMAN_PATCH_VERSION);
+
+    c += sprintf(b+c,
+		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: %s\n",
+		 config_version,
+		 cluster_name, cluster_id,
+		 membership_state(node_buf, sizeof (node_buf)));
+
+    if (!we_are_a_cluster_member)
 	return c;
-    }
 
     /* Total the votes */
     down(&cluster_members_lock);
@@ -124,13 +131,6 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
     if (quorum_device && quorum_device->state == NODESTATE_MEMBER)
 	total_votes += quorum_device->votes;
 
-    c += sprintf(b+c,
-		 "Version: %d.%d.%d\nConfig version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: %s\n",
-		 CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
-		 CNXMAN_PATCH_VERSION,
-		 config_version,
-		 cluster_name, cluster_id,
-		 membership_state(node_buf, sizeof (node_buf)));
     c += sprintf(b+c,
 		 "Nodes: %d\nExpected_votes: %d\nTotal_votes: %d\nQuorum: %d  %s\n",
 		 cluster_members, max_expected, total_votes,
