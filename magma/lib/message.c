@@ -49,8 +49,6 @@
 
 #define IPV6_PORT_OFFSET 1
 
-int clu_crc32(void *, int);
-
 /*
    From fdops.c
  */
@@ -79,62 +77,6 @@ static cluster_member_list_t *ml_membership;
  */
 static pthread_mutex_t fill_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-struct __attribute__ ((packed)) msg_struct {
-	uint32_t ms_count;	/* number of bytes in payload */
-	uint32_t ms_crc32;	/* CRC32 of data */
-};
-
-
-/**
-  Create a message buffer with a header including length and data CRC.
-
-  @param payload	data to send
-  @param len		length of message to add header to
-  @param msg		allocated within: message + header
-  @return		Total size of allocated buffer.
- */
-static unsigned long
-msg_create(void *payload, ssize_t len, void **msg)
-{
-	unsigned long ret;
-	struct msg_struct msg_hdr;
-
-	memset(&msg_hdr, 0, sizeof (msg_hdr));
-	msg_hdr.ms_count = len;
-	msg_hdr.ms_crc32 = clu_crc32(payload, len);
-#if __BYTE_ORDER == __BIG_ENDIAN
-	msg_hdr.ms_count = bswap_32(msg_hdr.ms_count);
-	msg_hdr.ms_crc32 = bswap_32(msg_hdr.ms_crc32);
-#endif
-
-	if (!len || !payload)
-		return sizeof (msg_hdr);
-
-	*msg = (void *) malloc(sizeof (msg_hdr) + len);
-	if (*msg == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
-	memcpy(*msg, &msg_hdr, sizeof (msg_hdr));
-	memcpy(*msg + sizeof (msg_hdr), payload, len);
-
-	ret = sizeof (msg_hdr) + len;
-	return ret;
-}
-
-
-/**
-  Free a message buffer.
-
-  @param msg		Buffer to free.
- */
-static inline void
-msg_destroy(void *msg)
-{
-	if (msg != NULL)
-		free(msg);
-}
 
 /**
   Update our internal membership list with the provided list.
@@ -177,11 +119,6 @@ static ssize_t
 _msg_receive(int fd, void *buf, ssize_t count,
 	      struct timeval *tv)
 {
-	uint32_t crc;
-	int err;
-	struct msg_struct msg_hdr;
-	ssize_t retval = 0;
-
 	if (fd < 0) {
 		errno = EBADF;
 		return -1;
@@ -197,36 +134,7 @@ _msg_receive(int fd, void *buf, ssize_t count,
 		return -1;
 	}
 
-	if ((retval = _read_retry(fd, &msg_hdr, sizeof (msg_hdr), tv)) <
-	    (ssize_t) sizeof (msg_hdr)) {
-		return -1;
-	}
-
-#if __BYTE_ORDER == __BIG_ENDIAN
-	msg_hdr.ms_count = bswap_32(msg_hdr.ms_count);
-	msg_hdr.ms_crc32 = bswap_32(msg_hdr.ms_crc32);
-#endif
-
-	if (!msg_hdr.ms_count)
-		return 0;
-
-	err = errno;
-	retval = _read_retry(fd, buf, count, tv);
-
-	if ((count == msg_hdr.ms_count) && (retval == count)) {
-		crc = clu_crc32(buf, retval);
-
-		if (crc != msg_hdr.ms_crc32) {
-			/* Mangled message */
-			fprintf(stderr, "CRC32 mismatch: 0x%08x vs. 0x%08x\n",
-				crc, msg_hdr.ms_crc32);
-			err = EIO;
-			retval = -1;
-		}
-	}
-
-	errno = err;
-	return retval;
+	return _read_retry(fd, buf, count, tv);
 }
 
 
@@ -234,7 +142,7 @@ _msg_receive(int fd, void *buf, ssize_t count,
   Receive a message from a file descriptor w/o a timeout value.
 
   @param fd		File descriptor to receive from
-  @param buf		Pre-allocated bufffer \
+  @param buf		Pre-allocated bufffer 
   @param count		Size of expected message; must be <= size of
   			preallocated buffer.
   @return		-1 on failure or size of read data
@@ -282,9 +190,6 @@ msg_receive_timeout(int fd, void *buf, ssize_t count,
 ssize_t
 msg_send(int fd, void *buf, ssize_t count)
 {
-	void *msg;
-	int msg_len = -1, bytes_written = 0;
-
 	if (fd == -1) {
 		errno = EBADF;
 		return -1;
@@ -300,13 +205,7 @@ msg_send(int fd, void *buf, ssize_t count)
 		return -1;
 	}
 
-	msg_len = msg_create(buf, count, &msg);
-	if ((bytes_written = write(fd, msg, msg_len)) < msg_len) {
-		msg_destroy(msg);
-		return -1;
-	}
-	msg_destroy(msg);
-	return (bytes_written - sizeof (struct msg_struct));
+	return write(fd, buf, count);
 }
 
 
@@ -914,50 +813,11 @@ msg_get_flags(int fd)
 
 
 ssize_t
-_msg_peek(int sockfd, void *buf, ssize_t count)
-{
-	char *bigbuf;
-	ssize_t ret;
-	int bigbuf_sz;
-	int hdrsz = sizeof (struct msg_struct);
-
-	bigbuf_sz = count + hdrsz;
-	bigbuf = (char *) malloc(bigbuf_sz);
-	if (bigbuf == NULL)
-		return -1;
-
-	/*
-	 * We need to account for the msg header.  So we skip past it
-	 * and decrement the return value by the number of bytes eaten
-	 * up by the header.
-	 */
-	ret = recv(sockfd, bigbuf, bigbuf_sz, MSG_PEEK);
-	if (ret < 0) {
-		ret = errno;
-		free(bigbuf);
-		errno = ret;
-		return -1;
-	}
-	if (ret - hdrsz > 0) {
-		ret -= hdrsz;
-		if (ret > count)
-			ret = count;
-		memcpy(buf, bigbuf + hdrsz, ret);
-	} else {
-		ret = 0;
-	}
-	free(bigbuf);
-
-	return ret;
-}
-
-
-ssize_t
 msg_peek(int sockfd, void *buf, ssize_t count)
 {
 	if (sockfd < 0 || count > MSG_MAX_SIZE) {
 		return -1;
 	}
 
-	return (_msg_peek(sockfd, buf, count));
+	return recv(sockfd, buf, count, MSG_PEEK);
 }

@@ -73,7 +73,7 @@ libmagma.a: global.o plugin.o localinfo.o ip_lookup.o \
 		        memberlist.o clist.o
 	${AR} cr $@ $^
 
-libmagmamsg.a: message.o crc32.o fdops.o
+libmagmamsg.a: message.o fdops.o
 	${AR} cr $@ $^
 
 %.o: %.c
