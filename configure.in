@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.60 $) dnl cvs revision
+AC_REVISION($Revision: 1.61 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -282,7 +282,19 @@ AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw
 AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
 AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
+dnl
+dnl	These next two are used to help us figure out whether to include
+dnl	some optional STONITH plugins...
+dnl
+AC_CHECK_HEADERS(vacm_client_api.h)
+AC_CHECK_HEADERS(ucd-snmp/snmp.h)
 
+dnl
+dnl	Could check for the libraries, but if you have the headers,
+dnl	you're a dolt for not having installed the libs ;-)
+dnl
+AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
+AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes)
 
 dnl ************************************************************************
 dnl  checks for typedefs
