@@ -38,6 +38,8 @@
 #define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
+#define DLM_LS_NAME	   "Magma"
+
 /* From services.c */
 cluster_member_list_t *service_group_members(int sockfd, char *groupname);
 
@@ -413,7 +415,7 @@ sm_close(cluster_plugin_t *self, int fd)
 	assert(fd == p->sockfd);
 
 	if (p->ls)
-		dlm_close_lockspace(p->ls);
+		dlm_release_lockspace(DLM_LS_NAME, p->ls, 0);
 	p->ls = NULL;
 
 	ret = close(fd);
@@ -558,9 +560,9 @@ sm_lock(cluster_plugin_t *self,
 	 * per pjc: create/open lockspace when first lock is taken
 	 */
 	if (!p->ls)
-		p->ls = dlm_open_lockspace("Magma");
+		p->ls = dlm_open_lockspace(DLM_LS_NAME);
 	if (!p->ls)
-		p->ls = dlm_create_lockspace("Magma", 0644);
+		p->ls = dlm_create_lockspace(DLM_LS_NAME, 0644);
 	if (!p->ls) {
 		ret = errno;
 		close(p->sockfd);
