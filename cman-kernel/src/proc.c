@@ -100,7 +100,6 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
     unsigned int total_votes = 0;
     unsigned int max_expected = 0;
     int c = 0;
-    char node_buf[MAX_CLUSTER_MEMBER_NAME_LEN];
 
     c += sprintf(b+c,
 		 "Protocol version: %d.%d.%d\n",
@@ -108,10 +107,13 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
 		 CNXMAN_PATCH_VERSION);
 
     c += sprintf(b+c,
-		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: %s\n",
+		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: ",
 		 config_version,
-		 cluster_name, cluster_id,
-		 membership_state(node_buf, sizeof (node_buf)));
+		 cluster_name, cluster_id);
+
+    membership_state(b+c, length-c);
+    c += strlen(b+c);
+    c += sprintf(b+c, "\n");
 
     if (!we_are_a_cluster_member)
 	return c;
