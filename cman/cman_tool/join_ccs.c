@@ -63,7 +63,7 @@ int get_ccs_join_info(commandline_t *comline)
 {
 	char path[MAX_PATH_LEN];
 	char nodename[MAX_NODE_NAME_LEN];
-	char *str, *name, *cname = NULL;
+	char *str, *name, *cname = NULL, *dot = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
 
 
@@ -118,13 +118,19 @@ int get_ccs_join_info(commandline_t *comline)
 
 	/* find our nodename in cluster.conf */
 
+ retry_name:
 	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_NAME_PATH, nodename);
 
 	error = ccs_get(cd, path, &str);
-	if (error)
-		die("local node name \"%s\" not found in cluster.conf", nodename);
-	else
+	if (error) {
+		if (dot || !strstr(nodename, "."))
+			die("local node name \"%s\" not found in cluster.conf",
+			    nodename);
+		dot = strstr(nodename, ".");
+		*dot = '\0';
+		goto retry_name;
+	} else
 		free(str);
 
 
