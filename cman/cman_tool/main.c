@@ -125,6 +125,10 @@ static void kill_node(commandline_t *comline)
 	int result;
 	int nodeid;
 
+	if (!comline->num_nodenames) {
+	    die("No node ID specified\n");
+	}
+
 	nodeid = atoi(comline->nodenames[0]);
 
 	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
