@@ -773,6 +773,33 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 }
 
 /**
+ * stat_gfs_fill - fill in the usage for a given RG
+ * @rgd: the RG
+ * @usage: the usage structure
+ *
+ * Returns: 0 on success, -ESTALE if the LVB is invalid
+ */
+
+static int
+stat_gfs_fill(struct gfs_rgrpd *rgd, struct gfs_usage *usage)
+{
+	struct gfs_rgrp_lvb *rb = (struct gfs_rgrp_lvb *)rgd->rd_gl->gl_lvb;
+
+	if (test_bit(GLF_LVB_INVALID, &rgd->rd_gl->gl_flags) ||
+	    gfs32_to_cpu(rb->rb_magic) != GFS_MAGIC)
+		return -ESTALE;
+
+	usage->gu_total_blocks += rgd->rd_ri.ri_data;
+	usage->gu_free += gfs32_to_cpu(rb->rb_free);
+	usage->gu_used_dinode += gfs32_to_cpu(rb->rb_useddi);
+	usage->gu_free_dinode += gfs32_to_cpu(rb->rb_freedi);
+	usage->gu_used_meta += gfs32_to_cpu(rb->rb_usedmeta);
+	usage->gu_free_meta += gfs32_to_cpu(rb->rb_freemeta);
+
+	return 0;
+}
+
+/**
  * stat_gfs_async - Stat a filesystem using asynchronous locking
  * @sdp: the filesystem
  * @usage: the usage info that will be returned
@@ -789,13 +816,15 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 static int
 stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 {
-	struct gfs_rgrpd *rgd_next = gfs_rgrpd_get_first(sdp), *rgd;
+	struct gfs_rgrpd *rgd_next = gfs_rgrpd_get_first(sdp);
 	struct gfs_holder *gha, *gh;
-	struct gfs_rgrp_lvb *rb;
 	unsigned int slots = sdp->sd_tune.gt_statfs_slots;
 	unsigned int x;
 	int done;
 	int error = 0, err;
+
+	memset(usage, 0, sizeof(struct gfs_usage));
+	usage->gu_block_size = sdp->sd_sb.sb_bsize;
 
 	gha = gmalloc(slots * sizeof(struct gfs_holder));
 	memset(gha, 0, slots * sizeof(struct gfs_holder));
@@ -812,20 +841,8 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 					gfs_holder_uninit(gh);
 					error = err;
 				} else {
-					rgd = gl2rgd(gh->gh_gl);
-
-					rb = (struct gfs_rgrp_lvb *)rgd->rd_gl->gl_lvb;
-					if (gfs32_to_cpu(rb->rb_magic) == GFS_MAGIC &&
-					    !test_bit(GLF_LVB_INVALID, &rgd->rd_gl->gl_flags)) {
-						usage->gu_total_blocks += rgd->rd_ri.ri_data;
-						usage->gu_free += gfs32_to_cpu(rb->rb_free);
-						usage->gu_used_dinode += gfs32_to_cpu(rb->rb_useddi);
-						usage->gu_free_dinode += gfs32_to_cpu(rb->rb_freedi);
-						usage->gu_used_meta += gfs32_to_cpu(rb->rb_usedmeta);
-						usage->gu_free_meta += gfs32_to_cpu(rb->rb_freemeta);
-					} else
-						error = -EINVAL;
-
+					error = stat_gfs_fill(gl2rgd(gh->gh_gl),
+							      usage);
 					gfs_glock_dq_uninit(gh);
 				}
 			}
@@ -857,32 +874,20 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 }
 
 /**
- * gfs_stat_gfs - Do a statfs
+ * stat_gfs_sync - Stat a filesystem using synchronous locking
  * @sdp: the filesystem
- * @usage: the usage structure
- * @interruptible:  Stop if there is a signal pending
+ * @usage: the usage info that will be returned
+ * @interruptible: TRUE if we should look for signals.
  *
  * Returns: errno
  */
 
-int
-gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
+static int
+stat_gfs_sync(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 {
-	struct gfs_holder ri_gh, rgd_gh;
+	struct gfs_holder rgd_gh;
 	struct gfs_rgrpd *rgd;
-	struct gfs_rgrp_lvb *rb;
 	int error;
-
-	memset(usage, 0, sizeof(struct gfs_usage));
-	usage->gu_block_size = sdp->sd_sb.sb_bsize;
-
-	error = gfs_rindex_hold(sdp, &ri_gh);
-	if (error)
-		return error;
-
-	error = stat_gfs_async(sdp, usage, interruptible);
-	if (!error || error == -ERESTARTSYS)
-		goto out;
 
 	memset(usage, 0, sizeof(struct gfs_usage));
 	usage->gu_block_size = sdp->sd_sb.sb_bsize;
@@ -896,37 +901,50 @@ gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 						  GL_LOCAL_EXCL | GL_SKIP,
 						  &rgd_gh);
 			if (error)
-				goto out;
+				return error;
 
-			rb = (struct gfs_rgrp_lvb *)rgd->rd_gl->gl_lvb;
-			if (gfs32_to_cpu(rb->rb_magic) == GFS_MAGIC &&
-			    !test_bit(GLF_LVB_INVALID, &rgd->rd_gl->gl_flags)) {
-				usage->gu_total_blocks += rgd->rd_ri.ri_data;
-				usage->gu_free += gfs32_to_cpu(rb->rb_free);
-				usage->gu_used_dinode += gfs32_to_cpu(rb->rb_useddi);
-				usage->gu_free_dinode += gfs32_to_cpu(rb->rb_freedi);
-				usage->gu_used_meta += gfs32_to_cpu(rb->rb_usedmeta);
-				usage->gu_free_meta += gfs32_to_cpu(rb->rb_freemeta);
+			error = stat_gfs_fill(rgd, usage);
 
-				gfs_glock_dq_uninit(&rgd_gh);
+			gfs_glock_dq_uninit(&rgd_gh);
 
+			if (!error)
 				break;
-			} else {
-				gfs_glock_dq_uninit(&rgd_gh);
 
-				error = gfs_rgrp_lvb_init(rgd);
-				if (error)
-					goto out;
-			}
+			error = gfs_rgrp_lvb_init(rgd);
+			if (error)
+				return error;
 		}
 
-		if (interruptible && signal_pending(current)) {
-			error = -ERESTARTSYS;
-			goto out;
-		}
+		if (interruptible && signal_pending(current))
+			return -ERESTARTSYS;
 	}
 
- out:
+	return 0;
+}
+
+/**
+ * gfs_stat_gfs - Do a statfs
+ * @sdp: the filesystem
+ * @usage: the usage structure
+ * @interruptible:  Stop if there is a signal pending
+ *
+ * Returns: errno
+ */
+
+int
+gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
+{
+	struct gfs_holder ri_gh;
+	int error;
+
+	error = gfs_rindex_hold(sdp, &ri_gh);
+	if (error)
+		return error;
+
+	error = stat_gfs_async(sdp, usage, interruptible);
+	if (error == -ESTALE)
+		error = stat_gfs_sync(sdp, usage, interruptible);
+
 	gfs_glock_dq_uninit(&ri_gh);
 
 	return error;
