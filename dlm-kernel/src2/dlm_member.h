@@ -15,7 +15,7 @@
 
 #define DLM_OP_LEN			(16)
 #define DLM_LOCKSPACE_LEN		(64)
-#define DLM_ADDR_LEN			(64)
+#define DLM_ADDR_LEN			(256)
 #define DLM_MAX_ADDR_COUNT		(3)
 #define DLM_MEMBER_MISC_NAME		("dlm-member")
 
