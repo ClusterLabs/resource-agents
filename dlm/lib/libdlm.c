@@ -58,7 +58,11 @@
 struct dlm_ls_info
 {
     int fd;
+#ifdef _REENTRANT
     pthread_t tid;
+#else
+    int tid;
+#endif
 };
 
 /* The default lockspace.
@@ -74,6 +78,30 @@ static void ls_dev_name(const char *lsname, char *devname, int devlen)
     snprintf(devname, devlen, DLM_MISC_PREFIX "%s", lsname);
 }
 
+#ifdef HAVE_SELINUX
+static int set_selinux_context(const char *path)
+{
+	security_context_t scontext;
+
+	if (is_selinux_enabled() <= 0)
+		return 1;
+
+	if (matchpathcon(path, 0, &scontext) < 0) {
+		return 0;
+	}
+
+	if ((lsetfilecon(path, scontext) < 0) && (errno != ENOTSUP)) {
+		freecon(scontext);
+		return 0;
+	}
+
+	free(scontext);
+	return 1;
+}
+#endif
+
+
+#ifdef _REENTRANT
 /* Used for the synchronous and "simplified, synchronous" API routines */
 struct lock_wait
 {
@@ -81,6 +109,10 @@ struct lock_wait
     pthread_mutex_t mutex;
     struct dlm_lksb lksb;
 };
+
+static void dummy_ast_routine(void *arg)
+{
+}
 
 static void sync_ast_routine(void *arg)
 {
@@ -91,11 +123,6 @@ static void sync_ast_routine(void *arg)
     pthread_mutex_unlock(&lwait->mutex);
 }
 
-static void dummy_ast_routine(void *arg)
-{
-}
-
-#ifdef _REENTRANT
 /* lock_resource & unlock_resource
  * are the simplified, synchronous API.
  * Aways uses the default lockspace.
@@ -185,28 +212,6 @@ int unlock_resource(int lockid)
 	return 0;
 }
 
-#ifdef HAVE_SELINUX
-static int set_selinux_context(const char *path)
-{
-	security_context_t scontext;
-
-	if (is_selinux_enabled() <= 0)
-		return 1;
-
-	if (matchpathcon(path, 0, &scontext) < 0) {
-		return 0;
-	}
-
-	if ((lsetfilecon(path, scontext) < 0) && (errno != ENOTSUP)) {
-		freecon(scontext);
-		return 0;
-	}
-
-	free(scontext);
-	return 1;
-}
-#endif
-
 /* Tidy up threads after a lockspace is closed */
 static int ls_pthread_cleanup(struct dlm_ls_info *lsinfo)
 {
@@ -217,7 +222,6 @@ static int ls_pthread_cleanup(struct dlm_ls_info *lsinfo)
     fd = lsinfo->fd;
     if (lsinfo->tid)
     {
-
 	status = pthread_cancel(lsinfo->tid);
 	if (!status)
 	    pthread_join(lsinfo->tid, NULL);
@@ -364,6 +368,8 @@ static int do_dlm_dispatch(int fd)
     return 0;
 }
 
+#ifdef _REENTRANT
+
 /* Helper routine which supports the synchronous DLM calls. This
    writes a parameter block down to the DLM and waits for the
    operation to complete. This hides the different completion mechanism
@@ -404,6 +410,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params
     }
     return 0;	/* lock status is in the lksb */
 }
+#endif
 
 static int find_minor_from_proc(const char *lsname)
 {
@@ -534,6 +541,7 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 	return 0;
 }
 
+#ifdef _REENTRANT
 /*
  * This is the full-fat, synchronous DLM call
  */
@@ -595,6 +603,76 @@ int dlm_ls_lock_wait(dlm_lshandle_t ls,
     status = sync_write(lsinfo, params, len);
     return status;
 }
+
+int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
+		  uint32_t flags, struct dlm_lksb *lksb)
+{
+    struct dlm_lock_params params;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
+    int status;
+
+    if (ls == NULL)
+    {
+        errno = ENOTCONN;
+	return -1;
+    }
+
+    if (!lkid)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    set_version(&params);
+    params.cmd = DLM_USER_UNLOCK;
+    params.lkid = lkid;
+    params.flags = flags;
+    params.lksb  = lksb;
+    lksb->sb_status = EINPROG;
+
+    status = sync_write(lsinfo, &params, sizeof(params));
+    return status;
+}
+
+int dlm_ls_query_wait(dlm_lshandle_t lockspace,
+		 struct dlm_lksb *lksb,
+		 int query,
+		 struct dlm_queryinfo *qinfo)
+{
+    struct dlm_lock_params params;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)lockspace;
+    int status;
+
+    if (lockspace == NULL)
+    {
+	errno = ENOTCONN;
+	return -1;
+    }
+
+    if (!lksb)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    if (!lksb->sb_lkid)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    set_version(&params);
+    params.cmd = DLM_USER_QUERY;
+    params.flags = query;
+    params.lksb  = lksb;
+    lksb->sb_lvbptr = (char *)qinfo;
+    lksb->sb_status = EINPROG;
+    status = sync_write(lsinfo, &params, sizeof(params));
+    return status;
+}
+
+#endif
+
 /* Unlock on default lockspace*/
 int dlm_unlock(uint32_t lkid,
 	       uint32_t flags, struct dlm_lksb *lksb, void *astarg)
@@ -644,35 +722,6 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 	return 0;
 }
 
-int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
-		  uint32_t flags, struct dlm_lksb *lksb)
-{
-    struct dlm_lock_params params;
-    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
-    int status;
-
-    if (ls == NULL)
-    {
-        errno = ENOTCONN;
-	return -1;
-    }
-
-    if (!lkid)
-    {
-	errno = EINVAL;
-	return -1;
-    }
-
-    set_version(&params);
-    params.cmd = DLM_USER_UNLOCK;
-    params.lkid = lkid;
-    params.flags = flags;
-    params.lksb  = lksb;
-    lksb->sb_status = EINPROG;
-
-    status = sync_write(lsinfo, &params, sizeof(params));
-    return status;
-}
 
 int dlm_ls_query(dlm_lshandle_t lockspace,
 		 struct dlm_lksb *lksb,
@@ -718,42 +767,6 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
     else
 	return 0;
 }
-int dlm_ls_query_wait(dlm_lshandle_t lockspace,
-		 struct dlm_lksb *lksb,
-		 int query,
-		 struct dlm_queryinfo *qinfo)
-{
-    struct dlm_lock_params params;
-    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)lockspace;
-    int status;
-
-    if (lockspace == NULL)
-    {
-	errno = ENOTCONN;
-	return -1;
-    }
-
-    if (!lksb)
-    {
-	errno = EINVAL;
-	return -1;
-    }
-
-    if (!lksb->sb_lkid)
-    {
-	errno = EINVAL;
-	return -1;
-    }
-
-    set_version(&params);
-    params.cmd = DLM_USER_QUERY;
-    params.flags = query;
-    params.lksb  = lksb;
-    lksb->sb_lvbptr = (char *)qinfo;
-    lksb->sb_status = EINPROG;
-    status = sync_write(lsinfo, &params, sizeof(params));
-    return status;
-}
 
 int dlm_query(struct dlm_lksb *lksb,
 	      int query,
@@ -779,9 +792,16 @@ int dlm_query_wait(struct dlm_lksb *lksb,
 int dlm_get_fd()
 {
     if (default_ls)
+    {
 	return default_ls->fd;
+    }
     else
-	return -1;
+    {
+	if (open_default_lockspace())
+	    return -1;
+	else
+	    return default_ls->fd;
+    }
 }
 
 int dlm_dispatch(int fd)
@@ -820,7 +840,6 @@ static void *dlm_recv_thread(void *lsinfo)
     for (;;)
 	do_dlm_dispatch(lsi->fd);
 }
-
 
 /* Multi-threaded callers normally use this */
 int dlm_pthread_init()
