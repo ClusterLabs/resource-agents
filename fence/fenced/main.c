@@ -17,7 +17,6 @@
 
 
 /* static pthread_t recv_thread; */
-static int debug;
 static int quit;
 static int leave_finished;
 static int usr_interrupt;
@@ -434,14 +433,11 @@ static int check_ccs(fd_t *fd)
 			free(str);
 	}
 
-	if (debug)
-		log_debug("delay post_join %ds post_fail %ds",
-		          fd->comline->post_join_delay,
-		          fd->comline->post_fail_delay);
+	log_debug("delay post_join %ds post_fail %ds",
+		  fd->comline->post_join_delay, fd->comline->post_fail_delay);
 
 	if (fd->comline->clean_start) {
-		if (debug)
-			log_debug("clean start, skipping initial nodes");
+		log_debug("clean start, skipping initial nodes");
 		goto out;
 	}
 
@@ -459,8 +455,7 @@ static int check_ccs(fd_t *fd)
 		count++;
 	}
 
-	if (debug)
-		log_debug("added %d nodes from ccs", count);
+	log_debug("added %d nodes from ccs", count);
  out:
 	ccs_disconnect(cd);
 	return 0;
@@ -485,14 +480,12 @@ static int check_cluster(fd_t *fd)
 		error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
 		if (!error)
 			break;
-		if (debug)
-			log_debug("cman getnode failed %d", error);
+		log_debug("cman getnode failed %d", error);
 		sleep(1);
 	}
 	memcpy(our_name, cl_node.name, strlen(cl_node.name));
 
-	if (debug)
-		log_debug("our name from cman \"%s\"", our_name);
+	log_debug("our name from cman \"%s\"", our_name);
 
 	close(cl_sock);
 	return 0;
@@ -559,7 +552,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 
 		case 'D':
 			comline->debug = TRUE;
-			debug = TRUE;
+			fenced_debug = TRUE;
 			break;
 
 		case 'n':
@@ -638,7 +631,7 @@ int main(int argc, char **argv)
 	if (error)
 		die1("check_ccs error %d", error);
 
-	if (!debug) {
+	if (!fenced_debug) {
 		pid_t pid = fork();
 		if (pid < 0) {
 			perror("main: cannot fork");
@@ -664,6 +657,7 @@ int main(int argc, char **argv)
 }
 
 char *prog_name;
+int fenced_debug;
 int debug_sock;
 char debug_buf[256];
 struct sockaddr_un debug_addr;

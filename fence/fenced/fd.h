@@ -44,6 +44,7 @@
 
 
 extern char *             prog_name;
+extern int                fenced_debug;
 extern int                debug_sock;
 extern char               debug_buf[256];
 extern struct sockaddr_un debug_addr;
@@ -106,8 +107,8 @@ for (;;) \
 #define log_debug(fmt, args...) \
 do \
 { \
-	snprintf(debug_buf, 255, fmt "\n", ##args); \
-	printf("fenced: %s", debug_buf); \
+	snprintf(debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (fenced_debug) printf("fenced: %s", debug_buf); \
 	sendto(debug_sock, debug_buf, strlen(debug_buf), 0, \
 	       (struct sockaddr *)&debug_addr, debug_addrlen); \
 } \
