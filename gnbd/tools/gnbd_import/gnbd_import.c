@@ -292,7 +292,7 @@ void check_gnbd_ctl(void)
   if (get_dev("/dev/gnbd_ctl", &mode, &major_nr, &minor_nr) == 0)
     return;
   printv("creating /dev/gnbd_ctl\n");
-  if (mknod("/dev/gnbd_ctl", mode, makedev(11, minor_nr)) < 0){
+  if (mknod("/dev/gnbd_ctl", mode, makedev(10, minor_nr)) < 0){
     printe("cannot create gnbd_ctl : %s\n", strerror(errno));
     exit(1);
   }
