@@ -137,7 +137,7 @@ void
 usage_exit(char *pname)
 {
 printf("usage: %s <options>\n", pname);
-printf("   -p <#>         Specify RPS-10 port <#>.  Default=0\n"
+printf("   -n <#>         Specify RPS-10 port number <#>.  Default=0\n"
        "                  Valid ports: 0-9\n");
 printf("   -d <device>    Use serial device <dev>.  Default=%s\n",
        DEFAULT_DEVICE);
@@ -149,7 +149,7 @@ printf("   -V             Print version and exit\n");
 printf("   -v             Verbose mode\n\n");
 printf("If no options are specified, the following options will be read\n");
 printf("from standard input (one per line):\n\n");
-printf("   port=<#>       Same as -p\n");
+printf("   port=<#>       Same as -n\n");
 printf("   device=<dev>   Same as -d\n");
 printf("   speed=<speed>  Same as -s\n");
 printf("   option=<op>    Same as -o\n");
@@ -331,33 +331,33 @@ get_options_stdin(char *dev, size_t devlen, int *speed, int *port,
 			++val;
 		}
 
-		if (!strcmp(name, "agent")) {
+		if (!strcasecmp(name, "agent")) {
 			/* Used by fenced? */
-		} else if (!strcmp(name, "verbose")) {
+		} else if (!strcasecmp(name, "verbose")) {
 			*verbose = 1;
-		} else if (!strcmp(name, "device")) {
+		} else if (!strcasecmp(name, "device")) {
 			/* Character device to use.  E.g. /dev/ttyS0 */
 			if (val)
 				strncpy(dev, val, devlen);
 			else
 				dev[0] = 0;
 
-		} else if (!strcmp(name, "port")) {
+		} else if (!strcasecmp(name, "port")) {
 			/* Port number */
 			if (val)
 				*port = atoi(val);
 			else
 				*port = -1;
 
-		} else if (!strcmp(name, "speed")) {
+		} else if (!strcasecmp(name, "speed")) {
 			/* Speed in bits per second */
 			if (val)
 				*speed = char_to_speed(val);
 			else
 				*speed = -1;
-		} else if (!strcmp(name, "option") ||
-			   !strcmp(name, "operation") ||
-			   !strcmp(name, "action")) {
+		} else if (!strcasecmp(name, "option") ||
+			   !strcasecmp(name, "operation") ||
+			   !strcasecmp(name, "action")) {
 			if (val)
 				strncpy(op, val, oplen);
 			else
@@ -401,7 +401,7 @@ main(int argc, char **argv)
 		/*
 		   Parse command line options if any were specified
 		 */
-		while ((opt = getopt(argc, argv, "s:d:p:ro:V?hH")) != EOF) {
+		while ((opt = getopt(argc, argv, "s:d:n:ro:vV?hH")) != EOF) {
 			switch(opt) {
 			case 's':
 				/* Speed */
@@ -414,7 +414,7 @@ main(int argc, char **argv)
 				/* Device to open */
 				strncpy(dev, optarg, sizeof(dev));
 				break;
-			case 'p':
+			case 'n':
 				port = atoi(optarg);
 				break;
 			case 'o':
