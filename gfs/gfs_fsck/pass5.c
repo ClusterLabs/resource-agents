@@ -134,21 +134,16 @@ int count_bmaps(struct fsck_rgrp *rgp)
 int convert_mark(enum mark_block mark, uint32_t *count)
 {
 	switch(mark) {
+	case meta_free:
+		/* convert free metadata to free blocks */
+	case meta_inval:
+		/* Convert invalid metadata to free blocks */
 	case block_free:
 		count[0]++;
 		return GFS_BLKST_FREE;
 
 	case block_used:
 		return GFS_BLKST_USED;
-
-	case meta_free:
-		count[4]++;
-		return GFS_BLKST_FREEMETA;
-
-	case meta_inval:
-		/* Convert invalid metadata to free blocks */
-		count[0]++;
-		return GFS_BLKST_FREE;
 
 	case inode_dir:
 	case inode_file:

@@ -104,6 +104,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 					return -1;
 				}
 				else {
+					fix_inode_count(sbp, ii, ip);
 					lf_addition = 1;
 				}
 			} else {

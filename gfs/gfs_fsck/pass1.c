@@ -35,11 +35,17 @@
 #include "link.h"
 #include "metawalk.h"
 
+struct block_count {
+	uint64_t indir_count;
+	uint64_t data_count;
+	uint64_t ea_count;
+};
+
 static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 		void *private)
 {
 	struct fsck_sb *sdp = ip->i_sbd;
-
+	struct block_count *bc = (struct block_count *) private;
 	if(check_range(sdp, block)){
 		log_warn("Leaf block #%"PRIu64" is out of range for "
 			 "directory #%"PRIu64".\n",
@@ -79,6 +85,7 @@ static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 
 	log_debug("\tLeaf block at %15"PRIu64"\n", BH_BLKNO(*bh));
 	block_set(sdp->bl, BH_BLKNO(*bh), leaf_blk);
+	bc->indir_count++;
 
 	return 0;
 }
@@ -90,6 +97,7 @@ static int check_metalist(struct fsck_inode *ip, uint64_t block,
 	struct block_query q = {0};
 	int found_dup = 0;
 	osi_buf_t *nbh;
+	struct block_count *bc = (struct block_count *)private;
 
 	*bh = NULL;
 
@@ -128,6 +136,7 @@ static int check_metalist(struct fsck_inode *ip, uint64_t block,
         /** Attention -- experimental code end **/
 
 	block_set(sdp->bl, block, indir_blk);
+	bc->indir_count++;
 
 	return 0;
 }
@@ -139,6 +148,7 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 	struct fsck_sb *sdp = ip->i_sbd;
 	struct block_query q = {0};
 	osi_buf_t *data_bh;
+	struct block_count *bc = (struct block_count *) private;
 
 	if (check_range(ip->i_sbd, block)) {
 
@@ -178,10 +188,12 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 			log_debug("Found duplicate block at %"
 				  PRIu64"\n", block);
 			block_mark(sdp->bl, block, dup_block);
+			bc->data_count++;
 			return 1;
 		}
 		log_debug("Setting %"PRIu64 " to journal block\n", block);
 		block_set(sdp->bl, block, journal_blk);
+		bc->data_count++;
 	}
 	else {
 		if(block_check(sdp->bl, block, &q)) {
@@ -192,10 +204,12 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 			log_debug("Found duplicate block at %"
 				  PRIu64"\n", block);
 			block_mark(sdp->bl, block, dup_block);
+			bc->data_count++;
 			return 1;
 		}
 		log_debug("Setting %"PRIu64 " to data block\n", block);
 		block_set(sdp->bl, block, block_used);
+		bc->data_count++;
 	}
 
 	return 0;
@@ -207,6 +221,7 @@ static int check_eattr_indir(struct fsck_inode *ip, uint64_t indirect,
 	struct fsck_sb *sdp = ip->i_sbd;
 	int ret = 0;
 	struct block_query q = {0};
+	struct block_count *bc = (struct block_count *) private;
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
@@ -228,6 +243,7 @@ static int check_eattr_indir(struct fsck_inode *ip, uint64_t indirect,
 		log_debug("Duplicate block found at #%"PRIu64".\n",
 			  indirect);
 		block_set(sdp->bl, indirect, dup_block);
+		bc->ea_count++;
 		ret = 1;
 	}
 	else if(get_and_read_buf(sdp, indirect, bh, 0)) {
@@ -244,6 +260,7 @@ static int check_eattr_indir(struct fsck_inode *ip, uint64_t indirect,
 	else {
 		/* FIXME: do i need to differentiate this as an ea_indir? */
 		block_set(sdp->bl, BH_BLKNO(*bh), indir_blk);
+		bc->ea_count++;
 	}
 	return ret;
 }
@@ -269,6 +286,7 @@ static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
 	struct fsck_sb *sdp = ip->i_sbd;
 	struct block_query q;
 	uint64_t el_blk = gfs64_to_cpu(*data_ptr);
+	struct block_count *bc = (struct block_count *) private;
 
 	if(check_range(sdp, el_blk)){
 		log_err("EA extended leaf block #%"PRIu64" "
@@ -284,6 +302,7 @@ static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
 	}
 	if(q.block_type != block_free) {
 		block_set(sdp->bl, el_blk, dup_block);
+		bc->ea_count++;
 		return 1;
 	}
 
@@ -301,7 +320,7 @@ static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
 	}
 
 	block_set(sdp->bl, el_blk, meta_eattr);
-
+	bc->ea_count++;
 	relse_buf(sdp, el_buf);
 	return 0;
 }
@@ -313,6 +332,7 @@ static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 	osi_buf_t *leaf_bh;
 	int ret = 0;
 	struct block_query q = {0};
+	struct block_count *bc = (struct block_count *) private;
 
 	/* This inode contains an eattr - it may be invalid, but the
 	 * eattr attributes points to a non-zero block */
@@ -333,6 +353,7 @@ static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 		log_debug("Duplicate block found at #%"PRIu64".\n",
 			  block);
 		block_set(sdp->bl, block, dup_block);
+		bc->ea_count++;
 	}
 	else if(get_and_read_buf(sdp, block, &leaf_bh, 0)){
 		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
@@ -347,6 +368,7 @@ static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 	}
 	else {
 		block_set(sdp->bl, BH_BLKNO(leaf_bh), meta_eattr);
+		bc->ea_count++;
 	}
 
 	*bh = leaf_bh;
@@ -453,6 +475,7 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 	struct block_query q = {0};
 	struct fsck_inode *ip;
 	int error;
+	struct block_count bc = {0};
 
 	if(copyin_inode(sdp, bh, &ip)) {
 		stack;
@@ -608,6 +631,7 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 		}
 	}
 
+	pass1_fxns.private = &bc;
 
 	error = check_metatree(ip, &pass1_fxns);
 	if(error < 0) {
@@ -638,6 +662,33 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 		}
 	}
 
+	if(ip->i_di.di_blocks != (1 + bc.indir_count + bc.data_count + bc.ea_count)) {
+		osi_buf_t	*di_bh;
+		log_err("Ondisk block count does not match what fsck"
+			" found for inode %"PRIu64"\n", ip->i_di.di_num.no_addr);
+		if(query(sdp, "Fix ondisk block count? (y/n) ")) {
+			ip->i_di.di_blocks = 1 + bc.indir_count +
+				bc.data_count +
+				bc.ea_count;
+			if(get_and_read_buf(sdp, ip->i_di.di_num.no_addr,
+					    &di_bh, 0)){
+				stack;
+				log_crit("Bad block count remains\n");
+			} else {
+				gfs_dinode_out(&ip->i_di, BH_DATA(di_bh));
+				if(write_buf(ip->i_sbd, di_bh, 0) < 0){
+					stack;
+					log_crit("Bad block count remains\n");
+				} else {
+					log_warn("Bad block count fixed\n");
+				}
+				relse_buf(sdp, di_bh);
+			}
+		} else {
+			log_err("Bad block count for %"PRIu64" not fixed\n",
+				ip->i_di.di_num.no_addr);
+		}
+	}
 
  success:
 	free(ip);
