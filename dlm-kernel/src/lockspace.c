@@ -344,6 +344,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_last_start = 0;
 	ls->ls_last_finish = 0;
 	ls->ls_rcom_msgid = 0;
+	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_MUTEX(&ls->ls_rcom_lock);
 	init_rwsem(&ls->ls_in_recovery);
 	init_rwsem(&ls->ls_unlock_sem);

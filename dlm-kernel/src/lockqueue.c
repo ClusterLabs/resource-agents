@@ -136,40 +136,58 @@ void add_to_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 		return;
 	}
 
-	log_debug(ls, "add_to_requestqueue cmd %d from %d", hd->rh_cmd, nodeid);
+	log_debug(ls, "add_to_requestq cmd %d fr %d", hd->rh_cmd, nodeid);
 	entry->rqe_nodeid = nodeid;
 	memcpy(entry->rqe_request, hd, length);
+
+	down(&ls->ls_requestqueue_lock);
 	list_add_tail(&entry->rqe_list, &ls->ls_requestqueue);
+	up(&ls->ls_requestqueue_lock);
 }
 
 int process_requestqueue(struct dlm_ls *ls)
 {
 	int error = 0, count = 0;
-	struct rq_entry *entry, *safe;
-	struct dlm_header *req;
+	struct rq_entry *entry;
+	struct dlm_header *hd;
 
 	log_all(ls, "process held requests");
 
-	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct dlm_header *) entry->rqe_request;
-		log_debug(ls, "process_requestqueue %u", entry->rqe_nodeid);
+	down(&ls->ls_requestqueue_lock);
 
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
-			log_debug(ls, "process_requestqueue aborted");
-			error = -EINTR;
+	for (;;) {
+		if (list_empty(&ls->ls_requestqueue)) {
+			up(&ls->ls_requestqueue_lock);
+			error = 0;
 			break;
 		}
 
-		error = process_cluster_request(entry->rqe_nodeid, req, TRUE);
+		entry = list_entry(ls->ls_requestqueue.next, struct rq_entry,
+				   rqe_list);
+		up(&ls->ls_requestqueue_lock);
+		hd = (struct dlm_header *) entry->rqe_request;
+
+		log_debug(ls, "process_requestq cmd %d fr %u", hd->rh_cmd,
+			  entry->rqe_nodeid);
+
+		error = process_cluster_request(entry->rqe_nodeid, hd, TRUE);
 		if (error == -EINTR) {
-			log_debug(ls, "process_requestqueue interrupted");
+			/* entry is left on requestqueue */
+			log_debug(ls, "process_requestqueue abort eintr");
 			break;
 		}
 
+		down(&ls->ls_requestqueue_lock);
 		list_del(&entry->rqe_list);
 		kfree(entry);
 		count++;
-		error = 0;
+
+		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
+			log_debug(ls, "process_requestqueue abort ls_run");
+			up(&ls->ls_requestqueue_lock);
+			error = -EINTR;
+			break;
+		}
 	}
 
 	log_all(ls, "processed %d requests", count);
@@ -178,9 +196,16 @@ int process_requestqueue(struct dlm_ls *ls)
 
 void wait_requestqueue(struct dlm_ls *ls)
 {
-	while (!list_empty(&ls->ls_requestqueue) &&
-		test_bit(LSFL_LS_RUN, &ls->ls_flags))
+	for (;;) {
+		down(&ls->ls_requestqueue_lock);
+		if (list_empty(&ls->ls_requestqueue))
+			break;
+		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+			break;
+		up(&ls->ls_requestqueue_lock);
 		schedule();
+	}
+	up(&ls->ls_requestqueue_lock);
 }
 
 /*
@@ -193,25 +218,25 @@ void purge_requestqueue(struct dlm_ls *ls)
 {
 	int count = 0;
 	struct rq_entry *entry, *safe;
-	struct dlm_header *req;
-	struct dlm_request *freq;
+	struct dlm_header *hd;
 	struct dlm_lkb *lkb;
 
 	log_all(ls, "purge requests");
 
-	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct dlm_header *) entry->rqe_request;
-		freq = (struct dlm_request *) req;
+	down(&ls->ls_requestqueue_lock);
 
-		if (req->rh_cmd == GDLM_REMCMD_REM_RESDATA ||
-		    req->rh_cmd == GDLM_REMCMD_LOOKUP ||
+	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
+		hd = (struct dlm_header *) entry->rqe_request;
+
+		if (hd->rh_cmd == GDLM_REMCMD_REM_RESDATA ||
+		    hd->rh_cmd == GDLM_REMCMD_LOOKUP ||
 		    in_nodes_gone(ls, entry->rqe_nodeid)) {
 
 			list_del(&entry->rqe_list);
 			kfree(entry);
 			count++;
 
-		} else if (req->rh_cmd == GDLM_REMCMD_LOCKREPLY) {
+		} else if (hd->rh_cmd == GDLM_REMCMD_LOCKREPLY) {
 
 			/*
 			 * Replies to resdir lookups are invalid and must be
@@ -222,7 +247,7 @@ void purge_requestqueue(struct dlm_ls *ls)
 			 * lockqueue_state of the lkb.
 			 */
 
-			lkb = find_lock_by_id(ls, freq->rr_header.rh_lkid);
+			lkb = find_lock_by_id(ls, hd->rh_lkid);
 			DLM_ASSERT(lkb,);
 			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_RSB) {
 				list_del(&entry->rqe_list);
@@ -231,6 +256,7 @@ void purge_requestqueue(struct dlm_ls *ls)
 			}
 		}
 	}
+	up(&ls->ls_requestqueue_lock);
 
 	log_all(ls, "purged %d requests", count);
 }
@@ -242,20 +268,21 @@ void purge_requestqueue(struct dlm_ls *ls)
 int reply_in_requestqueue(struct dlm_ls *ls, int lkid)
 {
 	int rv = FALSE;
-	struct rq_entry *entry, *safe;
-	struct dlm_header *req;
-	struct dlm_request *freq;
+	struct rq_entry *entry;
+	struct dlm_header *hd;
 
-	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct dlm_header *) entry->rqe_request;
-		freq = (struct dlm_request *) req;
+	down(&ls->ls_requestqueue_lock);
 
-		if (req->rh_cmd == GDLM_REMCMD_LOCKREPLY &&
-		    freq->rr_header.rh_lkid == lkid) {
+	list_for_each_entry(entry, &ls->ls_requestqueue, rqe_list) {
+		hd = (struct dlm_header *) entry->rqe_request;
+		if (hd->rh_cmd == GDLM_REMCMD_LOCKREPLY && hd->rh_lkid == lkid){
+			log_debug(ls, "reply_in_requestq cmd %d fr %d id %x",
+				  hd->rh_cmd, entry->rqe_nodeid, lkid);
 			rv = TRUE;
 			break;
 		}
 	}
+	up(&ls->ls_requestqueue_lock);
 
 	return rv;
 }
@@ -335,7 +362,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		 * converted downwards) will be dealt with in seperate messages
 		 * (which may be in the same network message)
 		 */
-
 
 		/* the destination wasn't the master */
 		if (reply->rl_status == -EINVAL) {
@@ -742,8 +768,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		log_print("process_cluster_request invalid lockspace %x "
 			  "from %d req %u", req->rh_lockspace, nodeid,
 			  req->rh_cmd);
-		status = -EINVAL;
-		goto out;
+		return -EINVAL;
 	}
 
 	/* wait for recoverd to drain requestqueue */
@@ -757,7 +782,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	 */
  retry:
 	if (!test_bit(LSFL_LS_RUN, &lspace->ls_flags)) {
-		add_to_requestqueue(lspace, nodeid, req);
+		if (!recovery)
+			add_to_requestqueue(lspace, nodeid, req);
 		status = -EINTR;
 		goto out;
 	}
