@@ -241,6 +241,8 @@ static int update_config(int do_remote){
   int error = 0;
   ENTER("update_config");
 
+  /* If update_required is set, it means that there is still a pending **
+  ** update.  We need to pull this one in before doing anything else.  */
   if(update_required){
     error = _update_config(0, "/etc/cluster/.cluster.conf");
     update_required = 0;
@@ -249,7 +251,11 @@ static int update_config(int do_remote){
       goto fail;
     }
   }
-  error = _update_config(do_remote, "/etc/cluster/cluster.conf");
+
+  /* If do_remote is set, it means that the update is originating **
+  ** on this machine.  So, the main file has been changed........ */
+  if(do_remote)
+    error = _update_config(do_remote, "/etc/cluster/cluster.conf");
 
  fail:
   EXIT("update_config");
@@ -644,7 +650,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
 
   if(!master_doc){
     /* ATTENTION -- signal could come at any time.  It may be better to **
-    ** malloc to different var, then copy to master_doc when done    */
+    ** malloc to different var, then copy to master_doc when done       */
     master_doc = malloc(sizeof(open_doc_t));
     if(!master_doc){
       error = -ENOMEM;
@@ -683,6 +689,10 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     error = 0;
   } else {
     tmp_name = get_cluster_name(master_doc->od_doc);
+
+    /* ATTENTION -- if not quorate, consider swapping out in-memory config **
+    ** for the config of the name specified............................... */
+
     if(cluster_name && strcmp(cluster_name, tmp_name)){
       log_err("Request for cluster.conf with cluster name, %s\n", cluster_name);
       log_err(" However, a cluster.conf with cluster name, %s, is already loaded.\n",

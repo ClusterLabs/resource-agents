@@ -96,6 +96,7 @@ sub update {
 	$output = `sh -c "ccs_test get $desc. //\@config_version"`;
 	if($output =~ /Value = <(\d+)>/){
 	    if($1 > $prev_version){
+		`sh -c "ccs_test disconnect $desc"`;
 		print "Update from version $prev_version to version $1 complete.\n";
 		last TOP;
 	    }
