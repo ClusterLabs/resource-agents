@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# 	$Id: ocf-shellfuncs.in,v 1.1 2004/08/27 14:12:25 lars Exp $
+#
+# 	Common helper functions for the OCF Resource Agents supplied by
+# 	heartbeat.
+#
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+
+# TODO: Some of this should probably split out into a generic OCF
+# library for shell scripts, but for the time being, we'll just use it
+# ourselves...
+#
+
+# TODO wish-list:
+# - Generic function for evaluating version numbers
+# - Generic function(s) to extract stuff from our own meta-data
+# - Logging function which automatically adds resource identifier etc
+#   prefixes
+
+# TODO: Move more common functionality for OCF RAs here.
+#
+
+ocf_set_defaults() {
+	ACTION="$1"
+
+	unset LANG
+	LC_ALL=C
+	export LC_ALL
+
+	# TODO: Review whether we really should source this. Or rewrite
+	# to match some emerging helper function syntax...?
+	. ${HA_D}/shellfuncs
+
+	OCF_SUCCESS=0
+	OCF_ERR_GENERIC=1
+	OCF_ERR_ARGS=2
+	OCF_ERR_UNIMPLEMENTED=3
+	OCF_ERR_PERM=4
+	OCF_ERR_INSTALLED=5
+	OCF_ERR_CONFIGURED=6
+	OCF_NOT_RUNNING=7
+
+	VARLIB=@localstatedir@/lib/@HB_PKG@
+
+	# TODO: Anything else we should be setting?
+	if [ "$OCF_RA_VERSION_MAJOR" -ne "1" ]; then
+		echo "ERROR: This script is OCF RA API 1.x compliant only!"
+		exit $OCF_ERR_UNIMPLEMENTED
+	fi
+	if [ "$OCF_RA_VERSION_MINOR" -lt "0" ]; then
+		echo "ERROR: This script is OCF RA API >1.0 compliant only!"
+		exit $OCF_ERR_UNIMPLEMENTED
+	fi
+	if [ ! -d "$OCF_ROOT" ]; then
+		echo "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
+		exit $OCF_ERR_GENERIC
+	fi
+	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
+		echo "ERROR: Need to tell us our resource instance name."
+		exit OCF_ERR_ARGS
+	fi
+	if [ -z "$OCF_RESOURCE_TYPE" ]; then
+		echo "ERROR: Need to tell us our resource type."
+		exit OCF_ERR_ARGS
+	fi
+}
+
+ocf_set_defaults $*
+
+
