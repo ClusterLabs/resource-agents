@@ -103,6 +103,7 @@ static void sigusr1_handler(int sig)
 
 static void sigterm_handler(int sig)
 {
+	usr_interrupt = 1;
 	quit = 1;
 }
 
@@ -287,6 +288,7 @@ static void process_events(fd_t *fd)
 
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGUSR1);
+	sigaddset(&mask, SIGTERM);
 
 	for (;;) {
 		memset(&event, 0, sizeof(struct cl_service_event));
