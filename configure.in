@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.342 $) dnl cvs revision
+AC_REVISION($Revision: 1.343 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -129,6 +129,10 @@ AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$HA_VARRUNDIR", var run directory)
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
 AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"$HA_VARLIBDIR", var lib directory)
+
+HA_COREDIR="${HA_VARLIBDIR}/${HB_PKG}/cores"
+AC_SUBST(HA_COREDIR)
+AC_DEFINE_UNQUOTED(HA_COREDIR,"$HA_COREDIR", root directory to drop core files in)
 
 HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_SUBST(HA_LOGDAEMON_IPC)
