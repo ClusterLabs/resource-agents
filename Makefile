@@ -15,7 +15,6 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 
 all:
-	echo ${MAKELINE}
 	cd cman-kernel && ${MAKE} install ${MAKELINE} 
 	cd dlm-kernel && ${MAKE} install ${MAKELINE}
 	cd gfs-kernel && ${MAKE} install ${MAKELINE}
