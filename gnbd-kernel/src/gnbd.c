@@ -1027,6 +1027,7 @@ static void __exit gnbd_cleanup(void)
 	gnbd_ctl_cleanup();
 	for (i = 0; i < MAX_GNBD; i++) {
 		struct gendisk *disk = gnbd_dev[i].disk;
+		class_device_unregister(&gnbd_dev[i].class_dev);
 		if (disk) {
 			del_gendisk(disk);
 			blk_cleanup_queue(disk->queue);
