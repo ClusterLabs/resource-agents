@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.19 $) dnl cvs revision
+AC_REVISION($Revision: 1.20 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -102,6 +102,7 @@ AC_CHECK_HEADERS(db.h asm/page.h time.h)
 AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw.h)
 AC_CHECK_HEADERS(sys/sockio.h)
+AC_CHECK_HEADERS(libintl.h)
 
 
 dnl ************************************************************************
