@@ -111,8 +111,6 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 	 * Send the message.
 	 */
 
-	log_debug(ls, "rcom send %d to %u id %u", type, nodeid, rc->rc_msgid);
-
 	error = midcomms_send_message(nodeid, (struct dlm_header *) rc,
 				      GFP_KERNEL);
 	if (error > 0)
@@ -193,8 +191,6 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		reply->rc_datalen = 1;
 		reply->rc_header.rh_length =
 			sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
-
-		log_debug(ls, "rcom status %x to %u", reply->rc_buf[0], nodeid);
 		break;
 
 	case RECCOMM_RECOVERNAMES:
@@ -231,9 +227,6 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		reply->rc_datalen = datalen;
 		reply->rc_header.rh_length =
 		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
-
-		log_debug(ls, "rcom names len %d to %u id %u", datalen, nodeid,
-			  reply->rc_msgid);
 		break;
 
 	case RECCOMM_GETMASTER:
