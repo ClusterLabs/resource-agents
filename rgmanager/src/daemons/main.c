@@ -26,6 +26,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <rg_locks.h>
+#include <fcntl.h>
 #include <resgroup.h>
 #include <clulog.h>
 #include <msgsimple.h>
@@ -569,6 +570,16 @@ wait_for_quorum(void)
 }
 
 
+void
+set_nonblock(int fd)
+{
+       int flags;
+
+       flags = fcntl(fd, F_GETFL, 0);
+       fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -640,6 +651,8 @@ main(int argc, char **argv)
 		clulog(LOG_CRIT, "#10: Couldn't set up listen socket\n");
 		return -1;
 	}
+	for (rv = 0; rv < listeners; rv++)
+		set_nonblock(listen_fds[rv]);
 
    	msg_set_purpose(cluster_fd, MSGP_CLUSTER);
 	quorate = (clu_quorum_status(RG_SERVICE_GROUP) & QF_QUORATE);

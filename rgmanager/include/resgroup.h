@@ -22,10 +22,9 @@
  * Service state as represented on disk.
  *
  * This structure represents a service description.  This data structure
- * represents the in-memory service description.  (There is a separate
- * description of the on-disk format.)
+ * represents the in-memory service description. 
  */
-typedef struct {
+typedef struct __attribute__ ((packed)) {
 	char		rs_name[64];	/**< Service name */
 	uint64_t	rs_owner;	/**< Member ID running service. */
 	uint64_t	rs_last_owner;	/**< Last member to run the service. */
@@ -33,8 +32,8 @@ typedef struct {
 	uint32_t	rs_restarts;	/**< Number of cluster-induced 
 					     restarts */
 	uint64_t	rs_transition;	/**< Last service transition time */
-	uint32_t	rs_id;		/**< Service ID */
-	uint32_t	rs_pad;		/**< pad to 64-bit boundary */
+	/* ---- Future use ---- */
+	uint64_t	rs_extra[9];	/**< Future space */
 } rg_state_t;
 
 #define swab_rg_state_t(ptr) \
@@ -44,7 +43,7 @@ typedef struct {
 	swab32((ptr)->rs_state);\
 	swab32((ptr)->rs_restarts);\
 	swab64((ptr)->rs_transition);\
-	swab32((ptr)->rs_pad);\
+	swab32((ptr)->rs_id);\
 }
 
 
@@ -120,6 +119,8 @@ void send_response(int ret, request_t *req);
 /* do this op on all resource groups.  The handler for the request 
    will sort out whether or not it's a valid request given the state */
 void rg_doall(int request, int block, char *debugfmt);
+void do_status_checks(void); /* Queue status checks for locally running
+				services */
 
 /* from rg_state.c */
 int set_rg_state(char *name, rg_state_t *svcblk);

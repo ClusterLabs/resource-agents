@@ -419,6 +419,50 @@ rg_doall(int request, int block, char *debugfmt)
   Stop changed resources.
  */
 void
+do_status_checks(void)
+{
+	resource_node_t *curr;
+	char *name;
+	rg_state_t svcblk;
+	void *lockp;
+
+	pthread_rwlock_rdlock(&resource_lock);
+	list_do(&_tree, curr) {
+
+		if (strcmp(curr->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
+			continue;
+
+		/* Group name */
+		name = curr->rn_resource->r_attrs->ra_value;
+
+		/* If we're not running it, no need to CONDSTOP */
+		if (rg_lock(name, &lockp) != 0)
+			continue;
+		if (get_rg_state(name, &svcblk) < 0) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+		rg_unlock(name, lockp);
+
+		if (svcblk.rs_owner != my_id())
+			continue;
+
+		clulog(LOG_DEBUG, "Checking status of %s\n", name);
+
+		rt_enqueue_request(name, RG_STATUS,
+				   -1, 0, NODE_ID_NONE, 0, 0);
+
+	} while (!list_done(&_tree, curr));
+
+	pthread_rwlock_unlock(&resource_lock);
+	rg_wait_threads();
+}
+
+/**
+  Stop changed resources.
+ */
+void
 do_condstops(void)
 {
 	resource_node_t *curr;

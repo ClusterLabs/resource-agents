@@ -76,7 +76,6 @@ meta_data()
         <action name="status" interval="30s" timeout="0"/>
         <action name="monitor" interval="30s" timeout="0"/>
 
-        <action name="recover" timeout="0"/>
         <action name="meta-data" timeout="0"/>
         <action name="verify-all" timeout="0"/>
     </actions>

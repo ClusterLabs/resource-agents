@@ -328,6 +328,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_STARTED:
 	case RG_STATE_CHECK:
 	case RG_STATE_STARTING:
+	case RG_STATE_RECOVER:
 		if ((svcStatus->rs_owner != my_id()) &&
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
@@ -372,10 +373,13 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 
 	case RG_STATE_ERROR:
-	case RG_STATE_RECOVER:
-		/* Don't start; return failure. */
+		/* Don't stop; return failure. */
+		if (req == RG_DISABLE) {
+			ret = 1;
+			break;
+		}
 		clulog(LOG_DEBUG,
-		       "Not stopping %s: recovery state\n",
+		       "Not stopping %s: service is failed\n",
 		       svcName);
 		ret = 0;
 		break;
@@ -435,8 +439,8 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
 		clulog(LOG_ERR,
-		       "#43: Resource group %s has failed on all applicable "
-		       "members; can not start.\n", svcName);
+		       "#43: Resource group %s has failed; can not start.\n",
+		       svcName);
 		break;
 		
 	case RG_STATE_STOPPING:
@@ -584,7 +588,7 @@ svc_start(char *svcName, int req)
 	/* LOCK HELD if we get here */
 
 	svcStatus.rs_owner = my_id();
-	svcStatus.rs_state = RG_STATE_STARTED;
+	svcStatus.rs_state = RG_STATE_STARTING;
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 
 	if (req == RG_START_RECOVER)
@@ -602,6 +606,23 @@ svc_start(char *svcName, int req)
 	rg_unlock(svcName, lockp);
 
 	ret = group_op(svcName, RG_START);
+	ret = !!ret; /* Either it worked or it didn't.  Ignore all the
+			cute values scripts might return */
+
+	if (rg_lock(svcName, &lockp) < 0) {
+		clulog(LOG_ERR, "#74: Unable to obtain cluster lock: %s\n",
+		       strerror(errno));
+		return FAIL;
+	}
+
+	svcStatus.rs_state = RG_STATE_STARTED;
+	if (set_rg_state(svcName, &svcStatus) != 0) {
+		clulog(LOG_ERR,
+		       "#75: Failed changing resource group status\n");
+		rg_unlock(svcName, lockp);
+		return FAIL;
+	}
+	rg_unlock(svcName, lockp);
        
 	if (ret == 0)
 		clulog(LOG_NOTICE,
@@ -1059,7 +1080,7 @@ exhausted:
 	clulog(LOG_WARNING,
 	       "#70: Attempting to restart resource group %s locally.\n",
 	       svcName);
-	if (svc_start(svcName, request) == 0) {
+	if (svc_start(svcName, RG_START_RECOVER) == 0) {
 		*new_owner = my_id();
 		return FAIL;
 	}

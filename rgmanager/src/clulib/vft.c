@@ -239,6 +239,8 @@ vf_handle_join_view_msg(int fd, vf_msg_t * hdrp)
 				    VF_COMMIT_TIMEOUT_MIN, NULL,
 				    NULL) < 0)) {
 			pthread_mutex_unlock(&key_list_mutex);
+			printf("VF: Error: Failed to initialize %s\n",
+			       hdrp->vm_msg.vf_keyid);
 			vf_vote_no(fd);
 			return VFR_ERROR;
 		}

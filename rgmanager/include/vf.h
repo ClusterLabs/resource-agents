@@ -135,7 +135,7 @@ typedef struct _key_node {
 #define VF_NACK			0x3008
 
 
-#define VF_COORD_TIMEOUT	5	/* 5 seconds MAX timeout */
+#define VF_COORD_TIMEOUT	60	/* 60 seconds MAX timeout */
 #define VF_COMMIT_TIMEOUT_MIN	(2 * VF_COORD_TIMEOUT)
 #define MAX_FDS			1024
 

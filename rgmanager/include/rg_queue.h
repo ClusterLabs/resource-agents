@@ -1,5 +1,5 @@
-#ifndef __RG_QUEUE_H
-#define __RG_QUEUE_H
+#ifndef _RG_QUEUE_H
+#define _RG_QUEUE_H
 #include <list.h>
 #include <stdint.h>
 #include <sys/time.h>
@@ -9,7 +9,7 @@
 /** 
  * Resource Group thread request queue entry.
  */
-typedef struct __request {
+typedef struct _request {
 	list_head();				/** Next/prev pointers */
 	uint32_t	rr_request;		/** Request */
 	char		rr_group[64];		/** Resource Group */
@@ -25,14 +25,14 @@ typedef struct __request {
 } request_t;
 
 
-int __rq_queue_request(request_t **queue, char *name, uint32_t request,
+int _rq_queue_request(request_t **queue, char *name, uint32_t request,
     		     uint32_t err, uint32_t oldreq, uint32_t fd, time_t when,
     		     uint64_t target, uint32_t arg0, uint32_t arg1, char *file,
 		     int line);
 
 #define rq_queue_request(queue, name, request, err, oldreq,\
 			 fd, when, target, arg0, arg1) \
-	__rq_queue_request(queue, name, request, err, oldreq, fd, when, \
+	_rq_queue_request(queue, name, request, err, oldreq, fd, when, \
 			 target, arg0, arg1, __FILE__, __LINE__)
 
 request_t *rq_next_request(request_t **q);

@@ -534,9 +534,20 @@ they should properly work in the case of true failover situations (i.e.
 the node on whicch the NFS service was running has failed and been
 fenced by the cluster).
 
+#74: Unable to obtain cluster lock: <error>
 
+This occurs while trying to determine the state of a resource group after
+an attempt to start it has completed (at the script level).  If this occurs,
+the start operation will fail.
 
+See #33 for reasons as to why obtaining a lock might fail.
 
+#75: Failed getting status for RG <name>
 
+This occurs while trying to determine the state of a resource group after
+an attempt to start it has completed.  If this occurs, the start operation
+will report a failure.
 
+Generally, this indicates attempt to retrieve the current view of that 
+resource group's state after quorum has dissolved.
 

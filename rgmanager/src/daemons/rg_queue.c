@@ -23,7 +23,7 @@
 
 
 int
-__rq_queue_request(request_t **queue, char *name, uint32_t request,
+_rq_queue_request(request_t **queue, char *name, uint32_t request,
 		 uint32_t err, uint32_t oldreq, uint32_t fd, time_t when,
 		 uint64_t target, uint32_t arg0, uint32_t arg1, char *file,
 		 int line)
