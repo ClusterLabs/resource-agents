@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.192 $) dnl cvs revision
+AC_REVISION($Revision: 1.193 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -556,6 +556,21 @@ dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
+AC_PATH_PROGS(SNMPCONFIG, net-snmp-config, ucd-snmp-config)
+
+AC_MSG_CHECKING(which snmp config exists)
+if test "X${SNMPCONFIG}" = "X"; then
+        AC_MSG_ERROR(You need the snmp development package to continue.")
+else
+      AC_MSG_RESULT("using $SNMPCONFIG")
+fi
+
+AC_MSG_CHECKING(for special snmp libraries: )
+SNMPLIB=`net-snmp-config --netsnmp-libs`
+AC_MSG_RESULT($SNMPLIB)
+AC_SUBST(SNMPLIB)
+
+
 
 dnl ************************************************************************
 dnl  checks for typedefs
@@ -1191,6 +1206,7 @@ lib/Makefile							\
 		lib/plugins/HBauth/Makefile			\
 		lib/plugins/HBcomm/Makefile			\
 		lib/plugins/stonith/Makefile			\
+		lib/plugins/AppHBNotification/Makefile		\
 	lib/stonith/Makefile					\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
