@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.208 $) dnl cvs revision
+AC_REVISION($Revision: 1.209 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -482,6 +482,8 @@ AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
 #include <ucd-snmp/asn1.h>])
 AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 AC_CHECK_HEADERS(curl/curl.h)
+AC_CHECK_HEADERS(OpenIPMI/ipmi_auth.h)
+
 
 AC_MSG_CHECKING(for special libxml2 includes: )
 XML2HEAD=`$XML2CONFIG --cflags`
@@ -500,6 +502,7 @@ AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
 AC_PATH_PROGS(SNMPCONFIG, net-snmp-config, ucd-snmp-config)
 AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
+AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 
 AC_MSG_CHECKING(which snmp config exists)
