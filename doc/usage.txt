@@ -130,6 +130,14 @@ system must be running (see previous section.)
 Cluster startup tips
 --------------------
 
+* Avoid a hung cluster by setting panic_on_oops.
+
+A GFS kernel oops on a node can cause the oopsing node to not be recovered for
+and the rest of the cluster to hang.  This problem can be avoided by having
+the node panic in addition to oopsing.  Before mounting, run the command:
+
+> sysctl -w kernel.panic_on_oops=1
+
 * Avoiding unnecessary startup fencing when fence domain is first created.
 
 When the cluster is quorate and the fence domain is first created (by a fence
@@ -380,4 +388,20 @@ When two interfaces are used, multicast is configured as follows:
   IPv4 and IPv6 is not allowed.
 
 - When using IPv6, multicast must be configured; there is no IPv6 broadcast.
+
+
+More information
+----------------
+
+See the following man pages for more information:
+ccs(7)
+ccsd(8)
+cluster.conf(5)
+cman(5)
+cman_tool(8)
+fence_tool(8)
+fenced(8)
+fence_manual(8)
+gfs(8)
+gfs_mkfs(8)
 
