@@ -22,9 +22,10 @@
  * Service state as represented on disk.
  *
  * This structure represents a service description.  This data structure
- * represents the in-memory service description. 
+ * represents the in-memory service description.  (There is a separate
+ * description of the on-disk format.)
  */
-typedef struct __attribute__ ((packed)) {
+typedef struct {
 	char		rs_name[64];	/**< Service name */
 	uint64_t	rs_owner;	/**< Member ID running service. */
 	uint64_t	rs_last_owner;	/**< Last member to run the service. */
@@ -32,8 +33,8 @@ typedef struct __attribute__ ((packed)) {
 	uint32_t	rs_restarts;	/**< Number of cluster-induced 
 					     restarts */
 	uint64_t	rs_transition;	/**< Last service transition time */
-	/* ---- Future use ---- */
-	uint64_t	rs_extra[9];	/**< Future space */
+	uint32_t	rs_id;		/**< Service ID */
+	uint32_t	rs_pad;		/**< pad to 64-bit boundary */
 } rg_state_t;
 
 #define swab_rg_state_t(ptr) \
@@ -43,6 +44,7 @@ typedef struct __attribute__ ((packed)) {
 	swab32((ptr)->rs_state);\
 	swab32((ptr)->rs_restarts);\
 	swab64((ptr)->rs_transition);\
+	swab32((ptr)->rs_pad);\
 }
 
 
@@ -116,6 +118,7 @@ int rt_enqueue_request(const char *resgroupname, int request, int response_fd,
        		       int max, uint64_t target, int arg0, int arg1);
 
 void send_response(int ret, request_t *req);
+void send_ret(int fd, char *name, int ret, int req);
 
 /* do this op on all resource groups.  The handler for the request 
    will sort out whether or not it's a valid request given the state */
