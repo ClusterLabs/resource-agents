@@ -200,7 +200,7 @@ static struct file_operations member_fops = {
 
 static struct miscdevice member_misc = {
 	.minor	= MISC_DYNAMIC_MINOR,
-	.name	= "dlm_member",
+	.name	= DLM_MEMBER_MISC_NAME,
 	.fops	= &member_fops
 };
 
