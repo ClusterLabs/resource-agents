@@ -509,7 +509,10 @@ static void form_cluster(void)
 	node_state = MEMBER;
 	we_are_a_cluster_member = TRUE;
 	us->state = NODESTATE_MEMBER;
-	set_nodeid(us, wanted_nodeid);
+	if (wanted_nodeid)
+		set_nodeid(us, wanted_nodeid);
+	else
+		set_nodeid(us, 1);
 	recalculate_quorum(0);
 	sm_member_update(cluster_is_quorate);
 	send_hello();
