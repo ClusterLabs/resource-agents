@@ -216,17 +216,17 @@ void release_req_map(hashn_t *map)
 
 /* walk over all items */
 
-char *lkeytohex(uint8_t *key, uint8_t keylen);
-char *lvbtohex(uint8_t *lvb, uint8_t lvblen);
+char *lkeytob64(uint8_t *key, uint8_t keylen);
+char *lvbtob64(uint8_t *lvb, uint8_t lvblen);
 
 static void print_lock_req(FILE *FP, lock_req_t *lq)
 {
-   fprintf(FP, "%s : \n", lkeytohex(lq->key, lq->keylen));
+   fprintf(FP, "%s : \n", lkeytob64(lq->key, lq->keylen));
    fprintf(FP, " subid : %"PRIu64"\n", lq->subid);
    fprintf(FP, " code : %s\n", gio_opcodes(lq->code));
    fprintf(FP, " state : %#x\n", lq->state);
    fprintf(FP, " flags : %#x\n", lq->flags);
-   fprintf(FP, " lvb : %s\n", lvbtohex(lq->lvb, lq->lvblen));
+   fprintf(FP, " lvb : %s\n", lvbtob64(lq->lvb, lq->lvblen));
    fprintf(FP, " poll_idx : %d\n", lq->poll_idx);
 }
 

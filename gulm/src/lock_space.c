@@ -167,35 +167,15 @@ int init_lockspace(unsigned long maxlocks, unsigned int hashbuckets)
 
 /*****************************************************************************/
 /**
- * lkeytohex - 
- * @key: lock key
+ * buftob64 - 
+ * @ibuf: 
+ * @ilen: 
+ * @obuf: 
+ * @olen: 
  * 
- * this uses static internally, so not thread safe.
- * shouldn't be an issue, since this code is not threaded.
  * 
- * Returns: static char
+ * Returns: char
  */
-char *lkeytohex(uint8_t *key, uint8_t keylen)
-{
-   static uint8_t buf[1024];
-   int i;
-   sprintf(buf, "0x");
-   for(i=0; i < keylen && i < 510 ; i++)
-      sprintf(&buf[(i*2)+2], "%02x", (key[i])&0xff );
-
-   return buf;
-}
-char __inline__ *lvbtohex(uint8_t *lvb, uint8_t lvblen)
-{
-   static uint8_t buf[1024];
-   int i;
-   sprintf(buf, "0x");
-   for(i=0; i < lvblen && i < 510 ; i++)
-      sprintf(&buf[(i*2)+2], "%02x", (lvb[i])&0xff );
-
-   return buf;
-}
-
 char *buftob64(uint8_t *ibuf, uint8_t ilen, uint8_t *obuf, uint8_t olen)
 {
    static char *b64string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -979,7 +959,7 @@ int add_to_LVB_holders(uint8_t *name, Lock_t *lk)
 {
 #define FIRST_LVB_SIZE (32) /* gotta start somewhere. */
    lvb_log_msg("Adding %s to LVB holders for lock (%s)\n",
-         name, lkeytohex(lk->key, lk->keylen));
+         name, lkeytob64(lk->key, lk->keylen));
 
    if( add_holder_to_list(name, &lk->LVB_holders) != 0 )
       return -1;
@@ -994,7 +974,7 @@ int add_to_LVB_holders(uint8_t *name, Lock_t *lk)
       }
       memset( lk->LVB, 0, FIRST_LVB_SIZE);
       lvb_log_msg( "Zeroing LVB (%s) First holder, for %s\n",
-            lkeytohex(lk->key, lk->keylen), name);
+            lkeytob64(lk->key, lk->keylen), name);
    }
    return 0;
 #undef FIRST_LVB_SIZE
@@ -1022,7 +1002,7 @@ int __inline__ check_for_LVB_holder(uint8_t *name, Lock_t *lk)
 int drop_LVB_holder(uint8_t *name, Lock_t *lk)
 {
    lvb_log_msg("Dropping %s from LVB holders for lock (%s)\n",
-         name, lkeytohex(lk->key, lk->keylen));
+         name, lkeytob64(lk->key, lk->keylen));
 
    if(remove_holder_from_list(name, &lk->LVB_holders)) {
       lk->LVB_holder_cnt--;
@@ -1066,7 +1046,7 @@ void lvbcpy(Lock_t *lk, Waiters_t *lkrq)
       memcpy(lk->LVB, lkrq->LVB, lk->LVBlen);
    }
    lvb_log_msg("For %s, Lock %s: Saved LVB %s\n",
-       lkrq->name, lkeytohex(lk->key,lk->keylen),
+       lkrq->name, lkeytob64(lk->key,lk->keylen),
        lvbtohex(lk->LVB, lk->LVBlen));
 }
 
@@ -1090,7 +1070,7 @@ Lock_t *find_lock(uint8_t *key, uint8_t keylen)
    int ret;
 
 #if 0
-   log_bug("Searching for key %s \n", lkeytohex(key));
+   log_bug("Searching for key %s \n", lkeytob64(key));
 #endif
 
    tmp = hash_find(AllLocks, key, keylen);
@@ -1138,7 +1118,7 @@ Lock_t *find_lock(uint8_t *key, uint8_t keylen)
          dump_locks();
          die(ExitGulm_NoMemory,
                "Failed to add new key(%s). Should never happen.(%d)\n",
-               lkeytohex(key, keylen), ret);
+               lkeytob64(key, keylen), ret);
       }
       cnt_locks++;
    } else {
@@ -1186,15 +1166,15 @@ void check_for_recycle(Lock_t *lk)
       dump_holders("LVBHolder", &lk->LVB_holders);
 
       GULMD_ASSERT( LLi_empty( &lk->Holders ),
-            log_msg(lgm_Always, "lk: %s\n", lkeytohex(lk->key, lk->keylen));
+            log_msg(lgm_Always, "lk: %s\n", lkeytob64(lk->key, lk->keylen));
             dump_locks();
             );
       GULMD_ASSERT( LLi_empty( &lk->ExpHolders ),
-            log_msg(lgm_Always, "lk: %s\n", lkeytohex(lk->key, lk->keylen));
+            log_msg(lgm_Always, "lk: %s\n", lkeytob64(lk->key, lk->keylen));
             dump_locks();
             );
       GULMD_ASSERT( LLi_empty( &lk->LVB_holders ),
-            log_msg(lgm_Always, "lk: %s\n", lkeytohex(lk->key, lk->keylen));
+            log_msg(lgm_Always, "lk: %s\n", lkeytob64(lk->key, lk->keylen));
             dump_locks();
             );
 
@@ -2131,7 +2111,7 @@ int Run_Action_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
       }else
       {
          log_err("Unknown action:%#x name:%s lock:%s \n", lkrq->state, 
-                 lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+                 lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
          err = gio_Err_BadStateChg;
       }
 
@@ -2244,19 +2224,19 @@ void check_lists_for_desyncs(Lock_t *lk)
    if( i != lk->HolderCount ) {
       die(ExitGulm_Assertion,
             "Holder list count desynced ( %d != %d ) on lock %s.\n",
-            i, lk->HolderCount, lkeytohex(lk->key, lk->keylen));
+            i, lk->HolderCount, lkeytob64(lk->key, lk->keylen));
    }
    i = count_list( &lk->ExpHolders );
    if( i != lk->ExpiredCount ) {
       die(ExitGulm_Assertion,
             "Exp list count desynced ( %d != %d ) on lock %s.\n",
-            i, lk->ExpiredCount, lkeytohex(lk->key, lk->keylen));
+            i, lk->ExpiredCount, lkeytob64(lk->key, lk->keylen));
    }
    i = count_list( &lk->LVB_holders );
    if( i != lk->LVB_holder_cnt ) {
       die(ExitGulm_Assertion,
             "LVB Holder list count desynced ( %d != %d ) on lock %s.\n",
-            i, lk->LVB_holder_cnt, lkeytohex(lk->key, lk->keylen));
+            i, lk->LVB_holder_cnt, lkeytob64(lk->key, lk->keylen));
    }
    
 }
@@ -2345,7 +2325,7 @@ int do_lock_state(Waiters_t *lkrq)
    if( check_for_waiter(lk, lkrq) ) {
       log_msg(lgm_locking,
             "Warning! Duplicate lock requests, using first one. %s %s\n",
-            lkrq->name, lkeytohex(lk->key, lk->keylen));
+            lkrq->name, lkeytob64(lk->key, lk->keylen));
       return gio_Err_AlreadyPend;/* wait for a reply first dolt.*/
    }
 
@@ -2443,7 +2423,7 @@ int force_lock_action(Waiters_t *lkrq)
    }else
    {
       log_err("Unknown force action:%#x name:%s lock:%s \n", lkrq->state, 
-              lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+              lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
    }
 
    send_update_reply_to_master(lkrq);
@@ -2505,7 +2485,7 @@ int increment_slave_update_replies(uint8_t *key, uint16_t len,
 
    if( lk->reply_waiter == NULL ) {
       log_msg(lgm_Always, "There is no reply waiter on lock %s\n",
-            lkeytohex(key,len));
+            lkeytob64(key,len));
       return -1;
    }
    lkrq = lk->reply_waiter;
@@ -2526,7 +2506,7 @@ int increment_slave_update_replies(uint8_t *key, uint16_t len,
    if( (lkrq->Slave_rpls & lkrq->Slave_sent) == lkrq->Slave_sent ||
        (lkrq->Slave_rpls & smask) == smask ) {
       log_msg(lgm_LockUpdates, "Got all update replies for %s.\n",
-            lkeytohex(lk->key, lk->keylen));
+            lkeytob64(lk->key, lk->keylen));
       /* all slaves have reported in. send reply to client. */
       lk->reply_waiter = NULL;
       cnt_replyq --;
@@ -2576,7 +2556,7 @@ int _recheck_reply_waiters_(LLi_t *item, void *d)
           */
          if( (lkrq->Slave_sent & rrw->onlogin) == rrw->onlogin ) {
       log_msg(lgm_Always, "%s Sent but not recved on Slave login. Marking.\n",
-            lkeytohex(lkrq->key, lkrq->keylen));
+            lkeytob64(lkrq->key, lkrq->keylen));
             lkrq->Slave_rpls |= rrw->onlogin;
          }
       }
@@ -2584,7 +2564,7 @@ int _recheck_reply_waiters_(LLi_t *item, void *d)
       if( (lkrq->Slave_rpls & lkrq->Slave_sent) == lkrq->Slave_sent ||
           (lkrq->Slave_rpls & rrw->sms) == rrw->sms ) {
          log_msg(lgm_LockUpdates, "Recheck scan cleared reply for %s.\n",
-               lkeytohex(lk->key, lk->keylen));
+               lkeytob64(lk->key, lk->keylen));
          /* all slaves have reported in. send reply to client. */
          lk->reply_waiter = NULL;
          cnt_replyq --;

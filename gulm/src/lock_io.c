@@ -664,7 +664,7 @@ int find_idx_for_name(char *name)
 /*****************************************************************************/
 
 /* random floating prototype...*/
-char *lkeytohex(uint8_t *key, uint8_t keylen);
+char *lkeytob64(uint8_t *key, uint8_t keylen);
 
 /**
  * queue_lkrq_for_sending - 
@@ -782,7 +782,7 @@ void send_act_update_to_slaves(Waiters_t *lkrq)
        log_msg(lgm_LockUpdates, "Gonna send lock action update to %s "
                "about %s act:%#x\n",
                poller.ipn[Slaves[i].idx].name,
-               lkeytohex(lkrq->key, lkrq->keylen),  lkrq->state);
+               lkeytob64(lkrq->key, lkrq->keylen),  lkrq->state);
 
       new = duplicate_lkrw(lkrq);
       new->op = gulm_lock_action_updt;
@@ -830,7 +830,7 @@ void send_update_reply_to_master(Waiters_t *lkrq)
     log_msg(lgm_LockUpdates, "Gonna send update reply to Master %s "
           "about %s\n",
             poller.ipn[poller.MasterIDX].name,
-            lkeytohex(lkrq->key, lkrq->keylen));
+            lkeytob64(lkrq->key, lkrq->keylen));
    
    new = duplicate_lkrw(lkrq);
    new->op = gulm_lock_update_rpl;
@@ -951,7 +951,7 @@ int send_act_lk_reply(Waiters_t *lkrq, uint32_t retcode)
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
-               lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+               lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
          /* i *am* losing the replies here.  FIXME
           * shit.
           *
@@ -1004,7 +1004,7 @@ static int _send_lk_req_reply_(int idx, Waiters_t *lkrq)
       if((err=xdr_enc_uint32(enc, lkrq->ret)) != 0 ) break;
       if( lkrq->flags & gio_lck_fg_hasLVB ) {
             lvb_log_msg("For %s, Lock %s: Sent LVB (%d) %s\n", lkrq->name,
-               lkeytohex(lkrq->key, lkrq->keylen), lkrq->LVBlen,
+               lkeytob64(lkrq->key, lkrq->keylen), lkrq->LVBlen,
                lvbtohex(lkrq->LVB, lkrq->LVBlen));
          if((err=xdr_enc_raw(enc, lkrq->LVB, lkrq->LVBlen)) != 0 ) break;
       }
@@ -1043,7 +1043,7 @@ int send_req_lk_reply(Waiters_t *lkrq, Lock_t *lk, uint32_t retcode)
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
-               lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+               lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
          return -1;
       }
    }
@@ -1138,7 +1138,7 @@ int send_query_reply(Waiters_t *lkrq, uint32_t retcode)
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
-               lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+               lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
          return -1;
       }
    }
@@ -2248,7 +2248,7 @@ static void recv_some_data(int idx)
             } else {
                log_msg(lgm_LockUpdates,
                      "Slave reply from %s so:%d for lock %s\n",
-                     poller.ipn[idx].name, soff, lkeytohex(x_key, x_len));
+                     poller.ipn[idx].name, soff, lkeytob64(x_key, x_len));
                increment_slave_update_replies(x_key, x_len, soff,Slave_bitmask);
             }
          }else{

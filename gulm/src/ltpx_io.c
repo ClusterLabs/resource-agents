@@ -98,7 +98,7 @@ typedef struct {
 Masters_t MastersList[256];
 /* index in array == lt_id */
 
-char *lkeytohex(uint8_t *key, uint8_t keylen);
+char *lkeytob64(uint8_t *key, uint8_t keylen);
 #if 0
 static void print_master_entry(int ltid)
 {
@@ -761,7 +761,7 @@ int find_in_senders_list(int ltid, lock_req_t *search)
       if( search->subid == lq->subid &&
          memcmp(search->key, lq->key, MIN(search->keylen, lq->keylen)) == 0 ) {
          log_msg(lgm_Always, "XXX Found in senders %s\n",
-               lkeytohex(search->key, search->keylen));
+               lkeytob64(search->key, search->keylen));
          return TRUE;
       }
    }
@@ -1033,13 +1033,13 @@ int send_senderlist(int ltid)
          default:
             log_err("Unexpected opcode (%x:%s) on lock %s\n",
                   lq->code, gio_opcodes(lq->code),
-                  lkeytohex(lq->key, lq->keylen));
+                  lkeytob64(lq->key, lq->keylen));
             break;
       }
       if( err != 0 ) {
          log_err("Got a %d:%s trying to send packet to Master %d on %s\n",
                err, strerror(abs(err)), ltid,
-               lkeytohex(lq->key, lq->keylen));
+               lkeytob64(lq->key, lq->keylen));
          /* stick it back on the queue. else we loose it. */
          Qu_EnQu_Front(&MastersList[ltid].senderlist, q);
          MastersList[ltid].senderlistlen ++;
@@ -1425,7 +1425,7 @@ int forward_drop_all(int idx)
    return 0;
 }
 
-char *lkeytohex(uint8_t *key, uint8_t keylen);
+char *lkeytob64(uint8_t *key, uint8_t keylen);
 
 /**
  * retrive_and_relpy_lock_state - 
@@ -1796,7 +1796,7 @@ int forward_cb_to_some_clients(int idx)
           memcmp(poller.space[i].key, x_key, MIN(poller.space[i].len,x_kl))!=0
         ) {
          log_msg(lgm_Always, "Skipping client %s for lock %s\n",
-               poller.ipn[i].name, lkeytohex(x_key, x_kl));
+               poller.ipn[i].name, lkeytob64(x_key, x_kl));
          continue;
       }
 
