@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -11,7 +11,7 @@
 *******************************************************************************
 ******************************************************************************/
 
-/* 
+/*
  * locking.c
  *
  * This is where the main work of the DLM goes on
@@ -32,7 +32,7 @@
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-/* 
+/*
  * Lock compatibilty matrix - thanks Steve
  * UN = Unlocked state. Not really a state, used as a flag
  * PD = Padding. Used to make the matrix a nice power of two in size
@@ -55,7 +55,7 @@ const int __dlm_compat_matrix[8][8] = {
 	{0, 0, 0, 0, 0, 0, 0, 0}	/* PD */
 };
 
-/* 
+/*
  * Compatibility matrix for conversions with QUECVT set.
  * Granted mode is the row; requested mode is the column.
  * Usage: matrix[grmode+1][rqmode+1]
@@ -73,7 +73,7 @@ const int __quecvt_compat_matrix[8][8] = {
 	{0, 0, 0, 0, 0, 0, 0, 0}	/* PD */
 };
 
-/* 
+/*
  * This defines the direction of transfer of LVB data.
  * Granted mode is the row; requested mode is the column.
  * Usage: matrix[grmode+1][rqmode+1]
@@ -114,7 +114,7 @@ static inline int first_in_list(gd_lkb_t *lkb, struct list_head *head)
 	return 0;
 }
 
-/* 
+/*
  * Return 1 if the locks' ranges overlap
  * If the lkb has no range then it is assumed to cover 0-ffffffff.ffffffff
  */
@@ -227,14 +227,19 @@ static int queuecvt_deadlock_detect(gd_res_t *rsb, gd_lkb_t *lkb)
 	return FALSE;
 }
 
-/* 
+/*
  * Return 1 if the lock can be granted, 0 otherwise.
  * Also detect and resolve conversion deadlocks.
  */
 
 static int can_be_granted(gd_res_t *rsb, gd_lkb_t *lkb)
 {
-	if (lkb->lkb_rqmode == DLM_LOCK_NL)
+        if (test_bit(LSFL_NOCONVGRANT, &rsb->res_ls->ls_flags) &&
+	    lkb->lkb_grmode == DLM_LOCK_IV &&
+	    !list_empty(&rsb->res_convertqueue))
+	        return FALSE;
+
+        if (lkb->lkb_rqmode == DLM_LOCK_NL)
 		return TRUE;
 
 	if (lkb->lkb_rqmode == lkb->lkb_grmode)
@@ -321,7 +326,7 @@ int dlm_lock(void *lockspace,
 	if ((flags & DLM_LKF_VALBLK) && !lksb->sb_lvbptr)
 		goto out;
 
-	/* 
+	/*
 	 * Take conversion path.
 	 */
 
@@ -331,7 +336,7 @@ int dlm_lock(void *lockspace,
 		goto out;
 	}
 
-	/* 
+	/*
 	 * Take new lock path.
 	 */
 
@@ -434,7 +439,7 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 	lkb->lkb_resource = rsb;
 	lkb->lkb_nodeid = rsb->res_nodeid;
 
-	/* 
+	/*
 	 * Next stage, do we need to find the master or can
 	 * we get on with the real locking work ?
 	 */
@@ -466,7 +471,7 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 	return error;
 }
 
-/* 
+/*
  * Locking routine called after we have an RSB, either a copy of a remote one
  * or a local one, or perhaps a shiny new one all of our very own
  */
@@ -485,7 +490,7 @@ int dlm_lock_stage2(gd_ls_t *ls, gd_lkb_t *lkb, gd_res_t *rsb, int flags)
 	return error;
 }
 
-/* 
+/*
  * Called on an RSB's master node to do stage2 locking for a remote lock
  * request.  Returns a proper lkb with rsb ready for lock processing.
  * This is analagous to sections of dlm_lock() and dlm_lock_stage1().
@@ -507,7 +512,7 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 		parent_rsb = parent_lkb->lkb_resource;
 	}
 
-	/* 
+	/*
 	 * A new MSTCPY lkb.  Initialize lkb fields including the real lkid and
 	 * node actually holding the (non-MSTCPY) lkb.  AST address are just
 	 * flags in the master copy.
@@ -540,7 +545,7 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 			goto fail_free;
 	}
 
-	/* 
+	/*
 	 * Get the RSB which this lock is for.  Create a new RSB if this is a
 	 * new lock on a new resource.  We must be the master of any new rsb.
 	 */
@@ -584,7 +589,7 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 	return NULL;
 }
 
-/* 
+/*
  * The final bit of lock request processing on the master node.  Here the lock
  * is granted and the completion ast is queued, or the lock is put on the
  * waitqueue and blocking asts are sent.
@@ -594,7 +599,7 @@ void dlm_lock_stage3(gd_lkb_t *lkb)
 {
 	gd_res_t *rsb = lkb->lkb_resource;
 
-	/* 
+	/*
 	 * This is a locally mastered lock on a resource that already exists,
 	 * see if it can be  granted or if it must wait.  When this function is
 	 * called for a remote lock request (process_cluster_request,
@@ -610,7 +615,7 @@ void dlm_lock_stage3(gd_lkb_t *lkb)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * This request is not a conversion, so the lkb didn't exist other than
 	 * for this request and should be freed after EAGAIN is returned in the
 	 * ast.
@@ -624,7 +629,7 @@ void dlm_lock_stage3(gd_lkb_t *lkb)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * The requested lkb must wait.  Because the rsb of the requested lkb
 	 * is mastered here, send blocking asts for the lkb's blocking the
 	 * request.
@@ -743,14 +748,14 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 
 	old_status = lkb_dequeue(lkb);
 
-	/* 
+	/*
 	 * If was granted grant any converting or waiting locks.
 	 */
 
 	if (old_status == GDLM_LKSTS_GRANTED)
 		grant_pending_locks(rsb);
 
-	/* 
+	/*
 	 * Cancelling a conversion
 	 */
 
@@ -775,7 +780,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * The lvb can be saved or cleared on unlock.
 	 */
 
@@ -789,7 +794,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
 	queue_ast(lkb, AST_COMP | AST_DEL, 0);
 
-	/* 
+	/*
 	 * Only free the LKB if we are the master copy.  Otherwise the AST
 	 * delivery routine will free it after delivery.  queue_ast for MSTCPY
 	 * lkb just sends a message.
@@ -809,7 +814,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 	return 0;
 }
 
-/* 
+/*
  * Lock conversion
  */
 
@@ -893,7 +898,7 @@ static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
 	return ret;
 }
 
-/* 
+/*
  * For local conversion requests on locally mastered locks this is called
  * directly from dlm_lock/convert_lock.  This function is also called for
  * remote conversion requests of MSTCPY locks (from process_cluster_request).
@@ -912,13 +917,13 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * Remove lkb from granted queue.
 	 */
 
 	lkb_dequeue(lkb);
 
-	/* 
+	/*
 	 * The user won't wait so stick it back on the grant queue
 	 */
 
@@ -932,7 +937,7 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * The lkb's status tells which queue it's on.  Put back on convert
 	 * queue.  (QUECVT requests added at end of the queue, all others in
 	 * order.)
@@ -941,7 +946,7 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
 	lkb->lkb_retstatus = 0;
 	lkb_enqueue(rsb, lkb, GDLM_LKSTS_CONVERT);
 
-	/* 
+	/*
 	 * If the request can't be granted
 	 */
 
@@ -955,7 +960,7 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
 	return ret;
 }
 
-/* 
+/*
  * Remove lkb from any queue it's on, add it to the granted queue, and queue a
  * completion ast.  rsb res_lock must be held in write when this is called.
  */
@@ -994,7 +999,7 @@ static void grant_lock(gd_lkb_t *lkb, int send_remote)
 	lkb->lkb_retstatus = 0;
 	queue_ast(lkb, AST_COMP, 0);
 
-	/* 
+	/*
 	 * A remote conversion request has been granted, either immediately
 	 * upon being requested or after waiting a bit.  In the former case,
 	 * reply_and_grant() is called.  In the later case send_remote is 1 and
@@ -1032,7 +1037,7 @@ static void send_bast_queue(struct list_head *head, gd_lkb_t *lkb)
 	}
 }
 
-/* 
+/*
  * Notify granted locks if they are blocking a newly forced-to-wait lock.
  */
 
@@ -1049,7 +1054,7 @@ static void send_blocking_asts_all(gd_res_t *rsb, gd_lkb_t *lkb)
 	send_bast_queue(&rsb->res_convertqueue, lkb);
 }
 
-/* 
+/*
  * Called when a lock has been dequeued. Look for any locks to grant that are
  * waiting for conversion or waiting to be granted.
  * The rsb res_lock must be held in write when this function is called.
@@ -1080,7 +1085,7 @@ int grant_pending_locks(gd_res_t *rsb)
 			high = MAX(lkb->lkb_rqmode, high);
 	}
 
-	/* 
+	/*
 	 * If there are locks left on the wait/convert queue then send blocking
 	 * ASTs to granted locks that are blocking
 	 *
@@ -1105,7 +1110,7 @@ int grant_pending_locks(gd_res_t *rsb)
 	return 0;
 }
 
-/* 
+/*
  * Called to cancel a locking operation that failed due to some internal
  * reason.
  *
@@ -1152,7 +1157,7 @@ int cancel_lockop(gd_lkb_t *lkb, int status)
 	return 0;
 }
 
-/* 
+/*
  * Check for conversion deadlock. If a deadlock was found
  * return lkb to kill, else return NULL
  */
@@ -1184,7 +1189,7 @@ gd_lkb_t *conversion_deadlock_check(gd_lkb_t *lkb)
 	return 0;
 }
 
-/* 
+/*
  * Conversion operation was cancelled by us (not the user).
  * ret contains the return code to pass onto the user
  */
@@ -1204,7 +1209,7 @@ void cancel_conversion(gd_lkb_t *lkb, int ret)
 	wake_astd();
 }
 
-/* 
+/*
  * As new master of the rsb for this lkb, we need to handle these requests
  * removed from the lockqueue and originating from local processes:
  * GDLM_LQSTATE_WAIT_RSB, GDLM_LQSTATE_WAIT_CONDGRANT,

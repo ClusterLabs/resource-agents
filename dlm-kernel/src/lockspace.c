@@ -315,6 +315,8 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 
 	if (flags & DLM_LSF_NOTIMERS)
 		set_bit(LSFL_NOTIMERS, &ls->ls_flags);
+	if (flags & DLM_LSF_NOCONVGRANT)
+		set_bit(LSFL_NOCONVGRANT, &ls->ls_flags);
 
 	/*
 	 * Connect this lockspace with the cluster manager

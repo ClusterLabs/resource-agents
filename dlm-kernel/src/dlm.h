@@ -49,9 +49,14 @@
  *
  * Do not subject locks in this lockspace to time-outs.
  *
+ * DLM_LSF_NOCONVGRANT
+ *
+ * Do not grant new locks unless the conversion queue is empty.
+ *
  */
 
 #define DLM_LSF_NOTIMERS       (1)
+#define DLM_LSF_NOCONVGRANT    (2)
 
 /*
  * Flags to dlm_lock
