@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: LVM.in,v 1.2 2005/03/15 06:52:58 zhaokai Exp $
 # 
 # LVM
 #
@@ -49,9 +49,9 @@ usage() {
 	The 'monitor' operation reports whether the volume seems present
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: LVM.in,v 1.2 2005/03/15 06:52:58 zhaokai Exp $
 	!
-  exit 1
+  exit OCF_ERR_GENERIC 
 
 }
 
@@ -105,14 +105,14 @@ run() {
     then
       ocf_log "info" "$output"
     fi
-    return 0
+    return OCF_SUCCESS 
   else
     if
       [ ! -z "$output" ]
     then
-      ocf_log "err" "$output"
+      ocf_log "ERROR: $output"
     else
-      ocf_log "err" "command failed: $*"
+      ocf_log "ERROR: command failed: $*"
     fi
     return $rc
   fi
@@ -155,7 +155,7 @@ LVM_report_status() {
     : Volume $1 is available
   else
     echo "LVM Volume $1 is not available (stopped)"
-    return 1
+    return OCF_NOT_RUNNING
   fi
   if
     echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
@@ -179,8 +179,8 @@ LVM_monitor() {
   then
     : OK
   else
-    ha_log "ERROR: LVM Volume $1 is offline"
-    return 1
+    ocf_log "ERROR: LVM Volume $1 is offline"
+    return OCF_NOT_RUNNING
   fi
 
   run vgck $1
@@ -193,7 +193,7 @@ LVM_monitor() {
 #
 LVM_start() {
 
-  ha_log "Activating volume group $1"
+  ocf_log "Activating volume group $1"
   run vgscan $1
   run vgchange -a y $1 || return 1
 
@@ -201,10 +201,10 @@ LVM_start() {
     LVM_status $1
   then
     : OK Volume $1 activated just fine!
-    return 0
+    return OCF_SUCCESS 
   else
-    ha_log "ERROR: LVM: $1 did not activate correctly"
-    return 1
+    ocf_log "ERROR: LVM: $1 did not activate correctly"
+    return OCF_ERR_GENERIC
   fi
 }
 
@@ -213,16 +213,16 @@ LVM_start() {
 #
 LVM_stop() {
 
-  ha_log "Deactivating volume group $1"
+  ocf_log "Deactivating volume group $1"
   run vgchange -a n $1 || return 1
 
   if
     LVM_status $1
   then
-    ha_log "ERROR: LVM: $1 did not stop correctly"
-    return 1
+    ocf_log "ERROR: LVM: $1 did not stop correctly"
+    return OCF_ERR_GENERIC 
   fi
-  return 0
+  return OCF_SUCCESS
 }
 
 
@@ -234,7 +234,7 @@ if
   ( [ $# -eq 0 ] || [ $# -gt 1 ] )
 then
   usage
-  exit 1
+  exit OCF_ERR_GENERIC 
 fi
 
 if 
@@ -242,7 +242,7 @@ if
 then
   echo "You must identify the volume group name!"
   usage
-  exit 1
+  exit OCF_ERR_ARGS 
 fi
 
 VOLUME=$OCF_RESKEY_volgrpname
@@ -272,6 +272,6 @@ case "$1" in
 		exit exit $OCF_SUCCESS;;
 
   *)		usage
-		exit $OCF_ERR_UNIMPLEMENTED;;
+		exit $OCF_ERR_AEGS;;
 esac
 
