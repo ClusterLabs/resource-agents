@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.206 $) dnl cvs revision
+AC_REVISION($Revision: 1.207 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -677,11 +677,11 @@ dnl thought and experience.
 dnl
 	cc_supports_flag() {
 	  AC_MSG_CHECKING(whether $CC supports "$@")
-	  Cfile=/tmp/foo${$}.c
-	  touch $Cfile
-	  $CC -c "$@" $Cfile >/dev/null 2>&1
+	  Cfile=/tmp/foo${$}
+	  touch ${Cfile}.c
+	  $CC -c "$@" ${Cfile}.c -o ${Cfile}.o >/dev/null 2>&1
           rc=$?
-	  rm -f $Cfile
+	  rm -f ${Cfile}.c ${Cfile}.o
           case $rc in
             0) AC_MSG_RESULT("yes");;
             *) AC_MSG_RESULT("no");;
@@ -719,7 +719,6 @@ dnl
             esac
 	  fi
 	done
-	rm -f $Cfile
 
 dnl Add any system specific options here.
 
