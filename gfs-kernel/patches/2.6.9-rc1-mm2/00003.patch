@@ -1,7 +1,7 @@
 # Add GFS to the build system.
-diff -urN -p linux-2.6.9-rc1-mm1/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9-rc1-mm1/fs/Kconfig	2004-08-27 10:54:41.948191646 -0500
-+++ linux/fs/Kconfig	2004-08-27 10:54:41.960188861 -0500
+diff -urN -p linux-2.6.9-rc1-mm2/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9-rc1-mm2/fs/Kconfig	2004-08-31 16:45:10.882345780 -0500
++++ linux/fs/Kconfig	2004-08-31 16:45:10.893343254 -0500
 @@ -285,13 +285,13 @@ config JFS_STATISTICS
  	  to be made available to the user in the /proc/fs/jfs/ directory.
  
@@ -39,17 +39,17 @@ diff -urN -p linux-2.6.9-rc1-mm1/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.9-rc1-mm1/fs/Makefile linux/fs/Makefile
---- linux-2.6.9-rc1-mm1/fs/Makefile	2004-08-27 10:54:41.949191413 -0500
-+++ linux/fs/Makefile	2004-08-27 10:54:41.960188861 -0500
+diff -urN -p linux-2.6.9-rc1-mm2/fs/Makefile linux/fs/Makefile
+--- linux-2.6.9-rc1-mm2/fs/Makefile	2004-08-31 16:45:10.882345780 -0500
++++ linux/fs/Makefile	2004-08-31 16:45:10.894343025 -0500
 @@ -96,3 +96,4 @@ obj-$(CONFIG_HOSTFS)		+= hostfs/
  obj-$(CONFIG_HPPFS)		+= hppfs/
  obj-$(CONFIG_KEYFS)		+= keyfs/
  obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
 +obj-$(CONFIG_GFS_FS)		+= gfs/
-diff -urN -p linux-2.6.9-rc1-mm1/fs/gfs/Makefile linux/fs/gfs/Makefile
---- linux-2.6.9-rc1-mm1/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-08-27 10:54:41.960188861 -0500
+diff -urN -p linux-2.6.9-rc1-mm2/fs/gfs/Makefile linux/fs/gfs/Makefile
+--- linux-2.6.9-rc1-mm2/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/Makefile	2004-08-31 16:45:10.894343025 -0500
 @@ -0,0 +1,50 @@
 +###############################################################################
 +###############################################################################

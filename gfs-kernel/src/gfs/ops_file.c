@@ -1458,7 +1458,7 @@ do_plock(struct file *file, int cmd, struct file_lock *fl)
 }
 
 /**
- * gfs_lock - acquire/release a flock or posix lock on a file
+ * gfs_lock - acquire/release a posix lock on a file
  * @file: the file pointer
  * @cmd: either modify or retrieve lock state, possibly wait
  * @fl: type and range of lock
