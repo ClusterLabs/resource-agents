@@ -280,7 +280,7 @@ static int hello_kthread(void *unused)
 	hello_task = tsk;
 	up(&hello_task_lock);
 
-	set_user_nice(current, -6);
+	set_user_nice(current, -20);
 
 	while (node_state != REJECTED && node_state != LEFT_CLUSTER) {
 
@@ -523,6 +523,7 @@ static int do_timer_wakeup()
 			if (elect_master(&node, 0)) {
 
 				/* We are master now, all kneel */
+				master_node->leave_reason = CLUSTER_LEAVEFLAG_NORESPONSE;
 				start_transition(TRANS_DEADMASTER, master_node);
 			}
 			else {
@@ -1252,6 +1253,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 		msg->expected_votes = cpu_to_le32(node->expected_votes);
 		msg->generation = cpu_to_le32(++cluster_generation);
 		msg->nodeid = cpu_to_le32(node->node_id);
+		msg->flags = node->leave_reason;
 
 		if (reason == TRANS_NEWNODE) {
 			/* Add the addresses */
@@ -1306,6 +1308,9 @@ void a_node_just_died(struct cluster_node *node)
 		return;
 	}
 
+	printk(KERN_WARNING CMAN_NAME ": removing node %s from the cluster : %s\n",
+	       node->name, leave_string(node->leave_reason));
+
 	/* Remove it */
 	down(&cluster_members_lock);
 	if (node->state == NODESTATE_MEMBER)
@@ -1332,6 +1337,7 @@ void a_node_just_died(struct cluster_node *node)
 				del_timer(&transition_timer);
 				node_state = MASTER;
 
+				master_node->leave_reason = CLUSTER_LEAVEFLAG_NORESPONSE;
 				start_transition(TRANS_DEADMASTER, master_node);
 			}
 			else {
@@ -1641,7 +1647,9 @@ static struct cluster_node *add_new_node(char *name, unsigned char votes,
 		cluster_members++;
 	up(&cluster_members_lock);
 
-	printk(KERN_INFO CMAN_NAME ": got node %s\n", name);
+	if (state == NODESTATE_MEMBER)
+		printk(KERN_INFO CMAN_NAME ": got node %s\n", name);
+
 	return newnode;
 
       alloc_err1:
@@ -1658,12 +1666,13 @@ static struct cluster_node *add_new_node(char *name, unsigned char votes,
 }
 
 /* Remove node from a STARTTRANS message */
-static struct cluster_node *remove_node(int nodeid)
+static struct cluster_node *remove_node(int nodeid, unsigned char reason)
 {
 	struct cluster_node *node = find_node_by_nodeid(nodeid);
 
 	if (node && node->state != NODESTATE_DEAD) {
-		P_MEMB("starttrans removes node %s\n", node->name);
+		printk(KERN_INFO CMAN_NAME ": node %s has been removed from the cluster : %s\n",
+		       node->name, leave_string(reason));
 		down(&cluster_members_lock);
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
@@ -1728,7 +1737,7 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
 
 	if (startmsg->reason == TRANS_REMNODE) {
-		node = remove_node(le32_to_cpu(startmsg->nodeid));
+		node = remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
 	}
 
 	if (startmsg->reason == TRANS_NEWNODE) {
@@ -1847,8 +1856,15 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 			int i;
 
 			for (i = 1; i <= responses_collected; i++) {
-				if (node_opinion[i] == OPINION_DISAGREE)
+				if (node_opinion[i] == OPINION_DISAGREE) {
+					struct cluster_node *node;
+					node = find_node_by_nodeid(saddr->scl_nodeid);
+					if (node)
+						node->leave_reason = CLUSTER_LEAVEFLAG_INCONSISTENT;
 					send_kill(i, 1);
+
+
+				}
 			}
 		}
 		else {
@@ -2110,7 +2126,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 
 		if (startmsg->reason == TRANS_REMNODE ||
 		    startmsg->reason == TRANS_ANOTHERREMNODE) {
-			remove_node(le32_to_cpu(startmsg->nodeid));
+			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
 		}
 		send_startack(saddr, msg->msg_namelen);
 
@@ -2155,7 +2171,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 
 			/* If the old master has died then remove it */
 			if (startmsg->reason == TRANS_DEADMASTER) {
-				remove_node(le32_to_cpu(startmsg->nodeid));
+				remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
 			}
 
 			/* Store new master */
@@ -2165,7 +2181,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 		/* Another node has died (or been killed) */
 		if (startmsg->reason == TRANS_ANOTHERREMNODE) {
 			/* Remove new dead node */
-			remove_node(le32_to_cpu(startmsg->nodeid));
+			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
 		}
 
 		/* Restart the timer */
@@ -2924,10 +2940,6 @@ static void check_for_dead_nodes()
 
 			up(&cluster_members_lock);
 
-			printk(KERN_WARNING CMAN_NAME
-			       ": no HELLO from %s, removing from the cluster\n",
-			       node->name);
-
 			P_MEMB("last hello was %ld, current time is %ld\n",
 			       node->last_hello, jiffies);
 
@@ -3155,7 +3167,7 @@ char *membership_state(char *buf, int buflen)
 char *leave_string(int reason)
 {
 	static char msg[32];
-	switch (reason)
+	switch (reason & 0xF)
 	{
 	case CLUSTER_LEAVEFLAG_DOWN:
 		return "Shutdown";
@@ -3167,6 +3179,12 @@ char *leave_string(int reason)
 		return "Removed";
 	case CLUSTER_LEAVEFLAG_REJECTED:
 		return "Membership rejected";
+	case CLUSTER_LEAVEFLAG_INCONSISTENT:
+		return "Inconsistent cluster view";
+	case CLUSTER_LEAVEFLAG_DEAD:
+		return "Missed too many heartbeats";
+	case CLUSTER_LEAVEFLAG_NORESPONSE:
+		return "No response to messages";
 	default:
 		sprintf(msg, "Reason is %d\n", reason);
 		return msg;

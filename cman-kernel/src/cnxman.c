@@ -462,14 +462,12 @@ static void check_for_unacked_nodes()
 			node->name, node->last_seq_acked, node->last_seq_sent);
 		if (node->state != NODESTATE_DEAD &&
 		    node->last_seq_acked != node->last_seq_sent && !node->us) {
-			printk(KERN_WARNING CMAN_NAME
-			       ": node %s is not responding - removing from the cluster\n",
-			       node->name);
 
 			/* Drop this lock or we can deadlock with membership */
 			up(&cluster_members_lock);
 
 			/* Start a state transition */
+			node->leave_reason = CLUSTER_LEAVEFLAG_NORESPONSE;
 			a_node_just_died(node);
 			down(&cluster_members_lock);
 		}

@@ -92,6 +92,7 @@
 #define CLUSTER_LEAVEFLAG_INCONSISTENT 5	/* Our view of the cluster is
 						 * in a minority */
 #define CLUSTER_LEAVEFLAG_DEAD         6	/* Discovered to be dead */
+#define CLUSTER_LEAVEFLAG_NORESPONSE   7        /* Didn't ACK message */
 #define CLUSTER_LEAVEFLAG_FORCE     0x10	/* Forced by command-line */
 
 /* OOB messages sent to a local socket */
