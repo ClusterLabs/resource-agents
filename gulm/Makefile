@@ -96,10 +96,10 @@ CFLAGS+=-DRELEASE=\"$(RELEASE)\"
 #######################################
 # build rules
 
-all: lock_gulmd gulm_tool libgulm.a
+all: src/lock_gulmd src/gulm_tool lib/libgulm.a
 
-lock_gulmd: $(gulmd_src:.c=.o) 
-	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o src/lock_gulmd
+src/lock_gulmd: $(gulmd_src:.c=.o) 
+	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o $@
 
 #	whoami > src/buildinfo
 #	uname -n >> src/buildinfo
@@ -107,16 +107,16 @@ lock_gulmd: $(gulmd_src:.c=.o)
 #	md5sum $(gulmd_src) >> src/buildinfo
 #	objcopy --add-section buildinfo=src/buildinfo src/gulmd src/lock_gulmd
 
-libgulm.a: $(lib_src:.c=.o)
-	${LD} ${LDFLAGS} -r $^ -o lib/libgulm.a --retain-symbols-file=lib/exported_symbols.sym
+lib/libgulm.a: $(lib_src:.c=.o)
+	${LD} ${LDFLAGS} -r $^ -o $@ --retain-symbols-file=lib/exported_symbols.sym
 	#xdr_* functions still `visable'. for relocation i think.
 
 # don't think this is right yet, so only building .a for now.
-libgulm.so: libgulm.a
-	${LD} -shared -soname libgulm.so.1 -o lib/libgulm.so.1.0 -lc lib/libgulm.a
+lib/libgulm.so.1.0: libgulm.a
+	${LD} -shared -soname libgulm.so.1 -o $@ -lc lib/libgulm.a
 
-gulm_tool: $(tool_src:.c=.o)
-	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -o src/gulm_tool
+src/gulm_tool: $(tool_src:.c=.o)
+	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -o $@
 
 .c.o:
 	${CC} ${CFLAGS} ${LDFLAGS} -c -o $@ $<
