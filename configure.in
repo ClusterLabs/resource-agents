@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.151 $) dnl cvs revision
+AC_REVISION($Revision: 1.152 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -371,7 +371,7 @@ AC_EGREP_CPP(FoundClkTck,
 ], 
 [
         AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ]) 
-        AC_MSG_RESULT("Yes") 
+        AC_MSG_RESULT(Yes) 
 ],
 AC_MSG_RESULT("No"))
 
@@ -387,7 +387,7 @@ AC_EGREP_CPP(FoundClkTck,
 #endif
 ], [
         AC_DEFINE(CLK_TCK_IN_TIME_H,1,[ ])
-        AC_MSG_RESULT("Yes") 
+        AC_MSG_RESULT(Yes) 
 ],
 AC_MSG_RESULT("No"))
 
@@ -466,6 +466,15 @@ else
 	AC_MSG_ERROR(no library providing gettext found)
 fi
 
+AC_MSG_CHECKING(whether we need to include /usr/local/include)
+dnl
+dnl this is mainly for FreeBSD...
+AC_TRY_COMPILE([#include <libintl.h>],
+[int foo=1;],
+  AC_MSG_RESULT(no),
+  [AC_MSG_RESULT(yes)
+  CPPFLAGS="$CPPFLAGS -I/usr/local/include"]),
+
 dnl
 dnl	Glib allows its headers/libraries to be installed anywhere.
 dnl	And they provide a command to let you know where they are.
@@ -500,7 +509,7 @@ AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
 AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
 AC_CHECK_HEADERS(net/ethernet.h)
-AC_CHECK_HEADERS(strings.h)
+AC_CHECK_HEADERS(strings.h malloc.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On BSD
@@ -547,13 +556,13 @@ if test x"$samba_cv_HAVE_TERMIOS_C_LINE" = x"yes"; then
     AC_DEFINE(HAVE_TERMIOS_C_LINE,1,[ ])
 fi
 
+AC_MSG_CHECKING(if nfds_t is defined)
 dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
-AC_TRY_COMPILE([#include <poll.h>
+AC_TRY_COMPILE([#include <poll.h>],
 [ nfds_t te;  te = 0;],
-poll_HAVE_NFDS_T=yes,poll_HAVE_NFDS_T=no,poll_HAVE_NFDS_T=cross)])
-if test x"$poll_HAVE_NFDS_T" = x"yes"; then
-    AC_DEFINE(HAVE_NFDS_T,1,[ ])
-fi
+    AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t])
+    AC_MSG_RESULT(yes)
+,   AC_MSG_RESULT(no))
 
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
@@ -584,21 +593,6 @@ else
     IPCSOCKET_C=""
     IPCSOCKET_LO=""
 fi
-
-AC_MSG_CHECKING("for usable brk")
-AC_TRY_RUN([#include <unistd.h>
-int main() {
-	unsigned long b = brk((void*)0L);
-	return (b >= 0 && brk((void*)(b+16L*1024L)) >= 0 ? 0 : 1);
-}],
-[
-  	AC_DEFINE(HAVE_USABLE_BRK,1,Can we use the brk(2) call?)
-	AC_MSG_RESULT("yes")
-]
-,
-[
-	AC_MSG_RESULT("no")
-])
 
 dnl
 dnl Check for ALIGN in /sys/param.h
@@ -866,6 +860,7 @@ AC_CHECK_FUNCS(flock fcntl)
 AC_CHECK_FUNCS(sigignore)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
+AC_CHECK_FUNCS(mallinfo)
 AC_CHECK_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 AC_REPLACE_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 
