@@ -482,6 +482,7 @@ static int do_timer_wakeup()
 			P_MEMB("JOINCONF not acked, removing node\n");
 			joining_node->state = NODESTATE_DEAD;
 			start_transition(TRANS_REMNODE, joining_node);
+			remove_joiner();
 			joining_node = NULL;
 		}
 		return -1;
