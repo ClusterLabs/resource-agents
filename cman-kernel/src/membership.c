@@ -353,7 +353,7 @@ static int membership_kthread(void *unused)
 	transition_end_time = jiffies;
 
 	/* Main loop */
-	while (node_state != REJECTED && node_state != LEFT_CLUSTER) {
+	while (node_state != REJECTED && node_state != LEFT_CLUSTER && !quit_threads) {
 
 		struct task_struct *tsk = current;
 
@@ -2944,6 +2944,9 @@ static int dispatch_messages(struct socket *mem_socket)
 		struct kvec vec;
 		struct sockaddr_cl sin;
 		int len;
+
+		if (quit_threads)
+			return 0;
 
 		memset(&sin, 0, sizeof (sin));
 

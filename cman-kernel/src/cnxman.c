@@ -2181,6 +2181,11 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 		DECLARE_WAITQUEUE(wq, current);
 		struct task_struct *tsk = current;
 
+		if (quit_threads) {
+			up(&send_lock);
+			return -ENOTCONN;
+		}
+
 		if (flags & MSG_DONTWAIT) {
 			up(&send_lock);
 			return -EAGAIN;
