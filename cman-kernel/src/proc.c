@@ -38,6 +38,7 @@ extern atomic_t use_count;
 extern unsigned int address_length;
 extern unsigned int config_version;
 extern char cluster_name[];
+extern char nodename[];
 extern struct cluster_node *us;
 static struct seq_operations cluster_info_op;
 
@@ -146,6 +147,7 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
     c += sprintf(b+c, "Active subsystems: %d\n",
 		 atomic_read(&use_count));
 
+    c += sprintf(b+c, "Node name: %s\n", nodename);
 
     c += sprintf(b+c, "Node addresses: ");
     list_for_each_entry(node_addr, &us->addr_list, list) {
