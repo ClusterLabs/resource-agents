@@ -37,7 +37,7 @@
 static struct list_head		ast_queue;
 static struct semaphore		ast_queue_lock;
 static wait_queue_head_t	astd_waitchan;
-struct task_struct *		astd_task;
+static struct task_struct *	astd_task;
 static unsigned long		astd_wakeflags;
 static struct semaphore		astd_running;
 
@@ -91,6 +91,14 @@ void remove_from_deadlockqueue(struct dlm_lkb *lkb)
 
 	/* Invalidate the due time */
 	memset(&lkb->lkb_duetime, 0, sizeof(lkb->lkb_duetime));
+}
+
+void remove_from_astqueue(struct dlm_lkb *lkb)
+{
+	down(&ast_queue_lock);
+	if (lkb->lkb_astflags & (AST_COMP | AST_BAST))
+		list_del(&lkb->lkb_astqueue);
+	up(&ast_queue_lock);
 }
 
 /* 

@@ -20,6 +20,7 @@ void add_to_lockqueue(struct dlm_lkb *lkb);
 void remove_from_lockqueue(struct dlm_lkb *lkb);
 void add_to_deadlockqueue(struct dlm_lkb *lkb);
 void remove_from_deadlockqueue(struct dlm_lkb *lkb);
+void remove_from_astqueue(struct dlm_lkb *lkb);
 void queue_ast(struct dlm_lkb *lkb, uint16_t astflags, uint8_t rqmode);
 void wake_astd(void);
 int astd_start(void);
