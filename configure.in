@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.240 $) dnl cvs revision
+AC_REVISION($Revision: 1.241 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1322,7 +1322,7 @@ if test -z "$SWIG"; then
 	enable_swig="no (swig not found)"
 else
 	SWIG_VERSION="`$SWIG -version 2>&1 | sed -ne 's/SWIG Version 1.3.//p'`"
-	if test "$SWIG_VERSION" -lt "19" 2>&1 ; then
+	if test "0$SWIG_VERSION" -lt "19" 2>&1 ; then
 		enable_swig="no (version 1.3.x, x>=19 required)"
 	fi
 fi
