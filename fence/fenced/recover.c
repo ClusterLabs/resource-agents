@@ -165,6 +165,7 @@ static void fence_victims(fd_t *fd)
 
 	if (master != fd->our_nodeid) {
 		log_debug("defer fencing to %u", master);
+		syslog(LOG_INFO, "fencing deferred to %u", master);
 		return;
 	}
 
