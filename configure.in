@@ -4,13 +4,10 @@ dnl	Started by David Lee <T.D.Lee@durham.ac.uk> December 2000
 dnl automake stuff 
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
-dnl Some changes are no longer compatible with older autoconf releases
-AC_PREREQ(2.53)
-
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.137 $) dnl cvs revision
+AC_REVISION($Revision: 1.138 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -551,6 +548,21 @@ else
     IPCSOCKET_C=""
     IPCSOCKET_LO=""
 fi
+
+AC_MSG_CHECKING("for usable brk() call")
+AC_TRY_RUN([#include <unistd.h>
+int main() {
+	unsigned long b = brk((void*)0L);
+	return (b >= 0 && brk((void*)(b+16L*1024L)) >= 0 ? 0 : 1);
+}],
+[
+  	AC_DEFINE(HAVE_USABLE_BRK,1,Can we use the brk(2) call?)
+	AC_MSG_RESULT("yes")
+]
+,
+[
+	AC_MSG_RESULT("no")
+])
 
 dnl
 dnl Check for ALIGN in /sys/param.h
