@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.354 $) dnl cvs revision
+AC_REVISION($Revision: 1.355 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -966,6 +966,16 @@ AC_ARG_ENABLE([dmalloc],
                           enable use of dmalloc instead of malloc in selected code
                           [default=no]])
 
+AC_ARG_ENABLE([pretty],
+[  --enable-pretty 
+			  Pretty-print compiler output unless there is an error
+                          [default=no]])
+
+AC_ARG_ENABLE([quiet],
+[  --enable-quiet 
+			  Supress make output unless there is an error
+                          [default=no]])
+
 CC_WARNINGS=""
 
 dnl - If requested, enable ALL subsystems.
@@ -1803,6 +1813,37 @@ AC_SUBST(XPERIMENTALDIRS)
 AC_CONFIG_SUBDIRS(libltdl)
 
 CheckMissingThings
+
+
+dnl Options for cleaning up the compiler output 
+PRETTY_CC=""
+QUIET_LIBTOOL_OPTS=""
+QUIET_MAKE_OPTS=""
+if test "${enable_pretty}" = "yes"; then
+   enable_quiet="yes"
+   PRETTY_CC="`dirname ${install_sh}`/tools/ccdv"
+   dnl It would be nice if this was rebuilt when needed too...
+   (cd `dirname ${install_sh}`/tools ; gcc -o ccdv ccdv.c )
+fi
+if test "${enable_quiet}" = "yes"; then
+   QUIET_LIBTOOL_OPTS="--tag=CC --quiet"
+   QUIET_MAKE_OPTS="--quiet"
+fi
+
+AC_MSG_RESULT(Supressing make details: ${enable_quiet})
+AC_MSG_RESULT(Pretty printing of compiler output: ${enable_pretty})
+
+dnl Put the above variables to use
+CC="\$(PRETTY_CC) ${CC}"
+LIBTOOL="${LIBTOOL} \$(QUIET_LIBTOOL_OPTS)"
+MAKE="${MAKE} \$(QUIET_MAKE_OPTS)"
+
+AC_SUBST(CC)
+AC_SUBST(MAKE)
+AC_SUBST(LIBTOOL)
+AC_SUBST(PRETTY_CC)
+AC_SUBST(QUIET_MAKE_OPTS)
+AC_SUBST(QUIET_LIBTOOL_OPTS)
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(heartbeat.spec 					\
