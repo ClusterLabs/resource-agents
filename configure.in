@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.117 $) dnl cvs revision
+AC_REVISION($Revision: 1.118 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -748,6 +748,9 @@ AC_SUBST(UCDSNMPDEVEL)
 dnl ************************************************************************
 dnl checks for library functions
 dnl
+dnl	sigignore: Only on Solaris.
+dnl		it is a solaris replacement for signal(s,SIG_IGN).
+dnl
 dnl	scandir: Only on BSD.
 dnl		System-V systems may have it, but hidden and/or deprecated.
 dnl		A replacement function is supplied for it.
@@ -765,6 +768,7 @@ AC_CHECK_FUNCS(scandir)
 AC_CHECK_FUNCS(strerror)
 AC_CHECK_FUNCS(inet_aton)
 AC_CHECK_FUNCS(flock fcntl)
+AC_CHECK_FUNCS(sigignore)
 AC_CHECK_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 AC_REPLACE_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 
