@@ -508,9 +508,8 @@ static void form_cluster(void)
 	printk(KERN_INFO CMAN_NAME ": forming a new cluster\n");
 	node_state = MEMBER;
 	we_are_a_cluster_member = TRUE;
-	us->node_id = 1;
 	us->state = NODESTATE_MEMBER;
-	set_nodeid(us, 1);
+	set_nodeid(us, wanted_nodeid);
 	recalculate_quorum(0);
 	sm_member_update(cluster_is_quorate);
 	send_hello();
