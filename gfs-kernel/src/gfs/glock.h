@@ -74,6 +74,16 @@ gfs_glock_is_held_shrd(struct gfs_glock *gl)
 	return (gl->gl_state == LM_ST_SHARED);
 }
 
+static __inline__ int
+gfs_glock_is_blocking(struct gfs_glock *gl)
+{
+	int ret;
+	spin_lock(&gl->gl_spin);
+	ret = !list_empty(&gl->gl_waiters2) || !list_empty(&gl->gl_waiters3);
+	spin_unlock(&gl->gl_spin);
+	return ret;
+}
+
 struct gfs_glock *gfs_glock_find(struct gfs_sbd *sdp,
 				 struct lm_lockname *name);
 int gfs_glock_get(struct gfs_sbd *sdp,

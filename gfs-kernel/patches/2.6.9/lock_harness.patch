@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
 --- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-11-18 17:35:00.926989247 -0600
++++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-11-22 12:16:01.878259409 -0600
 @@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -231,7 +231,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unmount);
 diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
 --- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-11-18 17:35:00.926989247 -0600
++++ linux-patched/include/linux/lm_interface.h	2004-11-22 12:16:01.877259641 -0600
 @@ -0,0 +1,247 @@
 +/******************************************************************************
 +*******************************************************************************

@@ -1673,8 +1673,6 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 
 	curtime = get_seconds();
 	if (curtime - ip->i_di.di_atime >= quantum) {
-		int was_exclusive = (gl->gl_state == LM_ST_EXCLUSIVE);
-
 		gfs_glock_dq(gh);
 		gfs_holder_reinit(LM_ST_EXCLUSIVE,
 				  gh->gh_flags & ~LM_FLAG_ANY,
@@ -1709,13 +1707,10 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 			gfs_trans_end(sdp);
 		}
 
-		if (!was_exclusive) {
+		if (gfs_glock_is_blocking(gl)) {
 			gfs_glock_dq(gh);
-			flags &= ~LM_FLAG_ANY;
-			flags |= GL_EXACT;
 			gfs_holder_reinit(state, flags, gh);
-			error = gfs_glock_nq(gh);
-			return error;
+			return gfs_glock_nq(gh);
 		}
 	}
 
