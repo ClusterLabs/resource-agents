@@ -439,6 +439,7 @@ void notify_kernel_listeners(kcl_callback_reason reason, long arg)
 static void check_for_unacked_nodes()
 {
 	struct list_head *nodelist;
+	struct list_head *temp;
 	struct cluster_node *node;
 
 	clear_bit(RESEND_NEEDED, &mainloop_flags);
@@ -449,20 +450,23 @@ static void check_for_unacked_nodes()
 	/* Node did not ACK a message after <n> tries, remove it from the
 	 * cluster */
 	down(&cluster_members_lock);
-	list_for_each(nodelist, &cluster_members_list) {
+	list_for_each_safe(nodelist, temp, &cluster_members_list) {
 		node = list_entry(nodelist, struct cluster_node, list);
 
-		P_COMMS
-		    ("checking node %s: last_acked = %d, last_seq_sent = %d\n",
-		     node->name, node->last_seq_acked, node->last_seq_sent);
-		if (node->state != NODESTATE_DEAD
-		    && node->last_seq_acked != node->last_seq_sent && !node->us) {
+		P_COMMS("checking node %s: last_acked = %d, last_seq_sent = %d\n",
+			node->name, node->last_seq_acked, node->last_seq_sent);
+		if (node->state != NODESTATE_DEAD &&
+		    node->last_seq_acked != node->last_seq_sent && !node->us) {
 			printk(KERN_WARNING CMAN_NAME
 			       ": node %s is not responding - removing from the cluster\n",
 			       node->name);
 
+			/* Drop this lock or we can deadlock with membership */
+			up(&cluster_members_lock);
+
 			/* Start a state transition */
 			a_node_just_died(node);
+			down(&cluster_members_lock);
 		}
 	}
 	up(&cluster_members_lock);
