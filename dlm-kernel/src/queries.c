@@ -22,6 +22,7 @@
 #include <linux/module.h>
 
 #include "dlm_internal.h"
+#include "lockspace.h"
 #include "lockqueue.h"
 #include "locking.h"
 #include "lkb.h"
