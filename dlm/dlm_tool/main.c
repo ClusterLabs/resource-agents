@@ -10,41 +10,16 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <sys/types.h>
-#include <asm/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <limits.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-
-#include "copyright.cf"
-
 #include "dlm_tool.h"
+#include "copyright.cf"
 
 char *prog_name;
 char *action = NULL;
 int debug = FALSE;
 
+void open_control(void);
+int do_command(struct dlm_member_ioctl *mi);
 
-static int do_command(struct dlm_member_ioctl *mi)
-{
-	/* set data_size and data_start */
-
-	if (debug)
-		printf("do_command %s\n", mi->op);
-
-	return 0;
-}
 
 static void status(struct dlm_member_ioctl *mi, int argc, char **argv)
 {
@@ -117,6 +92,7 @@ static void start(struct dlm_member_ioctl *mi_in, int argc, char **argv)
 		len += strlen(argv[i]) + 1;
 
 	mi = malloc(len);
+	mi->data_size = len;
 	memcpy(mi, mi_in, sizeof(struct dlm_member_ioctl));
 	strcpy(mi->name, argv[0]);
 	mi->start_event = atoi(argv[1]);
@@ -235,9 +211,13 @@ int main(int argc, char **argv)
 	decode_arguments(&argc, argv);
 	argv += (x - argc);
 
+	open_control();
+
 	mi.version[0] = DLM_MEMBER_VERSION_MAJOR;
 	mi.version[1] = DLM_MEMBER_VERSION_MINOR;
 	mi.version[2] = DLM_MEMBER_VERSION_PATCH;
+	mi.data_size = sizeof(mi);
+	mi.data_start = sizeof(mi);
 
 	strcpy(mi.op, action);
 

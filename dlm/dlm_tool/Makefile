@@ -27,10 +27,13 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-dlm_tool: main.o
+dlm_tool: main.o ioctl.o
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c dlm_tool.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+ioctl.o: ioctl.c dlm_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: dlm_tool

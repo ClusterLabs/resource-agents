@@ -14,6 +14,7 @@
 #define __DLM_TOOL_DOT_H__
 
 #include <sys/types.h>
+#include <asm/types.h>
 #include <sys/uio.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -44,10 +45,20 @@ extern char *prog_name;
 #endif
 
 #define die(fmt, args...) \
+do \
 { \
 	fprintf(stderr, "%s: ", prog_name); \
 	fprintf(stderr, fmt "\n", ##args); \
 	exit(EXIT_FAILURE); \
-}
+} \
+while (0)
+
+#define log_error(fmt, args...) \
+do \
+{ \
+	fprintf(stderr, "%s: ", prog_name); \
+	fprintf(stderr, fmt "\n", ##args); \
+} \
+while (0)
 
 #endif  /*  __DLM_TOOL_DOT_H__  */
