@@ -2090,14 +2090,14 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 			down(&send_lock);
 		}
 
+		set_task_state(tsk, TASK_RUNNING);
+		remove_wait_queue(&socket_waitq, &wq);
+
 		/* Going down */
 		if (quit_threads) {
 			up(&send_lock);
 			return -ENOTCONN;
 		}
-
-		set_task_state(tsk, TASK_RUNNING);
-		remove_wait_queue(&socket_waitq, &wq);
 
 		if (signal_pending(current)) {
 			up(&send_lock);
