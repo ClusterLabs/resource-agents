@@ -1,7 +1,443 @@
+diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cnxman-private.h
+--- linux-orig/cluster/cman/cnxman-private.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/cnxman-private.h	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,432 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#ifndef __CNXMAN_PRIVATE_H
++#define __CNXMAN_PRIVATE_H
++
++/* Version triplet */
++#define CNXMAN_MAJOR_VERSION 3
++#define CNXMAN_MINOR_VERSION 0
++#define CNXMAN_PATCH_VERSION 1
++
++#define MAX_RETRIES 3		/* Maximum number of send retries */
++#define CAP_CLUSTER CAP_SYS_ADMIN	/* Capability needed to manage the
++					 * cluster */
++#ifdef __KERNEL__
++
++/* How we announce ourself in console events */
++#define CMAN_NAME "CMAN"
++
++/* One of these per AF_CLUSTER socket */
++struct cluster_sock {
++	/* WARNING: sk has to be the first member */
++	struct sock sk;
++
++	unsigned char port;	/* Bound port or zero */
++	int (*kernel_callback) (char *, int, char *, int, unsigned int);
++	void *service_data;
++};
++
++#define cluster_sk(__sk) ((struct cluster_sock *)__sk)
++
++/* We have one of these for each socket we use for communications */
++struct cl_comms_socket {
++	struct socket *sock;
++	int broadcast;		/* This is a broadcast socket */
++	int recv_only;		/* This is the unicast receive end of a
++				 * multicast socket */
++	struct sockaddr_in6 saddr; /* Socket address, contains the sockaddr for
++				 * the remote end(s) */
++	int addr_len;		/* Length of above */
++	int number;		/* Internal socket number, used to cycle around
++				 * sockets in case of network errors */
++	struct file *file;	/* file pointer for user-passed in sockets */
++
++	wait_queue_t wait;
++
++	/* The socket list */
++	struct list_head list;
++
++	/* On here when it has something to say */
++	struct list_head active_list;
++	unsigned long active;
++};
++
++/* A client socket. We keep a list of these so we can notify clients of cluster
++ * events */
++struct cl_client_socket {
++	struct socket    *sock;
++	struct list_head  list;
++};
++
++/* This structure is tacked onto the start of a cluster message packet for our
++ * own nefarious purposes. */
++struct cl_protheader {
++	unsigned char  tgtport; /* Target port number */
++	unsigned char  srcport; /* Source (originationg) port number */
++	unsigned short seq;	/* Packet sequence number, little-endian */
++	unsigned short ack;	/* Inline ACK */
++	unsigned short cluster;	/* Our cluster number, little-endian */
++	unsigned int   flags;
++	int            srcid;	/* Node ID of the sender */
++	int            tgtid;	/* Node ID of the target or 0 for multicast
++				 * messages */
++};
++
++/* A cluster internal protocol message - port number 0 */
++struct cl_protmsg {
++	struct cl_protheader header;
++	unsigned char cmd;
++};
++
++/* A Cluster ACK message */
++struct cl_ackmsg {
++	struct cl_protheader header;
++	unsigned char  cmd;	/* Always CLUSTER_CMD_ACK */
++	unsigned char  remport;	/* Remote port number the original message was
++				 * for */
++	unsigned char  aflags;	/* ACK flags 0=OK, 1=No listener */
++	unsigned char  pad;
++};
++
++/* A Cluster LISTENREQ/LISTENRESP message */
++struct cl_listenmsg {
++	unsigned char  cmd;	/* CLUSTER_CMD_LISTENRESP/REQ */
++	unsigned char  target_port;	/* Port to probe */
++	unsigned char  listening;	/* Always 0 for LISTENREQ */
++	unsigned char  pad;
++	unsigned short tag;	/* PID of remote waiting process */
++};
++
++/* A Cluster PORTCLOSED message */
++struct cl_closemsg {
++	unsigned char cmd;	/* CLUSTER_CMD_PORTCLOSED */
++	unsigned char port;
++};
++
++/* Structure of a newly dead node, passed from cnxman to kmembershipd */
++struct cl_new_dead_node {
++	struct list_head     list;
++	struct cluster_node *node;
++};
++
++/* Subcommands for BARRIER message */
++#define BARRIER_REGISTER 1
++#define BARRIER_CHANGE   2
++#define BARRIER_WAIT     4
++#define BARRIER_COMPLETE 5
++
++/* A Cluster BARRIER message */
++struct cl_barriermsg {
++	unsigned char  cmd;	/* CLUSTER_CMD_BARRIER */
++	unsigned char  subcmd;	/* BARRIER sub command */
++	unsigned short pad;
++	unsigned int   flags;
++	unsigned int   nodes;
++	char name[MAX_BARRIER_NAME_LEN];
++};
++
++/* Membership services messages, the cl_protheader is added transparently */
++struct cl_mem_hello_msg {
++	unsigned char  cmd;
++	unsigned char  flags;
++	unsigned short members;	    /* Number of nodes in the cluster,
++				     * little-endian */
++	unsigned int   generation;  /* Current cluster generation number */
++};
++
++struct cl_mem_endtrans_msg {
++	unsigned char  cmd;
++	unsigned char  pad1;
++	unsigned short pad2;
++	unsigned int   quorum;
++	unsigned int   total_votes;
++	unsigned int   generation;	/* Current cluster generation number */
++	unsigned int   new_node_id;	/* If reason is a new node joining */
++};
++
++/* ACK types for JOINACK message */
++#define JOINACK_TYPE_OK   1	/* You can join */
++#define JOINACK_TYPE_NAK  2	/* You can NOT join */
++#define JOINACK_TYPE_WAIT 3	/* Wait a bit longer - cluster is in transition
++				 * already */
++
++struct cl_mem_joinack_msg {
++	unsigned char cmd;
++	unsigned char acktype;
++};
++
++/* This is used by JOINREQ message */
++struct cl_mem_join_msg {
++	unsigned char  cmd;
++	unsigned char  votes;
++	unsigned short num_addr;	/* Number of addresses for this node */
++	unsigned int   expected_votes;
++        unsigned int   nodeid;	        /* node ID we want */
++	unsigned int   major_version;	/* Not backwards compatible */
++	unsigned int   minor_version;	/* Backwards compatible */
++	unsigned int   patch_version;	/* Backwards/forwards compatible */
++	unsigned int   config_version;
++        unsigned int   addr_len;        /* length of node addresses */
++        char           clustername[16];
++	/* Followed by <num_addr> addresses of `address_length` bytes and a
++	 * NUL-terminated node name */
++};
++
++/* State transition start reasons: */
++#define TRANS_NEWNODE        1	/* A new node is joining the cluster */
++#define TRANS_REMNODE        2	/* a node has left the cluster */
++#define TRANS_ANOTHERREMNODE 3	/* A node left the cluster while we were in
++				 * transition */
++#define TRANS_NEWMASTER      4	/* We have had an election and I am the new
++				 * master */
++#define TRANS_CHECK          5	/* A consistency check was called for */
++#define TRANS_RESTART        6	/* Transition restarted because of a previous
++				 * timeout */
++#define TRANS_DEADMASTER     7	/* The master died during transition and I have
++				 * taken over */
++
++/* This is used to start a state transition */
++struct cl_mem_starttrans_msg {
++	unsigned char  cmd;
++	unsigned char  reason;	/* Why a start transition was started - see
++				 * above */
++	unsigned char  flags;
++	unsigned char  votes;
++	unsigned int   expected_votes;
++	unsigned int   generation;	/* Incremented for each STARTTRANS sent
++					 */
++	int            nodeid;	/* Node to be removed */
++	unsigned short num_addrs;
++	/* If reason == TRANS_NEWNODE: Followed by <num_addr> addresses of
++	 * `address_length` bytes and a NUL-terminated node name */
++};
++
++struct cl_mem_startack_msg {
++	unsigned char  cmd;
++	unsigned char  reason;
++	unsigned short pad;
++	unsigned int   generation;
++	unsigned int   node_id;	/* node_id we think new node should have */
++	unsigned int   highest_node_id;	/* highest node_id on this system */
++};
++
++/* Reconfigure a cluster parameter */
++struct cl_mem_reconfig_msg {
++	unsigned char  cmd;
++	unsigned char  param;
++	unsigned short pad;
++	unsigned int   value;
++};
++
++/* Structure containing information about an outstanding listen request */
++struct cl_waiting_listen_request {
++	wait_queue_head_t waitq;
++	int               result;
++	int               waiting;
++	unsigned short    tag;
++	int               nodeid;
++	struct list_head  list;
++};
++
++/* Messages from membership services */
++#define CLUSTER_MEM_JOINCONF   1
++#define CLUSTER_MEM_JOINREQ    2
++#define CLUSTER_MEM_LEAVE      3
++#define CLUSTER_MEM_HELLO      4
++#define CLUSTER_MEM_KILL       5
++#define CLUSTER_MEM_JOINACK    6
++#define CLUSTER_MEM_ENDTRANS   7
++#define CLUSTER_MEM_RECONFIG   8
++#define CLUSTER_MEM_MASTERVIEW 9
++#define CLUSTER_MEM_STARTTRANS 10
++#define CLUSTER_MEM_JOINREJ    11
++#define CLUSTER_MEM_VIEWACK    12
++#define CLUSTER_MEM_STARTACK   13
++#define CLUSTER_MEM_TRANSITION 14
++#define CLUSTER_MEM_NEWCLUSTER 15
++#define CLUSTER_MEM_CONFACK    16
++#define CLUSTER_MEM_NOMINATE   17
++
++/* Flags in the HELLO message */
++#define HELLO_FLAG_MASTER       1
++#define HELLO_FLAG_QUORATE      2
++
++/* Parameters for RECONFIG command */
++#define RECONFIG_PARAM_EXPECTED_VOTES 1
++#define RECONFIG_PARAM_NODE_VOTES     2
++#define RECONFIG_PARAM_CONFIG_VERSION 3
++
++/* Data associated with an outgoing socket */
++struct cl_socket {
++	struct file *file;	/* The real file */
++	struct socket *socket;	/* The real sock */
++	int num_nodes;		/* On this link */
++	int retransmit_count;
++};
++
++/* There's one of these for each node in the cluster */
++struct cluster_node {
++	struct list_head list;
++	char *name;		/* Node/host name of node */
++	struct list_head addr_list;
++	int us;			/* This node is us */
++	unsigned int node_id;	/* Unique node ID */
++	nodestate_t state;
++	unsigned short last_seq_recv;
++	unsigned short last_seq_acked;
++	unsigned short last_seq_sent;
++	unsigned int votes;
++	unsigned int expected_votes;
++	unsigned int leave_reason;
++	unsigned int incarnation;	/* Incremented each time a node joins
++					 * the cluster */
++	unsigned long last_hello;	/* Jiffies */
++        struct timeval join_time;
++};
++
++/* This is how we keep a list of user processes that are listening for cluster
++ * membership events */
++struct notify_struct {
++	struct list_head list;
++	pid_t pid;
++	int signal;
++};
++
++/* This is how we keep a list of kernel callbacks that are registered for
++ * cluster membership events */
++struct kernel_notify_struct {
++	struct list_head list;
++	void (*callback) (kcl_callback_reason, long arg);
++};
++
++/* A message waiting to be sent */
++struct queued_message {
++	struct list_head list;
++
++	struct socket *socket;
++	struct sockaddr_cl addr;
++	int addr_len;
++	int msg_len;
++	unsigned char port;
++	unsigned int flags;
++	char msg_buffer[MAX_CLUSTER_MESSAGE];
++};
++
++/* A barrier */
++struct cl_barrier {
++	struct list_head list;
++
++	char name[MAX_BARRIER_NAME_LEN];
++	unsigned int flags;
++	enum { BARRIER_STATE_WAITING, BARRIER_STATE_INACTIVE,
++		    BARRIER_STATE_COMPLETE } state;
++	unsigned int expected_nodes;
++	unsigned int registered_nodes;
++	atomic_t     got_nodes;
++	atomic_t     completed_nodes;
++	unsigned int inuse;
++	unsigned int waitsent;
++	unsigned int phase;	/* Completion phase */
++	unsigned int endreason;	/* Reason we were woken, usually 0 */
++	unsigned long timeout;	/* In seconds */
++
++	void (*callback) (char *name, int status);
++	wait_queue_head_t waitq;
++	struct semaphore lock;	/* To synch with cnxman messages */
++	spinlock_t phase2_spinlock;	/* Need to synchronise with timer
++					 * interrupts */
++	struct timer_list timer;
++};
++
++/* Cluster protocol commands sent to port 0 */
++#define CLUSTER_CMD_ACK        1
++#define CLUSTER_CMD_LISTENREQ  2
++#define CLUSTER_CMD_LISTENRESP 3
++#define CLUSTER_CMD_PORTCLOSED 4
++#define CLUSTER_CMD_BARRIER    5
++
++extern struct cluster_node *find_node_by_addr(unsigned char *addr,
++					      int addr_len);
++extern struct cluster_node *find_node_by_nodeid(unsigned int id);
++extern struct cluster_node *find_node_by_name(char *name);
++extern void set_quorate(int);
++extern void notify_kernel_listeners(kcl_callback_reason reason, long arg);
++extern void notify_listeners(void);
++extern void free_nodeid_array(void);
++extern int send_reconfigure(int param, unsigned int value);
++extern int calculate_quorum(int, int, int *);
++extern void recalculate_quorum(int);
++extern int send_leave(unsigned char);
++extern int get_quorum(void);
++extern void set_votes(int, int);
++extern void kcl_wait_for_all_acks(void);
++extern char *membership_state(char *, int);
++extern char *leave_string(int reason);
++extern void a_node_just_died(struct cluster_node *node);
++extern void check_barrier_returns(void);
++extern int in_transition(void);
++extern void get_local_addresses(struct cluster_node *node);
++extern int add_node_address(struct cluster_node *node, unsigned char *addr, int len);
++extern void create_proc_entries(void);
++extern void cleanup_proc_entries(void);
++extern unsigned int get_highest_nodeid(void);
++extern int allocate_nodeid_array(void);
++extern void queue_oob_skb(struct socket *sock, int cmd);
++extern int new_temp_nodeid(char *addr, int addrlen);
++extern int get_addr_from_temp_nodeid(int nodeid, char *addr, int *addrlen);
++extern void purge_temp_nodeids(void);
++extern inline char *print_addr(unsigned char *addr, int len, char *buf)
++{
++	int i;
++	int ptr = 0;
++
++	for (i = 0; i < len; i++)
++		ptr += sprintf(buf + ptr, "%02x ", addr[i]);
++
++	return buf;
++}
++
++#define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
++
++/* Debug enabling macros. Sorry about the C++ comments but they're easier to
++ * get rid of than C ones... */
++
++// #define DEBUG_MEMB
++// #define DEBUG_COMMS
++// #define DEBUG_BARRIER
++
++/* Debug macros */
++#ifdef DEBUG_COMMS
++#define P_COMMS(fmt, args...) printk(KERN_DEBUG "cman comms: " fmt, ## args)
++#else
++#define P_COMMS(fmt, args...)
++#endif
++
++#ifdef DEBUG_BARRIER
++#define P_BARRIER(fmt, args...) printk(KERN_DEBUG "cman barrier: " fmt, ## args)
++#else
++#define P_BARRIER(fmt, args...)
++#endif
++
++#ifdef DEBUG_MEMB
++#define P_MEMB(fmt, args...) printk(KERN_DEBUG "cman memb: " fmt, ## args)
++#define C_MEMB(fmt, args...) printk(fmt, ## args)
++#else
++#define P_MEMB(fmt, args...)
++#define C_MEMB(fmt, args...)
++#endif
++
++#endif				/* __KERNEL */
++
++#endif
 diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
---- linux-orig/cluster/cman/cnxman.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/cnxman.c	2004-10-22 11:04:52.611551982 -0500
-@@ -0,0 +1,4233 @@
+--- linux-orig/cluster/cman/cnxman.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/cnxman.c	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,4214 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -38,7 +474,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +
 +#define CMAN_RELEASE_NAME "<CVS>"
 +
-+static void process_incoming_packet(struct cl_comms_socket *csock, struct msghdr *msg, int len);
++static void process_incoming_packet(struct cl_comms_socket *csock,
++				    struct msghdr *msg, struct kvec *vec, int veclen, int len);
 +static int cl_sendack(struct cl_comms_socket *sock, unsigned short seq,
 +		      int addr_len, char *addr, unsigned char remport,
 +		      unsigned char flag);
@@ -81,7 +518,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +static struct semaphore port_array_lock;
 +
 +/* Our cluster name & number */
-+unsigned short cluster_id;
++uint16_t cluster_id;
 +char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 +
 +/* Two-node mode: causes cluster to remain quorate if one of two nodes fails.
@@ -255,31 +692,25 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +static int receive_message(struct cl_comms_socket *csock, char *iobuf)
 +{
 +	struct msghdr msg;
-+	struct iovec iov;
++	struct kvec vec;
 +	struct sockaddr_in6 sin;
 +	int len;
-+	mm_segment_t fs;
 +
 +	memset(&sin, 0, sizeof (sin));
 +
 +	msg.msg_control = NULL;
 +	msg.msg_controllen = 0;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = &iov;
 +	msg.msg_name = &sin;
 +	msg.msg_namelen = sizeof (sin);
 +	msg.msg_flags = 0;
 +
-+	iov.iov_len = MAX_CLUSTER_MESSAGE;
-+	iov.iov_base = iobuf;
++	vec.iov_len = MAX_CLUSTER_MESSAGE;
++	vec.iov_base = iobuf;
 +
-+	fs = get_fs();
-+	set_fs(get_ds());
++	len = kernel_recvmsg(csock->sock, &msg,
++			     &vec, 1, MAX_CLUSTER_MESSAGE, MSG_DONTWAIT);
 +
-+	len = sock_recvmsg(csock->sock, &msg, MAX_CLUSTER_MESSAGE, MSG_DONTWAIT);
-+	set_fs(fs);
-+
-+	iov.iov_base = iobuf;
++	vec.iov_base = iobuf;
 +
 +	if (len > 0) {
 +		if (len > MAX_CLUSTER_MESSAGE) {
@@ -287,7 +718,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +			       ": %d byte message far too big\n", len);
 +			return 0;
 +		}
-+		process_incoming_packet(csock, &msg, len);
++		process_incoming_packet(csock, &msg, &vec, 1, len);
 +	}
 +	else {
 +		if (len != -EAGAIN)
@@ -669,25 +1100,25 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	return 0; /* FALSE */
 +}
 +
-+/* TODO use kvec */
-+static void memcpy_fromkvec(void *data, struct iovec *iov, int len)
++static void memcpy_fromkvec(void *data, struct kvec *vec, int len)
 +{
 +        while (len > 0) {
-+                if (iov->iov_len) {
-+                        int copy = min_t(unsigned int, len, iov->iov_len);
-+                        memcpy(data, iov->iov_base, copy);
++                if (vec->iov_len) {
++                        int copy = min_t(unsigned int, len, vec->iov_len);
++                        memcpy(data, vec->iov_base, copy);
 +                        len -= copy;
 +                        data += copy;
-+                        iov->iov_base += copy;
-+                        iov->iov_len -= copy;
++                        vec->iov_base += copy;
++                        vec->iov_len -= copy;
 +                }
-+                iov++;
++                vec++;
 +        }
 +}
 +
 +static int send_to_user_port(struct cl_comms_socket *csock,
 +			     struct cl_protheader *header,
-+			     struct msghdr *msg, struct iovec *iov,
++			     struct msghdr *msg,
++			     struct kvec *iov, int veclen,
 +			     int len)
 +{
 +	struct sk_buff *skb;
@@ -710,7 +1141,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		/* Call a callback if there is one */
 +		if (c->kernel_callback) {
 +			up(&port_array_lock);
-+			if (msg->msg_iovlen == 1) {
++			if (veclen == 1) {
 +				c->kernel_callback(iov->iov_base,
 +						   iov->iov_len,
 +						   msg->msg_name, msg->msg_namelen,
@@ -786,9 +1217,10 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +/* NOTE: This routine knows (assumes!) that there is only one
 +   iov element passed into it. */
 +static void process_incoming_packet(struct cl_comms_socket *csock,
-+				    struct msghdr *msg, int len)
++				    struct msghdr *msg,
++				    struct kvec *vec, int veclen, int len)
 +{
-+	char *data = msg->msg_iov->iov_base;
++	char *data = vec->iov_base;
 +	char *addr = msg->msg_name;
 +	int addrlen = msg->msg_namelen;
 +	struct cl_protheader *header = (struct cl_protheader *) data;
@@ -909,11 +1341,11 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	}
 +
 +	/* Skip past the header to the data */
-+	msg->msg_iov[0].iov_base = data + sizeof (struct cl_protheader);
-+	msg->msg_iov[0].iov_len -= sizeof (struct cl_protheader);
++	vec[0].iov_base = data + sizeof (struct cl_protheader);
++	vec[0].iov_len -= sizeof (struct cl_protheader);
 +	len -= sizeof (struct cl_protheader);
 +
-+	send_to_user_port(csock, header, msg, msg->msg_iov, len);
++	send_to_user_port(csock, header, msg, vec, veclen, len);
 +
 +      incoming_finish:
 +	return;
@@ -1329,6 +1761,22 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	return num_nodes;
 +}
 +
++
++static int do_ioctl_get_cluster(unsigned long arg)
++{
++	struct cl_cluster_info __user *info;
++
++	info = (struct cl_cluster_info *)arg;
++
++	if (copy_to_user(&info->number, &cluster_id, sizeof(cluster_id)))
++	    return -EFAULT;
++
++	if (copy_to_user(&info->name, cluster_name, strlen(cluster_name)+1))
++		return -EFAULT;
++
++	return 0;
++}
++
 +static int do_ioctl_get_node(unsigned long arg)
 +{
 +	struct cluster_node *node;
@@ -1339,8 +1787,11 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	if (copy_from_user(&k_node, u_node, sizeof(struct cl_cluster_node)))
 +		return -EFAULT;
 +
-+	if (k_node.node_id)
++	if (!k_node.name[0]) {
++		if (k_node.node_id == 0)
++			k_node.node_id = us->node_id;
 +		node = find_node_by_nodeid(k_node.node_id);
++	}
 +	else
 +		node = find_node_by_name(k_node.name);
 +
@@ -1464,6 +1915,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		return -EFAULT;
 +
 +	nodeid = rq.nodeid;
++	if (!nodeid)
++		nodeid = us->node_id;
 +
 +	rem_node = find_node_by_nodeid(nodeid);
 +
@@ -1476,7 +1929,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +
 +	/* If the request is for us then just look in the ports
 +	 * array */
-+	if (nodeid == us->node_id)
++	if (rem_node->us)
 +		return (port_array[rq.port] != 0) ? 1 : 0;
 +
 +	/* For a remote node we need to send a request out */
@@ -1785,6 +2238,10 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		err = do_ioctl_get_node(arg);
 +		break;
 +
++	case SIOCCLUSTER_GETCLUSTER:
++		err = do_ioctl_get_cluster(arg);
++		break;
++
 +	case SIOCCLUSTER_ISQUORATE:
 +		return cluster_is_quorate;
 +
@@ -1887,38 +2344,25 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	return err;
 +}
 +
-+static int cl_setsockopt(struct socket *sock, int level, int optname,
-+			 char *optval, int optlen)
-+{
-+	/* TODO Remove this after a short time */
-+	printk("An old version of cman_tool attempted to start the cluster\n");
-+	return -EINVAL;
-+}
-+
 +
 +/* We'll be giving out reward points next... */
 +/* Send the packet and save a copy in case someone loses theirs. Should be
 + * protected by the send mutexphore */
 +static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
++			   struct kvec *vec, int veclen,
 +			   int size, int needack)
 +{
-+	mm_segment_t fs;
 +	int result;
-+	struct iovec save_vectors[msg->msg_iovlen];
++	struct kvec save_vectors[veclen];
 +
 +	/* Save a copy of the IO vectors as sendmsg mucks around with them and
-+	 * we may want to send the same stuff out more than once (for different
++	 * we might want to send the same stuff out more than once (for different
 +	 * interfaces)
 +	 */
-+	memcpy(save_vectors, msg->msg_iov,
-+	       sizeof (struct iovec) * msg->msg_iovlen);
++	memcpy(save_vectors, vec,
++	       sizeof (struct kvec) * veclen);
 +
-+	fs = get_fs();
-+	set_fs(get_ds());
-+
-+	result = sock_sendmsg(csock->sock, msg, size);
-+
-+	set_fs(fs);
++	result = kernel_sendmsg(csock->sock, msg, vec, veclen, size);
 +
 +	if (result >= 0 && acks_expected && needack) {
 +
@@ -1932,8 +2376,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	}
 +
 +	/* Restore IOVs */
-+	memcpy(msg->msg_iov, save_vectors,
-+	       sizeof (struct iovec) * msg->msg_iovlen);
++	memcpy(vec, save_vectors,
++	       sizeof (struct kvec) * veclen);
 +
 +	return result;
 +}
@@ -1941,8 +2385,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +static void resend_last_message()
 +{
 +	struct msghdr msg;
-+	struct iovec vec[1];
-+	mm_segment_t fs;
++	struct kvec vec[1];
 +	int result;
 +
 +	P_COMMS("%ld resending last message: %d bytes: port=%d, cmd=%d\n",
@@ -1961,15 +2404,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	memset(&msg, 0, sizeof (msg));
 +	msg.msg_name = &current_interface->saddr;
 +	msg.msg_namelen = current_interface->addr_len;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = vec;
 +
-+	fs = get_fs();
-+	set_fs(get_ds());
-+
-+	result = sock_sendmsg(current_interface->sock, &msg, saved_msg_len);
-+
-+	set_fs(fs);
++	result = kernel_sendmsg(current_interface->sock, &msg, vec, 1, saved_msg_len);
 +
 +	if (result < 0)
 +		printk(KERN_ERR CMAN_NAME ": resend failed: %d\n", result);
@@ -2024,6 +2460,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +					skb_free_datagram(sk, skb);
 +			}
 +		}
++		else
++			break;
 +	}
 +	while (cbinfo->oob && !(flags & MSG_OOB));
 +
@@ -2066,7 +2504,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +}
 +
 +/* Send a message out on all interfaces */
-+static int send_to_all_ints(int nodeid, struct msghdr *our_msg, int size, int flags)
++static int send_to_all_ints(int nodeid, struct msghdr *our_msg,
++			    struct kvec *vec, int veclen, int size, int flags)
 +{
 +	struct sockaddr_in6 daddr;
 +	struct cl_comms_socket *clsock;
@@ -2088,7 +2527,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +				our_msg->msg_namelen = clsock->addr_len;
 +			}
 +
-+			result = __send_and_save(clsock, our_msg,
++			result = __send_and_save(clsock, our_msg, vec, veclen,
 +						 size + sizeof (struct cl_protheader),
 +						 !(flags & MSG_NOACK));
 +		}
@@ -2098,7 +2537,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +
 +
 +/* Internal common send message routine */
-+static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
++static int __sendmsg(struct socket *sock, struct msghdr *msg,
++		     struct kvec *vec, int veclen, int size,
 +		     unsigned char port)
 +{
 +	int result = 0, i;
@@ -2106,7 +2546,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	struct msghdr our_msg;
 +	struct sockaddr_cl *caddr = msg->msg_name;
 +	struct cl_protheader header;
-+	struct iovec vectors[msg->msg_iovlen + 1];
++	struct kvec vectors[veclen + 1];
 +	unsigned char srcport;
 +	int nodeid = 0;
 +
@@ -2224,25 +2664,23 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		header.tgtid = 0;
 +	}
 +
-+	/* Copy the existing iovecs into our array and add the header on at the
-+	 * beginning */
-+	vectors[0].iov_base = &header;
-+	vectors[0].iov_len = sizeof (header);
-+	for (i = 0; i < msg->msg_iovlen; i++) {
-+		vectors[i + 1] = msg->msg_iov[i];
-+	}
-+
-+	our_msg.msg_iovlen = msg->msg_iovlen + 1;
-+	our_msg.msg_iov = vectors;
-+
 +	/* Loopback shortcut */
 +	if (nodeid == us->node_id && nodeid != 0) {
 +
 +		up(&send_lock);
 +		header.flags |= MSG_NOACK; /* Don't ack it! */
 +
-+		return send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
++		return send_to_user_port(NULL, &header, msg, vec, veclen, size);
 +	}
++
++	/* Copy the existing kvecs into our array and add the header on at the
++	 * beginning */
++	vectors[0].iov_base = &header;
++	vectors[0].iov_len = sizeof (header);
++	for (i = 0; i < veclen; i++) {
++		vectors[i + 1] = vec[i];
++	}
++
 +
 +        /* Work out how many ACKS are wanted - *don't* reset acks_expected to
 +	 * zero if no acks are required as an ACK-needed message may still be
@@ -2268,7 +2706,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	/* For non-member sends we use all the interfaces */
 +	if ((nodeid < 0) || (flags & MSG_ALLINT)) {
 +
-+		result = send_to_all_ints(nodeid, &our_msg, size, msg->msg_flags);
++		result = send_to_all_ints(nodeid, &our_msg, vectors, veclen+1,
++					  size, msg->msg_flags);
 +	}
 +	else {
 +		/* Send to only the current socket - resends will use the
@@ -2278,6 +2717,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +
 +		result =
 +		    __send_and_save(current_interface, &our_msg,
++				    vectors, veclen+1,
 +				    size + sizeof (header),
 +				    !(msg->msg_flags & MSG_NOACK));
 +	}
@@ -2312,14 +2752,14 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	if (nodeid == 0 && (flags & MSG_BCASTSELF)) {
 +		header.flags |= MSG_NOACK; /* Don't ack it! */
 +
-+		result = send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
++		result = send_to_user_port(NULL, &header, msg, vec, veclen, size);
 +	}
 +
 +	/* Save a copy of the message if we're expecting an ACK */
 +	if (!(flags & MSG_NOACK) && acks_expected) {
 +		struct cl_protheader *savhdr = (struct cl_protheader *) saved_msg_buffer;
 +
-+		memcpy_fromkvec(saved_msg_buffer, our_msg.msg_iov,
++		memcpy_fromkvec(saved_msg_buffer, vectors,
 +				size + sizeof (header));
 +
 +		saved_msg_len = size + sizeof (header);
@@ -2376,10 +2816,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	struct cluster_sock *c = cluster_sk(sock->sk);
 +	char *buffer;
 +	int status;
-+	int saved_iovlen;
 +	uint8_t port;
-+	struct iovec iov;
-+	struct iovec *saved_iov;
++	struct kvec vec;
 +	struct sockaddr_cl *caddr = msg->msg_name;
 +
 +	if (sock->sk->sk_protocol == CLPROTO_MASTER)
@@ -2394,30 +2832,22 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	if (port == 0)
 +		return -EDESTADDRREQ;
 +
-+        /* Hmmm. On machines with segmented user/kernel space (sparc64, hppa &
-+	 * m68k AFAICT) we can't mix user and kernel space addresses in the
-+	 * IOV. This stymies __sendmsg a little as it tries to add a header to
-+	 * what could possibly be a userspace iov. So, here (where all the
-+	 * userspace sends come) we copy it to a kernel space buffer first. If
-+	 * performance is a big problem here then I might #ifdef it for the
-+	 * affected architectures but for now I think it will probably be OK */
++	/* Allocate a kernel buffer for the data so we can put it into a kvec */
 +	buffer = kmalloc(size, GFP_KERNEL);
 +	if (!buffer)
 +		return -ENOMEM;
 +
-+	memcpy_fromiovec(buffer, msg->msg_iov, size);
-+	iov.iov_len = size;
-+	iov.iov_base = buffer;
++	if (memcpy_fromiovec(buffer, msg->msg_iov, size)) {
++		status = -EFAULT;
++		goto end_send;
++	}
 +
-+	saved_iov = msg->msg_iov;
-+	saved_iovlen = msg->msg_iovlen;
-+	msg->msg_iov = &iov;
-+	msg->msg_iovlen = 1;
++	vec.iov_len = size;
++	vec.iov_base = buffer;
 +
-+	status = __sendmsg(sock, msg, size, port);
-+	msg->msg_iov = saved_iov;
-+	msg->msg_iovlen = saved_iovlen;
++	status = __sendmsg(sock, msg, &vec, 1, size, port);
 +
++ end_send:
 +	kfree(buffer);
 +
 +	return status;
@@ -2427,7 +2857,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +int kcl_sendmsg(struct socket *sock, void *buf, int size,
 +		struct sockaddr_cl *caddr, int addr_len, unsigned int flags)
 +{
-+	struct iovec iovecs[1];
++	struct kvec vecs[1];
 +	struct msghdr msg;
 +	struct cluster_sock *c = cluster_sk(sock->sk);
 +	unsigned char port;
@@ -2451,22 +2881,20 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +				     flags & ~MSG_QUEUE);
 +	}
 +
-+	iovecs[0].iov_base = buf;
-+	iovecs[0].iov_len = size;
++	vecs[0].iov_base = buf;
++	vecs[0].iov_len = size;
 +
 +	memset(&msg, 0, sizeof (msg));
 +	msg.msg_name = caddr;
 +	msg.msg_namelen = addr_len;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = iovecs;
 +	msg.msg_flags = flags;
 +
-+	return __sendmsg(sock, &msg, size, port);
++	return __sendmsg(sock, &msg, vecs, 1, size, port);
 +}
 +
 +static int send_queued_message(struct queued_message *qmsg)
 +{
-+	struct iovec iovecs[1];
++	struct kvec vecs[1];
 +	struct msghdr msg;
 +
 +	/* Don't send blocked messages */
@@ -2474,17 +2902,16 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	    && (!cluster_is_quorate || in_transition()))
 +		return -EAGAIN;
 +
-+	iovecs[0].iov_base = qmsg->msg_buffer;
-+	iovecs[0].iov_len = qmsg->msg_len;
++	vecs[0].iov_base = qmsg->msg_buffer;
++	vecs[0].iov_len = qmsg->msg_len;
 +
 +	memset(&msg, 0, sizeof (msg));
 +	msg.msg_name = qmsg->addr_len ? &qmsg->addr : NULL;
 +	msg.msg_namelen = qmsg->addr_len;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = iovecs;
 +	msg.msg_flags = qmsg->flags;
 +
-+	return __sendmsg(qmsg->socket, &msg, qmsg->msg_len, qmsg->port);
++	return __sendmsg(qmsg->socket, &msg, vecs, 1,
++			 qmsg->msg_len, qmsg->port);
 +}
 +
 +int kcl_register_read_callback(struct socket *sock,
@@ -2505,21 +2932,19 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +				 struct sockaddr_cl *caddr,
 +				 unsigned int flags)
 +{
-+	struct iovec iovecs[1];
++	struct kvec vecs[1];
 +	struct msghdr msg;
 +	int status;
 +
-+	iovecs[0].iov_base = buf;
-+	iovecs[0].iov_len = len;
++	vecs[0].iov_base = buf;
++	vecs[0].iov_len = len;
 +
 +	memset(&msg, 0, sizeof (msg));
 +	msg.msg_name = caddr;
 +	msg.msg_namelen = caddr ? sizeof (struct sockaddr_cl) : 0;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = iovecs;
 +	msg.msg_flags = MSG_DONTWAIT | flags;
 +
-+	status = __sendmsg(NULL, &msg, len, 0);
++	status = __sendmsg(NULL, &msg, vecs, 1, len, 0);
 +
 +	/* Did it work ? */
 +	if (status > 0) {
@@ -2588,8 +3013,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		      int addr_len, char *addr, unsigned char remport,
 +		      unsigned char flag)
 +{
-+	mm_segment_t fs;
-+	struct iovec vec;
++	struct kvec vec;
 +	struct cl_ackmsg ackmsg;
 +	struct msghdr msg;
 +	struct sockaddr_in6 daddr;
@@ -2629,15 +3053,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	memset(&msg, 0, sizeof (msg));
 +	msg.msg_name = &daddr;
 +	msg.msg_namelen = addr_len;
-+	msg.msg_iovlen = 1;
-+	msg.msg_iov = &vec;
 +
-+	fs = get_fs();
-+	set_fs(get_ds());
-+
-+	result = sock_sendmsg(csock->sock, &msg, sizeof (ackmsg));
-+
-+	set_fs(fs);
++	result = kernel_sendmsg(csock->sock, &msg, &vec, 1, sizeof (ackmsg));
 +
 +	if (result < 0)
 +		printk(KERN_CRIT CMAN_NAME ": error sending ACK: %d\n", result);
@@ -4103,7 +4520,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	.ioctl       = cl_ioctl,
 +	.listen      = sock_no_listen,
 +	.shutdown    = cl_shutdown,
-+	.setsockopt  = cl_setsockopt,
++	.setsockopt  = sock_no_setsockopt,
 +	.getsockopt  = sock_no_getsockopt,
 +	.sendmsg     = cl_sendmsg,
 +	.recvmsg     = cl_recvmsg,
@@ -4235,445 +4652,9 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 + * c-file-style: "linux"
 + * End:
 + */
-diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cnxman-private.h
---- linux-orig/cluster/cman/cnxman-private.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/cnxman-private.h	2004-10-22 11:04:52.654551302 -0500
-@@ -0,0 +1,432 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __CNXMAN_PRIVATE_H
-+#define __CNXMAN_PRIVATE_H
-+
-+/* Version triplet */
-+#define CNXMAN_MAJOR_VERSION 3
-+#define CNXMAN_MINOR_VERSION 0
-+#define CNXMAN_PATCH_VERSION 1
-+
-+#define MAX_RETRIES 3		/* Maximum number of send retries */
-+#define CAP_CLUSTER CAP_SYS_ADMIN	/* Capability needed to manage the
-+					 * cluster */
-+#ifdef __KERNEL__
-+
-+/* How we announce ourself in console events */
-+#define CMAN_NAME "CMAN"
-+
-+/* One of these per AF_CLUSTER socket */
-+struct cluster_sock {
-+	/* WARNING: sk has to be the first member */
-+	struct sock sk;
-+
-+	unsigned char port;	/* Bound port or zero */
-+	int (*kernel_callback) (char *, int, char *, int, unsigned int);
-+	void *service_data;
-+};
-+
-+#define cluster_sk(__sk) ((struct cluster_sock *)__sk)
-+
-+/* We have one of these for each socket we use for communications */
-+struct cl_comms_socket {
-+	struct socket *sock;
-+	int broadcast;		/* This is a broadcast socket */
-+	int recv_only;		/* This is the unicast receive end of a
-+				 * multicast socket */
-+	struct sockaddr_in6 saddr; /* Socket address, contains the sockaddr for
-+				 * the remote end(s) */
-+	int addr_len;		/* Length of above */
-+	int number;		/* Internal socket number, used to cycle around
-+				 * sockets in case of network errors */
-+	struct file *file;	/* file pointer for user-passed in sockets */
-+
-+	wait_queue_t wait;
-+
-+	/* The socket list */
-+	struct list_head list;
-+
-+	/* On here when it has something to say */
-+	struct list_head active_list;
-+	unsigned long active;
-+};
-+
-+/* A client socket. We keep a list of these so we can notify clients of cluster
-+ * events */
-+struct cl_client_socket {
-+	struct socket    *sock;
-+	struct list_head  list;
-+};
-+
-+/* This structure is tacked onto the start of a cluster message packet for our
-+ * own nefarious purposes. */
-+struct cl_protheader {
-+	unsigned char  tgtport; /* Target port number */
-+	unsigned char  srcport; /* Source (originationg) port number */
-+	unsigned short seq;	/* Packet sequence number, little-endian */
-+	unsigned short ack;	/* Inline ACK */
-+	unsigned short cluster;	/* Our cluster number, little-endian */
-+	unsigned int   flags;
-+	int            srcid;	/* Node ID of the sender */
-+	int            tgtid;	/* Node ID of the target or 0 for multicast
-+				 * messages */
-+};
-+
-+/* A cluster internal protocol message - port number 0 */
-+struct cl_protmsg {
-+	struct cl_protheader header;
-+	unsigned char cmd;
-+};
-+
-+/* A Cluster ACK message */
-+struct cl_ackmsg {
-+	struct cl_protheader header;
-+	unsigned char  cmd;	/* Always CLUSTER_CMD_ACK */
-+	unsigned char  remport;	/* Remote port number the original message was
-+				 * for */
-+	unsigned char  aflags;	/* ACK flags 0=OK, 1=No listener */
-+	unsigned char  pad;
-+};
-+
-+/* A Cluster LISTENREQ/LISTENRESP message */
-+struct cl_listenmsg {
-+	unsigned char  cmd;	/* CLUSTER_CMD_LISTENRESP/REQ */
-+	unsigned char  target_port;	/* Port to probe */
-+	unsigned char  listening;	/* Always 0 for LISTENREQ */
-+	unsigned char  pad;
-+	unsigned short tag;	/* PID of remote waiting process */
-+};
-+
-+/* A Cluster PORTCLOSED message */
-+struct cl_closemsg {
-+	unsigned char cmd;	/* CLUSTER_CMD_PORTCLOSED */
-+	unsigned char port;
-+};
-+
-+/* Structure of a newly dead node, passed from cnxman to kmembershipd */
-+struct cl_new_dead_node {
-+	struct list_head     list;
-+	struct cluster_node *node;
-+};
-+
-+/* Subcommands for BARRIER message */
-+#define BARRIER_REGISTER 1
-+#define BARRIER_CHANGE   2
-+#define BARRIER_WAIT     4
-+#define BARRIER_COMPLETE 5
-+
-+/* A Cluster BARRIER message */
-+struct cl_barriermsg {
-+	unsigned char  cmd;	/* CLUSTER_CMD_BARRIER */
-+	unsigned char  subcmd;	/* BARRIER sub command */
-+	unsigned short pad;
-+	unsigned int   flags;
-+	unsigned int   nodes;
-+	char name[MAX_BARRIER_NAME_LEN];
-+};
-+
-+/* Membership services messages, the cl_protheader is added transparently */
-+struct cl_mem_hello_msg {
-+	unsigned char  cmd;
-+	unsigned char  flags;
-+	unsigned short members;	    /* Number of nodes in the cluster,
-+				     * little-endian */
-+	unsigned int   generation;  /* Current cluster generation number */
-+};
-+
-+struct cl_mem_endtrans_msg {
-+	unsigned char  cmd;
-+	unsigned char  pad1;
-+	unsigned short pad2;
-+	unsigned int   quorum;
-+	unsigned int   total_votes;
-+	unsigned int   generation;	/* Current cluster generation number */
-+	unsigned int   new_node_id;	/* If reason is a new node joining */
-+};
-+
-+/* ACK types for JOINACK message */
-+#define JOINACK_TYPE_OK   1	/* You can join */
-+#define JOINACK_TYPE_NAK  2	/* You can NOT join */
-+#define JOINACK_TYPE_WAIT 3	/* Wait a bit longer - cluster is in transition
-+				 * already */
-+
-+struct cl_mem_joinack_msg {
-+	unsigned char cmd;
-+	unsigned char acktype;
-+};
-+
-+/* This is used by JOINREQ message */
-+struct cl_mem_join_msg {
-+	unsigned char  cmd;
-+	unsigned char  votes;
-+	unsigned short num_addr;	/* Number of addresses for this node */
-+	unsigned int   expected_votes;
-+        unsigned int   nodeid;	        /* node ID we want */
-+	unsigned int   major_version;	/* Not backwards compatible */
-+	unsigned int   minor_version;	/* Backwards compatible */
-+	unsigned int   patch_version;	/* Backwards/forwards compatible */
-+	unsigned int   config_version;
-+        unsigned int   addr_len;        /* length of node addresses */
-+        char           clustername[16];
-+	/* Followed by <num_addr> addresses of `address_length` bytes and a
-+	 * NUL-terminated node name */
-+};
-+
-+/* State transition start reasons: */
-+#define TRANS_NEWNODE        1	/* A new node is joining the cluster */
-+#define TRANS_REMNODE        2	/* a node has left the cluster */
-+#define TRANS_ANOTHERREMNODE 3	/* A node left the cluster while we were in
-+				 * transition */
-+#define TRANS_NEWMASTER      4	/* We have had an election and I am the new
-+				 * master */
-+#define TRANS_CHECK          5	/* A consistency check was called for */
-+#define TRANS_RESTART        6	/* Transition restarted because of a previous
-+				 * timeout */
-+#define TRANS_DEADMASTER     7	/* The master died during transition and I have
-+				 * taken over */
-+
-+/* This is used to start a state transition */
-+struct cl_mem_starttrans_msg {
-+	unsigned char  cmd;
-+	unsigned char  reason;	/* Why a start transition was started - see
-+				 * above */
-+	unsigned char  flags;
-+	unsigned char  votes;
-+	unsigned int   expected_votes;
-+	unsigned int   generation;	/* Incremented for each STARTTRANS sent
-+					 */
-+	int            nodeid;	/* Node to be removed */
-+	unsigned short num_addrs;
-+	/* If reason == TRANS_NEWNODE: Followed by <num_addr> addresses of
-+	 * `address_length` bytes and a NUL-terminated node name */
-+};
-+
-+struct cl_mem_startack_msg {
-+	unsigned char  cmd;
-+	unsigned char  reason;
-+	unsigned short pad;
-+	unsigned int   generation;
-+	unsigned int   node_id;	/* node_id we think new node should have */
-+	unsigned int   highest_node_id;	/* highest node_id on this system */
-+};
-+
-+/* Reconfigure a cluster parameter */
-+struct cl_mem_reconfig_msg {
-+	unsigned char  cmd;
-+	unsigned char  param;
-+	unsigned short pad;
-+	unsigned int   value;
-+};
-+
-+/* Structure containing information about an outstanding listen request */
-+struct cl_waiting_listen_request {
-+	wait_queue_head_t waitq;
-+	int               result;
-+	int               waiting;
-+	unsigned short    tag;
-+	int               nodeid;
-+	struct list_head  list;
-+};
-+
-+/* Messages from membership services */
-+#define CLUSTER_MEM_JOINCONF   1
-+#define CLUSTER_MEM_JOINREQ    2
-+#define CLUSTER_MEM_LEAVE      3
-+#define CLUSTER_MEM_HELLO      4
-+#define CLUSTER_MEM_KILL       5
-+#define CLUSTER_MEM_JOINACK    6
-+#define CLUSTER_MEM_ENDTRANS   7
-+#define CLUSTER_MEM_RECONFIG   8
-+#define CLUSTER_MEM_MASTERVIEW 9
-+#define CLUSTER_MEM_STARTTRANS 10
-+#define CLUSTER_MEM_JOINREJ    11
-+#define CLUSTER_MEM_VIEWACK    12
-+#define CLUSTER_MEM_STARTACK   13
-+#define CLUSTER_MEM_TRANSITION 14
-+#define CLUSTER_MEM_NEWCLUSTER 15
-+#define CLUSTER_MEM_CONFACK    16
-+#define CLUSTER_MEM_NOMINATE   17
-+
-+/* Flags in the HELLO message */
-+#define HELLO_FLAG_MASTER       1
-+#define HELLO_FLAG_QUORATE      2
-+
-+/* Parameters for RECONFIG command */
-+#define RECONFIG_PARAM_EXPECTED_VOTES 1
-+#define RECONFIG_PARAM_NODE_VOTES     2
-+#define RECONFIG_PARAM_CONFIG_VERSION 3
-+
-+/* Data associated with an outgoing socket */
-+struct cl_socket {
-+	struct file *file;	/* The real file */
-+	struct socket *socket;	/* The real sock */
-+	int num_nodes;		/* On this link */
-+	int retransmit_count;
-+};
-+
-+/* There's one of these for each node in the cluster */
-+struct cluster_node {
-+	struct list_head list;
-+	char *name;		/* Node/host name of node */
-+	struct list_head addr_list;
-+	int us;			/* This node is us */
-+	unsigned int node_id;	/* Unique node ID */
-+	nodestate_t state;
-+	unsigned short last_seq_recv;
-+	unsigned short last_seq_acked;
-+	unsigned short last_seq_sent;
-+	unsigned int votes;
-+	unsigned int expected_votes;
-+	unsigned int leave_reason;
-+	unsigned int incarnation;	/* Incremented each time a node joins
-+					 * the cluster */
-+	unsigned long last_hello;	/* Jiffies */
-+        struct timeval join_time;
-+};
-+
-+/* This is how we keep a list of user processes that are listening for cluster
-+ * membership events */
-+struct notify_struct {
-+	struct list_head list;
-+	pid_t pid;
-+	int signal;
-+};
-+
-+/* This is how we keep a list of kernel callbacks that are registered for
-+ * cluster membership events */
-+struct kernel_notify_struct {
-+	struct list_head list;
-+	void (*callback) (kcl_callback_reason, long arg);
-+};
-+
-+/* A message waiting to be sent */
-+struct queued_message {
-+	struct list_head list;
-+
-+	struct socket *socket;
-+	struct sockaddr_cl addr;
-+	int addr_len;
-+	int msg_len;
-+	unsigned char port;
-+	unsigned int flags;
-+	char msg_buffer[MAX_CLUSTER_MESSAGE];
-+};
-+
-+/* A barrier */
-+struct cl_barrier {
-+	struct list_head list;
-+
-+	char name[MAX_BARRIER_NAME_LEN];
-+	unsigned int flags;
-+	enum { BARRIER_STATE_WAITING, BARRIER_STATE_INACTIVE,
-+		    BARRIER_STATE_COMPLETE } state;
-+	unsigned int expected_nodes;
-+	unsigned int registered_nodes;
-+	atomic_t     got_nodes;
-+	atomic_t     completed_nodes;
-+	unsigned int inuse;
-+	unsigned int waitsent;
-+	unsigned int phase;	/* Completion phase */
-+	unsigned int endreason;	/* Reason we were woken, usually 0 */
-+	unsigned long timeout;	/* In seconds */
-+
-+	void (*callback) (char *name, int status);
-+	wait_queue_head_t waitq;
-+	struct semaphore lock;	/* To synch with cnxman messages */
-+	spinlock_t phase2_spinlock;	/* Need to synchronise with timer
-+					 * interrupts */
-+	struct timer_list timer;
-+};
-+
-+/* Cluster protocol commands sent to port 0 */
-+#define CLUSTER_CMD_ACK        1
-+#define CLUSTER_CMD_LISTENREQ  2
-+#define CLUSTER_CMD_LISTENRESP 3
-+#define CLUSTER_CMD_PORTCLOSED 4
-+#define CLUSTER_CMD_BARRIER    5
-+
-+extern struct cluster_node *find_node_by_addr(unsigned char *addr,
-+					      int addr_len);
-+extern struct cluster_node *find_node_by_nodeid(unsigned int id);
-+extern struct cluster_node *find_node_by_name(char *name);
-+extern void set_quorate(int);
-+extern void notify_kernel_listeners(kcl_callback_reason reason, long arg);
-+extern void notify_listeners(void);
-+extern void free_nodeid_array(void);
-+extern int send_reconfigure(int param, unsigned int value);
-+extern int calculate_quorum(int, int, int *);
-+extern void recalculate_quorum(int);
-+extern int send_leave(unsigned char);
-+extern int get_quorum(void);
-+extern void set_votes(int, int);
-+extern void kcl_wait_for_all_acks(void);
-+extern char *membership_state(char *, int);
-+extern char *leave_string(int reason);
-+extern void a_node_just_died(struct cluster_node *node);
-+extern void check_barrier_returns(void);
-+extern int in_transition(void);
-+extern void get_local_addresses(struct cluster_node *node);
-+extern int add_node_address(struct cluster_node *node, unsigned char *addr, int len);
-+extern void create_proc_entries(void);
-+extern void cleanup_proc_entries(void);
-+extern unsigned int get_highest_nodeid(void);
-+extern int allocate_nodeid_array(void);
-+extern void queue_oob_skb(struct socket *sock, int cmd);
-+extern int new_temp_nodeid(char *addr, int addrlen);
-+extern int get_addr_from_temp_nodeid(int nodeid, char *addr, int *addrlen);
-+extern void purge_temp_nodeids(void);
-+extern inline char *print_addr(unsigned char *addr, int len, char *buf)
-+{
-+	int i;
-+	int ptr = 0;
-+
-+	for (i = 0; i < len; i++)
-+		ptr += sprintf(buf + ptr, "%02x ", addr[i]);
-+
-+	return buf;
-+}
-+
-+#define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
-+
-+/* Debug enabling macros. Sorry about the C++ comments but they're easier to
-+ * get rid of than C ones... */
-+
-+// #define DEBUG_MEMB
-+// #define DEBUG_COMMS
-+// #define DEBUG_BARRIER
-+
-+/* Debug macros */
-+#ifdef DEBUG_COMMS
-+#define P_COMMS(fmt, args...) printk(KERN_DEBUG "cman comms: " fmt, ## args)
-+#else
-+#define P_COMMS(fmt, args...)
-+#endif
-+
-+#ifdef DEBUG_BARRIER
-+#define P_BARRIER(fmt, args...) printk(KERN_DEBUG "cman barrier: " fmt, ## args)
-+#else
-+#define P_BARRIER(fmt, args...)
-+#endif
-+
-+#ifdef DEBUG_MEMB
-+#define P_MEMB(fmt, args...) printk(KERN_DEBUG "cman memb: " fmt, ## args)
-+#define C_MEMB(fmt, args...) printk(fmt, ## args)
-+#else
-+#define P_MEMB(fmt, args...)
-+#define C_MEMB(fmt, args...)
-+#endif
-+
-+#endif				/* __KERNEL */
-+
-+#endif
 diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
---- linux-orig/cluster/cman/config.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/config.c	2004-10-22 11:04:52.690550732 -0500
+--- linux-orig/cluster/cman/config.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/config.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,49 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4725,8 +4706,8 @@ diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
 +	.newcluster_timeout = DEFAULT_NEWCLUSTER_TIMEOUT,
 +};
 diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
---- linux-orig/cluster/cman/config.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/config.h	2004-10-22 11:04:52.698550606 -0500
+--- linux-orig/cluster/cman/config.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/config.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4761,8 +4742,8 @@ diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
 +
 +#endif				/* __CONFIG_DOT_H__ */
 diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
---- linux-orig/cluster/cman/kjoin.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/kjoin.c	2004-10-22 11:04:52.704550511 -0500
+--- linux-orig/cluster/cman/kjoin.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/kjoin.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,238 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5003,9 +4984,9 @@ diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
 + * End:
 + */
 diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/membership.c
---- linux-orig/cluster/cman/membership.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/membership.c	2004-10-22 11:04:52.727550147 -0500
-@@ -0,0 +1,3171 @@
+--- linux-orig/cluster/cman/membership.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/membership.c	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,3160 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -5114,21 +5095,21 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +struct list_head new_dead_node_list;
 +struct semaphore new_dead_node_lock;
 +
-+static int do_membership_packet(struct msghdr *msg, int len);
-+static int do_process_joinreq(struct msghdr *msg, int len);
-+static int do_process_joinack(struct msghdr *msg, int len);
-+static int do_process_joinconf(struct msghdr *msg, int len);
-+static int do_process_leave(struct msghdr *msg, int len);
-+static int do_process_hello(struct msghdr *msg, int len);
-+static int do_process_kill(struct msghdr *msg, int len);
-+static int do_process_reconfig(struct msghdr *msg, int len);
-+static int do_process_starttrans(struct msghdr *msg, int len);
-+static int do_process_masterview(struct msghdr *msg, int len);
-+static int do_process_endtrans(struct msghdr *msg, int len);
-+static int do_process_viewack(struct msghdr *msg, int len);
-+static int do_process_startack(struct msghdr *msg, int len);
-+static int do_process_newcluster(struct msghdr *msg, int len);
-+static int do_process_nominate(struct msghdr *msg, int len);
++static int do_membership_packet(struct msghdr *msg, char *buf, int len);
++static int do_process_joinreq(struct msghdr *msg, char *buf, int len);
++static int do_process_joinack(struct msghdr *msg, char *buf, int len);
++static int do_process_joinconf(struct msghdr *msg, char *buf, int len);
++static int do_process_leave(struct msghdr *msg, char *buf, int len);
++static int do_process_hello(struct msghdr *msg, char *buf, int len);
++static int do_process_kill(struct msghdr *msg, char *buf, int len);
++static int do_process_reconfig(struct msghdr *msg, char *buf, int len);
++static int do_process_starttrans(struct msghdr *msg, char *buf, int len);
++static int do_process_masterview(struct msghdr *msg, char *buf, int len);
++static int do_process_endtrans(struct msghdr *msg, char *buf, int len);
++static int do_process_viewack(struct msghdr *msg, char *buf, int len);
++static int do_process_startack(struct msghdr *msg, char *buf, int len);
++static int do_process_newcluster(struct msghdr *msg, char *buf, int len);
++static int do_process_nominate(struct msghdr *msg, char *buf, int len);
 +static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 +			     unsigned int flags, unsigned int flags2);
 +static int send_joinreq(struct sockaddr_cl *addr, int addr_len);
@@ -5999,10 +5980,9 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Process a message */
-+static int do_membership_packet(struct msghdr *msg, int len)
++static int do_membership_packet(struct msghdr *msg, char *buf, int len)
 +{
 +	int result = -1;
-+	unsigned char *buf = msg->msg_iov->iov_base;
 +	struct sockaddr_cl *saddr = msg->msg_name;
 +	struct cluster_node *node;
 +
@@ -6013,26 +5993,26 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	switch (*buf) {
 +	case CLUSTER_MEM_JOINREQ:
-+		result = do_process_joinreq(msg, len);
++		result = do_process_joinreq(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_LEAVE:
 +		if (we_are_a_cluster_member)
-+			result = do_process_leave(msg, len);
++			result = do_process_leave(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_HELLO:
-+		result = do_process_hello(msg, len);
++		result = do_process_hello(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_KILL:
 +		if (we_are_a_cluster_member)
-+			result = do_process_kill(msg, len);
++			result = do_process_kill(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_JOINCONF:
 +		if (node_state == JOINACK) {
-+			do_process_joinconf(msg, len);
++			do_process_joinconf(msg, buf, len);
 +		}
 +		break;
 +
@@ -6044,52 +6024,52 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	case CLUSTER_MEM_MASTERVIEW:
 +		if (node_state == TRANSITION)
-+			do_process_masterview(msg, len);
++			do_process_masterview(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_JOINACK:
 +		if (node_state == JOINING || node_state == JOINWAIT ||
 +		    node_state == JOINACK) {
-+			do_process_joinack(msg, len);
++			do_process_joinack(msg, buf, len);
 +		}
 +		break;
 +	case CLUSTER_MEM_RECONFIG:
 +		if (we_are_a_cluster_member) {
-+			do_process_reconfig(msg, len);
++			do_process_reconfig(msg, buf, len);
 +		}
 +		break;
 +
 +	case CLUSTER_MEM_STARTTRANS:
-+		result = do_process_starttrans(msg, len);
++		result = do_process_starttrans(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_ENDTRANS:
-+		result = do_process_endtrans(msg, len);
++		result = do_process_endtrans(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_VIEWACK:
 +		if (node_state == MASTER && master_state == MASTER_COLLECT)
-+			result = do_process_viewack(msg, len);
++			result = do_process_viewack(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_STARTACK:
 +		if (node_state == MASTER)
-+			result = do_process_startack(msg, len);
++			result = do_process_startack(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_NEWCLUSTER:
-+		result = do_process_newcluster(msg, len);
++		result = do_process_newcluster(msg, buf, len);
 +		break;
 +
 +	case CLUSTER_MEM_NOMINATE:
 +		if (node_state != MASTER)
-+			result = do_process_nominate(msg, len);
++			result = do_process_nominate(msg, buf, len);
 +		break;
 +
 +	default:
 +		printk(KERN_ERR CMAN_NAME
-+		       ": Unknown membership services message %d received\n",
-+		       *buf);
++		       ": Unknown membership services message %d received from node %d port %d\n",
++		       *buf, saddr->scl_nodeid, saddr->scl_port);
 +		break;
 +
 +	}
@@ -6192,7 +6172,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	if (responses_expected == 0) {
 +		P_MEMB("We are on our own...lonely here\n");
 +		responses_collected--;
-+		do_process_startack(NULL, 0);
++		do_process_startack(NULL, NULL, 0);
 +	}
 +	else {
 +		int ptr = sizeof (struct cl_mem_starttrans_msg);
@@ -6637,17 +6617,16 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Add a node from a STARTTRANS or NOMINATE message */
-+static void add_node_from_starttrans(struct msghdr *msg, int len)
++static void add_node_from_starttrans(struct msghdr *msg, char *buf, int len)
 +{
 +	/* Add the new node but don't fill in the ID until the master has
 +	 * confirmed it */
 +	struct cl_mem_starttrans_msg *startmsg =
-+	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
-+	char *msgbuf = (char *) msg->msg_iov->iov_base;
++	    (struct cl_mem_starttrans_msg *)buf;
 +	int ptr = sizeof (struct cl_mem_starttrans_msg);
 +	int i;
-+	char *name = msgbuf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
-+	char *nodeaddr = msg->msg_iov->iov_base + sizeof(struct cl_mem_starttrans_msg);
++	char *name = buf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
++	char *nodeaddr = buf + sizeof(struct cl_mem_starttrans_msg);
 +
 +	joining_node = add_new_node(name, startmsg->votes,
 +				    le32_to_cpu(startmsg->expected_votes),
@@ -6660,7 +6639,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	/* Add the node's addresses */
 +	if (list_empty(&joining_node->addr_list)) {
 +		for (i = 0; i < le16_to_cpu(startmsg->num_addrs); i++) {
-+			add_node_address(joining_node, msgbuf + ptr, address_length);
++			add_node_address(joining_node, buf + ptr, address_length);
 +			ptr += address_length;
 +		}
 +	}
@@ -6672,10 +6651,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* We have been nominated as master for a transition */
-+static int do_process_nominate(struct msghdr *msg, int len)
++static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cl_mem_starttrans_msg *startmsg =
-+	    (struct cl_mem_starttrans_msg *)msg->msg_iov->iov_base;
++	    (struct cl_mem_starttrans_msg *)buf;
 +	struct cluster_node *node = NULL;
 +
 +	P_MEMB("nominate reason is %d\n", startmsg->reason);
@@ -6685,7 +6664,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	}
 +
 +	if (startmsg->reason == TRANS_NEWNODE) {
-+		add_node_from_starttrans(msg, len);
++		add_node_from_starttrans(msg, buf, len);
 +		node = joining_node;
 +	}
 +
@@ -6698,16 +6677,17 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Got a STARTACK response from a node */
-+static int do_process_startack(struct msghdr *msg, int len)
++static int do_process_startack(struct msghdr *msg, char *buf, int len)
 +{
 +	if (node_state != MASTER && master_state != MASTER_START) {
 +		P_MEMB("Got StartACK when not in MASTER_STARTING substate\n");
 +		return 0;
 +	}
 +
-+	/* msg is NULL if we are called directly from start_transition */
-+	if (msg) {
-+		struct cl_mem_startack_msg *ackmsg = msg->msg_iov->iov_base;
++	/* buf is NULL if we are called directly from start_transition */
++	if (buf) {
++		struct cl_mem_startack_msg *ackmsg =
++			(struct cl_mem_startack_msg *)buf;
 +
 +		/* Ignore any messages wil old generation numbers in them */
 +		if (le32_to_cpu(ackmsg->generation) != cluster_generation) {
@@ -6718,7 +6698,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	/* If the node_id is non-zero then use it. */
 +	if (transitionreason == TRANS_NEWNODE && joining_node && msg) {
-+		struct cl_mem_startack_msg *ackmsg = msg->msg_iov->iov_base;
++		struct cl_mem_startack_msg *ackmsg =
++			(struct cl_mem_startack_msg *)buf;
 +
 +		if (ackmsg->node_id) {
 +			set_nodeid(joining_node, le32_to_cpu(ackmsg->node_id));
@@ -6782,9 +6763,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Got a VIEWACK response from a node */
-+static int do_process_viewack(struct msghdr *msg, int len)
++static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 +{
-+	char *reply = msg->msg_iov->iov_base;
 +	struct sockaddr_cl *saddr = msg->msg_name;
 +
 +	if (node_opinion == NULL) {
@@ -6869,10 +6849,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Got an ENDTRANS message */
-+static int do_process_endtrans(struct msghdr *msg, int len)
++static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cl_mem_endtrans_msg *endmsg =
-+	    (struct cl_mem_endtrans_msg *) msg->msg_iov->iov_base;
++		(struct cl_mem_endtrans_msg *)buf;
 +	struct sockaddr_cl *saddr = (struct sockaddr_cl *) msg->msg_name;
 +
 +	/* Someone else's state transition */
@@ -6952,10 +6932,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Got a STARTTRANS message */
-+static int do_process_starttrans(struct msghdr *msg, int len)
++static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cl_mem_starttrans_msg *startmsg =
-+	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
++		(struct cl_mem_starttrans_msg *)buf;
 +	struct sockaddr_cl *saddr = (struct sockaddr_cl *) msg->msg_name;
 +	struct cluster_node *node;
 +	unsigned int newgen = le32_to_cpu(startmsg->generation);
@@ -7058,7 +7038,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		node_state = TRANSITION;
 +
 +		if (startmsg->reason == TRANS_NEWNODE) {
-+			add_node_from_starttrans(msg, len);
++			add_node_from_starttrans(msg, buf, len);
 +		}
 +
 +		if (startmsg->reason == TRANS_REMNODE ||
@@ -7087,7 +7067,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		if (startmsg->reason == TRANS_NEWNODE) {
 +			struct cluster_node *oldjoin = joining_node;
 +
-+			add_node_from_starttrans(msg, len);
++			add_node_from_starttrans(msg, buf, len);
 +
 +			/* If this is a different node joining than the one we
 +			 * were previously joining (probably cos the master is
@@ -7131,7 +7111,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Change a cluster parameter */
-+static int do_process_reconfig(struct msghdr *msg, int len)
++static int do_process_reconfig(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cl_mem_reconfig_msg *confmsg;
 +	struct sockaddr_cl *saddr = msg->msg_name;
@@ -7141,7 +7121,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	if (len < sizeof(struct cl_mem_reconfig_msg))
 +		return -1;
 +
-+	confmsg = (struct cl_mem_reconfig_msg *) msg->msg_iov->iov_base;
++	confmsg = (struct cl_mem_reconfig_msg *)buf;
 +	val = le32_to_cpu(confmsg->value);
 +
 +	switch (confmsg->param) {
@@ -7188,9 +7168,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +}
 +
 +/* Response from master node */
-+static int do_process_joinack(struct msghdr *msg, int len)
++static int do_process_joinack(struct msghdr *msg, char *buf, int len)
 +{
-+	struct cl_mem_joinack_msg *ackmsg = msg->msg_iov->iov_base;
++	struct cl_mem_joinack_msg *ackmsg =
++		(struct cl_mem_joinack_msg *)buf;
 +
 +	join_time = jiffies;
 +	if (ackmsg->acktype == JOINACK_TYPE_OK) {
@@ -7314,11 +7295,11 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +/* Request to join the cluster. This makes us the master for this state
 + * transition */
-+static int do_process_joinreq(struct msghdr *msg, int len)
++static int do_process_joinreq(struct msghdr *msg, char *buf, int len)
 +{
 +	static unsigned long last_joinreq = 0;
 +	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
-+	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
++	struct cl_mem_join_msg *joinmsg = (struct cl_mem_join_msg *)buf;
 +	struct cluster_node *node;
 +	char *ptr = (char *) joinmsg;
 +	char *name;
@@ -7420,7 +7401,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +/* A new node has stated its intent to form a new cluster. we may have
 + * something to say about that... */
-+static int do_process_newcluster(struct msghdr *msg, int len)
++static int do_process_newcluster(struct msghdr *msg, char *buf, int len)
 +{
 +	/* If we are also in STARTING state then back down for a random period
 +	 * of time */
@@ -7431,9 +7412,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	if (node_state == NEWCLUSTER) {
 +		uint32_t otherip;
-+		char *newcmsg = (char *)msg->msg_iov->iov_base;
 +
-+		memcpy(&otherip, newcmsg+1, sizeof(otherip));
++		memcpy(&otherip, buf+1, sizeof(otherip));
 +		otherip = le32_to_cpu(otherip);
 +		P_MEMB("got NEWCLUSTER, remote ip = %x, us = %x\n", otherip, low32_of_ip());
 +		if (otherip < low32_of_ip())
@@ -7562,11 +7542,9 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +/* Got join confirmation from a master node. This message contains a list of
 + * cluster nodes which we unpack and build into our cluster nodes list. When we
 + * have the last message we can go into TRANSITION state */
-+static int do_process_joinconf(struct msghdr *msg, int len)
++static int do_process_joinconf(struct msghdr *msg, char *buf, int len)
 +{
-+	char *message = msg->msg_iov->iov_base;
-+
-+	if (unpack_nodes(message + 2, len - 2, add_node) < 0) {
++	if (unpack_nodes(buf + 2, len - 2, add_node) < 0) {
 +		printk(CMAN_NAME
 +		       ": Error procssing joinconf message - giving up on cluster join\n");
 +		us->leave_reason = CLUSTER_LEAVEFLAG_PANIC;
@@ -7575,7 +7553,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	}
 +
 +	/* Last message in the list? */
-+	if (message[1] & 2) {
++	if (buf[1] & 2) {
 +		char ackmsg;
 +		struct sockaddr_cl *addr = msg->msg_name;
 +
@@ -7595,10 +7573,9 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +/* Got the master's view of the cluster - compare it with ours and tell it the
 + * result */
-+static int do_process_masterview(struct msghdr *msg, int len)
++static int do_process_masterview(struct msghdr *msg, char *buf, int len)
 +{
 +	char reply[2] = { CLUSTER_MEM_VIEWACK, 0 };
-+	char *message = msg->msg_iov->iov_base;
 +	static int num_nodes;
 +
 +	/* Someone else's state transition */
@@ -7607,14 +7584,13 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		return 0;
 +
 +	/* First message, zero the counter */
-+	if (message[1] & 1)
++	if (buf[1] & 1)
 +		num_nodes = 0;
 +
-+	num_nodes += unpack_nodes(msg->msg_iov->iov_base + 2,
-+				  len - 2, check_node);
++	num_nodes += unpack_nodes(buf + 2, len - 2, check_node);
 +
 +	/* Last message, check the count and reply */
-+	if (message[1] & 2) {
++	if (buf[1] & 2) {
 +		if (num_nodes == cluster_members) {
 +			/* Send ACK */
 +			reply[1] = 1;
@@ -7632,11 +7608,11 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	return 0;
 +}
 +
-+static int do_process_leave(struct msghdr *msg, int len)
++static int do_process_leave(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cluster_node *node;
 +	struct sockaddr_cl *saddr = msg->msg_name;
-+	unsigned char *leavemsg = (unsigned char *) msg->msg_iov->iov_base;
++	unsigned char *leavemsg = (unsigned char *)buf;
 +
 +	if ((node = find_node_by_nodeid(saddr->scl_nodeid))) {
 +		unsigned char reason = leavemsg[1];
@@ -7655,11 +7631,11 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	return 0;
 +}
 +
-+static int do_process_hello(struct msghdr *msg, int len)
++static int do_process_hello(struct msghdr *msg, char *buf, int len)
 +{
 +	struct cluster_node *node;
 +	struct cl_mem_hello_msg *hellomsg =
-+	    (struct cl_mem_hello_msg *) msg->msg_iov->iov_base;
++		(struct cl_mem_hello_msg *)buf;
 +	struct sockaddr_cl *saddr = msg->msg_name;
 +
 +	/* We are starting up. Send a join message to the node whose HELLO we
@@ -7728,7 +7704,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +}
 +
-+static int do_process_kill(struct msghdr *msg, int len)
++static int do_process_kill(struct msghdr *msg, char *buf, int len)
 +{
 +	struct sockaddr_cl *saddr = msg->msg_name;
 +	struct cluster_node *node;
@@ -7819,35 +7795,27 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	while (skb_peek(&mem_socket->sk->sk_receive_queue)) {
 +		struct msghdr msg;
-+		struct iovec iov;
++		struct kvec vec;
 +		struct sockaddr_cl sin;
 +		int len;
-+		mm_segment_t fs;
 +
 +		memset(&sin, 0, sizeof (sin));
 +
 +		msg.msg_control = NULL;
 +		msg.msg_controllen = 0;
-+		msg.msg_iovlen = 1;
-+		msg.msg_iov = &iov;
 +		msg.msg_name = &sin;
 +		msg.msg_namelen = sizeof (sin);
 +		msg.msg_flags = 0;
 +
-+		iov.iov_len = MAX_CLUSTER_MESSAGE;
-+		iov.iov_base = iobuf;
++		vec.iov_len = MAX_CLUSTER_MESSAGE;
++		vec.iov_base = iobuf;
 +
-+		fs = get_fs();
-+		set_fs(get_ds());
-+
-+		len =
-+		    sock_recvmsg(mem_socket, &msg, MAX_CLUSTER_MESSAGE,
-+				 MSG_DONTWAIT);
-+		set_fs(fs);
++		len = kernel_recvmsg(mem_socket, &msg, &vec, 1,
++				     MAX_CLUSTER_MESSAGE,
++				     MSG_DONTWAIT);
 +		if (len > 0) {
-+			iov.iov_base = iobuf;	/* Reinstate pointer */
 +			msg.msg_name = &sin;
-+			do_membership_packet(&msg, len);
++			do_membership_packet(&msg, iobuf, len);
 +		}
 +		else {
 +			if (len == -EAGAIN)
@@ -8106,6 +8074,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +char *leave_string(int reason)
 +{
++	static char msg[32];
 +	switch (reason)
 +	{
 +	case CLUSTER_LEAVEFLAG_DOWN:
@@ -8119,7 +8088,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	case CLUSTER_LEAVEFLAG_REJECTED:
 +		return "Membership rejected";
 +	default:
-+		return "Don't know why";
++		sprintf(msg, "Reason is %d\n", reason);
++		return msg;
 +	}
 +}
 +
@@ -8178,8 +8148,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 + * End:
 + */
 diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
---- linux-orig/cluster/cman/proc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/proc.c	2004-10-22 11:04:52.735550020 -0500
+--- linux-orig/cluster/cman/proc.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/proc.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,372 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8216,7 +8186,7 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +extern struct cluster_node *quorum_device;
 +extern int we_are_a_cluster_member;
 +extern int cluster_is_quorate;
-+extern unsigned short cluster_id;
++extern uint16_t cluster_id;
 +extern atomic_t use_count;
 +extern unsigned int address_length;
 +extern unsigned int config_version;
@@ -8553,9 +8523,122 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	remove_proc_entry("cluster/config", NULL);
 +	remove_proc_entry("cluster", NULL);
 +}
+diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
+--- linux-orig/cluster/cman/sm.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm.h	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,109 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**  
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#ifndef __SM_DOT_H__
++#define __SM_DOT_H__
++
++/* 
++ * This is the main header file to be included in each Service Manager source
++ * file.
++ */
++
++#include <linux/list.h>
++#include <linux/socket.h>
++#include <linux/kernel.h>
++#include <linux/sched.h>
++#include <linux/file.h>
++#include <linux/kthread.h>
++#include <net/sock.h>
++
++#include <cluster/cnxman.h>
++#include <cluster/service.h>
++
++#define SG_LEVELS (4)
++
++#include "sm_internal.h"
++#include "sm_barrier.h"
++#include "sm_control.h"
++#include "sm_daemon.h"
++#include "sm_joinleave.h"
++#include "sm_membership.h"
++#include "sm_message.h"
++#include "sm_misc.h"
++#include "sm_recover.h"
++#include "sm_services.h"
++
++extern struct list_head sm_sg[SG_LEVELS];
++extern struct semaphore sm_sglock;
++
++#ifndef TRUE
++#define TRUE (1)
++#endif
++
++#ifndef FALSE
++#define FALSE (0)
++#endif
++
++#define SM_ASSERT(x, do) \
++{ \
++  if (!(x)) \
++  { \
++    printk("\nSM:  Assertion failed on line %d of file %s\n" \
++               "SM:  assertion:  \"%s\"\n" \
++               "SM:  time = %lu\n", \
++               __LINE__, __FILE__, #x, jiffies); \
++    {do} \
++    printk("\n"); \
++    panic("SM:  Record message above and reboot.\n"); \
++  } \
++}
++
++#define SM_RETRY(do_this, until_this) \
++for (;;) \
++{ \
++  do { do_this; } while (0); \
++  if (until_this) \
++    break; \
++  printk("SM:  out of memory:  %s, %u\n", __FILE__, __LINE__); \
++  schedule();\
++}
++
++
++#define log_print(fmt, args...) printk("SM: "fmt"\n", ##args)
++
++#define log_error(sg, fmt, args...) \
++	printk("SM: %08x " fmt "\n", (sg)->global_id , ##args)
++
++
++#define SM_DEBUG_LOG
++
++#ifdef SM_DEBUG_CONSOLE
++#define log_debug(sg, fmt, args...) \
++	printk("SM: %08x " fmt "\n", (sg)->global_id , ##args)
++#endif
++
++#ifdef SM_DEBUG_LOG
++#define log_debug(sg, fmt, args...) sm_debug_log(sg, fmt, ##args);
++#endif
++
++#ifdef SM_DEBUG_ALL
++#define log_debug(sg, fmt, args...) \
++do \
++{ \
++	printk("SM: %08x "fmt"\n", (sg)->global_id, ##args); \
++	sm_debug_log(sg, fmt, ##args); \
++} \
++while (0)
++#endif
++
++#endif				/* __SM_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_barrier.c
---- linux-orig/cluster/cman/sm_barrier.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_barrier.c	2004-10-22 11:04:52.778549340 -0500
+--- linux-orig/cluster/cman/sm_barrier.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_barrier.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,232 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8790,8 +8873,8 @@ diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_bar
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_barrier.h
---- linux-orig/cluster/cman/sm_barrier.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_barrier.h	2004-10-22 11:04:52.782549276 -0500
+--- linux-orig/cluster/cman/sm_barrier.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_barrier.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8823,8 +8906,8 @@ diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_bar
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_control.c
---- linux-orig/cluster/cman/sm_control.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_control.c	2004-10-22 11:04:52.805548913 -0500
+--- linux-orig/cluster/cman/sm_control.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_control.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8983,8 +9066,8 @@ diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_con
 +	return error;
 +}
 diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_control.h
---- linux-orig/cluster/cman/sm_control.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_control.h	2004-10-22 11:04:52.812548802 -0500
+--- linux-orig/cluster/cman/sm_control.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_control.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9009,8 +9092,8 @@ diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_con
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daemon.c
---- linux-orig/cluster/cman/sm_daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_daemon.c	2004-10-22 11:04:52.819548691 -0500
+--- linux-orig/cluster/cman/sm_daemon.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_daemon.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,100 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9113,8 +9196,8 @@ diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daem
 +	kthread_stop(daemon_task);
 +}
 diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daemon.h
---- linux-orig/cluster/cman/sm_daemon.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_daemon.h	2004-10-22 11:04:52.827548564 -0500
+--- linux-orig/cluster/cman/sm_daemon.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_daemon.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9148,122 +9231,9 @@ diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daem
 +int start_serviced(void);
 +
 +#endif
-diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
---- linux-orig/cluster/cman/sm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm.h	2004-10-22 11:04:52.831548501 -0500
-@@ -0,0 +1,109 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**  
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __SM_DOT_H__
-+#define __SM_DOT_H__
-+
-+/* 
-+ * This is the main header file to be included in each Service Manager source
-+ * file.
-+ */
-+
-+#include <linux/list.h>
-+#include <linux/socket.h>
-+#include <linux/kernel.h>
-+#include <linux/sched.h>
-+#include <linux/file.h>
-+#include <linux/kthread.h>
-+#include <net/sock.h>
-+
-+#include <cluster/cnxman.h>
-+#include <cluster/service.h>
-+
-+#define SG_LEVELS (4)
-+
-+#include "sm_internal.h"
-+#include "sm_barrier.h"
-+#include "sm_control.h"
-+#include "sm_daemon.h"
-+#include "sm_joinleave.h"
-+#include "sm_membership.h"
-+#include "sm_message.h"
-+#include "sm_misc.h"
-+#include "sm_recover.h"
-+#include "sm_services.h"
-+
-+extern struct list_head sm_sg[SG_LEVELS];
-+extern struct semaphore sm_sglock;
-+
-+#ifndef TRUE
-+#define TRUE (1)
-+#endif
-+
-+#ifndef FALSE
-+#define FALSE (0)
-+#endif
-+
-+#define SM_ASSERT(x, do) \
-+{ \
-+  if (!(x)) \
-+  { \
-+    printk("\nSM:  Assertion failed on line %d of file %s\n" \
-+               "SM:  assertion:  \"%s\"\n" \
-+               "SM:  time = %lu\n", \
-+               __LINE__, __FILE__, #x, jiffies); \
-+    {do} \
-+    printk("\n"); \
-+    panic("SM:  Record message above and reboot.\n"); \
-+  } \
-+}
-+
-+#define SM_RETRY(do_this, until_this) \
-+for (;;) \
-+{ \
-+  do { do_this; } while (0); \
-+  if (until_this) \
-+    break; \
-+  printk("SM:  out of memory:  %s, %u\n", __FILE__, __LINE__); \
-+  schedule();\
-+}
-+
-+
-+#define log_print(fmt, args...) printk("SM: "fmt"\n", ##args)
-+
-+#define log_error(sg, fmt, args...) \
-+	printk("SM: %08x " fmt "\n", (sg)->global_id , ##args)
-+
-+
-+#define SM_DEBUG_LOG
-+
-+#ifdef SM_DEBUG_CONSOLE
-+#define log_debug(sg, fmt, args...) \
-+	printk("SM: %08x " fmt "\n", (sg)->global_id , ##args)
-+#endif
-+
-+#ifdef SM_DEBUG_LOG
-+#define log_debug(sg, fmt, args...) sm_debug_log(sg, fmt, ##args);
-+#endif
-+
-+#ifdef SM_DEBUG_ALL
-+#define log_debug(sg, fmt, args...) \
-+do \
-+{ \
-+	printk("SM: %08x "fmt"\n", (sg)->global_id, ##args); \
-+	sm_debug_log(sg, fmt, ##args); \
-+} \
-+while (0)
-+#endif
-+
-+#endif				/* __SM_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_internal.h
---- linux-orig/cluster/cman/sm_internal.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_internal.h	2004-10-22 11:04:52.841548343 -0500
+--- linux-orig/cluster/cman/sm_internal.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_internal.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,231 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9497,8 +9467,8 @@ diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_in
 +
 +#endif				/* __SM_INTERNAL_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_joinleave.c
---- linux-orig/cluster/cman/sm_joinleave.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_joinleave.c	2004-10-22 11:04:52.866547947 -0500
+--- linux-orig/cluster/cman/sm_joinleave.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_joinleave.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,1291 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10792,8 +10762,8 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_j
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_joinleave.h
---- linux-orig/cluster/cman/sm_joinleave.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_joinleave.h	2004-10-22 11:04:52.873547836 -0500
+--- linux-orig/cluster/cman/sm_joinleave.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_joinleave.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10819,8 +10789,8 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_j
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_membership.c
---- linux-orig/cluster/cman/sm_membership.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_membership.c	2004-10-22 11:04:52.881547710 -0500
+--- linux-orig/cluster/cman/sm_membership.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_membership.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,696 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11519,8 +11489,8 @@ diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_
 +	up(&sm_sglock);
 +}
 diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_membership.h
---- linux-orig/cluster/cman/sm_membership.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_membership.h	2004-10-22 11:04:52.885547647 -0500
+--- linux-orig/cluster/cman/sm_membership.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_membership.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11543,8 +11513,8 @@ diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_message.c
---- linux-orig/cluster/cman/sm_message.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_message.c	2004-10-22 11:04:52.931546919 -0500
+--- linux-orig/cluster/cman/sm_message.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_message.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,856 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12403,8 +12373,8 @@ diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_mes
 +	return error;
 +}
 diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_message.h
---- linux-orig/cluster/cman/sm_message.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_message.h	2004-10-22 11:04:52.935546855 -0500
+--- linux-orig/cluster/cman/sm_message.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_message.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12441,8 +12411,8 @@ diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_mes
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
---- linux-orig/cluster/cman/sm_misc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_misc.c	2004-10-22 11:04:52.967546349 -0500
+--- linux-orig/cluster/cman/sm_misc.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_misc.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,442 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12887,8 +12857,8 @@ diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
---- linux-orig/cluster/cman/sm_misc.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_misc.h	2004-10-22 11:04:52.971546286 -0500
+--- linux-orig/cluster/cman/sm_misc.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_misc.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12920,8 +12890,8 @@ diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_recover.c
---- linux-orig/cluster/cman/sm_recover.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_recover.c	2004-10-22 11:04:52.987546033 -0500
+--- linux-orig/cluster/cman/sm_recover.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_recover.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,524 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13448,8 +13418,8 @@ diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_rec
 +	wake_serviced(DO_RECOVERIES);
 +}
 diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_recover.h
---- linux-orig/cluster/cman/sm_recover.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_recover.h	2004-10-22 11:04:52.997545874 -0500
+--- linux-orig/cluster/cman/sm_recover.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_recover.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13475,8 +13445,8 @@ diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_rec
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_services.c
---- linux-orig/cluster/cman/sm_services.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_services.c	2004-10-22 11:04:53.008545700 -0500
+--- linux-orig/cluster/cman/sm_services.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_services.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,426 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13905,8 +13875,8 @@ diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_se
 +struct list_head sm_sg[SG_LEVELS];
 +struct semaphore sm_sglock;
 diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_services.h
---- linux-orig/cluster/cman/sm_services.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_services.h	2004-10-22 11:04:53.025545431 -0500
+--- linux-orig/cluster/cman/sm_services.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_services.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13929,8 +13899,8 @@ diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_se
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
---- linux-orig/cluster/cman/sm_user.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_user.c	2004-10-22 11:04:53.033545305 -0500
+--- linux-orig/cluster/cman/sm_user.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_user.c	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,569 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14502,8 +14472,8 @@ diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
---- linux-orig/cluster/cman/sm_user.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_user.h	2004-10-22 11:04:53.040545194 -0500
+--- linux-orig/cluster/cman/sm_user.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_user.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14526,101 +14496,10 @@ diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
 +void sm_sock_bind(struct socket *sock);
 +
 +#endif
-diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxman.h
---- linux-orig/include/cluster/cnxman.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/cnxman.h	2004-10-22 11:04:52.648551397 -0500
-@@ -0,0 +1,87 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __CNXMAN_H
-+#define __CNXMAN_H
-+
-+#include "linux/in6.h"
-+#include "cluster/cnxman-socket.h"
-+
-+/* In-kernel API */
-+
-+/* This is the structure, per node, returned from the membership request */
-+struct kcl_cluster_node {
-+	unsigned int size;
-+	unsigned int node_id;
-+	unsigned int us;
-+	unsigned int leave_reason;
-+	unsigned int incarnation;
-+	nodestate_t state;
-+	struct list_head list;
-+	char name[MAX_CLUSTER_MEMBER_NAME_LEN];
-+	unsigned char votes;
-+};
-+
-+struct cluster_node_addr {
-+	struct list_head list;
-+	unsigned char addr[sizeof(struct sockaddr_in6)];/* A large sockaddr */
-+	int addr_len;
-+};
-+
-+
-+/* Reasons for a kernel membership callback */
-+typedef enum { CLUSTER_RECONFIG, DIED, LEAVING, NEWNODE } kcl_callback_reason;
-+
-+/* Kernel version of above, the void *sock is a struct socket */
-+struct kcl_multicast_sock {
-+	void *sock;
-+	int number;		/* Socket number, to match up recvonly & bcast
-+				 * sockets */
-+};
-+
-+extern int kcl_sendmsg(struct socket *sock, void *buf, int size,
-+		       struct sockaddr_cl *caddr, int addr_len,
-+		       unsigned int flags);
-+extern int kcl_register_read_callback(struct socket *sock,
-+				      int (*routine) (char *, int, char *, int,
-+						      unsigned int));
-+extern int kcl_add_callback(void (*callback) (kcl_callback_reason, long));
-+extern int kcl_remove_callback(void (*callback) (kcl_callback_reason, long));
-+extern int kcl_get_members(struct list_head *list);
-+extern int kcl_get_member_ids(uint32_t * idbuf, int size);
-+extern int kcl_get_all_members(struct list_head *list);
-+extern int kcl_get_node_by_addr(unsigned char *addr, int addr_len,
-+				struct kcl_cluster_node *n);
-+extern int kcl_get_node_by_name(unsigned char *name,
-+				struct kcl_cluster_node *n);
-+extern int kcl_get_node_by_nodeid(int nodeid, struct kcl_cluster_node *n);
-+extern int kcl_is_quorate(void);
-+extern int kcl_addref_cluster(void);
-+extern int kcl_releaseref_cluster(void);
-+extern int kcl_cluster_name(char **cname);
-+extern int kcl_get_current_interface(void);
-+extern struct list_head *kcl_get_node_addresses(int nodeid);
-+
-+extern int kcl_barrier_register(char *name, unsigned int flags,
-+				unsigned int nodes);
-+extern int kcl_barrier_setattr(char *name, unsigned int attr,
-+			       unsigned long arg);
-+extern int kcl_barrier_delete(char *name);
-+extern int kcl_barrier_wait(char *name);
-+extern int kcl_barrier_cancel(char *name);
-+
-+extern int kcl_register_quorum_device(char *name, int votes);
-+extern int kcl_unregister_quorum_device(void);
-+extern int kcl_quorum_device_available(int yesno);
-+
-+#endif
 diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/cluster/cnxman-socket.h
---- linux-orig/include/cluster/cnxman-socket.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/cnxman-socket.h	2004-10-22 11:04:52.682550859 -0500
-@@ -0,0 +1,227 @@
+--- linux-orig/include/cluster/cnxman-socket.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/cnxman-socket.h	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,233 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -14675,6 +14554,7 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +#define SIOCCLUSTER_SERVICE_GLOBALID  _IOR('x', 0x70, uint32_t)
 +#define SIOCCLUSTER_SERVICE_SETLEVEL  _IOR('x', 0x80, int)
 +#define SIOCCLUSTER_GETNODE	      _IOWR('x', 0x90, struct cl_cluster_node)
++#define SIOCCLUSTER_GETCLUSTER	      _IOWR('x', 0x91, struct cl_cluster_info)
 +#define SIOCCLUSTER_BARRIER           _IOW('x', 0x0a0, struct cl_barrier_info)
 +
 +/* These were setsockopts */
@@ -14809,6 +14689,11 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +	unsigned long arg;
 +};
 +
++struct cl_cluster_info {
++	char name[MAX_CLUSTER_NAME_LEN+1];
++	uint16_t number;
++};
++
 +typedef enum { SERVICE_EVENT_STOP, SERVICE_EVENT_START, SERVICE_EVENT_FINISH,
 +		SERVICE_EVENT_LEAVEDONE } service_event_t;
 +
@@ -14848,9 +14733,100 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +#define BARRIER_SETATTR_TIMEOUT    6
 +
 +#endif
+diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxman.h
+--- linux-orig/include/cluster/cnxman.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/cnxman.h	2004-11-03 11:37:37.000000000 +0800
+@@ -0,0 +1,87 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#ifndef __CNXMAN_H
++#define __CNXMAN_H
++
++#include "linux/in6.h"
++#include "cluster/cnxman-socket.h"
++
++/* In-kernel API */
++
++/* This is the structure, per node, returned from the membership request */
++struct kcl_cluster_node {
++	unsigned int size;
++	unsigned int node_id;
++	unsigned int us;
++	unsigned int leave_reason;
++	unsigned int incarnation;
++	nodestate_t state;
++	struct list_head list;
++	char name[MAX_CLUSTER_MEMBER_NAME_LEN];
++	unsigned char votes;
++};
++
++struct cluster_node_addr {
++	struct list_head list;
++	unsigned char addr[sizeof(struct sockaddr_in6)];/* A large sockaddr */
++	int addr_len;
++};
++
++
++/* Reasons for a kernel membership callback */
++typedef enum { CLUSTER_RECONFIG, DIED, LEAVING, NEWNODE } kcl_callback_reason;
++
++/* Kernel version of above, the void *sock is a struct socket */
++struct kcl_multicast_sock {
++	void *sock;
++	int number;		/* Socket number, to match up recvonly & bcast
++				 * sockets */
++};
++
++extern int kcl_sendmsg(struct socket *sock, void *buf, int size,
++		       struct sockaddr_cl *caddr, int addr_len,
++		       unsigned int flags);
++extern int kcl_register_read_callback(struct socket *sock,
++				      int (*routine) (char *, int, char *, int,
++						      unsigned int));
++extern int kcl_add_callback(void (*callback) (kcl_callback_reason, long));
++extern int kcl_remove_callback(void (*callback) (kcl_callback_reason, long));
++extern int kcl_get_members(struct list_head *list);
++extern int kcl_get_member_ids(uint32_t * idbuf, int size);
++extern int kcl_get_all_members(struct list_head *list);
++extern int kcl_get_node_by_addr(unsigned char *addr, int addr_len,
++				struct kcl_cluster_node *n);
++extern int kcl_get_node_by_name(unsigned char *name,
++				struct kcl_cluster_node *n);
++extern int kcl_get_node_by_nodeid(int nodeid, struct kcl_cluster_node *n);
++extern int kcl_is_quorate(void);
++extern int kcl_addref_cluster(void);
++extern int kcl_releaseref_cluster(void);
++extern int kcl_cluster_name(char **cname);
++extern int kcl_get_current_interface(void);
++extern struct list_head *kcl_get_node_addresses(int nodeid);
++
++extern int kcl_barrier_register(char *name, unsigned int flags,
++				unsigned int nodes);
++extern int kcl_barrier_setattr(char *name, unsigned int attr,
++			       unsigned long arg);
++extern int kcl_barrier_delete(char *name);
++extern int kcl_barrier_wait(char *name);
++extern int kcl_barrier_cancel(char *name);
++
++extern int kcl_register_quorum_device(char *name, int votes);
++extern int kcl_unregister_quorum_device(void);
++extern int kcl_quorum_device_available(int yesno);
++
++#endif
 diff -urN linux-orig/include/cluster/service.h linux-patched/include/cluster/service.h
---- linux-orig/include/cluster/service.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/service.h	2004-10-22 11:04:52.741549925 -0500
+--- linux-orig/include/cluster/service.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/service.h	2004-11-03 11:37:37.000000000 +0800
 @@ -0,0 +1,102 @@
 +/******************************************************************************
 +*******************************************************************************
