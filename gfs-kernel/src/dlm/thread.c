@@ -78,36 +78,39 @@ static void process_complete(dlm_lock_t *lp)
 
 	memset(&acb, 0, sizeof(acb));
 
-	/*
-	 * This is an AST for an unlock.
-	 */
+	if (lp->lksb.sb_status == -DLM_ECANCEL) {
+		log_all("complete dlm cancel %x,%"PRIx64" flags %lx",
+			lp->lockname.ln_type, lp->lockname.ln_number,
+			lp->flags);
+
+		lp->req = lp->cur;
+		acb.lc_ret |= LM_OUT_CANCELED;
+		if (lp->cur == DLM_LOCK_IV)
+			lp->lksb.sb_lkid = 0;
+		goto out;
+	}
 
 	if (test_and_clear_bit(LFL_DLM_UNLOCK, &lp->flags)) {
-		if (lp->lksb.sb_status == -DLM_ECANCEL) {
-			printk("lock_dlm: -DLM_ECANCEL num=%x,%"PRIx64"\n",
-			       lp->lockname.ln_type, lp->lockname.ln_number);
-		} else {
-			DLM_ASSERT(lp->lksb.sb_status == -DLM_EUNLOCK,
-				   printk("num=%x,%"PRIx64" status=%d\n",
-					  lp->lockname.ln_type,
-					  lp->lockname.ln_number,
-					  lp->lksb.sb_status););
-			lp->cur = DLM_LOCK_IV;
-			lp->req = DLM_LOCK_IV;
-			lp->lksb.sb_lkid = 0;
-			atomic_dec(&dlm->lock_count);
+		if (lp->lksb.sb_status != -DLM_EUNLOCK) {
+			log_all("unlock sb_status %d %x,%"PRIx64" flags %lx",
+				lp->lksb.sb_status, lp->lockname.ln_type,
+				lp->lockname.ln_number, lp->flags);
+			return;
 		}
+
+		lp->cur = DLM_LOCK_IV;
+		lp->req = DLM_LOCK_IV;
+		lp->lksb.sb_lkid = 0;
+		atomic_dec(&dlm->lock_count);
 
 		if (test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags)) {
 			complete(&lp->uast_wait);
 			return;
 		}
-
 		if (test_and_clear_bit(LFL_UNLOCK_DELETE, &lp->flags)) {
 			delete_lp(lp);
 			return;
 		}
-
 		goto out;
 	}
 
@@ -127,7 +130,7 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_CANCEL, &lp->flags)) {
-		log_all("cancel %x,%"PRIx64" complete",
+		log_all("complete internal cancel %x,%"PRIx64"",
 			lp->lockname.ln_type, lp->lockname.ln_number);
 		lp->req = lp->cur;
 		acb.lc_ret |= LM_OUT_CANCELED;
@@ -139,18 +142,20 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (lp->lksb.sb_status) {
-		lp->req = lp->cur;
-		if (lp->cur == DLM_LOCK_IV)
-			lp->lksb.sb_lkid = 0;
-
+		/* a "normal" error */
 		if ((lp->lksb.sb_status == -EAGAIN) &&
 		    (lp->lkf & DLM_LKF_NOQUEUE)) {
-			/* a "normal" error */
-		} else
-			printk("lock_dlm: process_complete error id=%x "
-			       "status=%d\n", lp->lksb.sb_lkid,
-			       lp->lksb.sb_status);
-		goto out;
+			lp->req = lp->cur;
+			if (lp->cur == DLM_LOCK_IV)
+				lp->lksb.sb_lkid = 0;
+			goto out;
+		}
+
+		/* this could only happen with cancels I think */
+		log_all("ast sb_status %d %x,%"PRIx64" flags %lx",
+			lp->lksb.sb_status, lp->lockname.ln_type,
+			lp->lockname.ln_number, lp->flags);
+		return;
 	}
 
 	/*

@@ -168,6 +168,7 @@ struct posix_lock {
 #define LFL_NOBAST              15
 #define LFL_HEADQUE             16
 #define LFL_UNLOCK_DELETE       17
+#define LFL_DLM_CANCEL          18
 
 struct dlm_lock {
 	dlm_t *			dlm;

@@ -25,9 +25,9 @@ static void queue_complete(dlm_lock_t *lp)
 	dlm_t *dlm = lp->dlm;
 
 	if (!test_bit(LFL_WAIT_COMPLETE, &lp->flags)) {
-		printk("lock_dlm: extra completion %x,%"PRIx64" %d,%d id %x\n",
-		       lp->lockname.ln_type, lp->lockname.ln_number,
-		       lp->cur, lp->req, lp->lksb.sb_lkid);
+		log_all("extra completion %x,%"PRIx64" %d,%d id %x flags %lx",
+		        lp->lockname.ln_type, lp->lockname.ln_number,
+		        lp->cur, lp->req, lp->lksb.sb_lkid, lp->flags);
 		return;
 	}
 
@@ -347,9 +347,10 @@ void do_dlm_unlock(dlm_lock_t *lp)
 
 	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, NULL, lp);
 
-	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
-			      lp->dlm->fsname, error, lp->lockname.ln_type,
-			      lp->lockname.ln_number););
+	DLM_ASSERT(!error,
+		   printk("%s: error=%d num=%x,%"PRIx64" lkf=%x flags=%lx\n",
+			  lp->dlm->fsname, error, lp->lockname.ln_type,
+			  lp->lockname.ln_number, lp->lkf, lp->flags););
 }
 
 void do_dlm_unlock_sync(dlm_lock_t *lp)
@@ -434,6 +435,7 @@ unsigned int lm_dlm_lock(lm_lock_t *lock, unsigned int cur_state,
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
+	clear_bit(LFL_DLM_CANCEL, &lp->flags);
 	if (flags & LM_FLAG_NOEXP)
 		set_bit(LFL_NOBLOCK, &lp->flags);
 
@@ -469,6 +471,7 @@ unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
+	clear_bit(LFL_DLM_CANCEL, &lp->flags);
 	if (lp->cur == DLM_LOCK_IV)
 		return 0;
 	do_dlm_unlock(lp);
@@ -493,9 +496,12 @@ void lm_dlm_unlock_sync(lm_lock_t *lock, unsigned int cur_state)
 void lm_dlm_cancel(lm_lock_t *lock)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
-	int dlist = FALSE;
+	int error, dlist = FALSE;
 
-	log_all("cancel %x,%"PRIx64" flags %lx",
+	if (test_bit(LFL_DLM_CANCEL, &lp->flags))
+		return;
+
+	log_all("lm_dlm_cancel %x,%"PRIx64" flags %lx",
 		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	spin_lock(&lp->dlm->async_lock);
@@ -510,7 +516,30 @@ void lm_dlm_cancel(lm_lock_t *lock)
 		set_bit(LFL_CANCEL, &lp->flags);
 		set_bit(LFL_WAIT_COMPLETE, &lp->flags);
 		queue_complete(lp);
+		return;
 	}
+
+	if (!test_bit(LFL_WAIT_COMPLETE, &lp->flags) ||
+	    test_bit(LFL_DLM_UNLOCK, &lp->flags))	{
+		log_all("lm_dlm_cancel skip %x,%"PRIx64" flags %lx",
+			lp->lockname.ln_type, lp->lockname.ln_number,
+			lp->flags);
+		return;
+	}
+
+	/* the lock is blocked in the dlm */
+
+	set_bit(LFL_DLM_CANCEL, &lp->flags);
+	set_bit(LFL_WAIT_COMPLETE, &lp->flags);
+
+	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, DLM_LKF_CANCEL,
+			   NULL, lp);
+
+	log_all("lm_dlm_cancel rv %d %x,%"PRIx64" flags %lx", error,
+	        lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
+
+	if (error == -EBUSY)
+		clear_bit(LFL_DLM_CANCEL, &lp->flags);
 }
 
 int dlm_add_lvb(dlm_lock_t *lp)
