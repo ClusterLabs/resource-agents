@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.72 $) dnl cvs revision
+AC_REVISION($Revision: 1.73 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -688,10 +688,12 @@ heartbeat/Makefile						\
 	heartbeat/init.d/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
 	heartbeat/lib/Makefile					\
+		heartbeat/lib/hb_standby			\
 		heartbeat/lib/mach_down				\
 		heartbeat/lib/req_resource			\
 		heartbeat/lib/ResourceManager			\
 		heartbeat/init.d/heartbeat			\
+		heartbeat/rc.d/ask_resources			\
 		heartbeat/resource.d/AudibleAlarm		\
 		heartbeat/resource.d/Filesystem			\
 		heartbeat/resource.d/IPaddr			\
