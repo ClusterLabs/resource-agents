@@ -1360,6 +1360,14 @@ int process_broadcast(int sfd){
       goto fail;
     }
     log_dbg("master_doc found and loaded.\n");
+  } else if(update_required){
+    log_dbg("Update is required.\n");
+    if((error = update_config(0))){
+      log_err("Failed to update config file, required by cluster.\n");
+      /* ATTENTION -- remove all open_doc_t's ? */
+      goto fail;
+    }
+    update_required = 0;
   }
 
   /* allocates space for the payload */

@@ -144,7 +144,7 @@ sub update_programs {
     }
 
     if( -e "/proc/cluster/status"){
-	# update cman info
+	`sh -c "cman_tool version -r $new_version"`;
     }
 }
 
