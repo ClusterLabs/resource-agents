@@ -5,20 +5,17 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'fenced(8)''fenced(8)'
+.TH fenced 8
 
-\fBNAME\fP
-.in +7
-fenced- the I/O Fencing daemon
+.SH NAME
+fenced - the I/O Fencing daemon
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfenced [options]\fP
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH SYNOPSIS
+.B
+fenced
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
 The fencing daemon, \fBfenced\fP, should be run on every node that will
 use CLVM or GFS.  It should be started after the node has joined the CMAN
 cluster (fenced is only used with CMAN; it is not used with GULM/SLM/RLM.)
@@ -38,7 +35,7 @@ The fencing daemon depends on CMAN for cluster membership information and
 it depends on CCS to provide cluster.conf information.  The fencing daemon
 calls fencing agents according to cluster.conf information.
 
-Node failure
+.SS Node failure
 
 When a domain member fails, the actual fencing must be completed before
 GFS recovery can begin.  This means any delay in carrying out the fencing
@@ -54,7 +51,7 @@ indefinitely for the failed node to rejoin the cluster.  In this case the
 node is not fenced and all recovery must wait until the failed node
 rejoins the cluster.
 
-Domain startup
+.SS Domain startup
 
 When the domain is first created in the cluster (by the first node to join
 it) and subsequently enabled (by the cluster gaining quorum) any nodes
@@ -89,13 +86,7 @@ Avoiding unnecessary fencing at startup is primarily a concern when nodes
 are fenced by power cycling.  If nodes are fenced by disabling their SAN
 access, then unnecessarily fencing a node is usually less disruptive.
 
-
-.sp
-.in
-\fBCONFIGURATION FILE\fP
-.in +7
-.sp
-
+.SH CONFIGURATION FILE
 Fencing daemon behavior can be controlled by setting options in the
 cluster.conf file under the section <fence_daemon> </fence_daemon>.  See
 above for complete descriptions of these values.  The delay values are in
@@ -121,59 +112,30 @@ to start.
   <fence_daemon clean_start="0">
   </fence_daemon>
 
-
-.sp
-.in
-\fBOPTIONS\fP
-.in +7
-.sp
-
+.SH OPTIONS
 Command line options override corresonding values in cluster.conf.
-
+.TP
 \fB-j\fP \fIsecs\fP
-.in +7
 Post-join fencing delay
-.in
-.sp
-
+.TP
 \fB-f\fP \fIsecs\fP
-.in +7
 Post-fail fencing delay
-.in
-.sp
-
+.TP
 \fB-c\fP 
-.in +7
 All nodes are in a clean state to start.
-.in
-.sp
-
+.TP
 \fB-D\fP
-.in +7
 Enable debugging code and don't fork into the background.
-.in
-.sp
-
+.TP
 \fB-n\fP \fIname\fP
-.in +7
 Name of the fence domain, "default" if none.
-.in
-.sp
-
+.TP
 \fB-V\fP
-.in +7
 Print the version information and exit.
-.in
-.sp
-
+.TP
 \fB-h\fP 
-.in +7
 Print out a help message describing available options, then exit.
-.in
-.sp
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 gfs(8), fence(8)
 
