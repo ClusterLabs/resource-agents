@@ -2020,6 +2020,8 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 					skb_free_datagram(sk, skb);
 			}
 		}
+		else
+			break;
 	}
 	while (cbinfo->oob && !(flags & MSG_OOB));
 
