@@ -1,0 +1,21 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) Red Hat, Inc.  2005  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#ifndef __COPYRIGHT_DOT_CF__
+#define __COPYRIGHT_DOT_CF__
+
+#define REDHAT_COPYRIGHT ("Copyright (C) Red Hat, Inc.  2005  All rights reserved.")
+
+#endif  /*  __COPYRIGHT_DOT_CF__  */
+
+
+
