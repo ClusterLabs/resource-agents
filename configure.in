@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.2 $) dnl cvs revision
+AC_REVISION($Revision: 1.3 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -105,19 +105,22 @@ dnl Warnings for C compilers.  Note: generic, portable warnings only.
 dnl Things likely to be specific to a particular OS or module should be
 dnl carefully handled afterwards.
 if test "$GCC" = yes; then
-	CC_WARNINGS="-Wall -Wmissing-prototypes -Wstrict-prototypes \
+	CC_WARNINGS="-Wall -Wmissing-prototypes \
 		-Wmissing-declarations \
-		-Wcast-qual -Wcast-align \
-		-Wwrite-strings \
+		-Wstrict-prototypes \
+		-Wshadow \
 		-Wpointer-arith \
+		-Wwrite-strings \
+		-Wcast-qual -Wcast-align \
 		-Wtraditional \
-		-Wnested-externs -Winline -Wshadow"
+		-Wnested-externs -Winline -Werror"
 	CFLAGS="$CFLAGS $CC_WARNINGS"
 fi
+
 case "$host_os" in
 *solaris*)	HEARTBEAT_LIBS="-lposix4"
 		;;
-dnl *bsd*)		STONITH_LDADD="-lintl"
+dnl *bsd*)	STONITH_LDADD="-lintl"
 dnl 		;;
 dnl *linux*)	STONITH_LDADD="-ldl"
 dnl 		;;
