@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.228 $) dnl cvs revision
+AC_REVISION($Revision: 1.229 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1001,11 +1001,15 @@ dnl
 dnl	strnlen: is a gnu function similar to strlen, but safer.
 dnl		We wrote a tolearably-fast replacement function for it.
 dnl
+dnl	daemon: is a GNU function.  The daemon() function is for programs wishing to
+dnl             detach themselves from the controlling terminal and run in the
+dnl             background as system daemon
+dnl             A replacement function is supplied for it.
 dnl
 dnl Check Only
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen daemon)
 AC_CHECK_FUNCS(alphasort, 
 	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
 AC_CHECK_FUNCS(inet_pton, 
@@ -1021,6 +1025,8 @@ AC_CHECK_FUNCS(unsetenv,
 	AC_DEFINE(HA_HAVE_UNSETENV,  1, [Have unsetenv function]))
 AC_CHECK_FUNCS(strnlen, 
 	AC_DEFINE(HA_HAVE_STRNLEN,   1, [Have strnlen function]))
+AC_CHECK_FUNCS(daemon, 
+	AC_DEFINE(HA_HAVE_DAEMON,   1, [Have daemon function]))
 
 AC_SUBST(HA_HAVE_ALPHASORT)
 AC_SUBST(HA_HAVE_INET_PTON)
@@ -1028,6 +1034,8 @@ AC_SUBST(HA_HAVE_SCANDIR)
 AC_SUBST(HA_HAVE_SETENV)
 AC_SUBST(HA_HAVE_STRERROR)
 AC_SUBST(HA_HAVE_UNSETENV)
+AC_SUBST(HA_HAVE_STRNLEN)
+AC_SUBST(HA_HAVE_DAEMON)
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
