@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.74 $) dnl cvs revision
+AC_REVISION($Revision: 1.75 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -107,6 +107,16 @@ AM_PROG_CC_STDC
 AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
 AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
+AC_CHECK_PROG(MAKE, gmake, gmake, make)
+AC_MSG_CHECKING(for gmake or make)
+if test x"${MAKE}" = x""; then
+        AC_MSG_ERROR(You need the gmake to build heartbeat.
+      You can get the source from ftp://www.gnu.org/pub/gnu/
+      or you can locate it via http://www.gnu.org/software/make/)
+else
+      AC_MSG_RESULT("$MAKE has been found.")
+fi
+
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(ROUTE, route)
@@ -335,10 +345,14 @@ GLHEAD=`$GLIBCONFIG --cflags`
 AC_MSG_RESULT($GLHEAD)
 
 CPPFLAGS="$CPPFLAGS $GLHEAD"
+
+dnl Note: Not bundling "GLIBLIB" with general "LIBS".
+dnl	1. Only very few programs require GLIBLIB
+dnl	2. Danger of creating run-time dependency on build-time LD_LIBRARY_PATH
 AC_MSG_CHECKING(for glib library flags)
 GLIBLIB=`$GLIBCONFIG --libs`
-LIBS="$LIBS $GLIBLIB"
 AC_MSG_RESULT($GLIBLIB)
+AC_SUBST(GLIBLIB)
 
 
 dnl ************************************************************************
@@ -471,13 +485,27 @@ dnl
 fi
 
 case "$host_os" in
-*solaris*)	HEARTBEAT_LIBS="-lposix4"
+solaris*)	HEARTBEAT_LIBS="-lposix4"
+		INITDIR="/etc/init.d"
+		INIT_EXT=""
+		USE_MODULES=0
 		;;
 *bsd*)		LIBS="$LIBS -L/usr/local/lib"
+		INITDIR="/usr/local/etc/rc.d"
+		USE_MODULES=0
+		INIT_EXT=".sh"
 		;;
-dnl *linux*)	
-dnl 		;;
+*linux*)	
+		INITDIR="/etc/rc.d/init.d"
+		USE_MODULES=1
+		INIT_EXT=""
+ 		;;
 esac
+
+AC_SUBST(INITDIR)
+AC_SUBST(INIT_EXT)
+AC_SUBST(USE_MODULES)
+AC_MSG_RESULT($INITDIR);
 
 
 dnl **********************************************************************
@@ -684,16 +712,15 @@ lib/Makefile							\
 stonith/Makefile						\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
-	heartbeat/resource.d/Makefile				\
+		heartbeat/rc.d/ask_resources			\
 	heartbeat/init.d/Makefile				\
-	heartbeat/logrotate.d/Makefile				\
+		heartbeat/init.d/heartbeat			\
 	heartbeat/lib/Makefile					\
 		heartbeat/lib/hb_standby			\
 		heartbeat/lib/mach_down				\
 		heartbeat/lib/req_resource			\
 		heartbeat/lib/ResourceManager			\
-		heartbeat/init.d/heartbeat			\
-		heartbeat/rc.d/ask_resources			\
+	heartbeat/resource.d/Makefile				\
 		heartbeat/resource.d/AudibleAlarm		\
 		heartbeat/resource.d/Filesystem			\
 		heartbeat/resource.d/IPaddr			\
@@ -701,6 +728,7 @@ heartbeat/Makefile						\
 		heartbeat/resource.d/MailTo			\
 		heartbeat/resource.d/WinPopup			\
 	heartbeat/shellfuncs					\
+	heartbeat/logrotate.d/Makefile				\
 ldirectord/Makefile						\
 	ldirectord/init.d/Makefile				\
 	ldirectord/logrotate.d/Makefile				\
