@@ -303,13 +303,13 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 			if (in_nodes_gone(ls, lkb->lkb_nodeid)) {
 				if (reply_in_requestqueue(ls, lkb->lkb_id)) {
 					lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
-					log_all(ls, "mark %x unlock have rep",
-						lkb->lkb_id);
+					log_debug(ls, "mark %x unlock have rep",
+						  lkb->lkb_id);
 				} else {
 					/* assume we got reply fr old master */
 					lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
 					lkb->lkb_flags |= GDLM_LKFLG_UNLOCKDONE;
-					log_all(ls, "mark %x unlock no rep",
+					log_debug(ls, "mark %x unlock no rep",
 						lkb->lkb_id);
 				}
 			}
@@ -394,6 +394,8 @@ int resend_cluster_requests(struct dlm_ls *ls)
 
 		if (lkb->lkb_flags & GDLM_LKFLG_UNLOCKDONE) {
 			log_debug(ls, "unlock done %x", lkb->lkb_id);
+			list_del(&lkb->lkb_lockqueue);
+			res_lkb_dequeue(lkb);
 			lkb->lkb_retstatus = -DLM_EUNLOCK;
 			queue_ast(lkb, AST_COMP | AST_DEL, 0);
 			count++;
