@@ -341,6 +341,32 @@ static int create_control_device()
     return status;
 }
 
+static int find_minor_from_proc(const char *prefix, const char *lsname)
+{
+    FILE *f = fopen(PROC_MISC, "r");
+    char miscname[strlen(lsname)+strlen(prefix)+1];
+    char name[256];
+    int minor;
+
+    sprintf(miscname, "%s%s", prefix, lsname);
+
+    if (f)
+    {
+	while (!feof(f))
+	{
+	    if (fscanf(f, "%d %s", &minor, name) == 2 &&
+		strcmp(name, miscname) == 0)
+	    {
+		fclose(f);
+		return minor;
+	    }
+	}
+    }
+
+    fclose(f);
+    return 0;
+}
+
 static int open_control_device()
 {
     int minor;
@@ -484,32 +510,6 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
     return status;	/* lock status is in the lksb */
 }
 #endif
-
-static int find_minor_from_proc(const char *prefix, const char *lsname)
-{
-    FILE *f = fopen(PROC_MISC, "r");
-    char miscname[strlen(lsname)+strlen(prefix)+1];
-    char name[256];
-    int minor;
-
-    sprintf(miscname, "%s%s", prefix, lsname);
-
-    if (f)
-    {
-	while (!feof(f))
-	{
-	    if (fscanf(f, "%d %s", &minor, name) == 2 &&
-		strcmp(name, miscname) == 0)
-	    {
-		fclose(f);
-		return minor;
-	    }
-	}
-    }
-
-    fclose(f);
-    return 0;
-}
 
 /* Lock on default lockspace*/
 int dlm_lock(uint32_t mode,
