@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.277 $) dnl cvs revision
+AC_REVISION($Revision: 1.278 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -506,6 +506,7 @@ AC_CHECK_HEADERS(db.h)
 AC_CHECK_HEADERS(asm/page.h)
 AC_CHECK_HEADERS(time.h)
 AC_CHECK_HEADERS(stdarg.h)
+AC_CHECK_HEADERS(tcpd.h)
 
 AC_CHECK_HEADERS(uuid.h)
 AC_CHECK_HEADERS(uuid/uuid.h)
