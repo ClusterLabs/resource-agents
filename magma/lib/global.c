@@ -34,7 +34,7 @@
 
 static cluster_plugin_t *_cpp = NULL;
 static char _connected = 0;
-static pthread_mutex_t dflt_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t dflt_lock = PTHREAD_RWLOCK_INITIALIZER;
 static void _clu_set_default(cluster_plugin_t *cpp);
 static void _clu_clear_default(void);
 
@@ -54,15 +54,15 @@ clu_connect(char *groupname, int login)
 	cluster_plugin_t *cp;
 	char filename[1024];
 
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	if (_cpp) {
-		pthread_mutex_unlock(&dflt_mutex);
+		pthread_rwlock_unlock(&dflt_lock);
 		return 0;
 	}
 
 	dir = opendir(PLUGINDIR);
 	if (!dir){
-		pthread_mutex_unlock(&dflt_mutex);
+		pthread_rwlock_unlock(&dflt_lock);
 		return -1;
 	}
 	while ((entry = readdir(dir)) != NULL) {
@@ -106,7 +106,7 @@ clu_connect(char *groupname, int login)
 		_connected = 1;
 		
 		closedir(dir);
-		pthread_mutex_unlock(&dflt_mutex);
+		pthread_rwlock_unlock(&dflt_lock);
 
 		/* Don't allow msg_close() to close this socket */
 		if (fd >= 0)
@@ -115,7 +115,7 @@ clu_connect(char *groupname, int login)
 	}
 
 	closedir(dir);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return -1;
 }
 
@@ -128,9 +128,9 @@ clu_connected(void)
 {
 	int ret;
 	
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	ret = !!_connected;
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 
 	return ret;
 }
@@ -150,7 +150,7 @@ clu_disconnect(int fd)
 	if (fd >= 0)
 		clist_delete(fd);
 
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	if (_cpp) {
 		cp_logout(_cpp, fd);
 		cp_close(_cpp, fd);
@@ -159,7 +159,7 @@ clu_disconnect(int fd)
 			_cpp = NULL;
 		_connected = 0;
 	}
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 
 	return rv;
 }
@@ -172,10 +172,10 @@ int
 clu_null(void)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_null(_cpp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -184,10 +184,10 @@ cluster_member_list_t *
 clu_member_list(char *groupname)
 {
 	cluster_member_list_t * ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_member_list(_cpp, groupname);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -195,10 +195,10 @@ int
 clu_quorum_status(char *groupname)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_quorum_status(_cpp, groupname);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -207,10 +207,10 @@ char *
 clu_plugin_version(void)
 {
 	char *ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_plugin_version(_cpp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -219,10 +219,10 @@ int
 clu_get_event(int fd)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_get_event(_cpp, fd);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -231,10 +231,10 @@ int
 clu_open(void)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_open(_cpp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 
 	if (ret >= 0)
 		clist_insert(ret, MSG_CONNECTED);
@@ -247,10 +247,10 @@ int
 clu_login(int fd, char *groupname)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_login(_cpp, fd, groupname);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -259,10 +259,10 @@ int
 clu_logout(int fd)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_logout(_cpp, fd);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -275,10 +275,10 @@ clu_close(int fd)
 	if (fd >= 0)
 		clist_delete(fd);
 
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_close(_cpp, fd);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -287,10 +287,10 @@ int
 clu_fence(cluster_member_t *node)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_fence(_cpp, node);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -299,10 +299,10 @@ int
 clu_lock(char *resource, int flags, void **lockpp)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	assert(_cpp);
 	ret = cp_lock(_cpp, resource, flags, lockpp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -311,9 +311,9 @@ int
 clu_unlock(char *resource, void *lockp)
 {
 	int ret;
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_rdlock(&dflt_lock);
 	ret = cp_unlock(_cpp, resource, lockp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 	return ret;
 }
 
@@ -328,9 +328,9 @@ _clu_set_default(cluster_plugin_t *cpp)
 void
 clu_set_default(cluster_plugin_t *cpp)
 {
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	_clu_set_default(cpp);
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 }
 
 
@@ -344,8 +344,8 @@ _clu_clear_default(void)
 void
 clu_clear_default(void)
 {
-	pthread_mutex_lock(&dflt_mutex);
+	pthread_rwlock_wrlock(&dflt_lock);
 	_clu_clear_default();
-	pthread_mutex_unlock(&dflt_mutex);
+	pthread_rwlock_unlock(&dflt_lock);
 }
 
