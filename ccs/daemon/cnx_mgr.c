@@ -1037,7 +1037,7 @@ static int process_set_state(comm_header_t *ch, char *payload){
 
 
 /**
- * process_connections
+ * process_request
  * @afd
  *
  * This function operates as a switch, passing the request to the

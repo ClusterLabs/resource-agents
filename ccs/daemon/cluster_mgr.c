@@ -114,7 +114,8 @@ static int handle_cluster_message(int fd){
   log_dbg("Message (%d bytes) received from %s\n", error,
 	  memb_id_to_name(membership,nodeid));
   if(ch.comm_type != COMM_UPDATE){
-    log_err("Unexpected communication type... ignoring.\n");
+    log_err("Unexpected communication type (%d)... ignoring.\n",
+	    ch.comm_type);
     error = -EINVAL;
     goto fail;
   }
@@ -305,7 +306,10 @@ static void cluster_communicator(void){
 
  restart:
   while(cluster_fd < 0){
+    sleep(1);
     cluster_fd = clu_connect(NULL, 0);
+    /* this while loop eats alot of CPU until cluster mgr is started,
+       consider a sleep? */
   }
 
   log_dbg("cluster_fd = %d\n", cluster_fd);
@@ -421,6 +425,11 @@ int update_remote_nodes(char *mem_doc, int doc_size){
       goto fail;
     }
     error = msg_send(fd, buffer, sizeof(comm_header_t) + doc_size);
+    if(error < 0){
+      log_sys_err("Failed to perform msg_send");
+      msg_close(fd);
+      goto fail;
+    }
     log_dbg("Sent doc and header (%d/%d bytes)\n",
 	    error, sizeof(comm_header_t) + doc_size);
     error = msg_receive_timeout(fd, &rch, sizeof(comm_header_t), 5);

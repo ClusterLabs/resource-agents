@@ -31,6 +31,7 @@ static int setup_interface_ipv6(int *sp, int port){
   int sock = -1;
   int error = 0;
   struct sockaddr_in6 addr;
+  int trueint = 1;
 
   ENTER("setup_interface_ipv6");
                                                                                 
@@ -43,12 +44,17 @@ static int setup_interface_ipv6(int *sp, int port){
     goto fail;
   }
 
+  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int))){
+    log_sys_err("Unable to set socket option SO_REUSEADDR");
+    log_err("This may slow things down a bit.\n");
+  }
+
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port);
   addr.sin6_addr = in6addr_loopback;
 
   if(bind(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in6))){
-    log_dbg("Unable to bind: %s\n", strerror(errno));
+    log_dbg("Unable to (pre)bind to port %d: %s\n", port, strerror(errno));
     error = -errno;
     goto fail;
   }
@@ -189,7 +195,11 @@ static int do_request(char *buffer){
   }
 
   /* In the future, we will only try the protocol that worked first */
-  ipv6 = (error == AF_INET6)? 1: 0;
+  if(ipv6 < 0){
+    ipv6 = (error == AF_INET6)? 1: 0;
+
+    log_dbg("Protocol version set to %s.\n", (ipv6)?"IPv6":"IPv4");
+  }
 
   addr_size = (error == AF_INET6)? 
     sizeof(struct sockaddr_in6 *):

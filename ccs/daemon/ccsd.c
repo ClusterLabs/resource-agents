@@ -67,6 +67,8 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
 
+  memset(&addr, 0, sizeof(struct sockaddr_storage));
+
   /** Setup the socket to communicate with the CCS library **/
   if(IPv6 && (sfds[0] = socket(PF_INET6, SOCK_STREAM, 0)) < 0){
     if(IPv6 == -1){

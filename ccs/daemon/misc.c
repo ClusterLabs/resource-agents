@@ -99,6 +99,7 @@ int get_doc_version(xmlDocPtr ldoc){
  */
 char *get_cluster_name(xmlDocPtr ldoc){
   int error = 0;
+  char *rtn = NULL;
   xmlXPathObjectPtr  obj = NULL;
   xmlXPathContextPtr ctx = NULL;
   xmlNodePtr        node = NULL;
@@ -132,8 +133,7 @@ char *get_cluster_name(xmlDocPtr ldoc){
     goto fail;
   }
 
-  EXIT("get_cluster_name");
-  return strdup(node->children->content);
+  rtn = strdup(node->children->content);
 
  fail:
   if(ctx){
@@ -143,7 +143,7 @@ char *get_cluster_name(xmlDocPtr ldoc){
     xmlXPathFreeObject(obj);
   }
   EXIT("get_cluster_name");
-  return NULL;
+  return rtn;
 }
 
 
