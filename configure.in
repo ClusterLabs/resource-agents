@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.261 $) dnl cvs revision
+AC_REVISION($Revision: 1.262 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -160,6 +160,9 @@ AC_PATH_PROGS(IFCONFIG, ifconfig)
 AC_PATH_PROGS(SSH, ssh)
 AC_PATH_PROGS(SCP, scp)
 AC_PATH_PROGS(PYTHON, python)
+dnl - Determine which mail program exists. Mailx is Solaris
+AC_PATH_PROGS(MAILCMD, mail, mailx)
+AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
@@ -198,6 +201,8 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
+AC_CHECK_LIB(uuid, uuid_parse)			dnl -luuid
+AC_CHECK_LIB(uuid, uuid_create)			dnl -luuid ( ossp version )
 
 AC_MSG_CHECKING(which glib config exists)
 if test "X${PKGCONFIG}" != "X"; then
@@ -240,6 +245,22 @@ else
         *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
         *)	libnet=$LIBNETLIBS;;
       esac
+fi
+
+AC_MSG_CHECKING(checking which uuid is used:)
+if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
+	AC_MSG_RESULT(using ex2fs uuid)
+else
+	if test "$ac_cv_lib_uuid_uuid_create" = yes; then
+		AC_MSG_RESULT(using ossp uuid functionality)
+	else
+		
+		if test "${enable_lrm}" -o "${enable_crm}"  = "yes"; then
+			AC_MSG_ERROR("No UUID functuionality found. Needed for CRM/LRM");
+		else
+			AC_MSG_RESULT("No UUID functuionality found.");
+		fi
+	fi
 fi
 
 AC_SUBST(LIBNETDEFINES)
@@ -476,6 +497,9 @@ AC_CHECK_HEADERS(db.h)
 AC_CHECK_HEADERS(asm/page.h)
 AC_CHECK_HEADERS(time.h)
 AC_CHECK_HEADERS(stdarg.h)
+
+AC_CHECK_HEADERS(uuid.h)
+AC_CHECK_HEADERS(uuid/uuid.h)
 
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
@@ -1093,6 +1117,9 @@ dnl
 dnl	strnlen: is a gnu function similar to strlen, but safer.
 dnl		We wrote a tolearably-fast replacement function for it.
 dnl
+dnl	strndup: is a gnu function similar to strdup, but safer.
+dnl		We wrote a tolearably-fast replacement function for it.
+dnl
 dnl	daemon: is a GNU function.  The daemon() function is for programs wishing to
 dnl             detach themselves from the controlling terminal and run in the
 dnl             background as system daemon
@@ -1103,7 +1130,7 @@ dnl
 dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h header compile cleanly.
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen daemon)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon)
 AC_CHECK_FUNCS(alphasort, 
 	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
 AC_CHECK_FUNCS(inet_pton, 
@@ -1119,6 +1146,8 @@ AC_CHECK_FUNCS(unsetenv,
 	AC_DEFINE(HA_HAVE_UNSETENV,  1, [Have unsetenv function]))
 AC_CHECK_FUNCS(strnlen, 
 	AC_DEFINE(HA_HAVE_STRNLEN,   1, [Have strnlen function]))
+AC_CHECK_FUNCS(strndup, 
+	AC_DEFINE(HA_HAVE_STRNDUP,   1, [Have strndup function]))
 AC_CHECK_FUNCS(daemon, 
 	AC_DEFINE(HA_HAVE_DAEMON,    1, [Have daemon function]))
 AC_CHECK_FUNCS(getopt, 
@@ -1132,6 +1161,7 @@ AC_SUBST(HA_HAVE_SETENV)
 AC_SUBST(HA_HAVE_STRERROR)
 AC_SUBST(HA_HAVE_UNSETENV)
 AC_SUBST(HA_HAVE_STRNLEN)
+AC_SUBST(HA_HAVE_STRNDUP)
 AC_SUBST(HA_HAVE_DAEMON)
 AC_SUBST(HAVE_DECL_GETOPT)
 
@@ -1472,10 +1502,15 @@ if test "${enable_swig}" = "yes"; then
 		if test "0$SWIG_VERSION" -lt "19" 2>&1 ; then
 			enable_swig="no (version 1.3.x, x>=19 required)"
 		else
-			dnl We seem to have passed all tests
-			SWIG_ENABLED=1
-			SWIG_DIR="bindings"
-			AC_DEFINE_UNQUOTED(WITH_SWIG, 1, SWIG bindings enabled)
+			PERL_VERSION="`$PERL -v 2>&1 | sed -ne 's/This is perl, v5.//p'`"
+			if test "O$PERL_VERSION" -lt "008001" 2>&1 ; then
+				enable_swig="no (perl > 5.008001 needed)"
+			else
+				dnl We seem to have passed all tests
+				SWIG_ENABLED=1
+				SWIG_DIR="bindings"
+				AC_DEFINE_UNQUOTED(WITH_SWIG, 1, SWIG bindings enabled)
+			fi
 		fi
 	fi
 fi
