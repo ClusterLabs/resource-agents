@@ -371,6 +371,7 @@ extern int get_quorum(void);
 extern void set_votes(int, int);
 extern void kcl_wait_for_all_acks(void);
 extern char *membership_state(char *, int);
+extern char *leave_string(int reason);
 extern void a_node_just_died(struct cluster_node *node);
 extern void check_barrier_returns(void);
 extern int in_transition(void);

@@ -2619,8 +2619,8 @@ static int do_process_leave(struct msghdr *msg, int len)
 
 		if (node->state != NODESTATE_DEAD) {
 			printk(KERN_INFO CMAN_NAME
-			       ": Node %s is leaving the cluster, reason %d\n",
-			       node->name, reason);
+			       ": Node %s is leaving the cluster, %s\n",
+			       node->name, leave_string(reason));
 
 			node->leave_reason = reason;
 		}
@@ -3077,6 +3077,25 @@ char *membership_state(char *buf, int buflen)
 	}
 
 	return buf;
+}
+
+char *leave_string(int reason)
+{
+	switch (reason)
+	{
+	case CLUSTER_LEAVEFLAG_DOWN:
+		return "Shutdown";
+	case CLUSTER_LEAVEFLAG_KILLED:
+		return "Killed by another node";
+	case CLUSTER_LEAVEFLAG_PANIC:
+		return "Panic";
+	case CLUSTER_LEAVEFLAG_REMOVED:
+		return "Removed";
+	case CLUSTER_LEAVEFLAG_REJECTED:
+		return "Membership rejected";
+	default:
+		return "Don't know why";
+	}
 }
 
 #ifdef DEBUG_MEMB

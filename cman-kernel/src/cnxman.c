@@ -57,7 +57,6 @@ static struct cl_comms_socket *get_next_interface(struct cl_comms_socket *cur);
 static void check_for_unacked_nodes(void);
 static void free_cluster_sockets(void);
 static uint16_t generate_cluster_id(char *name);
-
 static int is_valid_temp_nodeid(int nodeid);
 
 extern int start_membership_services(pid_t);
@@ -2625,7 +2624,8 @@ static void node_shutdown()
 	struct cl_client_socket *csock;
 	struct sk_buff *null_skb;
 
-	printk(KERN_INFO CMAN_NAME ": we are leaving the cluster\n");
+	printk(KERN_INFO CMAN_NAME ": we are leaving the cluster. %s\n",
+	       us->leave_reason?leave_string(us->leave_reason):"");
 
 	atomic_set(&cnxman_running, 0);
 	unjam();
@@ -3871,8 +3871,6 @@ void purge_temp_nodeids()
 	up(&cluster_members_lock);
 	up(&tempnode_lock);
 }
-
-
 
 
 /* Quorum device functions */
