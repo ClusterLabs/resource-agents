@@ -19,8 +19,12 @@ endif
 
 PWD := $(shell pwd)
 
-obj-m := dm-log_cluster.o
- 
+obj-m := dm-cmirror.o
+dm-cmirror-objs := dm-cmirror-client.o \
+	dm-cmirror-server.o \
+	dm-cmirror-xfr.o \
+	dm-cmirror-cman.o
+
 EXTRA_CFLAGS += -I$(obj) -Idrivers/md
 
 all:
@@ -32,11 +36,11 @@ all:
 
 install: all
 	install -d ${module_dir}/cluster
-	install dm-log_cluster.ko ${module_dir}/cluster
+	install dm-cmirror.ko ${module_dir}/cluster
 
 uninstall:
-	${UNINSTALL} dm-log_cluster.ko ${module_dir}/cluster
+	${UNINSTALL} dm-cmirror.ko ${module_dir}/cluster
 
 clean:
-	rm -rf *.ko *.o *.mod.c *~ .*o.cmd .tmp_versions
+	rm -rf cluster cnxman* service.h *.ko *.o *.mod.c *~ .*o.cmd .tmp_versions
 
