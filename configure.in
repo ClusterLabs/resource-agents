@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.359 $) dnl cvs revision
+AC_REVISION($Revision: 1.360 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2012,6 +2012,7 @@ resources/Makefile						\
 	resources/heartbeat/IPsrcaddr				\
 	resources/heartbeat/LinuxSCSI				\
 	resources/heartbeat/LVM					\
+	resources/heartbeat/LVSSyncDaemonSwap			\
 	resources/heartbeat/MailTo				\
 	resources/heartbeat/OCF					\
 	resources/heartbeat/portblock				\
