@@ -74,16 +74,14 @@ static void queue_blocking(dlm_lock_t *lp, int mode)
 	wake_up(&dlm->wait);
 }
 
-static __inline__ void lock_ast(void *astargs)
+static __inline__ void lock_ast(void *astarg)
 {
-	dlm_lock_t *lp = (dlm_lock_t *) astargs;
-	queue_complete(lp);
+	queue_complete((dlm_lock_t *) astarg);
 }
 
-static __inline__ void lock_bast(void *astargs, int mode)
+static __inline__ void lock_bast(void *astarg, int mode)
 {
-	dlm_lock_t *lp = (dlm_lock_t *) astargs;
-	queue_blocking(lp, mode);
+	queue_blocking((dlm_lock_t *) astarg, mode);
 }
 
 /*
@@ -501,6 +499,17 @@ void lm_dlm_cancel(lm_lock_t *lock)
 	}
 }
 
+/**
+ * hold_null_lock - add a NL lock to the resource
+ * @lp: represents the resource
+ *
+ * This can do a synchronous dlm request (requiring a lock_dlm thread to
+ * get the completion) because gfs won't call hold_lvb() during a
+ * callback (from the context of a lock_dlm thread).
+ *
+ * Returns: 0 on success, -EXXX on failure
+ */
+
 static int hold_null_lock(dlm_lock_t *lp)
 {
 	dlm_lock_t *lpn;
@@ -529,10 +538,23 @@ static int hold_null_lock(dlm_lock_t *lp)
 	return error;
 }
 
+/**
+ * unhold_null_lock - remove the NL lock from the resource
+ * @lp: represents the resource
+ *
+ * This cannot do a synchronous dlm request (requiring a lock_dlm thread to
+ * get the completion) because gfs may call unhold_lvb() during a
+ * callback (from the context of a lock_dlm thread) which could cause a
+ * deadlock since the other lock_dlm thread could be engaged in recovery.
+ *
+ * Returns: 0 on success, -EXXX on failure
+ */
+
 static void unhold_null_lock(dlm_lock_t *lp)
 {
-	do_dlm_unlock_sync(lp->hold_null);
-	delete_lp(lp->hold_null);
+	dlm_lock_t *lpn = lp->hold_null;
+	set_bit(LFL_UNLOCK_DELETE, &lpn->flags);
+	do_dlm_unlock(lpn);
 	lp->hold_null = NULL;
 }
 
@@ -560,10 +582,10 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 	lp->lvb = lvb;
 	*lvbp = lvb;
 
-	/* acquire a NL lock because gfs requires the value block to remain
+	/* Acquire a NL lock because gfs requires the value block to remain
 	   intact on the resource while the lvb is "held" even if it's holding
-	   no locks on the resource */
-
+	   no locks on the resource. */
+      
 	error = hold_null_lock(lp);
 	if (error) {
 		kfree(lvb);

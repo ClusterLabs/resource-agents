@@ -98,11 +98,17 @@ static void process_complete(dlm_lock_t *lp)
 			atomic_dec(&dlm->lock_count);
 		}
 
-		if (!test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags))
-			goto out;
+		if (test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags)) {
+			complete(&lp->uast_wait);
+			return;
+		}
 
-		complete(&lp->uast_wait);
-		return;
+		if (test_and_clear_bit(LFL_UNLOCK_DELETE, &lp->flags)) {
+			delete_lp(lp);
+			return;
+		}
+
+		goto out;
 	}
 
 	/*
