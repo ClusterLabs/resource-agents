@@ -24,6 +24,7 @@ my $pname = $_;
 my $sleep_time = 5; 
 my $snmp_timeout = 10;
 $opt_o = "reboot";
+$opt_u = 161;
 
 my $oid_powerState =  ".1.3.6.1.4.1.2.3.51.2.22.1.5.1.1.4";    # remoteControlBladePowerState
 my $oid_powerChange = ".1.3.6.1.4.1.2.3.51.2.22.1.6.1.1.7";    # powerOnOffBlade
@@ -50,6 +51,7 @@ sub usage
     print "  -c <community>   SNMP Community\n";
     print "  -n <num>         Port number to disable\n";
     print "  -o <string>      Action:  Reboot (default), On or Off\n";
+    print "  -u <udpport>     UDP port to use (default: 161)\n"; 
     print "  -q               quiet mode\n";
     print "  -t               test power state\n"; 
     print "  -V               version\n";
@@ -128,7 +130,11 @@ sub get_options_stdin
 	elsif ($name eq "port" ) 
 	{
             $opt_n = $val;
-        } 
+        }
+	elsif ($name eq "udpport" )
+	{
+	    $opt_u = $val; 
+	}
 
         # FIXME should we do more error checking?  
         # Excess name/vals will be eaten for now
@@ -142,7 +148,7 @@ sub get_options_stdin
 # ---------------------------- MAIN --------------------------------
 
 if (@ARGV > 0) {
-   getopts("a:hc:n:o:qtV") || fail_usage ;
+   getopts("a:hc:n:o:qu:tV") || fail_usage ;
 
    usage if defined $opt_h;
    version if defined $opt_V;
@@ -168,6 +174,7 @@ if (@ARGV > 0) {
 my ($snmpsess, $error) = Net::SNMP->session ( 
 	-hostname   => $opt_a, 
 	-version    => "snmpv1", 
+	-port       => $opt_u, 
 	-community  => $opt_c,
 	-timeout    => $snmp_timeout); 
 
