@@ -100,7 +100,25 @@ sub receive_response
 
         $buffer="$buffer$buf"; 
 
+        # RIBCL VERSION=1.2
 	last if ( $buffer =~ /<END_RIBCL\/>$/mi && $mode==1 );
+
+        # RIBCL VERSION=2.0
+	last if ( $buffer =~ /<\/RIBCL>$/mi && $mode==1 );
+    }
+
+    ### Determine version of RIBCL if not already defined
+    if (!defined $ribcl_vers)
+    {
+        if ($buffer =~ /<RIBCL VERSION=\"([0-9.]+)\"/m)
+        {
+            $ribcl_vers=$1;
+            print "ribcl_vers=$ribcl_vers\n" if ($verbose);
+        }
+	else
+	{
+            diedie "unable to detect RIBCL version\n";
+	}
     }
     return $buffer;
 }
@@ -226,6 +244,8 @@ sub power_off
 {
     my $response = set_power_state ("N");
     my @response = split /\n/,$response;
+    my $no_err=0;
+
     foreach my $line (@response)
     {
         if ($line =~ /MESSAGE='(.*)'/)
@@ -233,7 +253,7 @@ sub power_off
             my $msg = $1;
             if ($msg eq "No error") 
             { 
-                $agent_status = 0;
+		$no_err++;
                 next; 
             }
 	    elsif ($msg eq "Host power is already OFF.")
@@ -249,6 +269,13 @@ sub power_off
         }
     }
 
+    # There should be about 6 or more response packets on a successful
+    # power off command.  
+    if ($agent_status<0)
+    {
+        $agent_status= ($no_err<5) ? 1 : 0;
+    } 
+
     return $agent_status;
 }
 
@@ -257,6 +284,8 @@ sub power_on
 {
     my $response = set_power_state ("Y");
     my @response = split /\n/,$response;
+    my $no_err=0;
+
     foreach my $line (@response)
     {
 
@@ -265,7 +294,7 @@ sub power_on
             my $msg = $1;
             if ($msg eq "No error") 
             { 
-                $agent_status = 0;
+                $no_err++;
                 next; 
             }
 	    elsif ($msg eq "Host power is already ON.")
@@ -281,6 +310,13 @@ sub power_on
         }
     }
 
+    # There should be about 6 or more response packets on a successful
+    # power on command.  
+    if ($agent_status<0)
+    {
+        $agent_status= ($no_err<5) ? 1 : 0;
+    } 
+
     return $agent_status;
 }
 
@@ -288,6 +324,7 @@ sub power_status
 {
     my $response = get_power_state ();
     my @response = split /\n/,$response;
+
     foreach my $line (@response)
     {
         if ($line =~ /MESSAGE='(.*)'/)
@@ -295,7 +332,6 @@ sub power_status
             my $msg = $1;
             if ($msg eq "No error") 
             { 
-                $agent_status = 0;
                 next; 
             }
             else
@@ -304,7 +340,15 @@ sub power_status
                 print STDERR "error: $msg\n";
             }
         }
+        # RIBCL VERSION=1.2   
         elsif ($line =~ /HOST POWER=\"(.*)\"/)
+        {
+           $agent_status = 0;
+           print "power is $1\n";
+        }
+
+        # RIBCL VERSION=2.0   
+        elsif ($line =~ /HOST_POWER=\"(.*)\"/)
         {
            $agent_status = 0;
            print "power is $1\n";
@@ -325,27 +369,42 @@ sub set_power_state
         diedie "illegal state\n";
     }
 
+    ### Setup stunnel from localhost:$localport to $hostname ($hostname can be in hostname:port format)
+    open_stunnel;
+
     $socket = open_socket;
 
     sendsock $socket, "<?xml version=\"1.0\"?>\r\n";
     $response = receive_response($socket,1);
 
-    #> printf "Closed because no more answers\n" if ($verbose && !defined($answer));
-
     print "Sending power-o".(($state eq "Y")?"n":"ff")."\n" if ($verbose);
 
-    sendsock $socket, "<RIBCL VERSION=\"1.2\">\n";
+    if ($ribcl_vers < 2 )
+    {
+        sendsock $socket, "<RIBCL VERSION=\"1.2\">\n";
+    }
+    else
+    {
+        # It seems the firmware can't handle the <LOCFG> tag
+        # RIBCL VERSION=2.0
+        #> sendsock $socket, "<LOCFG VERSION=\"2.21\">\n";
+        sendsock $socket, "<RIBCL VERSION=\"2.0\">\n";
+    }
     sendsock $socket, "    <LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
     sendsock $socket, "        <SERVER_INFO MODE = \"write\">\n";
     sendsock $socket, "            <SET_HOST_POWER HOST_POWER = \"$state\"/>\n";
     sendsock $socket, "        </SERVER_INFO>\n";
     sendsock $socket, "    </LOGIN>\n";
     sendsock $socket, "</RIBCL>\n";
+    # It seems the firmware can't handle the <LOCFG> tag
+    # RIBCL VERSION=2.0
+    #> sendsock $socket, "</LOCFG>\n" if ($ribcl_vers >= 2) ;
 
     $response = receive_response($socket);
 
     print "Closing connection\n" if ($verbose);
     close($socket);
+    close_stunnel();
 
     return $response;
 }
@@ -354,27 +413,42 @@ sub get_power_state
 {
     my $response = "";
 
+    ### Setup stunnel from localhost:$localport to $hostname ($hostname can be in hostname:port format)
+    open_stunnel;
+
     $socket = open_socket;
 
     sendsock $socket, "<?xml version=\"1.0\"?>\r\n";
     $response = receive_response($socket,1);
 
-    #> printf "Closed because no more answers\n" if ($verbose && !defined($answer));
-
     print "Sending get-status\n" if ($verbose);
 
-    sendsock $socket, "<RIBCL VERSION=\"1.2\">\n";
+    if ($ribcl_vers < 2 )
+    {
+        sendsock $socket, "<RIBCL VERSION=\"1.2\">\n";
+    }
+    else
+    {
+        # It seems the firmware can't handle the <LOCFG> tag
+        # RIBCL VERSION=2.0
+        #> sendsock $socket, "<LOCFG VERSION=\"2.21\">\n";
+        sendsock $socket, "<RIBCL VERSION=\"2.0\">\n";
+    }
     sendsock $socket, "    <LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
     sendsock $socket, "        <SERVER_INFO MODE = \"read\">\n";
     sendsock $socket, "            <GET_HOST_POWER_STATUS/>\n";
     sendsock $socket, "        </SERVER_INFO>\n";
     sendsock $socket, "    </LOGIN>\n";
     sendsock $socket, "</RIBCL>\n";
+    # It seems the firmware can't handle the <LOCFG> tag
+    # RIBCL VERSION=2.0
+    #> sendsock $socket, "<\/LOCFG VERSION>\n" if ($ribcl_vers >= 2) ;
 
     $response = receive_response($socket);
 
     print "Closing connection\n" if ($verbose);
     close($socket);
+    close_stunnel();
     
     return $response;
 }
@@ -424,7 +498,7 @@ sub get_options_stdin
         # DO NOTHING -- this field is used by fenced or stomithd
         elsif ($name eq "agent" ) { }
 
-        # FIXME -- depricated.  use "hostname" instead.
+        # FIXME -- deprecated.  use "hostname" instead.
         elsif ($name eq "fm" )
         {
             (my $dummy,$hostname) = split /\s+/,$val;
@@ -444,7 +518,7 @@ sub get_options_stdin
             $username = $val;
         }
 
-	# FIXME -- depreicated residue of old fencing system
+	# FIXME -- deprecated residue of old fencing system
         elsif ($name eq "name" ) { }
 
         elsif ($name eq "passwd" )
@@ -524,6 +598,8 @@ sub get_stunnel_version
 ################################################################################
 # MAIN
 
+print STDERR "WARNING!  fence_rib is deprecated.  use fence_ilo instead\n";
+
 # since we might be running tcsh and not a real shell where we can
 # divert stderr, we'll just use sh.  hopefully it's really bash.
 $_ = system "sh -c 'which stunnel > /dev/null 2>&1'";
@@ -576,49 +652,40 @@ if (@ARGV > 0) {
 $localport = 8888 unless defined ($localport);
 $hostname = "$hostname:443" unless ($hostname =~ /:/);
 
-#> $msg = "<?xml version=\"1.0\"?>\r\n";
+$ribcl_vers = undef; # undef = autodetect
+
 $agent_status = -1;
 
 
-### Setup stunnel from localhost:$localport to $hostname ($hostname can be in hostname:port format)
-open_stunnel;
+$_=$action;
 
-#foreach my $sig (keys %SIG) { $SIG{$sig} = sub {print "*** SIGNAL $sig DETECTED ***\n"}; }
-
-
-
-foreach ($action)
+if (/on/)
 {
-    /on/ and do 
-    {
-        power_on;
-    };
-
-    /off/ and do 
-    {
-        power_off;
-    };
-
-    /reboot/ and do 
-    {
-        power_off;
-        diedie "unexpected error\n" if ($agent_status < 0);
+	power_on;
+}
+elsif (/off/)
+{
+	power_off;
+}
+elsif (/reboot/)
+{
+	power_off;
+	diedie "power_off: unexpected error\n" if ($agent_status < 0);
 
 	$agent_status = -1;
-        power_on;
-        diedie "unexpected error\n" if ($agent_status < 0);
-    };
-
-    /status/ and do 
-    {
-        power_status;
-    };
-
+	power_on;
+	diedie "power_on: unexpected error\n" if ($agent_status < 0);
+}
+elsif (/status/)
+{
+	power_status;
+}
+else
+{
+	diedie "illegal action: '$_'\n";
 }
 
-close_stunnel();
-
-# $agent_status should have been set at this point.  die to avoid false success.
+# $agent_status should have been set at this point.
 diedie "unexpected error\n" if ($agent_status < 0);
 
 if ($agent_status == 0)
