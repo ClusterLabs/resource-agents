@@ -156,9 +156,6 @@ fill_super(struct super_block *sb, void *data, int silent)
 	if (error)
 		goto fail_vfree;
 
-	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
-	       sdp->sd_fsname);
-
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
 		/*  Force local [p|f]locks  */

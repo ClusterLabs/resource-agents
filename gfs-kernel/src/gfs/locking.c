@@ -38,9 +38,8 @@ int
 gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 {
 	struct gfs_sb *sb = NULL;
-	struct buffer_head *bh;
-	char *proto, *table, *p = NULL;
-	int error = 0;
+	char *proto, *table;
+	int error;
 
 	proto = sdp->sd_args.ar_lockproto;
 	table = sdp->sd_args.ar_locktable;
@@ -48,12 +47,18 @@ gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 	/*  Try to autodetect  */
 
 	if (!proto[0] || !table[0]) {
+		struct buffer_head *bh;
+
 		error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, NULL,
 				  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 		if (error)
-			goto out;
+			return error;
 
-		sb = gmalloc(sizeof(struct gfs_sb));
+		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
+		if (!sb) {
+			brelse(bh);
+			return -ENOMEM;
+		}
 		gfs_sb_in(sb, bh->b_data);
 		brelse(bh);
 
@@ -67,6 +72,9 @@ gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 		if (!table[0])
 			table = sb->sb_locktable;
 	}
+
+	printk("GFS: Trying to join cluster \"%s\", \"%s\"\n",
+	       proto, table);
 
 	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 			 gfs_glock_cb, sdp,
@@ -82,19 +90,14 @@ gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 	GFS_ASSERT_SBD(sdp->sd_lockstruct.ls_lvb_size >= GFS_MIN_LVB_SIZE,
 		       sdp,);
 
-	if (!*table) {
-		table = p = gmalloc(sizeof(sdp->sd_vfs->s_id) + 1);
-		strncpy(table, sdp->sd_vfs->s_id, sizeof(sdp->sd_vfs->s_id));
-		table[sizeof(sdp->sd_vfs->s_id)] = 0;
-	}
-
-	snprintf(sdp->sd_fsname, 256, "%s.%u", table,
+	snprintf(sdp->sd_fsname, 256, "%s.%u",
+		 (*table) ? table : sdp->sd_vfs->s_id,
 		 sdp->sd_lockstruct.ls_jid);
 
-	if (p)
-		kfree(p);
+	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
+	       sdp->sd_fsname);
 
-      out:
+ out:
 	if (sb)
 		kfree(sb);
 
