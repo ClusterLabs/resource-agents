@@ -341,34 +341,34 @@ append_bytes (xdr_enc_t * xdr, uint8_t xdr_type, void *bytes, size_t len)
 	return 0;
 }
 
-int __inline__
+int
 xdr_enc_uint64 (xdr_enc_t * xdr, uint64_t i)
 {
 	uint64_t b = cpu_to_be64 (i);
 	return append_bytes (xdr, XDR_UINT64, &b, sizeof (uint64_t));
 }
 
-int __inline__
+int
 xdr_enc_uint32 (xdr_enc_t * xdr, uint32_t i)
 {
 	uint32_t b = cpu_to_be32 (i);
 	return append_bytes (xdr, XDR_UINT32, &b, sizeof (uint32_t));
 }
 
-int __inline__
+int
 xdr_enc_uint16 (xdr_enc_t * xdr, uint16_t i)
 {
 	uint16_t b = cpu_to_be16 (i);
 	return append_bytes (xdr, XDR_UINT16, &b, sizeof (uint16_t));
 }
 
-int __inline__
+int
 xdr_enc_uint8 (xdr_enc_t * xdr, uint8_t i)
 {
 	return append_bytes (xdr, XDR_UINT8, &i, sizeof (uint8_t));
 }
 
-int __inline__
+int
 xdr_enc_ipv6 (xdr_enc_t * xdr, struct in6_addr *ip)
 {				/* bytes should already be in the right order. */
 	return append_bytes (xdr, XDR_IPv6, ip->s6_addr, 16);

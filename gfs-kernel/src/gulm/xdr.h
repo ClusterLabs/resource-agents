@@ -69,11 +69,11 @@ void xdr_dec_release (xdr_dec_t * xdr);
  */
 
 /* encoders add to a stream */
-int __inline__ xdr_enc_uint64 (xdr_enc_t * xdr, uint64_t i);
-int __inline__ xdr_enc_uint32 (xdr_enc_t * xdr, uint32_t i);
-int __inline__ xdr_enc_uint16 (xdr_enc_t * xdr, uint16_t i);
-int __inline__ xdr_enc_uint8 (xdr_enc_t * xdr, uint8_t i);
-int __inline__ xdr_enc_ipv6 (xdr_enc_t * enc, struct in6_addr *ip);
+int xdr_enc_uint64 (xdr_enc_t * xdr, uint64_t i);
+int xdr_enc_uint32 (xdr_enc_t * xdr, uint32_t i);
+int xdr_enc_uint16 (xdr_enc_t * xdr, uint16_t i);
+int xdr_enc_uint8 (xdr_enc_t * xdr, uint8_t i);
+int xdr_enc_ipv6 (xdr_enc_t * enc, struct in6_addr *ip);
 int xdr_enc_raw (xdr_enc_t * xdr, void *pointer, uint16_t len);
 int xdr_enc_raw_iov (xdr_enc_t * xdr, int count, struct iovec *iov);
 int xdr_enc_string (xdr_enc_t * xdr, uint8_t * s);
