@@ -27,7 +27,7 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
 diff -urN -p linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
 --- linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
 +++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-10-21 17:14:43.635437398 -0500
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,31 @@
 +###############################################################################
 +###############################################################################
 +##
@@ -43,18 +43,17 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/
 +obj-$(CONFIG_LOCK_GULM) += lock_gulm.o
 +
 +lock_gulm-y	:=	gulm_core.o \
++		gulm_firstlock.o \
 +		gulm_fs.o \
 +		gulm_jid.o \
++		gulm_lock_queue.o \
 +		gulm_lt.o \
-+		gulm_procinfo.o \
++		gulm_main.o \
++		gulm_plock.o \
 +		handler.o \
 +		lg_core.o \
 +		lg_lock.o \
 +		lg_main.o \
-+		linux_gulm_main.o \
-+		load_info.o \
-+		util.o \
-+		utils_crc.o \
 +		utils_tostr.o \
 +		xdr_base.o \
 +		xdr_io.o \

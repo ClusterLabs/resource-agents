@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h	2004-10-21 18:18:33.154522940 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,465 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -469,7 +469,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 +/* vim: set ai cin et sw=3 ts=3 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_locking/lock_gulm/gulm.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm.h	2004-10-21 18:18:33.154522940 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,237 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -489,6 +489,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +
 +#define GULM_RELEASE_NAME "<CVS>"
 +
++/* uh, do I need all of these headers? */
 +#ifdef MODVERSIONS
 +#include <linux/modversions.h>
 +#endif				/*  MODVERSIONS  */
@@ -504,6 +505,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +#include <linux/ctype.h>
 +#include <linux/string.h>
 +#include <linux/list.h>
++#include <linux/init.h>
++#include <linux/types.h>
++#include <linux/fs.h>
 +
 +#ifndef TRUE
 +#define TRUE (1)
@@ -671,16 +675,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +void gulm_sync_lvb (lm_lock_t * lock, char *lvb);
 +
 +/* from gulm_plock.c */
-+int gulm_plock_get (lm_lockspace_t * lockspace,
-+		struct lm_lockname *name, unsigned long owner,
-+		uint64_t * start, uint64_t * end, int *exclusive,
-+		unsigned long *rowner);
-+int gulm_plock (lm_lockspace_t * lockspace,
-+	    struct lm_lockname *name, unsigned long owner,
-+	    int wait, int exclusive, uint64_t start, uint64_t end);
-+int gulm_punlock (lm_lockspace_t * lockspace,
-+	      struct lm_lockname *name, unsigned long owner,
-+	      uint64_t start, uint64_t end);
++int gulm_punlock (lm_lockspace_t * lockspace, struct lm_lockname *name,
++	      struct file *file, struct file_lock *fl);
++int gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
++		struct file *file, int cmd, struct file_lock *fl);
++int gulm_plock_get (lm_lockspace_t * lockspace, struct lm_lockname *name,
++		 struct file *file, struct file_lock *fl);
 +
 +/*from gulm_core.c */
 +void cm_logout (void);
@@ -710,7 +710,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c	2004-10-21 18:18:33.155522708 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,250 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -964,7 +964,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_firstlock.c linux-patched/fs/gfs_locking/lock_gulm/gulm_firstlock.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_firstlock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_firstlock.c	2004-10-21 18:18:33.180516911 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_firstlock.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,310 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1278,7 +1278,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_firstlock.c linux-patched/fs/
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c	2004-10-21 18:18:33.180516911 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,633 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1915,7 +1915,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c	2004-10-21 18:18:33.181516680 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,739 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2658,7 +2658,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h	2004-10-21 18:18:33.181516680 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2695,7 +2695,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h linux-patched/fs/gfs_lo
 +#endif /*__GULM_JID_H__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.c linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.c	2004-10-21 18:18:33.181516680 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,775 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3474,7 +3474,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.c linux-patched/fs
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.h linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.h	2004-10-21 18:18:33.182516448 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3557,7 +3557,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.h linux-patched/fs
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	2004-10-21 18:18:33.186515520 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,40 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3601,7 +3601,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h linux-patched/
 +#endif /*__gulm_log_msg_bits_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c	2004-10-21 18:18:33.187515288 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,990 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4595,7 +4595,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_main.c linux-patched/fs/gfs_locking/lock_gulm/gulm_main.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_main.c	2004-10-21 18:18:33.187515288 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_main.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,130 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4729,8 +4729,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_main.c linux-patched/fs/gfs_l
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_locking/lock_gulm/gulm_plock.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_plock.c	2004-10-21 18:18:33.188515056 -0500
-@@ -0,0 +1,256 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_plock.c	2004-10-22 11:54:55.000000000 -0500
+@@ -0,0 +1,259 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4828,10 +4828,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 + * gulm_plock_get - 
 + */
 +int
-+gulm_plock_get (lm_lockspace_t * lockspace,
-+		struct lm_lockname *name, unsigned long owner,
-+		uint64_t * start, uint64_t * end, int *exclusive,
-+		unsigned long *rowner)
++gulm_plock_get (lm_lockspace_t * lockspace, struct lm_lockname *name,
++		 struct file *file, struct file_lock *fl)
 +{
 +	int err = 0;
 +	struct gulm_pqur_s pqur;
@@ -4848,11 +4846,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 +			key, GIO_KEY_SIZE);
 +	item->key = key;
-+	item->subid = owner;
-+	item->start = *start;
-+	item->stop = *end;
++	item->subid = (unsigned long) fl->fl_owner;
++	item->start = fl->fl_start;
++	item->stop = fl->fl_end;
 +	item->type = glq_req_type_query;
-+	if (*exclusive) {
++	if (fl->fl_type == F_WRLCK) {
 +		item->state = lg_lock_state_Exclusive;
 +	} else {
 +		item->state = lg_lock_state_Shared;
@@ -4870,13 +4868,15 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +
 +	if (pqur.error == lg_err_TryFailed) {
 +		err = -EAGAIN;
-+		*start = pqur.start;
-+		*end = pqur.stop;
-+		*rowner = pqur.subid;
++		fl->fl_start = pqur.start;
++		fl->fl_end = pqur.stop;
++		fl->fl_pid = pqur.subid;
 +		if( pqur.state == lg_lock_state_Exclusive )
-+			*exclusive = TRUE;
++			fl->fl_type = F_WRLCK;
 +		else
-+			*exclusive = FALSE;
++			fl->fl_type = F_RDLCK;
++	} else if (pqur.error == 0) {
++		fl->fl_type = F_UNLCK;
 +	} else {
 +		err = -pqur.error;
 +	}
@@ -4890,9 +4890,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 + *
 + */
 +int
-+gulm_plock (lm_lockspace_t * lockspace,
-+	    struct lm_lockname *name, unsigned long owner,
-+	    int wait, int exclusive, uint64_t start, uint64_t end)
++gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
++		struct file *file, int cmd, struct file_lock *fl)
 +{
 +	int err = 0;
 +	struct gulm_pret_s pret;
@@ -4909,17 +4908,17 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 +			key, GIO_KEY_SIZE);
 +	item->key = key;
-+	item->subid = owner;
-+	item->start = start;
-+	item->stop = end;
++	item->subid = (unsigned long) fl->fl_owner;
++	item->start = fl->fl_start;
++	item->stop = fl->fl_end;
 +	item->type = glq_req_type_state;
-+	if (exclusive) {
++	if (fl->fl_type == F_WRLCK) {
 +		item->state = lg_lock_state_Exclusive;
 +	} else {
 +		item->state = lg_lock_state_Shared;
 +	}
 +	item->flags = lg_lock_flag_NoCallBacks;
-+	if (wait)
++	if (IS_SETLKW(cmd))
 +		item->flags |= lg_lock_flag_Try;
 +	item->error = pret.error = 0;
 +
@@ -4929,6 +4928,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	item->finish = gulm_plock_finish;
 +
 +	glq_queue (item);
++	/* TODO should be interruptible by signals */
 +	wait_for_completion (&pret.sleep);
 +
 +	if (pret.error == lg_err_TryFailed) {
@@ -4936,6 +4936,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	} else {
 +		err = -pret.error;
 +	}
++
++	if ( err != 0) err = posix_lock_file_wait(file, fl);
 +
 +fail:
 +	return err;
@@ -4945,9 +4947,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 + * gulm_unplock - 
 + */
 +int
-+gulm_punlock (lm_lockspace_t * lockspace,
-+	      struct lm_lockname *name, unsigned long owner,
-+	      uint64_t start, uint64_t end)
++gulm_punlock (lm_lockspace_t * lockspace, struct lm_lockname *name,
++	      struct file *file, struct file_lock *fl)
 +{
 +	int err = 0;
 +	struct gulm_pret_s pret;
@@ -4964,9 +4965,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 +			key, GIO_KEY_SIZE);
 +	item->key = key;
-+	item->subid = owner;
-+	item->start = start;
-+	item->stop = end;
++	item->subid = (unsigned long) fl->fl_owner;
++	item->start = fl->fl_start;
++	item->stop = fl->fl_end;
 +	item->type = glq_req_type_state;
 +	item->state = lg_lock_state_Unlock;
 +	item->flags = 0;
@@ -4978,9 +4979,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +	item->finish = gulm_plock_finish;
 +
 +	glq_queue (item);
++	/* TODO should be interruptible by signals */
 +	wait_for_completion (&pret.sleep);
 +
 +	err = -pret.error;
++	if ( err != 0) err = posix_lock_file_wait(file, fl);
 +
 +fail:
 +	return err;
@@ -4989,7 +4992,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h	2004-10-21 18:18:33.188515056 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,45 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5038,7 +5041,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h linux-patched/fs/gfs
 +#endif /*__gulm_prints_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.c linux-patched/fs/gfs_locking/lock_gulm/handler.c
 --- linux-orig/fs/gfs_locking/lock_gulm/handler.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/handler.c	2004-10-21 18:18:33.188515056 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/handler.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,343 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5385,7 +5388,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.c linux-patched/fs/gfs_loc
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.h linux-patched/fs/gfs_locking/lock_gulm/handler.h
 --- linux-orig/fs/gfs_locking/lock_gulm/handler.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/handler.h	2004-10-21 18:18:33.189514825 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/handler.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,42 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5431,7 +5434,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.h linux-patched/fs/gfs_loc
 +#endif /*__handler_c__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_locking/lock_gulm/lg_core.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_core.c	2004-10-21 18:18:33.189514825 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_core.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,671 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6106,7 +6109,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_loc
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c	2004-10-21 18:18:33.190514593 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,745 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6855,7 +6858,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_loc
 +
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_main.c linux-patched/fs/gfs_locking/lock_gulm/lg_main.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_main.c	2004-10-21 18:18:33.190514593 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_main.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,209 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7068,7 +7071,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_main.c linux-patched/fs/gfs_loc
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h	2004-10-21 18:18:33.191514361 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,86 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7158,7 +7161,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h linux-patched/fs/gfs_loc
 +#endif /*__lg_priv_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_locking/lock_gulm/libgulm.h
 --- linux-orig/fs/gfs_locking/lock_gulm/libgulm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/libgulm.h	2004-10-21 18:18:33.191514361 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/libgulm.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,197 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7357,9 +7360,271 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +#endif /*__libgulm_h__*/
 +
 +/* vim: set ai cin noet sw=8 ts=8 : */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/lm_interface.h linux-patched/fs/gfs_locking/lock_gulm/lm_interface.h
+--- linux-orig/fs/gfs_locking/lock_gulm/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/lm_interface.h	2004-10-22 11:54:55.000000000 -0500
+@@ -0,0 +1,191 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++/*
++
++   Sooner or later, I need to put all the documentation back into this file.
++   In the mean time, here are some notes.
++
++   -  The lock module is now responsible for STOMITHing the an expired
++   client before calling the callback with type LM_CB_NEED_RECOVERY.
++
++   -  If mount() operation returns first == TRUE, GFS will check all the
++   journals.  GFS itself can't/shouldn't stomith the machines, so the lock module
++   needs to make sure that there are no zombie machines on any of the
++   journals.  (i.e. this should probably be on the first mount of the lock
++   space where all mounts by other machines are blocked.)  GFS will call
++   others_may_mount() when the filesystem is in a consistent state.
++
++   -  GFS can issue multiple simultaneous get_lock()s for the same lockname.
++   The lock module needs to deal with it, either by 1)  building a hash table
++   to lookup the structures and keeping a reference count so there is only
++   on lm_lock_t for a given lockname. or 2) just dealing with multiple 
++   lm_lock_t structures for a given lockname.
++
++*/
++
++#ifndef __LM_INTERFACE_DOT_H__
++#define __LM_INTERFACE_DOT_H__
++
++typedef void lm_lockspace_t;
++typedef void lm_lock_t;
++typedef void lm_fsdata_t;
++typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
++			       void *data);
++
++/* Flags for the struct lm_lockstruct->ls_flags field */
++
++#define LM_LSFLAG_LOCAL        (0x00000001)
++#define LM_LSFLAG_ASYNC        (0x00000002)
++
++/* Lock types */
++
++#define LM_TYPE_RESERVED       (0x00)
++#define LM_TYPE_NONDISK        (0x01)
++#define LM_TYPE_INODE          (0x02)
++#define LM_TYPE_RGRP           (0x03)
++#define LM_TYPE_META           (0x04)
++#define LM_TYPE_IOPEN          (0x05)
++#define LM_TYPE_FLOCK          (0x06)
++#define LM_TYPE_PLOCK          (0x07)
++#define LM_TYPE_QUOTA          (0x08)
++
++/* States passed to lock() */
++
++#define LM_ST_UNLOCKED         (0)
++#define LM_ST_EXCLUSIVE        (1)
++#define LM_ST_DEFERRED         (2)
++#define LM_ST_SHARED           (3)
++
++/* Flags passed to lock() */
++
++#define LM_FLAG_TRY            (0x00000001)
++#define LM_FLAG_TRY_1CB        (0x00000002)
++#define LM_FLAG_NOEXP          (0x00000004)
++#define LM_FLAG_ANY            (0x00000008)
++#define LM_FLAG_PRIORITY       (0x00000010)
++
++/* Flags returned by lock() */
++
++#define LM_OUT_ST_MASK         (0x00000003)
++#define LM_OUT_CACHEABLE       (0x00000004)
++#define LM_OUT_CANCELED        (0x00000008)
++#define LM_OUT_NEED_E          (0x00000010)
++#define LM_OUT_NEED_D          (0x00000020)
++#define LM_OUT_NEED_S          (0x00000040)
++#define LM_OUT_ASYNC           (0x00000080)
++#define LM_OUT_LVB_INVALID     (0x00000100)
++
++/* Callback types */
++
++#define LM_CB_NEED_E           (257)
++#define LM_CB_NEED_D           (258)
++#define LM_CB_NEED_S           (259)
++#define LM_CB_NEED_RECOVERY    (260)
++#define LM_CB_DROPLOCKS        (261)
++#define LM_CB_ASYNC            (262)
++
++/* Reset_exp messages */
++
++#define LM_RD_GAVEUP           (308)
++#define LM_RD_SUCCESS          (309)
++
++struct lm_lockname {
++	uint64_t ln_number;
++	unsigned int ln_type;
++};
++
++#define lm_name_equal(name1, name2) \
++(((name1)->ln_number == (name2)->ln_number) && \
++ ((name1)->ln_type == (name2)->ln_type)) \
++
++struct lm_async_cb {
++	struct lm_lockname lc_name;
++	int lc_ret;
++};
++
++struct lm_lockstruct;
++
++struct lm_lockops {
++	char lm_proto_name[256];
++
++	/* Mount/Unmount */
++
++	int (*lm_mount) (char *table_name, char *host_data,
++			 lm_callback_t cb, lm_fsdata_t *fsdata,
++			 unsigned int min_lvb_size,
++			 struct lm_lockstruct *lockstruct);
++	void (*lm_others_may_mount) (lm_lockspace_t *lockspace);
++	void (*lm_unmount) (lm_lockspace_t *lockspace);
++
++	/* Lock oriented operations */
++
++	int (*lm_get_lock) (lm_lockspace_t *lockspace,
++			    struct lm_lockname *name, lm_lock_t **lockp);
++	void (*lm_put_lock) (lm_lock_t *lock);
++
++	unsigned int (*lm_lock) (lm_lock_t *lock, unsigned int cur_state,
++				 unsigned int req_state, unsigned int flags);
++	unsigned int (*lm_unlock) (lm_lock_t *lock, unsigned int cur_state);
++
++	void (*lm_cancel) (lm_lock_t *lock);
++
++	int (*lm_hold_lvb) (lm_lock_t *lock, char **lvbp);
++	void (*lm_unhold_lvb) (lm_lock_t *lock, char *lvb);
++	void (*lm_sync_lvb) (lm_lock_t *lock, char *lvb);
++
++	/* Posix Lock oriented operations  */
++
++	int (*lm_plock_get) (lm_lockspace_t *lockspace,
++			     struct lm_lockname *name,
++			     struct file *file, struct file_lock *fl);
++
++	int (*lm_plock) (lm_lockspace_t *lockspace,
++			 struct lm_lockname *name,
++			 struct file *file, int cmd, struct file_lock *fl);
++
++	int (*lm_punlock) (lm_lockspace_t *lockspace,
++			   struct lm_lockname *name,
++			   struct file *file, struct file_lock *fl);
++
++	/* Client oriented operations */
++
++	void (*lm_recovery_done) (lm_lockspace_t *lockspace, unsigned int jid,
++				  unsigned int message);
++
++	struct module *lm_owner;
++};
++
++struct lm_lockstruct {
++	unsigned int ls_jid;
++	unsigned int ls_first;
++	unsigned int ls_lvb_size;
++	lm_lockspace_t *ls_lockspace;
++	struct lm_lockops *ls_ops;
++	int ls_flags;
++};
++
++/* Bottom interface */
++
++int lm_register_proto(struct lm_lockops *proto);
++void lm_unregister_proto(struct lm_lockops *proto);
++
++/* Top interface */
++
++int lm_mount(char *proto_name,
++	     char *table_name, char *host_data,
++	     lm_callback_t cb, lm_fsdata_t *fsdata,
++	     unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
++void lm_unmount(struct lm_lockstruct *lockstruct);
++
++#endif /* __LM_INTERFACE_DOT_H__ */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/lock_gulm.mod.c linux-patched/fs/gfs_locking/lock_gulm/lock_gulm.mod.c
+--- linux-orig/fs/gfs_locking/lock_gulm/lock_gulm.mod.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/lock_gulm.mod.c	2004-10-22 11:54:55.000000000 -0500
+@@ -0,0 +1,63 @@
++#include <linux/module.h>
++#include <linux/vermagic.h>
++#include <linux/compiler.h>
++
++MODULE_INFO(vermagic, VERMAGIC_STRING);
++
++#undef unix
++struct module __this_module
++__attribute__((section(".gnu.linkonce.this_module"))) = {
++ .name = __stringify(KBUILD_MODNAME),
++ .init = init_module,
++#ifdef CONFIG_MODULE_UNLOAD
++ .exit = cleanup_module,
++#endif
++};
++
++static const struct modversion_info ____versions[]
++__attribute_used__
++__attribute__((section("__versions"))) = {
++	{ 0x1c7a8967, "struct_module" },
++	{ 0x7da8156e, "__kmalloc" },
++	{ 0x15413d5, "del_timer" },
++	{ 0xf0db53e, "malloc_sizes" },
++	{ 0x3f82f065, "remove_wait_queue" },
++	{ 0xb6d99ad7, "sock_release" },
++	{ 0xb9e5ab27, "_spin_lock" },
++	{ 0xc0dc58cc, "sock_recvmsg" },
++	{ 0x9327521d, "_spin_lock_irqsave" },
++	{ 0x1d26aa98, "sprintf" },
++	{ 0xda02d67, "jiffies" },
++	{ 0x7de09941, "default_wake_function" },
++	{ 0x4abe8112, "wait_for_completion" },
++	{ 0x1b7d4074, "printk" },
++	{ 0xbdae36c, "sock_sendmsg" },
++	{ 0x1075bf0, "panic" },
++	{ 0x97abb28c, "in6addr_loopback" },
++	{ 0xa34f1ef5, "crc32_le" },
++	{ 0x85a32c76, "_spin_unlock_irqrestore" },
++	{ 0x44524640, "mod_timer" },
++	{ 0xec15a2f2, "_spin_unlock" },
++	{ 0x98e3a36a, "posix_lock_file_wait" },
++	{ 0xfcb350e0, "kmem_cache_alloc" },
++	{ 0xb12cdfe7, "system_utsname" },
++	{ 0x17d59d01, "schedule_timeout" },
++	{ 0x4292364c, "schedule" },
++	{ 0xfb6af58d, "recalc_sigpending" },
++	{ 0x830eb7ae, "__wake_up" },
++	{ 0x423f9e6f, "add_wait_queue" },
++	{ 0x37a0cba, "kfree" },
++	{ 0x2e60bace, "memcpy" },
++	{ 0x9b5d8309, "sock_create" },
++	{ 0x7e9ebb05, "kernel_thread" },
++	{ 0xd22b546, "__up_wakeup" },
++	{ 0x136eba7c, "complete" },
++	{ 0xf2520b76, "__down_failed" },
++	{ 0xdc43a9c8, "daemonize" },
++};
++
++static const char __module_depends[]
++__attribute_used__
++__attribute__((section(".modinfo"))) =
++"depends=ipv6,crc32";
++
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c
 --- linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c	2004-10-21 18:18:33.191514361 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7442,7 +7707,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c linux-patched/fs/gfs
 +
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h
 --- linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h	2004-10-21 18:18:33.191514361 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,17 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7463,7 +7728,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h linux-patched/fs/gfs
 +#endif /*__utils_tostr_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr.h linux-patched/fs/gfs_locking/lock_gulm/xdr.h
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr.h	2004-10-21 18:18:33.192514129 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr.h	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,98 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7565,7 +7830,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr.h linux-patched/fs/gfs_locking
 +#endif /*__gulm_xdr_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c	2004-10-21 18:18:33.192514129 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,904 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8473,7 +8738,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c linux-patched/fs/gfs_lo
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c	2004-10-21 18:18:33.192514129 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,169 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8646,7 +8911,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c linux-patched/fs/gfs_lock
 +#endif /*__KERNEL__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_socket.c linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_socket.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c	2004-10-21 18:18:33.193513897 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c	2004-10-22 11:54:55.000000000 -0500
 @@ -0,0 +1,82 @@
 +/******************************************************************************
 +*******************************************************************************

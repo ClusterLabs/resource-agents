@@ -70,7 +70,7 @@ pre:
 		exit 1; \
 	fi
 	mkdir -p ${linux_patched}
-	rsync -a --delete ${linux_orig}/ ${linux_patched}/
+	rsync -rlt --delete ${linux_orig}/ ${linux_patched}/
 
 post:
 	( cd ${top_srcdir}/src ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
