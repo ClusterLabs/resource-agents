@@ -74,7 +74,6 @@ void shrink_null_cache(dlm_t *dlm)
 
 		set_bit(LFL_UNLOCK_DELETE, &lp->flags);
 		do_dlm_unlock(lp);
-		delete_lp(lp);
 		schedule();
 	}
 }
@@ -109,7 +108,6 @@ static void keep_null_lock(dlm_t *dlm, dlm_lock_t *lp)
 	if (lp2) {
 		set_bit(LFL_UNLOCK_DELETE, &lp2->flags);
 		do_dlm_unlock(lp2);
-		delete_lp(lp2);
 	}
 }
 
