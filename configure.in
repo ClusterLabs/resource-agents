@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.59 $) dnl cvs revision
+AC_REVISION($Revision: 1.60 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -276,7 +276,7 @@ dnl
 dnl check for ANSI *.h files first
 dnl	asm/page.h: Linux, for system PAGE_SIZE
 AC_HEADER_STDC
-AC_CHECK_HEADERS(db.h asm/page.h time.h)
+AC_CHECK_HEADERS(db.h asm/page.h time.h stdarg.h)
 AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw.h)
 AC_CHECK_HEADERS(sys/sockio.h)
