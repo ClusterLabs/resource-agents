@@ -117,8 +117,10 @@ Cluster integration
  * Miscellaneous Primitives
  */
 
+typedef int fd_t;
+
 /*
- * Ripped off from libiddev.  It's not quite ugly enough to convince me to
+ * Ripped from libiddev.  It's not quite ugly enough to convince me to
  * add a new dependency on a library that nobody has yet, but it's close.
  */
 static int fd_size(int fd, u64 *bytes)
@@ -337,7 +339,7 @@ static void commit_transaction(struct superblock *sb)
 	list_for_each(list, &dirty_buffers) {
 		struct buffer *buffer = list_entry(list, struct buffer, list);
 		unsigned pos = next_journal_block(sb);
-		jtrace(warn("journal data sector = %llx [%u]", buffer->sector, pos);)
+		jtrace(warn("journal data sector = %Lx [%u]", buffer->sector, pos);)
 		assert(buffer_dirty(buffer));
 		write_buffer_to(buffer, journal_sector(sb, pos));
 	}
@@ -350,7 +352,7 @@ static void commit_transaction(struct superblock *sb)
 	while (!list_empty(&dirty_buffers)) {
 		struct list_head *entry = dirty_buffers.next;
 		struct buffer *buffer = list_entry(entry, struct buffer, list);
-		jtrace(warn("write data sector = %llx", buffer->sector);)
+		jtrace(warn("write data sector = %Lx", buffer->sector);)
 		assert(buffer_dirty(buffer));
 		assert(commit->entries < sb->max_commit_blocks);
 		commit->sector[commit->entries++] = buffer->sector;
@@ -461,7 +463,7 @@ int recover_journal(struct superblock *sb)
 			continue;
 		}
 
-		jtrace(warn("write journal [%u] data to %llx", pos, commit->sector[i]);)
+		jtrace(warn("write journal [%u] data to %Lx", pos, commit->sector[i]);)
 		write_buffer_to(databuf, commit->sector[i]);
 		brelse(databuf);
 	}
@@ -552,7 +554,7 @@ void show_leaf(struct eleaf *leaf)
 		printf("%i=", leaf->map[i].rchunk);
 		// printf("@%i ", leaf->map[i].offset);
 		for (p = emap(leaf, i); p < emap(leaf, i+1); p++)
-			printf("%llx/%08llx%s", p->chunk, p->share, p+1 < emap(leaf, i+1)? ",": " ");
+			printf("%Lx/%08llx%s", p->chunk, p->share, p+1 < emap(leaf, i+1)? ",": " ");
 	}
 	// printf("top@%i", leaf->map[i].offset);
 	printf("\n");
@@ -601,7 +603,7 @@ found:
 		/* shared if more than one bit set including this one */
 		if ((p->share & mask)) {
 			*exception = p->chunk;
-// printf("unique %llx %llx\n", p->share, mask);
+// printf("unique %Lx %Lx\n", p->share, mask);
 			return !(p->share & ~mask);
 		}
 	return 0;
@@ -636,7 +638,7 @@ int add_exception_to_leaf(struct eleaf *leaf, u64 chunk, u64 exception, int snap
 	struct exception *ins, *exceptions = emap(leaf, 0);
 	char *maptop = (char *)(&leaf->map[leaf->count + 1]); // include sentinel
 	int free = (char *)exceptions - maptop;
-	trace(warn("chunk %llx exception %llx, snapshot = %i", chunk, exception, snapshot);)
+	trace(warn("chunk %Lx exception %Lx, snapshot = %i", chunk, exception, snapshot);)
 
 	for (i = 0; i < leaf->count; i++) // !!! binsearch goes here
 		if (leaf->map[i].rchunk >= target)
@@ -765,13 +767,13 @@ void init_allocation(struct superblock *sb)
 	unsigned reserved = bitmap_base_chunk + bitmap_chunks + sb->image.journal_size; // !!! chunksize same as blocksize
 	unsigned sector = sb->image.bitmap_base = bitmap_base_chunk << sb->sectors_per_chunk_bits;
 
-	warn("snapshot store size: %llu chunks (%llu sectors)", chunks, chunks << sb->sectors_per_chunk_bits);
+	warn("snapshot store size: %Lu chunks (%Lu sectors)", chunks, chunks << sb->sectors_per_chunk_bits);
 	printf("Initializing %u bitmap blocks... ", bitmaps);
 
 	unsigned i;
 	for (i = 0; i < bitmaps; i++, sector += sb->sectors_per_block) {
 		struct buffer *buffer = getblk(sb->snapdev, sector, sb->blocksize);
-		printf("%llx ", buffer->sector);
+		printf("%Lx ", buffer->sector);
 		memset(buffer->data, 0, sb->blocksize);
 		/* Reserve bitmaps and superblock */
 		if (i == 0) {
@@ -805,7 +807,7 @@ void free_chunk(struct superblock *sb, chunk_t chunk)
 	unsigned bitmap_shift = sb->image.blocksize_bits + 3, bitmap_mask = (1 << bitmap_shift ) - 1;
 	u64 bitmap_block = chunk >> bitmap_shift;
 
-	trace(printf("free chunk %llx\n", chunk);)
+	trace(printf("free chunk %Lx\n", chunk);)
 	struct buffer *buffer = snapread(sb, sb->image.bitmap_base + (bitmap_block << sb->sectors_per_block_bits));
 	assert(get_bitmap_bit(buffer->data, chunk & bitmap_mask));
 	clear_bitmap_bit(buffer->data, chunk & bitmap_mask);
@@ -839,13 +841,13 @@ chunk_t alloc_chunk_range(struct superblock *sb, chunk_t chunk, chunk_t range)
 		unsigned char c, *p = buffer->data + offset;
 		unsigned tail = sb->blocksize  - offset, n = tail > length? length: tail;
 	
-		trace_off(printf("search %u bytes of bitmap %llx from offset %u\n", n, blocknum, offset);)
+		trace_off(printf("search %u bytes of bitmap %Lx from offset %u\n", n, blocknum, offset);)
 		// dump_buffer(buffer, 4086, 10);
 	
 		for (length -= n; n--; p++)
 			if ((c = *p) != 0xff) {
 				int i, bit;
-				trace_off(printf("found byte at offset %u of bitmap %llx = %hhx\n", p - buffer->data, blocknum, c);)
+				trace_off(printf("found byte at offset %u of bitmap %Lx = %hhx\n", p - buffer->data, blocknum, c);)
 				for (i = 0, bit = 1;; i++, bit <<= 1)
 					if (!(c & bit)) {
 						chunk = i + ((p - buffer->data) << 3) + (blocknum << bitmap_shift);
@@ -864,7 +866,7 @@ chunk_t alloc_chunk_range(struct superblock *sb, chunk_t chunk, chunk_t range)
 		if (++blocknum == sb->image.bitmap_blocks)
 			 blocknum = 0;
 		offset = 0;
-		trace_off(printf("go to bitmap %llx\n", blocknum);)
+		trace_off(printf("go to bitmap %Lx\n", blocknum);)
 	}
 }
 
@@ -1127,7 +1129,7 @@ int finish_copyout(struct superblock *sb)
 		int is_snap = sb->source_chunk >> chunk_highbit;
 		chunk_t source = sb->source_chunk & ~(1ULL << chunk_highbit);
 		unsigned size = sb->copy_chunks << sb->image.chunksize_bits;
-		trace(warn("copy %u %schunks from %llx to %llx", sb->copy_chunks, is_snap? "snapshot ": "", source, sb->dest_exception);)
+		trace(warn("copy %u %schunks from %Lx to %Lx", sb->copy_chunks, is_snap? "snapshot ": "", source, sb->dest_exception);)
 		assert(size <= sb->copybuf_size);
 		pread(is_snap? sb->snapdev: sb->orgdev, sb->copybuf, size, source << sb->image.chunksize_bits);  // 64 bit!!!
 		pwrite(sb->snapdev, sb->copybuf, size, sb->dest_exception << sb->image.chunksize_bits);  // 64 bit!!!
@@ -1171,13 +1173,13 @@ chunk_t make_unique(struct superblock *sb, chunk_t chunk, int snapnum)
 	struct etree_path path[levels + 1];
 	struct buffer *leafbuf = probe(sb, chunk, path);
 	chunk_t exception = 0;
-	trace(warn("chunk %llx, snapnum %i", chunk, snapnum));
+	trace(warn("chunk %Lx, snapnum %i", chunk, snapnum));
 
 	if (snapnum == -1?
 		origin_chunk_unique(buffer2leaf(leafbuf), chunk, sb->snapmask):
 		snapshot_chunk_unique(buffer2leaf(leafbuf), chunk, snapnum, &exception))
 	{
-		trace(warn("chunk %llx already unique in snapnum %i", chunk, snapnum);)
+		trace(warn("chunk %Lx already unique in snapnum %i", chunk, snapnum);)
 		brelse(leafbuf);
 	} else {
 		u64 newex = alloc_exception(sb);
@@ -1195,7 +1197,7 @@ int test_unique(struct superblock *sb, chunk_t chunk, int snapnum, chunk_t *exce
 	unsigned levels = sb->image.etree_levels;
 	struct etree_path path[levels + 1];
 	struct buffer *leafbuf = probe(sb, chunk, path);
-	trace(warn("chunk %llx, snapnum %i", chunk, snapnum));
+	trace(warn("chunk %Lx, snapnum %i", chunk, snapnum));
 	int result = snapnum == -1?
 		origin_chunk_unique(buffer2leaf(leafbuf), chunk, sb->snapmask):
 		snapshot_chunk_unique(buffer2leaf(leafbuf), chunk, snapnum, exception);
@@ -1305,7 +1307,7 @@ void delete_snapshots_from_tree(struct superblock *sb, u64 snapmask)
 	struct buffer *nodebuf;
 	struct enode *node;
 
-	trace_on(printf("delete snapshot mask %llx\n", snapmask);)
+	trace_on(printf("delete snapshot mask %Lx\n", snapmask);)
 	while (1) {
  		do {
 			level++;
@@ -1319,7 +1321,7 @@ void delete_snapshots_from_tree(struct superblock *sb, u64 snapmask)
 		trace(printf("do %i leaf nodes\n", node->count);)
 		while (path[level].pnext  < node->entries + node->count) {
 			struct buffer *leafbuf = snapread(sb, path[level].pnext++->sector);
-			trace_off(printf("process leaf %llx\n", leafbuf->sector);)
+			trace_off(printf("process leaf %Lx\n", leafbuf->sector);)
 			delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask);
 			brelse(leafbuf);
 		}
@@ -1372,7 +1374,7 @@ void show_snapshots(struct superblock *sb)
 
 /* Lock snapshot reads against origin writes */
 
-void reply(unsigned sock, struct messagebuf *message)
+static void reply(fd_t sock, struct messagebuf *message)
 {
 	trace(warn("%x/%u", message->head.code, message->head.length);)
 	writepipe(sock, &message->head, message->head.length + sizeof(message->head));
@@ -1380,8 +1382,9 @@ void reply(unsigned sock, struct messagebuf *message)
 
 struct client
 {
-	unsigned id, sock;
-	int snapnum;
+	u64 id;
+	fd_t sock;
+	int snap;
 };
 
 struct pending
@@ -1487,29 +1490,16 @@ void readlock_chunk(struct superblock *sb, chunk_t chunk, struct client *client)
 	lock->holdlist = hold;
 }
 
-int release_chunk(struct superblock *sb, chunk_t chunk, struct client *client)
+struct snaplock *release_lock(struct superblock *sb, struct snaplock *lock, struct client *client)
 {
-	trace(printf("release %llx\n", chunk);)
-	struct snaplock **lockp = &sb->snaplocks[snaplock_hash(sb, chunk)];
-
-	/* Find pointer to lock record */
-	while (*lockp && (*lockp)->chunk != chunk)
-		lockp = &(*lockp)->next;
-	struct snaplock *lock = *lockp;
-
-	if (!lock) {
-		trace_on(printf("chunk %llx not locked\n", chunk);)
-		return -1;
-	}
-
-	/* Find pointer to holder record */
+	struct snaplock *ret = lock;
 	struct snaplock_hold **holdp = &lock->holdlist;
 	while (*holdp && (*holdp)->client != client)
 		holdp = &(*holdp)->next;
 
 	if (!*holdp) {
-		trace_on(printf("chunk %llx holder %u not found\n", chunk, client->id);)
-		return -2;
+		trace_on(printf("chunk %Lx holder %Lu not found\n", lock->chunk, client->id);)
+		return NULL;
 	}
 
 	/* Delete and free holder record */
@@ -1518,7 +1508,7 @@ int release_chunk(struct superblock *sb, chunk_t chunk, struct client *client)
 	*holdp = next;
 
 	if (lock->holdlist)
-		return 0;
+		return ret;
 
 	/* Release and delete waiters, delete lock */
 	struct snaplock_wait *list = lock->waitlist;
@@ -1533,8 +1523,30 @@ int release_chunk(struct superblock *sb, chunk_t chunk, struct client *client)
 		free_snaplock_wait(sb, list);
 		list = next;
 	}
-	*lockp = lock->next;
+	ret = lock->next;
 	free_snaplock(sb, lock);
+	return ret;
+}
+
+int release_chunk(struct superblock *sb, chunk_t chunk, struct client *client)
+{
+	trace(printf("release %Lx\n", chunk);)
+	struct snaplock **lockp = &sb->snaplocks[snaplock_hash(sb, chunk)];
+
+	/* Find pointer to lock record */
+	while (*lockp && (*lockp)->chunk != chunk)
+		lockp = &(*lockp)->next;
+	struct snaplock *next, *lock = *lockp;
+
+	if (!lock) {
+		trace_on(printf("chunk %Lx not locked\n", chunk);)
+		return -1;
+	}
+
+	next = release_lock(sb, lock, client);
+	if (!next)
+		return -2;
+	*lockp = next;
 	return 0;
 }
 
@@ -1548,10 +1560,10 @@ void show_locks(struct superblock *sb)
 		if (!n) printf("Locks:\n");
 		printf("[%03u] ", i);
 		do {
-			printf("chunk %llx ", lock->chunk);
+			printf("chunk %Lx ", lock->chunk);
 			struct snaplock_hold *hold = lock->holdlist;
 			for (; hold; hold = hold->next)
-				printf("held by client %u ", hold->client->id);
+				printf("held by client %Lu ", hold->client->id);
 			struct snaplock_wait *wait = lock->waitlist;
 			for (; wait; wait = wait->next)
 				printf("wait [%02hx/%u] ", snaplock_hash(sb, (u32)wait->pending), wait->pending->holdcount);
@@ -1617,7 +1629,7 @@ int finish_reply_(struct addto *r, unsigned code, unsigned id)
 	return 1;
 }
 
-void finish_reply(unsigned sock, struct addto *r, unsigned code, unsigned id)
+void finish_reply(int sock, struct addto *r, unsigned code, unsigned id)
 {
 	if (finish_reply_(r, code, id))
 		reply(sock, (struct messagebuf *)r->reply);
@@ -1735,7 +1747,7 @@ show_buffers();
 #endif
 
 #if 0
-	printf("chunk = %llx\n", alloc_chunk_range(sb, sb->image.chunks - 1, 1));
+	printf("chunk = %Lx\n", alloc_chunk_range(sb, sb->image.chunks - 1, 1));
 //	struct buffer *buffer = snapread(sb, sb->image.bitmap_base + 3 * 8);
 //	dump_buffer(buffer, 4090, 6);
 return 0;
@@ -1744,7 +1756,7 @@ return 0;
 #if 0
 	grab_chunk(sb, 32769);
 	struct buffer *buffer = snapread(sb, sb->image.bitmap_base + 8);
-	printf("sector %llx\n", buffer->sector);
+	printf("sector %Lx\n", buffer->sector);
 	free_chunk(sb, 32769);
 return 0;
 #endif
@@ -1756,18 +1768,18 @@ return 0;
 	sb->image.etree_root = rootbuf->sector;
 
 #if 0
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
 //	free_chunk(sb, 23);
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
-	printf("chunk = %llx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
+	printf("chunk = %Lx\n", alloc_chunk(sb));
 return 0;
 #endif
 
@@ -1788,6 +1800,32 @@ return 0;
 	save_state(sb);
 	return 0;
 }
+
+int client_locks(struct superblock *sb, struct client *client, int check)
+{
+	int i;
+
+	for (i = 0; i < (1 << sb->snaplock_hash_bits); i++) {
+		struct snaplock **lockp = &sb->snaplocks[i];
+
+		while (*lockp) {
+			struct snaplock_hold *hold;
+next:
+			for (hold = (*lockp)->holdlist; hold; hold = hold->next)
+				if (hold->client == client) {
+					if (check)
+						return 1;
+					*lockp = release_lock(sb, *lockp, client);
+					goto next;
+				}
+			lockp = &(*lockp)->next;
+		}
+	}
+	return 0;
+}
+
+#define check_client_locks(x, y) client_locks(x, y, 1)
+#define free_client_locks(x, y) client_locks(x, y, 0)
 
 /*
  * Responses to IO requests take two quite different paths through the
@@ -1833,7 +1871,7 @@ int incoming(struct superblock *sb, struct client *client)
 
 	switch (message.head.code) {
 		case QUERY_WRITE:
-		if (client->snapnum == -1) {
+		if (client->snap == -1) {
 			struct pending *pending = NULL;
 			struct rw_request *body = (struct rw_request *)message.body;
 			struct chunk_range *p = body->ranges;
@@ -1868,8 +1906,8 @@ int incoming(struct superblock *sb, struct client *client)
 			for (i = 0; i < body->count; i++)
 				for (j = 0; j < body->ranges[i].chunks; j++) {
 					chunk_t chunk = body->ranges[i].chunk + j;
-					chunk_t exception = make_unique(sb, chunk, client->snapnum);
-					trace(printf("exception = %llx\n", exception);)
+					chunk_t exception = make_unique(sb, chunk, client->snap);
+					trace(printf("exception = %Lx\n", exception);)
 					addto_response(&snap, chunk);
 					check_response_full(&snap, sizeof(chunk_t));
 					*(snap.top)++ = exception;
@@ -1891,15 +1929,15 @@ int incoming(struct superblock *sb, struct client *client)
 			for (i = 0; i < body->count; i++)
 				for (j = 0; j < body->ranges[i].chunks; j++) {
 					chunk_t chunk = body->ranges[i].chunk + j, exception = 0;
-					trace(warn("read %llx", chunk));
-					test_unique(sb, chunk, client->snapnum, &exception);
+					trace(warn("read %Lx", chunk));
+					test_unique(sb, chunk, client->snap, &exception);
 					if (exception) {
-						trace(warn("read exception %llx", exception));
+						trace(warn("read exception %Lx", exception));
 						addto_response(&snap, chunk);
 						check_response_full(&snap, sizeof(chunk_t));
 						*(snap.top)++ = exception;
 					} else {
-						trace(warn("read origin %llx", chunk));
+						trace(warn("read origin %Lx", chunk));
 						addto_response(&org, chunk);
 						readlock_chunk(sb, chunk, client);
 					}
@@ -1925,11 +1963,11 @@ int incoming(struct superblock *sb, struct client *client)
 
 		case IDENTIFY:
 		{
-			int tag = ((struct identify *)message.body)->snap, snapnum = tag2snapnum(sb, tag);
-			if (snapnum >= 0)
-				client->snapnum = snapnum;
+			int tag = ((struct identify *)message.body)->snap, snap = tag2snapnum(sb, tag);
+			if (snap >= 0)
+				client->snap = snap;
 			client->id = ((struct identify *)message.body)->id;
-			warn("client id %u, snapshot %i (snapnum %i)", client->id, tag, client->snapnum);
+			warn("client id %Li, snapshot %i (snapnum %i)", client->id, tag, snap);
 			outbead(sock, REPLY_IDENTIFY, struct { });
 			break;
 		}
@@ -2138,7 +2176,7 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 			trace_on(warn("Received connection");)
 			assert(clients < maxclients); // !!! send error and disconnect
 
-			struct client *client = malloc(sizeof(client));
+			struct client *client = malloc(sizeof(struct client));
 			*client = (struct client){ .sock = sock };
 			clientvec[clients] = client;
 			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
@@ -2161,7 +2199,7 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 
 		/* Agent message? */
 		if (pollvec[2].revents)
-			incoming(sb, &(struct client){ .sock = sock, .id = -2, .snapnum = -2 });
+			incoming(sb, &(struct client){ .sock = sock, .id = -2, .snap = -2 });
 
 		/* Client message? */
 		unsigned i = 0;
@@ -2172,7 +2210,7 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 
 				trace_off(printf("event on socket %i = %x\n", client->sock, pollvec[others+i].revents);)
 				if ((result = incoming(sb, client)) == -1) {
-					warn("Client %i disconnected", client->id);
+					warn("Client %Li disconnected", client->id);
 					save_state(sb); // !!! just for now
 					close(client->sock);
 					free(client);

@@ -304,7 +304,7 @@ int monitor(char *sockname, struct context *context)
 			trace_on(warn("Received connection %i", clients);)
 			assert(clients < maxclients); // !!! make the array bigger
 
-			struct client *client = malloc(sizeof(client));
+			struct client *client = malloc(sizeof(struct client));
 			*client = (struct client){ .sock = sock };
 			clientvec[clients] = client;
 			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };

@@ -31,8 +31,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 12:58:07.000000000 -0400
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-12-08 02:46:19.000000000 -0500
-@@ -0,0 +1,1147 @@
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-12-08 13:13:02.000000000 -0500
+@@ -0,0 +1,1144 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -573,9 +573,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	if (!running(info))
 +		goto out;
 +
-+	warn("halt worker <%x>", info->flags);
++	warn("halt worker");
 +	report_error(info);
-+	warn("halt worker <%x>", info->flags);
 +	goto connect;
 +}
 +
@@ -652,7 +651,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +{
 +	unsigned i;
 +
-+	trace_on(show_pending(info);)
++	trace(show_pending(info);)
 +	spin_lock(&info->pending_lock);
 +	warn("");
 +	for (i = 0; i < NUM_BUCKETS; i++) {
@@ -668,7 +667,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		}
 +	}
 +	spin_unlock(&info->pending_lock);
-+	trace_on(show_pending(info);)
++	trace(show_pending(info);)
 +}
 +
 +static int worker(struct dm_target *target)
@@ -754,10 +753,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	if (is_snapshot(info))
 +		upload_locks(info);
 +	requeue_queries(info);
-+	trace_on(warn("worker resuming <%x>", info->flags);)
++	trace_on(warn("worker resuming");)
 +
 +	info->flags &= ~(RECOVER_FLAG|(1 << REPORT_BIT));
-+	trace_on(warn("worker resuming <%x>", info->flags);)
 +	up(&info->recover_sem);
 +	goto restart;
 +}
@@ -907,7 +905,6 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	list_add(&pending->list, &info->queries);
 +	spin_unlock(&info->pending_lock);
 +	up(&info->more_work_sem);
-+show_pending(info);
 +	return 0;
 +}
 +
