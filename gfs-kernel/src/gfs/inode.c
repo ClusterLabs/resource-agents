@@ -864,7 +864,8 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 	if (!name->len || name->len > GFS_FNAMESIZE)
 		return -ENAMETOOLONG;
 
-	if (gfs_filecmp(name, ".", 1)) {
+	if (gfs_filecmp(name, ".", 1) ||
+	    (gfs_filecmp(name, "..", 2) && dip == sdp->sd_rooti)) {
 		gfs_holder_reinit(LM_ST_SHARED, 0, d_gh);
 		error = gfs_glock_nq(d_gh);
 		if (!error) {
