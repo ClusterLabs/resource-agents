@@ -329,10 +329,7 @@ void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 #if 0
-	int nodeid = rc_in->rc_header.h_nodeid;
-
-	restbl_rsb_update_recv(ls, nodeid, rc_in->rc_buf, rc_in->rc_datalen,
-			       rc_in->rc_msgid);
+	dlm_recover_master_reply(ls, rc_in);
 #endif
 }
 

@@ -52,7 +52,7 @@ static void process_asts(void)
 	struct dlm_lkb *lkb;
 	void (*cast) (long param);
 	void (*bast) (long param, int mode);
-	int type, found, bmode;
+	int type = 0, found, bmode;
 
 	for (;;) {
 		found = FALSE;

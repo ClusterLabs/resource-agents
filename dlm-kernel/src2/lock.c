@@ -533,6 +533,8 @@ int create_lkb(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
 	if (!lkb)
 		return -ENOMEM;
 
+	lkb->lkb_nodeid = -1;
+	lkb->lkb_grmode = DLM_LOCK_IV;
 	kref_init(&lkb->lkb_ref);
 
 	get_random_bytes(&bucket, sizeof(bucket));
@@ -570,7 +572,7 @@ int find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
 	uint16_t bucket = lkid & 0xFFFF;
 
 	if (bucket >= ls->ls_lkbtbl_size)
-		return -EINVAL;
+		return -EBADSLT;
 
 	read_lock(&ls->ls_lkbtbl[bucket].lock);
 	lkb = __find_lkb(ls, lkid);
@@ -830,14 +832,22 @@ int set_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 {
 	int rv = -EINVAL;
 
-	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
+	if (lkb->lkb_flags & DLM_IFL_MSTCPY) {
+		log_error(ls, "can't unlock MSTCPY %x", lkb->lkb_id);
 		goto out;
+	}
 
-	if (flags & DLM_LKF_CANCEL && lkb->lkb_status == DLM_LKSTS_GRANTED)
+	if (flags & DLM_LKF_CANCEL && lkb->lkb_status == DLM_LKSTS_GRANTED) {
+		log_error(ls, "can't cancel granted %x %d", lkb->lkb_id,
+			  lkb->lkb_status);
 		goto out;
+	}
 
-	if (!(flags & DLM_LKF_CANCEL) && lkb->lkb_status != DLM_LKSTS_GRANTED)
+	if (!(flags & DLM_LKF_CANCEL) && lkb->lkb_status != DLM_LKSTS_GRANTED) {
+		log_error(ls, "can't unlock ungranted %x %d", lkb->lkb_id,
+			  lkb->lkb_status);
 		goto out;
+	}
 
 	rv = -EBUSY;
 	if (lkb->lkb_wait_type)
@@ -937,6 +947,8 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
 	else
 		error = unlock_lock(ls, lkb);
 
+	if (error == -DLM_EUNLOCK || error == -DLM_ECANCEL)
+		error = 0;
  out_put:
 	put_lkb(lkb);
  out:
@@ -1029,7 +1041,7 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 				               r->res_length, &ret_nodeid);
 			/* FIXME: is -EEXIST ever a valid error here? */
 			if (error)
-				log_print("dir lookup error %d", error);
+				log_error(ls, "dir lookup error %d", error);
 
 			if (ret_nodeid == our_nodeid)
 				ret_nodeid = 0;
@@ -2203,17 +2215,19 @@ int send_cancel_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 	return send_common_reply(r, lkb, DLM_MSG_CANCEL_REPLY, rv);
 }
 
-int send_lookup_reply(struct dlm_ls *ls, int to_nodeid, int ret_nodeid, int rv)
+int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
+		      int ret_nodeid, int rv)
 {
 	struct dlm_rsb r = { .res_ls = ls };
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
-	int error;
+	int error, to_nodeid = ms_in->m_header.h_nodeid;
 
 	error = create_message(&r, to_nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
 	if (error)
 		goto out;
 
+	ms->m_lkid = ms_in->m_lkid;
 	ms->m_result = rv;
 	ms->m_nodeid = ret_nodeid;
 
@@ -2545,7 +2559,7 @@ void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 	error = dlm_dir_lookup(ls, from_nodeid, ms->m_name, len, &ret_nodeid);
  out:
-	send_lookup_reply(ls, from_nodeid, ret_nodeid, error);
+	send_lookup_reply(ls, ms, ret_nodeid, error);
 }
 
 void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2778,7 +2792,7 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_lkid, &lkb);
 	if (error) {
 		log_error(ls, "receive_lookup_reply no lkb");
 		return;
@@ -2790,7 +2804,8 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	/* this is the value returned by dlm_dir_lookup on dir node */
+	/* this is the value returned by dlm_dir_lookup on dir node
+	   FIXME: will a non-zero error ever be returned? */
 	error = ms->m_result;
 
 	r = lkb->lkb_resource;
@@ -2870,8 +2885,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 			goto out;
 		}
 
-		error = lock_recovery_try(ls);
-		if (!error)
+		if (lock_recovery_try(ls))
 			break;
 		schedule();
 	}

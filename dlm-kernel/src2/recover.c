@@ -131,27 +131,27 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 }
 
 #if 0
-
 /*
  * Set the lock master for all LKBs in a lock queue
+ * If we are the new master of the rsb, we may have received new
+ * MSTCPY locks from other nodes already which we need to ignore
+ * when setting the new nodeid.
  */
 
 static void set_lock_master(struct list_head *queue, int nodeid)
 {
 	struct dlm_lkb *lkb;
 
-	list_for_each_entry(lkb, queue, lkb_statequeue) {
-		/* Don't muck around with pre-exising sublocks */
-		if (!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY))
+	list_for_each_entry(lkb, queue, lkb_statequeue)
+		if (!(lkb->lkb_flags & DLM_IFL_MSTCPY))
 			lkb->lkb_nodeid = nodeid;
-	}
 }
 
-static void set_master_lkbs(struct dlm_rsb *rsb)
+static void set_master_lkbs(struct dlm_rsb *r)
 {
-	set_lock_master(&rsb->res_grantqueue, rsb->res_nodeid);
-	set_lock_master(&rsb->res_convertqueue, rsb->res_nodeid);
-	set_lock_master(&rsb->res_waitqueue, rsb->res_nodeid);
+	set_lock_master(&r->res_grantqueue, r->res_nodeid);
+	set_lock_master(&r->res_convertqueue, r->res_nodeid);
+	set_lock_master(&r->res_waitqueue, r->res_nodeid);
 }
 
 /*
@@ -160,29 +160,27 @@ static void set_master_lkbs(struct dlm_rsb *rsb)
  * The NEW_MASTER2 flag tells rsb_lvb_recovery() which rsb's to consider.
  */
 
-static void set_new_master(struct dlm_rsb *rsb, uint32_t nodeid)
+static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
-	struct dlm_rsb *subrsb;
+	lock_rsb(r);
 
-	down_write(&rsb->res_lock);
+	if (nodeid == dlm_our_nodeid())
+		r->res_nodeid = 0;
+	else
+		r->res_nodeid = nodeid;
 
-	if (nodeid == our_nodeid()) {
-		set_bit(RESFL_MASTER, &rsb->res_flags);
-		rsb->res_nodeid = 0;
-	} else
-		rsb->res_nodeid = nodeid;
+	set_master_lkbs(r);
 
-	set_master_lkbs(rsb);
-
-	list_for_each_entry(subrsb, &rsb->res_subreslist, res_subreslist) {
-		subrsb->res_nodeid = rsb->res_nodeid;
+#if 0
+	list_for_each_entry(subrsb, &r->res_subreslist, res_subreslist) {
+		subrsb->res_nodeid = r->res_nodeid;
 		set_master_lkbs(subrsb);
 	}
+#endif
 
-	up_write(&rsb->res_lock);
-
-	set_bit(RESFL_NEW_MASTER, &rsb->res_flags);
-	set_bit(RESFL_NEW_MASTER2, &rsb->res_flags);
+	set_bit(RESFL_NEW_MASTER, &r->res_flags);
+	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
+	unlock_rsb(r);
 }
 
 /*
@@ -279,63 +277,42 @@ void recover_list_clear(struct dlm_ls *ls)
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
+/* We do async lookups on rsb's that need new masters.  The rsb's
+   waiting for a lookup reply are kept on the recover_list. */
+
+static int recover_master(struct dlm_rsb *r, struct dlm_rcom *rc)
 {
-	struct dlm_ls *ls = rsb->res_ls;
-	uint32_t dir_nodeid, r_nodeid;
-	int error;
+	struct dlm_ls *ls = r->res_ls;
+	int error, dir_nodeid, ret_nodeid, our_nodeid = dlm_our_nodeid();
 
-	dir_nodeid = get_directory_nodeid(rsb);
+	/* very similar to set_master() */
 
-	if (dir_nodeid == our_nodeid()) {
-		error = dlm_dir_lookup(ls, dir_nodeid, rsb->res_name,
-				       rsb->res_length, &r_nodeid);
-		if (error == -EEXIST) {
-			log_error(ls, "rsb_master_lookup %u EEXIST %s",
-				  r_nodeid, rsb->res_name);
-		} else if (error)
-			goto fail;
+	dir_nodeid = dlm_dir_nodeid(r);
 
-		set_new_master(rsb, r_nodeid);
+	if (dir_nodeid == our_nodeid) {
+		error = dlm_dir_lookup(ls, our_nodeid, r->res_name,
+				       r->res_length, &ret_nodeid);
+
+		/* FIXME: is -EEXIST ever a valid error here? */
+		if (error)
+			log_error(ls, "recover dir lookup error %d", error);
+
+		set_new_master(r, ret_nodeid);
 	} else {
-		/* NEW_MASTER2 may have been set by set_new_master() in the
-		   previous recovery cycle. */
+		/* FIXME: set msgid's differently (see dlm_send_rcom) */
+		r->res_recover_msgid = ls->ls_rcom_msgid + 1;
 
-		clear_bit(RESFL_NEW_MASTER2, &rsb->res_flags);
+		recover_list_add(r);
 
-		/* As we are the only thread doing recovery this
-		   should be safe. if not then we need to use a different
-		   ID somehow. We must set it in the RSB before rcom_send_msg
-		   completes cos we may get a reply quite quickly. */
-
-		rsb->res_recover_msgid = ls->ls_rcom_msgid + 1;
-
-		recover_list_add(rsb);
-
-		memcpy(rc->rc_buf, rsb->res_name, rsb->res_length);
-		rc->rc_datalen = rsb->res_length;
+		memcpy(rc->rc_buf, r->res_name, r->res_length);
+		rc->rc_datalen = r->res_length;
 
 		error = dlm_send_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, rc, 0);
 		if (error)
-			goto fail;
+			goto out;
 	}
-
- fail:
+ out:
 	return error;
-}
-
-static int needs_update(struct dlm_ls *ls, struct dlm_rsb *r)
-{
-	if (!r->res_nodeid)
-		return FALSE;
-
-	if (r->res_nodeid == -1)
-		return FALSE;
-
-	if (dlm_is_removed(ls, r->res_nodeid))
-		return TRUE;
-
-	return FALSE;
 }
 
 /*
@@ -348,48 +325,39 @@ static int needs_update(struct dlm_ls *ls, struct dlm_rsb *r)
  * correct resdir node.  The replies are processed in rsb_master_recv().
  */
 
-int restbl_rsb_update(struct dlm_ls *ls)
+int dlm_recover_masters(struct dlm_ls *ls)
 {
-	struct dlm_rsb *rsb, *safe;
+	struct dlm_rsb *r;
 	struct dlm_rcom *rc;
 	int error = -ENOMEM;
-	int count = 0;
 
-	log_debug(ls, "update remastered resources");
+	log_debug(ls, "dlm_recover_masters");
 
 	rc = allocate_rcom_buffer(ls);
 	if (!rc)
 		goto out;
 
 	down_read(&ls->ls_root_lock);
-
-	list_for_each_entry_safe(rsb, safe, &ls->ls_rootres, res_rootlist) {
+	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
 		error = dlm_recovery_stopped(ls);
 		if (error) {
 			up_read(&ls->ls_root_lock);
 			goto out_free;
 		}
 
-		if (test_bit(RESFL_VALNOTVALID, &rsb->res_flags))
-			set_bit(RESFL_VALNOTVALID_PREV, &rsb->res_flags);
-		else
-			clear_bit(RESFL_VALNOTVALID_PREV, &rsb->res_flags);
+		clear_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
+		if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
+			set_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
 
-		if (needs_update(ls, rsb)) {
-			error = rsb_master_lookup(rsb, rc);
-			if (error) {
-				up_read(&ls->ls_root_lock);
-				goto out_free;
-			}
-			count++;
-		}
+		if (dlm_is_removed(ls, r->res_nodeid))
+			recover_master(r, rc);
+
 		schedule();
 	}
 	up_read(&ls->ls_root_lock);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
-	log_debug(ls, "updated %d resources", count);
  out_free:
 	if (error)
 		recover_list_clear(ls);
@@ -398,25 +366,26 @@ int restbl_rsb_update(struct dlm_ls *ls)
 	return error;
 }
 
-int restbl_rsb_update_recv(struct dlm_ls *ls, uint32_t nodeid, char *buf,
-			   int length, int msgid)
+int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 {
-	struct dlm_rsb *rsb;
+	struct dlm_rsb *r;
 	uint32_t be_nodeid;
 
-	rsb = recover_list_find(ls, msgid);
-	if (!rsb) {
-		log_error(ls, "restbl_rsb_update_recv rsb not found %d", msgid);
+	r = recover_list_find(ls, rc->rc_msgid);
+	if (!r) {
+		log_error(ls, "dlm_recover_master_reply no msgid %d",
+			  rc->rc_msgid);
 		goto out;
 	}
 
-	memcpy(&be_nodeid, buf, sizeof(uint32_t));
-	set_new_master(rsb, be32_to_cpu(be_nodeid));
-	recover_list_del(rsb);
+	memcpy(&be_nodeid, rc->rc_buf, sizeof(uint32_t));
+
+	set_new_master(r, be32_to_cpu(be_nodeid));
+
+	recover_list_del(r);
 
 	if (recover_list_empty(ls))
 		wake_up(&ls->ls_wait_general);
-
  out:
 	return 0;
 }
