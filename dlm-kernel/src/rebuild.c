@@ -825,7 +825,7 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 
 	DLM_ASSERT(recover_list_empty(ls),);
 
-	log_all(ls, "rebuild locks");
+	log_debug(ls, "rebuild locks");
 
 	error = -ENOMEM;
 	rc = allocate_rcom_buffer(ls);
@@ -864,7 +864,7 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
-	log_all(ls, "rebuilt %d locks", fill.count);
+	log_debug(ls, "rebuilt %d locks", fill.count);
 
       out:
 	free_rcom_buffer(rc);
@@ -984,7 +984,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	 */
 	lkb = find_by_remlkid(rsb, rem_nodeid, remote_lkid);
 	if (lkb) {
-		log_all(ls, "lkb %x exists %s", remote_lkid, rsb->res_name);
+		log_error(ls, "lkb %x exists %s", remote_lkid, rsb->res_name);
 		exist_lkb = lkb;
 	}
 

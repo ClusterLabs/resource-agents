@@ -193,7 +193,7 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 	int count = 0;
 	struct dlm_rsb *rootrsb, *safe, *rsb;
 
-	log_all(ls, "purge locks of departed nodes");
+	log_debug(ls, "purge locks of departed nodes");
 	down_write(&ls->ls_root_lock);
 
 	list_for_each_entry_safe(rootrsb, safe, &ls->ls_rootres, res_rootlist) {
@@ -227,7 +227,7 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 	}
 
 	up_write(&ls->ls_root_lock);
-	log_all(ls, "purged %d locks", count);
+	log_debug(ls, "purged %d locks", count);
 
 	return 0;
 }
@@ -410,8 +410,8 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 		error = dlm_dir_lookup(ls, dir_nodeid, rsb->res_name,
 				       rsb->res_length, &r_nodeid);
 		if (error == -EEXIST) {
-			log_all(ls, "rsb_master_lookup %u EEXIST %s",
-				r_nodeid, rsb->res_name);
+			log_error(ls, "rsb_master_lookup %u EEXIST %s",
+				  r_nodeid, rsb->res_name);
 		} else if (error)
 			goto fail;
 
@@ -475,7 +475,7 @@ int restbl_rsb_update(struct dlm_ls *ls)
 	int error = -ENOMEM;
 	int count = 0;
 
-	log_all(ls, "update remastered resources");
+	log_debug(ls, "update remastered resources");
 
 	rc = allocate_rcom_buffer(ls);
 	if (!rc)
@@ -508,7 +508,7 @@ int restbl_rsb_update(struct dlm_ls *ls)
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
-	log_all(ls, "updated %d resources", count);
+	log_debug(ls, "updated %d resources", count);
  out_free:
 	free_rcom_buffer(rc);
  out:

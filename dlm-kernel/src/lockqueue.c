@@ -145,7 +145,7 @@ int process_requestqueue(struct dlm_ls *ls)
 	struct rq_entry *entry;
 	struct dlm_header *hd;
 
-	log_all(ls, "process held requests");
+	log_debug(ls, "process held requests");
 
 	down(&ls->ls_requestqueue_lock);
 
@@ -184,7 +184,7 @@ int process_requestqueue(struct dlm_ls *ls)
 		}
 	}
 
-	log_all(ls, "processed %d requests", count);
+	log_debug(ls, "processed %d requests", count);
 	return error;
 }
 
@@ -215,7 +215,7 @@ void purge_requestqueue(struct dlm_ls *ls)
 	struct dlm_header *hd;
 	struct dlm_lkb *lkb;
 
-	log_all(ls, "purge requests");
+	log_debug(ls, "purge requests");
 
 	down(&ls->ls_requestqueue_lock);
 
@@ -252,7 +252,7 @@ void purge_requestqueue(struct dlm_ls *ls)
 	}
 	up(&ls->ls_requestqueue_lock);
 
-	log_all(ls, "purged %d requests", count);
+	log_debug(ls, "purged %d requests", count);
 }
 
 /*
@@ -371,7 +371,7 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 							   	   &master_nodeid);
 					if (error == -EEXIST) {
 						/* don't expect this will happen */
-						log_all(ls, "EEXIST %x", lkb->lkb_id);
+						log_error(ls, "EEXIST %x", lkb->lkb_id);
 						print_lkb(lkb);
 						print_rsb(rsb);
 					}

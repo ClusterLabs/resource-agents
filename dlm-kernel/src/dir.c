@@ -172,14 +172,12 @@ void dlm_dir_remove(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 	de = search_bucket(ls, name, namelen, bucket);
 
 	if (!de) {
-		log_all(ls, "remove fr %u none", nodeid);
-		print_name(name, namelen);
+		log_error(ls, "remove fr %u none", nodeid);
 		goto out;
 	}
 
 	if (de->master_nodeid != nodeid) {
-		log_all(ls, "remove fr %u ID %u", nodeid, de->master_nodeid);
-		print_name(name, namelen);
+		log_error(ls, "remove fr %u ID %u", nodeid, de->master_nodeid);
 		goto out;
 	}
 
@@ -226,7 +224,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 	char *b, *last_name;
 	int error = -ENOMEM, count = 0;
 
-	log_all(ls, "rebuild resource directory");
+	log_debug(ls, "rebuild resource directory");
 
 	dlm_dir_clear(ls);
 
@@ -301,7 +299,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 	set_bit(LSFL_RESDIR_VALID, &ls->ls_flags);
 	error = 0;
 
-	log_all(ls, "rebuilt %d resources", count);
+	log_debug(ls, "rebuilt %d resources", count);
 
       free_last:
 	kfree(last_name);

@@ -552,8 +552,8 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 		}
 
 		if (dir_error) {
-			log_all(ls, "dir lookup retry %x %u", lkb->lkb_id,
-				nodeid);
+			log_debug(ls, "dir lookup retry %x %u", lkb->lkb_id,
+				  nodeid);
 		}
 	}
 

@@ -231,7 +231,7 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 			list_del(&csb->list);
 			list_add_tail(&csb->list, &ls->ls_nodes_gone);
 			ls->ls_num_nodes--;
-			log_all(ls, "remove node %u", csb->node->nodeid);
+			log_debug(ls, "remove node %u", csb->node->nodeid);
 		}
 	}
 
@@ -256,7 +256,7 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 
 			add_ordered_node(ls, csb);
 			ls->ls_num_nodes++;
-			log_all(ls, "add node %u", csb->node->nodeid);
+			log_debug(ls, "add node %u", csb->node->nodeid);
 		}
 	}
 
@@ -272,7 +272,7 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 
 	error = nodes_reconfig_wait(ls);
 
-	log_all(ls, "total nodes %d", ls->ls_num_nodes);
+	log_debug(ls, "total nodes %d", ls->ls_num_nodes);
 
 	return error;
 }
@@ -308,7 +308,7 @@ int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 	/* nodes may be left from a previous failed start */
 	ls_nodes_clear(ls);
 
-	log_all(ls, "add nodes");
+	log_debug(ls, "add nodes");
 
 	for (i = 0; i < rv->node_count; i++) {
 		error = init_new_csb(rv->nodeids[i], &csb);
@@ -328,7 +328,7 @@ int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	error = nodes_reconfig_wait(ls);
 
-	log_all(ls, "total nodes %d", ls->ls_num_nodes);
+	log_debug(ls, "total nodes %d", ls->ls_num_nodes);
 	return error;
  fail:
 	ls_nodes_clear(ls);

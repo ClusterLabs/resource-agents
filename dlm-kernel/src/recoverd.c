@@ -57,7 +57,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 {
 	int error;
 
-	log_all(ls, "recover event %u (first)", rv->event_id);
+	log_debug(ls, "recover event %u (first)", rv->event_id);
 
 	kcl_global_service_id(ls->ls_local_id, &ls->ls_global_id);
 
@@ -79,7 +79,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto out;
 	}
 
-	log_all(ls, "recover event %u done", rv->event_id);
+	log_debug(ls, "recover event %u done", rv->event_id);
 	kcl_start_done(ls->ls_local_id, rv->event_id);
 
  out:
@@ -102,7 +102,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 {
 	int error, neg = 0;
 
-	log_all(ls, "recover event %u", rv->event_id);
+	log_debug(ls, "recover event %u", rv->event_id);
 
 	/*
 	 * Suspending and resuming dlm_astd ensures that no lkb's from this ls
@@ -206,12 +206,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
-	log_all(ls, "recover event %u done", rv->event_id);
+	log_debug(ls, "recover event %u done", rv->event_id);
 	kcl_start_done(ls->ls_local_id, rv->event_id);
 	return 0;
 
  fail:
-	log_all(ls, "recover event %d error %d", rv->event_id, error);
+	log_debug(ls, "recover event %d error %d", rv->event_id, error);
 	return error;
 }
 
@@ -305,8 +305,8 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	 */
 
 	if (!last_finish && (last_start == last_stop)) {
-		log_all(ls, "move reset %u,%u,%u ids %u,%u,%u", stop,
-			start, finish, last_stop, last_start, last_finish);
+		log_debug(ls, "move reset %u,%u,%u ids %u,%u,%u", stop,
+			  start, finish, last_stop, last_start, last_finish);
 		stop = 1;
 		start = 0;
 		finish = 0;
@@ -543,7 +543,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 
 			wake_astd();
 
-			log_all(ls, "recover event %u finished", finish_event);
+			log_debug(ls, "recover event %u finished", finish_event);
 			break;
 
 		case DO_STOP:
@@ -631,7 +631,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 
 			wake_astd();
 
-			log_all(ls, "recover event %u finished", finish_event);
+			log_debug(ls, "recover event %u finished", finish_event);
 			break;
 
 		default:

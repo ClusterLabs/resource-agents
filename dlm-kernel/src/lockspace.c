@@ -680,8 +680,8 @@ static int dlm_ls_start(void *servicedata, uint32_t *nodeids, int count,
 
 	spin_lock(&ls->ls_recover_lock);
 	if (ls->ls_last_start == event_id)
-		log_all(ls, "repeated start %d stop %d finish %d",
-			event_id, ls->ls_last_stop, ls->ls_last_finish);
+		log_debug(ls, "repeated start %d stop %d finish %d",
+			  event_id, ls->ls_last_stop, ls->ls_last_finish);
 	ls->ls_last_start = event_id;
 	list_add_tail(&rv->list, &ls->ls_recover);
 	set_bit(LSFL_LS_START, &ls->ls_flags);

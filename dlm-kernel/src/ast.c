@@ -263,7 +263,7 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 	struct dlm_lkb *lkb, *safe;
 	int count = 0;
 
-	log_all(ls, "mark waiting requests");
+	log_debug(ls, "mark waiting requests");
 
 	down(&_lockqueue_lock);
 
@@ -377,7 +377,7 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 	}
 	up(&_lockqueue_lock);
 
-	log_all(ls, "marked %d requests", count);
+	log_debug(ls, "marked %d requests", count);
 }
 
 int resend_cluster_requests(struct dlm_ls *ls)
@@ -386,7 +386,7 @@ int resend_cluster_requests(struct dlm_ls *ls)
 	struct dlm_rsb *r;
 	int error = 0, state, count = 0;
 
-	log_all(ls, "resend marked requests");
+	log_debug(ls, "resend marked requests");
 
 	down(&_lockqueue_lock);
 
@@ -463,7 +463,7 @@ int resend_cluster_requests(struct dlm_ls *ls)
 	}
 	up(&_lockqueue_lock);
 
-	log_all(ls, "resent %d requests", count);
+	log_debug(ls, "resent %d requests", count);
 	return error;
 }
 
