@@ -694,9 +694,9 @@ static int send_hello()
 	hello_msg.flags = 0;
 	hello_msg.generation = cpu_to_le32(cluster_generation);
 
-	status =
-	    kcl_sendmsg(mem_socket, &hello_msg, sizeof (hello_msg), NULL, 0,
-			MSG_NOACK | MSG_ALLINT);
+	status = kcl_sendmsg(mem_socket, &hello_msg,
+			     sizeof(struct cl_mem_hello_msg),
+			     NULL, 0, MSG_NOACK | MSG_ALLINT);
 
 	last_hello = jiffies;
 
@@ -704,7 +704,7 @@ static int send_hello()
 }
 
 /* This is a special HELLO message that requires an ACK. clients in transition
- * send these to the master to check it is till alive. if it does not ACK then
+ * send these to the master to check it is still alive. If it does not ACK then
  * cnxman will signal it dead and we can restart the transition */
 static int send_master_hello()
 {
@@ -720,9 +720,10 @@ static int send_master_hello()
 	saddr.scl_family = AF_CLUSTER;
 	saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
 	saddr.scl_nodeid = master_node->node_id;
-	status =
-	    kcl_sendmsg(mem_socket, &hello_msg, sizeof (hello_msg),
-			&saddr, sizeof (saddr), 0);
+
+	status = kcl_sendmsg(mem_socket, &hello_msg,
+			     sizeof(struct cl_mem_hello_msg),
+			     &saddr, sizeof (saddr), 0);
 
 	last_hello = jiffies;
 
@@ -807,7 +808,8 @@ static int end_transition()
 		start_transition(TRANS_RESTART, us);
 		return 0;
 	}
-
+	joining_temp_nodeid = 0;
+	remove_temp_nodeid(joining_temp_nodeid);
 	set_quorate(total_votes);
 
 	notify_listeners();
@@ -993,7 +995,8 @@ static int do_membership_packet(struct msghdr *msg, int len)
 		break;
 
 	case CLUSTER_MEM_VIEWACK:
-		result = do_process_viewack(msg, len);
+		if (node_state == MASTER && master_state == MASTER_COLLECT)
+			result = do_process_viewack(msg, len);
 		break;
 
 	case CLUSTER_MEM_STARTACK:
@@ -1350,8 +1353,6 @@ static void confirm_joiner()
 		cluster_members++;
 		up(&cluster_members_lock);
 	}
-	remove_temp_nodeid(joining_temp_nodeid);
-	joining_temp_nodeid = 0;
 }
 
 /* Reset HELLO timers for all nodes We do this after a state-transition as we
@@ -1710,12 +1711,6 @@ static int do_process_viewack(struct msghdr *msg, int len)
 {
 	char *reply = msg->msg_iov->iov_base;
 	struct sockaddr_cl *saddr = msg->msg_name;
-
-	if (master_state != MASTER_COLLECT) {
-		printk(KERN_INFO CMAN_NAME
-		       ": got VIEWACK while not in state transition\n");
-		return 0;
-	}
 
 	if (node_opinion == NULL) {
 		node_opinion =
@@ -2334,8 +2329,10 @@ static int do_process_newcluster(struct msghdr *msg, int len)
 	 * of time */
 	if (node_state == STARTING) {
 		P_MEMB("got NEWCLUSTER, backing down for %d seconds\n", node_hash());
-		start_time = (jiffies + node_hash() * HZ) % (cman_config.joinwait_timeout-1);
+		start_time = jiffies + node_hash() * HZ;
 	}
+	if (node_state == MEMBER)
+		send_hello();
 
 	return 0;
 }
@@ -2566,12 +2563,6 @@ static int do_process_hello(struct msghdr *msg, int len)
 
 	/* Only process HELLOs if we are not in transition */
 	if (node_state == MEMBER) {
-		if (len < sizeof (struct cl_mem_hello_msg)) {
-			printk(KERN_ERR CMAN_NAME
-			       ": short hello message from node %d\n",
-			       saddr->scl_nodeid);
-			return -1;
-		}
 
 		node = find_node_by_nodeid(saddr->scl_nodeid);
 		if (node && node->state != NODESTATE_DEAD) {
@@ -2606,8 +2597,8 @@ static int do_process_hello(struct msghdr *msg, int len)
 			if (cluster_members != le16_to_cpu(hellomsg->members)
 			    && node_state == MEMBER) {
 				printk(KERN_INFO CMAN_NAME
-				       ": nmembers in HELLO message from %s does not match our view (got %d, exp %d)\n",
-				       node->name, le16_to_cpu(hellomsg->members), cluster_members);
+				       ": nmembers in HELLO message does not match our view (got %d, exp %d)\n",
+				       le16_to_cpu(hellomsg->members), cluster_members);
 				start_transition(TRANS_CHECK, node);
 				return 0;
 			}
