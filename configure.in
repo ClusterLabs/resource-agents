@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.345 $) dnl cvs revision
+AC_REVISION($Revision: 1.346 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1617,7 +1617,9 @@ if test "x${enable_cms}" = "xyes"; then
 	RPM_FILES_LIBCMS="${libdir}/libcms.*"
 	RPM_FILES_CMS="%dir %attr (755, root, $HA_APIGROUP) ${localstatedir}/lib/$HB_PKG/cms"
 else 
-	echo "Disabling the AIS Message Service code..."
+	if test -z "{enable_cms}"; then
+	    enable_cms="no"
+	fi
 fi
 AM_CONDITIONAL(CMS_BUILD, test "x${enable_cms}" = "xyes")
 AC_SUBST(RPM_FILES_LIBCMS)
