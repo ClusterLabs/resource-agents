@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000011)
+#define GIO_WIREPROT_VERS (0x67000012)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -34,7 +34,7 @@
 #define gio_Err_BadStateChg     (1008)
 #define gio_Err_MemoryIssues    (1009)
 
-#define gio_Err_PushQu          (1010)	/* client should never see this one */
+#define gio_Err_PushQu          (1010) /* client should never see this one */
 #define gio_Err_TryFailed       (1011)
 #define gio_Err_AlreadyPend     (1013)
 #define gio_Err_Canceled        (1015)
@@ -51,9 +51,9 @@
  *    uint32: opcode that this is in reply to. (can be zeros)
  *    uint32: error code
  */
-#define gulm_err_reply (0x67455252)	/* gERR */
+#define gulm_err_reply (0x67455252) /* gERR */
 
-#define gulm_nop (0x674e4f50)	/* gNOP */
+#define gulm_nop (0x674e4f50)  /* gNOP */
 
 /********************* Core *****************/
 /* 
@@ -144,9 +144,14 @@
  * Core state changes:
  *    uint32: gCSC
  *    uint8:  state  (slave, pending, arbitrating, master)
+ *    uint8:  quorate (true/false)
  *  If state == Slave, then the next two will follow.
  *    IPv6:   MasterIP
  *    string: MasterName
+ *
+ * Quorum Change:
+ *    uint32: gCQC
+ *    uint8:  quorate (true/false)
  *
  * Core shutdown req:
  *    uint32: gCSD
@@ -155,24 +160,25 @@
  *    uint32: gCSP
  *
  */
-#define gulm_core_login_req  (0x67434c00)	/* gCL0 */
-#define gulm_core_login_rpl  (0x67434c01)	/* gCL1 */
-#define gulm_core_logout_req (0x67434c02)	/* gCL2 */
-#define gulm_core_logout_rpl (0x67434c03)	/* gCL3 */
-#define gulm_core_reslgn_req (0x67434c04)	/* gCL4 */
-#define gulm_core_beat_req   (0x67434200)	/* gCB0 */
-#define gulm_core_beat_rpl   (0x67434201)	/* gCB1 */
-#define gulm_core_mbr_req    (0x67434d41)	/* gCMA */
-#define gulm_core_mbr_updt   (0x67434d55)	/* gCMU */
-#define gulm_core_mbr_lstreq (0x67434d6c)	/* gCMl */
-#define gulm_core_mbr_lstrpl (0x67434d4c)	/* gCML */
-#define gulm_core_mbr_force  (0x67434645)	/* gCFE */
-#define gulm_core_res_req    (0x67435200)	/* gCR0 */
-#define gulm_core_res_list   (0x67435201)	/* gCR1 */
-#define gulm_core_state_req  (0x67435352)	/* gCSR */
-#define gulm_core_state_chgs (0x67435343)	/* gCSC */
-#define gulm_core_shutdown   (0x67435344)	/* gCSD */
-#define gulm_core_forcepend  (0x67435350)	/* gCSP */
+#define gulm_core_login_req  (0x67434c00) /* gCL0 */
+#define gulm_core_login_rpl  (0x67434c01) /* gCL1 */
+#define gulm_core_logout_req (0x67434c02) /* gCL2 */
+#define gulm_core_logout_rpl (0x67434c03) /* gCL3 */
+#define gulm_core_reslgn_req (0x67434c04) /* gCL4 */
+#define gulm_core_beat_req   (0x67434200) /* gCB0 */
+#define gulm_core_beat_rpl   (0x67434201) /* gCB1 */
+#define gulm_core_mbr_req    (0x67434d41) /* gCMA */
+#define gulm_core_mbr_updt   (0x67434d55) /* gCMU */
+#define gulm_core_mbr_lstreq (0x67434d6c) /* gCMl */
+#define gulm_core_mbr_lstrpl (0x67434d4c) /* gCML */
+#define gulm_core_mbr_force  (0x67434645) /* gCFE */
+#define gulm_core_res_req    (0x67435200) /* gCR0 */
+#define gulm_core_res_list   (0x67435201) /* gCR1 */
+#define gulm_core_state_req  (0x67435352) /* gCSR */
+#define gulm_core_state_chgs (0x67435343) /* gCSC */
+#define gulm_core_quorm_chgs (0x67435143) /* gCSC */
+#define gulm_core_shutdown   (0x67435344) /* gCSD */
+#define gulm_core_forcepend  (0x67435350) /* gCSP */
 
 /* in the st field */
 #define gio_Mbr_Logged_in  (0x05)
@@ -243,12 +249,12 @@
  *       uint32: poller idx
  *    list stop:
  */
-#define gulm_info_stats_req      (0x67495300)	/* gIS0 */
-#define gulm_info_stats_rpl      (0x67495301)	/* gIS1 */
-#define gulm_info_set_verbosity  (0x67495600)	/* gIV0 */
-#define gulm_socket_close        (0x67534300)	/* gSC0 */
-#define gulm_info_slave_list_req (0x67494c00)	/* gIL0 */
-#define gulm_info_slave_list_rpl (0x67494c01)	/* gIL1 */
+#define gulm_info_stats_req      (0x67495300) /* gIS0 */
+#define gulm_info_stats_rpl      (0x67495301) /* gIS1 */
+#define gulm_info_set_verbosity  (0x67495600) /* gIV0 */
+#define gulm_socket_close        (0x67534300) /* gSC0 */
+#define gulm_info_slave_list_req (0x67494c00) /* gIL0 */
+#define gulm_info_slave_list_rpl (0x67494c01) /* gIL1 */
 
 /********************* Lock Traffic *****************
  * All lock traffic.
@@ -281,6 +287,8 @@
  *    uint32: gLR0
  *    raw:    key
  *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    uint8:  state
  *    uint32: flags
  *    raw:    lvb -- Only exists if hasLVB flag is true.
@@ -288,6 +296,8 @@
  *    uint32: gLR1
  *    raw:    key
  *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    uint8:  state
  *    uint32: flags
  *    uint32: error code
@@ -297,6 +307,8 @@
  *    uint32: gLRU
  *    string: node name
  *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    raw:    key
  *    uint8:  state
  *    uint32: flags
@@ -355,6 +367,8 @@
  *      string: holders
  *      uint64: subid
  *      uint8: state
+ *      uint64: start
+ *      uint64: stop
  *     list stop mark
  *     uint32: LVB holder count
  *     list start mark
@@ -369,24 +383,24 @@
  *    list stop mark
  *
  */
-#define gulm_lock_login_req   (0x674C4C00)	/* gLL0 */
-#define gulm_lock_login_rpl   (0x674C4C01)	/* gLL1 */
-#define gulm_lock_logout_req  (0x674C4C02)	/* gLL2 */
-#define gulm_lock_logout_rpl  (0x674C4C03)	/* gLL3 */
-#define gulm_lock_sel_lckspc  (0x674C5300)	/* gLS0 */
-#define gulm_lock_state_req   (0x674C5200)	/* gLR0 */
-#define gulm_lock_state_rpl   (0x674C5201)	/* gLR1 */
-#define gulm_lock_state_updt  (0x674C5255)	/* gLRU */
-#define gulm_lock_action_req  (0x674C4100)	/* gLA0 */
-#define gulm_lock_action_rpl  (0x674C4101)	/* gLA1 */
-#define gulm_lock_action_updt (0x674C4155)	/* gLAU */
-#define gulm_lock_update_rpl  (0x674c5552)	/* gLUR */
-#define gulm_lock_cb_state    (0x674C4300)	/* gLC0 */
-#define gulm_lock_cb_dropall  (0x674C4302)	/* gLC2 */
-#define gulm_lock_drop_exp    (0x674C454F)	/* gLEO */
-#define gulm_lock_dump_req    (0x674c4400)	/* gLD0 */
-#define gulm_lock_dump_rpl    (0x674c4401)	/* gLD1 */
-#define gulm_lock_rerunqueues (0x674c5152)	/* gLQR */
+#define gulm_lock_login_req   (0x674C4C00) /* gLL0 */
+#define gulm_lock_login_rpl   (0x674C4C01) /* gLL1 */
+#define gulm_lock_logout_req  (0x674C4C02) /* gLL2 */
+#define gulm_lock_logout_rpl  (0x674C4C03) /* gLL3 */
+#define gulm_lock_sel_lckspc  (0x674C5300) /* gLS0 */
+#define gulm_lock_state_req   (0x674C5200) /* gLR0 */
+#define gulm_lock_state_rpl   (0x674C5201) /* gLR1 */
+#define gulm_lock_state_updt  (0x674C5255) /* gLRU */
+#define gulm_lock_action_req  (0x674C4100) /* gLA0 */
+#define gulm_lock_action_rpl  (0x674C4101) /* gLA1 */
+#define gulm_lock_action_updt (0x674C4155) /* gLAU */
+#define gulm_lock_update_rpl  (0x674c5552) /* gLUR */
+#define gulm_lock_cb_state    (0x674C4300) /* gLC0 */
+#define gulm_lock_cb_dropall  (0x674C4302) /* gLC2 */
+#define gulm_lock_drop_exp    (0x674C454F) /* gLEO */
+#define gulm_lock_dump_req    (0x674c4400) /* gLD0 */
+#define gulm_lock_dump_rpl    (0x674c4401) /* gLD1 */
+#define gulm_lock_rerunqueues (0x674c5152) /* gLQR */
 
 /* marks for the login */
 #define gio_lck_st_Slave     (0x00)
@@ -411,6 +425,15 @@
 #define gio_lck_fg_hasLVB      (0x00000010)
 #define gio_lck_fg_Cachable    (0x00000020)
 #define gio_lck_fg_Piority     (0x00000040)
+ /* this is just an idea, but it might be useful.  Basically just says to
+  * not keep the exp hold, just drop this hold like a shared would be.
+  */
+#define gio_lck_fg_DropOnExp   (0x00000080)
+ /* this is saved on each holder, basically, you are gonna ignore any
+  * callbacks about this lock, so tell the server not to even bother
+  * sending them.  A tiny performance boost by lowering the network load.
+  */
+#define gio_lck_fg_NoCallBacks (0x00000100)
 
 #endif /*__gio_wiretypes_h__*/
 /* vim: set ai cin et sw=3 ts=3 : */
