@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.154 $) dnl cvs revision
+AC_REVISION($Revision: 1.155 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -649,6 +649,16 @@ AC_ARG_ENABLE([traditional-warnings],
                           enable traditional warnings gcc (-Wtraditional)
                           [default=no]])
 
+AC_ARG_ENABLE([snmp-subagent], 
+[  --enable-snmp-subagent compile the snmp-subagent.
+                          This is still in early developement stage. If you want to try,
+                          make sure you have NET-SNMP 5.0.6 or later installed.
+                          [default=no]], 
+	[ SNMP_SUBAGENT_DIR="snmp_subagent" ], 
+	[ SNMP_SUBAGENT_DIR="" ])
+
+AC_SUBST(SNMP_SUBAGENT_DIR)
+
 CC_WARNINGS=""
 if test "$GCC" = yes; then
 dnl
@@ -1003,8 +1013,10 @@ dnl or make sure you fix the diff autoconf-2.53.diff file.
 dnl do not change this line #1!
 dnl do not change this line #2!
 dnl do not change this line #3!
-dnl LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
-LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+dnl This version is this incompatible with older versions of autoconf
+AC_PREREQ(2.53)
+LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+dnl LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 dnl do not change this line #4!
 dnl do not change this line #5!
 dnl do not change this line #6!
@@ -1104,6 +1116,7 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
+snmp_subagent/Makefile                                          \
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
