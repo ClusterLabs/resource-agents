@@ -179,13 +179,15 @@ int
 cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 {
 	DIR *dir;
-	int fd, ret;
+	int fd, ret, found = 0;
 	struct dirent *entry;
 	cluster_plugin_t *cp;
 	char filename[1024];
 
-	if (*cpp)
+	if (*cpp) {
+		errno = EINVAL;
 		return -1;
+	}
 
 	dir = opendir(PLUGINDIR);
 	if (!dir)
@@ -198,6 +200,7 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 		cp = cp_load(filename);
 		if (cp == NULL)
 			continue;
+		++found;
 
 #ifdef DEBUG
 		cp_null(cp);
@@ -233,6 +236,10 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 	}
 
 	closedir(dir);
+	if (!found)
+		errno = ELIBACC;
+	else
+		errno = ESRCH;
 	return -1;
 }
 
