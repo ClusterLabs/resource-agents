@@ -129,7 +129,6 @@ static struct connection **connections;
 static struct rw_semaphore connections_lock;
 static kmem_cache_t *con_cache;
 static int conn_array_size;
-static atomic_t writequeue_length;
 static atomic_t accepting;
 
 /* List of sockets that have reads pending */
@@ -304,21 +303,19 @@ static void make_sockaddr(struct sockaddr_in6 *saddr, uint16_t port,
 }
 
 /* Close a remote connection and tidy up */
-static void close_connection(struct connection *con)
+static void close_connection(struct connection *con, int and_other)
 {
-	if (test_bit(CF_IS_OTHERSOCK, &con->flags))
-		return;
-
 	down_write(&con->sock_sem);
 
 	if (con->sock) {
 		sock_release(con->sock);
 		con->sock = NULL;
-		if (con->othersock) {
-			down_write(&con->othersock->sock_sem);
-			sock_release(con->othersock->sock);
-			con->othersock->sock = NULL;
-			up_write(&con->othersock->sock_sem);
+		if (con->othersock && and_other) {
+			/* Argh! recursion in kernel code!
+			   Actually, it's not so bad, there will be
+			   usually a maximum of 2 sockets in this list.
+			*/
+			close_connection(con->othersock, TRUE);
 			kmem_cache_free(con_cache, con->othersock);
 			con->othersock = NULL;
 		}
@@ -437,7 +434,7 @@ static int receive_from_sock(struct connection *con)
       out_close:
 	up_read(&con->sock_sem);
 	if (ret != -EAGAIN && !test_bit(CF_IS_OTHERSOCK, &con->flags)) {
-		close_connection(con);
+		close_connection(con, FALSE);
 		lowcomms_connect_sock(con);
 	}
 
@@ -514,7 +511,13 @@ static int accept_from_sock(struct connection *con)
 			goto accept_err;
 		}
 		memset(othercon, 0, sizeof(*othercon));
-		newcon->othersock = othercon;
+		if (newcon->othersock) {
+			newcon->othersock->othersock = othercon;
+			log_print("newcon for node %d already has an 'othersock'", nodeid);
+		}
+		else {
+			newcon->othersock = othercon;
+		}
 		othercon->nodeid = nodeid;
 		othercon->sock = newsock;
 		othercon->rx_action = receive_from_sock;
@@ -821,7 +824,6 @@ struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
 		users = e->users++;
 		list_add_tail(&e->list, &con->writequeue);
 		spin_unlock(&con->writequeue_lock);
-		atomic_inc(&writequeue_length);
 		goto got_one;
 	}
 	return NULL;
@@ -861,7 +863,6 @@ static void free_entry(struct writequeue_entry *e)
 {
 	__free_page(e->page);
 	kfree(e);
-	atomic_dec(&writequeue_length);
 }
 
 /* Send a message */
@@ -918,7 +919,7 @@ static int send_to_sock(struct connection *con)
 
       send_error:
 	up_read(&con->sock_sem);
-	close_connection(con);
+	close_connection(con, FALSE);
 	lowcomms_connect_sock(con);
 	return ret;
 
@@ -952,12 +953,14 @@ int lowcomms_close(int nodeid)
 	if (!connections)
 		goto out;
 
+	log_print("closing connection to node %d", nodeid);
 	con = nodeid2con(nodeid, 0);
-	if (con && con->sock) {
-		close_connection(con);
+	if (con) {
+		close_connection(con, TRUE);
 		clean_one_writequeue(con);
-		return 0;
 	}
+	return 0;
+
 
       out:
 	return -1;
@@ -994,7 +997,7 @@ static void process_sockets(void)
 
 		spin_unlock_bh(&read_sockets_lock);
 
-		/* This can reach zero if we a reprocessing requests
+		/* This can reach zero if we are processing requests
 		 * as they come in.
 		 */
 		if (atomic_read(&con->waiting_requests) == 0) {
@@ -1199,7 +1202,7 @@ void lowcomms_stop(void)
 
 	for (i = 0; i < conn_array_size; i++) {
 		if (connections[i]) {
-			close_connection(connections[i]);
+			close_connection(connections[i], TRUE);
 			kmem_cache_free(con_cache, connections[i]);
 		}
 	}
