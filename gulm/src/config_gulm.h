@@ -68,11 +68,6 @@ typedef struct {
    struct in6_addr ip;
    uint8_t *netdev;
 
-   /* if this is >=0, then it is the desciptor that connects us to ccs.
-    * If it is <0, then we are not connected to ccs.
-    */
-   int ccs_desc;
-
 } gulm_config_t;
 
 

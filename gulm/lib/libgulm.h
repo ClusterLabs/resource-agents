@@ -29,6 +29,13 @@ typedef int lg_socket;
 typedef void * gulm_interface_p;
 
 /* mallocs the interface structure.
+ * cluster_name can be NULL. If NULL, its ignored. If not NULL, then it
+ *     must be the same as what gulm is running with.  Its just an extra,
+ *     optional check if you want it.
+ * service_name is the unique (to this node) name of the service you're
+ *     going to start.
+ *
+ * Both strings are not checked until you call lg_core_login()
  */
 int lg_initialize(gulm_interface_p *, char *cluster_name, char *service_name);
 /* frees struct.

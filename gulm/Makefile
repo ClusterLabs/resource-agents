@@ -17,6 +17,7 @@ UNINSTALL=scripts/uninstall.pl
 gulmd_src = \
 	src/config_ccs.c \
 	src/config_cmdline.c \
+	src/config_env.c \
 	src/config_main.c \
 	src/core_fence.c \
 	src/core_io.c \
@@ -70,7 +71,7 @@ tool_src = \
 INCLUDE+= -Isrc -I${incdir}
 
 LDFLAGS+= -L${libdir}
-LDLIBS+= -lwrap -lnsl
+#LDLIBS+= -lwrap -lnsl
 
 CFLAGS+=$(INCLUDE)
 # this is mostly for the lib.  Does it hurt any having it for everyone?

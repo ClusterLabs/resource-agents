@@ -23,7 +23,7 @@ Most configurations need only the servers key.  All other keys are optional,
 as the defaults work for nearly all cases.
 
 All gulm options are withing the <gulm></gulm> section, which should be placed
-above the <nodes/> section.
+above the <clusternodes/> section.
 
 All of the config keys are equal to the long options on the command line.
 
@@ -31,7 +31,7 @@ All of the config keys are equal to the long options on the command line.
 .in +7
 A list of IPs or host names that are allowed to be servers.
 This has no default value.  You must supply this value, and the nodes must
-be listed in the <nodes/> section.
+be listed in the <clusternodes/> section.
 
 You can use either IPs or names.  Either IPv4 or IPv6 addresses can be
 used.  Node names are looked up via libresolv into IPs.  IPv6 addresses

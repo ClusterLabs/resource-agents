@@ -376,7 +376,6 @@ void default_config(gulm_config_t *gf)
    gf->name = NULL;
    memcpy(&gf->ip, &in6addr_any, sizeof(struct in6_addr));
    gf->netdev = NULL;
-   gf->ccs_desc = -1;
 
 }
 
@@ -394,6 +393,9 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
 
    /* should set defaults here. */
    default_config(gf);
+
+   /* load up settings that are in the environment */
+   parse_env(gf);
 
    /* parse cmdline args */
    err = parse_cmdline(gf, argc, argv);
