@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.346 $) dnl cvs revision
+AC_REVISION($Revision: 1.347 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -727,6 +727,10 @@ elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
 fi
 AC_SUBST(SNMPCONFIG)
 AC_SUBST(SNMPLIB)
+
+if test x"$VERSION" \> x"1.9"; then
+	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
+fi
 
 dnl
 dnl     On many systems libcrypto is needed when linking against libsnmp.
