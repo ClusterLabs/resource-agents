@@ -4,21 +4,17 @@
 .\"  This copyrighted material is made available to anyone wishing to use,
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
-.\"
-.tl 'gfs_mount(8)''gfs_mount(8)'
 
-\fBNAME\fP
-.in +7
+.TH gfs_mount 8
+
+.SH NAME
 gfs_mount - GFS mount options
-.in
-.sp
-\fBSYNOPSIS\fP
-.in +7
-\fBmount\fP [StandardMountOptions] \fB-t\fP gfs \fIdevice\fR \fImountpoint\fR \fB-o\fP [GFSOption1,GFSOption2,GFSOptionX...]
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+
+.SH SYNOPSIS
+.B mount
+[\fIStandardMountOptions\fR] \fB-t\fP gfs \fIDEVICE\fR \fIMOUNTPOINT\fR \fB-o\fP [GFSOption1,GFSOption2,GFSOptionX...]
+
+.SH DESCRIPTION
 GFS may be used as a local (single computer) filesystem, but its real purpose
 is in clusters, where multiple computers (nodes) share a common storage device.
 
@@ -68,13 +64,10 @@ another group of options with "gfs_tool margs".
 
 If you have trouble mounting GFS, check the syslog (e.g. /var/log/messages)
 for specific error messages.
-.sp
-.in
-\fBOPTIONS\fP
-.in +7
 
+.SH OPTIONS
+.TP
 \fBlockproto=\fP\fILockModuleName\fR
-.in +5
 This specifies which inter-node lock protocol is used by the GFS filesystem
 for this mount, overriding the default lock protocol name stored in the
 filesystem's on-disk superblock.
@@ -91,10 +84,8 @@ using the \fBgfs_tool\fP(8) utility's \fBsb proto\fP command.
 The \fBlockproto\fP mount option should be used only under special
 circumstances in which you want to temporarily use a different lock protocol
 without changing the on-disk default.
-.in
-.sp
+.TP
 \fBlocktable=\fP\fILockTableName\fR
-.in +5
 This specifies the identity of the cluster and of the filesystem for this
 mount, overriding the default cluster/filesystem identify stored in the
 filesystem's on-disk superblock.  The cluster/filesystem name is recognized
@@ -114,10 +105,8 @@ The \fBlocktable\fP mount option should be used only under special
 circumstances in which you want to mount the filesystem in a different cluster,
 or mount it as a different filesystem name, without changing the on-disk
 default.
-.in
-.sp
+.TP
 \fBhostdata=\fP\fIHostIDInfo\fR
-.in +5
 This field sends host (the computer on which the filesystem is being mounted)
 identity information to the lock module.
 
@@ -126,20 +115,16 @@ For lock_gulm, it overrides the \fBuname\fP(1) -n network node name
 used as default by lock_gulm.
 
 This field is ignored by \fIlock_dlm\fR and \fIlock_nolock\fR.
-.in
-.sp
+.TP
 \fBlocalcaching\fP
-.in +5
 This flag tells GFS that it is running as a local (not clustered) filesystem,
 so it can turn on some block caching optimizations that can't be used when
 running in cluster mode.
 
 This is turned on automatically by the lock_nolock module,
 but can be overridden by using the \fBignore_local_fs\fP option.
-.in
-.sp
+.TP
 \fBlocalflocks\fP
-.in +5
 This flag tells GFS that it is running as a local (not clustered) filesystem,
 so it can allow the kernel VFS layer to do all flock and fcntl file locking.
 When running in cluster mode, these file locks require inter-node locks,
@@ -148,10 +133,8 @@ is achieved by letting VFS handle the whole job.
 
 This is turned on automatically by the lock_nolock module,
 but can be overridden by using the \fBignore_local_fs\fP option.
-.in
-.sp
+.TP
 \fBoopses_ok\fP
-.in +5
 Normally, GFS automatically turns on the "kernel.panic_on_oops"
 sysctl to cause the machine to panic if an oops (an in-kernel
 segfault or GFS assertion failure) happens.  An oops on one machine of
@@ -166,29 +149,23 @@ with care.
 
 This is turned on automatically by the lock_nolock module,
 but can be overridden by using the \fBignore_local_fs\fP option.
-.in
-.sp
+.TP
 \fBignore_local_fs\fP
-.in +5
 By default, using the nolock lock module automatically turns on the
 \fBlocalcaching\fP and \fBlocalflocks\fP optimizations.  \fBignore_local_fs\fP
 forces GFS to treat the filesystem as if it were a multihost (clustered)
 filesystem, with \fBlocalcaching\fP and \fBlocalflocks\fP optimizations
 turned off.
-.in
-.sp
+.TP
 \fBupgrade\fP
-.in +5
 This flag tells GFS to upgrade the filesystem's on-disk format to the version
 supported by the current GFS software installation on this computer.
 If you try to mount an old-version disk image, GFS will notify you via a syslog
 message that you need to upgrade.  Try mounting again, using the
 \fB-o upgrade\fP option.  When upgrading, only one node may mount the GFS
 filesystem.
-.in
-.sp
+.TP
 \fBnum_glockd\fP
-.in +5
 Tunes GFS to alleviate memory pressure when rapidly aquiring many locks (e.g.
 several processes scanning through huge directory trees).  GFS' glockd kernel
 daemon cleans up memory for no-longer-needed glocks.  Multiple instances
@@ -196,39 +173,27 @@ of the daemon clean up faster than a single instance.  The default value is
 one daemon, with a maximum of 32.  Since this option was introduced, other
 methods of rapid cleanup have been developed within GFS, so this option may go
 away in the future.
-.in
-.sp
+.TP
 \fBacl\fP
-.in +5
 Enables POSIX Access Control List \fBacl\fP(5) support within GFS.
-.in
-.sp
+.TP
 \fBsuiddir\fP
-.in +5
 Sets owner of any newly created file or directory to be that of parent
 directory, if parent directory has S_ISUID permission attribute bit set.
 Sets S_ISUID in any new directory, if its parent directory's S_ISUID is set.
 Strips all execution bits on a new file, if parent directory owner is different
 from owner of process creating the file.  Set this option only if you know
 why you are setting it.
-.in
-.sp
-.in -7
-\fBLINKS\fP
-.in +7
+
+.SH LINKS
+.TP 30
 http://sources.redhat.com/cluster
-.in +7
 -- home site of GFS
-.in
-.sp
+.TP
 http://www.suse.de/~agruen/acl/linux-acls/
-.in +7
 -- good writeup on ACL support in Linux
-.in
-.in -7
-.sp
-\fBSEE ALSO\fP
-.in +7
+
+.SH SEE ALSO
 
 \fBgfs\fP(8), 
 \fBmount\fP(8) for general mount options,
@@ -239,6 +204,4 @@ http://www.suse.de/~agruen/acl/linux-acls/
 \fBlock_gulmd\fP(8),
 \fBumount\fP(8),
 \fBinitrd\fP(4).
-.sp
-.in
 

@@ -1,147 +1,103 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'gfs_tool(8)''gfs_tool(8)'
+.TH gfs_tool 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 gfs_tool - interface to gfs ioctl calls
-.in
-.sp
-\fBSYNOPSIS\fP
-.in +7
-\fBgfs_tool\fP command [options]
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+
+.SH SYNOPSIS
+.B gfs_tool
+\fICOMMAND\fR [\fIOPTION\fR]...
+
+.SH DESCRIPTION
 gfs_tool is an interface to a variety of the GFS ioctl calls.
-.sp
-.in
-\fBCOMMANDS\fP
-.in +7
+
+.SH COMMANDS
+.TP
 \fBclearflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-.in +7
 Clear an attribute flag on a file.
-.in
-.sp
+.TP
 \fBcounters\fP \fIMountPoint\fR [-c]
-.in +7
 Print out statistics about a filesystem.  If -c is used, gfs_tool continues
 to run printing out the stats once a second.
-.in
-.sp
+.TP
 \fBdf\fP \fIMountPoint\fR 
-.in +7
 Print out a space usage summary of a given filesystem.  The information
 printed is more detailed than a standard "df".
-.in
-.sp
+.TP
 \fBfreeze\fP \fIMountPoint\fR
-.in +7
 Freeze (quiesce) a GFS cluster.
-.in
-.sp
+.TP
 \fBgetsb\fP \fIMountPoint\fR
-.in +7
 Print out the superblock of a mounted filesystem.
-.in
-.sp
+.TP
 \fBgettune\fP \fIMountPoint\fR
-.in +7
 Print out the current values of the tuning parameters in a running
 filesystem.
-.in
-.sp
+.TP
 \fBjindex\fP \fIMountPoint\fR
-.in +7
 Print out the journal index of a mounted filesystem.
-.in
-.sp
+.TP
 \fBlayout\fP \fIFile\fR \fI[buffersize]\fR
-.in +7
 Print out on-disk layout information about a file or directory.
 Buffersize is the size of the buffer (in bytes) that gfs_tool allocates
 to store the file's metadata during processing.  It defaults to 4194304
 bytes.  If you are printing a very big directory you may need to specify
 a bigger size.
-.in
-.sp
+.TP
 \fBlist\fP
-.in +7
 List the currently mounted GFS filesystems.  Each line represents
 a filesystem.  The columns represent (in order): 1) A number that
 is a cookie that represents the mounted filesystem. 2) The name of the
 device that holds the filesystem (well, the name as the Linux
 kernel knows it). 3) The lock table field that the filesystem was
 mounted with.
-.in
-.sp
+.TP
 \fBlockdump\fP \fIMountPoint\fR \fI[buffersize]\fR
-.in +7
 Print out information about the locks this machine holds for a given
 filesystem. Buffersize is the size of the buffer (in bytes) that gfs_tool
 allocates to store the lock data during processing.  It defaults to 4194304
 bytes.
-.in
-.sp
+.TP
 \fBmargs\fP \fIarguments\fR
-.in +7
 This loads arguments into the module what will override the mount
 options passed with the -o field on the next mount.  See gfs_mount(8).
-.in
-.sp
+.TP
 \fBreclaim\fP \fIFile\fR
-.in +7
 Returns unused on-disk metadata blocks to free blocks.
-.in
-.sp
+.TP
 \fBrindex\fP \fIMountPoint\fR
-.in +7
 Print out the resource group index of a mounted filesystem.
-.in
-.sp
+.TP
 \fBquota\fP \fIMountPoint\fR
-.in +7
 Print out the quota file of a mounted filesystem.  Also see
 the "gfs_quota list" command.
-.in
-.sp
+.TP
 \fBsb\fP \fIdevice\fR \fBproto\fP \fI[newvalue]\fR
-.in +7
 View (and possibly replace) the name of the locking protocol in the
 file system superblock.  The file system shouldn't be mounted by any
 client when you do this.
-.in
-.sp
+.TP
 \fBsb\fP \fIdevice\fR \fBtable\fP \fI[newvalue]\fR
-.in +7
 View (and possibly replace) the name of the locking table in the
 file system superblock.  The file system shouldn't be mounted by any
 client when you do this.
-.in
-.sp
+.TP
 \fBsb\fP \fIdevice\fR \fBondisk\fP \fI[newvalue]\fR
-.in +7
 View (and possibly replace) the ondisk format number in the
 file system superblock.  The file system shouldn't be mounted by any
 client when you do this.  No one should have to use this.
-.in
-.sp
+.TP
 \fBsb\fP \fIdevice\fR \fBmultihost\fP \fI[newvalue]\fR
-.in +7
 View (and possibly replace) the multihost format number in the
 file system superblock.  The file system shouldn't be mounted by any
 client when you do this.  No one should have to use this.
-.in
-.sp
+.TP
 \fBsb\fP \fIdevice\fR \fBall\fP
-.in +7
 Print out the superblock.
-.in
-.sp
+.TP
 \fBsetflag\fP \fIFlag\fR \fIFile1\fR \fIFile2\fR \fI...\fR 
-.in +7
 Set an attribute flag on a file.  There are four currently
 supported flags.  They are jdata, directio, inherit_jdata, and
 inherit_directio.
@@ -162,35 +118,23 @@ The \fIinherit_directio\fR flag is set on a directory.  It causes all new
 regular files created in that directory automatically inherit the
 \fIdirectio\fR flag.  The \fIinherit_directio\fR is also inherited by
 any new subdirectories created in that directory.
-.in
-.sp
+.TP
 \fBsettune\fP \fIMountPoint\fR \fIparameter\fR \fInewvalue\fR
-.in +7
 Set the value of tuning parameter.  Use \fBgettune\fP for a listing of 
 tunable parameters.
-.in
-.sp
+.TP
 \fBshrink\fP \fIMountPoint\fR
-.in +7
 Causes any unused inodes to be thrown out of memory.
-.in
-.sp
+.TP
 \fBstat\fP \fIFile\fR
-.in +7
 Print out extended stat information about a file.
-.in
-.sp
+.TP
 \fBunfreeze\fP \fIMountPoint\fR
-.in +7
 Unfreeze a GFS cluster.
-.in
-.sp
+.TP
 \fBversion\fP
-.in +7
 Print out the version of GFS that this program goes with.
-.in
-.sp
+.TP
 \fBwithdraw\fP \fIMountPoint\fR
-.in +7
 Cause GFS to abnormally shutdown a given filesystem on this node.
 

@@ -1,26 +1,20 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'gfs_fsck(8)''gfs_fsck(8)'
+.TH gfs_fsck 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 gfs_fsck - Offline GFS file system checker
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBgfs_fsck\fP [\fBoptions\fP] \fIdevice\fR
-.sp
-.in
-\fBWARNING\fP
-.in +7
+.SH SYNOPSIS
+.B gfs_fsck
+[\fIOPTION\fR]... \fIDEVICE\fR
+
+.SH WARNING
 All GFS nodes \fImust\fP have the GFS filesystem unmounted before running
 gfs_fsck.  Failure to unmount all nodes may result in filesystem corruption.
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+
+.SH DESCRIPTION
 gfs_fsck will check that the GFS file system on a device is structurally valid.
 It should not be run on a mounted file system.  If file system corruption is
 detected, it will attempt to repair the file system.  There is a limit to what
@@ -34,44 +28,29 @@ incomplete blocks to a file system thereby causing corruption that GFS can not
 fix.  The first step to ensuring a healthy file system is the selection of
 reliable hardware (i.e. storage systems that will write complete blocks - even
 in the event of power failure).
-.sp
-.in
 
-\fBOPTIONS\fP
-.in +7
-
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Help.
-.sp
+
 This prints out the proper command line usage syntax.
-.sp
-.in
-
+.TP
 \fB-q\fP
-.in +7
 Quiet.
-.sp
-.in
-
+.TP
 \fB-V\fP
-.in +7
 Version.
-.sp
+
 Print out the current version name.
-.sp
-.in
-
+.TP
 \fB-v\fP
-.in +7
 Verbose operation.
-.sp
-Print more information while running.
-.in
 
+Print more information while running.
+.TP
 \fB-y\fP
-.in +7
 Yes to all questions.
-.sp
+
 By specifying this option, gfs_fsck will not prompt before making
 changes.

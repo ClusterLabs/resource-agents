@@ -1,112 +1,79 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'gfs_mkfs(8)''gfs_mkfs(8)'
+.TH gfs_mkfs 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 gfs_mkfs - Make a GFS filesystem
-.sp
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBgfs_mkfs\fP [options] \fIBlockDevice\fR
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
-gfs_mkfs is used to create a Global File System on the
-block device \fIBlockDevice\fR.
-.sp
-.in
-\fBOPTIONS\fP
-.in +7
+
+.SH SYNOPSIS
+.B gfs_mkfs
+[\fIOPTION\fR]... \fIDEVICE\fR
+
+.SH DESCRIPTION
+gfs_mkfs is used to create a Global File System.
+
+.SH OPTIONS
+.TP
 \fB-b\fP \fIBlockSize\fR 
-.in +7
 Set the filesystem block size to \fIBlockSize\fR (must be a power of
 two).  The minimum block size is 512.  The FS block size cannot exceed
 the machine's memory page size.  On the most architectures (i386,
 x86_64, s390, s390x), the memory page size is 4096 bytes.  On other
 architectures it may be bigger.  The default block size is 4096 bytes.
 In general, GFS filesystems should not deviate from the default value.
-.in
-.sp
+.TP
 \fB-D\fP
-.in +7
 Enable debugging output.
-.in
-.sp
+.TP
 \fB-h\fP
-.in +7
 Print  out  a  help  message  describing  available
 options, then exit.
-.in
-.sp
+.TP
 \fB-J\fP \fIMegaBytes\fR 
-.in +7
 The size of the journals in Megabytes. The default journal size is 
 128 megabytes.  The minimum size is 32 megabytes.
-.in
-.sp
+.TP
 \fB-j\fP \fINumber\fR 
-.in +7
 The number of journals for gfs_mkfs to create.  You need at least one
 journal per machine that will mount the filesystem.
-.in
-.sp
+.TP
 \fB-O\fP
-.in +7
 This option prevents gfs_mkfs from asking for confirmation before writing
 the filesystem.
-.in
-.sp
+.TP
 \fB-p\fP \fILockProtoName\fR 
-.in +7
 LockProtoName is the name of the  locking  protocol to use.  Acceptable
 locking protocols are \fIlock_gulm\fR or if you are using GFS
 as a local filesystem (\fB1 node only\fP), you can specify the
 \fIlock_nolock\fR protocol.
-.in
-.sp
+.TP
 \fB-q\fP
-.in +7
 Be quiet.  Don't print anything.
-.in
-.sp
+.TP
 \fB-r\fP \fIMegaBytes\fR
-.in +7
 gfs_mkfs will try to make Resource Groups about this big.
 The default is 256 MB.
-.in
-.sp
+.TP
 \fB-s\fP \fIBlocks\fR 
-.in +7
 Journal segment size in filesystem blocks.  This value must be at
 least two and not large enough to produce a segment size greater than
 4MB.
-.in
-.sp
+.TP
 \fB-t\fP \fILockTableName\fR 
-.in +7
 The lock table field appropriate to the lock module you're using.
 For lock_gulm, it is \fIclustername:fsname\fR.
 Clustername is the cluster.ccs:cluster/name string for the cluster which
 will use this filesystem (1 to 16 characters).  Fsname is a unique
 file system name used to distinguish this GFS file system from others
 created (1 to 16 characters).  Lock_nolock doesn't use this field.
-.in
-.sp
+.TP
 \fB-V\fP
-.in +7
 Print program version information, then exit.
-.in
-.sp
-.in -7
-\fBEXAMPLE\fP
-.in +7
+
+.SH EXAMPLE
+.TP
 gfs_mkfs -t mycluster:mygfs -p lock_gulm -j 2 /dev/pool/mygfs
-.sp
-.in +7
 This will make a Global File System on the block device
 "/dev/pool/mygfs".  It will belong to "mycluster" and register itself
 as wanting locking for "mygfs".  It will use GULM for locking and make

@@ -1,27 +1,16 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'gfs_grow(8)''gfs_grow(8)'
-'\"
-'\"    This file is maintained by:
-'\"      Steven Whitehouse <steve@sistina.com>
-'\"    
-'\"	View with 'groff -t -e -mandoc -Tlatin1 gfs_grow.8 | less'  
-'\"
+.TH gfs_grow 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 gfs_grow - Expand a GFS filesystem
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBgfs_grow\fP\ [options]\ \fIdevice\ |\ mount_point\fR\ [\fIdevice\ |
-\ mount_point\fR...]
-.in
+.SH SYNOPSIS
+.B gfs_grow
+[\fIOPTION\fR]... <\fIDEVICE\fR|\fIMOINTPOINT\fR>...
 
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 gfs_grow is used to expand a GFS filesystem after the device
 upon which the filesystem resides has also been expanded.  By
 running gfs_grow on a GFS filesystem, you are requesting that
@@ -30,61 +19,48 @@ the end of the device is filled with a newly initialized GFS
 filesystem extension.  When this operation is complete, the resource
 index for the filesystem is updated so that all nodes in the
 cluster can use the extra storage space which has been added.
-.sp
+
 You may only run gfs_grow on a mounted filesystem; expansion of 
 unmounted filesystems is not supported.  You only need to
 run gfs_grow on one node in the cluster.  All the other nodes will
 see the expansion has occurred and automatically start to use the
 newly available space.
-.sp
+
 You must be superuser to execute \fBgfs_grow\fP.  The gfs_grow
 tool tries to prevent you from corrupting your filesystem by checking as
 many of the likely problems as it can.  When expanding a filesystem,
 only the last step of updating the resource index affects the currently
 mounted filesystem and so failure part way through the expansion process
 should leave your filesystem in its original unexpanded state.
-.sp
+
 You can run gfs_grow with the \fB-Tv\fP flags to get a display
 of the current state of a mounted GFS filesystem.  This can be useful
 to do after the expansion process to see if the changes have been 
 successful.
-.sp
+
 \fBgfs_grow\fP will consume all the remaining space in a device and add
 it to the filesystem.  If you want to add journals too, you need to add
 the journals first using \fBgfs_jadd\fP.
-.in
-.sp
-\fBOPTIONS\fP
-.in 
+
+.SH OPTIONS
+.TP 
 \fB-h\fP
-.in +7
 Prints out a short usage message and exits.
-.in
-.sp
+.TP
 \fB-q\fP
-.in +7
 Quiet. Turns down the verbosity level.
-.sp
-.in
+.TP
 \fB-T\fP
-.in +7
 Test. Do all calculations, but do not write any data to the disk and do
 not expand the filesystem. This is used to discover what the tool would
 have done were it run without this flag. You probably want to turn the
 verbosity level up in order to gain most information from this option.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Version. Print out version information, then exit.
-.sp
-.in
+.TP
 \fB-v\fP
-.in +7
 Verbose. Turn up verbosity of messages.
-.in
-.sp
-.in -7
-\fBSEE ALSO\fP
-.in +7
+
+.SH SEE ALSO
 gfs_mkfs(8) gfs_jadd(8)
