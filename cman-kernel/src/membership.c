@@ -18,6 +18,7 @@
 #include <linux/vmalloc.h>
 #include <asm/uaccess.h>
 #include <linux/list.h>
+#include <linux/idr.h>
 #include <cluster/cnxman.h>
 
 #include "cnxman-private.h"
@@ -70,10 +71,9 @@ char nodename[MAX_CLUSTER_MEMBER_NAME_LEN + 1];
  */
 int wanted_nodeid;
 
-static spinlock_t members_by_nodeid_lock;
-static int sizeof_members_array;	/* Can dynamically increase (vmalloc
-					 * permitting) */
-static struct cluster_node **members_by_nodeid;
+/* List of members by nodeid */
+static rwlock_t members_idr_lock;
+static DEFINE_IDR(members_idr);
 
 #define MEMBER_INCREMENT_SIZE 10
 
@@ -83,7 +83,7 @@ static unsigned int quorum;	/* Quorum, fewer votes than this and we stop
 				 * work */
 static int leavereason;		/* Saved for the duration of a state transition */
 static int transitionreason;	/* Reason this transition was initiated */
-static unsigned int highest_nodeid;	/* Highest node ID known to the cluster */
+unsigned int highest_nodeid;	/* Highest node ID known to the cluster */
 static struct timer_list transition_timer;	/* Kicks in if the transition
 						 * doesn't complete in a
 						 * reasonable time */
@@ -213,69 +213,71 @@ void cman_set_realtime(struct task_struct *tsk, int prio)
         tsk->rt_priority = prio;
 }
 
-/* Set node id of a node, also add it to the members array and expand the array
- * if necessary */
-static inline void set_nodeid(struct cluster_node *node, int nodeid)
+/* Set node id of a node, also add it to the members idr */
+static void set_nodeid(struct cluster_node *node, int nodeid)
 {
+	struct cluster_node *idr_node;
+	int r, n;
+
 	if (!nodeid)
 		return;
 
+	read_lock(&members_idr_lock);
+	idr_node = idr_find(&members_idr, nodeid);
+	read_unlock(&members_idr_lock);
+
 	node->node_id = nodeid;
-	if (nodeid >= sizeof_members_array) {
-		int new_size = sizeof_members_array + MEMBER_INCREMENT_SIZE;
-		struct cluster_node **new_array;
-
-		if (new_size < nodeid)
-			new_size = nodeid + MEMBER_INCREMENT_SIZE;
-
-		new_array = vmalloc((new_size) * sizeof (struct cluster_node *));
-		if (new_array) {
-			spin_lock(&members_by_nodeid_lock);
-			memcpy(new_array, members_by_nodeid,
-			       sizeof_members_array *
-			       sizeof (struct cluster_node *));
-			memset(&new_array[sizeof_members_array], 0,
-			       (new_size - sizeof_members_array) *
-			       sizeof (struct cluster_node *));
-			vfree(members_by_nodeid);
-
-			members_by_nodeid = new_array;
-			sizeof_members_array = new_size;
-			spin_unlock(&members_by_nodeid_lock);
-		}
-		else {
-			panic("No memory for more nodes");
-		}
-	}
-	notify_kernel_listeners(NEWNODE, (long) nodeid);
 
 	/* The old node may be a failed joiner, in which case we can overwrite it with
 	   the new node */
-	if (members_by_nodeid[nodeid] &&
-	    members_by_nodeid[nodeid]->state == NODESTATE_JOINING) {
+	if (idr_node && idr_node->state == NODESTATE_JOINING) {
 
 		P_MEMB("Removing failed joining node %s (%d)\n",
-		       members_by_nodeid[nodeid]->name, members_by_nodeid[nodeid]->node_id);
+		       idr_node->name, idr_node->node_id);
 
 		down(&cluster_members_lock);
-		list_del(&members_by_nodeid[nodeid]->list);
+		list_del(&idr_node->list);
 		up(&cluster_members_lock);
 
-		kfree(members_by_nodeid[nodeid]);
-		members_by_nodeid[nodeid] = NULL;
+		write_lock(&members_idr_lock);
+		idr_remove(&members_idr, nodeid);
+		write_unlock(&members_idr_lock);
+
+		idr_node = NULL;
 	}
 
-	if (members_by_nodeid[nodeid] &&
-	    members_by_nodeid[nodeid] != node) {
+	if (idr_node && idr_node != node) {
 		printk(KERN_ERR CMAN_NAME ": Attempt to re-add node with id %d\n", nodeid);
-		printk(KERN_ERR CMAN_NAME ": existing node is %s\n", members_by_nodeid[nodeid]->name);
+		printk(KERN_ERR CMAN_NAME ": existing node is %s\n", idr_node->name);
 		printk(KERN_ERR CMAN_NAME ": new node is %s\n", node->name);
 		BUG();
 	}
 
-	spin_lock(&members_by_nodeid_lock);
-	members_by_nodeid[nodeid] = node;
-	spin_unlock(&members_by_nodeid_lock);
+	r = idr_pre_get(&members_idr, GFP_KERNEL);
+	if (!r) {
+		printk(KERN_ERR CMAN_NAME ": Pre-get failed for nodeid %d\n", nodeid);
+		return;
+	}
+
+	write_lock(&members_idr_lock);
+	r = idr_get_new_above(&members_idr, node, nodeid, &n);
+	if (r) {
+		printk(KERN_ERR CMAN_NAME ": Failed to get node slot id %d\n", nodeid);
+		return;
+	}
+
+	if (n != nodeid) {
+		/* This should never happen... */
+		printk(KERN_ERR CMAN_NAME ": Node id slot not got for %d\n", nodeid);
+		idr_remove(&members_idr, n);
+		return;
+	}
+
+	if (highest_nodeid < nodeid)
+		highest_nodeid = nodeid;
+	write_unlock(&members_idr_lock);
+
+	notify_kernel_listeners(NEWNODE, (long) nodeid);
 }
 
 static int hello_kthread(void *unused)
@@ -471,7 +473,6 @@ static int membership_kthread(void *unused)
 
 	send_leave(us->leave_reason);
 	sock_release(mem_socket);
-	highest_nodeid = 0;
 	joining_node = NULL;
 	master_node = NULL;
 	complete(&member_thread_comp);
@@ -1887,7 +1888,7 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 		if (!node_opinion) {
 			panic(": malloc agree/dissent failed\n");
 		}
-		memset(node_opinion, 0, (1 + highest_nodeid) * sizeof (uint8_t));
+		memset(node_opinion, 0, (10 + highest_nodeid) * sizeof (uint8_t));
 	}
 
 	/* Keep a list of agreeing and dissenting nodes */
@@ -2003,8 +2004,11 @@ static void remove_joiner(int tell_wait)
 		list_del(&joining_node->list);
 		up(&cluster_members_lock);
 
-		if (joining_node->node_id)
-			members_by_nodeid[joining_node->node_id] = NULL;
+		if (joining_node->node_id) {
+			write_lock(&members_idr_lock);
+			idr_remove(&members_idr, joining_node->node_id);
+			write_unlock(&members_idr_lock);
+		}
 		kfree(joining_node);
 	}
 	else {
@@ -2060,7 +2064,6 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 
 	quorum = le32_to_cpu(endmsg->quorum);
 	set_quorate(le32_to_cpu(endmsg->total_votes));
-	highest_nodeid = get_highest_nodeid();
 
 	/* Tell any waiting barriers that we had a transition */
 	check_barrier_returns();
@@ -2507,8 +2510,7 @@ static int do_process_joinreq(struct msghdr *msg, char *buf, int len)
 
 	/* A genuinely new node, assign it a genuinely new ID */
 	if (node->node_id == 0) {
-		set_nodeid(node, get_highest_nodeid()+1);
-		highest_nodeid = node->node_id;
+		set_nodeid(node, highest_nodeid+1);
 	}
 	P_MEMB("New node %s has id %d\n", node->name, node->node_id);
 
@@ -2937,12 +2939,9 @@ struct cluster_node *find_node_by_nodeid(unsigned int id)
 {
 	struct cluster_node *node;
 
-	if (id > sizeof_members_array)
-		return NULL;
-
-	spin_lock(&members_by_nodeid_lock);
-	node = members_by_nodeid[id];
-	spin_unlock(&members_by_nodeid_lock);
+	read_lock(&members_idr_lock);
+	node = idr_find(&members_idr, id);
+	read_unlock(&members_idr_lock);
 	return node;
 }
 
@@ -3092,23 +3091,14 @@ static int add_us()
 	return 0;
 }
 
-/* Return the highest known node_id */
-unsigned int get_highest_nodeid()
+void free_nodeid_array()
 {
-	struct list_head *nodelist;
-	struct cluster_node *node = NULL;
-	unsigned int highest = 0;
-
-	down(&cluster_members_lock);
-	list_for_each(nodelist, &cluster_members_list) {
-		node = list_entry(nodelist, struct cluster_node, list);
-
-		if (node->node_id > highest)
-			highest = node->node_id;
+	int i;
+	for (i = 1; i <= highest_nodeid; i++) {
+		if (idr_find(&members_idr, i))
+		    idr_remove(&members_idr, i);
 	}
-	up(&cluster_members_lock);
-
-	return highest;
+	highest_nodeid = 0;
 }
 
 /* Elect a new master if there is a clash. Returns 1 if we are the new master,
@@ -3117,48 +3107,21 @@ unsigned int get_highest_nodeid()
 static int elect_master(struct cluster_node **master_node, int disallow_node)
 {
 	int i;
+	struct cluster_node *node;
 
-	for (i = 1; i < sizeof_members_array; i++) {
-		if (members_by_nodeid[i] &&
-		    members_by_nodeid[i]->state == NODESTATE_MEMBER &&
-		    i != disallow_node) {
-			*master_node = members_by_nodeid[i];
+	for (i = 1; i <= highest_nodeid; i++) {
+
+		read_lock(&members_idr_lock);
+		node = idr_find(&members_idr, i);
+		read_unlock(&members_idr_lock);
+
+		if (node && node->state == NODESTATE_MEMBER &&  i != disallow_node) {
+			*master_node = node;
 			P_MEMB("Elected master is %s\n", (*master_node)->name);
 			return (*master_node)->us;
 		}
 	}
 	BUG();
-	return 0;
-}
-
-/* Called by node_cleanup in cnxman when we have left the cluster */
-void free_nodeid_array()
-{
-	vfree(members_by_nodeid);
-	members_by_nodeid = NULL;
-	sizeof_members_array = 0;
-}
-
-int allocate_nodeid_array()
-{
-	/* Allocate space for the nodeid lookup array */
-	if (!members_by_nodeid) {
-		spin_lock_init(&members_by_nodeid_lock);
-		members_by_nodeid =
-		    vmalloc(cman_config.max_nodes *
-			    sizeof (struct cluster_member *));
-	}
-
-	if (!members_by_nodeid) {
-		printk(KERN_WARNING
-		       "Unable to allocate members array for %d members\n",
-		       cman_config.max_nodes);
-		return -ENOMEM;
-	}
-	memset(members_by_nodeid, 0,
-	       cman_config.max_nodes * sizeof (struct cluster_member *));
-	sizeof_members_array = cman_config.max_nodes;
-
 	return 0;
 }
 

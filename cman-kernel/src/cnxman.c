@@ -1440,6 +1440,9 @@ static int do_ioctl_kill_node(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 
+	if (!atomic_read(&cnxman_running))
+		return -ENOTCONN;
+
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
 
@@ -1468,6 +1471,9 @@ static int do_ioctl_barrier(unsigned long arg)
 
 	if (!capable(CAP_CLUSTER))
 			return -EPERM;
+
+	if (!atomic_read(&cnxman_running))
+		return -ENOTCONN;
 
 	if (!we_are_a_cluster_member)
 		return -ENOENT;
@@ -1635,7 +1641,7 @@ static int do_ioctl_pass_socket(unsigned long arg)
 		return -EPERM;
 
 	if (atomic_read(&cnxman_running))
-		return -EINVAL;
+		return -ENOTCONN;
 
 	error = -EBADF;
 
@@ -1661,7 +1667,7 @@ static int do_ioctl_set_nodename(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 	if (atomic_read(&cnxman_running))
-		return -EINVAL;
+		return -ENOTCONN;
 	if (strncpy_from_user(nodename, (void *)arg, MAX_CLUSTER_MEMBER_NAME_LEN) < 0)
 		return -EFAULT;
 	return 0;
@@ -1674,7 +1680,7 @@ static int do_ioctl_set_nodeid(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 	if (atomic_read(&cnxman_running))
-		return -EINVAL;
+		return -ENOTCONN;
 	if (nodeid < 0 || nodeid > 4096)
 		return -EINVAL;
 
@@ -1712,8 +1718,6 @@ static int do_ioctl_join_cluster(unsigned long arg)
 	acks_expected = 0;
 	init_completion(&cluster_thread_comp);
 	init_completion(&member_thread_comp);
-	if (allocate_nodeid_array())
-		return -ENOMEM;
 
 	kcluster_pid = kernel_thread(cluster_kthread, NULL, 0);
 	if (kcluster_pid < 0)
@@ -3463,7 +3467,7 @@ int kcl_barrier_register(char *name, unsigned int flags, unsigned int nodes)
 
 	/* We are not joined to a cluster */
 	if (!we_are_a_cluster_member)
-		return -ENOTCONN;
+		return -ENOENT;
 
 	/* Must have a valid name */
 	if (name == NULL || strlen(name) > MAX_BARRIER_NAME_LEN - 1)

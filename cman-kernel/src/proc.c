@@ -28,6 +28,7 @@
 #include "config.h"
 
 extern int cluster_members;
+extern int highest_nodeid;
 extern struct list_head cluster_members_list;
 extern struct semaphore cluster_members_lock;
 extern struct cluster_node *quorum_device;
@@ -180,7 +181,6 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
  * we are */
 struct cluster_seq_info {
 	int nodeid;
-	int highest_nodeid;
 };
 
 static int cluster_open(struct inode *inode, struct file *file)
@@ -196,10 +196,7 @@ static void *cluster_seq_start(struct seq_file *m, loff_t * pos)
 	if (!csi)
 		return NULL;
 
-	/* Keep highest_nodeid here so we don't need to keep traversing the
-	 * list to find it */
 	csi->nodeid = *pos;
-	csi->highest_nodeid = get_highest_nodeid();
 
 	/* Print the header */
 	if (*pos == 0) {
@@ -213,7 +210,7 @@ static void *cluster_seq_next(struct seq_file *m, void *p, loff_t * pos)
 	struct cluster_seq_info *csi = p;
 
 	*pos = ++csi->nodeid;
-	if (csi->nodeid > csi->highest_nodeid)
+	if (csi->nodeid > highest_nodeid)
 		return NULL;
 
 	return csi;
