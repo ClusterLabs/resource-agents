@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.101 $) dnl cvs revision
+AC_REVISION($Revision: 1.102 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -432,6 +432,19 @@ AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw
 AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
 AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
+
+dnl ************************************************************************
+dnl checks for headers needed by clplumbing On BSD
+AC_CHECK_HEADERS(sys/syslimits.h sys/ucred.h)
+
+dnl ************************************************************************
+dnl checks for headers needed by clplumbing On Solaris
+AC_CHECK_HEADERS(sys/cred.h)
+
+dnl ************************************************************************
+dnl checks for headers needed by clplumbing On FreeBSD/Solaris
+AC_CHECK_HEADERS(sys/filio.h)
+
 dnl
 dnl	These next two are used to help us figure out whether to include
 dnl	some optional STONITH plugins...
@@ -475,6 +488,11 @@ samba_cv_HAVE_SOCKADDR_IN_SIN_LEN=yes,samba_cv_HAVE_SOCKADDR_IN_SIN_LEN=no,samba
 if test x"$samba_cv_HAVE_SOCKADDR_IN_SIN_LEN" = x"yes"; then
     AC_DEFINE(HAVE_SOCKADDR_IN_SIN_LEN)
 fi
+
+dnl Check for Crediential Structures. 
+dnl HAVE_STRUCT_CMSGCRED
+dnl HAVE_STRUCT_FCRED
+dnl HAVE_STRUCT_SOCKCRED
 
 dnl ************************************************************************
 dnl checks for compiler characteristics
