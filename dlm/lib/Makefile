@@ -22,7 +22,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS += -g -O -D_REENTRANT -I.
+CFLAGS += -g -O -D_REENTRANT -fpic -I.
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers

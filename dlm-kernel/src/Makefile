@@ -32,11 +32,10 @@ dlm-objs := ast.o config.o device.o dir.o lkb.o locking.o lockqueue.o \
 EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS
 
 all:
-	rm -f cluster service.h cnxman.h cnxman-socket.h
-	ln -s . cluster
-	ln -s ${incdir}/cluster/service.h .
-	ln -s ${incdir}/cluster/cnxman.h .
-	ln -s ${incdir}/cluster/cnxman-socket.h .
+	if [ ! -e cluster ]; then ln -s . cluster; fi
+	if [ ! -e service.h ]; then cp ${incdir}/cluster/service.h .; fi
+	if [ ! -e cnxman.h ]; then cp ${incdir}/cluster/cnxman.h .; fi
+	if [ ! -e cnxman-socket.h ]; then cp ${incdir}/cluster/cnxman-socket.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
