@@ -49,7 +49,7 @@ int dlm_query(void *lockspace,
 	int status = -EINVAL;
 	gd_lkb_t *target_lkb;
 	gd_lkb_t *query_lkb = NULL;	/* Our temporary LKB */
-	gd_ls_t  *ls = (gd_ls_t *) lockspace;
+	gd_ls_t  *ls = (gd_ls_t *) find_lockspace_by_local_id(lockspace);
 
 
 	if (!qinfo)
