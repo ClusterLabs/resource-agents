@@ -1,21 +1,8 @@
 * Not currently tested with GuLM.
 
-* Resource group state is not persistent.  That is, a disabled
-service will revert to the "stopped" state when the resource manager
-is restarted.  This may not be a problem; the only time you'll
-get here is after a loss of quorum.
-  - Might be better to start with all services disabled, but this would
-    break automatic recovery after a total cluster outage.
-  - Could have a tag in the RG group config: Don't start this automatically
-    initially.
-
 * Online configuration changes don't work yet (at all).
   - Need a way for CCS to notify clients of a configuration change
   - Still working out with visegrips.
-
-* OCF status/monitor check levels/time intervals don't work yet.
-  - These will eventually supercede the old "check interval" notion,
-    which is thus not implemented.
 
 * Samba failover is not complete.
   - We can do the old RHEL model which required everyone to have a copy
