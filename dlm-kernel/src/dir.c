@@ -22,6 +22,9 @@
 #include "recover.h"
 #include "util.h"
 
+static LIST_HEAD(expired_resdata_list);
+static spinlock_t expired_resdata_lock = SPIN_LOCK_UNLOCKED;
+
 /* 
  * We use the upper 16 bits of the hash value to select the directory node.
  * Low bits are used for distribution of rsb's among hash buckets on each node.
@@ -139,9 +142,21 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	}
 
 	if (rd->rd_sequence == sequence) {
-		log_debug(ls, "remove from %u seq %u", nodeid, sequence);
-		list_del(&rd->rd_list);
-		free_resdata(rd);
+		/* Expire immediately if timeout is 0 */
+		if (!dlm_config.resdir_expiretime) {
+			list_del(&rd->rd_list);
+			free_resdata(rd);
+			goto out;
+		}
+		/* If it's already on the timeout list, then just adjust the
+		 * expiry due time.
+		 */
+	        if (!rd->rd_duetime) {
+		  	spin_lock(&expired_resdata_lock);
+			list_add_tail(&rd->rd_expirelist, &expired_resdata_list);
+			spin_unlock(&expired_resdata_lock);
+	        }
+	    	rd->rd_duetime = jiffies + dlm_config.resdir_expiretime*HZ; 
 	} else {
 		log_debug(ls, "remove from %u seq %u id %u SEQ %3u",
 			  nodeid, sequence, rd->rd_master_nodeid,
@@ -150,6 +165,25 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 
       out:
 	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
+}
+
+/* Called now and then from astd */
+void process_expired_resdata(void)
+{
+    gd_resdata_t *rd;
+    struct list_head *pos, *tmp;
+	
+    spin_lock(&expired_resdata_lock);
+    list_for_each_safe(pos, tmp, &expired_resdata_list) {
+	    rd = list_entry(pos, gd_resdata_t, rd_expirelist);
+
+	    if (time_after(jiffies, rd->rd_duetime)) {
+	    	list_del(&rd->rd_list);
+	    	list_del(&rd->rd_expirelist);
+	    	free_resdata(rd);
+	    }
+    }
+    spin_unlock(&expired_resdata_lock);
 }
 
 void resdir_clear(gd_ls_t *ls)
@@ -163,6 +197,11 @@ void resdir_clear(gd_ls_t *ls)
 		while (!list_empty(head)) {
 			rd = list_entry(head->next, gd_resdata_t, rd_list);
 			list_del(&rd->rd_list);
+				if (rd->rd_duetime) {
+    					spin_lock(&expired_resdata_lock);
+					list_del(&rd->rd_expirelist);
+    					spin_unlock(&expired_resdata_lock);
+				}
 			free_resdata(rd);
 		}
 	}
@@ -415,6 +454,13 @@ static int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	} else
 		list_add_tail(&rd->rd_list,
 			      &ls->ls_resdir_hash[bucket].rb_reslist);
+
+	if (rd->rd_duetime) {
+		spin_lock(&expired_resdata_lock);
+		list_del(&rd->rd_expirelist);
+		spin_unlock(&expired_resdata_lock);
+	    	rd->rd_duetime = 0L;
+	}
 	*r_nodeid = rd->rd_master_nodeid;
 	*r_seq = rd->rd_sequence;
 	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);

@@ -22,6 +22,7 @@ struct config_info {
 	int lockidtbl;
 	int max_connections;
 	int deadlocktime;
+	int resdir_expiretime;
 };
 
 extern struct config_info dlm_config;

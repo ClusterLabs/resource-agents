@@ -28,5 +28,6 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 int resdir_rebuild_wait(gd_ls_t * ls);
 void resdir_clear(gd_ls_t *ls);
 void resdir_dump(gd_ls_t *ls);
+void process_expired_resdata(void);
 
 #endif				/* __DIR_DOT_H__ */

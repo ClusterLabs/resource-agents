@@ -162,6 +162,8 @@ struct gd_resdata {
 	uint32_t rd_master_nodeid;
 	uint16_t rd_length;
 	uint8_t rd_sequence;
+        unsigned long rd_duetime;
+        struct list_head rd_expirelist;
 	char rd_name[1];	/* <rd_length> bytes */
 };
 
