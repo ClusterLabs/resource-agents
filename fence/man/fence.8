@@ -17,12 +17,18 @@ The I/O Fencing documentation has been split into a number of sections.  Please
 refer to the table below to determine which man page coincides with the
 command/feature you are looking for.
 
-.TP 10
+.TP 20
 fence
 I/O Fencing overview (this man page)
 .TP
 fenced
 I/O Fencing daemon
+.TP
+fence_tool
+Manages fenced
+.TP
+fence_node
+Calls fence agent, used by lock_gulmd
 
 .SS I/O Fencing agents
 
@@ -62,9 +68,6 @@ for Vixel switches (PortDisable)
 .TP
 fence_wti
 for WTI Network Power Switch
-.TP
-fence_node
-for use by lock_gulmd
 
 .SH SEE ALSO
 gnbd(8), gfs(8)
