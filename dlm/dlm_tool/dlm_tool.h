@@ -35,8 +35,6 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "dlm_member.h"
-
 extern char *prog_name;
 
 #ifndef TRUE
@@ -60,11 +58,5 @@ do \
 	fprintf(stderr, fmt "\n", ##args); \
 } \
 while (0)
-
-int ls_create(int argc, char **argv);
-int ls_release(int argc, char **argv);
-int ls_lock(int argc, char **argv);
-int ls_unlock(int argc, char **argv);
-int ls_convert(int argc, char **argv);
 
 #endif  /*  __DLM_TOOL_DOT_H__  */

@@ -10,7 +10,29 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include "dlm_tool.h"
+#include <sys/types.h>
+#include <asm/types.h>
+#include <sys/uio.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/utsname.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <limits.h>
+#include <unistd.h>
+
+#include "dlm_member.h"
 
 #define PROC_MISC               "/proc/misc"
 #define PROC_DEVICES            "/proc/devices"
@@ -18,7 +40,10 @@
 #define DLM_MEMBER_CONTROL_DIR  "/dev/misc"
 #define DLM_MEMBER_CONTROL_NAME "dlm-member"
 
+#define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args);
+
 int control_fd = -1;
+
 
 static int get_proc_number(const char *file, const char *name, uint32_t *number)
 {
@@ -27,7 +52,7 @@ static int get_proc_number(const char *file, const char *name, uint32_t *number)
 	int c;
 
 	if (!(fl = fopen(file, "r"))) {
-		die("%s: fopen failed: %s", file, strerror(errno));
+		log_error("%s: fopen failed: %s", file, strerror(errno));
 		return 0;
 	}
 
@@ -130,16 +155,16 @@ void open_control(void)
 		 DLM_MEMBER_CONTROL_DIR, DLM_MEMBER_CONTROL_NAME);
 
 	if (!control_device_number(&major, &minor))
-		die("Is dlm missing from kernel?");
+		log_error("Is dlm missing from kernel?");
 
 	if (!control_exists(control, major, minor) &&
 	    !create_control(control, major, minor))
-		die("Failure to communicate with kernel dlm");
+		log_error("Failure to communicate with kernel dlm");
 
 	control_fd = open(control, O_RDWR);
 	if (control_fd < 0) 
-		die("Failure to communicate with kernel dlm: %s",
-		    strerror(errno));
+		log_error("Failure to communicate with kernel dlm: %s",
+		          strerror(errno));
 }
 
 int do_command(struct dlm_member_ioctl *mi)
@@ -148,12 +173,9 @@ int do_command(struct dlm_member_ioctl *mi)
 
 	open_control();
 
-	printf("do_command %s data_size %d\n", mi->op, mi->data_size);
-
 	error = ioctl(control_fd, DLM_MEMBER_OP, mi);
-
 	if (error)
-		printf("ioctl error %d errno %d\n", error, errno);
+		log_error("ioctl error %d errno %d\n", error, errno);
 
 	return error;
 }

@@ -27,10 +27,13 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-dlm_tool: main.o ioctl.o lock.o
+dlm_tool: main.o ioctl.o lock.o action.o
 	$(CC) $(LDFLAGS) -o $@ $^ -ldlm_lt -lpthread
 
 main.o: main.c dlm_tool.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+action.o: action.c dlm_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 ioctl.o: ioctl.c dlm_tool.h
