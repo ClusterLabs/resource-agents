@@ -97,6 +97,7 @@ gl_hash(struct lm_lockname *name)
 static __inline__ void
 glock_hold(struct gfs_glock *gl)
 {
+	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
 	atomic_inc(&gl->gl_count);
 }
 
@@ -157,7 +158,7 @@ search_bucket(struct gfs_gl_hash_bucket *bucket, struct lm_lockname *name)
 		if (!lm_name_equal(&gl->gl_name, name))
 			continue;
 
-		glock_hold(gl);
+		atomic_inc(&gl->gl_count);
 
 		return gl;
 	}
@@ -339,7 +340,6 @@ gfs_glock_get(struct gfs_sbd *sdp,
 void
 gfs_glock_hold(struct gfs_glock *gl)
 {
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
 	glock_hold(gl);
 }
 
@@ -2263,7 +2263,7 @@ examine_bucket(glock_examiner examiner,
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 
-			glock_hold(gl);
+			atomic_inc(&gl->gl_count);
 
 			break;
 		}
