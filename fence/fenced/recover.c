@@ -461,7 +461,7 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 			list_del(&node->list);
 			free(node);
 		}
-		sleep(1);
+		sleep(5);
 	}
 
 	ccs_disconnect(cd);
