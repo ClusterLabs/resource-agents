@@ -477,6 +477,14 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	remove_lockspace(ls);
 
 	/*
+	 * Suspend astd before doing the dlm_dir_clear() and kfree(),
+	 * otherwise astd can be processing an ast which can call release_rsb()
+	 * and then dlm_dir_remove() which references ls_dirtbl after
+	 * it has been freed.
+	 */
+	astd_suspend();
+
+	/*
 	 * Free direntry structs.
 	 */
 
@@ -486,8 +494,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	/*
 	 * Free all lkb's on lkbtbl[] lists.
 	 */
-
-	astd_suspend();
 
 	for (i = 0; i < ls->ls_lkbtbl_size; i++) {
 		head = &ls->ls_lkbtbl[i].list;
