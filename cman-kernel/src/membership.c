@@ -174,7 +174,7 @@ static int responses_collected;
 static int responses_expected;
 
 /* Current cluster generation number */
-static int cluster_generation = 1;
+int cluster_generation = 1;
 
 /* When another node initiates a transtion then store it's pointer in here so
  * we can check for other nodes trying to spoof us */
@@ -378,19 +378,28 @@ static int membership_kthread(void *unused)
 
 		/* Got a JOINACK but no JOIN-CONF, start waiting for HELLO
 		 * messages again */
-		if (node_state == JOINACK
-		    && time_after(jiffies,
-				  join_time + cman_config.join_timeout * HZ)) {
+		if (node_state == JOINACK &&
+		    time_after(jiffies,
+			       join_time + cman_config.join_timeout * HZ)) {
 			P_MEMB
 			    ("Waited a long time for a join-conf, going back to JOINWAIT state\n");
 			node_state = JOINWAIT;
 			joinwait_time = jiffies;
 		}
 
-		/* Have we been in joinwait/joining for too long... */
-		if ((node_state == JOINWAIT || node_state == JOINING)
-		    && time_after(jiffies, joinwait_time +
-				   cman_config.join_timeout * HZ)) {
+		/* Have we had an ACK for our JOINREQ message ? */
+		if (node_state == JOINING &&
+		    time_after(jiffies,
+			       join_time + cman_config.join_timeout * HZ)) {
+			P_MEMB("didn't get JOINACK, going back to JOINWAIT\n");
+			node_state = JOINWAIT;
+			joinwait_time = jiffies;
+		}
+
+		/* Have we been in joinwait for too long... */
+		if (node_state == JOINWAIT &&
+		    time_after(jiffies,
+			       joinwait_time + cman_config.joinwait_timeout * HZ)) {
 			printk(CMAN_NAME
 			       ": Been in JOINWAIT for too long - giving up\n");
 			goto leave_cluster;
