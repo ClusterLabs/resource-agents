@@ -30,11 +30,13 @@
 #include <sys/ioctl.h>
 
 #include "gio_wiretypes.h"
-#include "gulm_defines.h"
 #include "xdr.h"
 #include "utils_ip.h"
 #include "utils_tostr.h"
 #include "utils_verb_flags.h"
+#define DEBUG  /* don't print errors here to syslog */
+#include "gulm_defines.h"
+#undef DEBUG
 
 char *prog_name;
 
