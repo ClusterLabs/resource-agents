@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: Filesystem.in,v 1.2 2005/03/17 05:35:50 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -97,7 +97,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor}
-	$Id: Filesystem.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: Filesystem.in,v 1.2 2005/03/17 05:35:50 alan Exp $
 	EOT
 }
 
@@ -126,13 +126,13 @@ The name of block device for the filesystem.
 <longdesc lang="en">
 The mount point for the filesystem.
 </longdesc>
-<shortdesc lang="en">mount pint</shortdesc>
+<shortdesc lang="en">mount point</shortdesc>
 <content type="string" default="" />
 </parameter>
 
 <parameter name="fstype" unique="0">
 <longdesc lang="en">
-The name of the filesystem type.
+The type of filesystem to be mounted.
 </longdesc>
 <shortdesc lang="en">filesystem type</shortdesc>
 <content type="string" default="" />
@@ -140,7 +140,7 @@ The name of the filesystem type.
 
 <parameter name="options" unique="0">
 <longdesc lang="en">
-The options to be given as -o options to mount.
+Any extra options to be given as -o options to mount.
 </longdesc>
 <shortdesc lang="en">options</shortdesc>
 <content type="string" default="" />
@@ -190,8 +190,8 @@ Filesystem_start()
 	# See if the device is already mounted.
 	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
 	if [ $? -ne 1 ] ; then
-	    ocf_log "err" "Filesystem $MOUNTPOINT is already mounted!"
-	    return 1;
+	    ocf_log "info" "Filesystem $MOUNTPOINT is already mounted."
+	    return 0;
 	fi
 
 	# Insert SCSI module
@@ -220,7 +220,7 @@ Filesystem_start()
 	  $FSCK -t $FSTYPE -a $DEVICE
 	
 	  # NOTE: if any errors at all are detected, it returns non-zero
-	  # if the error is >4 then there is a big problem
+	  # if the error is >= 4 then there is a big problem
 	  if
 	    [ $? -ge 4 ]
 	  then
@@ -268,7 +268,7 @@ Filesystem_stop()
 		fi
 		flushbufs $DEV
 	else
-		ocf_log "warn" "Filesystem $MOUNTPOINT not mounted?"
+		: $MOUNTPOINT Not mounted.  No problema!
 	fi
 
 	return $?
@@ -294,13 +294,13 @@ Filesystem_status()
 
 # Check the arguments passed to this script
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  [ $# -ne 1 ]
 then
   usage
   exit 1
 fi
 
-# Check the OCF_RESKEY_ environment virables
+# Check the OCF_RESKEY_ environment variables...
 DEVICE=$OCF_RESKEY_device
 MOUNTPOINT=$OCF_RESKEY_directory
 FSTYPE=$OCF_RESKEY_fstype
@@ -308,12 +308,14 @@ if [ ! -z "$OCF_RESKEY_options" ]; then
 	options = "-o $OCF_RESKEY_options"
 fi
 
+OP=$1
+
 case $DEVICE in
   -*) # Oh... An option to mount instead...  Typically -U or -L
 	;;
   [^/]*:/*)	# An NFS filesystem specification...
 	;;
-  *)	if [ ! -b "$DEVICE" ] ; then
+  *)	if [ ! -b "$DEVICE"  -a "X$OP" != Xstop ] ; then
 	  ocf_log "err" "Couldn't find device $DEVICE. Expected /dev/??? to exist"
 	  usage
 	  exit 1
@@ -334,7 +336,7 @@ check_util $FUSER
 check_util $MOUNT
 check_util $UMOUNT
 
-case $1 in
+case $OP in
   meta-data)		meta_data
 			exit $OCF_SUCCESS
 			;;
