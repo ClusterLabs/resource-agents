@@ -31,4 +31,4 @@ LD = ld
 RANLIB = ranlib
 
 # Default CFLAGS
-CFLAGS += -Wall ${INCLUDE}
+CFLAGS += -DSHAREDIR=\"@SHAREDIR@\" -Wall ${INCLUDE}

@@ -52,7 +52,11 @@
 #define RS_CONDSTOP	(9)	/** STOP if flagged with RF_NEEDSTOP */
 
 
-#define RESOURCE_ROOTDIR	"/usr/share/rgmanager"
+#ifndef SHAREDIR
+#define SHAREDIR		"/usr/share/rgmanager"
+#endif
+
+#define RESOURCE_ROOTDIR	SHAREDIR
 #define RESOURCE_TREE_ROOT	"//rm"
 #define RESOURCE_BASE		RESOURCE_TREE_ROOT "/resources"
 #define RESOURCE_ROOT_FMT 	RESOURCE_TREE_ROOT "/%s[%d]"
@@ -71,6 +75,7 @@ typedef struct _resource_attribute {
 
 
 typedef struct _resource_child {
+	char    rc_forbid;
 	int	rc_startlevel;
 	int	rc_stoplevel;
 	char	*rc_name;

@@ -418,10 +418,12 @@ store_attribute(resource_attr_t **attrsp, char *name, char *value, int flags)
    @param name		Name of child type
    @param start		Start level
    @param stop		Stop level
+   @param forbid	Do NOT allow this child type to exist
    @return		0 on success, nonzero on failure
  */
 int
-store_childtype(resource_child_t **childp, char *name, int start, int stop)
+store_childtype(resource_child_t **childp, char *name, int start, int stop,
+		int forbid)
 {
 	int x = 0;
 	resource_child_t *child = *childp;
@@ -436,6 +438,7 @@ store_childtype(resource_child_t **childp, char *name, int start, int stop)
 		child[0].rc_name = name;
 		child[0].rc_startlevel = start;
 		child[0].rc_stoplevel = stop;
+		child[0].rc_forbid = forbid;
 		child[1].rc_name = NULL;
 
 		*childp = child;
@@ -451,6 +454,7 @@ store_childtype(resource_child_t **childp, char *name, int start, int stop)
 	child[x].rc_name = name;
 	child[x].rc_startlevel = start;
 	child[x].rc_stoplevel = stop;
+	child[x].rc_forbid = forbid;
 	child[x+1].rc_name = NULL;
 
 	*childp = child;
@@ -532,13 +536,17 @@ actions:
 
 
 children:
-	printf("Recognized child types:\n");
+	printf("Recognized child resource types:\n");
 	if (!rr->rr_childtypes) {
 		printf("  - None -\n\n");
 		return;
 	}
 	for (x = 0; rr->rr_childtypes[x].rc_name; x++) {
 		printf("  %s", rr->rr_childtypes[x].rc_name);
+		if (rr->rr_childtypes[x].rc_forbid) {
+			printf(" (forbidden)\n");
+			continue;
+		}
 		if (rr->rr_childtypes[x].rc_startlevel ||
 		    rr->rr_childtypes[x].rc_stoplevel) {
 			printf(" [");
@@ -692,7 +700,7 @@ _get_childtypes(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		resource_rule_t *rr)
 {
 	char *ret, *childname, xpath[256];
-	int x, startlevel = 0, stoplevel = 0;
+	int x, startlevel = 0, stoplevel = 0, forbid = 0;
 
 	for (x = 1; 1; x++) {
 		snprintf(xpath, sizeof(xpath), "%s/child[%d]/@type",
@@ -702,7 +710,7 @@ _get_childtypes(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		if (!ret)
 			break;
 
-		startlevel = stoplevel = 0;
+		startlevel = stoplevel = forbid = 0;
 		childname = ret;
 
 		/*
@@ -727,12 +735,22 @@ _get_childtypes(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		}
 
 		/*
+		   Get the 'forbidden' flag if it exists
+		 */
+		snprintf(xpath, sizeof(xpath), "%s/child[%d]/@forbid",
+			 base, x);
+		if ((ret = xpath_get_one(doc,ctx,xpath))) {
+			forbid = atoi(ret);
+			free(ret);
+		}
+
+		/*
 		   Store the attribute.  We'll ensure all required
 		   attributes are present soon.
 		 */
 		if (childname)
 			store_childtype(&rr->rr_childtypes, childname,
-					startlevel, stoplevel);
+					startlevel, stoplevel, forbid);
 	}
 
 	return 0;

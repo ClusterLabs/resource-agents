@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
 TARGETS=fs.sh group.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh
+	script.sh netfs.sh clusterfs.sh
 all:
 
 install:
