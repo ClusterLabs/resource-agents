@@ -19,7 +19,7 @@ TARGET= gfs_jadd
 SOURCE=	main.c \
 	ondisk.c
 
-CFLAGS= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
+CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
