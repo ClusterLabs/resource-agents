@@ -1619,6 +1619,7 @@ static struct cluster_node *remove_node(int nodeid)
 		if (node->us) {
 			printk(KERN_INFO CMAN_NAME
 			       ": killed by STARTTRANS or NOMINATE\n");
+			node_state = LEFT_CLUSTER;
 			quit_threads = 1;
 			wake_up_process(membership_task);
 			wake_up_interruptible(&cnxman_waitq);
