@@ -83,7 +83,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, node) {
 
-		if (strcmp(node->rn_resource->r_rule->rr_type, "group"))
+		if (strcmp(node->rn_resource->r_rule->rr_type, "resourcegroup"))
 			continue;
 
 		svcName = node->rn_resource->r_attrs->ra_value;
@@ -195,7 +195,7 @@ group_op(char *groupname, int op)
 
 	pthread_rwlock_rdlock(&resource_lock);
 	/* XXX get group from somewhere else */
-	res = find_resource_by_ref(&_resources, "group", groupname);
+	res = find_resource_by_ref(&_resources, "resourcegroup", groupname);
 	if (!res) {
 		pthread_rwlock_unlock(&resource_lock);
 		return -1;
@@ -252,7 +252,7 @@ group_property(char *groupname, char *property, char *ret, size_t len)
 	int x = 0;
 
 	pthread_rwlock_rdlock(&resource_lock);
-	res = find_resource_by_ref(&_resources, "group", groupname);
+	res = find_resource_by_ref(&_resources, "resourcegroup", groupname);
 	if (!res) {
 		pthread_rwlock_unlock(&resource_lock);
 		return -1;
@@ -317,7 +317,7 @@ send_rg_states(int fd)
 	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_resources, res) {
-		if (strcmp(res->r_rule->rr_type, "group"))
+		if (strcmp(res->r_rule->rr_type, "resourcegroup"))
 			continue;
 
 		send_rg_state(fd, res->r_attrs[0].ra_value);
@@ -420,13 +420,13 @@ init_resource_groups(void)
 	/* do this for each rg XXX don't do this on a reconfigure though*/
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type, "group"))
+		if (strcmp(curr->rn_resource->r_rule->rr_type, "resourcegroup"))
 			continue;
 
 		/* Group name */
 		name = curr->rn_resource->r_attrs->ra_value;
 
-		clulog(LOG_DEBUG, "Initializing group \"%s\"\n", name);
+		clulog(LOG_DEBUG, "Init. Resource Group \"%s\"\n", name);
 
 		rt_enqueue_request(rg.rs_name, RG_INIT, -1, 0, NODE_ID_NONE,
 				   0, 0);

@@ -9,7 +9,7 @@ meta_data()
 {
     cat <<EOT
 <?xml version="1.0"?>
-<resource-agent version="rgmanager 2.0" name="group">
+<resource-agent version="rgmanager 2.0" name="resourcegroup">
     <version>1.0</version>
 
     <longdesc lang="en">

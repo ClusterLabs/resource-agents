@@ -1170,12 +1170,12 @@ tree_delta_test(int argc, char **argv)
 		print_resource(curres);
 	} while (!list_done(&reslist2, curres));
 
-	curres = find_resource_by_ref(&reslist, "group", "oracle");
+	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
 
 	printf("CLEANING UP group oracle\n");
 	res_stop(&tree, curres, NULL);
 
-	curres = find_resource_by_ref(&reslist, "group", "oracle");
+	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
 	printf("Starting oracle...\n");
 	if (res_start(&tree, curres, NULL)) {
 		printf("Failed to start oracle\n");
@@ -1192,11 +1192,11 @@ tree_delta_test(int argc, char **argv)
 
 	/* HARDCODED TEST -- badbad */
 	printf("COND STOPPING whatever I need to from oracle...\n");
-	curres = find_resource_by_ref(&reslist, "group", "oracle");
+	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
 	res_condstop(&tree, curres, NULL);
 
 	printf("COND STARTING whatever I need to from oracle...\n");
-	curres = find_resource_by_ref(&reslist2, "group", "oracle");
+	curres = find_resource_by_ref(&reslist2, "resourcegroup", "oracle");
 	res_condstart(&tree2, curres, NULL);
 
 	return 0;
