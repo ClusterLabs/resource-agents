@@ -202,13 +202,19 @@ struct kcl_service_ops user_service_ops = {
 	.finish = user_finish
 };
 
-static int user_register(char *name, user_service_t **us_data)
+static int user_register(char *u_name, user_service_t **us_data)
 {
 	user_service_t *us;
-	int len = strlen(name);
-	int error;
+	char name[MAX_SERVICE_NAME_LEN+1];
+	int len, error;
 
-	if (len > MAX_SERVICE_NAME_LEN - 1)
+	memset(name, 0, MAX_SERVICE_NAME_LEN+1);
+
+	if (copy_from_user(&name, u_name, MAX_SERVICE_NAME_LEN))
+		return -EFAULT;
+
+	len = strlen(name);
+	if (len > MAX_SERVICE_NAME_LEN)
 		return -ENAMETOOLONG;
 	if (!len)
 		return -EINVAL;
