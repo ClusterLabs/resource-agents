@@ -19,7 +19,7 @@ include ${top_srcdir}/make/defines.mk
 
 all: $(TARGET)
 
-fence_apc: fence_apc.pl
+fence_bladecenter: fence_bladecenter.pl
 	: > $(TARGET)
 	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
 	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
