@@ -14,6 +14,7 @@
 #ifndef __LOCKING_DOT_H__
 #define __LOCKING_DOT_H__
 
+int dlm_modes_compat(int mode1, int mode2);
 void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state);
 void dlm_lock_stage3(struct dlm_lkb *lkb);
 int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast);

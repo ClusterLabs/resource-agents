@@ -224,9 +224,17 @@ static void process_asts(void)
 		}
 
 		if (flags & AST_BAST && !(flags & AST_DEL)) {
-			if (bast && lkb->lkb_status == GDLM_LKSTS_GRANTED &&
-			    !lkb->lkb_lockqueue_state)
-				bast(astparam, (int) lkb->lkb_bastmode);
+			int bmode = lkb->lkb_bastmode;
+
+			/* gr or rq mode of the lock may have changed since the
+			   ast was queued making the delivery unnecessary */
+
+			if (!bast || dlm_modes_compat(lkb->lkb_grmode, bmode))
+				continue;
+
+			if (lkb->lkb_rqmode == DLM_LOCK_IV ||
+			    !dlm_modes_compat(lkb->lkb_rqmode, bmode))
+				bast(astparam, bmode);
 		}
 
 		schedule();

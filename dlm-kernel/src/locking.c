@@ -96,15 +96,20 @@ const int __lvb_operations[8][8] = {
 	{  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
 
-static void grant_lock(struct dlm_lkb * lkb, int send_remote);
-static void send_blocking_asts(struct dlm_rsb * rsb, struct dlm_lkb * lkb);
+static void grant_lock(struct dlm_lkb *lkb, int send_remote);
+static void send_blocking_asts(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
 static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
-static int convert_lock(struct dlm_ls * ls, int mode, struct dlm_lksb *lksb,
+static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 			int flags, void *ast, void *astarg, void *bast,
 			struct dlm_range *range);
-static int dlm_lock_stage1(struct dlm_ls * lspace, struct dlm_lkb * lkb, int flags,
+static int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 			   char *name, int namelen);
 
+
+inline int dlm_modes_compat(int mode1, int mode2)
+{
+	return __dlm_compat_matrix[mode1 + 1][mode2 + 1];
+}
 
 static inline int first_in_list(struct dlm_lkb *lkb, struct list_head *head)
 {
