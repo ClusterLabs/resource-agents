@@ -312,10 +312,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 
 		if (reply->rl_status) {
 			DLM_ASSERT(reply->rl_status == -EEXIST,);
-			log_all(ls, "dir entry exists %x fr %d r %d %s",
-				lkb->lkb_id, nodeid, rsb->res_nodeid,
-				rsb->res_name);
-
 			if (rsb->res_nodeid == -1) {
 				msleep(500);
 				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);

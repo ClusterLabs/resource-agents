@@ -505,8 +505,6 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 				       rsb->res_length, &nodeid);
 		if (error) {
 			DLM_ASSERT(error == -EEXIST,);
-			log_all(ls, "dir entry exists %x %s", lkb->lkb_id,
-				rsb->res_name);
 			msleep(500);
 			dir_error = error;
 			goto retry;
