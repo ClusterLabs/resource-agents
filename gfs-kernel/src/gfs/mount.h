@@ -16,7 +16,4 @@
 
 int gfs_make_args(char *data, struct gfs_args *args);
 
-int gfs_mount_lockproto(struct gfs_sbd *sdp, int silent);
-void gfs_unmount_lockproto(struct gfs_sbd *sdp);
-
 #endif /* __MOUNT_DOT_H__ */

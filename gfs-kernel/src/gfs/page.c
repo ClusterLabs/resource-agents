@@ -80,7 +80,7 @@ gfs_inval_page(struct gfs_glock *gl)
 		struct address_space *mapping = inode->i_mapping;
 
 		truncate_inode_pages(mapping, 0);
-		GFS_ASSERT_INODE(!mapping->nrpages, ip,);
+		gfs_assert_withdraw(ip->i_sbd, !mapping->nrpages);
 
 		iput(inode);
 	}
@@ -106,6 +106,7 @@ gfs_sync_page_i(struct inode *inode, int flags)
 	if (!error && (flags & DIO_WAIT))
 		error = filemap_fdatawait(mapping);
 
+	/* Find a better way to report this to the user. */
 	if (error)
 		gfs_io_error_inode(vn2ip(inode));
 }
@@ -163,8 +164,6 @@ gfs_unstuffer_page(struct gfs_inode *ip, struct buffer_head *dibh,
 		release = TRUE;
 	}
 
-	GFS_ASSERT_INODE(PageLocked(page), ip,);
-
 	if (!PageUptodate(page)) {
 		void *kaddr = kmap(page);
 
@@ -187,10 +186,10 @@ gfs_unstuffer_page(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	if (!buffer_mapped(bh))
 		map_bh(bh, inode->i_sb, block);
-	else
-		GFS_ASSERT_INODE(bh->b_bdev == inode->i_sb->s_bdev &&
-				 bh->b_blocknr == block,
-				 ip,);
+	else if (gfs_assert_warn(ip->i_sbd,
+				 bh->b_bdev == inode->i_sb->s_bdev &&
+				 bh->b_blocknr == block))
+                map_bh(bh, inode->i_sb, block);
 
 	set_buffer_uptodate(bh);
 	mark_buffer_dirty(bh);
@@ -264,10 +263,10 @@ gfs_truncator_page(struct gfs_inode *ip, uint64_t size)
 
 	if (!buffer_mapped(bh))
 		map_bh(bh, inode->i_sb, dbn);
-	else
-		GFS_ASSERT_INODE(bh->b_bdev == inode->i_sb->s_bdev &&
-				 bh->b_blocknr == dbn,
-				 ip,);
+	else if (gfs_assert_warn(ip->i_sbd,
+				 bh->b_bdev == inode->i_sb->s_bdev &&
+				 bh->b_blocknr == dbn))
+		map_bh(bh, inode->i_sb, dbn);
 
 	set_buffer_uptodate(bh);
 	mark_buffer_dirty(bh);

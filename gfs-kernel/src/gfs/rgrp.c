@@ -110,7 +110,8 @@ gfs_mhc_add(struct gfs_rgrpd *rgd,
 	struct list_head *head;
 
 	for (x = 0; x < num; x++) {
-		gfs_meta_check(sdp, bh[x]);
+		if (gfs_meta_check(sdp, bh[x]))
+			return;
 
 		mc = kmem_cache_alloc(gfs_mhc_cachep, GFP_KERNEL);
 		if (!mc)
@@ -401,6 +402,7 @@ gfs_depend_sync(struct gfs_rgrpd *rgd)
 static void
 rgrp_verify(struct gfs_rgrpd *rgd)
 {
+	struct gfs_sbd *sdp = rgd->rd_sbd;
 	struct gfs_bitmap *bits = NULL;
 	uint32_t length = rgd->rd_ri.ri_length;
 	uint32_t count[4], tmp;
@@ -418,27 +420,39 @@ rgrp_verify(struct gfs_rgrpd *rgd)
 						 bits->bi_len, x);
 	}
 
-	GFS_ASSERT_RGRPD(count[0] == rgd->rd_rg.rg_free, rgd,
-			 printk("free data mismatch:  %u != %u\n",
-				count[0], rgd->rd_rg.rg_free););
+	if (count[0] != rgd->rd_rg.rg_free) {
+		if (gfs_consist_rgrpd(rgd))
+			printk("GFS: fsid=%s: free data mismatch:  %u != %u\n",
+			       sdp->sd_fsname, count[0], rgd->rd_rg.rg_free);
+		return;
+	}
 
 	tmp = rgd->rd_ri.ri_data -
 		(rgd->rd_rg.rg_usedmeta + rgd->rd_rg.rg_freemeta) -
 		(rgd->rd_rg.rg_useddi + rgd->rd_rg.rg_freedi) -
 		rgd->rd_rg.rg_free;
-	GFS_ASSERT_RGRPD(count[1] == tmp, rgd,
-			 printk("used data mismatch:  %u != %u\n",
-				count[1], tmp););
+	if (count[1] != tmp) {
+		if (gfs_consist_rgrpd(rgd))
+			printk("GFS: fsid=%s: used data mismatch:  %u != %u\n",
+			       sdp->sd_fsname, count[1], tmp);
+		return;
+	}
 
-	GFS_ASSERT_RGRPD(count[2] == rgd->rd_rg.rg_freemeta, rgd,
-			 printk("free metadata mismatch:  %u != %u\n",
-				count[2], rgd->rd_rg.rg_freemeta););
+	if (count[2] != rgd->rd_rg.rg_freemeta) {
+		if (gfs_consist_rgrpd(rgd))
+			printk("GFS: fsid=%s: free metadata mismatch:  %u != %u\n",
+			       sdp->sd_fsname, count[2], rgd->rd_rg.rg_freemeta);
+		return;
+	}
 
 	tmp = rgd->rd_rg.rg_usedmeta +
 		(rgd->rd_rg.rg_useddi + rgd->rd_rg.rg_freedi);
-	GFS_ASSERT_RGRPD(count[3] == tmp, rgd,
-			 printk("used metadata mismatch:  %u != %u\n",
-				count[3], tmp););
+	if (count[3] != tmp) {
+		if (gfs_consist_rgrpd(rgd))
+			printk("GFS: fsid=%s: used metadata mismatch:  %u != %u\n",
+			       sdp->sd_fsname, count[3], tmp);
+		return;
+	}
 }
 
 /**
@@ -489,7 +503,7 @@ gfs_blk2rgrpd(struct gfs_sbd *sdp, uint64_t blk)
 struct gfs_rgrpd *
 gfs_rgrpd_get_first(struct gfs_sbd *sdp)
 {
-	GFS_ASSERT_SBD(!list_empty(&sdp->sd_rglist), sdp,);
+	gfs_assert(sdp, !list_empty(&sdp->sd_rglist),);
 	return list_entry(sdp->sd_rglist.next, struct gfs_rgrpd, rd_list);
 }
 
@@ -628,15 +642,23 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 		bytes_left -= bytes;
 	}
 
-	GFS_ASSERT_RGRPD(!bytes_left, rgd,);
-	GFS_ASSERT_RGRPD((rgd->rd_bits[length - 1].bi_start +
-			  rgd->rd_bits[length - 1].bi_len) * GFS_NBBY ==
-			 rgd->rd_ri.ri_data, rgd,
-			 printk("start=%u len=%u offset=%u\n",
-				rgd->rd_bits[length - 1].bi_start,
-				rgd->rd_bits[length - 1].bi_len,
-				rgd->rd_bits[length - 1].bi_offset);
-			 gfs_rindex_print(&rgd->rd_ri););
+	if (bytes_left) {
+		gfs_consist_rgrpd(rgd);
+		return -EIO;
+	}
+        if ((rgd->rd_bits[length - 1].bi_start +
+	     rgd->rd_bits[length - 1].bi_len) * GFS_NBBY !=
+	    rgd->rd_ri.ri_data) {
+		if (gfs_consist_rgrpd(rgd)) {
+			gfs_rindex_print(&rgd->rd_ri);
+			printk("GFS: fsid=%s: start=%u len=%u offset=%u\n",
+			       sdp->sd_fsname,
+			       rgd->rd_bits[length - 1].bi_start,
+			       rgd->rd_bits[length - 1].bi_len,
+			       rgd->rd_bits[length - 1].bi_offset);
+		}
+		return -EIO;
+	}
 
 	rgd->rd_bh = kmalloc(length * sizeof(struct buffer_head *), GFP_KERNEL);
 	if (!rgd->rd_bh) {
@@ -663,8 +685,10 @@ gfs_ri_update(struct gfs_inode *ip)
 	char buf[sizeof(struct gfs_rindex)];
 	int error;
 
-	GFS_ASSERT_SBD(!do_mod(ip->i_di.di_size, sizeof(struct gfs_rindex)),
-		       sdp,);
+	if (do_mod(ip->i_di.di_size, sizeof(struct gfs_rindex))) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	clear_rgrpdi(sdp);
 
@@ -785,8 +809,8 @@ gfs_rgrp_read(struct gfs_rgrpd *rgd)
 	int error;
 
 	for (x = 0; x < length; x++) {
-		GFS_ASSERT_RGRPD(!rgd->rd_bh[x], rgd,);
-		rgd->rd_bh[x] = gfs_dgetblk(sdp, rgd->rd_ri.ri_addr + x, gl);
+		gfs_assert_warn(sdp, !rgd->rd_bh[x]);
+		rgd->rd_bh[x] = gfs_dgetblk(gl, rgd->rd_ri.ri_addr + x);
 	}
 
 	for (x = 0; x < length; x++) {
@@ -799,8 +823,11 @@ gfs_rgrp_read(struct gfs_rgrpd *rgd)
 		error = gfs_dreread(sdp, rgd->rd_bh[x], DIO_WAIT);
 		if (error)
 			goto fail;
-		gfs_metatype_check(sdp, rgd->rd_bh[x],
-				   (x) ? GFS_METATYPE_RB : GFS_METATYPE_RG);
+		if (gfs_metatype_check(sdp, rgd->rd_bh[x],
+				       (x) ? GFS_METATYPE_RB : GFS_METATYPE_RG)) {
+			error = -EIO;
+			goto fail;
+		}
 	}
 
 	if (rgd->rd_rg_vn != gl->gl_vn) {
@@ -896,7 +923,7 @@ gfs_alloc_get(struct gfs_inode *ip)
 {
 	struct gfs_alloc *al = ip->i_alloc;
 
-	GFS_ASSERT_INODE(!al, ip,);
+	gfs_assert_warn(ip->i_sbd, !al);
 
 	al = gmalloc(sizeof(struct gfs_alloc));
 	memset(al, 0, sizeof(struct gfs_alloc));
@@ -917,7 +944,8 @@ gfs_alloc_put(struct gfs_inode *ip)
 {
 	struct gfs_alloc *al = ip->i_alloc;
 
-	GFS_ASSERT_INODE(al, ip,);
+	if (gfs_assert_warn(ip->i_sbd, al))
+		return;
 
 	ip->i_alloc = NULL;
 	kfree(al);
@@ -1189,7 +1217,6 @@ get_local_rgrp(struct gfs_inode *ip)
 			break;
 
 		default:
-			GFS_ASSERT_RGRPD(error < 0, rgd,);
 			return error;
 		}
 	}
@@ -1210,12 +1237,10 @@ get_local_rgrp(struct gfs_inode *ip)
 			break;
 
 		case GLR_TRYFAILED:
-			GFS_ASSERT_RGRPD(flags == LM_FLAG_TRY, rgd,);
 			skipped++;
 			break;
 
 		default:
-			GFS_ASSERT_RGRPD(error < 0, rgd,);
 			return error;
 		}
 
@@ -1265,9 +1290,11 @@ gfs_inplace_reserve_i(struct gfs_inode *ip,
 	struct gfs_alloc *al = ip->i_alloc;
 	int error;
 
-	GFS_ASSERT_INODE(al->al_requested_di ||
-			 al->al_requested_data ||
-			 al->al_requested_meta, ip,);
+        if (gfs_assert_warn(sdp,
+			    al->al_requested_di ||
+			    al->al_requested_data ||
+			    al->al_requested_meta))
+		return -EINVAL;
 
 	error = gfs_rindex_hold(sdp, &al->al_ri_gh);
 	if (error)
@@ -1297,23 +1324,24 @@ gfs_inplace_reserve_i(struct gfs_inode *ip,
 void
 gfs_inplace_release(struct gfs_inode *ip)
 {
+	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 
-	GFS_ASSERT_INODE(al->al_alloced_di <= al->al_requested_di, ip,
-			 printk("al_alloced_di = %u, al_requested_di = %u\n",
-				al->al_alloced_di, al->al_requested_di);
-			 printk("al_file = %s, al_line = %u\n",
-				al->al_file, al->al_line););
-	GFS_ASSERT_INODE(al->al_alloced_meta <= al->al_reserved_meta, ip,
-			 printk("al_alloced_meta = %u, al_reserved_meta = %u\n",
-				al->al_alloced_meta, al->al_reserved_meta);
-			 printk("al_file = %s, al_line = %u\n",
-				al->al_file, al->al_line););
-	GFS_ASSERT_INODE(al->al_alloced_data <= al->al_reserved_data, ip,
-			 printk("al_alloced_data = %u, al_reserved_data = %u\n",
-				al->al_alloced_data, al->al_reserved_data);
-			 printk("al_file = %s, al_line = %u\n",
-				al->al_file, al->al_line););
+	if (gfs_assert_warn(sdp, al->al_alloced_di <= al->al_requested_di) == -1)
+		printk("GFS: fsid=%s: al_alloced_di = %u, al_requested_di = %u\n"
+		       "GFS: fsid=%s: al_file = %s, al_line = %u\n",
+		       sdp->sd_fsname, al->al_alloced_di, al->al_requested_di,
+		       sdp->sd_fsname, al->al_file, al->al_line);
+	if (gfs_assert_warn(sdp, al->al_alloced_meta <= al->al_reserved_meta) == -1)
+		printk("GFS: fsid=%s: al_alloced_meta = %u, al_reserved_meta = %u\n"
+		       "GFS: fsid=%s: al_file = %s, al_line = %u\n",
+		       sdp->sd_fsname, al->al_alloced_meta, al->al_reserved_meta,
+		       sdp->sd_fsname, al->al_file, al->al_line);
+	if (gfs_assert_warn(sdp, al->al_alloced_data <= al->al_reserved_data) == -1)
+		printk("GFS: fsid=%s: al_alloced_data = %u, al_reserved_data = %u\n"
+		       "GFS: fsid=%s: al_file = %s, al_line = %u\n",
+		       sdp->sd_fsname, al->al_alloced_data, al->al_reserved_data,
+		       sdp->sd_fsname, al->al_file, al->al_line);
 
 	al->al_rgd = NULL;
 	gfs_glock_dq_uninit(&al->al_rgd_gh);
@@ -1345,7 +1373,7 @@ gfs_get_block_type(struct gfs_rgrpd *rgd, uint64_t block)
 			break;
 	}
 
-	GFS_ASSERT_RGRPD(buf < length, rgd,);
+	gfs_assert(rgd->rd_sbd, buf < length,);
 	buf_block = rgrp_block - bits->bi_start * GFS_NBBY;
 
 	type = gfs_testbit(rgd,
@@ -1393,7 +1421,7 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 			break;
 	}
 
-	GFS_ASSERT_RGRPD(buf < length, rgd,);
+	gfs_assert(rgd->rd_sbd, buf < length,);
 
 	/* Convert scope of "goal" from rgrp-wide to within found bit block */
 	goal -= bits->bi_start * GFS_NBBY;
@@ -1416,7 +1444,8 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 		goal = 0;
 	}
 
-	GFS_ASSERT_RGRPD(x <= length, rgd,);
+	if (gfs_assert_withdraw(rgd->rd_sbd, x <= length))
+		blk = 0;
 
 	/* Attach bitmap buffer to trans, modify bits to do block alloc */
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[buf]);
@@ -1458,8 +1487,12 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 
 	/* Find rgrp */
 	rgd = gfs_blk2rgrpd(sdp, bstart);
-	GFS_ASSERT_SBD(rgd, sdp,
-		       printk("block = %"PRIu64"\n", bstart););
+	if (!rgd) {
+		if (gfs_consist(sdp))
+			printk("GFS: fsid=%s: block = %"PRIu64"\n",
+			       sdp->sd_fsname, bstart);
+		return NULL;
+	}
 
 	length = rgd->rd_ri.ri_length;
 
@@ -1474,7 +1507,7 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 				break;
 		}
 
-		GFS_ASSERT_RGRPD(buf < length, rgd,);
+		gfs_assert(rgd->rd_sbd, buf < length,);
 
 		/* Find bits and set 'em */
 		buf_blk = rgrp_blk - bits->bi_start * GFS_NBBY;
@@ -1530,7 +1563,7 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 		if (!x)
 			*first = blk;
 
-		bh[x] = gfs_dgetblk(sdp, rgd->rd_ri.ri_data1 + blk, rgd->rd_gl);
+		bh[x] = gfs_dgetblk(rgd->rd_gl, rgd->rd_ri.ri_data1 + blk);
 
 		gfs_prep_new_buffer(bh[x]);
 
@@ -1558,7 +1591,7 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 	/* Add all new meta-headers to meta-header cache */
 	gfs_mhc_add(rgd, bh, GFS_META_CLUMP);
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_free >= GFS_META_CLUMP, rgd,);
+	gfs_assert_withdraw(sdp, rgd->rd_rg.rg_free >= GFS_META_CLUMP);
 	rgd->rd_rg.rg_free -= GFS_META_CLUMP;
 	rgd->rd_rg.rg_freemeta += GFS_META_CLUMP;
 
@@ -1589,8 +1622,6 @@ gfs_blkalloc(struct gfs_inode *ip, uint64_t *block)
 	uint32_t goal, blk;
 	int same;
 
-	GFS_ASSERT_INODE(rgd, ip,);
-
 	same = (rgd->rd_ri.ri_addr == ip->i_di.di_goal_rgrp);
 	goal = (same) ? ip->i_di.di_goal_dblk : rgd->rd_last_alloc_data;
 
@@ -1606,7 +1637,7 @@ gfs_blkalloc(struct gfs_inode *ip, uint64_t *block)
 
 	*block = rgd->rd_ri.ri_data1 + blk;
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_free, rgd,);
+	gfs_assert_withdraw(sdp, rgd->rd_rg.rg_free);
 	rgd->rd_rg.rg_free--;
 
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[0]);
@@ -1635,8 +1666,6 @@ gfs_metaalloc(struct gfs_inode *ip, uint64_t *block)
 	int same;
 	int error;
 
-	GFS_ASSERT_INODE(rgd, ip,);
-
 	same = (rgd->rd_ri.ri_addr == ip->i_di.di_goal_rgrp);
 
 	if (!rgd->rd_rg.rg_freemeta) {
@@ -1660,7 +1689,7 @@ gfs_metaalloc(struct gfs_inode *ip, uint64_t *block)
 
 	*block = rgd->rd_ri.ri_data1 + blk;
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_freemeta, rgd,);
+	gfs_assert_withdraw(sdp, rgd->rd_rg.rg_freemeta);
 	rgd->rd_rg.rg_freemeta--;
 	rgd->rd_rg.rg_usedmeta++;
 
@@ -1691,8 +1720,6 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 	uint32_t goal, blk;
 	int error = 0;
 
-	GFS_ASSERT_INODE(rgd, dip,);
-
 	if (rgd->rd_rg.rg_freemeta)
 		/* pick up where we left off last time */
 		goal = rgd->rd_last_alloc_meta;
@@ -1715,7 +1742,7 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 	/* convert from rgrp scope (32-bit) to filesystem scope (64-bit) */
 	*block = rgd->rd_ri.ri_data1 + blk;
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_freemeta, rgd,);
+	gfs_assert_withdraw(rgd->rd_sbd, rgd->rd_rg.rg_freemeta);
 	rgd->rd_rg.rg_freemeta--;
 	rgd->rd_rg.rg_useddi++;
 
@@ -1748,6 +1775,8 @@ gfs_blkfree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 	struct gfs_rgrpd *rgd;
 
 	rgd = blkfree_internal(sdp, bstart, blen, GFS_BLKST_FREE);
+	if (!rgd)
+		return;
 
 	rgd->rd_rg.rg_free += blen;
 
@@ -1780,8 +1809,11 @@ gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 	struct gfs_rgrpd *rgd;
 
 	rgd = blkfree_internal(sdp, bstart, blen, GFS_BLKST_FREEMETA);
+	if (!rgd)
+		return;
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_usedmeta >= blen, rgd,);
+	if (rgd->rd_rg.rg_usedmeta < blen)
+		gfs_consist_rgrpd(rgd);
 	rgd->rd_rg.rg_usedmeta -= blen;
 	rgd->rd_rg.rg_freemeta += blen;
 
@@ -1807,14 +1839,16 @@ gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 void
 gfs_difree_uninit(struct gfs_rgrpd *rgd, uint64_t addr)
 {
-	struct gfs_sbd *sdp = rgd->rd_sbd;
 	struct gfs_rgrpd *tmp_rgd;
 
-	tmp_rgd = blkfree_internal(sdp, addr, 1,
+	tmp_rgd = blkfree_internal(rgd->rd_sbd, addr, 1,
 				   GFS_BLKST_FREEMETA);
-	GFS_ASSERT_RGRPD(rgd == tmp_rgd, rgd,);
+	if (!tmp_rgd)
+		return;
+	gfs_assert_withdraw(rgd->rd_sbd, rgd == tmp_rgd);
 
-	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_useddi, rgd,);
+	if (!rgd->rd_rg.rg_useddi)
+		gfs_consist_rgrpd(rgd);
 	rgd->rd_rg.rg_useddi--;
 	rgd->rd_rg.rg_freemeta++;
 
@@ -1838,7 +1872,6 @@ void
 gfs_difree(struct gfs_rgrpd *rgd, struct gfs_inode *ip)
 {
 	gfs_difree_uninit(rgd, ip->i_num.no_addr);
-
 	gfs_trans_add_quota(ip->i_sbd, -1, ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs_wipe_buffers(ip, rgd, ip->i_num.no_addr, 1);
 }
@@ -1863,12 +1896,16 @@ gfs_rlist_add(struct gfs_sbd *sdp, struct gfs_rgrp_list *rlist, uint64_t block)
 	unsigned int new_space;
 	unsigned int x;
 
-	GFS_ASSERT_SBD(rlist->rl_rgrps <= rlist->rl_space, sdp,);
-	GFS_ASSERT_SBD(!rlist->rl_ghs, sdp,);
+	if (gfs_assert_warn(sdp, !rlist->rl_ghs))
+		return;
 
 	rgd = gfs_blk2rgrpd(sdp, block);
-	GFS_ASSERT_SBD(rgd, sdp,
-		       printk("block = %"PRIu64"\n", block););
+	if (!rgd) {
+		if (gfs_consist(sdp))
+			printk("GFS: fsid=%s: block = %"PRIu64"\n",
+			       sdp->sd_fsname, block);
+		return;
+	}
 
 	for (x = 0; x < rlist->rl_rgrps; x++)
 		if (rlist->rl_rgd[x] == rgd)
@@ -2004,12 +2041,15 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 		next = rg->rg_freedi_list;
 
 		for (x = rg->rg_freedi; x--;) {
-			GFS_ASSERT_RGRPD(next.no_formal_ino &&
-					 next.no_addr, rgd,);
+			if (!next.no_formal_ino || !next.no_addr) {
+				gfs_consist_rgrpd(rgd);
+				error = -EIO;
+				goto fail_end_trans;
+			}
 
 			blkfree_internal(sdp, next.no_addr, 1, GFS_BLKST_FREE);
 
-			error = gfs_dread(sdp, next.no_addr, rgd->rd_gl,
+			error = gfs_dread(rgd->rd_gl, next.no_addr,
 					  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 			if (error)
 				goto fail_end_trans;
@@ -2017,7 +2057,12 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 			di = (struct gfs_dinode *)bh->b_data;
 			flags = di->di_flags;
 			flags = gfs32_to_cpu(flags);
-			GFS_ASSERT_RGRPD(flags & GFS_DIF_UNUSED, rgd,);
+			if (!(flags & GFS_DIF_UNUSED)) {
+				gfs_consist_rgrpd(rgd);
+				brelse(bh);
+				error = -EIO;
+				goto fail_end_trans;
+			}
 
 			gfs_inum_in(&next, (char *)&di->di_next_unused);
 
@@ -2028,7 +2073,11 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 			stats->rc_inodes++;
 		}
 
-		GFS_ASSERT_RGRPD(!next.no_formal_ino && !next.no_addr, rgd,);
+		if (next.no_formal_ino || next.no_addr) {
+			gfs_consist_rgrpd(rgd);
+			error = -EIO;
+			goto fail_end_trans;
+		}
 		rg->rg_freedi_list = next;
 
 		goal = 0;

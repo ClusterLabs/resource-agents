@@ -163,14 +163,13 @@ inode_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 static void
 inode_go_xmote_bh(struct gfs_glock *gl)
 {
-	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_holder *gh = gl->gl_req_gh;
 	struct buffer_head *bh;
 	int error;
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    (!gh || !(gh->gh_flags & GL_SKIP))) {
-		error = gfs_dread(sdp, gl->gl_name.ln_number, gl, DIO_START, &bh);
+		error = gfs_dread(gl, gl->gl_name.ln_number, DIO_START, &bh);
 		if (!error)
 			brelse(bh);
 	}
@@ -357,11 +356,9 @@ inode_go_unlock(struct gfs_glock *gl, int flags)
 static void
 inode_greedy(struct gfs_glock *gl)
 {
-	struct gfs_inode *ip = (struct gfs_inode *)gl->gl_object;
-	struct gfs_sbd *sdp = ip->i_sbd;
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	struct gfs_inode *ip = gl2ip(gl);
 	unsigned int new_time;
-
-	GFS_ASSERT_GLOCK(ip, gl,);
 
 	spin_lock(&ip->i_lock);
 
@@ -405,8 +402,6 @@ rgrp_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 {
 	struct gfs_rgrpd *rgd = gl2rgd(gl);
 
-	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
-
 	gfs_mhc_zap(rgd);
 	gfs_depend_sync(rgd);
 	gfs_glock_xmote_th(gl, state, flags);
@@ -425,8 +420,6 @@ static void
 rgrp_go_drop_th(struct gfs_glock *gl)
 {
 	struct gfs_rgrpd *rgd = gl2rgd(gl);
-
-	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
 
 	gfs_mhc_zap(rgd);
 	gfs_depend_sync(rgd);
@@ -472,15 +465,9 @@ rgrp_go_demote_ok(struct gfs_glock *gl)
 static int
 rgrp_go_lock(struct gfs_glock *gl, int flags)
 {
-	struct gfs_rgrpd *rgd = gl2rgd(gl);
-	int error = 0;
-
-	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
-
-	if (!(flags & GL_SKIP))
-		error = gfs_rgrp_read(rgd);
-
-	return error;
+	if (flags & GL_SKIP)
+		return 0;
+	return gfs_rgrp_read(gl2rgd(gl));
 }
 
 /**
@@ -498,14 +485,11 @@ static void
 rgrp_go_unlock(struct gfs_glock *gl, int flags)
 {
 	struct gfs_rgrpd *rgd = gl2rgd(gl);
-
-	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
-
-	if (!(flags & GL_SKIP)) {
-		gfs_rgrp_relse(rgd);
-		if (test_bit(GLF_DIRTY, &gl->gl_flags))
-			gfs_rgrp_lvb_fill(rgd);
-	}
+	if (flags & GL_SKIP)
+		return;
+	gfs_rgrp_relse(rgd);
+	if (test_bit(GLF_DIRTY, &gl->gl_flags))
+		gfs_rgrp_lvb_fill(rgd);
 }
 
 /**
@@ -522,15 +506,11 @@ static void
 trans_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 {
 	struct gfs_sbd *sdp = gl->gl_sbd;
-	int error;
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
 		gfs_sync_meta(sdp);
-
-		error = gfs_log_shutdown(sdp);
-		if (error)
-			gfs_io_error(sdp);
+		gfs_log_shutdown(sdp);
 	}
 
 	gfs_glock_xmote_th(gl, state, flags);
@@ -556,8 +536,10 @@ trans_go_xmote_bh(struct gfs_glock *gl)
 		j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
 
 		error = gfs_find_jhead(sdp, &sdp->sd_jdesc, j_gl, &head);
-		GFS_ASSERT_SBD(!error, sdp,);  /* FixMe!!! */
-		GFS_ASSERT_SBD(head.lh_flags & GFS_LOG_HEAD_UNMOUNT, sdp,);
+		if (error)
+			gfs_consist(sdp);
+		if (!(head.lh_flags & GFS_LOG_HEAD_UNMOUNT))
+			gfs_consist(sdp);
 
 		/*  Initialize some head of the log stuff  */
 		sdp->sd_sequence = head.lh_sequence;
@@ -581,14 +563,10 @@ static void
 trans_go_drop_th(struct gfs_glock *gl)
 {
 	struct gfs_sbd *sdp = gl->gl_sbd;
-	int error;
 
 	if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
 		gfs_sync_meta(sdp);
-
-		error = gfs_log_shutdown(sdp);
-		if (error)
-			gfs_io_error(sdp);
+		gfs_log_shutdown(sdp);
 	}
 
 	gfs_glock_drop_th(gl);

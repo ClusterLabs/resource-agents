@@ -147,13 +147,12 @@ alloc_page_backing(struct gfs_inode *ip, unsigned long index)
 		error = gfs_block_map(ip, lblock, &new, &dblock, &extlen);
 		if (error)
 			goto out_trans;
-		GFS_ASSERT_INODE(dblock, ip,);
 
 		lblock += extlen;
 		x += extlen;
 	}
 
-	GFS_ASSERT_INODE(al->al_alloced_meta || al->al_alloced_data, ip,);
+	gfs_assert_warn(sdp, al->al_alloced_meta || al->al_alloced_data);
 
  out_trans:
 	gfs_trans_end(sdp);

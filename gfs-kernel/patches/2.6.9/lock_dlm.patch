@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
---- linux-orig/fs/gfs_locking/lock_dlm/group.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-12-08 19:55:39.906198064 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-12-17 21:09:42.943443026 -0600
 @@ -0,0 +1,827 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -830,8 +830,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	.finish = mg_finish
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
---- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-12-08 19:55:39.917196392 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-12-17 21:09:42.956440012 -0600
 @@ -0,0 +1,704 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1538,8 +1538,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	do_dlm_lock(lp, r);
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
---- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-12-08 19:55:39.917196392 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-12-17 21:09:42.956440012 -0600
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1917,8 +1917,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
---- linux-orig/fs/gfs_locking/lock_dlm/main.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-12-08 19:55:39.918196240 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-12-17 21:09:42.956440012 -0600
 @@ -0,0 +1,330 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2251,9 +2251,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_AUTHOR("Red Hat, Inc.");
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
---- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-12-08 19:55:39.918196240 +0800
-@@ -0,0 +1,349 @@
+--- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-12-17 21:09:42.957439780 -0600
+@@ -0,0 +1,361 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2584,11 +2584,23 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +	kfree(dlm);
 +}
 +
++/**
++ * dlm_withdraw - withdraw from a lock space
++ * @lockspace: the lockspace to withdraw from
++ *
++ */
++
++static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
++{
++	DLM_ASSERT(FALSE,);
++}
++
 +struct lm_lockops lock_dlm_ops = {
 +	lm_proto_name:"lock_dlm",
 +	lm_mount:lm_dlm_mount,
 +	lm_others_may_mount:lm_dlm_others_may_mount,
 +	lm_unmount:lm_dlm_unmount,
++	lm_withdraw:lm_dlm_withdraw,
 +	lm_get_lock:lm_dlm_get_lock,
 +	lm_put_lock:lm_dlm_put_lock,
 +	lm_lock:lm_dlm_lock,
@@ -2604,8 +2616,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +	lm_owner:THIS_MODULE,
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
---- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-12-08 19:55:39.919196088 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-12-17 21:09:42.957439780 -0600
 @@ -0,0 +1,1236 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3844,8 +3856,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +	return 0;
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
---- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-12-08 19:55:39.919196088 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-12-17 21:09:42.958439548 -0600
 @@ -0,0 +1,432 @@
 +/******************************************************************************
 +*******************************************************************************

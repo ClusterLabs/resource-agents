@@ -19,9 +19,8 @@ int gfs_ail_empty_trans(struct gfs_sbd *sdp, struct gfs_trans *tr);
 
 /*  Asynchronous I/O Routines  */
 
-struct buffer_head *gfs_dgetblk(struct gfs_sbd *sdp, uint64_t blkno,
-				struct gfs_glock *gl);
-int gfs_dread(struct gfs_sbd *sdp, uint64_t blkno, struct gfs_glock *gl,
+struct buffer_head *gfs_dgetblk(struct gfs_glock *gl, uint64_t blkno);
+int gfs_dread(struct gfs_glock *gl, uint64_t blkno,
 	      int flags, struct buffer_head **bhp);
 
 void gfs_prep_new_buffer(struct buffer_head *bh);
@@ -168,28 +167,4 @@ gfs_buffer_copy_tail(struct buffer_head *to_bh, int to_head,
 	       from_head - to_head);
 }
 
-/**
- * gfs_buffer_print - print a buffer to the debug console
- * @bh: the buffer
- * @string:  what to print before the contents of the buffer
- *
- */
-
-static __inline__ void
-gfs_buffer_print(struct buffer_head *bh, char *string)
-{
-	unsigned int x, size = (bh)->b_size;
-	unsigned char *c = (bh)->b_data;
-
-	printk("%s\n", string);
-
-	for (x = 0; x < size; x++) {
-		printk("%.2X ", c[x]);
-		if (x % 16 == 15)
-			printk("\n");
-	}
-	if (x % 16 != 0)
-		printk("\n");
-}
-
-#endif				/*  __DIO_DOT_H__  */
+#endif /* __DIO_DOT_H__ */

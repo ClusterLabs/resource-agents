@@ -107,6 +107,7 @@ foreach $file (@files)
 	    $line =~ s/ (6) / holder[$1] /;
 	    $line =~ s/ (7) / first[$1] /;
 	    $line =~ s/ (8) / recurse[$1] /;
+	    $line =~ s/ (9) / aborted[$1] /;
 	}
 	if ($line =~ /owner/)
 	{

@@ -23,9 +23,11 @@
 
 #include "gfs.h"
 #include "daemon.h"
+#include "diaper.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
+#include "lm.h"
 #include "mount.h"
 #include "ops_export.h"
 #include "ops_fstype.h"
@@ -86,6 +88,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	vfs2sdp(sb) = sdp;
 	sdp->sd_vfs = sb;
+	gfs_diaper_register_sbd(sb->s_bdev, sdp);
 
 	/*  Init rgrp variables  */
 
@@ -175,11 +178,17 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift - GFS_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 
-	GFS_ASSERT_SBD(sizeof(struct gfs_sb) <= sdp->sd_sb.sb_bsize, sdp,);
+	if (sizeof(struct gfs_sb) > sdp->sd_sb.sb_bsize) {
+		printk("GFS: sizeof(struct gfs_sb) > sdp->sd_sb.sb_bsize\n"
+		       "GFS: %u > %u\n",
+		       (unsigned int)sizeof(struct gfs_sb), sdp->sd_sb.sb_bsize);
+		error = -EINVAL;
+		goto fail_vfree;
+	}
 
 	/*  Mount an inter-node lock module, check for local optimizations */
 
-	error = gfs_mount_lockproto(sdp, silent);
+	error = gfs_lm_mount(sdp, silent);
 	if (error)
 		goto fail_vfree;
 
@@ -284,6 +293,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sb_gh.gh_gl->gl_aspace->i_blkbits = sdp->sd_sb.sb_bsize_shift;
 
 	sb_set_blocksize(sb, sdp->sd_sb.sb_bsize);
+	set_blocksize(gfs_diaper_2real(sb->s_bdev), sdp->sd_sb.sb_bsize);
 
 	/*  Read-in journal index inode (but not the file contents, yet)  */
 
@@ -360,8 +370,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 			}
 		}
 
-		sdp->sd_lockstruct.ls_ops->lm_others_may_mount(sdp->sd_lockstruct.ls_lockspace);
-		sdp->sd_lockstruct.ls_first = FALSE;
+		gfs_lm_others_may_mount(sdp);
 	} else {
 		/*  We're not the first; replay only our own journal. */
 		error = gfs_recover_journal(sdp,
@@ -421,7 +430,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	if (error < 0) {
 		printk("GFS: fsid=%s: can't start recoverd thread: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_recover_dump;
+		goto fail_make_ro;
 	}
 	wait_for_completion(&sdp->sd_thread_completion);
 
@@ -572,7 +581,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
- fail_recover_dump:
+ fail_make_ro:
+	gfs_glock_force_drop(sdp->sd_trans_gl);
 	clear_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
 	gfs_unlinked_cleanup(sdp);
 	gfs_quota_cleanup(sdp);
@@ -615,7 +625,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
  fail_lockproto:
 	gfs_gl_hash_clear(sdp, TRUE);
-	gfs_unmount_lockproto(sdp);
+	gfs_lm_unmount(sdp);
 	gfs_clear_dirty_j(sdp);
 	while (invalidate_inodes(sb))
 		yield();
@@ -629,25 +639,127 @@ fill_super(struct super_block *sb, void *data, int silent)
 }
 
 /**
+ * gfs_test_bdev_super - 
+ * @sb:
+ * @data:
+ *
+ */
+
+int
+gfs_test_bdev_super(struct super_block *sb, void *data)
+{
+	return (void *)sb->s_bdev == data;	
+}
+
+/**
+ * gfs_test_bdev_super -
+ * @sb:
+ * @data:
+ *
+ */
+
+int
+gfs_set_bdev_super(struct super_block *sb, void *data)
+{
+	sb->s_bdev = data;
+	sb->s_dev = sb->s_bdev->bd_dev;
+	return 0;
+}
+
+/**
  * gfs_get_sb - 
  * @fs_type:
  * @flags:
  * @dev_name:
  * @data:
  *
+ * Rip off of get_sb_bdev().
+ *
  * Returns: the new superblock
  */
 
-struct super_block *gfs_get_sb(struct file_system_type *fs_type, int flags,
-			       const char *dev_name, void *data)
+struct super_block *
+gfs_get_sb(struct file_system_type *fs_type, int flags,
+	   const char *dev_name, void *data)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
+	struct block_device *real, *diaper;
+	struct super_block *sb;
+	int error = 0;
+
+	real = open_bdev_excl(dev_name, flags, fs_type);
+	if (IS_ERR(real))
+		return (struct super_block *)real;
+
+	diaper = gfs_diaper_get(real, flags);
+	if (IS_ERR(diaper)) {
+		close_bdev_excl(real);
+		return (struct super_block *)diaper;
+	}
+
+	down(&diaper->bd_mount_sem);
+	sb = sget(fs_type, gfs_test_bdev_super, gfs_set_bdev_super, diaper);
+	up(&diaper->bd_mount_sem);
+	if (IS_ERR(sb))
+		goto out;
+
+	if (sb->s_root) {
+		if ((flags ^ sb->s_flags) & MS_RDONLY) {
+			up_write(&sb->s_umount);
+			deactivate_super(sb);
+			sb = ERR_PTR(-EBUSY);
+		}
+		goto out;
+	} else {
+		char buf[BDEVNAME_SIZE];
+
+		sb->s_flags = flags;
+		strlcpy(sb->s_id, bdevname(real, buf), sizeof(sb->s_id));
+		sb->s_old_blocksize = block_size(real);
+		sb_set_blocksize(sb, sb->s_old_blocksize);
+		set_blocksize(real, sb->s_old_blocksize);
+		error = fill_super(sb, data, (flags & MS_VERBOSE) ? 1 : 0);
+		if (error) {
+			up_write(&sb->s_umount);
+			deactivate_super(sb);
+			sb = ERR_PTR(error);
+		} else
+			sb->s_flags |= MS_ACTIVE;
+	}
+
+	return sb;
+
+ out:
+	gfs_diaper_put(diaper);
+	close_bdev_excl(real);
+	return sb;
+}
+
+/**
+ * gfs_kill_sb - 
+ * @sb:
+ *
+ * Rip off of kill_block_super().
+ *
+ */
+
+void
+gfs_kill_sb(struct super_block *sb)
+{
+	struct block_device *diaper = sb->s_bdev;
+	struct block_device *real = gfs_diaper_2real(diaper);
+	unsigned long bsize = sb->s_old_blocksize;
+
+	generic_shutdown_super(sb);
+	set_blocksize(diaper, bsize);
+	set_blocksize(real, bsize);
+	gfs_diaper_put(diaper);
+	close_bdev_excl(real);
 }
 
 struct file_system_type gfs_fs_type = {
 	.name = "gfs",
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = gfs_get_sb,
-	.kill_sb = kill_block_super,
+	.kill_sb = gfs_kill_sb,
 	.owner = THIS_MODULE,
 };

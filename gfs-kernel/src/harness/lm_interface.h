@@ -153,6 +153,9 @@ struct lm_lockops {
 	/* Unmount the lock module */
 	void (*lm_unmount) (lm_lockspace_t *lockspace);
 
+	/* Abnormal unmount */
+	void (*lm_withdraw) (lm_lockspace_t *lockspace);
+
 	/*
 	 * Lock oriented operations
 	 */

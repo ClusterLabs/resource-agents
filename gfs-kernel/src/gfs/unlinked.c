@@ -105,6 +105,7 @@ void
 gfs_unlinked_hold(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_lock);
+	gfs_assert(sdp, ul->ul_count,);
 	ul->ul_count++;
 	spin_unlock(&sdp->sd_unlinked_lock);
 }
@@ -123,14 +124,14 @@ gfs_unlinked_put(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_lock);
 
-	GFS_ASSERT_SBD(ul->ul_count, sdp,);
+	gfs_assert(sdp, ul->ul_count,);
 	ul->ul_count--;
 
 	if (!ul->ul_count) {
-		GFS_ASSERT_SBD(!test_bit(ULF_IC_LIST, &ul->ul_flags) &&
-			       !test_bit(ULF_OD_LIST, &ul->ul_flags) &&
-			       !test_bit(ULF_LOCK, &ul->ul_flags),
-			       sdp,);
+		gfs_assert_warn(sdp,
+				!test_bit(ULF_IC_LIST, &ul->ul_flags) &&
+				!test_bit(ULF_OD_LIST, &ul->ul_flags) &&
+				!test_bit(ULF_LOCK, &ul->ul_flags));
 		list_del(&ul->ul_list);
 		spin_unlock(&sdp->sd_unlinked_lock);
 		kfree(ul);
@@ -202,7 +203,7 @@ gfs_unlinked_lock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_lock);
 
-	GFS_ASSERT_SBD(!test_bit(ULF_LOCK, &ul->ul_flags), sdp,);
+	gfs_assert_warn(sdp, !test_bit(ULF_LOCK, &ul->ul_flags));
 	set_bit(ULF_LOCK, &ul->ul_flags);
 
 	ul->ul_count++;
@@ -222,15 +223,15 @@ gfs_unlinked_unlock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_lock);
 
-	GFS_ASSERT_SBD(test_bit(ULF_LOCK, &ul->ul_flags), sdp,);
+	gfs_assert_warn(sdp, test_bit(ULF_LOCK, &ul->ul_flags));
 	clear_bit(ULF_LOCK, &ul->ul_flags);
 
-	GFS_ASSERT_SBD(ul->ul_count, sdp,);
+	gfs_assert(sdp, ul->ul_count,);
 	ul->ul_count--;
 
 	if (!ul->ul_count) {
-		GFS_ASSERT_SBD(!test_bit(ULF_IC_LIST, &ul->ul_flags) &&
-			       !test_bit(ULF_OD_LIST, &ul->ul_flags), sdp,);
+		gfs_assert_warn(sdp, !test_bit(ULF_IC_LIST, &ul->ul_flags) &&
+				!test_bit(ULF_OD_LIST, &ul->ul_flags));
 		list_del(&ul->ul_list);
 		spin_unlock(&sdp->sd_unlinked_lock);
 		kfree(ul);
@@ -253,8 +254,8 @@ gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 {
 	struct gfs_unlinked *ul;
 
-	GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_ic_count) ==
-		       atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+	gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_ic_count) ==
+		   atomic_read(&sdp->sd_unlinked_od_count),);
 
 	ul = gfs_unlinked_get(sdp, inum, CREATE);
 
@@ -264,8 +265,8 @@ gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 	case GFS_LOG_DESC_IUL:
 		gfs_unlinked_hold(sdp, ul);
 		gfs_unlinked_hold(sdp, ul);
-		GFS_ASSERT_SBD(!test_bit(ULF_IC_LIST, &ul->ul_flags) &&
-			       !test_bit(ULF_OD_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, !test_bit(ULF_IC_LIST, &ul->ul_flags) &&
+			   !test_bit(ULF_OD_LIST, &ul->ul_flags),);
 		set_bit(ULF_IC_LIST, &ul->ul_flags);
 		set_bit(ULF_OD_LIST, &ul->ul_flags);
 		atomic_inc(&sdp->sd_unlinked_ic_count);
@@ -274,15 +275,15 @@ gfs_unlinked_merge(struct gfs_sbd *sdp, unsigned int type,
 		break;
 
 	case GFS_LOG_DESC_IDA:
-		GFS_ASSERT_SBD(test_bit(ULF_IC_LIST, &ul->ul_flags) &&
-			       test_bit(ULF_OD_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, test_bit(ULF_IC_LIST, &ul->ul_flags) &&
+			   test_bit(ULF_OD_LIST, &ul->ul_flags),);
 		clear_bit(ULF_IC_LIST, &ul->ul_flags);
 		clear_bit(ULF_OD_LIST, &ul->ul_flags);
 		gfs_unlinked_put(sdp, ul);
 		gfs_unlinked_put(sdp, ul);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_ic_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_ic_count) > 0,);
 		atomic_dec(&sdp->sd_unlinked_ic_count);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_od_count) > 0,);
 		atomic_dec(&sdp->sd_unlinked_od_count);
 
 		break;
@@ -304,11 +305,11 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 {
 	struct gfs_unlinked *ul;
 
-      restart:
+ restart:
 	gfs_log_lock(sdp);
 
-	GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_ic_count) ==
-		       atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+	gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_ic_count) ==
+		   atomic_read(&sdp->sd_unlinked_od_count),);
 
 	spin_lock(&sdp->sd_unlinked_lock);
 
@@ -323,11 +324,12 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 			schedule_timeout(HZ);
 			goto restart;
 		}
-		GFS_ASSERT_SBD(ul->ul_count == 2, sdp,);
+		gfs_assert(sdp, ul->ul_count == 2,);
 
-		GFS_ASSERT_SBD(test_bit(ULF_IC_LIST, &ul->ul_flags) &&
-			       test_bit(ULF_OD_LIST, &ul->ul_flags) &&
-			       !test_bit(ULF_LOCK, &ul->ul_flags), sdp,);
+		gfs_assert_warn(sdp,
+				test_bit(ULF_IC_LIST, &ul->ul_flags) &&
+				test_bit(ULF_OD_LIST, &ul->ul_flags) &&
+				!test_bit(ULF_LOCK, &ul->ul_flags));
 
 		list_del(&ul->ul_list);
 
@@ -341,8 +343,8 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 
 	spin_unlock(&sdp->sd_unlinked_lock);
 
-	GFS_ASSERT_SBD(!atomic_read(&sdp->sd_unlinked_ic_count) &&
-		       !atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+	gfs_assert(sdp, !atomic_read(&sdp->sd_unlinked_ic_count) &&
+		   !atomic_read(&sdp->sd_unlinked_od_count),);
 
 	gfs_log_unlock(sdp);
 }
@@ -434,7 +436,9 @@ gfs_unlinked_dealloc(struct gfs_sbd *sdp)
 	}
 
  out:
-	if (error && error != -EROFS)
+	if (error &&
+	    error != -EROFS &&
+	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		printk("GFS: fsid=%s: error deallocating inodes: %d\n",
 		       sdp->sd_fsname, error);
 }

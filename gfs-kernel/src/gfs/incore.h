@@ -417,7 +417,8 @@ struct gfs_glock_operations {
                               *   is satisfied */
 #define HIF_HOLDER      (6)  /* We have been granted a hold on the lock */
 #define HIF_FIRST       (7)  /* We are first holder to get the lock */
-#define HIF_RECURSE     (9)  /* >1 hold requests on same glock by same process*/
+#define HIF_RECURSE     (8)  /* >1 hold requests on same glock by same process*/
+#define HIF_ABORTED     (9) /* Aborted before being submitted */
 
 struct gfs_holder {
 	struct list_head gh_list;      /* Link to one of glock's holder lists */
@@ -1092,6 +1093,11 @@ struct gfs_sbd {
 	atomic_t sd_lm_lock_calls;
 	atomic_t sd_lm_unlock_calls;
 	atomic_t sd_lm_callbacks;
+
+	atomic_t sd_lm_outstanding;
+	atomic_t sd_bio_reads;
+	atomic_t sd_bio_writes;
+	atomic_t sd_bio_outstanding;
 
 	/* total calls from Linux VFS handled since mount */
 	atomic_t sd_ops_address;

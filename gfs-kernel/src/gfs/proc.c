@@ -73,44 +73,44 @@ do_list(char *user_buf, size_t size)
 {
 	struct list_head *tmp;
 	struct gfs_sbd *sdp = NULL;
-	unsigned int s = 0, o = 0;
+	unsigned int x;
 	char num[21];
 	char *buf;
 	int error = 0;
 
 	down(&gfs_fs_lock);
 
+	x = 0;
 	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
 		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
-		s += sprintf(num, "%lu", (unsigned long)sdp) +
+		x += sprintf(num, "%lu", (unsigned long)sdp) +
 			strlen(sdp->sd_vfs->s_id) +
 			strlen(sdp->sd_fsname) + 3;
 	}
 
-	if (!s)
+	if (!x)
 		goto out;
 
 	error = -EFBIG;
-	if (s > size)
+	if (x > size)
 		goto out;
 
 	error = -ENOMEM;
-	buf = kmalloc(s + 1, GFP_KERNEL);
+	buf = kmalloc(x + 1, GFP_KERNEL);
 	if (!buf)
 		goto out;
 
+	x = 0;
 	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
 		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
-		o += sprintf(buf + o, "%lu %s %s\n",
+		x += sprintf(buf + x, "%lu %s %s\n",
 			     (unsigned long)sdp, sdp->sd_vfs->s_id, sdp->sd_fsname);
 	}
 
-	GFS_ASSERT_SBD(o <= s, sdp,);
-
-	if (copy_to_user(user_buf, buf, o))
+	if (copy_to_user(user_buf, buf, x))
 		error = -EFAULT;
 	else
-		error = o;
+		error = x;
 
 	kfree(buf);
 

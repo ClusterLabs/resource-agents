@@ -27,8 +27,8 @@
 #include "dio.h"
 #include "glock.h"
 #include "inode.h"
+#include "lm.h"
 #include "log.h"
-#include "mount.h"
 #include "ops_super.h"
 #include "page.h"
 #include "proc.h"
@@ -93,6 +93,9 @@ gfs_put_super(struct super_block *sb)
 {
 	struct gfs_sbd *sdp = vfs2sdp(sb);
 	int error;
+
+        if (!sdp)
+                return;
 
 	atomic_inc(&sdp->sd_ops_super);
 
@@ -181,7 +184,7 @@ gfs_put_super(struct super_block *sb)
 	gfs_gl_hash_clear(sdp, TRUE);
 
 	/*  Unmount the locking protocol  */
-	gfs_unmount_lockproto(sdp);
+	gfs_lm_unmount(sdp);
 
 	/*  At this point, we're through participating in the lockspace  */
 
@@ -294,7 +297,8 @@ gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 	buf->f_blocks = usage.gu_total_blocks;
 	buf->f_bfree = usage.gu_free + usage.gu_free_dinode + usage.gu_free_meta;
 	buf->f_bavail = usage.gu_free + usage.gu_free_dinode + usage.gu_free_meta;
-	buf->f_files = usage.gu_used_dinode + usage.gu_free_dinode + usage.gu_free_meta + usage.gu_free;
+	buf->f_files = usage.gu_used_dinode + usage.gu_free_dinode +
+		usage.gu_free_meta + usage.gu_free;
 	buf->f_ffree = usage.gu_free_dinode + usage.gu_free_meta + usage.gu_free;
 	buf->f_namelen = GFS_FNAMESIZE;
 

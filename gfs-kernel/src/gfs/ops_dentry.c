@@ -39,7 +39,8 @@ static int
 gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 {
 	struct dentry *parent = dget_parent(dentry);
-	struct gfs_inode *dip;
+	struct gfs_inode *dip = vn2ip(parent->d_inode);
+	struct gfs_sbd *sdp = dip->i_sbd;
 	struct inode *inode;
 	struct gfs_holder d_gh;
 	struct gfs_inode *ip;
@@ -49,11 +50,9 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 
 	lock_kernel();
 
-	dip = vn2ip(parent->d_inode);
+	atomic_inc(&sdp->sd_ops_dentry);
 
-	atomic_inc(&dip->i_sbd->sd_ops_dentry);
-
-	if (dip->i_sbd->sd_args.ar_localcaching)
+	if (sdp->sd_args.ar_localcaching)
 		goto valid;
 
 	inode = dentry->d_inode;
@@ -79,12 +78,14 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 	}
 
 	ip = vn2ip(inode);
-	GFS_ASSERT_SBD(ip, dip->i_sbd,);
 
 	if (ip->i_num.no_formal_ino != inum.no_formal_ino)
 		goto invalid_gunlock;
 
-	GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
+	if (ip->i_di.di_type != type) {
+		gfs_consist_inode(dip);
+		goto fail_gunlock;
+	}
 
  valid_gunlock:
 	gfs_glock_dq_uninit(&d_gh);

@@ -11,12 +11,16 @@
 *******************************************************************************
 ******************************************************************************/
 
-#ifndef __OPS_FSTYPE_DOT_H__
-#define __OPS_FSTYPE_DOT_H__
+#ifndef __DIAPER_DOT_H__
+#define __DIAPER_DOT_H__
 
-int gfs_test_bdev_super(struct super_block *sb, void *data);
-int gfs_set_bdev_super(struct super_block *sb, void *data);
+struct block_device *gfs_diaper_get(struct block_device *real, int flags);
+void gfs_diaper_put(struct block_device *diaper);
 
-extern struct file_system_type gfs_fs_type;
+void gfs_diaper_register_sbd(struct block_device *diaper, struct gfs_sbd *sdp);
+struct block_device *gfs_diaper_2real(struct block_device *diaper);
 
-#endif /* __OPS_FSTYPE_DOT_H__ */
+int gfs_diaper_init(void);
+void gfs_diaper_uninit(void);
+
+#endif /* __DIAPER_DOT_H__ */

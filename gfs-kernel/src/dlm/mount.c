@@ -328,11 +328,23 @@ static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 	kfree(dlm);
 }
 
+/**
+ * dlm_withdraw - withdraw from a lock space
+ * @lockspace: the lockspace to withdraw from
+ *
+ */
+
+static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
+{
+	DLM_ASSERT(FALSE,);
+}
+
 struct lm_lockops lock_dlm_ops = {
 	lm_proto_name:"lock_dlm",
 	lm_mount:lm_dlm_mount,
 	lm_others_may_mount:lm_dlm_others_may_mount,
 	lm_unmount:lm_dlm_unmount,
+	lm_withdraw:lm_dlm_withdraw,
 	lm_get_lock:lm_dlm_get_lock,
 	lm_put_lock:lm_dlm_put_lock,
 	lm_lock:lm_dlm_lock,

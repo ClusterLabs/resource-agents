@@ -78,76 +78,17 @@
 #define gl2rgd(gl) ((struct gfs_rgrpd *)(gl)->gl_object)
 #define gl2gl(gl) ((struct gfs_glock *)(gl)->gl_object)
 
-#define gfs_meta_check(sdp, bh) \
-do \
-{ \
-  uint32_t meta_check_magic = ((struct gfs_meta_header *)(bh)->b_data)->mh_magic; \
-  meta_check_magic = gfs32_to_cpu(meta_check_magic); \
-  GFS_ASSERT_SBD(meta_check_magic == GFS_MAGIC, (sdp), \
-		 struct gfs_meta_header meta_check_mh; \
-		 printk("Bad metadata at %"PRIu64"\n", \
-			(uint64_t)(bh)->b_blocknr); \
-		 gfs_meta_header_in(&meta_check_mh, (bh)->b_data); \
-		 gfs_meta_header_print(&meta_check_mh);); \
-} \
-while (0)
-
-#define gfs_metatype_check(sdp, bh, type) \
-do \
-{ \
-  uint32_t metatype_check_magic = ((struct gfs_meta_header *)(bh)->b_data)->mh_magic; \
-  uint32_t metatype_check_type = ((struct gfs_meta_header *)(bh)->b_data)->mh_type; \
-  metatype_check_magic = gfs32_to_cpu(metatype_check_magic); \
-  metatype_check_type = gfs32_to_cpu(metatype_check_type); \
-  GFS_ASSERT_SBD(metatype_check_magic == GFS_MAGIC && \
-		 metatype_check_type == (type), (sdp), \
-		 struct gfs_meta_header metatype_check_mh; \
-		 printk("Bad metadata at %"PRIu64", should be %u\n", \
-                        (uint64_t)(bh)->b_blocknr, (type)); \
-		 gfs_meta_header_in(&metatype_check_mh, (bh)->b_data); \
-		 gfs_meta_header_print(&metatype_check_mh);); \
-} \
-while (0)
-
-#define gfs_metatype_check2(sdp, bh, type1, type2) \
-do \
-{ \
-  uint32_t metatype_check_magic = ((struct gfs_meta_header *)(bh)->b_data)->mh_magic; \
-  uint32_t metatype_check_type = ((struct gfs_meta_header *)(bh)->b_data)->mh_type; \
-  metatype_check_magic = gfs32_to_cpu(metatype_check_magic); \
-  metatype_check_type = gfs32_to_cpu(metatype_check_type); \
-  GFS_ASSERT_SBD(metatype_check_magic == GFS_MAGIC && \
-		 (metatype_check_type == (type1) || \
-		  metatype_check_type == (type2)), (sdp), \
-		 struct gfs_meta_header metatype_check_mh; \
-		 printk("Bad metadata at %"PRIu64", should be %u or %u\n", \
-                        (uint64_t)(bh)->b_blocknr, (type1), (type2)); \
-		 gfs_meta_header_in(&metatype_check_mh, (bh)->b_data); \
-		 gfs_meta_header_print(&metatype_check_mh);); \
-} \
-while (0)
-
-#define gfs_metatype_set(sdp, bh, type, format) \
-do \
-{ \
-  gfs_meta_check((sdp), (bh)); \
-  ((struct gfs_meta_header *)(bh)->b_data)->mh_type = cpu_to_gfs32((type)); \
-  ((struct gfs_meta_header *)(bh)->b_data)->mh_format = cpu_to_gfs32((format)); \
-} \
-while (0)
-
 #define gfs_sprintf(fmt, args...) \
 do { \
-  if (buf) { \
-    if (*count + 256 > size) { \
-      error = -ENOMEM; \
-      goto out; \
-    } \
-    *count += snprintf(buf + *count, 256, fmt, ##args); \
-  } \
-  else \
-    printk(fmt, ##args); \
-} \
-while (0)
+	if (buf) { \
+		if (*count + 256 > size) { \
+			error = -ENOMEM; \
+			goto out; \
+		} \
+		*count += snprintf(buf + *count, 256, fmt, ##args); \
+	} \
+	else \
+		printk(fmt, ##args); \
+} while (0)
 
 #endif /* __GFS_DOT_H__ */

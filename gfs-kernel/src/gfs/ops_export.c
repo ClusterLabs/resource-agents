@@ -346,7 +346,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	if (gfs_get_block_type(rgd, inum.no_addr) != GFS_BLKST_USEDMETA)
 		goto fail_rgd;
 
-	error = gfs_dread(sdp, inum.no_addr, i_gh.gh_gl,
+	error = gfs_dread(i_gh.gh_gl, inum.no_addr,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
 		goto fail_rgd;

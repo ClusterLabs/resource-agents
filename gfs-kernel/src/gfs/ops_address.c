@@ -54,8 +54,6 @@ get_block(struct inode *inode, sector_t lblock,
 	if (error)
 		return error;
 
-	GFS_ASSERT_INODE(dblock || !create, ip,);
-
 	if (!dblock)
 		return 0;
 
@@ -83,11 +81,14 @@ get_block_noalloc(struct inode *inode, sector_t lblock,
 	int error;
 
 	error = get_block(inode, lblock, bh_result, FALSE);
+	if (error)
+		return error;
 
-	GFS_ASSERT_INODE(!create || buffer_mapped(bh_result),
-			 vn2ip(inode),);
+	if (gfs_assert_withdraw(vfs2sdp(inode->i_sb),
+				!create || buffer_mapped(bh_result)))
+		return -EIO;
 
-	return error;
+	return 0;
 }
 
 /**
@@ -115,8 +116,6 @@ get_blocks(struct inode *inode, sector_t lblock,
 	error = gfs_block_map(ip, lblock, &new, &dblock, &extlen);
 	if (error)
 		return error;
-
-	GFS_ASSERT_INODE(dblock || !create, ip,);
 
 	if (!dblock)
 		return 0;
@@ -151,11 +150,14 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
 	int error;
 
 	error = get_blocks(inode, lblock, max_blocks, bh_result, FALSE);
+	if (error)
+		return error;
 
-	GFS_ASSERT_INODE(!create || buffer_mapped(bh_result),
-			 vn2ip(inode),);
+	if (gfs_assert_withdraw(vfs2sdp(inode->i_sb),
+				!create || buffer_mapped(bh_result)))
+		return -EIO;
 
-	return error;
+	return 0;
 }
 
 /**
@@ -172,19 +174,18 @@ static int
 gfs_writepage(struct page *page, struct writeback_control *wbc)
 {
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
+	struct gfs_sbd *sdp = ip->i_sbd;
 	int error;
 
-	atomic_inc(&ip->i_sbd->sd_ops_address);
+	atomic_inc(&sdp->sd_ops_address);
 
-	GFS_ASSERT_INODE(gfs_glock_is_held_excl(ip->i_gl), ip,);
-	GFS_ASSERT_INODE(!gfs_is_stuffed(ip), ip,);
+	if (gfs_assert_withdraw(sdp, gfs_glock_is_held_excl(ip->i_gl)) ||
+	    gfs_assert_withdraw(sdp, !gfs_is_stuffed(ip)))
+		return -EIO;
 
 	error = block_write_full_page(page, get_block_noalloc, wbc);
 
 	gfs_flush_meta_cache(ip);
-
-	if (error == -EIO)
-		gfs_io_error_inode(ip);
 
 	return error;
 }
@@ -203,8 +204,6 @@ stuffed_readpage(struct gfs_inode *ip, struct page *page)
 	struct buffer_head *dibh;
 	void *kaddr;
 	int error;
-
-	GFS_ASSERT_INODE(PageLocked(page), ip,);
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (!error) {
@@ -274,10 +273,8 @@ gfs_readpage(struct file *file, struct page *page)
 
 	atomic_inc(&ip->i_sbd->sd_ops_address);
 
-	if (!gfs_glock_is_locked_by_me(ip->i_gl)) {
+	if (gfs_assert_warn(ip->i_sbd, gfs_glock_is_locked_by_me(ip->i_gl))) {
 		unlock_page(page);
-		gfs_warn(ip->i_sbd, "unlocked readpage request from process \"%s\"",
-			 current->comm);
 		return -ENOSYS;
 	}
 
@@ -289,9 +286,6 @@ gfs_readpage(struct file *file, struct page *page)
 			error = block_read_full_page(page, get_block);
 	} else
 		error = readi_readpage(page);
-
-	if (error == -EIO)
-		gfs_io_error_inode(ip);
 
 	return error;
 }
@@ -322,11 +316,8 @@ gfs_prepare_write(struct file *file, struct page *page,
 
 	atomic_inc(&sdp->sd_ops_address);
 
-	if (!gfs_glock_is_locked_by_me(ip->i_gl)) {
-                gfs_warn(ip->i_sbd, "unlocked prepare_write request from process \"%s\"",
-			 current->comm);
+	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)))
 		return -ENOSYS;
-	}
 
 	if (gfs_is_stuffed(ip)) {
 		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
@@ -339,9 +330,6 @@ gfs_prepare_write(struct file *file, struct page *page,
 			error = stuffed_readpage(ip, page);
 	} else
 		error = block_prepare_write(page, from, to, get_block);
-
-	if (error == -EIO)
-		gfs_io_error_inode(ip);
 
 	return error;
 }
@@ -371,8 +359,6 @@ gfs_commit_write(struct file *file, struct page *page,
 		struct buffer_head *dibh;
 		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
 		void *kaddr;
-
-		GFS_ASSERT_INODE(PageLocked(page), ip,);
 
 		error = gfs_get_inode_buffer(ip, &dibh);
 		if (error)
@@ -454,24 +440,21 @@ gfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = vn2ip(inode);
+	struct gfs_sbd *sdp = ip->i_sbd;
 	get_blocks_t *gb = get_blocks;
-	int error;
 
-	atomic_inc(&ip->i_sbd->sd_ops_address);
+	atomic_inc(&sdp->sd_ops_address);
 
-	GFS_ASSERT_INODE(gfs_glock_is_locked_by_me(ip->i_gl), ip,);
-	GFS_ASSERT_INODE(!gfs_is_stuffed(ip), ip,);
+	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)) ||
+	    gfs_assert_warn(sdp, !gfs_is_stuffed(ip)))
+		return -EINVAL;
 
 	if (rw == WRITE && !current_transaction)
 		gb = get_blocks_noalloc;
 
-	error = blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
-				   offset, nr_segs, gb, NULL);
-
-	if (error == -EIO)
-		gfs_io_error_inode(ip);	
-
-	return error;
+	return blockdev_direct_IO(rw, iocb, inode,
+				  inode->i_sb->s_bdev, iov,
+				  offset, nr_segs, gb, NULL);
 }
 
 struct address_space_operations gfs_file_aops = {

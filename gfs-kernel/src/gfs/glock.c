@@ -25,6 +25,7 @@
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
+#include "lm.h"
 #include "lops.h"
 #include "quota.h"
 #include "recovery.h"
@@ -110,7 +111,7 @@ gl_hash(struct lm_lockname *name)
 static __inline__ void
 glock_hold(struct gfs_glock *gl)
 {
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
+	gfs_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
 	atomic_inc(&gl->gl_count);
 }
 
@@ -125,7 +126,7 @@ glock_put(struct gfs_glock *gl)
 {
 	if (atomic_read(&gl->gl_count) == 1)
 		gfs_glock_schedule_for_reclaim(gl);
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
+	gfs_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
 	atomic_dec(&gl->gl_count);
 }
 
@@ -217,18 +218,18 @@ glock_free(struct gfs_glock *gl)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_list), gl,);
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) == 1, gl,);
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_holders), gl,);
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters1), gl,);
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters2), gl,);
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters3), gl,);
-	GFS_ASSERT_GLOCK(gl->gl_state == LM_ST_UNLOCKED, gl,);
-	GFS_ASSERT_GLOCK(!gl->gl_object, gl,);
-	GFS_ASSERT_GLOCK(!gl->gl_lvb, gl,);
-	GFS_ASSERT_GLOCK(list_empty(&gl->gl_reclaim), gl,);
+	gfs_assert_warn(sdp, list_empty(&gl->gl_list));
+	gfs_assert_warn(sdp, atomic_read(&gl->gl_count) == 1);
+	gfs_assert_warn(sdp, list_empty(&gl->gl_holders));
+	gfs_assert_warn(sdp, list_empty(&gl->gl_waiters1));
+        gfs_assert_warn(sdp, list_empty(&gl->gl_waiters2));
+	gfs_assert_warn(sdp, list_empty(&gl->gl_waiters3));
+	gfs_assert_warn(sdp, gl->gl_state == LM_ST_UNLOCKED);
+	gfs_assert_warn(sdp, !gl->gl_object);
+	gfs_assert_warn(sdp, !gl->gl_lvb);
+	gfs_assert_warn(sdp, list_empty(&gl->gl_reclaim));
 
-	sdp->sd_lockstruct.ls_ops->lm_put_lock(gl->gl_lock);
+	gfs_lm_put_lock(sdp, gl->gl_lock);
 
 	if (aspace)
 		gfs_aspace_put(aspace);
@@ -320,9 +321,7 @@ gfs_glock_get(struct gfs_sbd *sdp,
 
 	/* Ask lock module to find/create its structure for this lock
 	   (but this doesn't lock the inter-node lock yet) */
-	error = sdp->sd_lockstruct.ls_ops->lm_get_lock(sdp->sd_lockstruct.ls_lockspace,
-						       &name,
-						       &gl->gl_lock);
+	error = gfs_lm_get_lock(sdp, &name, &gl->gl_lock);
 	if (error)
 		goto fail_aspace;
 
@@ -432,7 +431,8 @@ gfs_holder_reinit(unsigned int state, int flags, struct gfs_holder *gh)
 {
 	int alloced;
 
-	GFS_ASSERT_GLOCK(list_empty(&gh->gh_list), gh->gh_gl,);
+	gfs_assert_warn(gh->gh_gl->gl_sbd,
+			list_empty(&gh->gh_list));
 
 	gh->gh_state = state;
 	gh->gh_flags = flags;
@@ -457,7 +457,7 @@ gfs_holder_uninit(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
 
-	GFS_ASSERT_GLOCK(list_empty(&gh->gh_list), gl,);
+	gfs_assert_warn(gl->gl_sbd, list_empty(&gh->gh_list));
 	gh->gh_gl = NULL;
 
 	glock_put(gl);
@@ -500,7 +500,9 @@ gfs_holder_get(struct gfs_glock *gl, unsigned int state, int flags)
 void
 gfs_holder_put(struct gfs_holder *gh)
 {
-	GFS_ASSERT_GLOCK(test_bit(HIF_ALLOCED, &gh->gh_iflags), gh->gh_gl,);
+	if (gfs_assert_warn(gh->gh_gl->gl_sbd,
+			    test_bit(HIF_ALLOCED, &gh->gh_iflags)))
+		return;
 	gfs_holder_uninit(gh);
 	kfree(gh);
 }
@@ -515,11 +517,13 @@ static void
 handle_recurse(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct list_head *tmp, *head, *next;
 	struct gfs_holder *tmp_gh;
 	int found = FALSE;
 
-	GFS_ASSERT_GLOCK(gh->gh_owner, gl,);
+	if (gfs_assert_warn(sdp, gh->gh_owner))
+		return;
 
 	for (head = &gl->gl_waiters3, tmp = head->next, next = tmp->next;
 	     tmp != head;
@@ -528,8 +532,7 @@ handle_recurse(struct gfs_holder *gh)
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
-		GFS_ASSERT_GLOCK(test_bit(HIF_RECURSE, &tmp_gh->gh_iflags),
-				 gl,);
+		gfs_assert_warn(sdp, test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
 
 		list_move_tail(&tmp_gh->gh_list, &gl->gl_holders);
 		tmp_gh->gh_error = 0;
@@ -540,7 +543,7 @@ handle_recurse(struct gfs_holder *gh)
 		found = TRUE;
 	}
 
-	GFS_ASSERT_GLOCK(found, gl,);
+	gfs_assert_warn(sdp, found);
 }
 
 /**
@@ -557,11 +560,13 @@ static void
 do_unrecurse(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct list_head *tmp, *head;
 	struct gfs_holder *tmp_gh, *last_gh = NULL;
 	int found = FALSE;
 
-	GFS_ASSERT_GLOCK(gh->gh_owner, gl,);
+	if (gfs_assert_warn(sdp, gh->gh_owner))
+		return;
 
 	for (head = &gl->gl_waiters3, tmp = head->next;
 	     tmp != head;
@@ -570,8 +575,7 @@ do_unrecurse(struct gfs_holder *gh)
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
-		GFS_ASSERT_GLOCK(test_bit(HIF_RECURSE, &tmp_gh->gh_iflags),
-				 gl,);
+		gfs_assert_warn(sdp, test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
 
 		/* found more than one */
 		if (found)
@@ -582,8 +586,8 @@ do_unrecurse(struct gfs_holder *gh)
 	}
 
 	/* found just one */
-	GFS_ASSERT_GLOCK(found, gl,);
-	clear_bit(HIF_RECURSE, &last_gh->gh_iflags);
+	if (!gfs_assert_warn(sdp, found))
+		clear_bit(HIF_RECURSE, &last_gh->gh_iflags);
 }
 
 /**
@@ -770,11 +774,11 @@ static void
 run_queue(struct gfs_glock *gl)
 {
 	struct gfs_holder *gh;
-	int blocked;
+	int blocked = TRUE;
 
 	for (;;) {
 		/* Another process is manipulating the glock structure;
-		 *   we can't do anything now */
+		   we can't do anything now */
 		if (test_bit(GLF_LOCK, &gl->gl_flags))
 			break;
 
@@ -786,7 +790,7 @@ run_queue(struct gfs_glock *gl)
 			if (test_bit(HIF_MUTEX, &gh->gh_iflags))
 				blocked = rq_mutex(gh);
 			else
-				GFS_ASSERT_GLOCK(FALSE, gl,);
+				gfs_assert_warn(gl->gl_sbd, FALSE);
 
 		/* Waiting to demote the lock, or drop greedy status */
 		} else if (!list_empty(&gl->gl_waiters2) &&
@@ -799,7 +803,7 @@ run_queue(struct gfs_glock *gl)
 			else if (test_bit(HIF_GREEDY, &gh->gh_iflags))
 				blocked = rq_greedy(gh);
 			else
-				GFS_ASSERT_GLOCK(FALSE, gl,);
+				gfs_assert_warn(gl->gl_sbd, FALSE);
 
 		/* Waiting to promote the lock */
 		} else if (!list_empty(&gl->gl_waiters3)) {
@@ -809,7 +813,7 @@ run_queue(struct gfs_glock *gl)
 			if (test_bit(HIF_PROMOTE, &gh->gh_iflags))
 				blocked = rq_promote(gh);
 			else
-				GFS_ASSERT_GLOCK(FALSE, gl,);
+				gfs_assert_warn(gl->gl_sbd, FALSE);
 
 		} else
 			break;
@@ -919,7 +923,8 @@ handle_callback(struct gfs_glock *gl, unsigned int state)
 	struct list_head *tmp, *head;
 	struct gfs_holder *gh, *new_gh = NULL;
 
-	GFS_ASSERT_GLOCK(state != LM_ST_EXCLUSIVE, gl,);
+	if (gfs_assert_warn(gl->gl_sbd, state != LM_ST_EXCLUSIVE))
+		return;
 
  restart:
 	spin_lock(&gl->gl_spin);
@@ -1004,14 +1009,15 @@ state_change(struct gfs_glock *gl, unsigned int new_state)
 static void
 xmote_bh(struct gfs_glock *gl, unsigned int ret)
 {
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 	struct gfs_holder *gh = gl->gl_req_gh;
 	int prev_state = gl->gl_state;
 	int op_done = TRUE;
 
-	GFS_ASSERT_GLOCK(test_bit(GLF_LOCK, &gl->gl_flags), gl,);
-	GFS_ASSERT_GLOCK(queue_empty(gl, &gl->gl_holders), gl,);
-	GFS_ASSERT_GLOCK(!(ret & LM_OUT_ASYNC), gl,);
+	gfs_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
+	gfs_assert_warn(sdp, queue_empty(gl, &gl->gl_holders));
+	gfs_assert_warn(sdp, !(ret & LM_OUT_ASYNC));
 
 	state_change(gl, ret & LM_OUT_ST_MASK);
 
@@ -1030,14 +1036,27 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 	if (!gh)
 		gl->gl_stamp = jiffies;
 
-	else if (test_bit(HIF_DEMOTE, &gh->gh_iflags)) {
+	else if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
+		spin_lock(&gl->gl_spin);
+		list_del_init(&gh->gh_list);
+		gh->gh_error = -EIO;
+		if (test_bit(HIF_RECURSE, &gh->gh_iflags))
+			do_unrecurse(gh);
+		spin_unlock(&gl->gl_spin);
+
+	} else if (test_bit(HIF_DEMOTE, &gh->gh_iflags)) {
 		spin_lock(&gl->gl_spin);
 		list_del_init(&gh->gh_list);
 		if (gl->gl_state == gh->gh_state ||
 		    gl->gl_state == LM_ST_UNLOCKED)
 			gh->gh_error = 0;
-		else
+		else {
+			if (gfs_assert_warn(sdp, gh->gh_flags &
+					    (LM_FLAG_TRY | LM_FLAG_TRY_1CB)) == -1)
+				printk("GFS: fsid=%s: ret = 0x%.8X\n",
+				       sdp->sd_fsname, ret);
 			gh->gh_error = GLR_TRYFAILED;
+		}
 		spin_unlock(&gl->gl_spin);
 
 		if (ret & LM_OUT_CANCELED)
@@ -1070,9 +1089,11 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 			do_unrecurse(gh);
 		spin_unlock(&gl->gl_spin);
 
-	} else
-		GFS_ASSERT_GLOCK(FALSE, gl,
-				 printk("ret = 0x%.8X\n", ret););
+	} else {
+		if (gfs_assert_withdraw(sdp, FALSE) == -1)
+			printk("GFS: fsid=%s: ret = 0x%.8X\n",
+			       sdp->sd_fsname, ret);
+	}
 
 	if (glops->go_xmote_bh)
 		glops->go_xmote_bh(gl);
@@ -1118,10 +1139,10 @@ gfs_glock_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 				 LM_FLAG_PRIORITY);
 	unsigned int lck_ret;
 
-	GFS_ASSERT_GLOCK(test_bit(GLF_LOCK, &gl->gl_flags), gl,);
-	GFS_ASSERT_GLOCK(queue_empty(gl, &gl->gl_holders), gl,);
-	GFS_ASSERT_GLOCK(state != LM_ST_UNLOCKED, gl,);
-	GFS_ASSERT_GLOCK(state != gl->gl_state, gl,);
+	gfs_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
+	gfs_assert_warn(sdp, queue_empty(gl, &gl->gl_holders));
+	gfs_assert_warn(sdp, state != LM_ST_UNLOCKED);
+	gfs_assert_warn(sdp, state != gl->gl_state);
 
 	/* Current state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
@@ -1134,12 +1155,12 @@ gfs_glock_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 
 	atomic_inc(&sdp->sd_lm_lock_calls);
 
-	lck_ret = sdp->sd_lockstruct.ls_ops->lm_lock(gl->gl_lock,
-						     gl->gl_state,
-						     state, lck_flags);
+	lck_ret = gfs_lm_lock(sdp, gl->gl_lock,
+			      gl->gl_state, state,
+			      lck_flags);
 
 	if (lck_ret & LM_OUT_ASYNC)
-		GFS_ASSERT_GLOCK(lck_ret == LM_OUT_ASYNC, gl,);
+		gfs_assert_warn(sdp, lck_ret == LM_OUT_ASYNC);
 	else
 		xmote_bh(gl, lck_ret);
 }
@@ -1157,14 +1178,15 @@ gfs_glock_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 static void
 drop_bh(struct gfs_glock *gl, unsigned int ret)
 {
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 	struct gfs_holder *gh = gl->gl_req_gh;
 
 	clear_bit(GLF_PREFETCH, &gl->gl_flags);
 
-	GFS_ASSERT_GLOCK(test_bit(GLF_LOCK, &gl->gl_flags), gl,);
-	GFS_ASSERT_GLOCK(queue_empty(gl, &gl->gl_holders), gl,);
-	GFS_ASSERT_GLOCK(!ret, gl,);
+	gfs_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
+	gfs_assert_warn(sdp, queue_empty(gl, &gl->gl_holders));
+	gfs_assert_warn(sdp, !ret);
 
 	state_change(gl, LM_ST_UNLOCKED);
 
@@ -1211,9 +1233,9 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 	struct gfs_glock_operations *glops = gl->gl_ops;
 	unsigned int ret;
 
-	GFS_ASSERT_GLOCK(test_bit(GLF_LOCK, &gl->gl_flags), gl,);
-	GFS_ASSERT_GLOCK(queue_empty(gl, &gl->gl_holders), gl,);
-	GFS_ASSERT_GLOCK(gl->gl_state != LM_ST_UNLOCKED, gl,);
+	gfs_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
+	gfs_assert_warn(sdp, queue_empty(gl, &gl->gl_holders));
+	gfs_assert_warn(sdp, gl->gl_state != LM_ST_UNLOCKED);
 
 	/* Leaving state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
@@ -1226,12 +1248,12 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 
 	atomic_inc(&sdp->sd_lm_unlock_calls);
 
-	ret = sdp->sd_lockstruct.ls_ops->lm_unlock(gl->gl_lock, gl->gl_state);
+	ret = gfs_lm_unlock(sdp, gl->gl_lock, gl->gl_state);
 
 	if (!ret)
 		drop_bh(gl, ret);
 	else
-		GFS_ASSERT_GLOCK(ret == LM_OUT_ASYNC, gl,);
+		gfs_assert_warn(sdp, ret == LM_OUT_ASYNC);
 }
 
 /**
@@ -1255,7 +1277,7 @@ do_cancels(struct gfs_holder *gh)
 		    !(gl->gl_req_gh &&
 		      (gl->gl_req_gh->gh_flags & GL_NOCANCEL))) {
 			spin_unlock(&gl->gl_spin);
-			gl->gl_sbd->sd_lockstruct.ls_ops->lm_cancel(gl->gl_lock);
+			gfs_lm_cancel(gl->gl_sbd, gl->gl_lock);
 			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
@@ -1281,8 +1303,12 @@ static int
 glock_wait_internal(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 	int error = 0;
+
+	if (test_bit(HIF_ABORTED, &gh->gh_iflags))
+		return -EIO;
 
 	if (gh->gh_flags & (LM_FLAG_TRY | LM_FLAG_TRY_1CB)) {
 		spin_lock(&gl->gl_spin);
@@ -1308,12 +1334,13 @@ glock_wait_internal(struct gfs_holder *gh)
 	if (gh->gh_error)
 		return gh->gh_error;
 
-	GFS_ASSERT_GLOCK(test_bit(HIF_HOLDER, &gh->gh_iflags), gl,);
-	GFS_ASSERT_GLOCK(relaxed_state_ok(gl->gl_state, gh->gh_state,
-					  gh->gh_flags), gl,);
+	gfs_assert_withdraw(sdp, test_bit(HIF_HOLDER, &gh->gh_iflags));
+	gfs_assert_withdraw(sdp, relaxed_state_ok(gl->gl_state,
+						  gh->gh_state,
+						  gh->gh_flags));
 
 	if (test_bit(HIF_FIRST, &gh->gh_iflags)) {
-		GFS_ASSERT_GLOCK(test_bit(GLF_LOCK, &gl->gl_flags), gl,);
+		gfs_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
 
 		if (glops->go_lock) {
 			error = glops->go_lock(gl, gh->gh_flags);
@@ -1363,6 +1390,7 @@ static void
 add_to_queue(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct list_head *tmp, *head;
 	struct gfs_holder *tmp_gh;
 
@@ -1375,17 +1403,15 @@ add_to_queue(struct gfs_holder *gh)
 			tmp_gh = list_entry(tmp, struct gfs_holder, gh_list);
 			if (tmp_gh->gh_owner == gh->gh_owner) {
 				/* Make sure pre-existing holder is compatible
-				     with this new one. */
-				GFS_ASSERT_GLOCK((gh->gh_flags & LM_FLAG_ANY) ||
-						 !(tmp_gh->gh_flags & LM_FLAG_ANY),
-						 gl,);
-				GFS_ASSERT_GLOCK((tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
-						 !(gh->gh_flags & GL_LOCAL_EXCL),
-						 gl,);
-				GFS_ASSERT_GLOCK(relaxed_state_ok(gl->gl_state,
-								  gh->gh_state,
-								  gh->gh_flags),
-						 gl,);
+				   with this new one. */
+				if (gfs_assert_warn(sdp, (gh->gh_flags & LM_FLAG_ANY) ||
+						    !(tmp_gh->gh_flags & LM_FLAG_ANY)) ||
+				    gfs_assert_warn(sdp, (tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
+						    !(gh->gh_flags & GL_LOCAL_EXCL)) ||
+				    gfs_assert_warn(sdp, relaxed_state_ok(gl->gl_state,
+									  gh->gh_state,
+									  gh->gh_flags)))
+					goto fail;
 
 				/* We're good!  Grant the hold. */
 				list_add_tail(&gh->gh_list, &gl->gl_holders);
@@ -1399,26 +1425,23 @@ add_to_queue(struct gfs_holder *gh)
 		}
 
 		/* If not, Search through glock's wait-for-promotion list to
-		     see if this process already is waiting for a grant. */
+		   see if this process already is waiting for a grant. */
 		for (head = &gl->gl_waiters3, tmp = head->next;
 		     tmp != head;
 		     tmp = tmp->next) {
 			tmp_gh = list_entry(tmp, struct gfs_holder, gh_list);
 			if (tmp_gh->gh_owner == gh->gh_owner) {
 				/* Yes, make sure it is compatible with new */
-				GFS_ASSERT_GLOCK(test_bit(HIF_PROMOTE,
-							  &tmp_gh->gh_iflags),
-						 gl,);
-				GFS_ASSERT_GLOCK((gh->gh_flags & LM_FLAG_ANY) ||
-						 !(tmp_gh->gh_flags & LM_FLAG_ANY),
-						 gl,);
-				GFS_ASSERT_GLOCK((tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
-						 !(gh->gh_flags & GL_LOCAL_EXCL),
-						 gl,);
-				GFS_ASSERT_GLOCK(relaxed_state_ok(tmp_gh->gh_state,
-								  gh->gh_state,
-								  gh->gh_flags),
-						 gl,);
+				if (gfs_assert_warn(sdp, test_bit(HIF_PROMOTE,
+								  &tmp_gh->gh_iflags)) ||
+				    gfs_assert_warn(sdp, (gh->gh_flags & LM_FLAG_ANY) ||
+						    !(tmp_gh->gh_flags & LM_FLAG_ANY)) ||
+				    gfs_assert_warn(sdp, (tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
+						    !(gh->gh_flags & GL_LOCAL_EXCL)) ||
+				    gfs_assert_warn(sdp, relaxed_state_ok(tmp_gh->gh_state,
+									  gh->gh_state,
+									  gh->gh_flags)))
+					goto fail;
 
 				/* OK, make sure they're marked, so
 				 * when one gets granted, the other will too. */
@@ -1438,6 +1461,11 @@ add_to_queue(struct gfs_holder *gh)
 		list_add(&gh->gh_list, &gl->gl_waiters3);
 	else
 		list_add_tail(&gh->gh_list, &gl->gl_waiters3);
+
+	return;
+
+ fail:
+	set_bit(HIF_ABORTED, &gh->gh_iflags);
 }
 
 /**
@@ -1461,14 +1489,18 @@ gfs_glock_nq(struct gfs_holder *gh)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	int error = 0;
 
-	GFS_ASSERT_GLOCK(list_empty(&gh->gh_list), gl,);
-	GFS_ASSERT_GLOCK(gh->gh_state != LM_ST_UNLOCKED, gl,);
-	GFS_ASSERT_GLOCK((gh->gh_flags & (LM_FLAG_ANY | GL_EXACT)) !=
-			 (LM_FLAG_ANY | GL_EXACT), gl,);
-
 	atomic_inc(&sdp->sd_glock_nq_calls);
 
  restart:
+	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) ||
+	    gfs_assert_warn(sdp, list_empty(&gh->gh_list)) ||
+	    gfs_assert_warn(sdp, gh->gh_state != LM_ST_UNLOCKED) ||
+	    gfs_assert_warn(sdp, (gh->gh_flags & (LM_FLAG_ANY | GL_EXACT)) !=
+			    (LM_FLAG_ANY | GL_EXACT))) {
+		set_bit(HIF_ABORTED, &gh->gh_iflags);
+		return -EIO;
+	}
+
 	set_bit(HIF_PROMOTE, &gh->gh_iflags);
 
 	spin_lock(&gl->gl_spin);
@@ -1503,7 +1535,7 @@ gfs_glock_poll(struct gfs_holder *gh)
 	struct gfs_glock *gl = gh->gh_gl;
 	int ready = FALSE;
 
-	GFS_ASSERT_GLOCK(gh->gh_flags & GL_ASYNC, gl,);
+	gfs_assert_warn(gl->gl_sbd, gh->gh_flags & GL_ASYNC);
 
 	spin_lock(&gl->gl_spin);
 
@@ -1514,7 +1546,8 @@ gfs_glock_poll(struct gfs_holder *gh)
 			spin_unlock(&gl->gl_spin);
 			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ);
-			gfs_glock_nq(gh);
+			if (gfs_glock_nq(gh))
+				return TRUE;
 			return FALSE;
 		} else
 			ready = TRUE;
@@ -1538,7 +1571,7 @@ gfs_glock_wait(struct gfs_holder *gh)
 	struct gfs_glock *gl = gh->gh_gl;
 	int error;
 
-	GFS_ASSERT_GLOCK(gh->gh_flags & GL_ASYNC, gl,);
+        gfs_assert_warn(gl->gl_sbd, gh->gh_flags & GL_ASYNC);
 
 	error = glock_wait_internal(gh);
 	if (error == GLR_CANCELED) {
@@ -1572,12 +1605,13 @@ void
 gfs_glock_dq(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 
-	GFS_ASSERT_GLOCK(!queue_empty(gl, &gh->gh_list), gl,);
-	GFS_ASSERT_GLOCK(test_bit(HIF_HOLDER, &gh->gh_iflags), gl,);
-
 	atomic_inc(&gl->gl_sbd->sd_glock_dq_calls);
+
+	gfs_assert_withdraw(sdp, !queue_empty(gl, &gh->gh_list));
+	gfs_assert_withdraw(sdp, test_bit(HIF_HOLDER, &gh->gh_iflags));
 
 	if (gh->gh_flags & GL_SYNC)
 		set_bit(GLF_SYNC, &gl->gl_flags);
@@ -1639,12 +1673,13 @@ gfs_glock_dq(struct gfs_holder *gh)
 void
 gfs_glock_prefetch(struct gfs_glock *gl, unsigned int state, int flags)
 {
+	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_glock_operations *glops = gl->gl_ops;
 
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
-	GFS_ASSERT_GLOCK(state != LM_ST_UNLOCKED, gl,);
-	GFS_ASSERT_GLOCK((flags & (LM_FLAG_ANY | GL_EXACT)) !=
-			 (LM_FLAG_ANY | GL_EXACT), gl,);
+	if (gfs_assert_warn(sdp, state != LM_ST_UNLOCKED) ||
+	    gfs_assert_warn(sdp, (flags & (LM_FLAG_ANY | GL_EXACT)) !=
+			    (LM_FLAG_ANY | GL_EXACT)))
+		return;
 
 	spin_lock(&gl->gl_spin);
 
@@ -1662,7 +1697,8 @@ gfs_glock_prefetch(struct gfs_glock *gl, unsigned int state, int flags)
 	/* Let bottom half know we're prefetching, ask lock module for lock */
 	set_bit(GLF_PREFETCH, &gl->gl_flags);
 
-	GFS_ASSERT_GLOCK(!gl->gl_req_gh, gl,);
+	if (gfs_assert_warn(sdp, !gl->gl_req_gh))
+		gl->gl_req_gh = NULL;
 	set_bit(GLF_LOCK, &gl->gl_flags);
 	spin_unlock(&gl->gl_spin);
 
@@ -1926,8 +1962,7 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	/* For just one gh, do request synchronously */
 	if (num_gh == 1) {
 		ghs->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);
-		error = gfs_glock_nq(ghs);
-		return error;
+		return gfs_glock_nq(ghs);
 	}
 
 	/* using sizeof(struct gfs_holder *) instead of sizeof(int), because
@@ -1941,7 +1976,13 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	/* Send off asynchronous requests */
 	for (x = 0; x < num_gh; x++) {
 		ghs[x].gh_flags |= LM_FLAG_TRY | GL_ASYNC;
-		gfs_glock_nq(&ghs[x]);
+		error = gfs_glock_nq(&ghs[x]);
+		if (error) {
+			borked = TRUE;
+			serious = error;
+			num_gh = x;
+			break;
+		}
 	}
 
 	/* Wait for all to complete */
@@ -2030,27 +2071,24 @@ gfs_glock_prefetch_num(struct gfs_sbd *sdp,
 int
 gfs_lvb_hold(struct gfs_glock *gl)
 {
-	int error = 0;
-
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
+	int error;
 
 	lock_on_glock(gl);
 
-	atomic_inc(&gl->gl_lvb_count);
-	if (atomic_read(&gl->gl_lvb_count) == 1) {
-		glock_hold(gl);
-		GFS_ASSERT_GLOCK(!gl->gl_lvb, gl,);
-		error = gl->gl_sbd->sd_lockstruct.ls_ops->lm_hold_lvb(gl->gl_lock,
-								      &gl->gl_lvb);
+	if (!atomic_read(&gl->gl_lvb_count)) {
+		gfs_assert_warn(gl->gl_sbd, !gl->gl_lvb);
+		error = gfs_lm_hold_lvb(gl->gl_sbd, gl->gl_lock, &gl->gl_lvb);
 		if (error) {
-			glock_put(gl);
-			atomic_dec(&gl->gl_lvb_count);
+			unlock_on_glock(gl);
+			return error;
 		}
+		glock_hold(gl);
 	}
+	atomic_inc(&gl->gl_lvb_count);
 
 	unlock_on_glock(gl);
 
-	return error;
+	return 0;
 }
 
 /**
@@ -2066,11 +2104,10 @@ gfs_lvb_unhold(struct gfs_glock *gl)
 
 	lock_on_glock(gl);
 
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_lvb_count), gl,);
-	if (atomic_dec_and_test(&gl->gl_lvb_count)) {
-		GFS_ASSERT_GLOCK(gl->gl_lvb, gl,);
-		gl->gl_sbd->sd_lockstruct.ls_ops->lm_unhold_lvb(gl->gl_lock,
-								gl->gl_lvb);
+	if (!gfs_assert_warn(gl->gl_sbd, atomic_read(&gl->gl_lvb_count) > 0) &&
+	    atomic_dec_and_test(&gl->gl_lvb_count)) {
+		gfs_assert_warn(gl->gl_sbd, gl->gl_lvb);
+		gfs_lm_unhold_lvb(gl->gl_sbd, gl->gl_lock, gl->gl_lvb);
 		gl->gl_lvb = NULL;
 		glock_put(gl);
 	}
@@ -2089,14 +2126,43 @@ gfs_lvb_unhold(struct gfs_glock *gl)
 void
 gfs_lvb_sync(struct gfs_glock *gl)
 {
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_lvb_count), gl,);
+	if (gfs_assert_warn(gl->gl_sbd, atomic_read(&gl->gl_lvb_count)))
+		return;
 
 	lock_on_glock(gl);
 
-	GFS_ASSERT_GLOCK(gfs_glock_is_held_excl(gl), gl,);
-	gl->gl_sbd->sd_lockstruct.ls_ops->lm_sync_lvb(gl->gl_lock, gl->gl_lvb);
+	if (!gfs_assert_warn(gl->gl_sbd, gfs_glock_is_held_excl(gl)))
+		gfs_lm_sync_lvb(gl->gl_sbd, gl->gl_lock, gl->gl_lvb);
 
 	unlock_on_glock(gl);
+}
+
+/**
+ * blocking_cb -
+ * @sdp:
+ * @name:
+ * @state:
+ *
+ */
+
+void
+blocking_cb(struct gfs_sbd *sdp, struct lm_lockname *name, unsigned int state)
+{
+	struct gfs_glock *gl;
+
+	gl = gfs_glock_find(sdp, name);
+	if (!gl)
+		return;
+
+	if (gl->gl_ops->go_callback)
+		gl->gl_ops->go_callback(gl, state);
+	handle_callback(gl, state);
+
+	spin_lock(&gl->gl_spin);
+	run_queue(gl);
+	spin_unlock(&gl->gl_spin);
+
+	glock_put(gl);
 }
 
 /**
@@ -2119,77 +2185,53 @@ gfs_lvb_sync(struct gfs_glock *gl)
  */
 
 void
-gfs_glock_cb(lm_fsdata_t * fsdata, unsigned int type, void *data)
+gfs_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 {
 	struct gfs_sbd *sdp = (struct gfs_sbd *)fsdata;
-	struct gfs_glock *gl;
-	struct lm_lockname *name = NULL;
-	unsigned int state = 0;
-	struct lm_async_cb *async;
-	unsigned int journal;
 
 	atomic_inc(&sdp->sd_lm_callbacks);
 
 	switch (type) {
 	case LM_CB_NEED_E:
-		name = (struct lm_lockname *)data;
-		state = LM_ST_UNLOCKED;
-		break;
+		blocking_cb(sdp, (struct lm_lockname *)data, LM_ST_UNLOCKED);
+		return;
 
 	case LM_CB_NEED_D:
-		name = (struct lm_lockname *)data;
-		state = LM_ST_DEFERRED;
-		break;
+		blocking_cb(sdp, (struct lm_lockname *)data, LM_ST_DEFERRED);
+		return;
 
 	case LM_CB_NEED_S:
-		name = (struct lm_lockname *)data;
-		state = LM_ST_SHARED;
-		break;
+		blocking_cb(sdp, (struct lm_lockname *)data, LM_ST_SHARED);
+		return;
 
-	case LM_CB_ASYNC:
-		async = (struct lm_async_cb *)data;
+	case LM_CB_ASYNC: {
+		struct lm_async_cb *async = (struct lm_async_cb *)data;
+		struct gfs_glock *gl;
 
 		gl = gfs_glock_find(sdp, &async->lc_name);
-		GFS_ASSERT_SBD(gl, sdp,);
-		GFS_ASSERT_GLOCK(gl->gl_req_bh, gl,);
-		gl->gl_req_bh(gl, async->lc_ret);
+		if (gfs_assert_warn(sdp, gl))
+			return;
+		if (!gfs_assert_warn(sdp, gl->gl_req_bh))
+			gl->gl_req_bh(gl, async->lc_ret);
 		glock_put(gl);
 
-		break;
+		return;
+	}
 
 	case LM_CB_NEED_RECOVERY:
-		journal = *(unsigned int *)data;
-
-		gfs_add_dirty_j(sdp, journal);
-
+		gfs_add_dirty_j(sdp, *(unsigned int *)data);
 		if (test_bit(SDF_RECOVERD_RUN, &sdp->sd_flags))
 			wake_up_process(sdp->sd_recoverd_process);
-
-		break;
+		return;
 
 	case LM_CB_DROPLOCKS:
 		gfs_gl_hash_clear(sdp, FALSE);
 		gfs_quota_scan(sdp);
-		break;
+		return;
 
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,
-			       printk("type = %u\n", type););
-		break;
-	}
-
-	/* Another node needs the lock */
-	if (name) {
-		gl = gfs_glock_find(sdp, name);
-		if (gl) {
-			if (gl->gl_ops->go_callback)
-				gl->gl_ops->go_callback(gl, state);
-			handle_callback(gl, state);
-			spin_lock(&gl->gl_spin);
-			run_queue(gl);
-			spin_unlock(&gl->gl_spin);
-			glock_put(gl);
-		}
+		gfs_assert_warn(sdp, FALSE);
+		return;
 	}
 }
 

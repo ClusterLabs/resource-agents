@@ -104,28 +104,36 @@ ea_foreach_i(struct gfs_inode *ip,
 	struct gfs_ea_header *ea, *prev = NULL;
 	int error = 0;
 
-	gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA);
+	if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA))
+		return -EIO;
 
 	for (ea = GFS_EA_BH2FIRST(bh);; prev = ea, ea = GFS_EA2NEXT(ea)) {
-		GFS_ASSERT_INODE(GFS_EA_REC_LEN(ea), ip,);
-		GFS_ASSERT_INODE(bh->b_data <= (char *)ea &&
-				 (char *)GFS_EA2NEXT(ea) <=
-				 bh->b_data + bh->b_size, ip,);
-		GFS_ASSERT_INODE(GFS_EATYPE_VALID(ea->ea_type), ip,);
+		if (!GFS_EA_REC_LEN(ea))
+			goto fail;
+		if (!(bh->b_data <= (char *)ea &&
+		      (char *)GFS_EA2NEXT(ea) <=
+		      bh->b_data + bh->b_size))
+			goto fail;
+		if (!GFS_EATYPE_VALID(ea->ea_type))
+			goto fail;
 
 		error = ea_call(ip, bh, ea, prev, data);
 		if (error)
 			return error;
 
 		if (GFS_EA_IS_LAST(ea)) {
-			GFS_ASSERT_INODE((char *)GFS_EA2NEXT(ea) ==
-					 bh->b_data + bh->b_size,
-					 ip,);
+			if ((char *)GFS_EA2NEXT(ea) !=
+			    bh->b_data + bh->b_size)
+				goto fail;
 			break;
 		}
 	}
 
 	return error;
+
+ fail:
+	gfs_consist_inode(ip);
+	return -EIO;
 }
 
 /**
@@ -145,8 +153,7 @@ ea_foreach(struct gfs_inode *ip,
 	struct buffer_head *bh;
 	int error;
 
-	error = gfs_dread(ip->i_sbd,
-			  ip->i_di.di_eattr, ip->i_gl,
+	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
 		return error;
@@ -157,7 +164,10 @@ ea_foreach(struct gfs_inode *ip,
 		struct buffer_head *eabh;
 		uint64_t *eablk, *end;
 
-		gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_IN);
+		if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_IN)) {
+			error = -EIO;
+			goto out;
+		}
 
 		eablk = (uint64_t *)(bh->b_data + sizeof(struct gfs_indirect));
 		end = eablk + ip->i_sbd->sd_inptrs;
@@ -169,7 +179,7 @@ ea_foreach(struct gfs_inode *ip,
 				break;
 			bn = gfs64_to_cpu(*eablk);
 
-			error = gfs_dread(ip->i_sbd, bn, ip->i_gl,
+			error = gfs_dread(ip->i_gl, bn,
 					  DIO_START | DIO_WAIT, &eabh);
 			if (error)
 				break;
@@ -180,6 +190,7 @@ ea_foreach(struct gfs_inode *ip,
 		}
 	}
 
+ out:
 	brelse(bh);
 
 	return error;
@@ -311,7 +322,10 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
 		return 0;
 
 	rgd = gfs_blk2rgrpd(sdp, bn);
-	GFS_ASSERT_INODE(rgd, ip,);
+	if (!rgd) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &rg_gh);
 	if (error)
@@ -339,7 +353,8 @@ ea_dealloc_unstuffed(struct gfs_inode *ip,
 		}
 
 		*dataptrs = 0;
-		GFS_ASSERT_INODE(ip->i_di.di_blocks, ip,);
+		if (!ip->i_di.di_blocks)
+			gfs_consist_inode(ip);
 		ip->i_di.di_blocks--;
 	}
 	if (bstart)
@@ -586,7 +601,7 @@ ea_get_unstuffed(struct gfs_inode *ip, struct gfs_ea_header *ea,
 		return -ENOMEM;
 
 	for (x = 0; x < nptrs; x++) {
-		error = gfs_dread(sdp, gfs64_to_cpu(*dataptrs), ip->i_gl,
+		error = gfs_dread(ip->i_gl, gfs64_to_cpu(*dataptrs),
 				  DIO_START, bh + x);
 		if (error) {
 			while (x--)
@@ -603,8 +618,13 @@ ea_get_unstuffed(struct gfs_inode *ip, struct gfs_ea_header *ea,
 				brelse(bh[x]);
 			goto out;
 		}
-
-		gfs_metatype_check2(sdp, bh[x], GFS_METATYPE_ED, GFS_METATYPE_EA);
+		if (gfs_metatype_check2(sdp, bh[x],
+					GFS_METATYPE_ED, GFS_METATYPE_EA)) {
+			for (; x < nptrs; x++)
+				brelse(bh[x]);
+			error = -EIO;
+			goto out;
+		}
 
 		memcpy(data,
 		       bh[x]->b_data + sizeof(struct gfs_meta_header),
@@ -739,13 +759,13 @@ ea_alloc_blk(struct gfs_inode *ip,
 	if (error)
 		return error;
 
-	error = gfs_dread(sdp, block, ip->i_gl,
+	error = gfs_dread(ip->i_gl, block,
 			  DIO_NEW | DIO_START | DIO_WAIT, bhp);
 	if (error)
 		return error;
 
 	gfs_trans_add_bh(ip->i_gl, *bhp);
-	gfs_metatype_set(sdp, *bhp, GFS_METATYPE_EA, GFS_FORMAT_EA);
+	gfs_metatype_set(*bhp, GFS_METATYPE_EA, GFS_FORMAT_EA);
 
 	ea = GFS_EA_BH2FIRST(*bhp);
 	ea->ea_rec_len = cpu_to_gfs32(sdp->sd_jbsize);
@@ -804,13 +824,13 @@ ea_write(struct gfs_inode *ip,
 			if (error)
 				return error;
 
-			error = gfs_dread(sdp, block, ip->i_gl,
+			error = gfs_dread(ip->i_gl, block,
 					  DIO_NEW | DIO_START | DIO_WAIT, &bh);
 			if (error)
 				return error;
 
 			gfs_trans_add_bh(ip->i_gl, bh);
-			gfs_metatype_set(sdp, bh, GFS_METATYPE_ED, GFS_FORMAT_ED);
+			gfs_metatype_set(bh, GFS_METATYPE_ED, GFS_FORMAT_ED);
 			ip->i_di.di_blocks++;
 
 			copy = (data_len > sdp->sd_jbsize) ? sdp->sd_jbsize : data_len;
@@ -825,7 +845,7 @@ ea_write(struct gfs_inode *ip,
 			brelse(bh);
 		}
 
-		GFS_ASSERT_INODE(!data_len, ip,);
+		gfs_assert_withdraw(sdp, !data_len);
 	}
 
 	return 0;
@@ -1006,7 +1026,7 @@ ea_set_remove_stuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 		return;
 	} else if (GFS_EA2NEXT(prev) != ea) {
 		prev = GFS_EA2NEXT(prev);
-		GFS_ASSERT_INODE(GFS_EA2NEXT(prev) == ea, ip,);
+		gfs_assert_withdraw(ip->i_sbd, GFS_EA2NEXT(prev) == ea);
 	}
 
 	len = GFS_EA_REC_LEN(prev) + GFS_EA_REC_LEN(ea);
@@ -1191,13 +1211,15 @@ ea_set_block(struct gfs_inode *ip,
 	if (ip->i_di.di_flags & GFS_DIF_EA_INDIRECT) {
 		uint64_t *end;
 
-		error = gfs_dread(sdp,
-				  ip->i_di.di_eattr, ip->i_gl,
+		error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 				  DIO_START | DIO_WAIT, &indbh);
 		if (error)
 			return error;
 
-		gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN);
+		if (gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN)) {
+			error = -EIO;
+			goto out;
+		}
 
 		eablk = (uint64_t *)(indbh->b_data + sizeof(struct gfs_indirect));
 		end = eablk + sdp->sd_inptrs;
@@ -1207,8 +1229,8 @@ ea_set_block(struct gfs_inode *ip,
 				break;
 
 		if (eablk == end) {
-			brelse(indbh);
-			return -ENOSPC;
+			error = -ENOSPC;
+			goto out;
 		}
 
 		gfs_trans_add_bh(ip->i_gl, indbh);
@@ -1219,14 +1241,13 @@ ea_set_block(struct gfs_inode *ip,
 		if (error)
 			return error;
 
-		error = gfs_dread(sdp,
-				  blk, ip->i_gl,
+		error = gfs_dread(ip->i_gl, blk,
 				  DIO_NEW | DIO_START | DIO_WAIT, &indbh);
 		if (error)
 			return error;
 
 		gfs_trans_add_bh(ip->i_gl, indbh);
-		gfs_metatype_set(sdp, indbh, GFS_METATYPE_IN, GFS_FORMAT_IN);
+		gfs_metatype_set(indbh, GFS_METATYPE_IN, GFS_FORMAT_IN);
 		gfs_buffer_clear_tail(indbh, sizeof(struct gfs_meta_header));
 
 		eablk = (uint64_t *)(indbh->b_data + sizeof(struct gfs_indirect));
@@ -1309,7 +1330,8 @@ ea_set_remove_unstuffed(struct gfs_inode *ip, struct gfs_ea_location *el)
 {
 	if (el->el_prev && GFS_EA2NEXT(el->el_prev) != el->el_ea) {
 		el->el_prev = GFS_EA2NEXT(el->el_prev);
-		GFS_ASSERT_INODE(GFS_EA2NEXT(el->el_prev) == el->el_ea, ip,);
+		gfs_assert_withdraw(ip->i_sbd,
+				    GFS_EA2NEXT(el->el_prev) == el->el_ea);
 	}
 
 	return ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev, FALSE);
@@ -1449,7 +1471,7 @@ ea_remove_stuffed(struct gfs_inode *ip,
 
 	gfs_trans_end(ip->i_sbd);
 
-	return 0;
+	return error;
 }
 
 /**
@@ -1540,13 +1562,15 @@ gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 		ea_calc_size(ip->i_sbd, er, &size);
 
-		error = gfs_dread(ip->i_sbd,
-				  ip->i_di.di_eattr, ip->i_gl,
+		error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 				  DIO_START | DIO_WAIT, &bh);
 		if (error)
 			return error;
 
-		gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA);
+		if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_EA)) {
+			brelse(bh);
+			return -EIO;
+		}
 
 		ea = GFS_EA_BH2FIRST(bh);
 		if (GFS_EA_REC_LEN(ea) - GFS_EA_SIZE(ea) >= size) {
@@ -1560,7 +1584,7 @@ gfs_ea_acl_init(struct gfs_inode *ip, struct gfs_ea_request *er)
 	}
 
 	error = ea_set_block(ip, er, NULL);
-	GFS_ASSERT_INODE(error != -ENOSPC, ip,);
+	gfs_assert_withdraw(ip->i_sbd, error != -ENOSPC);
 	if (error)
 		return error;
 
@@ -1607,7 +1631,7 @@ ea_acl_chmod_unstuffed(struct gfs_inode *ip,
 		goto out;
 
 	for (x = 0; x < nptrs; x++) {
-		error = gfs_dread(sdp, gfs64_to_cpu(*dataptrs), ip->i_gl,
+		error = gfs_dread(ip->i_gl, gfs64_to_cpu(*dataptrs),
 				  DIO_START, bh + x);
 		if (error) {
 			while (x--)
@@ -1624,8 +1648,14 @@ ea_acl_chmod_unstuffed(struct gfs_inode *ip,
 				brelse(bh[x]);
 			goto fail;
 		}
+		if (gfs_metatype_check2(sdp, bh[x],
+					GFS_METATYPE_ED, GFS_METATYPE_EA)) {
+			for (; x < nptrs; x++)
+				brelse(bh[x]);
+			error = -EIO;
+			goto fail;
+		}
 
-		gfs_metatype_check2(sdp, bh[x], GFS_METATYPE_ED, GFS_METATYPE_EA);
 		gfs_trans_add_bh(ip->i_gl, bh[x]);
 
 		memcpy(bh[x]->b_data + sizeof(struct gfs_meta_header),
@@ -1718,13 +1748,15 @@ ea_dealloc_indirect(struct gfs_inode *ip)
 
 	memset(&rlist, 0, sizeof(struct gfs_rgrp_list));
 
-	error = gfs_dread(sdp,
-			  ip->i_di.di_eattr, ip->i_gl,
+	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &indbh);
 	if (error)
 		return error;
 
-	gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN);
+	if (gfs_metatype_check(sdp, indbh, GFS_METATYPE_IN)) {
+		error = -EIO;
+		goto out;
+	}
 
 	eablk = (uint64_t *)(indbh->b_data + sizeof(struct gfs_indirect));
 	end = eablk + sdp->sd_inptrs;
@@ -1789,7 +1821,8 @@ ea_dealloc_indirect(struct gfs_inode *ip)
 		}
 
 		*eablk = 0;
-		GFS_ASSERT_INODE(ip->i_di.di_blocks, ip,);
+		if (!ip->i_di.di_blocks)
+			gfs_consist_inode(ip);
 		ip->i_di.di_blocks--;
 	}
 	if (bstart)
@@ -1835,7 +1868,10 @@ ea_dealloc_block(struct gfs_inode *ip)
 	int error;
 
 	rgd = gfs_blk2rgrpd(sdp, ip->i_di.di_eattr);
-	GFS_ASSERT_INODE(rgd, ip,);
+	if (!rgd) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &al->al_rgd_gh);
 	if (error)
@@ -1848,7 +1884,8 @@ ea_dealloc_block(struct gfs_inode *ip)
 	gfs_metafree(ip, ip->i_di.di_eattr, 1);
 
 	ip->i_di.di_eattr = 0;
-	GFS_ASSERT_INODE(ip->i_di.di_blocks, ip,);
+	if (!ip->i_di.di_blocks)
+		gfs_consist_inode(ip);
 	ip->i_di.di_blocks--;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
@@ -1927,8 +1964,7 @@ gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 	struct buffer_head *bh;
 	int error;
 
-	error = gfs_dread(ip->i_sbd,
-			  ip->i_di.di_eattr, ip->i_gl,
+	error = gfs_dread(ip->i_gl, ip->i_di.di_eattr,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
 		return error;
@@ -1939,7 +1975,10 @@ gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 		struct buffer_head *eabh;
 		uint64_t *eablk, *end;
 
-		gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_IN);
+		if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_IN)) {
+			error = -EIO;
+			goto out;
+		}
 
 		eablk = (uint64_t *)(bh->b_data + sizeof(struct gfs_indirect));
 		end = eablk + ip->i_sbd->sd_inptrs;
@@ -1951,7 +1990,7 @@ gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 				break;
 			bn = gfs64_to_cpu(*eablk);
 
-			error = gfs_dread(ip->i_sbd, bn, ip->i_gl,
+			error = gfs_dread(ip->i_gl, bn,
 					  DIO_START | DIO_WAIT, &eabh);
 			if (error)
 				break;
@@ -1962,6 +2001,7 @@ gfs_get_eattr_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 		}
 	}
 
+ out:
 	brelse(bh);
 
 	return error;

@@ -133,7 +133,7 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 	if (error)
 		goto fail_gunlock;
 
-	GFS_ASSERT_SBD(!current_transaction, sdp,);
+	gfs_assert(sdp, !current_transaction,);
 	current_transaction = tr;
 
 	return 0;
@@ -157,10 +157,9 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
  * If buffers were actually added to the transaction,
  * commit it.
  *
- * Returns: errno
  */
 
-int
+void
 gfs_trans_end(struct gfs_sbd *sdp)
 {
 	struct gfs_trans *tr;
@@ -171,7 +170,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 	/* Linux task struct indicates current new trans for this process.
 	 * We're done building it, so set it to NULL */
 	tr = current_transaction;
-	GFS_ASSERT_SBD(tr, sdp,);
+	gfs_assert(sdp, tr,);
 	current_transaction = NULL;
 
 	t_gh = tr->tr_t_gh;
@@ -185,7 +184,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 		gfs_glock_dq(t_gh);
 		gfs_holder_put(t_gh);
 
-		goto out;
+		return;
 	}
 
 	/* Do trans_end log-operation for each log element */
@@ -203,9 +202,6 @@ gfs_trans_end(struct gfs_sbd *sdp)
 
 	if (sdp->sd_vfs->s_flags & MS_SYNCHRONOUS)
 		gfs_log_flush(sdp);
-
- out:
-	return (test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) ? -EIO : 0;
 }
 
 /**
@@ -236,8 +232,9 @@ void
 gfs_trans_add_gl(struct gfs_glock *gl)
 {
 	if (!gl->gl_new_le.le_trans) {
-		GFS_ASSERT_GLOCK(gfs_glock_is_locked_by_me(gl) &&
-				 gfs_glock_is_held_excl(gl), gl,);
+		gfs_assert_withdraw(gl->gl_sbd,
+				    gfs_glock_is_locked_by_me(gl) &&
+				    gfs_glock_is_held_excl(gl));
 		gfs_glock_hold(gl); /* Released in glock_trans_end() */
 
 		/* Ask for eventual flush of (meta)data protected by this glock,
@@ -292,7 +289,7 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 
 	gfs_meta_check(sdp, bh);
 
-	GFS_ASSERT_GLOCK(bd->bd_gl == gl, gl,);
+	gfs_assert(sdp, bd->bd_gl == gl,);
 
 	/* Make sure glock is attached to trans */
 	if (!gl->gl_new_le.le_trans)
@@ -336,7 +333,7 @@ gfs_trans_add_unlinked(struct gfs_sbd *sdp, unsigned int type,
 		ul->ul_new_le.le_trans->tr_num_ida++;
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,);
+		gfs_assert(sdp, FALSE,);
 		break;
 	}
 
@@ -365,16 +362,17 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 
 	if (!sdp->sd_tune.gt_quota_account)
 		return;
-
-	GFS_ASSERT_SBD(change, sdp,);
+	if (gfs_assert_warn(sdp, change))
+		return;
 
 	found_uid = (uid == NO_QUOTA_CHANGE);
 	found_gid = (gid == NO_QUOTA_CHANGE);
 
-	GFS_ASSERT_SBD(!found_uid || !found_gid, sdp,);
+	if (gfs_assert_warn(sdp, !found_uid || !found_gid))
+		return;
 
 	tr = current_transaction;
-	GFS_ASSERT_SBD(tr, sdp,);
+	gfs_assert(sdp, tr,);
 
 	for (head = &tr->tr_elements, tmp = head->next, next = tmp->next;
 	     tmp != head;
@@ -404,7 +402,7 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 					tr->tr_num_q--;
 				}
 
-				GFS_ASSERT_SBD(!found_uid, sdp,);
+				gfs_assert(sdp, !found_uid,);
 				found_uid = TRUE;
 				if (found_gid)
 					break;
@@ -428,7 +426,7 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 					tr->tr_num_q--;
 				}
 
-				GFS_ASSERT_SBD(!found_gid, sdp,);
+				gfs_assert(sdp, !found_gid,);
 				found_gid = TRUE;
 				if (found_uid)
 					break;
@@ -454,7 +452,7 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 			found_uid = TRUE;
 		}
 
-		GFS_ASSERT_SBD(!error && ql->ql_data, sdp,);
+		gfs_assert(sdp, !error && ql->ql_data,);
 
 		ql->ql_change = change;
 

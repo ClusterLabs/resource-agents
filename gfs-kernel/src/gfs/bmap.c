@@ -126,8 +126,6 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 	int journaled = gfs_is_jdata(ip);
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(ip), ip,);
-
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
 		return error;
@@ -262,13 +260,14 @@ build_height(struct gfs_inode *ip, int height)
 			if (error)
 				goto fail;
 
-			error = gfs_dread(sdp, block, ip->i_gl,
+			error = gfs_dread(ip->i_gl, block,
 					  DIO_NEW | DIO_START | DIO_WAIT, &bh);
 			if (error)
 				goto fail;
 
 			gfs_trans_add_bh(ip->i_gl, bh);
-			gfs_metatype_set(sdp, bh, GFS_METATYPE_IN,
+			gfs_metatype_set(bh,
+					 GFS_METATYPE_IN,
 					 GFS_FORMAT_IN);
 			memset(bh->b_data + sizeof(struct gfs_meta_header),
 			       0,
@@ -644,11 +643,11 @@ do_grow(struct gfs_inode *ip, uint64_t size)
 
 	error = gfs_quota_lock_m(ip, NO_QUOTA_CHANGE, NO_QUOTA_CHANGE);
 	if (error)
-		goto fail;
+		goto out;
 
 	error = gfs_quota_check(ip, ip->i_di.di_uid, ip->i_di.di_gid);
 	if (error)
-		goto fail_gunlock_q;
+		goto out_gunlock_q;
 
 	if (journaled)
 		al->al_requested_meta = sdp->sd_max_height + 1;
@@ -659,7 +658,7 @@ do_grow(struct gfs_inode *ip, uint64_t size)
 
 	error = gfs_inplace_reserve(ip);
 	if (error)
-		goto fail_gunlock_q;
+		goto out_gunlock_q;
 
 	/* Trans may require:
 	   Full extention of the metadata tree, block allocation,
@@ -670,20 +669,20 @@ do_grow(struct gfs_inode *ip, uint64_t size)
 				1 + !!journaled,
 				1);
 	if (error)
-		goto fail_ipres;
+		goto out_ipres;
 
 	if (size > sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode)) {
 		if (gfs_is_stuffed(ip)) {
 			error = gfs_unstuff_dinode(ip, gfs_unstuffer_sync, NULL);
 			if (error)
-				goto fail_end_trans;
+				goto out_end_trans;
 		}
 
 		h = calc_tree_height(ip, size);
 		if (ip->i_di.di_height < h) {
 			error = build_height(ip, h);
 			if (error)
-				goto fail_end_trans;
+				goto out_end_trans;
 		}
 	}
 
@@ -692,30 +691,22 @@ do_grow(struct gfs_inode *ip, uint64_t size)
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
-		goto fail_end_trans;
+		goto out_end_trans;
 
 	gfs_trans_add_bh(ip->i_gl, dibh);
 	gfs_dinode_out(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
+ out_end_trans:
 	gfs_trans_end(sdp);
 
-	gfs_inplace_release(ip);
-	gfs_quota_unlock_m(ip);
-	gfs_alloc_put(ip);
-
-	return 0;
-
- fail_end_trans:
-	gfs_trans_end(sdp);
-
- fail_ipres:
+ out_ipres:
 	gfs_inplace_release(ip);
 
- fail_gunlock_q:
+ out_gunlock_q:
 	gfs_quota_unlock_m(ip);
 
- fail:
+ out:
 	gfs_alloc_put(ip);
 
 	return error;
@@ -819,7 +810,6 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 {
 	struct strip_mine *sm = (struct strip_mine *)data;
 	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_holder ri_gh;
 	struct gfs_rgrp_list rlist;
 	uint64_t bn, bstart;
 	uint32_t blen;
@@ -882,7 +872,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
 	if (error)
-		goto fail;
+		goto out_rlist;
 
 	/* Trans may require:
 	   All the bitmaps that were reserved. 
@@ -892,7 +882,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	error = gfs_trans_begin(sdp, rg_blocks + 2, 1);
 	if (error)
-		goto fail_rg_gunlock;
+		goto out_rg_gunlock;
 
 	gfs_trans_add_bh(ip->i_gl, dibh);
 	gfs_trans_add_bh(ip->i_gl, bh);
@@ -921,7 +911,8 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 		}
 
 		*p = 0;
-		GFS_ASSERT_INODE(ip->i_di.di_blocks, ip,);
+		if (!ip->i_di.di_blocks)
+			gfs_consist_inode(ip);
 		ip->i_di.di_blocks--;
 	}
 	if (bstart) {
@@ -937,21 +928,14 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	gfs_trans_end(sdp);
 
+ out_rg_gunlock:
 	gfs_glock_dq_m(rlist.rl_rgrps, rlist.rl_ghs);
+
+ out_rlist:
 	gfs_rlist_free(&rlist);
 
  out:
 	gfs_glock_dq_uninit(&ip->i_alloc->al_ri_gh);
-
-	return 0;
-
- fail_rg_gunlock:
-	gfs_glock_dq_m(rlist.rl_rgrps, rlist.rl_ghs);
-
- fail:
-	gfs_rlist_free(&rlist);
-
-	gfs_glock_dq_uninit(&ri_gh);
 
 	return error;
 }
@@ -1141,7 +1125,11 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 		ip->i_di.di_height = 0;
 
 		rgd = gfs_blk2rgrpd(sdp, ip->i_num.no_addr);
-		GFS_ASSERT_INODE(rgd, ip,);
+		if (!rgd) {
+			gfs_consist_inode(ip);
+			error = -EIO;
+			goto out_end_trans;
+		}
 
 		ip->i_di.di_goal_rgrp = rgd->rd_ri.ri_addr;
 		ip->i_di.di_goal_dblk =
@@ -1221,7 +1209,8 @@ int
 gfs_truncatei(struct gfs_inode *ip, uint64_t size,
 	      gfs_truncator_t truncator)
 {
-	GFS_ASSERT_INODE(ip->i_di.di_type == GFS_FILE_REG, ip,);
+	if (gfs_assert_warn(ip->i_sbd, ip->i_di.di_type == GFS_FILE_REG))
+		return -EINVAL;
 
 	if (size == ip->i_di.di_size)
 		return do_same(ip);
@@ -1354,8 +1343,7 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
 		if (*top) {
 			struct buffer_head *data_bh;
 
-			error = gfs_dread(ip->i_sbd,
-					  gfs64_to_cpu(*top), ip->i_gl,
+			error = gfs_dread(ip->i_gl, gfs64_to_cpu(*top),
 					  DIO_START | DIO_WAIT,
 					  &data_bh);
 			if (error)

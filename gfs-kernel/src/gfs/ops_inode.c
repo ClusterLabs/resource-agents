@@ -93,7 +93,6 @@ gfs_create(struct inode *dir, struct dentry *dentry,
 		}
 	}
 
-	GFS_ASSERT_SBD(i_gh.gh_gl, sdp,);
 	ip = gl2ip(i_gh.gh_gl);
 
 	if (new) {
@@ -427,7 +426,7 @@ gfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	gfs_trans_end(sdp);
 
 	if (alloc_required) {
-		GFS_ASSERT_INODE(al->al_alloced_meta, dip,);
+		gfs_assert_warn(sdp, al->al_alloced_meta);
 		gfs_inplace_release(dip);
 		gfs_quota_unlock_m(dip);
 		gfs_alloc_put(dip);
@@ -577,18 +576,17 @@ gfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 		return error;
 	}
 
-	GFS_ASSERT_SBD(i_gh.gh_gl, sdp,);
 	ip = gl2ip(i_gh.gh_gl);
 
 	ip->i_di.di_size = size;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
-	GFS_ASSERT_INODE(!error, ip,);
 
-	gfs_dinode_out(&ip->i_di, dibh->b_data);
-	memcpy(dibh->b_data + sizeof(struct gfs_dinode), symname, size);
-
-	brelse(dibh);
+	if (!gfs_assert_withdraw(sdp, !error)) {
+		gfs_dinode_out(&ip->i_di, dibh->b_data);
+		memcpy(dibh->b_data + sizeof(struct gfs_dinode), symname, size);
+		brelse(dibh);
+	}
 
 	gfs_trans_end(sdp);
 	if (dip->i_alloc->al_rgd)
@@ -629,8 +627,6 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	struct gfs_holder d_gh, i_gh;
 	struct inode *inode;
 	struct buffer_head *dibh;
-	struct gfs_dinode *di;
-	struct gfs_dirent *dent;
 	int error;
 
 	atomic_inc(&sdp->sd_ops_inode);
@@ -647,7 +643,6 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		return error;
 	}
 
-	GFS_ASSERT_SBD(i_gh.gh_gl, sdp,);
 	ip = gl2ip(i_gh.gh_gl);
 
 	ip->i_di.di_nlink = 2;
@@ -657,35 +652,35 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	ip->i_di.di_entries = 2;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
-	GFS_ASSERT_INODE(!error, ip,);
 
-	di = (struct gfs_dinode *)dibh->b_data;
+	if (!gfs_assert_withdraw(sdp, !error)) {
+		struct gfs_dinode *di = (struct gfs_dinode *)dibh->b_data;
+		struct gfs_dirent *dent;
 
-	error = gfs_dirent_alloc(ip, dibh, 1, &dent);
-	GFS_ASSERT_INODE(!error, ip,); /* This should never fail */
+		gfs_dirent_alloc(ip, dibh, 1, &dent);
 
-	dent->de_inum = di->di_num; /* already GFS endian */
-	dent->de_hash = gfs_dir_hash(".", 1);
-	dent->de_hash = cpu_to_gfs32(dent->de_hash);
-	dent->de_type = cpu_to_gfs16(GFS_FILE_DIR);
-	memcpy((char *) (dent + 1), ".", 1);
-	di->di_entries = cpu_to_gfs32(1);
+		dent->de_inum = di->di_num; /* already GFS endian */
+		dent->de_hash = gfs_dir_hash(".", 1);
+		dent->de_hash = cpu_to_gfs32(dent->de_hash);
+		dent->de_type = cpu_to_gfs16(GFS_FILE_DIR);
+		memcpy((char *) (dent + 1), ".", 1);
+		di->di_entries = cpu_to_gfs32(1);
 
-	error = gfs_dirent_alloc(ip, dibh, 2, &dent);
-	GFS_ASSERT_INODE(!error, ip,);	/*  This should never fail  */
+		gfs_dirent_alloc(ip, dibh, 2, &dent);
 
-	gfs_inum_out(&dip->i_num, (char *) &dent->de_inum);
-	dent->de_hash = gfs_dir_hash("..", 2);
-	dent->de_hash = cpu_to_gfs32(dent->de_hash);
-	dent->de_type = cpu_to_gfs16(GFS_FILE_DIR);
-	memcpy((char *) (dent + 1), "..", 2);
+		gfs_inum_out(&dip->i_num, (char *) &dent->de_inum);
+		dent->de_hash = gfs_dir_hash("..", 2);
+		dent->de_hash = cpu_to_gfs32(dent->de_hash);
+		dent->de_type = cpu_to_gfs16(GFS_FILE_DIR);
+		memcpy((char *) (dent + 1), "..", 2);
 
-	gfs_dinode_out(&ip->i_di, (char *)di);
+		gfs_dinode_out(&ip->i_di, (char *)di);
 
-	brelse(dibh);
+		brelse(dibh);
+	}
 
 	error = gfs_change_nlink(dip, +1);
-	GFS_ASSERT_INODE(!error, dip,);	/* dip already pinned */
+	gfs_assert_withdraw(sdp, !error); /* dip already pinned */
 
 	gfs_trans_end(sdp);
 	if (dip->i_alloc->al_rgd)
@@ -743,9 +738,12 @@ gfs_rmdir(struct inode *dir, struct dentry *dentry)
 	if (error)
 		goto fail_gunlock;
 
-	GFS_ASSERT_INODE(ip->i_di.di_entries >= 2, ip,
-			 gfs_dinode_print(&ip->i_di););
-
+	if (ip->i_di.di_entries < 2) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		error = -EIO;
+		goto fail_gunlock;
+	}
 	if (ip->i_di.di_entries > 2) {
 		error = -ENOTEMPTY;
 		goto fail_gunlock;
@@ -829,9 +827,9 @@ gfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 		type = GFS_FILE_SOCK;
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,
-			       printk("mode = %d\n", mode););
-		break;
+		printk("GFS: fsid=%s: mknod() with invalid type (%d)\n",
+		       sdp->sd_fsname, mode);
+		return -EINVAL;
 	};
 
 	gfs_holder_init(dip->i_gl, 0, 0, &d_gh);
@@ -844,18 +842,17 @@ gfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 		return error;
 	}
 
-	GFS_ASSERT_SBD(i_gh.gh_gl, sdp,);
 	ip = gl2ip(i_gh.gh_gl);
 
 	ip->i_di.di_major = major;
 	ip->i_di.di_minor = minor;
 
 	error = gfs_get_inode_buffer(ip, &dibh);
-	GFS_ASSERT_INODE(!error, ip,);
 
-	gfs_dinode_out(&ip->i_di, dibh->b_data);
-
-	brelse(dibh);
+	if (!gfs_assert_withdraw(sdp, !error)) {
+		gfs_dinode_out(&ip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
 
 	gfs_trans_end(sdp);
 	if (dip->i_alloc->al_rgd)
@@ -961,8 +958,12 @@ gfs_rename(struct inode *odir, struct dentry *odentry,
 			goto fail_gunlock;
 
 		if (nip->i_di.di_type == GFS_FILE_DIR) {
-			GFS_ASSERT_INODE(nip->i_di.di_entries >= 2, ip,
-					 gfs_dinode_print(&nip->i_di););
+			if (nip->i_di.di_entries < 2) {
+				if (gfs_consist_inode(nip))
+					gfs_dinode_print(&nip->i_di);
+				error = -EIO;
+				goto fail_gunlock;
+			}
 			if (nip->i_di.di_entries > 2) {
 				error = -ENOTEMPTY;
 				goto fail_gunlock;
@@ -1160,8 +1161,6 @@ gfs_readlink(struct dentry *dentry, char *user_buf, int user_size)
 	error = gfs_readlinki(ip, &buf, &len);
 	if (error)
 		return error;
-
-	GFS_ASSERT_INODE(len, ip,);
 
 	if (user_size > len - 1)
 		user_size = len - 1;

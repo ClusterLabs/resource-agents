@@ -1,7 +1,7 @@
 # Add lock_gulm to the build system.
 diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2004-10-27 02:12:09.627042029 -0500
-+++ linux/fs/Kconfig	2004-10-27 02:12:09.638038934 -0500
+--- linux-2.6.9/fs/Kconfig	2004-12-17 20:04:05.713550299 -0600
++++ linux/fs/Kconfig	2004-12-17 20:04:05.724547742 -0600
 @@ -1802,6 +1802,12 @@ config LOCK_DLM
  	help
  	  A lock module that allows GFS to use a Distributed Lock Manager.
@@ -16,8 +16,8 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-27 02:12:09.628041748 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-10-27 02:12:09.639038653 -0500
+--- linux-2.6.9/fs/gfs_locking/Makefile	2004-12-17 20:04:05.714550067 -0600
++++ linux/fs/gfs_locking/Makefile	2004-12-17 20:04:05.724547742 -0600
 @@ -13,4 +13,5 @@
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
  obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
@@ -26,7 +26,7 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
  
 diff -urN -p linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
 --- linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-10-27 02:12:09.639038653 -0500
++++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-12-17 20:04:05.724547742 -0600
 @@ -0,0 +1,31 @@
 +###############################################################################
 +###############################################################################

@@ -212,7 +212,9 @@ gfs_quotad(void *data)
 				  sdp->sd_quota_sync_time +
 				  sdp->sd_tune.gt_quota_quantum * HZ)) {
 			error = gfs_quota_sync(sdp);
-			if (error && error != -EROFS)
+			if (error &&
+			    error != -EROFS &&
+			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 				printk("GFS: fsid=%s: quotad: error = %d\n",
 				       sdp->sd_fsname, error);
 			sdp->sd_quota_sync_time = jiffies;

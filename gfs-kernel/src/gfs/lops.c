@@ -42,13 +42,13 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 	struct gfs_trans *tr;
 
 	/* Make sure it's not attached to a transaction already */
-	GFS_ASSERT_SBD(le->le_ops &&
-		       !le->le_trans &&
-		       list_empty(&le->le_list), sdp,);
+	gfs_assert(sdp, le->le_ops &&
+		   !le->le_trans &&
+		   list_empty(&le->le_list),);
 
 	/* Attach it to the (one) transaction being built by this process */
 	tr = current_transaction;
-	GFS_ASSERT_SBD(tr, sdp,);
+	gfs_assert(sdp, tr,);
 
 	le->le_trans = tr;
 	list_add(&le->le_list, &tr->tr_elements);
@@ -68,8 +68,8 @@ glock_trans_end(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
 	struct gfs_glock *gl = container_of(le, struct gfs_glock, gl_new_le);
 
-	GFS_ASSERT_GLOCK(gfs_glock_is_locked_by_me(gl) &&
-			 gfs_glock_is_held_excl(gl), gl,);
+	gfs_assert(sdp, gfs_glock_is_locked_by_me(gl) &&
+		   gfs_glock_is_held_excl(gl),);
 	gfs_glock_put(gl);
 }
 
@@ -94,7 +94,8 @@ glock_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 		gl = container_of(le, struct gfs_glock, gl_incore_le);
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,);
+		gfs_assert_warn(sdp, FALSE);
+		return;
 	}
 
 	printk("  Glock:  (%u, %"PRIu64")\n",
@@ -161,7 +162,7 @@ glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 
 	/* Transactions were combined, based on this glock */
 	if (gl->gl_incore_le.le_trans)
-		GFS_ASSERT_GLOCK(gl->gl_incore_le.le_trans == tr, gl,);
+		gfs_assert(sdp, gl->gl_incore_le.le_trans == tr,);
 	else {
 		/* Attach gl->gl_incore_le to being-committed trans */
 		gl->gl_incore_le.le_trans = tr;
@@ -230,7 +231,8 @@ buf_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 		bd = container_of(le, struct gfs_bufdata, bd_incore_le);
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,);
+		gfs_assert_warn(sdp, FALSE);
+		return;
 	}
 
 	printk("  Buffer:  %"PRIu64"\n", (uint64_t)bd->bd_bh->b_blocknr);
@@ -271,7 +273,7 @@ buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 
 	/* New trans being combined with pre-existing incore trans? */
 	if (bd->bd_incore_le.le_trans) {
-		GFS_ASSERT_SBD(bd->bd_incore_le.le_trans == tr, sdp,);
+		gfs_assert(sdp, bd->bd_incore_le.le_trans == tr,);
 		gfs_dunpin(sdp, bd->bd_bh, NULL);
 	} else {
 		bd->bd_incore_le.le_trans = tr;
@@ -306,7 +308,7 @@ buf_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
 
-	GFS_ASSERT_SBD(sdp->sd_log_buffers, sdp,);
+	gfs_assert(sdp, sdp->sd_log_buffers,);
 	sdp->sd_log_buffers--;
 }
 
@@ -382,7 +384,7 @@ increment_generation(struct gfs_sbd *sdp, struct gfs_bufdata *bd)
 
 	if (bd->bd_frozen) {
 		mh2 = (struct gfs_meta_header *)bd->bd_frozen;
-		GFS_ASSERT_SBD(mh->mh_generation == mh2->mh_generation, sdp,);
+		gfs_assert(sdp, mh->mh_generation == mh2->mh_generation,);
 		mh2->mh_generation = tmp64;
 	}
 	mh->mh_generation = tmp64;
@@ -483,8 +485,8 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		bufs++;
 	}
 
-	GFS_ASSERT_SBD(x == num_ctl, sdp,);
-	GFS_ASSERT_SBD(bufs == tr->tr_num_buf, sdp,);
+	gfs_assert(sdp, x == num_ctl,);
+	gfs_assert(sdp, bufs == tr->tr_num_buf,);
 }
 
 /**
@@ -539,19 +541,26 @@ replay_block(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	   on a OS that won't support multiple simultaneous buffers for the
 	   same block on different glocks. */
 
-	error = gfs_dread(sdp, tag->bt_blkno, gl,
+	error = gfs_dread(gl, tag->bt_blkno,
 			  DIO_START | DIO_WAIT, &inplace_bh);
 	if (error)
 		return error;
-	gfs_meta_check(sdp, inplace_bh);
+	if (gfs_meta_check(sdp, inplace_bh)) {
+		brelse(inplace_bh);
+		return -EIO;
+	}
 	gfs_meta_header_in(&inplace_mh, inplace_bh->b_data);
 
-	error = gfs_dread(sdp, blkno, gl, DIO_START | DIO_WAIT, &log_bh);
+	error = gfs_dread(gl, blkno, DIO_START | DIO_WAIT, &log_bh);
 	if (error) {
 		brelse(inplace_bh);
 		return error;
 	}
-	gfs_meta_check(sdp, log_bh);
+	if (gfs_meta_check(sdp, log_bh)) {
+		brelse(inplace_bh);
+		brelse(log_bh);
+		return -EIO;
+	}
 	gfs_meta_header_in(&log_mh, log_bh->b_data);
 
 	if (log_mh.mh_generation < inplace_mh.mh_generation) {
@@ -620,9 +629,9 @@ buf_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	}
 
 	for (;;) {
-		GFS_ASSERT_SBD(num_tags, sdp,);
+		gfs_assert(sdp, num_tags,);
 
-		error = gfs_dread(sdp, cblk, gl, DIO_START | DIO_WAIT, &bh);
+		error = gfs_dread(gl, cblk, DIO_START | DIO_WAIT, &bh);
 		if (error)
 			return error;
 
@@ -726,7 +735,8 @@ unlinked_print(struct gfs_sbd *sdp, struct gfs_log_element *le,
 			"unlink" : "dealloc";
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,);
+		gfs_assert_warn(sdp, FALSE);
+		return;
 	}
 
 	printk("  unlinked:  %"PRIu64"/%"PRIu64", %s\n",
@@ -753,18 +763,18 @@ unlinked_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	int i = !!test_bit(ULF_INCORE_UL, &ul->ul_flags);
 
 	if (ul->ul_incore_le.le_trans) {
-		GFS_ASSERT_SBD(ul->ul_incore_le.le_trans == tr, sdp,);
-		GFS_ASSERT_SBD(n != i, sdp,);
+		gfs_assert(sdp, ul->ul_incore_le.le_trans == tr,);
+		gfs_assert(sdp, n != i,);
 
 		ul->ul_incore_le.le_trans = NULL;
 		list_del_init(&ul->ul_incore_le.le_list);
 		gfs_unlinked_put(sdp, ul);
 
 		if (i) {
-			GFS_ASSERT_SBD(tr->tr_num_iul, sdp,);
+			gfs_assert(sdp, tr->tr_num_iul,);
 			tr->tr_num_iul--;
 		} else {
-			GFS_ASSERT_SBD(tr->tr_num_ida, sdp,);
+			gfs_assert(sdp, tr->tr_num_ida,);
 			tr->tr_num_ida--;
 		}
 	} else {
@@ -785,14 +795,14 @@ unlinked_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 
 	if (n) {
 		gfs_unlinked_hold(sdp, ul);
-		GFS_ASSERT_SBD(!test_bit(ULF_IC_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, !test_bit(ULF_IC_LIST, &ul->ul_flags),);
 		set_bit(ULF_IC_LIST, &ul->ul_flags);
 		atomic_inc(&sdp->sd_unlinked_ic_count);
 	} else {
-		GFS_ASSERT_SBD(test_bit(ULF_IC_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, test_bit(ULF_IC_LIST, &ul->ul_flags),);
 		clear_bit(ULF_IC_LIST, &ul->ul_flags);
 		gfs_unlinked_put(sdp, ul);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_ic_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_ic_count),);
 		atomic_dec(&sdp->sd_unlinked_ic_count);
 	}
 
@@ -818,14 +828,14 @@ unlinked_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 
 	if (i) {
 		gfs_unlinked_hold(sdp, ul);
-		GFS_ASSERT_SBD(!test_bit(ULF_OD_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, !test_bit(ULF_OD_LIST, &ul->ul_flags),);
 		set_bit(ULF_OD_LIST, &ul->ul_flags);
 		atomic_inc(&sdp->sd_unlinked_od_count);
 	} else {
-		GFS_ASSERT_SBD(test_bit(ULF_OD_LIST, &ul->ul_flags), sdp,);
+		gfs_assert(sdp, test_bit(ULF_OD_LIST, &ul->ul_flags),);
 		clear_bit(ULF_OD_LIST, &ul->ul_flags);
 		gfs_unlinked_put(sdp, ul);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_unlinked_od_count),);
 		atomic_dec(&sdp->sd_unlinked_od_count);
 	}
 
@@ -991,7 +1001,7 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 			entries++;
 		}
 
-		GFS_ASSERT_SBD(entries == number, sdp,);
+		gfs_assert(sdp, entries == number,);
 	}
 }
 
@@ -1044,7 +1054,7 @@ unlinked_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		if (!test_bit(ULF_OD_LIST, &ul->ul_flags))
 			continue;
 
-		GFS_ASSERT_SBD(!ul->ul_ondisk_le.le_trans, sdp,);
+		gfs_assert(sdp, !ul->ul_ondisk_le.le_trans,);
 		ul->ul_ondisk_le.le_trans = tr;
 		list_add(&ul->ul_ondisk_le.le_list, &tr->tr_elements);
 
@@ -1053,7 +1063,7 @@ unlinked_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	spin_unlock(&sdp->sd_unlinked_lock);
 
-	GFS_ASSERT_SBD(x == atomic_read(&sdp->sd_unlinked_od_count), sdp,);
+	gfs_assert(sdp, x == atomic_read(&sdp->sd_unlinked_od_count),);
 }
 
 /**
@@ -1102,16 +1112,15 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	switch (desc->ld_type) {
 	case GFS_LOG_DESC_IUL:
 		if (test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags))
-			GFS_ASSERT_SBD(!desc->ld_data1, sdp,);
+			gfs_assert(sdp, !desc->ld_data1,);
 		else {
-			GFS_ASSERT_SBD(desc->ld_data1, sdp,);
+			gfs_assert(sdp, desc->ld_data1,);
 			set_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags);
 		}
 		break;
 
 	case GFS_LOG_DESC_IDA:
-		GFS_ASSERT_SBD(test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags),
-			       sdp,);
+		gfs_assert(sdp, test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags),);
 		break;
 
 	default:
@@ -1119,7 +1128,7 @@ unlinked_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	}
 
 	for (x = 0; x < desc->ld_length; x++) {
-		error = gfs_dread(sdp, start, gl, DIO_START | DIO_WAIT, &bh);
+		error = gfs_dread(gl, start, DIO_START | DIO_WAIT, &bh);
 		if (error)
 			return error;
 
@@ -1156,8 +1165,7 @@ static void
 unlinked_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 {
 	if (pass == GFS_RECPASS_B1) {
-		GFS_ASSERT_SBD(test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags),
-			       sdp,);
+		gfs_assert(sdp, test_bit(SDF_FOUND_UL_DUMP, &sdp->sd_flags),);
 		printk("GFS: fsid=%s: Found %d unlinked inodes\n",
 		       sdp->sd_fsname, atomic_read(&sdp->sd_unlinked_ic_count));
 	}
@@ -1197,7 +1205,7 @@ quota_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	struct gfs_quota_le *ql = container_of(le, struct gfs_quota_le, ql_le);
 	struct gfs_quota_data *qd = ql->ql_data;
 
-	GFS_ASSERT_SBD(ql->ql_change, sdp,);
+	gfs_assert(sdp, ql->ql_change,);
 
 	/*  Make this change under the sd_quota_lock, so other processes
 	   checking qd_change_ic don't have to acquire the log lock.  */
@@ -1269,10 +1277,10 @@ quota_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 			atomic_inc(&sdp->sd_quota_od_count);
 		}
 	} else {
-		GFS_ASSERT_SBD(test_bit(QDF_OD_LIST, &qd->qd_flags), sdp,);
+		gfs_assert(sdp, test_bit(QDF_OD_LIST, &qd->qd_flags),);
 		clear_bit(QDF_OD_LIST, &qd->qd_flags);
 		gfs_quota_put(sdp, qd);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_quota_od_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_quota_od_count),);
 		atomic_dec(&sdp->sd_quota_od_count);
 	}
 
@@ -1403,7 +1411,7 @@ quota_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		entries++;
 	}
 
-	GFS_ASSERT_SBD(entries == tr->tr_num_q, sdp,);
+	gfs_assert(sdp, entries == tr->tr_num_q,);
 }
 
 /**
@@ -1459,7 +1467,7 @@ quota_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		ql = &qd->qd_ondisk_ql;
 
 		ql->ql_le.le_ops = &gfs_quota_lops;
-		GFS_ASSERT_SBD(!ql->ql_le.le_trans, sdp,);
+		gfs_assert(sdp, !ql->ql_le.le_trans,);
 		ql->ql_le.le_trans = tr;
 		list_add(&ql->ql_le.le_list, &tr->tr_elements);
 
@@ -1471,7 +1479,7 @@ quota_build_dump(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	spin_unlock(&sdp->sd_quota_lock);
 
-	GFS_ASSERT_SBD(x == atomic_read(&sdp->sd_quota_od_count), sdp,);
+	gfs_assert(sdp, x == atomic_read(&sdp->sd_quota_od_count),);
 }
 
 /**
@@ -1521,9 +1529,9 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		return 0;
 
 	if (test_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags))
-		GFS_ASSERT_SBD(!desc->ld_data2, sdp,);
+		gfs_assert(sdp, !desc->ld_data2,);
 	else {
-		GFS_ASSERT_SBD(desc->ld_data2, sdp,);
+		gfs_assert(sdp, desc->ld_data2,);
 		set_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags);
 	}
 
@@ -1531,7 +1539,7 @@ quota_scan_elements(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		return 0;
 
 	for (x = 0; x < desc->ld_length; x++) {
-		error = gfs_dread(sdp, start, gl, DIO_START | DIO_WAIT, &bh);
+		error = gfs_dread(gl, start, DIO_START | DIO_WAIT, &bh);
 		if (error)
 			return error;
 
@@ -1578,9 +1586,8 @@ static void
 quota_after_scan(struct gfs_sbd *sdp, unsigned int jid, unsigned int pass)
 {
 	if (pass == GFS_RECPASS_B1) {
-		GFS_ASSERT_SBD(!sdp->sd_sb.sb_quota_di.no_formal_ino ||
-			       test_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags),
-			       sdp,);
+		gfs_assert(sdp, !sdp->sd_sb.sb_quota_di.no_formal_ino ||
+			   test_bit(SDF_FOUND_Q_DUMP, &sdp->sd_flags),);
 		printk("GFS: fsid=%s: Found quota changes for %d IDs\n",
 		       sdp->sd_fsname, atomic_read(&sdp->sd_quota_od_count));
 	}

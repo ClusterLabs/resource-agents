@@ -23,6 +23,7 @@
 #include <linux/init.h>
 
 #include "gfs.h"
+#include "diaper.h"
 #include "ops_fstype.h"
 #include "proc.h"
 
@@ -39,6 +40,10 @@ init_gfs_fs(void)
 
 	gfs_proc_init();
 
+	error = gfs_diaper_init();
+	if (error)
+		goto fail;
+
 	gfs_random_number = xtime.tv_nsec;
 
 	gfs_glock_cachep = kmem_cache_create("gfs_glock", sizeof(struct gfs_glock),
@@ -49,36 +54,36 @@ init_gfs_fs(void)
 	gfs_mhc_cachep = NULL;
 	error = -ENOMEM;
 	if (!gfs_glock_cachep)
-		goto fail;
+		goto fail_diaper;
 
 	gfs_inode_cachep = kmem_cache_create("gfs_inode", sizeof(struct gfs_inode),
 					     0, 0,
 					     NULL, NULL);
 	if (!gfs_inode_cachep)
-		goto fail;
+		goto fail_diaper;
 
 	gfs_bufdata_cachep = kmem_cache_create("gfs_bufdata", sizeof(struct gfs_bufdata),
 					       0, 0,
 					       NULL, NULL);
 	if (!gfs_bufdata_cachep)
-		goto fail;
+		goto fail_diaper;
 
 	gfs_mhc_cachep = kmem_cache_create("gfs_meta_header_cache", sizeof(struct gfs_meta_header_cache),
 					   0, 0,
 					   NULL, NULL);
 	if (!gfs_mhc_cachep)
-		goto fail;
+		goto fail_diaper;
 
 	error = register_filesystem(&gfs_fs_type);
 	if (error)
-		goto fail;
+		goto fail_diaper;
 
 	printk("GFS %s (built %s %s) installed\n",
 	       GFS_RELEASE_NAME, __DATE__, __TIME__);
 
 	return 0;
 
- fail:
+ fail_diaper:
 	if (gfs_mhc_cachep)
 		kmem_cache_destroy(gfs_mhc_cachep);
 
@@ -91,6 +96,9 @@ init_gfs_fs(void)
 	if (gfs_glock_cachep)
 		kmem_cache_destroy(gfs_glock_cachep);
 
+	gfs_diaper_uninit();
+
+ fail:
 	gfs_proc_uninit();
 
 	return error;
@@ -111,6 +119,7 @@ exit_gfs_fs(void)
 	kmem_cache_destroy(gfs_inode_cachep);
 	kmem_cache_destroy(gfs_glock_cachep);
 
+	gfs_diaper_uninit();
 	gfs_proc_uninit();
 }
 

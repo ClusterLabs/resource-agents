@@ -120,7 +120,7 @@ gfs_filecmp(struct qstr *file1, char *file2, int len_of_file2)
  *
  * return first dirent whether bh points to leaf or stuffed dinode
  *
- * Returns: IS_LEAF or IS_DINODE
+ * Returns: IS_LEAF, IS_DINODE, or -errno
  */
 
 static int
@@ -130,11 +130,13 @@ dirent_first(struct gfs_inode *dip, struct buffer_head *bh,
 	struct gfs_meta_header *h = (struct gfs_meta_header *)bh->b_data;
 
 	if (gfs32_to_cpu(h->mh_type) == GFS_METATYPE_LF) {
-		gfs_meta_check(dip->i_sbd, bh);
+		if (gfs_meta_check(dip->i_sbd, bh))
+			return -EIO;
 		*dent = (struct gfs_dirent *)(bh->b_data + sizeof(struct gfs_leaf));
 		return IS_LEAF;
 	} else {
-		gfs_metatype_check(dip->i_sbd, bh, GFS_METATYPE_DI);
+		if (gfs_metatype_check(dip->i_sbd, bh, GFS_METATYPE_DI))
+			return -EIO;
 		*dent = (struct gfs_dirent *)(bh->b_data + sizeof(struct gfs_dinode));
 		return IS_DINODE;
 	}
@@ -159,20 +161,27 @@ dirent_next(struct gfs_inode *dip, struct buffer_head *bh,
 
 	cur = *dent;
 	bh_end = bh->b_data + bh->b_size;
-
 	cur_rec_len = gfs16_to_cpu(cur->de_rec_len);
 
 	if ((char *)cur + cur_rec_len >= bh_end) {
-		GFS_ASSERT_INODE((char *)cur + cur_rec_len == bh_end, dip,);
+		if ((char *)cur + cur_rec_len > bh_end) {
+			gfs_consist_inode(dip);
+			return -EIO;
+		}
 		return -ENOENT;
 	}
 
 	tmp = (struct gfs_dirent *)((char *)cur + cur_rec_len);
 
-	GFS_ASSERT_INODE((char *)tmp + gfs16_to_cpu(tmp->de_rec_len) <= bh_end,
-			 dip,);
+	if ((char *)tmp + gfs16_to_cpu(tmp->de_rec_len) > bh_end) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
         /* Only the first dent could ever have de_ino == 0 */
-	GFS_ASSERT_INODE(tmp->de_inum.no_formal_ino, dip,);
+	if (!tmp->de_inum.no_formal_ino) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	*dent = tmp;
 
@@ -194,7 +203,10 @@ dirent_del(struct gfs_inode *dip, struct buffer_head *bh,
 {
 	uint32_t cur_rec_len, prev_rec_len;
 
-	GFS_ASSERT_INODE(cur->de_inum.no_formal_ino, dip,);
+	if (!cur->de_inum.no_formal_ino) {
+		gfs_consist_inode(dip);
+		return;
+	}
 
 	gfs_trans_add_bh(dip->i_gl, bh);
 
@@ -212,9 +224,10 @@ dirent_del(struct gfs_inode *dip, struct buffer_head *bh,
 	prev_rec_len = gfs16_to_cpu(prev->de_rec_len);
 	cur_rec_len = gfs16_to_cpu(cur->de_rec_len);
 
-	GFS_ASSERT_INODE((char *)prev + prev_rec_len == (char *)cur, dip,);
-	GFS_ASSERT_INODE((char *)cur + cur_rec_len <=
-			 bh->b_data + bh->b_size, dip,);
+	if ((char *)prev + prev_rec_len != (char *)cur)
+		gfs_consist_inode(dip);
+	if ((char *)cur + cur_rec_len > bh->b_data + bh->b_size)
+		gfs_consist_inode(dip);
 
 	prev_rec_len += cur_rec_len;
 	prev->de_rec_len = cpu_to_gfs16(prev_rec_len);
@@ -236,10 +249,12 @@ gfs_dirent_alloc(struct gfs_inode *dip, struct buffer_head *bh, int name_len,
 {
 	struct gfs_dirent *dent, *new;
 	unsigned int rec_len = GFS_DIRENT_SIZE(name_len);
-	unsigned int entries = 0, offset = 0, x = 0;
+	unsigned int entries = 0, offset = 0;
 	int type;
 
 	type = dirent_first(dip, bh, &dent);
+	if (type < 0)
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs_leaf *leaf = (struct gfs_leaf *)bh->b_data;
@@ -252,6 +267,11 @@ gfs_dirent_alloc(struct gfs_inode *dip, struct buffer_head *bh, int name_len,
 	}
 
 	if (!entries) {
+		if (dent->de_inum.no_formal_ino) {
+			gfs_consist_inode(dip);
+			return -EIO;
+		}
+
 		gfs_trans_add_bh(dip->i_gl, bh);
 
 		dent->de_rec_len = bh->b_size - offset;
@@ -293,13 +313,7 @@ gfs_dirent_alloc(struct gfs_inode *dip, struct buffer_head *bh, int name_len,
 			*dent_out = dent;
 			return 0;
 		}
-
-		GFS_ASSERT_INODE(x < entries, dip,);
-
-		if (dent->de_inum.no_formal_ino)
-			x++;
-	}
-	while (dirent_next(dip, bh, &dent) == 0);
+	} while (dirent_next(dip, bh, &dent) == 0);
 
 	return -ENOSPC;
 }
@@ -318,10 +332,12 @@ dirent_fits(struct gfs_inode *dip, struct buffer_head *bh, int name_len)
 {
 	struct gfs_dirent *dent;
 	unsigned int rec_len = GFS_DIRENT_SIZE(name_len);
-	unsigned int entries = 0, x = 0;
+	unsigned int entries = 0;
 	int type;
 
 	type = dirent_first(dip, bh, &dent);
+	if (type < 0)
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs_leaf *leaf = (struct gfs_leaf *)bh->b_data;
@@ -343,13 +359,7 @@ dirent_fits(struct gfs_inode *dip, struct buffer_head *bh, int name_len)
 		if ((!dent->de_inum.no_formal_ino && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS_DIRENT_SIZE(cur_name_len) + rec_len))
 			return TRUE;
-
-		GFS_ASSERT_INODE(x < entries, dip,);
-
-		if (dent->de_inum.no_formal_ino)
-			x++;
-	}
-	while (dirent_next(dip, bh, &dent) == 0);
+	} while (dirent_next(dip, bh, &dent) == 0);
 
 	return FALSE;
 }
@@ -371,10 +381,12 @@ leaf_search(struct gfs_inode *dip,
 {
 	uint32_t hash;
 	struct gfs_dirent *dent, *prev = NULL;
-	unsigned int entries = 0, x = 0;
+	unsigned int entries = 0;
 	int type;
 
 	type = dirent_first(dip, bh, &dent);
+	if (type < 0)
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs_leaf *leaf = (struct gfs_leaf *)bh->b_data;
@@ -402,11 +414,8 @@ leaf_search(struct gfs_inode *dip,
 			return 0;
 		}
 
-		GFS_ASSERT_INODE(x < entries, dip,);
-		x++;
 		prev = dent;
-	}
-	while (dirent_next(dip, bh, &dent) == 0);
+	} while (dirent_next(dip, bh, &dent) == 0);
 
 	return -ENOENT;
 }
@@ -423,12 +432,11 @@ leaf_search(struct gfs_inode *dip,
 static int
 get_leaf(struct gfs_inode *dip, uint64_t leaf_no, struct buffer_head **bhp)
 {
-	struct gfs_sbd *sdp = dip->i_sbd;
 	int error;
 
-	error = gfs_dread(sdp, leaf_no, dip->i_gl, DIO_START | DIO_WAIT, bhp);
-	if (!error)
-		gfs_metatype_check(sdp, *bhp, GFS_METATYPE_LF);
+	error = gfs_dread(dip->i_gl, leaf_no, DIO_START | DIO_WAIT, bhp);
+	if (!error && gfs_metatype_check(dip->i_sbd, *bhp, GFS_METATYPE_LF))
+		error = -EIO;
 
 	return error;
 }
@@ -530,7 +538,10 @@ linked_leaf_search(struct gfs_inode *dip, struct qstr *filename,
 	int error;
 
 	hsize = 1 << dip->i_di.di_depth;
-	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
+	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	/*  Figure out the address of the leaf node.  */
 
@@ -603,19 +614,19 @@ dir_make_exhash(struct gfs_inode *dip)
 
 	/*  Turn over a new leaf  */
 
-	error = gfs_dread(sdp, bn, dip->i_gl, DIO_NEW | DIO_START | DIO_WAIT, &bh);
+	error = gfs_dread(dip->i_gl, bn, DIO_NEW | DIO_START | DIO_WAIT, &bh);
 	if (error)
 		goto fail;
 
 	gfs_trans_add_bh(dip->i_gl, bh);
-	gfs_metatype_set(sdp, bh, GFS_METATYPE_LF, GFS_FORMAT_LF);
+	gfs_metatype_set(bh, GFS_METATYPE_LF, GFS_FORMAT_LF);
 	gfs_buffer_clear_tail(bh, sizeof(struct gfs_meta_header));
 
 	/*  Fill in the leaf structure  */
 
 	leaf = (struct gfs_leaf *)bh->b_data;
 
-	GFS_ASSERT_INODE(dip->i_di.di_entries < (1 << 16), dip,);
+	gfs_assert(sdp, dip->i_di.di_entries < (1 << 16),);
 
 	leaf->lf_dirent_format = cpu_to_gfs32(GFS_FORMAT_DE);
 	leaf->lf_entries = cpu_to_gfs16(dip->i_di.di_entries);
@@ -690,7 +701,6 @@ dir_make_exhash(struct gfs_inode *dip)
 static int
 dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 {
-	struct gfs_sbd *sdp = dip->i_sbd;
 	struct buffer_head *nbh, *obh, *dibh;
 	struct gfs_leaf *nleaf, *oleaf;
 	struct gfs_dirent *dent, *prev = NULL, *next = NULL, *new;
@@ -708,13 +718,13 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 
 	/*  Get the new leaf block  */
 
-	error = gfs_dread(sdp, bn, dip->i_gl,
+	error = gfs_dread(dip->i_gl, bn,
 			  DIO_NEW | DIO_START | DIO_WAIT, &nbh);
 	if (error)
 		return error;
 
 	gfs_trans_add_bh(dip->i_gl, nbh);
-	gfs_metatype_set(sdp, nbh, GFS_METATYPE_LF, GFS_FORMAT_LF);
+	gfs_metatype_set(nbh, GFS_METATYPE_LF, GFS_FORMAT_LF);
 	gfs_buffer_clear_tail(nbh, sizeof (struct gfs_meta_header));
 
 	nleaf = (struct gfs_leaf *)nbh->b_data;
@@ -734,14 +744,18 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	/*  Compute the start and len of leaf pointers in the hash table.  */
 
 	len = 1 << (dip->i_di.di_depth - gfs16_to_cpu(oleaf->lf_depth));
-	GFS_ASSERT_INODE(len != 1, dip,);
 	half_len = len >> 1;
+	if (!half_len) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+		goto fail_brelse;
+	}
 
 	start = (index & ~(len - 1));
 
-	/*  Change the pointers.
+	/* Change the pointers.
 	   Don't bother distinguishing stuffed from non-stuffed.
-	   This code is complicated enough already.  */
+	   This code is complicated enough already. */
 
 	lp = gmalloc(half_len * sizeof(uint64_t));
 
@@ -785,8 +799,7 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 		    gfs32_to_cpu(dent->de_hash) < divider) {
 			name_len = gfs16_to_cpu(dent->de_name_len);
 
-			error = gfs_dirent_alloc(dip, nbh, name_len, &new);
-			GFS_ASSERT_INODE(!error, dip,);
+			gfs_dirent_alloc(dip, nbh, name_len, &new);
 
 			new->de_inum = dent->de_inum; /* No endianness worries */
 			new->de_hash = dent->de_hash; /* No endianness worries */
@@ -799,7 +812,8 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 
 			dirent_del(dip, obh, prev, dent);
 
-			GFS_ASSERT_INODE(gfs16_to_cpu(oleaf->lf_entries), dip,);
+			if (!oleaf->lf_entries)
+				gfs_consist_inode(dip);
 			oleaf->lf_entries = gfs16_to_cpu(oleaf->lf_entries) - 1;
 			oleaf->lf_entries = cpu_to_gfs16(oleaf->lf_entries);
 
@@ -818,8 +832,7 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	   artificially fill in the first entry. */
 
 	if (!moved) {
-		error = gfs_dirent_alloc(dip, nbh, 0, &new);
-		GFS_ASSERT_INODE(!error, dip,);
+		gfs_dirent_alloc(dip, nbh, 0, &new);
 		new->de_inum.no_formal_ino = 0;
 	}
 
@@ -828,21 +841,21 @@ dir_split_leaf(struct gfs_inode *dip, uint32_t index, uint64_t leaf_no)
 	nleaf->lf_depth = oleaf->lf_depth;
 
 	error = gfs_get_inode_buffer(dip, &dibh);
-	GFS_ASSERT_INODE(!error, dip,);	/* Pinned in gfs_internal_write() */
-
-	dip->i_di.di_blocks++;
-
-	gfs_dinode_out(&dip->i_di, dibh->b_data);
-	brelse(dibh);
+	if (!gfs_assert_withdraw(dip->i_sbd, !error)) {
+		dip->i_di.di_blocks++;
+		gfs_dinode_out(&dip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
 
 	brelse(obh);
 	brelse(nbh);
 
-	return 0;
+	return error;
 
  fail_lpfree:
 	kfree(lp);
 
+ fail_brelse:
 	brelse(obh);
 
  fail:
@@ -870,7 +883,10 @@ dir_double_exhash(struct gfs_inode *dip)
 	int error = 0;
 
 	hsize = 1 << dip->i_di.di_depth;
-	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
+	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	/*  Allocate both the "from" and "to" buffers in one big chunk  */
 
@@ -907,14 +923,13 @@ dir_double_exhash(struct gfs_inode *dip)
 	kfree(buf);
 
 	error = gfs_get_inode_buffer(dip, &dibh);
-	GFS_ASSERT_INODE(!error, dip,);	/* Pinned in gfs_internal_write() */
+	if (!gfs_assert_withdraw(sdp, !error)) {
+		dip->i_di.di_depth++;
+		gfs_dinode_out(&dip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
 
-	dip->i_di.di_depth++;
-
-	gfs_dinode_out(&dip->i_di, dibh->b_data);
-	brelse(dibh);
-
-	return 0;
+	return error;
 
  fail:
 	kfree(buf);
@@ -1071,7 +1086,7 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
 	struct gfs_dirent **darr;
 	struct gfs_dirent *de;
 	unsigned int e = 0;
-	int error = 0;
+	int error;
 
 	if (!entries)
 		return 0;
@@ -1084,15 +1099,25 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
 	do {
 		if (!de->de_inum.no_formal_ino)
 			continue;
+		if (e >= entries) {
+			gfs_consist_inode(dip);
+			error = -EIO;
+			goto out;
+		}
 		darr[e++] = de;
 	}
 	while (dirent_next(dip, bh, &de) == 0);
 
-	GFS_ASSERT_INODE(e == entries, dip,);
+	if (e != entries) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+		goto out;
+	}
 
 	error = do_filldir_main(dip, offset, opaque, filldir, darr,
 				entries, copied);
 
+ out:
 	kfree(darr);
 
 	return error;
@@ -1177,6 +1202,11 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 		do {
 			if (!de->de_inum.no_formal_ino)
 				continue;
+			if (e >= entries) {
+				gfs_consist_inode(dip);
+				error = -EIO;
+				goto out;
+			}
 			darr[e++] = de;
 		}
 		while (dirent_next(dip, bh, &de) == 0);
@@ -1196,6 +1226,11 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 			do {
 				if (!de->de_inum.no_formal_ino)
 					continue;
+				if (e >= entries) {
+					gfs_consist_inode(dip);
+					error = -EIO;
+					goto out;
+				}
 				darr[e++] = de;
 			}
 			while (dirent_next(dip, tmp_bh, &de) == 0);
@@ -1209,8 +1244,15 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 		}
 	}
 
-	GFS_ASSERT_INODE(l == leaves, dip,);
-	GFS_ASSERT_INODE(e == entries, dip,);
+	if (gfs_assert_withdraw(dip->i_sbd, l == leaves)) {
+		error = -EIO;
+		goto out;
+	}
+	if (e != entries) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+		goto out;
+	}
 
 	/*  Do work  */
 
@@ -1276,7 +1318,6 @@ static int
 dir_e_add(struct gfs_inode *dip, struct qstr *filename,
 	  struct gfs_inum *inum, unsigned int type)
 {
-	struct gfs_sbd *sdp = dip->i_sbd;
 	struct buffer_head *bh, *nbh, *dibh;
 	struct gfs_leaf *leaf, *nleaf;
 	struct gfs_dirent *dent;
@@ -1287,7 +1328,10 @@ dir_e_add(struct gfs_inode *dip, struct qstr *filename,
 
  restart:
 	hsize = 1 << dip->i_di.di_depth;
-	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
+	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	/*  Figure out the address of the leaf node.  */
 
@@ -1346,7 +1390,7 @@ dir_e_add(struct gfs_inode *dip, struct qstr *filename,
 					return error;
 				}
 
-				error = gfs_dread(sdp, bn, dip->i_gl,
+				error = gfs_dread(dip->i_gl, bn,
 						  DIO_NEW | DIO_START | DIO_WAIT,
 						  &nbh);
 				if (error) {
@@ -1355,7 +1399,8 @@ dir_e_add(struct gfs_inode *dip, struct qstr *filename,
 				}
 
 				gfs_trans_add_bh(dip->i_gl, nbh);
-				gfs_metatype_set(sdp, nbh, GFS_METATYPE_LF,
+				gfs_metatype_set(nbh,
+						 GFS_METATYPE_LF,
 						 GFS_FORMAT_LF);
 				gfs_buffer_clear_tail(nbh,
 						      sizeof(struct gfs_meta_header));
@@ -1367,8 +1412,7 @@ dir_e_add(struct gfs_inode *dip, struct qstr *filename,
 				nleaf->lf_depth = leaf->lf_depth;
 				nleaf->lf_dirent_format = cpu_to_gfs32(GFS_FORMAT_DE);
 
-				if (gfs_dirent_alloc(dip, nbh, filename->len, &dent))
-					GFS_ASSERT_INODE(FALSE, dip,);
+				gfs_dirent_alloc(dip, nbh, filename->len, &dent);
 
 				dip->i_di.di_blocks++;
 
@@ -1426,7 +1470,10 @@ dir_e_del(struct gfs_inode *dip, struct qstr *filename)
 	int error;
 
 	error = linked_leaf_search(dip, filename, &dent, &prev, &bh);
-	GFS_ASSERT_INODE(error != -ENOENT, dip,);
+	if (error == -ENOENT) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 	if (error)
 		return error;
 
@@ -1434,7 +1481,8 @@ dir_e_del(struct gfs_inode *dip, struct qstr *filename)
 
 	leaf = (struct gfs_leaf *)bh->b_data;
 	entries = gfs16_to_cpu(leaf->lf_entries);
-	GFS_ASSERT_INODE(entries, dip,);
+	if (!entries)
+		gfs_consist_inode(dip);
 	entries--;
 	leaf->lf_entries = cpu_to_gfs16(entries);
 
@@ -1444,7 +1492,8 @@ dir_e_del(struct gfs_inode *dip, struct qstr *filename)
 	if (error)
 		return error;
 
-	GFS_ASSERT_INODE(dip->i_di.di_entries, dip,);
+	if (!dip->i_di.di_entries)
+		gfs_consist_inode(dip);
 	dip->i_di.di_entries--;
 	dip->i_di.di_mtime = dip->i_di.di_ctime = get_seconds();
 
@@ -1480,7 +1529,10 @@ dir_e_read(struct gfs_inode *dip, uint64_t *offset, void *opaque,
 	int error = 0;
 
 	hsize = 1 << dip->i_di.di_depth;
-	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
+	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	hash = gfs_dir_offset2hash(*offset);
 	index = hash >> (32 - dip->i_di.di_depth);
@@ -1557,7 +1609,10 @@ dir_e_mvino(struct gfs_inode *dip, struct qstr *filename,
 	int error;
 
 	error = linked_leaf_search(dip, filename, &dent, NULL, &bh);
-	GFS_ASSERT_INODE(error != -ENOENT, dip,);
+	if (error == -ENOENT) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 	if (error)
 		return error;
 
@@ -1599,7 +1654,10 @@ dir_l_search(struct gfs_inode *dip, struct qstr *filename,
 	struct gfs_dirent *dent;
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(dip), dip,);
+	if (!gfs_is_stuffed(dip)) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	error = gfs_get_inode_buffer(dip, &dibh);
 	if (error)
@@ -1636,7 +1694,10 @@ dir_l_add(struct gfs_inode *dip, struct qstr *filename,
 	struct gfs_dirent *dent;
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(dip), dip,);
+	if (!gfs_is_stuffed(dip)) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	error = gfs_get_inode_buffer(dip, &dibh);
 	if (error)
@@ -1684,29 +1745,40 @@ dir_l_del(struct gfs_inode *dip, struct qstr *filename)
 	struct gfs_dirent *dent, *prev;
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(dip), dip,);
+	if (!gfs_is_stuffed(dip)) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	error = gfs_get_inode_buffer(dip, &dibh);
 	if (error)
 		return error;
 
 	error = leaf_search(dip, dibh, filename, &dent, &prev);
-	GFS_ASSERT_INODE(!error, dip,);
+	if (error == -ENOENT) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+		goto out;
+	}
+	if (error)
+		goto out;
 
 	dirent_del(dip, dibh, prev, dent);
 
 	/*  dirent_del() pins  */
 
-	GFS_ASSERT_INODE(dip->i_di.di_entries, dip,);
+	if (!dip->i_di.di_entries)
+		gfs_consist_inode(dip);
 	dip->i_di.di_entries--;
 
 	dip->i_di.di_mtime = dip->i_di.di_ctime = get_seconds();
 
 	gfs_dinode_out(&dip->i_di, dibh->b_data);
 
+ out:
 	brelse(dibh);
 
-	return 0;
+	return error;
 }
 
 /**
@@ -1727,7 +1799,10 @@ dir_l_read(struct gfs_inode *dip, uint64_t *offset, void *opaque,
 	int copied = FALSE;
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(dip), dip,);
+	if (!gfs_is_stuffed(dip)) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	if (!dip->i_di.di_entries)
 		return 0;
@@ -1765,14 +1840,23 @@ dir_l_mvino(struct gfs_inode *dip, struct qstr *filename,
 	struct gfs_dirent *dent;
 	int error;
 
-	GFS_ASSERT_INODE(gfs_is_stuffed(dip), dip,);
+	if (!gfs_is_stuffed(dip)) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	error = gfs_get_inode_buffer(dip, &dibh);
 	if (error)
 		return error;
 
 	error = leaf_search(dip, dibh, filename, &dent, NULL);
-	GFS_ASSERT_INODE(!error, dip,);
+	if (error == -ENOENT) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+		goto out;
+	}
+	if (error)
+		goto out;
 
 	gfs_trans_add_bh(dip->i_gl, dibh);
 
@@ -1783,9 +1867,10 @@ dir_l_mvino(struct gfs_inode *dip, struct qstr *filename,
 
 	gfs_dinode_out(&dip->i_di, dibh->b_data);
 
+ out:
 	brelse(dibh);
 
-	return 0;
+	return error;
 }
 
 /**
@@ -1805,8 +1890,6 @@ gfs_dir_search(struct gfs_inode *dip, struct qstr *filename,
 	       struct gfs_inum *inum, unsigned int *type)
 {
 	int error;
-
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH)
 		error = dir_e_search(dip, filename, inum, type);
@@ -1832,8 +1915,6 @@ gfs_dir_add(struct gfs_inode *dip, struct qstr *filename,
 {
 	int error;
 
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
-
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH)
 		error = dir_e_add(dip, filename, inum, type);
 	else
@@ -1854,8 +1935,6 @@ int
 gfs_dir_del(struct gfs_inode *dip, struct qstr *filename)
 {
 	int error;
-
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH)
 		error = dir_e_del(dip, filename);
@@ -1880,8 +1959,6 @@ gfs_dir_read(struct gfs_inode *dip, uint64_t * offset, void *opaque,
 	     gfs_filldir_t filldir)
 {
 	int error;
-
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH)
 		error = dir_e_read(dip, offset, opaque, filldir);
@@ -1909,8 +1986,6 @@ gfs_dir_mvino(struct gfs_inode *dip, struct qstr *filename,
 	      struct gfs_inum *inum, unsigned int new_type)
 {
 	int error;
-
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH)
 		error = dir_e_mvino(dip, filename, inum, new_type);
@@ -1942,9 +2017,11 @@ foreach_leaf(struct gfs_inode *dip, leaf_call_t lc, void *data)
 	uint64_t leaf_no;
 	int error = 0;
 
-	GFS_ASSERT_INODE(dip->i_di.di_flags & GFS_DIF_EXHASH, dip,);
 	hsize = 1 << dip->i_di.di_depth;
-	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
+	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	lp = kmalloc(sdp->sd_hash_bsize, GFP_KERNEL);
 	if (!lp)
@@ -1985,7 +2062,10 @@ foreach_leaf(struct gfs_inode *dip, leaf_call_t lc, void *data)
 			index++;
 	}
 
-	GFS_ASSERT_INODE(index == hsize, dip,);
+	if (index != hsize) {
+		gfs_consist_inode(dip);
+		error = -EIO;
+	}
 
  out:
 	kfree(lp);
@@ -2030,18 +2110,18 @@ leaf_free(struct gfs_inode *dip,
 
 	error = gfs_quota_hold_m(dip, NO_QUOTA_CHANGE, NO_QUOTA_CHANGE);
 	if (error)
-		goto fail;
+		goto out;
 
 	error = gfs_rindex_hold(sdp, &dip->i_alloc->al_ri_gh);
 	if (error)
-		goto fail_qs;
+		goto out_qs;
 
 	/*  Count the number of leaves  */
 
 	for (blk = leaf_no; blk; blk = tmp_leaf.lf_next) {
 		error = get_leaf(dip, blk, &bh);
 		if (error)
-			goto fail_rlist;
+			goto out_rlist;
 		gfs_leaf_in(&tmp_leaf, (bh)->b_data);
 		brelse(bh);
 
@@ -2058,7 +2138,7 @@ leaf_free(struct gfs_inode *dip,
 
 	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
 	if (error)
-		goto fail_rlist;
+		goto out_rlist;
 
 	/* Trans may require:
 	   All the bitmaps that were reserved.
@@ -2070,18 +2150,19 @@ leaf_free(struct gfs_inode *dip,
 				rg_blocks + 1 + (DIV_RU(size, sdp->sd_jbsize) + 1),
 				1);
 	if (error)
-		goto fail_rg_gunlock;
+		goto out_rg_gunlock;
 
 	for (blk = leaf_no; blk; blk = tmp_leaf.lf_next) {
 		error = get_leaf(dip, blk, &bh);
 		if (error)
-			goto fail_end_trans;
+			goto out_end_trans;
 		gfs_leaf_in(&tmp_leaf, bh->b_data);
 		brelse(bh);
 
 		gfs_metafree(dip, blk, 1);
 
-		GFS_ASSERT_INODE(dip->i_di.di_blocks, dip,);
+		if (!dip->i_di.di_blocks)
+			gfs_consist_inode(dip);
 		dip->i_di.di_blocks--;
 	}
 
@@ -2089,42 +2170,31 @@ leaf_free(struct gfs_inode *dip,
 	if (error != size) {
 		if (error >= 0)
 			error = -EIO;
-		goto fail_end_trans;
+		goto out_end_trans;
 	}
 
 	error = gfs_get_inode_buffer(dip, &dibh);
 	if (error)
-		goto fail_end_trans;
+		goto out_end_trans;
 
 	gfs_trans_add_bh(dip->i_gl, dibh);
 	gfs_dinode_out(&dip->i_di, dibh->b_data);
 	brelse(dibh);
 
+ out_end_trans:
 	gfs_trans_end(sdp);
 
-	gfs_glock_dq_m(rlist.rl_rgrps, rlist.rl_ghs);
-	gfs_rlist_free(&rlist);
-	gfs_glock_dq_uninit(&dip->i_alloc->al_ri_gh);
-	gfs_quota_unhold_m(dip);
-	gfs_alloc_put(dip);
-	kfree(ht);
-
-	return 0;
-
- fail_end_trans:
-	gfs_trans_end(sdp);
-
- fail_rg_gunlock:
+ out_rg_gunlock:
 	gfs_glock_dq_m(rlist.rl_rgrps, rlist.rl_ghs);
 
- fail_rlist:
+ out_rlist:
 	gfs_rlist_free(&rlist);
 	gfs_glock_dq_uninit(&dip->i_alloc->al_ri_gh);
 
- fail_qs:
+ out_qs:
 	gfs_quota_unhold_m(dip);
 
- fail:
+ out:
 	gfs_alloc_put(dip);
 	kfree(ht);
 
@@ -2148,8 +2218,6 @@ gfs_dir_exhash_free(struct gfs_inode *dip)
 	struct buffer_head *bh;
 	int error;
 
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
-
 	/* Dealloc on-disk leaves to FREEMETA state */
 	error = foreach_leaf(dip, leaf_free, NULL);
 	if (error)
@@ -2163,20 +2231,14 @@ gfs_dir_exhash_free(struct gfs_inode *dip)
 		return error;
 
 	error = gfs_get_inode_buffer(dip, &bh);
-	if (error)
-		goto fail;
-
-	gfs_trans_add_bh(dip->i_gl, bh);
-	((struct gfs_dinode *)bh->b_data)->di_type = cpu_to_gfs16(GFS_FILE_REG);
-
-	brelse(bh);
+	if (!error) {
+		gfs_trans_add_bh(dip->i_gl, bh);
+		((struct gfs_dinode *)bh->b_data)->di_type = cpu_to_gfs16(GFS_FILE_REG);
+		brelse(bh);
+	}
 
 	gfs_trans_end(sdp);
 
-	return 0;
-
- fail:
-	gfs_trans_end(sdp);
 	return error;
 }
 
@@ -2199,12 +2261,12 @@ gfs_diradd_alloc_required(struct gfs_inode *dip, struct qstr *filename,
 
 	*alloc_required = FALSE;
 
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
-
 	if (dip->i_di.di_flags & GFS_DIF_EXHASH) {
 		hsize = 1 << dip->i_di.di_depth;
-		GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size,
-				 dip,);
+		if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
+			gfs_consist_inode(dip);
+			return -EIO;
+		}
 
 		hash = gfs_dir_hash(filename->name, filename->len);
 		index = hash >> (32 - dip->i_di.di_depth);
@@ -2297,6 +2359,5 @@ do_gdm(struct gfs_inode *dip,
 int
 gfs_get_dir_meta(struct gfs_inode *dip, struct gfs_user_buffer *ub)
 {
-	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 	return foreach_leaf(dip, do_gdm, ub);
 }

@@ -52,7 +52,7 @@ void gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *trans);
 void gfs_log_flush(struct gfs_sbd *sdp);
 void gfs_log_flush_glock(struct gfs_glock *gl);
 
-int gfs_log_shutdown(struct gfs_sbd *sdp);
+void gfs_log_shutdown(struct gfs_sbd *sdp);
 
 void gfs_log_dump(struct gfs_sbd *sdp, int force);
 

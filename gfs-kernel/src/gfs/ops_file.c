@@ -33,6 +33,7 @@
 #include "glops.h"
 #include "inode.h"
 #include "ioctl.h"
+#include "lm.h"
 #include "log.h"
 #include "ops_file.h"
 #include "ops_vm.h"
@@ -172,7 +173,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 		if (!dumping)
 			up_read(&mm->mmap_sem);
 
-		GFS_ASSERT_SBD(x == num_gh, vfs2sdp(sb),);
+		gfs_assert(vfs2sdp(sb), x == num_gh,);
 	}
 
 	count = operation(file, buf, size, offset, num_gh, ghs);
@@ -801,9 +802,9 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 		gfs_log_flush_glock(ip->i_gl);
 
 	if (alloc_required) {
-		GFS_ASSERT_INODE(count != size ||
-				 al->al_alloced_meta ||
-				 al->al_alloced_data, ip,);
+		gfs_assert_warn(sdp, count != size ||
+				al->al_alloced_meta ||
+				al->al_alloced_data);
 		gfs_inplace_release(ip);
 		gfs_quota_unlock_m(ip);
 		gfs_alloc_put(ip);
@@ -987,8 +988,10 @@ filldir_reg_func(void *opaque,
 		vfs_type = DT_SOCK;
 		break;
 	default:
-		GFS_ASSERT_SBD(FALSE, sdp,
-			       printk("type = %u\n", type););
+		if (gfs_consist(sdp))
+			printk("GFS: fsid=%s: type = %u\n",
+			       sdp->sd_fsname, type);
+		return -EIO;
 	}
 
 	error = fdr->fdr_filldir(fdr->fdr_opaque, name, length, offset,
@@ -1295,7 +1298,7 @@ gfs_open(struct inode *inode, struct file *file)
 	fp->f_inode = ip;
 	fp->f_vfile = file;
 
-	GFS_ASSERT_INODE(!vf2fp(file), ip,);
+	gfs_assert_warn(ip->i_sbd, !vf2fp(file));
 	vf2fp(file) = fp;
 
 	if (ip->i_di.di_type == GFS_FILE_REG) {
@@ -1357,9 +1360,8 @@ gfs_close(struct inode *inode, struct file *file)
 	fp = vf2fp(file);
 	vf2fp(file) = NULL;
 
-	GFS_ASSERT_SBD(fp, sdp,);
-
-	kfree(fp);
+	if (!gfs_assert_warn(sdp, fp))
+		kfree(fp);
 
 	return 0;
 }
@@ -1423,19 +1425,13 @@ do_plock(struct file *file, int cmd, struct file_lock *fl)
 	}
 
 	if (IS_GETLK(cmd))
-		return sdp->sd_lockstruct.ls_ops->lm_plock_get(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, file, fl);
+		return gfs_lm_plock_get(sdp, &name, file, fl);
 
 	else if (fl->fl_type == F_UNLCK)
-		return sdp->sd_lockstruct.ls_ops->lm_punlock(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, file, fl);
+		return gfs_lm_punlock(sdp, &name, file, fl);
 
 	else
-		return sdp->sd_lockstruct.ls_ops->lm_plock(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, file, cmd, fl);
+		return gfs_lm_plock(sdp, &name, file, cmd, fl);
 }
 
 /**
@@ -1554,15 +1550,11 @@ do_flock(struct file *file, int cmd, struct file_lock *fl)
 	error = gfs_glock_nq(fl_gh);
 	if (error) {
 		gfs_holder_uninit(fl_gh);
-		if (error == GLR_TRYFAILED) {
-			GFS_ASSERT_INODE(flags & LM_FLAG_TRY, ip,);
+		if (error == GLR_TRYFAILED)
 			error = -EAGAIN;
-		}
 	} else {
 		error = flock_lock_file_wait(file, fl);
-		if (error)
-			printk("%s: local flock dropped\n",
-			       ip->i_sbd->sd_fsname);
+		gfs_assert_warn(ip->i_sbd, !error);
 	}
 
  out:

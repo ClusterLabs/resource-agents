@@ -28,6 +28,7 @@ struct lm_lockops gulm_ops = {
       lm_mount:gulm_mount,
       lm_others_may_mount:gulm_others_may_mount,
       lm_unmount:gulm_unmount,
+      lm_withdraw:gulm_withdraw,
       lm_get_lock:gulm_get_lock,
       lm_put_lock:gulm_put_lock,
       lm_lock:gulm_lock,

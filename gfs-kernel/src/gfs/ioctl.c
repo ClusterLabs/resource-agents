@@ -169,7 +169,7 @@ do_get_super(struct gfs_sbd *sdp, void *arg)
 	if (error)
 		goto out;
 
-	error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, sb_gh.gh_gl,
+	error = gfs_dread(sb_gh.gh_gl, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error) {
 		gfs_glock_dq_uninit(&sb_gh);
@@ -247,7 +247,10 @@ jread_ioctl(struct gfs_sbd *sdp, void *arg)
 	if (!ip)
 		return -EINVAL;
 
-	GFS_ASSERT_INODE(gfs_is_jdata(ip), ip,);
+	if (!gfs_is_jdata(ip)) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	if (!access_ok(VERIFY_WRITE, jt.jio_data, jt.jio_size))
 		return -EFAULT;
@@ -297,7 +300,10 @@ jwrite_ioctl(struct gfs_sbd *sdp, void *arg)
 	if (!ip)
 		return -EINVAL;
 
-	GFS_ASSERT_INODE(gfs_is_jdata(ip), ip,);
+	if (!gfs_is_jdata(ip)) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	if (!access_ok(VERIFY_READ, jt.jio_data, jt.jio_size))
 		return -EFAULT;
@@ -357,7 +363,7 @@ jwrite_ioctl(struct gfs_sbd *sdp, void *arg)
 	
  out_relse:
 	if (alloc_required) {
-		GFS_ASSERT_INODE(error || al->al_alloced_meta, ip,);
+		gfs_assert_warn(sdp, error || al->al_alloced_meta);
 		gfs_inplace_release(ip);
 	}
 
@@ -749,6 +755,10 @@ fill_counters(struct gfs_sbd *sdp,
 		    atomic_read(&sdp->sd_reclaim_count));
 	gfs_sprintf("sd_log_wrap:log wraps::%"PRIu64"\n",
 		    sdp->sd_log_wrap);
+	gfs_sprintf("sd_lm_outstanding:outstanding LM calls::%d\n",
+		    atomic_read(&sdp->sd_lm_outstanding));
+	gfs_sprintf("sd_bio_outstanding:outstanding BIO calls::%u\n",
+		    atomic_read(&sdp->sd_bio_outstanding));
 	gfs_sprintf("sd_fh2dentry_misses:fh2dentry misses:diff:%u\n",
 		    handle_roll(&sdp->sd_fh2dentry_misses));
 	gfs_sprintf("sd_reclaimed:glocks reclaimed:diff:%u\n",
@@ -779,6 +789,10 @@ fill_counters(struct gfs_sbd *sdp,
 		    handle_roll(&sdp->sd_ops_super));
 	gfs_sprintf("sd_ops_vm:vm operations:diff:%u\n",
 		    handle_roll(&sdp->sd_ops_vm));
+	gfs_sprintf("sd_bio_reads:block I/O reads:diff:%u\n",
+		    handle_roll(&sdp->sd_bio_reads));
+	gfs_sprintf("sd_bio_writes:block I/O writes:diff:%u\n",
+		    handle_roll(&sdp->sd_bio_writes));
 
  out:
 	return error;

@@ -1,7 +1,7 @@
 # Add lock harness to the build system.
 diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2004-10-27 02:11:48.029120217 -0500
-+++ linux/fs/Kconfig	2004-10-27 02:11:54.814210981 -0500
+--- linux-2.6.9/fs/Kconfig	2004-12-10 16:16:48.000000000 -0600
++++ linux/fs/Kconfig	2004-12-17 20:03:05.384600848 -0600
 @@ -1768,6 +1768,14 @@ config AFS_FS
  config RXRPC
  	tristate
@@ -18,8 +18,8 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.9/fs/Makefile linux/fs/Makefile
---- linux-2.6.9/fs/Makefile	2004-10-27 02:11:48.029120217 -0500
-+++ linux/fs/Makefile	2004-10-27 02:11:54.815210700 -0500
+--- linux-2.6.9/fs/Makefile	2004-12-10 16:16:48.000000000 -0600
++++ linux/fs/Makefile	2004-12-17 20:03:05.385600615 -0600
 @@ -93,3 +93,4 @@ obj-$(CONFIG_AFS_FS)		+= afs/
  obj-$(CONFIG_BEFS_FS)		+= befs/
  obj-$(CONFIG_HOSTFS)		+= hostfs/
@@ -27,7 +27,7 @@ diff -urN -p linux-2.6.9/fs/Makefile linux/fs/Makefile
 +obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
 diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
 --- linux-2.6.9/fs/gfs_locking/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/Makefile	2004-10-27 02:11:54.815210700 -0500
++++ linux/fs/gfs_locking/Makefile	2004-12-17 20:03:05.385600615 -0600
 @@ -0,0 +1,14 @@
 +###############################################################################
 +###############################################################################
@@ -45,7 +45,7 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
 +
 diff -urN -p linux-2.6.9/fs/gfs_locking/lock_harness/Makefile linux/fs/gfs_locking/lock_harness/Makefile
 --- linux-2.6.9/fs/gfs_locking/lock_harness/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_harness/Makefile	2004-10-27 02:11:54.815210700 -0500
++++ linux/fs/gfs_locking/lock_harness/Makefile	2004-12-17 20:03:05.385600615 -0600
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################

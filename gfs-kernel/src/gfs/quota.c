@@ -133,6 +133,7 @@ void
 gfs_quota_hold(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
 	spin_lock(&sdp->sd_quota_lock);
+	gfs_assert(sdp, qd->qd_count,);
 	qd->qd_count++;
 	spin_unlock(&sdp->sd_quota_lock);
 }
@@ -150,7 +151,7 @@ void
 gfs_quota_put(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
 	spin_lock(&sdp->sd_quota_lock);
-	GFS_ASSERT_SBD(qd->qd_count, sdp,);
+	gfs_assert(sdp, qd->qd_count,);
 	qd->qd_count--;
 	spin_unlock(&sdp->sd_quota_lock);
 }
@@ -261,10 +262,10 @@ quota_unlock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
 	spin_lock(&sdp->sd_quota_lock);
 
-	GFS_ASSERT_SBD(test_bit(QDF_LOCK, &qd->qd_flags), sdp,);
+	gfs_assert_warn(sdp, test_bit(QDF_LOCK, &qd->qd_flags));
 	clear_bit(QDF_LOCK, &qd->qd_flags);
 
-	GFS_ASSERT_SBD(qd->qd_count, sdp,);
+	gfs_assert(sdp, qd->qd_count,);
 	qd->qd_count--;
 
 	spin_unlock(&sdp->sd_quota_lock);
@@ -290,7 +291,7 @@ gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 	if (error)
 		return error;
 
-	GFS_ASSERT_SBD(qd->qd_change_ic == qd->qd_change_od, sdp,);
+	gfs_assert(sdp, qd->qd_change_ic == qd->qd_change_od,);
 
 	gfs_log_lock(sdp);
 
@@ -304,10 +305,10 @@ gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 			atomic_inc(&sdp->sd_quota_od_count);
 		}
 	} else {
-		GFS_ASSERT_SBD(test_bit(QDF_OD_LIST, &qd->qd_flags), sdp,);
+		gfs_assert_warn(sdp, test_bit(QDF_OD_LIST, &qd->qd_flags));
 		clear_bit(QDF_OD_LIST, &qd->qd_flags);
 		gfs_quota_put(sdp, qd);
-		GFS_ASSERT_SBD(atomic_read(&sdp->sd_quota_od_count), sdp,);
+		gfs_assert(sdp, atomic_read(&sdp->sd_quota_od_count) > 0,);
 		atomic_dec(&sdp->sd_quota_od_count);
 	}
 
@@ -346,11 +347,11 @@ gfs_quota_scan(struct gfs_sbd *sdp)
 	while (!list_empty(&dead)) {
 		qd = list_entry(dead.next, struct gfs_quota_data, qd_list);
 
-		GFS_ASSERT_SBD(!qd->qd_count, sdp,);
-		GFS_ASSERT_SBD(!test_bit(QDF_OD_LIST, &qd->qd_flags) &&
-			       !test_bit(QDF_LOCK, &qd->qd_flags), sdp,);
-		GFS_ASSERT_SBD(!qd->qd_change_new && !qd->qd_change_ic &&
-			       !qd->qd_change_od, sdp,);
+		gfs_assert_warn(sdp, !qd->qd_count);
+		gfs_assert_warn(sdp, !test_bit(QDF_OD_LIST, &qd->qd_flags) &&
+				!test_bit(QDF_LOCK, &qd->qd_flags));
+		gfs_assert_warn(sdp, !qd->qd_change_new && !qd->qd_change_ic &&
+				!qd->qd_change_od);
 
 		list_del(&qd->qd_list);
 		gfs_lvb_unhold(qd->qd_gl);
@@ -388,13 +389,12 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 			goto restart;
 
 		} else if (qd->qd_count) {
-			GFS_ASSERT_SBD(test_bit(QDF_OD_LIST, &qd->qd_flags) &&
-				       !test_bit(QDF_LOCK, &qd->qd_flags),
-				       sdp,);
-			GFS_ASSERT_SBD(qd->qd_change_od &&
-				       qd->qd_change_od == qd->qd_change_ic,
-				       sdp,);
-			GFS_ASSERT_SBD(!qd->qd_change_new, sdp,);
+			gfs_assert_warn(sdp,
+					test_bit(QDF_OD_LIST, &qd->qd_flags) &&
+					!test_bit(QDF_LOCK, &qd->qd_flags));
+			gfs_assert_warn(sdp, qd->qd_change_od &&
+					qd->qd_change_od == qd->qd_change_ic);
+			gfs_assert_warn(sdp, !qd->qd_change_new);
 
 			list_del(&qd->qd_list);
 			atomic_dec(&sdp->sd_quota_od_count);
@@ -406,11 +406,12 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 			spin_lock(&sdp->sd_quota_lock);
 
 		} else {
-			GFS_ASSERT_SBD(!test_bit(QDF_OD_LIST, &qd->qd_flags) &&
-				       !test_bit(QDF_LOCK, &qd->qd_flags), sdp,);
-			GFS_ASSERT_SBD(!qd->qd_change_new &&
-				       !qd->qd_change_ic &&
-				       !qd->qd_change_od, sdp,);
+			gfs_assert_warn(sdp,
+					!test_bit(QDF_OD_LIST, &qd->qd_flags) &&
+					!test_bit(QDF_LOCK, &qd->qd_flags));
+			gfs_assert_warn(sdp, !qd->qd_change_new &&
+					!qd->qd_change_ic &&
+					!qd->qd_change_od);
 
 			list_del(&qd->qd_list);
 
@@ -424,7 +425,7 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 
 	spin_unlock(&sdp->sd_quota_lock);
 
-	GFS_ASSERT_SBD(!atomic_read(&sdp->sd_quota_od_count), sdp,);
+	gfs_assert(sdp, !atomic_read(&sdp->sd_quota_od_count),);
 
 	gfs_log_unlock(sdp);
 }
@@ -604,7 +605,7 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 	gfs_trans_end(sdp);
 
 	if (nalloc) {
-		GFS_ASSERT_SBD(al->al_alloced_meta, sdp,);
+		gfs_assert_warn(sdp, al->al_alloced_meta);
 		gfs_inplace_release(ip);
 		gfs_quota_unhold_m(ip);
 		gfs_alloc_put(ip);
@@ -747,8 +748,9 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 	unsigned int x = 0;
 	int error;
 
-	GFS_ASSERT_INODE(al && !al->al_qd_num &&
-			 !test_bit(GIF_QD_LOCKED, &ip->i_flags), ip,);
+	if (gfs_assert_warn(sdp, !al->al_qd_num &&
+			    !test_bit(GIF_QD_LOCKED, &ip->i_flags)))
+		return -EIO;
 
 	if (!sdp->sd_tune.gt_quota_account)
 		return 0;
@@ -807,8 +809,7 @@ gfs_quota_unhold_m(struct gfs_inode *ip)
 	struct gfs_alloc *al = ip->i_alloc;
 	unsigned int x;
 
-	GFS_ASSERT_INODE(al &&
-			 !test_bit(GIF_QD_LOCKED, &ip->i_flags), ip,);
+	gfs_assert_warn(sdp, !test_bit(GIF_QD_LOCKED, &ip->i_flags));
 
 	for (x = 0; x < al->al_qd_num; x++) {
 		gfs_quota_put(sdp, al->al_qd[x]);

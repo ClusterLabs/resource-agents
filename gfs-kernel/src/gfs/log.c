@@ -192,7 +192,7 @@ current_tail(struct gfs_sbd *sdp)
 
 		if (!gfs_log_is_header(sdp, tail)) {
 			tail--;
-			GFS_ASSERT_SBD(gfs_log_is_header(sdp, tail), sdp,);
+			gfs_assert(sdp, gfs_log_is_header(sdp, tail), );
 		}
 	} else {
 		tr = list_entry(sdp->sd_log_ail.prev,
@@ -234,7 +234,6 @@ gfs_ail_empty(struct gfs_sbd *sdp)
 	     tmp != head;
 	     tmp = prev, prev = tmp->prev) {
 		tr = list_entry(tmp, struct gfs_trans, tr_list);
-
 		if (gfs_ail_empty_trans(sdp, tr)) {
 			list_del(&tr->tr_list);
 			kfree(tr);
@@ -247,12 +246,11 @@ gfs_ail_empty(struct gfs_sbd *sdp)
 		dist = log_distance(sdp, newtail, oldtail);
 
 		segments = dist / sdp->sd_sb.sb_seg_size;
-		GFS_ASSERT_SBD(segments * sdp->sd_sb.sb_seg_size == dist, sdp,);
+		gfs_assert(sdp, segments * sdp->sd_sb.sb_seg_size == dist,);
 
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += segments;
-		GFS_ASSERT_SBD(sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,
-			       sdp,);
+		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 	}
 
@@ -269,7 +267,7 @@ gfs_ail_empty(struct gfs_sbd *sdp)
  * @segments: The number of segments to reserve
  * @jump_queue: if TRUE, don't care about fairness ordering
  *
- * Returns:  errno
+ * Returns: errno
  */
 
 int
@@ -279,13 +277,10 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 	struct list_head list;
 	unsigned int try = 0;
 
-	GFS_ASSERT_SBD(segments, sdp,);
-
-	if (segments >= sdp->sd_jdesc.ji_nsegment) {
-		printk("GFS: fsid=%s: error reserving log space (%u, %u)\n",
-		       sdp->sd_fsname, segments, sdp->sd_jdesc.ji_nsegment);
+	if (gfs_assert_warn(sdp, segments))
 		return -EINVAL;
-	}
+	if (gfs_assert_warn(sdp, segments < sdp->sd_jdesc.ji_nsegment))
+		return -EINVAL;
 
 	INIT_LIST_HEAD(&list);
 	start = jiffies;
@@ -331,9 +326,7 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 		gfs_ail_empty(sdp);
 
 		try++;
-		if (time_after_eq(jiffies, start + 60 * HZ))
-			printk("GFS: fsid=%s: pid %d can't make log reservation (asking for %u segments)\n",
-			       sdp->sd_fsname, current->pid, segments);
+		gfs_assert_warn(sdp, time_before(jiffies, start + 60 * HZ));
 		yield();
 	}
 
@@ -352,7 +345,7 @@ gfs_log_release(struct gfs_sbd *sdp, unsigned int segments)
 {
 	spin_lock(&sdp->sd_log_seg_lock);
 	sdp->sd_log_seg_free += segments;
-	GFS_ASSERT_SBD(sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment, sdp,);
+	gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 	spin_unlock(&sdp->sd_log_seg_lock);
 }
 
@@ -389,18 +382,18 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 	struct gfs_log_header header;
 
 	/* Make sure we're on a log segment boundary block */
-	GFS_ASSERT_SBD(gfs_log_is_header(sdp, tr->tr_log_head), sdp,);
+	gfs_assert(sdp, gfs_log_is_header(sdp, tr->tr_log_head),);
 
 	/* Grab a free log buffer descriptor (attached to trans) */
-	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
-		       !list_empty(&tr->tr_free_bufs), sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bufs &&
+		   !list_empty(&tr->tr_free_bufs),);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
 
 	/* Grab a free log buffer (attached to trans) */
-	GFS_ASSERT_SBD(tr->tr_num_free_bmem &&
-		       !list_empty(&tr->tr_free_bmem), sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bmem &&
+		   !list_empty(&tr->tr_free_bmem),);
 	bmem = tr->tr_free_bmem.next;
 	list_del(bmem);
 	tr->tr_num_free_bmem--;
@@ -472,15 +465,15 @@ gfs_log_get_buf(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		log_get_header(sdp, tr, FALSE);
 
 	/* Grab a free buffer descriptor (attached to trans) */
-	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
-		       !list_empty(&tr->tr_free_bufs), sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bufs &&
+		   !list_empty(&tr->tr_free_bufs),);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
 
 	/* Grab a free buffer (attached to trans) */
-	GFS_ASSERT_SBD(tr->tr_num_free_bmem
-		       && !list_empty(&tr->tr_free_bmem), sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bmem
+		   && !list_empty(&tr->tr_free_bmem),);
 	bmem = tr->tr_free_bmem.next;
 	list_del(bmem);
 	tr->tr_num_free_bmem--;
@@ -523,8 +516,8 @@ gfs_log_fake_buf(struct gfs_sbd *sdp, struct gfs_trans *tr, char *data,
 		log_get_header(sdp, tr, FALSE);
 
 	/* Grab a free buffer descriptor (attached to trans) */
-	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
-		       !list_empty(&tr->tr_free_bufs), sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bufs &&
+		   !list_empty(&tr->tr_free_bufs),);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
@@ -562,8 +555,8 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	dist = log_distance(sdp, tr->tr_log_head, tr->tr_first_head);
 
 	segments = dist / sdp->sd_sb.sb_seg_size;
-	GFS_ASSERT_SBD(segments * sdp->sd_sb.sb_seg_size == dist, sdp,);
-	GFS_ASSERT_SBD(segments == tr->tr_seg_reserved, sdp,);
+	gfs_assert(sdp, segments * sdp->sd_sb.sb_seg_size == dist,);
+	gfs_assert(sdp, segments == tr->tr_seg_reserved,);
 
 	if (sdp->sd_log_dump_last) {
 		int diff;
@@ -593,11 +586,11 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 				break;
 
 		default:
-			GFS_ASSERT_SBD(FALSE, sdp,
-				       printk("head_off = %"PRIu64", head_wrap = %"PRIu64"\n",
-					      head_off, head_wrap);
-				       printk("dump_off = %"PRIu64", dump_wrap = %"PRIu64"\n",
-					      dump_off, dump_wrap););
+			gfs_assert(sdp, FALSE,
+				   printk("GFS: fsid=%s: head_off = %"PRIu64", head_wrap = %"PRIu64"\n"
+					  "GFS: fsid=%s: dump_off = %"PRIu64", dump_wrap = %"PRIu64"\n",
+					  sdp->sd_fsname, head_off, head_wrap,
+					  sdp->sd_fsname, dump_off, dump_wrap););
 			break;
 		}
 	}
@@ -738,14 +731,14 @@ disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	uint64_t last_dump, last_dump_wrap;
 	int error = 0;
 
-	GFS_ASSERT_SBD(!test_bit(SDF_ROFS, &sdp->sd_flags), sdp,);
+	gfs_assert(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags),);
 	tr->tr_log_head = sdp->sd_log_head;
 	tr->tr_first_head = tr->tr_log_head - 1;
-	GFS_ASSERT_SBD(gfs_log_is_header(sdp, tr->tr_first_head), sdp,);
+	gfs_assert(sdp, gfs_log_is_header(sdp, tr->tr_first_head),);
 
 	LO_BUILD_BHLIST(sdp, tr);
 
-	GFS_ASSERT_SBD(!list_empty(&tr->tr_bufs), sdp,);
+	gfs_assert(sdp, !list_empty(&tr->tr_bufs),);
 
 	error = sync_trans(sdp, tr);
 	if (error) {
@@ -783,10 +776,10 @@ disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	sdp->sd_sequence++;
 
  out:
-	GFS_ASSERT_SBD(!tr->tr_num_free_bufs &&
-		       list_empty(&tr->tr_free_bufs), sdp,);
-	GFS_ASSERT_SBD(!tr->tr_num_free_bmem &&
-		       list_empty(&tr->tr_free_bmem), sdp,);
+	gfs_assert_warn(sdp, !tr->tr_num_free_bufs &&
+			list_empty(&tr->tr_free_bufs));
+	gfs_assert_warn(sdp, !tr->tr_num_free_bmem &&
+			list_empty(&tr->tr_free_bmem));
 
 	return error;
 }
@@ -844,16 +837,15 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	if (tr->tr_seg_reserved > segments) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr->tr_seg_reserved - segments;
-		GFS_ASSERT_SBD(sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,
-			       sdp,);
+		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 
 		tr->tr_seg_reserved = segments;
 	} else
-		GFS_ASSERT_SBD(tr->tr_seg_reserved == segments, sdp,);
+		gfs_assert(sdp, tr->tr_seg_reserved == segments,);
 
 	/* De-alloc unneeded log buffer descriptors */
-	GFS_ASSERT_SBD(tr->tr_num_free_bufs >= num_bufs, sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bufs >= num_bufs,);
 	while (tr->tr_num_free_bufs > num_bufs) {
 		lb = list_entry(tr->tr_free_bufs.next,
 				struct gfs_log_buf, lb_list);
@@ -863,7 +855,7 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	}
 
 	/* De-alloc unneeded log buffers */
-	GFS_ASSERT_SBD(tr->tr_num_free_bmem >= num_bmem, sdp,);
+	gfs_assert(sdp, tr->tr_num_free_bmem >= num_bmem,);
 	while (tr->tr_num_free_bmem > num_bmem) {
 		bmem = tr->tr_free_bmem.next;
 		list_del(bmem);
@@ -901,7 +893,7 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	while (!list_empty(&new_tr->tr_elements)) {
 		le = list_entry(new_tr->tr_elements.next,
 				struct gfs_log_element, le_list);
-		GFS_ASSERT_SBD(le->le_trans == new_tr, sdp,);
+		gfs_assert(sdp, le->le_trans == new_tr,);
 		le->le_trans = tr;
 		list_move(&le->le_list, &tr->tr_elements);
 	}
@@ -922,8 +914,8 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		new_tr->tr_num_free_bmem--;
 	}
 
-	GFS_ASSERT_SBD(!new_tr->tr_num_free_bufs, sdp,);
-	GFS_ASSERT_SBD(!new_tr->tr_num_free_bmem, sdp,);
+	gfs_assert_warn(sdp, !new_tr->tr_num_free_bufs);
+	gfs_assert_warn(sdp, !new_tr->tr_num_free_bmem);
 
 	kfree(new_tr);
 }
@@ -972,8 +964,6 @@ log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 				trans = tr;
 		}
 	}
-
-	GFS_ASSERT_SBD(trans, sdp,);
 
 	log_refund(sdp, trans);
 
@@ -1107,9 +1097,9 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 
 	/* If we successfully combined transactions, new_tr should be empty */
 	if (trans != new_tr) {
-		GFS_ASSERT_SBD(!new_tr->tr_num_free_bufs, sdp,);
-		GFS_ASSERT_SBD(!new_tr->tr_num_free_bmem, sdp,);
-		GFS_ASSERT_SBD(list_empty(&new_tr->tr_elements), sdp,);
+		gfs_assert_warn(sdp, !new_tr->tr_num_free_bufs);
+		gfs_assert_warn(sdp, !new_tr->tr_num_free_bmem);
+		gfs_assert_warn(sdp, list_empty(&new_tr->tr_elements));
 		kfree(new_tr);
 	}
 
@@ -1140,14 +1130,14 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	/* Calculate actual log area needed for this trans */
 	LO_TRANS_SIZE(sdp, tr, &num_mblks, &num_eblks, &num_bufs, &num_bmem);
 
-	GFS_ASSERT_SBD(num_mblks <= tr->tr_mblks_asked &&
-		       num_eblks <= tr->tr_eblks_asked, sdp,
-		       printk("type = (%s, %u)\n",
-			      tr->tr_file, tr->tr_line);
-		       printk("num_mblks = %u, tr->tr_mblks_asked = %u\n",
-			      num_mblks, tr->tr_mblks_asked);
-		       printk("num_eblks = %u, tr->tr_eblks_asked = %u\n",
-			      num_eblks, tr->tr_eblks_asked););
+	gfs_assert(sdp, num_mblks <= tr->tr_mblks_asked &&
+		   num_eblks <= tr->tr_eblks_asked,
+		   printk("GFS: fsid=%s: type = (%s, %u)\n"
+			  "GFS: fsid=%s: num_mblks = %u, tr->tr_mblks_asked = %u\n"
+			  "GFS: fsid=%s: num_eblks = %u, tr->tr_eblks_asked = %u\n",
+			  sdp->sd_fsname, tr->tr_file, tr->tr_line,
+			  sdp->sd_fsname, num_mblks, tr->tr_mblks_asked,
+			  sdp->sd_fsname, num_eblks, tr->tr_eblks_asked););
 
 	segments = gfs_blk2seg(sdp, num_bufs + 1);
 	num_bufs += segments + 1;
@@ -1201,7 +1191,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 	int error;
 
 	if (test_and_set_bit(SDF_IN_LOG_DUMP, &sdp->sd_flags)) {
-		GFS_ASSERT_SBD(!force, sdp,);
+		gfs_assert(sdp, !force,);
 		return;
 	}
 
@@ -1222,7 +1212,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 
 		num_bufs = num_bmem = 0;
 		LO_DUMP_SIZE(sdp, NULL, &num_bufs, &num_bmem);
-		GFS_ASSERT_SBD(num_bufs, sdp,);
+		gfs_assert(sdp, num_bufs,);
 		segments = gfs_blk2seg(sdp, num_bufs + 1);
 		num_bufs += segments + 1;
 		num_bmem += segments + 1;
@@ -1238,7 +1228,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 			error = gfs_log_reserve(sdp,
 						segments - tr.tr_seg_reserved,
 						TRUE);
-			GFS_ASSERT_SBD(!error, sdp,);
+			gfs_assert(sdp, !error,);
 			tr.tr_seg_reserved = segments;
 		}
 		while (tr.tr_num_free_bufs < num_bufs) {
@@ -1257,8 +1247,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 	if (tr.tr_seg_reserved > segments) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr.tr_seg_reserved - segments;
-		GFS_ASSERT_SBD(sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,
-			       sdp,);
+		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 		tr.tr_seg_reserved = segments;
 	}
@@ -1294,8 +1283,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 	if (list_empty(&sdp->sd_log_ail)) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr.tr_seg_reserved;
-		GFS_ASSERT_SBD(sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,
-			       sdp,);
+		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 	}
 
@@ -1310,10 +1298,9 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
  * gfs_log_shutdown - write a shutdown header into a journal
  * @sdp: the filesystem
  *
- * Returns: errno
  */
 
-int
+void
 gfs_log_shutdown(struct gfs_sbd *sdp)
 {
 	struct gfs_log_buf *lb;
@@ -1329,11 +1316,13 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 
 	gfs_log_lock(sdp);
 
-	GFS_ASSERT_SBD(list_empty(&sdp->sd_log_ail), sdp,);
-	GFS_ASSERT_SBD(sdp->sd_log_seg_free == sdp->sd_jdesc.ji_nsegment - 1,
-		       sdp,);
-	GFS_ASSERT_SBD(!sdp->sd_log_buffers, sdp,);
-	GFS_ASSERT_SBD(gfs_log_is_header(sdp, sdp->sd_log_head - 1), sdp,);
+	gfs_assert_withdraw(sdp, list_empty(&sdp->sd_log_ail));
+	gfs_assert_withdraw(sdp, sdp->sd_log_seg_free ==
+			    sdp->sd_jdesc.ji_nsegment - 1);
+	gfs_assert_withdraw(sdp, !sdp->sd_log_buffers);
+	gfs_assert_withdraw(sdp, gfs_log_is_header(sdp, sdp->sd_log_head - 1));
+	if (test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
+		goto out;
 
 	/*  Build a "last" log descriptor  */
 
@@ -1384,7 +1373,7 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 			   lb->lb_bh.b_data + GFS_BASIC_BLOCK -
 			   sizeof(struct gfs_log_header));
 	gfs_logbh_start(sdp, &lb->lb_bh);
-	error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
 
  out:
@@ -1392,6 +1381,4 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 
 	kfree(lb);
 	kfree(bmem);
-
-	return error;
 }

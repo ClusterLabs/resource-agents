@@ -60,15 +60,15 @@ gfs_setbit(struct gfs_rgrpd *rgd,
 	bit = (block % GFS_NBBY) * GFS_BIT_SIZE;
 	end = buffer + buflen;
 
-	GFS_ASSERT_RGRPD(byte < end, rgd,);
+	gfs_assert(rgd->rd_sbd, byte < end,);
 
 	cur_state = (*byte >> bit) & GFS_BIT_MASK;
-	GFS_ASSERT_RGRPD(valid_change[new_state * 4 + cur_state], rgd,
-			 printk("cur_state = %u, new_state = %u\n",
-				cur_state, new_state););
 
-	*byte ^= cur_state << bit;
-	*byte |= new_state << bit;
+	if (valid_change[new_state * 4 + cur_state]) {
+		*byte ^= cur_state << bit;
+		*byte |= new_state << bit;
+	} else
+		gfs_consist_rgrpd(rgd);
 }
 
 /**
@@ -90,7 +90,7 @@ gfs_testbit(struct gfs_rgrpd *rgd,
 	bit = (block % GFS_NBBY) * GFS_BIT_SIZE;
 	end = buffer + buflen;
 
-	GFS_ASSERT_RGRPD(byte < end, rgd,);
+        gfs_assert(rgd->rd_sbd, byte < end,);
 
 	cur_state = (*byte >> bit) & GFS_BIT_MASK;
 

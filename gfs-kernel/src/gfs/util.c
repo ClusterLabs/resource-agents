@@ -21,6 +21,7 @@
 
 #include "gfs.h"
 #include "glock.h"
+#include "lm.h"
 
 uint32_t gfs_random_number;
 
@@ -182,7 +183,7 @@ gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 }
 
 /**
- * gfs_assert_i -
+ * gfs_assert_i - Cause the machine to panic if @assertion is false
  * @sdp:
  * @assertion:
  * @function:
@@ -220,195 +221,315 @@ gfs_assert_i(struct gfs_sbd *sdp,
 }
 
 /**
- * gfs_warn -
+ * gfs_assert_withdraw_i - Cause the machine to withdraw if @assertion is false
  * @sdp:
- * @fmt:
+ * @assertion:
+ * @function:
+ * @file:
+ * @line:
  *
+ * Returns: -1 if this call withdrew the machine,
+ *          -2 if it was already withdrawn
  */
 
-void
-gfs_warn(struct gfs_sbd *sdp, char *fmt, ...)
+int
+gfs_assert_withdraw_i(struct gfs_sbd *sdp,
+		      char *assertion,
+		      const char *function,
+		      char *file, unsigned int line)
 {
-        va_list args;
-
-	if (time_before(jiffies,
-			sdp->sd_last_warning +
-			sdp->sd_tune.gt_complain_secs * HZ))
-		return;
-
-	va_start(args, fmt);
-	printk("GFS: fsid=%s: warning: ",
-	       sdp->sd_fsname);
-	vprintk(fmt, args);
-	printk("\n");
-        va_end(args);
-
-	sdp->sd_last_warning = jiffies;
+	int me;
+	me = gfs_lm_withdraw(sdp,
+			     "GFS: fsid=%s: fatal: assertion \"%s\" failed\n"
+			     "GFS: fsid=%s:   function = %s\n"
+			     "GFS: fsid=%s:   file = %s, line = %u\n"
+			     "GFS: fsid=%s:   time = %lu\n",
+			     sdp->sd_fsname, assertion,
+			     sdp->sd_fsname, function,
+			     sdp->sd_fsname, file, line,
+			     sdp->sd_fsname, get_seconds());
+	return (me) ? -1 : -2;
 }
 
 /**
- * gfs_consist_i -
+ * gfs_assert_warn_i - Print a message to the console if @assertion is false
+ * @sdp:
+ * @assertion:
+ * @function:
+ * @file:
+ * @line:
+ *
+ * Returns: -1 if we printed something
+ *          -2 if we didn't
+ */
+
+int
+gfs_assert_warn_i(struct gfs_sbd *sdp,
+		  char *assertion,
+		  const char *function,
+		  char *file, unsigned int line)
+{
+	if (time_before(jiffies,
+			sdp->sd_last_warning +
+			sdp->sd_tune.gt_complain_secs * HZ))
+		return -2;
+
+	printk("GFS: fsid=%s: warning: assertion \"%s\" failed\n"
+	       "GFS: fsid=%s:   function = %s\n"
+	       "GFS: fsid=%s:   file = %s, line = %u\n"
+	       "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname, assertion,
+	       sdp->sd_fsname, function,
+	       sdp->sd_fsname, file, line,
+	       sdp->sd_fsname, get_seconds());
+
+	sdp->sd_last_warning = jiffies;
+
+	return -1;
+}
+
+/**
+ * gfs_consist_i - Flag a filesystem consistency error and withdraw
  * @sdp:
  * @cluster_wide:
  * @function:
  * @file:
  * @line:
  *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
  */
 
-void
+int
 gfs_consist_i(struct gfs_sbd *sdp, int cluster_wide,
 	      const char *function,
 	      char *file, unsigned int line)
 {
-	printk("GFS: fsid=%s: filesystem consistency error\n"
-	       "GFS: fsid=%s:   function = %s\n"
-	       "GFS: fsid=%s:   file = %s, line = %u\n"
-	       "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-	       sdp->sd_fsname, function,
-	       sdp->sd_fsname, file, line,
-	       sdp->sd_fsname, get_seconds());
-	gfs_assert(sdp, FALSE,); /* FixMe!!! */
+	return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
 }
 
 /**
- * gfs_consist_inode_i -
+ * gfs_consist_inode_i - Flag an inode consistency error and withdraw
  * @ip:
  * @cluster_wide:
  * @function:
  * @file:
  * @line:
  *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
  */
 
-void
+int
 gfs_consist_inode_i(struct gfs_inode *ip, int cluster_wide,
 		    const char *function,
 		    char *file, unsigned int line)
 {
 	struct gfs_sbd *sdp = ip->i_sbd;
-        printk("GFS: fsid=%s: filesystem consistency error\n"
-	       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
-               "GFS: fsid=%s:   function = %s\n"
-               "GFS: fsid=%s:   file = %s, line = %u\n"
-               "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-	       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
-               sdp->sd_fsname, function,
-               sdp->sd_fsname, file, line,
-               sdp->sd_fsname, get_seconds());
-        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+        return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
+			       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
 }
 
 /**
- * gfs_consist_rgrpd_i -
+ * gfs_consist_rgrpd_i - Flag a RG consistency error and withdraw
  * @rgd:
  * @cluster_wide:
  * @function:
  * @file:
  * @line:
  *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
  */
 
-void
+int
 gfs_consist_rgrpd_i(struct gfs_rgrpd *rgd, int cluster_wide,
 		    const char *function,
 		    char *file, unsigned int line)
 {
         struct gfs_sbd *sdp = rgd->rd_sbd;
-        printk("GFS: fsid=%s: filesystem consistency error\n"
-               "GFS: fsid=%s:   RG = %"PRIu64"\n"
-               "GFS: fsid=%s:   function = %s\n"
-               "GFS: fsid=%s:   file = %s, line = %u\n"
-               "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-	       sdp->sd_fsname, rgd->rd_ri.ri_addr,
-               sdp->sd_fsname, function,
-               sdp->sd_fsname, file, line,
-               sdp->sd_fsname, get_seconds());
-        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+        return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
+			       "GFS: fsid=%s:   RG = %"PRIu64"\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, rgd->rd_ri.ri_addr,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
 }
 
 /**
- * gfs_io_error_i -
- * @sdp:
- * @function:
- * @file:
- * @line:
- *
- */
-
-void
-gfs_io_error_i(struct gfs_sbd *sdp,
-	       const char *function,
-	       char *file, unsigned int line)
-{
-        printk("GFS: fsid=%s: I/O error\n"
-               "GFS: fsid=%s:   function = %s\n"
-               "GFS: fsid=%s:   file = %s, line = %u\n"
-               "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-               sdp->sd_fsname, function,
-               sdp->sd_fsname, file, line,
-               sdp->sd_fsname, get_seconds());
-        gfs_assert(sdp, FALSE,); /* FixMe!!! */
-}
-
-/**
- * gfs_io_error_inode_i -
- * @ip:
- * @function:
- * @file:
- * @line:
- *
- */
-
-void
-gfs_io_error_inode_i(struct gfs_inode *ip,
-		     const char *function,
-		     char *file, unsigned int line)
-{
-	struct gfs_sbd *sdp = ip->i_sbd;
-        printk("GFS: fsid=%s: I/O error\n"
-               "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
-               "GFS: fsid=%s:   function = %s\n"
-               "GFS: fsid=%s:   file = %s, line = %u\n"
-               "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-	       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
-               sdp->sd_fsname, function,
-               sdp->sd_fsname, file, line,
-               sdp->sd_fsname, get_seconds());
-        gfs_assert(sdp, FALSE,); /* FixMe!!! */
-}
-
-/**
- * gfs_io_error_bh_i -
+ * gfs_meta_check_ii - Flag a magic number consistency error and withdraw
  * @sdp:
  * @bh:
  * @function:
  * @file:
  * @line:
  *
+ * Returns: -1 if this call withdrew the machine,
+ *          -2 if it was already withdrawn
  */
 
-void
+int
+gfs_meta_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
+                  const char *function,
+                  char *file, unsigned int line)
+{
+	int me;
+        me = gfs_lm_withdraw(sdp,
+			     "GFS: fsid=%s: fatal: invalid metadata block\n"
+			     "GFS: fsid=%s:   bh = %"PRIu64" (magic)\n"
+			     "GFS: fsid=%s:   function = %s\n"
+			     "GFS: fsid=%s:   file = %s, line = %u\n"
+			     "GFS: fsid=%s:   time = %lu\n",
+			     sdp->sd_fsname,
+			     sdp->sd_fsname, (uint64_t)bh->b_blocknr,
+			     sdp->sd_fsname, function,
+			     sdp->sd_fsname, file, line,
+			     sdp->sd_fsname, get_seconds());
+	return (me) ? -1 : -2;
+}
+
+/**
+ * gfs_metatype_check_ii - Flag a metadata type consistency error and withdraw
+ * @sdp:
+ * @bh:
+ * @type:
+ * @t:
+ * @function:
+ * @file:
+ * @line:
+ *
+ * Returns: -1 if this call withdrew the machine,
+ *          -2 if it was already withdrawn
+ */
+
+int
+gfs_metatype_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
+		      uint32_t type, uint32_t t,
+		      const char *function,
+		      char *file, unsigned int line)
+{
+	int me;
+        me = gfs_lm_withdraw(sdp,
+			     "GFS: fsid=%s: fatal: invalid metadata block\n"
+			     "GFS: fsid=%s:   bh = %"PRIu64" (type: exp=%u, found=%u)\n"
+			     "GFS: fsid=%s:   function = %s\n"
+			     "GFS: fsid=%s:   file = %s, line = %u\n"
+			     "GFS: fsid=%s:   time = %lu\n",
+			     sdp->sd_fsname,
+			     sdp->sd_fsname, (uint64_t)bh->b_blocknr, type, t,
+			     sdp->sd_fsname, function,
+			     sdp->sd_fsname, file, line,
+			     sdp->sd_fsname, get_seconds());
+	return (me) ? -1 : -2;
+}
+
+/**
+ * gfs_io_error_i - Flag an I/O error and withdraw
+ * @sdp:
+ * @function:
+ * @file:
+ * @line:
+ *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
+ */
+
+int
+gfs_io_error_i(struct gfs_sbd *sdp,
+	       const char *function,
+	       char *file, unsigned int line)
+{
+        return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: I/O error\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
+}
+
+/**
+ * gfs_io_error_inode_i - Flag an inode I/O error and withdraw
+ * @ip:
+ * @function:
+ * @file:
+ * @line:
+ *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
+ */
+
+int
+gfs_io_error_inode_i(struct gfs_inode *ip,
+		     const char *function,
+		     char *file, unsigned int line)
+{
+	struct gfs_sbd *sdp = ip->i_sbd;
+        return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: I/O error\n"
+			       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
+}
+
+/**
+ * gfs_io_error_bh_i - Flag a buffer I/O error and withdraw
+ * @sdp:
+ * @bh:
+ * @function:
+ * @file:
+ * @line:
+ *
+ * Returns: -1 if this call withdrew the machine,
+ *          0 if it was already withdrawn
+ */
+
+int
 gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
 		  const char *function,
 		  char *file, unsigned int line)
 {
-        printk("GFS: fsid=%s: I/O error\n"
-	       "GFS: fsid=%s:   block = %"PRIu64"\n"
-               "GFS: fsid=%s:   function = %s\n"
-               "GFS: fsid=%s:   file = %s, line = %u\n"
-               "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname,
-	       sdp->sd_fsname, (uint64_t)bh->b_blocknr,
-               sdp->sd_fsname, function,
-               sdp->sd_fsname, file, line,
-               sdp->sd_fsname, get_seconds());
-        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+        return gfs_lm_withdraw(sdp,
+			       "GFS: fsid=%s: fatal: I/O error\n"
+			       "GFS: fsid=%s:   block = %"PRIu64"\n"
+			       "GFS: fsid=%s:   function = %s\n"
+			       "GFS: fsid=%s:   file = %s, line = %u\n"
+			       "GFS: fsid=%s:   time = %lu\n",
+			       sdp->sd_fsname,
+			       sdp->sd_fsname, (uint64_t)bh->b_blocknr,
+			       sdp->sd_fsname, function,
+			       sdp->sd_fsname, file, line,
+			       sdp->sd_fsname, get_seconds());
 }
 
 /**

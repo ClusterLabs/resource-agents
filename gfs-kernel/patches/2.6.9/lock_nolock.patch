@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_locking/lock_nolock/main.c
 --- linux-orig/fs/gfs_locking/lock_nolock/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2004-11-22 12:16:06.032294564 -0600
-@@ -0,0 +1,346 @@
++++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2004-12-17 21:09:37.678663967 -0600
+@@ -0,0 +1,358 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -100,6 +100,17 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +{
 +	struct nolock_lockspace *nl = (struct nolock_lockspace *)lockspace;
 +	kfree(nl);
++}
++
++/**
++ * nolock_withdraw - withdraw from a lock space
++ * @lockspace: the lockspace
++ *
++ */
++
++static void
++nolock_withdraw(lm_lockspace_t *lockspace)
++{
 +}
 +
 +/**
@@ -293,6 +304,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +	.lm_mount = nolock_mount,
 +	.lm_others_may_mount = nolock_others_may_mount,
 +	.lm_unmount = nolock_unmount,
++	.lm_withdraw = nolock_withdraw,
 +	.lm_get_lock = nolock_get_lock,
 +	.lm_put_lock = nolock_put_lock,
 +	.lm_lock = nolock_lock,

@@ -29,6 +29,7 @@ gfs-objs := acl.o \
 	bits.o \
 	bmap.o \
 	daemon.o \
+	diaper.o \
 	dio.o \
 	dir.o \
 	eaops.o \
@@ -38,6 +39,7 @@ gfs-objs := acl.o \
 	glops.o \
 	inode.o \
 	ioctl.o \
+	lm.o \
 	log.o \
 	lops.o \
 	lvb.o \

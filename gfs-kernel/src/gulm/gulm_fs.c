@@ -603,6 +603,17 @@ gulm_unmount (lm_lockspace_t * lockspace)
 }
 
 /**
+ * gulm_withdraw
+ * @lockspace: handle to specific lock space
+ *
+ */
+void
+gulm_withdraw(lm_lockspace_t * lockspace)
+{
+	GULM_ASSERT(FALSE,);
+}
+
+/**
  * gulm_recovery_done - 
  * @lockspace: 
  * @jid: 

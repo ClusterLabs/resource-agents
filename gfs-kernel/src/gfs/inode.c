@@ -82,9 +82,10 @@ inode_attr_in(struct gfs_inode *ip, struct inode *inode)
 		inode->i_rdev = 0;
 		break;
 	default:
-		GFS_ASSERT_INODE(FALSE, ip,
-				 printk("type = %u\n", ip->i_di.di_type););
-		break;
+		if (gfs_consist_inode(ip))
+			printk("GFS: fsid=%s: type = %u\n",
+			       ip->i_sbd->sd_fsname, ip->i_di.di_type);
+		return;
 	};
 
 	inode->i_mode = mode | (ip->i_di.di_mode & S_IALLUGO);
@@ -253,20 +254,25 @@ gfs_copyin_dinode(struct gfs_inode *ip)
 	if (error)
 		return error;
 
-	gfs_metatype_check(ip->i_sbd, dibh, GFS_METATYPE_DI);
-	gfs_dinode_in(&ip->i_di, dibh->b_data);
+	if (gfs_metatype_check(ip->i_sbd, dibh, GFS_METATYPE_DI)) {
+		brelse(dibh);
+		return -EIO;
+	}
 
+	gfs_dinode_in(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	GFS_ASSERT_INODE(ip->i_num.no_formal_ino ==
-			 ip->i_di.di_num.no_formal_ino, ip,
-			 gfs_dinode_print(&ip->i_di););
+	if (ip->i_num.no_formal_ino != ip->i_di.di_num.no_formal_ino) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		return -EIO;
+	}
 
-	/*  Handle a moved inode  */
-
+	/* Handle a moved inode (not implemented yet) */
 	if (ip->i_num.no_addr != ip->i_di.di_num.no_addr) {
-		/*  Not implemented yet  */
-		GFS_ASSERT_INODE(FALSE, ip,);
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		return -EIO;
 	}
 
 	ip->i_vn = ip->i_gl->gl_vn;
@@ -376,9 +382,9 @@ gfs_inode_get(struct gfs_glock *i_gl, struct gfs_inum *inum, int create,
 	*ipp = gl2ip(i_gl);
 	if (*ipp) {
 		atomic_inc(&(*ipp)->i_count);
-		GFS_ASSERT_INODE((*ipp)->i_num.no_formal_ino ==
-				 inum->no_formal_ino,
-				 (*ipp),);
+		gfs_assert_warn(i_gl->gl_sbd, 
+				(*ipp)->i_num.no_formal_ino ==
+				inum->no_formal_ino);
 	} else if (create) {
 		error = gfs_glock_get(i_gl->gl_sbd,
 				      inum->no_addr, &gfs_iopen_glops,
@@ -402,7 +408,7 @@ gfs_inode_get(struct gfs_glock *i_gl, struct gfs_inum *inum, int create,
 void
 gfs_inode_hold(struct gfs_inode *ip)
 {
-	GFS_ASSERT_INODE(atomic_read(&ip->i_count) > 0, ip,);
+	gfs_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
 	atomic_inc(&ip->i_count);
 }
 
@@ -415,7 +421,7 @@ gfs_inode_hold(struct gfs_inode *ip)
 void
 gfs_inode_put(struct gfs_inode *ip)
 {
-	GFS_ASSERT_INODE(atomic_read(&ip->i_count) > 0, ip,);
+	gfs_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
 	atomic_dec(&ip->i_count);
 }
 
@@ -436,8 +442,8 @@ gfs_inode_destroy(struct gfs_inode *ip)
 	struct gfs_glock *io_gl = ip->i_iopen_gh.gh_gl;
 	struct gfs_glock *i_gl = ip->i_gl;
 
-	GFS_ASSERT_INODE(!atomic_read(&ip->i_count), ip,);
-	GFS_ASSERT_INODE(gl2gl(io_gl) == i_gl, ip,);
+	gfs_assert_warn(sdp, !atomic_read(&ip->i_count));
+	gfs_assert(sdp, gl2gl(io_gl) == i_gl,);
 
 	/* Unhold the iopen glock */
 	spin_lock(&io_gl->gl_spin);
@@ -516,6 +522,12 @@ dinode_dealloc(struct gfs_inode *ip)
 	struct gfs_rgrpd *rgd;
 	int error;
 
+	if (ip->i_di.di_blocks != 1) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		return -EIO;
+	}
+
 	al = gfs_alloc_get(ip);
 
 	error = gfs_quota_hold_m(ip, NO_QUOTA_CHANGE, NO_QUOTA_CHANGE);
@@ -527,14 +539,15 @@ dinode_dealloc(struct gfs_inode *ip)
 		goto out_qs;
 
 	rgd = gfs_blk2rgrpd(sdp, ip->i_num.no_addr);
-	GFS_ASSERT_INODE(rgd, ip,);
+	if (!rgd) {
+		gfs_consist_inode(ip);
+		error = -EIO;
+		goto out_rindex_relse;
+	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &al->al_rgd_gh);
 	if (error)
 		goto out_rindex_relse;
-
-	GFS_ASSERT_INODE(ip->i_di.di_blocks == 1, ip,
-			 gfs_dinode_print(&ip->i_di););
 
 	/* Trans may require:
 	   One block for the RG header.
@@ -622,11 +635,10 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 		error = 0;
 		goto fail;
 	default:
-		GFS_ASSERT_SBD(error < 0, sdp,);
 		goto fail;
 	}
 
-	GFS_ASSERT_GLOCK(!gl2ip(i_gh.gh_gl), i_gh.gh_gl,);
+	gfs_assert_warn(sdp, !gl2ip(i_gh.gh_gl));
 	error = inode_create(i_gh.gh_gl, inum, io_gh->gh_gl, LM_ST_EXCLUSIVE,
 			     &ip);
 
@@ -636,10 +648,14 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 		goto fail;
 
 	/* Verify disk (d)inode, gfs inode, and VFS (v)inode are unused */
-	GFS_ASSERT_INODE(!ip->i_di.di_nlink, ip,
-			 gfs_dinode_print(&ip->i_di););
-	GFS_ASSERT_INODE(atomic_read(&ip->i_count) == 1, ip,);
-	GFS_ASSERT_INODE(!ip->i_vnode, ip,);
+	if (ip->i_di.di_nlink) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		error = -EIO;
+		goto fail_iput;
+	}
+	gfs_assert_warn(sdp, atomic_read(&ip->i_count) == 1);
+	gfs_assert_warn(sdp, !ip->i_vnode);
 
 	/* Free all on-disk directory leaves (if any) to FREEMETA state */
 	if (ip->i_di.di_type == GFS_FILE_DIR &&
@@ -713,7 +729,6 @@ inode_dealloc_init(struct gfs_sbd *sdp, struct gfs_inum *inum)
 	case GLR_TRYFAILED:
 		return 1;
 	default:
-		GFS_ASSERT_SBD(error < 0, sdp,);
 		return error;
 	}
 
@@ -749,7 +764,11 @@ inode_dealloc_uninit(struct gfs_sbd *sdp, struct gfs_inum *inum)
 		return error;
 
 	rgd = gfs_blk2rgrpd(sdp, inum->no_addr);
-	GFS_ASSERT_SBD(rgd, sdp,);
+	if (!rgd) {
+		gfs_consist(sdp);
+		error = -EIO;
+		goto fail;
+	}
 
 	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &rgd_gh);
 	if (error)
@@ -816,9 +835,14 @@ gfs_change_nlink(struct gfs_inode *ip, int diff)
 
 	nlink = ip->i_di.di_nlink + diff;
 
-	if (diff < 0)
-		GFS_ASSERT_INODE(nlink < ip->i_di.di_nlink, ip,
-				 gfs_dinode_print(&ip->i_di););
+	/* Tricky.  If we are reducing the nlink count,
+	   but the new value ends up being bigger than the
+	   old one, we must have underflowed. */
+	if (diff < 0 && nlink > ip->i_di.di_nlink) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		return -EIO;
+	}
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
@@ -872,16 +896,17 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 			error = gfs_glock_nq_init(dip->i_gl,
 						  LM_ST_SHARED, 0,
 						  i_gh);
-			GFS_ASSERT_INODE(!error, ip,);
+			if (error) {
+				gfs_glock_dq(d_gh);
+				return error;
+			}
 			gfs_inode_hold(dip);
 		}
-
 		return error;
 	}
 
-	if (gfs_glock_is_locked_by_me(d_gh->gh_gl))
-		gfs_warn(sdp, "readdirplus-type behavior from process \"%s\"",
-			 current->comm);
+	if (gfs_assert_warn(sdp, !gfs_glock_is_locked_by_me(d_gh->gh_gl)))
+		return -EINVAL;
 
 	gfs_holder_reinit(LM_ST_SHARED, 0, d_gh);
 	error = gfs_glock_nq(d_gh);
@@ -968,8 +993,13 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 	if (error) {
 		gfs_glock_dq(d_gh);
 		gfs_glock_dq_uninit(i_gh);
+	} else if (ip->i_di.di_type != type) {
+		gfs_consist_inode(dip);
+		gfs_inode_put(ip);
+		gfs_glock_dq(d_gh);
+		gfs_glock_dq_uninit(i_gh);
+		error = -EIO;
 	}
-	GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
 
  out:
 	gfs_glock_put(gl);
@@ -1109,14 +1139,14 @@ make_dinode(struct gfs_inode *dip,
 	struct gfs_rgrpd *rgd;
 	int error;
 
-	error = gfs_dread(sdp, inum->no_addr, gl,
+	error = gfs_dread(gl, inum->no_addr,
 			  DIO_NEW | DIO_START | DIO_WAIT,
 			  &dibh);
 	if (error)
 		return error;
 
 	gfs_trans_add_bh(gl, dibh);
-	gfs_metatype_set(sdp, dibh, GFS_METATYPE_DI, GFS_FORMAT_DI);
+	gfs_metatype_set(dibh, GFS_METATYPE_DI, GFS_FORMAT_DI);
 	gfs_buffer_clear_tail(dibh, sizeof(struct gfs_dinode));
 
 	memset(&di, 0, sizeof(struct gfs_dinode));
@@ -1133,8 +1163,13 @@ make_dinode(struct gfs_inode *dip,
 	di.di_atime = di.di_mtime = di.di_ctime = get_seconds();
 
 	rgd = gfs_blk2rgrpd(sdp, inum->no_addr);
-	GFS_ASSERT_SBD(rgd, sdp,
-		       printk("block = %"PRIu64"\n", inum->no_addr););
+	if (!rgd) {
+		if (gfs_consist(sdp))
+			printk("GFS: fsid=%s: block = %"PRIu64"\n",
+			       sdp->sd_fsname, inum->no_addr);
+		brelse(dibh);
+		return -EIO;
+	}
 
 	di.di_rgrp = rgd->rd_ri.ri_addr;
 	di.di_goal_rgrp = di.di_rgrp;
@@ -1277,8 +1312,11 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 					   &(struct gfs_inum){0, inum->no_addr});
 	gfs_trans_add_quota(sdp, +1, uid, gid);
 
-	/* gfs_inode_get() can't fail here. */
-	gfs_inode_get(gl, inum, CREATE, &ip);
+	error = gfs_inode_get(gl, inum, CREATE, &ip);
+
+	/* This should only fail if we are already shutdown. */
+	if (gfs_assert_withdraw(sdp, !error))
+		goto fail_end_trans;
 
 	if (acl_blocks)
 		error = gfs_acl_new_init(dip, ip,
@@ -1473,8 +1511,11 @@ gfs_rmdiri(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 	struct qstr dotname;
 	int error;
 
-	GFS_ASSERT_INODE(ip->i_di.di_entries == 2, ip,
-			 gfs_dinode_print(&ip->i_di););
+	if (ip->i_di.di_entries != 2) {
+		if (gfs_consist_inode(ip))
+			gfs_dinode_print(&ip->i_di);
+		return -EIO;
+	}
 
 	error = gfs_dir_del(dip, name);
 	if (error)
@@ -1551,7 +1592,10 @@ gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 	if (inum.no_formal_ino != ip->i_num.no_formal_ino)
 		return -ENOENT;
 
-	GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
+	if (ip->i_di.di_type != type) {
+		gfs_consist_inode(dip);
+		return -EIO;
+	}
 
 	return 0;
 }
@@ -1646,7 +1690,11 @@ gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len)
 		return error;
 	}
 
-	GFS_ASSERT_INODE(ip->i_di.di_size, ip,);
+	if (!ip->i_di.di_size) {
+		gfs_consist_inode(ip);
+		error = -EIO;
+		goto out;
+	}
 
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
@@ -1693,18 +1741,16 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
-	struct gfs_inode *ip;
+	struct gfs_inode *ip = gl2ip(gl);
 	int64_t curtime, quantum = sdp->sd_tune.gt_atime_quantum;
 	unsigned int state;
 	int flags;
 	int error;
 
-	GFS_ASSERT_GLOCK(gh->gh_flags & GL_ATIME, gl,);
-	GFS_ASSERT_GLOCK(!(gh->gh_flags & GL_ASYNC), gl,);
-	GFS_ASSERT_GLOCK(gl->gl_ops == &gfs_inode_glops, gl,);
-
-	ip = gl2ip(gl);
-	GFS_ASSERT_GLOCK(ip, gl,);
+	if (gfs_assert_warn(sdp, gh->gh_flags & GL_ATIME) ||
+	    gfs_assert_warn(sdp, !(gh->gh_flags & GL_ASYNC)) ||
+	    gfs_assert_warn(sdp, gl->gl_ops == &gfs_inode_glops))
+		return -EINVAL;
 
 	/* Save original request state of lock holder */
 	state = gh->gh_state;
@@ -1969,8 +2015,11 @@ iah_make_jdata(struct gfs_glock *gl, struct gfs_inum *inum)
 	uint32_t flags;
 	int error;
 
-	error = gfs_dread(gl->gl_sbd, inum->no_addr, gl, DIO_START | DIO_WAIT, &bh);
-	GFS_ASSERT_GLOCK(!error, gl,); /* Already pinned */
+	error = gfs_dread(gl, inum->no_addr, DIO_START | DIO_WAIT, &bh);
+
+	/* This should only fail if we are already shutdown. */
+	if (gfs_assert_withdraw(gl->gl_sbd, !error))
+		return;
 
 	di = (struct gfs_dinode *)bh->b_data;
 
@@ -2000,10 +2049,10 @@ iah_super_update(struct gfs_sbd *sdp)
 	error = gfs_glock_get(sdp,
 			      GFS_SB_LOCK, &gfs_meta_glops,
 			      NO_CREATE, &gl);
-	GFS_ASSERT_SBD(!error && gl, sdp,); /* This should already be held. */
-		
-	error = gfs_dread(sdp,
-			  GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, gl,
+	if (gfs_assert_withdraw(sdp, !error && gl)) /* This should already be held. */
+		return -EINVAL;
+
+	error = gfs_dread(gl, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift,
 			  DIO_START | DIO_WAIT, &bh);
 	if (!error) {
 		gfs_trans_add_bh(gl, bh);

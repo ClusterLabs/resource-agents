@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
 --- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-12-06 16:26:03.760579965 -0600
++++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-12-17 21:09:33.564618119 -0600
 @@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -231,8 +231,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unmount);
 diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
 --- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-12-06 16:26:03.760579965 -0600
-@@ -0,0 +1,243 @@
++++ linux-patched/include/linux/lm_interface.h	2004-12-17 21:09:33.563618351 -0600
+@@ -0,0 +1,246 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -387,6 +387,9 @@ diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm
 +
 +	/* Unmount the lock module */
 +	void (*lm_unmount) (lm_lockspace_t *lockspace);
++
++	/* Abnormal unmount */
++	void (*lm_withdraw) (lm_lockspace_t *lockspace);
 +
 +	/*
 +	 * Lock oriented operations

@@ -99,6 +99,17 @@ nolock_unmount(lm_lockspace_t *lockspace)
 }
 
 /**
+ * nolock_withdraw - withdraw from a lock space
+ * @lockspace: the lockspace
+ *
+ */
+
+static void
+nolock_withdraw(lm_lockspace_t *lockspace)
+{
+}
+
+/**
  * nolock_get_lock - get a lm_lock_t given a descripton of the lock
  * @lockspace: the lockspace the lock lives in
  * @name: the name of the lock
@@ -289,6 +300,7 @@ struct lm_lockops nolock_ops = {
 	.lm_mount = nolock_mount,
 	.lm_others_may_mount = nolock_others_may_mount,
 	.lm_unmount = nolock_unmount,
+	.lm_withdraw = nolock_withdraw,
 	.lm_get_lock = nolock_get_lock,
 	.lm_put_lock = nolock_put_lock,
 	.lm_lock = nolock_lock,

@@ -172,8 +172,8 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 	unsigned int x;
 	int error;
 
-	error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift,
-			  gl, DIO_FORCE | DIO_START | DIO_WAIT, &bh);
+	error = gfs_dread(gl, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift,
+			  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 	if (error) {
 		if (!silent)
 			printk("GFS: fsid=%s: can't read superblock\n",
@@ -181,10 +181,8 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 		return error;
 	}
 
-	GFS_ASSERT_SBD(sizeof(struct gfs_sb) <= bh->b_size, sdp,);
-
+	gfs_assert(sdp, sizeof(struct gfs_sb) <= bh->b_size,);
 	gfs_sb_in(&sdp->sd_sb, bh->b_data);
-
 	brelse(bh);
 
 	error = gfs_check_sb(sdp, &sdp->sd_sb, silent);
@@ -233,7 +231,7 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 		sdp->sd_heightsize[x] = space;
 	}
 	sdp->sd_max_height = x;
-	GFS_ASSERT_SBD(sdp->sd_max_height <= GFS_MAX_META_HEIGHT, sdp,);
+	gfs_assert(sdp, sdp->sd_max_height <= GFS_MAX_META_HEIGHT,);
 
 	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode);
 	sdp->sd_jheightsize[1] = sdp->sd_jbsize * sdp->sd_diptrs;
@@ -250,7 +248,7 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 		sdp->sd_jheightsize[x] = space;
 	}
 	sdp->sd_max_jheight = x;
-	GFS_ASSERT_SBD(sdp->sd_max_jheight <= GFS_MAX_META_HEIGHT, sdp,);
+	gfs_assert(sdp, sdp->sd_max_jheight <= GFS_MAX_META_HEIGHT,);
 
 	return 0;
 }
@@ -335,7 +333,7 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 	   only one sector of one block.  We definitely don't want to have
 	   the journaling code running at this point. */
 
-	error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, sb_gl,
+	error = gfs_dread(sb_gl, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift,
 			  DIO_START | DIO_WAIT, &bh);
 	if (error)
 		goto fail_gunlock_tr;
@@ -343,7 +341,11 @@ gfs_do_upgrade(struct gfs_sbd *sdp, struct gfs_glock *sb_gl)
 	gfs_sb_in(&sdp->sd_sb, bh->b_data);
 
 	error = gfs_check_sb(sdp, &sdp->sd_sb, FALSE);
-	GFS_ASSERT_SBD(!error, sdp,);
+	if (error) {
+		gfs_consist(sdp);
+		brelse(bh);
+		goto fail_gunlock_tr;
+	}
 
 	sdp->sd_sb.sb_fs_format = GFS_FORMAT_FS;
 	sdp->sd_sb.sb_multihost_format = GFS_FORMAT_MULTI;
@@ -429,8 +431,10 @@ gfs_ji_update(struct gfs_inode *ip)
 	unsigned int j;
 	int error;
 
-	GFS_ASSERT_SBD(!do_mod(ip->i_di.di_size, sizeof(struct gfs_jindex)),
-		       sdp,);
+	if (do_mod(ip->i_di.di_size, sizeof(struct gfs_jindex))) {
+		gfs_consist_inode(ip);
+		return -EIO;
+	}
 
 	clear_journalsi(sdp);
 
@@ -453,9 +457,6 @@ gfs_ji_update(struct gfs_inode *ip)
 
 		gfs_jindex_in(sdp->sd_jindex + j, buf);
 	}
-
-	GFS_ASSERT_SBD(j * sizeof(struct gfs_jindex) == ip->i_di.di_size,
-		       sdp,);
 
 	sdp->sd_journals = j;
 	sdp->sd_jiinode_vn = ip->i_gl->gl_vn;
@@ -716,7 +717,11 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
 	if (error)
 		goto fail;
 
-	GFS_ASSERT_SBD(head.lh_flags & GFS_LOG_HEAD_UNMOUNT, sdp,);
+	if (!(head.lh_flags & GFS_LOG_HEAD_UNMOUNT)) {
+		gfs_consist(sdp);
+		error = -EIO;
+		goto fail;
+	}
 
 	/*  Initialize some head of the log stuff  */
 	sdp->sd_sequence = head.lh_sequence;
@@ -760,20 +765,19 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
 				  LM_ST_SHARED,
 				  GL_LOCAL_EXCL | GL_EXACT | GL_NOCACHE,
 				  &t_gh);
-	if (error)
+	if (error &&
+	    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		return error;
 
 	gfs_sync_meta(sdp);
 	gfs_log_dump(sdp, TRUE);
-
-	error = gfs_log_shutdown(sdp);
-	if (error)
-		gfs_io_error(sdp);
+	gfs_log_shutdown(sdp);
 
 	set_bit(SDF_ROFS, &sdp->sd_flags);
 	clear_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
 
-	gfs_glock_dq_uninit(&t_gh);
+	if (t_gh.gh_gl)
+		gfs_glock_dq_uninit(&t_gh);
 
 	gfs_unlinked_cleanup(sdp);
 	gfs_quota_cleanup(sdp);
@@ -860,10 +864,10 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 			if (gh->gh_gl)
 				done = FALSE;
 			else if (rgd_next && !error) {
-				gfs_glock_nq_init(rgd_next->rd_gl,
-						  LM_ST_SHARED,
-						  GL_LOCAL_EXCL | GL_SKIP | GL_ASYNC,
-						  gh);
+				error = gfs_glock_nq_init(rgd_next->rd_gl,
+							  LM_ST_SHARED,
+							  GL_LOCAL_EXCL | GL_SKIP | GL_ASYNC,
+							  gh);
 				rgd_next = gfs_rgrpd_get_next(rgd_next);
 				done = FALSE;
 			}
