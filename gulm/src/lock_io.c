@@ -1083,6 +1083,72 @@ int send_req_lk_reply(Waiters_t *lkrq, Lock_t *lk, uint32_t retcode)
 }
 
 /**
+ * _send_query_reply_ - 
+ * @idx: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+static int _send_query_reply_(int idx, Waiters_t *lkrq)
+{
+   int err;
+   LLi_t *tp;
+   Holders_t *h;
+   xdr_enc_t *enc = poller.enc[idx];
+   do{
+      if((err=xdr_enc_uint32(enc, gulm_lock_query_rpl)) != 0 ) break;
+      if((err=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->start)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->stop)) != 0 ) break;
+      if((err=xdr_enc_uint8(enc, lkrq->state)) != 0 ) break;
+      if((err=xdr_enc_uint32(enc, lkrq->ret)) != 0 ) break;
+      /* holder[s] info follows. */
+      if((err = xdr_enc_list_start(enc)) != 0 ) return err;
+      for(tp = LLi_next(&lkrq->holders);
+          NULL != LLi_data(tp);
+          tp = LLi_next(tp) )
+      {
+         h = LLi_data(tp);
+         if((err = xdr_enc_string(enc, h->name)) != 0 ) return err;
+         if((err = xdr_enc_uint64(enc, h->subid)) != 0 ) return err;
+         if((err = xdr_enc_uint64(enc, h->start)) != 0 ) return err;
+         if((err = xdr_enc_uint64(enc, h->stop)) != 0 ) return err;
+         if((err = xdr_enc_uint8(enc, h->state)) != 0 ) return err;
+      }
+      if((err = xdr_enc_list_stop(enc)) != 0 ) return err;
+      if((err=xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   return err;
+}
+
+/**
+ * send_query_reply - 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_query_reply(Waiters_t *lkrq, uint32_t retcode)
+{
+   /* make sure the right poller is being used. */
+   if( lkrq->idx < 0 || lkrq->idx > open_max() ) lkrq->idx = 0;
+   if( poller.ipn[lkrq->idx].name == NULL ||
+       strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
+      if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
+         log_err("No encoder for \"%s\"! lock:%s",
+               lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
+         return -1;
+      }
+   }
+   lkrq->ret = retcode;
+   lkrq->op = gulm_lock_query_rpl;
+   queue_lkrq_for_sending(lkrq->idx, lkrq);
+   return 0;
+}
+
+/**
  * _send_drp_req_ - 
  * @idx: 
  * @lkrq: 
@@ -1535,6 +1601,9 @@ int send_some_data(int idx)
          case gulm_lock_cb_dropall:
             err = _send_drop_all_req_(idx, lkrq);
             break;
+         case gulm_lock_query_rpl:
+            err = _send_query_reply_(idx, lkrq);
+            break;
 
          default:
             log_err("Cannot send packet type %#x:%s !\n",
@@ -1561,16 +1630,6 @@ int send_some_data(int idx)
  * @code: 
  * @dec: 
  * @enc: 
- * 
- * mostly just a level of abstraction.  And we do this set of steps enough
- * for it to be its own function.
- *
- * TODO Add error handling.  Bit of a trick here, since if we get a ENOMEM
- * error, we need to still try to xdr off the rest of the packet, and then
- * send a reply.  For other xdr errors, we just cut off the socket.
- *
- * Basic error handling in, but I'm not handling the ENOMEM specially like
- * I should be yet.  I'll get that in at some later time.
  * 
  * Returns: int
  */
@@ -1652,6 +1711,18 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
             lkrq->LVB = NULL;
             lkrq->LVBlen = 0;
          }
+      }while(0);
+   }else
+   if( gulm_lock_query_req == code ) {
+      do {
+         lkrq->name = strdup(poller.ipn[idx].name);
+         if( lkrq->name == NULL ) { err = -ENOMEM; break; }
+         if((err = xdr_dec_raw_m(dec, (void**)&lkrq->key, &lkrq->keylen)) != 0 )
+            break;
+         if((err = xdr_dec_uint64(dec, &lkrq->subid)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->start)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->stop)) != 0 ) break;
+         if((err = xdr_dec_uint8(dec, &lkrq->state)) != 0 ) break;
       }while(0);
    }else
    {
@@ -2211,6 +2282,9 @@ static void recv_some_data(int idx)
          /* the lkrq will be freed up after the slave update replies have
           * been recved.
           */
+      }else
+      if( gulm_lock_query_req == code ) {
+         err = do_lock_query(lkrq);
       }else
       {
          log_err("Unexpected op code %#x (%s), on fd:%d name:%s\n",

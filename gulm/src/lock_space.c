@@ -621,6 +621,30 @@ void recycle_holder(Holders_t *h)
 }
 
 /**
+ * duplicate_holder - 
+ * @old: 
+ * 
+ * 
+ * Returns: Holders_t
+ */
+Holders_t *duplicate_holder(Holders_t *old)
+{
+   Holders_t *new;
+   new = get_new_holder();
+   if( new == NULL ) return NULL;
+   LLi_init( &new->cl_list, new );
+   new->name = strdup(old->name);
+   if( new->name == NULL ) { recycle_holder(new); return NULL; }
+   new->subid = old->subid;
+   new->state = old->state;
+   new->start = old->start;
+   new->stop = old->stop;
+   new->flags = old->flags;
+   new->idx = old->idx;
+   return new;
+}
+
+/**
  * compare_names_subids - 
  * @nA: 
  * @sA: 
@@ -1221,6 +1245,7 @@ Waiters_t *get_new_lkrq(void)
    used_lkrqs ++;
    memset(lkrq, 0, sizeof(Waiters_t)); /* HAS to be 0 !!! */
    LLi_init( &lkrq->wt_list, lkrq);
+   LLi_init_head( &lkrq->holders );
    lkrq->idx = -1;
 #ifdef LOCKHISTORY
    {
@@ -1247,6 +1272,8 @@ void recycle_lkrq(Waiters_t *lkrq)
    lkrq->LVBlen = 0;
    lkrq->idx = -1;
 
+   delete_entire_holder_list(&lkrq->holders);
+
    LLi_add_before( &Free_lkrq, &lkrq->wt_list );
    used_lkrqs --;
    free_lkrqs ++;
@@ -1270,10 +1297,7 @@ void recycle_lkrq(Waiters_t *lkrq)
  * creates a new chunk of memory that is an excate copy of the lkrq passed
  * in.
  * 
- * Doing this because there is no easy way right now to have one lkrq in
- * multiple queues.  Once I fix that, this will get replaced with something
- * that just increaments a mark coutner or somesuch.
- * Or maybe I'll just keep doing this way because it works.
+ * Because sometimes, you need to take both forks in the road.
  *
  * Returns: Waiters_t
  */
@@ -1302,6 +1326,12 @@ Waiters_t *duplicate_lkrw(Waiters_t *old)
    new->Slave_sent = old->Slave_sent;
    new->idx = old->idx;
    new->ret = old->ret;
+
+   /* we don't dup holders right now.  Current usage of the holders on lkrq
+    * doesn't need it.  If things need it later, it can be added then.
+    * (get_new_lkrq() initialized that field to empty, so we can just leave
+    * it.)
+    */
 
    return new;
 fail:
@@ -2338,6 +2368,39 @@ int do_lock_state(Waiters_t *lkrq)
    Run_WaitQu(lk);
    check_for_recycle(lk);
    return err;
+}
+
+/**
+ * do_lock_query - 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+int do_lock_query(Waiters_t *lkrq)
+{
+   Lock_t *lk;
+   LLi_t *tp;
+   Holders_t *new, *h;
+
+   lk = find_lock( lkrq->key, lkrq->keylen );
+   cur_lops ++;
+
+   /* check lock for conflicts. */
+   if( !LLi_empty(&lk->Holders) ) {
+      for(tp = LLi_next(&lk->Holders);
+          NULL != LLi_data(tp);
+          tp = LLi_next(tp)) {
+         h = LLi_data(tp);
+         if( Do_Holder_Waiter_conflict(h,lkrq) ) {
+            new = duplicate_holder(h);
+            LLi_add_after( &lkrq->holders, &new->cl_list );
+            break;
+         }
+      }
+   }
+
+   return send_query_reply(lkrq, 0);
 }
 
 /**

@@ -35,17 +35,22 @@ typedef struct waiters_s {
    int idx; /* where to send replies. (index into the pollers) */
    int ret; /* what was the result code of this request? */
 
+   LLi_t    holders; /* Some replies have holders attached. This is 
+                      * where they end up.
+                      * Very little uses this right now.
+                      */
+
    /* track a couple of extra things when we're keeping history. */
 #ifdef LOCKHISTORY
    uint64_t starttime; /* when did we get this request? */
    uint64_t stoptime;  /* when did we make it history? */
 #endif
 }Waiters_t;
-/* uses 71 bytes on 32bits
- *      103 bytes on 64bits
+/* uses 83 bytes on 32bits
+ *      127 bytes on 64bits
  * with history on:
- *      87 bytes on 32bits
- *      119 bytes on 64bits
+ *      99 bytes on 32bits
+ *      143 bytes on 64bits
  */
 
 typedef struct Holders_s {
@@ -140,6 +145,7 @@ int open_lt_listener(int port);
 int open_lt_to_core(void);
 int send_req_lk_reply(Waiters_t *lkrq, Lock_t *lk, uint32_t retcode);
 int send_act_lk_reply(Waiters_t *lkrq, uint32_t retcode);
+int send_query_reply(Waiters_t *lkrq, uint32_t retcode);
 void send_req_update_to_slaves(Waiters_t *lkrq);
 void send_act_update_to_slaves(Waiters_t *lkrq);
 void send_update_reply_to_master(Waiters_t *lkrq);
@@ -164,6 +170,7 @@ int force_lock_action(Waiters_t *lkrq);
 int update_lock_state(Waiters_t *lkrq);
 int do_lock_state(Waiters_t *lkrq);
 int do_lock_action(Waiters_t *lkrq);
+int do_lock_query(Waiters_t *lkrq);
 int increment_slave_update_replies(uint8_t *key, uint16_t len,
       int slave, uint8_t smask);
 void recheck_reply_waiters(uint8_t Slave_bits, uint8_t onlogin);

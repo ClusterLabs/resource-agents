@@ -698,6 +698,45 @@ int send_lk_drop_req(int ltid, lock_req_t *lq)
    return err;
 }
 
+/**
+ * send_lk_query_req - 
+ * @ltid: 
+ * @lq: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_lk_query_req(int ltid, lock_req_t *lq)
+{
+   int err=0;
+   xdr_enc_t *enc;
+   if(ltid > 255 || ltid < 0 ) {
+      return -EINVAL;
+   }
+   if( MastersList[ltid].poll_idx < 0 ||
+       MastersList[ltid].poll_idx > open_max() ) {
+      /* master has gone away, don't try to send to them.  This will end up
+       * just queuing the req for later.
+       */
+      return -EINVAL;
+   }
+   enc = poller.enc[MastersList[ltid].poll_idx];
+
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_query_req)) != 0 ) break;
+      if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->start)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->stop)) != 0 ) break;
+      if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   if( err != 0 ) {
+      log_err("XDR error %d:%s sending to lt%03d\n",
+            err, strerror(abs(err)), ltid);
+   }
+   return err;
+}
 /*****************************************************************************/
 
 /**
@@ -988,6 +1027,9 @@ int send_senderlist(int ltid)
          case gulm_lock_drop_exp:
             err = send_lk_drop_req(ltid, lq);
             break;
+         case gulm_lock_query_req:
+            err = send_lk_query_req(ltid, lq);
+            break;
          default:
             log_err("Unexpected opcode (%x:%s) on lock %s\n",
                   lq->code, gio_opcodes(lq->code),
@@ -1235,6 +1277,74 @@ exit:
 }
 
 /**
+ * store_and_forward_lock_query - 
+ * @idx: 
+ * 
+ * 
+ * Returns: int
+ */
+int store_and_forward_lock_query(int idx)
+{
+   int err, ltid;
+   uint8_t *x_name=NULL;
+   xdr_dec_t *dec = poller.dec[idx];
+   xdr_enc_t *enc = poller.enc[idx];
+   lock_req_t *lq;
+
+   if( (lq=get_new_lock_req()) == NULL ) {
+      die(ExitGulm_NoMemory, "Out of memory\n");
+   }
+   lq->code = gulm_lock_query_req;
+   lq->poll_idx = idx;
+
+   do{
+      if((err = xdr_dec_raw_m(dec, (void**)&lq->key, &lq->keylen)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->subid)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->start)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->stop)) != 0 ) break;
+      if((err = xdr_dec_uint8(dec, &lq->state)) != 0 ) break;
+   }while(0);
+   if( err != 0 ) {
+         log_err("XDR error %d:%s\n", err, strerror(err));
+   }
+
+   /* which master gets it? */
+   ltid = select_master_server(lq->key, lq->keylen);
+
+   /* check for dups. */
+   if( hashn_find( MastersList[ltid].pending_reqs, &lq->ls_list)!=NULL ||
+         find_in_senders_list(ltid, lq) ) {
+      /* send dup error */
+      do{
+         if((err = xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
+         if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->start)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->stop)) != 0 ) break;
+         if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
+         if((err = xdr_enc_uint32(enc, gio_Err_AlreadyPend)) != 0 ) break;
+         if((err = xdr_enc_list_start(enc)) != 0 ) return err;
+         /* no holders on error. */
+         if((err = xdr_enc_list_stop(enc)) != 0 ) return err;
+         if((err = xdr_enc_flush(enc)) != 0 ) break;
+      }while(0);
+      recycle_lock_req(lq);
+      if( err != 0 ) {
+         log_err("XDR error %d:%s\n", err, strerror(err));
+      }
+      goto exit;
+   }
+
+   /* add it to the sender list. */
+   Qu_EnQu( &MastersList[ltid].senderlist, &lq->ls_list);
+   poller.polls[MastersList[ltid].poll_idx].events |= POLLOUT;
+   MastersList[ltid].senderlistlen ++;
+
+exit:
+   if( x_name != NULL) free(x_name);
+   return 0;
+}
+/**
  * forward_drop_exp - 
  * @idx: 
  * 
@@ -1480,6 +1590,122 @@ int retrive_and_relpy_lock_action(int idx)
          if((err = xdr_enc_uint64(enc, x_subid)) != 0 ) break;
          if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
          if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
+         if((err = xdr_enc_flush(enc)) != 0 ) break;
+      }while(0);
+      if( err != 0 ) {
+         log_err("XDR error %d:%s\n", err, strerror(err));
+         goto exit;
+      }
+
+      recycle_lock_req(lq);
+   }
+
+exit:
+   return 0;
+}
+
+/**
+ * retrive_and_relpy_lock_query - 
+ * @idx: 
+ * 
+ * 
+ * Returns: int
+ */
+int retrive_and_relpy_lock_query(int idx)
+{
+   int err, ltid=-1;
+   uint32_t x_error;
+   uint16_t x_kl;
+   LLi_t *tmp;
+   xdr_dec_t *dec = poller.dec[idx];
+   lock_req_t searchkey;
+   uint64_t x_subid=0, x_start=0, x_stop=0;
+   uint8_t x_state=0;
+   /* keep these around. Fewer mallocs == faster */
+   static uint8_t *x_key=NULL, *x_nn=NULL;
+   static uint16_t x_kbl=0, x_nbl=0;
+
+   ltid = get_ltid_from_poller_idx(idx);
+   if( ltid < 0 ) {
+      log_err("There is no master lt id for poller %d\n", idx);
+      goto exit;
+   }
+
+   if( x_nn != NULL && x_nbl > 0 ) x_nn[0] = '\0';
+   do{
+      if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.subid)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.start)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.stop)) != 0 ) break;
+      if((err = xdr_dec_uint8(dec, &searchkey.state)) != 0) break;
+      if((err = xdr_dec_uint32(dec, &x_error)) != 0) break;
+
+      /* XXX XXX Kludge warning!
+       * damn lazy programmer wrote this to only work for one holder.  so
+       * all but the last are passed on.
+       *
+       * This will bite me in the ass later.
+       */
+      if((err = xdr_dec_list_start(dec)) != 0) break;
+      while( xdr_dec_list_stop(dec) != 0 ) {
+         if((err = xdr_dec_string_ag(dec, &x_nn, &x_nbl)) != 0) break;
+         if((err = xdr_dec_uint64(dec, &x_subid)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &x_start)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &x_stop)) != 0 ) break;
+         if((err = xdr_dec_uint8(dec, &x_state)) != 0) break;
+      }
+   }while(0);
+   if( err != 0 ) {
+         log_err("XDR error %d:%s\n", err, strerror(err));
+      goto exit;
+   }
+
+   /* lookup/delete from hashmap.
+    * if not there, drop.
+    * if there, forward reply to lq->poll_idx
+    */
+   LLi_init( &searchkey.ls_list, &searchkey);
+   searchkey.key = x_key;
+   searchkey.keylen = x_kl;
+
+   tmp = hashn_del(MastersList[ltid].pending_reqs, &searchkey.ls_list);
+
+   MastersList[ltid].pendreqcnt --;
+   if( tmp != NULL ) {
+      lock_req_t *lq;
+      xdr_enc_t *enc;
+
+      lq = LLi_data(tmp);
+      enc = poller.enc[ lq->poll_idx ];
+      if( enc == NULL ) {
+         /* FIXME Ummm, what to do here? */
+         log_err("Client left before getting reply.\n");
+         recycle_lock_req(lq);
+         goto exit;
+      }
+
+      do{
+         if((err = xdr_enc_uint32(enc, gulm_lock_query_rpl)) != 0 ) break;
+         if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.subid)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.start)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.stop)) != 0 ) break;
+         if((err = xdr_enc_uint8(enc, searchkey.state)) != 0 ) break;
+         if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
+
+         /* XXX XXX The Kludge continues!
+          * yeah, so again, only one holder is passed through.
+          *
+          * If you change this, You need to fix the library interface too.
+          */
+         if((err = xdr_enc_list_start(enc)) != 0 ) return err;
+            if((err = xdr_enc_string(enc, x_nn)) != 0 ) break;
+            if((err = xdr_enc_uint64(enc, x_subid)) != 0 ) break;
+            if((err = xdr_enc_uint64(enc, x_start)) != 0 ) break;
+            if((err = xdr_enc_uint64(enc, x_stop)) != 0 ) break;
+            if((err = xdr_enc_uint8(enc, x_state)) != 0 ) break;
+         if((err = xdr_enc_list_stop(enc)) != 0 ) return err;
+
          if((err = xdr_enc_flush(enc)) != 0 ) break;
       }while(0);
       if( err != 0 ) {
@@ -1744,6 +1970,9 @@ static void recv_some_data(int idx)
    if( gulm_lock_action_req == code ) {
       store_and_forward_lock_action(idx);
    }else
+   if( gulm_lock_query_req == code ) {
+      store_and_forward_lock_query(idx);
+   }else
    if( gulm_lock_drop_exp == code ) {
       forward_drop_exp(idx);
    }else
@@ -1753,6 +1982,9 @@ static void recv_some_data(int idx)
    }else
    if( gulm_lock_action_rpl == code ) {
       retrive_and_relpy_lock_action(idx);
+   }else
+   if( gulm_lock_query_rpl == code ) {
+      retrive_and_relpy_lock_query(idx);
    }else
    if( gulm_lock_cb_state == code ) {
       forward_cb_to_some_clients(idx);

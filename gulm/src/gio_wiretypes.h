@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000012)
+#define GIO_WIREPROT_VERS (0x67000013)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -270,8 +270,6 @@
  *    uint8:  Slave/Master
  *    xdr of current lock state if no errors and master sending reply
  *       and you're a slave.
- *       uh, i think i assume that it is only four bytes in some places.
- *       Need to look into this...
  *
  * logout req:
  *    uint32: gLL2
@@ -282,6 +280,8 @@
  *    uint32: gLS0
  *    raw:    usually just four bytes for lockspace name.
  *            but can be most anything.
+ *            uh, i think i assume that it is only four bytes in some places.
+ *            Need to look into this...
  *
  * lock req:
  *    uint32: gLR0
@@ -339,6 +339,30 @@
  *    uint32: gLUR
  *    raw:    key
  *
+ * Query Lock Request:
+ *    uint32: gLQ0
+ *    raw:    key
+ *    uint64: subid
+ *    uint64: start
+ *    uint64: stop
+ *    uint8:  state
+ * 
+ * Query Lock Reply:
+ *    uint32: gLQ1
+ *    raw:    key
+ *    uint64: subid
+ *    uint64: start
+ *    uint64: stop
+ *    uint8:  state
+ *    uint32: error
+ *    list start mark
+ *     string: node
+ *     uint64: subid
+ *     uint64: start
+ *     uint64: stop
+ *     uint8:  state
+ *    list stop mark
+ *
  * Drop lock Callback:
  *    uint32: gLC0
  *    raw:    key
@@ -395,12 +419,14 @@
 #define gulm_lock_action_rpl  (0x674C4101) /* gLA1 */
 #define gulm_lock_action_updt (0x674C4155) /* gLAU */
 #define gulm_lock_update_rpl  (0x674c5552) /* gLUR */
+#define gulm_lock_query_req   (0x674c5100) /* gLQ0 */
+#define gulm_lock_query_rpl   (0x674c5101) /* gLQ1 */
 #define gulm_lock_cb_state    (0x674C4300) /* gLC0 */
 #define gulm_lock_cb_dropall  (0x674C4302) /* gLC2 */
 #define gulm_lock_drop_exp    (0x674C454F) /* gLEO */
 #define gulm_lock_dump_req    (0x674c4400) /* gLD0 */
 #define gulm_lock_dump_rpl    (0x674c4401) /* gLD1 */
-#define gulm_lock_rerunqueues (0x674c5152) /* gLQR */
+#define gulm_lock_rerunqueues (0x674c5251) /* gLRQ */
 
 /* marks for the login */
 #define gio_lck_st_Slave     (0x00)
@@ -418,15 +444,23 @@
 #define gio_lck_st_SyncLVB   (0x0d)
 
 /* flags */
+ /* only valid with Try.  Tells server to send out a drop lock callback. */
 #define gio_lck_fg_Do_CB       (0x00000001)
+ /* try to get, if there are conflicts, return error instead of blocking */
 #define gio_lck_fg_Try         (0x00000002)
+ /* Either Shared or Deferred.  Only valid when state is Shr or Dfr. */
 #define gio_lck_fg_Any         (0x00000004)
+ /* Ignore any expired holders on lock. */
 #define gio_lck_fg_NoExp       (0x00000008)
+ /* There is an LVB attached to this lock msg. */
 #define gio_lck_fg_hasLVB      (0x00000010)
+ /* Only returned by server.  There was no internal unlocking to grant req. */
 #define gio_lck_fg_Cachable    (0x00000020)
+ /* Put this request onto the front of the request queues. */
 #define gio_lck_fg_Piority     (0x00000040)
  /* this is just an idea, but it might be useful.  Basically just says to
   * not keep the exp hold, just drop this hold like a shared would be.
+  * no idea if it would be useful or sane. (but its two lines of code)
   */
 #define gio_lck_fg_DropOnExp   (0x00000080)
  /* this is saved on each holder, basically, you are gonna ignore any
