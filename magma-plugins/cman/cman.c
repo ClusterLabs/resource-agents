@@ -180,7 +180,6 @@ static int
 cman_open(cluster_plugin_t *self)
 {
 	cman_priv_t *p;
-	int e;
 
 	//printf("CMAN: %s called\n", __FUNCTION__);
 
@@ -194,16 +193,6 @@ cman_open(cluster_plugin_t *self)
 	p->sockfd = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (p->sockfd >= 0)
 		cman_quorum_status(self, NULL);
-
-	p->ls = dlm_open_lockspace("Magma");
-	if (!p->ls)
-		p->ls = dlm_create_lockspace("Magma", 0644);
-	if (!p->ls) {
-		e = errno;
-		close(p->sockfd);
-		errno = e;
-		return -1;
-	}
 
 	return p->sockfd;
 }
@@ -343,16 +332,30 @@ cman_lock(cluster_plugin_t *self,
 	  void **lockpp)
 {
 	cman_priv_t *p;
-	dlm_lshandle_t ls;
 	int mode = 0, options = 0, ret = 0;
 	struct dlm_lksb *lksb;
 
-	assert(self);
+	if (!self || !lockpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	p = (cman_priv_t *)self->cp_private.p_data;
 	assert(p);
-	ls = p->ls;
-	assert(ls);
-	assert(lockpp);
+
+	/*
+	 * per pjc: create/open lockspace when first lock is taken
+	 */
+	if (!p->ls)
+		p->ls = dlm_open_lockspace("Magma");
+	if (!p->ls)
+		p->ls = dlm_create_lockspace("Magma", 0644);
+	if (!p->ls) {
+		ret = errno;
+		close(p->sockfd);
+		errno = ret;
+		return -1;
+	}
 
 	if (flags & CLK_EX) {
 		mode = LKM_EXMODE;
@@ -374,13 +377,13 @@ cman_lock(cluster_plugin_t *self,
 	memset(lksb, 0, sizeof(*lksb));
 	(*lockpp) = (void *)lksb;
 
-	ret = dlm_ls_lock(ls, mode, lksb, options, resource,
+	ret = dlm_ls_lock(p->ls, mode, lksb, options, resource,
 			  strlen(resource), 0, ast_function, lksb, NULL,
 			  NULL);
 	if (ret != 0)
 		return ret;
 
-	if (wait_for_dlm_event(ls) < 0)
+	if (wait_for_dlm_event(p->ls) < 0)
 		return -1;
 
 	switch(lksb->sb_status) {
