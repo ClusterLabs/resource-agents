@@ -48,6 +48,8 @@ typedef struct open_connection_s {
 #define MAX_OPEN_CONNECTIONS 10
 static open_connection_t **ocs = NULL;
 
+char *update_result_str = NULL;
+
 
 /*
  * superdup
@@ -82,7 +84,6 @@ static char *superdup(char *base, const char *append){
 static int _update_config(int do_remote, char *location){
   int error = 0;
   int v1=0, v2=0;
-  char *error_str = NULL;
   open_doc_t *tmp_odoc = NULL;
   xmlDocPtr tmp_doc = NULL;
   char *mem_doc = NULL;
@@ -90,30 +91,37 @@ static int _update_config(int do_remote, char *location){
 
   ENTER("_update_config");
 
+  if(update_result_str){
+    free(update_result_str);
+    update_result_str = NULL;
+  }
+
   tmp_doc = xmlParseFile(location);
   if(!tmp_doc){
     log_err("Unable to parse %s\n", location);
-    error_str = superdup(error_str,
+    update_result_str = superdup(update_result_str,
 			 "File can not be parsed.\n");
     error = -EINVAL;
     goto fail;
   } else if((v2 = get_doc_version(tmp_doc)) < 0){
     log_err("Unable to get config_version from cluster.conf.\n");
-    error_str = superdup(error_str,
+    update_result_str = superdup(update_result_str,
 			 "Unable to identify the config_version.\n");
     error = v2;
     goto fail;
-  } else {
+  } else if(master_doc && master_doc->od_doc){
     v1 = get_doc_version(master_doc->od_doc);
     if(v1 >= v2){
       log_err("cluster.conf on-disk version is <= to in-memory version.\n");
       log_err(" On-disk version   : %d\n", v2);
       log_err(" In-memory version : %d\n", v1);
-      error_str = superdup(error_str,
+      update_result_str = superdup(update_result_str,
 			   "The config_version is not greater than the in-use version.\n");
       error = -EPERM;
       goto fail;
     }
+  } else {
+    v1 = 0;
   }
 
   log_dbg("remote is %s\n", do_remote?"SET": "UNSET");
@@ -130,7 +138,7 @@ static int _update_config(int do_remote, char *location){
     xmlDocDumpFormatMemory(tmp_doc, (xmlChar **)&mem_doc, &mem_doc_size, 0);
     if(!mem_doc_size || !mem_doc){
       log_err("Unable to dump document to memory.\n");
-      error_str = superdup(error_str,
+      update_result_str = superdup(update_result_str,
 			   "Ran out of memory while trying to perform update.\n");
       /* ATTENTION -- assuming ENOMEM */
       error = -ENOMEM;
@@ -138,9 +146,9 @@ static int _update_config(int do_remote, char *location){
     }
 
     if((error = update_remote_nodes(mem_doc, mem_doc_size))){
-      error_str = superdup(error_str,
+      update_result_str = superdup(update_result_str,
 			   "Update failed on remote nodes.\n"
-			   "Check their logs for clues.\n");
+			   "Check the log on this machine for the reason.\n");
       log_err("Failed to update remote nodes.\n");
       goto fail;
     }
@@ -149,10 +157,9 @@ static int _update_config(int do_remote, char *location){
   tmp_odoc->od_doc = tmp_doc;
 
   log_dbg("There are %d references open on version %d of the config file.\n",
-	  master_doc->od_refs, v1);
-
+	  (master_doc)?master_doc->od_refs:0, v1);
   log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
-  if(!master_doc->od_refs){
+  if(master_doc && !master_doc->od_refs){
     log_dbg("Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);
     free(master_doc);
@@ -160,61 +167,30 @@ static int _update_config(int do_remote, char *location){
   } else {
     master_doc = tmp_odoc;
   }
- 
+
+  {
+    char tmp_str[128];
+    sprintf(tmp_str, "Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
+    update_result_str = superdup(update_result_str,
+				 tmp_str);
+  }
   log_msg("Update complete.\n");
  fail:
-  if(error){
+  {
     int fd;	
     char *buffer;
     int size;
 
-    fd = open("/etc/cluster/cluster.conf-rej",
-	      O_CREAT | O_WRONLY | O_TRUNC,
-	      S_IRUSR | S_IRGRP);
-    
-    if(fd < 0){
-      log_sys_err("Unable to create cluster.conf reject file");
-      goto fail2;
-    }
-
-    buffer = strdup("<!--  Could not update ccsd with this file.  Reason:\n");
-    if(!buffer || (write(fd, buffer, strlen(buffer)) < strlen(buffer))){
-      if(buffer) free(buffer);
-      log_sys_err("Failed to write failure reason to disk.\n");
-      close(fd);
-      goto fail2;
-    }
-    free(buffer);
-
-    error_str = superdup(error_str, "-->\n\n");
-
-    if(write(fd, error_str, strlen(error_str))< strlen(error_str)){
-      log_sys_err("Failed to write failure reason to disk.\n");
-      close(fd);
-      goto fail2;
-    }
-
-    close(fd);
-
-    /* ATTENTION -- probably not good practice to call system() **
-    ** shouldn't really be using hardcoded names either, but    **
-    ** this would have to be fixed further up the chain anyway. */
-    system("cat /etc/cluster/cluster.conf >> /etc/cluster/cluster.conf-rej; "
-	   "rm -f /etc/cluster/cluster.conf");
-    /*
-    rename(location, "/etc/cluster/cluster.conf-rej");
-    */
-
-    if(tmp_odoc){
+    if(tmp_odoc != master_doc){
       free(tmp_odoc);
     }
-    if(tmp_doc){
+    if(tmp_doc != master_doc->od_doc){
       xmlFreeDoc(tmp_doc);
     }
 
     xmlDocDumpFormatMemory(master_doc->od_doc, (xmlChar **)&buffer, &size, 0);
 
-    fd = open(location,
+    fd = open("/etc/cluster/cluster.conf",
 	      O_CREAT | O_WRONLY | O_TRUNC,
 	      S_IRUSR | S_IRGRP);
     if(fd >= 0){
@@ -222,11 +198,6 @@ static int _update_config(int do_remote, char *location){
       close(fd);
     }
   }
-
-  fail2:
-
-  if(error_str)
-    free(error_str);
 
   if(mem_doc){
     free(mem_doc);
@@ -261,43 +232,6 @@ static int update_config(int do_remote){
   EXIT("update_config");
   return error;
 }
-
-static void update_handler(int sig){
-  ENTER("update_handler");
-
-  if(sig != SIGHUP){
-    log_err("Inappropriate signal received.  Ignoring.\n");
-    goto out;
-  }
-
-  if(!quorate){
-    log_err("Unable to honor update request.  Cluster is not quorate.\n");
-    goto fail;
-  }
-
-  if(pthread_mutex_trylock(&update_lock)){
-    log_err("Signal to update received, but an update is already in progress.\n");
-    log_err("Ignoring update signal.\n");
-    goto out;
-  }
-  log_dbg("Got lock 2\n");
-
-  if(update_config(1)){
-    goto fail;
-  }
-
- out:
-  pthread_mutex_unlock(&update_lock);
-  EXIT("update_handler");
-  return;
-
- fail:
-  pthread_mutex_unlock(&update_lock);
-  log_err("Update failed.\n");
-  EXIT("update_handler");
-  return;
-}
-
 
 /**
  * broadcast_for_doc
@@ -618,6 +552,40 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 }
 
 
+static int process_update(comm_header_t *ch, char **payload){
+  int error = 0;
+  char *location = NULL;
+
+  ENTER("process_update");
+  if(!ch->comm_payload_size){
+    log_err("process_update: no filename given for update.\n");
+    *payload = strdup("Filename not given for update.\n");
+    error = -EINVAL;
+    goto fail;
+  }
+
+  location = *payload;
+  *payload = NULL;
+  
+  if(!quorate){
+    log_err("process_update: cluster is not quorate - refusing update.\n");
+    *payload = strdup("Cluster is not quorate - refusing update.\n");
+    error = -ECONNREFUSED;
+    goto fail;
+  }
+
+  error = _update_config(1, location);
+  if(update_result_str)
+    *payload = strdup(update_result_str);
+
+ fail:
+  if(location) free(location);
+  ch->comm_payload_size = (*payload)? strlen(*payload)+1: 0;
+
+  EXIT("process_update");
+  return error;
+}
+
 /**
  * process_connect: process a connect request
  * @afd: accepted socket connection
@@ -739,10 +707,6 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     error = -ENODATA;
     goto fail;
   }
-
-  /* now that we have a document, set the update handler */
-  /* ATTENTION -- does it hurt to set this more than once? */
-  signal(SIGHUP, &update_handler);
 
   if(update_required){
     log_dbg("Update is required.\n");
@@ -1304,6 +1268,14 @@ int process_request(int afd){
       goto fail;
     }
     break;
+  case COMM_UPDATE_START:
+    if((error = process_update(ch, &payload)) < 0){
+      log_err("Error while processing update: %s\n", strerror(-error));
+      /* we do not goto fail here because we want the error message, **
+      ** which is contained in the payload to go to the requestor    */
+      ch->comm_error = error;
+    }
+    break;
   default:
     log_err("Unknown connection request received.\n");
     error = -EINVAL;
@@ -1317,6 +1289,7 @@ int process_request(int afd){
       realloc(ch,sizeof(comm_header_t)+ch->comm_payload_size);
 
     if(tmp_ch) { ch = tmp_ch; } else {
+      log_err("Not enough memory to complete request.\n");
       error = -ENOMEM;
       goto fail;
     }
@@ -1378,7 +1351,10 @@ int process_broadcast(int sfd){
   }
 
   if(ch->comm_type != COMM_BROADCAST){
-    log_err("Received invalid request on broadcast port.\n");
+    /* Either someone is pinging this port, or there is an older version **
+    ** of ccs trying to get bcast response.  Either way, we should not   **
+    ** respond to them.................................................. */
+    log_dbg("Received invalid request on broadcast port.\n");
     error = -EINVAL;
     goto fail;
   }

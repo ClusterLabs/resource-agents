@@ -34,11 +34,9 @@ static int setup_interface_ipv6(int *sp, int port){
   int trueint = 1;
 
   ENTER("setup_interface_ipv6");
-                                                                                
   memset(&addr, 0, sizeof(struct sockaddr_in6));
 
   sock = socket(PF_INET6, SOCK_STREAM, 0);
-                                                                                
   if(sock < 0){
     error = -errno;
     goto fail;
@@ -90,9 +88,7 @@ static int setup_interface_ipv4(int *sp, int port){
   ENTER("setup_interface_ipv4");
 
   memset(&addr, 0, sizeof(struct sockaddr_in));
-                                                                                
   sock = socket(PF_INET, SOCK_STREAM, 0);
-                                                                                
   if(sock < 0){
     error = -errno;
     goto fail;
@@ -577,5 +573,99 @@ int ccs_set_state(int desc, const char *cw_path, int reset_query){
   if(buffer) { free(buffer); }
 
   EXIT("ccs_set_state");
+  return error;
+}
+
+int ccs_update(char *new_config, char **rtn_str){
+  int error = 0;
+  int sock=-1;
+  char *buffer = NULL;
+  comm_header_t *ch = NULL;
+  char *payload = NULL;
+  int addr_size=0;
+
+  ENTER("ccs_update");
+
+  if(*rtn_str){
+    /* Programmer error, the dereferenced double-pointer must be NULL */
+    return -EINVAL;
+  }
+
+  if(!(buffer = malloc(512))){
+    error = -ENOMEM;
+    goto fail;
+  }
+
+  memset(buffer, 0, 512);
+  ch = (comm_header_t *)buffer;
+  payload = (buffer + sizeof(comm_header_t));
+
+  ch->comm_type = COMM_UPDATE_START;
+  
+  if(strlen(new_config)+1 > 512-sizeof(comm_header_t)){
+    error = -ENAMETOOLONG;
+    goto fail;
+  }
+
+  ch->comm_payload_size = sprintf(payload, "%s", new_config)+1;
+
+  if((error = setup_interface(&sock)) < 0){
+    goto fail;
+  }
+
+  /* In the future, we will only try the protocol that worked first */
+  if(ipv6 < 0){
+    ipv6 = (error == AF_INET6)? 1: 0;
+
+    log_dbg("Protocol version set to %s.\n", (ipv6)?"IPv6":"IPv4");
+  }
+
+  addr_size = (error == AF_INET6)? 
+    sizeof(struct sockaddr_in6 *):
+    sizeof(struct sockaddr_in *);
+
+  error = write(sock, buffer, sizeof(comm_header_t)+ch->comm_payload_size);
+  if(error < 0){
+    log_dbg("Write to socket failed.\n");
+    goto fail;
+  } else if(error < (sizeof(comm_header_t)+ch->comm_payload_size)){
+    log_dbg("Failed to write full package to socket.\n");
+    error = -EBADE;
+    goto fail;
+  }
+
+  /* ok to take in two passes ? */
+  error = read(sock, buffer, sizeof(comm_header_t));
+  if(error < 0){
+    log_dbg("Read from socket failed.\n");
+    goto fail;
+  } else if(error < sizeof(comm_header_t)){
+    log_dbg("Failed to read complete comm_header_t.\n");
+    error = -EBADE;
+    goto fail;
+  } else {
+    error = 0;
+  }
+
+  if(ch->comm_payload_size){
+    error = read(sock, buffer+sizeof(comm_header_t), ch->comm_payload_size);
+    if(error < 0){
+      log_dbg("Read from socket failed.\n");
+      goto fail;
+    } else if(error < ch->comm_payload_size){
+      log_dbg("Failed to read complete payload.\n");
+      error = -EBADE;
+      goto fail;
+    } else {
+      error = 0;
+    }
+    *rtn_str = strdup(payload);
+  }
+  error = ch->comm_error;
+
+ fail:
+  if(sock >= 0) { close(sock); }
+  if(buffer) free(buffer);
+  EXIT("ccs_update");
   return error;
 }

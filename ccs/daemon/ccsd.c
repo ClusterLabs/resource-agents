@@ -602,6 +602,11 @@ static void sig_handler(int sig){
     log_err("Stopping ccsd, SIGSEGV received.\n");
     err = EXIT_FAILURE;
     break;
+  case SIGHUP:
+    log_msg("SIGHUP received.\n");
+    log_msg("Use ccs_tool for updates.\n");
+    return;
+    break;
   default:
     log_err("Stopping ccsd, unknown signal received.\n");
     err = EXIT_FAILURE;
@@ -637,6 +642,7 @@ static void daemonize(void){
     signal(SIGQUIT, &sig_handler);
     signal(SIGTERM, &sig_handler);
     signal(SIGSEGV, &sig_handler);
+    signal(SIGHUP, &sig_handler);
   } else {
     log_dbg("Entering daemon mode.\n");
 
@@ -694,6 +700,7 @@ static void daemonize(void){
     signal(SIGQUIT, &sig_handler);
     signal(SIGTERM, &sig_handler);
     signal(SIGSEGV, &sig_handler);
+    signal(SIGHUP, &sig_handler);
   }
 
  fail:

@@ -299,6 +299,7 @@ static int handle_cluster_event(int fd){
 static void cluster_communicator(void){
   int cluster_fd = -1;
   int listen_fds[2], listeners;
+  int warn_user = 0;
   int fd;
   int error;
   fd_set rset;
@@ -335,10 +336,14 @@ static void cluster_communicator(void){
 	  kill(ppid, SIGTERM);	
 	  ppid = 0;
 	}
-	break;
       }
+      warn_user++;
+      if(!(warn_user%10)){
+	log_err("Unable to connect to cluster infrastructure after %d seconds.\n",
+		warn_user);
+      }
+      sleep(1);
     }
-    sleep(1);
   }
   if(ppid){
     kill(ppid, SIGTERM);	
