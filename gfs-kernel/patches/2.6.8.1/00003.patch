@@ -1,8 +1,8 @@
 # Add GFS to the build system.
-diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.7/fs/Kconfig	2004-06-25 13:57:24.435829621 -0500
-+++ linux/fs/Kconfig	2004-06-25 13:59:16.786347614 -0500
-@@ -316,13 +316,13 @@ config JFS_STATISTICS
+diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.8.1/fs/Kconfig	2004-08-23 09:51:53.208214462 -0500
++++ linux/fs/Kconfig	2004-08-23 09:51:53.220211676 -0500
+@@ -283,13 +283,13 @@ config JFS_STATISTICS
  	  to be made available to the user in the /proc/fs/jfs/ directory.
  
  config FS_POSIX_ACL
@@ -18,7 +18,7 @@ diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
  	default y
  
  config XFS_FS
-@@ -1677,6 +1677,20 @@ config LOCK_HARNESS
+@@ -1756,6 +1756,20 @@ config LOCK_HARNESS
  
  	  If you want to use GFS (a cluster filesystem) say Y here.
  
@@ -39,17 +39,17 @@ diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.7/fs/Makefile linux/fs/Makefile
---- linux-2.6.7/fs/Makefile	2004-06-25 13:57:24.436829391 -0500
-+++ linux/fs/Makefile	2004-06-25 13:57:24.447826863 -0500
+diff -urN -p linux-2.6.8.1/fs/Makefile linux/fs/Makefile
+--- linux-2.6.8.1/fs/Makefile	2004-08-23 09:51:53.209214230 -0500
++++ linux/fs/Makefile	2004-08-23 09:51:53.220211676 -0500
 @@ -92,3 +92,4 @@ obj-$(CONFIG_XFS_FS)		+= xfs/
  obj-$(CONFIG_AFS_FS)		+= afs/
  obj-$(CONFIG_BEFS_FS)		+= befs/
  obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
 +obj-$(CONFIG_GFS_FS)		+= gfs/
-diff -urN -p linux-2.6.7/fs/gfs/Makefile linux/fs/gfs/Makefile
---- linux-2.6.7/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-06-25 13:57:24.448826633 -0500
+diff -urN -p linux-2.6.8.1/fs/gfs/Makefile linux/fs/gfs/Makefile
+--- linux-2.6.8.1/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/Makefile	2004-08-23 09:51:53.220211676 -0500
 @@ -0,0 +1,51 @@
 +###############################################################################
 +###############################################################################

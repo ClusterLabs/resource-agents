@@ -1,7 +1,7 @@
 # Make the VFS call down into the FS on flock calls.
-diff -urN -p linux-2.6.7/fs/locks.c linux/fs/locks.c
---- linux-2.6.7/fs/locks.c	2004-06-16 12:00:44.567463632 -0500
-+++ linux/fs/locks.c	2004-06-16 12:01:58.844205936 -0500
+diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
+--- linux-2.6.8.1/fs/locks.c	2004-08-23 09:51:41.753874561 -0500
++++ linux/fs/locks.c	2004-08-23 09:51:45.705956749 -0500
 @@ -1294,6 +1294,27 @@ out_unlock:
  	return error;
  }

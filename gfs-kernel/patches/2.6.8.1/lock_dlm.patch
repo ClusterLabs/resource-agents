@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
---- linux-orig/fs/gfs_locking/lock_dlm/group.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-08-13 17:10:44.000000000 +0800
-@@ -0,0 +1,777 @@
+--- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-08-23 09:54:52.983478446 -0500
+@@ -0,0 +1,814 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -80,6 +80,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +	lp = (dlm_lock_t *) lock;
 +	set_bit(LFL_INLOCK, &lp->flags);
++	set_bit(LFL_NOBAST, &lp->flags);
 +
 + retry:
 +
@@ -206,6 +207,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +	lp = (dlm_lock_t *) lock;
 +	set_bit(LFL_INLOCK, &lp->flags);
++	set_bit(LFL_NOBAST, &lp->flags);
 +
 +      retry:
 +
@@ -390,10 +392,31 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +{
 +	dlm_node_t *node;
 +	uint32_t nodeid;
-+	int last_stop, last_start, error, i, new = FALSE, found;
++	int last_stop, last_start, last_finish;
++	int error, i, new = FALSE, found;
 +
++	/*
++	 * when the initial sequence of callbacks is start/stop/start the
++	 * second start has the same event id (the first doesn't count)
++	 */
 +
-+	log_debug("start c %d type %d e %d", ds->count, ds->type, ds->event_id);
++	spin_lock(&dlm->async_lock);
++	last_stop = dlm->mg_last_stop;
++	last_start = dlm->mg_last_start;
++	last_finish = dlm->mg_last_finish;
++
++	if (!last_finish && last_stop) {
++		log_debug("reset stop %d start %d finish %d",
++			  last_stop, last_start, last_finish);
++		dlm->mg_last_stop = 0;
++		last_stop = 0;
++	}
++	spin_unlock(&dlm->async_lock);
++
++	log_debug("recover last_stop %d last_start %d last_finish %d",
++		  last_stop, last_start, last_finish);
++	log_debug("recover count %d type %d event %d flags %lx",
++		  ds->count, ds->type, ds->event_id, dlm->flags);
 +
 +	/*
 +	 * gfs won't do journal recoveries once it's sent us an unmount
@@ -405,19 +428,32 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +		goto out;
 +	}
 +
-+	/* 
-+	 * check if first start
++	/*
++	 * a couple special things to take care of on the first start (mount)
 +	 */
 +
-+	if (!test_and_set_bit(DFL_GOT_NODEID, &dlm->flags)) {
++	if (!test_and_set_bit(DFL_GOT_NODEID, &dlm->flags))
 +		get_our_nodeid(dlm);
-+		if (ds->count == 1)
-+			set_bit(DFL_FIRST_MOUNT, &dlm->flags);
-+	}
++
++	if (test_bit(DFL_MOUNT, &dlm->flags) && (ds->count == 1))
++		set_bit(DFL_FIRST_MOUNT, &dlm->flags);
 +
 +	down(&dlm->mg_nodes_lock);
 +
-+	/* 
++	/*
++	 * while mounting, cancelled starts are discarded
++	 * (normally, (uninterrupted starts) mg_nodes is empty at this point)
++	 */
++
++	if (test_bit(DFL_MOUNT, &dlm->flags)) {
++		dlm_node_t *safe;
++		list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
++			list_del(&node->list);
++			kfree(node);
++		}
++	}
++
++	/*
 +	 * find nodes which are gone
 +	 */
 +
@@ -465,7 +501,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +			continue;
 +
 +		DLM_RETRY(node = kmalloc(sizeof(dlm_node_t), GFP_KERNEL), node);
-+
 +		memset(node, 0, sizeof(dlm_node_t));
 +
 +		node->nodeid = nodeid;
@@ -533,7 +568,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +		}
 +		up(&dlm->mg_nodes_lock);
 +
-+		log_debug("start recovery %d", error);
++		log_debug("call start_done %d: %d", ds->event_id, !error);
 +
 +		if (!error)
 +			kcl_start_done(dlm->mg_local_id, ds->event_id);
@@ -583,6 +618,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	}
 +	up(&dlm->mg_nodes_lock);
 +
++	clear_bit(DFL_MOUNT, &dlm->flags);
 +	wake_up(&dlm->wait);
 +}
 +
@@ -602,8 +638,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +	dlm->mg_local_id = id;
 +
-+	/* BLOCK_LOCKS is cleared when the join is finished */
++	/* MOUNT and BLOCK_LOCKS are cleared when the join is finished */
 +	set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
++	set_bit(DFL_MOUNT, &dlm->flags);
 +
 +	error = kcl_join_service(id);
 +	if (error)
@@ -780,8 +817,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	.finish = mg_finish
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
---- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-08-13 17:10:44.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-08-23 09:54:52.983478446 -0500
 @@ -0,0 +1,611 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1395,9 +1432,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	do_dlm_lock(lp, r);
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
---- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-08-13 17:10:44.000000000 +0800
-@@ -0,0 +1,348 @@
+--- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-08-23 09:54:52.983478446 -0500
+@@ -0,0 +1,358 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -1467,9 +1504,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#define DFL_HAVE_JID            4
 +#define DFL_BLOCK_LOCKS         5
 +#define DFL_START_ERROR         6
-+#define DFL_UMOUNT		7
-+#define DFL_NEED_STARTDONE	8
-+#define DFL_RECOVER		9
++#define DFL_MOUNT		7
++#define DFL_UMOUNT		8
++#define DFL_NEED_STARTDONE	9
++#define DFL_RECOVER		10
 +
 +struct dlm {
 +	uint32_t		jid;
@@ -1712,6 +1750,15 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#define log_debug(fmt, args...)
 +#endif
 +
++#define log_all(fmt, args...) \
++	do { \
++		printk("lock_dlm: " fmt "\n", ##args); \
++		lock_dlm_debug_log(fmt, ##args); \
++	} while (0)
++
++#define log_error log_all
++
++
 +static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 +{
 +    return time_after(jiffies, stamp + seconds * HZ);
@@ -1747,8 +1794,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
---- linux-orig/fs/gfs_locking/lock_dlm/main.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-08-13 17:10:44.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-08-23 09:54:52.983478446 -0500
 @@ -0,0 +1,194 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1945,8 +1992,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_AUTHOR("Red Hat, Inc.");
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
---- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-08-13 17:10:44.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-08-23 09:54:52.983478446 -0500
 @@ -0,0 +1,337 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2286,8 +2333,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +	lm_owner:THIS_MODULE,
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
---- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-08-13 17:10:44.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-08-23 09:54:52.984478214 -0500
 @@ -0,0 +1,1034 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3324,8 +3371,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +}
 +
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
---- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-08-13 17:10:44.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-08-23 09:54:52.984478214 -0500
 @@ -0,0 +1,400 @@
 +/******************************************************************************
 +*******************************************************************************

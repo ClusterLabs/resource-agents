@@ -1,8 +1,8 @@
 # Add lock_gulm to the build system.
-diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.7/fs/Kconfig	2004-06-16 12:02:16.816030294 -0500
-+++ linux/fs/Kconfig	2004-06-16 12:02:16.827027739 -0500
-@@ -1703,6 +1703,12 @@ config LOCK_DLM
+diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.8.1/fs/Kconfig	2004-08-23 09:52:04.194663026 -0500
++++ linux/fs/Kconfig	2004-08-23 09:52:04.205660472 -0500
+@@ -1782,6 +1782,12 @@ config LOCK_DLM
  	help
  	  A lock module that allows GFS to use a Distributed Lock Manager.
  
@@ -15,18 +15,18 @@ diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.7/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.7/fs/gfs_locking/Makefile	2004-06-16 12:02:16.817030062 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-06-16 12:02:16.828027507 -0500
+diff -urN -p linux-2.6.8.1/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.8.1/fs/gfs_locking/Makefile	2004-08-23 09:52:04.194663026 -0500
++++ linux/fs/gfs_locking/Makefile	2004-08-23 09:52:04.205660472 -0500
 @@ -13,4 +13,5 @@
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
  obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
  obj-$(CONFIG_LOCK_DLM)		+= lock_dlm/
 +obj-$(CONFIG_LOCK_GULM)		+= lock_gulm/
  
-diff -urN -p linux-2.6.7/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
---- linux-2.6.7/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-06-16 12:02:17.828027507 -0500
+diff -urN -p linux-2.6.8.1/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
+--- linux-2.6.8.1/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-08-23 09:52:04.205660472 -0500
 @@ -0,0 +1,32 @@
 +###############################################################################
 +###############################################################################
