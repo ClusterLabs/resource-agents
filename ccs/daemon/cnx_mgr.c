@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
@@ -29,14 +30,8 @@
 #include "log.h"
 #include "comm_headers.h"
 #include "debug.h"
+#include "misc.h"
 #include "cluster_mgr.h"
-
-typedef struct open_doc {
-  int od_refs;
-  xmlDocPtr od_doc;
-} open_doc_t;
-
-open_doc_t *master_doc = NULL;
 
 typedef struct open_connection_s {
   char *oc_cwp;
@@ -51,118 +46,6 @@ typedef struct open_connection_s {
 #define MAX_OPEN_CONNECTIONS 10
 static open_connection_t **ocs = NULL;
 
-int update_in_progress = 0;
-
-static int get_doc_version(xmlDocPtr ldoc){
-  int error = 0;
-  xmlXPathObjectPtr  obj = NULL;
-  xmlXPathContextPtr ctx = NULL;
-  xmlNodePtr        node = NULL;
-
-  ENTER("get_doc_version");
-
-  ctx = xmlXPathNewContext(ldoc);
-  if(!ctx){
-    log_err("Error: unable to create new XPath context.\n");
-    error = -EIO;  /* ATTENTION -- what should this be? */
-    goto fail;
-  }
-
-  obj = xmlXPathEvalExpression("//cluster/@config_version", ctx);
-  if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_err("Error while retrieving config_version.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  node = obj->nodesetval->nodeTab[0];
-  if(node->type != XML_ATTRIBUTE_NODE){
-    log_err("Object returned is not of attribute type.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  if(!node->children->content || !strlen(node->children->content)){
-    log_dbg("No content found.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  error = atoi(node->children->content);
-
- fail:
-  if(ctx){
-    xmlXPathFreeContext(ctx);
-  }
-  if(obj){
-    xmlXPathFreeObject(obj);
-  }
-  EXIT("get_doc_version");
-  return error;
-}
-
-
-/**
- * get_cluster_name
- * @ldoc:
- *
- * The caller must remember to free the string that is returned.
- *
- * Returns: NULL on failure, (char *) otherwise
- */
-static char *get_cluster_name(xmlDocPtr ldoc){
-  int error = 0;
-  xmlXPathObjectPtr  obj = NULL;
-  xmlXPathContextPtr ctx = NULL;
-  xmlNodePtr        node = NULL;
-
-  ENTER("get_cluster_name");
-
-  ctx = xmlXPathNewContext(ldoc);
-  if(!ctx){
-    log_err("Error: unable to create new XPath context.\n");
-    error = -EIO;  /* ATTENTION -- what should this be? */
-    goto fail;
-  }
-
-  obj = xmlXPathEvalExpression("//cluster/@name", ctx);
-  if(!obj || !obj->nodesetval || (obj->nodesetval->nodeNr != 1)){
-    log_err("Error while retrieving config_version.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  node = obj->nodesetval->nodeTab[0];
-  if(node->type != XML_ATTRIBUTE_NODE){
-    log_err("Object returned is not of attribute type.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  if(!node->children->content || !strlen(node->children->content)){
-    log_dbg("No content found.\n");
-    error = -ENODATA;
-    goto fail;
-  }
-
-  EXIT("get_cluster_name");
-  return strdup(node->children->content);
-
- fail:
-  if(ctx){
-    xmlXPathFreeContext(ctx);
-  }
-  if(obj){
-    xmlXPathFreeObject(obj);
-  }
-  EXIT("get_cluster_name");
-  return NULL;
-}
-
-
-/* ATTENTION -- watch out, a signal can be received and cause an update while **
-** an update is in progress.  Check to see if the 'update_in_progress' var    **
-** provides sufficient protection............................................ */
 static int update_config(int do_remote){
   int error = 0;
   int v1=0, v2=0;
@@ -173,8 +56,6 @@ static int update_config(int do_remote){
 
   ENTER("update_config");
 
-  update_in_progress = 1;
-  
   tmp_doc = xmlParseFile("/etc/cluster/cluster.conf");
   if(!tmp_doc){
     log_err("Unable to parse %s\n", "/etc/cluster/cluster.conf");
@@ -196,7 +77,6 @@ static int update_config(int do_remote){
     }
   }
 
-  log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
   log_dbg("remote is %s\n", do_remote?"SET": "UNSET");
 
   /* allocate this structure before doing remote call.  Otherwise, if it fails, we **
@@ -227,6 +107,7 @@ static int update_config(int do_remote){
   log_dbg("There are %d references open on version %d of the config file.\n",
 	  master_doc->od_refs, v1);
 
+  log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
   if(!master_doc->od_refs){
     log_dbg("Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);
@@ -239,12 +120,27 @@ static int update_config(int do_remote){
   log_msg("Update complete.\n");
  fail:
   if(error){
+    int fd;	
+    char *buffer;
+    int size;
+
     log_msg("Update failed.\n");
+    rename("/etc/cluster/cluster.conf", "/etc/cluster/cluster.conf-rej");
     if(tmp_odoc){
       free(tmp_odoc);
     }
     if(tmp_doc){
       xmlFreeDoc(tmp_doc);
+    }
+
+    xmlDocDumpFormatMemory(master_doc->od_doc, (xmlChar **)&buffer, &size, 0);
+
+    fd = open("/etc/cluster/cluster.conf",
+	      O_CREAT | O_WRONLY | O_TRUNC,
+	      S_IRUSR | S_IRGRP);
+    if(fd >= 0){
+      write(fd, buffer, size);
+      close(fd);
     }
   }
 
@@ -252,7 +148,6 @@ static int update_config(int do_remote){
     free(mem_doc);
   }
 
-  update_in_progress = 0;
   EXIT("update_config");
   return error;
 }
@@ -271,20 +166,25 @@ static void update_handler(int sig){
     goto fail;
   }
 
-  if(update_in_progress){
-    log_err("An update is already in progress.\n");
+
+  if(pthread_mutex_trylock(&update_lock)){
+    log_err("Signal to update received, but an update is already in progress.\n");
+    log_err("Ignoring update signal.\n");
     goto out;
   }
+  log_dbg("Got lock 2\n");
 
   if(update_config(1)){
     goto fail;
   }
 
  out:
+  pthread_mutex_unlock(&update_lock);
   EXIT("update_handler");
   return;
 
  fail:
+  pthread_mutex_unlock(&update_lock);
   log_err("Update failed.\n");
   EXIT("update_handler");
   return;
@@ -632,6 +532,9 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   log_dbg("Flags = 0x%x\n", ch->comm_flags);
 
   /* Need to broadcast regardless (unless quorate) to check version # */
+  if(bcast_needed){
+    log_dbg("Broadcast is neccessary.\n");
+  }
   if(bcast_needed &&
      (error = broadcast_for_doc(tmp_name, ch->comm_flags & COMM_CONNECT_BLOCKING)) &&
      !master_doc->od_doc){
@@ -651,6 +554,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   signal(SIGHUP, &update_handler);
 
   if(update_required){
+    log_dbg("Update is required.\n");
     if((error = update_config(0))){
       log_err("Failed to update config file, required by cluster.\n");
       /* ATTENTION -- remove all open_doc_t's ? */
@@ -899,7 +803,7 @@ static int process_get(comm_header_t *ch, char **payload){
 	ocs[ch->comm_desc]->oc_index = -1;  /* reset index after end of list */
       }
     } else {
-      log_err("No nodes found.\n");
+      log_dbg("No nodes found.\n");
       ch->comm_payload_size = 0;
       error = -ENODATA;
       goto fail;
@@ -1117,7 +1021,9 @@ int process_request(int afd){
     break;
   case COMM_GET:
     if((error = process_get(ch, &payload)) < 0){
-      log_err("Error while processing get: %s\n", strerror(-error));
+      if(error != -ENODATA){
+	log_err("Error while processing get: %s\n", strerror(-error));
+      }
       goto fail;
     }
     break;
@@ -1202,8 +1108,10 @@ int process_broadcast(int sfd){
     goto fail;
   }
   memset(ch, 0, sizeof(comm_header_t));
+  log_dbg("Waiting to receive broadcast request.\n");
   recvfrom(sfd, ch, sizeof(comm_header_t), 0, (struct sockaddr *)&addr, &len);
 
+  log_dbg("Request received.\n");
   if(ch->comm_type != COMM_BROADCAST){
     log_err("Recieved invalid request on broadcast port.\n");
     error = -EINVAL;

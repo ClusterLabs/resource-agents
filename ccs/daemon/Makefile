@@ -41,7 +41,7 @@ all: ccsd
 copytobin: all
 	cp ccsd ${top_srcdir}/bin
 
-ccsd: ccsd.c cnx_mgr.c cluster_mgr.c ../common/log.c
+ccsd: ccsd.c cnx_mgr.c cluster_mgr.c misc.c ../common/log.c
 	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS}
 
 install: ccsd

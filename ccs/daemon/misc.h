@@ -9,10 +9,24 @@
 **
 *******************************************************************************
 ******************************************************************************/
-#ifndef __CLUSTER_MGR_DOT_H__
-#define __CLUSTER_MGR_DOT_H__
+#ifndef __MISC_H__
+#define __MISC_H__
 
-int start_cluster_monitor_thread(void);
-int update_remote_nodes(char *mem_doc, int doc_size);
+#define UPDATE_BASE_PORT 50008
 
-#endif /* __CLUSTER_MGR_DOT_H__ */
+typedef struct open_doc {
+  int od_refs;
+  xmlDocPtr od_doc;
+} open_doc_t;
+
+
+extern int quorate;
+extern int update_required;
+extern pthread_mutex_t update_lock;
+extern open_doc_t *master_doc;
+
+char *get_cluster_name(xmlDocPtr ldoc);
+int get_doc_version(xmlDocPtr ldoc);
+
+
+#endif /* __MISC_H__ */

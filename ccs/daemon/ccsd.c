@@ -120,13 +120,17 @@ int main(int argc, char *argv[]){
     
     tmp_set = rset;
 
-    select(FD_SETSIZE, &tmp_set, NULL,NULL,NULL);
+    if((select(FD_SETSIZE, &tmp_set, NULL,NULL,NULL) < 0)){
+      log_sys_err("Select failed");
+      continue;
+    }
     
     for(i=0; i<2; i++){
       if(!FD_ISSET(sfds[i], &tmp_set)){
 	continue;
       }
       if(i == 0){
+	log_dbg("NORMAL CCS REQUEST.\n");
 	afd = accept(sfds[i], (struct sockaddr *)&addr, &len);
 	if(afd < 0){
 	  log_sys_err("Unable to accept connection");
@@ -144,6 +148,7 @@ int main(int argc, char *argv[]){
 	}
 	close(afd);
       } else {
+	log_dbg("BROADCAST REQUEST.\n");
 	if((error = process_broadcast(sfds[i]))){
 	  log_err("Error while processing broadcast: %s\n", strerror(-error));
 	}
