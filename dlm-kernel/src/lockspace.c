@@ -252,7 +252,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 		return -EINVAL;
 
 	if ((ls = find_lockspace_by_name(name, namelen))) {
-		*lockspace = (void *)ls->ls_local_id;
+		*lockspace = (void *)(long)ls->ls_local_id;
 		return -EEXIST;
 	}
 
@@ -347,7 +347,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	   anything at a future date without breaking clients. But returning
 	   the address of the lockspace is a bad idea as it could get
 	   forcibly removed, leaving client with a dangling pointer */
-	*lockspace = (void *)local_id;
+	*lockspace = (void *)(long)local_id;
 
 	return 0;
 
