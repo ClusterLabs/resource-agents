@@ -41,3 +41,6 @@ echo "configure gulm"
 
 echo "configure magma-plugins"
 (cd magma-plugins; ./configure $@)
+
+echo "configure rgmanager"
+(cd rgmanager; ./configure $@)
