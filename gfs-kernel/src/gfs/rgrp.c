@@ -1163,9 +1163,8 @@ get_local_rgrp(struct gfs_inode *ip)
 			rgd = gfs_rgrpd_get_first(sdp);
 
 		if (rgd == begin) {
-			if (++loops >= 2 || !skipped) {
+			if (++loops >= 2 || !skipped)
 				return -ENOSPC;
-			}
 			flags = 0;
 		}
 	}
