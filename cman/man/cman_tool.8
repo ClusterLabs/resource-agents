@@ -3,7 +3,7 @@
 .SH NAME
 cman_tool \- Cluster Management Tool
 .SH SYNOPSIS
-.B cman_tool join | leave | expected | kill | version [options]
+.B cman_tool join | leave | kill | expected | votes | version | wait | status | nodes | services [options]
 .br
 .SH DESCRIPTION
 .PP
@@ -32,11 +32,11 @@ the command line.
 .I leave
 Tells CMAN to leave the cluster. You cannot do this if there are subsystems
 (eg DLM, GFS) active. You should dismount all GFS filesystems,
-shutdown CLVM, fence and anything else using the cluster manager before
+shutdown CLVM, fenced and anything else using the cluster manager before
 using 
 .B cman_tool leave.
-Look in /proc/cluster/services and /proc/cluster/status
-to see how many (and which) services are running.
+Look at 'cman_tool status|services' to see how many (and which) services are
+running.
 .br
 When a node leaves the cluster, the remaining nodes recalculate quorum and this
 may block cluster activity if the required number of votes is not present.
@@ -64,8 +64,24 @@ you need to get it running again in a hurry.
 .TP
 .I version
 Used alone this will report the major, minor, patch and config versions
-used by CMAN (also displayed in /proc/cluster/status). It can also be used
+used by CMAN (also displayed in 'cman_tool status'). It can also be used
 with -r to set a new config version on all cluster members.
+
+.TP
+.I wait 
+Waits until the node is a member of the cluster and then returns.
+
+.TP
+.I status
+Displays the local view of the cluster status.
+
+.TP
+.I nodes
+Displays the local view of the cluster nodes.
+
+.TP
+.I services
+Displays the local view of the cluster services.
 
 .SH "LEAVE" OPTIONS
 .TP
@@ -89,12 +105,17 @@ quorum will be rejected.
 .TP
 .I -n <nodename>
 The node name of the node to be killed. This should be the unqualified node
-name as it appears in /proc/cluster/nodes.
+name as it appears in 'cman_tool nodes'.
 
 .SH "VERSION" OPTIONS
 .TP
 .I -r <config_version>
 The new config version.
+
+.SH "WAIT" OPTIONS
+.TP
+.I -q
+Waits until the cluster is quorate before returning.
 
 .br
 .SH "JOIN" OPTIONS
