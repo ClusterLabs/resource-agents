@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.14 $) dnl cvs revision
+AC_REVISION($Revision: 1.15 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -23,6 +23,7 @@ dnl Always tries to set the compiler to ANSI C via options (AM)
 dnl Can force other with environment variable "CC".
 AC_PROG_CC
 AM_PROG_CC_STDC dnl this is not possible cause of CLK_TCK??
+AC_LIBTOOL_DLOPEN dnl		Enable dlopen support...
 AM_PROG_LIBTOOL
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
@@ -133,7 +134,7 @@ if test "$GCC" = yes; then
 dnl
 dnl We make sure warnings are carefully scrubbed out of the output if
 dnl you're running on some platforms.  You can enable that behavior with
-dnl the option "fatal_warnings", dnl by specifying --enable-fatal_warnings.
+dnl the option "fatal_warnings", by specifying --enable-fatal_warnings.
 dnl Or, you can disable it with --disable-fatal_warnings.
 dnl
 	case "$host_os" in
@@ -152,7 +153,7 @@ dnl
 	fi
 
 	if test "$enable_traditional_warning" = yes; then
-    	  EXTRA_WARNINGS="$EXTRA_WARNINGS -WTraditional"
+    	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Wtraditional"
 	fi
 
 	CC_WARNINGS="-Wall -Wmissing-prototypes \
