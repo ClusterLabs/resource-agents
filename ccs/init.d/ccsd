@@ -10,6 +10,8 @@
 # Provides: 
 ### END INIT INFO
 
+CCSD_OPTS="-v"
+
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
@@ -18,7 +20,7 @@ LOCK_FILE="/var/lock/subsys/ccsd"
 start()
 {
 	echo -n "Starting ccsd:"
-	if ccsd 2> /dev/null
+	if ccsd $CCSD_OPTS 2> /dev/null
 	then
 		sleep 1 
 		success
