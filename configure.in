@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.142 $) dnl cvs revision
+AC_REVISION($Revision: 1.143 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -974,9 +974,18 @@ dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
 Xsed="sed -e s/^X//"
 
 dnl This line breaks on every single version other than the newest Suse (United Linux)
-dnl Commented out per converstion with Alan.
-dnl  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+dnl the following lines are marked do not change because they are used
+dnl to provide context to a patch which adapts this script
+dnl to run with automake 2.53 so, make changes outside this range of lines,
+dnl or make sure you fix the diff autoconf-2.53.diff file.
+dnl do not change this line #1!
+dnl do not change this line #2!
+dnl do not change this line #3!
+dnl LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+dnl do not change this line #4!
+dnl do not change this line #5!
+dnl do not change this line #6!
 AC_SUBST(LTLIBOBJS)
 
 AC_SUBST(LIBADD_DL)	dnl extra flags for dynamic linking libraries
