@@ -57,6 +57,8 @@ struct lock_info {
 	void __user *li_castaddr;
 	void __user *li_bastparam;
 	void __user *li_bastaddr;
+	void __user *li_pend_bastparam;
+	void __user *li_pend_bastaddr;
 	struct file_info *li_file;
 	struct dlm_lksb __user *li_user_lksb;
 	struct semaphore li_firstlock;
@@ -268,6 +270,15 @@ static void ast_routine(void *param)
 	if (!param)
 		return;
 
+	/* If this is a succesful conversion then activate the blocking ast
+	 * args from the conversion request */
+	if (!test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags) &&
+	    li->li_lksb.sb_status == 0) {
+
+		li->li_bastparam = li->li_pend_bastparam;
+		li->li_bastaddr = li->li_pend_bastaddr;
+		li->li_pend_bastaddr = NULL;
+	}
 	/* If it's an async request then post data to the user's AST queue. */
 	if (li->li_castaddr) {
 
@@ -815,6 +826,17 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		}
 		li = (struct lock_info *)lkb->lkb_astparam;
 		li->li_flags = 0;
+		/* For conversions don't overwrite the current blocking AST
+		   info so that:
+		   a) if a blocking AST fires before the conversion is queued
+		      it runs the current handler
+		   b) if the conversion is cancelled, the original blocking AST
+		      declaration is active
+		   The pend_ info is made active when the conversion
+		   completes.
+		*/
+		li->li_pend_bastaddr  = kparams->bastaddr;
+		li->li_pend_bastparam = kparams->bastparam;
 	}
 	else {
 		li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
@@ -825,6 +847,9 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		li->li_cmd       = kparams->cmd;
 		li->li_queryinfo = NULL;
 		li->li_flags     = 0;
+		li->li_bastaddr  = kparams->bastaddr;
+		li->li_bastparam = kparams->bastparam;
+		li->li_pend_bastparam = NULL;
 
 		/* Get the lock name */
 		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
@@ -842,8 +867,6 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	}
 
 	li->li_user_lksb = kparams->lksb;
-	li->li_bastaddr  = kparams->bastaddr;
-        li->li_bastparam = kparams->bastparam;
 	li->li_castaddr  = kparams->castaddr;
 	li->li_castparam = kparams->castparam;
 
@@ -859,7 +882,8 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 			   kparams->parent,
 			   ast_routine,
 			   li,
-			   li->li_bastaddr ? bast_routine : NULL,
+			   (li->li_pend_bastaddr || li->li_bastaddr) ?
+			                            bast_routine : NULL,
 			   kparams->range.ra_end ? &kparams->range : NULL);
 
 	/* If it succeeded (this far) with a new lock then keep track of
@@ -888,10 +912,17 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 	struct lock_info *li;
 	struct dlm_lkb *lkb;
 	int status;
+	int convert_cancel = 0;
 
 	lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
 	if (!lkb) {
 		return -EINVAL;
+	}
+
+	/* Cancelling a conversion doesn't remove the lock...*/
+	if (kparams->flags & DLM_LKF_CANCEL &&
+	    lkb->lkb_status == GDLM_LKSTS_CONVERT) {
+		convert_cancel = 1;
 	}
 
 	li = (struct lock_info *)lkb->lkb_astparam;
@@ -908,16 +939,18 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 
 	/* Have to do it here cos the lkb may not exist after
 	 * dlm_unlock() */
-	spin_lock(&fi->fi_lkb_lock);
-	list_del(&lkb->lkb_ownerqueue);
-	spin_unlock(&fi->fi_lkb_lock);
+	if (!convert_cancel) {
+		spin_lock(&fi->fi_lkb_lock);
+		list_del(&lkb->lkb_ownerqueue);
+		spin_unlock(&fi->fi_lkb_lock);
+	}
 
 	/* Use existing lksb & astparams */
 	status = dlm_unlock(fi->fi_ls->ls_lockspace,
 			     kparams->lkid,
 			     kparams->flags, NULL, NULL);
 
-	if (status) {
+	if (status && !convert_cancel) {
 		/* It failed, put it back on the list */
 		spin_lock(&fi->fi_lkb_lock);
 		list_add(&lkb->lkb_ownerqueue, &fi->fi_lkb_list);
