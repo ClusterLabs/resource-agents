@@ -104,14 +104,6 @@ msg_receive_simple(int fd, generic_msg_hdr ** buf, int timeout)
 		return -1;
 	}
 
-	/* 
-	 * Ensure someone didn't just try to crash us
-	 */
-	if (peek_msg.gh_length > MSG_MAX_SIZE) {
-		fprintf(stderr, "Message rejected: Maximum size exceeded!\n");
-		return -1;
-	}
-
 	/*
 	 * allocate enough memory to receive the header + diff buffer
 	 */
