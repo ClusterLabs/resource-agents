@@ -444,9 +444,12 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       goto fail;
     }
 
+    srandom(getpid());
     FD_SET(sfd, &rset);
     tv.tv_sec = 0;
-    tv.tv_usec = 250000;
+    
+    tv.tv_usec = 250000 + (random()%500000);
+    log_dbg("Select waiting %ld usec\n", tv.tv_usec);
     while((error = select(sfd+1, &rset, NULL,NULL, &tv))){
       log_dbg("Select returns %d\n", error);
       if(error < 0){
@@ -465,7 +468,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 		   (struct sockaddr *)&recv_addr, (socklen_t *)&len);
 	  error = -ENODATA;
 	  FD_SET(sfd, &rset);
-	  continue;
+	  goto reset_timer;
 	}
 	bdoc = malloc(ch->comm_payload_size + sizeof(comm_header_t));
 	if(!bdoc){
@@ -480,7 +483,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	if(!tmp_doc){
 	  log_err("Unable to parse remote cluster.conf.\n");
 	  free(bdoc); bdoc = NULL;
-	  continue;
+	  goto reset_timer;
 	}
 
 	tmp_name = get_cluster_name(tmp_doc);
@@ -490,14 +493,14 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	  log_err("Unable to find cluster name in remote cluster.conf.\n");
 	  free(bdoc); bdoc = NULL;
 	  xmlFreeDoc(tmp_doc); tmp_doc = NULL;
-	  continue;
+	  goto reset_timer;
 	} else if(cluster_name && strcmp(cluster_name, tmp_name)){
 	  log_dbg("Remote and local cluster.conf have different cluster names.\n");
 	  log_dbg("Skipping...\n");
 	  free(tmp_name); tmp_name = NULL;
 	  free(bdoc); bdoc = NULL;
 	  xmlFreeDoc(tmp_doc); tmp_doc = NULL;
-	  continue;
+	  goto reset_timer;
 	}
 	free(tmp_name); tmp_name = NULL;
 	if(!master_doc->od_doc){
@@ -562,8 +565,10 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       }
       FD_SET(sfd, &rset);
       /* select will alter the timeout */
+    reset_timer:
       tv.tv_sec = 0;
-      tv.tv_usec = 250000; /* 1/4 of a second */
+      tv.tv_usec = 250000 + (random()%500000);
+      log_dbg("Select waiting %ld usec\n", tv.tv_usec);
     }
   } while(blocking && !master_doc);
  out:
@@ -1394,7 +1399,7 @@ int process_broadcast(int sfd){
   memcpy(buffer, ch, sizeof(comm_header_t));
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
-  log_dbg("Sending cluster.conf...\n");
+  log_dbg("Sending cluster.conf (version %d)...\n", get_doc_version(master_doc->od_doc));
   if(sendto(sfd, buffer, ch->comm_payload_size + sizeof(comm_header_t), 0,
 	    (struct sockaddr *)&addr, (socklen_t)len) < 0){
     log_sys_err("Sendto failed");
