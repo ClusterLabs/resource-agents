@@ -25,7 +25,7 @@ Conflicts: GFS-modules
 Requires: ccs
 Requires: cman-kernel >= 2.6.9
 
-Source0: %{name}-%{version}-${release}.tar.gz
+Source0: %{name}-%{version}-%{release}.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
