@@ -1121,6 +1121,14 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   print_request(freq);
 			   printk("nodeid %u\n", nodeid););
 
+
+		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK ||
+		    freq->rr_flags & DLM_LKF_VALBLK) {
+			lkb->lkb_flags |= GDLM_LKFLG_VALBLK;
+			allocate_and_copy_lvb(lspace, &lkb->lkb_lvbptr,
+					      freq->rr_lvb);
+		}
+
 		rsb = find_rsb_to_unlock(lspace, lkb);
 
 		log_debug(lspace, "(%d) un from %u %x \"%s\"", lkb->lkb_ownpid,
