@@ -641,14 +641,8 @@ int
 glq_drop_lock_req (void *misc, uint8_t * key, uint16_t keylen,
 		       uint64_t subid, uint8_t state)
 {
-	/* This needs to be on the handler queues I think. */
-	/* check for gulm_lock_t */
-	/* if found, send callback to gfs. */
-
-	/* Need to do some serious work in gulm_lt.c before I know what I'm
-	 * putting here.
-	 */
 	do_drop_lock_req (key, keylen, state);
+	jid_header_lock_drop (key, keylen);
 	return 0;
 }
 

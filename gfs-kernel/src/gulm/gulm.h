@@ -132,6 +132,7 @@ struct gulm_fs_s {
 
 	/* Stuff for JID mapping locks */
 	uint32_t JIDcount;	/* how many JID locks are there. */
+	struct semaphore headerlock;
 };
 typedef struct gulm_fs_s gulm_fs_t;
 
@@ -226,6 +227,9 @@ void gulm_others_may_mount (lm_lockspace_t * lockspace);
 int gulm_mount (char *table_name, char *host_data,
 		lm_callback_t cb, lm_fsdata_t * fsdata,
 		unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
+
+/* from gulm_jid.c */
+void jid_header_lock_drop (uint8_t * key, uint16_t keylen);
 
 extern struct lm_lockops gulm_ops;
 

@@ -249,8 +249,6 @@ start_gulm_threads (char *csnm, char *hostdata)
 		gulm_cm.handler_threads = 2;
 		gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
 
-		jid_init ();
-
 		error = cm_login ();
 		if (error != 0) {
 			log_err ("cm_login failed. %d\n", error);
