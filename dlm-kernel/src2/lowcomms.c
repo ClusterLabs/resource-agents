@@ -649,12 +649,14 @@ static int init_sock(void)
 		int addr_len;
 
 		result = dlm_our_addr(num, (char *)&localaddr);
-		make_sockaddr(&localaddr, dlm_config.tcp_port, &addr_len);
+		if (!result) {
+			make_sockaddr(&localaddr, dlm_config.tcp_port, &addr_len);
 
-		result = add_bind_addr(&localaddr, addr_len, num);
-		if (result)
-			goto create_delsock;
-		++num;
+			result = add_bind_addr(&localaddr, addr_len, num);
+			if (result)
+				goto create_delsock;
+			++num;
+		}
 	} while (!result);
 
 	result = sock->ops->listen(sock, 5);
