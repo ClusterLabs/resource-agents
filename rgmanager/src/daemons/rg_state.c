@@ -177,6 +177,30 @@ _rg_unlock_dbg(char *name, void *p, char *file, int line)
 }
 #endif
 
+
+void
+send_ret(int fd, char *name, int ret, int orig_request)
+{
+	SmMessageSt msg, *msgp = &msg;
+	if (fd < 0)
+		return;
+
+	msgp->sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
+	msgp->sm_hdr.gh_command = RG_ACTION_REQUEST;
+	msgp->sm_hdr.gh_length = sizeof(*msgp);
+	msgp->sm_data.d_action = orig_request;
+	strncpy(msgp->sm_data.d_svcName, name,
+		sizeof(msgp->sm_data.d_svcName));
+	msgp->sm_data.d_svcOwner = my_id(); /* XXX Broken */
+	msgp->sm_data.d_ret = ret;
+
+	swab_SmMessageSt(msgp);
+	msg_send(fd, msgp, sizeof(*msgp));
+
+	/* :) */
+	msg_close(fd);
+}
+
 	
 void
 send_response(int ret, request_t *req)
@@ -885,9 +909,6 @@ svc_fail(char *svcName)
 }
 
 
-
-
-
 /*
  * Send a message to the target node to start the service.
  */
@@ -896,6 +917,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 {
 	SmMessageSt msg_relo;
 	int fd_relo, msg_ret;
+	cluster_member_list_t *ml;
 
 	/* Build the message header */
 	msg_relo.sm_hdr.gh_magic = GENERIC_HDR_MAGIC;
@@ -931,7 +953,35 @@ relocate_service(char *svcName, int request, uint64_t target)
 	clulog(LOG_DEBUG, "Sent relocate request to %d\n", (int)target);
 
 	/* Check the response */
-	msg_ret = msg_receive(fd_relo, &msg_relo, sizeof (SmMessageSt));
+	do {
+		msg_ret = msg_receive_timeout(fd_relo, &msg_relo,
+					      sizeof (SmMessageSt), 10);
+		if ((msg_ret == -1 && errno != ETIMEDOUT) ||
+		    (msg_ret >= 0)) {
+			break;
+		}
+
+		/* Check to see if resource groups are locked for local
+		   shutdown */
+		if (rg_locked()) {
+			clulog(LOG_WARNING,
+			       "#XX: Cancelling relocation: Shutting down\n");
+			msg_close(fd_relo);
+			return NO;
+		}
+
+		/* Check for node transition in the middle of a relocate */
+		ml = member_list();
+		if (memb_online(ml, target)) {
+			cml_free(ml);
+			continue;
+		}
+		clulog(LOG_WARNING,
+		       "#XX: Cancelling relocation: Target node down\n");
+		cml_free(ml);
+		msg_close(fd_relo);
+		return FAIL;
+	} while (1);
 
 	if (msg_ret != sizeof (SmMessageSt)) {
 		/* 
@@ -1021,10 +1071,19 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 		 * I am the ONLY one capable of running this service,
 		 * PERIOD...
 		 */
-		if (target == me)
+		if (target == me && me != preferred_target)
 			goto exhausted;
 
-		if (target == preferred_target) {
+		if (target == me) {
+			/*
+			   Relocate to self.  Don't send a network request
+			   to do it; it would block.
+			 */
+			if (svc_start(svcName, RG_START) == 0) {
+				*new_owner = me;
+				return 0;
+			}
+		} else if (target == preferred_target) {
 			/*
 		 	 * It's legal to start the service on the given
 		 	 * node.  Try to do so.
@@ -1066,6 +1125,10 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			svc_report_failure(svcName);
 			cml_free(allowed_nodes);
 			return FAIL;
+		case NO:
+			/* state uncertain */
+			cml_free(allowed_nodes);
+			return 0;
 		case 0:
 			*new_owner = target;
 			clulog(LOG_NOTICE, "Resource group %s is now running "
@@ -1099,7 +1162,7 @@ exhausted:
 		*new_owner = me;
 		return FAIL;
 	}
-		
+
 	if (svc_stop(svcName, RG_STOP) != 0) {
 		svc_fail(svcName);
 		svc_report_failure(svcName);
@@ -1188,8 +1251,12 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 
 	/* If we leave the service stopped, instead of disabled, someone
 	   will try to start it after the next node transition */
-	//if (ret == FAIL)
-		//svc_disable(svcName);
+	if (ret == FAIL) {
+		if (svc_stop(svcName, RG_STOP) != 0) {
+			svc_fail(svcName);
+			svc_report_failure(svcName);
+		}
+	}
 
 	return ret;
 }

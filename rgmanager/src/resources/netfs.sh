@@ -328,7 +328,7 @@ isMounted () {
 	typeset fullpath tmp_fullpath
 
 	if [ $# -ne 2 ]; then
-		logAndPrint $LOG_ERR "Usage: isMounted fullpathice mount_point"
+		logAndPrint $LOG_ERR "Usage: isMounted host:/export mount_point"
 		return $FAIL
 	fi
 
@@ -561,7 +561,8 @@ stop)
 	exit $?
 	;;
 status)
-	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
+	isMounted ${OCF_RESKEY_host}:${OCF_RESKEY_export} \
+		${OCF_RESKEY_mountpoint}
 	exit $?
 	;;
 restart)

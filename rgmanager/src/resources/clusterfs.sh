@@ -399,20 +399,20 @@ Device $dev is mounted on $tmp_mp instead of $mp"
 #
 killMountProcesses()
 {
+	typeset -i ret=$SUCCESS
 	typeset have_lsof=""
 	typeset have_fuser=""
 	typeset try
 
-	if [ $# -ne 2 ]; then
+	if [ $# -ne 1 ]; then
 		logAndPrint $LOG_ERR \
-			"Usage: killMountProcesses device mount_point"
+			"Usage: killMountProcesses mount_point"
 		return $FAIL
 	fi
 
-	typeset dev=$1
-	typeset mp=$2
+	typeset mp=$1
 
-	logAndPrint $LOG_INFO "Forcefully unmounting $dev ($mp)"
+	logAndPrint $LOG_INFO "Forcefully unmounting $mp"
 
 	#
 	# Not all distributions have lsof.  If not use fuser.  If it
@@ -427,65 +427,75 @@ killMountProcesses()
 	if [ -f "$file" ]; then
 		have_fuser=$YES
 	fi             
-			
-	for try in 1 2; do
-		if [ -n "$have_fuser" ]; then
-			#
-			# Use fuser to free up mount point
-			#
-			while read command pid user; do
-				if [ -z "$pid" ]; then
-					continue
-				fi
-
-				if [ $try -eq 1 ]; then
-					logAndPrint $LOG_INFO \
-				"killing process $pid ($user $command $dev)"
-				fi
-
-				if [ $try -gt 1 ]; then
-					kill -9 $pid
-				else
-					kill -TERM $pid
-				fi
-			done < <(fuser -vm $dev | \
-				grep -v PID | \
-				sed 's;^'$dev';;' | \
-				awk '{print $4,$2,$1}' | \
-				sort -u -k 1,3)
-		elif [ -n "$have_lsof" ]; then
-			#
-			# Use lsof to free up mount point
-			#
-			while read command pid user name; do
-				if [ -z "$pid" ]; then
-					continue
-				fi
-
-				if [ $try -eq 1 ]; then
-					logAndPrint $LOG_INFO \
-				"killing process $pid ($user $command $dev)"
-				fi
-
-				if [ $try -gt 1 ]; then
-					kill -9 $pid
-				else
-					kill -TERM $pid
-				fi
-			done < <(lsof $dev | \
-				grep -v PID | \
-				awk '{print $1,$2,$3,$9}' | \
-				sort -u -k 1,3)
-		fi
-	done
 
 	if [ -z "$have_lsof" -a -z "$have_fuser" ]; then
 		logAndPrint $LOG_WARNING \
-	"Cannot forcefully unmount $dev; cannot find lsof or fuser commands"
+	"Cannot forcefully unmount $mp; cannot find lsof or fuser commands"
 		return $FAIL
 	fi
 
-	return $SUCCESS
+	for try in 1 2 3; do
+		if [ -n "$have_lsof" ]; then
+			#
+			# Use lsof to free up mount point
+			#
+	    		while read command pid user
+			do
+				if [ -z "$pid" ]; then
+					continue
+				fi
+
+				if [ $try -eq 1 ]; then
+					logAndPrint $LOG_WARNING \
+			 	  "killing process $pid ($user $command $mp)"
+				elif [ $try -eq 3 ]; then
+					logAndPrint $LOG_CRIT \
+		    		  "Could not clean up mountpoint $mp"
+				ret=$FAIL
+				fi
+
+				if [ $try -gt 1 ]; then
+					kill -9 $pid
+				else
+					kill -TERM $pid
+				fi
+			done < <(lsof -b 2>/dev/null | \
+			    grep -E "$mp(/.*|)\$" | \
+			    awk '{print $1,$2,$3}' | \
+			    sort -u -k 1,3)
+		elif [ -n "$have_fuser" ]; then
+			#
+			# Use fuser to free up mount point
+			#
+			while read command pid user
+			do
+				if [ -z "$pid" ]; then
+					continue
+				fi
+
+				if [ $try -eq 1 ]; then
+					logAndPrint $LOG_WARNING \
+			 	  "killing process $pid ($user $command $mp)"
+				elif [ $try -eq 3 ]; then
+					logAndPrint $LOG_CRIT \
+				    "Could not clean up mount point $mp"
+					ret=$FAIL
+				fi
+
+				if [ $try -gt 1 ]; then
+					kill -9 $pid
+				else
+					kill -TERM $pid
+				fi
+			done < <(fuser -vm $mp | \
+			    grep -v PID | \
+			    sed 's;^'$mp';;' | \
+			    awk '{print $4,$2,$1}' | \
+			    sort -u -k 1,3)
+		fi
+	done
+
+	return $ret
 }
 
 #
@@ -731,7 +741,7 @@ stop: Could not match $OCF_RESKEY_device with a real device"
 			umount_failed=yes
 
 			if [ "$force_umount" ]; then
-				killMountProcesses $dev $mp
+				killMountProcesses $mp
 			fi
 
 			if [ $try -ge $max_tries ]; then

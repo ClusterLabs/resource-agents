@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <magma.h>
 #include <magmamsg.h>
+#include <string.h>
 
 
 static pthread_rwlock_t memblock = PTHREAD_RWLOCK_INITIALIZER;
@@ -49,6 +50,26 @@ member_list(void)
 		ret = cml_dup(membership);
 	pthread_rwlock_unlock(&memblock);
 	return ret;
+}
+
+
+char *
+member_name(uint64_t id, char *buf, int buflen)
+{
+	char *n;
+
+	if (!buf || !buflen)
+		return NULL;
+
+	pthread_rwlock_rdlock(&memblock);
+	n = memb_id_to_name(membership, id);
+	if (n) {
+		strncpy(buf, n, buflen);
+	} else {
+		buf[0] = 0;
+	}
+	pthread_rwlock_unlock(&memblock);
+	return buf;
 }
 
 

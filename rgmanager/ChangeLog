@@ -1,3 +1,13 @@
+2005-03-21 Lon Hohberger <lhh at redhat.com>
+	* init.d/rgmanager, Makefile: Fix up init script and add Makefile
+	so that the init script is properly installed #142754
+	* src/daemons/*: Fixes for #150344, #151187: Relocate to same node
+	returns failure, hang during shutdown if user relocate is in-flight.
+	Fix service state getting stuck in "recoverable" on fail-to-start
+	scenarios where other nodes failed (or no other node was available)
+	* src/services/fs.sh, clusterfs.sh: Fix #151077: Force unmount broken
+	* src/services/netfs.sh: Fix #151091: netfs status broken
+
 2005-03-14 Lon Hohberger <lhh at redhat.com>
 	* src/resources/clusterfs.sh, fs.sh: Make clusterfs actually work.
 	Clean up fs.sh + clusterfs.sh "status" when mount reports none/
