@@ -56,8 +56,9 @@ int get_ccs_join_info(commandline_t *comline)
 	    comline->votes ||
 	    comline->expected_votes ||
 	    comline->two_node ||
+	    comline->nodeid ||
 	    comline->port)
-		printf("ccs values will override some command line values\n");
+		printf("command line values will override some CCS values\n");
 
 	memset(&nodename, 0, MAX_NODE_NAME_LEN);
 
@@ -78,31 +79,35 @@ int get_ccs_join_info(commandline_t *comline)
 	    strcpy(nodename, utsname.nodename);
 	}
 
-	/* Look for the node in CCS, if we don't find it and uname has returned
+	/* If it wasn't specified on the commandline
+	   Look for the node in CCS, if we don't find it and uname has returned
 	   a FQDN then strip the domain off and try again */
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NAME_PATH, nodename);
-
-	error = ccs_get(cd, path, &str);
-	if (error)
+	if (!comline->nodenames[0])
 	{
-	    char *dot;
-	    dot = strstr(nodename, ".");
-	    if (dot)
-	    {
-		*dot = '\0';
-
+		memset(path, 0, MAX_PATH_LEN);
 		sprintf(path, NODE_NAME_PATH, nodename);
+
 		error = ccs_get(cd, path, &str);
 		if (error)
-		    die("cannot find local node name \"%s\" in ccs", nodename);
-	    }
-	    else
-	    {
-		die("cannot find local node name \"%s\" in ccs", nodename);
-	    }
+		{
+			char *dot;
+			dot = strstr(nodename, ".");
+			if (dot)
+			{
+				*dot = '\0';
+
+				sprintf(path, NODE_NAME_PATH, nodename);
+				error = ccs_get(cd, path, &str);
+				if (error)
+					die("cannot find local node name \"%s\" in ccs", nodename);
+			}
+			else
+			{
+				die("cannot find local node name \"%s\" in ccs", nodename);
+			}
+		}
+		free(str);
 	}
-	free(str);
 
 	/* cluster name */
 
@@ -123,148 +128,154 @@ int get_ccs_join_info(commandline_t *comline)
 
 
 	/* sum node votes for expected */
+	if (!comline->expected_votes)
+	{
+		for (i = 1; ; i++) {
+			name = NULL;
+			memset(path, 0, MAX_PATH_LEN);
+			sprintf(path, NODEI_NAME_PATH, i);
 
-	for (i = 1; ; i++) {
-		name = NULL;
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODEI_NAME_PATH, i);
+			error = ccs_get(cd, path, &name);
+			if (error || !name)
+				break;
 
-		error = ccs_get(cd, path, &name);
-		if (error || !name)
-			break;
+			node_count++;
 
-		node_count++;
+			memset(path, 0, MAX_PATH_LEN);
+			sprintf(path, NODE_VOTES_PATH, name);
+			free(name);
 
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_VOTES_PATH, name);
-		free(name);
+			error = ccs_get(cd, path, &str);
+			if (error)
+				vote_sum++;
+			else {
+				vote_sum += atoi(str);
+				free(str);
+			}
+		}
 
-		error = ccs_get(cd, path, &str);
-		if (error)
-			vote_sum++;
-		else {
-			vote_sum += atoi(str);
+
+		/* optional expected_votes supercedes vote sum */
+
+		error = ccs_get(cd, EXP_VOTES_PATH, &str);
+		if (!error) {
+			comline->expected_votes = atoi(str);
+			free(str);
+		} else
+			comline->expected_votes = vote_sum;
+
+	}
+	/* optional port */
+	if (!comline->port)
+	{
+		error = ccs_get(cd, PORT_PATH, &str);
+		if (!error) {
+			comline->port = atoi(str);
 			free(str);
 		}
-	}
-
-
-	/* optional expected_votes supercedes vote sum */
-
-	error = ccs_get(cd, EXP_VOTES_PATH, &str);
-	if (!error) {
-		comline->expected_votes = atoi(str);
-		free(str);
-	} else
-		comline->expected_votes = vote_sum;
-
-
-	/* optional port */
-
-	error = ccs_get(cd, PORT_PATH, &str);
-	if (!error) {
-		comline->port = atoi(str);
-		free(str);
 	}
 
 
 	/* optional multicast name(s) with interfaces */
+	if (!comline->num_multicasts)
+	{
+		comline->num_multicasts = 0;
+		comline->num_interfaces = 0;
 
-	comline->num_multicasts = 0;
-	comline->num_interfaces = 0;
+		for (i = 0; ; i++) {
+			str = NULL;
 
-	for (i = 0; ; i++) {
-		str = NULL;
+			error = ccs_get(cd, MCAST_ADDR_PATH, &str);
+			if (error || !str)
+				break;
 
-		error = ccs_get(cd, MCAST_ADDR_PATH, &str);
-		if (error || !str)
-			break;
+			/* If we get the same thing twice, it's probably the end of a
+			   1-element list */
 
-		/* If we get the same thing twice, it's probably the end of a
-		   1-element list */
+			if (i > 0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
+				free(str);
+				break;
+			}
 
-		if (i > 0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
-			free(str);
-			break;
+			if (comline->verbose)
+				printf("multicast address %s\n", str);
+
+			comline->multicast_names[i] = str;
+			comline->num_multicasts++;
 		}
 
-		if (comline->verbose)
-			printf("multicast address %s\n", str);
+		for (i = 0; i < comline->num_multicasts; i++) {
+			str = NULL;
+			name = comline->multicast_names[i];
+			memset(path, 0, MAX_PATH_LEN);
+			sprintf(path, NODE_MCAST_IF_PATH, nodename, name);
 
-		comline->multicast_names[i] = str;
-		comline->num_multicasts++;
+			error = ccs_get(cd, path, &str);
+			if (error || !str)
+				die("no interface for multicast address %s", name);
+
+			if (comline->verbose)
+				printf("if %s for mcast address %s\n", str, name);
+
+			comline->interfaces[i] = str;
+			comline->num_interfaces++;
+		}
 	}
-
-	for (i = 0; i < comline->num_multicasts; i++) {
-		str = NULL;
-		name = comline->multicast_names[i];
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_MCAST_IF_PATH, nodename, name);
-
-		error = ccs_get(cd, path, &str);
-		if (error || !str)
-			die("no interface for multicast address %s", name);
-
-		if (comline->verbose)
-			printf("if %s for mcast address %s\n", str, name);
-
-		comline->interfaces[i] = str;
-		comline->num_interfaces++;
-	}
-
 
 	/* find our own number of votes */
 	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_VOTES_PATH, nodename);
-
-	error = ccs_get(cd, path, &str);
-	if (!error) {
-		comline->votes = atoi(str);
-		free(str);
+	if (!comline->votes)
+	{
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			comline->votes = atoi(str);
+			free(str);
+		}
 	}
 
 	if (!comline->nodeid) {
-	    memset(path, 0, MAX_PATH_LEN);
-	    sprintf(path, NODE_NODEID_PATH, nodename);
-
-	    error = ccs_get(cd, path, &str);
-	    if (!error) {
-		comline->nodeid = atoi(str);
-		free(str);
-	    }
-	}
-
-
-	/* get all alternative node names */
-
-	comline->nodenames[0] = strdup(nodename);
-	comline->num_nodenames = 1;
-
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_ALTNAMES_PATH, nodename);
-
-	for (i = 1; ; i++) {
-		str = NULL;
+		memset(path, 0, MAX_PATH_LEN);
+		sprintf(path, NODE_NODEID_PATH, nodename);
 
 		error = ccs_get(cd, path, &str);
-		if (error || !str)
-			break;
-
-		/* If we get the same thing twice, it's probably the end of a
-		   1-element list */
-
-		if (strcmp(str, comline->nodenames[i-1]) == 0) {
+		if (!error) {
+			comline->nodeid = atoi(str);
 			free(str);
-			break;
 		}
-
-		if (comline->verbose)
-			printf("alternative node name %s\n", str);
-
-		comline->nodenames[i] = str;
-		comline->num_nodenames++;
 	}
 
+	/* get all alternative node names */
+	if (!comline->num_nodenames)
+	{
+		comline->nodenames[0] = strdup(nodename);
+		comline->num_nodenames = 1;
+
+		memset(path, 0, MAX_PATH_LEN);
+		sprintf(path, NODE_ALTNAMES_PATH, nodename);
+
+		for (i = 1; ; i++) {
+			str = NULL;
+
+			error = ccs_get(cd, path, &str);
+			if (error || !str)
+				break;
+
+			/* If we get the same thing twice, it's probably the end of a
+			   1-element list */
+
+			if (strcmp(str, comline->nodenames[i-1]) == 0) {
+				free(str);
+				break;
+			}
+
+			if (comline->verbose)
+				printf("alternative node name %s\n", str);
+
+			comline->nodenames[i] = str;
+			comline->num_nodenames++;
+		}
+	}
 
 	/* two_node mode */
 
