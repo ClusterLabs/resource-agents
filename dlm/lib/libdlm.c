@@ -69,8 +69,7 @@ static void ls_dev_name(const char *lsname, char *devname, int devlen)
     snprintf(devname, devlen, DLM_MISC_PREFIX "%s", lsname);
 }
 
-#ifdef _REENTRANT
-/* Used for the synchronous interface */
+/* Used for the synchronous and "simplified, synchronous" API routines */
 struct lock_wait
 {
     pthread_cond_t  cond;
@@ -87,7 +86,11 @@ static void sync_ast_routine(void *arg)
     pthread_mutex_unlock(&lwait->mutex);
 }
 
+static void dummy_ast_routine(void *arg)
+{
+}
 
+#ifdef _REENTRANT
 /* lock_resource & unlock_resource
  * are the simplified, synchronous API.
  * Aways uses the default lockspace.
@@ -305,6 +308,69 @@ static int open_control_device()
     return 0;
 }
 
+static int do_dlm_dispatch(int fd)
+{
+    struct dlm_lock_result result;
+    int status;
+
+    status = read(fd, &result, sizeof(result));
+    if (status != sizeof(result))
+	return -1;
+
+    /* Copy lksb to user's buffer - except the LVB ptr */
+    memcpy(result.user_lksb, &result.lksb, sizeof(struct dlm_lksb) - sizeof(char*));
+
+    /* Flip the status. Kernel space likes negative return codes,
+       userspace positive ones */
+    result.user_lksb->sb_status = -result.user_lksb->sb_status;
+
+    /* Call AST */
+    if (result.astaddr)
+       result.astaddr(result.astparam);
+    return 0;
+}
+
+/* Helper routine which supports the synchronous DLM calls. This
+   writes a parameter block down to the DLM and waits for the
+   operation to complete. This hides the different completion mechanism
+   used when called from the main thread or the DLM 'AST' thread.
+*/
+static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params, int len)
+{
+    int	status;
+    struct lock_wait lwait;
+	
+    if (pthread_self() == lsinfo->tid)
+    {
+        /* This is the DLM worker thread, don't use lwait to sync */
+	params->castaddr  = dummy_ast_routine;
+	params->castparam = NULL;
+
+	status = write(lsinfo->fd, params, len);
+	if (status != len)
+	    return -1;
+	while (params->lksb->sb_status == EINPROG) {
+	    do_dlm_dispatch(lsinfo->fd);
+	}
+    }
+    else
+    {
+	pthread_cond_init(&lwait.cond, NULL);
+	pthread_mutex_init(&lwait.mutex, NULL);
+	pthread_mutex_lock(&lwait.mutex);
+
+	params->castaddr  = sync_ast_routine;
+	params->castparam = &lwait;
+
+	status = write(lsinfo->fd, params, len);
+	if (status != len)
+	    return -1;
+	pthread_cond_wait(&lwait.cond, &lwait.mutex);
+	pthread_mutex_unlock(&lwait.mutex);
+    }
+    return 0;	/* lock status is in the lksb */
+}
+
 /* Lock on default lockspace*/
 int dlm_lock(uint32_t mode,
 	     struct dlm_lksb *lksb,
@@ -324,6 +390,23 @@ int dlm_lock(uint32_t mode,
 		       astaddr, astarg, bastaddr, range);
 }
 
+int dlm_lock_wait(uint32_t mode,
+		     struct dlm_lksb *lksb,
+		     uint32_t flags,
+		     const void *name,
+		     unsigned int namelen,
+		     uint32_t parent,
+		     void *bastarg,
+		     void (*bastaddr) (void *bastarg),
+		     struct dlm_range *range)
+{
+    if (open_default_lockspace())
+	    return -1;
+
+    return dlm_ls_lock_wait(default_ls, mode, lksb, flags, name, namelen, parent,
+			    bastarg, bastaddr, range);
+}
+
 /*
  * This is the full-fat, aynchronous DLM call
  */
@@ -339,8 +422,8 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 		void (*bastaddr) (void *astarg),
 		struct dlm_range *range)
 {
-    int len = sizeof(struct dlm_lock_params) + namelen - 1;
-    char param_buf[len];
+    int len;
+    char param_buf[sizeof(struct dlm_lock_params) + DLM_RESNAME_MAXLEN];
     struct dlm_lock_params *params =  (struct dlm_lock_params *)param_buf;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
     int status;
@@ -352,11 +435,11 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     params->flags = flags;
     params->lkid = lksb->sb_lkid;
     params->parent = parent;
-    params->namelen = namelen;
     params->lksb = lksb;
-    params->astparam = astarg;
+    params->castaddr  = astaddr;
     params->bastaddr = bastaddr;
-    params->astaddr  = astaddr;
+    params->castparam = astarg;	/* completion and blocking ast arg are the same */
+    params->bastparam = astarg;
     if (range)
     {
 	params->range.ra_start = range->ra_start;
@@ -367,8 +450,20 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 	params->range.ra_start = 0L;
 	params->range.ra_end = 0L;
     }
-    memcpy(params->name, name, namelen);
-
+    if (flags & LKF_CONVERT)
+    {
+	params->namelen = 0;
+    }
+    else
+    {
+	if (namelen > DLM_RESNAME_MAXLEN)
+	    return EINVAL;
+	params->namelen = namelen;
+	memcpy(params->name, name, namelen);
+    }
+    len = sizeof(struct dlm_lock_params) + params->namelen - 1;
+    lksb->sb_status = EINPROG;
+    
     status = write(lsinfo->fd, params, len);
     if (status != len)
 	return -1;
@@ -376,11 +471,75 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 	return 0;
 }
 
+/*
+ * This is the full-fat, synchronous DLM call
+ */
+int dlm_ls_lock_wait(dlm_lshandle_t ls,
+		     uint32_t mode,
+		     struct dlm_lksb *lksb,
+		     uint32_t flags,
+		     const void *name,
+		     unsigned int namelen,
+		     uint32_t parent,
+		     void *bastarg,
+		     void (*bastaddr) (void *bastarg),
+		     struct dlm_range *range)
+{
+    int len;
+    char param_buf[sizeof(struct dlm_lock_params) + DLM_RESNAME_MAXLEN];
+    struct dlm_lock_params *params =  (struct dlm_lock_params *)param_buf;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
+    int status;
+
+    set_version(params);
+
+    params->cmd = DLM_USER_LOCK;
+    params->mode = mode;
+    params->flags = flags;
+    params->lkid = lksb->sb_lkid;
+    params->parent = parent;
+    params->lksb = lksb;
+    params->bastaddr = bastaddr;
+    params->bastparam = bastarg;
+
+    if (range)
+    {
+        params->range.ra_start = range->ra_start;
+	params->range.ra_end = range->ra_end;
+    }
+    else
+    {
+	params->range.ra_start = 0L;
+	params->range.ra_end = 0L;
+    }
+    if (flags & LKF_CONVERT)
+    {
+	params->namelen = 0;
+    }
+    else
+    {
+	if (namelen > DLM_RESNAME_MAXLEN)
+	    return EINVAL;
+	params->namelen = namelen;
+	memcpy(params->name, name, namelen);
+    }
+    len = sizeof(struct dlm_lock_params) + params->namelen - 1;
+    lksb->sb_status = EINPROG;
+
+    status = sync_write(lsinfo, params, len);
+    return status;
+}
 /* Unlock on default lockspace*/
 int dlm_unlock(uint32_t lkid,
 	       uint32_t flags, struct dlm_lksb *lksb, void *astarg)
 {
     return dlm_ls_unlock(default_ls, lkid, flags, lksb, astarg);
+}
+
+int dlm_unlock_wait(uint32_t lkid,
+               uint32_t flags, struct dlm_lksb *lksb)
+{
+    return dlm_ls_unlock_wait(default_ls, lkid, flags, lksb);
 }
 
 int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
@@ -407,13 +566,46 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
     params.lkid = lkid;
     params.flags = 0;
     params.lksb  = lksb;
-    params.astparam = astarg;
+    params.castparam = astarg;
+	    /* DLM_USER_UNLOCK will default to existing completion AST */
+    params.castaddr = 0;  
+    lksb->sb_status = EINPROG;
 
     status = write(lsinfo->fd, &params, sizeof(params));
     if (status != sizeof(params))
 	return -1;
     else
 	return 0;
+}
+
+int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
+		  uint32_t flags, struct dlm_lksb *lksb)
+{
+    struct dlm_lock_params params;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
+    int status;
+
+    if (ls == NULL)
+    {
+        errno = ENOTCONN;
+	return -1;
+    }
+
+    if (!lkid)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    set_version(&params);
+    params.cmd = DLM_USER_UNLOCK;
+    params.lkid = lkid;
+    params.flags = 0;
+    params.lksb  = lksb;
+    lksb->sb_status = EINPROG;
+   
+    status = sync_write(lsinfo, &params, sizeof(params));
+    return status;
 }
 
 int dlm_ls_query(dlm_lshandle_t lockspace,
@@ -449,15 +641,52 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
     params.cmd = DLM_USER_QUERY;
     params.flags = query;
     params.lksb  = lksb;
-    params.astparam = astarg;
-    params.astaddr = astaddr;
+    params.castparam = astarg;
+    params.castaddr = astaddr;
     lksb->sb_lvbptr = (char *)qinfo;
+    lksb->sb_status = EINPROG;
 
     status = write(lsinfo->fd, &params, sizeof(params));
     if (status != sizeof(params))
 	return -1;
     else
 	return 0;
+}
+int dlm_ls_query_wait(dlm_lshandle_t lockspace,
+		 struct dlm_lksb *lksb,
+		 int query,
+		 struct dlm_queryinfo *qinfo)
+{
+    struct dlm_lock_params params;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)lockspace;
+    int status;
+
+    if (lockspace == NULL)
+    {
+	errno = ENOTCONN;
+	return -1;
+    }
+
+    if (!lksb)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    if (!lksb->sb_lkid)
+    {
+	errno = EINVAL;
+	return -1;
+    }
+
+    set_version(&params);
+    params.cmd = DLM_USER_QUERY;
+    params.flags = query;
+    params.lksb  = lksb;
+    lksb->sb_lvbptr = (char *)qinfo;
+    lksb->sb_status = EINPROG;
+    status = sync_write(lsinfo, &params, sizeof(params));
+    return status;
 }
 
 int dlm_query(struct dlm_lksb *lksb,
@@ -469,27 +698,13 @@ int dlm_query(struct dlm_lksb *lksb,
     return dlm_ls_query(default_ls, lksb, query, qinfo, astaddr, astarg);
 }
 
-
-static int do_dlm_dispatch(int fd)
+int dlm_query_wait(struct dlm_lksb *lksb,
+	      int query,
+	      struct dlm_queryinfo *qinfo)
 {
-    struct dlm_lock_result result;
-    int status;
-
-    status = read(fd, &result, sizeof(result));
-    if (status != sizeof(result))
-	return -1;
-
-    /* Copy lksb to user's buffer - except the LVB ptr */
-    memcpy(result.user_lksb, &result.lksb, sizeof(struct dlm_lksb) - sizeof(char*));
-
-    /* Flip the status. Kernel space likes negative return codes,
-       userspace positive ones */
-    result.user_lksb->sb_status = -result.user_lksb->sb_status;
-
-    /* Call AST */
-    result.astaddr(result.astparam);
-    return 0;
+    return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
 }
+
 
 /* These two routines for for users that want to
  * do their own fd handling.
