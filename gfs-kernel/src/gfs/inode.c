@@ -1136,10 +1136,6 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	int alloc_required;
 	int error;
 
-	error = gfs_setup_new_acl(dip, type, &mode, &acl);
-	if (error)
-		return error;
-
 	if (dip->i_di.di_mode & S_ISGID) {
 		if (type == GFS_FILE_DIR)
 			mode |= S_ISGID;
@@ -1147,6 +1143,10 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	}
 	else
 		gid = current->fsgid;
+
+	error = gfs_setup_new_acl(dip, type, &mode, &acl);
+	if (error)
+		return error;
 
 	al = gfs_alloc_get(dip);
 
