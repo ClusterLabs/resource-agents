@@ -216,7 +216,7 @@ int ls_unlock(int argc, char **argv)
 	error = dlm_ls_unlock_wait(ls, lkid, flags, &lksb);
 
 	if (error)
-		log_error("dlm_ls_unlock_wait error %d", error);
+		log_error("dlm_ls_unlock_wait error %d errno %d", error, errno);
 	else
 		printf("status 0x%x\n", lksb.sb_status);
  out:

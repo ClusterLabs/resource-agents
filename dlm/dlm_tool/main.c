@@ -65,12 +65,12 @@ static void print_version(void)
 {
 	printf("dlm_tool (built %s %s)\n", __DATE__, __TIME__);
 	printf("%s\n", REDHAT_COPYRIGHT);
-	printf("tool version: %d.%d.%d\n",
+	printf("tool ioctl version: %d.%d.%d\n",
 	       DLM_MEMBER_VERSION_MAJOR,
 	       DLM_MEMBER_VERSION_MINOR,
 	       DLM_MEMBER_VERSION_PATCH);
 
-	/* FIXME: get version from kernel */
+	/* FIXME: get ioctl version from kernel */
 }
 
 static void decode_arguments(int *argc, char **argv)
@@ -115,7 +115,7 @@ static void decode_arguments(int *argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	int x = argc;
+	int rv, x = argc;
 
 	prog_name = argv[0];
 
@@ -128,33 +128,36 @@ int main(int argc, char **argv)
 	argv += (x - argc);
 
 	if (strcmp(action, "set_local") == 0)
-		set_local(argc, argv);
+		rv = set_local(argc, argv);
 	else if (strcmp(action, "set_node") == 0)
-		set_node(argc, argv);
+		rv = set_node(argc, argv);
 	else if (strcmp(action, "stop") == 0)
-		ls_stop(argc, argv);
+		rv = ls_stop(argc, argv);
 	else if (strcmp(action, "terminate") == 0)
-		ls_terminate(argc, argv);
+		rv = ls_terminate(argc, argv);
 	else if (strcmp(action, "start") == 0)
-		ls_start(argc, argv);
+		rv = ls_start(argc, argv);
 	else if (strcmp(action, "finish") == 0)
-		ls_finish(argc, argv);
+		rv = ls_finish(argc, argv);
 	else if (strcmp(action, "set_id") == 0)
-		ls_set_id(argc, argv);
+		rv = ls_set_id(argc, argv);
 	else if (strcmp(action, "poll_done") == 0)
-		ls_poll_done(argc, argv);
+		rv = ls_poll_done(argc, argv);
 	else if (strcmp(action, "create") == 0)
-		ls_create(argc, argv);
+		rv = ls_create(argc, argv);
 	else if (strcmp(action, "release") == 0)
-		ls_release(argc, argv);
+		rv = ls_release(argc, argv);
 	else if (strcmp(action, "lock") == 0)
-		ls_lock(argc, argv);
+		rv = ls_lock(argc, argv);
 	else if (strcmp(action, "unlock") == 0)
-		ls_unlock(argc, argv);
+		rv = ls_unlock(argc, argv);
 	else if (strcmp(action, "convert") == 0)
-		ls_convert(argc, argv);
+		rv = ls_convert(argc, argv);
 	else
 		die("unknown action: %s", action);
+
+	if (rv)
+		log_error("%s error %d errno %d", action, rv, errno);
 
 	exit(EXIT_SUCCESS);
 }

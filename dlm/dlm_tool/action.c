@@ -34,6 +34,8 @@
 
 #include "dlm_member.h"
 
+#define DLM_SYSFS_DIR "/sys/kernel/dlm"
+
 
 int do_command(struct dlm_member_ioctl *mi);
 
@@ -120,7 +122,7 @@ int ls_stop(int argc, char **argv)
 	if (argc != 1)
 		return -EINVAL;
 
-	sprintf(fname, "/sys/kernel/dlm/%s/stop", argv[0]);
+	sprintf(fname, "%s/%s/stop", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -145,7 +147,7 @@ int ls_terminate(int argc, char **argv)
 	if (argc != 1)
 		return -EINVAL;
 
-	sprintf(fname, "/sys/kernel/dlm/%s/terminate", argv[0]);
+	sprintf(fname, "%s/%s/terminate", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -170,7 +172,7 @@ int ls_finish(int argc, char **argv)
 	if (argc != 2)
 		return -EINVAL;
 
-	sprintf(fname, "/sys/kernel/dlm/%s/finish", argv[0]);
+	sprintf(fname, "%s/%s/finish", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -215,7 +217,7 @@ int ls_start(int argc, char **argv)
 		strcat(p, argv[i]);
 	}
 
-	sprintf(fname, "/sys/kernel/dlm/%s/members", argv[0]);
+	sprintf(fname, "%s/%s/members", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -235,7 +237,7 @@ int ls_start(int argc, char **argv)
 
 	/* second do the start */
 
-	sprintf(fname, "/sys/kernel/dlm/%s/start", argv[0]);
+	sprintf(fname, "%s/%s/start", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -262,7 +264,7 @@ int ls_set_id(int argc, char **argv)
 	if (argc != 2)
 		return -EINVAL;
 
-	sprintf(fname, "/sys/kernel/dlm/%s/id", argv[0]);
+	sprintf(fname, "%s/%s/id", DLM_SYSFS_DIR, argv[0]);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {

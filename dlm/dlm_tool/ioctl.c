@@ -143,40 +143,50 @@ static int create_control(const char *control, uint32_t major, uint32_t minor)
 	return 1;
 }
 
-void open_control(void)
+static int open_control(void)
 {
 	char control[PATH_MAX];
 	uint32_t major = 0, minor = 0;
 
 	if (control_fd != -1)
-		return;
+		return 0;
 
 	snprintf(control, sizeof(control), "%s/%s",
 		 DLM_MEMBER_CONTROL_DIR, DLM_MEMBER_CONTROL_NAME);
 
-	if (!control_device_number(&major, &minor))
+	if (!control_device_number(&major, &minor)) {
 		log_error("Is dlm missing from kernel?");
+		return -1;
+	}
 
 	if (!control_exists(control, major, minor) &&
-	    !create_control(control, major, minor))
+	    !create_control(control, major, minor)) {
 		log_error("Failure to communicate with kernel dlm");
+		return -1;
+	}
 
 	control_fd = open(control, O_RDWR);
-	if (control_fd < 0) 
+	if (control_fd < 0) {
 		log_error("Failure to communicate with kernel dlm: %s",
 		          strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }
 
 int do_command(struct dlm_member_ioctl *mi)
 {
 	int error;
 
-	open_control();
+	error = open_control();
+	if (error)
+		goto out;
 
 	error = ioctl(control_fd, DLM_MEMBER_OP, mi);
 	if (error)
 		log_error("ioctl error %d errno %d\n", error, errno);
-
+ out:
 	return error;
 }
 
