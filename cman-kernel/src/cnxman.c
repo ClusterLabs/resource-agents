@@ -545,17 +545,6 @@ static void process_ack(struct cluster_node *rem_node, unsigned short seq)
 			}
 		}
 	}
-	else {
-		if (cluster_members) {
-#ifdef DEBUG_COMMS
-			char buf[MAX_ADDR_PRINTED_LEN];
-
-			printk(KERN_INFO CMAN_NAME
-			       ": got ack from unknown or dead node: %s\n",
-			       print_addr(addr, addrlen, buf));
-#endif
-		}
-	}
 }
 
 static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
@@ -583,7 +572,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		}
 		P_COMMS("Got ACK from %s. seq=%d (cur=%d)\n",
 			rem_node ? rem_node->name : "Unknown",
-			le16_to_cpu(ackmsg->seq), cur_seq);
+			le16_to_cpu(ackmsg->header.ack), cur_seq);
 
 		/* ACK processing has already happened */
 		break;
