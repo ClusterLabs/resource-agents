@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.153 $) dnl cvs revision
+AC_REVISION($Revision: 1.154 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -511,6 +511,7 @@ AC_CHECK_HEADERS(libintl.h)
 AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
 AC_CHECK_HEADERS(net/ethernet.h)
 AC_CHECK_HEADERS(strings.h malloc.h)
+AC_CHECK_HEADERS(termio.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On BSD
