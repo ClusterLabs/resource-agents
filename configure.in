@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.287 $) dnl cvs revision
+AC_REVISION($Revision: 1.288 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1550,7 +1550,7 @@ if test "${enable_swig}" = "yes"; then
 			enable_swig="no (version 1.3.x, x>=19 required)"
 			AC_MSG_RESULT(swig version 1.3.x, x>=19 required)
 		else
-			if perl -e "use 5.008001;" >& /dev/null; then
+			if $PERL -e "use 5.008001;" >& /dev/null; then
 				SWIG_ENABLED=1
 				AC_DEFINE_UNQUOTED(WITH_SWIG, 1, 
 						SWIG bindings enabled)
