@@ -883,8 +883,10 @@ int dlm_unlock(void *lockspace,
 
 	if (lkb->lkb_nodeid)
 		ret = remote_stage(lkb, GDLM_LQSTATE_WAIT_UNLOCK);
-	else
-		ret = dlm_unlock_stage2(lkb, rsb, flags);
+	else {
+		dlm_unlock_stage2(lkb, rsb, flags);
+		ret = 0;
+	}
 	up_read(&ls->ls_in_recovery);
 
 	wake_astd();
@@ -897,15 +899,16 @@ int dlm_unlock(void *lockspace,
 int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 {
 	int remote = lkb->lkb_flags & GDLM_LKFLG_MSTCPY;
-	int old_status;
+	int old_status, rv = 0;
 
 	down_write(&rsb->res_lock);
 
-	/* Can only cancel WAITING or CONVERTing locks */
-	if ((flags & DLM_LKF_CANCEL) &&
-	    (lkb->lkb_status == GDLM_LKSTS_GRANTED)) {
-	        lkb->lkb_retstatus = -EINVAL;
-		queue_ast(lkb, AST_COMP, 0);
+	if ((flags & DLM_LKF_CANCEL) && lkb->lkb_status == GDLM_LKSTS_GRANTED) {
+		log_print("cancel granted %x", lkb->lkb_id);
+	        rv = lkb->lkb_retstatus = -EINVAL;
+		up_write(&rsb->res_lock);
+		if (!remote)
+			queue_ast(lkb, AST_COMP, 0);
 	        goto out;
 	}
 
@@ -915,71 +918,73 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 
 	old_status = lkb_dequeue(lkb);
 
-	/*
-	 * Cancelling a conversion
-	 */
+	if (flags & DLM_LKF_CANCEL) {
+		if (old_status == GDLM_LKSTS_CONVERT) {
+			/* VMS semantics say we should send blocking ASTs
+			   again here */
+			send_blocking_asts(rsb, lkb);
 
-	if ((old_status == GDLM_LKSTS_CONVERT) && (flags & DLM_LKF_CANCEL)) {
-		/* VMS semantics say we should send blocking ASTs again here */
-		send_blocking_asts(rsb, lkb);
+			lkb_enqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
+			lkb->lkb_rqmode = DLM_LOCK_IV;
 
-		/* Stick it back on the granted queue */
-		lkb_enqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
-		lkb->lkb_rqmode = lkb->lkb_grmode;
+			/* Was it blocking any other locks? */
+			if (first_in_list(lkb, &rsb->res_convertqueue))
+				grant_pending_locks(rsb);
 
-		/* Was it blocking any other locks? */
-		if (first_in_list(lkb, &rsb->res_convertqueue))
-			grant_pending_locks(rsb);
-
-		lkb->lkb_retstatus = -DLM_ECANCEL;
-		queue_ast(lkb, AST_COMP, 0);
-		goto out;
-	}
-
-	/*
-	 * If was granted grant any converting or waiting locks
-	 * and save or clear lvb
-	 */
-
-	if (old_status == GDLM_LKSTS_GRANTED) {
-		if (lkb->lkb_grmode >= DLM_LOCK_PW) {
-			if (!rsb->res_lvbptr)
-				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
-			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr) {
-				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
-				       DLM_LVB_LEN);
-				rsb->res_lvbseq++;
-				clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+			rv = lkb->lkb_retstatus = -DLM_ECANCEL;
+			up_write(&rsb->res_lock);
+			if (!remote)
+				queue_ast(lkb, AST_COMP, 0);
+		} else if (old_status == GDLM_LKSTS_WAITING) {
+			lkb->lkb_rqmode = DLM_LOCK_IV;
+			rv = lkb->lkb_retstatus = -DLM_ECANCEL;
+			up_write(&rsb->res_lock);
+			if (!remote)
+				queue_ast(lkb, AST_COMP | AST_DEL, 0);
+			else {
+				/* frees the lkb */
+				release_lkb(rsb->res_ls, lkb);
+				release_rsb(rsb);
 			}
-			if (flags & DLM_LKF_IVVALBLK)
-				set_bit(RESFL_VALNOTVALID, &rsb->res_flags);
-		}
-
-		grant_pending_locks(rsb);
-	}
-
-	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
-
-	if (!remote) {
-		/*
-		 * up the res_lock before queueing ast, since the AST_DEL will
-		 * cause the rsb to be released and that can happen anytime.
-		 */
-		up_write(&rsb->res_lock);
-		queue_ast(lkb, AST_COMP | AST_DEL, 0);
-		goto out2;
+		} else
+			log_print("unlock cancel status %d", old_status);
 	} else {
-		up_write(&rsb->res_lock);
-		release_lkb(rsb->res_ls, lkb);
-		release_rsb(rsb);
-		goto out2;
+		if (old_status != GDLM_LKSTS_GRANTED) {
+			log_print("unlock ungranted %d", old_status);
+			rv = lkb->lkb_retstatus = -EINVAL;
+			up_write(&rsb->res_lock);
+			if (!remote)
+				queue_ast(lkb, AST_COMP, 0);
+		} else {
+			if (lkb->lkb_grmode >= DLM_LOCK_PW) {
+				if (!rsb->res_lvbptr)
+					rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
+				if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr) {
+					memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
+						DLM_LVB_LEN);
+					rsb->res_lvbseq++;
+					clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+				}
+				if (flags & DLM_LKF_IVVALBLK)
+					set_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+			}
+			grant_pending_locks(rsb);
+			rv = lkb->lkb_retstatus = -DLM_EUNLOCK;
+			up_write(&rsb->res_lock);
+			if (!remote)
+				queue_ast(lkb, AST_COMP | AST_DEL, 0);
+			else {
+				/* frees the lkb */
+				release_lkb(rsb->res_ls, lkb);
+				release_rsb(rsb);
+			}
+		}
 	}
 
  out:
-	up_write(&rsb->res_lock);
- out2:
-	wake_astd();
-	return 0;
+	if (!remote)
+		wake_astd();
+	return rv;
 }
 
 /*
