@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-24 04:37:35.000000000 +0000
-@@ -0,0 +1,1020 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-28 19:45:42.000000000 +0000
+@@ -0,0 +1,1050 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -103,6 +103,51 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	writepipe(SOCK, &message, sizeof(message)); })
 +
 +
++/*
++ * This gets the job done but it sucks as an internal interface: there
++ * is no reason to deal with fds at all, we just want to receive the
++ * (struct file *), we do not want to have to wrap the socket in a
++ * fd just to call recv_fd, and user space pointer for the (bogus) data
++ * payload is just silly.  Never mind the danger of triggering some
++ * wierdo signal handling cruft deep in the socket layer.  This kind of
++ * posturing - lathering layers of cruft upon cruft - is the stuff
++ * Windows is made of, Linux is not supposed to be like that.  Fixing
++ * this requires delving into the SCM_RIGHTS path deep inside sys_recvmsg
++ * and breaking out the part that actually does the work, to be a usable
++ * internal interface.  Put it on the list of things to do.
++ */
++int recv_fd(int sock, char *bogus, unsigned *len)
++{
++	char payload[CMSG_SPACE(sizeof(int))];
++	struct msghdr msg = {
++		.msg_control = payload,
++		.msg_controllen = sizeof(payload),
++		.msg_iov = &(struct iovec){ .iov_base = bogus, .iov_len = *len },
++		.msg_iovlen = 1,
++	};
++	mm_segment_t oldseg = get_fs();
++	struct cmsghdr *cmsg;
++	int result;
++
++	set_fs(get_ds());
++	result = sys_recvmsg(sock, &msg, 0);
++	set_fs(oldseg);
++
++	if (result <= 0)
++		return result;
++	if (!(cmsg = CMSG_FIRSTHDR(&msg)))
++		return -ENODATA;
++	if (cmsg->cmsg_len != CMSG_LEN(sizeof(int)) ||
++		cmsg->cmsg_level != SOL_SOCKET ||
++		cmsg->cmsg_type != SCM_RIGHTS)
++		return -EBADMSG;
++
++	*len = result;
++	return *((int *)CMSG_DATA(cmsg));
++}
++
++/* ...pipe helpers */
++
 +typedef u64 chunk_t;
 +
 +#define SECTOR_SHIFT 9
@@ -128,6 +173,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	struct file *control_socket;
 +	struct semaphore imutex;
 +	struct semaphore omutex;
++	struct semaphore init3_sem;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
 +	struct semaphore exit3_sem;
@@ -594,45 +640,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return 0;
 +}
 +
-+long recvmsg(int sock, struct msghdr *msg, unsigned flags)
-+{
-+	int err;
-+	mm_segment_t oldseg;
-+	oldseg = get_fs();
-+	set_fs(get_ds());
-+	err = sys_recvmsg(sock, msg, flags);
-+	set_fs(oldseg);
-+	return err;
-+}
-+
-+int recv_fd(int sock, char *tag, unsigned *len)
-+{
-+	char payload[CMSG_SPACE(sizeof(int))];
-+	struct msghdr msg = {
-+		.msg_control = payload,
-+		.msg_controllen = sizeof(payload),
-+		.msg_iov = &(struct iovec){ .iov_base = tag, .iov_len = *len },
-+		.msg_iovlen = 1,
-+	};
-+	struct cmsghdr *cmsg;
-+	int err;
-+
-+	if ((err = recvmsg(sock, &msg, 0)) < 0)
-+		return err;
-+	*len = err;
-+
-+	// looping through the control messages is gratuitous and wrong
-+	// for this application, it's just a demo of CMSG_NXTHDR
-+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-+		if (cmsg->cmsg_len != CMSG_LEN(sizeof(int)) ||
-+			cmsg->cmsg_level != SOL_SOCKET ||
-+			cmsg->cmsg_type  != SCM_RIGHTS)
-+			continue;
-+		return *((int *)CMSG_DATA(cmsg));
-+	}
-+	return 0;
-+}
-+
 +/*
 + * Yikes, a third daemon, that makes four including the user space
 + * monitor.  This daemon proliferation is due to not using poll, which
@@ -641,24 +648,30 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * can combine the two socket-waiting daemons into one, which will look
 + * nicer in ps.  Practically speaking, it doesn't matter a whole lot
 + * though, if we just stay lazy and have too many daemons.
++ *
++ * At least, combine this code with incoming, with just the switches
++ * different.
 + */
 +static int control(struct dm_target *target)
 +{
++	struct task_struct *task = current;
 +	struct snapinfo *info = target->private;
 +	struct messagebuf message; // !!! have a buffer in the target->info
-+	struct file *sock = info->control_socket;
-+	struct task_struct *task = current;
++	struct file *sock;
 +	int err, length;
 +
 +	strcpy(task->comm, "csnap-control");
 +	trace(warn("Control thread started, pid=%i", current->pid);)
-+	trace(warn("got socket %p", info->control_socket);)
++	down(&info->init3_sem);
++	sock = info->control_socket;
++	trace(warn("got socket %p", sock);)
 +
 +	down(&info->exit3_sem);
 +	while (running(info)) {
 +		trace(warn("wait message");)
 +		if ((err = readpipe(sock, &message.head, sizeof(message.head))))
 +			goto socket_error;
++		trace(warn("got message header code %x", message.head.code);)
 +		length = message.head.length;
 +		if (length > maxbody)
 +			goto message_too_long;
@@ -669,19 +682,31 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		switch (message.head.code) {
 +		case SERVER_CONNECT: {
 +			unsigned len = 4;
-+			char tag[len];
-+			unsigned sock = recv_fd(sock, tag, &len);
-+			warn("Received socket %i", sock);
-+//			up(&info->imutex);
-+//			outbead(info->sock, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
++			char bogus[len];
++			int sock_fd = get_unused_fd(), fd;
++
++			if (sock_fd < 0) {
++				warn("Can't get fd, error %i", sock_fd);
++				break;
++			}
++			fd_install(sock_fd, sock);
++			if ((fd = recv_fd(sock_fd, bogus, &len)) < 0) {
++				warn("recv_fd failed, error %i", fd);
++				put_unused_fd(sock_fd);
++				break;
++			}
++			warn("Received socket %i", fd);
++			info->sock = fget(fd);
++			put_unused_fd(sock_fd);
++			sys_close(fd);
++			up(&info->imutex);
++			outbead(info->sock, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
 +			break;
 +		}
 +		default: 
 +			warn("Unknown message %x", message.head.code);
 +			continue;
 +		}
-+		if (length < sizeof(struct rw_request))
-+			goto message_too_short;
 +	}
 +out:
 +	up(&info->exit3_sem); /* !!! will crash if module unloaded before ret executes */
@@ -806,6 +831,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	info->flags |= FINISH_FLAG;
 +	up(&info->imutex); // unblock incoming thread
 +	up(&info->omutex); // unblock io request threads
++	up(&info->init3_sem); // unblock io request threads
 +
 +	if (info->sock) {
 +		struct inode *inode = info->sock->f_dentry->d_inode;
@@ -903,6 +929,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +	sema_init(&info->imutex, 0);
 +	sema_init(&info->omutex, 0);
++	sema_init(&info->init3_sem, 0);
 +	sema_init(&info->exit1_sem, 1);
 +	sema_init(&info->exit2_sem, 1);
 +	sema_init(&info->exit3_sem, 1);
@@ -921,6 +948,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
 +	if ((err = kernel_thread((void *)worker, target, CLONE_KERNEL)) < 0)
++		goto eek;
++	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
 +	warn("Created snapshot device origin=%s snapstore=%s snapshot=%i", argv[0], argv[1], snap);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
@@ -959,7 +988,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		fput(info->control_socket);
 +	warn("socket = %p", sock);
 +	info->control_socket = sock;
-+	return kernel_thread((void *)control, target, CLONE_KERNEL);
++	up(&info->init3_sem);
++	return 0;
 +}
 +
 +/* Is this actually useful?  It's really trying to be a message */

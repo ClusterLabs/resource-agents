@@ -45,12 +45,13 @@ int main(int argc, char *argv[])
 	if (!(sock = open_socket(host, port)))
 		error("Can't connect to %s:%i", host, port);
 
-	socketpair(AF_UNIX, SOCK_STREAM, 0, sockpair);
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockpair) == -1)
+		error("Can't create socket pair");
 
 	if (ioctl(open(argv[1], O_RDWR), DM_MESSAGE, (int[4]){ 0, 9, sizeof(int), sockpair[1]}))
 		error("Socket connect ioctl on %s failed: %s", argv[1], strerror(errno));
 
-	outbead(sock, SERVER_CONNECT, struct { });
+	outbead(sockpair[0], SERVER_CONNECT, struct { });
 	send_fd(sockpair[0], sock, "fark", 4);
 
 	return 0;
