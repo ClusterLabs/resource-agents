@@ -406,6 +406,7 @@ extern int dlm_query(dlm_lockspace_t *lockspace,
 
 
 void dlm_debug_dump(void);
+void dlm_locks_dump(void);
 
 #endif				/* __KERNEL__ */
 

@@ -96,3 +96,4 @@ EXPORT_SYMBOL(dlm_release_lockspace);
 EXPORT_SYMBOL(dlm_lock);
 EXPORT_SYMBOL(dlm_unlock);
 EXPORT_SYMBOL(dlm_debug_dump);
+EXPORT_SYMBOL(dlm_locks_dump);

@@ -326,25 +326,17 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				msleep(500);
 				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
 				break;
-			} else
-				goto stage2;
-		}
-
-		if (reply->rl_nodeid == our_nodeid()) {
-			set_bit(RESFL_MASTER, &rsb->res_flags);
-			rsb->res_nodeid = 0;
+			}
 		} else {
-			DLM_ASSERT(rsb->res_nodeid == -1 ||
-				   rsb->res_nodeid == reply->rl_nodeid,
-				   print_lkb(lkb);
-				   print_rsb(rsb);
-				   print_reply(reply););
-
-			clear_bit(RESFL_MASTER, &rsb->res_flags);
-			rsb->res_nodeid = reply->rl_nodeid;
+			if (reply->rl_nodeid == our_nodeid()) {
+				set_bit(RESFL_MASTER, &rsb->res_flags);
+				rsb->res_nodeid = 0;
+			} else {
+				clear_bit(RESFL_MASTER, &rsb->res_flags);
+				rsb->res_nodeid = reply->rl_nodeid;
+			}
 		}
 
- stage2:
 		log_debug(ls, "lu rep %x fr %u %u", lkb->lkb_id, nodeid,
 			  rsb->res_nodeid);
 
