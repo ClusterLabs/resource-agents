@@ -30,7 +30,7 @@ dumb.so: buildtest $(OBJS)
 buildtest: $(OBJS)
 	echo "int main(void) { return 0; }" > _buildtest.c
 	$(CC) -c _buildtest.c
-	$(CC) -o $@ _buildtest.o $(OBJS) -lxml2 $(LIBS)
+	$(CC) -o $@ _buildtest.o $(OBJS) $(LIBS)
 	rm -f _buildtest*
 
 %.o: %.c
