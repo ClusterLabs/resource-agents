@@ -403,9 +403,9 @@ print_member_list(cluster_member_list_t *list, int verbose)
 
 	for (x=0; x<list->cml_count; x++) {
 
-		printf("    %s (id %ld) state ",
+		printf("    %s (id 0x%016llx) state ",
 		       list->cml_members[x].cm_name,
-		       (long)list->cml_members[x].cm_id);
+		       (unsigned long long)list->cml_members[x].cm_id);
 
 		if (list->cml_members[x].cm_state == STATE_UP)
 			printf("Up\n");

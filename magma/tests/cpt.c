@@ -163,8 +163,9 @@ perform_op(int fd, char *op, char *data)
 					state = "UNKNOWN";
 					break;
 				}
-				printf("Member ID %d: %s, state %s\n",
-				       (int)nodelist->cml_members[x].cm_id,
+				printf("Member ID 0x%016llx: %s, state %s\n",
+				       (unsigned long long)
+					nodelist->cml_members[x].cm_id,
 				       nodelist->cml_members[x].cm_name,
 				       state);
 			}
