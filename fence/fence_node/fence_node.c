@@ -20,7 +20,7 @@
 #include "copyright.cf"
 #include "ccs.h"
 
-#define OPTION_STRING           ("c:hOuV")
+#define OPTION_STRING           ("hOuV")
 
 #define die(fmt, args...) \
 do \
@@ -31,11 +31,11 @@ do \
 } \
 while (0)
 
-char *prog_name;
-int unfence;
+static char *prog_name;
+static int unfence;
+static int force;
 
-int dispatch_fence_agent(char *victim, int in);
-int dispatch_fence_agent_force(char *victim, char *cluster, int in);
+int dispatch_fence_agent(int cd, char *victim, int in);
 
 static void print_usage(void)
 {
@@ -45,9 +45,8 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -c <cluster>     Specify the cluster name\n");
 	printf("  -h               Print this help, then exit\n");
-	printf("  -O               Override quorum requirement\n");
+	printf("  -O               Force connection to CCS\n");
 	printf("  -u               Unfence the node\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
@@ -55,12 +54,8 @@ static void print_usage(void)
 
 int main(int argc, char *argv[])
 {
-	int cont = 1, optchar, error;
-	int ccs_desc;
-	int force=0;
+	int cont = 1, optchar, error, cd;
 	char *victim = NULL;
-	char *cluster_name = NULL;
-	char *current_cluster_name = NULL;
 
 	prog_name = argv[0];
 
@@ -68,10 +63,6 @@ int main(int argc, char *argv[])
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
-
-		case 'c':
-			cluster_name = optarg;
-			break;
 
 		case 'h':
 			print_usage();
@@ -119,73 +110,37 @@ int main(int argc, char *argv[])
 	if (!victim)
 		die("no node name specified");
 
-	if(force && !cluster_name){
-		die("The '-O' option requires the '-c <cluster_name>' option.\n");
-	}
-
-	if(cluster_name){
-		/* Check that CCS contains this cluster */
-		ccs_desc = ccs_connect();
-		if(ccs_desc < 0){
-			if(force){
-				ccs_desc = ccs_force_connect(cluster_name, 0);
-				if(ccs_desc < 0){
-					ccs_desc = ccs_force_connect(NULL, 0);
-				}
-				if(ccs_desc < 0){
-					die("Unable to connect to CCS.\n"
-					    "Hint: Is the daemon running?\n");
-				}
-			} else {
-				die("Unable to connect to CCS.\n"
-				    "Hint: If the cluster is not quorate, try using '-O'\n");
-			}
-		}
-		if(ccs_get(ccs_desc, "/cluster/@name", &current_cluster_name)){
-			ccs_disconnect(ccs_desc);
-			die("Unable to get the current cluster name from CCS.\n");
-		}
-		if(strcmp(current_cluster_name, cluster_name)){
-			ccs_disconnect(ccs_desc);
-			die("Cluster names differ, refusing fence request.\n"
-			    "CCS cluster name      : %s\n"
-			    "Specified cluster name: %s\n",
-			    current_cluster_name, cluster_name);
-		}
-		ccs_disconnect(ccs_desc);
-	} else {
-		ccs_desc = ccs_connect();	
-		if(ccs_desc < 0){
-			die("Unable to connect to CCS.\n"
-			    "Hint: If the cluster is not quorate, try using '-O'\n");
-		}
-		ccs_disconnect(ccs_desc);
-	}
+	if (force)
+		cd = ccs_force_connect(NULL, 0);
+	else
+		cd = ccs_connect();
 
 	if (unfence) {
-		dispatch_fence_agent_force(victim, cluster_name, 1);
+		if (cd < 0)
+			die("cannot connect to ccs %d", cd);
+		dispatch_fence_agent(cd, victim, 1);
 		exit(EXIT_SUCCESS);
 	}
 
 	openlog("fence_node", LOG_PID, LOG_USER);
 
-	error = dispatch_fence_agent_force(victim, cluster_name, 0);
-	if (error) {
-		syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", argv[1]);
-		exit(EXIT_FAILURE);
+	if (cd < 0) {
+		syslog(LOG_ERR, "cannot connect to ccs %d\n", cd);
+		goto fail;
 	}
 
-	syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", argv[1]);
+	error = dispatch_fence_agent(cd, victim, 0);
+	if (error)
+		goto fail_ccs;
+
+	syslog(LOG_NOTICE, "Fence of \"%s\" was successful\n", victim);
+	ccs_disconnect(cd);
 	exit(EXIT_SUCCESS);
+
+ fail_ccs:
+	ccs_disconnect(cd);
+ fail:
+	syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", victim);
+	exit(EXIT_FAILURE);
 }
 
-/*
- * Overrides for Emacs so that we follow Linus's tabbing style.
- * Emacs will notice this stuff at the end of the file and automatically
- * adjust the settings for this buffer only.  This must remain at the end
- * of the file.
- * ---------------------------------------------------------------------------
- * Local variables:
- * c-file-style: "linux"
- * End:
- */

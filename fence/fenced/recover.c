@@ -12,6 +12,7 @@
 ******************************************************************************/
 
 #include "fd.h"
+#include "ccs.h"
 
 /* Fencing recovery algorithm
 
@@ -423,7 +424,7 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 	fd_node_t *node;
 	char *master_name;
 	uint32_t master;
-	int error;
+	int error, cd;
 
 	master = find_master_nodeid(fd, &master_name);
 
@@ -434,6 +435,9 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 	}
 
 	delay_fencing(fd, ev);
+
+	while ((cd = ccs_connect()) < 0)
+		sleep(1);
 
 	while (!list_empty(&fd->victims)) {
 		node = list_entry(fd->victims.next, fd_node_t, list);
@@ -448,7 +452,7 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
-		error = dispatch_fence_agent(node->name, 0);
+		error = dispatch_fence_agent(cd, node->name, 0);
 
 		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
@@ -459,6 +463,8 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 		}
 		sleep(1);
 	}
+
+	ccs_disconnect(cd);
 }
 
 static void add_victims(fd_t *fd, struct cl_service_event *ev,

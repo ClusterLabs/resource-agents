@@ -61,7 +61,7 @@ int skip_unfence;
 int cl_sock;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
-int dispatch_fence_agent(char *victim, int in);
+int dispatch_fence_agent(int cd, char *victim, int in);
 
 
 static int check_mounted(void)
@@ -113,7 +113,7 @@ static int setup_sock(void)
 	return 0;
 }
 
-static int self_unfence(void)
+static int self_unfence(int cd)
 {
 	if (skip_unfence)
 		return 0;
@@ -121,7 +121,7 @@ static int self_unfence(void)
 	if (debug)
 		printf("%s: unfence ourself\n", prog_name);
 
-	dispatch_fence_agent(our_name, 1);
+	dispatch_fence_agent(cd, our_name, 1);
 	return 0;
 }
 
@@ -139,8 +139,7 @@ static int check_ccs(void)
 			die("cannot connect to ccs %d\n", cd);
 	}
 
-	ccs_disconnect(cd);
-	return 0;
+	return cd;
 }
 
 static int get_our_name(void)
@@ -215,12 +214,15 @@ static int wait_quorum(void)
 
 static void do_join(int argc, char *argv[])
 {
+	int cd;
+
 	setup_sock();
 	wait_quorum();
 	get_our_name();
 	close(cl_sock);
-	check_ccs();
-	self_unfence();
+	cd = check_ccs();
+	self_unfence(cd);
+	ccs_disconnect(cd);
 
 	/* Options for fenced can be given to this program which then passes
 	   them on to fenced when it's started (now).  We just manipulate the

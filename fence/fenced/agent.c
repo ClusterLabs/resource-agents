@@ -251,18 +251,10 @@ static int count_devices(int cd, char *victim, char *method)
 	return i;
 }
 
-static int _dispatch_fence_agent(char *victim, char *cluster, int in)
+int dispatch_fence_agent(int cd, char *victim, int in)
 {
 	char *method, *device;
-	int cd, num_methods, num_devices, m, d, error = -1;
-
-	if(cluster){
-		while ((cd = ccs_force_connect(cluster, 0)) < 0)
-			sleep(1);
-	} else {
-		while ((cd = ccs_connect()) < 0)
-			sleep(1);
-	}
+	int num_methods, num_devices, m, d, error = -1;
 
 	num_methods = count_methods(cd, victim);
 
@@ -295,40 +287,7 @@ static int _dispatch_fence_agent(char *victim, char *cluster, int in)
 			break;
 	}
 
-	ccs_disconnect(cd);
 	return error;
-}
-
-/*
- * dispatch_fence_agent
- * @victim: node name found in CCS that will be fenced
- * @in: fence in or out
- *
- * This function is used to fence nodes when a cluster is
- * quorate.
- */
-int dispatch_fence_agent(char *victim, int in)
-{
-	return _dispatch_fence_agent(victim, NULL, in);
-}
-
-/*
- * dispatch_fence_agent_force
- * @victim: node name found in CCS that will be fenced
- * @cluster: if NULL, work like dispatch_fence_agent
- * @in: fence in or out
- *
- * This function is used to fence nodes regardless of
- * the quorate state of the cluster.  Normally, this
- * would be dangerous, since CCS information may not
- * be held constant while the cluster is inquorate.
- * We hedge our bets against this happening by requiring
- * a cluster name, so we can at least ensure that the
- * CCS information will be about *this* cluster.
- */
-int dispatch_fence_agent_force(char *victim, char *cluster, int in)
-{
-	return _dispatch_fence_agent(victim, cluster, in);
 }
 
 struct unfence_info {
@@ -422,13 +381,3 @@ static int use_device(int cd, char *victim, char *method, char *device, int in)
 	return error;
 }
 
-/*
- * Overrides for Emacs so that we follow Linus's tabbing style.
- * Emacs will notice this stuff at the end of the file and automatically
- * adjust the settings for this buffer only.  This must remain at the end
- * of the file.
- * ---------------------------------------------------------------------------
- * Local variables:
- * c-file-style: "linux"
- * End:
- */
