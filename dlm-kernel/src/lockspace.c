@@ -321,6 +321,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	INIT_LIST_HEAD(&ls->ls_nodes);
 	INIT_LIST_HEAD(&ls->ls_nodes_gone);
 	ls->ls_num_nodes = 0;
+	init_MUTEX(&ls->ls_recoverd_lock);
 	INIT_LIST_HEAD(&ls->ls_recover);
 	spin_lock_init(&ls->ls_recover_lock);
 	INIT_LIST_HEAD(&ls->ls_recover_list);
