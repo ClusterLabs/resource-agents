@@ -693,6 +693,8 @@ static int init_membership_services()
 	struct socket *sock;
 
 	init_MUTEX(&hello_task_lock);
+	rwlock_init(&members_idr_lock);
+
 	/* Create a socket to communicate with */
 	result = sock_create_kern(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT, &sock);
 	if (result < 0) {
@@ -929,6 +931,7 @@ static int end_transition()
 	/* We check this below too, but this can save us 3 seconds in a transition */
 	if (test_bit(WAKE_FLAG_DEADNODE, &wake_flags)) {
 		P_MEMB("Node died during ACK collection - restart\n");
+		remove_joiner(0);
 		return 0;
 	}
 
@@ -937,6 +940,7 @@ static int end_transition()
 
 		/* If a node died while we were waiting then restart transition with ANOTHERREMNODE */
 		if (!test_bit(WAKE_FLAG_DEADNODE, &wake_flags)) {
+			remove_joiner(0);
 			start_transition(TRANS_RESTART, us);
 		}
 		return 0;
@@ -1764,6 +1768,9 @@ static void add_node_from_starttrans(struct msghdr *msg, char *buf, int len)
 	int i;
 	char *name = buf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
 	char *nodeaddr = buf + sizeof(struct cl_mem_starttrans_msg);
+
+	/* Remove any old joining node */
+	remove_joiner(0);
 
 	joining_node = add_new_node(name, startmsg->votes,
 				    le32_to_cpu(startmsg->expected_votes),
