@@ -2950,15 +2950,21 @@ dump_glock(struct gfs_glock *gl,
 	gfs_printf(" \n");
 	gfs_printf("  gl_count = %d\n", atomic_read(&gl->gl_count));
 	gfs_printf("  gl_state = %u\n", gl->gl_state);
+	gfs_printf("  req_gh = %s\n", (gl->gl_req_gh) ? "yes" : "no");
+	gfs_printf("  req_bh = %s\n", (gl->gl_req_bh) ? "yes" : "no");
 	gfs_printf("  lvb_count = %d\n", atomic_read(&gl->gl_lvb_count));
 	gfs_printf("  object = %s\n", (gl->gl_object) ? "yes" : "no");
+	gfs_printf("  new_le = %s\n", (gl->gl_new_le.le_trans) ? "yes" : "no");
+	gfs_printf("  incore_le = %s\n", (gl->gl_incore_le.le_trans) ? "yes" : "no");
+	gfs_printf("  reclaim = %s\n",
+		    (list_empty(&gl->gl_reclaim)) ? "no" : "yes");
 	if (gl->gl_aspace)
 		gfs_printf("  aspace = %lu\n",
 			    gl->gl_aspace->i_mapping->nrpages);
 	else
 		gfs_printf("  aspace = no\n");
-	gfs_printf("  reclaim = %s\n",
-		    (list_empty(&gl->gl_reclaim)) ? "no" : "yes");
+	gfs_printf("  ail_bufs = %s\n",
+		   (list_empty(&gl->gl_ail_bufs)) ? "no" : "yes");
 	if (gl->gl_req_gh) {
 		error = dump_holder("Request", gl->gl_req_gh, buf, size, count);
 		if (error)
