@@ -307,8 +307,7 @@ int join(commandline_t *comline)
 {
     struct cl_join_cluster_info join_info;
     int error, i;
-    char unqual_nodename[256];
-    char *dot;
+    char nodename[256];
 
     /*
      * Create the cluster master socket
@@ -336,13 +335,9 @@ int join(commandline_t *comline)
         die("Node is already active");
 
     /* Set the node name - without domain part */
-    strcpy(unqual_nodename, comline->nodenames[0]);
-    dot = strstr(unqual_nodename, ".");
-    if (dot)
-	*dot = '\0';
+    strcpy(nodename, comline->nodenames[0]);
 
-    error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODENAME,
-		  unqual_nodename);
+    error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODENAME, nodename);
     if (error)
 	die("Unable to set cluster node name");
 

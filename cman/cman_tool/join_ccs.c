@@ -12,6 +12,11 @@
 ******************************************************************************/
 
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <ifaddrs.h>
 
 #include "ccs.h"
 #include "cnxman-socket.h"
@@ -32,6 +37,156 @@
 #define NODE_IFNAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/@ifname"
 #define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname/@name"
 #define NODE_MCAST_IF_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
+
+
+int verify_nodename(commandline_t *comline, int cd, char *nodename)
+{
+	char path[MAX_PATH_LEN];
+	char nodename2[MAX_NODE_NAME_LEN];
+	char nodename3[MAX_NODE_NAME_LEN];
+	char *str, *dot = NULL;
+	struct ifaddrs *ifa, *ifa_list;
+	struct sockaddr *sa;
+	int error, i;
+
+
+	/* nodename is either from commandline or from uname */
+
+	str = NULL;
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_NAME_PATH, nodename);
+
+	error = ccs_get(cd, path, &str);
+	if (!error) {
+		free(str);
+		return 0;
+	}
+
+	if (comline->verbose)
+		printf("nodename %s not found\n", nodename);
+
+
+	/* if nodename was on command line, don't try variations */
+
+	if (comline->num_nodenames > 0)
+		return -1;
+
+
+	/* if nodename was from uname, try a domain-less version of it */
+
+	strcpy(nodename2, nodename);
+	dot = strstr(nodename2, ".");
+	if (dot) {
+		*dot = '\0';
+
+		str = NULL;
+		memset(path, 0, MAX_PATH_LEN);
+		sprintf(path, NODE_NAME_PATH, nodename2);
+
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			free(str);
+			strcpy(nodename, nodename2);
+			return 0;
+		}
+
+		if (comline->verbose)
+			printf("nodename %s (truncated) not found\n", nodename2);
+	}
+
+
+	/* if nodename (from uname) is domain-less, try to match against
+	   cluster.conf names which may have domainname specified */
+
+	for (i = 1; ; i++) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
+
+		error = ccs_get(cd, path, &str);
+		if (error || !str)
+			break;
+
+		strcpy(nodename3, str);
+		dot = strstr(nodename3, ".");
+		if (dot)
+			*dot = '\0';
+
+		if (strlen(nodename2) == strlen(nodename3) &&
+		    !strncmp(nodename2, nodename3, strlen(nodename3))) {
+			free(str);
+			strcpy(nodename, nodename3);
+			return 0;
+		}
+
+		if (comline->verbose)
+			printf("nodename %s doesn't match %s (%s in cluster.conf)\n",
+				nodename2, nodename3, str);
+		free(str);
+	}
+
+
+	/* the cluster.conf names may not be related to uname at all,
+	   they may match a hostname on some network interface */
+
+	error = getifaddrs(&ifa_list);
+	if (error)
+		return -1;
+
+	for (ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+		sa = ifa->ifa_addr;
+		if (!sa || sa->sa_family != AF_INET)
+			continue;
+
+		error = getnameinfo(sa, sizeof(*sa), nodename2,
+				    sizeof(nodename2), NULL, 0, 0);
+		if (error)
+			goto out;
+
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, NODE_NAME_PATH, nodename2);
+
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			free(str);
+			strcpy(nodename, nodename2);
+			goto out;
+		}
+
+		if (comline->verbose)
+			printf("nodename %s (if %s) not found\n", nodename2,
+			       ifa->ifa_name);
+
+		/* truncate this name and try again */
+
+		dot = strstr(nodename2, ".");
+		if (!dot)
+			continue;
+		*dot = '\0';
+
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, NODE_NAME_PATH, nodename2);
+
+		error = ccs_get(cd, path, &str);
+		if (!error) {
+			free(str);
+			strcpy(nodename, nodename2);
+			goto out;
+		}
+
+		if (comline->verbose)
+			printf("nodename %s (if %s truncated) not found\n",
+				nodename2, ifa->ifa_name);
+	}
+
+	error = -1;
+ out:
+	freeifaddrs(ifa_list);
+	return error;
+}
+	   
 
 
 /*
@@ -63,7 +218,7 @@ int get_ccs_join_info(commandline_t *comline)
 {
 	char path[MAX_PATH_LEN];
 	char nodename[MAX_NODE_NAME_LEN];
-	char *str, *name, *cname = NULL, *dot = NULL;
+	char *str, *name, *cname = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
 
 
@@ -118,20 +273,12 @@ int get_ccs_join_info(commandline_t *comline)
 
 	/* find our nodename in cluster.conf */
 
- retry_name:
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NAME_PATH, nodename);
-
-	error = ccs_get(cd, path, &str);
-	if (error) {
-		if (dot || !strstr(nodename, "."))
-			die("local node name \"%s\" not found in cluster.conf",
-			    nodename);
-		dot = strstr(nodename, ".");
-		*dot = '\0';
-		goto retry_name;
-	} else
-		free(str);
+	error = verify_nodename(comline, cd, nodename);
+	if (error)
+		die("local node name \"%s\" not found in cluster.conf",
+		    nodename);
+	if (comline->verbose)
+		printf("selected nodename %s\n", nodename);
 
 
 	/* config version */
