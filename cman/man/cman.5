@@ -1,0 +1,123 @@
+.\"
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.\" groff -t -e -mandoc -Tlatin1 cman.5 | less
+
+.tl 'cman(5)' 'cman(5)'
+
+\fBNAME\fP
+.in +7
+cman - cluster.conf cman configuration section
+.sp
+.in -7
+
+
+\fBDESCRIPTION\fP
+.in +7
+Cman configuration values are placed in the <cman> </cman> section of
+\fBcluster.conf\fP.  Per-node network configuration related to cman is placed
+in the standard <node> </node> sections.  All cman configuration settings are
+optional; usually none are used.
+.in -7
+
+
+\fITCP port\fR
+.in +7
+By default, cman will use TCP port 6809 for internode communication.  This can
+be changed by setting a port number as follows:
+
+  <cman port="6809">
+  </cman>
+.in -7
+
+
+\fIExpected votes\fR
+.in +7
+The expected votes value is used by cman to determine quorum.  The cluster is
+quorate if the sum of votes of existing members is over half of the expected
+votes value.  By default, cman_tool sets the expected votes value to be the sum
+of votes of all nodes listed in cluster.conf.  This can be overriden by setting
+an explicit expected_votes value as follows:
+
+  <cman expected_votes="3">
+  </cman>
+
+Caution: using this option can be dangerous.  If not handled properly, it could
+result in both sides of a split-brain cluster remaining quorate and shared
+resources being corrupted.
+.in -7
+
+
+\fITwo node clusters\fR
+.in +7
+Ordinarily, the loss of quorum after one out of two nodes fails will prevent
+the remaining node from continuing (if both nodes have one vote.)  Special
+configuration options can be set to allow the one remaining node to continue
+operating if the other fails.  To do this only two nodes, each with one vote,
+can be defined in cluster.conf.  The two_node and expected_votes values must
+then be set to 1 in the cman section as follows.
+
+  <cman two_node="1" expected_votes="1">
+  </cman>
+.in -7
+
+
+\fIMultihome network configuration\fR
+.in +7
+Cman can be configured to use multiple network interfaces.  If one fails it
+should be able to continue running with the one remaining.  A node's name in
+cluster.conf is always associated with the IP address on one network interface;
+"nd1" in the following:
+
+  <node name="nd1" votes="1">
+  </node>
+
+To use a second network interface, the node must have a second hostname
+associated with the IP address on that interface; "nd1-e1" in the following.
+The second hostname is specfied in an "altname" section for each node.
+
+  <node name="nd1" votes="1">
+      <altname name="nd1-e1"/>
+  </node>
+.in -7
+
+
+\fIMulticast network configuration\fR
+.in +7
+Cman can be configured to use multicast instead of broadcast (broadcast is used
+by default if no multicast parameters are given.)  To configure multicast when
+one network interface is used add one line under the <cman> section and another
+under the <node> section:
+
+  <cman>
+      <multicast addr="224.0.0.1"/>
+  </cman>
+
+  <node name="nd1" votes="1">
+      <multicast addr="224.0.0.1" interface="eth0"/>
+  </node>
+
+The multicast addresses must match and the address must be usable on the
+interface name given for the node.
+
+When two interfaces are used, multicast is configured as follows:
+
+  <cman>
+      <multicast addr="224.0.0.1"/>
+      <multicast addr="224.0.0.9"/>
+  </cman>
+
+  <node name="nd1" votes="1">
+      <altname name="nd1-e1"/>
+      <multicast addr="224.0.0.1" interface="eth0"/>
+      <multicast addr="224.0.0.9" interface="eth1"/>
+  </node>
+.in -7
+
+
+.sp
+.in -7
+\fBSEE ALSO\fP
+.in +7
+cluster.conf(5), ccs(7), cman_tool(8)
+
