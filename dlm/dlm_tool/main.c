@@ -50,20 +50,23 @@ static void set_ipaddr(struct dlm_member_ioctl *mi, char *ip)
 
 static void set_node(struct dlm_member_ioctl *mi, int argc, char **argv)
 {
-	if (argc != 3)
+	if (argc < 2 || argc > 3)
 		die("%s invalid arguments", action);
 	mi->nodeid = atoi(argv[0]);
-	mi->weight = atoi(argv[2]);
 	set_ipaddr(mi, argv[1]);
+	if (argc > 2)
+		mi->weight = atoi(argv[2]);
 	do_command(mi);
 }
 
 static void set_local(struct dlm_member_ioctl *mi, int argc, char **argv)
 {
-	if (argc != 2)
+	if (argc < 2 || argc > 3)
 		die("%s invalid arguments", action);
 	mi->nodeid = atoi(argv[0]);
 	set_ipaddr(mi, argv[1]);
+	if (argc > 2)
+		mi->weight = atoi(argv[2]);
 	do_command(mi);
 }
 
@@ -152,8 +155,8 @@ static void print_usage(void)
 	printf("\n");
 	printf("%s\n", prog_name);
 	printf("\n");
-	printf("set_local  <nodeid> <ipaddr>\n");
-	printf("set_node   <nodeid> <ipaddr> <weight>\n");
+	printf("set_local  <nodeid> <ipaddr> [<weight>]\n");
+	printf("set_node   <nodeid> <ipaddr> [<weight>]\n");
 	printf("status     <ls_name>\n");
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
