@@ -384,7 +384,7 @@ void handle_cluster_msg(void)
   }
   else if (event != CE_INQUORATE && event != CE_SUSPEND){
     new = clu_member_list(NULL);
-    lost = clu_members_lost(cluster_members, new);
+    lost = memb_lost(cluster_members, new);
     cml_free(cluster_members);
     cluster_members = new;
 
