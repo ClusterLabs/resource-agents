@@ -175,7 +175,7 @@ void banner_msg(void)
    log_msg(lgm_Always, "Starting %s %s. (built " __DATE__" " __TIME__ ")\n"
          "Copyright (C) 2004 Red Hat, Inc.  All rights reserved.\n",
          ProgramName, RELEASE);
-   log_msg(lgm_Always, "You are running in %s mode.\n",
+   log_msg(lgm_Always, "I am running in %s mode.\n",
          gulm_config.fog?"Fail-over":"Standard" );
    log_msg(lgm_Always, "I am (%s) with ip (%s)\n", myName, ip6tostr(&myIP));
 }
@@ -203,6 +203,9 @@ int main(int argc, char **argv)
    /*splits*/
    if( strcmp("lock_gulmd", ProgramName) == 0 ) {
       openlog("lock_gulmd_main", LOG_PID, LOG_DAEMON);
+
+      /* make pid dir */
+      mkdir(gulm_config.lock_file, S_IRUSR|S_IWUSR|S_IXUSR);
 
       /* fork core */
       forker("lock_gulmd_core", argc, argv);

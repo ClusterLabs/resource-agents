@@ -120,6 +120,9 @@ void usage(void)
 #endif
    "  --verbosity <list>     -v <list>  List of flags.\n",
    "\n",
+   "  --name <name>                     Set my name to this.\n",
+   "  --ip <ip address>                 Set my IP to this.\n",
+   "\n",
    "  --use_ccs              -c         Read config values from ccs.\n",
    "\n",
    "  --servers <list>       -s <list>  List of names or IPs.\n",

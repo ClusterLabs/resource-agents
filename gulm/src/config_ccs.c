@@ -189,6 +189,35 @@ int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
    if( gulm_config.ccs_desc < 0 ) return 1;
 
    n = snprintf(req, 256, "/nodes/node[@name='%s']", name);
+   /* look for a valid node (long or short form) using either its name or
+    * altname.
+    *
+    * We don't care if one-or-more nodes get returned.  If there is atleast
+    * one, then we have a match.  If there is more than one, then the user
+    * is a dolt and we get over it and move on.
+    *
+    * This gets nodes by name or altname.
+    *  /nodes/node[@name='%s'|altname/@name='%s']
+    *
+    * Can't just use starts-with()  Since it needs to either equal the
+    * short name or start with shortname and a '.'
+    *
+    *  starts-with(@name,concat('%s','.'))
+    *
+    * So:
+    *  /cluster/nodes/node[@name='%s' or starts-with(@name,concat('%s','.')) or altname/@name='%s' or starts-with(altname/@name,concat('%s','.'))]
+    *
+    * I think will tell us if there is a node by this name in the config.
+    * Allowing for the weird-ism of short/long hostnames.
+    *
+    * Ahh, nope.  It allows short names here to be found against longs
+    * names in the config, but not long names here to be found againt short
+    * names in the config. evil.
+    *
+    * So try to do that in xpath? Or strip down the query string in C
+    * first? strip down in C might be cleanest.
+    *
+    */
    if( n < 0 || n > 255 ) {
       log_msg(lgm_Network2,"snprintf failed\n");
       ret = 0;

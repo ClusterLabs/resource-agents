@@ -92,7 +92,7 @@ int get_ip_for_name(char *name, struct in6_addr *ip6)
 }
 
 /**
- * get_name_for_ip_libc - 
+ * get_name_for_ip - 
  * @name: <> buffer to store name in
  * @nlen: < max len for name
  * @ip: < ip in Be32.
