@@ -267,7 +267,11 @@ extern int dlm_pthread_cleanup();
 #define LKF_CONVDEADLK     (0x00000040)
 #define LKF_PERSISTENT     (0x00000080)
 #define LKF_NODLCKWT       (0x00000100)
+#define LKF_NODLCKBLK      (0x00000200)
 #define LKF_EXPEDITE       (0x00000400)
+#define LKF_NOQUEUEBAST    (0x00000800)
+#define LKF_HEADQUE        (0x00001000)
+#define LKF_NOORDER        (0x00002000)
 
 
 /*
