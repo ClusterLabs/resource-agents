@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.121 $) dnl cvs revision
+AC_REVISION($Revision: 1.122 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -84,10 +84,21 @@ includedir=`var "$includedir" "$exec_prefix/include"`
 oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
-pils_includedir=$includedir/pils
-stonith_includedir=$includedir/stonith
+
+STONITHPKG=stonith
+AC_SUBST(STONITHPKG)
+
+PILSPKG=pils
+AC_SUBST(PILSPKG)
+
+pils_includedir=$includedir/$PILSPKG
+pils_plugindir=$libdir/$PILSPKG/plugins
+stonith_includedir=$includedir/$STONITHPKG
+stonith_plugindir=$libdir/$STONITHPKG/plugins
 AC_SUBST(pils_includedir)
+AC_SUBST(pils_plugindir)
 AC_SUBST(stonith_includedir)
+AC_SUBST(stonith_plugindir)
 
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
@@ -924,9 +935,6 @@ AC_DEFINE_UNQUOTED(HEARTBEAT_RC_DIR, "$HEARTBEAT_RC_DIR", heartbeat rc script di
 HEARTBEATPKG=heartbeat
 AC_SUBST(HEARTBEATPKG)
 
-STONITHPKG=stonith
-AC_SUBST(STONITHPKG)
-
 dnl libltdl additions
 AC_SUBST(INCLTDL)
 AC_SUBST(LIBLTDL)
@@ -961,6 +969,7 @@ cts/CTStests.py							\
 include/Makefile						\
         include/clplumbing/Makefile				\
         include/pils/Makefile					\
+        include/pils/plugin.h					\
         include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
