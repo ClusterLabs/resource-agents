@@ -223,7 +223,7 @@ operations is the node with the lowest ID in the fence domain.)
 </cman>
 
 <clusternodes>
-<clusternode name="nd01" votes="1">
+<clusternode name="nd01">
 	<fence>
 		<method name="cascade1">
 			<device name="apc1" port="1"/>
@@ -236,7 +236,7 @@ operations is the node with the lowest ID in the fence domain.)
 	</fence>
 </clusternode>
 
-<clusternode name="nd02" votes="1">
+<clusternode name="nd02">
 	<fence>
 		<method name="single">
 			<device name="apc1" port="2"/>
@@ -244,7 +244,7 @@ operations is the node with the lowest ID in the fence domain.)
 	</fence>
 </clusternode>
 
-<clusternode name="nd03" votes="1">
+<clusternode name="nd03">
 	<fence>
 		<method name="single">
 			<device name="human" nodename="nd03"/>
@@ -330,14 +330,14 @@ should be able to continue running with the one remaining.  A node's name in
 cluster.conf is always associated with the IP address on one network
 interface; "nd1" in the following:
 
-<clusternode name="nd1" votes="1">
+<clusternode name="nd1">
 </clusternode>
 
 To use a second network interface, the node must have a second hostname
 associated with the IP address on that interface; "nd1-e1" in the following.
 The second hostname is specfied in an "altname" section.
 
-<clusternode name="nd1" votes="1">
+<clusternode name="nd1">
     <altname name="nd1-e1"/>
 </clusternode>
 
@@ -353,7 +353,7 @@ under the <clusternode> section:
     <multicast addr="224.0.0.1"/>
 </cman>
 
-<clusternode name="nd1" votes="1">
+<clusternode name="nd1">
     <multicast addr="224.0.0.1" interface="eth0"/>
 </clusternode>
 
@@ -367,7 +367,7 @@ When two interfaces are used, multicast is configured as follows:
     <multicast addr="224.0.0.9"/>
 </cman>
 
-<clusternode name="nd1" votes="1">
+<clusternode name="nd1">
     <altname name="nd1-e1"/>
     <multicast addr="224.0.0.1" interface="eth0"/>
     <multicast addr="224.0.0.9" interface="eth1"/>

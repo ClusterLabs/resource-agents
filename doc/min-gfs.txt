@@ -55,7 +55,7 @@ with gfs.
 </cman>
 
 <clusternodes>
-<clusternode name="node2" votes="1">
+<clusternode name="node2">
 	<fence>
 		<method name="single">
 			<device name="gnbd" ipaddr="node2"/>
@@ -63,7 +63,7 @@ with gfs.
 	</fence>
 </clusternode>
 
-<clusternode name="node3" votes="1">
+<clusternode name="node3">
 	<fence>
 		<method name="single">
 			<device name="gnbd" ipaddr="node3"/>
@@ -115,7 +115,7 @@ would look like this:
 </cman>
 
 <clusternodes>
-<clusternode name="node2" votes="1">
+<clusternode name="node2">
 	<fence>
 		<method name="single">
 			<device name="manual" ipaddr="node2"/>
@@ -123,7 +123,7 @@ would look like this:
 	</fence>
 </clusternode>
 
-<clusternode name="node3" votes="1">
+<clusternode name="node3">
 	<fence>
 		<method name="single">
 			<device name="manual" ipaddr="node3"/>
