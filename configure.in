@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.271 $) dnl cvs revision
+AC_REVISION($Revision: 1.272 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -169,9 +169,6 @@ AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
-AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
-AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
-AC_PATH_PROGS(GLIBCONFIG, glib13-config)
 AC_PATH_PROGS(BLOCKDEV, blockdev)
 AC_PATH_PROGS(FUSER, fuser)
 AC_PATH_PROGS(MOUNT, mount)
@@ -221,7 +218,12 @@ if test "X${PKGCONFIG}" != "X"; then
 	    break
 	  fi
 	done
+else
+AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
+AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
+AC_PATH_PROGS(GLIBCONFIG, glib13-config)
 fi
+
 if test "X${GLIBCONFIG}" = "X"; then
       AC_MSG_ERROR(You need the glib development package to continue.
       You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
