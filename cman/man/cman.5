@@ -15,9 +15,9 @@ cman - cluster.conf cman configuration section
 \fBDESCRIPTION\fP
 .in +7
 Cman configuration values are placed in the <cman> </cman> section of
-\fBcluster.conf\fP.  Per-node network configuration related to cman is placed
-in the standard <node> </node> sections.  All cman configuration settings are
-optional; usually none are used.
+\fBcluster.conf\fP.  Per-node network configuration related to cman is
+placed in the standard <clusternode> </clusternode> sections.  All cman
+configuration settings are optional; usually none are used.
 .in -7
 
 
@@ -69,16 +69,16 @@ should be able to continue running with the one remaining.  A node's name in
 cluster.conf is always associated with the IP address on one network interface;
 "nd1" in the following:
 
-  <node name="nd1" votes="1">
-  </node>
+  <clusternode name="nd1" votes="1">
+  </clusternode>
 
 To use a second network interface, the node must have a second hostname
 associated with the IP address on that interface; "nd1-e1" in the following.
 The second hostname is specfied in an "altname" section for each node.
 
-  <node name="nd1" votes="1">
+  <clusternode name="nd1" votes="1">
       <altname name="nd1-e1"/>
-  </node>
+  </clusternode>
 .in -7
 
 
@@ -87,15 +87,15 @@ The second hostname is specfied in an "altname" section for each node.
 Cman can be configured to use multicast instead of broadcast (broadcast is used
 by default if no multicast parameters are given.)  To configure multicast when
 one network interface is used add one line under the <cman> section and another
-under the <node> section:
+under the <clusternode> section:
 
   <cman>
       <multicast addr="224.0.0.1"/>
   </cman>
 
-  <node name="nd1" votes="1">
+  <clusternode name="nd1" votes="1">
       <multicast addr="224.0.0.1" interface="eth0"/>
-  </node>
+  </clusternode>
 
 The multicast addresses must match and the address must be usable on the
 interface name given for the node.
@@ -107,11 +107,11 @@ When two interfaces are used, multicast is configured as follows:
       <multicast addr="224.0.0.9"/>
   </cman>
 
-  <node name="nd1" votes="1">
+  <clusternode name="nd1" votes="1">
       <altname name="nd1-e1"/>
       <multicast addr="224.0.0.1" interface="eth0"/>
       <multicast addr="224.0.0.9" interface="eth1"/>
-  </node>
+  </clusternode>
 .in -7
 
 
