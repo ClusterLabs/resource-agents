@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.47 $) dnl cvs revision
+AC_REVISION($Revision: 1.48 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -315,23 +315,30 @@ esac
 dnl **********************************************************************
 dnl checks for group to install fifos as
 
+dnl
+dnl	These checks aren't right.  We need to locate the lowest
+dnl	unused group id if haclient isn't in the /etc/group file
+dnl	and no one has overridden group-id with a --with-group-id
+dnl	option.
+dnl
+
 AC_ARG_WITH(
   group-name,
     [  --with-group-name=GROUP_NAME 
-                         GROUP_NAME to own fifos. [default=haclient]  ],
+                         GROUP_NAME to own API fifos. [default=haclient]  ],
     [ APIGROUP="$withval" ],
     [ APIGROUP="haclient" ],
   )
-AC_DEFINE_UNQUOTED(APIGROUP, "$APIGROUP", Group to own fifos)
+AC_DEFINE_UNQUOTED(APIGROUP, "$APIGROUP", Group to own API fifos)
 AC_SUBST(APIGROUP)
 
 AC_ARG_WITH(
   group-id,
-    [  --with-group-id=GROUP_ID  GROUP_ID to own fifos. [default=60]  ],
-    [ APIGID="$withval" ],
-    [ APIGID="60" ],
+    [  --with-group-id=GROUP_ID  GROUP_ID to own API fifos. [default=60]  ],
+    [ APIGID=$withval ],
+    [ APIGID=60 ],
   )
-AC_DEFINE_UNQUOTED(APIGID, "$APIGID", Group to own fifos)
+AC_DEFINE_UNQUOTED(APIGID, "$APIGID", Group to own API fifos)
 AC_SUBST(APIGID)
 
 
