@@ -150,21 +150,32 @@ static void version(commandline_t *comline)
 static void kill_node(commandline_t *comline)
 {
 	int cluster_sock;
-	int result;
-	int nodeid;
+	int i;
+	struct cl_cluster_node node;
 
 	if (!comline->num_nodenames) {
-	    die("No node ID specified\n");
+	    die("No node name specified\n");
 	}
-
-	nodeid = atoi(comline->nodenames[0]);
 
 	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
 	if (cluster_sock == -1)
 		die("can't open cluster socket");
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_KILLNODE, nodeid)))
-		die("kill node failed");
+
+	for (i=0; i<comline->num_nodenames; i++) {
+
+	    /* Resolve node name into a number */
+	    node.node_id = 0;
+	    strcpy(node.name, comline->nodenames[i]);
+	    if (ioctl(cluster_sock, SIOCCLUSTER_GETNODE, &node)) {
+		fprintf(stderr, "Can't kill node %s : %s\n", node.name, strerror(errno));
+		continue;
+	    }
+
+
+	    if (ioctl(cluster_sock, SIOCCLUSTER_KILLNODE, node.node_id))
+		perror("kill node failed");
+	}
 
 	close(cluster_sock);
 }
