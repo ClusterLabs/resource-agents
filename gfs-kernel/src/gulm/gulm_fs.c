@@ -335,11 +335,17 @@ gulm_mount (char *table_name, char *host_data,
 	    unsigned int min_lvb_size, struct lm_lockstruct *lockstruct)
 {
 	gulm_fs_t *gulm;
-	char work[256], *tbln;
+	char *work=NULL, *tbln;
 	int first;
 	int error = -1;
 	struct list_head *lltmp;
 
+	work = kmalloc(256, GFP_KERNEL);
+	if(work == NULL ) {
+		log_err("Out of Memory.\n");
+		error = -ENOMEM;
+		goto fail;
+	}
 	strncpy (work, table_name, 256);
 
 	tbln = strstr (work, ":");
@@ -483,6 +489,7 @@ gulm_mount (char *table_name, char *host_data,
 
       fail:
 
+	if(work != NULL ) kfree(work);
 	gulm_cm.starts = FALSE;
 	log_msg (lgm_Always, "fsid=%s: Exiting gulm_mount with errors %d\n",
 		 table_name, error);
@@ -570,7 +577,7 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 {
 	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
 	int err;
-	uint8_t name[256];
+	uint8_t name[64];
 
 	if (message != LM_RD_SUCCESS) {
 		/* Need to start thinking about how I want to use this... */
@@ -579,7 +586,7 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 
 	if (jid == fs->fsJID) {	/* this may be drifting crud through. */
 		/* hey! its me! */
-		strncpy (name, gulm_cm.myName, 256);
+		strncpy (name, gulm_cm.myName, 64);
 	} else if (lookup_name_by_jid (fs, jid, name) != 0) {
 		log_msg (lgm_JIDMap,
 			 "fsid=%s: Could not find a client for jid %d\n",
