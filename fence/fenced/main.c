@@ -335,11 +335,11 @@ int fence_domain_add(commandline_t *comline)
 	if (namelen > MAX_NAME_LEN-1)
 		return -ENAMETOOLONG;
 
-	fd = (fd_t *) malloc(sizeof(fd_t) + namelen);
+	fd = (fd_t *) malloc(sizeof(fd_t) + MAX_NAME_LEN);
 	if (!fd)
 		return -ENOMEM;
 
-	memset(fd, 0, sizeof(fd_t) + namelen);
+	memset(fd, 0, sizeof(fd_t) + MAX_NAME_LEN);
 	memcpy(fd->name, comline->name, namelen);
 	fd->namelen = namelen;
 

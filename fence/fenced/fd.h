@@ -41,6 +41,7 @@
 
 extern char *prog_name;
 
+/* should match service.h MAX_SERVICE_NAME_LEN */
 #define MAX_NAME_LEN	33
 
 #define die(fmt, args...) \
