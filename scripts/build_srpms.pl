@@ -8,6 +8,7 @@ if ($#ARGV == -1) {
 
 $date = `date +%G%m%d%H%M%S`;
 chomp($date);
+print `mkdir srpms`;
 
 foreach $target (@targets) {
   chdir $target;
@@ -32,7 +33,7 @@ foreach $target (@targets) {
     print `rm -rf 'find $newdir -name CVS'`;
     print `tar -zcf $newdir.tar.gz $newdir`;
     print `rm -rf $newdir`;
-    print `rpmbuild --define "_srcrpmdir ./" --nodeps -ts $newdir.tar.gz `;
+    print `rpmbuild --define "_srcrpmdir ./srpms" --nodeps -ts $newdir.tar.gz `;
     print `rm $newdir.tar.gz`;
     chdir $target;
     setReleaseFile(1);
