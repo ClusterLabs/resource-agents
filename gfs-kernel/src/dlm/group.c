@@ -395,6 +395,8 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 	int last_stop, last_start, last_finish;
 	int error, i, new = FALSE, found;
 
+	down(&dlm->unmount_lock);
+
 	/*
 	 * when the initial sequence of callbacks is start/stop/start the
 	 * second start has the same event id (the first doesn't count)
@@ -406,16 +408,16 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 	last_finish = dlm->mg_last_finish;
 
 	if (!last_finish && last_stop) {
-		log_debug("reset stop %d start %d finish %d",
+		log_debug("pr_start reset stop %d start %d finish %d",
 			  last_stop, last_start, last_finish);
 		dlm->mg_last_stop = 0;
 		last_stop = 0;
 	}
 	spin_unlock(&dlm->async_lock);
 
-	log_debug("recover last_stop %d last_start %d last_finish %d",
+	log_debug("pr_start last_stop %d last_start %d last_finish %d",
 		  last_stop, last_start, last_finish);
-	log_debug("recover count %d type %d event %d flags %lx",
+	log_debug("pr_start count %d type %d event %d flags %lx",
 		  ds->count, ds->type, ds->event_id, dlm->flags);
 
 	/*
@@ -423,7 +425,7 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 	 */
 
 	if (test_bit(DFL_UMOUNT, &dlm->flags)) {
-		log_debug("process_start %d skip for umount", ds->event_id);
+		log_debug("pr_start %d skip for umount", ds->event_id);
 		kcl_start_done(dlm->mg_local_id, ds->event_id);
 		goto out;
 	}
@@ -486,7 +488,7 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 
 		dlm->fscb(dlm->fsdata, LM_CB_NEED_RECOVERY, &node->jid);
 		set_bit(DFL_NEED_STARTDONE, &dlm->flags);
-		log_debug("cb_need_recovery jid %u", node->jid);
+		log_debug("pr_start cb jid %u id %u", node->jid, node->nodeid);
 	}
 
 	/*
@@ -536,7 +538,7 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		spin_unlock(&dlm->async_lock);
 
 		if (last_stop >= ds->event_id) {
-			log_debug("start %d aborted", ds->event_id);
+			log_debug("pr_start %d abort discover", ds->event_id);
 			break;
 		}
 
@@ -568,17 +570,18 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		}
 		up(&dlm->mg_nodes_lock);
 
-		log_debug("call start_done %d: %d", ds->event_id, !error);
+		log_debug("pr_start %d done %d", ds->event_id, !error);
 
 		if (!error)
 			kcl_start_done(dlm->mg_local_id, ds->event_id);
 	} else
-		log_debug("start %d stopped %d", ds->event_id, last_stop);
+		log_debug("pr_start %d stopped %d", ds->event_id, last_stop);
 
  out:
 	clear_bit(DFL_RECOVER, &dlm->flags);
 	kfree(ds->nodeids);
 	kfree(ds);
+	up(&dlm->unmount_lock);
 }
 
 void process_finish(dlm_t *dlm)
@@ -586,6 +589,8 @@ void process_finish(dlm_t *dlm)
 	struct list_head *tmp, *tmpsafe;
 	dlm_node_t *node;
 	dlm_lock_t *lp;
+
+	log_debug("pr_finish flags %lx", dlm->flags);
 
 	spin_lock(&dlm->async_lock);
 	clear_bit(DFL_BLOCK_LOCKS, &dlm->flags);
@@ -666,6 +671,8 @@ void release_mountgroup(dlm_t *dlm)
 {
 	int last_start, last_stop;
 
+	down(&dlm->unmount_lock);
+
 	/* this flag causes a kcl_start_done() to be sent right away for
 	   any start callbacks we get from SM */
 
@@ -686,6 +693,8 @@ void release_mountgroup(dlm_t *dlm)
 		log_debug("umount doing start_done %d", last_start);
 		kcl_start_done(dlm->mg_local_id, last_start);
 	}
+
+	up(&dlm->unmount_lock);
 
 	kcl_leave_service(dlm->mg_local_id);
 	kcl_unregister_service(dlm->mg_local_id);
@@ -708,7 +717,7 @@ void jid_recovery_done(dlm_t *dlm, unsigned int jid, unsigned int message)
 	if (!node)
 		goto out;
 
-	log_debug("recovery_done %u,%u f %lx", jid, node->nodeid, node->flags);
+	log_debug("recovery_done nodeid %u flg %lx", node->nodeid, node->flags);
 
 	if (!test_bit(NFL_SENT_CB, &node->flags))
 		goto out;

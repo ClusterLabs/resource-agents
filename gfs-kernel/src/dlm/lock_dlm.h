@@ -115,6 +115,7 @@ struct dlm {
 	int			mg_last_finish;
 	struct list_head	mg_nodes;
 	struct semaphore	mg_nodes_lock;
+	struct semaphore	unmount_lock;
 
 	struct list_head	resources;
 	struct semaphore	res_lock;

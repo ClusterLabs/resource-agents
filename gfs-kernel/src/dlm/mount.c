@@ -221,6 +221,7 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 
 	INIT_LIST_HEAD(&dlm->mg_nodes);
 	init_MUTEX(&dlm->mg_nodes_lock);
+	init_MUTEX(&dlm->unmount_lock);
 	init_MUTEX(&dlm->res_lock);
 
 	dlm->null_count = 0;
