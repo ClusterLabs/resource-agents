@@ -1235,65 +1235,8 @@ static int
 gfs_permission_i(struct inode *inode, int mask, struct nameidata *nd)
 {
 	ENTER(GFN_PERMISSION_I)
-	int mode = inode->i_mode;
-      
-	/* Nobody gets write access to a read-only fs */
-	if ((mask & MAY_WRITE) &&
-	    IS_RDONLY(inode) &&
-	    (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode)))
-		RETURN(GFN_PERMISSION_I, -EROFS);
-
-	/* Nobody gets write access to an immutable file */
-	if ((mask & MAY_WRITE) && IS_IMMUTABLE(inode))
-		RETURN(GFN_PERMISSION_I, -EACCES);
-
-	if (current->fsuid == inode->i_uid)
-		mode >>= 6;
-	else if (IS_POSIXACL(inode)) {
-		struct posix_acl *acl = NULL;
-		int error;
-
-		/* The access ACL cannot grant access if the group class
-		   permission bits don't contain all requested permissions. */
-		if (((mode >> 3) & mask & S_IRWXO) != mask)
-			goto check_groups;
-
-		error = gfs_acl_get(vn2ip(inode), TRUE, &acl);
-		if (error)
-			RETURN(GFN_PERMISSION_I, error);
-
-		if (acl) {
-			int error = posix_acl_permission(inode, acl, mask);
-			posix_acl_release(acl);
-			if (error == -EACCES)
-				goto check_capabilities;
-			RETURN(GFN_PERMISSION_I, error);
-		} else
-			goto check_groups;
-	} else {
-	check_groups:
-		if (in_group_p(inode->i_gid))
-			mode >>= 3;
-	}
-
-	if ((mode & mask & S_IRWXO) == mask)
-		RETURN(GFN_PERMISSION_I, 0);
-      
- check_capabilities:
-	/* Allowed to override Discretionary Access Control? */
-	if (!(mask & MAY_EXEC) ||
-	    (inode->i_mode & S_IXUGO) ||
-	    S_ISDIR(inode->i_mode))
-		if (capable(CAP_DAC_OVERRIDE))
-			RETURN(GFN_PERMISSION_I, 0);
-
-	/* Read and search granted if capable(CAP_DAC_READ_SEARCH) */
-	if (capable(CAP_DAC_READ_SEARCH) &&
-	    ((mask == MAY_READ) ||
-	     (S_ISDIR(inode->i_mode) && !(mask & MAY_WRITE))))
-		RETURN(GFN_PERMISSION_I, 0);
-
-	RETURN(GFN_PERMISSION_I, -EACCES);
+	RETURN(GFN_PERMISSION_I,
+	       generic_permission(inode, mask, gfs_check_acl));
 }
 
 /**

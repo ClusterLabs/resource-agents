@@ -102,7 +102,7 @@ gfs_acl_validate_remove(struct gfs_inode *ip, int access)
 }
 
 /**
- * gfs_acl_get -
+ * acl_get -
  * @ip:
  * @access:
  * @acl:
@@ -111,7 +111,7 @@ gfs_acl_validate_remove(struct gfs_inode *ip, int access)
  */
 
 int
-gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
+acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
 {
 	ENTER(GFN_ACL_GET)
 	struct gfs_ea_request er;
@@ -162,6 +162,34 @@ gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
 }
 
 /**
+ * gfs_check_acl - Check an ACL for to see if we're allowed to do something
+ * @inode: the file we want to do something to
+ * @mask: what we want to do
+ *
+ * Returns: errno
+ */
+
+int
+gfs_check_acl(struct inode *inode, int mask)
+{
+	ENTER(GFN_CHECK_ACL)
+	struct posix_acl *acl = NULL;
+	int error;
+
+	error = acl_get(vn2ip(inode), TRUE, &acl);
+	if (error)
+		RETURN(GFN_CHECK_ACL, error);
+
+	if (acl) {
+		error = posix_acl_permission(inode, acl, mask);
+		posix_acl_release(acl);
+		RETURN(GFN_CHECK_ACL, error);
+	}
+      
+	RETURN(GFN_CHECK_ACL, -EAGAIN);
+}      
+
+/**
  * gfs_acl_new_prep - 
  * @dip:
  * @type:
@@ -191,7 +219,7 @@ gfs_acl_new_prep(struct gfs_inode *dip,
 	if (type == GFS_FILE_LNK)
 		RETURN(GFN_ACL_NEW_PREP, 0);
 
-	error = gfs_acl_get(dip, FALSE, &acl);
+	error = acl_get(dip, FALSE, &acl);
 	if (error)
 		RETURN(GFN_ACL_NEW_PREP, error);
 	if (!acl) {
