@@ -399,7 +399,7 @@ extern inline char *print_addr(unsigned char *addr, int len, char *buf)
 /* Debug enabling macros. Sorry about the C++ comments but they're easier to
  * get rid of than C ones... */
 
- #define DEBUG_MEMB
+// #define DEBUG_MEMB
 // #define DEBUG_COMMS
 // #define DEBUG_BARRIER
 
