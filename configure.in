@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.218 $) dnl cvs revision
+AC_REVISION($Revision: 1.219 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -132,6 +132,9 @@ AM_PROG_CC_STDC
 AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
 AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
+AC_PROG_YACC
+AC_DECL_YYTEXT
+AM_PROG_LEX
 AC_CHECK_PROG(MAKE, gmake, gmake, make)
 AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
@@ -517,6 +520,13 @@ AC_MSG_CHECKING(for special snmp libraries: )
 SNMPLIB=`net-snmp-config --netsnmp-libs`
 AC_MSG_RESULT($SNMPLIB)
 AC_SUBST(SNMPLIB)
+
+dnl
+dnl     On many systems libcrypto is needed when linking against libsnmp.
+dnl     Check to see if it exists, and if so use it.
+dnl
+AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
+AC_SUBST(CRYPTOLIB)
 
 
 
