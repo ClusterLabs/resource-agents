@@ -54,7 +54,7 @@ static int name_equal(fd_node_t *node1, struct cl_cluster_node *node2)
 	memset(name2, 0, 64);
 
 	len1 = node1->namelen;
-	for (i = 0; i < 63 && i > len1; i++) {
+	for (i = 0; i < 63 && i < len1; i++) {
 		if (node1->name[i] != '.')
 			name1[i] = node1->name[i];
 		else
@@ -62,7 +62,7 @@ static int name_equal(fd_node_t *node1, struct cl_cluster_node *node2)
 	}
 
 	len2 = strlen(node2->name);
-	for (i = 0; i < 63 && i > len2; i++) {
+	for (i = 0; i < 63 && i < len2; i++) {
 		if (node2->name[i] != '.')
 			name1[i] = node2->name[i];
 		else
@@ -165,7 +165,7 @@ static void fence_victims(fd_t *fd)
 			continue;
 		}
 
-		log_debug("fencing node \"%s\"", node->name);
+		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
 		error = dispatch_fence_agent(node->name);
@@ -304,7 +304,7 @@ static void add_first_victims(fd_t *fd)
 		if (!in_cl_nodes(cl_nodes, prev_node, num_nodes)) {
 			list_del(&prev_node->list);
 			list_add(&prev_node->list, &fd->victims);
-			log_debug("add first victim %u", prev_node->nodeid);
+			log_debug("add first victim %s", prev_node->name);
 		}
 	}
 
