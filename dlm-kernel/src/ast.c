@@ -568,7 +568,7 @@ static int dlm_astd(void *data)
 		  jiffies + ((dlm_config.lock_timeout >> 1) * HZ));
 
 	while (!kthread_should_stop()) {
-		wchan_cond_sleep_intr(astd_waitchan, no_asts());
+		wchan_cond_sleep_intr(astd_waitchan, !test_bit(WAKE_ASTS, &astd_wakeflags));
 
 		if (test_and_clear_bit(WAKE_ASTS, &astd_wakeflags))
 			process_asts();
@@ -588,8 +588,10 @@ static int dlm_astd(void *data)
 
 void wake_astd(void)
 {
-	set_bit(WAKE_ASTS, &astd_wakeflags);
-	wake_up(&astd_waitchan);
+	if (!no_asts()) {
+		set_bit(WAKE_ASTS, &astd_wakeflags);
+		wake_up(&astd_waitchan);
+	}
 }
 
 int astd_start(void)
