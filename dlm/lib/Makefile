@@ -22,7 +22,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS += -g -O -I.
+CFLAGS += -g -O -I. -fPIC
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -52,13 +52,13 @@ $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
 	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
 
 libdlm.po: libdlm.c
-	$(CC) $(CFLAGS) -D_REENTRANT -fPIC -c -o $@ $<
+	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
 
 libdlm.o: libdlm.c
 	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
 
 libdlm_lt.po: libdlm.c
-	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 libdlm_lt.o: libdlm.c
 	$(CC) $(CFLAGS) -c -o $@ $<
