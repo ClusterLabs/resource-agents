@@ -260,6 +260,11 @@ cp_load(const char *libpath)
 	cluster_plugin_t *cpp = NULL;
 	double (*modversion)(void);
 
+	if (!libpath) {
+		errno = EINVAL;
+		return NULL;
+	}
+
 	handle = dlopen(libpath, RTLD_LAZY);
 	if (!handle) {
 		return NULL;
@@ -283,6 +288,7 @@ cp_load(const char *libpath)
 	cpp = malloc(sizeof(*cpp));
 	if (!cpp) {
 		fprintf(stderr,"Failed to malloc %d bytes\n",(int)sizeof(*cpp));
+		errno = ENOMEM;
 		return NULL;
 	}
 
@@ -354,6 +360,11 @@ cp_load(const char *libpath)
 int
 cp_init(cluster_plugin_t *cpp, const void *priv, size_t privlen)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	/*
 	 * Modules *MUST* have an initialization function, and it can not
 	 * fail.
@@ -403,6 +414,11 @@ cp_unload(cluster_plugin_t *cpp)
 int
 cp_null(cluster_plugin_t *cpp)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_null(cpp);
 }
 
@@ -415,6 +431,11 @@ cp_null(cluster_plugin_t *cpp)
 cluster_member_list_t *
 cp_member_list(cluster_plugin_t *cpp, char *groupname)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return NULL;
+	}
+
 	return cpp->cp_ops.s_member_list(cpp, groupname);
 }
 
@@ -427,6 +448,11 @@ cp_member_list(cluster_plugin_t *cpp, char *groupname)
 int
 cp_quorum_status(cluster_plugin_t *cpp, char *groupname)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_quorum_status(cpp, groupname);
 }
 
@@ -439,6 +465,11 @@ cp_quorum_status(cluster_plugin_t *cpp, char *groupname)
 char *
 cp_plugin_version(cluster_plugin_t *cpp)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return NULL;
+	}
+
 	return cpp->cp_ops.s_plugin_version(cpp);
 }
 
@@ -451,6 +482,11 @@ cp_plugin_version(cluster_plugin_t *cpp)
 int
 cp_get_event(cluster_plugin_t *cpp, int fd)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_get_event(cpp, fd);
 }
 
@@ -465,6 +501,11 @@ cp_get_event(cluster_plugin_t *cpp, int fd)
 int
 cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_lock(cpp, resource, flags, lockpp);
 }
 
@@ -479,6 +520,11 @@ cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
 int
 cp_unlock(cluster_plugin_t *cpp, char *resource, void *lockp)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_unlock(cpp, resource, lockp);
 }
 
@@ -491,6 +537,11 @@ cp_unlock(cluster_plugin_t *cpp, char *resource, void *lockp)
 int
 cp_login(cluster_plugin_t *cpp, int fd, char *groupname)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_login(cpp, fd, groupname);
 }
 
@@ -503,6 +554,11 @@ cp_login(cluster_plugin_t *cpp, int fd, char *groupname)
 int
 cp_open(cluster_plugin_t *cpp)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_open(cpp);
 }
 
@@ -515,6 +571,11 @@ cp_open(cluster_plugin_t *cpp)
 int
 cp_close(cluster_plugin_t *cpp, int fd)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_close(cpp, fd);
 }
 
@@ -527,6 +588,11 @@ cp_close(cluster_plugin_t *cpp, int fd)
 int
 cp_fence(cluster_plugin_t *cpp, cluster_member_t *node)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_fence(cpp, node);
 }
 
@@ -539,6 +605,11 @@ cp_fence(cluster_plugin_t *cpp, cluster_member_t *node)
 int
 cp_logout(cluster_plugin_t *cpp, int fd)
 {
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	return cpp->cp_ops.s_logout(cpp, fd);
 }
 

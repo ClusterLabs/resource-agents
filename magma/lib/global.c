@@ -28,7 +28,6 @@
 #include <dirent.h>
 #include <magma.h>
 #include <pthread.h>
-#include <assert.h>
 #include <errno.h>
 #include <magmamsg.h>
 #include <unistd.h>
@@ -55,6 +54,7 @@ static void _clu_clear_default(void);
 int
 clu_connect(char *groupname, int login)
 {
+	int e;
 	int fd;
 
 	pthread_rwlock_wrlock(&dflt_lock);
@@ -64,6 +64,7 @@ clu_connect(char *groupname, int login)
 	}
 
 	fd = cp_connect(&_cpp, groupname, login);
+	e = errno;
 	if (fd >= 0) {
 		_clu_set_default(_cpp);
 		_connected = 1;
@@ -75,6 +76,8 @@ clu_connect(char *groupname, int login)
 	/* XXX this should probably be removed and have the app do it */
 	if (fd >= 0)
 		clist_insert(fd, MSG_CONNECTED);
+	else
+		errno = e;
 	return fd;
 }
 
@@ -109,7 +112,7 @@ clu_connected(void)
 int
 clu_disconnect(int fd)
 {
-	int rv;
+	int e, rv;
 
 	if (fd >= 0)
 		clist_delete(fd);
@@ -119,12 +122,15 @@ clu_disconnect(int fd)
 		cp_logout(_cpp, fd);
 		cp_close(_cpp, fd);
 		rv = cp_unload(_cpp);
+		e = errno;
 		if (rv == 0)
 			_cpp = NULL;
 		_connected = 0;
 	}
 	pthread_rwlock_unlock(&dflt_lock);
 
+	if (rv)
+		errno = e;
 	return rv;
 }
 
@@ -135,11 +141,14 @@ clu_disconnect(int fd)
 int
 clu_null(void)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_rdlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_null(_cpp);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -158,11 +167,15 @@ clu_null(void)
 cluster_member_list_t *
 clu_member_list(char *groupname)
 {
+	int e;
 	cluster_member_list_t * ret;
+
 	pthread_rwlock_rdlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_member_list(_cpp, groupname);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -181,11 +194,14 @@ clu_member_list(char *groupname)
 int
 clu_quorum_status(char *groupname)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_rdlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_quorum_status(_cpp, groupname);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -201,10 +217,14 @@ char *
 clu_plugin_version(void)
 {
 	char *ret;
+	int e;
+
 	pthread_rwlock_rdlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_plugin_version(_cpp);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -225,11 +245,14 @@ clu_plugin_version(void)
 int
 clu_get_event(int fd)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_rdlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_get_event(_cpp, fd);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -246,7 +269,6 @@ clu_open(void)
 {
 	int ret;
 	pthread_rwlock_wrlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_open(_cpp);
 	pthread_rwlock_unlock(&dflt_lock);
 
@@ -267,11 +289,14 @@ clu_open(void)
 int
 clu_login(int fd, char *groupname)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_wrlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_login(_cpp, fd, groupname);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -286,11 +311,14 @@ clu_login(int fd, char *groupname)
 int
 clu_logout(int fd)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_wrlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_logout(_cpp, fd);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -305,15 +333,17 @@ clu_logout(int fd)
 int
 clu_close(int fd)
 {
-	int ret;
+	int ret, e;
 
 	if (fd >= 0)
 		clist_delete(fd);
 
 	pthread_rwlock_wrlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_close(_cpp, fd);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -330,11 +360,13 @@ clu_close(int fd)
 int
 clu_fence(cluster_member_t *node)
 {
-	int ret;
+	int ret, e;
 	pthread_rwlock_wrlock(&dflt_lock);
-	assert(_cpp);
 	ret = cp_fence(_cpp, node);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -361,7 +393,6 @@ clu_lock(char *resource, int flags, void **lockpp)
 	int ret, block = 0, err;
 
 	block = !(flags & CLK_NOWAIT);
-	assert(_cpp);
 
 	while (1) {
 		pthread_rwlock_wrlock(&dflt_lock);
@@ -400,11 +431,14 @@ int
 clu_unlock(char *resource, void *lockp)
 {
 	int ret, err;
+
 	pthread_rwlock_wrlock(&dflt_lock);
 	ret = cp_unlock(_cpp, resource, lockp);
 	err = errno;
 	pthread_rwlock_unlock(&dflt_lock);
 	usleep(random()&32767);
+
+	errno = err;
 	return ret;
 }
 
@@ -470,10 +504,14 @@ clu_clear_default(void)
 int
 clu_local_nodename(char *groupname, char *name, size_t namelen)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_wrlock(&dflt_lock);
 	ret = cp_local_nodename(_cpp, groupname, name, namelen);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
@@ -493,10 +531,14 @@ clu_local_nodename(char *groupname, char *name, size_t namelen)
 int
 clu_local_nodeid(char *groupname, uint64_t *nodeid)
 {
-	int ret;
+	int ret, e;
+
 	pthread_rwlock_wrlock(&dflt_lock);
 	ret = cp_local_nodeid(_cpp, groupname, nodeid);
+	e = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+
+	errno = e;
 	return ret;
 }
 
