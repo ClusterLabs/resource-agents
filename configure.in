@@ -8,36 +8,9 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.203 $) dnl cvs revision
+AC_REVISION($Revision: 1.204 $) dnl cvs revision
 AC_CANONICAL_HOST
 
-dnl Some scripts require options to "echo"
-dnl This configure is already determining and using "ac_n" and "ac_c"
-dnl for internal use, so make available externally.
-dnl (Not sure how "future proof" this is, but it at least seems clean.)
-ECHO_N="$ac_n"
-ECHO_C="$ac_c"
-
-case $ac_n in
-  -n)	ECHO_E="-e";;
-  *)	ECHO_E="";;
-esac
-
-ECHO_CMD="echo"
-if
-  test -x /usr/linux/bin/echo
-then
-  #	This is for AIX.  I'm not sure it's necessary...
-  ECHO_CMD="/usr/linux/bin/echo"
-  ECHO_N="-n"
-  ECHO_E="-e"
-b
-fi
-
-AC_SUBST(ECHO_N)
-AC_SUBST(ECHO_C)
-AC_SUBST(ECHO_E)
-AC_SUBST(ECHO_CMD)
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h include/ha_config.h)
@@ -700,53 +673,76 @@ dnl pain to deal with.  Otherwise they're a pain to fix.
 dnl This policy is not an accident, nor was it chosen without significant
 dnl thought and experience.
 dnl
+	cc_supports_flag() {
+	  AC_MSG_CHECKING(whether $CC supports "$@")
+	  Cfile=/tmp/foo${$}.c
+	  touch $Cfile
+	  $CC -c "$@" $Cfile >/dev/null 2>&1
+          rc=$?
+	  rm -f $Cfile
+          case $rc in
+            0) AC_MSG_RESULT("yes");;
+            *) AC_MSG_RESULT("no");;
+          esac
+          return $rc
+	}
 	EXTRA_WARNINGS=""
+	# We had to eliminate -Wnested-externs because of libtool changes
+        WARNLIST="all missing-prototypes 
+		missing-declarations 
+		strict-prototypes 
+		pointer-arith 
+		write-strings
+		cast-qual cast-align 
+		bad-function-cast 
+		inline
+		missing-format-attribute
+		format=2
+		format-security
+		format-nonliteral
+		no-long-long"
+
+	for j in $WARNLIST
+	do
+	  if
+	    cc_supports_flag -W$j
+	  then
+            case $j in
+               "no-long-long")
+        		if test "${disable_no_long_long}" != "yes"; then
+			  EXTRA_WARNINGS="$EXTRA_WARNINGS -W$j"
+			fi;;
+
+               *)	EXTRA_WARNINGS="$EXTRA_WARNINGS -W$j";;
+            esac
+	  fi
+	done
+	rm -f $Cfile
 
 dnl Add any system specific options here.
 
 	case "$host_os" in
-  	*linux*)
-		if test "${enable_fatal_warnings+set}" != "set" && 
-	   	   test "${disable_fatal_warnings+set}" != "set"; then
-        		echo "Enabling Fatal Warnings (-Werror) on this platform"
-    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror -Wmissing-format-attribute"
+  	*linux*|*bsd*)
+		if test "${disable_fatal_warnings}" != "yes"; then
+        		enable_fatal_warnings=yes
         	fi
           	;;
   	*solaris*)
           	;;
-  	*bsd*)
-		if test "${enable_fatal_warnings+set}" != "set" && 
-	   	   test "${disable_fatal_warnings+set}" != "set"; then
-        		echo "Enabling Fatal Warnings (-Werror) on this platform"
-    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
-        	fi
-          	;;
 	esac
-
-	if test "${enable_no_long_long+set}" != "set" &&
-	   test "${disable_no_long_long+set}" != "set"; then
-		echo "Enabling -Wno-long-long  on this platform"
-    	  	EXTRA_WARNINGS="$EXTRA_WARNINGS -Wno-long-long"
-	fi
-
-
-
-	if test "$enable_traditional_warning" = yes; then
-	  echo "enabling traditional warnings"
+	if test "${enable_fatal_warnings}" = yes && cc_supports_flag -Werror ; then
+          echo "Enabling Fatal Warnings (-Werror) on this platform"
+    	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
+        fi
+        
+	if test "$enable_traditional_warning" = yes && \
+		 cc_supports_flag -Wtraditional; then
+	  echo "Enabling traditional warnings"
     	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Wtraditional"
 	fi
-	# had to eliminate -Wnested-externs because of libtool changes
 
 
-	CC_WARNINGS="-Wall -Wmissing-prototypes \
-		-Wmissing-declarations \
-		-Wstrict-prototypes \
-		-Wpointer-arith \
-		-Wwrite-strings \
-		-Wcast-qual -Wcast-align \
-		-Wbad-function-cast \
-		-Wformat-security  -Wformat-nonliteral \
-		-Winline $EXTRA_WARNINGS"
+	CC_WARNINGS="$EXTRA_WARNINGS"
 fi
 
 if test "${enable_snmp_subagent+set}"  = "set"; then
@@ -1145,6 +1141,33 @@ dnl libltdl additions
 AC_SUBST(INCLTDL)
 AC_SUBST(LIBLTDL)
 
+dnl Some scripts require options to "echo"
+dnl This configure is already determining and using "ac_n" and "ac_c"
+dnl for internal use, so make available externally.
+dnl (Not sure how "future proof" this is, but it at least seems clean.)
+dnl n. b.: having this earlier in the configure.in messed up the configure output
+ECHO_N="$ac_n"
+ECHO_C="$ac_c"
+
+case $ac_n in
+  -n)	ECHO_E="-e";;
+  *)	ECHO_E="";;
+esac
+
+ECHO_CMD="echo"
+if
+  test -x /usr/linux/bin/echo
+then
+  #	This is for AIX.  I'm not sure it's necessary...
+  ECHO_CMD="/usr/linux/bin/echo"
+  ECHO_N="-n"
+  ECHO_E="-e"
+fi
+
+AC_SUBST(ECHO_N)
+AC_SUBST(ECHO_C)
+AC_SUBST(ECHO_E)
+AC_SUBST(ECHO_CMD)
 
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
