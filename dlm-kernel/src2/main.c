@@ -67,8 +67,6 @@ MODULE_LICENSE("GPL");
 module_init(init_dlm);
 module_exit(exit_dlm);
 
-EXPORT_SYMBOL(dlm_init);
-EXPORT_SYMBOL(dlm_release);
 EXPORT_SYMBOL(dlm_new_lockspace);
 EXPORT_SYMBOL(dlm_release_lockspace);
 EXPORT_SYMBOL(dlm_lock);

@@ -34,9 +34,15 @@
 
 static void set_start_done(struct dlm_ls *ls, int event_id)
 {
+	int error;
+
 	spin_lock(&ls->ls_recover_lock);
 	ls->ls_startdone = event_id;
 	spin_unlock(&ls->ls_recover_lock);
+
+	error = kobject_uevent(&ls->ls_kobj, KOBJ_CHANGE, NULL);
+	if (error)
+		log_error(ls, "set_start_done kobject_uevent %d", error);
 }
 
 static int enable_locking(struct dlm_ls *ls, int event_id)
@@ -63,11 +69,9 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	down(&ls->ls_recoverd_active);
 
-	ls->ls_global_id = rv->global_id;
-
-	error = dlm_recover_members_init(ls, rv);
+	error = dlm_recover_members_first(ls, rv);
 	if (error) {
-		log_error(ls, "nodes_init failed %d", error);
+		log_error(ls, "recover_members first failed %d", error);
 		goto out;
 	}
 

@@ -34,19 +34,11 @@ struct dlm_member_ioctl {
 				   this struct */
 	__u32	data_start;	/* offset to start of data relative to
 				   start of this struct */
-	__u32	start_event;
-	__u32	stop_event;
-	__u32	finish_event;
-	__u32	startdone_event;
-	__u32	node_count;
-	__u32	global_id;
 	int	nodeid;
 	int	weight;
-
 	char	addr[DLM_ADDR_LEN];
 	char	op[DLM_OP_LEN];
-	char	name[DLM_LOCKSPACE_LEN];
-	char	pad[316];	/* make this struct 512 bytes */
+	char	pad[100];	/* FIXME: make this struct 512 bytes */
 };
 
 enum {

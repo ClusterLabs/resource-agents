@@ -192,7 +192,6 @@ struct dlm_member {
 struct dlm_recover {
 	struct list_head	list;
 	int *			nodeids;
-	uint32_t		global_id;
 	int			node_count;
 	int			event_id;
 };
@@ -254,9 +253,11 @@ struct dlm_ls {
 
 	struct list_head	ls_nodes;	/* current nodes in ls */
 	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
-	uint32_t		ls_num_nodes;	/* number of nodes in ls */
-	uint32_t		ls_low_nodeid;
-	uint32_t *		ls_node_array;
+	int			ls_num_nodes;	/* number of nodes in ls */
+	int			ls_low_nodeid;
+	int *			ls_node_array;
+	int *			ls_nodeids_next;
+	int			ls_nodeids_next_count;
 
 	struct rw_semaphore	ls_unlock_sem;	/* To prevent unlock on a
 						   parent lock racing with a

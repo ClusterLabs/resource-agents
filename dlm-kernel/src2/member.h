@@ -18,17 +18,17 @@ void dlm_member_exit(void);
 
 int dlm_set_node(struct dlm_member_ioctl *param);
 int dlm_set_local(struct dlm_member_ioctl *param);
-int dlm_ls_status(struct dlm_member_ioctl *param);
-int dlm_ls_terminate(struct dlm_member_ioctl *param);
-int dlm_ls_stop(struct dlm_member_ioctl *param);
-int dlm_ls_start(struct dlm_member_ioctl *param);
-int dlm_ls_finish(struct dlm_member_ioctl *param);
+
+int dlm_ls_terminate(struct dlm_ls *ls);
+int dlm_ls_stop(struct dlm_ls *ls);
+int dlm_ls_start(struct dlm_ls *ls, int event_nr);
+int dlm_ls_finish(struct dlm_ls *ls, int event_nr);
 
 void dlm_clear_members(struct dlm_ls *ls);
 void dlm_clear_members_gone(struct dlm_ls *ls);
 void dlm_clear_members_finish(struct dlm_ls *ls, int finish_event);
-int dlm_recover_members_init(struct dlm_ls *ls, struct dlm_recover *rv);
-int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out);
+int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv);
+int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv,int *neg_out);
 int dlm_is_removed(struct dlm_ls *ls, int nodeid);
 
 int dlm_nodeid_addr(int nodeid, char *addr);

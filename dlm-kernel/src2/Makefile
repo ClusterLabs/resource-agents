@@ -27,6 +27,7 @@ PWD := $(shell pwd)
 obj-m := dlm.o
 dlm-objs := member.o \
             member_ioctl.o \
+            member_sysfs.o \
             ast.o \
             config.o \
             device.o \

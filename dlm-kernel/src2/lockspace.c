@@ -16,6 +16,7 @@
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
+#include "member_sysfs.h"
 #include "recoverd.h"
 #include "ast.h"
 #include "lkb.h"
@@ -34,34 +35,19 @@ static struct semaphore dlmstate_lock;
 struct list_head lslist;
 spinlock_t lslist_lock;
 
-static int new_lockspace(char *name, int namelen, void **lockspace, int flags);
-
-
-static struct kset dlm_kset = {
-	.subsys = &kernel_subsys,
-	.kobj = {.name = "dlm",},
-};
 
 int dlm_lockspace_init(void)
 {
-	int error;
-
 	dlmstate = GDST_NONE;
 	dlmcount = 0;
 	init_MUTEX(&dlmstate_lock);
 	INIT_LIST_HEAD(&lslist);
 	spin_lock_init(&lslist_lock);
-
-	error = kset_register(&dlm_kset);
-	if (error)
-		printk("dlm_lockspace_init: cannot register kset %d\n", error);
-
-	return error;
+	return 0;
 }
 
 void dlm_lockspace_exit(void)
 {
-	kset_unregister(&dlm_kset);
 }
 
 struct dlm_ls *find_lockspace_by_name(char *name, int namelen)
@@ -192,30 +178,7 @@ static int init_internal(void)
 	return error;
 }
 
-/*
- * Called after dlm module is loaded and before any lockspaces are created.
- * Starts and initializes global threads and structures.  These global entities
- * are shared by and independent of all lockspaces.
- *
- * There should be a dlm-specific user command which a person can run which
- * calls this function.  If a user hasn't run that command and something
- * creates a new lockspace, this is called first.
- *
- * This also starts the default lockspace.
- */
-
-int dlm_init(void)
-{
-	int error;
-
-	down(&dlmstate_lock);
-	error = init_internal();
-	up(&dlmstate_lock);
-
-	return error;
-}
-
-int dlm_release(void)
+static int release_internal(void)
 {
 	int error = 0;
 
@@ -350,10 +313,10 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	list_add(&ls->ls_list, &lslist);
 	spin_unlock(&lslist_lock);
 
-	error = kobject_set_name(&ls->ls_kobj, ls->ls_name);
+	error = dlm_kobject_setup(ls);
 	if (error)
 		goto out_del;
-	ls->ls_kobj.kset = &dlm_kset;
+
 	error = kobject_register(&ls->ls_kobj);
 	if (error)
 		goto out_del;
@@ -547,7 +510,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 
 	kobject_unregister(&ls->ls_kobj);
 	kfree(ls);
-	dlm_release();
+	release_internal();
 	module_put(THIS_MODULE);
 	return 0;
 }

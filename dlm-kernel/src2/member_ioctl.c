@@ -66,32 +66,15 @@ static int copy_params(struct dlm_member_ioctl __user *u_param,
 
 static int validate_params(struct dlm_member_ioctl *param)
 {
-	/* Ensure strings are terminated */
-	param->name[DLM_LOCKSPACE_LEN - 1] = '\0';
 	param->op[DLM_OP_LEN - 1] = '\0';
 
-	/*
-	if (!strcmp(param->op, "stop")) {
-		if (data_size != sizeof(struct dlm_member_ioctl))
-			return -EINVAL;
-	} else if (!strcmp(param->op, "start")) {
-		if (data_size == sizeof(struct dlm_member_ioctl))
-			return -EINVAL;
-	} else if (!strcmp(param->op, "finish")) {
-		if (data_size == sizeof(struct dlm_member_ioctl))
-			return -EINVAL;
-	} else if (!strcmp(param->op, "status")) {
-		if (data_size != sizeof(struct dlm_member_ioctl))
-			return -EINVAL;
-	} else if (!strcmp(param->op, "set_local")) {
-		if (data_size != sizeof(struct dlm_member_ioctl))
+	if (!strcmp(param->op, "set_local")) {
+		if (param->data_size != sizeof(struct dlm_member_ioctl))
 			return -EINVAL;
 	} else if (!strcmp(param->op, "set_node")) {
-		if (data_size != sizeof(struct dlm_member_ioctl))
+		if (param->data_size != sizeof(struct dlm_member_ioctl))
 			return -EINVAL;
 	}
-	*/
-
 	return 0;
 }
 
@@ -128,11 +111,6 @@ static struct op_functions {
 	char *op;
 	ioctl_fn fn;
 } opfn[] = {
-	{"stop", dlm_ls_stop},
-	{"start", dlm_ls_start},
-	{"finish", dlm_ls_finish},
-	{"terminate", dlm_ls_terminate},
-	{"status", dlm_ls_status},
 	{"set_node", dlm_set_node},
 	{"set_local", dlm_set_local},
 };
