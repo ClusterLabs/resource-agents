@@ -1227,15 +1227,15 @@ static void do_resource_login(int idx)
 
    do { /* recv rest of login request */
       if((err = xdr_dec_uint32(dec, &x_proto)) != 0) break;
-      if( x_proto != GIO_WIREPROT_VERS) {
-         err=gio_Err_BadWireProto;
-         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
-               GIO_WIREPROT_VERS, print_ipname(&poller.ipn[idx]), x_proto);
-         break;
-      }
       if((err = xdr_dec_string(dec, &x_clusterID)) != 0) break;
       if((err = xdr_dec_string(dec, &x_name)) != 0) break;
       if((err = xdr_dec_uint32(dec, &x_opt)) != 0) break;
+      if( x_proto != GIO_WIREPROT_VERS) {
+         err=gio_Err_BadWireProto;
+         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
+               GIO_WIREPROT_VERS, x_name, x_proto);
+         break;
+      }
    } while(0);
    if( err != 0 ) {
       log_err("Failed to recv all of the service login packet. %d:%s\n",
