@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -41,6 +42,7 @@ pthread_mutex_t update_lock;
 open_doc_t *master_doc = NULL;
 
 int get_doc_version(xmlDocPtr ldoc){
+  int i;
   int error = 0;
   xmlXPathObjectPtr  obj = NULL;
   xmlXPathContextPtr ctx = NULL;
@@ -74,7 +76,14 @@ int get_doc_version(xmlDocPtr ldoc){
     error = -ENODATA;
     goto fail;
   }
-
+  
+  for(i=0; i < strlen(node->children->content); i++){
+    if(!isdigit(node->children->content[i])){
+      log_err("config_version is not a valid integer.\n");
+      error = -EINVAL;
+      goto fail;
+    }
+  }
   error = atoi(node->children->content);
 
  fail:
