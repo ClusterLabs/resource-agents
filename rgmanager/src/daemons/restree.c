@@ -105,7 +105,7 @@ kill_env(char **env)
    @see			build_env
  */
 static void
-add_ocf_stuff(resource_t *res, char **env)
+add_ocf_stuff(resource_t *res, char **env, int depth)
 {
 	char ver[10];
 	char *minor, *val;
@@ -180,11 +180,12 @@ add_ocf_stuff(resource_t *res, char **env)
 	/*
 	   Store the OCF Check Level (0 for now)
 	 */
-	n = strlen(OCF_CHECK_LEVEL_STR) + strlen("0") + 2;
+	snprintf(ver, sizeof(ver), "%d", depth);
+	n = strlen(OCF_CHECK_LEVEL_STR) + strlen(ver) + 2;
 	val = malloc(n);
 	if (!val)
 		return;
-	snprintf(val, n, "%s=0", OCF_CHECK_LEVEL_STR);
+	snprintf(val, n, "%s=%s", OCF_CHECK_LEVEL_STR, ver);
 	*env = val; env++;
 }
 
@@ -194,12 +195,13 @@ add_ocf_stuff(resource_t *res, char **env)
 
    @param node		Node in resource tree to use for parameters
    @param op		Operation (start/stop/status/monitor/etc.)
+   @param depth		Depth (status/monitor/etc.)
    @return		Newly allocated environment array or NULL if
    			one could not be formed.
    @see			kill_env res_exec add_ocf_stuff
  */
 static char **
-build_env(resource_node_t *node, int op)
+build_env(resource_node_t *node, int op, int depth)
 {
 	resource_t *res = node->rn_resource;
 	char **env;
@@ -249,7 +251,7 @@ build_env(resource_node_t *node, int op)
 #endif
 	}
 
-	add_ocf_stuff(res, &env[x]);
+	add_ocf_stuff(res, &env[x], depth);
 
 	return env;
 }
@@ -295,11 +297,12 @@ restore_signals(void)
 
    @param node		Resource tree node we're dealing with
    @param op		Operation to perform (stop/start/etc.)
+   @param depth		OCF Check level/depth
    @return		Return value of script.
    @see			build_env
  */
 int
-res_exec(resource_node_t *node, int op)
+res_exec(resource_node_t *node, int op, int depth)
 {
 	int childpid, pid;
 	int ret = 0;
@@ -329,7 +332,7 @@ res_exec(resource_node_t *node, int op)
 #endif
 
 #ifndef DEBUG
-		env = build_env(node, op);
+		env = build_env(node, op, depth);
 #endif
 
 		if (!env)
@@ -686,6 +689,83 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 
 
 /**
+   Do a status on a resource node.  This takes into account the last time the
+   status operation was run and selects the highest possible resource depth
+   to use given the elapsed time.
+  */
+int
+do_status(resource_node_t *node)
+{
+	int x = 0, idx = -1;
+	int has_recover = 0;
+	time_t delta = 0, now = 0;
+	resource_t *res = node->rn_resource;
+
+	now = time(NULL);
+
+	for (; res->r_actions[x].ra_name; x++) {
+		if (!has_recover &&
+		    strcmp(res->r_actions[x].ra_name, "recover")) {
+			has_recover = 1;
+			continue;
+		}
+
+		if (strcmp(res->r_actions[x].ra_name, "status"))
+			continue;
+
+		delta = now - res->r_actions[x].ra_last;
+
+		/* Ok, it's a 'monitor' action. See if enough time has
+		   elapsed for a given type of monitoring action */
+		if (delta < res->r_actions[x].ra_interval)
+			continue;
+
+		if (idx == -1 ||
+		    res->r_actions[x].ra_depth > res->r_actions[idx].ra_depth)
+			idx = x;
+	}
+
+	/* No check levels ready at the moment. */
+	if (idx == -1)
+		return 0;
+
+	res->r_actions[idx].ra_last = now;
+	if ((x = res_exec(node, RS_STATUS,
+			  res->r_actions[idx].ra_depth) == 0))
+		return 0;
+
+	if (!has_recover)
+		return x;
+
+	/* Strange/failed status. Try to recover inline. */
+	if ((x = res_exec(node, RS_RECOVER, 0)) == 0)
+		return 0;
+
+	return x;
+}
+
+
+void
+clear_checks(resource_node_t *node)
+{
+	time_t now;
+	int x = 0;
+	resource_t *res = node->rn_resource;
+
+	now = res->r_started;
+
+	for (; res->r_actions[x].ra_name; x++) {
+
+		if (strcmp(res->r_actions[x].ra_name, "monitor") &&
+		    strcmp(res->r_actions[x].ra_name, "status"))
+			continue;
+
+		res->r_actions[x].ra_last = now;
+	}
+}
+
+
+/**
    Nasty codependent function.  Perform an operation by type for all siblings
    at some point in the tree.  This allows indirectly-dependent resources
    (such as IP addresses and user scripts) to have ordering without requiring
@@ -720,15 +800,18 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		   have the operation performed as well. */
 		me = !first || (node->rn_resource == first);
 
-/*
-		printf("begin %s: %s\n", res_ops[op],
-		       node->rn_resource->r_rule->rr_type); */
+		/*printf("begin %s: %s\n", res_ops[op],
+		       node->rn_resource->r_rule->rr_type);*/
 
 		/* Start starts before children */
 		if (me && (op == RS_START)) {
-			rv = res_exec(node, op);
+			rv = res_exec(node, op, 0);
 			if (rv != 0)
 				return rv;
+
+			time(&node->rn_resource->r_started);
+			clear_checks(node);
+			++node->rn_resource->r_incarnations;
 		}
 
 		if (node->rn_child) {
@@ -738,17 +821,23 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		}
 
 		/* Stop/status/etc stops after children have stopped */
-		if (me && (op != RS_START)) {
-			rv = res_exec(node, op);
+		if (me && (op == RS_STOP)) {
+			--node->rn_resource->r_incarnations;
+			rv = res_exec(node, op, 0);
 
+			if (rv != 0) {
+				++node->rn_resource->r_incarnations;
+				return rv;
+			}
+		} else if (me && (op == RS_STATUS)) {
+
+			rv = do_status(node);
 			if (rv != 0)
 				return rv;
 		}
 
-		/*
-		printf("end %s: %s\n", res_ops[op],
-		       node->rn_resource->r_rule->rr_type);
-		 */
+		/*printf("end %s: %s\n", res_ops[op],
+		       node->rn_resource->r_rule->rr_type);*/
 	} while (!list_done(tree, node));
 
 	return 0;

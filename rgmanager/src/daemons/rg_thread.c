@@ -35,7 +35,6 @@ typedef struct __resthread {
 	int		rt_status;		/** Resource status */
 	int		rt_request;		/** Current pending operation */
 	char		rt_name[256];		/** RG name */
-	int		rt_checkinterval;	/** RG Check interval */
 	request_t	**rt_queue;		/** RG event queue */
 	pthread_mutex_t	*rt_queue_mutex;	/** Mutex for event queue */
 	pthread_cond_t	*rt_queue_cond;		/** pthread cond */
@@ -160,6 +159,9 @@ resgroup_thread_main(void *arg)
 	resthread_t *myself;
 	request_t *req;
 	uint32_t running = 1, newstatus = 0, ret = RG_FAIL, error = 0;
+	struct timeval tv;
+	struct timespec ts;
+	int interval;
 
 	rg_inc_threads();
 
@@ -188,6 +190,7 @@ resgroup_thread_main(void *arg)
 	myself->rt_queue_mutex = &my_queue_mutex;
 	myself->rt_queue_cond = &my_queue_cond;
 	myself->rt_status = RG_STATE_STOPPED;
+	interval = DEFAULT_CHECK_INTERVAL;
 	pthread_mutex_unlock(&reslist_mutex);
 
 	rg_sighandler_setup();
@@ -197,31 +200,28 @@ resgroup_thread_main(void *arg)
 
 		if ((req = rq_next_request(&my_queue)) == NULL) {
 
-#if 0
-			if (checkinterval) {
+			if (interval) {
 				gettimeofday(&tv, NULL);
-				ts.tv_sec = tv.tv_sec + checkinterval;
+				ts.tv_sec = tv.tv_sec + interval;
 				ts.tv_nsec = 0;
 
 				if (pthread_cond_timedwait(&my_queue_cond,
 							   &my_queue_mutex,
 							   &ts) == ETIMEDOUT){
-					/* Enqueue status check */
+					/* Enqueue status check 
 					printf("%s Queueing status check\n",
-					       myname);
-					rt_enqueue_request(myname,
-							   RG_STATUS,
-							   -1, 1,
-							   NODE_ID_NONE,
-						   	   0, 0);
+					       myname); */
+					rq_queue_request(&my_queue,
+							 myname,
+							 RG_STATUS,
+							 0, 0, -1, 0,
+							 NODE_ID_NONE,
+							 0, 0);
 				}
 			} else {
-#endif
 				pthread_cond_wait(&my_queue_cond,
 						  &my_queue_mutex);
-#if 0
 			}
-#endif
 
 			req = rq_next_request(&my_queue);
 		}
@@ -415,16 +415,16 @@ resgroup_thread_main(void *arg)
 
 			error = svc_stop(myname, 1);
 			if (error == 0) {
-			    error = handle_start_req(myname, req->rr_request,
+			    error = handle_start_req(myname, RG_START_RECOVER,
 		    				     &newowner);
 			}
 
 			break;
 
 		case RG_SETCHECK:
-			myself->rt_checkinterval = req->rr_arg0;
+			interval = req->rr_arg0;
 
-			if (myself->rt_checkinterval == 0) {
+			if (interval == 0) {
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
 				pthread_mutex_unlock(&my_queue_mutex);
@@ -512,7 +512,6 @@ spawn_resgroup_thread(const char *name)
 
 	newthread->rt_status = RG_STATE_UNINITIALIZED;
 	strncpy(newthread->rt_name, name, sizeof(newthread->rt_name));
-	newthread->rt_checkinterval = 0;
 
 	ret = pthread_create(&newthread->rt_thread, &attrs,
 			     resgroup_thread_main, (void *)name);
@@ -698,15 +697,14 @@ int
 rg_status(const char *resgroupname)
 {
 	resthread_t *resgroup;
-	int status;
 
 	pthread_mutex_lock(&reslist_mutex);
 	resgroup = find_resthread_byname(resgroupname);
-	if (resgroup)
-		status = resgroup->rt_status;
-	else
-		status = RG_STATE_UNKNOWN;
+	if (resgroup) {
+		rq_queue_request(resgroup->rt_queue, resgroup->rt_name,
+				 RG_STATUS, 0, 0, -1, 0, NODE_ID_NONE, 0, 0);
+	}
 	pthread_mutex_unlock(&reslist_mutex);
 
-	return status;
+	return !resgroup;
 }

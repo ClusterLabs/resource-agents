@@ -55,6 +55,21 @@ meta_data()
             </shortdesc>
             <content type="string"/>
         </parameter>
+
+        <parameter name="hardrecovery">
+            <longdesc lang="en">
+	    	If set to yes, the last owner will reboot if this resource
+		group fails to stop cleanly, thus allowing the resource
+		group to fail over to another node.  Use with caution; a
+		badly-behaved resource could cause the entire cluster to
+		reboot.  This should never be enabled if the automatic
+		start feature is used.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Reboot if stop phase fails
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>
@@ -62,8 +77,8 @@ meta_data()
         <action name="stop" timeout="5"/>
 	
 	<!-- No-ops.  Groups are abstract resource types.  -->
-        <action name="status" timeout="5"/>
-        <action name="monitor" timeout="5"/>
+        <action name="status" timeout="5" interval="1h"/>
+        <action name="monitor" timeout="5" interval="1h"/>
 
         <action name="recover" timeout="5"/>
         <action name="reload" timeout="5"/>

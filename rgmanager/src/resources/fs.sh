@@ -110,10 +110,22 @@ meta_data()
                 the resource group will be restarted.
             </longdesc>
             <shortdesc lang="en">
-                Force unmount support
+                Force Unmount
             </shortdesc>
 	    <content type="boolean"/>
         </parameter>
+
+	<parameter name="self_fence">
+	    <longdesc lang="en">
+	        If set and unmounting the file system fails, the node will
+		immediately reboot.  Generally, this is used in conjunction
+		with force-unmount support, but it is not required.
+	    </longdesc>
+	    <shortdesc lang="en">
+	        Seppuku Unmount
+	    </shortdesc>
+	    <content type="boolean"/>
+	</parameter>
 
         <parameter name="force_fsck">
             <longdesc lang="en">
@@ -146,11 +158,12 @@ meta_data()
     <actions>
         <action name="start" timeout="900"/>
 	<action name="stop" timeout="30"/>
-        <action name="recover" timeout="930"/>
+	<!-- Recovery isn't possible; we don't know if resources are using
+	     the file system. -->
 
 	<!-- Checks to see if it's mounted in the right place -->
-	<action name="status" timeout="10"/>
-	<action name="monitor" timeout="10"/>
+	<action name="status" interval="1m" timeout="10"/>
+	<action name="monitor" interval="1m" timeout="10"/>
 
 	<!-- Checks to see if we can read from the mountpoint -->
 	<action name="status" depth="10" timeout="30" interval="5m"/>
@@ -475,9 +488,7 @@ killMountProcesses()
 				sed 's;^'$dev';;' | \
 				awk '{print $4,$2,$1}' | \
 				sort -u -k 1,3)
-		fi
-
-		if [ -n "$have_lsof" ]; then
+		elif [ -n "$have_lsof" ]; then
 			#
 			# Use lsof to free up mount point
 			#
@@ -718,6 +729,7 @@ stopFilesystem() {
 	typeset done=""
 	typeset umount_failed=""
 	typeset force_umount=""
+	typeset self_fence=""
 	typeset fstype=""
 
 
@@ -753,6 +765,15 @@ stopFilesystem() {
 	        *)		force_umount="" ;;
 		esac
 	fi
+
+	if [ -n "$mp" ]; then
+		case ${OCF_RESKEY_self_fence} in
+	        $YES_STR)	self_fence=$YES ;;
+		0)		self_fence=$YES ;;
+	        *)		self_fence="" ;;
+		esac
+	fi
+
 
 	#
 	# Unmount the device.  
@@ -808,6 +829,12 @@ stopFilesystem() {
 
 	if [ -n "$umount_failed" ]; then
 		logAndPrint $LOG_ERR "'umount $dev' failed ($mp), error=$ret_val"
+
+		if [ "$self_fence" ]; then
+			logAndPrint $LOG_ALERT "umount failed - REBOOTING"
+			sync
+			reboot -fn
+		fi
 		return $FAIL
 	else
 		return $SUCCESS
@@ -828,7 +855,7 @@ status)
 	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
 	exit $?
 	;;
-restart|recover)
+restart)
 	stopFilesystem
 	if [ $? -ne 0 ]; then
 		exit 1

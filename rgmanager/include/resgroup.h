@@ -96,6 +96,8 @@ int handle_start_req(char *svcName, int req, uint64_t *new_owner);
 #define RG_STATE_DISABLED		120	/** Resource not allowd to run */
 #define RG_STATE_INITIALIZING		121	/** RG initializing locally */
 
+#define DEFAULT_CHECK_INTERVAL		10
+
 extern const char *rg_state_strings[];
 
 #define rg_state_str(state) (rg_state_strings[state - RG_STATE_BASE])

@@ -322,6 +322,28 @@ print_resource(resource_t *res)
 }
 
 
+void *
+act_dup(resource_act_t *acts)
+{
+	int x;
+	resource_act_t *newacts;
+
+	for (x = 0; acts[x].ra_name; x++);
+
+	++x;
+	x *= sizeof(resource_act_t);
+
+	newacts = malloc(x);
+	if (!newacts)
+		return NULL;
+
+	memcpy(newacts, acts, x);
+
+	return newacts;
+}
+
+
+
 /**
    Try to load all the attributes in our rule set.  If none are found,
    or an error occurs, return NULL and move on to the next one.
@@ -344,8 +366,8 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 		printf("Out of memory\n");
 		return NULL;
 	}
-	memset(res, 0, sizeof(*res));
 
+	memset(res, 0, sizeof(*res));
 	res->r_rule = rule;
 
 	for (x = 0; res->r_rule->rr_attrs &&
@@ -419,6 +441,8 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 		destroy_resource(res);
 		return NULL;
 	}
+
+	res->r_actions = act_dup(rule->rr_actions);
 
 	return res;
 }

@@ -44,7 +44,7 @@ declare SCRIPT="`basename $0`"
 
 [ -n "$OCF_RESKEY_user" ] && ORACLE_USER=$OCF_RESKEY_user
 [ -n "$OCF_RESKEY_home" ] && ORACLE_HOME=$OCF_RESKEY_home
-[ -n "$OCF_RESKEY_sid" ] && ORACLE_SID=$OCF_RESKEY_sid
+[ -n "$OCF_RESKEY_name" ] && ORACLE_SID=$OCF_RESKEY_name
 [ -n "$OCF_RESKEY_lockfile" ] && LOCKFILE=$OCF_RESKEY_lockfile
 
 
@@ -109,6 +109,84 @@ declare -r	LOCKFILE="/home/$ORACLE_USER/.oracle-ias.lock"
 ##########################################################
 # (Hopefully) No user-serviceable parts below this line. #
 ##########################################################
+meta_data()
+{
+	cat <<EOT
+<?xml version="1.0" ?>
+<resource-agent name="oracleas" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+	Oracle Application 10g Failover Instance
+    </longdesc>
+    <shortdesc lang="en">
+	Oracle Application 10g Failover Instance
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    <longdesc lang="en">
+		Instance name (SID) of oracle instance
+	    </longdesc>
+            <shortdesc lang="en">
+		Oracle SID
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="user" unique="1" required="1">
+	    <longdesc lang="en">
+		Oracle user name.  This is the user name of the Oracle
+		user which the Oracle AS instance runs as.
+	    </longdesc>
+            <shortdesc lang="en">
+		Oracle User Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="device" unique="1" required="1">
+	    <longdesc lang="en">
+		This is the Oracle (application, not user) home directory.
+		This is configured when you install Oracle.
+	    </longdesc>
+            <shortdesc lang="en">
+		Oracle Home Directory
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="900"/>
+	<action name="stop" timeout="90"/>
+        <action name="recover" timeout="990"/>
+
+	<!-- Checks to see if it's mounted in the right place -->
+	<action name="status" timeout="10"/>
+	<action name="monitor" timeout="10"/>
+
+	<!-- Checks to see if we can read from the mountpoint -->
+	<action name="status" depth="10" timeout="30" interval="5m"/>
+	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+
+	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
+	<action name="status" depth="20" timeout="90" interval="10m"/>
+	<action name="monitor" depth="20" timeout="90" interval="10m"/>
+
+	<action name="meta-data" timeout="5"/>
+	<action name="verify-all" timeout="5"/>
+    </actions>
+
+    <special tag="rgmanager">
+	<attributes maxinstances="1"/>
+    </special>
+</resource-agent>
+EOT
+}
+
+
 #
 # "action"-like macro supporting functions
 #
@@ -638,6 +716,7 @@ status_ias()
 {
 	declare -i subsys_lock=1
 	declare -i last 
+	declare -i depth=$1
 
 	#
 	# Check for lock file.  Crude and rudimentary, but it works
@@ -647,17 +726,17 @@ status_ias()
 	fi
 
 	# Check database status
-	get_db_status $subsys_lock
+	get_db_status $subsys_lock $depth
 	update_status $? # Start
 	last=$?
 
 	# Check & report listener status
-	get_lsnr_status $subsys_lock
+	get_lsnr_status $subsys_lock $depth
 	update_status $? $last
 	last=$?
 	
 	# Check & report opmn / opmn-managed process status
-	get_opmn_status $subsys_lock
+	get_opmn_status $subsys_lock $depth
 	update_status $? $last
 	last=$?
 
@@ -690,8 +769,8 @@ case $1 in
 		stop_ias
 		exit $?
 		;;
-	status)
-		status_ias
+	status|monitor)
+		status_ias $OCF_CHECK_LEVEL
 		exit $?
 		;;
 	restart)

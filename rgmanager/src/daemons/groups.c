@@ -303,11 +303,6 @@ send_rg_state(int fd, char *rgname)
 	}
 
 	rg_unlock(rgname, lockp);
-
-	/* Get more precise state if it's local */
-	if (msgp->rsm_state.rs_owner == my_id())
-		msgp->rsm_state.rs_state = rg_status(rgname);
-
 	swab_rg_state_msg_t(msgp);
 
 	msg_send(fd, msgp, sizeof(msg));

@@ -44,6 +44,7 @@
 #define RS_RESTART	(4)
 #define RS_RELOAD	(5)
 #define RS_CONDRESTART  (6)
+#define	RS_RECOVER	(7)
 
 
 #define RESOURCE_ROOTDIR	"/usr/share/rgmanager"
@@ -101,6 +102,9 @@ typedef struct _resource {
 	resource_attr_t *	r_attrs;
 	int	r_flags;
 	int	r_refs;
+	int	r_incarnations;	/** Number of instances running locally */
+	time_t	r_started;	/** Time this resource was last started */
+	resource_act_t *	r_actions;
 } resource_t;
 
 

@@ -86,8 +86,8 @@ meta_data()
 
 	<!-- NFS Exports really don't do anything except provide a path
 	     for nfs clients.  So, status and monitor are no-ops -->
-	<action name="status" timeout="5"/>
-	<action name="monitor" timeout="5"/>
+	<action name="status" timeout="5" interval="1h"/>
+	<action name="monitor" timeout="5" interval="1h"/>
 
 	<action name="meta-data"/>
 	<action name="verify-all"/>

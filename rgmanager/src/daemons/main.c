@@ -308,6 +308,7 @@ dispatch_msg(int fd, uint64_t nodeid)
 
 	switch (msg_hdr.gh_command) {
 	case RG_STATUS:
+		clulog(LOG_DEBUG, "Sending resource group states to fd%d\n",fd);
 		send_rg_states(fd);
 		break;
 

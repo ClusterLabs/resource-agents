@@ -898,17 +898,18 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		_get_handler(doc, ctx, base, rr);
 
 		/*
+		   Second, add the allowable-children fields
+		 */
+		_get_childtypes(doc, ctx, base, rr);
+
+		/*
 		   Get the OCF status check intervals/monitor.
 		 */
 		snprintf(base, sizeof(base), "/resource-agent[%d]/actions",
 			 ruleid);
 		_get_actions(doc, ctx, base, rr);
 
-		/*
-		   Second, add the allowable-children fields
-		 */
-		_get_childtypes(doc, ctx, base, rr);
-		
+	
 		/*
 		   Last, load the attributes from our XML file and their
 		   respective instantiations from CCS

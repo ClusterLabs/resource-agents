@@ -93,20 +93,22 @@ meta_data()
     <actions>
         <action name="start" timeout="20"/>
         <action name="stop" timeout="20"/>
-        <action name="recover" timeout="20"/>
+	<!-- No recover action.  If the IP address is not useable, then
+	     resources may or may not depend on it.  If it's been 
+	     deconfigured, resources using it are in a bad state. -->
 
 	<!-- Checks to see if the IP is up and (optionally) the link is
 	     working -->
-        <action name="status" timeout="20"/>
-        <action name="monitor" timeout="20"/>
+        <action name="status" interval="20" timeout="10"/>
+        <action name="monitor" interval="20" timeout="10"/>
 
 	<!-- Checks to see if we can ping the IP address locally -->
-        <action name="status" depth="10" interval="5m" timeout="20"/>
-        <action name="monitor" depth="10" interval="5m" timeout="20"/>
+        <action name="status" depth="10" interval="60" timeout="20"/>
+        <action name="monitor" depth="10" interval="60" timeout="20"/>
 
 	<!-- Checks to see if we can ping the router -->
-        <action name="status" depth="20" interval="10m" timeout="20"/>
-        <action name="monitor" depth="20" interval="10m" timeout="20"/>
+        <action name="status" depth="20" interval="2m" timeout="20"/>
+        <action name="monitor" depth="20" interval="2m" timeout="20"/>
 
         <action name="meta-data" timeout="20"/>
         <action name="verify-all" timeout="20"/>
@@ -405,6 +407,7 @@ ethernet_link_up()
 }
 
 
+
 ipv4_find_interface()
 {
 	declare idx dev ifaddr
@@ -508,11 +511,35 @@ ipv4()
 }
 
 
+#
+# Usage:
+# ping_check <family> <address>
+#
+ping_check()
+{
+	declare ops="-c 1 -w 2"
+	declare ipv6ops=""
+
+	if [ "$1" = "ipv6" ]; then
+		ipv6ops="-6"
+	fi
+
+	return $(ping $ipv6ops $ops $2 &> /dev/null)
+}
+
+
+#
+# Usage:
+# ip_op <family> <operation> <address> [quiet]
+#
 ip_op()
 {
 	declare dev
+	declare rtr
 
 	if [ "$2" = "status" ]; then
+
+		echo Checking $3, Level $OCF_CHECK_LEVEL
 	
 		dev=$(ip -f $1 -o addr | grep $3 | awk '{print $2}')
 		if [ -z "$dev" ]; then
@@ -526,13 +553,31 @@ ip_op()
 		fi
 
 		[ -n "$4" ] || echo -n "Checking link status of $dev..."
-		if ethernet_link_up $dev; then
-			[ -n "$4" ] || echo "Active"
-			return 0
+		if ! ethernet_link_up $dev; then
+			[ -n "$4" ] || echo "No Link"
+			return 1
 		fi
+		[ -n "$4" ] || echo "Active"
 
-		[ -n "$4" ] || echo "No Link"
-		return 1
+		[ $OCF_CHECK_LEVEL -lt 10 ] && return 0
+		[ -n "$4" ] || echo -n "Pinging $3..."
+		if ! ping_check $1 $3; then
+			[ -n "$4" ] || echo "Fail"
+			return 1
+		fi
+		echo "OK"
+
+		# XXX may be ipv4 only.
+		[ $OCF_CHECK_LEVEL -lt 20 ] && return 0
+		rtr=`ip route | grep "default via.*dev $dev" | awk '{print $3}'`
+		[ -n "$4" ] || echo -n "Pinging $rtr..."
+		if ! ping_check $1 $rtr; then
+			[ -n "$4" ] || echo "Fail"
+			return 1
+		fi
+		echo "OK"
+
+		return 0
 	fi
 
 	case $1 in
@@ -556,9 +601,9 @@ inet6)
 	;;
 *)
 	if [ "${OCF_RESKEY_address//:/}" != "${OCF_RESKEY_address}" ]; then
-		OCF_RESKEY_family=inet6
+		export OCF_RESKEY_family=inet6
 	else
-		OCF_RESKEY_family=inet
+		export OCF_RESKEY_family=inet
 	fi
 	;;
 esac
@@ -591,7 +636,7 @@ status|monitor)
 	ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address}
 	exit $?
 	;;
-restart|recover)
+restart)
 	$0 stop || exit 1
 	$0 start || exit 1
 	exit 0

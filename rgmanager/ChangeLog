@@ -1,3 +1,23 @@
+2004-09-13 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h: Add a default check interval.
+	* include/reslist.h: Add a recover operation, and put operations
+	and checks together in each instantiated resource structure.
+	* src/daemons/groups.c: Don't use the old rg_status() func --
+	its internals have changed.
+	* src/daemons/reslist.c: Duplicate the action structure of a 
+	parent resource type into an instantiated resource.
+	* src/daemons/resrules.c: Find the actions with the correct
+	path.
+	* src/daemons/restree.c: Add depth parameter to res_exec.  Add
+	do_status - find the highest check/status level to perform given
+	the elapsed time since another status operation was performed.
+	Add a reference count each time a resource is started on a node.
+	* src/daemons/rg_thread.c: Implement periodic status checks. 
+ 	Currently (in contrast to clumanager 1.2), these status checks
+	are automatic and not configurable.
+	* src/resources/*: Misc updates re: check intervals, new 
+	parameters, etc.
+
 2004-09-07 Lon Hohberger <lhh at redhat.com>
 	* src/resources/group.sh: Add 'autostart' parameter to group 
 	entity
