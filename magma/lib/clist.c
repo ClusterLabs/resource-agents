@@ -123,6 +123,8 @@ clist_delete(int fd)
  * them from our list.
  *
  * @param set		The file descriptor set to modify.
+ * @param flags		Flags to look for.
+ * @param purpose	User or application-defined purpose to look for.
  * @return		Max file descriptor to pass to select.
  */
 inline int

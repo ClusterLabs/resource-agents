@@ -341,11 +341,15 @@ ipv4_connect(struct in_addr *in_addr, uint16_t port, int timeout)
 
 
 /** 
-  Must handle ipv4 and ipv6 networks
+  Open a TCP connection to another cluster member given the node ID and the
+  base port.  
 
-  @param nodeid		Node ID
+  @param nodeid		Node ID to connect to.
   @param baseport	Port to connect to.  +1 if we end up using an ipv6
   			address instead of an IPv4 one for a given member.
+  @param purpose	User or application defined purpose.
+  @param timeout	If specified, the connection attempt will abort
+  			after this many seconds.
   @return 		File descriptor, or -1 if couldn't connect.
   @see			ipv4_connect, ipv6_connect
  */
@@ -521,10 +525,12 @@ ipv4_bind(uint16_t port)
 
 
 /**
-  Set up listener sockets on a given base port.  We try ipv6 first.
+  Set up listener sockets on a given base port.  First, we try to listen
+  on IPv6.
 
   @param baseport	Port to listen on.  Note that this is altered by
   			IPV6_PORT_OFFSET.
+  @param purpose	User or application defined purpose.
   @param ret		Preallocated array of at least two ints.  The listening
   			file descriptors are stored within; up to 2: one for
 			IPv4, one for IPv6.  It should not matter to the caller
@@ -571,7 +577,8 @@ msg_listen(uint16_t baseport, int purpose, int *ret, int retlen)
 
 
 /**
-  Find a node ID by its address in network-byte-order
+  Find a node ID by its address in network-byte-order.  Addr can be either
+  a struct sockaddr_in6 or struct sockaddr_in structure.
 
   @param family		AF_INET or AF_INET6
   @param addr		Address to look for in ml_membership
@@ -646,7 +653,7 @@ find_nodeid_by_addr(int family, struct sockaddr *addr)
   @param fd		Listening file descriptor which has a connection 
   			pending.
   @param members_only	If nonzero, reject if the connection is not from
-  			a current member of ml_membership
+  			a current member of ml_membership.
   @param nodeid		If non-NULL, we store the nodeid of the connecting
   			member within.
   @return		New file descriptor, or -1 in error case.
@@ -710,7 +717,7 @@ msg_accept(int fd, int members_only, uint64_t *nodeid)
 
 
 /**
-  Close a file descriptor.
+  Close a file descriptor and remove it from our file descriptor list.
 
   @param fd		File descriptor to close
   @return		-1 on failure, 0 on success
@@ -729,11 +736,11 @@ msg_close(int fd)
 
 
 /**
-  Fill a fd set with all open file descriptors
+  Fill a file descriptor set with all open file descriptors.
 
   @param set		Set to fill
-  @param flags		Flags to look for
-  @param purpose	Purpose to look for
+  @param flags		Flags to look for.
+  @param purpose	User or application-defined purpose to look for.
   @return 		0
  */
 int
@@ -752,8 +759,9 @@ msg_fill_fdset(fd_set *set, int flags, int purpose)
   Return next active file descriptor in the file descriptor set.
   (The bit corresponding to the file descriptor is cleared)
 
-  @param set		Set to check
+  @param set		File descriptor set to check
   @return 		-1 if none available or a file descriptor
+  @see msg_fill_fdset
  */
 int
 msg_next_fd(fd_set *set)
@@ -763,10 +771,11 @@ msg_next_fd(fd_set *set)
 
 
 /**
-  Set the purpose of a file descriptor (application-specific)
+  Set the user or application-defined purpose of a file descriptor
+  (application-specific)
 
-  @param fd		File descriptor
-  @param purpose	Purpose identifier
+  @param fd		File descriptor to perform operation upon.
+  @param purpose	User or application defined purpose.
   @return 		0 if successful, -1 on failure (fd not found in
   			our list.)
  */
@@ -778,7 +787,7 @@ msg_set_purpose(int fd, int purpose)
 
 
 /**
-  Get the purpose of a file descriptor (application-specific)
+  Get the user or application-defined purpose of a file descriptor
 
   @param fd		File descriptor
   @return 		Purpose ID if successful, -1 on failure (fd not found
@@ -792,7 +801,7 @@ msg_get_purpose(int fd)
 
 
 /**
-  Get the purpose of a file descriptor (application-specific)
+  Get the flags of a file descriptor
 
   @param fd		File descriptor
   @return 		Purpose ID if successful, -1 on failure (fd not found
@@ -805,6 +814,15 @@ msg_get_flags(int fd)
 }
 
 
+/**
+  Look at a message without reading it off the socket.
+
+  @param sockfd		File descriptor
+  @param buf		Preallocated buffer to store received data.
+  @param count		Maximum amount of data to read, in bytes.
+  @return 		Number of bytes peeked, or -1 on failure.
+  @see recv(2)
+ */
 ssize_t
 msg_peek(int sockfd, void *buf, ssize_t count)
 {

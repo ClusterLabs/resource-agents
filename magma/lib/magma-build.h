@@ -68,19 +68,106 @@ typedef struct _cluster_plugin {
 	 * Plugin functions.
 	 */
 	struct {
+		/**
+		  No op cluster function.  Optional; maps to clu_null 
+		  in the default cluster plugin.
+
+		  @see clu_null
+		 */
 		int (*s_null)(struct _cluster_plugin *);
+
+		/**
+		  Cluster member list function.  Required; maps to
+		  clu_member_list in the default cluster plugin.
+
+		  @see clu_member_list
+		 */
 		cluster_member_list_t *
 			(*s_member_list)(struct _cluster_plugin *, char *);
 
+		/**
+		  Cluster quorum status function.  Required; maps to
+		  clu_quorum_status in the default cluster plugin.
+		 
+		  @see clu_quorum_status
+		 */
 		int (*s_quorum_status)(struct _cluster_plugin *, char *);
+
+		/**
+		  Cluster event reading function.  Required; maps to
+		  clu_get_event in the default cluster plugin.
+		
+		  @see clu_get_event
+		 */
 		int (*s_get_event)(struct _cluster_plugin *,int);
+
+		/**
+		  Cluster plugin version function.  Optional; maps to 
+		  clu_plugin_version in the default cluster plugin.
+		
+		  @see clu_plugin_version
+		 */
 		char *(*s_plugin_version)(struct _cluster_plugin *);
+
+		/**
+		  Cluster plugin open function.  Required; maps to clu_open
+		  when a default cluster plugin is used.  Though required,
+		  this is not generally called directly, as clu_connect handles
+		  this..
+		 
+		  @see clu_open, clu_connect
+		 */
 		int (*s_open)(struct _cluster_plugin *);
+
+		/**
+		  I/O Fencing function.  Optional; maps to clu_fence.
+		 
+		  @see clu_fence
+		 */
 		int (*s_fence)(struct _cluster_plugin *, cluster_member_t *);
+
+		/**
+		  Group Login function.  Optional; maps to clu_login when
+		  a default plugin is set.  Not generally called by users;
+		  clu_connect takes care of this for us.
+		
+		  @see clu_login, clu_connect
+		 */
 		int (*s_login)(struct _cluster_plugin *, int, char *);
+
+		/**
+		  Group Logout function.  Optional; maps to clu_logout when
+		  a default plugin is set.  Not generally called by users;
+		  clu_disconnect takes care of this for us.
+		
+		  @see clu_logout, clu_disconnect
+		 */
 		int (*s_logout)(struct _cluster_plugin *,int);
+
+		/**
+		  Cluster plugin open function.  Required; maps to clu_close_
+		  when a default cluster plugin is used.  Though required,
+		  this is not generally called directly, as clu_connect handles
+		  this.
+		 
+		  @see clu_close, clu_disconnect
+		 */
 		int (*s_close)(struct _cluster_plugin *,int);
+
+		/**
+		  Cluster lock function.  Optional; maps to clu_lock when
+		  a default cluster plugin is used.
+		 
+		  @see clu_lock
+		 */
 		int (*s_lock)(struct _cluster_plugin *, char *, int, void **);
+
+		/**
+		  Cluster unlock function.  Optional; maps to clu_unlock when
+		  a default cluster plugin is used.
+		 
+		  @see clu_unlock
+		 */
 		int (*s_unlock)(struct _cluster_plugin *, char *, void *);
 	} cp_ops;
 

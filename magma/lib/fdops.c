@@ -31,7 +31,7 @@
  * to have _read_retry terminate if and only if two EINTRs were received
  * in a row - one during the read() call, one during the select call...
  *
- * See select(2) for description of parameters.
+ * @see select(2)
  */
 int
 _select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,

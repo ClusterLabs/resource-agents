@@ -31,8 +31,8 @@
 #endif
 
 
-/*
- * Define our _U-versions of our shared storage 
+/**
+  Unimplemented stub s_null function for plugins
  */
 int
 _U_clu_null(cluster_plugin_t __attribute__ ((unused)) *cpp)
@@ -42,6 +42,9 @@ _U_clu_null(cluster_plugin_t __attribute__ ((unused)) *cpp)
 }
 
 
+/** 
+  Unimplemented stub s_member_list function for plugins
+ */
 cluster_member_list_t *
 _U_clu_member_list(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		    char __attribute__ ((unused)) *groupname)
@@ -51,6 +54,9 @@ _U_clu_member_list(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_quorum_status function for plugins
+ */
 int
 _U_clu_quorum_status(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		      char __attribute__ ((unused)) *groupname)
@@ -60,6 +66,9 @@ _U_clu_quorum_status(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_get_event function for plugins
+ */
 int
 _U_clu_get_event(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		  int __attribute__((unused)) fd)
@@ -69,6 +78,9 @@ _U_clu_get_event(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_login function for plugins
+ */
 int
 _U_clu_login(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      int __attribute__ ((unused)) fd,
@@ -79,6 +91,9 @@ _U_clu_login(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_logout function for plugins
+ */
 int
 _U_clu_logout(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	       int __attribute__((unused)) fd)
@@ -88,6 +103,9 @@ _U_clu_logout(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_close function for plugins
+ */
 int
 _U_clu_close(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      int __attribute__((unused)) fd)
@@ -97,6 +115,9 @@ _U_clu_close(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_fence function for plugins
+ */
 int
 _U_clu_fence(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      cluster_member_t __attribute__((unused)) *node)
@@ -106,6 +127,9 @@ _U_clu_fence(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_lock function for plugins
+ */
 int
 _U_clu_lock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	     char *__attribute__ ((unused)) resource,
@@ -117,6 +141,9 @@ _U_clu_lock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_unlock function for plugins
+ */
 int
 _U_clu_unlock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	     char *__attribute__ ((unused)) resource,
@@ -127,6 +154,9 @@ _U_clu_unlock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 }
 
 
+/** 
+  Unimplemented stub s_plugin_version function for plugins
+ */
 char *
 _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 {
@@ -140,7 +170,7 @@ _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
  *
  * @param libpath	Path to file.
  * @return		NULL on failure, or a newly allocated
- *			ClusterStorageDriver on success.
+ *			cluster_plugin_t structure on success.
  */
 cluster_plugin_t *
 cp_load(const char *libpath)
@@ -224,14 +254,15 @@ cp_load(const char *libpath)
 
 
 /**
- * Initialize a cluster storage driver structure.  This calls the
- * initialization function we loaded in csd_load.
+ * Initialize a cluster plugin structure.  This calls the
+ * initialization function we loaded in cp_load.
  *
- * @param cpp		Pointer to cluster storage driver to initialize.
+ * @param cpp		Pointer to plugin structure to initialize.
  * @param priv		Optional driver-specific private data to copy in
  *			to cpp.
  * @param privlen	Size of data in priv.
  * @return		-1 on failure; 0 on success.
+ * @see	cp_load
  */
 int
 cp_init(cluster_plugin_t *cpp, const void *priv, size_t privlen)
@@ -278,11 +309,12 @@ cp_unload(cluster_plugin_t *cpp)
 
 
 /**
- * Use a specific cluster storage driver as the default for global "sh"
+ * Use a specific cluster plugin as the default for global "clu"
  * function calls.  This assigns the global function pointers to the
- * functions contained within the ClusterStorageDriver passed in.
+ * functions contained within the cluster_plugin_t passed in.
  *
- * @param driver	Storage driver structure to make default.
+ * @param driver	Cluster plugin structure to make default.
+ * @see clu_connect, clu_disconnect
  */
 void
 cp_set_default(cluster_plugin_t *driver)

@@ -76,9 +76,11 @@ cluster_member_list_t *cml_dup(cluster_member_list_t *ml);
 /*
  * Member states
  */
-#define STATE_DOWN		0
-#define STATE_UP		1
-#define STATE_INVALID		2
+#define STATE_DOWN		0	/** Node is not online or is not in
+					  the given group. */
+#define STATE_UP		1	/** Node is online and/or is in the
+					  given group */
+#define STATE_INVALID		2	/** Unknown state */
 
 
 /**
@@ -96,26 +98,25 @@ cluster_member_list_t *cml_dup(cluster_member_list_t *ml);
 /*
  * Events we need to handle
  */
-#define CE_NULL			0	
-#define CE_MEMB_CHANGE		1	/* Membership change / transition */
-#define CE_QUORATE		2	/* AKA Gain of quorum */
-#define CE_INQUORATE		3	/* AKA loss of quorum.  All locks
-					   are destroyed. */
-#define CE_SHUTDOWN		4	/* Clean shutdown please */
-#define CE_SUSPEND		5	/* Pause; next event unpauses */
+#define CE_NULL		0	/** No-op/spurious wakeup */
+#define CE_MEMB_CHANGE	1	/** Membership change/transition */
+#define CE_QUORATE	2	/** AKA Quorum formed */
+#define CE_INQUORATE	3	/** AKA Quorum dissolved */
+#define CE_SHUTDOWN	4	/** Clean shutdown please */
+#define CE_SUSPEND	5	/** Pause; next event unpauses */
 
 
 /**
  * Lock flags
  */
-#define CLK_NONE		(0)	/** ... */
-#define CLK_NOWAIT		(1<<0)	/** return EAGAIN if not avail */
-#define CLK_WRITE		(1<<1)	/** Write lock */
-#define CLK_READ		(1<<2)	/** read lock -- TBD */
-#define CLK_EX			(CLK_READ|CLK_WRITE)
+#define CLK_NONE	(0)	/** No flags */
+#define CLK_NOWAIT	(1<<0)	/** Do not block if not immediately available */
+#define CLK_WRITE	(1<<1)	/** Write lock */
+#define CLK_READ	(1<<2)	/** Read lock */
+#define CLK_EX		(CLK_READ|CLK_WRITE)
 
 
-#define NODE_ID_NONE		((uint64_t)-1)
+#define NODE_ID_NONE	((uint64_t)-1) /** The nonexistent cluster member */
 
 
 /**

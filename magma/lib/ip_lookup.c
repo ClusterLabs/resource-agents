@@ -17,7 +17,8 @@
   USA.
  */
 /** @file
-  replacement for if_lookup using netlink instead of ioctls
+  Replacement for if_lookup using netlink instead of ioctls.  This is used
+  to aid determination of the local node ID.
  */
 #include <asm/types.h>
 #include <sys/types.h>
@@ -230,7 +231,14 @@ build_ip_list(ip_list_t *ipl)
 
 
 /**
- * 
+  Look up the interface name which corresponds to the given hostname and
+  return the list of matching attrinfo structures.  We do this by looking
+  up all the possible physical and virtual network interfaces on the machine
+  and checking the hostname/IP mappings for each active IP address incurred.
+
+  @param nodename	Interface name
+  @param ret_ai		Structure pointer to allocate & return.
+  @return		-1 on failure or 0 on success.
  */
 int
 ip_lookup(char *nodename, struct addrinfo **ret_ai)

@@ -61,6 +61,18 @@ _get_local_info(char *groupname)
 }
 
 
+/**
+  Returns the local node name using the default plugin as the data source.
+  This function caches this information for future use.
+
+  @param groupname	Group name.  If the local node is not a member
+  			of this group, the call will fail.
+  @param name		Preallocated char array into which the local member's
+  			node name is copied.
+  @param namelen	Size, in bytes, of name parameter.
+  @return		0 on success, or -1 if the node is not a member of
+  			the specified group.
+ */
 int
 clu_local_nodename(char *groupname, char *name, size_t namelen)
 {
@@ -81,6 +93,17 @@ clu_local_nodename(char *groupname, char *name, size_t namelen)
 }
 
 
+/**
+  Returns the local node ID using the default plugin as the data source.
+  This function caches this information for future use.
+
+  @param groupname	Group name.  If the local node is not a member
+  			of this group, the call will fail.
+  @param nodeid		Pointer to node ID (uint64_t).  Node ID
+  			is copied in here.
+  @return		0 on success, or -1 if the node is not a member of
+  			the specified group.
+ */
 int
 clu_local_nodeid(char *groupname, uint64_t *nodeid)
 {

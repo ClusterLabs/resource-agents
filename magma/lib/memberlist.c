@@ -436,6 +436,11 @@ print_member_list(cluster_member_list_t *list, int verbose)
 }
 
 
+/**
+  Frees a cluster member list structure. 
+
+  @param ml		Member list to free.
+ */
 void
 cml_free(cluster_member_list_t *ml)
 {
