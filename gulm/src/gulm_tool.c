@@ -640,6 +640,51 @@ int do_get_stats(int argc, char **argv,
 }
 
 /**
+ * do_service_list - 
+ * @argc: 
+ * @argv: 
+ * 
+ * 
+ * Returns: int
+ */
+int do_service_list(int argc, char **argv)
+{
+   int sk;
+   uint32_t x_int;
+   uint8_t x_name[1024]="";
+   xdr_enc_t *enc=NULL;
+   xdr_dec_t *dec=NULL;
+
+   if( argc != 3 ) die(ExitGulm_BadOption, "Wrong number of arguments.\n");
+   if((sk=connect_to_server(argv[2], "core", cpl_core, &enc, &dec)) < 0 ) {
+      if( sk == -2 ) fprintf(stderr, "servicelist only works to core\n");
+      die(ExitGulm_InitFailed, "Failed to connect to server\n");
+   }
+
+   if(xdr_enc_uint32(enc, gulm_core_res_req)!=0) return -1;
+   if(xdr_enc_flush(enc)!=0) return -1;
+
+   if(xdr_dec_uint32(dec, &x_int)!=0) return -1;
+   if( x_int !=  gulm_core_res_list)
+      die(ExitGulm_BadLogic, "Got strange replay %#x\n", x_int);
+
+   if(xdr_dec_list_start(dec)!=0) return -1;
+   while( xdr_dec_list_stop(dec) != 0 ) {
+      if(xdr_dec_string_nm(dec, x_name, 1024)!=0) return -1;
+
+      printf("%s\n", x_name);
+   }
+
+   xdr_enc_uint32(enc, gulm_socket_close);
+   xdr_enc_flush(enc);
+
+   xdr_enc_release(enc);
+   xdr_dec_release(dec);
+   close(sk);
+   return 0;
+}
+
+/**
  * do_slave_list - 
  * @argc: 
  * @argv: 
@@ -675,6 +720,12 @@ int do_slave_list(int argc, char **argv)
 
       printf("poller:%d name:%s\n", x_int, x_name);
    }
+   xdr_enc_uint32(enc, gulm_socket_close);
+   xdr_enc_flush(enc);
+
+   xdr_enc_release(enc);
+   xdr_dec_release(dec);
+   close(sk);
    return 0;
 }
 
@@ -701,6 +752,12 @@ int do_rerun_queues(int argc, char **argv)
    if(xdr_enc_uint32(enc, gulm_lock_rerunqueues)!=0) return -1;
    if(xdr_enc_flush(enc)!=0) return -1;
 
+   xdr_enc_uint32(enc, gulm_socket_close);
+   xdr_enc_flush(enc);
+
+   xdr_enc_release(enc);
+   xdr_dec_release(dec);
+   close(sk);
    return 0;
 }
 
@@ -741,6 +798,9 @@ int main(int argc, char **argv)
    }else
    if( strncasecmp(argv[1], "slavelist", 10) == 0 ) {
       do_slave_list(argc, argv);
+   }else
+   if( strncasecmp(argv[1], "servicelist", 10) == 0 ) {
+      do_service_list(argc, argv);
    }else
    if( strncasecmp(argv[1], "rerunqueues", 12) == 0 ) {
       do_rerun_queues(argc, argv);
