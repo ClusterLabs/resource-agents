@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.126 $) dnl cvs revision
+AC_REVISION($Revision: 1.127 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -954,7 +954,7 @@ AC_SUBST(LIBLTDL)
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
 dnl
-XPERIMENTALDIRS="telecom"
+XPERIMENTALDIRS=""
 AC_SUBST(XPERIMENTALDIRS)
 
 AC_CONFIG_SUBDIRS(libltdl)
@@ -971,6 +971,8 @@ cts/Makefile					        	\
 	cts/CTStests.py						\
 debian/Makefile							\
 doc/Makefile							\
+contrib/Makefile						\
+	contrib/ipfail/Makefile					\
 cts/CM_fs.py							\
 cts/CM_hb.py							\
 cts/CTS.py							\
