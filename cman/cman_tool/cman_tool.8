@@ -49,9 +49,9 @@ can continue.
 .TP
 .I kill
 Tells CMAN to kill another node in the cluster. This will cause the local
-node to send a "KILL" message to that node and it will shut down and
-(probably) be fenced. This is a sort of remote version of "leave force"
-so only use if if you really know what you are doing.
+node to send a "KILL" message to that node and it will shut down.  Recovery
+will occur for the killed node as if it had failed.  This is a sort of remote
+version of "leave force" so only use if if you really know what you are doing.
 
 .TP
 .I expected
@@ -60,6 +60,13 @@ quorum based on this value.
 .br
 Use this option if your cluster has lost quorum due to nodes failing and
 you need to get it running again in a hurry.
+
+.TP
+.I version
+Used alone this will report the major, minor, patch and config versions
+used by CMAN (also displayed in /proc/cluster/status).  Its main purpose,
+though, is to be used with -r to set a new config version on all cluster
+members.
 
 .SH "LEAVE" OPTIONS
 .TP
@@ -85,6 +92,10 @@ quorum will be rejected.
 The node ID of the node to be killed. Node IDs can be obtained by
 looking in /proc/cluster/nodes
 
+.SH "VERSION" OPTIONS
+.TP
+.I -r <config_version>
+The new config version.
 
 .br
 .SH "JOIN" OPTIONS

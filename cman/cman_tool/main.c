@@ -22,13 +22,15 @@
 #define OP_EXPECTED		3
 #define OP_VOTES		4
 #define OP_KILL			5
+#define OP_VERSION		6
 
 
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave|kill|expected|votes> [options]\n", prog_name);
+	printf("%s <join|leave|kill|expected|votes|version> [options]\n",
+	       prog_name);
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
@@ -40,6 +42,7 @@ static void print_usage(void)
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
+	printf("  -r <config>      A new config version to set on all members\n");
 	printf("  -X               Do not use CCS\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -d               Enable debug output\n");
@@ -114,6 +117,33 @@ static void set_votes(commandline_t *comline)
 			    comline->votes)))
 		die("can't set votes");
 
+	close(cluster_sock);
+}
+
+static void version(commandline_t *comline)
+{
+	struct cl_version ver;
+	int cluster_sock;
+	int result;
+
+	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
+	if (cluster_sock == -1)
+		die("can't open cluster socket");
+
+	if ((result = ioctl(cluster_sock, SIOCCLUSTER_GET_VERSION, &ver)))
+		die("can't get version");
+
+	if (!comline->config_version) {
+		printf("%d.%d.%d config %d\n", ver.major, ver.minor, ver.patch,
+		       ver.config);
+		goto out;
+	}
+
+	ver.config = comline->config_version;
+
+	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SET_VERSION, &ver)))
+		die("can't set version");
+ out:
 	close(cluster_sock);
 }
 
@@ -268,6 +298,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			if (comline->operation)
 				die("can't specify two operations");
 			comline->operation = OP_KILL;
+		} else if (strcmp(argv[optind], "version") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_VERSION;
 		} else if (strcmp(argv[optind], "remove") == 0) {
 			comline->remove = TRUE;
 		} else if (strcmp(argv[optind], "force") == 0) {
@@ -388,6 +422,10 @@ int main(int argc, char *argv[])
 
 	case OP_KILL:
 		kill_node(&comline);
+		break;
+
+	case OP_VERSION:
+		version(&comline);
 		break;
 
 	/* FIXME: support CLU_SET_NODENAME? */
