@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.100 $) dnl cvs revision
+AC_REVISION($Revision: 1.101 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -796,16 +796,8 @@ AC_SUBST(LIBLTDL)
 
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
-dnl	NOTE:  these are no longer experimental...
 dnl
-XPERIMENTALDIRS=""
-dnl AC_MSG_CHECKING(for --enable_new_modloader)
-dnl if test "$enable_new_modloader" = yes; then
-dnl   AC_MSG_RESULT(yes)
-dnl   XPERIMENTALDIRS="$XPERIMENTALDIRS lib/pils lib/plugins/InterfaceMgr lib/plugins/HBauth"
-dnl else
-dnl   AC_MSG_RESULT(no)
-dnl fi
+XPERIMENTALDIRS="telecom"
 AC_SUBST(XPERIMENTALDIRS)
 
 AC_CONFIG_SUBDIRS(libltdl)
@@ -835,12 +827,13 @@ include/Makefile						\
 replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
+	lib/apphb/Makefile					\
+	lib/clplumbing/Makefile					\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
 		lib/plugins/InterfaceMgr/Makefile		\
 		lib/plugins/HBauth/Makefile			\
 		lib/plugins/HBcomm/Makefile			\
-	lib/clplumbing/Makefile					\
 stonith/Makefile						\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
@@ -871,6 +864,8 @@ heartbeat/Makefile						\
 ldirectord/Makefile						\
 	ldirectord/init.d/Makefile				\
 	ldirectord/logrotate.d/Makefile				\
+telecom/Makefile						\
+	telecom/apphbd/Makefile						\
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
