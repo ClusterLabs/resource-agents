@@ -338,7 +338,7 @@ static void cluster_communicator(void){
 	}
       }
       warn_user++;
-      if(!(warn_user%10)){
+      if(!(warn_user%30)){
 	log_err("Unable to connect to cluster infrastructure after %d seconds.\n",
 		warn_user);
       }
