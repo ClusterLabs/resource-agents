@@ -66,6 +66,31 @@ void gulm_plock_finish(struct glck_req *glck)
 	complete (&g->sleep);
 }
 
+struct gulm_pqur_s {
+	uint64_t start;
+	uint64_t stop;
+	uint64_t subid;
+	int error;
+	uint8_t state;
+	struct completion sleep;
+};
+/**
+ * gulm_plock_query_finish - 
+ * @glck: 
+ * 
+ * 
+ * Returns: void
+ */
+void gulm_plock_query_finish(struct glck_req *glck)
+{
+	struct gulm_pqur_s *g = (struct gulm_pqur_s *)glck->misc;
+	g->error = glck->error;
+	g->start = glck->start;
+	g->stop = glck->stop;
+	g->subid = glck->subid;
+	g->state = glck->state;
+	complete (&g->sleep);
+}
 /**
  * gulm_plock_get - 
  */
@@ -75,34 +100,61 @@ gulm_plock_get (lm_lockspace_t * lockspace,
 		uint64_t * start, uint64_t * end, int *exclusive,
 		unsigned long *rowner)
 {
-	/* gulm currently does not have an interface for this.
-	 * I'm not sure what i will do here, but I am sure i cannot leave
-	 * it as enosys.
-	 */
-	/* One idea is add a test flag.  This flag would return error codes
-	 * similar to what the Try flag would, but would never actually get
-	 * the lock.
-	 *
-	 * This is not quite what plockget is.  But would as acurate as
-	 * plcokget has ever been tell you if what you asked for is
-	 * avaible.  Where is breaks, is that you do not get the range and
-	 * pid of who is blocking you.  But you cannot get those values in
-	 * a meaningful way unless you have soemthing like ssi running
-	 * anyways.  (and i get the feeling that ppl with that won't be
-	 * running gulm anyhow.)
-	 *
-	 * In anycase, adding the test flag will be the least amount of
-	 * code changes require to get something here working.
-	 */
-	/* the simplest idea of course, is to always return nothing
-	 * blocking.  Not very correct either, but giving the racy
-	 * semantics this has, one could argue....
-	 */
-	return -ENOSYS;
+	int err = 0;
+	struct gulm_pqur_s pqur;
+	uint8_t key[GIO_KEY_SIZE];
+	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if( item == NULL ) {
+		err = -ENOMEM;
+		goto fail;
+	}
+
+	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
+			key, GIO_KEY_SIZE);
+	item->key = key;
+	item->subid = owner;
+	item->start = *start;
+	item->stop = *end;
+	item->type = glq_req_type_query;
+	if (*exclusive) {
+		item->state = lg_lock_state_Exclusive;
+	} else {
+		item->state = lg_lock_state_Shared;
+	}
+	item->flags = lg_lock_flag_NoCallBacks;
+	item->error = pqur.error = 0;
+
+	init_completion (&pqur.sleep);
+
+	item->misc = &pqur;
+	item->finish = gulm_plock_query_finish;
+
+	glq_queue (item);
+	wait_for_completion (&pqur.sleep);
+
+	if (pqur.error == lg_err_TryFailed) {
+		err = -EAGAIN;
+		*start = pqur.start;
+		*end = pqur.stop;
+		*rowner = pqur.subid;
+		if( pqur.state == lg_lock_state_Exclusive )
+			*exclusive = TRUE;
+		else
+			*exclusive = FALSE;
+	} else {
+		err = -pqur.error;
+	}
+
+fail:
+	return err;
 }
 
 /**
  * gulm_plock - 
+ *
  */
 int
 gulm_plock (lm_lockspace_t * lockspace,

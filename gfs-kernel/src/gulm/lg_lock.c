@@ -174,6 +174,56 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 		    cbp->lock_action (misc, &lg->lfba[4], x_keylen - 4,
 				      x_subid, x_state, x_error);
 		goto exit;
+	} else if (gulm_lock_query_rpl == x_code) {
+		uint64_t x_c_subid=0, x_c_start=0, x_c_stop=0;
+		uint8_t x_c_state=0;
+		do {
+			if ((err =
+			     xdr_dec_raw_ag (dec, (void **) &lg->lfba,
+					     &lg->lfba_len, &x_keylen)) != 0)
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_subid)) != 0 )
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_start)) != 0 )
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_stop)) != 0 )
+				break;
+			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
+				break;
+			if ((err = xdr_dec_uint32 (dec, &x_error)) != 0)
+				break;
+			/* i realize that I'm pretty much ignoring the fact that
+			 * this is can be a list of items.  As of current, there
+			 * is never more than one item on this list.
+			 * I think I made it a list so it could be in the future,
+			 * even though I cannot think of why.
+			 */
+			if ((err = xdr_dec_list_start(dec)) != 0)
+				break;
+			while (xdr_dec_list_stop(dec) != 0) {
+				if((err = xdr_dec_string_ag(dec, &lg->lfbb, &lg->lfbb_len)) != 0) break;
+				if((err = xdr_dec_uint64(dec, &x_c_subid)) != 0 ) break;
+				if((err = xdr_dec_uint64(dec, &x_c_start)) != 0 ) break;
+				if((err = xdr_dec_uint64(dec, &x_c_stop)) != 0 ) break;
+				if((err = xdr_dec_uint8(dec, &x_c_state)) != 0) break;
+			}
+		} while (0);
+		if (err != 0) {
+			goto exit;
+		}
+		if (x_keylen <= 4) {
+			err = -EPROTO;	/* or something */
+			goto exit;
+		}
+		if (cbp->lock_query == NULL) {
+			err = 0;
+			goto exit;
+		}
+		err = cbp->lock_query (misc, &lg->lfba[4], x_keylen - 4,
+				       x_subid, x_start, x_stop, x_state,
+				       x_error, lg->lfbb, x_c_subid,
+				       x_c_start, x_c_stop, x_c_state);
+		goto exit;
 	} else if (gulm_lock_cb_state == x_code) {
 		do {
 			if ((err =
@@ -573,6 +623,63 @@ lg_lock_action_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
 	} while (0);
 	up (&lg->lock_sender);
 	return err;
+}
+
+/**
+ * lg_lock_query_req - 
+ * @lgp: 
+ * @key: 
+ * @keylen: 
+ * @subid: 
+ * @start: 
+ * @stop: 
+ * @state: 
+ * 
+ * 
+ * Returns: int
+ */
+int lg_lock_query_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
+      uint64_t subid, uint64_t start, uint64_t stop, uint8_t state)
+{
+   gulm_interface_t *lg = (gulm_interface_t *)lgp;
+   struct iovec iov[2];
+   xdr_enc_t *enc;
+   int err;
+
+   /* make sure it is a gulm_interface_p. */
+   if( lg == NULL ) return -EINVAL;
+   if( lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC ) return -EINVAL;
+
+   if( lg->lock_fd < 0 || lg->lock_enc == NULL || lg->lock_dec == NULL)
+      return -EINVAL;
+
+   if( state != lg_lock_state_Unlock &&
+       state != lg_lock_state_Exclusive &&
+       state != lg_lock_state_Deferred &&
+       state != lg_lock_state_Shared )
+      return -EINVAL;
+
+   if( stop < start ) return -EINVAL;
+
+   enc = lg->lock_enc;
+
+   iov[0].iov_base = lg->lockspace;
+   iov[0].iov_len = 4;
+   iov[1].iov_base = key;
+   iov[1].iov_len = keylen;
+
+	down (&lg->lock_sender);
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_query_req)) != 0 ) break;
+      if((err = xdr_enc_raw_iov(enc, 2, iov)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, subid)) != 0) break;
+      if((err = xdr_enc_uint64(enc, start)) != 0) break;
+      if((err = xdr_enc_uint64(enc, stop)) != 0) break;
+      if((err = xdr_enc_uint8(enc, state)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+	up (&lg->lock_sender);
+   return err;
 }
 
 /**

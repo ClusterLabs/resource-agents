@@ -26,21 +26,6 @@
  *
  * If Reply is a hash, it must be keyed on all important parts!
  * (keyname, subid, start, stop)
- *
- * uhh, this will have the same api as libgulm really.  It isn't really
- * anyhting more than a single thread for doing the sends.
- * And that begs the question, do I really need a thread just to do sends?
- *
- * I need something to avoid mutex starvation.
- *
- * Actually, these don't need to ever go into the Reply table unless they
- * are sync.
- *
- * am kinda thinking i should drop the send queue for a fifo mutex.  Still
- * doesn't deal with the receiving side yet thoguh.
- *
- *
- * I will need this structure in some form for handling replies.
  */
 #ifndef __gulm_lockqueue_h__
 #define __gulm_lockqueue_h__
@@ -48,6 +33,7 @@
 #define glq_req_type_action (2)
 #define glq_req_type_drop   (3)
 #define glq_req_type_cancel (4)
+#define glq_req_type_query  (5)
 typedef struct glck_req {
 	struct list_head list;
 

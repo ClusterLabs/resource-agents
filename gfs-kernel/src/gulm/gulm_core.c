@@ -92,7 +92,7 @@ gulm_core_nodechange (void *misc, char *nodename,
 	return 0;
 }
 
-int gulm_core_statechange (void *misc, uint8_t corestate,
+int gulm_core_statechange (void *misc, uint8_t corestate, uint8_t quorate,
                            struct in6_addr *masterip, char *mastername)
 {
 	int *cst = (int *)misc;

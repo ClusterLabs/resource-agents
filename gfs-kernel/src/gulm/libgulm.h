@@ -111,6 +111,11 @@ typedef struct lg_lockspace_callbacks_s {
 			    uint64_t subid, uint8_t action, uint32_t error);
 	int (*drop_lock_req) (void *misc, uint8_t * key, uint16_t keylen,
 			      uint64_t subid, uint8_t state);
+	int (*lock_query) (void *misc, uint8_t * key, uint16_t keylen,
+			   uint64_t subid, uint64_t start, uint64_t stop,
+			   uint8_t state, uint32_t error, uint8_t * cnode,
+			   uint64_t csubid, uint64_t cstart, uint64_t cstop,
+			   uint8_t cstate);
 	int (*drop_all) (void *misc);
 	int (*error) (void *misc, uint32_t err);
 } lg_lockspace_callbacks_t;
@@ -141,6 +146,8 @@ int lg_lock_cancel_req (gulm_interface_p, uint8_t * key, uint16_t keylen,
 int lg_lock_action_req (gulm_interface_p, uint8_t * key, uint16_t keylen,
 			uint64_t subid, uint8_t action,
 			uint8_t * LVB, uint16_t LVBlen);
+int lg_lock_query_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
+      uint64_t subid, uint64_t start, uint64_t stop, uint8_t state);
 int lg_lock_drop_exp (gulm_interface_p, uint8_t * holder,
 		      uint8_t * keymask, uint16_t kmlen);
 

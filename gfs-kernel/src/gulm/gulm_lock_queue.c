@@ -386,6 +386,15 @@ int glq_sender_thread(void *data)
 			err = lg_lock_action_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->state,
 					item->lvb, item->lvblen);
+		} else if (item->type == glq_req_type_query ) {
+			INIT_LIST_HEAD (&item->list);
+			bucket = glq_calc_hash_key(item);
+			spin_lock (&glq_ReplyLock[bucket]);
+			list_add (&item->list, &glq_ReplyMap[bucket]);
+			spin_unlock (&glq_ReplyLock[bucket]);
+			err = lg_lock_query_req (gulm_cm.hookup, item->key,
+					item->keylen, item->subid, item->start,
+					item->stop, item->state);
 		} else if (item->type == glq_req_type_drop) {
 			err = lg_lock_drop_exp (gulm_cm.hookup, item->lvb,
 					item->key, item->keylen);
@@ -487,7 +496,7 @@ glq_lock_state (void *misc, uint8_t * key, uint16_t keylen,
 	spin_unlock(&glq_ReplyLock[bucket]);
 
 	if( !found ) {
-		/* not found bitch */
+		/* not found complaint */
 		return 0;
 	}
 
@@ -546,12 +555,69 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 	spin_unlock(&glq_ReplyLock[bucket]);
 
 	if( !found ) {
-		/* not found bitch */
+		/* not found complaint */
 		return 0;
 	}
 
 	/* restuff results */
 	item->error = error;
+
+	/* call finish */
+	if (item->finish != NULL) item->finish (item);
+
+	/* put on Free */
+	glq_recycle_req(item);
+	return 0;
+}
+
+/**
+ * glq_lock_query -
+ * this is an ugly interface.....
+ * there is somehtign that needs to be done here to clean things up.  I'm
+ * not sure what that is right now, and I need to have somehting working.
+ * So we're going with this for now.
+ *
+ */
+int 
+glq_lock_query (void *misc, uint8_t * key, uint16_t keylen,
+		   uint64_t subid, uint64_t start, uint64_t stop,
+		   uint8_t state, uint32_t error, uint8_t * cnode,
+		   uint64_t csubid, uint64_t cstart, uint64_t cstop,
+		   uint8_t cstate)
+{
+	int bucket, found = FALSE;
+	struct list_head *tmp;
+	glckr_t *item = NULL;
+
+	/* lookup and remove from ReplyMap */
+	bucket = glq_calc_hash_key_long(key, keylen, subid, start, stop);
+	spin_lock (&glq_ReplyLock[bucket]);
+	list_for_each(tmp, &glq_ReplyMap[bucket]) {
+		item = list_entry (tmp, glckr_t, list);
+		if (item->subid == subid &&
+		    item->start == start &&
+		    item->stop  == stop &&
+		    item->keylen == keylen &&
+		    memcmp(item->key, key, keylen) == 0 ) {
+			/* found it. */
+			list_del (tmp);
+			found = TRUE;
+			break;
+		}
+	}
+	spin_unlock(&glq_ReplyLock[bucket]);
+
+	if( !found ) {
+		/* not found complaint */
+		return 0;
+	}
+
+	/* restuff results */
+	item->error = error;
+	item->subid = csubid;
+	item->start = cstart;
+	item->stop = cstop;
+	item->state = cstate;
 
 	/* call finish */
 	if (item->finish != NULL) item->finish (item);
@@ -618,6 +684,7 @@ static lg_lockspace_callbacks_t glq_lock_ops = {
       logout_reply:glq_logout_reply,
       lock_state:glq_lock_state,
       lock_action:glq_lock_action,
+      lock_query:glq_lock_query,
       drop_lock_req:glq_drop_lock_req,
       drop_all:glq_drop_all,
       error:glq_error

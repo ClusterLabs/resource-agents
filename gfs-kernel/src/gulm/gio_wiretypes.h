@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000012)
+#define GIO_WIREPROT_VERS (0x67000013)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -339,6 +339,30 @@
  *    uint32: gLUR
  *    raw:    key
  *
+ * Query Lock request:
+ *    uint32: gLQ0
+ *    raw:    key
+ *    uint64: subid
+ *    uint64: start
+ *    uint64: stop
+ *    uint8:  state
+ * 
+ * Query Lock Reply:
+ *    uint32: gLQ1
+ *    raw:    key
+ *    uint64: subid
+ *    uint64: start
+ *    uint64: stop
+ *    uint8:  state
+ *    uint32: error
+ *    list start mark
+ *     string: node
+ *     uint64: subid
+ *     uint64: start
+ *     uint64: stop
+ *     uint8:  state
+ *    list stop mark
+ *
  * Drop lock Callback:
  *    uint32: gLC0
  *    raw:    key
@@ -395,12 +419,14 @@
 #define gulm_lock_action_rpl  (0x674C4101) /* gLA1 */
 #define gulm_lock_action_updt (0x674C4155) /* gLAU */
 #define gulm_lock_update_rpl  (0x674c5552) /* gLUR */
+#define gulm_lock_query_req   (0x674c5100) /* gLQ0 */
+#define gulm_lock_query_rpl   (0x674c5101) /* gLQ1 */
 #define gulm_lock_cb_state    (0x674C4300) /* gLC0 */
 #define gulm_lock_cb_dropall  (0x674C4302) /* gLC2 */
 #define gulm_lock_drop_exp    (0x674C454F) /* gLEO */
 #define gulm_lock_dump_req    (0x674c4400) /* gLD0 */
 #define gulm_lock_dump_rpl    (0x674c4401) /* gLD1 */
-#define gulm_lock_rerunqueues (0x674c5152) /* gLQR */
+#define gulm_lock_rerunqueues (0x674c5251) /* gLRQ */
 
 /* marks for the login */
 #define gio_lck_st_Slave     (0x00)
