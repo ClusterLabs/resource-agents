@@ -78,11 +78,7 @@ void release_rsb(struct dlm_rsb *r)
 		list_del(&r->res_rootlist);
 	up_read(&ls->ls_gap_rsblist);
 
-	if (r->res_parent)
-		goto out;
-	if (r->res_nodeid && r->res_nodeid != -1)
-		goto out;
-	if (r->res_nodeid == -1 && !test_bit(RESFL_MASTER, &r->res_flags))
+	if (r->res_parent || !test_bit(RESFL_MASTER, &r->res_flags))
 		goto out;
 
 	if (get_directory_nodeid(r) != our_nodeid())

@@ -314,7 +314,7 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			rsb->res_nodeid = reply->rl_nodeid;
 		}
 
-		log_debug(ls, "lookup reply %x %u", lkb->lkb_id,
+		log_debug(ls, "lu rep %x fr %u %u", lkb->lkb_id, nodeid,
 			  rsb->res_nodeid);
 
 		lkb->lkb_nodeid = rsb->res_nodeid;
@@ -337,7 +337,10 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		if (reply->rl_status == -EINVAL) {
 			int master_nodeid;
 
-			log_debug(ls, "resend lookup");
+			log_debug(ls, "rq rep %x fr %u einval",
+				  lkb->lkb_id, nodeid);
+
+			schedule();
 			lkb_dequeue(lkb);
 			rsb->res_nodeid = -1;
 			lkb->lkb_nodeid = -1;

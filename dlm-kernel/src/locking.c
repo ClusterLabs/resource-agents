@@ -423,8 +423,8 @@ int dlm_lock(void *lockspace,
 	return ret;
 }
 
-int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *name,
-		    int namelen)
+int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
+		    char *name, int namelen)
 {
 	struct dlm_rsb *rsb, *parent_rsb = NULL;
 	struct dlm_lkb *parent_lkb = lkb->lkb_parent;
@@ -481,7 +481,8 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *nam
  * or a local one, or perhaps a shiny new one all of our very own
  */
 
-int dlm_lock_stage2(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_rsb *rsb, int flags)
+int dlm_lock_stage2(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_rsb *rsb,
+		    int flags)
 {
 	int error = 0;
 
@@ -504,7 +505,7 @@ int dlm_lock_stage2(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_rsb *rsb,
  */
 
 struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
-			struct dlm_request *freq)
+			      struct dlm_request *freq)
 {
 	struct dlm_rsb *rsb = NULL, *parent_rsb = NULL;
 	struct dlm_lkb *lkb = NULL, *parent_lkb = NULL;
@@ -565,8 +566,10 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 		goto fail_free;
 
 	if (!rsb || rsb->res_nodeid == -1) {
-		log_debug(ls, "inval rsb to %u", remote_nodeid);
+		log_debug(ls, "send einval to %u", remote_nodeid);
 		lkb->lkb_retstatus = -EINVAL;
+		if (rsb)
+			release_rsb(rsb);
 		goto out;
 	}
 	

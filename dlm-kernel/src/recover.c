@@ -51,7 +51,7 @@ static void dlm_wait_timer_fn(unsigned long data)
  * abort due to a node failure.
  */
 
-int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls * ls))
+int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
 	struct timer_list timer;
 	int error = 0;
@@ -61,7 +61,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls * ls))
 	timer.data = (long) ls;
 
 	for (;;) {
-		mod_timer(&timer, jiffies + (5 * HZ));
+		mod_timer(&timer, jiffies + (dlm_config.recover_timer * HZ));
 
 		wchan_cond_sleep_intr(ls->ls_wait_general,
 				      !testfn(ls) &&

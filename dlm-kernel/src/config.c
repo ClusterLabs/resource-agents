@@ -27,6 +27,7 @@
 #define DEFAULT_DIRTBL_SIZE      512
 #define DEFAULT_MAX_CONNECTIONS  128
 #define DEFAULT_DEADLOCKTIME      10
+#define DEFAULT_RECOVER_TIMER      5
 
 struct config_info dlm_config = {
 	.tcp_port = DEFAULT_TCP_PORT,
@@ -37,6 +38,7 @@ struct config_info dlm_config = {
 	.dirtbl_size = DEFAULT_DIRTBL_SIZE,
 	.max_connections = DEFAULT_MAX_CONNECTIONS,
 	.deadlocktime = DEFAULT_DEADLOCKTIME,
+	.recover_timer = DEFAULT_RECOVER_TIMER
 };
 
 
@@ -75,6 +77,10 @@ static struct config_proc_info {
     {
 	.name = "deadlocktime",
 	.value = &dlm_config.deadlocktime,
+    },
+    {
+	.name = "recover_timer",
+	.value = &dlm_config.recover_timer,
     }
 };
 static struct proc_dir_entry *dlm_dir;

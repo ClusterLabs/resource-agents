@@ -40,7 +40,13 @@ static char			proc_ls_name[255] = "";
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
 static struct proc_dir_entry *	locks_proc_entry = NULL;
 static struct seq_operations	locks_info_op;
+static struct proc_dir_entry *	dir_proc_entry = NULL;
+static struct seq_operations	dir_info_op;
 
+
+/*
+ * /proc/cluster/dlm_locks - dump resources and locks
+ */
 
 static int locks_open(struct inode *inode, struct file *file)
 {
@@ -66,11 +72,11 @@ static ssize_t locks_write(struct file *file, const char *buf,
 }
 
 static struct file_operations locks_fops = {
-      open:locks_open,
-      write:locks_write,
-      read:seq_read,
-      llseek:seq_lseek,
-      release:seq_release,
+	open:locks_open,
+	write:locks_write,
+	read:seq_read,
+	llseek:seq_lseek,
+	release:seq_release,
 };
 
 struct ls_dumpinfo {
@@ -78,6 +84,7 @@ struct ls_dumpinfo {
 	struct list_head *next;
 	struct dlm_ls *ls;
 	struct dlm_rsb *rsb;
+	struct dlm_direntry *de;
 };
 
 static int print_resource(struct dlm_rsb * res, struct seq_file *s);
@@ -119,7 +126,7 @@ static struct ls_dumpinfo *next_rsb(struct ls_dumpinfo *di)
 	return di;
 }
 
-static void *s_start(struct seq_file *m, loff_t * pos)
+static void *s_start(struct seq_file *m, loff_t *pos)
 {
 	struct ls_dumpinfo *di;
 	struct dlm_ls *ls;
@@ -139,6 +146,7 @@ static void *s_start(struct seq_file *m, loff_t * pos)
 	di->entry = 0;
 	di->next = NULL;
 	di->ls = ls;
+	di->de = NULL;
 
 	for (i = 0; i < *pos; i++)
 		if (next_rsb(di) == NULL)
@@ -147,7 +155,7 @@ static void *s_start(struct seq_file *m, loff_t * pos)
 	return next_rsb(di);
 }
 
-static void *s_next(struct seq_file *m, void *p, loff_t * pos)
+static void *s_next(struct seq_file *m, void *p, loff_t *pos)
 {
 	struct ls_dumpinfo *di = p;
 
@@ -168,10 +176,10 @@ static void s_stop(struct seq_file *m, void *p)
 }
 
 static struct seq_operations locks_info_op = {
-      start:s_start,
-      next:s_next,
-      stop:s_stop,
-      show:s_show
+	start:s_start,
+	next:s_next,
+	stop:s_stop,
+	show:s_show
 };
 
 static char *print_lockmode(int mode)
@@ -196,7 +204,8 @@ static char *print_lockmode(int mode)
 	}
 }
 
-static void print_lock(struct seq_file *s, struct dlm_lkb * lkb, struct dlm_rsb * res)
+static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
+		       struct dlm_rsb *res)
 {
 
 	seq_printf(s, "%08x %s", lkb->lkb_id, print_lockmode(lkb->lkb_grmode));
@@ -287,6 +296,133 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 	}
 	return 0;
 }
+
+
+/*
+ * /proc/cluster/dlm_dir - dump resource directory
+ */
+
+static int print_de(struct dlm_direntry *de, struct seq_file *s)
+{
+	char strname[DLM_RESNAME_MAXLEN+1];
+
+	memset(strname, 0, DLM_RESNAME_MAXLEN+1);
+	memcpy(strname, de->name, de->length);
+
+	seq_printf(s, "%s %u\n", strname, de->master_nodeid);
+	return 0;
+}
+
+static int dir_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &dir_info_op);
+}
+
+static ssize_t dir_write(struct file *file, const char *buf,
+			 size_t count, loff_t *ppos)
+{
+	return locks_write(file, buf, count, ppos);
+}
+
+static struct file_operations dir_fops = {
+	open:dir_open,
+	write:dir_write,
+	read:seq_read,
+	llseek:seq_lseek,
+	release:seq_release,
+};
+
+static struct ls_dumpinfo *next_de(struct ls_dumpinfo *di)
+{
+	int i;
+
+	if (!di->next) {
+		/* Find the next non-empty hash bucket */
+		for (i = di->entry; i < di->ls->ls_dirtbl_size; i++) {
+			read_lock(&di->ls->ls_dirtbl[i].lock);
+			if (!list_empty(&di->ls->ls_dirtbl[i].list)) {
+				di->next = di->ls->ls_dirtbl[i].list.next;
+				read_unlock(&di->ls->ls_dirtbl[i].lock);
+				break;
+			}
+			read_unlock(&di->ls->ls_dirtbl[i].lock);
+		}
+		di->entry = i;
+
+		if (di->entry >= di->ls->ls_dirtbl_size)
+			return NULL;    /* End of hash list */
+	} else {		/* Find the next entry in the list */
+		i = di->entry;
+		read_lock(&di->ls->ls_dirtbl[i].lock);
+		di->next = di->next->next;
+		if (di->next->next == di->ls->ls_dirtbl[i].list.next) {
+			/* End of list - move to next bucket */
+			di->next = NULL;
+			di->entry++;
+			read_unlock(&di->ls->ls_dirtbl[i].lock);
+			return next_de(di);	/* do the top half of this conditional */
+		}
+		read_unlock(&di->ls->ls_dirtbl[i].lock);
+	}
+	di->de = list_entry(di->next, struct dlm_direntry, list);
+
+	return di;
+}
+
+static void *dir_start(struct seq_file *m, loff_t *pos)
+{
+	struct ls_dumpinfo *di;
+	struct dlm_ls *ls;
+	int i;
+
+	ls = find_lockspace_by_name(proc_ls_name, strlen(proc_ls_name));
+	if (!ls)
+		return NULL;
+
+	di = kmalloc(sizeof(struct ls_dumpinfo), GFP_KERNEL);
+	if (!di)
+		return NULL;
+
+	if (*pos == 0)
+		seq_printf(m, "DLM lockspace '%s'\n", proc_ls_name);
+
+	di->entry = 0;
+	di->next = NULL;
+	di->ls = ls;
+
+	for (i = 0; i < *pos; i++)
+		if (next_de(di) == NULL)
+			return NULL;
+
+	return next_de(di);
+}
+
+static void *dir_next(struct seq_file *m, void *p, loff_t *pos)
+{
+	struct ls_dumpinfo *di = p;
+
+	*pos += 1;
+
+	return next_de(di);
+}
+
+static int dir_show(struct seq_file *m, void *p)
+{
+	struct ls_dumpinfo *di = p;
+	return print_de(di->de, m);
+}
+
+static void dir_stop(struct seq_file *m, void *p)
+{
+	kfree(p);
+}
+
+static struct seq_operations dir_info_op = {
+	start:dir_start,
+	next:dir_next,
+	stop:dir_stop,
+	show:dir_show
+};
 #endif				/* CONFIG_CLUSTER_DLM_PROCLOCKS */
 
 void dlm_debug_log(struct dlm_ls *ls, const char *fmt, ...)
@@ -451,6 +587,13 @@ void dlm_proc_init(void)
 	if (!locks_proc_entry)
 		return;
 	locks_proc_entry->proc_fops = &locks_fops;
+
+	dir_proc_entry = create_proc_read_entry("cluster/dlm_dir",
+						S_IFREG | 0400,
+						NULL, NULL, NULL);
+	if (!dir_proc_entry)
+		return;
+	dir_proc_entry->proc_fops = &dir_fops;
 #endif
 }
 
@@ -469,5 +612,7 @@ void dlm_proc_exit(void)
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
 	if (locks_proc_entry)
 		remove_proc_entry("cluster/dlm_locks", NULL);
+	if (dir_proc_entry)
+		remove_proc_entry("cluster/dlm_dir", NULL);
 #endif
 }

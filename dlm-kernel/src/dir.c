@@ -102,7 +102,7 @@ static struct dlm_direntry *search_bucket(struct dlm_ls *ls, char *name,
 			goto out;
 	}
 	de = NULL;
-      out:
+ out:
 	return de;
 }
 
@@ -118,13 +118,12 @@ void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 	de = search_bucket(ls, name, namelen, bucket);
 
 	if (!de) {
-		log_debug(ls, "remove from %u none", nodeid);
+		log_all(ls, "remove fr %u none", nodeid);
 		goto out;
 	}
 
 	if (de->master_nodeid != nodeid) {
-		log_debug(ls, "remove from %u ID %u",
-			  nodeid, de->master_nodeid);
+		log_all(ls, "remove fr %u ID %u", nodeid, de->master_nodeid);
 		goto out;
 	}
 
