@@ -123,7 +123,7 @@ request_journal_replay (uint8_t * name)
 		 * execution.)
 		 *
 		 * I need to look over this.  There HAS to be a better way
-		 * to manage the way we figgure out which journals gfs
+		 * to manage the way we figure out which journals gfs
 		 * needs to replay.
 		 */
 
@@ -705,6 +705,7 @@ gulm_withdraw(lm_lockspace_t * lockspace)
 
 	expire_my_locks (gulm_fs);
 	tap_sig(gulm_fs, "CFR", 4);
+	watch_sig(gulm_fs, "CFR", 4, NULL, NULL);
 
 	/* need to let things run through the queues.
 	 * Only really an issue if you happen to be the only gfs/gulm fs

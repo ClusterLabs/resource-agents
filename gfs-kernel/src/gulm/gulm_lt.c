@@ -470,7 +470,6 @@ int
 calc_lock_result (gulm_lock_t * lck,
 		  uint8_t state, uint32_t error, uint32_t flags)
 {
-	gulm_fs_t *fs = lck->fs;
 	int result = -69;
 
 	/* adjust result based on success status. */
@@ -490,13 +489,7 @@ calc_lock_result (gulm_lock_t * lck,
 		case lg_lock_state_Unlock:
 			result = LM_ST_UNLOCKED;
 			break;
-		default:
-			GULM_ASSERT (0,
-				     dump_gulm_lock_t (lck);
-				     log_err_lck
-				     (lck, "fsid=%s: Anit no lock state %d.\n",
-						  fs->fs_name, state);
-			    );
+		default: /* erm */
 			break;
 		}
 
