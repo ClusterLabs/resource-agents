@@ -52,6 +52,14 @@ static uint32_t lookup_bcast(uint32_t localaddr)
     return 0;
 }
 
+static void set_priority(int sock)
+{
+    int prio = 3;
+
+    if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)))
+	perror("Error setting socket priority");
+}
+
 static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent *he)
 {
     struct hostent realbhe;
@@ -111,7 +119,6 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     if (mcast_sock < 0)
 	die("Can't open multicast socket: %s", strerror(errno));
 
-
     if (bhe) {
 	/* Multicast */
 	memcpy(&mcast_sin.sin_addr, bhe->h_addr, bhe->h_length);
@@ -154,6 +161,9 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 
     sock_info.number = num + 1;
     sock_info.multicast = 1;
+
+    set_priority(mcast_sock);
+    set_priority(local_sock);
 
     /* Pass the multicast socket to kernel space */
     sock_info.fd = mcast_sock;
@@ -235,6 +245,9 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
 
     sock_info.number = num + 1;
 
+    set_priority(mcast_sock);
+    set_priority(local_sock);
+
     /* Pass the multicast socket to kernel space */
     sock_info.fd = mcast_sock;
     sock_info.multicast = 1;
@@ -295,7 +308,7 @@ int join(commandline_t *comline)
     struct cl_join_cluster_info join_info;
     int error, i;
     char unqual_nodename[256];
-    char *dot; 
+    char *dot;
 
     /*
      * Create the cluster master socket
