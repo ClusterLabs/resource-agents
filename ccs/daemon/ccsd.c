@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <libxml/parser.h>
 
 #include "log.h"
 #include "debug.h"
@@ -37,6 +38,7 @@ static unsigned int flags=0;
 #define FLAG_VERBOSE	2
 
 static char *parse_cli_args(int argc, char *argv[]);
+static int check_cluster_conf(void);
 static void daemonize(void);
 static void print_start_msg(char *msg);
 static int join_group(int sfd, int loopback, int port);
@@ -53,6 +55,11 @@ int main(int argc, char *argv[]){
   char *msg;
 
   msg = parse_cli_args(argc, argv);
+
+  if(check_cluster_conf()){
+    /* check_cluster_conf will print out errors if there are any */
+    exit(EXIT_FAILURE);
+  }
 
   daemonize();
 
@@ -453,6 +460,37 @@ static char *parse_cli_args(int argc, char *argv[]){
   } else {
     return NULL;
   }
+}
+
+
+/*
+ * check_cluster_conf - check validity of local copy of cluster.conf
+ *
+ * This function tries to parse the xml doc at 'config_file_location'.
+ * If it fails, it gives instructions to the user.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
+static int check_cluster_conf(void){
+  struct stat stat_buf;
+  xmlDocPtr doc = NULL;
+
+  if(!stat(config_file_location, &stat_buf)){
+    doc = xmlParseFile(config_file_location);
+    if(!doc){
+      log_err("\nUnable to parse %s.\n"
+	      "You should either:\n"
+	      " 1. Correct the XML mistakes, or\n"
+	      " 2. (Re)move the file and attempt to grab a "
+	      "valid copy from the network.\n", config_file_location);
+      return -1;
+    }
+    xmlFreeDoc(doc);
+  } else {
+    /* no cluster.conf file.  This is fine, just need to get it from the network */
+  }
+
+  return 0;
 }
 
 
