@@ -2666,22 +2666,22 @@ static int do_process_hello(struct msghdr *msg, char *buf, int len)
 					  transition_end_time)) {
 
 				printk(KERN_INFO CMAN_NAME
-				       ": bad generation number %d in HELLO message, expected %d\n",
+				       ": bad generation number %d in HELLO message from %d, expected %d\n",
 				       le32_to_cpu(hellomsg->generation),
+				       saddr->scl_nodeid,
 				       cluster_generation);
 
-				notify_kernel_listeners(DIED,
-							(long) node->node_id);
-
-				send_kill(node->node_id);
+				start_transition(TRANS_CHECK, node);
 				return 0;
 			}
 
 			if (cluster_members != le16_to_cpu(hellomsg->members)
 			    && node_state == MEMBER) {
 				printk(KERN_INFO CMAN_NAME
-				       ": nmembers in HELLO message does not match our view (got %d, exp %d)\n",
-				       le16_to_cpu(hellomsg->members), cluster_members);
+				       ": nmembers in HELLO message from %d does not match our view (got %d, exp %d)\n",
+				       saddr->scl_nodeid,
+				       le16_to_cpu(hellomsg->members),
+				       cluster_members);
 				start_transition(TRANS_CHECK, node);
 				return 0;
 			}
