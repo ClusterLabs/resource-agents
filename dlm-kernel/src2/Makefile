@@ -47,7 +47,6 @@ dlm-objs :=	ast.o \
 EXTRA_CFLAGS += -I$(obj)
 
 all:
-	if [ ! -e cluster ]; then ln -s . cluster; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
