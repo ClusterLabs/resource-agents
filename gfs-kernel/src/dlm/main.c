@@ -120,6 +120,8 @@ void lock_dlm_debug_dump(void)
 	spin_unlock(&debug_lock);
 }
 
+EXPORT_SYMBOL(lock_dlm_debug_dump);
+
 #ifdef CONFIG_PROC_FS
 int lock_dlm_debug_info(char *b, char **start, off_t offset, int length)
 {

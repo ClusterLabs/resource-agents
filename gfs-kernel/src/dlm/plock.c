@@ -46,11 +46,12 @@ static int lock_resource(struct dlm_resource *r)
 	if (error)
 		return error;
 
+	set_bit(LFL_NOBAST, &lp->flags);
 	set_bit(LFL_IDLOCK, &lp->flags);
 	lp->req = DLM_LOCK_EX;
 	error = do_dlm_lock_sync(lp, NULL);
 	if (error) {
-		kfree(lp);
+		delete_lp(lp);
 		lp = NULL;
 	}
 
@@ -61,7 +62,7 @@ static int lock_resource(struct dlm_resource *r)
 static void unlock_resource(struct dlm_resource *r)
 {
 	do_dlm_unlock_sync(r->update);
-	kfree(r->update);
+	delete_lp(r->update);
 }
 
 static struct dlm_resource *search_resource(dlm_t *dlm, struct lm_lockname *name)

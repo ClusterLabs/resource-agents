@@ -351,7 +351,7 @@ void do_dlm_lock(dlm_lock_t *lp, struct dlm_range *range)
 {
 	dlm_t *dlm = lp->dlm;
 	strname_t str;
-	int error;
+	int error, bast = 1;
 
 	/*
 	 * When recovery is in progress, delay lock requests for submission
@@ -369,6 +369,9 @@ void do_dlm_lock(dlm_lock_t *lp, struct dlm_range *range)
 	 * Submit the actual lock request.
 	 */
 
+	if (lp->posix || test_bit(LFL_NOBAST, &lp->flags))
+		bast = 0;
+
 	make_strname(&lp->lockname, &str);
 
 	set_bit(LFL_WAIT_COMPLETE, &lp->flags);
@@ -379,7 +382,7 @@ void do_dlm_lock(dlm_lock_t *lp, struct dlm_range *range)
 
 	error = dlm_lock(dlm->gdlm_lsp, lp->req, &lp->lksb, lp->lkf, str.name,
 			  str.namelen, 0, lock_ast, (void *) lp,
-			  lp->posix ? NULL : lock_bast, range);
+			  bast ? lock_bast : NULL, range);
 
 	if ((error == -EAGAIN) && (lp->lkf & DLM_LKF_NOQUEUE)) {
 		lp->lksb.sb_status = -EAGAIN;
