@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.36 $) dnl cvs revision
+AC_REVISION($Revision: 1.37 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -28,9 +28,43 @@ AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
+AC_PATH_PROGS(ROUTE, route)
+AC_PATH_PROGS(NETSTAT, netstat)
+
+AC_MSG_CHECKING(if netstat supports -f inet flag)
+$NETSTAT -rn -f inet > /dev/null 2>&1
+if test x"$?" = x"0"; then
+	NETSTATPARM="-rn -f inet ";
+	AC_MSG_RESULT("yes")
+else	
+	NETSTATPARM="-rn ";
+	AC_MSG_RESULT("no")
+fi
+
+AC_MSG_CHECKING(if route supports get directive)
+$ROUTE -n get 127.0.0.1 > /dev/null 2>&1
+if test x"$?" = x"0"; then
+	USE_ROUTE_GET="YES"
+	ROUTEPARM="-n get "
+	PROCROUTE=""
+	AC_MSG_RESULT(yes)
+else
+	USE_ROUTE_GET="NO"
+	ROUTEPARM="-n "
+	PROCROUTE="/proc/net/route"
+	AC_MSG_RESULT(no)
+fi
+
 
 AC_SUBST(HTML2TXT)
 AC_SUBST(POD2MAN)
+AC_SUBST(USE_ROUTE_GET)
+AC_SUBST(PROCROUTE)
+AC_SUBST(ROUTE)
+AC_SUBST(ROUTEPARM)
+AC_SUBST(NETSTAT)
+AC_SUBST(NETSTATPARM)
+
 
 dnl Locales check - is a real ugly workaround for now til I find
 dnl something more useful
@@ -309,15 +343,16 @@ AC_SUBST(LIBLTDL)
 
 dnl
 dnl	Enable optional, experimental directories here...
+dnl	NOTE:  this is no longer experimental...
 dnl
 XPERIMENTALDIRS=""
-AC_MSG_CHECKING(for --enable_new_modloader)
-if test "$enable_new_modloader" = yes; then
-  AC_MSG_RESULT(yes)
-  XPERIMENTALDIRS="$XPERIMENTALDIRS lib/pils lib/plugins/InterfaceMgr lib/plugins/HBauth"
-else
-  AC_MSG_RESULT(no)
-fi
+dnl AC_MSG_CHECKING(for --enable_new_modloader)
+dnl if test "$enable_new_modloader" = yes; then
+dnl   AC_MSG_RESULT(yes)
+dnl   XPERIMENTALDIRS="$XPERIMENTALDIRS lib/pils lib/plugins/InterfaceMgr lib/plugins/HBauth"
+dnl else
+dnl   AC_MSG_RESULT(no)
+dnl fi
 AC_SUBST(XPERIMENTALDIRS)
 
 AC_CONFIG_SUBDIRS(libltdl)
