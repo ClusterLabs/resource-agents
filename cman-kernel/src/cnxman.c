@@ -2257,7 +2257,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 
 	P_COMMS
 	    ("Sending message - tgt=%d port %d required %d acks, seq=%d, flags=%x\n",
-	     nodeid, header.port,
+	     nodeid, header.tgtport,
 	     (msg->msg_flags & MSG_NOACK) ? 0 : acks_expected,
 	     le16_to_cpu(header.seq), header.flags);
 
