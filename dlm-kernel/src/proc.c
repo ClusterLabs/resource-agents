@@ -326,11 +326,12 @@ static ssize_t dir_write(struct file *file, const char *buf,
 }
 
 static struct file_operations dir_fops = {
-	open:dir_open,
-	write:dir_write,
-	read:seq_read,
-	llseek:seq_lseek,
-	release:seq_release,
+	.open    = dir_open,
+	.write   = dir_write,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.release = seq_release,
+	.owner   = THIS_MODULE,
 };
 
 static struct ls_dumpinfo *next_de(struct ls_dumpinfo *di)
@@ -419,10 +420,10 @@ static void dir_stop(struct seq_file *m, void *p)
 }
 
 static struct seq_operations dir_info_op = {
-	start:dir_start,
-	next:dir_next,
-	stop:dir_stop,
-	show:dir_show
+	.start = dir_start,
+	.next  = dir_next,
+	.stop  = dir_stop,
+	.show  = dir_show,
 };
 #endif				/* CONFIG_CLUSTER_DLM_PROCLOCKS */
 
