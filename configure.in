@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.198 $) dnl cvs revision
+AC_REVISION($Revision: 1.199 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -365,46 +365,6 @@ fi
 
 RPMDIR=`FindADir warn "RPM" /usr/src/packages /usr/src/redhat`
 
-
-dnl
-dnl	Look for #define CLK_TCK in limits.h (Solaris)
-dnl
-
-AC_MSG_CHECKING("for CLK_TCK in limits.h")
-AC_EGREP_CPP(FoundClkTck,
-[
-#include <limits.h>
-#ifdef CLK_TCK
-  FoundClkTck
-#endif
-],
-[
-        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[CLK_TCK is defined in limits.h])
-        AC_DEFINE(HA_CLK_TCK_IN_LIMITS_H,1,[CLK_TCK is defined in limits.h])
-        AC_MSG_RESULT(Yes)
-],
-[
-	AC_MSG_RESULT("No")
-])
-
-dnl
-dnl	Look for #define CLK_TCK in time.h (Linux)
-dnl
-
-AC_MSG_CHECKING("for CLK_TCK in time.h")
-AC_EGREP_CPP(FoundClkTck,
-[#include <time.h>
-#ifdef CLK_TCK
-  FoundClkTck
-#endif
-], [
-        AC_DEFINE(CLK_TCK_IN_TIME_H,1,[CLK_TCK is defined in time.h])
-        AC_DEFINE(HA_CLK_TCK_IN_TIME_H,1,[CLK_TCK is defined in time.h])
-        AC_MSG_RESULT(Yes)
-],
-[
-	AC_MSG_RESULT("No")
-])
 
 dnl ************************************************************************
 dnl checks for libraries
