@@ -52,7 +52,7 @@ static void print_usage(void)
 	printf("  -c <clustername> Name of the cluster to join\n");
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
-	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
+	printf("  -n <nodename>  * The name of this node (defaults to hostname)\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
 	printf("  -X               Do not use cluster.conf values from CCS\n");
 	printf("  -w               Wait until node has joined a cluster\n");
