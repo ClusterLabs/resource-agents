@@ -336,17 +336,18 @@ static void set_rsb_lvb(struct dlm_rsb *rsb)
  * The NEW_MASTER flag tells rebuild_rsbs_send() which rsb's to consider.
  */
 
-static void set_new_master(struct dlm_rsb *rsb)
+static void set_new_master(struct dlm_rsb *rsb, uint32_t nodeid)
 {
 	struct dlm_rsb *subrsb;
 
 	down_write(&rsb->res_lock);
 
-	if (rsb->res_nodeid == our_nodeid()) {
+	if (nodeid == our_nodeid()) {
 		set_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = 0;
 		set_rsb_lvb(rsb);
-	}
+	} else
+		rsb->res_nodeid = nodeid;
 
 	set_master_lkbs(rsb);
 
@@ -467,8 +468,7 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 		if (error)
 			goto fail;
 
-		rsb->res_nodeid = r_nodeid;
-		set_new_master(rsb);
+		set_new_master(rsb, r_nodeid);
 	} else {
 		/* As we are the only thread doing recovery this 
 		   should be safe. if not then we need to use a different
@@ -490,6 +490,17 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 
       fail:
 	return error;
+}
+
+static int needs_update(struct dlm_ls *ls, struct dlm_rsb *r)
+{
+	if (!r->res_nodeid)
+		return FALSE;
+
+	if (in_nodes_gone(ls, r->res_nodeid))
+		return TRUE;
+
+	return FALSE;
 }
 
 /*
@@ -516,14 +527,11 @@ int restbl_rsb_update(struct dlm_ls *ls)
 		goto out;
 
 	list_for_each_entry_safe(rsb, safe, &ls->ls_rootres, res_rootlist) {
-		if (!rsb->res_nodeid)
-			continue;
-
 		error = dlm_recovery_stopped(ls);
 		if (error)
 			goto out_free;
 
-		if (in_nodes_gone(ls, rsb->res_nodeid)) {
+		if (needs_update(ls, rsb)) {
 			error = rsb_master_lookup(rsb, rc);
 			if (error)
 				goto out_free;
@@ -555,8 +563,7 @@ int restbl_rsb_update_recv(struct dlm_ls *ls, uint32_t nodeid, char *buf,
 	}
 
 	memcpy(&be_nodeid, buf, sizeof(uint32_t));
-	rsb->res_nodeid = be32_to_cpu(be_nodeid);
-	set_new_master(rsb);
+	set_new_master(rsb, be32_to_cpu(be_nodeid));
 	recover_list_del(rsb);
 
 	if (recover_list_empty(ls))
