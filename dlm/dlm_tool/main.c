@@ -25,6 +25,7 @@ int ls_terminate(int argc, char **argv);
 int ls_start(int argc, char **argv);
 int ls_finish(int argc, char **argv);
 int ls_set_id(int argc, char **argv);
+int ls_get_done(int argc, char **argv, int *event_nr);
 int ls_poll_done(int argc, char **argv);
 int ls_create(int argc, char **argv);
 int ls_release(int argc, char **argv);
@@ -44,8 +45,9 @@ static void print_usage(void)
 	printf("\n");
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
-	printf("start      <ls_name> <event_nr> <nodeid>...\n");
+	printf("start      <ls_name> <event_nr> <type> <nodeid>...\n");
 	printf("finish     <ls_name> <event_nr>\n");
+	printf("get_done   <ls_name> <event_nr>\n");
 	printf("poll_done  <ls_name> <event_nr>\n");
 	printf("set_id     <ls_name> <id>\n");
 	printf("\n");
@@ -56,6 +58,7 @@ static void print_usage(void)
 	printf("convert    <ls_name> <lkid> <mode>     [<flag>,...]\n");
 	printf("\n");
 	printf("modes      NL,CR,CW,PR,PW,EX\n");
+	printf("type       not used by dlm\n");
 	printf("flags      NOQUEUE,CANCEL,QUECVT,CONVDEADLK,PERSISTENT,\n"
 	       "           EXPEDITE,NOQUEUEBAST,HEADQUE,NOORDER\n");
 	printf("           modes and flags are case insensitive\n");
@@ -115,7 +118,7 @@ static void decode_arguments(int *argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	int rv, x = argc;
+	int rv, x = argc, event_nr = 0;
 
 	prog_name = argv[0];
 
@@ -141,7 +144,10 @@ int main(int argc, char **argv)
 		rv = ls_finish(argc, argv);
 	else if (strcmp(action, "set_id") == 0)
 		rv = ls_set_id(argc, argv);
-	else if (strcmp(action, "poll_done") == 0)
+	else if (strcmp(action, "get_done") == 0) {
+		rv = ls_get_done(argc, argv, &event_nr);
+		printf("done event_nr %d\n", event_nr);
+	} else if (strcmp(action, "poll_done") == 0)
 		rv = ls_poll_done(argc, argv);
 	else if (strcmp(action, "create") == 0)
 		rv = ls_create(argc, argv);

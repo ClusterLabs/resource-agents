@@ -44,7 +44,7 @@ set_local  <nodeid> <ipaddr> [<weight>]
 set_node   <nodeid> <ipaddr> [<weight>]
 stop       <ls_name>
 terminate  <ls_name>
-start      <ls_name> <event_nr> <nodeid>...
+start      <ls_name> <event_nr> <type> <nodeid>...
 finish     <ls_name> <event_nr>
 poll_done  <ls_name> <event_nr>
 set_id     <ls_name> <id>
@@ -195,12 +195,12 @@ int ls_start(int argc, char **argv)
 	int i, rv, fd, len = 0;
 	char *p;
 
-	if (argc < 3)
+	if (argc < 4)
 		return -EINVAL;
 
 	/* first set up new members */
 
-	for (i = 2; i < argc; i++)
+	for (i = 3; i < argc; i++)
 		len += strlen(argv[i]) + 1;
 	len -= 1;
 
@@ -211,8 +211,8 @@ int ls_start(int argc, char **argv)
 	}
 	memset(p, 0, len);
 
-	for (i = 2; i < argc; i++) {
-		if (i != 2)
+	for (i = 3; i < argc; i++) {
+		if (i != 3)
 			strcat(p, " ");
 		strcat(p, argv[i]);
 	}
@@ -279,6 +279,35 @@ int ls_set_id(int argc, char **argv)
 		return -1;
 	}
 
+	return 0;
+}
+
+int ls_get_done(int argc, char **argv, int *event_nr)
+{
+	char fname[512];
+	char buf[32];
+	int fd, rv;
+
+	if (argc != 1)
+		return -EINVAL;
+
+	sprintf(fname, "%s/%s/done", DLM_SYSFS_DIR, argv[0]);
+
+	fd = open(fname, O_RDONLY);
+	if (fd < 0) {
+		printf("open error %d %d\n", fd, errno);
+		return -1;
+	}
+
+	memset(buf, 0, 32);
+
+	rv = read(fd, buf, 32);
+	if (rv <= 0) {
+		printf("read error %s %d %d\n", fname, rv, errno);
+		return -1;
+	}
+
+	*event_nr = atoi(buf);
 	return 0;
 }
 
