@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.269 $) dnl cvs revision
+AC_REVISION($Revision: 1.270 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -168,7 +168,6 @@ dnl - Determine which mail program exists. Mailx is Solaris
 AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(SNMPCONFIG, net-snmp-config, ucd-snmp-config)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
@@ -611,14 +610,13 @@ AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_head
 AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 
-if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes
-then
-	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
-fi
-
+SNMPLIB=""
+SNMPCONFIG=""
 if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
+	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 	if test "X${SNMPCONFIG}" = "X"; then
-		AC_MSG_ERROR("You need the snmp development package to continue.")
+		AC_MSG_ERROR("You need the net snmp development package"
+			"to continue.")
 	else
 		AC_MSG_CHECKING(for special snmp libraries: )
 		SNMPLIB=`net-snmp-config --netsnmp-libs`
@@ -638,6 +636,7 @@ elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
 			"are in your libaray path. Or the path to LDFLAGS")
 	fi
 fi
+AC_SUBST(SNMPCONFIG)
 AC_SUBST(SNMPLIB)
 
 dnl
