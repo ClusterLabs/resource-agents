@@ -654,6 +654,7 @@ int dlm_recoverd(void *arg)
 				schedule();
 			set_current_state(TASK_RUNNING);
 		}
+		msleep(500);
 
 		down(&ls->ls_recoverd_lock);
 		recover = 1;
