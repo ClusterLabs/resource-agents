@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.21 $) dnl cvs revision
+AC_REVISION($Revision: 1.22 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -90,6 +90,18 @@ else
 		  AC_MSG_ERROR(no lib providing dlopen found)
                 fi
 	fi
+fi
+
+AC_MSG_CHECKING(whether we need to include /usr/local/include)
+dnl
+dnl this is mainly for FreeBSD...
+if
+  test ! -f /usr/include/libintl.h  -a -f /usr/local/include/libintl.h
+then
+  AC_MSG_RESULT(yes)
+  CPPFLAGS="$CPPFLAGS -I/usr/local/include"
+else
+  AC_MSG_RESULT(no)
 fi
 
 dnl ************************************************************************
@@ -214,7 +226,7 @@ dnl
 dnl We reset CFLAGS to include our warnings *after* all function
 dnl checking goes on, so that our warning flags don't keep the
 dnl AC_*FUNCS() calls above from working.  In particular, -Werror will
-dnl *always* cause us troubles.
+dnl *always* cause us troubles if we set it before here.
 dnl
 dnl
 CFLAGS="$CFLAGS $CC_WARNINGS"
