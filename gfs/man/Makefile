@@ -13,7 +13,6 @@
 
 TARGET8= \
 	gfs.8 \
-	gfs_eattr.8 \
 	gfs_fsck.8 \
 	gfs_grow.8 \
 	gfs_jadd.8 \
