@@ -1,7 +1,7 @@
 diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
---- linux-orig/cluster/dlm/ast.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/ast.c	2004-12-02 12:26:31.862457245 -0600
-@@ -0,0 +1,619 @@
+--- linux-orig/cluster/dlm/ast.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/ast.c	2004-12-08 19:53:24.618764880 +0800
+@@ -0,0 +1,621 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -165,6 +165,8 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +				lkb->lkb_lksb->sb_flags |= DLM_SBF_DEMOTED;
 +			if (lkb->lkb_flags & GDLM_LKFLG_VALNOTVALID)
 +				lkb->lkb_lksb->sb_flags |= DLM_SBF_VALNOTVALID;
++			if (lkb->lkb_flags & GDLM_LKFLG_ALTMODE)
++				lkb->lkb_lksb->sb_flags |= DLM_SBF_ALTMODE;
 +		}
 +
 +		down(&ast_queue_lock);
@@ -622,8 +624,8 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +	wake_up(&astd_waitchan);
 +}
 diff -urN linux-orig/cluster/dlm/ast.h linux-patched/cluster/dlm/ast.h
---- linux-orig/cluster/dlm/ast.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/ast.h	2004-12-02 12:26:31.992427066 -0600
+--- linux-orig/cluster/dlm/ast.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/ast.h	2004-12-08 19:53:24.635762296 +0800
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -654,8 +656,8 @@ diff -urN linux-orig/cluster/dlm/ast.h linux-patched/cluster/dlm/ast.h
 +
 +#endif				/* __AST_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/config.c linux-patched/cluster/dlm/config.c
---- linux-orig/cluster/dlm/config.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/config.c	2004-12-02 12:26:31.992427066 -0600
+--- linux-orig/cluster/dlm/config.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/config.c	2004-12-08 19:53:24.635762296 +0800
 @@ -0,0 +1,137 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -795,8 +797,8 @@ diff -urN linux-orig/cluster/dlm/config.c linux-patched/cluster/dlm/config.c
 +	remove_proc_entry("cluster/config/dlm", NULL);
 +}
 diff -urN linux-orig/cluster/dlm/config.h linux-patched/cluster/dlm/config.h
---- linux-orig/cluster/dlm/config.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/config.h	2004-12-02 12:26:31.992427066 -0600
+--- linux-orig/cluster/dlm/config.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/config.h	2004-12-08 19:53:24.636762144 +0800
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -832,8 +834,8 @@ diff -urN linux-orig/cluster/dlm/config.h linux-patched/cluster/dlm/config.h
 +
 +#endif				/* __CONFIG_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
---- linux-orig/cluster/dlm/device.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/device.c	2004-12-02 12:26:31.993426834 -0600
+--- linux-orig/cluster/dlm/device.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/device.c	2004-12-08 19:53:24.636762144 +0800
 @@ -0,0 +1,1218 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2054,8 +2056,8 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 + * End:
 + */
 diff -urN linux-orig/cluster/dlm/device.h linux-patched/cluster/dlm/device.h
---- linux-orig/cluster/dlm/device.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/device.h	2004-12-02 12:26:32.007423584 -0600
+--- linux-orig/cluster/dlm/device.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/device.h	2004-12-08 19:53:24.637761992 +0800
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2077,8 +2079,8 @@ diff -urN linux-orig/cluster/dlm/device.h linux-patched/cluster/dlm/device.h
 +
 +#endif				/* __DEVICE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
---- linux-orig/cluster/dlm/dir.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/dir.c	2004-12-02 12:26:32.014421959 -0600
+--- linux-orig/cluster/dlm/dir.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/dir.c	2004-12-08 19:53:24.650760016 +0800
 @@ -0,0 +1,471 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2552,8 +2554,8 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +	return error;
 +}
 diff -urN linux-orig/cluster/dlm/dir.h linux-patched/cluster/dlm/dir.h
---- linux-orig/cluster/dlm/dir.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/dir.h	2004-12-02 12:26:32.015421727 -0600
+--- linux-orig/cluster/dlm/dir.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/dir.h	2004-12-08 19:53:24.651759864 +0800
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2589,9 +2591,9 @@ diff -urN linux-orig/cluster/dlm/dir.h linux-patched/cluster/dlm/dir.h
 +
 +#endif				/* __DIR_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_internal.h
---- linux-orig/cluster/dlm/dlm_internal.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/dlm_internal.h	2004-12-02 12:26:32.017421263 -0600
-@@ -0,0 +1,622 @@
+--- linux-orig/cluster/dlm/dlm_internal.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/dlm_internal.h	2004-12-08 19:53:24.651759864 +0800
+@@ -0,0 +1,623 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2978,20 +2980,21 @@ diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_in
 +#define GDLM_LKFLG_NODLCKWT	(0x00000100)
 +#define GDLM_LKFLG_EXPEDITE	(0x00000400)
 +#define GDLM_LKFLG_ORPHAN	(0x00004000)
-+/* external flags now go up to: (0x00004000) : DLM_LKF_ORPHAN */
++/* external flags now go up to: (0x00010000) DLM_LKF_ALTCW */
 +
 +/* internal-only flags */
-+#define GDLM_LKFLG_RANGE	(0x00010000)
-+#define GDLM_LKFLG_MSTCPY	(0x00020000)
-+#define GDLM_LKFLG_DELETED	(0x00040000)
-+#define GDLM_LKFLG_LQCONVERT	(0x00080000)
-+#define GDLM_LKFLG_LQRESEND	(0x00100000)
-+#define GDLM_LKFLG_DEMOTED	(0x00200000)
-+#define GDLM_LKFLG_RESENT	(0x00400000)
-+#define GDLM_LKFLG_NOREBUILD	(0x00800000)
-+#define GDLM_LKFLG_UNLOCKDONE	(0x01000000)
-+#define GDLM_LKFLG_VALNOTVALID  (0x02000000)
-+#define GDLM_LKFLG_RETURNLVB    (0x04000000)
++#define GDLM_LKFLG_RANGE	(0x00020000)
++#define GDLM_LKFLG_MSTCPY	(0x00040000)
++#define GDLM_LKFLG_DELETED	(0x00080000)
++#define GDLM_LKFLG_LQCONVERT	(0x00100000)
++#define GDLM_LKFLG_LQRESEND	(0x00200000)
++#define GDLM_LKFLG_DEMOTED	(0x00400000)
++#define GDLM_LKFLG_RESENT	(0x00800000)
++#define GDLM_LKFLG_NOREBUILD	(0x01000000)
++#define GDLM_LKFLG_UNLOCKDONE	(0x02000000)
++#define GDLM_LKFLG_VALNOTVALID  (0x04000000)
++#define GDLM_LKFLG_RETURNLVB    (0x08000000)
++#define GDLM_LKFLG_ALTMODE      (0x10000000)
 +
 +#define AST_COMP		(1)
 +#define AST_BAST		(2)
@@ -3215,8 +3218,8 @@ diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_in
 +
 +#endif				/* __DLM_INTERNAL_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lkb.c linux-patched/cluster/dlm/lkb.c
---- linux-orig/cluster/dlm/lkb.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lkb.c	2004-12-02 12:26:32.018421031 -0600
+--- linux-orig/cluster/dlm/lkb.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lkb.c	2004-12-08 19:53:24.652759712 +0800
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3402,8 +3405,8 @@ diff -urN linux-orig/cluster/dlm/lkb.c linux-patched/cluster/dlm/lkb.c
 +	return ret;
 +}
 diff -urN linux-orig/cluster/dlm/lkb.h linux-patched/cluster/dlm/lkb.h
---- linux-orig/cluster/dlm/lkb.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lkb.h	2004-12-02 12:26:32.018421031 -0600
+--- linux-orig/cluster/dlm/lkb.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lkb.h	2004-12-08 19:53:24.652759712 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3429,9 +3432,9 @@ diff -urN linux-orig/cluster/dlm/lkb.h linux-patched/cluster/dlm/lkb.h
 +
 +#endif				/* __LKB_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
---- linux-orig/cluster/dlm/locking.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/locking.c	2004-12-02 12:26:32.024419638 -0600
-@@ -0,0 +1,1395 @@
+--- linux-orig/cluster/dlm/locking.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/locking.c	2004-12-08 19:53:24.652759712 +0800
+@@ -0,0 +1,1426 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -3628,7 +3631,7 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 + * References are from chapter 6 of "VAXcluster Principles" by Roy Davis
 + */
 +
-+static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
++static int _can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 +{
 +	int8_t conv = (lkb->lkb_grmode != DLM_LOCK_IV);
 +
@@ -3744,6 +3747,36 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	}
 +
 +	return FALSE;
++}
++
++static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
++{
++	uint32_t flags = lkb->lkb_lockqueue_flags;
++	int rv;
++	int8_t alt = 0, rqmode = lkb->lkb_rqmode;
++
++	rv = _can_be_granted(r, lkb, now);
++	if (rv)
++		goto out;
++
++	if (lkb->lkb_flags & GDLM_LKFLG_DEMOTED)
++		goto out;
++
++	if (rqmode != DLM_LOCK_PR && flags & DLM_LKF_ALTPR)
++		alt = DLM_LOCK_PR;
++	else if (rqmode != DLM_LOCK_CW && flags & DLM_LKF_ALTCW)
++		alt = DLM_LOCK_CW;
++
++	if (alt) {
++		lkb->lkb_rqmode = alt;
++		rv = _can_be_granted(r, lkb, now);
++		if (rv)
++			lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
++		else
++			lkb->lkb_rqmode = rqmode;
++	}
++ out:
++	return rv;
 +}
 +
 +int dlm_lock(void *lockspace,
@@ -4393,7 +4426,8 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +		  lkb->lkb_id, rsb->res_name);
 +
 +	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED |
-+			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID);
++			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID |
++			    GDLM_LKFLG_ALTMODE);
 +
 +	if (flags & DLM_LKF_NODLCKWT)
 +		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;
@@ -4828,8 +4862,8 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +}
 +
 diff -urN linux-orig/cluster/dlm/locking.h linux-patched/cluster/dlm/locking.h
---- linux-orig/cluster/dlm/locking.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/locking.h	2004-12-02 12:26:32.024419638 -0600
+--- linux-orig/cluster/dlm/locking.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/locking.h	2004-12-08 19:53:24.652759712 +0800
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4865,9 +4899,9 @@ diff -urN linux-orig/cluster/dlm/locking.h linux-patched/cluster/dlm/locking.h
 +
 +#endif				/* __LOCKING_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue.c
---- linux-orig/cluster/dlm/lockqueue.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lockqueue.c	2004-12-02 12:26:32.025419406 -0600
-@@ -0,0 +1,1186 @@
+--- linux-orig/cluster/dlm/lockqueue.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lockqueue.c	2004-12-08 19:53:24.653759560 +0800
+@@ -0,0 +1,1191 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -5343,6 +5377,8 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +				lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 +			if (reply->rl_flags & GDLM_LKFLG_VALNOTVALID)
 +				lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
++			if (reply->rl_flags & GDLM_LKFLG_ALTMODE)
++				lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
 +
 +			up_write(&rsb->res_lock);
 +
@@ -5817,6 +5853,7 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +		lkb->lkb_request = freq;
 +		lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
 +		lkb->lkb_flags &= ~GDLM_LKFLG_VALNOTVALID;
++		lkb->lkb_flags &= ~GDLM_LKFLG_ALTMODE;
 +
 +		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK ||
 +		    freq->rr_flags & DLM_LKF_VALBLK) {
@@ -5944,6 +5981,8 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +			lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 +		if (freq->rr_flags & GDLM_LKFLG_VALNOTVALID)
 +			lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
++		if (freq->rr_flags & GDLM_LKFLG_ALTMODE)
++			lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
 +		
 +		lkb->lkb_retstatus = 0;
 +		queue_ast(lkb, AST_COMP, 0);
@@ -6055,8 +6094,8 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +		memcpy(req->rr_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
 +}
 diff -urN linux-orig/cluster/dlm/lockqueue.h linux-patched/cluster/dlm/lockqueue.h
---- linux-orig/cluster/dlm/lockqueue.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lockqueue.h	2004-12-02 12:26:32.026419174 -0600
+--- linux-orig/cluster/dlm/lockqueue.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lockqueue.h	2004-12-08 19:53:24.653759560 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6088,8 +6127,8 @@ diff -urN linux-orig/cluster/dlm/lockqueue.h linux-patched/cluster/dlm/lockqueue
 +
 +#endif				/* __LOCKQUEUE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lockspace.c linux-patched/cluster/dlm/lockspace.c
---- linux-orig/cluster/dlm/lockspace.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lockspace.c	2004-12-02 12:26:32.026419174 -0600
+--- linux-orig/cluster/dlm/lockspace.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lockspace.c	2004-12-08 19:53:24.664757888 +0800
 @@ -0,0 +1,716 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6808,8 +6847,8 @@ diff -urN linux-orig/cluster/dlm/lockspace.c linux-patched/cluster/dlm/lockspace
 +	.finish = dlm_ls_finish
 +};
 diff -urN linux-orig/cluster/dlm/lockspace.h linux-patched/cluster/dlm/lockspace.h
---- linux-orig/cluster/dlm/lockspace.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lockspace.h	2004-12-02 12:26:32.026419174 -0600
+--- linux-orig/cluster/dlm/lockspace.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lockspace.h	2004-12-08 19:53:24.664757888 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6841,8 +6880,8 @@ diff -urN linux-orig/cluster/dlm/lockspace.h linux-patched/cluster/dlm/lockspace
 +
 +#endif				/* __LOCKSPACE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
---- linux-orig/cluster/dlm/lowcomms.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lowcomms.c	2004-12-02 12:26:32.027418941 -0600
+--- linux-orig/cluster/dlm/lowcomms.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lowcomms.c	2004-12-08 19:53:24.665757736 +0800
 @@ -0,0 +1,1415 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8260,8 +8299,8 @@ diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 + * End:
 + */
 diff -urN linux-orig/cluster/dlm/lowcomms.h linux-patched/cluster/dlm/lowcomms.h
---- linux-orig/cluster/dlm/lowcomms.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/lowcomms.h	2004-12-02 12:26:32.029418477 -0600
+--- linux-orig/cluster/dlm/lowcomms.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/lowcomms.h	2004-12-08 19:53:24.666757584 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8298,8 +8337,8 @@ diff -urN linux-orig/cluster/dlm/lowcomms.h linux-patched/cluster/dlm/lowcomms.h
 +
 +#endif				/* __LOWCOMMS_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/main.c linux-patched/cluster/dlm/main.c
---- linux-orig/cluster/dlm/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/main.c	2004-12-02 12:26:32.029418477 -0600
+--- linux-orig/cluster/dlm/main.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/main.c	2004-12-08 19:53:24.666757584 +0800
 @@ -0,0 +1,93 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8395,8 +8434,8 @@ diff -urN linux-orig/cluster/dlm/main.c linux-patched/cluster/dlm/main.c
 +EXPORT_SYMBOL(dlm_debug_dump);
 +EXPORT_SYMBOL(dlm_locks_dump);
 diff -urN linux-orig/cluster/dlm/memory.c linux-patched/cluster/dlm/memory.c
---- linux-orig/cluster/dlm/memory.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/memory.c	2004-12-02 12:26:32.032417781 -0600
+--- linux-orig/cluster/dlm/memory.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/memory.c	2004-12-08 19:53:24.666757584 +0800
 @@ -0,0 +1,238 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8637,8 +8676,8 @@ diff -urN linux-orig/cluster/dlm/memory.c linux-patched/cluster/dlm/memory.c
 +	kfree(rc);
 +}
 diff -urN linux-orig/cluster/dlm/memory.h linux-patched/cluster/dlm/memory.h
---- linux-orig/cluster/dlm/memory.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/memory.h	2004-12-02 12:26:32.032417781 -0600
+--- linux-orig/cluster/dlm/memory.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/memory.h	2004-12-08 19:53:24.666757584 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8673,8 +8712,8 @@ diff -urN linux-orig/cluster/dlm/memory.h linux-patched/cluster/dlm/memory.h
 +
 +#endif		/* __MEMORY_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/midcomms.c linux-patched/cluster/dlm/midcomms.c
---- linux-orig/cluster/dlm/midcomms.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/midcomms.c	2004-12-02 12:26:32.032417781 -0600
+--- linux-orig/cluster/dlm/midcomms.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/midcomms.c	2004-12-08 19:53:24.667757432 +0800
 @@ -0,0 +1,361 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9038,8 +9077,8 @@ diff -urN linux-orig/cluster/dlm/midcomms.c linux-patched/cluster/dlm/midcomms.c
 +	return lowcomms_send_message(nodeid, (char *) msg, len, allocation);
 +}
 diff -urN linux-orig/cluster/dlm/midcomms.h linux-patched/cluster/dlm/midcomms.h
---- linux-orig/cluster/dlm/midcomms.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/midcomms.h	2004-12-02 12:26:32.033417549 -0600
+--- linux-orig/cluster/dlm/midcomms.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/midcomms.h	2004-12-08 19:53:24.667757432 +0800
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9066,8 +9105,8 @@ diff -urN linux-orig/cluster/dlm/midcomms.h linux-patched/cluster/dlm/midcomms.h
 +
 +#endif				/* __MIDCOMMS_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/nodes.c linux-patched/cluster/dlm/nodes.c
---- linux-orig/cluster/dlm/nodes.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/nodes.c	2004-12-02 12:26:32.033417549 -0600
+--- linux-orig/cluster/dlm/nodes.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/nodes.c	2004-12-08 19:53:24.677755912 +0800
 @@ -0,0 +1,347 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9417,8 +9456,8 @@ diff -urN linux-orig/cluster/dlm/nodes.c linux-patched/cluster/dlm/nodes.c
 +	return FALSE;
 +}
 diff -urN linux-orig/cluster/dlm/nodes.h linux-patched/cluster/dlm/nodes.h
---- linux-orig/cluster/dlm/nodes.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/nodes.h	2004-12-02 12:26:32.033417549 -0600
+--- linux-orig/cluster/dlm/nodes.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/nodes.h	2004-12-08 19:53:24.677755912 +0800
 @@ -0,0 +1,27 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9448,8 +9487,8 @@ diff -urN linux-orig/cluster/dlm/nodes.h linux-patched/cluster/dlm/nodes.h
 +
 +#endif				/* __NODES_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/proc.c linux-patched/cluster/dlm/proc.c
---- linux-orig/cluster/dlm/proc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/proc.c	2004-12-02 12:26:32.034417316 -0600
+--- linux-orig/cluster/dlm/proc.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/proc.c	2004-12-08 19:53:24.677755912 +0800
 @@ -0,0 +1,658 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10110,8 +10149,8 @@ diff -urN linux-orig/cluster/dlm/proc.c linux-patched/cluster/dlm/proc.c
 +#endif
 +}
 diff -urN linux-orig/cluster/dlm/queries.c linux-patched/cluster/dlm/queries.c
---- linux-orig/cluster/dlm/queries.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/queries.c	2004-12-02 12:26:32.034417316 -0600
+--- linux-orig/cluster/dlm/queries.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/queries.c	2004-12-08 19:53:24.678755760 +0800
 @@ -0,0 +1,713 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10827,8 +10866,8 @@ diff -urN linux-orig/cluster/dlm/queries.c linux-patched/cluster/dlm/queries.c
 + * End:
 + */
 diff -urN linux-orig/cluster/dlm/queries.h linux-patched/cluster/dlm/queries.h
---- linux-orig/cluster/dlm/queries.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/queries.h	2004-12-02 12:26:32.034417316 -0600
+--- linux-orig/cluster/dlm/queries.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/queries.h	2004-12-08 19:53:24.678755760 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10851,8 +10890,8 @@ diff -urN linux-orig/cluster/dlm/queries.h linux-patched/cluster/dlm/queries.h
 +
 +#endif                          /* __QUERIES_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
---- linux-orig/cluster/dlm/rebuild.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/rebuild.c	2004-12-02 12:26:32.035417084 -0600
+--- linux-orig/cluster/dlm/rebuild.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/rebuild.c	2004-12-08 19:53:24.679755608 +0800
 @@ -0,0 +1,1274 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12129,8 +12168,8 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	return 0;
 +}
 diff -urN linux-orig/cluster/dlm/rebuild.h linux-patched/cluster/dlm/rebuild.h
---- linux-orig/cluster/dlm/rebuild.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/rebuild.h	2004-12-02 12:26:32.035417084 -0600
+--- linux-orig/cluster/dlm/rebuild.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/rebuild.h	2004-12-08 19:53:24.679755608 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12155,8 +12194,8 @@ diff -urN linux-orig/cluster/dlm/rebuild.h linux-patched/cluster/dlm/rebuild.h
 +
 +#endif				/* __REBUILD_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/reccomms.c linux-patched/cluster/dlm/reccomms.c
---- linux-orig/cluster/dlm/reccomms.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/reccomms.c	2004-12-02 12:26:32.036416852 -0600
+--- linux-orig/cluster/dlm/reccomms.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/reccomms.c	2004-12-08 19:53:24.679755608 +0800
 @@ -0,0 +1,447 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12606,8 +12645,8 @@ diff -urN linux-orig/cluster/dlm/reccomms.c linux-patched/cluster/dlm/reccomms.c
 +}
 +
 diff -urN linux-orig/cluster/dlm/reccomms.h linux-patched/cluster/dlm/reccomms.h
---- linux-orig/cluster/dlm/reccomms.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/reccomms.h	2004-12-02 12:26:32.036416852 -0600
+--- linux-orig/cluster/dlm/reccomms.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/reccomms.h	2004-12-08 19:53:24.680755456 +0800
 @@ -0,0 +1,36 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12646,8 +12685,8 @@ diff -urN linux-orig/cluster/dlm/reccomms.h linux-patched/cluster/dlm/reccomms.h
 +
 +#endif
 diff -urN linux-orig/cluster/dlm/recover.c linux-patched/cluster/dlm/recover.c
---- linux-orig/cluster/dlm/recover.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/recover.c	2004-12-02 12:26:32.036416852 -0600
+--- linux-orig/cluster/dlm/recover.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/recover.c	2004-12-08 19:53:24.680755456 +0800
 @@ -0,0 +1,719 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13369,8 +13408,8 @@ diff -urN linux-orig/cluster/dlm/recover.c linux-patched/cluster/dlm/recover.c
 +}
 +
 diff -urN linux-orig/cluster/dlm/recover.h linux-patched/cluster/dlm/recover.h
---- linux-orig/cluster/dlm/recover.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/recover.h	2004-12-02 12:26:32.036416852 -0600
+--- linux-orig/cluster/dlm/recover.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/recover.h	2004-12-08 19:53:24.684754848 +0800
 @@ -0,0 +1,35 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13408,8 +13447,8 @@ diff -urN linux-orig/cluster/dlm/recover.h linux-patched/cluster/dlm/recover.h
 +
 +#endif				/* __RECOVER_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
---- linux-orig/cluster/dlm/recoverd.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/recoverd.c	2004-12-02 12:26:32.037416620 -0600
+--- linux-orig/cluster/dlm/recoverd.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/recoverd.c	2004-12-08 19:53:24.684754848 +0800
 @@ -0,0 +1,724 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14136,8 +14175,8 @@ diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 +}
 +
 diff -urN linux-orig/cluster/dlm/recoverd.h linux-patched/cluster/dlm/recoverd.h
---- linux-orig/cluster/dlm/recoverd.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/recoverd.h	2004-12-02 12:26:32.037416620 -0600
+--- linux-orig/cluster/dlm/recoverd.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/recoverd.h	2004-12-08 19:53:24.684754848 +0800
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14161,8 +14200,8 @@ diff -urN linux-orig/cluster/dlm/recoverd.h linux-patched/cluster/dlm/recoverd.h
 +
 +#endif				/* __RECOVERD_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
---- linux-orig/cluster/dlm/rsb.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/rsb.c	2004-12-02 12:26:32.037416620 -0600
+--- linux-orig/cluster/dlm/rsb.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/rsb.c	2004-12-08 19:53:24.684754848 +0800
 @@ -0,0 +1,329 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14494,8 +14533,8 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +	return status;
 +}
 diff -urN linux-orig/cluster/dlm/rsb.h linux-patched/cluster/dlm/rsb.h
---- linux-orig/cluster/dlm/rsb.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/rsb.h	2004-12-02 12:26:32.038416388 -0600
+--- linux-orig/cluster/dlm/rsb.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/rsb.h	2004-12-08 19:53:24.685754696 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14532,8 +14571,8 @@ diff -urN linux-orig/cluster/dlm/rsb.h linux-patched/cluster/dlm/rsb.h
 +
 +#endif				/* __RSB_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
---- linux-orig/cluster/dlm/util.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/util.c	2004-12-02 12:26:32.038416388 -0600
+--- linux-orig/cluster/dlm/util.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/util.c	2004-12-08 19:53:24.685754696 +0800
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14719,8 +14758,8 @@ diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
 +}
 +
 diff -urN linux-orig/cluster/dlm/util.h linux-patched/cluster/dlm/util.h
---- linux-orig/cluster/dlm/util.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/dlm/util.h	2004-12-02 12:26:32.038416388 -0600
+--- linux-orig/cluster/dlm/util.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/dlm/util.h	2004-12-08 19:53:24.685754696 +0800
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14747,9 +14786,9 @@ diff -urN linux-orig/cluster/dlm/util.h linux-patched/cluster/dlm/util.h
 +
 +#endif
 diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
---- linux-orig/include/cluster/dlm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/dlm.h	2004-12-02 12:26:32.015421727 -0600
-@@ -0,0 +1,418 @@
+--- linux-orig/include/cluster/dlm.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/dlm.h	2004-12-08 19:53:24.651759864 +0800
+@@ -0,0 +1,421 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -14896,6 +14935,8 @@ diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
 +#define DLM_LKF_HEADQUE        (0x00001000)
 +#define DLM_LKF_NOORDER        (0x00002000)
 +#define DLM_LKF_ORPHAN         (0x00004000)
++#define DLM_LKF_ALTPR          (0x00008000)
++#define DLM_LKF_ALTCW          (0x00010000)
 +
 +/*
 + * Some return codes that are not in errno.h
@@ -14946,6 +14987,7 @@ diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
 +
 +#define DLM_SBF_DEMOTED        (0x01)
 +#define DLM_SBF_VALNOTVALID    (0x02)
++#define DLM_SBF_ALTMODE        (0x04)
 +
 +struct dlm_lksb {
 +	int 	 sb_status;
@@ -15169,8 +15211,8 @@ diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
 +
 +#endif				/* __DLM_DOT_H__ */
 diff -urN linux-orig/include/cluster/dlm_device.h linux-patched/include/cluster/dlm_device.h
---- linux-orig/include/cluster/dlm_device.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/dlm_device.h	2004-12-02 12:26:32.016421495 -0600
+--- linux-orig/include/cluster/dlm_device.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/dlm_device.h	2004-12-08 19:53:24.651759864 +0800
 @@ -0,0 +1,104 @@
 +/******************************************************************************
 +*******************************************************************************
