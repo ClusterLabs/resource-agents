@@ -1906,6 +1906,7 @@ static int do_process_endtrans(struct msghdr *msg, int len)
 
 	quorum = le32_to_cpu(endmsg->quorum);
 	set_quorate(le32_to_cpu(endmsg->total_votes));
+	highest_nodeid = get_highest_nodeid();
 
 	/* Tell any waiting barriers that we had a transition */
 	check_barrier_returns();
