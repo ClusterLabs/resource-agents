@@ -290,15 +290,15 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 	case GDLM_LQSTATE_WAIT_RSB:
 
 		DLM_ASSERT(reply->rl_status == 0,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_reply(reply););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_reply(reply););
 
 		DLM_ASSERT(rsb->res_nodeid == -1 ||
-			    rsb->res_nodeid == 0,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_reply(reply););
+			   rsb->res_nodeid == 0,
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_reply(reply););
 
 		if (reply->rl_nodeid == our_nodeid()) {
 			if (rsb->res_nodeid == -1) {
@@ -612,9 +612,9 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 	   resend_cluster_requests does this to get requests back on track */
 
 	DLM_ASSERT(target_nodeid && target_nodeid != -1,
-		    print_lkb(lkb);
-		    print_rsb(rsb);
-		    printk("target_nodeid %u\n", target_nodeid););
+		   print_lkb(lkb);
+		   print_rsb(rsb);
+		   printk("target_nodeid %u\n", target_nodeid););
 
 	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
 		/* this may happen when called by resend_cluster_request */
@@ -653,12 +653,12 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 	case GDLM_LQSTATE_WAIT_RSB:
 
 		DLM_ASSERT(!lkb->lkb_parent,
-			    print_lkb(lkb);
-			    print_rsb(rsb););
+			   print_lkb(lkb);
+			   print_rsb(rsb););
 
 		DLM_ASSERT(rsb->res_nodeid == -1,
-			    print_lkb(lkb);
-			    print_rsb(rsb););
+			   print_lkb(lkb);
+			   print_rsb(rsb););
 
 		log_debug(ls, "send lu %x to %u", lkb->lkb_id, target_nodeid);
 
@@ -669,8 +669,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 	case GDLM_LQSTATE_WAIT_CONVERT:
 
 		DLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_rsb(rsb););
+			   print_lkb(lkb);
+			   print_rsb(rsb););
 
 		log_debug(ls, "send cv %x to %u", lkb->lkb_id, target_nodeid);
 
@@ -685,8 +685,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 	case GDLM_LQSTATE_WAIT_CONDGRANT:
 
 		DLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_rsb(rsb););
+			   print_lkb(lkb);
+			   print_rsb(rsb););
 
 		log_debug(ls, "send rq %x to %u", lkb->lkb_id, target_nodeid);
 
@@ -852,33 +852,33 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
 		DLM_ASSERT(lkb,
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		rsb = lkb->lkb_resource;
 
 		DLM_ASSERT(rsb,
-			    print_lkb(lkb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(!rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_GRANTED,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		lkb->lkb_rqmode = freq->rr_rqmode;
 		lkb->lkb_lockqueue_flags = freq->rr_flags;
@@ -926,13 +926,13 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, req->rh_lkid);
 
 		DLM_ASSERT(lkb,
-			    print_reply(rp);
-			    printk("nodeid %u\n", nodeid););
+			   print_reply(rp);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
-			    print_lkb(lkb);
-			    print_reply(rp);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_reply(rp);
+			   printk("nodeid %u\n", nodeid););
 
 		process_lockqueue_reply(lkb, rp, nodeid);
 		break;
@@ -947,27 +947,27 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
 		DLM_ASSERT(lkb,
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		rsb = lkb->lkb_resource;
 
 		DLM_ASSERT(rsb,
-			    print_lkb(lkb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_rsb(rsb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		if (lkb->lkb_lockqueue_state) {
 			log_error(rsb->res_ls, "granting lock on lockqueue");
@@ -1009,8 +1009,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
 		DLM_ASSERT(lkb,
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		if (lkb->lkb_status == GDLM_LKSTS_GRANTED)
 			queue_ast(lkb, AST_BAST, freq->rr_rqmode);
@@ -1023,8 +1023,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
 		DLM_ASSERT(lkb,
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		/* Return the lock to granted status */
 		res_lkb_swqueue(lkb->lkb_resource, lkb, GDLM_LKSTS_GRANTED);
@@ -1037,13 +1037,13 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
 		DLM_ASSERT(lkb,
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
-			    print_lkb(lkb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
+			   print_lkb(lkb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
 
 		rsb = find_rsb_to_unlock(lspace, lkb);
 
