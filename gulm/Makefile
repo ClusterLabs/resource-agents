@@ -67,8 +67,9 @@ tool_src = \
 # lock history data is in the SIGUSR1 lock dumps.
 #CFLAGS+=-DLOCKHISTORY=6
 
-INCLUDE+= -Isrc
+INCLUDE+= -Isrc -I${incdir}
 
+LDFLAGS+= -L${libdir}
 LDLIBS+= -lwrap -lnsl
 
 CFLAGS+=$(INCLUDE)
