@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.250 $) dnl cvs revision
+AC_REVISION($Revision: 1.251 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1339,6 +1339,7 @@ CRM_DEBUG_LIBS=""
 CRM_DEBUG_OPTS=""
 dnl CRM_DEBUG_FLAGS=-DDMALLOC_FUNC_CHECK
 dnl CRM_DEBUG_LIBS=-ldmalloc
+dnl CRM_DEBUG_LIBS=-lefence
 AC_SUBST(CRM_DEBUG_LIBS)
 AC_SUBST(CRM_DEBUG_FLAGS)
 dnl AC_DEFINE_UNQUOTED(CRM_DEBUG_DMALLOC, 1, Use the dmalloc libraries)
@@ -1354,7 +1355,7 @@ if test "${enable_lrm}"  = "yes"; then
 	LRM_ENABLED=1
 	LRM_DIR="lrm"
 	LRM_LRMD="${LRM_DIR}/lrmd"
-	LRM_ADMNI="${LRM_DIR}/admin"
+	LRM_ADMIN="${LRM_DIR}/admin"
 	LRM_LIB="${LRM_DIR}/lib"
 	AC_SUBST(LRM_ENABLED)
 	AC_SUBST(LRM_DIR)
@@ -1529,7 +1530,6 @@ if test "${enable_crm}"  = "yes"; then
 		  crm/common/Makefile			    \
 		  crm/cib/Makefile					\
 		  crm/crmd/Makefile					\
-		  crm/lrmd/Makefile					\
 		  crm/pengine/Makefile			    \
 		  crm/tengine/Makefile			    \
 		  crm/admin/Makefile			    \
