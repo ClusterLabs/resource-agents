@@ -117,22 +117,19 @@ struct writequeue_entry {
 static struct sockaddr_in6 local_addr;
 
 /* Manage daemons */
-static struct semaphore thread_lock;
-static struct completion thread_completion;
-static atomic_t send_run;
-static atomic_t recv_run;
+static struct task_struct *recv_task;
+static struct task_struct *send_task;
+
+static wait_queue_t lowcomms_send_waitq_head;
+static wait_queue_head_t lowcomms_send_waitq;
+static wait_queue_t lowcomms_recv_waitq_head;
+static wait_queue_head_t lowcomms_recv_waitq;
 
 /* An array of connections, indexed by NODEID */
 static struct connection *connections;
 static int conn_array_size;
 static atomic_t writequeue_length;
 static atomic_t accepting;
-
-static wait_queue_t lowcomms_send_waitq_head;
-static wait_queue_head_t lowcomms_send_waitq;
-
-static wait_queue_t lowcomms_recv_waitq_head;
-static wait_queue_head_t lowcomms_recv_waitq;
 
 /* List of sockets that have reads pending */
 static struct list_head read_sockets;
@@ -1028,31 +1025,18 @@ static int read_list_empty(void)
 /* DLM Transport comms receive daemon */
 static int dlm_recvd(void *data)
 {
-	daemonize("dlm_recvd");
-	atomic_set(&recv_run, 1);
-
 	init_waitqueue_head(&lowcomms_recv_waitq);
 	init_waitqueue_entry(&lowcomms_recv_waitq_head, current);
 	add_wait_queue(&lowcomms_recv_waitq, &lowcomms_recv_waitq_head);
 
-	complete(&thread_completion);
-
-	while (atomic_read(&recv_run)) {
-
-		set_task_state(current, TASK_INTERRUPTIBLE);
-
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (read_list_empty())
 			schedule();
-
-		set_task_state(current, TASK_RUNNING);
+		set_current_state(TASK_RUNNING);
 
 		process_sockets();
 	}
-
-	down(&thread_lock);
-	up(&thread_lock);
-
-	complete(&thread_completion);
 
 	return 0;
 }
@@ -1076,77 +1060,52 @@ static int write_and_state_lists_empty(void)
 /* DLM Transport send daemon */
 static int dlm_sendd(void *data)
 {
-	daemonize("dlm_sendd");
-	atomic_set(&send_run, 1);
-
 	init_waitqueue_head(&lowcomms_send_waitq);
 	init_waitqueue_entry(&lowcomms_send_waitq_head, current);
 	add_wait_queue(&lowcomms_send_waitq, &lowcomms_send_waitq_head);
 
-	complete(&thread_completion);
-
-	while (atomic_read(&send_run)) {
-
-		set_task_state(current, TASK_INTERRUPTIBLE);
-
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (write_and_state_lists_empty())
 			schedule();
-
-		set_task_state(current, TASK_RUNNING);
+		set_current_state(TASK_RUNNING);
 
 		process_state_queue();
 		process_output_queue();
 	}
-
-	down(&thread_lock);
-	up(&thread_lock);
-
-	complete(&thread_completion);
 
 	return 0;
 }
 
 static void daemons_stop(void)
 {
-	if (atomic_read(&recv_run)) {
-		down(&thread_lock);
-		atomic_set(&recv_run, 0);
-		wake_up_interruptible(&lowcomms_recv_waitq);
-		up(&thread_lock);
-		wait_for_completion(&thread_completion);
-	}
-
-	if (atomic_read(&send_run)) {
-		down(&thread_lock);
-		atomic_set(&send_run, 0);
-		wake_up_interruptible(&lowcomms_send_waitq);
-		up(&thread_lock);
-		wait_for_completion(&thread_completion);
-	}
+	kthread_stop(recv_task);
+	kthread_stop(send_task);
 }
 
 static int daemons_start(void)
 {
+	struct task_struct *p;
 	int error;
 
-	error = kernel_thread(dlm_recvd, NULL, 0);
-	if (error < 0) {
-		log_print("can't start recvd thread: %d", error);
-		goto out;
+	p = kthread_run(dlm_recvd, NULL, "dlm_recvd");
+	error = IS_ERR(p);
+       	if (error) {
+		log_print("can't start dlm_recvd %d", error);
+		return error;
 	}
-	wait_for_completion(&thread_completion);
+	recv_task = p;
 
-	error = kernel_thread(dlm_sendd, NULL, 0);
-	if (error < 0) {
-		log_print("can't start sendd thread: %d", error);
-		daemons_stop();
-		goto out;
+	p = kthread_run(dlm_sendd, NULL, "dlm_sendd");
+	error = IS_ERR(p);
+       	if (error) {
+		log_print("can't start dlm_sendd %d", error);
+		kthread_stop(recv_task);
+		return error;
 	}
-	wait_for_completion(&thread_completion);
+	send_task = p;
 
-	error = 0;
- out:
-	return error;
+	return 0;
 }
 
 /*
@@ -1205,11 +1164,6 @@ int lowcomms_start(void)
 	spin_lock_init(&write_sockets_lock);
 	spin_lock_init(&state_sockets_lock);
 
-	init_completion(&thread_completion);
-	init_MUTEX(&thread_lock);
-	atomic_set(&send_run, 0);
-	atomic_set(&recv_run, 0);
-
 	error = -ENOTCONN;
 	if (kcl_addref_cluster())
 		goto out;
@@ -1222,7 +1176,6 @@ int lowcomms_start(void)
 	init_waitqueue_head(&lowcomms_send_waitq);
 
 	error = -ENOMEM;
-
 	connections = kmalloc(sizeof(struct connection) *
 			      dlm_config.max_connections, GFP_KERNEL);
 	if (!connections)
