@@ -17,7 +17,7 @@ INCLUDES+= -I. -I${incdir}
 LIBS    += -L${libdir} -ldlm_lt
 CFLAGS  += -D_CLUSTER_
 OBJS     = cman.o
-TARGETS  = cman.so
+TARGETS  = magma_cman.so
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -33,13 +33,13 @@ all: $(TARGETS)
 
 install: all
 	# Use the SM plugin for now; don't install CMAN
-	#install -d ${libdir}/magma/plugins
-	#install -m 0755 $(TARGETS) ${libdir}/magma/plugins
+	#install -d ${libdir}/magma
+	#install -m 0755 $(TARGETS) ${libdir}/magma
 
 uninstall:
-	${UNINSTALL} ${TARGETS} ${libdir}/magma/plugins
+	${UNINSTALL} ${TARGETS} ${libdir}/magma
 
-cman.so: buildtest $(OBJS)
+magma_cman.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)

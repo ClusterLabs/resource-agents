@@ -17,7 +17,7 @@ INCLUDES+= -I. -I${incdir}
 LIBS    += -L${libdir} -ldlm_lt
 CFLAGS  += -D_CLUSTER_
 OBJS     = sm.o services.o
-TARGETS  = sm.so
+TARGETS  = magma_sm.so
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -32,13 +32,13 @@ endif
 all: $(TARGETS)
 
 install: all
-	mkdir -p ${libdir}/magma/plugins
-	install -m 0755 $(TARGETS) ${libdir}/magma/plugins
+	mkdir -p ${libdir}/magma
+	install -m 0755 $(TARGETS) ${libdir}/magma
 
 uninstall:
-	${UNINSTALL} ${TARGETS} ${libdir}/magma/plugins
+	${UNINSTALL} ${TARGETS} ${libdir}/magma
 
-sm.so: buildtest $(OBJS)
+magma_sm.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)

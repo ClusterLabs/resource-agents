@@ -17,18 +17,18 @@ INCLUDES+= -I. -I${incdir}
 LIBS    += -L${libdir} -lgulm
 CFLAGS  += -D_CLUSTER_ -D_REENTRANT
 OBJS     = gulm.o gulm-lock.o
-TARGETS  = gulm.so
+TARGETS  = magma_gulm.so
 
 all: $(TARGETS)
 
 install: all
-	mkdir -p ${libdir}/magma/plugins
-	install -m 0755 $(TARGETS) ${libdir}/magma/plugins
+	mkdir -p ${libdir}/magma
+	install -m 0755 $(TARGETS) ${libdir}/magma
 
 uninstall:
-	${UNINSTALL} ${TARGETS} ${libdir}/magma/plugins
+	${UNINSTALL} ${TARGETS} ${libdir}/magma
 
-gulm.so: buildtest $(OBJS)
+magma_gulm.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)

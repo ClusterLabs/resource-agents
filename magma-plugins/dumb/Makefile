@@ -16,7 +16,7 @@ INCLUDES+= -I. -I${incdir}
 LIBS     = -L${libdir}
 CFLAGS  += -D_CLUSTER_
 OBJS     = dumb.o
-TARGETS  = dumb.so
+TARGETS  = magma_dumb.so
 
 all: $(TARGETS)
 
@@ -24,7 +24,7 @@ install: all
 
 uninstall:
 
-dumb.so: buildtest $(OBJS)
+magma_dumb.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)
