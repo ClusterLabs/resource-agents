@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.299 $) dnl cvs revision
+AC_REVISION($Revision: 1.300 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1580,6 +1580,33 @@ AM_CONDITIONAL(LRM_BUILD, test "x${enable_lrm}" = "xyes")
 
 echo "$as_me:$LINENO: Enabling the new Local Resource Manager... ${enable_lrm}" >&5
 echo $ECHO_N "Enabling the new Local Resource Manager... ${enable_lrm}" >&6
+
+ra_plugindir="${libdir}/${HB_PKG}/plugins/RAExec"
+AC_SUBST(ra_plugindir)
+
+PLUGIN_DIR="${libdir}/${HB_PKG}/plugins"
+AC_SUBST(PLUGIN_DIR)
+AC_DEFINE_UNQUOTED(PLUGIN_DIR,"${libdir}/${HB_PKG}/plugins", pils plugin dir)
+
+RA_PLUGIN_DIR="${ra_plugindir}"
+AC_SUBST(RA_PLUGIN_DIR)
+AC_DEFINE_UNQUOTED(RA_PLUGIN_DIR,"${ra_plugindir}", ra plugin dir)
+
+HB_RA_DIR="/etc/ha.d/resource.d/"
+AC_SUBST(HB_RA_DIR)
+AC_DEFINE_UNQUOTED(HB_RA_DIR,"/etc/ha.d/resource.d/", heartbeat ra dir)
+
+OCF_RA_DIR="/usr/ocf/resource.d/"
+AC_SUBST(OCF_RA_DIR)
+AC_DEFINE_UNQUOTED(OCF_RA_DIR,"/usr/ocf/resource.d/", ocf ra dir)
+
+LSB_RA_DIR="/etc/init.d/"
+AC_SUBST(LSB_RA_DIR)
+AC_DEFINE_UNQUOTED(LSB_RA_DIR,"/etc/init.d/", lsb ra dir)
+
+STONITH_RA_DIR="/usr/lib/heartbeat/stonith.d/"
+AC_SUBST(STONITH_RA_DIR)
+AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"/usr/lib/heartbeat/stonith.d/", stonith ra dir)
 
 dnl **********************************************************************
 dnl Scripting language bindings
