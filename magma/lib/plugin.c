@@ -201,7 +201,7 @@ read_dirnames_sorted(char *directory, char ***dirnames)
 	*dirnames = malloc(sizeof(char *) * (count+1));
 	if (!*dirnames) {
 		fprintf(stderr, "%s: Failed to malloc %d bytes",
-			__FUNCTION__, sizeof(char *) * (count+1));
+			__FUNCTION__, (int)(sizeof(char *) * (count+1)));
 		closedir(dir);
 		errno = ENOMEM;
 		return -1;
