@@ -44,6 +44,9 @@ test_bitmap: bitmap.o test_bitmap.o log.o
 clean:
 	@rm -f *.o *~
 
+copytobin: gfs_fsck
+	cp gfs_fsck ${top_srcdir}/bin
+
 distclean: clean
 	@rm -f *.d cscope.* gfs_fsck test_inode_list *.orig *.rej test_block_list test_bitmap
 
