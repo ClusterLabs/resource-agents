@@ -374,7 +374,7 @@ static int init_ccs(fd_t *fd)
 	for (i=1;;i++) {
 		name = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//nodes/node[%d]/@name", i);
+	        sprintf(path, "//cluster/nodes/node[%d]/@name", i);
 
 		error = ccs_get(cd, path, &name);
 		if (error || !name)
