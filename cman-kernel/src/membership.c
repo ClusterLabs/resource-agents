@@ -460,9 +460,10 @@ static int do_timer_wakeup()
 			send_joinconf();
 		}
 		else {
-			P_MEMB("JOINCONF not acked, cancelling transition\n");
+			P_MEMB("JOINCONF not acked, removing node\n");
 			joining_node->state = NODESTATE_DEAD;
-			end_transition();
+			start_transition(TRANS_REMNODE, joining_node);
+			joining_node = NULL;
 		}
 		return -1;
 	}
@@ -887,6 +888,7 @@ static int end_transition()
 	}
 
 	joining_temp_nodeid = 0;
+	joining_node = NULL;
 	purge_temp_nodeids();
 
 	set_quorate(total_votes);
@@ -1617,7 +1619,7 @@ static struct cluster_node *remove_node(int nodeid)
 {
 	struct cluster_node *node = find_node_by_nodeid(nodeid);
 
-	if (node && node->state == NODESTATE_MEMBER) {
+	if (node && node->state != NODESTATE_DEAD) {
 		P_MEMB("starttrans removes node %s\n", node->name);
 		down(&cluster_members_lock);
 		node->state = NODESTATE_DEAD;
