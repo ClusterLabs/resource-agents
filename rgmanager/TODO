@@ -1,13 +1,7 @@
 * Not currently tested with GuLM.
 
-* Online configuration changes don't work yet (at all).
-  - Need a way for CCS to notify clients of a configuration change
-  - Still working out with visegrips.
-
-* Too much RAM allocated. ;)  Silly pthreads.
-  - Need to check out how much stack size we actually need.  Obviously,
-    resource group threads need the most of any due to recursion and
-    the whole arbitrarily complex tree structure of resource groups.
+* Online configuration works, but needs SIGHUP from either ccsd or
+  a ccsd-called-program
 
 * I suspect View-Formation is not scalable more than about 32 nodes
 the way it's currently implemented.

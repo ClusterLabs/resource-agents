@@ -69,8 +69,10 @@ forwarding_thread(void *arg)
 	/* Construct message */
 	build_message(&msg, req->rr_request, req->rr_group, req->rr_target);
 
+	/* 
 	clulog(LOG_DEBUG, "Forwarding %s request to %d\n",
 	       rg_req_str(req->rr_request), (int)rgs.rs_owner);
+	 */
 
 	fd = msg_open(rgs.rs_owner, RG_PORT, RG_PURPOSE, 10);
 	if (fd == -1) {

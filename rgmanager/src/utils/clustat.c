@@ -238,7 +238,7 @@ txt_member_states(cluster_member_list_t *membership)
 	int x;
 
 	if (!membership) {
-		printf("No members participating in Service Group \"%s\"\n",
+		printf("Not participating in Service Group \"%s\"\n",
 		       RG_SERVICE_GROUP);
 		return;
 	}

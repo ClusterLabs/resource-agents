@@ -8,9 +8,7 @@ const char *rg_state_strings[] = {
 	"checking",
 	"recoverable",
 	"recovering",
-	"unknown",
 	"disabled",
-	"initializing",
 	""
 };
 
@@ -20,16 +18,17 @@ const char *rg_req_strings[] = {
 	"start",
 	"stop",
 	"status",
-	"set check interval",
 	"disable",
 	"stop (recovery)",
 	"start (recovery)",
 	"restart",
-	"failback",
 	"exiting",
 	"initialize",
 	"enable",
 	"status inquiry",
 	"relocate",
+	"conditional stop",
+	"conditional start",
+	"remote start",
 	""
 };

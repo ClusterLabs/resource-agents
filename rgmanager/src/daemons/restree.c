@@ -725,7 +725,7 @@ do_status(resource_node_t *node)
 
 	for (; res->r_actions[x].ra_name; x++) {
 		if (!has_recover &&
-		    strcmp(res->r_actions[x].ra_name, "recover")) {
+		    !strcmp(res->r_actions[x].ra_name, "recover")) {
 			has_recover = 1;
 			continue;
 		}
@@ -751,7 +751,7 @@ do_status(resource_node_t *node)
 
 	res->r_actions[idx].ra_last = now;
 	if ((x = res_exec(node, RS_STATUS,
-			  res->r_actions[idx].ra_depth) == 0))
+			  res->r_actions[idx].ra_depth)) == 0)
 		return 0;
 
 	if (!has_recover)
@@ -851,8 +851,8 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				printf("Node %s:%s - CONDSTART\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
-				 */
 				op = RS_START;
+				 */
 			}
 
 			if ((op == RS_CONDSTOP) &&
@@ -861,8 +861,8 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				printf("Node %s:%s - CONDSTOP\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
-				 */
 				op = RS_STOP;
+				 */
 			}
 		}
 

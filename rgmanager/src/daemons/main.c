@@ -35,7 +35,7 @@
 
 
 int daemon_init(char *);
-int init_resource_groups(void);
+int init_resource_groups(int);
 void kill_resource_groups(void);
 void set_my_id(uint64_t);
 int eval_groups(int, uint64_t, int);
@@ -44,7 +44,7 @@ void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(int);
 
-int shutdown_pending = 0, running = 1;
+int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 
 #define request_failback(a) 0
 
@@ -138,8 +138,9 @@ request_failbacks(void)
 
 
 void
-reconfigure(int sig)
+flag_reconfigure(int sig)
 {
+	need_reconfigure++;
 }
 
 
@@ -163,7 +164,7 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 			hard_exit();
 
 		if (!rg_initialized()) {
-			if (init_resource_groups() != 0) {
+			if (init_resource_groups(0) != 0) {
 				clulog(LOG_ERR,
 				       "Cannot initialize services\n");
 				hard_exit();
@@ -176,7 +177,7 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 		}
 		setup_signal(SIGINT, graceful_exit);
 		setup_signal(SIGTERM, graceful_exit);
-		setup_signal(SIGHUP, reconfigure);
+		setup_signal(SIGHUP, flag_reconfigure);
 
 		eval_groups(1, nodeID, STATE_UP);
 		return;
@@ -405,15 +406,13 @@ handle_cluster_event(int fd)
 		rg_set_inquorate();
 		member_list_update(NULL);		/* Clear member list */
 		rg_lockall();
-		rg_stopall();
-		rg_wait_threads();
+		rg_doall(RG_INIT, 1, "Emergency stop of %s");
 		rg_set_uninitialized();
 		break;
 	case CE_SHUTDOWN:
 		clulog(LOG_WARNING, "Shutting down uncleanly\n");
 		rg_set_inquorate();
-		rg_stopall();
-		rg_wait_threads();
+		rg_doall(RG_INIT, 1, "Emergency stop of %s");
 		exit(0);
 	}
 
@@ -464,9 +463,19 @@ event_loop(int clusterfd)
 
 	n = select(max + 1, &rfds, NULL, NULL, &tv);
 
-	/* No new messages. */
+	if (need_reconfigure) {
+		need_reconfigure = 0;
+		init_resource_groups(1);
+		return 0;
+	}
 
-	if (n < 0) {
+	/* Did we receive a SIGTERM? */
+	if (n < 0)
+		return 0;
+
+	/* No new messages.  Drop in the status check requests.  */
+	if (n == 0) {
+		rg_doall(RG_STATUS, 0, NULL);
 		return 0;
 	}
 
@@ -516,8 +525,7 @@ void
 hard_exit(void)
 {
 	rg_lockall();
-	rg_stopall();
-	rg_wait_threads();
+	rg_doall(RG_INIT, 1, "Emergency stop of %s");
 	vf_shutdown();
 	exit(1);
 }
@@ -527,8 +535,7 @@ void
 cleanup(int cluster_fd)
 {
 	rg_lockall();
-	rg_stopall();
-	rg_wait_threads();
+	rg_doall(RG_STOP, 1, NULL);
 	vf_shutdown();
 	kill_resource_groups();
 	member_list_update(NULL);
@@ -640,7 +647,7 @@ main(int argc, char **argv)
 	   We know we're quorate.  At this point, we need to
 	   read the resource group trees from ccsd.
 	 */
-	if (init_resource_groups() != 0) {
+	if (init_resource_groups(0) != 0) {
 		clulog(LOG_CRIT, "Couldn't initialize resource groups\n");
 		return -1;
 	}

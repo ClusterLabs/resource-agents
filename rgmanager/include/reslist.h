@@ -40,6 +40,9 @@
 #define RES_STARTED	(1)
 #define RES_FAILED	(2)
 
+/*
+   Resource operations
+ */
 #define RS_START	(0)
 #define RS_STOP		(1)
 #define RS_STATUS	(2)
@@ -145,7 +148,16 @@ typedef struct _fod {
 int res_start(resource_node_t **tree, resource_t *res, void *ret);
 int res_stop(resource_node_t **tree, resource_t *res, void *ret);
 int res_status(resource_node_t **tree, resource_t *res, void *ret);
+int res_condstart(resource_node_t **tree, resource_t *res, void *ret);
+int res_condstop(resource_node_t **tree, resource_t *res, void *ret);
 /*int res_resinfo(resource_node_t **tree, resource_t *res, void *ret);*/
+
+/*
+   Calculate differences
+ */
+int resource_delta(resource_t **leftres, resource_t **rightres);
+int resource_tree_delta(resource_node_t **, resource_node_t **);
+
 
 /*
    Load/kill resource rule sets

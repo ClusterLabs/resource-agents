@@ -28,8 +28,8 @@
 typedef struct __resthread {
 	list_head();
 	pthread_t	rt_thread;		/** Thread identifier */
-	int		rt_status;		/** Resource status */
 	int		rt_request;		/** Current pending operation */
+	int		rt_status;		/** Used for init */
 	char		rt_name[256];		/** RG name */
 	request_t	**rt_queue;		/** RG event queue */
 	pthread_mutex_t	*rt_queue_mutex;	/** Mutex for event queue */
@@ -62,10 +62,9 @@ dump_threads(void)
 	printf("+++ BEGIN Thread dump\n");
 	pthread_mutex_lock(&reslist_mutex);
 	list_do(&resthread_list, rt) {
-		printf("TID %d group %s (@ %p) state %s request %d\n",
+		printf("TID %d group %s (@ %p) request %d\n",
 		       (int)rt->rt_thread,
-		       rt->rt_name, rt, rg_state_str(rt->rt_status),
-		       rt->rt_request);
+		       rt->rt_name, rt, rt->rt_request);
 	} while (!list_done(&resthread_list, rt));
 	pthread_mutex_unlock(&reslist_mutex);
 	printf("--- END Thread dump\n");
@@ -146,7 +145,6 @@ purge_all(request_t **list)
 static void *
 resgroup_thread_main(void *arg)
 {
-	pthread_t th = (pthread_t)0;
 	pthread_mutex_t my_queue_mutex;
 	pthread_cond_t my_queue_cond;
 	request_t *my_queue = NULL;
@@ -154,10 +152,7 @@ resgroup_thread_main(void *arg)
 	char myname[256];
 	resthread_t *myself;
 	request_t *req;
-	uint32_t running = 1, newstatus = 0, ret = RG_FAIL, error = 0;
-	struct timeval tv;
-	struct timespec ts;
-	int interval;
+	uint32_t ret = RG_FAIL, error = 0;
 
 	rg_inc_threads();
 
@@ -165,6 +160,7 @@ resgroup_thread_main(void *arg)
 	dprintf("Thread %s (tid %d) starting\n",myname,gettid());
 
 	pthread_mutex_init(&my_queue_mutex, NULL);
+	pthread_mutex_lock(&my_queue_mutex);
 	pthread_cond_init(&my_queue_cond, NULL);
 
 	/*
@@ -185,49 +181,29 @@ resgroup_thread_main(void *arg)
 	myself->rt_queue = &my_queue;
 	myself->rt_queue_mutex = &my_queue_mutex;
 	myself->rt_queue_cond = &my_queue_cond;
-	myself->rt_status = RG_STATE_STOPPED;
-	interval = DEFAULT_CHECK_INTERVAL;
-	pthread_mutex_unlock(&reslist_mutex);
-
+	myself->rt_status = RG_STATE_STARTED; /* Ok, we're ready to go */
 	rg_sighandler_setup();
 
-	do {
+	/* Wait for first event */
+	pthread_mutex_unlock(&reslist_mutex);
+
+	/* My mutex is still held */
+	pthread_cond_wait(&my_queue_cond, &my_queue_mutex);
+	pthread_mutex_unlock(&my_queue_mutex);
+
+
+	while(1) {
+		pthread_mutex_lock(&reslist_mutex);
  		pthread_mutex_lock(&my_queue_mutex);
-
 		if ((req = rq_next_request(&my_queue)) == NULL) {
-
-			if (interval) {
-				gettimeofday(&tv, NULL);
-				ts.tv_sec = tv.tv_sec + interval;
-				ts.tv_nsec = 0;
-
-				if (pthread_cond_timedwait(&my_queue_cond,
-							   &my_queue_mutex,
-							   &ts) == ETIMEDOUT){
-					/* Enqueue status check 
-					printf("%s Queueing status check\n",
-					       myname); */
-					rq_queue_request(&my_queue,
-							 myname,
-							 RG_STATUS,
-							 0, 0, -1, 0,
-							 NODE_ID_NONE,
-							 0, 0);
-				}
-			} else {
-				pthread_cond_wait(&my_queue_cond,
-						  &my_queue_mutex);
-			}
-
-			req = rq_next_request(&my_queue);
-		}
-		
-		if (!req) {
-			pthread_mutex_unlock(&my_queue_mutex);
-			continue;
+			/* We're done.  No more requests.
+			   We're about to kill our thread, so exit the
+			   loop with the lock held. */
+			break;
 		}
 		
 		pthread_mutex_unlock(&my_queue_mutex);
+		pthread_mutex_unlock(&reslist_mutex);
 
 		ret = RG_FAIL;
 		error = 0;
@@ -240,192 +216,101 @@ resgroup_thread_main(void *arg)
 		myself = find_resthread_byname(myname);
 		assert(myself);
 		myself->rt_request = req->rr_request;
-	
+		pthread_mutex_unlock(&reslist_mutex);
+
 		switch(req->rr_request) {
-		case RG_ENABLE:
-		case RG_START:
+		case RG_START_REMOTE:
 		case RG_START_RECOVER:
-			if (myself->rt_status == RG_STATE_STARTED) {
-				pthread_mutex_unlock(&reslist_mutex);
-				/*
-				   If it's already started, return
-				   success.  When we start,
-				   other nodes may send us 
-				   start requests immediately
-				 */
-				error = 0;
-				break;
-			}
-			
-			if (myself->rt_status != RG_STATE_STOPPED) {
-				pthread_mutex_unlock(&reslist_mutex);
-				error = -1;
-				break;
-			}
-				
-			myself->rt_status = RG_STATE_STARTING;
+			error = handle_start_remote_req(myname,
+							req->rr_request);
+			break;
 
-			pthread_mutex_unlock(&reslist_mutex);
-
+		case RG_START:
+		case RG_ENABLE:
 			error = handle_start_req(myname, req->rr_request,
 						 &newowner);
-
-			if (error == SUCCESS) {
-				if (newowner == my_id()) {
-					newstatus = RG_STATE_STARTED;
-				} else {
-					/* It's running elsewhere. */
-					newstatus = RG_STATE_STOPPED;
-					running = 0;
-				}
-				ret = RG_SUCCESS;
-
-				break;
-			}
-
-			if (error == NO) {
-				newstatus = RG_STATE_STOPPED;
-				running = 0;
-				break;
-
-			}
-			newstatus = RG_STATE_FAILED;
-			running = 0;
 			break;
 
 		case RG_RELOCATE:
-			if (myself->rt_status != RG_STATE_STARTED) {
-				pthread_mutex_unlock(&reslist_mutex);
-				forward_request(req);
-				/* Request forward: don't free */
-				continue;
-			}
-				
-			myself->rt_status = RG_STATE_STOPPING;
-
-			pthread_mutex_unlock(&reslist_mutex);
-
-			error = handle_relocate_req(myname, RG_START,
+			/* Relocate requests are user requests and must be
+			   forwarded */
+			error = handle_relocate_req(myname, RG_START_REMOTE,
    						    req->rr_target,
    						    &newowner);
-
-			if (newowner == my_id()) {
-				newstatus = RG_STATE_STARTED;
-			} else {
-				newstatus = RG_STATE_STOPPED;
-				running = 0;
-			}
-
+			if (error == FORWARD)
+				ret = RG_NONE;
 			break;
 
 		case RG_STOP:
-			if (myself->rt_status != RG_STATE_STARTED) {
-				pthread_mutex_unlock(&reslist_mutex);
-
-				/* It's not started locally, so we 
-				   can't stop it */
-				forward_request(req);
-				continue;
-			}
-
-			myself->rt_status = RG_STATE_STOPPING;
-			pthread_mutex_unlock(&reslist_mutex);
-
 			error = svc_stop(myname, 0);
 
-			if (error == 0) {
-				newstatus = RG_STATE_STOPPED;
+			if (error == 0 || error == FORWARD) {
 				ret = RG_SUCCESS;
 
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
-				if (rq_queue_empty(&my_queue))
-					running = 0;
 				pthread_mutex_unlock(&my_queue_mutex);
+				break;
 			} else {
 				/*
 				 * Bad news. 
 				 */
-				newstatus = RG_STATE_FAILED;
-				running = 0;
+				ret = RG_FAIL;
 			}
 
 			break;
 
 		case RG_INIT:
-			if (myself->rt_status != RG_STATE_STOPPED) {
-				printf("Not initializing in %d\n",
-				       myself->rt_status);
-
-				pthread_mutex_unlock(&reslist_mutex);
-				break;
-			}
-
-			myself->rt_status = RG_STATE_INITIALIZING;
-			pthread_mutex_unlock(&reslist_mutex);
-
+			/* Stop without changing shared state of it */
 			error = group_op(myname, RG_STOP);
 
 			pthread_mutex_lock(&my_queue_mutex);
 			purge_all(&my_queue);
-			running = 0;
 			pthread_mutex_unlock(&my_queue_mutex);
 
-			if (error == 0) {
-				newstatus = RG_STATE_STOPPED;
+			if (error == 0)
 				ret = RG_SUCCESS;
-			} else {
-				/*
-				 * Bad news. 
-				 */
-				dprintf("XXX Failed to initialize.\n");
-				newstatus = RG_STATE_FAILED;
+			else
 				ret = RG_FAIL;
-			}
+			break;
+
+		case RG_CONDSTOP:
+			/* CONDSTOP doesn't change RG state by itself */
+			group_op(myname, RG_CONDSTOP);
+			break;
+
+		case RG_CONDSTART:
+			/* CONDSTART doesn't change RG state by itself */
+			group_op(myname, RG_CONDSTART);
 			break;
 
 		case RG_DISABLE:
-			if (myself->rt_status != RG_STATE_STARTED &&
-			    myself->rt_status != RG_STATE_FAILED) {
-				pthread_mutex_unlock(&reslist_mutex);
-
-				/* It's not started locally, so we 
-				   can't stop it */
-				forward_request(req);
-				continue;
-			}
-
-			myself->rt_status = RG_STATE_STOPPING;
-			pthread_mutex_unlock(&reslist_mutex);
-
+			/* Disable requests need to be forwarded; they're
+			   user requests */
 			error = svc_disable(myname);
 
 			if (error == 0) {
-				newstatus = RG_STATE_STOPPED;
 				ret = RG_SUCCESS;
 
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
-				if (!rq_queue_empty(&my_queue)) {
-					dprintf("queue not empty\n");
-				} else
-					running = 0;
 				pthread_mutex_unlock(&my_queue_mutex);
+			} else if (error == FORWARD) {
+				ret = RG_NONE;
+				break;
 			} else {
 				/*
 				 * Bad news. 
 				 */
-				newstatus = RG_STATE_FAILED;
-				running = 0;
+				ret = RG_FAIL;
 			}
 
 			break;
 
 		case RG_STATUS:
-			myself->rt_status = RG_STATE_CHECK;
-			pthread_mutex_unlock(&reslist_mutex);
-
-			error = group_op(myname, RG_STATUS);
+			/* Need to make sure we don't check status of
+			   resource groups we don't own */
+			error = svc_status(myname);
 
 			/* Recover dead service */
 			if (error == 0)
@@ -439,25 +324,7 @@ resgroup_thread_main(void *arg)
 
 			break;
 
-		case RG_SETCHECK:
-			interval = req->rr_arg0;
-
-			if (interval == 0) {
-				pthread_mutex_lock(&my_queue_mutex);
-				purge_status_checks(&my_queue);
-				pthread_mutex_unlock(&my_queue_mutex);
-			}
-			pthread_mutex_unlock(&reslist_mutex);
-
-			dprintf("Set check interval for %s to %d\n",
-				myname,
-			        req->rr_arg0);
-			error = 0;
-			ret = RG_NONE;
-			break;
-
 		default:
-			pthread_mutex_unlock(&reslist_mutex);
 			printf("Unhandled request %d\n", req->rr_request);
 			ret = RG_NONE;
 			break;
@@ -465,45 +332,39 @@ resgroup_thread_main(void *arg)
 
 		pthread_mutex_lock(&reslist_mutex);
 		myself = find_resthread_byname(myname);
-		myself->rt_status = newstatus;
 		myself->rt_request = RG_NONE;
 		pthread_mutex_unlock(&reslist_mutex);
+
+		if (error == FORWARD)
+			forward_request(req);
+		else
+			rq_free(req);
 
 		if (ret != RG_NONE && rg_initialized()) {
 			send_response(error, req);
 		}
 
-		rq_free(req);
+	}
 
-	} while (running);
-
-	pthread_mutex_lock(&reslist_mutex);
+	/* reslist_mutex and my_queue_mutex held */
 	myself = find_resthread_byname(myname);
 
 	if (!myself) {
 		dprintf("I don't exist... shit!\n");
+		raise(SIGSEGV);
 	}
 
-	pthread_mutex_lock(&my_queue_mutex);
-	purge_all(&my_queue);
-	pthread_mutex_unlock(&my_queue_mutex);
-	myself->rt_queue_mutex = NULL;
-
+	pthread_mutex_destroy(&my_queue_mutex);
 	list_remove(&resthread_list, myself);
-
 	free(myself);
+
 	pthread_mutex_unlock(&reslist_mutex);
 
-	dprintf("Resource Group thread for %s (tid %d): No more requests"
+	dprintf("RGth %s (tid %d): No more requests"
 		"; exiting.\n", myname, gettid());
 
-	if (th != (pthread_t)0){
-		pthread_cancel(th);
-		pthread_join(th, NULL);
-	}
-
+	/* Thread's outta here */
 	rg_dec_threads();
-
 	pthread_exit((void *)NULL);
 }
 
@@ -639,20 +500,26 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 
 	pthread_mutex_lock(resgroup->rt_queue_mutex);
 
-	if (max) {
-		list_do(resgroup->rt_queue, curr) {
-			if (curr->rr_request == request)
-				count++;
-		} while (!list_done(resgroup->rt_queue, curr));
+	if (request == RG_INIT) {
+		/* If we're initializing it, zap the queue if there
+		   is one */
+		purge_all(resgroup->rt_queue);
+	} else {
+		if (max) {
+			list_do(resgroup->rt_queue, curr) {
+				if (curr->rr_request == request)
+					count++;
+			} while (!list_done(resgroup->rt_queue, curr));
 	
-		if (count >= max) {
-			pthread_cond_broadcast(resgroup->rt_queue_cond);
-			pthread_mutex_unlock(resgroup->rt_queue_mutex);
-			pthread_mutex_unlock(&reslist_mutex);
-			/*
-		 	 * Maximum reached.
-			 */
-			return 1;
+			if (count >= max) {
+				pthread_cond_broadcast(resgroup->rt_queue_cond);
+				pthread_mutex_unlock(resgroup->rt_queue_mutex);
+				pthread_mutex_unlock(&reslist_mutex);
+				/*
+				 * Maximum reached.
+				 */
+				return 1;
+			}
 		}
 	}
 
@@ -669,58 +536,4 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 	dprintf("Queued request for %d for %s\n", request, resgroupname);
 	
 	return 0;	
-}
-
-
-/**
-  Force stop of all resource groups
- */
-int
-rg_stopall(void)
-{
-	int errors = 0;
-	resthread_t *resgroup = NULL;
-
-	pthread_mutex_lock(&reslist_mutex);
-
-	if (!resthread_list) {
-		pthread_mutex_unlock(&reslist_mutex);
-		return 0;
-	}
-
-	list_do(&resthread_list, resgroup) {
-		if (!resgroup->rt_queue_mutex)
-			continue;
-
-		pthread_mutex_lock(resgroup->rt_queue_mutex);
-		if (rq_queue_request(resgroup->rt_queue, resgroup->rt_name, 
-				     RG_STOP, 0, 0, -1, 0,
-				     NODE_ID_NONE, 0, 0) < 0)
-			++errors;
-		pthread_cond_broadcast(resgroup->rt_queue_cond);
-		pthread_mutex_unlock(resgroup->rt_queue_mutex);
-	} while (!list_done(&resthread_list, resgroup));
-
-	pthread_mutex_unlock(&reslist_mutex);
-
-	if (errors)
-		return -1;
-	return 0;
-}
-
-
-int
-rg_status(const char *resgroupname)
-{
-	resthread_t *resgroup;
-
-	pthread_mutex_lock(&reslist_mutex);
-	resgroup = find_resthread_byname(resgroupname);
-	if (resgroup) {
-		rq_queue_request(resgroup->rt_queue, resgroup->rt_name,
-				 RG_STATUS, 0, 0, -1, 0, NODE_ID_NONE, 0, 0);
-	}
-	pthread_mutex_unlock(&reslist_mutex);
-
-	return !resgroup;
 }

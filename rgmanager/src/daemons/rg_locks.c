@@ -37,7 +37,7 @@ static pthread_mutex_t locks_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t unlock_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t zero_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t __ccs_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _ccs_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef NO_CCS
 static xmlDocPtr ccs_doc = NULL;
@@ -95,17 +95,17 @@ ccs_lock(void)
 #ifndef NO_CCS
 {
 	int ret;
-	pthread_mutex_lock(&__ccs_mutex);
+	pthread_mutex_lock(&_ccs_mutex);
        	ret = ccs_connect();
 	if (ret < 0) {
-		pthread_mutex_unlock(&__ccs_mutex);
+		pthread_mutex_unlock(&_ccs_mutex);
 		return -1;
 	}
 	return ret;
 }
 #else /* No ccs support */
 {
-	pthread_mutex_lock(&__ccs_mutex);
+	pthread_mutex_lock(&_ccs_mutex);
        	ccs_doc = xmlParseFile(conffile);
 	if (!ccs_doc)
 		return -1;
@@ -122,7 +122,7 @@ ccs_unlock(int fd)
 	int ret;
 
        	ret = ccs_disconnect(fd);
-	pthread_mutex_unlock(&__ccs_mutex);
+	pthread_mutex_unlock(&_ccs_mutex);
 	if (ret < 0) {
 		return -1;
 	}
@@ -132,7 +132,7 @@ ccs_unlock(int fd)
 {
 	xmlFreeDoc(ccs_doc);
 	ccs_doc = NULL;
-	pthread_mutex_unlock(&__ccs_mutex);
+	pthread_mutex_unlock(&_ccs_mutex);
 	return 0;
 }
 
@@ -140,9 +140,9 @@ ccs_unlock(int fd)
 void
 conf_setconfig(char *path)
 {
-	pthread_mutex_lock(&__ccs_mutex);
+	pthread_mutex_lock(&_ccs_mutex);
 	conffile = path;
-	pthread_mutex_unlock(&__ccs_mutex);
+	pthread_mutex_unlock(&_ccs_mutex);
 }
 
 

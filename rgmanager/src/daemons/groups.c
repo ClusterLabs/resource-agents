@@ -74,6 +74,9 @@ consider_start(char *svcName, rg_state_t *svcStatus,
 	    svcStatus->rs_state == my_id())
 		return;
 
+	if (svcStatus->rs_state == RG_STATE_DISABLED)
+		return;
+
 	/*
 	 * Start any stopped services, or started services
 	 * that are owned by a down node.
@@ -254,6 +257,12 @@ group_op(char *groupname, int op)
 	case RG_STATUS:
 		ret = res_status(&_tree, res, NULL);
 		break;
+	case RG_CONDSTOP:
+		ret = res_condstop(&_tree, res, NULL);
+		break;
+	case RG_CONDSTART:
+		ret = res_condstart(&_tree, res, NULL);
+		break;
 	}
 	pthread_rwlock_unlock(&resource_lock);
 
@@ -375,6 +384,195 @@ send_rg_states(int fd)
 }
 
 
+void
+rg_doall(int request, int block, char *debugfmt)
+{
+	resource_node_t *curr;
+	char *name;
+
+	pthread_rwlock_rdlock(&resource_lock);
+	list_do(&_tree, curr) {
+
+		if (strcmp(curr->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
+			continue;
+
+		/* Group name */
+		name = curr->rn_resource->r_attrs->ra_value;
+
+		if (debugfmt)
+			clulog(LOG_DEBUG, debugfmt, name);
+
+		rt_enqueue_request(name, request, -1, 0,
+				   NODE_ID_NONE, 0, 0);
+	} while (!list_done(&_tree, curr));
+
+	pthread_rwlock_unlock(&resource_lock);
+	if (block) 
+		rg_wait_threads();
+}
+
+
+/**
+  Stop changed resources.
+ */
+void
+do_condstops(void)
+{
+	resource_node_t *curr;
+	char *name;
+	rg_state_t svcblk;
+	int need_kill;
+	void *lockp;
+
+	clulog(LOG_INFO, "Stopping changed resources.\n");
+
+	pthread_rwlock_rdlock(&resource_lock);
+	list_do(&_tree, curr) {
+
+		if (strcmp(curr->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
+			continue;
+
+		/* Group name */
+		name = curr->rn_resource->r_attrs->ra_value;
+
+		/* If we're not running it, no need to CONDSTOP */
+		if (rg_lock(name, &lockp) != 0)
+			continue;
+		if (get_rg_state(name, &svcblk) < 0) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+		rg_unlock(name, lockp);
+
+		if (svcblk.rs_owner != my_id())
+			continue;
+
+		/* Set state to uninitialized if we're killing a RG */
+		need_kill = 0;
+		if (curr->rn_resource->r_flags & RF_NEEDSTOP) {
+			need_kill = 1;
+			clulog(LOG_DEBUG, "Removing %s\n", name);
+		}
+
+		rt_enqueue_request(name, need_kill ? RG_DISABLE : RG_CONDSTOP,
+				   -1, 0, NODE_ID_NONE, 0, 0);
+
+	} while (!list_done(&_tree, curr));
+
+	pthread_rwlock_unlock(&resource_lock);
+	rg_wait_threads();
+}
+
+
+/**
+  Start changed resources.
+ */
+void
+do_condstarts(void)
+{
+	resource_node_t *curr;
+	char *name;
+	rg_state_t svcblk;
+	int need_init, new_groups = 0;
+	void *lockp;
+
+	clulog(LOG_INFO, "Starting changed resources.\n");
+
+	/* Pass 1: Start any normally changed resources */
+	pthread_rwlock_rdlock(&resource_lock);
+	list_do(&_tree, curr) {
+
+		if (strcmp(curr->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
+			continue;
+
+		/* Group name */
+		name = curr->rn_resource->r_attrs->ra_value;
+
+		/* New RG.  We'll need to initialize it. */
+		need_init = 0;
+		if (curr->rn_resource->r_flags & RF_NEEDSTART)
+			need_init = 1;
+
+		if (rg_lock(name, &lockp) != 0)
+			continue;
+
+		if (get_rg_state(name, &svcblk) < 0) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+
+		if (!need_init && svcblk.rs_owner != my_id()) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+		rg_unlock(name, lockp);
+
+		if (need_init) {
+			++new_groups;
+			clulog(LOG_DEBUG, "Initializing %s\n", name);
+		}
+
+		rt_enqueue_request(name, need_init ? RG_INIT : RG_CONDSTART,
+				   -1, 0, NODE_ID_NONE, 0, 0);
+
+	} while (!list_done(&_tree, curr));
+
+	pthread_rwlock_unlock(&resource_lock);
+	rg_wait_threads();
+
+	if (!new_groups)
+		return;
+
+	/* Pass 2: Tag all new resource groups as stopped */
+	pthread_rwlock_rdlock(&resource_lock);
+	list_do(&_tree, curr) {
+
+		if (strcmp(curr->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
+			continue;
+
+		/* Group name */
+		name = curr->rn_resource->r_attrs->ra_value;
+
+		/* New RG.  We'll need to initialize it. */
+		if (!(curr->rn_resource->r_flags & RF_NEEDSTART))
+			continue;
+
+		if (rg_lock(name, &lockp) != 0)
+			continue;
+
+		if (get_rg_state(name, &svcblk) < 0) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+
+		/* If it is a replacement of an old RG, it will
+		   be in the DISABLED state, which will prevent it
+		   from restarting.  That's bad.  However, if it's
+		   a truly new service, it will be in the UNINITIALIZED
+		   state, which will be caught by eval_groups. */
+		if (svcblk.rs_state != RG_STATE_DISABLED) {
+			rg_unlock(name, lockp);
+			continue;
+		}
+
+		/* Set it up for an auto-start */
+		svcblk.rs_state = RG_STATE_STOPPED;
+		set_rg_state(name, &svcblk);
+
+		rg_unlock(name, lockp);
+
+	} while (!list_done(&_tree, curr));
+	pthread_rwlock_unlock(&resource_lock);
+
+	/* Pass 3: See if we should start new resource groups */
+	eval_groups(1, my_id(), STATE_UP);
+}
+
+
 /**
   Initialize resource groups.  This reads all the resource groups from 
   CCS, builds the tree, etc.  Ideally, we'll have a similar function 
@@ -382,17 +580,17 @@ send_rg_states(int fd)
   resource group modification.
  */
 int
-init_resource_groups(void)
+init_resource_groups(int reconfigure)
 {
-	rg_state_t rg;
 	int fd, x;
 
 	resource_t *reslist = NULL, *res;
 	resource_rule_t *rulelist = NULL, *rule;
-	resource_node_t *tree = NULL, *curr;
+	resource_node_t *tree = NULL;
 	fod_t *domains = NULL, *fod;
-	char *name;
 
+	if (reconfigure)
+		clulog(LOG_NOTICE, "Reconfiguring\n");
 	clulog(LOG_INFO, "Loading Resource Groups\n");
 	clulog(LOG_DEBUG, "Loading Resource Rules\n");
 	if (load_resource_rules(&rulelist) != 0) {
@@ -437,8 +635,20 @@ init_resource_groups(void)
 	list_do(&domains, fod) { ++x; } while (!list_done(&domains, fod));
 	clulog(LOG_DEBUG, "%d domains defined\n", x);
 
+	/* Reconfiguration done */
+	ccs_unlock(fd);
 
-	/* XXX refresh resource groups here? */
+	if (reconfigure) {
+		/* Calc tree deltas */
+		pthread_rwlock_wrlock(&resource_lock);
+		resource_delta(&_resources, &reslist);
+		resource_tree_delta(&_tree, &tree);
+		pthread_rwlock_unlock(&resource_lock);
+
+		do_condstops();
+	}
+
+	/* Swap in the new configuration */
 	pthread_rwlock_wrlock(&resource_lock);
 	if (_tree)
 		destroy_resource_tree(&_tree);
@@ -449,38 +659,24 @@ init_resource_groups(void)
 	if (_rules)
 		destroy_resource_rules(&_rules);
 	_rules = rulelist;
-
 	if (_domains)
 		deconstruct_domains(&_domains);
 	_domains = domains;
-
 	pthread_rwlock_unlock(&resource_lock);
 
-	/* Ok, read lock on our trees.  Let's do some funky stuff */
-	pthread_rwlock_rdlock(&resource_lock);
+	if (reconfigure) {
+		/* Switch to read lock and do the up-half of the
+		   reconfig request */
+		clulog(LOG_INFO, "Restarting changed resources.\n");
+		do_condstarts();
+	} else {
+		/* Do initial stop-before-start */
+		clulog(LOG_INFO, "Initializing Resource Groups\n");
+		rg_doall(RG_INIT, 1, "Initializing %s\n");
+		clulog(LOG_INFO, "Resource Groups Initialized\n");
+		rg_set_initialized();
+	}
 
-	clulog(LOG_INFO, "Initializing Resource Groups\n");
-	/* do this for each rg XXX don't do this on a reconfigure though*/
-	list_do(&_tree, curr) {
-
-		if (strcmp(curr->rn_resource->r_rule->rr_type, "resourcegroup"))
-			continue;
-
-		/* Group name */
-		name = curr->rn_resource->r_attrs->ra_value;
-
-		clulog(LOG_DEBUG, "Init. Resource Group \"%s\"\n", name);
-
-		rt_enqueue_request(rg.rs_name, RG_INIT, -1, 0, NODE_ID_NONE,
-				   0, 0);
-	} while (!list_done(&_tree, curr));
-
-	pthread_rwlock_unlock(&resource_lock);
-	ccs_unlock(fd);
-
-	rg_wait_threads();
-	clulog(LOG_INFO, "Resource Groups Initialized\n");
-	rg_set_initialized();
 	return 0;
 }
 

@@ -60,17 +60,18 @@ typedef struct {
 #define RG_START    2
 #define RG_STOP     3
 #define RG_STATUS   4
-#define RG_SETCHECK 5
-#define RG_DISABLE  6
-#define RG_STOP_RECOVER 7
-#define RG_START_RECOVER 8
-#define RG_RESTART  9
-#define RG_FAILBACK 10
-#define RG_EXITING 11
-#define RG_INIT    12
-#define RG_ENABLE  13
-#define RG_STATUS_INQUIRY  14
-#define RG_RELOCATE 15
+#define RG_DISABLE  5
+#define RG_STOP_RECOVER 6
+#define RG_START_RECOVER 7
+#define RG_RESTART  8
+#define RG_EXITING  9 
+#define RG_INIT    10
+#define RG_ENABLE  11
+#define RG_STATUS_INQUIRY  12
+#define RG_RELOCATE 13
+#define RG_CONDSTOP 14
+#define RG_CONDSTART 15
+#define RG_START_REMOTE 16 /* Part of a relocate */
 #define RG_NONE     999
 
 extern const char *rg_req_strings[];
@@ -80,6 +81,7 @@ extern const char *rg_req_strings[];
 int handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			uint64_t *new_owner);
 int handle_start_req(char *svcName, int req, uint64_t *new_owner);
+int handle_start_remote_req(char *svcName, int req);
 
 /* Resource group states (for now) */
 #define RG_STATE_BASE			110
@@ -92,9 +94,7 @@ int handle_start_req(char *svcName, int req, uint64_t *new_owner);
 #define RG_STATE_CHECK			116	/** Checking status */
 #define RG_STATE_ERROR			117	/** Recoverable error */
 #define RG_STATE_RECOVER		118	/** Pending recovery */
-#define RG_STATE_UNKNOWN		119	/** Resource state unknown */
-#define RG_STATE_DISABLED		120	/** Resource not allowd to run */
-#define RG_STATE_INITIALIZING		121	/** RG initializing locally */
+#define RG_STATE_DISABLED		119	/** Resource not allowd to run */
 
 #define DEFAULT_CHECK_INTERVAL		10
 
@@ -109,6 +109,7 @@ void rg_init(void);
 /* FOOM */
 int svc_start(char *svcName, int req);
 int svc_stop(char *svcName, int error);
+int svc_status(char *svcName);
 int svc_disable(char *svcName);
 int svc_fail(char *svcName);
 int rt_enqueue_request(const char *resgroupname, int request, int response_fd,
@@ -116,8 +117,9 @@ int rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 
 void send_response(int ret, request_t *req);
 
-/* This purges all pending requests and stops all running services */
-int rg_stopall(void);
+/* do this op on all resource groups.  The handler for the request 
+   will sort out whether or not it's a valid request given the state */
+void rg_doall(int request, int block, char *debugfmt);
 
 /* from rg_state.c */
 int set_rg_state(char *name, rg_state_t *svcblk);
@@ -143,6 +145,7 @@ void member_list_update(cluster_member_list_t *new_ml);
 cluster_member_list_t *member_list(void);
 uint64_t my_id(void);
 
+#define FORWARD -3
 #define ABORT -2
 #define FAIL -1
 #define SUCCESS 0

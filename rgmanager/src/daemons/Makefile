@@ -18,7 +18,7 @@ INCLUDE += -I $(top_srcdir)/include
 
 CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
 
-CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE -DNO_CCS
 
 CFLAGS+= -L ../clulib 
 
