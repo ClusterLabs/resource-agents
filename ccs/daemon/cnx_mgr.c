@@ -812,7 +812,7 @@ static int process_get(comm_header_t *ch, char **payload){
 	ocs[ch->comm_desc]->oc_index = -1;  /* reset index after end of list */
       }
     } else {
-      log_err("No nodes found.\n");
+      log_msg("No nodes found.\n");
       ch->comm_payload_size = 0;
       error = -ENODATA;
       goto fail;
@@ -1030,7 +1030,11 @@ int process_request(int afd){
     break;
   case COMM_GET:
     if((error = process_get(ch, &payload)) < 0){
-      log_err("Error while processing get: %s\n", strerror(-error));
+      if(error == ENODATA){
+	log_msg("Error while processing get: %s\n", strerror(-error));
+      } else {
+	log_err("Error while processing get: %s\n", strerror(-error));
+      }
       goto fail;
     }
     break;

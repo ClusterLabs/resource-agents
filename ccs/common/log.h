@@ -15,9 +15,10 @@
 #include <syslog.h>
 
 extern int log_is_open;
+extern int log_is_verbose;
 
+void log_set_verbose(void);
 void log_open(const char *ident, int option, int facility);
-
 void log_close(void);
 
 /* Note, messages will always be sent to syslog, but userland programs **
@@ -36,6 +37,7 @@ void log_close(void);
 #define log_dbg(fmt, args...)
 #endif
 
+#ifdef DEBUG
 #define log_msg(fmt, args...)  {\
     if(log_is_open){ \
       syslog(LOG_NOTICE, fmt, ## args); \
@@ -43,6 +45,17 @@ void log_close(void);
       fprintf(stdout, fmt , ## args ); \
     } \
 }
+#else
+#define log_msg(fmt, args...)  {\
+    if(log_is_verbose){ \
+      if(log_is_open){ \
+        syslog(LOG_NOTICE, fmt, ## args); \
+      }else { \
+        fprintf(stdout, fmt , ## args ); \
+      } \
+    } \
+}
+#endif
 
 #ifdef DEBUG
 #define log_err(fmt, args...){ \

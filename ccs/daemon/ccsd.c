@@ -455,7 +455,10 @@ static void daemonize(void){
     open("/dev/null", O_WRONLY); /* reopen stderr */
 
     log_open("ccsd", LOG_PID, LOG_DAEMON);
-  
+    if(flags & FLAG_VERBOSE){
+      log_set_verbose();
+    }
+
     if((error = create_lockfile(lockfile_location))){
       kill(getppid(), SIGUSR1);
       goto fail;

@@ -66,6 +66,7 @@ static void cman_communicator(void){
 
   signal(SIGUSR1, &cman_sig_handler);
 
+ restart:
   while(cman_sock < 0){
     cman_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
   }
@@ -76,8 +77,12 @@ static void cman_communicator(void){
 
   if(bind(cman_sock, (struct sockaddr *)&saddr, sizeof(struct sockaddr_cl))){
     log_sys_err("Unable to bind cluster socket");
-    log_err("Exiting...\n");
+    close(cman_sock);
+    cman_sock = -1;
+    goto restart;
     exit(EXIT_FAILURE);
+  } else {
+    log_dbg("CMAN Socket bound.\n");
   }
   /* ATTENTION -- doen't need 'error' variable, cleanup */
 
@@ -117,7 +122,12 @@ static void cman_communicator(void){
       log_err("Received bad communication type on cluster socket.\n");
       log_dbg("Msg looks like:\n");
       log_dbg("%s\n", (char *)&ch);
-      continue;
+      quorate = 0;
+      close(cman_sock);
+      cman_sock = -1;
+      log_msg("Assuming cman shutdown...\n");
+      log_msg("Attempting to reestablish connection.\n");
+      goto restart;
     }
 
     if((ch.comm_flags & COMM_UPDATE_NOTICE) && !update_progress){
