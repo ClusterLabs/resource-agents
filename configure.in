@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.248 $) dnl cvs revision
+AC_REVISION($Revision: 1.249 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -161,6 +161,7 @@ AC_PATH_PROGS(SSH, ssh)
 AC_PATH_PROGS(SCP, scp)
 AC_PATH_PROGS(PYTHON, python)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
+AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
 AC_PATH_PROGS(GLIBCONFIG, glib13-config)
@@ -185,6 +186,7 @@ AC_SUBST(PERL)
 AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
 
+
 dnl ************************************************************************
 dnl checks for libraries
 dnl Needed for libnet test.
@@ -198,13 +200,22 @@ AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 
 AC_MSG_CHECKING(which glib config exists)
+if test "X${PKGCONFIG}" != "X"; then
+        PKGNAME=""
+	for arg in "glib"
+	do
+	  if  $PKGCONFIG --exists "$arg"; then
+	    GLIBCONFIG="$PKGCONFIG $arg"
+	    break
+	  fi
+	done
+fi
 if test "X${GLIBCONFIG}" = "X"; then
-        AC_MSG_ERROR(You need the glib development package to continue.
+      AC_MSG_ERROR(You need the glib development package to continue.
       You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
       or you can locate it via http://www.gtk.org/download/)
-else
-      AC_MSG_RESULT("using $GLIBCONFIG")
 fi
+AC_MSG_RESULT("using $GLIBCONFIG")
 
 if test x"${LIBNETCONFIG}" = x""; then
       dnl The old version of the API REQUIRES $LIBNETCONFIG
@@ -507,6 +518,7 @@ AC_CHECK_HEADERS(net/ethernet.h)
 AC_CHECK_HEADERS(strings.h malloc.h)
 AC_CHECK_HEADERS(termio.h)
 AC_CHECK_HEADERS(getopt.h)
+AC_CHECK_HEADERS(linux/watchdog.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On BSD
@@ -1426,6 +1438,7 @@ linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
+	lib/hbclient/Makefile						\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
 		lib/plugins/InterfaceMgr/Makefile		\
