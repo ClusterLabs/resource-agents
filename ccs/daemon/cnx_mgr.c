@@ -251,6 +251,8 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     goto fail;
   }
 
+  memset(&addr, 0, sizeof(struct sockaddr_storage));
+
   trueint = 1;
   if(IPv6){
     struct ipv6_mreq mreq;
@@ -555,13 +557,8 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   if(!master_doc->od_doc){
     master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
     if(!master_doc->od_doc){
-      log_err("Unable to parse %s\n", "/etc/cluster/cluster.conf");
-      log_err("Searching cluster for valid copy.\n");
-      /* ATTENTION -- Not a problem, can get it from broadcast **
-      ** however, not having these print causes line 334 (sendto) **
-      ** to fail on ENETUNREACH -- very strange.................. **
       log_msg("Unable to parse %s\n", "/etc/cluster/cluster.conf");
-      log_msg("Searching cluster for valid copy.\n");*/
+      log_msg("Searching cluster for valid copy.\n");
     } else if((error = get_doc_version(master_doc->od_doc)) < 0){
       log_err("Unable to get config_version from cluster.conf.\n");
       log_err("Discarding data and searching for valid copy.\n");
@@ -1188,6 +1185,8 @@ int process_broadcast(int sfd){
     goto fail;
   }
   memset(ch, 0, sizeof(comm_header_t));
+  memset(&addr, 0, sizeof(struct sockaddr_storage)); /* just to make sure */
+
   log_dbg("Waiting to receive broadcast request.\n");
   if(recvfrom(sfd, ch, sizeof(comm_header_t), 0, (struct sockaddr *)&addr, &len) < 0){
     log_sys_err("Unable to perform recvfrom");

@@ -34,6 +34,8 @@ static int setup_interface_ipv6(int *sp, int port){
 
   ENTER("setup_interface_ipv6");
                                                                                 
+  memset(&addr, 0, sizeof(struct sockaddr_in6));
+
   sock = socket(PF_INET6, SOCK_STREAM, 0);
                                                                                 
   if(sock < 0){
@@ -80,6 +82,8 @@ static int setup_interface_ipv4(int *sp, int port){
   struct sockaddr_in addr;
 
   ENTER("setup_interface_ipv4");
+
+  memset(&addr, 0, sizeof(struct sockaddr_in));
                                                                                 
   sock = socket(PF_INET, SOCK_STREAM, 0);
                                                                                 
