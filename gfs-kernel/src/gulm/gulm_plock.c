@@ -185,7 +185,7 @@ gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
 		item->state = lg_lock_state_Shared;
 	}
 	item->flags = lg_lock_flag_NoCallBacks;
-	if (IS_SETLKW(cmd))
+	if (!IS_SETLKW(cmd))
 		item->flags |= lg_lock_flag_Try;
 	item->error = pret.error = 0;
 
