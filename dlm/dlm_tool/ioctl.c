@@ -185,7 +185,7 @@ int do_command(struct dlm_member_ioctl *mi)
 
 	error = ioctl(control_fd, DLM_MEMBER_OP, mi);
 	if (error)
-		log_error("ioctl error %d errno %d\n", error, errno);
+		log_error("dlm-member ioctl error %d errno %d", error, errno);
  out:
 	return error;
 }
