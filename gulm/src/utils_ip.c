@@ -183,8 +183,8 @@ ip_name_t *get_ipname(char *str)
    }
 
    if( he == NULL ) in->name = NULL;
-   if( he->h_name == NULL )  in->name = NULL;
-   in->name = strdup(he->h_name);
+   else if( he->h_name == NULL )  in->name = NULL;
+   else in->name = strdup(he->h_name);
    memcpy(&in->ip, &ip6, sizeof(struct in6_addr));
 
    return in;
