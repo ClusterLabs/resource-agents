@@ -52,7 +52,7 @@ extern gulm_config_t gulm_config;
  * I will need to do something in the future for nodes with multiple ips.
  * */
 extern char myName[256];
-extern uint32_t myIP;
+extern struct in6_addr myIP;
 
 /*****************************************************************************/
 

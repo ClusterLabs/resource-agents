@@ -45,7 +45,7 @@ extern uint32_t verbosity;
 extern char *ProgramName;
 extern int SIGTERM_TRIPPED;
 extern char *myName;
-extern uint32_t myIP;
+extern struct in6_addr myIP;
 extern int I_am_the;
 extern gulm_config_t gulm_config;
 

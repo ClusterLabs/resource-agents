@@ -49,7 +49,7 @@ extern char *ProgramName;
 /* signal checks. */
 extern int SIGTERM_TRIPPED;
 
-extern uint32_t myIP;
+extern struct in6_addr myIP;
 extern char myName[];
 
 /* confed things. */

@@ -32,7 +32,7 @@ extern char *ProgramName;
 extern gulm_config_t gulm_config;
 extern int SIGTERM_TRIPPED;
 extern int I_am_the;
-extern uint32_t myIP;
+extern struct in6_addr myIP;
 /* */
 
 /*****************************************************************************/
