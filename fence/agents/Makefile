@@ -17,10 +17,12 @@ all:
 	cd brocade && ${MAKE} all
 	cd cpint && ${MAKE} all
 	cd egenera && ${MAKE} all
+	cd ibmblade && ${MAKE} all
 	cd manual && ${MAKE} all
 	cd mcdata && ${MAKE} all
 	cd rackswitch && ${MAKE} all
 	cd rib && ${MAKE} all
+	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
 	cd xcat && ${MAKE} all
@@ -31,10 +33,12 @@ copytobin:
 	cd brocade && ${MAKE} copytobin
 	cd cpint && ${MAKE} copytobin
 	cd egenera && ${MAKE} copytobin
+	cd ibmblade && ${MAKE} copytobin
 	cd manual && ${MAKE} copytobin
 	cd mcdata && ${MAKE} copytobin
 	cd rackswitch && ${MAKE} copytobin
 	cd rib && ${MAKE} copytobin
+	cd sanbox2 && ${MAKE} copytobin
 	cd vixel && ${MAKE} copytobin
 	cd wti && ${MAKE} copytobin
 	cd xcat && ${MAKE} copytobin
@@ -45,10 +49,12 @@ clean:
 	cd brocade && ${MAKE} clean
 	cd cpint && ${MAKE} clean
 	cd egenera && ${MAKE} clean
+	cd ibmblade && ${MAKE} clean
 	cd manual && ${MAKE} clean
 	cd mcdata && ${MAKE} clean
 	cd rackswitch && ${MAKE} clean
 	cd rib && ${MAKE} clean
+	cd sanbox2 && ${MAKE} clean
 	cd vixel && ${MAKE} clean
 	cd wti && ${MAKE} clean
 	cd xcat && ${MAKE} clean

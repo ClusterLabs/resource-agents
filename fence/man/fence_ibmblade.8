@@ -1,0 +1,103 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_ibmblade(8)''fence_ibmblade(8)'
+
+\fBNAME\fP
+.in +7
+fence_ibmblade - I/O Fencing agent for IBM BladeCenter 
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_ibmblade -a\fP \fIIPaddress\fR \fB-c\fP \fIcommunity\fR \fB-n\fP \fIport\fR \fB-o\fP \fIaction\fR
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_ibmblade is an I/O Fencing agent which can be used with IBM BladeCenter 
+chassis. It issues SNMP Set request to BladeCenter chassins, rebooting, powering
+up or down the specified Blade Server. 
+.sp
+fence_ibmblade accepts options on the command line as well as from stdin.
+fenced sends parameters through stdin when it execs the agent.  fence_ibmblade 
+can be run by itself with command line options which is useful for testing.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-a\fP \fIIPaddress\fP
+.in +7 
+IP address of the BladeCenter chassis. 
+.sp
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-c\fP \fIcommunity\fP
+.in +7
+SNMP community string to use.
+.sp
+.in
+\fB-n\fP \fIport\fP
+.in +7
+The Blade port number to disable.
+.in
+.sp
+\fB-o\fP \fIaction\fP
+.in +7
+The action required.  Reboot (default), On or off.
+.in
+.sp
+\fB-q\fP
+.in +7
+Quiet mode: print only error messages.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.sp
+.in
+
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_ibmblade.
+.sp
+
+\fIipaddr = < hostname | ip >\fR
+.sp
+IP address or hostname of the switch.
+.sp
+
+\fI community = < param >\fR
+.sp
+SNMP community.
+.sp
+
+\fI option = < param >\fR
+.sp
+The action required.  reboot (default), on or off.
+.sp
+
+\fI port = < param >\fR
+.sp
+The Blade port number to disable.
+.sp
+
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8)

@@ -11,34 +11,27 @@
 ###############################################################################
 ###############################################################################
 
-TARGET8= \
-	fence.8 \
-	fence_ack_manual.8 \
-	fence_apc.8 \
-	fence_brocade.8 \
-	fence_cpint.8 \
-	fence_egenera.8 \
-	fence_ibmblade.8 \
-	fence_manual.8 \
-	fence_mcdata.8 \
-	fence_node.8 \
-	fence_rackswitch.8 \
-        fence_rib.8 \
-	fence_sanbox2.8 \
-	fence_vixel.8 \
-	fence_wti.8 \
-	fence_xcat.8 \
-	fence_zvm.8 
+SOURCE= fence_sanbox2.pl
+TARGET= fence_sanbox2
 
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
-
-top_srcdir=..
-
+top_srcdir=../..
 include ${top_srcdir}/make/defines.mk
 
-install:
-	install -d ${mandir}/man8
-	install ${TARGET8} ${mandir}/man8
+all: $(TARGET)
 
-uninstall:
-	${UNINSTALL} ${TARGET8} ${mandir}/man8
+$(TARGET): $(SOURCE)
+	: > $(TARGET)
+	awk "{print}(\$$1 ~ /#BEGIN_VERSION_GENERATION/){exit 0}" $(SOURCE) >> $(TARGET)
+	echo "\$$FENCE_RELEASE_NAME=\"${RELEASE}\";" >> $(TARGET)
+	${top_srcdir}/scripts/define2var ${top_srcdir}/config/copyright.cf perl REDHAT_COPYRIGHT >> $(TARGET)
+	echo "\$$BUILD_DATE=\"(built `date`)\";" >> $(TARGET)
+	awk -v p=0 "(\$$1 ~ /#END_VERSION_GENERATION/){p = 1} {if(p==1)print}" $(SOURCE) >> $(TARGET)
+	chmod +x $(TARGET)
+
+copytobin: ${TARGET}
+	cp ${TARGET} ${top_srcdir}/bin/${TARGET}
+
+clean:
+	rm -f $(TARGET)
+
+
