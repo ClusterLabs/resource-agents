@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.159 $) dnl cvs revision
+AC_REVISION($Revision: 1.160 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -531,6 +531,7 @@ dnl	some optional STONITH plugins...
 dnl
 AC_CHECK_HEADERS(vacm_client_api.h)
 AC_CHECK_HEADERS(ucd-snmp/snmp.h)
+AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 
 dnl
 dnl	Could check for the libraries, but if you have the headers,
@@ -538,6 +539,20 @@ dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
 AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes)
+
+dnl
+dnl	Work out what to link the snmp subagent against
+AC_ARG_VAR(NET_SNMP_CONFIG, Configuration programme for NET-SNMP)
+AC_CHECK_PROG(NET_SNMP_CONFIG, net-snmp-config, net-snmp-config)
+if test "X$NET_SNMP_CONFIG" = "X"; then
+	HASUBAGENT_LDADD_EXTRA=""
+	HASUBAGENT_LDFLAGS="-lucdagent -lucdmibs -lsnmp -lcrypto"
+else
+	HASUBAGENT_LDADD_EXTRA='`$(NET_SNMP_CONFIG) --cflags`'
+	HASUBAGENT_LDFLAGS='`$(NET_SNMP_CONFIG) --agent-libs`'
+fi
+AC_SUBST(HASUBAGENT_LDADD_EXTRA)
+AC_SUBST(HASUBAGENT_LDFLAGS)
 
 dnl ************************************************************************
 dnl  checks for typedefs
