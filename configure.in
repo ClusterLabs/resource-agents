@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.67 $) dnl cvs revision
+AC_REVISION($Revision: 1.68 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -278,6 +278,8 @@ if test "$ac_cv_lib_c_gettext" = yes; then
 	LIBADD_INTL=""
 elif test "$ac_cv_lib_intl_gettext" = yes; then
 	LIBADD_INTL=-lintl
+elif test -f /usr/local/lib/libintl.so -a -s /usr/local/lib/libintl.so
+	LIBADD_INTL="-L/usr/local/lib -lintl"
 else
 	AC_MSG_ERROR(no library providing gettext found)
 fi
