@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.267 $) dnl cvs revision
+AC_REVISION($Revision: 1.268 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -206,8 +206,11 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
-AC_CHECK_LIB(uuid, uuid_parse)			dnl -luuid
-AC_CHECK_LIB(uuid, uuid_create)			dnl -luuid ( ossp version )
+AC_CHECK_LIB(uuid, uuid_compare)		dnl -luuid ( both have this function )
+dnl - Checking for a unique function of ex2fs vs ossd
+AC_CHECK_LIB(uuid, uuid_parse)			dnl - In e2fsprog only.
+AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossd version.
+
 
 AC_MSG_CHECKING(which glib config exists)
 if test "X${PKGCONFIG}" != "X"; then
@@ -227,6 +230,7 @@ if test "X${GLIBCONFIG}" = "X"; then
 fi
 AC_MSG_RESULT("using $GLIBCONFIG")
 
+AC_MSG_CHECKING(which libnet version is installed)
 if test x"${LIBNETCONFIG}" = x""; then
       dnl The old version of the API REQUIRES $LIBNETCONFIG
       dnl so we can only deal with new API unless we have it.
@@ -261,9 +265,9 @@ else
 	else
 		
 		if test "${enable_lrm}" -o "${enable_crm}"  = "yes"; then
-			AC_MSG_ERROR("No UUID functuionality found. Needed for CRM/LRM");
-		else
-			AC_MSG_RESULT("No UUID functuionality found.");
+			AC_MSG_RESULT("No UUID functuionality found. Needed for CRM/LRM");
+			enable_lrm = "no";
+			enable_crm = "no";
 		fi
 	fi
 fi
@@ -1624,6 +1628,7 @@ replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
+	lib/checkpointd/Makefile				\
 	lib/clplumbing/Makefile					\
 	lib/hbclient/Makefile					\
 	lib/pils/Makefile					\
@@ -1635,7 +1640,7 @@ lib/Makefile							\
 		lib/plugins/AppHBNotification/Makefile		\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
-	lib/checkpointd/Makefile				\
+	lib/uuid/Makefile					\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
 		heartbeat/rc.d/ask_resources			\
@@ -1680,6 +1685,8 @@ ldirectord/Makefile						\
 	ldirectord/logrotate.d/Makefile				\
 membership/Makefile						\
 	membership/ccm/Makefile					\
+pkg/Makefile							\
+	pkg/InfoFiles/pkginfo					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
