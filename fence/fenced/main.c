@@ -23,7 +23,7 @@ static int usr_interrupt;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
 
-#define OPTION_STRING			("cj:f:Dn:hVSw")
+#define OPTION_STRING			("cj:f:Dn:hVSwQ")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 
@@ -573,6 +573,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 
 		case 'S':
 		case 'w':
+		case 'Q':
 			/* do nothing, this is a fence_tool option that
 			   we ignore when fence_tool starts us */
 			break;
