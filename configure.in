@@ -1,13 +1,13 @@
 dnl
 dnl autoconf for heartbeat
 dnl	Started by David Lee <T.D.Lee@durham.ac.uk> December 2000
-dnl automake stuff 
+dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.157 $) dnl cvs revision
+AC_REVISION($Revision: 1.158 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -148,7 +148,7 @@ dnl *************************************************************************
 PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
 export PATH
 dnl checks for programs
-dnl 
+dnl
 dnl Which C compiler?
 dnl Defaults to GNU C compiler if available.
 dnl Always tries to set the compiler to ANSI C via options (AM)
@@ -161,7 +161,7 @@ AM_PROG_LIBTOOL
 AC_CHECK_PROG(MAKE, gmake, gmake, make)
 AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
-        AC_MSG_ERROR(You need the gmake to build heartbeat.
+        AC_MSG_ERROR(You need gmake to build heartbeat.
       You can get the source from ftp://www.gnu.org/pub/gnu/
       or you can locate it via http://www.gnu.org/software/make/)
 else
@@ -208,7 +208,7 @@ fi
 if test x"${LIBNETCONFIG}" = x""; then
       dnl The old version of the API REQUIRES $LIBNETCONFIG
       dnl so we can only deal with new API unless we have it.
-      AC_CHECK_LIB(net, libnet_get_hwaddr, [], 
+      AC_CHECK_LIB(net, libnet_get_hwaddr, [],
       [AC_MSG_ERROR(You need libnet to continue.  You can get libnet from http://www.packetfactory.net/libnet Note that some RPMs split libnet up into libnet and libnet-devel. In this case you have to install libnet-devel)])
       LIBNETDEFINES=""
       LIBNETLIBS="-lnet"
@@ -239,7 +239,7 @@ $NETSTAT -rn -f inet > /dev/null 2>&1
 if test x"$?" = x"0"; then
 	AC_DEFINE(NETSTATPARM, "-rn -f inet ", parameters to netstat to retrieve route information)
 	AC_MSG_RESULT("yes")
-else	
+else
 	AC_DEFINE(NETSTATPARM, "-rn ", parameters to netstat to retrieve route information)
 	AC_MSG_RESULT("no")
 fi
@@ -250,7 +250,7 @@ then
 fi
 
 dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
-  
+
 
 AC_MSG_CHECKING(ping option for timeout - w or t)
 for PING_TIMEOUT_OPT in "-w1" "-t1"
@@ -317,9 +317,9 @@ dnl Locales check - is a real ugly workaround for now til I find
 dnl something more useful
 dnl
 dnl "Eric Z. Ayers" wrote:
-dnl > 
+dnl >
 dnl > Here are some more data points:
-dnl > 
+dnl >
 dnl > SUN: /usr/lib/locale/
 dnl > HP : /usr/lib/nls/loc/
 dnl > OSF: /usr/lib/nls/loc/
@@ -327,7 +327,7 @@ dnl > LINUX: /usr/share/locale/
 dnl > UNIXWARE: /usr/lib/locale/
 dnl > FREEBSD: /usr/share/locale
 dnl > VMS:  just kidding
-dnl 
+dnl
 FindADir() {
 	type="$1"
 	whatfor="$2"
@@ -345,7 +345,7 @@ FindADir() {
 	done
 	AC_MSG_RESULT(not found)
         return 1
-	  
+
 }
 locale_locations="/usr/share/locale /usr/lib/locale /usr/lib/nls/loc"
 LOCALE=`FindADir error "locale" $locale_locations`
@@ -369,10 +369,10 @@ AC_EGREP_CPP(FoundClkTck,
 #ifdef CLK_TCK
   FoundClkTck
 #endif
-], 
+],
 [
-        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ]) 
-        AC_MSG_RESULT(Yes) 
+        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ])
+        AC_MSG_RESULT(Yes)
 ],
 AC_MSG_RESULT("No"))
 
@@ -388,7 +388,7 @@ AC_EGREP_CPP(FoundClkTck,
 #endif
 ], [
         AC_DEFINE(CLK_TCK_IN_TIME_H,1,[ ])
-        AC_MSG_RESULT(Yes) 
+        AC_MSG_RESULT(Yes)
 ],
 AC_MSG_RESULT("No"))
 
@@ -444,7 +444,7 @@ FunIsInLib() {
   done
   return 0
 }
-  
+
 
 for gt_test_lib in c intl
 do
@@ -499,7 +499,7 @@ AC_SUBST(GLIBLIB)
 
 dnl ************************************************************************
 dnl checks for header files
-dnl 
+dnl
 dnl check for ANSI *.h files first
 dnl	asm/page.h: Linux, for system PAGE_SIZE
 AC_HEADER_STDC
@@ -608,7 +608,7 @@ AC_EGREP_CPP(FoundAlign,
 #endif
 ], [
         ALIGN="ALIGN"
-        AC_MSG_RESULT("Yes") 
+        AC_MSG_RESULT("Yes")
 ],
 AC_MSG_RESULT("No"))
 
@@ -620,7 +620,7 @@ AC_EGREP_CPP(FoundAlign,
 #endif
 ], [
         ALIGN="T_ALIGN"
-        AC_MSG_RESULT("Yes") 
+        AC_MSG_RESULT("Yes")
 ],
 AC_MSG_RESULT("No"))
 
@@ -640,16 +640,16 @@ dnl carefully handled afterwards.
 
 AC_C_STRINGIZE
 
-AC_ARG_ENABLE([fatal-warnings], 
+AC_ARG_ENABLE([fatal-warnings],
 [  --enable-fatal-warnings very pedantic and fatal warnings for gcc
                           [default=no, default=yes on Linux]])
 
-AC_ARG_ENABLE([traditional-warnings], 
+AC_ARG_ENABLE([traditional-warnings],
 [  --enable-traditional-warnings 
                           enable traditional warnings gcc (-Wtraditional)
                           [default=no]])
 
-AC_ARG_ENABLE([snmp-subagent], 
+AC_ARG_ENABLE([snmp-subagent],
 [  --enable-snmp-subagent compile the snmp-subagent.
                           This is still in early developement stage. If you want to try,
                           make sure you have NET-SNMP 5.0.6 or later installed.
@@ -691,7 +691,7 @@ dnl pain to deal with.  Otherwise they're a pain to fix.
 
 dnl This policy is not an accident, nor was it chosen without significant
 dnl thought and experience.
-dnl 
+dnl
 
 	case "$host_os" in
   	*linux*)
@@ -735,12 +735,15 @@ do
     break
   fi
 done
+AC_ARG_WITH(initdir,
+    [  --with-initdir=DIR      directroy for init (rc) scripts [${INITDIR}]],
+    [ if test x"$withval" = xprefix; then INITDIR=${prefix}; else
+	 INITDIR="$withval"; fi ])
 if
   test "X$INITDIR" = X
 then
   AC_MSG_ERROR(Could not locate init directory)
 fi
-
 AC_SUBST(INITDIR)
 
 
@@ -756,7 +759,7 @@ dnl
 
 AC_ARG_WITH(
   group-name,
-    [  --with-group-name=GROUP_NAME 
+    [  --with-group-name=GROUP_NAME
                          GROUP_NAME to own API fifos. [default=haclient]  ],
     [ HA_APIGROUP="$withval" ],
     [ HA_APIGROUP="haclient" ],
@@ -794,7 +797,7 @@ AC_SUBST(HA_APIGID)
 
 AC_ARG_WITH(
   ccmuser-name,
-    [  --with-ccmuser-name=HA_CCMUSER_NAME 
+    [  --with-ccmuser-name=HA_CCMUSER_NAME
                          HA_CCMUSER_NAME to own API fifos. [default=hacluster]  ],
     [ HA_CCMUSER="$withval" ],
     [ HA_CCMUSER="hacluster" ],
@@ -840,7 +843,7 @@ AC_SUBST(HB_INITSTOPPRI)
 #
 AC_ARG_WITH(
   ucd-snmp-devel,
-    [  --with-snmp-init-priority=name of ucd snmp developemnt RPM. [default=ucd-snmp-devel]  ],
+    [  --with-snmp-name=name             Name of ucd snmp developemnt RPM. [default=ucd-snmp-devel]  ],
     [ UCDSNMPDEVEL=$withval ],
     [ UCDSNMPDEVEL=ucd-snmp-devel ],
   )
@@ -906,7 +909,7 @@ else
   AC_CHECK_HEADERS(sys/pstat.h,have_pstat_h="yes",have_pstat_h="no")
   if test "$have_pstat_h" = "yes"; then
     AC_CHECK_FUNCS(pstat)
-    
+
     if test "$ac_cv_func_pstat" = "yes"; then
 	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSTAT, [ ])
     else
@@ -954,9 +957,9 @@ else
     fi
   fi
 fi
-  
+
 dnl End of tests borrowed from Proftpd
-  
+
 dnl **********************************************************************
 dnl      Check the size of the integer types
 dnl      So we can have integers of known sizes as needed
@@ -979,10 +982,10 @@ dnl
 dnl Make sure that CFLAGS is not exported. If the user did
 dnl not have CFLAGS in their environment then this should have
 dnl no effect. However if CFLAGS was exported from the user's
-dnl envornment, then the new CFLAGS will also be exported 
+dnl environment, then the new CFLAGS will also be exported
 dnl to sub processes. This causes a problem when configure
 dnl is run in the libltdl directory. Horms 16th July 2002
-dnl               
+dnl
 
 if export | fgrep " CFLAGS=" > /dev/null; then
 	export -n CFLAGS || true # We don't want to bomb out if this fails
@@ -1129,3 +1132,44 @@ fi
 dnl subpackages configuration - perhaps configure it properly some other time
 dnl when it has been discussed at linux-ha-dev
 dnl AC_CONFIG_SUBDIRS(stonith heartbeat)
+
+dnl *****************
+dnl Configure summary
+dnl *****************
+
+eval my_datadir="`eval echo ${datadir}`"
+eval my_includedir="`eval echo ${includedir}`"
+eval my_initdir="${INITDIR}"
+eval my_libdir="`eval echo ${libdir}`"
+eval my_localstatedir="`eval echo ${localstatedir}`"
+eval my_mandir="`eval echo ${mandir}`"
+eval my_sbindir="`eval echo ${sbindir}`"
+eval my_sysconfdir="`eval echo ${sysconfdir}`"
+
+AC_MSG_RESULT([])
+AC_MSG_RESULT([$PACKAGE configuration:])
+AC_MSG_RESULT([  Version              = $VERSION])
+
+AC_MSG_RESULT([  Executables          = $my_sbindir])
+AC_MSG_RESULT([  Man pages            = $my_mandir])
+AC_MSG_RESULT([  Libraries            = $my_libdir])
+AC_MSG_RESULT([  Header files         = $my_includedir])
+AC_MSG_RESULT([  Data files           = $my_datadir])
+AC_MSG_RESULT([  State information    = $my_localstatedir])
+AC_MSG_RESULT([  System configuration = $my_sysconfdir])
+AC_MSG_RESULT([  Init (rc) scripts    = $my_initdir])
+
+AC_MSG_RESULT([ API fifo group name   = ${HA_APIGROUP}])
+AC_MSG_RESULT([ API fifo group id     = ${HA_APIGID}])
+AC_MSG_RESULT([ HACCM user name       = ${HA_CCMUSER}])
+AC_MSG_RESULT([ HA_CCM user id        = ${HA_CCMUID}])
+
+case x"$SNMP_SUBAGENT_DIR" in
+  no)
+    AC_MSG_RESULT([ Use snmp subagent     = no])
+    ;;
+  yes)
+    AC_MSG_RESULT([ Use snmp subagent     = yes])
+    AC_MSG_RESULT([ SNMP rpm name         = ${UCDSNMPDEVEL}])
+    ;;
+esac
