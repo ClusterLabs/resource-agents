@@ -148,8 +148,6 @@ int cman_dispatch(cman_handle_t handle, int flags)
 		{
 			int reason;
 			int arg = 0;
-			struct cl_portclosed_oob *portmsg =
-				(struct cl_portclosed_oob *)buf;
 			switch (buf[0])
 			{
 			case CLUSTER_OOB_MSG_PORTCLOSED:
