@@ -1,7 +1,7 @@
-diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_locking/lock_nolock/main.c
---- linux-orig/fs/gfs_locking/lock_nolock/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2004-08-27 15:07:29.710643026 -0500
-@@ -0,0 +1,343 @@
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_nolock/main.c linux/fs/gfs_locking/lock_nolock/main.c
+--- linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_nolock/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_nolock/main.c	2004-09-07 16:16:55.823371100 -0500
+@@ -0,0 +1,346 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -242,6 +242,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 + * nolock_plock -
 + * @lockspace: the lockspace
 + * @name:
++ * @file:
++ * @cmd:
 + * @fl:
 + *
 + * Returns: errno
@@ -250,7 +252,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +static int
 +nolock_plock(lm_lockspace_t *lockspace,
 +	     struct lm_lockname *name,
-+	     struct file *file, struct file_lock *fl)
++	     struct file *file, int cmd, struct file_lock *fl)
 +{
 +	return posix_lock_file_wait(file, fl);
 +}
@@ -259,6 +261,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 + * nolock_punlock -
 + * @lockspace: the lockspace
 + * @name:
++ * @file:
 + * @fl:
 + *
 + * Returns: errno

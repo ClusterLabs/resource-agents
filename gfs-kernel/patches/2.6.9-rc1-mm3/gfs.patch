@@ -1,6 +1,6 @@
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/acl.c linux/fs/gfs/acl.c
---- linux-2.6.9-rc1-mm2/fs/gfs/acl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/acl.c	2004-08-31 16:55:47.817419983 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/acl.c linux/fs/gfs/acl.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/acl.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/acl.c	2004-09-07 16:26:15.728555458 -0500
 @@ -0,0 +1,397 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -399,9 +399,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/acl.c linux/fs/gfs/acl.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/acl.h linux/fs/gfs/acl.h
---- linux-2.6.9-rc1-mm2/fs/gfs/acl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/acl.h	2004-08-31 16:55:47.817419983 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/acl.h linux/fs/gfs/acl.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/acl.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/acl.h	2004-09-07 16:26:15.728555458 -0500
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -431,9 +431,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/acl.h linux/fs/gfs/acl.h
 +void gfs_acl_set_mode(struct gfs_inode *ip, struct posix_acl *acl);
 +
 +#endif /* __ACL_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bits.c linux/fs/gfs/bits.c
---- linux-2.6.9-rc1-mm2/fs/gfs/bits.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/bits.c	2004-08-31 16:55:47.818419754 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/bits.c linux/fs/gfs/bits.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/bits.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/bits.c	2004-09-07 16:26:15.729555238 -0500
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -618,9 +618,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bits.c linux/fs/gfs/bits.c
 +
 +	return count;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bits.h linux/fs/gfs/bits.h
---- linux-2.6.9-rc1-mm2/fs/gfs/bits.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/bits.h	2004-08-31 16:55:47.818419754 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/bits.h linux/fs/gfs/bits.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/bits.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/bits.h	2004-09-07 16:26:15.729555238 -0500
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -654,9 +654,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bits.h linux/fs/gfs/bits.h
 +		      unsigned char state);
 +
 +#endif /* __BITS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bmap.c linux/fs/gfs/bmap.c
---- linux-2.6.9-rc1-mm2/fs/gfs/bmap.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/bmap.c	2004-08-31 16:55:47.820419296 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/bmap.c linux/fs/gfs/bmap.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/bmap.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/bmap.c	2004-09-07 16:26:15.731554797 -0500
 @@ -0,0 +1,1404 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2062,9 +2062,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bmap.c linux/fs/gfs/bmap.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bmap.h linux/fs/gfs/bmap.h
---- linux-2.6.9-rc1-mm2/fs/gfs/bmap.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/bmap.h	2004-08-31 16:55:47.820419296 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/bmap.h linux/fs/gfs/bmap.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/bmap.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/bmap.h	2004-09-07 16:26:15.731554797 -0500
 @@ -0,0 +1,48 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2114,9 +2114,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/bmap.h linux/fs/gfs/bmap.h
 +int gfs_get_file_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub);
 +
 +#endif /* __BMAP_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/daemon.c linux/fs/gfs/daemon.c
---- linux-2.6.9-rc1-mm2/fs/gfs/daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/daemon.c	2004-08-31 16:55:47.820419296 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/daemon.c linux/fs/gfs/daemon.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/daemon.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/daemon.c	2004-09-07 16:26:15.732554576 -0500
 @@ -0,0 +1,259 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2377,9 +2377,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/daemon.c linux/fs/gfs/daemon.c
 +
 +	return 0;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/daemon.h linux/fs/gfs/daemon.h
---- linux-2.6.9-rc1-mm2/fs/gfs/daemon.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/daemon.h	2004-08-31 16:55:47.821419066 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/daemon.h linux/fs/gfs/daemon.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/daemon.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/daemon.h	2004-09-07 16:26:15.732554576 -0500
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2405,9 +2405,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/daemon.h linux/fs/gfs/daemon.h
 +int gfs_inoded(void *data);
 +
 +#endif /* __DAEMON_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dio.c linux/fs/gfs/dio.c
---- linux-2.6.9-rc1-mm2/fs/gfs/dio.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/dio.c	2004-08-31 16:55:47.822418837 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/dio.c linux/fs/gfs/dio.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/dio.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/dio.c	2004-09-07 16:26:15.733554356 -0500
 @@ -0,0 +1,1302 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3711,9 +3711,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dio.c linux/fs/gfs/dio.c
 + out:
 +	brelse(first_bh);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dio.h linux/fs/gfs/dio.h
---- linux-2.6.9-rc1-mm2/fs/gfs/dio.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/dio.h	2004-08-31 16:55:47.823418608 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/dio.h linux/fs/gfs/dio.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/dio.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/dio.h	2004-09-07 16:26:15.734554135 -0500
 @@ -0,0 +1,195 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3910,9 +3910,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dio.h linux/fs/gfs/dio.h
 +}
 +
 +#endif				/*  __DIO_DOT_H__  */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dir.c linux/fs/gfs/dir.c
---- linux-2.6.9-rc1-mm2/fs/gfs/dir.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/dir.c	2004-08-31 16:55:47.825418150 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/dir.c linux/fs/gfs/dir.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/dir.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/dir.c	2004-09-07 16:26:15.737553474 -0500
 @@ -0,0 +1,2273 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6187,9 +6187,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dir.c linux/fs/gfs/dir.c
 +	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 +	return foreach_leaf(dip, do_gdm, ub);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dir.h linux/fs/gfs/dir.h
---- linux-2.6.9-rc1-mm2/fs/gfs/dir.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/dir.h	2004-08-31 16:55:47.826417921 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/dir.h linux/fs/gfs/dir.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/dir.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/dir.h	2004-09-07 16:26:15.737553474 -0500
 @@ -0,0 +1,55 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6246,9 +6246,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/dir.h linux/fs/gfs/dir.h
 +int gfs_get_dir_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub);
 +
 +#endif /* __DIR_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/eattr.c linux/fs/gfs/eattr.c
---- linux-2.6.9-rc1-mm2/fs/gfs/eattr.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/eattr.c	2004-08-31 16:55:47.829417234 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/eattr.c linux/fs/gfs/eattr.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/eattr.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/eattr.c	2004-09-07 16:26:15.740552812 -0500
 @@ -0,0 +1,2340 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8590,9 +8590,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/eattr.c linux/fs/gfs/eattr.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/eattr.h linux/fs/gfs/eattr.h
---- linux-2.6.9-rc1-mm2/fs/gfs/eattr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/eattr.h	2004-08-31 16:55:47.829417234 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/eattr.h linux/fs/gfs/eattr.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/eattr.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/eattr.h	2004-09-07 16:26:15.740552812 -0500
 @@ -0,0 +1,90 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8684,9 +8684,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/eattr.h linux/fs/gfs/eattr.h
 +int gfs_ea_read_permission(struct gfs_eaget_io *req, struct gfs_inode *ip);
 +
 +#endif /* __EATTR_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/file.c linux/fs/gfs/file.c
---- linux-2.6.9-rc1-mm2/fs/gfs/file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/file.c	2004-08-31 16:55:47.830417005 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/file.c linux/fs/gfs/file.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/file.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/file.c	2004-09-07 16:26:15.741552591 -0500
 @@ -0,0 +1,382 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9070,9 +9070,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/file.c linux/fs/gfs/file.c
 +		goto out;
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/file.h linux/fs/gfs/file.h
---- linux-2.6.9-rc1-mm2/fs/gfs/file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/file.h	2004-08-31 16:55:47.830417005 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/file.h linux/fs/gfs/file.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/file.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/file.h	2004-09-07 16:26:15.741552591 -0500
 @@ -0,0 +1,51 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9125,9 +9125,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/file.h linux/fs/gfs/file.h
 +}
 +
 +#endif /* __FILE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/fixed_div64.h linux/fs/gfs/fixed_div64.h
---- linux-2.6.9-rc1-mm2/fs/gfs/fixed_div64.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/fixed_div64.h	2004-08-31 16:55:47.830417005 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/fixed_div64.h linux/fs/gfs/fixed_div64.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/fixed_div64.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/fixed_div64.h	2004-09-07 16:26:15.741552591 -0500
 @@ -0,0 +1,142 @@
 +/*
 + * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
@@ -9271,9 +9271,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/fixed_div64.h linux/fs/gfs/fixed_div64.h
 +#define do_mod(a, b)	fixed_div64_do_mod(&(a), (b), sizeof(a))
 +
 +#endif /* __FIXED_DIV64_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/format.h linux/fs/gfs/format.h
---- linux-2.6.9-rc1-mm2/fs/gfs/format.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/format.h	2004-08-31 16:55:47.830417005 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/format.h linux/fs/gfs/format.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/format.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/format.h	2004-09-07 16:26:15.742552371 -0500
 @@ -0,0 +1,30 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9305,9 +9305,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/format.h linux/fs/gfs/format.h
 +};
 +
 +#endif /* __FORMAT_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/gfs.h linux/fs/gfs/gfs.h
---- linux-2.6.9-rc1-mm2/fs/gfs/gfs.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/gfs.h	2004-08-31 16:55:47.831416775 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/gfs.h linux/fs/gfs/gfs.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/gfs.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/gfs.h	2004-09-07 16:26:15.742552371 -0500
 @@ -0,0 +1,130 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9439,9 +9439,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/gfs.h linux/fs/gfs/gfs.h
 +while (0)
 +
 +#endif /* __GFS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glock.c linux/fs/gfs/glock.c
---- linux-2.6.9-rc1-mm2/fs/gfs/glock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/glock.c	2004-08-31 16:55:47.834416088 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/glock.c linux/fs/gfs/glock.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/glock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/glock.c	2004-09-07 16:26:15.745551709 -0500
 @@ -0,0 +1,2524 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11967,9 +11967,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glock.c linux/fs/gfs/glock.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glock.h linux/fs/gfs/glock.h
---- linux-2.6.9-rc1-mm2/fs/gfs/glock.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/glock.h	2004-08-31 16:55:47.834416088 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/glock.h linux/fs/gfs/glock.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/glock.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/glock.h	2004-09-07 16:26:15.745551709 -0500
 @@ -0,0 +1,134 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12105,9 +12105,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glock.h linux/fs/gfs/glock.h
 +int gfs_dump_lockstate(struct gfs_sbd *sdp, struct gfs_user_buffer *ub);
 +
 +#endif /* __GFS_GLOCK_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glops.c linux/fs/gfs/glops.c
---- linux-2.6.9-rc1-mm2/fs/gfs/glops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/glops.c	2004-08-31 16:55:47.835415859 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/glops.c linux/fs/gfs/glops.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/glops.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/glops.c	2004-09-07 16:26:15.746551489 -0500
 @@ -0,0 +1,526 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12635,9 +12635,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glops.c linux/fs/gfs/glops.c
 +      .go_demote_ok = quota_go_demote_ok,
 +      .go_type = LM_TYPE_QUOTA
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glops.h linux/fs/gfs/glops.h
---- linux-2.6.9-rc1-mm2/fs/gfs/glops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/glops.h	2004-08-31 16:55:47.835415859 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/glops.h linux/fs/gfs/glops.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/glops.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/glops.h	2004-09-07 16:26:15.746551489 -0500
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12665,9 +12665,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/glops.h linux/fs/gfs/glops.h
 +extern struct gfs_glock_operations gfs_quota_glops;
 +
 +#endif /* __GLOPS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/incore.h linux/fs/gfs/incore.h
---- linux-2.6.9-rc1-mm2/fs/gfs/incore.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/incore.h	2004-08-31 16:55:47.836415630 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/incore.h linux/fs/gfs/incore.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/incore.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/incore.h	2004-09-07 16:26:15.747551268 -0500
 @@ -0,0 +1,726 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13395,9 +13395,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/incore.h linux/fs/gfs/incore.h
 +};
 +
 +#endif /* __INCORE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/inode.c linux/fs/gfs/inode.c
---- linux-2.6.9-rc1-mm2/fs/gfs/inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/inode.c	2004-08-31 16:55:47.838415172 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/inode.c linux/fs/gfs/inode.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/inode.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/inode.c	2004-09-07 16:26:15.749550827 -0500
 @@ -0,0 +1,2001 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -15400,9 +15400,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/inode.c linux/fs/gfs/inode.c
 +{
 +	return inode_alloc_hidden(sdp, &sdp->sd_sb.sb_license_di);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/inode.h linux/fs/gfs/inode.h
---- linux-2.6.9-rc1-mm2/fs/gfs/inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/inode.h	2004-08-31 16:55:47.839414943 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/inode.h linux/fs/gfs/inode.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/inode.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/inode.h	2004-09-07 16:26:15.750550606 -0500
 @@ -0,0 +1,68 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -15472,9 +15472,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/inode.h linux/fs/gfs/inode.h
 +}
 +
 +#endif /* __INODE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ioctl.c linux/fs/gfs/ioctl.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ioctl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ioctl.c	2004-08-31 16:55:47.840414714 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ioctl.c linux/fs/gfs/ioctl.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ioctl.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ioctl.c	2004-09-07 16:26:15.751550386 -0500
 @@ -0,0 +1,983 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16459,9 +16459,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ioctl.c linux/fs/gfs/ioctl.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ioctl.h linux/fs/gfs/ioctl.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ioctl.h	2004-08-31 16:55:47.840414714 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ioctl.h linux/fs/gfs/ioctl.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ioctl.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ioctl.h	2004-09-07 16:26:15.751550386 -0500
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16484,9 +16484,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ioctl.h linux/fs/gfs/ioctl.h
 +int gfs_ioctli(struct gfs_inode *ip, unsigned int cmd, void *arg);
 +
 +#endif /* __IOCTL_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/locking.c linux/fs/gfs/locking.c
---- linux-2.6.9-rc1-mm2/fs/gfs/locking.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/locking.c	2004-08-31 16:55:47.840414714 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/locking.c linux/fs/gfs/locking.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/locking.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/locking.c	2004-09-07 16:26:15.752550165 -0500
 @@ -0,0 +1,114 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16602,9 +16602,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/locking.c linux/fs/gfs/locking.c
 +{
 +	lm_unmount(&sdp->sd_lockstruct);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/locking.h linux/fs/gfs/locking.h
---- linux-2.6.9-rc1-mm2/fs/gfs/locking.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/locking.h	2004-08-31 16:55:47.841414484 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/locking.h linux/fs/gfs/locking.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/locking.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/locking.h	2004-09-07 16:26:15.752550165 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16626,9 +16626,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/locking.h linux/fs/gfs/locking.h
 +void gfs_unmount_lockproto(struct gfs_sbd *sdp);
 +
 +#endif /* __LOCKING_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/log.c linux/fs/gfs/log.c
---- linux-2.6.9-rc1-mm2/fs/gfs/log.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/log.c	2004-08-31 16:55:47.842414255 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/log.c linux/fs/gfs/log.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/log.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/log.c	2004-09-07 16:26:15.753549945 -0500
 @@ -0,0 +1,1318 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -17948,9 +17948,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/log.c linux/fs/gfs/log.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/log.h linux/fs/gfs/log.h
---- linux-2.6.9-rc1-mm2/fs/gfs/log.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/log.h	2004-08-31 16:55:47.843414026 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/log.h linux/fs/gfs/log.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/log.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/log.h	2004-09-07 16:26:15.754549724 -0500
 @@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -18031,9 +18031,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/log.h linux/fs/gfs/log.h
 +		      struct buffer_head *unlock);
 +
 +#endif /* __LOG_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lops.c linux/fs/gfs/lops.c
---- linux-2.6.9-rc1-mm2/fs/gfs/lops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/lops.c	2004-08-31 16:55:47.845413568 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/lops.c linux/fs/gfs/lops.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/lops.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/lops.c	2004-09-07 16:26:15.776544872 -0500
 @@ -0,0 +1,1563 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19598,9 +19598,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lops.c linux/fs/gfs/lops.c
 +	&gfs_quota_lops,
 +	NULL
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lops.h linux/fs/gfs/lops.h
---- linux-2.6.9-rc1-mm2/fs/gfs/lops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/lops.h	2004-08-31 16:55:47.845413568 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/lops.h linux/fs/gfs/lops.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/lops.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/lops.h	2004-09-07 16:26:15.777544652 -0500
 @@ -0,0 +1,179 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19781,9 +19781,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lops.h linux/fs/gfs/lops.h
 +while (0)
 +
 +#endif /* __LOPS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lvb.c linux/fs/gfs/lvb.c
---- linux-2.6.9-rc1-mm2/fs/gfs/lvb.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/lvb.c	2004-08-31 16:55:47.845413568 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/lvb.c linux/fs/gfs/lvb.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/lvb.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/lvb.c	2004-09-07 16:26:15.777544652 -0500
 @@ -0,0 +1,148 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19933,9 +19933,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lvb.c linux/fs/gfs/lvb.c
 +	pv(qb, qb_warn, "%"PRIu64);
 +	pv(qb, qb_value, "%"PRId64);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lvb.h linux/fs/gfs/lvb.h
---- linux-2.6.9-rc1-mm2/fs/gfs/lvb.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/lvb.h	2004-08-31 16:55:47.846413339 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/lvb.h linux/fs/gfs/lvb.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/lvb.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/lvb.h	2004-09-07 16:26:15.777544652 -0500
 @@ -0,0 +1,48 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19985,9 +19985,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/lvb.h linux/fs/gfs/lvb.h
 +void gfs_quota_lvb_print(struct gfs_quota_lvb *qb);
 +
 +#endif /* __LVB_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/main.c linux/fs/gfs/main.c
---- linux-2.6.9-rc1-mm2/fs/gfs/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/main.c	2004-08-31 16:55:47.846413339 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/main.c linux/fs/gfs/main.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/main.c	2004-09-07 16:26:15.778544431 -0500
 @@ -0,0 +1,142 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20131,9 +20131,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/main.c linux/fs/gfs/main.c
 +module_init(init_gfs_fs);
 +module_exit(exit_gfs_fs);
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/mount.c linux/fs/gfs/mount.c
---- linux-2.6.9-rc1-mm2/fs/gfs/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/mount.c	2004-08-31 16:55:47.846413339 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/mount.c linux/fs/gfs/mount.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/mount.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/mount.c	2004-09-07 16:26:15.778544431 -0500
 @@ -0,0 +1,215 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20350,9 +20350,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/mount.c linux/fs/gfs/mount.c
 +	module_put(THIS_MODULE);
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/mount.h linux/fs/gfs/mount.h
---- linux-2.6.9-rc1-mm2/fs/gfs/mount.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/mount.h	2004-08-31 16:55:47.847413110 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/mount.h linux/fs/gfs/mount.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/mount.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/mount.h	2004-09-07 16:26:15.778544431 -0500
 @@ -0,0 +1,27 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20381,9 +20381,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/mount.h linux/fs/gfs/mount.h
 +		   unsigned long count, void *data);
 +
 +#endif /* __MOUNT_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ondisk.c linux/fs/gfs/ondisk.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ondisk.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ondisk.c	2004-08-31 16:55:47.847413110 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ondisk.c linux/fs/gfs/ondisk.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ondisk.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ondisk.c	2004-09-07 16:26:15.779544211 -0500
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20413,9 +20413,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ondisk.c linux/fs/gfs/ondisk.c
 +#define WANT_GFS_CONVERSION_FUNCTIONS
 +#include <linux/gfs_ondisk.h>
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_address.c linux/fs/gfs/ops_address.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_address.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_address.c	2004-08-31 16:55:47.848412881 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_address.c linux/fs/gfs/ops_address.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_address.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_address.c	2004-09-07 16:26:15.779544211 -0500
 @@ -0,0 +1,476 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20893,9 +20893,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_address.c linux/fs/gfs/ops_address.c
 +	.bmap = gfs_bmap,
 +	.direct_IO = gfs_direct_IO,
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_address.h linux/fs/gfs/ops_address.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_address.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_address.h	2004-08-31 16:55:47.848412881 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_address.h linux/fs/gfs/ops_address.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_address.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_address.h	2004-09-07 16:26:15.780543990 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20916,9 +20916,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_address.h linux/fs/gfs/ops_address.h
 +extern struct address_space_operations gfs_file_aops;
 +
 +#endif /* __OPS_ADDRESS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.c linux/fs/gfs/ops_dentry.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_dentry.c	2004-08-31 16:55:47.848412881 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_dentry.c linux/fs/gfs/ops_dentry.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_dentry.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_dentry.c	2004-09-07 16:26:15.780543990 -0500
 @@ -0,0 +1,124 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21044,9 +21044,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.c linux/fs/gfs/ops_dentry.c
 +struct dentry_operations gfs_dops = {
 +	.d_revalidate = gfs_drevalidate,
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.h linux/fs/gfs/ops_dentry.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_dentry.h	2004-08-31 16:55:47.848412881 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_dentry.h linux/fs/gfs/ops_dentry.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_dentry.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_dentry.h	2004-09-07 16:26:15.780543990 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21067,9 +21067,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_dentry.h linux/fs/gfs/ops_dentry.h
 +extern struct dentry_operations gfs_dops;
 +
 +#endif /* __OPS_DENTRY_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_export.c linux/fs/gfs/ops_export.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_export.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_export.c	2004-08-31 16:55:47.849412652 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_export.c linux/fs/gfs/ops_export.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_export.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_export.c	2004-09-07 16:26:15.781543770 -0500
 @@ -0,0 +1,415 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21486,9 +21486,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_export.c linux/fs/gfs/ops_export.c
 +	.get_dentry = gfs_get_dentry,
 +};
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_export.h linux/fs/gfs/ops_export.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_export.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_export.h	2004-08-31 16:55:47.849412652 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_export.h linux/fs/gfs/ops_export.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_export.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_export.h	2004-09-07 16:26:15.781543770 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21509,9 +21509,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_export.h linux/fs/gfs/ops_export.h
 +extern struct export_operations gfs_export_ops;
 +
 +#endif /* __OPS_EXPORT_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_file.c linux/fs/gfs/ops_file.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_file.c	2004-08-31 16:55:47.851412193 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_file.c linux/fs/gfs/ops_file.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_file.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_file.c	2004-09-07 16:26:39.160387807 -0500
 @@ -0,0 +1,1646 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -22948,7 +22948,7 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_file.c linux/fs/gfs/ops_file.c
 +	else
 +		return sdp->sd_lockstruct.ls_ops->lm_plock(
 +			sdp->sd_lockstruct.ls_lockspace,
-+			&name, file, fl);
++			&name, file, cmd, fl);
 +}
 +
 +/**
@@ -23159,9 +23159,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_file.c linux/fs/gfs/ops_file.c
 +	.lock = gfs_lock,
 +	.flock = gfs_flock,
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_file.h linux/fs/gfs/ops_file.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_file.h	2004-08-31 16:55:47.851412193 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_file.h linux/fs/gfs/ops_file.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_file.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_file.h	2004-09-07 16:26:15.783543329 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23183,9 +23183,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_file.h linux/fs/gfs/ops_file.h
 +extern struct file_operations gfs_dir_fops;
 +
 +#endif /* __OPS_FILE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.c linux/fs/gfs/ops_fstype.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_fstype.c	2004-08-31 16:55:47.852411964 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_fstype.c linux/fs/gfs/ops_fstype.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_fstype.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_fstype.c	2004-09-07 16:26:15.784543108 -0500
 @@ -0,0 +1,607 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23794,9 +23794,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.c linux/fs/gfs/ops_fstype.c
 +	.kill_sb = kill_block_super,
 +	.owner = THIS_MODULE,
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.h linux/fs/gfs/ops_fstype.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_fstype.h	2004-08-31 16:55:47.852411964 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_fstype.h linux/fs/gfs/ops_fstype.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_fstype.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_fstype.h	2004-09-07 16:26:15.785542887 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23817,9 +23817,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_fstype.h linux/fs/gfs/ops_fstype.h
 +extern struct file_system_type gfs_fs_type;
 +
 +#endif /* __OPS_FSTYPE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.c linux/fs/gfs/ops_inode.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_inode.c	2004-08-31 16:55:47.855411277 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_inode.c linux/fs/gfs/ops_inode.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_inode.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_inode.c	2004-09-07 16:26:15.787542446 -0500
 @@ -0,0 +1,1723 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25544,9 +25544,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.c linux/fs/gfs/ops_inode.c
 +	.removexattr = gfs_removexattr,
 +};
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.h linux/fs/gfs/ops_inode.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_inode.h	2004-08-31 16:55:47.855411277 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_inode.h linux/fs/gfs/ops_inode.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_inode.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_inode.h	2004-09-07 16:26:15.787542446 -0500
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25570,9 +25570,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_inode.h linux/fs/gfs/ops_inode.h
 +extern struct inode_operations gfs_dev_iops;
 +
 +#endif /* __OPS_INODE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_super.c linux/fs/gfs/ops_super.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_super.c	2004-08-31 16:55:47.855411277 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_super.c linux/fs/gfs/ops_super.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_super.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_super.c	2004-09-07 16:26:15.788542226 -0500
 @@ -0,0 +1,418 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25992,9 +25992,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_super.c linux/fs/gfs/ops_super.c
 +	.clear_inode = gfs_clear_inode,
 +	.show_options = gfs_show_options,
 +};
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_super.h linux/fs/gfs/ops_super.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_super.h	2004-08-31 16:55:47.856411048 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_super.h linux/fs/gfs/ops_super.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_super.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_super.h	2004-09-07 16:26:15.788542226 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26015,9 +26015,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_super.h linux/fs/gfs/ops_super.h
 +extern struct super_operations gfs_super_ops;
 +
 +#endif /* __OPS_SUPER_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.c linux/fs/gfs/ops_vm.c
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_vm.c	2004-08-31 16:55:47.856411048 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_vm.c linux/fs/gfs/ops_vm.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_vm.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_vm.c	2004-09-07 16:26:15.789542005 -0500
 @@ -0,0 +1,212 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26231,9 +26231,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.c linux/fs/gfs/ops_vm.c
 +	.nopage = gfs_sharewrite_nopage,
 +};
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.h linux/fs/gfs/ops_vm.h
---- linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/ops_vm.h	2004-08-31 16:55:47.856411048 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/ops_vm.h linux/fs/gfs/ops_vm.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/ops_vm.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/ops_vm.h	2004-09-07 16:26:15.789542005 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26255,9 +26255,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/ops_vm.h linux/fs/gfs/ops_vm.h
 +extern struct vm_operations_struct gfs_vm_ops_sharewrite;
 +
 +#endif /* __OPS_VM_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/page.c linux/fs/gfs/page.c
---- linux-2.6.9-rc1-mm2/fs/gfs/page.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/page.c	2004-08-31 16:55:47.857410819 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/page.c linux/fs/gfs/page.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/page.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/page.c	2004-09-07 16:26:15.790541785 -0500
 @@ -0,0 +1,276 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26535,9 +26535,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/page.c linux/fs/gfs/page.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/page.h linux/fs/gfs/page.h
---- linux-2.6.9-rc1-mm2/fs/gfs/page.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/page.h	2004-08-31 16:55:47.857410819 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/page.h linux/fs/gfs/page.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/page.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/page.h	2004-09-07 16:26:15.790541785 -0500
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26565,9 +26565,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/page.h linux/fs/gfs/page.h
 +int gfs_truncator_page(struct gfs_inode *ip, uint64_t size);
 +
 +#endif /* __PAGE_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/quota.c linux/fs/gfs/quota.c
---- linux-2.6.9-rc1-mm2/fs/gfs/quota.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/quota.c	2004-08-31 16:55:47.858410590 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/quota.c linux/fs/gfs/quota.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/quota.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/quota.c	2004-09-07 16:26:15.791541564 -0500
 @@ -0,0 +1,1146 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27715,9 +27715,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/quota.c linux/fs/gfs/quota.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/quota.h linux/fs/gfs/quota.h
---- linux-2.6.9-rc1-mm2/fs/gfs/quota.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/quota.h	2004-08-31 16:55:47.859410361 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/quota.h linux/fs/gfs/quota.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/quota.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/quota.h	2004-09-07 16:26:15.792541344 -0500
 @@ -0,0 +1,40 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27759,9 +27759,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/quota.h linux/fs/gfs/quota.h
 +int gfs_quota_read(struct gfs_sbd *sdp, void *arg);
 +
 +#endif /* __QUOTA_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/recovery.c linux/fs/gfs/recovery.c
---- linux-2.6.9-rc1-mm2/fs/gfs/recovery.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/recovery.c	2004-08-31 16:55:47.860410132 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/recovery.c linux/fs/gfs/recovery.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/recovery.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/recovery.c	2004-09-07 16:26:15.793541123 -0500
 @@ -0,0 +1,749 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28512,9 +28512,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/recovery.c linux/fs/gfs/recovery.c
 +
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/recovery.h linux/fs/gfs/recovery.h
---- linux-2.6.9-rc1-mm2/fs/gfs/recovery.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/recovery.h	2004-08-31 16:55:47.860410132 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/recovery.h linux/fs/gfs/recovery.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/recovery.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/recovery.h	2004-09-07 16:26:15.793541123 -0500
 @@ -0,0 +1,36 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28552,9 +28552,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/recovery.h linux/fs/gfs/recovery.h
 +int gfs_recover_dump(struct gfs_sbd *sdp);
 +
 +#endif /* __RECOVERY_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/rgrp.c linux/fs/gfs/rgrp.c
---- linux-2.6.9-rc1-mm2/fs/gfs/rgrp.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/rgrp.c	2004-08-31 16:55:47.862409673 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/rgrp.c linux/fs/gfs/rgrp.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/rgrp.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/rgrp.c	2004-09-07 16:26:15.795540682 -0500
 @@ -0,0 +1,1932 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -30488,9 +30488,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/rgrp.c linux/fs/gfs/rgrp.c
 + fail:
 +	return error;
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/rgrp.h linux/fs/gfs/rgrp.h
---- linux-2.6.9-rc1-mm2/fs/gfs/rgrp.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/rgrp.h	2004-08-31 16:55:47.863409444 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/rgrp.h linux/fs/gfs/rgrp.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/rgrp.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/rgrp.h	2004-09-07 16:26:15.796540461 -0500
 @@ -0,0 +1,75 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -30567,9 +30567,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/rgrp.h linux/fs/gfs/rgrp.h
 +int gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats);
 +
 +#endif /* __RGRP_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/super.c linux/fs/gfs/super.c
---- linux-2.6.9-rc1-mm2/fs/gfs/super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/super.c	2004-08-31 16:55:47.864409215 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/super.c linux/fs/gfs/super.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/super.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/super.c	2004-09-07 16:26:15.797540241 -0500
 @@ -0,0 +1,1035 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -31606,9 +31606,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/super.c linux/fs/gfs/super.c
 +
 +	up(&sdp->sd_freeze_lock);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/super.h linux/fs/gfs/super.h
---- linux-2.6.9-rc1-mm2/fs/gfs/super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/super.h	2004-08-31 16:55:47.864409215 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/super.h linux/fs/gfs/super.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/super.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/super.h	2004-09-07 16:26:15.797540241 -0500
 @@ -0,0 +1,53 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -31663,9 +31663,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/super.h linux/fs/gfs/super.h
 +void gfs_unfreeze_fs(struct gfs_sbd *sdp);
 +
 +#endif /* __SUPER_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/trans.c linux/fs/gfs/trans.c
---- linux-2.6.9-rc1-mm2/fs/gfs/trans.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/trans.c	2004-08-31 16:55:47.865408986 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/trans.c linux/fs/gfs/trans.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/trans.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/trans.c	2004-09-07 16:26:15.798540020 -0500
 @@ -0,0 +1,410 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32077,9 +32077,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/trans.c linux/fs/gfs/trans.c
 +		tr->tr_num_q++;
 +	}
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/trans.h linux/fs/gfs/trans.h
---- linux-2.6.9-rc1-mm2/fs/gfs/trans.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/trans.h	2004-08-31 16:55:47.865408986 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/trans.h linux/fs/gfs/trans.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/trans.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/trans.h	2004-09-07 16:26:15.798540020 -0500
 @@ -0,0 +1,37 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32118,9 +32118,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/trans.h linux/fs/gfs/trans.h
 +			 uint32_t gid);
 +
 +#endif /* __TRANS_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/unlinked.c linux/fs/gfs/unlinked.c
---- linux-2.6.9-rc1-mm2/fs/gfs/unlinked.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/unlinked.c	2004-08-31 16:55:47.866408757 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/unlinked.c linux/fs/gfs/unlinked.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/unlinked.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/unlinked.c	2004-09-07 16:26:15.799539800 -0500
 @@ -0,0 +1,427 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32549,9 +32549,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/unlinked.c linux/fs/gfs/unlinked.c
 +		printk("GFS: fsid=%s: error deallocating inodes: %d\n",
 +		       sdp->sd_fsname, error);
 +}
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/unlinked.h linux/fs/gfs/unlinked.h
---- linux-2.6.9-rc1-mm2/fs/gfs/unlinked.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/unlinked.h	2004-08-31 16:55:47.866408757 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/unlinked.h linux/fs/gfs/unlinked.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/unlinked.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/unlinked.h	2004-09-07 16:26:15.799539800 -0500
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32585,9 +32585,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/unlinked.h linux/fs/gfs/unlinked.h
 +void gfs_unlinked_dealloc(struct gfs_sbd *sdp);
 +
 +#endif /* __UNLINKED_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/util.c linux/fs/gfs/util.c
---- linux-2.6.9-rc1-mm2/fs/gfs/util.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/util.c	2004-08-31 16:55:47.866408757 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/util.c linux/fs/gfs/util.c
+--- linux-2.6.9-rc1-mm3/fs/gfs/util.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/util.c	2004-09-07 16:26:15.800539579 -0500
 @@ -0,0 +1,324 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32913,9 +32913,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/util.c linux/fs/gfs/util.c
 +	return p;
 +}
 +
-diff -urN linux-2.6.9-rc1-mm2/fs/gfs/util.h linux/fs/gfs/util.h
---- linux-2.6.9-rc1-mm2/fs/gfs/util.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/util.h	2004-08-31 16:55:47.867408528 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs/util.h linux/fs/gfs/util.h
+--- linux-2.6.9-rc1-mm3/fs/gfs/util.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/util.h	2004-09-07 16:26:15.801539359 -0500
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33073,9 +33073,9 @@ diff -urN linux-2.6.9-rc1-mm2/fs/gfs/util.h linux/fs/gfs/util.h
 +
 +
 +#endif /* __UTIL_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/include/linux/gfs_ioctl.h linux/include/linux/gfs_ioctl.h
---- linux-2.6.9-rc1-mm2/include/linux/gfs_ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/include/linux/gfs_ioctl.h	2004-08-31 16:55:47.867408528 -0500
+diff -urN linux-2.6.9-rc1-mm3/include/linux/gfs_ioctl.h linux/include/linux/gfs_ioctl.h
+--- linux-2.6.9-rc1-mm3/include/linux/gfs_ioctl.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/include/linux/gfs_ioctl.h	2004-09-07 16:26:15.801539359 -0500
 @@ -0,0 +1,219 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33296,9 +33296,9 @@ diff -urN linux-2.6.9-rc1-mm2/include/linux/gfs_ioctl.h linux/include/linux/gfs_
 +};
 +
 +#endif /* ___GFS_IOCTL_DOT_H__ */
-diff -urN linux-2.6.9-rc1-mm2/include/linux/gfs_ondisk.h linux/include/linux/gfs_ondisk.h
---- linux-2.6.9-rc1-mm2/include/linux/gfs_ondisk.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/include/linux/gfs_ondisk.h	2004-08-31 16:55:47.870407841 -0500
+diff -urN linux-2.6.9-rc1-mm3/include/linux/gfs_ondisk.h linux/include/linux/gfs_ondisk.h
+--- linux-2.6.9-rc1-mm3/include/linux/gfs_ondisk.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/include/linux/gfs_ondisk.h	2004-09-07 16:26:15.804538697 -0500
 @@ -0,0 +1,1720 @@
 +/******************************************************************************
 +*******************************************************************************

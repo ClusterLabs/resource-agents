@@ -1,6 +1,6 @@
-diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
---- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-08-27 15:07:18.039351841 -0500
+diff -urN linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_harness/main.c linux/fs/gfs_locking/lock_harness/main.c
+--- linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_harness/main.c	2004-09-07 16:14:25.844078942 -0500
 @@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -229,9 +229,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unregister_proto);
 +EXPORT_SYMBOL_GPL(lm_mount);
 +EXPORT_SYMBOL_GPL(lm_unmount);
-diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
---- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-08-27 15:07:18.039351841 -0500
+diff -urN linux-2.6.9-rc1-mm3/include/linux/lm_interface.h linux/include/linux/lm_interface.h
+--- linux-2.6.9-rc1-mm3/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/include/linux/lm_interface.h	2004-09-07 16:14:25.845078724 -0500
 @@ -0,0 +1,191 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -387,7 +387,7 @@ diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm
 +
 +	int (*lm_plock) (lm_lockspace_t *lockspace,
 +			 struct lm_lockname *name,
-+			 struct file *file, struct file_lock *fl);
++			 struct file *file, int cmd, struct file_lock *fl);
 +
 +	int (*lm_punlock) (lm_lockspace_t *lockspace,
 +			   struct lm_lockname *name,
