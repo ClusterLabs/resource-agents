@@ -482,80 +482,80 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	return 0;
 
-      fail_inoded:
+ fail_inoded:
 	down(&sdp->sd_thread_lock);
 	clear_bit(SDF_INODED_RUN, &sdp->sd_flags);
 	wake_up_process(sdp->sd_inoded_process);
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-      fail_quotad:
+ fail_quotad:
 	down(&sdp->sd_thread_lock);
 	clear_bit(SDF_QUOTAD_RUN, &sdp->sd_flags);
 	wake_up_process(sdp->sd_quotad_process);
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-      fail_logd:
+ fail_logd:
 	down(&sdp->sd_thread_lock);
 	clear_bit(SDF_LOGD_RUN, &sdp->sd_flags);
 	wake_up_process(sdp->sd_logd_process);
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-      fail_dput:
+ fail_dput:
 	dput(sb->s_root);
 
-      fail_li_free:
+ fail_li_free:
 	gfs_inode_put(sdp->sd_linode);
 
-      fail_qi_free:
+ fail_qi_free:
 	gfs_inode_put(sdp->sd_qinode);
 
-      fail_root_free:
+ fail_root_free:
 	gfs_inode_put(sdp->sd_rooti);
 
-      fail_ri_free:
+ fail_ri_free:
 	gfs_inode_put(sdp->sd_riinode);
 	gfs_clear_rgrpd(sdp);
 
-      fail_recoverd:
+ fail_recoverd:
 	down(&sdp->sd_thread_lock);
 	clear_bit(SDF_RECOVERD_RUN, &sdp->sd_flags);
 	wake_up_process(sdp->sd_recoverd_process);
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-      fail_recover_dump:
+ fail_recover_dump:
 	clear_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
 	gfs_unlinked_cleanup(sdp);
 	gfs_quota_cleanup(sdp);
 
-      fail_gunlock_journal:
+ fail_gunlock_journal:
 	gfs_glock_dq_uninit(&sdp->sd_journal_gh);
 
-      fail_gunlock_ji:
+ fail_gunlock_ji:
 	if (jindex)
 		gfs_glock_dq_uninit(&ji_gh);
 
-      fail_trans_gl:
+ fail_trans_gl:
 	gfs_glock_put(sdp->sd_trans_gl);
 
-      fail_ji_free:
+ fail_ji_free:
 	gfs_inode_put(sdp->sd_jiinode);
 	gfs_clear_journals(sdp);
 
-      fail_gunlock_sb:
+ fail_gunlock_sb:
 	if (super)
 		gfs_glock_dq_uninit(&sb_gh);
 
-      fail_gunlock_live:
+ fail_gunlock_live:
 	gfs_glock_dq_uninit(&sdp->sd_live_gh);
 
-      fail_gunlock_mount:
+ fail_gunlock_mount:
 	gfs_glock_dq_uninit(&mount_gh);
 
-      fail_glockd:
+ fail_glockd:
 	clear_bit(SDF_GLOCKD_RUN, &sdp->sd_flags);
 	wake_up(&sdp->sd_reclaim_wchan);
 	while (sdp->sd_glockd_num--)
@@ -567,17 +567,17 @@ fill_super(struct super_block *sb, void *data, int silent)
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-      fail_lockproto:
+ fail_lockproto:
 	gfs_gl_hash_clear(sdp, TRUE);
 	gfs_unmount_lockproto(sdp);
 	gfs_clear_dirty_j(sdp);
 	while (invalidate_inodes(sb))
 		yield();
 
-      fail_vfree:
+ fail_vfree:
 	vfree(sdp);
 
-      fail:
+ fail:
 	vfs2sdp(sb) = NULL;
 	return error;
 }
