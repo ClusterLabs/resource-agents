@@ -34,7 +34,6 @@ static unsigned int		debug_point;
 static int			debug_wrap;
 static spinlock_t		debug_lock;
 static struct proc_dir_entry *	debug_proc_entry = NULL;
-static struct proc_dir_entry *	rcom_proc_entry = NULL;
 static char			proc_ls_name[255] = "";
 
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
@@ -533,6 +532,7 @@ int dlm_debug_info(char *b, char **start, off_t offset, int length)
 
 	return n;
 }
+#endif
 
 #ifdef CONFIG_DLM_STATS
 struct dlm_statinfo dlm_stats;
@@ -587,39 +587,7 @@ static int dlm_stats_clear(struct file *file, const char __user *buffer,
 	memset(&dlm_stats, 0, sizeof(dlm_stats));
 	return count;
 }
-
-#endif
-
-int dlm_rcom_info(char *b, char **start, off_t offset, int length)
-{
-	struct dlm_ls *ls;
-	struct dlm_csb *csb;
-	int n = 0;
-
-	ls = find_lockspace_by_name(proc_ls_name, strlen(proc_ls_name));
-	if (!ls)
-		return 0;
-
-	n += sprintf(b + n, "nodeid names_send_count names_send_msgid "
-				   "names_recv_count names_recv_msgid "
-				   "locks_send_count locks_send_msgid "
-				   "locks_recv_count locks_recv_msgid\n");
-
-	list_for_each_entry(csb, &ls->ls_nodes, list) {
-		n += sprintf(b + n, "%u %u %u %u %u %u %u %u %u\n",
-			     csb->node->nodeid,
-			     csb->names_send_count,
-                	     csb->names_send_msgid,
-                	     csb->names_recv_count,
-                	     csb->names_recv_msgid,
-                	     csb->locks_send_count,
-                	     csb->locks_send_msgid,
-                	     csb->locks_recv_count,
-                	     csb->locks_recv_msgid);
-        }
-	return n;
-}
-#endif
+#endif  /* CONFIG_DLM_STATS */
 
 void dlm_proc_init(void)
 {
@@ -630,15 +598,11 @@ void dlm_proc_init(void)
 		return;
 
 	debug_proc_entry->get_info = &dlm_debug_info;
-
-	rcom_proc_entry = create_proc_entry("cluster/dlm_rcom", S_IRUGO, NULL);
-	if (!rcom_proc_entry)
-		return;
-
-	rcom_proc_entry->get_info = &dlm_rcom_info;
 #endif
+
 #ifdef CONFIG_DLM_STATS
-	stats_proc_entry = create_proc_entry("cluster/dlm_stats", S_IRUSR | S_IWUSR, NULL);
+	stats_proc_entry = create_proc_entry("cluster/dlm_stats",
+					     S_IRUSR | S_IWUSR, NULL);
 	if (!stats_proc_entry)
 		return;
 
@@ -672,10 +636,8 @@ void dlm_proc_exit(void)
 		remove_proc_entry("cluster/dlm_debug", NULL);
 		dlm_debug_setup(0);
 	}
-
-	if (rcom_proc_entry)
-		remove_proc_entry("cluster/dlm_rcom", NULL);
 #endif
+
 #ifdef CONFIG_DLM_STATS
 	if (stats_proc_entry)
 		remove_proc_entry("cluster/dlm_stats", NULL);

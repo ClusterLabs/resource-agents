@@ -196,17 +196,6 @@ struct dlm_csb {
 	struct list_head	list;		/* per-lockspace node list */
 	struct dlm_node *	node;		/* global node structure */
 	int			gone_event;	/* event id when node removed */
-
-	/* recovery stats for debugging */
-
-	uint32_t		names_send_count;
-	uint32_t		names_send_msgid;
-	uint32_t		names_recv_count;
-	uint32_t		names_recv_msgid;
-	uint32_t		locks_send_count;
-	uint32_t		locks_send_msgid;
-	uint32_t		locks_recv_count;
-	uint32_t		locks_recv_msgid;
 };
 
 /*

@@ -26,61 +26,7 @@
 /* Running on the basis that only a single recovery communication will be done
  * at a time per lockspace */
 
-static void rcom_process_message(struct dlm_ls * ls, uint32_t nodeid, struct dlm_rcom * rc);
-
-/*
- * Track per-node progress/stats during recovery to help debugging.
- */
-
-void rcom_log(struct dlm_ls *ls, int nodeid, struct dlm_rcom *rc, int send)
-{
-	struct dlm_csb *csb;
-	int found = 0;
- 
-	list_for_each_entry(csb, &ls->ls_nodes, list) {
-		if (csb->node->nodeid == nodeid) {
-			found = TRUE;
-			break;
-		}
-	}
-
-	if (!found)
-		return;
-
-	if (rc->rc_subcmd == RECCOMM_RECOVERNAMES) {
-		if (send) {
-			csb->names_send_count++;
-			csb->names_send_msgid = rc->rc_msgid;
-		} else {
-			csb->names_recv_count++;
-			csb->names_recv_msgid = rc->rc_msgid;
-		}
-	} else if (rc->rc_subcmd == RECCOMM_NEWLOCKS) {
-		if (send) {
-			csb->locks_send_count++;
-			csb->locks_send_msgid = rc->rc_msgid;
-		} else {
-			csb->locks_recv_count++;
-			csb->locks_recv_msgid = rc->rc_msgid;
-		}
-	}
-}
-
-void rcom_log_clear(struct dlm_ls *ls)
-{
-	struct dlm_csb *csb;
- 
-	list_for_each_entry(csb, &ls->ls_nodes, list) {
-		csb->names_send_count = 0;
-		csb->names_send_msgid = 0;
-		csb->names_recv_count = 0;
-		csb->names_recv_msgid = 0;
-		csb->locks_send_count = 0;
-		csb->locks_send_msgid = 0;
-		csb->locks_recv_count = 0;
-		csb->locks_recv_msgid = 0;
-	}
-}
+static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_rcom *rc);
 
 static int rcom_response(struct dlm_ls *ls)
 {
@@ -134,8 +80,6 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 	rc->rc_header.rh_length = sizeof(struct dlm_rcom) + rc->rc_datalen - 1;
 	rc->rc_subcmd = type;
 	rc->rc_msgid = ++ls->ls_rcom_msgid;
-
-	rcom_log(ls, nodeid, rc, 1);
 
 	/* 
 	 * When a reply is received, the reply data goes back into this buffer.
@@ -219,8 +163,6 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 
 	if (!ls)
 		return;
-
-	rcom_log(ls, nodeid, rc, 0);
 
 	if (dlm_recovery_stopped(ls) && (rc->rc_subcmd != RECCOMM_STATUS)) {
 		log_error(ls, "ignoring recovery message %x from %u",
