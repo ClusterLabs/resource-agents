@@ -83,6 +83,7 @@ static void host_to_network(void *msg)
 		rep->rl_lockstate = cpu_to_le32(rep->rl_lockstate);
 		rep->rl_nodeid = cpu_to_le32(rep->rl_nodeid);
 		rep->rl_status = cpu_to_le32(rep->rl_status);
+		rep->rl_flags  = cpu_to_le32(rep->rl_flags);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:
@@ -156,6 +157,7 @@ static void network_to_host(void *msg)
 		rep->rl_lockstate = le32_to_cpu(rep->rl_lockstate);
 		rep->rl_nodeid = le32_to_cpu(rep->rl_nodeid);
 		rep->rl_status = le32_to_cpu(rep->rl_status);
+		rep->rl_flags  = le32_to_cpu(rep->rl_flags);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:
