@@ -31,8 +31,12 @@ All of the config keys are equal to the long options on the command line.
 .in +7
 A list of IPs or host names that are allowed to be servers.
 This has no default value.  You must supply this value, and the nodes must
-be listed in the <nodes/> section.  lock_gulmd can parse node names, IPv4, and
-IPv6 addresses.
+be listed in the <nodes/> section.
+
+You can use either IPs or names.  Either IPv4 or IPv6 addresses can be
+used.  Node names are looked up via libresolv into IPs.  IPv6 addresses
+will be used over IPv4 addresses.
+
 .in -7
 
 \fIheartbeat_rate\fR

@@ -140,6 +140,10 @@ Default is Default.  (witty no?)
 Comma seperated list of nodes that can be master servers.
 No default.
 
+You can use either IPs or names.  Either IPv4 or IPv6 addresses can be
+used.  Node names are looked up via libresolv into IPs.  IPv6 addresses
+will be used over IPv4 addresses.
+
 .sp
 .in -7
 \fB-n --cluster_name\fP \fIstring\fR
