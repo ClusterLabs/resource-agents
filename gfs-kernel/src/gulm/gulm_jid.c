@@ -80,12 +80,12 @@ int
 jid_get_header_name (uint8_t * fsname, uint8_t * key, uint16_t * keylen)
 {
 	int len;
-	len = strlen (fsname);
-	if ((len + 11) > *keylen)
-		return -EINVAL;
-	memcpy (key, "JHeader\0\0\0", 10);
-	memcpy (&key[10], fsname, len + 1);
-	*keylen = len + 11;
+
+	len = pack_lock_key(key, *keylen, 'J', fsname, "Header\0\0\0", 9);
+	if( len <=0 ) return len;
+
+	*keylen = len;
+
 	return 0;
 }
 
@@ -93,12 +93,12 @@ int
 jid_get_listlock_name (uint8_t * fsname, uint8_t * key, uint16_t * keylen)
 {
 	int len;
-	len = strlen (fsname);
-	if ((len + 11) > *keylen)
-		return -EINVAL;
-	memcpy (key, "JLlistlock", 10);
-	memcpy (&key[10], fsname, len + 1);
-	*keylen = len + 11;
+
+	len = pack_lock_key(key, *keylen, 'J', fsname, "Llistlock", 9);
+	if( len <=0 ) return len;
+
+	*keylen = len;
+
 	return 0;
 }
 
@@ -119,21 +119,23 @@ jid_get_lock_name (uint8_t * fsname, uint32_t jid, uint8_t * key,
 		   uint16_t * keylen)
 {
 	int len;
-	len = strlen (fsname);
-	if ((len + 11) > *keylen)
-		return -EINVAL;
-	key[0] = 'J';
-	key[1] = 'M';
-	key[5] = (jid >> 24) & 0xff;
-	key[4] = (jid >> 16) & 0xff;
-	key[3] = (jid >> 8) & 0xff;
-	key[2] = (jid >> 0) & 0xff;
-	key[6] = 0;
-	key[7] = 0;
-	key[8] = 0;
-	key[9] = 0;
-	memcpy (&key[10], fsname, len + 1);
-	*keylen = len + 11;
+	uint8_t temp[9];
+
+	temp[0] = 'M';
+	temp[1] = (jid >> 0) & 0xff;
+	temp[2] = (jid >> 8) & 0xff;
+	temp[3] = (jid >> 16) & 0xff;
+	temp[4] = (jid >> 24) & 0xff;
+	temp[5] = 0;
+	temp[6] = 0;
+	temp[7] = 0;
+	temp[8] = 0;
+
+	len = pack_lock_key(key, *keylen, 'J', fsname, temp, 9);
+	if( len <=0 ) return len;
+
+	*keylen = len;
+
 	return 0;
 }
 
@@ -255,7 +257,8 @@ jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 			uint32_t flags, uint8_t * lvb, uint16_t lvblen)
 {
 	jid_lookup_item_t jp;
-	GULM_ASSERT (keylen > 6,);
+	GULM_ASSERT (keylen > 6,
+			printk("keylen: %d\n", keylen););
 	jp.key = key;
 	jp.keylen = keylen;
 	jp.lvb = lvb;
@@ -348,7 +351,7 @@ void
 jid_hold_list_lock (gulm_fs_t * fs)
 {
 	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 
 	down (&jid_listlock);
 
@@ -369,7 +372,7 @@ void
 jid_release_list_lock (gulm_fs_t * fs)
 {
 	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 
 	keylen = sizeof (key);
 	jid_get_listlock_name (fs->fs_name, key, &keylen);
@@ -425,7 +428,7 @@ jid_grow_space (gulm_fs_t * fs)
 	jidc |= (uint32_t) (lvb[1]) << 8;
 	jidc |= (uint32_t) (lvb[2]) << 16;
 	jidc |= (uint32_t) (lvb[3]) << 24;
-	jidc += 10;
+	jidc += 300;
 	lvb[3] = (jidc >> 24) & 0xff;
 	lvb[2] = (jidc >> 16) & 0xff;
 	lvb[1] = (jidc >> 8) & 0xff;
@@ -452,7 +455,7 @@ int
 lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name)
 {
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
-	uint16_t keylen = 64;
+	uint16_t keylen = GIO_KEY_SIZE;
 	int err = 0;
 
 	if (jid >= fs->JIDcount) {
@@ -492,7 +495,7 @@ int
 release_JID (gulm_fs_t * fs, uint32_t jid, int nop)
 {
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
-	uint16_t keylen = 64;
+	uint16_t keylen = GIO_KEY_SIZE;
 
 	/* there is no such, so this becomes a nop. */
 	if (jid >= fs->JIDcount)
@@ -530,9 +533,9 @@ put_journalID (gulm_fs_t * fs)
 void
 get_journalID (gulm_fs_t * fs)
 {
-	uint32_t i = 0;
+	uint32_t i = 0, jifc;
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 	int first_clear = -1;
 
       retry:
@@ -592,7 +595,7 @@ find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name,
 {
 	uint32_t i, found = -1;
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 
 	/* grab list lock */
 	jid_hold_list_lock (fs);
@@ -631,7 +634,7 @@ check_for_stale_expires (gulm_fs_t * fs)
 {
 	uint32_t i;
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 	unsigned int ujid;
 
 	/* grab list lock */
@@ -685,7 +688,7 @@ jid_fs_release (gulm_fs_t * fs)
 {
 	uint32_t i;
 	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
+	uint16_t keylen = GIO_KEY_SIZE;
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
@@ -708,7 +711,13 @@ jid_fs_release (gulm_fs_t * fs)
 void
 jid_unlock_callback (void *d)
 {
+	uint8_t key[GIO_KEY_SIZE];
+	uint16_t keylen = GIO_KEY_SIZE;
+
 	gulm_fs_t *fs = (gulm_fs_t *) d;
+	jid_get_header_name (fs->fs_name, key, &keylen);
+	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
+
 	jid_rehold_lvbs (fs);
 }
 
@@ -744,15 +753,12 @@ jid_get_lsresv_name (char *fsname, uint8_t * key, uint16_t * keylen)
 {
 	int len;
 
-	key[0] = 'J';
-	key[1] = 'N';
-	len = strlen (gulm_cm.myName) + 1;
-	memset (&key[2], 0, 8);
-	memcpy ((&key[2]), gulm_cm.myName, MIN (len, 8));
-	/* fsname starts at byte 10 so the dropexp pattern will find it. */
-	memcpy ((&key[10]), fsname, strlen (fsname) + 1);
+	len = strlen(gulm_cm.myName);
+	len = pack_lock_key(key, *keylen, 'N', fsname, gulm_cm.myName,
+			MIN(64,len));
+	if( len <=0 ) return len;
 
-	*keylen = 10 + strlen (fsname) + 1;
+	*keylen = len;
 
 	return 0;
 }
@@ -767,16 +773,21 @@ jid_get_lsresv_name (char *fsname, uint8_t * key, uint16_t * keylen)
 void
 jid_lockstate_reserve (gulm_fs_t * fs, int first)
 {
-	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
+	uint8_t key[5 + 32 + 64];
+	uint16_t keylen = 5 + 32 + 64;
+	/* 5 bytes for stuff in key (lengths and type bytes)
+	 * 32 for fs name
+	 * 64 for node name.
+	 */
 
 	jid_get_lsresv_name (fs->fs_name, key, &keylen);
 
-	/* if we are expired, this will block until someone else has cleaned our
-	 * last mess up.
+	/* if we are expired, this will block until someone else has
+	 * cleaned our last mess up.
 	 *
-	 * Will very well may need to put in some kind of timeout otherwise this
-	 * may do a forever lockup much like the FirstMounter lock had.
+	 * Will very well may need to put in some kind of timeout
+	 * otherwise this may do a forever lockup much like the
+	 * FirstMounter lock had.
 	 */
 	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 			first?lg_lock_flag_IgnoreExp:0, NULL, 0);
@@ -793,8 +804,8 @@ jid_lockstate_reserve (gulm_fs_t * fs, int first)
 void
 jid_lockstate_release (gulm_fs_t * fs)
 {
-	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
+	uint8_t key[5 + 32 + 64];
+	uint16_t keylen = 5 + 32 + 64;
 
 	jid_get_lsresv_name (fs->fs_name, key, &keylen);
 

@@ -368,10 +368,10 @@ gulm_mount (char *table_name, char *host_data,
 	 * A better fix to this will happen when I actually get dynamic key
 	 * lengths working.
 	 */
-	if (strlen (tbln) > MIN (GIO_NAME_LEN, (GIO_KEY_SIZE - 13))) {
+	if (strlen (tbln) > MIN (GIO_NAME_LEN, (GIO_KEY_SIZE - 15))) {
 		log_err
 		    ("Warning! lockspace name (%s) is longer than %d chars!\n",
-		     tbln, MIN (GIO_NAME_LEN, (GIO_KEY_SIZE - 13)));
+		     tbln, MIN (GIO_NAME_LEN, (GIO_KEY_SIZE - 15)));
 		error = -EPROTO;
 		goto fail;
 	}

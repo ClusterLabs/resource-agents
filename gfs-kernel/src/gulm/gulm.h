@@ -103,7 +103,7 @@
 /* Some fixed length constants.
  * Some of these should be made dynamic in size in the future.
  */
-#define GIO_KEY_SIZE  (46)
+#define GIO_KEY_SIZE  (48)
 #define GIO_LVB_SIZE  (32)
 #define GIO_NAME_SIZE (32)
 #define GIO_NAME_LEN  (GIO_NAME_SIZE-1)
@@ -255,6 +255,8 @@ typedef struct gulm_lock_s {
 /* cross pollenate prototypes */
 
 /* from gulm_lt.c */
+int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
+		uint8_t *fsname, uint8_t *pk, uint8_t pklen);
 void lt_logout (void);
 int lt_login (void);
 int get_mount_lock (gulm_fs_t * fs, int *first);

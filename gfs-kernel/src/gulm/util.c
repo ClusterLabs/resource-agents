@@ -14,7 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/string.h>
-#include "utils_crc.h"
+#include <linux/crc32.h>
 
 /**
  * atoi
@@ -104,6 +104,6 @@ inet_ntoa (uint32_t ip, char *buf)
 
 uint32_t __inline__
 hash_lock_key (uint8_t * in, uint8_t len)
-{				/* other hash function was to variable */
-	return crc32 (in, len, hash_init_val);
+{
+   return crc32 (hash_init_val, in, len);
 }

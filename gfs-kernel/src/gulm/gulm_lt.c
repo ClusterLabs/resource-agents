@@ -147,6 +147,109 @@ print_lk_lvb (uint8_t * key, uint8_t * lvb, uint8_t st, uint8_t * dir)
 
 /****************************************************************************/
 /**
+ * pack_lock_key - 
+ * @key: 
+ * @keylen: 
+ * 
+ * key is: <type><fsname len><fsname>\0<pk len><pk>\0
+ * <type> is: G J F N
+ * <fsname len> is 0-256
+ * 
+ * Returns: int
+ */
+int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
+		uint8_t *fsname, uint8_t *pk, uint8_t pklen)
+{
+	int fsnlen;
+	fsnlen = strlen(fsname);
+
+	if( keylen <= (fsnlen + pklen + 5) ) return -1;
+
+	memset (key, 0, keylen);
+
+	key[0] = type;
+
+	key[1] = fsnlen;
+	memcpy(&key[2], fsname, fsnlen);
+	key[2 + fsnlen] = 0;
+
+	key[3 + fsnlen] = pklen;
+
+	memcpy(&key[4 + fsnlen], pk, pklen);
+
+	key[4 + fsnlen + pklen] = 0;
+
+	return fsnlen + pklen + 5;
+}
+
+/**
+ * unpack_lock_key - 
+ * @key: <
+ * @keylen: <
+ * @type: >
+ * @fsname: >
+ * @fsnlen: >
+ * @pk: >
+ * @pklen: >
+ * 
+ * if you're gonna fiddle with bytes returned here, copy first!
+ *
+ * this is broken. do I even really need this?
+ * 
+ * Returns: int
+ */
+int unpack_lock_key(uint8_t *key, uint16_t keylen, uint8_t *type,
+		uint8_t **fsname, uint8_t *fsnlen,
+		uint8_t **pk, uint8_t *pklen)
+{
+	int fsnl, pkl;
+	if( type != NULL )
+		*type = key[0];
+
+	fsnl = key[1];
+	if( fsnlen != NULL && *fsname != NULL ) {
+		*fsnlen = key[1];
+		*fsname = &key[2];
+	}
+
+	/* 0 = key[2 + fsnl] */
+
+	pkl = key[3 + fsnl];
+	if( pklen != NULL && *pk != NULL ) {
+		*pklen = key[3 + fsnl];
+		*pk = &key[4 + fsnl];
+	}
+
+	/* 0 = key[4 + fsnl + *pklen] */
+
+	return fsnl + pkl + 5;
+}
+
+/**
+ * pack_drop_mask - 
+ * @mask: 
+ * @fsname: 
+ * 
+ * 
+ * Returns: int
+ */
+int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname)
+{
+	int fsnlen;
+	fsnlen = strlen(fsname);
+
+	memset (mask, 0, GIO_KEY_SIZE);
+
+	mask[0] = 0xff;
+	mask[1] = fsnlen;
+	memcpy(&mask[2], fsname, fsnlen);
+	mask[2 + fsnlen] = 0;
+	/* rest should be 0xff */
+
+	return 3 + fsnlen;
+}
+
+/**
  * find_and_mark_lock - 
  * @key: 
  * @keylen: 
@@ -238,18 +341,31 @@ unmark_and_release_lock (gulm_lock_t * lck)
 
 /****************************************************************************/
 
+/**
+ * gulm_key_to_lm_lockname - 
+ * @key: 
+ * @lockname: 
+ * 
+ */
 void
 gulm_key_to_lm_lockname (uint8_t * key, struct lm_lockname *lockname)
 {
-	(*lockname).ln_number = (u64) (key[9]) << 0;
-	(*lockname).ln_number |= (u64) (key[8]) << 8;
-	(*lockname).ln_number |= (u64) (key[7]) << 16;
-	(*lockname).ln_number |= (u64) (key[6]) << 24;
-	(*lockname).ln_number |= (u64) (key[5]) << 32;
-	(*lockname).ln_number |= (u64) (key[4]) << 40;
-	(*lockname).ln_number |= (u64) (key[3]) << 48;
-	(*lockname).ln_number |= (u64) (key[2]) << 56;
-	(*lockname).ln_type = key[1];
+	int pos;
+
+	pos = key[1] + 4;
+	/* pos now points to the first byte of the GFS lockname that was
+	 * embedded in the gulm lock key
+	 */
+
+	(*lockname).ln_type = key[pos];
+	(*lockname).ln_number  = (u64) (key[pos+1]) << 56;
+	(*lockname).ln_number |= (u64) (key[pos+2]) << 48;
+	(*lockname).ln_number |= (u64) (key[pos+3]) << 40;
+	(*lockname).ln_number |= (u64) (key[pos+4]) << 32;
+	(*lockname).ln_number |= (u64) (key[pos+5]) << 24;
+	(*lockname).ln_number |= (u64) (key[pos+6]) << 16;
+	(*lockname).ln_number |= (u64) (key[pos+7]) << 8;
+	(*lockname).ln_number |= (u64) (key[pos+8]) << 0;
 }
 
 void
@@ -257,15 +373,12 @@ do_drop_lock_req (gulm_fs_t * fs, uint8_t state, uint8_t key[GIO_KEY_SIZE])
 {
 	unsigned int type;
 	struct lm_lockname lockname;
-	/* i might want to shove most of this function into the new lockcallback
-	 * handing queue.
+	/* i might want to shove most of this function into the new
+	 * lockcallback handing queue.
 	 * later.
 	 */
 
 	/* don't do callbacks on the gulm mount lock.
-	 * I need to someday come up with a cleaner way of seperating the
-	 * firstmounter lock and the rest of gfs's locks.
-	 * i duno, this first byte is pretty clean.
 	 * */
 	if (key[0] != 'G') {
 		return;
@@ -316,6 +429,8 @@ send_async_reply (gulm_lock_t * lck)
 		return;
 	}
 
+	if( lck->key[0] != 'G' ) return;
+
 	gulm_key_to_lm_lockname (lck->key, &lockname);
 
 	qu_async_rpl (&fs->cq, fs->cb, fs->fsdata, &lockname, lck->result);
@@ -335,22 +450,7 @@ send_drop_exp_inter (gulm_fs_t * fs, lock_table_t * lt, char *name)
 	int err, len;
 	uint8_t mask[GIO_KEY_SIZE];
 
-	memset (mask, 0, GIO_KEY_SIZE);
-	/* pack key mask */
-	mask[0] = 0xff;		/* minor lock type. 'G', 'F', 'J'. */
-	mask[1] = 0xff;		/* GFS lock type. */
-	mask[2] = 0xff;		/* next 8 are lock number */
-	mask[3] = 0xff;
-	mask[4] = 0xff;
-	mask[5] = 0xff;
-	mask[6] = 0xff;
-	mask[7] = 0xff;
-	mask[8] = 0xff;
-	mask[9] = 0xff;
-	/* Now stick the fsname into the remaining space. */
-	len = strlen (fs->fs_name);
-	strncpy (&mask[10], fs->fs_name, GIO_KEY_SIZE - 16);
-	len += 11;		/* 10 for the encoded buf, 1 for the '\0' after the fs name */
+	len = pack_drop_mask(mask, GIO_KEY_SIZE, fs->fs_name); 
 
 	err = lg_lock_drop_exp (gulm_cm.hookup, name, mask, len);
 
@@ -926,7 +1026,7 @@ gulm_lt_lock_state (void *misc, uint8_t * key, uint16_t keylen,
 {
 	gulm_lock_t *lck;
 
-	if (key[0] == 'J') {
+	if (key[0] == 'J' || key[0] == 'N' ) {
 		jid_state_reply (key, keylen, LVB, LVBlen);
 		return 0;
 	}
@@ -1264,35 +1364,28 @@ gulm_get_lock (lm_lockspace_t * lockspace, struct lm_lockname *name,
 {
 	int err, len;
 	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
-	uint8_t key[GIO_KEY_SIZE];
+	uint8_t key[GIO_KEY_SIZE]; uint8_t temp[9];
 
-	/* i could add a per fs lock to force only one gulm_get_lock at a time.
-	 */
 	down (&fs->get_lock);
 
-	memset (key, 0, GIO_KEY_SIZE);
-	/* pack lockname */
-	key[0] = 'G';		/* G: fs lock, F: First mounter, J: JID mapping lock */
-	key[1] = name->ln_type & 0xff;
-	key[2] = (name->ln_number >> 56) & 0xff;
-	key[3] = (name->ln_number >> 48) & 0xff;
-	key[4] = (name->ln_number >> 40) & 0xff;
-	key[5] = (name->ln_number >> 32) & 0xff;
-	key[6] = (name->ln_number >> 24) & 0xff;
-	key[7] = (name->ln_number >> 16) & 0xff;
-	key[8] = (name->ln_number >> 8) & 0xff;
-	key[9] = (name->ln_number >> 0) & 0xff;
 
-	/* Now stick the fsname into the remaining space. */
-	len = strlen (fs->fs_name);
-	strncpy (&key[10], fs->fs_name, GIO_KEY_SIZE - 16);
+	temp[0] = name->ln_type & 0xff;
+	temp[1] = (name->ln_number >> 56) & 0xff;
+	temp[2] = (name->ln_number >> 48) & 0xff;
+	temp[3] = (name->ln_number >> 40) & 0xff;
+	temp[4] = (name->ln_number >> 32) & 0xff;
+	temp[5] = (name->ln_number >> 24) & 0xff;
+	temp[6] = (name->ln_number >> 16) & 0xff;
+	temp[7] = (name->ln_number >> 8) & 0xff;
+	temp[8] = (name->ln_number >> 0) & 0xff;
 
-	len = MIN (len, GIO_KEY_SIZE - 16);
-	len += 11;		/* 10 for the encoded buf, 1 for the '\0' after the fs name */
+	len = pack_lock_key(key, GIO_KEY_SIZE, 'G', fs->fs_name, temp, 9);
+	if( len <=0 ) {err = len; goto exit;}
+
 	err = internal_gulm_get_lock (fs, key, len, (gulm_lock_t **) lockp);
 
 	up (&fs->get_lock);
-
+exit:
 	return err;
 }
 
@@ -1729,16 +1822,8 @@ get_special_lock (gulm_fs_t * fs)
 	gulm_lock_t *lck = NULL;
 	uint8_t key[GIO_KEY_SIZE];
 
-	/* pack lockname */
-	memset (key, 0, GIO_KEY_SIZE);
-	/* The F at the beginning doesn't mash with the G that prefixes every fs
-	 * lock.
-	 */
-	memcpy (key, "FirstMount", 10);
-	len = strlen (fs->fs_name);
-	strncpy (&key[10], fs->fs_name, GIO_KEY_SIZE - 21);
-	len = MIN (len, GIO_KEY_SIZE - 21);
-	len += 11;
+	len = pack_lock_key(key, GIO_KEY_SIZE, 'F', fs->fs_name, "irstMount", 9);
+	if( len <= 0 ) return NULL;
 
 	err = internal_gulm_get_lock (fs, key, len, &lck);
 

@@ -2601,14 +2601,14 @@ void __inline__ expire_locks(uint8_t *name)
  * @keylen: 
  * 
  * See if a key fits with the mask.
+ *
+ * ADD: if mask is sorter than key, ``extend'' mask with 0xff
  * 
  * Returns: TRUE || FALSE
  */
 int cmp_lock_mask(uint8_t *mask, int masklen, uint8_t *key, int keylen)
 {
    int i;
-   /* if they're not the same length, they'll never match */
-   if( keylen != masklen ) return FALSE;
    for(i=0; i < masklen && i < keylen; i++ ) {
       /* mask byte == 0xff, matches everything
        * mask byte == rest, must == key byte.
@@ -2616,6 +2616,10 @@ int cmp_lock_mask(uint8_t *mask, int masklen, uint8_t *key, int keylen)
       if( mask[i] == 0xff ) continue;
       if( mask[i] != key[i] ) return FALSE;
    }
+   /* key shorter than mask, doesn't match. */
+   if( keylen < masklen ) return FALSE;
+   /* key longer than mask, and prev bytes match, then all matches. */
+
    /* key fits within mask. */
    return TRUE;
 }
