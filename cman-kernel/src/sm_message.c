@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -288,7 +288,7 @@ static void process_reply(sm_msg_t * smsg, uint32_t nodeid)
 
 			if (++sev->se_reply_count == expected) {
 				clear_allowed_msgtype(sev, type);
-				sev->se_state = next_sev_state(type, 
+				sev->se_state = next_sev_state(type,
 						 	       sev->se_state);
 				set_bit(SEFL_CHECK, &sev->se_flags);
 				wake_serviced(DO_JOINLEAVE);
@@ -763,19 +763,8 @@ static int add_to_recvqueue(char *msg, int len, uint32_t nodeid)
 int sm_cluster_message(char *msg, int len, char *addr, int addr_len,
 		       unsigned int node_id)
 {
-	struct kcl_cluster_node kclnode;
-	uint32_t nodeid = 0;
-	int error = 0;
-
-	if (!node_id) {
-		error = kcl_get_node_by_addr(addr, addr_len, &kclnode);
-		if (error)
-			return error;
-		nodeid = kclnode.node_id;
-	} else
-		nodeid = node_id;
-
-	return add_to_recvqueue(msg, len, nodeid);
+	SM_ASSERT(node_id,);
+        return add_to_recvqueue(msg, len, node_id);
 }
 
 /*
