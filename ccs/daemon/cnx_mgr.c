@@ -790,6 +790,13 @@ static int process_get(comm_header_t *ch, char **payload){
     goto fail;
   }
 
+  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_err("Someone may be attempting something evil.\n");
+    error = -EBADR;
+    goto fail;
+  }
+
   if(!ocs[ch->comm_desc]){
     log_err("process_get: Invalid connection descriptor received.\n");
     error = -EBADR;
@@ -933,6 +940,13 @@ static int process_set(comm_header_t *ch, char *payload){
     goto fail;
   }
 
+  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_err("Someone may be attempting something evil.\n");
+    error = -EBADR;
+    goto fail;
+  }
+
   if(!ocs[ch->comm_desc]){
     log_err("process_set: Invalid connection descriptor received.\n");
     error = -EBADR;
@@ -960,6 +974,13 @@ static int process_get_state(comm_header_t *ch, char **payload){
   if(ch->comm_payload_size){
     log_err("process_get_state: payload size is nonzero.\n");
     error = -EINVAL;
+    goto fail;
+  }
+
+  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_err("Someone may be attempting something evil.\n");
+    error = -EBADR;
     goto fail;
   }
 
@@ -1022,6 +1043,13 @@ static int process_set_state(comm_header_t *ch, char *payload){
   if(!ch->comm_payload_size){
     log_err("process_set_state: payload size is zero.\n");
     error = -EINVAL;
+    goto fail;
+  }
+
+  if(ch->comm_desc < 0 || ch->comm_desc >= MAX_OPEN_CONNECTIONS){
+    log_err("Invalid descriptor specified (%d).\n", ch->comm_desc);
+    log_err("Someone may be attempting something evil.\n");
+    error = -EBADR;
     goto fail;
   }
 
