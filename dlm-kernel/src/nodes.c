@@ -136,6 +136,27 @@ uint32_t our_nodeid(void)
 	return lowcomms_our_nodeid();
 }
 
+static void make_node_array(struct dlm_ls *ls)
+{
+	struct dlm_csb *csb;
+	uint32_t *array;
+	int i = 0;
+
+	if (ls->ls_node_array) {
+		kfree(ls->ls_node_array);
+		ls->ls_node_array = NULL;
+	}
+
+	array = kmalloc(sizeof(uint32_t) * ls->ls_num_nodes, GFP_KERNEL);
+	if (!array)
+		return;
+
+	list_for_each_entry(csb, &ls->ls_nodes, list)
+		array[i++] = csb->node->nodeid;
+
+	ls->ls_node_array = array;
+}
+
 int nodes_reconfig_wait(struct dlm_ls *ls)
 {
 	int error;
@@ -248,6 +269,7 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	ls->ls_low_nodeid = low;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;
+	make_node_array(ls);
 
 	error = nodes_reconfig_wait(ls);
 
@@ -303,6 +325,7 @@ int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	ls->ls_low_nodeid = low;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
+	make_node_array(ls);
 
 	error = nodes_reconfig_wait(ls);
 

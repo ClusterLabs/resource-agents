@@ -103,6 +103,11 @@ uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 	hash = dlm_hash(name, length);
 	node = (hash >> 16) % ls->ls_num_nodes;
 
+	if (ls->ls_node_array) {
+		nodeid = ls->ls_node_array[node];
+		goto out;
+	}
+
 	list_for_each(tmp, &ls->ls_nodes) {
 		if (n++ != node)
 			continue;
@@ -113,8 +118,7 @@ uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 	DLM_ASSERT(csb, printk("num_nodes=%u n=%u node=%u\n",
 				ls->ls_num_nodes, n, node););
 	nodeid = csb->node->nodeid;
-
-      out:
+ out:
 	return nodeid;
 }
 

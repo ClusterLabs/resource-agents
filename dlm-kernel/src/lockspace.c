@@ -321,6 +321,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	INIT_LIST_HEAD(&ls->ls_nodes);
 	INIT_LIST_HEAD(&ls->ls_nodes_gone);
 	ls->ls_num_nodes = 0;
+	ls->ls_node_array = NULL;
 	ls->ls_recoverd_task = NULL;
 	init_MUTEX(&ls->ls_recoverd_lock);
 	INIT_LIST_HEAD(&ls->ls_recover);
@@ -536,6 +537,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 
 	ls_nodes_clear(ls);
 	ls_nodes_gone_clear(ls);
+	if (ls->ls_node_array)
+		kfree(ls->ls_node_array);
 
 	kfree(ls);
 	dlm_release();
