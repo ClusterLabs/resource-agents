@@ -173,8 +173,8 @@ gfs_writepage(struct page *page, struct writeback_control *wbc)
 
 	atomic_inc(&ip->i_sbd->sd_ops_address);
 
-	GFS_ASSERT_INODE(gfs_glock_is_held_excl(ip->i_gl) &&
-			 !gfs_is_stuffed(ip), ip,);
+	GFS_ASSERT_INODE(gfs_glock_is_held_excl(ip->i_gl), ip,);
+	GFS_ASSERT_INODE(!gfs_is_stuffed(ip), ip,);
 
 	error = block_write_full_page(page, get_block_noalloc, wbc);
 
