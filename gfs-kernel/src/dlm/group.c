@@ -75,7 +75,7 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
 		goto fail_put;
 
 	lp = (dlm_lock_t *) lock;
-	set_bit(LFL_IDLOCK, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
 
  retry:
 
@@ -201,7 +201,7 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 		goto out_put;
 
 	lp = (dlm_lock_t *) lock;
-	set_bit(LFL_IDLOCK, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
 
       retry:
 

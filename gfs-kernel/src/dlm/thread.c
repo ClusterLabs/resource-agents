@@ -208,10 +208,10 @@ static void process_complete(dlm_lock_t *lp)
       out:
 
 	/*
-	 * This is an internal lock_dlm lock used for managing JIDs.
+	 * This is an internal lock_dlm lock (for jid's or plock's)
 	 */
 
-	if (test_bit(LFL_IDLOCK, &lp->flags)) {
+	if (test_bit(LFL_INLOCK, &lp->flags)) {
 		clear_bit(LFL_NOBLOCK, &lp->flags);
 		lp->cur = lp->req;
 		complete(&lp->uast_wait);

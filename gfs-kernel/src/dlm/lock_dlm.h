@@ -137,21 +137,20 @@ struct posix_lock {
 
 #define LFL_NOBLOCK             0
 #define LFL_NOCACHE             1
-#define LFL_UNLOCK_RECOVERY     2
-#define LFL_DLM_UNLOCK          3
-#define LFL_TRYFAILED           4
-#define LFL_SYNC_LVB            5
-#define LFL_FORCE_PROMOTE       6
-#define LFL_REREQUEST           7
-#define LFL_WAIT_COMPLETE       8
-#define LFL_CLIST               9
-#define LFL_BLIST               10
-#define LFL_DLIST               11
-#define LFL_SLIST               12
-#define LFL_IDLOCK              13
-#define LFL_CANCEL              14
-#define LFL_UNLOCK_SYNC         15
-#define LFL_NOBAST              16
+#define LFL_DLM_UNLOCK          2
+#define LFL_TRYFAILED           3
+#define LFL_SYNC_LVB            4
+#define LFL_FORCE_PROMOTE       5
+#define LFL_REREQUEST           6
+#define LFL_WAIT_COMPLETE       7
+#define LFL_CLIST               8
+#define LFL_BLIST               9
+#define LFL_DLIST               10
+#define LFL_SLIST               11
+#define LFL_INLOCK              12
+#define LFL_CANCEL              13
+#define LFL_UNLOCK_SYNC         14
+#define LFL_NOBAST              15
 
 struct dlm_lock {
 	dlm_t *			dlm;

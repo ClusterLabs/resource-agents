@@ -47,7 +47,7 @@ static int lock_resource(struct dlm_resource *r)
 		return error;
 
 	set_bit(LFL_NOBAST, &lp->flags);
-	set_bit(LFL_IDLOCK, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
 	lp->req = DLM_LOCK_EX;
 	error = do_dlm_lock_sync(lp, NULL);
 	if (error) {
@@ -326,7 +326,7 @@ static void request_lock(dlm_lock_t *lp, int wait)
 		  lp->posix->ex ? "ex" : "sh", lp->posix->start,
 		  lp->posix->end, current->pid, wait);
 
-	set_bit(LFL_IDLOCK, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
 	lp->req = lp->posix->ex ? DLM_LOCK_EX : DLM_LOCK_PR;
 	lp->lkf = make_flags_posix(lp, wait);
 
@@ -890,7 +890,7 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 		goto ret;
 
 	lp->req = DLM_LOCK_NL;
-	set_bit(LFL_IDLOCK, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
 	do_dlm_lock_sync(lp, NULL);
 
 	/* do query, repeating if insufficient space */
