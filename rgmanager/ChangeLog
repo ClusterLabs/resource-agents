@@ -11,7 +11,8 @@
 	calling node_event().  Use do_status_checks() so we don't try to
 	check services we're not running.  Bump periodic status event
 	queueing to 10 seconds instead of 5.  Poll ccsd for config updates
-	since we have no other way to find them.
+	since we have no other way to find them.  Fix bug preventing
+	status checks when clustat -i 1 is running.
 	* src/daemons/rg_state.c: Fix handle_relocate_req so that it uses
 	best_target_node() correctly.  Leave services which failed on all
 	current nodes as 'stopped', so the next node transition will cause

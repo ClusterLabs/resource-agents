@@ -433,16 +433,50 @@ event_loop(int clusterfd)
 	struct timeval tv;
 	uint64_t nodeid;
 
-	FD_ZERO(&rfds);
-	max = msg_fill_fdset(&rfds, MSG_LISTEN, RG_PURPOSE);
-	FD_SET(clusterfd, &rfds);
-	if (clusterfd > max)
-		max = clusterfd;
-
 	tv.tv_sec = 10;
 	tv.tv_usec = 0;
 
-	n = select(max + 1, &rfds, NULL, NULL, &tv);
+	while (tv.tv_sec || tv.tv_usec) {
+		FD_ZERO(&rfds);
+		max = msg_fill_fdset(&rfds, MSG_LISTEN, RG_PURPOSE);
+		FD_SET(clusterfd, &rfds);
+		if (clusterfd > max)
+			max = clusterfd;
+
+		n = select(max + 1, &rfds, NULL, NULL, &tv);
+
+		if (n <= 0)
+			break;
+
+		while ((fd = msg_next_fd(&rfds)) != -1) {
+	
+			if (fd == clusterfd) {
+				handle_cluster_event(clusterfd);
+				continue;
+			}
+
+			newfd = msg_accept(fd, 1, &nodeid);
+
+			if (newfd == -1)
+				continue;
+
+			if (rg_quorate()) {
+				/* Handle message */
+				/* When request completes, the fd is closed */
+				dispatch_msg(newfd, nodeid);
+				continue;
+
+			}
+			
+			if (!rg_initialized()) {
+				msg_close(newfd);
+				continue;
+			}
+
+			printf("Dropping connect: NO QUORUM\n");
+			msg_close(newfd);
+		}
+	}
 
 	if (need_reconfigure || check_config_update()) {
 		need_reconfigure = 0;
@@ -460,29 +494,7 @@ event_loop(int clusterfd)
 		return 0;
 	}
 
-	while ((fd = msg_next_fd(&rfds)) != -1) {
 
-		if (fd == clusterfd) {
-			handle_cluster_event(clusterfd);
-			continue;
-		}
-
-		/* One of our listen file descriptors */
-		while ((newfd = msg_accept(fd, 1, &nodeid)) != -1) {
-			if (rg_quorate()) {
-				/* Handle message */
-				/* When request completes, the fd is closed */
-				dispatch_msg(newfd, nodeid);
-
-			} else if (!rg_initialized()) {
-				/* return eagain? */
-				msg_close(newfd);
-			} else {
-				printf("Dropping connect: NO QUORUM\n");
-				msg_close(newfd);
-			}
-		}
-	}
 
 	return 0;
 }
