@@ -104,6 +104,7 @@ clu_connect(char *groupname, int login)
 		_clu_set_default(_cpp);
 		_connected = 1;
 		
+		closedir(dir);
 		pthread_mutex_unlock(&dflt_mutex);
 
 		/* Don't allow msg_close() to close this socket */
@@ -112,6 +113,7 @@ clu_connect(char *groupname, int login)
 		return fd;
 	}
 
+	closedir(dir);
 	pthread_mutex_unlock(&dflt_mutex);
 	return -1;
 }
