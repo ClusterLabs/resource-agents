@@ -203,7 +203,7 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 					log_err("Failed.\n");
 				}
 				else {
-					log_err("Suceeded.\n");
+					log_err("Succeeded.\n");
 				}
 			} else {
 				log_err("Bitmap at block %"PRIu64

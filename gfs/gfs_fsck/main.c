@@ -97,6 +97,13 @@ int read_cmdline(int argc, char **argv, struct options *opts)
 	}
 	if(argc > optind) {
 		opts->device = (argv[optind]);
+		if(!opts->device) {
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(1);
+		}
+	} else {
+		fprintf(stderr, "No device specified.  Use '-h' for usage.\n");
+		exit(1);
 	}
 	return 0;
 }
