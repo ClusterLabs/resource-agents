@@ -185,7 +185,7 @@ struct completion member_thread_comp;
 static int resend_delay = 1;
 
 /* Highest numbered interface and the current default */
-static int num_interfaces = 0;
+static int num_interfaces;
 static struct cl_comms_socket *current_interface = NULL;
 
 struct temp_node

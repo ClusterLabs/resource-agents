@@ -258,6 +258,10 @@ struct cl_waiting_listen_request {
 #define CLUSTER_MEM_CONFACK    16
 #define CLUSTER_MEM_NOMINATE   17
 
+/* Flags in the HELLO message */
+#define HELLO_FLAG_MASTER       1
+#define HELLO_FLAG_QUORATE      2
+
 /* Parameters for RECONFIG command */
 #define RECONFIG_PARAM_EXPECTED_VOTES 1
 #define RECONFIG_PARAM_NODE_VOTES     2

@@ -37,9 +37,9 @@ struct list_head cluster_members_list;
 struct semaphore cluster_members_lock;
 int cluster_members;		/* Number of ACTIVE members, not a count of
 				 * nodes in the list */
-int we_are_a_cluster_member = 0;
-int cluster_is_quorate = 0;
-int quit_threads = 0;
+int we_are_a_cluster_member;
+int cluster_is_quorate;
+int quit_threads;
 struct task_struct *membership_task;
 struct cluster_node *us;
 
@@ -65,7 +65,7 @@ static char scratchbuf[MAX_CLUSTER_MESSAGE + 100];
 char nodename[MAX_CLUSTER_MEMBER_NAME_LEN + 1];
 
 static spinlock_t members_by_nodeid_lock;
-static int sizeof_members_array = 0;	/* Can dynamically increase (vmalloc
+static int sizeof_members_array;	/* Can dynamically increase (vmalloc
 					 * permitting) */
 static struct cluster_node **members_by_nodeid;
 
@@ -176,20 +176,20 @@ static struct cluster_node *master_node = NULL;
 
 /* Struct the node wanting to join us */
 static struct cluster_node *joining_node = NULL;
-static int joining_temp_nodeid = 0;
+static int joining_temp_nodeid;
 
 /* Last time a HELLO message was sent */
-unsigned long last_hello = 0;
+unsigned long last_hello;
 
 /* When we got our JOINWAIT or NEWCLUSTER */
-unsigned long joinwait_time = 0;
+unsigned long joinwait_time;
 
 /* Number of times a transition has restarted when we were master */
-int transition_restarts = 0;
+int transition_restarts;
 
 /* Variables used by the master to collect cluster status during a transition */
-static int agreeing_nodes = 0;
-static int dissenting_nodes = 0;
+static int agreeing_nodes;
+static int dissenting_nodes;
 static uint8_t *node_opinion = NULL;
 #define OPINION_AGREE    1
 #define OPINION_DISAGREE 2
@@ -691,7 +691,7 @@ static int send_hello()
 
 	hello_msg.cmd = CLUSTER_MEM_HELLO;
 	hello_msg.members = cpu_to_le16(cluster_members);
-	hello_msg.flags = 0;
+	hello_msg.flags = cluster_is_quorate ? HELLO_FLAG_QUORATE : 0;
 	hello_msg.generation = cpu_to_le32(cluster_generation);
 
 	status = kcl_sendmsg(mem_socket, &hello_msg,
@@ -714,7 +714,8 @@ static int send_master_hello()
 
 	hello_msg.cmd = CLUSTER_MEM_HELLO;
 	hello_msg.members = cpu_to_le16(cluster_members);
-	hello_msg.flags = 1;
+	hello_msg.flags = HELLO_FLAG_MASTER |
+		          (cluster_is_quorate ? HELLO_FLAG_QUORATE : 0);
 	hello_msg.generation = cpu_to_le32(cluster_generation);
 
 	saddr.scl_family = AF_CLUSTER;
