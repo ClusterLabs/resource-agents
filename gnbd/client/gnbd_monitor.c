@@ -128,6 +128,7 @@ int start_request_sock(void)
 
 void setup_poll(void)
 {
+  int i;
   polls = malloc(open_max() * sizeof(struct pollfd));
   if (!polls)
     fail_startup("cannot allocate poller structure : %s\n", strerror(errno));
@@ -143,6 +144,10 @@ void setup_poll(void)
   polls[CLUSTER].events = POLLIN;
   polls[CONNECT].fd = start_request_sock();
   polls[CONNECT].events = POLLIN;
+  for(i = 0; i < open_max(); i++){
+    polls[i].fd = -1;
+    polls[i].revents = 0;
+  }
   max_id = 1;
 }
  
