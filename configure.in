@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.324 $) dnl cvs revision
+AC_REVISION($Revision: 1.325 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -20,6 +20,8 @@ RPMREL=1
 AC_SUBST(RPMREL)
 HB_PKG=heartbeat
 AC_SUBST(HB_PKG)
+CC_IN_CONFIGURE=yes
+export CC_IN_CONFIGURE
 
 INIT_EXT=""
 USE_MODULES=0
