@@ -36,7 +36,6 @@
 
 static struct list_head		ast_queue;
 static struct semaphore		ast_queue_lock;
-static wait_queue_head_t	astd_waitchan;
 static struct task_struct *	astd_task;
 static unsigned long		astd_wakeflags;
 static struct semaphore		astd_running;
@@ -565,7 +564,7 @@ static __inline__ int no_asts(void)
 static void lockqueue_timer_fn(unsigned long arg)
 {
 	set_bit(WAKE_TIMER, &astd_wakeflags);
-	wake_up(&astd_waitchan);
+	wake_up_process(astd_task);
 }
 
 /* 
@@ -588,7 +587,10 @@ static int dlm_astd(void *data)
 		  jiffies + ((dlm_config.lock_timeout >> 1) * HZ));
 
 	while (!kthread_should_stop()) {
-		wchan_cond_sleep_intr(astd_waitchan, !test_bit(WAKE_ASTS, &astd_wakeflags));
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (!test_bit(WAKE_ASTS, &astd_wakeflags))
+			schedule();
+		set_current_state(TASK_RUNNING);
 
 		down(&astd_running);
 		if (test_and_clear_bit(WAKE_ASTS, &astd_wakeflags))
@@ -612,7 +614,7 @@ void wake_astd(void)
 {
 	if (!no_asts()) {
 		set_bit(WAKE_ASTS, &astd_wakeflags);
-		wake_up(&astd_waitchan);
+		wake_up_process(astd_task);
 	}
 }
 
@@ -623,7 +625,6 @@ int astd_start(void)
 
 	INIT_LIST_HEAD(&ast_queue);
 	init_MUTEX(&ast_queue_lock);
-	init_waitqueue_head(&astd_waitchan);
 	init_MUTEX(&astd_running);
 
 	p = kthread_run(dlm_astd, NULL, "dlm_astd");
@@ -637,7 +638,6 @@ int astd_start(void)
 void astd_stop(void)
 {
 	kthread_stop(astd_task);
-	wake_up(&astd_waitchan);
 }
 
 void astd_suspend(void)
