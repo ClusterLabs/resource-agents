@@ -1885,7 +1885,7 @@ int forward_cb_to_some_clients(int idx)
             /* this cmp is not correct. or is it? seems to be ok */
           memcmp(poller.space[i].key, x_key, MIN(poller.space[i].len,x_kl))!=0
         ) {
-         log_msg(lgm_Always, "Skipping client %s for lock %s\n",
+         log_msg(lgm_locking, "Skipping client %s for lock %s\n",
                poller.ipn[i].name, lkeytob64(x_key, x_kl));
          continue;
       }
