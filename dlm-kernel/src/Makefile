@@ -12,11 +12,44 @@
 ###############################################################################
 
 top_srcdir = ..
+ifndef USING_KBUILD
+include ${top_srcdir}/make/defines.mk
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+endif
+
 linux_orig = ${top_srcdir}/linux-orig
 linux_patched = ${top_srcdir}/linux-patched
 
-
 TARGET = dlm.patch
+
+PWD := $(shell pwd)
+
+obj-m := dlm.o
+dlm-objs := ast.o config.o device.o dir.o lkb.o locking.o lockqueue.o \
+	lockspace.o lowcomms.o main.o memory.o midcomms.o nodes.o proc.o \
+	queries.o rebuild.o reccomms.o recover.o recoverd.o rsb.o util.o
+
+EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS
+
+all:
+	rm -f cluster service.h cnxman.h cnxman-socket.h
+	ln -s . cluster
+	ln -s ${incdir}/cluster/service.h .
+	ln -s ${incdir}/cluster/cnxman.h .
+	ln -s ${incdir}/cluster/cnxman-socket.h .
+	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+
+install: all
+	install -d ${module_dir}/cluster
+	install dlm.ko ${module_dir}/cluster
+	install -d ${incdir}/cluster
+	install dlm.h dlm_device.h ${incdir}/cluster
+
+uninstall:
+	${UNINSTALL} dlm.ko ${module_dir}/cluster
+	${UNINSTALL} dlm.h dlm_device.h ${incdir}/cluster
+
+
 
 
 patches: pre add post
@@ -40,4 +73,5 @@ add:
 	mv ${linux_patched}/cluster/dlm/dlm_device.h ${linux_patched}/include/cluster
 
 clean:
-
+	rm -rf cluster *.ko *.o *.mod.c *~ .*o.cmd .tmp_versions \
+		service.h cnxman.h cnxman-socket.h
