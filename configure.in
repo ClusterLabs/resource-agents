@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.186 $) dnl cvs revision
+AC_REVISION($Revision: 1.187 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -1204,6 +1204,7 @@ heartbeat/Makefile						\
 	heartbeat/resource.d/Makefile				\
 		heartbeat/resource.d/apache			\
 		heartbeat/resource.d/AudibleAlarm		\
+		heartbeat/resource.d/Delay			\
 		heartbeat/resource.d/db2			\
 		heartbeat/resource.d/Filesystem			\
 		heartbeat/resource.d/ICP			\
