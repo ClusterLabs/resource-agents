@@ -57,15 +57,142 @@ node_should_start_safe(uint64_t nodeid, cluster_member_list_t *membership,
 }
 
 
+int
+count_resource_groups(uint64_t nodeid, int *excl)
+{
+	resource_t *res;
+	char *rgname, *val;
+	int count = 0, exclusive = 0;
+	rg_state_t st;
+	void *lockp;
+
+	if (excl)
+		*excl = 0;
+
+	list_do(&_resources, res) {
+		if (strcmp(res->r_rule->rr_type, "resourcegroup"))
+			continue;
+
+		rgname = res->r_attrs[0].ra_value;
+
+		if (rg_lock(rgname, &lockp) < 0)
+			continue;
+
+		if (get_rg_state(rgname, &st) < 0) {
+			rg_unlock(rgname, lockp);
+			continue;
+		}
+		rg_unlock(rgname, lockp);
+
+		if (st.rs_owner != nodeid ||
+		    (st.rs_state == RG_STATE_STARTED &&
+		     st.rs_state == RG_STATE_STARTING))
+			continue;
+
+		if (excl) {
+			/* Count exclusive resources */
+			val = res_attr_value(res, "exclusive");
+			exclusive = val && ((!strcmp(val, "yes") ||
+					     (atoi(val)>0)));
+		}
+
+		++count;
+		if (exclusive && excl)
+			++(*excl);
+
+	} while (!list_done(&_resources, res));
+
+	return count;
+}
+
+
+/**
+   Find the best target node for a service *besides* the current service
+   owner.  Takes into account:
+
+   - Failover domain (ordering / restricted policy)
+   - Exclusive service policy
+ */
+uint64_t
+best_target_node(cluster_member_list_t *allowed, uint64_t owner,
+		 char *rg_name, int lock)
+{
+	int x;
+	int highscore = 1;
+	int score;
+	uint64_t highnode = owner, nodeid;
+	char *val;
+	resource_t *res;
+	int exclusive, count, excl;
+
+	for (x=0; x < allowed->cml_count; x++) {
+		if (allowed->cml_members[x].cm_state != STATE_UP)
+			continue;
+
+		nodeid = allowed->cml_members[x].cm_id;
+
+		/* Don't allow trying a restart just yet */
+		if (owner != NODE_ID_NONE && nodeid == owner)
+			continue;
+		
+		if (lock)
+			pthread_rwlock_rdlock(&resource_lock);
+		score = node_should_start(nodeid, allowed, rg_name, &_domains);
+		if (!score) { /* Illegal -- failover domain constraint */
+			pthread_rwlock_unlock(&resource_lock);
+			continue;
+		}
+
+		/* Add 2 to score if it's an exclusive service and nodeid
+		   isn't running any services currently.  Set score to 0 if
+		   it's an exclusive service and the target node already
+		   is running a service. */
+		res = find_resource_by_ref(&_resources, "resourcegroup",
+					   rg_name);
+		val = res_attr_value(res, "exclusive");
+		exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
+
+		count = count_resource_groups(nodeid, &excl);
+
+		if (lock)
+			pthread_rwlock_unlock(&resource_lock);
+
+		if (exclusive) {
+		       	if (count > 0) {
+				/* Definitely not this guy */
+				continue;
+			} else {
+				score += 2;
+			}
+		} else if (excl) {
+			/* This guy has an exclusive resource group.
+			   Can't relocate / failover to him. */
+			continue;
+		}
+
+		if (score < highscore)
+			continue;
+
+		highnode = nodeid;
+		highscore = score;
+	}
+
+	return highnode;
+}
+
+
 /**
   Start or failback a resource group: if it's not running, start it.
   If it is running and we're a better member to run it, then ask for
   it.
  */
 void
-consider_start(char *svcName, rg_state_t *svcStatus,
+consider_start(resource_node_t *node, char *svcName, rg_state_t *svcStatus,
 	       cluster_member_list_t *membership)
 {
+	char *val;
+	int autostart, exclusive, count = 0, excl = 0;
+
 	/*
 	 * Service must be not be running elsewhere to consider for a
 	 * local start.
@@ -76,6 +203,53 @@ consider_start(char *svcName, rg_state_t *svcStatus,
 
 	if (svcStatus->rs_state == RG_STATE_DISABLED)
 		return;
+
+	/* Stopped, and hasn't been started yet.  See if
+	   autostart is disabled.  If it is, leave it stopped */
+	if (svcStatus->rs_state == RG_STATE_STOPPED &&
+		    svcStatus->rs_transition == 0) {
+		val = res_attr_value(node->rn_resource, "autostart");
+		autostart = !(val && ((!strcmp(val, "no") ||
+				     (atoi(val)==0))));
+		if (!autostart) {
+			/*
+			clulog(LOG_DEBUG,
+			       "Skipping RG %s: Autostart disabled\n",
+			       svcName);
+			 */
+			return;
+		}
+	}
+
+	val = res_attr_value(node->rn_resource, "exclusive");
+	exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
+
+	/*
+	   Count the normal + exclusive resource groups running locally
+	 */
+	count = count_resource_groups(my_id(), &excl);
+
+	if (exclusive && count_resource_groups(my_id(), NULL)) {
+		/*
+		clulog(LOG_DEBUG,
+		       "Skipping RG %s: Exclusive and I am running services\n",
+		       svcName);
+		 */
+		return;
+	}
+
+	/*
+	   Don't start other services if I'm running an exclusive
+	   service.
+	 */
+	if (excl) {
+		/*
+		clulog(LOG_DEBUG,
+		       "Skipping RG %s: I am running an exclusive service\n",
+		       svcName);
+		 */
+		return;
+	}
 
 	/*
 	 * Start any stopped services, or started services
@@ -104,11 +278,10 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
 	 * Send the resource group to a node if it's got a higher prio
 	 * to run the resource group.
 	 */
-	a = node_should_start(nodeid, membership, svcName, &_domains);
-	b = node_should_start(my_id(), membership, svcName, &_domains);
-
-	if (a <= b)
+	if (best_target_node(membership, my_id(), svcName, 0) !=
+	    nodeid, 0) {
 		return;
+	}
 
 	clulog(LOG_DEBUG, "Relocating group %s to better node %s\n",
 	       svcName,
@@ -193,7 +366,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 
 		if (local && (nodeStatus == STATE_UP)) {
 
-			consider_start(svcName, &svcStatus, membership);
+			consider_start(node, svcName, &svcStatus, membership);
 
 		} else if (!local && (nodeStatus == STATE_DOWN)) {
 
@@ -201,7 +374,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 			 * Start any stopped services, or started services
 			 * that are owned by a down node.
 			 */
-			consider_start(svcName, &svcStatus, membership);
+			consider_start(node, svcName, &svcStatus, membership);
 
 			/*
 			 * TODO
@@ -445,7 +618,8 @@ do_status_checks(void)
 		}
 		rg_unlock(name, lockp);
 
-		if (svcblk.rs_owner != my_id())
+		if (svcblk.rs_owner != my_id() ||
+		    svcblk.rs_state != RG_STATE_STARTED)
 			continue;
 
 		clulog(LOG_DEBUG, "Checking status of %s\n", name);

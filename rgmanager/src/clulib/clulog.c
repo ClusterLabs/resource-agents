@@ -65,7 +65,7 @@ static const char *version __attribute__ ((unused)) = "$Revision$";
  */
 static int   useconsole = 0;
 static int   loglevel = LOGLEVEL_DFLT;
-static int   syslog_facility = LOG_LOCAL4;	/* override in cludb */
+static int   syslog_facility = LOG_DAEMON;
 static char  *daemon_name = NULL;
 static pid_t daemon_pid = -1;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;

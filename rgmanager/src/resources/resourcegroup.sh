@@ -53,7 +53,7 @@ meta_data()
             <shortdesc lang="en">
 	    	Automatic start after quorum formation
             </shortdesc>
-            <content type="string"/>
+            <content type="boolean"/>
         </parameter>
 
         <parameter name="hardrecovery">
@@ -67,6 +67,37 @@ meta_data()
             </longdesc>
             <shortdesc lang="en">
 	    	Reboot if stop phase fails
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
+
+        <parameter name="exclusive">
+            <longdesc lang="en">
+	    	If set, this resource group will only relocate to
+		nodes which have no other resource groups running in the
+		event of a failure.  If no empty nodes are available,
+		this resource group will not be restarted after a failure.
+		Additionally, resource groups will not automatically
+		relocate to the node running this resource group.  This
+		option can be overridden by manual start and/or relocate
+		operations.
+            </longdesc>
+            <shortdesc lang="en">
+	        Exclusive resource group
+            </shortdesc>
+            <content type="boolean"/>
+        </parameter>
+
+        <parameter name="recovery">
+            <longdesc lang="en">
+	        This currently has three possible options: "restart" tries
+		to restart failed parts of this resource group locally before
+		attempting to relocate (default); "relocate" does not bother
+		trying to restart the service locally; "disable" disables
+		the resource group if any component fails.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Failure recovery policy
             </shortdesc>
             <content type="string"/>
         </parameter>
@@ -95,7 +126,6 @@ meta_data()
         <child type="ip" start="3" stop="2"/>
         <child type="samba" start="4" stop="3"/>
         <child type="script" start="5" stop="1"/>
-        <!-- child type="perlscript" start="5" stop="1"/ -->
     </special>
 </resource-agent>
 EOT

@@ -1,3 +1,24 @@
+2005-03-02 Lon Hohberger <lhh at redhat.com>
+	* include/clulog.h: Change default log level to INFO
+	* include/resgroup.h: Add proto for "best_target_node"
+	* src/clulib/clulog.c: Change log facility to LOG_DAEMON to match
+	other cluster daemons (e.g. lock_gulmd)
+	* src/daemons/groups.c: Add best_target_node, count_resource_groups.
+	Implement missing autostart-disable feature and requested exclusive
+	resource group feature.
+	* src/daemons/main.c: Print node state transition messages before
+	calling node_event().  Use do_status_checks() so we don't try to
+	check services we're not running.  Bump periodic status event
+	queueing to 10 seconds instead of 5.
+	* src/daemons/rg_state.c: Fix handle_relocate_req so that it uses
+	best_target_node() correctly.  Leave services which failed on all
+	current nodes as 'stopped', so the next node transition will cause
+	us to try to restart it automagically.
+	* src/resources/resourcegroup.sh: Add 'exclusive' parameter.  Change
+	'autostart' to a boolean instead of string.  Add recovery parameter
+	even though I haven't implemented it yet.
+	* src/utils/clusvcadm.c: Make "relocate to node X" work.
+
 2005-02-28 Lon Hohberger <lhh at redhat.com>
 	*  errors.txt: Remove random whitespace at the bottom.
 	* include/resgroup.h: Add do_status_checks proto

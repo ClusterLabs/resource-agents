@@ -209,6 +209,8 @@ int store_resource(resource_t **reslist, resource_t *newres);
 void destroy_resource(resource_t *res);
 
 char *attr_value(resource_node_t *node, char *attrname);
+char *rg_attr_value(resource_node_t *node, char *attrname);
+char *res_attr_value(resource_t *res, char *attrname);
 char *primary_attr_value(resource_t *);
 int rescmp(resource_t *l, resource_t *r);
 

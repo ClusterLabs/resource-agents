@@ -240,10 +240,10 @@ membership_update(void)
 
 	for (x=0; node_delta && x < node_delta->cml_count; x++) {
 
-		node_event(0, node_delta->cml_members[x].cm_id,
-			   STATE_DOWN);
 		clulog(LOG_INFO, "State change: %s DOWN\n",
 		       node_delta->cml_members[x].cm_name);
+		node_event(0, node_delta->cml_members[x].cm_id,
+			   STATE_DOWN);
 	}
 
 	/* Free nodes */
@@ -269,10 +269,10 @@ membership_update(void)
 		if (node_delta->cml_members[x].cm_id == my_id())
 			continue;
 
-		node_event(0, node_delta->cml_members[x].cm_id,
-			   STATE_UP);
 		clulog(LOG_INFO, "State change: %s UP\n",
 		       node_delta->cml_members[x].cm_name);
+		node_event(0, node_delta->cml_members[x].cm_id,
+			   STATE_UP);
 	}
 
 	cml_free(node_delta);
@@ -438,7 +438,7 @@ event_loop(int clusterfd)
 	if (clusterfd > max)
 		max = clusterfd;
 
-	tv.tv_sec = 5;
+	tv.tv_sec = 10;
 	tv.tv_usec = 0;
 
 	n = select(max + 1, &rfds, NULL, NULL, &tv);
@@ -455,7 +455,7 @@ event_loop(int clusterfd)
 
 	/* No new messages.  Drop in the status check requests.  */
 	if (n == 0) {
-		rg_doall(RG_STATUS, 0, NULL);
+		do_status_checks();
 		return 0;
 	}
 
@@ -588,8 +588,6 @@ main(int argc, char **argv)
 	int quorate;
 	int listen_fds[2], listeners;
 	uint64_t myNodeID;
-
-	clu_set_loglevel(LOG_NOTICE);
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {

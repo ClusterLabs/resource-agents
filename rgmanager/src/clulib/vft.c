@@ -1228,7 +1228,7 @@ retry_top:
 		printf("VF: Connecting to member #%d\n", (int)nodeid);
 		fflush(stdout);
 #endif
-		peer_fds[y] = msg_open(nodeid, _port, MSGP_VFC, 4);
+		peer_fds[y] = msg_open(nodeid, _port, MSGP_VFC, 15);
 
 		if (peer_fds[y] == -1) {
 #ifdef DEBUG
@@ -1722,7 +1722,7 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 
 		rv = VFR_ERROR;
 		fd = msg_open(membership->cml_members[x].cm_id, port,
-			      MSGP_VFC, 5);
+			      MSGP_VFC, 15);
 		if (fd == -1)
 			continue;
 

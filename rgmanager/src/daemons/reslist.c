@@ -32,6 +32,36 @@
 
 
 char *attr_value(resource_node_t *node, char *attrname);
+char *rg_attr_value(resource_node_t *node, char *attrname);
+
+/**
+   Find and determine an attribute's value. 
+
+   @param res		Resource node to look examine
+   @param attrname	Attribute to retrieve.
+   @return 		value of attribute or NULL if not found
+ */
+char *
+res_attr_value(resource_t *res, char *attrname)
+{
+	resource_attr_t *ra;
+	int x;
+
+	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
+		if (strcmp(attrname, res->r_attrs[x].ra_name))
+			continue;
+
+		ra = &res->r_attrs[x];
+
+		if (ra->ra_flags & RA_INHERIT)
+			/* Can't check inherited resources */
+			return NULL;
+
+		return ra->ra_value;
+	}
+
+	return NULL;
+}
 
 
 /**
@@ -62,6 +92,18 @@ attr_value(resource_node_t *node, char *attrname)
 	}
 
 	return NULL;
+}
+
+
+/**
+  Run to the top of the tree.  Used to determine certain attributes of the
+  resource group in-line, during resource tree operations.
+ */
+char *
+rg_attr_value(resource_node_t *node, char *attrname)
+{
+	for (; node->rn_parent; node = node->rn_parent);
+	return res_attr_value(node->rn_resource, attrname);
 }
 
 

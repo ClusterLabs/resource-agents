@@ -81,7 +81,7 @@ main(int argc, char **argv)
 	SmMessageSt msg;
 	int action = RG_STATUS, svctarget = -1;
 	int node_specified = 0;
-       	uint64_t msgtarget;
+       	uint64_t msgtarget, me;
 	char *actionstr = NULL;
 	cluster_member_list_t *membership;
 
@@ -154,6 +154,7 @@ main(int argc, char **argv)
 
 	membership = clu_member_list(RG_SERVICE_GROUP);
 	msg_update(membership);
+	clu_local_nodeid(RG_SERVICE_GROUP, &me);
 
 	if (node_specified) {
 		msgtarget = memb_name_to_id(membership, nodename);
@@ -162,20 +163,27 @@ main(int argc, char **argv)
 				nodename);
 			return 1;
 		}
+		svctarget = msgtarget;
 	} else {
 		clu_local_nodeid(RG_SERVICE_GROUP, &msgtarget);
 		clu_local_nodename(RG_SERVICE_GROUP, nodename,
 				   sizeof(nodename));
 	}
 	
-
-	printf("Member %s %s %s", nodename, actionstr, svcname);
-	printf("...");
-	fflush(stdout);
-
 	build_message(&msg, action, svcname, svctarget);
 
-	msgfd = msg_open(msgtarget, RG_PORT, 0, 5);
+	if (action != RG_RELOCATE) {
+		printf("Member %s %s %s", nodename, actionstr, svcname);
+		printf("...");
+		fflush(stdout);
+		msgfd = msg_open(msgtarget, RG_PORT, 0, 5);
+	} else {
+		printf("Trying to relocate %s to %s", svcname, nodename);
+		printf("...");
+		fflush(stdout);
+		msgfd = msg_open(me, RG_PORT, 0, 5);
+	}
+
 	if (msgfd < 0) {
 		fprintf(stderr,
 			"Could not connect to resource group manager!\n");

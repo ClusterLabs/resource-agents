@@ -465,10 +465,10 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		    memb_online(membership, svcStatus->rs_owner)) {
 			/*
 			 * Service is running and the owner is online!
-			 */
 			clulog(LOG_DEBUG, "RG %s is running on member %s.\n",
 			       svcName,
 			       memb_id_to_name(membership,svcStatus->rs_owner));
+			 */
 			ret = 2;
 			break;
 		}
@@ -977,8 +977,8 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 		    uint64_t *new_owner)
 {
 	cluster_member_list_t *allowed_nodes;
-	uint64_t target = preferred_target;
-	int ret;
+	uint64_t target = preferred_target, me = my_id();
+	int ret, x;
 	
 	/*
 	 * Stop the service - if we haven't already done so.
@@ -993,6 +993,20 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			return FORWARD;
 	}
 
+	allowed_nodes = member_list();
+	/*
+	   Mark everyone except me and the preferred target DOWN for now
+	   If we can't start it on the preferred target, then we'll try
+ 	   other nodes.
+	 */
+	for (x = 0; x < allowed_nodes->cml_count; x++) {
+		if (allowed_nodes->cml_members[x].cm_id == me ||
+		    allowed_nodes->cml_members[x].cm_id == preferred_target)
+			continue;
+
+		allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
+	}
+
 	/*
 	 * First, see if it's legal to relocate to the target node.  Legal
 	 * means: the node is online and is in the [restricted] failover
@@ -1000,25 +1014,21 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 */
 	if (preferred_target != (uint64_t)FAIL) {
 
-#if 0
-		memb_mark_up(allowed_nodes, preferred_target);
-		target = best_target_node(allowed_nodes, my_id(), svcID);
-#endif
+		target = best_target_node(allowed_nodes, me, svcName, 1);
 
 		/*
 		 * I am the ONLY one capable of running this service,
 		 * PERIOD...
 		 */
-		if (target == my_id())
+		if (target == me)
 			goto exhausted;
 
 		if (target == preferred_target) {
 			/*
-			 * It's legal to start the service on the given
-			 * node.  Try to do so.
-			 */
-			if (relocate_service(svcName, request, target) ==
-			    0) {
+		 	 * It's legal to start the service on the given
+		 	 * node.  Try to do so.
+		 	 */
+			if (relocate_service(svcName, request, target) == 0) {
 				*new_owner = target;
 				/*
 				 * Great! We're done...
@@ -1032,15 +1042,19 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 * Ok, so, we failed to send it to the preferred target node.
 	 * Try to start it on all other nodes.
 	 */
-	allowed_nodes = member_list();
-	memb_mark_down(allowed_nodes, my_id());
+	for (x = 0; x < allowed_nodes->cml_count; x++) {
+		if (allowed_nodes->cml_members[x].cm_id == me ||
+		    allowed_nodes->cml_members[x].cm_id == preferred_target) {
+			allowed_nodes->cml_members[x].cm_state = STATE_DOWN;
+			continue;
+		}
+		allowed_nodes->cml_members[x].cm_state = STATE_UP;
+	}
+	memb_mark_down(allowed_nodes, me);
 
 	while (memb_count(allowed_nodes)) {
-#if 0
-		target = best_target_node(allowed_nodes, my_id(), svcID);
-#endif
-		target = next_node_id(allowed_nodes, my_id());
-		if (target == my_id())
+		target = best_target_node(allowed_nodes, me, svcName, 1);
+		if (target == me)
 			goto exhausted;
 
 		switch (relocate_service(svcName, request, target)) {
@@ -1081,7 +1095,7 @@ exhausted:
 	       "#70: Attempting to restart resource group %s locally.\n",
 	       svcName);
 	if (svc_start(svcName, RG_START_RECOVER) == 0) {
-		*new_owner = my_id();
+		*new_owner = me;
 		return FAIL;
 	}
 		
@@ -1171,8 +1185,10 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	       svcName);
 	ret = handle_relocate_req(svcName, RG_START_RECOVER, -1, new_owner);
 
-	if (ret == FAIL)
-		svc_disable(svcName);
+	/* If we leave the service stopped, instead of disabled, someone
+	   will try to start it after the next node transition */
+	//if (ret == FAIL)
+		//svc_disable(svcName);
 
 	return ret;
 }

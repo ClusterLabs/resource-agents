@@ -136,7 +136,7 @@
 				   Given that this is not a normal malloc
 				   API, this should not matter. */
 
-#define DEFAULT_SIZE	(1<<21) /* 2MB default giant block size */
+#define DEFAULT_SIZE	(1<<23) /* 8MB default giant block size */
 #define BUCKET_COUNT	(13)	/* 2^BUCKET_COUNT = max. interesting size */
 #define MIN_POWER	(3)	/* 2^MIN_POWER = minimum size */
 #define MIN_SIZE	(1<<MIN_POWER)

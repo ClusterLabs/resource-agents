@@ -125,6 +125,8 @@ void do_status_checks(void); /* Queue status checks for locally running
 /* from rg_state.c */
 int set_rg_state(char *name, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
+uint64_t best_target_node(cluster_member_list_t *allowed, uint64_t owner,
+			  char *rg_name, int lock);
 
 #ifdef DEBUG
 int _rg_lock_dbg(char *, void **, char *, int);
