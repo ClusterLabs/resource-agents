@@ -2792,6 +2792,7 @@ static void node_cleanup()
 	struct temp_node *tmp;
 	struct cl_comms_socket *sock;
 	struct kernel_notify_struct *knotify;
+	struct queued_message *qmsg, *qtmp;
 
 	/* Free list of kernel listeners */
 	list_for_each_safe(proclist, temp, &kernel_listener_list) {
@@ -2843,6 +2844,14 @@ static void node_cleanup()
 	}
 	cluster_members = 0;
 	up(&cluster_members_lock);
+
+	/* Clean the queued messages list */
+	down(&messages_list_lock);
+	list_for_each_entry_safe(qmsg, qtmp, &messages_list, list) {
+		list_del(&qmsg->list);
+		kfree(qmsg);
+	}
+	up(&messages_list_lock);
 
 	/* Clean the temp node IDs list. */
 	down(&tempnode_lock);
