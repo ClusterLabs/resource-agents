@@ -21,6 +21,20 @@ MAINTAINERCLEANFILES = Makefile.in
 
 ocfdir		     = @OCF_RA_DIR@/heartbeat
 
+gliblib                 = @GLIBLIB@
+
+if USE_IPV6ADDR
+ocf_PROGRAMS           = IPv6addr
+else
+ocf_PROGRAMS           =
+endif
+
+IPv6addr_SOURCES        = IPv6addr.c
+
+IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
+                        $(gliblib) @LIBNETLIBS@
+
+
 ocf_SCRIPTS	     = IPaddr \
 		       IPaddr2 \
 		       drbd \
