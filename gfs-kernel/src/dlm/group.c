@@ -76,6 +76,7 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
 
 	lp = (dlm_lock_t *) lock;
 	set_bit(LFL_INLOCK, &lp->flags);
+	set_bit(LFL_NOBAST, &lp->flags);
 
  retry:
 
@@ -202,6 +203,7 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 
 	lp = (dlm_lock_t *) lock;
 	set_bit(LFL_INLOCK, &lp->flags);
+	set_bit(LFL_NOBAST, &lp->flags);
 
       retry:
 
@@ -386,10 +388,31 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 {
 	dlm_node_t *node;
 	uint32_t nodeid;
-	int last_stop, last_start, error, i, new = FALSE, found;
+	int last_stop, last_start, last_finish;
+	int error, i, new = FALSE, found;
 
+	/*
+	 * when the initial sequence of callbacks is start/stop/start the
+	 * second start has the same event id (the first doesn't count)
+	 */
 
-	log_debug("start c %d type %d e %d", ds->count, ds->type, ds->event_id);
+	spin_lock(&dlm->async_lock);
+	last_stop = dlm->mg_last_stop;
+	last_start = dlm->mg_last_start;
+	last_finish = dlm->mg_last_finish;
+
+	if (!last_finish && last_stop) {
+		log_debug("reset stop %d start %d finish %d",
+			  last_stop, last_start, last_finish);
+		dlm->mg_last_stop = 0;
+		last_stop = 0;
+	}
+	spin_unlock(&dlm->async_lock);
+
+	log_debug("recover last_stop %d last_start %d last_finish %d",
+		  last_stop, last_start, last_finish);
+	log_debug("recover count %d type %d event %d flags %lx",
+		  ds->count, ds->type, ds->event_id, dlm->flags);
 
 	/*
 	 * gfs won't do journal recoveries once it's sent us an unmount
@@ -401,19 +424,32 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		goto out;
 	}
 
-	/* 
-	 * check if first start
+	/*
+	 * a couple special things to take care of on the first start (mount)
 	 */
 
-	if (!test_and_set_bit(DFL_GOT_NODEID, &dlm->flags)) {
+	if (!test_and_set_bit(DFL_GOT_NODEID, &dlm->flags))
 		get_our_nodeid(dlm);
-		if (ds->count == 1)
-			set_bit(DFL_FIRST_MOUNT, &dlm->flags);
-	}
+
+	if (test_bit(DFL_MOUNT, &dlm->flags) && (ds->count == 1))
+		set_bit(DFL_FIRST_MOUNT, &dlm->flags);
 
 	down(&dlm->mg_nodes_lock);
 
-	/* 
+	/*
+	 * while mounting, cancelled starts are discarded
+	 * (normally, (uninterrupted starts) mg_nodes is empty at this point)
+	 */
+
+	if (test_bit(DFL_MOUNT, &dlm->flags)) {
+		dlm_node_t *safe;
+		list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
+			list_del(&node->list);
+			kfree(node);
+		}
+	}
+
+	/*
 	 * find nodes which are gone
 	 */
 
@@ -461,7 +497,6 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 			continue;
 
 		DLM_RETRY(node = kmalloc(sizeof(dlm_node_t), GFP_KERNEL), node);
-
 		memset(node, 0, sizeof(dlm_node_t));
 
 		node->nodeid = nodeid;
@@ -529,7 +564,7 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		}
 		up(&dlm->mg_nodes_lock);
 
-		log_debug("start recovery %d", error);
+		log_debug("call start_done %d: %d", ds->event_id, !error);
 
 		if (!error)
 			kcl_start_done(dlm->mg_local_id, ds->event_id);
@@ -579,6 +614,7 @@ void process_finish(dlm_t *dlm)
 	}
 	up(&dlm->mg_nodes_lock);
 
+	clear_bit(DFL_MOUNT, &dlm->flags);
 	wake_up(&dlm->wait);
 }
 
@@ -598,8 +634,9 @@ int init_mountgroup(dlm_t *dlm)
 
 	dlm->mg_local_id = id;
 
-	/* BLOCK_LOCKS is cleared when the join is finished */
+	/* MOUNT and BLOCK_LOCKS are cleared when the join is finished */
 	set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
+	set_bit(DFL_MOUNT, &dlm->flags);
 
 	error = kcl_join_service(id);
 	if (error)

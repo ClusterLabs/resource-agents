@@ -67,9 +67,10 @@ typedef struct strname strname_t;
 #define DFL_HAVE_JID            4
 #define DFL_BLOCK_LOCKS         5
 #define DFL_START_ERROR         6
-#define DFL_UMOUNT		7
-#define DFL_NEED_STARTDONE	8
-#define DFL_RECOVER		9
+#define DFL_MOUNT		7
+#define DFL_UMOUNT		8
+#define DFL_NEED_STARTDONE	9
+#define DFL_RECOVER		10
 
 struct dlm {
 	uint32_t		jid;
@@ -311,6 +312,15 @@ void lock_dlm_debug_dump(void);
 #else
 #define log_debug(fmt, args...)
 #endif
+
+#define log_all(fmt, args...) \
+	do { \
+		printk("lock_dlm: " fmt "\n", ##args); \
+		lock_dlm_debug_log(fmt, ##args); \
+	} while (0)
+
+#define log_error log_all
+
 
 static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 {
