@@ -46,7 +46,6 @@ typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
 /* Flags for the struct lm_lockstruct->ls_flags field */
 
 #define LM_LSFLAG_LOCAL        (0x00000001)
-#define LM_LSFLAG_ASYNC        (0x00000002)
 
 /* Lock types */
 

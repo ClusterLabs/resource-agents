@@ -279,7 +279,7 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	lockstruct->ls_first = test_bit(DFL_FIRST_MOUNT, &dlm->flags);
 	lockstruct->ls_lockspace = dlm;
 	lockstruct->ls_ops = &lock_dlm_ops;
-	lockstruct->ls_flags = LM_LSFLAG_ASYNC;
+	lockstruct->ls_flags = 0;
 	lockstruct->ls_lvb_size = DLM_LVB_SIZE;
 	return 0;
 

@@ -324,8 +324,7 @@ struct gfs_glock_operations {
 #define HIF_DEALLOC     (5)  /* Holder structure no longer in use */
 #define HIF_HOLDER      (6)  /* We have been granted a hold on the lock */
 #define HIF_FIRST       (7)  /* We are first on glock's holder list */
-#define HIF_WAKEUP      (8)  /* Wake us up when request is satisfied */
-#define HIF_RECURSE     (9)  /* Recursive locks on same glock by same process */
+#define HIF_RECURSE     (8)  /* Recursive locks on same glock by same process */
 
 struct gfs_holder {
 	struct list_head gh_list;      /* Link to one of glock's holder lists */

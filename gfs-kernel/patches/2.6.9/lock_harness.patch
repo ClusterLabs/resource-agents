@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
 --- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-10-21 18:18:17.815082384 -0500
++++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-11-17 12:46:11.272242337 -0600
 @@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -231,8 +231,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unmount);
 diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
 --- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-10-21 18:18:17.797086560 -0500
-@@ -0,0 +1,191 @@
++++ linux-patched/include/linux/lm_interface.h	2004-11-17 12:46:11.271242570 -0600
+@@ -0,0 +1,190 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -281,7 +281,6 @@ diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm
 +/* Flags for the struct lm_lockstruct->ls_flags field */
 +
 +#define LM_LSFLAG_LOCAL        (0x00000001)
-+#define LM_LSFLAG_ASYNC        (0x00000002)
 +
 +/* Lock types */
 +

@@ -570,13 +570,12 @@ rq_mutex(struct gfs_holder *gh)
 /**
  * rq_promote - process a promote request in the queue
  * @gh: the glock holder
- * @promote_ok: It's ok to ask the LM to do promotes on a sync lock module
  *
  * Returns: TRUE if the queue is blocked
  */
 
 static int
-rq_promote(struct gfs_holder *gh, int promote_ok)
+rq_promote(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
@@ -585,25 +584,21 @@ rq_promote(struct gfs_holder *gh, int promote_ok)
 
 	if (!relaxed_state_ok(gl->gl_state, gh->gh_state, gh->gh_flags)) {
 		if (list_empty(&gl->gl_holders)) {
-			if (promote_ok || GFS_ASYNC_LM(sdp)) {
-				gl->gl_req_gh = gh;
-				set_bit(GLF_LOCK, &gl->gl_flags);
-				spin_unlock(&gl->gl_spin);
+			gl->gl_req_gh = gh;
+			set_bit(GLF_LOCK, &gl->gl_flags);
+			spin_unlock(&gl->gl_spin);
 
-				if (atomic_read(&sdp->sd_reclaim_count) >
-				    sdp->sd_tune.gt_reclaim_limit &&
-				    !(gh->gh_flags & LM_FLAG_PRIORITY)) {
-					gfs_reclaim_glock(sdp);
-					gfs_reclaim_glock(sdp);
-				}
+			if (atomic_read(&sdp->sd_reclaim_count) >
+			    sdp->sd_tune.gt_reclaim_limit &&
+			    !(gh->gh_flags & LM_FLAG_PRIORITY)) {
+				gfs_reclaim_glock(sdp);
+				gfs_reclaim_glock(sdp);
+			}
 
-				glops->go_xmote_th(gl, gh->gh_state,
-						   gh->gh_flags);
+			glops->go_xmote_th(gl, gh->gh_state,
+					   gh->gh_flags);
 
-				spin_lock(&gl->gl_spin);
-			} else
-			    if (!test_and_set_bit(HIF_WAKEUP, &gh->gh_iflags))
-				complete(&gh->gh_wait);
+			spin_lock(&gl->gl_spin);
 		}
 		return TRUE;
 	}
@@ -704,12 +699,11 @@ rq_greedy(struct gfs_holder *gh)
 /**
  * run_queue - process holder structures on a glock
  * @gl: the glock
- * @promote_ok: It's ok to ask the LM to do promotes on a sync lock module
  *
  */
 
 static void
-run_queue(struct gfs_glock *gl, int promote_ok)
+run_queue(struct gfs_glock *gl)
 {
 	struct gfs_holder *gh;
 	int blocked;
@@ -744,7 +738,7 @@ run_queue(struct gfs_glock *gl, int promote_ok)
 					struct gfs_holder, gh_list);
 
 			if (test_bit(HIF_PROMOTE, &gh->gh_iflags))
-				blocked = rq_promote(gh, promote_ok);
+				blocked = rq_promote(gh);
 			else
 				GFS_ASSERT_GLOCK(FALSE, gl,);
 
@@ -812,7 +806,7 @@ unlock_on_glock(struct gfs_glock *gl)
 {
 	spin_lock(&gl->gl_spin);
 	clear_bit(GLF_LOCK, &gl->gl_flags);
-	run_queue(gl, FALSE);
+	run_queue(gl);
 	spin_unlock(&gl->gl_spin);
 }
 
@@ -994,7 +988,7 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 		gl->gl_req_gh = NULL;
 		gl->gl_req_bh = NULL;
 		clear_bit(GLF_LOCK, &gl->gl_flags);
-		run_queue(gl, FALSE);
+		run_queue(gl);
 		spin_unlock(&gl->gl_spin);
 	}
 
@@ -1092,7 +1086,7 @@ drop_bh(struct gfs_glock *gl, unsigned int ret)
 	gl->gl_req_gh = NULL;
 	gl->gl_req_bh = NULL;
 	clear_bit(GLF_LOCK, &gl->gl_flags);
-	run_queue(gl, FALSE);
+	run_queue(gl);
 	spin_unlock(&gl->gl_spin);
 
 	glock_put(gl);
@@ -1141,13 +1135,14 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 }
 
 /**
- * handle_cancels - cancel requests for locks stuck waiting on an expire flag
+ * do_cancels - cancel requests for locks stuck waiting on an expire flag
  * @gh: the LM_FLAG_PRIORITY holder waiting to acquire the lock
  *
+ * Don't cancel GL_NOCANCEL requests.
  */
 
 static void
-handle_cancels(struct gfs_holder *gh)
+do_cancels(struct gfs_holder *gh)
 {
 	struct gfs_glock *gl = gh->gh_gl;
 
@@ -1155,9 +1150,10 @@ handle_cancels(struct gfs_holder *gh)
 
 	while (gl->gl_req_gh != gh &&
 	       !test_bit(HIF_HOLDER, &gh->gh_iflags) &&
-	       !test_bit(HIF_WAKEUP, &gh->gh_iflags) &&
 	       !list_empty(&gh->gh_list)) {
-		if (gl->gl_req_bh) {
+		if (gl->gl_req_bh &&
+		    !(gl->gl_req_gh &&
+		      (gl->gl_req_gh->gh_flags & GL_NOCANCEL))) {
 			spin_unlock(&gl->gl_spin);
 			gl->gl_sbd->sd_lockstruct.ls_ops->lm_cancel(gl->gl_lock);
 			current->state = TASK_INTERRUPTIBLE;
@@ -1165,7 +1161,8 @@ handle_cancels(struct gfs_holder *gh)
 			spin_lock(&gl->gl_spin);
 		} else {
 			spin_unlock(&gl->gl_spin);
-			yield();
+			current->state = TASK_INTERRUPTIBLE;
+			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		}
 	}
@@ -1191,13 +1188,12 @@ glock_wait_internal(struct gfs_holder *gh)
 		spin_lock(&gl->gl_spin);
 		if (gl->gl_req_gh != gh &&
 		    !test_bit(HIF_HOLDER, &gh->gh_iflags) &&
-		    !test_bit(HIF_WAKEUP, &gh->gh_iflags) &&
 		    !list_empty(&gh->gh_list)) {
 			list_del_init(&gh->gh_list);
 			gh->gh_error = GLR_TRYFAILED;
 			if (test_bit(HIF_RECURSE, &gh->gh_iflags))
 				do_unrecurse(gh);
-			run_queue(gl, FALSE);
+			run_queue(gl);
 			spin_unlock(&gl->gl_spin);
 			return GLR_TRYFAILED;
 		}
@@ -1205,20 +1201,9 @@ glock_wait_internal(struct gfs_holder *gh)
 	}
 
 	if (gh->gh_flags & LM_FLAG_PRIORITY)
-		handle_cancels(gh);
+		do_cancels(gh);
 
-	for (;;) {
-		wait_for_completion(&gh->gh_wait);
-
-		spin_lock(&gl->gl_spin);
-		if (test_and_clear_bit(HIF_WAKEUP, &gh->gh_iflags)) {
-			run_queue(gl, TRUE);
-			spin_unlock(&gl->gl_spin);
-		} else {
-			spin_unlock(&gl->gl_spin);
-			break;
-		}
-	}
+	wait_for_completion(&gh->gh_wait);
 
 	if (gh->gh_error)
 		return gh->gh_error;
@@ -1248,7 +1233,7 @@ glock_wait_internal(struct gfs_holder *gh)
 		clear_bit(GLF_LOCK, &gl->gl_flags);
 		if (test_bit(HIF_RECURSE, &gh->gh_iflags))
 			handle_recurse(gh);
-		run_queue(gl, FALSE);
+		run_queue(gl);
 		spin_unlock(&gl->gl_spin);
 	}
 
@@ -1350,8 +1335,6 @@ gfs_glock_nq(struct gfs_holder *gh)
 	GFS_ASSERT_GLOCK(gh->gh_state != LM_ST_UNLOCKED, gl,);
 	GFS_ASSERT_GLOCK((gh->gh_flags & (LM_FLAG_ANY | GL_EXACT)) !=
 			 (LM_FLAG_ANY | GL_EXACT), gl,);
-	GFS_ASSERT_GLOCK(GFS_ASYNC_LM(sdp) ||
-			 !(gh->gh_flags & GL_ASYNC), gl,);
 
 	atomic_inc(&sdp->sd_glock_nq_calls);
 
@@ -1360,7 +1343,7 @@ gfs_glock_nq(struct gfs_holder *gh)
 
 	spin_lock(&gl->gl_spin);
 	add_to_queue(gh);
-	run_queue(gl, TRUE);
+	run_queue(gl);
 	spin_unlock(&gl->gl_spin);
 
 	if (!(gh->gh_flags & GL_ASYNC)) {
@@ -1391,7 +1374,6 @@ gfs_glock_poll(struct gfs_holder *gh)
 	int ready = FALSE;
 
 	GFS_ASSERT_GLOCK(gh->gh_flags & GL_ASYNC, gl,);
-	GFS_ASSERT_GLOCK(!test_bit(HIF_WAKEUP, &gh->gh_iflags), gl,);
 
 	spin_lock(&gl->gl_spin);
 
@@ -1427,7 +1409,6 @@ gfs_glock_wait(struct gfs_holder *gh)
 	int error;
 
 	GFS_ASSERT_GLOCK(gh->gh_flags & GL_ASYNC, gl,);
-	GFS_ASSERT_GLOCK(!test_bit(HIF_WAKEUP, &gh->gh_iflags), gl,);
 
 	error = glock_wait_internal(gh);
 	if (error == GLR_CANCELED) {
@@ -1486,7 +1467,7 @@ gfs_glock_dq(struct gfs_holder *gh)
 	}
 
 	clear_bit(GLF_LOCK, &gl->gl_flags);
-	run_queue(gl, FALSE);
+	run_queue(gl);
 	spin_unlock(&gl->gl_spin);
 }
 
@@ -1548,7 +1529,7 @@ gfs_glock_force_drop(struct gfs_glock *gl)
 
 	spin_lock(&gl->gl_spin);
 	list_add_tail(&gh.gh_list, &gl->gl_waiters2);
-	run_queue(gl, FALSE);
+	run_queue(gl);
 	spin_unlock(&gl->gl_spin);
 
 	wait_for_completion(&gh.gh_wait);
@@ -1584,7 +1565,7 @@ greedy_work(void *data)
 	} else {
 		glock_hold(gl);
 		list_add_tail(&gh->gh_list, &gl->gl_waiters2);
-		run_queue(gl, FALSE);
+		run_queue(gl);
 		spin_unlock(&gl->gl_spin);
 		glock_put(gl);
 	}
@@ -1786,11 +1767,6 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	if (num_gh == 1) {
 		ghs->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);
 		error = gfs_glock_nq(ghs);
-		return error;
-	}
-
-	if (!GFS_ASYNC_LM(ghs->gh_gl->gl_sbd)) {
-		error = nq_m_sync(num_gh, ghs);
 		return error;
 	}
 
@@ -2026,7 +2002,7 @@ gfs_glock_cb(lm_fsdata_t * fsdata, unsigned int type, void *data)
 				gl->gl_ops->go_callback(gl, state);
 			handle_callback(gl, state);
 			spin_lock(&gl->gl_spin);
-			run_queue(gl, FALSE);
+			run_queue(gl);
 			spin_unlock(&gl->gl_spin);
 			glock_put(gl);
 		}

@@ -95,6 +95,7 @@ foreach $file (@files)
 	    $line =~ s/ (9) / atime[$1] /;
 	    $line =~ s/ (10) / nocache[$1] /;
 	    $line =~ s/ (11) / sync[$1] /;
+	    $line =~ s/ (12) / nocancel[$1] /;
 	}
 	if ($line =~ /gh_iflags/)
 	{
@@ -106,8 +107,7 @@ foreach $file (@files)
 	    $line =~ s/ (5) / dealloc[$1] /;
 	    $line =~ s/ (6) / holder[$1] /;
 	    $line =~ s/ (7) / first[$1] /;
-	    $line =~ s/ (8) / wakeup[$1] /;
-	    $line =~ s/ (9) / recurse[$1] /;
+	    $line =~ s/ (8) / recurse[$1] /;
 	}
 	if ($line =~ /owner/)
 	{

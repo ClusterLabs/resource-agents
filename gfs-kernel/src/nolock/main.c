@@ -69,7 +69,7 @@ nolock_mount(char *table_name, char *host_data,
 	lockstruct->ls_lvb_size = min_lvb_size;
 	lockstruct->ls_lockspace = (lm_lockspace_t *)nl;
 	lockstruct->ls_ops = &nolock_ops;
-	lockstruct->ls_flags = LM_LSFLAG_LOCAL | LM_LSFLAG_ASYNC;
+	lockstruct->ls_flags = LM_LSFLAG_LOCAL;
 
 	return 0;
 }

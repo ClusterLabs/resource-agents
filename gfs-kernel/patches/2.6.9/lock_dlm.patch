@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
---- linux-orig/fs/gfs_locking/lock_dlm/group.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-11-17 12:46:21.001975425 -0600
 @@ -0,0 +1,827 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -830,9 +830,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	.finish = mg_finish
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
---- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-11-03 11:43:51.000000000 +0800
-@@ -0,0 +1,689 @@
+--- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-11-17 12:46:21.001975425 -0600
+@@ -0,0 +1,697 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -847,6 +847,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +******************************************************************************/
 +
 +#include "lock_dlm.h"
++
++static char junk_lvb[DLM_LVB_SIZE];
++
 +
 +/*
 + * Run in DLM thread
@@ -1334,6 +1337,28 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	}
 +}
 +
++int dlm_add_lvb(dlm_lock_t *lp)
++{
++	char *lvb;
++
++	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
++	if (!lvb)
++		return -ENOMEM;
++
++	memset(lvb, 0, DLM_LVB_SIZE);
++
++	lp->lksb.sb_lvbptr = lvb;
++	lp->lvb = lvb;
++	return 0;
++}
++
++void dlm_del_lvb(dlm_lock_t *lp)
++{
++	kfree(lp->lvb);
++	lp->lvb = NULL;
++	lp->lksb.sb_lvbptr = NULL;
++}
++
 +/**
 + * hold_null_lock - add a NL lock to the resource
 + * @lp: represents the resource
@@ -1347,7 +1372,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +
 +static int hold_null_lock(dlm_lock_t *lp)
 +{
-+	dlm_lock_t *lpn;
++	dlm_lock_t *lpn = NULL;
 +	int error;
 +
 +	if (lp->hold_null) {
@@ -1357,9 +1382,13 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +
 +	error = create_lp(lp->dlm, &lp->lockname, &lpn);
 +	if (error)
-+		return error;
++		goto out;
++
++	lpn->lksb.sb_lvbptr = junk_lvb;
++	lpn->lvb = junk_lvb;
 +
 +	lpn->req = DLM_LOCK_NL;
++	lpn->lkf = DLM_LKF_VALBLK;
 +	set_bit(LFL_NOBAST, &lpn->flags);
 +	set_bit(LFL_INLOCK, &lpn->flags);
 +
@@ -1369,6 +1398,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +		lpn = NULL;
 +	}
 +
++ out:
 +	lp->hold_null = lpn;
 +	return error;
 +}
@@ -1388,24 +1418,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +static void unhold_null_lock(dlm_lock_t *lp)
 +{
 +	dlm_lock_t *lpn = lp->hold_null;
++
++	lpn->lksb.sb_lvbptr = NULL;
++	lpn->lvb = NULL;
 +	set_bit(LFL_UNLOCK_DELETE, &lpn->flags);
 +	do_dlm_unlock(lpn);
 +	lp->hold_null = NULL;
-+}
-+
-+int dlm_add_lvb(dlm_lock_t *lp)
-+{
-+	char *lvb;
-+
-+	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
-+	if (!lvb)
-+		return -ENOMEM;
-+
-+	memset(lvb, 0, DLM_LVB_SIZE);
-+
-+	lp->lksb.sb_lvbptr = lvb;
-+	lp->lvb = lvb;
-+	return 0;
 +}
 +
 +/**
@@ -1432,20 +1450,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	   no locks on the resource. */
 +      
 +	error = hold_null_lock(lp);
-+	if (error) {
-+		kfree(lp->lvb);
-+		lp->lvb = NULL;
-+		lp->lksb.sb_lvbptr = NULL;
-+	}
++	if (error)
++		dlm_del_lvb(lp);
 +
 +	return error;
-+}
-+
-+void dlm_del_lvb(dlm_lock_t *lp)
-+{
-+	kfree(lp->lvb);
-+	lp->lvb = NULL;
-+	lp->lksb.sb_lvbptr = NULL;
 +}
 +
 +/**
@@ -1523,8 +1531,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	do_dlm_lock(lp, r);
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
---- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-11-17 12:46:21.001975425 -0600
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1902,8 +1910,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
---- linux-orig/fs/gfs_locking/lock_dlm/main.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-11-17 12:46:21.002975192 -0600
 @@ -0,0 +1,330 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2236,8 +2244,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_AUTHOR("Red Hat, Inc.");
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
---- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-11-17 12:46:21.002975192 -0600
 @@ -0,0 +1,349 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2520,7 +2528,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +	lockstruct->ls_first = test_bit(DFL_FIRST_MOUNT, &dlm->flags);
 +	lockstruct->ls_lockspace = dlm;
 +	lockstruct->ls_ops = &lock_dlm_ops;
-+	lockstruct->ls_flags = LM_LSFLAG_ASYNC;
++	lockstruct->ls_flags = 0;
 +	lockstruct->ls_lvb_size = DLM_LVB_SIZE;
 +	return 0;
 +
@@ -2589,8 +2597,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +	lm_owner:THIS_MODULE,
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
---- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-11-17 12:46:21.015972164 -0600
 @@ -0,0 +1,1236 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3829,8 +3837,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +	return 0;
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
---- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-11-03 11:43:51.000000000 +0800
+--- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-11-17 12:46:21.015972164 -0600
 @@ -0,0 +1,418 @@
 +/******************************************************************************
 +*******************************************************************************

@@ -589,6 +589,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 					  LM_ST_EXCLUSIVE,
 					  LM_FLAG_NOEXP |
 					  LM_FLAG_PRIORITY |
+					  GL_NOCANCEL |
 					  GL_NOCACHE,
 					  &t_gh);
 		if (error)

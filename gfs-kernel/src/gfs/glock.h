@@ -28,6 +28,7 @@
 #define GL_ATIME          (0x00000200)
 #define GL_NOCACHE        (0x00000400)
 #define GL_SYNC           (0x00000800)
+#define GL_NOCANCEL       (0x00001000)
 
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)
@@ -68,8 +69,6 @@ gfs_glock_is_held_shrd(struct gfs_glock *gl)
 {
 	return (gl->gl_state == LM_ST_SHARED);
 }
-
-#define GFS_ASYNC_LM(sdp) ((sdp)->sd_lockstruct.ls_flags & LM_LSFLAG_ASYNC)
 
 struct gfs_glock *gfs_glock_find(struct gfs_sbd *sdp,
 				 struct lm_lockname *name);

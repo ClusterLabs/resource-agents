@@ -867,14 +867,12 @@ gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 	if (error)
 		return error;
 
-	if (GFS_ASYNC_LM(sdp)) {
-		error = stat_gfs_async(sdp, usage, interruptible);
-		if (!error || error == -ERESTARTSYS)
-			goto out;
+	error = stat_gfs_async(sdp, usage, interruptible);
+	if (!error || error == -ERESTARTSYS)
+		goto out;
 
-		memset(usage, 0, sizeof(struct gfs_usage));
-		usage->gu_block_size = sdp->sd_sb.sb_bsize;
-	}
+	memset(usage, 0, sizeof(struct gfs_usage));
+	usage->gu_block_size = sdp->sd_sb.sb_bsize;
 
 	for (rgd = gfs_rgrpd_get_first(sdp);
 	     rgd;

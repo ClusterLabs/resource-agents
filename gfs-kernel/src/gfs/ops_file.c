@@ -50,7 +50,6 @@ struct filldir_bad_entry {
 
 struct filldir_bad {
 	struct gfs_sbd *fdb_sbd;
-	int fdb_prefetch;
 
 	struct filldir_bad_entry *fdb_entry;
 	unsigned int fdb_entry_num;
@@ -1024,7 +1023,7 @@ readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 	int error;
 
 	fdr.fdr_sbd = dip->i_sbd;
-	fdr.fdr_prefetch = GFS_ASYNC_LM(dip->i_sbd);
+	fdr.fdr_prefetch = TRUE;
 	fdr.fdr_filldir = filldir;
 	fdr.fdr_opaque = dirent;
 
@@ -1081,7 +1080,7 @@ filldir_bad_func(void *opaque,
 	fdb->fdb_entry_off++;
 	fdb->fdb_name_off += length;
 
-	if (fdb->fdb_prefetch && !(length == 1 && *name == '.')) {
+	if (!(length == 1 && *name == '.')) {
 		gfs_glock_prefetch_num(sdp,
 				       inum->no_formal_ino, &gfs_inode_glops,
 				       LM_ST_SHARED, LM_FLAG_TRY | LM_FLAG_ANY);
@@ -1124,7 +1123,6 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 	memset(fdb, 0, size);
 
 	fdb->fdb_sbd = sdp;
-	fdb->fdb_prefetch = GFS_ASYNC_LM(sdp);
 	fdb->fdb_entry = (struct filldir_bad_entry *)(fdb + 1);
 	fdb->fdb_entry_num = entries;
 	fdb->fdb_name = ((char *)fdb) + sizeof(struct filldir_bad) +
