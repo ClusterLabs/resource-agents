@@ -600,13 +600,14 @@ int dlm_recoverd(void *arg)
 
 		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags)) {
 			do_ls_recovery(ls);
-			if (ls->ls_state == LSST_CLEAR && !test_bit(LSFL_WORK, &ls->ls_flags))
-			        goto finished;
+
+			if (ls->ls_state == LSST_CLEAR &&
+			    !test_bit(LSFL_WORK, &ls->ls_flags))
+				goto finished;
 		}
 	}
 
  finished:
-	log_debug(ls, "recoverd finished");
 	clear_bit(LSFL_RECOVERD_RUN, &ls->ls_flags);
 	put_lockspace(ls);
 	return 0;
@@ -620,15 +621,11 @@ void dlm_recoverd_kick(struct dlm_ls *ls)
 	if (!test_and_set_bit(LSFL_RECOVERD_RUN, &ls->ls_flags)) {
 	    	p = kthread_run(dlm_recoverd, (void *) ls, "dlm_recoverd");
 		if (IS_ERR(p)) {
-			log_error(ls, "can't start dlm_recoverd %ld", PTR_ERR(p));
+			log_error(ls, "can't start dlm_recoverd %ld",
+				  PTR_ERR(p));
 			return;
 		}
-		log_debug(ls, "Started new recoverd");
 		ls->ls_recoverd_task = p;
-
-	}
-	else {
-	        log_debug(ls, "Waking recoverd");
-	        wake_up_process(ls->ls_recoverd_task);
-	}
+	} else
+		wake_up_process(ls->ls_recoverd_task);
 }
