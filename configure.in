@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.4 $) dnl cvs revision
+AC_REVISION($Revision: 1.5 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -32,7 +32,7 @@ AC_SUBST(POD2MAN)
 
 dnl Locales check - is a real ugly workaround for now til I find
 dnl something more useful
-locale_locations="/usr/share/locale /usr/lib/locale"
+locale_locations="/usr/share/locale /usr/lib/locale /usr/lib/nls/loc"
 for l in $locale_locations
 do
     if test -d "$l" ; then
