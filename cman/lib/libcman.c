@@ -36,6 +36,7 @@ struct cman_handle
 	int fd;
 	void *private;
 	cman_callback_t callback;
+	cman_datacallback_t data_callback;
 };
 
 
@@ -143,7 +144,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			return len;
 
 		/* Send a callback if registered */
-		if (msg.msg_flags & MSG_OOB && h->callback)
+		if (msg.msg_flags & MSG_OOB)
 		{
 			int reason;
 			int arg = 0;
@@ -153,7 +154,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			{
 			case CLUSTER_OOB_MSG_PORTCLOSED:
 				reason = CMAN_REASON_PORTCLOSED;
-				arg = portmsg->port;
+				arg = saddr.scl_nodeid;
 				break;
 
 			case CLUSTER_OOB_MSG_STATECHANGE:
@@ -166,9 +167,15 @@ int cman_dispatch(cman_handle_t handle, int flags)
 			default:
 				continue;
 			}
-			h->callback(h, h->private, reason, arg);
+			if (h->callback)
+				h->callback(h, h->private, reason, arg);
 		}
-		/* Else throw it awy... */
+		else
+		{
+			if (h->data_callback)
+				h->data_callback(h, h->private, buf, len, saddr.scl_port, saddr.scl_nodeid);
+		}
+
 	}
 	while ( flags & CMAN_DISPATCH_ALL &&
 		(len < 0 && errno == EAGAIN) );
@@ -306,4 +313,63 @@ int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo)
 		return -1;
 	}
 	return ioctl(h->fd, SIOCCLUSTER_GETCLUSTER, clinfo);
+}
+
+int cman_send_data(cman_handle_t handle, char *buf, int len, int flags, uint8_t port, int nodeid)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct iovec iov[2];
+	struct msghdr msg;
+	struct sockaddr_cl saddr;
+
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_iovlen = 1;
+	msg.msg_iov = iov;
+	msg.msg_flags = 0;
+	iov[0].iov_len = len;
+	iov[0].iov_base = buf;
+
+	saddr.scl_family = AF_CLUSTER;
+	saddr.scl_port = port;
+	if (nodeid) {
+		msg.msg_name = &saddr;
+		msg.msg_namelen = sizeof(saddr);
+		saddr.scl_nodeid = nodeid;
+	} else {		/* Cluster broadcast */
+
+		msg.msg_name = NULL;
+		msg.msg_namelen = 0;
+	}
+
+	do {
+		len = sendmsg(h->fd, &msg, 0);
+
+	} while (len == -1 && errno == EAGAIN);
+	return len;
+}
+
+
+int cman_start_recv_data(cman_handle_t handle, cman_datacallback_t callback, uint8_t port)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct sockaddr_cl saddr;
+
+	saddr.scl_family = AF_CLUSTER;
+	saddr.scl_port = port;
+
+	if (bind(h->fd, (struct sockaddr *) &saddr, sizeof(struct sockaddr_cl))) {
+		return -1;
+	}
+
+	h->data_callback = callback;
+	return 0;
+}
+
+int cman_end_recv_data(cman_handle_t handle)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+
+	h->data_callback = NULL;
+	return 0;
 }
