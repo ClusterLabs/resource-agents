@@ -224,7 +224,8 @@ static void process_asts(void)
 		}
 
 		if (flags & AST_BAST && !(flags & AST_DEL)) {
-			if (bast && lkb->lkb_status == GDLM_LKSTS_GRANTED)
+			if (bast && lkb->lkb_status == GDLM_LKSTS_GRANTED &&
+			    !lkb->lkb_lockqueue_state)
 				bast(astparam, (int) lkb->lkb_bastmode);
 		}
 
