@@ -49,14 +49,14 @@ static void queue_blocking(dlm_lock_t *lp, int mode)
 {
 	dlm_t *dlm = lp->dlm;
 
+	/* We often get basts for EX while we're promoting from SH to EX */
+	/*
 	if (test_bit(LFL_WAIT_COMPLETE, &lp->flags)) {
-		/* We often receive basts for EX while we're promoting
-		   from SH to EX. */
-		/* printk("lock_dlm: bast before complete %x,%"PRIx64" "
-		       "gr=%d rq=%d bast=%d\n", lp->lockname.ln_type,
-		       lp->lockname.ln_number, lp->cur, lp->req, mode); */
-		return;
+		log_debug("bast during wait %x,%"PRIx64" %d-%d %x bmode %d",
+			  lp->lockname.ln_type, lp->lockname.ln_number,
+			  lp->cur, lp->req, lp->lkf, mode);
 	}
+	*/
 
 	if (!mode) {
 		printk("lock_dlm: bast mode zero %x,%"PRIx64"\n",
