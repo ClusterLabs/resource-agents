@@ -1419,8 +1419,8 @@ do_plock(struct file *file, int cmd, struct file_lock *fl)
 		return LOCK_USE_CLNT;
 
 	if (IS_GETLK(cmd)) {
-		uint64_t start, end;
-		int ex;
+		uint64_t start = fl->fl_start, end = fl->fl_end;
+		int ex = (fl->fl_type == F_WRLCK) ? 1 : 0;
 		unsigned long pid;
 
 		error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
