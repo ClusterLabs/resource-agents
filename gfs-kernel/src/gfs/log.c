@@ -514,6 +514,8 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	GFS_ASSERT_SBD(segments == tr->tr_seg_reserved, sdp,);
 
 	if (sdp->sd_log_dump_last) {
+		int diff;
+
 		head_off = tr->tr_first_head +
 			tr->tr_seg_reserved * sdp->sd_sb.sb_seg_size;
 		head_wrap = sdp->sd_log_wrap;
@@ -526,7 +528,8 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		dump_off = sdp->sd_log_dump_last;
 		dump_wrap = sdp->sd_log_dump_last_wrap;
 
-		switch (head_wrap - dump_wrap) {
+		diff = (int)(head_wrap - dump_wrap);
+		switch (diff) {
 		case 0:
 			break;
 
