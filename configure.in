@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.289 $) dnl cvs revision
+AC_REVISION($Revision: 1.290 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -38,6 +38,8 @@ solaris*)	LIBS="-L/usr/local/lib $LIBS"
 dnl anything?
 darwin*)	LIBS="-L/usr/lib -L/sw/lib"
 		CPPFLAGS="-I/usr/include -I/sw/usr/include -I/sw/include"
+		DARWIN=1
+		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
 		;;
 esac
 
@@ -1502,6 +1504,9 @@ echo $ECHO_N "Enabling the new Cluster Resource Manager... ${enable_crm}" >&6
 
 AM_CONDITIONAL(CRM_BUILD, test "x${enable_crm}" = "xyes")
 AC_SUBST(CRM_ENABLED)
+
+CRM_DIR=crm
+AC_SUBST(CRM_DIR)
 
 CRM_DEBUG_LIBS=""
 CRM_DEBUG_OPTS=""
