@@ -33,7 +33,12 @@ static void print_usage(void)
 	       prog_name);
 	printf("\n");
 	printf("Options:\n");
+	printf("  -h               Print this help, then exit\n");
+	printf("  -V               Print program version information, then exit\n");
+	printf("  -d               Enable debug output\n");
 	printf("\n");
+
+	printf("join\n");
 	printf("  -m <addr>      * Multicast address to use (combines with -i)\n");
 	printf("  -i <ifname>    * Interfaces for above multicast addresses\n");
 	printf("  -v <votes>       Number of votes this node has (default 1)\n");
@@ -42,15 +47,30 @@ static void print_usage(void)
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
-	printf("  -r <config>      A new config version to set on all members\n");
 	printf("  -X               Do not use CCS\n");
-	printf("  -V               Print program version information, then exit\n");
-	printf("  -d               Enable debug output\n");
-	printf("  -h               Print this help, then exit\n");
-	printf("  remove           Used with leave\n");
-	printf("  force            Used with leave\n");
-	printf("\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
+
+	printf("\n");
+	printf("leave\n");
+	printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
+	printf("  force            Leave even if cluster subsystems are active\n");
+
+	printf("\n");
+	printf("kill\n");
+	printf("  -n <nodename>    The name of the node to kill (can specify multiple times)\n");
+
+	printf("\n");
+	printf("expected\n");
+	printf("  -e <votes>       New number of expected votes for the cluster\n");
+
+	printf("\n");
+	printf("votes\n");
+	printf("  -v <votes>       New number of votes for this node\n");
+
+	printf("\n");
+	printf("version\n");
+	printf("  -r <config>      A new config version to set on all members\n");
+	printf("\n");
 }
 
 static void leave(commandline_t *comline)
