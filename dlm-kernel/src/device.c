@@ -694,6 +694,12 @@ static int do_user_query(struct file_info *fi, struct dlm_lock_params *kparams)
 	struct lock_info *li;
 	int status;
 
+	if (!kparams->astaddr)
+		return -EINVAL;
+
+	if (!kparams->lksb)
+		return -EINVAL;
+
 	li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
 	if (!li)
 		return -ENOMEM;
@@ -790,29 +796,13 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 			return -EINVAL;
 		}
 		li = (struct lock_info *)lkb->lkb_astparam;
-
-		/* Only override these if they are provided */
-		if (kparams->lksb)
-			li->li_user_lksb = kparams->lksb;
-		if (kparams->astparam)
-			li->li_astparam  = kparams->astparam;
-		if (kparams->bastaddr)
-			li->li_bastaddr  = kparams->bastaddr;
-		if (kparams->astaddr)
-			li->li_astaddr   = kparams->astaddr;
-		li->li_flags     = 0;
 	}
 	else {
 		li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
 		if (!li)
 			return -ENOMEM;
 
-		li->li_user_lksb = kparams->lksb;
-		li->li_astparam  = kparams->astparam;
-		li->li_bastaddr  = kparams->bastaddr;
-		li->li_astaddr   = kparams->astaddr;
 		li->li_file      = fi;
-		li->li_flags     = 0;
 		li->li_cmd       = kparams->cmd;
 		li->li_queryinfo  = NULL;
 
@@ -824,6 +814,12 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 
 		get_file_info(fi);
 	}
+
+	li->li_user_lksb = kparams->lksb;
+	li->li_bastaddr  = kparams->bastaddr;
+	li->li_astaddr   = kparams->astaddr;
+	li->li_astparam  = kparams->astparam;
+	li->li_flags     = 0;
 
 	/* Copy the user's LKSB into kernel space,
 	   needed for conversions & value block operations */
