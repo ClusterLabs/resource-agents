@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.184 $) dnl cvs revision
+AC_REVISION($Revision: 1.185 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -553,7 +553,7 @@ dnl	Could check for the libraries, but if you have the headers,
 dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
-AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes)
+AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
 
 dnl ************************************************************************
 dnl  checks for typedefs
