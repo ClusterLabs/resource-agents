@@ -1,0 +1,195 @@
+.\"
+.\"  Copyright 2001-2003 Sistina Software, Inc.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.\" groff -t -e -mandoc -Tlatin1 cluster.conf.5 | less
+
+.tl 'cluster.conf(5)' 'cluster.conf(5)'
+
+\fBNAME\fP
+.in +7
+cluster.conf - The configuration file for cluster products
+.sp
+.in -7
+
+
+\fBDESCRIPTION\fP
+.in +7
+The \fBcluster.conf\fP file is located in the /etc/cluster directory.  It
+is the source of information used by the cluster products - accessed
+indirectly through CCS (see \fBccs(7)\fP).  This file contains all the
+information needed for the cluster to operate, such as: what nodes compose
+the cluster and how to I/O fence those nodes.  There is generic information
+which is applicable to all cluster infrastructures, as well as specific
+information relevent for specific cluster products.
+
+This man page describes the generic contents of the \fBcluster.conf\fP file.
+The product specific sections of \fBcluster.conf\fP are left to their
+respective man pages.  For example, after constructing the generic content,
+a user would look at the \fBlock_gulmd(5)\fP man page for specific instructions
+if using lock_gulmd as their lock server.  Conversely, a user employing
+\fBcman\fP and the \fBdlm\fP would look at \fBcman(5)\fP and \fBdlm(5)\fP for
+further instruction.
+
+The \fBcluster.conf\fP file is an XML file.  It has one encompasing section
+in which everything is contained.  That entity's name is \fIcluster\fP and it
+has two manditory attributes: \fIname\fP and \fIconfig_version\fP.  The
+\fIname\fP attribute specifies the name of the cluster.  It is important
+that this name is unique from other clusters the user might set up.  The
+\fIconfig_version\fP attribute is a number used to identify the revision
+level of the \fBcluster.conf\fP file.  Given this information, your
+\fBcluster.conf\fP file might look something like:
+
+<cluster name="alpha" config_version="1">
+
+</cluster>
+
+A manditory subsection of \fIcluster\fP is \fIfence_devices\fP.  It contains
+all of the I/O fencing devices at the disposal of the cluster.  The I/O
+fencing devices are listed as entities designated as \fIdevice\fP and have
+attributes that describe the particular fencing device.  For example:
+
+  <fence_device>
+    <device name="apc" agent="fence_apc"
+            ipaddr="apc_1" login="apc" passwd="apc"/>
+  </fence_device>
+
+Concerning the \fIdevice\fP entity, the \fIname\fP and \fIagent\fP attributes
+must be specified for all I/O fence devices.  The remaining attributes are
+device specific and are used to specify the neccessary information to
+access the device.  The \fIname\fP attribute must be unique and is used to
+reference the I/O fence device in other sections of the \fBcluster.conf\fP file.  The \fIagent\fP attribute is used to specify the binary fence agent program used to communicate with the particular device.  Your \fBcluster.conf\fP file might now look something like:
+
+<cluster name="alpha" config_version="1">
+  <fence_device>
+    <device name="apc" agent="fence_apc"
+            ipaddr="apc_1" login="apc" passwd="apc"/>
+
+    <device name="brocade" agent="fence_brocade"
+            ipaddr="brocade_1" login="bro" passwd="bro"/>
+
+    <!-- The WTI fence device requires no login name -->
+    <device name="wti" agent="fence_wti"
+            ipaddr="wti_1" passwd="wti"/>
+
+    <device name="last_resort" agent="fence_manual"/>
+  </fence_device>
+</cluster>
+
+The final manditory subsection of \fIcluster\fP is \fInodes\fP.  It contains
+the individual specification of all the machines (members) in the cluster.
+Each machine has it's own section, \fInode\fP, which has the \fIname\fP
+attribute - this should be the name of the machine.  The \fInode\fP section
+also contains the \fIfence\fP section.  Not to be confused with \fIfence_device\fP the \fIfence\fP section is used to specify all the possible "methods" for
+fencing a particular machine, as well as the device used to perform that method
+and the machine specific parameters neccessary.  By example, the \fInodes\fP
+section may look as follows:
+
+  <!-- This example only contains one machine -->
+  <nodes>
+    <node name="nd01">
+      <fence>
+        <!-- "power" method is tried before all others -->
+        <method name="power">
+          <device name="apc" port="1:1"/>
+        </method>
+        <!-- If the "power" method fails,
+             try fencing through the "fabric" -->
+        <method name="fabric">
+          <device name="brocade" port="1"/>
+        </method>
+	<!-- If all else fails,
+             make someone do it manually -->
+        <method name="human">
+          <device name="last_resort" ipaddr="nd01"/>
+        </method>
+      </fence>
+    </node>
+  </nodes>  
+
+Putting it all together, a three node cluster's \fBcluster.conf\fP file
+might look like:
+
+
+<cluster name="example" config_version="1">
+  <nodes>
+    <node name="nd01">
+      <fence>
+        <!-- "power" method is tried before all others -->
+        <method name="power">
+          <device name="apc" port="1:1"/>
+        </method>
+        <!-- If the "power" method fails,
+             try fencing through the "fabric" -->
+        <method name="fabric">
+          <device name="brocade" port="1"/>
+        </method>
+	<!-- If all else fails,
+             make someone do it manually -->
+        <method name="human">
+          <device name="last_resort" ipaddr="nd01"/>
+        </method>
+      </fence>
+    </node>
+    <node name="nd02">
+      <fence>
+        <!-- "power" method is tried before all others -->
+        <method name="power">
+          <device name="apc" port="1:2"/>
+        </method>
+        <!-- If the "power" method fails,
+             try fencing through the "fabric" -->
+        <method name="fabric">
+          <device name="brocade" port="2"/>
+        </method>
+	<!-- If all else fails,
+             make someone do it manually -->
+        <method name="human">
+          <device name="last_resort" ipaddr="nd02"/>
+        </method>
+      </fence>
+    </node>
+    <node name="nd11">
+      <fence>
+        <!-- "power" method is tried before all others -->
+        <method name="power">
+          <!-- This machine has 2 power supplies -->
+          <device name="apc" port="2:1"/>
+          <device name="wti" port="1"/>
+        </method>
+        <!-- If the "power" method fails,
+             try fencing through the "fabric" -->
+        <method name="fabric">
+          <device name="brocade" port="11"/>
+        </method>
+	<!-- If all else fails,
+             make someone do it manually -->
+        <method name="human">
+          <device name="last_resort" ipaddr="nd11"/>
+        </method>
+      </fence>
+    </node>
+  </nodes>  
+
+  <fence_device>
+    <device name="apc" agent="fence_apc"
+            ipaddr="apc_1" login="apc" passwd="apc"/>
+
+    <device name="brocade" agent="fence_brocade"
+            ipaddr="brocade_1" login="bro" passwd="bro"/>
+
+    <!-- The WTI fence device requires no login name -->
+    <device name="wti" agent="fence_wti"
+            ipaddr="wti_1" passwd="wti"/>
+
+    <device name="last_resort" agent="fence_manual"/>
+  </fence_device>
+</cluster>
+
+
+.sp
+.in -7
+\fBSEE ALSO\fP
+.in +7
+ccs(7), lock_gulmd(5), cman(5)
+

@@ -18,11 +18,13 @@ include ${top_srcdir}/make/defines.mk
 install:
 	install -d ${mandir}/man5
 	install -d ${mandir}/man7
-	install ccs.7 ${mandir}/man7
 	install -d ${mandir}/man8
+	install cluster.conf.5 ${mandir}/man5
+	install ccs.7 ${mandir}/man7
 	install ccsd.8 ccs_test.8 ${mandir}/man8
 
 uninstall:
+	${UNINSTALL} cluster.conf.5 ${mandir}/man5
 	${UNINSTALL} ccs.7 ${mandir}/man7
 	${UNINSTALL} ccsd.8 ccs_test.8 ${mandir}/man8
 
