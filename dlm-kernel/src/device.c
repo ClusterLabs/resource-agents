@@ -814,6 +814,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 			return -EINVAL;
 		}
 		li = (struct lock_info *)lkb->lkb_astparam;
+		li->li_flags = 0;
 	}
 	else {
 		li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
@@ -822,7 +823,8 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 
 		li->li_file      = fi;
 		li->li_cmd       = kparams->cmd;
-		li->li_queryinfo  = NULL;
+		li->li_queryinfo = NULL;
+		li->li_flags     = 0;
 
 		/* Get the lock name */
 		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
@@ -844,7 +846,6 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
         li->li_bastparam = kparams->bastparam;
 	li->li_castaddr  = kparams->castaddr;
 	li->li_castparam = kparams->castparam;
-	li->li_flags     = 0;
 
 	/* Copy the user's LKSB into kernel space,
 	   needed for conversions & value block operations */
