@@ -27,10 +27,14 @@ TARGETS=clurgmgrd clurmtabd
 
 all: ${TARGETS}
 
-install: clurgmgrd clurmtabd
+install: all
 	install -d ${sbindir}
 	install clurgmgrd ${sbindir}
 	install clurmtabd ${sbindir}
+
+uninstall:
+	${UNINSTALL} clurgmgrd ${sbindir}
+	${UNINSTALL} clurmtabd ${sbindir}
 
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
 		rg_queue.o members.o rg_forward.o reslist.o \

@@ -11,8 +11,8 @@
 ###############################################################################
 
 top_srcdir=../..
-# Currently no un-install dir.
-#UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
@@ -21,10 +21,12 @@ TARGETS=fs.sh group.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh
 all:
 
-install:
+install: all
 	echo ${sharedir}
 	echo ${sbindir}
 	install -d ${sharedir}
 	install $(TARGETS) ${sharedir}
 
+uninstall:
+	${UNINSTALL} ${TARGETS} ${sharedir}
 clean:

@@ -31,6 +31,9 @@ install: all
 	install -d ${sbindir}
 	install $(TARGETS) ${sbindir}
 
+uninstall:
+	${UNINSTALL} $(TARGETS) ${sbindir}
+
 cluarp: cluarp.o
 	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 

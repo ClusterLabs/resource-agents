@@ -27,6 +27,8 @@ all: ${TARGETS}
 
 install: all
 
+uninstall:
+
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
 		vft.o gettid.o rg_strings.o # alloc.o
 	${AR} cru $@ $^
