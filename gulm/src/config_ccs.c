@@ -119,7 +119,7 @@ int parse_ccs(gulm_config_t *gf)
 
    parse_serverlist(gf, cd);
 
-   if( ccs_get(cd, "/cluster/gulm/verbosity", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@verbosity", &tmp) == 0 ) {
       set_verbosity(tmp, &verbosity);
       free(tmp);
    }
@@ -166,17 +166,17 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/fence_bin", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@fence_bin", &tmp) == 0 ) {
       strdup_with_free((char**)&gf->fencebin, tmp);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/run_as", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@run_as", &tmp) == 0 ) {
       strdup_with_free((char**)&gf->run_as, tmp);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/lock_dir", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@lock_dir", &tmp) == 0 ) {
       strdup_with_free((char**)&gf->lock_file, tmp);
       free(tmp);
    }
@@ -186,27 +186,27 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/lt_high_locks", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@lt_high_locks", &tmp) == 0 ) {
       gf->lt_maxlocks = bound_to_ulong(atoi(tmp), 10000, ~0UL);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/lt_drop_req_rate", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@lt_drop_req_rate", &tmp) == 0 ) {
       gf->lt_cf_rate = bound_to_uint(atoi(tmp), 5, ~0U);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/prealloc_locks", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@prealloc_locks", &tmp) == 0 ) {
       gf->lt_prelocks = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/prealloc_holders", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@prealloc_holders", &tmp) == 0 ) {
       gf->lt_preholds = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/prealloc_lkrqs", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@prealloc_lkrqs", &tmp) == 0 ) {
       gf->lt_prelkrqs = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
