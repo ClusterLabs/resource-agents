@@ -61,6 +61,7 @@ static ip_name_t *MasterIN = NULL;
 int I_am_the = gio_Mbr_ama_Pending;/* what state we are in */
 static int MyRank = -1;
 static int quorumcount = 1; /* how many before we go.  We count as one. */
+static uint8_t quorate = FALSE;
 static uint64_t GenerationID = 0;
 
 typedef enum {poll_Closed = 0,
@@ -73,7 +74,7 @@ typedef enum {
    poll_New,         /* New poller that we're not sure of the type yet. */
    poll_Internal,    /* Listen socket for example */
    poll_Slave,       /* Could be a Master someday */
-   poll_Client,      /* userspace, but not in servers=[] */
+   poll_Client,      /* not in servers=[] */
    poll_Resource
 }poll_type;
 struct {
@@ -374,9 +375,12 @@ void decrement_quorumcount(void)
             "Switching to Arbitrating.\n",
             quorumcount, gulm_config.quorum);
       I_am_the = gio_Mbr_ama_Arbitrating;
+      quorate = FALSE;
       log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
+      send_quorum_to_slaves();
       send_core_state_to_children();
       set_nodes_mode(myName, I_am_the);
+
    }
 }
 
@@ -450,7 +454,7 @@ void close_slaves(void)
    int i;
    log_msg(lgm_Network2, "Closing any Slave connections.\n");
    for(i=0; i < open_max(); i++) {
-      if( poller.type[i] == poll_Slave )
+      if( poller.type[i] == poll_Slave || poller.type[i] == poll_Client )
          close_by_idx(i);
    }
 }
@@ -486,6 +490,10 @@ static int send_io_stats(xdr_enc_t *enc)
 
    xdr_enc_string(enc, "rank");
    snprintf(tmp, 256, "%d", MyRank);
+   xdr_enc_string(enc, tmp);
+
+   xdr_enc_string(enc, "quorate");
+   snprintf(tmp, 256, "%s", quorate?"true":"false");
    xdr_enc_string(enc, tmp);
 
    xdr_enc_string(enc, "GenerationID");
@@ -752,12 +760,14 @@ static int master_probe_bottom(void)
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
          log_msg(lgm_Network,
                "I see no Masters, So I am becoming the Master.\n");
+         quorate = TRUE;
       }else{
          I_am_the = gio_Mbr_ama_Arbitrating;
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
          log_msg(lgm_Network,
                "I see no Masters, So I am Arbitrating until enough Slaves "
                "talk to me.\n");
+         quorate = FALSE;
       }
       send_core_state_to_children();
       MasterIN = NULL; /* we are the Master now */
@@ -1084,6 +1094,26 @@ int send_update(int poll_idx, char *name, int st, struct in6_addr *ip)
 }
 
 /**
+ * send_quorum - 
+ * @poll_idx: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_quorum(int poll_idx)
+{
+   int e;
+   xdr_enc_t *enc;
+   if( poll_idx < 0 || poll_idx > open_max() ) return -EINVAL;
+   enc = poller.enc[poll_idx];
+   if( enc == NULL ) return -EINVAL;
+
+   if((e = xdr_enc_uint32(enc, gulm_core_quorm_chgs)) != 0) return e;
+   if((e = xdr_enc_uint8(enc, quorate)) != 0) return e;
+   return 0;
+}
+
+/**
  * send_core_state_update - 
  * @enc: 
  * 
@@ -1100,6 +1130,7 @@ int send_core_state_update(int poll_idx)
 
    if((err=xdr_enc_uint32(enc, gulm_core_state_chgs)) !=0 ) return err;
    if((err=xdr_enc_uint8(enc, I_am_the)) !=0 ) return err;
+   if((err=xdr_enc_uint8(enc, quorate)) != 0 ) return err;
    if( I_am_the == gio_Mbr_ama_Slave ) {
       if( MasterIN == NULL )
          log_err("MasterIN is NULL!!!!!!!\n");
@@ -1391,6 +1422,7 @@ static void do_new_login(int idx)
       if( quorumcount >= gulm_config.quorum ) {
          log_msg(lgm_Network, "Now have Slave quorum, going full Master.\n");
          I_am_the = gio_Mbr_ama_Master;
+         quorate = TRUE;
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
          send_core_state_to_children();
          set_nodes_mode(myName, I_am_the);
@@ -1429,6 +1461,7 @@ static void do_new_login(int idx)
          idx, poller.polls[idx].fd,
          print_ipname(&poller.ipn[idx]));
 
+   send_quorum_to_slaves();
    send_mbrshp_to_slaves(x_name, gio_Mbr_Logged_in);
    send_mbrshp_to_children(x_name, gio_Mbr_Logged_in);
 
@@ -1585,6 +1618,12 @@ static void recv_some_data(int idx)
    }else
    if( code == gulm_core_mbr_lstreq ) {
       serialize_node_list(enc);
+   }else
+   if( code == gulm_core_quorm_chgs ) {
+      /* should only ever come from master socket */
+      if( xdr_dec_uint8(dec, &quorate) == 0 ) {
+         send_core_state_to_children();
+      }
    }else
    if( code == gulm_core_mbr_req ) {
       if( xdr_dec_string(dec, &x_name) == 0 ) {

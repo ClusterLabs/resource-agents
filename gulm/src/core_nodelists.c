@@ -240,6 +240,46 @@ int send_mbrshp_to_slaves(char *name, int st)
    return hash_walk(Nodes_by_Name, _send_mbrshp_to_node, &t);
 }
 
+
+/**
+ * _send_quorum_to_slave_ - 
+ * @item: 
+ * @misc: 
+ * 
+ * 
+ * Returns: int
+ */
+int _send_quorum_to_slave_(LLi_t *item, void *misc)
+{
+   Node_t *n;
+   int err;
+   n = LLi_data(item);
+   if( n->mode == gio_Mbr_ama_Master ||
+       n->mode == gio_Mbr_ama_Arbitrating )
+      return 0; /* skip ourself */
+   if( n->State == gio_Mbr_Logged_in ) {
+
+      log_msg(lgm_Subscribers, "Sending Quorum update to slave %s\n", n->Name);
+      err=send_quorum(n->poll_idx);
+      if( err != 0 ) {
+         log_msg(lgm_Always,"Could not send quorum update to slave %s\n", 
+               n->Name);
+      }
+   }
+   return 0;
+}
+
+/**
+ * send_quorum_to_slaves - 
+ * @oid: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_quorum_to_slaves(void)
+{
+   return hash_walk(Nodes_by_Name, _send_quorum_to_slave_, NULL);
+}
 /*****************************************************************************/
 /**
  * print_node - 

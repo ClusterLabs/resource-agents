@@ -1981,10 +1981,11 @@ static void recv_some_data(int idx)
       }
    }else
    if( gulm_core_state_chgs == code ) {
-      uint8_t x_st;
+      uint8_t x_st, x_q;
       struct in6_addr x_ip;
       do {
          if((err=xdr_dec_uint8(dec, &x_st)) != 0 ) break;
+         if((err=xdr_dec_uint8(dec, &x_q)) != 0 ) break;
          if( x_st == gio_Mbr_ama_Slave ) {
             if((err=xdr_dec_ipv6(dec, &x_ip)) != 0 ) break;
             if((err=xdr_dec_string(dec, &x_name)) != 0 ) break;

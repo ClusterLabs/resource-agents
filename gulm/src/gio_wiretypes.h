@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000011)
+#define GIO_WIREPROT_VERS (0x67000012)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -144,9 +144,14 @@
  * Core state changes:
  *    uint32: gCSC
  *    uint8:  state  (slave, pending, arbitrating, master)
+ *    uint8:  quorate (true/false)
  *  If state == Slave, then the next two will follow.
  *    IPv6:   MasterIP
  *    string: MasterName
+ *
+ * Quorum Change:
+ *    uint32: gCQC
+ *    uint8:  quorate (true/false)
  *
  * Core shutdown req:
  *    uint32: gCSD
@@ -171,6 +176,7 @@
 #define gulm_core_res_list   (0x67435201) /* gCR1 */
 #define gulm_core_state_req  (0x67435352) /* gCSR */
 #define gulm_core_state_chgs (0x67435343) /* gCSC */
+#define gulm_core_quorm_chgs (0x67435143) /* gCSC */
 #define gulm_core_shutdown   (0x67435344) /* gCSD */
 #define gulm_core_forcepend  (0x67435350) /* gCSP */
 

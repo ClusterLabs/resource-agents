@@ -13,7 +13,7 @@
 
 all: lock_gulmd gulm_tool
 
-.PHONY: lock_gulmd clean dep depends
+.PHONY: lock_gulmd gulm_tool clean dep depends
 
 lock_gulmd:
 	cd .. && ${MAKE} src/lock_gulmd

@@ -173,7 +173,10 @@ int connect_to_server(char *where, char *sport, int allows,
    memcpy(&adr.sin6_addr, &in->ip, sizeof(struct in6_addr));
    free(in);
 
-   if((sk = socket(AF_INET6, SOCK_STREAM, 0)) <0) return -1;
+   if((sk = socket(AF_INET6, SOCK_STREAM, 0)) <0) {
+      fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+      return -1;
+   }
    if( connect(sk, (struct sockaddr*)&adr, sizeof(struct sockaddr_in6))<0) {
       fprintf(stderr, "Failed to connect to %s (%s %d) %s\n",
             where, ip6tostr(&adr.sin6_addr), ntohs(adr.sin6_port),
@@ -502,6 +505,7 @@ int do_raw_stats(int argc, char **argv)
 void statsfilter_client(int *len, uint8_t **keys, uint8_t **values)
 {
    int i, iamat=-1, fiddle=FALSE;
+   int mat=-1, qut=FALSE;
 
    for(i=0; i < *len; i++ ) {
       if( strcmp("I_am", keys[i]) == 0 ) {
@@ -509,13 +513,22 @@ void statsfilter_client(int *len, uint8_t **keys, uint8_t **values)
       }else
       if( strcmp("rank", keys[i]) == 0 ) {
          if( strcmp("-1", values[i]) == 0 ) fiddle = TRUE;
-         break;
+      }else
+      if( strcmp("Master", keys[i]) == 0 ) {
+         mat = i;
+      }else
+      if( strcmp("quorate", keys[i]) == 0 ) {
+         if( strcmp("false", values[i]) == 0) qut = TRUE;
       }
    }
 
    if( fiddle && iamat > -1 ) {
       free(values[iamat]);
       values[iamat] = strdup("Client");
+   }
+   if( qut && mat > -1 ) {
+      free(keys[mat]);
+      keys[mat] = strdup("Arbitrator");
    }
 }
 
