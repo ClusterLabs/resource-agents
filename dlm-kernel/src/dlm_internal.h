@@ -247,7 +247,7 @@ struct dlm_recover {
 #define LSFL_NODES_VALID	(11)
 #define LSFL_ALL_NODES_VALID	(12)
 #define LSFL_REQUEST_WARN	(13)
-#define LSFL_RECOVERD_RUN       (14)
+#define LSFL_RECOVERD_EXIT      (14)
 
 #define LSST_NONE		(0)
 #define LSST_INIT		(1)

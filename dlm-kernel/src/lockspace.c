@@ -321,6 +321,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	INIT_LIST_HEAD(&ls->ls_nodes);
 	INIT_LIST_HEAD(&ls->ls_nodes_gone);
 	ls->ls_num_nodes = 0;
+	ls->ls_recoverd_task = NULL;
 	init_MUTEX(&ls->ls_recoverd_lock);
 	INIT_LIST_HEAD(&ls->ls_recover);
 	spin_lock_init(&ls->ls_recover_lock);
@@ -384,7 +385,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
  out_reg:
 	kcl_unregister_service(ls->ls_local_id);
  out_recoverd:
-	kthread_stop(ls->ls_recoverd_task);
+	dlm_recoverd_stop(ls);
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
 	kfree(ls->ls_lkbtbl);
@@ -463,8 +464,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kcl_unregister_service(ls->ls_local_id);
 	}
 
-	if (test_and_clear_bit(LSFL_RECOVERD_RUN, &ls->ls_flags))
-		kthread_stop(ls->ls_recoverd_task);
+	dlm_recoverd_stop(ls);
 
 	remove_lockspace(ls);
 

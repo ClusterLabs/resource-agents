@@ -16,5 +16,6 @@
 
 int dlm_recoverd(void *arg);
 void dlm_recoverd_kick(struct dlm_ls *ls);
+void dlm_recoverd_stop(struct dlm_ls *ls);
 
 #endif				/* __RECOVERD_DOT_H__ */
