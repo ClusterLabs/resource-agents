@@ -792,13 +792,13 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		li = (struct lock_info *)lkb->lkb_astparam;
 
 		/* Only override these if they are provided */
-		if (li->li_user_lksb)
+		if (kparams->lksb)
 			li->li_user_lksb = kparams->lksb;
-		if (li->li_astparam)
+		if (kparams->astparam)
 			li->li_astparam  = kparams->astparam;
-		if (li->li_bastaddr)
+		if (kparams->bastaddr)
 			li->li_bastaddr  = kparams->bastaddr;
-		if (li->li_bastaddr)
+		if (kparams->astaddr)
 			li->li_astaddr   = kparams->astaddr;
 		li->li_flags     = 0;
 	}
