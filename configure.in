@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.340 $) dnl cvs revision
+AC_REVISION($Revision: 1.341 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1868,6 +1868,7 @@ lib/Makefile							\
 lrm/Makefile							\
 	lrm/lrmd/Makefile					\
 	lrm/admin/Makefile					\
+	lrm/test/LRMBasicSanityCheck				\
 	lrm/test/Makefile					\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
