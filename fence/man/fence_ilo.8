@@ -14,7 +14,7 @@ fence_ilo - I/O Fencing agent for HP Integrated Lights Out card
 .in
 \fBSYNOPSIS\fP
 .in +7
-\fBfence_ilo -a\fP \fIIPaddress\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR  
+\fBfence_ilo -a\fP \fIIPaddress[:SSLport]\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR  
 [\fB-o\fP action] [\fB-vqVh\fP] 
 
 .in
@@ -24,14 +24,19 @@ fence_ilo - I/O Fencing agent for HP Integrated Lights Out card
 fence_ilo is an I/O Fencing agent used for HP servers with the Integrated Light 
 Out (iLO) PCI card.  The agent opens an SSL connection to the iLO card.  Once the
 SSL connection is established, the agent is able to communicate with the iLO
-card through an XML stream.
+card through an XML stream.  
+.sp
+fence_ilo depends on the Net::SSLeay perl module in order to establish the SSL 
+connection to the iLO card.  Net::SSLeay is available at http://www.cpan.org.
 .sp
 .in
 \fBOPTIONS\fP
 .in
-\fB-a\fP \fIIPaddress\fR
+\fB-a\fP \fIIPaddress[:port]\fR
 .in +7
-IP address or hostname of the iLO card.  
+IP address or hostname of the iLO card.  If the SSL server of the card is
+not running on the default SSL port, 443, then [:port] will also need to be
+specified.
 .sp
 .in
 \fB-h\fP 
