@@ -1343,6 +1343,9 @@ static int do_ioctl_get_node(unsigned long arg)
 	struct cluster_node *node;
 	struct cl_cluster_node k_node, *u_node;
 
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
+
 	u_node = (struct cl_cluster_node *) arg;
 
 	if (copy_from_user(&k_node, u_node, sizeof(struct cl_cluster_node)))
