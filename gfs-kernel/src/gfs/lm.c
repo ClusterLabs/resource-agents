@@ -191,11 +191,12 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 
 	printk("GFS: fsid=%s: about to withdraw from the cluster\n",
 	       sdp->sd_fsname);
-	printk("GFS: fsid=%s: waiting for outstanding I/O\n",
-	       sdp->sd_fsname);
 
 	if (sdp->sd_args.ar_debug)
 		BUG();
+
+	printk("GFS: fsid=%s: waiting for outstanding I/O\n",
+	       sdp->sd_fsname);
 
 	while (atomic_read(&sdp->sd_bio_outstanding)) {
 		set_current_state(TASK_UNINTERRUPTIBLE);
