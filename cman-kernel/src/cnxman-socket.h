@@ -106,6 +106,7 @@
 				 */
 #define MSG_ALLINT    0x100000	/* Send out of all interfaces */
 #define MSG_REPLYEXP  0x200000	/* Reply is expected */
+#define MSG_BCASTSELF 0x400000	/* Broadcast message also gets send to us */
 
 typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
 	       NODESTATE_DEAD } nodestate_t;

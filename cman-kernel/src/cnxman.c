@@ -23,6 +23,7 @@
 #include <linux/poll.h>
 #include <linux/module.h>
 #include <linux/list.h>
+#include <linux/uio.h>
 #include <cluster/cnxman.h>
 #include <cluster/service.h>
 
@@ -33,8 +34,7 @@
 
 #define CMAN_RELEASE_NAME "<CVS>"
 
-static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
-			     char *addr, int addrlen);
+static void process_incoming_packet(struct cl_comms_socket *csock, struct msghdr *msg, int len);
 static int cl_sendack(struct cl_comms_socket *sock, unsigned short seq,
 		      int addr_len, char *addr, unsigned char remport,
 		      unsigned char flag);
@@ -265,13 +265,15 @@ static int receive_message(struct cl_comms_socket *csock, char *iobuf)
 	len = sock_recvmsg(csock->sock, &msg, MAX_CLUSTER_MESSAGE, MSG_DONTWAIT);
 	set_fs(fs);
 
+	iov.iov_base = iobuf;
+
 	if (len > 0) {
 		if (len > MAX_CLUSTER_MESSAGE) {
 			printk(KERN_CRIT CMAN_NAME
 			       ": %d byte message far too big\n", len);
 			return 0;
 		}
-		send_to_userport(csock, iobuf, len, msg.msg_name, msg.msg_namelen);
+		process_incoming_packet(csock, &msg, len);
 	}
 	else {
 		if (len != -EAGAIN)
@@ -653,134 +655,31 @@ static int valid_addr_for_node(struct cluster_node *node, char *addr)
 	return 0; /* FALSE */
 }
 
-static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
-			     char *addr, int addrlen)
+/* TODO use kvec */
+static void memcpy_fromkvec(void *data, struct iovec *iov, int len)
 {
+        while (len > 0) {
+                if (iov->iov_len) {
+                        int copy = min_t(unsigned int, len, iov->iov_len);
+                        memcpy(data, iov->iov_base, copy);
+                        len -= copy;
+                        data += copy;
+                        iov->iov_base += copy;
+                        iov->iov_len -= copy;
+                }
+                iov++;
+        }
+}
+
+static int send_to_user_port(struct cl_comms_socket *csock,
+			     struct cl_protheader *header,
+			     struct msghdr *msg, struct iovec *iov,
+			     int len)
+{
+	struct sk_buff *skb;
 	int err;
-	struct cl_protheader *header = (struct cl_protheader *) data;
-	struct cluster_node *rem_node =
-	    find_node_by_nodeid(le32_to_cpu(header->srcid));
-	struct sk_buff *skb = NULL;
 
-	P_COMMS
-	    ("seen message, from %d for %d, sequence num = %d, rem_node=%p, state=%d\n",
-	     le32_to_cpu(header->srcid), le32_to_cpu(header->tgtid),
-	     le16_to_cpu(header->seq), rem_node,
-	     rem_node ? rem_node->state : -1);
-
-	/* If the remote end is being coy about its node ID then look it up by
-	 * address */
-	if (!rem_node && header->srcid == 0) {
-		rem_node = find_node_by_addr(addr, addrlen);
-	}
-
-	/* If this node is an ex-member then treat it as unknown */
-	if (rem_node && rem_node->state != NODESTATE_MEMBER
-	    && rem_node->state != NODESTATE_JOINING)
-		rem_node = NULL;
-
-	/* Ignore messages not for our cluster */
-	if (le16_to_cpu(header->cluster) != cluster_id) {
-		P_COMMS("Dumping message - wrong cluster ID (us=%d, msg=%d)\n",
-			cluster_id, header->cluster);
-		goto userport_finish;
-	}
-
-	/* If the message is from us then just dump it */
-	if (rem_node && rem_node->us)
-		goto userport_finish;
-
-	/* If we can't find the nodeid then check for our own messages the hard
-	 * way - this only happens during joining */
-	if (!rem_node) {
-		struct list_head *socklist;
-		struct cl_comms_socket *clsock;
-
-		list_for_each(socklist, &socket_list) {
-			clsock =
-			    list_entry(socklist, struct cl_comms_socket, list);
-
-			if (clsock->recv_only) {
-
-				if (memcmp(addr, &clsock->saddr, address_length) == 0) {
-					goto userport_finish;
-				}
-			}
-		}
-
-	}
-
-	/* Ignore messages not for us */
-	if (le32_to_cpu(header->tgtid) > 0 && us
-	    && le32_to_cpu(header->tgtid) != us->node_id) {
-		goto userport_finish;
-	}
-
-	P_COMMS("got message, from %d for %d, sequence num = %d\n",
-		le32_to_cpu(header->srcid), le32_to_cpu(header->tgtid),
-		le16_to_cpu(header->seq));
-
-	if (header->ack && rem_node) {
-		process_ack(rem_node, header->ack);
-	}
-
-        /* Have we received this message before ? If so just ignore it, it's a
-	 * resend for someone else's benefit */
-	if (!(header->flags & (MSG_NOACK >> 16)) &&
-	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
-		P_COMMS
-		    ("Discarding message - Already seen this sequence number %d\n",
-		     rem_node->last_seq_recv);
-		/* Still need to ACK it though, in case it was the ACK that got
-		 * lost */
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
-		goto userport_finish;
-	}
-
-	/* Check that the message is from the node we think it is from */
-	if (rem_node && !valid_addr_for_node(rem_node, addr)) {
-		return;
-	}
-
-	/* If it's a new node then assign it a temporary node ID */
-	if (!rem_node)
-		header->srcid = cpu_to_le32(new_temp_nodeid(addr, addrlen));
-
-	P_COMMS("Got message: flags = %x, port = %d, we_are_a_member = %d\n",
-		header->flags, header->port, we_are_a_cluster_member);
-
-
-	/* If we are not part of the cluster then ignore multicast messages
-	 * that need an ACK as we will confuse the sender who is only expecting
-	 * ACKS from bona fide members */
-	if (header->flags & (MSG_MULTICAST >> 16) &&
-	    !(header->flags & (MSG_NOACK >> 16)) && !we_are_a_cluster_member) {
-		P_COMMS
-		    ("Discarding message - multicast and we are not a cluster member. port=%d flags=%x\n",
-		     header->port, header->flags);
-		goto userport_finish;
-	}
-
-	/* Save the sequence number of this message so we can ignore duplicates
-	 * (above) */
-	if (!(header->flags & (MSG_NOACK >> 16)) && rem_node) {
-		P_COMMS("Saving seq %d for node %s\n", le16_to_cpu(header->seq),
-			rem_node->name);
-		rem_node->last_seq_recv = le16_to_cpu(header->seq);
-	}
-
-	/* Is it a protocol message? */
-	if (header->port == 0) {
-		process_cnxman_message(csock, data, len, addr, addrlen,
-				       rem_node);
-		goto userport_finish;
-	}
-
-	/* Skip past the header to the data */
-	data += sizeof (struct cl_protheader);
-	len -= sizeof (struct cl_protheader);
-
-	/* Get the port number and look for a listener */
+        /* Get the port number and look for a listener */
 	down(&port_array_lock);
 	if (port_array[header->port]) {
 		int native_srcid;
@@ -790,16 +689,33 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		if (!(header->flags & (MSG_NOACK >> 16)) &&
 		    !(header->flags & (MSG_REPLYEXP >> 16))) {
 
-			cl_sendack(csock, header->seq, addrlen, addr,
-				   header->port, 0);
+			cl_sendack(csock, header->seq, msg->msg_namelen,
+				   msg->msg_name, header->port, 0);
 		}
 
 		/* Call a callback if there is one */
 		if (c->kernel_callback) {
 			up(&port_array_lock);
-			c->kernel_callback(data, len, addr, addrlen,
-					   le32_to_cpu(header->srcid));
-			goto userport_finish;
+			if (msg->msg_iovlen == 1) {
+				c->kernel_callback(iov->iov_base,
+						   iov->iov_len,
+						   msg->msg_name, msg->msg_namelen,
+						   le32_to_cpu(header->srcid));
+
+			}
+			else { /* Unroll iov, this Hardly ever Happens */
+				char *data;
+				data = kmalloc(len, GFP_KERNEL);
+				if (!data)
+					return -ENOMEM;
+
+				memcpy_fromkvec(data, iov, len);
+				c->kernel_callback(data, len,
+						   msg->msg_name, msg->msg_namelen,
+						   le32_to_cpu(header->srcid));
+				kfree(data);
+			}
+			return len;
 		}
 
 		/* Otherwise put it into an SKB and pass it onto the recvmsg
@@ -809,11 +725,11 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 			up(&port_array_lock);
 			printk(KERN_INFO CMAN_NAME
 			       ": Failed to allocate skb\n");
-			return;
+			return -ENOMEM;
 		}
 
 		skb_put(skb, len);
-		memcpy(skb->data, data, len);
+		memcpy_fromkvec(skb->data, iov, len);
 
 		/* Put the nodeid into cb so we can pass it to the clients */
 		skb->cb[0] = 0; /* Clear flags */
@@ -842,14 +758,149 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		/* ACK it, but set the flag bit so remote end knows no-one
 		 * caught it */
 		if (!(header->flags & (MSG_NOACK >> 16)))
-			cl_sendack(csock, header->seq, addrlen, addr,
+			cl_sendack(csock, header->seq,
+				   msg->msg_namelen, msg->msg_name,
 				   header->port, 1);
 
 		/* Nobody listening, drop it */
 		up(&port_array_lock);
 	}
+	return len;
+}
 
-      userport_finish:
+/* NOTE: This routine knows (assumes!) that there is only one
+   iov element passed into it. */
+static void process_incoming_packet(struct cl_comms_socket *csock,
+				    struct msghdr *msg, int len)
+{
+	char *data = msg->msg_iov->iov_base;
+	char *addr = msg->msg_name;
+	int addrlen = msg->msg_namelen;
+	struct cl_protheader *header = (struct cl_protheader *) data;
+	struct cluster_node *rem_node =
+		find_node_by_nodeid(le32_to_cpu(header->srcid));
+
+	P_COMMS("seen message, from %d for %d, sequence num = %d, rem_node=%p, state=%d\n",
+	     le32_to_cpu(header->srcid), le32_to_cpu(header->tgtid),
+	     le16_to_cpu(header->seq), rem_node,
+	     rem_node ? rem_node->state : -1);
+
+	/* If the remote end is being coy about its node ID then look it up by
+	 * address */
+	if (!rem_node && header->srcid == 0) {
+		rem_node = find_node_by_addr(addr, addrlen);
+	}
+
+	/* If this node is an ex-member then treat it as unknown */
+	if (rem_node && rem_node->state != NODESTATE_MEMBER
+	    && rem_node->state != NODESTATE_JOINING)
+		rem_node = NULL;
+
+	/* Ignore messages not for our cluster */
+	if (le16_to_cpu(header->cluster) != cluster_id) {
+		P_COMMS("Dumping message - wrong cluster ID (us=%d, msg=%d)\n",
+			cluster_id, header->cluster);
+		goto incoming_finish;
+	}
+
+	/* If the message is from us then just dump it */
+	if (rem_node && rem_node->us)
+		goto incoming_finish;
+
+	/* If we can't find the nodeid then check for our own messages the hard
+	 * way - this only happens during joining */
+	if (!rem_node) {
+		struct list_head *socklist;
+		struct cl_comms_socket *clsock;
+
+		list_for_each(socklist, &socket_list) {
+			clsock =
+			    list_entry(socklist, struct cl_comms_socket, list);
+
+			if (clsock->recv_only) {
+
+				if (memcmp(addr, &clsock->saddr, address_length) == 0) {
+					goto incoming_finish;
+				}
+			}
+		}
+
+	}
+
+	/* Ignore messages not for us */
+	if (le32_to_cpu(header->tgtid) > 0 && us
+	    && le32_to_cpu(header->tgtid) != us->node_id) {
+		goto incoming_finish;
+	}
+
+	P_COMMS("got message, from %d for %d, sequence num = %d\n",
+		le32_to_cpu(header->srcid), le32_to_cpu(header->tgtid),
+		le16_to_cpu(header->seq));
+
+	if (header->ack && rem_node) {
+		process_ack(rem_node, header->ack);
+	}
+
+        /* Have we received this message before ? If so just ignore it, it's a
+	 * resend for someone else's benefit */
+	if (!(header->flags & (MSG_NOACK >> 16)) &&
+	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
+		P_COMMS
+		    ("Discarding message - Already seen this sequence number %d\n",
+		     rem_node->last_seq_recv);
+		/* Still need to ACK it though, in case it was the ACK that got
+		 * lost */
+		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		goto incoming_finish;
+	}
+
+	/* Check that the message is from the node we think it is from */
+	if (rem_node && !valid_addr_for_node(rem_node, addr)) {
+		return;
+	}
+
+	/* If it's a new node then assign it a temporary node ID */
+	if (!rem_node)
+		header->srcid = cpu_to_le32(new_temp_nodeid(addr, addrlen));
+
+	P_COMMS("Got message: flags = %x, port = %d, we_are_a_member = %d\n",
+		header->flags, header->port, we_are_a_cluster_member);
+
+
+	/* If we are not part of the cluster then ignore multicast messages
+	 * that need an ACK as we will confuse the sender who is only expecting
+	 * ACKS from bona fide members */
+	if (header->flags & (MSG_MULTICAST >> 16) &&
+	    !(header->flags & (MSG_NOACK >> 16)) && !we_are_a_cluster_member) {
+		P_COMMS
+		    ("Discarding message - multicast and we are not a cluster member. port=%d flags=%x\n",
+		     header->port, header->flags);
+		goto incoming_finish;
+	}
+
+	/* Save the sequence number of this message so we can ignore duplicates
+	 * (above) */
+	if (!(header->flags & (MSG_NOACK >> 16)) && rem_node) {
+		P_COMMS("Saving seq %d for node %s\n", le16_to_cpu(header->seq),
+			rem_node->name);
+		rem_node->last_seq_recv = le16_to_cpu(header->seq);
+	}
+
+	/* Is it a protocol message? */
+	if (header->port == 0) {
+		process_cnxman_message(csock, data, len, addr, addrlen,
+				       rem_node);
+		goto incoming_finish;
+	}
+
+	/* Skip past the header to the data */
+	msg->msg_iov[0].iov_base = data + sizeof (struct cl_protheader);
+	msg->msg_iov[0].iov_len -= sizeof (struct cl_protheader);
+	len -= sizeof (struct cl_protheader);
+
+	send_to_user_port(csock, header, msg, msg->msg_iov, len);
+
+      incoming_finish:
 	return;
 }
 
@@ -1840,7 +1891,7 @@ static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
 	int result;
 	struct iovec save_vectors[msg->msg_iovlen];
 
-	/* Save a copy of the IO vectors as send_msg mucks around with them and
+	/* Save a copy of the IO vectors as sendmsg mucks around with them and
 	 * we may want to send the same stuff out more than once (for different
 	 * interfaces)
 	 */
@@ -2163,7 +2214,16 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	our_msg.msg_iovlen = msg->msg_iovlen + 1;
 	our_msg.msg_iov = vectors;
 
-	/* Work out how many ACKS are wanted - *don't* reset acks_expected to
+	/* Loopback shortcut. */
+	if (nodeid == us->node_id && nodeid != 0) {
+
+		up(&send_lock);
+		header.flags |= (MSG_NOACK >> 16); /* Don't ack it! */
+
+		return send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
+	}
+
+        /* Work out how many ACKS are wanted - *don't* reset acks_expected to
 	 * zero if no acks are required as an ACK-needed message may still be
 	 * outstanding */
 	if (!(msg->msg_flags & MSG_NOACK)) {
@@ -2226,17 +2286,20 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 		}
 	}
 
+	/* if the client wants a broadcast message sending back to itself
+	   then loop it back */
+	if (nodeid == 0 && (flags & MSG_BCASTSELF)) {
+		header.flags |= (MSG_NOACK >> 16); /* Don't ack it! */
+
+		result = send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
+	}
+
 	/* Save a copy of the message if we're expecting an ACK */
 	if (!(flags & MSG_NOACK) && acks_expected) {
-		mm_segment_t fs;
 		struct cl_protheader *savhdr = (struct cl_protheader *) saved_msg_buffer;
 
-		fs = get_fs();
-		set_fs(get_ds());
-
-		memcpy_fromiovec(saved_msg_buffer, our_msg.msg_iov,
-				 size + sizeof (header));
-		set_fs(fs);
+		memcpy_fromkvec(saved_msg_buffer, our_msg.msg_iov,
+				size + sizeof (header));
 
 		saved_msg_len = size + sizeof (header);
 		retry_count = ack_count = 0;
