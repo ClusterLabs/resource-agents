@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.312 $) dnl cvs revision
+AC_REVISION($Revision: 1.313 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -47,6 +47,31 @@ esac
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
+
+
+MISSINGTHINGS=""
+
+FatalMissingThing() {
+  if test X"$MISSINGTHINGS" = X; then
+    MISSINGTHINGS="$MISSINGTHINGS $1"
+  else
+    MISSINGTHINGS="$MISSINGTHINGS, $1"
+  fi
+  shift
+  for j in "$@"
+  do
+    AC_MSG_RESULT(configure: ERROR: $j ============)
+  done
+}
+CheckMissingThings() {
+  if
+    test "X$MISSINGTHINGS" != "X"
+  then
+    AC_MSG_ERROR(The following required components noted earlier are missing:
+    $MISSINGTHINGS
+    Please supply them and try again.)
+  fi
+}
 
 dnl
 dnl
@@ -148,9 +173,9 @@ AM_PROG_LEX
 AC_CHECK_PROG(MAKE, gmake, gmake, make)
 AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
-        AC_MSG_ERROR(You need gmake to build heartbeat.
-      You can get the source from ftp://www.gnu.org/pub/gnu/
-      or you can locate it via http://www.gnu.org/software/make/)
+      FatalMissingThing "gmake" "You need gmake to build heartbeat." \
+		"You can get the source from ftp://www.gnu.org/pub/gnu/" \
+      		"or you can locate it via http://www.gnu.org/software/make/"
 else
       AC_MSG_RESULT("$MAKE has been found.")
 fi
@@ -213,7 +238,10 @@ dnl - Checking for a unique function of ex2fs vs ossd
 AC_CHECK_LIB(uuid, uuid_parse) 			dnl - In e2fsprog only.
 
 if test "$ac_cv_lib_uuid_uuid_parse" != yes; then
-	AC_MSG_ERROR(e2fsprogs uuid library is required)
+	FatalMissingThing "e2fsprogs uuid library"	\
+	"e2fsprogs uuid library is required"		\
+	"On Linux this is the e2fsprogs-devel package"	\
+	"See also http://sourceforge.net/projects/e2fsprogs/"
 fi
 
 AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
@@ -236,9 +264,10 @@ AC_PATH_PROGS(GLIBCONFIG, glib13-config)
 fi
 
 if test "X${GLIBCONFIG}" = "X"; then
-      AC_MSG_ERROR(You need the glib development package to continue.
-      You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
-      or you can locate it via http://www.gtk.org/download/)
+      FatalMissingThing "glib 1.x"		\
+      	"	You need the glib 1.x development package to continue." \
+      	"You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/" \
+      	"or you can locate it via http://www.gtk.org/download/"
 fi
 AC_MSG_RESULT("using $GLIBCONFIG")
 
@@ -248,7 +277,10 @@ if test x"${LIBNETCONFIG}" = x""; then
       dnl The old version of the API REQUIRES $LIBNETCONFIG
       dnl so we can only deal with new API unless we have it.
       AC_CHECK_LIB(net, libnet_get_hwaddr, [],
-      [AC_MSG_ERROR(You need libnet to continue.  You can get libnet from http://www.packetfactory.net/libnet Note that some RPMs split libnet up into libnet and libnet-devel. In this case you have to install libnet-devel)])
+      [FatalMissingThing "libnet" "You need libnet to continue."			\
+		"You can get libnet from http://www.packetfactory.net/libnet"		\
+		"Note that some RPMs split libnet up into libnet and libnet-devel."	\
+		"In this case you have to install libnet-devel"])
       LIBNETDEFINES=""
       LIBNETLIBS=" -lnet"
       if test "$ac_cv_lib_nsl_t_open" = yes; then
@@ -275,12 +307,7 @@ if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
 elif test "$ac_cv_lib_uuid_uuid_create" = yes; then
 	AC_MSG_RESULT(using ossp uuid functionality)
 else
-	AC_MSG_RESULT(no UUID functuionality found)
-	if test "$enable_crm" = yes -o "$enable_lrm" = yes; then
-		AC_MSG_ERROR("UUID needed for CRM/LRM");
-	else
-		AC_MSG_WARN("UUID needed for CRM/LRM");
-	fi
+	FatalMissingThing "uuid capability" "Required UUID capability"
 fi
 
 AC_SUBST(LIBNETDEFINES)
@@ -308,7 +335,7 @@ fi
 
 if test X${PING} = X
 then
-  AC_MSG_ERROR(ping command is mandantory)
+  FatalMissingThing "ping" "ping command is mandantory"
 fi
 
 dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
@@ -414,7 +441,7 @@ LOCALE=`FindADir error "locale" $locale_locations`
 if
   test  "X$LOCALE" = X
 then
-  AC_MSG_ERROR(Locale directory is mandantory.)
+  FatalMissingThing "Locale directory" "Locale directory is mandantory."
 fi
 
 RPMDIR=`FindADir warn "RPM" /usr/src/packages /usr/src/redhat`
@@ -485,7 +512,7 @@ elif test -f /sw/lib/libintl.a -a -s /sw/lib/libintl.la -a -s /sw/lib/libintl.dy
 	# This was added for Darwin + Fink
 	LIBADD_INTL="-lintl"
 else
-	AC_MSG_ERROR(no library providing gettext found)
+	FatalMissingThing "gettext function" "no library providing gettext found"
 fi
 
 dnl
@@ -523,7 +550,7 @@ AC_CHECK_HEADERS(stdarg.h)
 AC_CHECK_HEADERS(tcpd.h)
 
 AC_CHECK_HEADERS(uuid.h)
-AC_CHECK_HEADERS(uuid/uuid.h, [],[AC_MSG_ERROR(uuid/uuid.h not found)])
+AC_CHECK_HEADERS(uuid/uuid.h, [],[FatalMissingThing "uuid/uuid.h" "uuid/uuid.h not found"])
 
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
@@ -1032,7 +1059,7 @@ AC_ARG_WITH(initdir,
 if
   test "X$INITDIR" = X
 then
-  AC_MSG_ERROR(Could not locate init directory)
+  FatalMissingThing "init directory" "Could not locate init directory"
 fi
 AC_SUBST(INITDIR)
 
@@ -1690,6 +1717,8 @@ XPERIMENTALDIRS=""
 AC_SUBST(XPERIMENTALDIRS)
 
 AC_CONFIG_SUBDIRS(libltdl)
+
+CheckMissingThings
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(heartbeat.spec 					\
