@@ -660,35 +660,17 @@ static void do_ls_recovery(struct dlm_ls *ls)
 int dlm_recoverd(void *arg)
 {
 	struct dlm_ls *ls = arg;
-	int recover = 1;
 
 	hold_lockspace(ls);
 
-	for (;;) {
-		if (recover)
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (!test_bit(LSFL_WORK, &ls->ls_flags))
+			schedule();
+		set_current_state(TASK_RUNNING);
+
+		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags))
 			do_ls_recovery(ls);
-		else {
-			set_current_state(TASK_INTERRUPTIBLE);
-			if (!test_bit(LSFL_WORK, &ls->ls_flags))
-				schedule();
-			set_current_state(TASK_RUNNING);
-		}
-		msleep(500);
-
-		down(&ls->ls_recoverd_lock);
-		recover = 1;
-
-		if (!test_bit(LSFL_WORK, &ls->ls_flags)) {
-			if (ls->ls_state == LSST_CLEAR ||
-			    test_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags)) {
-				ls->ls_recoverd_task = NULL;
-				up(&ls->ls_recoverd_lock);
-				break;
-			}
-			recover = 0;
-		}
-		clear_bit(LSFL_WORK, &ls->ls_flags);
-		up(&ls->ls_recoverd_lock);
 	}
 
 	put_lockspace(ls);
@@ -697,48 +679,26 @@ int dlm_recoverd(void *arg)
 
 void dlm_recoverd_kick(struct dlm_ls *ls)
 {
-	struct task_struct *p;
-
-	down(&ls->ls_recoverd_lock);
-
-	if (test_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags)) {
-		log_error(ls, "recoverd_kick after exit\n");
-		goto out;
-	}
-
-	if (ls->ls_recoverd_task == NULL && test_bit(LSFL_WORK, &ls->ls_flags))
-		log_error(ls, "recoverd_kick error\n");
-
 	set_bit(LSFL_WORK, &ls->ls_flags);
+	wake_up_process(ls->ls_recoverd_task);
+}
 
-	if (!ls->ls_recoverd_task) {
-	    	p = kthread_run(dlm_recoverd, (void *) ls, "dlm_recoverd");
-		if (IS_ERR(p)) {
-			log_error(ls, "can't start dlm_recoverd %ld",
-				  PTR_ERR(p));
-			goto out;
-		}
-		ls->ls_recoverd_task = p;
-	} else
-		wake_up_process(ls->ls_recoverd_task);
- out:
-	up(&ls->ls_recoverd_lock);
+int dlm_recoverd_start(struct dlm_ls *ls)
+{
+	struct task_struct *p;
+	int error = 0;
+
+	p = kthread_run(dlm_recoverd, ls, "dlm_recoverd");
+	if (IS_ERR(p))
+		error = PTR_ERR(p);
+	else
+                ls->ls_recoverd_task = p;
+	return error;
 }
 
 void dlm_recoverd_stop(struct dlm_ls *ls)
 {
-	set_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags);
-
-	for (;;) {
-		down(&ls->ls_recoverd_lock);
-		if (!ls->ls_recoverd_task) {
-			up(&ls->ls_recoverd_lock);
-			break;
-		}
-		wake_up_process(ls->ls_recoverd_task);
-		up(&ls->ls_recoverd_lock);
-		msleep(1000);
-	}
+	kthread_stop(ls->ls_recoverd_task);
 }
 
 void dlm_recoverd_suspend(struct dlm_ls *ls)

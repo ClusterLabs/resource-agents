@@ -324,7 +324,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_num_nodes = 0;
 	ls->ls_node_array = NULL;
 	ls->ls_recoverd_task = NULL;
-	init_MUTEX(&ls->ls_recoverd_lock);
 	init_MUTEX(&ls->ls_recoverd_active);
 	INIT_LIST_HEAD(&ls->ls_recover);
 	spin_lock_init(&ls->ls_recover_lock);
@@ -350,6 +349,11 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	if (flags & DLM_LSF_NOTIMERS)
 		set_bit(LSFL_NOTIMERS, &ls->ls_flags);
 
+	error = dlm_recoverd_start(ls);
+	if (error) {
+		log_error(ls, "can't start dlm_recoverd %d", error);
+		goto out_dirfree;
+	}
 
 	/*
 	 * Connect this lockspace with the cluster manager
@@ -389,6 +393,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	kcl_unregister_service(ls->ls_local_id);
  out_recoverd:
 	dlm_recoverd_stop(ls);
+ out_dirfree:
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
 	kfree(ls->ls_lkbtbl);
