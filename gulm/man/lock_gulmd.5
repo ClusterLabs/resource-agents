@@ -80,56 +80,54 @@ Default is 1.
 .in -7
 
 
-
 .sp
 .in -7
 
 \fBEXAMPLES\fP
 .in +7
 
-Simple three node cluster with manual fencing.
+Using IPv4 addresses:
 
-  <?xml version="1.0"?>
   <cluster name="example" config_version="1">
   
     <gulm>
-      <lockserver name="nd01"/>
-      <lockserver name="nd02"/>
-      <lockserver name="nd03"/>
+      <lockserver name="192.168.1.1"/>
+      <lockserver name="192.168.1.2"/>
+      <lockserver name="192.168.1.3"/>
     </gulm>
   
-    <clusternodes>
-      <clusternode name="nd01">
-        <fence>
-          <method name="single">
-            <device name="human" ipaddr="nd01"/>
-          </method>
-        </fence>
-      </clusternode>
-  
-      <clusternode name="nd02">
-        <fence>
-          <method name="single">
-            <device name="human" ipaddr="nd02"/>
-          </method>
-        </fence>
-      </clusternode>
-  
-      <clusternode name="nd03">
-        <fence>
-          <method name="single">
-            <device name="human" ipaddr="nd03"/>
-          </method>
-        </fence>
-      </clusternode>
-    </clusternodes>
-  
-    <fencedevices>
-      <fencedevice name="human" agent="fence_manual"/>
-    </fencedevices>
+    <!-- other require sections covered elsewhere -->
   
   </cluster>
 
+
+Using IPv6 addresses: (while still being on a IPv4 network)
+
+  <cluster name="example" config_version="1">
+  
+    <gulm>
+      <lockserver name="::ffff:192.168.1.1"/>
+      <lockserver name="::ffff:192.168.1.2"/>
+      <lockserver name="::ffff:192.168.1.3"/>
+    </gulm>
+  
+    <!-- other require sections covered elsewhere -->
+  
+  </cluster>
+
+Using node names, these are looked up with libresolv to get IPs:
+
+  <cluster name="example" config_version="1">
+  
+    <gulm>
+      <lockserver name="node01"/>
+      <lockserver name="node02"/>
+      <lockserver name="node03"/>
+    </gulm>
+  
+    <!-- other require sections covered elsewhere -->
+  
+  </cluster>
 
 
 

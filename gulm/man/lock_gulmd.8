@@ -13,7 +13,7 @@ lock_gulmd - Grand Unified Lock Manager
 .in -7
 \fBSYNOPSIS\fP
 .in +7
-\fBlock_gulmd\fP
+\fBlock_gulmd\fP --cluster_name <string> [options]
 .sp
 .in -7
 
@@ -44,9 +44,10 @@ via the \fIlt_partitions\fR option in the configuration.
 \fBOPTIONS\fP
 
 You can completely configure gulm from the command line.  If you do this, you
-need to use the same options on every node in the cluster.  None of the options
-are required if you use \fBccsd\fP for the configuration.  Otherwise
-\fB--cluster_name\fP and \fB--servers\fP are required.
+need to use the same options on every node in the cluster.  You should
+always specify the \fB--cluster_name\fP option, and then either the
+\fB--use_ccs\fP or the \fB--servers\fP options.  Then other options should
+follow.
 
 .in +7
 \fB-h --help\fP
@@ -130,6 +131,9 @@ ReallyAll flag.)
 Do not use ReallyAll unless you are willing to deal with 100M and larger
 log files.  A loaded system can produce up to a megabyte a minute with the
 ReallyAll flag.
+
+The verbose flags can be changed while \fBlock_gulmd\fP is running with
+\fBgulm_tool\fP.
 
 Default is Default.  (witty no?)
 
@@ -233,8 +237,8 @@ User to switch into and run as.  Default is root. (which is not good.)
 .in -7
 \fB--lock_dir\fP \fIstring\fR
 .in +7
-The directory to place and store the pid lock files.  Does NOT create this
-directory.  Default is /var/run/sistina/
+The directory to place and store the pid lock files.
+Default is /var/run/sistina/
 
 .sp
 .in -7
@@ -246,6 +250,29 @@ preformance on servers with multiple CPUs.  Generally, you don't need it.  (very
 few work loads on GFS acutally generate enough lock traffic for this to make a
 difference.)
 Default is 1. 
+
+.sp
+.in -7
+\fB--name\fP \fIstring\fR
+.in +7
+Set the name of this gulm server to \fIstring\fR instead of the default.
+Default is output of `uname -n`.
+
+.sp
+.in -7
+\fB--ip\fP \fIip addr\fR
+.in +7
+Set the IP of this gulm server to \fIip addr\fR instead of trying to
+resolve it from the name.
+Default is to resolve this gulm servers name into an IP.
+
+.sp
+.in -7
+\fB--ifdev\fP \fInetwork device name\fR
+.in +7
+Use the IP that is configured for this \fInetwork device name\fR. If there
+is an IPv6 address, that is used.  Otherwise the IPv4 will be used.
+No default.
 
 .sp
 .in -7
@@ -296,38 +323,43 @@ know what to do with them.
 
 .in -7
 
-\fBEXAMPLE\fP
+
+\fBPRIVATE NETWORKS\fP
 .in +7
-With all of the configuration in \fBCCS\fP, there are not many options that
-this daemon takes at start.  You must have the \fBCCS\fP system up and
-running before you start \fBlock_gulmd\fP.
 
-The command to start \fBlock_gulmd\fP is just:
-.in +3
-lock_gulmd
-.in -3
+Getting gulm to use a private network is a matter of not relying on IP
+lookups.  Sepcify all of the <lockserver/> entries with IP addresses.  Then
+when starting lock_gulmd, make use of either the --ip option or the --ifdev
+option.
 
-This adds the following two flags to the default set:
-.in +3
-lock_gulmd -v "Heartbeat,Locking"
-.in -3
+.sp
+.in -7
+
+
+\fBEXAMPLES\fP
+.in +7
+
+When using ccs to configure gulm, start the daemon with:
+  lock_gulmd --cluster_name foo --use_ccs
+
+or:
+  lock_gulmd -n foo -c
+
+\fBlock_gulmd\fP can be run without CCS:
+  lock_gulmd -n foo -s 192.168.1.1,192.168.1.2,192.168.1.3
+
+This adds the following two verbose flags to the default set:
+  lock_gulmd -n foo -c -v "Heartbeat,Locking"
 
 Show only the Network messages:
-.in +3
-lock_gulmd -v "clear,Network"
-.in -3
-or
-.in +3
-lock_gulmd -v "-Fencing,-Forking"
-.in -3
+  lock_gulmd -n foo -c -v "clear,Network"
+
+Use the ip on the second ethernet device, and call me bar:
+  lock_gulmd -n foo -c --name bar --ifdev eth1
 
 Stopping the server:
-.in +3
-gulm_tool shutdown localhost
-.in -3
+  gulm_tool shutdown localhost
 
-The verbose flags can be changed while \fBlock_gulmd\fP is running with
-\fBgulm_tool\fP.
 .in -7
 
 \fBFILES\fP
@@ -340,9 +372,6 @@ The verbose flags can be changed while \fBlock_gulmd\fP is running with
 .in +7
 These are the pid lock files to keep more than one instance of the servers
 running per node.  They can be put elsewhere via a configuration option.
-
-\fBlock_gulmd\fP does not create the \fIsistina\fR directory in the
-\fI/var/run/\fR directory.
 
 .in -7
 .in -7
