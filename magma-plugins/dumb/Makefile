@@ -21,6 +21,7 @@ TARGETS  = magma_dumb.so
 all: $(TARGETS)
 
 install: all
+	
 
 uninstall:
 

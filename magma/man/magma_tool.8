@@ -1,0 +1,168 @@
+.\"  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'magma_tool(8)''magma_tool(8)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 ccs_tool.8 | less'
+
+\fBNAME\fP
+.in +7
+magma_tool - Magma API test program
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBmagma_tool\fP <\fBcommand\fP>
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+\fBmagma_tool\fP is part of the Magma cluster API abstraction library.
+Its primary purpose is for API debugging and tweaking; it does not control
+anything and has no configuration information to speak of.
+
+.sp
+.in
+\fBOPTIONS\fP
+.in +7
+\fB-h\fP
+.in +7
+Help.  Print out the usage.
+.sp
+.in
+
+.in -7
+\fBPLUGIN COMMANDS\fP
+.in +7
+\fBlist\fP
+.in +7
+This command is used to list plugins and other files in Magma's plugin
+directory and whether or not they are legal plugins.  This will list all
+non-directory files in Magma's plugin directory, whether or not they are
+legal plugins, and why.
+
+.sp
+.in
+\fBenable\fP \fI<filename>\fP
+.in +7
+This command is used to enable a plugin in Magma's plugin directory.
+It is synonymous with "chmod u+r <filename>".  Files without in the
+plugin directory without the user-readable bit set (S_IRUSR) are ignored.
+
+.sp
+.in
+\fBdisable\fP \fI<filename>\fP
+.in +7
+This command is used to disable a plugin in Magma's plugin directory.
+It is synonymous with "chmod u+r <filename>".  Files without in the
+plugin directory without the user-readable bit set (S_IRUSR) are ignored.
+
+.sp
+.in
+
+.in -7
+\fBAPI TEST COMMANDS\fP
+.in +7
+These commands may all be preceded by the option \fIlogin\fP.  If specified,
+magma_tool will log in to the service/node group on cluster infrastructures
+where this notion is supported.
+
+.sp
+\fBlock\fP \fI[resource]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and acquire a clusterlock.  If \fI[resource]\fP is not
+specified, then the name "Something" is used.
+
+.sp
+.in
+\fBlisten\fP \fI[group]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and listen for events in the group \fI[group]\fP.  This
+is only useful with the \fIlogin\fP flag.
+
+.sp
+.in
+\fBlocalname\fP \fI[group]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and request the local node name, which it then displays.
+
+.sp
+.in
+\fBlocalid\fP \fI[group]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and request the local node ID, which it then displays.
+
+.sp
+.in
+\fBmembers\fP \fI[group]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and request the list of members, which it then displays.
+If \fI[group]\fP is specified, then only the members of the given service
+or node group are listed.
+
+.sp
+.in
+\fBquorum\fP \fI[group]\fP
+.in +7
+This causes magma_tool to connect to the underlying cluster infrastructure
+and/or lock manager and request the local node's quorum status as well as
+whether or not it is a member of \fI[group]\fP.
+
+
+.sp
+.in
+\fBconfig\fP \fI<item>\fP
+.in +7
+This displays compile-time information; see below.
+
+.sp
+.in
+
+.in -7
+\fBCONFIGURATION\fP
+.in +7
+\fBconfig cflags\fP
+.in +7
+Displays the compiler flags needed to build applications against Magma.
+
+.sp
+.in
+\fBconfig libs\fP
+.in +7
+Displays the compiler linker flags needed to build applications against
+Magma.
+
+.sp
+.in
+\fBconfig libs-nt\fP
+.in +7
+Displays the compiler linker flags needed to build applications against
+Magma's lightweight, mostly-reentrant library..
+
+.sp
+.in
+\fBconfig plugindir\fP
+.in +7
+Displays directory Magma uses for plugins.
+
+.sp
+.in
+\fBconfig libdir\fP
+.in +7
+Displays where Magma's dynamic libraries reside.
+
+.sp
+.in
+\fBconfig slibdir\fP
+.in +7
+Displays where Magma's static libraries reside.
+
+.sp
+.in

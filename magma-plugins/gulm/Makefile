@@ -22,11 +22,11 @@ TARGETS  = magma_gulm.so
 all: $(TARGETS)
 
 install: all
-	mkdir -p ${libdir}/magma
-	install -m 0755 $(TARGETS) ${libdir}/magma
+	mkdir -p ${plugindir}
+	install -m 0755 $(TARGETS) ${plugindir}
 
 uninstall:
-	${UNINSTALL} ${TARGETS} ${libdir}/magma
+	${UNINSTALL} ${TARGETS} ${plugindir}
 
 magma_gulm.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)

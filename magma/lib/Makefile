@@ -38,11 +38,12 @@ clean:
 
 install: all
 	install -d $(libdir)
+	install -d $(slibdir)
 
 	#
 	# Install high level magma libraries
 	#
-	install -m 0644 libmagma.a $(libdir)
+	install -m 0644 libmagma.a $(slibdir)
 	install -m 0644 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma.so; cd -
@@ -50,7 +51,7 @@ install: all
 	#
 	# Install low-overhead, non-pthread magma libraries
 	#
-	install -m 0644 libmagma_nt.a $(libdir)
+	install -m 0644 libmagma_nt.a $(slibdir)
 	install -m 0644 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma_nt.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma_nt.so; cd -
@@ -58,7 +59,7 @@ install: all
 	#
 	# Install high level TCP messaging libraries
 	#
-	install -m 0644 libmagmamsg.a $(libdir)
+	install -m 0644 libmagmamsg.a $(slibdir)
 	install -m 0644 libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagmamsg.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagmamsg.so; cd -

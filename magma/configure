@@ -27,9 +27,11 @@ $ret = 0;
         incdir => \$incdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
+	slibdir => \$slibdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
+	plugindir => \$plugindir,
 	verbose => \$verbose
 );
 
@@ -38,9 +40,11 @@ $err = &GetOptions (\%options,
 		    'incdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
+		    'slibdir=s',
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
+		    'plugindir=s',
 		    'sharedir=s',
 		    'verbose');
 
@@ -59,9 +63,11 @@ if ($help || !$err) {
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
+  print "--slibdir=\tthe base directory for static libraries.  (Default: /usr/lib\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
+  print "--plugindir=\tthe directory to search for plugins.  (Default: {libdir}/magma\n";
   print "--sharedir=\tthe base directory for misc cluster files.  (Default: /usr/share/cluster)\n";
   print "--verbose\t\tVerbose output\n";
   exit $ret;
@@ -77,6 +83,12 @@ if (!$incdir) {
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
+}
+if (!$slibdir) {
+  $slibdir="${prefix}/usr/lib";
+}
+if (!$plugindir) {
+  $plugindir="${libdir}/magma";
 }
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
@@ -100,6 +112,8 @@ while (<IFILE>) {
   $_ =~ s/\@INCDIR\@/$incdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
+  $_ =~ s/\@SLIBDIR\@/$slibdir/;
+  $_ =~ s/\@PLUGINDIR\@/$plugindir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;

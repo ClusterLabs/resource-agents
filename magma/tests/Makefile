@@ -16,10 +16,13 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 INCLUDE+= -I${top_srcdir}/lib
 LIBS     = -L${top_srcdir}/lib -lmagma -lmagmamsg -ldl -lpthread
 LIBSNT   = -L${top_srcdir}/lib -lmagma_nt -ldl
-TARGETS  = cpt cptester circleping cluster_cmd thread_test
-CFLAGS  += -DDEBUG -D_GNU_SOURCE
+TARGETS  = magma_tool circleping cluster_cmd
+TESTS    = cptester thread_test
+CFLAGS  += -DDEBUG -D_GNU_SOURCE -DPLUGINDIR=\"${plugindir}\" \
+	   -DINCDIR=\"${incdir}\" -DLIBDIR=\"${libdir}\" \
+	   -DSLIBDIR=\"${slibdir}\"
 
-all: $(TARGETS)
+all: $(TARGETS) $(TESTS)
 
 install: all
 	install -d ${sbindir}
@@ -34,7 +37,7 @@ circleping: circleping.o
 cluster_cmd: cluster_cmd.o
 	$(CC) -o $@ $^ $(LIBS)
 
-cpt: cpt.o
+magma_tool: magma_tool.o
 	$(CC) -o $@ $^ $(LIBS) -ggdb
 
 cptester: cptester.o
@@ -48,5 +51,5 @@ thread_test: thread_test.o
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS) -ggdb
 
 clean:
-	rm -f *o *~ *.so $(TARGETS)
+	rm -f *o *~ *.so $(TARGETS) $(TESTS)
 

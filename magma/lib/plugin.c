@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <unistd.h>
 
 /**
   Unimplemented stub s_null function for plugins
@@ -200,8 +201,10 @@ read_dirnames_sorted(char *directory, char ***dirnames)
 	/* Malloc the entries */
 	*dirnames = malloc(sizeof(char *) * (count+1));
 	if (!*dirnames) {
-		fprintf(stderr, "%s: Failed to malloc %d bytes",
-			__FUNCTION__, (int)(sizeof(char *) * (count+1)));
+#ifdef DEBUG
+		printf("Magma: %s: Failed to malloc %d bytes",
+		       __FUNCTION__, (int)(sizeof(char *) * (count+1)));
+#endif
 		closedir(dir);
 		errno = ENOMEM;
 		return -1;
@@ -216,7 +219,10 @@ read_dirnames_sorted(char *directory, char ***dirnames)
 
 		(*dirnames)[x] = strdup(filename);
 		if (!(*dirnames)[x]) {
-			fprintf(stderr, "Failed to duplicate %s\n", filename);
+#ifdef DEBUG
+			printf("Magma: Failed to duplicate %s\n",
+			       filename);
+#endif
 			free_dirnames(*dirnames);
 			closedir(dir);
 			errno = ENOMEM;
@@ -262,6 +268,9 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 		return -1;
 	}
 
+#ifdef DEBUG
+	printf("Magma: Trying plugins in %s\n", PLUGINDIR);
+#endif
 	if (read_dirnames_sorted(PLUGINDIR, &filenames) != 0) {
 		return -1;
 	}
@@ -274,6 +283,7 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 		++found;
 
 #ifdef DEBUG
+		printf("Magma: Trying %s: ", filename[fcount]);
 		cp_null(cp);
 		fflush(stdout);
 #endif
@@ -303,15 +313,51 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 
 		*cpp = cp;
 		free_dirnames(filenames);
+
+#ifdef DEBUG
+		printf("Magma: Connected, file descriptor %d\n", fd);
+#endif
 		return fd;
 	}
 
 	free_dirnames(filenames);
-	if (!found)
+	if (!found) {
+#ifdef DEBUG
+		printf("Magma: No usable plugins found.\n");
+#endif
 		errno = ELIBACC;
-	else
+	} else {
+#ifdef DEBUG
+		printf("Magma: No applicable plugin found or no cluster "
+		       "infrastructure running.\n");
+#endif
 		errno = ESRCH;
+	}
 	return -1;
+}
+
+
+const char *
+cp_load_error(int e)
+{
+	switch(e) {
+	case EINVAL:
+		return "NULL plugin filename specified";
+	case EPERM:
+		return "User-readable bit not set";
+	case ELIBBAD:
+		return "dlopen() error";
+	case EPROTO:
+		return "API version incorrect or nonexistent";
+	case ENOSYS:
+		return "Load/init function nonexistent";
+	case EBADE:
+		return "Load function failed";
+	default:
+		return strerror(e);
+	}
+
+	return NULL;
 }
 
 
@@ -332,6 +378,8 @@ cp_load(const char *libpath)
 	double (*modversion)(void);
 	struct stat sb;
 
+	errno = 0;
+
 	if (!libpath) {
 		errno = EINVAL;
 		return NULL;
@@ -347,34 +395,52 @@ cp_load(const char *libpath)
 	   a plugin "u-r" and this would then prevent magma apps
 	   from loading it.
 	 */
-	if (!(sb.st_mode & S_IRUSR) || (S_ISDIR(sb.st_mode))) {
+	if (S_ISDIR(sb.st_mode)) {
+		errno = EISDIR;
+		return NULL;
+	}
+	if (!(sb.st_mode & S_IRUSR)) {
+#ifdef DEBUG
+		printf("Magma: Ignoring %s (User-readable bit not set)\n",
+		       libpath);
+#endif
 		errno = EPERM;
 		return NULL;
 	}
 
 	handle = dlopen(libpath, RTLD_LAZY);
 	if (!handle) {
+		errno = ELIBBAD;
 		return NULL;
 	}
 
 	modversion = dlsym(handle, CLU_PLUGIN_VERSION_SYM);
 	if (!modversion) {
-		fprintf(stderr,"Failed to map %s\n", CLU_PLUGIN_VERSION_SYM);
+#ifdef DEBUG
+		printf("Magma: Failed to map %s\n", CLU_PLUGIN_VERSION_SYM);
+#endif
 		dlclose(handle);
+		errno = EPROTO; /* XXX what? */
 		return NULL;
 	}
 
 	if (modversion() != CLUSTER_PLUGIN_API_VERSION) {
-		fprintf(stderr, "API version mismatch in %s. %f expected; %f"
-			" received.\n", libpath, CLUSTER_PLUGIN_API_VERSION,
-			modversion());
+#ifdef DEBUG
+		printf("Magma: API version mismatch in %s: \n"
+		       "       %f expected; %f received.\n", libpath,
+			CLUSTER_PLUGIN_API_VERSION, modversion());
+#endif
 		dlclose(handle);
+		errno = EPROTO; /* XXX What? */
 		return NULL;
 	}
 
 	cpp = malloc(sizeof(*cpp));
 	if (!cpp) {
-		fprintf(stderr,"Failed to malloc %d bytes\n",(int)sizeof(*cpp));
+#ifdef DEBUG
+		printf("Magma: Failed to malloc %d bytes\n",
+		       (int)sizeof(*cpp));
+#endif
 		errno = ENOMEM;
 		return NULL;
 	}
@@ -405,10 +471,13 @@ cp_load(const char *libpath)
 	 * Modules *MUST* have a load function, and it can not fail.
 	 */
 	if (!cpp->cp_private.p_load_func) {
-		fprintf(stderr, "Module load function not found in %s\n",
-			libpath);
+#ifdef DEBUG
+		printf("Magma: Module load function not found in %s\n",
+		       libpath);
+#endif
 		free(cpp);
 		dlclose(handle);
+		errno = ENOSYS;
 		return NULL;
 	}
 
@@ -416,16 +485,23 @@ cp_load(const char *libpath)
 	 * Modules *MUST* have an init function.
 	 */
 	if (!cpp->cp_private.p_init_func) {
-		fprintf(stderr, "Module init function not found in %s\n",
-			libpath);
+#ifdef DEBUG
+		printf("Magma: Module init function not found in %s\n",
+	       	       libpath);
+#endif
 		free(cpp);
 		dlclose(handle);
+		errno = ENOSYS;
 		return NULL;
 	}
 
 	if (cpp->cp_private.p_load_func(cpp) < 0) {
+#ifdef DEBUG
 		printf("Load function failed\n");
+#endif
 		free(cpp);
+		dlclose(handle);
+		errno = EBADE;
 		return NULL;
 	}
 

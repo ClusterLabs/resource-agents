@@ -27,7 +27,7 @@
 #error "Never include this file from user programs."
 #endif
 
-#define CLUSTER_PLUGIN_API_VERSION (double)0.00012
+#define CLUSTER_PLUGIN_API_VERSION (double)0.00013
 
 #ifndef PLUGINDIR
 #define PLUGINDIR "/usr/lib/magma"

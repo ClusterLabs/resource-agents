@@ -24,7 +24,7 @@ Source0: %{name}-%{version}-%{release}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
 %description
-A cluster/lock manager API abstraction shared library.
+A high level cluster/lock manager API abstraction library.
 
 %package devel
 Group: Development/Libraries
@@ -37,7 +37,7 @@ A cluster/lock manager API abstraction static library.
 %setup -q -n %{name}-%{version}-%{release}
 
 %build
-./configure --libdir=%{_libdir} --mandir=%{_mandir}
+./configure --libdir=/lib --slibdir=%{_libdir} --mandir=%{_mandir}
 make
 
 %install
@@ -54,15 +54,12 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root,-)
 /sbin/circleping
-/sbin/cpt
-/sbin/cptester
+/sbin/magma_tool
 /sbin/cluster_cmd
-/sbin/thread_test
-%{_libdir}/libmagma.so*
-%{_libdir}/libmagmamsg.so*
-%{_libdir}/libmagma_nt.a*
-%{_libdir}/libmagma_nt.so*
-%{_libdir}/libmagma_nt.so.%{version}
+/lib/libmagma.so*
+/lib/libmagmamsg.so*
+/lib/libmagma_nt.so*
+/lib/libmagma_nt.so.%{version}
 
 %doc
 %{_mandir}/man3/clu_connect.3.gz
@@ -76,10 +73,14 @@ rm -rf $RPM_BUILD_ROOT
 %{_includedir}/magmamsg.h
 %{_libdir}/libmagma.a
 %{_libdir}/libmagmamsg.a
+%{_libdir}/libmagma_nt.a
 %doc
 
 
 %changelog
+* Mon Jan 26 2005 Lon Hohberger <lhh@redhat.com>
+- Move libraries to /lib (static libs in /usr/lib) so that our
+programs in /sbin don't require /usr to be mounted.
 * Fri Oct 22 2004 Chris Feist <cfeist@redhat.com>
 - Various bug fixes and new upstream sources.
 * Fri Aug 13 2004 Jon Brassow <jbrassow@redhat.com>

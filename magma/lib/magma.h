@@ -135,6 +135,7 @@ typedef void cluster_plugin_t;
  */
 int cp_connect(cluster_plugin_t **cpp, char *groupname, int login);
 cluster_plugin_t *cp_load(const char *libpath);
+const char *cp_load_error(int e);
 int cp_init(cluster_plugin_t *cpp, const void *priv, size_t privlen);
 int cp_unload(cluster_plugin_t *cpp);
 

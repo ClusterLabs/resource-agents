@@ -21,7 +21,8 @@ Cluster manager plugins for magma
 %setup -q -n %{name}-%{version}-%{release}
 
 %build
-./configure --libdir=%{_libdir} --mandir=%{_mandir}
+export PATH=/usr/bin:/usr/sbin:/bin:/sbin
+./configure --plugindir=`magma_tool config plugindir` --mandir=%{_mandir}
 make
 
 %install
