@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.11 $) dnl cvs revision
+AC_REVISION($Revision: 1.12 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -141,10 +141,15 @@ case "$host_os" in
 esac
 
 if test "$enable_fatal_warnings" = yes; then
-    F_WARNINGS="-Werror"
+    EXTRA_WARNINGS="-Werror"
 else
-    F_WARNINGS=""
+    EXTRA_WARNINGS=""
 fi
+
+if test "$enable_traditional_warning" = yes; then
+    EXTRA_WARNINGS="$EXTRA_WARNINGS -WTraditional"
+fi
+
 if test "$GCC" = yes; then
 	CC_WARNINGS="-Wall -Wmissing-prototypes \
 		-Wmissing-declarations \
@@ -153,9 +158,8 @@ if test "$GCC" = yes; then
 		-Wpointer-arith \
 		-Wwrite-strings \
 		-Wcast-qual -Wcast-align \
-		-Wtraditional \
 		-Wnested-externs -Winline"
-	CFLAGS="$CFLAGS $CC_WARNINGS $F_WARNINGS"
+	CFLAGS="$CFLAGS $CC_WARNINGS $EXTRA_WARNINGS"
 fi
 
 case "$host_os" in
