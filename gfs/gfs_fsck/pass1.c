@@ -51,14 +51,26 @@ static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 		log_err("Unable to read leaf block #%"PRIu64" for "
 			"directory #%"PRIu64".\n",
 			block, ip->i_di.di_num.no_addr);
-		block_set(sdp->bl, block, meta_inval);
+		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
+			 ip->i_di.di_num.no_addr)) {
+			block_set(sdp->bl, block, meta_inval);
+		} else {
+			log_err("Unreadable block %"PRIu64" ignored\n");
+		}
 		return 1;
 	}
 
 	if(check_meta(*bh, GFS_METATYPE_LF)){
-		log_warn("Bad meta header for leaf block #%"PRIu64".\n",
-			 BH_BLKNO(*bh));
-		block_set(sdp->bl, BH_BLKNO(*bh), meta_inval);
+		log_err("Bad meta header for leaf block #%"PRIu64
+			"in directory #%"PRIu64".\n",
+			 BH_BLKNO(*bh), ip->i_di.di_num.no_addr);
+		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
+			 ip->i_di.di_num.no_addr)) {
+			block_set(sdp->bl, ip->i_di.di_num.no_addr,
+				  meta_inval);
+		} else {
+			log_err("Invalid block %"PRIu64" ignored\n");
+		}
 		return 1;
 	}
 
@@ -451,34 +463,43 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 	}
 
 	if (ip->i_di.di_flags & GFS_DIF_UNUSED){
-		/* FIXME: should i be looking for dup blocks here? */
-		if(block_set(sdp->bl, block, meta_inval)) {
-			stack;
-			goto fail;
+		log_err("Found unused inode marked in-use\n");
+		if(query(sdp, "Clear unused inode at block %"
+			 PRIu64"? (y/n) ", block)) {
+			if(block_set(sdp->bl, block, meta_inval)) {
+				stack;
+				goto fail;
+			}
+			goto success;
+		} else {
+			log_err("Unused inode still marked in-use\n");
 		}
-		goto success;
+
 	}
 
 	if (ip->i_di.di_num.no_addr != block) {
-		/* FIXME: need to request user input here */
 		log_err("Bad dinode Address.  "
 			"Found %"PRIu64", "
 			"Expected %"PRIu64"\n",
 			ip->i_di.di_num.no_addr, block);
-		ip->i_di.di_num.no_addr =
-			ip->i_di.di_num.no_formal_ino =
-			block;
-		if(fs_copyout_dinode(ip)){
-			log_crit("Bad dinode address can not be reset.\n");
-			goto fail;
+		if(query(sdp, "Fix address in inode at block %"
+			 PRIu64"? (y/n) ", block)) {
+			ip->i_di.di_num.no_addr =
+				ip->i_di.di_num.no_formal_ino =
+				block;
+			if(fs_copyout_dinode(ip)){
+				log_crit("Bad dinode address can not be reset.\n");
+				goto fail;
+			} else {
+				log_err("Bad dinode address reset.\n");
+			}
 		} else {
-			log_err("Bad dinode address reset.\n");
+			log_err("Address in inode at block %"PRIu64
+				 " not fixed\n", block);
 		}
 
 	}
 
-	/* FIXME: does it make sense to have this check for dups
-	 * here? */
 	if(block_check(sdp->bl, block, &q)) {
 		stack;
 		goto fail;

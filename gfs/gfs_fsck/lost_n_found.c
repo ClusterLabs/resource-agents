@@ -81,11 +81,6 @@ int add_inode_to_lf(struct fsck_inode *ip){
 
 	}
 
-	if(!ip->i_di.di_size){
-		log_warn("File has zero size, skipping l+f addition.\n");
-		return -1;
-	}
-
 	switch(ip->i_di.di_type){
 	case GFS_FILE_DIR:
 		log_info("Adding .. entry pointing to l+f for %"PRIu64"\n",

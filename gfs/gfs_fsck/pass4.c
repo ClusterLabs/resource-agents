@@ -55,36 +55,46 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 		log_info("Checking reference count on inode at block %"PRIu64
 			 "\n", ii->inode);
 		if(ii->counted_links == 0) {
+			log_err("Found unlinked inode at %"PRIu64"\n",
+				ii->inode);
 			if(block_check(sbp->bl, ii->inode, &q)) {
 				stack;
 				return -1;
 			}
 			if(q.bad_block) {
-				log_err("Found unlinked inode containing"
-					"bad block - clearing...\n");
-				block_set(sbp->bl, ii->inode, block_free);
-			}
-			else {
-				log_err("Found unlinked inode at %"PRIu64"\n",
+				log_err("Unlinked inode contains"
+					"bad blocks\n",
 					ii->inode);
-				load_inode(sbp, ii->inode, &ip);
-				/* We don't want to clear zero-size
-				 * files with eattrs - they might
-				 * relevent * info in them. */
-				if(!ip->i_di.di_size && !ip->i_di.di_eattr){
-					log_warn("File has zero size,"
-						 " skipping l+f addition.\n");
-					/* FIXME: User input */
-					log_err("Removing zero-size file from bitmaps\n");
+				if(query(sbp, "Clear unlinked inode with bad blocks? (y/n) ")) {
 					block_set(sbp->bl, ii->inode, block_free);
+					goto end;
 				} else {
-					if(add_inode_to_lf(ip)) {
-						stack;
-					}
-					else {
-						lf_addition = 1;
-					}
+					log_err("Unlinked inode with bad blocks not cleared\n");
 				}
+			}
+
+			load_inode(sbp, ii->inode, &ip);
+			/* We don't want to clear zero-size files with
+			 * eattrs - there might be relevent info in
+			 * them. */
+			if(!ip->i_di.di_size && !ip->i_di.di_eattr){
+				log_err("Unlinked inode has zero size\n");
+				if(query(sbp, "Clear zero-size unlinked inode? (y/n) ")) {
+					block_set(sbp->bl, ii->inode, block_free);
+					goto end;
+				}
+
+			}
+			if(query(sbp, "Add unlinked inode to l+f? (y/n)")) {
+				if(add_inode_to_lf(ip)) {
+					stack;
+					return -1;
+				}
+				else {
+					lf_addition = 1;
+				}
+			} else {
+				log_err("Unlinked inode left unlinked\n");
 			}
 			free_inode(&ip);
 		}
@@ -94,15 +104,20 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 				ii->inode, ii->link_count, ii->counted_links);
 			/* Read in the inode, adjust the link count,
 			 * and write it back out */
-			/* FIXME: User input */
-			load_inode(sbp, ii->inode, &ip);
-			fix_inode_count(sbp, ii, ip);
-			free_inode(&ip);
+			if(query(sbp, "Update link count for inode %"
+				 PRIu64"? (y/n) ", ii->inode)) {
+				load_inode(sbp, ii->inode, &ip);
+				fix_inode_count(sbp, ii, ip);
+				free_inode(&ip);
+			} else {
+				log_err("Link count for inode %"
+					PRIu64" still incorrect\n", ii->inode);
+			}
 		}
 		log_debug("block %"PRIu64" has link count %d\n", ii->inode,
 			  ii->link_count);
 	}
-
+ end:
 	if (lf_addition) {
 		ii = inode_hash_search(sbp->inode_hash,
 				       sbp->lf_dip->i_num.no_addr);

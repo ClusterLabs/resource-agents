@@ -17,6 +17,7 @@
 #include "osi_user.h"
 #include "bitmap.h"
 #include "block_list.h"
+#include "fsck_incore.h"
 #include "log.h"
 
 

@@ -350,7 +350,7 @@ int find_block_ref(struct fsck_sb *sbp, uint64_t inode, struct blocks *b)
 		return 0;
 	}
 	free_inode(&ip);
-	return -1;
+	return 0;
 }
 
 /* Finds all blocks marked in the duplicate block bitmap */

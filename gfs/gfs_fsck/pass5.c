@@ -202,14 +202,17 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 				PRIu64"\n", block);
 			log_debug("Ondisk is %u - FSCK thinks it is %u (%u)\n",
 				  rg_status, block_status, q.block_type);
-			/* FIXME: this needs to be interactive (and
-			 * use the sdp->opts info )*/
-			log_err("Fixing bitmap...\n");
-			if(fs_set_bitmap(sbp, block, block_status)) {
-				log_err("Failed.\n");
-			}
-			else {
-				log_err("Suceeded.\n");
+			if(query(sbp, "Fix bitmap for block %"PRIu64"? (y/n) ",
+				 block)) {
+				if(fs_set_bitmap(sbp, block, block_status)) {
+					log_err("Failed.\n");
+				}
+				else {
+					log_err("Suceeded.\n");
+				}
+			} else {
+				log_err("Bitmap at block %"PRIu64
+					" left inconsistent\n", block);
 			}
 		}
 		(*rg_block)++;
@@ -246,44 +249,43 @@ int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
 	if(rgp->rd_rg.rg_free != count[0]) {
 		log_err("free count inconsistent: is %u should be %u\n",
 			rgp->rd_rg.rg_free, count[0] );
-		/* FIXME: Make this interactive */
 		rgp->rd_rg.rg_free = count[0];
 		update = 1;
 	}
 	if(rgp->rd_rg.rg_useddi != count[1]) {
 		log_err("used inode count inconsistent: is %u should be %u\n",
 			rgp->rd_rg.rg_useddi, count[1]);
-		/* FIXME: Make this interactive */
 		rgp->rd_rg.rg_useddi = count[1];
 		update = 1;
 	}
 	if(rgp->rd_rg.rg_freedi != count[2]) {
 		log_err("free inode count inconsistent: is %u should be %u\n",
 			rgp->rd_rg.rg_freedi, count[2]);
-		/* FIXME: Make this interactive */
 		rgp->rd_rg.rg_freedi = count[2];
 		update = 1;
 	}
 	if(rgp->rd_rg.rg_usedmeta != count[3]) {
 		log_err("used meta count inconsistent: is %u should be %u\n",
 			rgp->rd_rg.rg_usedmeta, count[3]);
-		/* FIXME: Make this interactive */
 		rgp->rd_rg.rg_usedmeta = count[3];
 		update = 1;
 	}
 	if(rgp->rd_rg.rg_freemeta != count[4]) {
 		log_err("free meta count inconsistent: is %u should be %u\n",
 			rgp->rd_rg.rg_freemeta, count[4]);
-		/* FIXME: Make this interactive */
 		rgp->rd_rg.rg_freemeta = count[4];
 		update = 1;
 	}
 
 	if(update) {
-		log_err("Do the update here...\n");
+		if(query(rgp->rd_sbd,
+			 "Update resource group counts? (y/n) ")) {
 		/* write out the rgrp */
-		gfs_rgrp_out(&rgp->rd_rg, BH_DATA(rgp->rd_bh[0]));
-		write_buf(rgp->rd_sbd, rgp->rd_bh[0], 0);
+			gfs_rgrp_out(&rgp->rd_rg, BH_DATA(rgp->rd_bh[0]));
+			write_buf(rgp->rd_sbd, rgp->rd_bh[0], 0);
+		} else {
+			log_err("Resource group counts left inconsistent\n");
+		}
 	}
 
 	return 0;

@@ -199,13 +199,18 @@ static int get_leaf(struct fsck_inode *dip, uint64 leaf_no, osi_buf_t **bhp)
 
 	error = get_and_read_buf(dip->i_sbd, leaf_no, bhp, 0);
 
-	if (error)
+	if (error) {
+		log_err("Unable to read leaf buffer #%"PRIu64"\n", leaf_no);
 		return error;
+	}
 
 	error = check_meta(*bhp, GFS_METATYPE_LF);
 
-	if(error)
+	if(error) {
+		log_err("Metatype for block #%"PRIu64" is not type 'leaf'\n",
+			leaf_no);
 		relse_buf(dip->i_sbd, *bhp);
+	}
 	return error;
 }
 
@@ -1063,8 +1068,7 @@ static int dir_e_del(struct fsck_inode *dip, osi_filename_t *filename){
 
 		while(leaf_no && !found){
 			if(get_leaf(dip, leaf_no, &bh)){
-				fprintf(stderr, "dir_e_del:  Unable to get leaf #%"PRIu64"\n",
-					leaf_no);
+				stack;
 				return -1;
 			}
 

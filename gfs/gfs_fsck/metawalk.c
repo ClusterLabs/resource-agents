@@ -70,14 +70,13 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 
 
 /* Checks exthash directory entries */
-int check_leaf(struct fsck_inode *ip, struct metawalk_fxns *pass)
+int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 {
 	int error;
 	struct gfs_leaf leaf;
 	uint64_t leaf_no, old_leaf;
 	osi_buf_t *lbh;
 	int index;
-	int update = 0;
 	struct fsck_sb *sbp = ip->i_sbd;
 
 	old_leaf = 0;
@@ -134,9 +133,8 @@ int check_leaf(struct fsck_inode *ip, struct metawalk_fxns *pass)
 			gfs_leaf_in(&leaf, BH_DATA(lbh));
 
 			if(ip->i_di.di_type == GFS_FILE_DIR) {
-				update = 0;
 				error = check_entries(ip, lbh, index,
-						      DIR_EXHASH, &update,
+						      DIR_EXHASH, update,
 						      pass);
 
 				if(error) {
@@ -144,13 +142,7 @@ int check_leaf(struct fsck_inode *ip, struct metawalk_fxns *pass)
 					relse_buf(sbp, lbh);
 					return -1;
 				}
-				/* write out changes if necessary...check
-				 * status to see */
-				if(update) {
-					gfs_dinode_out(&ip->i_di,
-						       BH_DATA(lbh));
-					write_buf(sbp, lbh, 0);
-				}
+
 				relse_buf(sbp, lbh);
 				break;
 			} else {
@@ -436,6 +428,7 @@ int check_metatree(struct fsck_inode *ip, struct metawalk_fxns *pass)
 	uint64_t block, *ptr;
 	uint32_t height = ip->i_di.di_height;
 	int  i, head_size;
+	int update = 0;
 
 	if (!height)
 		goto end;
@@ -499,7 +492,7 @@ end:
 	if (ip->i_di.di_type == GFS_FILE_DIR) {
 		/* check validity of leaf blocks and leaf chains */
 		if (ip->i_di.di_flags & GFS_DIF_EXHASH) {
-			if (check_leaf(ip, pass))
+			if (check_leaf(ip, &update, pass))
 				return -1;
 		}
 	}
@@ -509,21 +502,13 @@ end:
 
 
 /* Checks stuffed inode directories */
-int check_linear_dir(struct fsck_inode *ip, osi_buf_t *bh,
+int check_linear_dir(struct fsck_inode *ip, osi_buf_t *bh, int *update,
 		     struct metawalk_fxns *pass)
 {
-	int update = 0;
-	struct fsck_sb *sbp = ip->i_sbd;
 
-	if(check_entries(ip, bh, 0, DIR_LINEAR, &update, pass)) {
+	if(check_entries(ip, bh, 0, DIR_LINEAR, update, pass)) {
 		stack;
 		return -1;
-	}
-	/* write out changes if necessary...check status to
-	 * see */
-	if(update) {
-		gfs_dinode_out(&ip->i_di, BH_DATA(bh));
-		write_buf(sbp, bh, 0);
 	}
 
 	return 0;
@@ -534,6 +519,7 @@ int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass)
 {
 	osi_buf_t *bh;
 	struct fsck_inode *ip;
+	int update = 0;
 
 	if(get_and_read_buf(sbp, block, &bh, 0)){
 		log_err("Unable to retrieve block #%"PRIu64"\n",
@@ -549,12 +535,17 @@ int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass)
 	}
 
 	if(ip->i_di.di_flags & GFS_DIF_EXHASH) {
-		check_leaf(ip, pass);
+		check_leaf(ip, &update, pass);
 	}
 	else {
-		check_linear_dir(ip, bh, pass);
+		check_linear_dir(ip, bh, &update, pass);
 	}
-
+	/* write out changes if necessary.*/
+	if(update) {
+		gfs_dinode_out(&ip->i_di,
+			       BH_DATA(bh));
+		write_buf(sbp, bh, 0);
+	}
 	free_inode(&ip);
 	relse_buf(sbp, bh);
 

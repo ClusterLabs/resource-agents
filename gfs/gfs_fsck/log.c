@@ -12,9 +12,13 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <libintl.h>
-#define _(String) gettext(String)
+
+#include "fsck_incore.h"
 #include "log.h"
+
+#define _(String) gettext(String)
 
 struct log_state {
 	int print_level;
@@ -69,4 +73,37 @@ void print_fsck_log(int priority, char *file, int line, const char *format, ...)
 
 
 	va_end(args);
+}
+
+
+
+int query(struct fsck_sb *sbp, const char *format, ...)
+{
+
+	va_list args;
+	const char *transform;
+	char response;
+
+	va_start(args, format);
+
+	transform = _(format);
+
+	if(sbp->opts->yes)
+		return 1;
+	if(sbp->opts->no)
+		return 0;
+
+	vprintf(transform, args);
+
+	fflush(NULL);
+
+	scanf(" %c", &response);
+
+	if(tolower(response) == 'y') {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+
 }

@@ -78,6 +78,9 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 				/* FIXME: Need to add some interactive
 				 * options here and come up with a
 				 * good default for non-interactive */
+				/* FIXME: do i need to correct the
+				 * '..' entry for this directory in
+				 * this case? */
 				log_err("Both .. and treewalk parents are "
 					"directories, going with treewalk for "
 					"now...\n");
@@ -151,31 +154,42 @@ int pass3(struct fsck_sb *sbp, struct options *opts)
 				}
 				if(q.bad_block) {
 					log_err("Found unlinked directory containing"
-						"bad block - clearing...\n");
-					block_set(sbp->bl, di->dinode, block_free);
-				}
-				else {
-					log_err("Found unlinked directory %"PRIu64"\n", di->dinode);
-					load_inode(sbp, di->dinode, &ip);
-					/* Don't skip zero size directories
-					 * with eattrs */
-					if(!ip->i_di.di_size && !ip->i_di.di_eattr){
-						log_warn("File has zero size,"
-							 " skipping l+f addition.\n");
-						/* FIXME: User input */
-						log_err("Removing zero-size file from bitmaps\n");
+						"bad block\n");
+					if(query(sbp, "Clear unlinked directory with bad blocks? (y/n) ")) {
 						block_set(sbp->bl, di->dinode, block_free);
+						break;
 					} else {
-						if(add_inode_to_lf(ip)) {
-							stack;
-						}
+						log_err("Unlinked directory with bad blocks remains\n");
 					}
-					free_inode(&ip);
-					break;
 				}
+
+				log_err("Found unlinked directory %"PRIu64"\n", di->dinode);
+				load_inode(sbp, di->dinode, &ip);
+				/* Don't skip zero size directories
+				 * with eattrs */
+				if(!ip->i_di.di_size && !ip->i_di.di_eattr){
+					log_err("Unlinked directory has zero size.\n");
+					if(query(sbp, "Remove zero-size unlinked directory? (y/n) ")) {
+						block_set(sbp->bl, di->dinode, block_free);
+						free_inode(&ip);
+						break;
+					} else {
+						log_err("Zero-size unlinked directory remains\n");
+					}
+				}
+				if(query(sbp, "Add unlinked directory to l+f? (y/n) ")) {
+					if(add_inode_to_lf(ip)) {
+						stack;
+						return -1;
+					}
+				} else {
+					log_err("Unlinked directory remains unlinked\n");
+				}
+				free_inode(&ip);
+				break;
 			}
 			else {
-				log_info("Marked directory at block %"PRIu64
+				log_info("Directory at block %"PRIu64
 					 " connected\n", di->dinode);
 			}
 			di = tdi;
