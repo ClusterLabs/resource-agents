@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.339 $) dnl cvs revision
+AC_REVISION($Revision: 1.340 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1067,7 +1067,7 @@ dnl Add any system specific options here.
 
 	if test "${enable_ansi}" = yes && cc_supports_flag -std=iso9899:199409 ; then
 	echo "Enabling ANSI Compatibility on this platform"
-	ANSI="-ansi -U__GNUG__ -D_GNU_SOURCE -DANSI_ONLY"
+	ANSI="-ansi -D_GNU_SOURCE -DANSI_ONLY"
 	fi
 
 	if test "${enable_fatal_warnings}" = yes && cc_supports_flag -Werror ; then
@@ -1433,6 +1433,9 @@ AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
+
+dnl if not known on this system, #define size_t unsigned
+AC_TYPE_SIZE_T
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
