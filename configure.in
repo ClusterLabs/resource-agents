@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.44 $) dnl cvs revision
+AC_REVISION($Revision: 1.45 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -28,6 +28,17 @@ AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
+AC_PATH_PROGS(GLIBCCONFIG, glib-config, glib12-config)
+AC_PATH_PROGS(GLIBCCONFIG, glib12-config, glib13-config)
+AC_PATH_PROGS(GLIBCCONFIG, glib13-config)
+AC_MSG_CHECKING(which glibc config exists)
+if test x"${GLIBCCONFIG}" = x""; then
+        AC_MSG_ERROR(You need the glib development package to continue.
+      You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
+      or you can locate it via http://www.gtk.org/download/)
+else
+      AC_MSG_RESULT("using $GLIBCCONFIG")
+fi
 
 SYSPATH="/sbin /usr/sbin /bin /usr/bin /usr/local/sbin /usr/local/bin"
 locatecmd(){
@@ -186,27 +197,14 @@ dnl	And they provide a command to let you know where they are.
 dnl	This is nice, but having them in standard places is nicer ;-)
 dnl
 AC_MSG_CHECKING(for special glib includes: )
-if
-  test  -f /usr/bin/glib-config -a -x /usr/bin/glib-config
-then
-  GLHEAD=`/usr/bin/glib-config --cflags`
-  AC_MSG_RESULT($GLHEAD)
-  CPPFLAGS="$CPPFLAGS $GLHEAD"
-  AC_MSG_CHECKING(for glib library flags)
-  GLIBLIB=`/usr/bin/glib-config --libs`
-  LIBS="$LIBS $GLIBLIB"
-  AC_MSG_RESULT($GLIBLIB)
-else
-  AC_MSG_RESULT(none)
-  if
-    test ! -f /usr/include/glib.h
-  then
-    AC_MSG_ERROR(You need the glib development package to continue.
-    You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
-    or you can locate it via http://www.gtk.org/download/)
-  fi
-fi
+GLHEAD=`$GLIBCCONFIG --cflags`
+AC_MSG_RESULT($GLHEAD)
 
+CPPFLAGS="$CPPFLAGS $GLHEAD"
+AC_MSG_CHECKING(for glib library flags)
+GLIBLIB=`$GLIBCCONFIG --libs`
+LIBS="$LIBS $GLIBLIB"
+AC_MSG_RESULT($GLIBLIB)
 
 
 dnl ************************************************************************
