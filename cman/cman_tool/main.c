@@ -152,10 +152,10 @@ static void leave(commandline_t *comline)
 
 	do {
 		result = ioctl(cluster_sock, SIOCCLUSTER_LEAVE_CLUSTER, flags);
-		if (errno == EBUSY && comline->wait_opt)
+		if (result < 0 && errno == EBUSY && comline->wait_opt)
 			sleep(1);
 
-	} while (errno == EBUSY && comline->wait_opt);
+	} while (result < 0 && errno == EBUSY && comline->wait_opt);
 
 	if (result)
 		die("Error leaving cluster: %s", strerror(errno));
@@ -225,13 +225,7 @@ static void version(commandline_t *comline)
 static void cluster_wait(commandline_t *comline)
 {
     int cluster_sock;
-    int ioctl_code;
     int recvbuf[256]; /* Plenty big enough for an OOB message */
-
-    if (comline->wait_quorate_opt)
-	    ioctl_code = SIOCCLUSTER_ISQUORATE;
-    else
-	    ioctl_code = SIOCCLUSTER_GETMEMBERS;
 
     cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
     if (cluster_sock == -1)
@@ -239,10 +233,21 @@ static void cluster_wait(commandline_t *comline)
         die("Can't open cluster socket");
     }
 
-    while (!ioctl(cluster_sock, ioctl_code, 0))
+    if (comline->wait_quorate_opt)
     {
-	    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
-		    die("Error waiting for cluster\n");
+	    while (ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0) <= 0)
+	    {
+		    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
+			    die("Error waiting for cluster\n");
+	    }
+    }
+    else
+    {
+	    while (ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0) < 0)
+	    {
+		    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
+			    die("Error waiting for cluster\n");
+	    }
     }
 
     close(cluster_sock);
