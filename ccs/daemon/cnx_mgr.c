@@ -318,6 +318,13 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     exit(EXIT_FAILURE);
   }
 
+  if(quorate && !cluster_name){
+    log_err("Node is part of quorate cluster, but the cluster name is unknown.\n");
+    log_err(" Unable to validate remote config files.  Refusing connection.\n");
+    error = -ECONNREFUSED;
+    goto fail;
+  }
+
   ch = malloc(sizeof(comm_header_t));
   if(!ch){
     error = -ENOMEM;
@@ -392,6 +399,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	  free(bdoc); bdoc = NULL;
 	  continue;
 	}
+
 	tmp_name = get_cluster_name(tmp_doc);
 	log_dbg("  Given cluster name = %s\n", cluster_name);
 	log_dbg("  Remote cluster name= %s\n", tmp_name);
@@ -531,7 +539,9 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
  */
 static int process_connect(comm_header_t *ch, char *cluster_name){
   int i=0, error = 0;
+  int bcast_needed = 0;
   char *tmp_name = NULL;
+  
 
   ENTER("process_connect");
 
@@ -549,75 +559,86 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
     memset(ocs, 0, sizeof(open_connection_t *)*MAX_OPEN_CONNECTIONS);
   }
 
-  if(!quorate){
-    if(!(ch->comm_flags & COMM_CONNECT_FORCE)){
-      log_msg("Cluster is not quorate.  Refusing connection.\n");
-      error = -ECONNREFUSED;
-      goto fail;
-    }
-
-    if(!master_doc){
-      /* ATTENTION -- signal could come at any time.  It may be better to **
-      ** malloc to different var, then copy to master_doc when done    */
-      master_doc = malloc(sizeof(open_doc_t));
-      if(!master_doc){
-	error = -ENOMEM;
-	goto fail;
-      }
-      memset(master_doc, 0, sizeof(open_doc_t));
-
-      master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
-      if(!master_doc->od_doc){
-	log_msg("Unable to parse %s\n", "/etc/cluster/cluster.conf");
-	log_msg("Searching cluster for valid copy.\n");
-	/* Not a problem, can get it from broadcast */
-      } else if((error = get_doc_version(master_doc->od_doc)) < 0){
-	log_err("Unable to get config_version from cluster.conf.\n");
-	log_err("Discarding data and searching for valid copy.\n");
-	xmlFreeDoc(master_doc->od_doc);
-	master_doc->od_doc = NULL;
-      } else {
-	tmp_name = get_cluster_name(master_doc->od_doc);
-	if(!tmp_name){
-	  log_err("Unable to get cluster name from cluster.conf.\n");
-	  log_err("Discarding data and searching for valid copy.\n");
-	  xmlFreeDoc(master_doc->od_doc);
-	  master_doc->od_doc = NULL;
-	} else if(cluster_name && strcmp(cluster_name, tmp_name)){
-	  log_err("Given cluster name does not match local cluster.conf.\n");
-	  log_err("Discarding data and searching for matching copy.\n");
-	  xmlFreeDoc(master_doc->od_doc);
-	  master_doc->od_doc = NULL;
-	  free(tmp_name); tmp_name = NULL;
-	} else {
-	  log_msg("cluster.conf (cluster name = %s, version = %d) found.\n",
-		  tmp_name, error);
-	}
-      }
-      error = 0;
-    } else {
-      tmp_name = get_cluster_name(master_doc->od_doc);
-    }
-
-    if(cluster_name && !tmp_name){
-      tmp_name = strdup(cluster_name);
-      if(!tmp_name){
-	error = -ENOMEM;
-	goto fail;
-      }
-    }
-
-    log_dbg("Blocking is %s.\n",
-	    (ch->comm_flags & COMM_CONNECT_BLOCKING)? "SET": "UNSET");
-    log_dbg("Flags = 0x%x\n", ch->comm_flags);
-
-    /* Need to broadcast regardless (unless connected to cman) to check version # */
-    if((error = broadcast_for_doc(tmp_name, ch->comm_flags & COMM_CONNECT_BLOCKING)) && !master_doc->od_doc){
-      log_err("Broadcast for config file failed: %s\n", strerror(-error));
-      goto fail;
-    }
-    error = 0;
+  if(!quorate && !(ch->comm_flags & COMM_CONNECT_FORCE)){
+    log_msg("Cluster is not quorate.  Refusing connection.\n");
+    error = -ECONNREFUSED;
+    goto fail;
   }
+
+  if(!master_doc){
+    /* ATTENTION -- signal could come at any time.  It may be better to **
+    ** malloc to different var, then copy to master_doc when done    */
+    master_doc = malloc(sizeof(open_doc_t));
+    if(!master_doc){
+      error = -ENOMEM;
+      goto fail;
+    }
+    memset(master_doc, 0, sizeof(open_doc_t));
+  }
+
+  if(!master_doc->od_doc){
+    master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
+    if(!master_doc->od_doc){
+      log_msg("Unable to parse %s\n", "/etc/cluster/cluster.conf");
+      log_msg("Searching cluster for valid copy.\n");
+      /* Not a problem, can get it from broadcast */
+    } else if((error = get_doc_version(master_doc->od_doc)) < 0){
+      log_err("Unable to get config_version from cluster.conf.\n");
+      log_err("Discarding data and searching for valid copy.\n");
+      xmlFreeDoc(master_doc->od_doc);
+      master_doc->od_doc = NULL;
+    } else if(!(tmp_name = get_cluster_name(master_doc->od_doc))){
+      log_err("Unable to get cluster name from cluster.conf.\n");
+      log_err("Discarding data and searching for valid copy.\n");
+      xmlFreeDoc(master_doc->od_doc);
+      master_doc->od_doc = NULL;
+    } else if(cluster_name && strcmp(cluster_name, tmp_name)){
+      log_err("Given cluster name does not match local cluster.conf.\n");
+      log_err("Discarding data and searching for matching copy.\n");
+      xmlFreeDoc(master_doc->od_doc);
+      master_doc->od_doc = NULL;
+      free(tmp_name); tmp_name = NULL;
+    } else {  /* Either the names match, or a name wasn't specified. */
+      log_msg("cluster.conf (cluster name = %s, version = %d) found.\n",
+	      tmp_name, error);
+      /* We must check with the others to make sure this is valid. */
+    }
+    bcast_needed = 1;
+    error = 0;
+  } else {
+    tmp_name = get_cluster_name(master_doc->od_doc);
+    if(cluster_name && strcmp(cluster_name, tmp_name)){
+      log_err("Request for cluster.conf with cluster name, %s\n", cluster_name);
+      log_err(" However, a cluster.conf with cluster name, %s, is already loaded.\n",
+	      tmp_name);
+      error = -EINVAL;
+      goto fail;
+    }
+    if(!quorate){
+      bcast_needed = 1;
+    }
+  }
+  
+  if(cluster_name && !tmp_name){
+    tmp_name = strdup(cluster_name);
+    if(!tmp_name){
+      error = -ENOMEM;
+      goto fail;
+    }
+  }
+
+  log_dbg("Blocking is %s.\n",
+	  (ch->comm_flags & COMM_CONNECT_BLOCKING)? "SET": "UNSET");
+  log_dbg("Flags = 0x%x\n", ch->comm_flags);
+
+  /* Need to broadcast regardless (unless quorate) to check version # */
+  if(bcast_needed &&
+     (error = broadcast_for_doc(tmp_name, ch->comm_flags & COMM_CONNECT_BLOCKING)) &&
+     !master_doc->od_doc){
+    log_err("Broadcast for config file failed: %s\n", strerror(-error));
+    goto fail;
+  }
+  error = 0;
 
   if(!master_doc || !master_doc->od_doc){
     log_err("The appropriate config file could not be loaded.\n");
