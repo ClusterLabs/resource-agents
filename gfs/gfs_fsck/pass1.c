@@ -360,8 +360,8 @@ static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 	}
 	else if(get_and_read_buf(sdp, block, &leaf_bh, 0)){
 		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
-			 leaf_blk);
-		block_set(sdp->bl, leaf_blk, meta_inval);
+			 block);
+		block_set(sdp->bl, block, meta_inval);
 		ret = 1;
 	} else if(check_meta(leaf_bh, GFS_METATYPE_EA)) {
 		log_warn("EA leaf block has incorrect type.\n");
@@ -436,7 +436,65 @@ struct metawalk_fxns pass1_fxns = {
 	.check_eattr_extentry = check_extended_leaf_eattr,
 };
 
+int clear_metalist(struct fsck_inode *ip, uint64_t block,
+		   osi_buf_t **bh, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q = {0};
 
+	*bh = NULL;
+
+	if(block_check(sdp->bl, block, &q)) {
+		stack;
+		return -1;
+	}
+	if(!q.dup_block) {
+		block_set(sdp->bl, block, block_free);
+		return 0;
+	}
+	return 0;
+}
+
+int clear_data(struct fsck_inode *ip, uint64_t block, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q = {0};
+
+	if(block_check(sdp->bl, block, &q)) {
+		stack;
+		return -1;
+	}
+	if(!q.dup_block) {
+		block_set(sdp->bl, block, block_free);
+		return 0;
+	}
+	return 0;
+
+}
+
+int clear_leaf(struct fsck_inode *ip, uint64_t block,
+	       osi_buf_t **bh, void *private)
+{
+
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q = {0};
+	log_crit("Clearing leaf %"PRIu64"\n", block);
+
+	if(block_check(sdp->bl, block, &q)) {
+		stack;
+		return -1;
+	}
+	if(!q.dup_block) {
+		log_crit("Setting leaf invalid\n");
+		if(block_set(sdp->bl, block, block_free)) {
+			stack;
+			return -1;
+		}
+		return 0;
+	}
+	return 0;
+
+}
 
 int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 {
@@ -479,6 +537,10 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block, int mfree)
 	struct fsck_inode *ip;
 	int error;
 	struct block_count bc = {0};
+	struct metawalk_fxns invalidate_metatree = {0};
+	invalidate_metatree.check_metalist = clear_metalist;
+	invalidate_metatree.check_data = clear_data;
+	invalidate_metatree.check_leaf = clear_leaf;
 
 	if(copyin_inode(sdp, bh, &ip)) {
 		stack;
@@ -658,6 +720,8 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block, int mfree)
 	}
 	if(error > 0) {
 		log_warn("Marking inode invalid\n");
+		/* FIXME: Must set all leaves invalid as well */
+		check_metatree(ip, &invalidate_metatree);
 		block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
 		return 0;
 	}

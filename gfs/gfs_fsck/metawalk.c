@@ -315,19 +315,19 @@ static int check_eattr_entries(struct fsck_inode *ip, osi_buf_t *bh,
 /**
  * check_leaf_eattr
  * @ip: the inode the eattr comes from
- * @leaf_blk: block number of the leaf
+ * @block: block number of the leaf
  *
  * Returns: 0 on success, -1 if removal is needed
  */
-static int check_leaf_eattr(struct fsck_inode *ip, uint64_t leaf_blk,
+static int check_leaf_eattr(struct fsck_inode *ip, uint64_t block,
 			    uint64_t parent, struct metawalk_fxns *pass)
 {
 	osi_buf_t *bh = NULL;
 	int error = 0;
-	log_debug("Checking EA leaf block #%"PRIu64".\n", leaf_blk);
+	log_debug("Checking EA leaf block #%"PRIu64".\n", block);
 
 	if(pass->check_eattr_leaf) {
-		error = pass->check_eattr_leaf(ip, leaf_blk, parent,
+		error = pass->check_eattr_leaf(ip, block, parent,
 					       &bh, pass->private);
 		if(error < 0) {
 			stack;

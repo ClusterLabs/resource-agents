@@ -163,8 +163,8 @@ static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 
 	if(get_and_read_buf(ip->i_sbd, block, &leaf_bh, 0)){
 		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
-			 leaf_blk);
-		block_set(ip->i_sbd->bl, leaf_blk, meta_inval);
+			 block);
+		block_set(ip->i_sbd->bl, block, meta_inval);
 		return 1;
 	}
 
@@ -691,7 +691,7 @@ int check_root_dir(struct fsck_sb *sbp)
 		return -1;
 	}
 	if (error > 0) {
-		block_mark(sbp->bl, rootblock, meta_inval);
+		block_set(sbp->bl, rootblock, meta_inval);
 	}
 
 	if(get_and_read_buf(sbp, rootblock, &bh, 0)){
@@ -874,7 +874,7 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 					log_err("Directory entry to invalid inode remains\n");
 				}
 			}
-			block_mark(sbp->bl, i, meta_inval);
+			block_set(sbp->bl, i, meta_inval);
 		}
 		if(get_and_read_buf(sbp, i, &bh, 0)){
 			/* This shouldn't happen since we were able to

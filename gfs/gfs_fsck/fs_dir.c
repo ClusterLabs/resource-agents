@@ -693,6 +693,8 @@ static int dir_make_exhash(struct fsck_inode *dip)
 	}
 	relse_buf(dip->i_sbd, bh); bh=NULL;
 
+	log_debug("Created a new leaf block at %"PRIu64"\n", bn);
+
 	block_set(dip->i_sbd->bl, bn, leaf_blk);
 	/*  We're done with the new leaf block, now setup the new
 	    hash table.  */
@@ -945,9 +947,12 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 		log_err("dir_split_leaf:  Failed to write new leaf block.\n");
 		goto fail_nrelse;
 	}
-	relse_buf(sdp, nbh);
+
+	log_debug("Created a new leaf block at %"PRIu64"\n", BH_BLKNO(nbh));
 
 	block_set(dip->i_sbd->bl, BH_BLKNO(nbh), leaf_blk);
+
+	relse_buf(sdp, nbh);
 
 	return 0;
 
@@ -1329,6 +1334,8 @@ static int dir_e_add(struct fsck_inode *dip, osi_filename_t *filename,
 				}
 				set_meta(nbh, GFS_METATYPE_LF, GFS_FORMAT_LF);
 				/* Make sure the bitmap is updated */
+				log_debug("Setting leaf block at %"PRIu64"\n",
+					  bn);
 				block_set(dip->i_sbd->bl, bn, leaf_blk);
 				memset(BH_DATA(nbh)+sizeof(struct gfs_meta_header), 0,
 				       BH_SIZE(nbh)-sizeof(struct gfs_meta_header));

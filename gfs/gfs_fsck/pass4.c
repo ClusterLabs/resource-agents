@@ -58,7 +58,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 		   (ii->inode == sbp->sb.sb_jindex_di.no_addr) ||
 		   (ii->inode == sbp->sb.sb_quota_di.no_addr) ||
 		   (ii->inode == sbp->sb.sb_license_di.no_addr))
-			break;
+			continue;
 		log_info("Checking reference count on inode at block %"PRIu64
 			 "\n", ii->inode);
 		if(ii->counted_links == 0) {
@@ -74,7 +74,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 					ii->inode);
 				if(query(sbp, "Clear unlinked inode with bad blocks? (y/n) ")) {
 					block_set(sbp->bl, ii->inode, block_free);
-					goto end;
+					continue;
 				} else {
 					log_err("Unlinked inode with bad blocks not cleared\n");
 				}
@@ -89,9 +89,12 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 				log_err("Unlinked block marked as inode not an inode\n");
 				block_set(sbp->bl, ii->inode, block_free);
 				log_err("Cleared\n");
-				break;
+				continue;
 			}
-			load_inode(sbp, ii->inode, &ip);
+			if(load_inode(sbp, ii->inode, &ip)) {
+				stack;
+				return -1;
+			}
 			/* We don't want to clear zero-size files with
 			 * eattrs - there might be relevent info in
 			 * them. */
@@ -99,13 +102,15 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 				log_err("Unlinked inode has zero size\n");
 				if(query(sbp, "Clear zero-size unlinked inode? (y/n) ")) {
 					block_set(sbp->bl, ii->inode, block_free);
-					goto end;
+					free_inode(&ip);
+					continue;
 				}
 
 			}
 			if(query(sbp, "Add unlinked inode to l+f? (y/n)")) {
 				if(add_inode_to_lf(ip)) {
 					stack;
+					free_inode(&ip);
 					return -1;
 				}
 				else {
@@ -138,7 +143,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 		log_debug("block %"PRIu64" has link count %d\n", ii->inode,
 			  ii->link_count);
 	}
- end:
+
 	if (lf_addition) {
 		if(!(ii = inode_hash_search(sbp->inode_hash,
 					    sbp->lf_dip->i_num.no_addr))) {
