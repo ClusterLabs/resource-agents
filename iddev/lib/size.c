@@ -19,50 +19,51 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/mount.h>
 
 #include "global.h"
-
 #include "iddev.h"
 
+#ifndef BLKGETSIZE64
+#define BLKGETSIZE64 _IOR(0x12, 114, size_t)
+#endif
 
 
 
 
-#if defined(__linux__)
 
 /**
  * do_device_size - determine the size of a Linux block device
  * @device: the path to the device node
  *
- * Returns: the size of the device in basic blocks
+ * Returns: the size of the device in bytes
  */
-
-#include <sys/mount.h>
-
-#ifndef BLKGETSIZE64
-#define BLKGETSIZE64 _IOR(0x12, 114, uint64)
-#endif
 
 static int do_device_size(int fd, uint64 *bytes)
 {
   unsigned long size;
+  off_t off;
   int error;
 
-  error = ioctl(fd, BLKGETSIZE64, bytes);  /*  Size in bytes  */
+  error = ioctl(fd, BLKGETSIZE64, bytes);  /* Size in bytes */
   if (!error)
     return 0;
 
-  error = ioctl(fd, BLKGETSIZE, &size);  /*  Size in 512-byte blocks  */
+  error = ioctl(fd, BLKGETSIZE, &size);  /* Size in 512-byte blocks */
   if (!error)
   {
     *bytes = ((uint64)size) << 9;
     return 0;
   }
 
-  return error;
-}
+  off = lseek(fd, 0, SEEK_END);
+  if (off >= 0) {
+	  *bytes = off;
+	  return 0;
+  }
 
-#endif  /*  __linux__  */
+  return -1;
+}
 
 
 /**
@@ -75,26 +76,25 @@ static int do_device_size(int fd, uint64 *bytes)
 
 int device_size(int fd, uint64 *bytes)
 {
-  struct stat st;
-  int error;
+	struct stat st;
+	int error;
 
-  error = fstat(fd, &st);
-  if (error)
-    return error;
+	error = fstat(fd, &st);
+	if (error)
+		return error;
 
-  if (S_ISREG(st.st_mode))
-  {
-    *bytes = st.st_size;
-    return 0;
-  }
-  else if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
-    return do_device_size(fd, bytes);
-  else if (S_ISDIR(st.st_mode))
-    errno = EISDIR;
-  else
-    errno = EINVAL;
+	if (S_ISREG(st.st_mode)) {
+		*bytes = st.st_size;
+		return 0;
+	}
+	else if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
+		return do_device_size(fd, bytes);
+	else if (S_ISDIR(st.st_mode))
+		errno = EISDIR;
+	else
+		errno = EINVAL;
 
-  return -1;
+	return -1;
 }
 
 
