@@ -21,10 +21,10 @@ install:
 	install -d ${mandir}/man8
 	install cluster.conf.5 ${mandir}/man5
 	install ccs.7 ${mandir}/man7
-	install ccsd.8 ccs_test.8 ${mandir}/man8
+	install ccsd.8 ccs_test.8 ccs_tool.8 ${mandir}/man8
 
 uninstall:
 	${UNINSTALL} cluster.conf.5 ${mandir}/man5
 	${UNINSTALL} ccs.7 ${mandir}/man7
-	${UNINSTALL} ccsd.8 ccs_test.8 ${mandir}/man8
+	${UNINSTALL} ccsd.8 ccs_test.8 ccs_tool.8 ${mandir}/man8
 

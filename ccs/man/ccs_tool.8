@@ -1,0 +1,74 @@
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'ccs_tool(8)''ccs_tool(8)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 ccs_tool.8 | less'
+
+\fBNAME\fP
+.in +7
+ccs_tool - The tool used to make online updates of CCS config files.
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBccs_tool\fP [\fBoptions\fP] <\fBcommand\fP>
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+\fBccs_tool\fP is part of the Cluster Configuration System (CCS).  It
+is used to make online updates of CCS config files.  Additionally, it
+can be used to upgrade old style (GFS <= 6.0) CCS archives to the new
+xml format.
+
+.sp
+.in
+\fBOPTIONS\fP
+.in +7
+
+\fB-h\fP
+.in +7
+Help.  Print out the usage.
+.sp
+.in
+
+\fB-V\fP
+.in +7
+Print the version information.
+.sp
+.in
+
+.in -7
+\fBCOMMANDS\fP
+.in +7
+\fBupdate\fP \fI<xml file>\fP
+.in +7
+This command is used to update the config file that ccsd is working with
+while the cluster is operational (i.e. online).  Run this on a single
+machine to update all instances of ccsd across the cluster.
+
+If you are using 'cman' as your cluster manager, you will also need to
+run \fBcman_tool version -r <new version number>\fP once the update is
+complete.  Failure to do so will result in new nodes (or nodes rejoining
+after a failure) not being allowed
+to join the working set due to version number mismatches.
+
+.sp
+.in
+\fBupgrade\fP \fI<location>\fP
+.in +7
+This command is used to upgrade an old CCS format archive to the new
+xml format.  \fI<location>\fP is the location of the old archive,
+which can be either a block device archive or a file archive.  The
+converted configuration will be printed to stdout.
+
+.sp
+.in
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+ccs(7), ccsd(8), cluster.conf(5)
