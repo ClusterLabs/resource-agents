@@ -21,7 +21,7 @@ static int quit = 0;
 static int leave_finished = 0;
 
 
-#define OPTION_STRING			("d:Dn:hV")
+#define OPTION_STRING			("cj:f:Dn:hV")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 
@@ -33,14 +33,17 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
-	printf("  -d <secs>        Delay for nodes to join cluster and avoid\n");
-	printf("                   being fenced (default 0) *\n");
+	printf("  -c               All nodes are in a clean state to start\n");
+	printf("  -j <secs>        Post join fencing delay (default %d)\n",
+			           DEFAULT_POST_JOIN_DELAY);
+	printf("  -f <secs>        Post fail fencing delay (default %d)\n",
+				   DEFAULT_POST_FAIL_DELAY);
 	printf("  -D               Enable debugging code and don't fork\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -n <name>        Name of the fence domain, \"default\" if none\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
-	printf("* This command line value overrides any value in cluster.conf.\n");
+	printf("Command line values override those in cluster.conf.\n");
 }
 
 static void lockfile(void)
@@ -270,7 +273,6 @@ static void process_event(fd_t *fd, struct cl_service_event *ev)
 	}
 }
 
-
 static void process_events(fd_t *fd)
 {	
 	struct cl_service_event event;
@@ -302,7 +304,7 @@ static void process_events(fd_t *fd)
 	}
 }
 
-static int init_nodes(fd_t *fd)
+static int init_ccs(fd_t *fd)
 {
 	char path[256];
 	char *name = NULL, *str = NULL;
@@ -314,22 +316,58 @@ static int init_nodes(fd_t *fd)
 			log_debug("connect to ccs error %d", cd);
 	}
 
-	if (fd->comline->delay == -1) {
+	if (fd->comline->clean_start == -1) {
+		str = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//fence_daemon/@delay");
+	        sprintf(path, "//fence_daemon/@clean_start");
 
 		error = ccs_get(cd, path, &str);
 		if (!error)
-			fd->comline->delay = atoi(str);
+			fd->comline->clean_start = atoi(str);
 		else
-			fd->comline->delay = DEFAULT_DELAY;
+			fd->comline->clean_start = DEFAULT_CLEAN_START;
 		if (str)
 			free(str);
 	}
 
-	log_debug("delay is %ds", fd->comline->delay);
+	if (fd->comline->post_join_delay == -1) {
+		str = NULL;
+	        memset(path, 0, 256);
+	        sprintf(path, "//fence_daemon/@post_join_delay");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			fd->comline->post_join_delay = atoi(str);
+		else
+			fd->comline->post_join_delay = DEFAULT_POST_JOIN_DELAY;
+		if (str)
+			free(str);
+	}
+
+	if (fd->comline->post_fail_delay == -1) {
+		str = NULL;
+	        memset(path, 0, 256);
+	        sprintf(path, "//fence_daemon/@post_fail_delay");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			fd->comline->post_fail_delay = atoi(str);
+		else
+			fd->comline->post_fail_delay = DEFAULT_POST_FAIL_DELAY;
+		if (str)
+			free(str);
+	}
+
+	log_debug("delays post_join %ds post_fail %ds",
+		  fd->comline->post_join_delay, fd->comline->post_fail_delay);
+
+	if (fd->comline->clean_start) {
+		log_debug("clean start, skipping initial nodes");
+		goto out;
+	}
 
 	for (i=1;;i++) {
+		name = NULL;
 	        memset(path, 0, 256);
 	        sprintf(path, "//nodes/node[%d]/@name", i);
 
@@ -339,12 +377,11 @@ static int init_nodes(fd_t *fd)
 
 		add_complete_node(fd, 0, strlen(name), name);
 		free(name);
-		name = NULL;
 		count++;
 	}
 
 	log_debug("added %d nodes from ccs", count);
-
+ out:
 	ccs_disconnect(cd);
 	return 0;
 }
@@ -378,9 +415,9 @@ int fence_domain_add(commandline_t *comline)
 	INIT_LIST_HEAD(&fd->leaving);
 	INIT_LIST_HEAD(&fd->complete);
 
-	error = init_nodes(fd);
+	error = init_ccs(fd);
 	if (error)
-		die("fence_domain_add: init_nodes ccs error %d", error);
+		die("fence_domain_add: init_ccs error %d", error);
 
 	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (cl_sock < 0)
@@ -440,17 +477,25 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 	int cont = TRUE;
 	int optchar;
 
-	comline->delay = -1;
+	comline->post_join_delay = -1;
+	comline->post_fail_delay = -1;
+	comline->clean_start = -1;
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
 
-		case 'd':
-			comline->delay = atoi(optarg);
-			if (comline->delay < 0)
-				die("delay cannot be negative");
+		case 'c':
+			comline->clean_start = 1;
+			break;
+
+		case 'j':
+			comline->post_join_delay = atoi(optarg);
+			break;
+
+		case 'f':
+			comline->post_fail_delay = atoi(optarg);
 			break;
 
 		case 'D':
@@ -489,6 +534,9 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		};
 	}
 
+	if (comline->post_join_delay < 0 || comline->post_fail_delay < 0)
+		die("delay cannot be negative");
+
 	if (!strcmp(comline->name, ""))
 		strcpy(comline->name, "default");
 
@@ -496,7 +544,9 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		printf("Command Line Arguments:\n");
 		printf("  name = %s\n", comline->name);
 		printf("  debug = %d\n", comline->debug);
-		printf("  delay = %d\n", comline->delay);
+		printf("  post_join_delay = %d\n", comline->post_join_delay);
+		printf("  post_fail_delay = %d\n", comline->post_fail_delay);
+		printf("  clean_start = %d\n", comline->clean_start);
 	}
 }
 

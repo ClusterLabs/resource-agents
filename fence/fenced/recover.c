@@ -297,6 +297,10 @@ static int list_count(struct list_head *head)
 	return count;
 }
 
+/* This routine should probe other indicators to check if victims
+   can be reduced.  Right now we just check if the victim has rejoined the
+   cluster. */
+
 static int reduce_victims(fd_t *fd)
 {
 	fd_node_t *node, *safe;
@@ -330,11 +334,14 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 {
 	struct timeval first, last, start, now;
 	int victim_count, last_count = 0;
+	int delay = 0;
 
-	if (ev->start_type != SERVICE_START_JOIN)
-		return;
+	if (ev->start_type == SERVICE_START_JOIN)
+		delay = fd->comline->post_join_delay;
+	else
+		delay = fd->comline->post_fail_delay;
 
-	if (fd->comline->delay == 0)
+	if (delay == 0)
 		return;
 
 	gettimeofday(&first, NULL);
@@ -354,7 +361,7 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 		last_count = victim_count;
 
 		gettimeofday(&now, NULL);
-		if (now.tv_sec - start.tv_sec >= fd->comline->delay)
+		if (now.tv_sec - start.tv_sec >= delay)
 			break;
 	}
 

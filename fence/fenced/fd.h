@@ -42,7 +42,9 @@
 
 extern char *prog_name;
 
-#define DEFAULT_DELAY   3
+#define DEFAULT_POST_JOIN_DELAY   3
+#define DEFAULT_POST_FAIL_DELAY   0
+#define DEFAULT_CLEAN_START       0
 
 /* should match service.h MAX_SERVICE_NAME_LEN */
 #define MAX_NAME_LEN	33
@@ -95,7 +97,9 @@ struct commandline
 {
 	char name[MAX_NAME_LEN];
 	int debug;
-	int delay;
+	int post_join_delay;
+	int post_fail_delay;
+	int clean_start;
 };
 
 #define FDFL_RUN        (0)
