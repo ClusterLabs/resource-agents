@@ -243,6 +243,7 @@ static void set_nodeid(struct cluster_node *node, int nodeid)
 		idr_remove(&members_idr, nodeid);
 		write_unlock(&members_idr_lock);
 
+		kfree(idr_node);
 		idr_node = NULL;
 	}
 
