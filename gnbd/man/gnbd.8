@@ -16,9 +16,11 @@ Overview of manpages and their locations
 .in
 \fBDESCRIPTION\fP
 .in +7
-The GFS Network Block Device has two parts, the client (which requires the
-\fBgnbd.o\fP module and the \fBgnbd_import\fP program) and the server
-(which requires the \fBgnbd_serv.o\fP module and the \fBgnbd_export\fP program).  The GNBD server allows a computer
+The GFS Network Block Device has two parts, the client (which includes the
+\fBgnbd.ko\fP module and  \fBgnbd_import\fP, \fBgnbd_recvd\fP, and
+\fBgnbd_monitor\fP programs) and the server
+(which include the \fBgnbd_serv\fP, \fBgnbd_clusterd\fP, and \fBgnbd_export\fP
+programs).  The GNBD server allows a computer
 to export multiple block devices or files (GNBDs).  The GNBD client allows a
 computer to import these GNBDs, and use them as if they were local block
 devices.  The primary difference between GNBD and NBD (the network block
@@ -38,4 +40,4 @@ command/feature you are looking for.
 .in
 \fBSEE ALSO\fP
 .in +7
-pool(8), gfs(8), fence(8), fence_gnbd(8)
+gfs(8), fence(8), fence_gnbd(8)

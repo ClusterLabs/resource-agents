@@ -15,10 +15,10 @@ gnbd_import - manipulate GNBD block devices on a client
 .in
 \fBDESCRIPTION\fP
 .in +7
-gnbd_import imports, lists, and removes GNBDs from the system. GNBD is similar to
+gnbd_import imports, lists, and removes GNBDs from the system. GNBD is simila
+ to
 the Network Block Device (nbd) in the Linux kernel, except that it allows
-multiple clients to connect at once and has a built-in fence command.  GNBD
-gains significant advantages when multiple devices are striped using \fBpool\fP.
+multiple clients to connect at once and has a built-in fence command.
 .sp
 .in
 \fBOPTIONS\fP
@@ -27,14 +27,10 @@ gains significant advantages when multiple devices are striped using \fBpool\fP.
 .in +7
 Validate.
 .sp
-This makes sure that the server for each imported
-GNBD is still active.  If it is not, and there are no requests pending for
-that GNBD, it is deleted.  If there are requests pending, or the GNBD is
-currently open, it will not be deleted.  (If a server with the same name is
-later imported, you will have the option of trying to complete the pending
-requests to the new server.)  If a machine has been disconnected or fenced, 
-the most likely way to seamlessly reconnect it is to run \fBgnbd_import -a\fP 
-on it.
+Restart failed gnbd_recvd processes. Usually, if a gnbd becomes
+disconnected, the \fBgnbd_recvd\fP process for that device will automatically
+try to reconnect. If that process is killed, \fBgnbd_import -a\fP will
+restart it.
 .sp
 .in
 \fB-c \fIserver\fR
@@ -43,8 +39,8 @@ Check fenced.
 .sp
 List all the IP addresses currently IO fenced from the specified \fIserver\fR.
 If the sepecified server does not have any IP addresses fenced, nothing will
-be returned.  If the server does not have the gnbd_serv.o module installed, or
-the server's kgnbd_portd daemon is not running, an error will be returned.
+be returned.  If the server machine is not running gnbd_serv, an error will
+be returned.
 .sp
 .in
 \fB-e \fIserver\fR
@@ -53,9 +49,8 @@ List exported.
 .sp
 List GNBDs exported by the specified \fIserver\fR, along with the port at 
 which they can be accessed. If the specified server is not exporting any GNBDs, 
-nothing will be returned. If the server does not have the gnbd_serv.o module 
-installed, or the server's kgnbd_portd daemon is not running, an error will be
-returned.
+nothing will be returned. If the server machine is not running gnbd_serv, an
+error will be returned.
 .sp
 .in
 \fB-h\fP
@@ -71,13 +66,7 @@ Import.
 .sp
 Import all GNBDs which the specified \fIserver\fR has exported. This will not 
 allow a GNBD to be imported if another one with the same name has already been
-imported. There is an exception to this rule; if there is currently an imported 
-GNBD that is disconnected and either has requests pending or is still open, and 
-a new GNBD with the same name is imported, gnbd_import will ask whether or not 
-this new GNBD should replace the old one. This will happen when a GNBD gets 
-disconnected, and \fBgnbd_import -i <\fIdisconnected GNBD's server\fB>\fR is 
-run. You should answer \fBY\fP in this case. There are 
-some restrictions on importing GNBD devices. See \fBBUGS\fP below.
+imported.
 .sp
 .in
 \fB-l\fP
@@ -85,24 +74,26 @@ some restrictions on importing GNBD devices. See \fBBUGS\fP below.
 List.
 .sp
 List all imported GNBDs. If no options are specified, this is the default 
-action. There are six fields for each device: Device name, Minor #, 
-Proc name, IP, Port, State. The Device name is the name that was chosen for 
+action. There are eight fields for each device: Device name, Minor #, 
+Proc name, Server, Port, State, Readonly and Sectors. The Device name is the
+name that was chosen for 
 the device when the server exported it. The Minor # is the minor number for 
 the GNBD on the local machine.  The Proc name is the name for the 
 device that will appear in /proc/partitions, since Linux does not allow 
 devices in /proc/partitions to have arbitrary names. \fBNOTE:\fP A GNBD's 
 Device name will be consistent across a cluster. Its Minor # and 
-Proc name may not be.  IP and Port are the IP address and port used to 
+Proc name may not be.  Server and Port are the ones used to 
 communicate with the GNBD's server. State describes the state of
 the device.  It has three variables.  The first will either say \fBOpen\fP or 
 \fBClosed\fP, depending on whether the imported GNBD is open or closed.
 The second will either say \fBConnected\fP or \fBDisconnected\fP, depending
 on whether or not there is a working TCP connection from the device to its
 server.  When the connection is broken, this variable might not be immediately
-updated.  To force the GNBD to check its connection state, run \fBgnbd_import 
--a\fP. The third variable will either say \fBPending\fP or \fBClear\fP, 
+updated.  The third variable will either say \fBPending\fP or \fBClear\fP, 
 depending on whether or not there are any IO requests that the GNBD has sent
-to the server, but which haven't been completed yet.
+to the server, but which haven't been completed yet. Readonly tells whether
+the gnbd server exported this device as readonly. Sectors is the device size
+in 512 bytes sectors.
 .sp
 .in
 \fB-O\fP
@@ -120,9 +111,9 @@ Port.
 .sp
 Change the port to connect to on the server.  This option is used with 
 \fB-c\fP, \fB-e\fP and \fB-i\fP.  If the port option is not set, gnbd_import
-will try to connect to port 14243 on the server machine to find the kgnbd_portd 
-daemon. You should only need to use this if you have changed the kgndb_portd 
-port from its default, with \fBgnbd_export -p <\fIsome port\fB>\fP\fR.
+will try to connect to port 14567 on the server machine to find the gnbd_serv 
+daemon. You should only need to use this if you have changed the gnbd_serv
+port from its default.
 .sp
 .in
 \fB-q\fP
@@ -138,7 +129,8 @@ Remove All.
 .sp
 Remove all of the imported GNBDs from the system. Only GNBDs that are in the 
 \fBClosed Disconnected Clear\fP state can be removed (See the \fB-l\fP 
-option).  Remove All stops after the first failed remove.
+option), unless \fB-O\fP is used.  Remove All stops after the first failed
+remove.
 .sp
 .in
 \fB-r\fP [\fIGNBD\fR | \fILIST\fR]
@@ -146,7 +138,8 @@ option).  Remove All stops after the first failed remove.
 Remove.
 .sp
 Remove named GNBD(s) from system.  Only GNBDs that are in the \fBClosed 
-Disconnected Clear\fP state can be removed (See the \fB-l\fP option).
+Disconnected Clear\fP state can be removed (See the \fB-l\fP option), unless
+the \fB-O\fP option is used.
 Remove stops after the first failed remove. 
 .sp
 .in
@@ -154,9 +147,8 @@ Remove stops after the first failed remove.
 .in +7
 Fence.
 .sp
-IO fence the specified host.  This contacts every server that the system has
-imported a GNBD from, telling it to close any connection with the specified
-host.  This command is generally invoked by lock_gulmd. \fBWARNING\fP It is
+IO fence the specified host. This command is generally invoked by \fBfenced\fP.
+\fBWARNING\fP It is
 not always possible to seamlessly reconnect a client that has had its
 connection cut. You should not execute this command manually unless you know
 what you are doing. See the \fB-t\fP option for more information. Once a host
@@ -168,20 +160,16 @@ until it is unfenced (see the \fB-u\fP option).
 .in +7
 Fence from Server.
 .sp
-Specify a server for the IO fence (only used with the \fB-s\fP option). This
-causes the the IO fence operation to only contact the specified server.
-This option is necessary if the you want to fence a host from a server that is
-not exporting a GNBD to your machine.
+Specify a server for the IO fence (only used with the \fB-s\fP option).
 .sp
 .in
 \fB-u\fP \fIhost\fR
 .in +7
 Unfence.
 .sp
-Unfence the specified host.  By default, every server that the system has
-imported a GNBD from is contacted, and told to unfence the specified host.
-This command is generall invoked by gnbd_unfence. See the \fB-t\fP option
-for more information.
+Unfence the specified host. \fBWARNING\fP: Unfencing a client at the incorrect
+time can result in data corruption.  In normal operation, it should never be
+necessary to run this comman. See the \fB-t\fP option.
 .sp
 .in
 \fB-V\fP
@@ -195,19 +183,17 @@ Print out version information.
 .in +7
 Verbose output.
 .sp
-Print additional messages during the operation of gnbd_import. This option
-can be used in conjunction with any other option, but is most useful with
--i and -a.
+Print additional messages during the operation of gnbd_import.
 .sp
 .in -14
 \fBSEE ALSO\fP
 .in +7
-gnbd_export(8), pool_tool(8), pool_assemble(8)
+gnbd_export(8)
 .sp
 .in
 \fBBUGS\fP
 .in +7
 A computer should not import a GNBD device that it exports.  Any 
 significant amount of IO on that device will cause a kernel deadlock. This is 
-a problem common to most NBDs and would require a kernel patch to solve. This 
-issue may be fixed in the future, but it is not actively being worked on.
+a problem common to most NBDs. Instead, the underlying device should be
+used directly. See gnbd_export for more on this.

@@ -79,10 +79,10 @@ This option is used by fence_node(8) and is ignored by fence_gnbd.
 .sp
 IP address or hostname of the node to be fenced (required).
 .sp
-\fIserver = < hostname | ip >\fP
+\fIservers = < hostname [ hostname ... ] >\fP
 .sp
-IP address or hostname of the server to fence the gnbd client from. May be used
-multiple times. See the \fB-t\fP option for more details.
+A whitespace seperated list of the servers to fence the client from, in
+either IP address or hostname form.
 .sp
 \fIoption = multipath\fP
 .sp
@@ -107,4 +107,4 @@ is 2.
 .in -7
 \fBSEE ALSO\fP
 .in +7
-fence(8), fenced(8), gnbd_import(8), fence_notify_gnbd(8)
+fence(8), fenced(8), gnbd_import(8)
