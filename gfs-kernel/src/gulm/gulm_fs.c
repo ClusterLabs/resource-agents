@@ -125,6 +125,13 @@ request_journal_replay (uint8_t * name)
 
 		/* due to the way the new jid mapping code works, we had to
 		 * move it out of here.
+		 * (making calls to the lock server.  Things can deadlock
+		 * if the jid mapping calls are made from this thread of
+		 * execution.)
+		 *
+		 * I need to look over this.  There HAS to be a better way
+		 * to manage the way we figgure out which journals gfs
+		 * needs to replay.
 		 */
 
 		rf = kmalloc (sizeof (struct rjrpf_s), GFP_KERNEL);
@@ -247,7 +254,7 @@ start_gulm_threads (char *csnm, char *hostdata)
 		 * options for example. or maybe sysfs?)
 		 * */
 		gulm_cm.handler_threads = 2;
-		gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
+		gulm_cm.verbosity = lgm_Network ;
 
 		error = cm_login ();
 		if (error != 0) {

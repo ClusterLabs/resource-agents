@@ -468,6 +468,7 @@ find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name,
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
 	uint16_t keylen = GIO_KEY_SIZE;
 
+	down (&fs->headerlock);
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
@@ -484,6 +485,7 @@ find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name,
 		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 
 	}
+	up (&fs->headerlock);
 
 	return found;
 }
@@ -503,6 +505,7 @@ check_for_stale_expires (gulm_fs_t * fs)
 	uint16_t keylen = GIO_KEY_SIZE;
 	unsigned int ujid;
 
+	down (&fs->headerlock); /*???*/
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
@@ -518,6 +521,7 @@ check_for_stale_expires (gulm_fs_t * fs)
 			fs->cb (fs->fsdata, LM_CB_NEED_RECOVERY, &ujid);
 		}
 	}
+	up (&fs->headerlock);
 }
 
 
