@@ -4,10 +4,13 @@ dnl	Started by David Lee <T.D.Lee@durham.ac.uk> December 2000
 dnl automake stuff 
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
+dnl Some changes are no longer compatible with older autoconf releases
+AC_PREREQ(2.53)
+
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.136 $) dnl cvs revision
+AC_REVISION($Revision: 1.137 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -39,6 +42,7 @@ AC_SUBST(ECHO_CMD)
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h)
+ALL_LINGUAS="en fr"
 AM_INIT_AUTOMAKE(heartbeat, 0.4.9d)
 RPMREL=1
 AC_SUBST(RPMREL)
@@ -339,7 +343,7 @@ AC_EGREP_CPP(FoundClkTck,
 #endif
 ], 
 [
-        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1) 
+        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ]) 
         AC_MSG_RESULT("Yes") 
 ],
 AC_MSG_RESULT("No"))
@@ -355,7 +359,7 @@ AC_EGREP_CPP(FoundClkTck,
   FoundClkTck
 #endif
 ], [
-        AC_DEFINE(CLK_TCK_IN_TIME_H,1)
+        AC_DEFINE(CLK_TCK_IN_TIME_H,1,[ ])
         AC_MSG_RESULT("Yes") 
 ],
 AC_MSG_RESULT("No"))
@@ -516,7 +520,7 @@ AC_TRY_COMPILE([#include <sys/types.h>
 [struct termios ti;  ti.c_line = 'a';],
 samba_cv_HAVE_TERMIOS_C_LINE=yes,samba_cv_HAVE_TERMIOS_C_LINE=no,samba_cv_HAVE_TERMIOS_C_LINE=cross)])
 if test x"$samba_cv_HAVE_TERMIOS_C_LINE" = x"yes"; then
-    AC_DEFINE(HAVE_TERMIOS_C_LINE)
+    AC_DEFINE(HAVE_TERMIOS_C_LINE,1,[ ])
 fi
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
@@ -527,7 +531,7 @@ AC_TRY_COMPILE([#include <sys/types.h>
 [struct sockaddr_in si;  si.sin_len = 1;],
 samba_cv_HAVE_SOCKADDR_IN_SIN_LEN=yes,samba_cv_HAVE_SOCKADDR_IN_SIN_LEN=no,samba_cv_HAVE_SOCKADDR_IN_SIN_LEN=cross)])
 if test x"$samba_cv_HAVE_SOCKADDR_IN_SIN_LEN" = x"yes"; then
-    AC_DEFINE(HAVE_SOCKADDR_IN_SIN_LEN)
+    AC_DEFINE(HAVE_SOCKADDR_IN_SIN_LEN,1,[ ])
 fi
 
 dnl Check msghdr for components (e.g. msg_control/msg_controlen not present on Solaris)
@@ -840,11 +844,11 @@ dnl
 AC_CHECK_FUNCS(setproctitle)
 AC_CHECK_HEADERS(libutil.h)
 AC_CHECK_LIB(util, setproctitle,
-	[AC_DEFINE(HAVE_SETPROCTITLE)
+	[AC_DEFINE(HAVE_SETPROCTITLE,1,[ ])
 		ac_cv_func_setproctitle="yes" ; LIBS="$LIBS -lutil"])
 
 if test "$ac_cv_func_setproctitle" = "yes"; then
-  AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NONE)
+  AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NONE, [ ])
 else
   pf_argv_set="no"
 
@@ -853,9 +857,9 @@ else
     AC_CHECK_FUNCS(pstat)
     
     if test "$ac_cv_func_pstat" = "yes"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSTAT)
+	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSTAT, [ ])
     else
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITABLE)
+	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITABLE, [ ])
     fi
 
     pf_argv_set="yes"
@@ -865,7 +869,7 @@ else
     AC_EGREP_HEADER([#define.*PS_STRINGS.*],sys/exec.h,
 			have_psstrings="yes",have_psstrings="no")
     if test "$have_psstrings" = "yes"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSSTRINGS)
+	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_PSSTRINGS, [ ])
 	pf_argv_set="yes"
     fi
   fi
@@ -878,7 +882,7 @@ else
 			pf_cv_var_progname="yes", pf_cv_var_progname="no"))
 
     if test "$pf_cv_var_progname" = "yes"; then
-	AC_DEFINE(HAVE___PROGNAME)
+	AC_DEFINE(HAVE___PROGNAME,1,[ ])
     fi
 
     AC_CACHE_CHECK(which argv replacement method to use,
@@ -890,12 +894,12 @@ else
   ],pf_cv_argv_type="new", pf_cv_argv_type="writeable"))
 
     if test "$pf_cv_argv_type" = "new"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NEW)
+	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_NEW, [ ])
 	pf_argv_set="yes"
     fi
 
     if test "$pf_argv_set" = "no"; then
-	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITEABLE)
+	AC_DEFINE(PF_ARGV_TYPE, PF_ARGV_WRITEABLE, [ ])
     fi
   fi
 fi
@@ -949,9 +953,10 @@ dnl AC_SUBST(ac_aux_dir)
 
 dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
 Xsed="sed -e s/^X//"
-# This line breaks on every single version other than the newest Suse (United Linux)
-# Commented out per converstion with Alan.
-#  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+
+dnl This line breaks on every single version other than the newest Suse (United Linux)
+dnl Commented out per converstion with Alan.
+dnl  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 AC_SUBST(LTLIBOBJS)
 
