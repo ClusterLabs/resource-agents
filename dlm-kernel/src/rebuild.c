@@ -142,6 +142,12 @@ static rebuild_node_t *find_rebuild_root(struct dlm_ls *ls, int nodeid)
 	return node;
 }
 
+static void free_rebuild_root(rebuild_node_t *rnode)
+{
+	list_del(&rnode->list);
+	kfree(rnode);
+}
+
 /*
  * Tidy up after a rebuild run.  Called when all recovery has finished
  */
@@ -1204,6 +1210,12 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 			break;
 
 		case REMASTER_LKB:
+			if (!rnode->rootrsb) {
+				log_error(ls, "null rootrsb %d", nodeid);
+				free_rebuild_root(rnode);
+				free_rcom_buffer(rc);
+				goto out;
+			}
 			deserialise_lkb(ls, nodeid, rnode->rootrsb, buf, &ptr,
 					outbuf, &outptr);
 			break;

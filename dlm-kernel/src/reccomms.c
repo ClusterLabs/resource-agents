@@ -263,10 +263,26 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		 */
 
 	case RECCOMM_NEWLOCKS:
+
+		/*
+		 * This should prevent us from processing any NEWLOCKS
+		 * messages sent during a previous recovery instance.
+		 */
+		if (!test_bit(LSFL_RESDIR_VALID, &ls->ls_flags)) {
+			log_debug(ls, "ignoring NEWLOCKS from %u", nodeid);
+			return;
+		}
+
 		rebuild_rsbs_recv(ls, nodeid, rc->rc_buf, rc->rc_datalen);
 		break;
 
 	case RECCOMM_NEWLOCKIDS:
+
+		if (!test_bit(LSFL_RESDIR_VALID, &ls->ls_flags)) {
+			log_debug(ls, "ignoring NEWLOCKIDS from %u", nodeid);
+			return;
+		}
+
 		rebuild_rsbs_lkids_recv(ls, nodeid, rc->rc_buf, rc->rc_datalen);
 		break;
 
