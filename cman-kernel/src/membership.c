@@ -1905,10 +1905,6 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 
 	node_state = TRANSITION_COMPLETE;
 
-	/* Need to set this here or the barrier code will reject us if we've
-	 * just joined */
-	we_are_a_cluster_member = TRUE;
-
 	confirm_joiner();
 	cluster_generation = le32_to_cpu(endmsg->generation);
 

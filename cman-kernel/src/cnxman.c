@@ -2884,15 +2884,13 @@ void set_quorate(int total_votes)
 		quorate = 1;
 	}
 
-	/* Hide messages during startup state transition */
-	if (we_are_a_cluster_member) {
-		if (cluster_is_quorate && !quorate)
-			printk(KERN_CRIT CMAN_NAME
-			       ": quorum lost, blocking activity\n");
-		if (!cluster_is_quorate && quorate)
-			printk(KERN_CRIT CMAN_NAME
-			       ": quorum regained, resuming activity\n");
-	}
+	if (cluster_is_quorate && !quorate)
+		printk(KERN_CRIT CMAN_NAME
+		       ": quorum lost, blocking activity\n");
+	if (!cluster_is_quorate && quorate)
+		printk(KERN_CRIT CMAN_NAME
+		       ": quorum regained, resuming activity\n");
+
 	cluster_is_quorate = quorate;
 
 	/* Wake up any sleeping processes */
