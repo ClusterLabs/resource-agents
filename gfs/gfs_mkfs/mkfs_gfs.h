@@ -99,7 +99,6 @@ struct commandline
 
   uint32 bsize;             /*  The block size of the FS  */
   uint32 seg_size;          /*  The journal segment size  */
-  int ask_pool;             /*  Ask Pool about layout  */
   uint32 journals;          /*  Number of journals  */
   uint32 jsize;             /*  Size of journals  */
   uint32 rgsize;            /*  The Resource Group size  */

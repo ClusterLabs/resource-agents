@@ -35,7 +35,7 @@
 
 
 
-#define OPTION_STRING               ("b:DhJ:j:OPp:qr:s:t:VX")
+#define OPTION_STRING               ("b:DhJ:j:Op:qr:s:t:VX")
 
 
 
@@ -60,7 +60,6 @@ static void print_usage()
   printf("  -J <MB>          Size of journals\n");
   printf("  -j <num>         Number of journals\n");
   printf("  -O               Don't ask for confirmation\n");
-  printf("  -P               Try to get FS layout from Pool\n");
   printf("  -p <name>        Name of the locking protocol\n");
   printf("  -q               Don't print anything\n");
   printf("  -r <MB>          Resource Group Size\n");
@@ -118,11 +117,6 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
     case 'O':
       comline->override = TRUE;
-      break;
-
-
-    case 'P':
-      comline->ask_pool = TRUE;
       break;
 
 
@@ -207,7 +201,6 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
     printf("  table = %s\n", comline->locktable);
     printf("  bsize = %u\n", comline->bsize);
     printf("  seg_size = %u\n", comline->seg_size);
-    printf("  ask_pool = %u\n", comline->ask_pool);
     printf("  journals = %u\n", comline->journals);
     printf("  jsize = %u\n", comline->jsize);
     printf("  rgsize = %u\n", comline->rgsize);
