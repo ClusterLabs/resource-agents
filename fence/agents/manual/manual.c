@@ -294,7 +294,7 @@ int main(int argc, char **argv)
 	syslog(LOG_CRIT, "Node %s needs to be reset before recovery can "
 			 "procede.  Waiting for %s to rejoin the cluster "
 			 "or for manual acknowledgement that it has been reset "
-			 "(i.e. fence_ack_manual -s %s)\n",
+			 "(i.e. fence_ack_manual -n %s)\n",
 			 victim, victim, victim);
 
 	setup_fifo();
