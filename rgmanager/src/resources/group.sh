@@ -42,6 +42,19 @@ meta_data()
             </shortdesc>
             <content type="string"/>
         </parameter>
+
+        <parameter name="autostart">
+            <longdesc lang="en">
+	    	If set to yes, this resource group will automatically be started
+		after the cluster forms a quorum.  If set to no, this resource
+		group will start in the 'disabled' state after the cluster forms
+		a quorum.
+            </longdesc>
+            <shortdesc lang="en">
+	    	Automatic start after quorum formation
+            </shortdesc>
+            <content type="string"/>
+        </parameter>
     </parameters>
 
     <actions>

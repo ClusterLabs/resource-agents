@@ -71,11 +71,13 @@ typedef struct _resource_child {
 } resource_child_t;
 
 
-typedef struct _resource_monitor {
-	time_t rcl_last;
-	time_t rcl_interval;
-	int rcl_check_level;
-} resource_monitor_t;
+typedef struct _resource_act {
+	char *ra_name;
+	time_t ra_timeout;
+	time_t ra_last;
+	time_t ra_interval;
+	int ra_depth;
+} resource_act_t;
 
 
 typedef struct _resource_rule {
@@ -88,7 +90,7 @@ typedef struct _resource_rule {
 	int	rr_maxrefs;
 	resource_attr_t *	rr_attrs;
 	resource_child_t *	rr_childtypes;
-	resource_monitor_t *	rr_monitor_levels;
+	resource_act_t *	rr_actions;
 } resource_rule_t;
 
 

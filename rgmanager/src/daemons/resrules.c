@@ -195,35 +195,156 @@ _get_root(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 }
 
 
-/**
-   Get and store the resouce agent (script) which is used to start/stop
-   resources of the given type.
-
-   @param doc		Pre-parsed XML document pointer.
-   @param ctx		Pre-allocated XML XPath context pointer.
-   @param base		XPath prefix to search
-   @param rr		Resource rule to store new information in.
- */
-void
-_get_handler(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
-	     resource_rule_t *rr)
+int
+expand_time(char *val)
 {
-	char xpath[256];
-	char *ret = NULL;
-	struct stat sb;
+	int l = strlen(val);
+	char c = val[l - 1];
+	int ret = atoi(val);
 
-	snprintf(xpath, sizeof(xpath), "%s/attributes/@handler", base);
-	ret = xpath_get_one(doc, ctx, xpath);
-	if (ret) {
-	       	if (stat(ret, &sb) == 0) {
-			rr->rr_handler = ret;
-		} else {
-			printf("Warning: Handler for %s nonexistent\n",
-			       rr->rr_type);
-			free(ret);
+	if (ret <= 0)
+		return 0;
+
+	if ((c >= '0') && (c <= '9'))
+		return ret;
+
+	switch(c) {
+	case 'S':
+	case 's':
+		return (ret);
+	case 'M':
+	case 'm':
+		return (ret * 60);
+	case 'h':
+	case 'H':
+		return (ret * 3600);
+	case 'd':
+	case 'D':
+		return (ret * 86400);
+	case 'w':
+	case 'W':
+		return (ret * 604800);
+	case 'y':
+	case 'Y':
+		return (ret * 31536000);
+	}
+
+	return ret;
+}
+
+
+int
+store_action(resource_act_t **actsp, char *name, int depth,
+	     int timeout, int interval)
+{
+	int x = 0;
+	resource_act_t *acts = *actsp;
+
+	if (!name)
+		return -1;
+
+	if (!acts) {
+		acts = malloc(sizeof(resource_act_t) * 2);
+		if (!acts)
+			return -1;
+		acts[0].ra_name = name;
+		acts[0].ra_depth = depth;
+		acts[0].ra_timeout = timeout;
+		acts[0].ra_interval = interval;
+		acts[1].ra_name = NULL;
+
+		*actsp = acts;
+		return 0;
+	}
+
+	for (x = 0; acts[x].ra_name; x++) {
+		if (!strcmp(acts[x].ra_name, name) &&
+		    depth == acts[x].ra_depth) {
+			printf("Skipping duplicate action/depth %s/%d\n",
+			       name, depth);
+			return -1;
 		}
 	}
+
+	acts = realloc(acts, sizeof(resource_act_t) * (x+2));
+	if (!acts)
+		return -1;
+
+	acts[x].ra_name = name;
+	acts[x].ra_depth = depth;
+	acts[x].ra_timeout = timeout;
+	acts[x].ra_interval = interval;
+
+	acts[x+1].ra_name = NULL;
+
+	*actsp = acts;
+	return 0;
 }
+
+
+void
+_get_actions(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
+		 resource_rule_t *rr)
+{
+	char xpath[256];
+	int idx = 0;
+	char *act, *ret;
+	int interval, timeout, depth;
+
+	do {
+		interval = 0;
+		depth = 0;
+		act = NULL;
+		timeout = 0;
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@name", base, ++idx);
+
+		act = xpath_get_one(doc,ctx,xpath);
+		if (!act)
+			break;
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@timeout", base, idx);
+		ret = xpath_get_one(doc, ctx, xpath);
+		if (ret) {
+			timeout = expand_time(ret);
+			if (interval < 0)
+				interval = 0;
+			free(ret);
+		}
+
+		snprintf(xpath, sizeof(xpath),
+			 "%s/action[%d]/@interval", base, idx);
+		ret = xpath_get_one(doc, ctx, xpath);
+		if (ret) {
+			interval = expand_time(ret);
+			if (interval < 0)
+				interval = 0;
+			free(ret);
+		}
+
+		if (!strcmp(act, "status") || !strcmp(act, "monitor")) {
+			snprintf(xpath, sizeof(xpath),
+				 "%s/action[%d]/@depth", base, idx);
+			ret = xpath_get_one(doc, ctx, xpath);
+			if (ret) {
+				depth = atoi(ret);
+				if (depth < 0)
+					depth = 0;
+				free(ret);
+			}
+		}
+
+		if (store_action(&rr->rr_actions, act, depth, timeout,
+				 interval) < 0)
+			free(act);
+		
+	} while (1);
+
+
+}
+
 
 
 
@@ -365,7 +486,7 @@ print_resource_rule(resource_rule_t *rr)
 	printf("Attributes:\n");
 	if (!rr->rr_attrs) {
 		printf("  - None -\n");
-		goto children;
+		goto actions;
 	}
 
 	for (x = 0; rr->rr_attrs[x].ra_name; x++) {
@@ -387,6 +508,28 @@ print_resource_rule(resource_rule_t *rr)
 			printf(" inherit");
 		printf(" ]\n");
 	}
+
+actions:
+	printf("Actions:\n");
+	if (!rr->rr_actions) {
+		printf("  - None -\n");
+		goto children;
+	}
+
+	for (x = 0; rr->rr_actions[x].ra_name; x++) {
+		printf("  %s\n", rr->rr_actions[x].ra_name);
+		if (rr->rr_actions[x].ra_timeout)
+			printf("    Timeout (hint): %d seconds\n",
+			       (int)rr->rr_actions[x].ra_timeout);
+		if (rr->rr_actions[x].ra_depth)
+			printf("    OCF Check Depth (status/monitor): "
+			       "%d seconds\n",
+			       (int)rr->rr_actions[x].ra_depth);
+		if (rr->rr_actions[x].ra_interval)
+			printf("    Check Interval: %d seconds\n",
+			       (int)rr->rr_actions[x].ra_interval);
+	}
+
 
 children:
 	printf("Recognized child types:\n");
@@ -628,6 +771,28 @@ read_pipe(int fd, char **file, size_t *length)
 }
 
 
+void
+_get_handler(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
+	     resource_rule_t *rr)
+{
+ 	char xpath[256];
+	char *ret = NULL;
+	struct stat sb;
+ 
+	snprintf(xpath, sizeof(xpath), "%s/attributes/@handler", base);
+	ret = xpath_get_one(doc, ctx, xpath);
+	if (ret) {
+	       	if (stat(ret, &sb) == 0) {
+			rr->rr_handler = ret;
+		} else {
+			printf("Warning: Handler for %s nonexistent\n",
+			       rr->rr_type);
+ 			free(ret);
+ 		}
+	}
+}
+
+
 xmlDocPtr
 read_resource_agent_metadata(char *filename)
 {
@@ -735,7 +900,9 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		/*
 		   Get the OCF status check intervals/monitor.
 		 */
-		//_get_checklevels(doc, ctx, base, rr);
+		snprintf(base, sizeof(base), "/resource-agent[%d]/actions",
+			 ruleid);
+		_get_actions(doc, ctx, base, rr);
 
 		/*
 		   Second, add the allowable-children fields
@@ -753,11 +920,12 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 			rr = NULL;
 		}
 
-		if (rr) {
-			if (store_rule(rules, rr) != 0) {
-				destroy_resource_rule(rr);
-				rr = NULL;
-			}
+		if (!rr)
+			continue;
+
+		if (store_rule(rules, rr) != 0) {
+			destroy_resource_rule(rr);
+			rr = NULL;
 		}
 	} while (1);
 

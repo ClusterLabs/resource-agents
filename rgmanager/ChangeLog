@@ -1,3 +1,8 @@
+2004-09-07 Lon Hohberger <lhh at redhat.com>
+	* src/resources/group.sh: Add 'autostart' parameter to group 
+	entity
+	* src/daemons/*: Add support for OCF 'action' specifications.
+
 2004-08-30 Lon Hohberger <lhh at redhat.com>
 	* src/resources/*: Add status/monitor actions to metadata
 	* include/list.h: Update to fix compiler warnings.  This is not
