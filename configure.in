@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.168 $) dnl cvs revision
+AC_REVISION($Revision: 1.169 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -1181,15 +1181,8 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
+snmp_subagent/Makefile                                          \
 )
-
-if
-   test X$SNMP_SUBAGENT_DIR != X
-then
-	AC_OUTPUT(
-	snmp_subagent/Makefile                                          \
-	)
-fi
 
 dnl subpackages configuration - perhaps configure it properly some other time
 dnl when it has been discussed at linux-ha-dev
