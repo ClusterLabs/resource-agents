@@ -194,7 +194,7 @@ int _send_mbrshp_to_node(LLi_t *item, void *misc)
             gio_mbrupdate_to_str(t->st), t->name, n->Name);
       /* Note, as tempting as it maybe to put a queue here to hold onto
        * these until the node reconnects, it typically doesn't do what you
-       * would expect.  Why? Well because of the clients do not log into
+       * would expect.  Why? Well because of the clients do not stay logged into
        * Arbitrating nodes.  What happens is that the node will try to
        * login, see that we are Arbitrating, and then logout, lossing the
        * queue.  Yes the queued messages can get sent, but the client will

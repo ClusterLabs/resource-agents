@@ -13,12 +13,6 @@
 
 #include "gulm.h"
 
-#include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <linux/file.h>
-#define __KERNEL_SYSCALLS__
-#include <linux/unistd.h>
 #include <linux/utsname.h>	/* for extern system_utsname */
 
 #include "handler.h"
@@ -143,6 +137,33 @@ request_journal_replay (uint8_t * name)
 
 		qu_function_call (&fs->cq, request_journal_replay_per_fs, rf);
 
+	}
+	up (&filesystem_lck);
+}
+
+void
+cast_check_for_stale_expires(void*d)
+{
+	check_for_stale_expires(d);
+}
+/**
+ * check_all_for_stales - 
+ * 
+ * scan every fs we've got for possible journals that need replaying.
+ * 
+ */
+void
+check_all_for_stales(void)
+{
+	struct list_head *tmp;
+	gulm_fs_t *fs;
+	down (&filesystem_lck);
+
+	list_for_each (tmp, &filesystems_list) {
+		fs = list_entry (tmp, gulm_fs_t, fs_list);
+		if (!fs->firstmounting) {
+			qu_function_call (&fs->cq, cast_check_for_stale_expires, fs);
+		}
 	}
 	up (&filesystem_lck);
 }

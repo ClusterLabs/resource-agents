@@ -29,7 +29,6 @@ extern gulm_cm_t gulm_cm;
 int cm_thd_running;
 struct completion cm_thd_startup;
 struct task_struct *cm_thd_task;
-
 /**
  */
 int
@@ -104,6 +103,11 @@ int gulm_core_statechange (void *misc, uint8_t corestate, uint8_t quorate,
 			*cst = FALSE;
 		}
 	}
+	if( corestate == lg_core_Slave ||
+	    corestate == lg_core_Master ) {
+	   /* we should be part of a live, quorate cluster now. */
+	    check_all_for_stales();
+	}
 	return 0;
 }
 
@@ -156,6 +160,11 @@ cm_io_recving_thread (void *data)
 			 *
 			 * If we are still in the gulm_mount() function, we
 			 * should not retry. We should just exit.
+			 *
+			 * Is this really smart?  There is zero garuntees
+			 * that the state of things will be usable when we
+			 * return.
+			 *
 			 */
 			current->state = TASK_INTERRUPTIBLE;
 			schedule_timeout (3 * HZ);
@@ -229,7 +238,7 @@ cm_login (void)
 		if(cst) {
 			current->state = TASK_INTERRUPTIBLE;
 			schedule_timeout (3 * HZ);
-			/* if interrupted, exit */
+			/* TODO if interrupted, exit */
 		}
 	}
 

@@ -448,6 +448,29 @@ void dump_holders(char *s, LLi_t *list)
 }
 
 /**
+ * estimate_lockspace_size - 
+ * 
+ * kernel ppl don't seem to be interested in maintaining the memory fields
+ * in getrusage, so we have to estimate this.
+ *
+ * It is rather painful to try and get everything, so this is just the
+ * lockspace.  
+ * 
+ * Returns: long
+ */
+unsigned long estimate_lockspace_size(void)
+{
+   unsigned long acc;
+   acc  = sizeof(Lock_t) * cnt_locks;
+   acc  = sizeof(Lock_t) * free_locks;
+   acc += sizeof(Waiters_t) * used_lkrqs;
+   acc += sizeof(Waiters_t) * free_lkrqs;
+   acc += sizeof(Holders_t) * used_holders;
+   acc += sizeof(Holders_t) * free_holders;
+   return acc;
+}
+
+/**
  * send_stats - 
  * @enc: 
  * 
@@ -523,6 +546,10 @@ int send_stats(xdr_enc_t *enc)
 
    if((err = xdr_enc_string(enc, "used_holders")) != 0) return err;
    snprintf(tmp, 256, "%lu", used_holders);
+   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
+
+   if((err = xdr_enc_string(enc, "lss")) != 0) return err;
+   snprintf(tmp, 256, "%lu", estimate_lockspace_size());
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "highwater")) != 0) return err;
@@ -2670,6 +2697,42 @@ int expire_from_waiters(uint8_t *name, Lock_t *lk)
 }
 
 /**
+ * expire_jid_mappings -
+ *
+ * This is a major kuldge, but i think my only other two opions are to
+ * revive the jid mapper (not gonna do that) or write a new daemon just
+ * just hangs out until an expire and does just this.
+ *
+ * Basically, if the lock key is that of a JID mapping, and the LVB holds
+ * the name of whom we are expiring and the first byte is 2, set the first
+ * byte to 1.  This still will require check_for_stales to be called from
+ * the module when reconnecting to a master.
+ *
+ * And yes, this is very GFS specific, and kludgy and what not, but
+ * everyone is moving to the dlm anyways.  So we just need to keep this
+ * legacy code running.
+ *
+ */
+void expire_jid_mappings(Lock_t *lk, uint8_t *name)
+{
+   int skip;
+   if( lk->key[0] == 'G' && 
+       lk->key[1] == 'F' &&
+       lk->key[2] == 'S' &&  
+       lk->key[3] == ' ' &&
+       lk->key[4] == 'J' &&
+       (skip = lk->key[5] + 8 ) != 0 &&
+       lk->key[skip] == 'M' && /* found a JID mapping lock. */
+       lk->LVB != NULL &&
+       lk->LVBlen > 1 &&    /* has an LVB we can look at */
+       lk->LVB[0] == 2 &&   /* is owned */
+       strncmp(&lk->LVB[1], name, lk->LVBlen -1 ) == 0 /* is who expired */
+       ) {
+      lk->LVB[0] = 1; /* needs replaying */
+   }
+}
+
+/**
  * _expire_locks_ - The actual work to expire a lock
  * @item: 
  * @d: 
@@ -2719,6 +2782,8 @@ int _expire_locks_(LLi_t *item, void *d)
          }
       }
    }
+
+   expire_jid_mappings(lk, name);
 
    if( modQ ) {
       /* a change that might let queued requests advance */

@@ -22,17 +22,12 @@
 #endif				/*  MODVERSIONS  */
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/vmalloc.h>
-#include <asm/uaccess.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
 #include <linux/config.h>
 #include <linux/version.h>
 #include <linux/smp_lock.h>
-#include <linux/ctype.h>
-#include <linux/string.h>
 #include <linux/list.h>
-#include <linux/init.h>
 #include <linux/types.h>
 #include <linux/fs.h>
 
@@ -74,24 +69,6 @@
 
 #undef MIN
 #define MIN(a,b) ((a<b)?a:b)
-
-/*  Extern Macro  */
-
-#ifndef EXTERN
-#define EXTERN extern
-#define INIT(X)
-#else
-#undef EXTERN
-#define EXTERN
-#define INIT(X) =X
-#endif
-
-/*  Static Macro  */
-#ifndef DEBUG_SYMBOLS
-#define STATIC static
-#else
-#define STATIC
-#endif
 
 /*  Divide x by y.  Round up if there is a remainder.  */
 #define DIV_RU(x, y) (((x) + (y) - 1) / (y))
@@ -217,6 +194,7 @@ void delete_ipnames (struct list_head *namelist);
 /* from gulm_fs.c */
 void init_gulm_fs (void);
 void request_journal_replay (uint8_t * name);
+void check_all_for_stales(void);
 void passup_droplocks (void);
 gulm_fs_t *get_fs_by_name (uint8_t * name);
 void dump_internal_lists (void);

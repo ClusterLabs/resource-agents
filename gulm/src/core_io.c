@@ -779,6 +779,7 @@ static int master_probe_bottom(void)
                "talk to me.\n");
          quorate = FALSE;
       }
+      send_quorum_to_slaves();
       send_core_state_to_children();
       MasterIN = NULL; /* we are the Master now */
       master_missed = 0; /* reset this, not that it should ever be looked
@@ -1460,6 +1461,9 @@ static void do_new_login(int idx)
          startup = FALSE;
          quorate = TRUE;
          log_msg(lgm_ServerState, "In state: %s\n", gio_I_am_to_str(I_am_the));
+         /* cannot send quorum to slaves here, must wait until after
+          * deserialize.
+          */
          send_core_state_to_children();
          set_nodes_mode(myName, I_am_the);
       }else{
