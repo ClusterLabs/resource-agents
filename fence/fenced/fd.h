@@ -42,7 +42,7 @@
 
 extern char *prog_name;
 
-#define DEFAULT_POST_JOIN_DELAY   3
+#define DEFAULT_POST_JOIN_DELAY   6
 #define DEFAULT_POST_FAIL_DELAY   0
 #define DEFAULT_CLEAN_START       0
 
@@ -143,6 +143,6 @@ void add_complete_node(fd_t *fd, uint32_t nodeid, uint32_t len, char *name);
 void do_recovery(fd_t *fd, struct cl_service_event *ev,
 		 struct cl_cluster_node *cl_nodes);
 void do_recovery_done(fd_t *fd);
-int dispatch_fence_agent(char *victim);
+int dispatch_fence_agent(char *victim, int in);
 
 #endif				/*  __FD_DOT_H__  */
