@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.73 $) dnl cvs revision
+AC_REVISION($Revision: 1.74 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -139,18 +139,18 @@ else
 	AC_MSG_RESULT("no")
 fi
 
-AC_MSG_CHECKING(if route supports get directive)
-$ROUTE -n get 127.0.0.1 > /dev/null 2>&1
-if test x"$?" = x"0"; then
-	AC_DEFINE(USE_ROUTE_GET, 1, use route -get to retrieve route information)
-	AC_DEFINE(ROUTEPARM, "-n get", paramters for route to retrieve route information)
-        AC_DEFINE(PROCROUTE, "", not used in except in linux)
-	AC_MSG_RESULT(yes)
-else
-	AC_DEFINE(ROUTEPARM, "", parameters for route to retrieve route information)
-	AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in proc)
-	AC_MSG_RESULT(no)
-fi
+dnl Determining a route (particularly for "findif").
+dnl There are various mechanisms on different systems.
+dnl Some mechanisms require root access to evaluate, but configure is often
+dnl (indeed, some say should be always) running non-root.
+dnl
+dnl Therefore much of the determination has to be run-time.
+dnl So the principle here, at configure time, is to explore what might be
+dnl available, and offer as much as possible to run-time.
+dnl
+AC_DEFINE(ROUTEPARM, "-n get", paramters for route to retrieve route information)
+AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in proc)
+
 
 AC_MSG_CHECKING(ifconfig option to list interfaces)
 for IFCONFIG_A_OPT in "" "-a"
