@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.148 $) dnl cvs revision
+AC_REVISION($Revision: 1.149 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -86,9 +86,10 @@ oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 
-VARLIBDIR=$localstatedir/lib
-AC_DEFINE_UNQUOTED(VARLIBDIR, "$VARLIBDIR", /var/lib directory)
-LOGDAEMON_IPC=$VARLIBDIR/log_daemon
+
+HA_VARLIBDIR="${localstatedir}/lib"
+AC_SUBST(HA_VARLIBDIR)
+LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_DEFINE_UNQUOTED(LOGDAEMON_IPC, "$LOGDAEMON_IPC", Logging Daemon IPC)
 STONITHPKG=stonith
 AC_SUBST(STONITHPKG)
@@ -96,14 +97,16 @@ AC_SUBST(STONITHPKG)
 PILSPKG=pils
 AC_SUBST(PILSPKG)
 
-pils_includedir=$includedir/$PILSPKG
-pils_plugindir=$libdir/$PILSPKG/plugins
-stonith_includedir=$includedir/$STONITHPKG
-stonith_plugindir=$libdir/$STONITHPKG/plugins
+pils_includedir="${includedir}/${PILSPKG}"
+pils_plugindir="${libdir}/${PILSPKG}/plugins"
+stonith_includedir="${includedir}/${STONITHPKG}"
+stonith_plugindir="${libdir}/${STONITHPKG}/plugins"
+base_includedir="${includedir}"
 AC_SUBST(pils_includedir)
 AC_SUBST(pils_plugindir)
 AC_SUBST(stonith_includedir)
 AC_SUBST(stonith_plugindir)
+AC_SUBST(base_includedir)
 
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
@@ -166,7 +169,7 @@ AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 
 AC_MSG_CHECKING(which glib config exists)
-if test x"${GLIBCONFIG}" = x""; then
+if test "X${GLIBCONFIG}" = "X"; then
         AC_MSG_ERROR(You need the glib development package to continue.
       You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/
       or you can locate it via http://www.gtk.org/download/)
@@ -731,11 +734,10 @@ AC_ARG_WITH(
   group-name,
     [  --with-group-name=GROUP_NAME 
                          GROUP_NAME to own API fifos. [default=haclient]  ],
-    [ APIGROUP="$withval" ],
-    [ APIGROUP="haclient" ],
+    [ HA_APIGROUP="$withval" ],
+    [ HA_APIGROUP="haclient" ],
   )
-AC_DEFINE_UNQUOTED(APIGROUP, "$APIGROUP", Group to own API fifos)
-AC_SUBST(APIGROUP)
+AC_SUBST(HA_APIGROUP)
 
 if
   test  -z "${GETENT}" -o ! -x "${GETENT}"
@@ -750,51 +752,47 @@ fi
 AC_ARG_WITH(
   group-id,
     [  --with-group-id=GROUP_ID  GROUP_ID to own API fifos. [default=60]  ],
-    [ APIGID=$withval ],
-    [ APIGID=65 ],
+    [ HA_APIGID="$withval" ],
+    [ HA_APIGID=65 ],
   )
 if
-  getent group ${APIGROUP} > /dev/null
+  getent group "$HA_APIGROUP" > /dev/null
 then
-  APIGID=`getent group ${APIGROUP} | cut -d: -f3`
+  HA_APIGID=`getent group "$HA_APIGROUP" | cut -d: -f3`
 fi
-AC_DEFINE_UNQUOTED(APIGID, $APIGID, GID to own API fifos)
-AC_SUBST(APIGID)
+AC_SUBST(HA_APIGID)
 
 AC_ARG_WITH(
   ccmuser-name,
-    [  --with-ccmuser-name=CCMUSER_NAME 
-                         CCMUSER_NAME to own API fifos. [default=hacluster]  ],
-    [ CCMUSER="$withval" ],
-    [ CCMUSER="hacluster" ],
+    [  --with-ccmuser-name=HA_CCMUSER_NAME 
+                         HA_CCMUSER_NAME to own API fifos. [default=hacluster]  ],
+    [ HA_CCMUSER="$withval" ],
+    [ HA_CCMUSER="hacluster" ],
   )
-AC_DEFINE_UNQUOTED(CCMUSER, "$CCMUSER", User to own CCM fifos)
-AC_SUBST(CCMUSER)
+AC_SUBST(HA_CCMUSER)
 
 AC_ARG_WITH(
   ccmuser-id,
-    [  --with-ccmuser-id=CCMUSER_ID  USER_ID to own CCM fifos. [default=17]  ],
-    [ CCMUID=$withval ],
-    [ CCMUID=17 ],
+    [  --with-ccmuser-id=HA_HA_CCMUSER_ID  USER_ID to own CCM fifos. [default=17]  ],
+    [ HA_CCMUID="$withval" ],
+    [ HA_CCMUID=17 ],
   )
 if
-  getent passwd ${CCMUSER} >/dev/null
+  getent passwd "$HA_CCMUSER" >/dev/null
 then
-  CCMUID=`getent passwd ${CCMUSER} | cut -d: -f3`
+  HA_CCMUID=`getent passwd "$HA_CCMUSER" | cut -d: -f3`
 fi
-AC_DEFINE_UNQUOTED(CCMUID, $CCMUID, UID to own CCM fifos)
-AC_SUBST(CCMUID)
+AC_SUBST(HA_CCMUID)
 #
 #	Priority for starting via init startup scripts
 #
 AC_ARG_WITH(
   start-init-priority,
     [  --with-start-init-priority=number  Init start priority. [default=75]  ],
-    [ INITSTARTPRI=$withval ],
-    [ INITSTARTPRI=75 ],
+    [ HB_INITSTARTPRI="$withval" ],
+    [ HB_INITSTARTPRI=75 ],
   )
-AC_DEFINE_UNQUOTED(INITSTARTPRI, $INITSTARTPRI, Init start priority)
-AC_SUBST(INITSTARTPRI)
+AC_SUBST(HB_INITSTARTPRI)
 
 #
 #	Priority for stopping via init shutdown scripts
@@ -802,11 +800,10 @@ AC_SUBST(INITSTARTPRI)
 AC_ARG_WITH(
   stop-init-priority,
     [  --with-stop-init-priority=number  Init stop priority. [default=5]  ],
-    [ INITSTOPPRI=$withval ],
-    [ INITSTOPPRI=05 ],
+    [ HB_INITSTOPPRI="$withval" ],
+    [ HB_INITSTOPPRI=05 ],
   )
-AC_DEFINE_UNQUOTED(INITSTOPPRI, $INITSTOPPRI, Init stop priority)
-AC_SUBST(INITSTOPPRI)
+AC_SUBST(HB_INITSTOPPRI)
 
 #
 #	Name of UCD-SNMP development package
@@ -995,11 +992,11 @@ AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
 
-HEARTBEAT_RC_DIR=$sysconfdir/ha.d/rc.d
-AC_DEFINE_UNQUOTED(HEARTBEAT_RC_DIR, "$HEARTBEAT_RC_DIR", heartbeat rc script directory)
+HB_RC_DIR=$sysconfdir/ha.d/rc.d
+AC_SUBST(HB_RC_DIR)
 
-HEARTBEATPKG=heartbeat
-AC_SUBST(HEARTBEATPKG)
+HB_PKG=heartbeat
+AC_SUBST(HB_PKG)
 
 dnl libltdl additions
 AC_SUBST(INCLTDL)
@@ -1030,6 +1027,7 @@ doc/Makefile							\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
 include/Makefile						\
+        include/ha_config.h					\
         include/clplumbing/Makefile				\
         include/ocf/Makefile					\
         include/pils/Makefile					\
@@ -1053,6 +1051,7 @@ heartbeat/Makefile						\
 	heartbeat/init.d/Makefile				\
 		heartbeat/init.d/heartbeat			\
 	heartbeat/lib/Makefile					\
+		heartbeat/lib/ha_config				\
 		heartbeat/lib/hb_standby			\
 		heartbeat/lib/mach_down				\
 		heartbeat/lib/req_resource			\
