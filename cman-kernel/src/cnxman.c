@@ -1641,7 +1641,7 @@ static int do_ioctl_pass_socket(unsigned long arg)
 		return -EPERM;
 
 	if (atomic_read(&cnxman_running))
-		return -ENOTCONN;
+		return -EALREADY;
 
 	error = -EBADF;
 
@@ -1667,7 +1667,7 @@ static int do_ioctl_set_nodename(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 	if (atomic_read(&cnxman_running))
-		return -ENOTCONN;
+		return -EALREADY;
 	if (strncpy_from_user(nodename, (void *)arg, MAX_CLUSTER_MEMBER_NAME_LEN) < 0)
 		return -EFAULT;
 	return 0;
@@ -1680,7 +1680,7 @@ static int do_ioctl_set_nodeid(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 	if (atomic_read(&cnxman_running))
-		return -ENOTCONN;
+		return -EALREADY;
 	if (nodeid < 0 || nodeid > 4096)
 		return -EINVAL;
 
