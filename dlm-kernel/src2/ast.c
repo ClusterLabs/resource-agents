@@ -40,6 +40,9 @@ void dlm_add_ast(struct dlm_lkb *lkb, int type)
 	}
 	lkb->lkb_ast_type |= type;
 	up(&ast_queue_lock);
+
+	set_bit(WAKE_ASTS, &astd_wakeflags);
+	wake_up_process(astd_task);
 }
 
 static void process_asts(void)
@@ -67,6 +70,7 @@ static void process_asts(void)
 			found = TRUE;
 			break;
 		}
+		up(&ast_queue_lock);
 
 		if (!found)
 			break;

@@ -81,7 +81,7 @@ void dlm_clear_free_entries(struct dlm_ls *ls)
  * directory node.
  */
 
-int name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
+int dlm_dir_name2nodeid(struct dlm_ls *ls, char *name, int length)
 {
 	struct list_head *tmp;
 	struct dlm_member *memb = NULL;
@@ -117,8 +117,7 @@ int name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 
 int dlm_dir_nodeid(struct dlm_rsb *rsb)
 {
-	return name_to_directory_nodeid(rsb->res_ls, rsb->res_name,
-					rsb->res_length);
+	return dlm_dir_name2nodeid(rsb->res_ls, rsb->res_name, rsb->res_length);
 }
 
 static inline uint32_t dir_hash(struct dlm_ls *ls, char *name, int len)

@@ -1387,8 +1387,8 @@ void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
 /* Manipulate lkb's on rsb's convert/granted/waiting queues
    remove_lock -- used for unlock, removes lkb from granted
    revert_lock -- used for cancel, moves lkb from convert to granted
-   grant_lock  -- used for request and convert, moves lkb from
-                  convert or waiting to granted
+   grant_lock  -- used for request and convert, adds lkb to granted or
+                  moves lkb from convert or waiting to granted
  
    Each of these is used for master or local copy lkb's.  There is
    also a _pc() variation used to make the corresponding change on
@@ -1426,8 +1426,9 @@ void revert_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 void _grant_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	if (lkb->lkb_grmode != lkb->lkb_rqmode) {
+		if (lkb->lkb_status)
+			del_lkb(r, lkb);
 		lkb->lkb_grmode = lkb->lkb_rqmode;
-		del_lkb(r, lkb);
 		add_lkb(r, lkb, DLM_LKSTS_GRANTED);
 	}
 
@@ -2533,7 +2534,7 @@ void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 	len = receive_namelen(ms);
 
-	dir_nodeid = name_to_directory_nodeid(ls, ms->m_name, len);
+	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_name, len);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		log_error(ls, "lookup dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
@@ -2555,7 +2556,7 @@ void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
 
 	len = receive_namelen(ms);
 
-	dir_nodeid = name_to_directory_nodeid(ls, ms->m_name, len);
+	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_name, len);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		log_error(ls, "remove dir entry dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
