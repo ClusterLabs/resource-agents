@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.3 2004/09/06 10:33:02 lars Exp $
+#	$Id: drbd.in,v 1.4 2005/03/15 07:48:06 zhaokai Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -112,12 +112,12 @@ END
 
 drbd_init() {
 	if [ $UID -ne 0 ]; then
-		ha_log "ERROR: You must be root."
+		ocf_log "ERROR: You must be root."
 		exit $OCF_ERR_PERM
 	fi
 	
 	if [ ! -x "$DRBDADM" ]; then
-		ha_log "ERROR: drbdadm not installed."
+		ocf_log "ERROR: drbdadm not installed."
 		exit $OCF_ERR_INSTALLED
 	fi
 	
@@ -126,7 +126,7 @@ drbd_init() {
 	DRBDCONF="$OCF_RESKEY_drbdconf"
 	
 	if [ ! -f "$DRBDCONF" ]; then
-		ha_log "ERROR: drbd.conf not installed."
+		ocf_log "ERROR: drbd.conf not installed."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -284,7 +284,7 @@ usage|help)	drbd_usage
 		exit $OCF_SUCCESS
 		;;
 *)		drbd_usage
-		exit $OCF_ERR_UNIMPLEMENTED
+		exit $OCF_ERR_ARGS
 		;;
 esac
 
