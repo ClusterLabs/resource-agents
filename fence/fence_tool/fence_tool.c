@@ -23,6 +23,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <mntent.h>
 
 #include "cnxman-socket.h"
 #include "copyright.cf"
@@ -55,6 +56,25 @@ char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
 int dispatch_fence_agent(char *victim, int in);
 
+
+static int check_mounted(void)
+{
+	FILE *fp;
+	struct mntent *me;
+
+	fp = setmntent("/etc/mtab", "r");
+
+	for (;;) {
+		me = getmntent(fp);
+		if (!me)
+			break;
+
+		if (!strcmp(me->mnt_type, "gfs"))
+			die("cannot leave, gfs mounted on %s",
+			    me->mnt_fsname);
+	}
+	return 0;
+}
 
 static void lockfile(void)
 {
@@ -193,11 +213,10 @@ static void do_leave(void)
 	sscanf(buf, "%d", &pid);
 	fclose(f);
 
+	check_mounted();
 	setup_sock();
 	wait_quorum();
 	close(cl_sock);
-
-	/* FIXME: check if gfs or clvm are running and exit if so */
 
 	kill(pid, SIGTERM);
 }
