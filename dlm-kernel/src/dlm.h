@@ -143,6 +143,7 @@
 #define DLM_LKF_NOQUEUEBAST    (0x00000800)
 #define DLM_LKF_HEADQUE        (0x00001000)
 #define DLM_LKF_NOORDER        (0x00002000)
+#define DLM_LKF_ORPHAN         (0x00004000)
 
 /*
  * Some return codes that are not in errno.h
@@ -227,6 +228,7 @@ struct dlm_lksb {
 #define DLM_QUERY_LOCKS_BLOCKING 0x0400
 #define DLM_QUERY_LOCKS_NOTBLOCK 0x0500
 #define DLM_QUERY_LOCKS_ALL      0x0600
+#define DLM_QUERY_LOCKS_ORPHAN   0x0700
 #define DLM_QUERY_MASK           0x0F00
 
 /* GRMODE is the default for mode comparisons,

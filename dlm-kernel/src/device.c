@@ -469,10 +469,24 @@ static int dlm_close(struct inode *inode, struct file *file)
 		if (lkb->lkb_flags & GDLM_LKFLG_PERSISTENT) {
 			list_del(&old_li->li_ownerqueue);
 
+			/* Update master copy */
+			if (lkb->lkb_resource->res_nodeid) {
+				li.li_lksb.sb_lkid = lkb->lkb_id;
+				status = dlm_lock(f->fi_ls->ls_lockspace, 
+						lkb->lkb_grmode, &li.li_lksb, 
+						DLM_LKF_CONVERT|DLM_LKF_ORPHAN,
+						NULL, 0, 0, ast_routine, &li, 
+						NULL, NULL);
+				if (status == 0)
+					wait_for_ast(&li);
+			}
+			lkb->lkb_flags |= GDLM_LKFLG_ORPHAN;
+
 			/* But tidy our references in it */
 			kfree(old_li);
 			lkb->lkb_astparam = (long)NULL;
 			put_file_info(f);
+
 			continue;
 		}
 

@@ -389,7 +389,8 @@ struct dlm_rsb {
 #define GDLM_LKFLG_PERSISTENT	(0x00000080)
 #define GDLM_LKFLG_NODLCKWT	(0x00000100)
 #define GDLM_LKFLG_EXPEDITE	(0x00000400)
-/* external flags now go up to: (0x00002000) : DLM_LKF_NOORDER */
+#define GDLM_LKFLG_ORPHAN	(0x00004000)
+/* external flags now go up to: (0x00004000) : DLM_LKF_ORPHAN */
 
 /* internal-only flags */
 #define GDLM_LKFLG_RANGE	(0x00010000)
@@ -432,7 +433,6 @@ struct dlm_lkb {
 
 	uint32_t		lkb_remid;	/* id on remote partner */
 	uint32_t		lkb_nodeid;	/* id of remote partner */
-
 	void *			lkb_astaddr;
 	void *			lkb_bastaddr;
 	long			lkb_astparam;

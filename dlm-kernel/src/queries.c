@@ -583,6 +583,10 @@ static int query_lkb_queue(struct list_head *queue, int query,
 		case DLM_QUERY_LOCKS_LOWER:
 			if (lkmode < mode)
 				status = add_lock(lkb, qinfo);
+
+		case DLM_QUERY_LOCKS_ORPHAN:
+			if (lkb->lkb_flags & GDLM_LKFLG_ORPHAN)
+				status = add_lock(lkb, qinfo);
 			break;
 		}
 	}

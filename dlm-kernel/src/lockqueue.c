@@ -896,6 +896,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
+
 		DLM_ASSERT(lkb,
 			   print_request(freq);
 			   printk("nodeid %u\n", nodeid););
@@ -924,6 +925,11 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   print_rsb(rsb);
 			   print_request(freq);
 			   printk("nodeid %u\n", nodeid););
+
+		/* Update orphan lock status */
+		if (freq->rr_flags & DLM_LKF_ORPHAN) {
+			lkb->lkb_flags |= GDLM_LKFLG_ORPHAN;
+		}
 
 		lkb->lkb_rqmode = freq->rr_rqmode;
 		lkb->lkb_lockqueue_flags = freq->rr_flags;
