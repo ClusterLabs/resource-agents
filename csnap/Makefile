@@ -7,26 +7,26 @@ buffer.o: buffer.c $(deps)
 	cc -g -Wall buffer.c -c
 
 mksnapstore: csnap.c buffer.o $(deps)
-	cc -g -Wall csnap.c buffer.o -DCREATE -o mksnapstore
+	cc -g -Wall csnap.c buffer.o -DCREATE -o mksnapstore -lpopt
 
 csnap-server: csnap.c buffer.o $(deps)
-	cc -g -Wall csnap.c buffer.o -DSERVER -o csnap-server
+	cc -g -Wall csnap.c buffer.o -DSERVER -o csnap-server -lpopt
 
 csnap-agent: agent.c $(deps)
-	cc -g -Wall agent.c -I../../../ -ldlm -lmagma -ldl -lpthread -o csnap-agent
+	cc -g -Wall agent.c -I../../../ -ldlm -lmagma -ldl -lpthread -o csnap-agent -lpopt
 
 csnap-create csnap-delete: create.c $(deps)
-	cc -Wall create.c -DCREATE -o csnap-create
-	cc -Wall create.c -DDELETE -o csnap-delete
+	cc -Wall create.c -DCREATE -o csnap-create -lpopt
+	cc -Wall create.c -DDELETE -o csnap-delete -lpopt
 
 testclient: testclient.c $(deps)
 	cc -Wall testclient.c -o testclient
 
 devpoke: devpoke.c
-	cc -Wall devpoke.c -o devpoke
+	cc -Wall devpoke.c -o devpoke -lpopt
 
 devspam: devspam.c
-	cc -Wall devspam.c -o devspam
+	cc -Wall devspam.c -o devspam -lpopt
 
 clean:
 	rm -f $(binaries) *.o a.out

@@ -26,6 +26,7 @@
 #include <netinet/in.h>
 #include <netdb.h> // gethostbyname2_r
 #include <linux/fs.h> // BLKGETSIZE
+#include <popt.h>
 #include "list.h"
 #include "buffer.h"
 #include "csnap.h"
@@ -2369,7 +2370,7 @@ int resolve_self(int family, void *result, int length)
 	return resolve_host(name, family, result, length);
 }
 
-int csnap_server(struct superblock *sb, char *sockname, int port)
+int csnap_server(struct superblock *sb, const char *sockname, int port)
 {
 	unsigned maxclients = 100, clients = 0, others = 3;
 	struct client *clientvec[maxclients];
@@ -2523,8 +2524,55 @@ done:
 	return err;
 }
 
-int main(int argc, char *argv[])
+#if 0
+void usage(poptContext optCon, int exitcode, char *error, char *addl) {
+	poptPrintUsage(optCon, stderr, 0);
+	if (error) fprintf(stderr, "%s: %s0", error, addl);
+	exit(exitcode);
+}
+#endif
+
+int main(int argc, const char *argv[])
 {
+	poptContext optCon;
+	char c;
+	unsigned volsize;
+
+	struct poptOption optionsTable[] = {
+	     { "size", 's', POPT_ARG_INT, &volsize, 0, "volume size", "size" },
+	     POPT_AUTOHELP
+	     { NULL, 0, 0, NULL, 0 }
+	};
+
+	optCon = poptGetContext(NULL, argc, argv, optionsTable, 0);
+
+#ifdef SERVER
+	poptSetOtherOptionHelp(optCon, "dev/snapshot dev/origin socket port");
+	if (argc < 5) {
+#else
+	poptSetOtherOptionHelp(optCon, "dev/snapshot dev/origin");
+	if (argc < 3) {
+#endif
+		poptPrintUsage(optCon, stderr, 0);
+		exit(1);
+	}
+
+	while ((c = poptGetNextOpt(optCon)) >= 0)
+		;
+#if 0
+	snapname = poptGetArg(optCon);
+	if(!(poptPeekArg(optCon) == NULL)) {
+		poptPrintUsage(optCon, stderr, 0);
+		exit(1);
+	}
+#endif
+	if (c < -1) {
+		 fprintf(stderr, "%s: %s\n",
+			 poptBadOption(optCon, POPT_BADOPTION_NOALIAS),
+			 poptStrerror(c));
+		 return 1;
+	}
+
 	struct superblock *sb = &(struct superblock){};
 
 	init_buffers();
@@ -2543,7 +2591,7 @@ int main(int argc, char *argv[])
 #ifdef SERVER
 	return csnap_server(sb, argv[3], atoi(argv[4]));
 #else
-#if 1
+#if 0
 	init_snapstore(sb); 
 	create_snapshot(sb, 0);
 
@@ -2566,4 +2614,6 @@ int main(int argc, char *argv[])
 
 	void *useme = _show_journal;
 	useme = useme;
+	useme = (void *)delete_tree_range;
+	useme = (void *)expand_snapstore;
 }
