@@ -282,10 +282,10 @@ static int new_recovery(void)
 
 				if (test_bit(SNFL_NEED_RECOVERY, &node->flags)){
 					list_del(&sgnode->list);
-					kfree(sgnode);
 					sg->memb_count--;
 					log_debug(sg, "remove node %u count %d",
 						  sgnode->id, sg->memb_count);
+					kfree(sgnode);
 				}
 			}
 		}
