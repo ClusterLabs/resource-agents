@@ -881,12 +881,9 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 
 	if (flags & DLM_LKF_NODLCKWT)
 		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;
-	if (ast)
-		lkb->lkb_astaddr = ast;
-	if (astarg)
-		lkb->lkb_astparam = (long) astarg;
-	if (bast)
-		lkb->lkb_bastaddr = bast;
+	lkb->lkb_astaddr = ast;
+	lkb->lkb_astparam = (long) astarg;
+	lkb->lkb_bastaddr = bast;
 	lkb->lkb_rqmode = mode;
 	lkb->lkb_lockqueue_flags = flags;
 	lkb->lkb_flags |= (flags & DLM_LKF_VALBLK) ? GDLM_LKFLG_VALBLK : 0;
