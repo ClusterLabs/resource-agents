@@ -21,7 +21,7 @@ static int quit = 0;
 static int leave_finished = 0;
 
 
-#define OPTION_STRING			("Dn:hV")
+#define OPTION_STRING			("d:Dn:hV")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 
@@ -33,10 +33,14 @@ static void print_usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("\n");
+	printf("  -d <secs>        Delay for nodes to join cluster and avoid\n");
+	printf("                   being fenced (default 0) *\n");
 	printf("  -D               Enable debugging code and don't fork\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -n <name>        Name of the fence domain, \"default\" if none\n");
 	printf("  -V               Print program version information, then exit\n");
+	printf("\n");
+	printf("* This command line value overrides any value in cluster.conf.\n");
 }
 
 static void lockfile(void)
@@ -301,11 +305,29 @@ static void process_events(fd_t *fd)
 static int init_nodes(fd_t *fd)
 {
 	char path[256];
-	char *name = NULL;
-	int error, cd, i;
+	char *name = NULL, *str = NULL;
+	int error, cd, i = 0, count = 0;
 
-	while ((cd = ccs_connect()) < 0)
+	while ((cd = ccs_connect()) < 0) {
 		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_debug("connect to ccs error %d", cd);
+	}
+
+	if (fd->comline->delay == -1) {
+	        memset(path, 0, 256);
+	        sprintf(path, "//fence_daemon/@delay");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			fd->comline->delay = atoi(str);
+		else
+			fd->comline->delay = DEFAULT_DELAY;
+		if (str)
+			free(str);
+	}
+
+	log_debug("delay is %ds", fd->comline->delay);
 
 	for (i=1;;i++) {
 	        memset(path, 0, 256);
@@ -318,7 +340,10 @@ static int init_nodes(fd_t *fd)
 		add_complete_node(fd, 0, strlen(name), name);
 		free(name);
 		name = NULL;
+		count++;
 	}
+
+	log_debug("added %d nodes from ccs", count);
 
 	ccs_disconnect(cd);
 	return 0;
@@ -342,6 +367,7 @@ int fence_domain_add(commandline_t *comline)
 	memcpy(fd->name, comline->name, namelen);
 	fd->namelen = namelen;
 
+	fd->comline = comline;
 	fd->first_recovery = FALSE;
 	fd->last_stop = 0;
 	fd->last_start = 0;
@@ -414,10 +440,18 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 	int cont = TRUE;
 	int optchar;
 
+	comline->delay = -1;
+
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
 
 		switch (optchar) {
+
+		case 'd':
+			comline->delay = atoi(optarg);
+			if (comline->delay < 0)
+				die("delay cannot be negative");
+			break;
 
 		case 'D':
 			comline->debug = TRUE;
@@ -436,7 +470,6 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			printf("fenced %s (built %s %s)\n", FENCE_RELEASE_NAME,
 				 __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
-			/* printf("%s\n", REDHAT_COPYRIGHT); */
 			exit(EXIT_SUCCESS);
 			break;
 
@@ -463,6 +496,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		printf("Command Line Arguments:\n");
 		printf("  name = %s\n", comline->name);
 		printf("  debug = %d\n", comline->debug);
+		printf("  delay = %d\n", comline->delay);
 	}
 }
 

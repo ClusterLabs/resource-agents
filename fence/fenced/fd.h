@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <syslog.h>
 
 #include "cnxman-socket.h"
@@ -40,6 +41,8 @@
 
 
 extern char *prog_name;
+
+#define DEFAULT_DELAY   3
 
 /* should match service.h MAX_SERVICE_NAME_LEN */
 #define MAX_NAME_LEN	33
@@ -92,6 +95,7 @@ struct commandline
 {
 	char name[MAX_NAME_LEN];
 	int debug;
+	int delay;
 };
 
 #define FDFL_RUN        (0)
@@ -99,6 +103,7 @@ struct commandline
 #define FDFL_FINISH     (2)
 
 struct fd {
+	struct commandline	*comline;
 	int			cl_sock;
 	uint32_t 		our_nodeid;
 	uint32_t 		local_id;	/* local unique fd ID */

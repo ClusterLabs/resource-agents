@@ -13,6 +13,7 @@
 
 #include "fd.h"
 
+
 static fd_node_t *new_fd_node(fd_t *fd, uint32_t nodeid, int namelen, char *name)
 {
 	struct cl_cluster_node cl_node;
@@ -139,45 +140,6 @@ static int can_avert_fence(fd_t *fd, fd_node_t *victim)
 		return TRUE;
 
         return FALSE;
-}
-
-static void fence_victims(fd_t *fd)
-{
-	fd_node_t *node;
-	uint32_t master;
-	int error;
-
-	master = find_master_nodeid(fd);
-
-	if (master != fd->our_nodeid) {
-		log_debug("defer fencing to %u", master);
-		syslog(LOG_INFO, "fencing deferred to %u", master);
-		return;
-	}
-
-	while (!list_empty(&fd->victims)) {
-		node = list_entry(fd->victims.next, fd_node_t, list);
-
-		if (can_avert_fence(fd, node)) {
-			log_debug("averting fence of node %s", node->name);
-			list_del(&node->list);
-			free(node);
-			continue;
-		}
-
-		log_debug("fencing node %s", node->name);
-		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
-
-		error = dispatch_fence_agent(node->name);
-		if (!error) {
-			list_del(&node->list);
-			free(node);
-		}
-
-		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
-		       error ? "failed" : "success");
-		sleep(1);
-	}
 }
 
 static void free_node_list(struct list_head *head)
@@ -325,6 +287,124 @@ static int id_in_cl_nodes(struct cl_cluster_node *cl_nodes, uint32_t nodeid,
 	return FALSE;
 }
 
+static int list_count(struct list_head *head)
+{
+	struct list_head *tmp;
+	int count = 0;
+
+	list_for_each(tmp, head)
+		count++;
+	return count;
+}
+
+static int reduce_victims(fd_t *fd)
+{
+	fd_node_t *node, *safe;
+	struct cl_cluster_node *cl_nodes;
+	int num_nodes, num_victims;
+
+	num_victims = list_count(&fd->victims);
+
+	num_nodes = get_members(fd, &cl_nodes);
+
+	list_for_each_entry_safe(node, safe, &fd->victims, list) {
+		if (in_cl_nodes(cl_nodes, node, num_nodes)) {
+			list_del(&node->list);
+			log_debug("reduce victim %s", node->name);
+			free(node);
+			num_victims--;
+		}
+	}
+
+	free(cl_nodes);
+	return num_victims;
+}
+
+/* If there are victims after a node has joined, it's a good indication that
+   they may be joining the cluster shortly.  If we delay a bit they might
+   become members and we can avoid fencing them.  This is only really an issue
+   when the fencing method reboots the victims.  Otherwise, the nodes should
+   unfence themselves when they start up. */
+
+static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
+{
+	struct timeval first, last, start, now;
+	int victim_count, last_count = 0;
+
+	if (ev->start_type != SERVICE_START_JOIN)
+		return;
+
+	if (fd->comline->delay == 0)
+		return;
+
+	gettimeofday(&first, NULL);
+	gettimeofday(&start, NULL);
+
+	for (;;) {
+		sleep(1);
+
+		victim_count = reduce_victims(fd);
+
+		if (victim_count == 0)
+			break;
+
+		if (victim_count < last_count)
+			gettimeofday(&start, NULL);
+
+		last_count = victim_count;
+
+		gettimeofday(&now, NULL);
+		if (now.tv_sec - start.tv_sec >= fd->comline->delay)
+			break;
+	}
+
+	gettimeofday(&last, NULL);
+
+	log_debug("delay of %ds leaves %d victims",
+		  (int) (last.tv_sec - first.tv_sec), victim_count);
+}
+
+static void fence_victims(fd_t *fd, struct cl_service_event *ev)
+{
+	fd_node_t *node;
+	uint32_t master;
+	int error;
+
+	master = find_master_nodeid(fd);
+
+	if (master != fd->our_nodeid) {
+		log_debug("defer fencing to %u", master);
+		syslog(LOG_INFO, "fencing deferred to %u", master);
+		return;
+	}
+
+	delay_fencing(fd, ev);
+
+	while (!list_empty(&fd->victims)) {
+		node = list_entry(fd->victims.next, fd_node_t, list);
+
+		if (can_avert_fence(fd, node)) {
+			log_debug("averting fence of node %s", node->name);
+			list_del(&node->list);
+			free(node);
+			continue;
+		}
+
+		log_debug("fencing node %s", node->name);
+		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
+
+		error = dispatch_fence_agent(node->name);
+		if (!error) {
+			list_del(&node->list);
+			free(node);
+		}
+
+		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
+		       error ? "failed" : "success");
+		sleep(1);
+	}
+}
+
 static void add_victims(fd_t *fd, struct cl_service_event *ev,
 			struct cl_cluster_node *cl_nodes)
 {
@@ -368,6 +448,8 @@ static void add_victims(fd_t *fd, struct cl_service_event *ev,
 	}
 }
 
+/* cl_nodes is the set of sg members from the last service start */
+
 void do_recovery(fd_t *fd, struct cl_service_event *ev,
 		 struct cl_cluster_node *cl_nodes)
 {
@@ -397,7 +479,7 @@ void do_recovery(fd_t *fd, struct cl_service_event *ev,
 	new_prev_nodes(fd, ev, cl_nodes);
 
 	if (!list_empty(&fd->victims))
-		fence_victims(fd);
+		fence_victims(fd, ev);
 }
 
 void do_recovery_done(fd_t *fd)
