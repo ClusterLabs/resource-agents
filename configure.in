@@ -6,8 +6,9 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
+
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.164 $) dnl cvs revision
+AC_REVISION($Revision: 1.165 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -707,18 +708,22 @@ dnl Add any system specific options here.
 
 	case "$host_os" in
   	*linux*)
+		if test "${enable_fatal_warnings+set}" != "set" && 
+	   	   test "${disable_fatal_warnings+set}" != "set"; then
+        		echo "Enabling Fatal Warnings (-Werror) on this platform"
+    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
+        	fi
           	;;
-  	solaris*)
+  	*solaris*)
           	;;
   	*bsd*)
+		if test "${enable_fatal_warnings+set}" != "set" && 
+	   	   test "${disable_fatal_warnings+set}" != "set"; then
+        		echo "Enabling Fatal Warnings (-Werror) on this platform"
+    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
+        	fi
           	;;
 	esac
-
-	if test "${enable_fatal_warnings+set}" != "set" && 
-	   test "${disable_fatal_warnings+set}" != "set"; then
-        	echo "Enabling Fatal Warnings (-Werror) on this platform"
-    		EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
-        fi
 
 	if test "${enable_no_long_long+set}" != "set" &&
 	   test "${disable_no_long_long+set}" != "set"; then
@@ -887,41 +892,49 @@ AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, Name of UCD SNMP development pac
 AC_SUBST(UCDSNMPDEVEL)
 
 dnl ************************************************************************
-dnl checks for library functions
+dnl checks for library functions to replace them
 dnl
-dnl	sigignore: Only on Solaris.
-dnl		it is a solaris replacement for signal(s,SIG_IGN).
+dnl     alphasort: Only on BSD.
+dnl             System-V systems may have it, but hidden and/or deprecated.
+dnl             A replacement function is supplied for it.
 dnl
-dnl	scandir: Only on BSD.
-dnl		System-V systems may have it, but hidden and/or deprecated.
-dnl		A replacement function is supplied for it.
+dnl     NoSuchFunctionName:
+dnl             is a dummy function which no system supplies.  It is here to make
+dnl             the system compile semi-correctly on OpenBSD which doesn't know
+dnl             how to create an empty archive
 dnl
-dnl	alphasort: Only on BSD.
-dnl		System-V systems may have it, but hidden and/or deprecated.
-dnl		A replacement function is supplied for it.
+dnl     scandir: Only on BSD.
+dnl             System-V systems may have it, but hidden and/or deprecated.
+dnl             A replacement function is supplied for it.
 dnl
-dnl	strerror: returns a string that corresponds to an errno.
-dnl
-dnl	setenv: is some bsdish function that should also be avoided (use
+dnl     setenv: is some bsdish function that should also be avoided (use
 dnl             putenv instead)
-dnl		On the other hand, putenv doesn't provide the right API for the
-dnl		code and has memory leaks designed in (sigh...)  Fortunately this
+dnl             On the other hand, putenv doesn't provide the right API for the
+dnl             code and has memory leaks designed in (sigh...)  Fortunately this
+dnl             A replacement function is supplied for it.
 dnl
-dnl	NoSuchFunctionName:
-dnl		is a dummy function which no system supplies.  It is here to make
-dnl		the system compile semi-correctly on OpenBSD which doesn't know
-dnl		how to create an empty archive
-AC_CHECK_FUNCS(scandir)
-AC_CHECK_FUNCS(strerror)
-AC_CHECK_FUNCS(alphasort)
+dnl     setproctitle: sets the process title to a given string
+dnl
+dnl     strerror: returns a string that corresponds to an errno.
+dnl             A replacement function is supplied for it.
+dnl
+dnl
+dnl Check Only
+dnl
+dnl     sigignore: Only on Solaris.
+dnl             it is a solaris replacement for signal(s,SIG_IGN).
+dnl
+
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
+
+AC_CHECK_FUNCS(fcntl)
+AC_CHECK_FUNCS(flock)
 AC_CHECK_FUNCS(inet_aton)
-AC_CHECK_FUNCS(flock fcntl)
-AC_CHECK_FUNCS(sigignore)
+AC_CHECK_FUNCS(mallinfo)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
-AC_CHECK_FUNCS(mallinfo)
-AC_CHECK_FUNCS(setenv scandir strerror inet_pton NoSuchFunctionName)
-AC_REPLACE_FUNCS(setenv scandir strerror inet_pton NoSuchFunctionName)
+AC_CHECK_FUNCS(sigignore)
+
 
 dnl **********************************************************************
 dnl Check for various argv[] replacing functions on various OSs
