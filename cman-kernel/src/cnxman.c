@@ -51,7 +51,7 @@ static void process_barrier_msg(struct cl_barriermsg *msg,
 static struct cl_barrier *find_barrier(char *name);
 static void node_shutdown(void);
 static void node_cleanup(void);
-static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
+static int send_or_queue_message(struct socket *sock, void *buf, int len, struct sockaddr_cl *caddr,
 				 unsigned int flags);
 static struct cl_comms_socket *get_next_interface(struct cl_comms_socket *cur);
 static void check_for_unacked_nodes(void);
@@ -194,6 +194,16 @@ struct temp_node
 };
 static struct list_head tempnode_list;
 static struct semaphore tempnode_lock;
+
+
+/* This is what's squirrelled away in skb->cb */
+struct cb_info
+{
+	int  orig_nodeid;
+	char orig_port;
+	char oob;
+};
+
 
 /* Wake up any processes that are waiting to send. This is usually called when
  * all the ACKs have been gathered up or when a node has left the cluster
@@ -589,7 +599,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		listenmsg =
 		    (struct cl_listenmsg *) (data +
 					     sizeof (struct cl_protheader));
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		cl_sendack(csock, header->seq, addrlen, addr, header->tgtport, 0);
 		send_listen_response(csock, le32_to_cpu(header->srcid),
 				     listenmsg->target_port, listenmsg->tag);
 		break;
@@ -599,7 +609,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		listenmsg =
 		    (struct cl_listenmsg *) (data +
 					     sizeof (struct cl_protheader));
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		cl_sendack(csock, header->seq, addrlen, addr, header->tgtport, 0);
 		down(&listenreq_lock);
 		listen_request = find_listen_request(listenmsg->tag);
 		if (listen_request) {
@@ -614,7 +624,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		closemsg =
 		    (struct cl_closemsg *) (data +
 					    sizeof (struct cl_protheader));
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		cl_sendack(csock, header->seq, addrlen, addr, header->tgtport, 0);
 		post_close_oob(closemsg->port, le32_to_cpu(header->srcid));
 		break;
 
@@ -622,7 +632,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		barriermsg =
 		    (struct cl_barriermsg *) (data +
 					      sizeof (struct cl_protheader));
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		cl_sendack(csock, header->seq, addrlen, addr, header->tgtport, 0);
 		if (rem_node)
 			process_barrier_msg(barriermsg, rem_node);
 		break;
@@ -677,20 +687,20 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 			     int len)
 {
 	struct sk_buff *skb;
+	struct cb_info *cbinfo;
 	int err;
 
         /* Get the port number and look for a listener */
 	down(&port_array_lock);
-	if (port_array[header->port]) {
-		int native_srcid;
-		struct cluster_sock *c = cluster_sk(port_array[header->port]);
+	if (port_array[header->tgtport]) {
+		struct cluster_sock *c = cluster_sk(port_array[header->tgtport]);
 
 		/* ACK it */
-		if (!(header->flags & (MSG_NOACK >> 16)) &&
-		    !(header->flags & (MSG_REPLYEXP >> 16))) {
+		if (!(header->flags & MSG_NOACK) &&
+		    !(header->flags & MSG_REPLYEXP)) {
 
 			cl_sendack(csock, header->seq, msg->msg_namelen,
-				   msg->msg_name, header->port, 0);
+				   msg->msg_name, header->tgtport, 0);
 		}
 
 		/* Call a callback if there is one */
@@ -731,21 +741,22 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 		skb_put(skb, len);
 		memcpy_fromkvec(skb->data, iov, len);
 
-		/* Put the nodeid into cb so we can pass it to the clients */
-		skb->cb[0] = 0; /* Clear flags */
-		native_srcid = le32_to_cpu(header->srcid);
-		memcpy(skb->cb + 1, &native_srcid, sizeof(int));
+		/* Put metadata into cb[] */
+		cbinfo = (struct cb_info *)skb->cb;
+		cbinfo->orig_nodeid = le32_to_cpu(header->srcid);
+		cbinfo->orig_port = header->srcport;
+		cbinfo->oob = 0;
 
 		if ((err =
-		     sock_queue_rcv_skb(port_array[header->port], skb)) < 0) {
+		     sock_queue_rcv_skb(port_array[header->tgtport], skb)) < 0) {
 
 			printk(KERN_INFO CMAN_NAME
 			       ": Error queueing request to port %d: %d\n",
-			       header->port, err);
+			       header->tgtport, err);
 			kfree_skb(skb);
 
 			/* If the port was MEMBERSHIP then we have to die */
-			if (header->port == CLUSTER_PORT_MEMBERSHIP) {
+			if (header->tgtport == CLUSTER_PORT_MEMBERSHIP) {
 				up(&port_array_lock);
 				send_leave(CLUSTER_LEAVEFLAG_PANIC);
 				panic("membership stopped responding");
@@ -757,10 +768,10 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 	else {
 		/* ACK it, but set the flag bit so remote end knows no-one
 		 * caught it */
-		if (!(header->flags & (MSG_NOACK >> 16)))
+		if (!(header->flags & MSG_NOACK))
 			cl_sendack(csock, header->seq,
 				   msg->msg_namelen, msg->msg_name,
-				   header->port, 1);
+				   header->tgtport, 1);
 
 		/* Nobody listening, drop it */
 		up(&port_array_lock);
@@ -843,14 +854,14 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 
         /* Have we received this message before ? If so just ignore it, it's a
 	 * resend for someone else's benefit */
-	if (!(header->flags & (MSG_NOACK >> 16)) &&
+	if (!(header->flags & MSG_NOACK) &&
 	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
 		P_COMMS
 		    ("Discarding message - Already seen this sequence number %d\n",
 		     rem_node->last_seq_recv);
 		/* Still need to ACK it though, in case it was the ACK that got
 		 * lost */
-		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		cl_sendack(csock, header->seq, addrlen, addr, header->tgtport, 0);
 		goto incoming_finish;
 	}
 
@@ -864,30 +875,30 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 		header->srcid = cpu_to_le32(new_temp_nodeid(addr, addrlen));
 
 	P_COMMS("Got message: flags = %x, port = %d, we_are_a_member = %d\n",
-		header->flags, header->port, we_are_a_cluster_member);
+		header->flags, header->tgtport, we_are_a_cluster_member);
 
 
 	/* If we are not part of the cluster then ignore multicast messages
 	 * that need an ACK as we will confuse the sender who is only expecting
 	 * ACKS from bona fide members */
-	if (header->flags & (MSG_MULTICAST >> 16) &&
-	    !(header->flags & (MSG_NOACK >> 16)) && !we_are_a_cluster_member) {
+	if ((header->flags & MSG_MULTICAST) &&
+	    !(header->flags & MSG_NOACK) && !we_are_a_cluster_member) {
 		P_COMMS
 		    ("Discarding message - multicast and we are not a cluster member. port=%d flags=%x\n",
-		     header->port, header->flags);
+		     header->tgtport, header->flags);
 		goto incoming_finish;
 	}
 
 	/* Save the sequence number of this message so we can ignore duplicates
 	 * (above) */
-	if (!(header->flags & (MSG_NOACK >> 16)) && rem_node) {
+	if (!(header->flags & MSG_NOACK) && rem_node) {
 		P_COMMS("Saving seq %d for node %s\n", le16_to_cpu(header->seq),
 			rem_node->name);
 		rem_node->last_seq_recv = le16_to_cpu(header->seq);
 	}
 
 	/* Is it a protocol message? */
-	if (header->port == 0) {
+	if (header->tgtport == 0) {
 		process_cnxman_message(csock, data, len, addr, addrlen,
 				       rem_node);
 		goto incoming_finish;
@@ -1975,10 +1986,9 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_cl *sin = (struct sockaddr_cl *) msg->msg_name;
-	struct cluster_sock *c = cluster_sk(sk);
 	struct sk_buff *skb;
+	struct cb_info *cbinfo;
 	int copied, err = 0;
-	int isoob = 0;
 
 	/* Socket was notified of shutdown, remove any pending skbs and return
 	 * EOF */
@@ -1995,14 +2005,10 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 		if (!skb)
 			goto out;
 
-		/* Is it OOB */
-		if (skb->cb[0] & 0x80)
-			isoob = 1;
-		else
-			isoob = 0;
+		cbinfo = (struct cb_info *)skb->cb;
 
-		/* If it is and the user doesn't want it, then throw it away. */
-		if (isoob && !(flags & MSG_OOB)) {
+		/* If it is OOB and the user doesn't want it, then throw it away. */
+		if (cbinfo->oob && !(flags & MSG_OOB)) {
 			skb_free_datagram(sk, skb);
 
 			/* If we peeked (?) an OOB but the user doesn't want it
@@ -2015,7 +2021,7 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 			}
 		}
 	}
-	while (isoob && !(flags & MSG_OOB));
+	while (cbinfo->oob && !(flags & MSG_OOB));
 
 	copied = skb->len;
 	if (copied > size) {
@@ -2034,14 +2040,13 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 
 			/* Nodeid is in native byte order - anything else is just
 			 * perverse */
-			memcpy(&sin->scl_nodeid, skb->cb + 1, sizeof(int));
+			sin->scl_nodeid = cbinfo->orig_nodeid;
 		}
 		msg->msg_namelen = sizeof (struct sockaddr_cl);
-		sin->scl_port = c->port;
+		sin->scl_port = cbinfo->orig_port;
 	}
 
-	/* Top bit set in cb[0] means this is an OOB message */
-	if (skb->cb[0] & 0x80) {
+	if (cbinfo->oob) {
 		msg->msg_flags |= MSG_OOB;
 	}
 
@@ -2098,6 +2103,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	struct sockaddr_cl *caddr = msg->msg_name;
 	struct cl_protheader header;
 	struct iovec vectors[msg->msg_iovlen + 1];
+	unsigned char srcport;
 	int nodeid = 0;
 
 	if (size > MAX_CLUSTER_MESSAGE)
@@ -2112,6 +2118,16 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	if (msg->msg_namelen && (!find_node_by_nodeid(nodeid) &&
 				 !is_valid_temp_nodeid(nodeid))) {
 		return -ENOTCONN;
+	}
+
+	/* If there's no sending client socket then the source
+	   port is 0: "us" */
+	if (sock) {
+		struct cluster_sock *csock = cluster_sk(sock->sk);
+		srcport = csock->port;
+	}
+	else {
+		srcport = 0;
 	}
 
 	/* We can only have one send outstanding at a time so we might as well
@@ -2178,8 +2194,9 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	memset(&our_msg, 0, sizeof (our_msg));
 
 	/* Build the header */
-	header.port = port;
-	header.flags = msg->msg_flags >> 16;
+	header.tgtport = port;
+	header.srcport = srcport;
+	header.flags = msg->msg_flags;
 	header.cluster = cpu_to_le16(cluster_id);
 	header.srcid = us ? cpu_to_le32(us->node_id) : 0;
 	header.tgtid = caddr ? cpu_to_le32(nodeid) : 0;
@@ -2199,7 +2216,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 
 	/* Set the MULTICAST flag on messages with no particular destination */
 	if (!msg->msg_namelen) {
-		header.flags |= MSG_MULTICAST >> 16;
+		header.flags |= MSG_MULTICAST;
 		header.tgtid = 0;
 	}
 
@@ -2214,11 +2231,11 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	our_msg.msg_iovlen = msg->msg_iovlen + 1;
 	our_msg.msg_iov = vectors;
 
-	/* Loopback shortcut. */
+	/* Loopback shortcut */
 	if (nodeid == us->node_id && nodeid != 0) {
 
 		up(&send_lock);
-		header.flags |= (MSG_NOACK >> 16); /* Don't ack it! */
+		header.flags |= MSG_NOACK; /* Don't ack it! */
 
 		return send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
 	}
@@ -2289,7 +2306,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	/* if the client wants a broadcast message sending back to itself
 	   then loop it back */
 	if (nodeid == 0 && (flags & MSG_BCASTSELF)) {
-		header.flags |= (MSG_NOACK >> 16); /* Don't ack it! */
+		header.flags |= MSG_NOACK; /* Don't ack it! */
 
 		result = send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
 	}
@@ -2307,7 +2324,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 
 		/* Clear the REPLYEXPected flag so we force a real ACK
 		   if it's necessary to resend this packet */
-		savhdr->flags &= ~(MSG_REPLYEXP>>16);
+		savhdr->flags &= ~MSG_REPLYEXP;
 		start_ack_timer();
 	}
 
@@ -2315,7 +2332,8 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	return result;
 }
 
-static int queue_message(void *buf, int len, struct sockaddr_cl *caddr,
+static int queue_message(struct socket *sock, void *buf, int len,
+			 struct sockaddr_cl *caddr,
 			 unsigned char port, int flags)
 {
 	struct queued_message *qmsg;
@@ -2337,7 +2355,7 @@ static int queue_message(void *buf, int len, struct sockaddr_cl *caddr,
 	}
 	qmsg->flags = flags;
 	qmsg->port = port;
-	qmsg->socket = NULL;
+	qmsg->socket = sock;
 
 	down(&messages_list_lock);
 	list_add_tail(&qmsg->list, &messages_list);
@@ -2425,7 +2443,7 @@ int kcl_sendmsg(struct socket *sock, void *buf, int size,
 	/* If we have no process context then queue it up for kclusterd to
 	 * send. */
 	if (in_interrupt() || flags & MSG_QUEUE) {
-		return queue_message(buf, size, caddr, port,
+		return queue_message(sock, buf, size, caddr, port,
 				     flags & ~MSG_QUEUE);
 	}
 
@@ -2479,7 +2497,8 @@ int kcl_register_read_callback(struct socket *sock,
 /* Used where we are in kclusterd context and we can't allow the task to wait
  * as we are also responsible to processing the ACKs that do the wake up. Try
  * to send the message immediately and queue it if that's not possible */
-static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
+static int send_or_queue_message(struct socket *sock, void *buf, int len,
+				 struct sockaddr_cl *caddr,
 				 unsigned int flags)
 {
 	struct iovec iovecs[1];
@@ -2508,7 +2527,7 @@ static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
 		return status;
 	}
 
-	return queue_message(buf, len, caddr, 0, flags);
+	return queue_message(sock, buf, len, caddr, 0, flags);
 }
 
 /* Send a listen request to a node */
@@ -2529,7 +2548,7 @@ static void send_listen_request(int nodeid, unsigned char port)
 	caddr.scl_port = 0;
 	caddr.scl_nodeid = nodeid;
 
-	send_or_queue_message(&listenmsg, sizeof(listenmsg), &caddr, MSG_REPLYEXP);
+	send_or_queue_message(NULL, &listenmsg, sizeof(listenmsg), &caddr, MSG_REPLYEXP);
 	return;
 }
 
@@ -2553,7 +2572,7 @@ static void send_listen_response(struct cl_comms_socket *csock, int nodeid,
 	caddr.scl_port = 0;
 	caddr.scl_nodeid = nodeid;
 
-	status = send_or_queue_message(&listenmsg,
+	status = send_or_queue_message(NULL, &listenmsg,
 				       sizeof (listenmsg),
 				       &caddr, 0);
 
@@ -2588,9 +2607,10 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 	}
 
 	/* Build the header */
-	ackmsg.header.port = 0;	/* Protocol port */
+	ackmsg.header.tgtport = 0;	/* Protocol port */
+	ackmsg.header.srcport = 0;
 	ackmsg.header.seq = 0;
-	ackmsg.header.flags = MSG_NOACK >> 16;
+	ackmsg.header.flags = MSG_NOACK;
 	ackmsg.header.cluster = cpu_to_le16(cluster_id);
 	ackmsg.header.srcid = us ? cpu_to_le32(us->node_id) : 0;
 	ackmsg.header.ack = seq; /* already in LE order */
@@ -2652,7 +2672,7 @@ static void send_port_close_oob(unsigned char port)
 	closemsg.cmd = CLUSTER_CMD_PORTCLOSED;
 	closemsg.port = port;
 
-	send_or_queue_message(&closemsg, sizeof (closemsg), NULL, 0);
+	send_or_queue_message(NULL, &closemsg, sizeof (closemsg), NULL, 0);
 	return;
 }
 
@@ -2663,6 +2683,7 @@ static void post_close_oob(unsigned char port, int nodeid)
 	struct cl_portclosed_oob *oobmsg;
 	struct sk_buff *skb;
 	struct sock *sock = port_array[port];
+	struct cb_info *cbinfo;
 
 	if (!sock) {
 		return;		/* No-one listening */
@@ -2676,8 +2697,11 @@ static void post_close_oob(unsigned char port, int nodeid)
 	oobmsg = (struct cl_portclosed_oob *) skb->data;
 	oobmsg->port = port;
 	oobmsg->cmd = CLUSTER_OOB_MSG_PORTCLOSED;
-	skb->cb[0] = 0x80;
-	memcpy(skb->cb + 1, &nodeid, sizeof(int));
+
+	cbinfo = (struct cb_info *)skb->cb;
+	cbinfo->oob = 1;
+	cbinfo->orig_nodeid = nodeid;
+	cbinfo->orig_port = port;
 
 	sock_queue_rcv_skb(sock, skb);
 
@@ -2898,6 +2922,7 @@ void set_quorate(int total_votes)
 void queue_oob_skb(struct socket *sock, int cmd)
 {
 	struct sk_buff *skb;
+	struct cb_info *cbinfo;
 	struct cl_portclosed_oob *oobmsg;
 
 	skb = alloc_skb(sizeof (*oobmsg), GFP_KERNEL);
@@ -2911,8 +2936,10 @@ void queue_oob_skb(struct socket *sock, int cmd)
 
 	/* There is no remote node associated with this so
 	   clear out the field to avoid any accidents */
-	memset(skb->cb, 0, sizeof(int));
-	skb->cb[0] = 0x80;
+	cbinfo = (struct cb_info *)skb->cb;
+	cbinfo->oob = 1;
+	cbinfo->orig_nodeid = 0;
+	cbinfo->orig_port = 0;
 
 	sock_queue_rcv_skb(sock->sk, skb);
 }
@@ -3044,7 +3071,7 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 		strcpy(bmsg.name, barrier->name);
 
 		P_BARRIER("Sending COMPLETE for %s\n", barrier->name);
-		queue_message((char *) &bmsg, sizeof (bmsg), NULL, 0, 0);
+		queue_message(NULL, (char *) &bmsg, sizeof (bmsg), NULL, 0, 0);
 	}
 }
 
@@ -3488,7 +3515,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		 * before WAIT if its in the queue
 		 */
 		P_BARRIER("Sending WAIT for %s\n", barrier->name);
-		status = queue_message(&bmsg, sizeof (bmsg), NULL, 0, 0);
+		status = queue_message(NULL, &bmsg, sizeof (bmsg), NULL, 0, 0);
 		if (status < 0) {
 			up(&barrier->lock);
 			return status;

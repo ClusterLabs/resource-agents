@@ -15,7 +15,7 @@
 #define __CNXMAN_PRIVATE_H
 
 /* Version triplet */
-#define CNXMAN_MAJOR_VERSION 2
+#define CNXMAN_MAJOR_VERSION 3
 #define CNXMAN_MINOR_VERSION 0
 #define CNXMAN_PATCH_VERSION 1
 
@@ -72,11 +72,12 @@ struct cl_client_socket {
 /* This structure is tacked onto the start of a cluster message packet for our
  * own nefarious purposes. */
 struct cl_protheader {
-	unsigned char  port;
-	unsigned char  flags;
-	unsigned short cluster;	/* Our cluster number, little-endian */
+	unsigned char  tgtport; /* Target port number */
+	unsigned char  srcport; /* Source (originationg) port number */
 	unsigned short seq;	/* Packet sequence number, little-endian */
-	unsigned short ack;	/* inline ACK */
+	unsigned short ack;	/* Inline ACK */
+	unsigned short cluster;	/* Our cluster number, little-endian */
+	unsigned int   flags;
 	int            srcid;	/* Node ID of the sender */
 	int            tgtid;	/* Node ID of the target or 0 for multicast
 				 * messages */
