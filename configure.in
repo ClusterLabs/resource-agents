@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.150 $) dnl cvs revision
+AC_REVISION($Revision: 1.151 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -44,6 +44,33 @@ AM_INIT_AUTOMAKE(heartbeat, 0.4.9f)
 RPMREL=1
 AC_SUBST(RPMREL)
 
+INIT_EXT=""
+USE_MODULES=0
+SYS_INCLUDES=""
+
+case "$host_os" in
+solaris*)	HEARTBEAT_LIBS="-lposix4"
+		# I don't think this is necessary any more...
+		LIBS="-L/usr/local/lib $LIBS"
+		INCLUDES="-I/usr/local/include $INCLUDES"
+		SYS_INCLUDES="-I/usr/local/include"
+		AC_MSG_CHECKING(setting SYS_INCLUDES)
+		;;
+
+*bsd*)		LIBS="-L/usr/local/lib $LIBS"
+		INCLUDES="-I/usr/local/include $INCLUDES"
+		INIT_EXT=".sh"
+		SYS_INCLUDES="-I/usr/local/include"
+		AC_MSG_CHECKING(setting SYS_INCLUDES)
+		;;
+
+*linux*)	USE_MODULES=1
+ 		;;
+esac
+
+AC_SUBST(INIT_EXT)
+AC_SUBST(USE_MODULES)
+AC_SUBST(SYS_INCLUDES)
 
 dnl
 dnl
@@ -380,6 +407,7 @@ else
 	LIBRT=-lrt
 fi
 AC_SUBST(LIBRT)
+
 #
 #	Where is dlopen?
 #
@@ -433,21 +461,9 @@ elif FunIsInLib gettext intl ; then
 	LIBADD_INTL=-lintl
 elif test -f /usr/local/lib/libintl.so -a -s /usr/local/lib/libintl.so; then
 	# This was added for FreeBSD
-	LIBADD_INTL="-L/usr/local/lib -lintl"
+	LIBADD_INTL="-lintl"
 else
 	AC_MSG_ERROR(no library providing gettext found)
-fi
-
-AC_MSG_CHECKING(whether we need to include /usr/local/include)
-dnl
-dnl this is mainly for FreeBSD...
-if
-  test ! -f /usr/include/libintl.h  -a -f /usr/local/include/libintl.h
-then
-  AC_MSG_RESULT(yes)
-  CPPFLAGS="$CPPFLAGS -I/usr/local/include"
-else
-  AC_MSG_RESULT(no)
 fi
 
 dnl
@@ -455,6 +471,7 @@ dnl	Glib allows its headers/libraries to be installed anywhere.
 dnl	And they provide a command to let you know where they are.
 dnl	This is nice, but having them in standard places is nicer ;-)
 dnl
+
 AC_MSG_CHECKING(for special glib includes: )
 GLHEAD=`$GLIBCONFIG --cflags`
 AC_MSG_RESULT($GLHEAD)
@@ -529,6 +546,15 @@ samba_cv_HAVE_TERMIOS_C_LINE=yes,samba_cv_HAVE_TERMIOS_C_LINE=no,samba_cv_HAVE_T
 if test x"$samba_cv_HAVE_TERMIOS_C_LINE" = x"yes"; then
     AC_DEFINE(HAVE_TERMIOS_C_LINE,1,[ ])
 fi
+
+dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
+AC_TRY_COMPILE([#include <poll.h>
+[ nfds_t te;  te = 0;],
+poll_HAVE_NFDS_T=yes,poll_HAVE_NFDS_T=no,poll_HAVE_NFDS_T=cross)])
+if test x"$poll_HAVE_NFDS_T" = x"yes"; then
+    AC_DEFINE(HAVE_NFDS_T,1,[ ])
+fi
+
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
 dnl
@@ -690,21 +716,6 @@ dnl
 		-Winline $EXTRA_WARNINGS"
 fi
 
-INIT_EXT=""
-USE_MODULES=0
-case "$host_os" in
-solaris*)	HEARTBEAT_LIBS="-lposix4"
-		# I don't think this is necessary any more...
-		;;
-
-*bsd*)		LIBS="$LIBS -L/usr/local/lib"
-		INIT_EXT=".sh"
-		;;
-
-*linux*)	USE_MODULES=1
- 		;;
-esac
-
 AC_MSG_CHECKING(which init (rc) directory to use)
 INITDIR=""
 for initdir in /etc/init.d /etc/rc.d/init.d /sbin/init.d	\
@@ -725,8 +736,6 @@ then
 fi
 
 AC_SUBST(INITDIR)
-AC_SUBST(INIT_EXT)
-AC_SUBST(USE_MODULES)
 
 
 dnl **********************************************************************
