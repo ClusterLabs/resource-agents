@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.309 $) dnl cvs revision
+AC_REVISION($Revision: 1.310 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -90,7 +90,7 @@ mandir=`var "$mandir" "$exec_prefix/man"`
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
-AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"${localstatedir}/lib", var lib directory)
+AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"$HA_VARLIBDIR", var lib directory)
 
 HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_SUBST(HA_LOGDAEMON_IPC)
@@ -1589,27 +1589,27 @@ AC_SUBST(ra_plugindir)
 
 PLUGIN_DIR="${hb_libdir}/plugins"
 AC_SUBST(PLUGIN_DIR)
-AC_DEFINE_UNQUOTED(PLUGIN_DIR,"${hb_libdir}/plugins", pils plugin dir)
+AC_DEFINE_UNQUOTED(PLUGIN_DIR,"$PLUGIN_DIR", pils plugin dir)
 
 RA_PLUGIN_DIR="${ra_plugindir}"
 AC_SUBST(RA_PLUGIN_DIR)
-AC_DEFINE_UNQUOTED(RA_PLUGIN_DIR,"${ra_plugindir}", ra plugin dir)
+AC_DEFINE_UNQUOTED(RA_PLUGIN_DIR,"$RA_PLUGIN_DIR", ra plugin dir)
 
 HB_RA_DIR="${sysconfdir}/ha.d/resource.d/"
 AC_SUBST(HB_RA_DIR)
-AC_DEFINE_UNQUOTED(HB_RA_DIR,"${sysconfdir}/ha.d/resource.d/", heartbeat ra dir)
+AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", heartbeat ra dir)
 
 OCF_RA_DIR="${libdir}/ocf/resource.d/"
 AC_SUBST(OCF_RA_DIR)
-AC_DEFINE_UNQUOTED(OCF_RA_DIR,"${libdir}/ocf/resource.d/", ocf ra dir)
+AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", ocf ra dir)
 
 LSB_RA_DIR="${INITDIR}"
 AC_SUBST(LSB_RA_DIR)
-AC_DEFINE_UNQUOTED(LSB_RA_DIR,"${INITDIR}", lsb ra dir)
+AC_DEFINE_UNQUOTED(LSB_RA_DIR,"$LSB_RA_DIR", lsb ra dir)
 
 STONITH_RA_DIR="${hb_libdir}/stonith.d/"
 AC_SUBST(STONITH_RA_DIR)
-AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"${hb_libdir}/stonith.d/", stonith ra dir)
+AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"$STONITH_RA_DIR", stonith ra dir)
 
 dnl **********************************************************************
 dnl Scripting language bindings
