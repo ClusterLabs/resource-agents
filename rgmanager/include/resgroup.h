@@ -43,7 +43,6 @@ typedef struct __attribute__ ((packed)) {
 	swab32((ptr)->rs_state);\
 	swab32((ptr)->rs_restarts);\
 	swab64((ptr)->rs_transition);\
-	swab32((ptr)->rs_id);\
 }
 
 
