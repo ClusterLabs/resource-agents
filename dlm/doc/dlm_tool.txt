@@ -1,0 +1,167 @@
+
+The dlm is configured and controlled from user space through sysfs and a
+couple of ioctl's.  A command line program, dlm_tool, can be used to do
+everything manually.
+
+Here are the dlm_tool config/control actions that will be used:
+
+set_local  <nodeid> <ipaddr> [<weight>]
+set_node   <nodeid> <ipaddr> [<weight>]
+stop       <ls_name>
+terminate  <ls_name>
+start      <ls_name> <event_nr> <type> <nodeid>...
+get_done   <ls_name>
+finish     <ls_name> <event_nr>
+set_id     <ls_name> <id>
+
+For testing and illustration, some actions have been added to dlm_tool to use
+the libdlm API.
+
+create     <ls_name>
+release    <ls_name>
+lock       <ls_name> <res_name> <mode> [<flag>,...]
+unlock     <ls_name> <lkid>            [<flag>,...]
+convert    <ls_name> <lkid> <mode>     [<flag>,...]
+
+So, dlm_tool is standing in for what would usually be two different entities.
+The first set of config/control actions would usually be performed by a system
+daemon associated with a cluster membership manager.  The second set of libdlm
+actions would usually be performed by an application that wants to use the dlm
+for synchronization.
+
+
+Example
+
+1. There are three machines that we want to use the dlm:
+
+nodea -- 10.0.0.1 
+nodeb -- 10.0.0.2
+nodec -- 10.0.0.3
+
+
+2. We'll pick arbitrary integer node ID's for these machines:
+
+nodea -- 1
+nodeb -- 2
+nodec -- 3
+
+
+3. On each node we first need to tell the dlm what the local IP address
+and nodeid are:
+
+nodea> dlm_tool set_local 1 10.0.0.1
+nodeb> dlm_tool set_local 2 10.0.0.2
+nodec> dlm_tool set_local 3 10.0.0.3
+
+
+4. On all nodes we need to set up the nodeid to IP address mappings:
+
+all> dlm_tool set_node 1 10.0.0.1
+all> dlm_tool set_node 2 10.0.0.2
+all> dlm_tool set_node 3 10.0.0.3
+
+
+5. All dlm locking happens within a lockspace; we need to create a test
+lockspace for all the nodes to use.  This step would usually be an application
+that wants to use the dlm and creates a lockspace to use.
+
+all> dlm_tool create test
+
+
+6. The lockspace needs to be "started" on all the nodes.  The <event_nr>
+should begin at 1 and be incremented for each consecutive start that's done on
+the dlm.  The <type> field isn't used by the dlm and can be 0.  Finally, a
+list of nodeid's using the lockspace is given.
+
+all> dlm_tool start test 1 0 1 2 3
+
+
+7. The dlm will now start up on all three nodes.  Whenever it starts it needs
+to do recovery.  Once recovery is done, the event_nr used for the start (1
+above) will be shown as the dlm_tool get_done output.  You need to wait for
+this on all nodes (i.e. for all nodes to complete recovery) before moving on
+to the next step.
+
+all> dlm_tool get_done test
+done event_nr 1
+
+
+8. The lockspace finally needs to know that recovery is finished on all nodes.
+The event_nr used for the start is used here.
+
+all> dlm_tool finish test 1
+
+
+9. The lockspace can now be used by the application for locking, or using
+dlm_tool using the libdlm actions above.
+
+all> dlm_tool lock/unlock/convert ...
+
+
+10. Say that nodea fails.  Nodeb and nodec need to remove nodea from the
+lockspace and do recovery.  The first step is to suspend the dlm operation on
+the remaining nodes:
+
+nodeb,nodec> dlm_tool stop test
+
+
+11. The lockspace then needs to be started again with the new set of lockspace
+members and an incremented event_nr.
+
+nodeb,nodec> dlm_tool start test 2 0 2 3
+
+
+12. We wait for recovery to complete on nodeb and nodec.
+
+nodeb,nodec> dlm_tool get_done test
+done event_nr 2
+
+
+13. Tell the lockspace that recovery is finished on both nodes.
+
+nodeb,nodec> dlm_tool finish test 2
+
+
+14. Nodea comes back and wants to use the dlm again.
+
+nodea> dlm_tool create test
+
+
+15. To add nodea back into the lockspace, first suspend lockspace operations
+on nodeb and nodec.
+
+nodeb,nodec> dlm_tool stop test
+
+
+16.  Start the lockspace on all the nodes with an incremented event_nr
+(event_nr can go back to 1 again for nodea).
+
+nodeb,nodec> dlm_tool start test 3 0 1 2 3
+nodea>       dlm_tool start test 1 0 1 2 3
+
+
+17. Wait for all nodes to complete recovery.
+
+nodeb,nodec> dlm_tool get_done test
+done event_nr 3
+
+nodea> dlm_tool get_done test
+done event_nr 1
+
+
+18. Tell the lockspace that recovery is finished everywhere.
+
+nodeb,nodec> dlm_tool finish test 3
+nodea>       dlm_tool finish test 1
+
+
+
+Notes:
+
+- When you use more than one lockspace on the nodes, you need to use
+  dlm_tool set_id on all nodes to assign each lockspace a unique
+  integer id.  This is done between the create and the first start.
+
+- A node can leave a lockspace using dlm_tool release (the opposite of
+  dlm_tool create).
+
