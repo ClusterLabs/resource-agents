@@ -36,9 +36,11 @@
 static void
 lm_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 {
+	ENTER(GFN_LM_CB)
 	if (type == LM_CB_ASYNC)
 		atomic_dec(&((struct gfs_sbd *)fsdata)->sd_lm_outstanding);
 	gfs_glock_cb(fsdata, type, data);
+	RET(GFN_LM_CB);
 }
 
 /**
@@ -53,6 +55,7 @@ lm_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 int
 gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 {
+	ENTER(GFN_LM_MOUNT)
 	struct gfs_sb *sb = NULL;
 	char *proto, *table;
 	int error;
@@ -74,13 +77,13 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 
 		if (!buffer_uptodate(bh)) {
 			brelse(bh);
-			return -EIO;
+			RETURN(GFN_LM_MOUNT, -EIO);
 		}
 
 		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
 		if (!sb) {
 			brelse(bh);
-			return -ENOMEM;
+			RETURN(GFN_LM_MOUNT, -ENOMEM);
 		}
 		gfs_sb_in(sb, bh->b_data);
 		brelse(bh);
@@ -128,7 +131,7 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	if (sb)
 		kfree(sb);
 
-	return error;
+	RETURN(GFN_LM_MOUNT, error);
 }
 
 /**
@@ -140,10 +143,12 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 void
 gfs_lm_others_may_mount(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_LM_OTHERS_MAY_MOUNT)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_others_may_mount(sdp->sd_lockstruct.ls_lockspace);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_OTHERS_MAY_MOUNT);
 }
 
 /**
@@ -155,10 +160,12 @@ gfs_lm_others_may_mount(struct gfs_sbd *sdp)
 void
 gfs_lm_unmount(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_LM_UNMOUNT)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		lm_unmount(&sdp->sd_lockstruct);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_UNMOUNT);
 }
 
 /**
@@ -172,10 +179,11 @@ gfs_lm_unmount(struct gfs_sbd *sdp)
 int
 gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 {
+	ENTER(GFN_LM_WITHDRAW)
 	va_list args;
 
 	if (test_and_set_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-		return 0;
+		RETURN(GFN_LM_WITHDRAW, 0);
 
 	va_start(args, fmt);
 	vprintk(fmt, args);
@@ -210,7 +218,7 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	printk("GFS: fsid=%s: withdrawn\n",
 	       sdp->sd_fsname);
 
-	return -1;
+	RETURN(GFN_LM_WITHDRAW, -1);
 }
 
 /**
@@ -226,6 +234,7 @@ int
 gfs_lm_get_lock(struct gfs_sbd *sdp,
 		struct lm_lockname *name, lm_lock_t **lockp)
 {
+	ENTER(GFN_LM_GET_LOCK)
 	int error;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -236,7 +245,7 @@ gfs_lm_get_lock(struct gfs_sbd *sdp,
 							       name, lockp);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
-	return error;
+	RETURN(GFN_LM_GET_LOCK, error);
 }
 
 /**
@@ -249,10 +258,12 @@ gfs_lm_get_lock(struct gfs_sbd *sdp,
 void
 gfs_lm_put_lock(struct gfs_sbd *sdp, lm_lock_t *lock)
 {
+	ENTER(GFN_LM_PUT_LOCK)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_put_lock(lock);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_PUT_LOCK);
 }
 
 /**
@@ -271,6 +282,7 @@ gfs_lm_lock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	    unsigned int cur_state, unsigned int req_state,
 	    unsigned int flags)
 {
+	ENTER(GFN_LM_LOCK)
 	int ret;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -283,7 +295,7 @@ gfs_lm_lock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	if (ret != LM_OUT_ASYNC)
 		atomic_dec(&sdp->sd_lm_outstanding);
 
-	return ret;
+	RETURN(GFN_LM_LOCK, ret);
 }
 
 /**
@@ -299,6 +311,7 @@ unsigned int
 gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	      unsigned int cur_state)
 {
+	ENTER(GFN_LM_UNLOCK)
 	int ret;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -309,7 +322,7 @@ gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
 	if (ret != LM_OUT_ASYNC)
 		atomic_dec(&sdp->sd_lm_outstanding);
 
-	return ret;
+	RETURN(GFN_LM_UNLOCK, ret);
 }
 
 /**
@@ -322,10 +335,12 @@ gfs_lm_unlock(struct gfs_sbd *sdp, lm_lock_t *lock,
 void
 gfs_lm_cancel(struct gfs_sbd *sdp, lm_lock_t *lock)
 {
+	ENTER(GFN_LM_CANCEL)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_cancel(lock);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_CANCEL);
 }
 
 /**
@@ -340,6 +355,7 @@ gfs_lm_cancel(struct gfs_sbd *sdp, lm_lock_t *lock)
 int
 gfs_lm_hold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char **lvbp)
 {
+	ENTER(GFN_LM_HOLD_LVB)
 	int error;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -349,7 +365,7 @@ gfs_lm_hold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char **lvbp)
 		error = sdp->sd_lockstruct.ls_ops->lm_hold_lvb(lock, lvbp);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
-	return error;
+	RETURN(GFN_LM_HOLD_LVB, error);
 }
 
 /**
@@ -363,10 +379,12 @@ gfs_lm_hold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char **lvbp)
 void
 gfs_lm_unhold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char *lvb)
 {
+	ENTER(GFN_LM_UNHOLD_LVB)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_unhold_lvb(lock, lvb);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_UNHOLD_LVB);
 }
 
 /**
@@ -380,10 +398,12 @@ gfs_lm_unhold_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char *lvb)
 void
 gfs_lm_sync_lvb(struct gfs_sbd *sdp, lm_lock_t *lock, char *lvb)
 {
+	ENTER(GFN_LM_SYNC_LVB)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_sync_lvb(lock, lvb);
 	atomic_dec(&sdp->sd_lm_outstanding);
+	RET(GFN_LM_SYNC_LVB);
 }
 
 /**
@@ -401,6 +421,7 @@ gfs_lm_plock_get(struct gfs_sbd *sdp,
 		 struct lm_lockname *name,
 		 struct file *file, struct file_lock *fl)
 {
+	ENTER(GFN_LM_PLOCK_GET)
 	int error;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -412,7 +433,7 @@ gfs_lm_plock_get(struct gfs_sbd *sdp,
 			name, file, fl);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
-	return error;
+	RETURN(GFN_LM_PLOCK_GET, error);
 }
 
 /**
@@ -431,6 +452,7 @@ gfs_lm_plock(struct gfs_sbd *sdp,
 	     struct lm_lockname *name,
 	     struct file *file, int cmd, struct file_lock *fl)
 {
+	ENTER(GFN_LM_PLOCK)
 	int error;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -442,7 +464,7 @@ gfs_lm_plock(struct gfs_sbd *sdp,
 			name, file, cmd, fl);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
-	return error;
+	RETURN(GFN_LM_PLOCK, error);
 }
 
 /**
@@ -460,6 +482,7 @@ gfs_lm_punlock(struct gfs_sbd *sdp,
 	       struct lm_lockname *name,
 	       struct file *file, struct file_lock *fl)
 {
+	ENTER(GFN_LM_PUNLOCK)
 	int error;
 
 	atomic_inc(&sdp->sd_lm_outstanding);
@@ -471,7 +494,7 @@ gfs_lm_punlock(struct gfs_sbd *sdp,
 			name, file, fl);
 	atomic_dec(&sdp->sd_lm_outstanding);
 
-	return error;
+	RETURN(GFN_LM_PUNLOCK, error);
 }
 
 /**
@@ -486,12 +509,16 @@ void
 gfs_lm_recovery_done(struct gfs_sbd *sdp,
 		     unsigned int jid, unsigned int message)
 {
+	ENTER(GFN_LM_RECOVERY_DONE)
+
 	atomic_inc(&sdp->sd_lm_outstanding);
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_recovery_done(sdp->sd_lockstruct.ls_lockspace,
 							    jid,
 							    message);
 	atomic_dec(&sdp->sd_lm_outstanding);
+
+	RET(GFN_LM_RECOVERY_DONE);
 }
 
 

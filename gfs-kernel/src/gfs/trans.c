@@ -39,6 +39,7 @@
 void
 gfs_trans_print(struct gfs_sbd *sdp, struct gfs_trans *tr, unsigned int where)
 {
+	ENTER(GFN_TRANS_PRINT)
 	struct gfs_log_element *le;
 	struct list_head *tmp, *head;
 	unsigned int mblks = 0, eblks = 0;
@@ -59,6 +60,8 @@ gfs_trans_print(struct gfs_sbd *sdp, struct gfs_trans *tr, unsigned int where)
 	}
 
 	printk("End Trans\n");
+
+	RET(GFN_TRANS_PRINT);
 }
 
 /**
@@ -84,13 +87,14 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 		  unsigned int meta_blocks, unsigned int extra_blocks,
 		  char *file, unsigned int line)
 {
+	ENTER(GFN_TRANS_BEGIN_I)
 	struct gfs_trans *tr;
 	unsigned int blocks;
 	int error;
 
 	tr = kmalloc(sizeof(struct gfs_trans), GFP_KERNEL);
 	if (!tr)
-		return -ENOMEM;
+		RETURN(GFN_TRANS_BEGIN_I, -ENOMEM);
 	memset(tr, 0, sizeof(struct gfs_trans));
 
 	INIT_LIST_HEAD(&tr->tr_elements);
@@ -136,7 +140,7 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 	gfs_assert(sdp, !current_transaction,);
 	current_transaction = tr;
 
-	return 0;
+	RETURN(GFN_TRANS_BEGIN_I, 0);
 
  fail_gunlock:
 	gfs_glock_dq(tr->tr_t_gh);
@@ -147,7 +151,7 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
  fail:
 	kfree(tr);
 
-	return error;
+	RETURN(GFN_TRANS_BEGIN_I, error);
 }
 
 /**
@@ -162,6 +166,7 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 void
 gfs_trans_end(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_TRANS_END)
 	struct gfs_trans *tr;
 	struct gfs_holder *t_gh;
 	struct list_head *tmp, *head;
@@ -184,7 +189,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 		gfs_glock_dq(t_gh);
 		gfs_holder_put(t_gh);
 
-		return;
+		RET(GFN_TRANS_END);
 	}
 
 	/* Do trans_end log-operation for each log element */
@@ -202,6 +207,8 @@ gfs_trans_end(struct gfs_sbd *sdp)
 
 	if (sdp->sd_vfs->s_flags & MS_SYNCHRONOUS)
 		gfs_log_flush(sdp);
+
+	RET(GFN_TRANS_END);
 }
 
 /**
@@ -231,6 +238,8 @@ gfs_trans_end(struct gfs_sbd *sdp)
 void
 gfs_trans_add_gl(struct gfs_glock *gl)
 {
+	ENTER(GFN_TRANS_ADD_GL)
+
 	if (!gl->gl_new_le.le_trans) {
 		gfs_assert_withdraw(gl->gl_sbd,
 				    gfs_glock_is_locked_by_me(gl) &&
@@ -245,6 +254,8 @@ gfs_trans_add_gl(struct gfs_glock *gl)
 		LO_ADD(gl->gl_sbd, &gl->gl_new_le);
 		gl->gl_new_le.le_trans->tr_num_gl++;
 	}
+
+	RET(GFN_TRANS_ADD_GL);
 }
 
 /**
@@ -273,6 +284,7 @@ gfs_trans_add_gl(struct gfs_glock *gl)
 void
 gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 {
+	ENTER(GFN_TRANS_ADD_BH)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_bufdata *bd;
 
@@ -285,7 +297,7 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 
 	/* If buffer has already been attached to trans, we're done */
 	if (bd->bd_new_le.le_trans)
-		return;
+		RET(GFN_TRANS_ADD_BH);
 
 	gfs_meta_check(sdp, bh);
 
@@ -300,6 +312,8 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 	/* Attach buffer to trans */
 	LO_ADD(sdp, &bd->bd_new_le);
 	bd->bd_new_le.le_trans->tr_num_buf++;
+
+	RET(GFN_TRANS_ADD_BH);
 }
 
 /**
@@ -316,6 +330,7 @@ struct gfs_unlinked *
 gfs_trans_add_unlinked(struct gfs_sbd *sdp, unsigned int type,
 		       struct gfs_inum *inum)
 {
+	ENTER(GFN_TRANS_ADD_UNLINKED)
 	struct gfs_unlinked *ul;
 
 	/* Find in fileystem's unlinked list, or create */
@@ -337,7 +352,7 @@ gfs_trans_add_unlinked(struct gfs_sbd *sdp, unsigned int type,
 		break;
 	}
 
-	return ul;
+	RETURN(GFN_TRANS_ADD_UNLINKED, ul);
 }
 
 /**
@@ -353,6 +368,7 @@ void
 gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 		    uint32_t uid, uint32_t gid)
 {
+	ENTER(GFN_TRANS_ADD_QUOTA)
 	struct gfs_trans *tr;
 	struct list_head *tmp, *head, *next;
 	struct gfs_log_element *le;
@@ -361,15 +377,15 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 	int error;
 
 	if (!gfs_tune_get(sdp, gt_quota_account))
-		return;
+		RET(GFN_TRANS_ADD_QUOTA);
 	if (gfs_assert_warn(sdp, change))
-		return;
+		RET(GFN_TRANS_ADD_QUOTA);
 
 	found_uid = (uid == NO_QUOTA_CHANGE);
 	found_gid = (gid == NO_QUOTA_CHANGE);
 
 	if (gfs_assert_warn(sdp, !found_uid || !found_gid))
-		return;
+		RET(GFN_TRANS_ADD_QUOTA);
 
 	tr = current_transaction;
 	gfs_assert(sdp, tr,);
@@ -463,4 +479,6 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 		LO_ADD(sdp, &ql->ql_le);
 		tr->tr_num_q++;
 	}
+
+	RET(GFN_TRANS_ADD_QUOTA);
 }

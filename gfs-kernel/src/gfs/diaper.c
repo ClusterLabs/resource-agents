@@ -68,7 +68,8 @@ kmem_cache_t *diaper_slab;
 static int
 diaper_open(struct inode *inode, struct file *file)
 {
-	return -ENOSYS;
+	ENTER(GFN_DIAPER_OPEN)
+	RETURN(GFN_DIAPER_OPEN, -ENOSYS);
 }
 
 static struct block_device_operations diaper_fops = {
@@ -81,6 +82,8 @@ static struct block_device_operations diaper_fops = {
  * @bio:
  * @bytes_done:
  * @error:
+ *
+ * Interrupt context, no ENTER/RETURN
  *
  * Returns: an integer thats usually discarded
  */
@@ -116,6 +119,7 @@ diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 static int
 diaper_make_request(request_queue_t *q, struct bio *bio)
 {
+	ENTER(GFN_DIAPER_MAKE_REQUEST)
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
 	struct gfs_sbd *sdp = dh->dh_sbd;
 	struct bio_wrapper *bw;
@@ -124,7 +128,7 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
 		atomic_dec(&sdp->sd_bio_outstanding);
 		bio_io_error(bio, bio->bi_size);
-		return 0;
+		RETURN(GFN_DIAPER_MAKE_REQUEST, 0);
 	}
 	if (bio_rw(bio) == WRITE)
 		atomic_inc(&sdp->sd_bio_writes);
@@ -141,7 +145,7 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 
 	generic_make_request(&bw->bw_bio);
 
-	return 0;
+	RETURN(GFN_DIAPER_MAKE_REQUEST, 0);
 }
 
 /**
@@ -153,12 +157,13 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 static int
 minor_get(void)
 {
+	ENTER(GFN_MINOR_GET)
 	int minor;
 	int error;
       
 	for (;;) {
 		if (!idr_pre_get(&diaper_idr, GFP_KERNEL))
-			return -ENOMEM;
+			RETURN(GFN_MINOR_GET, -ENOMEM);
       
 		spin_lock(&diaper_lock);
 		error = idr_get_new(&diaper_idr, NULL, &minor);
@@ -167,10 +172,10 @@ minor_get(void)
 		if (!error)
 			break;
 		if (error != -EAGAIN)
-			return error;
+			RETURN(GFN_MINOR_GET, error);
 	}
 
-	return minor;
+	RETURN(GFN_MINOR_GET, minor);
 }
 
 /**
@@ -182,9 +187,11 @@ minor_get(void)
 static void
 minor_put(int minor)
 {
+	ENTER(GFN_MINOR_PUT)
 	spin_lock(&diaper_lock);
 	idr_remove(&diaper_idr, minor);
 	spin_unlock(&diaper_lock);
+	RET(GFN_MINOR_PUT);
 }
 
 /**
@@ -196,8 +203,10 @@ minor_put(int minor)
 static void
 gfs_dummy_write_super_lockfs(struct super_block *sb)
 {
+	ENTER(GFN_DUMMY_WRITE_SUPER_LOCKFS)
 	struct diaper_holder *dh = (struct diaper_holder *)sb->s_fs_info;
 	freeze_bdev(dh->dh_diaper);
+	RET(GFN_DUMMY_WRITE_SUPER_LOCKFS);
 }
 
 /**
@@ -209,8 +218,10 @@ gfs_dummy_write_super_lockfs(struct super_block *sb)
 static void
 gfs_dummy_unlockfs(struct super_block *sb)
 {
+	ENTER(GFN_DUMMY_UNLOCKFS)
 	struct diaper_holder *dh = (struct diaper_holder *)sb->s_fs_info;
 	thaw_bdev(dh->dh_diaper, dh->dh_sbd->sd_vfs);
+	RET(GFN_DUMMY_UNLOCKFS);
 }
 
 struct super_operations gfs_dummy_sops = {
@@ -228,6 +239,7 @@ struct super_operations gfs_dummy_sops = {
 static int
 get_dummy_sb(struct diaper_holder *dh)
 {
+	ENTER(GFN_GET_DUMMY_SB)
 	struct block_device *real = dh->dh_real;
 	struct super_block *sb;
 	struct inode *inode;
@@ -237,7 +249,7 @@ get_dummy_sb(struct diaper_holder *dh)
 	sb = sget(&gfs_fs_type, gfs_test_bdev_super, gfs_set_bdev_super, real);
 	up(&real->bd_mount_sem);
 	if (IS_ERR(sb))
-		return PTR_ERR(sb);
+		RETURN(GFN_GET_DUMMY_SB, PTR_ERR(sb));
 
 	error = -ENOMEM;
 	inode = new_inode(sb);
@@ -258,7 +270,7 @@ get_dummy_sb(struct diaper_holder *dh)
 
 	dh->dh_dummy_sb = sb;
 
-	return 0;
+	RETURN(GFN_GET_DUMMY_SB, 0);
 
  fail_iput:
 	iput(inode);
@@ -266,7 +278,7 @@ get_dummy_sb(struct diaper_holder *dh)
  fail:
 	up_write(&sb->s_umount);
 	deactivate_super(sb);
-	return error;
+	RETURN(GFN_GET_DUMMY_SB, error);
 }
 
 /**
@@ -280,6 +292,7 @@ get_dummy_sb(struct diaper_holder *dh)
 static struct diaper_holder *
 diaper_get(struct block_device *real, int flags)
 {
+	ENTER(GFN_DIAPER_GET2)
 	struct diaper_holder *dh;
 	struct gendisk *gd;
 	struct block_device *diaper;
@@ -288,7 +301,7 @@ diaper_get(struct block_device *real, int flags)
 
 	minor = minor_get();
 	if (minor < 0)
-		return ERR_PTR(error);	
+		RETURN(GFN_DIAPER_GET2, ERR_PTR(error));
 
 	dh = kmalloc(sizeof(struct diaper_holder), GFP_KERNEL);
 	if (!dh)
@@ -350,7 +363,7 @@ diaper_get(struct block_device *real, int flags)
 	if (error)
 		goto fail_mempool;
 
-	return dh;
+	RETURN(GFN_DIAPER_GET2, dh);
 
  fail_mempool:
 	mempool_destroy(dh->dh_mempool);
@@ -378,7 +391,7 @@ diaper_get(struct block_device *real, int flags)
 
  fail:
 	minor_put(minor);
-	return ERR_PTR(error);
+	RETURN(GFN_DIAPER_GET2, ERR_PTR(error));
 }
 
 /**
@@ -390,6 +403,7 @@ diaper_get(struct block_device *real, int flags)
 static void
 diaper_put(struct diaper_holder *dh)
 {
+	ENTER(GFN_DIAPER_PUT2)
 	struct block_device *diaper = dh->dh_diaper;
 	struct gendisk *gd = dh->dh_gendisk;
 	int minor = dh->dh_gendisk->first_minor;
@@ -413,6 +427,8 @@ diaper_put(struct diaper_holder *dh)
 	put_disk(gd);
 	kfree(dh);
 	minor_put(minor);
+
+	RET(GFN_DIAPER_PUT2);
 }
 
 /**
@@ -426,6 +442,7 @@ diaper_put(struct diaper_holder *dh)
 struct block_device *
 gfs_diaper_get(struct block_device *real, int flags)
 {
+	ENTER(GFN_DIAPER_GET)
 	struct list_head *tmp;
 	struct diaper_holder *dh, *dh_new = NULL;
 
@@ -452,12 +469,12 @@ gfs_diaper_get(struct block_device *real, int flags)
 		if (dh) {
 			if (dh_new)
 				diaper_put(dh_new);
-			return dh->dh_diaper;
+			RETURN(GFN_DIAPER_GET, dh->dh_diaper);
 		}
 
 		dh_new = diaper_get(real, flags);
 		if (IS_ERR(dh_new))
-			return (struct block_device *)dh_new;
+			RETURN(GFN_DIAPER_GET, (struct block_device *)dh_new);
 	}
 }
 
@@ -470,6 +487,7 @@ gfs_diaper_get(struct block_device *real, int flags)
 void
 gfs_diaper_put(struct block_device *diaper)
 {
+	ENTER(GFN_DIAPER_PUT)
 	struct list_head *tmp;
 	struct diaper_holder *dh;
 
@@ -485,12 +503,13 @@ gfs_diaper_put(struct block_device *diaper)
 				diaper_put(dh);
 			} else
 				spin_unlock(&diaper_lock);
-			return;
+			RET(GFN_DIAPER_PUT);
 		}
 	}
 	spin_unlock(&diaper_lock);
 
 	printk("GFS: diaper: unknown undiaper\n");
+	RET(GFN_DIAPER_PUT);
 }
 
 /**
@@ -503,6 +522,7 @@ gfs_diaper_put(struct block_device *diaper)
 void
 gfs_diaper_register_sbd(struct block_device *diaper, struct gfs_sbd *sdp)
 {
+	ENTER(GFN_DIAPER_REGISTER_SBD)
 	struct list_head *tmp;
 	struct diaper_holder *dh;
 
@@ -514,12 +534,13 @@ gfs_diaper_register_sbd(struct block_device *diaper, struct gfs_sbd *sdp)
 		if (dh->dh_diaper == diaper) {
 			dh->dh_sbd = sdp;
 			spin_unlock(&diaper_lock);
-			return;
+			RET(GFN_DIAPER_REGISTER_SBD);
 		}
 	}
 	spin_unlock(&diaper_lock);
 
 	printk("GFS: diaper: unknown register\n");
+	RET(GFN_DIAPER_REGISTER_SBD);
 }
 
 /**
@@ -532,6 +553,7 @@ gfs_diaper_register_sbd(struct block_device *diaper, struct gfs_sbd *sdp)
 struct block_device *
 gfs_diaper_2real(struct block_device *diaper)
 {
+	ENTER(GFN_DIAPER_2REAL)
         struct list_head *tmp;
         struct diaper_holder *dh;
 
@@ -542,13 +564,13 @@ gfs_diaper_2real(struct block_device *diaper)
                 dh = list_entry(tmp, struct diaper_holder, dh_list);
                 if (dh->dh_diaper == diaper) {
                         spin_unlock(&diaper_lock);
-			return dh->dh_real;
+			RETURN(GFN_DIAPER_2REAL, dh->dh_real);
                 }
         }
         spin_unlock(&diaper_lock);
 
         printk("GFS: diaper: unknown 2real\n");
-	return NULL;
+	RETURN(GFN_DIAPER_2REAL, NULL);
 }
 
 /**
@@ -560,6 +582,8 @@ gfs_diaper_2real(struct block_device *diaper)
 int
 gfs_diaper_init(void)
 {
+	ENTER(GFN_DIAPER_INIT)
+
 	spin_lock_init(&diaper_lock);
 
 	diaper_slab = kmem_cache_create("gfs_bio_wrapper", sizeof(struct bio_wrapper),
@@ -568,9 +592,9 @@ gfs_diaper_init(void)
 
 	diaper_major = register_blkdev(0, "gfs_diaper");
 	if (diaper_major < 0)
-		return diaper_major;
+		RETURN(GFN_DIAPER_INIT, diaper_major);
 	
-	return 0;
+	RETURN(GFN_DIAPER_INIT, 0);
 }
 
 /**
@@ -581,7 +605,9 @@ gfs_diaper_init(void)
 void
 gfs_diaper_uninit(void)
 {
+	ENTER(GFN_DIAPER_UNINIT)
 	unregister_blkdev(diaper_major, "gfs_diaper");
 	kmem_cache_destroy(diaper_slab);
+	RET(GFN_DIAPER_UNINIT);
 }
 

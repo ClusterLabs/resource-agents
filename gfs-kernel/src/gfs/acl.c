@@ -43,36 +43,37 @@ gfs_acl_validate_set(struct gfs_inode *ip, int access,
 		     struct gfs_ea_request *er,
 		     mode_t *mode, int *remove)
 {
+	ENTER(GFN_ACL_VALIDATE_SET)
 	struct posix_acl *acl;
 	int error;
 
 	error = gfs_acl_validate_remove(ip, access);
 	if (error)
-		return error;
+		RETURN(GFN_ACL_VALIDATE_SET, error);
 
 	if (!er->er_data)
-		return -EINVAL;
+		RETURN(GFN_ACL_VALIDATE_SET, -EINVAL);
 
 	acl = posix_acl_from_xattr(er->er_data, er->er_data_len);
 	if (IS_ERR(acl))
-		return PTR_ERR(acl);
+		RETURN(GFN_ACL_VALIDATE_SET, PTR_ERR(acl));
 
 	error = posix_acl_valid(acl);
 	if (error) {
 		posix_acl_release(acl);
-		return error;
+		RETURN(GFN_ACL_VALIDATE_SET, error);
 	}
 
 	if (access) {
 		error = posix_acl_equiv_mode(acl, mode);
 		posix_acl_release(acl);
 		if (error < 0)
-			return error;
+			RETURN(GFN_ACL_VALIDATE_SET, error);
 		if (!error)
 			*remove = TRUE;
 	}
 
-	return 0;
+	RETURN(GFN_ACL_VALIDATE_SET, 0);
 }
 
 /**
@@ -86,16 +87,18 @@ gfs_acl_validate_set(struct gfs_inode *ip, int access,
 int
 gfs_acl_validate_remove(struct gfs_inode *ip, int access)
 {
-	if (!ip->i_sbd->sd_args.ar_posix_acls)
-		return -EOPNOTSUPP;
-	if (current->fsuid != ip->i_di.di_uid && !capable(CAP_FOWNER))
-		return -EPERM;
-	if (ip->i_di.di_type == GFS_FILE_LNK)
-		return -EOPNOTSUPP;
-	if (!access && ip->i_di.di_type != GFS_FILE_DIR)
-		return -EACCES;
+	ENTER(GFN_ACL_VALIDATE_REMOVE)
 
-	return 0;
+	if (!ip->i_sbd->sd_args.ar_posix_acls)
+		RETURN(GFN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+	if (current->fsuid != ip->i_di.di_uid && !capable(CAP_FOWNER))
+		RETURN(GFN_ACL_VALIDATE_REMOVE, -EPERM);
+	if (ip->i_di.di_type == GFS_FILE_LNK)
+		RETURN(GFN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+	if (!access && ip->i_di.di_type != GFS_FILE_DIR)
+		RETURN(GFN_ACL_VALIDATE_REMOVE, -EACCES);
+
+	RETURN(GFN_ACL_VALIDATE_REMOVE, 0);
 }
 
 /**
@@ -110,12 +113,13 @@ gfs_acl_validate_remove(struct gfs_inode *ip, int access)
 int
 gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
 {
+	ENTER(GFN_ACL_GET)
 	struct gfs_ea_request er;
 	struct gfs_ea_location el;
 	int error;
 
 	if (!ip->i_di.di_eattr)
-		return 0;
+		RETURN(GFN_ACL_GET, 0);
 
 	memset(&er, 0, sizeof(struct gfs_ea_request));
 	if (access) {
@@ -129,9 +133,9 @@ gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
 
 	error = gfs_ea_find(ip, &er, &el);
 	if (error)
-		return error;
+		RETURN(GFN_ACL_GET, error);
 	if (!el.el_ea)
-		return 0;
+		RETURN(GFN_ACL_GET, 0);
 	if (!GFS_EA_DATA_LEN(el.el_ea))
 		goto out;
 
@@ -154,7 +158,7 @@ gfs_acl_get(struct gfs_inode *ip, int access, struct posix_acl **acl)
  out:
 	brelse(el.el_bh);
 
-	return error;
+	RETURN(GFN_ACL_GET, error);
 }
 
 /**
@@ -177,21 +181,22 @@ gfs_acl_new_prep(struct gfs_inode *dip,
 		 unsigned int *size,
 		 unsigned int *blocks)
 {
+	ENTER(GFN_ACL_NEW_PREP)
 	struct posix_acl *acl = NULL;
 	int set_a = FALSE, set_d = FALSE;
 	int error;
 
 	if (!dip->i_sbd->sd_args.ar_posix_acls)
-		return 0;
+		RETURN(GFN_ACL_NEW_PREP, 0);
 	if (type == GFS_FILE_LNK)
-		return 0;
+		RETURN(GFN_ACL_NEW_PREP, 0);
 
 	error = gfs_acl_get(dip, FALSE, &acl);
 	if (error)
-		return error;
+		RETURN(GFN_ACL_NEW_PREP, error);
 	if (!acl) {
 		(*mode) &= ~current->fs->umask;
-		return 0;
+		RETURN(GFN_ACL_NEW_PREP, 0);
 	}
 
 	{
@@ -250,7 +255,7 @@ gfs_acl_new_prep(struct gfs_inode *dip,
  out:
 	posix_acl_release(acl);
 
-	return error;
+	RETURN(GFN_ACL_NEW_PREP, error);
 }
 
 /**
@@ -264,9 +269,11 @@ gfs_acl_new_prep(struct gfs_inode *dip,
  * Returns: errno
  */
 
-int gfs_acl_new_init(struct gfs_inode *dip, struct gfs_inode *ip,
-		     void *a_data, void *d_data, unsigned int size)
+int
+gfs_acl_new_init(struct gfs_inode *dip, struct gfs_inode *ip,
+		 void *a_data, void *d_data, unsigned int size)
 {
+	ENTER(GFN_ACL_NEW_INIT)
 	void *data = (a_data) ? a_data : d_data;
 	unsigned int x;
 	int error = 0;
@@ -301,7 +308,7 @@ int gfs_acl_new_init(struct gfs_inode *dip, struct gfs_inode *ip,
 
 	kfree(data);
 
-	return error;
+	RETURN(GFN_ACL_NEW_INIT, error);
 }
 
 /**
@@ -315,6 +322,7 @@ int gfs_acl_new_init(struct gfs_inode *dip, struct gfs_inode *ip,
 int
 gfs_acl_chmod(struct gfs_inode *ip, struct iattr *attr)
 {
+	ENTER(GFN_ACL_CHMOD)
 	struct gfs_ea_request er;
 	struct gfs_ea_location el;
 	struct posix_acl *acl;
@@ -330,7 +338,7 @@ gfs_acl_chmod(struct gfs_inode *ip, struct iattr *attr)
 
 	error = gfs_ea_find(ip, &er, &el);
 	if (error)
-		return error;
+		RETURN(GFN_ACL_CHMOD, error);
 	if (!el.el_ea)
 		goto simple;
 	if (!GFS_EA_DATA_LEN(el.el_ea))
@@ -368,8 +376,8 @@ gfs_acl_chmod(struct gfs_inode *ip, struct iattr *attr)
  out:
 	brelse(el.el_bh);
 
-	return error;
+	RETURN(GFN_ACL_CHMOD, error);
 
  simple:
-	return gfs_setattr_simple(ip, attr);
+	RETURN(GFN_ACL_CHMOD, gfs_setattr_simple(ip, attr));
 }

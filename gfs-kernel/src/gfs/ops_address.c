@@ -45,6 +45,7 @@ static int
 get_block(struct inode *inode, sector_t lblock, 
 	  struct buffer_head *bh_result, int create)
 {
+	ENTER(GFN_GET_BLOCK)
 	struct gfs_inode *ip = vn2ip(inode);
 	int new = create;
 	uint64_t dblock;
@@ -52,16 +53,16 @@ get_block(struct inode *inode, sector_t lblock,
 
 	error = gfs_block_map(ip, lblock, &new, &dblock, NULL);
 	if (error)
-		return error;
+		RETURN(GFN_GET_BLOCK, error);
 
 	if (!dblock)
-		return 0;
+		RETURN(GFN_GET_BLOCK, 0);
 
 	map_bh(bh_result, inode->i_sb, dblock);
 	if (new)
 		set_buffer_new(bh_result);
 
-	return 0;
+	RETURN(GFN_GET_BLOCK, 0);
 }
 
 /**
@@ -78,17 +79,18 @@ static int
 get_block_noalloc(struct inode *inode, sector_t lblock,
 		  struct buffer_head *bh_result, int create)
 {
+	ENTER(GFN_GET_BLOCK_NOALLOC)
 	int error;
 
 	error = get_block(inode, lblock, bh_result, FALSE);
 	if (error)
-		return error;
+		RETURN(GFN_GET_BLOCK_NOALLOC, error);
 
 	if (gfs_assert_withdraw(vfs2sdp(inode->i_sb),
 				!create || buffer_mapped(bh_result)))
-		return -EIO;
+		RETURN(GFN_GET_BLOCK_NOALLOC, -EIO);
 
-	return 0;
+	RETURN(GFN_GET_BLOCK_NOALLOC, 0);
 }
 
 /**
@@ -107,6 +109,7 @@ get_blocks(struct inode *inode, sector_t lblock,
 	   unsigned long max_blocks,
 	   struct buffer_head *bh_result, int create)
 {
+	ENTER(GFN_GET_BLOCKS)
 	struct gfs_inode *ip = vn2ip(inode);
 	int new = create;
 	uint64_t dblock;
@@ -115,10 +118,10 @@ get_blocks(struct inode *inode, sector_t lblock,
 
 	error = gfs_block_map(ip, lblock, &new, &dblock, &extlen);
 	if (error)
-		return error;
+		RETURN(GFN_GET_BLOCKS, error);
 
 	if (!dblock)
-		return 0;
+		RETURN(GFN_GET_BLOCKS, 0);
 
 	map_bh(bh_result, inode->i_sb, dblock);
 	if (new)
@@ -128,7 +131,7 @@ get_blocks(struct inode *inode, sector_t lblock,
 		extlen = max_blocks;
 	bh_result->b_size = extlen << inode->i_blkbits;
 
-	return 0;
+	RETURN(GFN_GET_BLOCKS, 0);
 }
 
 /**
@@ -147,17 +150,18 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
 		   unsigned long max_blocks,
 		   struct buffer_head *bh_result, int create)
 {
+	ENTER(GFN_GET_BLOCKS_NOALLOC)
 	int error;
 
 	error = get_blocks(inode, lblock, max_blocks, bh_result, FALSE);
 	if (error)
-		return error;
+		RETURN(GFN_GET_BLOCKS_NOALLOC, error);
 
 	if (gfs_assert_withdraw(vfs2sdp(inode->i_sb),
 				!create || buffer_mapped(bh_result)))
-		return -EIO;
+		RETURN(GFN_GET_BLOCKS_NOALLOC, -EIO);
 
-	return 0;
+	RETURN(GFN_GET_BLOCKS_NOALLOC, 0);
 }
 
 /**
@@ -173,6 +177,7 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
 static int
 gfs_writepage(struct page *page, struct writeback_control *wbc)
 {
+	ENTER(GFN_WRITEPAGE)
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
 	int error;
@@ -181,13 +186,13 @@ gfs_writepage(struct page *page, struct writeback_control *wbc)
 
 	if (gfs_assert_withdraw(sdp, gfs_glock_is_held_excl(ip->i_gl)) ||
 	    gfs_assert_withdraw(sdp, !gfs_is_stuffed(ip)))
-		return -EIO;
+		RETURN(GFN_WRITEPAGE, -EIO);
 
 	error = block_write_full_page(page, get_block_noalloc, wbc);
 
 	gfs_flush_meta_cache(ip);
 
-	return error;
+	RETURN(GFN_WRITEPAGE, error);
 }
 
 /**
@@ -201,6 +206,7 @@ gfs_writepage(struct page *page, struct writeback_control *wbc)
 static int
 stuffed_readpage(struct gfs_inode *ip, struct page *page)
 {
+	ENTER(GFN_STUFFED_READPAGE)
 	struct buffer_head *dibh;
 	void *kaddr;
 	int error;
@@ -221,7 +227,7 @@ stuffed_readpage(struct gfs_inode *ip, struct page *page)
 		SetPageUptodate(page);
 	}
 
-	return error;
+	RETURN(GFN_STUFFED_READPAGE, error);
 }
 
 /**
@@ -234,6 +240,7 @@ stuffed_readpage(struct gfs_inode *ip, struct page *page)
 static int
 readi_readpage(struct page *page)
 {
+	ENTER(GFN_READI_READPAGE)
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
 	void *kaddr;
 	int ret;
@@ -254,7 +261,7 @@ readi_readpage(struct page *page)
 
 	unlock_page(page);
 
-	return ret;
+	RETURN(GFN_READI_READPAGE, ret);
 }
 
 /**
@@ -268,6 +275,7 @@ readi_readpage(struct page *page)
 static int
 gfs_readpage(struct file *file, struct page *page)
 {
+	ENTER(GFN_READPAGE)
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
 	int error;
 
@@ -275,7 +283,7 @@ gfs_readpage(struct file *file, struct page *page)
 
 	if (gfs_assert_warn(ip->i_sbd, gfs_glock_is_locked_by_me(ip->i_gl))) {
 		unlock_page(page);
-		return -ENOSYS;
+		RETURN(GFN_READPAGE, -ENOSYS);
 	}
 
 	if (!gfs_is_jdata(ip)) {
@@ -287,7 +295,7 @@ gfs_readpage(struct file *file, struct page *page)
 	} else
 		error = readi_readpage(page);
 
-	return error;
+	RETURN(GFN_READPAGE, error);
 }
 
 /**
@@ -310,6 +318,7 @@ static int
 gfs_prepare_write(struct file *file, struct page *page,
 		  unsigned from, unsigned to)
 {
+	ENTER(GFN_PREPARE_WRITE)
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
 	int error = 0;
@@ -317,7 +326,7 @@ gfs_prepare_write(struct file *file, struct page *page,
 	atomic_inc(&sdp->sd_ops_address);
 
 	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)))
-		return -ENOSYS;
+		RETURN(GFN_PREPARE_WRITE, -ENOSYS);
 
 	if (gfs_is_stuffed(ip)) {
 		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
@@ -331,7 +340,7 @@ gfs_prepare_write(struct file *file, struct page *page,
 	} else
 		error = block_prepare_write(page, from, to, get_block);
 
-	return error;
+	RETURN(GFN_PREPARE_WRITE, error);
 }
 
 /**
@@ -348,6 +357,7 @@ static int
 gfs_commit_write(struct file *file, struct page *page,
 		 unsigned from, unsigned to)
 {
+	ENTER(GFN_COMMIT_WRITE)
 	struct inode *inode = page->mapping->host;
 	struct gfs_inode *ip = vn2ip(inode);
 	struct gfs_sbd *sdp = ip->i_sbd;
@@ -384,12 +394,12 @@ gfs_commit_write(struct file *file, struct page *page,
 			goto fail;
 	}
 
-	return 0;
+	RETURN(GFN_COMMIT_WRITE, 0);
 
  fail:
 	ClearPageUptodate(page);
 
-	return error;
+	RETURN(GFN_COMMIT_WRITE, error);
 }
 
 /**
@@ -403,6 +413,7 @@ gfs_commit_write(struct file *file, struct page *page,
 static sector_t
 gfs_bmap(struct address_space *mapping, sector_t lblock)
 {
+	ENTER(GFN_BMAP)
 	struct gfs_inode *ip = vn2ip(mapping->host);
 	struct gfs_holder i_gh;
 	int dblock = 0;
@@ -412,14 +423,14 @@ gfs_bmap(struct address_space *mapping, sector_t lblock)
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
-		return 0;
+		RETURN(GFN_BMAP, 0);
 
 	if (!gfs_is_stuffed(ip))
 		dblock = generic_block_bmap(mapping, lblock, get_block);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	return dblock;
+	RETURN(GFN_BMAP, dblock);
 }
 
 /**
@@ -437,6 +448,7 @@ static int
 gfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	      loff_t offset, unsigned long nr_segs)
 {
+	ENTER(GFN_DIRECT_IO)
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	struct gfs_inode *ip = vn2ip(inode);
@@ -447,14 +459,15 @@ gfs_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 
 	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl)) ||
 	    gfs_assert_warn(sdp, !gfs_is_stuffed(ip)))
-		return -EINVAL;
+		RETURN(GFN_DIRECT_IO, -EINVAL);
 
 	if (rw == WRITE && !current_transaction)
 		gb = get_blocks_noalloc;
 
-	return blockdev_direct_IO(rw, iocb, inode,
+	RETURN(GFN_DIRECT_IO,
+	       blockdev_direct_IO(rw, iocb, inode,
 				  inode->i_sb->s_bdev, iov,
-				  offset, nr_segs, gb, NULL);
+				  offset, nr_segs, gb, NULL));
 }
 
 struct address_space_operations gfs_file_aops = {

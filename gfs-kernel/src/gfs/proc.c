@@ -43,9 +43,11 @@ spinlock_t req_lock;
 void
 gfs_proc_fs_add(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_PROC_FS_ADD)
 	down(&gfs_fs_lock);
 	list_add(&sdp->sd_list, &gfs_fs_list);
 	up(&gfs_fs_lock);
+	RET(GFN_PROC_FS_ADD);
 }
 
 /**
@@ -57,9 +59,11 @@ gfs_proc_fs_add(struct gfs_sbd *sdp)
 void
 gfs_proc_fs_del(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_PROC_FS_DEL)
 	down(&gfs_fs_lock);
 	list_del(&sdp->sd_list);
 	up(&gfs_fs_lock);
+	RET(GFN_PROC_FS_DEL);
 }
 
 /**
@@ -73,6 +77,7 @@ gfs_proc_fs_del(struct gfs_sbd *sdp)
 static ssize_t
 do_list(char *user_buf, size_t size)
 {
+	ENTER(GFN_DO_LIST)
 	struct list_head *tmp;
 	struct gfs_sbd *sdp = NULL;
 	unsigned int x;
@@ -119,7 +124,7 @@ do_list(char *user_buf, size_t size)
  out:
 	up(&gfs_fs_lock);
 
-	return error;
+	RETURN(GFN_DO_LIST, error);
 }
 
 /**
@@ -132,18 +137,19 @@ do_list(char *user_buf, size_t size)
 static char *
 find_argument(char *p)
 {
+	ENTER(GFN_FIND_ARGUMENT)
 	char *p2;
 
 	while (*p == ' ' || *p == '\n')
 		p++;
 	if (!*p)
-		return NULL;
+		RETURN(GFN_FIND_ARGUMENT, NULL);
 	for (p2 = p; *p2; p2++) /* do nothing */;
 	p2--;
 	while (*p2 == ' ' || *p2 == '\n')
 		*p2-- = 0;
 
-	return p;
+	RETURN(GFN_FIND_ARGUMENT, p);
 }
 
 /**
@@ -156,6 +162,7 @@ find_argument(char *p)
 static int
 do_freeze(char *p)
 {
+	ENTER(GFN_DO_FREEZE)
 	struct list_head *tmp;
 	struct gfs_sbd *sdp;
 	char num[21];
@@ -163,7 +170,7 @@ do_freeze(char *p)
 
 	p = find_argument(p + 6);
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_DO_FREEZE, -ENOENT);
 
 	down(&gfs_fs_lock);
 
@@ -181,7 +188,7 @@ do_freeze(char *p)
 
 	up(&gfs_fs_lock);
 
-	return error;
+	RETURN(GFN_DO_FREEZE, error);
 }
 
 /**
@@ -194,6 +201,7 @@ do_freeze(char *p)
 static int
 do_unfreeze(char *p)
 {
+	ENTER(GFN_DO_UNFREEZE)
 	struct list_head *tmp;
 	struct gfs_sbd *sdp;
 	char num[21];
@@ -201,7 +209,7 @@ do_unfreeze(char *p)
 
 	p = find_argument(p + 8);
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_DO_UNFREEZE, -ENOENT);
 
 	down(&gfs_fs_lock);
 
@@ -219,7 +227,7 @@ do_unfreeze(char *p)
 
 	up(&gfs_fs_lock);
 
-	return error;
+	RETURN(GFN_DO_UNFREEZE, error);
 }
 
 /**
@@ -232,15 +240,16 @@ do_unfreeze(char *p)
 static int
 do_margs(char *p)
 {
+	ENTER(GFN_DO_MARGS)
 	char *new_buf, *old_buf;
 
 	p = find_argument(p + 5);
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_DO_MARGS, -ENOENT);
 
 	new_buf = kmalloc(strlen(p) + 1, GFP_KERNEL);
 	if (!new_buf)
-		return -ENOMEM;
+		RETURN(GFN_DO_MARGS, -ENOMEM);
 	strcpy(new_buf, p);
 
 	spin_lock(&gfs_proc_margs_lock);
@@ -251,7 +260,7 @@ do_margs(char *p)
 	if (old_buf)
 		kfree(old_buf);
 
-	return 0;
+	RETURN(GFN_DO_MARGS, 0);
 }
 
 /**
@@ -264,6 +273,7 @@ do_margs(char *p)
 static int
 do_withdraw(char *p)
 {
+	ENTER(GFN_DO_WITHDRAW)
 	struct list_head *tmp;
 	struct gfs_sbd *sdp;
 	char num[21];
@@ -271,7 +281,7 @@ do_withdraw(char *p)
 
 	p = find_argument(p + 8);
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_DO_WITHDRAW, -ENOENT);
 
 	down(&gfs_fs_lock);
 
@@ -291,7 +301,7 @@ do_withdraw(char *p)
 
 	up(&gfs_fs_lock);
 
-	return error;
+	RETURN(GFN_DO_WITHDRAW, error);
 }
 
 /**
@@ -306,6 +316,7 @@ do_withdraw(char *p)
 static int
 do_lockdump(char *p, char *buf, size_t size)
 {
+	ENTER(GFN_DO_LOCKDUMP)
 	struct list_head *tmp;
 	struct gfs_sbd *sdp;
 	char num[21];
@@ -314,7 +325,7 @@ do_lockdump(char *p, char *buf, size_t size)
 
 	p = find_argument(p + 8);
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_DO_LOCKDUMP, -ENOENT);
 
 	down(&gfs_fs_lock);
 
@@ -339,7 +350,7 @@ do_lockdump(char *p, char *buf, size_t size)
 
 	up(&gfs_fs_lock);
 
-	return error;
+	RETURN(GFN_DO_LOCKDUMP, error);
 }
 
 /**
@@ -355,6 +366,7 @@ do_lockdump(char *p, char *buf, size_t size)
 static ssize_t
 gfs_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 {
+	ENTER(GFN_PROC_WRITE)
 	char *p;
 
 	spin_lock(&req_lock);
@@ -366,23 +378,23 @@ gfs_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 		kfree(p);
 
 	if (!size)
-		return -EINVAL;
+		RETURN(GFN_PROC_WRITE, -EINVAL);
 
 	p = kmalloc(size + 1, GFP_KERNEL);
 	if (!p)
-		return -ENOMEM;
+		RETURN(GFN_PROC_WRITE, -ENOMEM);
 	p[size] = 0;
 
 	if (copy_from_user(p, buf, size)) {
 		kfree(p);
-		return -EFAULT;
+		RETURN(GFN_PROC_WRITE, -EFAULT);
 	}
 
 	spin_lock(&req_lock);
 	file->private_data = p;
 	spin_unlock(&req_lock);
 
-	return size;
+	RETURN(GFN_PROC_WRITE, size);
 }
 
 /**
@@ -398,6 +410,7 @@ gfs_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 static ssize_t
 gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 {
+	ENTER(GFN_PROC_READ)
 	char *p;
 	int error;
 
@@ -407,11 +420,11 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 	spin_unlock(&req_lock);
 
 	if (!p)
-		return -ENOENT;
+		RETURN(GFN_PROC_READ, -ENOENT);
 
 	if (!size) {
 		kfree(p);
-		return -EINVAL;
+		RETURN(GFN_PROC_READ, -EINVAL);
 	}
 
 	if (strncmp(p, "list", 4) == 0)
@@ -431,7 +444,7 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 
 	kfree(p);
 
-	return error;
+	RETURN(GFN_PROC_READ, error);
 }
 
 /**
@@ -445,9 +458,10 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 static int
 gfs_proc_close(struct inode *inode, struct file *file)
 {
+	ENTER(GFN_PROC_CLOSE)
 	if (file->private_data)
 		kfree(file->private_data);
-	return 0;
+	RETURN(GFN_PROC_CLOSE, 0);
 }
 
 static struct file_operations gfs_proc_fops =
@@ -463,9 +477,10 @@ static struct file_operations gfs_proc_fops =
  *
  */
 
-void
+int
 gfs_proc_init(void)
 {
+	ENTER(GFN_PROC_INIT)
 	struct proc_dir_entry *pde;
 
 	INIT_LIST_HEAD(&gfs_fs_list);
@@ -475,10 +490,13 @@ gfs_proc_init(void)
 	spin_lock_init(&req_lock);
 
 	pde = create_proc_entry("fs/gfs", S_IFREG | 0600, NULL);
-	if (pde) {
-		pde->owner = THIS_MODULE;
-		pde->proc_fops = &gfs_proc_fops;
-	}
+	if (!pde)
+		RETURN(GFN_PROC_INIT, -ENOMEM);
+
+	pde->owner = THIS_MODULE;
+	pde->proc_fops = &gfs_proc_fops;
+
+	RETURN(GFN_PROC_INIT, 0);
 }
 
 /**
@@ -489,8 +507,10 @@ gfs_proc_init(void)
 void
 gfs_proc_uninit(void)
 {
+	ENTER(GFN_PROC_UNINIT)
 	if (gfs_proc_margs)
 		kfree(gfs_proc_margs);
 	remove_proc_entry("fs/gfs", NULL);
+	RET(GFN_PROC_UNINIT);
 }
 

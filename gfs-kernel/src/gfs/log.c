@@ -59,6 +59,7 @@
 unsigned int
 gfs_struct2blk(struct gfs_sbd *sdp, unsigned int nstruct, unsigned int ssize)
 {
+	ENTER(GFN_STRUCT2BLK)
 	unsigned int blks;
 	unsigned int first, second;
 
@@ -70,7 +71,7 @@ gfs_struct2blk(struct gfs_sbd *sdp, unsigned int nstruct, unsigned int ssize)
 		blks += DIV_RU(nstruct - first, second);
 	}
 
-	return blks;
+	RETURN(GFN_STRUCT2BLK, blks);
 }
 
 /**
@@ -84,7 +85,9 @@ gfs_struct2blk(struct gfs_sbd *sdp, unsigned int nstruct, unsigned int ssize)
 unsigned int
 gfs_blk2seg(struct gfs_sbd *sdp, unsigned int blocks)
 {
-	return DIV_RU(blocks, sdp->sd_sb.sb_seg_size - 1);
+	ENTER(GFN_BLK2SEG)
+	RETURN(GFN_BLK2SEG,
+	       DIV_RU(blocks, sdp->sd_sb.sb_seg_size - 1));
 }
 
 /**
@@ -142,6 +145,7 @@ log_incr_head(struct gfs_sbd *sdp, uint64_t * head)
 void
 gfs_ail_start(struct gfs_sbd *sdp, int flags)
 {
+	ENTER(GFN_AIL_START)
 	struct list_head *head = &sdp->sd_log_ail;
 	struct list_head *first, *tmp;
 	struct gfs_trans *first_tr, *tr;
@@ -150,7 +154,7 @@ gfs_ail_start(struct gfs_sbd *sdp, int flags)
 
 	if (list_empty(head)) {
 		gfs_log_unlock(sdp);
-		return;
+		RET(GFN_AIL_START);
 	}
 
 	first = head->prev;
@@ -169,6 +173,8 @@ gfs_ail_start(struct gfs_sbd *sdp, int flags)
 	}
 
 	gfs_log_unlock(sdp);
+
+	RET(GFN_AIL_START);
 }
 
 /**
@@ -184,6 +190,7 @@ gfs_ail_start(struct gfs_sbd *sdp, int flags)
 static uint64_t
 current_tail(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_CURRENT_TAIL)
 	struct gfs_trans *tr;
 	uint64_t tail;
 
@@ -192,7 +199,7 @@ current_tail(struct gfs_sbd *sdp)
 
 		if (!gfs_log_is_header(sdp, tail)) {
 			tail--;
-			gfs_assert(sdp, gfs_log_is_header(sdp, tail), );
+			gfs_assert(sdp, gfs_log_is_header(sdp, tail),);
 		}
 	} else {
 		tr = list_entry(sdp->sd_log_ail.prev,
@@ -200,7 +207,7 @@ current_tail(struct gfs_sbd *sdp)
 		tail = tr->tr_first_head;
 	}
 
-	return tail;
+	RETURN(GFN_CURRENT_TAIL, tail);
 }
 
 /**
@@ -219,6 +226,7 @@ current_tail(struct gfs_sbd *sdp)
 int
 gfs_ail_empty(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_AIL_EMPTY)
 	struct list_head *head, *tmp, *prev;
 	struct gfs_trans *tr;
 	uint64_t oldtail, newtail;
@@ -258,7 +266,7 @@ gfs_ail_empty(struct gfs_sbd *sdp)
 
 	gfs_log_unlock(sdp);
 
-	return ret;
+	RETURN(GFN_AIL_EMPTY, ret);
 }
 
 /**
@@ -273,14 +281,14 @@ gfs_ail_empty(struct gfs_sbd *sdp)
 int
 gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 {
+	ENTER(GFN_LOG_RESERVE)
 	unsigned long start;
 	struct list_head list;
 	unsigned int try = 0;
 
-	if (gfs_assert_warn(sdp, segments))
-		return -EINVAL;
-	if (gfs_assert_warn(sdp, segments < sdp->sd_jdesc.ji_nsegment))
-		return -EINVAL;
+	if (gfs_assert_warn(sdp, segments) ||
+	    gfs_assert_warn(sdp, segments < sdp->sd_jdesc.ji_nsegment))
+		RETURN(GFN_LOG_RESERVE, -EINVAL);
 
 	INIT_LIST_HEAD(&list);
 	start = jiffies;
@@ -330,7 +338,7 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 		yield();
 	}
 
-	return 0;
+	RETURN(GFN_LOG_RESERVE, 0);
 }
 
 /**
@@ -343,10 +351,12 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 void
 gfs_log_release(struct gfs_sbd *sdp, unsigned int segments)
 {
+	ENTER(GFN_LOG_RELEASE)
 	spin_lock(&sdp->sd_log_seg_lock);
 	sdp->sd_log_seg_free += segments;
 	gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
 	spin_unlock(&sdp->sd_log_seg_lock);
+	RET(GFN_LOG_RELEASE);
 }
 
 /**
@@ -377,6 +387,7 @@ gfs_log_release(struct gfs_sbd *sdp, unsigned int segments)
 static struct gfs_log_buf *
 log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 {
+	ENTER(GFN_LOG_GET_HEADER)
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
 	struct gfs_log_header header;
@@ -436,7 +447,7 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
 
-	return lb;
+	RETURN(GFN_LOG_GET_HEADER, lb);
 }
 
 /**
@@ -456,6 +467,7 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 struct gfs_log_buf *
 gfs_log_get_buf(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_LOG_GET_BUF)
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
 
@@ -487,7 +499,7 @@ gfs_log_get_buf(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
 
-	return lb;
+	RETURN(GFN_LOG_GET_BUF, lb);
 }
 
 /**
@@ -510,6 +522,7 @@ void
 gfs_log_fake_buf(struct gfs_sbd *sdp, struct gfs_trans *tr, char *data,
 		 struct buffer_head *unlock)
 {
+	ENTER(GFN_LOG_FAKE_BUF)
 	struct gfs_log_buf *lb;
 
 	if (gfs_log_is_header(sdp, tr->tr_log_head))
@@ -530,6 +543,8 @@ gfs_log_fake_buf(struct gfs_sbd *sdp, struct gfs_trans *tr, char *data,
 
 	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
+
+	RET(GFN_LOG_FAKE_BUF);
 }
 
 /**
@@ -546,6 +561,7 @@ gfs_log_fake_buf(struct gfs_sbd *sdp, struct gfs_trans *tr, char *data,
 static void
 check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_CHECK_SEG_USAGE)
 	struct gfs_jindex *jdesc = &sdp->sd_jdesc;
 	unsigned int dist;
 	unsigned int segments;
@@ -594,6 +610,8 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 			break;
 		}
 	}
+
+	EXIT(GFN_CHECK_SEG_USAGE)
 }
 
 /**
@@ -611,6 +629,7 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static void
 log_free_buf(struct gfs_sbd *sdp, struct gfs_log_buf *lb)
 {
+	ENTER(GFN_LOG_FREE_BUF)
 	char *bmem;
 
 	bmem = lb->lb_bh.b_data;
@@ -622,6 +641,8 @@ log_free_buf(struct gfs_sbd *sdp, struct gfs_log_buf *lb)
 		kfree(bmem);
 
 	kfree(lb);
+
+	EXIT(GFN_LOG_FREE_BUF)
 }
 
 /**
@@ -639,6 +660,7 @@ log_free_buf(struct gfs_sbd *sdp, struct gfs_log_buf *lb)
 static int
 sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_SYNC_TRANS)
 	struct list_head *tmp, *head, *prev;
 	struct gfs_log_descriptor desc;
 	struct gfs_log_buf *lb;
@@ -688,7 +710,7 @@ sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		log_free_buf(sdp, lb);
 	}
 
-	return error;
+	RETURN(GFN_SYNC_TRANS, error);
 }
 
 /**
@@ -704,6 +726,7 @@ sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static int
 commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_COMMIT_TRANS)
 	struct gfs_log_buf *lb;
 	int error;
 
@@ -714,7 +737,7 @@ commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	log_free_buf(sdp, lb);
 
-	return error;
+	RETURN(GFN_COMMIT_TRANS, error);
 }
 
 /**
@@ -728,6 +751,7 @@ commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static int
 disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_DISK_COMMIT)
 	uint64_t last_dump, last_dump_wrap;
 	int error = 0;
 
@@ -781,7 +805,7 @@ disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	gfs_assert_warn(sdp, !tr->tr_num_free_bmem &&
 			list_empty(&tr->tr_free_bmem));
 
-	return error;
+	RETURN(GFN_DISK_COMMIT, error);
 }
 
 /**
@@ -794,6 +818,7 @@ disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static void
 add_trans_to_ail(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_ADD_TRANS_TO_AIL)
 	struct gfs_log_element *le;
 
 	while (!list_empty(&tr->tr_elements)) {
@@ -803,6 +828,8 @@ add_trans_to_ail(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	}
 
 	list_add(&tr->tr_list, &sdp->sd_log_ail);
+
+	RET(GFN_ADD_TRANS_TO_AIL);
 }
 
 /**
@@ -822,6 +849,7 @@ add_trans_to_ail(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static void
 log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_LOG_REFUND)
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
 	unsigned int num_bufs = 0, num_bmem = 0;
@@ -862,6 +890,8 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		kfree(bmem);
 		tr->tr_num_free_bmem--;
 	}
+
+	RET(GFN_LOG_REFUND);
 }
 
 /**
@@ -877,6 +907,7 @@ static void
 trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	      struct gfs_trans *new_tr)
 {
+	ENTER(GFN_TRANS_COMBINE)
 	struct gfs_log_element *le;
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
@@ -918,6 +949,8 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	gfs_assert_warn(sdp, !new_tr->tr_num_free_bmem);
 
 	kfree(new_tr);
+
+	RET(GFN_TRANS_COMBINE);
 }
 
 /**
@@ -935,6 +968,7 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 static void
 log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 {
+	ENTER(GFN_LOG_FLUSH_INTERNAL)
 	struct gfs_trans *trans = NULL, *tr;
 	int error;
 
@@ -989,6 +1023,8 @@ log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 
 	if (test_bit(SDF_NEED_LOG_DUMP, &sdp->sd_flags))
 		gfs_log_dump(sdp, FALSE);
+
+	RET(GFN_LOG_FLUSH_INTERNAL);
 }
 
 /**
@@ -1000,7 +1036,9 @@ log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 void
 gfs_log_flush(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_LOG_FLUSH)
 	log_flush_internal(sdp, NULL);
+	RET(GFN_LOG_FLUSH);
 }
 
 /**
@@ -1012,7 +1050,9 @@ gfs_log_flush(struct gfs_sbd *sdp)
 void
 gfs_log_flush_glock(struct gfs_glock *gl)
 {
+	ENTER(GFN_LOG_FLUSH_GLOCK)
 	log_flush_internal(gl->gl_sbd, gl);
+	RET(GFN_LOG_FLUSH_GLOCK);
 }
 
 /**
@@ -1028,6 +1068,7 @@ gfs_log_flush_glock(struct gfs_glock *gl)
 static void
 incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 {
+	ENTER(GFN_INCORE_COMMIT)
 	struct gfs_log_element *le;
 	struct gfs_trans *trans = NULL, *exist_tr;
 	struct gfs_log_buf *lb;
@@ -1109,6 +1150,8 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 	log_refund(sdp, trans);
 
 	list_add(&trans->tr_list, &sdp->sd_log_incore);
+
+	RET(GFN_INCORE_COMMIT);
 }
 
 /**
@@ -1122,6 +1165,7 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 void
 gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_LOG_COMMIT)
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
 	unsigned int num_mblks = 0, num_eblks = 0, num_bufs = 0, num_bmem = 0;
@@ -1170,6 +1214,7 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		gfs_log_unlock(sdp);
 	}
 
+	RET(GFN_LOG_COMMIT);
 }
 
 /**
@@ -1182,6 +1227,7 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 void
 gfs_log_dump(struct gfs_sbd *sdp, int force)
 {
+	ENTER(GFN_LOG_DUMP)
 	struct gfs_log_element *le;
 	struct gfs_trans tr;
 	struct gfs_log_buf *lb;
@@ -1192,7 +1238,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 
 	if (test_and_set_bit(SDF_IN_LOG_DUMP, &sdp->sd_flags)) {
 		gfs_assert(sdp, !force,);
-		return;
+		RET(GFN_LOG_DUMP);
 	}
 
 	memset(&tr, 0, sizeof(struct gfs_trans));
@@ -1292,6 +1338,8 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
  out:
 	gfs_log_unlock(sdp);
 	clear_bit(SDF_IN_LOG_DUMP, &sdp->sd_flags);
+
+	RET(GFN_LOG_DUMP);
 }
 
 /**
@@ -1303,6 +1351,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 void
 gfs_log_shutdown(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_LOG_SHUTDOWN)
 	struct gfs_log_buf *lb;
 	char *bmem;
 	struct gfs_log_header head;
@@ -1381,4 +1430,6 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 
 	kfree(lb);
 	kfree(bmem);
+
+	RET(GFN_LOG_SHUTDOWN);
 }

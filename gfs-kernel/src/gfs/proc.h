@@ -21,7 +21,7 @@ extern spinlock_t gfs_proc_margs_lock;
 void gfs_proc_fs_add(struct gfs_sbd *sdp);
 void gfs_proc_fs_del(struct gfs_sbd *sdp);
 
-void gfs_proc_init(void);
+int gfs_proc_init(void);
 void gfs_proc_uninit(void);
 
 #endif /* __PROC_DOT_H__ */

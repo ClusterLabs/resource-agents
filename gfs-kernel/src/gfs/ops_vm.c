@@ -40,6 +40,7 @@
 static void
 pfault_be_greedy(struct gfs_inode *ip)
 {
+	ENTER(GFN_PFAULT_BE_GREEDY)
 	unsigned int time;
 
 	spin_lock(&ip->i_lock);
@@ -50,6 +51,8 @@ pfault_be_greedy(struct gfs_inode *ip)
 	gfs_inode_hold(ip);
 	if (gfs_glock_be_greedy(ip->i_gl, time))
 		gfs_inode_put(ip);
+
+	RET(GFN_PFAULT_BE_GREEDY);
 }
 
 /**
@@ -65,6 +68,7 @@ static struct page *
 gfs_private_nopage(struct vm_area_struct *area,
 		   unsigned long address, int *type)
 {
+	ENTER(GFN_PRIVATE_NOPAGE)
 	struct gfs_inode *ip = vn2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result;
@@ -74,7 +78,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
 	if (error)
-		return NULL;
+		RETURN(GFN_PRIVATE_NOPAGE, NULL);
 
 	set_bit(GIF_PAGED, &ip->i_flags);
 
@@ -85,7 +89,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	return result;
+	RETURN(GFN_PRIVATE_NOPAGE, result);
 }
 
 /**
@@ -99,6 +103,7 @@ gfs_private_nopage(struct vm_area_struct *area,
 static int
 alloc_page_backing(struct gfs_inode *ip, unsigned long index)
 {
+	ENTER(GFN_ALLOC_PAGE_BACKING)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	uint64_t lblock = index << (PAGE_CACHE_SHIFT - sdp->sd_sb.sb_bsize_shift);
 	unsigned int blocks = PAGE_CACHE_SIZE >> sdp->sd_sb.sb_bsize_shift;
@@ -166,7 +171,7 @@ alloc_page_backing(struct gfs_inode *ip, unsigned long index)
  out:
 	gfs_alloc_put(ip);
 
-	return error;
+	RETURN(GFN_ALLOC_PAGE_BACKING, error);
 }
 
 /**
@@ -182,6 +187,7 @@ static struct page *
 gfs_sharewrite_nopage(struct vm_area_struct *area,
 		      unsigned long address, int *type)
 {
+	ENTER(GFN_SHAREWRITE_NOPAGE)
 	struct gfs_inode *ip = vn2ip(area->vm_file->f_mapping->host);
 	struct gfs_holder i_gh;
 	struct page *result = NULL;
@@ -193,7 +199,7 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		return NULL;
+		RETURN(GFN_SHAREWRITE_NOPAGE, NULL);
 
 	if (gfs_is_jdata(ip))
 		goto out;
@@ -225,7 +231,7 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
  out:
 	gfs_glock_dq_uninit(&i_gh);
 
-	return result;
+	RETURN(GFN_SHAREWRITE_NOPAGE, result);
 }
 
 struct vm_operations_struct gfs_vm_ops_private = {

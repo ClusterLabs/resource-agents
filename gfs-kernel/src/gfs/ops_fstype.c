@@ -70,6 +70,7 @@
 static int
 fill_super(struct super_block *sb, void *data, int silent)
 {
+	ENTER(GFN_FILL_SUPER)
 	struct gfs_sbd *sdp;
 	struct gfs_holder mount_gh, sb_gh, ji_gh;
 	struct inode *inode;
@@ -535,7 +536,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	gfs_glock_dq_uninit(&mount_gh);
 
-	return 0;
+	RETURN(GFN_FILL_SUPER, 0);
 
  fail_inoded:
 	down(&sdp->sd_thread_lock);
@@ -635,7 +636,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
  fail:
 	vfs2sdp(sb) = NULL;
-	return error;
+	RETURN(GFN_FILL_SUPER, error);
 }
 
 /**
@@ -648,7 +649,9 @@ fill_super(struct super_block *sb, void *data, int silent)
 int
 gfs_test_bdev_super(struct super_block *sb, void *data)
 {
-	return (void *)sb->s_bdev == data;	
+	ENTER(GFN_TEST_BDEV_SUPER)
+	RETURN(GFN_TEST_BDEV_SUPER,
+	       (void *)sb->s_bdev == data);
 }
 
 /**
@@ -661,9 +664,10 @@ gfs_test_bdev_super(struct super_block *sb, void *data)
 int
 gfs_set_bdev_super(struct super_block *sb, void *data)
 {
+	ENTER(GFN_SET_BDEV_SUPER)
 	sb->s_bdev = data;
 	sb->s_dev = sb->s_bdev->bd_dev;
-	return 0;
+	RETURN(GFN_SET_BDEV_SUPER, 0);
 }
 
 /**
@@ -682,18 +686,19 @@ struct super_block *
 gfs_get_sb(struct file_system_type *fs_type, int flags,
 	   const char *dev_name, void *data)
 {
+	ENTER(GFN_GET_SB)
 	struct block_device *real, *diaper;
 	struct super_block *sb;
 	int error = 0;
 
 	real = open_bdev_excl(dev_name, flags, fs_type);
 	if (IS_ERR(real))
-		return (struct super_block *)real;
+		RETURN(GFN_GET_SB, (struct super_block *)real);
 
 	diaper = gfs_diaper_get(real, flags);
 	if (IS_ERR(diaper)) {
 		close_bdev_excl(real);
-		return (struct super_block *)diaper;
+		RETURN(GFN_GET_SB, (struct super_block *)diaper);
 	}
 
 	down(&diaper->bd_mount_sem);
@@ -726,12 +731,12 @@ gfs_get_sb(struct file_system_type *fs_type, int flags,
 			sb->s_flags |= MS_ACTIVE;
 	}
 
-	return sb;
+	RETURN(GFN_GET_SB, sb);
 
  out:
 	gfs_diaper_put(diaper);
 	close_bdev_excl(real);
-	return sb;
+	RETURN(GFN_GET_SB, sb);
 }
 
 /**
@@ -745,6 +750,7 @@ gfs_get_sb(struct file_system_type *fs_type, int flags,
 void
 gfs_kill_sb(struct super_block *sb)
 {
+	ENTER(GFN_KILL_SB)
 	struct block_device *diaper = sb->s_bdev;
 	struct block_device *real = gfs_diaper_2real(diaper);
 	unsigned long bsize = sb->s_old_blocksize;
@@ -754,6 +760,8 @@ gfs_kill_sb(struct super_block *sb)
 	set_blocksize(real, bsize);
 	gfs_diaper_put(diaper);
 	close_bdev_excl(real);
+
+	RET(GFN_KILL_SB);
 }
 
 struct file_system_type gfs_fs_type = {

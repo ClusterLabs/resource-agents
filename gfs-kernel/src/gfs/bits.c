@@ -53,6 +53,7 @@ gfs_setbit(struct gfs_rgrpd *rgd,
 	   unsigned char *buffer, unsigned int buflen,
 	   uint32_t block, unsigned char new_state)
 {
+	ENTER(GFN_SETBIT)
 	unsigned char *byte, *end, cur_state;
 	unsigned int bit;
 
@@ -69,6 +70,8 @@ gfs_setbit(struct gfs_rgrpd *rgd,
 		*byte |= new_state << bit;
 	} else
 		gfs_consist_rgrpd(rgd);
+
+	RET(GFN_SETBIT);
 }
 
 /**
@@ -83,6 +86,7 @@ unsigned char
 gfs_testbit(struct gfs_rgrpd *rgd,
 	    unsigned char *buffer, unsigned int buflen, uint32_t block)
 {
+	ENTER(GFN_TESTBIT)
 	unsigned char *byte, *end, cur_state;
 	unsigned int bit;
 
@@ -94,7 +98,7 @@ gfs_testbit(struct gfs_rgrpd *rgd,
 
 	cur_state = (*byte >> bit) & GFS_BIT_MASK;
 
-	return cur_state;
+	RETURN(GFN_TESTBIT, cur_state);
 }
 
 /**
@@ -119,6 +123,7 @@ gfs_bitfit(struct gfs_rgrpd *rgd,
 	   unsigned char *buffer, unsigned int buflen,
 	   uint32_t goal, unsigned char old_state)
 {
+	ENTER(GFN_BITFIT)
 	unsigned char *byte, *end, alloc;
 	uint32_t blk = goal;
 	unsigned int bit;
@@ -139,7 +144,7 @@ gfs_bitfit(struct gfs_rgrpd *rgd,
 		}
 
 		if (((*byte >> bit) & GFS_BIT_MASK) == old_state)
-			return blk;
+			RETURN(GFN_BITFIT, blk);
 
 		bit += GFS_BIT_SIZE;
 		if (bit >= 8) {
@@ -150,7 +155,7 @@ gfs_bitfit(struct gfs_rgrpd *rgd,
 		blk++;
 	}
 
-	return BFITNOENT;
+	RETURN(GFN_BITFIT, BFITNOENT);
 }
 
 /**
@@ -167,6 +172,7 @@ gfs_bitcount(struct gfs_rgrpd *rgd,
 	     unsigned char *buffer, unsigned int buflen,
 	     unsigned char state)
 {
+	ENTER(GFN_BITCOUNT)
 	unsigned char *byte = buffer;
 	unsigned char *end = buffer + buflen;
 	unsigned char state1 = state << 2;
@@ -185,5 +191,5 @@ gfs_bitcount(struct gfs_rgrpd *rgd,
 			count++;
 	}
 
-	return count;
+	RETURN(GFN_BITCOUNT, count);
 }

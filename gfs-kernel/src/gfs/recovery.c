@@ -46,6 +46,7 @@ struct dirty_j {
 void
 gfs_add_dirty_j(struct gfs_sbd *sdp, unsigned int jid)
 {
+	ENTER(GFN_ADD_DIRTY_J)
 	struct dirty_j *dj;
 
 	dj = gmalloc(sizeof(struct dirty_j));
@@ -56,6 +57,8 @@ gfs_add_dirty_j(struct gfs_sbd *sdp, unsigned int jid)
 	spin_lock(&sdp->sd_dirty_j_lock);
 	list_add(&dj->dj_list, &sdp->sd_dirty_j);
 	spin_unlock(&sdp->sd_dirty_j_lock);
+
+	RET(GFN_ADD_DIRTY_J);
 }
 
 /**
@@ -68,6 +71,7 @@ gfs_add_dirty_j(struct gfs_sbd *sdp, unsigned int jid)
 static struct dirty_j *
 get_dirty_j(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_GET_DIRTY_J)
 	struct dirty_j *dj = NULL;
 
 	spin_lock(&sdp->sd_dirty_j_lock);
@@ -77,7 +81,7 @@ get_dirty_j(struct gfs_sbd *sdp)
 	}
 	spin_unlock(&sdp->sd_dirty_j_lock);
 
-	return dj;
+	RETURN(GFN_GET_DIRTY_J, dj);
 }
 
 /**
@@ -89,13 +93,17 @@ get_dirty_j(struct gfs_sbd *sdp)
 void
 gfs_clear_dirty_j(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_CLEAR_DIRTY_J)
 	struct dirty_j *dj;
+
 	for (;;) {
 		dj = get_dirty_j(sdp);
 		if (!dj)
 			break;
 		kfree(dj);
 	}
+
+	RET(GFN_CLEAR_DIRTY_J);
 }
 
 /**
@@ -116,13 +124,14 @@ static int
 get_log_header(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	       struct gfs_glock *gl, uint32_t seg, struct gfs_log_header *lh)
 {
+	ENTER(GFN_GET_LOG_HEADER)
 	struct buffer_head *bh;
 	struct gfs_log_header lh2;
 	int error;
 
 	error = gfs_dread(gl, seg2bn(seg), DIO_START | DIO_WAIT, &bh);
 	if (error)
-		return error;
+		RETURN(GFN_GET_LOG_HEADER, error);
 
 	gfs_log_header_in(lh, bh->b_data);
 	gfs_log_header_in(&lh2,
@@ -136,7 +145,7 @@ get_log_header(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	    lh->lh_header.mh_type != GFS_METATYPE_LH)
 		error = 1;
 
-	return error;
+	RETURN(GFN_GET_LOG_HEADER, error);
 }
 
 /**
@@ -159,13 +168,14 @@ find_good_lh(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	     struct gfs_glock *gl, uint32_t *seg, struct gfs_log_header *lh,
 	     int forward)
 {
+	ENTER(GFN_FIND_GOOD_LH)
 	int error;
 	uint32_t orig_seg = *seg;
 
 	for (;;) {
 		error = get_log_header(sdp, jdesc, gl, *seg, lh);
 		if (error <= 0)
-			return error;
+			RETURN(GFN_FIND_GOOD_LH, error);
 
 		if (forward) {
 			if (++*seg == jdesc->ji_nsegment)
@@ -177,7 +187,7 @@ find_good_lh(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		if (*seg == orig_seg) {
 			gfs_consist(sdp);
-			return -EIO;
+			RETURN(GFN_FIND_GOOD_LH, -EIO);
 		}
 	}
 }
@@ -199,6 +209,7 @@ static int
 verify_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	     struct gfs_glock *gl, struct gfs_log_header *head)
 {
+	ENTER(GFN_VERIFY_JHEAD)
 	struct gfs_log_header lh;
 	uint32_t seg;
 	int error;
@@ -211,7 +222,7 @@ verify_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = get_log_header(sdp, jdesc, gl, seg, &lh);
 		if (error < 0)
-			return error;
+			RETURN(GFN_VERIFY_JHEAD, error);
 
 		if (error == 1)
 			continue;
@@ -224,7 +235,7 @@ verify_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		memcpy(head, &lh, sizeof(struct gfs_log_header));
 	}
 
-	return 0;
+	RETURN(GFN_VERIFY_JHEAD, 0);
 }
 
 /**
@@ -244,6 +255,7 @@ int
 gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	       struct gfs_glock *gl, struct gfs_log_header *head)
 {
+	ENTER(GFN_FIND_JHEAD)
 	struct gfs_log_header lh1, lh_m;
 	uint32_t seg1, seg2, seg_m;
 	int error;
@@ -274,7 +286,7 @@ gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 			seg2 = seg_m;
 	}
 
-	return error;
+	RETURN(GFN_FIND_JHEAD, error);
 }
 
 /**
@@ -295,6 +307,7 @@ int
 gfs_increment_blkno(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		    struct gfs_glock *gl, uint64_t *addr, int skip_headers)
 {
+	ENTER(GFN_INCREMENT_BLKNO)
 	struct gfs_log_header header;
 	int error;
 
@@ -314,27 +327,27 @@ gfs_increment_blkno(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	if (skip_headers && !do_mod(*addr, sdp->sd_sb.sb_seg_size)) {
 		error = get_log_header(sdp, jdesc, gl, bn2seg(*addr), &header);
 		if (error < 0)
-			return error;
+			RETURN(GFN_INCREMENT_BLKNO, error);
 
 		if (error) { /* Corrupt headers here are bad */
 			if (gfs_consist(sdp))
 				printk("GFS: fsid=%s: *addr = %"PRIu64"\n",
 				       sdp->sd_fsname, *addr);
-			return -EIO;
+			RETURN(GFN_INCREMENT_BLKNO, -EIO);
 		}
 		if (header.lh_first == *addr) {
 			if (gfs_consist(sdp))
 				printk("GFS: fsid=%s: *addr = %"PRIu64"\n",
 				       sdp->sd_fsname, *addr);
 			gfs_log_header_print(&header);
-			return -EIO;
+			RETURN(GFN_INCREMENT_BLKNO, -EIO);
 		}
 
 		(*addr)++;
 		/* Can't wrap here */
 	}
 
-	return 0;
+	RETURN(GFN_INCREMENT_BLKNO, 0);
 }
 
 /**
@@ -357,6 +370,7 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		   struct gfs_glock *gl, uint64_t start, uint64_t end,
 		   unsigned int pass)
 {
+	ENTER(GFN_FOREACH_DESCRIPTOR)
 	struct gfs_log_header header;
 	struct gfs_log_descriptor desc;
 	struct buffer_head *bh;
@@ -365,25 +379,25 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	while (start != end) {
 		if (do_mod(start, sdp->sd_sb.sb_seg_size)) {
 			gfs_consist(sdp);
-			return -EIO;
+			RETURN(GFN_FOREACH_DESCRIPTOR, -EIO);
 		}
 
 		error = get_log_header(sdp, jdesc, gl, bn2seg(start), &header);
 		if (error < 0)
-			return error;
+			RETURN(GFN_FOREACH_DESCRIPTOR, error);
 
 		if (error) { /* Corrupt headers here are bad */
 			if (gfs_consist(sdp))
 				printk("GFS: fsid=%s: start = %"PRIu64"\n",
 				       sdp->sd_fsname, start);
-			return -EIO;
+			RETURN(GFN_FOREACH_DESCRIPTOR, -EIO);
 		}
 		if (header.lh_first != start) {
 			if (gfs_consist(sdp))
 				printk("GFS: fsid=%s: start = %"PRIu64"\n",
 				       sdp->sd_fsname, start);
 			gfs_log_header_print(&header);
-			return -EIO;
+			RETURN(GFN_FOREACH_DESCRIPTOR, -EIO);
 		}
 
 		start++;
@@ -391,11 +405,11 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		for (;;) {
 			error = gfs_dread(gl, start, DIO_START | DIO_WAIT, &bh);
 			if (error)
-				return error;
+				RETURN(GFN_FOREACH_DESCRIPTOR, error);
 
 			if (gfs_metatype_check(sdp, bh, GFS_METATYPE_LD)) {
 				brelse(bh);
-				return -EIO;
+				RETURN(GFN_FOREACH_DESCRIPTOR, -EIO);
 			}
 
 			gfs_desc_in(&desc, bh->b_data);
@@ -405,13 +419,13 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 				error = LO_SCAN_ELEMENTS(sdp, jdesc, gl, start,
 							 &desc, pass);
 				if (error)
-					return error;
+					RETURN(GFN_FOREACH_DESCRIPTOR, error);
 
 				while (desc.ld_length--) {
 					error = gfs_increment_blkno(sdp, jdesc, gl,
 								    &start, TRUE);
 					if (error)
-						return error;
+						RETURN(GFN_FOREACH_DESCRIPTOR, error);
 				}
 			} else {
 				while (desc.ld_length--) {
@@ -419,7 +433,7 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 								    &start,
 								    !!desc.ld_length);
 					if (error)
-						return error;
+						RETURN(GFN_FOREACH_DESCRIPTOR, error);
 				}
 
 				break;
@@ -427,7 +441,7 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 		}
 	}
 
-	return error;
+	RETURN(GFN_FOREACH_DESCRIPTOR, error);
 }
 
 /**
@@ -444,6 +458,7 @@ static int
 clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	      struct gfs_glock *gl, struct gfs_log_header *head)
 {
+	ENTER(GFN_CLEAN_JOURNAL)
 	struct gfs_log_header lh;
 	struct gfs_log_descriptor desc;
 	struct buffer_head *bh;
@@ -459,7 +474,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 
 		error = get_log_header(sdp, jdesc, gl, seg, &lh);
 		if (error < 0)
-			return error;
+			RETURN(GFN_CLEAN_JOURNAL, error);
 
 		/* Rewrite corrupt header blocks */
 
@@ -476,7 +491,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 			error = gfs_dwrite(sdp, bh, DIO_DIRTY | DIO_START | DIO_WAIT);
 			brelse(bh);
 			if (error)
-				return error;
+				RETURN(GFN_CLEAN_JOURNAL, error);
 		}
 
 		/* Stop when we get to the end of the log. */
@@ -513,7 +528,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	error = gfs_dwrite(sdp, bh, DIO_DIRTY | DIO_START | DIO_WAIT);
 	brelse(bh);
 	if (error)
-		return error;
+		RETURN(GFN_CLEAN_JOURNAL, error);
 
 	/*  Build a log header that says the journal is clean  */
 
@@ -541,7 +556,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 	error = gfs_dwrite(sdp, bh, DIO_DIRTY | DIO_START | DIO_WAIT);
 	brelse(bh);
 
-	return error;
+	RETURN(GFN_CLEAN_JOURNAL, error);
 }
 
 /**
@@ -562,6 +577,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 		    unsigned int jid, struct gfs_jindex *jdesc,
 		    int wait)
 {
+	ENTER(GFN_RECOVER_JOURNAL)
 	struct gfs_log_header head;
 	struct gfs_holder j_gh, t_gh;
 	unsigned long t;
@@ -664,7 +680,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 
 	printk("GFS: fsid=%s: jid=%u: Done\n", sdp->sd_fsname, jid);
 
-	return 0;
+	RETURN(GFN_RECOVER_JOURNAL, 0);
 
  fail_gunlock_tr:
 	gfs_replay_wait(sdp);
@@ -679,7 +695,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
  fail:
 	gfs_lm_recovery_done(sdp, jid, LM_RD_GAVEUP);
 
-	return error;
+	RETURN(GFN_RECOVER_JOURNAL, error);
 }
 
 /**
@@ -691,6 +707,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 void
 gfs_check_journals(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_CHECK_JOURNALS)
 	struct dirty_j *dj;
 
 	for (;;) {
@@ -718,6 +735,8 @@ gfs_check_journals(struct gfs_sbd *sdp)
 
 		kfree(dj);
 	}
+
+	RET(GFN_CHECK_JOURNALS);
 }
 
 /**
@@ -730,6 +749,7 @@ gfs_check_journals(struct gfs_sbd *sdp)
 int
 gfs_recover_dump(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_RECOVER_DUMP)
 	struct gfs_log_header head;
 	int error;
 
@@ -740,10 +760,10 @@ gfs_recover_dump(struct gfs_sbd *sdp)
 
 	if (!(head.lh_flags & GFS_LOG_HEAD_UNMOUNT)) {
 		gfs_consist(sdp);
-		return -EIO;
+		RETURN(GFN_RECOVER_DUMP, -EIO);
 	}
 	if (!head.lh_last_dump)
-		return error;
+		RETURN(GFN_RECOVER_DUMP, error);
 
 	printk("GFS: fsid=%s: Scanning for log elements...\n",
 	       sdp->sd_fsname);
@@ -766,10 +786,10 @@ gfs_recover_dump(struct gfs_sbd *sdp)
 
 	printk("GFS: fsid=%s: Done\n", sdp->sd_fsname);
 
-	return 0;
+	RETURN(GFN_RECOVER_DUMP, 0);
 
  fail:
 	printk("GFS: fsid=%s: Failed\n", sdp->sd_fsname);
 
-	return error;
+	RETURN(GFN_RECOVER_DUMP, error);
 }

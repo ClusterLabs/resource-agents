@@ -29,6 +29,7 @@ gfs-objs := acl.o \
 	bits.o \
 	bmap.o \
 	daemon.o \
+	debug.o \
 	diaper.o \
 	dio.o \
 	dir.o \

@@ -36,23 +36,38 @@
 int __init
 init_gfs_fs(void)
 {
+#ifdef GFS_PROFILE
+	int p = FALSE;
+#endif
 	int error;
 
-	gfs_proc_init();
+	gfs_random_number = xtime.tv_nsec;
+
+#ifdef GFS_TRACE
+	error = gfs_trace_init();
+	if (error)
+		return error;
+#endif
+#ifdef GFS_PROFILE
+	error = gfs_profile_init();
+	if (error)
+		goto fail_debug;
+	p = TRUE;
+#endif
+
+	error = gfs_proc_init();
+	if (error)
+		goto fail_debug;
 
 	error = gfs_diaper_init();
 	if (error)
-		goto fail;
+		goto fail_proc;
 
-	gfs_random_number = xtime.tv_nsec;
+	error = -ENOMEM;
 
 	gfs_glock_cachep = kmem_cache_create("gfs_glock", sizeof(struct gfs_glock),
 					     0, 0,
 					     NULL, NULL);
-	gfs_inode_cachep = NULL;
-	gfs_bufdata_cachep = NULL;
-	gfs_mhc_cachep = NULL;
-	error = -ENOMEM;
 	if (!gfs_glock_cachep)
 		goto fail_diaper;
 
@@ -98,8 +113,17 @@ init_gfs_fs(void)
 
 	gfs_diaper_uninit();
 
- fail:
+ fail_proc:
 	gfs_proc_uninit();
+
+ fail_debug:
+#ifdef GFS_PROFILE
+	if (p)
+		gfs_profile_uninit();
+#endif
+#ifdef GFS_TRACE
+	gfs_trace_uninit();
+#endif
 
 	return error;
 }
@@ -121,6 +145,13 @@ exit_gfs_fs(void)
 
 	gfs_diaper_uninit();
 	gfs_proc_uninit();
+
+#ifdef GFS_PROFILE
+	gfs_profile_uninit();
+#endif
+#ifdef GFS_TRACE
+	gfs_trace_uninit();
+#endif
 }
 
 MODULE_DESCRIPTION("Global File System " GFS_RELEASE_NAME);

@@ -46,6 +46,7 @@ int
 gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 	      struct gfs_quota_data **qdp)
 {
+	ENTER(GFN_QUOTA_GET)
 	struct gfs_quota_data *qd = NULL, *new_qd = NULL;
 	struct list_head *tmp, *head;
 	int error;
@@ -84,12 +85,12 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 				atomic_dec(&sdp->sd_quota_count);
 			}
 			*qdp = qd;
-			return 0;
+			RETURN(GFN_QUOTA_GET, 0);
 		}
 
 		new_qd = kmalloc(sizeof(struct gfs_quota_data), GFP_KERNEL);
 		if (!new_qd)
-			return -ENOMEM;
+			RETURN(GFN_QUOTA_GET, -ENOMEM);
 		memset(new_qd, 0, sizeof(struct gfs_quota_data));
 
 		new_qd->qd_count = 1;
@@ -105,7 +106,7 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 				      &new_qd->qd_gl);
 		if (error) {
 			kfree(new_qd);
-			return error;
+			RETURN(GFN_QUOTA_GET, error);
 		}
 
 		error = gfs_lvb_hold(new_qd->qd_gl);
@@ -114,7 +115,7 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 
 		if (error) {
 			kfree(new_qd);
-			return error;
+			RETURN(GFN_QUOTA_GET, error);
 		}
 
 		atomic_inc(&sdp->sd_quota_count);
@@ -131,10 +132,12 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 void
 gfs_quota_hold(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
+	ENTER(GFN_QUOTA_HOLD)
 	spin_lock(&sdp->sd_quota_lock);
 	gfs_assert(sdp, qd->qd_count,);
 	qd->qd_count++;
 	spin_unlock(&sdp->sd_quota_lock);
+	RET(GFN_QUOTA_HOLD);
 }
 
 /**
@@ -149,10 +152,12 @@ gfs_quota_hold(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 void
 gfs_quota_put(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
+	ENTER(GFN_QUOTA_PUT)
 	spin_lock(&sdp->sd_quota_lock);
 	gfs_assert(sdp, qd->qd_count,);
 	qd->qd_count--;
 	spin_unlock(&sdp->sd_quota_lock);
+	RET(GFN_QUOTA_PUT);
 }
 
 /**
@@ -168,11 +173,12 @@ gfs_quota_put(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 static struct gfs_quota_data *
 quota_find(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_QUOTA_FIND)
 	struct list_head *tmp, *head;
 	struct gfs_quota_data *qd = NULL;
 
 	if (test_bit(SDF_ROFS, &sdp->sd_flags))
-		return NULL;
+		RETURN(GFN_QUOTA_FIND, NULL);
 
 	gfs_log_lock(sdp);
 	spin_lock(&sdp->sd_quota_lock);
@@ -207,7 +213,7 @@ quota_find(struct gfs_sbd *sdp)
 	spin_unlock(&sdp->sd_quota_lock);
 	gfs_log_unlock(sdp);
 
-	return qd;
+	RETURN(GFN_QUOTA_FIND, qd);
 }
 
 /**
@@ -221,10 +227,11 @@ quota_find(struct gfs_sbd *sdp)
 static int
 quota_trylock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
+	ENTER(GFN_QUOTA_TRYLOCK)
 	int ret = FALSE;
 
 	if (test_bit(SDF_ROFS, &sdp->sd_flags))
-		return FALSE;
+		RETURN(GFN_QUOTA_TRYLOCK, FALSE);
 
 	gfs_log_lock(sdp);
 	spin_lock(&sdp->sd_quota_lock);
@@ -246,7 +253,7 @@ quota_trylock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 	spin_unlock(&sdp->sd_quota_lock);
 	gfs_log_unlock(sdp);
 
-	return ret;
+	RETURN(GFN_QUOTA_TRYLOCK, ret);
 }
 
 /**
@@ -259,6 +266,7 @@ quota_trylock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 static void
 quota_unlock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 {
+	ENTER(GFN_QUOTA_UNLOCK)
 	spin_lock(&sdp->sd_quota_lock);
 
 	gfs_assert_warn(sdp, test_bit(QDF_LOCK, &qd->qd_flags));
@@ -268,6 +276,8 @@ quota_unlock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 	qd->qd_count--;
 
 	spin_unlock(&sdp->sd_quota_lock);
+
+	RET(GFN_QUOTA_UNLOCK);
 }
 
 /**
@@ -281,6 +291,7 @@ quota_unlock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
 int
 gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 {
+	ENTER(GFN_QUOTA_MERGE)
 	struct gfs_quota_data *qd;
 	int error;
 
@@ -288,7 +299,7 @@ gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 			      tag->qt_flags & GFS_QTF_USER, tag->qt_id,
 			      CREATE, &qd);
 	if (error)
-		return error;
+		RETURN(GFN_QUOTA_MERGE, error);
 
 	gfs_assert(sdp, qd->qd_change_ic == qd->qd_change_od,);
 
@@ -315,7 +326,7 @@ gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 
 	gfs_quota_put(sdp, qd);
 
-	return 0;
+	RETURN(GFN_QUOTA_MERGE, 0);
 }
 
 /**
@@ -327,6 +338,7 @@ gfs_quota_merge(struct gfs_sbd *sdp, struct gfs_quota_tag *tag)
 void
 gfs_quota_scan(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_QUOTA_SCAN)
 	struct list_head *head, *tmp, *next;
 	struct gfs_quota_data *qd;
 	LIST_HEAD(dead);
@@ -357,6 +369,8 @@ gfs_quota_scan(struct gfs_sbd *sdp)
 		kfree(qd);
 		atomic_dec(&sdp->sd_quota_count);
 	}
+
+	RET(GFN_QUOTA_SCAN);
 }
 
 /**
@@ -368,6 +382,7 @@ gfs_quota_scan(struct gfs_sbd *sdp)
 void
 gfs_quota_cleanup(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_QUOTA_CLEANUP)
 	struct gfs_quota_data *qd;
 
  restart:
@@ -427,6 +442,8 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 	gfs_assert(sdp, !atomic_read(&sdp->sd_quota_od_count),);
 
 	gfs_log_unlock(sdp);
+
+	RET(GFN_QUOTA_CLEANUP);
 }
 
 /**
@@ -440,6 +457,7 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 static int
 sort_qd(const void *a, const void *b)
 {
+	ENTER(GFN_SORT_QD)
 	struct gfs_quota_data *qd_a = *(struct gfs_quota_data **)a;
 	struct gfs_quota_data *qd_b = *(struct gfs_quota_data **)b;
 	int ret = 0;
@@ -457,7 +475,7 @@ sort_qd(const void *a, const void *b)
 			ret = 1;
 	}
 
-	return ret;
+	RETURN(GFN_SORT_QD, ret);
 }
 
 /**
@@ -473,6 +491,7 @@ static int
 do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 	      unsigned int num_qd)
 {
+	ENTER(GFN_DO_QUOTA_SYNC)
 	struct gfs_inode *ip = sdp->sd_qinode;
 	struct gfs_alloc *al = NULL;
 	struct gfs_holder i_gh, *ghs;
@@ -490,7 +509,7 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 
 	ghs = kmalloc(num_qd * sizeof(struct gfs_holder), GFP_KERNEL);
 	if (!ghs)
-		return -ENOMEM;
+		RETURN(GFN_DO_QUOTA_SYNC, -ENOMEM);
 
 	gfs_sort(qda, num_qd, sizeof (struct gfs_quota_data *), sort_qd);
 	for (qx = 0; qx < num_qd; qx++) {
@@ -619,7 +638,7 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 
 	gfs_log_flush_glock(ip->i_gl);
 
-	return 0;
+	RETURN(GFN_DO_QUOTA_SYNC, 0);
 
  fail_end_trans:
 	gfs_trans_end(sdp);
@@ -645,7 +664,7 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 
 	kfree(ghs);
 
-	return error;
+	RETURN(GFN_DO_QUOTA_SYNC, error);
 }
 
 /**
@@ -662,6 +681,7 @@ static int
 glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 	struct gfs_holder *q_gh)
 {
+	ENTER(GFN_GLOCK_Q)
 	struct gfs_holder i_gh;
 	struct gfs_quota q;
 	char buf[sizeof(struct gfs_quota)];
@@ -670,7 +690,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
  restart:
 	error = gfs_glock_nq_init(qd->qd_gl, LM_ST_SHARED, 0, q_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GLOCK_Q, error);
 
 	gfs_quota_lvb_in(&qd->qd_qb, qd->qd_gl->gl_lvb);
 
@@ -681,7 +701,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 					  LM_ST_EXCLUSIVE, GL_NOCACHE,
 					  q_gh);
 		if (error)
-			return error;
+			RETURN(GFN_GLOCK_Q, error);
 
 		error = gfs_glock_nq_init(sdp->sd_qinode->i_gl,
 					  LM_ST_SHARED, 0,
@@ -716,7 +736,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 		goto restart;
 	}
 
-	return 0;
+	RETURN(GFN_GLOCK_Q, 0);
 
  fail_gunlock:
 	gfs_glock_dq_uninit(&i_gh);
@@ -724,7 +744,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
  fail:
 	gfs_glock_dq_uninit(q_gh);
 
-	return error;
+	RETURN(GFN_GLOCK_Q, error);
 }
 
 /**
@@ -742,6 +762,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 int
 gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 {
+	ENTER(GFN_QUOTA_HOLD_M)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	unsigned int x = 0;
@@ -749,10 +770,10 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 
 	if (gfs_assert_warn(sdp, !al->al_qd_num &&
 			    !test_bit(GIF_QD_LOCKED, &ip->i_flags)))
-		return -EIO;
+		RETURN(GFN_QUOTA_HOLD_M, -EIO);
 
 	if (!gfs_tune_get(sdp, gt_quota_account))
-		return 0;
+		RETURN(GFN_QUOTA_HOLD_M, 0);
 
 	error = gfs_quota_get(sdp, TRUE, ip->i_di.di_uid,
 			      CREATE, &al->al_qd[x]);
@@ -784,7 +805,7 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 
 	al->al_qd_num = x;
 
-	return 0;
+	RETURN(GFN_QUOTA_HOLD_M, 0);
 
  fail:
 	if (x) {
@@ -792,7 +813,7 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 		gfs_quota_unhold_m(ip);
 	}
 
-	return error;
+	RETURN(GFN_QUOTA_HOLD_M, error);
 }
 
 /**
@@ -804,6 +825,7 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 void
 gfs_quota_unhold_m(struct gfs_inode *ip)
 {
+	ENTER(GFN_QUOTA_UNHOLD_M)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	unsigned int x;
@@ -815,6 +837,8 @@ gfs_quota_unhold_m(struct gfs_inode *ip)
 		al->al_qd[x] = NULL;
 	}
 	al->al_qd_num = 0;
+
+	RET(GFN_QUOTA_UNHOLD_M);
 }
 
 /**
@@ -832,6 +856,7 @@ gfs_quota_unhold_m(struct gfs_inode *ip)
 int
 gfs_quota_lock_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 {
+	ENTER(GFN_QUOTA_LOCK_M)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	unsigned int x;
@@ -840,9 +865,9 @@ gfs_quota_lock_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 	gfs_quota_hold_m(ip, uid, gid);
 
 	if (!gfs_tune_get(sdp, gt_quota_enforce))
-		return 0;
+		RETURN(GFN_QUOTA_LOCK_M, 0);
 	if (capable(CAP_SYS_RESOURCE))
-		return 0;
+		RETURN(GFN_QUOTA_LOCK_M, 0);
 
 	gfs_sort(al->al_qd, al->al_qd_num,
 		 sizeof(struct gfs_quota_data *), sort_qd);
@@ -855,13 +880,13 @@ gfs_quota_lock_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 
 	set_bit(GIF_QD_LOCKED, &ip->i_flags);
 
-	return 0;
+	RETURN(GFN_QUOTA_LOCK_M, 0);
 
       fail:
 	while (x--)
 		gfs_glock_dq_uninit(&al->al_qd_ghs[x]);
 
-	return error;
+	RETURN(GFN_QUOTA_LOCK_M, error);
 }
 
 /**
@@ -873,6 +898,7 @@ gfs_quota_lock_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 void
 gfs_quota_unlock_m(struct gfs_inode *ip)
 {
+	ENTER(GFN_QUOTA_UNLOCK_M)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	struct gfs_quota_data *qd, *qda[4];
@@ -931,6 +957,8 @@ gfs_quota_unlock_m(struct gfs_inode *ip)
 
  out:
 	gfs_quota_unhold_m(ip);
+
+	RET(GFN_QUOTA_UNLOCK_M);
 }
 
 /**
@@ -945,13 +973,14 @@ gfs_quota_unlock_m(struct gfs_inode *ip)
 static int
 print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 {
+	ENTER(GFN_PRINT_QUOTA_MESSAGE)
 	struct tty_struct *tty;
 	char *line;
 	int len;
 
 	line = kmalloc(256, GFP_KERNEL);
 	if (!line)
-		return -ENOMEM;
+		RETURN(GFN_PRINT_QUOTA_MESSAGE, -ENOMEM);
 
 	len = snprintf(line, 256, "GFS: fsid=%s: quota %s for %s %u\r\n",
 		       sdp->sd_fsname, type,
@@ -966,7 +995,7 @@ print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 
 	kfree(line);
 
-	return 0;
+	RETURN(GFN_PRINT_QUOTA_MESSAGE, 0);
 }
 
 /**
@@ -980,6 +1009,7 @@ print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 int
 gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 {
+	ENTER(GFN_QUOTA_CHECK)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_alloc *al = ip->i_alloc;
 	struct gfs_quota_data *qd;
@@ -988,7 +1018,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 	int error = 0;
 
 	if (!al)
-		return 0;
+		RETURN(GFN_QUOTA_CHECK, 0);
 
 	for (x = 0; x < al->al_qd_num; x++) {
 		qd = al->al_qd[x];
@@ -1016,7 +1046,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 		}
 	}
 
-	return error;
+	RETURN(GFN_QUOTA_CHECK, error);
 }
 
 /**
@@ -1029,6 +1059,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 int
 gfs_quota_sync(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_QUOTA_SYNC)
 	struct gfs_quota_data **qda;
 	unsigned int max_qd = gfs_tune_get(sdp, gt_quota_simul_sync);
 	unsigned int num_qd;
@@ -1039,7 +1070,7 @@ gfs_quota_sync(struct gfs_sbd *sdp)
 
 	qda = kmalloc(max_qd * sizeof(struct gfs_quota_data *), GFP_KERNEL);
 	if (!qda)
-		return -ENOMEM;
+		RETURN(GFN_QUOTA_SYNC, -ENOMEM);
 	memset(qda, 0, max_qd * sizeof(struct gfs_quota_data *));
 
 	do {
@@ -1069,7 +1100,7 @@ gfs_quota_sync(struct gfs_sbd *sdp)
 
 	kfree(qda);
 
-	return error;
+	RETURN(GFN_QUOTA_SYNC, error);
 }
 
 /**
@@ -1084,13 +1115,14 @@ gfs_quota_sync(struct gfs_sbd *sdp)
 int
 gfs_quota_refresh(struct gfs_sbd *sdp, int user, uint32_t id)
 {
+	ENTER(GFN_QUOTA_REFRESH)
 	struct gfs_quota_data *qd;
 	struct gfs_holder q_gh;
 	int error;
 
 	error = gfs_quota_get(sdp, user, id, CREATE, &qd);
 	if (error)
-		return error;
+		RETURN(GFN_QUOTA_REFRESH, error);
 
 	error = glock_q(sdp, qd, TRUE, &q_gh);
 	if (!error)
@@ -1098,7 +1130,7 @@ gfs_quota_refresh(struct gfs_sbd *sdp, int user, uint32_t id)
 
 	gfs_quota_put(sdp, qd);
 
-	return error;
+	RETURN(GFN_QUOTA_REFRESH, error);
 }
 
 /**
@@ -1115,17 +1147,18 @@ int
 gfs_quota_read(struct gfs_sbd *sdp, int user, uint32_t id,
 	       struct gfs_quota *q)
 {
+	ENTER(GFN_QUOTA_READ)
 	struct gfs_quota_data *qd;
 	struct gfs_holder q_gh;
 	int error;
 
 	if (((user) ? (id != current->fsuid) : (!in_group_p(id))) &&
 	    !capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_QUOTA_READ, -EACCES);
 
 	error = gfs_quota_get(sdp, user, id, CREATE, &qd);
 	if (error)
-		return error;
+		RETURN(GFN_QUOTA_READ, error);
 
 	error = glock_q(sdp, qd, FALSE, &q_gh);
 	if (error)
@@ -1145,5 +1178,5 @@ gfs_quota_read(struct gfs_sbd *sdp, int user, uint32_t id,
  out:
 	gfs_quota_put(sdp, qd);
 
-	return error;
+	RETURN(GFN_QUOTA_READ, error);
 }

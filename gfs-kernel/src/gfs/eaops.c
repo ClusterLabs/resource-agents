@@ -37,6 +37,7 @@
 unsigned int
 gfs_ea_name2type(const char *name, char **truncated_name)
 {
+	ENTER(GFN_EA_NAME2TYPE)
 	unsigned int type;
 
 	if (strncmp(name, "system.", 7) == 0) {
@@ -53,7 +54,7 @@ gfs_ea_name2type(const char *name, char **truncated_name)
 			*truncated_name = NULL;
 	}
 
-	return type;
+	RETURN(GFN_EA_NAME2TYPE, type);
 }
 
 /**
@@ -67,14 +68,16 @@ gfs_ea_name2type(const char *name, char **truncated_name)
 static int
 user_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_USER_EO_GET)
+
 	{
 		struct inode *inode = ip->i_vnode;
 		int error = permission(inode, MAY_READ, NULL);
 		if (error)
-			return error;
+			RETURN(GFN_USER_EO_GET, error);
 	}
 
-	return gfs_ea_get_i(ip, er);
+	RETURN(GFN_USER_EO_GET, gfs_ea_get_i(ip, er));
 }
 
 /**
@@ -88,18 +91,20 @@ user_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 user_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_USER_EO_SET)
+
 	{
 		struct inode *inode = ip->i_vnode;
 		if (S_ISREG(inode->i_mode) ||
 		    (S_ISDIR(inode->i_mode) && !(inode->i_mode & S_ISVTX))) {
 			int error = permission(inode, MAY_WRITE, NULL);
 			if (error)
-				return error;
+				RETURN(GFN_USER_EO_SET, error);
 		} else
-			return -EPERM;
+			RETURN(GFN_USER_EO_SET, -EPERM);
 	}
 
-	return gfs_ea_set_i(ip, er);
+	RETURN(GFN_USER_EO_SET, gfs_ea_set_i(ip, er));
 }
 
 /**
@@ -113,18 +118,20 @@ user_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 user_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_USER_EO_REMOVE)
+
 	{
 		struct inode *inode = ip->i_vnode;
 		if (S_ISREG(inode->i_mode) ||
 		    (S_ISDIR(inode->i_mode) && !(inode->i_mode & S_ISVTX))) {
 			int error = permission(inode, MAY_WRITE, NULL);
 			if (error)
-				return error;
+				RETURN(GFN_USER_EO_REMOVE, error);
 		} else
-			return -EPERM;
+			RETURN(GFN_USER_EO_REMOVE, -EPERM);
 	}
 
-	return gfs_ea_remove_i(ip, er);
+	RETURN(GFN_USER_EO_REMOVE, gfs_ea_remove_i(ip, er));
 }
 
 /**
@@ -138,12 +145,14 @@ user_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 system_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_SYSTEM_EO_GET)
+
 	if (!GFS_ACL_IS_ACCESS(er->er_name, er->er_name_len) &&
 	    !GFS_ACL_IS_DEFAULT(er->er_name, er->er_name_len) &&
 	    !capable(CAP_SYS_ADMIN))
-		return -EPERM;
+		RETURN(GFN_SYSTEM_EO_GET, -EPERM);
 
-	return gfs_ea_get_i(ip, er);	
+	RETURN(GFN_SYSTEM_EO_GET, gfs_ea_get_i(ip, er));
 }
 
 /**
@@ -157,6 +166,8 @@ system_eo_get(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 system_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_SYSTEM_EO_SET)
+
 	if (GFS_ACL_IS_ACCESS(er->er_name, er->er_name_len)) {
 		int remove = FALSE;
 		int error;
@@ -165,24 +176,24 @@ system_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 		error = gfs_acl_validate_set(ip, TRUE, er,
 					     &er->er_mode, &remove);
 		if (error)
-			return error;
+			RETURN(GFN_SYSTEM_EO_SET, error);
 		error = gfs_ea_set_i(ip, er);
 		if (error)
-			return error;
+			RETURN(GFN_SYSTEM_EO_SET, error);
 		if (remove)
 			gfs_ea_remove_i(ip, er);
-		return 0;
+		RETURN(GFN_SYSTEM_EO_SET, 0);
 
 	} else if (GFS_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
 		int error = gfs_acl_validate_set(ip, FALSE, er,
 						 NULL, NULL);
 		if (error)
-			return error;
-		return gfs_ea_set_i(ip, er);
+			RETURN(GFN_SYSTEM_EO_SET, error);
+		RETURN(GFN_SYSTEM_EO_SET, gfs_ea_set_i(ip, er));
 
 	}
 
-	return -EPERM;
+	RETURN(GFN_SYSTEM_EO_SET, -EPERM);
 }
 
 /**
@@ -196,20 +207,22 @@ system_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 static int
 system_eo_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
+	ENTER(GFN_SYSTEM_EO_REMOVE)
+
 	if (GFS_ACL_IS_ACCESS(er->er_name, er->er_name_len)) {
 		int error = gfs_acl_validate_remove(ip, TRUE);
 		if (error)
-			return error;
+			RETURN(GFN_SYSTEM_EO_REMOVE, error);
 
 	} else if (GFS_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
 		int error = gfs_acl_validate_remove(ip, FALSE);
 		if (error)
-			return error;
+			RETURN(GFN_SYSTEM_EO_REMOVE, error);
 
 	} else
-	        return -EPERM;
+	        RETURN(GFN_SYSTEM_EO_REMOVE, -EPERM);
 
-	return gfs_ea_remove_i(ip, er);	
+	RETURN(GFN_SYSTEM_EO_REMOVE, gfs_ea_remove_i(ip, er));
 }
 
 struct gfs_eattr_operations gfs_user_eaops = {

@@ -34,6 +34,7 @@
 int
 gfs_make_args(char *data_arg, struct gfs_args *args)
 {
+	ENTER(GFN_MAKE_ARGS)
 	char *data = data_arg;
 	char *options, *x, *y;
 	int error = 0;
@@ -144,6 +145,6 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 	if (data != data_arg)
 		kfree(data);
 
-	return error;
+	RETURN(GFN_MAKE_ARGS, error);
 }
 

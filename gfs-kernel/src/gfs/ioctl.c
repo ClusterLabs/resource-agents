@@ -58,6 +58,7 @@ static int
 gi_skeleton(struct gfs_inode *ip, struct gfs_ioctl *gi,
 	    gi_filler_t filler)
 {
+	ENTER(GFN_GI_SKELETON)
 	unsigned int size = gfs_tune_get(ip->i_sbd, gt_lockdump_size);
         char *buf;
 	unsigned int count = 0;
@@ -68,7 +69,7 @@ gi_skeleton(struct gfs_inode *ip, struct gfs_ioctl *gi,
 
         buf = kmalloc(size, GFP_KERNEL);
         if (!buf)
-                return -ENOMEM;
+                RETURN(GFN_GI_SKELETON, -ENOMEM);
 
         error = filler(ip, gi, buf, size, &count);
 	if (error)
@@ -82,7 +83,7 @@ gi_skeleton(struct gfs_inode *ip, struct gfs_ioctl *gi,
  out:
 	kfree(buf);
 
-	return error;
+	RETURN(GFN_GI_SKELETON, error);
 }
 
 /**
@@ -104,10 +105,11 @@ gi_get_cookie(struct gfs_inode *ip,
 	      unsigned int size,
 	      unsigned int *count)
 {
+	ENTER(GFN_GI_GET_COOKIE)
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_COOKIE, -EINVAL);
 
 	gfs_printf("version 0\n");
         gfs_printf("%lu", (unsigned long)ip->i_sbd);
@@ -115,7 +117,7 @@ gi_get_cookie(struct gfs_inode *ip,
         error = 0;
 
  out:
-        return error;
+        RETURN(GFN_GI_GET_COOKIE, error);
 }
 
 /**
@@ -129,19 +131,20 @@ gi_get_cookie(struct gfs_inode *ip,
 static int
 gi_get_super(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_GET_SUPER)
 	struct gfs_holder sb_gh;
 	struct buffer_head *bh;
 	struct gfs_sb *sb;
 	int error;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_SUPER, -EINVAL);
 	if (gi->gi_size != sizeof(struct gfs_sb))
-		return -EINVAL;
+		RETURN(GFN_GI_GET_SUPER, -EINVAL);
 
 	sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
 	if (!sb)
-		return -ENOMEM;
+		RETURN(GFN_GI_GET_SUPER, -ENOMEM);
 
 	error = gfs_glock_nq_num(sdp,
 				 GFS_SB_LOCK, &gfs_meta_glops,
@@ -169,7 +172,7 @@ gi_get_super(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  out:
 	kfree(sb);
 
-	return error;
+	RETURN(GFN_GI_GET_SUPER, error);
 }
 
 /**
@@ -190,11 +193,12 @@ gi_get_args(struct gfs_inode *ip,
 	    unsigned int size,
 	    unsigned int *count)
 {
+	ENTER(GFN_GI_GET_ARGS)
 	struct gfs_args *args = &ip->i_sbd->sd_args;
 	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_ARGS, -EINVAL);
 
 	gfs_printf("version 0\n");
 	gfs_printf("lockproto %s\n", args->ar_lockproto);
@@ -212,7 +216,7 @@ gi_get_args(struct gfs_inode *ip,
 	error = 0;
 	
  out:
-	return error;
+	RETURN(GFN_GI_GET_ARGS, error);
 }
 
 /**
@@ -233,11 +237,12 @@ gi_get_lockstruct(struct gfs_inode *ip,
 		  unsigned int size,
 		  unsigned int *count)
 {
+	ENTER(GFN_GI_GET_LOCKSTRUCT)
 	struct lm_lockstruct *ls = &ip->i_sbd->sd_lockstruct;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_LOCKSTRUCT, -EINVAL);
 
 	gfs_printf("version 0\n");
         gfs_printf("jid %u\n", ls->ls_jid);
@@ -248,7 +253,7 @@ gi_get_lockstruct(struct gfs_inode *ip,
 	error = 0;
 
  out:
-        return error;
+        RETURN(GFN_GI_GET_LOCKSTRUCT, error);
 }
 
 /**
@@ -269,15 +274,16 @@ gi_get_stat_gfs(struct gfs_inode *ip,
 		unsigned int size,
 		unsigned int *count)
 {
+	ENTER(GFN_GI_GET_STAT_GFS)
 	struct gfs_stat_gfs sg;
         int error;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_STAT_GFS, -EINVAL);
 
 	error = gfs_stat_gfs(ip->i_sbd, &sg, TRUE);
 	if (error)
-		return error;
+		RETURN(GFN_GI_GET_STAT_GFS, error);
 
 	error = -ENOBUFS;
 
@@ -293,7 +299,7 @@ gi_get_stat_gfs(struct gfs_inode *ip,
 	error = 0;
 
  out:
-        return error;
+        RETURN(GFN_GI_GET_STAT_GFS, error);
 }
 
 /**
@@ -308,12 +314,13 @@ gi_get_stat_gfs(struct gfs_inode *ip,
 static unsigned int
 handle_roll(atomic_t *a)
 {
+	ENTER(GFN_HANDLE_ROLL)
 	int x = atomic_read(a);
 	if (x < 0) {
 		atomic_set(a, 0);
-		return 0;
+		RETURN(GFN_HANDLE_ROLL, 0);
 	}
-	return (unsigned int)x;
+	RETURN(GFN_HANDLE_ROLL, (unsigned int)x);
 }
 
 /**
@@ -334,11 +341,12 @@ gi_get_counters(struct gfs_inode *ip,
 		unsigned int size,
 		unsigned int *count)
 {
+	ENTER(GFN_GI_GET_COUNTERS)
 	struct gfs_sbd *sdp = ip->i_sbd;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_COUNTERS, -EINVAL);
 
 	gfs_printf("version 0\n");
 	gfs_printf("sd_glock_count:locks::%d\n",
@@ -409,7 +417,7 @@ gi_get_counters(struct gfs_inode *ip,
         error = 0;
 
  out:
-        return error;
+        RETURN(GFN_GI_GET_COUNTERS, error);
 }
 
 /**
@@ -430,11 +438,12 @@ gi_get_tune(struct gfs_inode *ip,
 	    unsigned int size,
 	    unsigned int *count)
 {
-        struct gfs_tune *gt = &ip->i_sbd->sd_tune;
+ 	ENTER(GFN_GI_GET_TUNE)
+	struct gfs_tune *gt = &ip->i_sbd->sd_tune;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_TUNE, -EINVAL);
 
 	spin_lock(&gt->gt_spin);
 
@@ -483,7 +492,7 @@ gi_get_tune(struct gfs_inode *ip,
  out:
 	spin_unlock(&gt->gt_spin);
 
-        return error;
+        RETURN(GFN_GI_GET_TUNE, error);
 }
 
 #define tune_set(f, v) \
@@ -504,127 +513,128 @@ do { \
 static int
 gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_SET_TUNE)
 	struct gfs_tune *gt = &sdp->sd_tune;
  	char param[ARG_SIZE], value[ARG_SIZE];
 	unsigned int x;
 
 	if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+                RETURN(GFN_GI_SET_TUNE, -EACCES);
 	if (gi->gi_argc != 3)
-		return -EINVAL;
+		RETURN(GFN_GI_SET_TUNE, -EINVAL);
 
 	if (strncpy_from_user(param, gi->gi_argv[1], ARG_SIZE) < 0)
-		return -EFAULT;
+		RETURN(GFN_GI_SET_TUNE, -EFAULT);
 	param[ARG_SIZE - 1] = 0;
 
 	if (strncpy_from_user(value, gi->gi_argv[2], ARG_SIZE) < 0)
-		return -EFAULT;
+		RETURN(GFN_GI_SET_TUNE, -EFAULT);
 	value[ARG_SIZE - 1] = 0;
 
 	if (strcmp(param, "ilimit1") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit1, x);
 
 	} else if (strcmp(param, "ilimit1_tries") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit1_tries, x);
 
 	} else if (strcmp(param, "ilimit1_min") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit1_min, x);
 
 	} else if (strcmp(param, "ilimit2") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit2, x);
 
 	} else if (strcmp(param, "ilimit2_tries") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit2_tries, x);
 
 	} else if (strcmp(param, "ilimit2_min") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_ilimit2_min, x);
 
 	} else if (strcmp(param, "demote_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_demote_secs, x);
 
 	} else if (strcmp(param, "incore_log_blocks") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_incore_log_blocks, x);
 
 	} else if (strcmp(param, "jindex_refresh_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_jindex_refresh_secs, x);
 
 	} else if (strcmp(param, "depend_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_depend_secs, x);
 
 	} else if (strcmp(param, "scand_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_scand_secs, x);
 		wake_up_process(sdp->sd_scand_process);
 
 	} else if (strcmp(param, "recoverd_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_recoverd_secs, x);
 		wake_up_process(sdp->sd_recoverd_process);
 
 	} else if (strcmp(param, "logd_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_logd_secs, x);
 		wake_up_process(sdp->sd_logd_process);
 
 	} else if (strcmp(param, "quotad_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_quotad_secs, x);
 		wake_up_process(sdp->sd_quotad_process);
 
 	} else if (strcmp(param, "inoded_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_inoded_secs, x);
 		wake_up_process(sdp->sd_inoded_process);
 
 	} else if (strcmp(param, "quota_simul_sync") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_quota_simul_sync, x);
 
 	} else if (strcmp(param, "quota_warn_period") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_quota_warn_period, x);
 
 	} else if (strcmp(param, "atime_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_atime_quantum, x);
 
 	} else if (strcmp(param, "quota_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_quota_quantum, x);
 
 	} else if (strcmp(param, "quota_scale") == 0) {
 		unsigned int y;
 		if (sscanf(value, "%u %u", &x, &y) != 2 || !y)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		spin_lock(&gt->gt_spin);
 		gt->gt_quota_scale_num = x;
 		gt->gt_quota_scale_den = y;
@@ -632,7 +642,7 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 
 	} else if (strcmp(param, "quota_enforce") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		x = !!x;
 		spin_lock(&gt->gt_spin);
 		gt->gt_quota_enforce = x;
@@ -642,7 +652,7 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 
 	} else if (strcmp(param, "quota_account") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		x = !!x;
 		spin_lock(&gt->gt_spin);
 		gt->gt_quota_account = x;
@@ -661,85 +671,85 @@ gi_set_tune(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 
 	} else if (strcmp(param, "new_files_jdata") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		x = !!x;
 		tune_set(gt_new_files_jdata, x);
 
 	} else if (strcmp(param, "new_files_directio") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		x = !!x;
 		tune_set(gt_new_files_directio, x);
 
 	} else if (strcmp(param, "max_atomic_write") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_max_atomic_write, x);
 
 	} else if (strcmp(param, "max_readahead") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_max_readahead, x);
 
 	} else if (strcmp(param, "lockdump_size") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_lockdump_size, x);
 
 	} else if (strcmp(param, "stall_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_stall_secs, x);
 
 	} else if (strcmp(param, "complain_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_complain_secs, x);
 
 	} else if (strcmp(param, "reclaim_limit") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_reclaim_limit, x);
 
 	} else if (strcmp(param, "entries_per_readdir") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_entries_per_readdir, x);
 
 	} else if (strcmp(param, "prefetch_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_prefetch_secs, x);
 
 	} else if (strcmp(param, "statfs_slots") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_statfs_slots, x);
 
 	} else if (strcmp(param, "max_mhc") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_max_mhc, x);
 
 	} else if (strcmp(param, "greedy_default") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_greedy_default, x);
 
 	} else if (strcmp(param, "greedy_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_greedy_quantum, x);
 
 	} else if (strcmp(param, "greedy_max") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			return -EINVAL;
+			RETURN(GFN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_greedy_max, x);
 
 	} else
-		return -EINVAL;
+		RETURN(GFN_GI_SET_TUNE, -EINVAL);
 
-	return 0;
+	RETURN(GFN_GI_SET_TUNE, 0);
 }
 
 /**
@@ -760,19 +770,20 @@ gi_do_reclaim(struct gfs_inode *ip,
 	      unsigned int size,
 	      unsigned int *count)
 {
+	ENTER(GFN_GI_DO_RECLAIM)
 	uint64_t inodes, metadata;
         int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_GI_DO_RECLAIM, -EACCES);
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_RECLAIM, -EINVAL);
 
 	error = gfs_reclaim_metadata(ip->i_sbd,
 				     &inodes,
 				     &metadata);
 	if (error)
-		return error;
+		RETURN(GFN_GI_DO_RECLAIM, error);
 
 	error = -ENOBUFS;
 
@@ -783,7 +794,7 @@ gi_do_reclaim(struct gfs_inode *ip,
         error = 0;
 
  out:
-        return error;
+        RETURN(GFN_GI_DO_RECLAIM, error);
 }
 
 /**
@@ -797,12 +808,13 @@ gi_do_reclaim(struct gfs_inode *ip,
 static int
 gi_do_shrink(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_SHRINK)
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_GI_DO_SHRINK, -EACCES);
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_SHRINK, -EINVAL);
 	gfs_gl_hash_clear(sdp, FALSE);
-	return 0;
+	RETURN(GFN_GI_DO_SHRINK, 0);
 }
 
 /**
@@ -816,18 +828,19 @@ gi_do_shrink(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_get_file_stat(struct gfs_inode *ip, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_GET_FILE_STAT)
 	struct gfs_holder i_gh;
 	struct gfs_dinode *di;
 	int error;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_FILE_STAT, -EINVAL);
 	if (gi->gi_size != sizeof(struct gfs_dinode))
-		return -EINVAL;
+		RETURN(GFN_GI_GET_FILE_STAT, -EINVAL);
 
 	di = kmalloc(sizeof(struct gfs_dinode), GFP_KERNEL);
 	if (!di)
-		return -ENOMEM;
+		RETURN(GFN_GI_GET_FILE_STAT, -ENOMEM);
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
@@ -844,7 +857,7 @@ gi_get_file_stat(struct gfs_inode *ip, struct gfs_ioctl *gi)
  out:
 	kfree(di);
 
-	return error;
+	RETURN(GFN_GI_GET_FILE_STAT, error);
 }
 
 /**
@@ -858,6 +871,7 @@ gi_get_file_stat(struct gfs_inode *ip, struct gfs_ioctl *gi)
 static int
 gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_SET_FILE_FLAG)
 	char buf[ARG_SIZE];
 	int set;
 	uint32_t flag;
@@ -866,10 +880,10 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 	int error;
 
 	if (gi->gi_argc != 3)
-		return -EINVAL;
+		RETURN(GFN_GI_SET_FILE_FLAG, -EINVAL);
 
 	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-		return -EFAULT;
+		RETURN(GFN_GI_SET_FILE_FLAG, -EFAULT);
 	buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "set") == 0)
@@ -877,15 +891,15 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 	else if (strcmp(buf, "clear") == 0)
 		set = FALSE;
 	else
-		return -EINVAL;
+		RETURN(GFN_GI_SET_FILE_FLAG, -EINVAL);
 
         if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
-                return -EFAULT;
+                RETURN(GFN_GI_SET_FILE_FLAG, -EFAULT);
         buf[ARG_SIZE - 1] = 0;
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GI_SET_FILE_FLAG, error);
 
 	error = -EACCES;
 	if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
@@ -951,7 +965,7 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
  out:
 	gfs_glock_dq_uninit(&i_gh);
 
-	return error;
+	RETURN(GFN_GI_SET_FILE_FLAG, error);
 
 }
 
@@ -966,12 +980,13 @@ gi_set_file_flag(struct gfs_inode *ip, struct gfs_ioctl *gi)
 static int
 gi_get_file_meta(struct gfs_inode *ip, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_GET_FILE_META)
 	struct gfs_holder i_gh;
 	struct gfs_user_buffer ub;
 	int error;
 
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_GET_FILE_META, -EINVAL);
 
 	ub.ub_data = gi->gi_data;
 	ub.ub_size = gi->gi_size;
@@ -979,7 +994,7 @@ gi_get_file_meta(struct gfs_inode *ip, struct gfs_ioctl *gi)
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GI_GET_FILE_META, error);
 
         error = -EACCES;
         if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
@@ -1007,7 +1022,7 @@ gi_get_file_meta(struct gfs_inode *ip, struct gfs_ioctl *gi)
  out:
 	gfs_glock_dq_uninit(&i_gh);
 
-	return error;
+	RETURN(GFN_GI_GET_FILE_META, error);
 }
 
 /**
@@ -1022,10 +1037,11 @@ gi_get_file_meta(struct gfs_inode *ip, struct gfs_ioctl *gi)
 static int
 gi_do_file_flush(struct gfs_inode *ip, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_FILE_FLUSH)
 	if (gi->gi_argc != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_FILE_FLUSH, -EINVAL);
 	gfs_glock_force_drop(ip->i_gl);
-	return 0;
+	RETURN(GFN_GI_DO_FILE_FLUSH, 0);
 }
 
 /**
@@ -1039,25 +1055,26 @@ gi_do_file_flush(struct gfs_inode *ip, struct gfs_ioctl *gi)
 static struct gfs_inode *
 gi2hip(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI2HIP)
 	char buf[ARG_SIZE];
 
 	if (gi->gi_argc != 2)
-		return ERR_PTR(-EINVAL);
+		RETURN(GFN_GI2HIP, ERR_PTR(-EINVAL));
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return ERR_PTR(-EFAULT);
+                RETURN(GFN_GI2HIP, ERR_PTR(-EFAULT));
         buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "jindex") == 0)
-		return sdp->sd_jiinode;
+		RETURN(GFN_GI2HIP, sdp->sd_jiinode);
 	else if (strcmp(buf, "rindex") == 0)
-		return sdp->sd_riinode;
+		RETURN(GFN_GI2HIP, sdp->sd_riinode);
 	else if (strcmp(buf, "quota") == 0)
-		return sdp->sd_qinode;
+		RETURN(GFN_GI2HIP, sdp->sd_qinode);
 	else if (strcmp(buf, "license") == 0)
-		return sdp->sd_linode;
+		RETURN(GFN_GI2HIP, sdp->sd_linode);
 	else
-		return ERR_PTR(-EINVAL);
+		RETURN(GFN_GI2HIP, ERR_PTR(-EINVAL));
 }
 
 /**
@@ -1071,6 +1088,7 @@ gi2hip(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_GET_HFILE_STAT)
 	struct gfs_inode *ip;
 	struct gfs_dinode *di;
 	struct gfs_holder i_gh;
@@ -1078,14 +1096,14 @@ gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		return PTR_ERR(ip);
+		RETURN(GFN_GI_GET_HFILE_STAT, PTR_ERR(ip));
 
 	if (gi->gi_size != sizeof(struct gfs_dinode))
-		return -EINVAL;
+		RETURN(GFN_GI_GET_HFILE_STAT, -EINVAL);
 
         di = kmalloc(sizeof(struct gfs_dinode), GFP_KERNEL);
         if (!di)
-                return -ENOMEM;
+                RETURN(GFN_GI_GET_HFILE_STAT, -ENOMEM);
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
@@ -1102,7 +1120,7 @@ gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
  out:
 	kfree(di);
 
-	return error;
+	RETURN(GFN_GI_GET_HFILE_STAT, error);
 }
 
 /**
@@ -1116,30 +1134,31 @@ gi_get_hfile_stat(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_HFILE_READ)
 	struct gfs_inode *ip;
 	struct gfs_holder i_gh;
 	int error;
 
         if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+                RETURN(GFN_GI_DO_HFILE_READ, -EACCES);
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		return PTR_ERR(ip);
+		RETURN(GFN_GI_DO_HFILE_READ, PTR_ERR(ip));
 
 	if (!access_ok(VERIFY_WRITE, gi->gi_data, gi->gi_size))
-		return -EFAULT;
+		RETURN(GFN_GI_DO_HFILE_READ, -EFAULT);
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GI_DO_HFILE_READ, error);
 
 	error = gfs_readi(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
 			  gfs_copy2user);
 
 	gfs_glock_dq_uninit(&i_gh);
 
-	return error;
+	RETURN(GFN_GI_DO_HFILE_READ, error);
 }
 
 /**
@@ -1153,6 +1172,7 @@ gi_do_hfile_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_HFILE_WRITE)
 	struct gfs_inode *ip;
 	struct gfs_alloc *al = NULL;
 	struct gfs_holder i_gh;
@@ -1161,21 +1181,21 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	int error;
 
         if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+                RETURN(GFN_GI_DO_HFILE_WRITE, -EACCES);
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		return PTR_ERR(ip);
+		RETURN(GFN_GI_DO_HFILE_WRITE, PTR_ERR(ip));
 
 	if (!access_ok(VERIFY_READ, gi->gi_data, gi->gi_size))
-		return -EFAULT;
+		RETURN(GFN_GI_DO_HFILE_WRITE, -EFAULT);
 
 	gfs_write_calc_reserv(ip, gi->gi_size, &data_blocks, &ind_blocks);
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
 				  LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GI_DO_HFILE_WRITE, error);
 
         if (!gfs_is_jdata(ip)) {
                 gfs_consist_inode(ip);
@@ -1243,7 +1263,7 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	ip->i_gl->gl_vn++;
 	gfs_glock_dq_uninit(&i_gh);
 
-	return error;
+	RETURN(GFN_GI_DO_HFILE_WRITE, error);
 }
 
 /**
@@ -1257,27 +1277,28 @@ gi_do_hfile_write(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_hfile_trunc(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_HFILE_TRUNC)
 	struct gfs_inode *ip;
 	struct gfs_holder i_gh;
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_GI_DO_HFILE_TRUNC, -EACCES);
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		return PTR_ERR(ip);
+		RETURN(GFN_GI_DO_HFILE_TRUNC, PTR_ERR(ip));
 
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, GL_SYNC, &i_gh);
 	if (error)
-		return error;
+		RETURN(GFN_GI_DO_HFILE_TRUNC, error);
 
 	error = gfs_truncatei(ip, gi->gi_offset, NULL);
 
 	ip->i_gl->gl_vn++;
 	gfs_glock_dq_uninit(&i_gh);
 
-	return error;
+	RETURN(GFN_GI_DO_HFILE_TRUNC, error);
 }
 
 /**
@@ -1291,11 +1312,12 @@ gi_do_hfile_trunc(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_quota_sync(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_QUOTA_SYNC)
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_GI_DO_QUOTA_SYNC, -EACCES);
 	if (gi->gi_argc != 1)
-		return -EINVAL;
-	return gfs_quota_sync(sdp);
+		RETURN(GFN_GI_DO_QUOTA_SYNC, -EINVAL);
+	RETURN(GFN_GI_DO_QUOTA_SYNC, gfs_quota_sync(sdp));
 }
 
 /**
@@ -1309,17 +1331,18 @@ gi_do_quota_sync(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_QUOTA_REFRESH)
 	char buf[ARG_SIZE];
 	int user;
 	uint32_t id;
 
 	if (!capable(CAP_SYS_ADMIN))
-		return -EACCES;
+		RETURN(GFN_GI_DO_QUOTA_REFRESH, -EACCES);
 	if (gi->gi_argc != 2)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_REFRESH, -EINVAL);
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
+                RETURN(GFN_GI_DO_QUOTA_REFRESH, -EFAULT);
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1330,16 +1353,17 @@ gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 		user = FALSE;
 		break;
 	default:
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_REFRESH, -EINVAL);
 	}
 
 	if (buf[1] != ':')
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_REFRESH, -EINVAL);
 
 	if (sscanf(buf + 2, "%u", &id) != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_REFRESH, -EINVAL);
 
-	return gfs_quota_refresh(sdp, user, id);
+	RETURN(GFN_GI_DO_QUOTA_REFRESH,
+	       gfs_quota_refresh(sdp, user, id));
 }
 
 /**
@@ -1353,6 +1377,7 @@ gi_do_quota_refresh(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 static int
 gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 {
+	ENTER(GFN_GI_DO_QUOTA_READ)
 	char buf[ARG_SIZE];
 	int user;
 	uint32_t id;
@@ -1360,12 +1385,12 @@ gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 	int error;
 
 	if (gi->gi_argc != 2)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EINVAL);
 	if (gi->gi_size != sizeof(struct gfs_quota))
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EINVAL);
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
+                RETURN(GFN_GI_DO_QUOTA_READ, -EFAULT);
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1376,23 +1401,23 @@ gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 		user = FALSE;
 		break;
 	default:
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EINVAL);
 	}
 
 	if (buf[1] != ':')
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EINVAL);
 
 	if (sscanf(buf + 2, "%u", &id) != 1)
-		return -EINVAL;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EINVAL);
 
 	error = gfs_quota_read(sdp, user, id, &q);
 	if (error)
-		return error;
+		RETURN(GFN_GI_DO_QUOTA_READ, error);
 
 	if (copy_to_user(gi->gi_data, &q, sizeof(struct gfs_quota)))
-		return -EFAULT;
+		RETURN(GFN_GI_DO_QUOTA_READ, -EFAULT);
 
-	return 0;
+	RETURN(GFN_GI_DO_QUOTA_READ, 0);
 }
 
 /**
@@ -1406,6 +1431,7 @@ gi_do_quota_read(struct gfs_sbd *sdp, struct gfs_ioctl *gi)
 int
 gfs_ioctl_i(struct gfs_inode *ip, void *arg)
 {
+	ENTER(GFN_IOCTL_I)
 	struct gfs_ioctl *gi_user = (struct gfs_ioctl *)arg;
 	struct gfs_ioctl gi;
 	char **argv;
@@ -1413,12 +1439,12 @@ gfs_ioctl_i(struct gfs_inode *ip, void *arg)
 	int error = -EFAULT;
 
 	if (copy_from_user(&gi, gi_user, sizeof(struct gfs_ioctl)))
-		return -EFAULT;
+		RETURN(GFN_IOCTL_I, -EFAULT);
 	if (!gi.gi_argc)
-		return -EINVAL;
+		RETURN(GFN_IOCTL_I, -EINVAL);
 	argv = kmalloc(gi.gi_argc * sizeof(char *), GFP_KERNEL);
 	if (!argv)
-		return -ENOMEM;
+		RETURN(GFN_IOCTL_I, -ENOMEM);
 	if (copy_from_user(argv, gi.gi_argv,
 			   gi.gi_argc * sizeof(char *)))
 		goto out;
@@ -1476,7 +1502,7 @@ gfs_ioctl_i(struct gfs_inode *ip, void *arg)
  out:
 	kfree(argv);
 
-	return error;
+	RETURN(GFN_IOCTL_I, error);
 }
 
 

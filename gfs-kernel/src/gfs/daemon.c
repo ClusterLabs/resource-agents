@@ -39,6 +39,7 @@
 int
 gfs_scand(void *data)
 {
+	ENTER(GFN_SCAND)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
 	daemonize("gfs_scand");
@@ -61,7 +62,7 @@ gfs_scand(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_SCAND, 0);
 }
 
 /**
@@ -77,6 +78,7 @@ gfs_scand(void *data)
 int
 gfs_glockd(void *data)
 {
+	ENTER(GFN_GLOCKD)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
 	daemonize("gfs_glockd");
@@ -94,8 +96,8 @@ gfs_glockd(void *data)
 			DECLARE_WAITQUEUE(__wait_chan, current);
 			set_current_state(TASK_INTERRUPTIBLE);
 			add_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
-			if (!atomic_read(&sdp->sd_reclaim_count)
-			    && test_bit(SDF_GLOCKD_RUN, &sdp->sd_flags))
+			if (!atomic_read(&sdp->sd_reclaim_count) &&
+			    test_bit(SDF_GLOCKD_RUN, &sdp->sd_flags))
 				schedule();
 			remove_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
 			set_current_state(TASK_RUNNING);
@@ -104,7 +106,7 @@ gfs_glockd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_GLOCKD, 0);
 }
 
 /**
@@ -116,6 +118,7 @@ gfs_glockd(void *data)
 int
 gfs_recoverd(void *data)
 {
+	ENTER(GFN_RECOVERD)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
 	daemonize("gfs_recoverd");
@@ -138,7 +141,7 @@ gfs_recoverd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_RECOVERD, 0);
 }
 
 /**
@@ -152,6 +155,7 @@ gfs_recoverd(void *data)
 int
 gfs_logd(void *data)
 {
+	ENTER(GFN_LOGD)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 	struct gfs_holder ji_gh;
 
@@ -186,7 +190,7 @@ gfs_logd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_LOGD, 0);
 }
 
 /**
@@ -198,6 +202,7 @@ gfs_logd(void *data)
 int
 gfs_quotad(void *data)
 {
+	ENTER(GFN_QUOTAD)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 	int error;
 
@@ -235,7 +240,7 @@ gfs_quotad(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_QUOTAD, 0);
 }
 
 /**
@@ -247,6 +252,7 @@ gfs_quotad(void *data)
 int
 gfs_inoded(void *data)
 {
+	ENTER(GFN_INODED)
 	struct gfs_sbd *sdp = (struct gfs_sbd *)data;
 
 	daemonize("gfs_inoded");
@@ -269,5 +275,5 @@ gfs_inoded(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	return 0;
+	RETURN(GFN_INODED, 0);
 }

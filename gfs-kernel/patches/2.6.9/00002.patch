@@ -1,7 +1,7 @@
 # Add GFS to the build system.
 diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2004-12-17 20:03:54.724107982 -0600
-+++ linux/fs/Kconfig	2004-12-17 20:03:54.752101460 -0600
+--- linux-2.6.9/fs/Kconfig	2005-01-10 13:00:25.725887569 -0600
++++ linux/fs/Kconfig	2005-01-10 13:00:25.853858557 -0600
 @@ -283,13 +283,13 @@ config JFS_STATISTICS
  	  to be made available to the user in the /proc/fs/jfs/ directory.
  
@@ -40,8 +40,8 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.9/fs/Makefile linux/fs/Makefile
---- linux-2.6.9/fs/Makefile	2004-12-17 20:03:54.725107749 -0600
-+++ linux/fs/Makefile	2004-12-17 20:03:54.752101460 -0600
+--- linux-2.6.9/fs/Makefile	2005-01-10 13:00:25.726887342 -0600
++++ linux/fs/Makefile	2005-01-10 13:00:25.853858557 -0600
 @@ -94,3 +94,4 @@ obj-$(CONFIG_BEFS_FS)		+= befs/
  obj-$(CONFIG_HOSTFS)		+= hostfs/
  obj-$(CONFIG_HPPFS)		+= hppfs/
@@ -49,8 +49,8 @@ diff -urN -p linux-2.6.9/fs/Makefile linux/fs/Makefile
 +obj-$(CONFIG_GFS_FS)		+= gfs/
 diff -urN -p linux-2.6.9/fs/gfs/Makefile linux/fs/gfs/Makefile
 --- linux-2.6.9/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-12-17 20:03:54.752101460 -0600
-@@ -0,0 +1,53 @@
++++ linux/fs/gfs/Makefile	2005-01-10 13:00:40.716489097 -0600
+@@ -0,0 +1,59 @@
 +###############################################################################
 +###############################################################################
 +##
@@ -69,6 +69,7 @@ diff -urN -p linux-2.6.9/fs/gfs/Makefile linux/fs/gfs/Makefile
 +		bits.o \
 +		bmap.o \
 +		daemon.o \
++		debug.o \
 +		diaper.o \
 +		dio.o \
 +		dir.o \
@@ -103,4 +104,9 @@ diff -urN -p linux-2.6.9/fs/gfs/Makefile linux/fs/gfs/Makefile
 +		trans.o \
 +		unlinked.o \
 +		util.o
++
++#EXTRA_CFLAGS += -DGFS_TRACE
++#EXTRA_CFLAGS += -DGFS_PROFILE
++
++
 +

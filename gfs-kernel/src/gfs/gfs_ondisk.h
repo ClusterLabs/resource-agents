@@ -727,6 +727,7 @@ uint32_t gfs_dir_hash(const char *data, int len);
 static void
 print_array(char *title, char *buf, int count)
 {
+	ENTER(GFN_PRINT_ARRAY)
 	int x;
 
 	printk("  %s =\n", title);
@@ -737,6 +738,8 @@ print_array(char *title, char *buf, int count)
 	}
 	if (x % 16)
 		printk("\n");
+
+	RET(GFN_PRINT_ARRAY);
 }
 
 /**
@@ -749,10 +752,13 @@ print_array(char *title, char *buf, int count)
 void
 gfs_inum_in(struct gfs_inum *no, char *buf)
 {
+	ENTER(GFN_INUM_IN)
 	struct gfs_inum *str = (struct gfs_inum *)buf;
 
 	CPIN_64(no, str, no_formal_ino);
 	CPIN_64(no, str, no_addr);
+
+	RET(GFN_INUM_IN);
 }
 
 /**
@@ -765,10 +771,13 @@ gfs_inum_in(struct gfs_inum *no, char *buf)
 void
 gfs_inum_out(struct gfs_inum *no, char *buf)
 {
+	ENTER(GFN_INUM_OUT)
 	struct gfs_inum *str = (struct gfs_inum *)buf;
 
 	CPOUT_64(no, str, no_formal_ino);
 	CPOUT_64(no, str, no_addr);
+
+	RET(GFN_INUM_OUT);
 }
 
 /**
@@ -780,8 +789,10 @@ gfs_inum_out(struct gfs_inum *no, char *buf)
 void
 gfs_inum_print(struct gfs_inum *no)
 {
+	ENTER(GFN_INUM_PRINT)
 	pv(no, no_formal_ino, "%"PRIu64);
 	pv(no, no_addr, "%"PRIu64);
+	RET(GFN_INUM_PRINT);
 }
 
 /**
@@ -794,6 +805,7 @@ gfs_inum_print(struct gfs_inum *no)
 void
 gfs_meta_header_in(struct gfs_meta_header *mh, char *buf)
 {
+	ENTER(GFN_META_HEADER_IN)
 	struct gfs_meta_header *str = (struct gfs_meta_header *)buf;
 
 	CPIN_32(mh, str, mh_magic);
@@ -801,6 +813,8 @@ gfs_meta_header_in(struct gfs_meta_header *mh, char *buf)
 	CPIN_64(mh, str, mh_generation);
 	CPIN_32(mh, str, mh_format);
 	CPIN_32(mh, str, mh_incarn);
+
+	RET(GFN_META_HEADER_IN);
 }
 
 /**
@@ -815,6 +829,7 @@ gfs_meta_header_in(struct gfs_meta_header *mh, char *buf)
 void
 gfs_meta_header_out(struct gfs_meta_header *mh, char *buf)
 {
+	ENTER(GFN_META_HEADER_OUT)
 	struct gfs_meta_header *str = (struct gfs_meta_header *)buf;
 
 	CPOUT_32(mh, str, mh_magic);
@@ -826,6 +841,8 @@ gfs_meta_header_out(struct gfs_meta_header *mh, char *buf)
 #endif
 	CPOUT_32(mh, str, mh_format);
 	CPOUT_32(mh, str, mh_incarn);
+
+	RET(GFN_META_HEADER_OUT);
 }
 
 /**
@@ -837,11 +854,15 @@ gfs_meta_header_out(struct gfs_meta_header *mh, char *buf)
 void
 gfs_meta_header_print(struct gfs_meta_header *mh)
 {
+	ENTER(GFN_META_HEADER_PRINT)
+
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
 	pv(mh, mh_generation, "%"PRIu64);
 	pv(mh, mh_format, "%u");
 	pv(mh, mh_incarn, "%u");
+
+	RET(GFN_META_HEADER_PRINT);
 }
 
 /**
@@ -854,6 +875,7 @@ gfs_meta_header_print(struct gfs_meta_header *mh)
 void
 gfs_sb_in(struct gfs_sb *sb, char *buf)
 {
+	ENTER(GFN_SB_IN)
 	struct gfs_sb *str = (struct gfs_sb *)buf;
 
 	gfs_meta_header_in(&sb->sb_header, buf);
@@ -877,6 +899,8 @@ gfs_sb_in(struct gfs_sb *sb, char *buf)
 	gfs_inum_in(&sb->sb_license_di, (char *)&str->sb_license_di);
 
 	CPIN_08(sb, str, sb_reserved, 96);
+
+	RET(GFN_SB_IN);
 }
 
 /**
@@ -889,6 +913,7 @@ gfs_sb_in(struct gfs_sb *sb, char *buf)
 void
 gfs_sb_out(struct gfs_sb *sb, char *buf)
 {
+	ENTER(GFN_SB_OUT)
 	struct gfs_sb *str = (struct gfs_sb *)buf;
 
 	gfs_meta_header_out(&sb->sb_header, buf);
@@ -912,6 +937,8 @@ gfs_sb_out(struct gfs_sb *sb, char *buf)
 	gfs_inum_out(&sb->sb_license_di, (char *)&str->sb_license_di);
 
 	CPOUT_08(sb, str, sb_reserved, 96);
+
+	RET(GFN_SB_OUT);
 }
 
 /**
@@ -923,6 +950,8 @@ gfs_sb_out(struct gfs_sb *sb, char *buf)
 void
 gfs_sb_print(struct gfs_sb *sb)
 {
+	ENTER(GFN_SB_PRINT)
+
 	gfs_meta_header_print(&sb->sb_header);
 
 	pv(sb, sb_fs_format, "%u");
@@ -944,6 +973,8 @@ gfs_sb_print(struct gfs_sb *sb)
 	gfs_inum_print(&sb->sb_license_di);
 
 	pa(sb, sb_reserved, 96);
+
+	RET(GFN_SB_PRINT);
 }
 
 /**
@@ -956,6 +987,7 @@ gfs_sb_print(struct gfs_sb *sb)
 void
 gfs_jindex_in(struct gfs_jindex *jindex, char *buf)
 {
+	ENTER(GFN_JINDEX_IN)
 	struct gfs_jindex *str = (struct gfs_jindex *)buf;
 
 	CPIN_64(jindex, str, ji_addr);
@@ -963,6 +995,8 @@ gfs_jindex_in(struct gfs_jindex *jindex, char *buf)
 	CPIN_32(jindex, str, ji_pad);
 
 	CPIN_08(jindex, str, ji_reserved, 64);
+
+	RET(GFN_JINDEX_IN);
 }
 
 /**
@@ -975,6 +1009,7 @@ gfs_jindex_in(struct gfs_jindex *jindex, char *buf)
 void
 gfs_jindex_out(struct gfs_jindex *jindex, char *buf)
 {
+	ENTER(GFN_JINDEX_OUT)
 	struct gfs_jindex *str = (struct gfs_jindex *)buf;
 
 	CPOUT_64(jindex, str, ji_addr);
@@ -982,6 +1017,8 @@ gfs_jindex_out(struct gfs_jindex *jindex, char *buf)
 	CPOUT_32(jindex, str, ji_pad);
 
 	CPOUT_08(jindex, str, ji_reserved, 64);
+
+	RET(GFN_JINDEX_OUT);
 }
 
 /**
@@ -993,11 +1030,15 @@ gfs_jindex_out(struct gfs_jindex *jindex, char *buf)
 void
 gfs_jindex_print(struct gfs_jindex *ji)
 {
+	ENTER(GFN_JINDEX_PRINT)
+
 	pv(ji, ji_addr, "%"PRIu64);
 	pv(ji, ji_nsegment, "%u");
 	pv(ji, ji_pad, "%u");
 
 	pa(ji, ji_reserved, 64);
+
+	RET(GFN_JINDEX_PRINT);
 }
 
 /**
@@ -1010,6 +1051,7 @@ gfs_jindex_print(struct gfs_jindex *ji)
 void
 gfs_rindex_in(struct gfs_rindex *rindex, char *buf)
 {
+	ENTER(GFN_RINDEX_IN)
 	struct gfs_rindex *str = (struct gfs_rindex *)buf;
 
 	CPIN_64(rindex, str, ri_addr);
@@ -1022,6 +1064,8 @@ gfs_rindex_in(struct gfs_rindex *rindex, char *buf)
 	CPIN_32(rindex, str, ri_bitbytes);
 
 	CPIN_08(rindex, str, ri_reserved, 64);
+
+	RET(GFN_RINDEX_IN);
 }
 
 /**
@@ -1034,6 +1078,7 @@ gfs_rindex_in(struct gfs_rindex *rindex, char *buf)
 void
 gfs_rindex_out(struct gfs_rindex *rindex, char *buf)
 {
+	ENTER(GFN_RINDEX_OUT)
 	struct gfs_rindex *str = (struct gfs_rindex *)buf;
 
 	CPOUT_64(rindex, str, ri_addr);
@@ -1046,6 +1091,8 @@ gfs_rindex_out(struct gfs_rindex *rindex, char *buf)
 	CPOUT_32(rindex, str, ri_bitbytes);
 
 	CPOUT_08(rindex, str, ri_reserved, 64);
+
+	RET(GFN_RINDEX_OUT);
 }
 
 /**
@@ -1057,6 +1104,8 @@ gfs_rindex_out(struct gfs_rindex *rindex, char *buf)
 void
 gfs_rindex_print(struct gfs_rindex *ri)
 {
+	ENTER(GFN_RINDEX_PRINT)
+
 	pv(ri, ri_addr, "%"PRIu64);
 	pv(ri, ri_length, "%u");
 	pv(ri, ri_pad, "%u");
@@ -1067,6 +1116,8 @@ gfs_rindex_print(struct gfs_rindex *ri)
 	pv(ri, ri_bitbytes, "%u");
 
 	pa(ri, ri_reserved, 64);
+
+	RET(GFN_RINDEX_PRINT);
 }
 
 /**
@@ -1079,6 +1130,7 @@ gfs_rindex_print(struct gfs_rindex *ri)
 void
 gfs_rgrp_in(struct gfs_rgrp *rgrp, char *buf)
 {
+	ENTER(GFN_RGRP_IN)
 	struct gfs_rgrp *str = (struct gfs_rgrp *)buf;
 
 	gfs_meta_header_in(&rgrp->rg_header, buf);
@@ -1095,6 +1147,8 @@ gfs_rgrp_in(struct gfs_rgrp *rgrp, char *buf)
 	CPIN_32(rgrp, str, rg_freemeta);
 
 	CPIN_08(rgrp, str, rg_reserved, 64);
+
+	RET(GFN_RGRP_IN);
 }
 
 /**
@@ -1107,6 +1161,7 @@ gfs_rgrp_in(struct gfs_rgrp *rgrp, char *buf)
 void
 gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
 {
+	ENTER(GFN_RGRP_OUT)
 	struct gfs_rgrp *str = (struct gfs_rgrp *)buf;
 
 	gfs_meta_header_out(&rgrp->rg_header, buf);
@@ -1123,6 +1178,8 @@ gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
 	CPOUT_32(rgrp, str, rg_freemeta);
 
 	CPOUT_08(rgrp, str, rg_reserved, 64);
+
+	RET(GFN_RGRP_OUT);
 }
 
 /**
@@ -1134,6 +1191,8 @@ gfs_rgrp_out(struct gfs_rgrp *rgrp, char *buf)
 void
 gfs_rgrp_print(struct gfs_rgrp *rg)
 {
+	ENTER(GFN_RGRP_PRINT)
+
 	gfs_meta_header_print(&rg->rg_header);
 
 	pv(rg, rg_flags, "%u");
@@ -1148,6 +1207,8 @@ gfs_rgrp_print(struct gfs_rgrp *rg)
 	pv(rg, rg_freemeta, "%u");
 
 	pa(rg, rg_reserved, 64);
+
+	RET(GFN_RGRP_PRINT);
 }
 
 /**
@@ -1160,6 +1221,7 @@ gfs_rgrp_print(struct gfs_rgrp *rg)
 void
 gfs_quota_in(struct gfs_quota *quota, char *buf)
 {
+	ENTER(GFN_QUOTA_IN)
 	struct gfs_quota *str = (struct gfs_quota *)buf;
 
 	CPIN_64(quota, str, qu_limit);
@@ -1167,6 +1229,8 @@ gfs_quota_in(struct gfs_quota *quota, char *buf)
 	CPIN_64(quota, str, qu_value);
 
 	CPIN_08(quota, str, qu_reserved, 64);
+
+	RET(GFN_QUOTA_IN);
 }
 
 /**
@@ -1179,6 +1243,7 @@ gfs_quota_in(struct gfs_quota *quota, char *buf)
 void
 gfs_quota_out(struct gfs_quota *quota, char *buf)
 {
+	ENTER(GFN_QUOTA_OUT)
 	struct gfs_quota *str = (struct gfs_quota *)buf;
 
 	CPOUT_64(quota, str, qu_limit);
@@ -1186,6 +1251,8 @@ gfs_quota_out(struct gfs_quota *quota, char *buf)
 	CPOUT_64(quota, str, qu_value);
 
 	CPOUT_08(quota, str, qu_reserved, 64);
+
+	RET(GFN_QUOTA_OUT);
 }
 
 /**
@@ -1197,11 +1264,15 @@ gfs_quota_out(struct gfs_quota *quota, char *buf)
 void
 gfs_quota_print(struct gfs_quota *quota)
 {
+	ENTER(GFN_QUOTA_PRINT)
+
 	pv(quota, qu_limit, "%"PRIu64);
 	pv(quota, qu_warn, "%"PRIu64);
 	pv(quota, qu_value, "%"PRId64);
 
 	pa(quota, qu_reserved, 64);
+
+	RET(GFN_QUOTA_PRINT);
 }
 
 /**
@@ -1214,6 +1285,7 @@ gfs_quota_print(struct gfs_quota *quota)
 void
 gfs_dinode_in(struct gfs_dinode *dinode, char *buf)
 {
+	ENTER(GFN_DINODE_IN)
 	struct gfs_dinode *str = (struct gfs_dinode *)buf;
 
 	gfs_meta_header_in(&dinode->di_header, buf);
@@ -1251,6 +1323,8 @@ gfs_dinode_in(struct gfs_dinode *dinode, char *buf)
 	CPIN_64(dinode, str, di_eattr);
 
 	CPIN_08(dinode, str, di_reserved, 56);
+
+	RET(GFN_DINODE_IN);
 }
 
 /**
@@ -1263,6 +1337,7 @@ gfs_dinode_in(struct gfs_dinode *dinode, char *buf)
 void
 gfs_dinode_out(struct gfs_dinode *dinode, char *buf)
 {
+	ENTER(GFN_DINODE_OUT)
 	struct gfs_dinode *str = (struct gfs_dinode *)buf;
 
 	gfs_meta_header_out(&dinode->di_header, buf);
@@ -1300,6 +1375,8 @@ gfs_dinode_out(struct gfs_dinode *dinode, char *buf)
 	CPOUT_64(dinode, str, di_eattr);
 
 	CPOUT_08(dinode, str, di_reserved, 56);
+
+	RET(GFN_DINODE_OUT);
 }
 
 /**
@@ -1311,6 +1388,8 @@ gfs_dinode_out(struct gfs_dinode *dinode, char *buf)
 void
 gfs_dinode_print(struct gfs_dinode *di)
 {
+	ENTER(GFN_DINODE_PRINT)
+
 	gfs_meta_header_print(&di->di_header);
 
 	gfs_inum_print(&di->di_num);
@@ -1346,6 +1425,8 @@ gfs_dinode_print(struct gfs_dinode *di)
 	pv(di, di_eattr, "%"PRIu64);
 
 	pa(di, di_reserved, 56);
+
+	RET(GFN_DINODE_PRINT);
 }
 
 /**
@@ -1358,11 +1439,14 @@ gfs_dinode_print(struct gfs_dinode *di)
 void
 gfs_indirect_in(struct gfs_indirect *indirect, char *buf)
 {
+	ENTER(GFN_INDIRECT_IN)
 	struct gfs_indirect *str = (struct gfs_indirect *)buf;
 
 	gfs_meta_header_in(&indirect->in_header, buf);
 
 	CPIN_08(indirect, str, in_reserved, 64);
+
+	RET(GFN_INDIRECT_IN);
 }
 
 /**
@@ -1375,11 +1459,14 @@ gfs_indirect_in(struct gfs_indirect *indirect, char *buf)
 void
 gfs_indirect_out(struct gfs_indirect *indirect, char *buf)
 {
+	ENTER(GFN_INDIRECT_OUT)
 	struct gfs_indirect *str = (struct gfs_indirect *)buf;
 
 	gfs_meta_header_out(&indirect->in_header, buf);
 
 	CPOUT_08(indirect, str, in_reserved, 64);
+
+	RET(GFN_INDIRECT_OUT);
 }
 
 /**
@@ -1391,9 +1478,13 @@ gfs_indirect_out(struct gfs_indirect *indirect, char *buf)
 void
 gfs_indirect_print(struct gfs_indirect *indirect)
 {
+	ENTER(GFN_INDIRECT_PRINT)
+
 	gfs_meta_header_print(&indirect->in_header);
 
 	pa(indirect, in_reserved, 64);
+
+	RET(GFN_INDIRECT_PRINT);
 }
 
 /**
@@ -1406,6 +1497,7 @@ gfs_indirect_print(struct gfs_indirect *indirect)
 void
 gfs_dirent_in(struct gfs_dirent *dirent, char *buf)
 {
+	ENTER(GFN_DIRENT_IN)
 	struct gfs_dirent *str = (struct gfs_dirent *)buf;
 
 	gfs_inum_in(&dirent->de_inum, (char *)&str->de_inum);
@@ -1415,6 +1507,8 @@ gfs_dirent_in(struct gfs_dirent *dirent, char *buf)
 	CPIN_16(dirent, str, de_type);
 
 	CPIN_08(dirent, str, de_reserved, 14);
+
+	RET(GFN_DIRENT_IN);
 }
 
 /**
@@ -1427,6 +1521,7 @@ gfs_dirent_in(struct gfs_dirent *dirent, char *buf)
 void
 gfs_dirent_out(struct gfs_dirent *dirent, char *buf)
 {
+	ENTER(GFN_DIRENT_OUT)
 	struct gfs_dirent *str = (struct gfs_dirent *)buf;
 
 	gfs_inum_out(&dirent->de_inum, (char *)&str->de_inum);
@@ -1436,6 +1531,8 @@ gfs_dirent_out(struct gfs_dirent *dirent, char *buf)
 	CPOUT_16(dirent, str, de_type);
 
 	CPOUT_08(dirent, str, de_reserved, 14);
+
+	RET(GFN_DIRENT_OUT);
 }
 
 /**
@@ -1448,6 +1545,7 @@ gfs_dirent_out(struct gfs_dirent *dirent, char *buf)
 void
 gfs_dirent_print(struct gfs_dirent *de, char *name)
 {
+	ENTER(GFN_DIRENT_PRINT)
 	char buf[GFS_FNAMESIZE + 1];
 
 	gfs_inum_print(&de->de_inum);
@@ -1461,6 +1559,8 @@ gfs_dirent_print(struct gfs_dirent *de, char *name)
 	memset(buf, 0, GFS_FNAMESIZE + 1);
 	memcpy(buf, name, de->de_name_len);
 	printk("  name = %s\n", buf);
+
+	RET(GFN_DIRENT_PRINT);
 }
 
 /**
@@ -1473,6 +1573,7 @@ gfs_dirent_print(struct gfs_dirent *de, char *name)
 void
 gfs_leaf_in(struct gfs_leaf *leaf, char *buf)
 {
+	ENTER(GFN_LEAF_IN)
 	struct gfs_leaf *str = (struct gfs_leaf *)buf;
 
 	gfs_meta_header_in(&leaf->lf_header, buf);
@@ -1483,6 +1584,8 @@ gfs_leaf_in(struct gfs_leaf *leaf, char *buf)
 	CPIN_64(leaf, str, lf_next);
 
 	CPIN_08(leaf, str, lf_reserved, 64);
+
+	RET(GFN_LEAF_IN);
 }
 
 /**
@@ -1495,6 +1598,7 @@ gfs_leaf_in(struct gfs_leaf *leaf, char *buf)
 void
 gfs_leaf_out(struct gfs_leaf *leaf, char *buf)
 {
+	ENTER(GFN_LEAF_OUT)
 	struct gfs_leaf *str = (struct gfs_leaf *)buf;
 
 	gfs_meta_header_out(&leaf->lf_header, buf);
@@ -1505,6 +1609,8 @@ gfs_leaf_out(struct gfs_leaf *leaf, char *buf)
 	CPOUT_64(leaf, str, lf_next);
 
 	CPOUT_08(leaf, str, lf_reserved, 64);
+
+	RET(GFN_LEAF_OUT);
 }
 
 /**
@@ -1516,6 +1622,8 @@ gfs_leaf_out(struct gfs_leaf *leaf, char *buf)
 void
 gfs_leaf_print(struct gfs_leaf *lf)
 {
+	ENTER(GFN_LEAF_PRINT)
+
 	gfs_meta_header_print(&lf->lf_header);
 
 	pv(lf, lf_depth, "%u");
@@ -1524,6 +1632,8 @@ gfs_leaf_print(struct gfs_leaf *lf)
 	pv(lf, lf_next, "%"PRIu64);
 
 	pa(lf, lf_reserved, 64);
+
+	RET(GFN_LEAF_PRINT);
 }
 
 /**
@@ -1536,6 +1646,7 @@ gfs_leaf_print(struct gfs_leaf *lf)
 void
 gfs_log_header_in(struct gfs_log_header *head, char *buf)
 {
+	ENTER(GFN_LOG_HEADER_IN)
 	struct gfs_log_header *str = (struct gfs_log_header *)buf;
 
 	gfs_meta_header_in(&head->lh_header, buf);
@@ -1550,6 +1661,8 @@ gfs_log_header_in(struct gfs_log_header *head, char *buf)
 	CPIN_64(head, str, lh_last_dump);
 
 	CPIN_08(head, str, lh_reserved, 64);
+
+	RET(GFN_LOG_HEADER_IN);
 }
 
 /**
@@ -1562,6 +1675,7 @@ gfs_log_header_in(struct gfs_log_header *head, char *buf)
 void
 gfs_log_header_out(struct gfs_log_header *head, char *buf)
 {
+	ENTER(GFN_LOG_HEADER_OUT)
 	struct gfs_log_header *str = (struct gfs_log_header *)buf;
 
 	gfs_meta_header_out(&head->lh_header, buf);
@@ -1576,6 +1690,8 @@ gfs_log_header_out(struct gfs_log_header *head, char *buf)
 	CPOUT_64(head, str, lh_last_dump);
 
 	CPOUT_08(head, str, lh_reserved, 64);
+
+	RET(GFN_LOG_HEADER_OUT);
 }
 
 /**
@@ -1587,6 +1703,8 @@ gfs_log_header_out(struct gfs_log_header *head, char *buf)
 void
 gfs_log_header_print(struct gfs_log_header *lh)
 {
+	ENTER(GFN_LOG_HEADER_PRINT)
+
 	gfs_meta_header_print(&lh->lh_header);
 
 	pv(lh, lh_flags, "0x%.8X");
@@ -1599,6 +1717,8 @@ gfs_log_header_print(struct gfs_log_header *lh)
 	pv(lh, lh_last_dump, "%"PRIu64);
 
 	pa(lh, lh_reserved, 64);
+
+	RET(GFN_LOG_HEADER_PRINT);
 }
 
 /**
@@ -1611,6 +1731,7 @@ gfs_log_header_print(struct gfs_log_header *lh)
 void
 gfs_desc_in(struct gfs_log_descriptor *desc, char *buf)
 {
+	ENTER(GFN_DESC_IN)
 	struct gfs_log_descriptor *str = (struct gfs_log_descriptor *)buf;
 
 	gfs_meta_header_in(&desc->ld_header, buf);
@@ -1621,6 +1742,8 @@ gfs_desc_in(struct gfs_log_descriptor *desc, char *buf)
 	CPIN_32(desc, str, ld_data2);
 
 	CPIN_08(desc, str, ld_reserved, 64);
+
+	RET(GFN_DESC_IN);
 }
 
 /**
@@ -1633,6 +1756,7 @@ gfs_desc_in(struct gfs_log_descriptor *desc, char *buf)
 void
 gfs_desc_out(struct gfs_log_descriptor *desc, char *buf)
 {
+	ENTER(GFN_DESC_OUT)
 	struct gfs_log_descriptor *str = (struct gfs_log_descriptor *)buf;
 
 	gfs_meta_header_out(&desc->ld_header, buf);
@@ -1643,6 +1767,8 @@ gfs_desc_out(struct gfs_log_descriptor *desc, char *buf)
 	CPOUT_32(desc, str, ld_data2);
 
 	CPOUT_08(desc, str, ld_reserved, 64);
+
+	RET(GFN_DESC_OUT);
 }
 
 /**
@@ -1654,6 +1780,8 @@ gfs_desc_out(struct gfs_log_descriptor *desc, char *buf)
 void
 gfs_desc_print(struct gfs_log_descriptor *ld)
 {
+	ENTER(GFN_DESC_PRINT)
+
 	gfs_meta_header_print(&ld->ld_header);
 
 	pv(ld, ld_type, "%u");
@@ -1662,6 +1790,8 @@ gfs_desc_print(struct gfs_log_descriptor *ld)
 	pv(ld, ld_data2, "%u");
 
 	pa(ld, ld_reserved, 64);
+
+	RET(GFN_DESC_PRINT);
 }
 
 /**
@@ -1674,11 +1804,14 @@ gfs_desc_print(struct gfs_log_descriptor *ld)
 void
 gfs_block_tag_in(struct gfs_block_tag *tag, char *buf)
 {
+	ENTER(GFN_BLOCK_TAG_IN)
 	struct gfs_block_tag *str = (struct gfs_block_tag *)buf;
 
 	CPIN_64(tag, str, bt_blkno);
 	CPIN_32(tag, str, bt_flags);
 	CPIN_32(tag, str, bt_pad);
+
+	RET(GFN_BLOCK_TAG_IN);
 }
 
 /**
@@ -1691,11 +1824,14 @@ gfs_block_tag_in(struct gfs_block_tag *tag, char *buf)
 void
 gfs_block_tag_out(struct gfs_block_tag *tag, char *buf)
 {
+	ENTER(GFN_BLOCK_TAG_OUT)
 	struct gfs_block_tag *str = (struct gfs_block_tag *)buf;
 
 	CPOUT_64(tag, str, bt_blkno);
 	CPOUT_32(tag, str, bt_flags);
 	CPOUT_32(tag, str, bt_pad);
+
+	RET(GFN_BLOCK_TAG_OUT);
 }
 
 /**
@@ -1707,9 +1843,13 @@ gfs_block_tag_out(struct gfs_block_tag *tag, char *buf)
 void
 gfs_block_tag_print(struct gfs_block_tag *tag)
 {
+	ENTER(GFN_BLOCK_TAG_PRINT)
+
 	pv(tag, bt_blkno, "%"PRIu64);
 	pv(tag, bt_flags, "%u");
 	pv(tag, bt_pad, "%u");
+
+	RET(GFN_BLOCK_TAG_PRINT);
 }
 
 /**
@@ -1722,11 +1862,14 @@ gfs_block_tag_print(struct gfs_block_tag *tag)
 void
 gfs_quota_tag_in(struct gfs_quota_tag *tag, char *buf)
 {
+	ENTER(GFN_QUOTA_TAG_IN)
 	struct gfs_quota_tag *str = (struct gfs_quota_tag *)buf;
 
 	CPIN_64(tag, str, qt_change);
 	CPIN_32(tag, str, qt_flags);
 	CPIN_32(tag, str, qt_id);
+
+	RET(GFN_QUOTA_TAG_IN);
 }
 
 /**
@@ -1739,11 +1882,14 @@ gfs_quota_tag_in(struct gfs_quota_tag *tag, char *buf)
 void
 gfs_quota_tag_out(struct gfs_quota_tag *tag, char *buf)
 {
+	ENTER(GFN_QUOTA_TAG_OUT)
 	struct gfs_quota_tag *str = (struct gfs_quota_tag *)buf;
 
 	CPOUT_64(tag, str, qt_change);
 	CPOUT_32(tag, str, qt_flags);
 	CPOUT_32(tag, str, qt_id);
+
+	RET(GFN_QUOTA_TAG_OUT);
 }
 
 /**
@@ -1755,9 +1901,13 @@ gfs_quota_tag_out(struct gfs_quota_tag *tag, char *buf)
 void
 gfs_quota_tag_print(struct gfs_quota_tag *tag)
 {
+	ENTER(GFN_QUOTA_TAG_PRINT)
+
 	pv(tag, qt_change, "%"PRId64);
 	pv(tag, qt_flags, "0x%.8X");
 	pv(tag, qt_id, "%u");
+
+	RET(GFN_QUOTA_TAG_PRINT);
 }
 
 /**
@@ -1770,6 +1920,7 @@ gfs_quota_tag_print(struct gfs_quota_tag *tag)
 void
 gfs_ea_header_in(struct gfs_ea_header *ea, char *buf)
 {
+	ENTER(GFN_EA_HEADER_IN)
 	struct gfs_ea_header *str = (struct gfs_ea_header *)buf;
 
 	CPIN_32(ea, str, ea_rec_len);
@@ -1779,6 +1930,8 @@ gfs_ea_header_in(struct gfs_ea_header *ea, char *buf)
 	ea->ea_flags = str->ea_flags;
 	ea->ea_num_ptrs = str->ea_num_ptrs;
 	CPIN_32(ea, str, ea_pad);
+
+	RET(GFN_EA_HEADER_IN);
 }
 
 /**
@@ -1791,6 +1944,7 @@ gfs_ea_header_in(struct gfs_ea_header *ea, char *buf)
 void
 gfs_ea_header_out(struct gfs_ea_header *ea, char *buf)
 {
+	ENTER(GFN_EA_HEADER_OUT)
 	struct gfs_ea_header *str = (struct gfs_ea_header *)buf;
 
 	CPOUT_32(ea, str, ea_rec_len);
@@ -1800,6 +1954,8 @@ gfs_ea_header_out(struct gfs_ea_header *ea, char *buf)
 	str->ea_flags = ea->ea_flags;
 	str->ea_num_ptrs = ea->ea_num_ptrs;
 	CPOUT_32(ea, str, ea_pad);
+
+	RET(GFN_EA_HEADER_OUT);
 }
 
 /**
@@ -1811,6 +1967,7 @@ gfs_ea_header_out(struct gfs_ea_header *ea, char *buf)
 void
 gfs_ea_header_print(struct gfs_ea_header *ea, char *name)
 {
+	ENTER(GFN_EA_HEADER_PRINT)
 	char buf[GFS_EA_MAX_NAME_LEN + 1];
 
 	pv(ea, ea_rec_len, "%u");
@@ -1824,6 +1981,8 @@ gfs_ea_header_print(struct gfs_ea_header *ea, char *name)
 	memset(buf, 0, GFS_EA_MAX_NAME_LEN + 1);
 	memcpy(buf, name, ea->ea_name_len);
 	printk("  name = %s\n", buf);
+
+	RET(GFN_EA_HEADER_PRINT);
 }
 
 static const uint32_t crc_32_tab[] =
@@ -1882,6 +2041,7 @@ static const uint32_t crc_32_tab[] =
 uint32_t
 gfs_dir_hash(const char *data, int len)
 {
+	ENTER(GFN_DIR_HASH)
 	uint32_t hash = 0xFFFFFFFF;
 
 	for (; len--; data++)
@@ -1889,7 +2049,7 @@ gfs_dir_hash(const char *data, int len)
 
 	hash = ~hash;
 
-	return hash;
+	RETURN(GFN_DIR_HASH, hash);
 }
 
 #endif  /* WANT_GFS_CONVERSION_FUNCTIONS */

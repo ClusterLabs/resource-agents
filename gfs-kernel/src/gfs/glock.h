@@ -11,8 +11,8 @@
 *******************************************************************************
 ******************************************************************************/
 
-#ifndef __GFS_GLOCK_DOT_H__
-#define __GFS_GLOCK_DOT_H__
+#ifndef __GLOCK_DOT_H__
+#define __GLOCK_DOT_H__
 
 /* Flags for lock requests; used in gfs_holder gh_flag field. */
 /*	These are defined in lm_interface.h, commented out here.
@@ -147,4 +147,4 @@ void gfs_gl_hash_clear(struct gfs_sbd *sdp, int wait);
 
 int gfs_dump_lockstate(struct gfs_sbd *sdp, struct gfs_user_buffer *ub);
 
-#endif /* __GFS_GLOCK_DOT_H__ */
+#endif /* __GLOCK_DOT_H__ */

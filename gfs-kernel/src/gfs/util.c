@@ -45,8 +45,9 @@ kmem_cache_t *gfs_mhc_cachep = NULL;
 uint32_t
 gfs_random(void)
 {
+	ENTER(GFN_RANDOM)
 	gfs_random_number = 0x0019660D * gfs_random_number + 0x3C6EF35F;
-	return gfs_random_number;
+	RETURN(GFN_RANDOM, gfs_random_number);
 }
 
 /**
@@ -68,6 +69,7 @@ gfs_random(void)
 static __inline__ uint32_t
 hash_more_internal(const void *data, unsigned int len, uint32_t hash)
 {
+	ENTER(GFN_HASH_MORE_INTERNAL)
 	unsigned char *p = (unsigned char *)data;
 	unsigned char *e = p + len;
 	uint32_t h = hash;
@@ -77,7 +79,7 @@ hash_more_internal(const void *data, unsigned int len, uint32_t hash)
 		h *= 0x01000193;
 	}
 
-	return h;
+	RETURN(GFN_HASH_MORE_INTERNAL, h);
 }
 
 /**
@@ -96,9 +98,10 @@ hash_more_internal(const void *data, unsigned int len, uint32_t hash)
 uint32_t
 gfs_hash(const void *data, unsigned int len)
 {
+	ENTER(GFN_HASH)
 	uint32_t h = 0x811C9DC5;
 	h = hash_more_internal(data, len, h);
-	return h;
+	RETURN(GFN_HASH, h);
 }
 
 /**
@@ -126,9 +129,9 @@ gfs_hash(const void *data, unsigned int len)
 uint32_t
 gfs_hash_more(const void *data, unsigned int len, uint32_t hash)
 {
-	uint32_t h;
-	h = hash_more_internal(data, len, hash);
-	return h;
+	ENTER(GFN_HASH_MORE)
+	RETURN(GFN_HASH_MORE,
+	       hash_more_internal(data, len, hash));
 }
 
 /* Byte-wise swap two items of size SIZE. */
@@ -160,6 +163,7 @@ void
 gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 	 int (*compar) (const void *, const void *))
 {
+	ENTER(GFN_SORT)
 	register char *pbase = (char *)base;
 	int i, j, k, h;
 	static int cols[16] = {1391376, 463792, 198768, 86961,
@@ -181,6 +185,8 @@ gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 			}
 		}
 	}
+
+	RET(GFN_SORT);
 }
 
 /**
@@ -239,6 +245,7 @@ gfs_assert_withdraw_i(struct gfs_sbd *sdp,
 		      const char *function,
 		      char *file, unsigned int line)
 {
+	ENTER(GFN_ASSERT_WITHDRAW_I)
 	int me;
 	me = gfs_lm_withdraw(sdp,
 			     "GFS: fsid=%s: fatal: assertion \"%s\" failed\n"
@@ -249,7 +256,7 @@ gfs_assert_withdraw_i(struct gfs_sbd *sdp,
 			     sdp->sd_fsname, function,
 			     sdp->sd_fsname, file, line,
 			     sdp->sd_fsname, get_seconds());
-	return (me) ? -1 : -2;
+	RETURN(GFN_ASSERT_WITHDRAW_I, (me) ? -1 : -2);
 }
 
 /**
@@ -270,10 +277,12 @@ gfs_assert_warn_i(struct gfs_sbd *sdp,
 		  const char *function,
 		  char *file, unsigned int line)
 {
+	ENTER(GFN_ASSERT_WARN_I)
+
 	if (time_before(jiffies,
 			sdp->sd_last_warning +
 			gfs_tune_get(sdp, gt_complain_secs) * HZ))
-		return -2;
+		RETURN(GFN_ASSERT_WARN_I, -2);
 
 	printk("GFS: fsid=%s: warning: assertion \"%s\" failed\n"
 	       "GFS: fsid=%s:   function = %s\n"
@@ -286,7 +295,7 @@ gfs_assert_warn_i(struct gfs_sbd *sdp,
 
 	sdp->sd_last_warning = jiffies;
 
-	return -1;
+	RETURN(GFN_ASSERT_WARN_I, -1);
 }
 
 /**
@@ -306,7 +315,9 @@ gfs_consist_i(struct gfs_sbd *sdp, int cluster_wide,
 	      const char *function,
 	      char *file, unsigned int line)
 {
-	return gfs_lm_withdraw(sdp,
+	ENTER(GFN_CONSIST_I)
+	RETURN(GFN_CONSIST_I,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
 			       "GFS: fsid=%s:   function = %s\n"
 			       "GFS: fsid=%s:   file = %s, line = %u\n"
@@ -314,7 +325,7 @@ gfs_consist_i(struct gfs_sbd *sdp, int cluster_wide,
 			       sdp->sd_fsname,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -334,8 +345,10 @@ gfs_consist_inode_i(struct gfs_inode *ip, int cluster_wide,
 		    const char *function,
 		    char *file, unsigned int line)
 {
+	ENTER(GFN_CONSIST_INODE_I)
 	struct gfs_sbd *sdp = ip->i_sbd;
-        return gfs_lm_withdraw(sdp,
+        RETURN(GFN_CONSIST_INODE_I,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
 			       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
 			       "GFS: fsid=%s:   function = %s\n"
@@ -345,7 +358,7 @@ gfs_consist_inode_i(struct gfs_inode *ip, int cluster_wide,
 			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -365,8 +378,10 @@ gfs_consist_rgrpd_i(struct gfs_rgrpd *rgd, int cluster_wide,
 		    const char *function,
 		    char *file, unsigned int line)
 {
+	ENTER(GFN_CONSIST_RGRPD_I)
         struct gfs_sbd *sdp = rgd->rd_sbd;
-        return gfs_lm_withdraw(sdp,
+        RETURN(GFN_CONSIST_RGRPD_I,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: filesystem consistency error\n"
 			       "GFS: fsid=%s:   RG = %"PRIu64"\n"
 			       "GFS: fsid=%s:   function = %s\n"
@@ -376,7 +391,7 @@ gfs_consist_rgrpd_i(struct gfs_rgrpd *rgd, int cluster_wide,
 			       sdp->sd_fsname, rgd->rd_ri.ri_addr,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -396,6 +411,7 @@ gfs_meta_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
                   const char *function,
                   char *file, unsigned int line)
 {
+	ENTER(GFN_META_CHECK_II)
 	int me;
         me = gfs_lm_withdraw(sdp,
 			     "GFS: fsid=%s: fatal: invalid metadata block\n"
@@ -408,7 +424,7 @@ gfs_meta_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
 			     sdp->sd_fsname, function,
 			     sdp->sd_fsname, file, line,
 			     sdp->sd_fsname, get_seconds());
-	return (me) ? -1 : -2;
+	RETURN(GFN_META_CHECK_II, (me) ? -1 : -2);
 }
 
 /**
@@ -431,6 +447,7 @@ gfs_metatype_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
 		      const char *function,
 		      char *file, unsigned int line)
 {
+	ENTER(GFN_METATYPE_CHECK_II)
 	int me;
         me = gfs_lm_withdraw(sdp,
 			     "GFS: fsid=%s: fatal: invalid metadata block\n"
@@ -443,7 +460,7 @@ gfs_metatype_check_ii(struct gfs_sbd *sdp, struct buffer_head *bh,
 			     sdp->sd_fsname, function,
 			     sdp->sd_fsname, file, line,
 			     sdp->sd_fsname, get_seconds());
-	return (me) ? -1 : -2;
+	RETURN(GFN_METATYPE_CHECK_II, (me) ? -1 : -2);
 }
 
 /**
@@ -462,7 +479,9 @@ gfs_io_error_i(struct gfs_sbd *sdp,
 	       const char *function,
 	       char *file, unsigned int line)
 {
-        return gfs_lm_withdraw(sdp,
+	ENTER(GFN_IO_ERROR_i)
+        RETURN(GFN_IO_ERROR_i,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: I/O error\n"
 			       "GFS: fsid=%s:   function = %s\n"
 			       "GFS: fsid=%s:   file = %s, line = %u\n"
@@ -470,7 +489,7 @@ gfs_io_error_i(struct gfs_sbd *sdp,
 			       sdp->sd_fsname,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -489,8 +508,10 @@ gfs_io_error_inode_i(struct gfs_inode *ip,
 		     const char *function,
 		     char *file, unsigned int line)
 {
+	ENTER(GFN_IO_ERROR_INODE_I)
 	struct gfs_sbd *sdp = ip->i_sbd;
-        return gfs_lm_withdraw(sdp,
+        RETURN(GFN_IO_ERROR_INODE_I,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: I/O error\n"
 			       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
 			       "GFS: fsid=%s:   function = %s\n"
@@ -500,7 +521,7 @@ gfs_io_error_inode_i(struct gfs_inode *ip,
 			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -520,7 +541,9 @@ gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
 		  const char *function,
 		  char *file, unsigned int line)
 {
-        return gfs_lm_withdraw(sdp,
+	ENTER(GFN_IO_ERROR_BH_I)
+        RETURN(GFN_IO_ERROR_BH_I,
+	       gfs_lm_withdraw(sdp,
 			       "GFS: fsid=%s: fatal: I/O error\n"
 			       "GFS: fsid=%s:   block = %"PRIu64"\n"
 			       "GFS: fsid=%s:   function = %s\n"
@@ -530,7 +553,7 @@ gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
 			       sdp->sd_fsname, (uint64_t)bh->b_blocknr,
 			       sdp->sd_fsname, function,
 			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			       sdp->sd_fsname, get_seconds()));
 }
 
 /**
@@ -543,9 +566,10 @@ gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
 void *
 gmalloc(unsigned int size)
 {
+	ENTER(GFN_GMALLOC)
 	void *p;
 	RETRY_MALLOC(p = kmalloc(size, GFP_KERNEL), p);
-	return p;
+	RETURN(GFN_GMALLOC, p);
 }
 
 /**
@@ -559,24 +583,26 @@ gmalloc(unsigned int size)
 int
 gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh)
 {
+	ENTER(GFN_ADD_BH_TO_UB)
+
 	uint64_t blkno = bh->b_blocknr;
 
 	if (ub->ub_count + sizeof(uint64_t) + bh->b_size > ub->ub_size)
-		return -ENOMEM;
+		RETURN(GFN_ADD_BH_TO_UB, -ENOMEM);
 
 	if (copy_to_user(ub->ub_data + ub->ub_count,
 			  &blkno,
 			  sizeof(uint64_t)))
-		return -EFAULT;
+		RETURN(GFN_ADD_BH_TO_UB, -EFAULT);
 	ub->ub_count += sizeof(uint64_t);
 
 	if (copy_to_user(ub->ub_data + ub->ub_count,
 			  bh->b_data,
 			  bh->b_size))
-		return -EFAULT;
+		RETURN(GFN_ADD_BH_TO_UB, -EFAULT);
 	ub->ub_count += bh->b_size;
 
-	return 0;
+	RETURN(GFN_ADD_BH_TO_UB, 0);
 }
 
 /**
@@ -593,6 +619,7 @@ int
 gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
 	     char *fmt, ...)
 {
+	ENTER(GFN_PRINTF_I)
 	va_list args;
 	int left, out;
 
@@ -600,12 +627,12 @@ gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
 		va_start(args, fmt);
 		vprintk(fmt, args);
 		va_end(args);
-		return 0;
+		RETURN(GFN_PRINTF_I, 0);
 	}
 
 	left = size - *count;
 	if (left <= 0)
-		return 1;
+		RETURN(GFN_PRINTF_I, 1);
 
 	va_start(args, fmt);
 	out = vsnprintf(buf + *count, left, fmt, args);
@@ -614,8 +641,8 @@ gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
 	if (out < left)
 		*count += out;
 	else
-		return 1;
+		RETURN(GFN_PRINTF_I, 1);
 
-	return 0;
+	RETURN(GFN_PRINTF_I, 0);
 }
 

@@ -48,8 +48,9 @@ static int
 aspace_get_block(struct inode *inode, sector_t lblock,
 		 struct buffer_head *bh_result, int create)
 {
+	ENTER(GFN_ASPACE_GET_BLOCK)
 	gfs_assert_warn(vfs2sdp(inode->i_sb), FALSE);
-	return -ENOSYS;
+	RETURN(GFN_ASPACE_GET_BLOCK, -ENOSYS);
 }
 
 /**
@@ -63,7 +64,8 @@ aspace_get_block(struct inode *inode, sector_t lblock,
 static int 
 gfs_aspace_writepage(struct page *page, struct writeback_control *wbc)
 {
-	return block_write_full_page(page, aspace_get_block, wbc);
+	ENTER(GFN_ASPACE_WRITEPAGE)
+	RETURN(GFN_ASPACE_WRITEPAGE, block_write_full_page(page, aspace_get_block, wbc));
 }
 
 /**
@@ -75,6 +77,7 @@ gfs_aspace_writepage(struct page *page, struct writeback_control *wbc)
 static void
 stuck_releasepage(struct buffer_head *bh)
 {
+	ENTER(GFN_STUCK_RELEASEPAGE)
 	struct gfs_sbd *sdp = vfs2sdp(bh->b_page->mapping->host->i_sb);
 	struct gfs_bufdata *bd = bh2bd(bh);
 
@@ -131,6 +134,8 @@ stuck_releasepage(struct buffer_head *bh)
 			}
 		}
 	}
+
+	RET(GFN_STUCK_RELEASEPAGE);
 }
 
 /**
@@ -147,6 +152,7 @@ stuck_releasepage(struct buffer_head *bh)
 static int
 gfs_aspace_releasepage(struct page *page, int gfp_mask)
 {
+	ENTER(GFN_ASPACE_RELEASEPAGE)
 	struct inode *aspace = page->mapping->host;
 	struct gfs_sbd *sdp = vfs2sdp(aspace->i_sb);
 	struct buffer_head *bh, *head;
@@ -173,7 +179,7 @@ gfs_aspace_releasepage(struct page *page, int gfp_mask)
 				continue;
 			}
 
-			return 0;
+			RETURN(GFN_ASPACE_RELEASEPAGE, 0);
 		}
 
 		bd = bh2bd(bh);
@@ -194,7 +200,7 @@ gfs_aspace_releasepage(struct page *page, int gfp_mask)
 	while (bh != head);
 
  out:
-	return try_to_free_buffers(page);
+	RETURN(GFN_ASPACE_RELEASEPAGE, try_to_free_buffers(page));
 }
 
 static struct address_space_operations aspace_aops = {
@@ -218,6 +224,7 @@ static struct address_space_operations aspace_aops = {
 struct inode *
 gfs_aspace_get(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_ASPACE_GET)
 	struct inode *aspace;
 
 	aspace = new_inode(sdp->sd_vfs);
@@ -229,7 +236,7 @@ gfs_aspace_get(struct gfs_sbd *sdp)
 		insert_inode_hash(aspace);
 	}
 
-	return aspace;
+	RETURN(GFN_ASPACE_GET, aspace);
 }
 
 /**
@@ -241,8 +248,10 @@ gfs_aspace_get(struct gfs_sbd *sdp)
 void
 gfs_aspace_put(struct inode *aspace)
 {
+	ENTER(GFN_ASPACE_PUT)
 	remove_inode_hash(aspace);
 	iput(aspace);
+	RET(GFN_ASPACE_PUT);
 }
 
 /**
@@ -255,6 +264,7 @@ gfs_aspace_put(struct inode *aspace)
 void
 gfs_ail_start_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_AIL_START_TRANS)
 	struct list_head *head, *tmp, *prev;
 	struct gfs_bufdata *bd;
 	struct buffer_head *bh;
@@ -309,6 +319,8 @@ gfs_ail_start_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 		spin_unlock(&sdp->sd_ail_lock);
 	} while (retry);
+
+	RET(GFN_AIL_START_TRANS);
 }
 
 /**
@@ -321,6 +333,7 @@ gfs_ail_start_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 int
 gfs_ail_empty_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 {
+	ENTER(GFN_AIL_EMPTY_TRANS)
 	struct list_head *head, *tmp, *prev;
 	struct gfs_bufdata *bd;
 	struct buffer_head *bh;
@@ -356,7 +369,7 @@ gfs_ail_empty_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	spin_unlock(&sdp->sd_ail_lock);
 
-	return ret;
+	RETURN(GFN_AIL_EMPTY_TRANS, ret);
 }
 
 /**
@@ -369,6 +382,7 @@ gfs_ail_empty_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 static void
 ail_empty_gl(struct gfs_glock *gl)
 {
+	ENTER(GFN_AIL_EMPTY_GL)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_bufdata *bd;
 	struct buffer_head *bh;
@@ -391,6 +405,8 @@ ail_empty_gl(struct gfs_glock *gl)
 	}
 
 	spin_unlock(&sdp->sd_ail_lock);
+
+	RET(GFN_AIL_EMPTY_GL);
 }
 
 /**
@@ -402,6 +418,7 @@ ail_empty_gl(struct gfs_glock *gl)
 void
 gfs_inval_buf(struct gfs_glock *gl)
 {
+	ENTER(GFN_INVAL_BUF)
 	struct inode *aspace = gl->gl_aspace;
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
 
@@ -412,6 +429,8 @@ gfs_inval_buf(struct gfs_glock *gl)
 	atomic_dec(&aspace->i_writecount);
 
 	gfs_assert_withdraw(gl->gl_sbd, !mapping->nrpages);
+
+	RET(GFN_INVAL_BUF);
 }
 
 /**
@@ -424,6 +443,7 @@ gfs_inval_buf(struct gfs_glock *gl)
 void
 gfs_sync_buf(struct gfs_glock *gl, int flags)
 {
+	ENTER(GFN_SYNC_BUF)
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
 	int error = 0;
 
@@ -436,6 +456,8 @@ gfs_sync_buf(struct gfs_glock *gl, int flags)
 
 	if (error)
 		gfs_io_error(gl->gl_sbd);
+
+	RET(GFN_SYNC_BUF);
 }
 
 /**
@@ -451,6 +473,7 @@ gfs_sync_buf(struct gfs_glock *gl, int flags)
 static struct buffer_head *
 getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 {
+	ENTER(GFN_GETBUF)
 	struct page *page;
 	struct buffer_head *bh;
 	unsigned int shift;
@@ -466,7 +489,7 @@ getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	} else {
 		page = find_lock_page(aspace->i_mapping, index);
 		if (!page)
-			return NULL;
+			RETURN(GFN_GETBUF, NULL);
 	}
 
 	if (!page_has_buffers(page))
@@ -486,7 +509,7 @@ getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	unlock_page(page);
 	page_cache_release(page);
 
-	return bh;
+	RETURN(GFN_GETBUF, bh);
 }
 
 /**
@@ -500,7 +523,8 @@ getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 struct buffer_head *
 gfs_dgetblk(struct gfs_glock *gl, uint64_t blkno)
 {
-	return getbuf(gl->gl_sbd, gl->gl_aspace, blkno, CREATE);
+	ENTER(GFN_DGETBLK)
+	RETURN(GFN_DGETBLK, getbuf(gl->gl_sbd, gl->gl_aspace, blkno, CREATE));
 }
 
 /**
@@ -517,6 +541,7 @@ int
 gfs_dread(struct gfs_glock *gl, uint64_t blkno,
 	  int flags, struct buffer_head **bhp)
 {
+	ENTER(GFN_DREAD)
 	int error;
 
 	*bhp = gfs_dgetblk(gl, blkno);
@@ -524,7 +549,7 @@ gfs_dread(struct gfs_glock *gl, uint64_t blkno,
 	if (error)
 		brelse(*bhp);
 
-	return error;
+	RETURN(GFN_DREAD, error);
 }
 
 /**
@@ -536,9 +561,11 @@ gfs_dread(struct gfs_glock *gl, uint64_t blkno,
 void
 gfs_prep_new_buffer(struct buffer_head *bh)
 {
+	ENTER(GFN_PREP_NEW_BUFFER)
 	wait_on_buffer(bh);
 	clear_buffer_dirty(bh);
 	set_buffer_uptodate(bh);
+	RET(GFN_PREP_NEW_BUFFER);
 }
 
 /**
@@ -553,13 +580,15 @@ gfs_prep_new_buffer(struct buffer_head *bh)
 int
 gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 {
+	ENTER(GFN_DREREAD)
+
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		return -EIO;
+		RETURN(GFN_DREREAD, -EIO);
 
 	/* Fill in meta-header if we have a cached copy, else read from disk */
 	if (flags & DIO_NEW) {
 		if (gfs_mhc_fish(sdp, bh))
-			return 0;
+			RETURN(GFN_DREREAD, 0);
 		clear_buffer_uptodate(bh);
 	}
 
@@ -574,11 +603,11 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 
 		if (!buffer_uptodate(bh)) {
 			gfs_io_error_bh(sdp, bh);
-			return -EIO;
+			RETURN(GFN_DREREAD, -EIO);
 		}
 	}
 
-	return 0;
+	RETURN(GFN_DREREAD, 0);
 }
 
 /**
@@ -593,8 +622,10 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 int
 gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 {
+	ENTER(GFN_DWRITE)
+
 	if (gfs_assert_warn(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags)))
-		return -EIO;
+		RETURN(GFN_DWRITE, -EIO);
 
 	if (flags & DIO_CLEAN) {
 		lock_buffer(bh);
@@ -604,7 +635,7 @@ gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 
 	if (flags & DIO_DIRTY) {
 		if (gfs_assert_warn(sdp, buffer_uptodate(bh)))
-			return -EIO;
+			RETURN(GFN_DWRITE, -EIO);
 		mark_buffer_dirty(bh);
 	}
 
@@ -618,11 +649,11 @@ gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 
 		if (!buffer_uptodate(bh) || buffer_dirty(bh)) {
 			gfs_io_error_bh(sdp, bh);
-			return -EIO;
+			RETURN(GFN_DWRITE, -EIO);
 		}
 	}
 
-	return 0;
+	RETURN(GFN_DWRITE, 0);
 }
 
 /**
@@ -635,6 +666,7 @@ gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 void
 gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 {
+	ENTER(GFN_ATTACH_BUFDATA)
 	struct gfs_bufdata *bd;
 
 	lock_page(bh->b_page);
@@ -642,7 +674,7 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 	/* If there's one attached already, we're done */
 	if (bh2bd(bh)) {
 		unlock_page(bh->b_page);
-		return;
+		RET(GFN_ATTACH_BUFDATA);
 	}
 
 	RETRY_MALLOC(bd = kmem_cache_alloc(gfs_bufdata_cachep, GFP_KERNEL), bd);
@@ -663,6 +695,8 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 	bh2bd(bh) = bd;
 
 	unlock_page(bh->b_page);
+
+	RET(GFN_ATTACH_BUFDATA);
 }
 
 /**
@@ -676,6 +710,7 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 int
 gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
+	ENTER(GFN_IS_PINNED)
 	struct gfs_bufdata *bd = bh2bd(bh);
 	int ret = FALSE;
 
@@ -686,7 +721,7 @@ gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
 		gfs_unlock_buffer(bh);
 	}
 
-	return ret;
+	RETURN(GFN_IS_PINNED, ret);
 }
 
 /**
@@ -709,6 +744,7 @@ gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
 void
 gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
+	ENTER(GFN_DPIN)
 	struct gfs_bufdata *bd = bh2bd(bh);
 	char *data;
 
@@ -757,6 +793,8 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 	gfs_unlock_buffer(bh);
 
 	get_bh(bh);
+
+	RET(GFN_DPIN);
 }
 
 /**
@@ -788,6 +826,7 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 void
 gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 {
+	ENTER(GFN_DUNPIN)
 	struct gfs_bufdata *bd = bh2bd(bh);
 
 	gfs_assert_withdraw(sdp, buffer_uptodate(bh));
@@ -796,7 +835,7 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 
 	if (gfs_assert_warn(sdp, bd->bd_pinned)) {
 		gfs_unlock_buffer(bh);
-		return;
+		RET(GFN_DUNPIN);
 	}
 
 	/* No other (later) transaction is modifying buffer; ready to write */
@@ -826,12 +865,16 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 		spin_unlock(&sdp->sd_ail_lock);
 	} else
 		brelse(bh);
+
+	RET(GFN_DUNPIN);
 }
 
 /**
  * logbh_end_io - Called by OS at the end of a logbh ("fake" bh) write to log
  * @bh: the buffer
  * @uptodate: whether or not the write succeeded
+ *
+ * Interrupt context, no ENTER/RETURN
  *
  */
 
@@ -858,6 +901,8 @@ void
 gfs_logbh_init(struct gfs_sbd *sdp, struct buffer_head *bh,
 	       uint64_t blkno, char *data)
 {
+	ENTER(GFN_LOGBH_INIT)
+
 	memset(bh, 0, sizeof(struct buffer_head));
 	bh->b_state = (1 << BH_Mapped) | (1 << BH_Uptodate) | (1 << BH_Lock);
 	atomic_set(&bh->b_count, 1);
@@ -867,6 +912,8 @@ gfs_logbh_init(struct gfs_sbd *sdp, struct buffer_head *bh,
 	bh->b_bdev = sdp->sd_vfs->s_bdev;
 	init_buffer(bh, logbh_end_io, NULL);
 	INIT_LIST_HEAD(&bh->b_assoc_buffers);
+
+	RET(GFN_LOGBH_INIT);
 }
 
 /**
@@ -879,8 +926,10 @@ gfs_logbh_init(struct gfs_sbd *sdp, struct buffer_head *bh,
 void
 gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
+	ENTER(GFN_LOGBH_UNINIT)
 	gfs_assert_warn(sdp, !buffer_busy(bh));
 	gfs_assert_warn(sdp, atomic_read(&bh->b_count) == 1);
+	RET(GFN_LOGBH_UNINIT);
 }
 
 /**
@@ -894,7 +943,9 @@ gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
 void
 gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
+	ENTER(GFN_LOGBH_START)
 	submit_bh(WRITE, bh);
+	RET(GFN_LOGBH_START);
 }
 
 /**
@@ -910,16 +961,16 @@ gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh)
 int
 gfs_logbh_wait(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
-	int error = 0;
+	ENTER(GFN_LOGBH_WAIT)
 
 	wait_on_buffer(bh);
 
 	if (!buffer_uptodate(bh) || buffer_dirty(bh)) {
 		gfs_io_error_bh(sdp, bh);
-		error = -EIO;
+		RETURN(GFN_LOGBH_WAIT, -EIO);
 	}
 
-	return error;
+	RETURN(GFN_LOGBH_WAIT, 0);
 }
 
 /**
@@ -933,6 +984,7 @@ gfs_logbh_wait(struct gfs_sbd *sdp, struct buffer_head *bh)
 int
 gfs_replay_buf(struct gfs_glock *gl, struct buffer_head *bh)
 {
+	ENTER(GFN_REPLAY_BUF)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_bufdata *bd;
 
@@ -949,7 +1001,7 @@ gfs_replay_buf(struct gfs_glock *gl, struct buffer_head *bh)
 		list_add(&bd->bd_ail_tr_list, &sdp->sd_recovery_bufs);
 	}
 
-	return 0;
+	RETURN(GFN_REPLAY_BUF, 0);
 }
 
 /**
@@ -961,6 +1013,7 @@ gfs_replay_buf(struct gfs_glock *gl, struct buffer_head *bh)
 void
 gfs_replay_check(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_REPLAY_CHECK)
 	struct buffer_head *bh;
 	struct gfs_bufdata *bd;
 
@@ -980,6 +1033,8 @@ gfs_replay_check(struct gfs_sbd *sdp)
 			brelse(bh);
 		}
 	}
+
+	RET(GFN_REPLAY_CHECK);
 }
 
 /**
@@ -991,6 +1046,7 @@ gfs_replay_check(struct gfs_sbd *sdp)
 void
 gfs_replay_wait(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_REPLAY_WAIT)
 	struct list_head *head, *tmp, *prev;
 	struct buffer_head *bh;
 	struct gfs_bufdata *bd;
@@ -1028,6 +1084,8 @@ gfs_replay_wait(struct gfs_sbd *sdp)
 			gfs_io_error_bh(sdp, bh);
 		brelse(bh);
 	}
+
+	RET(GFN_REPLAY_WAIT);
 }
 
 /**
@@ -1048,6 +1106,7 @@ void
 gfs_wipe_buffers(struct gfs_inode *ip, struct gfs_rgrpd *rgd,
 		 uint64_t bstart, uint32_t blen)
 {
+	ENTER(GFN_WIPE_BUFFERS)
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct inode *aspace = ip->i_gl->gl_aspace;
 	struct buffer_head *bh;
@@ -1101,6 +1160,8 @@ gfs_wipe_buffers(struct gfs_inode *ip, struct gfs_rgrpd *rgd,
 
 	if (add)
 		gfs_depend_add(rgd, ip->i_num.no_formal_ino);
+
+	RET(GFN_WIPE_BUFFERS);
 }
 
 /**
@@ -1115,6 +1176,8 @@ gfs_wipe_buffers(struct gfs_inode *ip, struct gfs_rgrpd *rgd,
 void
 gfs_sync_meta(struct gfs_sbd *sdp)
 {
+	ENTER(GFN_SYNC_META)
+
 	gfs_log_flush(sdp);
 	for (;;) {
 		gfs_ail_start(sdp, DIO_ALL);
@@ -1123,6 +1186,8 @@ gfs_sync_meta(struct gfs_sbd *sdp)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ / 10);
 	}
+
+	RET(GFN_SYNC_META);
 }
 
 /**
@@ -1137,6 +1202,7 @@ gfs_sync_meta(struct gfs_sbd *sdp)
 void
 gfs_flush_meta_cache(struct gfs_inode *ip)
 {
+	ENTER(GFN_FLUSH_META_CACHE)
 	struct buffer_head **bh_slot;
 	unsigned int x;
 
@@ -1151,6 +1217,8 @@ gfs_flush_meta_cache(struct gfs_inode *ip)
 	}
 
 	spin_unlock(&ip->i_lock);
+
+	RET(GFN_FLUSH_META_CACHE);
 }
 
 /**
@@ -1168,6 +1236,7 @@ int
 gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 		    struct buffer_head **bhp)
 {
+	ENTER(GFN_GET_META_BUFFER)
 	struct buffer_head *bh, **bh_slot = &ip->i_cache[height];
 	int flags = ((new) ? DIO_NEW : 0) | DIO_START | DIO_WAIT;
 	int error;
@@ -1187,12 +1256,12 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 		error = gfs_dreread(ip->i_sbd, bh, flags);
 		if (error) {
 			brelse(bh);
-			return error;
+			RETURN(GFN_GET_META_BUFFER, error);
 		}
 	} else {
 		error = gfs_dread(ip->i_gl, num, flags, &bh);
 		if (error)
-			return error;
+			RETURN(GFN_GET_META_BUFFER, error);
 
 		spin_lock(&ip->i_lock);
 		if (*bh_slot != bh) {
@@ -1207,7 +1276,7 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 	if (new) {
 		if (gfs_assert_warn(ip->i_sbd, height)) {
 			brelse(bh);
-			return -EIO;
+			RETURN(GFN_GET_META_BUFFER, -EIO);
 		}
 		gfs_trans_add_bh(ip->i_gl, bh);
 		gfs_metatype_set(bh, GFS_METATYPE_IN, GFS_FORMAT_IN);
@@ -1215,12 +1284,12 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 	} else if (gfs_metatype_check(ip->i_sbd, bh,
 				      (height) ? GFS_METATYPE_IN : GFS_METATYPE_DI)) {
 		brelse(bh);
-		return -EIO;
+		RETURN(GFN_GET_META_BUFFER, -EIO);
 	}
 
 	*bhp = bh;
 
-	return 0;
+	RETURN(GFN_GET_META_BUFFER, 0);
 }
 
 /**
@@ -1237,25 +1306,26 @@ int
 gfs_get_data_buffer(struct gfs_inode *ip, uint64_t block, int new,
 		    struct buffer_head **bhp)
 {
+	ENTER(GFN_GET_DATA_BUFFER)
 	struct buffer_head *bh;
 	int error = 0;
 
 	if (block == ip->i_num.no_addr) {
 		if (gfs_assert_warn(ip->i_sbd, !new))
-			return -EIO;
+			RETURN(GFN_GET_DATA_BUFFER, -EIO);
 		error = gfs_dread(ip->i_gl, block, DIO_START | DIO_WAIT, &bh);
 		if (error)
-			return error;
+			RETURN(GFN_GET_DATA_BUFFER, error);
 		if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_DI)) {
 			brelse(bh);
-			return -EIO;
+			RETURN(GFN_GET_DATA_BUFFER, -EIO);
 		}
 	} else if (gfs_is_jdata(ip)) {
 		if (new) {
 			error = gfs_dread(ip->i_gl, block,
 					  DIO_NEW | DIO_START | DIO_WAIT, &bh);
 			if (error)
-				return error;
+				RETURN(GFN_GET_DATA_BUFFER, error);
 			gfs_trans_add_bh(ip->i_gl, bh);
 			gfs_metatype_set(bh, GFS_METATYPE_JD, GFS_FORMAT_JD);
 			gfs_buffer_clear_tail(bh, sizeof(struct gfs_meta_header));
@@ -1263,10 +1333,10 @@ gfs_get_data_buffer(struct gfs_inode *ip, uint64_t block, int new,
 			error = gfs_dread(ip->i_gl, block,
 					  DIO_START | DIO_WAIT, &bh);
 			if (error)
-				return error;
+				RETURN(GFN_GET_DATA_BUFFER, error);
 			if (gfs_metatype_check(ip->i_sbd, bh, GFS_METATYPE_JD)) {
 				brelse(bh);
-				return -EIO;
+				RETURN(GFN_GET_DATA_BUFFER, -EIO);
 			}
 		}
 	} else {
@@ -1277,13 +1347,13 @@ gfs_get_data_buffer(struct gfs_inode *ip, uint64_t block, int new,
 			error = gfs_dread(ip->i_gl, block,
 					  DIO_START | DIO_WAIT, &bh);
 			if (error)
-				return error;
+				RETURN(GFN_GET_DATA_BUFFER, error);
 		}
 	}
 
 	*bhp = bh;
 
-	return 0;
+	RETURN(GFN_GET_DATA_BUFFER, 0);
 }
 
 /**
@@ -1297,16 +1367,15 @@ gfs_get_data_buffer(struct gfs_inode *ip, uint64_t block, int new,
 void
 gfs_start_ra(struct gfs_glock *gl, uint64_t dblock, uint32_t extlen)
 {
+	ENTER(GFN_START_RA)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 	struct buffer_head *first_bh, *bh;
 	uint32_t max_ra = gfs_tune_get(sdp, gt_max_readahead) >> sdp->sd_sb.sb_bsize_shift;
 	int error;
 
-	if (!extlen)
-		return;
-	if (!max_ra)
-		return;
+	if (!extlen || !max_ra)
+		RET(GFN_START_RA);
 	if (extlen > max_ra)
 		extlen = max_ra;
 
@@ -1343,4 +1412,6 @@ gfs_start_ra(struct gfs_glock *gl, uint64_t dblock, uint32_t extlen)
 
  out:
 	brelse(first_bh);
+
+	RET(GFN_START_RA);
 }

@@ -22,6 +22,7 @@
 #include "fixed_div64.h"
 #include "lvb.h"
 #include "incore.h"
+#include "debug.h"
 #include "util.h"
 
 #ifndef TRUE
