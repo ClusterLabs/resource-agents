@@ -289,7 +289,8 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
 	printf("<clustat version=\"4.0\">\n");
 	xml_quorum_state(qs);
 	xml_member_states(membership);
-	xml_rg_states(rgs, membership);
+	if (rgs)
+		xml_rg_states(rgs, membership);
 	printf("</clustat>\n");
 }
 
