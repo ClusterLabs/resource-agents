@@ -437,7 +437,7 @@ void dump_locks(void)
 
    c = malloc(19 + strlen(LTname) +2);
    if( c == NULL ) return;
-   strcpy(c, "Gulm_LT_Lock_Dump.");
+   strcpy(c, "Gulm_LT_Lock_Dump.LT");
    strcat(c, LTname);
    
    if( (fd=open_tmp_file(c)) < 0 ) return;
@@ -1628,203 +1628,6 @@ int drop_holder_by_range(Lock_t *lk, Waiters_t *lkrq)
 }
 
 /**
- * merge_by_range - 
- * @lk: 
- * @lkrq: 
- *
- * Merges the lkrq into the holders list.
- * This goes and combines and splits range holders as needed.
- * 
- * Basicly this goes through the Holder list and clears out a place for the
- * new lkrq.  Then it adds the lkrq.  This is slightly weird for merge
- * cases, because with these, the start/stop values of the lkrq change.
- *
- * The trick here is, that the values in the lkrq struct cannot change.
- * If they change, the caller will see the new values, and they might be
- * doing lookup based on that.
- * (ok not that much of a trick, just means local values.)
- *
- *
- * If it wans't for merge, this would be exactly like the drop_holder_by_range
- * 
- * This isn't optimised at all.
- *
- * Returns: int
- */
-int merge_by_range(Lock_t *lk, Waiters_t *lkrq)
-{
-   LLi_t *tp, *nxt, *after = &lk->Holders;
-   Holders_t *h, *new;
-   /* merge matches below will change the realstart/stop */
-   uint64_t realstart = lkrq->start;
-   uint64_t realstop = lkrq->stop;
-
-   /* make space for the new guy. */
-   if( ! LLi_empty( &lk->Holders ) ) {
-      for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp = nxt ) {
-         nxt = LLi_next(tp);
-         h = LLi_data(tp);
-         if( compare_holder_waiter_names(h, lkrq) ) {
-
-            /* Replace Holder with lkrq.  */
-            /* |-- lkrq --|
-             *   |- h -|
-             */
-            if( realstart <  h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  >  h->stop ) {
-               LLi_del(tp);
-               lk->HolderCount--;
-               decrement_global_state_counters(h->state);
-               recycle_holder(h);
-            }else
-            /* |- lkrq -|
-             * |-- h ---|
-             */
-            if( realstart == h->start &&
-                realstop  == h->stop ) {
-               LLi_del(tp);
-               lk->HolderCount--;
-               decrement_global_state_counters(h->state);
-               recycle_holder(h);
-            }else
-            /* |- lkrq -|
-             *    |- h -|
-             */
-            if( realstart <  h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  == h->stop ) {
-               LLi_del(tp);
-               lk->HolderCount--;
-               decrement_global_state_counters(h->state);
-               recycle_holder(h);
-            }else
-            /* |- lkrq -|
-             * |- h -|
-             */
-            if( realstart == h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  >  h->stop ) {
-               LLi_del(tp);
-               lk->HolderCount--;
-               decrement_global_state_counters(h->state);
-               recycle_holder(h);
-            }else
-
-            /* XXX
-             * The thing with the merges, is that it changes not only the
-             * list, but what we are trying to insert.  So this brings the
-             * question of the state of the merge scan we're doing.
-             * I almost think we need to start it over, I think if the
-             * holder list is sorted by start value, we can avoid this.
-             *
-             * So, what happens if I don't merge?  Well, from user
-             * perspective, should not be anything.  Internally, two
-             * things, First we could have many more Holders_t. Second,
-             * because of more holders_t, things could be slower.
-             */
-            /* Merge/Shrink lkrq into Holder */
-            /* |-- lkrq --|
-             *          |- h -|
-             */
-            if( realstart <  h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  <  h->stop ) {
-               if( lkrq->state == h->state ) {
-                  realstop = h->stop;
-                  LLi_del(tp);
-                  lk->HolderCount--;
-                  decrement_global_state_counters(h->state);
-                  recycle_holder(h);
-               }else{
-                  h->start = realstop + 1;
-               }
-            }else
-            /*  |-- lkrq --|
-             * |- h -|
-             */
-            if( realstart >  h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  >  h->stop ) {
-               if( lkrq->state == h->state ) {
-                  realstart = h->start;
-                  LLi_del(tp);
-                  lk->HolderCount--;
-                  decrement_global_state_counters(h->state);
-                  recycle_holder(h);
-               }else{
-                  h->stop = realstart - 1;
-               }
-            }else
-
-            /* Split Holder */
-            /*   |- lkrq -|
-             * |----- h -----|
-             *  N           O
-             */
-            if( realstart >  h->start &&
-                realstart <  h->stop  &&
-                realstop  >  h->start &&
-                realstop  <  h->stop ) {
-               Holders_t *new;
-               new = get_new_holder();
-               LLi_init( &new->cl_list, new);
-               new->name = strdup(h->name);
-               GULMD_ASSERT(new->name != NULL, );
-               new->subid = h->subid;
-               new->idx = h->idx;
-               new->state = h->state;
-               new->flags = h->flags;
-               new->start = h->start;
-               new->stop = realstart - 1;
-
-               increment_global_state_counters(new->state);
-               LLi_add_before( &h->cl_list, &new->cl_list);
-               lk->HolderCount++;
-
-               h->start = realstop + 1;
-
-            }
-
-            /* Just add */
-            /* |-- lkrq --|
-             *              |- h -|
-             */
-            /*         |-- lkrq --|
-             * |- h -|
-             */
-            /* Nothing to do here. will get added below. */
-
-         }/*compare_holder_waiter_names(h, lkrq)*/
-         if( h->start <= realstart ) after = nxt;
-         /* after is being set too soon. */
-      }/*for()*/
-   }/*! LLi_empty( &lk->Holders )*/
-
-   /* ok, now that we have a place for the new holder, add it. */
-   new = get_new_holder();
-   LLi_init( &new->cl_list, new);
-   new->name = strdup(lkrq->name);
-   GULMD_ASSERT(new->name != NULL, );
-   new->subid = lkrq->subid;
-   new->idx = lkrq->idx;
-   new->state = lkrq->state;
-   new->flags = lkrq->flags;
-   new->start = realstart;
-   new->stop = realstop;
-
-   increment_global_state_counters(new->state);
-   LLi_add_before( after, &new->cl_list);
-   lk->HolderCount++;
-   return 0;
-}
-
-/**
  * conflict_queue_empty - 
  * @lk: 
  * 
@@ -1989,7 +1792,7 @@ void requeue_conflict(Lock_t *lk, Waiters_t *lkrq)
  * Handle the Any flag.  Very much a GFS-ism.
  *
  * this may have to change to work with ranges. XXX
- * 
+ *
  */
 void check_for_any_flag(Lock_t *lk, Waiters_t *lkrq)
 {
@@ -2022,19 +1825,6 @@ void check_for_any_flag(Lock_t *lk, Waiters_t *lkrq)
  * 
  * this is called by both incomming queue runer and conflict queue runner.
  *
- * XXX
- * ranging.
- * - Need to have a drop_range().  Much like drop_holder, except it will
- *   shrink and split if needed.
- *  - ?drop_holder_by_range()?
- * - Need a merge_range(). This does the merge/split/shrink/grow
- *   add/remove/xmote actions. This is the painful function.
- *  - would really like to maintain a flag that tells if there are any sub
- *    range holders on a lock.  If there aren't then I can skip calling
- *    merge_range(), which I feel will be a improvement.  But I do not know
- *    this.
- *
- * 
  * Returns: =0:Queue Emptied !0:Items still in Queue.
  */
 int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
@@ -2114,22 +1904,6 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
       }
    }else
    {
-      /* Do we currently have a hold? if yes, we're mutating, not adding
-       * So we can either write a new loop function that does a 'if found
-       * change, else add' or just do a drop followed by an add.
-       *
-       * Easier to reuse code for now, even though it feels like it is
-       * doing extra work.  Will need to change for ranges anyways.
-       * */
-#if 0
-      if( lk->HolderCount == 0 ) cnt_unl_locks--;
-      drop_holder(lk, lkrq);
-      add_to_holders(lk, lkrq);
-#endif
-
-#if 0
-      merge_by_range(lk, lkrq);
-#endif
       /* Lazy merging.
        * Basically we don't bother merging at all.  To add a new range
        * holder, we first clearout the area we want to add the new range,
@@ -2137,7 +1911,7 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
        *
        * The up side is that the code is a lot cleaner.
        * The down side is that certain range activity will end up with a
-       * lot more memory used that if real merges happened.
+       * lot more memory used than if real merges happened.
        */
       if( lk->HolderCount == 0 ) {
          /* no current holders, so just add. */
