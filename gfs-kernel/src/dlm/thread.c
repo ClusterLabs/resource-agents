@@ -248,7 +248,7 @@ static void process_complete(dlm_lock_t *lp)
  * Returns: 1 if no work, 0 otherwise
  */
 
-static __inline__ int no_work(dlm_t * dlm)
+static __inline__ int no_work(dlm_t *dlm)
 {
 	int ret;
 
@@ -262,6 +262,28 @@ static __inline__ int no_work(dlm_t * dlm)
 	spin_unlock(&dlm->async_lock);
 
 	return ret;
+}
+
+static __inline__ int check_drop(dlm_t *dlm)
+{
+	if (!dlm->drop_locks_count)
+		return FALSE;
+
+	if (check_timeout(dlm->drop_time, dlm->drop_locks_period)) {
+		dlm->drop_time = jiffies;
+		if (atomic_read(&dlm->lock_count) >= dlm->drop_locks_count)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static __inline__ int check_shrink(dlm_t *dlm)
+{
+	if (check_timeout(dlm->shrink_time, SHRINK_CACHE_TIME)){
+		dlm->shrink_time = jiffies;
+		return TRUE;
+	}
+	return FALSE;
 }
 
 /**
@@ -320,18 +342,8 @@ static int dlm_async(void *data)
 
 		/* Don't get busy doing this stuff during recovery. */
 		if (!test_bit(DFL_RECOVER, &dlm->flags)) {
-			if (check_timeout(dlm->drop_time,
-					  dlm->drop_locks_period)) {
-				dlm->drop_time = jiffies;
-				if (atomic_read(&dlm->lock_count) >=
-						dlm->drop_locks_count)
-					drop = 1;
-			}
-
-			if (check_timeout(dlm->shrink_time, SHRINK_CACHE_TIME)){
-				dlm->shrink_time = jiffies;
-				shrink = 1;
-			}
+			drop = check_drop(dlm);
+			shrink = check_shrink(dlm);
 		}
 		spin_unlock(&dlm->async_lock);
 
