@@ -13,6 +13,7 @@
 #ifndef __gulm_config_h__
 #define __gulm_config_h__
 #include "LLi.h"
+#include "xdr.h"
 #include <netinet/in.h>
 
 /* I may want to add some kind of marker to every option that this holds.
@@ -78,9 +79,9 @@ int rebuild_server_list(gulm_config_t *gf);
 int parse_conf(gulm_config_t *gf, int argc, char **argv);
 int build_argv(gulm_config_t *gf, char ***argv, int *argc);
 void dump_conf(gulm_config_t *gf, int out);
-int serialize_config(gulm_config_t *gf, int fd);
 int Can_I_be_a_master(gulm_config_t *gf, struct in6_addr *ip);
 int get_lt_range(int which, int of, int *start, int *stop);
 int verify_name_and_ip(char *name, struct in6_addr *ip);
+void serialize_config(gulm_config_t *gf, xdr_enc_t *enc);
 #endif /*__gulm_config_h__*/
 /* vim: set ai cin et sw=3 ts=3 : */

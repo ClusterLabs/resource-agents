@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000014)
+#define GIO_WIREPROT_VERS (0x67000015)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -154,6 +154,15 @@
  * Switch core from current state into Pending:
  *    uint32: gCSP
  *
+ * Fetch the current config
+ *    uint32: gCC0
+ * Current Config Reply:
+ *    uint32: gCC1
+ *    list start:
+ *       string: key
+ *       string: value
+ *    list stop:
+ *
  */
 #define gulm_core_login_req  (0x67434c00) /* gCL0 */
 #define gulm_core_login_rpl  (0x67434c01) /* gCL1 */
@@ -174,6 +183,8 @@
 #define gulm_core_quorm_chgs (0x67435143) /* gCSC */
 #define gulm_core_shutdown   (0x67435344) /* gCSD */
 #define gulm_core_forcepend  (0x67435350) /* gCSP */
+#define gulm_core_configreq  (0x67434300) /* gCC0 */
+#define gulm_core_configrpl  (0x67434301) /* gCC1 */
 
 /* in the st field */
 #define gio_Mbr_Logged_in  (0x05)

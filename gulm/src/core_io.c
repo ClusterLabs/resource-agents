@@ -1767,6 +1767,13 @@ static void recv_some_data(int idx)
       }
       close_by_idx(idx);
    }else
+   if( gulm_core_configreq == code ) {
+      xdr_enc_uint32(enc, gulm_core_configrpl);
+      xdr_enc_list_start(enc);
+      serialize_config(&gulm_config, enc);
+      xdr_enc_list_stop(enc);
+      xdr_enc_flush(enc);
+   }else
    if( gulm_core_shutdown == code ) {
       /* logout and sutdown.  */
       log_msg(lgm_Network2, "Received Shutdown request.\n");

@@ -589,7 +589,7 @@ void xml_print(int len, uint8_t **keys, uint8_t **values)
  * 
  * Returns: int
  */
-int do_get_stats(int argc, char **argv,
+int do_get_keys(int argc, char **argv, uint32_t request,
       void (*filter)(int *, uint8_t **, uint8_t **),
       void (*print)(int, uint8_t **, uint8_t **))
 {
@@ -604,7 +604,7 @@ int do_get_stats(int argc, char **argv,
    if((sk=connect_to_server(argv[2], NULL, cpl_all, &enc, &dec)) < 0 )
       die(ExitGulm_InitFailed, "Failed to connect to server\n");
 
-   if(xdr_enc_uint32(enc, gulm_info_stats_req) != 0) return -1;
+   if(xdr_enc_uint32(enc, request) != 0) return -1;
    if(xdr_enc_flush(enc) != 0) return -1;
 
    if(xdr_dec_uint32(dec, &x_code) != 0) return -1;
@@ -806,13 +806,18 @@ int main(int argc, char **argv)
    alarm(10);
 
    if( strncasecmp(argv[1], "getstats", 9) == 0 ) {
-      do_get_stats(argc, argv, statsfilter_client, plain_print);
+      do_get_keys(argc, argv, gulm_info_stats_req,
+            statsfilter_client, plain_print);
    }else
    if( strncasecmp(argv[1], "xmlstats", 9) == 0 ) {
-      do_get_stats(argc, argv, statsfilter_client, xml_print);
+      do_get_keys(argc, argv, gulm_info_stats_req,
+            statsfilter_client, xml_print);
    }else
    if( strncasecmp(argv[1], "rawstats", 9) == 0 ) {
       do_raw_stats(argc, argv);
+   }else
+   if( strncasecmp(argv[1], "config", 7) == 0 ) {
+      do_get_keys(argc, argv, gulm_core_configreq, NULL, plain_print);
    }else
    if( strncasecmp(argv[1], "slavelist", 10) == 0 ) {
       do_slave_list(argc, argv);

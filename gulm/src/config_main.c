@@ -332,6 +332,118 @@ float uint642ft(uint64_t time)
 }
 
 /**
+ * serialize_config - 
+ * @gf: 
+ * @enc: 
+ * 
+ * 
+ * Returns: void
+ */
+void serialize_config(gulm_config_t *gf, xdr_enc_t *enc)
+{
+   char workspace[1024];
+   char *sl=NULL;
+   size_t lsl=0;
+   LLi_t *tmp;
+   ip_name_t *in;
+
+   xdr_enc_string(enc, "hashed");
+   snprintf(workspace, 1024, "%#x", gf->hashval);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "cluster_name");
+   xdr_enc_string(enc, gf->clusterID);
+
+   xdr_enc_string(enc, "serverips");
+   for(tmp = LLi_next(&gf->node_list);
+       NULL != LLi_data(tmp);
+       tmp = LLi_next(tmp) ) {
+      in = LLi_data(tmp);
+      argz_add(&sl, &lsl, ip6tostr(&in->ip));
+   }
+   argz_stringify(sl, lsl, ',');
+   xdr_enc_string(enc, sl);
+   free(sl);sl=NULL;lsl=0;
+
+   xdr_enc_string(enc, "servernamess");
+   for(tmp = LLi_next(&gf->node_list);
+       NULL != LLi_data(tmp);
+       tmp = LLi_next(tmp) ) {
+      in = LLi_data(tmp);
+      argz_add(&sl, &lsl, in->name);
+   }
+   argz_stringify(sl, lsl, ',');
+   xdr_enc_string(enc, sl);
+   free(sl);sl=NULL;
+
+   xdr_enc_string(enc, "heartbeat_rate");
+   snprintf(workspace, 1024, "%.3f", uint642ft(gf->heartbeat_rate));
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "allowed_misses");
+   snprintf(workspace, 1024, "%u", gf->allowed_misses);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "verbosity");
+   get_verbosity_string(workspace, 1024, verbosity);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "lt_partitions");
+   snprintf(workspace, 1024, "%u", gf->how_many_lts);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "new_connection_timeout");
+   snprintf(workspace, 1024, "%.3f", uint642ft(gf->new_con_timeout));
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "master_scan_delay");
+   snprintf(workspace, 1024, "%.3f", uint642ft(gf->master_scan_delay));
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "coreport");
+   snprintf(workspace, 1024, "%u", gf->corePort);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "ltport");
+   snprintf(workspace, 1024, "%u", gf->lt_port);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "ltpxport");
+   snprintf(workspace, 1024, "%u", gf->ltpx_port);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "fence_bin");
+   xdr_enc_string(enc, gf->fencebin);
+
+   xdr_enc_string(enc, "run_as");
+   xdr_enc_string(enc, gf->run_as);
+
+   xdr_enc_string(enc, "lock_dir");
+   xdr_enc_string(enc, gf->lock_file);
+
+   xdr_enc_string(enc, "lt_drop_req_rate");
+   snprintf(workspace, 1024, "%u", gf->lt_cf_rate);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "lt_high_locks");
+   snprintf(workspace, 1024, "%lu", gf->lt_maxlocks);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "prealloc_locks");
+   snprintf(workspace, 1024, "%u", gf->lt_prelocks);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "prealloc_lkrqs");
+   snprintf(workspace, 1024, "%u", gf->lt_prelkrqs);
+   xdr_enc_string(enc, workspace);
+
+   xdr_enc_string(enc, "prealloc_holders");
+   snprintf(workspace, 1024, "%u", gf->lt_preholds);
+   xdr_enc_string(enc, workspace);
+
+}
+
+/**
  * validate_config - 
  * @gf: 
  * 
