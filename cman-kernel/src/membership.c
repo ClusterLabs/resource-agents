@@ -41,6 +41,7 @@ int we_are_a_cluster_member;
 int cluster_is_quorate;
 int quit_threads;
 struct task_struct *membership_task;
+spinlock_t membership_task_lock;
 struct cluster_node *us;
 
 static struct task_struct *hello_task;
@@ -333,7 +334,9 @@ static int membership_kthread(void *unused)
 	siginitset(&tmpsig, SIGKILL | SIGSTOP | SIGTERM);
 	sigprocmask(SIG_BLOCK, &tmpsig, NULL);
 
+	spin_lock(&membership_task_lock);
 	membership_task = tsk;
+	spin_unlock(&membership_task_lock);
 	cman_set_realtime(current, 1);
 
 	/* Open the socket */
@@ -472,6 +475,10 @@ static int membership_kthread(void *unused)
 	joining_node = NULL;
 	master_node = NULL;
 	complete(&member_thread_comp);
+
+	spin_lock(&membership_task_lock);
+	membership_task = NULL;
+	spin_unlock(&membership_task_lock);
 	return 0;
 }
 

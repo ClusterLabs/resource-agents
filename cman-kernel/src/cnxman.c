@@ -110,8 +110,8 @@ static int retry_count;
 
 /* Task variables */
 static pid_t kcluster_pid;
-static pid_t membership_pid;
 extern struct task_struct *membership_task;
+extern spinlock_t membership_task_lock;
 extern int quit_threads;
 
 wait_queue_head_t cnxman_waitq;
@@ -413,8 +413,15 @@ static int cluster_kthread(void *unused)
 
 	/* Wait for membership thread to finish, that way any
 	   LEAVE message will get sent. */
-	wake_up_process(membership_task);
-	wait_for_completion(&member_thread_comp);
+	spin_lock(&membership_task_lock);
+	if (membership_task) {
+		wake_up_process(membership_task);
+		spin_unlock(&membership_task_lock);
+		wait_for_completion(&member_thread_comp);
+	}
+	else {
+		spin_unlock(&membership_task_lock);
+	}
 
 	node_shutdown();
 
@@ -1678,7 +1685,8 @@ static int do_ioctl_set_nodeid(unsigned long arg)
 static int do_ioctl_join_cluster(unsigned long arg)
 {
 	struct cl_join_cluster_info join_info;
-
+	pid_t membership_pid;
+	
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 
@@ -4184,6 +4192,7 @@ static int __init cluster_init(void)
 	init_MUTEX(&tempnode_lock);
 	spin_lock_init(&active_socket_lock);
 	spin_lock_init(&new_dead_node_lock);
+	spin_lock_init(&membership_task_lock);
 	init_timer(&ack_timer);
 
 	INIT_LIST_HEAD(&event_listener_list);
