@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.189 $) dnl cvs revision
+AC_REVISION($Revision: 1.190 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -1182,6 +1182,7 @@ replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
+	lib/recoverymgr/Makefile					\
 	lib/clplumbing/Makefile					\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
@@ -1189,6 +1190,7 @@ lib/Makefile							\
 		lib/plugins/HBauth/Makefile			\
 		lib/plugins/HBcomm/Makefile			\
 		lib/plugins/stonith/Makefile			\
+		lib/plugins/AppHBNotification/Makefile			\
 	lib/stonith/Makefile					\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
@@ -1227,6 +1229,7 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
+	telecom/recoverymgrd/Makefile					\
 snmp_subagent/Makefile                                          \
 )
 
