@@ -19,19 +19,20 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Kconfig 2.6.8.1.csnap/driver
  
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drivers/md/Makefile
 --- 2.6.8.1.csnap.clean/drivers/md/Makefile	2004-08-14 10:55:33.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/Makefile	2004-10-04 20:41:51.000000000 +0000
-@@ -29,6 +29,7 @@ obj-$(CONFIG_DM_CRYPT)		+= dm-crypt.o
++++ 2.6.8.1.csnap/drivers/md/Makefile	2004-10-24 03:43:09.000000000 +0000
+@@ -29,6 +29,8 @@ obj-$(CONFIG_DM_CRYPT)		+= dm-crypt.o
  obj-$(CONFIG_DM_SNAPSHOT)	+= dm-snapshot.o
  obj-$(CONFIG_DM_MIRROR)		+= dm-mirror.o
  obj-$(CONFIG_DM_ZERO)		+= dm-zero.o
 +obj-$(CONFIG_DM_CSNAP)		+= dm-csnap.o
++obj-$(CONFIG_DM_CSNAP)		+= dm-cmirror.o
  
  quiet_cmd_unroll = UNROLL  $@
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 16:58:07.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-21 22:09:24.000000000 +0000
-@@ -0,0 +1,1025 @@
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-31 17:28:11.398379608 +0000
+@@ -0,0 +1,1101 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -55,6 +56,19 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +#define trace_off(args)
 +
 +#define trace trace_on
++
++/*
++ * To do:
++ *
++ * - variable length bios
++ * - unique cache
++ * - receive chunk size
++ * - make pending and hook a union
++ * - get rid of multiple ranges per message misfeature
++ * - rationalize sector vs chunk usage in messages
++ * - detect message id wrap
++ * - detect message timeout
++ */
 +
 +/* Useful gizmos */
 +
@@ -117,7 +131,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 + * and breaking out the part that actually does the work, to be a usable
 + * internal interface.  Put it on the list of things to do.
 + */
-+int recv_fd(int sock, char *bogus, unsigned *len)
++static int recv_fd(int sock, char *bogus, unsigned *len)
 +{
 +	char payload[CMSG_SPACE(sizeof(int))];
 +	struct msghdr msg = {
@@ -147,7 +161,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	return *((int *)CMSG_DATA(cmsg));
 +}
 +
-+void kick(struct block_device *dev)
++static void kick(struct block_device *dev)
 +{
 +	request_queue_t *q = bdev_get_queue(dev);
 +	if (q->unplug_fn)
@@ -160,19 +174,20 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +#define SECTOR_SHIFT 9
 +#define IS_SNAP_FLAG 1
-+#define CONNECTED_FLAG 2 // not actually used at the moment
-+#define FINISH_FLAG 4
++#define REPORT_FLAG 2
++#define RECOVER_FLAG 4
++#define FINISH_FLAG 8
 +#define NUM_BUCKETS 64
 +#define MASK_BUCKETS (NUM_BUCKETS - 1)
 +#define ID_BITS 16
 +
 +struct snapinfo {
-+	unsigned flags;
++	u64 id;
++	unsigned long flags;
 +	unsigned chunksize_bits;
 +	unsigned chunkshift;
 +//	sector_t len;
 +	int snap, nextid;
-+
 +	u32 *shared_bitmap; // !!! get rid of this, use the inode cache
 +	struct inode  *inode; /* the cache */
 +	struct dm_dev *orgdev;
@@ -182,14 +197,17 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	struct semaphore server_in_sem;
 +	struct semaphore server_out_sem;
 +	struct semaphore more_work_sem;
++	struct semaphore recover_sem;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
 +	struct semaphore exit3_sem;
 +	struct list_head pending[NUM_BUCKETS];
 +	struct list_head queries;
 +	struct list_head releases;
++	struct list_head locked;
 +	spinlock_t pending_lock;
 +	spinlock_t end_io_lock;
++	int dont_switch_lists;
 +};
 +
 +static inline int is_snapshot(struct snapinfo *info)
@@ -197,14 +215,22 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	return !!(info->flags & IS_SNAP_FLAG);
 +}
 +
-+static inline int connected(struct snapinfo *info)
-+{
-+	return !!(info->flags & CONNECTED_FLAG);
-+}
-+
 +static inline int running(struct snapinfo *info)
 +{
 +	return !(info->flags & FINISH_FLAG);
++}
++
++static inline int worker_running(struct snapinfo *info)
++{
++        return !(info->flags & (FINISH_FLAG|RECOVER_FLAG));
++}
++
++static void report_error(struct snapinfo *info)
++{
++	if (test_and_set_bit(REPORT_FLAG, &info->flags))
++		return;
++	down(&info->recover_sem);
++	info->flags |= RECOVER_FLAG;
 +}
 +
 +/* Static caches, shared by all csnap instances */
@@ -288,14 +314,6 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	return id & MASK_BUCKETS;
 +}
 +
-+static struct pending *alloc_pending(void)
-+{
-+	struct pending *p = kmem_cache_alloc(pending_cache, GFP_NOIO);
-+	if (!p)
-+		p = kmem_cache_alloc(pending_cache, GFP_ATOMIC);
-+	return p;
-+}
-+
 +/* Ah, now it gets interesting.  Called in interrupt context */
 +
 +struct end_io_hook {
@@ -315,12 +333,14 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +	trace(warn("sector %Lx", (long long)hook->sector);)
 +	spin_lock(&info->end_io_lock);
-+	list_add(&hook->list, &info->releases);
++	bio->bi_end_io = hook->old_end_io;
++	bio->bi_private = hook->old_private;
++	hook->old_end_io = NULL;
++	if (info->dont_switch_lists == 0)
++		list_move(&hook->list, &info->releases);
 +	spin_unlock(&info->end_io_lock);
 +	up(&info->more_work_sem);
 +
-+	bio->bi_private = hook->old_private;
-+	bio->bi_end_io = hook->old_end_io;
 +	return bio->bi_end_io(bio, done, error);
 +}
 +
@@ -381,10 +401,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			/* snapshot read from origin */
 +			struct end_io_hook *hook;
 +			trace(warn("hook end_io for %Lx", (long long)bio->bi_sector));
-+			if (!(hook = kmem_cache_alloc(end_io_cache, GFP_KERNEL))) {
-+				// !!! err out the IO
-+				return -1;
-+			}
++			hook = kmem_cache_alloc(end_io_cache, GFP_KERNEL|__GFP_NOFAIL); // !!! union with pending
 +			*hook = (struct end_io_hook){
 +				.info = info,
 +				.sector = bio->bi_sector,
@@ -392,6 +409,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +				.old_private = bio->bi_private };
 +			bio->bi_end_io = snapshot_read_end_io;
 +			bio->bi_private = hook;
++			list_add(&hook->list, &info->locked);
 +		}
 +
 +		generic_make_request(bio);
@@ -514,10 +532,6 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			to_snap = 1;
 +			break;
 +
-+		case REPLY_CREATE_SNAPSHOT:
-+			trace(warn("create snapshot succeeded");)
-+			continue;
-+
 +		case REPLY_IDENTIFY:
 +			trace(warn("identify succeeded");)
 +			up(&info->server_out_sem);
@@ -545,9 +559,12 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	goto out;
 +socket_error:
 +	warn("socket error %i", err);
-+	if (running(info))
-+		goto connect;
-+	goto out;
++	if (!running(info))
++		goto out;
++
++	warn("halt worker");
++	report_error(info);
++	goto connect;
 +}
 +
 +/*
@@ -578,22 +595,65 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 + * pull down the running flag and up the work semaphore, which causes
 + * our faithful worker to drop out the bottom.
 + */
++void upload_locks(struct snapinfo *info)
++{
++	unsigned long irqflags;
++	struct end_io_hook *hook;
++	struct list_head *entry, *tmp;
++
++	spin_lock_irqsave(&info->end_io_lock, irqflags);
++	info->dont_switch_lists = 1;
++	while(!list_empty(&info->releases)){
++		entry = info->releases.prev;
++		hook = list_entry(entry, struct end_io_hook, list);
++		list_del(entry);
++		kmem_cache_free(end_io_cache, hook);
++	}
++	spin_unlock_irqrestore(&info->end_io_lock, irqflags);
++	list_for_each_safe(entry, tmp, &info->locked){
++		chunk_t chunk;
++
++		hook = list_entry(entry, struct end_io_hook, list);
++		spin_lock_irqsave(&info->end_io_lock, irqflags);
++		if (hook->old_end_io == NULL){
++			list_del(entry);
++			kmem_cache_free(end_io_cache, hook);
++			spin_unlock_irqrestore(&info->end_io_lock, irqflags);
++			continue;
++		}
++		spin_unlock_irqrestore(&info->end_io_lock, irqflags);
++		chunk = hook->sector >> info->chunkshift;
++		outbead(info->sock, UPLOAD_LOCK, struct rw_request1, .count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1);
++	}
++	outbead(info->sock, FINISH_UPLOAD_LOCK, struct {});
++	spin_lock_irqsave(&info->end_io_lock, irqflags);
++	list_for_each_safe(entry, tmp, &info->locked){
++		hook = list_entry(entry, struct end_io_hook, list);
++		if (hook->old_end_io == NULL)
++			list_move(&hook->list, &info->releases);
++	}
++	info->dont_switch_lists = 0;
++	spin_unlock_irqrestore(&info->end_io_lock, irqflags);
++}
++
 +static int worker(struct dm_target *target)
 +{
 +	struct snapinfo *info = target->private;
 +	struct task_struct *task = current;
-+	trace(unsigned events = 0;)
++	int err;
 +
 +	strcpy(task->comm, "csnap-worker");
 +	trace(warn("Worker thread started, pid=%i", current->pid);)
 +	down(&info->exit1_sem);
-+	while (running(info)) {
++	goto recover; /* just for now we'll always upload locks, even on fresh start */
++restart:
++	while (worker_running(info)) {
 +		unsigned long irqflags;
 +		down(&info->more_work_sem);
 +
 +		/* Send message for each pending request. */
 +		spin_lock(&info->pending_lock);
-+		while (!list_empty(&info->queries) && running(info)) {
++		while (!list_empty(&info->queries) && worker_running(info)) {
 +			struct list_head *entry = info->queries.prev;
 +			struct pending *pending = list_entry(entry, struct pending, list);
 +
@@ -601,14 +661,15 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			list_add(&pending->list, info->pending + hash_pending(pending->id));
 +			spin_unlock(&info->pending_lock);
 +			trace(show_pending(info);)
++
 +			down(&info->server_out_sem);
-+			// !!! check for dm device removed
-+			outbead(info->sock,
++			if ((err = outbead(info->sock,
 +				bio_data_dir(pending->bio) == WRITE? QUERY_WRITE: QUERY_SNAPSHOT_READ,
 +				struct rw_request1,
 +					.id = pending->id, .count = 1,
 +					.ranges[0].chunk = pending->chunk,
-+					.ranges[0].chunks = pending->chunks);
++					.ranges[0].chunks = pending->chunks)))
++				goto report;
 +			up(&info->server_out_sem);
 +			spin_lock(&info->pending_lock);
 +		}
@@ -616,18 +677,19 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +		/* Send message for each pending read release. */
 +		spin_lock_irqsave(&info->end_io_lock, irqflags);
-+		while (!list_empty(&info->releases) && running(info)) {
++		while (!list_empty(&info->releases) && worker_running(info)) {
 +			struct list_head *entry = info->releases.prev;
 +			struct end_io_hook *hook = list_entry(entry, struct end_io_hook, list);
 +			chunk_t chunk = hook->sector >> info->chunkshift;
 +
 +			list_del(entry);
 +			spin_unlock_irqrestore(&info->end_io_lock, irqflags);
-+			trace(warn("%u. release sector %Lx, chunk %Lx", ++events, (long long)hook->sector, chunk);)
++			trace(warn("release sector %Lx, chunk %Lx", (long long)hook->sector, chunk);)
 +			kmem_cache_free(end_io_cache, hook);
 +			down(&info->server_out_sem);
-+			outbead(info->sock, FINISH_SNAPSHOT_READ, struct rw_request1,
-+				.count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1);
++			if ((err = outbead(info->sock, FINISH_SNAPSHOT_READ, struct rw_request1,
++				.count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1)))
++				goto report;
 +			up(&info->server_out_sem);
 +			spin_lock_irqsave(&info->end_io_lock, irqflags);
 +		}
@@ -635,9 +697,28 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +		trace(warn("Yowza! More work?");)
 +	}
-+	up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
-+	warn("%s exiting", task->comm);
-+	return 0;
++	if (!(info->flags & RECOVER_FLAG)) {
++		up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
++		warn("%s exiting", task->comm);
++		return 0;
++	}
++
++	warn("worker interrupted");
++	down(&info->server_out_sem);
++	goto recover;
++
++report:
++	warn("worker socket error %i", err);
++	report_error(info);
++
++recover:
++	down(&info->recover_sem);
++	if (is_snapshot(info))
++		upload_locks(info);
++	info->flags &= ~(RECOVER_FLAG|REPORT_FLAG);
++	up(&info->recover_sem);
++	goto restart;
++
 +}
 +
 +/*
@@ -679,6 +760,10 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			goto socket_error;
 +	
 +		switch (message.head.code) {
++		case SET_IDENTITY:
++			info->id = ((struct set_id *)message.body)->id;
++			warn("id set: %Lu", info->id);
++			break;
 +		case CONNECT_SERVER: {
 +			unsigned len = 4;
 +			char bogus[len];
@@ -699,7 +784,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			put_unused_fd(sock_fd);
 +			sys_close(fd);
 +			up(&info->server_in_sem);
-+			outbead(info->sock, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
++			outbead(info->sock, IDENTIFY, struct identify, .id = info->id, .snap = info->snap);
++			up(&info->recover_sem); /* worker uploads locks now */
 +			break;
 +		}
 +		default: 
@@ -771,14 +857,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			return 1;
 +	}
 +#endif
-+	pending = alloc_pending();
-+	if (!pending) {
-+		warn("Cannot allocate pending struct");
-+		return -1;
-+	}
-+
 +	id = info->nextid;
 +	info->nextid = (id + 1) & ~(-1 << ID_BITS);
++	pending = kmem_cache_alloc(pending_cache, GFP_NOIO|__GFP_NOFAIL);
 +	*pending = (struct pending){ .id = id, .bio = bio, .chunk = chunk, .chunks = 1 };
 +	spin_lock(&info->pending_lock);
 +	list_add(&pending->list, &info->queries);
@@ -918,6 +999,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	target->private = info;
 +	sema_init(&info->server_in_sem, 0);
 +	sema_init(&info->server_out_sem, 0);
++	sema_init(&info->recover_sem, 0);
 +	sema_init(&info->exit1_sem, 1);
 +	sema_init(&info->exit2_sem, 1);
 +	sema_init(&info->exit3_sem, 1);
@@ -926,6 +1008,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	spin_lock_init(&info->end_io_lock);
 +	INIT_LIST_HEAD(&info->queries);
 +	INIT_LIST_HEAD(&info->releases);
++	INIT_LIST_HEAD(&info->locked);
 +	for (i = 0; i < NUM_BUCKETS; i++)
 +		INIT_LIST_HEAD(&info->pending[i]);
 +
@@ -958,7 +1041,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		goto eek;
 +	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	warn("Created snapshot device origin=%s snapstore=%s socket=%s snapshot=%i", snap, argv[0], argv[1], argv[2], snap);
++	warn("Created snapshot device origin=%s snapstore=%s socket=%s snapshot=%i", argv[0], argv[1], argv[2], snap);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
 +	return 0;
 +
@@ -992,7 +1075,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	return 0;
 +}
 +
-+static struct target_type csnapshot = {
++static struct target_type csnap = {
 +	.name = "csnapshot",
 +	.version = {0, 0, 0},
 +	.module = THIS_MODULE,
@@ -1004,41 +1087,35 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +int __init dm_csnap_init(void)
 +{
-+	int err;
-+
-+	trace_on(warn(">>> module init");)
-+	if ((err = dm_register_target(&csnapshot))) {
-+		DMERR("Snapshot register failed %d\n", err);
++	int err = -ENOMEM;
++	char *what = "Cache create";
++	if (!(pending_cache = kmem_cache_create("csnap-pending",
++		sizeof(struct pending), __alignof__(struct pending), 0, NULL, NULL)))
 +		goto bad1;
-+	}
-+	err = -ENOMEM;
-+	pending_cache = kmem_cache_create("csnap-pending", sizeof(struct pending), __alignof__(struct pending), 0, NULL, NULL);
-+	if (!pending_cache) {
-+		DMERR("Couldn not create pending cache.");
++	if (!(end_io_cache = kmem_cache_create("csnap-endio",
++		sizeof(struct end_io_hook), __alignof__(struct end_io_hook), 0, NULL, NULL)))
 +		goto bad2;
-+	}
-+	end_io_cache = kmem_cache_create("csnap-pending_r", sizeof(struct end_io_hook), __alignof__(struct end_io_hook), 0, NULL, NULL);
-+	if (!end_io_cache) {
-+		DMERR("Could not create read pending cache.");
++	what = "register";
++	if ((err = dm_register_target(&csnap)))
 +		goto bad3;
-+	}
-+	if (!(snapshot_super = alloc_super())) {
-+		DMERR("Couldn't create snapshot superblock\n");
++#ifdef CACHE
++	err = -ENOMEM;
++	what = "create snapshot superblock";
++	if (!(snapshot_super = alloc_super()))
 +		goto bad4;
-+	}
++#endif
 +	return 0;
 +
 +#ifdef CACHE
-+bad5:
-+	kfree(snapshot_super);
-+#endif
 +bad4:
-+	kmem_cache_destroy(end_io_cache);
++	dm_unregister_target(&csnap);
++#endif
 +bad3:
-+	kmem_cache_destroy(pending_cache);
++	kmem_cache_destroy(end_io_cache);
 +bad2:
-+	dm_unregister_target(&csnapshot);
++	kmem_cache_destroy(pending_cache);
 +bad1:
++	DMERR("%s failed\n", what);
 +	return err;
 +}
 +
@@ -1046,7 +1123,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +{
 +	int err;
 +	trace_on(warn(">>> module exit");)
-+	if ((err = dm_unregister_target(&csnapshot)))
++	if ((err = dm_unregister_target(&csnap)))
 +		DMERR("Snapshot unregister failed %d", err);
 +	if (pending_cache)
 +		kmem_cache_destroy(pending_cache);
@@ -1059,8 +1136,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/drivers/md/dm-csnap.h
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 16:58:12.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-10-18 19:15:45.000000000 +0000
-@@ -0,0 +1,85 @@
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-10-30 04:15:39.000000000 +0000
+@@ -0,0 +1,90 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1095,9 +1172,14 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/dri
 +	SERVER_READY,
 +	START_SERVER,
 +	SHUTDOWN_SERVER,
++	SET_IDENTITY,
++	UPLOAD_LOCK,
++	FINISH_UPLOAD_LOCK,
 +};
 +
-+struct identify { uint32_t id; int32_t snap; } PACKED;
++
++struct set_id { uint64_t id; } PACKED;
++struct identify { uint64_t id; int32_t snap; } PACKED;
 +struct create_snapshot { uint32_t snap; } PACKED;
 +
 +typedef uint16_t shortcount; /* !!! what is this all about */

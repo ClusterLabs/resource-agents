@@ -1900,6 +1900,12 @@ int incoming(struct superblock *sb, struct client *client)
 			break;
 		}
 
+		case UPLOAD_LOCK:
+			break;
+
+		case FINISH_UPLOAD_LOCK:
+			break;
+
 		case CREATE_SNAPSHOT:
 			create_snapshot(sb, ((struct create_snapshot *)message.body)->snap);
 			save_state(sb);
