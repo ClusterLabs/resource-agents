@@ -49,7 +49,7 @@ buildtest: $(OBJS)
 	rm -f _buildtest*
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)
+	$(CC) -c -o $@ $^ $(INCLUDES) -fPIC $(CFLAGS)
 
 clean:
 	rm -f *o *~ *.so buildtest
