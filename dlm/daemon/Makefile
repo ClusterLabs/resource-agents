@@ -1,0 +1,57 @@
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+
+top_srcdir=..
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+
+include ${top_srcdir}/make/defines.mk
+
+CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
+
+CFLAGS+= -I../../dlm-kernel/src2/
+
+
+TARGET=dlm_controld
+
+all: ${TARGET}
+
+copytobin: all
+	cp ${TARGET} ${top_srcdir}/bin
+
+dlm_controld: main.o ioctl.o action.o
+	$(CC) $(LDFLAGS) -o $@ $^
+
+main.o: main.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+action.o: action.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+ioctl.o: ioctl.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+ioctl.c:
+	ln -s ../dlm_tool/ioctl.c .
+
+action.c:
+	ln -s ../dlm_tool/action.c .
+
+install: dlm_controld
+	install -d ${sbindir}
+	install dlm_controld ${sbindir}
+
+uninstall:
+	${UNINSTALL} dlm_controld ${sbindir}
+
+clean:
+	rm -f *.o dlm_controld ioctl.c action.c
+
