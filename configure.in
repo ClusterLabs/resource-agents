@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.351 $) dnl cvs revision
+AC_REVISION($Revision: 1.352 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -649,8 +649,6 @@ if test "$ac_cv_header_sys_param_h" = no; then
 else
 	AC_CHECK_HEADERS(sys/ucred.h,[],[],[#include <sys/param.h>])
 fi
-
-
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On Solaris
@@ -1836,6 +1834,7 @@ crm/Makefile							\
 		crm/test/3node.sh				\
 		crm/test/3node-rapid.sh				\
 		crm/test/3node-fail.sh				\
+		crm/test/cib_suite.sh				\
 debian/Makefile							\
 doc/Makefile							\
 	doc/startstop						\
