@@ -98,20 +98,11 @@ stop()
 	then
 		rtrn=1
 
-		# Make sure that we are in the cluster first so that we 
-		# can leave.  If we are not a cluster member, our 
-		# request to to leave will be rejected and the cman 
-		# module will fail to be unloaded.  
-		stoptime=$(($SECONDS + $CMAN_SHUTDOWN_TIMEOUT))
-		while [ $CMAN_SHUTDOWN_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
-		do
-			in_cluster && break
-			[ -r /proc/cluster/status ] || break
-
-			sleep 1
-		done
-
-		cman_tool -w leave &>/dev/null 
+		if cman_tool -w leave &>/dev/null
+		then	
+			# allow cman time to clean up
+			sleep 3
+		fi
 
 		# try to unload dlm module
 		modprobe -r dlm &>/dev/null
