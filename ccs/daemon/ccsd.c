@@ -666,6 +666,7 @@ static void daemonize(void){
 	break;
       case EXIT_LOCKFILE:
 	fprintf(stderr, "Failed to create lockfile.\n");
+	fprintf(stderr, "Hint: ccsd is already running.\n");
 	break;
       }
       exit(EXIT_FAILURE);
