@@ -42,9 +42,15 @@ static void _clu_clear_default(void);
 /**
   Searches PLUGINDIR for a plugin which can successfully connect to the
   cluster infrastructure (locking/fencing/quorum/membership) which is 
-  running locally.
+  running locally.  This connects, and tries to log in to the specified
+  service or node group if specified.
  
-  @return		A file descriptor on success; -1 on failure.
+  @param groupname	Node group to connect to.
+  @param login		If set to nonzero, actually try to log in to the
+  			node or service group.
+  @return		A file descriptor on success; -1 on failure. 
+  			select(2) may be used to wait for events on this
+			file descriptor.
   @see clu_disconnect
  */
 int
@@ -235,7 +241,8 @@ clu_quorum_status(char *groupname)
 
 /**
   Call the default plugin's version function.  This can be used to find out
-  which cluster plugin is in use by applications.
+  which cluster plugin is in use by applications, but should not actually
+  affect the operation of the application.
 
   @return		Immutable cluster plugin version string.
  */
@@ -257,7 +264,9 @@ clu_plugin_version(void)
   event is received, it is up to the application to handle it properly.  For
   instance, when a membership change event occurs, it is up to the application
   to attain a new membership list and update magmamsg's internal table (if in
-  use).
+  use).  See
+  @ref magma.h
+  for events.
 
   @param fd		File descriptor to obtain event from.
   @return		Event identifier.

@@ -18,12 +18,10 @@
   MA 02139, USA.
 */
 /** @file
- * Intra-Cluster Messaging Interface for Magma.
+ * Super Simple TCP messaging for Magma.
  *
- *  authors: Jeff Moyer <jmoyer at redhat.com>
- *	     - Original msg.c from Kimberlite
- *           Lon H. Hohberger <lhh at redhat.com>
- *           - IPv6, simplification
+ * @author Jeff Moyer <jmoyer at redhat.com> - Original msg.c from Kimberlite
+ * @author Lon H. Hohberger <lhh at redhat.com> - IPv6, magma changes
  */
 #include <magma.h>
 #include <magmamsg.h>
@@ -47,7 +45,9 @@
 #include <mallocdbg.h>
 #endif
 
-#define IPV6_PORT_OFFSET 1
+#define IPV6_PORT_OFFSET 1	/** When binding an IPv6 port, increment by
+				  this number so we don't conflict with the
+				  IPv4 port. */
 
 /*
    From fdops.c
@@ -79,7 +79,10 @@ static pthread_mutex_t fill_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 /**
-  Update our internal membership list with the provided list.
+  Update the messaging service's internal membership list with the
+  provided list.  Typically, this is called immediately after obtaining
+  a new membership list after a CE_MEMB_CHANGE has been received.
+
   Does NOT copy over resolved addresses; the caller may want to 
   reuse them for some reason on their list.
 
@@ -106,7 +109,7 @@ msg_update(cluster_member_list_t *membership)
 
 
 /**
-  Receive a message from a file descriptor.  Related of _msg_receive
+  Receive a message from a file descriptor.  Relative of _msg_receive
   from Kimberlite.
 
   @param fd		File descriptor to read from.
@@ -134,10 +137,12 @@ _msg_receive(int fd, void *buf, ssize_t count,
 
 
 /**
-  Receive a message from a file descriptor w/o a timeout value.
+  Read a message from a file descriptor without specifying a timeout
+  value.  Beware: this will wait forever for the amount of requested data
+  to be read.
 
   @param fd		File descriptor to receive from
-  @param buf		Pre-allocated bufffer 
+  @param buf		Pre-allocated buffer 
   @param count		Size of expected message; must be <= size of
   			preallocated buffer.
   @return		-1 on failure or size of read data
@@ -151,10 +156,10 @@ msg_receive(int fd, void *buf, ssize_t count)
 
 
 /**
-  Receive a message from a file descriptor with a timeout value.
+  Read a message from a file descriptor with a timeout value.
 
   @param fd		File descriptor to receive from
-  @param buf		Pre-allocated bufffer \
+  @param buf		Pre-allocated buffer
   @param count		Size of expected message; must be <= size of
   			preallocated buffer.
   @param timeout	Timeout, in seconds, to wait for data.
@@ -272,7 +277,7 @@ connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 
 
 /**
-  Connect via ipv6 socket to a given IP address, port
+  Connect via ipv6 socket to a given IP address and port.
 
   @param in6_addr	IPv6 address to connect to
   @param port		Port to connect to
@@ -307,7 +312,7 @@ ipv6_connect(struct in6_addr *in6_addr, uint16_t port, int timeout)
 
 
 /**
-  Connect via ipv4 socket to a given IP address, port
+  Connect via ipv4 socket to a given IP address and port.
 
   @param in_addr	IPv4 address to connect to
   @param port		Port to connect to
@@ -342,7 +347,8 @@ ipv4_connect(struct in_addr *in_addr, uint16_t port, int timeout)
 
 /** 
   Open a TCP connection to another cluster member given the node ID and the
-  base port.  
+  base port.  This first ties to use IPv6 to connect, and fails back to
+  IPv4.
 
   @param nodeid		Node ID to connect to.
   @param baseport	Port to connect to.  +1 if we end up using an ipv6

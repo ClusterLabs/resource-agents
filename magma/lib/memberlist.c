@@ -34,8 +34,17 @@
 
 
 /**
-  Generate a list of nodes which are now present in 'new' but weren't in 'old'
-  User must free.
+  Generate and return a list of members which are now online in a new
+  membership list, given the old membership list.  User must call
+  @ref cml_free
+  to free the returned
+  @ref cluster_member_list_t
+  structure.
+
+  @param old		Old membership list
+  @param new		New membership list
+  @return		NULL if no members were gained, or a newly 
+  			allocated cluster_member_list_t structure.
  */
 cluster_member_list_t *
 clu_members_gained(cluster_member_list_t *old, cluster_member_list_t *new)
@@ -102,8 +111,17 @@ clu_members_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 
 
 /**
-  Generate a list of nodes which are now present in 'new' but weren't in 'old'
-  User must free.
+  Generate and return a list of members which are lost or no longer online
+  in a new membership list, given the old membership list.  User must call
+  @ref cml_free
+  to free the returned
+  @ref cluster_member_list_t
+  structure.
+
+  @param old		Old membership list
+  @param new		New membership list
+  @return		NULL if no members were lost, or a newly 
+  			allocated cluster_member_list_t structure.
  */
 cluster_member_list_t *
 clu_members_lost(cluster_member_list_t *old, cluster_member_list_t *new)
@@ -125,7 +143,14 @@ clu_members_lost(cluster_member_list_t *old, cluster_member_list_t *new)
 
 
 /**
-  Returns 1 if nodeid exists in list and nodeid's state is UP
+  Find out if a given node ID is online in a membership list.  In order for 
+  this check to return '1' (true), the node must (a) exist in the membership
+  list and (b) must be in STATE_UP state.
+
+  @param list		List to search
+  @param nodeid		Node ID to look for
+  @return		0 if node does not exist or is not STATE_UP, or 1
+  			if node is STATE_UP
  */
 int
 memb_online(cluster_member_list_t *list, uint64_t nodeid)
@@ -146,7 +171,13 @@ memb_online(cluster_member_list_t *list, uint64_t nodeid)
 
 
 /**
-  Return a nodename in a list given a nodeid
+  Find a node's name given it's node ID in a membership list.
+
+  @param list		Member list to search
+  @param nodeid		Node ID to look for
+  @return		NULL if not found, "none" if the we were asked for
+  			@ref NODE_ID_NONE
+			or the character pointer of the node name in list.
  */
 char *
 memb_id_to_name(cluster_member_list_t *list, uint64_t nodeid)
@@ -170,7 +201,12 @@ memb_id_to_name(cluster_member_list_t *list, uint64_t nodeid)
 
 
 /**
-  Return a nodename in a list given a nodeid
+  Find a node's ID given it's node name in a membership list.
+
+  @param list		Member list to search
+  @param nodename	Node name to look for
+  @return		NODE_ID_NONE if not found, or the node ID 
+  			corresponding to nodename in the list.
  */
 uint64_t
 memb_name_to_id(cluster_member_list_t *list, char *nodename)
@@ -191,7 +227,12 @@ memb_name_to_id(cluster_member_list_t *list, char *nodename)
 
 
 /**
-  Return a nodename in a list given a nodeid
+  Find a node's structure pointer given it's node ID.
+
+  @param list		Member list to search
+  @param nodeid		Node ID to look for
+  @return		NULL if not found, or the address of the
+  			cluster_member_t structure corresponding to nodeid.
  */
 cluster_member_t *
 memb_id_to_p(cluster_member_list_t *list, uint64_t nodeid)
@@ -212,7 +253,12 @@ memb_id_to_p(cluster_member_list_t *list, uint64_t nodeid)
 
 
 /**
-  Return a nodename in a list given a nodeid
+  Find a node's structure pointer given it's name.
+
+  @param list		Member list to search
+  @param nodename	Node name to look for
+  @return		NULL if not found, or the address of the
+  			cluster_member_t structure corresponding to nodename.
  */
 cluster_member_t *
 memb_name_to_p(cluster_member_list_t *list, char *nodename)
@@ -251,6 +297,12 @@ memb_mark_down(cluster_member_list_t *list, uint64_t nodeid)
 }
 
 
+/**
+  Resolve a cluster member's address(es) using getaddrinfo.
+
+  @param member		Member to resolve.
+  @return		-1 on getaddrinfo failure, or 0 on success
+ */
 int
 memb_resolve(cluster_member_t *member)
 {
@@ -280,6 +332,15 @@ memb_resolve(cluster_member_t *member)
 }
 
 
+/**
+  Duplicate and return a cluster member list structure, sans the DNS resolution
+  information.
+
+  @param orig		List to duplicate.
+  @return		NULL if there is nothing to duplicate or duplication
+  			fails, or a newly allocated cluster_member_list_t
+			structure.
+ */
 cluster_member_list_t *
 cml_dup(cluster_member_list_t *orig)
 {
@@ -301,6 +362,12 @@ cml_dup(cluster_member_list_t *orig)
 }
 
 
+/**
+  Find the number of nodes marked as STATE_UP in a membership list
+
+  @param list		List to search
+  @return		Number of nodes marked as STATE_UP
+ */
 int
 memb_count(cluster_member_list_t *list)
 {
@@ -384,6 +451,12 @@ memb_resolve_list(cluster_member_list_t *new, cluster_member_list_t *old)
 }
 
 
+/**
+  Print a membership list structure to stdout.  Primarily for debugging.
+
+  @param list		cluster_member_list_t structure to print
+  @param verbose	Prints extra messages if set to nonzero
+ */
 void
 print_member_list(cluster_member_list_t *list, int verbose)
 {
@@ -437,7 +510,8 @@ print_member_list(cluster_member_list_t *list, int verbose)
 
 
 /**
-  Frees a cluster member list structure. 
+  Frees a cluster member list structure, including DNS/host resolution
+  information.
 
   @param ml		Member list to free.
  */

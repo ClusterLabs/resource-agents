@@ -166,7 +166,8 @@ _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 
 /**
  * Load a cluster plugin .so file and map all the functions
- * provided to entries in a cluster_plugin_t structure.
+ * provided to entries in a cluster_plugin_t structure.  Maps all unimplemented
+ * functions to their _U_* counterparts.
  *
  * @param libpath	Path to file.
  * @return		NULL on failure, or a newly allocated
@@ -333,6 +334,11 @@ cp_reset(void)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_null
+  using specified plugin.
+ */
 int
 cp_null(cluster_plugin_t *cpp)
 {
@@ -340,6 +346,11 @@ cp_null(cluster_plugin_t *cpp)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_member_list
+  using specified plugin.
+ */
 cluster_member_list_t *
 cp_member_list(cluster_plugin_t *cpp, char *groupname)
 {
@@ -347,6 +358,11 @@ cp_member_list(cluster_plugin_t *cpp, char *groupname)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_quorum_status
+  using specified plugin.
+ */
 int
 cp_quorum_status(cluster_plugin_t *cpp, char *groupname)
 {
@@ -354,6 +370,11 @@ cp_quorum_status(cluster_plugin_t *cpp, char *groupname)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_plugin_version
+  using specified plugin.
+ */
 char *
 cp_plugin_version(cluster_plugin_t *cpp)
 {
@@ -361,6 +382,11 @@ cp_plugin_version(cluster_plugin_t *cpp)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_get_event
+  using specified plugin.
+ */
 int
 cp_get_event(cluster_plugin_t *cpp, int fd)
 {
@@ -368,6 +394,11 @@ cp_get_event(cluster_plugin_t *cpp, int fd)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_lock
+  using specified plugin.
+ */
 int
 cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
 {
@@ -375,6 +406,11 @@ cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_unlock
+  using specified plugin.
+ */
 int
 cp_unlock(cluster_plugin_t *cpp, char *resource, void *lockp)
 {
@@ -382,6 +418,11 @@ cp_unlock(cluster_plugin_t *cpp, char *resource, void *lockp)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_login
+  using specified plugin.
+ */
 int
 cp_login(cluster_plugin_t *cpp, int fd, char *groupname)
 {
@@ -389,6 +430,11 @@ cp_login(cluster_plugin_t *cpp, int fd, char *groupname)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_open
+  using specified plugin.
+ */
 int
 cp_open(cluster_plugin_t *cpp)
 {
@@ -396,6 +442,11 @@ cp_open(cluster_plugin_t *cpp)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_close
+  using specified plugin.
+ */
 int
 cp_close(cluster_plugin_t *cpp, int fd)
 {
@@ -403,6 +454,11 @@ cp_close(cluster_plugin_t *cpp, int fd)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_fence
+  using specified plugin.
+ */
 int
 cp_fence(cluster_plugin_t *cpp, cluster_member_t *node)
 {
@@ -410,6 +466,11 @@ cp_fence(cluster_plugin_t *cpp, cluster_member_t *node)
 }
 
 
+/**
+  Reentrant version of 
+  @ref clu_logout
+  using specified plugin.
+ */
 int
 cp_logout(cluster_plugin_t *cpp, int fd)
 {
