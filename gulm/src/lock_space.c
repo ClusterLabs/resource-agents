@@ -574,6 +574,7 @@ Holders_t *get_new_holder(void)
       free_holders --;
    }
    if( h == NULL ) return NULL;
+   memset(h, 0, sizeof(Holders_t));
    used_holders ++;
    return h;
 }
@@ -1901,16 +1902,17 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
          ret = 1;
       }
    }else
-   if( incomming && !singleExl && ! conflict_queue_empty(lk) &&
-       check_for_holder(lk, lkrq) ) {
-      /* I hold lock, I want to convert. but others in way. */
+   if( incomming && !singleExl && !conflict_queue_empty(lk) ) {
       if( lkrq->flags & gio_lck_fg_Try ) {
          send_Try_Failed(lk, lkrq);
       }else
       {
-         /* Internal Unlock */
-         drop_holder_by_range(lk, lkrq);
-         lkrq->flags &= ~gio_lck_fg_Cachable;
+         if( check_for_holder(lk, lkrq) ) {
+            /* I hold lock, I want to convert. but others in way. */
+            /* Internal Unlock */
+            drop_holder_by_range(lk, lkrq);
+            lkrq->flags &= ~gio_lck_fg_Cachable;
+         }
 
          /* then queue me on conflict. */
          put_onto_conflict_queue(lk, lkrq);
