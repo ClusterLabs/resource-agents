@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.201 $) dnl cvs revision
+AC_REVISION($Revision: 1.202 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -709,7 +709,7 @@ dnl Add any system specific options here.
 		if test "${enable_fatal_warnings+set}" != "set" && 
 	   	   test "${disable_fatal_warnings+set}" != "set"; then
         		echo "Enabling Fatal Warnings (-Werror) on this platform"
-    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
+    			EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror -Wmissing-format-attribute"
         	fi
           	;;
   	*solaris*)
@@ -737,6 +737,7 @@ dnl Add any system specific options here.
 	fi
 	# had to eliminate -Wnested-externs because of libtool changes
 
+
 	CC_WARNINGS="-Wall -Wmissing-prototypes \
 		-Wmissing-declarations \
 		-Wstrict-prototypes \
@@ -745,7 +746,6 @@ dnl Add any system specific options here.
 		-Wcast-qual -Wcast-align \
 		-Wbad-function-cast \
 		-Wformat-security  -Wformat-nonliteral \
-		-Wmissing-format-attribute \
 		-Winline $EXTRA_WARNINGS"
 fi
 
