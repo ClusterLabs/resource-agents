@@ -92,15 +92,14 @@ Run these commands on each cluster node:
 > killall ccsd                     - Stops the CCS daemon
 
 
-Creating CCS config
--------------------
+Creating cluster.conf
+---------------------
 
 There is no GUI or command line program to create the config file yet.
 The cluster config file "cluster.conf" must therefore be created manually.
 Once created, cluster.conf should be placed in the /etc/cluster/ directory
 on one cluster node.  CCS daemon (ccsd) will take care of transferring it
-to other nodes where it's needed.  (FIXME: updating cluster.conf in a running
-cluster is supported but not documented.)
+to other nodes where it's needed.
 
 A minimal cluster.conf example is shown below.
 
@@ -128,22 +127,48 @@ Creating a GFS file system means writing to a CLVM volume which means the CLVM
 system must be running (see previous section.)
 
 
-Cluster startup/shutdown notes
-------------------------------
+Cluster startup tips
+--------------------
 
-Fencing: In the start-up steps above, "fence_tool join" is the equivalent of
-simply starting fenced.  fence_tool is useful because additional options can be
-specified to delay the actual starting of fenced.  Delaying can be useful to
-avoid unnecessarily fencing nodes that haven't joined the cluster yet.  The
-only option fence_tool now provides to address this is "-t <seconds>" to wait
-the given number of seconds before starting fenced.
+* Avoiding unnecessary startup fencing when fence domain is first created.
 
-Shutdown: There is also a practical timing issue with respect to the shutdown
-steps being run on all nodes when shutting down an entire cluster.  When
+When the cluster is quorate and the fence domain is first created (by a fence
+daemon being started), any nodes not yet in the cluster will be fenced.  By
+default there's a delay of 6 seconds in this case to allow any nodes
+unnecessarily flagged for fencing to join the cluster an avoid being fenced.
+This delay can be increased by setting post_join_delay in cluster.conf:
+
+  <fence_daemon post_join_delay="12">
+  </fence_daemon>
+
+The cluster.conf value can be overriden manually using the -j option to
+fence_tool (or fenced).
+
+When starting up the cluster in general, it's best to ensure that all the
+nodes have joined the cluster before any of them run "fence_tool join".  This
+can be difficult if the startup steps are not done manually, though, which
+makes the delay mentioned above is especially helpful.  If the user is certain
+all nodes are in a clean (non-hung) state when starting up the cluster, the -c
+option can be used with fence_tool/fenced to bypass any startup fencing.  See
+the fenced and fence_tool man pages for more information.
+
+Avoiding startup fencing is primarily an issue when the fencing agents being
+used are NPS/power/reboot based.  When SAN-based fencing agents are used, an
+unnecessary fencing operation during startup usually isn't disruptive (the
+unfencing done by fence_tool is helpful in this case.)
+
+
+Cluster shutdown tips
+---------------------
+
+* Avoiding a partly shutdown cluster due to lost quorum.
+
+There is a practical timing issue with respect to the shutdown steps being run
+on all nodes when shutting down an entire cluster (or most of it).  When
 shutting down the entire cluster (or shutting down a node for an extended
-period) use "cman_tool leave remove".  This automatically reduces the number of
-expected votes as each node leaves and prevents the loss of quorum which could
-keep the last nodes from cleanly completing shutdown.
+period) use "cman_tool leave remove".  This automatically reduces the number
+of expected votes as each node leaves and prevents the loss of quorum which
+could keep the last nodes from cleanly completing shutdown.
 
 Using the "remove" leave option should not be used in general since it
 introduces potential split-brain risks.
@@ -151,9 +176,9 @@ introduces potential split-brain risks.
 If the "remove" leave option is not used, quorum will be lost after enough
 nodes have left the cluster.  Once the cluster is inquorate, remaining members
 that have not yet completed "fence_tool leave" in the steps above will be
-stuck.  Operations such as umounting gfs or leaving the fence domain
-("fence_tool leave") will block while the cluster is inquorate.  They can
-continue and complete only once quorum is regained.
+stuck.  Operations such as umounting gfs or leaving the fence domain will
+block while the cluster is inquorate.  They can continue and complete only
+when quorum is regained.
 
 If this happens, one option is to join the cluster ("cman_tool join") on some
 of the nodes that have left so that the cluster regains quorum and the stuck
@@ -171,8 +196,8 @@ Cluster information
 /proc/cluster/services
 
 
-Config file
------------
+Cluster config file - cluster.conf
+----------------------------------
 
 This example primarily illustrates the variety of fencing configurations.
 
@@ -223,7 +248,7 @@ operations is the node with the lowest ID in the fence domain.)
 <clusternode name="nd03" votes="1">
 	<fence>
 		<method name="single">
-			<device name="human" ipaddr="nd03"/>
+			<device name="human" nodename="nd03"/>
 		</method>
 	</fence>
 </clusternode>
@@ -237,6 +262,19 @@ operations is the node with the lowest ID in the fence domain.)
 </fencedevices>
 
 </cluster>
+
+
+Updating cluster.conf
+---------------------
+
+To update the config file in a running cluster:
+
+1. have all nodes running as cluster members using the original cluster.conf
+2. on one node, update /etc/cluster/cluster.conf, incrementing config_version
+3. on this same node run "killall -HUP ccsd"
+4. verify that the new cluster.conf exists on all nodes
+5. on this same node run "cman_tool -r <new config_version>"
+6. check /proc/cluster/status to verify the new config version
 
 
 Multiple clusters
