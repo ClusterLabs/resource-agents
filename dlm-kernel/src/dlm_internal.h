@@ -252,6 +252,7 @@ struct dlm_ls {
 	uint32_t		ls_local_id;	/* local unique lockspace ID */
 	uint32_t		ls_global_id;	/* global unique lockspace ID */
 	int			ls_allocation;	/* Memory allocation policy */
+	int			ls_count;	/* reference count */
 	unsigned long		ls_flags;	/* LSFL_ */
 
 	struct dlm_rsbtable *	ls_rsbtbl;

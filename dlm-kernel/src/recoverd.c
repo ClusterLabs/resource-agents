@@ -616,9 +616,10 @@ static __inline__ struct dlm_ls *get_work(int clear)
 
 	list_for_each_entry(ls, &lslist, ls_list) {
 		if (clear) {
-			if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags))
+			if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags)) {
+				hold_lockspace(ls);
 			        goto got_work;
-
+			}
 		} else {
 			if (test_bit(LSFL_WORK, &ls->ls_flags))
 			        goto got_work;
@@ -646,8 +647,10 @@ static int dlm_recoverd(void *arg)
 
 	while (!test_bit(THREAD_STOP, &recoverd_flags)) {
 		wchan_cond_sleep_intr(recoverd_wait, !get_work(0));
-		if ((ls = get_work(1)))
+		if ((ls = get_work(1))) {
 			do_ls_recovery(ls);
+			put_lockspace(ls);
+		}
 	}
 
 	complete(&recoverd_run);

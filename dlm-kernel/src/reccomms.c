@@ -498,5 +498,7 @@ void process_recovery_comm(uint32_t nodeid, struct dlm_header *header)
 	default:
 		DLM_ASSERT(0, printk("cmd=%x\n", header->rh_cmd););
 	}
+
+	put_lockspace(ls);
 }
 

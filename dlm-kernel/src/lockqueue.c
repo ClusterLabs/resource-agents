@@ -1081,7 +1081,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	}
 
 	wake_astd();
-
+	put_lockspace(lspace);
 	return status;
 }
 

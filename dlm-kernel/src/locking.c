@@ -296,7 +296,7 @@ int dlm_lock(void *lockspace,
 
 	lspace = find_lockspace_by_local_id(lockspace);
 	if (!lspace)
-		goto out;
+		return ret;
 
 	if (mode < 0 || mode > DLM_LOCK_EX)
 		goto out;
@@ -406,6 +406,7 @@ int dlm_lock(void *lockspace,
 
 	wake_astd();
 
+	put_lockspace(lspace);
 	return 0;
 
       fail_free:
@@ -420,6 +421,7 @@ int dlm_lock(void *lockspace,
 	up_read(&lspace->ls_in_recovery);
 
       out:
+	put_lockspace(lspace);
 	return ret;
 }
 
@@ -660,7 +662,7 @@ int dlm_unlock(void *lockspace,
 	int ret = -EINVAL;
 
 	if (!ls)
-		goto out;
+		return ret;
 
 	lkb = find_lock_by_id(ls, lkid);
 	if (!lkb) {
@@ -733,6 +735,7 @@ int dlm_unlock(void *lockspace,
 	wake_astd();
 
       out:
+	put_lockspace(ls);
 	return ret;
 }
 

@@ -141,10 +141,12 @@ struct dlm_lkb *find_lock_by_id(struct dlm_ls *ls, uint32_t lkid)
 	return lkb;
 }
 
-struct dlm_lkb *dlm_get_lkb(void *ls, uint32_t lkid)
+struct dlm_lkb *dlm_get_lkb(void *lockspace, uint32_t lkid)
 {
-        struct dlm_ls *lspace = find_lockspace_by_local_id(ls);
-	return find_lock_by_id(lspace, lkid);
+	struct dlm_ls *ls = find_lockspace_by_local_id(lockspace);
+	struct dlm_lkb *lkb = find_lock_by_id(ls, lkid);
+	put_lockspace(ls);
+	return lkb;
 }
 
 /*

@@ -50,13 +50,12 @@ int dlm_query(void *lockspace,
 	int status = -EINVAL;
 	struct dlm_lkb *target_lkb;
 	struct dlm_lkb *query_lkb = NULL;	/* Our temporary LKB */
-	struct dlm_ls  *ls = (struct dlm_ls *) find_lockspace_by_local_id(lockspace);
+	struct dlm_ls  *ls = find_lockspace_by_local_id(lockspace);
 
-
+	if (!ls)
+		return -EINVAL;
 	if (!qinfo)
 		goto out;
-	if (!ls)
-	        goto out;
 	if (!ast_routine)
 	        goto out;
 	if (!lksb)
@@ -77,7 +76,7 @@ int dlm_query(void *lockspace,
 	if (((query & DLM_QUERY_MASK) == DLM_QUERY_LOCKS_BLOCKING ||
 	     (query & DLM_QUERY_MASK) == DLM_QUERY_LOCKS_NOTBLOCK) &&
 	    target_lkb->lkb_status == GDLM_LKSTS_GRANTED)
-		return -EINVAL;
+		goto out;
 
 	/* We now allocate an LKB for our own use (so we can hang
 	 * things like the AST routine and the lksb from it) */
@@ -179,7 +178,7 @@ int dlm_query(void *lockspace,
 	}
 
       out:
-
+	put_lockspace(ls);
 	return status;
 }
 

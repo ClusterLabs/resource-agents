@@ -47,39 +47,6 @@ void dlm_lockspace_init(void)
 	spin_lock_init(&lslist_lock);
 }
 
-struct dlm_ls *find_lockspace_by_global_id(uint32_t id)
-{
-	struct dlm_ls *ls;
-
-	spin_lock(&lslist_lock);
-
-	list_for_each_entry(ls, &lslist, ls_list) {
-		if (ls->ls_global_id == id)
-			goto out;
-	}
-	ls = NULL;
-      out:
-	spin_unlock(&lslist_lock);
-	return ls;
-}
-
-/* TODO: make this more efficient */
-struct dlm_ls *find_lockspace_by_local_id(void *id)
-{
-	struct dlm_ls *ls;
-
-	spin_lock(&lslist_lock);
-
-	list_for_each_entry(ls, &lslist, ls_list) {
-		if (ls->ls_local_id == (uint32_t)(long)id)
-			goto out;
-	}
-	ls = NULL;
-      out:
-	spin_unlock(&lslist_lock);
-	return ls;
-}
-
 struct dlm_ls *find_lockspace_by_name(char *name, int namelen)
 {
 	struct dlm_ls *ls;
@@ -95,6 +62,70 @@ struct dlm_ls *find_lockspace_by_name(char *name, int namelen)
       out:
 	spin_unlock(&lslist_lock);
 	return ls;
+}
+
+struct dlm_ls *find_lockspace_by_global_id(uint32_t id)
+{
+	struct dlm_ls *ls;
+
+	spin_lock(&lslist_lock);
+
+	list_for_each_entry(ls, &lslist, ls_list) {
+		if (ls->ls_global_id == id) {
+			ls->ls_count++;
+			goto out;
+		}
+	}
+	ls = NULL;
+      out:
+	spin_unlock(&lslist_lock);
+	return ls;
+}
+
+struct dlm_ls *find_lockspace_by_local_id(void *id)
+{
+	struct dlm_ls *ls;
+
+	spin_lock(&lslist_lock);
+
+	list_for_each_entry(ls, &lslist, ls_list) {
+		if (ls->ls_local_id == (uint32_t)(long)id) {
+			ls->ls_count++;
+			goto out;
+		}
+	}
+	ls = NULL;
+      out:
+	spin_unlock(&lslist_lock);
+	return ls;
+}
+
+/* must be called with lslist_lock held */
+void hold_lockspace(struct dlm_ls *ls)
+{
+	ls->ls_count++;
+}
+
+void put_lockspace(struct dlm_ls *ls)
+{
+	spin_lock(&lslist_lock);
+	ls->ls_count--;
+	spin_unlock(&lslist_lock);
+}
+
+static void remove_lockspace(struct dlm_ls *ls)
+{
+	for (;;) {
+		spin_lock(&lslist_lock);
+		if (ls->ls_count == 0) {
+			list_del(&ls->ls_list);
+			spin_unlock(&lslist_lock);
+			return;
+		}
+		spin_unlock(&lslist_lock);
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(HZ);
+	}
 }
 
 /*
@@ -165,7 +196,6 @@ static int init_internal(void)
 	return error;
 }
 
-
 /*
  * Called after dlm module is loaded and before any lockspaces are created.
  * Starts and initializes global threads and structures.  These global entities
@@ -225,8 +255,6 @@ struct dlm_ls *allocate_ls(int namelen)
 {
 	struct dlm_ls *ls;
 
-	/* FIXME: use appropriate malloc type */
-
 	ls = kmalloc(sizeof(struct dlm_ls) + namelen, GFP_KERNEL);
 	if (ls)
 		memset(ls, 0, sizeof(struct dlm_ls) + namelen);
@@ -263,6 +291,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_namelen = namelen;
 
 	ls->ls_allocation = GFP_KERNEL;
+	ls->ls_count = 0;
 	ls->ls_flags = 0;
 
 	size = dlm_config.rsbtbl_size;
@@ -442,9 +471,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kcl_unregister_service(ls->ls_local_id);
 	}
 
-	spin_lock(&lslist_lock);
-	list_del(&ls->ls_list);
-	spin_unlock(&lslist_lock);
+	remove_lockspace(ls);
 
 	/*
 	 * Free direntry structs.
@@ -554,7 +581,7 @@ int dlm_release_lockspace(void *lockspace, int force)
 	ls = find_lockspace_by_local_id(lockspace);
 	if (!ls)
 		return -EINVAL;
-
+	put_lockspace(ls);
 	return release_lockspace(ls, force);
 }
 
