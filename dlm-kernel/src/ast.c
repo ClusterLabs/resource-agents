@@ -230,6 +230,9 @@ static void process_asts(void)
 			DLM_ASSERT(lkb->lkb_astflags == 0,
 			    printk("%x %x\n", lkb->lkb_id, lkb->lkb_astflags););
 
+			/* FIXME: we don't want to block asts for other
+			   lockspaces while one is being recovered */
+
 			down_read(&ls->ls_in_recovery);
 			release_lkb(ls, lkb);
 			release_rsb(rsb);
@@ -254,7 +257,10 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 		if (lkb->lkb_resource->res_ls != ls)
 			continue;
 
-		/* 
+		log_debug(ls, "mark %x lq %d nodeid %d", lkb->lkb_id,
+			  lkb->lkb_lockqueue_state, lkb->lkb_nodeid);
+
+		/*
 		 * These lkb's are new and the master is being looked up.  Mark
 		 * the lkb request to be resent.  Even if the destination node
 		 * for the request is still living and has our request, it will
@@ -274,7 +280,44 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 			continue;
 		}
 
-		/* 
+		/*
+		 * We're waiting for an unlock reply and the master node from
+		 * whom we're expecting the reply has failed.  If there's a
+		 * reply in the requestqueue do nothing and process it later in
+		 * process_requestqueue.  If there's no reply, don't rebuild
+		 * the lkb on a new master, but just assume we've gotten an
+		 * unlock completion reply from the prev master (this also
+		 * means not resending the unlock request).  If the unlock is
+		 * for the last lkb on the rsb, the rsb has nodeid of -1 and
+		 * the rsb won't be rebuilt on the new master either.
+		 *
+		 * If we're waiting for an unlock reply and the master node is
+		 * still alive, we should either have a reply in the
+		 * requestqueue from the master already, or we should get one
+		 * from the master once recovery is complete.  There is no
+		 * rebuilding of the rsb/lkb in this case and no resending of
+		 * the request.
+                 */
+
+		if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_UNLOCK) {
+			if (in_nodes_gone(ls, lkb->lkb_nodeid)) {
+				if (reply_in_requestqueue(ls, lkb->lkb_id)) {
+					lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
+					log_all(ls, "mark %x unlock have rep",
+						lkb->lkb_id);
+				} else {
+					/* assume we got reply fr old master */
+					lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
+					lkb->lkb_flags |= GDLM_LKFLG_UNLOCKDONE;
+					log_all(ls, "mark %x unlock no rep",
+						lkb->lkb_id);
+				}
+			}
+			count++;
+			continue;
+		}
+
+		/*
 		 * These lkb's have an outstanding request to a bygone node.
 		 * The request will be redirected to the new master node in
 		 * resend_cluster_requests().  Don't mark the request for
@@ -325,6 +368,7 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 int resend_cluster_requests(struct dlm_ls *ls)
 {
 	struct dlm_lkb *lkb, *safe;
+	struct dlm_rsb *r;
 	int error = 0, state, count = 0;
 
 	log_all(ls, "resend marked requests");
@@ -339,14 +383,24 @@ int resend_cluster_requests(struct dlm_ls *ls)
 			break;
 		}
 
-		if (lkb->lkb_resource->res_ls != ls)
+		r = lkb->lkb_resource;
+
+		if (r->res_ls != ls)
 			continue;
 
-		log_debug(ls, "resend_cluster_requests id=%x nodeid=%d "
-		          "lqstate=%u flags=%x", lkb->lkb_id, lkb->lkb_nodeid,
-			  lkb->lkb_lockqueue_state, lkb->lkb_flags);
+		log_debug(ls, "resend %x lq %d flg %x node %d/%d \"%s\"",
+			  lkb->lkb_id, lkb->lkb_lockqueue_state, lkb->lkb_flags,
+			  lkb->lkb_nodeid, r->res_nodeid, r->res_name);
 
-		/* 
+		if (lkb->lkb_flags & GDLM_LKFLG_UNLOCKDONE) {
+			log_debug(ls, "unlock done %x", lkb->lkb_id);
+			lkb->lkb_retstatus = -DLM_EUNLOCK;
+			queue_ast(lkb, AST_COMP | AST_DEL, 0);
+			count++;
+			continue;
+		}
+
+		/*
 		 * Resend/process the lockqueue lkb's (in-progres requests)
 		 * that were flagged at the start of recovery in
 		 * lockqueue_lkb_mark().

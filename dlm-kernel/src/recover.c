@@ -497,6 +497,9 @@ static int needs_update(struct dlm_ls *ls, struct dlm_rsb *r)
 	if (!r->res_nodeid)
 		return FALSE;
 
+	if (r->res_nodeid == -1)
+		return FALSE;
+
 	if (in_nodes_gone(ls, r->res_nodeid))
 		return TRUE;
 
