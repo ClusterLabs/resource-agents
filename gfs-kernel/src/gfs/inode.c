@@ -1189,6 +1189,10 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 		if (error)
 			goto fail_inplace;
 	} else {
+		error = gfs_rindex_hold(sdp, &al->al_ri_gh);
+		if (error)
+			goto fail_gunlock_q;
+
 		/* Trans may require:
 		   blocks for two dinodes, a leaf block,
 		   and one block for a quota change and
@@ -1219,6 +1223,9 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 					 acl_a_data, acl_d_data,
 					 acl_size);
 
+	if (!alloc_required)
+		gfs_glock_dq_uninit(&al->al_ri_gh);
+
 	return error;
 
  fail_end_trans:
@@ -1227,6 +1234,8 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
  fail_inplace:
 	if (alloc_required)
 		gfs_inplace_release(dip);
+	else
+		gfs_glock_dq_uninit(&al->al_ri_gh);
 
  fail_gunlock_q:
 	gfs_quota_unlock_m(dip);

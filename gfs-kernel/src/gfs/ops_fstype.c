@@ -43,7 +43,7 @@
  * @data: Mount options
  * @silent: Don't complain if its not a GFS filesystem
  *
- * Returns: The VFS superblock, or NULL on error
+ * Returns: errno
  */
 
 static int
@@ -56,10 +56,12 @@ fill_super(struct super_block *sb, void *data, int silent)
 	unsigned int x;
 	int error;
 
-	error = -ENOMEM;
 	sdp = vmalloc(sizeof(struct gfs_sbd));
-	if (!sdp)
+	if (!sdp) {
+		printk("GFS: can't alloc struct gfs_sbd\n");
+		error = -ENOMEM;
 		goto fail;
+	}
 
 	memset(sdp, 0, sizeof(struct gfs_sbd));
 

@@ -137,7 +137,7 @@ static int check_leaf_eattr(fs_inode_t *ip, uint64 leaf_blk){
     if(!GFS_EATYPE_VALID(ea_hdr->ea_type) &&
        ((ea_hdr_prev) || (!ea_hdr_prev && ea_hdr->ea_type))){
       pp_print(PPN, "EA (%s) type is invalid (%d > %d).\n",
-	       ea_name, ea_hdr->ea_type, 2);
+	       ea_name, ea_hdr->ea_type, GFS_EATYPE_LAST);
       if(remove_eattr(sdp, leaf_bh, ea_hdr, ea_hdr_prev)){
 	error = -1;
 	goto fail;
