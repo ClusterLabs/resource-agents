@@ -266,9 +266,9 @@ static void print_usage(void)
 	printf("\n");
 	printf("create     <ls_name>\n");
 	printf("release    <ls_name>\n");
-	printf("lock       <ls_name> <resname> <mode> [<flag>,...]\n");
-	printf("unlock     <ls_name> <resname> <lkid> [<flag>,...]\n");
-	printf("convert    <ls_name> <resname> <lkid> <mode> [<flag>,...]\n");
+	printf("lock       <ls_name> <res_name> <mode> [<flag>,...]\n");
+	printf("unlock     <ls_name> <lkid>            [<flag>,...]\n");
+	printf("convert    <ls_name> <lkid> <mode>     [<flag>,...]\n");
 	printf("\n");
 	printf("modes      NL,CR,CW,PR,PW,EX\n");
 	printf("flags      NOQUEUE,CANCEL,QUECVT,CONVDEADLK,PERSISTENT,\n"

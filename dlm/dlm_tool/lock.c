@@ -166,7 +166,7 @@ int ls_lock(int argc, char **argv)
 	if (error < 0)
 		goto out;
 
-	printf("dlm_lock: mode 0x%x flags 0x%x name %s\n", mode, flags, res);
+	printf("lock: mode 0x%x flags 0x%x name %s\n", mode, flags, res);
 
 	memset(&lksb, 0, sizeof(lksb));
 
@@ -176,7 +176,7 @@ int ls_lock(int argc, char **argv)
 	if (error)
 		log_error("dlm_ls_lock_wait error %d", error);
 	else
-		printf("lock status %d id %u\n", lksb.sb_status, lksb.sb_lkid);
+		printf("status 0x%x id %u\n", lksb.sb_status, lksb.sb_lkid);
  out:
 	dlm_close_lockspace(ls);
 	return error;
@@ -184,13 +184,93 @@ int ls_lock(int argc, char **argv)
 
 int ls_unlock(int argc, char **argv)
 {
-	printf("not yet implemented\n");
-	return 0;
+	dlm_lshandle_t *ls;
+	struct dlm_lksb lksb;
+	uint32_t flags, lkid;
+	int error;
+	char *name, *lkid_str, *flags_str = NULL;
+
+	if (argc < 2)
+		die("%s invalid arguments", action);
+	if (argc > 2)
+		flags_str = argv[2];
+	name = argv[0];
+	lkid_str = argv[1];
+
+	ls = dlm_open_lockspace(name);
+	if (!ls) {
+		log_error("lockspace %s not found", name);
+		return -1;
+	}
+
+	error = make_flags(flags_str, &flags);
+	if (error < 0)
+		goto out;
+
+	lkid = atoll(lkid_str);
+
+	printf("unlock: lkid %u flags 0x%x\n", lkid, flags);
+
+	memset(&lksb, 0, sizeof(lksb));
+
+	error = dlm_ls_unlock_wait(ls, lkid, flags, &lksb);
+
+	if (error)
+		log_error("dlm_ls_unlock_wait error %d", error);
+	else
+		printf("status 0x%x\n", lksb.sb_status);
+ out:
+	dlm_close_lockspace(ls);
+	return error;
 }
 
 int ls_convert(int argc, char **argv)
 {
-	printf("not yet implemented\n");
-	return 0;
+	dlm_lshandle_t *ls;
+	struct dlm_lksb lksb;
+	uint32_t flags, lkid;
+	int error, mode;
+	char *name, *lkid_str, *mode_str, *flags_str = NULL;
+
+	if (argc < 3)
+		die("%s invalid arguments", action);
+	if (argc > 3)
+		flags_str = argv[3];
+	name = argv[0];
+	lkid_str = argv[1];
+	mode_str = argv[2];
+
+	ls = dlm_open_lockspace(name);
+	if (!ls) {
+		log_error("lockspace %s not found", name);
+		return -1;
+	}
+
+	error = make_flags(flags_str, &flags);
+	if (error < 0)
+		goto out;
+
+	error = make_mode(mode_str, &mode);
+	if (error < 0) {
+		log_error("invalid mode %s", mode_str);
+		goto out;
+	}
+
+	lkid = atoll(lkid_str);
+
+	printf("convert: lkid %u flags 0x%x\n", mode, flags);
+
+	memset(&lksb, 0, sizeof(lksb));
+
+	error = dlm_ls_lock_wait(ls, mode, &lksb, flags | LKF_CONVERT, NULL, 0,
+				 0, NULL, NULL, NULL);
+
+	if (error)
+		log_error("dlm_ls_lock_wait error %d", error);
+	else
+		printf("status 0x%x\n", lksb.sb_status);
+ out:
+	dlm_close_lockspace(ls);
+	return error;
 }
 
