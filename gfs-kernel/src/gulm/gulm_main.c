@@ -104,28 +104,4 @@ exit_gulm (void)
 module_init (init_gulm);
 module_exit (exit_gulm);
 
-/* the libgulm.h interface. */
-EXPORT_SYMBOL (lg_initialize);
-EXPORT_SYMBOL (lg_release);
-
-EXPORT_SYMBOL (lg_core_handle_messages);
-EXPORT_SYMBOL (lg_core_selector);
-EXPORT_SYMBOL (lg_core_login);
-EXPORT_SYMBOL (lg_core_logout);
-EXPORT_SYMBOL (lg_core_nodeinfo);
-EXPORT_SYMBOL (lg_core_nodelist);
-EXPORT_SYMBOL (lg_core_servicelist);
-EXPORT_SYMBOL (lg_core_corestate);
-EXPORT_SYMBOL (lg_core_shutdown);
-EXPORT_SYMBOL (lg_core_forceexpire);
-EXPORT_SYMBOL (lg_core_forcepending);
-
-EXPORT_SYMBOL (lg_lock_handle_messages);
-EXPORT_SYMBOL (lg_lock_selector);
-EXPORT_SYMBOL (lg_lock_login);
-EXPORT_SYMBOL (lg_lock_logout);
-EXPORT_SYMBOL (lg_lock_state_req);
-EXPORT_SYMBOL (lg_lock_cancel_req);
-EXPORT_SYMBOL (lg_lock_action_req);
-EXPORT_SYMBOL (lg_lock_drop_exp);
 /* vim: set ai cin noet sw=8 ts=8 : */

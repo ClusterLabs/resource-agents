@@ -81,6 +81,18 @@
 
 #include "handler.h"
 
+/* Really should try to avoid using this.
+ * But I've got one spot that this is better than panicing the machine on.
+ */
+#define RETRY_MALLOC(do_this, until_this) \
+for (;;) { \
+	{ do_this; } \
+	if (until_this) \
+		break; \
+	printk("LOCK_GULM: out of memory: %s, %u\n", __FILE__, __LINE__); \
+	yield(); \
+}
+
 /* Some fixed length constants.
  * Some of these should be made dynamic in size in the future.
  */

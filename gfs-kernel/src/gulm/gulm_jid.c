@@ -191,8 +191,6 @@ jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 {
 	struct completion sleep;
 	glckr_t *item;
-	GULM_ASSERT (keylen > 6,
-			printk("keylen: %d\n", keylen););
 
 	init_completion (&sleep);
 

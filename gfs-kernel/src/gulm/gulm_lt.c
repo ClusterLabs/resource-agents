@@ -379,7 +379,7 @@ calc_lock_result (gulm_lock_t * lck,
 		case lg_lock_state_Unlock:
 			result = LM_ST_UNLOCKED;
 			break;
-		default: /* erm */
+		default: /* will be -69 */
 			break;
 		}
 
@@ -553,8 +553,12 @@ gulm_lock (lm_lock_t * lock, unsigned int cur_state,
 		item->state = lg_lock_state_Unlock;
 		break;
 	default:
-		GULM_ASSERT (0, log_err ("fsid=%s: Anit no lock state %d.\n",
-					 fs->fs_name, req_state););
+		log_err ("fsid=%s: Anit no lock state %d.\n",
+				fs->fs_name, req_state);
+		return -EINVAL; /* cause GFS to withdraw and soft assert. */
+		/* open to better ideas for error code, but this is really
+		 * an invalid lock request state, so EINVAL seems right.
+		 */
 		break;
 	}
 	item->flags = 0;

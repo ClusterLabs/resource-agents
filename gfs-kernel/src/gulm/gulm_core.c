@@ -42,11 +42,19 @@ gulm_core_login_reply (void *misc, uint64_t gen, uint32_t error,
 		return error;
 	}
 
-	if( gulm_cm.GenerationID != 0 ) {
-		GULM_ASSERT(gulm_cm.GenerationID == gen,
-				printk("us: %"PRIu64" them: %"PRIu64"\n",
-					gulm_cm.GenerationID,gen);
-				);
+	if( gulm_cm.GenerationID != 0 && gulm_cm.GenerationID != gen ) {
+		/* What we really need here, is a way for the lock
+		 * module to tell gfs that its fs has been
+		 * withdrawn for it.
+		 *
+		 * This is still an ASSERT, just not using the macro.
+		 */
+		panic( "Generatetion IDs now longer match. "
+		"(us: %"PRIu64" them: %"PRIu64") "
+		"This usually means taht someone stopped and then "
+		"restarted all of the lockservers.  We cannot "
+		"recover from this gracefully.\n",
+		gulm_cm.GenerationID, gen);
 	}
 	gulm_cm.GenerationID = gen;
 

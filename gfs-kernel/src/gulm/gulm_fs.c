@@ -125,13 +125,11 @@ request_journal_replay (uint8_t * name)
 		 * to manage the way we figure out which journals gfs
 		 * needs to replay.
 		 */
-
-		rf = kmalloc (sizeof (struct rjrpf_s), GFP_KERNEL);
-		GULM_ASSERT (rf != NULL,);
-
+		RETRY_MALLOC(rf = kmalloc (sizeof (struct rjrpf_s), GFP_KERNEL),
+				rf);
 		rf->fs = fs;
-		rf->name = kmalloc (strlen (name) + 1, GFP_KERNEL);
-		GULM_ASSERT (rf->name != NULL,);
+		RETRY_MALLOC(rf->name = kmalloc (strlen (name) + 1, GFP_KERNEL),
+				rf->name);
 		memcpy (rf->name, name, strlen (name) + 1);
 
 		qu_function_call (&fs->cq, request_journal_replay_per_fs, rf);
@@ -712,6 +710,13 @@ gulm_withdraw(lm_lockspace_t * lockspace)
 	 * */
 	current->state = TASK_INTERRUPTIBLE;
 	schedule_timeout( 2 * HZ);
+
+	/* Somewhen, there needs to be another loop to clean up any
+	 * possible left over lock structs in gulm_cm.gfs_lockmap and any
+	 * left over lock reqs in the lrq.
+	 *
+	 * For the time being, we can eek by.
+	 */
 
 	kfree (gulm_fs);
 
