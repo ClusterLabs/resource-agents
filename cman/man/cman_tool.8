@@ -1,9 +1,9 @@
-.TH CMAN_TOOL 8 "Jul 19 2004" "Cluster utilities"
+.TH CMAN_TOOL 8 "Nov 23 2004" "Cluster utilities"
 
 .SH NAME
 cman_tool \- Cluster Management Tool
 .SH SYNOPSIS
-.B cman_tool join | leave | expected | kill [options]
+.B cman_tool join | leave | expected | kill | version [options]
 .br
 .SH DESCRIPTION
 .PP
@@ -39,7 +39,7 @@ Look in /proc/cluster/services and /proc/cluster/status
 to see how many (and which) services are running.
 .br
 When a node leaves the cluster, the remaining nodes recalculate quorum and this
-may block cluster activity if the required number of nodes is not present.
+may block cluster activity if the required number of votes is not present.
 If this node is to be down for an extended period of time and you need to
 keep the cluster running, add the
 .B remove
@@ -64,9 +64,8 @@ you need to get it running again in a hurry.
 .TP
 .I version
 Used alone this will report the major, minor, patch and config versions
-used by CMAN (also displayed in /proc/cluster/status).  Its main purpose,
-though, is to be used with -r to set a new config version on all cluster
-members.
+used by CMAN (also displayed in /proc/cluster/status). It can also be used
+with -r to set a new config version on all cluster members.
 
 .SH "LEAVE" OPTIONS
 .TP
@@ -82,7 +81,7 @@ continue without this node.
 .SH "EXPECTED" OPTIONS
 .TP
 .I -e <expected-votes>
-The new value of expected votes to use. This should, preferably, be enough
+The new value of expected votes to use. This will usually be enough
 to bring the cluster back to life. Values that would cause incorrect
 quorum will be rejected.
 
@@ -111,9 +110,9 @@ of invocation is not recommended.
 Provides a text name for the cluster. You can have several clusters on one
 LAN and they are distinguished by this name. Note that the name is hashed to 
 provide a unique number which is what actually distinguishes the cluster, so
-it is possible that two different names can clash. If this happens
-you will have to pick another name or use another port number for cluster
-communication.
+it is possible that two different names can clash. If this happens, the node
+will not be allowed into the existing cluster and you will have to pick 
+another name or use different port number for cluster communication.
 .TP
 .I -p <port>
 UDP port number used for cluster communication. This defaults to 6809.
@@ -125,7 +124,7 @@ Number of votes this node has in the cluster. Defaults to 1.
 Number of expected votes for the whole cluster. If different nodes 
 provide different values then the highest is used. The cluster will
 only operate when quorum is reached - that is more than half the
-available nodes are joined to the cluster. There is no default for
+available votes are available to the cluster. There is no default for
 this value. If you are using CCS then ccs_tool will use the total
 number of votes for all nodes in the configuration file.
 .TP
@@ -135,7 +134,7 @@ quorum requirements mentioned above, a two-node cluster cannot be valid.
 This option tells the cluster manager that there will only ever be two
 nodes in the cluster and relies on fencing to ensure cluster integrity.
 If you specify this you cannot add more nodes without taking down the 
-existing cluster and reconfiguring it. expected votes should be set to
+existing cluster and reconfiguring it. Expected votes should be set to
 1 for a two-node cluster.
 .TP
 .I -n <nodename>
@@ -151,8 +150,7 @@ node id by the cluster join mechanism. If you want to ensure that
 your nodes always have the same number regardless of the order in 
 which they join the cluster then you can hard-code these IDs. 
 .BR
-Setting node IDs in the cluster.conf file is a far better way to do this
-though.
+Setting node IDs in CCS is a far better way to do this though.
 .BR
 Note that the node's application to join the cluster may be rejected if you
 try to set the nodeid to one that has already been used, or if the node 
