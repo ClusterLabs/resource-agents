@@ -69,6 +69,7 @@ typedef struct strname strname_t;
 #define DFL_START_ERROR         6
 #define DFL_UMOUNT		7
 #define DFL_NEED_STARTDONE	8
+#define DFL_RECOVER		9
 
 struct dlm {
 	uint32_t		jid;
@@ -259,6 +260,7 @@ int16_t make_lmstate(int16_t dlmmode);
 void queue_delayed(dlm_lock_t *lp, int type);
 void process_submit(dlm_lock_t *lp);
 int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp);
+void delete_lp(dlm_lock_t *lp);
 
 int lm_dlm_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		    lm_lock_t **lockp);
@@ -319,6 +321,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 { \
   if (!(x)) \
   { \
+    dlm_locks_dump(); \
     dlm_debug_dump(); \
     lock_dlm_debug_dump(); \
     printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \

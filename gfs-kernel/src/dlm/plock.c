@@ -261,7 +261,7 @@ static void put_lock(dlm_lock_t *lp)
 	po->count--;
 	if (po->count == 0) {
 		kfree(po);
-		kfree(lp);
+		delete_lp(lp);
 	}
 }
 

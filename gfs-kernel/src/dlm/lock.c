@@ -54,6 +54,12 @@ static void queue_blocking(dlm_lock_t *lp, int mode)
 		return;
 	}
 
+	if (!mode) {
+		printk("lock_dlm: bast mode zero %x,%"PRIx64"\n",
+			lp->lockname.ln_type, lp->lockname.ln_number);
+		return;
+	}
+
 	spin_lock(&dlm->async_lock);
 
 	if (!lp->bast_mode) {
@@ -247,6 +253,36 @@ int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp)
 	return 0;
 }
 
+void delete_lp(dlm_lock_t *lp)
+{
+	spin_lock(&lp->dlm->async_lock);
+	if (test_bit(LFL_CLIST, &lp->flags)) {
+		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number);
+		list_del(&lp->clist);
+	}
+	if (test_bit(LFL_BLIST, &lp->flags)) {
+		/*
+		printk("lock_dlm: dlm_put_lock lp on blist num=%x,%"PRIx64"\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number);
+		*/
+		list_del(&lp->blist);
+	}
+	if (test_bit(LFL_DLIST, &lp->flags)) {
+		printk("lock_dlm: dlm_put_lock lp on dlist num=%x,%"PRIx64"\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number);
+		list_del(&lp->dlist);
+	}
+	if (test_bit(LFL_SLIST, &lp->flags)) {
+		printk("lock_dlm: dlm_put_lock lp on slist num=%x,%"PRIx64"\n",
+		       lp->lockname.ln_type, lp->lockname.ln_number);
+		list_del(&lp->slist);
+	}
+	spin_unlock(&lp->dlm->async_lock);
+
+	kfree(lp);
+}
+
 /**
  * dlm_get_lock - get a lm_lock_t given a descripton of the lock
  * @lockspace: the lockspace the lock lives in
@@ -277,35 +313,8 @@ int lm_dlm_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 void lm_dlm_put_lock(lm_lock_t *lock)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
-
 	DLM_ASSERT(!lp->lvb,);
-
-	spin_lock(&lp->dlm->async_lock);
-	if (test_bit(LFL_CLIST, &lp->flags)) {
-		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
-		       lp->lockname.ln_type, lp->lockname.ln_number);
-		list_del(&lp->clist);
-	}
-	if (test_bit(LFL_BLIST, &lp->flags)) {
-		/*
-		printk("lock_dlm: dlm_put_lock lp on blist num=%x,%"PRIx64"\n",
-		       lp->lockname.ln_type, lp->lockname.ln_number);
-		*/
-		list_del(&lp->blist);
-	}
-	if (test_bit(LFL_DLIST, &lp->flags)) {
-		printk("lock_dlm: dlm_put_lock lp on dlist num=%x,%"PRIx64"\n",
-		       lp->lockname.ln_type, lp->lockname.ln_number);
-		list_del(&lp->dlist);
-	}
-	if (test_bit(LFL_SLIST, &lp->flags)) {
-		printk("lock_dlm: dlm_put_lock lp on slist num=%x,%"PRIx64"\n",
-		       lp->lockname.ln_type, lp->lockname.ln_number);
-		list_del(&lp->slist);
-	}
-	spin_unlock(&lp->dlm->async_lock);
-
-	kfree(lp);
+	delete_lp(lp);
 }
 
 void do_dlm_unlock(dlm_lock_t *lp)

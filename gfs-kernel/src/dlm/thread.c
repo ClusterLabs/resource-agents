@@ -307,9 +307,11 @@ static int dlm_async(void *data)
 			list_del(&lp->slist);
 			clear_bit(LFL_SLIST, &lp->flags);
 			submit = 1;
-		} else if (!list_empty(&dlm->starts)) {
+		} else if (!test_bit(DFL_RECOVER, &dlm->flags) &&
+			   !list_empty(&dlm->starts)) {
 			ds = list_entry(dlm->starts.next, dlm_start_t, list);
 			list_del(&ds->list);
+			set_bit(DFL_RECOVER, &dlm->flags);
 			start = 1;
 		} else if (test_and_clear_bit(DFL_MG_FINISH, &dlm->flags)) {
 			finish = 1;

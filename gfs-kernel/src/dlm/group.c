@@ -496,8 +496,10 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		last_start = dlm->mg_last_start;
 		spin_unlock(&dlm->async_lock);
 
-		if (last_stop >= ds->event_id)
+		if (last_stop >= ds->event_id) {
+			log_debug("start %d aborted", ds->event_id);
 			break;
+		}
 
 		error = discover_jids(dlm);
 		if (error) {
@@ -527,11 +529,15 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		}
 		up(&dlm->mg_nodes_lock);
 
+		log_debug("start recovery %d", error);
+
 		if (!error)
 			kcl_start_done(dlm->mg_local_id, ds->event_id);
-	}
+	} else
+		log_debug("start %d stopped %d", ds->event_id, last_stop);
 
  out:
+	clear_bit(DFL_RECOVER, &dlm->flags);
 	kfree(ds->nodeids);
 	kfree(ds);
 }
