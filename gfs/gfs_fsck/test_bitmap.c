@@ -10,24 +10,41 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <stdint.h>
+#include <stdio.h>
+#include "log.h"
+#include "bitmap.h"
 
-#ifndef _BITMAP_H
-#define _BITMAP_H
+int main(int argc, char **argv)
+{
+	struct bmap map;
+	uint8_t val = 0;
 
-struct bmap {
-	uint64_t size;
-	uint64_t mapsize;
-	int chunksize;
-	int chunks_per_byte;
-	char *map;
-};
+	bitmap_create(&map, 1000, 8);
 
-int bitmap_create(struct bmap *bmap, uint64_t size, uint8_t bitsize);
-int bitmap_set(struct bmap *bmap, uint64_t offset, uint8_t val);
-int bitmap_get(struct bmap *bmap, uint64_t bit, uint8_t *val);
-int bitmap_clear(struct bmap *bmap, uint64_t offset);
-void bitmap_destroy(struct bmap *bmap);
-uint64_t bitmap_size(struct bmap *bmap);
+	bitmap_set(&map, 1, 3);
+
+	bitmap_get(&map, 1, &val);
+
+	printf("%d\n", val);
+
+	bitmap_set(&map, 2, 7);
+
+	bitmap_get(&map, 2, &val);
+
+	printf("%d\n", val);
+
+	bitmap_get(&map, 3, &val);
+
+	printf("%d\n", val);
+
+	bitmap_clear(&map, 2);
+
+	bitmap_get(&map, 2, &val);
+
+	printf("%d\n", val);
+
+	bitmap_destroy(&map);
 
 
-#endif /* _BITMAP_H */
+}

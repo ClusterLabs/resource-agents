@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -14,9 +14,9 @@
 #ifndef __FS_RECOVERY_H__
 #define __FS_RECOVERY_H__
 
-#include "fs_incore.h"
+#include "fsck_incore.h"
 
-int reconstruct_journals(fs_sbd_t *sdp);
+int reconstruct_journals(struct fsck_sb *sdp);
 
 #endif /* __FS_RECOVERY_H__ */
 

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,19 +11,49 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <unistd.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "allocation.h"
-#include "interactive.h"
+
+#include "fsck_incore.h"
+#include "fsck.h"
 #include "util.h"
+#include "super.h"
 #include "fs_inode.h"
 #include "fs_recovery.h"
-#include "fs_super.h"
+#include "inode.h"
+#include "bio.h"
+
+/**
+ * init_journals
+ *
+ * Go through journals and replay them - then clear them
+ */
+int init_journals(struct fsck_sb *sbp)
+{
+
+	if(!sbp->opts->no) {
+		/* Next, Replay the journals */
+		if(sbp->flags & SBF_RECONSTRUCT_JOURNALS){
+			if(reconstruct_journals(sbp)){
+				stack;
+				return 1;
+			}
+		} else {
+			NOT_IMPLEMENTED;
+			/* ATTENTION -- Journal replay is not supported */
+			if(reconstruct_journals(sbp)){
+				stack;
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
 
 
-#include "initialize.h"
 
 /*
  * empty_super_block - free all structures in the super block
@@ -34,51 +64,72 @@
  *
  * Returns: Nothing
  */
-static void empty_super_block(fs_sbd_t *sdp)
+static void empty_super_block(struct fsck_sb *sdp)
 {
-  if(sdp->sd_riinode){
-    gfsck_free(sdp->sd_riinode);
-    sdp->sd_riinode = NULL;
-  }
-  if(sdp->sd_jiinode){
-    gfsck_free(sdp->sd_jiinode);
-    sdp->sd_jiinode = NULL;
-  } 
-  if(sdp->sd_rooti){
-    gfsck_free(sdp->sd_rooti);
-    sdp->sd_rooti=NULL;
-  }
+	uint32_t i;
 
-  if(sdp->sd_jindex){
-    gfsck_free(sdp->sd_jindex);
-    sdp->sd_jindex = NULL;
-  }
+	if(sdp->riinode){
+		free(sdp->riinode);
+		sdp->riinode = NULL;
+	}
+	if(sdp->jiinode){
+		free(sdp->jiinode);
+		sdp->jiinode = NULL;
+	}
+	if(sdp->rooti){
+		free(sdp->rooti);
+		sdp->rooti=NULL;
+	}
 
-  while(!osi_list_empty(&sdp->sd_rglist)){
-    fs_rgrpd_t *rgd;
-    rgd = osi_list_entry(sdp->sd_rglist.next, fs_rgrpd_t, rd_list);
-    osi_list_del(&rgd->rd_list);
-    gfsck_free(rgd);
-  }
-  while(!osi_list_empty(&sdp->sd_dirent_list)){
-    di_info_t *di;
-    di = osi_list_entry(sdp->sd_dirent_list.next, di_info_t, din_list);
-    osi_list_del(&di->din_list);
-    gfsck_free(di);
-  }
-  while(!osi_list_empty(&sdp->sd_nlink_list)){
-    di_info_t *di;
-    di = osi_list_entry(sdp->sd_nlink_list.next, di_info_t, din_list);
-    osi_list_del(&di->din_list);
-    gfsck_free(di);
-  }
-  while(!osi_list_empty(&sdp->sd_bitmaps)){
-    bitmap_list_t *bl;
-    bl = osi_list_entry(sdp->sd_bitmaps.next, bitmap_list_t, list);
-    gfsck_free(bl->bm);
-    osi_list_del(&bl->list);
-    gfsck_free(bl);
-  }
+	if(sdp->jindex){
+		free(sdp->jindex);
+		sdp->jindex = NULL;
+	}
+	if(sdp->lf_dip) {
+		free(sdp->lf_dip);
+		sdp->lf_dip = NULL;
+	}
+	while(!osi_list_empty(&sdp->rglist)){
+		struct fsck_rgrp *rgd;
+		unsigned int x;
+		rgd = osi_list_entry(sdp->rglist.next,
+				     struct fsck_rgrp, rd_list);
+		osi_list_del(&rgd->rd_list);
+		if(rgd->rd_bits)
+			free(rgd->rd_bits);
+		if(rgd->rd_bh) {
+			for(x = 0; x < rgd->rd_ri.ri_length; x++) {
+				if(rgd->rd_bh[x]) {
+					if(BH_DATA(rgd->rd_bh[x])) {
+						free(BH_DATA(rgd->rd_bh[x]));
+					}
+					free(rgd->rd_bh[x]);
+				}
+				free(rgd->rd_bh);
+			}
+		}
+		free(rgd);
+	}
+
+	while(!osi_list_empty(&sdp->dir_list)) {
+		struct dir_info *di;
+		di = osi_list_entry(sdp->dir_list.next,
+				    struct dir_info, list);
+		osi_list_del(&di->list);
+		free(di);
+	}
+
+	for(i = 0; i < FSCK_HASH_SIZE; i++) {
+		while(!osi_list_empty(&sdp->inode_hash[i])) {
+			struct inode_info *ii;
+			ii = osi_list_entry(sdp->inode_hash[i].next,
+					    struct inode_info, list);
+			osi_list_del(&ii->list);
+			free(ii);
+		}
+	}
+
+	block_list_destroy(sdp->bl);
 }
 
 
@@ -91,63 +142,68 @@ static void empty_super_block(fs_sbd_t *sdp)
  *
  * Returns: 0 on success, -1 on failure
  */
-static int set_block_ranges(fs_sbd_t *sdp)
+static int set_block_ranges(struct fsck_sb *sdp)
 {
-  struct gfs_jindex *jdesc;
-  fs_rgrpd_t *rgd;
-  struct gfs_rindex *ri;
-  osi_list_t *tmp;
-  char buf[sdp->sd_sb.sb_bsize];
-  uint64 rmax = 0;
-  uint64 jmax = 0;
-  uint64 rmin = 0;
-  uint64 i;
-  int error;
+	struct gfs_jindex *jdesc;
+	struct fsck_rgrp *rgd;
+	struct gfs_rindex *ri;
+	osi_list_t *tmp;
+	char buf[sdp->sb.sb_bsize];
+	uint64 rmax = 0;
+	uint64 jmax = 0;
+	uint64 rmin = 0;
+	uint64 i;
+	int error;
+
+	NEEDS_CHECKING;
+
+	log_info("Setting block ranges...\n");
+
+	for (tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next)
+	{
+		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
+		ri = &rgd->rd_ri;
+		if (ri->ri_data1 + ri->ri_data - 1 > rmax)
+			rmax = ri->ri_data1 + ri->ri_data - 1;
+		if (!rmin || ri->ri_data1 < rmin)
+			rmin = ri->ri_data1;
+	}
 
 
-  for (tmp = sdp->sd_rglist.next; tmp != &sdp->sd_rglist; tmp = tmp->next)
-  {
-    rgd = osi_list_entry(tmp, fs_rgrpd_t, rd_list);
-    ri = &rgd->rd_ri;
-    if (ri->ri_data1 + ri->ri_data - 1 > rmax)
-      rmax = ri->ri_data1 + ri->ri_data - 1;
-    if (!rmin || ri->ri_data1 < rmin)
-      rmin = ri->ri_data1;
-  }
+	for (i = 0; i < sdp->journals; i++)
+	{
+		jdesc = &sdp->jindex[i];
 
+		if ((jdesc->ji_addr+jdesc->ji_nsegment*sdp->sb.sb_seg_size-1)
+		    > jmax)
+			jmax = jdesc->ji_addr + jdesc->ji_nsegment
+				* sdp->sb.sb_seg_size - 1;
+	}
 
-  for (i = 0; i < sdp->sd_journals; i++)
-  {
-    jdesc = &sdp->sd_jindex[i];
+	sdp->last_fs_block = (jmax > rmax) ? jmax : rmax;
 
-    if ((jdesc->ji_addr+jdesc->ji_nsegment*sdp->sd_sb.sb_seg_size-1) > jmax)
-      jmax = jdesc->ji_addr + jdesc->ji_nsegment * sdp->sd_sb.sb_seg_size - 1;
-  }
+	sdp->last_data_block = rmax;
+	sdp->first_data_block = rmin;
 
-  sdp->sd_last_fs_block = (jmax > rmax) ? jmax : rmax;
+	if(do_lseek(sdp->diskfd, (sdp->last_fs_block * sdp->sb.sb_bsize))){
+		log_crit("Can't seek to last block in file system: %"
+			 PRIu64"\n", sdp->last_fs_block);
+		goto fail;
+	}
 
-  sdp->sd_last_data_block = rmax;
-  sdp->sd_first_data_block = rmin;
+	memset(buf, 0, sdp->sb.sb_bsize);
+	error = read(sdp->diskfd, buf, sdp->sb.sb_bsize);
+	if (error != sdp->sb.sb_bsize){
+		log_crit("Can't read last block in file system (%u), "
+			 "last_fs_block: %"PRIu64"\n",
+			 error, sdp->last_fs_block);
+		goto fail;
+	}
 
-  if(do_lseek(sdp->sd_diskfd, (sdp->sd_last_fs_block * sdp->sd_sb.sb_bsize))){
-    pp_print(PPVH, "Can't seek to last block in file system: %"PRIu64"\n",
-	     sdp->sd_last_fs_block);
-    goto fail;
-  }
-      
-  memset(buf, 0, sdp->sd_sb.sb_bsize);
-  error = read(sdp->sd_diskfd, buf, sdp->sd_sb.sb_bsize);
-  if (error != sdp->sd_sb.sb_bsize){
-    pp_print(PPVH, "Can't read last block in file system (%u), "
-	     "last_fs_block: %"PRIu64"\n",
-	     error, sdp->sd_last_fs_block);
-    goto fail;
-  }
-
-  return 0;
+	return 0;
 
  fail:
-  return -1;
+	return -1;
 }
 
 
@@ -157,193 +213,155 @@ static int set_block_ranges(fs_sbd_t *sdp)
  *
  * Returns: 0 on success, -1 on failure
  */
-static int fill_super_block(fs_sbd_t *sdp)
+static int fill_super_block(struct fsck_sb *sdp)
 {
-  int error;
-  fs_inode_t *ip = NULL;
+	uint32_t i;
+	struct fsck_inode *ip = NULL;
 
-  sync();
+	sync();
 
-  /********************************************************************
-   ***************** First, initialize all lists **********************
-   ********************************************************************/
-  osi_list_init(&sdp->sd_rglist);
-  osi_list_init(&sdp->sd_dirent_list);
-  osi_list_init(&sdp->sd_nlink_list);
-  osi_list_init(&sdp->sd_bitmaps);
+	/********************************************************************
+	 ***************** First, initialize all lists **********************
+	 ********************************************************************/
+	log_info("Initializing lists...\n");
+	osi_list_init(&sdp->rglist);
+	osi_list_init(&sdp->dir_list);
+	for(i = 0; i < FSCK_HASH_SIZE; i++) {
+		osi_list_init(&sdp->inode_hash[i]);
+	}
+
+	/********************************************************************
+	 ************  next, read in on-disk SB and set constants  **********
+	 ********************************************************************/
+	sdp->sb.sb_bsize = 512;
+	if (sdp->sb.sb_bsize < GFS_BASIC_BLOCK)
+		sdp->sb.sb_bsize = GFS_BASIC_BLOCK;
+
+	if(sizeof(struct gfs_sb) > sdp->sb.sb_bsize){
+		fprintf(stderr, "sizeof(struct gfs_sb) > sdp->sb.sb_bsize\n");
+		return -1;
+	}
+
+	if(read_sb(sdp) < 0){
+		return -1;
+	}
 
 
-  /********************************************************************
-   ************  next, read in on-disk SB and set constants  **********
-   ********************************************************************/
-  sdp->sd_sb.sb_bsize = 512;
-  if (sdp->sd_sb.sb_bsize < GFS_BASIC_BLOCK)
-    sdp->sd_sb.sb_bsize = GFS_BASIC_BLOCK;
+	/*******************************************************************
+	 ******************  Initialize important inodes  ******************
+	 *******************************************************************/
 
-  if(sizeof(struct gfs_sb) > sdp->sd_sb.sb_bsize){
-    pp_print(PPVH, "sizeof(struct gfs_sb) > sdp->sd_sb.sb_bsize\n");
-    return -1;
-  }
+	log_info("Initializing special inodes...\n");
+	/* get ri inode */
+	if(load_inode(sdp, sdp->sb.sb_rindex_di.no_addr, &ip)) {
+		stack;
+		return -1;
+	}
+	sdp->riinode = ip;
 
-  if(fs_read_sb(sdp) < 0){
-    return -1;
-  }
-  
+	/* get ji inode */
+	if(load_inode(sdp, sdp->sb.sb_jindex_di.no_addr, &ip)) {
+		stack;
+		return -1;
+	}
+	sdp->jiinode = ip;
 
-  /*******************************************************************
-   ******************  Initialize important inodes  ******************
-   *******************************************************************/
+	/* get root dinode */
+	if(!load_inode(sdp, sdp->sb.sb_root_di.no_addr, &ip)) {
+		if(!check_inode(ip)) {
+			sdp->rooti = ip;
 
-  /* get ri inode */
 
-  sdp->sd_riinode = ip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
+		}
+		else {
+			free(ip);
+		}
+	} else {
+		log_warn("Unable to load root inode\n");
+	}
 
-  ip->i_num = sdp->sd_sb.sb_rindex_di;
-  ip->i_sbd = sdp;
+	/*******************************************************************
+	 *******  Fill in rgrp and journal indexes and related fields  *****
+	 *******************************************************************/
 
-  error = fs_copyin_dinode(ip);
-  if (error){
-    pp_print(PPVH, "Unable to copy in ri inode.\n");
-    return error;
-  }
+	/* read in the ji data */
+	if (ji_update(sdp)){
+		log_err("Unable to read in ji inode.\n");
+		return -1;
+	}
 
-  /* get ji inode */
+	if(ri_update(sdp)){
+		log_err("Unable to fill in resource group information.\n");
+		goto fail;
+	}
 
-  sdp->sd_jiinode = ip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
+	/*******************************************************************
+	 *******  Now, set boundary fields in the super block  *************
+	 *******************************************************************/
+	if(set_block_ranges(sdp)){
+		log_err("Unable to determine the boundaries of the"
+			" file system.\n");
+		goto fail;
+	}
 
-  ip->i_num = sdp->sd_sb.sb_jindex_di;
-  ip->i_sbd = sdp;
+	sdp->bl = block_list_create(sdp->last_fs_block+1, gbmap);
 
-  error = fs_copyin_dinode(ip);
-  if (error){
-    pp_print(PPVH, "Unable to copy in ji inode.\n");
-    return error;
-  }
+	block_set(sdp->bl, sdp->sb.sb_rindex_di.no_addr, meta_other);
+	block_set(sdp->bl, sdp->sb.sb_jindex_di.no_addr, meta_other);
 
-  /* get root dinode */
-  sdp->sd_rooti = ip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
-
-  ip->i_num = sdp->sd_sb.sb_root_di;
-  ip->i_sbd = sdp;
- 
-  error = fs_copyin_dinode(ip);
-  if (error){
-    pp_print(PPVH, "Unable to copy in root inode.\n");
-    return error;
-  }
-
-  /*******************************************************************
-   *******  Fill in rgrp and journal indexes and related fields  *****
-   *******************************************************************/
-
-  /* read in the ji data */
-  if (fs_ji_update(sdp)){
-    pp_print(PPVH, "Unable to read in ji inode.\n");
-    return -1;
-  }
-
-  if(fs_ri_update(sdp)){
-    pp_print(PPVH, "Unable to fill in resource group information.\n");
-    goto fail;
-  }
-  
-  /*******************************************************************
-   *******  Now, set boundary fields in the super block  *************
-   *******************************************************************/
-  if(set_block_ranges(sdp)){
-    pp_print(PPVH, "Unable to determine the boundaries of the file system.\n");
-    goto fail;
-  }
-
-  return 0;
+	return 0;
 
  fail:
-  empty_super_block(sdp);
-   
-  return -1;
+	empty_super_block(sdp);
+
+	return -1;
 }
 
-
-/*
- * initialize - Fill in all permanent in-core structures
- * sdp: the super block pointer
- * device: the name of the device the file system resides on
+/**
+ * init_sbp - initialize superblock pointer
  *
- * This function reads important on-disk metadata and
- * initializes the in-core structures.  This makes the
- * file system available for use.
- *
- * Returns: 0 on success, -1 on failure.
  */
-int initialize(fs_sbd_t **sdp, char *device)
+int init_sbp(struct fsck_sb *sbp)
 {
-  fs_sbd_t *new_sdp = NULL;
+	if(sbp->opts->no) {
+		if ((sbp->diskfd = open(sbp->opts->device, O_RDONLY)) < 0) {
+			log_crit("Unable to open device: %s\n", sbp->opts->device);
+			return -1;
+		}
+	} else {
+		/* read in sb from disk */
+		if ((sbp->diskfd = open(sbp->opts->device, O_RDWR)) < 0){
+			log_crit("Unable to open device: %s\n", sbp->opts->device);
+			return -1;
+		}
+	}
+	if (fill_super_block(sbp)) {
+		return -1;
+	}
+	/* verify various things */
 
-  *sdp = NULL;
-  new_sdp = (fs_sbd_t *)gfsck_zalloc(sizeof(fs_sbd_t));
+	if(init_journals(sbp)) {
+		stack;
+		return -1;
+	}
 
-  if ((new_sdp->sd_diskfd = open(device, O_RDWR)) < 0){
-    fprintf(stderr, "Unable to open device: %s\n", device);
-    gfsck_free(new_sdp);
-    return -1;
-  }  
-
-  /* First, read in the super block. */
-  if(fill_super_block(new_sdp)){
-    pp_print(PPVH, "Unable to fill the super block.\n");
-    gfsck_free(new_sdp);
-    return -1;
-  }
-
-  /* Next, Replay the journals */
-  if(new_sdp->sd_flags & SBF_RECONSTRUCT_JOURNALS){
-    if(reconstruct_journals(new_sdp)){
-      pp_print(PPVH, "Unable to reconstruct journals.\n");
-      goto fail;
-    }
-  } else {
-    /* ATTENTION -- Journal replay is not supported */
-    if(reconstruct_journals(new_sdp)){
-      pp_print(PPVH, "Unable to reconstruct journals.\n");
-      goto fail;
-    }
-  }
-
-  if(fs_mkdir(new_sdp->sd_rooti, "l+f", 00700, &(new_sdp->sd_lf_dip))){
-    pp_print(PPVH, "Unable to create/locate l+f directory.\n");
-    if(!query("Proceed without lost and found? (y/n) ")){
-      goto fail;
-    }
-  }
-
-  if(new_sdp->sd_lf_dip){
-    pp_print(PPVL, "Lost and Found directory inode is at "
-	     "block #%"PRIu64".\n",
-	     new_sdp->sd_lf_dip->i_num.no_addr);
-  }
-
-  *sdp = new_sdp;
-  return 0;
-
- fail:
-  empty_super_block(new_sdp);
-  *sdp = NULL;
-  return -1;
+	return 0;
 }
 
-
-/* cleanup - free all in-memory structures
- * sdp: dbl ptr to the super block
- *
- * This would not need to take a double pointer, but
- * it may drive home the point that this function frees
- * the memory associated with the super block as well.
- *
- */
-void cleanup(fs_sbd_t **sdp)
+void destroy_sbp(struct fsck_sb *sbp)
 {
-  if(*sdp){
-    empty_super_block(*sdp);
-    gfsck_free(*sdp); *sdp = NULL;
-  }
+	empty_super_block(sbp);
+}
+
+int initialize(struct fsck_sb *sbp)
+{
+
+	return init_sbp(sbp);
+
+}
+
+void destroy(struct fsck_sb *sbp)
+{
+	destroy_sbp(sbp);
+
 }

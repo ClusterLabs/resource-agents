@@ -1,0 +1,36 @@
+
+TODO:
+
+Current
+ o Make sure that all blocks in an inode get marked cleared when an
+   inode is cleared.
+ o 'Add in UI for interactive mode
+ o Check hash of directory name against name given (Would be nice -
+   not in old fsck, but can cause problems if it is not verified.)
+
+---
+
+Future
+ o internationalization
+ o Check GFS special files (quota, resource group index inode, journal
+   index inode, license inode?)
+ o convert dir_info list to a hash table like the inode_info hash
+ o Fix up the bitmap enums and #defines in block_list.[ch]
+ o Go through all fxns that have NEEDS_CHECKING in them and verify
+   them (and remove NEEDS_CHECKING)
+ o Add 'preen' option?
+ o Add disk-based bitmaps option in case system doesn't have enough
+   memory to handle all the bitmaps
+ o currently rgrp bitmaps are loaded into memory on initialization -
+   need to see if this is necessary or not - we're using them in pass1
+   and again in pass5 - if memory is tight we might be able to free
+   them in between
+ o Offer exhaustive search capability if superblock or rgs are missing
+   or broken that checks block by block for fs info.
+ o If we encounter a directory entry in pass2 that points to a block
+   marked free, shove it into a queue, and then at the end of pass2,
+   clear all results, then rerun from pass1 including the blocks in
+   the queue as well as those marked in the RG bitmaps.  With this, we
+   can rebuild the entire fs with a valid root inode, it'll just take
+   several iterations.
+

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,196 +11,747 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include "allocation.h"
-#include "interactive.h"
-#include "util.h"
-#include "fs_bio.h"
-#include "fs_bits.h"
-#include "fs_inode.h"
-#include "fs_rgrp.h"
-
-
-#include "pass1.h"
-/**
- * pass_1
- * @sdp: superblock
+/* pass1 checks inodes for format & type, duplicate blocks, & incorrect
+ * block count.
  *
- * This pass is designed to look over the file system bitmaps for any
- * blocks marked as meta-data.  The block is then read and checked for
- * a meta header.  If not present, the bitmap for the block is cleared.
+ * It builds up tables that contains the state of each block (free,
+ * block in use, metadata type, etc), as well as bad blocks and
+ * duplicate blocks.  (See block_list.[ch] for more info)
  *
- * The function then checks if the block is a dinode.  If so, basic
- * checks and corrections are made.
- *
- * Returns: 0 on success, -1 on error, 1 on restart request
  */
-int pass_1(fs_sbd_t *sdp)
+
+#include <stdio.h>
+
+#include "fsck_incore.h"
+#include "fsck.h"
+#include "bio.h"
+#include "fs_dir.h"
+#include "fs_inode.h"
+#include "util.h"
+#include "block_list.h"
+#include "log.h"
+#include "inode_hash.h"
+#include "inode.h"
+#include "link.h"
+#include "metawalk.h"
+
+static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
+		void *private)
 {
-  osi_buf_t *bh;
-  osi_list_t *tmp;
-  fs_rgrpd_t *rgd;
-  uint64 block;
-  int cnt = 0;  
-  int count = 0, first;
-  fs_inode_t *ip;
-  int prev_prcnt = -1, prcnt = 0;
+	struct fsck_sb *sdp = ip->i_sbd;
 
-  ip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
-  ip->i_sbd = sdp;
-  
-  for (tmp = sdp->sd_rglist.next; tmp != &sdp->sd_rglist; tmp = tmp->next){
-    prcnt = (int)(100.0 * ((float)cnt / (float)sdp->sd_rgcount));
-    if(prev_prcnt != prcnt){
-      pp_print(PPL, "Pass 1:  %d %% \n", prcnt);
-      prev_prcnt = prcnt;
-    }
-    cnt++;
-
-    rgd = osi_list_entry(tmp, fs_rgrpd_t, rd_list);
-
-    
-    if(fs_rgrp_read(rgd)){
-      gfsck_free(ip);
-      return -1;
-    }
-
-    first = 1;
-
-    while (1) {
-      /* "block" is relative to the entire file system */      
-      if(next_rg_meta(rgd, &block, first))
-	break;
-
-      first = 0;
-
-      if(fs_get_and_read_buf(sdp, block, &bh, 0)){
-	pp_print(PPVH, "Unable to retrieve block #%"PRIu64"\n", block);
-	fs_rgrp_relse(rgd);
-	gfsck_free(ip);
-	return -1;
-      }
-
-      if (check_meta(bh, 0)){
-	pp_print(PPN, "Bad meta magic for block #%"PRIu64"\n", block);
-	if(query("\tClear the bitmap entry for block %"PRIu64"? (y/n): ", block)){
-	  if(fs_set_bitmap(sdp, block, GFS_BLKST_FREE)){
-	    pp_print(PPVH, "Bitmap entry for block #%"PRIu64" remains.\n",
-		     block);
-	  } else {
-	    pp_print(PPN, "\tBitmap entry for block #%"PRIu64" cleared.\n",
-		     block);
-	  }
-	} else {
-	  pp_print(PPH, "\tBitmap entry for block #%"PRIu64" remains.\n",
-		   block);
+	if(check_range(sdp, block)){
+		log_warn("Leaf block #%"PRIu64" is out of range for "
+			 "directory #%"PRIu64".\n",
+			 block, ip->i_di.di_num.no_addr);
+		block_set(sdp->bl, ip->i_di.di_num.no_addr, bad_block);
+		return 1;
 	}
-	fs_relse_buf(sdp, bh);
-	continue;
-      }
-
-      if(check_meta(bh, GFS_METATYPE_DI)){
-	fs_relse_buf(sdp, bh);
-	continue;
-      }
-
-      /* dinode checks */
-      fs_relse_buf(sdp, bh);
-
-      ip->i_num.no_addr = ip->i_num.no_formal_ino = block;
-      memset(&ip->i_di, 0, sizeof(struct gfs_dinode));
-      if(fs_copyin_dinode(ip)){
-	pp_print(PPVH, "Unable to retrieve on-disk inode data.\n");
-	continue;
-      }
-
-      if (ip->i_di.di_flags & GFS_DIF_UNUSED){
-	/* Clear these in pass 2 */
-	continue;
-      }
-      count++;
-
-      if (ip->i_di.di_num.no_addr != block){
-	pp_print(PPN, "Bad dinode Address.  Found %"PRIu64", "
-		 "Expected %"PRIu64"\n",
-		 ip->i_di.di_num.no_addr, block);
-	if(query("\tSet dinode's address to it's block number? (y/n): ")){
-	  ip->i_di.di_num.no_addr = ip->i_di.di_num.no_formal_ino = block;
-	  if(fs_copyout_dinode(ip)){
-	    pp_print(PPVH, "Bad dinode address can not be reset.\n");
-	    fs_rgrp_relse(rgd);
-	    return -1;
-	  } else {
-	    pp_print(PPVH, "Bad dinode address reset.\n");
-	  }
-	} else {
-	  pp_print(PPH, "Address not set.\n");
-	  continue;
+	if(get_and_read_buf(sdp, block, bh, 0)){
+		log_err("Unable to read leaf block #%"PRIu64" for "
+			"directory #%"PRIu64".\n",
+			block, ip->i_di.di_num.no_addr);
+		block_set(sdp->bl, block, meta_inval);
+		return 1;
 	}
-      }
 
-      if (ip->i_di.di_type != GFS_FILE_REG && ip->i_di.di_type != GFS_FILE_DIR &&
-	  ip->i_di.di_type != GFS_FILE_LNK && ip->i_di.di_type != GFS_FILE_BLK &&
-	  ip->i_di.di_type != GFS_FILE_CHR && ip->i_di.di_type != GFS_FILE_FIFO &&
-	  ip->i_di.di_type != GFS_FILE_SOCK)
-      {
-	pp_print(PPN, "Dinode #%"PRIu64" has unknown type (%u)\n",
-		 ip->i_di.di_num.no_addr, ip->i_di.di_type);
-	if(query("\tFix bad dinode type? (y/n): ")){
-	  pp_print(PPVH,"Function not implemented.\n");
-	  /* once implemented, remove continue statement */
-	  continue;
-	} else {
-	  pp_print(PPH, "Bad dinode type remains.\n");
-	  continue;
+	if(check_meta(*bh, GFS_METATYPE_LF)){
+		log_warn("Bad meta header for leaf block #%"PRIu64".\n",
+			 BH_BLKNO(*bh));
+		block_set(sdp->bl, BH_BLKNO(*bh), meta_inval);
+		return 1;
 	}
-      }
 
-      if (ip->i_di.di_height < compute_height(sdp, ip->i_di.di_size)){
-	pp_print(PPN, "Dinode #%"PRIu64" has bad height  "
-		 "Found %u, Expected >= %u\n",
-		 ip->i_di.di_num.no_addr, ip->i_di.di_height,
-		 compute_height(sdp, ip->i_di.di_size));
-	if(query("\tFix bad dinode height? (y/n): ")){
-	  pp_print(PPVH, "Function not implemented.\n");
-	  pp_print(PPVH, "Height not set.\n");
-	  /* once implemented, remove continue statement */
-	  continue;
-	} else {
-	  pp_print(PPH, "Height not set.\n");
-	  continue;
+	log_debug("\tLeaf block at %15"PRIu64"\n", BH_BLKNO(*bh));
+	block_set(sdp->bl, BH_BLKNO(*bh), leaf_blk);
+
+	return 0;
+}
+
+static int check_metalist(struct fsck_inode *ip, uint64_t block,
+			  osi_buf_t **bh, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q = {0};
+	int found_dup = 0;
+	osi_buf_t *nbh;
+
+	*bh = NULL;
+
+	if (check_range(ip->i_sbd, block)){ /* blk outside of FS */
+		block_set(sdp->bl, ip->i_di.di_num.no_addr, bad_block);
+		printf( "Bad indirect block pointer (out of range).\n");
+
+		return 1;
+        }
+	if(block_check(sdp->bl, block, &q)) {
+		stack;
+		return -1;
 	}
-      }
+	if(q.block_type != block_free) {
+		log_debug("Found duplicate block in indirect block -"
+			  " was marked %d\n", q.block_type);
+		block_mark(sdp->bl, block, dup_block);
+		found_dup = 1;
+	}
+        get_and_read_buf(ip->i_sbd, block, &nbh, 0);
 
-      if (ip->i_di.di_type == GFS_FILE_DIR && (ip->i_di.di_flags & GFS_DIF_EXHASH))
-      {
-	if ((1 << ip->i_di.di_depth) * sizeof(uint64) != ip->i_di.di_size)
+        /** Attention -- experimental code **/
+        if (check_meta(nbh, GFS_METATYPE_IN)){
+		printf( "Bad indirect block pointer "
+			"(points to something that is not an indirect block).\n");
+		if(!found_dup) {
+			block_set(sdp->bl, block, meta_inval);
+			relse_buf(ip->i_sbd, nbh);
+			return 1;
+		}
+
+		relse_buf(ip->i_sbd, nbh);
+        }else{  /* blk check ok */
+		*bh = nbh;
+        }
+        /** Attention -- experimental code end **/
+
+	block_set(sdp->bl, block, indir_blk);
+
+	return 0;
+}
+
+
+
+static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q = {0};
+	osi_buf_t *data_bh;
+
+	if (check_range(ip->i_sbd, block)) {
+
+		log_debug( "Bad data block pointer (out of range)\n");
+		/* Mark the owner of this block with the bad_block
+		 * designator so we know to check it for out of range
+		 * blocks later */
+		block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, bad_block);
+
+		return 1;
+	}
+
+	/* FIXME: Have to really go over this section... */
+	if (ip->i_di.di_flags & GFS_DIF_JDATA){
+		/* Journaled data *is* metadata */
+		if(get_and_read_buf(ip->i_sbd, block, &data_bh, 0)) {
+			stack;
+			/* FIXME: should i mark this with meta_inval
+			 * instead */
+			block_set(sdp->bl, block, meta_inval);
+			return 1;
+		}
+		if(check_meta(data_bh, GFS_METATYPE_JD)) {
+			log_err("Block #%"PRIu64" does not have "
+				"correct meta header.\n", block);
+			relse_buf(sdp, data_bh);
+			block_set(sdp->bl, block, meta_inval);
+			return 1;
+		}
+
+		if(block_check(sdp->bl, block, &q)) {
+			stack;
+			return -1;
+		}
+		if(q.block_type != block_free) {
+			log_debug("Found duplicate block at %"
+				  PRIu64"\n", block);
+			block_mark(sdp->bl, block, dup_block);
+			return 1;
+		}
+		log_debug("Setting %"PRIu64 " to journal block\n", block);
+		block_set(sdp->bl, block, journal_blk);
+	}
+	else {
+		if(block_check(sdp->bl, block, &q)) {
+			stack;
+			return -1;
+		}
+		if(q.block_type != block_free) {
+			log_debug("Found duplicate block at %"
+				  PRIu64"\n", block);
+			block_mark(sdp->bl, block, dup_block);
+			return 1;
+		}
+		log_debug("Setting %"PRIu64 " to data block\n", block);
+		block_set(sdp->bl, block, block_used);
+	}
+
+	return 0;
+}
+
+static int check_eattr_indir(struct fsck_inode *ip, uint64_t indirect,
+			     uint64_t parent, osi_buf_t **bh, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	int ret = 0;
+	struct block_query q = {0};
+
+	/* This inode contains an eattr - it may be invalid, but the
+	 * eattr attributes points to a non-zero block */
+	block_set(sdp->bl, ip->i_num.no_addr, eattr_block);
+
+	if(check_range(sdp, indirect)) {
+		/*log_warn("EA indirect block #%"PRIu64" is out of range.\n",
+			indirect);
+			block_set(sdp->bl, parent, bad_block);*/
+		/* Doesn't help to mark this here - this gets checked
+		 * in pass1c */
+		ret = 1;
+	}
+	else if(block_check(sdp->bl, indirect, &q)) {
+		stack;
+		ret = -1;
+	}
+	else if(q.block_type != block_free) {
+		log_debug("Duplicate block found at #%"PRIu64".\n",
+			  indirect);
+		block_set(sdp->bl, indirect, dup_block);
+		ret = 1;
+	}
+	else if(get_and_read_buf(sdp, indirect, bh, 0)) {
+		log_warn("Unable to read EA indirect block #%"PRIu64".\n",
+			indirect);
+		block_set(sdp->bl, indirect, meta_inval);
+		ret = 1;
+	}
+	else if(check_meta(*bh, GFS_METATYPE_IN)) {
+		log_warn("EA indirect block has incorrect type.\n");
+		block_set(sdp->bl, BH_BLKNO(*bh), meta_inval);
+		ret = 1;
+	}
+	else {
+		/* FIXME: do i need to differentiate this as an ea_indir? */
+		block_set(sdp->bl, BH_BLKNO(*bh), indir_blk);
+	}
+	return ret;
+}
+
+/**
+ * check_extended_leaf_eattr
+ * @ip
+ * @el_blk: block number of the extended leaf
+ *
+ * An EA leaf block can contain EA's with pointers to blocks
+ * where the data for that EA is kept.  Those blocks still
+ * have the gfs meta header of type GFS_METATYPE_EA
+ *
+ * Returns: 0 if correct[able], -1 if removal is needed
+ */
+static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
+				     osi_buf_t *leaf_bh,
+				     struct gfs_ea_header *ea_hdr,
+				     struct gfs_ea_header *ea_hdr_prev,
+				     void *private)
+{
+	osi_buf_t *el_buf;
+	struct fsck_sb *sdp = ip->i_sbd;
+	struct block_query q;
+	uint64_t el_blk = gfs64_to_cpu(*data_ptr);
+
+	if(check_range(sdp, el_blk)){
+		log_err("EA extended leaf block #%"PRIu64" "
+			"is out of range.\n",
+			el_blk);
+		block_set(sdp->bl, ip->i_di.di_eattr, bad_block);
+		return 1;
+	}
+
+	if(block_check(sdp->bl, el_blk, &q)) {
+		stack;
+		return -1;
+	}
+	if(q.block_type != block_free) {
+		block_set(sdp->bl, el_blk, dup_block);
+		return 1;
+	}
+
+	if(get_and_read_buf(sdp, el_blk, &el_buf, 0)){
+		log_err("Unable to check extended leaf block.\n");
+		block_set(sdp->bl, el_blk, meta_inval);
+		return 1;
+	}
+
+	if(check_meta(el_buf, GFS_METATYPE_EA)){
+		log_err("EA extended leaf block has incorrect type.\n");
+		relse_buf(sdp, el_buf);
+		block_set(sdp->bl, el_blk, meta_inval);
+		return 1;
+	}
+
+	block_set(sdp->bl, el_blk, meta_eattr);
+
+	relse_buf(sdp, el_buf);
+	return 0;
+}
+
+static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
+			    uint64_t parent, osi_buf_t **bh, void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	osi_buf_t *leaf_bh;
+	int ret = 0;
+	struct block_query q = {0};
+
+	/* This inode contains an eattr - it may be invalid, but the
+	 * eattr attributes points to a non-zero block */
+	block_set(sdp->bl, ip->i_num.no_addr, eattr_block);
+
+	if(check_range(sdp, block)){
+		log_warn("EA leaf block #%"PRIu64" in inode %"PRIu64
+			 " is out of range.\n",
+			 ip->i_num.no_addr, block);
+		block_set(sdp->bl, ip->i_di.di_eattr, bad_block);
+		ret = 1;
+	}
+	else if(block_check(sdp->bl, block, &q)) {
+		stack;
+		return -1;
+	}
+	else if(q.block_type != block_free) {
+		log_debug("Duplicate block found at #%"PRIu64".\n",
+			  block);
+		block_set(sdp->bl, block, dup_block);
+	}
+	else if(get_and_read_buf(sdp, block, &leaf_bh, 0)){
+		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
+			 leaf_blk);
+		block_set(sdp->bl, leaf_blk, meta_inval);
+		ret = 1;
+	} else if(check_meta(leaf_bh, GFS_METATYPE_EA)) {
+		log_warn("EA leaf block has incorrect type.\n");
+		block_set(sdp->bl, BH_BLKNO(leaf_bh), meta_inval);
+		relse_buf(sdp, leaf_bh);
+		ret = 1;
+	}
+	else {
+		block_set(sdp->bl, BH_BLKNO(leaf_bh), meta_eattr);
+	}
+
+	*bh = leaf_bh;
+
+	return ret;
+}
+
+static int check_eattr_entries(struct fsck_inode *ip,
+			       osi_buf_t *leaf_bh,
+			       struct gfs_ea_header *ea_hdr,
+			       struct gfs_ea_header *ea_hdr_prev,
+			       void *private)
+{
+	struct fsck_sb *sdp = ip->i_sbd;
+	char ea_name[256];
+
+	if(!ea_hdr->ea_name_len){
+		/* Skip this entry for now */
+		return 1;
+	}
+
+	memset(ea_name, 0, sizeof(ea_name));
+	strncpy(ea_name, (char *)ea_hdr + sizeof(struct gfs_ea_header),
+		ea_hdr->ea_name_len);
+
+	if(!GFS_EATYPE_VALID(ea_hdr->ea_type) &&
+	   ((ea_hdr_prev) || (!ea_hdr_prev && ea_hdr->ea_type))){
+		/* Skip invalid entry */
+		return 1;
+	}
+
+	if(ea_hdr->ea_num_ptrs){
+		uint32 avail_size;
+		int max_ptrs;
+
+		avail_size = sdp->sb.sb_bsize - sizeof(struct gfs_meta_header);
+		max_ptrs = (gfs32_to_cpu(ea_hdr->ea_data_len)+avail_size-1)/avail_size;
+
+		if(max_ptrs > ea_hdr->ea_num_ptrs) {
+			return 1;
+		} else {
+			log_debug("  Pointers Required: %d\n"
+				  "  Pointers Reported: %d\n",
+				  max_ptrs,
+				  ea_hdr->ea_num_ptrs);
+		}
+
+	}
+
+	return 0;
+}
+
+struct metawalk_fxns pass1_fxns = {
+	.private = NULL,
+	.check_leaf = leaf,
+	.check_metalist = check_metalist,
+	.check_data = check_data,
+	.check_eattr_indir = check_eattr_indir,
+	.check_eattr_leaf = check_eattr_leaf,
+	.check_dentry = NULL,
+	.check_eattr_entry = check_eattr_entries,
+	.check_eattr_extentry = check_extended_leaf_eattr,
+};
+
+
+
+int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
+{
+	osi_list_t *tmp, *list_prev;
+	struct dir_info *di = NULL;
+	struct dir_info *newdi;
+
+	/* FIXME: This list should probably be a b-tree or
+	 * something...but since most of the time we're going to be
+	 * tacking the directory onto the end of the list, it doesn't
+	 * matter too much */
+	for (tmp = sbp->dir_list.prev; tmp != &sbp->dir_list; tmp = tmp->prev)
 	{
-	  pp_print(PPN, "Directory dinode #%"PRIu64" has bad depth.  "
-		   "Found %u, Expected %u\n",
-		   ip->i_di.di_num.no_addr, ip->i_di.di_depth,
-		   (1 >> (ip->i_di.di_size/sizeof(uint64))));
-	  if(query("\tFix bad dir dinode depth? (y/n): ")){
-	    pp_print(PPVH, "\tFunction not implemented.\n");
-	    pp_print(PPVH, "\tDepth not set.\n");
-	    /* once implemented, remove continue statement */
-	    continue;
-	  } else {
-	    pp_print(PPH, "\tDepth not set.\n");
-	    continue;
-	  }
+		di = osi_list_entry(tmp, struct dir_info, list);
+		if(di->dinode < block)
+			break;
+		if(di->dinode == block) {
+			log_err("Attempting to add directory block %"PRIu64
+				" which is already in list\n");
+			return -1;
+		}
 	}
-      }
-    }
-       
-    fs_rgrp_relse(rgd);
-  }
-  gfsck_free(ip);
 
-  pp_print(PPN, "Pass 1:  %d dinodes found\n", count);
-  return 0;
+	if(!di)
+		list_prev = &sbp->dir_list;
+	else
+		list_prev = &di->list;
+
+	if(!(newdi = (struct dir_info *) malloc(sizeof(*newdi)))) {
+		log_crit("Unable to allocate dir_info structure\n");
+		return -1;
+	}
+	if(!memset(newdi, 0, sizeof(*newdi))) {
+		log_crit("error while zeroing dir_info structure\n");
+		return -1;
+	}
+
+	newdi->dinode = block;
+
+	osi_list_add(&newdi->list, list_prev);
+
+	return 0;
 }
 
 
 
 
+int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
+{
+	struct block_query q = {0};
+	struct fsck_inode *ip;
 
+	if(copyin_inode(sdp, bh, &ip)) {
+		stack;
+		return -1;
+	}
+
+	if (ip->i_di.di_flags & GFS_DIF_UNUSED){
+		/* FIXME: should i be looking for dup blocks here? */
+		if(block_set(sdp->bl, block, meta_inval)) {
+			stack;
+			goto fail;
+		}
+		goto success;
+	}
+
+	if (ip->i_di.di_num.no_addr != block) {
+		/* FIXME: need to request user input here */
+		log_err("Bad dinode Address.  "
+			"Found %"PRIu64", "
+			"Expected %"PRIu64"\n",
+			ip->i_di.di_num.no_addr, block);
+		ip->i_di.di_num.no_addr =
+			ip->i_di.di_num.no_formal_ino =
+			block;
+		if(fs_copyout_dinode(ip)){
+			log_crit("Bad dinode address can not be reset.\n");
+			goto fail;
+		} else {
+			log_err("Bad dinode address reset.\n");
+		}
+
+	}
+
+	switch(ip->i_di.di_type) {
+
+	case GFS_FILE_DIR:
+		/* FIXME: does it make sense to have this check for
+		 * dups here? */
+		if(block_check(sdp->bl, block, &q)) {
+			stack;
+			goto fail;
+		}
+		if(q.block_type != block_free) {
+			log_debug("Found duplicate block at %"PRIu64"\n",
+				  block);
+/*			if(block_mark(sdp->bl, block, dup_block)) {
+				stack;
+				goto fail;
+				} */
+		}
+		if(block_set(sdp->bl, block, inode_dir)) {
+			stack;
+			goto fail;
+		}
+		if(add_to_dir_list(sdp, block)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_REG:
+		if(block_set(sdp->bl, block, inode_file)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_LNK:
+		if(block_set(sdp->bl, block, inode_lnk)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_BLK:
+		if(block_set(sdp->bl, block, inode_blk)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_CHR:
+		if(block_set(sdp->bl, block, inode_chr)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_FIFO:
+		if(block_set(sdp->bl, block, inode_fifo)) {
+			stack;
+			goto fail;
+		}
+		break;
+	case GFS_FILE_SOCK:
+		if(block_set(sdp->bl, block, inode_sock)) {
+			stack;
+			goto fail;
+		}
+		break;
+	default:
+		if(block_set(sdp->bl, block, meta_inval)) {
+			stack;
+			goto fail;
+		}
+		goto success;
+	}
+	if(set_link_count(ip->i_sbd, ip->i_num.no_formal_ino,
+			  ip->i_di.di_nlink)) {
+		stack;
+		goto fail;
+	}
+
+	/* FIXME: fix height and depth here - wasn't implemented in
+	 * old fsck either, so no biggy... */
+#if 0
+	if (ip->i_di.di_height < compute_height(sdp, ip->i_di.di_size)){
+		log_warn("Dinode #%"PRIu64" has bad height  "
+			 "Found %u, Expected >= %u\n",
+			 ip->i_di.di_num.no_addr, ip->i_di.di_height,
+			 compute_height(sdp, ip->i_di.di_size));
+			/* once implemented, remove continue statement */
+			log_crit("Height not set.\n");
+			continue;
+		}
+	}
+
+	if (ip->i_di.di_type == (GFS_FILE_DIR &&
+				 (ip->i_di.di_flags & GFS_DIF_EXHASH)))
+	{
+		if (((1 << ip->i_di.di_depth) * sizeof(uint64_t)) !=
+		    ip->i_di.di_size)
+		{
+			log_warn("Directory dinode #%"PRIu64" has bad depth.  "
+				 "Found %u, Expected %u\n",
+				 ip->i_di.di_num.no_addr, ip->i_di.di_depth,
+				 (1 >> (ip->i_di.di_size/sizeof(uint64))));
+			/* once implemented, remove continue statement */
+			log_crit("\tDepth not set.\n");
+			continue;
+			}
+		}
+	}
+#endif /* unimplemented height and depth check/fix */
+
+	check_metatree(ip, &pass1_fxns);
+	/* FIXME: is this correct? */
+	if(check_inode_eattr(ip, &pass1_fxns) < 0){
+		osi_buf_t	*di_bh;
+		ip->i_di.di_eattr = 0;
+		if(get_and_read_buf(sdp, ip->i_di.di_num.no_addr, &di_bh, 0)){
+			stack;
+			log_crit("Bad EA reference remains.\n");
+		} else {
+			gfs_dinode_out(&ip->i_di, BH_DATA(di_bh));
+			if(write_buf(ip->i_sbd, di_bh, 0) < 0){
+				stack;
+				log_crit("Bad EA reference remains.\n");
+			} else {
+				log_warn("Bad EA reference cleared.\n");
+			}
+			relse_buf(sdp, di_bh);
+		}
+	}
+
+
+ success:
+	free(ip);
+	return 0;
+
+ fail:
+	free(ip);
+	return -1;
+
+}
+
+
+int scan_meta(struct fsck_sb *sdp, osi_buf_t *bh,  uint64_t block)
+{
+
+	if (check_meta(bh, 0)) {
+		log_debug("Found invalid metadata at %"PRIu64"\n", block);
+		if(block_set(sdp->bl, block, meta_inval)) {
+			stack;
+			return -1;
+		}
+		return 0;
+	}
+
+	log_debug("Checking metadata block %"PRIu64"\n", block);
+
+	if (!check_type(bh, GFS_METATYPE_DI)) {
+		if(handle_di(sdp, bh, block)) {
+			stack;
+			return -1;
+		}
+	}
+	else if (!check_type(bh, GFS_METATYPE_NONE)) {
+		if(block_set(sdp->bl, block, meta_free)) {
+			stack;
+			return -1;
+		}
+	}
+	/* Ignore everything else - they should be hit by the
+	 * handle_di step */
+
+	return 0;
+}
+
+/**
+ * pass1 - walk through inodes and check inode state
+ *
+ * this walk can be done using root inode and depth first search,
+ * watching for repeat inode numbers
+ *
+ * format & type
+ * link count
+ * duplicate blocks
+ * bad blocks
+ * inodes size
+ * dir info
+ */
+int pass1(struct fsck_sb *sbp)
+{
+	osi_buf_t *bh;
+	osi_list_t *tmp;
+	uint64_t block;
+	struct fsck_rgrp *rgd;
+	int first;
+	uint64_t i;
+	uint64_t j;
+	uint64_t blk_count;
+	uint64_t offset;
+	uint64_t rg_count = 0;
+
+	/* FIXME: What other metadata should we look for? */
+
+	/* Mark the journal blocks as 'other metadata' */
+	for (i = 0; i < sbp->journals; i++) {
+		struct gfs_jindex *ji;
+		ji = &sbp->jindex[i];
+		for(j = ji->ji_addr;
+		    j < ji->ji_addr + (ji->ji_nsegment * sbp->sb.sb_seg_size);
+		    j++) {
+			if(block_set(sbp->bl, j, journal_blk)) {
+				stack;
+				return -1;
+			}
+		}
+	}
+
+
+	/* So, do we do a depth first search starting at the root
+	 * inode, or use the rg bitmaps, or just read every fs block
+	 * to find the inodes?  If we use the depth first search, why
+	 * have pass3 at all - if we use the rg bitmaps, pass5 is at
+	 * least partially invalidated - if we read every fs block,
+	 * things will probably be intolerably slow.  The current fsck
+	 * uses the rg bitmaps, so maybe that's the best way to start
+	 * things - we can change the method later if necessary.
+	 */
+
+	for (tmp = sbp->rglist.next; tmp != &sbp->rglist;
+	     tmp = tmp->next, rg_count++){
+		log_info("Checking metadata in Resource Group %"PRIu64"\n",
+			 rg_count);
+		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
+		if(fs_rgrp_read(rgd)){
+			stack;
+			return -1;
+		}
+
+		for (i = 0; i < rgd->rd_ri.ri_length; i++) {
+			if(block_set(sbp->bl, rgd->rd_ri.ri_addr + i,
+				     meta_other)){
+				stack;
+				return -1;
+			}
+		}
+
+		offset = sizeof(struct gfs_rgrp);
+		blk_count = 1;
+
+		first = 1;
+
+		while (1) {
+
+			/* "block" is relative to the entire file system */
+			if(next_rg_meta_free(rgd, &block, first))
+				break;
+
+
+			if(get_and_read_buf(sbp, block, &bh, 0)){
+				stack;
+				log_crit("Unable to retrieve block %"PRIu64
+					 "\n", block);
+				fs_rgrp_relse(rgd);
+				return -1;
+			}
+
+			if(scan_meta(sbp, bh, block)) {
+				stack;
+				relse_buf(sbp, bh);
+				fs_rgrp_relse(rgd);
+				return -1;
+			}
+			relse_buf(sbp, bh);
+			first = 0;
+		}
+	}
+
+	return 0;
+}

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,11 +11,11 @@
 *******************************************************************************
 ******************************************************************************/
 
-#ifndef __FS_BIO_H__
-#define __FS_BIO_H__
+#ifndef __BIO_H
+#define __BIO_H
 
 #include "osi_user.h"
-#include "fs_incore.h"
+#include "fsck_incore.h"
 /* buf_write flags */
 #define BW_WAIT 1
 
@@ -25,12 +25,12 @@
 #define BH_SIZE(bh) ((uint32)(bh)->b_size)
 #define BH_STATE(bh) ((uint32)(bh)->b_state)
 
-int fs_get_buf(fs_sbd_t *sdp, uint64 blkno, osi_buf_t **bhp);
-void fs_relse_buf(fs_sbd_t *sdp, osi_buf_t *bh);
-int fs_read_buf(fs_sbd_t *sdp, osi_buf_t *bh, int flags);
-int fs_write_buf(fs_sbd_t *sdp, osi_buf_t *bh, int flags);
-int fs_get_and_read_buf(fs_sbd_t *sdp, uint64 blkno, osi_buf_t **bhp, int flags);
+int get_buf(struct fsck_sb *sdp, uint64 blkno, osi_buf_t **bhp);
+void relse_buf(struct fsck_sb *sdp, osi_buf_t *bh);
+int read_buf(struct fsck_sb *sdp, osi_buf_t *bh, int flags);
+int write_buf(struct fsck_sb *sdp, osi_buf_t *bh, int flags);
+int get_and_read_buf(struct fsck_sb *sdp, uint64 blkno, osi_buf_t **bhp, int flags);
 
-#endif  /*  __FS_BIO_H__  */
+#endif  /*  __BIO_H  */
 
 

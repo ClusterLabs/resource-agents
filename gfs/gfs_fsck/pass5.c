@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,164 +11,309 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include "allocation.h"
-#include "interactive.h"
-#include "util.h"
-#include "fs_dir.h"
-#include "fs_inode.h"
-#include "fs_rgrp.h"
+#include <stdio.h>
+#include "fsck_incore.h"
+#include "fsck.h"
+#include "ondisk.h"
+#include "fs_bits.h"
+#include "bio.h"
 
-#include "pass5.h"
-/**
- * pass_5
- * @sdp:
- *
- * The purpose of this pass is to search for directory cycles.
- *
- */
-int pass_5(fs_sbd_t *sdp)
+#ifdef DEBUG
+int rgrp_countbits(unsigned char *buffer, unsigned int buflen,
+		   uint32_t *bit_array)
 {
-  fs_rgrpd_t *rgd;
-  osi_list_t *tmp;
-  fs_inode_t *ip, *pip;
-  di_info_t *dinfo;
-  uint64 block; 
-  int error, cnt = 0, count = 0, first, type = 0;
-  osi_filename_t filename;
-  osi_list_t visited;
-  identifier_t id;
-  int prev_prcnt = -1, prcnt = 0;
+	unsigned char *byte, *end;
+	unsigned int bit;
+	unsigned char state;
 
-  ip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
-  ip->i_sbd = sdp;
+	byte = buffer;
+	bit = 0;
+	end = buffer + buflen;
 
-  pip = (fs_inode_t *)gfsck_zalloc(sizeof(fs_inode_t));
-  pip->i_sbd = sdp;
+	while (byte < end){
+		state = ((*byte >> bit) & GFS_BIT_MASK);
+		switch (state) {
+		case GFS_BLKST_FREE:
+			bit_array[0]++;
+			break;
+		case GFS_BLKST_USED:
+			bit_array[1]++;
+			break;
+		case GFS_BLKST_FREEMETA:
+			bit_array[2]++;
+			break;
+		case GFS_BLKST_USEDMETA:
+			bit_array[3]++;
+			break;
+		default:
+			log_err("Invalid state %d found at byte %u, bit %u\n",
+				state, byte, bit);
+			return -1;
+			break;
+		}
 
-  memset(&id, 0, sizeof(identifier_t));
-  memset(&filename, 0, sizeof(osi_filename_t));
-  filename.name = "..";
-  filename.len = 2;
-  id.filename = &filename;
-  id.type = ID_FILENAME;
-  id.inum = NULL;
-
-  for (tmp = sdp->sd_rglist.next; tmp != &sdp->sd_rglist; tmp = tmp->next)
-  {
-    prcnt = (int)(100.0 * ((float)cnt / (float)sdp->sd_rgcount));
-    if(prev_prcnt != prcnt){
-      pp_print(PPL, "Pass 5:  %d %% \n", prcnt);
-      prev_prcnt = prcnt;
-    }
-    cnt++;
-
-    rgd = osi_list_entry(tmp, fs_rgrpd_t, rd_list);
-
-    error = fs_rgrp_read(rgd);
-    if (error)
-      return -1;
-    
-    first = 1;
-
-    while (1){
-      error = next_rg_metatype(rgd, &block, GFS_METATYPE_DI, first);
-      if (error)
-        break;
-
-      first = 0;
-
-      ip->i_num.no_addr = ip->i_num.no_formal_ino = block;
-
-      if(fs_copyin_dinode(ip)){
-	die("pass_5:  Failed to retrieve on-disk inode data.\n");
-      }
-
-      if (ip->i_di.di_flags & GFS_DIF_UNUSED){
-	die("found unused dinode!  Should be cleared in pass 2.\n");
-      }
-
-      if (ip->i_di.di_type != GFS_FILE_DIR)
-	continue;
-      
-      count++;
-      
-      osi_list_init(&visited);
-      dinfo = (di_info_t *)gfsck_zalloc(sizeof(di_info_t));
-      osi_list_add(&dinfo->din_list, &visited);
-      dinfo->din_addr = ip->i_num.no_addr;
-
-      error = fs_dir_search(ip, &id, &type);
-      if (error){
-	if(error == -ENOENT){
-	  pp_print(PPN, "No \"..\" entry found in dir #%"PRIu64"\n",
-		   ip->i_num.no_addr);
-	}else{
-	  pp_print(PPN, "An error occured while searching dir #%"PRIu64"\n",
-		   ip->i_num.no_addr);
+		bit += GFS_BIT_SIZE;
+		if (bit >= 8){
+			bit = 0;
+			byte++;
+		}
 	}
-	continue;
-      }
+	return 0;
+}
 
-      while (1)
-      {
-	if (id.inum->no_addr == sdp->sd_sb.sb_root_di.no_addr)
-	  break;
+int fsck_countbits(struct fsck_sb *sbp, uint64_t start_blk, uint64_t count,
+		   uint32_t *bit_array)
+{
+	uint64_t i;
+	struct block_query q;
+	for(i = start_blk; i < start_blk+count; i++) {
+		block_check(sbp->bl, i, &q);
+		switch(q.block_type) {
+		case block_free:
+			bit_array[0]++;
+			break;
+		case block_used:
+			bit_array[1]++;
+			break;
+		case meta_free:
+		case meta_inval:
+			bit_array[2]++;
+			break;
+		case indir_blk:
+		case inode_dir:
+		case inode_file:
+		case leaf_blk:
+		case journal_blk:
+		case meta_other:
+		case meta_eattr:
+			bit_array[3]++;
+			break;
+		default:
+			log_err("Invalid state %d found at block%"PRIu64"\n",
+				mark, i);
+			return -1;
+			break;
+		}
+	}
+	return 0;
+}
 
-	dinfo = search_list(&visited, id.inum->no_addr);
 
-	if (dinfo){
-	  pp_print(PPVH, "Found directory cycle\n");
-	  break;
+int count_bmaps(struct fsck_rgrp *rgp)
+{
+	uint32_t i;
+	uint32_t bit_array_rgrp[4] = {0};
+	uint32_t bit_array_fsck[4] = {0};
+	fs_bitmap_t *bits;
+
+	for(i = 0; i < rgp->rd_ri.ri_length; i++) {
+		bits = &rgp->rd_bits[i];
+		rgrp_countbits(BH_DATA(rgp->rd_bh[i]) + bits->bi_offset,
+			       bits->bi_len, bit_array_rgrp);
+	}
+	log_err("rgrp: free %u used %u meta_free %u meta_used %u\n",
+		bit_array_rgrp[0], bit_array_rgrp[1],
+		bit_array_rgrp[2], bit_array_rgrp[3]);
+	fsck_countbits(rgp->rd_sbd, rgp->rd_ri.ri_data1,
+		       rgp->rd_ri.ri_data, bit_array_fsck);
+	log_err("fsck: free %u used %u meta_free %u meta_used %u\n",
+		bit_array_fsck[0], bit_array_fsck[1],
+		bit_array_fsck[2], bit_array_fsck[3]);
+
+	for(i = 0; i < 4; i++) {
+		if(bit_array_rgrp[i] != bit_array_fsck[i]) {
+			log_err("Bitmap count in index %d differ: "
+				"ondisk %d, fsck %d\n", i,
+				bit_array_rgrp[i], bit_array_fsck[i]);
+		}
+	}
+	return 0;
+}
+#endif /* DEBUG */
+
+int convert_mark(enum mark_block mark, uint32_t *count)
+{
+	switch(mark) {
+	case block_free:
+		count[0]++;
+		return GFS_BLKST_FREE;
+
+	case block_used:
+		return GFS_BLKST_USED;
+
+	case meta_free:
+		count[4]++;
+		return GFS_BLKST_FREEMETA;
+
+	case meta_inval:
+		/* Convert free inodes and invalid metadata to free blocks */
+		count[0]++;
+		return GFS_BLKST_FREE;
+
+	case inode_dir:
+	case inode_file:
+	case inode_lnk:
+	case inode_blk:
+	case inode_chr:
+	case inode_fifo:
+	case inode_sock:
+		count[1]++;
+		return GFS_BLKST_USEDMETA;
+
+	case indir_blk:
+	case leaf_blk:
+	case journal_blk:
+	case meta_other:
+	case meta_eattr:
+		count[3]++;
+		return GFS_BLKST_USEDMETA;
+
+	default:
+		log_err("Invalid state %d found\n", mark);
+		return -1;
+
+	}
+	return -1;
+}
+
+
+int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
+		       uint64_t *rg_block, uint64_t rg_data, uint32_t *count)
+{
+	unsigned char *byte, *end;
+	unsigned int bit;
+	unsigned char rg_status, block_status;
+	struct block_query q;
+	uint64_t block;
+
+	byte = buffer;
+	bit = 0;
+	end = buffer + buflen;
+
+	while(byte < end) {
+		rg_status = ((*byte >> bit) & GFS_BIT_MASK);
+		block = rg_data + *rg_block;
+		block_check(sbp->bl, block, &q);
+
+		block_status = convert_mark(q.block_type, count);
+
+		if(rg_status != block_status) {
+			log_err("ondisk and fsck bitmaps differ at block %"
+				PRIu64"\n", block);
+			log_debug("Ondisk is %u - FSCK thinks it is %u (%u)\n",
+				  rg_status, block_status, q.block_type);
+			/* FIXME: this needs to be interactive (and
+			 * use the sdp->opts info )*/
+			log_err("Fixing bitmap...\n");
+			if(fs_set_bitmap(sbp, block, block_status)) {
+				log_err("Failed.\n");
+			}
+			else {
+				log_err("Suceeded.\n");
+			}
+		}
+		(*rg_block)++;
+		bit += GFS_BIT_SIZE;
+		if (bit >= 8){
+			bit = 0;
+			byte++;
+		}
 	}
 
-	dinfo = (di_info_t *)gfsck_zalloc(sizeof(di_info_t));
+	return 0;
+}
 
-	osi_list_add(&dinfo->din_list, &visited);
-	dinfo->din_addr = id.inum->no_addr;
 
-	pip->i_num.no_addr = pip->i_num.no_formal_ino = id.inum->no_addr;
-	if(fs_copyin_dinode(pip)){
-	  pp_print(PPVH, "error reading dinode\n");
-	  break;
+int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
+{
+	int update = 0;
+	uint32_t i;
+	fs_bitmap_t *bits;
+	uint64_t rg_block = 0;
+
+	for(i = 0; i < rgp->rd_ri.ri_length; i++) {
+		bits = &rgp->rd_bits[i];
+
+		/* update the bitmaps */
+		check_block_status(rgp->rd_sbd,
+				   BH_DATA(rgp->rd_bh[i]) + bits->bi_offset,
+				   bits->bi_len, &rg_block,
+				   rgp->rd_ri.ri_data1, count);
 	}
 
-	gfsck_free(id.inum);
-	id.inum = NULL;
-	error = fs_dir_search(pip, &id, &type);
-	if (error){
-	  if(error == -ENOENT){
-	    pp_print(PPN, "No \"..\" entry found in dir #%"PRIu64"\n",
-		     ip->i_num.no_addr);
-	  } else {
-	    pp_print(PPN, "An error occured while searching dir #%"PRIu64"\n",
-		     ip->i_num.no_addr);
-	  }
-	  continue;
+	/* Compare the rgrps counters with what we found */
+	/* actually adjust counters and write out to disk */
+	if(rgp->rd_rg.rg_free != count[0]) {
+		log_err("free count inconsistent: is %u should be %u\n",
+			rgp->rd_rg.rg_free, count[0] );
+		/* FIXME: Make this interactive */
+		rgp->rd_rg.rg_free = count[0];
+		update = 1;
 	}
-      }
+	if(rgp->rd_rg.rg_useddi != count[1]) {
+		log_err("used inode count inconsistent: is %u should be %u\n",
+			rgp->rd_rg.rg_useddi, count[1]);
+		/* FIXME: Make this interactive */
+		rgp->rd_rg.rg_useddi = count[1];
+		update = 1;
+	}
+	if(rgp->rd_rg.rg_freedi != count[2]) {
+		log_err("free inode count inconsistent: is %u should be %u\n",
+			rgp->rd_rg.rg_freedi, count[2]);
+		/* FIXME: Make this interactive */
+		rgp->rd_rg.rg_freedi = count[2];
+		update = 1;
+	}
+	if(rgp->rd_rg.rg_usedmeta != count[3]) {
+		log_err("used meta count inconsistent: is %u should be %u\n",
+			rgp->rd_rg.rg_usedmeta, count[3]);
+		/* FIXME: Make this interactive */
+		rgp->rd_rg.rg_usedmeta = count[3];
+		update = 1;
+	}
+	if(rgp->rd_rg.rg_freemeta != count[4]) {
+		log_err("free meta count inconsistent: is %u should be %u\n",
+			rgp->rd_rg.rg_freemeta, count[4]);
+		/* FIXME: Make this interactive */
+		rgp->rd_rg.rg_freemeta = count[4];
+		update = 1;
+	}
 
-      if (dinfo){
-	/* fix cycle */
-      }
+	if(update) {
+		log_err("Do the update here...\n");
+		/* write out the rgrp */
+		gfs_rgrp_out(&rgp->rd_rg, BH_DATA(rgp->rd_bh[0]));
+		write_buf(rgp->rd_sbd, rgp->rd_bh[0], 0);
+	}
 
-      while (!osi_list_empty(&visited))
-      {
-	dinfo = osi_list_entry(visited.next, di_info_t, din_list);
-	osi_list_del(&dinfo->din_list);
-	gfsck_free(dinfo);
-      }
-      if(id.inum) gfsck_free(id.inum);
-      id.inum = NULL;
-    }
+	return 0;
+}
 
-    fs_rgrp_relse(rgd);
-  }
+/**
+ * pass5 - check resource groups
+ *
+ * fix free block maps
+ * fix used inode maps
+ */
+int pass5(struct fsck_sb *sbp, struct options *opts)
+{
+	osi_list_t *tmp;
+	struct fsck_rgrp *rgp = NULL;
+	uint32_t count[5];
+	uint64_t rg_count = 0;
 
-  if(id.inum) gfsck_free(id.inum);
-  gfsck_free(ip);
-  gfsck_free(pip);
+	/* Reconcile RG bitmaps with fsck bitmap */
+	for(tmp = sbp->rglist.next; tmp != &sbp->rglist; tmp = tmp->next){
+		log_info("Updating Resource Group %"PRIu64"\n", rg_count);
+		memset(count, 0, sizeof(*count) * 5);
+		rgp = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
+		/* Compare the bitmaps and report the differences */
+		update_rgrp(rgp, count);
+		rg_count++;
+	}
+	/* Fix up superblock info based on this - don't think there's
+	 * anything to do here... */
 
-  pp_print(PPN, "Pass 5:  %d directories checked\n", count);
 
-  return 0;
+	return 0;
 }
