@@ -862,7 +862,7 @@ static int end_transition()
 
 	confirm_joiner();
 
-	quorum = calculate_quorum(leavereason, 0, &total_votes);
+	quorum = calculate_quorum(leavereason, leavereason?cluster_members:0, &total_votes);
 
 	msg.cmd = CLUSTER_MEM_ENDTRANS;
 	msg.quorum = cpu_to_le32(quorum);
@@ -1148,7 +1148,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 	struct cl_mem_starttrans_msg *msg =
 	    (struct cl_mem_starttrans_msg *) startbuf;
 
-	P_MEMB("Start transition - reason = %d\n", reason);
+	P_MEMB("Start transition - reason = %d(last reason = %d)\n", reason, transitionreason);
 
 	/* If this is a restart then zero the counters */
 	if (reason == TRANS_RESTART) {
@@ -1159,6 +1159,10 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 			node_opinion = NULL;
 		}
 		responses_collected = 0;
+
+		/* Make sure we restart with the right new node if applicable. */
+		if (transitionreason == TRANS_NEWNODE && joining_node)
+			node = joining_node;
 	}
 
 	/* If we have timed out too many times then just die */
@@ -1335,10 +1339,13 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 	char *message = scratchbuf;
 
 	message[0] = cmd;
+	P_MEMB("send_cluster_view, msg=%d\n", cmd);
 
 	down(&cluster_members_lock);
 	list_for_each_safe(nodelist, temp, &cluster_members_list) {
 		node = list_entry(nodelist, struct cluster_node, list);
+
+		P_MEMB("Node %s (%d), state = %d\n", node->name, node->node_id, node->state);
 
 		if (node->state == NODESTATE_MEMBER || node->state == NODESTATE_DEAD) {
 			unsigned int evotes;
@@ -1656,7 +1663,7 @@ static void add_node_from_starttrans(struct msghdr *msg, char *buf, int len)
 
 	joining_node = add_new_node(name, startmsg->votes,
 				    le32_to_cpu(startmsg->expected_votes),
-				    0, NODESTATE_JOINING);
+				    le32_to_cpu(startmsg->nodeid), NODESTATE_JOINING);
 
 	/* add_new_node returns NULL if the node already exists */
 	if (!joining_node)
@@ -1727,8 +1734,7 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 
 		/* Behave a little differently if we are on our own */
 		if (cluster_members == 1) {
-			if (transitionreason == TRANS_NEWNODE &&
-			    joining_temp_nodeid) {
+			if (transitionreason == TRANS_NEWNODE) {
 				/* If the cluster is just us then confirm at
 				 * once */
 				joinconf_count = 0;
@@ -1870,11 +1876,10 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 
 	del_timer(&transition_timer);
 
-	/* Set node ID on new node */
-	if (endmsg->new_node_id) {
-		set_nodeid(joining_node, le32_to_cpu(endmsg->new_node_id));
-		P_MEMB("new node %s has ID %d\n", joining_node->name,
-		       joining_node->node_id);
+	/* Set our new node id */
+	if (endmsg->new_node_id && us->node_id == 0) {
+		set_nodeid(us, le32_to_cpu(endmsg->new_node_id));
+		P_MEMB("our new node ID is %d\n", us->node_id);
 	}
 
 	node_state = TRANSITION_COMPLETE;
@@ -1988,18 +1993,35 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			 * we will have to abandon that now and tell the new
 			 * node to try again later */
 			if (transitionreason == TRANS_NEWNODE && joining_node) {
-				struct cluster_node_addr *first_addr =
-				    (struct cluster_node_addr *) joining_node->
-				    addr_list.next;
+				struct sockaddr_cl saddr;
 
-				P_MEMB("Postponing membership of node %s\n",
-				       joining_node->name);
-				send_joinack(first_addr->addr, address_length,
+				saddr.scl_nodeid = joining_temp_nodeid;
+				saddr.scl_family = AF_CLUSTER;
+				saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
+
+				P_MEMB("Postponing membership of node %s (incarnation=%d)\n",
+				       joining_node->name, joining_node->incarnation);
+				send_joinack((char *)&saddr, sizeof(saddr),
 					      JOINACK_TYPE_WAIT);
 
-				/* Not dead, just sleeping */
-				joining_node->state = NODESTATE_DEAD;
+				/* This is the only time we remove a node from the list
+				   (if it's a brand-new node), otherwise we end up knowing about
+				   a node that no-one else has and transitions get a bit fragile!
+				*/
+				if (joining_node->incarnation == 0) {
+					down(&cluster_members_lock);
+					list_del(&joining_node->list);
+					up(&cluster_members_lock);
+
+					if (joining_node->node_id)
+						members_by_nodeid[joining_node->node_id] = NULL;
+					kfree(joining_node);
+				}
+				else {
+					joining_node->state = NODESTATE_DEAD;
+				}
 				joining_node = NULL;
+				joining_temp_nodeid = 0;
 			}
 
 			/* If the new master is not us OR the node we just got
@@ -2043,25 +2065,26 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 
 	/* We are in transition but this may be a restart */
 	if (node_state == TRANSITION) {
+		struct cluster_node *oldjoin = joining_node;
 
 		master_node = find_node_by_nodeid(saddr->scl_nodeid);
 
 		/* Is it a new joining node ? This happens if a master is
 		 * usurped */
 		if (startmsg->reason == TRANS_NEWNODE) {
-			struct cluster_node *oldjoin = joining_node;
 
 			add_node_from_starttrans(msg, buf, len);
-
-			/* If this is a different node joining than the one we
-			 * were previously joining (probably cos the master is
-			 * a nominated one) then mark our "old" joiner as DEAD.
-			 * The original master will already have told the node
-			 * to go back into JOINWAIT state */
-			if (oldjoin && oldjoin != joining_node
-			    && oldjoin->state == NODESTATE_JOINING)
-				oldjoin->state = NODESTATE_DEAD;
 		}
+
+		/* If this is a different node joining than the one we
+		 * were previously joining (probably cos the master is
+		 * a nominated one) then mark our "old" joiner as DEAD.
+		 * The original master will already have told the node
+		 * to go back into JOINWAIT state */
+		if (oldjoin && oldjoin != joining_node &&
+		    oldjoin->state == NODESTATE_JOINING)
+			oldjoin->state = NODESTATE_DEAD;
+
 		send_startack(saddr, msg->msg_namelen);
 
 		/* Is it a new master node? */
@@ -2344,6 +2367,7 @@ static int do_process_joinreq(struct msghdr *msg, char *buf, int len)
 		set_nodeid(node, get_highest_nodeid()+1);
 		highest_nodeid = node->node_id;
 	}
+	P_MEMB("New node %s has id %d\n", node->name, node->node_id);
 
 	/* Add the node's addresses */
 	if (list_empty(&node->addr_list)) {
