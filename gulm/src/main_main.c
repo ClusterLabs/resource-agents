@@ -54,13 +54,17 @@ struct in6_addr myIP = IN6ADDR_ANY_INIT;
  * 
  * Returns: int
  */
-int forker(char *name, int argc, char **argv)
+int forker(char *name)
 {
    pid_t pid;
    char *old;
+   char **argv;
+   int argc;
 
    if((pid=fork()) == 0) {
       /* child */
+
+      build_argv(&gulm_config, &argv, &argc);
 
       old = argv[0]; /* exec this. */
       argv[0] = name; /* but be called this */
@@ -213,19 +217,19 @@ int main(int argc, char **argv)
       mkdir(gulm_config.lock_file, S_IRUSR|S_IWUSR|S_IXUSR);
 
       /* fork core */
-      forker("lock_gulmd_core", argc, argv);
+      forker("lock_gulmd_core");
 
       /* just a moment...*/
       sleep(1);
 
       /* fork lt */
-      forker("lock_gulmd_LT", argc, argv);
+      forker("lock_gulmd_LT");
 
       /* just a moment...*/
       sleep(1);
 
       /* fork ltproxy */
-      forker("lock_gulmd_LTPX", argc, argv);
+      forker("lock_gulmd_LTPX");
 
       return 0;
    }

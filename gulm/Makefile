@@ -17,7 +17,6 @@ UNINSTALL=scripts/uninstall.pl
 gulmd_src = \
 	src/config_ccs.c \
 	src/config_cmdline.c \
-	src/config_env.c \
 	src/config_main.c \
 	src/core_fence.c \
 	src/core_io.c \

@@ -19,6 +19,8 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#include <argz.h>
+#include <netdb.h>
 
 #include "gulm_defines.h"
 #include "config_priv.h"
@@ -318,6 +320,18 @@ uint64_t ft2uint64(float time)
 }
 
 /**
+ * uint642ft - 
+ * @time: < uint64_t time in micro-seconds
+ * 
+ * 
+ * Returns: float in form <sec>.<millisec>
+ */
+float uint642ft(uint64_t time)
+{
+   return ((float)(time/1000)) / 1000.0;
+}
+
+/**
  * validate_config - 
  * @gf: 
  * 
@@ -344,7 +358,7 @@ void validate_config(gulm_config_t *gf)
  */
 void default_config(gulm_config_t *gf)
 {
-
+   char workspace[256];
    memset(gf, 0, sizeof(gulm_config_t));
 
    gf->clusterID = NULL; //strdup("cluster");
@@ -373,10 +387,159 @@ void default_config(gulm_config_t *gf)
    gf->conf_test = FALSE;
    gf->leave_std_open = FALSE;
    gf->daemon_fork = TRUE;
-   gf->name = NULL;
+   gethostname(workspace, 256);
+   gf->name = strdup(workspace);
    memcpy(&gf->ip, &in6addr_any, sizeof(struct in6_addr));
    gf->netdev = NULL;
 
+}
+
+/**
+ * build_argv - 
+ * @gf: 
+ * @argv: 
+ * @argc: 
+ * 
+ * recreates the command line args needed to run gulm
+ * 
+ * Returns: int
+ */
+int build_argv(gulm_config_t *gf, char ***argv, int *argc)
+{
+   char workspace[1024];
+   char *argz=NULL, *sl=NULL;
+   size_t laz=0, lsl=0;
+   LLi_t *tmp;
+   ip_name_t *in;
+
+   argz_add(&argz, &laz, ProgramName);
+
+   /* Always have a name and servers list. */
+   argz_add(&argz, &laz, "--cluster_name");
+   argz_add(&argz, &laz, gf->clusterID);
+
+   argz_add(&argz, &laz, "--servers");
+   for(tmp = LLi_next(&gf->node_list);
+       NULL != LLi_data(tmp);
+       tmp = LLi_next(tmp) ) {
+      in = LLi_data(tmp);
+      argz_add(&sl, &lsl, ip6tostr(&in->ip));
+   }
+   argz_stringify(sl, lsl, ',');
+   argz_add(&argz, &laz, sl);
+   free(sl);
+
+   /* now we get optionals */
+   gethostname(workspace, 1024);
+   if( strcmp(gf->name, workspace) != 0 ) {
+      argz_add(&argz, &laz, "--name");
+      argz_add(&argz, &laz, gf->name);
+   }
+   if( memcmp(&gf->ip, &in6addr_any, sizeof(struct in6_addr)) != 0 ) {
+      argz_add(&argz, &laz, "--ip");
+      argz_add(&argz, &laz, ip6tostr(&gf->ip));
+   }
+   if( gf->netdev != NULL ) {
+      argz_add(&argz, &laz, "--ifdev");
+      argz_add(&argz, &laz, gf->netdev);
+   }
+   if( gf->conf_test ) {
+      argz_add(&argz, &laz, "-C");
+   }
+   if( gf->leave_std_open ) {
+      argz_add(&argz, &laz, "-e");
+   }
+   if( ! gf->daemon_fork ) {
+      argz_add(&argz, &laz, "-d");
+   }
+   if( verbosity != (lgm_Network|lgm_Stomith|lgm_Forking) ) {
+      get_verbosity_string(workspace, 1024, verbosity);
+      argz_add(&argz, &laz, "--verbosity");
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->heartbeat_rate != ft2uint64(15.0) ) {
+      argz_add(&argz, &laz, "--heartbeat_rate");
+      snprintf(workspace, 1024, "%.3f", uint642ft(gf->heartbeat_rate));
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->allowed_misses != 2 ) {
+      argz_add(&argz, &laz, "--allowed_misses");
+      snprintf(workspace, 1024, "%u", gf->allowed_misses);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->how_many_lts != 1 ) {
+      argz_add(&argz, &laz, "--lt_partitions");
+      snprintf(workspace, 1024, "%u", gf->how_many_lts);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->new_con_timeout != ft2uint64(15.0) ) {
+      argz_add(&argz, &laz, "--new_connection_timeout");
+      snprintf(workspace, 1024, "%.3f", uint642ft(gf->new_con_timeout));
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->master_scan_delay != ft2uint64(1.0) ) {
+      argz_add(&argz, &laz, "--master_scan_delay");
+      snprintf(workspace, 1024, "%.3f", uint642ft(gf->master_scan_delay));
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->corePort != 40040 ) {
+      argz_add(&argz, &laz, "--coreport");
+      snprintf(workspace, 1024, "%u", gf->corePort);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->lt_port != 41040 ) {
+      argz_add(&argz, &laz, "--ltport");
+      snprintf(workspace, 1024, "%u", gf->lt_port);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->ltpx_port != 40042 ) {
+      argz_add(&argz, &laz, "--ltpxport");
+      snprintf(workspace, 1024, "%u", gf->ltpx_port);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( strcmp(gf->fencebin, "fence_node") != 0 ) {
+      argz_add(&argz, &laz, "--fence_bin");
+      argz_add(&argz, &laz, gf->fencebin);
+   }
+   if( strcmp(gf->run_as, "root") != 0  ) {
+      argz_add(&argz, &laz, "--run_as");
+      argz_add(&argz, &laz, gf->run_as);
+   }
+   if( strcmp(gf->lock_file, "/var/run/sistina") != 0  ) {
+      argz_add(&argz, &laz, "--lock_dir");
+      argz_add(&argz, &laz, gf->lock_file);
+   }
+   if( gf->lt_cf_rate != 10 ) {
+      argz_add(&argz, &laz, "--lt_drop_req_rate");
+      snprintf(workspace, 1024, "%u", gf->lt_cf_rate);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->lt_maxlocks != 1024 * 1024 ) {
+      argz_add(&argz, &laz, "--lt_high_locks");
+      snprintf(workspace, 1024, "%lu", gf->lt_maxlocks);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->lt_prelocks != 10 ) {
+      argz_add(&argz, &laz, "--prealloc_locks");
+      snprintf(workspace, 1024, "%u", gf->lt_prelocks);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->lt_prelkrqs != 10 ) {
+      argz_add(&argz, &laz, "--prealloc_lkrqs");
+      snprintf(workspace, 1024, "%u", gf->lt_prelkrqs);
+      argz_add(&argz, &laz, workspace);
+   }
+   if( gf->lt_preholds != 10 ) {
+      argz_add(&argz, &laz, "--prealloc_holders");
+      snprintf(workspace, 1024, "%u", gf->lt_preholds);
+      argz_add(&argz, &laz, workspace);
+   }
+
+   *argc = argz_count(argz, laz) + 1;
+   *argv = malloc(sizeof(char *) * (*argc));
+   argz_extract(argz, laz, *argv);
+   
+   return 0;
 }
 
 /**
@@ -393,9 +556,6 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
 
    /* should set defaults here. */
    default_config(gf);
-
-   /* load up settings that are in the environment */
-   parse_env(gf);
 
    /* parse cmdline args */
    err = parse_cmdline(gf, argc, argv);

@@ -76,7 +76,7 @@ void release_gulm_config(gulm_config_t *gf);
 void free_gulm_config(gulm_config_t *gf);
 int rebuild_server_list(gulm_config_t *gf);
 int parse_conf(gulm_config_t *gf, int argc, char **argv);
-int short_parse_conf(int argc, char **argv);
+int build_argv(gulm_config_t *gf, char ***argv, int *argc);
 void dump_conf(gulm_config_t *gf, int out);
 int serialize_config(gulm_config_t *gf, int fd);
 int Can_I_be_a_master(gulm_config_t *gf, struct in6_addr *ip);

@@ -54,100 +54,121 @@ extern char myName[256];
 int parse_ccs(gulm_config_t *gf)
 {
    int cd;
+   uint64_t temp;
    char *tmp;
-
-   if( (tmp=getenv("GULMD_SKIPCCS"))!=NULL) return 0;
 
    if( (cd=ccs_force_connect(gf->clusterID, 0)) < 0 ) {
       fprintf(stderr, "No ccsd, checking for cmdline config. (%d:%s)\n",
             cd, strerror(abs(cd)));
+      cd = -1;
       return -1;
    }
 
    if( ccs_get(cd, "/cluster/@name", &tmp) == 0 ) {
       strdup_with_free((char**)&gf->clusterID, tmp);
-      setenv("GULMD_NAME", tmp, 1);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/servers", &tmp) == 0 ) {
       parse_cmdline_servers(gf, tmp);
-      setenv("GULMD_SERVERS", tmp, 1);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/verbosity", &tmp) == 0 ) {
-      setenv("GULMD_VERBOSITY", tmp, 1);
+      set_verbosity(tmp, &verbosity);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/heartbeat_rate", &tmp) == 0 ) {
-      setenv("GULMD_HEARTBEAT_RATE", tmp, 1);
+      temp = ft2uint64(atof(tmp));
+      gf->heartbeat_rate = bound_to_uint64(temp, 75000, (uint64_t)~0);
+      /* min is 0.075 */
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/allowed_misses", &tmp) == 0 ) {
-      setenv("GULMD_ALLOWED_MISSES", tmp, 1);
+      gf->allowed_misses = bound_to_uint16(atoi(tmp), 1, 0xffff);
       free(tmp);
    }
+
    if( ccs_get(cd,"/cluster/gulm/new_connection_timeout", &tmp)==0) {
-      setenv("GULMD_NEW_CONNECTION_TIMEOUT", tmp, 1);
+      temp = ft2uint64(atof(tmp));
+      gf->new_con_timeout = bound_to_uint64(temp, 0, (uint64_t)~0);
+      /* min should be something bigger than zero...
+       * say 0.5? why?
+       */
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/master_scan_delay", &tmp) == 0 ) {
-      setenv("GULMD_MASTER_SCAN_DELAY", tmp, 1);
+      temp = ft2uint64(atof(tmp));
+      gf->master_scan_delay = bound_to_uint64(temp, 10, (uint64_t)~0);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/coreport", &tmp) == 0 ) {
-      setenv("GULMD_COREPORT", tmp, 1);
+      gf->corePort = atoi(tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/ltpxport", &tmp) == 0 ) {
-      setenv("GULMD_LTPXPORT", tmp, 1);
+      gf->ltpx_port = atoi(tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/ltport", &tmp) == 0 ) {
-      setenv("GULMD_LTPORT", tmp, 1);
+      gf->lt_port = atoi(tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/fence_bin", &tmp) == 0 ) {
-      setenv("GULMD_FENCE_BIN", tmp, 1);
+      strdup_with_free((char**)&gf->fencebin, tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/run_as", &tmp) == 0 ) {
-      setenv("GULMD_RUN_AS", tmp, 1);
+      strdup_with_free((char**)&gf->run_as, tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/lock_dir", &tmp) == 0 ) {
-      setenv("GULMD_LOCK_DIR", tmp, 1);
+      strdup_with_free((char**)&gf->lock_file, tmp);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/lt_partitions", &tmp) == 0 ) {
-      setenv("GULMD_LT_PARTITIONS", tmp, 1);
+      gf->how_many_lts = bound_to_uint16(atoi(tmp), 1, 256);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/lt_high_locks", &tmp) == 0 ) {
-      setenv("GULMD_LT_HIGH_LOCKS", tmp, 1);
+      gf->lt_maxlocks = bound_to_ulong(atoi(tmp), 10000, ~0UL);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/lt_drop_req_rate", &tmp) == 0 ) {
-      setenv("GULMD_LT_DROP_REQ_RATE", tmp, 1);
+      gf->lt_cf_rate = bound_to_uint(atoi(tmp), 5, ~0U);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/prealloc_locks", &tmp) == 0 ) {
-      setenv("GULMD_PREALLOC_LOCKS", tmp, 1);
+      gf->lt_prelocks = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/prealloc_holders", &tmp) == 0 ) {
-      setenv("GULMD_PREALLOC_HOLDERS", tmp, 1);
+      gf->lt_preholds = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
+
    if( ccs_get(cd, "/cluster/gulm/prealloc_lkrqs", &tmp) == 0 ) {
-      setenv("GULMD_PREALLOC_LKRQS", tmp, 1);
+      gf->lt_prelkrqs = bound_to_uint(atoi(tmp), 0, ~0U);
       free(tmp);
    }
 
    ccs_disconnect(cd);
-
-   setenv("GULMD_SKIPCCS","TRUE",1);
-
-   return -1;
+   cd = -1;
+   return 0;
 }
 
 /* vim: set ai cin et sw=3 ts=3 : */
