@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.242 $) dnl cvs revision
+AC_REVISION($Revision: 1.243 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1144,6 +1144,14 @@ AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
+
+dnl Work-around for highly annoying strict aliasing rules in
+dnl recent gccs
+if
+  cc_supports_flag -fno-strict-aliasing
+then
+  CFLAGS="$CFLAGS -fno-strict-aliasing"
+fi
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
