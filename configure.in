@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.264 $) dnl cvs revision
+AC_REVISION($Revision: 1.265 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -37,7 +37,7 @@ solaris*)	LIBS="-L/usr/local/lib $LIBS"
  		;;
 dnl anything?
 darwin*)	LIBS="-L/usr/lib -L/sw/lib"
-		CPPFLAGS="-I/usr/include"
+		CPPFLAGS="-I/usr/include -I/sw/usr/include -I/sw/include"
 		;;
 esac
 
