@@ -82,10 +82,10 @@ void release_rsb(struct dlm_rsb *r)
 		goto out;
 
 	if (get_directory_nodeid(r) != our_nodeid())
-		remote_remove_resdata(r->res_ls, get_directory_nodeid(r),
-				      r->res_name, r->res_length);
+		remote_remove_direntry(r->res_ls, get_directory_nodeid(r),
+				       r->res_name, r->res_length);
 	else
-		remove_resdata(r->res_ls, our_nodeid(), r->res_name,
+		dlm_dir_remove(r->res_ls, our_nodeid(), r->res_name,
 			       r->res_length);
  out:
 	if (r->res_lvbptr)

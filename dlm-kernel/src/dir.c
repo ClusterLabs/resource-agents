@@ -84,7 +84,7 @@ static inline uint32_t dir_hash(struct dlm_ls *ls, char *name, int len)
 	return val;
 }
 
-static void add_resdata_to_hash(struct dlm_ls *ls, struct dlm_direntry *de)
+static void add_entry_to_hash(struct dlm_ls *ls, struct dlm_direntry *de)
 {
 	uint32_t bucket;
 
@@ -106,7 +106,7 @@ static struct dlm_direntry *search_bucket(struct dlm_ls *ls, char *name,
 	return de;
 }
 
-void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
+void dlm_dir_remove(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 {
 	struct dlm_direntry *de;
 	uint32_t bucket;
@@ -128,7 +128,7 @@ void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 	}
 
 	list_del(&de->list);
-	free_resdata(de);
+	free_direntry(de);
  out:
 	write_unlock(&ls->ls_dirtbl[bucket].lock);
 }
@@ -144,7 +144,7 @@ void dlm_dir_clear(struct dlm_ls *ls)
 		while (!list_empty(head)) {
 			de = list_entry(head->next, struct dlm_direntry, list);
 			list_del(&de->list);
-			free_resdata(de);
+			free_direntry(de);
 		}
 	}
 }
@@ -217,7 +217,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 					break;
 
 				error = -ENOMEM;
-				de = allocate_resdata(ls, mov.rm_length);
+				de = allocate_direntry(ls, mov.rm_length);
 				if (!de)
 					goto free_last;
 
@@ -227,7 +227,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 				memcpy(de->name, b, mov.rm_length);
 				b += mov.rm_length;
 
-				add_resdata_to_hash(ls, de);
+				add_entry_to_hash(ls, de);
 				count++;
 
 				last_mov = mov;
@@ -344,8 +344,8 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	return offset;
 }
 
-static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
-		       int namelen, uint32_t *r_nodeid, int recovery)
+static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
+		     int namelen, uint32_t *r_nodeid, int recovery)
 {
 	struct dlm_direntry *de, *tmp;
 	uint32_t bucket;
@@ -362,7 +362,7 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 
         write_unlock(&ls->ls_dirtbl[bucket].lock);
 
-	de = allocate_resdata(ls, namelen);
+	de = allocate_direntry(ls, namelen);
 	if (!de)
 		return -ENOMEM;
 
@@ -373,7 +373,7 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	write_lock(&ls->ls_dirtbl[bucket].lock);
 	tmp = search_bucket(ls, name, namelen, bucket);
 	if (tmp) {
-		free_resdata(de);
+		free_direntry(de);
 		de = tmp;
 	} else {
 		list_add_tail(&de->list, &ls->ls_dirtbl[bucket].list);
@@ -388,13 +388,13 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 		   uint32_t *r_nodeid)
 {
-	return get_resdata(ls, nodeid, name, namelen, r_nodeid, 0);
+	return get_entry(ls, nodeid, name, namelen, r_nodeid, 0);
 }
 
 int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
 			    int namelen, uint32_t *r_nodeid)
 {
-	return get_resdata(ls, nodeid, name, namelen, r_nodeid, 1);
+	return get_entry(ls, nodeid, name, namelen, r_nodeid, 1);
 }
 
 /* 

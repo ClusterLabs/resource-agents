@@ -549,8 +549,8 @@ void reply_and_grant(struct dlm_lkb *lkb)
  * Request removal of a dead entry in the resource directory
  */
 
-void remote_remove_resdata(struct dlm_ls *ls, int nodeid, char *name,
-			   int namelen)
+void remote_remove_direntry(struct dlm_ls *ls, int nodeid, char *name,
+			    int namelen)
 {
 	struct writequeue_entry *e;
 	struct dlm_request *req;
@@ -803,7 +803,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	case GDLM_REMCMD_REM_RESDATA:
 
 		namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
-		remove_resdata(lspace, nodeid, freq->rr_name, namelen);
+		dlm_dir_remove(lspace, nodeid, freq->rr_name, namelen);
 		break;
 
 	case GDLM_REMCMD_LOCKREQUEST:

@@ -31,7 +31,7 @@ static kmem_cache_t *lvb_cache;
 static kmem_cache_t *resdir_cache_large;
 static kmem_cache_t *resdir_cache_small;
 
-/* The thresholds above which we allocate large RSBs/resdatas rather than small 
+/* The thresholds above which we allocate large RSBs/direntry rather than small 
  * ones. This must make the resultant structure end on a word boundary */
 #define LARGE_RSB_NAME 28
 #define LARGE_RES_NAME 28
@@ -162,7 +162,7 @@ void free_lkb(struct dlm_lkb *l)
 	kmem_cache_free(lkb_cache, l);
 }
 
-struct dlm_direntry *allocate_resdata(struct dlm_ls *ls, int namelen)
+struct dlm_direntry *allocate_direntry(struct dlm_ls *ls, int namelen)
 {
 	struct dlm_direntry *rd;
 
@@ -179,7 +179,7 @@ struct dlm_direntry *allocate_resdata(struct dlm_ls *ls, int namelen)
 	return rd;
 }
 
-void free_resdata(struct dlm_direntry *de)
+void free_direntry(struct dlm_direntry *de)
 {
 	if (de->length >= LARGE_RES_NAME)
 		kmem_cache_free(resdir_cache_large, de);

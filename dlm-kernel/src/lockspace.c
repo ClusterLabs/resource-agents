@@ -448,7 +448,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	spin_unlock(&lslist_lock);
 
 	/*
-	 * Free resdata structs.
+	 * Free direntry structs.
 	 */
 
 	dlm_dir_clear(ls);

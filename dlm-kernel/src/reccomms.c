@@ -356,7 +356,7 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		break;
 
 	case RECCOMM_REMRESDATA:
-		remove_resdata(ls, nodeid, rc->rc_buf, rc->rc_datalen);
+		dlm_dir_remove(ls, nodeid, rc->rc_buf, rc->rc_datalen);
 		break;
 
 	default:
