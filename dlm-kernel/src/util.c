@@ -122,9 +122,69 @@ uint32_t gdlm_next_power2(uint32_t val)
 
 void print_lkb(gd_lkb_t *lkb)
 {
-	printk("dlm: lkb id=%x remid=%x flags=%x status=%x rq=%d gr=%d "
-		"nodeid=%u lqstate=%x lqflags=%x\n",
-		lkb->lkb_id, lkb->lkb_remid, lkb->lkb_flags, lkb->lkb_status,
-		lkb->lkb_rqmode, lkb->lkb_grmode, lkb->lkb_nodeid,
-		lkb->lkb_lockqueue_state, lkb->lkb_lockqueue_flags);
+	printk("dlm: lkb\n"
+	       "id %x\n"
+	       "remid %x\n"
+	       "flags %x\n"
+	       "status %x\n"
+	       "rqmode %d\n"
+	       "grmode %d\n"
+	       "nodeid %u\n"
+	       "lqstate %x\n"
+	       "lqflags %x\n",
+		lkb->lkb_id,
+		lkb->lkb_remid,
+		lkb->lkb_flags,
+		lkb->lkb_status,
+		lkb->lkb_rqmode,
+		lkb->lkb_grmode,
+		lkb->lkb_nodeid,
+		lkb->lkb_lockqueue_state,
+		lkb->lkb_lockqueue_flags);
 }
+
+void print_rsb(gd_res_t *r)
+{
+	printk("dlm: rsb\n"
+	       "name \"%s\"\n"
+	       "nodeid %u\n"
+	       "ref %u\n",
+	       r->res_name,
+	       r->res_nodeid,
+	       atomic_read(&r->res_ref));
+}
+
+void print_request(struct gd_remlockrequest *req)
+{
+	printk("dlm: request\n"
+	       "rh_cmd %u\n"
+	       "rh_lkid %x\n"
+	       "remlkid %x\n"
+	       "flags %x\n"
+	       "status %u\n"
+	       "rqmode %u\n",
+	       req->rr_header.rh_cmd,
+	       req->rr_header.rh_lkid,
+	       req->rr_remlkid,
+	       req->rr_flags,
+	       req->rr_status,
+	       req->rr_rqmode);
+}
+
+void print_reply(struct gd_remlockreply *rp)
+{
+	printk("dlm: reply\n"
+	       "rh_cmd %u\n"
+	       "rh_lkid %x\n"
+	       "lockstate %u\n"
+	       "nodeid %u\n"
+	       "status %u\n"
+	       "lkid %x\n",
+	       rp->rl_header.rh_cmd,
+	       rp->rl_header.rh_lkid,
+	       rp->rl_lockstate,
+	       rp->rl_nodeid,
+	       rp->rl_status,
+	       rp->rl_lkid);
+}
+

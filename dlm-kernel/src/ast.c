@@ -219,12 +219,8 @@ static void process_asts(void)
 		if (flags & AST_COMP)
 			deliver_ast(lkb, AST_COMP);
 
-		if (flags & AST_BAST) {
-			if (flags & AST_DEL)
-				log_print("skip bast on %x", lkb->lkb_id);
-			else
-				deliver_ast(lkb, AST_BAST);
-		}
+		if (flags & AST_BAST)
+			deliver_ast(lkb, AST_BAST);
 
 		if (flags & AST_DEL) {
 			gd_res_t *rsb = lkb->lkb_resource;

@@ -18,5 +18,8 @@ uint32_t gdlm_hash(const char *data, int len);
 uint32_t gdlm_next_power2(uint32_t val);
 
 void print_lkb(gd_lkb_t *lkb);
+void print_rsb(gd_res_t *r);
+void print_request(struct gd_remlockrequest *req);
+void print_reply(struct gd_remlockreply *rp);
 
 #endif

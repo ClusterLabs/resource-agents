@@ -399,6 +399,9 @@ extern int dlm_query(dlm_lockspace_t *lockspace,
 		      void (ast_routine(void *)),
 		      void *astarg);
 
+
+void dlm_debug_dump(void);
+
 #endif				/* __KERNEL__ */
 
 #endif				/* __DLM_DOT_H__ */
