@@ -751,10 +751,10 @@ int main(int argc, char **argv)
    if( strncasecmp(argv[1], "switchPending", 14) == 0 ) {
       do_switchtopending(argc, argv);
    }else
-   if( strncasecmp(argv[1], "nodelist", 8) == 0 ) {
+   if( strncasecmp(argv[1], "nodelist", 9) == 0 ) {
       do_get_mbr_list(argc, argv);
    }else
-   if( strncasecmp(argv[1], "nodeinfo", 8) == 0 ) {
+   if( strncasecmp(argv[1], "nodeinfo", 9) == 0 ) {
       do_get_one_mbr(argc, argv);
    }else
    if( strncasecmp(argv[1], "forceExpire", 12) == 0 ) {
