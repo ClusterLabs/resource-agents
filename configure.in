@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.291 $) dnl cvs revision
+AC_REVISION($Revision: 1.292 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -206,8 +206,13 @@ AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 dnl -- USE a Unique lib check so -luuid is used only once ( to eliminate -luuid -luuid
 dnl - Checking for a unique function of ex2fs vs ossd
-AC_CHECK_LIB(uuid, uuid_parse)			dnl - In e2fsprog only.
-AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossd version.
+AC_CHECK_LIB(uuid, uuid_parse) 			dnl - In e2fsprog only.
+
+if test "$ac_cv_lib_uuid_uuid_parse" != yes; then
+	AC_MSG_ERROR(e2fsprogs uuid library is required)
+fi
+
+AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
 
 
 AC_MSG_CHECKING(which glib config exists)
@@ -514,7 +519,7 @@ AC_CHECK_HEADERS(stdarg.h)
 AC_CHECK_HEADERS(tcpd.h)
 
 AC_CHECK_HEADERS(uuid.h)
-AC_CHECK_HEADERS(uuid/uuid.h)
+AC_CHECK_HEADERS(uuid/uuid.h, [],[AC_MSG_ERROR(uuid/uuid.h not found)])
 
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
