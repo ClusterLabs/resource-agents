@@ -21,6 +21,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <mntent.h>
@@ -37,9 +38,12 @@
 
 #define OPTION_STRING			("VhScj:f:D")
 #define LOCKFILE_NAME                   "/var/run/fenced.pid"
+#define FENCED_SOCK_PATH                "fenced_socket"
 
 #define OP_JOIN  			1
 #define OP_LEAVE 			2
+#define OP_MONITOR			3
+
 
 #define die(fmt, args...) \
 do \
@@ -261,6 +265,36 @@ static void do_leave(void)
 	kill(pid, SIGTERM);
 }
 
+static void do_monitor(void)
+{
+	int sfd, error, rv;
+	struct sockaddr_un addr;
+	socklen_t addrlen;
+	char buf[256];
+
+	sfd = socket(AF_LOCAL, SOCK_DGRAM, 0);
+	if (sfd < 0)
+		die("cannot create local socket");
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_LOCAL;
+	strcpy(&addr.sun_path[1], FENCED_SOCK_PATH);
+	addrlen = sizeof(sa_family_t) + strlen(addr.sun_path+1) + 1;
+
+	error = bind(sfd, (struct sockaddr *) &addr, addrlen);
+	if (error < 0)
+		die("cannot bind to local socket");
+
+	for (;;) {
+		memset(buf, 0, 256);
+
+		rv = recvfrom(sfd, buf, 256, 0, (struct sockaddr *)&addr,
+			      &addrlen);
+
+		printf("%s", buf);
+	}
+}
+
 static void print_usage(void)
 {
 	printf("Usage:\n");
@@ -339,6 +373,8 @@ static void decode_arguments(int argc, char *argv[])
 			operation = OP_JOIN;
 		} else if (strcmp(argv[optind], "leave") == 0) {
 			operation = OP_LEAVE;
+		} else if (strcmp(argv[optind], "monitor") == 0) {
+			operation = OP_MONITOR;
 		} else
 			die("unknown option %s\n", argv[optind]);
 		optind++;
@@ -360,6 +396,9 @@ int main(int argc, char *argv[])
 		break;
 	case OP_LEAVE:
 		do_leave();
+		break;
+	case OP_MONITOR:
+		do_monitor();
 		break;
 	}
 
