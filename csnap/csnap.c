@@ -8,7 +8,6 @@
  */
 
 #undef BUSHY
-#undef TESTS
 #define _GNU_SOURCE /* Berserk glibc headers: O_DIRECT not defined unless _GNU_SOURCE defined */
 
 #include <string.h>
@@ -23,9 +22,11 @@
 #include <sys/poll.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/ioctl.h>
-#include <linux/fs.h>
 #include <netinet/in.h>
+#include <netdb.h> // gethostbyname2_r
+#include <linux/fs.h> // BLKGETSIZE
 #include "csnap.h"
 #include "../dm-csnap.h"
 #include "trace.h"
@@ -500,6 +501,8 @@ struct superblock
 	chunk_t dest_exception;
 	unsigned copy_chunks;
 };
+
+#define SB_BUSY 1
 
 /* BTree leaf operations */
 
@@ -1917,6 +1920,16 @@ int incoming(struct superblock *sb, struct client *client)
 			show_tree(sb);
 			break;
 
+		case START_SERVER:
+			warn("Activating server");
+			load_sb(sb);
+			if (sb->image.flags & SB_BUSY)
+				warn("Server was not shut down properly");
+			sb->image.flags |= SB_BUSY;
+			mark_sb_dirty(sb);
+			save_sb(sb);
+			break;
+
 		case SHUTDOWN_SERVER:
 			return -2;
 
@@ -1945,8 +1958,6 @@ void sighandler(int signum)
 	write(sigpipe, (char[]){signum}, 1);
 }
 
-#define SB_BUSY 1
-
 int cleanup(struct superblock *sb)
 {
 	warn("cleaning up");
@@ -1956,7 +1967,30 @@ int cleanup(struct superblock *sb)
 	return 0;
 }
 
-int csnap_server(struct superblock *sb, int port)
+int resolve_host(char *name, int family, void *result, int length)
+{
+	struct hostent host, *bogus;
+	char work[500];
+	int err, dumb;
+
+	if ((err = gethostbyname2_r(name, family, &host, work, sizeof(work), &bogus, &dumb))) {
+		errno = err;
+		return -1;
+	}
+	memcpy(result, host.h_addr_list[0], host.h_length);
+	return host.h_length;
+}
+
+int resolve_self(int family, void *result, int length)
+{
+	char name[HOST_NAME_MAX + 1];
+	if (gethostname(name, HOST_NAME_MAX) == -1)
+		return -1;
+
+	return resolve_host(name, family, result, length);
+}
+
+int csnap_server(struct superblock *sb, int port, char *sockname)
 {
 	unsigned maxclients = 100, clients = 0, others = 2;
 	struct client clientvec[maxclients];
@@ -1968,17 +2002,49 @@ int csnap_server(struct superblock *sb, int port)
 	sigpipe = pipevec[1];
 	getsig = pipevec[0];
 
+	struct server server = { .port = htons(port), .type = AF_INET,  };
+
 	if ((listener = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-		error("Can't open socket");
+		error("Can't get socket");
 
 	if (bind(listener,
 		(struct sockaddr *)&(struct sockaddr_in){
-			.sin_family = AF_INET, 
-			.sin_addr = { .s_addr = INADDR_ANY },
-			.sin_port = htons(port)},
+			.sin_family = server.type, 
+			.sin_port = server.port,
+			.sin_addr = { .s_addr = INADDR_ANY } },
 		sizeof(struct sockaddr_in)) < 0) 
 		error("Can't bind to socket");
 	listen(listener, 5);
+
+	if (sockname)
+	{
+		struct sockaddr_un addr = { .sun_family = AF_UNIX };
+		int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
+		int sock, len;
+
+		trace(warn("Connect to control socket %s", sockname);)
+		if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+			error("Can't get socket");
+		strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
+		if (sockname[0] == '@')
+			addr.sun_path[0] = 0;
+
+		if (connect(sock, (struct sockaddr *)&addr, addr_len) == -1)
+			error("Can't connect to control socket");
+
+		/* control connection will just be a normal client for now */
+		trace_on(warn("Received control connection");)
+		clientvec[0] = (struct client){ .sock = sock, .id = -2, .snapnum = -2 };
+		pollvec[others] = (struct pollfd){ .fd = sock, .events = POLLIN };
+		clients = 1;
+
+		if ((len = resolve_self(AF_INET, server.address, sizeof(server.address))) == -1)
+			error("Can't get own address, %s (%i)", strerror(errno), errno);
+		server.address_len = len;
+		warn("host = %x/%u", *(int *)server.address, server.address_len);
+		writepipe(sock, &(struct head){ SERVER_READY, sizeof(server) }, sizeof(struct head));
+		writepipe(sock, &server, sizeof(server));
+	}
 
 	switch (fork()) {
 	case -1:
@@ -2017,9 +2083,9 @@ int csnap_server(struct superblock *sb, int port)
 
 			if (!(sock = accept(listener, (struct sockaddr *)&addr, &addr_len)))
 				error("Cannot accept connection");
-			trace_on(printf("Received connection\n");)
-			assert(clients < maxclients); // !!! send error and disconnect
 
+			trace_on(warn("Received connection");)
+			assert(clients < maxclients); // !!! send error and disconnect
 			clientvec[clients] = (struct client){ .sock = sock, .id = -1, .snapnum = -1 };
 			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
 			clients++;
@@ -2068,66 +2134,9 @@ done:
 
 int main(int argc, char *argv[])
 {
-#if 0
-	struct addto snap =  {  .nextchunk = -1 };
-	addto_response(&snap, 0x66);
-	addto_response(&snap, 0x67);
-	addto_response(&snap, 0x68);
-	addto_response(&snap, 0x76);
-	addto_response(&snap, 0x77);
-	addto_response(&snap, 0x78);
-//	check_response_full(&snap, sizeof(chunk_t));
-//	*(snap.top)++ = 0x77;
-	finish_reply_(&snap, 0xbead0001);
-	hexdump(snap.reply, (char *)snap.top - (char *)snap.reply);
-	return 0;
-#endif
-
-	int i;
 	struct superblock *sb = &(struct superblock){};
 
 	memset(buffer_table, 0, sizeof(buffer_table));
-
-#ifdef TESTS
-#if 0
-malloc_aligned(4096, 4096);
-return 0;
-#endif
-
-#if 0
-for (i = 0; i < 100; i++)
-printf("hash %u\n", buffer_hash(123456 + i));
-return 0;
-#endif
-
-#if 0
-	printf("get %p\n", getblk(0, 1, 4096));
-	printf("get %p\n", getblk(0, 1, 4096));
-	printf("get %p\n", getblk(0, 2, 4096));
-	printf("get %p\n", getblk(0, 1, 4096));
-	printf("get %p\n", getblk(0, 2, 4096));
-	show_buffers();
-	return 0;
-#endif
-
-#if 0
-	struct pending *pending1 = NULL;
-	struct pending *pending2 = NULL;
-	struct client client1 = { .id = 6 };
-	struct client client2 = { .id = 7 };
-	struct client client3 = { .id = 8 };
-	setup_sb(sb);
-	readlock_chunk(sb, 121, &client1);
-	show_locks(sb);
-	waitfor_chunk(sb, 121, &pending1);
-	show_locks(sb);
-	readlock_chunk(sb, 121, &client2);
-	show_locks(sb);
-	release_chunk(sb, 121, &client2);
-	show_locks(sb);
-	return 0;
-#endif
-#endif /* TESTS */
 
 	if (!(sb->snapdev = open(argv[1], O_RDWR | O_DIRECT)))
 		error("Could not open snapshot store %s", argv[1]);
@@ -2136,141 +2145,13 @@ return 0;
 		error("Could not open origin volume %s", argv[2]);
 
 #ifdef SERVER
-	load_sb(sb);
-	if (sb->image.flags & SB_BUSY)
-		warn("Server was not shut down properly");
-	sb->image.flags |= SB_BUSY;
-	mark_sb_dirty(sb);
-	save_sb(sb);
-
-#ifndef TESTS
 	if (argc < 4)
 		error("usage: %s dev/snapshot dev/origin port", argv[0]);
 
-	return csnap_server(sb, atoi(argv[3]));
-#else
-	make_unique(sb, 120, -1);
-	show_tree(sb);
-//	show_buffers();
-	return 0;
-#endif /* TESTS */
+	return csnap_server(sb, atoi(argv[3]), argv[4]);
 
 #else /* ~SERVER */
-
-#ifndef TESTS
 	return init_snapstore(sb); 
-#else
-	init_snapstore(sb); // and set up a test tree
-
-#endif
-
 #endif /* SERVER */
 
-#if 0
-	show_buffers();
-	show_tree_range(sb, 0);
-	return 0;
-#endif
-
-
-#if 0
-	for (i = 0; i < 10; i++)
-		printf("create snapshot %i\n", create_snapshot(sb, 100+i));
-	show_snapshots(sb);
-	delete_snapshot(sb, 103);
-	show_snapshots(sb);
-	printf("create snapshot %i\n", create_snapshot(sb, 100+i));
-	show_snapshots(sb);
-
-	printf("snapshot tag %i = %i\n", 103, tag2snapnum(sb, 103));
-	printf("snapshot bit %i = %i\n", 3, snapnum2tag(sb, 3));
-	return 0;
-#endif
-
-#if 1
-
-#if 0
-	show_buffers();
-	make_unique(sb, 66);
-	show_tree(sb);
-	show_buffers();
-	return 0;
-#endif
-
-	init_snapstore(sb); 
-	create_snapshot(sb, 123);
-	create_snapshot(sb, 124);
-	int n = 100;
-#if 1
-	for (i = 0; i < n; i++) {
-#else
-	for (i = n; i--;) {
-#endif
-		trace_off(printf("i = %i\n", i);)
-		if (i != 43)
-		make_unique(sb, i, -1);
-		save_state(sb);
-	}
-// show_tree(sb);
-// show_buffers();
-	make_unique(sb, 40, 1);
-	show_tree_range(sb, 36, 1);
-	show_buffers();
-return 0;
-	save_state(sb);
-	printf("Active snapshots: %llx\n", sb->snapmask);
-	create_snapshot(sb, 125);
-	make_unique(sb, 2, -1);
-	show_tree(sb);
-	delete_snapshot(sb, 124);
-	show_tree(sb);
-	delete_snapshot(sb, 123);
-	show_tree(sb);
-	delete_snapshot(sb, 125);
-	show_tree(sb);
-//	show_buffers();
-	printf("chunks used = %llu (free = %llu)\n", sb->image.chunks - sb->image.freechunks, sb->image.freechunks);
-#endif
-	return 0;
-
-#if 0
-	int i;
-	for (i = 0; i < 100; i++)
-		if (add_exception_to_leaf(leaf, i, i*100 + 66, 0), 0xFF)
-			break;
-	show_leaf(leaf);
-	return 0;
-#endif
-
-#if 0
-	add_exception_to_leaf(leaf, 88, 8888, 0, 0xFF);
-	add_exception_to_leaf(leaf, 99, 9999, 0, 0xFF);
-	add_exception_to_leaf(leaf, 77, 7777, 0, 0xFF);
-	add_exception_to_leaf(leaf, 77, 7772, -1, 0xFF);
-	add_exception_to_leaf(leaf, 99, 9992, 1, 0xFF);
-	add_exception_to_leaf(leaf, 66, 6666, 1, 0xFF);
-	show_leaf(leaf);
-
-	show1_origin(leaf, 88);
-	show1_origin(leaf, 77);
-	show1_snapshot(leaf, 77, 0);
-	show1_snapshot(leaf, 77, 1);
-	show1_snapshot(leaf, 88, 0);
-	show1_snapshot(leaf, 88, 1);
-	show1_snapshot(leaf, 22, 0);
-#endif
-
-#if 0
-	split_leaf(leaf, leaf2);
-	show_leaf(leaf);
-	show_leaf(leaf2);
-#endif
-
-#if 0
-	show_leaf(leaf);
-	delete_snapshot(leaf, 0);
-	show_leaf(leaf);
-#endif
-
-	return 0;
 }

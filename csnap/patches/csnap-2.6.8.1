@@ -29,8 +29,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
  quiet_cmd_unroll = UNROLL  $@
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
---- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 16:58:07.967614888 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-06 14:12:18.000000000 +0000
+--- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 16:58:07.000000000 +0000
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-17 05:41:49.000000000 +0000
 @@ -0,0 +1,1025 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
@@ -854,7 +854,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +{
 +	mm_segment_t oldseg = get_fs();
 +	struct sockaddr_un addr = { .sun_family = AF_UNIX };
-+	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
++	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname); // !!! check too long
 +	int sock = sys_socket(AF_UNIX, SOCK_STREAM, 0), err = 0;
 +
 +	trace(warn("Connect to control socket %s", sockname);)
@@ -865,7 +865,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		addr.sun_path[0] = 0;
 +
 +	set_fs(get_ds());
-+	while ((err = sys_connect(sock, (struct sockaddr *)&addr, addr_len)) == -111)
++	while ((err = sys_connect(sock, (struct sockaddr *)&addr, addr_len)) == -ECONNREFUSED)
 +		break;
 +//		yield();
 +	set_fs(oldseg);
@@ -1058,9 +1058,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +module_init(dm_csnap_init);
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/drivers/md/dm-csnap.h
---- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 16:58:12.918862184 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-10-07 03:08:28.000000000 +0000
-@@ -0,0 +1,84 @@
+--- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 16:58:12.000000000 +0000
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-10-18 19:15:45.000000000 +0000
+@@ -0,0 +1,85 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1087,13 +1087,14 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/dri
 +	DELETE_SNAPSHOT,
 +	REPLY_DELETE_SNAPSHOT,
 +	DUMP_TREE,
-+	SHUTDOWN_SERVER,
 +	INITIALIZE_SNAPSTORE,
 +	NEED_SERVER,
 +	CONNECT_SERVER,
 +	REPLY_CONNECT_SERVER,
 +	CONTROL_SOCKET,
-+	TEST_SERVER,
++	SERVER_READY,
++	START_SERVER,
++	SHUTDOWN_SERVER,
 +};
 +
 +struct identify { uint32_t id; int32_t snap; } PACKED;
@@ -1167,7 +1168,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/fs/super.c 2.6.8.1.csnap/fs/super.c
   *	destroy_super	-	frees a superblock
   *	@s: superblock to free
 diff -up --recursive 2.6.8.1.csnap.clean/include/linux/fs.h 2.6.8.1.csnap/include/linux/fs.h
---- 2.6.8.1.csnap.clean/include/linux/fs.h	2004-10-14 17:10:56.313808512 +0000
+--- 2.6.8.1.csnap.clean/include/linux/fs.h	2004-10-14 17:10:56.000000000 +0000
 +++ 2.6.8.1.csnap/include/linux/fs.h	2004-10-12 06:09:03.000000000 +0000
 @@ -1122,6 +1122,7 @@ void generic_shutdown_super(struct super
  void kill_block_super(struct super_block *sb);

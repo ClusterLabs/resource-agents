@@ -1,4 +1,4 @@
-binaries = mksnapstore csnap-server csnap-create csnap-delete csnap-agent sendagent testclient devpoke devspam
+binaries = mksnapstore csnap-server csnap-create csnap-delete csnap-agent testclient devpoke devspam
 headers = csnap.h ../dm-csnap.h trace.h sock.h
 
 all: $(binaries)
@@ -10,7 +10,7 @@ csnap-server: csnap.c $(headers)
 	cc -Wall csnap.c -DSERVER -o csnap-server
 
 csnap-agent: agent.c $(headers)
-	cc -Wall agent.c -o csnap-agent
+	cc -Wall agent.c -ldlm -lpthread -o csnap-agent
 
 csnap-create csnap-delete: create.c $(headers)
 	cc -Wall create.c -DCREATE -o csnap-create
@@ -18,9 +18,6 @@ csnap-create csnap-delete: create.c $(headers)
 
 testclient: testclient.c $(headers)
 	cc -Wall testclient.c -o testclient
-
-sendagent: sendagent.c $(headers)
-	cc -Wall sendagent.c -o sendagent
 
 devpoke: devpoke.c
 	cc -Wall devpoke.c -o devpoke

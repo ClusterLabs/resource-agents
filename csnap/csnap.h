@@ -33,3 +33,12 @@ static inline int readpipe(int fd, void *buffer, size_t count)
 	writepipe(SOCK, &message, sizeof(message)); })
 
 typedef unsigned long long chunk_t;
+
+#define MAX_ADDRESS 16
+
+struct server { u16 port; u8 type; u8 address_len; char address[MAX_ADDRESS]; } PACKED;
+
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 256
+#endif
+
