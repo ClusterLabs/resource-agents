@@ -800,7 +800,7 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		goto out_put;
 
 	if (!wait && local_conflict(dlm, r, name, owner, start, end, ex)) {
-		error = -1;
+		error = -EAGAIN;
 		goto out_up;
 	}
 
@@ -809,7 +809,7 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		goto out_up;
 
 	if (!wait && global_conflict(dlm, name, owner, start, end, ex)) {
-		error = -2;
+		error = -EAGAIN;
 		unlock_resource(r);
 		goto out_up;
 	}
