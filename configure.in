@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.333 $) dnl cvs revision
+AC_REVISION($Revision: 1.334 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -144,12 +144,17 @@ pils_includedir="${includedir}/${PILSPKG}"
 pils_plugindir="${libdir}/${PILSPKG}/plugins"
 stonith_includedir="${includedir}/${STONITHPKG}"
 stonith_plugindir="${libdir}/${STONITHPKG}/plugins"
+stonith_ext_plugindir="${stonith_plugindir}/external"
 base_includedir="${includedir}"
 saf_includedir="${includedir}/saf"
 AC_SUBST(pils_includedir)
 AC_SUBST(pils_plugindir)
 AC_SUBST(stonith_includedir)
 AC_SUBST(stonith_plugindir)
+AC_SUBST(stonith_ext_plugindir)
+AC_DEFINE_UNQUOTED(STONITH_EXT_PLUGINDIR, 
+	"$stonith_ext_plugindir", 
+	directory for the external stonith plugins)
 AC_SUBST(base_includedir)
 AC_SUBST(saf_includedir)
 AC_SUBST(docdir)
@@ -1826,6 +1831,8 @@ lib/Makefile							\
 		lib/plugins/lrm/Makefile			\
 		lib/plugins/stonith/Makefile			\
 		lib/plugins/stonith/ribcl.py			\
+		lib/plugins/stonith/external/Makefile		\
+		lib/plugins/stonith/external/ssh		\
 		lib/plugins/AppHBNotification/Makefile		\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
