@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.140 $) dnl cvs revision
+AC_REVISION($Revision: 1.141 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -372,9 +372,9 @@ AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 
 if "$HAVE_LIBRT" = ""; then
-	LIBRT=-lrt
-else
 	LIBRT=""
+else
+	LIBRT=-lrt
 fi
 AC_SUBST(LIBRT)
 #
