@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -44,6 +45,15 @@
 #define BUILDING_LIBDLM
 #include "libdlm.h"
 #include "dlm_device.h"
+
+/* Add other grotesqueries here as they arise */
+#if defined(__sparc__) && __WORDSIZE == 32
+#include "dlm32.c"
+#else
+#define dlm_write write
+#define dlm_read read
+#endif
+
 
 #define MISC_PREFIX "/dev/misc/"
 #define PROC_MISC "/proc/misc"
@@ -356,7 +366,7 @@ static int do_dlm_dispatch(int fd)
     void (*astaddr)(void *astarg);
 
     /* Just read the header first */
-    status = read(fd, result, sizeof(struct dlm_lock_result));
+    status = dlm_read(fd, result, sizeof(struct dlm_lock_result));
     if (status <= 0)
 	return -1;
 
@@ -368,7 +378,7 @@ static int do_dlm_dispatch(int fd)
 	if (!fullresult)
 	    return -1;
 
-	newstat = read(fd, fullresult, result->length);
+	newstat = dlm_read(fd, fullresult, result->length);
 
 	/* If it read OK then use the new data. otherwise we can
 	   still deliver the AST, it just might not have all the
@@ -433,7 +443,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 	req->i.lock.castaddr  = dummy_ast_routine;
 	req->i.lock.castparam = NULL;
 
-	status = write(lsinfo->fd, req, len);
+	status = dlm_write(lsinfo->fd, req, len);
 	if (status < 0)
 	    return -1;
 
@@ -450,7 +460,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 	req->i.lock.castaddr  = sync_ast_routine;
 	req->i.lock.castparam = &lwait;
 
-	status = write(lsinfo->fd, req, len);
+	status = dlm_write(lsinfo->fd, req, len);
 	if (status < 0)
 	    return -1;
 
@@ -576,7 +586,7 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 	status = sync_write(lsinfo, req, len);
     else
 #endif
-	status = write(lsinfo->fd, req, len);
+	status = dlm_write(lsinfo->fd, req, len);
 
     if (status < 0)
     {
@@ -736,7 +746,7 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 	    status = sync_write(lsinfo, &req, sizeof(req));
     else
 #endif
-	    status = write(lsinfo->fd, &req, sizeof(req));
+	    status = dlm_write(lsinfo->fd, &req, sizeof(req));
 
     if (status < 0)
 	return -1;
@@ -787,7 +797,7 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
     req.i.query.lockinfo_max = qinfo->gqi_locksize;
     lksb->sb_status = EINPROG;
 
-    status = write(lsinfo->fd, &req, sizeof(req));
+    status = dlm_write(lsinfo->fd, &req, sizeof(req));
     if (status != sizeof(req))
 	return -1;
     else
@@ -938,7 +948,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     else
 	    req->i.lspace.flags = 0;
     strcpy(req->i.lspace.name, name);
-    minor = write(control_fd, req, sizeof(*req) + strlen(name));
+    minor = dlm_write(control_fd, req, sizeof(*req) + strlen(name));
 
     if (minor < 0 && errno != EEXIST)
     {
@@ -975,7 +985,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	    /* Try to remove it */
 	    req->cmd = DLM_USER_REMOVE_LOCKSPACE;
 	    req->i.lspace.minor = minor;
-	    write(control_fd, req, sizeof(*req));
+	    dlm_write(control_fd, req, sizeof(*req));
 	    free(newls);
 	    return NULL;
 	}
@@ -1026,7 +1036,7 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
     req.cmd = DLM_USER_REMOVE_LOCKSPACE;
     req.i.lspace.minor = minor(st.st_rdev);
 
-    status = write(control_fd, &req, sizeof(req));
+    status = dlm_write(control_fd, &req, sizeof(req));
     if (status < 0)
 	return status;
 
