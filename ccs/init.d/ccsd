@@ -40,9 +40,9 @@ stop()
 	do
 		if pidof ccsd > /dev/null
 		then
-			# get the pid of ccsd from /var/run/sistina/ccsd.pid
+			# get the pid of ccsd from /var/run/cluster/ccsd.pid
 			# and break if the file is not there
-			[ -r /var/run/sistina/ccsd.pid ] || break
+			[ -r /var/run/cluster/ccsd.pid ] || break
 
 			pid=$(cat /var/run/cluster/ccsd.pid )
 			kill $pid 2> /dev/null || break
