@@ -795,7 +795,9 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (error)
 		goto out;
 
-	down(&r->sema);
+	error = down_interruptible(&r->sema);
+	if (error)
+		goto out_put;
 
 	if (!wait && local_conflict(dlm, r, name, owner, start, end, ex)) {
 		error = -1;
@@ -828,6 +830,7 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
  out_up:
 	up(&r->sema);
 	wait_async_list(r, owner);
+ out_put:
 	put_resource(r);
  out:
 	log_debug("ex plock %u error %d", current->pid, error);
@@ -848,7 +851,10 @@ int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (error)
 		goto out;
 
-	down(&r->sema);
+	error = down_interruptible(&r->sema);
+	if (error)
+		goto out_put;
+
 	error = lock_resource(r);
 	if (error)
 		goto out_up;
@@ -859,6 +865,7 @@ int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
  out_up:
 	up(&r->sema);
 	wait_async_list(r, owner);
+ out_put:
 	put_resource(r);
  out:
 	log_debug("ex punlock %u error %d", current->pid, error);
@@ -997,7 +1004,12 @@ int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 
 	error = get_resource(dlm, name, NO_CREATE, &r);
 	if (!error) {
-		down(&r->sema);
+		error = down_interruptible(&r->sema);
+		if (error) {
+			put_resource(r);
+			goto out;
+		}
+
 		found = get_conflict_local(dlm, r, name, owner, start, end, ex,
 					   rowner);
 		up(&r->sema);
