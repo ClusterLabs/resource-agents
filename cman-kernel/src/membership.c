@@ -143,6 +143,7 @@ static void join_or_form_cluster(void);
 static int do_timer_wakeup(void);
 static int start_transition(unsigned char reason, struct cluster_node *node);
 static uint32_t low32_of_ip(void);
+static void remove_joiner(void);
 int send_leave(unsigned char);
 int send_reconfigure(int, unsigned int);
 
@@ -1735,6 +1736,7 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 	struct cluster_node *node = NULL;
 
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
+	remove_joiner();
 
 	if (startmsg->reason == TRANS_REMNODE) {
 		node = remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
