@@ -383,7 +383,7 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
 		if (qd->qd_count > 1) {
 			spin_unlock(&sdp->sd_quota_lock);
 			gfs_log_unlock(sdp);
-			current->state = TASK_UNINTERRUPTIBLE;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ);
 			goto restart;
 

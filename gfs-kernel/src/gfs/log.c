@@ -300,7 +300,7 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 				list_add_tail(&list, &sdp->sd_log_seg_list);
 				while (sdp->sd_log_seg_list.next != &list) {
 					DECLARE_WAITQUEUE(__wait_chan, current);
-					current->state = TASK_UNINTERRUPTIBLE;
+					set_current_state(TASK_UNINTERRUPTIBLE);
 					add_wait_queue(&sdp->sd_log_seg_wait,
 						       &__wait_chan);
 					spin_unlock(&sdp->sd_log_seg_lock);
@@ -308,7 +308,7 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 					spin_lock(&sdp->sd_log_seg_lock);
 					remove_wait_queue(&sdp->sd_log_seg_wait,
 							  &__wait_chan);
-					current->state = TASK_RUNNING;
+					set_current_state(TASK_RUNNING);
 				}
 			}
 		}

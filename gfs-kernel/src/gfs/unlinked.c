@@ -319,7 +319,7 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
 		if (ul->ul_count > 2) {
 			spin_unlock(&sdp->sd_unlinked_lock);
 			gfs_log_unlock(sdp);
-			current->state = TASK_UNINTERRUPTIBLE;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ);
 			goto restart;
 		}

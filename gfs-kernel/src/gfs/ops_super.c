@@ -245,7 +245,7 @@ gfs_write_super_lockfs(struct super_block *sb)
 
 		printk("GFS: fsid=%s: retrying...\n", sdp->sd_fsname);
 
-		current->state = TASK_UNINTERRUPTIBLE;
+		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ);
 	}
 }

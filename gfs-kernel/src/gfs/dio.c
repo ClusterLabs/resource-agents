@@ -1118,8 +1118,7 @@ gfs_sync_meta(struct gfs_sbd *sdp)
 		gfs_ail_start(sdp, DIO_ALL);
 		if (gfs_ail_empty(sdp))
 			break;
-
-		current->state = TASK_UNINTERRUPTIBLE;
+		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ / 10);
 	}
 }

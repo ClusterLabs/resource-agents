@@ -1252,12 +1252,12 @@ do_cancels(struct gfs_holder *gh)
 		      (gl->gl_req_gh->gh_flags & GL_NOCANCEL))) {
 			spin_unlock(&gl->gl_spin);
 			gl->gl_sbd->sd_lockstruct.ls_ops->lm_cancel(gl->gl_lock);
-			current->state = TASK_INTERRUPTIBLE;
+			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		} else {
 			spin_unlock(&gl->gl_spin);
-			current->state = TASK_INTERRUPTIBLE;
+			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		}
@@ -1475,7 +1475,7 @@ gfs_glock_nq(struct gfs_holder *gh)
 	if (!(gh->gh_flags & GL_ASYNC)) {
 		error = glock_wait_internal(gh);
 		if (error == GLR_CANCELED) {
-			current->state = TASK_UNINTERRUPTIBLE;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ);
 			goto restart;
 		}
@@ -1508,7 +1508,7 @@ gfs_glock_poll(struct gfs_holder *gh)
 	else if (list_empty(&gh->gh_list)) {
 		if (gh->gh_error == GLR_CANCELED) {
 			spin_unlock(&gl->gl_spin);
-			current->state = TASK_UNINTERRUPTIBLE;
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ);
 			gfs_glock_nq(gh);
 			return FALSE;
@@ -1538,7 +1538,7 @@ gfs_glock_wait(struct gfs_holder *gh)
 
 	error = glock_wait_internal(gh);
 	if (error == GLR_CANCELED) {
-		current->state = TASK_UNINTERRUPTIBLE;
+		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ);
 		gh->gh_flags &= ~GL_ASYNC;
 		error = gfs_glock_nq(gh);

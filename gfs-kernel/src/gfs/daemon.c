@@ -52,7 +52,7 @@ gfs_scand(void *data)
 		if (!test_bit(SDF_SCAND_RUN, &sdp->sd_flags))
 			break;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(sdp->sd_tune.gt_scand_secs * HZ);
 	}
 
@@ -92,13 +92,13 @@ gfs_glockd(void *data)
 
 		{
 			DECLARE_WAITQUEUE(__wait_chan, current);
-			current->state = TASK_INTERRUPTIBLE;
+			set_current_state(TASK_INTERRUPTIBLE);
 			add_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
 			if (!atomic_read(&sdp->sd_reclaim_count)
 			    && test_bit(SDF_GLOCKD_RUN, &sdp->sd_flags))
 				schedule();
 			remove_wait_queue(&sdp->sd_reclaim_wchan, &__wait_chan);
-			current->state = TASK_RUNNING;
+			set_current_state(TASK_RUNNING);
 		}
 	}
 
@@ -129,7 +129,7 @@ gfs_recoverd(void *data)
 		if (!test_bit(SDF_RECOVERD_RUN, &sdp->sd_flags))
 			break;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(sdp->sd_tune.gt_recoverd_secs * HZ);
 	}
 
@@ -177,7 +177,7 @@ gfs_logd(void *data)
 		if (!test_bit(SDF_LOGD_RUN, &sdp->sd_flags))
 			break;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(sdp->sd_tune.gt_logd_secs * HZ);
 	}
 
@@ -224,7 +224,7 @@ gfs_quotad(void *data)
 		if (!test_bit(SDF_QUOTAD_RUN, &sdp->sd_flags))
 			break;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(sdp->sd_tune.gt_quotad_secs * HZ);
 	}
 
@@ -258,7 +258,7 @@ gfs_inoded(void *data)
 		if (!test_bit(SDF_INODED_RUN, &sdp->sd_flags))
 			break;
 
-		current->state = TASK_INTERRUPTIBLE;
+		set_current_state(TASK_INTERRUPTIBLE);
 		schedule_timeout(sdp->sd_tune.gt_inoded_secs * HZ);
 	}
 
