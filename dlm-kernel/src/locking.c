@@ -717,8 +717,13 @@ void dlm_lock_stage3(struct dlm_lkb *lkb)
 		lkb->lkb_retstatus = -EAGAIN;
 		if (lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUEBAST)
 			send_blocking_asts_all(rsb, lkb);
+		/*
+		 * up the res_lock before queueing ast, since the AST_DEL will
+		 * cause the rsb to be released and that can happen anytime.
+		 */
+		up_write(&rsb->res_lock);
 		queue_ast(lkb, AST_COMP | AST_DEL, 0);
-		goto out;
+		return;
 	}
 
 	/*
@@ -918,7 +923,13 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
 
 	if (!remote) {
+		/*
+		 * up the res_lock before queueing ast, since the AST_DEL will
+		 * cause the rsb to be released and that can happen anytime.
+		 */
+		up_write(&rsb->res_lock);
 		queue_ast(lkb, AST_COMP | AST_DEL, 0);
+		goto out2;
 	} else {
 		up_write(&rsb->res_lock);
 		release_lkb(rsb->res_ls, lkb);
