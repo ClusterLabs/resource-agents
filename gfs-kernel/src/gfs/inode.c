@@ -385,8 +385,8 @@ gfs_inode_hold(struct gfs_inode *ip)
 void
 gfs_inode_put(struct gfs_inode *ip)
 {
+	GFS_ASSERT_INODE(atomic_read(&ip->i_count) > 0, ip,);
 	atomic_dec(&ip->i_count);
-	GFS_ASSERT_INODE(atomic_read(&ip->i_count) >= 0, ip,);
 }
 
 /**

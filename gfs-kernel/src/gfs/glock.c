@@ -106,8 +106,8 @@ glock_put(struct gfs_glock *gl)
 {
 	if (atomic_read(&gl->gl_count) == 1)
 		gfs_glock_schedule_for_reclaim(gl);
+	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) > 0, gl,);
 	atomic_dec(&gl->gl_count);
-	GFS_ASSERT_GLOCK(atomic_read(&gl->gl_count) >= 0, gl,);
 }
 
 /**
