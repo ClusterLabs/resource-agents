@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.31 $) dnl cvs revision
+AC_REVISION($Revision: 1.32 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -316,13 +316,18 @@ AC_SUBST(XPERIMENTALDIRS)
 
 AC_CONFIG_SUBDIRS(libltdl)
 
-dnl The Makefiles we output
+dnl The Makefiles and shell scripts we output
 AC_OUTPUT(Makefile doc/Makefile replace/Makefile heartbeat/Makefile \
 heartbeat/lib/Makefile heartbeat/rc.d/Makefile heartbeat/resource.d/Makefile 
 heartbeat/init.d/Makefile heartbeat/logrotate.d/Makefile \
 ldirectord/Makefile ldirectord/init.d/Makefile \
 ldirectord/logrotate.d/Makefile \
-stonith/Makefile lib/upmls/Makefile
+stonith/Makefile lib/upmls/Makefile \
+heartbeat/shellfuncs heartbeat/init.d/heartbeat heartbeat/lib/mach_down \
+heartbeat/lib/req_resource heartbeat/lib/ResourceManager \
+heartbeat/resource.d/AudibleAlarm heartbeat/resource.d/Filesystem \
+heartbeat/resource.d/IPaddr heartbeat/resource.d/Raid1 \
+heartbeat/resource.d/MailTo
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
