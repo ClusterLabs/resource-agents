@@ -103,7 +103,7 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
     char node_buf[MAX_CLUSTER_MEMBER_NAME_LEN];
 
     c += sprintf(b+c,
-		 "Version: %d.%d.%d\n",
+		 "Protocol version: %d.%d.%d\n",
 		 CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
 		 CNXMAN_PATCH_VERSION);
 

@@ -124,7 +124,7 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len);
 static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			     unsigned int flags, unsigned int flags2);
 static int send_joinreq(struct sockaddr_cl *addr, int addr_len);
-static int send_startack(struct sockaddr_cl *addr, int addr_len, int node_id);
+static int send_startack(struct sockaddr_cl *addr, int addr_len);
 static int send_hello(void);
 static int send_master_hello(void);
 static int send_newcluster(void);
@@ -735,14 +735,12 @@ static int send_joinreq(struct sockaddr_cl *addr, int addr_len)
 			   addr, addr_len, MSG_NOACK);
 }
 
-static int send_startack(struct sockaddr_cl *addr, int addr_len, int node_id)
+static int send_startack(struct sockaddr_cl *addr, int addr_len)
 {
 	struct cl_mem_startack_msg msg;
 
 	msg.cmd = CLUSTER_MEM_STARTACK;
 	msg.generation = cpu_to_le32(cluster_generation);
-	msg.node_id = cpu_to_le32(node_id);
-	msg.highest_node_id = cpu_to_le32(get_highest_nodeid());
 
 	return kcl_sendmsg(mem_socket, &msg, sizeof (msg), addr, addr_len, MSG_REPLYEXP);
 }
@@ -1721,35 +1719,8 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 		}
 	}
 
-	/* If the node_id is non-zero then use it. */
-	if (transitionreason == TRANS_NEWNODE && joining_node && msg) {
-		struct cl_mem_startack_msg *ackmsg =
-			(struct cl_mem_startack_msg *)buf;
-
-		if (ackmsg->node_id && !joining_node->node_id) {
-			set_nodeid(joining_node, le32_to_cpu(ackmsg->node_id));
-		}
-		highest_nodeid =
-		    max(highest_nodeid, le32_to_cpu(ackmsg->highest_node_id));
-		P_MEMB("Node id = %d, highest node id = %d\n",
-		       le32_to_cpu(ackmsg->node_id),
-		       le32_to_cpu(ackmsg->highest_node_id));
-	}
-
 	/* If we have all the responses in then move to the next stage */
 	if (++responses_collected == responses_expected) {
-
-		/* If the new node has no node_id (ie nobody in the cluster has
-		 * heard of it before) then assign it a new one */
-		if (transitionreason == TRANS_NEWNODE && joining_node) {
-			highest_nodeid =
-			    max(highest_nodeid, get_highest_nodeid());
-			if (joining_node->node_id == 0) {
-				set_nodeid(joining_node, ++highest_nodeid);
-			}
-			P_MEMB("nodeIDs: new node: %d, highest: %d\n",
-			       joining_node->node_id, highest_nodeid);
-		}
 
 		/* Behave a little differently if we are on our own */
 		if (cluster_members == 1) {
@@ -2041,20 +2012,8 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 
 	/* Do non-MASTER STARTTRANS bits */
 	if (node_state == MEMBER) {
-		int ptr = sizeof (struct cl_mem_starttrans_msg);
-		int node_id = 0;
 
 		P_MEMB("Normal transition start\n");
-
-		/* If the master is adding a new node and we know it's node ID
-		 * then ACK with it. */
-		if (startmsg->reason == TRANS_NEWNODE) {
-			struct cluster_node *node =
-			    find_node_by_addr((char *) startmsg + ptr,
-					      address_length);
-			if (node)
-				node_id = node->node_id;
-		}
 
 		/* Save the master info */
 		master_node = find_node_by_nodeid(saddr->scl_nodeid);
@@ -2068,9 +2027,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 		    startmsg->reason == TRANS_ANOTHERREMNODE) {
 			remove_node(le32_to_cpu(startmsg->nodeid));
 		}
-
-		send_startack(saddr, msg->msg_namelen,
-			      node_id);
+		send_startack(saddr, msg->msg_namelen);
 
 		/* Establish timer in case the master dies */
 		mod_timer(&transition_timer,
@@ -2083,7 +2040,6 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 	if (node_state == TRANSITION) {
 
 		master_node = find_node_by_nodeid(saddr->scl_nodeid);
-		send_startack(saddr, msg->msg_namelen, 0);
 
 		/* Is it a new joining node ? This happens if a master is
 		 * usurped */
@@ -2101,6 +2057,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			    && oldjoin->state == NODESTATE_JOINING)
 				oldjoin->state = NODESTATE_DEAD;
 		}
+		send_startack(saddr, msg->msg_namelen);
 
 		/* Is it a new master node? */
 		if (startmsg->reason == TRANS_NEWMASTER ||
@@ -2124,6 +2081,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			/* Remove new dead node */
 			remove_node(le32_to_cpu(startmsg->nodeid));
 		}
+
 		/* Restart the timer */
 		del_timer(&transition_timer);
 		mod_timer(&transition_timer,
@@ -2375,6 +2333,12 @@ static int do_process_joinreq(struct msghdr *msg, char *buf, int len)
 			    le32_to_cpu(joinmsg->expected_votes),
 			    le32_to_cpu(joinmsg->nodeid),
 			    NODESTATE_JOINING);
+
+	/* A genuinely new node, assign it a genuinely new ID */
+	if (node->node_id == 0) {
+		set_nodeid(node, get_highest_nodeid()+1);
+		highest_nodeid = node->node_id;
+	}
 
 	/* Add the node's addresses */
 	if (list_empty(&node->addr_list)) {

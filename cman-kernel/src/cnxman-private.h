@@ -14,8 +14,8 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
-/* Version triplet */
-#define CNXMAN_MAJOR_VERSION 3
+/* Protocol Version triplet */
+#define CNXMAN_MAJOR_VERSION 4
 #define CNXMAN_MINOR_VERSION 0
 #define CNXMAN_PATCH_VERSION 1
 
@@ -217,8 +217,6 @@ struct cl_mem_startack_msg {
 	unsigned char  reason;
 	unsigned short pad;
 	unsigned int   generation;
-	unsigned int   node_id;	/* node_id we think new node should have */
-	unsigned int   highest_node_id;	/* highest node_id on this system */
 };
 
 /* Reconfigure a cluster parameter */
