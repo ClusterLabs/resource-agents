@@ -360,7 +360,7 @@ lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name)
  * @fs: 
  * @jid: 
  * 
- * actually may only need to set first byte to zero
+ * This is called when a node replays someone else's journal.
  * 
  */
 void
@@ -376,16 +376,46 @@ release_JID (gulm_fs_t * fs, uint32_t jid)
 	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
 	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 				lg_lock_flag_IgnoreExp, lvb, 64);
-	lvb[0] = 0;
-	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
+	if (lvb[0] == 1 ) {
+		/* if byte0 is 2, then that node is alive.  They're waiting
+		 * for us to finish, but once we're done, it would be mean
+		 * to mark their jid as free.  So we leave the byte alone.
+		 *
+		 * Actually, If the byte isn't 1 (which means we are
+		 * replaying the journal) don't change it.
+		 *
+		 * Remind: 0 = free, 1 = replaying, 2 = owned.
+		 */
+		lvb[0] = 0;
+		jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
+	}
 	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 
 }
 
+/**
+ * put_journalID - 
+ * @fs: 
+ * 
+ * This is called when this node unmounts.
+ * 
+ */
 void
 put_journalID (gulm_fs_t * fs)
 {
-	release_JID (fs, fs->fsJID);
+	uint8_t key[GIO_KEY_SIZE], lvb[64];
+	uint16_t keylen = GIO_KEY_SIZE;
+
+	/* there is no such, so this becomes a nop. */
+	if (fs->fsJID >= fs->JIDcount)
+		return;
+
+	jid_get_lock_name (fs->fs_name, fs->fsJID, key, &keylen);
+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+				lg_lock_flag_IgnoreExp, lvb, 64);
+	lvb[0] = 0;
+	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
+	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 }
 
 /**
