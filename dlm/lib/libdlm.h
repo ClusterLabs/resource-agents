@@ -280,4 +280,7 @@ extern int dlm_pthread_cleanup();
 #define ECANCEL            (0x10001)
 #define EUNLOCK            (0x10002)
 #define	EINPROG		   (0x10003)	/* lock operation is in progress */
+
+/* lksb flags */
+#define DLM_SBF_VALNOTVALID    (0x02)
 #endif
