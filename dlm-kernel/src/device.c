@@ -48,6 +48,12 @@ static struct semaphore user_ls_lock;
 #define LI_FLAG_COMPLETE  1
 #define LI_FLAG_FIRSTLOCK 2
 
+
+/* flags in ls_flags*/
+#define LS_FLAG_DELETED   1
+#define LS_FLAG_AUTOFREE  2
+
+
 #define LOCKINFO_MAGIC 0x53595324
 
 struct lock_info {
@@ -84,7 +90,7 @@ struct ast_info {
 struct user_ls {
 	void    *ls_lockspace;
 	atomic_t ls_refcnt;
-	long     ls_flags; /* bit 1 means LS has been deleted */
+	long     ls_flags;
 
 	/* Passed into misc_register() */
 	struct miscdevice ls_miscinfo;
@@ -167,7 +173,7 @@ static void add_lockspace_to_list(struct user_ls *lsinfo)
 
 /* Register a lockspace with the DLM and create a misc
    device for userland to access it */
-static int register_lockspace(char *name, struct user_ls **ls)
+static int register_lockspace(char *name, struct user_ls **ls, int flags)
 {
 	struct user_ls *newls;
 	int status;
@@ -208,6 +214,8 @@ static int register_lockspace(char *name, struct user_ls **ls)
 		return status;
 	}
 
+	if (flags & DLM_USER_LSFLG_AUTOFREE)
+		set_bit(LS_FLAG_AUTOFREE, &newls->ls_flags);
 
 	add_lockspace_to_list(newls);
 	*ls = newls;
@@ -228,7 +236,7 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 		return status;
 
 	list_del(&lsinfo->ls_list);
-	set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
+	set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
 	lsinfo->ls_lockspace = NULL;
 	if (atomic_read(&lsinfo->ls_refcnt) == 0) {
 		kfree(lsinfo->ls_miscinfo.name);
@@ -537,12 +545,23 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 	remove_wait_queue(&li.li_waitq, &wq);
 
-	/* If this is the last reference, and the lockspace has been deleted
-	   then free the struct */
+	/*
+	 * If this is the last reference to the lockspace
+	 * then free the struct. If it's an AUTOFREE lockspace
+	 * then free the whole thing.
+	 */
 	down(&user_ls_lock);
-	if (atomic_dec_and_test(&lsinfo->ls_refcnt) && !lsinfo->ls_lockspace) {
-		kfree(lsinfo->ls_miscinfo.name);
-		kfree(lsinfo);
+	if (atomic_dec_and_test(&lsinfo->ls_refcnt)) {
+
+		if (lsinfo->ls_lockspace) {
+			if (test_bit(LS_FLAG_AUTOFREE, &lsinfo->ls_flags)) {
+				unregister_lockspace(lsinfo, 1);
+			}
+		}
+		else {
+			kfree(lsinfo->ls_miscinfo.name);
+			kfree(lsinfo);
+		}
 	}
 	up(&user_ls_lock);
 
@@ -596,7 +615,7 @@ static int do_user_create_lockspace(struct file_info *fi, uint8_t cmd,
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	status = register_lockspace(kparams->name, &lsinfo);
+	status = register_lockspace(kparams->name, &lsinfo, kparams->flags);
 
 	/* If it succeeded then return the minor number */
 	if (status == 0)
@@ -609,6 +628,7 @@ static int do_user_remove_lockspace(struct file_info *fi, uint8_t cmd,
 				    struct dlm_lspace_params *kparams)
 {
 	int status;
+	int force = 0;
 	struct user_ls *lsinfo;
 
 	if (!capable(CAP_SYS_ADMIN))
@@ -621,7 +641,10 @@ static int do_user_remove_lockspace(struct file_info *fi, uint8_t cmd,
 		return -EINVAL;
 	}
 
-	status = unregister_lockspace(lsinfo, kparams->flags);
+	if (kparams->flags & DLM_USER_LSFLG_FORCEFREE)
+		force = 2;
+
+	status = unregister_lockspace(lsinfo, force);
 	up(&user_ls_lock);
 
 	return status;
@@ -648,7 +671,7 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 		/* No waiting ASTs.
 		 * Return EOF if the lockspace been deleted.
 		 */
-		if (test_bit(1, &fi->fi_ls->ls_flags))
+		if (test_bit(LS_FLAG_DELETED, &fi->fi_ls->ls_flags))
 			return 0;
 
 		if (file->f_flags & O_NONBLOCK) {
@@ -1053,7 +1076,7 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 		return -EINVAL;
 
 	/* Has the lockspace been deleted */
-	if (fi && test_bit(1, &fi->fi_ls->ls_flags))
+	if (fi && test_bit(LS_FLAG_DELETED, &fi->fi_ls->ls_flags))
 		return -ENOENT;
 
 	kparams = kmalloc(count, GFP_KERNEL);
@@ -1132,7 +1155,7 @@ void dlm_device_free_devices()
 		/* Tidy up, but don't delete the lsinfo struct until
 		   all the users have closed their devices */
 		list_del(&lsinfo->ls_list);
-		set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
+		set_bit(LS_FLAG_DELETED, &lsinfo->ls_flags);
 		lsinfo->ls_lockspace = NULL;
 	}
 	up(&user_ls_lock);

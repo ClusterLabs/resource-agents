@@ -98,4 +98,7 @@ struct dlm_lock_result {
 /* Arbitrary length restriction */
 #define MAX_LS_NAME_LEN 64
 
+/* Lockspace flags */
+#define DLM_USER_LSFLG_AUTOFREE   1
+#define DLM_USER_LSFLG_FORCEFREE  2
 
