@@ -59,6 +59,7 @@ struct lock_info {
 	void __user *li_bastaddr;
 	void __user *li_pend_bastparam;
 	void __user *li_pend_bastaddr;
+	void __user *li_user_lvbptr;
 	struct list_head li_ownerqueue;
 	struct file_info *li_file;
 	struct dlm_lksb __user *li_user_lksb;
@@ -73,6 +74,7 @@ struct ast_info {
 	struct dlm_queryinfo *queryinfo;
 	struct dlm_queryinfo __user *user_queryinfo;
 	struct list_head list;
+	void __user *user_lvbptr;
 	uint32_t ast_reason;	/* AST_COMP or AST_BAST from dlm_internal.h */
 };
 
@@ -120,6 +122,14 @@ static void put_file_info(struct file_info *f)
 {
 	if (atomic_dec_and_test(&f->fi_refcnt))
 		kfree(f);
+}
+
+static void release_lockinfo(struct lock_info *li)
+{
+	put_file_info(li->li_file);
+	if (li->li_lksb.sb_lvbptr)
+		kfree(li->li_lksb.sb_lvbptr);
+	kfree(li);
 }
 
 static struct user_ls *__find_lockspace(int minor)
@@ -238,6 +248,7 @@ static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam,
 	ast->result.astaddr   = astaddr;
 	ast->result.user_lksb = li->li_user_lksb;
 	ast->result.cmd       = li->li_cmd;
+	ast->user_lvbptr      = li->li_user_lvbptr;
 	ast->ast_reason	      = reason;
 	memcpy(&ast->result.lksb, &li->li_lksb, sizeof(struct dlm_lksb));
 
@@ -310,20 +321,18 @@ static void ast_routine(void *param)
 				list_del(&li->li_ownerqueue);
 				spin_unlock(&li->li_file->fi_lkb_lock);
 
-				put_file_info(li->li_file);
-				kfree(li);
+				release_lockinfo(li);
 			}
 			return;
 		}
 		/* Free unlocks & queries */
 		if (li->li_lksb.sb_status == -DLM_EUNLOCK ||
 		    li->li_cmd == DLM_USER_QUERY) {
-			put_file_info(li->li_file);
-			kfree(li);
+			release_lockinfo(li);
 		}
 	}
 	else {
-		/* Syncronous request, just wake up the caller */
+		/* Synchronous request, just wake up the caller */
 		set_bit(LI_FLAG_COMPLETE, &li->li_flags);
 		wake_up_interruptible(&li->li_waitq);
 	}
@@ -701,11 +710,11 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 	ret = sizeof(struct dlm_lock_result);
 	if (copy_to_user(buffer, &ast->result, sizeof(struct dlm_lock_result)))
 		ret = -EFAULT;
+
 	if (ast->ast_reason == AST_COMP &&
-	    ast->result.cmd == DLM_USER_LOCK && ast->result.lksb.sb_lvbptr) {
-		if (copy_to_user(ast->result.user_lksb->sb_lvbptr, ast->result.lksb.sb_lvbptr, DLM_LVB_LEN))
+	    ast->result.cmd == DLM_USER_LOCK && ast->user_lvbptr) {
+		if (copy_to_user(ast->user_lvbptr, ast->result.lksb.sb_lvbptr, DLM_LVB_LEN))
 			ret = -EFAULT;
-		kfree(ast->result.lksb.sb_lvbptr);
 	}
 
 	/* If it was a query then copy the result block back here */
@@ -816,6 +825,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	struct lock_info *li;
 	int status;
 	char name[DLM_RESNAME_MAXLEN];
+	void *lvbptr;
 
 	/*
 	 * Validate things that we need to have correct.
@@ -860,6 +870,8 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		li->li_bastaddr  = kparams->bastaddr;
 		li->li_bastparam = kparams->bastparam;
 		li->li_pend_bastparam = NULL;
+		li->li_pend_bastaddr  = NULL;
+		li->li_lksb.sb_lvbptr = NULL;
 
 		/* Get the lock name */
 		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
@@ -881,18 +893,35 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	li->li_castparam = kparams->castparam;
 
 	/* Copy the user's LKSB into kernel space,
-	   needed for conversions & value block operations */
-	if (copy_from_user(&li->li_lksb, kparams->lksb,sizeof(struct dlm_lksb)))
-		return -EFAULT;
-	if ((kparams->flags & DLM_LKF_VALBLK) && li->li_lksb.sb_lvbptr) {
-		li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN, GFP_KERNEL);
-		if (!li->li_lksb.sb_lvbptr)
-			return -ENOMEM;
+	   needed for conversions & value block operations.
+	   Save our kernel-space lvbptr first */
+	lvbptr = li->li_lksb.sb_lvbptr;
+	if (copy_from_user(&li->li_lksb, kparams->lksb, sizeof(struct dlm_lksb))) {
+		status = -EFAULT;
+		goto out_err;
+	}
+	/* Store new userland LVBptr and restore kernel one */
+	li->li_user_lvbptr = li->li_lksb.sb_lvbptr;
+	li->li_lksb.sb_lvbptr = lvbptr;
+
+	/* Copy in the value block */
+	if (kparams->flags & DLM_LKF_VALBLK) {
+		if (!li->li_lksb.sb_lvbptr) {
+			li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN, GFP_KERNEL);
+			if (!li->li_lksb.sb_lvbptr) {
+				status = -ENOMEM;
+				goto out_err;
+			}
+		}
+
 		if (copy_from_user(li->li_lksb.sb_lvbptr, kparams->lksb->sb_lvbptr,
-				   DLM_LVB_LEN))
-			return -EFAULT;
-	} else	{
-		li->li_lksb.sb_lvbptr = NULL;
+				   DLM_LVB_LEN)) {
+			status = -EFAULT;
+			goto out_err;
+		}
+	}
+	else {
+		li->li_user_lvbptr = NULL;
 	}
 
 	/* Lock it ... */
@@ -917,6 +946,14 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	}
 
 	return status;
+
+ out_err:
+	if (test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags)) {
+
+		release_lockinfo(li);
+	}
+	return status;
+
 }
 
 static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
