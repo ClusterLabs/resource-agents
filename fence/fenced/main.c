@@ -302,15 +302,15 @@ static int init_nodes(fd_t *fd)
 {
 	char path[256];
 	char *name = NULL;
-	int error, cd;
+	int error, cd, i;
 
 	while ((cd = ccs_connect()) < 0)
 		sleep(1);
 
-	memset(path, 0, 256);
-	sprintf(path, "//nodes/node/@name");
+	for (i=1;;i++) {
+	        memset(path, 0, 256);
+	        sprintf(path, "//nodes/node[%d]/@name", i);
 
-	for (;;) {
 		error = ccs_get(cd, path, &name);
 		if (error || !name)
 			break;
