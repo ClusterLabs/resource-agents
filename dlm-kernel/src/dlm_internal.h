@@ -456,7 +456,11 @@ struct dlm_lkb {
  * below this are the structs that this is a header for
  */
 
+#define DLM_HEADER_MAJOR	(0x00010000)
+#define DLM_HEADER_MINOR	(0x00000001)
+
 struct dlm_header {
+	uint32_t		rh_version;
 	uint8_t			rh_cmd;		/* What we are */
 	uint8_t			rh_flags;	/* maybe just a pad */
 	uint16_t		rh_length;	/* Length of struct (so we can

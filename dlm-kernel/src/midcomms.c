@@ -54,6 +54,7 @@ static void host_to_network(void *msg)
 	 * Do the common header first
 	 */
 
+	head->rh_version = cpu_to_le32(head->rh_version);
 	head->rh_length = cpu_to_le16(head->rh_length);
 	head->rh_lockspace = cpu_to_le32(head->rh_lockspace);
 	/* Leave the lkid alone as it is transparent at the remote end */
@@ -128,6 +129,15 @@ static void network_to_host(void *msg)
 	/*
 	 * Do the common header first
 	 */
+
+	head->rh_version = le32_to_cpu(head->rh_version);
+
+	if ((head->rh_version & 0xFFFF0000) != DLM_HEADER_MAJOR) {
+		printk("dlm: midcomms: bad header version %x\n",
+			head->rh_version);
+		head->rh_cmd = 0;
+		return;
+	}
 
 	head->rh_length = le16_to_cpu(head->rh_length);
 	head->rh_lockspace = le32_to_cpu(head->rh_lockspace);
@@ -332,6 +342,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 
 void midcomms_send_buffer(struct dlm_header *msg, struct writequeue_entry *e)
 {
+	msg->rh_version = (DLM_HEADER_MAJOR | DLM_HEADER_MINOR);
 	host_to_network(msg);
 	lowcomms_commit_buffer(e);
 }
@@ -345,6 +356,7 @@ int midcomms_send_message(uint32_t nodeid, struct dlm_header *msg,
 {
 	int len = msg->rh_length;
 
+	msg->rh_version = (DLM_HEADER_MAJOR | DLM_HEADER_MINOR);
 	host_to_network(msg);
 
 	/*
