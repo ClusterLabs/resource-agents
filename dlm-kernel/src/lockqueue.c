@@ -1092,8 +1092,18 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   print_request(freq);
 			   printk("nodeid %u\n", nodeid););
 
-		if (lkb->lkb_status == GDLM_LKSTS_GRANTED)
-			queue_ast(lkb, AST_BAST, freq->rr_rqmode);
+		/* We don't need to do the bast if the lock is
+		   being converted (and won't fail due to NOQUEUE);
+		   if the new mode (after conversion) still blocks,
+		   the lock will get another bast. */
+
+		if ((lkb->lkb_status == GDLM_LKSTS_CONVERT) &&
+		    !(lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUE))
+                        break;
+		if (lkb->lkb_flags & GDLM_LKFLG_DELETED)
+			break;
+
+		queue_ast(lkb, AST_BAST, freq->rr_rqmode);
 		break;
 
 	case GDLM_REMCMD_SENDCAST:
