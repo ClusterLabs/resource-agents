@@ -657,6 +657,7 @@ static struct socket *create_listen_sock(struct connection *con, char *addr, int
 		printk("dlm: Can't bind to port %d\n", dlm_config.tcp_port);
 		sock_release(sock);
 		sock = NULL;
+		con->sock = NULL;
 		goto create_out;
 	}
 
