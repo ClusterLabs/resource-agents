@@ -439,6 +439,9 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 	lkb->lkb_resource = rsb;
 	lkb->lkb_nodeid = rsb->res_nodeid;
 
+	log_debug(ls, "rq %u %x \"%s\"", lkb->lkb_rqmode, lkb->lkb_id,
+		  rsb->res_name);
+
 	/*
 	 * Next stage, do we need to find the master or can
 	 * we get on with the real locking work ?
@@ -482,6 +485,8 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 int dlm_lock_stage2(gd_ls_t *ls, gd_lkb_t *lkb, gd_res_t *rsb, int flags)
 {
 	int error = 0;
+
+	GDLM_ASSERT(rsb->res_nodeid != -1, print_lkb(lkb); print_rsb(rsb););
 
 	if (rsb->res_nodeid) {
 		res_lkb_enqueue(rsb, lkb, GDLM_LKSTS_WAITING);
@@ -561,6 +566,9 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 		goto fail_free;
 
 	lkb->lkb_resource = rsb;
+
+	log_debug(ls, "rq %u from %u %x \"%s\"", lkb->lkb_rqmode, remote_nodeid,
+		  lkb->lkb_id, rsb->res_name);
 
 	if (rsb->res_nodeid == -1) {
 		log_debug(ls, "request mode %u from %u seq %u rsb \"%s\"",
@@ -657,7 +665,6 @@ int dlm_unlock(void *lockspace,
 	gd_ls_t *ls = find_lockspace_by_local_id(lockspace);
 	gd_lkb_t *lkb;
 	gd_res_t *rsb;
-	uint32_t res_nodeid;
 	int ret = -EINVAL;
 
 	if (!ls)
@@ -699,15 +706,17 @@ int dlm_unlock(void *lockspace,
 		goto out;
 	}
 
+	rsb = find_rsb_to_unlock(ls, lkb);
+
 	/* Mark it as deleted so we can't use it as a parent in dlm_lock() */
 	if (!(flags & DLM_LKF_CANCEL))
 		lkb->lkb_flags |= GDLM_LKFLG_DELETED;
 
-	rsb = lkb->lkb_resource;
-	res_nodeid = rsb->res_nodeid;
-	if (!rsb->res_parent && atomic_read(&rsb->res_ref) == 1)
-		rsb->res_nodeid = -1;
 	up_write(&ls->ls_unlock_sem);
+
+	log_debug(ls, "un %x ref %u flg %x nodeid %d/%d \"%s\"", lkb->lkb_id,
+		  atomic_read(&rsb->res_ref), rsb->res_flags,
+		  lkb->lkb_nodeid, rsb->res_nodeid, rsb->res_name);
 
 	/* Save any new params */
 	if (lksb)
@@ -717,14 +726,12 @@ int dlm_unlock(void *lockspace,
 
 	lkb->lkb_lockqueue_flags = flags;
 
-	rsb = lkb->lkb_resource;
-
 	down_read(&ls->ls_in_recovery);
 
-	if (res_nodeid)
+	if (lkb->lkb_nodeid)
 		ret = remote_stage(lkb, GDLM_LQSTATE_WAIT_UNLOCK);
 	else
-		ret = dlm_unlock_stage2(lkb, flags);
+		ret = dlm_unlock_stage2(lkb, rsb, flags);
 
 	up_read(&ls->ls_in_recovery);
 
@@ -734,11 +741,9 @@ int dlm_unlock(void *lockspace,
 	return ret;
 }
 
-int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
+int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
 	int old_status;
-	int remote = lkb->lkb_flags & GDLM_LKFLG_MSTCPY;
 
 	down_write(&rsb->res_lock);
 
@@ -804,7 +809,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 	 * lkb just sends a message.
 	 */
 
-	if (remote) {
+	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
 		up_write(&rsb->res_lock);
 		release_lkb(rsb->res_ls, lkb);
 		release_rsb(rsb);
@@ -870,6 +875,8 @@ static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
 
 	rsb = lkb->lkb_resource;
 	down_read(&rsb->res_ls->ls_in_recovery);
+
+	log_debug(ls, "cv %u %x \"%s\"", mode, lkb->lkb_id, rsb->res_name);
 
 	lkb->lkb_flags &= ~GDLM_LKFLG_VALBLK;
 	lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
@@ -1220,8 +1227,10 @@ void cancel_conversion(gd_lkb_t *lkb, int ret)
  * GDLM_LQSTATE_WAIT_UNLOCK, GDLM_LQSTATE_WAIT_CONVERT.
  */
 
-void process_remastered_lkb(gd_lkb_t *lkb, int state)
+void process_remastered_lkb(gd_ls_t *ls, gd_lkb_t *lkb, int state)
 {
+	gd_res_t *rsb;
+
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
 		dlm_lock_stage1(lkb->lkb_resource->res_ls, lkb,
@@ -1236,7 +1245,8 @@ void process_remastered_lkb(gd_lkb_t *lkb, int state)
 		break;
 
 	case GDLM_LQSTATE_WAIT_UNLOCK:
-		dlm_unlock_stage2(lkb, lkb->lkb_lockqueue_flags);
+		rsb = find_rsb_to_unlock(ls, lkb);
+		dlm_unlock_stage2(lkb, rsb, lkb->lkb_lockqueue_flags);
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONVERT:

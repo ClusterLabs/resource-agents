@@ -271,12 +271,12 @@ void allocate_and_copy_lvb(gd_ls_t *ls, char **lvbptr, char *src)
  */
 
 static void process_lockqueue_reply(gd_lkb_t *lkb,
-				    struct gd_remlockreply *reply)
+				    struct gd_remlockreply *reply,
+				    uint32_t nodeid)
 {
-	int state = lkb->lkb_lockqueue_state;
-	int oldstate;
 	gd_res_t *rsb = lkb->lkb_resource;
 	gd_ls_t *ls = rsb->res_ls;
+	int oldstate, state = lkb->lkb_lockqueue_state;
 
 	lkb->lkb_lockqueue_state = 0;
 	if (state)
@@ -285,7 +285,15 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
 
-		GDLM_ASSERT(reply->rl_status == 0,);
+		GDLM_ASSERT(reply->rl_status == 0,
+			    print_lkb(lkb);
+			    print_rsb(rsb);
+			    print_reply(reply););
+
+		GDLM_ASSERT(rsb->res_nodeid == -1,
+			    print_lkb(lkb);
+			    print_rsb(rsb);
+			    print_reply(reply););
 
 		if (reply->rl_nodeid == our_nodeid()) {
 			set_bit(RESFL_MASTER, &rsb->res_flags);
@@ -295,11 +303,12 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 			rsb->res_nodeid = reply->rl_nodeid;
 		}
 
+		log_debug(ls, "lookup reply %x %u", lkb->lkb_id,
+			  rsb->res_nodeid);
+
 		rsb->res_resdir_seq = reply->rl_resdir_seq;
 		lkb->lkb_nodeid = rsb->res_nodeid;
-
-		dlm_lock_stage2(rsb->res_ls, lkb, rsb,
-				lkb->lkb_lockqueue_flags);
+		dlm_lock_stage2(ls, lkb, rsb, lkb->lkb_lockqueue_flags);
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONVERT:
@@ -549,14 +558,16 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	struct gd_remlockrequest *req;
 	struct writequeue_entry *e;
 
-	/* Need to know the target nodeid before we allocate a send buffer */
-	target_nodeid = lkb->lkb_nodeid;
-	GDLM_ASSERT(target_nodeid != 0,);
-
 	if (state == GDLM_LQSTATE_WAIT_RSB)
 		target_nodeid = get_directory_nodeid(rsb);
+	else
+		target_nodeid = lkb->lkb_nodeid;
 
-	GDLM_ASSERT(target_nodeid,);
+	GDLM_ASSERT(target_nodeid &&
+		    target_nodeid != -1 && target_nodeid != our_nodeid(),
+		    print_lkb(lkb);
+		    print_rsb(rsb);
+		    printk("target_nodeid %u\n", target_nodeid););
 
 	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
 		/* this may happen when called by resend_cluster_request */
@@ -594,14 +605,27 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_RSB:
 
-		/* The lock must be a root lock */
-		GDLM_ASSERT(!lkb->lkb_parent,);
+		GDLM_ASSERT(!lkb->lkb_parent,
+			    print_lkb(lkb);
+			    print_rsb(rsb););
+
+		GDLM_ASSERT(rsb->res_nodeid == -1,
+			    print_lkb(lkb);
+			    print_rsb(rsb););
+
+		log_debug(ls, "send lu %x to %u", lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOOKUP;
 		memcpy(req->rr_name, rsb->res_name, rsb->res_length);
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONVERT:
+
+		GDLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
+			    print_lkb(lkb);
+			    print_rsb(rsb););
+
+		log_debug(ls, "send cv %x to %u", lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_CONVREQUEST;
 		if (lkb->lkb_range) {
@@ -612,6 +636,12 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONDGRANT:
+
+		GDLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
+			    print_lkb(lkb);
+			    print_rsb(rsb););
+
+		log_debug(ls, "send rq %x to %u", lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOCKREQUEST;
 		req->rr_resdir_seq = rsb->res_resdir_seq;
@@ -625,11 +655,17 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_UNLOCK:
 
+		log_debug(ls, "send un %x to %u", lkb->lkb_id, target_nodeid);
+
+		if (rsb->res_nodeid != -1)
+			log_all(ls, "un %x to %u rsb nodeid %u", lkb->lkb_id,
+				target_nodeid, rsb->res_nodeid);
+
 		req->rr_header.rh_cmd = GDLM_REMCMD_UNLOCKREQUEST;
 		break;
 
 	default:
-		GDLM_ASSERT(!"Unknown cluster request",);
+		GDLM_ASSERT(0, printk("Unknown cluster request\n"););
 	}
 
 	add_request_lvb(lkb, req);
@@ -824,6 +860,9 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 			}
 		}
 
+		log_debug(lspace, "cv %u from %u %x \"%s\"", lkb->lkb_rqmode,
+			  nodeid, lkb->lkb_id, rsb->res_name);
+
 		dlm_convert_stage2(lkb, FALSE);
 
 		/*
@@ -854,7 +893,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 			    print_reply(rp);
 			    printk("nodeid %u\n", nodeid););
 
-		process_lockqueue_reply(lkb, rp);
+		process_lockqueue_reply(lkb, rp, nodeid);
 		break;
 
 	case GDLM_REMCMD_LOCKGRANT:
@@ -960,7 +999,12 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		reply.rl_status = dlm_unlock_stage2(lkb, freq->rr_flags);
+		rsb = find_rsb_to_unlock(lspace, lkb);
+
+		log_debug(lspace, "un from %u %x \"%s\"", nodeid, lkb->lkb_id,
+			  rsb->res_name);
+
+		reply.rl_status = dlm_unlock_stage2(lkb, rsb, freq->rr_flags);
 		send_reply = 1;
 		break;
 

@@ -98,6 +98,17 @@ void release_rsb(gd_res_t *r)
 	free_rsb(r);
 }
 
+gd_res_t *find_rsb_to_unlock(gd_ls_t *ls, gd_lkb_t *lkb)
+{
+	gd_res_t *r;
+	write_lock(&ls->ls_reshash_lock);
+	r = lkb->lkb_resource;
+	if (!r->res_parent && atomic_read(&r->res_ref) == 1)
+		r->res_nodeid = -1;   
+	write_unlock(&ls->ls_reshash_lock);
+	return r;
+}
+
 /*
  * find_or_create_rsb() - Get an rsb struct, or create one if it doesn't exist.
  * If the rsb exists, its ref count is incremented by this function.  If it

@@ -383,7 +383,7 @@ int resend_cluster_requests(gd_ls_t *ls)
 				lkb->lkb_lockqueue_state = 0;
 				/* list_del equals remove_from_lockqueue() */
 				list_del(&lkb->lkb_lockqueue);
-				process_remastered_lkb(lkb, state);
+				process_remastered_lkb(ls, lkb, state);
 			}
 
 			count++;

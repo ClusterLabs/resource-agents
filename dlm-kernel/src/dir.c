@@ -132,19 +132,20 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	}
 
 	if (rd->rd_master_nodeid != nodeid) {
-		log_debug(ls, "remove from %u seq %3u ID %u seq %3u",
+		log_debug(ls, "remove from %u seq %u ID %u seq %3u",
 			  nodeid, sequence, rd->rd_master_nodeid,
 			  rd->rd_sequence);
 		goto out;
 	}
 
 	if (rd->rd_sequence == sequence) {
+		log_debug(ls, "remove from %u seq %u", nodeid, sequence);
 		list_del(&rd->rd_list);
 		free_resdata(rd);
 	} else {
-		log_debug(ls, "remove from %u seq %3u id %u SEQ %3u",
+		log_debug(ls, "remove from %u seq %u id %u SEQ %3u",
 			  nodeid, sequence, rd->rd_master_nodeid,
-			 rd->rd_sequence);
+			  rd->rd_sequence);
 	}
 
       out:
