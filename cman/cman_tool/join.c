@@ -288,6 +288,15 @@ int join(commandline_t *comline)
         goto fail;
     }
 
+    /* Set the node name */
+    error = setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_NODENAME,
+		       comline->nodenames[0], strlen(comline->nodenames[0])+1);
+    if (error)
+    {
+	perror("Unable to set cluster node name");
+	goto fail;
+    }
+
     /*
      * Setup the interface/multicast
      */
