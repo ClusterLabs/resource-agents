@@ -684,6 +684,7 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 	struct sk_buff *skb;
 	struct cb_info *cbinfo;
 	int err;
+	int flags = le32_to_cpu(header->flags);
 
         /* Get the port number and look for a listener */
 	down(&port_array_lock);
@@ -691,8 +692,7 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 		struct cluster_sock *c = cluster_sk(port_array[header->tgtport]);
 
 		/* ACK it */
-		if (!(header->flags & MSG_NOACK) &&
-		    !(header->flags & MSG_REPLYEXP)) {
+		if (!(flags & MSG_NOACK) && !(flags & MSG_REPLYEXP)) {
 
 			cl_sendack(csock, header->seq, msg->msg_namelen,
 				   msg->msg_name, header->tgtport, 0);
@@ -763,7 +763,7 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 	else {
 		/* ACK it, but set the flag bit so remote end knows no-one
 		 * caught it */
-		if (!(header->flags & MSG_NOACK))
+		if (!(flags & MSG_NOACK))
 			cl_sendack(csock, header->seq,
 				   msg->msg_namelen, msg->msg_name,
 				   header->tgtport, 1);
@@ -784,6 +784,7 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 	char *addr = msg->msg_name;
 	int addrlen = msg->msg_namelen;
 	struct cl_protheader *header = (struct cl_protheader *) data;
+	int flags = le32_to_cpu(header->flags);
 	struct cluster_node *rem_node =
 		find_node_by_nodeid(le32_to_cpu(header->srcid));
 
@@ -850,7 +851,7 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 
         /* Have we received this message before ? If so just ignore it, it's a
 	 * resend for someone else's benefit */
-	if (!(header->flags & MSG_NOACK) &&
+	if (!(flags & MSG_NOACK) &&
 	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
 		P_COMMS
 		    ("Discarding message - Already seen this sequence number %d\n",
@@ -871,23 +872,23 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 		header->srcid = cpu_to_le32(new_temp_nodeid(addr, addrlen));
 
 	P_COMMS("Got message: flags = %x, port = %d, we_are_a_member = %d\n",
-		header->flags, header->tgtport, we_are_a_cluster_member);
+		flags, header->tgtport, we_are_a_cluster_member);
 
 
 	/* If we are not part of the cluster then ignore multicast messages
 	 * that need an ACK as we will confuse the sender who is only expecting
 	 * ACKS from bona fide members */
-	if ((header->flags & MSG_MULTICAST) &&
-	    !(header->flags & MSG_NOACK) && !we_are_a_cluster_member) {
+	if ((flags & MSG_MULTICAST) &&
+	    !(flags & MSG_NOACK) && !we_are_a_cluster_member) {
 		P_COMMS
 		    ("Discarding message - multicast and we are not a cluster member. port=%d flags=%x\n",
-		     header->tgtport, header->flags);
+		     header->tgtport, flags);
 		goto incoming_finish;
 	}
 
 	/* Save the sequence number of this message so we can ignore duplicates
 	 * (above) */
-	if (!(header->flags & MSG_NOACK) && rem_node) {
+	if (!(flags & MSG_NOACK) && rem_node) {
 		P_COMMS("Saving seq %d for node %s\n", le16_to_cpu(header->seq),
 			rem_node->name);
 		rem_node->last_seq_recv = le16_to_cpu(header->seq);
@@ -2202,7 +2203,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 	/* Build the header */
 	header.tgtport = port;
 	header.srcport = srcport;
-	header.flags = msg->msg_flags;
+	header.flags = msg->msg_flags; /* byte-swapped later */
 	header.cluster = cpu_to_le16(cluster_id);
 	header.srcid = us ? cpu_to_le32(us->node_id) : 0;
 	header.tgtid = caddr ? cpu_to_le32(nodeid) : 0;
@@ -2265,6 +2266,8 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 	if (header.tgtid < 0)
 		header.tgtid = 0;
 
+	header.flags = cpu_to_le32(header.flags);
+
 	/* For non-member sends we use all the interfaces */
 	if ((nodeid < 0) || (flags & MSG_ALLINT)) {
 
@@ -2312,7 +2315,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 	/* if the client wants a broadcast message sending back to itself
 	   then loop it back */
 	if (nodeid == 0 && (flags & MSG_BCASTSELF)) {
-		header.flags |= MSG_NOACK; /* Don't ack it! */
+		header.flags |= cpu_to_le32(MSG_NOACK); /* Don't ack it! */
 
 		result = send_to_user_port(NULL, &header, msg, vec, veclen, size);
 	}
