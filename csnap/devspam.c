@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 	if (argc != 5)
 usage:		error("usage: %s device read/write/randread/randwrite tag iterations", argv[0]);
 
-	if ((dev = open(argv[1], O_RDWR /*| O_DIRECT*/)) == -1)
+	if ((dev = open(argv[1], O_RDWR | O_DIRECT)) == -1)
 		error("Can't open %s, %s", argv[1], strerror(errno));
 
 	for (command = 0; command < ncommands; command++)
@@ -65,6 +65,7 @@ usage:		error("usage: %s device read/write/randread/randwrite tag iterations", a
 
 	while (iterations--) {
 		unsigned block = is_rand? (rand() % range): total;
+printf("remaining = %u\n", iterations);
 
 		if (is_write)
 			spamdata(buffer, blocksize, code, block);

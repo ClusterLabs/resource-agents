@@ -33,13 +33,14 @@
 #include "../dm-csnap.h"
 #include "trace.h"
 
-#define trace trace_off
+#define trace trace_on
+#define jtrace trace_off
 
 /*
 Todo:
 
 BTree
-  - coalesce leafs/nodes for delete
+  * coalesce leafs/nodes for delete
   - B*Tree splitting
 
 Allocation bitmaps
@@ -47,21 +48,19 @@ Allocation bitmaps
   - Per-snapshot free space as full-tree pass
   - option to track specific snapshot(s) on the fly
   - return stats to client (on demand? always?)
-  - partial chunk allocation for chunksize > blocksize
-  - Bitmap block radix tree - resizing
+  * Bitmap block radix tree - resizing
   - allocation policy
 
 Journal
-  - allocation
-  - write commit block
-  - write target blocks
-  - bitmaps
-  - btree nodes
-  - btree leaves
-  - stats and misc data in commit block
+  \ allocation
+  \ write commit block
+  \ write target blocks
+  \ recovery
+  - stats and misc data in commit block?
 
 File backing
-  - buffer lru (double linked list ops)
+  \ double linked list ops
+  - buffer lru 
   - buffer writeout policy
   - buffer eviction policy
   - verify no busy buffers between operations
@@ -76,10 +75,9 @@ Message handling
 Snapshot handling path
   - background copyout thread
   - try AIO
-  - allow chunk size larger than block size
   - coalesce leaves/nodes on delete
      - should wait for current queries on snap to complete
-  - background deletion optimization)
+  - background deletion optimization
      - record current deletion list in superblock
 
 Multithreading
@@ -92,30 +90,28 @@ Utilities
   - snapshot store integrity check (snapcheck)
 
 Error recovery
-  - Mark superblock active/inactive
-  - upload client locks on server restart
-  - release snapshot read locks for dead client
+  \ Mark superblock active/inactive
+  + upload client locks on server restart
+  + release snapshot read locks for dead client
   - Examine entire tree to initialize statistics after unsaved halt
 
 General
-  - Prevent multiple server starts on same snapshot store
-  - More configurable tracing
+  \ Prevent multiple server starts on same snapshot store
+  + More configurable tracing
   - Add more internal consistency checks
   - Magic number + version for superblock
   - Flesh out and audit error paths
   - Make it endian-neutral
   - Verify wordsize neutral
   - Add an on-the-fly verify path
-  - strip out the unit testing gunk
-  - More documentation
+  + strip out the unit testing gunk
+  + More documentation
   - Audits and more audits
+  - Memory inversion prevention
 
 Cluster integration
-  - Restart/Error recovery/reporting
-  - failover stuff to do here
+  + Restart/Error recovery/reporting
 */
-
-#define SB_LOC 8
 
 /*
  * Miscellaneous Primitives
@@ -217,8 +213,9 @@ static inline struct exception *emap(struct eleaf *leaf, unsigned i)
 struct superblock
 {
 	/* Persistent, saved to disk */
-	struct
+	struct disksuper
 	{
+		char magic[8];
 		sector_t etree_root;
 		sector_t bitmap_base;
 		sector_t chunks, freechunks;
@@ -259,10 +256,22 @@ struct superblock
 };
 
 #define SB_BUSY 1
+#define SB_MAGIC "snapshot"
 
 /* Journal handling */
 
-sector_t journal_sector(struct superblock *sb, unsigned i)
+#define JMAGIC "MAGICNUM"
+
+struct commit_block
+{
+	char magic[8];
+	u32 checksum;
+	s32 sequence;
+	u32 entries;
+	u64 sector[];
+} PACKED;
+
+static sector_t journal_sector(struct superblock *sb, unsigned i)
 {
 	return sb->image.journal_base + (i << sb->sectors_per_block_bits);
 }
@@ -282,23 +291,7 @@ unsigned next_journal_block(struct superblock *sb)
 	return next;
 }
 
-struct buffer *getblk_journal(struct superblock *sb, unsigned i)
-{
-	return getblk(sb->snapdev, journal_sector(sb, i), sb->blocksize);
-}
-
-#define JMAGIC "MAGICNUM"
-
-struct commit_block
-{
-	char magic[8];
-	u32 checksum;
-	s32 sequence;
-	u32 entries;
-	u64 sector[];
-} PACKED;
-
-int is_commit_block(struct commit_block *block)
+static int is_commit_block(struct commit_block *block)
 {
 	return !memcmp(&block->magic, JMAGIC, sizeof(block->magic));
 }
@@ -311,26 +304,31 @@ static u32 checksum_block(struct superblock *sb, u32 *data)
 	return sum;
 }
 
-struct buffer *jread(struct superblock *sb, sector_t i)
+static struct buffer *jgetblk(struct superblock *sb, unsigned i)
+{
+	return getblk(sb->snapdev, journal_sector(sb, i), sb->blocksize);
+}
+
+static struct buffer *jread(struct superblock *sb, unsigned i)
 {
 	return bread(sb->snapdev, journal_sector(sb, i), sb->blocksize);
 }
 
 /*
+ * For now there is only ever one open transaction in the journal, the newest
+ * one, so we don't have to check for journal wrap, but just ensure that each
+ * transaction stays small enough to fit in the journal.
+ *
  * Since we don't have any asynchronous IO at the moment, journal commit is
  * straightforward: walk through the dirty blocks once, writing them to the
  * journal, then again, adding sector locations to the commit block.  We know
  * the dirty list didn't change between the two passes.  When ansynchronous
  * IO arrives here, this all has to be handled a lot more carefully.
  */
-
-/*
- * For now there is only ever one open transaction in the journal, the newest
- * one, so we don't have to check for journal wrap, but just ensure that each
- * transaction stays small enough to fit in the journal.
- */
-void commit_transaction(struct superblock *sb)
+static void commit_transaction(struct superblock *sb)
 {
+// flush_buffers();
+// return;
 	if (list_empty(&dirty_buffers))
 		return;
 
@@ -339,20 +337,20 @@ void commit_transaction(struct superblock *sb)
 	list_for_each(list, &dirty_buffers) {
 		struct buffer *buffer = list_entry(list, struct buffer, list);
 		unsigned pos = next_journal_block(sb);
-		warn("journal data sector = %llx [%u]", buffer->sector, pos);
+		jtrace(warn("journal data sector = %llx [%u]", buffer->sector, pos);)
 		assert(buffer_dirty(buffer));
 		write_buffer_to(buffer, journal_sector(sb, pos));
 	}
 
 	unsigned pos = next_journal_block(sb);
-	struct buffer *commit_buffer = getblk_journal(sb, pos);
+	struct buffer *commit_buffer = jgetblk(sb, pos);
 	struct commit_block *commit = buf2block(commit_buffer);
 	*commit = (struct commit_block){ .magic = JMAGIC, .sequence = sb->image.sequence++ }; 
 
 	while (!list_empty(&dirty_buffers)) {
 		struct list_head *entry = dirty_buffers.next;
 		struct buffer *buffer = list_entry(entry, struct buffer, list);
-		warn("write data sector = %llx", buffer->sector);
+		jtrace(warn("write data sector = %llx", buffer->sector);)
 		assert(buffer_dirty(buffer));
 		assert(commit->entries < sb->max_commit_blocks);
 		commit->sector[commit->entries++] = buffer->sector;
@@ -360,35 +358,12 @@ void commit_transaction(struct superblock *sb)
 		// we hope the order we just listed these is the same as committed above
 	}
 
-	warn("commit journal block [%u]", pos);
+	jtrace(warn("commit journal block [%u]", pos);)
 	commit->checksum = 0;
 	commit->checksum = -checksum_block(sb, (void *)commit);
 	write_buffer_to(commit_buffer, journal_sector(sb, pos));
 	brelse(commit_buffer);
 }
-
-static void _show_journal(struct superblock *sb)
-{
-	int i, j;
-	for (i = 0; i < sb->image.journal_size; i++) {
-		struct buffer *buf = jread(sb, i);
-		struct commit_block *block = buf2block(buf);
-
-		if (!is_commit_block(block)) {
-			printf("[%i] <data>\n", i);
-			continue;
-		}
-
-		printf("[%i] seq=%i (%i)", i, block->sequence, block->entries);
-		for (j = 0; j < block->entries; j++)
-			printf(" %Lx", (long long)block->sector[j]);
-		printf("\n");
-		brelse(buf);
-	}
-	printf("\n");
-}
-
-#define show_journal(sb) do { warn("Journal..."); _show_journal(sb); } while (0)
 
 int recover_journal(struct superblock *sb)
 {
@@ -407,7 +382,7 @@ int recover_journal(struct superblock *sb)
 		struct commit_block *block = buf2block(buffer);
 
 		if (!is_commit_block(block)) {
-			trace(warn("[%i] <data>", i);)
+			jtrace(warn("[%i] <data>", i);)
 			if (sequence == -1)
 				data_from_start++;
 			else
@@ -435,13 +410,12 @@ int recover_journal(struct superblock *sb)
 			continue;
 		}
 
-		trace(warn("[%i] seq=%i", i, block->sequence);)
+		jtrace(warn("[%i] seq=%i", i, block->sequence);)
 
 		if (last_block != -1 && block->sequence != sequence + 1) {
 			int delta = sequence - block->sequence;
 
 			if  (delta <= 0 || delta > size) {
-warn("delta = %i, size = %i", delta, size);
 				why = "Bad sequence";
 				goto failed;
 			}
@@ -472,7 +446,7 @@ warn("delta = %i, size = %i", delta, size);
 		newest_block = last_block;
 	}
 
-	warn("found newest commit [%u]", newest_block);
+	jtrace(warn("found newest commit [%u]", newest_block);)
 	buffer = jread(sb, newest_block);
 	struct commit_block *commit = buf2block(buffer);
 	unsigned entries = commit->entries;
@@ -487,7 +461,7 @@ warn("delta = %i, size = %i", delta, size);
 			continue;
 		}
 
-		warn("write journal [%u] data to %llx", pos, commit->sector[i]);
+		jtrace(warn("write journal [%u] data to %llx", pos, commit->sector[i]);)
 		write_buffer_to(databuf, commit->sector[i]);
 		brelse(databuf);
 	}
@@ -501,6 +475,29 @@ failed:
 	error("Journal recovery failed, %s", why);
 	return -1;
 }
+
+static void _show_journal(struct superblock *sb)
+{
+	int i, j;
+	for (i = 0; i < sb->image.journal_size; i++) {
+		struct buffer *buf = jread(sb, i);
+		struct commit_block *block = buf2block(buf);
+
+		if (!is_commit_block(block)) {
+			printf("[%i] <data>\n", i);
+			continue;
+		}
+
+		printf("[%i] seq=%i (%i)", i, block->sequence, block->entries);
+		for (j = 0; j < block->entries; j++)
+			printf(" %Lx", (long long)block->sector[j]);
+		printf("\n");
+		brelse(buf);
+	}
+	printf("\n");
+}
+
+#define show_journal(sb) do { warn("Journal..."); _show_journal(sb); } while (0)
 
 /* BTree leaf operations */
 
@@ -736,6 +733,7 @@ void init_leaf(struct eleaf *leaf, int block_size)
  */
 
 #define SB_DIRTY 1
+#define SB_LOC 8
 
 void mark_sb_dirty(struct superblock *sb)
 {
@@ -767,7 +765,7 @@ void init_allocation(struct superblock *sb)
 	unsigned reserved = bitmap_base_chunk + bitmap_chunks + sb->image.journal_size; // !!! chunksize same as blocksize
 	unsigned sector = sb->image.bitmap_base = bitmap_base_chunk << sb->sectors_per_chunk_bits;
 
-	printf("snapshot store size: %llu chunks (%llu sectors)\n", chunks, chunks << sb->sectors_per_chunk_bits);
+	warn("snapshot store size: %llu chunks (%llu sectors)", chunks, chunks << sb->sectors_per_chunk_bits);
 	printf("Initializing %u bitmap blocks... ", bitmaps);
 
 	unsigned i;
@@ -816,7 +814,7 @@ void free_chunk(struct superblock *sb, chunk_t chunk)
 	mark_sb_dirty(sb); // !!! optimize this away
 }
 
-#if 1
+#if 0
 void grab_chunk(struct superblock *sb, chunk_t chunk) // just for testing
 {
 	unsigned bitmap_shift = sb->image.blocksize_bits + 3, bitmap_mask = (1 << bitmap_shift ) - 1;
@@ -1123,7 +1121,7 @@ void add_exception_to_tree(struct superblock *sb, struct buffer *leafbuf, u64 ta
 }
 #define chunk_highbit ((sizeof(chunk_t) * 8) - 1)
 
-int finish_copy_out(struct superblock *sb)
+int finish_copyout(struct superblock *sb)
 {
 	if (sb->copy_chunks) {
 		int is_snap = sb->source_chunk >> chunk_highbit;
@@ -1138,7 +1136,7 @@ int finish_copy_out(struct superblock *sb)
 	return 0;
 }
 
-int copy_out(struct superblock *sb, chunk_t chunk, chunk_t exception)
+int copyout(struct superblock *sb, chunk_t chunk, chunk_t exception)
 {
 #if 1
 	if (sb->source_chunk + sb->copy_chunks == chunk &&
@@ -1147,7 +1145,7 @@ int copy_out(struct superblock *sb, chunk_t chunk, chunk_t exception)
 		sb->copy_chunks++;
 		return 0;
 	}
-	finish_copy_out(sb);
+	finish_copyout(sb);
 	sb->copy_chunks = 1;
 	sb->source_chunk = chunk;
 	sb->dest_exception = exception;
@@ -1160,32 +1158,6 @@ int copy_out(struct superblock *sb, chunk_t chunk, chunk_t exception)
 	return 0;
 }
 
-chunk_t make_unique(struct superblock *sb, chunk_t chunk, int snapnum)
-{
-	unsigned levels = sb->image.etree_levels;
-	struct etree_path path[levels + 1];
-	struct buffer *leafbuf = probe(sb, chunk, path);
-	chunk_t exception = 0;
-	int is_snap = snapnum != -1;
-	trace(warn("chunk %llx, snapnum %i", chunk, snapnum));
-
-	if (is_snap?
-		snapshot_chunk_unique(buffer2leaf(leafbuf), chunk, snapnum, &exception):
-		origin_chunk_unique(buffer2leaf(leafbuf), chunk, sb->snapmask))
-	{
-		trace(warn("chunk %llx already unique in snapnum %i", chunk, snapnum);)
-		brelse(leafbuf);
-	} else {
-		u64 newex = alloc_exception(sb);
-if (!is_snap)
-		copy_out(sb, exception? (exception | (1ULL << chunk_highbit)): chunk, newex);
-		add_exception_to_tree(sb, leafbuf, chunk, newex, snapnum, path, levels);
-		exception = newex;
-	}
-	brelse_path(path, levels);
-	return exception;
-}
-
 /*
  * This is the bit that does all the work.  It's rather arbitrarily
  * factored into a probe and test part, then an exception add part,
@@ -1193,6 +1165,31 @@ if (!is_snap)
  * in the Btree.  This factoring will change a few more times yet as
  * the code gets more asynchronous and multi-threaded.
  */
+chunk_t make_unique(struct superblock *sb, chunk_t chunk, int snapnum)
+{
+	unsigned levels = sb->image.etree_levels;
+	struct etree_path path[levels + 1];
+	struct buffer *leafbuf = probe(sb, chunk, path);
+	chunk_t exception = 0;
+	trace(warn("chunk %llx, snapnum %i", chunk, snapnum));
+
+	if (snapnum == -1?
+		origin_chunk_unique(buffer2leaf(leafbuf), chunk, sb->snapmask):
+		snapshot_chunk_unique(buffer2leaf(leafbuf), chunk, snapnum, &exception))
+	{
+		trace(warn("chunk %llx already unique in snapnum %i", chunk, snapnum);)
+		brelse(leafbuf);
+	} else {
+		u64 newex = alloc_exception(sb);
+// if (snapnum == -1)
+		copyout(sb, exception? (exception | (1ULL << chunk_highbit)): chunk, newex);
+		add_exception_to_tree(sb, leafbuf, chunk, newex, snapnum, path, levels);
+		exception = newex;
+	}
+	brelse_path(path, levels);
+	return exception;
+}
+
 int test_unique(struct superblock *sb, chunk_t chunk, int snapnum, chunk_t *exception)
 {
 	unsigned levels = sb->image.etree_levels;
@@ -1261,10 +1258,7 @@ int create_snapshot(struct superblock *sb, unsigned snaptag)
 create:
 	trace_on(printf("Create snapshot %i (internal %i)\n", snaptag, i);)
 	snapshot = sb->image.snaplist + sb->image.snapshots++;
-	snapshot->tag = snaptag;
-	snapshot->bit = i;
-	snapshot->create_time = time(NULL);
-	snapshot->reserved = 0;
+	*snapshot = (struct snapshot){ .tag = snaptag, .bit = i, .create_time = time(NULL) };
 	sb->snapmask |= (1ULL << i);
 	mark_sb_dirty(sb);
 	return i;
@@ -1661,6 +1655,7 @@ void load_sb(struct superblock *sb)
 {
 	struct buffer *buffer = bread(sb->snapdev, SB_LOC, 4096);
 	memcpy(&sb->image, buffer->data, sizeof(sb->image));
+	assert(!memcmp(sb->image.magic, SB_MAGIC, sizeof(sb->image.magic)));
 	brelse(buffer);
 	setup_sb(sb);
 	sb->snapmask = calc_snapmask(sb);
@@ -1698,7 +1693,7 @@ int init_snapstore(struct superblock *sb)
 	int i, error;
 
 	unsigned sectors_per_block_bits = 3;
-	memset(&sb->image, 0, sizeof(sb->image));
+	sb->image = (struct disksuper){ .magic = SB_MAGIC };
 	sb->image.etree_levels = 1,
 	sb->image.blocksize_bits = SECTOR_BITS + sectors_per_block_bits;
 	sb->image.chunksize_bits = sb->image.blocksize_bits; // !!! just for now
@@ -1722,7 +1717,7 @@ int init_snapstore(struct superblock *sb)
 	mark_sb_dirty(sb);
 
 	for (i = 0; i < sb->image.journal_size; i++) {
-		struct buffer *buffer = getblk_journal(sb, i);
+		struct buffer *buffer = jgetblk(sb, i);
 		struct commit_block *commit = (struct commit_block *)buffer->data;
 		*commit = (struct commit_block){ .magic = JMAGIC, .sequence = i };
 #ifdef TEST_JOURNAL
@@ -1731,8 +1726,8 @@ int init_snapstore(struct superblock *sb)
 		commit->checksum = -checksum_block(sb, (void *)commit);
 		brelse_dirty(buffer);
 	}
-show_journal(sb);
 #ifdef TEST_JOURNAL
+show_journal(sb);
 show_tree(sb);
 flush_buffers();
 recover_journal(sb);
@@ -1851,8 +1846,9 @@ int incoming(struct superblock *sb, struct client *client)
 				for (j = 0, chunk = p->chunk; j < p->chunks; j++, chunk++)
 					if (make_unique(sb, chunk, -1))
 						waitfor_chunk(sb, chunk, &pending);
-			finish_copy_out(sb);
+			finish_copyout(sb);
 			commit_transaction(sb);
+
 			message.head.code = REPLY_ORIGIN_WRITE;
 			if (pending) {
 				pending->client = client;
@@ -1878,7 +1874,7 @@ int incoming(struct superblock *sb, struct client *client)
 					check_response_full(&snap, sizeof(chunk_t));
 					*(snap.top)++ = exception;
 				}
-			finish_copy_out(sb);
+			finish_copyout(sb);
 			commit_transaction(sb);
 			finish_reply(client->sock, &snap, REPLY_SNAPSHOT_WRITE, body->id);
 			break;
@@ -1969,7 +1965,7 @@ int incoming(struct superblock *sb, struct client *client)
 			load_sb(sb);
 			if (sb->image.flags & SB_BUSY) {
 				warn("Server was not shut down properly");
-				show_journal(sb);
+				jtrace(show_journal(sb);)
 				recover_journal(sb);
 			} else {
 				sb->image.flags |= SB_BUSY;
@@ -1983,6 +1979,12 @@ int incoming(struct superblock *sb, struct client *client)
 
 		default: 
 			outbead(sock, REPLY_ERROR, struct { int code; char error[50]; }, message.head.code, "Unknown message"); // wrong!!!
+	}
+	static int messages = 0;
+
+	if (++messages == 5) {
+		warn(">>>>Simulate server crash<<<<");
+		exit(1);
 	}
 	return 0;
 
@@ -2063,6 +2065,8 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 		sizeof(struct sockaddr_in)) < 0) 
 		error("Can't bind to socket");
 	listen(listener, 5);
+
+	warn("csnap server bound to port %i", port);
 
 	if (sockname)
 	{

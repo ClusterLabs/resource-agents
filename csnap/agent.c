@@ -50,8 +50,12 @@ int connect_clients(struct context *context)
 		if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 			error("Can't get socket");
 		memcpy(&addr.sin_addr.s_addr, server->address, server->address_len);
-		if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-			error("Can't connect to server"); // !!! punt the error, don't die
+		if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+			warn("Can't connect to server, %s (%i)", strerror(errno), errno);
+//			warn("try again later");
+//			context->polldelay = 500;
+			return -1;
+		}
 		if (outbead(control, CONNECT_SERVER, struct { }) < 0)
 			error("Could not send connect message");
 		if (send_fd(control, sock, "fark", 4) < 0)
@@ -100,6 +104,7 @@ void ast(void *arg)
 
 	if (lksb->sb_status == EUNLOCK) {
 		warn("released lock");
+		memset(&context->active, 0, sizeof(struct server));
 		return;
 	}
 
@@ -204,6 +209,10 @@ int incoming(struct context *context, struct client *client)
 		 * If there's no local server, don't do anything: instantiation
 		 * will be attempted when/if the local server shows up.
 		 */
+		if (have_address(&context->active)) {
+			connect_clients(context);
+			break;
+		}
 		if (have_address(&context->local) && context->ast_state == dormant)
 			goto instantiate;
 		break;
@@ -229,7 +238,7 @@ int monitor(char *sockname, struct context *context)
 {
 	unsigned maxclients = 100, clients = 0, others = 2;
 	struct pollfd pollvec[others+maxclients];
-	struct client clientvec[maxclients];
+	struct client *clientvec[maxclients];
 	struct sockaddr_un addr = { .sun_family = AF_UNIX };
 	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
 	int listener = socket(AF_UNIX, SOCK_STREAM, 0), locksock;
@@ -273,8 +282,8 @@ int monitor(char *sockname, struct context *context)
 		case 0:
 			/* Timeouts happen here */
 			context->polldelay = -1;
-			warn("failed to get lvb");
-			try_to_instantiate(context);
+			warn("try again");
+			connect_clients(context);
 			// If we go through this too many times it means somebody
 			// out there is sitting on the PW lock but did not write
 			// the lvb, this is breakage that should be reported to a
@@ -292,10 +301,13 @@ int monitor(char *sockname, struct context *context)
 
 			if (!(sock = accept(listener, (struct sockaddr *)&addr, &addr_len)))
 				error("Cannot accept connection");
-			trace_on(warn("Client %i connected", clients);)
+			trace_on(warn("Received connection %i", clients);)
 			assert(clients < maxclients); // !!! make the array bigger
+
+			struct client *client = malloc(sizeof(client));
+			*client = (struct client){ .sock = sock };
+			clientvec[clients] = client;
 			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
-			clientvec[clients] = (struct client){ .sock = sock };
 			clients++;
 		}
 
@@ -303,21 +315,33 @@ int monitor(char *sockname, struct context *context)
 		if (pollvec[1].revents)
 			dlm_dispatch(locksock);
 
-		/* Client activity? */
+		/* Activity on connection? */
 		unsigned i = 0;
 		while (i < clients) {
 			if (pollvec[others+i].revents) { // !!! check for poll error
-				if (incoming(context, clientvec + i) == -1) {
-					struct client *client = clientvec + i;
-					warn("Client %i disconnected", i);
+				struct client **clientp = clientvec + i, *client = *clientp;
+
+				if (incoming(context, client) == -1) {
+					warn("Lost connection %i", i);
 					if (client->type == SERVER_CON) {
-						warn("Server died");
-						struct dlm_lksb *lksb = &context->lksb;
-					        if (dlm_unlock(lksb->sb_lkid, 0, lksb, context) < 0)
-		 					warn("dlm error %i, %s", errno, strerror(errno));
+						warn("local server died...");
+						if (!memcmp(&context->active, &context->local, sizeof(struct server))) {
+							warn("release lock");
+							struct dlm_lksb *lksb = &context->lksb;
+							memset(&context->active, 0, sizeof(struct server));
+							memset(lksb->sb_lvbptr, 0, sizeof(struct server));
+						        if (dlm_unlock(lksb->sb_lkid, 0, lksb, context) < 0)
+		 						warn("dlm error %i, %s", errno, strerror(errno));
+						}
+						memset(&context->local, 0, sizeof(struct server));
 					}
-					close(clientvec[i].sock);
-					memmove(client, client + 1, sizeof(struct client) * --clients);
+					close(client->sock);
+					free(client);
+					--clients;
+					clientvec[i] = clientvec[clients];
+					pollvec[others + i] = pollvec[others + clients];
+//					memmove(clientp, clientp + 1, sizeof(struct client *) * clients);
+//					memmove(pollvec + i + others, pollvec + i + others + 1, sizeof(struct pollfd) * clients);
 					continue;
 				}
 			}

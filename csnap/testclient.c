@@ -119,7 +119,7 @@ unsigned available(unsigned sock)
 {
 	unsigned bytes;
 	ioctl(sock, FIONREAD, &bytes);
-	trace_on(if (bytes) printf("%u bytes waiting\n", bytes);)
+	trace(if (bytes) printf("%u bytes waiting\n", bytes);)
 	return bytes;
 }
 
@@ -153,7 +153,7 @@ return 0;
 
 	outbead(sock, CREATE_SNAPSHOT, struct create_snapshot, 8);
 	outbead(sock, CREATE_SNAPSHOT, struct create_snapshot, 9);
-	outbead(sock, IDENTIFY, struct identify, .id = 6, .snap = 8);
+	outbead(sock, IDENTIFY, struct identify, .snap = -1);
 	trace_on(warn("start %u transfers", iterations);)
 
 	int i;
@@ -163,8 +163,9 @@ return 0;
 		message.head.code = QUERY_WRITE;
 		message.head.length = length;
  		message.body.count = 1;
-		message.body.ranges[0].chunk = 1? (myrand() % chunk_range): total_chunks;
-		total_chunks += message.body.ranges[0].chunks = myrand() % length_range + 1;
+		message.body.ranges[0].chunk = 0? (myrand() % chunk_range): total_chunks;
+		message.body.ranges[0].chunks = 1;
+		total_chunks += message.body.ranges[0].chunks = 0? (myrand() % length_range + 1): 1;
 
 		if (write(sock, &message, sizeof(struct head) + length) < 0)
 			error("Error writing to socket");
@@ -174,11 +175,11 @@ return 0;
 	}
 	while (serviced < iterations) {
 		poll(NULL, 0, 100);
-		printf("wait for %i responses\n", iterations - serviced);
+		trace(warn("wait for %i responses", iterations - serviced);)
 		while (available(sock) >= sizeof(struct head))
 			incoming(sock);
 	}
-	outbead(sock, DUMP_TREE, struct { });
+//	outbead(sock, DUMP_TREE, struct { });
 	close(sock);
 	return err;
 }

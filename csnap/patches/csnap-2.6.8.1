@@ -31,8 +31,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 12:58:07.000000000 -0400
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-11-30 17:45:38.000000000 -0500
-@@ -0,0 +1,1102 @@
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-12-07 02:23:44.000000000 -0500
+@@ -0,0 +1,1147 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -173,10 +173,10 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +typedef u64 chunk_t;
 +
 +#define SECTOR_SHIFT 9
-+#define IS_SNAP_FLAG 1
-+#define REPORT_FLAG 2
-+#define RECOVER_FLAG 4
-+#define FINISH_FLAG 8
++#define IS_SNAP_FLAG (1 << 0)
++#define REPORT_BIT 1
++#define RECOVER_FLAG (1 << 2)
++#define FINISH_FLAG (1 << 3)
 +#define NUM_BUCKETS 64
 +#define MASK_BUCKETS (NUM_BUCKETS - 1)
 +#define ID_BITS 16
@@ -227,8 +227,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +static void report_error(struct snapinfo *info)
 +{
-+	if (test_and_set_bit(REPORT_FLAG, &info->flags))
++	if (test_and_set_bit(REPORT_BIT, &info->flags))
 +		return;
++	up(&info->more_work_sem);
 +	down(&info->recover_sem);
 +	info->flags |= RECOVER_FLAG;
 +}
@@ -290,22 +291,32 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +static void show_pending(struct snapinfo *info)
 +{
-+	unsigned h, total = 0;
++	unsigned i, total = 0;
 +
 +	spin_lock(&info->pending_lock);
-+	warn("");
-+	for (h = 0; h < NUM_BUCKETS; h++) {
++	warn("Pending server queries...");
++	for (i = 0; i < NUM_BUCKETS; i++) {
 +		struct list_head *list;
-+
-+		list_for_each(list, info->pending + h) {
++		list_for_each(list, info->pending + i) {
 +			struct pending *pending = list_entry(list, struct pending, list);
 +			if (!total)
-+				printk("[%u]: ", h);
++				printk("[%u]: ", i);
 +			printk("%u:%Lx ", pending->id, pending->chunk);
 +			total++;
 +		}
 +	}
 +	printk("(%u)\n", total);
++	if (!list_empty(&info->queries)) {
++		struct list_head *list;
++		total = 0;
++		warn("Queued queries...");
++		list_for_each(list, &info->queries) {
++			struct pending *pending = list_entry(list, struct pending, list);
++			printk("%Lx ", pending->chunk);
++			total++;
++		}
++		printk("(%u)\n", total);
++	}
 +	spin_unlock(&info->pending_lock);
 +}
 +
@@ -562,8 +573,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	if (!running(info))
 +		goto out;
 +
-+	warn("halt worker");
++	warn("halt worker <%x>", info->flags);
 +	report_error(info);
++	warn("halt worker <%x>", info->flags);
 +	goto connect;
 +}
 +
@@ -636,6 +648,29 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	spin_unlock_irqrestore(&info->end_io_lock, irqflags);
 +}
 +
++static void requeue_queries(struct snapinfo *info)
++{
++	unsigned i;
++
++	trace_on(show_pending(info);)
++	spin_lock(&info->pending_lock);
++	warn("");
++	for (i = 0; i < NUM_BUCKETS; i++) {
++		struct list_head *bucket = info->pending + i;
++
++		while (!list_empty(bucket)) {
++			struct list_head *entry = bucket->next;
++			struct pending *pending = list_entry(entry, struct pending, list);
++			trace_on(warn("requeue %u:%Lx", pending->id, pending->chunk);)
++
++			list_move(entry, &info->queries);
++			up(&info->more_work_sem);
++		}
++	}
++	spin_unlock(&info->pending_lock);
++	trace_on(show_pending(info);)
++}
++
 +static int worker(struct dm_target *target)
 +{
 +	struct snapinfo *info = target->private;
@@ -663,6 +698,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			trace(show_pending(info);)
 +
 +			down(&info->server_out_sem);
++			trace(warn("Server query [%Lx/%x]", pending->chunk, pending->chunks);)
 +			if ((err = outbead(info->sock,
 +				bio_data_dir(pending->bio) == WRITE? QUERY_WRITE: QUERY_SNAPSHOT_READ,
 +				struct rw_request1,
@@ -699,6 +735,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	}
 +	if ((info->flags & RECOVER_FLAG)) {
 +		down(&info->server_out_sem);
++		up(&info->more_work_sem);
 +		goto recover;
 +	}
 +finish:
@@ -716,7 +753,11 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		goto finish;
 +	if (is_snapshot(info))
 +		upload_locks(info);
-+	info->flags &= ~(RECOVER_FLAG|REPORT_FLAG);
++	requeue_queries(info);
++	trace_on(warn("worker resuming <%x>", info->flags);)
++
++	info->flags &= ~(RECOVER_FLAG|(1 << REPORT_BIT));
++	trace_on(warn("worker resuming <%x>", info->flags);)
 +	up(&info->recover_sem);
 +	goto restart;
 +}
@@ -781,6 +822,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			}
 +			trace(warn("Received socket %i", fd);)
 +			info->sock = fget(fd);
++			current->files->fd[fd] = NULL; /* this is sooo hokey */
 +			put_unused_fd(sock_fd);
 +			sys_close(fd);
 +			up(&info->server_in_sem);
@@ -865,6 +907,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	list_add(&pending->list, &info->queries);
 +	spin_unlock(&info->pending_lock);
 +	up(&info->more_work_sem);
++show_pending(info);
 +	return 0;
 +}
 +
@@ -1050,6 +1093,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	csnap_destroy(target);
 +	target->error = error;
 +	return err;
++
++	{ void *useme = show_pending; useme = useme; }
 +}
 +
 +/* Is this actually useful?  It's really trying to be a message */
@@ -1137,16 +1182,12 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/drivers/md/dm-csnap.h
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 12:58:12.000000000 -0400
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-11-15 18:10:13.000000000 -0500
-@@ -0,0 +1,95 @@
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-12-01 23:11:46.000000000 -0500
+@@ -0,0 +1,90 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
-+struct head
-+{
-+	uint32_t code;
-+	uint32_t length;
-+};
++struct head { uint32_t code; uint32_t length; } PACKED;
 +
 +enum csnap_codes
 +{
@@ -1181,7 +1222,6 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/dri
 +	FINISH_UPLOAD_CLIENT_ID,
 +	REMOVE_CLIENT_IDS,
 +};
-+
 +
 +struct match_id { uint64_t id; uint64_t mask; } PACKED;
 +struct set_id { uint64_t id; } PACKED;
