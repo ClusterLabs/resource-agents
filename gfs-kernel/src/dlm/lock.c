@@ -558,6 +558,21 @@ static void unhold_null_lock(dlm_lock_t *lp)
 	lp->hold_null = NULL;
 }
 
+int dlm_add_lvb(dlm_lock_t *lp)
+{
+	char *lvb;
+
+	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
+	if (!lvb)
+		return -ENOMEM;
+
+	memset(lvb, 0, DLM_LVB_SIZE);
+
+	lp->lksb.sb_lvbptr = lvb;
+	lp->lvb = lvb;
+	return 0;
+}
+
 /**
  * dlm_hold_lvb - hold on to a lock value block
  * @lock: the lock the LVB is associated with
@@ -569,18 +584,13 @@ static void unhold_null_lock(dlm_lock_t *lp)
 int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
-	char *lvb;
 	int error;
 
-	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
-	if (!lvb)
-		return -ENOMEM;
+	error = dlm_add_lvb(lp);
+	if (error)
+		return error;
 
-	memset(lvb, 0, DLM_LVB_SIZE);
-
-	lp->lksb.sb_lvbptr = lvb;
-	lp->lvb = lvb;
-	*lvbp = lvb;
+	*lvbp = lp->lvb;
 
 	/* Acquire a NL lock because gfs requires the value block to remain
 	   intact on the resource while the lvb is "held" even if it's holding
@@ -588,12 +598,19 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
       
 	error = hold_null_lock(lp);
 	if (error) {
-		kfree(lvb);
+		kfree(lp->lvb);
 		lp->lvb = NULL;
 		lp->lksb.sb_lvbptr = NULL;
 	}
 
 	return error;
+}
+
+void dlm_del_lvb(dlm_lock_t *lp)
+{
+	kfree(lp->lvb);
+	lp->lvb = NULL;
+	lp->lksb.sb_lvbptr = NULL;
 }
 
 /**
@@ -608,10 +625,7 @@ void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb)
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
 	unhold_null_lock(lp);
-
-	kfree(lvb);
-	lp->lvb = NULL;
-	lp->lksb.sb_lvbptr = NULL;
+	dlm_del_lvb(lp);
 }
 
 /**

@@ -70,11 +70,13 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
 	if (error)
 		goto fail;
 
-	error = lm_dlm_hold_lvb(lock, &lvb);
+	lp = (dlm_lock_t *) lock;
+
+	error = dlm_add_lvb(lp);
 	if (error)
 		goto fail_put;
 
-	lp = (dlm_lock_t *) lock;
+	lvb = lp->lvb;
 	set_bit(LFL_INLOCK, &lp->flags);
 	set_bit(LFL_NOBAST, &lp->flags);
 
@@ -88,7 +90,7 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
 		goto retry;
 	}
 	if (error)
-		goto fail_unhold;
+		goto fail_lvb;
 
 	memcpy(&beval, lvb, sizeof(beval));
 	exist_val = be32_to_cpu(beval);
@@ -123,7 +125,7 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
 		 * This id is already used. It has a non-zero nodeid in the lvb
 		 */
 		lm_dlm_unlock_sync(lock, LM_ST_SHARED);
-		lm_dlm_unhold_lvb(lock, lvb);
+		dlm_del_lvb(lp);
 		lm_dlm_put_lock(lock);
 		error = exist_val;
 	}
@@ -133,8 +135,8 @@ static int id_test_and_set(dlm_t *dlm, uint32_t id, uint32_t val,
  fail_unlock:
 	lm_dlm_unlock_sync(lock, LM_ST_SHARED);
 
- fail_unhold:
-	lm_dlm_unhold_lvb(lock, lvb);
+ fail_lvb:
+	dlm_del_lvb(lp);
 
  fail_put:
 	lm_dlm_put_lock(lock);
@@ -173,7 +175,7 @@ static void id_clear(dlm_t *dlm, dlm_lock_t *lp)
 	lm_dlm_unlock_sync(lock, LM_ST_EXCLUSIVE);
 
  end:
-	lm_dlm_unhold_lvb(lock, lp->lvb);
+	dlm_del_lvb(lp);
 	lm_dlm_put_lock(lock);
 }
 
@@ -197,11 +199,13 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 	if (error)
 		goto out;
 
-	error = lm_dlm_hold_lvb(lock, &lvb);
+	lp = (dlm_lock_t *) lock;
+
+	error = dlm_add_lvb(lp);
 	if (error)
 		goto out_put;
 
-	lp = (dlm_lock_t *) lock;
+	lvb = lp->lvb;
 	set_bit(LFL_INLOCK, &lp->flags);
 	set_bit(LFL_NOBAST, &lp->flags);
 
@@ -215,7 +219,7 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 		goto retry;
 	}
 	if (error)
-		goto out_unhold;
+		goto out_lvb;
 
 	memcpy(&beval, lvb, sizeof(beval));
 	*val = be32_to_cpu(beval);
@@ -224,8 +228,8 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 
 	error = 0;
 
- out_unhold:
-	lm_dlm_unhold_lvb(lock, lvb);
+ out_lvb:
+	dlm_del_lvb(lp);
 
  out_put:
 	lm_dlm_put_lock(lock);

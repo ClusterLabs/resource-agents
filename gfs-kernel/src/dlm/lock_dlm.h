@@ -266,6 +266,8 @@ void queue_delayed(dlm_lock_t *lp, int type);
 void process_submit(dlm_lock_t *lp);
 int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp);
 void delete_lp(dlm_lock_t *lp);
+int dlm_add_lvb(dlm_lock_t *lp);
+void dlm_del_lvb(dlm_lock_t *lp);
 
 int lm_dlm_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		    lm_lock_t **lockp);
