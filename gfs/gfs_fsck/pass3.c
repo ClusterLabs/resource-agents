@@ -23,7 +23,7 @@
 #include "metawalk.h"
 
 static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
-			    uint64_t block)
+			    uint64_t olddotdot, uint64_t block)
 {
 	osi_filename_t filename;
 	struct fsck_inode *ip, *pip;
@@ -45,7 +45,9 @@ static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 		log_warn("Unable to remove \"..\" directory entry.\n");
 	}
 	else {
-		decrement_link(sbp, block);
+		/* FIXME: this isn't right, it should be the parent
+		 * that gets decremented */
+		decrement_link(sbp, olddotdot);
 	}
 	if(fs_dir_add(ip, &filename, &pip->i_num,
 		      pip->i_di.di_type)){
@@ -55,7 +57,7 @@ static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 		free_inode(&pip);
 		return -1;
 	}
-	increment_link(sbp, block);
+	increment_link(sbp, newdotdot);
 	free_inode(&ip);
 	free_inode(&pip);
 	return 0;
@@ -106,8 +108,10 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 				log_warn("Treewalk parent is correct,"
 					 " fixing dotdot -> %"PRIu64"\n",
 					 di->treewalk_parent);
+				attach_dotdot_to(sbp, di->treewalk_parent,
+						 di->dotdot_parent, di->dinode);
 				di->dotdot_parent = di->treewalk_parent;
-				attach_dotdot_to(sbp, di->dotdot_parent, di->dinode);
+
 			}
 		}
 		else {
@@ -145,14 +149,16 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 				log_err("Both .. and treewalk parents are "
 					"directories, going with treewalk for "
 					"now...\n");
+				attach_dotdot_to(sbp, di->treewalk_parent,
+						 di->dotdot_parent, di->dinode);
 				di->dotdot_parent = di->treewalk_parent;
-				attach_dotdot_to(sbp, di->dotdot_parent, di->dinode);
+
 			}
 		}
 	}
 	else {
 		if(block_check(sbp->bl, di->dotdot_parent, &q_dotdot)) {
-			log_err("Unable to find block %"PRIu64
+			log_err("Unable to find parent block %"PRIu64
 				" in block map\n",
 				di->dotdot_parent);
 			return NULL;

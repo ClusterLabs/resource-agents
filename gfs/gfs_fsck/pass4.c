@@ -122,6 +122,8 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 				load_inode(sbp, ii->inode, &ip);
 				fix_inode_count(sbp, ii, ip);
 				free_inode(&ip);
+				log_warn("Link count updated for inode %"
+					 PRIu64"\n", ii->inode);
 			} else {
 				log_err("Link count for inode %"
 					PRIu64" still incorrect\n", ii->inode);

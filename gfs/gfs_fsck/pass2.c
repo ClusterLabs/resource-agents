@@ -530,6 +530,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			log_err("Hard link to directory remains\n");
 			*update = 1;
 			(*count)++;
+			ds->entry_count++;
 			return 0;
 		}
 	}
