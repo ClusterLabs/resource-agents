@@ -44,7 +44,7 @@ sm.so: buildtest $(OBJS)
 buildtest: $(OBJS)
 	echo "int main(void) { return 0; }" > __buildtest.c
 	$(CC) -c __buildtest.c
-	$(CC) -o $@ __buildtest.o $(OBJS) -lxml2 $(LIBS)
+	$(CC) -o $@ __buildtest.o $(OBJS) -lxml2 $(LIBS) -lpthread
 	rm -f __buildtest*
 
 %.o: %.c
