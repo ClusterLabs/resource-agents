@@ -39,7 +39,7 @@ This package contains the CCS header file and static library, which
 is used by several cluster products.
 
 %prep
-%setup -q
+%setup -q -n %{name}-%{version}-%{release}
 
 %build
 ./configure --libdir=%{_libdir} --mandir=%{_mandir}
