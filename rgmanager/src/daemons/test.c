@@ -273,7 +273,6 @@ main(int argc, char **argv)
 
 out:
 	xmlCleanupParser();
-	malloc(10);
 	malloc_dump_table();
 	return 0;
 }
