@@ -1371,6 +1371,10 @@ void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state)
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONVERT:
+		/* The lkb is on the local convert queue while waiting for
+		   the remote conversion.  dlm_convert_stage2() assumes
+		   the lkb is still on the grant queue. */
+		res_lkb_swqueue(lkb->lkb_resource, lkb, GDLM_LKSTS_GRANTED);
 		dlm_convert_stage2(lkb, TRUE);
 		break;
 
