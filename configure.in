@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.160 $) dnl cvs revision
+AC_REVISION($Revision: 1.161 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -542,7 +542,6 @@ AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes)
 
 dnl
 dnl	Work out what to link the snmp subagent against
-AC_ARG_VAR(NET_SNMP_CONFIG, Configuration programme for NET-SNMP)
 AC_CHECK_PROG(NET_SNMP_CONFIG, net-snmp-config, net-snmp-config)
 if test "X$NET_SNMP_CONFIG" = "X"; then
 	HASUBAGENT_LDADD_EXTRA=""
