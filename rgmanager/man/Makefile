@@ -12,7 +12,7 @@
 ###############################################################################
 top_srcdir=..
 UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
-TARGETS = clubufflush.8 clufindhostname.8 clulog.8 clunfsops.8 \
+TARGETS = clubufflush.8 clulog.8 clunfsops.8 \
 	  clurgmgrd.8 clurmtabd.8 clushutdown.8 clustat.8 clusvcadm.8
 
 include ${top_srcdir}/make/defines.mk
