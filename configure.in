@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.212 $) dnl cvs revision
+AC_REVISION($Revision: 1.213 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -958,6 +958,8 @@ AC_CHECK_FUNCS(strerror,
 	AC_DEFINE(HA_HAVE_STRERROR,  1, [Have strerror function]))
 AC_CHECK_FUNCS(unsetenv, 
 	AC_DEFINE(HA_HAVE_UNSETENV,    1, [Have unsetenv function]))
+AC_CHECK_FUNCS(strnlen, 
+	AC_DEFINE(HA_HAVE_STRNLEN,    1, [Have strnlen function]))
 
 AC_SUBST(HA_HAVE_ALPHASORT)
 AC_SUBST(HA_HAVE_INET_PTON)
