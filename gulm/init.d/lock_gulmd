@@ -37,20 +37,6 @@ then
 fi
 
 
-# If gulm is using ccs, then make sure that there is a gulm
-# section in /etc/cluster/cluster.conf, otherwise abort.
-# FIXME -- Should this be silent?  I think users should get some
-#          feedback, but others might not want added verbosity to
-#          the boot process.  Oh well... it's only one line :)
-if echo "$GULM_OPTS" | grep -qE "(--use_ccs|[\t ]-[VhCed]*c)" 
-then
-	if ! grep -qE "<[\t ]*gulm[\t ]*.*>" /etc/cluster/cluster.conf 
-	then
-		echo "lock_gulmd: no <gulm> section detected in /etc/cluster/cluster.conf"
-		exit 11
-	fi
-fi
-
 gulm_shutdown()
 {
 	rtrn=1
@@ -163,6 +149,20 @@ wait_for_master()
 
 start()
 {
+	# If gulm is using ccs, then make sure that there is a gulm
+	# section in /etc/cluster/cluster.conf, otherwise abort.
+	# FIXME -- Should this be silent?  I think users should get some
+	#          feedback, but others might not want added verbosity to
+	#          the boot process.  Oh well... it's only one line :)
+	if echo "$GULM_OPTS" | grep -qE "(--use_ccs|[\t ]-[VhCed]*c)" 
+	then
+		if ! grep -qE "<[\t ]*gulm[\t ]*.*>" /etc/cluster/cluster.conf 
+		then
+			echo "no <gulm> section detected in /etc/cluster/cluster.conf"
+			return 1
+		fi
+	fi
+
 
 	sts=1
 	echo -n "Starting lock_gulmd:"
