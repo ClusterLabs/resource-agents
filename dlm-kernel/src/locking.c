@@ -371,6 +371,7 @@ int dlm_lock(void *lockspace,
 	lkb->lkb_bastaddr = bast;
 	lkb->lkb_rqmode = mode;
 	lkb->lkb_grmode = DLM_LOCK_IV;
+	lkb->lkb_nodeid = -1;
 	lkb->lkb_lksb = lksb;
 	lkb->lkb_parent = parent_lkb;
 	lkb->lkb_lockqueue_flags = flags;

@@ -59,9 +59,9 @@ void release_rsb(gd_res_t *r)
 
 	write_lock(&ls->ls_reshash_lock);
 	if (atomic_dec_and_test(&r->res_ref)) {
-		GDLM_ASSERT(list_empty(&r->res_grantqueue),);
-		GDLM_ASSERT(list_empty(&r->res_waitqueue),);
-		GDLM_ASSERT(list_empty(&r->res_convertqueue),);
+		GDLM_ASSERT(list_empty(&r->res_grantqueue), print_rsb(r););
+		GDLM_ASSERT(list_empty(&r->res_waitqueue), print_rsb(r););
+		GDLM_ASSERT(list_empty(&r->res_convertqueue), print_rsb(r););
 		removed = TRUE;
 		list_del(&r->res_hashchain);
 	}

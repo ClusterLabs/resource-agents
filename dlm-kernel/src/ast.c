@@ -28,6 +28,7 @@
 #include "ast.h"
 #include "nodes.h"
 #include "config.h"
+#include "util.h"
 
 /* Wake up flags for astd */
 #define GDLMD_WAKE_ASTS  1
@@ -265,8 +266,8 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 
 		if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_RSB) {
 			GDLM_ASSERT(lkb->lkb_nodeid == -1,
-				    log_error(ls, "nodeid=%d\n",
-					      lkb->lkb_nodeid););
+				    print_lkb(lkb);
+				    print_rsb(lkb->lkb_resource););
 
 			lkb->lkb_flags |= GDLM_LKFLG_LQRESEND;
 			count++;
@@ -291,10 +292,10 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 			 * rebuild_rsbs_send().
 			 */
 
-			if (lkb->lkb_lockqueue_state ==
-			    GDLM_LQSTATE_WAIT_CONDGRANT) {
-				GDLM_ASSERT(lkb->lkb_status ==
-					    GDLM_LKSTS_WAITING, );
+			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_CONDGRANT) {
+				GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_WAITING,
+					    print_lkb(lkb);
+					    print_rsb(lkb->lkb_resource););
 				lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
 			}
 
@@ -306,10 +307,10 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 			 * new master.
 			 */
 
-			else if (lkb->lkb_lockqueue_state ==
-				 GDLM_LQSTATE_WAIT_CONVERT) {
-				GDLM_ASSERT(lkb->lkb_status ==
-					    GDLM_LKSTS_CONVERT, );
+			else if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_CONVERT) {
+				GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_CONVERT,
+					    print_lkb(lkb);
+					    print_rsb(lkb->lkb_resource););
 				lkb->lkb_flags |= GDLM_LKFLG_LQCONVERT;
 			}
 
