@@ -58,7 +58,6 @@ void release_rsb(gd_res_t *r)
 	int removed = FALSE;
 
 	write_lock(&ls->ls_reshash_lock);
-
 	if (atomic_dec_and_test(&r->res_ref)) {
 		GDLM_ASSERT(list_empty(&r->res_grantqueue),);
 		GDLM_ASSERT(list_empty(&r->res_waitqueue),);
@@ -68,35 +67,35 @@ void release_rsb(gd_res_t *r)
 	}
 	write_unlock(&ls->ls_reshash_lock);
 
-	if (removed) {
-		down_read(&ls->ls_gap_rsblist);
-		if (r->res_parent)
-			list_del(&r->res_subreslist);
-		else
-			list_del(&r->res_rootlist);
-		up_read(&ls->ls_gap_rsblist);
+	if (!removed)
+		return;
 
-		/*
-		 * Remove resdir entry if this was a locally mastered root rsb.
-		 */
-		if (!r->res_parent && !r->res_nodeid) {
-			if (get_directory_nodeid(r) != our_nodeid())
-				remote_remove_resdata(r->res_ls,
-						      get_directory_nodeid(r),
-						      r->res_name,
-						      r->res_length,
-						      r->res_resdir_seq);
-			else
-				remove_resdata(r->res_ls, our_nodeid(),
-					       r->res_name, r->res_length,
-					       r->res_resdir_seq);
-		}
+	down_read(&ls->ls_gap_rsblist);
+	if (r->res_parent)
+		list_del(&r->res_subreslist);
+	else
+		list_del(&r->res_rootlist);
+	up_read(&ls->ls_gap_rsblist);
 
-		if (r->res_lvbptr)
-			free_lvb(r->res_lvbptr);
+	if (r->res_parent)
+		goto out;
+	if (r->res_nodeid && r->res_nodeid != -1)
+		goto out;
+	if (r->res_nodeid == -1 && !test_bit(RESFL_MASTER, &r->res_flags))
+		goto out;
 
-		free_rsb(r);
-	}
+	if (get_directory_nodeid(r) != our_nodeid())
+		remote_remove_resdata(r->res_ls, get_directory_nodeid(r),
+				      r->res_name, r->res_length,
+				      r->res_resdir_seq);
+	else
+		remove_resdata(r->res_ls, our_nodeid(), r->res_name,
+			       r->res_length, r->res_resdir_seq);
+ out:
+	if (r->res_lvbptr)
+		free_lvb(r->res_lvbptr);
+
+	free_rsb(r);
 }
 
 /*

@@ -348,6 +348,7 @@ struct gd_csb {
 
 #define RESFL_NEW_MASTER         (0)
 #define RESFL_RECOVER_LIST       (1)
+#define RESFL_MASTER             (2)
 
 struct gd_res {
 	struct list_head res_hashchain;	/* Chain of resources in this hash

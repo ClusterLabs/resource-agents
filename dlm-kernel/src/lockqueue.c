@@ -287,10 +287,13 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 
 		GDLM_ASSERT(reply->rl_status == 0,);
 
-		if (reply->rl_nodeid == our_nodeid())
+		if (reply->rl_nodeid == our_nodeid()) {
+			set_bit(RESFL_MASTER, &rsb->res_flags);
 			rsb->res_nodeid = 0;
-		else
+		} else {
+			clear_bit(RESFL_MASTER, &rsb->res_flags);
 			rsb->res_nodeid = reply->rl_nodeid;
+		}
 
 		rsb->res_resdir_seq = reply->rl_resdir_seq;
 		lkb->lkb_nodeid = rsb->res_nodeid;

@@ -455,8 +455,11 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 		if (error)
 			goto out;
 
-		if (nodeid == our_nodeid())
+		if (nodeid == our_nodeid()) {
+			set_bit(RESFL_MASTER, &rsb->res_flags);
 			nodeid = 0;
+		} else
+			clear_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = nodeid;
 		lkb->lkb_nodeid = nodeid;
 		rsb->res_resdir_seq = seq;
@@ -560,9 +563,10 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 	lkb->lkb_resource = rsb;
 
 	if (rsb->res_nodeid == -1) {
-		log_all(ls, "request mode %u from %u seq %u created rsb %s",
-			lkb->lkb_rqmode, remote_nodeid, freq->rr_resdir_seq,
-			rsb->res_name);
+		log_debug(ls, "request mode %u from %u seq %u created rsb %s",
+			  lkb->lkb_rqmode, remote_nodeid, freq->rr_resdir_seq,
+			  rsb->res_name);
+		set_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = 0;
 	} else {
 		GDLM_ASSERT(!rsb->res_nodeid,
