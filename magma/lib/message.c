@@ -235,7 +235,8 @@ connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 	/*
 	 * Use TCP Keepalive
 	 */
-	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags))<0)
+	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags,
+		       sizeof(flags))<0)
 		return -1;
 			
 	/*
@@ -266,7 +267,7 @@ connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 		if (FD_ISSET(fd, &rfds) || FD_ISSET(fd, &wfds)) {
 			l = sizeof(err);
 			if (getsockopt(fd, SOL_SOCKET, SO_ERROR,
-				       &err, &l) < 0) {
+				       (void *)&err, &l) < 0) {
 				close(fd);
 				return -1;
 			}
@@ -485,7 +486,7 @@ ipv6_bind(uint16_t port)
 	_sin6.sin6_addr = in6addr_any;
 
 	ret = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &ret, sizeof (ret));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (void *)&ret, sizeof (ret));
 
 	ret = set_cloexec(fd);
 	if (ret < 0) {
@@ -524,7 +525,7 @@ ipv4_bind(uint16_t port)
 	_sin.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	ret = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &ret, sizeof (ret));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (void *)&ret, sizeof (ret));
 	
 	ret = set_cloexec(fd);
 	if (ret < 0) {
