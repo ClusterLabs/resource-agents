@@ -50,6 +50,7 @@
 #define DLM_PREFIX "dlm_"
 #define DLM_MISC_PREFIX MISC_PREFIX DLM_PREFIX
 #define DLM_CONTROL_DEV "dlm-control"
+#define DEFAULT_LOCKSPACE "default"
 
 /* This is the name of the control device */
 #define DLM_CTL_DEVICE_NAME MISC_PREFIX DLM_CONTROL_DEV
@@ -277,9 +278,9 @@ static int open_default_lockspace()
 	 * do the right thing if the lockspace has already been
 	 * created.
 	 */
-	ls = dlm_open_lockspace("default");
+	ls = dlm_open_lockspace(DEFAULT_LOCKSPACE);
 	if (!ls)
-    	    ls = dlm_create_lockspace("default", 0600);
+    	    ls = dlm_create_lockspace(DEFAULT_LOCKSPACE, 0600);
 	if (!ls)
 	    return -1;
 
@@ -930,7 +931,12 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 
     req->cmd = DLM_USER_CREATE_LOCKSPACE;
     set_version(req);
-    req->i.lspace.flags = 0;
+
+    /* Make the default lockspace free itself when all users have released it */
+    if (strcmp(name, DEFAULT_LOCKSPACE) == 0)
+	    req->i.lspace.flags = DLM_USER_LSFLG_AUTOFREE;
+    else
+	    req->i.lspace.flags = 0;
     strcpy(req->i.lspace.name, name);
     minor = write(control_fd, req, sizeof(*req) + strlen(name));
 
