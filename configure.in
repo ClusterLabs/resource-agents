@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.224 $) dnl cvs revision
+AC_REVISION($Revision: 1.225 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -511,7 +511,7 @@ AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 AC_MSG_CHECKING(which snmp config exists)
 if test "X${SNMPCONFIG}" = "X"; then
-        AC_MSG_ERROR(You need the snmp development package to continue.")
+        AC_MSG_ERROR("You need the snmp development package to continue.")
 else
       AC_MSG_RESULT("using $SNMPCONFIG")
 fi
