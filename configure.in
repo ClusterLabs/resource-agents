@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.51 $) dnl cvs revision
+AC_REVISION($Revision: 1.52 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -63,6 +63,7 @@ $ROUTE -n get 127.0.0.1 > /dev/null 2>&1
 if test x"$?" = x"0"; then
 	AC_DEFINE(USE_ROUTE_GET, 1, use route -get to retrieve route information)
 	AC_DEFINE(ROUTEPARM, "-n get", paramters for route to retrieve route information)
+        AC_DEFINE(PROCROUTE, "", not used in except in linux)
 	AC_MSG_RESULT(yes)
 else
 	AC_DEFINE(ROUTEPARM, "-n ", parameters for route to retrieve route information)
@@ -73,6 +74,8 @@ fi
 
 AC_SUBST(HTML2TXT)
 AC_SUBST(POD2MAN)
+AC_SUBST(ROUTEPARM)
+AC_SUBST(PROCROUTE)
 
 dnl Locales check - is a real ugly workaround for now til I find
 dnl something more useful
