@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.1 $) dnl cvs revision
+AC_REVISION($Revision: 1.2 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -30,13 +30,31 @@ AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AC_SUBST(HTML2TXT)
 AC_SUBST(POD2MAN)
 
+dnl Locales check - is a real ugly workaround for now til I find
+dnl something more usefull
+if test -d /usr/share/locale; then
+	LOCALE=/usr/share/locale
+else
+	AC_MSG_ERROR(no locales found needed for stonith)
+fi
+
 dnl ************************************************************************
 dnl checks for libraries
 dnl
 AC_CHECK_LIB(nsl, t_open)                dnl -lnsl
 AC_CHECK_LIB(socket, socket)             dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler) dnl -lposix4
-AC_CHECK_LIB(dl, dlopen)		 dnl -ldl
+AC_CHECK_LIB(dl, dlopen)		 dnl -ldl (for Linux)
+if test "$ac_cv_lib_dl_dlopen" = yes; then
+	LIBADD_DL=-ldl
+else
+	AC_CHECK_LIB(intl, dlopen)	 dnl -lintl (for FreeBsd)
+	if test "ac_cv_lib_intl_dlopen" = yes; then
+		LIBADD_DL=-lintl
+	else
+		AC_MSG_ERROR(no lib providing dlopen found)
+	fi
+fi
 
 dnl ************************************************************************
 dnl checks for header files
@@ -99,10 +117,10 @@ fi
 case "$host_os" in
 *solaris*)	HEARTBEAT_LIBS="-lposix4"
 		;;
-*bsd*)		STONITH_LDADD="-lintl"
-		;;
-*linux*)	STONITH_LDADD="-ldl"
-		;;
+dnl *bsd*)		STONITH_LDADD="-lintl"
+dnl 		;;
+dnl *linux*)	STONITH_LDADD="-ldl"
+dnl 		;;
 esac
 
 dnl AC_SUBST(CC_WARNINGS)
@@ -131,7 +149,11 @@ Xsed="sed -e s/^X//"
 LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 AC_SUBST(LTLIBOBJS)
 
-AC_SUBST(STONITH_LDADD)
+dnl STONITH_LDADD=LIBADD_DL
+dnl AC_SUBST(STONITH_LDADD)
+AC_SUBST(LIBADD_DL)
+
+AC_SUBST(LOCALE)
 
 HEARTBEATPKG=heartbeat
 AC_SUBST(HEARTBEATPKG)
