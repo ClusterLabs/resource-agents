@@ -515,7 +515,7 @@ sm_lock(cluster_plugin_t *self,
 	  int flags,
 	  void **lockpp)
 {
-	int mode = 0, options = 0, ret;
+	int mode = 0, options = 0;
 	int *lockid;
 
 	assert(self);
@@ -539,8 +539,7 @@ sm_lock(cluster_plugin_t *self,
 	(*lockpp) = (void *)lockid;
 	*lockid = 0;
 
-	ret = lock_resource(resource, mode, options, lockid);
-	return ret;
+	return lock_resource(resource, mode, options, lockid);
 }
 
 
