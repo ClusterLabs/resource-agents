@@ -451,8 +451,8 @@ static int accept_from_sock(struct connection *con)
 	struct connection *newcon;
 
 	memset(&peeraddr, 0, sizeof(peeraddr));
-	newsock = sock_alloc();
-	if (!newsock)
+	result = sock_create_kern(local_addr.sin6_family, SOCK_STREAM, IPPROTO_TCP, &newsock);
+	if (result < 0)
 		return -ENOMEM;
 
 	down_read(&con->sock_sem);
