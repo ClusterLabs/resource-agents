@@ -30,7 +30,6 @@ method is used or whether the application is threaded.
 - dlm_close_lockspace
 
 
-
 Overview of lock request methods
 --------------------------------
 

@@ -457,22 +457,6 @@ int dlm_lock(uint32_t mode,
 		       astaddr, astarg, bastaddr, range);
 }
 
-int dlm_lock_wait(uint32_t mode,
-		     struct dlm_lksb *lksb,
-		     uint32_t flags,
-		     const void *name,
-		     unsigned int namelen,
-		     uint32_t parent,
-		     void *bastarg,
-		     void (*bastaddr) (void *bastarg),
-		     struct dlm_range *range)
-{
-    if (open_default_lockspace())
-	    return -1;
-
-    return dlm_ls_lock_wait(default_ls, mode, lksb, flags, name, namelen, parent,
-			    bastarg, bastaddr, range);
-}
 
 /*
  * This is the full-fat, aynchronous DLM call
@@ -542,6 +526,23 @@ int dlm_ls_lock(dlm_lshandle_t ls,
 }
 
 #ifdef _REENTRANT
+int dlm_lock_wait(uint32_t mode,
+		     struct dlm_lksb *lksb,
+		     uint32_t flags,
+		     const void *name,
+		     unsigned int namelen,
+		     uint32_t parent,
+		     void *bastarg,
+		     void (*bastaddr) (void *bastarg),
+		     struct dlm_range *range)
+{
+    if (open_default_lockspace())
+	    return -1;
+
+    return dlm_ls_lock_wait(default_ls, mode, lksb, flags, name, namelen, parent,
+			    bastarg, bastaddr, range);
+}
+
 /*
  * This is the full-fat, synchronous DLM call
  */
@@ -605,7 +606,7 @@ int dlm_ls_lock_wait(dlm_lshandle_t ls,
 }
 
 int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
-		  uint32_t flags, struct dlm_lksb *lksb)
+		       uint32_t flags, struct dlm_lksb *lksb)
 {
     struct dlm_lock_params params;
     struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
@@ -671,6 +672,19 @@ int dlm_ls_query_wait(dlm_lshandle_t lockspace,
     return status;
 }
 
+int dlm_unlock_wait(uint32_t lkid,
+               uint32_t flags, struct dlm_lksb *lksb)
+{
+    return dlm_ls_unlock_wait(default_ls, lkid, flags, lksb);
+}
+
+int dlm_query_wait(struct dlm_lksb *lksb,
+	      int query,
+	      struct dlm_queryinfo *qinfo)
+{
+    return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
+}
+
 #endif
 
 /* Unlock on default lockspace*/
@@ -680,11 +694,6 @@ int dlm_unlock(uint32_t lkid,
     return dlm_ls_unlock(default_ls, lkid, flags, lksb, astarg);
 }
 
-int dlm_unlock_wait(uint32_t lkid,
-               uint32_t flags, struct dlm_lksb *lksb)
-{
-    return dlm_ls_unlock_wait(default_ls, lkid, flags, lksb);
-}
 
 int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 		  uint32_t flags, struct dlm_lksb *lksb, void *astarg)
@@ -775,13 +784,6 @@ int dlm_query(struct dlm_lksb *lksb,
 	      void *astarg)
 {
     return dlm_ls_query(default_ls, lksb, query, qinfo, astaddr, astarg);
-}
-
-int dlm_query_wait(struct dlm_lksb *lksb,
-	      int query,
-	      struct dlm_queryinfo *qinfo)
-{
-    return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
 }
 
 

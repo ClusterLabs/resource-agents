@@ -5,6 +5,10 @@ User-space interface to DLM
 #include <stdint.h>
 #include <libdlm.h>
 
+cc -D_REENTRANT prog.c  -ldlm -lpthread
+
+cc prog.c  -ldlm_lt
+
 
 There are basically two interfaces to libdlm. The first is the "dead simple"
 one that has limited functionality and assumes that the application is linked
@@ -503,3 +507,27 @@ One further point about lockspace operations is that there is no locking
 on the creating/destruction of lockspaces in the library so it is up to the
 application to only call dlm_*_lockspace when it is sure that
 no other locking operations are likely to be happening within that process.
+
+Libraries
+---------
+There are two DLM libraries, one that uses pthreads (libdlm) to deliver ASTs
+and a light one one that doesn't (libdlm_lt). 
+
+The "light" library contains only the following calls.
+
+- dlm_lock
+- dlm_unlock
+- dlm_query
+- dlm_get_fd
+- dlm_dispatch
+- dlm_ls_lock
+- dlm_ls_unlock
+- dlm_ls_query
+- dlm_ls_get_fd
+- dlm_create_lockspace
+- dlm_open_lockspace
+- dlm_release_lockspace
+- dlm_close_lockspace
+
+Note that libdlm (the pthreads one) also contains the non-threaded calls
+so you can choose at runtime if you need to.
