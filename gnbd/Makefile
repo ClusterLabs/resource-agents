@@ -18,9 +18,10 @@ all:
 	cd tools && ${MAKE} copytobin
 
 clean:
-	cd tools && ${MAKE} clean
+	cd bin && ${MAKE} clean
 	cd client && ${MAKE} clean
 	cd server && ${MAKE} clean
+	cd tools && ${MAKE} clean
 
 distclean: clean
 	rm -f make/defines.mk
