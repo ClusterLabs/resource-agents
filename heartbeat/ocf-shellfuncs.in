@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.5 2004/09/14 07:49:41 zhenh Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.6 2004/09/14 09:46:41 lars Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -39,7 +39,6 @@
 # - Generic function(s) to extract stuff from our own meta-data
 # - Logging function which automatically adds resource identifier etc
 #   prefixes
-
 # TODO: Move more common functionality for OCF RAs here.
 #
 HA_D=@sysconfdir@/ha.d
@@ -52,7 +51,9 @@ ocf_set_defaults() {
 	export LC_ALL
 
 	# TODO: Review whether we really should source this. Or rewrite
-	# to match some emerging helper function syntax...?
+	# to match some emerging helper function syntax...? This imports
+	# things which no OCF RA should be using...
+
 	. ${HA_D}/shellfuncs
 
 	OCF_SUCCESS=0
@@ -66,19 +67,26 @@ ocf_set_defaults() {
 
 	VARLIB=@localstatedir@/lib/@HB_PKG@
 
-	# TODO: Anything else we should be setting?
+	# TODO: Anything else we should be setting and thus checking?
 	if [ "x$OCF_RA_VERSION_MAJOR" != "x1" ]; then
 		ha_log "ERROR: This script is OCF RA API 1.x compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
-	if [ "0$OCF_RA_VERSION_MINOR" -lt "0" ]; then
-		ha_log "ERROR: This script is OCF RA API >1.0 compliant only!"
+	# TODO: Should the minor level really be a number and not rather
+	# a list of flags...?
+	if [ -z "$OCF_RA_VERSION_MINOR" ]; then
+		ha_log "ERROR: No OCF RA minor version set."
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
 	if [ ! -d "$OCF_ROOT" ]; then
 		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
 		exit $OCF_ERR_GENERIC
 	fi
+
+	if [ "x$ACTION" = "xmeta-data" ]; then
+		export OCF_RESOURCE_INSTANCE="undef"
+	fi
+	
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
 		ha_log "ERROR: Need to tell us our resource instance name."
 		exit $OCF_ERR_ARGS
@@ -87,6 +95,22 @@ ocf_set_defaults() {
 		ha_log "ERROR: Need to tell us our resource type."
 		exit $OCF_ERR_ARGS
 	fi
+}
+
+ocf_log() {
+	# TODO: Revisit and implement internally.
+	local prio=shift
+	local msg="$*"
+
+	if [ "$prio" = "err" ]; then
+		msg="ERROR: $msg"
+	else if [ "$prio" = "warn" ]; then
+		msg="WARN: $msg"
+	fi
+
+	msg="$OCF_RESOURCE_INSTANCE $msg"
+
+	ha_log "$msg"
 }
 
 ocf_set_defaults $*
