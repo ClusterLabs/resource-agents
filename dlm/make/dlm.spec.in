@@ -13,8 +13,8 @@
 %define rel @REL@
 
 Name: dlm
-Version: @VERS@
-Release: @REL@
+Version: %vers
+Release: %rel
 License: GPL
 Group: System Environment/Kernel
 Summary: dlm - The Distributed Lock Manager
@@ -24,7 +24,7 @@ Conflicts: GFS-modules
 Requires: dlm-kernel >= 2.6.9
 Requires: cman
 
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}-%{release}.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
@@ -39,7 +39,7 @@ Summary: dlm - The Distributed Lock Manager userland libraries
 dlm - The Distributed Lock Manager userland libraries
 
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q -n %{name}-%{version}-%{release}
 
 %build
 ./configure --libdir=%{_libdir} --incdir=%{_includedir} --mandir=%{_mandir}
