@@ -386,7 +386,7 @@ static int check_ccs(fd_t *fd)
 
 	error = ccs_get(cd, path, &str);
 	if (error)
-		die1("local node name \"%s\" not found in cluster.conf",
+		die1("local cman node name \"%s\" not found in cluster.conf",
 		     our_name);
 
 
