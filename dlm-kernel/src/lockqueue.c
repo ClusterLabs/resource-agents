@@ -351,7 +351,7 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				  lkb->lkb_ownpid, lkb->lkb_id, nodeid,
 				  rsb->res_nodeid, rsb->res_name);
 
-			lkb_dequeue(lkb);
+			res_lkb_dequeue(lkb);
 
 			if (rsb->res_nodeid == lkb->lkb_nodeid || rsb->res_nodeid == -1){
 				/*
@@ -1079,7 +1079,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
 		if (freq->rr_flags & GDLM_LKFLG_ALTMODE)
 			lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
-		
+
 		lkb->lkb_retstatus = 0;
 		queue_ast(lkb, AST_COMP, 0);
 		break;
