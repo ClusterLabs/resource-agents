@@ -21,7 +21,7 @@ static int quit = 0;
 static int leave_finished = 0;
 
 
-#define OPTION_STRING			("cj:f:Dn:hV")
+#define OPTION_STRING			("cj:f:Dn:hVS")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
 
 
@@ -524,6 +524,11 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 				 __DATE__, __TIME__);
 			printf("%s\n", REDHAT_COPYRIGHT);
 			exit(EXIT_SUCCESS);
+			break;
+
+		case 'S':
+			/* do nothing, this is a fence_tool option that
+			   we ignore when fence_tool starts us */
 			break;
 
 		case ':':
