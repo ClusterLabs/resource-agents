@@ -20,6 +20,7 @@
 struct login_req_s {
   uint64_t timestamp;
   uint16_t version;
+  uint8_t pad[6];
   char devname[32];
 };
 typedef struct login_req_s login_req_t;
@@ -36,6 +37,7 @@ struct login_reply_s {
   uint64_t sectors;
   uint16_t version;
   uint8_t err;
+  uint8_t pad[5];
 };
 typedef struct login_reply_s login_reply_t;
 

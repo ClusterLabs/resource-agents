@@ -220,7 +220,7 @@ int get_gserv_info(char **buffer, uint32_t *list_size)
 void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
            char *name, int devfd)
 {
-  char *buf;
+  void *buf;
   struct gnbd_request request;
   struct gnbd_reply reply;
   uint64_t device_size = sectors << 9;
@@ -231,7 +231,7 @@ void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
   char to_str[70];
 
   /* FIXME -- This should be done when I first open the file.. maybe */
-  if (posix_memalign((void **)&buf, fpathconf(devfd, _PC_REC_XFER_ALIGN),
+  if (posix_memalign(&buf, fpathconf(devfd, _PC_REC_XFER_ALIGN),
                      MAXSIZE) < 0){
     fprintf(stderr, "posix_memalign failed : %s\n", strerror(errno));
     exit(1);

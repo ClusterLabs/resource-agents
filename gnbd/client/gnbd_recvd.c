@@ -23,6 +23,7 @@
 #include <string.h>
 #include <errno.h>
 #include <linux/gnbd.h>
+#include <inttypes.h>
 
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
@@ -290,7 +291,7 @@ int gnbd_login(int sock, char *host)
       fail("login refused by the server, quitting : %s\n",
            strerror(login_reply.err));
   }
-  snprintf(sysfs_buf, 4096, "%llu", login_reply.sectors);
+  snprintf(sysfs_buf, 4096, "%" PRIu64, login_reply.sectors);
   if (do_set_sysfs_attr(minor_num, "sectors", sysfs_buf) < 0)
     fail("cannot set /sys/class/gnbd/gnbd%d/sectors value : %s\n", minor_num,
          strerror(errno));

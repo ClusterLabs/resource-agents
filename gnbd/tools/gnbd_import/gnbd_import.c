@@ -27,6 +27,7 @@
 #include <arpa/inet.h>
 #include <sys/utsname.h>
 #include <linux/gnbd.h>
+#include <inttypes.h>
 
 #include "fence_return.h"
 #include "gnbd_endian.h"
@@ -328,7 +329,8 @@ int find_empty_minor(){
     }
     if (info.pid != -1)
       continue; 
-    if (sscanf(get_sysfs_attr(minor, "sectors"), "%llu", &info.sectors) != 1){
+    if (sscanf(get_sysfs_attr(minor, "sectors"), "%"PRIu64,
+               &info.sectors) != 1){
       printe("cannot parse %s/gnbd%d/sectors\n", sysfs_class, minor);
       exit(1);
     }
@@ -358,7 +360,8 @@ int get_info(gnbd_info_t *entry)
     printe("cannot parse %s/gnbd%d/server\n", sysfs_class, minor);
     exit(1);
   }
-  if (sscanf(get_sysfs_attr(minor, "sectors"), "%llu", &entry->sectors) != 1){
+  if (sscanf(get_sysfs_attr(minor, "sectors"), "%"PRIu64,
+             &entry->sectors) != 1){
     printe("cannot parse %s/gnbd%d/sectors\n", sysfs_class, minor);
     exit(1);
   }
