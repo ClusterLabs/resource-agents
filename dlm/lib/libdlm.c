@@ -519,9 +519,9 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
         while (req->i.lock.lksb->sb_status == EINPROG) {
             do_dlm_dispatch(lsinfo->fd);
         }
-        
+
         errno = req->i.lock.lksb->sb_status;
-        if (errno)
+        if (errno && errno != EUNLOCK)
  		return -1;
 	else
 		return 0;
