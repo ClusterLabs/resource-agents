@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.214 $) dnl cvs revision
+AC_REVISION($Revision: 1.215 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -102,6 +102,7 @@ pils_plugindir="${libdir}/${PILSPKG}/plugins"
 stonith_includedir="${includedir}/${STONITHPKG}"
 stonith_plugindir="${libdir}/${STONITHPKG}/plugins"
 base_includedir="${includedir}"
+saf_includedir="${includedir}/saf"
 AC_SUBST(pils_includedir)
 AC_SUBST(pils_plugindir)
 AC_SUBST(stonith_includedir)
@@ -975,6 +976,7 @@ AC_CHECK_FUNCS(mallinfo)
 AC_CHECK_FUNCS(__default_morecore)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
+AC_CHECK_FUNCS(dmalloc)
 
 
 dnl **********************************************************************
@@ -1205,6 +1207,8 @@ include/Makefile						\
         include/ocf/Makefile					\
         include/pils/Makefile					\
         include/pils/plugin.h					\
+	include/checkpointd/Makefile				\
+        include/saf/Makefile					\
         include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
@@ -1218,8 +1222,9 @@ lib/Makefile							\
 		lib/plugins/HBcomm/Makefile			\
 		lib/plugins/stonith/Makefile			\
 		lib/plugins/AppHBNotification/Makefile		\
-	lib/recoverymgr/Makefile					\
+	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
+	lib/checkpointd/Makefile				\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
 		heartbeat/rc.d/ask_resources			\
@@ -1262,6 +1267,8 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
+	telecom/recoverymgrd/Makefile				\
+	telecom/checkpointd/Makefile
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
