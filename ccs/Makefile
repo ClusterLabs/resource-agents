@@ -42,4 +42,4 @@ uninstall:
 	cd lib && ${MAKE} uninstall
 	cd ccs_test && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
-	cd init.d && ${MAKE} install
+	cd init.d && ${MAKE} uninstall
