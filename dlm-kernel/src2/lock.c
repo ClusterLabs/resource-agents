@@ -87,8 +87,80 @@ int lock_recovery_try(struct dlm_ls *ls)
  * Basic operations on rsb's and lkb's
  */
 
+struct dlm_rsb *create_rsb(struct dlm_ls *ls, char *name, int len)
+{
+	struct dlm_rsb *r;
+
+	r = allocate_rsb(ls, len);
+	if (!r)
+		return NULL;
+
+	r->res_ls = ls;
+	r->res_length = len;
+	memcpy(r->res_name, name, len);
+	init_MUTEX(&r->res_sem);
+
+	INIT_LIST_HEAD(&r->res_lookup);
+	INIT_LIST_HEAD(&r->res_grantqueue);
+	INIT_LIST_HEAD(&r->res_convertqueue);
+	INIT_LIST_HEAD(&r->res_waitqueue);
+
+	return r;
+}
+
+int search_rsb_list(struct list_head *head, char *name, int len,
+		    unsigned int flags struct dlm_rsb **r_ret)
+{
+	struct dlm_rsb *r;
+	int error = 0;
+
+	list_for_each_entry(r, head, res_hashchain) {
+		if (len == r->res_length && !memcmp(name, r->res_name, len))
+			goto found;
+	}
+	return -ENOENT;
+
+ found:
+	if (r->res_nodeid != 0 && (flags & R_MASTER))
+		error = -ENOTBLK;
+	*r_ret = r;
+	return error;
+}
+
+int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
+		unsigned int flags, struct dlm_rsb **r_ret)
+{
+	struct dlm_rsb *r;
+	int error;
+
+	error = search_rsb_list(&ls->ls_rsbtbl[b].list, name, len, flags, &r);
+	if (!error) {
+		kref_get(&r->res_ref);
+		goto out;
+	}
+	error = search_rsb_list(&ls->ls_rsbtbl[b].toss, name, len, flags, &r);
+	if (!error) {
+		list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
+                /* FIXME: need to fiddle with MASTER flags here,
+		   see set_master() comments */
+	}
+ out:
+	*r_ret = r;
+	return error;
+}
+
+int search_rsb(struct dlm_ls *ls, char *name, int len, int b,
+	       unsigned int flags, struct dlm_rsb **r_ret)
+{
+	int error;
+	write_lock(&ls->ls_rsbtbl[b].lock);
+	error = _search_rsb(ls, name, len, b, flags, r_ret);
+	write_unlock(&ls->ls_rsbtbl[b].lock);
+	return error;
+}
+
 /*
- * Find rsb in rsbtbl (hash table) and potentially create/add one. ref++
+ * Find rsb in rsbtbl and potentially create/add one
  *
  * Delaying the release of rsb's has a similar benefit to applications keeping
  * NL locks on an rsb without the guarantee that the cached master value will
@@ -97,46 +169,131 @@ int lock_recovery_try(struct dlm_ls *ls)
  * excessive master lookups and removals if we don't delay the release.
  */
 
-#define R_MASTER		(1)	/* only ret master rsb */
-#define R_CREATE		(2)	/* create/add rsb if not found */
-#define R_REUSE			(3)	/* ret an rsb flagged for release */
+#define R_MASTER		(1)	/* create/add rsb if not found */
+#define R_CREATE		(2)	/* only return rsb if it's a master */
 
 int find_rsb(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name, int namelen,
 	     unsigned int flags, struct dlm_rsb **r_ret);
 {
+	struct dlm_rsb *r, *tmp;
+	uint32_t bucket;
+	int error = 0;
+
+	bucket = dlm_hash(name, namelen);
+	bucket &= (ls->ls_rsbtbl_size - 1);
+
+	/* Searching for an rsb means looking through both the
+	   normal list and toss list.  When found on the toss list
+	   the rsb is moved to the normal list with ref count of 1;
+	   when found on normal list the ref count is incremented. */
+
+	error = search_rsb(ls, name, namelen, bucket, flags, &r);
+	if (!error)
+		goto out;
+
+	if (error == -ENOENT && !(flags & R_CREATE))
+		goto out;
+
+	/* the rsb was found but wasn't a master copy */
+	if (error == -ENOTBLK)
+		goto out;
+
+	error = -ENOMEM;
+	r = create_rsb(ls, name, namelen);
+	if (!r)
+		goto out;
+
+	r->res_bucket = bucket;
+	r->res_root = r;
+	r->res_nodeid = -1;
+	kref_init(&r->res_ref);
+
+	write_lock(&ls->ls_rsbtbl[bucket].lock);
+	error = _search_rsb(ls, name, namelen, bucket, 0, &tmp);
+	if (!error) {
+		write_unlock(&ls->ls_rsbtbl[bucket].lock);
+		free_rsb(r);
+		r = tmp;
+		goto out;
+	}
+	list_add(&r->res_hashchain, &ls->ls_rsbtbl[bucket].list);
+	write_unlock(&ls->ls_rsbtbl[bucket].lock);
+	error = 0;
+
+	down_write(&ls->ls_root_lock);
+	list_add(&r->res_rootlist, &ls->ls_rootres);
+	up_write(&ls->ls_root_lock);
+ out:
+	*r_ret = r;
+	return error;
 }
 
-/*
- * Remove from rsbtbl (hash table), send a dir remove message if master, free
- */
-
-void release_rsb(struct dlm_rsb *r)
+/* This is only called to add a reference when the code already holds
+   a valid reference to the rsb, so there's no need for locking. */
+   
+void hold_rsb(struct dlm_rsb *r)
 {
+	kref_get(&r->res_ref);
 }
 
-/*
- * ref--, when ref reaches 0, flag and set time for release
- */
+/* See comment on unhold_lkb. */
+
+void unhold_rsb(struct dlm_rsb *r)
+{
+	DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),);
+}
+
+void toss_rsb(struct kref *kref)
+{
+	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
+
+	list_del(&r->res_hashchain);
+	kref_init(&r->res_ref);
+	list_add(&r->res_hashchain, &ls->ls_rsbtbl[bucket].toss);
+	r->res_toss_time = jiffies;
+}
+
+/* When all references to the rsb are gone it's transfered to
+   the tossed list for later disposal. */
 
 void put_rsb(struct dlm_rsb *r)
 {
+	uint32_t bucket = r->res_bucket;
+	write_lock(&ls->ls_rsbtbl[bucket].lock);
+	kref_put(&r->res_ref, toss_rsb);
+	write_unlock(&ls->ls_rsbtbl[bucket].lock);
 }
 
-/*
- * ref++
- */
-
-void hold_rsb(struct dlm_rsb *r)
+void kill_rsb(struct kref *kref)
 {
+	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
+
+	list_del(&r->res_hashchain);
+	dlm_dir_remove(r);
+	free_rsb(r);
 }
 
-/*
- * Called periodically to release rsb's that are due
- * Probably requires a new thread to wake up and do this.
- */
-
-void shrink_rsb_cache(struct dlm_ls *ls)
+void shrink_rsb_list(struct dlm_ls *ls, struct list_head *head)
 {
+	struct dlm_rsb *r, *safe;
+
+	list_for_each_entry_safe(r, safe, head, res_hashchain) {
+		if (toss_time_due(ls, r))
+			kref_put(&r->res_ref, kill_rsb);
+	}
+}
+
+void shrink_tossed_rsbs(struct dlm_ls *ls)
+{
+	int i;
+
+	/* FIXME: these rsbtbl locks are held for far too long */
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		write_lock(&ls->ls_rsbtbl[bucket].lock);
+		shrink_rsb_list(ls, &ls->ls_rsbtbl[i].toss);
+		write_unlock(&ls->ls_rsbtbl[bucket].lock);
+	}
 }
 
 /*
@@ -158,6 +315,7 @@ void kill_lkb(struct kref *kref)
 	struct dlm_lkb *lkb = container_of(kref, struct dlm_lkb, lkb_ref);
 
 	DLM_ASSERT(!lkb->lkb_status,);
+
 	list_del(&lkb->lkb_idtbl_list);
 
 	/* for local/process lkbs, lvbptr points to the caller's lksb */
@@ -211,7 +369,20 @@ int find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
 
 void put_lkb(struct dlm_lkb *lkb)
 {
+	uint16_t bucket = lkb->lkb_id & 0xFFFF;
+	write_lock(&ls->ls_lkbtbl[bucket].lock);
 	kref_put(&lkb->lkb_ref, kill_lkb);
+	write_unlock(&ls->ls_lkbtbl[bucket].lock);
+}
+
+/* This is called when we need to remove a reference and are certain
+   it's not the last ref.  e.g. del_lkb is always called between a
+   find_lkb/put_lkb and is always the inverse of a previous add_lkb.
+   put_lkb would work fine, but would involve unnecessary locking */
+
+void unhold_lkb(struct dlm_lkb *lkb)
+{
+	DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),);
 }
 
 /* add lkb to rsb's grant/convert/wait queue */
@@ -219,6 +390,7 @@ void put_lkb(struct dlm_lkb *lkb)
 void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 {
 	kref_get(&lkb->lkb_ref);
+	hold_rsb(r);
 
 	DLM_ASSERT(!lkb->lkb_status,);
 
@@ -254,7 +426,8 @@ void del_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	lkb->lkb_status = 0;
 	list_del(&lkb->lkb_statequeue);
-	kref_put(&lkb->lkb_ref, kill_lkb);
+	unhold_lkb(lkb);
+	unhold_rsb(r);
 }
 
 void add_ast_list(struct dlm_lkb *lkb, int type)
@@ -293,8 +466,8 @@ int remove_from_waiters(dlm_lkb *lkb)
 		goto out;
 	}
 	lkb->lkb_wait_type = 0;
-	kref_put(&lkb->lkb_ref, kill_lkb);
 	list_del(&lkb->lkb_wait_reply);
+	unhold_lkb(lkb);
  out:
 	up(&dlm_waiters);
 	return error;
@@ -403,6 +576,7 @@ int set_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, int mode,
 
 		lkb->lkb_range[RQ_RANGE_START] = range->ra_start;
 		lkb->lkb_range[RQ_RANGE_END] = range->ra_end;
+		lkb->lkb_flags |= DLM_IFL_RANGE;
 	}
 
 	/* return lkid in lksb for new locks */
@@ -735,7 +909,7 @@ int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name, int len)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_rsb(ls, lkb, name, len, R_CREATE | R_REUSE, &r);
+	error = find_rsb(ls, lkb, name, len, R_CREATE, &r);
 	if (error)
 		return error;
 
@@ -906,7 +1080,7 @@ void queue_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rqmode)
 	}
 }
 
-/* only called on master node, lkb can be local or remote */
+/* lkb is master or local copy */
 
 void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
@@ -976,10 +1150,10 @@ void set_lvb_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	clear_bit(RESFL_VALNOTVALID, &r->res_flags);
 }
 
-/* called on non-master node for a remotely mastered lock */
+/* pc: lkb is process copy */
 
-void set_lvb_lock_local(struct dlm_rsb *r, struct dlm_lkb *lkb,
-			struct dlm_message *ms)
+void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
+		     struct dlm_message *ms)
 {
 	if (!lkb->lkb_lvbptr)
 		return;
@@ -1008,7 +1182,7 @@ void remove_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	_remove_lock(r, lkb);
 }
 
-void remove_lock_local(struct dlm_rsb *r, struct dlm_lkb *lkb)
+void remove_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	_remove_lock(r, lkb);
 }
@@ -1022,7 +1196,7 @@ void revert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	add_lkb(r, lkb, DLM_LKSTS_GRANTED);
 }
 
-void revert_lock_local(struct dlm_rsb *r, struct dlm_lkb *lkb)
+void revert_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	revert_lock(r, lkb);
 }
@@ -1045,7 +1219,7 @@ void _grant_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	}
 }
 
-/* called on master node when processing a local or remote request/convert */
+/* lkb is master or local copy */
 
 void grant_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
@@ -1054,12 +1228,12 @@ void grant_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	lkb->lkb_highbast = 0;
 }
 
-/* called on local node after a lock has been granted on the master node */
+/* pc: lkb is process copy */
 
-void grant_lock_local(struct dlm_rsb *r, struct dlm_lkb *lkb,
-		      struct dlm_message *ms)
+void grant_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
+		   struct dlm_message *ms)
 {
-	set_lvb_lock_local(r, lkb, ms);
+	set_lvb_lock_pc(r, lkb, ms);
 	_grant_lock(r, lkb);
 }
 
@@ -1384,7 +1558,8 @@ void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb,
 		ms->m_range[1] = lkb->lkb_range[RQ_RANGE_END];
 	}
 
-	memcpy(ms->ms_lvb, lkb->lkb_lvbptr, DLM_LVB_SIZE);
+	if (lkb->lkb_lvbptr)
+		memcpy(ms->m_lvb, lkb->lkb_lvbptr, DLM_LVB_SIZE);
 	
 	if (mstype == DLM_MSG_REQUEST || mstype == DLM_MSG_LOOKUP)
 		memcpy(ms->m_name, r->res_name, r->res_length);
@@ -1504,7 +1679,7 @@ int send_lookup(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	return error;
 }
 
-void send_common_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype, int rv)
+int send_common_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype, int rv)
 {
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
@@ -1525,7 +1700,7 @@ void send_common_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype, int r
 	return error;
 }
 
-void send_request_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
+int send_request_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 {
 	return send_common_reply(r, lkb, DLM_MSG_REQUEST_REPLY, rv);
 }
@@ -1547,13 +1722,10 @@ int send_cancel_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 
 int send_lookup_reply(struct dlm_ls *ls, int to_nodeid, int ret_nodeid, int rv)
 {
-	struct dlm_rsb r;
+	struct dlm_rsb r = { .res_ls = ls };
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
 	int error;
-
-	/* fake an rsb to pass the ls */
-	r.res_ls = ls;
 
 	error = create_message(&r, to_nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
 	if (error)
@@ -1567,59 +1739,122 @@ int send_lookup_reply(struct dlm_ls *ls, int to_nodeid, int ret_nodeid, int rv)
 	return error;
 }
 
+/* When we aren't able to use the standard send_xxx_reply to return an error,
+   then we use this. */
+
+int send_fail_reply(struct dlm_ls *ls, struct dlm_message *ms_in, int rv)
+{
+	struct dlm_rsb r = { .res_ls = ls };
+	struct dlm_message *ms;
+	struct dlm_mhandle *mh;
+	int error, nodeid = ms_in->m_header.h_nodeid;
+
+	error = create_message(&r, nodeid, DLM_MSG_FAIL_REPLY, &ms, &mh);
+	if (error)
+		goto out;
+
+	ms->m_lkid = ms_in->m_lkid;
+	ms->m_result = rv;
+
+	error = send_message(mh);
+ out:
+	return error;
+}
 
 
 /* which args we save from a received message depends heavily on the type
    of message, unlike the send side where we can safely send everything
    about the lkb for any type of message */
 
-void receive_flags(lkb, ms)
+void receive_flags(struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	lkb->lkb_exflags = ms->m_exflags;
 	lkb->lkb_flags = (lkb->lkb_flags & 0xFFFF0000) |
 		         (ms->m_flags & 0x0000FFFF);
 }
 
-void receive_flags_reply(lkb, ms)
+void receive_flags_reply(struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	lkb->lkb_sbflags = ms->m_sbflags;
 	lkb->lkb_flags = (lkb->lkb_flags & 0xFFFF0000) |
 		         (ms->m_flags & 0x0000FFFF);
 }
 
-int receive_request_args(lkb, ms, nodeid)
+int receive_namelen(struct dlm_message *ms)
 {
-	/* needed for receive_request where we need to fill in
-	   a bunch of the remote lkb's values into our mstcpy lkb */
+	return (ms->m_header.h_length - sizeof(struct dlm_message));
+}
 
+int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		  struct dlm_message *ms)
+{
+	if (lkb->lkb_flags & DLM_IFL_RANGE) {
+		lkb->lkb_range = allocate_range(ls);
+		if (!lkb->lkb_range)
+			return -ENOMEM;
+		lkb->lkb_range[RQ_RANGE_START] = ms->m_range[0];
+		lkb->lkb_range[RQ_RANGE_END] = ms->m_range[1];
+	}
+}
+
+int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		struct dlm_message *ms)
+{
+	if (lkb->lkb_exflags & DLM_LKF_VALBLK) {
+		if (!lkb->lkb_lvbptr) {
+			lkb->lkb_lvbptr = allocate_lvb(ls);
+			if (!lkb->lkb_lvbptr)
+				return -ENOMEM;
+		}
+		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
+	}
+}
+
+int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			 struct dlm_message *ms)
+{
+	lkb->lkb_nodeid = ms->m_header.h_nodeid;
+	lkb->lkb_ownpid = ms->m_pid;
+	lkb->lkb_remid = ms->m_lkid;
 	lkb->lkb_grmode = DLM_LOCK_IV;
 	lkb->lkb_rqmode = ms->m_rqmode;
-	lkb->lkb_astaddr = (void *) (long) (ms->m_asts & AST_COMP);
 	lkb->lkb_bastaddr = (void *) (long) (ms->m_asts & AST_BAST);
-	lkb->lkb_nodeid = nodeid;
-	lkb->lkb_remid = ms->m_lkid;
+	lkb->lkb_astaddr = (void *) (long) (ms->m_asts & AST_COMP);
+	lkb->lkb_parent = ms->m_remlkid_parent;
 
-	if () {
-		/* allocate and copy the lvb */
-	}
+	if (receive_range(ls, lkb, ms))
+		return -ENOMEM;
 
-	if () {
-		/* set range */
-	}
+	if (receive_lvb(ls, lkb, ms))
+		return -ENOMEM;
 
 	return 0;
 }
 
-int receive_convert_args(lkb, ms, nodeid)
+int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			 struct dlm_message *ms)
 {
+	lkb->lkb_rqmode = ms->m_rqmode;
+	lkb->lkb_lvbseq = ms->m_lvbseq;
+
+	if (receive_range(ls, lkb, ms))
+		return -ENOMEM;
+
+	lkb->lkb_range[GR_RANGE_START] = 0LL;
+	lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
+
+	if (receive_lvb(ls, lkb, ms))
+		return -ENOMEM;
+
+	return 0;
 }
 
-int receive_unlock_args(lkb, ms, nodeid)
+int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			struct dlm_message *ms)
 {
-}
-
-int receive_cancel_args(lkb, ms, nodeid)
-{
+	if (receive_lvb(ls, lkb, ms))
+		return -ENOMEM;
+	return 0;
 }
 
 void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
@@ -1630,28 +1865,37 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 
 	error = create_lkb(ls, &lkb);
 	if (error)
-		goto out;
+		goto fail;
 
-	receive_request_args(lkb, ms);
 	receive_flags(lkb, ms);
+	lkb->lkb_flags |= DLM_IFL_MSTCPY;
+
 	namelen = receive_namelen(ms);
 
-	error = find_rsb(ls, lkb, ms->m_name, namelen, R_MASTER | R_REUSE, &r);
-	if (error)
-		goto out;
+	error = receive_request_args(ls, lkb, ms);
+	if (error) {
+		put_lkb(lkb);
+		goto fail;
+	}
+
+	error = find_rsb(ls, lkb, ms->m_name, namelen, R_MASTER, &r);
+	if (error) {
+		put_lkb(lkb);
+		goto fail;
+	}
 
 	lock_rsb(r);
 
 	lkb->lkb_resource = r;
 	error = do_request(r, lkb);
-
-	/* the queue_cast called by do_request is null for remote locks */
- out:
 	send_request_reply(r, lkb, error);
 
 	unlock_rsb(r);
 	put_rsb(r);
 	put_lkb(lkb);
+	return;
+ fail:
+	send_fail_reply(ls, ms, error);
 }
 
 void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
@@ -1662,10 +1906,14 @@ void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 
 	error = find_lkb(ls, ms->m_remlkid, &lkb);
 	if (error)
-		goto out;
+		goto fail;
 
-	receive_convert_args(lkb, ms);
 	receive_flags(lkb, ms);
+	error = receive_convert_args(ls, lkb, ms);
+	if (error) {
+		put_lkb(lkb);
+		goto fail;
+	}
 
 	r = lkb->lkb_resource;
 
@@ -1673,12 +1921,14 @@ void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	error = do_convert(r, lkb);
- out:
 	send_convert_reply(r, lkb, error);
 
 	unlock_rsb(r);
 	put_rsb(r);
 	put_lkb(lkb);
+	return;
+ fail:
+	send_fail_reply(ls, ms, error);
 }
 
 void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
@@ -1689,10 +1939,14 @@ void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 
 	error = find_lkb(ls, ms->m_remlkid, &lkb);
 	if (error)
-		goto out;
+		goto fail;
 
-	receive_unlock_args(lkb, ms);
 	receive_flags(lkb, ms);
+	error = receive_unlock_args(lkb, ms);
+	if (error) {
+		put_lkb(lkb);
+		goto fail;
+	}
 
 	r = lkb->lkb_resource;
 
@@ -1700,12 +1954,14 @@ void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	error = do_unlock(r, lkb);
- out:
 	send_unlock_reply(r, lkb, error);
 
 	unlock_rsb(r);
 	put_rsb(r);
 	put_lkb(lkb);
+	return;
+ fail:
+	send_fail_reply(ls, ms, error);
 }
 
 void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
@@ -1716,9 +1972,8 @@ void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
 
 	error = find_lkb(ls, ms->m_remlkid, &lkb);
 	if (error)
-		goto out;
+		goto fail;
 
-	receive_cancel_args(lkb, ms);
 	receive_flags(lkb, ms);
 
 	r = lkb->resource;
@@ -1727,12 +1982,14 @@ void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	error = do_cancel(r, lkb);
- out:
 	send_cancel_reply(r, lkb, error);
 
 	unlock_rsb(r);
 	put_rsb(r);
 	put_lkb(lkb);
+	return;
+ fail:
+	send_fail_reply(ls, ms, error);
 }
 
 void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
@@ -1746,6 +2003,7 @@ void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_grant no lkb");
 		return;
 	}
+	DLM_ASSERT(is_process_copy(lkb),);
 
 	r = lkb->lkb_resource;
 
@@ -1753,8 +2011,33 @@ void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	receive_flags_reply(lkb, ms);
-	grant_lock_local(r, lkb, ms);
+	grant_lock_pc(r, lkb, ms);
 	queue_cast(r, lkb, 0);
+
+	unlock_rsb(r);
+	put_rsb(r);
+	put_lkb(lkb);
+}
+
+void receive_bast(struct dlm_ls *ls, struct dlm_message *ms)
+{
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *r;
+	int error;
+
+	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	if (error) {
+		log_error(ls, "receive_bast no lkb");
+		return;
+	}
+	DLM_ASSERT(is_process_copy(lkb),);
+
+	r = lkb->lkb_resource;
+
+	hold_rsb(r);
+	lock_rsb(r);
+
+	queue_bast(r, lkb, ms->m_bastmode);
 
 	unlock_rsb(r);
 	put_rsb(r);
@@ -1781,16 +2064,6 @@ void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 	send_lookup_reply(ls, from_nodeid, ret_nodeid, error);
 }
 
-void receive_bast()
-{
-}
-
-int receive_request_reply_args(lkb, ms, nodeid)
-{
-	lkb->lkb_remid = ms->m_lkid;
-	return 0;
-}
-
 void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
@@ -1802,6 +2075,7 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_request_reply no lkb");
 		return;
 	}
+	DLM_ASSERT(is_process_copy(lkb),);
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -1839,9 +2113,9 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 
 	case 0:
 		/* request was granted on remote master */
-		receive_request_reply_args(lkb, ms);
 		receive_flags_reply(lkb, ms);
-		grant_lock_local(r, lkb, ms);
+		lkb->lkb_remid = ms->m_lkid;
+		grant_lock_pc(r, lkb, ms);
 		queue_cast(r, lkb, 0);
 		confirm_master(r, 0);
 		break;
@@ -1867,6 +2141,7 @@ void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_convert_reply no lkb");
 		return;
 	}
+	DLM_ASSERT(is_process_copy(lkb),);
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -1898,7 +2173,7 @@ void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case 0:
 		/* convert was granted on remote master */
 		receive_flags_reply(lkb, ms);
-		grant_lock_local(r, lkb, ms);
+		grant_lock_pc(r, lkb, ms);
 		queue_cast(r, lkb, 0);
 		break;
 
@@ -1923,6 +2198,7 @@ void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_unlock_reply no lkb");
 		return;
 	}
+	DLM_ASSERT(is_process_copy(lkb),);
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -1942,7 +2218,7 @@ void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	switch (error) {
 	case -DLM_EUNLOCK:
 		receive_flags_reply(lkb, ms);
-		remove_lock_local(r, lkb);
+		remove_lock_pc(r, lkb);
 		queue_cast(r, lkb, -DLM_EUNLOCK);
 		break;
 
@@ -1967,6 +2243,7 @@ void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_cancel_reply no lkb");
 		return;
 	}
+	DLM_ASSERT(is_process_copy(lkb),);
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -1986,7 +2263,7 @@ void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	switch (error) {
 	case -DLM_ECANCEL:
 		receive_flags_reply(lkb, ms);
-		revert_lock_local(r, lkb);
+		revert_lock_pc(r, lkb);
 		queue_cast(r, lkb, -DLM_ECANCEL);
 		break;
 
@@ -2044,6 +2321,32 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	unlock_rsb(r);
 	put_rsb(r);
  out:
+	put_lkb(lkb);
+}
+
+void receive_fail_reply(struct dlm_ls *ls, struct dlm_message *ms)
+{
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *r;
+	int error;
+
+	error = find_lkb(ls, ms->m_lkid, &lkb);
+	if (error) {
+		log_error(ls, "receive_fail_reply no lkb");
+		return;
+	}
+
+	log_error(ls, "remote operation %d failed %d for lkid %d",
+		  lkb->lkb_wait_type, ms->m_result, lkb->lkb_id);
+
+	error = remove_from_waiters(lkb);
+	if (error) {
+		log_error(ls, "receive_fail_reply not on waiters");
+		goto out;
+	}
+
+	/* not clear what to do here, a completion ast with m_result? */
+
 	put_lkb(lkb);
 }
 
@@ -2121,6 +2424,10 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 		receive_cancel_reply(ls, ms);
 		break;
 
+	DLM_MSG_FAIL_REPLY:
+		receive_fail_reply(ls, ms);
+		break;
+
 	/* messages sent from a master node (only two types of async msg) */
 
 	DLM_MSG_GRANT:
@@ -2134,17 +2441,17 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 	/* messages sent to a dir node */
 
 	DLM_MSG_LOOKUP:
-		receive_lookup(ls, ms, nodeid);
+		receive_lookup(ls, ms);
 		break;
 
 	DLM_MSG_REMOVE:
-		receive_remove(ls, ms, nodeid);
+		receive_remove(ls, ms);
 		break;
 
 	/* messages sent from a dir node */
 
 	DLM_MSG_LOOKUP_REPLY:
-		receive_lookup_reply(ls, ms, nodeid);
+		receive_lookup_reply(ls, ms);
 		break;
 
 	default:
@@ -2201,6 +2508,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 
 #define DLM_IFL_MSTCPY		(0x00010000)
 #define DLM_IFL_RETURNLVB	(0x00000001)
+#define DLM_IFL_RANGE		(0x00000002)
 
 struct dlm_lkb {
 	struct dlm_rsb *	lkb_resource;	/* the rsb */
@@ -2251,7 +2559,7 @@ struct dlm_lkb {
 struct dlm_rsb {
 	struct dlm_ls *		res_ls;		/* the lockspace */
 	struct kref		res_ref;
-	struct rw_semaphore	res_sem;
+	struct semaphore	res_sem;
 	unsigned long		res_flags;	/* RESFL_ */
 	int			res_length;	/* length of rsb name */
 	int			res_nodeid;
