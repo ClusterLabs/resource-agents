@@ -935,6 +935,8 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 
 	/* check query results for blocking locks */
 
+	error = 0;
+
 	for (s = 0; s < qinfo.gqi_lockcount; s++) {
 
 		lki = &qinfo.gqi_lockinfo[s];
@@ -1011,6 +1013,11 @@ int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	}
 
 	error = get_conflict_global(dlm, name, owner, start, end, ex, rowner);
+	if (error == -EAGAIN) {
+		log_debug("pl get global conflict %"PRIx64"-%"PRIx64" %d %lu",
+			  *start, *end, *ex, *rowner);
+		error = 1;
+	}
  out:
 	return error;
 }
