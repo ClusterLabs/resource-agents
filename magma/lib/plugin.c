@@ -280,7 +280,7 @@ cp_load(const char *libpath)
 
 	cpp = malloc(sizeof(*cpp));
 	if (!cpp) {
-		printf("Failed to malloc %d bytes\n", sizeof(*cpp));
+		fprintf(stderr,"Failed to malloc %d bytes\n",(int)sizeof(*cpp));
 		return NULL;
 	}
 
