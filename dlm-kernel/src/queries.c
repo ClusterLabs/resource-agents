@@ -128,8 +128,7 @@ int dlm_query(void *lockspace,
 		}
 
 		query_lkb->lkb_retstatus = status;
-		query_lkb->lkb_flags |= GDLM_LKFLG_DELAST;
-		queue_ast(query_lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(query_lkb, AST_COMP | AST_DEL, 0);
 		wake_astd();
 
 		/* An AST will be delivered so we must return success here */
@@ -457,8 +456,7 @@ int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 	/* If this was the last block then now tell the user */
 	if (msg->rh_flags & GDLM_REMFLAG_ENDQUERY) {
 	        query_lkb->lkb_retstatus = reply->rq_status;
-		query_lkb->lkb_flags |= GDLM_LKFLG_DELAST;
-		queue_ast(query_lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(query_lkb, AST_COMP | AST_DEL, 0);
 		wake_astd();
 	}
 

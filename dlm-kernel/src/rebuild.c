@@ -1062,9 +1062,8 @@ static int deserialise_lkb(gd_ls_t *ls, int rem_nodeid, gd_res_t *rootrsb,
 	 * the context of the sender.
 	 */
 
-	lkb->lkb_flags &= ~(GDLM_LKFLG_DELAST | GDLM_LKFLG_DELETED |
-			    GDLM_LKFLG_LQRESEND | GDLM_LKFLG_NOREBUILD |
-			    GDLM_LKFLG_DEMOTED);
+	lkb->lkb_flags &= ~(GDLM_LKFLG_DELETED | GDLM_LKFLG_LQRESEND |
+			    GDLM_LKFLG_NOREBUILD | GDLM_LKFLG_DEMOTED);
 
       put_lkid:
 	/* Return the new LKID to the caller's buffer */

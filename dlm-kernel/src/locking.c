@@ -519,8 +519,8 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 	lkb->lkb_grmode = DLM_LOCK_IV;
 	lkb->lkb_rqmode = freq->rr_rqmode;
 	lkb->lkb_parent = parent_lkb;
-	lkb->lkb_astaddr = (void *) (long) (freq->rr_asts & GDLM_QUEUE_COMPAST);
-	lkb->lkb_bastaddr = (void *) (long) (freq->rr_asts & GDLM_QUEUE_BLKAST);
+	lkb->lkb_astaddr = (void *) (long) (freq->rr_asts & AST_COMP);
+	lkb->lkb_bastaddr = (void *) (long) (freq->rr_asts & AST_BAST);
 	lkb->lkb_nodeid = remote_nodeid;
 	lkb->lkb_remid = freq->rr_header.rh_lkid;
 	lkb->lkb_flags = GDLM_LKFLG_MSTCPY;
@@ -606,11 +606,10 @@ void dlm_lock_stage3(gd_lkb_t *lkb)
 	 */
 
 	if (lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUE) {
-		lkb->lkb_flags |= GDLM_LKFLG_DELAST;
 		lkb->lkb_retstatus = -EAGAIN;
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
 		if (lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUEBAST)
 			send_blocking_asts_all(rsb, lkb);
+		queue_ast(lkb, AST_COMP | AST_DEL, 0);
 		goto out;
 	}
 
@@ -721,7 +720,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 	if ((flags & DLM_LKF_CANCEL) &&
 	    (lkb->lkb_status == GDLM_LKSTS_GRANTED)) {
 	        lkb->lkb_retstatus = -EINVAL;
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(lkb, AST_COMP, 0);
 	        goto out;
 	}
 
@@ -755,7 +754,7 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 			grant_pending_locks(rsb);
 
 		lkb->lkb_retstatus = -DLM_ECANCEL;
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(lkb, AST_COMP, 0);
 		goto out;
 	}
 
@@ -770,10 +769,8 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, uint32_t flags)
 			memset(rsb->res_lvbptr, 0, DLM_LVB_LEN);
 	}
 
-	lkb->lkb_flags |= GDLM_LKFLG_DELAST;
-	lkb->lkb_retstatus =
-	    (flags & DLM_LKF_CANCEL) ? -DLM_ECANCEL : -DLM_EUNLOCK;
-	queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
+	queue_ast(lkb, AST_COMP | AST_DEL, 0);
 
 	/* 
 	 * Only free the LKB if we are the master copy.  Otherwise the AST
@@ -912,7 +909,7 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
 		lkb_enqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
 		ret = lkb->lkb_retstatus = -EAGAIN;
 		if (do_ast)
-			queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+			queue_ast(lkb, AST_COMP, 0);
 		if (lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUEBAST)
 			send_blocking_asts_all(rsb, lkb);
 		goto out;
@@ -978,7 +975,7 @@ static void grant_lock(gd_lkb_t *lkb, int send_remote)
 
 	lkb->lkb_highbast = 0;
 	lkb->lkb_retstatus = 0;
-	queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+	queue_ast(lkb, AST_COMP, 0);
 
 	/* 
 	 * A remote conversion request has been granted, either immediately
@@ -1012,7 +1009,7 @@ static void send_bast_queue(struct list_head *head, gd_lkb_t *lkb)
 		if (gr->lkb_bastaddr &&
 		    gr->lkb_highbast < lkb->lkb_rqmode &&
 		    ranges_overlap(lkb, gr) && !modes_compat(gr, lkb)) {
-			queue_ast(gr, GDLM_QUEUE_BLKAST, lkb->lkb_rqmode);
+			queue_ast(gr, AST_BAST, lkb->lkb_rqmode);
 			gr->lkb_highbast = lkb->lkb_rqmode;
 		}
 	}
@@ -1082,7 +1079,7 @@ int grant_pending_locks(gd_res_t *rsb)
 			    (lkb->lkb_highbast < high) &&
 			    !__dlm_compat_matrix[lkb->lkb_grmode+1][high+1]) {
 
-				queue_ast(lkb, GDLM_QUEUE_BLKAST, high);
+				queue_ast(lkb, AST_BAST, high);
 				lkb->lkb_highbast = high;
 			}
 		}
@@ -1104,17 +1101,18 @@ int grant_pending_locks(gd_res_t *rsb)
 int cancel_lockop(gd_lkb_t *lkb, int status)
 {
 	int state = lkb->lkb_lockqueue_state;
+	uint16_t astflags = AST_COMP;
 
 	lkb->lkb_lockqueue_state = 0;
 
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
-		lkb->lkb_flags |= GDLM_LKFLG_DELAST;
+		astflags |= AST_DEL;
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONDGRANT:
 		res_lkb_dequeue(lkb);
-		lkb->lkb_flags |= GDLM_LKFLG_DELAST;
+		astflags |= AST_DEL;
 		break;
 
 	case GDLM_LQSTATE_WAIT_CONVERT:
@@ -1132,7 +1130,7 @@ int cancel_lockop(gd_lkb_t *lkb, int status)
 	}
 
 	lkb->lkb_retstatus = status;
-	queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+	queue_ast(lkb, astflags, 0);
 
 	return 0;
 }
@@ -1185,7 +1183,7 @@ void cancel_conversion(gd_lkb_t *lkb, int ret)
 	remove_from_deadlockqueue(lkb);
 
 	lkb->lkb_retstatus = ret;
-	queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+	queue_ast(lkb, AST_COMP, 0);
 	wake_astd();
 }
 

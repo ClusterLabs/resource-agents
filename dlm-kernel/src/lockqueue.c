@@ -325,12 +325,13 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 
 			if (state == GDLM_LQSTATE_WAIT_CONDGRANT) {
 				res_lkb_dequeue(lkb);
-				lkb->lkb_flags |= GDLM_LKFLG_DELAST;
-			} else
+				lkb->lkb_retstatus = reply->rl_status;
+				queue_ast(lkb, AST_COMP | AST_DEL, 0);
+			} else {
 				res_lkb_swqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
-
-			lkb->lkb_retstatus = reply->rl_status;
-			queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+				lkb->lkb_retstatus = reply->rl_status;
+				queue_ast(lkb, AST_COMP, 0);
+			}
 			break;
 		}
 
@@ -363,7 +364,7 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 			up_write(&rsb->res_lock);
 
 			lkb->lkb_retstatus = 0;
-			queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+			queue_ast(lkb, AST_COMP, 0);
 			break;
 
 		case GDLM_LKSTS_WAITING:
@@ -407,11 +408,11 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 			res_lkb_enqueue(lkb->lkb_resource, lkb,
 					GDLM_LKSTS_GRANTED);
 			lkb->lkb_retstatus = -DLM_ECANCEL;
+			queue_ast(lkb, AST_COMP, 0);
 		} else {
-			lkb->lkb_flags |= GDLM_LKFLG_DELAST;
 			lkb->lkb_retstatus = -DLM_EUNLOCK;
+			queue_ast(lkb, AST_COMP | AST_DEL, 0);
 		}
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
 		break;
 
 	default:
@@ -570,9 +571,9 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	/* Common stuff, some are just defaults */
 
 	if (lkb->lkb_bastaddr)
-		req->rr_asts = GDLM_QUEUE_BLKAST;
+		req->rr_asts = AST_BAST;
 	if (lkb->lkb_astaddr)
-		req->rr_asts |= GDLM_QUEUE_COMPAST;
+		req->rr_asts |= AST_COMP;
 	if (lkb->lkb_parent)
 		req->rr_remparid = lkb->lkb_parent->lkb_remid;
 
@@ -749,7 +750,9 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 				 * user won't wait, then free up the LKB
 				 */
 
-				if (lkb->lkb_flags & GDLM_LKFLG_DELAST) {
+				if (lkb->lkb_retstatus == -EAGAIN) {
+					GDLM_ASSERT(lkb->lkb_lockqueue_flags &
+						    DLM_LKF_NOQUEUE,);
 					rsb = lkb->lkb_resource;
 					release_lkb(lspace, lkb);
 					release_rsb(rsb);
@@ -866,7 +869,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 			lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 
 		lkb->lkb_retstatus = 0;
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(lkb, AST_COMP, 0);
 		break;
 
 	case GDLM_REMCMD_SENDBAST:
@@ -878,7 +881,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 				        freq->rr_header.rh_lkid, nodeid););
 
 		if (lkb->lkb_status == GDLM_LKSTS_GRANTED)
-			queue_ast(lkb, GDLM_QUEUE_BLKAST, freq->rr_rqmode);
+			queue_ast(lkb, AST_BAST, freq->rr_rqmode);
 		break;
 
 	case GDLM_REMCMD_SENDCAST:
@@ -895,7 +898,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 		res_lkb_swqueue(lkb->lkb_resource, lkb, GDLM_LKSTS_GRANTED);
 
 		lkb->lkb_retstatus = freq->rr_status;
-		queue_ast(lkb, GDLM_QUEUE_COMPAST, 0);
+		queue_ast(lkb, AST_COMP, 0);
 		break;
 
 	case GDLM_REMCMD_UNLOCKREQUEST:

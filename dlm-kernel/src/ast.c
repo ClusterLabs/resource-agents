@@ -86,60 +86,26 @@ void remove_from_deadlockqueue(gd_lkb_t *lkb)
 	memset(&lkb->lkb_duetime, 0, sizeof(lkb->lkb_duetime));
 }
 
-void remove_from_astqueue(gd_lkb_t *lkb)
-{
-	down(&_ast_queue_lock);
-	if (lkb->lkb_asts_to_deliver)
-		list_del(&lkb->lkb_astqueue);
-	lkb->lkb_asts_to_deliver = 0;
-	up(&_ast_queue_lock);
-}
-
 /* 
- * Actually deliver an AST to a user. The caller MUST hold the ast queue lock
- * and we unlock it for the duration of the user call, otherwise things can
- * deadlock.
+ * deliver an AST to a user
  */
 
-static void deliver_ast(gd_lkb_t *lkb, gd_ast_type_t astt)
+static void deliver_ast(gd_lkb_t *lkb, uint16_t ast_type)
 {
 	void (*cast) (long param) = lkb->lkb_astaddr;
 	void (*bast) (long param, int mode) = lkb->lkb_bastaddr;
 
-	up(&_ast_queue_lock);
-
-	if (cast && (astt == GDLM_QUEUE_COMPAST))
-		cast(lkb->lkb_astparam);
-
-	else if (bast && (astt == GDLM_QUEUE_BLKAST)
-		 && (lkb->lkb_status == GDLM_LKSTS_GRANTED))
+	if (ast_type == AST_BAST) {
+		if (!bast)
+			return;
+		if (lkb->lkb_status != GDLM_LKSTS_GRANTED)
+			return;
 		bast(lkb->lkb_astparam, (int) lkb->lkb_bastmode);
-
-	/* 
-	 * Remove LKB if requested.  It is up to the caller to remove the LKB
-	 * from any resource queue it may be on.
-	 *
-	 * NOTE: we check lkb_asts_to_deliver here in case an ast for us was
-	 * queued during the AST delivery itself (eg a user called dlm_unlock
-	 * in the AST routine!
-	 */
-
-	if (lkb->lkb_flags & GDLM_LKFLG_DELAST && astt == GDLM_QUEUE_COMPAST &&
-	    lkb->lkb_asts_to_deliver == 0) {
-		gd_res_t *rsb = lkb->lkb_resource;
-		struct rw_semaphore *in_recovery = &rsb->res_ls->ls_in_recovery;
-
-		down_read(in_recovery);
-		release_lkb(rsb->res_ls, lkb);
-		release_rsb(rsb);
-		up_read(in_recovery);
+	} else {
+		if (!cast)
+			return;
+		cast(lkb->lkb_astparam);
 	}
-
-	/* This queue can get very big so we schedule here to give the rest of
-	 * the cluster chance to do some work. */
-	schedule();
-
-	down(&_ast_queue_lock);
 }
 
 /* 
@@ -155,7 +121,7 @@ static void deliver_ast(gd_lkb_t *lkb, gd_ast_type_t astt)
  * the target system via midcomms.
  */
 
-void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
+void queue_ast(gd_lkb_t *lkb, uint16_t flags, uint8_t rqmode)
 {
 	struct gd_remlockrequest req;
 
@@ -165,8 +131,7 @@ void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
 		 * not send remote completion asts, they are handled as part of
 		 * remote lock granting.
 		 */
-
-		if (astt == GDLM_QUEUE_BLKAST) {
+		if (flags & AST_BAST) {
 			req.rr_header.rh_cmd = GDLM_REMCMD_SENDBAST;
 			req.rr_header.rh_length = sizeof(req);
 			req.rr_header.rh_flags = 0;
@@ -178,15 +143,13 @@ void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
 			req.rr_rqmode = rqmode;
 
 			midcomms_send_message(lkb->lkb_nodeid, &req.rr_header,
-					      lkb->lkb_resource->res_ls->ls_allocation);
-
+				lkb->lkb_resource->res_ls->ls_allocation);
 		} else if (lkb->lkb_retstatus == -EDEADLOCK) {
 			/* 
 			 * We only queue remote Completion ASTs here for error
 			 * completions that happen out of band.
 			 * DEADLOCK is one such.
 			 */
-
 			req.rr_header.rh_cmd = GDLM_REMCMD_SENDCAST;
 			req.rr_header.rh_length = sizeof(req);
 			req.rr_header.rh_flags = 0;
@@ -198,14 +161,14 @@ void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
 			req.rr_rqmode = rqmode;
 
 			midcomms_send_message(lkb->lkb_nodeid, &req.rr_header,
-					      lkb->lkb_resource->res_ls->ls_allocation);
+				lkb->lkb_resource->res_ls->ls_allocation);
 		}
 	} else {
 		/* 
-		 * Prepare info which will be returned in ast/bast.
+		 * Prepare info that will be returned in ast/bast.
 		 */
 
-		if (astt == GDLM_QUEUE_BLKAST) {
+		if (flags & AST_BAST) {
 			lkb->lkb_bastmode = rqmode;
 		} else {
 			lkb->lkb_lksb->sb_status = lkb->lkb_retstatus;
@@ -216,17 +179,13 @@ void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
 				lkb->lkb_lksb->sb_flags = 0;
 		}
 
-		/* 
-		 * Queue ast/bast or deliver directly.  astd can deliver ASTs
-		 * during deadlock detection or lock timeouts.
-		 */
-
 		down(&_ast_queue_lock);
-
-		if (!lkb->lkb_asts_to_deliver)
+		if (lkb->lkb_astflags & AST_DEL)
+			log_print("queue_ast on deleted lkb %x ast %x pid %u",
+				  lkb->lkb_id, lkb->lkb_astflags, current->pid);
+		if (!(lkb->lkb_astflags & (AST_COMP | AST_BAST)))
 			list_add_tail(&lkb->lkb_astqueue, &_ast_queue);
-		lkb->lkb_asts_to_deliver |= astt;
-
+		lkb->lkb_astflags |= flags;
 		up(&_ast_queue_lock);
 
 		/* It is the responsibility of the caller to call wake_astd()
@@ -236,32 +195,52 @@ void queue_ast(gd_lkb_t *lkb, gd_ast_type_t astt, uint8_t rqmode)
 }
 
 /* 
- * Process any LKBs on the AST queue.  The were queued in queue_ast().
+ * Process any LKBs on the AST queue.
  */
 
 static void process_asts(void)
 {
-	gd_lkb_t *lkb, *safe;
-	uint32_t to_deliver;
+	gd_lkb_t *lkb;
+	uint16_t flags;
 
-	down(&_ast_queue_lock);
+	for (;;) {
+		down(&_ast_queue_lock);
+		if (list_empty(&_ast_queue)) {
+			up(&_ast_queue_lock);
+			break;
+		}
 
-	list_for_each_entry_safe(lkb, safe, &_ast_queue, lkb_astqueue) {
-
-		/* The lkb can be placed back on _ast_queue as soon as
-		 * _ast_queue_lock is released. */
-
-		to_deliver = lkb->lkb_asts_to_deliver;
-		lkb->lkb_asts_to_deliver = 0;
+		lkb = list_entry(_ast_queue.next, gd_lkb_t, lkb_astqueue);
 		list_del(&lkb->lkb_astqueue);
+		flags = lkb->lkb_astflags;
+		lkb->lkb_astflags = 0;
+		up(&_ast_queue_lock);
 
-		if ((to_deliver & GDLM_QUEUE_COMPAST))
-			deliver_ast(lkb, GDLM_QUEUE_COMPAST);
+		if (flags & AST_COMP)
+			deliver_ast(lkb, AST_COMP);
 
-		if ((to_deliver & GDLM_QUEUE_BLKAST))
-			deliver_ast(lkb, GDLM_QUEUE_BLKAST);
+		if (flags & AST_BAST) {
+			if (flags & AST_DEL)
+				log_print("skip bast on %x", lkb->lkb_id);
+			else
+				deliver_ast(lkb, AST_BAST);
+		}
+
+		if (flags & AST_DEL) {
+			gd_res_t *rsb = lkb->lkb_resource;
+			gd_ls_t *ls = rsb->res_ls;
+
+			GDLM_ASSERT(lkb->lkb_astflags == 0,
+			    printk("%x %x\n", lkb->lkb_id, lkb->lkb_astflags););
+
+			down_read(&ls->ls_in_recovery);
+			release_lkb(ls, lkb);
+			release_rsb(rsb);
+			up_read(&ls->ls_in_recovery);
+		}
+
+		schedule();
 	}
-	up(&_ast_queue_lock);
 }
 
 void lockqueue_lkb_mark(gd_ls_t *ls)

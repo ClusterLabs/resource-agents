@@ -402,73 +402,72 @@ struct gd_res {
 
 #define GDLM_LKFLG_VALBLK       (0x00000008)
 #define GDLM_LKFLG_PERSISTENT   (0x00000080)	/* Don't unlock when process exits */
-#define GDLM_LKFLG_NODLCKWT     (0x00000100)       /* Don't do deadlock detection */
-#define GDLM_LKFLG_EXPEDITE     (0x00000400)       /* Move to head of convert queue */
+#define GDLM_LKFLG_NODLCKWT     (0x00000100)    /* Don't do deadlock detection */
+#define GDLM_LKFLG_EXPEDITE     (0x00000400)    /* Move to head of convert queue */
 
 /* Internal flags */
-#define GDLM_LKFLG_RANGE        (0x00001000)	/* Range field is present (remote protocol only) */
+#define GDLM_LKFLG_RANGE        (0x00001000)	/* Range field is present
+						   (remote protocol only) */
 #define GDLM_LKFLG_MSTCPY       (0x00002000)
 #define GDLM_LKFLG_DELETED      (0x00004000)	/* LKB is being deleted */
-#define GDLM_LKFLG_DELAST       (0x00008000)	/* Delete after delivering AST */
+#define GDLM_LKFLG_LQCONVERT    (0x00008000)
 #define GDLM_LKFLG_LQRESEND     (0x00010000)	/* LKB on lockqueue must be resent */
 #define GDLM_LKFLG_DEMOTED      (0x00020000)
 #define GDLM_LKFLG_RESENT       (0x00040000)
 #define GDLM_LKFLG_NOREBUILD    (0x00080000)
-#define GDLM_LKFLG_LQCONVERT    (0x00100000)
+
+#define AST_COMP		(1)
+#define AST_BAST		(2)
+#define AST_DEL			(4)
 
 struct gd_lkb {
-	void *lkb_astaddr;
-	void *lkb_bastaddr;
-	long lkb_astparam;
+	uint32_t 		lkb_flags;
+	uint16_t 		lkb_status;     /* grant, wait, convert */
+	int8_t			lkb_rqmode;     /* requested lock mode */
+	int8_t			lkb_grmode;     /* granted lock mode */
+	uint32_t		lkb_retstatus;  /* status to return in lksb */
+	uint32_t		lkb_id;         /* our lock ID */
+	struct dlm_lksb *	lkb_lksb;       /* status block of caller */
+	struct list_head	lkb_idtbl_list;	/* lockidtbl */
+	struct list_head	lkb_statequeue;	/* rsb's g/c/w queue */
+	gd_res_t *		lkb_resource;
+	struct list_head	lkb_ownerqueue;	/* list of locks owned by a
+						   process */
+	gd_lkb_t *		lkb_parent;     /* parent lock if any */
+	atomic_t		lkb_childcnt;   /* number of children */
 
-	uint32_t lkb_flags;
-	uint16_t lkb_status;	/* LKSTS_ granted, waiting, converting */
-	int8_t lkb_rqmode;	/* Requested lock mode */
-	int8_t lkb_grmode;	/* Granted lock mode */
-	uint8_t lkb_bastmode;	/* Requested mode returned in bast */
-	uint8_t lkb_highbast;	/* Highest mode we have sent a BAST for */
-	uint32_t lkb_retstatus;	/* Status to return in lksb */
+	struct list_head	lkb_lockqueue;	/* queue of locks waiting
+						   for remote reply */
+	int			lkb_lockqueue_state; /* reason on lockqueue */
+	int			lkb_lockqueue_flags; /* as passed into
+							lock/unlock */
+	unsigned long		lkb_lockqueue_time;  /* time lkb went on the
+							lockqueue */
+	unsigned long		lkb_duetime;    /* for deadlock detection */
 
-	uint32_t lkb_id;	/* Our lock ID */
-	struct dlm_lksb *lkb_lksb;	/* Lock status block of caller */
-	struct list_head lkb_idtbl_list;	/* list pointer into the
-						 * lockidtbl */
+	uint32_t		lkb_remid;	/* id on remote partner */
+	uint32_t		lkb_nodeid;	/* id of remote partner */
 
-	struct list_head lkb_statequeue;	/* List of locks in this state */
-
-	struct list_head lkb_ownerqueue;	/* List of locks owned by a
-						 * process */
-
-	gd_lkb_t *lkb_parent;	/* Pointer to parent if any */
-
-	atomic_t lkb_childcnt;	/* Number of children */
-
-	struct list_head lkb_lockqueue;	/* For when we are on the lock queue */
-	int lkb_lockqueue_state;
-	int lkb_lockqueue_flags;	/* As passed into lock/unlock */
-	unsigned long lkb_lockqueue_time;	/* Time we went on the lock
-						 * queue */
-
-	gd_res_t *lkb_resource;
-
-	unsigned long lkb_duetime;	/* For deadlock detection */
-
-	uint32_t lkb_remid;	/* Remote partner */
-	uint32_t lkb_nodeid;
-
-	struct list_head lkb_astqueue;	/* For when we are on the AST queue */
-	uint32_t lkb_asts_to_deliver;
+	void *			lkb_astaddr;
+	void *			lkb_bastaddr;
+	long			lkb_astparam;
+	struct list_head	lkb_astqueue;	/* locks with asts to deliver */
+	uint16_t		lkb_astflags;	/* COMP, BAST, DEL */
+	uint8_t			lkb_bastmode;	/* requested mode */
+	uint8_t			lkb_highbast;	/* highest mode bast sent for */
 
 	struct gd_remlockrequest *lkb_request;
 
-	struct list_head lkb_deadlockq;	/* on ls_deadlockq list */
+	struct list_head	lkb_deadlockq;	/* ls_deadlockq list */
 
-	char *lkb_lvbptr;	/* Points to lksb on a local lock, allocated
-				 * LVB (if necessary) on a remote lock */
-	uint64_t *lkb_range;	/* Points to an array of 64 bit numbers that
-				 * represent the requested and granted ranges
-				 * of the lock. NULL implies 0-ffffffffffffffff
-				 */
+	char *			lkb_lvbptr;	/* points to lksb lvb on local
+						   lock, allocated lvb on
+						   on remote lock */
+	uint64_t *		lkb_range;	/* Points to an array of 64 bit
+						   numbers that represent the
+						   requested and granted ranges
+				 		   of the lock. NULL implies
+						   0-ffffffffffffffff */
 };
 
 /*
@@ -616,13 +615,6 @@ struct gd_remqueryreply {
    query information. Note this could also be the first
    block */
 #define GDLM_REMFLAG_ENDQUERY       1
-
-/*
- * This is a both a parameter to queue_ast and also the bitmap of ASTs in
- * lkb_asts_to_deliver
- */
-
-typedef enum { GDLM_QUEUE_COMPAST = 1, GDLM_QUEUE_BLKAST = 2 } gd_ast_type_t;
 
 #ifndef BUG_ON
 #define BUG_ON(x)
