@@ -25,7 +25,7 @@ all: ${TARGET}
 fence_tool: fence_tool.o
 	${CC} fence_tool.o -o fence_tool
 
-fence_tool.o:
+fence_tool.o: fence_tool.c
 	${CC} ${CFLAGS} -c fence_tool.c
 
 copytobin: all
