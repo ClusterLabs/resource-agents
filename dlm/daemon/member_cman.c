@@ -24,6 +24,7 @@
 #define MAX_NODES	(256)
 
 #define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 
 static cman_handle_t	ch;
 static cman_node_t	cluster_nodes[MAX_NODES];
@@ -54,6 +55,7 @@ static int do_set_local(int nodeid, char *addr)
 	char *argv[] = { id, ip };
 
 	set_idip(nodeid, addr);
+	log_debug("set_local %s %s", argv[0], argv[1]);
 	return set_local(2, argv);
 }
 
@@ -62,6 +64,7 @@ static int do_set_node(int nodeid, char *addr)
 	char *argv[] = { id, ip };
 
 	set_idip(nodeid, addr);
+	log_debug("set_node %s %s", argv[0], argv[1]);
 	return set_node(2, argv);
 }
 

@@ -32,6 +32,7 @@
 #define MAXCON  4
 
 #define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 
 int ls_stop(int argc, char **argv);
 int ls_terminate(int argc, char **argv);
@@ -83,7 +84,7 @@ void process_groupd(void)
 		return;
 	}
 
-	printf("I: groupd read:  %s\n", buf);
+	log_debug("I: groupd read:  %s", buf);
 
 	make_args(buf, &argc, argv, ' ');
 	act = argv[0];
@@ -95,23 +96,23 @@ void process_groupd(void)
 	   FIXME: many more args than MAXARGS for start with nodeids */
 
 	if (!strcmp(act, "stop")) {
-		printf("O: ls_stop %s\n", argv[1]);
+		log_debug("O: ls_stop %s", argv[1]);
 		rv = ls_stop(argc-1, argv+1);
 
 	} else if (!strcmp(act, "start")) {
-		printf("O: ls_start %s\n", argv[1]);
+		log_debug("O: ls_start %s", argv[1]);
 		rv = ls_start(argc-1, argv+1);
 
 	} else if (!strcmp(act, "finish")) {
-		printf("O: ls_finish %s\n", argv[1]);
+		log_debug("O: ls_finish %s", argv[1]);
 		rv = ls_finish(argc-1, argv+1);
 
 	} else if (!strcmp(act, "terminate")) {
-		printf("O: ls_terminate %s\n", argv[1]);
+		log_debug("O: ls_terminate %s", argv[1]);
 		rv = ls_terminate(argc-1, argv+1);
 
 	} else if (!strcmp(act, "set_id")) {
-		printf("O: ls_set_id %s\n", argv[1]);
+		log_debug("O: ls_set_id %s", argv[1]);
 		rv = ls_set_id(argc-1, argv+1);
 
 	} else
@@ -153,7 +154,7 @@ int process_uevent(void)
 	if (!strstr(buf, "dlm"))
 		return 0;
 
-	printf("I: uevent recv:  %s\n", buf);
+	log_debug("I: uevent recv:  %s", buf);
 
 	make_args(buf, &argc, argv, '/');
 
@@ -173,7 +174,7 @@ int process_uevent(void)
 	} else
 		goto out;
 
-	printf("O: groupd write: %s\n", obuf);
+	log_debug("O: groupd write: %s", obuf);
 
 	rv = write(groupd_fd, &obuf, strlen(obuf));
 	if (rv < 0)
@@ -216,14 +217,14 @@ int setup_groupd(void)
 		return rv;
 	}
 
-	rv = write(groupd_fd, &buf, strlen(buf));
+	rv = write(s, &buf, strlen(buf));
 	if (rv < 0) {
 		log_error("groupd write error %d errno %d %s", rv, errno, buf);
 		close(s);
 		return rv;
 	}
 
-	return 0;
+	return s;
 }
 
 int setup_uevent(void)
@@ -249,7 +250,7 @@ int setup_uevent(void)
 		return rv;
 	}
 
-	return 0;
+	return s;
 }
 
 int setup_member(void)
@@ -281,6 +282,9 @@ int loop(void)
 	pollfd[2].events = POLLIN;
 
 	maxi = 2;
+
+	log_debug("groupd_fd %d uevent_fd %d member_fd %d",
+		   groupd_fd, uevent_fd, member_fd);
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
