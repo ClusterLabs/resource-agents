@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.102 $) dnl cvs revision
+AC_REVISION($Revision: 1.103 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -439,7 +439,7 @@ AC_CHECK_HEADERS(sys/syslimits.h sys/ucred.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On Solaris
-AC_CHECK_HEADERS(sys/cred.h)
+AC_CHECK_HEADERS(sys/cred.h xti.h)
 
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On FreeBSD/Solaris
@@ -489,10 +489,57 @@ if test x"$samba_cv_HAVE_SOCKADDR_IN_SIN_LEN" = x"yes"; then
     AC_DEFINE(HAVE_SOCKADDR_IN_SIN_LEN)
 fi
 
-dnl Check for Crediential Structures. 
-dnl HAVE_STRUCT_CMSGCRED
-dnl HAVE_STRUCT_FCRED
-dnl HAVE_STRUCT_SOCKCRED
+dnl Check msghdr for components (e.g. msg_control/msg_controlen not present on Solaris)
+dnl
+AC_CACHE_CHECK([for msg_control in msghdr],samba_cv_HAVE_MSG_CONTROL_MSGHDR,[
+AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/socket.h>
+],
+[struct msghdr mh;  mh.msg_control = (void *)0;],
+samba_cv_HAVE_MSG_CONTROL_MSGHDR=yes,samba_cv_HAVE_MSG_CONTROL_MSGHDR=no,samba_cv_HAVE_MSG_CONTROL_MSGHDR=cross)])
+if test x"$samba_cv_HAVE_MSG_CONTROL_MSGHDR" = x"yes"; then
+    MSGHDR_TYPE="msghdr"
+    IPCSOCKET_C="ipcsocket.c"
+    IPCSOCKET_LO="ipcsocket.lo"
+else
+    MSGHDR_TYPE="nmsghdr"
+    IPCSOCKET_C=""
+    IPCSOCKET_LO=""
+fi
+
+dnl
+dnl Check for ALIGN in /sys/param.h
+dnl
+
+AC_MSG_CHECKING("for ALIGN in sys/param.h")
+AC_EGREP_CPP(FoundAlign,
+[#include <sys/param.h>
+#ifdef ALIGN
+  FoundAlign
+#endif
+], [
+        ALIGN="ALIGN"
+        AC_MSG_RESULT("Yes") 
+],
+AC_MSG_RESULT("No"))
+
+AC_MSG_CHECKING("for T_ALIGN in xti.h")
+AC_EGREP_CPP(FoundAlign,
+[#include <xti.h>
+#ifdef T_ALIGN
+  FoundAlign
+#endif
+], [
+        ALIGN="T_ALIGN"
+        AC_MSG_RESULT("Yes") 
+],
+AC_MSG_RESULT("No"))
+
+AC_SUBST(IPCSOCKET_C)
+AC_SUBST(IPCSOCKET_LO)
+AC_SUBST(ALIGN)
+AC_SUBST(MSGHDR_TYPE)
+
 
 dnl ************************************************************************
 dnl checks for compiler characteristics
