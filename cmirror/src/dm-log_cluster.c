@@ -26,6 +26,8 @@
  ** BEGIN COPIED CODE
  **
  ** This section of this file is taken from <kernel>/drivers/md/dm-log.c
+ ** It contains some unique additions, but is mostly just copied.
+ ** Search on "END COPIED CODE" to find cluster specific work.
  ******************************************************************
  *****************************************************************/
 
@@ -97,6 +99,7 @@ struct log_c {
 	char uuid[MAX_NAME_LEN];
 	int paranoid;
 	atomic_t suspend;
+	atomic_t in_sync;  /* like sync_count, except all or nothing */
 
 	struct list_head log_list;
 	struct list_head region_users;
@@ -510,6 +513,7 @@ static uint64_t request_retry_count=0;
 
 #define LRT_ELECTION			0x80
 #define LRT_SELECTION			0x100
+#define LRT_MASTER_LEAVING		0x200
 
 #define CLUSTER_LOG_PORT 51005
 
@@ -564,8 +568,6 @@ struct clear_region {
 
 static spinlock_t clear_region_lock;
 static struct list_head clear_region_list;
-
-static atomic_t _in_sync;
 
 
 /****************************************************************
@@ -785,6 +787,15 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 	saddr->sin_addr.s_addr = nodeid_to_addr(next);
 	saddr->sin_port = CLUSTER_LOG_PORT;
 
+	if((lr->lr_type == LRT_MASTER_LEAVING) && 
+	   (lr->u.lr_starter == my_id) &&
+	   lr->u.lr_node_count){
+		lr->u.lr_coordinator = 0xDEAD;
+		saddr->sin_addr.s_addr = nodeid_to_addr(lr->u.lr_starter);
+		saddr->sin_port = lr->u.lr_starter_port;
+		return 0;
+	}
+
 	if(!lc){
 /*
 		printk("?- I do not have log context - can't be server.\n");
@@ -800,6 +811,14 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 		lr->u.lr_coordinator = my_id;
 		saddr->sin_addr.s_addr = nodeid_to_addr(lr->u.lr_starter);
 		saddr->sin_port = lr->u.lr_starter_port;
+		return 0;
+	}
+
+
+	if(lr->lr_type == LRT_MASTER_LEAVING){
+		printk("Master has left - setting server_id to 0xDEAD.\n");
+		lc->server_id = 0xDEAD;
+		lr->u.lr_node_count++;
 		return 0;
 	}
 
@@ -911,7 +930,9 @@ static int process_log_request(struct socket *sock){
 				);
 
 */			
-			if(lr.lr_type == LRT_ELECTION || lr.lr_type == LRT_SELECTION){
+			if(lr.lr_type == LRT_ELECTION ||
+			   lr.lr_type == LRT_SELECTION ||
+			   lr.lr_type == LRT_MASTER_LEAVING){
 				uint32_t old = (lc)?lc->server_id: 0xDEAD;
 				process_election(&lr, lc, &saddr_in);
 /*
@@ -1151,147 +1172,6 @@ static void stop_server(void){
 *****************************************************************
 ****************************************************************/
 
-/*----------------------------------------------------------------
- * cluster log constructor
- *
- * argv contains:
- *   [paranoid] <log_device | none> <region_size> [sync | nosync]
- *--------------------------------------------------------------*/
-static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
-		       unsigned int argc, char **argv)
-{
-	int error = 0;
-	struct log_c *lc;
-	struct sockaddr_in saddr_in;
-	int paranoid;
-
-	if(argc < 2){
-		DMWARN("too few arguments to cluster mirror log");
-		return -EINVAL;
-	}
-
-/*
-	for(error = 0; error < argc; error++){
-		printk("argv[%d] = %s\n", error, argv[error]);
-	}
-	error = 0;
-*/
-	paranoid = strcmp(argv[0], "paranoid") ? 0 : 1;
-
-	if(!strcmp(argv[paranoid], "none")){
-		/* ATTENTION -- set type to core */
-		return -EINVAL;
-		core_ctr(log, ti, (argc - 1)-paranoid, (argv + 1) + paranoid);
-	} else {
-		/* ATTENTION -- set type to disk */
-		/* NOTE -- we take advantage of the fact that disk_ctr does **
-		** not actually read the disk.  I suppose, however, that if **
-		** it does in the future, we will simply reread it when a   **
-		** servier is started here................................. */
-		if((error = disk_ctr(log, ti, argc - paranoid, argv + paranoid))){
-			DMWARN("disk_ctr failed.\n");
-			return error;
-		}
-			
-	}
-
-	lc = log->context;
-
-	memset(lc->uuid, 0, MAX_NAME_LEN);
-	memcpy(lc->uuid, argv[paranoid],
-	       (MAX_NAME_LEN < strlen(argv[paranoid])+1)? 
-	       MAX_NAME_LEN-1:
-	       strlen(argv[paranoid])); 
-
-	lc->paranoid = paranoid;
-
-	atomic_set(&lc->suspend, 1);
-
-	list_add(&lc->log_list, &log_list_head);
-	INIT_LIST_HEAD(&lc->region_users);
-
-	lc->server_id = 0xDEAD;
-
-	error = sock_create(AF_INET, SOCK_DGRAM,
-			    0,
-			    &lc->client_sock);
-
-	if(error){
-		DMWARN("unable to create cluster log client socket");
-		goto fail;
-	}
-
-	saddr_in.sin_family = AF_INET;
-	saddr_in.sin_port = CLUSTER_LOG_PORT+1;
-	saddr_in.sin_addr.s_addr = nodeid_to_addr(my_id);
-	error = lc->client_sock->ops->bind(lc->client_sock,
-					   (struct sockaddr *)&saddr_in,
-					   sizeof(struct sockaddr_in));
-	while(error == -EADDRINUSE){
-		saddr_in.sin_port++;
-		error = lc->client_sock->ops->bind(lc->client_sock,
-						   (struct sockaddr *)&saddr_in,
-						   sizeof(struct sockaddr_in));
-	}
-
-	if(error){
-		DMWARN("unable to bind cluster log client socket");
-		sock_release(lc->client_sock);
-		goto fail;
-	}
-
-/*  Useful if poll can be used...
-	if((error = sock_map_fd(&lc->client_sock)) < 0){
-		DMWARN("unable to map socket to fd");
-		sock_release(lc->client_sock);
-		goto fail;
-	}
-*/	
-
-/*
-	printk("cluster_ctr:: sync_search  == %d, ", lc->sync_search);
-	printk("sync_count   == %Lu, ",lc->sync_count);
-	printk("region_count == %u\n", lc->region_count);
-*/
-	return 0;
-
- fail:
-	/* ATTENTION -- if core is an option we must do appropriate */
-	disk_dtr(log);
-	return error;
-}
-
-static void cluster_dtr(struct dirty_log *log)
-{
-	struct log_c *lc = (struct log_c *) log->context;
-	list_del(&lc->log_list);
-	sock_release(lc->client_sock);
-	disk_dtr(log);
-}
-
-
-static int cluster_suspend(struct dirty_log *log){
-	struct log_c *lc = (struct log_c *) log->context;
-	atomic_set(&(lc->suspend), 1);
-//	printk("-- 0 cluster_suspend\n");
-	return 0;
-}
-
-static int cluster_resume(struct dirty_log *log){
-	struct log_c *lc = (struct log_c *) log->context;
-	atomic_set(&(lc->suspend), 0);
-//	printk("-- 0 cluster_resume\n");
-	return 0;
-}
-
-static sector_t cluster_get_region_size(struct dirty_log *log)
-{
-	struct log_c *lc = (struct log_c *) log->context;
-//	printk("-- %lu cluster_get_region_size\n", lc->region_size);
-	return lc->region_size;
-}
-
-
 static int run_election(struct log_c *lc){
 	int error=0, len;
 	struct sockaddr_in saddr_in;
@@ -1374,7 +1254,11 @@ static int _consult_server(struct log_c *lc, region_t region,
 	memset(&lr, 0, sizeof(lr));
 	
 	lr.lr_type = type;
-	lr.u.lr_region = region;
+	if(type == LRT_MASTER_LEAVING){
+		lr.u.lr_starter = my_id;
+	} else {
+		lr.u.lr_region = region;
+	}
 	memcpy(lr.lr_uuid, lc->uuid, MAX_NAME_LEN);
 
 	memset(&saddr_in, 0, sizeof(struct sockaddr_cl));
@@ -1425,9 +1309,13 @@ static int _consult_server(struct log_c *lc, region_t region,
 	fs = get_fs();
 	set_fs(get_ds());
 
-	len = my_recvmsg(sock, &msg, sizeof(struct log_request),
-			 0, 5);
-
+	if(type == LRT_MASTER_LEAVING){
+		len = sock_recvmsg(lc->client_sock, &msg, sizeof(struct log_request),
+				   /* WAIT for it */0);
+	} else {
+		len = my_recvmsg(sock, &msg, sizeof(struct log_request),
+				 0, 5);
+	}
 	set_fs(fs);
 
 	/* unset the alarm */
@@ -1464,10 +1352,8 @@ static int _consult_server(struct log_c *lc, region_t region,
  fail:
 	if(*retry){
 		request_retry_count++;
-		if((request_retry_count & 0xF) == 0xA){
-			printk("Retried requests :: %Lu\n"
-			       "Total requests   :: %Lu\n"
-			       "Retry percentage :: %lu\n",
+		if(!(request_retry_count & 0x1F)){
+			printk("Retried requests :: %Lu of %Lu (%lu%%)\n",
 			       request_retry_count,
 			       request_count,
 			       dm_div_up(request_retry_count*100,request_count));
@@ -1520,6 +1406,150 @@ static int consult_server(struct log_c *lc, region_t region,
 	return rtn;
 }
 
+/*----------------------------------------------------------------
+ * cluster log constructor
+ *
+ * argv contains:
+ *   [paranoid] <log_device | none> <region_size> [sync | nosync]
+ *--------------------------------------------------------------*/
+static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
+		       unsigned int argc, char **argv)
+{
+	int error = 0;
+	struct log_c *lc;
+	struct sockaddr_in saddr_in;
+	int paranoid;
+
+	if(argc < 2){
+		DMWARN("too few arguments to cluster mirror log");
+		return -EINVAL;
+	}
+
+/*
+	for(error = 0; error < argc; error++){
+		printk("argv[%d] = %s\n", error, argv[error]);
+	}
+	error = 0;
+*/
+	paranoid = strcmp(argv[0], "paranoid") ? 0 : 1;
+
+	if(!strcmp(argv[paranoid], "none")){
+		/* ATTENTION -- set type to core */
+		return -EINVAL;
+		core_ctr(log, ti, (argc - 1)-paranoid, (argv + 1) + paranoid);
+	} else {
+		/* ATTENTION -- set type to disk */
+		/* NOTE -- we take advantage of the fact that disk_ctr does **
+		** not actually read the disk.  I suppose, however, that if **
+		** it does in the future, we will simply reread it when a   **
+		** servier is started here................................. */
+		if((error = disk_ctr(log, ti, argc - paranoid, argv + paranoid))){
+			DMWARN("disk_ctr failed.\n");
+			return error;
+		}
+			
+	}
+
+	lc = log->context;
+
+	memset(lc->uuid, 0, MAX_NAME_LEN);
+	memcpy(lc->uuid, argv[paranoid],
+	       (MAX_NAME_LEN < strlen(argv[paranoid])+1)? 
+	       MAX_NAME_LEN-1:
+	       strlen(argv[paranoid])); 
+
+	lc->paranoid = paranoid;
+
+	atomic_set(&lc->suspend, 1);
+	atomic_set(&lc->in_sync, 0);
+
+	list_add(&lc->log_list, &log_list_head);
+	INIT_LIST_HEAD(&lc->region_users);
+
+	lc->server_id = 0xDEAD;
+
+	error = sock_create(AF_INET, SOCK_DGRAM,
+			    0,
+			    &lc->client_sock);
+
+	if(error){
+		DMWARN("unable to create cluster log client socket");
+		goto fail;
+	}
+
+	saddr_in.sin_family = AF_INET;
+	saddr_in.sin_port = CLUSTER_LOG_PORT+1;
+	saddr_in.sin_addr.s_addr = nodeid_to_addr(my_id);
+	error = lc->client_sock->ops->bind(lc->client_sock,
+					   (struct sockaddr *)&saddr_in,
+					   sizeof(struct sockaddr_in));
+	while(error == -EADDRINUSE){
+		saddr_in.sin_port++;
+		error = lc->client_sock->ops->bind(lc->client_sock,
+						   (struct sockaddr *)&saddr_in,
+						   sizeof(struct sockaddr_in));
+	}
+
+	if(error){
+		DMWARN("unable to bind cluster log client socket");
+		sock_release(lc->client_sock);
+		goto fail;
+	}
+
+/*  Useful if poll can be used...
+	if((error = sock_map_fd(&lc->client_sock)) < 0){
+		DMWARN("unable to map socket to fd");
+		sock_release(lc->client_sock);
+		goto fail;
+	}
+*/	
+
+/*
+	printk("cluster_ctr:: sync_search  == %d, ", lc->sync_search);
+	printk("sync_count   == %Lu, ",lc->sync_count);
+	printk("region_count == %u\n", lc->region_count);
+*/
+	return 0;
+
+ fail:
+	/* ATTENTION -- if core is an option we must do appropriate */
+	disk_dtr(log);
+	return error;
+}
+
+static void cluster_dtr(struct dirty_log *log)
+{
+	struct log_c *lc = (struct log_c *) log->context;
+	list_del(&lc->log_list);
+	if(lc->server_id == my_id)
+		consult_server(lc, 0, LRT_MASTER_LEAVING, NULL);
+	sock_release(lc->client_sock);
+	disk_dtr(log);
+}
+
+
+static int cluster_suspend(struct dirty_log *log){
+	struct log_c *lc = (struct log_c *) log->context;
+	atomic_set(&(lc->suspend), 1);
+//	printk("-- 0 cluster_suspend\n");
+	return 0;
+}
+
+static int cluster_resume(struct dirty_log *log){
+	struct log_c *lc = (struct log_c *) log->context;
+	atomic_set(&(lc->suspend), 0);
+//	printk("-- 0 cluster_resume\n");
+	return 0;
+}
+
+static sector_t cluster_get_region_size(struct dirty_log *log)
+{
+	struct log_c *lc = (struct log_c *) log->context;
+//	printk("-- %lu cluster_get_region_size\n", lc->region_size);
+	return lc->region_size;
+}
+
+
 static int cluster_is_clean(struct dirty_log *log, region_t region)
 {
 	int rtn;
@@ -1536,8 +1566,8 @@ static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
   
 	/* check known_regions, return if found */
 
-	if(atomic_read(&_in_sync)){
-//		printk("_in_sync is set, allowing read.\n");
+	if(atomic_read(&lc->in_sync)){
+//		printk("lc->in_sync is set, allowing read.\n");
 		return 1;
 	}
 
@@ -1636,11 +1666,11 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 
 //	printk("-- %lu cluster_get_sync_count\n", rtn);
 	if(rtn >= lc->region_count){
-		printk("All regions in sync.  _in_sync is SET.\n");
-		atomic_set(&_in_sync, 1);
+//		printk("All regions in sync.  _in_sync is SET.\n");
+		atomic_set(&lc->in_sync, 1);
 	}/*
 	else {
-		printk("Not all regions in sync (%Lu/%u).  _in_sync is UNSET.\n",
+		printk("Not all regions in sync (%Lu/%u).  lc->in_sync is UNSET.\n",
 		       rtn, lc->region_count);
 		       }*/
 
@@ -1663,6 +1693,7 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 *****************************************************************
 ****************************************************************/
 static int clog_stop(void *data){
+	struct log_c *lc;
 	/* stop the server */
 
 //	printk("suspending server.\n");
@@ -1671,8 +1702,10 @@ static int clog_stop(void *data){
 //	printk("server is suspended.\n");
 	/* ATTENTION -- freeze client operations ?*/
 
-	printk("Cluster stopping.  _in_sync is UNSET.\n");
-	atomic_set(&_in_sync, 0);
+	printk("Cluster stopping.  in_sync is UNSET.\n");
+	list_for_each_entry(lc, &log_list_head, log_list){
+		atomic_set(&lc->in_sync, 0);
+	}
 	
 	return 0;
 }
@@ -1766,7 +1799,6 @@ static int __init cluster_dirty_log_init(void)
 	INIT_LIST_HEAD(&clear_region_list);
 	spin_lock_init(&clear_region_lock);
 	printk("Initial state.  _in_sync is UNSET.\n");
-	atomic_set(&_in_sync, 0);
 
 	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
 				 1, NULL, &local_id);

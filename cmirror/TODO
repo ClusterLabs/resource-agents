@@ -1,9 +1,7 @@
-0. FIX
-	Clients are only made aware of a server failure if they need
-	something from it.  So, if a server dies, some may see this
-	and appoint a new master.  When the original server comes
-	back, we can have a split - those who found a new master and
-	those that haven't.
+0. cluster_dtr (or disk_dtr?) should write bits to disk if it is
+   in charge of the log.  This must be done in such a way so that
+   a new master does not pick up the disk before the leaving node
+   has flushed it.
 
 1. Basic code clean-up
 
@@ -28,5 +26,3 @@
 8. Unable to specify port numbers (unable to change the default)
 
 9. the uuid scheme for identifying logs sucks
-
-10. the _in_sync flag should be per log
