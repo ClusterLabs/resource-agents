@@ -897,6 +897,65 @@ static void send_drop_exp_to_slaves(char *name, uint8_t *mask, uint16_t len)
 }
 
 /**
+ * _send_expire_to_slave_ - 
+ * @idx: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+static int _send_expire_to_slave_(int idx, Waiters_t *lkrq)
+{
+   int e;
+   xdr_enc_t *enc = poller.enc[idx];
+   do{
+      if((e=xdr_enc_uint32(enc, gulm_lock_expire)) != 0 ) break;
+      if((e=xdr_enc_string(enc, lkrq->name)) != 0 ) break;
+      if((e=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0 ) break;
+      if((e=xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   return e;
+}
+
+/**
+ * send_expire_to_slaves - 
+ * @name: 
+ * @mask: 
+ * @len: 
+ * 
+ * 
+ * Returns: void
+ */
+static void send_expire_to_slaves(char *name, uint8_t *mask, uint16_t len)
+{
+   int i;
+   Waiters_t *lkrq;
+
+   for(i=0;i<4;i++) {
+      if( ! Slaves[i].live ) continue;
+
+      lkrq = get_new_lkrq();
+      GULMD_ASSERT( lkrq != NULL, );
+      lkrq->op = gulm_lock_drop_exp;
+      lkrq->name = strdup(name);
+      GULMD_ASSERT(lkrq->name != NULL , );
+
+      if( mask != NULL ) {
+         lkrq->key = malloc(len);
+         GULMD_ASSERT(lkrq->key != NULL , );
+         memcpy(lkrq->key, mask, len);
+         lkrq->keylen = len;
+      } else {
+         lkrq->key = NULL;
+         lkrq->keylen = 0;
+      }
+
+      queue_lkrq_for_sending(Slaves[i].idx, lkrq); 
+
+   }
+}
+
+/**
  * _send_lk_act_reply_ - 
  * @idx: 
  * @lkrq: 
@@ -1587,6 +1646,9 @@ int send_some_data(int idx)
          case gulm_lock_drop_exp:
             err = _send_drop_exp_to_slave_(idx, lkrq);
             break;
+         case gulm_lock_expire:
+            err = _send_expire_to_slave_(idx, lkrq);
+            break;
          case gulm_lock_action_rpl:
             err = _send_lk_act_reply_(idx, lkrq);
             break;
@@ -2010,7 +2072,7 @@ static void recv_some_data(int idx)
       }
       /* this is done no matter if it was kernel or userspace. */
       if( x_cur_state == gio_Mbr_Expired ) {
-         expire_locks(x_name);
+         expire_locks(x_name, NULL, 0);
          expire_queued_dropreqs(x_name);
          remove_slave_from_list_by_name(x_name);
          /* when expired, *everything* need to be closed out. */
@@ -2204,6 +2266,20 @@ static void recv_some_data(int idx)
          if(x_name != NULL ) {free(x_name); x_name = NULL;}
          if(x_mask != NULL ) {free(x_mask); x_mask = NULL;}
       }else
+      if( gulm_lock_expire == code ) {
+         uint8_t *x_mask = NULL;
+         uint16_t x_len=0;
+         do {
+            if((err = xdr_dec_string(dec, &x_name)) != 0 ) break;
+            if((err = xdr_dec_raw_m(dec, (void**)&x_mask, &x_len)) != 0 ) break;
+         }while(0);
+         if( err == 0 ) {
+            expire_locks(x_name, x_mask, x_len);
+            log_msg(lgm_locking,"Expired locks for %s\n", x_name);
+         }
+         if(x_name != NULL ) {free(x_name); x_name = NULL;}
+         if(x_mask != NULL ) {free(x_mask); x_mask = NULL;}
+      }else
       {
          xdr_enc_uint32(enc, gulm_err_reply);
          xdr_enc_uint32(enc, code);
@@ -2229,6 +2305,21 @@ static void recv_some_data(int idx)
                log_msg(lgm_locking,"Dropped expired locks for %s\n", x_name);
             }
             send_drop_exp_to_slaves(x_name, x_mask, x_len);
+         }
+         if(x_name != NULL ) {free(x_name); x_name = NULL;}
+         if(x_mask != NULL ) {free(x_mask); x_mask = NULL;}
+      }else
+      if( gulm_lock_expire == code ) {
+         uint8_t *x_mask = NULL;
+         uint16_t x_len=0;
+         do {
+            if((err = xdr_dec_string(dec, &x_name)) != 0 ) break;
+            if((err = xdr_dec_raw_m(dec, (void**)&x_mask, &x_len)) != 0 ) break;
+         }while(0);
+         if( err == 0 ) {
+            expire_locks(x_name, x_mask, x_len);
+            log_msg(lgm_locking,"Expired locks for %s\n", x_name);
+            send_expire_to_slaves(x_name, x_mask, x_len);
          }
          if(x_name != NULL ) {free(x_name); x_name = NULL;}
          if(x_mask != NULL ) {free(x_mask); x_mask = NULL;}

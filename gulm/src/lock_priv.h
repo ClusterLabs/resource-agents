@@ -174,8 +174,8 @@ int do_lock_query(Waiters_t *lkrq);
 int increment_slave_update_replies(uint8_t *key, uint16_t len,
       int slave, uint8_t smask);
 void recheck_reply_waiters(uint8_t Slave_bits, uint8_t onlogin);
-void __inline__ expire_locks(uint8_t *name);
-void __inline__ drop_expired(uint8_t *name, uint8_t *, uint16_t);
+void expire_locks(uint8_t *name, uint8_t *mask, uint16_t len);
+void drop_expired(uint8_t *name, uint8_t *, uint16_t);
 void __inline__ rerun_wait_queues(void);
 int serialize_lockspace(int fd);
 int deserialize_lockspace(int fd);

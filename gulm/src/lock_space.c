@@ -2733,6 +2733,42 @@ void expire_jid_mappings(Lock_t *lk, uint8_t *name)
 }
 
 /**
+ * cmp_lock_mask - 
+ * @mask: 
+ * @masklen: 
+ * @key: 
+ * @keylen: 
+ * 
+ * See if a key fits with the mask.
+ *
+ * ADD: if mask is sorter than key, ``extend'' mask with 0xff
+ * 
+ * Returns: TRUE || FALSE
+ */
+int cmp_lock_mask(uint8_t *mask, int masklen, uint8_t *key, int keylen)
+{
+   int i;
+   for(i=0; i < masklen && i < keylen; i++ ) {
+      /* mask byte == 0xff, matches everything
+       * mask byte == rest, must == key byte.
+       */
+      if( mask[i] == 0xff ) continue;
+      if( mask[i] != key[i] ) return FALSE;
+   }
+   /* key shorter than mask, doesn't match. */
+   if( keylen < masklen ) return FALSE;
+   /* key longer than mask, and prev bytes match, then all matches. */
+
+   /* key fits within mask. */
+   return TRUE;
+}
+
+typedef struct _drop_locks_s {
+   uint8_t *name;
+   uint8_t *mask;
+   uint16_t mlen;
+} _drop_locks_t;
+/**
  * _expire_locks_ - The actual work to expire a lock
  * @item: 
  * @d: 
@@ -2743,13 +2779,20 @@ void expire_jid_mappings(Lock_t *lk, uint8_t *name)
  */
 int _expire_locks_(LLi_t *item, void *d)
 {
-   uint8_t *name = (uint8_t*)d;
+   _drop_locks_t *dl = (_drop_locks_t*)d;
+   uint8_t *name = dl->name;
    Lock_t *lk;
    int modQ=FALSE;
    LLi_t *tp,*nxt;
    Holders_t *h;
 
    lk = LLi_data(item);
+
+   /* If there is a mask, and then if it doesn't match, skip this lock.
+    * If there isn't a mask, or if the mask matches, expire this lock.
+    */
+   if( dl->mlen > 0 && ! cmp_lock_mask(dl->mask, dl->mlen, lk->key, lk->keylen))
+      return 0;
 
    /* drop from wait queue */
    if( expire_from_waiters(name, lk) ) modQ = TRUE;
@@ -2797,15 +2840,19 @@ int _expire_locks_(LLi_t *item, void *d)
  * expire_locks - 
  * @Cname: < Name of Client who's locks we're expiring
  */
-void __inline__ expire_locks(uint8_t *name)
+void expire_locks(uint8_t *name, uint8_t *mask, uint16_t len)
 {
    int e;
+   _drop_locks_t dl;
 #ifdef TIME_RECOVERY_PARTS
    struct timeval tva, tvb;
    gettimeofday(&tva, NULL);
 #endif
 
-   e = hash_walk(AllLocks, _expire_locks_, name);
+   dl.name = name;
+   dl.mask = mask;
+   dl.mlen = len;
+   e = hash_walk(AllLocks, _expire_locks_, &dl);
    if(e!=0) log_err("Got %d, trying to expire locks for %s\n",e,name);
 
 #ifdef TIME_RECOVERY_PARTS
@@ -2815,42 +2862,6 @@ void __inline__ expire_locks(uint8_t *name)
 #endif
 }
 
-/**
- * cmp_lock_mask - 
- * @mask: 
- * @masklen: 
- * @key: 
- * @keylen: 
- * 
- * See if a key fits with the mask.
- *
- * ADD: if mask is sorter than key, ``extend'' mask with 0xff
- * 
- * Returns: TRUE || FALSE
- */
-int cmp_lock_mask(uint8_t *mask, int masklen, uint8_t *key, int keylen)
-{
-   int i;
-   for(i=0; i < masklen && i < keylen; i++ ) {
-      /* mask byte == 0xff, matches everything
-       * mask byte == rest, must == key byte.
-       */
-      if( mask[i] == 0xff ) continue;
-      if( mask[i] != key[i] ) return FALSE;
-   }
-   /* key shorter than mask, doesn't match. */
-   if( keylen < masklen ) return FALSE;
-   /* key longer than mask, and prev bytes match, then all matches. */
-
-   /* key fits within mask. */
-   return TRUE;
-}
-
-typedef struct _drop_locks_s {
-   uint8_t *name;
-   uint8_t *mask;
-   uint16_t mlen;
-} _drop_locks_t;
 /**
  * _drop_locks_ - The actual work to drop a lock
  * @item: 
@@ -2898,7 +2909,7 @@ int _drop_locks_(LLi_t *item, void *d)
  * @len: < length of mask
  *
  */
-void __inline__ drop_expired(uint8_t *name, uint8_t *mask, uint16_t len)
+void drop_expired(uint8_t *name, uint8_t *mask, uint16_t len)
 {
    int e;
    _drop_locks_t dl;

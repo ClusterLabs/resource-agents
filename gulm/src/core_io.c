@@ -139,21 +139,6 @@ int startup = TRUE;
  */
 void login_setup(void)
 {
-#if 0
-   /* Not doing this.  I want it checked in, but it is rather ugly to use,
-    * so just saving, but not using.
-    */
-   /* I think if I rebuild the server list here, I can actually get things
-    * working so ppl can change the servers list on the fly.
-    *
-    * I think I just need a function from config that rebuilds the server
-    * list, and recalcs the crc.
-    */
-
-   if(rebuild_server_list(&gulm_config) != 0 )
-      die(ExitGulm_ParseFail, "Bad errors rescanning servers\n");
-#endif
-
    Login_state.try_again = FALSE;
    Login_state.LastMasterIN = MasterIN;
    Login_state.current = NULL;

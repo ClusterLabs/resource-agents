@@ -119,6 +119,7 @@ char *gio_opcodes(int x)
       CP(gulm_lock_cb_state);
       CP(gulm_lock_cb_dropall);
       CP(gulm_lock_drop_exp);
+      CP(gulm_lock_expire);
       CP(gulm_lock_dump_req);
       CP(gulm_lock_dump_rpl);
       CP(gulm_lock_rerunqueues);

@@ -43,12 +43,6 @@ extern char myName[256];
  * parse_ccs - 
  * @gf: 
  * 
- * Thinking to have this actually just build an array of the strings it
- * pulls out of the ccs, and format that array as cmdline args, then pass
- * that to parse_cmdline().  ccs gives me strings, and I already wrote all
- * that sctring parsing stuff over there, so why not just reused it?
- * (possibly weird error messages.)
- *
  * Of course, one must wonder if we should do things in a way that is a bit
  * more xml friendly.  Mostly instead of:
  *  <servers>a,b,c</servers>

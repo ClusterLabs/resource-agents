@@ -696,6 +696,43 @@ int send_lk_drop_req(int ltid, lock_req_t *lq)
 }
 
 /**
+ * send_lk_expire - 
+ * @ltid: 
+ * @lq: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_lk_expire(int ltid, lock_req_t *lq)
+{
+   int err=0;
+   xdr_enc_t *enc;
+   if(ltid > 255 || ltid < 0 ) {
+      return -EINVAL;
+   }
+   if( MastersList[ltid].poll_idx < 0 ||
+       MastersList[ltid].poll_idx > open_max() ) {
+      /* master has gone away, don't try to send to them.  This will end up
+       * just queuing the req for later.
+       */
+      return -EINVAL;
+   }
+   enc = poller.enc[MastersList[ltid].poll_idx];
+
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_expire)) != 0 ) break;
+      if((err = xdr_enc_string(enc, lq->lvb)) != 0 ) break;
+      if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   if( err != 0 ) {
+      log_err("XDR error %d:%s sending to lt%03d\n",
+            err, strerror(err), ltid);
+   }
+   return err;
+}
+
+/**
  * send_lk_query_req - 
  * @ltid: 
  * @lq: 
@@ -1024,6 +1061,9 @@ int send_senderlist(int ltid)
          case gulm_lock_drop_exp:
             err = send_lk_drop_req(ltid, lq);
             break;
+         case gulm_lock_expire:
+            err = send_lk_expire(ltid, lq);
+            break;
          case gulm_lock_query_req:
             err = send_lk_query_req(ltid, lq);
             break;
@@ -1043,7 +1083,7 @@ int send_senderlist(int ltid)
          goto exit;
       }
 
-      if( lq->code == gulm_lock_drop_exp ) {
+      if( lq->code == gulm_lock_drop_exp || lq->code == gulm_lock_expire ) {
          /* no replies for drop exp requests. */
          recycle_lock_req(lq);
       }else
@@ -1371,6 +1411,59 @@ int forward_drop_exp(int idx)
          die(ExitGulm_NoMemory, "Out of memory\n");
       }
       lq->code = gulm_lock_drop_exp;
+      lq->poll_idx = idx;
+
+      /* copy copy copy */
+      if( x_name == NULL ) {
+         lq->lvb = NULL;
+      }else{
+         lq->lvb = strdup(x_name);
+         if( lq->lvb == NULL ) die(ExitGulm_NoMemory, "Out of memory\n");
+      }
+      lq->key = malloc(x_ml);
+      if( lq->key == NULL ) die(ExitGulm_NoMemory, "Out of memory\n");
+      memcpy(lq->key, x_mask, x_ml);
+      lq->keylen = x_ml;
+
+      Qu_EnQu( &MastersList[ltid].senderlist, &lq->ls_list);
+      poller.polls[MastersList[ltid].poll_idx].events |= POLLOUT;
+      MastersList[ltid].senderlistlen ++;
+   }
+
+   if(x_name != NULL ) free(x_name);
+   if(x_mask != NULL ) free(x_mask);
+   return 0;
+}
+
+/**
+ * forward_expire - 
+ * @idx: 
+ * 
+ * 
+ * Returns: int
+ */
+int forward_expire(int idx)
+{
+   int err, ltid;
+   xdr_dec_t *dec = poller.dec[idx];
+   lock_req_t *lq;
+   uint8_t *x_name=NULL, *x_mask=NULL;
+   uint16_t x_ml;
+
+   do{
+      if((err = xdr_dec_string(dec, &x_name)) != 0 ) break;
+      if((err = xdr_dec_raw_m(dec, (void**)&x_mask, &x_ml)) != 0 ) break;
+   }while(0);
+   if( err != 0 ) {
+         log_err("XDR error %d:%s\n", err, strerror(err));
+   }
+
+   for(ltid = 0; ltid < gulm_config.how_many_lts; ltid++) {
+      /* create a request for each Master. */
+      if( (lq=get_new_lock_req()) == NULL ) {
+         die(ExitGulm_NoMemory, "Out of memory\n");
+      }
+      lq->code = gulm_lock_expire;
       lq->poll_idx = idx;
 
       /* copy copy copy */
@@ -1972,6 +2065,9 @@ static void recv_some_data(int idx)
    }else
    if( gulm_lock_drop_exp == code ) {
       forward_drop_exp(idx);
+   }else
+   if( gulm_lock_expire == code ) {
+      forward_expire(idx);
    }else
    /* from the masters */
    if( gulm_lock_state_rpl == code ) {
