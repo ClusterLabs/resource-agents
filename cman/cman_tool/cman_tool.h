@@ -78,6 +78,7 @@ struct commandline
 	int force;
         int verbose;
         int nodeid;
+	int timeout;
 	unsigned int config_version;
 
 	int config_version_opt;
