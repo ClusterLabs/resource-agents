@@ -163,6 +163,9 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
  * @page: Page to write
  *
  * Returns: errno
+ *
+ * Use Linux VFS block_write_full_page() to write one page,
+ *   using GFS's get_block_noalloc to find which blocks to write.
  */
 
 static int
@@ -294,13 +297,19 @@ gfs_readpage(struct file *file, struct page *page)
 }
 
 /**
- * gfs_prepare_write - Prepare to write to a file
+ * gfs_prepare_write - Prepare to write a page to a file
  * @file: The file to write to
  * @page: The page which is to be prepared for writing
  * @from: From (byte range within page)
  * @to: To (byte range within page)
  *
  * Returns: errno
+ *
+ * Make sure file's inode is glocked; we shouldn't write without that!
+ * If GFS dinode is currently stuffed (small enough that all data fits within
+ *   the dinode block), and new file size is too large, unstuff it.
+ * Use Linux VFS block_prepare_write() to write blocks, using GFS' get_block()
+ *   to find which blocks to write.
  */
 
 static int

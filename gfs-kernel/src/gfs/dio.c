@@ -203,7 +203,7 @@ static struct address_space_operations aspace_aops = {
 };
 
 /**
- * gfs_aspace_get - Get and initialize a struct inode structure
+ * gfs_aspace_get - Create and initialize a struct inode structure
  * @sdp: the filesystem the aspace is in
  *
  * Right now a struct inode is just a struct inode.  Maybe Linux
@@ -565,6 +565,7 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 {
 	int error = 0;
 
+	/* Fill in meta-header if we have a cached copy, else read from disk */
 	if (flags & DIO_NEW) {
 		if (gfs_mhc_fish(sdp, bh))
 			return 0;
@@ -590,10 +591,10 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 }
 
 /**
- * gfs_dwrite - Write a buffer
+ * gfs_dwrite - Write a buffer to disk (and/or wait for write to complete)
  * @sdp: the filesystem
  * @bh: The buffer to write
- * @flags: The type of write operation to do
+ * @flags:  DIO_XXX The type of write/wait operation to do
  *
  * Returns: 0 on success, -EXXX on failure
  */
@@ -701,6 +702,9 @@ gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to be pinned
  *
+ * "Pinning" means keeping buffer from being written to its in-place location.
+ * A buffer should be pinned from the time it is added to a new transaction,
+ *   until after it has been written to the log.
  */
 
 void
@@ -763,7 +767,7 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @tr: The transaction in the AIL that contains this buffer
  *      If NULL, don't attach buffer to any AIL list
  *      (i.e. when dropping a pin reference when merging a new transaction
- *       with an already exist incore transaction)
+ *       with an already existing incore transaction)
  *
  * Called for (meta) buffers, after they've been logged to on-disk journal.
  * Make a (meta) buffer writeable to in-place location on-disk, if recursive
@@ -808,12 +812,13 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 		spin_lock(&sdp->sd_ail_lock);
 
 		if (list_empty(&bd->bd_ail_tr_list)) {
-			/* Buffer not attached to any earlier transaction.
-			   Add it to glock's AIL, and this transaction's AIL (below). */
+			/* Buffer not attached to any earlier transaction.  Add
+			   it to glock's AIL, and this trans' AIL (below). */
 			list_add(&bd->bd_ail_gl_list, &bd->bd_gl->gl_ail_bufs);
 		} else {
-			/* Was part of earlier transaction.  Move from that trans' AIL
-			   to this newer one's AIL.  Buf is already on glock's AIL. */
+			/* Was part of earlier transaction.
+			   Move from that trans' AIL to this newer one's AIL.
+			   Buf is already on glock's AIL. */
 			list_del_init(&bd->bd_ail_tr_list);
 			brelse(bh);
 		}
@@ -825,11 +830,9 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 }
 
 /**
- * logbh_end_io - called at the end of a logbh write
+ * logbh_end_io - Called by OS at the end of a logbh ("fake" bh) write to log
  * @bh: the buffer
  * @uptodate: whether or not the write succeeded
- *
- * Don't do ENTER() AND EXIT() here.
  *
  */
 
@@ -1029,11 +1032,16 @@ gfs_replay_wait(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_wipe_buffers - make buffers so they aren't dirty/pinned anymore
+ * gfs_wipe_buffers - make inode's buffers so they aren't dirty/AILed anymore
  * @ip: the inode who owns the buffers
+ * @rgd: the resource group
  * @bstart: the first buffer in the run
  * @blen: the number of buffers in the run
  *
+ * Called when de-allocating a contiguous run of meta blocks within an rgrp.
+ * Make sure all buffers for de-alloc'd are removed from the AIL.
+ * Add relevant meta-headers to meta-header cache, so we don't need to read
+ *   disk if we re-allocate blocks.
  */
 
 void
@@ -1122,6 +1130,9 @@ gfs_sync_meta(struct gfs_sbd *sdp)
  * gfs_flush_meta_cache - get rid of any references on buffers for this inode
  * @ip: The GFS inode
  *
+ * This releases buffers that are in the most-recently-used array of
+ *   blocks used for indirect block addressing for this inode.
+ * Don't confuse this with the meta-HEADER cache (mhc)!
  */
 
 void
@@ -1146,7 +1157,7 @@ gfs_flush_meta_cache(struct gfs_inode *ip)
 /**
  * gfs_get_meta_buffer - Get a metadata buffer
  * @ip: The GFS inode
- * @depth: The depth in the metadata tree
+ * @height: The level of this buf in the metadata (indir addr) tree (if any)
  * @num: The block number (device relative) of the buffer
  * @new: Non-zero if we may create a new buffer
  * @bhp: the buffer is returned here
@@ -1163,6 +1174,7 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 	int flags = ((new) ? DIO_NEW : 0) | DIO_START | DIO_WAIT;
 	int error;
 
+	/* Try to use the gfs_inode's MRU metadata tree cache */
 	spin_lock(&ip->i_lock);
 	bh = *bh_slot;
 	if (bh) {

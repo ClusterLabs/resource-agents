@@ -64,48 +64,90 @@ typedef void (*gfs_glop_bh_t) (struct gfs_glock * gl, unsigned int ret);
  *  type of element in the log.
  */
 struct gfs_log_operations {
-	/*  Operations specific to a given log element  */
+	/*
+	 * Operations specific to a given log element (LE).
+	 * These are typically executed individually via macros such as LO_ADD.
+	 */
 
+	/* Add new LE to transaction */
 	void (*lo_add) (struct gfs_sbd * sdp, struct gfs_log_element * le);
+
+	/* Do any cleanup, etc., needed just before commit to incore log */
 	void (*lo_trans_end) (struct gfs_sbd * sdp,
 			      struct gfs_log_element * le);
+
+	/* Print LE-specific info via printk() */
 	void (*lo_print) (struct gfs_sbd * sdp, struct gfs_log_element * le,
 			  unsigned int where);
+
+	/* Find any incore transactions that overlap through this LE (e.g.
+	 * share glocks), to determine if any transactions can be combined. */
 	struct gfs_trans *(*lo_overlap_trans) (struct gfs_sbd * sdp,
 					       struct gfs_log_element * le);
+
+	/* Change LE from "new" to "incore" status, before write to log */
 	void (*lo_incore_commit) (struct gfs_sbd * sdp, struct gfs_trans * tr,
 				  struct gfs_log_element * le);
+
+	/* Allow writes to in-place locations, after log is on-disk */
 	void (*lo_add_to_ail) (struct gfs_sbd * sdp,
 			       struct gfs_log_element * le);
+
+	/* Clean up LE after log dump */
 	void (*lo_clean_dump) (struct gfs_sbd * sdp,
 			       struct gfs_log_element * le);
 
-	/*  Operations specific to a class of log elements  */
+	/*
+	 * Operations specific to a class of log elements.
+	 * These are typically executed over a whole transaction by
+	 * macros such as LO_TRANS_SIZE.  Each LE-type-specific operation
+	 * for each LE contributes its part to the overall result.
+	 */
 
+	/* Determine LE-type-specific quantities of blocks of various types
+	 * required for writing the log */
 	void (*lo_trans_size) (struct gfs_sbd * sdp, struct gfs_trans * tr,
 			       unsigned int *mblks, unsigned int *eblks,
 			       unsigned int *blocks, unsigned int *bmem);
+
+	/* Combine LE-type-specific values in new_tr and tr, result is in tr */
 	void (*lo_trans_combine) (struct gfs_sbd * sdp, struct gfs_trans * tr,
 				  struct gfs_trans * new_tr);
+
+	/* Create control and metadata buffers that will make up the log */
 	void (*lo_build_bhlist) (struct gfs_sbd * sdp, struct gfs_trans * tr);
+
+	/* Calculate log space needed for this LE in a log dump */
 	void (*lo_dump_size) (struct gfs_sbd * sdp, unsigned int *elements,
 			      unsigned int *blocks, unsigned int *bmem);
+
+	/* Add LE to log dump */
 	void (*lo_build_dump) (struct gfs_sbd * sdp, struct gfs_trans * tr);
 
-	/* Operations that happen at recovery time */
+	/*
+	 * Operations that happen at recovery time
+	 */
 
+	/* Reset/init whatever before doing recovery */
 	void (*lo_before_scan) (struct gfs_sbd * sdp, unsigned int jid,
 				struct gfs_log_header * head,
 				unsigned int pass);
+
+	/* LE-specific recovery procedure */
 	int (*lo_scan_elements) (struct gfs_sbd * sdp,
 				 struct gfs_jindex * jdesc,
 				 struct gfs_glock * gl, uint64_t start,
 				 struct gfs_log_descriptor * desc,
 				 unsigned int pass);
+
+	/* Verify and report recovery results/statistics */
 	void (*lo_after_scan) (struct gfs_sbd * sdp, unsigned int jid,
 			       unsigned int pass);
 
-	/* Type of element (glock/buf/unlinked/quota) */
+
+	/* 
+	 * Type of element (glock/buf/unlinked/quota)
+	 */
 	char *lo_name;
 };
 
@@ -122,14 +164,23 @@ struct gfs_log_element {
 
 /*
  * Meta-header cache structure.
- * One for each metadata block that we've read from disk, and are still using.
- * In-core superblock structure hosts the actual cache.
+ * One for each metadata block that we've de-allocated.
+ * Used to temporarily store gfs_meta_header structs for meta blocks that
+ *   have been freshly turned into FREEMETA (alloc'd or de-alloc'd).  Storing
+ *   these (small) structures in-core allows us to release the (large) buffers,
+ *   and not need to re-read the header from disk if/when we re-allocate the
+ *   blocks to USEDMETA, as long as this node holds the EXCLUSIVE lock for the
+ *   resource group containing the blocks.  If we release the EX lock, we must
+ *   throw away the rgrp's cached meta headers, since another node could change
+ *   the blocks' contents.
+ * In-core superblock structure hosts the hashed cache, as well as a
+ *   linear list of all cached, in most-recently-added order.
  * Also, each resource group keeps a list of cached blocks within its scope.
  */
 struct gfs_meta_header_cache {
 	/* Links to various lists */
 	struct list_head mc_list_hash;   /* Superblock's hashed list */
-	struct list_head mc_list_single; /* Superblock's single list */
+	struct list_head mc_list_single; /* Superblock's list, MRU order */
 	struct list_head mc_list_rgd;    /* Resource group's list */
 
 	uint64_t mc_block;               /* Block # (in-place address) */
@@ -194,7 +245,7 @@ struct gfs_rgrpd {
 	uint32_t rd_last_alloc_meta;    /* Most recent meta block allocated */
 
 	struct list_head rd_mhc;        /* Cached meta-headers for this rgrp */
-	struct list_head rd_depend;     /* Dependency elements */
+	struct list_head rd_depend;     /* Dependent inodes (MRU order) */
 
 	struct gfs_sbd *rd_sbd;		/* FS incore superblock (fs instance) */
 };
@@ -216,7 +267,7 @@ struct gfs_rgrpd {
  *    other is that since there is a more recent copy of the block in
  *    the log, we don't need to keep the older copies in the log.  We can
  *    remove them from the AIL and let the log space be reused for new
- *    transactions.
+ *    transactions (GFS advances the log tail when removing buffers from AIL).
  *  If a transaction follows another transaction before the first transaction's
  *    log completes, the first transaction's results are copied to a "frozen"
  *    image of the buffer, so it can be logged properly, while the second
@@ -226,8 +277,10 @@ struct gfs_bufdata {
 	struct buffer_head *bd_bh;  /* We belong to this Linux buffer_head */
 	struct gfs_glock *bd_gl;    /* This glock protects buffer's payload */
 
-	struct gfs_log_element bd_new_le;
-	struct gfs_log_element bd_incore_le;
+	/* Log elements map us to a particular set of log operations functions,
+	   and to a particular transaction */
+	struct gfs_log_element bd_new_le;     /* New, incomplete transaction */
+	struct gfs_log_element bd_incore_le;  /* Complete (committed) trans */
 
 	char *bd_frozen;            /* "Frozen" copy of buffer's data */
 	struct semaphore bd_lock;   /* Protects access to this structure */
@@ -244,39 +297,49 @@ struct gfs_bufdata {
  *  Glock operations
  *  One set of operations for each glock, the set selected by type of glock.
  *  These functions get called at various points in a glock's lifetime.
- *  "xmote" = promote (lock) a glock at inter-node level.
+ *  "xmote" = promote or demote (change lock state) a glock at inter-node scope.
  *  "th" = top half, "bh" = bottom half
+ *  Some operations/fields are required (GFS assumes they are there):
+ *     go_xmote_th
+ *     go_drop_th
+ *     go_type
+ *  Other operations are optional (GFS checks for presence before calling).
  */
 struct gfs_glock_operations {
 
-	/* Before acquiring a lock at inter-node level */
+	/* Acquire lock or change lock state at inter-node scope:
+	     Does type-specific preparation (if any)
+	     Uses gfs_glock_xmote_th to call lock module. */
 	void (*go_xmote_th) (struct gfs_glock * gl, unsigned int state,
 			     int flags);
 
-	/* After acquiring a lock at inter-node level */
+	/* After acquiring or changing a lock at inter-node scope */
 	void (*go_xmote_bh) (struct gfs_glock * gl);
 
-	/* Before releasing a lock at inter-node level, calls go_sync  */
+	/* Release (unlock) a lock at inter-node scope:
+	     Does type-specific preparation (if any)
+	     Uses gfs_glock_drop_th to call lock module. */
 	void (*go_drop_th) (struct gfs_glock * gl);
 
-	/* After releasing a lock at inter-node level, calls go_inval  */
+	/* After releasing a lock at inter-node scope */
 	void (*go_drop_bh) (struct gfs_glock * gl);
 
-	/* Sync dirty data to disk before releasing an inter-node lock
+	/* Sync dirty data to disk (e.g. before demoting an EX inter-node lock)
 	   (another node needs to read the updated data from disk) */
 	void (*go_sync) (struct gfs_glock * gl, int flags);
 
-	/* Invalidate locally cached data just after releasing an inter-node lock
+	/* Invalidate local cached data just after releasing an inter-node lock
 	   (another node may change the on-disk data, so it's no good to us) */
 	void (*go_inval) (struct gfs_glock * gl, int flags);
 
 	/* Lock-type-specific check to see if it's okay to unlock a glock */
 	int (*go_demote_ok) (struct gfs_glock * gl);
 
-	/* After locking at local process level */
+	/* After getting lock for first holder (within this node) */
 	int (*go_lock) (struct gfs_glock * gl, int flags);
 
-	/* Before unlocking at local process level */
+	/* After last holder (within this node) gives up lock (glock may
+	   remain in glock cache, though) */
 	void (*go_unlock) (struct gfs_glock * gl, int flags);
 
 	/* After receiving a callback: another node needs the lock */
@@ -286,27 +349,34 @@ struct gfs_glock_operations {
 	   anymore */
 	void (*go_greedy) (struct gfs_glock * gl);
 
-	/* Lock type: locks with same lock # (usually an FS block #),
+	/* Lock type: locks with same lock # (often an FS block #),
 	   but different types, are different locks */
-	int go_type;    /* glock type */
+	int go_type;
 };
 
 /*
  *  Glock holder structure
- *  These coordinate the use, within this node, of an acquired inter-node lock.
- *  One for each holder of a glock.  A glock may be shared within a node by
+ *  One for each holder of a glock.
+ *  These coordinate the use, within this node, of an acquired inter-node glock.
+ *  Once a node has acquired a glock, it may be shared within that node by
  *    several processes, or even by several recursive requests from the same
- *    process.  Each is a separate "holder".  To be shared locally, the glock
- *    must be in "SHARED" or "DEFERRED" state at inter-node level, which means
- *    that processes on other nodes might also read the protected entity.
+ *    process.  Each is a separate "holder".  Different holders may co-exist
+ *    having requested different lock states, as long as the node holds the
+ *    glock in a state that is compatible.  A hold requestor may select, via
+ *    flags, the rules by which sharing within the node is granted:
+ *      LM_FLAG_ANY:  Grant if glock state is any other than UNLOCKED.
+ *      GL_EXACT:     Grant only if glock state is exactly the requested state.
+ *      GL_LOCAL_EXCL:  Grant only one holder at a time within this node.
+ *    With no flags, a hold will be granted to a SHARED request even if the
+ *    node holds the glock in EXCLUSIVE mode.  See relaxed_state_ok().
  *  When a process needs to manipulate a lock, it requests it via one of
  *    these holder structures.  If the request cannot be satisfied immediately,
- *    the holder structure gets queued on one of these glock lists:
- *    1) waiters1, for gaining exclusive (local) access to the glock structure.
- *    2) waiters2, for unlocking (demoting) a lock or waiting for a lock
- *       to be unlocked.
- *    3) waiters3, for locking (promoting) a lock.  This may require
- *       changing lock state at inter-node level.
+ *    the holder structure gets queued on one of these lists in gfs_glock:
+ *    1) waiters1, for gaining exclusive access to the (local) glock structure.
+ *    2) waiters2, for demoting a lock (unlocking a glock, or changing its state
+ *       to be less restrictive) or relenquishing "greedy" status.
+ *    3) waiters3, for promoting (locking a new glock, or changing a glock state
+ *       to be more restrictive).
  *  When holding a lock, gfs_holder struct stays on glock's holder list.
  *  See gfs-kernel/src/harness/lm_interface.h for gh_state (LM_ST_...)
  *    and gh_flags (LM_FLAG...) fields.
@@ -321,10 +391,11 @@ struct gfs_glock_operations {
 
 /*  States  */
 #define HIF_ALLOCED     (4)  /* Holder structure is or was in use */
-#define HIF_DEALLOC     (5)  /* Holder structure no longer in use */
+#define HIF_DEALLOC     (5)  /* Toss holder struct as soon as queued request
+                              *   is satisfied */
 #define HIF_HOLDER      (6)  /* We have been granted a hold on the lock */
-#define HIF_FIRST       (7)  /* We are first on glock's holder list */
-#define HIF_RECURSE     (8)  /* Recursive locks on same glock by same process */
+#define HIF_FIRST       (7)  /* We are first holder to get the lock */
+#define HIF_RECURSE     (9)  /* >1 hold requests on same glock by same process*/
 
 struct gfs_holder {
 	struct list_head gh_list;      /* Link to one of glock's holder lists */
@@ -352,7 +423,8 @@ struct gfs_holder {
  *  Glocks are managed within a hash table hosted by the in-core superblock.
  *  After all holders have released a glock, it will stay in the hash table
  *    cache for a time (depending on lock type), during which the inter-node
- *    lock will not be released unless another node needs the lock.  This
+ *    lock will not be released unless another node needs the lock (lock
+ *    manager requests this via callback to GFS through LM on this node).  This
  *    provides better performance in case this node needs the glock again soon.
  *  Each glock has an associated vector of lock-type-specific "glops" functions
  *    which are called at important times during the life of a glock, and
@@ -376,14 +448,22 @@ struct gfs_holder {
  */
 
 #define GLF_PLUG                (0)  /* Dummy */
-#define GLF_LOCK                (1)  /* Exclusive (local) access to glock structure */
-#define GLF_STICKY              (2)  /* Don't unlock this lock unless some explicitly asks */
-#define GLF_PREFETCH            (3)  /* This lock has be prefetched, demote if not used soon */
-#define GLF_SYNC                (4)  /* This lock should be synced */
-#define GLF_DIRTY               (5)  /* There is dirty data for this lock */
-#define GLF_LVB_INVALID         (6)  /* LVB does not contain valid data */
-#define GLF_SKIP_WAITERS2       (7)  /* Make run_queue() ignore gl_waiters2 holders */
-#define GLF_GREEDY              (8)  /* This lock is ignoring callbacks for now */
+#define GLF_LOCK                (1)  /* Exclusive (local) access to glock
+                                      *   structure */
+#define GLF_STICKY              (2)  /* Don't release this inter-node lock
+                                      *   unless another node explicitly asks */
+#define GLF_PREFETCH            (3)  /* This lock has been (speculatively)
+                                      *   prefetched, demote if not used soon */
+#define GLF_SYNC                (4)  /* Sync lock's protected data as soon as
+                                      *   there are no more holders */
+#define GLF_DIRTY               (5)  /* There is dirty data for this lock,
+                                      *   sync before releasing inter-node */
+#define GLF_LVB_INVALID         (6)  /* Lock Value Block does not contain
+                                      *   valid data */
+#define GLF_SKIP_WAITERS2       (7)  /* Make run_queue() ignore gl_waiters2
+                                      *   (demote/greedy) holders */
+#define GLF_GREEDY              (8)  /* This lock is ignoring callbacks
+                                      *   (requests from other nodes) for now */
 
 struct gfs_glock {
 	struct list_head gl_list;    /* Link to superblock's hash table */
@@ -405,8 +485,8 @@ struct gfs_glock {
 	struct gfs_glock_operations *gl_ops; /* function vector, defines type */
 
 	/* State to remember for async lock requests */
-	struct gfs_holder *gl_req_gh; /* The holder that generated the request */
-	gfs_glop_bh_t gl_req_bh; /* The bottom half to execute */
+	struct gfs_holder *gl_req_gh; /* Holder that generated the request */
+	gfs_glop_bh_t gl_req_bh;  /* The bottom half to execute */
 
 	lm_lock_t *gl_lock;       /* Lock module's private lock data */
 	char *gl_lvb;             /* Lock Value Block */
@@ -417,11 +497,13 @@ struct gfs_glock {
 	void *gl_object;          /* The protected entity (e.g. a dinode) */
 
 	/* Incore transaction stuff */
-	struct gfs_log_element gl_new_le; /* Incomplete transaction */
-	struct gfs_log_element gl_incore_le; /* Complete transaction */ 
+	/* Log elements map us to a particular set of log operations functions,
+	   and to a particular transaction */
+	struct gfs_log_element gl_new_le;     /* New, incomplete transaction */
+	struct gfs_log_element gl_incore_le;  /* Complete (committed) trans */ 
 
-	struct gfs_gl_hash_bucket *gl_bucket; /* Our bucket in hash table */
-	struct list_head gl_reclaim;          /* Link to "reclaim" list */
+	struct gfs_gl_hash_bucket *gl_bucket; /* Our bucket in sd_gl_hash */
+	struct list_head gl_reclaim;          /* Link to sd_reclaim_list */
 
 	struct gfs_sbd *gl_sbd;               /* Superblock (FS instance) */
 
@@ -501,7 +583,7 @@ struct gfs_inode {
 
 	/* Block allocation strategy, inode scope */
 	struct gfs_alloc *i_alloc; /* In-place block reservation structure */
-	uint64_t i_last_rg_alloc;  /* Most recent block alloc was fm this rgrp */
+	uint64_t i_last_rg_alloc;  /* Most recent blk alloc was fm this rgrp */
 
 	spinlock_t i_lock;                /* Protects this structure */
 
@@ -529,11 +611,11 @@ struct gfs_file {
 };
 
 /*
- *  Unlinked inode log entry
+ *  Unlinked inode log entry incore structure
  */
 
-#define ULF_NEW_UL              (0)
-#define ULF_INCORE_UL           (1)
+#define ULF_NEW_UL              (0)  /* Part of new (being built) trans */
+#define ULF_INCORE_UL           (1)  /* Part of incore-committed trans */
 #define ULF_IC_LIST             (2)
 #define ULF_OD_LIST             (3)
 #define ULF_LOCK                (4)
@@ -545,6 +627,8 @@ struct gfs_unlinked {
 	struct gfs_inum ul_inum;     /* Formal inode #, block addr */
 	unsigned long ul_flags;      /* ULF_... */
 
+	/* Log elements map us to a particular set of log operations functions,
+	   and to a particular transaction */
 	struct gfs_log_element ul_new_le;    /* New, not yet committed */
 	struct gfs_log_element ul_incore_le; /* Committed to incore log */
 	struct gfs_log_element ul_ondisk_le; /* Committed to ondisk log */
@@ -611,17 +695,30 @@ struct gfs_quota_data {
 };
 
 /*
- * Log Buffer descriptor structure
- * One for each FS block buffer recorded in the log
+ * Log Buffer descriptor structure.
+ * One for each block buffer recorded in the log.
+ * When beginning a new transaction, GFS pre-allocates a number of these,
+ *   and puts them on transaction's tr_free_bufs list.
+ * Logged buffers are of two types:
+ *   1).  Exact copies of buffers to be written to in-place location in FS.
+ *   2).  Log-only buffers such as log headers and control blocks (e.g. tags).
+ * A gfs_log_buf is required for both types; the ones for log-only buffers
+ *   contain NULL in lb_unlock, and get cleaned up after the log write.
  * lb_bh is a "fake" buffer head that directs Linux block I/O to write the buf
  *   to the on-disk log location, rather than the on-disk in-place location.
+ *   Used for both types.
+ * lb_unlock points to the "real" buffer head that directs Linux to write the
+ *   buf to its regular on-disk in-place filesystem location.  Once the commit
+ *   to the on-disk log is finished, GFS unlocks the "real" buffer so it can be
+ *   written to in-place block, or modified by another transaction.
+ *   Used only for type 1).
  */
 struct gfs_log_buf {
 	/* Link to one of the transaction structure's lists */
 	struct list_head lb_list;      /* Link to tr_free_bufs or tr_list */
 
-	struct buffer_head lb_bh; /* Buffer Head describing the journal block */
-	struct buffer_head *lb_unlock; /* Buffer head to unlock after commit */
+	struct buffer_head lb_bh;      /* "Fake" bh; for the log block */
+	struct buffer_head *lb_unlock; /* "Real" bh; for the in-place block */
 };
 
 /*
@@ -642,7 +739,9 @@ struct gfs_trans {
 	char *tr_file;                 /* Debug info: .c file creating trans */
 	unsigned int tr_line;          /* Debug info: codeline creating trans */
 
-	/* Reservations for on-disk space in journal */
+	/* Reservations for on-disk space in journal.
+	   Meta blocks are copies of in-place filesystem blocks.  
+	   Extra blocks are log-only (log header and control blocks) */
 	unsigned int tr_mblks_asked;   /* # of meta log blocks requested */
 	unsigned int tr_eblks_asked;   /* # of extra log blocks requested */
 	unsigned int tr_seg_reserved;  /* # of segments actually reserved */
@@ -656,14 +755,24 @@ struct gfs_trans {
 
 	/* Stuff modified during the commit */
 
+	/* When creating a new transaction, GFS pre-allocates as many of
+	   these buffers and descriptor structures as it might need for
+	   all loggable filesystem (meta)data, and log-control (log-only, not
+	   going to filesystem in-place location) data going to on-disk log.
+	   It keeps them on these "free" lists until they get used (and linked
+	   into tr_bufs list, below) or "refunded" if not needed. */
 	unsigned int tr_num_free_bufs; /* List of free gfs_log_buf structs */
-	struct list_head tr_free_bufs;
+	struct list_head tr_free_bufs; /* .. 1 for each log block */
 	unsigned int tr_num_free_bmem; /* List of free fs-block-size buffers */
-	struct list_head tr_free_bmem;
+	struct list_head tr_free_bmem; /* .. for log-only (e.g. tag) blocks */
 
-	uint64_t tr_log_head;          /* The current log head */
-	uint64_t tr_first_head;	       /* First header block */
+	/* Logged transaction starts with a (first) log header at a segment
+	   boundary, and fills contiguous blocks after that.  Each segment
+	   boundary block gets another log header. */
+	uint64_t tr_log_head;          /* The next log block # to fill */
+	uint64_t tr_first_head;	       /* Trans' first log header's block # */
 
+	/* gfs_log_buf structs move from tr_free_bufs to here when being used */
 	struct list_head tr_bufs;      /* List of buffers going to the log */
 
 	/* Stuff that's part of the Active Items List (AIL) */
@@ -700,7 +809,7 @@ struct gfs_gl_hash_bucket {
 
 #define SDF_JOURNAL_LIVE        (0)  /* Journaling is active (journal is writeable)*/
 
-/* Daemon run (1) / stop (0) flags */
+/* Run (1) / stop (0) flags for various daemons */
 #define SDF_SCAND_RUN           (1)  /* Put unused glocks on reclaim queue */
 #define SDF_GLOCKD_RUN          (2)  /* Reclaim (dealloc) unused glocks */
 #define SDF_RECOVERD_RUN        (3)  /* Recover journal of a crashed node */
@@ -752,7 +861,7 @@ struct gfs_sbd {
 	struct list_head sd_rglist;	/* List of all resource groups,
 					   on-disk order */
 	struct semaphore sd_rindex_lock;/* Serializes RIndex rereads */
-	struct list_head sd_rg_mru_list;/* List of resource groups,
+	struct list_head sd_rg_mru_list;/* List of all resource groups,
 					   most-recently-used (MRU) order */
 	spinlock_t sd_rg_mru_lock;      /* Protect mru list */
 	struct list_head sd_rg_recent;	/* List of rgrps from which blocks
@@ -871,7 +980,7 @@ struct gfs_sbd {
 	unsigned long sd_jindex_refresh_time; /* Poll for new journals (secs) */
 
 	struct gfs_jindex sd_jdesc;	 /* This machine's journal descriptor */
-	struct gfs_holder sd_journal_gh; /* This machine's journal glock */
+	struct gfs_holder sd_journal_gh; /* This machine's jrnl glock holder */
 
 	uint64_t sd_sequence;	/* Assigned to xactions in order they commit */
 	uint64_t sd_log_head;	/* Block number of next journal write */
@@ -895,10 +1004,14 @@ struct gfs_sbd {
 	uint64_t sd_log_dump_last;
 	uint64_t sd_log_dump_last_wrap;
 
-	/* Unlinked crap */
-
-	struct list_head sd_unlinked_list;
-	spinlock_t sd_unlinked_lock;
+	/*
+	 * Unlinked inode crap.
+	 * List includes newly created, not-yet-linked inodes,
+	 *   as well as inodes that have been unlinked and are waiting
+         *   to be de-allocated.
+	 */
+	struct list_head sd_unlinked_list; /* List of unlinked inodes */
+	spinlock_t sd_unlinked_lock;       /* Protects list and members */
 
 	atomic_t sd_unlinked_ic_count;
 	atomic_t sd_unlinked_od_count;
@@ -919,31 +1032,42 @@ struct gfs_sbd {
 
 	/* License crap */
 
-	struct gfs_inode *sd_linode;
+	struct gfs_inode *sd_linode;    /* Special on-disk license file */
 
 	/* Recovery stuff */
 
-	struct list_head sd_dirty_j;
-	spinlock_t sd_dirty_j_lock;
+	/* Lock module tells GFS, via callback, when a journal needs recovery.
+	   It stays on this list until recovery daemon performs recovery. */
+	struct list_head sd_dirty_j;    /* List of dirty journals */
+	spinlock_t sd_dirty_j_lock;     /* Protects list */
 
-	unsigned int sd_recovery_replays;
-	unsigned int sd_recovery_skips;
-	unsigned int sd_recovery_sames;
+	/* Statistics for 3 possible recovery actions for each buffer in log,
+	     determined by comparing generation #s of logged block and
+	     in-place block.  Scope of stats is for one journal. */
+	unsigned int sd_recovery_replays; /* newer than in-place; copy it */
+	unsigned int sd_recovery_skips;   /* older than in-place; ignore it */
+	unsigned int sd_recovery_sames;   /* same as in-place; ignore it */
 
 	/* Counters */
 
-	atomic_t sd_glock_count;
-	atomic_t sd_glock_held_count;
-	atomic_t sd_inode_count;
-	atomic_t sd_bufdata_count;
-	atomic_t sd_fh2dentry_misses;
-	atomic_t sd_reclaimed;
+	/* current quantities of various things */
+	atomic_t sd_glock_count;      /* # of gfs_glock structs alloc'd */
+	atomic_t sd_glock_held_count; /* # of glocks locked by this node */
+	atomic_t sd_inode_count;      /* # of gfs_inode structs alloc'd */
+	atomic_t sd_bufdata_count;    /* # of gfs_bufdata structs alloc'd */
+
+	atomic_t sd_fh2dentry_misses; /* total # get_dentry misses */
+	atomic_t sd_reclaimed;        /* total # glocks reclaimed since mount */
+
+	/* total lock-related calls handled since mount */
 	atomic_t sd_glock_nq_calls;
 	atomic_t sd_glock_dq_calls;
 	atomic_t sd_glock_prefetch_calls;
 	atomic_t sd_lm_lock_calls;
 	atomic_t sd_lm_unlock_calls;
 	atomic_t sd_lm_callbacks;
+
+	/* total calls from Linux VFS handled since mount */
 	atomic_t sd_ops_address;
 	atomic_t sd_ops_dentry;
 	atomic_t sd_ops_export;

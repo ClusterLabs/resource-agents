@@ -40,7 +40,8 @@
 
 /**
  * inode_attr_in - Copy attributes from the dinode into the VFS inode
- * @ip: The GFS inode
+ * @ip: The GFS inode (with embedded disk inode data)
+ * @inode:  The Linux VFS inode
  *
  */
 
@@ -113,7 +114,7 @@ inode_attr_in(struct gfs_inode *ip, struct inode *inode)
 
 /**
  * gfs_inode_attr_in - Copy attributes from the dinode into the VFS inode
- * @ip: The GFS inode
+ * @ip: The GFS inode (with embedded disk inode data)
  *
  */
 
@@ -154,8 +155,16 @@ gfs_inode_attr_out(struct gfs_inode *ip)
 /**
  * gfs_iget - Get/Create a struct inode for a struct gfs_inode
  * @ip: the struct gfs_inode to get the struct inode for
+ * @create: CREATE -- create a new struct inode if one does not already exist
+ *          NO_CREATE -- return NULL if inode doesn't exist
  *
- * Returns: An inode
+ * Returns: A VFS inode, or NULL if NO_CREATE and none in existance
+ *
+ * If this function creates a new inode, it:
+ *   Copies fields from the GFS on-disk (d)inode to the VFS inode
+ *   Attaches the appropriate ops vectors to the VFS inode and address_space
+ *   Attaches the VFS inode to the gfs_inode
+ *   Inserts the new inode in the VFS inode hash, while avoiding races
  */
 
 struct inode *
@@ -177,6 +186,7 @@ gfs_iget(struct gfs_inode *ip, int create)
 
 	inode_attr_in(ip, tmp);
 
+	/* Attach GFS-specific ops vectors */
 	if (ip->i_di.di_type == GFS_FILE_REG) {
 		tmp->i_op = &gfs_file_iops;
 		tmp->i_fop = &gfs_file_fops;
@@ -193,6 +203,12 @@ gfs_iget(struct gfs_inode *ip, int create)
 
 	vn2ip(tmp) = NULL;
 
+	/* Did another process successfully create an inode while we were
+	   preparing this (tmp) one?  If so, we can use that other one, and
+	   trash the one we were preparing. 
+	   The other process might not be done inserting the inode in the
+	   VFS hash table.  If so, we need to wait until it is done, then
+	   we can use it.  */
 	for (;;) {
 		spin_lock(&ip->i_lock);
 		if (!ip->i_vnode)
@@ -263,7 +279,7 @@ gfs_copyin_dinode(struct gfs_inode *ip)
  * @i_gl: The glock covering the inode
  * @inum: The inode number
  * @io_gl: the iopen glock, or NULL
- * @io_state: the state the iopen glock should be acquire in
+ * @io_state: the state the iopen glock should be acquired in
  * @ipp: pointer to put the returned inode in
  *
  * Returns: 0 on success, -EXXX on failure
@@ -342,6 +358,8 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
  * @ipp: pointer to put the returned inode in
  *
  * Returns: 0 on success, -EXXX on failure
+ *
+ * If creating a new gfs_inode structure, reads dinode from disk.
  */
 
 int
@@ -782,8 +800,8 @@ gfs_change_nlink(struct gfs_inode *ip, int diff)
  * @is_root: If TRUE, ignore the caller's permissions
  * @i_gh: An uninitialized holder for the new inode glock
  *
- * There will always be a vnode for the d_gh inode unless @is_root
- * is true.
+ * There will always be a vnode (Linux VFS inode) for the d_gh inode unless
+ *   @is_root is true.
  *
  * Returns: 0 on success, -EXXXX on failure
  */
@@ -918,10 +936,10 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 }
 
 /**
- * create_ok -
- * @dip:
- * @name:
- * @type:
+ * create_ok - OK to create a new on-disk inode here?
+ * @dip:  Directory in which dinode is to be created
+ * @name:  Name of new dinode
+ * @type:  GFS_FILE_XXX (regular file, dir, etc.)
  *
  * Returns: errno
  */
@@ -960,9 +978,12 @@ create_ok(struct gfs_inode *dip, struct qstr *name, unsigned int type)
 }
 
 /**
- * dinode_alloc - 
- * @dip:
+ * dinode_alloc - Create an on-disk inode
+ * @dip:  Directory in which to create the dinode
  * @ul:
+ *
+ * Since this dinode is not yet linked, we also create an unlinked inode
+ *   descriptor.
  *
  * Returns: errno
  */
@@ -975,10 +996,9 @@ dinode_alloc(struct gfs_inode *dip, struct gfs_unlinked **ul)
 	struct gfs_inum inum;
 	int error;
 
+	/* Create in-place allocation structure, reserve 1 dinode */
 	al = gfs_alloc_get(dip);
-
 	al->al_requested_di = 1;
-
 	error = gfs_inplace_reserve(dip);
 	if (error)
 		goto out;
@@ -1611,7 +1631,7 @@ gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len)
  *
  * Tests atime for gfs_read, gfs_readdir and gfs_test_mmap
  * Update if the difference between the current time and the current atime 
- * is greater than a interval specfied at mount.
+ * is greater than an interval specified at mount (or default).
  *
  * Returns: 0 on success, -EXXX on error
  */
@@ -1895,10 +1915,12 @@ iah_make_jdata(struct gfs_glock *gl, struct gfs_inum *inum)
 }
 
 /**
- * iah_super_update - 
- * @sdp:
+ * iah_super_update - Write superblock to disk
+ * @sdp:  filesystem instance structure
  *
  * Returns: errno
+ *
+ * Update on-disk superblock, using (modified) data in sdp->sd_sb
  */
 
 static int
@@ -1928,11 +1950,20 @@ iah_super_update(struct gfs_sbd *sdp)
 }
 
 /**
- * inode_alloc_hidden -
- * @sdp:
- * @inum:
+ * inode_alloc_hidden - allocate on-disk inode for a special (hidden) file
+ * @sdp:  the filesystem instance structure
+ * @inum:  new dinode's block # and formal inode #, to be filled
+ *         in by this function.
  *
  * Returns: errno
+ *
+ * This function is called only very rarely, when the first-to-mount
+ * node can't find a pre-existing special file (e.g. license or quota file) that
+ * it expects to find.  This should happen only when upgrading from an older
+ * version of the filesystem.
+ *
+ * The @inum must be a member of sdp->sd_sb in order to get updated to on-disk
+ * superblock properly.
  */
 
 static int
@@ -1983,6 +2014,7 @@ inode_alloc_hidden(struct gfs_sbd *sdp, struct gfs_inum *inum)
 	if (error)
 		goto fail_end_trans;
 
+	/* Hidden files get all of their data (not just metadata) journaled */
 	iah_make_jdata(i_gh.gh_gl, inum);
 
 	error = iah_super_update(sdp);

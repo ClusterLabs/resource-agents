@@ -470,6 +470,10 @@ gfs_ji_update(struct gfs_inode *ip)
  * @sdp: The GFS superblock
  * @ji_gh: the holder for the jindex glock
  *
+ * This makes sure that we're using the latest copy of the journal index
+ *   special file, which might have been updated if someone added journals
+ *   (via gfs_jadd utility).
+ *
  * This is very similar to the gfs_rindex_hold() function, except that
  * in general we hold the jindex lock for longer periods of time and
  * we grab it far less frequently (in general) then the rgrp lock.
@@ -488,6 +492,7 @@ gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
 	if (error)
 		return error;
 
+	/* Read new copy from disk if we don't have the latest */
 	if (sdp->sd_jiinode_vn != gl->gl_vn) {
 		down(&sdp->sd_jindex_lock);
 		if (sdp->sd_jiinode_vn != gl->gl_vn)
@@ -597,8 +602,11 @@ gfs_get_rootinode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_get_qinode - Read in the quota inode
+ * gfs_get_qinode - Read in the special (hidden) quota inode
  * @sdp: The GFS superblock
+ *
+ * If one is not on-disk already, create a new one.
+ * Does not read in file contents, just the dinode.
  *
  * Returns: 0 on success, error code otherwise
  */
@@ -609,6 +617,7 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 	struct gfs_holder i_gh;
 	int error;
 
+	/* Create, if not on-disk already */
 	if (!sdp->sd_sb.sb_quota_di.no_formal_ino) {
 		error = gfs_alloc_qinode(sdp);
 		if (error)
@@ -632,8 +641,11 @@ gfs_get_qinode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_get_linode - Read in the quota inode
+ * gfs_get_linode - Read in the special (hidden) license inode
  * @sdp: The GFS superblock
+ *
+ * If one is not on-disk already, create a new one.
+ * Does not read in file contents, just the dinode.
  *
  * Returns: 0 on success, error code otherwise
  */
@@ -644,6 +656,7 @@ gfs_get_linode(struct gfs_sbd *sdp)
 	struct gfs_holder i_gh;
 	int error;
 
+	/* Create, if not on-disk already */
 	if (!sdp->sd_sb.sb_license_di.no_formal_ino) {
 		error = gfs_alloc_linode(sdp);
 		if (error)
@@ -667,7 +680,7 @@ gfs_get_linode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_make_fs_rw - Turn a RO FS into a RW one
+ * gfs_make_fs_rw - Turn a Read-Only FS into a Read-Write one
  * @sdp: the filesystem
  *
  * Returns: errno
@@ -722,7 +735,7 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_make_fs_ro - Turn a RW FS into a RO one
+ * gfs_make_fs_ro - Turn a Read-Write FS into a Read-Only one
  * @sdp: the filesystem
  *
  * Returns: errno
@@ -768,7 +781,7 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
  * Any error (other than a signal) will cause this routine to fall back
  * to the synchronous version.
  *
- * This really shouldn't busy wait like this.
+ * FIXME: This really shouldn't busy wait like this.
  *
  * Returns: errno
  */

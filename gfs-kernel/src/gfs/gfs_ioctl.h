@@ -128,24 +128,24 @@ struct gfs_tune {
 	unsigned int gt_jindex_refresh_secs;
 	unsigned int gt_depend_secs;
 
-	/* how often various daemons run (seconds) */
-	unsigned int gt_scand_secs;       /* find unused glocks and inodes */
-	unsigned int gt_recoverd_secs;    /* recover journal of crashed node */
-	unsigned int gt_logd_secs;        /* update log tail as AIL flushes */
-	unsigned int gt_quotad_secs;      /* sync changes to quota file, clean */
-	unsigned int gt_inoded_secs;      /* toss unused inodes */
+	/* How often various daemons run (seconds) */
+	unsigned int gt_scand_secs;       /* Find unused glocks and inodes */
+	unsigned int gt_recoverd_secs;    /* Recover journal of crashed node */
+	unsigned int gt_logd_secs;        /* Update log tail as AIL flushes */
+	unsigned int gt_quotad_secs;      /* Sync changes to quota file, clean*/
+	unsigned int gt_inoded_secs;      /* Toss unused inodes */
 
-	unsigned int gt_quota_simul_sync; /* max # quotavals to sync at once */
-	unsigned int gt_quota_warn_period; /* secs between quota warn msgs */
-	unsigned int gt_atime_quantum;
-	unsigned int gt_quota_quantum;    /* secs between syncs to quota file */
-	unsigned int gt_quota_scale_num;  /* numerator */
-	unsigned int gt_quota_scale_den;  /* denominator */
+	unsigned int gt_quota_simul_sync; /* Max # quotavals to sync at once */
+	unsigned int gt_quota_warn_period; /* Secs between quota warn msgs */
+	unsigned int gt_atime_quantum;    /* Min secs between atime updates */
+	unsigned int gt_quota_quantum;    /* Secs between syncs to quota file */
+	unsigned int gt_quota_scale_num;  /* Numerator */
+	unsigned int gt_quota_scale_den;  /* Denominator */
 	unsigned int gt_quota_enforce;
 	unsigned int gt_quota_account;
 	unsigned int gt_new_files_jdata;
 	unsigned int gt_new_files_directio;
-	unsigned int gt_max_atomic_write;
+	unsigned int gt_max_atomic_write; /* Split large writes into this size*/
 	unsigned int gt_max_readahead;
 	unsigned int gt_lockdump_size;
 	unsigned int gt_stall_secs;
@@ -160,6 +160,9 @@ struct gfs_tune {
 	unsigned int gt_greedy_max;
 };
 
+
+/* Arguments passed to GFS via mount command */
+
 #define GFS_GLOCKD_DEFAULT (1)
 #define GFS_GLOCKD_MAX (32)
 
@@ -168,13 +171,23 @@ struct gfs_args {
 	char ar_locktable[256];	/* The name of the Lock Table */
 	char ar_hostdata[256];	/* The host specific data */
 
-	int ar_ignore_local_fs;	/* Ignore the local_fs field in the struct lm_lockops */
-	int ar_localflocks;	/* let the VFS do flock|fcntl locks for us */
-	int ar_localcaching;	/* Local-style caching (dangerous on mulithost) */
+	/*
+	 * GFS can invoke some flock and disk caching optimizations if it is
+	 * not in a cluster, i.e. is a local filesystem.  The chosen lock
+	 * module tells GFS, at mount time, if it supports clustering.
+	 * The nolock module is the only one that does not support clustering;
+	 * it sets to TRUE the local_fs field in the struct lm_lockops.
+	 * GFS can either optimize, or ignore the opportunity.
+	 * The user controls behavior via the following mount options.
+	 */
+	int ar_ignore_local_fs;	/* Don't optimize even if local_fs is TRUE */
+	int ar_localflocks;	/* Let the VFS do flock|fcntl locks for us */
+	int ar_localcaching;	/* Local-style caching (dangerous on multihost) */
 
 	int ar_upgrade;		/* Upgrade ondisk/multihost format */
 
-	unsigned int ar_num_glockd;
+	unsigned int ar_num_glockd; /* # of glock cleanup daemons to run
+				       (more daemons => faster cleanup)  */
 
 	int ar_posix_acls;	/* Enable posix acls */
 	int ar_suiddir;         /* suiddir support */

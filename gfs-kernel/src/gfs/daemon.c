@@ -29,9 +29,11 @@
 #include "unlinked.h"
 
 /**
- * gfs_scand - Writing of cached scan chanes into the scan file
+ * gfs_scand - Look for cached glocks and inodes to toss from memory
  * @sdp: Pointer to GFS superblock
  *
+ * One of these daemons runs, finding candidates to add to sd_reclaim_list.
+ * See gfs_glockd()
  */
 
 int
@@ -63,9 +65,13 @@ gfs_scand(void *data)
 }
 
 /**
- * gfs_glockd - Writing of cached scan chanes into the scan file
+ * gfs_glockd - Reclaim unused glock structures
  * @sdp: Pointer to GFS superblock
  *
+ * One or more of these daemons run, reclaiming glocks on sd_reclaim_list.
+ * sd_glockd_num says how many daemons are running now.
+ * Number of daemons can be set by user, with num_glockd mount option.
+ * See gfs_scand()
  */
 
 int
@@ -102,7 +108,7 @@ gfs_glockd(void *data)
 }
 
 /**
- * gfs_recoverd - Recovery of dead machine's journals
+ * gfs_recoverd - Recover dead machine's journals
  * @sdp: Pointer to GFS superblock
  *
  */
@@ -136,9 +142,11 @@ gfs_recoverd(void *data)
 }
 
 /**
- * gfs_logd - Writing of cached log chanes into the log file
+ * gfs_logd - Update log tail as Active Items get flushed to in-place blocks
  * @sdp: Pointer to GFS superblock
  *
+ * Also, periodically check to make sure that we're using the most recent
+ * journal index.
  */
 
 int
@@ -153,8 +161,10 @@ gfs_logd(void *data)
 	complete(&sdp->sd_thread_completion);
 
 	for (;;) {
+		/* Advance the log tail */
 		gfs_ail_empty(sdp);
 
+		/* Check for latest journal index */
 		if (time_after_eq(jiffies,
 				  sdp->sd_jindex_refresh_time +
 				  sdp->sd_tune.gt_jindex_refresh_secs * HZ)) {
@@ -180,7 +190,7 @@ gfs_logd(void *data)
 }
 
 /**
- * gfs_quotad - Writing of cached quota chanes into the quota file
+ * gfs_quotad - Write cached quota changes into the quota file
  * @sdp: Pointer to GFS superblock
  *
  */
@@ -197,6 +207,7 @@ gfs_quotad(void *data)
 	complete(&sdp->sd_thread_completion);
 
 	for (;;) {
+		/* Update quota file */
 		if (time_after_eq(jiffies,
 				  sdp->sd_quota_sync_time +
 				  sdp->sd_tune.gt_quota_quantum * HZ)) {
@@ -207,6 +218,7 @@ gfs_quotad(void *data)
 			sdp->sd_quota_sync_time = jiffies;
 		}
 
+		/* Clean up */
 		gfs_quota_scan(sdp);
 
 		if (!test_bit(SDF_QUOTAD_RUN, &sdp->sd_flags))
@@ -225,7 +237,7 @@ gfs_quotad(void *data)
 }
 
 /**
- * gfs_inoded - Deallocation of unlinked inodes
+ * gfs_inoded - Deallocate unlinked inodes
  * @sdp: Pointer to GFS superblock
  *
  */

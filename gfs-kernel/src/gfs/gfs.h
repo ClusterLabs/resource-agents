@@ -70,6 +70,8 @@
 #define vn2ip(inode) ((struct gfs_inode *)(inode)->u.generic_ip)
 #define vf2fp(file) ((struct gfs_file *)(file)->private_data)
 #define bh2bd(bh) ((struct gfs_bufdata *)(bh)->b_private)
+
+/* A process can build only one transaction at a time */
 #define current_transaction ((struct gfs_trans *)(current->journal_info))
 
 #define gl2ip(gl) ((struct gfs_inode *)(gl)->gl_object)

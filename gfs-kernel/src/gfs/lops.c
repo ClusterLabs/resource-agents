@@ -41,10 +41,12 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
 {
 	struct gfs_trans *tr;
 
+	/* Make sure it's not attached to a transaction already */
 	GFS_ASSERT_SBD(le->le_ops &&
 		       !le->le_trans &&
 		       list_empty(&le->le_list), sdp,);
 
+	/* Attach it to the (one) transaction being built by this process */
 	tr = current_transaction;
 	GFS_ASSERT_SBD(tr, sdp,);
 
@@ -57,6 +59,8 @@ generic_le_add(struct gfs_sbd *sdp, struct gfs_log_element *le)
  * @sdp: the filesystem
  * @le: the log element
  *
+ * Called before incore-committing a transaction
+ * Release reference that was taken in gfs_trans_add_gl()
  */
 
 static void
@@ -99,10 +103,20 @@ glock_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 }
 
 /**
- * glock_overlap_trans - Find any incore transactions that might overlap with this LE
+ * glock_overlap_trans - Find any incore transactions that might overlap with
+ *   (i.e. be combinable with the transaction containing) this LE
  * @sdp: the filesystem
  * @le: the log element
  *
+ * Transactions that share a given glock are combinable.
+ *
+ * For a glock, the scope of the "search" is just the (max) one unique incore
+ *   committed transaction to which the glock may be attached via its
+ *   gl->gl_incore_le embedded log element.  This trans may have previously
+ *   been combined with other transactions, though (i.e. previous
+ *   incore committed transactions that shared the same glock).
+ *  
+ * Called as a beginning part of the incore commit of a transaction.
  */
 
 static struct gfs_trans *
@@ -116,9 +130,27 @@ glock_overlap_trans(struct gfs_sbd *sdp, struct gfs_log_element *le)
 /**
  * glock_incore_commit - commit this LE to the incore log
  * @sdp: the filesystem
- * @tr: the incore transaction this LE is a part of
- * @le: the log element
- *
+ * @tr: the being-incore-committed transaction this LE is to be a part of
+ * @le: the log element (should be a gl->gl_new_le), which is attached
+ *      to a "new" (just-ended) transaction.
+ *      
+ * Attach glock's gl_incore_le to the being-incore-committed trans' LE list.
+ * Remove glock's gl_new_le from the just-ended new trans' LE list.
+ * If the just-ended new trans (le->le_trans) was combined (in incore_commit())
+ *   with a pre-existing incore trans (tr), this function effectively moves
+ *   the LE from the new to the combined incore trans.
+ * If there was no combining, then the new trans itself is being committed
+ *   (le->le_trans == tr); this function simply replaces the gl_new_le with a
+ *   gl_incore_le on the trans' LE list.
+ * 
+ * Make sure that this glock's gl_incore_le is attached to one and only one
+ *   incore-committed transaction's (this one's) tr_elements list.
+ *   One transaction (instead of a list of transactions) is sufficient,
+ *   because incore_commit() combines multiple transactions that share a glock
+ *   into one trans.
+ * Since transactions can contain multiple glocks, there are multiple
+ *   possibilities for shared glocks, therefore multiple potential "bridges"
+ *   for combining transactions.
  */
 
 static void
@@ -127,15 +159,21 @@ glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 {
 	struct gfs_glock *gl = container_of(le, struct gfs_glock, gl_new_le);
 
+	/* Transactions were combined, based on this glock */
 	if (gl->gl_incore_le.le_trans)
 		GFS_ASSERT_GLOCK(gl->gl_incore_le.le_trans == tr, gl,);
 	else {
+		/* Attach gl->gl_incore_le to being-committed trans */
 		gl->gl_incore_le.le_trans = tr;
 		list_add(&gl->gl_incore_le.le_list, &tr->tr_elements);
+
+		/* If transactions were combined (via another shared glock),
+		   the combined trans is getting a new glock log element */
 		if (tr != le->le_trans)
 			tr->tr_num_gl++;
 	}
 
+	/* Remove gl->gl_new_le from "new" trans */
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
 }
@@ -145,6 +183,8 @@ glock_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
  * @sdp: the filesystem
  * @le: the log element
  *
+ * Glocks don't really get added to AIL (there's nothing to write to disk),
+ * they just get removed from the transaction at this time.
  */
 
 static void
@@ -155,7 +195,7 @@ glock_add_to_ail(struct gfs_sbd *sdp, struct gfs_log_element *le)
 }
 
 /**
- * glock_trans_combine - combine to incore transactions
+ * glock_trans_combine - combine two incore transactions
  * @sdp: the filesystem
  * @tr: the surviving transaction
  * @new_tr: the transaction that's going to disappear
@@ -286,7 +326,7 @@ buf_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 }
 
 /**
- * buf_trans_combine - combine to incore transactions
+ * buf_trans_combine - combine two incore transactions
  * @sdp: the filesystem
  * @tr: the surviving transaction
  * @new_tr: the transaction that's going to disappear
@@ -305,6 +345,12 @@ buf_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
  * @sdp: the filesystem
  * @bd: the struct gfs_bufdata structure associated with the buffer
  *
+ * Increment the generation # of the most recent buffer contents, as well as
+ *   that of frozen buffer, if any.  If there is a frozen buffer, only *it*
+ *   will be going to the log now ... in this case, the current buffer will
+ *   have its gen # incremented again later, when it gets written to log.
+ * Gen # is used by journal recovery (replay_block()) to determine whether
+ *   to overwrite an inplace block with the logged block contents.
  */
 
 static void
@@ -331,6 +377,7 @@ increment_generation(struct gfs_sbd *sdp, struct gfs_bufdata *bd)
  * @sdp: the filesystem
  * @tr: the transaction
  *
+ * Create the log (transaction) descriptor block
  */
 
 static void
@@ -361,6 +408,7 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 			clb = gfs_log_get_buf(sdp, tr);
 	}
 
+	/* Init and copy log descriptor into 1st control block */
 	memset(&desc, 0, sizeof(struct gfs_log_descriptor));
 	desc.ld_header.mh_magic = GFS_MAGIC;
 	desc.ld_header.mh_type = GFS_METATYPE_LD;
@@ -391,6 +439,7 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 				 (bd->bd_frozen) ? bd->bd_frozen : bd->bd_bh->b_data,
 				 bd->bd_bh);
 
+		/* find another buffer for tags if we're overflowing this one */
 		if (offset + sizeof(struct gfs_block_tag) > sdp->sd_sb.sb_bsize) {
 			clb = list_entry(clb->lb_list.prev,
 					 struct gfs_log_buf, lb_list);
@@ -401,6 +450,7 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 			offset = 0;
 		}
 
+		/* Write this LE's tag into a control buffer */
 		memset(&tag, 0, sizeof(struct gfs_block_tag));
 		tag.bt_blkno = bd->bd_bh->b_blocknr;
 
@@ -809,7 +859,7 @@ unlinked_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 }
 
 /**
- * unlinked_trans_combine - combine to incore transactions
+ * unlinked_trans_combine - combine two incore transactions
  * @sdp: the filesystem
  * @tr: the surviving transaction
  * @new_tr: the transaction that's going to disappear
@@ -829,6 +879,12 @@ unlinked_trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
  * @sdp: the filesystem
  * @tr: the transaction
  *
+ * For unlinked and/or deallocated inode log elements (separately):
+ *   Get a log block
+ *   Create a log descriptor in beginning of that block
+ *   Fill rest of block with gfs_inum structs to identify each inode
+ *     that became unlinked/deallocated during this transaction.
+ *   Get another log block if needed, continue filling with gfs_inums.
  */
 
 static void
@@ -843,6 +899,8 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	unsigned int type, number;
 	unsigned int offset, entries;
 
+	/* 2 passes:  1st for Unlinked, 2nd for De-Alloced inodes,
+	     unless this is a log dump:  just 1 pass, for Unlinked */
 	while (pass--) {
 		if (tr->tr_flags & TRF_LOG_DUMP) {
 			if (pass) {
@@ -865,6 +923,7 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 		lb = gfs_log_get_buf(sdp, tr);
 
+		/* Header:  log descriptor */
 		memset(&desc, 0, sizeof(struct gfs_log_descriptor));
 		desc.ld_header.mh_magic = GFS_MAGIC;
 		desc.ld_header.mh_type = GFS_METATYPE_LD;
@@ -877,6 +936,7 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		offset = sizeof(struct gfs_log_descriptor);
 		entries = 0;
 
+		/* Look through transaction's log elements for Unlinked LEs */
 		for (head = &tr->tr_elements, tmp = head->next;
 		     tmp != head;
 		     tmp = tmp->next) {
@@ -900,6 +960,7 @@ unlinked_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 				lb = gfs_log_get_buf(sdp, tr);
 			}
 
+			/* Payload:  write the inode identifier */
 			gfs_inum_out(&ul->ul_inum,
 				     lb->lb_bh.b_data + offset);
 
@@ -1244,7 +1305,7 @@ quota_trans_size(struct gfs_sbd *sdp, struct gfs_trans *tr,
 }
 
 /**
- * quota_trans_combine - combine to incore transactions
+ * quota_trans_combine - combine two incore transactions
  * @sdp: the filesystem
  * @tr: the surviving transaction
  * @new_tr: the transaction that's going to disappear

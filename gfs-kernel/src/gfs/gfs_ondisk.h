@@ -14,6 +14,66 @@
 /*
  * On-disk structures.
  *
+ * THE BIG PICTURE of on-disk layout:
+ *
+ * GFS filesystem code views the entire filesystem, including journals, as
+ * one contiguous group of blocks on one (perhaps virtual) storage device.
+ * The filesystem space is shared, not distributed; each node in the cluster
+ * must see the entire filesystem space.
+ *
+ * If the filesystem is spread across multiple physical storage devices,
+ * volume management (device mapping) must be used to present the fileystem
+ * space to GFS as one (virtual) device, with contiguous blocks.
+ *
+ * The superblock contains basic information about the filesytem, and appears
+ * at a location 64 KBytes into the filesystem.  The first 64 KBytes of the
+ * filesystem are empty, providing a safety buffer against wayward volume
+ * management software (that sometimes write data into the first few bytes of
+ * a device) or administrators.
+ *
+ * After the superblock, the rest of the filesystem is divided into multiple
+ * Resource Groups and several journals.
+ *
+ * The Resource Groups (RGs or rgrps) contain the allocatable blocks that are
+ * used for storing files, directories, etc., and all of the associated
+ * metadata.  Each RG has its own set of block allocation statistics (within
+ * the RG header), a number of blocks containing the block allocation bitmap,
+ * and a large number of allocatable blocks for file data and metadata.
+ * Multiple RGs allow multiple nodes to simultaneously allocate blocks from the 
+ * filesystem (using different RGs), enhancing parallel access.  RG size and
+ * number of RGs are determined by gfs_mkfs when creating the filesystem.
+ * An administrator can specify RG size (see man gfs_mkfs).
+ *
+ * The journals contain temporary copies of metadata blocks, along with
+ * other data, that allow GFS to recover the filesystem to a consistent state
+ * (at least as far as metadata is concerned) if a node fails in the midst
+ * of performing a write transaction.  There must be one journal for each node
+ * in the cluster.  Since access to the entire filesystem space is shared,
+ * if a node crashes, another node will be able to read the crashed node's
+ * journal, and perform recovery.
+ *
+ * Currently, gfs_mkfs places the journals right in the middle of a freshly
+ * created filesystem space, between 2 large groups of RGs.  From a filesystem
+ * layout perspective, this placement is not a requirement; the journals
+ * could be placed anywhere within the filesystem space.
+ *
+ * New Resource Groups and Journals may be added to the filesystem after the
+ * filesystem has been created, if the filesystem's (virtual) device is made
+ * larger.  See man gfs_grow and gfs_jadd.
+ *
+ * A few special hidden inodes are contained in a GFS filesystem.  They do
+ * not appear in any directories; instead, the superblock points to them
+ * using block numbers for their location.  The special inodes are:
+ *
+ *   Root inode:  Root directory of the filesystem
+ *   Resource Group Index:  A file containing block numbers and sizes of all RGs
+ *   Journal Index:  A file containing block numbers and sizes of all journals
+ *   Quota:  A file containing all quota information for the filesystem
+ *   License:  A file containing license information
+ *
+ * Note that there is NOTHING RELATED TO INTER-NODE LOCK MANAGEMENT ON-DISK.
+ * Locking is handled completely off-disk, typically via LAN.
+ *
  * NOTE:
  * If you add 8 byte fields to these structures, they must be 8 byte
  * aligned.  4 byte field must be 4 byte aligned, etc...
@@ -94,6 +154,27 @@ struct gfs_inum {
  *
  *  Every inplace buffer logged in the journal must start
  *  with a struct gfs_meta_header.
+ *
+ *  In addition to telling what kind of metadata is in the block,
+ *  the metaheader contains the important generation and incarnation
+ *  numbers.
+ *
+ *  The generation number is used during journal recovery to determine
+ *  whether an in-place block on-disk is older than an on-disk journaled copy
+ *  of the block.  If so, GFS overwrites the in-place block with the journaled
+ *  version of the block.
+ *
+ *  A meta block's generation number must increment monotonically across the
+ *  cluster, each time new contents are committed to the block.  This means
+ *  that whenever GFS allocates a pre-existing metadata block, GFS must read
+ *  that block from disk (in case another node has incremented it).  It also
+ *  means that GFS must sync the block (with incremented generation number)
+ *  to disk (both log and in-place blocks), not only after changing contents
+ *  of the block, but also after de-allocating the block (GFS can't just throw
+ *  away incore metadata for a file that it's just erased).
+ *
+ *  GFS caches de-allocated meta-headers, to minimize disk reads.
+ *  See struct gfs_meta_header_cache.
  */
 
 #define GFS_METATYPE_NONE       (0)
@@ -177,7 +258,7 @@ struct gfs_sb {
 
 struct gfs_jindex {
 	uint64_t ji_addr;       /* starting block of the journal */
-	uint32_t ji_nsegment;   /* number of segments in journal */
+	uint32_t ji_nsegment;   /* number (quantity) of segments in journal */
 	uint32_t ji_pad;
 
 	char ji_reserved[64];
@@ -188,6 +269,7 @@ struct gfs_jindex {
  *
  *  One of these for each resource group in the filesystem.
  *  These descriptors are packed contiguously within the rindex inode (file).
+ *  Also see struct gfs_rgrp.
  */
 
 struct gfs_rindex {
@@ -195,8 +277,8 @@ struct gfs_rindex {
 	uint32_t ri_length;   /* # fs blocks containing rgrp header & bitmap */
 	uint32_t ri_pad;
 
-	uint64_t ri_data1;    /* block # of first data block in rgrp */
-	uint32_t ri_data;     /* number of data blocks in rgrp */
+	uint64_t ri_data1;    /* block # of first data/meta block in rgrp */
+	uint32_t ri_data;     /* number (qty) of data/meta blocks in rgrp */
 
 	uint32_t ri_bitbytes; /* total # bytes used by block alloc bitmap */
 
@@ -212,7 +294,7 @@ struct gfs_rindex {
  *    Header block, including block allocation statistics (struct gfs_rgrp)
  *       and first part of block alloc bitmap.
  *    Bitmap block(s), continuing block alloc bitmap started in header block.
- *    Data blocks, containing file data and metadata.
+ *    Data/meta blocks, allocatable blocks containing file data and metadata.
  *  
  *  In older versions, now-unused (but previously allocated) dinodes were
  *  saved for re-use in an on-disk linked list (chain).  This is no longer
@@ -225,7 +307,11 @@ struct gfs_rindex {
 #define GFS_BIT_SIZE            (2)
 #define GFS_BIT_MASK            (0x00000003)
 
-/* 4 possible block allocation states */
+/*
+ * 4 possible block allocation states:
+ *   bit 0 = alloc(1)/free(0)
+ *   bit 1 = metadata(1)/data(0)
+ */
 #define GFS_BLKST_FREE          (0)
 #define GFS_BLKST_USED          (1)
 #define GFS_BLKST_FREEMETA      (2)
@@ -236,16 +322,16 @@ struct gfs_rgrp {
 
 	uint32_t rg_flags;      /* ?? */
 
-	uint32_t rg_free;       /* number of free data blocks */
+	uint32_t rg_free;       /* Number (qty) of free data blocks */
 
-	/* dinodes are USEDMETA, but are handled separately from other METAs */
-	uint32_t rg_useddi;     /* number of dinodes (used or free) */
-	uint32_t rg_freedi;     /* number of unused (free) dinodes */
+	/* Dinodes are USEDMETA, but are handled separately from other METAs */
+	uint32_t rg_useddi;     /* Number (qty) of dinodes (used or free) */
+	uint32_t rg_freedi;     /* Number (qty) of unused (free) dinodes */
 	struct gfs_inum rg_freedi_list; /* 1st block in chain of free dinodes */
 
-	/* these META statistics do not include dinodes (used or free) */
-	uint32_t rg_usedmeta;   /* number of used metadata blocks */
-	uint32_t rg_freemeta;   /* number of unused metadata blocks */
+	/* These META statistics do not include dinodes (used or free) */
+	uint32_t rg_usedmeta;   /* Number (qty) of used metadata blocks */
+	uint32_t rg_freemeta;   /* Number (qty) of unused metadata blocks */
 
 	char rg_reserved[64];
 };
@@ -288,17 +374,17 @@ struct gfs_quota {
 #define GFS_FILE_SOCK           (102)  /* socket */
 
 /*  Dinode flags  */
-#define GFS_DIF_JDATA             (0x00000001) /* journal this (meta)data blk */
+#define GFS_DIF_JDATA             (0x00000001) /* jrnl all data for this file*/
 #define GFS_DIF_EXHASH            (0x00000002) /* hashed directory */
 #define GFS_DIF_UNUSED            (0x00000004) /* unused dinode */
 #define GFS_DIF_EA_INDIRECT       (0x00000008) /* extended attribute, indirect*/
 #define GFS_DIF_DIRECTIO          (0x00000010)
-#define GFS_DIF_IMMUTABLE         (0x00000020)
-#define GFS_DIF_APPENDONLY        (0x00000040)
-#define GFS_DIF_NOATIME           (0x00000080)
-#define GFS_DIF_SYNC              (0x00000100)
-#define GFS_DIF_INHERIT_DIRECTIO  (0x40000000)
-#define GFS_DIF_INHERIT_JDATA     (0x80000000)
+#define GFS_DIF_IMMUTABLE         (0x00000020) /* Can't change file */
+#define GFS_DIF_APPENDONLY        (0x00000040) /* Can only add to end of file */
+#define GFS_DIF_NOATIME           (0x00000080) /* Don't update access time */
+#define GFS_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache */
+#define GFS_DIF_INHERIT_DIRECTIO  (0x40000000) /* new files get DIRECTIO flag */
+#define GFS_DIF_INHERIT_JDATA     (0x80000000) /* new files get JDATA flag */
 
 struct gfs_dinode {
 	struct gfs_meta_header di_header;
@@ -308,9 +394,9 @@ struct gfs_dinode {
 	uint32_t di_mode;	/* mode of file */
 	uint32_t di_uid;	/* owner's user id */
 	uint32_t di_gid;	/* owner's group id */
-	uint32_t di_nlink;	/* number of links to this file */
-	uint64_t di_size;	/* number of bytes in file */
-	uint64_t di_blocks;	/* number of blocks in file */
+	uint32_t di_nlink;	/* number (qty) of links to this file */
+	uint64_t di_size;	/* number (qty) of bytes in file */
+	uint64_t di_blocks;	/* number (qty) of blocks in file */
 	int64_t di_atime;	/* time last accessed */
 	int64_t di_mtime;	/* time last modified */
 	int64_t di_ctime;	/* time last changed */
@@ -331,12 +417,12 @@ struct gfs_dinode {
 	uint32_t di_payload_format;  /* GFS_FORMAT_... */
 	uint16_t di_type;	/* GFS_FILE_... type of file */
 	uint16_t di_height;	/* height of metadata (0 == stuffed) */
-	uint32_t di_incarn;	/* incarnation number (unused) */
+	uint32_t di_incarn;	/* incarnation (unused, see gfs_meta_header) */
 	uint16_t di_pad;
 
 	/*  These only apply to directories  */
 	uint16_t di_depth;	/* Number of bits in the table */
-	uint32_t di_entries;	/* The number of entries in the directory */
+	uint32_t di_entries;	/* The # (qty) of entries in the directory */
 
 	/*  This list formed a chain of unused inodes  */
 	struct gfs_inum di_next_unused;  /* used in old versions only */
@@ -361,6 +447,8 @@ struct gfs_indirect {
 
 /*
  *  directory structure - many of these per directory file
+ *
+ * See comments at beginning of dir.c
  */
 
 #define GFS_FNAMESIZE               (255)
@@ -378,6 +466,8 @@ struct gfs_dirent {
 
 /*
  *  Header of leaf directory nodes
+ *
+ * See comments at beginning of dir.c
  */
 
 struct gfs_leaf {
@@ -411,7 +501,7 @@ struct gfs_log_header {
 	uint64_t lh_sequence;	/* Sequence number of this transaction */
 
 	uint64_t lh_tail;	/* Block number of log tail */
-	uint64_t lh_last_dump;	/* block number of last dump */
+	uint64_t lh_last_dump;	/* Block number of last dump */
 
 	char lh_reserved[64];
 };
@@ -423,21 +513,21 @@ struct gfs_log_header {
  */
 
 #define GFS_LOG_DESC_METADATA   (300)    /* metadata */
-/*  ld_data1 is the number of metadata blocks in the descriptor.
+/*  ld_data1 is the number (quantity) of metadata blocks in the descriptor.
     ld_data2 is unused.
     */
 
 #define GFS_LOG_DESC_IUL        (400)    /* unlinked inode */
 /*  ld_data1 is TRUE if this is a dump.
     ld_data2 is unused.
-    FixMe!!!  ld_data1 should be the number of entries.
+    FixMe!!!  ld_data1 should be the number (quantity) of entries.
               ld_data2 should be "TRUE if this is a dump".
     */
 
 #define GFS_LOG_DESC_IDA        (401)    /* de-allocated inode */
 /*  ld_data1 is unused.
     ld_data2 is unused.
-    FixMe!!!  ld_data1 should be the number of entries.
+    FixMe!!!  ld_data1 should be the number (quantity) of entries.
     */
 
 #define GFS_LOG_DESC_Q          (402)    /* quota */

@@ -53,7 +53,7 @@
  * Compute the number of log descriptor blocks needed to hold a certain number
  * of structures of a certain size.
  *
- * Returns: the number of blocks needed
+ * Returns: the number of blocks needed (minimum is always 1)
  */
 
 unsigned int
@@ -112,13 +112,13 @@ log_distance(struct gfs_sbd *sdp, uint64_t newer, uint64_t older)
 }
 
 /**
- * log_incr_head - Increment journal head
+ * log_incr_head - Increment journal head (next block to fill in journal)
  * @sdp: The GFS superblock
  * @head: the variable holding the head of the journal
  *
  * Increment journal head by one. 
  * At the end of the journal, wrap head back to the start.
- *
+ * Don't confuse journal/log head with a gfs_log_header!
  */
 
 static __inline__ void
@@ -178,7 +178,7 @@ gfs_ail_start(struct gfs_sbd *sdp, int flags)
  * Find the block number of the current tail of the log.
  * Assumes that the log lock is held.
  *
- * Returns: The tail's block number
+ * Returns: The tail's block number (must be on a log segment boundary)
  */
 
 static uint64_t
@@ -208,6 +208,12 @@ current_tail(struct gfs_sbd *sdp)
  * @sdp: the filesystem
  *
  * Returns: TRUE if the AIL is empty
+ *
+ * Checks each transaction on sd_log_ail, to see if it has been successfully
+ *   flushed to in-place blocks on disk.  If so, removes trans from sd_log_ail,
+ *   effectively advancing the tail of the log (freeing log segments so they
+ *   can be overwritten).
+ * Adds # freed log segments to sd_log_seg_free.
  */
 
 int
@@ -351,12 +357,28 @@ gfs_log_release(struct gfs_sbd *sdp, unsigned int segments)
 }
 
 /**
- * log_get_header - Get the journal header buffer
+ * log_get_header - Get and initialize a journal header buffer
  * @sdp: The GFS superblock
- * @tr: The transaction
- * @next: TRUE is this is not a continuation of an existing transaction
+ * @tr: The transaction that needs a log header
+ * @next: FALSE if this log header appears in midst of current transaction
+ *        TRUE if this starts next transaction (and commits current trans)
  *
- * Returns: the log buffer
+ * Returns: the initialized log buffer descriptor
+ *
+ * Initialize one of the transaction's pre-allocated buffers (and associated
+ *   log buffer descriptor) to be a log header for this transaction.
+ * A log header gets written to *each* log segment boundary block, so journal
+ *   recovery will quickly be able to get its bearings.  A single transaction
+ *   may span several log segments, which means that log headers will appear
+ *   in the midst of that transaction (@next == FALSE).  These headers get
+ *   added to trans' list of buffers to write to log.
+ * Log commit is accomplished by writing the log header for the next
+ *   transaction (@next == TRUE), with pre-incremented sequence number,
+ *   and updated first-in-transaction block number.  These headers do *not* get
+ *   added to trans' buffer list, since they are written separately to disk
+ *   *after* the trans gets completely flushed to on-disk log.
+ * NOTE:  This buffer will *not* get written to an in-place location in the
+ *        filesystem; it is for use only within the log.
  */
 
 static struct gfs_log_buf *
@@ -366,26 +388,31 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 	struct list_head *bmem;
 	struct gfs_log_header header;
 
+	/* Make sure we're on a log segment boundary block */
 	GFS_ASSERT_SBD(gfs_log_is_header(sdp, tr->tr_log_head), sdp,);
 
+	/* Grab a free log buffer descriptor (attached to trans) */
 	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
 		       !list_empty(&tr->tr_free_bufs), sdp,);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
 
+	/* Grab a free log buffer (attached to trans) */
 	GFS_ASSERT_SBD(tr->tr_num_free_bmem &&
 		       !list_empty(&tr->tr_free_bmem), sdp,);
 	bmem = tr->tr_free_bmem.next;
 	list_del(bmem);
 	tr->tr_num_free_bmem--;
 
+	/* Create "fake" bh to write bmem to log header block */
 	gfs_logbh_init(sdp, &lb->lb_bh, tr->tr_log_head, (char *)bmem);
 	memset(bmem, 0, sdp->sd_sb.sb_bsize);
 
 	memset(&header, 0, sizeof (header));
 
 	if (next) {
+		/* Fill in header for next transaction, committing previous */
 		header.lh_header.mh_magic = GFS_MAGIC;
 		header.lh_header.mh_type = GFS_METATYPE_LH;
 		header.lh_header.mh_format = GFS_FORMAT_LH;
@@ -394,6 +421,7 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 		header.lh_tail = current_tail(sdp);
 		header.lh_last_dump = sdp->sd_log_dump_last;
 	} else {
+		/* Fill in another header for this transaction */
 		header.lh_header.mh_magic = GFS_MAGIC;
 		header.lh_header.mh_type = GFS_METATYPE_LH;
 		header.lh_header.mh_format = GFS_FORMAT_LH;
@@ -402,27 +430,34 @@ log_get_header(struct gfs_sbd *sdp, struct gfs_trans *tr, int next)
 		header.lh_tail = current_tail(sdp);
 		header.lh_last_dump = sdp->sd_log_dump_last;
 
+		/* Attach log header buf to trans' list of bufs going to log */
 		list_add(&lb->lb_list, &tr->tr_bufs);
 	}
 
+	/* Copy log header struct to beginning and end of buffer's 1st 512B */
 	gfs_log_header_out(&header, lb->lb_bh.b_data);
 	gfs_log_header_out(&header,
 			   lb->lb_bh.b_data + GFS_BASIC_BLOCK -
 			   sizeof(struct gfs_log_header));
 
+	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
 
 	return lb;
 }
 
 /**
- * gfs_log_get_buf - Get a buffer to use for control data
+ * gfs_log_get_buf - Get and initialize a buffer to use for log control data
  * @sdp: The GFS superblock
  * @tr: The GFS transaction
  *
- * Generate a regular buffer for use in the journal as control data.
+ * Initialize one of the transaction's pre-allocated buffers (and associated
+ *   log buffer descriptor) to be used for log control data (e.g. log tags).
+ * Make sure this buffer is attached to the transaction, to be logged to disk.
+ * NOTE:  This buffer will *not* get written to an in-place location in the
+ *        filesystem; it is for use only within the log.
  *
- * Returns: the buffer
+ * Returns: the log buffer descriptor
  */
 
 struct gfs_log_buf *
@@ -431,38 +466,51 @@ gfs_log_get_buf(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	struct gfs_log_buf *lb;
 	struct list_head *bmem;
 
+	/* If next block in log is on a segment boundary, we need to
+	    write a log header */
 	if (gfs_log_is_header(sdp, tr->tr_log_head))
 		log_get_header(sdp, tr, FALSE);
 
+	/* Grab a free buffer descriptor (attached to trans) */
 	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
 		       !list_empty(&tr->tr_free_bufs), sdp,);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
 
+	/* Grab a free buffer (attached to trans) */
 	GFS_ASSERT_SBD(tr->tr_num_free_bmem
 		       && !list_empty(&tr->tr_free_bmem), sdp,);
 	bmem = tr->tr_free_bmem.next;
 	list_del(bmem);
 	tr->tr_num_free_bmem--;
 
+	/* Create "fake" bh to write bmem to log block */
 	gfs_logbh_init(sdp, &lb->lb_bh, tr->tr_log_head, (char *)bmem);
 	memset(bmem, 0, sdp->sd_sb.sb_bsize);
 
 	list_add(&lb->lb_list, &tr->tr_bufs);
 
+	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
 
 	return lb;
 }
 
 /**
- * gfs_log_fake_buf - Build a fake buffer head
+ * gfs_log_fake_buf - Build a fake buffer head to write metadata buffer to log
  * @sdp: the filesystem
  * @tr: the transaction this is part of
- * @data: the data the buffer should point to
- * @unlock: a buffer that is unlocked as this struct gfs_log_buf is torn down
+ * @data: the data the buffer_head should point to
+ * @unlock: a buffer_head to be unlocked when struct gfs_log_buf is torn down
+ *    (i.e. the "real" buffer_head that will write to in-place location)
  *
+ * Initialize one of the transaction's pre-allocated log buffer descriptors
+ *   to be used for writing a metadata buffer into the log.
+ * Make sure this buffer is attached to the transaction, to be logged to disk.
+ * NOTE:  This buffer *will* be written to in-place location within filesytem,
+ *        in addition to being written into the log.
+ * 
  */
 
 void
@@ -474,17 +522,20 @@ gfs_log_fake_buf(struct gfs_sbd *sdp, struct gfs_trans *tr, char *data,
 	if (gfs_log_is_header(sdp, tr->tr_log_head))
 		log_get_header(sdp, tr, FALSE);
 
+	/* Grab a free buffer descriptor (attached to trans) */
 	GFS_ASSERT_SBD(tr->tr_num_free_bufs &&
 		       !list_empty(&tr->tr_free_bufs), sdp,);
 	lb = list_entry(tr->tr_free_bufs.next, struct gfs_log_buf, lb_list);
 	list_del(&lb->lb_list);
 	tr->tr_num_free_bufs--;
 
+	/* Create "fake" bh to write data to log block */
 	gfs_logbh_init(sdp, &lb->lb_bh, tr->tr_log_head, data);
 	lb->lb_unlock = unlock;
 
 	list_add(&lb->lb_list, &tr->tr_bufs);
 
+	/* Find next log buffer to fill */
 	log_incr_head(sdp, &tr->tr_log_head);
 }
 
@@ -555,8 +606,13 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 /**
  * log_free_buf - Free a struct gfs_log_buf (and possibly the data it points to)
  * @sdp: the filesystem
- * @lb: the log buffer
+ * @lb: the log buffer descriptor
  *
+ * If buffer contains (meta)data to be written into filesystem in-place block,
+ *   descriptor will point to the "real" (lb_unlock) buffer head.  Unlock it.
+ * If buffer was used only for log header or control data (e.g. tags), we're
+ *   done with it as soon as it gets written to on-disk log.  Free it.
+ * Either way, we can free the log descriptor structure.
  */
 
 static void
@@ -576,12 +632,13 @@ log_free_buf(struct gfs_sbd *sdp, struct gfs_log_buf *lb)
 }
 
 /**
- * sync_trans - Add "last" descriptor to transaction and sync to disk
+ * sync_trans - Add "last" descriptor, sync transaction to on-disk log
  * @sdp: The GFS superblock
  * @tr: The transaction
  *
- * Add the "last" descriptor on to the end of the current transaction
- * and sync it out to disk.  Don't commit it yet, though.
+ * Add the "last" descriptor onto the end of the current transaction
+ *   and sync the whole transaction out to on-disk log.
+ * Don't log-commit (i.e. write next transaction's log header) yet, though.
  *
  * Returns: 0 on success, -EXXX on failure
  */
@@ -851,7 +908,7 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	tr->tr_num_free_bufs += new_tr->tr_num_free_bufs;
 	tr->tr_num_free_bmem += new_tr->tr_num_free_bmem;
 
-	/*  Combine the elements of the two transactions  */
+	/*  Combine the log elements of the two transactions  */
 
 	while (!list_empty(&new_tr->tr_elements)) {
 		le = list_entry(new_tr->tr_elements.next,
@@ -863,12 +920,14 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 
 	LO_TRANS_COMBINE(sdp, tr, new_tr);
 
+	/* Move free log buffer descriptors to surviving trans */
 	while (!list_empty(&new_tr->tr_free_bufs)) {
 		lb = list_entry(new_tr->tr_free_bufs.next,
 				struct gfs_log_buf, lb_list);
 		list_move(&lb->lb_list, &tr->tr_free_bufs);
 		new_tr->tr_num_free_bufs--;
 	}
+	/* Move free log buffers to surviving trans */
 	while (!list_empty(&new_tr->tr_free_bmem)) {
 		bmem = new_tr->tr_free_bmem.next;
 		list_move(bmem, &tr->tr_free_bmem);
@@ -882,10 +941,15 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 }
 
 /**
- * log_flush_internal - flush incore transactions
+ * log_flush_internal - flush incore transaction(s)
  * @sdp: the filesystem
  * @gl: The glock structure to flush.  If NULL, flush the whole incore log
  *
+ * If a glock is provided, we flush, to on-disk log, all of the metadata for
+ *   the one incore-committed (complete, but not-yet-flushed-to-log)
+ *   transaction that the glock protects.
+ * If NULL, we combine *all* of the filesystem's incore-committed
+ *   transactions into one big transaction, and flush it to the log.
  */
 
 static void
@@ -907,6 +971,7 @@ log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 
 		list_del(&trans->tr_list);
 	} else {
+		/* combine *all* transactions in incore list */
 		while (!list_empty(&sdp->sd_log_incore)) {
 			tr = list_entry(sdp->sd_log_incore.next,
 					struct gfs_trans, tr_list);
@@ -978,7 +1043,7 @@ gfs_log_flush_glock(struct gfs_glock *gl)
  * @new_tr: the transaction to commit
  *
  * Add the transaction @new_tr to the end of the incore commit list.
- * Pull up and merge any previously commited transactions that share
+ * Pull up and merge any previously committed transactions that share
  * locks.  Also pull up any rename transactions that need it.
  */
 
@@ -996,12 +1061,18 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 	     tmp = tmp->next) {
 		le = list_entry(tmp, struct gfs_log_element, le_list);
 
+		/* Do overlap_trans log-op, if any, to find another
+		   incore transaction with which we can combine new_tr */
 		exist_tr = LO_OVERLAP_TRANS(sdp, le);
 		if (!exist_tr)
 			continue;
 
 		if (exist_tr != trans) {
+			/* remove trans from superblock's sd_log_incore list */
 			list_del(&exist_tr->tr_list);
+
+			/* Maybe there's more than one that can be combined.
+			   If so, combine them together before merging new_tr */
 			if (trans)
 				trans_combine(sdp, trans, exist_tr);
 			else
@@ -1009,6 +1080,7 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 		}
 	}
 
+	/* Yes, we can combine new_tr with pre-existing transaction(s) */
 	if (trans) {
 		trans->tr_file = __FILE__;
 		trans->tr_line = __LINE__;
@@ -1031,6 +1103,10 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 	} else
 		trans = new_tr;
 
+	/* Do incore_commit log-op for each *new* log element (in new_tr).
+	   Each commit log-op removes its log element from "new_tr" LE list,
+	   and attaches an LE to "trans" LE list; if there was no trans
+	   combining, "new_tr" is the same transaction as "trans". */
 	for (head = &new_tr->tr_elements, tmp = head->next, next = tmp->next;
 	     tmp != head;
 	     tmp = next, next = next->next) {
@@ -1038,7 +1114,7 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 		LO_INCORE_COMMIT(sdp, trans, le);
 	}
 
-	/* If we successfully combined transactions, new_trans should be empty */
+	/* If we successfully combined transactions, new_tr should be empty */
 	if (trans != new_tr) {
 		GFS_ASSERT_SBD(!new_tr->tr_num_free_bufs, sdp,);
 		GFS_ASSERT_SBD(!new_tr->tr_num_free_bmem, sdp,);

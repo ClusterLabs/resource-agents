@@ -99,13 +99,20 @@ gfs_testbit(struct gfs_rgrpd *rgd,
 }
 
 /**
- * gfs_bitfit - Find a free block in the bitmaps
+ * gfs_bitfit - Search an rgrp's bitmap buffer to find a bit-pair representing
+ *       a block in a given allocation state.
  * @buffer: the buffer that holds the bitmaps
  * @buflen: the length (in bytes) of the buffer
- * @goal: the block to try to allocate
- * @old_state: the state of the block we're looking for
+ * @goal: start search at this block's bit-pair (within @buffer)
+ * @old_state: GFS_BLKST_XXX the state of the block we're looking for;
+ *       bit 0 = alloc(1)/free(0), bit 1 = meta(1)/data(0)
+ * 
+ * Scope of @goal and returned block number is only within this bitmap buffer,
+ *   not entire rgrp or filesystem.
+ * @buffer will be offset from the actual beginning of a bitmap block buffer,
+ *   skipping any header structures.
  *
- * Return: the block number that was allocated
+ * Return: the block number (bitmap buffer scope) that was found
  */
 
 uint32_t

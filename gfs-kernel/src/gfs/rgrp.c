@@ -49,10 +49,12 @@ mhc_hash(struct buffer_head *bh)
 }
 
 /**
- * mhc_trim - 
- * @sdp:
- * @max:
+ * mhc_trim - Throw away cached meta-headers, if there are too many of them
+ * @sdp:  The filesystem instance
+ * @max:  Max # of cached meta-headers allowed to survive
  *
+ * Walk filesystem's list of cached meta-headers, in least-recently-used order,
+ *   and keep throwing them away until we're under the max threshold. 
  */
 
 static void
@@ -84,11 +86,17 @@ mhc_trim(struct gfs_sbd *sdp, unsigned int max)
 }
 
 /**
- * gfs_mhc_add - add buffers to the cache of metadata
- * @rgd: a RG
- * @bh: an array of buffers
- * @num: the number of buffers in the array
+ * gfs_mhc_add - add buffer(s) to the cache of metadata headers
+ * @rgd: Resource Group in which the buffered block(s) reside
+ * @bh: an array of buffer_head pointers
+ * @num: the number of bh pointers in the array
  *
+ * Increment each meta-header's generation # by 2.
+ * Alloc and add each gfs_meta-header_cache to 3 lists/caches:
+ *   Filesystem's meta-header cache (hash)
+ *   Filesystem's list of cached meta-headers
+ *   Resource Group's list of cached meta-headers
+ * If we now have too many cached, throw some older ones away
  */
 
 void
@@ -127,16 +135,23 @@ gfs_mhc_add(struct gfs_rgrpd *rgd,
 		atomic_inc(&sdp->sd_mhc_count);
 	}
 
+	/* If we've got too many cached, throw some older ones away */
 	if (atomic_read(&sdp->sd_mhc_count) > sdp->sd_tune.gt_max_mhc)
 		mhc_trim(sdp, sdp->sd_tune.gt_max_mhc);
 }
 
 /**
- * gfs_mhc_fish - Try to fill in a buffer with data from the cache
+ * gfs_mhc_fish - Try to fill in a meta buffer with meta-header from the cache
  * @sdp: the filesystem
  * @bh: the buffer to fill in
  *
  * Returns: TRUE if the buffer was cached, FALSE otherwise
+ *
+ * If buffer is referenced in meta-header cache (search using hash):
+ *   Copy the cached meta-header into the buffer (instead of reading from disk).
+ *     Note that only the meta-header portion of the buffer will have valid data
+ *     (as would be on disk), rest of buffer does *not* reflect disk contents.
+ *   Remove cached gfs_meta_header_cache from all cache lists, free its memory.
  */
 
 int
@@ -177,9 +192,11 @@ gfs_mhc_fish(struct gfs_sbd *sdp, struct buffer_head *bh)
 }
 
 /**
- * gfs_mhc_zap - Get rid of the data in the cache of metadata headers
- * @rgd: a RG
+ * gfs_mhc_zap - Throw away an RG's list of cached metadata headers
+ * @rgd: The resource group whose list we want to clear
  *
+ * Simply throw away all cached metadata headers on RG's list,
+ *   and free their memory.
  */
 
 void
@@ -228,10 +245,12 @@ depend_hash(uint64_t formal_ino)
 }
 
 /**
- * depend_sync_one -
- * @sdp:
- * @gd:
+ * depend_sync_one - Sync metadata (not data) for a dependency inode
+ * @sdp: filesystem instance
+ * @gd: dependency descriptor
  *
+ * Remove dependency from superblock's hash table and rgrp's list.
+ * Sync dependency inode's metadata to log and in-place location.
  */
 
 static void
@@ -260,9 +279,11 @@ depend_sync_one(struct gfs_sbd *sdp, struct gfs_depend *gd)
 }
 
 /**
- * depend_sync_old -
- * @rgd:
+ * depend_sync_old - Sync older rgrp-dependent inodes to disk.
+ * @rgd: Resource group containing dependent inodes
  *
+ * Look at oldest entries in resource group's dependency list,
+ *   sync 'em if they're older than timeout threshold.
  */
 
 static void
@@ -272,6 +293,7 @@ depend_sync_old(struct gfs_rgrpd *rgd)
 	struct gfs_depend *gd;
 
 	for (;;) {
+		/* Oldest entries are in prev direction */
 		gd = list_entry(rgd->rd_depend.prev,
 				struct gfs_depend,
 				gd_list_rgd);
@@ -286,10 +308,17 @@ depend_sync_old(struct gfs_rgrpd *rgd)
 }
 
 /**
- * gfs_depend_add -
- * @rgd:
- * @formal_ino:
+ * gfs_depend_add - Add a dependent inode to rgrp's and filesystem's list
+ * @rgd: Resource group containing blocks associated with inode
+ * @formal_ino: inode
  *
+ * Dependent inodes must be flushed to log and in-place blocks before
+ *   releasing an EXCLUSIVE rgrp lock.
+ * Find pre-existing dependency for this inode/rgrp combination in
+ *   incore superblock struct's sd_depend hash table, or create a new one.
+ * Either way, move or attach dependency to head of superblock's hash bucket
+ *   and top of rgrp's list.
+ * If we create a new one, take a moment to sync older dependencies to disk.
  */
 
 void
@@ -337,9 +366,14 @@ gfs_depend_add(struct gfs_rgrpd *rgd, uint64_t formal_ino)
 }
 
 /**
- * gfs_depend_sync -
- * @rgd:
+ * gfs_depend_sync - Sync metadata (not data) for an rgrp's dependent inodes
+ * @rgd: Resource group containing the dependent inodes
  *
+ * As long as this node owns an EXCLUSIVE lock on the rgrp, we can keep
+ *   rgrp's modified metadata blocks in buffer cache.
+ *
+ * When this node releases the EX lock, we must flush metadata, so other
+ *   nodes can read the modified content from disk.
  */
 
 void
@@ -408,11 +442,14 @@ rgrp_verify(struct gfs_rgrpd *rgd)
 }
 
 /**
- * gfs_blk2rgrpd - Find resource group for a given data block number
+ * gfs_blk2rgrpd - Find resource group for a given data/meta block number
  * @sdp: The GFS superblock
  * @n: The data block number
  *
- * Returns: Ths resource group, or NULL if not found
+ * Returns: The resource group, or NULL if not found
+ *
+ * Don't try to use this for non-allocatable block numbers (i.e. rgrp header
+ *   or bitmap blocks); it's for allocatable (data/meta) blocks only.
  */
 
 struct gfs_rgrpd *
@@ -443,7 +480,7 @@ gfs_blk2rgrpd(struct gfs_sbd *sdp, uint64_t blk)
 }
 
 /**
- * gfs_rgrpd_get_first - get the first RG
+ * gfs_rgrpd_get_first - get the first Resource Group in the filesystem
  * @sdp: The GFS superblock
  *
  * Returns: The first rgrp in the filesystem
@@ -676,11 +713,15 @@ gfs_ri_update(struct gfs_inode *ip)
  * @sdp: The GFS superblock
  * @ri_gh: the glock holder
  *
- * We grab a lock in the rindex inode to make sure that it doesn't
+ * We grab a lock on the rindex inode to make sure that it doesn't
  * change whilst we are performing an operation. We keep this lock
  * for quite long periods of time compared to other locks. This
- * doesn't matter, since its shared and it is very, very rarely
- * accessed in the exclusive mode.
+ * doesn't matter, since it is shared and it is very, very rarely
+ * accessed in the exclusive mode (i.e. only when expanding the filesystem).
+ *
+ * This makes sure that we're using the latest copy of the resource index
+ *   special file, which might have been updated if someone expanded the
+ *   filesystem (via gfs_grow utility), which adds new resource groups.
  *
  * Returns: 0 on success, error code otherwise
  */
@@ -696,6 +737,7 @@ gfs_rindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ri_gh)
 	if (error)
 		return error;
 
+	/* Read new copy from disk if we don't have the latest */
 	if (sdp->sd_riinode_vn != gl->gl_vn) {
 		down(&sdp->sd_rindex_lock);
 		if (sdp->sd_riinode_vn != gl->gl_vn) {
@@ -710,10 +752,11 @@ gfs_rindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ri_gh)
 }
 
 /**
- * gfs_rgrp_read - Read in a RG's bitmaps
+ * gfs_rgrp_read - Read in a RG's header and bitmaps
  * @rgd: the struct gfs_rgrpd describing the RG to read in
  *
- * Read in RG bitmaps.  Must call gfs_rgrp_relse() it free the bitmaps.
+ * Read in all of a Resource Group's header and bitmap blocks.
+ * Caller must eventually call gfs_rgrp_relse() to free the bitmaps.
  *
  * Returns: 0 on success, -EXXX on failure
  */
@@ -825,7 +868,10 @@ gfs_rgrp_lvb_init(struct gfs_rgrpd *rgd)
 
 /**
  * gfs_alloc_get - allocate a struct gfs_alloc structure for an inode
- * @ip: the inode
+ * @ip: the incore GFS inode structure
+ *
+ * Alloc and zero an in-place reservation structure,
+ *   and attach it to the GFS incore inode.
  *
  * Returns: the struct gfs_alloc
  */
@@ -1295,15 +1341,24 @@ gfs_get_block_type(struct gfs_rgrpd *rgd, uint64_t block)
 }
 
 /**
- * blkalloc_internal - allocate a single block
+ * blkalloc_internal - find a block in @old_state, change allocation
+ *           state to @new_state
  * @rgd: the resource group descriptor
- * @goal: the goal block in the RG
- * @old_state: the type of block to find
- * @new_state: the resulting block type
+ * @goal: the goal block within the RG (start here to search for avail block)
+ * @old_state: GFS_BLKST_XXX the before-allocation state to find
+ * @new_state: GFS_BLKST_XXX the after-allocation block state
  *
- * This function never fails.
+ * Walk rgrp's bitmap to find bits that represent a block in @old_state.
+ * Add the found bitmap buffer to the transaction.
+ * Set the found bits to @new_state to change block's allocation state.
  *
- * Returns:  returns the block allocated
+ * This function never fails, because we wouldn't call it unless we
+ *   know (from reservation results, etc.) that a block is available.
+ *
+ * Scope of @goal and returned block is just within rgrp (32-bit),
+ *   not the whole filesystem (64-bit).
+ *
+ * Returns:  the block # allocated (32-bit rgrp scope)
  */
 
 static uint32_t
@@ -1316,6 +1371,7 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 	uint32_t blk = 0;
 	unsigned int buf, x;
 
+	/* Find bitmap block that contains bits for goal block */
 	for (buf = 0; buf < length; buf++) {
 		bits = &rgd->rd_bits[buf];
 		if (goal < (bits->bi_start + bits->bi_len) * GFS_NBBY)
@@ -1323,11 +1379,15 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 	}
 
 	GFS_ASSERT_RGRPD(buf < length, rgd,);
+
+	/* Convert scope of "goal" from rgrp-wide to within found bit block */
 	goal -= bits->bi_start * GFS_NBBY;
 
-	/* "x <= length" because we're skipping over some of the first
-	   buffer when the goal is non-zero. */
-
+	/* Search (up to entire) bitmap in this rgrp for allocatable block.
+	   "x <= length", instead of "x < length", because we typically start
+	   the search in the middle of a bit block, but if we can't find an
+	   allocatable block anywhere else, we want to be able wrap around and
+	   search in the first part of our first-searched bit block.  */
 	for (x = 0; x <= length; x++) {
 		blk = gfs_bitfit(rgd,
 				 rgd->rd_bh[buf]->b_data + bits->bi_offset,
@@ -1335,6 +1395,7 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 		if (blk != BFITNOENT)
 			break;
 
+		/* Try next bitmap block (wrap back to rgrp header if at end) */
 		buf = (buf + 1) % length;
 		bits = &rgd->rd_bits[buf];
 		goal = 0;
@@ -1342,21 +1403,33 @@ blkalloc_internal(struct gfs_rgrpd *rgd,
 
 	GFS_ASSERT_RGRPD(x <= length, rgd,);
 
+	/* Attach bitmap buffer to trans, modify bits to do block alloc */
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[buf]);
 	gfs_setbit(rgd,
 		   rgd->rd_bh[buf]->b_data + bits->bi_offset,
 		   bits->bi_len, blk, new_state);
 
+	/* Return allocated block #, rgrp scope (32-bit) */
 	return bits->bi_start * GFS_NBBY + blk;
 }
 
 /**
- * blkfree_internal - Free a block
+ * blkfree_internal - Change alloc state of given block(s)
  * @sdp: the filesystem
- * @bstart: the start of a run of blocks to free
- * @blen: the length of the block run
- * @new_state: the new state of the block
+ * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
+ * @blen: the length of the block run (all must lie within ONE RG!)
+ * @new_state: GFS_BLKST_XXX the after-allocation block state
  *
+ * Returns:  Resource group containing the block(s)
+ *
+ * Find rgrp containing @bstart.
+ * For each block in run:
+ *   Find allocation bitmap buffer.
+ *   Add bitmap buffer to transaction.
+ *   Set bits to new state.
+ * Typically used to free blocks to GFS_BLKST_FREE or GFS_BLKST_FREEMETA,
+ *   but @new_state can be any GFS_BLKST_XXX
+ * 
  */
 
 static struct gfs_rgrpd *
@@ -1368,14 +1441,18 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 	uint32_t length, rgrp_blk, buf_blk;
 	unsigned int buf;
 
+	/* Find rgrp */
 	rgd = gfs_blk2rgrpd(sdp, bstart);
 	GFS_ASSERT_SBD(rgd, sdp,
 		       printk("block = %"PRIu64"\n", bstart););
 
 	length = rgd->rd_ri.ri_length;
+
+	/* Convert blk # from filesystem scope (64-bit) to RG scope (32-bit) */
 	rgrp_blk = bstart - rgd->rd_ri.ri_data1;
 
 	while (blen--) {
+		/* Find bitmap buffer for this block */
 		for (buf = 0; buf < length; buf++) {
 			bits = &rgd->rd_bits[buf];
 			if (rgrp_blk < (bits->bi_start + bits->bi_len) * GFS_NBBY)
@@ -1383,6 +1460,8 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 		}
 
 		GFS_ASSERT_RGRPD(buf < length, rgd,);
+
+		/* Find bits and set 'em */
 		buf_blk = rgrp_blk - bits->bi_start * GFS_NBBY;
 		rgrp_blk++;
 
@@ -1396,11 +1475,15 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
 }
 
 /**
- * clump_alloc - Allocate a clump of metadata
- * @rgd: the resource group descriptor
+ * clump_alloc - Allocate a clump of metadata blocks
+ * @rgd: the resource group in which to allocate
  * @first: returns the first block allocated
  *
  * Returns: 0 on success, -EXXX on failure
+ *
+ * Bitmap-allocate a clump of metadata blocks
+ * Write metadata blocks to disk with dummy meta-headers
+ * Add meta-headers to incore meta-header cache
  */
 
 static int
@@ -1413,13 +1496,17 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 	unsigned int x;
 	int error = 0;
 
+	/* Dummy meta-header template */
 	memset(&mh, 0, sizeof(struct gfs_meta_header));
 	mh.mh_magic = GFS_MAGIC;
 	mh.mh_type = GFS_METATYPE_NONE;
 
+	/* Array of bh pointers used in several steps */
 	bh = gmalloc(GFS_META_CLUMP * sizeof(struct buffer_head *));
 	memset(bh, 0, sizeof(GFS_META_CLUMP * sizeof(struct buffer_head *)));
 
+	/* Since we're looking for data blocks to change into meta blocks,
+	     use last alloc'd *data* (not meta) block as start point */
 	goal = rgd->rd_last_alloc_data;
 
 	for (x = 0; x < GFS_META_CLUMP; x++) {
@@ -1435,6 +1522,7 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 		gfs_meta_header_out(&mh, bh[x]->b_data);
 		((struct gfs_meta_header *)bh[x]->b_data)->mh_generation = 0;
 
+		/* start write of new meta-buffer to disk */
 		error = gfs_dwrite(sdp, bh[x], DIO_DIRTY | DIO_START);
 		if (error)
 			goto out;
@@ -1442,14 +1530,17 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 		goal = blk;
 	}
 
+	/* Block alloc start point for next time */
 	rgd->rd_last_alloc_data = goal;
 
+	/* Wait for all new meta-buffers to get on-disk */
 	for (x = 0; x < GFS_META_CLUMP; x++) {
 		error = gfs_dwrite(sdp, bh[x], DIO_WAIT);
 		if (error)
 			goto out;
 	}
 
+	/* Add all new meta-headers to meta-header cache */
 	gfs_mhc_add(rgd, bh, GFS_META_CLUMP);
 
 	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_free >= GFS_META_CLUMP, rgd,);
@@ -1571,7 +1662,8 @@ gfs_metaalloc(struct gfs_inode *ip, uint64_t *block)
 /**
  * gfs_dialloc - Allocate a dinode
  * @dip: the directory that the inode is going in
- * @block: the block
+ * @block: the block (result) which this function allocates as the dinode
+ *     (64-bit filesystem scope)
  *
  * Returns: errno
  */
@@ -1587,8 +1679,10 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 	GFS_ASSERT_INODE(rgd, dip,);
 
 	if (rgd->rd_rg.rg_freemeta)
+		/* pick up where we left off last time */
 		goal = rgd->rd_last_alloc_meta;
 	else {
+		/* no free meta blocks, allocate a bunch more */
 		error = clump_alloc(rgd, &goal);
 		if (error)
 			return error;
@@ -1596,19 +1690,25 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 		al->al_alloced_data += GFS_META_CLUMP;
 	}
 
+	/* Alloc the dinode; 32-bit "blk" is block offset within rgrp */
 	blk = blkalloc_internal(rgd, goal,
 				GFS_BLKST_FREEMETA, GFS_BLKST_USEDMETA);
+
+	/* remember where we left off, for next time */
 	rgd->rd_last_alloc_meta = blk;
 
+	/* convert from rgrp scope (32-bit) to filesystem scope (64-bit) */
 	*block = rgd->rd_ri.ri_data1 + blk;
 
 	GFS_ASSERT_RGRPD(rgd->rd_rg.rg_freemeta, rgd,);
 	rgd->rd_rg.rg_freemeta--;
 	rgd->rd_rg.rg_useddi++;
 
+	/* Attach rgrp header to trans, update freemeta and useddi stats */
 	gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[0]);
 	gfs_rgrp_out(&rgd->rd_rg, rgd->rd_bh[0]->b_data);
 
+	/* Update stats in in-place reservation struct */
 	al->al_alloced_di++;
 	al->al_alloced_meta++;
 
@@ -1616,11 +1716,14 @@ gfs_dialloc(struct gfs_inode *dip, uint64_t *block)
 }
 
 /**
- * gfs_blkfree - free a piece of data
- * @ip: the inode these blocks are being free from
- * @bstart: the start of a run of blocks to free
- * @blen: the length of the block run
+ * gfs_blkfree - free a contiguous run of data block(s)
+ * @ip: the inode these blocks are being freed from
+ * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
+ * @blen: the length of the block run (all must lie within ONE RG!)
  *
+ * Bitmap-deallocate the blocks (to FREE data state), add bitmap blks to trans
+ * Update rgrp alloc statistics in rgrp header, add rgrp header buf to trans
+ * Update quotas, add to trans.
  */
 
 void
@@ -1642,11 +1745,17 @@ gfs_blkfree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 }
 
 /**
- * gfs_metafree - free a piece of metadata
- * @ip: the inode these blocks are being free from
- * @bstart: the start of a run of blocks to free
- * @blen: the length of the block run
+ * gfs_metafree - free a contiguous run of metadata block(s)
+ * @ip: the inode these blocks are being freed from
+ * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
+ * @blen: the length of the block run (all must lie within ONE RG!)
  *
+ * Bitmap-deallocate the blocks (to FREEMETA state), add bitmap blks to trans.
+ * Update rgrp alloc statistics in rgrp header, add rgrp header to trans.
+ * Update quotas (quotas include metadata, not just data block usage),
+ *    add to trans.
+ * Release deallocated buffers, add to meta-header cache (we save these in-core
+ *    so we don't need to re-read meta blocks if/when they are re-alloc'd).
  */
 
 void
@@ -1671,10 +1780,13 @@ gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen)
 }
 
 /**
- * gfs_difree_uninit - free a piece of metadata
+ * gfs_difree_uninit - free a dinode block
  * @rgd: the resource group that contains the dinode
  * @addr: the dinode address
  *
+ * De-allocate the dinode to FREEMETA using block alloc bitmap.
+ * Update rgrp's block usage statistics (used dinode--, free meta++).
+ * Add rgrp header to transaction.
  */
 
 void
@@ -1696,10 +1808,15 @@ gfs_difree_uninit(struct gfs_rgrpd *rgd, uint64_t addr)
 }
 
 /**
- * gfs_difree - free a piece of metadata
+ * gfs_difree - free a dinode block
  * @rgd: the resource group that contains the dinode
  * @ip: the inode representing the dinode to free
  *
+ * Free the dinode block to FREEMETA, update rgrp's block usage stats.
+ * Update quotas (quotas include metadata, not just data block usage),
+ *    add to trans.
+ * Release deallocated buffers, add to meta-header cache (we save these in-core
+ *    so we don't need to re-read meta blocks if/when they are re-alloc'd).
  */
 
 void

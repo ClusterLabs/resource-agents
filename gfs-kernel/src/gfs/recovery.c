@@ -523,7 +523,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * @jdesc: the struct gfs_jindex describing the journal
  * @wait: Don't return until the journal is clean (or an error is encountered)
  *
- * Acquire a journals lock, check to see if the journal is clean, and
+ * Acquire the journal's lock, check to see if the journal is clean, and
  * do recovery if necessary.
  *
  * Returns: 0 on success, -EXXX on failure
@@ -660,7 +660,7 @@ gfs_recover_journal(struct gfs_sbd *sdp,
 }
 
 /**
- * gfs_check_journals - Recovery any dirty journals
+ * gfs_check_journals - Recover any dirty journals
  * @sdp: the filesystem
  *
  */

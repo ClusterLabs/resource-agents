@@ -101,8 +101,14 @@ inode_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
  * inode_go_xmote_bh - promote/demote a glock
  * @gl: the glock
  *
- * This will be really broken when (no_formal_ino != no_addr)
+ * FIXME: This will be really broken when (no_formal_ino != no_addr)
+ *        and gl_name.ln_number no longer refers to the dinode block #.
  *
+ * If we've just acquired the inter-node lock for an inode,
+ *   read the dinode block from disk (but don't wait for I/O completion).
+ * Exceptions (don't read if):
+ *    Glock state is UNLOCKED.
+ *    Glock's requesting holder's GL_SKIP flag is set.
  */
 
 static void
@@ -135,10 +141,18 @@ inode_go_drop_th(struct gfs_glock *gl)
 }
 
 /**
- * inode_go_sync - Sync the dirty data for a inode glock
- * @gl: the glock
- * @flags: 
+ * inode_go_sync - Sync the dirty data and/or metadata for an inode glock
+ * @gl: the glock protecting the inode
+ * @flags: DIO_METADATA -- sync inode's metadata
+ *         DIO_DATA     -- sync inode's data
+ *         DIO_INVISIBLE --  don't clear glock's DIRTY flag when done
  *
+ * Syncs go in following order:
+ *   Start data page writes
+ *   Sync metadata to log (wait to complete I/O)
+ *   Sync metadata to in-place location (wait to complete I/O)
+ *   Wait for data page I/O to complete
+ * 
  */
 
 static void
@@ -211,7 +225,8 @@ inode_go_demote_ok(struct gfs_glock *gl)
 }
 
 /**
- * inode_go_lock - operation done after an inode lock is locked by a process
+ * inode_go_lock - operation done after an inode lock is locked by
+ *      a first holder on this node
  * @gl: the glock
  * @flags: the flags passed into gfs_glock()
  *
@@ -234,7 +249,8 @@ inode_go_lock(struct gfs_glock *gl, int flags)
 }
 
 /**
- * inode_go_unlock - operation done before an inode lock is unlocked by a process
+ * inode_go_unlock - operation done when an inode lock is unlocked by
+ *     a last holder on this node
  * @gl: the glock
  * @flags: the flags passed into gfs_gunlock()
  *
@@ -294,6 +310,11 @@ inode_greedy(struct gfs_glock *gl)
  * @state: the requested state
  * @flags: the flags passed into gfs_glock()
  *
+ * We're going to lock the lock in SHARED or EXCLUSIVE state, or
+ *   demote it from EXCLUSIVE to SHARED (because another node needs it SHARED).
+ * When locking, gfs_mhc_zap() and gfs_depend_sync() are basically no-ops;
+ *   meta-header cache and dependency lists should be empty.
+ *
  */
 
 static void
@@ -312,6 +333,9 @@ rgrp_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
  * rgrp_go_drop_th - unlock a glock
  * @gl: the glock
  *
+ * Invoked from rq_demote().
+ * Another node needs the lock in EXCLUSIVE mode, or lock (unused for too long)
+ *   is being purged from our node's glock cache; we're dropping lock.
  */
 
 static void
@@ -327,7 +351,7 @@ rgrp_go_drop_th(struct gfs_glock *gl)
 }
 
 /**
- * rgrp_go_demote_ok - check to see if it's ok to unlock a glock
+ * rgrp_go_demote_ok - check to see if it's ok to unlock a RG's glock
  * @gl: the glock
  *
  * Returns: TRUE if it's ok
@@ -348,11 +372,14 @@ rgrp_go_demote_ok(struct gfs_glock *gl)
 }
 
 /**
- * rgrp_go_lock - operation done after an rgrp lock is locked by a process
+ * rgrp_go_lock - operation done after an rgrp lock is locked by
+ *    a first holder on this node.
  * @gl: the glock
  * @flags: the flags passed into gfs_glock()
  *
  * Returns: 0 on success, -EXXX on failure
+ *
+ * Read rgrp's header and block allocation bitmaps from disk.
  */
 
 static int
@@ -370,10 +397,14 @@ rgrp_go_lock(struct gfs_glock *gl, int flags)
 }
 
 /**
- * rgrp_go_unlock - operation done before an rgrp lock is unlocked by a process
+ * rgrp_go_unlock - operation done when an rgrp lock is unlocked by
+ *    a last holder on this node.
  * @gl: the glock
  * @flags: the flags passed into gfs_gunlock()
  *
+ * Release rgrp's bitmap buffers (read in when lock was first obtained).
+ * Make sure rgrp's glock's Lock Value Block has up-to-date block usage stats,
+ *   so other nodes can see them.
  */
 
 static void

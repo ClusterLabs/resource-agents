@@ -89,7 +89,7 @@ gfs_inval_page(struct gfs_glock *gl)
 }
 
 /**
- * gfs_sync_page_i - Sync the pages for a struct inode
+ * gfs_sync_page_i - Sync the data pages (not metadata) for a struct inode
  * @inode: the inode
  * @flags: DIO_START | DIO_WAIT
  *
@@ -111,10 +111,12 @@ gfs_sync_page_i(struct inode *inode, int flags)
 }
 
 /**
- * gfs_sync_page - sync the pages associated with a glock
+ * gfs_sync_page - Sync the data pages (not metadata) associated with a glock
  * @gl: the glock
  * @flags: DIO_START | DIO_WAIT
  *
+ * Syncs data (not metadata) for a regular file.
+ * No-op for all other types.
  */
 
 void

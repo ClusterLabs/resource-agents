@@ -633,6 +633,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 	if (alloc_required) {
 		set_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
 
+		/* split large writes into smaller atomic transactions */
 		while (size) {
 			s = sdp->sd_tune.gt_max_atomic_write;
 			if (s > size)
@@ -874,6 +875,7 @@ do_write_buf(struct file *file,
 			size = 0x7FFFFFFFull - *offset;
 	}
 
+	/* split large writes into smaller atomic transactions */
 	while (size) {
 		s = sdp->sd_tune.gt_max_atomic_write;
 		if (s > size)
@@ -992,6 +994,7 @@ filldir_reg_func(void *opaque,
 	if (error)
 		return 1;
 
+	/* Prefetch locks */
 	if (fdr->fdr_prefetch && !(length == 1 && *name == '.')) {
 		gfs_glock_prefetch_num(sdp,
 				       inum->no_formal_ino, &gfs_inode_glops,
@@ -1080,6 +1083,7 @@ filldir_bad_func(void *opaque,
 	fdb->fdb_entry_off++;
 	fdb->fdb_name_off += length;
 
+	/* Prefetch locks */
 	if (!(length == 1 && *name == '.')) {
 		gfs_glock_prefetch_num(sdp,
 				       inum->no_formal_ino, &gfs_inode_glops,
@@ -1097,6 +1101,8 @@ filldir_bad_func(void *opaque,
  * @file: The directory to read from
  * @dirent: Buffer for dirents
  * @filldir: Function used to do the copying
+ *
+ * For supporting NFS.
  *
  * Returns: 0 on success, -EXXXX on failure
  */
@@ -1183,6 +1189,7 @@ gfs_readdir(struct file *file, void *dirent, filldir_t filldir)
 
 	atomic_inc(&vfs2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
 
+	/* Use "bad" one if we're called from NFS daemon */
 	if (strcmp(current->comm, "nfsd") != 0)
 		error = readdir_reg(file, dirent, filldir);
 	else
@@ -1350,10 +1357,13 @@ gfs_close(struct inode *inode, struct file *file)
 
 /**
  * gfs_fsync - sync the dirty data for a file (across the cluster)
- * @file: the file that points to the dentry (Huh?)
+ * @file: the file that points to the dentry (we ignore this)
  * @dentry: the dentry that points to the inode to sync
  *
  * Returns: 0 on success, -EXXX on failure
+ *
+ * Obtain a SHARED lock on the file, to force any node with an EXCLUSIVE lock
+ *   to sync file's dirty data to disk, as it releases the EXCLUSIVE lock.
  */
 
 static int

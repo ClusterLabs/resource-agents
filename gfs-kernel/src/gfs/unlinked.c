@@ -28,10 +28,14 @@
 /**
  * gfs_unlinked_get - Get a structure to represent an unlinked inode
  * @sdp: the filesystem
- * @inum: the inode that's unlinked
- * @create: if TRUE, create the structure, otherwise return NULL
+ * @inum: identifies the inode that's unlinked
+ * @create: if TRUE, we're allowed to create the structure if we can't find it,
+ *      otherwise return NULL
  *
  * Returns: the structure, or NULL
+ *
+ * Search the filesystem's list of gfs_unlinked to find a match.
+ * If none found, create a new one and place on list.
  */
 
 struct gfs_unlinked *
@@ -56,6 +60,7 @@ gfs_unlinked_get(struct gfs_sbd *sdp, struct gfs_inum *inum, int create)
 		if (tmp == head)
 			ul = NULL;
 
+		/* 2nd pass, still not there; add the new_ul we prepared */
 		if (!ul && new_ul) {
 			ul = new_ul;
 			list_add(&ul->ul_list, &sdp->sd_unlinked_list);
@@ -64,12 +69,19 @@ gfs_unlinked_get(struct gfs_sbd *sdp, struct gfs_inum *inum, int create)
 
 		spin_unlock(&sdp->sd_unlinked_lock);
 
+		/* 1st pass; we found pre-existing, OR not allowed to create.
+		   2nd pass; another process added it, or we did */
 		if (ul || !create) {
 			if (new_ul)
+				/* someone beat us to it; forget our new_ul */
 				kfree(new_ul);
 			return ul;
 		}
 
+		/* No match on list, 1st time through loop.
+		   Prepare new_ul, then repeat loop to find out if another
+		   process has created or unlinked an inode and put its
+		   gfs_unlinked on list while we've been preparing this one. */
 		new_ul = gmalloc(sizeof(struct gfs_unlinked));
 		memset(new_ul, 0, sizeof(struct gfs_unlinked));
 
@@ -199,7 +211,7 @@ gfs_unlinked_lock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
 }
 
 /**
- * gfs_unlinked_unlock - drop and a reference on a unlinked structure
+ * gfs_unlinked_unlock - drop a reference on a unlinked structure
  * @sdp: the filesystem
  * @ul: the unlinked inode structure
  *
@@ -232,6 +244,7 @@ gfs_unlinked_unlock(struct gfs_sbd *sdp, struct gfs_unlinked *ul)
  * @type: is this a unlink tag or a dealloc tag
  * @inum: the inode number
  *
+ * Called during journal recovery.
  */
 
 void

@@ -14,21 +14,24 @@
 #ifndef __GFS_GLOCK_DOT_H__
 #define __GFS_GLOCK_DOT_H__
 
-/*
+/*	These are defined in lm_interface.h, commented out here.
 #define LM_FLAG_TRY       (0x00000001)
 #define LM_FLAG_TRY_1CB   (0x00000002)
 #define LM_FLAG_NOEXP     (0x00000004)
 #define LM_FLAG_ANY       (0x00000008)
 #define LM_FLAG_PRIORITY  (0x00000010)
-*/
-#define GL_LOCAL_EXCL     (0x00000020)
-#define GL_ASYNC          (0x00000040)
-#define GL_EXACT          (0x00000080)
-#define GL_SKIP           (0x00000100)
-#define GL_ATIME          (0x00000200)
-#define GL_NOCACHE        (0x00000400)
-#define GL_SYNC           (0x00000800)
-#define GL_NOCANCEL       (0x00001000)
+	These are defined here. */
+#define GL_LOCAL_EXCL     (0x00000020) /* Only one holder may be granted the
+                                        * lock on this node, even if SHARED */
+#define GL_ASYNC          (0x00000040) /* Don't block waiting for lock ...
+                                        * must poll to wait for grant */
+#define GL_EXACT          (0x00000080) /* Requested state must == current state
+                                        * for lock to be granted */
+#define GL_SKIP           (0x00000100) /* Don't read from disk after grant */
+#define GL_ATIME          (0x00000200) /* Update inode's ATIME after grant */
+#define GL_NOCACHE        (0x00000400) /* Release glock when done, don't cache */
+#define GL_SYNC           (0x00000800) /* Sync to disk when no more holders */
+#define GL_NOCANCEL       (0x00001000) /* Don't ever cancel this request */
 
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)
@@ -40,6 +43,7 @@ gfs_glock_is_locked_by_me(struct gfs_glock *gl)
 	struct gfs_holder *gh;
 	int locked = FALSE;
 
+	/* Look in glock's list of holders for one with current task as owner */
 	spin_lock(&gl->gl_spin);
 	for (head = &gl->gl_holders, tmp = head->next;
 	     tmp != head;

@@ -73,6 +73,8 @@ gfs_trans_print(struct gfs_sbd *sdp, struct gfs_trans *tr, unsigned int where)
  *   while allowing simultaneous transaction writes throughout cluster).
  * Reserve space in the log.  @meta_blocks and @extra_blocks must indicate
  *   the worst case (maximum) size of the transaction.
+ * Record this transaction as the *one* transaction being built by this
+ *   Linux process, in current->journal_info.
  *
  * Returns: 0 on success, -EXXX on failure
  */
@@ -159,6 +161,8 @@ gfs_trans_end(struct gfs_sbd *sdp)
 	struct list_head *tmp, *head;
 	struct gfs_log_element *le;
 
+	/* Linux task struct indicates current new trans for this process.
+	 * We're done building it, so set it to NULL */
 	tr = current_transaction;
 	GFS_ASSERT_SBD(tr, sdp,);
 	current_transaction = NULL;
@@ -217,15 +221,25 @@ gfs_trans_add_gl(struct gfs_glock *gl)
 }
 
 /**
- * gfs_trans_add_bh - Add a buffer to the current transaction
+ * gfs_trans_add_bh - Add a to-be-modified buffer to the current transaction
  * @gl: the glock the buffer belongs to
  * @bh: The buffer to add
  *
- * Add a buffer to the current transaction.  The glock for the buffer
- * should be held.  This pins the buffer as well.
+ * Add a to-be-modified buffer to the current being-built (i.e. new) trans,
+ *   and pin the buffer in memory.
  *
- * Call this as many times as you want during transaction formation.
- * It only does its work once.
+ * Caller must hold the glock protecting this buffer.
+ *
+ * Call this as many times as you want during transaction formation.  It does
+ * its attachment work only once.  After buffer is attached to trans, the
+ * process building the trans can modify the buffer again and again (calling
+ * this function before each change).  Only the final result (within this trans)
+ * will be written to log.  A good example is when allocating blocks in an RG,
+ * a given bitmap buffer may be updated many times within a transaction.
+ *
+ * Note:  This final result will also be written to its in-place location,
+ *  unless this transaction gets combined with a later transaction,
+ *  in which case only the later result will go to in-place.
  *
  */
 
@@ -235,12 +249,14 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_bufdata *bd;
 
+	/* Make sure GFS private info struct is attached to buffer head */
 	bd = bh2bd(bh);
 	if (!bd) {
 		gfs_attach_bufdata(bh, gl);
 		bd = bh2bd(bh);
 	}
 
+	/* If buffer has already been attached to trans, we're done */
 	if (bd->bd_new_le.le_trans)
 		return;
 
@@ -248,17 +264,20 @@ gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh)
 
 	GFS_ASSERT_GLOCK(bd->bd_gl == gl, gl,);
 
+	/* Make sure glock is attached to trans */
 	if (!gl->gl_new_le.le_trans)
 		gfs_trans_add_gl(gl);
 
 	gfs_dpin(sdp, bh);
 
+	/* Attach buffer to trans */
 	LO_ADD(sdp, &bd->bd_new_le);
 	bd->bd_new_le.le_trans->tr_num_buf++;
 }
 
 /**
- * gfs_trans_add_unlinked - Add a unlinked/dealloced tag to the current transaction
+ * gfs_trans_add_unlinked - Add an unlinked or dealloced tag to
+ *      the current transaction
  * @sdp: the filesystem
  * @type: the type of entry
  * @inum: the inode number
@@ -272,6 +291,7 @@ gfs_trans_add_unlinked(struct gfs_sbd *sdp, unsigned int type,
 {
 	struct gfs_unlinked *ul;
 
+	/* Find in fileystem's unlinked list, or create */
 	ul = gfs_unlinked_get(sdp, inum, CREATE);
 
 	LO_ADD(sdp, &ul->ul_new_le);
