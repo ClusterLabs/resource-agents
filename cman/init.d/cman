@@ -14,7 +14,13 @@
 #     a cluster is not joined.  If CMAN_CLUSTER_TIMEOUT is zero, then
 #     wait indefinately for a cluster join.  If CMAN_CLUSTER_TIMEOUT is
 #     negative, do not check to see that the cluster has been joined
-CMAN_CLUSTER_TIMEOUT=300
+CMAN_CLUSTER_TIMEOUT=120
+
+# CMAN_QUORUM_TIMEOUT -- amount of time to wait for a quorate cluster on 
+#     startup quorum is needed by many other applications, so we may as 
+#     well wait here.  If CMAN_QUORUM_TIMEOUT is less than 1, quorum will 
+#     be ignored.
+CMAN_QUORUM_TIMEOUT=300
 
 # CMAN_SHUTDOWN_TIMEOUT -- amount of time to wait for cman to become a 
 #     cluster member before calling cman_tool leave during shutdown.  
@@ -66,12 +72,14 @@ start()
 		fi
 
 		# specify -w to make sure we have joined the cluster
-		# TODO -- add timer to abort if not connected after 
-		#         CMAN_CLUSTER_TIMEOUT seconds
-		cman_tool -w join $cman_join_opts || break
+		# TODO -- should we call cman_tool leave if this times out?
+		cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join $cman_join_opts || break
 
-		# TODO -- make sure that we are quorate?  
-		# cman_tool -q wait
+		# make sure that we are quorate?  
+		if [ $CMAN_QUORUM_TIMEOUT -gt 0 ]
+		then
+			cman_tool -t $CMAN_QUORUM_TIMEOUT -q wait || break
+		fi
 
 		rtrn=0
 	done
@@ -98,11 +106,10 @@ stop()
 	then
 		rtrn=1
 
-		if cman_tool -w leave &>/dev/null
-		then	
-			# allow cman time to clean up
-			sleep 3
-		fi
+		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave 
+
+		# allow cman time to clean up BZ 149282
+		sleep 3
 
 		# try to unload dlm module
 		modprobe -r dlm &>/dev/null
