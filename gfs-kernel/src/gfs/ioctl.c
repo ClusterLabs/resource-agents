@@ -629,6 +629,15 @@ gfs_set_flag(struct gfs_inode *ip, unsigned int cmd, void *arg)
 
 	case GFS_DIF_IMMUTABLE:
 	case GFS_DIF_APPENDONLY:
+        	/* The IMMUTABLE and APPENDONLY flags can only be changed by
+		   the relevant capability. */
+		if (((ip->i_di.di_flags ^ flag) & (GFS_DIF_IMMUTABLE | GFS_DIF_APPENDONLY)) &&
+		    !capable(CAP_LINUX_IMMUTABLE)) {
+			error = -EPERM;
+			goto out;
+		}
+		break;
+
 	case GFS_DIF_NOATIME:
 	case GFS_DIF_SYNC:
 		/*  FixMe!!!  */

@@ -486,10 +486,6 @@ struct gfs_inode {
 	struct gfs_alloc *i_alloc; /* In-place block reservation structure */
 	uint64_t i_last_rg_alloc;  /* Most recent block alloc was fm this rgrp */
 
-	/* Linux process that originally created this inode */
-	struct task_struct *i_creat_task; /* Linux "current" task struct */
-	pid_t i_creat_pid;                /* Linux process ID current->pid */
-
 	spinlock_t i_lock;                /* Protects this structure */
 
 	/* Cache of most-recently used buffers in indirect addressing chain */

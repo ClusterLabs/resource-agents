@@ -36,8 +36,8 @@ int gfs_createi(struct gfs_holder *d_gh, struct qstr *name,
 		struct gfs_holder *i_gh);
 int gfs_unlinki(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip);
 int gfs_rmdiri(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip);
-int gfs_revalidate(struct gfs_inode *dip, struct qstr *name,
-		   struct gfs_inode *ip);
+int gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name,
+		  struct gfs_inode *ip);
 int gfs_ok_to_move(struct gfs_inode *this, struct gfs_inode *to);
 int gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len);
 

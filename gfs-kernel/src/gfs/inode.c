@@ -45,40 +45,40 @@
  */
 
 static void
-inode_attr_in(struct gfs_inode *ip, struct inode *ino)
+inode_attr_in(struct gfs_inode *ip, struct inode *inode)
 {
 	unsigned int mode;
 
-	ino->i_ino = ip->i_num.no_formal_ino;
+	inode->i_ino = ip->i_num.no_formal_ino;
 
 	switch (ip->i_di.di_type) {
 	case GFS_FILE_REG:
 		mode = S_IFREG;
-		ino->i_rdev = 0;
+		inode->i_rdev = 0;
 		break;
 	case GFS_FILE_DIR:
 		mode = S_IFDIR;
-		ino->i_rdev = 0;
+		inode->i_rdev = 0;
 		break;
 	case GFS_FILE_LNK:
 		mode = S_IFLNK;
-		ino->i_rdev = 0;
+		inode->i_rdev = 0;
 		break;
 	case GFS_FILE_BLK:
 		mode = S_IFBLK;
-		ino->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
+		inode->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
 		break;
 	case GFS_FILE_CHR:
 		mode = S_IFCHR;
-		ino->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
+		inode->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
 		break;
 	case GFS_FILE_FIFO:
 		mode = S_IFIFO;
-		ino->i_rdev = 0;
+		inode->i_rdev = 0;
 		break;
 	case GFS_FILE_SOCK:
 		mode = S_IFSOCK;
-		ino->i_rdev = 0;
+		inode->i_rdev = 0;
 		break;
 	default:
 		GFS_ASSERT_INODE(FALSE, ip,
@@ -86,19 +86,29 @@ inode_attr_in(struct gfs_inode *ip, struct inode *ino)
 		break;
 	};
 
-	ino->i_mode = mode | (ip->i_di.di_mode & S_IALLUGO);
-	ino->i_nlink = ip->i_di.di_nlink;
-	ino->i_uid = ip->i_di.di_uid;
-	ino->i_gid = ip->i_di.di_gid;
-	i_size_write(ino, ip->i_di.di_size);
-	ino->i_atime.tv_sec = ip->i_di.di_atime;
-	ino->i_mtime.tv_sec = ip->i_di.di_mtime;
-	ino->i_ctime.tv_sec = ip->i_di.di_ctime;
-	ino->i_atime.tv_nsec = ino->i_mtime.tv_nsec = ino->i_ctime.tv_nsec = 0;
-	ino->i_blksize = PAGE_SIZE;
-	ino->i_blocks = ip->i_di.di_blocks <<
+	inode->i_mode = mode | (ip->i_di.di_mode & S_IALLUGO);
+	inode->i_nlink = ip->i_di.di_nlink;
+	inode->i_uid = ip->i_di.di_uid;
+	inode->i_gid = ip->i_di.di_gid;
+	i_size_write(inode, ip->i_di.di_size);
+	inode->i_atime.tv_sec = ip->i_di.di_atime;
+	inode->i_mtime.tv_sec = ip->i_di.di_mtime;
+	inode->i_ctime.tv_sec = ip->i_di.di_ctime;
+	inode->i_atime.tv_nsec = inode->i_mtime.tv_nsec = inode->i_ctime.tv_nsec = 0;
+	inode->i_blksize = PAGE_SIZE;
+	inode->i_blocks = ip->i_di.di_blocks <<
 		(ip->i_sbd->sd_sb.sb_bsize_shift - GFS_BASIC_BLOCK_SHIFT);
-	ino->i_generation = ip->i_di.di_header.mh_incarn;
+	inode->i_generation = ip->i_di.di_header.mh_incarn;
+
+	if (ip->i_di.di_flags & GFS_DIF_IMMUTABLE)
+		inode->i_flags |= S_IMMUTABLE;
+	else
+		inode->i_flags &= ~S_IMMUTABLE;
+
+	if (ip->i_di.di_flags & GFS_DIF_APPENDONLY)
+		inode->i_flags |= S_APPEND;
+	else
+		inode->i_flags &= ~S_APPEND;
 }
 
 /**
@@ -131,18 +141,14 @@ gfs_inode_attr_in(struct gfs_inode *ip)
 void
 gfs_inode_attr_out(struct gfs_inode *ip)
 {
-	struct inode *inode;
+	struct inode *inode = ip->i_vnode;
 
-	inode = gfs_iget(ip, NO_CREATE);
-	if (inode) {
-		ip->i_di.di_mode = inode->i_mode & S_IALLUGO;
-		ip->i_di.di_uid = inode->i_uid;
-		ip->i_di.di_gid = inode->i_gid;
-		ip->i_di.di_atime = inode->i_atime.tv_sec;
-		ip->i_di.di_mtime = inode->i_mtime.tv_sec;
-		ip->i_di.di_ctime = inode->i_ctime.tv_sec;
-		iput(inode);
-	}
+	ip->i_di.di_mode = inode->i_mode & S_IALLUGO;
+	ip->i_di.di_uid = inode->i_uid;
+	ip->i_di.di_gid = inode->i_gid;
+	ip->i_di.di_atime = inode->i_atime.tv_sec;
+	ip->i_di.di_mtime = inode->i_mtime.tv_sec;
+	ip->i_di.di_ctime = inode->i_ctime.tv_sec;
 }
 
 /**
@@ -776,6 +782,9 @@ gfs_change_nlink(struct gfs_inode *ip, int diff)
  * @is_root: If TRUE, ignore the caller's permissions
  * @i_gh: An uninitialized holder for the new inode glock
  *
+ * There will always be a vnode for the d_gh inode unless @is_root
+ * is true.
+ *
  * Returns: 0 on success, -EXXXX on failure
  */
 
@@ -820,14 +829,10 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 		return error;
 
 	if (!is_root) {
-		struct inode *dir = gfs_iget(dip, NO_CREATE);
-		if (dir) {
-			error = permission(dir, MAY_EXEC, NULL);
-			iput(dir);
-			if (error) {
-				gfs_glock_dq(d_gh);
-				return error;
-			}
+		error = permission(dip->i_vnode, MAY_EXEC, NULL);
+		if (error) {
+			gfs_glock_dq(d_gh);
+			return error;
 		}
 	}
 
@@ -866,15 +871,11 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 		}
 
 		if (!is_root) {
-			struct inode *dir = gfs_iget(dip, NO_CREATE);
-			if (dir) {
-				error = permission(dir, MAY_EXEC, NULL);
-				iput(dir);
-				if (error) {
-					gfs_glock_dq(d_gh);
-					gfs_glock_dq_uninit(i_gh);
-					goto out;
-				}
+			error = permission(dip->i_vnode, MAY_EXEC, NULL);
+			if (error) {
+				gfs_glock_dq(d_gh);
+				gfs_glock_dq_uninit(i_gh);
+				goto out;
 			}
 		}
 
@@ -930,15 +931,9 @@ create_ok(struct gfs_inode *dip, struct qstr *name, unsigned int type)
 {
 	int error;
 
-	{
-		struct inode *dir = gfs_iget(dip, NO_CREATE);
-		if (dir) {
-			error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-			iput(dir);
-			if (error)
-				return error;
-		}
-	}
+	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	if (error)
+		return error;
 
 	/*  Don't create entries in an unlinked directory  */
 
@@ -1445,32 +1440,49 @@ gfs_rmdiri(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 }
 
 /*
- * gfs_revalidate - check to see that a inode is still in a directory
+ * gfs_unlink_ok - check to see that a inode is still in a directory
  * @dip: the directory
  * @name: the name of the file
  * @ip: the inode
  *
  * Assumes that the lock on (at least) @dip is held.
  *
- * Returns: 0 if the parent/child relationship is correct, -ENOENT if it isn't
+ * Returns: 0 if the parent/child relationship is correct, errno if it isn't
  */
 
 int
-gfs_revalidate(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
+gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 {
 	struct gfs_inum inum;
 	unsigned int type;
 	int error;
 
-	error = gfs_dir_search(dip, name, &inum, &type);
-	if (!error) {
-		if (inum.no_formal_ino == ip->i_num.no_formal_ino)
-			GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
-		else
-			error = -ENOENT;
-	}
+	if (IS_IMMUTABLE(ip->i_vnode) || IS_APPEND(ip->i_vnode))
+		return -EPERM;
 
-	return error;
+	if ((dip->i_di.di_mode & S_ISVTX) &&
+	    dip->i_di.di_uid != current->fsuid &&
+	    ip->i_di.di_uid != current->fsuid &&
+	    !capable(CAP_FOWNER))
+		return -EPERM;
+
+	if (IS_APPEND(dip->i_vnode))
+		return -EPERM;
+
+	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	if (error)
+		return error;
+
+	error = gfs_dir_search(dip, name, &inum, &type);
+	if (error)
+		return error;
+
+	if (inum.no_formal_ino != ip->i_num.no_formal_ino)
+		return -ENOENT;
+
+	GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
+
+	return 0;
 }
 
 /*

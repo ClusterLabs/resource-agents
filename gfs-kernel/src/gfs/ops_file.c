@@ -1298,21 +1298,6 @@ gfs_open(struct inode *inode, struct file *file)
 			goto fail_gunlock;
 		}
 
-		/* If this is an exclusive create, make sure our gfs_create()
-		   says we created the file.  The O_EXCL flag isn't passed
-		   to gfs_create(), so we have to check it here. */
-
-		if (file->f_flags & O_CREAT) {
-			if (ip->i_creat_task == current &&
-			    ip->i_creat_pid == current->pid) {
-				ip->i_creat_task = NULL;
-				ip->i_creat_pid = 0;
-			} else if (file->f_flags & O_EXCL) {
-				error = -EEXIST;
-				goto fail_gunlock;
-			}
-		}
-
 		/* Listen to the Direct I/O flag */
 
 		if (ip->i_di.di_flags & GFS_DIF_DIRECTIO)

@@ -74,7 +74,8 @@ gfs_create(struct inode *dir, struct dentry *dentry,
 				    &i_gh);
 		if (!error)
 			break;
-		else if (error != -EEXIST) {
+		else if (error != -EEXIST ||
+			 (nd->intent.open.flags & O_EXCL)) {
 			gfs_holder_uninit(&d_gh);
 			return error;
 		}
@@ -102,9 +103,6 @@ gfs_create(struct inode *dir, struct dentry *dentry,
 		gfs_quota_unlock_m(dip);
 		gfs_unlinked_unlock(sdp, dip->i_alloc->al_ul);
 		gfs_alloc_put(dip);
-
-		ip->i_creat_task = current;
-		ip->i_creat_pid = current->pid;
 	}
 
 	gfs_glock_dq_uninit(&d_gh);
@@ -347,6 +345,10 @@ gfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 		error = -EFBIG;
 		goto fail_gunlock;
 	}
+	if (IS_IMMUTABLE(inode) || IS_APPEND(inode)) {
+		error = -EPERM;
+		goto fail_gunlock;
+	}
 	if (!ip->i_di.di_nlink) {
 		error = -EINVAL;
 		goto fail_gunlock;
@@ -480,19 +482,7 @@ gfs_unlink(struct inode *dir, struct dentry *dentry)
 	if (error)
 		goto fail;
 
-	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-	if (error)
-		goto fail_gunlock;
-
-	if ((dip->i_di.di_mode & S_ISVTX) &&
-	    dip->i_di.di_uid != current->fsuid &&
-	    ip->i_di.di_uid != current->fsuid &&
-	    !capable(CAP_FOWNER)) {
-		error = -EPERM;
-		goto fail_gunlock;
-	}
-
-	error = gfs_revalidate(dip, &dentry->d_name, ip);
+	error = gfs_unlink_ok(dip, &dentry->d_name, ip);
 	if (error)
 		goto fail_gunlock;
 
@@ -731,19 +721,7 @@ gfs_rmdir(struct inode *dir, struct dentry *dentry)
 	if (error)
 		goto fail;
 
-	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-	if (error)
-		goto fail_gunlock;
-
-	if ((dip->i_di.di_mode & S_ISVTX) &&
-	    dip->i_di.di_uid != current->fsuid &&
-	    ip->i_di.di_uid != current->fsuid &&
-	    !capable(CAP_FOWNER)) {
-		error = -EPERM;
-		goto fail_gunlock;
-	}
-
-	error = gfs_revalidate(dip, &dentry->d_name, ip);
+	error = gfs_unlink_ok(dip, &dentry->d_name, ip);
 	if (error)
 		goto fail_gunlock;
 
@@ -953,38 +931,14 @@ gfs_rename(struct inode *odir, struct dentry *odentry,
 
 	/*  Check out the old directory  */
 
-	error = permission(odir, MAY_WRITE | MAY_EXEC, NULL);
-	if (error)
-		goto fail_gunlock;
-
-	if ((odip->i_di.di_mode & S_ISVTX) &&
-	    odip->i_di.di_uid != current->fsuid &&
-	    ip->i_di.di_uid != current->fsuid &&
-	    !capable(CAP_FOWNER)) {
-		error = -EPERM;
-		goto fail_gunlock;
-	}
-
-	error = gfs_revalidate(odip, &odentry->d_name, ip);
+	error = gfs_unlink_ok(odip, &odentry->d_name, ip);
 	if (error)
 		goto fail_gunlock;
 
 	/*  Check out the new directory  */
 
-	error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
-	if (error)
-		goto fail_gunlock;
-
 	if (nip) {
-		if ((ndip->i_di.di_mode & S_ISVTX) &&
-		    ndip->i_di.di_uid != current->fsuid &&
-		    nip->i_di.di_uid != current->fsuid &&
-		    !capable(CAP_FOWNER)) {
-			error = -EPERM;
-			goto fail_gunlock;
-		}
-
-		error = gfs_revalidate(ndip, &ndentry->d_name, nip);
+		error = gfs_unlink_ok(ndip, &ndentry->d_name, nip);
 		if (error)
 			goto fail_gunlock;
 
@@ -997,6 +951,10 @@ gfs_rename(struct inode *odir, struct dentry *odentry,
 			}
 		}
 	} else {
+		error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
+		if (error)
+			goto fail_gunlock;
+
 		error = gfs_dir_search(ndip, &ndentry->d_name, NULL, NULL);
 		switch (error) {
 		case -ENOENT:
@@ -1363,6 +1321,11 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 	error = gfs_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
 		return error;
+
+	if (IS_IMMUTABLE(inode) || IS_APPEND(inode)) {
+		error = -EPERM;
+		goto fail;
+	}
 
 	error = inode_change_ok(inode, attr);
 	if (error)

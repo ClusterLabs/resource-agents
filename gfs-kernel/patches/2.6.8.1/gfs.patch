@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs/acl.c linux-patched/fs/gfs/acl.c
 --- linux-orig/fs/gfs/acl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/acl.c	2004-10-05 11:13:50.908131020 -0500
++++ linux-patched/fs/gfs/acl.c	2004-10-08 16:57:38.197954232 -0500
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -379,7 +379,7 @@ diff -urN linux-orig/fs/gfs/acl.c linux-patched/fs/gfs/acl.c
 +}
 diff -urN linux-orig/fs/gfs/acl.h linux-patched/fs/gfs/acl.h
 --- linux-orig/fs/gfs/acl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/acl.h	2004-10-05 11:13:50.908131020 -0500
++++ linux-patched/fs/gfs/acl.h	2004-10-08 16:57:38.197954232 -0500
 @@ -0,0 +1,46 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -429,7 +429,7 @@ diff -urN linux-orig/fs/gfs/acl.h linux-patched/fs/gfs/acl.h
 +#endif /* __ACL_DOT_H__ */
 diff -urN linux-orig/fs/gfs/bits.c linux-patched/fs/gfs/bits.c
 --- linux-orig/fs/gfs/bits.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bits.c	2004-10-05 11:13:50.920128237 -0500
++++ linux-patched/fs/gfs/bits.c	2004-10-08 16:57:38.204952599 -0500
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -616,7 +616,7 @@ diff -urN linux-orig/fs/gfs/bits.c linux-patched/fs/gfs/bits.c
 +}
 diff -urN linux-orig/fs/gfs/bits.h linux-patched/fs/gfs/bits.h
 --- linux-orig/fs/gfs/bits.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bits.h	2004-10-05 11:13:50.920128237 -0500
++++ linux-patched/fs/gfs/bits.h	2004-10-08 16:57:38.204952599 -0500
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -652,7 +652,7 @@ diff -urN linux-orig/fs/gfs/bits.h linux-patched/fs/gfs/bits.h
 +#endif /* __BITS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/bmap.c linux-patched/fs/gfs/bmap.c
 --- linux-orig/fs/gfs/bmap.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bmap.c	2004-10-05 11:13:50.920128237 -0500
++++ linux-patched/fs/gfs/bmap.c	2004-10-08 16:57:38.214950267 -0500
 @@ -0,0 +1,1402 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2058,7 +2058,7 @@ diff -urN linux-orig/fs/gfs/bmap.c linux-patched/fs/gfs/bmap.c
 +}
 diff -urN linux-orig/fs/gfs/bmap.h linux-patched/fs/gfs/bmap.h
 --- linux-orig/fs/gfs/bmap.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bmap.h	2004-10-05 11:13:50.922127773 -0500
++++ linux-patched/fs/gfs/bmap.h	2004-10-08 16:57:38.223948168 -0500
 @@ -0,0 +1,48 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2110,7 +2110,7 @@ diff -urN linux-orig/fs/gfs/bmap.h linux-patched/fs/gfs/bmap.h
 +#endif /* __BMAP_DOT_H__ */
 diff -urN linux-orig/fs/gfs/daemon.c linux-patched/fs/gfs/daemon.c
 --- linux-orig/fs/gfs/daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/daemon.c	2004-10-05 11:13:50.922127773 -0500
++++ linux-patched/fs/gfs/daemon.c	2004-10-08 16:57:38.223948168 -0500
 @@ -0,0 +1,259 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2373,7 +2373,7 @@ diff -urN linux-orig/fs/gfs/daemon.c linux-patched/fs/gfs/daemon.c
 +}
 diff -urN linux-orig/fs/gfs/daemon.h linux-patched/fs/gfs/daemon.h
 --- linux-orig/fs/gfs/daemon.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/daemon.h	2004-10-05 11:13:50.922127773 -0500
++++ linux-patched/fs/gfs/daemon.h	2004-10-08 16:57:38.223948168 -0500
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2401,8 +2401,8 @@ diff -urN linux-orig/fs/gfs/daemon.h linux-patched/fs/gfs/daemon.h
 +#endif /* __DAEMON_DOT_H__ */
 diff -urN linux-orig/fs/gfs/dio.c linux-patched/fs/gfs/dio.c
 --- linux-orig/fs/gfs/dio.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dio.c	2004-10-05 11:13:50.923127541 -0500
-@@ -0,0 +1,1302 @@
++++ linux-patched/fs/gfs/dio.c	2004-10-08 16:57:38.250941871 -0500
+@@ -0,0 +1,1305 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -3483,6 +3483,9 @@ diff -urN linux-orig/fs/gfs/dio.c linux-patched/fs/gfs/dio.c
 + * gfs_sync_meta - sync all the buffers in a filesystem
 + * @sdp: the filesystem
 + *
++ * Flush metadata blocks to on-disk journal, then
++ * Flush metadata blocks (now in AIL) to on-disk in-place locations
++ * Periodically keep checking until done (AIL empty)
 + */
 +
 +void
@@ -3707,7 +3710,7 @@ diff -urN linux-orig/fs/gfs/dio.c linux-patched/fs/gfs/dio.c
 +}
 diff -urN linux-orig/fs/gfs/dio.h linux-patched/fs/gfs/dio.h
 --- linux-orig/fs/gfs/dio.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dio.h	2004-10-05 11:13:50.923127541 -0500
++++ linux-patched/fs/gfs/dio.h	2004-10-08 16:57:38.257940239 -0500
 @@ -0,0 +1,195 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3906,7 +3909,7 @@ diff -urN linux-orig/fs/gfs/dio.h linux-patched/fs/gfs/dio.h
 +#endif				/*  __DIO_DOT_H__  */
 diff -urN linux-orig/fs/gfs/dir.c linux-patched/fs/gfs/dir.c
 --- linux-orig/fs/gfs/dir.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dir.c	2004-10-05 11:13:50.924127309 -0500
++++ linux-patched/fs/gfs/dir.c	2004-10-08 16:57:38.267937907 -0500
 @@ -0,0 +1,2274 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6184,7 +6187,7 @@ diff -urN linux-orig/fs/gfs/dir.c linux-patched/fs/gfs/dir.c
 +}
 diff -urN linux-orig/fs/gfs/dir.h linux-patched/fs/gfs/dir.h
 --- linux-orig/fs/gfs/dir.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dir.h	2004-10-05 11:13:50.924127309 -0500
++++ linux-patched/fs/gfs/dir.h	2004-10-08 16:57:38.275936041 -0500
 @@ -0,0 +1,55 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6243,7 +6246,7 @@ diff -urN linux-orig/fs/gfs/dir.h linux-patched/fs/gfs/dir.h
 +#endif /* __DIR_DOT_H__ */
 diff -urN linux-orig/fs/gfs/eaops.c linux-patched/fs/gfs/eaops.c
 --- linux-orig/fs/gfs/eaops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eaops.c	2004-10-05 11:13:50.924127309 -0500
++++ linux-patched/fs/gfs/eaops.c	2004-10-08 16:57:38.276935808 -0500
 @@ -0,0 +1,235 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6482,7 +6485,7 @@ diff -urN linux-orig/fs/gfs/eaops.c linux-patched/fs/gfs/eaops.c
 +
 diff -urN linux-orig/fs/gfs/eaops.h linux-patched/fs/gfs/eaops.h
 --- linux-orig/fs/gfs/eaops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eaops.h	2004-10-05 11:13:50.925127077 -0500
++++ linux-patched/fs/gfs/eaops.h	2004-10-08 16:57:38.276935808 -0500
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6520,8 +6523,8 @@ diff -urN linux-orig/fs/gfs/eaops.h linux-patched/fs/gfs/eaops.h
 +
 diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 --- linux-orig/fs/gfs/eattr.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eattr.c	2004-10-05 11:13:50.925127077 -0500
-@@ -0,0 +1,1956 @@
++++ linux-patched/fs/gfs/eattr.c	2004-10-08 16:57:38.283934175 -0500
+@@ -0,0 +1,1968 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -7864,6 +7867,11 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +		return error;
 +
 +	if (el.el_ea) {
++		if (IS_APPEND(ip->i_vnode)) {
++			brelse(el.el_bh);
++			return -EPERM;
++		}
++
 +		error = -EEXIST;
 +		if (!(er->er_flags & XATTR_CREATE)) {
 +			int unstuffed = !GFS_EA_IS_STUFFED(el.el_ea);
@@ -7871,6 +7879,7 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +			if (!error && unstuffed)
 +				ea_set_remove_unstuffed(ip, &el);
 +		}
++
 +		brelse(el.el_bh);
 +	} else {
 +		error = -ENODATA;
@@ -7910,7 +7919,10 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +	if (error)
 +		return error;
 +
-+	error = gfs_ea_ops[er->er_type]->eo_set(ip, er);
++	if (IS_IMMUTABLE(ip->i_vnode))
++		error = -EPERM;
++	else
++		error = gfs_ea_ops[er->er_type]->eo_set(ip, er);
 +
 +	gfs_glock_dq_uninit(&i_gh);
 +
@@ -8022,7 +8034,10 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +	if (error)
 +		return error;
 +
-+	error = gfs_ea_ops[er->er_type]->eo_remove(ip, er);
++	if (IS_IMMUTABLE(ip->i_vnode) || IS_APPEND(ip->i_vnode))
++		error = -EPERM;
++	else
++		error = gfs_ea_ops[er->er_type]->eo_remove(ip, er);
 +
 +	gfs_glock_dq_uninit(&i_gh);
 +
@@ -8480,7 +8495,7 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +}
 diff -urN linux-orig/fs/gfs/eattr.h linux-patched/fs/gfs/eattr.h
 --- linux-orig/fs/gfs/eattr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eattr.h	2004-10-05 11:13:50.925127077 -0500
++++ linux-patched/fs/gfs/eattr.h	2004-10-08 16:57:38.293931843 -0500
 @@ -0,0 +1,95 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8579,8 +8594,8 @@ diff -urN linux-orig/fs/gfs/eattr.h linux-patched/fs/gfs/eattr.h
 +#endif /* __EATTR_DOT_H__ */
 diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 --- linux-orig/fs/gfs/file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/file.c	2004-10-05 11:13:50.927126613 -0500
-@@ -0,0 +1,382 @@
++++ linux-patched/fs/gfs/file.c	2004-10-08 16:57:38.307928578 -0500
+@@ -0,0 +1,392 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -8782,15 +8797,20 @@ diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 +	char **p = (char **)buf;
 +	int error = 0;
 +
++	/* The dinode block always gets journaled */
 +	if (bh->b_blocknr == ip->i_num.no_addr) {
 +		GFS_ASSERT_INODE(!new, ip,);
 +		gfs_trans_add_bh(ip->i_gl, bh);
 +		memcpy(bh->b_data + offset, *p, size);
++
++	/* Data blocks for journaled files get written added to the journal */
 +	} else if (gfs_is_jdata(ip)) {
 +		gfs_trans_add_bh(ip->i_gl, bh);
 +		memcpy(bh->b_data + offset, *p, size);
 +		if (new)
 +			gfs_buffer_clear_ends(bh, offset, size, TRUE);
++
++	/* Non-journaled data blocks get written to in-place disk blocks */
 +	} else {
 +		memcpy(bh->b_data + offset, *p, size);
 +		if (new)
@@ -8823,11 +8843,14 @@ diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 +	char **p = (char **)buf;
 +	int error = 0;
 +
++	/* the dinode block always gets journaled */
 +	if (bh->b_blocknr == ip->i_num.no_addr) {
 +		GFS_ASSERT_INODE(!new, ip,);
 +		gfs_trans_add_bh(ip->i_gl, bh);
 +		if (copy_from_user(bh->b_data + offset, *p, size))
 +			error = -EFAULT;
++
++	/* Data blocks for journaled files get written added to the journal */
 +	} else if (gfs_is_jdata(ip)) {
 +		gfs_trans_add_bh(ip->i_gl, bh);
 +		if (copy_from_user(bh->b_data + offset, *p, size))
@@ -8837,6 +8860,8 @@ diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 +			if (error)
 +				memset(bh->b_data + offset, 0, size);
 +		}
++
++	/* non-journaled data blocks get written to in-place disk blocks */
 +	} else {
 +		if (copy_from_user(bh->b_data + offset, *p, size))
 +			error = -EFAULT;
@@ -8965,7 +8990,7 @@ diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 +}
 diff -urN linux-orig/fs/gfs/file.h linux-patched/fs/gfs/file.h
 --- linux-orig/fs/gfs/file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/file.h	2004-10-05 11:13:50.927126613 -0500
++++ linux-patched/fs/gfs/file.h	2004-10-08 16:57:38.308928345 -0500
 @@ -0,0 +1,51 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9020,7 +9045,7 @@ diff -urN linux-orig/fs/gfs/file.h linux-patched/fs/gfs/file.h
 +#endif /* __FILE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/fixed_div64.h linux-patched/fs/gfs/fixed_div64.h
 --- linux-orig/fs/gfs/fixed_div64.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/fixed_div64.h	2004-10-05 11:13:50.927126613 -0500
++++ linux-patched/fs/gfs/fixed_div64.h	2004-10-08 16:57:38.311927645 -0500
 @@ -0,0 +1,142 @@
 +/*
 + * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
@@ -9166,7 +9191,7 @@ diff -urN linux-orig/fs/gfs/fixed_div64.h linux-patched/fs/gfs/fixed_div64.h
 +#endif /* __FIXED_DIV64_DOT_H__ */
 diff -urN linux-orig/fs/gfs/format.h linux-patched/fs/gfs/format.h
 --- linux-orig/fs/gfs/format.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/format.h	2004-10-05 11:13:50.927126613 -0500
++++ linux-patched/fs/gfs/format.h	2004-10-08 16:57:38.311927645 -0500
 @@ -0,0 +1,30 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9200,7 +9225,7 @@ diff -urN linux-orig/fs/gfs/format.h linux-patched/fs/gfs/format.h
 +#endif /* __FORMAT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/gfs.h linux-patched/fs/gfs/gfs.h
 --- linux-orig/fs/gfs/gfs.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/gfs.h	2004-10-05 11:13:50.927126613 -0500
++++ linux-patched/fs/gfs/gfs.h	2004-10-08 16:57:38.312927412 -0500
 @@ -0,0 +1,151 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9355,8 +9380,8 @@ diff -urN linux-orig/fs/gfs/gfs.h linux-patched/fs/gfs/gfs.h
 +#endif /* __GFS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/glock.c linux-patched/fs/gfs/glock.c
 --- linux-orig/fs/gfs/glock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glock.c	2004-10-05 11:13:50.928126381 -0500
-@@ -0,0 +1,2648 @@
++++ linux-patched/fs/gfs/glock.c	2004-10-08 16:57:38.343920182 -0500
+@@ -0,0 +1,2647 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -9644,7 +9669,6 @@ diff -urN linux-orig/fs/gfs/glock.c linux-patched/fs/gfs/glock.c
 +
 +	gl->gl_sbd = sdp;
 +
-+	INIT_LIST_HEAD(&gl->gl_dirty_buffers);
 +	INIT_LIST_HEAD(&gl->gl_ail_bufs);
 +
 +	if (glops == &gfs_inode_glops ||
@@ -12007,7 +12031,7 @@ diff -urN linux-orig/fs/gfs/glock.c linux-patched/fs/gfs/glock.c
 +}
 diff -urN linux-orig/fs/gfs/glock.h linux-patched/fs/gfs/glock.h
 --- linux-orig/fs/gfs/glock.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glock.h	2004-10-05 11:13:50.928126381 -0500
++++ linux-patched/fs/gfs/glock.h	2004-10-08 16:57:38.346919483 -0500
 @@ -0,0 +1,136 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12147,7 +12171,7 @@ diff -urN linux-orig/fs/gfs/glock.h linux-patched/fs/gfs/glock.h
 +#endif /* __GFS_GLOCK_DOT_H__ */
 diff -urN linux-orig/fs/gfs/glops.c linux-patched/fs/gfs/glops.c
 --- linux-orig/fs/gfs/glops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glops.c	2004-10-05 11:13:50.928126381 -0500
++++ linux-patched/fs/gfs/glops.c	2004-10-08 16:57:38.347919249 -0500
 @@ -0,0 +1,563 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12714,7 +12738,7 @@ diff -urN linux-orig/fs/gfs/glops.c linux-patched/fs/gfs/glops.c
 +};
 diff -urN linux-orig/fs/gfs/glops.h linux-patched/fs/gfs/glops.h
 --- linux-orig/fs/gfs/glops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glops.h	2004-10-05 11:13:50.932125453 -0500
++++ linux-patched/fs/gfs/glops.h	2004-10-08 16:57:38.358916684 -0500
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12744,8 +12768,8 @@ diff -urN linux-orig/fs/gfs/glops.h linux-patched/fs/gfs/glops.h
 +#endif /* __GLOPS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 --- linux-orig/fs/gfs/incore.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/incore.h	2004-10-05 11:13:50.932125453 -0500
-@@ -0,0 +1,734 @@
++++ linux-patched/fs/gfs/incore.h	2004-10-08 16:57:38.366914818 -0500
+@@ -0,0 +1,941 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -12759,20 +12783,28 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +*******************************************************************************
 +******************************************************************************/
 +
++/*
++ *  In-core (memory/RAM) structures.
++ *  These do not appear on-disk.  See gfs_ondisk.h for on-disk structures.
++ */
++
 +#ifndef __INCORE_DOT_H__
 +#define __INCORE_DOT_H__
 +
-+#define DIO_NEW           (0x00000001)
-+#define DIO_FORCE         (0x00000002)
-+#define DIO_CLEAN         (0x00000004)
-+#define DIO_DIRTY         (0x00000008)
-+#define DIO_START         (0x00000010)
-+#define DIO_WAIT          (0x00000020)
-+#define DIO_METADATA      (0x00000040)
-+#define DIO_DATA          (0x00000080)
-+#define DIO_INVISIBLE     (0x00000100)
-+#define DIO_CHECK         (0x00000200)
-+#define DIO_ALL           (0x00000400)
++/*  flags used in function call parameters  */
++
++#define DIO_NEW           (0x00000001)  /* Newly allocated metadata */
++#define DIO_FORCE         (0x00000002)  /* Force read of block from disk */
++#define DIO_CLEAN         (0x00000004)  /* Don't write to disk */
++#define DIO_DIRTY         (0x00000008)  /* Data changed, must write to disk */
++#define DIO_START         (0x00000010)  /* Start disk read or write */
++#define DIO_WAIT          (0x00000020)  /* Wait for disk r/w to complete */
++
++#define DIO_METADATA      (0x00000040)  /* Process glock's protected metadata */
++#define DIO_DATA          (0x00000080)  /* Process glock's protected filedata */
++#define DIO_INVISIBLE     (0x00000100)  /* Don't monkey with glock's dirty bit */
++#define DIO_CHECK         (0x00000200)  /* Make sure all metadata has been synced */
++#define DIO_ALL           (0x00000400)  /* Flush all AIL transactions to disk */
 +
 +/*  Structure prototypes  */
 +
@@ -12803,7 +12835,6 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 + *  Structure of operations that are associated with each
 + *  type of element in the log.
 + */
-+
 +struct gfs_log_operations {
 +	/*  Operations specific to a given log element  */
 +
@@ -12833,7 +12864,7 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +			      unsigned int *blocks, unsigned int *bmem);
 +	void (*lo_build_dump) (struct gfs_sbd * sdp, struct gfs_trans * tr);
 +
-+	/*  Operations that happen at recovery time  */
++	/* Operations that happen at recovery time */
 +
 +	void (*lo_before_scan) (struct gfs_sbd * sdp, unsigned int jid,
 +				struct gfs_log_header * head,
@@ -12846,6 +12877,7 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +	void (*lo_after_scan) (struct gfs_sbd * sdp, unsigned int jid,
 +			       unsigned int pass);
 +
++	/* Type of element (glock/buf/unlinked/quota) */
 +	char *lo_name;
 +};
 +
@@ -12853,229 +12885,349 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 + *  Structure that gets added to struct gfs_trans->tr_elements.  They
 + *  make up the "stuff" in each transaction.
 + */
-+
 +struct gfs_log_element {
-+	struct gfs_log_operations *le_ops;
++	struct gfs_log_operations *le_ops; /* Vector of functions */
 +
-+	struct gfs_trans *le_trans;
-+	struct list_head le_list;
++	struct gfs_trans *le_trans;     /* We're part of this transaction */
++	struct list_head le_list;       /* Link to transaction's element list */
 +};
 +
++/*
++ * Meta-header cache structure.
++ * One for each metadata block that we've read from disk, and are still using.
++ * In-core superblock structure hosts the actual cache.
++ * Also, each resource group keeps a list of cached blocks within its scope.
++ */
 +struct gfs_meta_header_cache {
-+	struct list_head mc_list_hash;
-+	struct list_head mc_list_single;
-+	struct list_head mc_list_rgd;
++	/* Links to various lists */
++	struct list_head mc_list_hash;   /* Superblock's hashed list */
++	struct list_head mc_list_single; /* Superblock's single list */
++	struct list_head mc_list_rgd;    /* Resource group's list */
 +
-+	uint64_t mc_block;
-+	struct gfs_meta_header mc_mh;
++	uint64_t mc_block;               /* Block # (in-place address) */
++	struct gfs_meta_header mc_mh;    /* Payload: the block's meta-header */
 +};
 +
++/*
++ * Dependency cache structure.
++ * In-core superblock structure hosts the actual cache.
++ * Also, each resource group keeps a list of dependency blocks within its scope.
++ */
 +struct gfs_depend {
-+	struct list_head gd_list_hash;
-+	struct list_head gd_list_rgd;
++	/* Links to various lists */
++	struct list_head gd_list_hash;  /* Superblock's hashed list */
++	struct list_head gd_list_rgd;   /* Resource group's list */
 +
-+	struct gfs_rgrpd *gd_rgd;
-+	uint64_t gd_formal_ino;
-+	unsigned long gd_time;
++	struct gfs_rgrpd *gd_rgd;       /* Resource group descriptor */
++	uint64_t gd_formal_ino;         /* Inode ID */
++	unsigned long gd_time;          /* Time (jiffies) when put on list */
 +};
 +
 +/*
-+ *  Structure containing information about the allocation bitmaps.
-+ *  There are one of these for each fs block that the bitmap for
-+ *  the resource group header covers.
++ *  Block allocation bitmap descriptor structure.
++ *  One of these for each FS block that contains bitmap data
++ *    (i.e. the resource group header blocks and their following bitmap blocks).
++ *  Each allocatable FS data block is represented by 2 bits (4 alloc states).
 + */
-+
 +struct gfs_bitmap {
-+	uint32_t bi_offset;	/* The offset in the buffer of the first byte */
-+	uint32_t bi_start;	/* The position of the first byte in this block */
-+	uint32_t bi_len;	/* The number of bytes in this block */
++	uint32_t bi_offset;  /* Byte offset of bitmap within this bit block
++	                        (non-zero only for an rgrp header block) */
++	uint32_t bi_start;   /* Data block (rgrp scope, 32-bit) represented
++	                        by the first bit-pair in this bit block */
++	uint32_t bi_len;     /* The number of bitmap bytes in this bit block */
 +};
 +
 +/*
-+ *  Structure containing information Resource Groups
++ *  Resource Group (Rgrp) descriptor structure.
++ *  There is one of these for each resource (block) group in the FS.
++ *  The filesystem is divided into a number of resource groups to allow
++ *    simultaneous block alloc operations by a number of nodes.
 + */
-+
 +struct gfs_rgrpd {
-+	struct list_head rd_list;	/* Link with superblock */
-+	struct list_head rd_list_mru;
-+	struct list_head rd_recent;	/* Recently used rgrps */
++	/* Links to superblock lists */
++	struct list_head rd_list;       /* On-disk-order list of all rgrps */
++	struct list_head rd_list_mru;   /* Most Recently Used list of all rgs */
++	struct list_head rd_recent;     /* recently used rgrps */
 +
-+	struct gfs_glock *rd_gl;	/* Glock for rgrp */
++	struct gfs_glock *rd_gl;        /* Glock for this rgrp */
 +
-+	unsigned long rd_flags;
++	struct gfs_rindex rd_ri;        /* Resource Index (on-disk) structure */
++	struct gfs_rgrp rd_rg;          /* Resource Group (on-disk) structure */
++	uint64_t rd_rg_vn;              /* Version #: if != glock's gl_vn,
++	                                   we need to read rgrp fm disk */
 +
-+	struct gfs_rindex rd_ri;	/* Resource Index structure */
-+	struct gfs_rgrp rd_rg;	        /* Resource Group structure */
-+	uint64_t rd_rg_vn;
++	/* Block alloc bitmap cache */
++	struct gfs_bitmap *rd_bits;     /* Array of block bitmap descriptors */
++	struct buffer_head **rd_bh;     /* Array of ptrs to block bitmap bh's */
 +
-+	struct gfs_bitmap *rd_bits;
-+	struct buffer_head **rd_bh;
++	/* Block allocation strategy, rgrp scope. Start at these blocks when
++	   searching for next data/meta block to alloc */
++	uint32_t rd_last_alloc_data;    /* Most recent data block allocated */
++	uint32_t rd_last_alloc_meta;    /* Most recent meta block allocated */
 +
-+	uint32_t rd_last_alloc_data;
-+	uint32_t rd_last_alloc_meta;
++	struct list_head rd_mhc;        /* Cached meta-headers for this rgrp */
++	struct list_head rd_depend;     /* Dependency elements */
 +
-+	struct list_head rd_mhc;
-+	struct list_head rd_depend;
-+
-+	struct gfs_sbd *rd_sbd;
++	struct gfs_sbd *rd_sbd;		/* FS incore superblock (fs instance) */
 +};
 +
 +/*
 + *  Per-buffer data
++ *  One of these is attached as GFS private data to each FS block's buffer_head.
++ *  These also link into the Active Items Lists (AIL) (buffers flushed to
++ *    on-disk log, but not yet flushed to on-disk in-place locations) attached
++ *    to transactions and glocks.
 + */
-+
 +struct gfs_bufdata {
-+	struct buffer_head *bd_bh;	/* struct buffer_head which this struct belongs to */
-+	struct gfs_glock *bd_gl;	/* Pointer to Glock struct for this bh */
++	struct buffer_head *bd_bh;  /* We belong to this Linux buffer_head */
++	struct gfs_glock *bd_gl;    /* This glock protects buffer's payload */
 +
 +	struct gfs_log_element bd_new_le;
 +	struct gfs_log_element bd_incore_le;
 +
-+	char *bd_frozen;
-+	struct semaphore bd_lock;
++	char *bd_frozen;            /* "Frozen" copy of buffer's data */
++	struct semaphore bd_lock;   /* Protects access to this structure */
 +
-+	unsigned int bd_pinned;	                /* Pin count */
-+	struct list_head bd_ail_tr_list;	/* List of buffers hanging off tr_ail_bufs */
-+	struct list_head bd_ail_gl_list;	/* List of buffers hanging off gl_ail_bufs */
++	/* "Pin" means keep buffer in RAM, don't write to disk (yet) */
++	unsigned int bd_pinned;	         /* Recursive pin count */
++	struct list_head bd_ail_tr_list; /* Link to transaction's AIL list */
++	struct list_head bd_ail_gl_list; /* Link to glock's AIL list */
 +};
 +
 +/*
 + *  Glock operations
++ *  One set of operations for each glock, the set selected by type of glock.
++ *  These functions get called at various points in a glock's lifetime.
++ *  "xmote" = promote (lock) a glock at inter-node level.
++ *  "th" = top half, "bh" = bottom half
 + */
-+
 +struct gfs_glock_operations {
++
++	/* Before acquiring a lock at inter-node level */
 +	void (*go_xmote_th) (struct gfs_glock * gl, unsigned int state,
 +			     int flags);
++
++	/* After acquiring a lock at inter-node level */
 +	void (*go_xmote_bh) (struct gfs_glock * gl);
++
++	/* Before releasing a lock at inter-node level, calls go_sync  */
 +	void (*go_drop_th) (struct gfs_glock * gl);
++
++	/* After releasing a lock at inter-node level, calls go_inval  */
 +	void (*go_drop_bh) (struct gfs_glock * gl);
++
++	/* Sync dirty data to disk before releasing an inter-node lock
++	   (another node needs to read the updated data from disk) */
 +	void (*go_sync) (struct gfs_glock * gl, int flags);
++
++	/* Invalidate locally cached data just after releasing an inter-node lock
++	   (another node may change the on-disk data, so it's no good to us) */
 +	void (*go_inval) (struct gfs_glock * gl, int flags);
++
++	/* Lock-type-specific check to see if it's okay to unlock a glock */
 +	int (*go_demote_ok) (struct gfs_glock * gl);
++
++	/* After locking at local process level */
 +	int (*go_lock) (struct gfs_glock * gl, int flags);
++
++	/* Before unlocking at local process level */
 +	void (*go_unlock) (struct gfs_glock * gl, int flags);
++
++	/* After receiving a callback: another node needs the lock */
 +	void (*go_callback) (struct gfs_glock * gl, unsigned int state);
++
++        /* Called when the glock layer marks a lock as being not greedy
++	   anymore */
 +	void (*go_greedy) (struct gfs_glock * gl);
-+	int go_type;
++
++	/* Lock type: locks with same lock # (usually an FS block #),
++	   but different types, are different locks */
++	int go_type;    /* glock type */
 +};
 +
-+/*  Actions  */
-+#define HIF_MUTEX               (0)
-+#define HIF_PROMOTE             (1)
-+#define HIF_DEMOTE              (2)
-+#define HIF_GREEDY              (3)
++/*
++ *  Glock holder structure
++ *  These coordinate the use, within this node, of an acquired inter-node lock.
++ *  One for each holder of a glock.  A glock may be shared within a node by
++ *    several processes, or even by several recursive requests from the same
++ *    process.  Each is a separate "holder".  To be shared locally, the glock
++ *    must be in "SHARED" or "DEFERRED" state at inter-node level, which means
++ *    that processes on other nodes might also read the protected entity.
++ *  When a process needs to manipulate a lock, it requests it via one of
++ *    these holder structures.  If the request cannot be satisfied immediately,
++ *    the holder structure gets queued on one of these glock lists:
++ *    1) waiters1, for gaining exclusive (local) access to the glock structure.
++ *    2) waiters2, for unlocking (demoting) a lock or waiting for a lock
++ *       to be unlocked.
++ *    3) waiters3, for locking (promoting) a lock.  This may require
++ *       changing lock state at inter-node level.
++ *  When holding a lock, gfs_holder struct stays on glock's holder list.
++ *  See gfs-kernel/src/harness/lm_interface.h for gh_state (LM_ST_...)
++ *    and gh_flags (LM_FLAG...) fields.
++ *  Also see glock.h for gh_flags field (GL_...) flags.
++ */
++
++/*  Action requests  */
++#define HIF_MUTEX       (0)  /* Exclusive (local) access to glock struct */
++#define HIF_PROMOTE     (1)  /* Change lock to more restrictive state */
++#define HIF_DEMOTE      (2)  /* Change lock to less restrictive state */
++#define HIF_GREEDY      (3)  /* Wait for the glock to be unlocked */
 +
 +/*  States  */
-+#define HIF_ALLOCED             (4)
-+#define HIF_DEALLOC             (5)
-+#define HIF_HOLDER              (6)
-+#define HIF_FIRST               (7)
-+#define HIF_WAKEUP              (8)
-+#define HIF_RECURSE             (9)
++#define HIF_ALLOCED     (4)  /* Holder structure is or was in use */
++#define HIF_DEALLOC     (5)  /* Holder structure no longer in use */
++#define HIF_HOLDER      (6)  /* We have been granted a hold on the lock */
++#define HIF_FIRST       (7)  /* We are first on glock's holder list */
++#define HIF_WAKEUP      (8)  /* Wake us up when request is satisfied */
++#define HIF_RECURSE     (9)  /* Recursive locks on same glock by same process */
 +
 +struct gfs_holder {
-+	struct list_head gh_list;
++	struct list_head gh_list;      /* Link to one of glock's holder lists */
 +
-+	struct gfs_glock *gh_gl;
-+	struct task_struct *gh_owner;
-+	unsigned int gh_state;
-+	int gh_flags;
++	struct gfs_glock *gh_gl;       /* Glock that we're holding */
++	struct task_struct *gh_owner;  /* Linux process that is the holder */
 +
-+	int gh_error;
-+	unsigned long gh_iflags;
-+	struct completion gh_wait;
++	/* request to change lock state */
++	unsigned int gh_state;         /* LM_ST_... requested lock state */
++	int gh_flags;                  /* GL_... or LM_FLAG_... req modifiers */
++
++	int gh_error;                  /* GLR_... CANCELLED or TRYFAILED or -errno */
++	unsigned long gh_iflags;       /* HIF_... see above */
++	struct completion gh_wait;     /* Wait for completion of ... */
 +};
 +
 +/*
 + *  Glock Structure
++ *  One for each inter-node lock held by this node.
++ *  A glock is a local representation/abstraction of an inter-node lock.
++ *    Inter-node locks are managed by a "lock module" which plugs in to the
++ *    lock harness / glock interface (see gfs-kernel/harness).  Different
++ *    lock modules support different lock protocols (e.g. GULM, GDLM, no_lock).
++ *  A glock may have one or more holders within a node.  See gfs_holder above.
++ *  Glocks are managed within a hash table hosted by the in-core superblock.
++ *  After all holders have released a glock, it will stay in the hash table
++ *    cache for a time (depending on lock type), during which the inter-node
++ *    lock will not be released unless another node needs the lock.  This
++ *    provides better performance in case this node needs the glock again soon.
++ *  Each glock has an associated vector of lock-type-specific "glops" functions
++ *    which are called at important times during the life of a glock, and
++ *    which define the type of lock (e.g. dinode, rgrp, non-disk, etc).
++ *    See gfs_glock_operations above.
++ *  A glock, at inter-node scope, is identified by the following dimensions:
++ *    1)  lock number (usually a block # for on-disk protected entities,
++ *           or a fixed assigned number for non-disk locks, e.g. MOUNT).
++ *    2)  lock type (actually, the type of entity protected by the lock).
++ *    3)  lock namespace, to support multiple GFS filesystems simultaneously.
++ *           Namespace (usually cluster:filesystem) is specified when mounting.
++ *           See man page for gfs_mount.
++ *  Glocks require support of Lock Value Blocks (LVBs) by the inter-node lock
++ *    manager.  LVBs are small (32-byte) chunks of data associated with a given
++ *    lock, that can be quickly shared between cluster nodes.  Used for certain
++ *    purposes such as sharing an rgroup's block usage statistics without
++ *    requiring the overhead of:
++ *      -- sync-to-disk by one node, then a
++ *      -- read from disk by another node.
++ *  
 + */
 +
-+#define GLF_PLUG                (0)
-+#define GLF_LOCK                (1)
-+#define GLF_STICKY              (2)
-+#define GLF_PREFETCH            (3)
-+#define GLF_SYNC                (4)
-+#define GLF_DIRTY               (5)
-+#define GLF_LVB_INVALID         (6)
-+#define GLF_SKIP_WAITERS2       (7)
-+#define GLF_GREEDY              (8)
++#define GLF_PLUG                (0)  /* Dummy */
++#define GLF_LOCK                (1)  /* Exclusive (local) access to glock structure */
++#define GLF_STICKY              (2)  /* Don't unlock this lock unless some explicitly asks */
++#define GLF_PREFETCH            (3)  /* This lock has be prefetched, demote if not used soon */
++#define GLF_SYNC                (4)  /* This lock should be synced */
++#define GLF_DIRTY               (5)  /* There is dirty data for this lock */
++#define GLF_LVB_INVALID         (6)  /* LVB does not contain valid data */
++#define GLF_SKIP_WAITERS2       (7)  /* Make run_queue() ignore gl_waiters2 holders */
++#define GLF_GREEDY              (8)  /* This lock is ignoring callbacks for now */
 +
 +struct gfs_glock {
-+	struct list_head gl_list;
-+	unsigned long gl_flags;
-+	struct lm_lockname gl_name;
-+	atomic_t gl_count;
++	struct list_head gl_list;    /* Link to superblock's hash table */
++	unsigned long gl_flags;      /* GLF_... see above */
++	struct lm_lockname gl_name;  /* Lock number and lock type */
++	atomic_t gl_count;           /* Usage count */
 +
-+	spinlock_t gl_spin;
++	spinlock_t gl_spin;          /* Protects some members of this struct */
 +
-+	unsigned int gl_state;
-+	struct list_head gl_holders;
-+	struct list_head gl_waiters1;	/*  HIF_MUTEX  */
-+	struct list_head gl_waiters2;	/*  HIF_DEMOTE, HIF_GREEDY  */
-+	struct list_head gl_waiters3;	/*  HIF_PROMOTE  */
++	/* Lock state reflects inter-node manager's lock state */
++	unsigned int gl_state;       /* LM_ST_... see harness/lm_interface.h */
 +
-+	struct gfs_glock_operations *gl_ops;
++	/* Lists of gfs_holders */
++	struct list_head gl_holders;  /* all current holders of the glock */
++	struct list_head gl_waiters1; /* HIF_MUTEX */
++	struct list_head gl_waiters2; /* HIF_DEMOTE, HIF_GREEDY */
++	struct list_head gl_waiters3; /* HIF_PROMOTE */
 +
-+	struct gfs_holder *gl_req_gh;
-+	gfs_glop_bh_t gl_req_bh;
++	struct gfs_glock_operations *gl_ops; /* function vector, defines type */
 +
-+	lm_lock_t *gl_lock;
-+	char *gl_lvb;
-+	atomic_t gl_lvb_count;
++	/* State to remember for async lock requests */
++	struct gfs_holder *gl_req_gh; /* The holder that generated the request */
++	gfs_glop_bh_t gl_req_bh; /* The bottom half to execute */
 +
-+	uint64_t gl_vn;
-+	unsigned long gl_stamp;
-+	void *gl_object;
++	lm_lock_t *gl_lock;       /* Lock module's private lock data */
++	char *gl_lvb;             /* Lock Value Block */
++	atomic_t gl_lvb_count;    /* LVB recursive usage (hold/unhold) count */
 +
-+	struct gfs_log_element gl_new_le;
-+	struct gfs_log_element gl_incore_le;
++	uint64_t gl_vn;           /* Incremented when protected data changes */
++	unsigned long gl_stamp;   /* Glock cache retention timer */
++	void *gl_object;          /* The protected entity (e.g. a dinode) */
 +
-+	struct gfs_gl_hash_bucket *gl_bucket;
-+	struct list_head gl_reclaim;
++	/* Incore transaction stuff */
++	struct gfs_log_element gl_new_le; /* Incomplete transaction */
++	struct gfs_log_element gl_incore_le; /* Complete transaction */ 
 +
-+	struct gfs_sbd *gl_sbd;
++	struct gfs_gl_hash_bucket *gl_bucket; /* Our bucket in hash table */
++	struct list_head gl_reclaim;          /* Link to "reclaim" list */
 +
-+	struct inode *gl_aspace;
-+	struct list_head gl_dirty_buffers;
-+	struct list_head gl_ail_bufs;
++	struct gfs_sbd *gl_sbd;               /* Superblock (FS instance) */
++
++	struct inode *gl_aspace;              /* The buffers protected by this lock */
++	struct list_head gl_ail_bufs;         /* AIL buffers protected by us */
 +};
 +
 +/*
 + *  In-Place Reservation structure
++ *  Coordinates allocation of "in-place" (as opposed to journal) FS blocks,
++ *     which contain persistent inode/file/directory data and metadata.
++ *     These blocks are the allocatable blocks within resource groups (i.e.
++ *     not including rgrp header and block alloc bitmap blocks).
++ *  gfs_inplace_reserve() calculates a fulfillment plan for allocating blocks,
++ *     based on block statistics in the resource group headers.
++ *  Then, gfs_blkalloc() or gfs_metaalloc() walks the block alloc bitmaps
++ *     to do the actual allocation.
 + */
-+
 +struct gfs_alloc {
-+	/*  Quota stuff  */
++	/* Up to 4 quotas (including an inode's user and group quotas)
++	   can track changes in block allocation */
 +
-+	unsigned int al_qd_num;
-+	struct gfs_quota_data *al_qd[4];
-+	struct gfs_holder al_qd_ghs[4];
++	unsigned int al_qd_num;          /* # of quotas tracking changes */
++	struct gfs_quota_data *al_qd[4]; /* Ptrs to quota structures */
++	struct gfs_holder al_qd_ghs[4];  /* Holders for quota glocks */
 +
-+	/* Filled in by the caller to gfs_inplace_reserve() */
++	/* Request, filled in by the caller to gfs_inplace_reserve() */
 +
-+	uint32_t al_requested_di;
-+	uint32_t al_requested_meta;
-+	uint32_t al_requested_data;
++	uint32_t al_requested_di;     /* Number of dinodes to reserve */
++	uint32_t al_requested_meta;   /* Number of metadata blocks to reserve */
++	uint32_t al_requested_data;   /* Number of data blocks to reserve */
 +
-+	/* Filled in by gfs_inplace_reserve() */
++	/* Fulfillment plan, filled in by gfs_inplace_reserve() */
 +
-+	char *al_file;
-+	unsigned int al_line;
-+	struct gfs_holder al_ri_gh;
-+	struct gfs_holder al_rgd_gh;
-+	struct gfs_rgrpd *al_rgd;
-+	uint32_t al_reserved_meta;
-+	uint32_t al_reserved_data;
++	char *al_file;                /* Debug info, .c file making request */
++	unsigned int al_line;         /* Debug info, line of code making req */
++	struct gfs_holder al_ri_gh;   /* Glock holder for resource grp index */
++	struct gfs_holder al_rgd_gh;  /* Glock holder for al_rgd rgrp */
++	struct gfs_rgrpd *al_rgd;     /* Resource group from which to alloc */
++	uint32_t al_reserved_meta;    /* Alloc up to this # meta blocks from al_rgd */
++	uint32_t al_reserved_data;    /* Alloc up to this # data blocks from al_rgd */
 +
-+	/* Filled in by gfs_blkalloc() */
++	/* Actual alloc, filled in by gfs_blkalloc()/gfs_metaalloc(), etc. */
 +
-+	uint32_t al_alloced_di;
-+	uint32_t al_alloced_meta;
-+	uint32_t al_alloced_data;
++	uint32_t al_alloced_di;       /* # dinode blocks allocated */
++	uint32_t al_alloced_meta;     /* # meta blocks allocated */
++	uint32_t al_alloced_data;     /* # data blocks allocated */
 +
 +	/* Dinode allocation crap */
 +
-+	struct gfs_unlinked *al_ul;
++	struct gfs_unlinked *al_ul;   /* Unlinked dinode log entry */
 +};
 +
 +/*
@@ -13087,31 +13239,32 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +#define GIF_SW_PAGED            (2)
 +
 +struct gfs_inode {
-+	struct gfs_inum i_num;
++	struct gfs_inum i_num;   /* Formal inode # and block address */
 +
-+	atomic_t i_count;
-+	unsigned long i_flags;
++	atomic_t i_count;        /* Usage count */
++	unsigned long i_flags;   /* GIF_...  see above */
 +
-+	uint64_t i_vn;
-+	struct gfs_dinode i_di;
++	uint64_t i_vn;           /* Version #: if different from glock's vn,
++	                            we need to read inode from disk */
++	struct gfs_dinode i_di;  /* Dinode (on-disk) structure */
 +
-+	struct gfs_glock *i_gl;
-+	struct gfs_sbd *i_sbd;
-+	struct inode *i_vnode;
++	struct gfs_glock *i_gl;  /* This glock protects this inode */
++	struct gfs_sbd *i_sbd;   /* Superblock (fs instance structure) */
++	struct inode *i_vnode;   /* Linux VFS inode structure */
 +
-+	struct gfs_holder i_iopen_gh;
++	struct gfs_holder i_iopen_gh;  /* Glock holder for Inode Open lock */
 +
-+	struct gfs_alloc *i_alloc;
-+	uint64_t i_last_rg_alloc;
++	/* Block allocation strategy, inode scope */
++	struct gfs_alloc *i_alloc; /* In-place block reservation structure */
++	uint64_t i_last_rg_alloc;  /* Most recent block alloc was fm this rgrp */
 +
-+	struct task_struct *i_creat_task;
-+	pid_t i_creat_pid;
++	spinlock_t i_lock;                /* Protects this structure */
 +
-+	spinlock_t i_lock;
++	/* Cache of most-recently used buffers in indirect addressing chain */
 +	struct buffer_head *i_cache[GFS_MAX_META_HEIGHT];
 +
-+	unsigned int i_greedy;
-+	unsigned long i_last_pfault;
++	unsigned int i_greedy; /* The amount of time to be greedy */
++	unsigned long i_last_pfault; /* The time of the last page fault */
 +};
 +
 +/*
@@ -13121,13 +13274,13 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +#define GFF_DID_DIRECT_ALLOC    (0)
 +
 +struct gfs_file {
-+	unsigned long f_flags;
++	unsigned long f_flags; /* GFF_...  see above */
 +
-+	struct semaphore f_fl_lock;
-+	struct gfs_holder f_fl_gh;
++	struct semaphore f_fl_lock; /* Lock to protect flock operations */
++	struct gfs_holder f_fl_gh; /* Holder for this f_vfile's flock */
 +
-+	struct gfs_inode *f_inode;
-+	struct file *f_vfile;
++	struct gfs_inode *f_inode;        /* Incore GFS inode */
++	struct file *f_vfile;             /* Linux file struct */
 +};
 +
 +/*
@@ -13141,278 +13294,355 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +#define ULF_LOCK                (4)
 +
 +struct gfs_unlinked {
-+	struct list_head ul_list;
-+	unsigned int ul_count;
++	struct list_head ul_list;    /* Link to superblock's sd_unlinked_list */
++	unsigned int ul_count;       /* Usage count */
 +
-+	struct gfs_inum ul_inum;
-+	unsigned long ul_flags;
++	struct gfs_inum ul_inum;     /* Formal inode #, block addr */
++	unsigned long ul_flags;      /* ULF_... */
 +
-+	struct gfs_log_element ul_new_le;
-+	struct gfs_log_element ul_incore_le;
-+	struct gfs_log_element ul_ondisk_le;
++	struct gfs_log_element ul_new_le;    /* New, not yet committed */
++	struct gfs_log_element ul_incore_le; /* Committed to incore log */
++	struct gfs_log_element ul_ondisk_le; /* Committed to ondisk log */
 +};
 +
 +/*
 + *  Quota log element
++ *  One for each logged change in a block alloc value affecting a given quota.
++ *  Only one of these for a given quota within a given transaction;
++ *    multiple changes, within one transaction, for a given quota will be
++ *    combined into one log element.
 + */
-+
 +struct gfs_quota_le {
-+	struct gfs_log_element ql_le;
++	/* Log element maps us to a particular set of log operations functions,
++	   and to a particular transaction */
++	struct gfs_log_element ql_le;    /* Generic log element structure */
 +
-+	struct gfs_quota_data *ql_data;
-+	struct list_head ql_data_list;
++	struct gfs_quota_data *ql_data;  /* The quota we're changing */
++	struct list_head ql_data_list;   /* Link to quota's log element list */
 +
-+	int64_t ql_change;
-+};
-+
-+#define QDF_USER                (0)
-+#define QDF_OD_LIST             (1)
-+#define QDF_LOCK                (2)
-+
-+struct gfs_quota_data {
-+	struct list_head qd_list;
-+	unsigned int qd_count;
-+
-+	uint32_t qd_id;
-+	unsigned long qd_flags;
-+
-+	struct list_head qd_le_list;
-+
-+	int64_t qd_change_new;
-+	int64_t qd_change_ic;
-+	int64_t qd_change_od;
-+	int64_t qd_change_sync;
-+
-+	struct gfs_quota_le qd_ondisk_ql;
-+	uint64_t qd_sync_gen;
-+
-+	struct gfs_glock *qd_gl;
-+	struct gfs_quota_lvb qd_qb;
-+
-+	unsigned long qd_last_warn;
-+};
-+
-+struct gfs_log_buf {
-+	struct list_head lb_list;
-+
-+	struct buffer_head lb_bh;
-+	struct buffer_head *lb_unlock;
++	int64_t ql_change;           /* # of blocks alloc'd (+) or freed (-) */
 +};
 +
 +/*
-+ *  Transaction structures
++ *  Quota structure
++ *  One for each user or group quota.
++ *  Summarizes all block allocation activity for a given quota, and supports
++ *    recording updates of current block alloc values in GFS' special quota
++ *    file, including the journaling of these updates, encompassing
++ *    multiple transactions and log dumps.
++ */
++
++#define QDF_USER                (0)   /* User (1) vs. group (0) quota */
++#define QDF_OD_LIST             (1)   /* Waiting for sync to quota file */
++#define QDF_LOCK                (2)   /* Protects access to this structure */
++
++struct gfs_quota_data {
++	struct list_head qd_list;     /* Link to superblock's sd_quota_list */
++	unsigned int qd_count;        /* Usage count */
++
++	uint32_t qd_id;               /* User or group ID number */
++	unsigned long qd_flags;       /* QDF_... */
++
++	/* This list is for non-log-dump transactions */
++	struct list_head qd_le_list;  /* List of gfs_quota_le log elements */
++
++	/* Summary of block alloc changes affecting this quota, in various
++	   stages of logging & syncing changes to the special quota file */
++	int64_t qd_change_new;  /* New, not yet committed to in-core log*/
++	int64_t qd_change_ic;   /* Committed to in-core log */
++	int64_t qd_change_od;   /* Committed to on-disk log */
++	int64_t qd_change_sync; /* Being synced to the in-place quota file */
++
++	struct gfs_quota_le qd_ondisk_ql; /* Log element for log dump */
++	uint64_t qd_sync_gen;         /* Sync-to-quota-file generation # */
++
++	/* Glock provides protection for quota, *and* provides
++	   lock value block (LVB) communication, between nodes, of current
++	   quota values.  Shared lock -> LVB read.  EX lock -> LVB write. */
++	struct gfs_glock *qd_gl;      /* glock for this quota */
++	struct gfs_quota_lvb qd_qb;   /* LVB (limit/warn/value) */
++
++	unsigned long qd_last_warn;   /* Jiffies of last warning to user */
++};
++
++/*
++ * Log Buffer descriptor structure
++ * One for each FS block buffer recorded in the log
++ */
++struct gfs_log_buf {
++	/* Link to one of the transaction structure's lists */
++	struct list_head lb_list;      /* Link to tr_free_bufs or tr_list */
++
++	struct buffer_head lb_bh; /* Buffer Head describing the journal block */
++	struct buffer_head *lb_unlock; /* Buffer head to unlock after commit */
++};
++
++/*
++ *  Transaction structure
++ *  One for each transaction
++ *  This coordinates the logging and flushing of written metadata.
 + */
 +
 +#define TRF_LOG_DUMP            (0x00000001)
 +
 +struct gfs_trans {
-+	struct list_head tr_list;
++
++	/* Link to various lists */
++	struct list_head tr_list;      /* Superblk's incore trans or AIL list*/
 +
 +	/* Initial creation stuff */
 +
-+	char *tr_file;
-+	unsigned int tr_line;
++	char *tr_file;                 /* Debug info: .c file creating trans */
++	unsigned int tr_line;          /* Debug info: codeline creating trans */
 +
-+	unsigned int tr_mblks_asked;	/* Number of log blocks asked to be reserved */
-+	unsigned int tr_eblks_asked;
-+	unsigned int tr_seg_reserved;	/* Number of segments reserved */
++	/* Reservations for on-disk space in journal */
++	unsigned int tr_mblks_asked;   /* # of meta log blocks requested */
++	unsigned int tr_eblks_asked;   /* # of extra log blocks requested */
++	unsigned int tr_seg_reserved;  /* # of segments actually reserved */
 +
-+	struct gfs_holder *tr_t_gh;
++	struct gfs_holder *tr_t_gh;    /* Glock holder for this transaction */
 +
 +	/* Stuff filled in during creation */
 +
-+	unsigned int tr_flags;
-+	struct list_head tr_elements;
++	unsigned int tr_flags;         /* TRF_... */
++	struct list_head tr_elements;  /* List of this trans' log elements */
 +
 +	/* Stuff modified during the commit */
 +
-+	unsigned int tr_num_free_bufs;
++	unsigned int tr_num_free_bufs; /* List of free gfs_log_buf structs */
 +	struct list_head tr_free_bufs;
-+	unsigned int tr_num_free_bmem;
++	unsigned int tr_num_free_bmem; /* List of free fs-block-size buffers */
 +	struct list_head tr_free_bmem;
 +
-+	uint64_t tr_log_head;	        /* The current log head */
-+	uint64_t tr_first_head;	        /* First header block */
++	uint64_t tr_log_head;          /* The current log head */
++	uint64_t tr_first_head;	       /* First header block */
 +
-+	struct list_head tr_bufs;	/* List of buffers going to the log */
++	struct list_head tr_bufs;      /* List of buffers going to the log */
 +
-+	/* Stuff that's part of the AIL */
++	/* Stuff that's part of the Active Items List (AIL) */
 +
-+	struct list_head tr_ail_bufs;
++	struct list_head tr_ail_bufs;  /* List of buffers on AIL list */
 +
-+	/* Private data for different log element types */
++	/* # log elements of various types on tr_elements list */
 +
-+	unsigned int tr_num_gl;
-+	unsigned int tr_num_buf;
-+	unsigned int tr_num_iul;
-+	unsigned int tr_num_ida;
-+	unsigned int tr_num_q;
++	unsigned int tr_num_gl;        /* Glocks */
++	unsigned int tr_num_buf;       /* Buffers */
++	unsigned int tr_num_iul;       /* Unlinked inodes */
++	unsigned int tr_num_ida;       /* De-allocated inodes */
++	unsigned int tr_num_q;         /* Quotas */
 +};
 +
 +/*
 + *  One bucket of the glock hash table.
 + */
-+
 +struct gfs_gl_hash_bucket {
 +	rwlock_t hb_lock;
 +	struct list_head hb_list;
 +} __attribute__ ((__aligned__(SMP_CACHE_BYTES)));
 +
 +/*
-+ *  Super Block Data Structure  (One per filesystem)
++ *  "Super Block" Data Structure
++ *  One per mounted filesystem.
++ *  This is the big instance structure that ties everything together for
++ *    a given mounted filesystem.  Each GFS mount has its own, supporting
++ *    mounts of multiple GFS filesystems on each node.
++ *  Pointer to this is usually seen as "sdp" throughout code.
++ *  This is a very large structure, as structures go, in part because it
++ *    contains arrays of hash buckets for various in-core caches.
 + */
 +
-+#define SDF_JOURNAL_LIVE        (0)
-+#define SDF_SCAND_RUN           (1)
-+#define SDF_GLOCKD_RUN          (2)
-+#define SDF_RECOVERD_RUN        (3)
-+#define SDF_LOGD_RUN            (4)
-+#define SDF_QUOTAD_RUN          (5)
-+#define SDF_INODED_RUN          (6)
-+#define SDF_NOATIME             (7)
-+#define SDF_ROFS                (8)
-+#define SDF_NEED_LOG_DUMP       (9)
-+#define SDF_FOUND_UL_DUMP       (10)
-+#define SDF_FOUND_Q_DUMP        (11)
-+#define SDF_IN_LOG_DUMP         (12)
++#define SDF_JOURNAL_LIVE        (0)  /* Journaling is active (journal is writeable)*/
 +
-+#define GFS_GL_HASH_SHIFT       (13)
++/* Daemon run (1) / stop (0) flags */
++#define SDF_SCAND_RUN           (1)  /* Put unused glocks on reclaim queue */
++#define SDF_GLOCKD_RUN          (2)  /* Reclaim (dealloc) unused glocks */
++#define SDF_RECOVERD_RUN        (3)  /* Recover journal of a crashed node */
++#define SDF_LOGD_RUN            (4)  /* Update log tail after AIL flushed */
++#define SDF_QUOTAD_RUN          (5)  /* Sync quota changes to file, cleanup */
++#define SDF_INODED_RUN          (6)  /* Deallocate unlinked inodes */
++
++/* (Re)mount options from Linux VFS */
++#define SDF_NOATIME             (7)  /* Don't change access time */
++#define SDF_ROFS                (8)  /* Read-only mode */
++
++/* Journal log dump support */
++#define SDF_NEED_LOG_DUMP       (9)  /* Need to rewrite unlink and quota tags */
++#define SDF_FOUND_UL_DUMP       (10) /* Recovery found unlinked tags */
++#define SDF_FOUND_Q_DUMP        (11) /* Recovery found qutoa tags */
++#define SDF_IN_LOG_DUMP         (12) /* Serializes log dumps */
++
++/* Glock cache */
++#define GFS_GL_HASH_SHIFT       (13)    /* # hash buckets = 8K */
 +#define GFS_GL_HASH_SIZE        (1 << GFS_GL_HASH_SHIFT)
 +#define GFS_GL_HASH_MASK        (GFS_GL_HASH_SIZE - 1)
 +
-+#define GFS_MHC_HASH_SHIFT      (10)
++/* Meta header cache */
++#define GFS_MHC_HASH_SHIFT      (10)    /* # hash buckets = 1K */
 +#define GFS_MHC_HASH_SIZE       (1 << GFS_MHC_HASH_SHIFT)
 +#define GFS_MHC_HASH_MASK       (GFS_MHC_HASH_SIZE - 1)
 +
-+#define GFS_DEPEND_HASH_SHIFT   (10)
++/* Dependency cache */
++#define GFS_DEPEND_HASH_SHIFT   (10)    /* # hash buckets = 1K */
 +#define GFS_DEPEND_HASH_SIZE    (1 << GFS_DEPEND_HASH_SHIFT)
 +#define GFS_DEPEND_HASH_MASK    (GFS_DEPEND_HASH_SIZE - 1)
 +
 +struct gfs_sbd {
-+	struct gfs_sb sd_sb;	        /* Super Block */
++	struct gfs_sb sd_sb;            /* GFS on-disk Super Block image */
 +
-+	struct super_block *sd_vfs;	/* FS's device independent sb */
++	struct super_block *sd_vfs;     /* Linux VFS device independent sb */
 +
-+	struct gfs_args sd_args;
-+	unsigned long sd_flags;
++	struct gfs_args sd_args;        /* Mount arguments */
++	unsigned long sd_flags;         /* SDF_... see above */
 +
-+	struct gfs_tune sd_tune;	/* FS tuning structure */
++	struct gfs_tune sd_tune;	/* Filesystem tuning structure */
 +
 +	/* Resource group stuff */
 +
-+	struct gfs_inode *sd_riinode;	/* rindex inode */
-+	uint64_t sd_riinode_vn;	/* Version number of the resource index inode */
++	struct gfs_inode *sd_riinode;	/* Resource Index (rindex) inode */
++	uint64_t sd_riinode_vn;	        /* Resource Index version # (detects
++	                                   whether new rgrps have been added) */
 +
-+	struct list_head sd_rglist;	/* List of resource groups */
-+	struct semaphore sd_rindex_lock;
++	struct list_head sd_rglist;	/* List of all resource groups,
++					   on-disk order */
++	struct semaphore sd_rindex_lock;/* Serializes RIndex rereads */
++	struct list_head sd_rg_mru_list;/* List of resource groups,
++					   most-recently-used (MRU) order */
++	spinlock_t sd_rg_mru_lock;      /* Protect mru list */
++	struct list_head sd_rg_recent;	/* List of rgrps from which blocks
++					   were recently allocated */
++	spinlock_t sd_rg_recent_lock;   /* Protect recent list */
++	struct gfs_rgrpd *sd_rg_forward;/* Next rgrp from which to attempt
++					   a block alloc */
++	spinlock_t sd_rg_forward_lock;  /* Protect forward pointer */
 +
-+	struct list_head sd_rg_mru_list;	/* List of resource groups in MRU order */
-+	spinlock_t sd_rg_mru_lock;	/* Lock for MRU list */
-+	struct list_head sd_rg_recent;	/* Recently used rgrps */
-+	spinlock_t sd_rg_recent_lock;
-+	struct gfs_rgrpd *sd_rg_forward;	/* Next new rgrp to try for allocation */
-+	spinlock_t sd_rg_forward_lock;
-+
-+	unsigned int sd_rgcount;	/* Count of resource groups */
++	unsigned int sd_rgcount;	/* Total # of resource groups */
 +
 +	/*  Constants computed on mount  */
 +
-+	uint32_t sd_fsb2bb;
-+	uint32_t sd_fsb2bb_shift;	/* Shift FS Block numbers to the left by
-+					   this to get buffer cache blocks  */
-+	uint32_t sd_diptrs;	/* Number of pointers in a dinode */
-+	uint32_t sd_inptrs;	/* Number of pointers in a indirect block */
-+	uint32_t sd_jbsize;	/* Size of a journaled data block */
-+	uint32_t sd_hash_bsize;	/* sizeof(exhash block) */
++	/* "bb" == "basic block" == 512Byte sector */
++	uint32_t sd_fsb2bb;             /* # 512B basic blocks in a FS block */
++	uint32_t sd_fsb2bb_shift;       /* Shift sector # to the right by 
++	                                   this to get FileSystem block addr */
++	uint32_t sd_diptrs;     /* Max # of block pointers in a dinode */
++	uint32_t sd_inptrs;     /* Max # of block pointers in an indirect blk */
++	uint32_t sd_jbsize;     /* Payload size (bytes) of a journaled metadata
++	                               block (GFS journals all meta blocks) */
++	uint32_t sd_hash_bsize; /* sizeof(exhash hash block) */
 +	uint32_t sd_hash_bsize_shift;
-+	uint32_t sd_hash_ptrs;	/* Number of points in a hash block */
-+	uint32_t sd_max_dirres;	/* Maximum space needed to add a directory entry */
-+	uint32_t sd_max_height;	/* Maximum height of a file's metadata tree */
++	uint32_t sd_hash_ptrs;  /* Number of points in a hash block */
++	uint32_t sd_max_dirres; /* Max blocks needed to add a directory entry */
++	uint32_t sd_max_height;	/* Max height of a file's tree */
 +	uint64_t sd_heightsize[GFS_MAX_META_HEIGHT];
-+	uint32_t sd_max_jheight;	/* Maximum height of a journaled file's metadata tree */
++	uint32_t sd_max_jheight; /* Max height, journaled file's tree */
 +	uint64_t sd_jheightsize[GFS_MAX_META_HEIGHT];
 +
 +	/*  Lock Stuff  */
 +
++	/* Glock cache (all glocks currently held by this node for this FS) */
 +	struct gfs_gl_hash_bucket sd_gl_hash[GFS_GL_HASH_SIZE];
 +
-+	struct list_head sd_reclaim_list;
++	/* Glock reclaim support for scand and glockd */
++	struct list_head sd_reclaim_list;   /* List of glocks to reclaim */
 +	spinlock_t sd_reclaim_lock;
 +	wait_queue_head_t sd_reclaim_wchan;
-+	atomic_t sd_reclaim_count;
++	atomic_t sd_reclaim_count;          /* # glocks on reclaim list */
 +
-+	struct lm_lockstruct sd_lockstruct;
++	/* Lock module tells us if we're first-to-mount, 
++	   which journal to use, etc. */
++	struct lm_lockstruct sd_lockstruct; /* Info provided by lock module */
 +
-+	struct list_head sd_mhc[GFS_MHC_HASH_SIZE];
-+	struct list_head sd_mhc_single;
++	/*  Other caches */
++
++	/* Meta-header cache (incore copies of on-disk meta headers) */
++	struct list_head sd_mhc[GFS_MHC_HASH_SIZE]; /* hash buckets */
++	struct list_head sd_mhc_single;     /* Non-hashed list of all MHCs */
 +	spinlock_t sd_mhc_lock;
-+	atomic_t sd_mhc_count;
++	atomic_t sd_mhc_count;              /* # MHCs in cache */
 +
-+	struct list_head sd_depend[GFS_DEPEND_HASH_SIZE];
++	/* Dependency cache */
++	struct list_head sd_depend[GFS_DEPEND_HASH_SIZE];  /* Hash buckets */
 +	spinlock_t sd_depend_lock;
-+	atomic_t sd_depend_count;
++	atomic_t sd_depend_count;           /* # dependencies in cache */
 +
-+	struct gfs_holder sd_live_gh;
++	/* LIVE inter-node lock indicates that FS is mounted on at least
++	   one node */
++	struct gfs_holder sd_live_gh;       /* Glock holder for LIVE lock */
 +
++	/* For quiescing the filesystem */
 +	struct gfs_holder sd_freeze_gh;
 +	struct semaphore sd_freeze_lock;
 +	unsigned int sd_freeze_count;
 +
 +	/*  Inode Stuff  */
 +
-+	struct gfs_inode *sd_rooti;	/* FS's root inode */
++	struct gfs_inode *sd_rooti;         /* FS's root inode */
 +
-+	struct gfs_glock *sd_rename_gl;	/* rename glock */
++	/* Only 1 node at a time may rename (e.g. mv) directory from
++	   one directory to another. */
++	struct gfs_glock *sd_rename_gl;     /* Rename glock */
 +
 +	/*  Daemon stuff  */
 +
-+	struct task_struct *sd_scand_process;
-+	unsigned int sd_glockd_num;
++	/* Scan for glocks and inodes to toss from memory */
++	struct task_struct *sd_scand_process; /* Scand places on reclaim list*/
++	unsigned int sd_glockd_num;    /* # of glockd procs to do reclaiming*/
++
++	/* Recover journal of a crashed node */
 +	struct task_struct *sd_recoverd_process;
++
++	/* Update log tail as AIL gets flushed to in-place on-disk blocks */
 +	struct task_struct *sd_logd_process;
++
++	/* Sync quota updates to disk, and clean up unused quota structs */
 +	struct task_struct *sd_quotad_process;
++
++	/* Clean up unused inode structures */
 +	struct task_struct *sd_inoded_process;
 +
++	/* Support for starting/stopping daemons */
 +	struct semaphore sd_thread_lock;
 +	struct completion sd_thread_completion;
 +
 +	/*  Log stuff  */
 +
-+	struct gfs_glock *sd_trans_gl;	/* transaction glock */
++	/* Transaction lock protects journal replay (recovery) */
++	struct gfs_glock *sd_trans_gl;	/* Transaction glock structure */
 +
-+	struct gfs_inode *sd_jiinode;	/* jindex inode */
-+	uint64_t sd_jiinode_vn;	/* Version number of the journal index inode */
++	struct gfs_inode *sd_jiinode;	/* Journal index inode */
++	uint64_t sd_jiinode_vn;         /* Journal index version # (detects
++	                                   if new journals have been added) */
 +
 +	unsigned int sd_journals;	/* Number of journals in the FS */
-+	struct gfs_jindex *sd_jindex;	/* Array of Jindex structures describing this FS's journals */
++	struct gfs_jindex *sd_jindex;	/* Array of journal descriptors */
 +	struct semaphore sd_jindex_lock;
-+	unsigned long sd_jindex_refresh_time;
++	unsigned long sd_jindex_refresh_time; /* Poll for new journals (secs) */
 +
-+	struct gfs_jindex sd_jdesc;	/* Jindex structure describing this machine's journal */
-+	struct gfs_holder sd_journal_gh;	/* the glock for this machine's journal */
++	struct gfs_jindex sd_jdesc;	 /* This machine's journal descriptor */
++	struct gfs_holder sd_journal_gh; /* This machine's journal glock */
 +
 +	uint64_t sd_sequence;	/* Assigned to xactions in order they commit */
 +	uint64_t sd_log_head;	/* Block number of next journal write */
 +	uint64_t sd_log_wrap;
 +
 +	spinlock_t sd_log_seg_lock;
-+	unsigned int sd_log_seg_free;	/* Free segments in the log */
++	unsigned int sd_log_seg_free;	/* # of free segments in the log */
 +	struct list_head sd_log_seg_list;
 +	wait_queue_head_t sd_log_seg_wait;
 +
-+	struct list_head sd_log_ail;	/* struct gfs_trans structures that form the Active Items List 
-+					   "next" is the head, "prev" is the tail  */
++	/* "Active Items List" of transactions that have been flushed to
++	   on-disk log, and are waiting for flush to in-place on-disk blocks */
++	struct list_head sd_log_ail;	/* "next" is head, "prev" is tail */
 +
-+	struct list_head sd_log_incore;	/* transactions that have been commited incore (but not ondisk)
-+					   "next" is the newest, "prev" is the oldest  */
-+	unsigned int sd_log_buffers;	/* Number of buffers in the incore log */
++	/* Transactions committed incore, but not yet flushed to on-disk log */
++	struct list_head sd_log_incore;	/* "Next" is newest, "prev" is oldest */
++	unsigned int sd_log_buffers;	/* # of buffers in the incore log */
 +
 +	struct semaphore sd_log_lock;	/* Lock for access to log values */
 +
 +	uint64_t sd_log_dump_last;
 +	uint64_t sd_log_dump_last_wrap;
 +
-+	/*  unlinked crap  */
++	/* Unlinked crap */
 +
 +	struct list_head sd_unlinked_list;
 +	spinlock_t sd_unlinked_lock;
@@ -13420,24 +13650,25 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +	atomic_t sd_unlinked_ic_count;
 +	atomic_t sd_unlinked_od_count;
 +
-+	/*  quota crap  */
++	/* Quota crap */
 +
-+	struct list_head sd_quota_list;
++	struct list_head sd_quota_list; /* List of all gfs_quota_data structs */
 +	spinlock_t sd_quota_lock;
 +
-+	atomic_t sd_quota_count;
-+	atomic_t sd_quota_od_count;
++	atomic_t sd_quota_count;        /* # quotas on sd_quota_list */
++	atomic_t sd_quota_od_count;     /* # quotas waiting for sync to
++	                                   special on-disk quota file */
 +
-+	struct gfs_inode *sd_qinode;
++	struct gfs_inode *sd_qinode;    /* Special on-disk quota file */
 +
-+	uint64_t sd_quota_sync_gen;
-+	unsigned long sd_quota_sync_time;
++	uint64_t sd_quota_sync_gen;     /* Generation, incr when sync to file */
++	unsigned long sd_quota_sync_time; /* Jiffies, last sync to quota file */
 +
-+	/*  license crap  */
++	/* License crap */
 +
 +	struct gfs_inode *sd_linode;
 +
-+	/*  Recovery stuff  */
++	/* Recovery stuff */
 +
 +	struct list_head sd_dirty_j;
 +	spinlock_t sd_dirty_j_lock;
@@ -13446,7 +13677,7 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +	unsigned int sd_recovery_skips;
 +	unsigned int sd_recovery_sames;
 +
-+	/*  Counters  */
++	/* Counters */
 +
 +	atomic_t sd_glock_count;
 +	atomic_t sd_glock_held_count;
@@ -13470,7 +13701,7 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +
 +	char sd_fsname[256];
 +
-+	/*  Debugging crud  */
++	/* Debugging crud */
 +
 +	unsigned long sd_last_readdirplus;
 +	unsigned long sd_last_unlocked_aop;
@@ -13482,8 +13713,8 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +#endif /* __INCORE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 --- linux-orig/fs/gfs/inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/inode.c	2004-10-05 11:13:50.932125453 -0500
-@@ -0,0 +1,2032 @@
++++ linux-patched/fs/gfs/inode.c	2004-10-08 16:57:38.371913652 -0500
+@@ -0,0 +1,2044 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -13531,40 +13762,40 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 + */
 +
 +static void
-+inode_attr_in(struct gfs_inode *ip, struct inode *ino)
++inode_attr_in(struct gfs_inode *ip, struct inode *inode)
 +{
 +	unsigned int mode;
 +
-+	ino->i_ino = ip->i_num.no_formal_ino;
++	inode->i_ino = ip->i_num.no_formal_ino;
 +
 +	switch (ip->i_di.di_type) {
 +	case GFS_FILE_REG:
 +		mode = S_IFREG;
-+		ino->i_rdev = 0;
++		inode->i_rdev = 0;
 +		break;
 +	case GFS_FILE_DIR:
 +		mode = S_IFDIR;
-+		ino->i_rdev = 0;
++		inode->i_rdev = 0;
 +		break;
 +	case GFS_FILE_LNK:
 +		mode = S_IFLNK;
-+		ino->i_rdev = 0;
++		inode->i_rdev = 0;
 +		break;
 +	case GFS_FILE_BLK:
 +		mode = S_IFBLK;
-+		ino->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
++		inode->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
 +		break;
 +	case GFS_FILE_CHR:
 +		mode = S_IFCHR;
-+		ino->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
++		inode->i_rdev = MKDEV(ip->i_di.di_major, ip->i_di.di_minor);
 +		break;
 +	case GFS_FILE_FIFO:
 +		mode = S_IFIFO;
-+		ino->i_rdev = 0;
++		inode->i_rdev = 0;
 +		break;
 +	case GFS_FILE_SOCK:
 +		mode = S_IFSOCK;
-+		ino->i_rdev = 0;
++		inode->i_rdev = 0;
 +		break;
 +	default:
 +		GFS_ASSERT_INODE(FALSE, ip,
@@ -13572,19 +13803,29 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +		break;
 +	};
 +
-+	ino->i_mode = mode | (ip->i_di.di_mode & S_IALLUGO);
-+	ino->i_nlink = ip->i_di.di_nlink;
-+	ino->i_uid = ip->i_di.di_uid;
-+	ino->i_gid = ip->i_di.di_gid;
-+	i_size_write(ino, ip->i_di.di_size);
-+	ino->i_atime.tv_sec = ip->i_di.di_atime;
-+	ino->i_mtime.tv_sec = ip->i_di.di_mtime;
-+	ino->i_ctime.tv_sec = ip->i_di.di_ctime;
-+	ino->i_atime.tv_nsec = ino->i_mtime.tv_nsec = ino->i_ctime.tv_nsec = 0;
-+	ino->i_blksize = PAGE_SIZE;
-+	ino->i_blocks = ip->i_di.di_blocks <<
++	inode->i_mode = mode | (ip->i_di.di_mode & S_IALLUGO);
++	inode->i_nlink = ip->i_di.di_nlink;
++	inode->i_uid = ip->i_di.di_uid;
++	inode->i_gid = ip->i_di.di_gid;
++	i_size_write(inode, ip->i_di.di_size);
++	inode->i_atime.tv_sec = ip->i_di.di_atime;
++	inode->i_mtime.tv_sec = ip->i_di.di_mtime;
++	inode->i_ctime.tv_sec = ip->i_di.di_ctime;
++	inode->i_atime.tv_nsec = inode->i_mtime.tv_nsec = inode->i_ctime.tv_nsec = 0;
++	inode->i_blksize = PAGE_SIZE;
++	inode->i_blocks = ip->i_di.di_blocks <<
 +		(ip->i_sbd->sd_sb.sb_bsize_shift - GFS_BASIC_BLOCK_SHIFT);
-+	ino->i_generation = ip->i_di.di_header.mh_incarn;
++	inode->i_generation = ip->i_di.di_header.mh_incarn;
++
++	if (ip->i_di.di_flags & GFS_DIF_IMMUTABLE)
++		inode->i_flags |= S_IMMUTABLE;
++	else
++		inode->i_flags &= ~S_IMMUTABLE;
++
++	if (ip->i_di.di_flags & GFS_DIF_APPENDONLY)
++		inode->i_flags |= S_APPEND;
++	else
++		inode->i_flags &= ~S_APPEND;
 +}
 +
 +/**
@@ -13617,18 +13858,14 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +void
 +gfs_inode_attr_out(struct gfs_inode *ip)
 +{
-+	struct inode *inode;
++	struct inode *inode = ip->i_vnode;
 +
-+	inode = gfs_iget(ip, NO_CREATE);
-+	if (inode) {
-+		ip->i_di.di_mode = inode->i_mode & S_IALLUGO;
-+		ip->i_di.di_uid = inode->i_uid;
-+		ip->i_di.di_gid = inode->i_gid;
-+		ip->i_di.di_atime = inode->i_atime.tv_sec;
-+		ip->i_di.di_mtime = inode->i_mtime.tv_sec;
-+		ip->i_di.di_ctime = inode->i_ctime.tv_sec;
-+		iput(inode);
-+	}
++	ip->i_di.di_mode = inode->i_mode & S_IALLUGO;
++	ip->i_di.di_uid = inode->i_uid;
++	ip->i_di.di_gid = inode->i_gid;
++	ip->i_di.di_atime = inode->i_atime.tv_sec;
++	ip->i_di.di_mtime = inode->i_mtime.tv_sec;
++	ip->i_di.di_ctime = inode->i_ctime.tv_sec;
 +}
 +
 +/**
@@ -14262,6 +14499,9 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 + * @is_root: If TRUE, ignore the caller's permissions
 + * @i_gh: An uninitialized holder for the new inode glock
 + *
++ * There will always be a vnode for the d_gh inode unless @is_root
++ * is true.
++ *
 + * Returns: 0 on success, -EXXXX on failure
 + */
 +
@@ -14306,14 +14546,10 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +		return error;
 +
 +	if (!is_root) {
-+		struct inode *dir = gfs_iget(dip, NO_CREATE);
-+		if (dir) {
-+			error = permission(dir, MAY_EXEC, NULL);
-+			iput(dir);
-+			if (error) {
-+				gfs_glock_dq(d_gh);
-+				return error;
-+			}
++		error = permission(dip->i_vnode, MAY_EXEC, NULL);
++		if (error) {
++			gfs_glock_dq(d_gh);
++			return error;
 +		}
 +	}
 +
@@ -14352,15 +14588,11 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +		}
 +
 +		if (!is_root) {
-+			struct inode *dir = gfs_iget(dip, NO_CREATE);
-+			if (dir) {
-+				error = permission(dir, MAY_EXEC, NULL);
-+				iput(dir);
-+				if (error) {
-+					gfs_glock_dq(d_gh);
-+					gfs_glock_dq_uninit(i_gh);
-+					goto out;
-+				}
++			error = permission(dip->i_vnode, MAY_EXEC, NULL);
++			if (error) {
++				gfs_glock_dq(d_gh);
++				gfs_glock_dq_uninit(i_gh);
++				goto out;
 +			}
 +		}
 +
@@ -14416,15 +14648,9 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +{
 +	int error;
 +
-+	{
-+		struct inode *dir = gfs_iget(dip, NO_CREATE);
-+		if (dir) {
-+			error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-+			iput(dir);
-+			if (error)
-+				return error;
-+		}
-+	}
++	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
++	if (error)
++		return error;
 +
 +	/*  Don't create entries in an unlinked directory  */
 +
@@ -14931,32 +15157,49 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +}
 +
 +/*
-+ * gfs_revalidate - check to see that a inode is still in a directory
++ * gfs_unlink_ok - check to see that a inode is still in a directory
 + * @dip: the directory
 + * @name: the name of the file
 + * @ip: the inode
 + *
 + * Assumes that the lock on (at least) @dip is held.
 + *
-+ * Returns: 0 if the parent/child relationship is correct, -ENOENT if it isn't
++ * Returns: 0 if the parent/child relationship is correct, errno if it isn't
 + */
 +
 +int
-+gfs_revalidate(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
++gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
 +{
 +	struct gfs_inum inum;
 +	unsigned int type;
 +	int error;
 +
-+	error = gfs_dir_search(dip, name, &inum, &type);
-+	if (!error) {
-+		if (inum.no_formal_ino == ip->i_num.no_formal_ino)
-+			GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
-+		else
-+			error = -ENOENT;
-+	}
++	if (IS_IMMUTABLE(ip->i_vnode) || IS_APPEND(ip->i_vnode))
++		return -EPERM;
 +
-+	return error;
++	if ((dip->i_di.di_mode & S_ISVTX) &&
++	    dip->i_di.di_uid != current->fsuid &&
++	    ip->i_di.di_uid != current->fsuid &&
++	    !capable(CAP_FOWNER))
++		return -EPERM;
++
++	if (IS_APPEND(dip->i_vnode))
++		return -EPERM;
++
++	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
++	if (error)
++		return error;
++
++	error = gfs_dir_search(dip, name, &inum, &type);
++	if (error)
++		return error;
++
++	if (inum.no_formal_ino != ip->i_num.no_formal_ino)
++		return -ENOENT;
++
++	GFS_ASSERT_INODE(ip->i_di.di_type == type, ip,);
++
++	return 0;
 +}
 +
 +/*
@@ -15518,7 +15761,7 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +}
 diff -urN linux-orig/fs/gfs/inode.h linux-patched/fs/gfs/inode.h
 --- linux-orig/fs/gfs/inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/inode.h	2004-10-05 11:13:50.933125221 -0500
++++ linux-patched/fs/gfs/inode.h	2004-10-08 16:57:38.377912253 -0500
 @@ -0,0 +1,70 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -15558,8 +15801,8 @@ diff -urN linux-orig/fs/gfs/inode.h linux-patched/fs/gfs/inode.h
 +		struct gfs_holder *i_gh);
 +int gfs_unlinki(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip);
 +int gfs_rmdiri(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip);
-+int gfs_revalidate(struct gfs_inode *dip, struct qstr *name,
-+		   struct gfs_inode *ip);
++int gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name,
++		  struct gfs_inode *ip);
 +int gfs_ok_to_move(struct gfs_inode *this, struct gfs_inode *to);
 +int gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len);
 +
@@ -15592,8 +15835,8 @@ diff -urN linux-orig/fs/gfs/inode.h linux-patched/fs/gfs/inode.h
 +#endif /* __INODE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ioctl.c linux-patched/fs/gfs/ioctl.c
 --- linux-orig/fs/gfs/ioctl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ioctl.c	2004-10-05 11:13:50.933125221 -0500
-@@ -0,0 +1,973 @@
++++ linux-patched/fs/gfs/ioctl.c	2004-10-08 16:57:38.377912253 -0500
+@@ -0,0 +1,982 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -16225,6 +16468,15 @@ diff -urN linux-orig/fs/gfs/ioctl.c linux-patched/fs/gfs/ioctl.c
 +
 +	case GFS_DIF_IMMUTABLE:
 +	case GFS_DIF_APPENDONLY:
++        	/* The IMMUTABLE and APPENDONLY flags can only be changed by
++		   the relevant capability. */
++		if (((ip->i_di.di_flags ^ flag) & (GFS_DIF_IMMUTABLE | GFS_DIF_APPENDONLY)) &&
++		    !capable(CAP_LINUX_IMMUTABLE)) {
++			error = -EPERM;
++			goto out;
++		}
++		break;
++
 +	case GFS_DIF_NOATIME:
 +	case GFS_DIF_SYNC:
 +		/*  FixMe!!!  */
@@ -16569,7 +16821,7 @@ diff -urN linux-orig/fs/gfs/ioctl.c linux-patched/fs/gfs/ioctl.c
 +}
 diff -urN linux-orig/fs/gfs/ioctl.h linux-patched/fs/gfs/ioctl.h
 --- linux-orig/fs/gfs/ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ioctl.h	2004-10-05 11:13:50.934124989 -0500
++++ linux-patched/fs/gfs/ioctl.h	2004-10-08 16:57:38.385910387 -0500
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16594,8 +16846,8 @@ diff -urN linux-orig/fs/gfs/ioctl.h linux-patched/fs/gfs/ioctl.h
 +#endif /* __IOCTL_DOT_H__ */
 diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 --- linux-orig/fs/gfs/locking.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/locking.c	2004-10-05 11:13:50.934124989 -0500
-@@ -0,0 +1,114 @@
++++ linux-patched/fs/gfs/locking.c	2004-10-08 16:57:38.391908988 -0500
+@@ -0,0 +1,117 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -16636,9 +16888,8 @@ diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 +gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 +{
 +	struct gfs_sb *sb = NULL;
-+	struct buffer_head *bh;
-+	char *proto, *table, *p = NULL;
-+	int error = 0;
++	char *proto, *table;
++	int error;
 +
 +	proto = sdp->sd_args.ar_lockproto;
 +	table = sdp->sd_args.ar_locktable;
@@ -16646,12 +16897,18 @@ diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 +	/*  Try to autodetect  */
 +
 +	if (!proto[0] || !table[0]) {
++		struct buffer_head *bh;
++
 +		error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, NULL,
 +				  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 +		if (error)
-+			goto out;
++			return error;
 +
-+		sb = gmalloc(sizeof(struct gfs_sb));
++		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
++		if (!sb) {
++			brelse(bh);
++			return -ENOMEM;
++		}
 +		gfs_sb_in(sb, bh->b_data);
 +		brelse(bh);
 +
@@ -16665,6 +16922,9 @@ diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 +		if (!table[0])
 +			table = sb->sb_locktable;
 +	}
++
++	printk("GFS: Trying to join cluster \"%s\", \"%s\"\n",
++	       proto, table);
 +
 +	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 +			 gfs_glock_cb, sdp,
@@ -16680,19 +16940,14 @@ diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 +	GFS_ASSERT_SBD(sdp->sd_lockstruct.ls_lvb_size >= GFS_MIN_LVB_SIZE,
 +		       sdp,);
 +
-+	if (!*table) {
-+		table = p = gmalloc(sizeof(sdp->sd_vfs->s_id) + 1);
-+		strncpy(table, sdp->sd_vfs->s_id, sizeof(sdp->sd_vfs->s_id));
-+		table[sizeof(sdp->sd_vfs->s_id)] = 0;
-+	}
-+
-+	snprintf(sdp->sd_fsname, 256, "%s.%u", table,
++	snprintf(sdp->sd_fsname, 256, "%s.%u",
++		 (*table) ? table : sdp->sd_vfs->s_id,
 +		 sdp->sd_lockstruct.ls_jid);
 +
-+	if (p)
-+		kfree(p);
++	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
++	       sdp->sd_fsname);
 +
-+      out:
++ out:
 +	if (sb)
 +		kfree(sb);
 +
@@ -16712,7 +16967,7 @@ diff -urN linux-orig/fs/gfs/locking.c linux-patched/fs/gfs/locking.c
 +}
 diff -urN linux-orig/fs/gfs/locking.h linux-patched/fs/gfs/locking.h
 --- linux-orig/fs/gfs/locking.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/locking.h	2004-10-05 11:13:50.935124757 -0500
++++ linux-patched/fs/gfs/locking.h	2004-10-08 16:57:38.391908988 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16736,8 +16991,8 @@ diff -urN linux-orig/fs/gfs/locking.h linux-patched/fs/gfs/locking.h
 +#endif /* __LOCKING_DOT_H__ */
 diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 --- linux-orig/fs/gfs/log.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/log.c	2004-10-05 11:13:50.935124757 -0500
-@@ -0,0 +1,1318 @@
++++ linux-patched/fs/gfs/log.c	2004-10-08 16:57:38.402906423 -0500
+@@ -0,0 +1,1319 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -16874,7 +17129,8 @@ diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 +/**
 + * gfs_ail_start - Start I/O on the AIL
 + * @sdp: the filesystem
-+ * @flags:
++ * @flags:  DIO_ALL -- flush *all* AIL transactions to disk
++ *          default -- flush first-on-list AIL transaction to disk
 + *
 + */
 +
@@ -17947,7 +18203,7 @@ diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 +		LO_CLEAN_DUMP(sdp, le);
 +	}
 +
-+	/* If there isn't anything the AIL, we won't get back the log
++	/* If there isn't anything in the AIL, we won't get back the log
 +	   space we reserved unless we do it ourselves. */
 +
 +	if (list_empty(&sdp->sd_log_ail)) {
@@ -18058,7 +18314,7 @@ diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 +}
 diff -urN linux-orig/fs/gfs/log.h linux-patched/fs/gfs/log.h
 --- linux-orig/fs/gfs/log.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/log.h	2004-10-05 11:13:50.935124757 -0500
++++ linux-patched/fs/gfs/log.h	2004-10-08 16:57:38.411904324 -0500
 @@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -18141,8 +18397,8 @@ diff -urN linux-orig/fs/gfs/log.h linux-patched/fs/gfs/log.h
 +#endif /* __LOG_DOT_H__ */
 diff -urN linux-orig/fs/gfs/lops.c linux-patched/fs/gfs/lops.c
 --- linux-orig/fs/gfs/lops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lops.c	2004-10-05 11:13:50.936124525 -0500
-@@ -0,0 +1,1563 @@
++++ linux-patched/fs/gfs/lops.c	2004-10-08 16:57:38.420902225 -0500
+@@ -0,0 +1,1570 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -18587,6 +18843,13 @@ diff -urN linux-orig/fs/gfs/lops.c linux-patched/fs/gfs/lops.c
 + * @blkno: the location of the log's copy of the block
 + *
 + * Returns: 0 on success, -EXXX on failure
++ *
++ * Read in-place block from disk
++ * Read log (journal) block from disk
++ * Compare generation numbers
++ * Copy log block to in-place block on-disk if:
++ *   log generation # > in-place generation #
++ *   OR generation #s are ==, but data contained in block is different (corrupt)
 + */
 +
 +static int
@@ -19708,7 +19971,7 @@ diff -urN linux-orig/fs/gfs/lops.c linux-patched/fs/gfs/lops.c
 +};
 diff -urN linux-orig/fs/gfs/lops.h linux-patched/fs/gfs/lops.h
 --- linux-orig/fs/gfs/lops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lops.h	2004-10-05 11:13:50.937124294 -0500
++++ linux-patched/fs/gfs/lops.h	2004-10-08 16:57:38.429900126 -0500
 @@ -0,0 +1,179 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19891,7 +20154,7 @@ diff -urN linux-orig/fs/gfs/lops.h linux-patched/fs/gfs/lops.h
 +#endif /* __LOPS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/lvb.c linux-patched/fs/gfs/lvb.c
 --- linux-orig/fs/gfs/lvb.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lvb.c	2004-10-05 11:13:50.937124294 -0500
++++ linux-patched/fs/gfs/lvb.c	2004-10-08 16:57:38.429900126 -0500
 @@ -0,0 +1,148 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20043,8 +20306,8 @@ diff -urN linux-orig/fs/gfs/lvb.c linux-patched/fs/gfs/lvb.c
 +}
 diff -urN linux-orig/fs/gfs/lvb.h linux-patched/fs/gfs/lvb.h
 --- linux-orig/fs/gfs/lvb.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lvb.h	2004-10-05 11:13:50.937124294 -0500
-@@ -0,0 +1,48 @@
++++ linux-patched/fs/gfs/lvb.h	2004-10-08 16:57:38.429900126 -0500
+@@ -0,0 +1,66 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -20058,26 +20321,44 @@ diff -urN linux-orig/fs/gfs/lvb.h linux-patched/fs/gfs/lvb.h
 +*******************************************************************************
 +******************************************************************************/
 +
++/*
++ * Formats of Lock Value Blocks (LVBs) for various types of locks.
++ * These 32-bit data chunks can be shared quickly between nodes
++ *   via the inter-node lock manager (via LAN instead of on-disk).
++ */
++
 +#ifndef __LVB_DOT_H__
 +#define __LVB_DOT_H__
 +
 +#define GFS_MIN_LVB_SIZE (32)
 +
++/*
++ * Resource Group block allocation statistics
++ * Each resource group lock contains one of these in its LVB.
++ * Used for sharing approximate current statistics for statfs.
++ * Not used for actual block allocation.
++ */
 +struct gfs_rgrp_lvb {
-+	uint32_t rb_magic;
-+	uint32_t rb_free;
-+	uint32_t rb_useddi;
-+	uint32_t rb_freedi;
-+	uint32_t rb_usedmeta;
-+	uint32_t rb_freemeta;
++	uint32_t rb_magic;      /* GFS_MAGIC sanity check value */
++	uint32_t rb_free;       /* # free data blocks */
++	uint32_t rb_useddi;     /* # used dinode blocks */
++	uint32_t rb_freedi;     /* # free dinode blocks */
++	uint32_t rb_usedmeta;   /* # used metadata blocks */
++	uint32_t rb_freemeta;   /* # free metadata blocks */
 +};
 +
++/*
++ * Quota
++ * Each quota lock contains one of these in its LVB.
++ * Keeps track of block allocation limits and current block allocation
++ *   for either a cluster-wide user or a cluster-wide group.
++ */
 +struct gfs_quota_lvb {
-+	uint32_t qb_magic;
++	uint32_t qb_magic;      /* GFS_MAGIC sanity check value */
 +	uint32_t qb_pad;
-+	uint64_t qb_limit;
-+	uint64_t qb_warn;
-+	int64_t qb_value;
++	uint64_t qb_limit;      /* Hard limit of # blocks to alloc */
++	uint64_t qb_warn;       /* Warn user when alloc is above this # */
++	int64_t qb_value;       /* Current # blocks allocated */
 +};
 +
 +/*  Translation functions  */
@@ -20095,7 +20376,7 @@ diff -urN linux-orig/fs/gfs/lvb.h linux-patched/fs/gfs/lvb.h
 +#endif /* __LVB_DOT_H__ */
 diff -urN linux-orig/fs/gfs/main.c linux-patched/fs/gfs/main.c
 --- linux-orig/fs/gfs/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/main.c	2004-10-05 11:13:50.937124294 -0500
++++ linux-patched/fs/gfs/main.c	2004-10-08 16:57:38.434898960 -0500
 @@ -0,0 +1,142 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20241,7 +20522,7 @@ diff -urN linux-orig/fs/gfs/main.c linux-patched/fs/gfs/main.c
 +
 diff -urN linux-orig/fs/gfs/mount.c linux-patched/fs/gfs/mount.c
 --- linux-orig/fs/gfs/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/mount.c	2004-10-05 11:13:50.937124294 -0500
++++ linux-patched/fs/gfs/mount.c	2004-10-08 16:57:38.443896861 -0500
 @@ -0,0 +1,215 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20460,7 +20741,7 @@ diff -urN linux-orig/fs/gfs/mount.c linux-patched/fs/gfs/mount.c
 +}
 diff -urN linux-orig/fs/gfs/mount.h linux-patched/fs/gfs/mount.h
 --- linux-orig/fs/gfs/mount.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/mount.h	2004-10-05 11:13:50.938124062 -0500
++++ linux-patched/fs/gfs/mount.h	2004-10-08 16:57:38.443896861 -0500
 @@ -0,0 +1,27 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20491,7 +20772,7 @@ diff -urN linux-orig/fs/gfs/mount.h linux-patched/fs/gfs/mount.h
 +#endif /* __MOUNT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ondisk.c linux-patched/fs/gfs/ondisk.c
 --- linux-orig/fs/gfs/ondisk.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ondisk.c	2004-10-05 11:13:50.938124062 -0500
++++ linux-patched/fs/gfs/ondisk.c	2004-10-08 16:57:38.443896861 -0500
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20523,7 +20804,7 @@ diff -urN linux-orig/fs/gfs/ondisk.c linux-patched/fs/gfs/ondisk.c
 +
 diff -urN linux-orig/fs/gfs/ops_address.c linux-patched/fs/gfs/ops_address.c
 --- linux-orig/fs/gfs/ops_address.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_address.c	2004-10-05 11:13:50.938124062 -0500
++++ linux-patched/fs/gfs/ops_address.c	2004-10-08 16:57:38.443896861 -0500
 @@ -0,0 +1,476 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21003,7 +21284,7 @@ diff -urN linux-orig/fs/gfs/ops_address.c linux-patched/fs/gfs/ops_address.c
 +};
 diff -urN linux-orig/fs/gfs/ops_address.h linux-patched/fs/gfs/ops_address.h
 --- linux-orig/fs/gfs/ops_address.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_address.h	2004-10-05 11:13:50.938124062 -0500
++++ linux-patched/fs/gfs/ops_address.h	2004-10-08 16:57:38.455894062 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21026,7 +21307,7 @@ diff -urN linux-orig/fs/gfs/ops_address.h linux-patched/fs/gfs/ops_address.h
 +#endif /* __OPS_ADDRESS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_dentry.c linux-patched/fs/gfs/ops_dentry.c
 --- linux-orig/fs/gfs/ops_dentry.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_dentry.c	2004-10-05 11:13:50.938124062 -0500
++++ linux-patched/fs/gfs/ops_dentry.c	2004-10-08 16:57:38.455894062 -0500
 @@ -0,0 +1,124 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21154,7 +21435,7 @@ diff -urN linux-orig/fs/gfs/ops_dentry.c linux-patched/fs/gfs/ops_dentry.c
 +};
 diff -urN linux-orig/fs/gfs/ops_dentry.h linux-patched/fs/gfs/ops_dentry.h
 --- linux-orig/fs/gfs/ops_dentry.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_dentry.h	2004-10-05 11:13:50.939123830 -0500
++++ linux-patched/fs/gfs/ops_dentry.h	2004-10-08 16:57:38.455894062 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21177,7 +21458,7 @@ diff -urN linux-orig/fs/gfs/ops_dentry.h linux-patched/fs/gfs/ops_dentry.h
 +#endif /* __OPS_DENTRY_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_export.c linux-patched/fs/gfs/ops_export.c
 --- linux-orig/fs/gfs/ops_export.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_export.c	2004-10-05 11:13:50.939123830 -0500
++++ linux-patched/fs/gfs/ops_export.c	2004-10-08 16:57:38.456893829 -0500
 @@ -0,0 +1,415 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21596,7 +21877,7 @@ diff -urN linux-orig/fs/gfs/ops_export.c linux-patched/fs/gfs/ops_export.c
 +
 diff -urN linux-orig/fs/gfs/ops_export.h linux-patched/fs/gfs/ops_export.h
 --- linux-orig/fs/gfs/ops_export.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_export.h	2004-10-05 11:13:50.939123830 -0500
++++ linux-patched/fs/gfs/ops_export.h	2004-10-08 16:57:38.456893829 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21619,8 +21900,8 @@ diff -urN linux-orig/fs/gfs/ops_export.h linux-patched/fs/gfs/ops_export.h
 +#endif /* __OPS_EXPORT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_file.c linux-patched/fs/gfs/ops_file.c
 --- linux-orig/fs/gfs/ops_file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_file.c	2004-10-05 11:13:50.939123830 -0500
-@@ -0,0 +1,1667 @@
++++ linux-patched/fs/gfs/ops_file.c	2004-10-08 16:57:38.461892663 -0500
+@@ -0,0 +1,1652 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -22921,21 +23202,6 @@ diff -urN linux-orig/fs/gfs/ops_file.c linux-patched/fs/gfs/ops_file.c
 +			goto fail_gunlock;
 +		}
 +
-+		/* If this is an exclusive create, make sure our gfs_create()
-+		   says we created the file.  The O_EXCL flag isn't passed
-+		   to gfs_create(), so we have to check it here. */
-+
-+		if (file->f_flags & O_CREAT) {
-+			if (ip->i_creat_task == current &&
-+			    ip->i_creat_pid == current->pid) {
-+				ip->i_creat_task = NULL;
-+				ip->i_creat_pid = 0;
-+			} else if (file->f_flags & O_EXCL) {
-+				error = -EEXIST;
-+				goto fail_gunlock;
-+			}
-+		}
-+
 +		/* Listen to the Direct I/O flag */
 +
 +		if (ip->i_di.di_flags & GFS_DIF_DIRECTIO)
@@ -23290,7 +23556,7 @@ diff -urN linux-orig/fs/gfs/ops_file.c linux-patched/fs/gfs/ops_file.c
 +};
 diff -urN linux-orig/fs/gfs/ops_file.h linux-patched/fs/gfs/ops_file.h
 --- linux-orig/fs/gfs/ops_file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_file.h	2004-10-05 11:13:50.940123598 -0500
++++ linux-patched/fs/gfs/ops_file.h	2004-10-08 16:57:38.465891730 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23314,8 +23580,8 @@ diff -urN linux-orig/fs/gfs/ops_file.h linux-patched/fs/gfs/ops_file.h
 +#endif /* __OPS_FILE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_fstype.c linux-patched/fs/gfs/ops_fstype.c
 --- linux-orig/fs/gfs/ops_fstype.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_fstype.c	2004-10-05 11:13:50.940123598 -0500
-@@ -0,0 +1,607 @@
++++ linux-patched/fs/gfs/ops_fstype.c	2004-10-08 16:57:38.472890098 -0500
+@@ -0,0 +1,604 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -23473,9 +23739,6 @@ diff -urN linux-orig/fs/gfs/ops_fstype.c linux-patched/fs/gfs/ops_fstype.c
 +	error = gfs_mount_lockproto(sdp, silent);
 +	if (error)
 +		goto fail_vfree;
-+
-+	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
-+	       sdp->sd_fsname);
 +
 +	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 +	    !sdp->sd_args.ar_ignore_local_fs) {
@@ -23925,7 +24188,7 @@ diff -urN linux-orig/fs/gfs/ops_fstype.c linux-patched/fs/gfs/ops_fstype.c
 +};
 diff -urN linux-orig/fs/gfs/ops_fstype.h linux-patched/fs/gfs/ops_fstype.h
 --- linux-orig/fs/gfs/ops_fstype.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_fstype.h	2004-10-05 11:13:50.940123598 -0500
++++ linux-patched/fs/gfs/ops_fstype.h	2004-10-08 16:57:38.482887766 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23948,8 +24211,8 @@ diff -urN linux-orig/fs/gfs/ops_fstype.h linux-patched/fs/gfs/ops_fstype.h
 +#endif /* __OPS_FSTYPE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 --- linux-orig/fs/gfs/ops_inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_inode.c	2004-10-05 11:13:50.940123598 -0500
-@@ -0,0 +1,1669 @@
++++ linux-patched/fs/gfs/ops_inode.c	2004-10-08 16:57:38.487886599 -0500
+@@ -0,0 +1,1632 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -24026,7 +24289,8 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +				    &i_gh);
 +		if (!error)
 +			break;
-+		else if (error != -EEXIST) {
++		else if (error != -EEXIST ||
++			 (nd->intent.open.flags & O_EXCL)) {
 +			gfs_holder_uninit(&d_gh);
 +			return error;
 +		}
@@ -24054,9 +24318,6 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +		gfs_quota_unlock_m(dip);
 +		gfs_unlinked_unlock(sdp, dip->i_alloc->al_ul);
 +		gfs_alloc_put(dip);
-+
-+		ip->i_creat_task = current;
-+		ip->i_creat_pid = current->pid;
 +	}
 +
 +	gfs_glock_dq_uninit(&d_gh);
@@ -24299,6 +24560,10 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +		error = -EFBIG;
 +		goto fail_gunlock;
 +	}
++	if (IS_IMMUTABLE(inode) || IS_APPEND(inode)) {
++		error = -EPERM;
++		goto fail_gunlock;
++	}
 +	if (!ip->i_di.di_nlink) {
 +		error = -EINVAL;
 +		goto fail_gunlock;
@@ -24432,19 +24697,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +	if (error)
 +		goto fail;
 +
-+	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-+	if (error)
-+		goto fail_gunlock;
-+
-+	if ((dip->i_di.di_mode & S_ISVTX) &&
-+	    dip->i_di.di_uid != current->fsuid &&
-+	    ip->i_di.di_uid != current->fsuid &&
-+	    !capable(CAP_FOWNER)) {
-+		error = -EPERM;
-+		goto fail_gunlock;
-+	}
-+
-+	error = gfs_revalidate(dip, &dentry->d_name, ip);
++	error = gfs_unlink_ok(dip, &dentry->d_name, ip);
 +	if (error)
 +		goto fail_gunlock;
 +
@@ -24683,19 +24936,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +	if (error)
 +		goto fail;
 +
-+	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
-+	if (error)
-+		goto fail_gunlock;
-+
-+	if ((dip->i_di.di_mode & S_ISVTX) &&
-+	    dip->i_di.di_uid != current->fsuid &&
-+	    ip->i_di.di_uid != current->fsuid &&
-+	    !capable(CAP_FOWNER)) {
-+		error = -EPERM;
-+		goto fail_gunlock;
-+	}
-+
-+	error = gfs_revalidate(dip, &dentry->d_name, ip);
++	error = gfs_unlink_ok(dip, &dentry->d_name, ip);
 +	if (error)
 +		goto fail_gunlock;
 +
@@ -24905,38 +25146,14 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +
 +	/*  Check out the old directory  */
 +
-+	error = permission(odir, MAY_WRITE | MAY_EXEC, NULL);
-+	if (error)
-+		goto fail_gunlock;
-+
-+	if ((odip->i_di.di_mode & S_ISVTX) &&
-+	    odip->i_di.di_uid != current->fsuid &&
-+	    ip->i_di.di_uid != current->fsuid &&
-+	    !capable(CAP_FOWNER)) {
-+		error = -EPERM;
-+		goto fail_gunlock;
-+	}
-+
-+	error = gfs_revalidate(odip, &odentry->d_name, ip);
++	error = gfs_unlink_ok(odip, &odentry->d_name, ip);
 +	if (error)
 +		goto fail_gunlock;
 +
 +	/*  Check out the new directory  */
 +
-+	error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
-+	if (error)
-+		goto fail_gunlock;
-+
 +	if (nip) {
-+		if ((ndip->i_di.di_mode & S_ISVTX) &&
-+		    ndip->i_di.di_uid != current->fsuid &&
-+		    nip->i_di.di_uid != current->fsuid &&
-+		    !capable(CAP_FOWNER)) {
-+			error = -EPERM;
-+			goto fail_gunlock;
-+		}
-+
-+		error = gfs_revalidate(ndip, &ndentry->d_name, nip);
++		error = gfs_unlink_ok(ndip, &ndentry->d_name, nip);
 +		if (error)
 +			goto fail_gunlock;
 +
@@ -24949,6 +25166,10 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +			}
 +		}
 +	} else {
++		error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
++		if (error)
++			goto fail_gunlock;
++
 +		error = gfs_dir_search(ndip, &ndentry->d_name, NULL, NULL);
 +		switch (error) {
 +		case -ENOENT:
@@ -25316,6 +25537,11 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +	if (error)
 +		return error;
 +
++	if (IS_IMMUTABLE(inode) || IS_APPEND(inode)) {
++		error = -EPERM;
++		goto fail;
++	}
++
 +	error = inode_change_ok(inode, attr);
 +	if (error)
 +		goto fail;
@@ -25621,7 +25847,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +
 diff -urN linux-orig/fs/gfs/ops_inode.h linux-patched/fs/gfs/ops_inode.h
 --- linux-orig/fs/gfs/ops_inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_inode.h	2004-10-05 11:13:50.942123134 -0500
++++ linux-patched/fs/gfs/ops_inode.h	2004-10-08 16:57:38.492885433 -0500
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25647,7 +25873,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.h linux-patched/fs/gfs/ops_inode.h
 +#endif /* __OPS_INODE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_super.c linux-patched/fs/gfs/ops_super.c
 --- linux-orig/fs/gfs/ops_super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_super.c	2004-10-05 11:13:50.942123134 -0500
++++ linux-patched/fs/gfs/ops_super.c	2004-10-08 16:57:38.504882635 -0500
 @@ -0,0 +1,418 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26069,7 +26295,7 @@ diff -urN linux-orig/fs/gfs/ops_super.c linux-patched/fs/gfs/ops_super.c
 +};
 diff -urN linux-orig/fs/gfs/ops_super.h linux-patched/fs/gfs/ops_super.h
 --- linux-orig/fs/gfs/ops_super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_super.h	2004-10-05 11:13:50.942123134 -0500
++++ linux-patched/fs/gfs/ops_super.h	2004-10-08 16:57:38.509881469 -0500
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26092,7 +26318,7 @@ diff -urN linux-orig/fs/gfs/ops_super.h linux-patched/fs/gfs/ops_super.h
 +#endif /* __OPS_SUPER_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_vm.c linux-patched/fs/gfs/ops_vm.c
 --- linux-orig/fs/gfs/ops_vm.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_vm.c	2004-10-05 11:13:50.942123134 -0500
++++ linux-patched/fs/gfs/ops_vm.c	2004-10-08 16:57:38.510881236 -0500
 @@ -0,0 +1,239 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26335,7 +26561,7 @@ diff -urN linux-orig/fs/gfs/ops_vm.c linux-patched/fs/gfs/ops_vm.c
 +
 diff -urN linux-orig/fs/gfs/ops_vm.h linux-patched/fs/gfs/ops_vm.h
 --- linux-orig/fs/gfs/ops_vm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_vm.h	2004-10-05 11:13:50.943122902 -0500
++++ linux-patched/fs/gfs/ops_vm.h	2004-10-08 16:57:38.510881236 -0500
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26359,7 +26585,7 @@ diff -urN linux-orig/fs/gfs/ops_vm.h linux-patched/fs/gfs/ops_vm.h
 +#endif /* __OPS_VM_DOT_H__ */
 diff -urN linux-orig/fs/gfs/page.c linux-patched/fs/gfs/page.c
 --- linux-orig/fs/gfs/page.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/page.c	2004-10-05 11:13:50.943122902 -0500
++++ linux-patched/fs/gfs/page.c	2004-10-08 16:57:38.521878670 -0500
 @@ -0,0 +1,278 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26641,7 +26867,7 @@ diff -urN linux-orig/fs/gfs/page.c linux-patched/fs/gfs/page.c
 +}
 diff -urN linux-orig/fs/gfs/page.h linux-patched/fs/gfs/page.h
 --- linux-orig/fs/gfs/page.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/page.h	2004-10-05 11:13:50.943122902 -0500
++++ linux-patched/fs/gfs/page.h	2004-10-08 16:57:38.521878670 -0500
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26671,7 +26897,7 @@ diff -urN linux-orig/fs/gfs/page.h linux-patched/fs/gfs/page.h
 +#endif /* __PAGE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/quota.c linux-patched/fs/gfs/quota.c
 --- linux-orig/fs/gfs/quota.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/quota.c	2004-10-05 11:13:50.943122902 -0500
++++ linux-patched/fs/gfs/quota.c	2004-10-08 16:57:38.522878437 -0500
 @@ -0,0 +1,1146 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27821,7 +28047,7 @@ diff -urN linux-orig/fs/gfs/quota.c linux-patched/fs/gfs/quota.c
 +}
 diff -urN linux-orig/fs/gfs/quota.h linux-patched/fs/gfs/quota.h
 --- linux-orig/fs/gfs/quota.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/quota.h	2004-10-05 11:13:50.944122670 -0500
++++ linux-patched/fs/gfs/quota.h	2004-10-08 16:57:38.527877271 -0500
 @@ -0,0 +1,40 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27865,7 +28091,7 @@ diff -urN linux-orig/fs/gfs/quota.h linux-patched/fs/gfs/quota.h
 +#endif /* __QUOTA_DOT_H__ */
 diff -urN linux-orig/fs/gfs/recovery.c linux-patched/fs/gfs/recovery.c
 --- linux-orig/fs/gfs/recovery.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/recovery.c	2004-10-05 11:13:50.944122670 -0500
++++ linux-patched/fs/gfs/recovery.c	2004-10-08 16:57:38.528877038 -0500
 @@ -0,0 +1,749 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28618,7 +28844,7 @@ diff -urN linux-orig/fs/gfs/recovery.c linux-patched/fs/gfs/recovery.c
 +}
 diff -urN linux-orig/fs/gfs/recovery.h linux-patched/fs/gfs/recovery.h
 --- linux-orig/fs/gfs/recovery.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/recovery.h	2004-10-05 11:13:50.944122670 -0500
++++ linux-patched/fs/gfs/recovery.h	2004-10-08 16:57:38.528877038 -0500
 @@ -0,0 +1,36 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28658,8 +28884,8 @@ diff -urN linux-orig/fs/gfs/recovery.h linux-patched/fs/gfs/recovery.h
 +#endif /* __RECOVERY_DOT_H__ */
 diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 --- linux-orig/fs/gfs/rgrp.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/rgrp.c	2004-10-05 11:13:50.945122438 -0500
-@@ -0,0 +1,1934 @@
++++ linux-patched/fs/gfs/rgrp.c	2004-10-08 16:57:38.538874706 -0500
+@@ -0,0 +1,1947 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -29036,6 +29262,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +
 +	memset(count, 0, 4 * sizeof(uint32_t));
 +
++	/* Count # blocks in each of 4 possible allocation states */
 +	for (buf = 0; buf < length; buf++) {
 +		bits = &rgd->rd_bits[buf];
 +		for (x = 0; x < 4; x++)
@@ -29195,6 +29422,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 + * gfs_compute_bitstructs - Compute the bitmap sizes
 + * @rgd: The resource group descriptor
 + *
++ * Calculates bitmap descriptors, one for each block that contains bitmap data
 + */
 +
 +static void
@@ -29202,7 +29430,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +{
 +	struct gfs_sbd *sdp = rgd->rd_sbd;
 +	struct gfs_bitmap *bits;
-+	uint32_t length = rgd->rd_ri.ri_length;
++	uint32_t length = rgd->rd_ri.ri_length; /* # blocks in hdr & bitmap */
 +	uint32_t bytes_left, bytes;
 +	int x;
 +
@@ -29214,21 +29442,25 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +	for (x = 0; x < length; x++) {
 +		bits = &rgd->rd_bits[x];
 +
++		/* small rgrp; bitmap stored completely in header block */
 +		if (length == 1) {
 +			bytes = bytes_left;
 +			bits->bi_offset = sizeof(struct gfs_rgrp);
 +			bits->bi_start = 0;
 +			bits->bi_len = bytes;
++		/* header block */
 +		} else if (x == 0) {
 +			bytes = sdp->sd_sb.sb_bsize - sizeof(struct gfs_rgrp);
 +			bits->bi_offset = sizeof(struct gfs_rgrp);
 +			bits->bi_start = 0;
 +			bits->bi_len = bytes;
++		/* last block */
 +		} else if (x + 1 == length) {
 +			bytes = bytes_left;
 +			bits->bi_offset = sizeof(struct gfs_meta_header);
 +			bits->bi_start = rgd->rd_ri.ri_bitbytes - bytes_left;
 +			bits->bi_len = bytes;
++		/* other blocks */
 +		} else {
 +			bytes = sdp->sd_sb.sb_bsize - sizeof(struct gfs_meta_header);
 +			bits->bi_offset = sizeof(struct gfs_meta_header);
@@ -29519,10 +29751,12 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 + * @rgd: the RG data
 + * @al: the struct gfs_alloc structure describing the reservation
 + *
-+ * Sets the $ir_datares field in @res.
-+ * Sets the $ir_metares field in @res.
++ * If there's room for the requested blocks to be allocated from the RG:
++ *   Sets the $al_reserved_data field in @al.
++ *   Sets the $al_reserved_meta field in @al.
++ *   Sets the $al_rgd field in @al.
 + *
-+ * Returns: 1 on success, 0 on failure
++ * Returns: 1 on success (it fits), 0 on failure (it doesn't fit)
 + */
 +
 +static int
@@ -29564,7 +29798,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 +
 +/**
-+ * recent_rgrp_first - get first RG from recent list
++ * recent_rgrp_first - get first RG from "recent" list
 + * @sdp: The GFS superblock
 + * @rglast: address of the rgrp used last
 + *
@@ -29603,7 +29837,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 +
 +/**
-+ * recent_rgrp_next - get next RG from recent list
++ * recent_rgrp_next - get next RG from "recent" list
 + * @cur_rgd: current rgrp
 + *
 + * Returns: The next rgrp in the recent list
@@ -29642,7 +29876,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 +
 +/**
-+ * recent_rgrp_remove - remove an RG from recent list
++ * recent_rgrp_remove - remove an RG from "recent" list
 + * @rgd: The rgrp to remove
 + *
 + */
@@ -29656,9 +29890,14 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 +
 +/**
-+ * recent_rgrp_add - add an RG to recent list
++ * recent_rgrp_add - add an RG to tail of "recent" list
 + * @new_rgd: The rgrp to add
 + *
++ * Before adding, make sure that:
++ *   1) it's not already on the list
++ *   2) there's still room for more entries
++ * The capacity limit imposed on the "recent" list is basically a node's "share"
++ *   of rgrps within a cluster, i.e. (total # rgrps) / (# nodes (journals))
 + */
 +
 +static void
@@ -30596,7 +30835,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 diff -urN linux-orig/fs/gfs/rgrp.h linux-patched/fs/gfs/rgrp.h
 --- linux-orig/fs/gfs/rgrp.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/rgrp.h	2004-10-05 11:13:50.945122438 -0500
++++ linux-patched/fs/gfs/rgrp.h	2004-10-08 16:57:38.546872840 -0500
 @@ -0,0 +1,75 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -30675,7 +30914,7 @@ diff -urN linux-orig/fs/gfs/rgrp.h linux-patched/fs/gfs/rgrp.h
 +#endif /* __RGRP_DOT_H__ */
 diff -urN linux-orig/fs/gfs/super.c linux-patched/fs/gfs/super.c
 --- linux-orig/fs/gfs/super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/super.c	2004-10-05 11:13:50.946122206 -0500
++++ linux-patched/fs/gfs/super.c	2004-10-08 16:57:38.556870508 -0500
 @@ -0,0 +1,1039 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -31718,7 +31957,7 @@ diff -urN linux-orig/fs/gfs/super.c linux-patched/fs/gfs/super.c
 +}
 diff -urN linux-orig/fs/gfs/super.h linux-patched/fs/gfs/super.h
 --- linux-orig/fs/gfs/super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/super.h	2004-10-05 11:13:50.946122206 -0500
++++ linux-patched/fs/gfs/super.h	2004-10-08 16:57:38.563868875 -0500
 @@ -0,0 +1,53 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -31775,7 +32014,7 @@ diff -urN linux-orig/fs/gfs/super.h linux-patched/fs/gfs/super.h
 +#endif /* __SUPER_DOT_H__ */
 diff -urN linux-orig/fs/gfs/trans.c linux-patched/fs/gfs/trans.c
 --- linux-orig/fs/gfs/trans.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/trans.c	2004-10-05 11:13:50.946122206 -0500
++++ linux-patched/fs/gfs/trans.c	2004-10-08 16:57:38.564868642 -0500
 @@ -0,0 +1,410 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32189,7 +32428,7 @@ diff -urN linux-orig/fs/gfs/trans.c linux-patched/fs/gfs/trans.c
 +}
 diff -urN linux-orig/fs/gfs/trans.h linux-patched/fs/gfs/trans.h
 --- linux-orig/fs/gfs/trans.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/trans.h	2004-10-05 11:13:50.947121974 -0500
++++ linux-patched/fs/gfs/trans.h	2004-10-08 16:57:38.564868642 -0500
 @@ -0,0 +1,37 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32230,7 +32469,7 @@ diff -urN linux-orig/fs/gfs/trans.h linux-patched/fs/gfs/trans.h
 +#endif /* __TRANS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/unlinked.c linux-patched/fs/gfs/unlinked.c
 --- linux-orig/fs/gfs/unlinked.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/unlinked.c	2004-10-05 11:13:50.947121974 -0500
++++ linux-patched/fs/gfs/unlinked.c	2004-10-08 16:57:38.564868642 -0500
 @@ -0,0 +1,427 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32661,7 +32900,7 @@ diff -urN linux-orig/fs/gfs/unlinked.c linux-patched/fs/gfs/unlinked.c
 +}
 diff -urN linux-orig/fs/gfs/unlinked.h linux-patched/fs/gfs/unlinked.h
 --- linux-orig/fs/gfs/unlinked.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/unlinked.h	2004-10-05 11:13:50.947121974 -0500
++++ linux-patched/fs/gfs/unlinked.h	2004-10-08 16:57:38.564868642 -0500
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32697,7 +32936,7 @@ diff -urN linux-orig/fs/gfs/unlinked.h linux-patched/fs/gfs/unlinked.h
 +#endif /* __UNLINKED_DOT_H__ */
 diff -urN linux-orig/fs/gfs/util.c linux-patched/fs/gfs/util.c
 --- linux-orig/fs/gfs/util.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/util.c	2004-10-05 11:13:50.947121974 -0500
++++ linux-patched/fs/gfs/util.c	2004-10-08 16:57:38.565868409 -0500
 @@ -0,0 +1,324 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33025,7 +33264,7 @@ diff -urN linux-orig/fs/gfs/util.c linux-patched/fs/gfs/util.c
 +
 diff -urN linux-orig/fs/gfs/util.h linux-patched/fs/gfs/util.h
 --- linux-orig/fs/gfs/util.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/util.h	2004-10-05 11:13:50.947121974 -0500
++++ linux-patched/fs/gfs/util.h	2004-10-08 16:57:38.565868409 -0500
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33185,8 +33424,8 @@ diff -urN linux-orig/fs/gfs/util.h linux-patched/fs/gfs/util.h
 +#endif /* __UTIL_DOT_H__ */
 diff -urN linux-orig/include/linux/gfs_ioctl.h linux-patched/include/linux/gfs_ioctl.h
 --- linux-orig/include/linux/gfs_ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gfs_ioctl.h	2004-10-05 11:13:50.928126381 -0500
-@@ -0,0 +1,182 @@
++++ linux-patched/include/linux/gfs_ioctl.h	2004-10-08 16:57:38.319925779 -0500
+@@ -0,0 +1,185 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -33318,17 +33557,20 @@ diff -urN linux-orig/include/linux/gfs_ioctl.h linux-patched/include/linux/gfs_i
 +	unsigned int gt_incore_log_blocks;
 +	unsigned int gt_jindex_refresh_secs;
 +	unsigned int gt_depend_secs;
-+	unsigned int gt_scand_secs;
-+	unsigned int gt_recoverd_secs;
-+	unsigned int gt_logd_secs;
-+	unsigned int gt_quotad_secs;
-+	unsigned int gt_inoded_secs;
-+	unsigned int gt_quota_simul_sync;
-+	unsigned int gt_quota_warn_period;
++
++	/* how often various daemons run (seconds) */
++	unsigned int gt_scand_secs;       /* find unused glocks and inodes */
++	unsigned int gt_recoverd_secs;    /* recover journal of crashed node */
++	unsigned int gt_logd_secs;        /* update log tail as AIL flushes */
++	unsigned int gt_quotad_secs;      /* sync changes to quota file, clean */
++	unsigned int gt_inoded_secs;      /* toss unused inodes */
++
++	unsigned int gt_quota_simul_sync; /* max # quotavals to sync at once */
++	unsigned int gt_quota_warn_period; /* secs between quota warn msgs */
 +	unsigned int gt_atime_quantum;
-+	unsigned int gt_quota_quantum;
-+	unsigned int gt_quota_scale_num;
-+	unsigned int gt_quota_scale_den;
++	unsigned int gt_quota_quantum;    /* secs between syncs to quota file */
++	unsigned int gt_quota_scale_num;  /* numerator */
++	unsigned int gt_quota_scale_den;  /* denominator */
 +	unsigned int gt_quota_enforce;
 +	unsigned int gt_quota_account;
 +	unsigned int gt_new_files_jdata;
@@ -33371,7 +33613,7 @@ diff -urN linux-orig/include/linux/gfs_ioctl.h linux-patched/include/linux/gfs_i
 +#endif /* ___GFS_IOCTL_DOT_H__ */
 diff -urN linux-orig/include/linux/gfs_ondisk.h linux-patched/include/linux/gfs_ondisk.h
 --- linux-orig/include/linux/gfs_ondisk.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gfs_ondisk.h	2004-10-05 11:13:50.928126381 -0500
++++ linux-patched/include/linux/gfs_ondisk.h	2004-10-08 16:57:38.324924613 -0500
 @@ -0,0 +1,1792 @@
 +/******************************************************************************
 +*******************************************************************************

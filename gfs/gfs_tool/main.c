@@ -150,11 +150,11 @@ static void print_flags(struct gfs_dinode *di)
       printf("  ea_indirect\n");
     if (di->di_flags & GFS_DIF_DIRECTIO)
       printf("  directio\n");
-#if 0
     if (di->di_flags & GFS_DIF_IMMUTABLE)
       printf("  immutable\n");
     if (di->di_flags & GFS_DIF_APPENDONLY)
       printf("  appendonly\n");
+#if 0
     if (di->di_flags & GFS_DIF_NOATIME)
       printf("  noatime\n");
     if (di->di_flags & GFS_DIF_SYNC)
@@ -889,11 +889,11 @@ static void set_flag(int argc, char *argv[])
     flag = GFS_DIF_EA_INDIRECT;
   else if (strcmp(argv[2], "directio") == 0)
     flag = GFS_DIF_DIRECTIO;
-#if 0
   else if (strcmp(argv[2], "immutable") == 0)
     flag = GFS_DIF_IMMUTABLE;
   else if (strcmp(argv[2], "appendonly") == 0)
     flag = GFS_DIF_APPENDONLY;
+#if 0
   else if (strcmp(argv[2], "noatime") == 0)
     flag = GFS_DIF_NOATIME;
   else if (strcmp(argv[2], "sync") == 0)

@@ -1340,6 +1340,11 @@ gfs_ea_set_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 		return error;
 
 	if (el.el_ea) {
+		if (IS_APPEND(ip->i_vnode)) {
+			brelse(el.el_bh);
+			return -EPERM;
+		}
+
 		error = -EEXIST;
 		if (!(er->er_flags & XATTR_CREATE)) {
 			int unstuffed = !GFS_EA_IS_STUFFED(el.el_ea);
@@ -1347,6 +1352,7 @@ gfs_ea_set_i(struct gfs_inode *ip, struct gfs_ea_request *er)
 			if (!error && unstuffed)
 				ea_set_remove_unstuffed(ip, &el);
 		}
+
 		brelse(el.el_bh);
 	} else {
 		error = -ENODATA;
@@ -1386,7 +1392,10 @@ gfs_ea_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 	if (error)
 		return error;
 
-	error = gfs_ea_ops[er->er_type]->eo_set(ip, er);
+	if (IS_IMMUTABLE(ip->i_vnode))
+		error = -EPERM;
+	else
+		error = gfs_ea_ops[er->er_type]->eo_set(ip, er);
 
 	gfs_glock_dq_uninit(&i_gh);
 
@@ -1498,7 +1507,10 @@ gfs_ea_remove(struct gfs_inode *ip, struct gfs_ea_request *er)
 	if (error)
 		return error;
 
-	error = gfs_ea_ops[er->er_type]->eo_remove(ip, er);
+	if (IS_IMMUTABLE(ip->i_vnode) || IS_APPEND(ip->i_vnode))
+		error = -EPERM;
+	else
+		error = gfs_ea_ops[er->er_type]->eo_remove(ip, er);
 
 	gfs_glock_dq_uninit(&i_gh);
 
