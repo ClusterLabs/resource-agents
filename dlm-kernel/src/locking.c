@@ -431,12 +431,12 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 	struct dlm_rsb *rsb, *parent_rsb = NULL;
 	struct dlm_lkb *parent_lkb = lkb->lkb_parent;
 	uint32_t nodeid;
-	int error;
+	int error, dir_error = 0;
 
 	if (parent_lkb)
 		parent_rsb = parent_lkb->lkb_resource;
 
-	error = find_or_create_rsb(ls, parent_rsb, name, namelen, 1, &rsb);
+	error = find_rsb(ls, parent_rsb, name, namelen, CREATE, &rsb);
 	if (error)
 		return error;
 	lkb->lkb_resource = rsb;
@@ -449,6 +449,7 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 	 * we get on with the real locking work ?
 	 */
 
+ retry:
 	if (rsb->res_nodeid == -1) {
 		if (get_directory_nodeid(rsb) != our_nodeid()) {
 			remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
@@ -460,8 +461,11 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 				       rsb->res_length, &nodeid);
 		if (error) {
 			DLM_ASSERT(error == -EEXIST,);
-			log_all(ls, "dir entry exists %x", lkb->lkb_id);
-			/* print_rsb(rsb); */
+			log_all(ls, "dir entry exists %x %s", lkb->lkb_id,
+				rsb->res_name);
+			msleep(500);
+			dir_error = error;
+			goto retry;
 		}
 
 		if (nodeid == our_nodeid()) {
@@ -470,6 +474,11 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 		} else {
 			clear_bit(RESFL_MASTER, &rsb->res_flags);
 			rsb->res_nodeid = nodeid;
+		}
+
+		if (dir_error) {
+			log_all(ls, "dir lookup retry %x %u", lkb->lkb_id,
+				nodeid);
 		}
 	}
 
@@ -565,18 +574,14 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
 
-	error = find_or_create_rsb(ls, parent_rsb, freq->rr_name, namelen, 0,
-				   &rsb);
+	error = find_rsb(ls, parent_rsb, freq->rr_name, namelen, MASTER, &rsb);
 	if (error)
 		goto fail_free;
 
-	if (!rsb || rsb->res_nodeid != 0) {
-		log_debug(ls, "send einval to %u r %d", remote_nodeid,
-			  (rsb ? rsb->res_nodeid : 0));
+	if (!rsb) {
+		log_debug(ls, "send einval to %u", remote_nodeid);
 		/* print_name(freq->rr_name, namelen); */
 		lkb->lkb_retstatus = -EINVAL;
-		if (rsb)
-			release_rsb(rsb);
 		goto out;
 	}
 	
@@ -1274,7 +1279,7 @@ static void dump_queue(struct list_head *head)
 
 static void dump_rsb(struct dlm_rsb *rsb)
 {
-	printk("name \"%s\" flags %lx nodeid %u ref %u\n",
+	printk("name \"%s\" flags %lx nodeid %d ref %u\n",
 	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
 	       atomic_read(&rsb->res_ref));
 

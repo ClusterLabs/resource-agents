@@ -333,8 +333,8 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	start_name = inbuf;
 
 	if (start_namelen > 1) {
-		error = find_or_create_rsb(ls, NULL, start_name,
-				           start_namelen, 0, &start_rsb);
+		error = find_rsb(ls, NULL, start_name, start_namelen, 0,
+				 &start_rsb);
 		DLM_ASSERT(!error && start_rsb, printk("error %d\n", error););
 		release_rsb(start_rsb);
 	}

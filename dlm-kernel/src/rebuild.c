@@ -1126,7 +1126,7 @@ static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
 	 * removed by release_rsb() after all lkb's are added.
 	 */
 
-	error = find_or_create_rsb(ls, parent, name, length, 1, &rsb);
+	error = find_rsb(ls, parent, name, length, CREATE, &rsb);
 	DLM_ASSERT(!error,);
 
 	set_bit(RESFL_MASTER, &rsb->res_flags);

@@ -14,12 +14,15 @@
 #ifndef __RSB_DOT_H__
 #define __RSB_DOT_H__
 
+#define CREATE 1
+#define MASTER 2
+
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode);
 void release_rsb(struct dlm_rsb *r);
 void release_rsb_locked(struct dlm_rsb *r);
 void hold_rsb(struct dlm_rsb *r);
-int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
-		       int namelen, int create, struct dlm_rsb **rp);
+int find_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
+	     int namelen, int flags, struct dlm_rsb **rp);
 struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb);
 void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
 void res_lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);

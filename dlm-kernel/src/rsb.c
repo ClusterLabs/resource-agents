@@ -18,6 +18,7 @@
 #include "nodes.h"
 #include "dir.h"
 #include "util.h"
+#include "rsb.h"
 
 static struct dlm_rsb *search_hashchain(struct list_head *head,
 					struct dlm_rsb *parent,
@@ -28,7 +29,6 @@ static struct dlm_rsb *search_hashchain(struct list_head *head,
 	list_for_each_entry(r, head, res_hashchain) {
 		if ((parent == r->res_parent) && (namelen == r->res_length) &&
 		    (memcmp(name, r->res_name, namelen) == 0)) {
-			atomic_inc(&r->res_ref);
 			return r;
 		}
 	}
@@ -110,12 +110,6 @@ void release_rsb_locked(struct dlm_rsb *r)
 struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 {
 	struct dlm_rsb *r = lkb->lkb_resource;
-
-	write_lock(&ls->ls_rsbtbl[r->res_bucket].lock);
-	if (!r->res_parent && atomic_read(&r->res_ref) == 1)
-		r->res_nodeid = -1;   
-	write_unlock(&ls->ls_rsbtbl[r->res_bucket].lock);
-
 	return r;
 }
 
@@ -125,30 +119,36 @@ struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb)
  * doesn't exist, it's created with a ref count of one.
  */
 
-int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
-		       int namelen, int create, struct dlm_rsb **rp)
+int find_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name, int len,
+	     int flags, struct dlm_rsb **rp)
 {
 	uint32_t bucket;
 	struct dlm_rsb *r, *tmp;
 	int error = -ENOMEM;
 
-	DLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
+	DLM_ASSERT(len <= DLM_RESNAME_MAXLEN,);
 
-	bucket = dlm_hash(name, namelen);
+	bucket = dlm_hash(name, len);
 	bucket &= (ls->ls_rsbtbl_size - 1);
 
 	read_lock(&ls->ls_rsbtbl[bucket].lock);
-	r = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
+	r = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, len);
+	if (r) {
+		if (r->res_nodeid != 0 && (flags & MASTER))
+			r = NULL;
+		else
+			atomic_inc(&r->res_ref);
+	}
 	read_unlock(&ls->ls_rsbtbl[bucket].lock);
 
 	if (r)
 		goto out_set;
-	if (!create) {
+	if (!(flags & CREATE)) {
 		*rp = NULL;
 		goto out;
 	}
 
-	r = allocate_rsb(ls, namelen);
+	r = allocate_rsb(ls, len);
 	if (!r)
 		goto fail;
 
@@ -157,8 +157,8 @@ int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
 	INIT_LIST_HEAD(&r->res_convertqueue);
 	INIT_LIST_HEAD(&r->res_waitqueue);
 
-	memcpy(r->res_name, name, namelen);
-	r->res_length = namelen;
+	memcpy(r->res_name, name, len);
+	r->res_length = len;
 	r->res_ls = ls;
 	init_rwsem(&r->res_lock);
 	atomic_set(&r->res_ref, 1);
@@ -177,8 +177,9 @@ int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
 	}
 
 	write_lock(&ls->ls_rsbtbl[bucket].lock);
-	tmp = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
+	tmp = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, len);
 	if (tmp) {
+		atomic_inc(&tmp->res_ref);
 		write_unlock(&ls->ls_rsbtbl[bucket].lock);
 		free_rsb(r);
 		r = tmp;

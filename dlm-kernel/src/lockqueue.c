@@ -39,8 +39,6 @@
 #include "queries.h"
 #include "util.h"
 
-#include <linux/delay.h>
-
 static void add_reply_lvb(struct dlm_lkb * lkb, struct dlm_reply *reply);
 static void add_request_lvb(struct dlm_lkb * lkb, struct dlm_request *req);
 
@@ -320,29 +318,21 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 
 		if (reply->rl_status) {
 			DLM_ASSERT(reply->rl_status == -EEXIST,);
-			log_all(ls, "dir entry exists %x fr %d", lkb->lkb_id,
-				nodeid);
-			/* print_rsb(rsb); */
+			log_all(ls, "dir entry exists %x fr %d r %d %s",
+				lkb->lkb_id, nodeid, rsb->res_nodeid,
+				rsb->res_name);
 
-			if (rsb->res_nodeid != -1)
+			if (rsb->res_nodeid == -1) {
+				msleep(500);
+				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
+				break;
+			} else
 				goto stage2;
-
-			/* could the lookup bypass a dir remove? requiring:
-			 * remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB); */
 		}
 
 		if (reply->rl_nodeid == our_nodeid()) {
-			if (rsb->res_nodeid == -1) {
-				set_bit(RESFL_MASTER, &rsb->res_flags);
-				rsb->res_nodeid = 0;
-			} else {
-				DLM_ASSERT(rsb->res_nodeid == 0,
-					   print_lkb(lkb);
-					   print_rsb(rsb);
-					   print_reply(reply););
-				log_all(ls, "lookup reply ignore %x %u \"%s\"",
-					lkb->lkb_id, nodeid, rsb->res_name);
-			}
+			set_bit(RESFL_MASTER, &rsb->res_flags);
+			rsb->res_nodeid = 0;
 		} else {
 			DLM_ASSERT(rsb->res_nodeid == -1 ||
 				   rsb->res_nodeid == reply->rl_nodeid,
@@ -366,51 +356,78 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 	case GDLM_LQSTATE_WAIT_CONDGRANT:
 
 		/*
+		 * the destination wasn't the master
+		 * this implies the request was a CONDGRANT
+		 */
+
+		if (reply->rl_status == -EINVAL) {
+			int master_nodeid;
+
+			DLM_ASSERT(state == GDLM_LQSTATE_WAIT_CONDGRANT, );
+
+			log_debug(ls, "req reply einval %x fr %d r %d %s",
+				  lkb->lkb_id, nodeid, rsb->res_nodeid, rsb->res_name);
+
+			lkb_dequeue(lkb);
+
+			if (rsb->res_nodeid == lkb->lkb_nodeid || rsb->res_nodeid == -1){
+				/*
+				 * We need to re-lookup the master and resend our
+				 * request to it.
+				 */
+
+				lkb->lkb_nodeid = -1;
+				rsb->res_nodeid = -1;
+
+				if (get_directory_nodeid(rsb) != our_nodeid())
+					remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
+				else {
+			    		int error = dlm_dir_lookup(ls, our_nodeid(),
+							   	   rsb->res_name,
+							   	   rsb->res_length,
+							   	   &master_nodeid);
+					if (error == -EEXIST) {
+						/* don't expect this will happen */
+						log_all(ls, "EEXIST %x", lkb->lkb_id);
+						print_lkb(lkb);
+						print_rsb(rsb);
+					}
+
+			    		if (master_nodeid == our_nodeid()) {
+						set_bit(RESFL_MASTER, &rsb->res_flags);
+						master_nodeid = 0;
+			        	} else
+						clear_bit(RESFL_MASTER,&rsb->res_flags);
+
+					rsb->res_nodeid = master_nodeid;
+					lkb->lkb_nodeid = master_nodeid;
+
+					dlm_lock_stage2(ls, lkb, rsb,
+							lkb->lkb_lockqueue_flags);
+				}
+			} else {
+				/*
+				 * Another request on this rsb has since found
+				 * the master, we'll use that one although it too
+				 * may be invalid requiring us to retry again.
+				 */
+
+				lkb->lkb_nodeid = rsb->res_nodeid;
+				dlm_lock_stage2(ls, lkb, rsb,
+						lkb->lkb_lockqueue_flags);
+			}
+
+			break;
+		}
+
+
+		/*
 		 * After a remote lock/conversion/grant request we put the lock
 		 * on the right queue and send an AST if appropriate.  Any lock
 		 * shuffling (eg newly granted locks because this one was
 		 * converted downwards) will be dealt with in seperate messages
 		 * (which may be in the same network message)
 		 */
-
-		/* the destination wasn't the master */
-		if (reply->rl_status == -EINVAL) {
-			int master_nodeid;
-
-			log_debug(ls, "rq rep %x fr %u einval",
-				  lkb->lkb_id, nodeid);
-
-			schedule();
-			lkb_dequeue(lkb);
-			rsb->res_nodeid = -1;
-			lkb->lkb_nodeid = -1;
-
-			if (get_directory_nodeid(rsb) != our_nodeid())
-				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
-			else {
-			    	int error = dlm_dir_lookup(ls, our_nodeid(),
-							   rsb->res_name,
-							   rsb->res_length,
-							   &master_nodeid);
-				if (error == -EEXIST) {
-					/* don't expect this will happen */
-					log_all(ls, "EEXIST %x", lkb->lkb_id);
-					print_rsb(rsb);
-				}
-
-			    	if (master_nodeid == our_nodeid()) {
-					set_bit(RESFL_MASTER, &rsb->res_flags);
-					master_nodeid = 0;
-			        } else
-					clear_bit(RESFL_MASTER,&rsb->res_flags);
-
-				rsb->res_nodeid = master_nodeid;
-				lkb->lkb_nodeid = master_nodeid;
-				dlm_lock_stage2(ls, lkb, rsb,
-						lkb->lkb_lockqueue_flags);
-			}
-			break;
-		}
 
 		if (!lkb->lkb_remid)
 			lkb->lkb_remid = reply->rl_lkid;

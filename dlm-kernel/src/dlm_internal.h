@@ -30,6 +30,7 @@
 #include <linux/list.h>
 #include <linux/errno.h>
 #include <linux/random.h>
+#include <linux/delay.h>
 
 #include <cluster/dlm.h>
 #include <cluster/dlm_device.h>

@@ -120,7 +120,7 @@ void print_lkb(struct dlm_lkb *lkb)
 	       "status %x\n"
 	       "rqmode %d\n"
 	       "grmode %d\n"
-	       "nodeid %u\n"
+	       "nodeid %d\n"
 	       "lqstate %x\n"
 	       "lqflags %x\n",
 		lkb->lkb_id,

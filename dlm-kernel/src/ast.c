@@ -179,10 +179,12 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 
 static void process_asts(void)
 {
+	struct dlm_ls *ls;
+	struct dlm_rsb *rsb;
+	struct dlm_lkb *lkb;
 	void (*cast) (long param);
 	void (*bast) (long param, int mode);
 	long astparam;
-	struct dlm_lkb *lkb;
 	uint16_t flags;
 
 	for (;;) {
@@ -201,11 +203,10 @@ static void process_asts(void)
 		cast = lkb->lkb_astaddr;
 		bast = lkb->lkb_bastaddr;
 		astparam = lkb->lkb_astparam;
+		rsb = lkb->lkb_resource;
+		ls = rsb->res_ls;
 
 		if (flags & AST_COMP) {
-			struct dlm_rsb *rsb = lkb->lkb_resource;
-			struct dlm_ls *ls = rsb->res_ls;
-
 			if (flags & AST_DEL) {
 				DLM_ASSERT(lkb->lkb_astflags == 0,);
 
@@ -222,7 +223,7 @@ static void process_asts(void)
 				cast(astparam);
 		}
 
-		if (flags & AST_BAST) {
+		if (flags & AST_BAST && !(flags & AST_DEL)) {
 			if (bast && lkb->lkb_status == GDLM_LKSTS_GRANTED)
 				bast(astparam, (int) lkb->lkb_bastmode);
 		}
