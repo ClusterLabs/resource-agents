@@ -22,6 +22,20 @@ GULM_QUORUM_TIMEOUT=300
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
+
+# GULM_OPTS -- commandline areguments for lock_gulmd.  If this parameter 
+#     is not set, the it defaults to "-n $CLUSTER_NAME --use_ccs" if
+#     CLUSTER_NAME is defined, otherwise it just defaults to "--use_ccs"
+if [ -z "$GULM_OPTS" ]
+then
+	if [ -n "$CLUSTER_NAME" ]
+	then
+		GULM_OPTS="$GULM_OPTS -n $CLUSTER_NAME"
+	fi
+
+	GULM_OPTS="$GULM_OPTS --use_ccs"
+fi
+
 gulm_shutdown()
 {
 	rtrn=1
@@ -40,6 +54,27 @@ gulm_shutdown()
 	return $rtrn
 }
 
+# get the servers list and stuff them into $nodes_list
+get_servers_list()
+{
+	servers_list=$( gulm_tool config localhost 2>/dev/null | 
+		grep "servernames" | sed "s/^.*= //;s/,/ /g" )
+}
+
+# get the nodelist names that have logged into the cluster
+# and stuff them into $nodes_list
+get_nodes_list()
+{
+	nodes_list=$( gulm_tool nodelist localhost | 
+		grep Name | sed "s/^.*Name: //" )
+}
+
+# find the master server and store the value in $gulm_master
+# return:
+#  0 - success
+#  1 - no master found
+#  2 - gulm_tool error
+#  3 - we can not log in because we are expired
 find_master()
 {
 	gulm_master=""
@@ -48,12 +83,13 @@ find_master()
 			($1 == "I_am"){xit=0}
 			($0 ~ /^(I_am = Master|Master =)/) {print}
 			END{exit xit}')
-	[ $? -ne 0 ] && return 1
+	[ $? -ne 0 ] && return 2 # gulm_tool error
 
 	case $line in
 		I_am\ =\ Master)
 			gulm_master=$(hostname)
 			;;
+
 		Master\ =*)
 			server=${line#*= }
 
@@ -63,26 +99,50 @@ find_master()
 				gulm_master=$server
 			fi
 			;;
-		*) ;;
+
+		*)	# This might mean we are in the expired state
+			[ -z "$servers_list" ] && get_servers_list
+
+			for server in $servers_list
+			do
+				if gulm_tool nodeinfo $server $(uname -n) 2>/dev/null |
+					grep -iq "^ *state = expired"
+				then
+					return 3 # fence error
+				fi
+			done
+			;;
 	esac
 
-	[ -n "$gulm_master" ] 
+	if [ -n "$gulm_master" ] 
+	then
+		return 0 # master found
+	else
+		return 1 # master not found
+	fi
 }
 
 wait_for_master()
 {
 	i=0
+	rtrn=0
 	stoptime=$(($SECONDS + $GULM_QUORUM_TIMEOUT))
 	while [ $GULM_QUORUM_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
 	do
-		find_master && break
+		find_master 
+		rtrn=$?
+		case $rtrn in
+		0) break ;; # master was found
+		1) ;;       # master was not found
+		2) break ;; # gulm_tool error
+		3) break ;; # we are expired
+		esac
 
 		sleep 5
 		i=$(($i+1))
 	done
 
-	[ -n "$gulm_master" -o $GULM_QUORUM_TIMEOUT -lt 0 ]
-	return $?
+	return $rtrn
 }
 
 
@@ -92,16 +152,16 @@ start()
 	sts=1
 	echo -n "Starting lock_gulmd:"
 
-	# If lock_gulmd is already running, set GULM_QUORUM_TIMEOUT to -1 to
-	# make sure that it doesn't get stopped if there is no quorUm
-	if gulm_tool getstats localhost &>/dev/null
+	if gulm_tool getstats localhost &>/dev/null 
 	then
-		GULM_QUORUM_TIMEOUT=-1		
+		success
+		echo
+		return 0
 	fi
 
 	# start lock_gulmd and wait for the ltpx process to fork and connect
 	# before continuing
-	if lock_gulmd --use_ccs &> /dev/null
+	if lock_gulmd $GULM_OPTS &> /dev/null
 	then
 		for i in $(seq 1 10)
 		do
@@ -118,9 +178,17 @@ start()
 	# achieved in a set period of time, then 
 	if [ $sts -eq 0 ]
 	then
-		if wait_for_master
+		wait_for_master
+		rtrn=$?
+		if [ $rtrn = 0 ]
 		then
 			success
+		elif [ $rtrn = 3 ]
+		then
+			echo -n " waiting to be fenced "
+			gulm_shutdown
+			failure
+			sts=1
 		else
 			echo -n " failed to login to master "
 			gulm_shutdown
@@ -128,6 +196,8 @@ start()
 			sts=1
 		fi
 	else
+		echo -n " failed to start ltpx "
+		gulm_shutdown
 		failure
 	fi
 	echo
@@ -159,9 +229,66 @@ stop()
 		service_list=0
 	else
 		echo "unable to comminucate to lock_gulmd"
+		return 1
 	fi
 
 	echo -n "Stopping lock_gulmd:"
+
+	rank=$( gulm_tool getstats localhost | grep rank | sed "s/^ *rank = //")
+
+	if [ $rank -ge 0 ]
+	then
+		# we are in the servers list
+		myname=$(uname -n)
+		get_servers_list
+		warn_msg=" waiting for clients to logout "
+	fi
+
+	while [ $rank -ge 0 -a $force -ne 0 ]
+	do
+		get_nodes_list
+		logged_in=0
+
+		# check to see if there are servers logged in.  If there are, 
+		# then it is OK to shut down
+		for server in $servers_list
+		do
+			# remove servers from the nodelist
+			nodes_list=$( echo "$nodes_list" | grep -v $server )
+
+			[ $myname = $server ] && continue
+				
+			if gulm_tool nodeinfo localhost $server | 
+				grep -qi "^ *state = Logged in"
+			then
+				logged_in=1	
+				break
+			fi
+			
+		done
+		[ $logged_in -eq 1 ] && break
+
+
+		# check to see if there are any clients logged in.  If there
+		# are, there are no other servers running, so we had better
+		# not shutdown just yet.  
+		for client in $nodes_list
+		do
+			if gulm_tool nodeinfo localhost $client | 
+				grep -qi "^ *state = Logged in"
+			then
+				logged_in=0
+				break
+			fi
+		done
+		[ $logged_in -eq 0 ] && break
+
+		[ -n "$warn_msg" ] && echo -n "$warn_msg"
+		warn_msg=""
+
+		sleep 1
+	done
+
 	if [ $service_list -eq 0 ] && gulm_shutdown
 	then
 		success
