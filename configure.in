@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.158 $) dnl cvs revision
+AC_REVISION($Revision: 1.159 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -650,8 +650,8 @@ AC_ARG_ENABLE([traditional-warnings],
                           [default=no]])
 
 AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent compile the snmp-subagent.
-                          This is still in early developement stage. If you want to try,
+[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
+                          developement stage. If you want to try this code,
                           make sure you have NET-SNMP 5.0.6 or later installed.
                           [default=no]], 
 	[ SNMP_SUBAGENT_DIR="snmp_subagent" ], 
@@ -760,7 +760,7 @@ dnl
 AC_ARG_WITH(
   group-name,
     [  --with-group-name=GROUP_NAME
-                         GROUP_NAME to own API fifos. [default=haclient]  ],
+                          GROUP_NAME to own API fifos. [default=haclient]  ],
     [ HA_APIGROUP="$withval" ],
     [ HA_APIGROUP="haclient" ],
   )
@@ -784,7 +784,8 @@ fi
 
 AC_ARG_WITH(
   group-id,
-    [  --with-group-id=GROUP_ID  GROUP_ID to own API fifos. [default=60]  ],
+    [  --with-group-id=GROUP_ID  
+                          GROUP_ID to own API fifos. [default=60]  ],
     [ HA_APIGID="$withval" ],
     [ HA_APIGID=65 ],
   )
@@ -798,7 +799,7 @@ AC_SUBST(HA_APIGID)
 AC_ARG_WITH(
   ccmuser-name,
     [  --with-ccmuser-name=HA_CCMUSER_NAME
-                         HA_CCMUSER_NAME to own API fifos. [default=hacluster]  ],
+                          HA_CCMUSER_NAME to own API fifos. [default=hacluster]  ],
     [ HA_CCMUSER="$withval" ],
     [ HA_CCMUSER="hacluster" ],
   )
@@ -806,7 +807,8 @@ AC_SUBST(HA_CCMUSER)
 
 AC_ARG_WITH(
   ccmuser-id,
-    [  --with-ccmuser-id=HA_HA_CCMUSER_ID  USER_ID to own CCM fifos. [default=17]  ],
+    [  --with-ccmuser-id=HA_HA_CCMUSER_ID  
+                          USER_ID to own CCM fifos. [default=17]  ],
     [ HA_CCMUID="$withval" ],
     [ HA_CCMUID=17 ],
   )
@@ -821,7 +823,8 @@ AC_SUBST(HA_CCMUID)
 #
 AC_ARG_WITH(
   start-init-priority,
-    [  --with-start-init-priority=number  Init start priority. [default=75]  ],
+    [  --with-start-init-priority=number  
+                          Init start priority. [default=75]  ],
     [ HB_INITSTARTPRI="$withval" ],
     [ HB_INITSTARTPRI=75 ],
   )
@@ -832,7 +835,8 @@ AC_SUBST(HB_INITSTARTPRI)
 #
 AC_ARG_WITH(
   stop-init-priority,
-    [  --with-stop-init-priority=number  Init stop priority. [default=5]  ],
+    [  --with-stop-init-priority=number  
+                          Init stop priority. [default=5]  ],
     [ HB_INITSTOPPRI="$withval" ],
     [ HB_INITSTOPPRI=05 ],
   )
@@ -843,7 +847,8 @@ AC_SUBST(HB_INITSTOPPRI)
 #
 AC_ARG_WITH(
   ucd-snmp-devel,
-    [  --with-snmp-name=name             Name of ucd snmp developemnt RPM. [default=ucd-snmp-devel]  ],
+    [  --with-snmp-name=name   Name of ucd snmp developemnt RPM. 
+                          [default=ucd-snmp-devel]  ],
     [ UCDSNMPDEVEL=$withval ],
     [ UCDSNMPDEVEL=ucd-snmp-devel ],
   )
