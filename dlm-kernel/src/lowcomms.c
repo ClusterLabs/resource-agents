@@ -950,7 +950,7 @@ int lowcomms_close(int nodeid)
 		goto out;
 
 	log_print("closing connection to node %d", nodeid);
-	con = nodeid2con(nodeid, 0);
+	con = connections[nodeid];
 	if (con) {
 		close_connection(con, TRUE);
 		clean_one_writequeue(con);
