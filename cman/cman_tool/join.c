@@ -15,6 +15,9 @@
 #include "cnxman-socket.h"
 #include "cman_tool.h"
 
+/* Size of buffer for gethostbyname2_r */
+#define HE_BUFSIZE 512
+
 static int cluster_sock;
 
 /* Lookup the IPv4 broadcast address for a given local address */
@@ -51,12 +54,16 @@ static uint32_t lookup_bcast(uint32_t localaddr)
 
 static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent *he)
 {
+    struct hostent realbhe;
     struct hostent *bhe = NULL;
     struct sockaddr_in mcast_sin;
     struct sockaddr_in local_sin;
     struct cl_passed_sock sock_info;
+    char he_buffer[HE_BUFSIZE]; /* scratch area for gethostbyname2_r */
     int mcast_sock;
     int local_sock;
+    int ret;
+    int he_errno;
     uint32_t bcast;
 
     memset(&mcast_sin, 0, sizeof(mcast_sin));
@@ -85,7 +92,9 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     }
     else {
 	uint32_t addr;
-	bhe = gethostbyname2(comline->multicast_names[num], AF_INET);
+	ret = gethostbyname2_r(comline->multicast_names[num], AF_INET,
+			       &realbhe, he_buffer, sizeof(he_buffer), &bhe,
+			       &he_errno);
 	if (!bhe)
 	    die("Can't resolve multicast address %s\n", comline->multicast_names[num]);
 
@@ -118,13 +127,21 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 	die("Cannot bind multicast address: %s", strerror(errno));
 
     /* Join the multicast group */
-    if (!bcast) {
+    if (bhe) {
 	struct ip_mreq mreq;
+	char mcast_opt;
 
 	memcpy(&mreq.imr_multiaddr, bhe->h_addr, bhe->h_length);
 	memcpy(&mreq.imr_interface, he->h_addr, he->h_length);
 	if (setsockopt(mcast_sock, SOL_IP, IP_ADD_MEMBERSHIP, (void *)&mreq, sizeof(mreq)))
 	    die("Unable to join multicast group %s: %s\n", comline->multicast_names[num], strerror(errno));
+
+	mcast_opt = 10;
+	if (setsockopt(mcast_sock, SOL_IP, IP_MULTICAST_TTL, (void *)&mcast_opt, sizeof(mcast_opt)))
+	    die("Unable to set ttl for multicast group %s: %s\n", comline->multicast_names[num], strerror(errno));
+
+	mcast_opt = 0;
+	setsockopt(mcast_sock, SOL_IP, IP_MULTICAST_LOOP, (void *)&mcast_opt, sizeof(mcast_opt));
     }
 
     /* Local socket */
@@ -155,10 +172,14 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 
 static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent *he)
 {
-    struct hostent *bhe;
+    struct hostent realbhe;
+    struct hostent *bhe = NULL;
     struct sockaddr_in6 mcast_sin;
     struct sockaddr_in6 local_sin;
     struct ipv6_mreq mreq;
+    char he_buffer[HE_BUFSIZE]; /* scratch area for gethostbyname2_r */
+    int ret;
+    int he_errno;
     int mcast_sock;
     int local_sock;
     struct cl_passed_sock sock_info;
@@ -176,7 +197,12 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (!comline->multicast_names[num])
 	die("No multicast address for IPv6 node %s\n", comline->nodenames[num]);
 
-    bhe = gethostbyname2(comline->multicast_names[num], AF_INET6);
+    ret = gethostbyname2_r(comline->multicast_names[num], AF_INET,
+			   &realbhe, he_buffer, sizeof(he_buffer), &bhe,
+			   &he_errno);
+
+    if (!bhe)
+	die("Can't resolve multicast address %s\n", comline->multicast_names[num]);
 
     mcast_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
     if (mcast_sock < 0)
@@ -227,16 +253,24 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
 
 static int setup_interface(commandline_t *comline, int num)
 {
+    struct hostent realhe;
     struct hostent *he;
     static int last_af = 0;
+    char he_buffer[HE_BUFSIZE]; /* scratch area for gethostbyname2_r */
+    int ret;
+    int he_errno;
     int af;
 
     /* Lookup the nodename address */
     af = AF_INET6;
-    he = gethostbyname2(comline->nodenames[num], af);
+    ret = gethostbyname2_r(comline->nodenames[num], af,
+			   &realhe, he_buffer, sizeof(he_buffer), &he,
+			   &he_errno);
     if (!he) {
 	af = AF_INET;
-	he = gethostbyname2(comline->nodenames[num], af);
+	ret = gethostbyname2_r(comline->nodenames[num], af,
+			       &realhe, he_buffer, sizeof(he_buffer), &he,
+			       &he_errno);
     }
     if (!he)
 	die("can't resolve node name %s\n", comline->nodenames[num]);
