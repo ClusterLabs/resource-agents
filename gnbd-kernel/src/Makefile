@@ -43,7 +43,7 @@ install: all
 
 uninstall:
 	${UNINSTALL} gnbd.ko ${module_dir}/drivers/block/gnbd
-	${UNINSTALL} gnbd.h ${incdir}/linux/gnbd.h
+	${UNINSTALL} gnbd.h ${incdir}/linux
 
 clean:
 	rm -rf linux *.mod.c .gnbd.ko.cmd \
