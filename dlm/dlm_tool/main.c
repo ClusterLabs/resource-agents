@@ -256,12 +256,24 @@ static void print_usage(void)
 	printf("\n");
 	printf("set_local  <nodeid> <ipaddr> [<weight>]\n");
 	printf("set_node   <nodeid> <ipaddr> [<weight>]\n");
+	printf("\n");
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
 	printf("start      <ls_name> <event_nr> <nodeid>...\n");
 	printf("finish     <ls_name> <event_nr>\n");
 	printf("poll_done  <ls_name> <event_nr>\n");
 	printf("set_id     <ls_name> <id>\n");
+	printf("\n");
+	printf("create     <ls_name>\n");
+	printf("release    <ls_name>\n");
+	printf("lock       <ls_name> <resname> <mode> [<flag>,...]\n");
+	printf("unlock     <ls_name> <resname> <lkid> [<flag>,...]\n");
+	printf("convert    <ls_name> <resname> <lkid> <mode> [<flag>,...]\n");
+	printf("\n");
+	printf("modes      NL,CR,CW,PR,PW,EX\n");
+	printf("flags      NOQUEUE,CANCEL,QUECVT,CONVDEADLK,PERSISTENT,\n"
+	       "           EXPEDITE,NOQUEUEBAST,HEADQUE,NOORDER\n");
+	printf("           modes and flags are case insensitive\n");
 }
 
 static void print_version(void)
@@ -346,6 +358,16 @@ int main(int argc, char **argv)
 		set_id(argc, argv);
 	else if (strcmp(action, "poll_done") == 0)
 		poll_done(argc, argv);
+	else if (strcmp(action, "create") == 0)
+		ls_create(argc, argv);
+	else if (strcmp(action, "release") == 0)
+		ls_release(argc, argv);
+	else if (strcmp(action, "lock") == 0)
+		ls_lock(argc, argv);
+	else if (strcmp(action, "unlock") == 0)
+		ls_unlock(argc, argv);
+	else if (strcmp(action, "convert") == 0)
+		ls_convert(argc, argv);
 	else
 		die("unknown action: %s", action);
 

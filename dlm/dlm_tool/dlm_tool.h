@@ -61,4 +61,10 @@ do \
 } \
 while (0)
 
+int ls_create(int argc, char **argv);
+int ls_release(int argc, char **argv);
+int ls_lock(int argc, char **argv);
+int ls_unlock(int argc, char **argv);
+int ls_convert(int argc, char **argv);
+
 #endif  /*  __DLM_TOOL_DOT_H__  */
