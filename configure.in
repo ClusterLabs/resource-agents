@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.276 $) dnl cvs revision
+AC_REVISION($Revision: 1.277 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -263,10 +263,10 @@ if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
 	AC_MSG_RESULT(using ex2fs uuid)
 elif test "$ac_cv_lib_uuid_uuid_create" = yes; then
 	AC_MSG_RESULT(using ossp uuid functionality)
+elif test "$enable_crm" = yes -o "$enable_lrm" = yes; then
+	AC_MSG_ERROR("No UUID functuionality found. Needed for CRM/LRM");
 else
-	AC_MSG_RESULT("No UUID functuionality found. Needed for CRM/LRM");
-	enable_lrm="no";
-	enable_crm="no";
+	AC_MSG_WARN("No UUID functuionality found. Needed for CRM/LRM");
 fi
 
 AC_SUBST(LIBNETDEFINES)
@@ -1474,7 +1474,6 @@ if test "${enable_crm}" = "yes"; then
 		enable_crm="no (libxml2 not found)"
 	fi
 else 
-     AC_MSG_RESULT(no);
      if test -z "${enable_crm}"; then
 		enable_crm="no"
      fi
