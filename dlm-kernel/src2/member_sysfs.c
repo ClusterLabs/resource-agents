@@ -309,11 +309,16 @@ void dlm_member_sysfs_exit(void)
 
 int dlm_kobject_setup(struct dlm_ls *ls)
 {
+	char lsname[DLM_LOCKSPACE_LEN];
 	int error;
 
-	error = kobject_set_name(&ls->ls_kobj, ls->ls_name);
+	memset(lsname, 0, DLM_LOCKSPACE_LEN);
+	snprintf(lsname, DLM_LOCKSPACE_LEN, "%s", ls->ls_name);
+
+	error = kobject_set_name(&ls->ls_kobj, "%s", lsname);
 	if (error)
 		return error;
+
 	ls->ls_kobj.kset = &dlm_kset;
 	ls->ls_kobj.ktype = &dlm_ktype;
 	return 0;

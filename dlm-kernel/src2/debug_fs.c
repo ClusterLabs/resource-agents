@@ -24,7 +24,7 @@ enum {
 static DECLARE_MUTEX(dlm_fs_mutex);
 static struct dentry *dlm_root;
 static struct super_block *dlm_sb;
-static LIST_HEAD(dlm_ls_list);
+static LIST_HEAD(dlm_debug_list);
 
 struct rsb_iter {
 	int entry;
@@ -95,8 +95,8 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 
 static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 {
+	struct dlm_lkb *lkb;
 	int i;
-	struct list_head *locklist;
 
 	seq_printf(s, "\nResource %p (parent %p). Name (len=%d) \"", res,
 		   res->res_parent, res->res_length);
@@ -128,25 +128,16 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 
 	/* Print the locks attached to this resource */
 	seq_printf(s, "Granted Queue\n");
-	list_for_each(locklist, &res->res_grantqueue) {
-		struct dlm_lkb *this_lkb =
-		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
-		print_lock(s, this_lkb, res);
-	}
+	list_for_each_entry(lkb, &res->res_grantqueue, lkb_statequeue)
+		print_lock(s, lkb, res);
 
 	seq_printf(s, "Conversion Queue\n");
-	list_for_each(locklist, &res->res_convertqueue) {
-		struct dlm_lkb *this_lkb =
-		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
-		print_lock(s, this_lkb, res);
-	}
+	list_for_each_entry(lkb, &res->res_convertqueue, lkb_statequeue)
+		print_lock(s, lkb, res);
 
 	seq_printf(s, "Waiting Queue\n");
-	list_for_each(locklist, &res->res_waitqueue) {
-		struct dlm_lkb *this_lkb =
-		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
-		print_lock(s, this_lkb, res);
-	}
+	list_for_each_entry(lkb, &res->res_waitqueue, lkb_statequeue)
+		print_lock(s, lkb, res);
 
 	return 0;
 }
@@ -335,7 +326,7 @@ static int __dlm_create_debug_file(struct dlm_ls *ls)
 int dlm_create_debug_file(struct dlm_ls *ls)
 {
 	down(&dlm_fs_mutex);
-	list_add_tail(&ls->ls_debug_list, &dlm_ls_list);
+	list_add_tail(&ls->ls_debug_list, &dlm_debug_list);
 	if (!dlm_sb) {
 		up(&dlm_fs_mutex);
 		return 0;
@@ -379,7 +370,7 @@ static int dlm_fill_super(struct super_block *sb, void *data, int silent)
 
 	dlm_sb = sb;
 
-	list_for_each_entry(ls, &dlm_ls_list, ls_list) {
+	list_for_each_entry(ls, &dlm_debug_list, ls_debug_list) {
 		ret = __dlm_create_debug_file(ls);
 		if (ret)
 			break;
