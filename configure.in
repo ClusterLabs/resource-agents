@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.54 $) dnl cvs revision
+AC_REVISION($Revision: 1.55 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -13,6 +13,24 @@ AC_CANONICAL_HOST
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h)
 AM_INIT_AUTOMAKE(heartbeat, 0.4.9a)
+
+case $exec_prefix in
+  NONE|""|*'${'*)	exec_prefix=$prefix;;
+esac
+case $sbindir in
+  NONE|""|*'${'*)	sbindir=$exec_prefix/sbin;;
+esac
+case $libdir in
+  NONE|""|*'${'*)	libdir=$exec_prefix/lib;;
+esac
+case $mandir in
+  NONE|""|*'${'*)	mandir=$prefix/man;;
+esac
+case $includedir in
+  NONE|""|*'${'*)	includedir=$prefix/include;;
+esac
+
+AC_SUBST(ac_configure_args)
 
 dnl *************************************************************************
 dnl checks for programs
