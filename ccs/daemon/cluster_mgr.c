@@ -369,6 +369,8 @@ int start_cluster_monitor_thread(void){
     log_err("Failed to create thread: %s\n", strerror(-error));
     goto fail;
   }
+  pthread_detach(thread);
+
 
  fail:
   EXIT("start_cluster_monitor_thread");

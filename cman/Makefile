@@ -18,6 +18,7 @@ copytobin:
 	cd cman_tool && ${MAKE} copytobin
 
 clean:
+	cd bin && ${MAKE} clean
 	cd cman_tool && ${MAKE} clean
 
 distclean: clean

@@ -30,6 +30,7 @@ copytobin:
 	cd gfs_tool && ${MAKE} copytobin
 
 clean:
+	cd bin && ${MAKE} clean
 	cd gfs_edit && ${MAKE} clean
 	cd gfs_fsck && ${MAKE} clean
 	cd gfs_grow && ${MAKE} clean

@@ -21,6 +21,7 @@ copytobin:
 	cd ccs_test && ${MAKE} copytobin
 
 clean:
+	cd bin && ${MAKE} clean
 	cd daemon && ${MAKE} clean
 	cd lib && ${MAKE} clean
 	cd ccs_test && ${MAKE} clean

@@ -20,6 +20,7 @@ copytobin:
 
 clean:
 	cd agents && ${MAKE} clean
+	cd bin && ${MAKE} clean
 	cd fence_node && ${MAKE} clean
 	cd fence_tool && ${MAKE} clean
 	cd fenced && ${MAKE} clean

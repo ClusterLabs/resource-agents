@@ -166,7 +166,9 @@ int main(int argc, char *argv[]){
     tmp_set = rset;
 
     if((select(FD_SETSIZE, &tmp_set, NULL,NULL,NULL) < 0)){
-      log_sys_err("Select failed");
+      if(errno != EINTR){
+	log_sys_err("Select failed");
+      }
       continue;
     }
     
