@@ -161,7 +161,6 @@ EXTERN char *prog_name;
 
 /*  device_geometry.c  */
 
-void pool_geometry(commandline_t *comline, mkfs_device_t *device);
 void device_geometry(commandline_t *comline, mkfs_device_t *device);
 void add_journals_to_device(commandline_t *comline, mkfs_device_t *device);
 void fix_device_geometry(commandline_t *comline, mkfs_device_t *device);

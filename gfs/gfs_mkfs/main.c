@@ -356,13 +356,8 @@ int main(int argc, char *argv[])
 
   memset(&device, 0, sizeof(mkfs_device_t));
 
-  if (comline.ask_pool)
-    pool_geometry(&comline, &device);
-  else
-  {
-    device_geometry(&comline, &device);
-    add_journals_to_device(&comline, &device);
-  }
+  device_geometry(&comline, &device);
+  add_journals_to_device(&comline, &device);
 
   fix_device_geometry(&comline, &device);
 

@@ -28,111 +28,11 @@
 #include <linux/gfs_ondisk.h>
 #include "osi_list.h"
 #include "iddev.h"
-#if 0
-#include "pool_sptypes.h"
-#include "pool.h"
-#endif
 
 #include "mkfs_gfs.h"
 
 
 
-
-
-/**
- * pool_geometry - determine the geometry of a Pool
- * @comline: the command line
- * @device: the structure the geometry is returned in
- *
- */
-
-void pool_geometry(commandline_t *comline, mkfs_device_t *device)
-{
-#if 1
-  die("fixme!\n");
-#else
-  pool_splist_t splist;
-  int fd;
-  unsigned int x, data_subpools = 0;
-      
-      
-  /*  Open pool device  */
-      
-  fd = open(comline->device, O_RDONLY);
-  if (fd < 0)
-    die("Error opening \"%s\": %s\n", comline->device, strerror(errno));
-      
-      
-  /*  Get subpool information  */
-      
-  for (x = 128; x < 65536; x += 128) 
-  {
-    splist.spl_count = x;
-    type_zalloc(splist.spl_list, pool_spstatus_t, x);
-      
-    if (ioctl(fd, POOL_SPLIST, &splist))
-      die("can't talk to pool: %s\n", strerror(errno));
-          
-    if (splist.spl_count < x)
-      break;
-          
-    free(splist.spl_list);
-  }
-        
-  if (x >= 65536)
-    die("unable to get pool subpool list: too many subpools.\n");
-      
-  assert(splist.spl_count > 0);
-        
-      
-  close(fd);
-      
-      
-  if (comline->journals || comline->jsize != MKFS_DEFAULT_JSIZE)
-    fprintf(stderr, "Warning:  ignoring -j and -J command line options!\n");
-      
-  comline->journals = 0;
-      
-      
-  device->nsubdev = splist.spl_count;
-  type_zalloc(device->subdev, mkfs_subdevice_t, device->nsubdev);
-
-  for (x = 0; x < splist.spl_count; x++)
-  {
-    device->subdev[x].start = splist.spl_list[x].sps_start;
-    device->subdev[x].length = splist.spl_list[x].sps_len;
-
-    if ((device->subdev[x].start + device->subdev[x].length) > (((uint64)1) << 32))
-      die("subpool %u extends beyond the 2TB boundary\n", x);
-
-    switch (splist.spl_list[x].sps_type)
-    {
-    case SPTYPE_GFS_DATA:
-      data_subpools++;
-      break;
-    case SPTYPE_GFS_JOURNAL:
-      device->subdev[x].is_journal = TRUE;
-      comline->journals++;
-      break;
-    default:
-      die("subpool %u is of unknown type (%u)\n", x, splist.spl_list[x].sps_type);
-      break;
-    };
-  }
-
-  free(splist.spl_list);
-      
-
-  if (!comline->journals)
-    die("No journals\n");
-      
-  if (!data_subpools)
-    die("No data subpools\n");
-
-  if (device->subdev[0].is_journal)
-    die("First subpool must be a data subpool\n");
-#endif
-}
 
 
 /**
@@ -158,14 +58,6 @@ void device_geometry(commandline_t *comline, mkfs_device_t *device)
     die("can't determine size of %s: %s\n", comline->device, strerror(errno));
 
   close(fd);
-
-
-  if (bytes > (((uint64)2) << 40))
-  {
-    if (!comline->quiet)
-      printf("gfs_mkfs: warning: only using the first 2TB of this device\n");
-    bytes = (((uint64)2) << 40);
-  }
 
 
   if (comline->debug)
