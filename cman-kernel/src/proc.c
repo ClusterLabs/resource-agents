@@ -193,9 +193,7 @@ static void *cluster_seq_start(struct seq_file *m, loff_t * pos)
 
 	/* Print the header */
 	if (*pos == 0) {
-		seq_printf(m,
-			   "Node  Votes Exp Sts  Name\n");
-		return csi;
+		seq_printf(m, "Node  Votes Exp Sts  Name\n");
 	}
 	return csi;
 }
@@ -236,9 +234,6 @@ static int cluster_seq_show(struct seq_file *m, void *p)
 		break;
 	case NODESTATE_JOINING:
 		state = 'J';
-		break;
-	case NODESTATE_REMOTEMEMBER:
-		state = 'R';
 		break;
 	case NODESTATE_DEAD:
 		state = 'X';

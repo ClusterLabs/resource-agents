@@ -382,8 +382,8 @@ static int membership_kthread(void *unused)
 			joinwait_time = jiffies;
 		}
 
-		/* Have we been in joinwait for too long... */
-		if (node_state == JOINWAIT
+		/* Have we been in joinwait/joining for too long... */
+		if ((node_state == JOINWAIT || node_state == JOINING)
 		    && time_after(jiffies, joinwait_time +
 				   cman_config.join_timeout * HZ)) {
 			printk(CMAN_NAME
@@ -1088,8 +1088,7 @@ static int check_duplicate_node(char *name, struct msghdr *msg, int len)
 	node = find_node_by_name(name);
 	if (node && node->state != NODESTATE_DEAD) {
 
-		if ((node->state == NODESTATE_JOINING ||
-		     node->state == NODESTATE_REMOTEMEMBER))
+		if (node->state == NODESTATE_JOINING)
 			return +1;
 
 		printk(KERN_WARNING CMAN_NAME
@@ -1104,8 +1103,7 @@ static int check_duplicate_node(char *name, struct msghdr *msg, int len)
 	    (node = find_node_by_addr(addr, addrlen)) &&
 	    node->state != NODESTATE_DEAD) {
 
-		if ((node->state == NODESTATE_JOINING ||
-		     node->state == NODESTATE_REMOTEMEMBER))
+		if (node->state == NODESTATE_JOINING)
 			return +1;
 
 		printk(KERN_WARNING CMAN_NAME
@@ -2640,7 +2638,8 @@ static int do_process_hello(struct msghdr *msg, int len)
 
 	/* We are starting up. Send a join message to the node whose HELLO we
 	 * just received */
-	if (node_state == STARTING || node_state == JOINWAIT || node_state == NEWCLUSTER) {
+	if (node_state == STARTING || node_state == JOINWAIT ||
+	    node_state == JOINING  || node_state == NEWCLUSTER) {
 		struct sockaddr_cl *addr = msg->msg_name;
 
 		printk(KERN_INFO CMAN_NAME ": sending membership request\n");

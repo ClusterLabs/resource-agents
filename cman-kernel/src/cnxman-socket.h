@@ -107,7 +107,7 @@
 #define MSG_ALLINT    0x100000	/* Send out of all interfaces */
 #define MSG_REPLYEXP  0x200000	/* Reply is expected */
 
-typedef enum { NODESTATE_REMOTEMEMBER, NODESTATE_JOINING, NODESTATE_MEMBER,
+typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
 	       NODESTATE_DEAD } nodestate_t;
 
 
