@@ -71,6 +71,22 @@
 #define SCNX64 "LX"
 #endif
 
+struct dlm_ls;
+struct dlm_lkb;
+struct dlm_rsb;
+struct dlm_node;
+struct dlm_member;
+struct dlm_lkbtable;
+struct dlm_rsbtable;
+struct dlm_dirtable;
+struct dlm_direntry;
+struct dlm_recover;
+struct dlm_header;
+struct dlm_request;
+struct dlm_reply;
+struct dlm_rcom;
+struct dlm_query_request;
+struct dlm_query_reply;
 
 #define log_print(fmt, args...) printk("dlm: "fmt"\n", ##args)
 #define log_error(ls, fmt, args...) printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args)
@@ -78,16 +94,22 @@
 #define DLM_DEBUG
 #if defined(DLM_DEBUG)
 #define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
+int dlm_create_debug_file(struct dlm_ls *ls);
+void dlm_delete_debug_file(struct dlm_ls *ls);
 #else
 #define log_debug(ls, fmt, args...)
+static inline int dlm_create_debug_file(struct dlm_ls *ls) { return 0; }
+static inline void dlm_delete_debug_file(struct dlm_ls *ls) { return 0; }
 #endif
 
+#define DLM_DEBUG1
 #if defined(DLM_DEBUG1)
 #define log_debug1(ls, fmt, args...) log_error(ls, fmt, ##args)
 #else
 #define log_debug1(ls, fmt, args...)
 #endif
 
+#define DLM_DEBUG2
 #if defined(DLM_DEBUG2)
 #define log_debug2(fmt, args...) log_print(fmt, ##args)
 #else
@@ -108,24 +130,6 @@
     panic("DLM:  Record message above and reboot.\n"); \
   } \
 }
-
-
-struct dlm_ls;
-struct dlm_lkb;
-struct dlm_rsb;
-struct dlm_node;
-struct dlm_member;
-struct dlm_lkbtable;
-struct dlm_rsbtable;
-struct dlm_dirtable;
-struct dlm_direntry;
-struct dlm_recover;
-struct dlm_header;
-struct dlm_request;
-struct dlm_reply;
-struct dlm_rcom;
-struct dlm_query_request;
-struct dlm_query_reply;
 
 
 struct dlm_direntry {
@@ -249,6 +253,9 @@ struct dlm_ls {
 	struct rw_semaphore	ls_unlock_sem;	/* To prevent unlock on a
 						   parent lock racing with a
 						   new child lock */
+
+	struct dentry *		ls_debug_dentry; /* debugfs */
+	struct list_head	ls_debug_list;   /* debugfs */
 
 	/* recovery related */
 

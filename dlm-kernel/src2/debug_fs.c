@@ -335,14 +335,11 @@ static int __dlm_create_debug_file(struct dlm_ls *ls)
 int dlm_create_debug_file(struct dlm_ls *ls)
 {
 	down(&dlm_fs_mutex);
-
 	list_add_tail(&ls->ls_debug_list, &dlm_ls_list);
-
 	if (!dlm_sb) {
 		up(&dlm_fs_mutex);
 		return 0;
 	}
-
 	up(&dlm_fs_mutex);
 
 	return __dlm_create_debug_file(ls);

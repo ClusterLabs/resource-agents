@@ -32,6 +32,8 @@
 
 int  dlm_device_init(void);
 void dlm_device_exit(void);
+void dlm_register_debugfs(void);
+void dlm_unregister_debugfs(void);
 
 int __init init_dlm(void)
 {
@@ -40,6 +42,7 @@ int __init init_dlm(void)
 	dlm_memory_init();
 	dlm_config_init();
 	dlm_member_init();
+	dlm_register_debugfs();
 
 	printk("DLM %s (built %s %s) installed\n",
 	       DLM_RELEASE_NAME, __DATE__, __TIME__);
@@ -54,6 +57,7 @@ void __exit exit_dlm(void)
 	dlm_memory_exit();
 	dlm_config_exit();
 	dlm_lockspace_exit();
+	dlm_unregister_debugfs();
 }
 
 MODULE_DESCRIPTION("Distributed Lock Manager " DLM_RELEASE_NAME);

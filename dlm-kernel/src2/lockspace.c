@@ -313,6 +313,8 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	list_add(&ls->ls_list, &lslist);
 	spin_unlock(&lslist_lock);
 
+	dlm_create_debug_file(ls);
+
 	error = dlm_kobject_setup(ls);
 	if (error)
 		goto out_del;
@@ -345,6 +347,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
  out_unreg:
 	kobject_unregister(&ls->ls_kobj);
  out_del:
+	dlm_delete_debug_file(ls);
 	spin_lock(&lslist_lock);
 	list_del(&ls->ls_list);
 	spin_unlock(&lslist_lock);
@@ -434,6 +437,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	dlm_recoverd_stop(ls);
 
 	remove_lockspace(ls);
+
+	dlm_delete_debug_file(ls);
 
 	/*
 	 * Free direntry structs.
