@@ -167,8 +167,8 @@ There is a practical timing issue with respect to the shutdown steps being run
 on all nodes when shutting down an entire cluster (or most of it).  When
 shutting down the entire cluster (or shutting down a node for an extended
 period) use "cman_tool leave remove".  This automatically reduces the number
-of expected votes as each node leaves and prevents the loss of quorum which
-could keep the last nodes from cleanly completing shutdown.
+of votes needed for quorum as each node leaves and prevents the loss of quorum
+which could keep the last nodes from cleanly completing shutdown.
 
 Using the "remove" leave option should not be used in general since it
 introduces potential split-brain risks.
@@ -184,8 +184,7 @@ If this happens, one option is to join the cluster ("cman_tool join") on some
 of the nodes that have left so that the cluster regains quorum and the stuck
 nodes can complete their shutdown.  Another option is to forcibly reduce the
 number of expected votes for the cluster which allows the cluster to become
-quorate again ("cman_tool expected <votes>").  This later method is the
-equivalent to using the "remove" option when leaving.
+quorate again ("cman_tool expected <votes>").
 
 
 Cluster information
