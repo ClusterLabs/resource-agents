@@ -52,7 +52,8 @@ the lockspace argument. All userland locks sit in the same lockspace by default.
 
 libdlm can be used in pthread or non-pthread applications. For pthread
 applications simply call the following function before doing any lock
-operations.
+operations. If you're using pthreads, remember to define _REENTRANT at the
+top of the program or using -D_REENTRANT on the compile line.
 
 int dlm_pthread_init()
 
@@ -98,12 +99,12 @@ int dlm_lock(int mode,
 	      
 
 mode		lock mode:
-                LKM_LOCK_NL 	NULL Lock
-		LKM_LOCK_CR    	Concurrent read
-		LKM_LOCK_CW    	Concurrent write
-		LKM_LOCK_PR    	Protected read
-		LKM_LOCK_PW    	Protected write
-		LKM_LOCK_EX    	Exclusive
+                LKM_NLMODE 	NULL Lock
+		LKM_CRMODE    	Concurrent read
+		LKM_CWMODE    	Concurrent write
+		LKM_PRMODE    	Protected read
+		LKM_PWMODE    	Protected write
+		LKM_EXMODE    	Exclusive
 
 flags		LKF_NOQUEUE	Don't queue the lock. If it cannot be
 				granted return -EAGAIN
@@ -172,12 +173,12 @@ int dlm_lock_wait(int mode,
 	      
 
 mode		lock mode:
-                LKM_LOCK_NL 	NULL Lock
-		LKM_LOCK_CR    	Concurrent read
-		LKM_LOCK_CW    	Concurrent write
-		LKM_LOCK_PR    	Protected read
-		LKM_LOCK_PW    	Protected write
-		LKM_LOCK_EX    	Exclusive
+                LKM_NLMODE 	NULL Lock
+		LKM_CRMODE    	Concurrent read
+		LKM_CWMODE    	Concurrent write
+		LKM_PRMODE    	Protected read
+		LKM_PWMODE    	Protected write
+		LKM_EXMODE    	Exclusive
 
 flags		LKF_NOQUEUE	Don't queue the lock. If it cannot be
 				granted return -EAGAIN
