@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.355 $) dnl cvs revision
+AC_REVISION($Revision: 1.356 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -982,10 +982,10 @@ dnl - If requested, enable ALL subsystems.
 	if test "${enable_all}" = "yes" ; then
 	  echo "Enabling all optional features."
 	  enable_ansi=yes;
-	  enable_checkpointd=yes;
-	  enable_cms=yes;
+	  #enable_checkpointd=yes;
+	  #enable_cms=yes;
 	  enable_crm=yes;
-	  enable_eventd=yes;
+	  #enable_eventd=yes;
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
 	  enable_snmp_subagent=yes;
