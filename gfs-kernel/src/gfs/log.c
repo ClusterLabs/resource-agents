@@ -592,9 +592,9 @@ check_seg_usage(struct gfs_sbd *sdp, struct gfs_trans *tr)
 			break;
 
 		case 1:
-			if (head_off < dump_off)
+			if (head_off < dump_off - sdp->sd_sb.sb_seg_size)
 				break;
-			else if (head_off == dump_off &&
+			else if (head_off <= dump_off &&
 				 (tr->tr_flags & TRF_LOG_DUMP))
 				break;
 
