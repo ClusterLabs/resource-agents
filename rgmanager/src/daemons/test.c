@@ -26,10 +26,37 @@
 #define USAGE_DELTA \
 	"\tdelta <configfile1> <configfile2>\n\n"
 
+#define USAGE_RULES \
+	"\trules\n\n"
+
 
 void malloc_dump_table(void);
 
 char *agentpath = RESOURCE_ROOTDIR;
+
+
+int
+rules_func(int argc, char **argv)
+{
+	resource_rule_t *rulelist = NULL, *currule;
+	int rules = 0;
+
+	fprintf(stderr,"Running in rules mode.\n");
+
+	load_resource_rules(agentpath, &rulelist);
+	list_do(&rulelist, currule) {
+		++rules;
+	} while (!list_done(&rulelist, currule));
+	fprintf(stderr, "Loaded %d resource rules\n",
+		rules);
+	list_do(&rulelist, currule) {
+		print_resource_rule(currule);
+	} while (!list_done(&rulelist, currule));
+
+	destroy_resource_rules(&rulelist);
+
+	return 0;
+}
 
 
 int
@@ -226,6 +253,7 @@ usage(char *arg0)
 	printf("usage: %s [agent_path] <args..>\n\n", arg0);
 	printf(USAGE_TEST);
 	printf(USAGE_DELTA);
+	printf(USAGE_RULES);
 
 	exit(1);
 }
@@ -248,6 +276,10 @@ main(int argc, char **argv)
 		if (!strcmp(argv[1], "test")) {
 			shift();
 			ret = test_func(argc, argv);
+			goto out;
+		} else if (!strcmp(argv[1], "rules")) {
+			shift();
+			ret = rules_func(argc, argv);
 			goto out;
 		} else if (!strcmp(argv[1], "delta")) {
 			shift();
