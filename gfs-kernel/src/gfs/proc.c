@@ -23,6 +23,7 @@
 #include <asm/uaccess.h>
 
 #include "gfs.h"
+#include "lm.h"
 #include "proc.h"
 #include "super.h"
 
@@ -253,6 +254,46 @@ do_margs(char *p)
 }
 
 /**
+ * do_withdraw - withdraw a from the cluster for one filesystem
+ * @p: the cookie of the filesystem
+ *
+ * Returns: errno
+ */
+
+static int
+do_withdraw(char *p)
+{
+	struct list_head *tmp;
+	struct gfs_sbd *sdp;
+	char num[21];
+	int error = 0;
+
+	p = find_argument(p + 8);
+	if (!p)
+		return -ENOENT;
+
+	down(&gfs_fs_lock);
+
+	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
+		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
+		sprintf(num, "%lu", (unsigned long)sdp);
+		if (strcmp(num, p) == 0)
+			break;
+	}
+
+	if (tmp == &gfs_fs_list)
+		error = -ENOENT;
+	else 
+		gfs_lm_withdraw(sdp,
+				"GFS: fsid=%s: withdrawing from cluster at user's request\n",
+				sdp->sd_fsname);
+
+	up(&gfs_fs_lock);
+
+	return error;
+}
+
+/**
  * gfs_proc_write - take a command from userspace
  * @file:
  * @buf:
@@ -332,6 +373,8 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 		error = do_unfreeze(p);
 	else if (strncmp(p, "margs", 5) == 0)
 		error = do_margs(p);
+	else if (strncmp(p, "withdraw", 8) == 0)
+		error = do_withdraw(p);
 	else
 		error = -ENOSYS;
 

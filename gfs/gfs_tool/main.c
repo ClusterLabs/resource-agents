@@ -73,6 +73,9 @@ const char *usage[] =
   "Unfreeze a GFS cluster:\n",
   "  gfs_tool unfreeze <mountpoint>\n",
   "\n",
+  "Withdraw this machine from participating in a filesystem:\n",
+  "  gfs_tool withdraw <mountpoint>\n",
+  "\n",
   "List filesystems:\n",
   "  gfs_tool list\n",
   "\n",
@@ -778,6 +781,43 @@ unfreeze_cluster(int argc, char **argv)
 
 
 /**
+ * withdraw - freeze a GFS filesystem
+ * @argc:
+ * @argv:
+ *
+ */
+
+static void
+withdraw(int argc, char **argv)
+{
+	char *cookie;
+	int fd;
+	char buf[256];
+	int x;
+
+	if (argc != 3)
+		die("Usage: gfs_tool withdraw <mountpoint>\n");
+
+	cookie = mp2cookie(argv[2], FALSE);
+	x = sprintf(buf, "withdraw %s\n", cookie);
+
+	fd = open("/proc/fs/gfs", O_RDWR);
+	if (fd < 0)
+		die("can't open /proc/fs/gfs: %s\n",
+		    strerror(errno));
+
+	if (write(fd, buf, x) != x)
+		die("can't write withdraw command: %s\n",
+		    strerror(errno));
+	if (read(fd, buf, 256))
+		die("can't withdraw %s: %s\n",
+		    argv[2], strerror(errno));
+
+	close(fd);
+}
+
+
+/**
  * print_list -
  *
  */
@@ -1237,6 +1277,10 @@ int main(int argc,char *argv[])
   else if (strcmp(argv[1], "unfreeze") == 0)
   {
     unfreeze_cluster(argc, argv);
+  }
+  else if (strcmp(argv[1], "withdraw") == 0)
+  {
+    withdraw(argc, argv);
   }
   else if (strcmp(argv[1], "list") == 0)
   {
