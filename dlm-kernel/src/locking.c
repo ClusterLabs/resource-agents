@@ -750,13 +750,6 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 	old_status = lkb_dequeue(lkb);
 
 	/*
-	 * If was granted grant any converting or waiting locks.
-	 */
-
-	if (old_status == GDLM_LKSTS_GRANTED)
-		grant_pending_locks(rsb);
-
-	/*
 	 * Cancelling a conversion
 	 */
 
@@ -782,36 +775,36 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 	}
 
 	/*
-	 * The lvb can be saved or cleared on unlock.
+	 * If was granted grant any converting or waiting locks
+	 * and save or clear lvb
 	 */
 
-	if (rsb->res_lvbptr && (lkb->lkb_grmode >= DLM_LOCK_PW)) {
-		if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr)
-			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-		if (flags & DLM_LKF_IVVALBLK)
-			memset(rsb->res_lvbptr, 0, DLM_LVB_LEN);
+	if (old_status == GDLM_LKSTS_GRANTED) {
+		if (rsb->res_lvbptr && (lkb->lkb_grmode >= DLM_LOCK_PW)) {
+			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr)
+				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
+				       DLM_LVB_LEN);
+			if (flags & DLM_LKF_IVVALBLK)
+				memset(rsb->res_lvbptr, 0, DLM_LVB_LEN);
+		}
+
+		grant_pending_locks(rsb);
 	}
 
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
 
-	if (!remote)
+	if (!remote) {
 		queue_ast(lkb, AST_COMP | AST_DEL, 0);
-
-	/*
-	 * Only free the LKB if we are the master copy.  Otherwise the AST
-	 * delivery routine will free it after delivery.
-	 */
-
-	if (remote) {
+	} else {
 		up_write(&rsb->res_lock);
 		release_lkb(rsb->res_ls, lkb);
 		release_rsb(rsb);
 		goto out2;
 	}
 
-      out:
+ out:
 	up_write(&rsb->res_lock);
-      out2:
+ out2:
 	wake_astd();
 	return 0;
 }
