@@ -892,6 +892,10 @@ static int send_to_sock(struct connection *con)
 			if (ret <= 0)
 				goto send_error;
 		}
+		else {
+			/* Don't starve people filling buffers */
+			schedule();
+		}
 
 		spin_lock(&con->writequeue_lock);
 		e->offset += ret;
