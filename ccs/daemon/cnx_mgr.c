@@ -151,7 +151,7 @@ static int _update_config(int do_remote, char *location){
   log_dbg("There are %d references open on version %d of the config file.\n",
 	  master_doc->od_refs, v1);
 
-  log_msg_always("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
+  log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
   if(!master_doc->od_refs){
     log_dbg("Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);

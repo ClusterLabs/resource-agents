@@ -12,11 +12,6 @@
 #include <syslog.h>
 
 int log_is_open = 0;
-int log_is_verbose = 0;
-
-void log_set_verbose(void){
-  log_is_verbose = 1;
-}
 
 void log_open(const char *ident, int option, int facility){
   openlog(ident, option, facility);

@@ -49,7 +49,7 @@ sub update {
     my $desc;
     my $set=0;
     my $prev_version;
-    my $new_version;
+    my $new_version=0;
 
     `rm -f /etc/cluster/cluster.conf-rej`;
 
@@ -118,9 +118,10 @@ sub update {
 	$output = "";
 	$output = `sh -c "ccs_test get $desc. //\@config_version"`;
 	if($output =~ /Value = <(\d+)>/){
-	    if($1 > $prev_version){
+	    $new_version = $1;
+	    if($new_version > $prev_version){
 		`sh -c "ccs_test disconnect $desc"`;
-		print "Update from version $prev_version to version $1 complete.\n";
+		print "Update from version $prev_version to version $new_version complete.\n";
 		last TOP;
 	    }
 	} else {
@@ -129,5 +130,16 @@ sub update {
 
 	`sh -c "ccs_test disconnect $desc"`;
     }	
+
+    update_programs($new_version);
 }
 
+
+sub update_programs {
+    my $new_version = $_[0];
+
+    if(system("ps -C lock_gulmd > /dev/null")){
+	# don't need to update gulm... It reads info as necessary
+    }
+
+    

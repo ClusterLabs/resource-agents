@@ -35,7 +35,6 @@ int parent_exit_code=-1;
 
 static unsigned int flags=0;
 #define FLAG_NODAEMON	1
-#define FLAG_VERBOSE	2
 
 static char *parse_cli_args(int argc, char *argv[]);
 static int check_cluster_conf(void);
@@ -239,7 +238,6 @@ static void print_usage(FILE *stream){
 	  " -t <ttl>      Multicast threshold (aka Time to Live) value.\n"
 	  " -P [bcf]:#    Specify various port numbers.\n"
 	  " -V            Print version information.\n"
-	  " -v            Verbose.\n"
 	  );
   EXIT("print_usage");
 }
@@ -298,7 +296,7 @@ static char *parse_cli_args(int argc, char *argv[]){
 
   memset(buff, 0, buff_size);
 
-  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sVv")) != -1){
+  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sV")) != -1){
     switch(c){
     case '4':
       if(IPv6 == 1){
@@ -437,11 +435,6 @@ static char *parse_cli_args(int argc, char *argv[]){
       printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME, __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);
-    case 'v':
-      flags |= FLAG_VERBOSE;
-      buff_index += snprintf(buff+buff_index, buff_size-buff_index,
-			     "  Verbose Flag:: SET\n");
-      break;
     default:
       print_usage(stderr);
       error = -EINVAL;
@@ -656,9 +649,6 @@ static void daemonize(void){
     signal(SIGQUIT, &sig_handler);
     signal(SIGTERM, &sig_handler);
     signal(SIGSEGV, &sig_handler);
-    if(flags & FLAG_VERBOSE){
-      log_set_verbose();
-    }
   } else {
     log_dbg("Entering daemon mode.\n");
 
@@ -690,9 +680,6 @@ static void daemonize(void){
     open("/dev/null", O_WRONLY); /* reopen stderr */
 
     log_open("ccsd", LOG_PID, LOG_DAEMON);
-    if(flags & FLAG_VERBOSE){
-      log_set_verbose();
-    }
 
     if((error = create_lockfile(lockfile_location))){
       kill(getppid(), SIGUSR1);
@@ -721,7 +708,7 @@ static void daemonize(void){
  */
 static void print_start_msg(char *msg){
   /* We want the start message to print every time */
-  log_msg_always("Starting ccsd %s:\n", CCS_RELEASE_NAME);
+  log_msg("Starting ccsd %s:\n", CCS_RELEASE_NAME);
   log_msg(" Built: "__DATE__" "__TIME__"\n");
   log_msg(" %s\n", REDHAT_COPYRIGHT);
   if(msg){

@@ -15,9 +15,7 @@
 #include <syslog.h>
 
 extern int log_is_open;
-extern int log_is_verbose;
 
-void log_set_verbose(void);
 void log_open(const char *ident, int option, int facility);
 void log_close(void);
 
@@ -37,7 +35,6 @@ void log_close(void);
 #define log_dbg(fmt, args...)
 #endif
 
-#ifdef DEBUG
 #define log_msg(fmt, args...)  {\
     if(log_is_open){ \
       syslog(LOG_NOTICE, fmt, ## args); \
@@ -45,37 +42,6 @@ void log_close(void);
       fprintf(stdout, fmt , ## args ); \
     } \
 }
-#else
-#define log_msg(fmt, args...)  {\
-    if(log_is_verbose){ \
-      if(log_is_open){ \
-        syslog(LOG_NOTICE, fmt, ## args); \
-      }else { \
-        fprintf(stdout, fmt , ## args ); \
-      } \
-    } \
-}
-#endif
-
-#ifdef DEBUG
-#define log_msg_always(fmt, args...){ \
-    if(log_is_open){ \
-      syslog(LOG_NOTICE, "[%s:%d] " fmt , __FILE__ , __LINE__ , ## args ); \
-    }else { \
-      fprintf(stdout, "[%s:%d] ", __FILE__ , __LINE__); \
-      fprintf(stdout, fmt, ## args ); \
-    } \
-}
-#else
-#define log_msg_always(fmt, args...){ \
-    if(log_is_open){ \
-      syslog(LOG_NOTICE, fmt, ## args ); \
-    }else { \
-      fprintf(stdout, fmt, ## args ); \
-    } \
-}
-#endif
-
 
 #ifdef DEBUG
 #define log_err(fmt, args...){ \
