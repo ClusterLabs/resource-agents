@@ -131,47 +131,54 @@ gfs_hash_more(const void *data, unsigned int len, uint32_t hash)
 	return h;
 }
 
+/* Byte-wise swap two items of size SIZE. */
+
+#define SWAP(a, b, size) \
+do { \
+	register size_t __size = (size); \
+        register char *__a = (a), *__b = (b); \
+        do { \
+		char __tmp = *__a; \
+		*__a++ = *__b; \
+		*__b++ = __tmp; \
+	} while (__size-- > 1); \
+} while (0)
+
 /**
- * gfs_sort - Sort base array using bubble sort algorithm
- * @array: the input array
- * @num: number of elements in array
+ * gfs_sort - Sort base array using shell sort algorithm
+ * @base: the input array
+ * @num_elem: number of elements in array
  * @size: size of each element in array
- * @compare: fxn to compare array elements (returns negative for lt, 0 for eq, and positive for gt)
+ * @compar: fxn to compare array elements (returns negative
+ *          for lt, 0 for eq, and positive for gt
  *
  * Sorts the array passed in using the compar fxn to compare elements using
- * the bubble sort algorithm
+ * the shell sort algorithm
  */
 
 void
-gfs_sort(void *array, unsigned int num, unsigned int size,
-	 int (*compare) (void *, void *))
+gfs_sort(void *base, unsigned int num_elem, unsigned int size,
+	 int (*compar) (const void *, const void *))
 {
-	char buf[size];
-	char *p1, *p2;
-	int changed;
-	unsigned int x;
-
-	if (num <= 1)
-		return;
-
-	do {
-		changed = FALSE;
-		p1 = (char *)array;
-		p2 = (char *)array + size;
-
-		for (x = num - 1; x--;) {
-			if (compare(p1, p2) > 0) {
-				memcpy(buf, p1, size);
-				memcpy(p1, p2, size);
-				memcpy(p2, buf, size);
-				changed = TRUE;
+	register char *pbase = (char *)base;
+	int i, j, k, h;
+	int cols[16] = {1391376, 463792, 198768, 86961, 33936, 13776, 4592,
+			1968, 861, 336, 112, 48, 21, 7, 3, 1};
+	
+	for (k = 0; k < 16; k++) {
+		h = cols[k];
+		for (i = h; i < num_elem; i++) {
+			j = i;
+			while (j >= h &&
+			       (*compar)((void *)(pbase + size * (j - h)),
+					 (void *)(pbase + size * j)) > 0) {
+				SWAP(pbase + size * j,
+				     pbase + size * (j - h),
+				     size);
+				j = j - h;
 			}
-
-			p1 = p2;
-			p2 += size;
 		}
 	}
-	while (changed);
 }
 
 /**

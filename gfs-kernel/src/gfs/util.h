@@ -23,8 +23,8 @@ uint32_t gfs_random(void);
 uint32_t gfs_hash(const void *data, unsigned int len);
 uint32_t gfs_hash_more(const void *data, unsigned int len, uint32_t hash);
 
-void gfs_sort(void *array, unsigned int num, unsigned int size,
-	      int (*compare) (void *, void *));
+void gfs_sort(void *base, unsigned int num_elem, unsigned int size,
+	      int (*compar) (const void *, const void *));
 
 void bitch_about(struct gfs_sbd *sdp, unsigned long *last, char *about);
 

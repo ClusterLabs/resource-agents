@@ -438,7 +438,7 @@ gfs_quota_cleanup(struct gfs_sbd *sdp)
  */
 
 static int
-sort_qd(void *a, void *b)
+sort_qd(const void *a, const void *b)
 {
 	struct gfs_quota_data *qd_a = *(struct gfs_quota_data **)a;
 	struct gfs_quota_data *qd_b = *(struct gfs_quota_data **)b;

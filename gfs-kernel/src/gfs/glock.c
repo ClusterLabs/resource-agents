@@ -1586,7 +1586,7 @@ gfs_glock_nq_num(struct gfs_sbd *sdp,
  */
 
 static int
-glock_compare(void *arg_a, void *arg_b)
+glock_compare(const void *arg_a, const void *arg_b)
 {
 	struct gfs_holder *gh_a = *(struct gfs_holder **)arg_a;
 	struct gfs_holder *gh_b = *(struct gfs_holder **)arg_b;

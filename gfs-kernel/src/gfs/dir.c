@@ -929,7 +929,7 @@ dir_double_exhash(struct gfs_inode *dip)
  */
 
 static int
-compare_dents(void *a, void *b)
+compare_dents(const void *a, const void *b)
 {
 	struct gfs_dirent *dent_a, *dent_b;
 	uint32_t hash_a, hash_b;

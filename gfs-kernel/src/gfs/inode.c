@@ -1690,7 +1690,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
  */
 
 static int
-glock_compare_atime(void *arg_a, void *arg_b)
+glock_compare_atime(const void *arg_a, const void *arg_b)
 {
 	struct gfs_holder *gh_a = *(struct gfs_holder **)arg_a;
 	struct gfs_holder *gh_b = *(struct gfs_holder **)arg_b;
