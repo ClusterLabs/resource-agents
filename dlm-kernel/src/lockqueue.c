@@ -971,6 +971,11 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		if (lkb->lkb_lockqueue_state) {
 			log_error(rsb->res_ls, "granting lock on lockqueue");
 			print_lkb(lkb);
+			print_request(freq);
+			lkb->lkb_lockqueue_state = 0;
+			remove_from_lockqueue(lkb);
+			if (!lkb->lkb_remid)
+				lkb->lkb_remid = req->rh_lkid;
 		}
 
 		down_write(&rsb->res_lock);

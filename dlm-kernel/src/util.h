@@ -15,7 +15,6 @@
 #define __UTIL_DOT_H__
 
 uint32_t dlm_hash(const char *data, int len);
-uint32_t dlm_next_power2(uint32_t val);
 
 void print_lkb(struct dlm_lkb *lkb);
 void print_rsb(struct dlm_rsb *r);

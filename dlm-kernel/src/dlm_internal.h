@@ -266,7 +266,6 @@ struct dlm_ls {
 	struct list_head	ls_nodes;	/* current nodes in RC */
 	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
 	uint32_t		ls_num_nodes;	/* number of nodes in RC */
-	uint32_t		ls_nodes_mask;
 	uint32_t		ls_low_nodeid;
 
 	struct rw_semaphore	ls_unlock_sem;	/* To prevent unlock on a

@@ -111,15 +111,6 @@ uint32_t dlm_hash(const char *data, int len)
 	return hash;
 }
 
-uint32_t dlm_next_power2(uint32_t val)
-{
-	uint32_t x;
-
-	for (x = 1; x < val; x <<= 1) ;
-
-	return x;
-}
-
 void print_lkb(struct dlm_lkb *lkb)
 {
 	printk("dlm: lkb\n"

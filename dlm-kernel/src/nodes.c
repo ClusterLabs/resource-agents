@@ -261,7 +261,6 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 
 	rcom_log_clear(ls);
 	ls->ls_low_nodeid = low;
-	ls->ls_nodes_mask = dlm_next_power2(ls->ls_num_nodes) - 1;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;
 
@@ -293,7 +292,6 @@ int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 	}
 
 	ls->ls_low_nodeid = low;
-	ls->ls_nodes_mask = dlm_next_power2(ls->ls_num_nodes) - 1;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 
 	error = nodes_reconfig_wait(ls);

@@ -33,18 +33,10 @@ struct resmov {
  * We use the upper 16 bits of the hash value to select the directory node.
  * Low bits are used for distribution of rsb's among hash buckets on each node.
  *
- * From the hash value, we are interested in arriving at a final value between
- * zero and the number of nodes minus one (num_nodes - 1).
- *
- * To accomplish this scaling, we take the nearest power of two larger than
- * num_nodes and subtract one to create a bit mask.  The mask is applied to the
- * hash, reducing the range to nearer the final range.
- *
  * To give the exact range wanted (0 to num_nodes-1), we apply a modulus of
- * num_nodes to the previously masked hash value.
- *
- * This value in the desired range is used as an offset into the sorted list of
- * nodeid's to give the particular nodeid of the directory node.
+ * num_nodes to the hash value.  This value in the desired range is used as an
+ * offset into the sorted list of nodeid's to give the particular nodeid of the
+ * directory node.
  */
 
 uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
@@ -59,8 +51,7 @@ uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 	}
 
 	hash = dlm_hash(name, length);
-	node = (hash >> 16) & ls->ls_nodes_mask;
-	node %= ls->ls_num_nodes;
+	node = (hash >> 16) % ls->ls_num_nodes;
 
 	list_for_each(tmp, &ls->ls_nodes) {
 		if (n++ != node)
@@ -69,8 +60,8 @@ uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 		break;
 	}
 
-	DLM_ASSERT(csb, printk("num_nodes=%u n=%u node=%u mask=%x\n",
-				ls->ls_num_nodes, n, node, ls->ls_nodes_mask););
+	DLM_ASSERT(csb, printk("num_nodes=%u n=%u node=%u\n",
+				ls->ls_num_nodes, n, node););
 	nodeid = csb->node->nodeid;
 
       out:
