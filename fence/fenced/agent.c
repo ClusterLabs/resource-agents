@@ -89,9 +89,7 @@ static int run_agent(char *agent, char *args)
 		close(pw_fd);
 		waitpid(pid, &status, 0);
 
-		if (!WIFEXITED(status))
-			goto fail;
-		if (WEXITSTATUS(status)) {
+		if (!WIFEXITED(status) || WEXITSTATUS(status)) {
 			display_agent_output(agent, pr_fd);
 			goto fail;
 		}
