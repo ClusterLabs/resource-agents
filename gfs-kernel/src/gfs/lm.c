@@ -194,6 +194,9 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 	printk("GFS: fsid=%s: waiting for outstanding I/O\n",
 	       sdp->sd_fsname);
 
+	if (sdp->sd_args.ar_debug)
+		BUG();
+
 	while (atomic_read(&sdp->sd_bio_outstanding)) {
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ / 10);
@@ -206,7 +209,7 @@ gfs_lm_withdraw(struct gfs_sbd *sdp, char *fmt, ...)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ / 10);
 	}
-*/
+ */
 
 	printk("GFS: fsid=%s: telling LM to withdraw\n",
 	       sdp->sd_fsname);

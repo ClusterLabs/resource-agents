@@ -293,6 +293,9 @@ gfs_assert_warn_i(struct gfs_sbd *sdp,
 	       sdp->sd_fsname, file, line,
 	       sdp->sd_fsname, get_seconds());
 
+	if (sdp->sd_args.ar_debug)
+		BUG();
+
 	sdp->sd_last_warning = jiffies;
 
 	RETURN(GFN_ASSERT_WARN_I, -1);
