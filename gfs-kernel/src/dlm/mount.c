@@ -177,7 +177,7 @@ static int init_gdlm(dlm_t *dlm)
 
 static int release_gdlm(dlm_t *dlm)
 {
-	dlm_release_lockspace(dlm->gdlm_lsp, 1);
+	dlm_release_lockspace(dlm->gdlm_lsp, 2);
 	return 0;
 }
 
