@@ -1274,9 +1274,8 @@ int cancel_lockop(struct dlm_lkb *lkb, int status)
 		res_lkb_swqueue(lkb->lkb_resource, lkb, GDLM_LKSTS_GRANTED);
 
 		/* Remove from deadlock detection */
-		if (lkb->lkb_duetime) {
+		if (lkb->lkb_duetime)
 			remove_from_deadlockqueue(lkb);
-		}
 		break;
 
 	case GDLM_LQSTATE_WAIT_UNLOCK:

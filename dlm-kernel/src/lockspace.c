@@ -481,6 +481,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	 * Free all lkb's on lkbtbl[] lists.
 	 */
 
+	astd_suspend();
+
 	for (i = 0; i < ls->ls_lkbtbl_size; i++) {
 		head = &ls->ls_lkbtbl[i].list;
 		while (!list_empty(head)) {
@@ -500,6 +502,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 			free_lkb(lkb);
 		}
 	}
+	astd_resume();
 
 	kfree(ls->ls_lkbtbl);
 

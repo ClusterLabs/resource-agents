@@ -39,6 +39,7 @@ static struct semaphore		ast_queue_lock;
 static wait_queue_head_t	astd_waitchan;
 struct task_struct *		astd_task;
 static unsigned long		astd_wakeflags;
+static struct semaphore		astd_running;
 
 static struct list_head		_deadlockqueue;
 static struct semaphore		_deadlockqueue_lock;
@@ -183,44 +184,48 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 
 static void process_asts(void)
 {
-	struct dlm_ls *ls;
-	struct dlm_rsb *rsb;
+	struct dlm_ls *ls = NULL;
+	struct dlm_rsb *rsb = NULL;
 	struct dlm_lkb *lkb;
 	void (*cast) (long param);
 	void (*bast) (long param, int mode);
 	long astparam;
-	uint16_t flags;
+	uint16_t flags = 0, found;
 
 	for (;;) {
+		found = FALSE;
 		down(&ast_queue_lock);
-		if (list_empty(&ast_queue)) {
-			up(&ast_queue_lock);
+		list_for_each_entry(lkb, &ast_queue, lkb_astqueue) {
+			rsb = lkb->lkb_resource;
+			ls = rsb->res_ls;
+
+			/* don't deliver ast's for locks in lockspaces
+			   being recovered */
+			if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+				continue;
+
+			/* the ast flags must be saved and cleared while
+			   ast_queue_lock is held */
+			list_del(&lkb->lkb_astqueue);
+			flags = lkb->lkb_astflags;
+			lkb->lkb_astflags = 0;
+			found = TRUE;
 			break;
 		}
-
-		lkb = list_entry(ast_queue.next, struct dlm_lkb, lkb_astqueue);
-		list_del(&lkb->lkb_astqueue);
-		flags = lkb->lkb_astflags;
-		lkb->lkb_astflags = 0;
 		up(&ast_queue_lock);
+
+		if (!found)
+			break;
 
 		cast = lkb->lkb_astaddr;
 		bast = lkb->lkb_bastaddr;
 		astparam = lkb->lkb_astparam;
-		rsb = lkb->lkb_resource;
-		ls = rsb->res_ls;
 
 		if (flags & AST_COMP) {
 			if (flags & AST_DEL) {
 				DLM_ASSERT(lkb->lkb_astflags == 0,);
-
-				/* FIXME: we don't want to block asts for other
-				   lockspaces while one is being recovered */
-
-				down_read(&ls->ls_in_recovery);
 				release_lkb(ls, lkb);
 				release_rsb(rsb);
-				up_read(&ls->ls_in_recovery);
 			}
 
 			if (cast) {
@@ -573,6 +578,7 @@ static int dlm_astd(void *data)
 	while (!kthread_should_stop()) {
 		wchan_cond_sleep_intr(astd_waitchan, !test_bit(WAKE_ASTS, &astd_wakeflags));
 
+		down(&astd_running);
 		if (test_and_clear_bit(WAKE_ASTS, &astd_wakeflags))
 			process_asts();
 
@@ -581,6 +587,7 @@ static int dlm_astd(void *data)
 			if (dlm_config.deadlocktime)
 				process_deadlockqueue();
 		}
+		up(&astd_running);
 	}
 
 	if (timer_pending(&_lockqueue_timer))
@@ -605,6 +612,7 @@ int astd_start(void)
 	INIT_LIST_HEAD(&ast_queue);
 	init_MUTEX(&ast_queue_lock);
 	init_waitqueue_head(&astd_waitchan);
+	init_MUTEX(&astd_running);
 
 	p = kthread_run(dlm_astd, NULL, "dlm_astd");
 	if (IS_ERR(p))
@@ -619,3 +627,14 @@ void astd_stop(void)
 	kthread_stop(astd_task);
 	wake_up(&astd_waitchan);
 }
+
+void astd_suspend(void)
+{
+	down(&astd_running);
+}
+
+void astd_resume(void)
+{
+	up(&astd_running);
+}
+

@@ -105,6 +105,14 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	log_all(ls, "recover event %u", rv->event_id);
 
 	/*
+	 * Suspending and resuming dlm_astd ensures that no lkb's from this ls
+	 * will be processed by dlm_astd during recovery.
+	 */
+
+	astd_suspend();
+	astd_resume();
+
+	/*
 	 * this list may be left over from a previous aborted recovery
 	 */
 
@@ -533,6 +541,8 @@ static void do_ls_recovery(struct dlm_ls *ls)
 
 			restbl_grant_after_purge(ls);
 
+			wake_astd();
+
 			log_all(ls, "recover event %u finished", finish_event);
 			break;
 
@@ -618,6 +628,8 @@ static void do_ls_recovery(struct dlm_ls *ls)
 			enable_locking(ls, finish_event);
 
 			process_requestqueue(ls);
+
+			wake_astd();
 
 			log_all(ls, "recover event %u finished", finish_event);
 			break;

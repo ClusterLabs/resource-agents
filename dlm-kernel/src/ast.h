@@ -24,5 +24,7 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t astflags, uint8_t rqmode);
 void wake_astd(void);
 int astd_start(void);
 void astd_stop(void);
+void astd_suspend(void);
+void astd_resume(void);
 
 #endif				/* __AST_DOT_H__ */
