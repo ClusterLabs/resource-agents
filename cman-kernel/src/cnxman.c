@@ -2648,6 +2648,7 @@ static void node_shutdown()
 	}
 	up(&client_socket_lock);
 	we_are_a_cluster_member = 0;
+	cluster_is_quorate = 0;
 
 	sm_stop(1);
 
