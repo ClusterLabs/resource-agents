@@ -44,3 +44,6 @@ echo "configure magma-plugins"
 
 echo "configure rgmanager"
 (cd rgmanager; ./configure $@)
+
+echo "configure cmirror"
+(cd cmirror; ./configure $@)
