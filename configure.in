@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.193 $) dnl cvs revision
+AC_REVISION($Revision: 1.194 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -205,6 +205,7 @@ AC_PATH_PROGS(RAIDSTOP, raidstop)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
+AC_PATH_PROGS(WHOAMI, whoami)
 
 AC_MSG_CHECKING(which glib config exists)
 if test "X${GLIBCONFIG}" = "X"; then
@@ -316,7 +317,7 @@ done
 
 
 AC_SUBST(IFCONFIG_A_OPT)
-
+AC_SUBST(WHOAMI)
 
 AC_SUBST(HTML2TXT)
 AC_SUBST(POD2MAN)
@@ -482,15 +483,6 @@ elif test -f /usr/local/lib/libintl.so -a -s /usr/local/lib/libintl.so; then
 else
 	AC_MSG_ERROR(no library providing gettext found)
 fi
-
-AC_MSG_CHECKING(whether we need to include /usr/local/include)
-dnl
-dnl this is mainly for FreeBSD...
-AC_TRY_COMPILE([#include <libintl.h>],
-[int foo=1;],
-  AC_MSG_RESULT(no),
-  [AC_MSG_RESULT(yes)
-  CPPFLAGS="$CPPFLAGS -I/usr/local/include"]),
 
 dnl
 dnl	Glib allows its headers/libraries to be installed anywhere.
