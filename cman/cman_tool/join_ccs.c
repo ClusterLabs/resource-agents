@@ -352,17 +352,9 @@ int get_ccs_join_info(commandline_t *comline)
 		for (i = 0; ; i++) {
 			str = NULL;
 
-			error = ccs_get(cd, MCAST_ADDR_PATH, &str);
+			error = ccs_get_list(cd, MCAST_ADDR_PATH, &str);
 			if (error || !str)
 				break;
-
-			/* If we get the same thing twice, it's probably the
-			   end of a 1-element list */
-
-			if (i > 0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
-				free(str);
-				break;
-			}
 
 			if (comline->verbose)
 				printf("multicast address %s\n", str);
