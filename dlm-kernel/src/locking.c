@@ -140,31 +140,6 @@ static inline int ranges_overlap(struct dlm_lkb *lkb1, struct dlm_lkb *lkb2)
 }
 
 /*
- * "A conversion deadlock arises with a pair of lock requests in the converting
- * queue for one resource.  The granted mode of each lock blocks the requested
- * mode of the other lock."
- */
-
-static struct dlm_lkb *conversion_deadlock_detect(struct dlm_rsb *rsb,
-						  struct dlm_lkb *lkb)
-{
-	struct dlm_lkb *this;
-
-	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
-		if (this == lkb)
-			continue;
-
-		if (!ranges_overlap(lkb, this))
-			continue;
-
-		if (!modes_compat(this, lkb) && !modes_compat(lkb, this))
-			return this;
-	}
-
-	return NULL;
-}
-
-/*
  * Check if the given lkb conflicts with another lkb on the queue.
  */
 
@@ -178,6 +153,64 @@ static int queue_conflict(struct list_head *head, struct dlm_lkb *lkb)
 		if (ranges_overlap(lkb, this) && !modes_compat(this, lkb))
 			return TRUE;
 	}
+	return FALSE;
+}
+
+/*
+ * "A conversion deadlock arises with a pair of lock requests in the converting
+ * queue for one resource.  The granted mode of each lock blocks the requested
+ * mode of the other lock."
+ *
+ * Part 2: if the granted mode of lkb is preventing the first lkb in the
+ * convert queue from being granted, then demote lkb (set grmode to NL).
+ * This second form requires that we check for conv-deadlk even when
+ * now == 0 in _can_be_granted().
+ *
+ * Example:
+ * Granted Queue: empty
+ * Convert Queue: NL->EX (first lock)
+ *                PR->EX (second lock)
+ *
+ * The first lock can't be granted because of the granted mode of the second
+ * lock and the second lock can't be granted because it's not first in the
+ * list.  We demote the granted mode of the second lock (the lkb passed to this
+ * function).
+ *
+ * After the resolution, the "grant pending" function needs to go back and try
+ * to grant locks on the convert queue again since the first lock can now be
+ * granted.
+ */
+
+static int conversion_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
+{
+	struct dlm_lkb *this, *first = NULL, *self = NULL;
+
+	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
+		if (!first)
+			first = this;
+		if (this == lkb) {
+			self = lkb;
+			continue;
+		}
+
+		if (!ranges_overlap(lkb, this))
+			continue;
+
+		if (!modes_compat(this, lkb) && !modes_compat(lkb, this))
+			return TRUE;
+	}
+
+	/* if lkb is on the convert queue and is preventing the first
+	   from being granted, then there's deadlock and we demote lkb.
+	   multiple converting locks may need to do this before the first
+	   converting lock can be granted. */
+
+	if (self && self != first) {
+		if (!modes_compat(lkb, first) &&
+		    !queue_conflict(&rsb->res_grantqueue, first))
+			return TRUE;
+	}
+
 	return FALSE;
 }
 
@@ -249,6 +282,15 @@ static int _can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 	 * compatible with the granted modes of other locks on the same
 	 * resource.  Thus, the use of this flag results in conversion requests
 	 * being ordered on a "first come first servce" basis.
+	 *
+	 * DCT: This condition is all about new conversions being able to occur
+	 * "in place" while the lock remains on the granted queue (assuming
+	 * nothing else conflicts.)  IOW if QUECVT isn't set, a conversion
+	 * doesn't _have_ to go onto the convert queue where it's processed in
+	 * order.  The "now" variable is necessary to distinguish converts
+	 * being received and processed for the first time now, because once a
+	 * convert is moved to the conversion queue the condition below applies
+	 * requiring fifo granting.
 	 */
 
 	if (now && conv && !(lkb->lkb_lockqueue_flags & DLM_LKF_QUECVT))
@@ -303,7 +345,7 @@ static int _can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 	 * The following, enabled by CONVDEADLK, departs from VMS.
 	 */
 
-	if (now && conv && (lkb->lkb_lockqueue_flags & DLM_LKF_CONVDEADLK) &&
+	if (conv && (lkb->lkb_lockqueue_flags & DLM_LKF_CONVDEADLK) &&
 	    conversion_deadlock_detect(r, lkb)) {
 		lkb->lkb_grmode = DLM_LOCK_NL;
 		lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
@@ -1194,22 +1236,41 @@ static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 }
 
 /*
- * Called when a lock has been dequeued. Look for any locks to grant that are
- * waiting for conversion or waiting to be granted.
- * The rsb res_lock must be held in write when this function is called.
+ * When we go through the convert queue trying to grant locks, we may demote
+ * some lkb's later in the list that would allow lkb's earlier in the list to
+ * be granted when they weren't before.  (When the second form of conversion
+ * deadlock resolution occurs.)  When this happens we need to go through a
+ * second time.
  */
 
-int grant_pending_locks(struct dlm_rsb *r)
+static int grant_pending_convert(struct dlm_rsb *r, int high)
 {
 	struct dlm_lkb *lkb, *s;
-	int8_t high = DLM_LOCK_IV;
+	int demoted, quit = 0, restart = 0;
 
+ retry:
 	list_for_each_entry_safe(lkb, s, &r->res_convertqueue, lkb_statequeue) {
+		demoted = lkb->lkb_flags & GDLM_LKFLG_DEMOTED;
 		if (can_be_granted(r, lkb, FALSE))
 			grant_lock(lkb, 1);
-		else
+		else {
 			high = MAX(lkb->lkb_rqmode, high);
+			if (!demoted && lkb->lkb_flags & GDLM_LKFLG_DEMOTED)
+				restart = 1;
+		}
 	}
+
+	if (restart && !quit) {
+		quit = 1;
+		goto retry;
+	}
+
+	return high;
+}
+
+static int grant_pending_wait(struct dlm_rsb *r, int high)
+{
+	struct dlm_lkb *lkb, *s;
 
 	list_for_each_entry_safe(lkb, s, &r->res_waitqueue, lkb_statequeue) {
 		if (lkb->lkb_lockqueue_state)
@@ -1221,22 +1282,37 @@ int grant_pending_locks(struct dlm_rsb *r)
 			high = MAX(lkb->lkb_rqmode, high);
 	}
 
+	return high;
+}
+
+/*
+ * Called when a lock has been dequeued. Look for any locks to grant that are
+ * waiting for conversion or waiting to be granted.
+ * The rsb res_lock must be held in write when this function is called.
+ */
+
+int grant_pending_locks(struct dlm_rsb *r)
+{
+	struct dlm_lkb *lkb, *s;
+	int high = DLM_LOCK_IV;
+
+	high = grant_pending_convert(r, high);
+	high = grant_pending_wait(r, high);
+
+	if (high == DLM_LOCK_IV)
+		return 0;
+
 	/*
 	 * If there are locks left on the wait/convert queue then send blocking
-	 * ASTs to granted locks that are blocking
-	 *
-	 * FIXME: This might generate some spurious blocking ASTs for range
-	 * locks.
+	 * ASTs to granted locks that are blocking.  FIXME: This might generate
+	 * some spurious blocking ASTs for range locks.
 	 */
 
-	if (high > DLM_LOCK_IV) {
-		list_for_each_entry_safe(lkb, s, &r->res_grantqueue,
-					 lkb_statequeue) {
-			if (lkb->lkb_bastaddr && (lkb->lkb_highbast < high) &&
-			    !__dlm_compat_matrix[lkb->lkb_grmode+1][high+1]) {
-				queue_ast(lkb, AST_BAST, high);
-				lkb->lkb_highbast = high;
-			}
+	list_for_each_entry_safe(lkb, s, &r->res_grantqueue, lkb_statequeue) {
+		if (lkb->lkb_bastaddr && (lkb->lkb_highbast < high) &&
+		    !__dlm_compat_matrix[lkb->lkb_grmode+1][high+1]) {
+			queue_ast(lkb, AST_BAST, high);
+			lkb->lkb_highbast = high;
 		}
 	}
 
