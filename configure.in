@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.200 $) dnl cvs revision
+AC_REVISION($Revision: 1.201 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -743,6 +743,9 @@ dnl Add any system specific options here.
 		-Wpointer-arith \
 		-Wwrite-strings \
 		-Wcast-qual -Wcast-align \
+		-Wbad-function-cast \
+		-Wformat-security  -Wformat-nonliteral \
+		-Wmissing-format-attribute \
 		-Winline $EXTRA_WARNINGS"
 fi
 
