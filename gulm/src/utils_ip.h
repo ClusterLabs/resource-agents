@@ -19,9 +19,9 @@ typedef struct {
    uint8_t *name;
 } ip_name_t;
 
+int get_ip_from_netdev(char *name, struct in6_addr *ip6);
 int get_name_for_ip(char *name, size_t nlen, uint32_t ip);
 int get_ip_for_name(char *name, struct in6_addr *ip);
-int verify_name_and_ip_tcpwrapper(char *name, struct in6_addr *ip);
 
 __inline__ char *iptostr(uint32_t ip);
 __inline__ const char *ip6tostr(struct in6_addr *ip);

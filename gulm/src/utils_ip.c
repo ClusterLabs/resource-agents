@@ -20,13 +20,9 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include "tcpd.h"
+#include <sys/ioctl.h>
+#include <net/if.h>
 #include "utils_ip.h"
-
-/* for libwrap. */
-int allow_severity;
-int deny_severity;
-
 
 /**
  * map_v4_to_v6 - 
@@ -60,6 +56,68 @@ __inline__ const char *ip6tostr(struct in6_addr *ip)
 {
    static char t[80];
    return inet_ntop(AF_INET6, ip, t, 80);
+}
+
+/**
+ * get_ip_from_netdev - 
+ * @har: 
+ * @ip6: 
+ * 
+ * 
+ * Returns: int
+ */
+int get_ip_from_netdev(char *name, struct in6_addr *ip6)
+{
+   struct ifconf ifc;
+   struct ifreq *ifr=NULL;
+   int i, sock, err=0;
+   int num_ifrs=20;
+   ifc.ifc_buf = NULL;
+   
+   if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+      return -1;
+
+   /* Borrowed from the ifconfig code */
+   for(;;) {
+      ifc.ifc_len = num_ifrs * sizeof(struct ifreq);
+      if ((ifc.ifc_buf=malloc(num_ifrs * sizeof(struct ifreq)))==NULL) {
+         err = -ENOMEM;
+         goto exit;
+      }
+
+      if (ioctl(sock,SIOCGIFCONF,&ifc)<0) {err=errno; goto exit;}
+
+      if (ifc.ifc_len == (num_ifrs * sizeof(struct ifreq))) {
+         free(ifc.ifc_buf);
+         num_ifrs += 10;
+         continue;
+      }
+      break;
+   }
+
+   err = -1; /* default not found */
+   ifr = ifc.ifc_req;
+   for (i=0; i < ifc.ifc_len; i+= sizeof (struct ifreq), ifr++) {
+      if( strcmp(ifr->ifr_name, name) == 0 ) {
+         if (ifr->ifr_addr.sa_family == AF_INET6 ) {
+            struct sockaddr_in6 *sin = (struct sockaddr_in6 *)&ifr->ifr_addr;
+            memcpy(&ip6, &sin->sin6_addr, sizeof(struct in6_addr));
+            err = 0;
+            break;
+         }
+         if (ifr->ifr_addr.sa_family == AF_INET ) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)&ifr->ifr_addr;
+            map_v4_to_v6(&sin->sin_addr, ip6);
+            err = 0;
+            break;
+         }
+      }
+   }
+
+exit:
+   if(ifc.ifc_buf!=NULL) free(ifc.ifc_buf);
+   close(sock);
+   return err;
 }
 
 /**
@@ -116,33 +174,6 @@ int get_name_for_ip(char *name, size_t nlen, uint32_t ip)
    strncpy(name, he->h_name, nlen);
    return 0;
 }
-
-/**
- * verify_name_and_ip_tcpwrapper - 
- * @name: 
- * @ip: 
- * 
- * Returns: =0:Deny =1:Allow
- */
-int verify_name_and_ip_tcpwrapper(char *name, struct in6_addr *ip)
-{
-   struct request_info ri;
-   char t[80];
-
-   if(IN6_IS_ADDR_V4MAPPED(ip->s6_addr32) ) {
-      inet_ntop(AF_INET6, ip, t, 80);
-   }else{
-      inet_ntop(AF_INET, &(ip->s6_addr32[3]), t, 80);
-   }
-
-   request_init(&ri, RQ_CLIENT_ADDR, t,
-                     RQ_CLIENT_NAME, name,
-                     RQ_DAEMON, "lock_gulmd",
-                     0);
-
-   return hosts_access(&ri);
-}
-
 
 /**
  * get_ipname - 

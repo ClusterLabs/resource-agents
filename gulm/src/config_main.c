@@ -375,6 +375,7 @@ void default_config(gulm_config_t *gf)
    gf->daemon_fork = TRUE;
    gf->name = NULL;
    memcpy(&gf->ip, &in6addr_any, sizeof(struct in6_addr));
+   gf->netdev = NULL;
    gf->ccs_desc = -1;
 
 }
@@ -449,13 +450,6 @@ int verify_name_and_ip(char *name, struct in6_addr *ip)
       log_msg(lgm_Network2,"For %s, ip %s doesn't match %s\n", name,
             ip6tostr(ip), ip6tostr(&testip));
       /* XXX above print won't be right due to static bufs and inlining */
-      return 0;
-   }
-
-   /* check with tcpwrappers */
-   if( verify_name_and_ip_tcpwrapper(name, ip) == 0 ) {
-      log_msg(lgm_Network2,"TCPWrappers denies %s, %s from connecting\n",
-            name, ip6tostr(ip));
       return 0;
    }
 

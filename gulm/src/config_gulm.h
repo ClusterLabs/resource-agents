@@ -66,6 +66,7 @@ typedef struct {
    /* for overriding default node name and ip lookups. */
    uint8_t *name;
    struct in6_addr ip;
+   uint8_t *netdev;
 
    /* if this is >=0, then it is the desciptor that connects us to ccs.
     * If it is <0, then we are not connected to ccs.

@@ -117,13 +117,11 @@ void usage(void)
    "                         -C         Test config and stop.\n",
    "                         -e         Don't close stderr and stdout\n",
    "                         -d         Don't fork on daemonize\n",
-#if 0 /* not implemented yet, so don't tempt. */
-   "  --conf_file <file>     -f <file>  Load this config\n",
-#endif
    "  --verbosity <list>     -v <list>  List of flags.\n",
    "\n",
    "  --name <name>                     Set my name to this.\n",
    "  --ip <ip address>                 Set my IP to this.\n",
+   "  --ifdev <string>                  Use IP of this ifdev.\n",
    "\n",
    "  --use_ccs              -c         Read config values from ccs.\n",
    "\n",
@@ -170,17 +168,18 @@ enum {
    pah_opt,
    par_opt,
    name_opt,
-   ip_opt
+   ip_opt,
+   ifdev_opt
 };
 static struct option long_options[] = {
    {"version", 0, 0, 'V'},
    {"help", 0, 0, 'h'},
 
    {"use_ccs", 0, 0, 'c'},
-   {"conf_file", 1, 0, 'f'},
 
    {"name", 1, 0, name_opt},
    {"ip", 1, 0, ip_opt},
+   {"ifdev", 1, 0, ifdev_opt},
 
    {"coreport", 1, 0, coreport_opt},
    {"ltpxport", 1, 0, ltpxport_opt},
@@ -218,7 +217,7 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
 
    while(1) {
 
-      c = getopt_long(argc, argv, "v:s:n:f:ecdCVh", long_options,&option_index);
+      c = getopt_long(argc, argv, "v:s:n:ecdCVh", long_options,&option_index);
       if( c == -1 ) break;
 
       switch(c) {
@@ -290,6 +289,9 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
          case ip_opt:
             get_ip_for_name(optarg, &gf->ip);
             break;
+         case ifdev_opt:
+            strdup_with_free((char**)&gf->netdev, optarg);
+            break;
 
          case 'c':
             parse_ccs(gf);
@@ -311,10 +313,6 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
             break;
          case 'd':
             gf->daemon_fork = FALSE;
-            break;
-         case 'f':
-            /* call the parse_file() with optarg */
-            fprintf(stderr, "-f,--conf_file needs to be written first.\n");
             break;
          case 'V':
             printf("%s %s (built " __DATE__ " " __TIME__ ")\n"

@@ -154,6 +154,11 @@ void set_myID(void)
    else strcpy(myName, gulm_config.name);
    /* lookup my ip from my full name. */
    if( IN6_IS_ADDR_UNSPECIFIED(&gulm_config.ip) ) {
+      if( gulm_config.netdev != NULL ) {
+         if( get_ip_from_netdev(gulm_config.netdev, &myIP) != 0 )
+            die(ExitGulm_InitFailed, "Cannot find ifdev %s, or device has "
+                  "no ip configured\n", gulm_config.netdev);
+      }else
       if( get_ip_for_name(myName, &myIP) != 0 )
          die(ExitGulm_InitFailed, "Failed to find IP for my name (%s)\n",
                myName);
