@@ -402,9 +402,6 @@ static int cluster_kthread(void *unused)
 	}
 	P_COMMS("closing down\n");
 
-	if (we_are_a_cluster_member)
-	    send_leave(us->leave_reason);
-
 	quit_threads = 1;	/* force other thread to die too */
 	node_shutdown();
 

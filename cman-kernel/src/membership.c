@@ -278,7 +278,6 @@ static int hello_kthread(void *unused)
 static int membership_kthread(void *unused)
 {
 	struct task_struct *tsk = current;
-	struct socket *tmp_socket;
 	sigset_t tmpsig;
 
 	daemonize("cman_memb");
@@ -411,12 +410,8 @@ static int membership_kthread(void *unused)
 	P_MEMB("closing down\n");
 	quit_threads = 1;	/* force other thread to exit too */
 
-	/* Close the socket, NULL the pointer first so it doesn't get used
-	 * by send_leave()
-	 */
-	tmp_socket = mem_socket;
-	mem_socket = NULL;
-	sock_release(tmp_socket);
+	send_leave(us->leave_reason);
+	sock_release(mem_socket);
 	highest_nodeid = 0;
 	complete(&member_thread_comp);
 	return 0;
@@ -921,7 +916,7 @@ int send_leave(unsigned char flags)
 	int status;
 
 	if (!mem_socket)
-			return 0;
+		return 0;
 
 	saddr.scl_family = AF_CLUSTER;
 	saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
@@ -1146,7 +1141,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 	    && ++transition_restarts > cman_config.transition_restarts) {
 		printk(KERN_WARNING CMAN_NAME
 		       ": too many transition restarts - will die\n");
-		send_leave(CLUSTER_LEAVEFLAG_INCONSISTENT);
+		us->leave_reason = CLUSTER_LEAVEFLAG_INCONSISTENT;
 		node_state = LEFT_CLUSTER;
 		quit_threads = 1;
 		wake_up_process(membership_task);
@@ -1815,8 +1810,7 @@ static int do_process_viewack(struct msghdr *msg, int len)
 			/* We must leave the cluster as we are in a minority,
 			 * the rest of them can fight it out amongst
 			 * themselves. */
-			send_leave(CLUSTER_LEAVEFLAG_INCONSISTENT);
-
+			us->leave_reason = CLUSTER_LEAVEFLAG_INCONSISTENT;
 			agreeing_nodes = 0;
 			dissenting_nodes = 0;
 			kfree(node_opinion);
@@ -2551,7 +2545,8 @@ static int do_process_joinconf(struct msghdr *msg, int len)
 	if (unpack_nodes(message + 2, len - 2, add_node) < 0) {
 		printk(CMAN_NAME
 		       ": Error procssing joinconf message - giving up on cluster join\n");
-		send_leave(CLUSTER_LEAVEFLAG_PANIC);
+		us->leave_reason = CLUSTER_LEAVEFLAG_PANIC;
+		node_state = LEFT_CLUSTER;
 		return -1;
 	}
 
