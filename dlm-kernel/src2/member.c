@@ -411,8 +411,10 @@ int dlm_set_local(struct dlm_member_ioctl *param)
 {
 	char *p;
 
-	if (local_count > DLM_MAX_ADDR_COUNT - 1)
+	if (local_count > DLM_MAX_ADDR_COUNT - 1) {
+		log_print("too many local addresses set %d", local_count);
 		return -EINVAL;
+	}
 	local_nodeid = param->nodeid;
 	local_weight = param->weight;
 
