@@ -2236,29 +2236,6 @@ int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
 	return error;
 }
 
-/* When we aren't able to use the standard send_xxx_reply to return an error,
-   then we use this. */
-
-int send_fail_reply(struct dlm_ls *ls, struct dlm_message *ms_in, int rv)
-{
-	struct dlm_rsb r = { .res_ls = ls };
-	struct dlm_message *ms;
-	struct dlm_mhandle *mh;
-	int error, nodeid = ms_in->m_header.h_nodeid;
-
-	error = create_message(&r, nodeid, DLM_MSG_FAIL_REPLY, &ms, &mh);
-	if (error)
-		goto out;
-
-	ms->m_lkid = ms_in->m_lkid;
-	ms->m_result = rv;
-
-	error = send_message(mh);
- out:
-	return error;
-}
-
-
 /* which args we save from a received message depends heavily on the type
    of message, unlike the send side where we can safely send everything about
    the lkb for any type of message */
@@ -2354,9 +2331,22 @@ int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	return 0;
 }
 
+/* We fill in the stub-lkb fields with the info that send_xxxx_reply()
+   uses to send a reply and that the remote end uses to process the reply. */
+
+void setup_stub_lkb(struct dlm_ls *ls, struct dlm_message *ms)
+{
+	struct dlm_lkb *lkb = &ls->ls_stub_lkb;
+
+	ls->ls_stub_rsb.res_ls = ls;
+
+	lkb->lkb_nodeid = ms->m_header.h_nodeid;
+	lkb->lkb_remid = ms->m_lkid;
+}
+
 void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 {
-	struct dlm_lkb *lkb;
+	struct dlm_lkb *lkb = NULL;
 	struct dlm_rsb *r;
 	int error, namelen;
 
@@ -2390,8 +2380,10 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 	put_rsb(r);
 	put_lkb(lkb);
 	return;
+
  fail:
-	send_fail_reply(ls, ms, error);
+	setup_stub_lkb(ls, ms);
+	send_request_reply(&ls->ls_stub_rsb, &ls->ls_stub_lkb, error);
 }
 
 void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2423,8 +2415,10 @@ void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 	put_rsb(r);
 	put_lkb(lkb);
 	return;
+
  fail:
-	send_fail_reply(ls, ms, error);
+	setup_stub_lkb(ls, ms);
+	send_convert_reply(&ls->ls_stub_rsb, &ls->ls_stub_lkb, error);
 }
 
 void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2456,8 +2450,10 @@ void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 	put_rsb(r);
 	put_lkb(lkb);
 	return;
+
  fail:
-	send_fail_reply(ls, ms, error);
+	setup_stub_lkb(ls, ms);
+	send_unlock_reply(&ls->ls_stub_rsb, &ls->ls_stub_lkb, error);
 }
 
 void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2484,8 +2480,10 @@ void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
 	put_rsb(r);
 	put_lkb(lkb);
 	return;
+
  fail:
-	send_fail_reply(ls, ms, error);
+	setup_stub_lkb(ls, ms);
+	send_cancel_reply(&ls->ls_stub_rsb, &ls->ls_stub_lkb, error);
 }
 
 void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2607,11 +2605,6 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	switch (error) {
-	case -EINVAL:
-		/* the remote node wasn't the master as we thought */
-		_request_lock(r, lkb);
-		break;
-
 	case -EAGAIN:
 		/* request would block (be queued) on remote master */
 		queue_cast(r, lkb, -EAGAIN);
@@ -2630,6 +2623,12 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 			queue_cast(r, lkb, 0);
 		}
 		confirm_master(r, error);
+		break;
+
+	case -ENOENT:
+	case -ENOTBLK:
+		/* find_rsb failed to find rsb or rsb wasn't master */
+		_request_lock(r, lkb);
 		break;
 
 	default:
@@ -2827,31 +2826,6 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	put_lkb(lkb);
 }
 
-void receive_fail_reply(struct dlm_ls *ls, struct dlm_message *ms)
-{
-	struct dlm_lkb *lkb;
-	int error;
-
-	error = find_lkb(ls, ms->m_lkid, &lkb);
-	if (error) {
-		log_error(ls, "receive_fail_reply no lkb");
-		return;
-	}
-
-	log_error(ls, "remote operation %d failed %d for lkid %d",
-		  lkb->lkb_wait_type, ms->m_result, lkb->lkb_id);
-
-	error = remove_from_waiters(lkb);
-	if (error) {
-		log_error(ls, "receive_fail_reply not on waiters");
-		goto out;
-	}
-
-	/* not clear what to do here, a completion ast with m_result? */
- out:
-	put_lkb(lkb);
-}
-
 int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 {
 	struct dlm_message *ms = (struct dlm_message *) hd;
@@ -2926,10 +2900,6 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 
 	case DLM_MSG_CANCEL_REPLY:
 		receive_cancel_reply(ls, ms);
-		break;
-
-	case DLM_MSG_FAIL_REPLY:
-		receive_fail_reply(ls, ms);
 		break;
 
 	/* messages sent from a master node (only two types of async msg) */

@@ -203,58 +203,46 @@ int recover_list_empty(struct dlm_ls *ls)
 	return empty;
 }
 
-int recover_list_count(struct dlm_ls *ls)
+void recover_list_add(struct dlm_rsb *r)
 {
-	int count;
+	struct dlm_ls *ls = r->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
-	count = ls->ls_recover_list_count;
-	spin_unlock(&ls->ls_recover_list_lock);
-
-	return count;
-}
-
-void recover_list_add(struct dlm_rsb *rsb)
-{
-	struct dlm_ls *ls = rsb->res_ls;
-
-	spin_lock(&ls->ls_recover_list_lock);
-	if (!test_and_set_bit(RESFL_RECOVER_LIST, &rsb->res_flags)) {
-		list_add_tail(&rsb->res_recover_list, &ls->ls_recover_list);
+	if (!test_and_set_bit(RESFL_RECOVER_LIST, &r->res_flags)) {
+		list_add_tail(&r->res_recover_list, &ls->ls_recover_list);
 		ls->ls_recover_list_count++;
-		hold_rsb(rsb);
+		hold_rsb(r);
 	}
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-void recover_list_del(struct dlm_rsb *rsb)
+void recover_list_del(struct dlm_rsb *r)
 {
-	struct dlm_ls *ls = rsb->res_ls;
+	struct dlm_ls *ls = r->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
-	clear_bit(RESFL_RECOVER_LIST, &rsb->res_flags);
-	list_del(&rsb->res_recover_list);
+	clear_bit(RESFL_RECOVER_LIST, &r->res_flags);
+	list_del(&r->res_recover_list);
 	ls->ls_recover_list_count--;
 	spin_unlock(&ls->ls_recover_list_lock);
 
-	release_rsb(rsb);
+	put_rsb(r);
 }
 
 static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
 {
-	struct dlm_rsb *rsb = NULL;
+	struct dlm_rsb *r = NULL;
 
 	spin_lock(&ls->ls_recover_list_lock);
 
-	list_for_each_entry(rsb, &ls->ls_recover_list, res_recover_list) {
-		if (rsb->res_recover_msgid == msgid)
-		        goto rec_found;
+	list_for_each_entry(r, &ls->ls_recover_list, res_recover_list) {
+		if (r->res_recover_msgid == msgid)
+			goto out;
 	}
-	rsb = NULL;
-
- rec_found:
+	r = NULL;
+ out:
 	spin_unlock(&ls->ls_recover_list_lock);
-	return rsb;
+	return r;
 }
 
 void recover_list_clear(struct dlm_ls *ls)
@@ -265,7 +253,7 @@ void recover_list_clear(struct dlm_ls *ls)
 	list_for_each_entry_safe(r, s, &ls->ls_recover_list, res_recover_list) {
 		list_del(&r->res_recover_list);
 		clear_bit(RESFL_RECOVER_LIST, &r->res_flags);
-		release_rsb(r);
+		put_rsb(r);
 		ls->ls_recover_list_count--;
 	}
 

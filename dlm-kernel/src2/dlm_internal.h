@@ -388,6 +388,9 @@ struct dlm_ls {
 	int *			ls_nodeids_next;
 	int			ls_nodeids_next_count;
 
+	struct dlm_rsb		ls_stub_rsb;	/* for returning errors */
+	struct dlm_lkb		ls_stub_lkb;	/* for returning errors */
+
 	struct dentry *		ls_debug_dentry;/* debugfs */
 	struct list_head	ls_debug_list;	/* debugfs */
 
@@ -452,12 +455,11 @@ struct dlm_header {
 #define DLM_MSG_CONVERT_REPLY	(6)
 #define DLM_MSG_UNLOCK_REPLY	(7)
 #define DLM_MSG_CANCEL_REPLY	(8)
-#define DLM_MSG_FAIL_REPLY	(9)
-#define DLM_MSG_GRANT		(10)
-#define DLM_MSG_BAST		(11)
-#define DLM_MSG_LOOKUP		(12)
-#define DLM_MSG_REMOVE		(13)
-#define DLM_MSG_LOOKUP_REPLY	(14)
+#define DLM_MSG_GRANT		(9)
+#define DLM_MSG_BAST		(10)
+#define DLM_MSG_LOOKUP		(11)
+#define DLM_MSG_REMOVE		(12)
+#define DLM_MSG_LOOKUP_REPLY	(13)
 
 struct dlm_message {
 	struct dlm_header	m_header;
