@@ -59,9 +59,49 @@ int get_ccs_join_info(commandline_t *comline)
 		printf("ccs values will override some command line values\n");
 
 	memset(&nodename, 0, MAX_NODE_NAME_LEN);
-	error = uname_to_nodename(nodename);
+
+	/* nodenames[0] may be used as a nodename override from the
+	   command-line. else we use uname */
+	if (comline->nodenames[0])
+	{
+	    strcpy(nodename, comline->nodenames[0]);
+	}
+	else
+	{
+	    struct utsname utsname;
+
+	    error = uname(&utsname);
+	    if (error)
+		die("uname failed!");
+
+	    strcpy(nodename, utsname.nodename);
+	}
+
+	/* Look for the node in CCS, if we don't find it and uname has returned
+	   a FQDN then strip the domain off and try again */
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_NAME_PATH, nodename);
+
+	error = ccs_get(cd, path, &str);
 	if (error)
-		die("cannot get local node name from uname");
+	{
+	    char *dot;
+	    dot = strstr(nodename, ".");
+	    if (dot)
+	    {
+		*dot = '\0';
+
+		sprintf(path, NODE_NAME_PATH, nodename);
+		error = ccs_get(cd, path, &str);
+		if (error)
+		    die("cannot find local node name \"%s\" in ccs", nodename);
+	    }
+	    else
+	    {
+		die("cannot find local node name \"%s\" in ccs", nodename);
+	    }
+	}
+	free(str);
 
 	/* cluster name */
 
@@ -174,13 +214,6 @@ int get_ccs_join_info(commandline_t *comline)
 
 	/* find our own number of votes */
 
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_NAME_PATH, nodename);
-
-	error = ccs_get(cd, path, &str);
-	if (error)
-		die("cannot find local node name \"%s\" in ccs", nodename);
-	free(str);
 
 	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_VOTES_PATH, nodename);

@@ -347,24 +347,6 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		die("no operation specified");
 }
 
-int uname_to_nodename(char *name)
-{
-	struct utsname utsname;
-	char *dot;
-	int error;
-
-	error = uname(&utsname);
-	if (error)
-		return error;
-
-	dot = strstr(utsname.nodename, ".");
-	if (dot)
-		*dot = '\0';
-
-	strcpy(name, utsname.nodename);
-	return 0;
-}
-
 static void check_arguments(commandline_t *comline)
 {
 	int error;
@@ -386,10 +368,13 @@ static void check_arguments(commandline_t *comline)
 		    comline->expected_votes);
 
 	if (!comline->nodenames[0]) {
-		comline->nodenames[0] = malloc(255);
-		error = uname_to_nodename(comline->nodenames[0]);
+		struct utsname utsname;
+
+		error = uname(&utsname);
 		if (error)
-			die("cannot get local node name from uname");
+		    die("uname failed!");
+
+		comline->nodenames[0] = strdup(utsname.nodename);
 		comline->num_nodenames++;
 	}
 
