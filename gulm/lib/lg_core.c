@@ -132,6 +132,7 @@ int lg_core_handle_messages(gulm_interface_p lgp, lg_core_callbacks_t* ccbp,
    if( gulm_core_state_chgs == x_code ) {
       do{
          if((err = xdr_dec_uint8(dec, &x_state)) != 0 ) break;
+         if((err = xdr_dec_uint8(dec, &x_mode)) != 0 ) break;
          if( x_state == gio_Mbr_ama_Slave ) {
             if((err = xdr_dec_ipv6(dec, &x_ip)) != 0 ) break;
             if((err = xdr_dec_string_ag(dec, &lg->cfba, &lg->cfba_len)) != 0 )
@@ -145,7 +146,7 @@ int lg_core_handle_messages(gulm_interface_p lgp, lg_core_callbacks_t* ccbp,
          err = 0;
          goto exit;
       }
-      err = ccbp->statechange(misc, x_state, &x_ip, lg->cfba);
+      err = ccbp->statechange(misc, x_state, x_mode, &x_ip, lg->cfba);
       goto exit;
    }else
    if( gulm_core_mbr_updt == x_code ) {

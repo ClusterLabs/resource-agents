@@ -102,11 +102,11 @@ int cb_nodelist(void *misc, lglcb_t type, char *name,
    return 0;
 }
 
-int cb_statechange(void *misc, uint8_t corestate,
+int cb_statechange(void *misc, uint8_t corestate, uint8_t quorate,
                   struct in6_addr *masterip, char *mastername)
 {
-   printf("Got statechange  corestate:%#x masterip:%#x mastername:%s\n",
-         corestate, masterip, mastername);
+   printf("Got statechange  corestate:%#x quorate:%s masterip:%#x mastername:%s\n",
+         corestate, quorate?"true":"false", masterip, mastername);
    return 0;
 }
 
@@ -128,23 +128,6 @@ int cb_service_list(void *misc, lglcb_t type, char *service)
    }else
    if( lglcb_stop == type ) {
       printf("Got service_list, stop\n");
-   }else
-   {
-      printf("Unknown lglcb_t %#x\n", type);
-   }
-   return 0;
-}
-
-int cb_status(void *misc, lglcb_t type, char *key, char *value)
-{
-   if( lglcb_start == type ) {
-      printf("Got status, start\n");
-   }else
-   if( lglcb_item == type ) {
-      printf("Got status, item: %s = %s\n", key, value);
-   }else
-   if( lglcb_stop == type ) {
-      printf("Got status, stop\n");
    }else
    {
       printf("Unknown lglcb_t %#x\n", type);

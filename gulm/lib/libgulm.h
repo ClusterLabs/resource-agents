@@ -13,7 +13,7 @@
 ******************************************************************************/
 #ifndef __libgulm_h__
 #define __libgulm_h__
-
+#include <netinet/in.h>
 /* bit messy, but we need this to be rather seemless in both kernel and
  * userspace. and this seems the easiest way to do it.
  */
@@ -52,7 +52,7 @@ typedef struct lg_core_callbacks_s {
   int (*logout_reply)(void *misc); 
   int (*nodelist)(void *misc, lglcb_t type, char *name,
                   struct in6_addr *ip, uint8_t state); 
-  int (*statechange)(void *misc, uint8_t corestate,
+  int (*statechange)(void *misc, uint8_t corestate, uint8_t quorate,
                      struct in6_addr *masterip, char *mastername); 
   int (*nodechange)(void *misc, char *nodename,
                     struct in6_addr *nodeip, uint8_t nodestate); 
