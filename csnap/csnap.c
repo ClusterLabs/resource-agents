@@ -33,7 +33,7 @@
 #include "../dm-csnap.h"
 #include "trace.h"
 
-#define trace trace_on
+#define trace trace_off
 
 /*
 Todo:
@@ -1967,8 +1967,6 @@ int incoming(struct superblock *sb, struct client *client)
 		case START_SERVER:
 			warn("Activating server");
 			load_sb(sb);
-hexdump(sb, 40);
-
 			if (sb->image.flags & SB_BUSY) {
 				warn("Server was not shut down properly");
 				show_journal(sb);

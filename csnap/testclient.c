@@ -119,7 +119,7 @@ unsigned available(unsigned sock)
 {
 	unsigned bytes;
 	ioctl(sock, FIONREAD, &bytes);
-	trace(if (bytes) printf("%u bytes waiting\n", bytes);)
+	trace_on(if (bytes) printf("%u bytes waiting\n", bytes);)
 	return bytes;
 }
 
