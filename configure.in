@@ -5,10 +5,37 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.64 $) dnl cvs revision
+AC_REVISION($Revision: 1.65 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
+
+dnl Some scripts require options to "echo"
+dnl This configure is already determining and using "ac_n" and "ac_c"
+dnl for internal use, so make available externally.
+dnl (Not sure how "future proof" this is, but it at least seems clean.)
+ECHO_N="$ac_n"
+ECHO_C="$ac_c"
+
+case $ac_n in
+  -n)	ECHO_E="-e";;
+  *)	ECHO_E="";;
+esac
+
+ECHO_CMD="echo"
+if
+  test -x /usr/linux/bin/echo
+then
+  #	This is for AIX.  I'm not sure it's necessary...
+  ECHO_CMD="/usr/linux/bin/echo"
+  ECHO_N="-n"
+  ECHO_E="-e"
+fi
+
+AC_SUBST(ECHO_N)
+AC_SUBST(ECHO_C)
+AC_SUBST(ECHO_E)
+AC_SUBST(ECHO_CMD)
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h)
@@ -57,6 +84,7 @@ includedir=`var "$includedir" "$exec_prefix/include"`
 oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
+
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
 #			sample values:	suse		linux
