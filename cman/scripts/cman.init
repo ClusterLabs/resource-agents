@@ -8,8 +8,13 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-# Get configuration variables
+# Get Configuration variables
 [ -f  /etc/sysconfig/cman ] && . /etc/sysconfig/cman
+
+# My stuff
+CLUSTER_NAME=Patrick2
+CLDIR=/mnt/export/home/msp/pcaulfie/new/cluster
+PATH=$PATH:$CLDIR/cman/cman_tool:$CLDIR/fence/fence_tool:$CLDIR/fence/fenced:$CLDIR/ccs/daemon:$CLDIR/../../LVM2/daemons/clvmd
 
 # Need a cluster name
 if [ -z "$CLUSTER_NAME" ]
@@ -41,12 +46,13 @@ case "$1" in
     stop)
 	echo -n $"Stopping cluster services"
 	umount -a -tgfs
-	lvm vgchange -aln --ignorelockingfailure
+	grep "blocked" /proc/cluster/status > /dev/null
+	[ $? = 1 ] && lvm vgchange -aln --ignorelockingfailure
 	killproc clvmd || true
 	killproc ccsd || true
 	fence_tool leave || true
 	sleep 3
-	cman_tool leave
+	cman_tool leave remove
 	rm -f /var/lock/subsys/cman
 	echo
 	;;
