@@ -34,7 +34,7 @@ my $max_open_tries = 3;      # How many telnet attempts to make.  Because the
                              # should be more than 1
 my $open_wait = 5;           # Seconds to wait between each telnet attempt
 my $telnet_timeout = 20;     # Seconds to wait for matching telent response
-my $debuglog = '/tmp/apclog' # Location of debugging log when in verbose mode
+my $debuglog = '/tmp/apclog';# Location of debugging log when in verbose mode
 $opt_o = 'reboot';           # Default fence action.  
 
 
