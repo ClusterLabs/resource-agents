@@ -73,6 +73,20 @@ follows:
 .in -7
 
 
+\fINode ID\fR
+.in +7
+
+By default, a node is assigned a nodeid by the cluster manager (cman) when
+it joins the cluster.  This can be overriden by specifying a nodeid here.
+Using this option will ensure that a given node always has the same ID.
+A node's application to join the cluster may be rejected if you try to set
+the nodeid to one that is already used.
+
+  <clusternode name="nd1" nodeid="1">
+  </clusternode>
+.in -7
+
+
 \fIMultihome network configuration\fR
 .in +7
 Cman can be configured to use multiple network interfaces.  If one fails it
