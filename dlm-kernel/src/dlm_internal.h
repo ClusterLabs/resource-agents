@@ -456,7 +456,7 @@ struct dlm_header {
 	uint32_t		rh_lkid;	/* Lock ID tag: ie the local
 						   (requesting) lock ID */
 	uint32_t		rh_lockspace;	/* Lockspace ID */
-};
+} __attribute__((packed));
 
 /*
  * This is the struct used in a remote lock/unlock/convert request
@@ -485,7 +485,7 @@ struct dlm_request {
 						   The length of this can be
 						   worked out from the packet
 						   length */
-};
+} __attribute__((packed));
 
 /*
  * This is the struct returned by a remote lock/unlock/convert request
@@ -500,7 +500,7 @@ struct dlm_reply {
 	uint32_t		rl_status;	/* Status to return to caller */
 	uint32_t		rl_lkid;	/* Remote lkid */
 	char			rl_lvb[DLM_LVB_LEN];
-};
+} __attribute__((packed));
 
 /*
  * Recovery comms message
@@ -517,7 +517,7 @@ struct dlm_rcom {
 						   another datalen - 1 bytes.
 						   rh_length is set to sizeof
 						   dlm_rcom + datalen - 1 */
-};
+} __attribute__((packed));
 
 
 /* A remote query: GDLM_REMCMD_QUERY */
@@ -528,7 +528,7 @@ struct dlm_query_request {
 	uint32_t		rq_query;     /* query from the user */
 	uint32_t		rq_maxlocks;  /* max number of locks we can
 						 cope with */
-};
+} __attribute__((packed));
 
 /* First block of a reply query.  cmd = GDLM_REMCMD_QUERY */
 /* There may be subsequent blocks of
@@ -551,7 +551,7 @@ struct dlm_query_reply {
 	char			rq_valblk[DLM_LVB_LEN];	/* Master's LVB
 							   contents, if
 							   applicable */
-};
+} __attribute__((packed));
 
 /*
  * Lockqueue wait lock states
