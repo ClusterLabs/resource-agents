@@ -54,7 +54,6 @@ static int null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen,
 static int null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
 				 uint64_t subid, uint8_t state);
 static int null_lk_drop_all(void *misc);
-static int null_lk_status(void *misc, lglcb_t type, char *key, char *value);
 static int null_lk_error(void *misc, uint32_t err);
 
 
@@ -65,7 +64,6 @@ static lg_lockspace_callbacks_t lock_callbacks_initializer = {
 	null_lk_lock_action,
 	null_lk_drop_lock_req,
 	null_lk_drop_all,
-	null_lk_status,
 	null_lk_error
 };
 
@@ -120,14 +118,6 @@ null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
 
 static int
 null_lk_drop_all(void *misc)
-{
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
-	return 0;
-}
-
-
-static int
-null_lk_status(void *misc, lglcb_t type, char *key, char *value)
 {
 	printf("GuLM Lock: %s called\n", __FUNCTION__);
 	return 0;

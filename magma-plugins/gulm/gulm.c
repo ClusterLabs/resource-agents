@@ -63,7 +63,6 @@ static int null_statechange(void *misc, uint8_t corestate,
 static int null_nodechange(void *misc, char *nodename,
 			   struct in6_addr *nodeip, uint8_t nodestate);
 static int null_service_list(void *misc, lglcb_t type, char *service);
-static int null_status(void *misc, lglcb_t type, char *key, char *value);
 static int null_error(void *misc, uint32_t err);
 
 static lg_core_callbacks_t gulm_callbacks_initializer = {
@@ -73,7 +72,6 @@ static lg_core_callbacks_t gulm_callbacks_initializer = {
 	null_statechange,
 	null_nodechange,
 	null_service_list,
-	null_status,
 	null_error
 };
 
@@ -127,14 +125,6 @@ null_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 
 static int
 null_service_list(void *misc, lglcb_t type, char *service)
-{
-	printf("GuLM: %s called\n", __FUNCTION__);
-	return 0;
-}
-
-
-static int
-null_status(void *misc, lglcb_t type, char *key, char *value)
 {
 	printf("GuLM: %s called\n", __FUNCTION__);
 	return 0;
