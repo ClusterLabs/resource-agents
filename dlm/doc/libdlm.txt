@@ -91,9 +91,9 @@ int dlm_lock(int mode,
 	     void *name,
 	     unsigned int namelen,
 	     gdlm_lkid_t parent,
-	     void *ast,
-	     long  astargs,
-	     void *bast,
+	     void (*ast) (void *astarg),
+	     void *astarg,
+	     void (*bast) (void *astarg),
 	     gdlm_range_t *range)
 	      
 
@@ -118,9 +118,10 @@ lksb		Lock status block.
 		status of the lock operation (all lock ops are asynchronous)
 		and the value block if LKF_VALBLK is set.
 
-name		Name of the lock. Can be binary, max 64 bytes
+name		Name of the lock. Can be binary, max 64 bytes. Ignored for lock
+		conversions.
 
-namelen		Length of the above name
+namelen		Length of the above name. Ignored for lock conversions.
 
 parent		ID of parent lock or NULL if this is a top-level lock
 
@@ -146,7 +147,7 @@ range		an optional structure of two uint64_t that indicate the range
 		above.
 
 
-All lock operations are asynchronous. If the call to dlm_lock returns an error
+dlm_lock operations are asynchronous. If the call to dlm_lock returns an error
 then the operation has failed and the AST routine will not be called. If
 dlm_lock returns 0 it is still possible that the lock operation will fail. The
 AST routine will be called when the locking is complete or has failed and the
@@ -159,11 +160,68 @@ setting/returning lock value blocks which I'll not go into here.
 If the AST routines or parameter are passed to a conversion operation then they
 will overwrite those values that were passed to a previous dlm_lock call.
 
+int dlm_lock_wait(int mode,
+ 	     gdlm_lksb_t *lksb,
+  	     int flags,
+	     void *name,
+	     unsigned int namelen,
+	     gdlm_lkid_t parent,
+	     void *bastarg,
+	     void (*bast) (void *bastarg),
+	     gdlm_range_t *range)
+	      
+
+mode		lock mode:
+                LKM_LOCK_NL 	NULL Lock
+		LKM_LOCK_CR    	Concurrent read
+		LKM_LOCK_CW    	Concurrent write
+		LKM_LOCK_PR    	Protected read
+		LKM_LOCK_PW    	Protected write
+		LKM_LOCK_EX    	Exclusive
+
+flags		LKF_NOQUEUE	Don't queue the lock. If it cannot be
+				granted return -EAGAIN
+		LKF_CONVERT	Convert an existing lock
+		LKF_VALBLK	Lock has a value block
+		LKF_QUECVT	Put conversion to the back of the queue
+		LKF_PERSISTENT  Specifies a lock that will
+                                not be freed when the process exits.
+
+lksb		Lock status block.
+		This structure contains the returned lock ID, the actual
+		status of the lock operation and the value block if LKF_VALBLK 
+		is set. Both the return value from dlm_unlock_wait and 
+		the condition code in the lksb must be checked to determine
+		whether a lock request completed succesfully or not.
+
+name		Name of the lock. Can be binary, max 64 bytes. Ignored for
+		lock conversions.
+
+namelen		Length of the above name. Ignored for lock conversions.
+
+parent		ID of parent lock or NULL if this is a top-level lock
+
+bastarg		Argument to pass to the blocking AST routine (most people pass the 
+		lksb in here but it can be anything you like.)
+		
+bast		Blocking AST routine. address of a function to call if this 
+		lock is blocking another. The function will be called with
+		bastargs. This argument may be NULL in which case the caller will
+		not be notified if it is blocking another lock
+
+range		an optional structure of two uint64_t that indicate the range
+		of the lock. Locks with overlapping ranges will be granted only
+		if the lock modes are compatible. locks with non-overlapping
+		ranges (on the same resource) do not conflict. A lock with no
+		range is assumed to have a range emcompassing the largest
+		possible range. ie. 0-0xFFFFFFFFFFFFFFFF.  Note that is is more
+		efficient to specify no range than to specify the full range
+		above.
 
 int dlm_unlock(gdlm_lkid_t lkid, 
                uint32 flags, 
                gdlm_lksb_t *lksb, 
-               long astarg)
+               void *astarg)
 
 lkid		Lock ID as returned in the lksb
 
@@ -182,7 +240,12 @@ lksb		LKSB to return status and value block information. If NULL
 
 astarg 		New parameter to be passed to the completion AST. If this 
 		is NULL then the astarg passed to the last locking
-		operation will be used.
+		operation will be used. The completion AST routine is the
+		last completion AST routine specified in a dlm_lock call.
+		If dlm_lock_wait() was the last routine to issue a lock, 
+		dlm_unlock_wait() must be used to release the lock. If dlm_lock()
+		was the last routine to issue a lock then either dlm_unlock()
+		or dlm_unlock_wait() may be called.
 		
 Unlocks are also asynchronous. The AST routine is called when the resource is
 successfully unlocked (see below).
@@ -203,6 +266,33 @@ GDLM_EDEADLOCK
   If it was a new lock then it has not been granted. 
   (NB Only conversion deadlocks are currently detected)
   
+int dlm_unlock_wait(gdlm_lkid_t lkid, 
+               uint32 flags, 
+               gdlm_lksb_t *lksb)
+
+lkid		Lock ID as returned in the lksb
+
+flags		flags affecting the unlock operation:
+		LKF_CANCEL	CANCEL a pending lock or conversion. 
+				This returns the lock to it's
+				previously granted mode (in case of a
+				conversion) or unlocks it (in case of a
+				waiting lock).
+					
+		LKF_IVVALBLK	Invalidate value block
+
+lksb		LKSB to return status and value block information. If NULL
+		the lksb parameter passed to the last locking operation 
+		will be used.		
+
+Returns when the unlock operation is complete either because it
+finished or because an error was detected. In the case where
+the unlock operation was succesful no error is returned.
+
+The return value of the function call is the status of issuing
+the unlock operation. The status of the unlock operation itself
+is in the lock status block. Both of these must be checked to
+verify that the unlock has completed succesfully.
 
 Lock Query Operations
 ---------------------
@@ -212,12 +302,21 @@ int dlm_query(gdlm_lksb_t *lksb,
 	      void (*ast_routine(void *astarg)),
 	      void *astarg);
 
-All operations are asynchronous, the ultimate status and data will be returned into the
+The operation is asynchronous, the ultimate status and data will be returned into the
 gdlm_query_info structure which should be checked when the ast_routine is
 called. The lksb must contain a valid lock ID in sb_lkid which is used to 
 identify the resource to be queried, status will be returned in sb_status;
 As with the locking calls an AST woutine will be called when the query completes
 if the call itself returns 0.
+
+int dlm_query_wait(gdlm_lksb_t *lksb,
+              int query,
+	      struct gdlm_queryinfo *qinfo)
+
+Same as dlm_query() except that it waits for the operation to complete.
+When the operation is complete the status of will be in the lksb. Both
+the return value from the function call and the condition code in the
+lksb must be evaluated.
 
 If the provided lock list is too short to hold all the locks, then sb_status
 in the lksb will contain -E2BIG but the list will be filled in as far as possible.
@@ -230,6 +329,7 @@ struct gdlm_lockinfo
     int   lki_lkid;          /* Lock ID on originating node */
     int   lki_parent;
     int   lki_node;          /* Originating node (not master) */
+    int   lki_ownpid;        /* Owner pid on the originating node */
     uint8 lki_state;         /* Queue the lock is on */
     int8  lki_grmode         /* Granted mode */
     int8  lki_rqmode;        /* Requested mode */
@@ -392,23 +492,43 @@ int dlm_ls_lock(dlm_lshandle_t lockspace,
 		void *name,
 		unsigned int namelen,
 		gdlm_lkid_t parent,
-		void *ast,
-		long  astargs,
-		void *bast,
+		void (*ast) (void *astarg),
+		void *astarg,
+		void (*bast) (void *astarg),
 		gdlm_range_t *range)
 
   Same as dlm_lock() above but takes a lockspace argument.
 
+int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
+		int mode,
+		gdlm_lksb_t *lksb,
+		int flags,
+		void *name,
+		unsigned int namelen,
+		gdlm_lkid_t parent,
+		void *bastarg,
+		void (*bast) (void *bastarg),
+		gdlm_range_t *range)
+
+  Same as dlm_lock_wait() above but takes a lockspace argument.
 
 
 int dlm_ls_unlock(dlm_lshandle_t lockspace,
 		  gdlm_lkid_t lkid, 
                   uint32 flags, 
                   gdlm_lksb_t *lksb, 
-                  long astarg)
+                  void *astarg)
 
 
   Same as dlm_unlock above but takes a lockspace argument.
+
+int dlm_ls_unlock_wait(dlm_lshandle_t lockspace,
+		  gdlm_lkid_t lkid, 
+                  uint32 flags, 
+                  gdlm_lksb_t *lksb)
+
+
+  Same as dlm_unlock_wait above but takes a lockspace argument.
 
 
 int dlm_ls_query(dlm_lshandle_t lockspace,
@@ -419,6 +539,13 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
 	         void *astarg);
 
   Same as dlm_query above but takes a lockspace argument.
+
+int dlm_ls_query_wait(dlm_lshandle_t lockspace,
+                 gdlm_lksb_t *lksb,
+                 int query,
+	         struct gdlm_queryinfo *qinfo)
+
+  Same as dlm_query_wait above but takes a lockspace argument.
 
 
 One further point about lockspace operations is that there is no locking
