@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.32 $) dnl cvs revision
+AC_REVISION($Revision: 1.33 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -22,7 +22,7 @@ dnl Defaults to GNU C compiler if available.
 dnl Always tries to set the compiler to ANSI C via options (AM)
 dnl Can force other with environment variable "CC".
 AC_PROG_CC
-AM_PROG_CC_STDC dnl this is not possible cause of CLK_TCK??
+AM_PROG_CC_STDC
 AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
 AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AM_PROG_LIBTOOL
