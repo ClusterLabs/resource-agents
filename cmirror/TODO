@@ -1,8 +1,11 @@
 HIGH PRIORITY  (data integrity related)
 =============
+DO NOT CONSIDER PRODUCTION READY UNTIL THESE BUGS ARE CLEARED.
+
 1. Ensure that the proper blocks are being re-sync'ed upon node failure
 	A) Just regions in use by client machines when they die.
 	B) All regions in use when server dies.
+	*) FIX IN PLACE: VERIFYING
 
 2. Ensure that it is not possible to have a machine (client or server)
    die and lose important state.  An example might be:
@@ -13,9 +16,14 @@ HIGH PRIORITY  (data integrity related)
 	4) machines continue to use region without server knowing region
 	   should be in dirty state
 	5) one of the original machines dies
+	*) FIX IDENTIFIED: IMPLEMENTING
 
 MEDIUM PRIORITY (functionality related, but data not at risk)
 ===============
+UNTIL THESE BUGS ARE CLEARED, CONSIDER PRODUCTION READY WITH THE
+EXPECTATION THAT SOME FEATURES MAY BE SUBOPTIMAL OR NOT FULLY
+FUCTIONAL.
+
 1. cluster_dtr (or disk_dtr?) should write bits to disk if it is
    in charge of the log.  This must be done in such a way so that
    a new master does not pick up the disk before the leaving node
@@ -45,6 +53,10 @@ LOW PRIORITY (coding practice, extended functionality, etc)
 
 7. Implement core mode
 
-8. Unable to specify port numbers (unable to change the default)
+8. Unable to specify port numbers (unable to change the default, which is
+   51006 for the cluster log server)
 
 9. the uuid scheme for identifying logs sucks
+
+10. cluster disk log is read by server when a node joins, leaves, or fails.
+    We probably don't have to read it when a node joins.
