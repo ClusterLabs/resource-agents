@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.56 $) dnl cvs revision
+AC_REVISION($Revision: 1.57 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -40,6 +40,7 @@ dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
 
 dnl *************************************************************************
+SYSPATH="/bin /usr/bin /sbin /usr/sbin /usr/local/sbin /usr/local/bin"
 dnl checks for programs
 dnl 
 dnl Which C compiler?
@@ -72,7 +73,6 @@ else
       AC_MSG_RESULT("using $GLIBCCONFIG")
 fi
 
-SYSPATH="/sbin /usr/sbin /bin /usr/bin /usr/local/sbin /usr/local/bin"
 
 AC_MSG_CHECKING(if netstat supports -f inet flag)
 $NETSTAT -rn -f inet > /dev/null 2>&1
