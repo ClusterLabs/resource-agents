@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.75 $) dnl cvs revision
+AC_REVISION($Revision: 1.76 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -484,28 +484,42 @@ dnl
 		-Wnested-externs -Winline $EXTRA_WARNINGS"
 fi
 
+INIT_EXT=""
+USE_MODULES=0
 case "$host_os" in
 solaris*)	HEARTBEAT_LIBS="-lposix4"
-		INITDIR="/etc/init.d"
-		INIT_EXT=""
-		USE_MODULES=0
+		# I don't think this is necessary any more...
 		;;
+
 *bsd*)		LIBS="$LIBS -L/usr/local/lib"
-		INITDIR="/usr/local/etc/rc.d"
-		USE_MODULES=0
 		INIT_EXT=".sh"
 		;;
-*linux*)	
-		INITDIR="/etc/rc.d/init.d"
-		USE_MODULES=1
-		INIT_EXT=""
+
+*linux*)	USE_MODULES=1
  		;;
 esac
+
+AC_MSG_CHECKING(which init (rc) directory to use)
+INITDIR=""
+for initdir in /etc/init.d /etc/rc.d/init.d /sbin/init.d /usr/local/etc/rc.d
+do
+  if
+    test -d $initdir
+  then
+    INITDIR=$initdir
+    AC_MSG_RESULT($INITDIR);
+    break
+  fi
+done
+if
+  test "X$INITDIR" = X
+then
+  AC_MSG_ERROR(Could not locate init directory)
+fi
 
 AC_SUBST(INITDIR)
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
-AC_MSG_RESULT($INITDIR);
 
 
 dnl **********************************************************************
