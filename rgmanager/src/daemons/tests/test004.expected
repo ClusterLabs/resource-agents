@@ -1,0 +1,21 @@
+=== Resources List ===
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+
+Resource type: resourcegroup [ROOT]
+Instances: 1/1
+Agent: resourcegroup.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+=== Resource Tree ===
+resourcegroup {
+  name = "test1";
+  script {
+    name = "initscript";
+    file = "/etc/init.d/sshd";
+  }
+}

@@ -1,0 +1,4 @@
+#
+# Tests to run.
+#
+TESTS=$(/bin/ls -1 test*.conf | cut -f1 -d.)

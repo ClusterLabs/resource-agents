@@ -1,0 +1,53 @@
+=== Old Resource List ===
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+
+Resource type: resourcegroup [ROOT]
+Instances: 1/1
+Agent: resourcegroup.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+=== New Resource List ===
+Resource type: script
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/sshd [ unique required ]
+
+Resource type: ip [NEEDSTART]
+Instances: 1/1
+Agent: ip.sh
+Attributes:
+  address = 192.168.1.2 [ primary unique ]
+  monitor_link = 1
+
+Resource type: resourcegroup [ROOT]
+Instances: 1/1
+Agent: resourcegroup.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+=== Old Resource Tree ===
+resourcegroup {
+  name = "test1";
+  script {
+    name = "initscript";
+    file = "/etc/init.d/sshd";
+  }
+}
+=== New Resource Tree ===
+resourcegroup {
+  name = "test1";
+  ip [ NEEDSTART ] {
+    address = "192.168.1.2";
+    monitor_link = "1";
+  }
+  script {
+    name = "initscript";
+    file = "/etc/init.d/sshd";
+  }
+}

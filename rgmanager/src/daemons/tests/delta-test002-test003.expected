@@ -1,0 +1,32 @@
+=== Old Resource List ===
+Resource type: resourcegroup [ROOT]
+Instances: 1/1
+Agent: resourcegroup.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+=== New Resource List ===
+Resource type: script [NEEDSTART]
+Agent: script.sh
+Attributes:
+  name = initscript [ primary unique ]
+  file = /etc/init.d/httpd [ unique required ]
+
+Resource type: resourcegroup [ROOT]
+Instances: 1/1
+Agent: resourcegroup.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+=== Old Resource Tree ===
+resourcegroup {
+  name = "test1";
+}
+=== New Resource Tree ===
+resourcegroup {
+  name = "test1";
+  script [ NEEDSTART ] {
+    name = "initscript";
+    file = "/etc/init.d/httpd";
+  }
+}
