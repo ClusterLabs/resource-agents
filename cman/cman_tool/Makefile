@@ -45,6 +45,9 @@ main.o: main.c cman_tool.h
 join.o: join.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+join_ccs.o: join_ccs.c cman_tool.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 install: cman_tool
 	install -d ${sbindir}
 	install cman_tool ${sbindir}
