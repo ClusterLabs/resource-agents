@@ -269,7 +269,7 @@ static int dlm_async(void *data)
 	dlm_t *dlm = (dlm_t *) data;
 	dlm_lock_t *lp = NULL;
 	dlm_start_t *ds = NULL;
-	uint8_t complete, blocking, submit, start, finish;
+	uint8_t complete, blocking, submit, start, finish, drop;
 	DECLARE_WAITQUEUE(wait, current);
 
 	daemonize("lock_dlm");
@@ -283,7 +283,7 @@ static int dlm_async(void *data)
 		remove_wait_queue(&dlm->wait, &wait);
 		current->state = TASK_RUNNING;
 
-		complete = blocking = submit = start = finish = 0;
+		complete = blocking = submit = start = finish = drop = 0;
 
 		spin_lock(&dlm->async_lock);
 
@@ -311,6 +311,11 @@ static int dlm_async(void *data)
 			finish = 1;
 		}
 
+		if (atomic_read(&dlm->lock_count) >= DROP_LOCKS_COUNT &&
+		    check_timeout(dlm->drop_time, DROP_LOCKS_TIME)) {
+			dlm->drop_time = jiffies;
+			drop = 1;
+		}
 		spin_unlock(&dlm->async_lock);
 
 		if (complete)
@@ -327,6 +332,9 @@ static int dlm_async(void *data)
 
 		else if (finish)
 			process_finish(dlm);
+
+		if (drop)
+			dlm->fscb(dlm->fsdata, LM_CB_DROPLOCKS, NULL);
 
 		schedule();
 	}

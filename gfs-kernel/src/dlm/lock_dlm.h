@@ -45,6 +45,9 @@
 
 #define LOCK_DLM_MAX_NODES	(128)
 
+#define DROP_LOCKS_COUNT	(20000)
+#define DROP_LOCKS_TIME		(60)
+
 struct dlm;
 struct dlm_lock;
 struct dlm_node;
@@ -93,6 +96,8 @@ struct dlm {
 
 	wait_queue_head_t	wait;
 	atomic_t		threads;
+	atomic_t		lock_count;
+	unsigned long		drop_time;
 
 	int			mg_local_id;
 	int			mg_last_start;
@@ -304,6 +309,11 @@ void lock_dlm_debug_dump(void);
 #else
 #define log_debug(fmt, args...)
 #endif
+
+static inline int check_timeout(unsigned long stamp, unsigned int seconds)
+{
+    return time_after(jiffies, stamp + seconds * HZ);
+}
 
 #define DLM_ASSERT(x, do) \
 { \
