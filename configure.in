@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.111 $) dnl cvs revision
+AC_REVISION($Revision: 1.112 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -948,8 +948,10 @@ heartbeat/Makefile						\
 ldirectord/Makefile						\
 	ldirectord/init.d/Makefile				\
 	ldirectord/logrotate.d/Makefile				\
+membership/Makefile						\
+	membership/ccm/Makefile					\
 telecom/Makefile						\
-	telecom/apphbd/Makefile						\
+	telecom/apphbd/Makefile					\
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
