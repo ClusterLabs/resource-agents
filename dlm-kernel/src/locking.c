@@ -954,17 +954,17 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode,
 		  lkb->lkb_id, rsb->res_name);
 
-	lkb->lkb_flags &= ~GDLM_LKFLG_VALBLK;
-	lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
+	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED | GDLM_LKFLG_RETURNLVB);
 
 	if (flags & DLM_LKF_NODLCKWT)
 		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;
+	if (flags & DLM_LKF_VALBLK)
+		lkb->lkb_flags |= GDLM_LKFLG_VALBLK;
 	lkb->lkb_astaddr = ast;
 	lkb->lkb_astparam = (long) astarg;
 	lkb->lkb_bastaddr = bast;
 	lkb->lkb_rqmode = mode;
 	lkb->lkb_lockqueue_flags = flags;
-	lkb->lkb_flags |= (flags & DLM_LKF_VALBLK) ? GDLM_LKFLG_VALBLK : 0;
 	lkb->lkb_lvbptr = lksb->sb_lvbptr;
 
 	if (rsb->res_nodeid) {
@@ -1054,11 +1054,15 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 		if (!rsb->res_lvbptr)
 			rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
 
-		b = __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
-		if (b)
-			memcpy(lkb->lkb_lvbptr, rsb->res_lvbptr, DLM_LVB_LEN);
-		else
-			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+                lkb->lkb_flags &= ~GDLM_LKFLG_RETURNLVB;
+                b = __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
+                if (b == 1) {
+                        memcpy(lkb->lkb_lvbptr, rsb->res_lvbptr, DLM_LVB_LEN);
+                        lkb->lkb_flags |= GDLM_LKFLG_RETURNLVB;
+                }
+                if (b == 0) {
+                        memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+                }
 	}
 
 	if (lkb->lkb_range) {

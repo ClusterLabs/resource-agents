@@ -392,6 +392,8 @@ struct dlm_rsb {
 #define GDLM_LKFLG_RESENT	(0x00400000)
 #define GDLM_LKFLG_NOREBUILD	(0x00800000)
 #define GDLM_LKFLG_UNLOCKDONE	(0x01000000)
+#define GDLM_LKFLG_VALNOTVALID  (0x02000000)
+#define GDLM_LKFLG_RETURNLVB    (0x04000000)
 
 #define AST_COMP		(1)
 #define AST_BAST		(2)
@@ -504,6 +506,7 @@ struct dlm_reply {
 	uint32_t		rl_nodeid;	/* nodeid of lock master */
 	uint32_t		rl_status;	/* Status to return to caller */
 	uint32_t		rl_lkid;	/* Remote lkid */
+	uint32_t		rl_flags;
 	char			rl_lvb[DLM_LVB_LEN];
 } __attribute__((packed));
 
