@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.191 $) dnl cvs revision
+AC_REVISION($Revision: 1.192 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -1160,6 +1160,7 @@ AC_CONFIG_SUBDIRS(libltdl)
 dnl The Makefiles and shell scripts we output
 AC_OUTPUT(heartbeat.spec 					\
 Makefile						        \
+README							        \
 config/Makefile					        	\
 cts/Makefile					        	\
 	cts/CM_fs.py						\
