@@ -1,8 +1,8 @@
 # Add lock_gulm to the build system.
-diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2005-01-10 13:00:55.570121695 -0600
-+++ linux/fs/Kconfig	2005-01-10 13:00:55.580119428 -0600
-@@ -1802,6 +1802,12 @@ config LOCK_DLM
+diff -urN -p linux-2.6.10/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.10/fs/Kconfig	2005-01-12 17:18:41.559151931 -0600
++++ linux/fs/Kconfig	2005-01-12 17:18:41.570149454 -0600
+@@ -1844,6 +1844,12 @@ config LOCK_DLM
  	help
  	  A lock module that allows GFS to use a Distributed Lock Manager.
  
@@ -15,18 +15,18 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.9/fs/gfs_locking/Makefile	2005-01-10 13:00:55.570121695 -0600
-+++ linux/fs/gfs_locking/Makefile	2005-01-10 13:00:55.580119428 -0600
+diff -urN -p linux-2.6.10/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.10/fs/gfs_locking/Makefile	2005-01-12 17:18:41.560151706 -0600
++++ linux/fs/gfs_locking/Makefile	2005-01-12 17:18:41.570149454 -0600
 @@ -13,4 +13,5 @@
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
  obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
  obj-$(CONFIG_LOCK_DLM)		+= lock_dlm/
 +obj-$(CONFIG_LOCK_GULM)		+= lock_gulm/
  
-diff -urN -p linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
---- linux-2.6.9/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_gulm/Makefile	2005-01-10 13:00:55.581119202 -0600
+diff -urN -p linux-2.6.10/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
+--- linux-2.6.10/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_gulm/Makefile	2005-01-12 17:18:41.571149229 -0600
 @@ -0,0 +1,32 @@
 +###############################################################################
 +###############################################################################

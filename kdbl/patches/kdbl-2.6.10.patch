@@ -1,6 +1,6 @@
-diff -urN -p linux-2.6.9/include/linux/kdbl.h linux/include/linux/kdbl.h
---- linux-2.6.9/include/linux/kdbl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux/include/linux/kdbl.h	2005-01-12 16:56:50.719409986 -0600
+diff -urN -p linux-2.6.10/include/linux/kdbl.h linux/include/linux/kdbl.h
+--- linux-2.6.10/include/linux/kdbl.h	1969-12-31 18:00:00.000000000 -0600
++++ linux/include/linux/kdbl.h	2005-01-12 17:19:05.284807955 -0600
 @@ -0,0 +1,59 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -61,10 +61,10 @@ diff -urN -p linux-2.6.9/include/linux/kdbl.h linux/include/linux/kdbl.h
 +
 +
 +#endif /* __KDBL_DOT_H__ */
-diff -urN -p linux-2.6.9/lib/Kconfig.debug linux/lib/Kconfig.debug
---- linux-2.6.9/lib/Kconfig.debug	2005-01-03 21:03:19.000000000 -0600
-+++ linux/lib/Kconfig.debug	2005-01-12 16:56:27.412660129 -0600
-@@ -98,3 +98,9 @@ config FRAME_POINTER
+diff -urN -p linux-2.6.10/lib/Kconfig.debug linux/lib/Kconfig.debug
+--- linux-2.6.10/lib/Kconfig.debug	2005-01-03 17:26:25.000000000 -0600
++++ linux/lib/Kconfig.debug	2005-01-12 17:19:05.284807955 -0600
+@@ -117,3 +117,9 @@ config FRAME_POINTER
  	  If you don't debug the kernel, you can say N, but we may not be able
  	  to solve problems without frame pointers.
  endif
@@ -74,10 +74,10 @@ diff -urN -p linux-2.6.9/lib/Kconfig.debug linux/lib/Kconfig.debug
 +	help
 +	  Basic Kernel Debug Library
 +
-diff -urN -p linux-2.6.9/lib/Makefile linux/lib/Makefile
---- linux-2.6.9/lib/Makefile	2005-01-03 21:03:19.000000000 -0600
-+++ linux/lib/Makefile	2005-01-12 16:56:27.413659904 -0600
-@@ -18,6 +18,7 @@ endif
+diff -urN -p linux-2.6.10/lib/Makefile linux/lib/Makefile
+--- linux-2.6.10/lib/Makefile	2005-01-03 17:26:25.000000000 -0600
++++ linux/lib/Makefile	2005-01-12 17:19:05.285807729 -0600
+@@ -23,6 +23,7 @@ endif
  obj-$(CONFIG_CRC_CCITT)	+= crc-ccitt.o
  obj-$(CONFIG_CRC32)	+= crc32.o
  obj-$(CONFIG_LIBCRC32C)	+= libcrc32c.o
@@ -85,9 +85,9 @@ diff -urN -p linux-2.6.9/lib/Makefile linux/lib/Makefile
  obj-$(CONFIG_GENERIC_IOMAP) += iomap.o
  
  obj-$(CONFIG_ZLIB_INFLATE) += zlib_inflate/
-diff -urN -p linux-2.6.9/lib/kdbl.c linux/lib/kdbl.c
---- linux-2.6.9/lib/kdbl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux/lib/kdbl.c	2005-01-12 16:56:40.849633281 -0600
+diff -urN -p linux-2.6.10/lib/kdbl.c linux/lib/kdbl.c
+--- linux-2.6.10/lib/kdbl.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/lib/kdbl.c	2005-01-12 17:19:05.286807504 -0600
 @@ -0,0 +1,756 @@
 +/******************************************************************************
 +*******************************************************************************

@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
 --- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-12-17 21:09:42.943443026 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2005-01-12 17:20:26.206580949 -0600
 @@ -0,0 +1,827 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -831,7 +831,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-12-17 21:09:42.956440012 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2005-01-12 17:20:26.206580949 -0600
 @@ -0,0 +1,704 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1539,7 +1539,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
 --- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-12-17 21:09:42.956440012 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2005-01-12 17:20:26.206580949 -0600
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1918,7 +1918,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
 --- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-12-17 21:09:42.956440012 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2005-01-12 17:20:26.207580724 -0600
 @@ -0,0 +1,330 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2252,7 +2252,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
 --- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-12-17 21:09:42.957439780 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2005-01-12 17:20:26.207580724 -0600
 @@ -0,0 +1,361 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2617,7 +2617,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-12-17 21:09:42.957439780 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2005-01-12 17:20:26.208580499 -0600
 @@ -0,0 +1,1236 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3857,7 +3857,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
 --- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-12-17 21:09:42.958439548 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2005-01-12 17:20:26.208580499 -0600
 @@ -0,0 +1,432 @@
 +/******************************************************************************
 +*******************************************************************************

@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_locking/lock_nolock/main.c
 --- linux-orig/fs/gfs_locking/lock_nolock/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2004-12-17 21:09:37.678663967 -0600
++++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2005-01-12 17:20:20.325905534 -0600
 @@ -0,0 +1,358 @@
 +/******************************************************************************
 +*******************************************************************************
