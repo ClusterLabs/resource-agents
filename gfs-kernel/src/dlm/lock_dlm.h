@@ -356,7 +356,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 { \
   if (!(x)) \
   { \
-    dlm_locks_dump(); \
     dlm_debug_dump(); \
     lock_dlm_debug_dump(); \
     printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
