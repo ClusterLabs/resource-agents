@@ -81,7 +81,9 @@ cman_member_list(cluster_plugin_t *self,
 		if (cman_nl.nodes)
 			free(cman_nl.nodes);
 		if (foo)
-			cml_free(foo);
+			/* Don't need to cml_free - we know we didn't
+			   resolve anything */
+			free(foo);
 
 		x = ioctl(p->sockfd, SIOCCLUSTER_GETMEMBERS, NULL);
 		if (x <= 0)

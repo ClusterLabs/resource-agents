@@ -95,7 +95,9 @@ sm_member_list(cluster_plugin_t *self, char *groupname)
 		if (sm_nl.nodes)
 			free(sm_nl.nodes);
 		if (foo)
-			cml_free(foo);
+			/* Don't need to cml_free - we know we didn't
+			   resolve anything */
+			free(foo);
 
 		x = ioctl(p->sockfd, op, NULL);
 		if (x <= 0)

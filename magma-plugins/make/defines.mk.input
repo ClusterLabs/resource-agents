@@ -12,10 +12,10 @@
 ###############################################################################
 
 #Install Locations
-sbindir ?= ${DESTDIR}/@SBINDIR@
-mandir ?= ${DESTDIR}/@MANDIR@
-libdir ?= ${DESTDIR}/@LIBDIR@
-incdir ?= ${DESTDIR}/@INCDIR@
+sbindir ?= ${DESTDIR}@SBINDIR@
+mandir ?= ${DESTDIR}@MANDIR@
+libdir ?= ${DESTDIR}@LIBDIR@
+incdir ?= ${DESTDIR}@INCDIR@
 
 # Where's the kernel?
 KERNEL_SRC = @KERNEL_SRC@

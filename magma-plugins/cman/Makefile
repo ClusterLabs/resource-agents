@@ -32,8 +32,9 @@ endif
 all: $(TARGETS)
 
 install: all
-	install -d ${libdir}/magma/plugins
-	install -m 0755 $(TARGETS) ${libdir}/magma/plugins
+	# Use the SM plugin for now; don't install CMAN
+	#install -d ${libdir}/magma/plugins
+	#install -m 0755 $(TARGETS) ${libdir}/magma/plugins
 
 uninstall:
 	${UNINSTALL} ${TARGETS} ${libdir}/magma/plugins
