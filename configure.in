@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.183 $) dnl cvs revision
+AC_REVISION($Revision: 1.184 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -555,19 +555,6 @@ dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
 AM_CONDITIONAL(USE_UCD_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes)
 
-dnl
-dnl	Work out what to link the snmp subagent against
-AC_CHECK_PROG(NET_SNMP_CONFIG, net-snmp-config, net-snmp-config)
-if test "X$NET_SNMP_CONFIG" = "X"; then
-	HASUBAGENT_LDADD_EXTRA=""
-	HASUBAGENT_LDFLAGS="-lucdagent -lucdmibs -lsnmp -lcrypto"
-else
-	HASUBAGENT_LDADD_EXTRA='`$(NET_SNMP_CONFIG) --cflags`'
-	HASUBAGENT_LDFLAGS='`$(NET_SNMP_CONFIG) --agent-libs`'
-fi
-AC_SUBST(HASUBAGENT_LDADD_EXTRA)
-AC_SUBST(HASUBAGENT_LDFLAGS)
-
 dnl ************************************************************************
 dnl  checks for typedefs
 dnl
@@ -776,8 +763,12 @@ if test "${enable_snmp_subagent+set}"  = "set"; then
 	SNMP_SUBAGENT_DIR="snmp_subagent"
 	sinclude([config/snmp_subagent.m4]) 
 	LIB_SNMP
+	SNMP_SUBAGENT_ENABLED=1
+	AC_SUBST(SNMP_SUBAGENT_ENABLED)
 	AC_SUBST(SNMP_LIBS)
 else
+	SNMP_SUBAGENT_ENABLED=0
+	AC_SUBST(SNMP_SUBAGENT_ENABLED)
 	SNMP_SUBAGENT_DIR=""
 fi
 
@@ -920,6 +911,9 @@ AC_ARG_WITH(
     [ UCDSNMPDEVEL=$withval ],
     [ UCDSNMPDEVEL=ucd-snmp-devel ],
   )
+if test "$ac_cv_header_ucd_snmp_snmp_h" = no; then
+	UCDSNMPDEVEL=""
+fi
 AC_SUBST(UCDSNMPDEVEL)
 AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, 
 	Name of UCD SNMP development package)
@@ -1271,11 +1265,12 @@ AC_MSG_RESULT([ HA_CCM user id        = ${HA_CCMUID}])
 
 case x"$SNMP_SUBAGENT_DIR" in
   x)
-    AC_MSG_RESULT([ Use snmp subagent     = no])
+    AC_MSG_RESULT([ Build snmp subagent   = no])
     ;;
   xsnmp_subagent)
-    AC_MSG_RESULT([ Use snmp subagent     = yes])
-    AC_MSG_RESULT([ SNMP rpm name         = ${UCDSNMPDEVEL}])
-    AC_MSG_RESULT([ SNMP libraries       = ${SNMP_LIBS}])
+    AC_MSG_RESULT([ Build snmp subagent   = yes])
+    AC_MSG_RESULT([ ucd_snmp_devel name   = ${UCDSNMPDEVEL}])
+    AC_MSG_RESULT([ SNMP libraries        = ${SNMP_LIBS}])
+    AC_MSG_RESULT([ SNMP MIB directory    = ${MIBS_DIR}])
     ;;
 esac
