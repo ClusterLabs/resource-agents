@@ -159,7 +159,7 @@ static int init_fence(dlm_t *dlm)
 
 	error = -1;
  out:
-	printk("lock_dlm: init_fence error %d\n", error);
+	printk("lock_dlm: fence domain not found; check fenced\n");
 	return error;
 }
 
