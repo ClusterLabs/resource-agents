@@ -1,11 +1,12 @@
 # Make the VFS call down into the FS on flock calls.
 diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
---- linux-2.6.8.1/fs/locks.c	2004-08-26 17:38:35.200191439 -0500
-+++ linux/fs/locks.c	2004-08-26 17:38:40.774899308 -0500
-@@ -1295,6 +1295,33 @@ out_unlock:
+--- linux-2.6.8.1/fs/locks.c	2004-08-23 09:21:15.000000000 -0500
++++ linux/fs/locks.c	2004-08-27 11:48:41.761779306 -0500
+@@ -718,6 +718,33 @@ out:
+ 	return error;
  }
  
- /**
++/**
 + * flock_lock_file_wait - Apply a FLOCK-style lock to a file
 + * @filp: The file to apply the lock to
 + * @fl: The lock to be applied
@@ -32,10 +33,9 @@ diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
 +
 +EXPORT_SYMBOL(flock_lock_file_wait);
 +
-+/**
-  *	sys_flock: - flock() system call.
-  *	@fd: the file descriptor to lock.
-  *	@cmd: the type of lock to apply.
+ EXPORT_SYMBOL(posix_lock_file);
+ 
+ static int __posix_lock_file(struct inode *inode, struct file_lock *request)
 @@ -1342,6 +1369,13 @@ asmlinkage long sys_flock(unsigned int f
  	if (error)
  		goto out_free;
@@ -64,8 +64,8 @@ diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
  	before = &inode->i_flock;
  
 diff -urN -p linux-2.6.8.1/include/linux/fs.h linux/include/linux/fs.h
---- linux-2.6.8.1/include/linux/fs.h	2004-08-26 17:38:35.201191207 -0500
-+++ linux/include/linux/fs.h	2004-08-26 17:38:40.776898844 -0500
+--- linux-2.6.8.1/include/linux/fs.h	2004-08-23 09:21:21.000000000 -0500
++++ linux/include/linux/fs.h	2004-08-27 11:47:36.256005757 -0500
 @@ -687,6 +687,7 @@ extern int posix_lock_file(struct file *
  extern void posix_block_lock(struct file_lock *, struct file_lock *);
  extern void posix_unblock_lock(struct file *, struct file_lock *);
