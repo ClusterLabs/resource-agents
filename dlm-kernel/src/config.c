@@ -25,7 +25,7 @@
 #define DEFAULT_RSBTBL_SIZE      256
 #define DEFAULT_LKBTBL_SIZE     1024
 #define DEFAULT_DIRTBL_SIZE      512
-#define DEFAULT_MAX_CONNECTIONS  128
+#define DEFAULT_CONN_INCREMENT    32
 #define DEFAULT_DEADLOCKTIME      10
 #define DEFAULT_RECOVER_TIMER      5
 
@@ -36,7 +36,7 @@ struct config_info dlm_config = {
 	.rsbtbl_size = DEFAULT_RSBTBL_SIZE,
 	.lkbtbl_size = DEFAULT_LKBTBL_SIZE,
 	.dirtbl_size = DEFAULT_DIRTBL_SIZE,
-	.max_connections = DEFAULT_MAX_CONNECTIONS,
+	.conn_increment = DEFAULT_CONN_INCREMENT,
 	.deadlocktime = DEFAULT_DEADLOCKTIME,
 	.recover_timer = DEFAULT_RECOVER_TIMER
 };
@@ -71,8 +71,8 @@ static struct config_proc_info {
 	.value = &dlm_config.dirtbl_size,
     },
     {
-	.name = "max_connections",
-	.value = &dlm_config.max_connections,
+	.name = "conn_increment",
+	.value = &dlm_config.conn_increment,
     },
     {
 	.name = "deadlocktime",

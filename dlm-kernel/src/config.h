@@ -21,7 +21,7 @@ struct config_info {
 	int rsbtbl_size;
 	int lkbtbl_size;
 	int dirtbl_size;
-	int max_connections;
+	int conn_increment;
 	int deadlocktime;
 	int recover_timer;
 };

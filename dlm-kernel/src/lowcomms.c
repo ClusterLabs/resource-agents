@@ -92,7 +92,6 @@ struct connection {
 	struct connection *othersock;
 };
 #define sock2con(x) ((struct connection *)(x)->sk_user_data)
-#define nodeid2con(x) (&connections[(x)])
 
 /* An entry waiting to be sent */
 struct writequeue_entry {
@@ -125,8 +124,10 @@ static wait_queue_head_t lowcomms_send_waitq;
 static wait_queue_t lowcomms_recv_waitq_head;
 static wait_queue_head_t lowcomms_recv_waitq;
 
-/* An array of connections, indexed by NODEID */
-static struct connection *connections;
+/* An array of pointers to connections, indexed by NODEID */
+static struct connection **connections;
+static struct rw_semaphore connections_lock;
+static kmem_cache_t *con_cache;
 static int conn_array_size;
 static atomic_t writequeue_length;
 static atomic_t accepting;
@@ -149,6 +150,55 @@ static struct list_head listen_sockets;
 static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr);
 static int lowcomms_nodeid_from_ipaddr(struct sockaddr *addr, int addr_len);
 
+
+static struct connection *nodeid2con(int nodeid, int allocation)
+{
+	struct connection *con = NULL;
+
+	down_read(&connections_lock);
+	if (nodeid >= conn_array_size) {
+		int new_size = nodeid + dlm_config.conn_increment;
+		struct connection **new_conns;
+
+		new_conns = kmalloc(sizeof(struct connection *) *
+				    new_size, allocation);
+		if (!new_conns)
+			goto finish;
+
+		up_read(&connections_lock);
+		/* The worst that can happen here (I think), is that
+		   we get two consecutive reallocations */
+		down_write(&connections_lock);
+
+		memset(new_conns, 0, sizeof(struct connection *) * new_size);
+		memcpy(new_conns, connections,  sizeof(struct connection *) * conn_array_size);
+		conn_array_size = new_size;
+		kfree(connections);
+		connections = new_conns;
+
+		up_write(&connections_lock);
+		down_read(&connections_lock);
+	}
+
+	con = connections[nodeid];
+	if (con == NULL && allocation) {
+		con = kmem_cache_alloc(con_cache, allocation);
+		if (!con)
+			goto finish;
+
+		memset(con, 0, sizeof(*con));
+		con->nodeid = nodeid;
+		init_rwsem(&con->sock_sem);
+		INIT_LIST_HEAD(&con->writequeue);
+		spin_lock_init(&con->writequeue_lock);
+
+		connections[nodeid] = con;
+	}
+
+ finish:
+	up_read(&connections_lock);
+	return con;
+}
 
 /* Data available on socket or listen socket received a connect */
 static void lowcomms_data_ready(struct sock *sk, int count_unused)
@@ -269,7 +319,7 @@ static void close_connection(struct connection *con)
 			sock_release(con->othersock->sock);
 			con->othersock->sock = NULL;
 			up_write(&con->othersock->sock_sem);
-			kfree(con->othersock);
+			kmem_cache_free(con_cache, con->othersock);
 			con->othersock = NULL;
 		}
 	}
@@ -447,12 +497,16 @@ static int accept_from_sock(struct connection *con)
 	 * TEMPORARY FIX:
 	 *  In this case we store the incoming one in "othersock"
 	 */
-	newcon = nodeid2con(nodeid);
+	newcon = nodeid2con(nodeid, GFP_KERNEL);
+	if (!newcon) {
+		result = -ENOMEM;
+		goto accept_err;
+	}
 	down_write(&newcon->sock_sem);
 	if (newcon->sock) {
 	        struct connection *othercon;
 
-		othercon = kmalloc(sizeof(struct connection), GFP_KERNEL);
+		othercon = kmem_cache_alloc(con_cache, GFP_KERNEL);
 		if (!othercon) {
 		        printk("dlm: failed to allocate incoming socket\n");
 			up_write(&newcon->sock_sem);
@@ -635,7 +689,7 @@ static int listen_for_all(void)
 	int nodeid;
 	struct socket *sock = NULL;
 	struct list_head *addr_list;
-	struct connection *con = nodeid2con(0);
+	struct connection *con = nodeid2con(0, GFP_KERNEL);
 	struct connection *temp;
 	struct cluster_node_addr *node_addr;
 	char local_addr[sizeof(struct sockaddr_in6)];
@@ -653,7 +707,7 @@ static int listen_for_all(void)
 	list_for_each_entry(node_addr, addr_list, list) {
 
 		if (!con) {
-			con = kmalloc(sizeof(struct connection), GFP_KERNEL);
+			con = kmem_cache_alloc(con_cache, GFP_KERNEL);
 			if (!con) {
 				printk("dlm: failed to allocate listen socket\n");
 				result = -ENOMEM;
@@ -680,7 +734,7 @@ static int listen_for_all(void)
 		}
 		else {
 			result = -EADDRINUSE;
-			kfree(con);
+			kmem_cache_free(con_cache, con);
 			goto create_free;
 		}
 
@@ -694,7 +748,7 @@ static int listen_for_all(void)
 	/* Free up any dynamically allocated listening sockets */
 	list_for_each_entry_safe(con, temp, &listen_sockets, listenlist) {
 		sock_release(con->sock);
-		kfree(con);
+		kmem_cache_free(con_cache, con);
 	}
 	return result;
 }
@@ -728,10 +782,13 @@ static struct writequeue_entry *new_writequeue_entry(struct connection *con,
 struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
 					     int allocation, char **ppc)
 {
-	struct connection *con = nodeid2con(nodeid);
+	struct connection *con = nodeid2con(nodeid, allocation);
 	struct writequeue_entry *e;
 	int offset = 0;
 	int users = 0;
+
+	if (!con)
+		return NULL;
 
 	if (!atomic_read(&accepting))
 		return NULL;
@@ -895,8 +952,8 @@ int lowcomms_close(int nodeid)
 	if (!connections)
 		goto out;
 
-	con = nodeid2con(nodeid);
-	if (con->sock) {
+	con = nodeid2con(nodeid, 0);
+	if (con && con->sock) {
 		close_connection(con);
 		clean_one_writequeue(con);
 		return 0;
@@ -912,9 +969,6 @@ int lowcomms_send_message(int nodeid, char *buf, int len, int allocation)
 {
 	struct writequeue_entry *e;
 	char *b;
-
-	DLM_ASSERT(nodeid < dlm_config.max_connections,
-		    printk("nodeid=%u\n", nodeid););
 
 	e = lowcomms_get_buffer(nodeid, len, allocation, &b);
 	if (e) {
@@ -1012,10 +1066,11 @@ static void clean_writequeues(void)
 {
 	int nodeid;
 
-	for (nodeid = 1; nodeid < dlm_config.max_connections; nodeid++) {
-		struct connection *con = nodeid2con(nodeid);
+	for (nodeid = 1; nodeid < conn_array_size; nodeid++) {
+		struct connection *con = nodeid2con(nodeid, 0);
 
-		clean_one_writequeue(con);
+		if (con)
+			clean_one_writequeue(con);
 	}
 }
 
@@ -1136,13 +1191,17 @@ void lowcomms_stop(void)
 	   socket activity.
 	*/
 	for (i = 0; i < conn_array_size; i++) {
-	        connections[i].flags = 0x7;
+		if (connections[i])
+			connections[i]->flags = 0x7;
 	}
 	daemons_stop();
 	clean_writequeues();
 
 	for (i = 0; i < conn_array_size; i++) {
-		close_connection(nodeid2con(i));
+		if (connections[i]) {
+			close_connection(connections[i]);
+			kmem_cache_free(con_cache, connections[i]);
+		}
 	}
 
 	kfree(connections);
@@ -1151,9 +1210,10 @@ void lowcomms_stop(void)
 	/* Free up any dynamically allocated listening sockets */
 	list_for_each_entry_safe(lcon, temp, &listen_sockets, listenlist) {
 		sock_release(lcon->sock);
-		kfree(lcon);
+		kmem_cache_free(con_cache, lcon);
 	}
 
+	kmem_cache_destroy(con_cache);
 	kcl_releaseref_cluster();
 }
 
@@ -1161,7 +1221,6 @@ void lowcomms_stop(void)
 int lowcomms_start(void)
 {
 	int error = 0;
-	int i;
 
 	INIT_LIST_HEAD(&read_sockets);
 	INIT_LIST_HEAD(&write_sockets);
@@ -1171,6 +1230,7 @@ int lowcomms_start(void)
 	spin_lock_init(&read_sockets_lock);
 	spin_lock_init(&write_sockets_lock);
 	spin_lock_init(&state_sockets_lock);
+	init_rwsem(&connections_lock);
 
 	error = -ENOTCONN;
 	if (kcl_addref_cluster())
@@ -1184,33 +1244,37 @@ int lowcomms_start(void)
 	init_waitqueue_head(&lowcomms_send_waitq);
 
 	error = -ENOMEM;
-	connections = kmalloc(sizeof(struct connection) *
-			      dlm_config.max_connections, GFP_KERNEL);
+	connections = kmalloc(sizeof(struct connection *) *
+			      dlm_config.conn_increment, GFP_KERNEL);
 	if (!connections)
 		goto out;
 
 	memset(connections, 0,
-	       sizeof(struct connection) * dlm_config.max_connections);
-	for (i = 0; i < dlm_config.max_connections; i++) {
-		connections[i].nodeid = i;
-		init_rwsem(&connections[i].sock_sem);
-		INIT_LIST_HEAD(&connections[i].writequeue);
-		spin_lock_init(&connections[i].writequeue_lock);
-	}
-	conn_array_size = dlm_config.max_connections;
+	       sizeof(struct connection *) * dlm_config.conn_increment);
+
+	conn_array_size = dlm_config.conn_increment;
+
+	con_cache = kmem_cache_create("dlm_conn", sizeof(struct connection),
+				      __alignof__(struct connection), 0, NULL, NULL);
+	if (!con_cache)
+		goto fail_free_conn;
+
 
 	/* Start listening */
 	error = listen_for_all();
 	if (error)
-		goto fail_free_conn;
+		goto fail_free_slab;
 
 	error = daemons_start();
 	if (error)
-		goto fail_free_conn;
+		goto fail_free_slab;
 
 	atomic_set(&accepting, 1);
 
 	return 0;
+
+      fail_free_slab:
+	kmem_cache_destroy(con_cache);
 
       fail_free_conn:
 	kcl_releaseref_cluster();
