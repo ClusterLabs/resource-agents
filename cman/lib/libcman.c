@@ -179,7 +179,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 int cman_get_node_count(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	return ioctl(h->fd, SIOCCLUSTER_GETMEMBERS, 0);
+	return ioctl(h->fd, SIOCCLUSTER_GETALLMEMBERS, 0);
 }
 
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes)
