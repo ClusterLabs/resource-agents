@@ -1793,6 +1793,37 @@ void requeue_conflict(Lock_t *lk, Waiters_t *lkrq)
  *
  * this may have to change to work with ranges. XXX
  *
+ * Jon had a neat idea for something that would replace the anyflag.
+ * Basically, lock states/modes are now a bit field.  And you can ask for
+ * multiple modes at once.  What it means is 'give me the best mode of the
+ * ones I asked for'  So any would be replaced with (shr|dfr), more
+ * interesting is the cases where things like (exl|shr|dfr).  And even more
+ * so if more states are added.
+ *
+ * Implementing this idea would replace this funtion.  The whole concept of
+ * the any flag would get dropped. (maybe kept in libgulm, which would just
+ * change it to this.)
+ *
+ * I think the code in check_for_conflict() would only really need to
+ * change.  check_for_conflict() could return either a failure (eveything
+ * asked for conflicts.) or the best mode that would let the request
+ * succede.
+ *
+ * damn, if that is all that it is, that would be way cleaner than this
+ * icky anyflag code.
+ *
+ * its not just that.  basicly, conflict check returns a bit field that
+ * describes which states are held by all holders of this lock.  (it also
+ * returns true/false if the req is compatible.)  there needs to be another
+ * function, that takes this bit field and the req states field, and
+ * determins which state this req will get.
+ *
+ * still not too bad.  Only major part is going through everything to
+ * change the states from indexes to bits.
+ *
+ * Not quite sure that doing that is really worth the gain.  I may have to
+ * play with some forked code later.
+ *
  */
 void check_for_any_flag(Lock_t *lk, Waiters_t *lkrq)
 {
@@ -2620,8 +2651,6 @@ int expire_from_waiters(uint8_t *name, Lock_t *lk)
  * 
  * this function could probably stand to be rewritten.
  * 
- * XXX ? what happens if this is called twice for the same node?
- *
  * Returns: int
  */
 int _expire_locks_(LLi_t *item, void *d)
@@ -2629,7 +2658,7 @@ int _expire_locks_(LLi_t *item, void *d)
    uint8_t *name = (uint8_t*)d;
    Lock_t *lk;
    int modQ=FALSE;
-   LLi_t *tp;
+   LLi_t *tp,*nxt;
    Holders_t *h;
 
    lk = LLi_data(item);
@@ -2640,10 +2669,12 @@ int _expire_locks_(LLi_t *item, void *d)
       modQ = TRUE;
    }
 
-   for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+   for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=nxt) {
+      nxt = LLi_next(tp);
       h = LLi_data(tp);
       if( strcmp(h->name, name) == 0 ) {
          LLi_del(tp);
+         lk->HolderCount --;
          switch(h->state) {
             case gio_lck_st_Exclusive:
                /* move to exp list */
@@ -2660,12 +2691,11 @@ int _expire_locks_(LLi_t *item, void *d)
                recycle_holder(h);
                break;
          }
-         break; /* should only be one holder by name */
       }
    }
 
    if( modQ ) {
-      /* a change that might let queued requests advance happened */
+      /* a change that might let queued requests advance */
       Run_WaitQu(lk);
       check_for_recycle(lk);
    }
