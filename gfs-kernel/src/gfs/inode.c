@@ -838,8 +838,8 @@ gfs_lookupi(struct gfs_holder *d_gh, struct qstr *name,
 	}
 
 	if (gfs_glock_is_locked_by_me(d_gh->gh_gl))
-		bitch_about(sdp, &sdp->sd_last_readdirplus,
-			    "readdirplus-type behavior");
+		gfs_warn(sdp, "readdirplus-type behavior from process \"%s\"",
+			 current->comm);
 
 	gfs_holder_reinit(LM_ST_SHARED, 0, d_gh);
 	error = gfs_glock_nq(d_gh);
@@ -1790,7 +1790,8 @@ gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 	unsigned int x;
 	int error = 0;
 
-	GFS_ASSERT(num_gh,);
+	if (!num_gh)
+		return 0;
 
 	if (num_gh == 1) {
 		ghs->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);
@@ -1801,7 +1802,9 @@ gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 		return error;
 	}
 
-	p = gmalloc(sizeof(struct gfs_holder *) * num_gh);
+	p = kmalloc(num_gh * sizeof(struct gfs_holder *), GFP_KERNEL);
+	if (!p)
+		return -ENOMEM;
 
 	for (x = 0; x < num_gh; x++)
 		p[x] = &ghs[x];
@@ -1822,8 +1825,8 @@ gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 			break;
 		}
 	}
-	kfree(p);
 
+	kfree(p);
 	return error;
 }
 

@@ -183,6 +183,7 @@ struct gfs_args {
 	int ar_ignore_local_fs;	/* Don't optimize even if local_fs is TRUE */
 	int ar_localflocks;	/* Let the VFS do flock|fcntl locks for us */
 	int ar_localcaching;	/* Local-style caching (dangerous on multihost) */
+	int ar_oopses_ok;       /* Allow oopses (i.e. don't set panic_on_oops) */
 
 	int ar_upgrade;		/* Upgrade ondisk/multihost format */
 

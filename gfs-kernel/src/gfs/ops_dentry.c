@@ -50,7 +50,6 @@ gfs_drevalidate(struct dentry *dentry, struct nameidata *nd)
 	lock_kernel();
 
 	dip = vn2ip(parent->d_inode);
-	GFS_ASSERT(dip,);
 
 	atomic_inc(&dip->i_sbd->sd_ops_dentry);
 

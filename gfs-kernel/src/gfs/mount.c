@@ -105,6 +105,9 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 		else if (!strcmp(x, "localcaching"))
 			args->ar_localcaching = TRUE;
 
+		else if (!strcmp(x, "oopses_ok"))
+			args->ar_oopses_ok = TRUE;
+
 		else if (!strcmp(x, "upgrade"))
 			args->ar_upgrade = TRUE;
 

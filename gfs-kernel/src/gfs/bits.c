@@ -32,12 +32,11 @@
 #include "bits.h"
 
 static const char valid_change[16] = {
-	/* current */
-
+	        /* current */
 	/* n */ 0, 1, 1, 1,
 	/* e */ 1, 0, 0, 0,
 	/* w */ 1, 0, 0, 1,
-	0, 0, 1, 0
+	        0, 0, 1, 0
 };
 
 /**

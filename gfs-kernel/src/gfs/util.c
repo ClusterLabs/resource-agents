@@ -24,8 +24,6 @@
 
 uint32_t gfs_random_number;
 
-volatile int gfs_in_panic = FALSE;
-
 kmem_cache_t *gfs_glock_cachep = NULL;
 kmem_cache_t *gfs_inode_cachep = NULL;
 kmem_cache_t *gfs_bufdata_cachep = NULL;
@@ -184,131 +182,225 @@ gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 }
 
 /**
- * bitch_about - 
- * @sdp: the filesystem
- * @last: the last time we bitched
- * @about:
+ * gfs_assert_i -
+ * @sdp:
+ * @assertion:
+ * @function:
+ * @file:
+ * @line:
  *
  */
 
 void
-bitch_about(struct gfs_sbd *sdp, unsigned long *last, char *about)
-{
-	if (time_after_eq(jiffies, *last + sdp->sd_tune.gt_complain_secs * HZ)) {
-		printk("GFS: fsid=%s: %s by program \"%s\"\n",
-		       sdp->sd_fsname, about, current->comm);
-		*last = jiffies;
-	}
-}
-
-/**
- * gfs_assert_i - Stop the machine
- * @assertion: the assertion that failed
- * @file: the file that called us
- * @line: the line number of the file that called us
- *
- * Don't do ENTER() and EXIT() here.
- *
- */
-
-void
-gfs_assert_i(char *assertion,
-	     unsigned int type, void *ptr,
+gfs_assert_i(struct gfs_sbd *sdp,
+	     char *assertion,
+	     const char *function,
 	     char *file, unsigned int line)
 {
-	gfs_in_panic = TRUE;
-
-	switch (type) {
-	case GFS_ASSERT_TYPE_SBD: {
-		struct gfs_sbd *sdp = (struct gfs_sbd *)ptr;
-		panic("GFS: Assertion failed on line %d of file %s\n"
-		      "GFS: assertion: \"%s\"\n"
-		      "GFS: time = %lu\n"
-		      "GFS: fsid=%s\n",
-		      line, file, assertion, get_seconds(),
-		      sdp->sd_fsname);
-	}
-
-	case GFS_ASSERT_TYPE_GLOCK: {
-		struct gfs_glock *gl = (struct gfs_glock *)ptr;
-		struct gfs_sbd *sdp = gl->gl_sbd;
-		panic("GFS: Assertion failed on line %d of file %s\n"
-		      "GFS: assertion: \"%s\"\n"
-		      "GFS: time = %lu\n"
-		      "GFS: fsid=%s: glock = (%u, %"PRIu64")\n",
-		      line, file, assertion, get_seconds(),
-		      sdp->sd_fsname,
-		      gl->gl_name.ln_type,
-		      gl->gl_name.ln_number);
-	}
-
-	case GFS_ASSERT_TYPE_INODE: {
-		struct gfs_inode *ip = (struct gfs_inode *)ptr;
-		struct gfs_sbd *sdp = ip->i_sbd;
-		panic("GFS: Assertion failed on line %d of file %s\n"
-		      "GFS: assertion: \"%s\"\n"
-		      "GFS: time = %lu\n"
-		      "GFS: fsid=%s: inode = %"PRIu64"/%"PRIu64"\n",
-		      line, file, assertion, get_seconds(),
-		      sdp->sd_fsname,
-		      ip->i_num.no_formal_ino, ip->i_num.no_addr);
-	}
-
-	case GFS_ASSERT_TYPE_RGRPD: {
-		struct gfs_rgrpd *rgd = (struct gfs_rgrpd *)ptr;
-		struct gfs_sbd *sdp = rgd->rd_sbd;
-		panic("GFS: Assertion failed on line %d of file %s\n"
-		      "GFS: assertion: \"%s\"\n"
-		      "GFS: time = %lu\n"
-		      "GFS: fsid=%s: RG = %"PRIu64"\n",
-		      line, file, assertion, get_seconds(),
-		      sdp->sd_fsname,
-		      rgd->rd_ri.ri_addr);
-	}
-
-	default:
-		panic("GFS: Assertion failed on line %d of file %s\n"
-		      "GFS: assertion: \"%s\"\n"
-		      "GFS: time = %lu\n",
-		      line, file, assertion, get_seconds());
-	}
+	printk("GFS: fsid=%s: assertion \"%s\" failed\n"
+	       "GFS: fsid=%s:   function = %s\n"
+	       "GFS: fsid=%s:   file = %s, line = %u\n"
+	       "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname, assertion,
+	       sdp->sd_fsname, function,
+	       sdp->sd_fsname, file, line,
+	       sdp->sd_fsname, get_seconds());
+	if (!sdp->sd_args.ar_oopses_ok)
+		panic_on_oops = 1;
+	BUG();
+	panic("BUG()\n");
 }
 
 /**
- * gfs_io_errori - handle an I/O error
- * @sdp: the filesystem
- * @bh: the buffer the error happened on (can be NULL)
- *
- * This will do something other than panic, eventually.
+ * gfs_warn -
+ * @sdp:
+ * @fmt:
  *
  */
 
-void gfs_io_error_i(struct gfs_sbd *sdp,
-		    unsigned int type, void *ptr,
+void
+gfs_warn(struct gfs_sbd *sdp, char *fmt, ...)
+{
+        va_list args;
+
+	if (time_before(jiffies,
+			sdp->sd_last_warning +
+			sdp->sd_tune.gt_complain_secs * HZ))
+		return;
+
+	va_start(args, fmt);
+	printk("GFS: fsid=%s: warning: ",
+	       sdp->sd_fsname);
+	vprintk(fmt, args);
+	printk("\n");
+        va_end(args);
+
+	sdp->sd_last_warning = jiffies;
+}
+
+/**
+ * gfs_consist_i -
+ * @sdp:
+ * @cluster_wide:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
+
+void
+gfs_consist_i(struct gfs_sbd *sdp, int cluster_wide,
+	      const char *function,
+	      char *file, unsigned int line)
+{
+	printk("GFS: fsid=%s: filesystem consistency error\n"
+	       "GFS: fsid=%s:   function = %s\n"
+	       "GFS: fsid=%s:   file = %s, line = %u\n"
+	       "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+	       sdp->sd_fsname, function,
+	       sdp->sd_fsname, file, line,
+	       sdp->sd_fsname, get_seconds());
+	gfs_assert(sdp, FALSE,); /* FixMe!!! */
+}
+
+/**
+ * gfs_consist_inode_i -
+ * @ip:
+ * @cluster_wide:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
+
+void
+gfs_consist_inode_i(struct gfs_inode *ip, int cluster_wide,
+		    const char *function,
 		    char *file, unsigned int line)
 {
-	switch (type) {
-	case GFS_IO_ERROR_TYPE_BH: {
-		struct buffer_head *bh = (struct buffer_head *)ptr;
-		printk("GFS: fsid=%s: I/O error on block %"PRIu64"\n",
-		       sdp->sd_fsname, (uint64_t)bh->b_blocknr);
-		break;
-	}
+	struct gfs_sbd *sdp = ip->i_sbd;
+        printk("GFS: fsid=%s: filesystem consistency error\n"
+	       "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+               "GFS: fsid=%s:   function = %s\n"
+               "GFS: fsid=%s:   file = %s, line = %u\n"
+               "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+	       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
+               sdp->sd_fsname, function,
+               sdp->sd_fsname, file, line,
+               sdp->sd_fsname, get_seconds());
+        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+}
 
-	case GFS_IO_ERROR_TYPE_INODE: {
-		struct gfs_inode *ip = (struct gfs_inode *)ptr;
-		printk("GFS: fsid=%s: I/O error in inode %"PRIu64"/%"PRIu64"\n",
-		       sdp->sd_fsname,
-		       ip->i_num.no_formal_ino, ip->i_num.no_addr);
-		break;
-	}
+/**
+ * gfs_consist_rgrpd_i -
+ * @rgd:
+ * @cluster_wide:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
 
-	default:
-		printk("GFS: fsid=%s: I/O error\n", sdp->sd_fsname);
-		break;
-	}
+void
+gfs_consist_rgrpd_i(struct gfs_rgrpd *rgd, int cluster_wide,
+		    const char *function,
+		    char *file, unsigned int line)
+{
+        struct gfs_sbd *sdp = rgd->rd_sbd;
+        printk("GFS: fsid=%s: filesystem consistency error\n"
+               "GFS: fsid=%s:   RG = %"PRIu64"\n"
+               "GFS: fsid=%s:   function = %s\n"
+               "GFS: fsid=%s:   file = %s, line = %u\n"
+               "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+	       sdp->sd_fsname, rgd->rd_ri.ri_addr,
+               sdp->sd_fsname, function,
+               sdp->sd_fsname, file, line,
+               sdp->sd_fsname, get_seconds());
+        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+}
 
-	GFS_ASSERT_SBD(FALSE, sdp,);
+/**
+ * gfs_io_error_i -
+ * @sdp:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
+
+void
+gfs_io_error_i(struct gfs_sbd *sdp,
+	       const char *function,
+	       char *file, unsigned int line)
+{
+        printk("GFS: fsid=%s: I/O error\n"
+               "GFS: fsid=%s:   function = %s\n"
+               "GFS: fsid=%s:   file = %s, line = %u\n"
+               "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+               sdp->sd_fsname, function,
+               sdp->sd_fsname, file, line,
+               sdp->sd_fsname, get_seconds());
+        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+}
+
+/**
+ * gfs_io_error_inode_i -
+ * @ip:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
+
+void
+gfs_io_error_inode_i(struct gfs_inode *ip,
+		     const char *function,
+		     char *file, unsigned int line)
+{
+	struct gfs_sbd *sdp = ip->i_sbd;
+        printk("GFS: fsid=%s: I/O error\n"
+               "GFS: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+               "GFS: fsid=%s:   function = %s\n"
+               "GFS: fsid=%s:   file = %s, line = %u\n"
+               "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+	       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
+               sdp->sd_fsname, function,
+               sdp->sd_fsname, file, line,
+               sdp->sd_fsname, get_seconds());
+        gfs_assert(sdp, FALSE,); /* FixMe!!! */
+}
+
+/**
+ * gfs_io_error_bh_i -
+ * @sdp:
+ * @bh:
+ * @function:
+ * @file:
+ * @line:
+ *
+ */
+
+void
+gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
+		  const char *function,
+		  char *file, unsigned int line)
+{
+        printk("GFS: fsid=%s: I/O error\n"
+	       "GFS: fsid=%s:   block = %"PRIu64"\n"
+               "GFS: fsid=%s:   function = %s\n"
+               "GFS: fsid=%s:   file = %s, line = %u\n"
+               "GFS: fsid=%s:   time = %lu\n",
+	       sdp->sd_fsname,
+	       sdp->sd_fsname, (uint64_t)bh->b_blocknr,
+               sdp->sd_fsname, function,
+               sdp->sd_fsname, file, line,
+               sdp->sd_fsname, get_seconds());
+        gfs_assert(sdp, FALSE,); /* FixMe!!! */
 }
 
 /**

@@ -156,9 +156,11 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
  *
  * If buffers were actually added to the transaction,
  * commit it.
+ *
+ * Returns: errno
  */
 
-void
+int
 gfs_trans_end(struct gfs_sbd *sdp)
 {
 	struct gfs_trans *tr;
@@ -183,7 +185,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 		gfs_glock_dq(t_gh);
 		gfs_holder_put(t_gh);
 
-		return;
+		goto out;
 	}
 
 	/* Do trans_end log-operation for each log element */
@@ -201,6 +203,9 @@ gfs_trans_end(struct gfs_sbd *sdp)
 
 	if (sdp->sd_vfs->s_flags & MS_SYNCHRONOUS)
 		gfs_log_flush(sdp);
+
+ out:
+	return (test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) ? -EIO : 0;
 }
 
 /**

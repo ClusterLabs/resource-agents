@@ -1081,8 +1081,7 @@ struct gfs_sbd {
 
 	/* Debugging crud */
 
-	unsigned long sd_last_readdirplus;
-	unsigned long sd_last_unlocked_aop;
+	unsigned long sd_last_warning;
 
 	spinlock_t sd_ail_lock;
 	struct list_head sd_recovery_bufs;

@@ -26,111 +26,83 @@ uint32_t gfs_hash_more(const void *data, unsigned int len, uint32_t hash);
 void gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 	      int (*compar) (const void *, const void *));
 
-void bitch_about(struct gfs_sbd *sdp, unsigned long *last, char *about);
 
+/* Error handling */
 
+#define gfs_assert(sdp, assertion, todo) \
+do { \
+	if (!(assertion)) { \
+		{todo} \
+		gfs_assert_i((sdp), #assertion, __FUNCTION__, __FILE__, __LINE__); \
+	} \
+} while (0)
+#define gfs_assert_panic(sdp, assertion, todo) \
+do { \
+	if (!(assertion)) { \
+		{todo} \
+                panic_on_oops = 1; \
+		gfs_assert_i((sdp), #assertion, __FUNCTION__, __FILE__, __LINE__); \
+	} \
+} while (0)
+void gfs_assert_i(struct gfs_sbd *sdp,
+		  char *assertion,
+		  const char *function,
+		  char *file, unsigned int line)
+__attribute__ ((noreturn));
 
-/* Assertion stuff */
+void gfs_warn(struct gfs_sbd *sdp, char *fmt, ...)
+__attribute__ ((format(printf, 2, 3)));
 
-#define GFS_ASSERT_TYPE_NONE      (18)
-#define GFS_ASSERT_TYPE_SBD       (19)
-#define GFS_ASSERT_TYPE_GLOCK     (20)
-#define GFS_ASSERT_TYPE_INODE     (21)
-#define GFS_ASSERT_TYPE_RGRPD     (22)
+#define gfs_consist(sdp)\
+gfs_consist_i((sdp), FALSE, __FUNCTION__, __FILE__, __LINE__)
+#define gfs_consist_cluster(sdp)\
+gfs_consist_i((sdp), TRUE, __FUNCTION__, __FILE__, __LINE__)
+void gfs_consist_i(struct gfs_sbd *sdp, int cluster_wide,
+		   const char *function,
+		   char *file, unsigned int line);
 
-#define GFS_ASSERT(assertion, todo) \
-do \
-{ \
-  if (!(assertion)) \
-  { \
-    {todo} \
-    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_NONE, NULL, __FILE__, __LINE__); \
- } \
-} \
-while (0)
+#define gfs_consist_inode(ip) \
+gfs_consist_inode_i((ip), FALSE, __FUNCTION__, __FILE__, __LINE__)
+#define gfs_consist_cluster_inode(ip) \
+gfs_consist_inode_i((ip), TRUE, __FUNCTION__, __FILE__, __LINE__)
+void gfs_consist_inode_i(struct gfs_inode *ip, int cluster_wide,
+			 const char *function,
+			 char *file, unsigned int line);
 
-#define GFS_ASSERT_SBD(assertion, sdp, todo) \
-do \
-{ \
-  if (!(assertion)) \
-  { \
-    struct gfs_sbd *gfs_assert_sbd = (sdp); \
-    {todo} \
-    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_SBD, gfs_assert_sbd, __FILE__, __LINE__); \
-  } \
-} \
-while (0)
-
-#define GFS_ASSERT_GLOCK(assertion, gl, todo) \
-do \
-{ \
-  if (!(assertion)) \
-  { \
-    struct gfs_glock *gfs_assert_glock = (gl); \
-    {todo} \
-    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_GLOCK, gfs_assert_glock, __FILE__, __LINE__); \
-  } \
-} \
-while (0)
-
-#define GFS_ASSERT_INODE(assertion, ip, todo) \
-do \
-{ \
-  if (!(assertion)) \
-  { \
-    struct gfs_inode *gfs_assert_inode = (ip); \
-    {todo} \
-    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_INODE, gfs_assert_inode, __FILE__, __LINE__); \
-  } \
-} \
-while (0)
-
-#define GFS_ASSERT_RGRPD(assertion, rgd, todo) \
-do \
-{ \
-  if (!(assertion)) \
-  { \
-    struct gfs_rgrpd *gfs_assert_rgrpd = (rgd); \
-    {todo} \
-    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_RGRPD, gfs_assert_rgrpd, __FILE__, __LINE__); \
-  } \
-} \
-while (0)
-
-extern volatile int gfs_in_panic;
-void gfs_assert_i(char *assertion,
-		  unsigned int type, void *ptr,
-		  char *file, unsigned int line) __attribute__ ((noreturn));
-
-
-/* I/O error stuff */
-
-#define GFS_IO_ERROR_TYPE_NONE    (118)
-#define GFS_IO_ERROR_TYPE_BH      (119)
-#define GFS_IO_ERROR_TYPE_INODE   (120)
+#define gfs_consist_rgrpd(rgd) \
+gfs_consist_rgrpd_i((rgd), FALSE, __FUNCTION__, __FILE__, __LINE__)
+#define gfs_consist_cluster_rgrpd(rgd) \
+gfs_consist_rgrpd_i((rgd), TRUE, __FUNCTION__, __FILE__, __LINE__)
+void gfs_consist_rgrpd_i(struct gfs_rgrpd *rgd, int cluster_wide,
+			 const char *function,
+			 char *file, unsigned int line);
 
 #define gfs_io_error(sdp) \
-gfs_io_error_i((sdp), GFS_ASSERT_TYPE_NONE, NULL, __FILE__, __LINE__);
-
-#define gfs_io_error_bh(sdp, bh) \
-do \
-{ \
-  struct buffer_head *gfs_io_error_bh = (bh); \
-  gfs_io_error_i((sdp), GFS_IO_ERROR_TYPE_BH, gfs_io_error_bh, __FILE__, __LINE__); \
-} \
-while (0)
+gfs_io_error_i((sdp), __FUNCTION__, __FILE__, __LINE__);
+void gfs_io_error_i(struct gfs_sbd *sdp,
+		    const char *function,
+		    char *file, unsigned int line);
 
 #define gfs_io_error_inode(ip) \
-do \
-{ \
-  struct gfs_inode *gfs_io_error_inode = (ip); \
-  gfs_io_error_i((ip)->i_sbd, GFS_IO_ERROR_TYPE_INODE, gfs_io_error_inode, __FILE__, __LINE__); \
-} \
-while (0)
+gfs_io_error_inode_i((ip), __FUNCTION__, __FILE__, __LINE__);
+void gfs_io_error_inode_i(struct gfs_inode *ip,
+			  const char *function,
+			  char *file, unsigned int line);
 
-void gfs_io_error_i(struct gfs_sbd *sdp,
-		    unsigned int type, void *ptr,
-		    char *file, unsigned int line);
+#define gfs_io_error_bh(sdp, bh) \
+gfs_io_error_bh_i((sdp), (bh), __FUNCTION__, __FILE__, __LINE__);
+void gfs_io_error_bh_i(struct gfs_sbd *sdp, struct buffer_head *bh,
+		       const char *function,
+		       char *file, unsigned int line);
+
+
+/* Translate old asserts into new ones (for now) */
+
+#define GFS_ASSERT_SBD(assertion, sdp, todo) gfs_assert((sdp), (assertion), todo)
+#define GFS_ASSERT_GLOCK(assertion, gl, todo) gfs_assert((gl)->gl_sbd, (assertion), todo)
+#define GFS_ASSERT_INODE(assertion, ip, todo) gfs_assert((ip)->i_sbd, (assertion), todo)
+#define GFS_ASSERT_RGRPD(assertion, rgd, todo) gfs_assert((rgd)->rd_sbd, (assertion), todo)
+
 
 
 /* Memory stuff */

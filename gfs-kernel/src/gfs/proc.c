@@ -72,7 +72,7 @@ static ssize_t
 do_list(char *user_buf, size_t size)
 {
 	struct list_head *tmp;
-	struct gfs_sbd *sdp;
+	struct gfs_sbd *sdp = NULL;
 	unsigned int s = 0, o = 0;
 	char num[21];
 	char *buf;
@@ -105,7 +105,7 @@ do_list(char *user_buf, size_t size)
 			     (unsigned long)sdp, sdp->sd_vfs->s_id, sdp->sd_fsname);
 	}
 
-	GFS_ASSERT(o <= s,);
+	GFS_ASSERT_SBD(o <= s, sdp,);
 
 	if (copy_to_user(user_buf, buf, o))
 		error = -EFAULT;

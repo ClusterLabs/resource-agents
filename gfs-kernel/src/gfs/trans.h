@@ -25,7 +25,7 @@ int gfs_trans_begin_i(struct gfs_sbd *sdp,
 #define gfs_trans_begin(sdp, mb, eb) \
 gfs_trans_begin_i((sdp), (mb), (eb), __FILE__, __LINE__)
 
-void gfs_trans_end(struct gfs_sbd *sdp);
+int gfs_trans_end(struct gfs_sbd *sdp);
 
 void gfs_trans_add_gl(struct gfs_glock *gl);
 void gfs_trans_add_bh(struct gfs_glock *gl, struct buffer_head *bh);

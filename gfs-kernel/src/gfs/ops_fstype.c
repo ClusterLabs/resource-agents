@@ -185,12 +185,18 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
-		/*  Force local [p|f]locks  */
+		/* Force local [p|f]locks */
 		sdp->sd_args.ar_localflocks = TRUE;
 
-		/*  Force local read ahead and caching  */
+		/* Force local read ahead and caching */
 		sdp->sd_args.ar_localcaching = TRUE;
+
+		/* Allow the machine to oops */
+		sdp->sd_args.ar_oopses_ok = TRUE;
 	}
+
+	if (!sdp->sd_args.ar_oopses_ok)
+		panic_on_oops = 1;
 
 	/*  Start up the scand thread  */
 

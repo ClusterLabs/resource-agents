@@ -52,7 +52,7 @@ gfs_write_inode(struct inode *inode, int sync)
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
 
-	if (ip && sync && !gfs_in_panic)
+	if (ip && sync)
 		gfs_log_flush_glock(ip->i_gl);
 
 	return 0;
@@ -208,11 +208,8 @@ static void
 gfs_write_super(struct super_block *sb)
 {
 	struct gfs_sbd *sdp = vfs2sdp(sb);
-
 	atomic_inc(&sdp->sd_ops_super);
-
-	if (!gfs_in_panic)
-		gfs_log_flush(sdp);
+	gfs_log_flush(sdp);
 }
 
 /**

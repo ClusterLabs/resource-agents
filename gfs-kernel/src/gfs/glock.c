@@ -1904,7 +1904,8 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	int borked = FALSE, serious = 0;
 	int error = 0;
 
-	GFS_ASSERT(num_gh,);
+	if (!num_gh)
+		return 0;
 
 	/* For just one gh, do request synchronously */
 	if (num_gh == 1) {
@@ -1913,17 +1914,19 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 		return error;
 	}
 
+	/* using sizeof(struct gfs_holder *) instead of sizeof(int), because
+	 * we're also using this memory for nq_m_sync and ints should never be
+	 * larger than pointers.... I hope
+	 */
+	e = kmalloc(num_gh * sizeof(struct gfs_holder *), GFP_KERNEL);
+	if (!e)
+		return -ENOMEM;
+
 	/* Send off asynchronous requests */
 	for (x = 0; x < num_gh; x++) {
 		ghs[x].gh_flags |= LM_FLAG_TRY | GL_ASYNC;
 		gfs_glock_nq(&ghs[x]);
 	}
-
-	/* using sizeof(struct gfs_holder *) instead of sizeof(int), because
-	 * we're also using this memory for nq_m_sync and ints should never be
-	 * larger than pointers.... I hope
-	 */
-	e = gmalloc(sizeof(struct gfs_holder *) * num_gh);
 
 	/* Wait for all to complete */
 	for (x = 0; x < num_gh; x++) {
@@ -1936,7 +1939,7 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	}
 
 	/* If all good, done! */
-	if (!borked){
+	if (!borked) {
 		kfree(e);
 		return 0;
 	}

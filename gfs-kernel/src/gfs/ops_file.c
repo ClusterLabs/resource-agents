@@ -1345,14 +1345,15 @@ gfs_open(struct inode *inode, struct file *file)
 static int
 gfs_close(struct inode *inode, struct file *file)
 {
+	struct gfs_sbd *sdp = vfs2sdp(inode->i_sb);
 	struct gfs_file *fp;
 
-	atomic_inc(&vfs2sdp(inode->i_sb)->sd_ops_file);
+	atomic_inc(&sdp->sd_ops_file);
 
 	fp = vf2fp(file);
 	vf2fp(file) = NULL;
 
-	GFS_ASSERT(fp,);
+	GFS_ASSERT_SBD(fp, sdp,);
 
 	kfree(fp);
 

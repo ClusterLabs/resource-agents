@@ -276,8 +276,8 @@ gfs_readpage(struct file *file, struct page *page)
 
 	if (!gfs_glock_is_locked_by_me(ip->i_gl)) {
 		unlock_page(page);
-		bitch_about(ip->i_sbd, &ip->i_sbd->sd_last_unlocked_aop,
-			    "unlocked readpage request");
+		gfs_warn(ip->i_sbd, "unlocked readpage request from process \"%s\"",
+			 current->comm);
 		return -ENOSYS;
 	}
 
@@ -323,8 +323,8 @@ gfs_prepare_write(struct file *file, struct page *page,
 	atomic_inc(&sdp->sd_ops_address);
 
 	if (!gfs_glock_is_locked_by_me(ip->i_gl)) {
-		bitch_about(sdp, &sdp->sd_last_unlocked_aop,
-			    "unlocked prepare_write request");
+                gfs_warn(ip->i_sbd, "unlocked prepare_write request from process \"%s\"",
+			 current->comm);
 		return -ENOSYS;
 	}
 
