@@ -564,7 +564,7 @@ static int hold_null_lock(dlm_lock_t *lp)
 	lpn->lvb = junk_lvb;
 
 	lpn->req = DLM_LOCK_NL;
-	lpn->lkf = DLM_LKF_VALBLK;
+	lpn->lkf = DLM_LKF_VALBLK | DLM_LKF_EXPEDITE;
 	set_bit(LFL_NOBAST, &lpn->flags);
 	set_bit(LFL_INLOCK, &lpn->flags);
 
