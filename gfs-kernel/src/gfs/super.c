@@ -169,7 +169,6 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 	struct buffer_head *bh;
 	uint32_t hash_blocks, ind_blocks, leaf_blocks;
 	uint32_t tmp_blocks;
-	uint64_t space = 0;
 	unsigned int x;
 	int error;
 
@@ -222,8 +221,9 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 	sdp->sd_heightsize[0] = sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode);
 	sdp->sd_heightsize[1] = sdp->sd_sb.sb_bsize * sdp->sd_diptrs;
 	for (x = 2;; x++) {
-		uint64_t d;
+		uint64_t space, d;
 		uint32_t m;
+
 		space = sdp->sd_heightsize[x - 1] * sdp->sd_inptrs;
 		d = space;
 		m = do_div(d, sdp->sd_inptrs);
@@ -238,8 +238,9 @@ gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent)
 	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize - sizeof(struct gfs_dinode);
 	sdp->sd_jheightsize[1] = sdp->sd_jbsize * sdp->sd_diptrs;
 	for (x = 2;; x++) {
-		uint64_t d;
+		uint64_t space, d;
 		uint32_t m;
+
 		space = sdp->sd_jheightsize[x - 1] * sdp->sd_inptrs;
 		d = space;
 		m = do_div(d, sdp->sd_inptrs);
