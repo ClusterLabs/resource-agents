@@ -1989,6 +1989,7 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 	struct sk_buff *skb;
 	struct cb_info *cbinfo;
 	int copied, err = 0;
+	int isoob = 0;
 
 	/* Socket was notified of shutdown, remove any pending skbs and return
 	 * EOF */
@@ -2006,9 +2007,10 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 			goto out;
 
 		cbinfo = (struct cb_info *)skb->cb;
+		isoob = cbinfo->oob;
 
 		/* If it is OOB and the user doesn't want it, then throw it away. */
-		if (cbinfo->oob && !(flags & MSG_OOB)) {
+		if (isoob && !(flags & MSG_OOB)) {
 			skb_free_datagram(sk, skb);
 
 			/* If we peeked (?) an OOB but the user doesn't want it
@@ -2020,10 +2022,8 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 					skb_free_datagram(sk, skb);
 			}
 		}
-		else
-			break;
 	}
-	while (cbinfo->oob && !(flags & MSG_OOB));
+	while (isoob && !(flags & MSG_OOB));
 
 	copied = skb->len;
 	if (copied > size) {
@@ -2048,7 +2048,7 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 		sin->scl_port = cbinfo->orig_port;
 	}
 
-	if (cbinfo->oob) {
+	if (isoob) {
 		msg->msg_flags |= MSG_OOB;
 	}
 
