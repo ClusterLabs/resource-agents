@@ -1,7 +1,7 @@
-diff -urN -p linux-2.6.10/drivers/block/Kconfig linux/drivers/block/Kconfig
---- linux-2.6.10/drivers/block/Kconfig	2005-01-03 17:25:53.000000000 -0600
-+++ linux/drivers/block/Kconfig	2005-01-14 00:37:53.800646677 -0600
-@@ -425,6 +425,13 @@ config CDROM_PKTCDVD_WCACHE
+diff -urN -p linux-2.6.11/drivers/block/Kconfig linux/drivers/block/Kconfig
+--- linux-2.6.11/drivers/block/Kconfig	2005-03-03 14:08:00.000000000 -0600
++++ linux/drivers/block/Kconfig	2005-03-03 18:15:23.000000000 -0600
+@@ -495,6 +495,13 @@ config CDROM_PKTCDVD_WCACHE
  	  this option is dangerous unless the CD-RW media is known good, as we
  	  don't do deferred write error handling yet.
  
@@ -15,9 +15,9 @@ diff -urN -p linux-2.6.10/drivers/block/Kconfig linux/drivers/block/Kconfig
  source "drivers/s390/block/Kconfig"
  
  source "drivers/block/Kconfig.iosched"
-diff -urN -p linux-2.6.10/drivers/block/Makefile linux/drivers/block/Makefile
---- linux-2.6.10/drivers/block/Makefile	2005-01-03 17:25:53.000000000 -0600
-+++ linux/drivers/block/Makefile	2005-01-14 00:37:53.812643985 -0600
+diff -urN -p linux-2.6.11/drivers/block/Makefile linux/drivers/block/Makefile
+--- linux-2.6.11/drivers/block/Makefile	2005-01-03 17:25:53.000000000 -0600
++++ linux/drivers/block/Makefile	2005-03-03 18:15:23.000000000 -0600
 @@ -44,4 +44,4 @@ obj-$(CONFIG_BLK_DEV_CRYPTOLOOP) += cryp
  obj-$(CONFIG_VIODASD)		+= viodasd.o
  obj-$(CONFIG_BLK_DEV_SX8)	+= sx8.o

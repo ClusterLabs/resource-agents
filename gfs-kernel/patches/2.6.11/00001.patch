@@ -1,8 +1,8 @@
 # Add lock harness to the build system.
-diff -urN -p linux-2.6.10/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.10/fs/Kconfig	2005-01-03 17:26:13.000000000 -0600
-+++ linux/fs/Kconfig	2005-01-12 17:18:27.316359974 -0600
-@@ -1810,6 +1810,14 @@ config AFS_FS
+diff -urN -p linux-2.6.11/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.11/fs/Kconfig	2005-03-03 18:14:50.000000000 -0600
++++ linux/fs/Kconfig	2005-03-03 18:14:53.000000000 -0600
+@@ -1714,6 +1714,14 @@ config AFS_FS
  config RXRPC
  	tristate
  
@@ -17,17 +17,17 @@ diff -urN -p linux-2.6.10/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.10/fs/Makefile linux/fs/Makefile
---- linux-2.6.10/fs/Makefile	2005-01-03 17:26:13.000000000 -0600
-+++ linux/fs/Makefile	2005-01-12 17:18:27.317359749 -0600
-@@ -94,3 +94,4 @@ obj-$(CONFIG_AFS_FS)		+= afs/
- obj-$(CONFIG_BEFS_FS)		+= befs/
+diff -urN -p linux-2.6.11/fs/Makefile linux/fs/Makefile
+--- linux-2.6.11/fs/Makefile	2005-03-03 18:14:50.000000000 -0600
++++ linux/fs/Makefile	2005-03-03 18:14:53.000000000 -0600
+@@ -95,3 +95,4 @@ obj-$(CONFIG_BEFS_FS)		+= befs/
  obj-$(CONFIG_HOSTFS)		+= hostfs/
  obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_DEBUG_FS)		+= debugfs/
 +obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
-diff -urN -p linux-2.6.10/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.10/fs/gfs_locking/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/Makefile	2005-01-12 17:18:27.317359749 -0600
+diff -urN -p linux-2.6.11/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.11/fs/gfs_locking/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/Makefile	2005-03-03 18:14:53.000000000 -0600
 @@ -0,0 +1,14 @@
 +###############################################################################
 +###############################################################################
@@ -43,9 +43,9 @@ diff -urN -p linux-2.6.10/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
 +
 +obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
 +
-diff -urN -p linux-2.6.10/fs/gfs_locking/lock_harness/Makefile linux/fs/gfs_locking/lock_harness/Makefile
---- linux-2.6.10/fs/gfs_locking/lock_harness/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_harness/Makefile	2005-01-12 17:18:27.317359749 -0600
+diff -urN -p linux-2.6.11/fs/gfs_locking/lock_harness/Makefile linux/fs/gfs_locking/lock_harness/Makefile
+--- linux-2.6.11/fs/gfs_locking/lock_harness/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_harness/Makefile	2005-03-03 18:14:53.000000000 -0600
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################

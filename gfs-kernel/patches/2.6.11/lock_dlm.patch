@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
 --- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2005-01-12 17:20:26.206580949 -0600
-@@ -0,0 +1,827 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2005-03-03 18:22:15.000000000 -0600
+@@ -0,0 +1,866 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -293,7 +293,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	 */
 +
 +	for (id = 0; id < dlm->max_nodes + 8; id++) {
-+		error = id_test_and_set(dlm, id, dlm->our_nodeid, &dlm->jid_lock);
++		error = id_test_and_set(dlm, id, dlm->our_nodeid, &dlm->jid_lp);
 +		if (error < 0)
 +			break;
 +		if (error > 0)
@@ -323,13 +323,17 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +/*
 + * Release our journalid, allowing it to be used by a node subsequently
-+ * mounting the fs.
++ * mounting the fs.  When withdrawing, we've already left the lockspace.
 + */
 +
 +static void release_jid(dlm_t *dlm)
 +{
-+	id_clear(dlm, dlm->jid_lock);
-+	dlm->jid_lock = NULL;
++	if (test_bit(DFL_WITHDRAW, &dlm->flags)) {
++		dlm_del_lvb(dlm->jid_lp);
++		delete_lp(dlm->jid_lp);
++	} else
++		id_clear(dlm, dlm->jid_lp);
++	dlm->jid_lp = NULL;
 +}
 +
 +/*
@@ -388,6 +392,17 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	return 0;
 +}
 +
++static void release_mg_nodes(dlm_t *dlm)
++{
++	dlm_node_t *node, *safe;
++
++	list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
++		list_del(&node->list);
++		lm_dlm_release_withdraw(dlm, node);
++		kfree(node);
++	}
++}
++
 +/* 
 + * Run in dlm_async thread
 + */
@@ -425,11 +440,13 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +		  ds->count, ds->type, ds->event_id, dlm->flags);
 +
 +	/*
-+	 * gfs won't do journal recoveries once it's sent us an unmount
++	 * gfs won't do journal recoveries once it's sent us an unmount or
++	 * withdraw
 +	 */
 +
-+	if (test_bit(DFL_UMOUNT, &dlm->flags)) {
-+		log_debug("pr_start %d skip for umount", ds->event_id);
++	if (test_bit(DFL_UMOUNT, &dlm->flags) ||
++	    test_bit(DFL_WITHDRAW, &dlm->flags)) {
++		log_debug("pr_start %d skip for umount/wd", ds->event_id);
 +		kcl_start_done(dlm->mg_local_id, ds->event_id);
 +		goto out;
 +	}
@@ -451,13 +468,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	 * (normally, (uninterrupted starts) mg_nodes is empty at this point)
 +	 */
 +
-+	if (test_bit(DFL_MOUNT, &dlm->flags)) {
-+		dlm_node_t *safe;
-+		list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
-+			list_del(&node->list);
-+			kfree(node);
-+		}
-+	}
++	if (test_bit(DFL_MOUNT, &dlm->flags))
++		release_mg_nodes(dlm);
 +
 +	/*
 +	 * find nodes which are gone
@@ -478,8 +490,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +		set_bit(NFL_NOT_MEMBER, &node->flags);
 +
-+		/* no gfs recovery needed for nodes that left cleanly */
-+		if (ds->type != SERVICE_NODE_FAILED)
++		/* failed and withdrawing nodes need journal recovery */
++		if (ds->type != SERVICE_NODE_FAILED &&
++		    !test_bit(NFL_WITHDRAW, &node->flags))
 +			continue;
 +
 +		/* callbacks sent only for nodes in last completed MG */
@@ -558,7 +571,15 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +		break;
 +	}
 +
-+	/* 
++	/*
++	 * Hold withdraw locks for all nodes in PR.  We're notified by a bast
++	 * if one of them withdraws.  We promote ours to EX to withdraw
++	 * ourself.
++	 */
++
++	lm_dlm_hold_withdraw(dlm);
++
++	/*
 +	 * tell SM we're done if there are no GFS recoveries to wait for
 +	 */
 +
@@ -593,8 +614,36 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	struct list_head *tmp, *tmpsafe;
 +	dlm_node_t *node;
 +	dlm_lock_t *lp;
++	int leave_blocked = FALSE;
 +
 +	log_debug("pr_finish flags %lx", dlm->flags);
++
++	down(&dlm->mg_nodes_lock);
++	list_for_each_safe(tmp, tmpsafe, &dlm->mg_nodes) {
++		node = list_entry(tmp, dlm_node_t, list);
++
++		if (test_bit(NFL_NOT_MEMBER, &node->flags)) {
++			list_del(&node->list);
++			lm_dlm_release_withdraw(dlm, node);
++			kfree(node);
++		} else {
++			set_bit(NFL_LAST_FINISH, &node->flags);
++
++			/* If there are still withdrawing nodes that haven't
++			   left the MG (had their journals recovered), we need
++			   to keep lock requests blocked */
++
++			if (test_bit(NFL_WITHDRAW, &node->flags)) {
++				log_debug("pr_finish leave blocked for %d",
++					node->nodeid);
++				leave_blocked = TRUE;
++			}
++		}
++	}
++	up(&dlm->mg_nodes_lock);
++
++	if (leave_blocked)
++		goto out;
 +
 +	spin_lock(&dlm->async_lock);
 +	clear_bit(DFL_BLOCK_LOCKS, &dlm->flags);
@@ -614,19 +663,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	}
 +	spin_unlock(&dlm->async_lock);
 +
-+	down(&dlm->mg_nodes_lock);
-+
-+	list_for_each_safe(tmp, tmpsafe, &dlm->mg_nodes) {
-+		node = list_entry(tmp, dlm_node_t, list);
-+
-+		if (test_bit(NFL_NOT_MEMBER, &node->flags)) {
-+			list_del(&node->list);
-+			kfree(node);
-+		} else
-+			set_bit(NFL_LAST_FINISH, &node->flags);
-+	}
-+	up(&dlm->mg_nodes_lock);
-+
++ out:
 +	clear_bit(DFL_MOUNT, &dlm->flags);
 +	wake_up(&dlm->wait);
 +}
@@ -680,7 +717,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +	/* this flag causes a kcl_start_done() to be sent right away for
 +	   any start callbacks we get from SM */
 +
-+	log_debug("umount flags %lx", dlm->flags);
++	log_debug("release_mountgroup flags %lx", dlm->flags);
 +	set_bit(DFL_UMOUNT, &dlm->flags);
 +
 +	/* gfs has done a unmount and will not call jid_recovery_done()
@@ -702,7 +739,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +
 +	kcl_leave_service(dlm->mg_local_id);
 +	kcl_unregister_service(dlm->mg_local_id);
++
 +	release_jid(dlm);
++	release_mg_nodes(dlm);
 +}
 +
 +/*
@@ -831,8 +870,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2005-01-12 17:20:26.206580949 -0600
-@@ -0,0 +1,704 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2005-03-03 18:22:15.000000000 -0600
+@@ -0,0 +1,708 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -884,14 +923,14 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +{
 +	dlm_t *dlm = lp->dlm;
 +
++	/* We often get basts for EX while we're promoting from SH to EX */
++	/*
 +	if (test_bit(LFL_WAIT_COMPLETE, &lp->flags)) {
-+		/* We often receive basts for EX while we're promoting
-+		   from SH to EX. */
-+		/* printk("lock_dlm: bast before complete %x,%"PRIx64" "
-+		       "gr=%d rq=%d bast=%d\n", lp->lockname.ln_type,
-+		       lp->lockname.ln_number, lp->cur, lp->req, mode); */
-+		return;
++		log_debug("bast during wait %x,%"PRIx64" %d-%d %x bmode %d",
++			  lp->lockname.ln_type, lp->lockname.ln_number,
++			  lp->cur, lp->req, lp->lkf, mode);
 +	}
++	*/
 +
 +	if (!mode) {
 +		printk("lock_dlm: bast mode zero %x,%"PRIx64"\n",
@@ -1095,13 +1134,16 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	lp->lvb = NULL;
 +	lp->hold_null = NULL;
 +	init_completion(&lp->uast_wait);
++
 +	*lpp = lp;
 +	return 0;
 +}
 +
 +void delete_lp(dlm_lock_t *lp)
 +{
-+	spin_lock(&lp->dlm->async_lock);
++	dlm_t *dlm = lp->dlm;
++
++	spin_lock(&dlm->async_lock);
 +	if (test_bit(LFL_CLIST, &lp->flags)) {
 +		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
 +		       lp->lockname.ln_type, lp->lockname.ln_number);
@@ -1124,7 +1166,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +		       lp->lockname.ln_type, lp->lockname.ln_number);
 +		list_del(&lp->slist);
 +	}
-+	spin_unlock(&lp->dlm->async_lock);
++	spin_unlock(&dlm->async_lock);
 +
 +	kfree(lp);
 +}
@@ -1327,8 +1369,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	dlm_lock_t *lp = (dlm_lock_t *) lock;
 +	int dlist = FALSE;
 +
-+	printk("lock_dlm: cancel num=%x,%"PRIx64"\n",
-+	       lp->lockname.ln_type, lp->lockname.ln_number);
++	log_all("cancel %x,%"PRIx64" flags %lx",
++		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 +
 +	spin_lock(&lp->dlm->async_lock);
 +	if (test_and_clear_bit(LFL_DLIST, &lp->flags)) {
@@ -1340,6 +1382,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +
 +	if (dlist) {
 +		set_bit(LFL_CANCEL, &lp->flags);
++		set_bit(LFL_WAIT_COMPLETE, &lp->flags);
 +		queue_complete(lp);
 +	}
 +}
@@ -1395,7 +1438,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +	lpn->lvb = junk_lvb;
 +
 +	lpn->req = DLM_LOCK_NL;
-+	lpn->lkf = DLM_LKF_VALBLK;
++	lpn->lkf = DLM_LKF_VALBLK | DLM_LKF_EXPEDITE;
 +	set_bit(LFL_NOBAST, &lpn->flags);
 +	set_bit(LFL_INLOCK, &lpn->flags);
 +
@@ -1539,8 +1582,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
 --- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2005-01-12 17:20:26.206580949 -0600
-@@ -0,0 +1,375 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2005-03-03 18:22:15.000000000 -0600
+@@ -0,0 +1,382 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -1617,6 +1660,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#define DFL_UMOUNT		7
 +#define DFL_NEED_STARTDONE	8
 +#define DFL_RECOVER		9
++#define DFL_WITHDRAW		10
 +
 +struct dlm {
 +	uint32_t		jid;
@@ -1633,7 +1677,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +
 +	lm_callback_t		fscb;
 +	lm_fsdata_t *		fsdata;
-+	dlm_lock_t *		jid_lock;
++	dlm_lock_t *		jid_lp;
 +
 +	spinlock_t		async_lock;
 +	struct list_head	complete;
@@ -1742,11 +1786,13 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#define NFL_RECOVERY_DONE       2
 +#define NFL_LAST_FINISH         3
 +#define NFL_HAVE_JID            4
++#define NFL_WITHDRAW            5
 +
 +struct dlm_node {
 +	uint32_t		nodeid;
 +	uint32_t		jid;
 +	unsigned long		flags;
++	dlm_lock_t *		withdraw_lp;
 +	struct list_head	list;
 +};
 +
@@ -1809,6 +1855,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +void process_start(dlm_t *dlm, dlm_start_t *ds);
 +void process_finish(dlm_t *dlm);
 +void jid_recovery_done(dlm_t *dlm, unsigned int jid, unsigned int message);
++
++/* mount.c */
++
++void lm_dlm_hold_withdraw(dlm_t *dlm);
++void lm_dlm_release_withdraw(dlm_t *dlm, dlm_node_t *node);
 +
 +/* thread.c */
 +
@@ -1891,7 +1942,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +{ \
 +  if (!(x)) \
 +  { \
-+    dlm_locks_dump(); \
 +    dlm_debug_dump(); \
 +    lock_dlm_debug_dump(); \
 +    printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
@@ -1918,7 +1968,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
 --- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2005-01-12 17:20:26.207580724 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2005-03-03 18:22:15.000000000 -0600
 @@ -0,0 +1,330 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2252,8 +2302,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
 --- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2005-01-12 17:20:26.207580724 -0600
-@@ -0,0 +1,361 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2005-03-03 18:22:15.000000000 -0600
+@@ -0,0 +1,561 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2269,6 +2319,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +
 +#include <linux/socket.h>
 +#include <net/sock.h>
++#include <linux/delay.h>
 +
 +#include "lock_dlm.h"
 +#include <cluster/cnxman.h>
@@ -2575,24 +2626,223 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +{
 +	dlm_t *dlm = (dlm_t *) lockspace;
 +
++	log_debug("unmount flags %lx", dlm->flags);
++	if (test_bit(DFL_WITHDRAW, &dlm->flags))
++		goto out;
 +	release_mountgroup(dlm);
 +	release_async_thread(dlm);
 +	release_gdlm(dlm);
 +	release_fence(dlm);
 +	release_cluster(dlm);
 +	clear_null_cache(dlm);
++ out:
 +	kfree(dlm);
++}
++
++static void wd_ast(void *arg)
++{
++	dlm_lock_t *lp = (dlm_lock_t *) arg;
++	complete(&lp->uast_wait);
++}
++
++static void wd_bast(void *arg, int mode)
++{
++	dlm_lock_t *lp = (dlm_lock_t *) arg;
++	dlm_t *dlm = lp->dlm;
++	dlm_node_t *node;
++	int error;
++
++	if (lp->cur == DLM_LOCK_NL) {
++		log_all("withdraw bast cur NL arg %d", mode);
++		return;
++	}
++
++	if (lp->cur != DLM_LOCK_PR) {
++		log_all("withdraw bast cur %d arg %d", lp->cur, mode);
++		return;
++	}
++
++	if (mode != DLM_LOCK_EX) {
++		log_all("withdraw bast cur %d arg %d", lp->cur, mode);
++		return;
++	}
++
++	set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
++
++	down(&dlm->mg_nodes_lock);
++	list_for_each_entry(node, &dlm->mg_nodes, list) {
++		if (node->withdraw_lp == lp) {
++			log_debug("wd_bast node %d withdraw", node->nodeid);
++			set_bit(NFL_WITHDRAW, &node->flags);
++			break;
++		}
++	}
++	up(&dlm->mg_nodes_lock);
++
++	set_bit(LFL_UNLOCK_DELETE, &lp->flags);
++
++	error = dlm_unlock(dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, NULL, lp);
++
++	DLM_ASSERT(!error, printk("error %d\n", error););
++
++	node->withdraw_lp = NULL;
++}
++
++void lm_dlm_hold_withdraw(dlm_t *dlm)
++{
++	char name[16];
++	dlm_node_t *node;
++	dlm_lock_t *lp;
++	int error;
++
++	down(&dlm->mg_nodes_lock);
++	list_for_each_entry(node, &dlm->mg_nodes, list) {
++		if (test_bit(NFL_WITHDRAW, &node->flags))
++			continue;
++
++		lp = node->withdraw_lp;
++
++		/* if we have the lp it should always be in PR */
++		if (lp) {
++			if (lp->cur != DLM_LOCK_PR)
++				log_all("hold_withdraw cur %d", lp->cur);
++			continue;
++		}
++
++		lp = kmalloc(sizeof(dlm_lock_t), GFP_KERNEL);
++		if (!lp)
++			continue;
++		memset(lp, 0, sizeof(dlm_lock_t));
++		init_completion(&lp->uast_wait);
++		lp->dlm = dlm;
++		node->withdraw_lp = lp;
++
++		memset(name, 0, sizeof(name));
++		snprintf(name, sizeof(name), "withdraw %u", node->nodeid);
++
++		error = dlm_lock(dlm->gdlm_lsp, DLM_LOCK_PR, &lp->lksb,
++				 DLM_LKF_NOQUEUE, name, sizeof(name), 0,
++				 wd_ast, (void *) lp, wd_bast, NULL);
++
++		DLM_ASSERT(!error, printk("error %d\n", error););
++
++		wait_for_completion(&lp->uast_wait);
++
++		DLM_ASSERT(lp->lksb.sb_status == 0,
++			   printk("status %d\n", lp->lksb.sb_status););
++
++		lp->cur = DLM_LOCK_PR;
++	}
++	up(&dlm->mg_nodes_lock);
++}
++
++static void do_withdraw(dlm_t *dlm)
++{
++	char name[16];
++	dlm_node_t *node;
++	dlm_lock_t *lp;
++	int error;
++
++	down(&dlm->mg_nodes_lock);
++	list_for_each_entry(node, &dlm->mg_nodes, list) {
++		if (node->nodeid == dlm->our_nodeid)
++			break;
++	}
++	up(&dlm->mg_nodes_lock);
++
++	if (!node) {
++		log_all("node not found for %d", dlm->our_nodeid);
++		return;
++	}
++
++	lp = node->withdraw_lp;
++	if (!lp) {
++		log_all("no withdraw lock for self");
++		return;
++	}
++
++	if (lp->cur != DLM_LOCK_PR) {
++		log_all("our withdraw lock in mode %d", lp->cur);
++		return;
++	}
++
++	log_debug("do_withdraw");
++	memset(name, 0, sizeof(name));
++	snprintf(name, sizeof(name), "withdraw %u", dlm->our_nodeid);
++
++	error = dlm_lock(dlm->gdlm_lsp, DLM_LOCK_EX, &lp->lksb,
++			 DLM_LKF_CONVERT, name, sizeof(name), 0, wd_ast,
++			 (void *) lp, wd_bast, NULL);
++
++	DLM_ASSERT(!error, printk("error %d\n", error););
++
++	wait_for_completion(&lp->uast_wait);
++
++	DLM_ASSERT(lp->lksb.sb_status == 0,
++		   printk("status %d\n", lp->lksb.sb_status););
++
++	lp->cur = DLM_LOCK_EX;
++}
++
++/* Release the withdraw lock for this node.  If the node was removed because it
++   withdrew, then we already released the lock (in wd_bast).  If the node has
++   failed or unmounted, then we still hold its withdraw lock and need to unlock
++   it.  If _we're_ withdrawing, then we've already left the lockspace so we
++   don't unlock, just free. */
++
++void lm_dlm_release_withdraw(dlm_t *dlm, dlm_node_t *node)
++{
++	dlm_lock_t *lp;
++	int error;
++
++	lp = node->withdraw_lp;
++	if (!lp)
++		return;
++
++	if (test_bit(DFL_WITHDRAW, &dlm->flags)) {
++		kfree(lp);
++		goto out;
++	}
++
++	/* the lp is freed by the async thread when it gets the comp ast */
++	set_bit(LFL_UNLOCK_DELETE, &lp->flags);
++
++	error = dlm_unlock(dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, NULL, lp);
++
++	DLM_ASSERT(!error, printk("error %d\n", error););
++
++ out:
++	node->withdraw_lp = NULL;
 +}
 +
 +/**
 + * dlm_withdraw - withdraw from a lock space
 + * @lockspace: the lockspace to withdraw from
 + *
++ * Holding the withdraw lock in EX means all gfs locks are blocked on other
++ * nodes and we can safely leave the lockspace.
++ *
 + */
 +
 +static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 +{
-+	DLM_ASSERT(FALSE,);
++	dlm_t *dlm = (dlm_t *) lockspace;
++
++	log_debug("withdraw flags %lx", dlm->flags);
++	set_bit(DFL_WITHDRAW, &dlm->flags);
++
++	/* process_start uses the dlm so leaving the ls while it's running
++	   can hang it; this waits for it to complete. */
++	down(&dlm->unmount_lock);
++	up(&dlm->unmount_lock);
++
++	do_withdraw(dlm);
++	release_gdlm(dlm);
++	release_mountgroup(dlm);
++	release_cluster(dlm);
++
++	/* FIXME: free all outstanding memory */
++	log_all("withdraw abandoned memory");
 +}
 +
 +struct lm_lockops lock_dlm_ops = {
@@ -2617,7 +2867,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2005-01-12 17:20:26.208580499 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2005-03-03 18:22:15.000000000 -0600
 @@ -0,0 +1,1236 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3857,8 +4107,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
 --- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2005-01-12 17:20:26.208580499 -0600
-@@ -0,0 +1,432 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2005-03-03 18:22:15.000000000 -0600
+@@ -0,0 +1,438 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -3988,6 +4238,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locki
 +	 */
 +
 +	if (test_and_clear_bit(LFL_CANCEL, &lp->flags)) {
++		log_all("cancel %x,%"PRIx64" complete",
++			lp->lockname.ln_type, lp->lockname.ln_number);
 +		lp->req = lp->cur;
 +		acb.lc_ret |= LM_OUT_CANCELED;
 +		goto out;
@@ -4066,7 +4318,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locki
 +		lp->lkf |= DLM_LKF_CONVERT;
 +		lp->lkf &= ~DLM_LKF_CONVDEADLK;
 +
-+		log_debug("rereq %x,%"PRIx64" id %x %d,%d\n",
++		log_debug("rereq %x,%"PRIx64" id %x %d,%d",
 +			  lp->lockname.ln_type, lp->lockname.ln_number,
 +			  lp->lksb.sb_lkid, lp->cur, lp->req);
 +
@@ -4221,6 +4473,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locki
 +			shrink = check_shrink(dlm);
 +		}
 +		spin_unlock(&dlm->async_lock);
++
++		/* once withdrawn don't call into gfs for anything */
++		if (test_bit(DFL_WITHDRAW, &dlm->flags))
++			complete = blocking = drop = shrink = 0;
 +
 +		if (complete)
 +			process_complete(lp);

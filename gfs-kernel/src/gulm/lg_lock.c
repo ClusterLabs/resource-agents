@@ -319,7 +319,7 @@ lg_lock_login (gulm_interface_p lgp, uint8_t lockspace[4])
 		return -EINVAL;
 
 	adr.sin6_family = AF_INET6;
-	adr.sin6_addr = in6addr_loopback;
+	adr.sin6_addr = lg_in6addr_loopback;
 	adr.sin6_port = htons (lg->lock_port);
 
 	if ((err = xdr_open (&cfd)) < 0) {

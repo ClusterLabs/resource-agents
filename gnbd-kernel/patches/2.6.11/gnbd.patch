@@ -1,6 +1,6 @@
 diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 --- linux-orig/drivers/block/gnbd.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/drivers/block/gnbd.c	2005-01-14 00:40:55.408892845 -0600
++++ linux-patched/drivers/block/gnbd.c	2005-03-03 18:25:14.000000000 -0600
 @@ -0,0 +1,1053 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1057,7 +1057,7 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +#endif
 diff -urN linux-orig/include/linux/gnbd.h linux-patched/include/linux/gnbd.h
 --- linux-orig/include/linux/gnbd.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gnbd.h	2005-01-14 00:40:55.410892396 -0600
++++ linux-patched/include/linux/gnbd.h	2005-03-03 18:25:14.000000000 -0600
 @@ -0,0 +1,103 @@
 +/******************************************************************************
 +*******************************************************************************

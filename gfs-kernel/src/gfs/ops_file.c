@@ -1471,10 +1471,22 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 		RETURN(GFN_LOCK, -ENOLCK);
 
 	if (sdp->sd_args.ar_localflocks) {
-		if (IS_GETLK(cmd))
-			RETURN(GFN_LOCK, LOCK_USE_CLNT);
-		RETURN(GFN_LOCK,
-		       posix_lock_file_wait(file, fl));
+		if (IS_GETLK(cmd)) {
+			struct file_lock *tmp;
+			lock_kernel();
+			tmp = posix_test_lock(file, fl);
+			fl->fl_type = F_UNLCK;
+			if (tmp)
+				memcpy(fl, tmp, sizeof(struct file_lock));
+			unlock_kernel();
+			RETURN(GFN_LOCK, 0);
+		} else {
+			int error;
+			lock_kernel();
+			error = posix_lock_file_wait(file, fl);
+			unlock_kernel();
+			RETURN(GFN_LOCK, error);
+		}
 	}
 
 	if (IS_GETLK(cmd))

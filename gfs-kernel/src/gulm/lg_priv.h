@@ -83,4 +83,6 @@ typedef struct gulm_interface_s gulm_interface_t;
 #define FALSE (0)
 #endif
 
+extern const struct in6_addr lg_in6addr_loopback;
+
 #endif /*__lg_priv_h__*/

@@ -19,6 +19,8 @@
 #include "gulm.h"
 extern gulm_cm_t gulm_cm;
 
+const struct in6_addr lg_in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
+
 /**
  * lg_initialize - 
  * @gulm_interface_p:

@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_locking/lock_nolock/main.c
 --- linux-orig/fs/gfs_locking/lock_nolock/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2005-01-12 17:20:20.325905534 -0600
-@@ -0,0 +1,358 @@
++++ linux-patched/fs/gfs_locking/lock_nolock/main.c	2005-03-03 18:22:11.000000000 -0600
+@@ -0,0 +1,376 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -21,6 +21,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +#include <linux/init.h>
 +#include <linux/types.h>
 +#include <linux/fs.h>
++#include <linux/smp_lock.h>
 +#include <linux/lm_interface.h>
 +
 +#define RELEASE_NAME "<CVS>"
@@ -246,7 +247,16 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +		 struct lm_lockname *name,
 +		 struct file *file, struct file_lock *fl)
 +{
-+	return LOCK_USE_CLNT;
++	struct file_lock *tmp;
++
++	lock_kernel();
++	tmp = posix_test_lock(file, fl);
++	fl->fl_type = F_UNLCK;
++	if (tmp)
++		memcpy(fl, tmp, sizeof(struct file_lock));
++	unlock_kernel();
++
++	return 0;
 +}
 +
 +/**
@@ -265,7 +275,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +	     struct lm_lockname *name,
 +	     struct file *file, int cmd, struct file_lock *fl)
 +{
-+	return posix_lock_file_wait(file, fl);
++	int error;
++	lock_kernel();
++	error = posix_lock_file_wait(file, fl);
++	unlock_kernel();
++	return error;
 +}
 +
 +/**
@@ -283,7 +297,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_nolock/main.c linux-patched/fs/gfs_lock
 +	       struct lm_lockname *name,
 +	       struct file *file, struct file_lock *fl)
 +{
-+	return posix_lock_file_wait(file, fl);
++	int error;
++	lock_kernel();
++	error = posix_lock_file_wait(file, fl);
++	unlock_kernel();
++	return error;
 +}
 +
 +/**

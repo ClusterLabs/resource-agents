@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/fs.h>
+#include <linux/smp_lock.h>
 #include <linux/lm_interface.h>
 
 #define RELEASE_NAME "<CVS>"
@@ -242,7 +243,16 @@ nolock_plock_get(lm_lockspace_t *lockspace,
 		 struct lm_lockname *name,
 		 struct file *file, struct file_lock *fl)
 {
-	return LOCK_USE_CLNT;
+	struct file_lock *tmp;
+
+	lock_kernel();
+	tmp = posix_test_lock(file, fl);
+	fl->fl_type = F_UNLCK;
+	if (tmp)
+		memcpy(fl, tmp, sizeof(struct file_lock));
+	unlock_kernel();
+
+	return 0;
 }
 
 /**
@@ -261,7 +271,11 @@ nolock_plock(lm_lockspace_t *lockspace,
 	     struct lm_lockname *name,
 	     struct file *file, int cmd, struct file_lock *fl)
 {
-	return posix_lock_file_wait(file, fl);
+	int error;
+	lock_kernel();
+	error = posix_lock_file_wait(file, fl);
+	unlock_kernel();
+	return error;
 }
 
 /**
@@ -279,7 +293,11 @@ nolock_punlock(lm_lockspace_t *lockspace,
 	       struct lm_lockname *name,
 	       struct file *file, struct file_lock *fl)
 {
-	return posix_lock_file_wait(file, fl);
+	int error;
+	lock_kernel();
+	error = posix_lock_file_wait(file, fl);
+	unlock_kernel();
+	return error;
 }
 
 /**
