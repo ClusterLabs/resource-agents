@@ -1,7 +1,8 @@
 #!/bin/bash
 
 #
-#  Copyright Red Hat Inc., 2004
+#  Copyright Red Hat Inc., 2002-2004
+#  Copyright Mission Critical Linux, 2000
 #
 #  This program is free software; you can redistribute it and/or modify it
 #  under the terms of the GNU General Public License as published by the
@@ -28,6 +29,11 @@ LC_ALL=C
 LANG=C
 PATH=/bin:/sbin:/usr/bin:/usr/sbin
 export LC_ALL LANG PATH
+
+logAndPrint()
+{
+	echo $*
+}
 
 rmtabpid=""
 nfsop_arg=""
@@ -144,8 +150,60 @@ verify_all()
 }
 
 
+#
+# Check if the NFS daemons are running.
+#
+nfs_daemons_running()
+{
+    declare NFS_DAEMONS="nfsd rpc.mountd rpc.statd"
+
+    for daemon in $NFS_DAEMONS; do
+        ps -ef | grep "$daemon" | grep -v grep >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+	    logAndPrint $LOG_ERR \
+            "NFS daemon $daemon is not running."
+	    logAndPrint $LOG_ERR \
+            "Verify that the NFS service run level script is enabled."
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+
+nfs_check()
+{
+	declare junk
+
+	if nfs_daemons_running; then
+		return 0
+	fi
+
+	#
+	# Don't restart daemons during status check.
+	#
+	if [ "$1" = "status" ]; then
+		return 1;
+	fi
+		
+  	logAndPrint $LOG_ERR "Restarting NFS daemons"
+	# Note restart does less than stop/start
+	junk=$(/sbin/service nfs stop)
+	junk=$(/sbin/service nfs start)
+	sleep 2
+	
+	if ! nfs_daemons_running; then
+		logAndPrint $LOG_ERR "Failed restarting NFS daemons"
+    		return 1
+	fi
+	logAndPrint $LOG_NOTICE "Successfully restarted NFS daemons"
+}
+
+
 case $1 in
 start)
+	nfs_check start || exit 1
 	rm -f ${OCF_RESKEY_path}/.clumanager/pid
 	clurmtabd ${OCF_RESKEY_path}
 	rv=$?
@@ -153,6 +211,7 @@ start)
 	;;
 
 status|monitor)
+	nfs_check status || exit 1
 	rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
 	if [ -n "$rmtabpid" ]; then
 		if kill -s 0 $rmtabpid; then
@@ -167,6 +226,7 @@ status|monitor)
 	;;
 		    
 stop)
+	nfs_check restart || exit 1
 	rmtabpid=$(cat ${OCF_RESKEY_path}/.clumanager/pid)
 	if [ -n "$rmtabpid" ]; then
 		kill $rmtabpid

@@ -92,8 +92,8 @@ meta_data()
         <child type="fs" start="2" stop="4"/>
         <child type="netfs" start="2" stop="4"/>
         <child type="clusterfs" start="2" stop="4"/>
-        <child type="ip" start="3" stop="3"/>
-        <child type="samba" start="4" stop="2"/>
+        <child type="ip" start="3" stop="2"/>
+        <child type="samba" start="4" stop="3"/>
         <child type="script" start="5" stop="1"/>
         <!-- child type="perlscript" start="5" stop="1"/ -->
     </special>
