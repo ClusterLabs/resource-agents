@@ -34,7 +34,8 @@
 
 #define CMAN_RELEASE_NAME "<CVS>"
 
-static void process_incoming_packet(struct cl_comms_socket *csock, struct msghdr *msg, int len);
+static void process_incoming_packet(struct cl_comms_socket *csock,
+				    struct msghdr *msg, struct kvec *vec, int veclen, int len);
 static int cl_sendack(struct cl_comms_socket *sock, unsigned short seq,
 		      int addr_len, char *addr, unsigned char remport,
 		      unsigned char flag);
@@ -251,31 +252,25 @@ static void cnxman_data_ready(struct sock *sk, int count_unused)
 static int receive_message(struct cl_comms_socket *csock, char *iobuf)
 {
 	struct msghdr msg;
-	struct iovec iov;
+	struct kvec vec;
 	struct sockaddr_in6 sin;
 	int len;
-	mm_segment_t fs;
 
 	memset(&sin, 0, sizeof (sin));
 
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = &iov;
 	msg.msg_name = &sin;
 	msg.msg_namelen = sizeof (sin);
 	msg.msg_flags = 0;
 
-	iov.iov_len = MAX_CLUSTER_MESSAGE;
-	iov.iov_base = iobuf;
+	vec.iov_len = MAX_CLUSTER_MESSAGE;
+	vec.iov_base = iobuf;
 
-	fs = get_fs();
-	set_fs(get_ds());
+	len = kernel_recvmsg(csock->sock, &msg,
+			     &vec, 1, MAX_CLUSTER_MESSAGE, MSG_DONTWAIT);
 
-	len = sock_recvmsg(csock->sock, &msg, MAX_CLUSTER_MESSAGE, MSG_DONTWAIT);
-	set_fs(fs);
-
-	iov.iov_base = iobuf;
+	vec.iov_base = iobuf;
 
 	if (len > 0) {
 		if (len > MAX_CLUSTER_MESSAGE) {
@@ -283,7 +278,7 @@ static int receive_message(struct cl_comms_socket *csock, char *iobuf)
 			       ": %d byte message far too big\n", len);
 			return 0;
 		}
-		process_incoming_packet(csock, &msg, len);
+		process_incoming_packet(csock, &msg, &vec, 1, len);
 	}
 	else {
 		if (len != -EAGAIN)
@@ -665,25 +660,25 @@ static int valid_addr_for_node(struct cluster_node *node, char *addr)
 	return 0; /* FALSE */
 }
 
-/* TODO use kvec */
-static void memcpy_fromkvec(void *data, struct iovec *iov, int len)
+static void memcpy_fromkvec(void *data, struct kvec *vec, int len)
 {
         while (len > 0) {
-                if (iov->iov_len) {
-                        int copy = min_t(unsigned int, len, iov->iov_len);
-                        memcpy(data, iov->iov_base, copy);
+                if (vec->iov_len) {
+                        int copy = min_t(unsigned int, len, vec->iov_len);
+                        memcpy(data, vec->iov_base, copy);
                         len -= copy;
                         data += copy;
-                        iov->iov_base += copy;
-                        iov->iov_len -= copy;
+                        vec->iov_base += copy;
+                        vec->iov_len -= copy;
                 }
-                iov++;
+                vec++;
         }
 }
 
 static int send_to_user_port(struct cl_comms_socket *csock,
 			     struct cl_protheader *header,
-			     struct msghdr *msg, struct iovec *iov,
+			     struct msghdr *msg,
+			     struct kvec *iov, int veclen,
 			     int len)
 {
 	struct sk_buff *skb;
@@ -706,7 +701,7 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 		/* Call a callback if there is one */
 		if (c->kernel_callback) {
 			up(&port_array_lock);
-			if (msg->msg_iovlen == 1) {
+			if (veclen == 1) {
 				c->kernel_callback(iov->iov_base,
 						   iov->iov_len,
 						   msg->msg_name, msg->msg_namelen,
@@ -782,9 +777,10 @@ static int send_to_user_port(struct cl_comms_socket *csock,
 /* NOTE: This routine knows (assumes!) that there is only one
    iov element passed into it. */
 static void process_incoming_packet(struct cl_comms_socket *csock,
-				    struct msghdr *msg, int len)
+				    struct msghdr *msg,
+				    struct kvec *vec, int veclen, int len)
 {
-	char *data = msg->msg_iov->iov_base;
+	char *data = vec->iov_base;
 	char *addr = msg->msg_name;
 	int addrlen = msg->msg_namelen;
 	struct cl_protheader *header = (struct cl_protheader *) data;
@@ -905,11 +901,11 @@ static void process_incoming_packet(struct cl_comms_socket *csock,
 	}
 
 	/* Skip past the header to the data */
-	msg->msg_iov[0].iov_base = data + sizeof (struct cl_protheader);
-	msg->msg_iov[0].iov_len -= sizeof (struct cl_protheader);
+	vec[0].iov_base = data + sizeof (struct cl_protheader);
+	vec[0].iov_len -= sizeof (struct cl_protheader);
 	len -= sizeof (struct cl_protheader);
 
-	send_to_user_port(csock, header, msg, msg->msg_iov, len);
+	send_to_user_port(csock, header, msg, vec, veclen, len);
 
       incoming_finish:
 	return;
@@ -1896,25 +1892,20 @@ static int cl_setsockopt(struct socket *sock, int level, int optname,
 /* Send the packet and save a copy in case someone loses theirs. Should be
  * protected by the send mutexphore */
 static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
+			   struct kvec *vec, int veclen,
 			   int size, int needack)
 {
-	mm_segment_t fs;
 	int result;
-	struct iovec save_vectors[msg->msg_iovlen];
+	struct kvec save_vectors[veclen];
 
 	/* Save a copy of the IO vectors as sendmsg mucks around with them and
-	 * we may want to send the same stuff out more than once (for different
+	 * we might want to send the same stuff out more than once (for different
 	 * interfaces)
 	 */
-	memcpy(save_vectors, msg->msg_iov,
-	       sizeof (struct iovec) * msg->msg_iovlen);
+	memcpy(save_vectors, vec,
+	       sizeof (struct kvec) * veclen);
 
-	fs = get_fs();
-	set_fs(get_ds());
-
-	result = sock_sendmsg(csock->sock, msg, size);
-
-	set_fs(fs);
+	result = kernel_sendmsg(csock->sock, msg, vec, veclen, size);
 
 	if (result >= 0 && acks_expected && needack) {
 
@@ -1928,8 +1919,8 @@ static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
 	}
 
 	/* Restore IOVs */
-	memcpy(msg->msg_iov, save_vectors,
-	       sizeof (struct iovec) * msg->msg_iovlen);
+	memcpy(vec, save_vectors,
+	       sizeof (struct kvec) * veclen);
 
 	return result;
 }
@@ -1937,8 +1928,7 @@ static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
 static void resend_last_message()
 {
 	struct msghdr msg;
-	struct iovec vec[1];
-	mm_segment_t fs;
+	struct kvec vec[1];
 	int result;
 
 	P_COMMS("%ld resending last message: %d bytes: port=%d, cmd=%d\n",
@@ -1957,15 +1947,8 @@ static void resend_last_message()
 	memset(&msg, 0, sizeof (msg));
 	msg.msg_name = &current_interface->saddr;
 	msg.msg_namelen = current_interface->addr_len;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = vec;
 
-	fs = get_fs();
-	set_fs(get_ds());
-
-	result = sock_sendmsg(current_interface->sock, &msg, saved_msg_len);
-
-	set_fs(fs);
+	result = kernel_sendmsg(current_interface->sock, &msg, vec, 1, saved_msg_len);
 
 	if (result < 0)
 		printk(KERN_ERR CMAN_NAME ": resend failed: %d\n", result);
@@ -2064,7 +2047,8 @@ static int cl_recvmsg(struct kiocb *iocb, struct socket *sock,
 }
 
 /* Send a message out on all interfaces */
-static int send_to_all_ints(int nodeid, struct msghdr *our_msg, int size, int flags)
+static int send_to_all_ints(int nodeid, struct msghdr *our_msg,
+			    struct kvec *vec, int veclen, int size, int flags)
 {
 	struct sockaddr_in6 daddr;
 	struct cl_comms_socket *clsock;
@@ -2086,7 +2070,7 @@ static int send_to_all_ints(int nodeid, struct msghdr *our_msg, int size, int fl
 				our_msg->msg_namelen = clsock->addr_len;
 			}
 
-			result = __send_and_save(clsock, our_msg,
+			result = __send_and_save(clsock, our_msg, vec, veclen,
 						 size + sizeof (struct cl_protheader),
 						 !(flags & MSG_NOACK));
 		}
@@ -2096,7 +2080,8 @@ static int send_to_all_ints(int nodeid, struct msghdr *our_msg, int size, int fl
 
 
 /* Internal common send message routine */
-static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
+static int __sendmsg(struct socket *sock, struct msghdr *msg,
+		     struct kvec *vec, int veclen, int size,
 		     unsigned char port)
 {
 	int result = 0, i;
@@ -2104,7 +2089,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	struct msghdr our_msg;
 	struct sockaddr_cl *caddr = msg->msg_name;
 	struct cl_protheader header;
-	struct iovec vectors[msg->msg_iovlen + 1];
+	struct kvec vectors[veclen + 1];
 	unsigned char srcport;
 	int nodeid = 0;
 
@@ -2222,25 +2207,23 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 		header.tgtid = 0;
 	}
 
-	/* Copy the existing iovecs into our array and add the header on at the
-	 * beginning */
-	vectors[0].iov_base = &header;
-	vectors[0].iov_len = sizeof (header);
-	for (i = 0; i < msg->msg_iovlen; i++) {
-		vectors[i + 1] = msg->msg_iov[i];
-	}
-
-	our_msg.msg_iovlen = msg->msg_iovlen + 1;
-	our_msg.msg_iov = vectors;
-
 	/* Loopback shortcut */
 	if (nodeid == us->node_id && nodeid != 0) {
 
 		up(&send_lock);
 		header.flags |= MSG_NOACK; /* Don't ack it! */
 
-		return send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
+		return send_to_user_port(NULL, &header, msg, vec, veclen, size);
 	}
+
+	/* Copy the existing kvecs into our array and add the header on at the
+	 * beginning */
+	vectors[0].iov_base = &header;
+	vectors[0].iov_len = sizeof (header);
+	for (i = 0; i < veclen; i++) {
+		vectors[i + 1] = vec[i];
+	}
+
 
         /* Work out how many ACKS are wanted - *don't* reset acks_expected to
 	 * zero if no acks are required as an ACK-needed message may still be
@@ -2266,7 +2249,8 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	/* For non-member sends we use all the interfaces */
 	if ((nodeid < 0) || (flags & MSG_ALLINT)) {
 
-		result = send_to_all_ints(nodeid, &our_msg, size, msg->msg_flags);
+		result = send_to_all_ints(nodeid, &our_msg, vectors, veclen+1,
+					  size, msg->msg_flags);
 	}
 	else {
 		/* Send to only the current socket - resends will use the
@@ -2276,6 +2260,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 
 		result =
 		    __send_and_save(current_interface, &our_msg,
+				    vectors, veclen+1,
 				    size + sizeof (header),
 				    !(msg->msg_flags & MSG_NOACK));
 	}
@@ -2310,14 +2295,14 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	if (nodeid == 0 && (flags & MSG_BCASTSELF)) {
 		header.flags |= MSG_NOACK; /* Don't ack it! */
 
-		result = send_to_user_port(NULL, &header, msg, msg->msg_iov, size);
+		result = send_to_user_port(NULL, &header, msg, vec, veclen, size);
 	}
 
 	/* Save a copy of the message if we're expecting an ACK */
 	if (!(flags & MSG_NOACK) && acks_expected) {
 		struct cl_protheader *savhdr = (struct cl_protheader *) saved_msg_buffer;
 
-		memcpy_fromkvec(saved_msg_buffer, our_msg.msg_iov,
+		memcpy_fromkvec(saved_msg_buffer, vectors,
 				size + sizeof (header));
 
 		saved_msg_len = size + sizeof (header);
@@ -2374,10 +2359,8 @@ static int cl_sendmsg(struct kiocb *iocb, struct socket *sock,
 	struct cluster_sock *c = cluster_sk(sock->sk);
 	char *buffer;
 	int status;
-	int saved_iovlen;
 	uint8_t port;
-	struct iovec iov;
-	struct iovec *saved_iov;
+	struct kvec vec;
 	struct sockaddr_cl *caddr = msg->msg_name;
 
 	if (sock->sk->sk_protocol == CLPROTO_MASTER)
@@ -2392,30 +2375,22 @@ static int cl_sendmsg(struct kiocb *iocb, struct socket *sock,
 	if (port == 0)
 		return -EDESTADDRREQ;
 
-        /* Hmmm. On machines with segmented user/kernel space (sparc64, hppa &
-	 * m68k AFAICT) we can't mix user and kernel space addresses in the
-	 * IOV. This stymies __sendmsg a little as it tries to add a header to
-	 * what could possibly be a userspace iov. So, here (where all the
-	 * userspace sends come) we copy it to a kernel space buffer first. If
-	 * performance is a big problem here then I might #ifdef it for the
-	 * affected architectures but for now I think it will probably be OK */
+	/* Allocate a kernel buffer for the data so we can put it into a kvec */
 	buffer = kmalloc(size, GFP_KERNEL);
 	if (!buffer)
 		return -ENOMEM;
 
-	memcpy_fromiovec(buffer, msg->msg_iov, size);
-	iov.iov_len = size;
-	iov.iov_base = buffer;
+	if (memcpy_fromiovec(buffer, msg->msg_iov, size)) {
+		status = -EFAULT;
+		goto end_send;
+	}
 
-	saved_iov = msg->msg_iov;
-	saved_iovlen = msg->msg_iovlen;
-	msg->msg_iov = &iov;
-	msg->msg_iovlen = 1;
+	vec.iov_len = size;
+	vec.iov_base = buffer;
 
-	status = __sendmsg(sock, msg, size, port);
-	msg->msg_iov = saved_iov;
-	msg->msg_iovlen = saved_iovlen;
+	status = __sendmsg(sock, msg, &vec, 1, size, port);
 
+ end_send:
 	kfree(buffer);
 
 	return status;
@@ -2425,7 +2400,7 @@ static int cl_sendmsg(struct kiocb *iocb, struct socket *sock,
 int kcl_sendmsg(struct socket *sock, void *buf, int size,
 		struct sockaddr_cl *caddr, int addr_len, unsigned int flags)
 {
-	struct iovec iovecs[1];
+	struct kvec vecs[1];
 	struct msghdr msg;
 	struct cluster_sock *c = cluster_sk(sock->sk);
 	unsigned char port;
@@ -2449,22 +2424,20 @@ int kcl_sendmsg(struct socket *sock, void *buf, int size,
 				     flags & ~MSG_QUEUE);
 	}
 
-	iovecs[0].iov_base = buf;
-	iovecs[0].iov_len = size;
+	vecs[0].iov_base = buf;
+	vecs[0].iov_len = size;
 
 	memset(&msg, 0, sizeof (msg));
 	msg.msg_name = caddr;
 	msg.msg_namelen = addr_len;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = iovecs;
 	msg.msg_flags = flags;
 
-	return __sendmsg(sock, &msg, size, port);
+	return __sendmsg(sock, &msg, vecs, 1, size, port);
 }
 
 static int send_queued_message(struct queued_message *qmsg)
 {
-	struct iovec iovecs[1];
+	struct kvec vecs[1];
 	struct msghdr msg;
 
 	/* Don't send blocked messages */
@@ -2472,17 +2445,16 @@ static int send_queued_message(struct queued_message *qmsg)
 	    && (!cluster_is_quorate || in_transition()))
 		return -EAGAIN;
 
-	iovecs[0].iov_base = qmsg->msg_buffer;
-	iovecs[0].iov_len = qmsg->msg_len;
+	vecs[0].iov_base = qmsg->msg_buffer;
+	vecs[0].iov_len = qmsg->msg_len;
 
 	memset(&msg, 0, sizeof (msg));
 	msg.msg_name = qmsg->addr_len ? &qmsg->addr : NULL;
 	msg.msg_namelen = qmsg->addr_len;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = iovecs;
 	msg.msg_flags = qmsg->flags;
 
-	return __sendmsg(qmsg->socket, &msg, qmsg->msg_len, qmsg->port);
+	return __sendmsg(qmsg->socket, &msg, vecs, 1,
+			 qmsg->msg_len, qmsg->port);
 }
 
 int kcl_register_read_callback(struct socket *sock,
@@ -2503,21 +2475,19 @@ static int send_or_queue_message(struct socket *sock, void *buf, int len,
 				 struct sockaddr_cl *caddr,
 				 unsigned int flags)
 {
-	struct iovec iovecs[1];
+	struct kvec vecs[1];
 	struct msghdr msg;
 	int status;
 
-	iovecs[0].iov_base = buf;
-	iovecs[0].iov_len = len;
+	vecs[0].iov_base = buf;
+	vecs[0].iov_len = len;
 
 	memset(&msg, 0, sizeof (msg));
 	msg.msg_name = caddr;
 	msg.msg_namelen = caddr ? sizeof (struct sockaddr_cl) : 0;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = iovecs;
 	msg.msg_flags = MSG_DONTWAIT | flags;
 
-	status = __sendmsg(NULL, &msg, len, 0);
+	status = __sendmsg(NULL, &msg, vecs, 1, len, 0);
 
 	/* Did it work ? */
 	if (status > 0) {
@@ -2586,8 +2556,7 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 		      int addr_len, char *addr, unsigned char remport,
 		      unsigned char flag)
 {
-	mm_segment_t fs;
-	struct iovec vec;
+	struct kvec vec;
 	struct cl_ackmsg ackmsg;
 	struct msghdr msg;
 	struct sockaddr_in6 daddr;
@@ -2627,15 +2596,8 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 	memset(&msg, 0, sizeof (msg));
 	msg.msg_name = &daddr;
 	msg.msg_namelen = addr_len;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = &vec;
 
-	fs = get_fs();
-	set_fs(get_ds());
-
-	result = sock_sendmsg(csock->sock, &msg, sizeof (ackmsg));
-
-	set_fs(fs);
+	result = kernel_sendmsg(csock->sock, &msg, &vec, 1, sizeof (ackmsg));
 
 	if (result < 0)
 		printk(KERN_CRIT CMAN_NAME ": error sending ACK: %d\n", result);

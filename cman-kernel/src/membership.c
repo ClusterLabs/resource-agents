@@ -106,21 +106,21 @@ static unsigned long transition_end_time;
 struct list_head new_dead_node_list;
 struct semaphore new_dead_node_lock;
 
-static int do_membership_packet(struct msghdr *msg, int len);
-static int do_process_joinreq(struct msghdr *msg, int len);
-static int do_process_joinack(struct msghdr *msg, int len);
-static int do_process_joinconf(struct msghdr *msg, int len);
-static int do_process_leave(struct msghdr *msg, int len);
-static int do_process_hello(struct msghdr *msg, int len);
-static int do_process_kill(struct msghdr *msg, int len);
-static int do_process_reconfig(struct msghdr *msg, int len);
-static int do_process_starttrans(struct msghdr *msg, int len);
-static int do_process_masterview(struct msghdr *msg, int len);
-static int do_process_endtrans(struct msghdr *msg, int len);
-static int do_process_viewack(struct msghdr *msg, int len);
-static int do_process_startack(struct msghdr *msg, int len);
-static int do_process_newcluster(struct msghdr *msg, int len);
-static int do_process_nominate(struct msghdr *msg, int len);
+static int do_membership_packet(struct msghdr *msg, char *buf, int len);
+static int do_process_joinreq(struct msghdr *msg, char *buf, int len);
+static int do_process_joinack(struct msghdr *msg, char *buf, int len);
+static int do_process_joinconf(struct msghdr *msg, char *buf, int len);
+static int do_process_leave(struct msghdr *msg, char *buf, int len);
+static int do_process_hello(struct msghdr *msg, char *buf, int len);
+static int do_process_kill(struct msghdr *msg, char *buf, int len);
+static int do_process_reconfig(struct msghdr *msg, char *buf, int len);
+static int do_process_starttrans(struct msghdr *msg, char *buf, int len);
+static int do_process_masterview(struct msghdr *msg, char *buf, int len);
+static int do_process_endtrans(struct msghdr *msg, char *buf, int len);
+static int do_process_viewack(struct msghdr *msg, char *buf, int len);
+static int do_process_startack(struct msghdr *msg, char *buf, int len);
+static int do_process_newcluster(struct msghdr *msg, char *buf, int len);
+static int do_process_nominate(struct msghdr *msg, char *buf, int len);
 static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			     unsigned int flags, unsigned int flags2);
 static int send_joinreq(struct sockaddr_cl *addr, int addr_len);
@@ -991,10 +991,9 @@ int send_kill(int nodeid)
 }
 
 /* Process a message */
-static int do_membership_packet(struct msghdr *msg, int len)
+static int do_membership_packet(struct msghdr *msg, char *buf, int len)
 {
 	int result = -1;
-	unsigned char *buf = msg->msg_iov->iov_base;
 	struct sockaddr_cl *saddr = msg->msg_name;
 	struct cluster_node *node;
 
@@ -1005,26 +1004,26 @@ static int do_membership_packet(struct msghdr *msg, int len)
 
 	switch (*buf) {
 	case CLUSTER_MEM_JOINREQ:
-		result = do_process_joinreq(msg, len);
+		result = do_process_joinreq(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_LEAVE:
 		if (we_are_a_cluster_member)
-			result = do_process_leave(msg, len);
+			result = do_process_leave(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_HELLO:
-		result = do_process_hello(msg, len);
+		result = do_process_hello(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_KILL:
 		if (we_are_a_cluster_member)
-			result = do_process_kill(msg, len);
+			result = do_process_kill(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_JOINCONF:
 		if (node_state == JOINACK) {
-			do_process_joinconf(msg, len);
+			do_process_joinconf(msg, buf, len);
 		}
 		break;
 
@@ -1036,52 +1035,52 @@ static int do_membership_packet(struct msghdr *msg, int len)
 
 	case CLUSTER_MEM_MASTERVIEW:
 		if (node_state == TRANSITION)
-			do_process_masterview(msg, len);
+			do_process_masterview(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_JOINACK:
 		if (node_state == JOINING || node_state == JOINWAIT ||
 		    node_state == JOINACK) {
-			do_process_joinack(msg, len);
+			do_process_joinack(msg, buf, len);
 		}
 		break;
 	case CLUSTER_MEM_RECONFIG:
 		if (we_are_a_cluster_member) {
-			do_process_reconfig(msg, len);
+			do_process_reconfig(msg, buf, len);
 		}
 		break;
 
 	case CLUSTER_MEM_STARTTRANS:
-		result = do_process_starttrans(msg, len);
+		result = do_process_starttrans(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_ENDTRANS:
-		result = do_process_endtrans(msg, len);
+		result = do_process_endtrans(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_VIEWACK:
 		if (node_state == MASTER && master_state == MASTER_COLLECT)
-			result = do_process_viewack(msg, len);
+			result = do_process_viewack(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_STARTACK:
 		if (node_state == MASTER)
-			result = do_process_startack(msg, len);
+			result = do_process_startack(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_NEWCLUSTER:
-		result = do_process_newcluster(msg, len);
+		result = do_process_newcluster(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_NOMINATE:
 		if (node_state != MASTER)
-			result = do_process_nominate(msg, len);
+			result = do_process_nominate(msg, buf, len);
 		break;
 
 	default:
 		printk(KERN_ERR CMAN_NAME
-		       ": Unknown membership services message %d received\n",
-		       *buf);
+		       ": Unknown membership services message %d received from node %d port %d\n",
+		       *buf, saddr->scl_nodeid, saddr->scl_port);
 		break;
 
 	}
@@ -1184,7 +1183,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 	if (responses_expected == 0) {
 		P_MEMB("We are on our own...lonely here\n");
 		responses_collected--;
-		do_process_startack(NULL, 0);
+		do_process_startack(NULL, NULL, 0);
 	}
 	else {
 		int ptr = sizeof (struct cl_mem_starttrans_msg);
@@ -1629,17 +1628,16 @@ static struct cluster_node *remove_node(int nodeid)
 }
 
 /* Add a node from a STARTTRANS or NOMINATE message */
-static void add_node_from_starttrans(struct msghdr *msg, int len)
+static void add_node_from_starttrans(struct msghdr *msg, char *buf, int len)
 {
 	/* Add the new node but don't fill in the ID until the master has
 	 * confirmed it */
 	struct cl_mem_starttrans_msg *startmsg =
-	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
-	char *msgbuf = (char *) msg->msg_iov->iov_base;
+	    (struct cl_mem_starttrans_msg *)buf;
 	int ptr = sizeof (struct cl_mem_starttrans_msg);
 	int i;
-	char *name = msgbuf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
-	char *nodeaddr = msg->msg_iov->iov_base + sizeof(struct cl_mem_starttrans_msg);
+	char *name = buf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
+	char *nodeaddr = buf + sizeof(struct cl_mem_starttrans_msg);
 
 	joining_node = add_new_node(name, startmsg->votes,
 				    le32_to_cpu(startmsg->expected_votes),
@@ -1652,7 +1650,7 @@ static void add_node_from_starttrans(struct msghdr *msg, int len)
 	/* Add the node's addresses */
 	if (list_empty(&joining_node->addr_list)) {
 		for (i = 0; i < le16_to_cpu(startmsg->num_addrs); i++) {
-			add_node_address(joining_node, msgbuf + ptr, address_length);
+			add_node_address(joining_node, buf + ptr, address_length);
 			ptr += address_length;
 		}
 	}
@@ -1664,10 +1662,10 @@ static void add_node_from_starttrans(struct msghdr *msg, int len)
 }
 
 /* We have been nominated as master for a transition */
-static int do_process_nominate(struct msghdr *msg, int len)
+static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 {
 	struct cl_mem_starttrans_msg *startmsg =
-	    (struct cl_mem_starttrans_msg *)msg->msg_iov->iov_base;
+	    (struct cl_mem_starttrans_msg *)buf;
 	struct cluster_node *node = NULL;
 
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
@@ -1677,7 +1675,7 @@ static int do_process_nominate(struct msghdr *msg, int len)
 	}
 
 	if (startmsg->reason == TRANS_NEWNODE) {
-		add_node_from_starttrans(msg, len);
+		add_node_from_starttrans(msg, buf, len);
 		node = joining_node;
 	}
 
@@ -1690,16 +1688,17 @@ static int do_process_nominate(struct msghdr *msg, int len)
 }
 
 /* Got a STARTACK response from a node */
-static int do_process_startack(struct msghdr *msg, int len)
+static int do_process_startack(struct msghdr *msg, char *buf, int len)
 {
 	if (node_state != MASTER && master_state != MASTER_START) {
 		P_MEMB("Got StartACK when not in MASTER_STARTING substate\n");
 		return 0;
 	}
 
-	/* msg is NULL if we are called directly from start_transition */
-	if (msg) {
-		struct cl_mem_startack_msg *ackmsg = msg->msg_iov->iov_base;
+	/* buf is NULL if we are called directly from start_transition */
+	if (buf) {
+		struct cl_mem_startack_msg *ackmsg =
+			(struct cl_mem_startack_msg *)buf;
 
 		/* Ignore any messages wil old generation numbers in them */
 		if (le32_to_cpu(ackmsg->generation) != cluster_generation) {
@@ -1710,7 +1709,8 @@ static int do_process_startack(struct msghdr *msg, int len)
 
 	/* If the node_id is non-zero then use it. */
 	if (transitionreason == TRANS_NEWNODE && joining_node && msg) {
-		struct cl_mem_startack_msg *ackmsg = msg->msg_iov->iov_base;
+		struct cl_mem_startack_msg *ackmsg =
+			(struct cl_mem_startack_msg *)buf;
 
 		if (ackmsg->node_id) {
 			set_nodeid(joining_node, le32_to_cpu(ackmsg->node_id));
@@ -1774,9 +1774,8 @@ static int do_process_startack(struct msghdr *msg, int len)
 }
 
 /* Got a VIEWACK response from a node */
-static int do_process_viewack(struct msghdr *msg, int len)
+static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 {
-	char *reply = msg->msg_iov->iov_base;
 	struct sockaddr_cl *saddr = msg->msg_name;
 
 	if (node_opinion == NULL) {
@@ -1861,10 +1860,10 @@ static int do_process_viewack(struct msghdr *msg, int len)
 }
 
 /* Got an ENDTRANS message */
-static int do_process_endtrans(struct msghdr *msg, int len)
+static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 {
 	struct cl_mem_endtrans_msg *endmsg =
-	    (struct cl_mem_endtrans_msg *) msg->msg_iov->iov_base;
+		(struct cl_mem_endtrans_msg *)buf;
 	struct sockaddr_cl *saddr = (struct sockaddr_cl *) msg->msg_name;
 
 	/* Someone else's state transition */
@@ -1944,10 +1943,10 @@ static int send_nominate(struct cl_mem_starttrans_msg *startmsg, int msglen,
 }
 
 /* Got a STARTTRANS message */
-static int do_process_starttrans(struct msghdr *msg, int len)
+static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 {
 	struct cl_mem_starttrans_msg *startmsg =
-	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
+		(struct cl_mem_starttrans_msg *)buf;
 	struct sockaddr_cl *saddr = (struct sockaddr_cl *) msg->msg_name;
 	struct cluster_node *node;
 	unsigned int newgen = le32_to_cpu(startmsg->generation);
@@ -2050,7 +2049,7 @@ static int do_process_starttrans(struct msghdr *msg, int len)
 		node_state = TRANSITION;
 
 		if (startmsg->reason == TRANS_NEWNODE) {
-			add_node_from_starttrans(msg, len);
+			add_node_from_starttrans(msg, buf, len);
 		}
 
 		if (startmsg->reason == TRANS_REMNODE ||
@@ -2079,7 +2078,7 @@ static int do_process_starttrans(struct msghdr *msg, int len)
 		if (startmsg->reason == TRANS_NEWNODE) {
 			struct cluster_node *oldjoin = joining_node;
 
-			add_node_from_starttrans(msg, len);
+			add_node_from_starttrans(msg, buf, len);
 
 			/* If this is a different node joining than the one we
 			 * were previously joining (probably cos the master is
@@ -2123,7 +2122,7 @@ static int do_process_starttrans(struct msghdr *msg, int len)
 }
 
 /* Change a cluster parameter */
-static int do_process_reconfig(struct msghdr *msg, int len)
+static int do_process_reconfig(struct msghdr *msg, char *buf, int len)
 {
 	struct cl_mem_reconfig_msg *confmsg;
 	struct sockaddr_cl *saddr = msg->msg_name;
@@ -2133,7 +2132,7 @@ static int do_process_reconfig(struct msghdr *msg, int len)
 	if (len < sizeof(struct cl_mem_reconfig_msg))
 		return -1;
 
-	confmsg = (struct cl_mem_reconfig_msg *) msg->msg_iov->iov_base;
+	confmsg = (struct cl_mem_reconfig_msg *)buf;
 	val = le32_to_cpu(confmsg->value);
 
 	switch (confmsg->param) {
@@ -2180,9 +2179,10 @@ static int do_process_reconfig(struct msghdr *msg, int len)
 }
 
 /* Response from master node */
-static int do_process_joinack(struct msghdr *msg, int len)
+static int do_process_joinack(struct msghdr *msg, char *buf, int len)
 {
-	struct cl_mem_joinack_msg *ackmsg = msg->msg_iov->iov_base;
+	struct cl_mem_joinack_msg *ackmsg =
+		(struct cl_mem_joinack_msg *)buf;
 
 	join_time = jiffies;
 	if (ackmsg->acktype == JOINACK_TYPE_OK) {
@@ -2306,11 +2306,11 @@ static int validate_joinmsg(struct cl_mem_join_msg *joinmsg, int len)
 
 /* Request to join the cluster. This makes us the master for this state
  * transition */
-static int do_process_joinreq(struct msghdr *msg, int len)
+static int do_process_joinreq(struct msghdr *msg, char *buf, int len)
 {
 	static unsigned long last_joinreq = 0;
 	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
-	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
+	struct cl_mem_join_msg *joinmsg = (struct cl_mem_join_msg *)buf;
 	struct cluster_node *node;
 	char *ptr = (char *) joinmsg;
 	char *name;
@@ -2412,7 +2412,7 @@ static uint32_t low32_of_ip()
 
 /* A new node has stated its intent to form a new cluster. we may have
  * something to say about that... */
-static int do_process_newcluster(struct msghdr *msg, int len)
+static int do_process_newcluster(struct msghdr *msg, char *buf, int len)
 {
 	/* If we are also in STARTING state then back down for a random period
 	 * of time */
@@ -2423,9 +2423,8 @@ static int do_process_newcluster(struct msghdr *msg, int len)
 
 	if (node_state == NEWCLUSTER) {
 		uint32_t otherip;
-		char *newcmsg = (char *)msg->msg_iov->iov_base;
 
-		memcpy(&otherip, newcmsg+1, sizeof(otherip));
+		memcpy(&otherip, buf+1, sizeof(otherip));
 		otherip = le32_to_cpu(otherip);
 		P_MEMB("got NEWCLUSTER, remote ip = %x, us = %x\n", otherip, low32_of_ip());
 		if (otherip < low32_of_ip())
@@ -2554,11 +2553,9 @@ static int unpack_nodes(unsigned char *buf, int len,
 /* Got join confirmation from a master node. This message contains a list of
  * cluster nodes which we unpack and build into our cluster nodes list. When we
  * have the last message we can go into TRANSITION state */
-static int do_process_joinconf(struct msghdr *msg, int len)
+static int do_process_joinconf(struct msghdr *msg, char *buf, int len)
 {
-	char *message = msg->msg_iov->iov_base;
-
-	if (unpack_nodes(message + 2, len - 2, add_node) < 0) {
+	if (unpack_nodes(buf + 2, len - 2, add_node) < 0) {
 		printk(CMAN_NAME
 		       ": Error procssing joinconf message - giving up on cluster join\n");
 		us->leave_reason = CLUSTER_LEAVEFLAG_PANIC;
@@ -2567,7 +2564,7 @@ static int do_process_joinconf(struct msghdr *msg, int len)
 	}
 
 	/* Last message in the list? */
-	if (message[1] & 2) {
+	if (buf[1] & 2) {
 		char ackmsg;
 		struct sockaddr_cl *addr = msg->msg_name;
 
@@ -2587,10 +2584,9 @@ static int do_process_joinconf(struct msghdr *msg, int len)
 
 /* Got the master's view of the cluster - compare it with ours and tell it the
  * result */
-static int do_process_masterview(struct msghdr *msg, int len)
+static int do_process_masterview(struct msghdr *msg, char *buf, int len)
 {
 	char reply[2] = { CLUSTER_MEM_VIEWACK, 0 };
-	char *message = msg->msg_iov->iov_base;
 	static int num_nodes;
 
 	/* Someone else's state transition */
@@ -2599,14 +2595,13 @@ static int do_process_masterview(struct msghdr *msg, int len)
 		return 0;
 
 	/* First message, zero the counter */
-	if (message[1] & 1)
+	if (buf[1] & 1)
 		num_nodes = 0;
 
-	num_nodes += unpack_nodes(msg->msg_iov->iov_base + 2,
-				  len - 2, check_node);
+	num_nodes += unpack_nodes(buf + 2, len - 2, check_node);
 
 	/* Last message, check the count and reply */
-	if (message[1] & 2) {
+	if (buf[1] & 2) {
 		if (num_nodes == cluster_members) {
 			/* Send ACK */
 			reply[1] = 1;
@@ -2624,11 +2619,11 @@ static int do_process_masterview(struct msghdr *msg, int len)
 	return 0;
 }
 
-static int do_process_leave(struct msghdr *msg, int len)
+static int do_process_leave(struct msghdr *msg, char *buf, int len)
 {
 	struct cluster_node *node;
 	struct sockaddr_cl *saddr = msg->msg_name;
-	unsigned char *leavemsg = (unsigned char *) msg->msg_iov->iov_base;
+	unsigned char *leavemsg = (unsigned char *)buf;
 
 	if ((node = find_node_by_nodeid(saddr->scl_nodeid))) {
 		unsigned char reason = leavemsg[1];
@@ -2647,11 +2642,11 @@ static int do_process_leave(struct msghdr *msg, int len)
 	return 0;
 }
 
-static int do_process_hello(struct msghdr *msg, int len)
+static int do_process_hello(struct msghdr *msg, char *buf, int len)
 {
 	struct cluster_node *node;
 	struct cl_mem_hello_msg *hellomsg =
-	    (struct cl_mem_hello_msg *) msg->msg_iov->iov_base;
+		(struct cl_mem_hello_msg *)buf;
 	struct sockaddr_cl *saddr = msg->msg_name;
 
 	/* We are starting up. Send a join message to the node whose HELLO we
@@ -2720,7 +2715,7 @@ static int do_process_hello(struct msghdr *msg, int len)
 
 }
 
-static int do_process_kill(struct msghdr *msg, int len)
+static int do_process_kill(struct msghdr *msg, char *buf, int len)
 {
 	struct sockaddr_cl *saddr = msg->msg_name;
 	struct cluster_node *node;
@@ -2811,35 +2806,27 @@ static int dispatch_messages(struct socket *mem_socket)
 
 	while (skb_peek(&mem_socket->sk->sk_receive_queue)) {
 		struct msghdr msg;
-		struct iovec iov;
+		struct kvec vec;
 		struct sockaddr_cl sin;
 		int len;
-		mm_segment_t fs;
 
 		memset(&sin, 0, sizeof (sin));
 
 		msg.msg_control = NULL;
 		msg.msg_controllen = 0;
-		msg.msg_iovlen = 1;
-		msg.msg_iov = &iov;
 		msg.msg_name = &sin;
 		msg.msg_namelen = sizeof (sin);
 		msg.msg_flags = 0;
 
-		iov.iov_len = MAX_CLUSTER_MESSAGE;
-		iov.iov_base = iobuf;
+		vec.iov_len = MAX_CLUSTER_MESSAGE;
+		vec.iov_base = iobuf;
 
-		fs = get_fs();
-		set_fs(get_ds());
-
-		len =
-		    sock_recvmsg(mem_socket, &msg, MAX_CLUSTER_MESSAGE,
-				 MSG_DONTWAIT);
-		set_fs(fs);
+		len = kernel_recvmsg(mem_socket, &msg, &vec, 1,
+				     MAX_CLUSTER_MESSAGE,
+				     MSG_DONTWAIT);
 		if (len > 0) {
-			iov.iov_base = iobuf;	/* Reinstate pointer */
 			msg.msg_name = &sin;
-			do_membership_packet(&msg, len);
+			do_membership_packet(&msg, iobuf, len);
 		}
 		else {
 			if (len == -EAGAIN)
@@ -3098,6 +3085,7 @@ char *membership_state(char *buf, int buflen)
 
 char *leave_string(int reason)
 {
+	static char msg[32];
 	switch (reason)
 	{
 	case CLUSTER_LEAVEFLAG_DOWN:
@@ -3111,7 +3099,8 @@ char *leave_string(int reason)
 	case CLUSTER_LEAVEFLAG_REJECTED:
 		return "Membership rejected";
 	default:
-		return "Don't know why";
+		sprintf(msg, "Reason is %d\n", reason);
+		return msg;
 	}
 }
 
