@@ -395,19 +395,11 @@ int kcl_get_services(struct list_head *head, int level)
 
 	down(&sm_sglock);
 
-	list_for_each_entry(sg, &sg_registered[level], list) {
-		if (head) {
-			s = kmalloc(sizeof(struct kcl_service), GFP_KERNEL);
-			if (!s)
-				goto out;
-			copy_to_service(sg, s);
-			list_add(&s->list, head);
-		}
-		count++;
-	}
-
 	list_for_each_entry(sg, &sm_sg[level], list) {
+		if (test_bit(SGFL_SEVENT, &sg->flags))
+			continue;
 		if (head) {
+
 			s = kmalloc(sizeof(struct kcl_service), GFP_KERNEL);
 			if (!s)
 				goto out;
