@@ -35,7 +35,7 @@
 #include <sys/types.h>
 #include <sys/select.h>
 
-#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.1"
+#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1.2"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 #define DLM_LS_NAME	   "Magma"
@@ -284,6 +284,16 @@ sm_wait_leave_complete(sm_priv_t *p)
 
 		if (ev.type == SERVICE_EVENT_LEAVEDONE)
 			p->state = SMS_LEFT;
+
+		/*
+		 * Handle member transitions during shutdown.
+		 */
+		if (ev.type == SERVICE_EVENT_START) {
+			ioctl(p->sockfd, SIOCCLUSTER_SERVICE_STARTDONE,
+			      ev.event_id);
+			/* XXX what if this fails? */
+			//printf("SERVICE_EVENT_START during leave\n");
+		}
 	}
 }
 
