@@ -12,11 +12,43 @@
 ###############################################################################
 
 top_srcdir = ..
+ifndef USING_KBUILD
+include ${top_srcdir}/make/defines.mk
+UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+endif
+
 linux_orig = ${top_srcdir}/patches/linux-orig
 linux_patched = ${top_srcdir}/patches/linux-patched
 
 
 PATCH_TARGET = gnbd.patch
+
+PWD := $(shell pwd)
+   
+obj-m := gnbd.o
+lock_gnbd-objs := gnbd.c
+
+EXTRA_CFLAGS += -I$(obj)
+
+all:
+	rm -f linux
+	ln -s . linux
+	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
+ 
+install: all
+	install -d ${module_dir}/drivers/block/gnbd
+	install gnbd.ko ${module_dir}/drivers/block/gnbd
+
+uninstall:
+	${UNINSTALL} gnbd.ko ${module_dir}/drivers/block/gnbd
+                                                                                
+clean:
+	rm -rf linux *.mod.c .gnbd.ko.cmd \
+		.tmp_versions *o .*.o.cmd *~
+
+
+clean:
+
 
 patches: pre add post
 
@@ -34,6 +66,3 @@ post:
 add:
 	cp gnbd.c ${linux_patched}/drivers/block/
 	cp gnbd.h ${linux_patched}/include/linux/
-
-clean:
-
