@@ -8,23 +8,13 @@ http://sources.redhat.com/cluster/
 Get source
 ----------
 
-- download the source tarballs
+- download tarballs
 
-  latest linux kernel	- ftp://ftp.kernel.org/pub/linux/
   device-mapper		- ftp://sources.redhat.com/pub/dm/
   lvm2			- ftp://sources.redhat.com/pub/lvm2/
-  iddev			- ftp://sources.redhat.com/pub/cluster/
-  ccs			- ftp://sources.redhat.com/pub/cluster/
-  fence			- ftp://sources.redhat.com/pub/cluster/
-  cman			- ftp://sources.redhat.com/pub/cluster/
-  cman-kernel		- ftp://sources.redhat.com/pub/cluster/
-  dlm			- ftp://sources.redhat.com/pub/cluster/
-  dlm-kernel		- ftp://sources.redhat.com/pub/cluster/
-  gfs			- ftp://sources.redhat.com/pub/cluster/
-  gfs-kernel		- ftp://sources.redhat.com/pub/cluster/
+  cluster		- http://sources.redhat.com/cluster/
 
-
-- or to download source from cvs see
+- or to download from cvs see
 
   http://sources.redhat.com/dm/
   http://sources.redhat.com/lvm2/
@@ -39,68 +29,60 @@ Get source
 Build and install
 -----------------
 
-- build and install kernel modules using either kernel patches
-  or building the modules outside the kernel tree
+Method 1: outside the kernel source tree
 
-  a) using kernel patches
-     - apply kernel patches from
-       cman-kernel/patches/
-       dlm-kernel/patches/
-       gfs-kernel/patches/
+1. apply kernel patch (to enable flock(2) to work among gfs nodes)
+   cd /path/to/kernel
+   patch -p1 < cluster/gfs-kernel/patches/<ver>/00001.patch
 
-     - configure kernel, selecting DM, CMAN, DLM, GFS
-       (the final three, at least, should be built as modules)
+2. build kernel
+   cd /path/to/kernel
+   make; make modules_install
 
-     - build kernel modules: make; make modules_install
+3. build cluster kernel modules and user space
+   cd cluster
+   ./configure --kernel_src=/path/to/kernel
+   make; make install
 
-  b) building outside kernel tree
-     cman-kernel
-     ./configure --kernel_src=/path/to/kernel
-     make; make install
-     
-     dlm-kernel
-     ./configure --kernel_src=/path/to/kernel
-     make; make install
+4. build device mapper user space
+   cd device-mapper
+   ./configure
+   make; make install
 
-     gfs-kernel
-     ./configure --kernel_src=/path/to/kernel
-     make; make install
-  
+5. build lvm2/clvm
+   cd LVM2
+   ./configure --with-clvmd --with-cluster=shared
+   make; make install
+   LVM2/scripts/clvmd_fix_conf.sh /lib
 
-- build and install userland programs and libraries (order is important)
 
-  ccs
-  ./configure --kernel_src=/path/to/kernel
-  make; make install
+Method 2: using kernel patches
 
-  cman
-  ./configure --kernel_src=/path/to/kernel
-  make; make install
+1. apply kernel patches from
+   cluster/cman-kernel/patches/
+   cluster/dlm-kernel/patches/
+   cluster/gfs-kernel/patches/
 
-  dlm
-  ./configure --kernel_src=/path/to/kernel
-  make; make install
+2. configure kernel, selecting DM, CMAN, DLM, GFS
 
-  fence
-  ./configure --kernel_src=/path/to/kernel
-  make; make install
+3. build kernel and cluster modules
+   make; make modules_install
 
-  iddev
-  ./configure
-  make; make install
+4. build user space components
+   cd cluster
+   ./configure --kernel_src=/path/to/kernel
+   make; make install
 
-  gfs
-  ./configure --kernel_src=/path/to/kernel
-  make; make install
+5. build device mapper user space
+   cd device-mapper
+   ./configure
+   make; make install
 
-  device-mapper
-  ./configure
-  make; make install
-
-  lvm2
-  ./configure --with-clvmd --with-cluster=shared
-  make; make install
-  lvm2/scripts/clvmd_fix_conf.sh /lib
+6. build lvm2/clvm
+   cd LVM2
+   ./configure --with-clvmd --with-cluster=shared
+   make; make install
+   LVM2/scripts/clvmd_fix_conf.sh /lib
 
 
 Load kernel modules
