@@ -23,18 +23,10 @@
 #include "util.h"
 
 struct resmov {
-	uint32_t rm_nodeid;
+	int rm_nodeid;
 	uint16_t rm_length;
 	uint16_t rm_pad;
 };
-
-void print_name(char *b, int len)
-{
-	int i;
-	for (i = 0; i < len; i++)
-		printk("%c", b[i]);
-	printk("\n");
-}
 
 static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
 {
@@ -89,11 +81,12 @@ void clear_free_de(struct dlm_ls *ls)
  * directory node.
  */
 
-uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
+int name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 {
 	struct list_head *tmp;
 	struct dlm_member *memb = NULL;
-	uint32_t hash, node, n = 0, nodeid;
+	uint32_t hash, node, n = 0;
+	int nodeid;
 
 	if (ls->ls_num_nodes == 1) {
 		nodeid = our_nodeid();
@@ -122,7 +115,7 @@ uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 	return nodeid;
 }
 
-uint32_t get_directory_nodeid(struct dlm_rsb *rsb)
+int get_directory_nodeid(struct dlm_rsb *rsb)
 {
 	return name_to_directory_nodeid(rsb->res_ls, rsb->res_name,
 					rsb->res_length);
@@ -160,7 +153,7 @@ static struct dlm_direntry *search_bucket(struct dlm_ls *ls, char *name,
 	return de;
 }
 
-void dlm_dir_remove(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
+void dlm_dir_remove(struct dlm_ls *ls, int nodeid, char *name, int namelen)
 {
 	struct dlm_direntry *de;
 	uint32_t bucket;
@@ -320,14 +313,14 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
  */
 
 int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
-			 char *outbuf, int outlen, uint32_t nodeid)
+			 char *outbuf, int outlen, int nodeid)
 {
 	struct list_head *list;
 	struct dlm_rsb *start_rsb = NULL, *rsb;
 	int offset = 0, start_namelen, error;
 	char *start_name;
 	struct resmov tmp;
-	uint32_t dir_nodeid;
+	int dir_nodeid;
 
 	/* 
 	 * Find the rsb where we left off (or start again)
@@ -404,8 +397,8 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	return offset;
 }
 
-static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
-		     int namelen, uint32_t *r_nodeid)
+static int get_entry(struct dlm_ls *ls, int nodeid, char *name,
+		     int namelen, int *r_nodeid)
 {
 	struct dlm_direntry *de, *tmp;
 	uint32_t bucket;
@@ -445,8 +438,8 @@ static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	return 0;
 }
 
-int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
-		   uint32_t *r_nodeid)
+int dlm_dir_lookup(struct dlm_ls *ls, int nodeid, char *name, int namelen,
+		   int *r_nodeid)
 {
 	return get_entry(ls, nodeid, name, namelen, r_nodeid);
 }
