@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.279 $) dnl cvs revision
+AC_REVISION($Revision: 1.280 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -202,7 +202,7 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
-AC_CHECK_LIB(uuid, uuid_compare)		dnl -luuid ( both have this function )
+dnl -- USE a Unique lib check so -luuid is used only once ( to eliminate -luuid -luuid
 dnl - Checking for a unique function of ex2fs vs ossd
 AC_CHECK_LIB(uuid, uuid_parse)			dnl - In e2fsprog only.
 AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossd version.
@@ -927,7 +927,8 @@ dnl
 		format=2
 		format-security
 		format-nonliteral
-		no-long-long"
+		no-long-long
+		no-strict-aliasing"
 
 	for j in $WARNLIST
 	do
@@ -1310,14 +1311,6 @@ AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
-
-dnl Work-around for highly annoying strict aliasing rules in
-dnl recent gccs
-if
-  cc_supports_flag -fno-strict-aliasing
-then
-  CFLAGS="$CFLAGS -fno-strict-aliasing"
-fi
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
