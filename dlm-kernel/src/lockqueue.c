@@ -1016,7 +1016,12 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   printk("nodeid %u\n", nodeid););
 
 		if (lkb->lkb_lockqueue_state) {
-			log_error(rsb->res_ls, "granting lock on lockqueue");
+			log_debug(rsb->res_ls, "granting lock on lockqueue, state = %d", lkb->lkb_lockqueue_state);
+
+			/* Don't grant locks that are waiting for an unlock */
+			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_UNLOCK)
+			        return 0;
+
 			print_lkb(lkb);
 			print_request(freq);
 			lkb->lkb_lockqueue_state = 0;
