@@ -315,7 +315,7 @@ static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
 		return 1;
 	}
 
-	if(check_meta(el_buf, GFS_METATYPE_ED){
+	if(check_meta(el_buf, GFS_METATYPE_ED)) {
 		log_err("EA extended leaf block has incorrect type.\n");
 		relse_buf(sdp, el_buf);
 		block_set(sdp->bl, el_blk, meta_inval);
