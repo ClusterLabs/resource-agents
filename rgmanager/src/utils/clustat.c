@@ -237,12 +237,6 @@ txt_member_states(cluster_member_list_t *membership)
 {
 	int x;
 
-	if (!membership) {
-		printf("Not participating in Service Group \"%s\"\n",
-		       RG_SERVICE_GROUP);
-		return;
-	}
-
 	printf("  %-40.40s %-10s %s\n", "Member Name", "State", "ID");
 	printf("  %-40.40s %-10s %s\n", "------ ----", "-----", "--");
 
@@ -270,7 +264,19 @@ txt_cluster_status(int qs, cluster_member_list_t *membership,
 		   rg_state_list_t *rgs)
 {
 	txt_quorum_state(qs);
-	txt_member_states(membership);
+
+	if (!membership || !(qs & QF_GROUPMEMBER)) {
+		printf("Not a member of the Resource Manager service "
+		       "group.\n");
+		printf("Resource Group information unavailable; showing "
+		       "all cluster members.\n\n");
+		membership = clu_member_list(NULL);
+		txt_member_states(membership);
+		cml_free(membership);
+	} else {
+		txt_member_states(membership);
+	}
+
 	txt_rg_states(rgs, membership);
 }
 
