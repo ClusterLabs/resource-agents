@@ -8,7 +8,7 @@ if ($#ARGV == -1) {
 
 $date = `date +%G%m%d%H%M%S`;
 chomp($date);
-print `mkdir srpms`;
+print `mkdir -p srpms`;
 
 foreach $target (@targets) {
   chdir $target;
