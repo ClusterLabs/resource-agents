@@ -257,15 +257,16 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	int i, size, error = -ENOMEM;
 	uint32_t local_id = 0;
 
-	if (!try_module_get(THIS_MODULE))
+	if (namelen > MAX_SERVICE_NAME_LEN)
 		return -EINVAL;
 
-	if (namelen > MAX_SERVICE_NAME_LEN)
+	if (!try_module_get(THIS_MODULE))
 		return -EINVAL;
 
 	ls = find_lockspace_by_name(name, namelen);
 	if (ls) {
 		*lockspace = (void *)(long) ls->ls_local_id;
+		module_put(THIS_MODULE);
 		return -EEXIST;
 	}
 
