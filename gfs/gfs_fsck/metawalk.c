@@ -768,11 +768,15 @@ int dinode_hash_insert(osi_list_t *buckets, uint64_t key, struct dir_info *di)
 	osi_list_foreach(tmp, bucket) {
 		dtmp = osi_list_entry(tmp, struct dir_info, list);
 		if(dtmp->dinode < key) {
-			osi_list_add(&di->list, tmp);
+			continue;
+		}
+		else {
+			osi_list_add_prev(&di->list, tmp);
 			return 0;
 		}
 	}
-	return -1;
+	osi_list_add_prev(&di->list, bucket);
+	return 0;
 }
 
 

@@ -142,7 +142,8 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 	if (lf_addition) {
 		if(!(ii = inode_hash_search(sbp->inode_hash,
 					    sbp->lf_dip->i_num.no_addr))) {
-			log_err("Unable to find l+f inode in inode_hash!!\n");
+			log_crit("Unable to find l+f inode in inode_hash!!\n");
+			return -1;
 		} else {
 			fix_inode_count(sbp, ii, sbp->lf_dip);
 		}
