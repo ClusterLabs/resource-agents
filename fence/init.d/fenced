@@ -1,0 +1,94 @@
+#!/bin/bash
+#
+# chkconfig: 345 22 78
+# description: Starts and stops fence domain
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+LOCK_FILE="/var/lock/subsys/fenced"
+
+start()
+{
+	echo -n "Starting fence domain:"
+	rtrn=1
+
+	fence_tool join > /dev/null 2>&1
+	rtrn=$?
+	
+	if [ $rtrn -eq 0 ]
+	then
+		#> # make sure that the fence domain is up and running
+		#> until grep "^Fence Domain:" /proc/cluster/services | grep -q " run "
+		#> do
+		#> 	sleep 1;
+		#> done
+
+		success
+	else
+		failure
+	fi
+		
+	# need the extra echo to properlly terminate the line
+	echo
+	return $rtrn
+}
+
+stop()
+{
+	echo -n "Stopping fence domain:"
+	rtrn=1
+
+	fence_tool leave > /dev/null 2>&1
+	rtrn=$?
+	
+	if [ $rtrn -eq 0 ]
+	then
+		success
+	else
+		failure
+	fi
+		
+	# need the extra echo to properlly terminate the line
+	echo
+	return $rtrn
+}
+
+rtrn=1
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	rtrn=$?
+	[ $rtrn = 0 ] && touch $LOCK_FILE
+	;;
+
+  stop)
+	stop
+	rtrn=$?
+	[ $rtrn = 0 ] && rm -f $LOCK_FILE
+	;;
+
+  restart)
+	$0 stop
+	$0 start 
+	rtrn=$?
+	;;
+
+  status)
+	status fenced
+	rtrn=1
+	;;
+
+  *)
+	echo $"Usage: $0 {start|stop|restart|status}"
+	;;
+esac
+
+exit $rtrn

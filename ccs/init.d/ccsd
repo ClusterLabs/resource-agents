@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# ccsd   start/stop ccsd
+#
+# chkconfig: 345 20 80
+# description: Starts and stops ccsd 
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+LOCK_FILE="/var/lock/subsys/ccsd"
+
+start()
+{
+	echo -n "Starting ccsd:"
+	if ccsd 2> /dev/null
+	then
+		sleep 1 
+		success
+		echo 
+		return 0
+	fi
+
+	failure
+	echo
+	return 1
+}
+
+stop()
+{
+	echo -n "Stopping ccsd:"
+	for sec in $(seq 1 10) 
+	do
+		if pidof ccsd > /dev/null
+		then
+			# get the pid of ccsd from /var/run/sistina/ccsd.pid
+			# and break if the file is not there
+			[ -r /var/run/sistina/ccsd.pid ] || break
+
+			pid=$(cat /var/run/cluster/ccsd.pid )
+			kill $pid 2> /dev/null || break
+			
+			sleep 1 
+		else
+			success
+			echo
+			return 0
+		fi
+	done
+	failure
+	echo
+	return 1
+}
+
+rtrn=1
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	rtrn=$?
+	[ $rtrn = 0 ] && touch $LOCK_FILE
+	;;
+
+  stop)
+	stop
+	rtrn=$?
+	[ $rtrn = 0 ] && rm -f $LOCK_FILE
+	;;
+
+  restart)
+	$0 stop
+	$0 start 
+	rtrn=$?
+	;;
+
+  status)
+	status ccsd
+	rtrn=0
+	;;
+
+  *)
+	echo $"Usage: $0 {start|stop|restart|status}"
+	;;
+esac
+
+exit $rtrn

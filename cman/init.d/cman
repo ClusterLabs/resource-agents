@@ -1,0 +1,124 @@
+#!/bin/bash
+#
+# chkconfig: 345 21 79
+# description: Starts and stops cman
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+LOCK_FILE="/var/lock/subsys/cman"
+
+[ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
+nodename=$(hostname -s)
+
+start()
+{
+	echo -n "Starting cman:"
+	rtrn=1
+
+	for try in block
+	do
+		# load the camn module (modprobe won't error if the modules is already
+		# loaded
+		modprobe cman || break
+		
+		[ -n "$CMAN_TRANSITION_RESTARTS" ] && 
+			echo $CMAN_TRANSITION_RESTARTS > /proc/cluster/config/cman/transition_restarts
+
+		# make sure that we are in the correct state
+		until awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes 
+		do
+			# join the cluster
+			cman_tool join $cman_join_opts > /dev/null 2>&1 
+			sleep 1
+		done
+
+		# FIXME -- make sure that we are quorate?  
+		# probably not a good idea since we may need to fence nodes.
+		
+		rtrn=0
+	done
+
+	if [ $rtrn -eq 0 ]
+	then
+		success
+	else
+		failure
+	fi
+		
+	# need the extra echo to properlly terminate the line
+	echo
+	return $rtrn
+}
+
+stop()
+{
+	echo -n "Stopping cman:"
+	rtrn=1
+	
+	if [ -r /proc/cluster/status ] 
+	then
+		# make sure that we are in the correct state
+		while awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes 
+		do
+			# join the cluster
+			cman_tool leave > /dev/null 2>&1 
+			sleep 1
+		done
+
+		modprobe -r cman && rtrn=0
+	else
+		# cman is not loaded
+		rtrn=0
+	fi
+	
+	if [ $rtrn -eq 0 ]
+	then
+		success
+	else
+		failure
+	fi
+		
+	# need the extra echo to properlly terminate the line
+	echo
+	return $rtrn
+}
+
+rtrn=1
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	rtrn=$?
+	[ $rtrn = 0 ] && touch $LOCK_FILE
+	;;
+
+  stop)
+	stop
+	rtrn=$?
+	[ $rtrn = 0 ] && rm -f $LOCK_FILE
+	;;
+
+  restart)
+	$0 stop
+	$0 start 
+	rtrn=$?
+	;;
+
+  status)
+	cat /proc/cluster/status
+	rtrn=0
+	;;
+
+  *)
+	echo $"Usage: $0 {start|stop|restart|status}"
+	;;
+esac
+
+exit $rtrn

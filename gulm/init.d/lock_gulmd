@@ -1,0 +1,235 @@
+#!/bin/bash
+#
+# 
+#
+# chkconfig: 345 24 76
+# description: start/stop the gulm lock daemon
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+# GULM_QUORUM_TIMEOUT -- amount of time to wait for there to be a master
+#     before giving up.  If GULM_QUORUM_TIMEOUT is positive, then we will
+#     wait GULM_QUORUM_TIMEOUT seconds before giving up and failing when
+#     a master server is not found.  If GULM_QUORUM_TIMEOUT is zero, then
+#     wait indefinately for a master server.  If GULM_QUORUM_TIMEOUT is
+#     negative, just start lock_gulmd and not worry about whether it is
+#     quorate.
+GULM_QUORUM_TIMEOUT=300
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+gulm_shutdown()
+{
+	rtrn=1
+	if gulm_tool shutdown localhost &> /dev/null
+	then
+		for sec in $(seq 1 10 )
+		do
+			sleep 1
+			if ! gulm_tool shutdown localhost &> /dev/null
+			then
+				rtrn=0
+				break
+			fi
+		done
+	fi
+	return $rtrn
+}
+
+find_master()
+{
+	gulm_master=""
+	line=$(gulm_tool getstats localhost 2>/dev/null |
+		awk 'BEGIN{xit=1}
+			($1 == "I_am"){xit=0}
+			($0 ~ /^(I_am = Master|Master =)/) {print}
+			END{exit xit}')
+	[ $? -ne 0 ] && return 1
+
+	case $line in
+		I_am\ =\ Master)
+			gulm_master=$(hostname)
+			;;
+		Master\ =*)
+			server=${line#*= }
+
+			if gulm_tool getstats $server 2>/dev/null |
+				grep -q "I_am = Master"
+			then
+				gulm_master=$server
+			fi
+			;;
+		*) ;;
+	esac
+
+	[ -n "$gulm_master" ] 
+}
+
+wait_for_master()
+{
+	i=0
+	stoptime=$(($SECONDS + $GULM_QUORUM_TIMEOUT))
+	while [ $GULM_QUORUM_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
+	do
+		find_master && break
+
+		sleep 5
+		i=$(($i+1))
+	done
+
+	[ -n "$gulm_master" -o $GULM_QUORUM_TIMEOUT -lt 0 ]
+	return $?
+}
+
+
+start()
+{
+
+	sts=1
+	echo -n "Starting lock_gulmd:"
+
+	# If lock_gulmd is already running, set GULM_QUORUM_TIMEOUT to -1 to
+	# make sure that it doesn't get stopped if there is no quorUm
+	if gulm_tool getstats localhost &>/dev/null
+	then
+		GULM_QUORUM_TIMEOUT=-1		
+	fi
+
+	# start lock_gulmd and wait for the ltpx process to fork and connect
+	# before continuing
+	if lock_gulmd --use_ccs &> /dev/null
+	then
+		for i in $(seq 1 10)
+		do
+			sleep 1
+			if gulm_tool getstats localhost:ltpx &> /dev/null
+			then
+				sts=0
+				break
+			fi
+		done
+	fi
+
+	# Wait for gulm to be quorate before continuing.  If quorum is not 
+	# achieved in a set period of time, then 
+	if [ $sts -eq 0 ]
+	then
+		if wait_for_master
+		then
+			success
+		else
+			echo -n " failed to login to master "
+			gulm_shutdown
+			failure
+			sts=1
+		fi
+	else
+		failure
+	fi
+	echo
+	return $sts
+}
+
+stop()
+{
+	if [ "$1" = "force" ] ; then force=0 ; else force=1 ; fi
+
+	service_list=1
+	if gulm_tool servicelist localhost &> /dev/null
+	then
+		echo "Checking for Gulm Services..."
+
+		# ignore LTPX and LT000-LT999 services
+		if gulm_tool servicelist localhost | grep -vE "^LT(PX|[0-9][0-9][0-9])\$"
+		then
+			if [ $force -ne 0 ]
+			then
+				echo "lock_gulmd in use.  failing to stop"
+				return 1
+			else
+				echo "lock_gulmd in use.  force shutdown in 5 seconds. " \
+					"Ctrl-C to abort..."
+				sleep 5
+			fi
+		fi
+		service_list=0
+	else
+		echo "unable to comminucate to lock_gulmd"
+	fi
+
+	echo -n "Stopping lock_gulmd:"
+	if [ $service_list -eq 0 ] && gulm_shutdown
+	then
+		success
+		sts=0
+	else
+		failure
+		sts=1
+	fi
+	echo
+	return $sts
+}	
+
+rtrn=1
+
+# See how we were called.
+case "$1" in
+  start)
+	#> # Make sure that ccsd is running 
+	#> FIXME -- ccs_read is no longer supported
+	#> ccs_read list &>/dev/null || exit 0
+
+	start
+	rtrn=$?
+	[ $rtrn -eq 0 ] && touch /var/lock/subsys/lock_gulmd
+	;;
+
+  stop)
+	stop
+	rtrn=$?
+	[ $rtrn -eq 0 ] && rm -f /var/lock/subsys/lock_gulmd
+	;;
+
+  forcestop)
+	stop force
+	rtrn=$?
+	[ $rtrn -eq 0 ] && rm -f /var/lock/subsys/lock_gulmd
+	;;
+
+  restart)
+	$0 stop
+	$0 start
+	rtrn=$?
+	;;
+
+  status)
+	if status lock_gulmd
+	then
+		if find_master
+		then
+			echo "gulm_master: $gulm_master is the master"
+		else
+			echo "gulm_master: gulm master not found"
+		fi
+	
+		if gulm_tool servicelist localhost &> /dev/null
+		then
+			echo  "Services:"
+			gulm_tool servicelist localhost 
+		fi
+	fi
+
+	rtrn=0
+	;;
+
+  *)
+	echo $"Usage: $0 {start|stop|restart|status|forcestop}"
+	;;
+esac
+
+exit $rtrn
+
