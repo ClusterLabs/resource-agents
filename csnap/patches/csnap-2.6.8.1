@@ -1,6 +1,6 @@
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Kconfig 2.6.8.1.csnap/drivers/md/Kconfig
---- 2.6.8.1.csnap.clean/drivers/md/Kconfig	2004-08-14 10:54:50.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/Kconfig	2004-10-04 20:39:41.000000000 +0000
+--- 2.6.8.1.csnap.clean/drivers/md/Kconfig	2004-08-14 06:54:50.000000000 -0400
++++ 2.6.8.1.csnap/drivers/md/Kconfig	2004-10-04 16:39:41.000000000 -0400
 @@ -200,5 +200,15 @@ config DM_ZERO
  	  A target that discards writes, and returns all zeroes for
  	  reads.  Useful in some recovery situations.
@@ -18,8 +18,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Kconfig 2.6.8.1.csnap/driver
  endmenu
  
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drivers/md/Makefile
---- 2.6.8.1.csnap.clean/drivers/md/Makefile	2004-08-14 10:55:33.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/Makefile	2004-10-24 03:43:09.000000000 +0000
+--- 2.6.8.1.csnap.clean/drivers/md/Makefile	2004-08-14 06:55:33.000000000 -0400
++++ 2.6.8.1.csnap/drivers/md/Makefile	2004-10-23 23:43:09.000000000 -0400
 @@ -29,6 +29,8 @@ obj-$(CONFIG_DM_CRYPT)		+= dm-crypt.o
  obj-$(CONFIG_DM_SNAPSHOT)	+= dm-snapshot.o
  obj-$(CONFIG_DM_MIRROR)		+= dm-mirror.o
@@ -30,9 +30,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
  quiet_cmd_unroll = UNROLL  $@
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
---- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 16:58:07.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-10-31 17:28:11.398379608 +0000
-@@ -0,0 +1,1101 @@
+--- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 12:58:07.000000000 -0400
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-11-30 17:45:38.000000000 -0500
+@@ -0,0 +1,1102 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -316,7 +316,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +/* Ah, now it gets interesting.  Called in interrupt context */
 +
-+struct end_io_hook {
++struct hook {
 +	struct snapinfo *info;
 +	sector_t sector;
 +	/* needed only for end_io, make it a union */
@@ -328,7 +328,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +static int snapshot_read_end_io(struct bio *bio, unsigned int done, int error)
 +{
-+	struct end_io_hook *hook = bio->bi_private;
++	struct hook *hook = bio->bi_private;
 +	struct snapinfo *info = hook->info;
 +
 +	trace(warn("sector %Lx", (long long)hook->sector);)
@@ -399,10 +399,10 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +			p = (struct chunk_range *)p2;
 +		} else if (rw == READ) {
 +			/* snapshot read from origin */
-+			struct end_io_hook *hook;
++			struct hook *hook;
 +			trace(warn("hook end_io for %Lx", (long long)bio->bi_sector));
 +			hook = kmem_cache_alloc(end_io_cache, GFP_KERNEL|__GFP_NOFAIL); // !!! union with pending
-+			*hook = (struct end_io_hook){
++			*hook = (struct hook){
 +				.info = info,
 +				.sector = bio->bi_sector,
 +				.old_end_io = bio->bi_end_io,
@@ -598,14 +598,14 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +void upload_locks(struct snapinfo *info)
 +{
 +	unsigned long irqflags;
-+	struct end_io_hook *hook;
++	struct hook *hook;
 +	struct list_head *entry, *tmp;
 +
 +	spin_lock_irqsave(&info->end_io_lock, irqflags);
 +	info->dont_switch_lists = 1;
 +	while(!list_empty(&info->releases)){
 +		entry = info->releases.prev;
-+		hook = list_entry(entry, struct end_io_hook, list);
++		hook = list_entry(entry, struct hook, list);
 +		list_del(entry);
 +		kmem_cache_free(end_io_cache, hook);
 +	}
@@ -613,7 +613,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	list_for_each_safe(entry, tmp, &info->locked){
 +		chunk_t chunk;
 +
-+		hook = list_entry(entry, struct end_io_hook, list);
++		hook = list_entry(entry, struct hook, list);
 +		spin_lock_irqsave(&info->end_io_lock, irqflags);
 +		if (hook->old_end_io == NULL){
 +			list_del(entry);
@@ -628,7 +628,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	outbead(info->sock, FINISH_UPLOAD_LOCK, struct {});
 +	spin_lock_irqsave(&info->end_io_lock, irqflags);
 +	list_for_each_safe(entry, tmp, &info->locked){
-+		hook = list_entry(entry, struct end_io_hook, list);
++		hook = list_entry(entry, struct hook, list);
 +		if (hook->old_end_io == NULL)
 +			list_move(&hook->list, &info->releases);
 +	}
@@ -679,7 +679,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		spin_lock_irqsave(&info->end_io_lock, irqflags);
 +		while (!list_empty(&info->releases) && worker_running(info)) {
 +			struct list_head *entry = info->releases.prev;
-+			struct end_io_hook *hook = list_entry(entry, struct end_io_hook, list);
++			struct hook *hook = list_entry(entry, struct hook, list);
 +			chunk_t chunk = hook->sector >> info->chunkshift;
 +
 +			list_del(entry);
@@ -697,28 +697,28 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +
 +		trace(warn("Yowza! More work?");)
 +	}
-+	if (!(info->flags & RECOVER_FLAG)) {
-+		up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
-+		warn("%s exiting", task->comm);
-+		return 0;
++	if ((info->flags & RECOVER_FLAG)) {
++		down(&info->server_out_sem);
++		goto recover;
 +	}
-+
-+	warn("worker interrupted");
-+	down(&info->server_out_sem);
-+	goto recover;
++finish:
++	up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
++	trace_on(warn("%s exiting", task->comm);)
++	return 0;
 +
 +report:
 +	warn("worker socket error %i", err);
 +	report_error(info);
-+
 +recover:
++	trace_on(warn("worker recovering");)
 +	down(&info->recover_sem);
++	if ((info->flags & FINISH_FLAG))
++		goto finish;
 +	if (is_snapshot(info))
 +		upload_locks(info);
 +	info->flags &= ~(RECOVER_FLAG|REPORT_FLAG);
 +	up(&info->recover_sem);
 +	goto restart;
-+
 +}
 +
 +/*
@@ -902,6 +902,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	info->flags |= FINISH_FLAG;
 +	up(&info->server_in_sem); // unblock incoming thread
 +	up(&info->server_out_sem); // unblock io request threads
++	up(&info->recover_sem); // unblock worker recovery
 +
 +	if (info->sock && (err = shutdown_socket(info->sock)))
 +		warn("server socket shutdown error %i", err);
@@ -1012,11 +1013,11 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +	for (i = 0; i < NUM_BUCKETS; i++)
 +		INIT_LIST_HEAD(&info->pending[i]);
 +
-+	error = "Can't get origin device";
-+	if ((err = dm_get_device(target, argv[0], 0, target->len, dm_table_get_mode(target->table), &info->orgdev)))
-+		goto eek;
 +	error = "Can't get snapshot device";
-+	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &info->snapdev)))
++	if ((err = dm_get_device(target, argv[0], 0, target->len, dm_table_get_mode(target->table), &info->snapdev)))
++		goto eek;
++	error = "Can't get origin device";
++	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &info->orgdev)))
 +		goto eek;
 +	error = "Can't connect control socket";
 +	if ((err = get_control_socket(argv[2])) < 0)
@@ -1093,7 +1094,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +		sizeof(struct pending), __alignof__(struct pending), 0, NULL, NULL)))
 +		goto bad1;
 +	if (!(end_io_cache = kmem_cache_create("csnap-endio",
-+		sizeof(struct end_io_hook), __alignof__(struct end_io_hook), 0, NULL, NULL)))
++		sizeof(struct hook), __alignof__(struct hook), 0, NULL, NULL)))
 +		goto bad2;
 +	what = "register";
 +	if ((err = dm_register_target(&csnap)))
@@ -1135,9 +1136,9 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +module_init(dm_csnap_init);
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/drivers/md/dm-csnap.h
---- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 16:58:12.000000000 +0000
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-10-30 04:15:39.000000000 +0000
-@@ -0,0 +1,90 @@
+--- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h	2004-10-14 12:58:12.000000000 -0400
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.h	2004-11-15 18:10:13.000000000 -0500
+@@ -0,0 +1,95 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1175,9 +1176,14 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/dri
 +	SET_IDENTITY,
 +	UPLOAD_LOCK,
 +	FINISH_UPLOAD_LOCK,
++	NEED_CLIENTS,
++	UPLOAD_CLIENT_ID,
++	FINISH_UPLOAD_CLIENT_ID,
++	REMOVE_CLIENT_IDS,
 +};
 +
 +
++struct match_id { uint64_t id; uint64_t mask; } PACKED;
 +struct set_id { uint64_t id; } PACKED;
 +struct identify { uint64_t id; int32_t snap; } PACKED;
 +struct create_snapshot { uint32_t snap; } PACKED;
@@ -1229,8 +1235,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.h 2.6.8.1.csnap/dri
 +#endif
 +}
 diff -up --recursive 2.6.8.1.csnap.clean/fs/super.c 2.6.8.1.csnap/fs/super.c
---- 2.6.8.1.csnap.clean/fs/super.c	2004-08-14 10:55:22.000000000 +0000
-+++ 2.6.8.1.csnap/fs/super.c	2004-10-04 20:39:41.000000000 +0000
+--- 2.6.8.1.csnap.clean/fs/super.c	2004-08-14 06:55:22.000000000 -0400
++++ 2.6.8.1.csnap/fs/super.c	2004-10-04 16:39:41.000000000 -0400
 @@ -51,7 +51,7 @@ spinlock_t sb_lock = SPIN_LOCK_UNLOCKED;
   *	Allocates and initializes a new &struct super_block.  alloc_super()
   *	returns a pointer new superblock or %NULL if allocation had failed.
@@ -1250,8 +1256,8 @@ diff -up --recursive 2.6.8.1.csnap.clean/fs/super.c 2.6.8.1.csnap/fs/super.c
   *	destroy_super	-	frees a superblock
   *	@s: superblock to free
 diff -up --recursive 2.6.8.1.csnap.clean/include/linux/fs.h 2.6.8.1.csnap/include/linux/fs.h
---- 2.6.8.1.csnap.clean/include/linux/fs.h	2004-10-14 17:10:56.000000000 +0000
-+++ 2.6.8.1.csnap/include/linux/fs.h	2004-10-12 06:09:03.000000000 +0000
+--- 2.6.8.1.csnap.clean/include/linux/fs.h	2004-10-14 13:10:56.000000000 -0400
++++ 2.6.8.1.csnap/include/linux/fs.h	2004-10-12 02:09:03.000000000 -0400
 @@ -1122,6 +1122,7 @@ void generic_shutdown_super(struct super
  void kill_block_super(struct super_block *sb);
  void kill_anon_super(struct super_block *sb);
@@ -1260,3 +1266,19 @@ diff -up --recursive 2.6.8.1.csnap.clean/include/linux/fs.h 2.6.8.1.csnap/includ
  void deactivate_super(struct super_block *sb);
  int set_anon_super(struct super_block *s, void *data);
  struct super_block *sget(struct file_system_type *type,
+diff -up --recursive 2.6.8.1.csnap.clean/net/socket.c 2.6.8.1.csnap/net/socket.c
+--- 2.6.8.1.csnap.clean/net/socket.c	2004-08-14 06:55:10.000000000 -0400
++++ 2.6.8.1.csnap/net/socket.c	2004-11-01 23:10:54.000000000 -0500
+@@ -2086,6 +2086,12 @@ void socket_seq_show(struct seq_file *se
+ }
+ #endif /* CONFIG_PROC_FS */
+ 
++/* Cluster devices need these, or better: kernel interfaces */
++
++EXPORT_SYMBOL_GPL(sys_connect);
++EXPORT_SYMBOL_GPL(sys_recvmsg);
++EXPORT_SYMBOL_GPL(sys_socket);
++
+ /* ABI emulation layers need these two */
+ EXPORT_SYMBOL(move_addr_to_kernel);
+ EXPORT_SYMBOL(move_addr_to_user);

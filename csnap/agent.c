@@ -18,7 +18,7 @@
 
 struct lvb_address{ u32 type; u32 port; u8 address_len; char address[16]; };;
 
-struct client { int sock; };
+struct client { int sock; enum { CLIENT_CON, SERVER_CON } type; };
 
 struct context {
 	struct server active, local;
@@ -98,9 +98,14 @@ void ast(void *arg)
 	struct context *context = arg;
 	struct dlm_lksb *lksb = &context->lksb;
 
+	if (lksb->sb_status == EUNLOCK) {
+		warn("released lock");
+		return;
+	}
+
 	switch (context->ast_state) {
 	case read_lvb_done:
-		warn("");
+		warn("read_lvb_done");
 		if (lksb->sb_status)
 			error("unexpected lock status (%i)", lksb->sb_status);
 	
@@ -117,6 +122,7 @@ void ast(void *arg)
 		return;
 
 	case write_lvb_done:
+		warn("write_lvb_done");
 		/* if this didn't work the dlm broken, might as well die */
 		if (lksb->sb_status)
 			error("unexpected lock status (%i)", lksb->sb_status);
@@ -130,6 +136,7 @@ void ast(void *arg)
 		return;
 
 	case check_write_lock:
+		warn("check_write_lock");
 		warn("status = %i, %s", lksb->sb_status, strerror(lksb->sb_status));
 		if (lksb->sb_status == EAGAIN) {
 			/* We lost the race to start a server (probably) */
@@ -181,8 +188,8 @@ int incoming(struct context *context, struct client *client)
 		assert(message.head.length == sizeof(struct server));
 		memcpy(&context->local, message.body, sizeof(struct server));
 		context->serv = sock; // !!! refuse more than one
+		client->type = SERVER_CON;
 		goto instantiate;
-		break;
 
 	case NEED_SERVER:
 		context->waiting[context->waiters++] = client;
@@ -301,10 +308,16 @@ int monitor(char *sockname, struct context *context)
 		while (i < clients) {
 			if (pollvec[others+i].revents) { // !!! check for poll error
 				if (incoming(context, clientvec + i) == -1) {
+					struct client *client = clientvec + i;
 					warn("Client %i disconnected", i);
+					if (client->type == SERVER_CON) {
+						warn("Server died");
+						struct dlm_lksb *lksb = &context->lksb;
+					        if (dlm_unlock(lksb->sb_lkid, 0, lksb, context) < 0)
+		 					warn("dlm error %i, %s", errno, strerror(errno));
+					}
 					close(clientvec[i].sock);
-					memmove(clientvec + i, clientvec + i + 1,
-						sizeof(struct client) * --clients);
+					memmove(client, client + 1, sizeof(struct client) * --clients);
 					continue;
 				}
 			}

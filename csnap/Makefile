@@ -1,22 +1,25 @@
 binaries = mksnapstore csnap-server csnap-create csnap-delete csnap-agent testclient devpoke devspam
-headers = csnap.h ../dm-csnap.h trace.h sock.h
+deps = csnap.h ../dm-csnap.h trace.h sock.h buffer.h list.h buffer.h Makefile
 
-all: $(binaries)
+all: buffer.o $(binaries)
 
-mksnapstore: csnap.c $(headers)
-	cc -Wall csnap.c -DCREATE -o mksnapstore
+buffer.o: buffer.c $(deps)
+	cc -g -Wall buffer.c -c
 
-csnap-server: csnap.c $(headers)
-	cc -Wall csnap.c -DSERVER -o csnap-server
+mksnapstore: csnap.c buffer.o $(deps)
+	cc -g -Wall csnap.c buffer.o -DCREATE -o mksnapstore
 
-csnap-agent: agent.c $(headers)
-	cc -Wall agent.c -ldlm -lpthread -o csnap-agent
+csnap-server: csnap.c buffer.o $(deps)
+	cc -g -Wall csnap.c buffer.o -DSERVER -o csnap-server
 
-csnap-create csnap-delete: create.c $(headers)
+csnap-agent: agent.c $(deps)
+	cc -g -Wall agent.c -I../../../ -ldlm -lmagma -ldl -lpthread -o csnap-agent
+
+csnap-create csnap-delete: create.c $(deps)
 	cc -Wall create.c -DCREATE -o csnap-create
 	cc -Wall create.c -DDELETE -o csnap-delete
 
-testclient: testclient.c $(headers)
+testclient: testclient.c $(deps)
 	cc -Wall testclient.c -o testclient
 
 devpoke: devpoke.c
@@ -39,14 +42,14 @@ test: test1 test2 test3
 test1:
 	killall csnap-server || true
 	sudo killall csnap-agent || true
-	./mksnapstore /dev/test-origin /dev/test-snapstore
+	./mksnapstore /dev/test-snapstore /dev/test-origin 
 	sudo /sbin/dmsetup remove testdev || true
 	sudo ./csnap-agent @test
-	./csnap-server /dev/test-origin /dev/test-snapstore @test 8080
+	./csnap-server /dev/test-snapstore /dev/test-origin @test 8080
 
 test2:
 	sudo ./csnap-create localhost:8080 0
-	echo 0 497976 csnapshot /dev/test-origin /dev/test-snapstore @test 0 | sudo /sbin/dmsetup create testdev
+	echo 0 497976 csnapshot /dev/test-snapstore /dev/test-origin @test 0 | sudo /sbin/dmsetup create testdev
 
 test3:
 #	sudo ./devpoke /dev/mapper/testdev write 2

@@ -138,12 +138,12 @@ int main(int argc, char *argv[])
 return 0;
 #endif
 
+	if (argc < 5)
+		error("usage: %s dev/snapstore dev/origin hostname port [iterations]", argv[0]);
 	if (!(snapdev = open(argv[1], O_RDWR /*| O_DIRECT*/)))
 		error("Could not open snapshot store %s", argv[1]);
 	if (!(orgdev = open(argv[2], O_RDWR /*| O_DIRECT*/)))
 		error("Could not open origin volume %s", argv[2]);
-	if (argc < 5)
-		error("usage: %s dev/snapstore dev/origin hostname port [iterations]", argv[0]);
 	if (argc > 5)
 		iterations = atoi(argv[5]);
 

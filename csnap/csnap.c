@@ -27,6 +27,8 @@
 #include <netinet/in.h>
 #include <netdb.h> // gethostbyname2_r
 #include <linux/fs.h> // BLKGETSIZE
+#include "list.h"
+#include "buffer.h"
 #include "csnap.h"
 #include "../dm-csnap.h"
 #include "trace.h"
@@ -119,12 +121,6 @@ Cluster integration
  * Miscellaneous Primitives
  */
 
-void *malloc_aligned(size_t size, unsigned binalign)
-{
-	unsigned long p = (unsigned long)malloc(size + binalign - 1);
-	return (void *)(p + (-p & (binalign - 1)));
-}
-
 /*
  * Ripped off from libiddev.  It's not quite ugly enough to convince me to
  * add a new dependency on a library that nobody has yet, but it's close.
@@ -151,244 +147,6 @@ static int fd_size(int fd, u64 *bytes)
 	return 0;
 }
 
-/*
- * Buffer utilities
- */
-
-/*
- * Even though we are in user space, for reasons of durability and speed
- * we need to access the block directly, handle our own block caching and
- * keep track block by block of which parts of the on-disk data structures
- * as they are accessed and modified.  There's no need to reinvent the
- * wheel here.  I have basically cloned the traditional Unix kernel buffer
- * paradigm, with one small twists of my own, that is, instead of state
- * bits we use scalar values.  This captures the notion of buffer state
- * transitions more precisely than the traditional approach.
- *
- * One big benefit of using a buffer paradigm that looks and acts very
- * much like the kernel incarnation is, porting this into the kernel is
- * going to be a whole lot easier.  Most higher level code will not need
- * to be modified at all.  Another benefit is, it will be much easier to
- * add async IO.
- */
-
-#define SECTOR_BITS 9
-#define BUFFER_STATE_INVALID 0
-#define BUFFER_STATE_CLEAN 1
-#define BUFFER_STATE_DIRTY 2
-#define BUFFER_STATE_MASK 3
-#define BUFFER_BUCKETS 9999
-#define buftrace trace_off
-
-typedef unsigned long long sector_t;
-
-struct buffer
-{
-	struct buffer *hashlist;
-	struct buffer *scanlist;
-	unsigned count;
-	unsigned flags;
-	unsigned size;
-	sector_t sector;
-	unsigned char *data;
-	unsigned fd;
-};
-
-static struct buffer *buffer_table[BUFFER_BUCKETS], *buffer_dirty_list = NULL;
-
-void show_dirty_buffers(void)
-{
-	struct buffer *buffer;
-	printf("Dirty buffers: ");
-	for (buffer = buffer_dirty_list; buffer; buffer = buffer->scanlist)
-		printf("%llx ", buffer->sector);
-	printf("\n");
-}
-
-void set_buffer_dirty(struct buffer *buffer)
-{
-	buftrace(printf("set_buffer_dirty %llx state=%u\n", buffer->sector, buffer->flags & BUFFER_STATE_MASK);)
-	if ((buffer->flags & BUFFER_STATE_MASK) != BUFFER_STATE_DIRTY) {
-		assert(!buffer->scanlist);
-		buffer->scanlist = buffer_dirty_list;
-		buffer_dirty_list = buffer;
-	}
-	buffer->flags = BUFFER_STATE_DIRTY | (buffer->flags & ~BUFFER_STATE_MASK);
-}
-
-void set_buffer_uptodate(struct buffer *buffer)
-{
-	buffer->flags =  BUFFER_STATE_CLEAN | (buffer->flags & ~BUFFER_STATE_MASK);
-}
-
-int buffer_uptodate(struct buffer *buffer)
-{
-	return (buffer->flags & BUFFER_STATE_MASK) == BUFFER_STATE_CLEAN;
-}
-
-int buffer_dirty(struct buffer *buffer)
-{
-	return (buffer->flags & BUFFER_STATE_MASK) == BUFFER_STATE_DIRTY;
-}
-
-void brelse(struct buffer *buffer)
-{
-	buftrace(printf("Release buffer %llx\n", buffer->sector);)
-	if (!--buffer->count)
-		trace_off(printf("Free buffer %llx\n", buffer->sector));
-}
-
-void brelse_dirty(struct buffer *buffer)
-{
-	buftrace(printf("Release dirty buffer %llx\n", buffer->sector);)
-	set_buffer_dirty(buffer);
-	brelse(buffer);
-}
-
-void read_buffer(struct buffer *buffer)
-{
-	buftrace(printf("read buffer %llx from %u\n", buffer->sector, buffer->fd);)
-	lseek(buffer->fd, buffer->sector << SECTOR_BITS , SEEK_SET);
-
-	unsigned count = 0;
-	while (count < buffer->size)
-	{
-		int n = read(buffer->fd, buffer->data, buffer->size - count);
-		if (n == -1)
-{
-	printf("read error %i %s %i\n", errno, strerror(errno), buffer->size - count);
-			return;
-}
-		count += n;
-	}
-	set_buffer_uptodate(buffer);
-}
-
-void write_buffer(struct buffer *buffer)
-{
-	buftrace(printf("write buffer %llx to %u\n", buffer->sector, buffer->fd);)
-	lseek(buffer->fd, buffer->sector << SECTOR_BITS , SEEK_SET);
-
-	unsigned count = 0;
-	while (count < buffer->size)
-	{
-		int n = write(buffer->fd, buffer->data, buffer->size - count);
-		if (n == -1)
-			return;
-		count += n;
-	}
-	set_buffer_uptodate(buffer);
-	buffer->scanlist = NULL; // just for error check (lose this)
-}
-
-unsigned buffer_hash(sector_t sector)
-{
-	return (((sector >> 32) ^ (u32)sector) * 978317583) % BUFFER_BUCKETS;
-}
-
-struct buffer *getblk(unsigned fd, sector_t sector, unsigned size)
-{
-	struct buffer **bucket = &buffer_table[buffer_hash(sector)], *buffer;
-
-	for (buffer = *bucket; buffer; buffer = buffer->hashlist)
-		if (buffer->sector == sector) {
-			buftrace(printf("Found buffer for %llx\n", sector);)
-			buffer->count++;
-			return buffer;
-		}
-
-if (!sector) asm("int3"); // just for now, put superblock at sector 1 so access to sector 0 traps out
-	buftrace(printf("Allocate buffer for %llx\n", sector);)
-	buffer = (struct buffer *)malloc(sizeof(struct buffer));
-	buffer->data = malloc_aligned(size, size); // what if malloc fails?
-	buffer->count = 1;
-	buffer->flags = 0;
-	buffer->size = size;
-	buffer->sector = sector;
-	buffer->fd = fd;
-	buffer->hashlist = *bucket;
-	buffer->scanlist = NULL;
-	*bucket = buffer;
-	return buffer;
-}
-
-struct buffer *bread(unsigned fd, sector_t sector, unsigned size)
-{
-	struct buffer *buffer = getblk(fd, sector, size);
-
-	if (buffer_uptodate(buffer) || buffer_dirty(buffer))
-		return buffer;
-
-	read_buffer(buffer);
-	if (buffer_uptodate(buffer))
-		return buffer;
-
-	brelse(buffer);
-error("bad read");
-	return NULL;
-}
-
-void flush_buffers(void) // !!! should use lru list
-{
-#if 1
-	struct buffer *buffer = buffer_dirty_list, *next;
-
-	while (buffer) {
-		next = buffer->scanlist;
-		if (buffer_dirty(buffer))
-			write_buffer(buffer);
-		buffer = next;
-	}
-#else
-	unsigned i;
-	for (i = 0; i < BUFFER_BUCKETS; i++)
-	{
-		struct buffer *buffer;
-
-		for (buffer = buffer_table[i]; buffer; buffer = buffer->hashlist)
-			if (buffer_dirty(buffer))
-				write_buffer(buffer);
-	}
-#endif
-	buffer_dirty_list = NULL;
-}
-
-void show_buffer(struct buffer *buffer)
-{
-	printf("%s%llx/%i ", buffer_dirty(buffer)? "+": buffer_uptodate(buffer)? "": "?", buffer->sector, buffer->count);
-}
-
-void show_buffers_(int all)
-{
-	unsigned i;
-
-	for (i = 0; i < BUFFER_BUCKETS; i++)
-	{
-		struct buffer *buffer = buffer_table[i];
-
-		if (!buffer)
-			continue;
-
-		printf("[%i] ", i);
-		for (; buffer; buffer = buffer->hashlist)
-			if (all || buffer->count)
-				show_buffer(buffer);
-		printf("\n");
-	}
-}
-
-void show_active_buffers(void)
-{
-	printf("Active buffers:\n");
-	show_buffers_(0);
-}
-
-void show_buffers(void)
-{
-	printf("Buffers:\n");
-	show_buffers_(1);
-}
-
 void hexdump(void *data, unsigned length)
 {
 	while (length ) {
@@ -399,11 +157,6 @@ void hexdump(void *data, unsigned length)
 			printf("%02hhx ", *(unsigned char *)data++);
 		printf("\n");
 	}
-}
-
-void dump_buffer(struct buffer *buffer, unsigned offset, unsigned length)
-{
-	hexdump(buffer->data + offset, length);
 }
 
 /* BTree Operations */
@@ -484,6 +237,8 @@ struct superblock
 		u32 snapshots;
 		u32 etree_levels;
 		u32 bitmap_blocks;
+		s32 journal_base, journal_next, journal_size;
+		u32 sequence;
 	} image;
 
 	/* Derived, not saved to disk */
@@ -500,9 +255,252 @@ struct superblock
 	chunk_t source_chunk;
 	chunk_t dest_exception;
 	unsigned copy_chunks;
+	unsigned max_commit_blocks;
 };
 
 #define SB_BUSY 1
+
+/* Journal handling */
+
+sector_t journal_sector(struct superblock *sb, unsigned i)
+{
+	return sb->image.journal_base + (i << sb->sectors_per_block_bits);
+}
+
+static inline struct commit_block *buf2block(struct buffer *buf)
+{
+	return (void *)buf->data;
+}
+
+unsigned next_journal_block(struct superblock *sb)
+{
+	unsigned next = sb->image.journal_next;
+
+	if (++sb->image.journal_next == sb->image.journal_size)
+		sb->image.journal_next = 0;
+
+	return next;
+}
+
+struct buffer *getblk_journal(struct superblock *sb, unsigned i)
+{
+	return getblk(sb->snapdev, journal_sector(sb, i), sb->blocksize);
+}
+
+#define JMAGIC "MAGICNUM"
+
+struct commit_block
+{
+	char magic[8];
+	u32 checksum;
+	s32 sequence;
+	u32 entries;
+	u64 sector[];
+} PACKED;
+
+int is_commit_block(struct commit_block *block)
+{
+	return !memcmp(&block->magic, JMAGIC, sizeof(block->magic));
+}
+
+static u32 checksum_block(struct superblock *sb, u32 *data)
+{
+	int i, sum = 0;
+	for (i = 0; i < sb->image.blocksize_bits >> 2; i++)
+		sum += data[i];
+	return sum;
+}
+
+struct buffer *jread(struct superblock *sb, sector_t i)
+{
+	return bread(sb->snapdev, journal_sector(sb, i), sb->blocksize);
+}
+
+/*
+ * Since we don't have any asynchronous IO at the moment, journal commit is
+ * straightforward: walk through the dirty blocks once, writing them to the
+ * journal, then again, adding sector locations to the commit block.  We know
+ * the dirty list didn't change between the two passes.  When ansynchronous
+ * IO arrives here, this all has to be handled a lot more carefully.
+ */
+
+/*
+ * For now there is only ever one open transaction in the journal, the newest
+ * one, so we don't have to check for journal wrap, but just ensure that each
+ * transaction stays small enough to fit in the journal.
+ */
+void commit_transaction(struct superblock *sb)
+{
+	if (list_empty(&dirty_buffers))
+		return;
+
+	struct list_head *list;
+
+	list_for_each(list, &dirty_buffers) {
+		struct buffer *buffer = list_entry(list, struct buffer, list);
+		unsigned pos = next_journal_block(sb);
+		warn("journal data sector = %llx [%u]", buffer->sector, pos);
+		assert(buffer_dirty(buffer));
+		write_buffer_to(buffer, journal_sector(sb, pos));
+	}
+
+	unsigned pos = next_journal_block(sb);
+	struct buffer *commit_buffer = getblk_journal(sb, pos);
+	struct commit_block *commit = buf2block(commit_buffer);
+	*commit = (struct commit_block){ .magic = JMAGIC, .sequence = sb->image.sequence++ }; 
+
+	while (!list_empty(&dirty_buffers)) {
+		struct list_head *entry = dirty_buffers.next;
+		struct buffer *buffer = list_entry(entry, struct buffer, list);
+		warn("write data sector = %llx", buffer->sector);
+		assert(buffer_dirty(buffer));
+		assert(commit->entries < sb->max_commit_blocks);
+		commit->sector[commit->entries++] = buffer->sector;
+		write_buffer(buffer); // deletes it from dirty (fixme: fragile)
+		// we hope the order we just listed these is the same as committed above
+	}
+
+	warn("commit journal block [%u]", pos);
+	commit->checksum = 0;
+	commit->checksum = -checksum_block(sb, (void *)commit);
+	write_buffer_to(commit_buffer, journal_sector(sb, pos));
+	brelse(commit_buffer);
+}
+
+static void _show_journal(struct superblock *sb)
+{
+	int i, j;
+	for (i = 0; i < sb->image.journal_size; i++) {
+		struct buffer *buf = jread(sb, i);
+		struct commit_block *block = buf2block(buf);
+
+		if (!is_commit_block(block)) {
+			printf("[%i] <data>\n", i);
+			continue;
+		}
+
+		printf("[%i] seq=%i (%i)", i, block->sequence, block->entries);
+		for (j = 0; j < block->entries; j++)
+			printf(" %Lx", (long long)block->sector[j]);
+		printf("\n");
+		brelse(buf);
+	}
+	printf("\n");
+}
+
+#define show_journal(sb) do { warn("Journal..."); _show_journal(sb); } while (0)
+
+int recover_journal(struct superblock *sb)
+{
+	struct buffer *buffer;
+	typeof(((struct commit_block *)NULL)->sequence) sequence;
+	int scribbled = -1, last_block = -1, newest_block = -1;
+	int data_from_start = 0, data_from_last = 0;
+	int size = sb->image.journal_size;
+	char *why = "";
+	unsigned i;
+
+	/* Scan full journal, find newest commit */
+
+	for (i = 0; i < size; brelse(buffer), i++) {
+		buffer = jread(sb, i);
+		struct commit_block *block = buf2block(buffer);
+
+		if (!is_commit_block(block)) {
+			trace(warn("[%i] <data>", i);)
+			if (sequence == -1)
+				data_from_start++;
+			else
+				data_from_last++;
+			continue;
+		}
+
+		if (checksum_block(sb, (void *)block)) {
+			warn("block %i failed checksum", i);
+			hexdump(block, 40);
+			if (scribbled != -1) {
+				why = "Too many scribbled blocks in journal";
+				goto failed;
+			}
+
+			if (newest_block != -1 && newest_block != last_block) {
+				why = "Bad block not last written";
+				goto failed;
+			}
+
+			scribbled = i;
+			if (last_block != -1)
+				newest_block = last_block;
+			sequence++;
+			continue;
+		}
+
+		trace(warn("[%i] seq=%i", i, block->sequence);)
+
+		if (last_block != -1 && block->sequence != sequence + 1) {
+			int delta = sequence - block->sequence;
+
+			if  (delta <= 0 || delta > size) {
+warn("delta = %i, size = %i", delta, size);
+				why = "Bad sequence";
+				goto failed;
+			}
+	
+			if (newest_block != -1) {
+				why = "Multiple sequence wraps";
+				goto failed;
+			}
+	
+			if (!(scribbled == -1 || scribbled == i - 1)) {
+				why = "Bad block not last written";
+				goto failed;
+			}
+			newest_block = last_block;
+		}
+		data_from_last = 0;
+		last_block = i;
+		sequence = block->sequence;
+	}
+
+	if (last_block == -1) {
+		why = "No commit blocks found";
+		goto failed;
+	}
+	
+	if (newest_block == -1) {
+		/* test for all the legal scribble positions here */
+		newest_block = last_block;
+	}
+
+	warn("found newest commit [%u]", newest_block);
+	buffer = jread(sb, newest_block);
+	struct commit_block *commit = buf2block(buffer);
+	unsigned entries = commit->entries;
+
+	for (i = 0; i < entries; i++) {
+		unsigned pos = (newest_block - entries + i + size) % size;
+		struct buffer *databuf = jread(sb, pos);
+		struct commit_block *block = buf2block(databuf);
+
+		if (is_commit_block(block)) {
+			error("data block [%u] marked as commit block", pos);
+			continue;
+		}
+
+		warn("write journal [%u] data to %llx", pos, commit->sector[i]);
+		write_buffer_to(databuf, commit->sector[i]);
+		brelse(databuf);
+	}
+	sb->image.journal_next = (newest_block + 1 + size) % size;
+	sb->image.sequence = commit->sequence + 1;
+	brelse(buffer);
+	return 0;
+
+failed:
+	errno = EIO; /* return a misleading error (be part of the problem) */
+	error("Journal recovery failed, %s", why);
+	return -1;
+}
 
 /* BTree leaf operations */
 
@@ -766,7 +764,7 @@ void init_allocation(struct superblock *sb)
 	unsigned bitmaps = (chunks + (1 << (chunkshift + 3)) - 1) >> (chunkshift + 3);
 	unsigned bitmap_base_chunk = (SB_LOC + sb->sectors_per_block + sb->sectors_per_chunk  - 1) >> sb->sectors_per_chunk_bits;
 	unsigned bitmap_chunks = sb->image.bitmap_blocks = bitmaps; // !!! chunksize same as blocksize
-	unsigned reserved = bitmap_base_chunk + bitmap_chunks;
+	unsigned reserved = bitmap_base_chunk + bitmap_chunks + sb->image.journal_size; // !!! chunksize same as blocksize
 	unsigned sector = sb->image.bitmap_base = bitmap_base_chunk << sb->sectors_per_chunk_bits;
 
 	printf("snapshot store size: %llu chunks (%llu sectors)\n", chunks, chunks << sb->sectors_per_chunk_bits);
@@ -792,6 +790,7 @@ void init_allocation(struct superblock *sb)
 	printf("\n");
 	sb->image.freechunks = chunks - reserved;
 	sb->image.last_alloc = 0;
+	sb->image.journal_base = (bitmap_base_chunk + bitmap_chunks) << sb->sectors_per_chunk_bits;
 }
 
 #if 0
@@ -1651,6 +1650,8 @@ void setup_sb(struct superblock *sb)
 	sb->snapmask = 0;
 	sb->flags = 0;
 
+	sb->max_commit_blocks = (sb->blocksize - sizeof(struct commit_block)) / sizeof(sector_t);
+
 	unsigned snaplock_hash_bits = 8;
 	sb->snaplock_hash_bits = snaplock_hash_bits;
 	sb->snaplocks = (struct snaplock **)calloc(1 << snaplock_hash_bits, sizeof(struct snaplock *));
@@ -1694,7 +1695,7 @@ void save_state(struct superblock *sb)
 
 int init_snapstore(struct superblock *sb)
 {
-	int error;
+	int i, error;
 
 	unsigned sectors_per_block_bits = 3;
 	memset(&sb->image, 0, sizeof(sb->image));
@@ -1711,8 +1712,32 @@ int init_snapstore(struct superblock *sb)
 		error("Error %i: %s determining origin volume size", errno, strerror(errno));
 	sb->image.orgchunks = size >> sb->image.chunksize_bits;
 
+	sb->image.journal_size = 100;
+#ifdef TEST_JOURNAL
+	sb->image.journal_size = 5;
+#endif
+	sb->image.journal_next = 0;
+	sb->image.sequence = sb->image.journal_size;
 	init_allocation(sb);
 	mark_sb_dirty(sb);
+
+	for (i = 0; i < sb->image.journal_size; i++) {
+		struct buffer *buffer = getblk_journal(sb, i);
+		struct commit_block *commit = (struct commit_block *)buffer->data;
+		*commit = (struct commit_block){ .magic = JMAGIC, .sequence = i };
+#ifdef TEST_JOURNAL
+		commit->sequence = (i + 3) % 5 ;
+#endif
+		commit->checksum = -checksum_block(sb, (void *)commit);
+		brelse_dirty(buffer);
+	}
+show_journal(sb);
+#ifdef TEST_JOURNAL
+show_tree(sb);
+flush_buffers();
+recover_journal(sb);
+show_buffers();
+#endif
 
 #if 0
 	printf("chunk = %llx\n", alloc_chunk_range(sb, sb->image.chunks - 1, 1));
@@ -1753,6 +1778,18 @@ return 0;
 
 	brelse_dirty(rootbuf);
 	brelse_dirty(leafbuf);
+#ifdef TEST_JOURNAL
+	show_buffers();
+	show_dirty_buffers();
+	commit_transaction(sb);
+	evict_buffers();
+
+	show_journal(sb);
+	show_tree(sb);
+	recover_journal(sb);
+	evict_buffers();
+	show_tree(sb);
+#endif
 	save_state(sb);
 	return 0;
 }
@@ -1815,7 +1852,7 @@ int incoming(struct superblock *sb, struct client *client)
 					if (make_unique(sb, chunk, -1))
 						waitfor_chunk(sb, chunk, &pending);
 			finish_copy_out(sb);
-			flush_buffers(); // !!! sb not saved
+			commit_transaction(sb);
 			message.head.code = REPLY_ORIGIN_WRITE;
 			if (pending) {
 				pending->client = client;
@@ -1842,6 +1879,7 @@ int incoming(struct superblock *sb, struct client *client)
 					*(snap.top)++ = exception;
 				}
 			finish_copy_out(sb);
+			commit_transaction(sb);
 			finish_reply(client->sock, &snap, REPLY_SNAPSHOT_WRITE, body->id);
 			break;
 		}
@@ -1929,11 +1967,17 @@ int incoming(struct superblock *sb, struct client *client)
 		case START_SERVER:
 			warn("Activating server");
 			load_sb(sb);
-			if (sb->image.flags & SB_BUSY)
+hexdump(sb, 40);
+
+			if (sb->image.flags & SB_BUSY) {
 				warn("Server was not shut down properly");
-			sb->image.flags |= SB_BUSY;
-			mark_sb_dirty(sb);
-			save_sb(sb);
+				show_journal(sb);
+				recover_journal(sb);
+			} else {
+				sb->image.flags |= SB_BUSY;
+				mark_sb_dirty(sb);
+				save_sb(sb);
+			}
 			break;
 
 		case SHUTDOWN_SERVER:
@@ -2142,7 +2186,7 @@ int main(int argc, char *argv[])
 {
 	struct superblock *sb = &(struct superblock){};
 
-	memset(buffer_table, 0, sizeof(buffer_table));
+	init_buffers();
 #ifdef SERVER
 	if (argc < 5)
 		error("usage: %s dev/snapshot dev/origin socket port", argv[0]);
@@ -2161,4 +2205,6 @@ int main(int argc, char *argv[])
 	return init_snapstore(sb); 
 #endif
 
+	void *useme = _show_journal;
+	useme = useme;
 }
