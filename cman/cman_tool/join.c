@@ -176,6 +176,10 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing unicast receive socket to cluster kernel module");
 
+    /* These are now owned by the kernel */
+    close(local_sock);
+    close(mcast_sock);
+
     return 0;
 }
 
@@ -260,6 +264,9 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing unicast receive socket to cluster kernel module");
 
+    /* These are now owned by the kernel */
+    close(local_sock);
+    close(mcast_sock);
     return 0;
 }
 

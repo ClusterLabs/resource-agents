@@ -91,6 +91,10 @@ another node is joining or leaving the cluster). By adding the -w flag,
 cman_tool will wait and retry the leave operation repeatedly until it succeeds
 or a more serious error occurs.
 .TP
+.I -t <seconds>
+If -w is also specified then -t dictates the maximum amount of time cman_tool
+is prepared to wait. If the operation times out then a status of 2 is returned.
+.TP
 .I force
 Shuts down the cluster manager without first telling any of the subsystems
 to close down. Use this option with extreme care as it could easily cause data
@@ -122,6 +126,9 @@ The new config version.
 .TP
 .I -q
 Waits until the cluster is quorate before returning.
+.I -t <seconds>
+Dictates the maximum amount of time cman_tool is prepared to wait. 
+If the operation times out then a status of 2 is returned.
 
 .br
 .SH "JOIN" OPTIONS
@@ -197,4 +204,17 @@ Join and wait until the node is a cluster member.
 .TP
 .I -q
 Join and wait until the cluster is quorate.
-
+If the cluster join fails and -w (or -q) is specified, then it will be retried. Note that
+cman_tool cannot tell whether the cluster join was rejected by another node for a good reason
+or that it timed out for some benign reason; so it is strongly recommended that a timeout
+is also given with the wait options to join. If you don't want join to retry on failure but
+do want to wait, use the 
+.B cman_tool join 
+command without -w followed by
+.B cman_tool wait.
+.TP
+.I -t <seconds>
+If -w or -q is also specified then -t dictates the maximum amount of time cman_tool
+is prepared to wait. If the operation times out then a status of 2 is returned.
+Note that just because cman_tool has given up, does not mean that cman itself
+has stopped trying to join a cluster.

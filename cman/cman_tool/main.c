@@ -12,11 +12,13 @@
 ******************************************************************************/
 
 #include <inttypes.h>
+#include <unistd.h>
+#include <signal.h>
 #include "copyright.cf"
 #include "cnxman-socket.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:XVwqh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:XVwqh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -55,15 +57,18 @@ static void print_usage(void)
 	printf("  -X               Do not use cluster.conf values from CCS\n");
 	printf("  -w               Wait until node has joined a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
+	printf("  -t               Maximum time (in seconds) to wait\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
 	printf("\n");
 	printf("wait               Wait until the node is a member of a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
+	printf("  -t               Maximum time (in seconds) to wait\n");
 	printf("\n");
 
 	printf("leave\n");
 	printf("  -w               If cluster is in transition, wait and keep trying\n");
+	printf("  -t               Maximum time (in seconds) to wait\n");
 	printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
 	printf("  force            Leave even if cluster subsystems are active\n");
 
@@ -90,6 +95,12 @@ static void print_usage(void)
 	printf("version\n");
 	printf("  -r <config>      A new config version to set on all members\n");
 	printf("\n");
+}
+
+static void sigalarm_handler(int sig)
+{
+	fprintf(stderr, "Timed-out waiting for cluster\n");
+	exit(2);
 }
 
 static void show_file(char *name)
@@ -148,6 +159,12 @@ static void leave(commandline_t *comline)
 	    		die("Can't leave cluster while there are %d active subsystems\n", result);
 		}
 		flags |= CLUSTER_LEAVEFLAG_FORCE;
+	}
+
+	/* Unlikely this will be needed, but no point in leaving it out */
+	if (comline->wait_opt && comline->timeout) {
+		signal(SIGALRM, sigalarm_handler);
+		alarm(comline->timeout);
 	}
 
 	do {
@@ -222,35 +239,51 @@ static void version(commandline_t *comline)
 	close(cluster_sock);
 }
 
-static void cluster_wait(commandline_t *comline)
+static int wait_for_sock(int sock)
+{
+	int recvbuf[256]; /* Plenty big enough for an OOB message */
+	int ret;
+
+	ret = recv(sock, recvbuf, sizeof(recvbuf), MSG_OOB);
+	if (ret < 0)
+	{
+		return errno;
+	}
+
+	/* EOF also means we are no longer connected to the cluster */
+	if (ret == 0)
+		return ENOTCONN;
+
+	return 0;
+}
+
+static int cluster_wait(commandline_t *comline)
 {
     int cluster_sock;
-    int recvbuf[256]; /* Plenty big enough for an OOB message */
+    int ret = 0;
 
     cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-    if (cluster_sock == -1)
-    {
+    if (cluster_sock == -1) {
         die("Can't open cluster socket");
     }
 
-    if (comline->wait_quorate_opt)
-    {
-	    while (ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0) <= 0)
-	    {
-		    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
-			    die("Error waiting for cluster\n");
+    if (comline->wait_quorate_opt) {
+	    while (ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0) <= 0) {
+		    if ((ret = wait_for_sock(cluster_sock)))
+			    goto end_wait;
 	    }
     }
-    else
-    {
-	    while (ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0) < 0)
-	    {
-		    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
-			    die("Error waiting for cluster\n");
+    else {
+	    while (ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0) < 0) {
+		    if ((ret = wait_for_sock(cluster_sock)))
+			    goto end_wait;
 	    }
     }
 
+ end_wait:
     close(cluster_sock);
+
+    return ret;
 }
 
 static void kill_node(commandline_t *comline)
@@ -419,6 +452,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			comline->wait_quorate_opt = TRUE;
 			break;
 
+		case 't':
+			comline->timeout = get_int_arg(optchar, optarg);
+			break;
+
 		case EOF:
 			cont = FALSE;
 			break;
@@ -546,11 +583,15 @@ static void check_arguments(commandline_t *comline)
 	        die("Cluster name must be <= %d characters long",
 		    MAX_CLUSTER_NAME_LEN);
 	}
+
+	if (comline->timeout && !comline->wait_opt && !comline->wait_quorate_opt)
+		die("timeout is only appropriate with wait");
 }
 
 int main(int argc, char *argv[])
 {
 	commandline_t comline;
+	int ret;
 
 	prog_name = argv[0];
 
@@ -563,9 +604,21 @@ int main(int argc, char *argv[])
 		if (!comline.no_ccs)
 			get_ccs_join_info(&comline);
 		check_arguments(&comline);
+
+		if (comline.timeout) {
+			signal(SIGALRM, sigalarm_handler);
+			alarm(comline.timeout);
+		}
+
 		join(&comline);
-		if (comline.wait_opt || comline.wait_quorate_opt)
-			cluster_wait(&comline);
+		if (comline.wait_opt || comline.wait_quorate_opt) {
+			do {
+				ret = cluster_wait(&comline);
+				if (ret == ENOTCONN)
+					join(&comline);
+
+			} while (ret == ENOTCONN);
+		}
 		break;
 
 	case OP_LEAVE:
@@ -589,6 +642,10 @@ int main(int argc, char *argv[])
 		break;
 
 	case OP_WAIT:
+		if (comline.timeout) {
+			signal(SIGALRM, sigalarm_handler);
+			alarm(comline.timeout);
+		}
 		cluster_wait(&comline);
 		break;
 
