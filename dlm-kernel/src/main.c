@@ -16,7 +16,6 @@
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 #include <linux/ctype.h>
-#include <linux/seq_file.h>
 #include <linux/module.h>
 #include <net/sock.h>
 

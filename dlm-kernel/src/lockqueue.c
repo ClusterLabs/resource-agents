@@ -317,7 +317,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		log_debug(ls, "lookup reply %x %u", lkb->lkb_id,
 			  rsb->res_nodeid);
 
-		rsb->res_resdir_seq = reply->rl_resdir_seq;
 		lkb->lkb_nodeid = rsb->res_nodeid;
 		dlm_lock_stage2(ls, lkb, rsb, lkb->lkb_lockqueue_flags);
 		break;
@@ -337,7 +336,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		/* the destination wasn't the master */
 		if (reply->rl_status == -EINVAL) {
 			int master_nodeid;
-			uint8_t seq;
 
 			log_debug(ls, "resend lookup");
 			lkb_dequeue(lkb);
@@ -347,8 +345,8 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
 			else {
 			    	dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
-					       rsb->res_length, &master_nodeid,
-					       &seq);
+					       rsb->res_length, &master_nodeid);
+					       
 			    	if (master_nodeid == our_nodeid()) {
 					set_bit(RESFL_MASTER, &rsb->res_flags);
 					master_nodeid = 0;
@@ -357,7 +355,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 					clear_bit(RESFL_MASTER,&rsb->res_flags);
 			        rsb->res_nodeid = master_nodeid;
 			        lkb->lkb_nodeid = master_nodeid;
-			        rsb->res_resdir_seq = seq;
 			        dlm_lock_stage2(ls, lkb, rsb,
 			 			lkb->lkb_lockqueue_flags);
 			}
@@ -550,7 +547,7 @@ void reply_and_grant(struct dlm_lkb *lkb)
  */
 
 void remote_remove_resdata(struct dlm_ls *ls, int nodeid, char *name,
-			   int namelen, uint8_t sequence)
+			   int namelen)
 {
 	struct writequeue_entry *e;
 	struct dlm_request *req;
@@ -581,7 +578,6 @@ void remote_remove_resdata(struct dlm_ls *ls, int nodeid, char *name,
 	req->rr_header.rh_lkid = 0;
 	req->rr_header.rh_lockspace = ls->ls_global_id;
 	req->rr_remlkid = 0;
-	req->rr_resdir_seq = sequence;
 	memcpy(req->rr_name, name, namelen);
 
 	midcomms_send_buffer(&req->rr_header, e);
@@ -688,7 +684,6 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 		log_debug(ls, "send rq %x to %u", lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOCKREQUEST;
-		req->rr_resdir_seq = rsb->res_resdir_seq;
 		memcpy(req->rr_name, rsb->res_name, rsb->res_length);
 		if (lkb->lkb_range) {
 			req->rr_flags |= GDLM_LKFLG_RANGE;
@@ -781,7 +776,6 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		{
 			uint32_t dir_nodeid, r_nodeid;
 			int status;
-			uint8_t r_seq;
 
 			namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
 
@@ -792,14 +786,13 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 				log_debug(lspace, "ignoring directory lookup");
 
 			status = dlm_dir_lookup(lspace, nodeid, freq->rr_name,
-					        namelen, &r_nodeid, &r_seq);
+					        namelen, &r_nodeid);
 			if (status)
 				status = -ENOMEM;
 
 			reply.rl_status = status;
 			reply.rl_lockstate = 0;
 			reply.rl_nodeid = r_nodeid;
-			reply.rl_resdir_seq = r_seq;
 		}
 		send_reply = 1;
 		break;
@@ -807,8 +800,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	case GDLM_REMCMD_REM_RESDATA:
 
 		namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
-		remove_resdata(lspace, nodeid, freq->rr_name, namelen,
-			       freq->rr_resdir_seq);
+		remove_resdata(lspace, nodeid, freq->rr_name, namelen);
 		break;
 
 	case GDLM_REMCMD_LOCKREQUEST:

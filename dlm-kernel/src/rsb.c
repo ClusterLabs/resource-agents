@@ -87,11 +87,10 @@ void release_rsb(struct dlm_rsb *r)
 
 	if (get_directory_nodeid(r) != our_nodeid())
 		remote_remove_resdata(r->res_ls, get_directory_nodeid(r),
-				      r->res_name, r->res_length,
-				      r->res_resdir_seq);
+				      r->res_name, r->res_length);
 	else
 		remove_resdata(r->res_ls, our_nodeid(), r->res_name,
-			       r->res_length, r->res_resdir_seq);
+			       r->res_length);
  out:
 	if (r->res_lvbptr)
 		free_lvb(r->res_lvbptr);

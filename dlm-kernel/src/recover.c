@@ -197,8 +197,6 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 
 	list_for_each_entry_safe(rootrsb, safe, &ls->ls_rootres, res_rootlist) {
 
-		rootrsb->res_resdir_seq = 1;
-
 		if (rootrsb->res_nodeid)
 			continue;
 

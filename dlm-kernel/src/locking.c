@@ -429,7 +429,6 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *nam
 	struct dlm_rsb *rsb, *parent_rsb = NULL;
 	struct dlm_lkb *parent_lkb = lkb->lkb_parent;
 	uint32_t nodeid;
-	uint8_t seq;
 	int error;
 
 	if (parent_lkb)
@@ -454,7 +453,7 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *nam
 		}
 
 		error = dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
-				       rsb->res_length, &nodeid, &seq);
+				       rsb->res_length, &nodeid);
 		if (error)
 			goto out;
 
@@ -464,7 +463,6 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *nam
 		} else
 			clear_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = nodeid;
-		rsb->res_resdir_seq = seq;
 	}
 
 	lkb->lkb_nodeid = rsb->res_nodeid;
@@ -582,11 +580,8 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 		   print_request(freq);
 		   printk("nodeid %u\n", remote_nodeid););
 
-	if (freq->rr_resdir_seq)
-		rsb->res_resdir_seq = freq->rr_resdir_seq;
       out:
 	return lkb;
-
 
       fail_free:
 	/* release_lkb handles parent */
@@ -1274,9 +1269,9 @@ static void dump_queue(struct list_head *head)
 
 static void dump_rsb(struct dlm_rsb *rsb)
 {
-	printk("name \"%s\" flags %lx nodeid %u ref %u seq %u\n",
+	printk("name \"%s\" flags %lx nodeid %u ref %u\n",
 	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
-	       atomic_read(&rsb->res_ref), rsb->res_resdir_seq);
+	       atomic_read(&rsb->res_ref));
 
 	if (!list_empty(&rsb->res_grantqueue)) {
 		printk("grant queue\n");

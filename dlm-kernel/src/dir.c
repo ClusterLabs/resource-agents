@@ -115,8 +115,7 @@ static struct dlm_direntry *search_bucket(struct dlm_ls *ls, char *name,
 	return de;
 }
 
-void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
-		    uint8_t sequence)
+void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 {
 	struct dlm_direntry *de;
 	uint32_t bucket;
@@ -128,13 +127,13 @@ void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 	de = search_bucket(ls, name, namelen, bucket);
 
 	if (!de) {
-		log_debug(ls, "remove from %u seq %u none", nodeid, sequence);
+		log_debug(ls, "remove from %u none", nodeid);
 		goto out;
 	}
 
 	if (de->master_nodeid != nodeid) {
-		log_debug(ls, "remove from %u seq %u ID %u seq %3u",
-			  nodeid, sequence, de->master_nodeid);
+		log_debug(ls, "remove from %u ID %u",
+			  nodeid, de->master_nodeid);
 		goto out;
 	}
 
@@ -356,8 +355,7 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 }
 
 static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
-		       int namelen, uint32_t *r_nodeid, uint8_t *r_seq,
-		       int recovery)
+		       int namelen, uint32_t *r_nodeid, int recovery)
 {
 	struct dlm_direntry *de, *tmp;
 	uint32_t bucket;
@@ -398,16 +396,15 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 }
 
 int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
-		   uint32_t *r_nodeid, uint8_t *r_seq)
+		   uint32_t *r_nodeid)
 {
-	return get_resdata(ls, nodeid, name, namelen, r_nodeid, r_seq, 0);
+	return get_resdata(ls, nodeid, name, namelen, r_nodeid, 0);
 }
 
 int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
 			    int namelen, uint32_t *r_nodeid)
 {
-	uint8_t seq;
-	return get_resdata(ls, nodeid, name, namelen, r_nodeid, &seq, 1);
+	return get_resdata(ls, nodeid, name, namelen, r_nodeid, 1);
 }
 
 /* 

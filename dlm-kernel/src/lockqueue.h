@@ -22,8 +22,7 @@ int send_cluster_request(struct dlm_lkb * lkb, int state);
 void purge_requestqueue(struct dlm_ls * ls);
 int process_requestqueue(struct dlm_ls * ls);
 int reply_in_requestqueue(struct dlm_ls * ls, int lkid);
-void remote_remove_resdata(struct dlm_ls * ls, int nodeid, char *name, int namelen,
-			   uint8_t sequence);
+void remote_remove_resdata(struct dlm_ls * ls, int nodeid, char *name, int namelen);
 void allocate_and_copy_lvb(struct dlm_ls * ls, char **lvbptr, char *src);
 
 #endif				/* __LOCKQUEUE_DOT_H__ */

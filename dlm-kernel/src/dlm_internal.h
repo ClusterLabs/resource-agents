@@ -358,8 +358,6 @@ struct dlm_rsb {
 
 	char *			res_lvbptr;	/* Lock value block */
 
-	uint8_t			res_resdir_seq;	/* Last dir sequence number */
-
 	uint8_t			res_length;
 	char			res_name[1];	/* <res_length> bytes */
 };
@@ -482,7 +480,6 @@ struct dlm_request {
 						   an AST request */
 	uint8_t			rr_rqmode;	/* Requested lock mode */
 	uint8_t			rr_asts;	/* Whether the LKB has ASTs */
-	uint8_t			rr_resdir_seq;	/* Directory sequence number */
 	char			rr_lvb[DLM_LVB_LEN];
 	char			rr_name[1];	/* As long as needs be. Only
 						   used for directory lookups.
@@ -503,7 +500,6 @@ struct dlm_reply {
 	uint32_t		rl_nodeid;	/* nodeid of lock master */
 	uint32_t		rl_status;	/* Status to return to caller */
 	uint32_t		rl_lkid;	/* Remote lkid */
-	uint8_t			rl_resdir_seq;	/* Returned dir seq number */
 	char			rl_lvb[DLM_LVB_LEN];
 };
 

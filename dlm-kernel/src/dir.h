@@ -15,13 +15,12 @@
 #define __DIR_DOT_H__
 
 int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
-			uint32_t *r_nodeid, uint8_t *r_seq);
+			uint32_t *r_nodeid);
 int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
                             int namelen, uint32_t *r_nodeid);
 uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length);
 uint32_t get_directory_nodeid(struct dlm_rsb *rsb);
-void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
-		    uint8_t sequence);
+void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen);
 int dlm_dir_rebuild_local(struct dlm_ls *ls);
 int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 			 char *outbuf, int outlen, uint32_t nodeid);
