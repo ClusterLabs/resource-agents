@@ -192,7 +192,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 			log_error(ls, "rebuild_rsbs_send failed %d", error);
 			goto fail;
 		}
-}
+	}
 
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
@@ -254,17 +254,63 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 		list_add_tail(&rv->list, &events);
 	}
 
-	/* Reset things when the last stop aborted our first
-	   start, i.e. there was no finish; we got a
-	   start/stop/start immediately upon joining. */
+	/*
+	 * There are two cases where we need to adjust these event values:
+	 * 1. - we get a first start
+	 *    - we get a stop
+	 *    - we process the start + stop here and notice this special case
+	 * 
+	 * 2. - we get a first start
+	 *    - we process the start
+	 *    - we get a stop
+	 *    - we process the stop here and notice this special case
+	 *
+	 * In both cases, the first start we received was aborted by a
+	 * stop before we received a finish.  last_finish being zero is the
+	 * indication that this is the "first" start, i.e. we've not yet
+	 * finished a start; if we had, last_finish would be non-zero.
+	 * Part of the problem arises from the fact that when we initially
+	 * get start/stop/start, SM uses the same event id for both starts
+	 * (since the first was cancelled).
+	 *
+	 * In both cases, last_start and last_stop will be equal.
+	 * In both cases, finish=0.
+	 * In the first case start=1 && stop=1.
+	 * In the second case start=0 && stop=1.
+	 *
+	 * In both cases, we need to make adjustments to values so:
+	 * - we process the current event (now) as a normal stop
+	 * - the next start we receive will be processed normally
+	 *   (taking into account the assertions below)
+	 *
+	 * In the first case, dlm_ls_start() will have printed the
+	 * "repeated start" warning.
+	 *
+	 * In the first case we need to get rid of the recover event struct.
+	 *
+	 * - set stop=1, start=0, finish=0 for case 4 below
+	 * - last_stop and last_start must be set equal per the case 4 assert
+	 * - ls_last_stop = 0 so the next start will be larger
+	 * - ls_last_start = 0 not really necessary (avoids dlm_ls_start print)
+	 */
 
-	if (!last_finish && last_stop) {
-		log_all(ls, "move reset stop %d start %d finish %d",
-			last_stop, last_start, last_finish);
-		ls->ls_last_stop = 0;
-		ls->ls_last_start = 0;
+	if (!last_finish && (last_start == last_stop)) {
+		log_all(ls, "move reset %u,%u,%u ids %u,%u,%u", stop,
+			start, finish, last_stop, last_start, last_finish);
+		stop = 1;
+		start = 0;
+		finish = 0;
 		last_stop = 0;
 		last_start = 0;
+		ls->ls_last_stop = 0;
+		ls->ls_last_start = 0;
+
+		while (!list_empty(&events)) {
+			rv = list_entry(events.next, struct dlm_recover, list);
+			list_del(&rv->list);
+			kfree(rv->nodeids);
+			kfree(rv);
+		}
 	}
 	spin_unlock(&ls->ls_recover_lock);
 
