@@ -58,6 +58,26 @@ void log_close(void);
 #endif
 
 #ifdef DEBUG
+#define log_msg_always(fmt, args...){ \
+    if(log_is_open){ \
+      syslog(LOG_NOTICE, "[%s:%d] " fmt , __FILE__ , __LINE__ , ## args ); \
+    }else { \
+      fprintf(stdout, "[%s:%d] ", __FILE__ , __LINE__); \
+      fprintf(stdout, fmt, ## args ); \
+    } \
+}
+#else
+#define log_msg_always(fmt, args...){ \
+    if(log_is_open){ \
+      syslog(LOG_NOTICE, fmt, ## args ); \
+    }else { \
+      fprintf(stdout, fmt, ## args ); \
+    } \
+}
+#endif
+
+
+#ifdef DEBUG
 #define log_err(fmt, args...){ \
     if(log_is_open){ \
       syslog(LOG_ERR, "[%s:%d] " fmt , __FILE__ , __LINE__ , ## args ); \

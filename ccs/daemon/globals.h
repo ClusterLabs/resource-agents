@@ -13,7 +13,7 @@
 #define __GLOBALS_H__
 
 #define DEFAULT_CONFIG_LOCATION "/etc/cluster/cluster.conf"
-#define DEFAULT_CCSD_LOCKFILE "/var/run/sistina/ccsd.pid"
+#define DEFAULT_CCSD_LOCKFILE "/var/run/cluster/ccsd.pid"
 
 extern char *config_file_location;
 extern char *lockfile_location;

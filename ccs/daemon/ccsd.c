@@ -470,15 +470,15 @@ static int create_lockfile(char *lockfile){
 
   ENTER("create_lockfile");
    
-  if(!strncmp(lockfile, "/var/run/sistina/", 17)){
-    if(stat("/var/run/sistina", &stat_buf)){
-      if(mkdir("/var/run/sistina", S_IRWXU)){
+  if(!strncmp(lockfile, "/var/run/cluster/", 17)){
+    if(stat("/var/run/cluster", &stat_buf)){
+      if(mkdir("/var/run/cluster", S_IRWXU)){
         log_sys_err("Cannot create lockfile directory");
         error = -errno;
 	goto fail;
       }
     } else if(!S_ISDIR(stat_buf.st_mode)){
-      log_err("/var/run/sistina is not a directory.\n"
+      log_err("/var/run/cluster is not a directory.\n"
               "Cannot create lockfile.\n");
       error = -ENOTDIR;
       goto fail;
@@ -682,7 +682,8 @@ static void daemonize(void){
  *
  */
 static void print_start_msg(char *msg){
-  log_msg("Starting ccsd %s:\n", CCS_RELEASE_NAME);
+  /* We want the start message to print every time */
+  log_msg_always("Starting ccsd %s:\n", CCS_RELEASE_NAME);
   log_msg(" Built: "__DATE__" "__TIME__"\n");
   log_msg(" %s\n", REDHAT_COPYRIGHT);
   if(msg){

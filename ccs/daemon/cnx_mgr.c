@@ -49,9 +49,40 @@ typedef struct open_connection_s {
 static open_connection_t **ocs = NULL;
 
 
+/*
+ * superdup
+ * @base: base of the string.  WILL BE FREED!
+ * @append: string to append to the base
+ *
+ * 'base' is freed unless there is an error.
+ *
+ * Returns: 'base' on error, allocated string otherwise
+ */
+static char *superdup(char *base, const char *append){
+  int size;
+  char *new_str;
+
+  if(!base)
+    return strdup(append);
+
+  size = strlen(base)+strlen(append)+1;
+  new_str = malloc(size);
+  if(!new_str)
+    return base;
+
+  memset(new_str, 0, size);
+  memcpy(new_str, base, strlen(base));
+  memcpy(new_str+strlen(base), append, strlen(append));
+  free(base);
+  
+  return new_str;
+}
+
+
 static int _update_config(int do_remote, char *location){
   int error = 0;
   int v1=0, v2=0;
+  char *error_str = NULL;
   open_doc_t *tmp_odoc = NULL;
   xmlDocPtr tmp_doc = NULL;
   char *mem_doc = NULL;
@@ -62,11 +93,14 @@ static int _update_config(int do_remote, char *location){
   tmp_doc = xmlParseFile(location);
   if(!tmp_doc){
     log_err("Unable to parse %s\n", location);
-    /* ATTENTION -- write working copy to cluster.conf-old ? */
+    error_str = superdup(error_str,
+			 "File can not be parsed.\n");
     error = -EINVAL;
     goto fail;
   } else if((v2 = get_doc_version(tmp_doc)) < 0){
     log_err("Unable to get config_version from cluster.conf.\n");
+    error_str = superdup(error_str,
+			 "Unable to identify the config_version.\n");
     error = v2;
     goto fail;
   } else {
@@ -75,6 +109,8 @@ static int _update_config(int do_remote, char *location){
       log_err("cluster.conf on-disk version is <= to in-memory version.\n");
       log_err(" On-disk version   : %d\n", v2);
       log_err(" In-memory version : %d\n", v1);
+      error_str = superdup(error_str,
+			   "The config_version is not greater than the in-use version.\n");
       error = -EPERM;
       goto fail;
     }
@@ -94,12 +130,17 @@ static int _update_config(int do_remote, char *location){
     xmlDocDumpFormatMemory(tmp_doc, (xmlChar **)&mem_doc, &mem_doc_size, 0);
     if(!mem_doc_size || !mem_doc){
       log_err("Unable to dump document to memory.\n");
+      error_str = superdup(error_str,
+			   "Ran out of memory while trying to perform update.\n");
       /* ATTENTION -- assuming ENOMEM */
       error = -ENOMEM;
       goto fail;
     }
 
     if((error = update_remote_nodes(mem_doc, mem_doc_size))){
+      error_str = superdup(error_str,
+			   "Update failed on remote nodes.\n"
+			   "Check their logs for clues.\n");
       log_err("Failed to update remote nodes.\n");
       goto fail;
     }
@@ -110,7 +151,7 @@ static int _update_config(int do_remote, char *location){
   log_dbg("There are %d references open on version %d of the config file.\n",
 	  master_doc->od_refs, v1);
 
-  log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
+  log_msg_always("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
   if(!master_doc->od_refs){
     log_dbg("Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);
@@ -127,7 +168,43 @@ static int _update_config(int do_remote, char *location){
     char *buffer;
     int size;
 
+    fd = open("/etc/cluster/cluster.conf-rej",
+	      O_CREAT | O_WRONLY | O_TRUNC,
+	      S_IRUSR | S_IRGRP);
+    
+    if(fd < 0){
+      log_sys_err("Unable to create cluster.conf reject file");
+      goto fail2;
+    }
+
+    buffer = strdup("<!--  Could not update ccsd with this file.  Reason:\n");
+    if(!buffer || (write(fd, buffer, strlen(buffer)) < strlen(buffer))){
+      if(buffer) free(buffer);
+      log_sys_err("Failed to write failure reason to disk.\n");
+      close(fd);
+      goto fail2;
+    }
+    free(buffer);
+
+    error_str = superdup(error_str, "-->\n\n");
+
+    if(write(fd, error_str, strlen(error_str))< strlen(error_str)){
+      log_sys_err("Failed to write failure reason to disk.\n");
+      close(fd);
+      goto fail2;
+    }
+
+    close(fd);
+
+    /* ATTENTION -- probably not good practice to call system() **
+    ** shouldn't really be using hardcoded names either, but    **
+    ** this would have to be fixed further up the chain anyway. */
+    system("cat /etc/cluster/cluster.conf >> /etc/cluster/cluster.conf-rej; "
+	   "rm -f /etc/cluster/cluster.conf");
+    /*
     rename(location, "/etc/cluster/cluster.conf-rej");
+    */
+
     if(tmp_odoc){
       free(tmp_odoc);
     }
@@ -145,6 +222,11 @@ static int _update_config(int do_remote, char *location){
       close(fd);
     }
   }
+
+  fail2:
+
+  if(error_str)
+    free(error_str);
 
   if(mem_doc){
     free(mem_doc);
@@ -186,7 +268,6 @@ static void update_handler(int sig){
     log_err("Unable to honor update request.  Cluster is not quorate.\n");
     goto fail;
   }
-
 
   if(pthread_mutex_trylock(&update_lock)){
     log_err("Signal to update received, but an update is already in progress.\n");
