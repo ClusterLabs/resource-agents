@@ -55,6 +55,7 @@ static void cluster_communicator(void){
     exit(EXIT_FAILURE);
   }
 
+ restart:
   while(cluster_fd < 0){
     cluster_fd = clu_connect(NULL, 0);
   }
@@ -117,7 +118,9 @@ static void cluster_communicator(void){
 	case CE_SHUTDOWN:
 	  log_dbg("*E* Node shutdown\n");
 	  quorate = 0;
-	  break;
+	  clu_disconnect(cluster_fd);
+	  cluster_fd = -1;
+	  goto restart;
 	default:
 	  log_dbg("-E- Unknown cluster event\n");
 	}
