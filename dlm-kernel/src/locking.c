@@ -327,9 +327,6 @@ int dlm_lock(void *lockspace,
 	if (!ast || !lksb)
 		goto out;
 
-	if (!lksb->sb_lvbptr && (flags & DLM_LKF_VALBLK))
-		goto out;
-
 	if ((flags & DLM_LKF_VALBLK) && !lksb->sb_lvbptr)
 		goto out;
 
