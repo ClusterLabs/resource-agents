@@ -54,7 +54,7 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     struct hostent *bhe = NULL;
     struct sockaddr_in mcast_sin;
     struct sockaddr_in local_sin;
-    struct cl_multicast_sock mcast_info;
+    struct cl_passed_sock sock_info;
     int mcast_sock;
     int local_sock;
     uint32_t bcast;
@@ -135,18 +135,18 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    mcast_info.number = num;
+    sock_info.number = num;
+    sock_info.multicast = 1;
 
     /* Pass the multicast socket to kernel space */
-    mcast_info.fd = mcast_sock;
-    if (setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_MULTICAST,
-               (void *)&mcast_info, sizeof(mcast_info)))
+    sock_info.fd = mcast_sock;
+    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing multicast socket to cluster kernel module");
 
     /* Pass the recv socket to kernel space */
-    mcast_info.fd = local_sock;
-    if (setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_RCVONLY,
-               (void *)&mcast_info, sizeof(mcast_info)))
+    sock_info.fd = local_sock;
+    sock_info.multicast = 0;
+    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing unicast receive socket to cluster kernel module");
 
     return 0;
@@ -161,7 +161,7 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     struct ipv6_mreq mreq;
     int mcast_sock;
     int local_sock;
-    struct cl_multicast_sock mcast_info;
+    struct cl_passed_sock sock_info;
     int param;
 
     memset(&mcast_sin, 0, sizeof(mcast_sin));
@@ -207,18 +207,18 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    mcast_info.number = num;
+    sock_info.number = num;
 
     /* Pass the multicast socket to kernel space */
-    mcast_info.fd = mcast_sock;
-    if (setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_MULTICAST,
-               (void *)&mcast_info, sizeof(mcast_info)))
+    sock_info.fd = mcast_sock;
+    sock_info.multicast = 1;
+    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing multicast socket to cluster kernel module");
 
     /* Pass the recv socket to kernel space */
-    mcast_info.fd = local_sock;
-    if (setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_RCVONLY,
-               (void *)&mcast_info, sizeof(mcast_info)))
+    sock_info.fd = local_sock;
+    sock_info.multicast = 0;
+    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
         die("passing unicast receive socket to cluster kernel module");
 
     return 0;
@@ -289,8 +289,8 @@ int join(commandline_t *comline)
     }
 
     /* Set the node name */
-    error = setsockopt(cluster_sock, CLPROTO_MASTER, CLU_SET_NODENAME,
-		       comline->nodenames[0], strlen(comline->nodenames[0])+1);
+    error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODENAME,
+		  comline->nodenames[0]);
     if (error)
     {
 	perror("Unable to set cluster node name");
@@ -316,8 +316,7 @@ int join(commandline_t *comline)
     join_info.two_node = comline->two_node;
     join_info.config_version = comline->config_version;
 
-    if (setsockopt(cluster_sock, CLPROTO_MASTER, CLU_JOIN_CLUSTER, &join_info,
-                sizeof(join_info)))
+    if (ioctl(cluster_sock, SIOCCLUSTER_JOIN_CLUSTER, &join_info))
     {
         perror("error joining cluster");
         goto fail;

@@ -79,8 +79,8 @@ static void leave(commandline_t *comline)
 		flags |= CLUSTER_LEAVEFLAG_FORCE;
 	}
 
-	if ((result = setsockopt(cluster_sock, CLPROTO_MASTER,
-				 CLU_LEAVE_CLUSTER, &flags, sizeof(flags))))
+	if ((result = ioctl(cluster_sock, SIOCCLUSTER_LEAVE_CLUSTER,
+			    flags)))
 		die("error leaving cluster");
 
  end_leave:
