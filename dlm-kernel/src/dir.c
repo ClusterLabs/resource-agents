@@ -140,12 +140,14 @@ void dlm_dir_clear(struct dlm_ls *ls)
 	int i;
 
 	for (i = 0; i < ls->ls_dirtbl_size; i++) {
+		write_lock(&ls->ls_dirtbl[i].lock);
 		head = &ls->ls_dirtbl[i].list;
 		while (!list_empty(head)) {
 			de = list_entry(head->next, struct dlm_direntry, list);
 			list_del(&de->list);
 			free_direntry(de);
 		}
+		write_unlock(&ls->ls_dirtbl[i].lock);
 	}
 }
 
@@ -216,6 +218,8 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 				if (!mov.rm_length)
 					break;
 
+				DLM_ASSERT(mov.rm_nodeid == csb->node->nodeid,);
+
 				error = -ENOMEM;
 				de = allocate_direntry(ls, mov.rm_length);
 				if (!de)
@@ -223,7 +227,6 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 
 				de->master_nodeid = mov.rm_nodeid;
 				de->length = mov.rm_length;
-
 				memcpy(de->name, b, mov.rm_length);
 				b += mov.rm_length;
 

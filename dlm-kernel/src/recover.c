@@ -343,6 +343,7 @@ static void set_new_master(struct dlm_rsb *rsb)
 	down_write(&rsb->res_lock);
 
 	if (rsb->res_nodeid == our_nodeid()) {
+		set_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = 0;
 		set_rsb_lvb(rsb);
 	}

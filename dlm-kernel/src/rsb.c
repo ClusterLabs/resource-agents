@@ -56,6 +56,7 @@ void hold_rsb(struct dlm_rsb *r)
 void release_rsb(struct dlm_rsb *r)
 {
 	struct dlm_ls *ls = r->res_ls;
+	uint32_t nodeid;
 	int removed = FALSE;
 
 	write_lock(&ls->ls_rsbtbl[r->res_bucket].lock);
@@ -81,12 +82,12 @@ void release_rsb(struct dlm_rsb *r)
 	if (r->res_parent || !test_bit(RESFL_MASTER, &r->res_flags))
 		goto out;
 
-	if (get_directory_nodeid(r) != our_nodeid())
-		remote_remove_direntry(r->res_ls, get_directory_nodeid(r),
-				       r->res_name, r->res_length);
+	nodeid = get_directory_nodeid(r);
+
+	if (nodeid != our_nodeid())
+		remote_remove_direntry(ls, nodeid, r->res_name, r->res_length);
 	else
-		dlm_dir_remove(r->res_ls, our_nodeid(), r->res_name,
-			       r->res_length);
+		dlm_dir_remove(ls, nodeid, r->res_name, r->res_length);
  out:
 	if (r->res_lvbptr)
 		free_lvb(r->res_lvbptr);
