@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 	if (!(sock = open_socket(host, port)))
 		error("Can't connect to %s:%i", host, port);
 
-	outbead(sock, CREATE_SNAPSHOT, struct create_snapshot, snap);
+	outbead(sock, THIS_CODE, struct create_snapshot, snap);
 
 	struct head head;
 	unsigned maxbuf = 500;

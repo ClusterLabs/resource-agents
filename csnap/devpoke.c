@@ -25,7 +25,7 @@ void *malloc_aligned(size_t size, unsigned binalign)
 
 int main(int argc, char *argv[])
 {
-	int err, dev, iterations = 1, blockshift = 12, blocksize = 1 << blockshift;
+	int err, dev, iterations = 1, blockshift = 13, blocksize = 1 << blockshift;
 	char *buffer = malloc_aligned(blocksize, blocksize);
 
 	if (!(dev = open(argv[1], O_RDWR | O_DIRECT)))

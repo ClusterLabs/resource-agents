@@ -125,8 +125,8 @@ void *malloc_aligned(size_t size, unsigned binalign)
 }
 
 /*
- * Ripped off from libiddev.  It's not quite ugly enough to convince us
- * to add a new dependency on a library nobody has yet, but it's close.
+ * Ripped off from libiddev.  It's not quite ugly enough to convince me to
+ * add a new dependency on a library that nobody has yet, but it's close.
  */
 static int fd_size(int fd, u64 *bytes)
 {
@@ -140,16 +140,13 @@ static int fd_size(int fd, u64 *bytes)
 		*bytes = stat.st_size;
 		return 0;
 	}
-
 	if ((error = ioctl(fd, BLKGETSIZE64, bytes))) {
 		unsigned sectors;
 
 		if ((error = ioctl(fd, BLKGETSIZE, &sectors)))
 			return error;
-
 		*bytes = ((u64)sectors) << 9;
 	}
-
 	return 0;
 }
 
@@ -1937,7 +1934,7 @@ int csnap_server(struct superblock *sb, int port)
 			cleanup(sb); // !!! don't do it on segfault
 			if (sig == SIGINT) { 
 		        	signal(SIGINT, SIG_DFL);
-        			kill(getpid(), sig); /* harikiri */
+        			kill(getpid(), sig); /* commit harikiri */
 			}
 			goto done;
 		}
