@@ -15,8 +15,8 @@ cman - cluster.conf cman configuration section
 \fBDESCRIPTION\fP
 .in +7
 Cman configuration values are placed in the <cman> </cman> section of
-\fBcluster.conf\fP.  Per-node network configuration related to cman is
-placed in the standard <clusternode> </clusternode> sections.  All cman
+\fBcluster.conf\fP.  Per-node configuration related to cman is placed
+in the standard <clusternode> </clusternode> sections.  All cman
 configuration settings are optional; usually none are used.
 .in -7
 
@@ -42,9 +42,9 @@ an explicit expected_votes value as follows:
   <cman expected_votes="3">
   </cman>
 
-Caution: using this option can be dangerous.  If not handled properly, it could
-result in both sides of a split-brain cluster remaining quorate and shared
-resources being corrupted.
+If the cluster becomes partitioned, improper use of this option can result
+in more than one partition gaining quorum.  In that event, nodes in each
+partition will enable cluster services.
 .in -7
 
 
@@ -62,6 +62,17 @@ then be set to 1 in the cman section as follows.
 .in -7
 
 
+\fINode votes\fR
+.in +7
+By default, a node is given one vote toward the calculation of quorum.
+This can be changed by giving a node a specific number of votes as
+follows:
+
+  <clusternode name="nd1" votes="2">
+  </clusternode>
+.in -7
+
+
 \fIMultihome network configuration\fR
 .in +7
 Cman can be configured to use multiple network interfaces.  If one fails it
@@ -69,14 +80,14 @@ should be able to continue running with the one remaining.  A node's name in
 cluster.conf is always associated with the IP address on one network interface;
 "nd1" in the following:
 
-  <clusternode name="nd1" votes="1">
+  <clusternode name="nd1">
   </clusternode>
 
 To use a second network interface, the node must have a second hostname
 associated with the IP address on that interface; "nd1-e1" in the following.
 The second hostname is specfied in an "altname" section for each node.
 
-  <clusternode name="nd1" votes="1">
+  <clusternode name="nd1">
       <altname name="nd1-e1"/>
   </clusternode>
 .in -7
@@ -93,7 +104,7 @@ under the <clusternode> section:
       <multicast addr="224.0.0.1"/>
   </cman>
 
-  <clusternode name="nd1" votes="1">
+  <clusternode name="nd1">
       <multicast addr="224.0.0.1" interface="eth0"/>
   </clusternode>
 
@@ -107,7 +118,7 @@ When two interfaces are used, multicast is configured as follows:
       <multicast addr="224.0.0.9"/>
   </cman>
 
-  <clusternode name="nd1" votes="1">
+  <clusternode name="nd1">
       <altname name="nd1-e1"/>
       <multicast addr="224.0.0.1" interface="eth0"/>
       <multicast addr="224.0.0.9" interface="eth1"/>
