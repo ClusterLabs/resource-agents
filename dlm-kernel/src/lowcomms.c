@@ -1009,7 +1009,8 @@ static void process_sockets(void)
 
 		do {
 			con->rx_action(con);
-		} while (!atomic_dec_and_test(&con->waiting_requests));
+		} while (!atomic_dec_and_test(&con->waiting_requests) &&
+			 !kthread_should_stop());
 
 		/* Don't starve out everyone else */
 		schedule();
