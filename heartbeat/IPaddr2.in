@@ -1,0 +1,637 @@
+#!/bin/sh
+#
+#	$Id: IPaddr2.in,v 1.1 2004/09/03 10:01:38 lars Exp $
+#
+#       OCF Resource Agent compliant IPaddr2 script.
+#
+# 	Based on work by Tuomo Soini, ported to the OCF RA API by Lars
+# 	Marowsky-Brée. Implements Cluster Alias IP functionality too.
+#
+# WARNING: Untested so far!
+#
+# Copyright (c) 2003 Tuomo Soini
+# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+#                    All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+#
+
+
+# TODO: 
+# - Implement Cluster IP functionality
+# - there ought to be an ocf_log function, replacing ha_log
+# - There ought to be an ocf_run_cmd function which does all logging,
+#   timeout handling etc for us
+# - Make this the standard IP address agent on Linux; the other
+#   platforms simply should ignore the additional parameters OR can use
+#   the legacy heartbeat resource script...
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+IP2UTIL="@IP2UTIL@"
+IPTABLES="@IPTABLES@"
+MODPROBE="@MODPROBE@"
+SENDARP=$HA_BIN/send_arp
+FINDIF=$HA_BIN/findif
+VLDIR=$VARLIB/rsctmp/IPaddr
+SENDARPPIDDIR=$VARLIB/rsctmp/send_arp
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPaddr2" version="0.9">
+<version>1.0</version>
+<parameters>
+<parameter name="ip" unique="1">
+<longdesc lang="en">
+The IPv4 address to be configured in dotted quad notation, for example
+"192.168.1.1".
+</longdesc>
+<shortdesc lang="en">IPv4 address</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="nic" unique="0">
+<longdesc lang="en">
+The base network interface on which the IP address will be brought
+online. 
+
+If left empty, the script will try and determine this from the
+routing table.
+
+Do NOT specify an alias interface in the form eth0:1 or anything here;
+rather, specify the base interface only.
+
+</longdesc>
+<shortdesc lang="en">Network interface</shortdesc>
+<content type="string" default="eth0"/>
+</parameter>
+
+<parameter name="netmask">
+<longdesc lang="en">
+The netmask for the interface in CIDR format.
+
+If unspecified, the script will also try to determine this from the
+routing table.
+</longdesc>
+<shortdesc lang="en">CIDR netmask</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="broadcast">
+<longdesc lang="en">
+Broadcast address associated with the IP. If left empty, the script will
+determine this from the netmask.
+</longdesc>
+<shortdesc lang="en">Broadcast address</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="iflabel">
+<longdesc lang="en">
+You can specify an additional label for your IP address here.
+</longdesc>
+<shortdesc lang="en">Interface label</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="incarnations_max_global">
+<longdesc lang="en">
+If you wish the IP address to be active on more than one node, set this
+to the number of hash buckets you wish to use.
+
+</longdesc>
+<shortdesc lang="en">Global number of hash buckets</shortdesc>
+<content type="integer" default="1"/>
+</parameter>
+
+<parameter name="incarnations_max_node">
+<longdesc lang="en">
+If you wish the IP address to be active on more than one node, set this
+to the number of hash buckets you wish to maximally assign to a single
+node at any given time.
+
+0 is equivalent to unlimited.
+
+</longdesc>
+<shortdesc lang="en">Local maximum number of hash buckets</shortdesc>
+<content type="integer" default="0"/>
+
+</parameter>
+<parameter name="mac">
+<longdesc lang="en">
+Set the interface MAC address explicitly. Currently only used in case of
+the Cluster IP Alias. Leave empty to chose automatically.
+
+</longdesc>
+<shortdesc lang="en">Cluster IP MAC address</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="clusterip_hash">
+<longdesc lang="en">
+Specify the hashing algorithm used for the Cluster IP functionality.
+
+</longdesc>
+<shortdesc lang="en">Cluster IP hashing function</shortdesc>
+<content type="string" default="sourceip-sourceport-destport"/>
+</parameter>
+
+<parameter name="arp_interval">
+<longdesc lang="en">
+Specify the interval between unsolicited ARP packets in milliseconds.
+</longdesc>
+<shortdesc lang="en">ARP packet interval in ms</shortdesc>
+<content type="integer" default="200"/>
+</parameter>
+
+<parameter name="arp_count">
+<longdesc lang="en">
+Number of unsolicited ARP packets to send.
+</longdesc>
+<shortdesc lang="en">ARP packet count</shortdesc>
+<content type="integer" default="5"/>
+</parameter>
+
+<parameter name="arp_bg">
+<longdesc lang="en">
+Whether or not to send the arp packets in the background.
+</longdesc>
+<shortdesc lang="en">ARP from background</shortdesc>
+<content type="string" default="yes"/>
+</parameter>
+
+<parameter name="arp_mac">
+<longdesc lang="en">
+MAC address to send the ARP packets too.
+
+You really shouldn't be touching this.
+
+</longdesc>
+<shortdesc lang="en">ARP MAC</shortdesc>
+<content type="string" default="ffffffffffff"/>
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="90" />
+<action name="stop"    timeout="100" />
+<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
+<action name="meta-data"  timeout="5" />
+<action name="verify-all"  timeout="30" />
+</actions>
+</resource-agent>
+END
+
+	exit $OCF_SUCCESS
+}
+
+ip_init() {
+	if [ $UID -ne 0 ]; then
+		ha_log "ERROR: You must be root."
+		exit $OCF_ERR_PERM
+	fi
+	
+	if [ ! -x "$IP2UTIL" ]; then
+		ha_log "ERROR: iputils not installed."
+		exit $OCF_ERR_INSTALLED
+	fi
+	
+	BASEIP="$OCF_RESKEY_ip"
+	BRDCAST="$OCF_RESKEY_broadcast"
+	NIC="$OCF_RESKEY_nic"
+	NETMASK="$OCF_RESKEY_netmask"
+	IFLABEL="$OCF_RESKEY_label"
+	IF_MAC="$OCF_RESKEY_mac"
+	IP_INC_GLOBAL="$OCF_RESKEY_incarnations_max_global"
+	IP_INC_NO="$OCF_RESKEY_incarnation_no"
+	IP_CIP_HASH="$OCF_RESKEY_clusterip_hash"
+	
+	ARP_INTERVAL_MS=${OCF_RESKEY_arp_interval:-200}
+	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
+	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
+	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
+
+	# TODO: Perform validation here...
+	local VALID=1
+	if [ $VALID -eq 0 ]; then
+		exit $OCF_ERR_ARGS;
+	fi
+	
+	# TODO: re-filtering with findif in this fashion is really sad,
+	# we should be having named parameters and get back something we
+	# could eval `findif ...`
+	# This may also be buggy, if one of the intermediate parameters
+	# is empty...
+	
+	# NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST" | sed -e 's/netmask\ //;s/broadcast\ //'`
+	# NIC=`echo "$NICINFO" | cut -f1`
+	# NETMASK=`echo "$NICINFO" | cut -f2`
+	# BRDCAST=`echo "$NICINFO" | cut -f3`
+	
+	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
+
+	case $NIC in
+	    *:*)
+		NIC=`echo $NIC | sed 's/:.*//'`
+		IFLABEL=`echo $NIC | sed 's/.*://'`
+		;;
+	esac
+
+	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
+		IP_CIP="yes"
+		if [ -z "$IF_MAC" ]; then
+			# Choose a hash.
+			IF_MAC=`echo $BASEIP $NETMASK $BRDCAST | md5sum | cut -c 1-16`
+		fi
+		IP_CIP_FILE="/proc/net/ipt_CLUSTERIP"
+	fi
+}
+
+#
+#	Find out which interface serves the given IP address
+#	The argument is an IP address, and its output
+#	is an interface name (e.g., "eth0").
+#
+find_interface() {
+	#
+	# List interfaces but exclude FreeS/WAN ipsecN virtual interfaces
+	#
+	local iface=`$IP2UTIL -o -f inet addr show | grep "\ $1/" \
+		| cut -d ' ' -f2 | grep -v '^ipsec[0-9][0-9]*$'`
+	echo $iface
+	return 0
+}
+
+#
+#        Delete an interface
+#
+delete_interface () {
+	ipaddr="$1"
+	iface="$2"
+
+	CMD="$IP2UTIL -f inet addr delete $ipaddr dev $iface"
+
+	ha_log "info: $CMD"
+	$CMD
+
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	CMD="$IP2UTIL -o -f inet addr show $iface"
+
+	ha_log "info: $CMD"
+	ADDR=`$CMD`
+
+	if [ $? -ne 0 -o ! -z "$ADDR" ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	CMD="$IP2UTIL link set $iface down"
+
+	ha_log "info: $CMD"
+	$CMD
+
+	return $?
+}
+
+#
+#        Add an interface
+#
+add_interface () {
+	ipaddr="$1"
+	netmask="$2"
+	broadcast="$3"
+	iface="$4"
+	label="$5"
+
+	CMD="$IP2UTIL -f inet addr add $ipaddr/$netmask brd $broadcast dev $iface"
+
+	if [ ! -z "$label" ]; then
+		CMD="$CMD label $label"
+	fi
+
+	ha_log "info: $CMD"
+	$CMD
+
+	if [ $? -ne 0 ]; then
+		return $OCF_ERR_GENERIC
+	fi
+
+	CMD="$IP2UTIL link set $iface up"
+
+	ha_log "info: $CMD"
+	$CMD
+
+	return $?
+}
+
+#
+#        Delete a route
+#
+delete_route () {
+	prefix="$1"
+	iface="$2"
+
+	CMD="$IP2UTIL route delete $prefix dev $iface"
+
+	ha_log "info: $CMD"
+	$CMD
+
+	return $?
+}
+
+#      On Linux systems the (hidden) loopback interface may
+#      conflict with the requested IP address. If so, this
+#      unoriginal code will remove the offending loopback address
+#      and save it in VLDIR so it can be added back in later
+#      when the IPaddr is released.
+#
+#      TODO: This is very ugly and should be controlled by an additional
+#      instance parameter. Or even: multi-state, with the IP only being
+#      "active" on the master!?
+#
+remove_conflicting_loopback() {
+	ipaddr="$1"
+	netmask="$2"
+	broadcast="$3"
+	ifname="$4"
+
+	ha_log "info: Removing conflicting loopback $ifname."
+	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"; then
+		: Directory $VLDIR now exists
+	else
+		ha_log "ERROR: Could not create \"$VLDIR/\" conflicting" \
+		       " loopback $ifname cannot be restored."
+	fi
+	if
+		echo "$ipaddr $netmask $broadcast $ifname" > "$VLDIR/$ipaddr"
+	then
+		: Saved loopback information in $VLDIR/$ipaddr
+	else
+		ha_log "ERROR: Could not save conflicting loopback $ifname." \
+		       "it will not be restored."
+	fi
+	delete_interface "$ipaddr" "$ifname"
+	# Forcibly remove the route (if it exists) to the loopback.
+	delete_route "$ipaddr" "$ifname"
+}       
+
+#
+#	On Linux systems the (hidden) loopback interface may
+#	need to be restored if it has been taken down previously
+#	by remove_conflicting_loopback()
+#
+restore_loopback() {
+	ipaddr="$1"
+
+	if [ -s "$VLDIR/$ipaddr" ]; then
+		ifinfo=`cat "$VLDIR/$ipaddr"`
+		ha_log "info: Restoring loopback IP Address " \
+		    "$ifinfo."
+		add_interface $ifinfo
+		rm -f "$VLDIR/$ipaddr"
+	fi
+}
+
+#
+# Run send_arp to note peers about new mac address
+#
+run_send_arp() {
+	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $INTERFACE $BASEIP auto $BASEIP $ARP_NETMASK"
+	ha_log "$SENDARP $ARGS"
+	case $ARP_BACKGROUND in
+	yes) 
+		($SENDARP $ARGS || ha_log "ERROR: Could not send gratuitous arps") &
+		;;
+	*)
+		$SENDARP $ARGS || ha_log "ERROR: Could not send gratuitous arps"
+		;;
+	esac
+}
+
+# Do we already serve this IP address?
+#
+# returns:
+# ok = served (for CIP: + hash bucket)
+# partial = served and no hash bucket (CIP only)
+# no = nothing
+#
+ip_served() {
+	case `find_interface $BASEIP` in
+	lo|"")	echo "no"
+		return 0
+		;;
+	esac
+
+	if [ -z "$IP_CIP" ]; then
+		echo "ok"
+		return 0
+	fi
+
+	if grep -q "\<${IP_INC_NO}\>" $IP_CIP_FILE ; then
+		echo "ok"
+		return 0
+	else
+		return "partial"
+	fi
+
+	exit $OCF_ERR_GENERIC
+}
+
+#######################################################################
+
+ip_usage() {
+	cat <<END
+usage: $0 {start|stop|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+ip_start() {
+	ip_init
+
+	#
+	#	Do we already service this IP address?
+	#
+	local ip_status=`ip_served`
+
+	if [ "$ip_status" = "ok" ];
+		exit $OCF_SUCCESS
+	fi
+	
+	if [ -n "$IP_CIP" ] && [ $ip_status = "no" ]; then
+		$MODPROBE ip_tables
+		$MODPROBE ip_conntrack
+		$MODPROBE ipt_CLUSTERIP
+		$IPTABLES -A OUTPUT -s $CLUSTERIP -o $NIC \
+				-m state --state NEW \
+				-j CONNMARK --set-mark $LOCALNODE
+		if [ $? -ne 0 ]; then
+			ha_log "ERROR: iptables failed"
+			exit $OCF_ERR_GENERIC
+		fi
+		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+				--new \
+				--clustermac $IF_MAC \
+				--total-nodes $IP_INC_GLOBAL \
+				--local-node $IP_INC_NO \
+				--hashmode $IP_CIP_HASH
+		if [ $? -ne 0 ]; then
+			ha_log "ERROR: iptables failed"
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	if [ -n "$IP_CIP" ] && [ $ip_status = "partial" ]; then
+		echo "+$IP_INC_NO" >$IP_CIP_FILE
+	fi
+	
+	if [ "$ip_status" = "no" ];
+		# TODO: Needs to be an instance parameter!
+		case `find_interface $BASEIP` in
+		lo)
+			remove_conflicting_loopback $BASEIP 32 255.255.255.255 lo
+			;;
+		esac
+		
+		add_interface $BASEIP $NETMASK $BRDCAST $NIC $IFLABEL
+		
+		if [ $? -ne 0 ]; then
+			ha_log "ERROR: $CMD failed."
+			exit $OCF_ERR_GENERIC
+		fi
+	fi
+
+	case $INTERFACE in
+	lo*)
+		: no need to run send_arp on loopback
+		;;
+	*)
+		run_send_arp
+		;;
+	esac
+	exit $OCF_SUCCESS
+}
+
+ip_stop() {
+	local ip_del_if="yes"
+	
+	if [ -f "$SENDARPPIDFILE" ] ; then
+		kill `cat "$SENDARPPIDFILE"`
+		if [ $? -ne 0 ]; then
+			ha_log "WARN: Could not kill previously running send_arp for $BASEIP"
+		else
+			ha_log "info: killed previously running send_arp for $BASEIP"
+			rm -f "$SENDARPPIDFILE"
+		fi
+	fi
+
+	local ip_status=`ip_served`
+
+	if [ $ip_status = "no" ]; then
+		: Requested interface not in use
+		exit $OCF_SUCCESS
+	fi
+
+	if [ -n "$IP_CIP" ]; then
+		if [ $ip_status = "partial" ]; then
+			exit $OCF_SUCCESS
+		fi
+		echo "-$IP_INC_NO" >$IP_CIP_FILE
+		if [ "x$(cat $IP_CIP_FILE)" = "x" ]; then
+			# This was the last incarnation
+			$IPTABLES -D OUTPUT -s $CLUSTERIP -o $NIC \
+					-m state --state NEW \
+					-j CONNMARK --set-mark $LOCALNODE
+			$IPTABLES -D INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
+					--new \
+					--clustermac $IF_MAC \
+					--total-nodes $IP_INC_GLOBAL \
+					--local-node $IP_INC_NO \
+					--hashmode $IP_CIP_HASH
+		else
+			ip_del_if="no"		
+		fi
+	fi
+	
+	if [ "$ip_del_if" = "yes" ]; then
+		delete_interface $BASEIP $IF
+		if [ $? -ne 0 ]; then
+			exit $OCF_ERR_GENERIC
+		fi
+		
+		restore_loopback "$BASEIP"
+	fi
+
+	exit $OCF_SUCCESS
+}
+
+ip_monitor() {
+	ip_init
+	# TODO: Implement more elaborate monitoring like checking for
+	# interface health maybe via a daemon like FailSafe etc...
+	case `ip_served $BASEIP` in
+	ok)
+		exit $OCF_SUCCESS
+		;;
+	partial|no)
+		exit $OCF_NOT_RUNNING
+		;;
+	*)
+		# Errors on this interface?
+		exit $OCF_ERR_GENERIC
+		;;
+	esac
+}
+
+ip_validate() {
+	# TODO
+	exit $OCF_SUCCESS
+}
+
+case $ACTION in
+meta-data)	meta_data
+		;;
+start)		ip_start
+		;;
+stop)		ip_stop
+		;;
+monitor)	ip_monitor
+		;;
+validate-all)	ip_validate
+		;;
+usage|help)	ip_usage
+		exit $OCF_SUCCESS
+		;;
+*)		ip_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+

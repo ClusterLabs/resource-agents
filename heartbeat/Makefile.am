@@ -21,7 +21,9 @@ MAINTAINERCLEANFILES = Makefile.in
 
 ocfdir		     = @OCF_RA_DIR@/heartbeat
 
-ocf_SCRIPTS	     = IPaddr Dummy
+ocf_SCRIPTS	     = IPaddr \
+		       IPaddr2 \
+		       Dummy
 
 commondir	     = @hb_libdir@
 common_SCRIPTS	     = ocf-shellfuncs
