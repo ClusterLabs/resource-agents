@@ -1,0 +1,76 @@
+# Make the VFS call down into the FS on flock calls.
+diff -urN -p linux-2.6.9-rc1-mm1/fs/locks.c linux/fs/locks.c
+--- linux-2.6.9-rc1-mm1/fs/locks.c	2004-08-27 10:54:32.939282703 -0500
++++ linux/fs/locks.c	2004-08-27 10:54:34.540910950 -0500
+@@ -1318,6 +1318,33 @@ out_unlock:
+ }
+ 
+ /**
++ * flock_lock_file_wait - Apply a FLOCK-style lock to a file
++ * @filp: The file to apply the lock to
++ * @fl: The lock to be applied
++ *
++ * Add a FLOCK style lock to a file.
++ */
++int flock_lock_file_wait(struct file *filp, struct file_lock *fl)
++{
++	int error;
++	might_sleep();
++	for (;;) {
++		error = flock_lock_file(filp, fl);
++		if ((error != -EAGAIN) || !(fl->fl_flags & FL_SLEEP))
++			break;
++		error = wait_event_interruptible(fl->fl_wait, !fl->fl_next);
++		if (!error)
++			continue;
++
++		locks_delete_block(fl);
++		break;
++	}
++	return error;
++}
++
++EXPORT_SYMBOL(flock_lock_file_wait);
++
++/**
+  *	sys_flock: - flock() system call.
+  *	@fd: the file descriptor to lock.
+  *	@cmd: the type of lock to apply.
+@@ -1365,6 +1392,13 @@ asmlinkage long sys_flock(unsigned int f
+ 	if (error)
+ 		goto out_free;
+ 
++	if (filp->f_op && filp->f_op->lock) {
++		error = filp->f_op->lock(filp,
++					(can_sleep) ? F_SETLKW : F_SETLK,
++					lock);
++		goto out_free;
++	}
++
+ 	for (;;) {
+ 		error = flock_lock_file(filp, lock);
+ 		if ((error != -EAGAIN) || !can_sleep)
+@@ -1732,6 +1766,12 @@ void locks_remove_flock(struct file *fil
+ 	if (!inode->i_flock)
+ 		return;
+ 
++	if (filp->f_op && filp->f_op->lock) {
++		struct file_lock fl = { .fl_flags = FL_FLOCK,
++					.fl_type = F_UNLCK };
++		filp->f_op->lock(filp, F_SETLKW, &fl);
++	}	
++
+ 	lock_kernel();
+ 	before = &inode->i_flock;
+ 
+diff -urN -p linux-2.6.9-rc1-mm1/include/linux/fs.h linux/include/linux/fs.h
+--- linux-2.6.9-rc1-mm1/include/linux/fs.h	2004-08-27 10:54:32.941282239 -0500
++++ linux/include/linux/fs.h	2004-08-27 10:54:34.541910717 -0500
+@@ -697,6 +697,7 @@ extern int posix_lock_file_wait(struct f
+ extern void posix_block_lock(struct file_lock *, struct file_lock *);
+ extern void posix_unblock_lock(struct file *, struct file_lock *);
+ extern int posix_locks_deadlock(struct file_lock *, struct file_lock *);
++extern int flock_lock_file_wait(struct file *filp, struct file_lock *fl);
+ extern int __break_lease(struct inode *inode, unsigned int flags);
+ extern void lease_get_mtime(struct inode *, struct timespec *time);
+ extern int lock_may_read(struct inode *, loff_t start, unsigned long count);

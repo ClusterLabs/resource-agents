@@ -1,0 +1,103 @@
+# Add GFS to the build system.
+diff -urN -p linux-2.6.9-rc1-mm1/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9-rc1-mm1/fs/Kconfig	2004-08-27 10:54:41.948191646 -0500
++++ linux/fs/Kconfig	2004-08-27 10:54:41.960188861 -0500
+@@ -285,13 +285,13 @@ config JFS_STATISTICS
+ 	  to be made available to the user in the /proc/fs/jfs/ directory.
+ 
+ config FS_POSIX_ACL
+-# Posix ACL utility routines (for now, only ext2/ext3/jfs/reiserfs)
++# Posix ACL utility routines (for now, only ext2/ext3/jfs/reiserfs/gfs)
+ #
+ # NOTE: you can implement Posix ACLs without these helpers (XFS does).
+ # 	Never use this symbol for ifdefs.
+ #
+ 	bool
+-	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4
++	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || GFS_FS || NFSD_V4
+ 	default y
+ 
+ config XFS_FS
+@@ -1784,6 +1784,20 @@ config LOCK_HARNESS
+ 
+ 	  If you want to use GFS (a cluster filesystem) say Y here.
+ 
++config GFS_FS
++	tristate "GFS file system support"
++	depends on LOCK_HARNESS
++	help
++	  A cluster filesystem.
++
++	  Allows a cluster of computers to simultaneously use a block device
++	  that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
++	  and writes to the block device like a local filesystem, but also uses
++	  a lock module to allow the computers coordinate their I/O so
++	  filesystem consistency is maintained.  One of the nifty features of
++	  GFS is perfect consistency -- changes made to the filesystem on one
++	  machine show up immediately on all other machines in the cluster.
++
+ endmenu
+ 
+ menu "Partition Types"
+diff -urN -p linux-2.6.9-rc1-mm1/fs/Makefile linux/fs/Makefile
+--- linux-2.6.9-rc1-mm1/fs/Makefile	2004-08-27 10:54:41.949191413 -0500
++++ linux/fs/Makefile	2004-08-27 10:54:41.960188861 -0500
+@@ -96,3 +96,4 @@ obj-$(CONFIG_HOSTFS)		+= hostfs/
+ obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_KEYFS)		+= keyfs/
+ obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
++obj-$(CONFIG_GFS_FS)		+= gfs/
+diff -urN -p linux-2.6.9-rc1-mm1/fs/gfs/Makefile linux/fs/gfs/Makefile
+--- linux-2.6.9-rc1-mm1/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/Makefile	2004-08-27 10:54:41.960188861 -0500
+@@ -0,0 +1,50 @@
++###############################################################################
++###############################################################################
++##
++##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++##
++##  This copyrighted material is made available to anyone wishing to use,
++##  modify, copy, or redistribute it subject to the terms and conditions
++##  of the GNU General Public License v.2.
++##
++###############################################################################
++###############################################################################
++
++obj-$(CONFIG_GFS_FS) += gfs.o
++
++gfs-y	:=	acl.o \
++		bits.o \
++		bmap.o \
++		daemon.o \
++		dio.o \
++		dir.o \
++		eattr.o \
++		file.o \
++		glock.o \
++		glops.o \
++		inode.o \
++		ioctl.o \
++		locking.o \
++		log.o \
++		lops.o \
++		lvb.o \
++		main.o \
++		mount.o \
++		ondisk.o \
++		ops_address.o \
++		ops_dentry.o \
++		ops_export.o \
++		ops_file.o \
++		ops_fstype.o \
++		ops_inode.o \
++		ops_super.o \
++		ops_vm.o \
++		page.o \
++		quota.o \
++		recovery.o \
++		rgrp.o \
++		super.o \
++		trans.o \
++		unlinked.o \
++		util.o
++

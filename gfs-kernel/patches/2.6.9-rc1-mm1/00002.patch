@@ -1,0 +1,65 @@
+# Add lock harness to the build system.
+diff -urN -p linux-2.6.9-rc1-mm1/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9-rc1-mm1/fs/Kconfig	2004-08-27 10:54:32.930284792 -0500
++++ linux/fs/Kconfig	2004-08-27 10:54:38.210059303 -0500
+@@ -1776,6 +1776,14 @@ config AFS_FS
+ config RXRPC
+ 	tristate
+ 
++config LOCK_HARNESS
++	tristate "GFS Lock Harness"
++	help
++	  The module that connects GFS to the modules that provide
++	  locking for GFS.
++
++	  If you want to use GFS (a cluster filesystem) say Y here.
++
+ endmenu
+ 
+ menu "Partition Types"
+diff -urN -p linux-2.6.9-rc1-mm1/fs/Makefile linux/fs/Makefile
+--- linux-2.6.9-rc1-mm1/fs/Makefile	2004-08-27 10:54:32.931284560 -0500
++++ linux/fs/Makefile	2004-08-27 10:54:38.210059303 -0500
+@@ -95,3 +95,4 @@ obj-$(CONFIG_BEFS_FS)		+= befs/
+ obj-$(CONFIG_HOSTFS)		+= hostfs/
+ obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_KEYFS)		+= keyfs/
++obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
+diff -urN -p linux-2.6.9-rc1-mm1/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.9-rc1-mm1/fs/gfs_locking/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/Makefile	2004-08-27 10:54:38.210059303 -0500
+@@ -0,0 +1,14 @@
++###############################################################################
++###############################################################################
++##
++##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++##
++##  This copyrighted material is made available to anyone wishing to use,
++##  modify, copy, or redistribute it subject to the terms and conditions
++##  of the GNU General Public License v.2.
++##
++###############################################################################
++###############################################################################
++
++obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
++
+diff -urN -p linux-2.6.9-rc1-mm1/fs/gfs_locking/lock_harness/Makefile linux/fs/gfs_locking/lock_harness/Makefile
+--- linux-2.6.9-rc1-mm1/fs/gfs_locking/lock_harness/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_harness/Makefile	2004-08-27 10:54:38.211059071 -0500
+@@ -0,0 +1,16 @@
++###############################################################################
++###############################################################################
++##
++##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++##
++##  This copyrighted material is made available to anyone wishing to use,
++##  modify, copy, or redistribute it subject to the terms and conditions
++##  of the GNU General Public License v.2.
++##
++###############################################################################
++###############################################################################
++
++obj-$(CONFIG_LOCK_HARNESS) += lock_harness.o
++
++lock_harness-y	:= main.o
++
