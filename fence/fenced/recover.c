@@ -13,6 +13,32 @@
 
 #include "fd.h"
 
+/* Fencing recovery algorithm
+
+   do_recovery (service event start)
+   - complete = list of nodes in previous completed fence domain
+   - cl_nodes = list of current domain members provided by start
+   - victims = list of nodes in complete that are not in cl_nodes
+   - prev = saved version of cl_nodes (in list format)
+   - fence_victims() fences nodes in victims list
+
+   do_recovery_done (service event finish)
+   - complete = prev
+
+   Notes:
+   - When fenced is started, the complete list is initialized to all
+   the nodes in cluster.conf.
+   - fence_victims actually only runs on one of the nodes in the domain
+   so that a victim isn't fenced by everyone.
+   - The node to run fence_victims is the node with lowest id that's in both
+   complete and prev lists.
+   - This node will never be a node that's just joining since by definition
+   the joining node wasn't in the last complete group.
+   - An exception to this is when there is just one node in the group
+   in which case it's chosen even if it wasn't in the last complete group.
+   - There's also a leaving list that parallels the victims list but are
+   not fenced.
+*/
 
 static fd_node_t *new_fd_node(fd_t *fd, uint32_t nodeid, int namelen, char *name)
 {
@@ -90,7 +116,7 @@ static uint32_t next_complete_nodeid(fd_t *fd, uint32_t gt)
 	return low;
 }
 
-static uint32_t find_master_nodeid(fd_t *fd)
+static uint32_t find_master_nodeid(fd_t *fd, char **master_name)
 {
 	fd_node_t *node;
 	uint32_t low = 0;
@@ -107,6 +133,7 @@ static uint32_t find_master_nodeid(fd_t *fd)
 		list_for_each_entry(node, &fd->prev, list) {
 			if (low != node->nodeid)
 				continue;
+			*master_name = node->name;
 			goto out;
 		}
 	}
@@ -116,6 +143,13 @@ static uint32_t find_master_nodeid(fd_t *fd)
 	if (fd->prev_count == 1)
 		low = fd->our_nodeid;
 
+	/* We end up returning -1 when we're not the only node and we've just
+	   joined.  Because we've just joined we weren't in the last complete
+	   domain group and won't be chosen as master.  We defer to someone who
+	   _was_ in the last complete group.  All we know is it isn't us. */
+
+	*master_name = "prior member";
+	   
       out:
 	return low;
 }
@@ -378,14 +412,15 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 {
 	fd_node_t *node;
+	char *master_name;
 	uint32_t master;
 	int error;
 
-	master = find_master_nodeid(fd);
+	master = find_master_nodeid(fd, &master_name);
 
 	if (master != fd->our_nodeid) {
-		log_debug("defer fencing to %u", master);
-		syslog(LOG_INFO, "fencing deferred to %u", master);
+		log_debug("defer fencing to %u %s", master, master_name);
+		syslog(LOG_INFO, "fencing deferred to %s", master_name);
 		return;
 	}
 
