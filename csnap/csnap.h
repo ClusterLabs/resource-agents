@@ -27,11 +27,10 @@ static inline int readpipe(int fd, void *buffer, size_t count)
 
 #define writepipe write
 
-#define outbead(SOCK, CODE, STRUCT, VALUES...) do { \
-	struct { struct head head; STRUCT body; } PACKED message  = \
-		{ { CODE, sizeof(STRUCT) }, {  VALUES  } }; \
-	write(SOCK, &message, sizeof(message)); \
-} while (0)
+#define outbead(SOCK, CODE, STRUCT, VALUES...) ({ \
+	struct { struct head head; STRUCT body; } PACKED message = \
+		{ { CODE, sizeof(STRUCT) }, { VALUES } }; \
+	writepipe(SOCK, &message, sizeof(message)); })
 
 /* should be in csnap.c... */
 

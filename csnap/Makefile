@@ -38,11 +38,11 @@ delay:
 	sleep 1
 
 test1:
-	sudo /sbin/dmsetup remove testdev || true
-	sudo /sbin/dmsetup create testdev test.dm
 	killall csnap-server || true
 	./mksnapstore /dev/test-origin /dev/test-snapstore 8080
 	./csnap-server /dev/test-origin /dev/test-snapstore 8080 &
+	sudo /sbin/dmsetup remove testdev || true
+#	sudo /sbin/dmsetup create testdev test.dm
 
 test2:
 	sudo ./csnap-create localhost:8080 0
@@ -50,7 +50,7 @@ test2:
 
 test3:
 #	sudo ./devpoke /dev/mapper/testdev write 2
-	sudo ./devpoke /dev/mapper/testdev read 200
+	sudo ./devpoke /dev/mapper/testdev read 2
 
 test9:
 	sudo /sbin/dmsetup remove testdev

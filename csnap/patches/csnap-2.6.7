@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-28 19:45:42.000000000 +0000
-@@ -0,0 +1,1050 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-29 04:35:13.000000000 +0000
+@@ -0,0 +1,1054 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -526,6 +526,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		case REPLY_IDENTIFY:
 +			trace(warn("identify succeeded");)
 +			up(&info->omutex);
++			outbead(info->control_socket, REPLY_CONNECT_SERVER, struct { });
 +			continue;
 +
 +		default: 
@@ -680,7 +681,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +			goto socket_error;
 +	
 +		switch (message.head.code) {
-+		case SERVER_CONNECT: {
++		case CONNECT_SERVER: {
 +			unsigned len = 4;
 +			char bogus[len];
 +			int sock_fd = get_unused_fd(), fd;
@@ -714,9 +715,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return 0;
 +message_too_long:
 +	warn("message %x too long (%u bytes)", message.head.code, message.head.length);
-+	goto out;
-+message_too_short:
-+	warn("message %x too short (%u bytes)", message.head.code, message.head.length);
 +	goto out;
 +socket_error:
 +	warn("socket error %i", err);
@@ -835,6 +833,12 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +	if (info->sock) {
 +		struct inode *inode = info->sock->f_dentry->d_inode;
++		struct socket *sock = SOCKET_I(inode);
++		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
++		warn("socket shutdown, err=%i", err);
++	}
++	if (info->control_socket) {
++		struct inode *inode = info->control_socket->f_dentry->d_inode;
 +		struct socket *sock = SOCKET_I(inode);
 +		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
 +		warn("socket shutdown, err=%i", err);
@@ -986,7 +990,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	}
 +	if (info->control_socket)
 +		fput(info->control_socket);
-+	warn("socket = %p", sock);
++	warn("socket fd %i = %p", msg[0], sock);
 +	info->control_socket = sock;
 +	up(&info->init3_sem);
 +	return 0;
@@ -1084,8 +1088,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers/md/dm-csnap.h
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.h	2004-08-31 17:46:46.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-24 00:55:49.000000000 +0000
-@@ -0,0 +1,80 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-29 04:25:19.000000000 +0000
+@@ -0,0 +1,81 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1114,7 +1118,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers
 +	DUMP_TREE,
 +	SHUTDOWN_SERVER,
 +	INITIALIZE_SNAPSTORE,
-+	SERVER_CONNECT,
++	CONNECT_SERVER,
++	REPLY_CONNECT_SERVER,
 +};
 +
 +struct identify { uint32_t id; int32_t snap; } PACKED;

@@ -27,9 +27,9 @@ int main(int argc, char *argv[])
 
 	int snap = atoi(argv[2]);
 	char *host = argv[1];
-	int len = strlen(host), port = strscan_port(host, &len);
+	int len = strlen(host), port = parse_port(host, &len);
 
-	if (!len)
+	if (port < 0)
 		error("expected host:port, not %s", host);
 	host[len] = 0;
 
