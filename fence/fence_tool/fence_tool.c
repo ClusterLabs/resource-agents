@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <fcntl.h>
@@ -36,13 +37,14 @@
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("VhScj:f:D")
+#define OPTION_STRING			("VhScj:f:Dw")
 #define LOCKFILE_NAME                   "/var/run/fenced.pid"
 #define FENCED_SOCK_PATH                "fenced_socket"
 
 #define OP_JOIN  			1
 #define OP_LEAVE 			2
 #define OP_MONITOR			3
+#define OP_WAIT				4
 
 
 #define die(fmt, args...) \
@@ -58,6 +60,7 @@ char *prog_name;
 int debug;
 int operation;
 int skip_unfence;
+int child_wait;
 int cl_sock;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
@@ -212,6 +215,45 @@ static int wait_quorum(void)
 	return 0;
 }
 
+/*
+ * This is a really lousy way of waiting, which is why I took so long to add
+ * it.  I guess it's better than nothing for a lot of people.  The state may
+ * not be "run" if we've joined but other nodes are joining/leaving.
+ */
+
+static int do_wait(void)
+{
+	FILE *file;
+	char line[256];
+	int error, i = 0;
+
+	file = fopen("/proc/cluster/services", "r");
+	if (!file)
+		return -1;
+
+	while (1) {
+		memset(line, 0, 256);
+		while (fgets(line, 256, file)) {
+			if (strstr(line, "Fence Domain")) {
+				if (strstr(line, "run")) {
+					error = 0;
+					goto out;
+				}
+			}
+		}
+
+		if (++i > 9 && !(i % 10))
+			printf("%s: waiting for fence domain run state\n",
+			       prog_name);
+		sleep(1);
+		rewind(file);
+	}
+                        
+ out:
+	fclose(file);
+	return 0;
+}
+
 static void do_join(int argc, char *argv[])
 {
 	int cd;
@@ -234,6 +276,19 @@ static void do_join(int argc, char *argv[])
 
 	if (debug)
 		printf("%s: start fenced\n", prog_name);
+
+	if (!debug && child_wait) {
+		int status;
+		pid_t pid = fork();
+		/* parent waits for fenced to join */
+		if (pid > 0) {
+			waitpid(pid, &status, 0);
+			if (WIFEXITED(status) && !WEXITSTATUS(status))
+				do_wait();
+			exit(EXIT_SUCCESS);
+		}
+		/* child execs fenced */
+	}
 
 	strcpy(argv[0], "fenced");
 	argv[argc - 1] = NULL;
@@ -301,10 +356,15 @@ static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave> [options]\n", prog_name);
+	printf("%s <join|leave|wait> [options]\n", prog_name);
+	printf("\n");
+	printf("Actions:\n");
+	printf("  join             Join the default fence domain\n");
+	printf("  leave            Leave default fence domain\n");
+	printf("  wait             Wait for node to be member of default fence domain\n");
 	printf("\n");
 	printf("Options:\n");
-	printf("\n");
+	printf("  -w               Wait for join to complete\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -S               Skip self unfencing on join\n");
@@ -348,6 +408,10 @@ static void decode_arguments(int argc, char *argv[])
 			debug = TRUE;
 			break;
 
+		case 'w':
+			child_wait = TRUE;
+			break;
+
 		case ':':
 		case '?':
 			fprintf(stderr, "Please use '-h' for usage.\n");
@@ -377,6 +441,8 @@ static void decode_arguments(int argc, char *argv[])
 			operation = OP_LEAVE;
 		} else if (strcmp(argv[optind], "monitor") == 0) {
 			operation = OP_MONITOR;
+		} else if (strcmp(argv[optind], "wait") == 0) {
+			operation = OP_WAIT;
 		} else
 			die("unknown option %s\n", argv[optind]);
 		optind++;
@@ -401,6 +467,9 @@ int main(int argc, char *argv[])
 		break;
 	case OP_MONITOR:
 		do_monitor();
+		break;
+	case OP_WAIT:
+		do_wait();
 		break;
 	}
 
