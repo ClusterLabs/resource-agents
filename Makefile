@@ -10,22 +10,26 @@
 ###############################################################################
 # Order is important
 LATEST_TAG=scripts/latest_tag.pl
+BUILDDIR = $(shell pwd)/build
+MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir moduledir=${BUILDDIR}/module
+
 
 all:
-	cd cman-kernel && ${MAKE} all
-	cd dlm-kernel && ${MAKE} all
-	cd gfs-kernel && ${MAKE} all
-	cd gnbd-kernel && ${MAKE} all
-	cd magma && ${MAKE} all
-	cd ccs && ${MAKE} all
-	cd cman && ${MAKE} all
-	cd dlm && ${MAKE} all
-	cd fence && ${MAKE} all
-	cd iddev && ${MAKE} all
-	cd gfs && ${MAKE} all
-	cd gnbd && ${MAKE} all
-	cd gulm && ${MAKE} all
-	cd magma-plugins && ${MAKE} all
+	echo ${MAKELINE}
+	cd cman-kernel && ${MAKE} install ${MAKELINE} 
+	cd dlm-kernel && ${MAKE} install ${MAKELINE}
+	cd gfs-kernel && ${MAKE} install ${MAKELINE}
+	cd gnbd-kernel && ${MAKE} install ${MAKELINE}
+	cd magma && ${MAKE} install ${MAKELINE}
+	cd ccs && ${MAKE} install ${MAKELINE}
+	cd cman && ${MAKE} install ${MAKELINE}
+	cd dlm && ${MAKE} install ${MAKELINE}
+	cd fence && ${MAKE} install ${MAKELINE}
+	cd iddev && ${MAKE} install ${MAKELINE}
+	cd gfs && ${MAKE} install ${MAKELINE}
+	cd gnbd && ${MAKE} install ${MAKELINE}
+	cd gulm && ${MAKE} install ${MAKELINE}
+	cd magma-plugins && ${MAKE} install ${MAKELINE}
 
 copytobin:
 	cd cman-kernel && ${MAKE} copytobin
@@ -45,6 +49,7 @@ copytobin:
 
 clean:
 	rm -f *tar.gz
+	rm -rf build
 	cd cman-kernel && ${MAKE} clean
 	cd dlm-kernel && ${MAKE} clean
 	cd gfs-kernel && ${MAKE} clean
