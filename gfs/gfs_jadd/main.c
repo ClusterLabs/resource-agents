@@ -118,13 +118,6 @@ static uint64 device_geometry(char *device)
     close(fd);
   }
 
-  if (bytes > (((uint64)2) << 40))
-  {
-    if (verbose)
-      printf("gfs_jadd: warning: only using the first 2TB of this device\n");
-    bytes = (((uint64)2) << 40);
-  }
-
   return bytes >> fs_sb.sb_bsize_shift;
 }
 
