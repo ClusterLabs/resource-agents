@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.180 $) dnl cvs revision
+AC_REVISION($Revision: 1.181 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -39,7 +39,7 @@ AC_SUBST(ECHO_E)
 AC_SUBST(ECHO_CMD)
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
-AM_CONFIG_HEADER(linux-ha/config.h linux-ha/ha_config.h)
+AM_CONFIG_HEADER(linux-ha/config.h include/ha_config.h)
 ALL_LINGUAS="en fr"
 AM_INIT_AUTOMAKE(heartbeat, 0.4.9g)
 RPMREL=1
