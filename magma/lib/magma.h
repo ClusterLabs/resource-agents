@@ -48,7 +48,7 @@ typedef struct _cluster_member_list {
 	 sizeof(cluster_member_t) * c)
 
 #ifdef MDEBUG
-#define cml_alloc(size) _dmalloc(cml_size(size), ___FILE___, __LINE__)
+#define cml_alloc(size) _dmalloc(cml_size(size), __FILE__, __LINE__)
 #else
 #define cml_alloc(size) malloc(cml_size(size))
 #endif
@@ -159,6 +159,8 @@ int cp_fence(cluster_plugin_t *, cluster_member_t *);
 
 int cp_lock(cluster_plugin_t *, char *, int, void **);
 int cp_unlock(cluster_plugin_t *, char *, void*);
+int cp_local_nodename(cluster_plugin_t *, char *, char *, size_t);
+int cp_local_nodeid(cluster_plugin_t *, char *, uint64_t *);
 
 
 /*
@@ -210,10 +212,10 @@ int clu_local_nodeid(char *, uint64_t *);
 /*
  * memberlist.c: Membership deltas.
  */
-cluster_member_list_t *clu_members_gained(cluster_member_list_t *old,
-				  	  cluster_member_list_t *new);
-cluster_member_list_t *clu_members_lost(cluster_member_list_t *old,
-				   	cluster_member_list_t *new);
+cluster_member_list_t *memb_gained(cluster_member_list_t *old,
+		 		   cluster_member_list_t *new);
+cluster_member_list_t *memb_lost(cluster_member_list_t *old,
+	 			 cluster_member_list_t *new);
 
 /*
  * memberlist.c: Utilities for finding nodes
@@ -392,14 +394,23 @@ to the cluster infrastructure.
 \par
 \ref clu_local_nodeid
 
+\subsection localre Local Node Identification Information - Reentrant
+These functions allow applications to find out a node's identity according
+to the cluster infrastructure.
+\par
+\ref cp_local_nodename
+\par
+\ref cp_local_nodeid
+
+
 \subsection membership Membership List Manipulation and Querying
 These allow applications to find out information within membership lists,
 alter lists, create new ones, find differences between two lists, and resolve
 hostnames or addresses in a given list.
 \par
-\ref clu_members_gained
+\ref memb_gained
 \par
-\ref clu_members_lost
+\ref memb_lost
 \par
 \ref memb_online
 \par

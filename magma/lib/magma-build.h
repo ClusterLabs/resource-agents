@@ -27,7 +27,7 @@
 #error "Never include this file from user programs."
 #endif
 
-#define CLUSTER_PLUGIN_API_VERSION (double)0.00009
+#define CLUSTER_PLUGIN_API_VERSION (double)0.00010
 
 #define IMPORT_PLUGIN_API_VERSION() \
 double cluster_plugin_version(void) \
@@ -175,6 +175,16 @@ typedef struct _cluster_plugin {
 	 * Private data.
 	 */
 	struct {
+		/**
+		 * Node ID (cache)
+		 */
+		uint64_t p_localid;
+
+		/**
+		 * Node name (cache)
+		 */
+		char p_localname[64];
+
 		/**
 		 * Handle we obtained from dlopen()
 		 */

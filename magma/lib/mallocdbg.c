@@ -69,9 +69,11 @@ void _dfree(void *p, char *file, int line)
 
 	pthread_mutex_unlock(&mallocm);
 
-	fprintf(stderr, "!!! free(%p) @ %s:%d - Not allocated\n",p,
-		file, line);
-	fflush(stderr);
+	if (file || line) {
+		fprintf(stderr, "!!! free(%p) @ %s:%d - Not allocated\n",p,
+			file, line);
+		fflush(stderr);
+	}
 	free(p);
 }
 

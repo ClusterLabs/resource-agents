@@ -47,7 +47,7 @@
   			allocated cluster_member_list_t structure.
  */
 cluster_member_list_t *
-clu_members_gained(cluster_member_list_t *old, cluster_member_list_t *new)
+memb_gained(cluster_member_list_t *old, cluster_member_list_t *new)
 {
 	int count, x, y;
 	char in_old = 0;
@@ -124,13 +124,13 @@ clu_members_gained(cluster_member_list_t *old, cluster_member_list_t *new)
   			allocated cluster_member_list_t structure.
  */
 cluster_member_list_t *
-clu_members_lost(cluster_member_list_t *old, cluster_member_list_t *new)
+memb_lost(cluster_member_list_t *old, cluster_member_list_t *new)
 {
 	cluster_member_list_t *ret;
 	int x;
 
 	/* Reverse. ;) */
-	ret = clu_members_gained(new, old);
+	ret = memb_gained(new, old);
 	if (!ret)
 		return NULL;
 

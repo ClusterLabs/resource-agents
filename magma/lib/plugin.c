@@ -260,13 +260,12 @@ cp_load(const char *libpath)
 
 	handle = dlopen(libpath, RTLD_LAZY);
 	if (!handle) {
-		printf("Failed to open %s\n", libpath);
 		return NULL;
 	}
 
 	modversion = dlsym(handle, CLU_PLUGIN_VERSION_SYM);
 	if (!modversion) {
-		printf("Failed to map %s\n", CLU_PLUGIN_VERSION_SYM);
+		fprintf(stderr,"Failed to map %s\n", CLU_PLUGIN_VERSION_SYM);
 		dlclose(handle);
 		return NULL;
 	}
@@ -298,6 +297,9 @@ cp_load(const char *libpath)
 	
 	/* Store the handle */
 	cpp->cp_private.p_dlhandle = handle;
+
+	/* Set local node ID to none */
+	cpp->cp_private.p_localid = NODE_ID_NONE;
 
 	/* Grab the init and deinit functions */
 	cpp->cp_private.p_load_func = dlsym(handle, CLU_PLUGIN_LOAD_SYM);
@@ -392,31 +394,6 @@ cp_unload(cluster_plugin_t *cpp)
 
 
 /**
- * Use a specific cluster plugin as the default for global "clu"
- * function calls.  This assigns the global function pointers to the
- * functions contained within the cluster_plugin_t passed in.
- *
- * @param driver	Cluster plugin structure to make default.
- * @see clu_connect, clu_disconnect
- */
-void
-cp_set_default(cluster_plugin_t *driver)
-{
-	clu_set_default(driver);
-}
-
-
-/**
- * Clear out the default functions
- */
-void
-cp_reset(void)
-{
-	clu_clear_default();
-}
-
-
-/**
   Reentrant version of 
   @ref clu_null
   using specified plugin.
@@ -477,9 +454,11 @@ cp_get_event(cluster_plugin_t *cpp, int fd)
 
 
 /**
-  Reentrant version of 
-  @ref clu_lock
-  using specified plugin.
+  Obtain a cluster lock using the specified plugin.  The caller must
+  take care to ensure mutual exclusion; not all lock managers will
+  provide this based solely on the lock information.
+
+  @see clu_lock
  */
 int
 cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
@@ -489,9 +468,11 @@ cp_lock(cluster_plugin_t *cpp, char *resource, int flags, void **lockpp)
 
 
 /**
-  Reentrant version of 
-  @ref clu_unlock
-  using specified plugin.
+  Release a cluster lock using the specified plugin.  The caller must
+  take care to ensure mutual exclusion if the underlying lock manager
+  requires it.
+
+  @see clu_unlock
  */
 int
 cp_unlock(cluster_plugin_t *cpp, char *resource, void *lockp)

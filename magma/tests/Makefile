@@ -15,8 +15,9 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDE+= -I${top_srcdir}/lib
 LIBS     = -L${top_srcdir}/lib -lmagma -lmagmamsg -ldl -lpthread
-TARGETS  = cpt cptester circleping cluster_cmd
-CFLAGS  += -DDEBUG
+LIBSNT   = -L${top_srcdir}/lib -lmagma_nt -ldl
+TARGETS  = cpt cptester circleping cluster_cmd thread_test
+CFLAGS  += -DDEBUG -D_GNU_SOURCE
 
 all: $(TARGETS)
 
@@ -37,7 +38,11 @@ cpt: cpt.o
 	$(CC) -o $@ $^ $(LIBS) -ggdb
 
 cptester: cptester.o
-	$(CC) -o $@ $^ $(LIBS)
+	$(CC) -o $@ $^ $(LIBSNT)
+
+thread_test: thread_test.o
+	$(CC) -o $@ $^ $(LIBS) -ggdb
+
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS) -ggdb

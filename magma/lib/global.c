@@ -24,12 +24,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdint.h>
 #include <dirent.h>
 #include <magma.h>
 #include <pthread.h>
 #include <assert.h>
 #include <errno.h>
 #include <magmamsg.h>
+#include <unistd.h>
 #include "clist.h"
 
 static cluster_plugin_t *_cpp = NULL;	/** Default cluster plugin pointer */
@@ -338,7 +340,13 @@ clu_fence(cluster_member_t *node)
 
 
 /**
-  Obtain a cluster lock using the default plugin.
+  Obtain a cluster lock using the default plugin.  This uses a silly trick
+  for preventing starvation and ensuring other threads get a real chance to
+  get the lock.  Basically, if we can't get the lock immediately and we were
+  called as a blocking lock call (that is, without the CLK_NOWAIT flag), we
+  sleep for a random few milliseconds.  This keeps us from spinning waiting
+  for the lock, but can hurt performance when lock contention is fairly low
+  (i.e., the holder releases immediately after we go to sleep).
 
   @param resource	Symbolic resource name to lock.
   @param flags		Locking flags / mode
@@ -350,17 +358,38 @@ clu_fence(cluster_member_t *node)
 int
 clu_lock(char *resource, int flags, void **lockpp)
 {
-	int ret;
-	pthread_rwlock_rdlock(&dflt_lock);
+	int ret, block = 0, err;
+
+	block = !(flags & CLK_NOWAIT);
 	assert(_cpp);
-	ret = cp_lock(_cpp, resource, flags, lockpp);
-	pthread_rwlock_unlock(&dflt_lock);
+
+	while (1) {
+		pthread_rwlock_wrlock(&dflt_lock);
+		ret = cp_lock(_cpp, resource, flags | CLK_NOWAIT, lockpp);
+		err = errno;
+		pthread_rwlock_unlock(&dflt_lock);
+
+		if ((ret != 0) && (err == EAGAIN) && block) {
+			usleep(random()&32767);
+			continue;
+		}
+
+		break;
+	}
+			
 	return ret;
 }
 
 
 /**
-  Release a cluster lock using the default plugin.
+  Release a cluster lock using the default plugin.  This uses a silly trick
+  for preventing starvation and ensuring other threads get a real chance to
+  get the lock.  We sleep for a random few milliseconds to allow other
+  threads which might be sleeping in clu_lock a chance to get the lock.
+  Most of the time, they will get the lock before us.  This is not very
+  good for performance, but prevents starvation and provides a thread
+  safe interface without the need for an inter-thread queue as part of
+  the magma library.
 
   @param resource	Symbolic resource name to unlock.
   @param lockp		Opaque data structure which was allocated and
@@ -370,10 +399,12 @@ clu_lock(char *resource, int flags, void **lockpp)
 int
 clu_unlock(char *resource, void *lockp)
 {
-	int ret;
-	pthread_rwlock_rdlock(&dflt_lock);
+	int ret, err;
+	pthread_rwlock_wrlock(&dflt_lock);
 	ret = cp_unlock(_cpp, resource, lockp);
+	err = errno;
 	pthread_rwlock_unlock(&dflt_lock);
+	usleep(random()&32767);
 	return ret;
 }
 
@@ -419,5 +450,53 @@ clu_clear_default(void)
 	pthread_rwlock_wrlock(&dflt_lock);
 	_clu_clear_default();
 	pthread_rwlock_unlock(&dflt_lock);
+}
+
+
+/**
+  Returns the local node name using the default plugin as the data source.
+  This function caches this information in the default plugin structure
+  for future use.
+
+  @param groupname	Group name.  If the local node is not a member
+  			of this group, the call will fail.
+  @param name		Preallocated char array into which the local member's
+  			node name is copied.
+  @param namelen	Size, in bytes, of name parameter.
+  @return		0 on success, or -1 if the node is not a member of
+  			the specified group.
+  @see clu_local_nodeid cp_local_nodename
+ */
+int
+clu_local_nodename(char *groupname, char *name, size_t namelen)
+{
+	int ret;
+	pthread_rwlock_wrlock(&dflt_lock);
+	ret = cp_local_nodename(_cpp, groupname, name, namelen);
+	pthread_rwlock_unlock(&dflt_lock);
+	return ret;
+}
+
+
+/**
+  Returns the local node ID using the default plugin as the data source.
+  This function caches this information in the default plugin structure
+  for future use.
+
+  @param groupname	Group name.  If the local node is not a member
+  			of this group, the call will fail.
+  @param nodeid		Pointer to node ID (uint64_t).  Node ID
+  			is copied in here.
+  @return		0 on success, or -1 if the node is not a member of
+  			the specified group.
+ */
+int
+clu_local_nodeid(char *groupname, uint64_t *nodeid)
+{
+	int ret;
+	pthread_rwlock_wrlock(&dflt_lock);
+	ret = cp_local_nodeid(_cpp, groupname, nodeid);
+	pthread_rwlock_unlock(&dflt_lock);
+	return ret;
 }
 

@@ -31,8 +31,8 @@ handle_cluster_event(int fd)
 		printf("*E* Membership change\n");
 		
 		new = clu_member_list(MY_SERVICE_GROUP);
-		lost = clu_members_lost(membership, new);
-		gained = clu_members_gained(membership, new);
+		lost = memb_lost(membership, new);
+		gained = memb_gained(membership, new);
 
 		if (lost) {
 			printf("<<< Begin Nodes lost\n");

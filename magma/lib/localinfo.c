@@ -22,49 +22,48 @@
 #include <magma.h>
 #include <stdint.h>
 #include <ip_lookup.h>
-#include <pthread.h>
 #include <string.h>
 
-static pthread_mutex_t localid_mutex = PTHREAD_MUTEX_INITIALIZER;
-static uint64_t _local_nodeid = (uint64_t)0;
-static char *_local_nodename = NULL;
-
-
 static int
-_get_local_info(char *groupname)
+_get_local_info(cluster_plugin_t *cpp, char *groupname)
 {
-	int x;
-
+	int x, ret = -1;
 	cluster_member_list_t *members;
 
-	if (_local_nodeid != (uint64_t)0) {
+	if (cpp->cp_private.p_localid != NODE_ID_NONE) {
 		return 0;
 	}
 		
-	members = clu_member_list(groupname);
+	members = cp_member_list(cpp, groupname);
 
-	if (!members)
+	if (!members) 
 		return -1;
 
         for (x=0; x < members->cml_count; x++) {
 		if (ip_lookup(members->cml_members[x].cm_name, NULL) == 0) {
-			_local_nodeid = members->cml_members[x].cm_id;
-			_local_nodename =
-				strdup(members->cml_members[x].cm_name);
+			cpp->cp_private.p_localid =
+				members->cml_members[x].cm_id;
+			strncpy(cpp->cp_private.p_localname,
+				members->cml_members[x].cm_name,
+				sizeof(cpp->cp_private.p_localname)-1);
+			ret = 0;
 			break;
 		}
 	}
 
 	free(members);
 
-	return (_local_nodename ? 0 : -1);
+	return ret;
 }
 
 
 /**
-  Returns the local node name using the default plugin as the data source.
-  This function caches this information for future use.
+  Returns the local node name using the given plugin as the data source.
+  This function caches this information in the provided cpp plugin structure
+  for future use.
 
+  @param cpp		Cluster plugin structure.  Should already be opened,
+  			but does not need to be logged in to a group.
   @param groupname	Group name.  If the local node is not a member
   			of this group, the call will fail.
   @param name		Preallocated char array into which the local member's
@@ -74,29 +73,32 @@ _get_local_info(char *groupname)
   			the specified group.
  */
 int
-clu_local_nodename(char *groupname, char *name, size_t namelen)
+cp_local_nodename(cluster_plugin_t *cpp, char *groupname, char *name,
+		  size_t namelen)
 {
-	pthread_mutex_lock(&localid_mutex);
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	if (!_local_nodename) {
-		if (_get_local_info(groupname) < 0) {
-			pthread_mutex_unlock(&localid_mutex);
+	if (cpp->cp_private.p_localid == NODE_ID_NONE) {
+		if (_get_local_info(cpp, groupname) < 0) {
 			return -1;
 		}
 	}
 
-	strncpy(name, _local_nodename, namelen);
+	strncpy(name, cpp->cp_private.p_localname, namelen);
 
-	pthread_mutex_unlock(&localid_mutex);
-	
 	return 0;
 }
 
 
 /**
-  Returns the local node ID using the default plugin as the data source.
+  Returns the local node ID using the given plugin as the data source.
   This function caches this information for future use.
 
+  @param cpp		Cluster plugin structure.  Should already be opened,
+  			but does not need to be logged in to a group.
   @param groupname	Group name.  If the local node is not a member
   			of this group, the call will fail.
   @param nodeid		Pointer to node ID (uint64_t).  Node ID
@@ -105,19 +107,21 @@ clu_local_nodename(char *groupname, char *name, size_t namelen)
   			the specified group.
  */
 int
-clu_local_nodeid(char *groupname, uint64_t *nodeid)
+cp_local_nodeid(cluster_plugin_t *cpp, char *groupname,
+		uint64_t *nodeid)
 {
-	pthread_mutex_lock(&localid_mutex);
+	if (!cpp) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	if (!_local_nodeid) {
-		if (_get_local_info(groupname) < 0) {
-			pthread_mutex_unlock(&localid_mutex);
+	if (cpp->cp_private.p_localid == NODE_ID_NONE) {
+		if (_get_local_info(cpp, groupname) < 0) {
 			return -1;
 		}
 	}
 
-	*nodeid = _local_nodeid;
-	pthread_mutex_unlock(&localid_mutex);
+	*nodeid = cpp->cp_private.p_localid;
 
 	return 0;
 }

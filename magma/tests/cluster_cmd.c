@@ -359,7 +359,7 @@ static int send_command(char *cmd, int t){
   gettimeofday(&exec_time, NULL);
 
   memset(buffer, 0, sizeof(buffer));
-  sprintf(buffer, "COMMAND %u ", exec_time.tv_sec+t);
+  sprintf(buffer, "COMMAND %lu ", exec_time.tv_sec+t);
   strncpy(buffer+strlen(buffer), cmd, (sizeof(buffer)-strlen(buffer))-1);
 
   cluster_fd = clu_connect(NULL, 0);
