@@ -284,7 +284,6 @@ void lm_dlm_put_lock(lm_lock_t *lock)
 	*/
 	DLM_ASSERT(!lp->lvb,);
 
-	/* FIXME: get rid of these checks */
 	spin_lock(&lp->dlm->async_lock);
 	if (test_bit(LFL_CLIST, &lp->flags)) {
 		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
@@ -292,8 +291,10 @@ void lm_dlm_put_lock(lm_lock_t *lock)
 		list_del(&lp->clist);
 	}
 	if (test_bit(LFL_BLIST, &lp->flags)) {
+		/*
 		printk("lock_dlm: dlm_put_lock lp on blist num=%x,%"PRIx64"\n",
 		       lp->lockname.ln_type, lp->lockname.ln_number);
+		*/
 		list_del(&lp->blist);
 	}
 	if (test_bit(LFL_DLIST, &lp->flags)) {
