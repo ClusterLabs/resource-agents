@@ -244,6 +244,7 @@ service_group_members(int sockfd, char *groupname)
 		    		 cman_nl.nodes[x].node_id))
 			continue;
 
+		foo->cml_members[y].cm_addrs = NULL;
 		foo->cml_members[y].cm_id = cman_nl.nodes[x].node_id;
 
 		switch(cman_nl.nodes[x].state) {
