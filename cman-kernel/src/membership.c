@@ -3080,6 +3080,7 @@ static int add_us()
 	newnode->leave_reason = 0;
 	INIT_LIST_HEAD(&newnode->addr_list);
 	get_local_addresses(newnode);	/* Get from cnxman socket info */
+	do_gettimeofday(&newnode->join_time);
 
 	/* Add the new node to the list */
 	down(&cluster_members_lock);
