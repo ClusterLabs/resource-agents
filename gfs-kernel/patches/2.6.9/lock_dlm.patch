@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
 --- linux-orig/fs/gfs_locking/lock_dlm/group.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-11-22 12:16:10.066357585 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-12-02 12:20:29.158703998 -0600
 @@ -0,0 +1,827 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -831,7 +831,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-11-22 12:16:10.067357353 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-12-02 12:20:29.158703998 -0600
 @@ -0,0 +1,697 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1532,7 +1532,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
 --- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-11-22 12:16:10.067357353 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-12-02 12:20:29.158703998 -0600
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1911,7 +1911,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
 --- linux-orig/fs/gfs_locking/lock_dlm/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-11-22 12:16:10.067357353 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-12-02 12:20:29.159703766 -0600
 @@ -0,0 +1,330 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2245,7 +2245,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
 --- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-11-22 12:16:10.068357121 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-12-02 12:20:29.159703766 -0600
 @@ -0,0 +1,349 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2408,7 +2408,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +
 +	error = -1;
 + out:
-+	printk("lock_dlm: init_fence error %d\n", error);
++	printk("lock_dlm: fence domain not found; check fenced\n");
 +	return error;
 +}
 +
@@ -2598,7 +2598,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-11-22 12:16:10.068357121 -0600
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-12-02 12:20:29.159703766 -0600
 @@ -0,0 +1,1236 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3838,8 +3838,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
 --- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-11-22 12:16:10.069356889 -0600
-@@ -0,0 +1,418 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-12-02 12:20:29.160703534 -0600
+@@ -0,0 +1,425 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -3953,6 +3953,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locki
 +		goto out;
 +	}
 +
++	if (lp->lksb.sb_flags & DLM_SBF_VALNOTVALID)
++		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_LEN);
++
 +	/*
 +	 * A canceled lock request.  The lock was just taken off the delayed
 +	 * list and was never even submitted to dlm.
@@ -4036,6 +4039,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locki
 +		lp->req = DLM_LOCK_NL;
 +		lp->lkf |= DLM_LKF_CONVERT;
 +		lp->lkf &= ~DLM_LKF_CONVDEADLK;
++
++		log_debug("rereq %x,%"PRIx64" id %x %d,%d\n",
++			  lp->lockname.ln_type, lp->lockname.ln_number,
++			  lp->lksb.sb_lkid, lp->cur, lp->req);
 +
 +		set_bit(LFL_REREQUEST, &lp->flags);
 +		queue_submit(lp);
