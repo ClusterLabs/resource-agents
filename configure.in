@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.103 $) dnl cvs revision
+AC_REVISION($Revision: 1.104 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -837,7 +837,7 @@ dnl AC_SUBST(ac_aux_dir)
 
 dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
 Xsed="sed -e s/^X//"
-LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 AC_SUBST(LTLIBOBJS)
 
 AC_SUBST(LIBADD_DL)	dnl extra flags for dynamic linking libraries
