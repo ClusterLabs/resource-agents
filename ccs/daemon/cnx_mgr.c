@@ -1312,6 +1312,7 @@ int process_broadcast(int sfd){
   char *buffer = NULL;
   struct sockaddr_storage addr;
   int len = sizeof(struct sockaddr_storage);  /* value/result for recvfrom */
+  int discard = 0;
 
   ENTER("process_broadcast");
 
@@ -1343,6 +1344,7 @@ int process_broadcast(int sfd){
   }
 
   if(!master_doc){
+    discard = 1;
     log_dbg("master_doc not loaded.  Attempting to load it.\n");
     if(!(master_doc = malloc(sizeof(open_doc_t)))){
       error = -ENOMEM;
@@ -1395,7 +1397,12 @@ int process_broadcast(int sfd){
   if(buffer) free(buffer);
   if(payload) free(payload);
   if(ch) free(ch);
-
+  if(discard){
+    if(master_doc && master_doc->od_doc)
+      xmlFreeDoc(master_doc->od_doc);
+    if(master_doc) free(master_doc);
+    master_doc = NULL;
+  }
   EXIT("process_broadcast");
   return error;
 }
