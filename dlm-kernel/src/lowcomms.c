@@ -370,6 +370,13 @@ static int receive_from_sock(struct connection *con)
 		__free_page(con->rx_page);
 		con->rx_page = NULL;
 	}
+
+	spin_lock_irq(&con->sock->sk->sk_receive_queue.lock);
+	if (skb_peek(&con->sock->sk->sk_receive_queue)) {
+		call_again_soon = 1;
+	}
+	spin_unlock_irq(&con->sock->sk->sk_receive_queue.lock);
+
       out:
 	if (call_again_soon)
 		goto out_resched;
