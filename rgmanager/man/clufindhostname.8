@@ -1,0 +1,22 @@
+.TH "clufindhostname" "8" "Jan 2005" "" "Red Hat Cluster Suite Internal Commands"
+.SH "NAME"
+clufindhostname \- Find a hostname or IP address given the other.
+.SH "SYNOPSIS"
+.B clufindhostname
+.B [\-i <ip_address>]
+.B [\-n <hostname>]
+
+.SH "DESCRIPTION"
+.PP 
+The
+.B clufindhostname
+command is a wrapper around gethostbyname(3) and gethostbyaddr(3).
+
+.SH "OPTIONS"
+.IP "\-i <ip_address>"
+Call gethostbyaddr(3) on specified IP address.
+.IP "\-n <hostname>"
+Call gethostbyname(3) on specified hostname.
+
+.SH "SEE ALSO"
+host(1), gethostbyname(3), gethostbyaddr(3)

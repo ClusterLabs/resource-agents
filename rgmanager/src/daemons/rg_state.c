@@ -75,13 +75,13 @@ svc_report_failure(char *svcName)
 	cluster_member_list_t *membership;
 
 	if (rg_lock(svcName, &lockp) == -1) {
-		clulog(LOG_ERR, "Couldn't obtain lock for RG %s: %s\n",
+		clulog(LOG_ERR, "#41: Couldn't obtain lock for RG %s: %s\n",
 		       svcName, strerror(errno));
 		return -1;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
-		clulog(LOG_ERR, "Couldn't obtain status for RG %s\n",
+		clulog(LOG_ERR, "#42: Couldn't obtain status for RG %s\n",
 		       svcName);
 		clu_unlock(svcName, lockp);
 		return -1;
@@ -91,10 +91,10 @@ svc_report_failure(char *svcName)
 	membership = member_list();
 	nodeName = memb_id_to_name(membership, svcStatus.rs_last_owner);
 	if (nodeName) {
-		clulog(LOG_ALERT, "Resource group %s returned failure "
+		clulog(LOG_ALERT, "#2: Resource group %s returned failure "
 		       "code.  Last Owner: %s\n", svcName, nodeName);
 	} else {
-		clulog(LOG_ALERT, "Resource group %s returned failure "
+		clulog(LOG_ALERT, "#3: Resource group %s returned failure "
 		       "code.  Last Owner: %d\n",
 		       svcName, (int)svcStatus.rs_last_owner);
 	}
@@ -102,7 +102,7 @@ svc_report_failure(char *svcName)
 	cml_free(membership);
 
 	clulog(LOG_ALERT,
-	       "Administrator intervention required.\n",
+	       "#4: Administrator intervention required.\n",
 	       svcName, nodeName);
 
 	return 0;
@@ -404,7 +404,7 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 
 	default:
 		clulog(LOG_ERR,
-		       "Cannot start RG %s: Invalid State %d\n",
+		       "#42: Cannot stop RG %s: Invalid State %d\n",
 		       svcName, svcStatus->rs_state);
 		break;
 	}
@@ -435,7 +435,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
 		clulog(LOG_ERR,
-		       "Resource group %s has failed on all applicable "
+		       "#43: Resource group %s has failed on all applicable "
 		       "members; can not start.\n", svcName);
 		break;
 		
@@ -531,7 +531,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_ERROR:
 	default:
 		clulog(LOG_ERR,
-		       "Cannot start RG %s: Invalid State %d\n",
+		       "#44: Cannot start RG %s: Invalid State %d\n",
 		       svcName, svcStatus->rs_state);
 		break;
 	}
@@ -557,14 +557,14 @@ svc_start(char *svcName, int req)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+		clulog(LOG_ERR, "#45: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return FAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed getting status for RG %s\n",
+		clulog(LOG_ERR, "#46: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
@@ -593,7 +593,8 @@ svc_start(char *svcName, int req)
 		svcStatus.rs_restarts = 0;
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
-		clulog(LOG_ERR, "Failed changing resource group status\n");
+		clulog(LOG_ERR,
+		       "#47: Failed changing resource group status\n");
 		rg_unlock(svcName, lockp);
 		return FAIL;
 	}
@@ -607,7 +608,8 @@ svc_start(char *svcName, int req)
 		       "Resource group %s started\n",
 		       svcName);
 	else
-		clulog(LOG_WARNING, "Failed to start %s; return value: %d\n",
+		clulog(LOG_WARNING,
+		       "#68: Failed to start %s; return value: %d\n",
 		       svcName, ret);
 
 	return ret;
@@ -627,14 +629,14 @@ svc_status(char *svcName)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) < 0) {
-		clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+		clulog(LOG_ERR, "#48: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return FAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed getting status for RG %s\n",
+		clulog(LOG_ERR, "#49: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
@@ -670,20 +672,20 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 	int ret;
 
 	if (!rg_quorate()) {
-		clulog(LOG_WARNING, "Unclean %s of %s\n", 
+		clulog(LOG_WARNING, "#69: Unclean %s of %s\n", 
 		       rg_req_str(req), svcName);
 		return group_op(svcName, RG_STOP);
 	}
 
 	if (rg_lock(svcName, &lockp) == FAIL) {
-		clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+		clulog(LOG_ERR, "#50: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return FAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed getting status for RG %s\n",
+		clulog(LOG_ERR, "#51: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
@@ -716,7 +718,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed changing RG status\n");
+		clulog(LOG_ERR, "#52: Failed changing RG status\n");
 		return FAIL;
 	}
 	rg_unlock(svcName, lockp);
@@ -736,14 +738,14 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	void *lockp;
 
 	if (rg_lock(svcName, &lockp) == FAIL) {
-		clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+		clulog(LOG_ERR, "#53: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return FAIL;
 	}
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed getting status for RG %s\n",
+		clulog(LOG_ERR, "#54: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
@@ -758,7 +760,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	svcStatus.rs_owner = NODE_ID_NONE;
 
 	if (failed) {
-		clulog(LOG_CRIT, "RG %s failed to stop; intervention "
+		clulog(LOG_CRIT, "#12: RG %s failed to stop; intervention "
 		       "required\n", svcName);
 		svcStatus.rs_state = RG_STATE_FAILED;
 	} else if (svcStatus.rs_state == RG_STATE_ERROR)
@@ -773,7 +775,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	svcStatus.rs_transition = (uint64_t)time(NULL);
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed changing RG status\n");
+		clulog(LOG_ERR, "#55: Failed changing RG status\n");
 		return FAIL;
 	}
 	rg_unlock(svcName, lockp);
@@ -818,7 +820,7 @@ svc_fail(char *svcName)
 	rg_state_t svcStatus;
 
 	if (rg_lock(svcName, &lockp) == FAIL) {
-		clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+		clulog(LOG_ERR, "#55: Unable to obtain cluster lock: %s\n",
 		       strerror(errno));
 		return FAIL;
 	}
@@ -827,7 +829,7 @@ svc_fail(char *svcName)
 
 	if (get_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed getting status for RG %s\n",
+		clulog(LOG_ERR, "#56: Failed getting status for RG %s\n",
 		       svcName);
 		return FAIL;
 	}
@@ -852,7 +854,7 @@ svc_fail(char *svcName)
 	svcStatus.rs_restarts = 0;
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		rg_unlock(svcName, lockp);
-		clulog(LOG_ERR, "Failed changing RG status\n");
+		clulog(LOG_ERR, "#57: Failed changing RG status\n");
 		return FAIL;
 	}
 	rg_unlock(svcName, lockp);
@@ -885,7 +887,8 @@ relocate_service(char *svcName, int request, uint64_t target)
 	/* Open a connection to the other node */
 
 	if ((fd_relo = msg_open(target, RG_PORT, RG_PURPOSE, 2)) < 0) {
-		clulog(LOG_ERR, "Failed opening connection to member #%d\n",
+		clulog(LOG_ERR,
+		       "#58: Failed opening connection to member #%d\n",
 		       target);
 		return -1;
 	}
@@ -897,7 +900,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 	if (msg_send(fd_relo, &msg_relo, sizeof (SmMessageSt)) !=
 	    sizeof (SmMessageSt)) {
 		clulog(LOG_ERR,
-		       "Error sending relocate request to member #%d\n",
+		       "#59: Error sending relocate request to member #%d\n",
 		       target);
 		msg_close(fd_relo);
 		return -1;
@@ -913,7 +916,7 @@ relocate_service(char *svcName, int request, uint64_t target)
 		 * In this case, we don't restart the service, because the 
 		 * service state is actually unknown to us at this time.
 		 */
-		clulog(LOG_ERR, "Mangled reply from member #%d during RG "
+		clulog(LOG_ERR, "#60: Mangled reply from member #%d during RG "
 		       "relocate\n", target);
 		msg_close(fd_relo);
 		return 0;	/* XXX really UNKNOWN */
@@ -1034,7 +1037,8 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			cml_free(allowed_nodes);
 			return 0;
 		default:
-			clulog(LOG_ERR, "Invalid reply from member %d during"
+			clulog(LOG_ERR,
+			       "#61: Invalid reply from member %d during"
 			       " relocate operation!\n", target);
 		}
 	}
@@ -1053,7 +1057,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 */
 exhausted:
 	clulog(LOG_WARNING,
-	       "Attempting to restart resource group %s locally.\n",
+	       "#70: Attempting to restart resource group %s locally.\n",
 	       svcName);
 	if (svc_start(svcName, request) == 0) {
 		*new_owner = my_id();
@@ -1125,7 +1129,8 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	 */
 	clulog(LOG_DEBUG, "Stopping failed resource group %s\n", svcName);
 	if (svc_stop(svcName, 1) != 0) {
-		clulog(LOG_CRIT, "Resource group %s failed to stop cleanly",
+		clulog(LOG_CRIT,
+		       "#13: Resource group %s failed to stop cleanly",
 		       svcName);
 		(void) svc_fail(svcName);
 
@@ -1141,7 +1146,8 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
 	 */
-	clulog(LOG_WARNING, "Relocating failed resource group %s\n", svcName);
+	clulog(LOG_WARNING, "#71: Relocating failed resource group %s\n",
+	       svcName);
 	ret = handle_relocate_req(svcName, RG_START_RECOVER, -1, new_owner);
 
 	if (ret == FAIL)

@@ -128,7 +128,7 @@ request_failbacks(void)
 			continue;
 
 		if (request_failback(partner) != 0) {
-			clulog(LOG_ERR, "Unable to inform partner "
+			clulog(LOG_ERR, "#35: Unable to inform partner "
 			       "to start failback\n");
 		}
 	}
@@ -168,7 +168,7 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 		if (!rg_initialized()) {
 			if (init_resource_groups(0) != 0) {
 				clulog(LOG_ERR,
-				       "Cannot initialize services\n");
+				       "#36: Cannot initialize services\n");
 				hard_exit();
 			}
 		}
@@ -301,14 +301,15 @@ dispatch_msg(int fd, uint64_t nodeid)
 	/* Peek-a-boo */
 	ret = msg_peek(fd, &msg_hdr, sizeof(msg_hdr));
 	if (ret != sizeof (generic_msg_hdr)) {
-		clulog(LOG_ERR, "error receiving message header\n");
+		clulog(LOG_ERR, "#37: Error receiving message header\n");
 		return -1;
 	}
 
 	/* Decode the header */
 	swab_generic_msg_hdr(&msg_hdr);
 	if ((msg_hdr.gh_magic != GENERIC_HDR_MAGIC)) {
-		clulog(LOG_ERR, "Invalid magic: Wanted 0x%08x, got 0x%08x\n",
+		clulog(LOG_ERR,
+		       "#38: Invalid magic: Wanted 0x%08x, got 0x%08x\n",
 		       GENERIC_HDR_MAGIC, msg_hdr.gh_magic);
 		return -1;
 	}
@@ -324,8 +325,8 @@ dispatch_msg(int fd, uint64_t nodeid)
 		ret = msg_receive_timeout(fd, &msg_sm, sizeof(msg_sm), 
 					  10);
 		if (ret != sizeof(msg_sm)) {
-			clulog(LOG_ERR, "receiving message data from client "
-			       "error: %d\n", ret);
+			clulog(LOG_ERR,
+			       "#39: Error receiving entire request\n");
 			return -1;
 		}
 
@@ -339,8 +340,8 @@ dispatch_msg(int fd, uint64_t nodeid)
 
 			if (msg_send(fd, &msg_sm, sizeof (SmMessageSt)) !=
 		    	    sizeof (SmMessageSt))
-				clulog(LOG_ERR,
-				       "Error replying to action request.\n");
+				clulog(LOG_ERR, "#40: Error replying to "
+				       "action request.\n");
 		}
 
 		/* Queue request */
@@ -404,7 +405,7 @@ handle_cluster_event(int fd)
 		membership_update();
 		break;
 	case CE_INQUORATE:
-		clulog(LOG_EMERG, "Quorum Dissolved\n");
+		clulog(LOG_EMERG, "#1: Quorum Dissolved\n");
 		rg_set_inquorate();
 		member_list_update(NULL);		/* Clear member list */
 		rg_lockall();
@@ -412,7 +413,7 @@ handle_cluster_event(int fd)
 		rg_set_uninitialized();
 		break;
 	case CE_SHUTDOWN:
-		clulog(LOG_WARNING, "Shutting down uncleanly\n");
+		clulog(LOG_WARNING, "#67: Shutting down uncleanly\n");
 		rg_set_inquorate();
 		rg_doall(RG_INIT, 1, "Emergency stop of %s");
 		exit(0);
@@ -613,7 +614,7 @@ main(int argc, char **argv)
 	   read the resource group trees from ccsd.
 	 */
 	if (init_resource_groups(0) != 0) {
-		clulog(LOG_CRIT, "Couldn't initialize resource groups\n");
+		clulog(LOG_CRIT, "#8: Couldn't initialize resource groups\n");
 		return -1;
 	}
 
@@ -623,7 +624,7 @@ main(int argc, char **argv)
 	cluster_fd = clu_connect(RG_SERVICE_GROUP, 1);
 	if (cluster_fd < 0) {
 		clu_log_console(1);
-		clulog(LOG_ERR, "Couldn't connect to cluster\n");
+		clulog(LOG_CRIT, "#9: Couldn't connect to cluster\n");
 		return -1;
 	}
 
@@ -636,7 +637,7 @@ main(int argc, char **argv)
 
 	if ((listeners = msg_listen(RG_PORT, RG_PURPOSE,
 				    listen_fds, 2)) <= 0) {
-		clulog(LOG_CRIT, "Couldn't set up listen socket\n");
+		clulog(LOG_CRIT, "#10: Couldn't set up listen socket\n");
 		return -1;
 	}
 
@@ -660,7 +661,7 @@ main(int argc, char **argv)
 	   Initialize the VF stuff.
 	 */
 	if (vf_init(myNodeID, RG_VF_PORT, NULL, NULL) != 0) {
-		clulog(LOG_CRIT, "Couldn't set up VF listen socket\n");
+		clulog(LOG_CRIT, "#11: Couldn't set up VF listen socket\n");
 		return -1;
 	}
 

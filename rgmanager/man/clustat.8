@@ -1,0 +1,53 @@
+.TH "clustat" "8" "Jan 2005" "" "Red Hat Cluster Suite"
+.SH "NAME"
+clustat \- Cluster Status Utility
+.SH "SYNOPSIS"
+.B clustat
+.B [\-i
+.I delay
+.B ] 
+.B [\-I]
+.B [\-m
+.I member
+.B ] 
+.B [\-Q]
+.B [\-s
+.I service
+.B ] 
+.B [\-v]
+.B [\-x]
+
+.SH "DESCRIPTION"
+.PP 
+The
+.B clustat
+command displays the status of the cluster.  It shows membership information,
+quorum view, and the state of all configured user services. The
+.B clustat 
+command displays cluster status only from the viewpoint of the cluster system
+on which it is running.
+.SH "OPTIONS"
+.IP "\-I"
+Display the member ID of the current member.
+.IP "\-i <delay>"
+Display cluster status and refresh the status every
+.I delay
+seconds.  Mutually exclusive with the
+.B "\-x"
+option.
+.B "\-m <member>"
+Display the status of the specified member.
+.IP "\-Q"
+Return cluster quorum status to calling shell. (No output)
+.IP "\-s <service>"
+Displays the status of the specified service.
+.IP "\-x"
+Display cluster configuration combined with status in XML format. Mutually 
+exclusive with
+.B "\-i"
+option.
+.IP \-v
+Display version information and exit.
+
+.SH "SEE ALSO"
+clusvcadm(8)

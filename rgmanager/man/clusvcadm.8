@@ -1,0 +1,93 @@
+.TH "clusvcadm" "8" "Jan 2005" "" "Red Hat Cluster Suite"
+.SH "NAME"
+clusvcadm \- Cluster User Service Administration Utility
+.SH "SYNOPSIS"
+.B clusvcadm
+.B [\-d
+.I <service>
+.B ]
+.B [\-e
+.I <service>
+.B ]
+.B [\-l]
+.B [\-u]
+.B [\-S]
+.B [\-m
+.I <member>
+.B ]
+.B [\-r
+.I <service>
+.B ]
+.B [\-S]
+.B [\-R
+.I <service>
+.B ]
+.B [\-s
+.I <service>
+.B ]
+.B [\-v]
+
+.SH "DESCRIPTION"
+.PP 
+The
+.B clusvcadm
+command allows an administrator to enable, disable, relocate, and restart
+user services in a cluster.  In order to perform cluster service operations,
+the cluster daemons must be running (and have quorum) on the member system
+on which the command is invoked.
+
+.SH "OPTIONS"
+.IP "\-d <service>"
+Stops and disables the user service named
+.I
+service
+.IP "\-e <service>"
+Enables and starts the user service named
+.I
+service
+.IP \-l
+Lock the cluster's service managers.  This should only be used if the 
+administrator intends to perform a global, cluster-wide shutdown.  This
+prevents ALL service operations on ALL currently running members, thus,
+services will not fail over during the shutdown of the cluster.  Generally,
+administrators should use the
+.B
+clushutdown(8)
+command to accomplish this.  Once the cluster quorum is dissolved, this
+state is reset.
+.IP "\-m <member>"
+When used in conjunction with either the
+.B
+\-e
+or
+.B
+\-r
+options, this specifies the 
+.I
+preferred
+target member on which to start the 
+service.
+.IP "\-R <service>"
+Restarts the user service named
+.I
+service
+on the cluster member on which it is currently running.
+.IP "\-S"
+Display whether each of the active service managers is locked or not.  This
+can be used to verify the correct operation of the \fB-l\fR and \fB-u\fR 
+options, but is only useful for debugging.
+.IP "\-s <service>"
+Stops the service named
+.I
+service
+until a member transition or until it is enabled again.
+.IP \-u
+Unlock the cluster's service managers.  This allows services to transition
+again.  It will be necessary to re-enable all services in the stopped state
+if this is run after \fB clushutdown(8)\fR.
+
+.IP \-v
+Display version information and exit.
+
+.SH "SEE ALSO"
+clustat(8), clushutdown(8)

@@ -146,7 +146,7 @@ send_to_all(int *peer_fds, int32_t command, int arg1, int arg2, int log_errors)
 
 		if (log_errors) {
 #if 0
-			clulog(LOG_ERR, "Failed to send %d "
+			clulog(LOG_ERR, "#14: Failed to send %d "
 			       "bytes to %d!\n", sizeof(hdr),
 			       x);
 #endif

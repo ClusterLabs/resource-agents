@@ -155,7 +155,8 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 		 * status.
 		 */
 		if ((ret = rg_lock(svcName, &lockp)) < 0) {
-			clulog(LOG_ERR, "Unable to obtain cluster lock: %s\n",
+			clulog(LOG_ERR,
+			       "#33: Unable to obtain cluster lock: %s\n",
 			       strerror(-ret));
 			pthread_rwlock_unlock(&resource_lock);
 			cml_free(membership);
@@ -163,7 +164,8 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 		}
 		
 		if (get_rg_state(svcName, &svcStatus) != 0) {
-			clulog(LOG_ERR, "Cannot get status for service %s\n",
+			clulog(LOG_ERR,
+			       "#34: Cannot get status for service %s\n",
 			       svcName);
 			rg_unlock(svcName, lockp);
 			continue;
@@ -602,14 +604,14 @@ init_resource_groups(int reconfigure)
 
        	fd = ccs_lock();
 	if (fd == -1) {
-		clulog(LOG_CRIT, "Couldn't connect to ccsd!\n");
+		clulog(LOG_CRIT, "#5: Couldn't connect to ccsd!\n");
 		return -1;
 	}
 
 	clulog(LOG_DEBUG, "Building Resource Trees\n");
 	/* About to update the entire resource tree... */
 	if (load_resources(fd, &reslist, &rulelist) != 0) {
-		clulog(LOG_CRIT, "Error loading resource groups\n");
+		clulog(LOG_CRIT, "#6: Error loading resource groups\n");
 		destroy_resources(&reslist);
 		destroy_resource_rules(&rulelist);
 		ccs_unlock(fd);
@@ -617,7 +619,7 @@ init_resource_groups(int reconfigure)
 	}
 
 	if (build_resource_tree(fd, &tree, &rulelist, &reslist) != 0) {
-		clulog(LOG_CRIT, "Error loading resource groups\n");
+		clulog(LOG_CRIT, "#7: Error building resource tree\n");
 		destroy_resource_tree(&tree);
 		destroy_resources(&reslist);
 		destroy_resource_rules(&rulelist);

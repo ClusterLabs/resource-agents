@@ -186,11 +186,12 @@ main(int argc, char** argv)
 	if (retval != 0) {
 		/* clulog_and_print calls syslog(), which modifies errno */
 		errno_save = errno;
-		clulog_and_print(LOG_WARNING, "%s: NFS syscall %s failed: "
+		clulog_and_print(LOG_WARNING, "#72: %s: NFS syscall %s failed: "
 				 "%s.\n", cmdname, nfsSyscallString, 
 				 strerror(errno_save));
 		if (errno_save == EINVAL) {
-			clulog_and_print(LOG_WARNING, "%s: Kernel may not "
+			clulog_and_print(LOG_WARNING,
+				         "#73: %s: Kernel may not "
 					 "have NFS failover enhancements.\n",
 					 cmdname);
 		}

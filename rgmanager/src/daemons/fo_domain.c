@@ -76,7 +76,7 @@ get_node(int ccsfd, char *base, int idx, fod_t *domain)
 		if (strcasecmp(ret, fodn->fdn_name))
 			continue;
 
-		clulog(LOG_ERR, "Node %s defined multiple times in "
+		clulog(LOG_ERR, "#30: Node %s defined multiple times in "
 		       "domain %s\n", ret, domain->fd_name);
 		free(ret);
 		return NULL;
@@ -123,7 +123,7 @@ get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 		if (strcasecmp(fod->fd_name, ret))
 			continue;
 		    
-		clulog(LOG_ERR, "Domain %s defined multiple times\n",
+		clulog(LOG_ERR, "#31: Domain %s defined multiple times\n",
 		       ret);
 		free(ret);
 		return NULL;
@@ -364,7 +364,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 		/*
 		 * Domain doesn't exist!  Weird...
 		 */
-		clulog(LOG_WARNING, "Domain '%s' specified for resource "
+		clulog(LOG_WARNING, "#66: Domain '%s' specified for resource "
 		       "group %s nonexistent!\n", domainname, rg_name);
 		RETURN(FOD_BEST);
 	}
@@ -452,7 +452,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 		RETURN(FOD_BEST);
 	default:
 		/* Do what? */
-		clulog(LOG_ERR, "Code path error: "
+		clulog(LOG_ERR, "#32: Code path error: "
 		       "Invalid return from node_in_domain()\n");
 		RETURN(FOD_ILLEGAL);
 	}
