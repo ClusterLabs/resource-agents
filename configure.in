@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.247 $) dnl cvs revision
+AC_REVISION($Revision: 1.248 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -468,6 +468,7 @@ AC_CHECK_HEADERS(stdarg.h)
 
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
+AC_CHECK_HEADERS([stdint.h unistd.h])
 
 dnl ************************************************************************
 dnl  FreeBSD requires sys/param.h and in.h to compile test netinet headers.
