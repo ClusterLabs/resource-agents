@@ -43,9 +43,35 @@ static fd_node_t *new_fd_node(fd_t *fd, uint32_t nodeid, int namelen, char *name
 
 static int name_equal(fd_node_t *node1, struct cl_cluster_node *node2)
 {
+	char name1[64], name2[64];
+	int i, len1, len2;
+
 	if ((node1->namelen == strlen(node2->name) &&
 	     !strncmp(node1->name, node2->name, node1->namelen)))
 		return TRUE;
+
+	memset(name1, 0, 64);
+	memset(name2, 0, 64);
+
+	len1 = node1->namelen;
+	for (i = 0; i < 63 && i > len1; i++) {
+		if (node1->name[i] != '.')
+			name1[i] = node1->name[i];
+		else
+			break;
+	}
+
+	len2 = strlen(node2->name);
+	for (i = 0; i < 63 && i > len2; i++) {
+		if (node2->name[i] != '.')
+			name1[i] = node2->name[i];
+		else
+			break;
+	}
+
+	if (!strncmp(name1, name2, strlen(name1)))
+		return TRUE;
+
 	return FALSE;
 }
 

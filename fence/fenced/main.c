@@ -353,7 +353,9 @@ int fence_domain_add(commandline_t *comline)
 	INIT_LIST_HEAD(&fd->leaving);
 	INIT_LIST_HEAD(&fd->complete);
 
-	init_nodes(fd);
+	error = init_nodes(fd);
+	if (error)
+		log_debug("init_nodes ccs error %d", error);
 
 	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (cl_sock < 0)
