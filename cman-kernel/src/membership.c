@@ -137,6 +137,7 @@ static void hello_timer_expired(unsigned long arg);
 static void join_or_form_cluster(void);
 static int do_timer_wakeup(void);
 static int start_transition(unsigned char reason, struct cluster_node *node);
+static uint32_t low32_of_ip(void);
 int send_leave(unsigned char);
 int send_reconfigure(int, unsigned int);
 
@@ -155,9 +156,9 @@ static int debug_sendmsg(struct socket *sock, void *buf, int size,
 #endif
 
 /* State of the node */
-static enum { STARTING, JOINING, JOINWAIT, JOINACK, TRANSITION,
+static enum { STARTING, NEWCLUSTER, JOINING, JOINWAIT, JOINACK, TRANSITION,
 	    TRANSITION_COMPLETE, MEMBER, REJECTED, LEFT_CLUSTER, MASTER
-} node_state = STARTING;
+} node_state = LEFT_CLUSTER;
 
 /* Sub-state when we are MASTER */
 static enum { MASTER_START, MASTER_COLLECT, MASTER_CONFIRM,
@@ -522,13 +523,14 @@ static void join_or_form_cluster()
 
 	printk(KERN_INFO CMAN_NAME
 	       ": Waiting to join or form a Linux-cluster\n");
+
+ restart_joinwait:
 	join_time = 0;
 	start_time = jiffies;
 	joinwait_time = jiffies;
 	last_hello = 0;
-	send_newcluster();
 
-	/* Listen for a reply */
+	/* Listen for HELLO or NEWCLUSTER messages */
 	do {
 		DECLARE_WAITQUEUE(wait, current);
 		set_task_state(current, TASK_INTERRUPTIBLE);
@@ -551,8 +553,47 @@ static void join_or_form_cluster()
 	while (time_before(jiffies, start_time + cman_config.joinwait_timeout * HZ) &&
 	       node_state == STARTING);
 
-	/* If we didn't hear any HELLO messages then form a new cluster */
 	if (node_state == STARTING) {
+		start_time = jiffies;
+		joinwait_time = jiffies;
+		node_state = NEWCLUSTER;
+	}
+
+        /* If we didn't hear any HELLO messages then start sending NEWCLUSTER messages */
+	while (time_before(jiffies, start_time + cman_config.newcluster_timeout * HZ) &&
+	       node_state == NEWCLUSTER) {
+
+		DECLARE_WAITQUEUE(wait, current);
+
+		send_newcluster();
+
+		set_task_state(current, TASK_INTERRUPTIBLE);
+		add_wait_queue(mem_socket->sk->sk_sleep, &wait);
+
+		if (!skb_peek(&mem_socket->sk->sk_receive_queue))
+			schedule_timeout((cman_config.joinwait_timeout * HZ) /
+					 5);
+
+		set_task_state(current, TASK_RUNNING);
+		remove_wait_queue(mem_socket->sk->sk_sleep, &wait);
+
+		while (skb_peek(&mem_socket->sk->sk_receive_queue)) {
+			dispatch_messages(mem_socket);
+		}
+		/* Did we get a lower "NEWCLUSTER" message ? */
+		if (node_state == STARTING) {
+			P_MEMB("NEWCLUSTER: restarting joinwait\n");
+			goto restart_joinwait;
+		}
+
+		if (quit_threads)
+			node_state = LEFT_CLUSTER;
+
+	}
+
+
+        /* If we didn't hear any HELLO messages then form a new cluster */
+	if (node_state == NEWCLUSTER) {
 		form_cluster();
 	}
 	else
@@ -678,11 +719,15 @@ static int send_startack(struct sockaddr_cl *addr, int addr_len, int node_id)
 
 static int send_newcluster()
 {
-	char buf[1];
+	char buf[5];
+	uint32_t lowip;
 
 	buf[0] = CLUSTER_MEM_NEWCLUSTER;
+	lowip = cpu_to_le32(low32_of_ip());
+	memcpy(&buf[1], &lowip, sizeof(lowip));
 
-	return kcl_sendmsg(mem_socket, buf, 1, NULL, 0,
+	return kcl_sendmsg(mem_socket, buf, sizeof(uint32_t)+1,
+			   NULL, 0,
 			   MSG_NOACK);
 }
 
@@ -2323,7 +2368,22 @@ static int node_hash(void)
 	for (i=0; i<strlen(nodename); i++) {
 		value += nodename[i];
 	}
-	return value & 0xF;
+	return (value & 0xF) + 1;
+}
+
+
+/* Return the low 32 bits of our IP address */
+static uint32_t low32_of_ip()
+{
+	struct cluster_node_addr *addr;
+	uint32_t lowip;
+
+	addr = list_entry(us->addr_list.next, struct cluster_node_addr, list);
+	memcpy(&lowip, addr->addr+address_length-sizeof(uint32_t), sizeof(uint32_t));
+	if (!lowip)
+		memcpy(&lowip, addr->addr - sizeof(uint32_t)*2, sizeof(uint32_t));
+
+	return lowip;
 }
 
 /* A new node has stated its intent to form a new cluster. we may have
@@ -2336,6 +2396,18 @@ static int do_process_newcluster(struct msghdr *msg, int len)
 		P_MEMB("got NEWCLUSTER, backing down for %d seconds\n", node_hash());
 		start_time = jiffies + node_hash() * HZ;
 	}
+
+	if (node_state == NEWCLUSTER) {
+		uint32_t otherip;
+		char *newcmsg = (char *)msg->msg_iov->iov_base;
+
+		memcpy(&otherip, newcmsg+1, sizeof(otherip));
+		otherip = le32_to_cpu(otherip);
+		P_MEMB("got NEWCLUSTER, remote ip = %x, us = %x\n", otherip, low32_of_ip());
+		if (otherip < low32_of_ip())
+			node_state = STARTING;
+	}
+
 	if (node_state == MEMBER)
 		send_hello();
 
@@ -2955,6 +3027,9 @@ char *membership_state(char *buf, int buflen)
 	case STARTING:
 		strncpy(buf, "Starting", buflen);
 		break;
+	case NEWCLUSTER:
+		strncpy(buf, "New-Cluster?", buflen);
+		break;
 	case JOINING:
 		strncpy(buf, "Joining", buflen);
 		break;
@@ -2975,7 +3050,7 @@ char *membership_state(char *buf, int buflen)
 		strncpy(buf, "Rejected", buflen);
 		break;
 	case LEFT_CLUSTER:
-		strncpy(buf, "Left-Cluster", buflen);
+		strncpy(buf, "Not-in-Cluster", buflen);
 		break;
 	case TRANSITION_COMPLETE:
 		strncpy(buf, "Transition-Complete", buflen);

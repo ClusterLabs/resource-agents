@@ -33,6 +33,8 @@
 					 * restarts before we die */
 #define DEFAULT_SM_DEBUG_SIZE	256	/* Size in bytes of SM debug buffer */
 
+#define DEFAULT_NEWCLUSTER_TIMEOUT 16   /* Time to send NEWCLUSTER messages */
+
 struct config_info cman_config = {
 	.joinwait_timeout = DEFAULT_JOIN_WAIT_TIME,
 	.joinconf_timeout = DEFAULT_JOINCONF_TIMER,
@@ -43,4 +45,5 @@ struct config_info cman_config = {
 	.transition_restarts = DEFAULT_TRANSITION_RESTARTS,
 	.max_nodes = DEFAULT_MAX_NODES,
 	.sm_debug_size = DEFAULT_SM_DEBUG_SIZE,
+	.newcluster_timeout = DEFAULT_NEWCLUSTER_TIMEOUT,
 };

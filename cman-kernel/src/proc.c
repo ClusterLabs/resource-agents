@@ -85,6 +85,10 @@ static struct config_proc_info {
 	.name = "sm_debug_size",
 	.value = &cman_config.sm_debug_size,
     },
+    {
+	.name = "newcluster_timeout",
+	.value = &cman_config.newcluster_timeout,
+    },
 };
 
 

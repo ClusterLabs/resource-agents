@@ -24,6 +24,7 @@ struct config_info {
 	int transition_restarts;
 	int max_nodes;
 	int sm_debug_size;
+        int newcluster_timeout;
 };
 
 extern struct config_info cman_config;
