@@ -936,6 +936,8 @@ struct gfs_sbd {
 
 	spinlock_t sd_ail_lock;
 	struct list_head sd_recovery_bufs;
+
+	struct list_head sd_list;
 };
 
 #endif /* __INCORE_DOT_H__ */

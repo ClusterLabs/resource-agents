@@ -26,11 +26,11 @@
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
-#include "locking.h"
 #include "mount.h"
 #include "ops_export.h"
 #include "ops_fstype.h"
 #include "ops_super.h"
+#include "proc.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
@@ -476,6 +476,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 			      CREATE, &sdp->sd_rename_gl);
 	if (error)
 		goto fail_inoded;
+
+	gfs_proc_fs_add(sdp);
 
 	gfs_glock_dq_uninit(&mount_gh);
 

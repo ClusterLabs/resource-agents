@@ -38,7 +38,6 @@ gfs-objs := acl.o \
 	glops.o \
 	inode.o \
 	ioctl.o \
-	locking.o \
 	log.o \
 	lops.o \
 	lvb.o \
@@ -54,6 +53,7 @@ gfs-objs := acl.o \
 	ops_super.o \
 	ops_vm.o \
 	page.o \
+	proc.o \
 	quota.o \
 	recovery.o \
 	rgrp.o \

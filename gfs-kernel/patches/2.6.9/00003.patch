@@ -1,7 +1,7 @@
 # Add lock_nolock to the build system.
 diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2004-10-21 17:14:36.370129713 -0500
-+++ linux/fs/Kconfig	2004-10-21 17:14:36.381127151 -0500
+--- linux-2.6.9/fs/Kconfig	2004-10-27 02:12:02.208130033 -0500
++++ linux/fs/Kconfig	2004-10-27 02:12:02.219126938 -0500
 @@ -1790,6 +1790,12 @@ config GFS_FS
  	  GFS is perfect consistency -- changes made to the filesystem on one
  	  machine show up immediately on all other machines in the cluster.
@@ -16,8 +16,8 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-21 17:14:32.465039389 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-10-21 17:14:36.381127151 -0500
+--- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-27 02:11:58.446188798 -0500
++++ linux/fs/gfs_locking/Makefile	2004-10-27 02:12:02.220126656 -0500
 @@ -11,4 +11,5 @@
  ###############################################################################
  
@@ -26,7 +26,7 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
  
 diff -urN -p linux-2.6.9/fs/gfs_locking/lock_nolock/Makefile linux/fs/gfs_locking/lock_nolock/Makefile
 --- linux-2.6.9/fs/gfs_locking/lock_nolock/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_nolock/Makefile	2004-10-21 17:14:36.381127151 -0500
++++ linux/fs/gfs_locking/lock_nolock/Makefile	2004-10-27 02:12:02.220126656 -0500
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################

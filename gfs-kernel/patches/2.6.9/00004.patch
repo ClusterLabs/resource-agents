@@ -1,7 +1,7 @@
 # Add lock_dlm to the build system.
 diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9/fs/Kconfig	2004-10-21 17:14:40.007282490 -0500
-+++ linux/fs/Kconfig	2004-10-21 17:14:40.018279928 -0500
+--- linux-2.6.9/fs/Kconfig	2004-10-27 02:12:05.867100243 -0500
++++ linux/fs/Kconfig	2004-10-27 02:12:05.877097429 -0500
 @@ -1796,6 +1796,12 @@ config LOCK_NOLOCK
  	help
  	  A "fake" lock module that allows GFS to run as a local filesystem.
@@ -16,8 +16,8 @@ diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-21 17:14:40.008282257 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-10-21 17:14:40.019279695 -0500
+--- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-27 02:12:05.867100243 -0500
++++ linux/fs/gfs_locking/Makefile	2004-10-27 02:12:05.878097148 -0500
 @@ -12,4 +12,5 @@
  
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
@@ -26,7 +26,7 @@ diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
  
 diff -urN -p linux-2.6.9/fs/gfs_locking/lock_dlm/Makefile linux/fs/gfs_locking/lock_dlm/Makefile
 --- linux-2.6.9/fs/gfs_locking/lock_dlm/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_dlm/Makefile	2004-10-21 17:14:40.019279695 -0500
++++ linux/fs/gfs_locking/lock_dlm/Makefile	2004-10-27 02:12:05.878097148 -0500
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################

@@ -22,7 +22,7 @@
    Ioctls implemented
 
    Reserved Ioctls:  3, 7, 8, 9, 10, 4, 13
-   Next Ioctl:  44
+   Next Ioctl:  45
    */
 
 #define GFS_STACK_PRINT         _GFSC_(40)
@@ -44,9 +44,6 @@
 
 #define GFS_STATGFS             _GFSC_(12)
 
-#define GFS_FREEZE              _GFSC_(14)
-#define GFS_UNFREEZE            _GFSC_(15)
-
 #define GFS_RECLAIM_METADATA    _GFSC_(16)
 
 #define GFS_QUOTA_SYNC          _GFSC_(17)
@@ -57,6 +54,7 @@
 #define GFS_SET_TUNE            _GFSC_(22)
 
 #define GFS_WHERE_ARE_YOU       _GFSC_(35)
+#define GFS_COOKIE              _GFSC_(44)
 
 #define GFS_SET_FLAG            _GFSC_(36)
 #define GFS_CLEAR_FLAG          _GFSC_(37)

@@ -11,10 +11,17 @@
 *******************************************************************************
 ******************************************************************************/
 
-#ifndef __LOCKING_DOT_H__
-#define __LOCKING_DOT_H__
+#ifndef __PROC_DOT_H__
+#define __PROC_DOT_H__
 
-int gfs_mount_lockproto(struct gfs_sbd *sdp, int silent);
-void gfs_unmount_lockproto(struct gfs_sbd *sdp);
+/* Allow args to be passed to GFS when using an initial ram disk */
+extern char *gfs_proc_margs;
+extern spinlock_t gfs_proc_margs_lock;
 
-#endif /* __LOCKING_DOT_H__ */
+void gfs_proc_fs_add(struct gfs_sbd *sdp);
+void gfs_proc_fs_del(struct gfs_sbd *sdp);
+
+void gfs_proc_init(void);
+void gfs_proc_uninit(void);
+
+#endif /* __PROC_DOT_H__ */

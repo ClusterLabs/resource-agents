@@ -52,18 +52,19 @@ interpreted by the mount command nor by the kernel's Virtual File System.  GFS
 and non-GFS options may be intermingled after the \fB-o\fP, separated by
 commas (but no spaces).
 
-As an alternative to mount command line options, you may send mount options
-to /proc/fs/gfs (after loading the gfs kernel module, but before mounting GFS).
-For example, you may need to do this when working from an initial ramdisk
-\fBinitrd\fP(4).  The options are restricted to the ones described on this man
-page (no general \fBmount\fP(8) options will be recognized), must not be
+As an alternative to mount command line options, you may send mount
+options to gfs using "gfs_tool margs" (after loading the gfs kernel
+module, but before mounting GFS).  For example, you may need to do
+this when working from an initial ramdisk \fBinitrd\fP(4).  The
+options are restricted to the ones described on this man page (no
+general \fBmount\fP(8) options will be recognized), must not be
 preceded by -o, and must be separated by commas (no spaces).  Example:
 
-# echo "lockproto=lock_nolock,ignore_local_fs" > /proc/fs/gfs 
+# gfs_tool margs "lockproto=lock_nolock,ignore_local_fs"
 
-Options loaded via /proc/fs/gfs have a lifetime of only one GFS mount.  If you
-wish to mount another GFS filesystem, you must send another set of options
-to /proc/fs/gfs.
+Options loaded via "gfs_tool margs" have a lifetime of only one GFS
+mount.  If you wish to mount another GFS filesystem, you must set
+another group of options with "gfs_tool margs".
 
 If you have trouble mounting GFS, check the syslog (e.g. /var/log/messages)
 for specific error messages.

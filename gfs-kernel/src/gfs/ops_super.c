@@ -27,10 +27,11 @@
 #include "dio.h"
 #include "glock.h"
 #include "inode.h"
-#include "locking.h"
 #include "log.h"
+#include "mount.h"
 #include "ops_super.h"
 #include "page.h"
+#include "proc.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
@@ -94,6 +95,8 @@ gfs_put_super(struct super_block *sb)
 	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
+
+	gfs_proc_fs_del(sdp);
 
 	/*  Unfreeze the filesystem, if we need to  */
 

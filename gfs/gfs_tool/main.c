@@ -78,6 +78,12 @@ const char *usage[] =
   "Unfreeze a GFS cluster:\n",
   "  gfs_tool unfreeze <mountpoint>\n",
   "\n",
+  "List filesystems:\n",
+  "  gfs_tool list\n",
+  "\n",
+  "Provide arguments for next mount:\n",
+  "  gfs_tool margs <mountarguments>\n",
+  "\n",
   "Free unused disk inodes:\n",
   "  gfs_tool reclaim <mountpoint>\n",
   "\n",
@@ -545,33 +551,197 @@ static void dump_lockstate(int argc, char **argv)
 
 
 /**
+ * get_list - Get the list of GFS filesystems
+ *
+ * Returns: a NULL terminated string
+ */
+
+#define LIST_SIZE (1048576)
+
+static char *
+get_list(void)
+{
+	char *list;
+	int fd;
+	unsigned int x;
+
+	list = malloc(LIST_SIZE);
+	if (!list)
+		die("out of memory\n");
+
+	fd = open("/proc/fs/gfs", O_RDWR);
+	if (fd < 0)
+		die("can't open /proc/fs/gfs: %s\n",
+		    strerror(errno));
+
+	if (write(fd, "list", 4) != 4)
+		die("can't write list command: %s\n",
+		    strerror(errno));
+	x = read(fd, list, LIST_SIZE - 1);
+	if (x < 0)
+		die("can't get list of filesystems: %s\n",
+		    strerror(errno));
+
+	close(fd);
+
+	list[x] = 0;
+
+	return list;
+}
+
+/**
+ * parse_list - parse a list of filesystem into lines
+ * @list: the list
+ *
+ * Returns: An array of character pointers
+ */
+
+static char **
+parse_list(char *list)
+{
+	char *p;
+	unsigned int n = 0;
+	char **lines;
+	unsigned int x = 0;
+
+	for (p = list; *p; p++)
+		if (*p == '\n')
+			n++;
+
+	lines = malloc((n + 1) * sizeof(char *));
+	if (!lines)
+		die("out of memory\n");
+
+	for (lines[x] = p = list; *p; p++)
+		if (*p == '\n') {
+			*p = 0;
+			lines[++x] = p + 1;
+		}
+
+	return lines;
+}
+
+/**
+ * mp2cookie - Find the cookie for a filesystem given its mountpoint
+ * @mp:
+ * @ioctl_ok: If this is FALSE, it's not acceptable to open() the mountpoint
+ *
+ * Returns: the cookie
+ */
+
+static char *
+mp2cookie(char *mp, int ioctl_ok)
+{
+	char *cookie;
+	char *list, **lines;
+	FILE *file;
+	char line[256], device[256];
+	char *dev = NULL;
+	unsigned int x;
+
+	cookie = malloc(256);
+	if (!cookie)
+		die("out of memory\n");
+	list = get_list();
+	lines = parse_list(list);
+
+	file = fopen("/proc/mounts", "r");
+	if (!file)
+		die("can't open /proc/mounts: %s\n",
+		    strerror(errno));
+
+	while (fgets(line, 256, file)) {
+		char path[256], type[256];
+
+		if (sscanf(line, "%s %s %s", device, path, type) != 3)
+			continue;
+		if (strcmp(path, mp))
+			continue;
+		if (strcmp(type, "gfs"))
+			die("%s is not a GFS filesystem\n", mp);
+		for (dev = device;;) {
+			char *d = strstr(dev, "/");
+			if (!d)
+				break;
+			dev = d + 1;
+		}
+		break;
+	}
+
+	fclose(file);
+
+	for (x = 0; *lines[x]; x++) {
+		char s_id[256];
+		sscanf(lines[x], "%s %s", cookie, s_id);
+		if (dev) {
+			if (!strcmp(s_id, dev))
+				return cookie;
+		} else {
+			if (!strcmp(cookie, mp))
+				return cookie;
+		}
+	}
+
+	if (ioctl_ok) {
+		int fd;
+		unsigned long cnum;
+
+		fd = open(mp, O_RDONLY);
+		if (fd < 0)
+			die("can't open %s: %s\n",
+			    mp, strerror(errno));
+
+		check_for_gfs(fd, mp);
+
+		if (ioctl(fd, GFS_COOKIE, &cnum))
+			die("can't get cookie for %s: %s\n",
+			    mp, strerror(errno));
+
+		close(fd);
+
+		sprintf(cookie, "%lu", cnum);
+		return cookie;
+	}
+
+	die("unknown mountpoint %s\n", mp);
+}
+
+
+/**
  * freeze_cluster - freeze a GFS filesystem
  * @argc:
  * @argv:
  *
- * This routine uses an ioctl command to quiesce the GFS cluster.  It
- * forces all machines in the cluster to flush all data and metadata
- * and clean up their journals.
  */
 
-static void freeze_cluster(int argc, char **argv)
+static void
+freeze_cluster(int argc, char **argv)
 {
-  int fd;
+	char *cookie;
+	int fd;
+	char buf[256];
+	int x;
 
-  if (argc != 3)
-    die("Usage: gfs_tool freeze <mountpoint>\n");
+	if (argc != 3)
+		die("Usage: gfs_tool freeze <mountpoint>\n");
 
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
+	cookie = mp2cookie(argv[2], FALSE);
+	x = sprintf(buf, "freeze %s\n", cookie);
 
-  check_for_gfs(fd, argv[2]);
+	fd = open("/proc/fs/gfs", O_RDWR);
+	if (fd < 0)
+		die("can't open /proc/fs/gfs: %s\n",
+		    strerror(errno));
 
-  if (ioctl(fd, GFS_FREEZE, NULL) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-  sync();
+	if (write(fd, buf, x) != x)
+		die("can't write freeze command: %s\n",
+		    strerror(errno));
+	if (read(fd, buf, 256))
+		die("can't freeze %s: %s\n",
+		    argv[2], strerror(errno));
 
-  close(fd);
+	close(fd);
+	sync();
 }
 
 
@@ -582,23 +752,86 @@ static void freeze_cluster(int argc, char **argv)
  *
  */
 
-static void unfreeze_cluster(int argc, char **argv)
+static void
+unfreeze_cluster(int argc, char **argv)
 {
-  int fd;
+	char *cookie;
+	int fd;
+	char buf[256];
+	int x;
 
-  if (argc != 3)
-    die("Usage: gfs_tool unfreeze <mountpoint>\n");
+	if (argc != 3)
+		die("Usage: gfs_tool unfreeze <mountpoint>\n");
 
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
+	cookie = mp2cookie(argv[2], FALSE);
+	x = sprintf(buf, "unfreeze %s\n", cookie);
 
-  check_for_gfs(fd, argv[2]);
+	fd = open("/proc/fs/gfs", O_RDWR);
+	if (fd < 0)
+		die("can't open /proc/fs/gfs: %s\n",
+		    strerror(errno));
 
-  if (ioctl(fd, GFS_UNFREEZE, NULL) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
+	if (write(fd, buf, x) != x)
+		die("can't write unfreeze command: %s\n",
+		    strerror(errno));
+	if (read(fd, buf, 256))
+		die("can't unfreeze %s: %s\n",
+		    argv[2], strerror(errno));
 
-  close(fd);
+	close(fd);
+}
+
+
+/**
+ * print_list -
+ *
+ */
+
+static void
+print_list(void)
+{
+	char *list;
+	list = get_list();
+	printf("%s", list);
+}
+
+
+/**
+ * margs -
+ * @argc:
+ * @argv:
+ *
+ */
+
+static void
+margs(int argc, char *argv[])
+{
+	int fd;
+	char *buf;
+	unsigned int x;
+
+	if (argc != 3)
+		die("Usage: gfs_tool margs <mountarguments>\n");
+
+	x = strlen(argv[2]) + 7;
+	buf = malloc(x + 1);
+	if (!buf)
+		die("out of memory\n");
+	sprintf(buf, "margs %s\n", argv[2]);
+
+	fd = open("/proc/fs/gfs", O_RDWR);
+	if (fd < 0)
+		die("can't open /proc/fs/gfs: %s\n",
+		    strerror(errno));
+ 
+	if (write(fd, buf, x) != x)
+		die("can't write margs command: %s\n",
+		    strerror(errno));
+	if (read(fd, buf, x))
+		die("can't set mount args: %s\n",
+		    strerror(errno));
+
+	close(fd);
 }
 
 
@@ -802,7 +1035,6 @@ static void do_df(int argc, char **argv)
   }
   else if (argc == 2)
   {
-#ifdef __linux__
     char buf[256], device[256], path[256], type[256];
     FILE *file;
 
@@ -826,27 +1058,6 @@ static void do_df(int argc, char **argv)
     }
 
     fclose(file);
-#endif  /*  __linux__  */
-
-#ifdef __FreeBSD__
-    struct statfs *st;
-    int x, num;
-
-    num = getmntinfo(&st, MNT_NOWAIT);
-    if (num < 0)
-      die("can't getmntinfo: %s\n", strerror(errno));
-
-    for (x = 0; x < num; x++)
-      if (strcmp(st[x].f_fstypename, "gfs") == 0)
-      {
-	if (first)
-	  first = FALSE;
-	else
-	  printf("\n");
-
-	do_df_one(st[x].f_mntonname);
-      }
-#endif  /*  __FreeBSD__  */
   }
   else
   {
@@ -1038,6 +1249,14 @@ int main(int argc,char *argv[])
   else if (strcmp(argv[1], "unfreeze") == 0)
   {
     unfreeze_cluster(argc, argv);
+  }
+  else if (strcmp(argv[1], "list") == 0)
+  {
+    print_list();
+  }
+  else if (strcmp(argv[1], "margs") == 0)
+  {
+    margs(argc, argv);
   }
   else if (strcmp(argv[1], "reclaim") == 0)
   {

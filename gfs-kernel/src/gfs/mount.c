@@ -18,14 +18,13 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
-#include <linux/module.h>
-#include <asm/uaccess.h>
 
 #include "gfs.h"
+#include "dio.h"
+#include "glock.h"
 #include "mount.h"
-
-char *gfs_mount_args = NULL;
-struct semaphore gfs_mount_args_lock;
+#include "proc.h"
+#include "super.h"
 
 /**
  * gfs_make_args - Parse mount arguments
@@ -36,21 +35,20 @@ struct semaphore gfs_mount_args_lock;
  */
 
 int
-gfs_make_args(char *data, struct gfs_args *args)
+gfs_make_args(char *data_arg, struct gfs_args *args)
 {
+	char *data = data_arg;
 	char *options, *x, *y;
-	int do_free = FALSE;
 	int error = 0;
 
 	/*  If someone preloaded options, use those instead  */
 
-	down(&gfs_mount_args_lock);
-	if (gfs_mount_args) {
-		data = gfs_mount_args;
-		gfs_mount_args = NULL;
-		do_free = TRUE;
+	spin_lock(&gfs_proc_margs_lock);
+	if (gfs_proc_margs) {
+		data = gfs_proc_margs;
+		gfs_proc_margs = NULL;
 	}
-	up(&gfs_mount_args_lock);
+	spin_unlock(&gfs_proc_margs_lock);
 
 	/*  Set some defaults  */
 
@@ -143,73 +141,99 @@ gfs_make_args(char *data, struct gfs_args *args)
 	if (error)
 		printk("GFS: invalid mount option(s)\n");
 
-	if (do_free)
+	if (data != data_arg)
 		kfree(data);
 
 	return error;
 }
 
 /**
- * gfs_proc_write - Read in some mount options
- * @file: unused
- * @buffer: a buffer of mount options
- * @count: the length of the mount options
- * @data: unused
- *
- * Called when someone writes to /proc/fs/gfs.
- * It allows you to specify mount options when you can't do it
- * from mount.  i.e. from a inital ramdisk
+ * gfs_mount_lockproto - mount a locking protocol
+ * @sdp: the filesystem
+ * @args: mount arguements
+ * @silent: if TRUE, don't complain if the FS isn't a GFS fs
  *
  * Returns: 0 on success, -EXXX on failure
  */
 
 int
-gfs_proc_write(struct file *file,
-	       const char *buffer, unsigned long count,
-	       void *data)
+gfs_mount_lockproto(struct gfs_sbd *sdp, int silent)
 {
+	struct gfs_sb *sb = NULL;
+	char *proto, *table;
 	int error;
-	char *p;
 
-	if (!try_module_get(THIS_MODULE))
-		return -EAGAIN; /* Huh!?! */
-	down(&gfs_mount_args_lock);
+	proto = sdp->sd_args.ar_lockproto;
+	table = sdp->sd_args.ar_locktable;
 
-	if (gfs_mount_args) {
-		kfree(gfs_mount_args);
-		gfs_mount_args = NULL;
+	/*  Try to autodetect  */
+
+	if (!proto[0] || !table[0]) {
+		struct buffer_head *bh;
+
+		error = gfs_dread(sdp, GFS_SB_ADDR >> sdp->sd_fsb2bb_shift, NULL,
+				  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
+		if (error)
+			return error;
+
+		sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
+		if (!sb) {
+			brelse(bh);
+			return -ENOMEM;
+		}
+		gfs_sb_in(sb, bh->b_data);
+		brelse(bh);
+
+		error = gfs_check_sb(sdp, sb, silent);
+		if (error)
+			goto out;
+
+		if (!proto[0])
+			proto = sb->sb_lockproto;
+
+		if (!table[0])
+			table = sb->sb_locktable;
 	}
 
-	if (!count) {
-		error = 0;
-		goto fail;
+	printk("GFS: Trying to join cluster \"%s\", \"%s\"\n",
+	       proto, table);
+
+	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
+			 gfs_glock_cb, sdp,
+			 GFS_MIN_LVB_SIZE, &sdp->sd_lockstruct);
+	if (error) {
+		printk("GFS: can't mount proto = %s, table = %s, hostdata = %s\n",
+		     proto, table, sdp->sd_args.ar_hostdata);
+		goto out;
 	}
 
-	gfs_mount_args = gmalloc(count + 1);
+	GFS_ASSERT_SBD(sdp->sd_lockstruct.ls_lockspace, sdp,);
+	GFS_ASSERT_SBD(sdp->sd_lockstruct.ls_ops, sdp,);
+	GFS_ASSERT_SBD(sdp->sd_lockstruct.ls_lvb_size >= GFS_MIN_LVB_SIZE,
+		       sdp,);
 
-	error = -EFAULT;
-	if (copy_from_user(gfs_mount_args, buffer, count))
-		goto fail_free;
+	snprintf(sdp->sd_fsname, 256, "%s.%u",
+		 (*table) ? table : sdp->sd_vfs->s_id,
+		 sdp->sd_lockstruct.ls_jid);
 
-	gfs_mount_args[count] = 0;
+	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
+	       sdp->sd_fsname);
 
-	/*  Get rid of extra newlines  */
+ out:
+	if (sb)
+		kfree(sb);
 
-	for (p = gfs_mount_args; *p; p++)
-		if (*p == '\n')
-			*p = 0;
-
-	up(&gfs_mount_args_lock);
-	module_put(THIS_MODULE);
-
-	return count;
-
-      fail_free:
-	kfree(gfs_mount_args);
-	gfs_mount_args = NULL;
-
-      fail:
-	up(&gfs_mount_args_lock);
-	module_put(THIS_MODULE);
 	return error;
+}
+
+/**
+ * gfs_unmount_lockproto - Unmount lock protocol
+ * @sdp: The GFS superblock
+ *
+ */
+
+void
+gfs_unmount_lockproto(struct gfs_sbd *sdp)
+{
+	lm_unmount(&sdp->sd_lockstruct);
 }

@@ -67,12 +67,28 @@ bytes.  If you are printing a very big directory you may need to specify
 a bigger size.
 .in
 .sp
+\fBlist\fP
+.in +7
+List the currently mounted GFS filesystems.  Each line represents
+a filesystem.  The columns represent (in order): 1) A number that
+is a cookie that represents the mounted filesystem. 2) The name of the
+device that holds the filesystem (well, the name as the Linux
+kernel knows it). 3) The lock table field that the filesystem was
+mounted with.
+.in
+.sp
 \fBlockdump\fP \fIMountPoint\fR \fI[buffersize]\fR
 .in +7
 Print out information about the locks this machine holds for a given
 filesystem. Buffersize is the size of the buffer (in bytes) that gfs_tool
 allocates to store the lock data during processing.  It defaults to 4194304
 bytes.
+.in
+.sp
+\fBmargs\fP \fIarguments\fR
+.in +7
+This loads arguments into the module what will override the mount
+options passed with the -o field on the next mount.  See gfs_mount(8).
 .in
 .sp
 \fBreclaim\fP \fIFile\fR

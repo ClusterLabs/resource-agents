@@ -900,20 +900,6 @@ gfs_ioctli(struct gfs_inode *ip, unsigned int cmd, void *arg)
 		error = stat_gfs_ioctl(sdp, arg);
 		break;
 
-	case GFS_FREEZE:
-		if (capable(CAP_SYS_ADMIN))
-			error = gfs_freeze_fs(sdp);
-		else
-			error = -EACCES;
-		break;
-
-	case GFS_UNFREEZE:
-		if (capable(CAP_SYS_ADMIN))
-			gfs_unfreeze_fs(sdp);
-		else
-			error = -EACCES;
-		break;
-
 	case GFS_RECLAIM_METADATA:
 		if (capable(CAP_SYS_ADMIN))
 			error = reclaim_ioctl(sdp, arg);
@@ -951,13 +937,19 @@ gfs_ioctli(struct gfs_inode *ip, unsigned int cmd, void *arg)
 			error = -EACCES;
 		break;
 
-	case GFS_WHERE_ARE_YOU:
-		{
-			unsigned int x = GFS_MAGIC;
-			if (copy_to_user(arg, &x, sizeof(unsigned int)))
-				error = -EFAULT;
-		}
+	case GFS_WHERE_ARE_YOU: {
+		unsigned int x = GFS_MAGIC;
+		if (copy_to_user(arg, &x, sizeof(unsigned int)))
+			error = -EFAULT;
 		break;
+	}
+
+	case GFS_COOKIE: {
+		unsigned long x = (unsigned long)sdp;
+		if (copy_to_user(arg, &x, sizeof(unsigned long)))
+			error = -EFAULT;
+		break;
+	}
 
 	case GFS_SET_FLAG:
 	case GFS_CLEAR_FLAG:

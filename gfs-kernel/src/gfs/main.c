@@ -23,10 +23,8 @@
 #include <linux/init.h>
 
 #include "gfs.h"
-#include "mount.h"
 #include "ops_fstype.h"
-
-struct proc_dir_entry *gfs_proc_entry = NULL;
+#include "proc.h"
 
 /**
  * init_gfs_fs - Register GFS as a filesystem
@@ -37,22 +35,19 @@ struct proc_dir_entry *gfs_proc_entry = NULL;
 int __init
 init_gfs_fs(void)
 {
-	int error = 0;
+	int error;
 
-	init_MUTEX(&gfs_mount_args_lock);
-
-	gfs_proc_entry = create_proc_read_entry("fs/gfs", S_IFREG | 0200, NULL, NULL, NULL);
-	if (!gfs_proc_entry) {
-		printk("GFS: can't register /proc/fs/gfs\n");
-	        return -EINVAL;
-	}
-	gfs_proc_entry->write_proc = gfs_proc_write;
+	gfs_proc_init();
 
 	gfs_random_number = xtime.tv_nsec;
 
 	gfs_glock_cachep = kmem_cache_create("gfs_glock", sizeof(struct gfs_glock),
 					     0, 0,
 					     NULL, NULL);
+	gfs_inode_cachep = NULL;
+	gfs_bufdata_cachep = NULL;
+	gfs_mhc_cachep = NULL;
+	error = -ENOMEM;
 	if (!gfs_glock_cachep)
 		goto fail;
 
@@ -96,13 +91,7 @@ init_gfs_fs(void)
 	if (gfs_glock_cachep)
 		kmem_cache_destroy(gfs_glock_cachep);
 
-	down(&gfs_mount_args_lock);
-	if (gfs_mount_args) {
-		kfree(gfs_mount_args);
-		gfs_mount_args = NULL;
-	}
-	up(&gfs_mount_args_lock);
-	remove_proc_entry("fs/gfs", NULL);
+	gfs_proc_uninit();
 
 	return error;
 }
@@ -122,13 +111,7 @@ exit_gfs_fs(void)
 	kmem_cache_destroy(gfs_inode_cachep);
 	kmem_cache_destroy(gfs_glock_cachep);
 
-	down(&gfs_mount_args_lock);
-	if (gfs_mount_args) {
-		kfree(gfs_mount_args);
-		gfs_mount_args = NULL;
-	}
-	up(&gfs_mount_args_lock);
-	remove_proc_entry("fs/gfs", NULL);
+	gfs_proc_uninit();
 }
 
 MODULE_DESCRIPTION("Global File System " GFS_RELEASE_NAME);
