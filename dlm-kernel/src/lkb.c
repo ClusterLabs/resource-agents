@@ -43,14 +43,10 @@ static struct dlm_lkb *__find_lock_by_id(struct dlm_ls *ls, uint32_t lkid)
 	uint16_t bucket = lkid & 0xFFFF;
 	struct dlm_lkb *lkb;
 
-	if (bucket >= ls->ls_lkbtbl_size)
-		goto out;
-
 	list_for_each_entry(lkb, &ls->ls_lkbtbl[bucket].list, lkb_idtbl_list){
 		if (lkb->lkb_id == lkid)
 			return lkb;
 	}
- out:
 	return NULL;
 }
 
@@ -133,6 +129,9 @@ struct dlm_lkb *find_lock_by_id(struct dlm_ls *ls, uint32_t lkid)
 {
 	struct dlm_lkb *lkb;
 	uint16_t bucket = lkid & 0xFFFF;
+
+	if (bucket >= ls->ls_lkbtbl_size)
+		return NULL;
 
 	read_lock(&ls->ls_lkbtbl[bucket].lock);
 	lkb = __find_lock_by_id(ls, lkid);
