@@ -58,7 +58,7 @@ static int null_login_reply(void *misc, uint64_t gen, uint32_t error,
 static int null_logout_reply(void *misc);
 static int null_nodelist(void *misc, lglcb_t type, char *name,
 			 struct in6_addr *ip, uint8_t state);
-static int null_statechange(void *misc, uint8_t corestate, 
+static int null_statechange(void *misc, uint8_t corestate, uint8_t quorate,
 			    struct in6_addr *masterip, char *mastername);
 static int null_nodechange(void *misc, char *nodename,
 			   struct in6_addr *nodeip, uint8_t nodestate);
@@ -106,8 +106,8 @@ null_nodelist(void *misc, lglcb_t type, char *name, struct in6_addr *ip,
 
 
 static int
-null_statechange(void *misc, uint8_t corestate, struct in6_addr *masterip,
-		 char *mastername)
+null_statechange(void *misc, uint8_t corestate, uint8_t quorate, 
+      struct in6_addr *masterip, char *mastername)
 {
 	printf("GuLM: %s called\n", __FUNCTION__);
 	return 0;
@@ -254,8 +254,8 @@ gulm_member_list(cluster_plugin_t *self,
 
 
 static int
-gulm_statechange(void *misc, uint8_t corestate, struct in6_addr *masterip,
-		 char *mastername)
+gulm_statechange(void *misc, uint8_t corestate, uint8_t quorate,
+      struct in6_addr *masterip, char *mastername)
 {
 	int *ret = (int *)misc;
 
@@ -264,17 +264,10 @@ gulm_statechange(void *misc, uint8_t corestate, struct in6_addr *masterip,
 #endif
 	*ret = CE_NULL;
 
-	switch (corestate) {
-	case lg_core_Slave:
-	case lg_core_Master:
-	case lg_core_Client:
-		*ret = CE_QUORATE;
-		break;
-	case lg_core_Pending:
-	case lg_core_Arbitrating:
+   if (quorate)
+      *ret = CE_QUORATE;
+   else
 		*ret = CE_INQUORATE;
-		break;
-	}
 
 	return 0;
 }
