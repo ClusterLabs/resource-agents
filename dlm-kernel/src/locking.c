@@ -28,6 +28,7 @@
 #include "ast.h"
 #include "memory.h"
 #include "rsb.h"
+#include "util.h"
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
@@ -553,8 +554,18 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 		goto fail_free;
 
 	lkb->lkb_resource = rsb;
-	if (rsb->res_nodeid == -1)
+
+	if (rsb->res_nodeid == -1) {
+		log_all(ls, "convert mode %u from %u created rsb %s",
+			lkb->lkb_rqmode, remote_nodeid, rsb->res_name);
 		rsb->res_nodeid = 0;
+	} else {
+		GDLM_ASSERT(!rsb->res_nodeid,
+			    print_lkb(lkb);
+			    print_request(freq);
+			    printk("nodeid %u\n", remote_nodeid););
+	}
+
 	if (freq->rr_resdir_seq)
 		rsb->res_resdir_seq = freq->rr_resdir_seq;
 
