@@ -186,15 +186,53 @@ verify_mountpoint()
 }
 
 
+real_device()
+{
+	declare dev=$1
+	declare realdev
+
+	[ -z "$dev" ] && return 1
+
+	if [ -h "$dev" ]; then 
+		realdev=$(readlink -f $dev)
+		if [ $? -ne 0 ]; then
+			return 1
+		fi
+		echo $realdev
+		return 0
+	fi
+
+	if [ -b "$dev" ]; then
+		echo $dev
+	       	return 0
+	fi
+		
+	realdev=$(findfs $dev 2> /dev/null) 
+	if [ -n "$realdev" ] && [ -b "$realdev" ]; then
+		echo $realdev
+		return 0
+	fi
+
+	return 1
+}
+
+
 verify_device()
 {
+	declare realdev
+
 	if [ -z "$OCF_RESKEY_device" ]; then
 	       echo "No device or label specified."
 	       return 1
 	fi
 
-	[ -b "$OCF_RESKEY_device" ] && return 0
-	[ -b "`findfs $OCF_RESKEY_device`" ] && return 0
+	realdev=$(real_device $OCF_RESKEY_device)
+	if [ -n "$realdev" ]; then
+		if [ "$realdev" != "$OCF_RESKEY_device" ]; then
+			echo "Specified $OCF_RESKEY_device maps to $realdev"
+		fi
+		return 0
+	fi
 
 	echo "Device or label \"$OCF_RESKEY_device\" not valid"
 
@@ -323,11 +361,19 @@ isMounted () {
 		return $FAIL
 	fi
 
-	dev=$1
+	dev=$(real_device $1)
+	if [ -z "$dev" ]; then
+		logAndPrint $LOG_ERR \
+			"isMounted: Could not match $1 with a real device"
+		return $FAIL
+	fi
 	mp=$2
 	
 	while read tmp_dev tmp_mp
 	do
+		#echo "spec=$1 dev=$dev  tmp_dev=$tmp_dev"
+		tmp_dev=$(real_device $tmp_dev)
+
 		if [ -n "$tmp_dev" -a "$tmp_dev" = "$dev" ]; then
 			#
 			# Check to see if its mounted in the right
@@ -474,7 +520,12 @@ startFilesystem() {
 	#
 	# Get the device
 	#
-	dev=${OCF_RESKEY_device}
+	dev=$(real_device $OCF_RESKEY_device)
+	if [ -z "$dev" ]; then
+			logAndPrint $LOG_ERR "\
+startFilesystem: Could not match $OCF_RESKEY_device with a real device"
+			return $FAIL
+	fi
 
 	#
 	# Ensure we've got a valid directory
@@ -627,7 +678,13 @@ stopFilesystem() {
 	#
 	# Get the device
 	#
-	dev=${OCF_RESKEY_device}
+	dev=$(real_device $OCF_RESKEY_device)
+	if [ -z "$dev" ]; then
+			logAndPrint $LOG_ERR "\
+stop: Could not match $OCF_RESKEY_device with a real device"
+			return $FAIL
+	fi
+
 
 	#
 	# Get the force unmount setting if there is a mount point.
@@ -635,7 +692,7 @@ stopFilesystem() {
 	if [ -n "$mp" ]; then
 		case ${OCF_RESKEY_force_unmount} in
 	        $YES_STR)	force_umount=$YES ;;
-		0)		force_umount=$YES ;;
+		1)		force_umount=$YES ;;
 	        *)		force_umount="" ;;
 		esac
 	fi

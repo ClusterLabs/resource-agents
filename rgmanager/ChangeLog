@@ -1,3 +1,8 @@
+2005-03-14 Lon Hohberger <lhh at redhat.com>
+	* src/resources/clusterfs.sh, fs.sh: Make clusterfs actually work.
+	Clean up fs.sh + clusterfs.sh "status" when mount reports none/
+	devpets/usbdev/etc.
+
 2005-03-07 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Add STOP_USER so we can handle user 
 	STOP (instead of just DISABLE) requests.  #150333

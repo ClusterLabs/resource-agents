@@ -237,7 +237,7 @@ real_device()
 	       	return 0
 	fi
 		
-	realdev=$(findfs $dev)
+	realdev=$(findfs $dev 2> /dev/null)
 	if [ -n "$realdev" ] && [ -b "$realdev" ]; then
 		echo $realdev
 		return 0
@@ -820,7 +820,7 @@ stopFilesystem() {
 	  	;;
 	*)	 		# invalid format
 			logAndPrint $LOG_ERR \
-"startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
+"stopFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
 	    	return $FAIL
 	    	;;
 	esac
@@ -831,7 +831,7 @@ stopFilesystem() {
 	dev=$(real_device $OCF_RESKEY_device)
 	if [ -z "$dev" ]; then
 			logAndPrint $LOG_ERR "\
-startFilesystem: Could not match $OCF_RESKEY_device with a real device"
+stop: Could not match $OCF_RESKEY_device with a real device"
 			return $FAIL
 	fi
 
