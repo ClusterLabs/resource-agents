@@ -38,7 +38,7 @@ struct semaphore cluster_members_lock;
 int cluster_members;		/* Number of ACTIVE members, not a count of
 				 * nodes in the list */
 int we_are_a_cluster_member = 0;
-int cluster_is_quorate;
+int cluster_is_quorate = 0;
 int quit_threads = 0;
 struct task_struct *membership_task;
 struct cluster_node *us;
