@@ -24,6 +24,7 @@
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
 
+/* FIXME: #include "groupd.h" */
 #define GROUPD_SOCK_PATH "groupd_socket"
 
 #define MAXARGS 64
@@ -37,6 +38,7 @@ int ls_terminate(int argc, char **argv);
 int ls_start(int argc, char **argv);
 int ls_finish(int argc, char **argv);
 int ls_set_id(int argc, char **argv);
+int ls_get_done(int argc, char **argv, int *event_nr);
 
 int groupd_fd;
 int uevent_fd;
@@ -125,6 +127,16 @@ void process_groupd(void)
 		log_error("ls action error %d\n", rv);
 }
 
+void get_done_event(char *name, int *event_nr)
+{
+	char *argv[] = { name };
+	int rv;
+
+	rv = ls_get_done(1, argv, event_nr);
+	if (rv)
+		log_error("ls get_done error %d", rv);
+}
+
 /* recv "online" (join), "offline" (leave) and "change" (startdone)
    messages from dlm via uevents and pass them on to groupd */
 
@@ -132,10 +144,11 @@ int process_uevent(void)
 {
 	char buf[MAXLINE];
 	char obuf[MAXLINE];
-	char *argv[MAXARGS], *act, *name, *act_out;
+	char *argv[MAXARGS], *act;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
+	memset(obuf, 0, sizeof(obuf));
 
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
 	if (rv < 0) {
@@ -151,28 +164,26 @@ int process_uevent(void)
 	make_args(buf, &argc, argv, '/');
 
 	act = argv[0];
-	name = argv[3];
 
 	if (!strcmp(act, "online@"))
-		act_out = "join";
-	else if (!strcmp(act, "offline@"))
-		act_out = "leave";
-	else if (!strcmp(act, "change@"))
-		act_out = "done";
-	else {
-		log_error("skip action %s", act);
-		goto out;
-	}
+		sprintf(obuf, "join %s", argv[3]);
 
-	memset(obuf, 0, sizeof(obuf));
-	sprintf(obuf, "%s %s", act_out, name);
+	else if (!strcmp(act, "offline@"))
+		sprintf(obuf, "leave %s", argv[3]);
+
+	else if (!strcmp(act, "change@")) {
+		int event_nr = 0;
+		get_done_event(argv[3], &event_nr);
+		sprintf(obuf, "done %s %d", argv[3], event_nr);
+
+	} else
+		goto out;
 
 	printf("O: groupd write: %s\n", obuf);
 
 	rv = write(groupd_fd, &obuf, strlen(obuf));
 	if (rv < 0)
 		log_error("write error %d errno %d %s", rv, errno, obuf);
-
  out:
 	return 0;
 }
