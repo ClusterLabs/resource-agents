@@ -25,6 +25,9 @@
 static int fd = -1;
 static int quit = 0;
 
+static void sig_usr1(int sig)
+{}
+
 static void sig_term(int sig)
 {
   quit = 1;
@@ -64,6 +67,9 @@ int main(int argc, char **argv){
   act.sa_handler = sig_term;
   if (sigaction(SIGTERM, &act, NULL) < 0)
     fail_startup("cannot set a handler for SIGTERM : %s\n", strerror(errno));
+  act.sa_handler = sig_usr1;
+  if (sigaction(SIGUSR1, &act, NULL) < 0)
+    fail_startup("cannot set a handler for SIGUSR1 : %s\n", strerror(errno));
 
   if (!pid_lock("")){
     finish_startup("gnbd_clusterd already running\n");
@@ -76,7 +82,8 @@ int main(int argc, char **argv){
   finish_startup("connected\n");
 
   while(!quit){
-    pause();
+    int event;
+    event = clu_get_event(fd);
   }
   clu_disconnect(fd);
   
