@@ -40,7 +40,7 @@ install: all
 	install -d ${module_dir}/fs/gfs_locking/lock_harness
 	install lock_harness.ko ${module_dir}/fs/gfs_locking/lock_harness
 
-uninstall: all
+uninstall:
 	${UNINSTALL} lm_interface.h ${incdir}/linux
 	${UNINSTALL} lock_harness.ko ${module_dir}/fs/gfs_locking/lock_harness
  
