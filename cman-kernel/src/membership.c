@@ -1318,10 +1318,11 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 
 		msg->num_addrs = cpu_to_le16(num_addrs);
 		kcl_sendmsg(mem_socket, msg, ptr, NULL, 0, flags);
+
+		/* Set a timer in case we don't get 'em all back */
+		mod_timer(&transition_timer,
+			  jiffies + cman_config.transition_timeout * HZ);
 	}
-	/* Set a timer in case we don't get 'em all back */
-	mod_timer(&transition_timer,
-		  jiffies + cman_config.transition_timeout * HZ);
 	return 0;
 }
 
@@ -1722,6 +1723,7 @@ static struct cluster_node *remove_node(int nodeid, unsigned char reason)
 		node->state = NODESTATE_DEAD;
 		cluster_members--;
 		up(&cluster_members_lock);
+		node->leave_reason = reason;
 
 		notify_kernel_listeners(DIED, (long) nodeid);
 
@@ -2763,13 +2765,7 @@ static int do_process_leave(struct msghdr *msg, char *buf, int len)
 	if ((node = find_node_by_nodeid(saddr->scl_nodeid))) {
 		unsigned char reason = leavemsg[1];
 
-		if (node->state != NODESTATE_DEAD) {
-			printk(KERN_INFO CMAN_NAME
-			       ": Node %s is leaving the cluster, %s\n",
-			       node->name, leave_string(reason));
-
-			node->leave_reason = reason;
-		}
+		node->leave_reason = reason;
 		leavereason = (reason == CLUSTER_LEAVEFLAG_REMOVED ? 1 : 0);
 
 		a_node_just_died(node);
