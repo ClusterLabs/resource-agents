@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.1 2004/09/06 10:20:35 lars Exp $
+#	$Id: drbd.in,v 1.2 2004/09/06 10:32:37 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -152,6 +152,7 @@ END
 }
 
 drbd_start() {
+	# TODO: Verify idempotency of drbdadm up
 	$DRBDADM -c $DRBDCONF up $DRBD
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
@@ -161,6 +162,8 @@ drbd_start() {
 }
 
 drbd_stop() {
+	# TODO: this is a _force_ operation. we may need to kill higher
+	# levels to be able to down drbd. figure out how...
 	$DRBDADM -c $DRBDCONF down $DRBD
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
@@ -191,6 +194,10 @@ drbd_promote() {
 }
 
 drbd_demote() {
+	# TODO: this is a _force_ operation. we may need to kill higher
+	# levels (or switch them to r/o) to be able to demote drbd.
+	# figure out how...
+	
 	if [ "x$DRBD_STATE_LOCAL" = "xSecondary" ]; then
 		return $OCF_SUCCESS
 	fi
@@ -217,6 +224,8 @@ drbd_notify() {
 			# to primary.
 			#
 			if [ "$target_status" -eq 0 ]; then
+				# TODO: This comamnd is also not
+				# implemented in drbdadm yet ;-)
 				$DRBDADM mark_peer_down $DRBD
 			fi
 			;;
