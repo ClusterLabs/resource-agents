@@ -492,7 +492,7 @@ static int do_timer_wakeup()
 			P_MEMB("JOINCONF not acked, removing node\n");
 			joining_node->state = NODESTATE_DEAD;
 			start_transition(TRANS_REMNODE, joining_node);
-			remove_joiner();
+			remove_joiner(1);
 			joining_node = NULL;
 		}
 		return -1;
@@ -1748,7 +1748,7 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 	struct cluster_node *node = NULL;
 
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
-	remove_joiner();
+	remove_joiner(1);
 
 	if (startmsg->reason == TRANS_REMNODE) {
 		node = remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
@@ -1924,11 +1924,27 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 /* Remove the node from the list if it's a brand-new node,
  * otherwise we end up knowing about a node that no-one
  * else has and transitions get a bit fragile!
+ *
+ * Optionally tells the joining node to cancel it's join and try
+ * again later.
  */
-static void remove_joiner(void)
+static void remove_joiner(int tell_wait)
 {
 	if (!joining_node)
 		return;
+
+	if (tell_wait) {
+		struct sockaddr_cl saddr;
+
+		saddr.scl_nodeid = joining_temp_nodeid;
+		saddr.scl_family = AF_CLUSTER;
+		saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
+
+		P_MEMB("Postponing membership of node %s (incarnation=%d)\n",
+		       joining_node->name, joining_node->incarnation);
+		send_joinack((char *)&saddr, sizeof(saddr),
+			     JOINACK_TYPE_WAIT);
+	}
 
 	if (joining_node->incarnation == 0) {
 		P_MEMB("Removing joining node %s\n", joining_node->name);
@@ -1979,7 +1995,7 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 	if (endmsg->new_node_id)
 		confirm_joiner();
 	else
-		remove_joiner();
+		remove_joiner(0);
 
 	cluster_generation = le32_to_cpu(endmsg->generation);
 
@@ -2100,18 +2116,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			 * we will have to abandon that now and tell the new
 			 * node to try again later */
 			if (transitionreason == TRANS_NEWNODE && joining_node) {
-				struct sockaddr_cl saddr;
-
-				saddr.scl_nodeid = joining_temp_nodeid;
-				saddr.scl_family = AF_CLUSTER;
-				saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
-
-				P_MEMB("Postponing membership of node %s (incarnation=%d)\n",
-				       joining_node->name, joining_node->incarnation);
-				send_joinack((char *)&saddr, sizeof(saddr),
-					      JOINACK_TYPE_WAIT);
-
-				remove_joiner();
+				remove_joiner(1);
 			}
 
 			/* If the new master is not us OR the node we just got
@@ -2285,8 +2290,7 @@ static int do_process_joinack(struct msghdr *msg, char *buf, int len)
 		node_state = REJECTED;
 	}
 
-	if (ackmsg->acktype == JOINACK_TYPE_WAIT &&
-		node_state != JOINACK) {
+	if (ackmsg->acktype == JOINACK_TYPE_WAIT) {
 		P_MEMB("Got JOINACK WAIT\n");
 		node_state = JOINWAIT;
 		joinwait_time = jiffies;
