@@ -188,7 +188,7 @@ int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
 
    if( gulm_config.ccs_desc < 0 ) return 1;
 
-   n = snprintf(req, 256, "/nodes/node[@name='%s']", name);
+   n = snprintf(req, 256, "/clusternodes/clusternode[@name='%s']", name);
    /* look for a valid node (long or short form) using either its name or
     * altname.
     *
@@ -197,7 +197,7 @@ int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
     * is a dolt and we get over it and move on.
     *
     * This gets nodes by name or altname.
-    *  /nodes/node[@name='%s'|altname/@name='%s']
+    *  /clusternodes/clusternode[@name='%s'|altname/@name='%s']
     *
     * Can't just use starts-with()  Since it needs to either equal the
     * short name or start with shortname and a '.'
@@ -205,7 +205,7 @@ int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
     *  starts-with(@name,concat('%s','.'))
     *
     * So:
-    *  /cluster/nodes/node[@name='%s' or starts-with(@name,concat('%s','.')) or altname/@name='%s' or starts-with(altname/@name,concat('%s','.'))]
+    *  /cluster/clusternodes/clusternode[@name='%s' or starts-with(@name,concat('%s','.')) or altname/@name='%s' or starts-with(altname/@name,concat('%s','.'))]
     *
     * I think will tell us if there is a node by this name in the config.
     * Allowing for the weird-ism of short/long hostnames.

@@ -96,35 +96,35 @@ Simple three node cluster with manual fencing.
       <servers>nd01 nd02 nd05</servers>
     </gulm>
   
-    <nodes>
-      <node name="nd01" votes="1">
+    <clusternodes>
+      <clusternode name="nd01" votes="1">
         <fence>
           <method name="single">
             <device name="human" ipaddr="nd01"/>
           </method>
         </fence>
-      </node>
+      </clusternode>
   
-      <node name="nd02" votes="1">
+      <clusternode name="nd02" votes="1">
         <fence>
           <method name="single">
             <device name="human" ipaddr="nd02"/>
           </method>
         </fence>
-      </node>
+      </clusternode>
   
-      <node name="nd03" votes="1">
+      <clusternode name="nd03" votes="1">
         <fence>
           <method name="single">
             <device name="human" ipaddr="nd03"/>
           </method>
         </fence>
-      </node>
-    </nodes>
+      </clusternode>
+    </clusternodes>
   
-    <fence_devices>
-      <device name="human" agent="fence_manual"/>
-    </fence_devices>
+    <fencedevices>
+      <fencedevice name="human" agent="fence_manual"/>
+    </fencedevices>
   
   </cluster>
 

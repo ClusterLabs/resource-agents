@@ -30,8 +30,8 @@
 #define METHOD_NAME_PATH        "/cluster/nodes/node[@name=\"%s\"]/fence/method[%d]/@name"
 #define DEVICE_NAME_PATH        "/cluster/nodes/node[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[%d]/@name"
 #define NODE_FENCE_ARGS_PATH    "/cluster/nodes/node[@name=\"%s\"]/fence/method[@name=\"%s\"]/device[@name=\"%s\"]/@*"
-#define AGENT_NAME_PATH         "/cluster/fence_devices/device[@name=\"%s\"]/@agent"
-#define FENCE_DEVICE_ARGS_PATH  "/cluster/fence_devices/device[@name=\"%s\"]/@*"
+#define AGENT_NAME_PATH         "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@agent"
+#define FENCE_DEVICE_ARGS_PATH  "/cluster/fencedevices/fencedevice[@name=\"%s\"]/@*"
 
 
 static int use_device(int cd, char *victim, char *method, char *device, int in);
