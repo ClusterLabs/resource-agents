@@ -917,6 +917,13 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 			     kparams->lkid,
 			     kparams->flags, NULL, NULL);
 
+	if (status) {
+		/* It failed, put it back on the list */
+		spin_lock(&fi->fi_lkb_lock);
+		list_add(&lkb->lkb_ownerqueue, &fi->fi_lkb_list);
+		spin_unlock(&fi->fi_lkb_lock);
+	}
+
 	return status;
 }
 
