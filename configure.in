@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.365 $) dnl cvs revision
+AC_REVISION($Revision: 1.366 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -696,6 +696,9 @@ AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_
 AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
 AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
+AC_ARG_ENABLE([snmp-subagent],
+[  --enable-snmp-subagent  Enable SNMP subagent],
+                     [], [enable_snmp_subagent=yes])
 
 SNMPLIB=""
 SNMPCONFIG=""
@@ -982,10 +985,7 @@ dnl - If requested, enable ALL subsystems.
 	if test "${enable_all}" = "yes" ; then
 	  echo "Enabling all optional features."
 	  enable_ansi=yes;
-	  #enable_checkpointd=yes;
-	  #enable_cms=yes;
 	  enable_crm=yes;
-	  #enable_eventd=yes;
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
 	  enable_snmp_subagent=yes;
@@ -1159,12 +1159,12 @@ dnl
 AC_ARG_WITH(
   group-name,
     [  --with-group-name=GROUP_NAME
-                          GROUP_NAME to own API fifos. [default=haclient]  ],
+                          GROUP_NAME to run our programs as. [default=haclient]  ],
     [ HA_APIGROUP="$withval" ],
     [ HA_APIGROUP="haclient" ],
   )
 AC_SUBST(HA_APIGROUP)
-AC_DEFINE_UNQUOTED(HA_APIGROUP, "$HA_APIGROUP", group for api fifos)
+AC_DEFINE_UNQUOTED(HA_APIGROUP, "$HA_APIGROUP", group for our programs)
 
 if
   test  -z "${GETENT}" -o ! -x "${GETENT}"
@@ -1185,7 +1185,7 @@ fi
 AC_ARG_WITH(
   group-id,
     [  --with-group-id=GROUP_ID  
-                          GROUP_ID to own API fifos. [default=60]  ],
+                          GROUP_ID to run our programs as. [default=60]  ],
     [ HA_APIGID="$withval" ],
     [ HA_APIGID=65 ],
   )
@@ -1579,78 +1579,15 @@ AC_SUBST(ECHO_C)
 AC_SUBST(ECHO_E)
 AC_SUBST(ECHO_CMD)
 
-#
-#	AIS Event Service
-#
-RPM_FILES_LIBEVT=""
-RPM_FILES_EVT=""
-
-AC_ARG_ENABLE([eventd],
-    [  --enable-eventd   AIS Event Service daemon.  [default=no]  ])
-
-if test "x${enable_eventd}" = "xyes"; then
-	echo "Enabling the AIS Event Service code..."
-	RPM_FILES_LIBEVT="${libdir}/libevent.*"
-	RPM_FILES_EVT="%dir %attr (755, root, $HA_APIGROUP) ${localstatedir}/lib/$HB_PKG/evt"
-else 
-    if test -z "${enable_eventd}"; then
-	enable_eventd="no"
-    fi
-fi
-AM_CONDITIONAL(EVENTD_BUILD, test "x${enable_eventd}" = "xyes")
-AC_SUBST(RPM_FILES_LIBEVT)
-AC_SUBST(RPM_FILES_EVT)
-
-#
-#	AIS Checkpoint Service
-#
-AC_ARG_ENABLE([checkpointd],
-    [  --enable-checkpointd   AIS Checkpoint Service daemon.  [default=no]  ])
-
-if test "x${enable_checkpointd}" = "xyes"; then
-	echo "Enabling the AIS Checkpoint Service code..."
-	RPM_FILES_LIBCKPT="${libdir}/libckpt.*"
-	RPM_FILES_CKPT="%dir %attr (755, root, $HA_APIGROUP) ${localstatedir}/lib/$HB_PKG/ckpt"
-else 
-    if test -z "${enable_checkpointd}"; then
-	enable_checkpointd="no"
-    fi
-fi
-AM_CONDITIONAL(CHECKPOINTD_BUILD, test "x${enable_checkpointd}" = "xyes")
-AC_SUBST(RPM_FILES_LIBCKPT)
-AC_SUBST(RPM_FILES_CKPT)
-
-#
-#	AIS Message Service
-#
-RPM_FILES_LIBCMS=""
-RPM_FILES_CMS=""
-
-AC_ARG_ENABLE([cms],
-    [  --enable-cms   compile ais message service daemon(cms). [default=no] ])
-
-if test "x${enable_cms}" = "xyes"; then
-	enable_cms="yes"
-	RPM_FILES_LIBCMS="${libdir}/libcms.*"
-	RPM_FILES_CMS="%dir %attr (755, root, $HA_APIGROUP) ${localstatedir}/lib/$HB_PKG/cms"
-else 
-	if test -z "{enable_cms}"; then
-	    enable_cms="no"
-	fi
-fi
-AM_CONDITIONAL(CMS_BUILD, test "x${enable_cms}" = "xyes")
-AC_SUBST(RPM_FILES_LIBCMS)
-AC_SUBST(RPM_FILES_CMS)
-
-
 AC_ARG_ENABLE([crm],
-[  --enable-crm  Compile the new Cluster Resource Manager.
-                     This is still in the developement stage.  [default=no]]) 
+[  --enable-crm  Compile the Version 2 Cluster Resource Manager.  [default=yes]],
+                          [], [enable_crm=yes])
 
 AC_ARG_ENABLE([crm-dev],
 [  --enable-crm-dev  Compile the new Cluster Resource Manager with 
    		     developmental asserts turned on and extra code for testing.
-                     This is still in the developement stage.  [default=no]]) 
+                     This is still in the development stage.  [default=no]],
+                     [], [enable_crm_dev=no])
 
 CRM_ENABLED=0
 if test "x${enable_crm_dev}" = "xyes"; then
@@ -1692,8 +1629,8 @@ dnl AC_DEFINE_UNQUOTED(CRM_DEBUG_DMALLOC, 1, Use the dmalloc libraries)
 
 dnl lrm configuration
 AC_ARG_ENABLE([lrm],
-[  --enable-lrm  Compile the new Cluster Resource Manager.
-                          This is still in developement stage.  [default=no]]) 
+[  --enable-lrm  Compile the new Local Resource Manager.  [default=yes]],
+                     [], [enable_lrm=yes])
 
 LRM_ENABLED=0
 if test "x${enable_crm}" = "xyes"; then
@@ -1754,7 +1691,8 @@ AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"$STONITH_RA_DIR", stonith ra dir)
 dnl **********************************************************************
 dnl Scripting language bindings
 AC_ARG_ENABLE([swig],
-[  --enable-swig  Provide language bindings via SWIG [default=no]]) 
+[  --enable-swig  Provide language bindings via SWIG [default=yes]],
+[], [enable_swig=yes]) 
 
 SWIG_OPTIONS="$GLIBHEAD"
 SWIG_ENABLED=0
@@ -1899,7 +1837,6 @@ contrib/Makefile						\
 	contrib/ipfail/Makefile					\
         contrib/mlock/Makefile					\
 include/Makefile						\
-	include/checkpointd/Makefile				\
         include/clplumbing/Makefile				\
 	include/crm/Makefile					\
 		include/crm/common/Makefile			\
@@ -1918,10 +1855,7 @@ lib/Makefile							\
 		lib/bindings/perl/Makefile			\
 		lib/bindings/perl/Makefile.PL			\
 			lib/bindings/perl/cl_raw/Makefile.PL	\
-	lib/checkpointd/Makefile				\
 	lib/clplumbing/Makefile					\
-	lib/eventd/Makefile					\
-	lib/cmsclient/Makefile                                  \
 	lib/hbclient/Makefile					\
 	lib/crm/Makefile					\
 	lib/crm/cib/Makefile					\
@@ -1976,12 +1910,6 @@ snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
-	telecom/checkpointd/Makefile				\
-	telecom/eventd/Makefile					\
-	telecom/cms/Makefile                                    \
-	telecom/cms/utils/Makefile                              \
-	telecom/cms/test/Makefile                               \
-	telecom/cms/doc/Makefile                                \
 	telecom/recoverymgrd/Makefile				\
 fencing/Makefile						\
 	fencing/stonithd/Makefile				\
@@ -2069,10 +1997,10 @@ AC_MSG_RESULT([  State information    = "$my_localstatedir"])
 AC_MSG_RESULT([  System configuration = "$my_sysconfdir"])
 AC_MSG_RESULT([  Init (rc) scripts    = "$my_initdir"])
 
-AC_MSG_RESULT([  API fifo group name  = "${HA_APIGROUP}"])
-AC_MSG_RESULT([  API fifo group id    = "${HA_APIGID}"])
-AC_MSG_RESULT([  HA client user name  = "${HA_CCMUSER}"])
-AC_MSG_RESULT([  HA client user id    = "${HA_CCMUID}"])
+AC_MSG_RESULT([  HA group name        = "${HA_APIGROUP}"])
+AC_MSG_RESULT([  HA group id          = "${HA_APIGID}"])
+AC_MSG_RESULT([  HA user name         = "${HA_CCMUSER}"])
+AC_MSG_RESULT([  HA user user id      = "${HA_CCMUID}"])
 
 AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
@@ -2084,9 +2012,6 @@ fi
 AC_MSG_RESULT([  Build New CRM        = "${enable_crm}"])
 AC_MSG_RESULT([  Build New LRM        = "${enable_lrm}"])
 AC_MSG_RESULT([  Build SWIG bindings  = "${enable_swig}"])
-AC_MSG_RESULT([  Build Eventd         = "${enable_eventd}"])
-AC_MSG_RESULT([  Build Checkpointd    = "${enable_checkpointd}"])
-AC_MSG_RESULT([  Build cms            = "${enable_cms}"])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
