@@ -98,28 +98,13 @@ static int _update_config(char *location){
 
   log_msg("Update of cluster.conf complete (version %d -> %d).\n", v1, v2);
  fail:
-  {
-    int fd;	
-    char *buffer;
-    int size;
-
-    if(tmp_odoc != master_doc){
-      free(tmp_odoc);
-    }
-    if(tmp_doc != master_doc->od_doc){
-      xmlFreeDoc(tmp_doc);
-    }
-
-    xmlDocDumpFormatMemory(master_doc->od_doc, (xmlChar **)&buffer, &size, 0);
-
-    fd = open("/etc/cluster/cluster.conf",
-	      O_CREAT | O_WRONLY | O_TRUNC,
-	      S_IRUSR | S_IRGRP);
-    if(fd >= 0){
-      write(fd, buffer, size);
-      close(fd);
-    }
+  if(tmp_odoc != master_doc){
+    free(tmp_odoc);
   }
+  if(tmp_doc != master_doc->od_doc){
+    xmlFreeDoc(tmp_doc);
+  }
+
 
   EXIT("_update_config");
   return error;

@@ -183,6 +183,7 @@ static int handle_cluster_message(int fd){
 
     if(master_node != nodeid){
       log_err("COMM_UPDATE_COMMIT received from node other than initiator.\n");
+      log_err("Hint:  There may be multiple updates happening at once.\n");
       error = -EPERM;
       goto fail;
     }
@@ -381,6 +382,7 @@ static void cluster_communicator(void){
       if(fd == cluster_fd){
 	if(handle_cluster_event(fd)){
 	  cluster_fd = -1;
+	  log_err("Cluster manager shutdown.  Attemping to reconnect...\n");
 	  goto restart;
 	}
       } else {
