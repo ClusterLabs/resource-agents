@@ -334,8 +334,7 @@ void do_dlm_unlock(dlm_lock_t *lp)
 	log_debug("un %x,%"PRIx64" %x %d %x", lp->lockname.ln_type,
 		  lp->lockname.ln_number, lp->lksb.sb_lkid, lp->cur, lkf);
 
-	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, NULL,
-			   NULL);
+	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, NULL, lp);
 
 	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
 			      lp->dlm->fsname, error, lp->lockname.ln_type,
