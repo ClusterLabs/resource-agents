@@ -1,0 +1,72 @@
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+%define vers @VERS@
+%define rel @REL@
+
+%define fence_find_requires %{_builddir}/fence-find-requires
+%define _use_internal_dependency_generator 0
+
+Name: fence
+Version: %{vers}
+Release: %{rel}
+License: GPL
+Group: System Environment/Base
+Summary: fence - The cluster I/O fencing system
+BuildRequires: cman-kernheaders ccs-devel
+Conflicts: GFS <= 6.0
+Conflicts: GFS-modules
+
+Source0: %{name}-%{version}.tar.gz
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+
+%description
+fence - The cluster I/O fencing system
+
+%prep
+%setup -q
+
+%{__cat} <<EOF >%{fence_find_requires}
+#!/bin/sh
+%{__find_requires} | grep -v '^perl(Net::SSLeay'
+exit 0
+EOF
+chmod +x %{fence_find_requires}
+%define __find_requires %{fence_find_requires}
+
+%build
+./configure --mandir=%{_mandir}
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%defattr(-,root,root,-)
+/sbin
+ 
+%doc
+%{_mandir}
+
+%changelog
+* Mon Oct 25 2004 Chris Feist <cfeist@redhat.com>
+- various bug fixes (new upstream sources)
+* Sat Aug 14 2004 Jon Brassow <jbrassow@redhat.com>
+- various bug fixes (new upstream sources)
+* Wed Jul 14 2004 Jon Brassow <jbrassow@redhat.com> 
+- build for i386 and x86_64 only
+* Thu Jun 17 2004 Jon Brassow <jbrassow@redhat.com> 
+- Initial build.
