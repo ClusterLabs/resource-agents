@@ -237,7 +237,7 @@ int get_dev(char *path, mode_t *mode, int *major_nr, int *minor_nr){
       printe("cannot stat %s : %s\n", path, strerror(errno));
       exit(1);
     }
-    goto out_remove;
+    return -1;
   }
   if ((stats.st_mode & S_IFMT) != (*mode & S_IFMT)){
     printv("incorrect type for %s. removing\n", path);
