@@ -135,6 +135,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	log_all(ls, "recover event %u", rv->event_id);
 
+	/*
+	 * this list may be left over from a previous aborted recovery
+	 */
+
+	rebuild_freemem(ls);
+
 	/* 
 	 * Add or remove nodes from the lockspace's ls_nodes list.
 	 */
@@ -490,6 +496,8 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	if (cur_state == LSST_RECONFIG_DONE) {
 		switch (do_now) {
 		case DO_FINISH:
+			rebuild_freemem(ls);
+
 			clear_finished_nodes(ls, finish_event);
 			next_state = LSST_CLEAR;
 

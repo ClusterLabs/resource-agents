@@ -342,37 +342,42 @@ static inline int last_in_list(struct dlm_rsb *r, struct list_head *head)
 	return 0;
 }
 
-/* 
- * Used to decide if an rsb should be rebuilt on a new master.  An rsb only
- * needs to be rebuild if we have lkb's queued on it.  NOREBUILD lkb's on the
- * wait queue are not rebuilt.
- */
-
-static int lkbs_to_remaster(struct dlm_rsb *r)
+static int lkbs_to_remaster_list(struct list_head *head)
 {
 	struct dlm_lkb *lkb;
-	struct dlm_rsb *sub;
 
-	if (!list_empty(&r->res_grantqueue) ||
-	    !list_empty(&r->res_convertqueue))
-		return TRUE;
-
-	list_for_each_entry(lkb, &r->res_waitqueue, lkb_statequeue) {
+	list_for_each_entry(lkb, head, lkb_statequeue) {
 		if (lkb->lkb_flags & GDLM_LKFLG_NOREBUILD)
 			continue;
 		return TRUE;
 	}
+	return FALSE;
+}
+
+/* 
+ * Used to decide if an rsb should be rebuilt on a new master.  An rsb only
+ * needs to be rebuild if we have lkb's queued on it.  NOREBUILD lkb's are not
+ * rebuilt.
+ */
+
+static int lkbs_to_remaster(struct dlm_rsb *r)
+{
+	struct dlm_rsb *sub;
+
+	if (lkbs_to_remaster_list(&r->res_grantqueue))
+		return TRUE;
+	if (lkbs_to_remaster_list(&r->res_convertqueue))
+		return TRUE;
+	if (lkbs_to_remaster_list(&r->res_waitqueue))
+		return TRUE;
 
 	list_for_each_entry(sub, &r->res_subreslist, res_subreslist) {
-		if (!list_empty(&sub->res_grantqueue) ||
-		    !list_empty(&sub->res_convertqueue))
+		if (lkbs_to_remaster_list(&sub->res_grantqueue))
 			return TRUE;
-
-		list_for_each_entry(lkb, &sub->res_waitqueue, lkb_statequeue) {
-			if (lkb->lkb_flags & GDLM_LKFLG_NOREBUILD)
-				continue;
+		if (lkbs_to_remaster_list(&sub->res_convertqueue))
 			return TRUE;
-		}
+		if (lkbs_to_remaster_list(&sub->res_waitqueue))
+			return TRUE;
 	}
 
 	return FALSE;
@@ -396,7 +401,7 @@ static void serialise_rsb(struct dlm_rsb *rsb, char *buf, int *offp)
 	DLM_ASSERT(!rsb->res_lvbptr,);
 }
 
-/* 
+/*
  * Flatten an LKB into a buffer for sending to the new RSB master.  As a
  * side-effect the nodeid of the lock is set to the nodeid of the new RSB
  * master.
@@ -856,7 +861,6 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 	log_all(ls, "rebuilt %d locks", fill.count);
 
       out:
-	rebuild_freemem(ls);
 	free_rcom_buffer(rc);
 
       ret:
@@ -1159,7 +1163,7 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 	if (!rnode)
 		goto out;
 
-	/* 
+	/*
 	 * Allocate a buffer for the reply message which is a list of remote
 	 * lock IDs and their (new) local lock ids.  It will always be big
 	 * enough to fit <n> ID pairs if it already fit <n> LKBs.
@@ -1171,7 +1175,7 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 	outbuf = rc->rc_buf;
 	outptr = 0;
 
-	/* 
+	/*
 	 * Unpack RSBs and LKBs, saving new LKB id's in outbuf as they're
 	 * created.  Each deserialise_rsb adds an rsb reference that must be
 	 * removed with release_rsb once all new lkb's for an rsb have been
