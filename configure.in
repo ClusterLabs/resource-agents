@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.108 $) dnl cvs revision
+AC_REVISION($Revision: 1.109 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -832,6 +832,7 @@ dnl envornment, then the new CFLAGS will also be exported
 dnl to sub processes. This causes a problem when configure
 dnl is run in the libltdl directory. Horms 16th July 2002
 dnl               
+export CFLAGS
 export -n CFLAGS
 
 if test "$GCC" = yes; then
