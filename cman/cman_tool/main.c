@@ -274,6 +274,23 @@ static void kill_node(commandline_t *comline)
 	close(cluster_sock);
 }
 
+
+static int get_int_arg(char argopt, char *arg)
+{
+	char *tmp;
+	int val;
+
+	val = strtol(arg, &tmp, 10);
+	if (tmp == arg || tmp != arg + strlen(arg))
+		die("argument to %c (%s) is not an integer", argopt, arg);
+
+	if (val < 0)
+		die("argument to %c cannot be negative", argopt);
+
+	return val;
+}
+
+
 static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 {
 	int cont = TRUE;
@@ -320,17 +337,17 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'r':
-			comline->config_version = atoi(optarg);
+			comline->config_version = get_int_arg(optchar, optarg);
 			comline->config_version_opt = TRUE;
 			break;
 
 		case 'v':
-			comline->votes = atoi(optarg);
+			comline->votes = get_int_arg(optchar, optarg);
 			comline->votes_opt = TRUE;
 			break;
 
 		case 'e':
-			comline->expected_votes = atoi(optarg);
+			comline->expected_votes = get_int_arg(optchar, optarg);
 			comline->expected_votes_opt = TRUE;
 			break;
 
@@ -339,12 +356,12 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			break;
 
 		case 'p':
-			comline->port = atoi(optarg);
+			comline->port = get_int_arg(optchar, optarg);
 			comline->port_opt = TRUE;
 			break;
 
 		case 'N':
-			comline->nodeid = atoi(optarg);
+			comline->nodeid = get_int_arg(optchar, optarg);
 			comline->nodeid_opt = TRUE;
 			break;
 
