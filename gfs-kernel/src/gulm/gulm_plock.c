@@ -204,7 +204,7 @@ gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
 		err = -pret.error;
 	}
 
-	if ( err != 0) err = posix_lock_file_wait(file, fl);
+	if ( err == 0) err = posix_lock_file_wait(file, fl);
 
 fail:
 	return err;
@@ -250,7 +250,7 @@ gulm_punlock (lm_lockspace_t * lockspace, struct lm_lockname *name,
 	wait_for_completion (&pret.sleep);
 
 	err = -pret.error;
-	if ( err != 0) err = posix_lock_file_wait(file, fl);
+	if ( err == 0) err = posix_lock_file_wait(file, fl);
 
 fail:
 	return err;
