@@ -197,18 +197,26 @@ gfs_assert_i(struct gfs_sbd *sdp,
 	     const char *function,
 	     char *file, unsigned int line)
 {
-	printk("GFS: fsid=%s: assertion \"%s\" failed\n"
-	       "GFS: fsid=%s:   function = %s\n"
-	       "GFS: fsid=%s:   file = %s, line = %u\n"
-	       "GFS: fsid=%s:   time = %lu\n",
-	       sdp->sd_fsname, assertion,
-	       sdp->sd_fsname, function,
-	       sdp->sd_fsname, file, line,
-	       sdp->sd_fsname, get_seconds());
-	if (!sdp->sd_args.ar_oopses_ok)
-		panic_on_oops = 1;
-	BUG();
-	panic("BUG()\n");
+	if (sdp->sd_args.ar_oopses_ok) {
+		printk("GFS: fsid=%s: assertion \"%s\" failed\n"
+		       "GFS: fsid=%s:   function = %s\n"
+		       "GFS: fsid=%s:   file = %s, line = %u\n"
+		       "GFS: fsid=%s:   time = %lu\n",
+		       sdp->sd_fsname, assertion,
+		       sdp->sd_fsname, function,
+		       sdp->sd_fsname, file, line,
+		       sdp->sd_fsname, get_seconds());
+		BUG();
+	}
+	dump_stack();
+	panic("GFS: fsid=%s: assertion \"%s\" failed\n"
+	      "GFS: fsid=%s:   function = %s\n"
+	      "GFS: fsid=%s:   file = %s, line = %u\n"
+	      "GFS: fsid=%s:   time = %lu\n",
+	      sdp->sd_fsname, assertion,
+	      sdp->sd_fsname, function,
+	      sdp->sd_fsname, file, line,
+	      sdp->sd_fsname, get_seconds());
 }
 
 /**

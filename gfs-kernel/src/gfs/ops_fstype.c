@@ -195,9 +195,6 @@ fill_super(struct super_block *sb, void *data, int silent)
 		sdp->sd_args.ar_oopses_ok = TRUE;
 	}
 
-	if (!sdp->sd_args.ar_oopses_ok)
-		panic_on_oops = 1;
-
 	/*  Start up the scand thread  */
 
 	error = kernel_thread(gfs_scand, sdp, 0);

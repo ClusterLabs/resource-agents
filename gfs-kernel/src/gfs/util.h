@@ -36,14 +36,6 @@ do { \
 		gfs_assert_i((sdp), #assertion, __FUNCTION__, __FILE__, __LINE__); \
 	} \
 } while (0)
-#define gfs_assert_panic(sdp, assertion, todo) \
-do { \
-	if (!(assertion)) { \
-		{todo} \
-                panic_on_oops = 1; \
-		gfs_assert_i((sdp), #assertion, __FUNCTION__, __FILE__, __LINE__); \
-	} \
-} while (0)
 void gfs_assert_i(struct gfs_sbd *sdp,
 		  char *assertion,
 		  const char *function,
