@@ -239,7 +239,7 @@ static int cluster_seq_show(struct seq_file *m, void *p)
 		state = 'X';
 		break;
 	}
-	seq_printf(m, " %3d  %3d  %3d   %c   %s\n",
+	seq_printf(m, "%4d  %3d  %3d   %c   %s\n",
 		   node->node_id,
 		   node->votes,
 		   node->expected_votes,

@@ -208,19 +208,24 @@ static inline void set_nodeid(struct cluster_node *node, int nodeid)
 		return;
 
 	node->node_id = nodeid;
-	if (nodeid > sizeof_members_array) {
+	if (nodeid >= sizeof_members_array) {
 		int new_size = sizeof_members_array + MEMBER_INCREMENT_SIZE;
-		struct cluster_node **new_array =
-		    vmalloc((new_size) * sizeof (struct cluster_node *));
+		struct cluster_node **new_array;
+
+		if (new_size < nodeid)
+			new_size = nodeid + MEMBER_INCREMENT_SIZE;
+
+		new_array = vmalloc((new_size) * sizeof (struct cluster_node *));
 		if (new_array) {
 			spin_lock(&members_by_nodeid_lock);
 			memcpy(new_array, members_by_nodeid,
 			       sizeof_members_array *
 			       sizeof (struct cluster_node *));
 			memset(&new_array[sizeof_members_array], 0,
-			       MEMBER_INCREMENT_SIZE *
+			       (new_size - sizeof_members_array) *
 			       sizeof (struct cluster_node *));
 			vfree(members_by_nodeid);
+
 			members_by_nodeid = new_array;
 			sizeof_members_array = new_size;
 			spin_unlock(&members_by_nodeid_lock);
