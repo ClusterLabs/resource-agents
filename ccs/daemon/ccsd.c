@@ -29,6 +29,8 @@
 
 #include "copyright.cf"
 
+int parent_exit_code=-1;
+
 static unsigned int flags=0;
 #define FLAG_MULTICAST	1
 #define FLAG_NODAEMON	2
@@ -344,21 +346,18 @@ static int create_lockfile(char *lockfile){
  * This way, the user can be notified by the proper process.
  */
 static void parent_exit_handler(int sig){
-  int error;
-
   ENTER("parent_exit_handler");
 
   switch(sig){
   case SIGUSR1:
     fprintf(stderr, "Failed to create lock file.\n");
-    error = EXIT_FAILURE;
+    parent_exit_code = EXIT_FAILURE;
     break;
   default:
-    error = EXIT_SUCCESS;
+    parent_exit_code = EXIT_SUCCESS;
   }
 
   EXIT("parent_exit_handler");
-  exit(error);
 }
 
 
@@ -440,9 +439,10 @@ static void daemonize(void){
     }
 
     if(pid){
-      while(1){  /* parent awaits signal from child */
+      while(parent_exit_code == -1){  /* parent awaits signal from child */
 	sleep(5);
       }
+      exit(parent_exit_code);
     }
 
     setsid();
