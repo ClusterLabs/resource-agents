@@ -1142,7 +1142,7 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 
 /**
  * handle_cancels - cancel requests for locks stuck waiting on an expire flag
- * @gh: the LM_FLAG_NOEXP holder waiting to acquire the lock
+ * @gh: the LM_FLAG_PRIORITY holder waiting to acquire the lock
  *
  */
 
@@ -1160,7 +1160,8 @@ handle_cancels(struct gfs_holder *gh)
 		if (gl->gl_req_bh) {
 			spin_unlock(&gl->gl_spin);
 			gl->gl_sbd->sd_lockstruct.ls_ops->lm_cancel(gl->gl_lock);
-			yield();
+			current->state = TASK_INTERRUPTIBLE;
+			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		} else {
 			spin_unlock(&gl->gl_spin);
@@ -1203,7 +1204,7 @@ glock_wait_internal(struct gfs_holder *gh)
 		spin_unlock(&gl->gl_spin);
 	}
 
-	if (gh->gh_flags & LM_FLAG_NOEXP)
+	if (gh->gh_flags & LM_FLAG_PRIORITY)
 		handle_cancels(gh);
 
 	for (;;) {
