@@ -23,6 +23,8 @@ INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/client \
 	-I$(top_srcdir)/server -I$(top_srcdir)/utils \
 	-I${top_srcdir}/config
 
+LDLIBS+= -L${libdir} -lmagma -ldl -lpthread
+
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
 #  should be installed

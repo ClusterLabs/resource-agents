@@ -170,7 +170,13 @@ int create_device(char *name, char *path, unsigned int timeout,
   int err;
   dev_info_t *dev;
   int devfd;
-  
+ 
+  if (is_clustered == 0 && timeout != 0){
+    log_err("cannot export uncached devices when gnbd_serv is started with -n\n");
+    err = -ENOTSUP;
+    goto fail;
+  }
+
   if (find_device(name)){
     log_err("gnbd name '%s' already in use\n", name);
     err = -EBUSY;

@@ -50,6 +50,7 @@ int killing_gnbd_serv = 0;
 connecter_t *connecters;
 struct pollfd *polls;
 int max_id;
+int is_clustered = 1;
 
 #define LOCAL 0
 #define EXTERNAL 1
@@ -64,6 +65,7 @@ int usage(void){
 "  -h               print this help message\n"
 "  -k               kill the currently running gnbd_serv\n"
 "  -K               kill gnbd_serv even if there are exported devices\n"
+"  -n               No cluster. Do not contact cluster manager\n"
 "  -p <port>        port to start the gnbd_server on (default is 14567)\n"
 "  -q               quiet mode.  Only print errors.\n"
 "  -v               verbose output\n"
@@ -273,7 +275,7 @@ void parse_cmdline(int argc, char **argv)
   int c;
 
   program_name = "gnbd_serv";
-  while ((c = getopt(argc, argv, "hkKp:qvV")) != -1){
+  while ((c = getopt(argc, argv, "hkKnp:qvV")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -290,6 +292,10 @@ void parse_cmdline(int argc, char **argv)
 
     case 'K':
       killing_gnbd_serv = FORCE_KILL;
+      continue;
+
+    case 'n':
+      is_clustered = 0;
       continue;
 
     case 'p':
@@ -373,8 +379,18 @@ int main(int argc, char **argv)
   setup_signals();
   /* FIXME -- somewhere I should set myself to nobody */
 
-  if (get_my_nodename(nodename) < 0)
-    fail_startup("cannot get node name : %s\n", strerror(errno));
+  if (get_my_nodename(nodename, is_clustered) < 0){
+    if (is_clustered){
+      printe("cannot get node name : %s\n", strerror(errno));
+      if (errno == ESRCH)
+        printe("No cluster manager is running\n");
+      else if (errno == ELIBACC)
+        printe("cannot find magma plugins\n");
+      fail_startup("If you are not planning to use a cluster manager, use -n\n");
+    }
+    else 
+      fail_startup("cannot get node name : %s\n", strerror(errno));
+  }
 
   setup_poll();
 

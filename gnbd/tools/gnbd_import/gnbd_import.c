@@ -67,6 +67,7 @@ int maxminor = -1;
 char *sysfs_class = "/sys/class/gnbd";
 int override = 0;
 char node_name[65];
+int is_clustered = 1;
 
 #define MODE_MASK (S_IRWXU | S_IRWXG | S_IRWXO)
 
@@ -251,6 +252,7 @@ int usage(void){
 "  -h               print this help message\n"
 "  -i <server>      import all GNBDs from the server\n"
 "  -l               list all imported GNBDs [default action]\n"
+"  -n               No cluster. Do not contact the cluster manager\n"
 "  -O               Override prompts\n"
 "  -p <port>        change the port to check on the GNBD server [default 14567]\n"
 "  -q               quiet mode.\n"
@@ -746,7 +748,7 @@ int start_receiver(int minor_nr)
   int ret;
   char cmd[256];
 
-  snprintf(cmd, 256, "gnbd_recvd -d %d", minor_nr);
+  snprintf(cmd, 256, "gnbd_recvd %s -d %d", ((is_clustered)? "" : "-n"), minor_nr);
   if( (ret = system(cmd)) < 0){
     printe("system() failed : %s\n", strerror(errno));
     return -1;
@@ -896,6 +898,10 @@ void setclients(char *host)
   size = read_from_server(host, EXTERN_NAMES_REQ, &buf);
   ptr = (import_info_t *)buf;
   while ((char *)ptr < buf + size){
+    if (ptr->timeout != 0 && is_clustered == 0){
+      printe("cannot import uncached devices while using the -n option\n" MAN_MSG);
+      exit(1);
+    }
     minor_nr = create_device(ptr, host);
     if (minor_nr >= 0){
       if (start_gnbd_monitor(minor_nr, (int)ptr->timeout, host) < 0)
@@ -1006,7 +1012,7 @@ int main(int argc, char **argv)
 
   list_init(&gnbd_list);
   program_name = "gnbd_import";
-  while( (c = getopt(argc, argv, "ac:e:hi:lOp:qRrs:t:u:Vv")) != -1){
+  while( (c = getopt(argc, argv, "ac:e:hi:lnOp:qRrs:t:u:Vv")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -1035,6 +1041,9 @@ int main(int argc, char **argv)
       continue;
     case 'l':
       set_action(ACTION_LIST);
+      continue;
+    case 'n':
+      is_clustered = 0;
       continue;
     case 'O':
       override = 1;
@@ -1089,8 +1098,15 @@ int main(int argc, char **argv)
   }
   if (!action)
     action = ACTION_LIST;
-  if (get_my_nodename(node_name) < 0){
+  if (get_my_nodename(node_name, is_clustered) < 0){
     printe("cannot get node name : %s\n", strerror(errno));
+    if (is_clustered){
+	if (errno == ESRCH)
+	  printe("No cluster manager is running\n");
+        if (errno == ELIBACC)
+          printe("cannot find magma plugins\n");
+	printe("If you are not planning to use a cluster manager, use -n\n");
+    }
     return 1;
   }
   if (fence_server && action != ACTION_FENCE && action != ACTION_UNFENCE){

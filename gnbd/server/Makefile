@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 
 CLU_SOURCE= gnbd_clusterd.c $(top_srcdir)/utils/gnbd_utils.c
 
-CLU_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl -lpthread
+LDLIBS+= -L${libdir} -lmagma -ldl -lpthread
 
 SRV_SOURCE= gnbd_serv.c local_req.c extern_req.c device.c gserv.c fence.c \
 	$(top_srcdir)/utils/trans.c $(top_srcdir)/utils/gnbd_utils.c
@@ -39,7 +39,7 @@ CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
 all: ${TARGET}
 
 gnbd_clusterd: ${CLU_SOURCE}
-	${CC} ${CFLAGS} ${LDFLAGS} ${CLU_SOURCE} ${LOADLIBES} ${CLU_LIBS} -o $@
+	${CC} ${CFLAGS} ${LDFLAGS} ${CLU_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
 
 gnbd_serv: ${SRV_SOURCE}
 	${CC} ${CFLAGS} ${LDFLAGS} ${SRV_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@

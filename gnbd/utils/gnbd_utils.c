@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <inttypes.h>
 
+#include "magma.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
 
@@ -65,9 +66,19 @@ static void sig_usr2(int sig)
 }
 
 /*buffer must be 65 charaters long */
-int get_my_nodename(char *buf){
+int get_my_nodename(char *buf, int is_clustered){
   struct utsname nodeinfo;
 
+  if (is_clustered) {
+    int fd;
+    fd = clu_connect(NULL, 0);
+    if (fd < 0)
+      return -1;
+    if (clu_local_nodename(NULL, buf, 65))
+      return -1;
+    clu_disconnect(fd);
+    return 0;
+  }
   if (uname(&nodeinfo) < 0)
     /*FIXME -- can I print something out here?? */
     return -1;

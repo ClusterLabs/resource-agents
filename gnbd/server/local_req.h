@@ -28,6 +28,8 @@
 /* FIXME -- is this used */
 #define REPLY_ERR(x) (-((int)(x)))
 
+extern int is_clustered;
+
 struct info_req_s {
   uint64_t sectors;
   uint32_t timeout;

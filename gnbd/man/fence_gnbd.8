@@ -1,116 +1,87 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'fence_gnbd(8)''fence_gnbd(8)'
+.TH fence_gnbd 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 fence_gnbd - I/O Fencing agent for GNBD-based GFS clusters
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBfence_gnbd -s\fP \fIclient_ip\fP \fB-t\fP \fIserver_ip\fP
+.SH SYNOPSIS
+.B fence_gnbd
+[\fIOPTION\fR]...
 
-.in
-.sp
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 fence_gnbd is an I/O Fencing agent used when GFS is accessed through GNBD.  It
 uses the gnbd_import program and tells a GNBD server to ignore I/O from a 
 specified machine. 
-.sp
+
 fence_gnbd accepts options on the command line as well as from stdin.
 fence_node sends the options through stdin when it execs the agent.
 fence_gnbd can be run by itself with command line options which is useful
 for testing.
-.sp
-.in
-\fBOPTIONS\fP
-.in
+
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Print out a help message describing available options, then exit.
-.sp
-.in
+.TP
 \fB-m\fP
-.in +7
 Selects multipath style fencing. With multipath style fencing, if fence_gnbd
 cannot contact the kgnbd_portd process on the gnbd server node, it will fence
 that server node. This is necessary to insure that there is no way for the
 fenced client to access the storage through that server.
 \fBWARNING:\fP Multipath style fencing must be used on a node if it is using
 pool multipathing with GNBD devices.
-.in
+.TP
 \fB-q\fP
-.in +7
 quiet mode, no output.
-.sp
-.in
+.TP
 \fB-s\fP \fInode\fP
-.in +7
 gnbd client machine to fence.
-.sp
-.in
+.TP
 \fB-t\fP \fInode\fP
-.in +7
 server machine to fence the gnbd client from.  If this option is
 not given, the specified gnbd client node will be fenced from all gnbd server
 nodes that have GNBDs imported by the machine running fence_gnbd.
 Using the -t option is strongly recommended.  The -t option may be used
 multiple times to fence a client from multiple servers.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Print out a version message, then exit.
-.sp
-.in
-.in -7
-\fBSTDIN PARAMETERS\fP
-.in +7
 
+.SH STDIN PARAMETERS
+.TP
 \fIagent = < param >\fP
-.sp
 This option is used by fence_node(8) and is ignored by fence_gnbd.
-.sp
-
+.TP
 \fIipaddr = < clustername >\fP
-.sp
 The cluster name of the node to be fenced (required) \fBNOTE:\fP This parameter
 no longer allows the IP address of the node to be used. This parameter is
 deprecated. Please use \fInodename\fP instead.
-.sp
+.TP
 \fInodename = < clustername >\fP
-.sp
 The cluster name of the node to be fenced (required)
-.sp
+.TP
 \fIservers = < hostname [ hostname ... ] >\fP
-.sp
 A whitespace seperated list of the servers to fence the client from, in
 either IP address or hostname form.
-.sp
+.TP
 \fIoption = multipath\fP
-.sp
 Select multipath style fencing. \fBWARNING:\fP When multipath style fencing is
 used, if the kgnbd_portd process of a gnbd server node cannot be contacted, it
 is fenced as well, using its appropriate fencig method.  This means that when
 a client is fenced, any node listed as its server that does not have the
 gnbd_serv module loaded (which starts kgnbd_portd) will also be fenced.
-.sp
+.TP
 \fIretrys = < param >\fP
-.sp
 Number of times to retry connecting to the server after a failed attempt,
 before the server is fenced.  This parameter is only valid when used
 with multipath style fencing (see above).  The default is 3.
-.sp
+.TP
 \fIwait_time = < param >\fP
-.sp
 length of time, in seconds, to wait between retrys. This parameter
 is only valid when used with multipath sytle fencing (see above). The default
 is 2.
-.sp
-.in -7
-\fBSEE ALSO\fP
-.in +7
+
+.SH SEE ALSO
 fence(8), fenced(8), gnbd_import(8)

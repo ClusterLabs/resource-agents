@@ -31,7 +31,7 @@ INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
 		echo '-I${KERNEL_SRC}/include'; fi)
 endif
 
-MON_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl -lpthread
+LDLIBS+= -L${libdir} -lmagma -ldl -lpthread
 
 CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 
@@ -41,7 +41,7 @@ gnbd_recvd: ${RECV_SOURCE}
 	${CC} ${CFLAGS} ${LDFLAGS} ${RECV_SOURCE} ${LOADLIBES} ${LDLIBS} -o $@
 
 gnbd_monitor: ${MONITOR_SRC}
-	${CC} ${CFLAGS} ${LDFLAGS} ${MONITOR_SRC} ${LOADLIBES} ${MON_LIBS} -o $@
+	${CC} ${CFLAGS} ${LDFLAGS} ${MONITOR_SRC} ${LOADLIBES} ${LDLIBS} -o $@
 
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin

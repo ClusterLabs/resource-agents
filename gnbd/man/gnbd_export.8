@@ -1,37 +1,29 @@
 .\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.tl 'gnbd_export(8)''gnbd_export(8)'
+.TH gnbd_export 8
 
-\fBNAME\fP 
-.in +7
+.SH NAME
 gnbd_export - the interface to export GNBDs
 
-.in
-\fBSYNOPSIS\fP 
-.in +7
-\fBgnbd_export\fP [options]
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH SYNOPSIS
+.B gnbd_export
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
 gnbd_export exports local block devices or files as GNBDs.
-.sp
-.in
-\fBOPTIONS\fP
-.in +7
+
+.SH OPTIONS
+.TP
 \fB-a\fP
-.in +7
 Validate.
-.sp
+
 This option forces all server processes to send a ping message to the clients
 they are connected to. This forces servers with faulty connections to quit.
-.sp
-.in
+.TP
 \fB-c\fP
-.in +7
 Enable caching.
-.sp
+
 Reads from the exported GNBD will take advantage of the linux page cache.
 This option is used with \fB-e\fP. \fBNOTE:\fP If this option is not specified,
 gnbd will run with a noticeable performance decrease.  Also, if this option
@@ -50,48 +42,38 @@ if the GNBD devices are run with caching. Any device that is exported without
 the \fB-c\fP option can also be used locally, but you must access the device
 directly. You MUST NOT use gnbd_import to import devices exported from the
 same machine.
-.sp
-.in
+.TP
 \fB-d\fI pathname\fR
-.in +7
 Device.
-.sp
+
 Specify the device to export as a GNBD.  This option is used with \fB-e\fP. 
 \fIpathname\fR may be either a block device or a regular file.  Usually block 
 devices are used, because this increases GNBD performance.
-.sp
-.in
+.TP
 \fB-e\fI gnbdname\fR
-.in +7
 Export.
-.sp
+
 Export a device as a GNBD with the Device name \fIgnbdname\fR. You must also
 specify the pathname of the device with the \fB-d\fP option.  Once a GNBD 
 has been exported, clients can import it with \fBgnbd_import\fP.
-.sp
-.in
+.TP
 \fB-h\fP
-.in +7
 Help.
-.sp
+
 Print the usage information.
-.sp
-.in
+.TP
 \fB-l\fP 
-.in +7
 List.
-.sp
+
 List all exported GNBDs and kgnbd_portd server information.  The listing 
 contains each server's number (which is only for internal use), its Device 
 name, the pathname of the device that is being exported, it's size in
 512 byte sectors, and information on whether or not it is cached, and if not,
 what it's timeout is.
-.sp
-.in
+.TP
 \fB-O\fP
-.in +7
 Override
-.sp
+
 This option allows you to unexport gnbd devices, even if they are still in
 use.  When an agent other than fence_gnbd is used to fence gnbd client nodes,
 occasionally gnbd server threads are not correctly cleaned up.  This causes
@@ -99,40 +81,30 @@ no performance issues. However, the affected gnbd devices cannot be unexported.
 In this case, using the \fB-O\fP option with either \fB-r\fP or \fB-R\fP will
 allow you to unexport the GNBD devices.  \fBWARNING:\fP Make sure
 that no clients have the GNBD imported before using this option.
-.sp
-.in
+.TP
 \fB-o\fP
-.in +7
 Readonly
-.sp
+
 export the server in readonly mode.
-.sp
-.in
+.TP
 \fB-q\fP 
-.in +7
 Quiet.
-.sp
+
 Only prints out error messages.
-.sp
-.in
+.TP
 \fB-R\fP
-.in +7
 Remove All.
-.sp
+
 Remove all exported GNBDs.
-.sp
-.in
+.TP
 \fB-r\fP [\fIGNBD(s)\fR]
-.in +7
 Remove.
-.sp
+
 Remove named GNBD(s).
-.sp
-.in
+.TP
 \fB-t\fP [\fIseconds\fR]
-.in +7
 Timeout.
-.sp
+
 Set the exported GNBD to timeout mode  This option is used with \fB-p\fP.
 This is the default for uncached GNBDs. For cached GNBDs, the default is wait
 mode (For GFS versions up through 5.2, all GNBDs were in wait mode).  In wait
@@ -144,25 +116,18 @@ client returns all
 pending and future requests as failures until the imported GNBD is closed. The
 default timeout period is 60 seconds. Timeout mode is necessary for failover to
 work with dm multipathing over gnbd.
-.sp
-.in
+.TP
 \fB-v\fP
-.in +7
 Verbose.
-.sp
+
 Increase the verbosity of the output.  This option is the most useful with
 \fB-l\fP.  If it is used along with \fB-l\fP, an extended list of information
 on each exported device will be printed.
-.sp
-.in
+.TP
 \fB-V\fP
-.in +7
 Version information.
-.sp
+
 Print out version information.
-.sp
-.in
-.in -7
-\fBSEE ALSO\fP
-.in +7
+
+.SH SEE ALSO
 gnbd_import(8), gnbd(8)

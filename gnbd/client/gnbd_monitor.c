@@ -764,7 +764,7 @@ int main(int argc, char *argv[])
     
   setup_signals();
 
-  if (get_my_nodename(node_name) < 0)
+  if (get_my_nodename(node_name, 1) < 0)
     fail_startup("cannot get node name : %s\n", strerror(errno));
   
   list_init(&monitor_list);

@@ -41,6 +41,7 @@ int forget_mode = 0;
 int have_connected = 0;
 char devname[32];
 char node_name[65];
+int is_clustered = 1;
 
 #define fail(fmt, args...) \
 do { \
@@ -90,6 +91,7 @@ int usage(void){
 "  -f               forget mode, implies daemon mode. Return immediately.\n"
 "                   Don't wait for gnbd_recvd to connect to the server\n"
 "  -h               print this help message\n"
+"  -n               No cluster. Do not contact cluster manager\n"
 "  -q               quiet mode. Only print errors.\n"
 "  -v               verbose output\n"
 "  -V               version information\n");
@@ -103,7 +105,7 @@ void parse_cmdline(int argc, char **argv)
   program_name = "gnbd_recvd";
   char sysfs_base[25];
 
-  while((c = getopt(argc, argv, "dfhqvV")) != -1){
+  while((c = getopt(argc, argv, "dfhnqvV")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -119,6 +121,9 @@ void parse_cmdline(int argc, char **argv)
     case 'h':
       usage();
       exit(0);
+    case 'n':
+      is_clustered = 0;
+      continue;
     case 'q':
       if (verbosity == VERBOSE){
         printe("cannot use both -q and -v options\n"
@@ -358,7 +363,7 @@ int main(int argc, char **argv)
   /* FIXME -- is this necessary */
   unblock_sighup();
 
-  if (get_my_nodename(node_name) < 0)
+  if (get_my_nodename(node_name, is_clustered) < 0)
     fail("cannot get node name : %s\n", strerror(errno));
 
   snprintf(minor_str, 20, "-%u", minor_num);

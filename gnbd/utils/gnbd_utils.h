@@ -99,7 +99,7 @@ char *beip_to_str(ip_t ip);
 
 
 int daemonize(void);
-int get_my_nodename(char *buf);
+int get_my_nodename(char *buf, int is_clustered);
 int __check_lock(char *file, int *pid);
 int check_lock(char *file, int *pid);
 int pid_lock(char *extra_info);
