@@ -1,4 +1,4 @@
-utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-connect csnap-test devpoke
+utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-connect csnap-test devpoke devspam
 headers = csnap.h ../dm-csnap.h trace.h sock.h
 
 all: $(utilities)
@@ -21,6 +21,9 @@ csnap-test: testclient.c $(headers)
 
 devpoke: devpoke.c
 	cc -Wall devpoke.c -o devpoke
+
+devspam: devspam.c
+	cc -Wall devspam.c -o devspam
 
 clean:
 	rm -f $(utilities) *.o a.out
@@ -51,6 +54,9 @@ test2:
 test3:
 #	sudo ./devpoke /dev/mapper/testdev write 2
 	sudo ./devpoke /dev/mapper/testdev read 2
+
+test4:
+	sudo ./devspam /dev/mapper/testdev write 77 1
 
 test9:
 	sudo /sbin/dmsetup remove testdev

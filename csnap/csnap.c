@@ -30,7 +30,7 @@
 #include "../dm-csnap.h"
 #include "trace.h"
 
-#define trace trace_on
+#define trace trace_off
 
 /*
 Todo:
@@ -1690,16 +1690,16 @@ return 0;
  */
 int incoming(struct superblock *sb, struct client *client)
 {
-	static unsigned count = 0;
+	trace(static unsigned count = 0;)
 	struct messagebuf message;
 	unsigned sock = client->sock;
 	int i, j, err;
 
 	if ((err = readpipe(sock, &message.head, sizeof(message.head))))
 		goto pipe_error;
+	trace(warn("%x/%u %i", message.head.code, message.head.length, maxbody);)
 	if (message.head.length > maxbody)
 		goto message_too_long;
-	trace(warn("%x/%u", message.head.code, message.head.length);)
 	if ((err = readpipe(sock, &message.body, message.head.length)))
 		goto pipe_error;
 
@@ -1830,8 +1830,8 @@ int incoming(struct superblock *sb, struct client *client)
 		default: 
 			outbead(sock, REPLY_ERROR, struct { int code; char error[50]; }, message.head.code, "Unknown message"); // wrong!!!
 	}
-	if (++count <= 10 || count % 1000 == 0)
-		printf("handled %u messages\n", count);
+	trace(if (++count <= 10 || count % 1000 == 0))
+		trace(warn("handled %u messages", count);)
 	return 0;
 
 message_too_long:
@@ -1841,9 +1841,7 @@ message_too_short:
 	warn("message %x too short (%u bytes)\n", message.head.code, message.head.length);
 	return -1;
 pipe_error:
-//	if (err != -EPIPE)
-//		error("Error %i: %s reading from pipe\n", -err, strerror(-err));
-	return -1;
+	return -1; /* we quietly drop the client if the connect breaks */
 }
 
 /* Signal Delivery via pipe */

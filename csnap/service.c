@@ -13,27 +13,38 @@
 
 #define trace trace_on
 
-int incoming(unsigned sock)
+int monitor(int control, char *host, int port)
 {
 	struct messagebuf message;
-	int err;
+	int server, err;
 
-	if ((err = readpipe(sock, &message.head, sizeof(message.head))))
-		goto pipe_error;
-	if (message.head.length > maxbody)
-		goto message_too_long;
-	if ((err = readpipe(sock, &message.body, message.head.length)))
-		goto pipe_error;
-
-	switch (message.head.code) {
-	case REPLY_CONNECT_SERVER:
-		warn("Everything connected properly, all is well");
-		break;
-	default: 
-		warn("Unknown message %x", message.head.code);
-		goto pipe_error;
+	while (1) {
+		if ((err = readpipe(control, &message.head, sizeof(message.head))))
+			goto pipe_error;
+		if (message.head.length > maxbody)
+			goto message_too_long;
+		if ((err = readpipe(control, &message.body, message.head.length)))
+			goto pipe_error;
+	
+		switch (message.head.code) {
+		case NEED_SERVER:
+			server = open_socket(host, port);
+			warn("Client wants a server connection");
+			if (!server)
+				error("Can't connect to %s:%i", host, port);
+			if (outbead(control, CONNECT_SERVER, struct { }) < 0)
+				error("Could not send connect message");
+			if (send_fd(control, server, "fark", 4) < 0)
+				error("Could not pass server connection to target");
+			break;
+		case REPLY_CONNECT_SERVER:
+			warn("Everything connected properly, all is well");
+			break;
+		default: 
+			warn("Unknown message %x", message.head.code);
+			goto pipe_error;
+		}
 	}
-	return 0;
 
 message_too_long:
 	warn("message %x too long (%u bytes)\n", message.head.code, message.head.length);
@@ -43,7 +54,7 @@ pipe_error:
 
 int main(int argc, char *argv[])
 {
-	int sock, sockpair[2], pipepair[2];
+	int sockpair[2], pipepair[2];
 
 	if (argc != 3)
 		error("usage: %s <device> host:port", argv[0]);
@@ -57,9 +68,6 @@ int main(int argc, char *argv[])
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockpair) == -1)
 		error("Can't create socket pair");
-
-	if (!(sock = open_socket(host, port)))
-		error("Can't connect to %s:%i", host, port);
 
 	switch (fork()) {
 	case -1:
@@ -79,11 +87,13 @@ int main(int argc, char *argv[])
 	if (wait(NULL) == -1)
 		error("Device create failed, %s", strerror(errno));
 
-	if (outbead(sockpair[1], CONNECT_SERVER, struct { }) < 0)
-		error("Could not send connect message");
+	switch (fork()) {
+	case -1:
+		error("fork failed");
+	case 0: 
+		return monitor(sockpair[1], host, port);
+	}
 
-	if (send_fd(sockpair[1], sock, "fark", 4) < 0)
-		error("Could not pass server connection to target");
-
-	return incoming(sockpair[1]);
+	warn("monitor started");
+	return 0;
 }

@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-29 20:22:49.842202936 +0000
-@@ -0,0 +1,1044 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-01 04:53:35.000000000 +0000
+@@ -0,0 +1,1053 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -67,10 +67,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if (!(file->f_mode & mode))
 +		return -EBADF;
 +	if (!op)
-+{
-+warn("no aio operator");
 +		return -EINVAL;
-+}
 +	init_sync_kiocb(&iocb, file); // new in 2.5 (hmm)
 +	iocb.ki_pos = file->f_pos;
 +	oldseg = get_fs();
@@ -174,14 +171,15 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	struct dm_dev *snapdev;
 +	struct file *sock;
 +	struct file *control_socket;
-+	struct semaphore imutex;
-+	struct semaphore omutex;
++	struct semaphore server_in_sem;
++	struct semaphore server_out_sem;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
 +	struct semaphore exit3_sem;
 +	struct semaphore work_sem;
 +	struct list_head pending_buckets[NUM_BUCKETS];
 +	struct list_head read_release_list;
++	int child[3]; // put the exit sems here
 +	spinlock_t pending_lock;
 +};
 +
@@ -481,12 +479,16 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	int err, length;
 +
 +	strcpy(task->comm, "csnap-client");
++	down(&info->exit2_sem);
 +	trace(warn("Client thread started, pid=%i", current->pid);)
-+	down(&info->imutex);
++connect:
++	trace(warn("Request socket connection");)
++	outbead(info->control_socket, NEED_SERVER, struct { });
++	trace(warn("Wait for socket connection");)
++	down(&info->server_in_sem);
 +	trace(warn("got socket %p", info->sock);)
 +	sock = info->sock;
 +
-+	down(&info->exit2_sem);
 +	while (running(info)) { // stop on module exit
 +		int rw, to_snap;
 +
@@ -527,7 +529,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +		case REPLY_IDENTIFY:
 +			trace(warn("identify succeeded");)
-+			up(&info->omutex);
++			up(&info->server_out_sem);
 +			outbead(info->control_socket, REPLY_CONNECT_SERVER, struct { });
 +			continue;
 +
@@ -552,7 +554,10 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	goto out;
 +socket_error:
 +	warn("socket error %i", err);
-+	goto out;
++	if (!running(info))
++		goto out;
++	down(&info->server_in_sem);
++	goto connect;
 +}
 +
 +#if 0
@@ -624,10 +629,10 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +			spin_unlock(&info->pending_lock);
 +			trace(warn("%u. release sector %Lx, chunk %Lx", ++events, (long long)hook->sector, chunk);)
 +			kmem_cache_free(end_io_cache, hook);
-+			down(&info->omutex);
++			down(&info->server_out_sem);
 +			outbead(info->sock, FINISH_SNAPSHOT_READ, struct rw_request1,
 +				.count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1);
-+			up(&info->omutex);
++			up(&info->server_out_sem);
 +			spin_lock(&info->pending_lock);
 +		}
 +		spin_unlock(&info->pending_lock);
@@ -701,7 +706,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +			info->sock = fget(fd);
 +			put_unused_fd(sock_fd);
 +			sys_close(fd);
-+			up(&info->imutex);
++			up(&info->server_in_sem);
 +			outbead(info->sock, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
 +			break;
 +		}
@@ -791,7 +796,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +// !!! don't send this inline, the box can deadlock !!!
 +//	add_outbound(info, pending);
 +
-+	down(&info->omutex);
++	down(&info->server_out_sem);
 +	// !!! check for dm device removed
 +	outbead(info->sock,
 +		bio_data_dir(bio) == WRITE? QUERY_WRITE: QUERY_SNAPSHOT_READ,
@@ -800,7 +805,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +			.ranges[0].chunk = chunk,
 +			.ranges[0].chunks = 1);
 +
-+	up(&info->omutex);
++	up(&info->server_out_sem);
 +	return 0;
 +}
 +
@@ -828,8 +833,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		return;
 +
 +	info->flags |= FINISH_FLAG;
-+	up(&info->imutex); // unblock incoming thread
-+	up(&info->omutex); // unblock io request threads
++	up(&info->server_in_sem); // unblock incoming thread
++	up(&info->server_out_sem); // unblock io request threads
 +
 +	if (info->sock) {
 +		struct inode *inode = info->sock->f_dentry->d_inode;
@@ -843,6 +848,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
 +		warn("socket shutdown, err=%i", err);
 +	}
++//	wake_up_process(find_task_by_pid(info->child[2]));
 +	up(&info->work_sem);
 +
 +	// !!! wrong! the thread might be just starting, think about this some more
@@ -954,8 +960,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if (!(info->inode = new_inode(snapshot_super)))
 +		goto eek;
 +
-+	sema_init(&info->imutex, 0);
-+	sema_init(&info->omutex, 0);
++	sema_init(&info->server_in_sem, 0);
++	sema_init(&info->server_out_sem, 0);
 +	sema_init(&info->exit1_sem, 1);
 +	sema_init(&info->exit2_sem, 1);
 +	sema_init(&info->exit3_sem, 1);
@@ -973,10 +979,13 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	error = "Can't start daemon";
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
++	info->child[0] = err;
 +	if ((err = kernel_thread((void *)worker, target, CLONE_KERNEL)) < 0)
 +		goto eek;
++	info->child[1] = err;
 +	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
++	info->child[2] = err;
 +	warn("Created snapshot device origin=%s snapstore=%s snapshot=%i", argv[0], argv[1], snap);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
 +	return 0;
@@ -1078,8 +1087,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers/md/dm-csnap.h
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.h	2004-08-31 17:46:46.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-29 19:11:33.000000000 +0000
-@@ -0,0 +1,82 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-10-01 01:09:25.000000000 +0000
+@@ -0,0 +1,83 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1108,6 +1117,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers
 +	DUMP_TREE,
 +	SHUTDOWN_SERVER,
 +	INITIALIZE_SNAPSTORE,
++	NEED_SERVER,
 +	CONNECT_SERVER,
 +	REPLY_CONNECT_SERVER,
 +	CONTROL_SOCKET,
