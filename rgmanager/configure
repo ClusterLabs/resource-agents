@@ -30,6 +30,7 @@ $ret = 0;
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
+	sharedir => \$sharedir,
 	verbose => \$verbose
 );
 
