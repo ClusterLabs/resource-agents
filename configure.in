@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.85 $) dnl cvs revision
+AC_REVISION($Revision: 1.86 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -89,6 +89,7 @@ mandir=`var "$mandir" "$exec_prefix/man"`
 #	Other interesting variables: ${host_vendor} and ${host_os}
 #			sample values:	suse		linux
 #
+
 
 dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
@@ -707,6 +708,9 @@ AC_SUBST(LIBADD_DL)	dnl extra flags for dynamic linking libraries
 AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
+
+HEARTBEAT_RC_DIR=$sysconfdir/rc.d
+AC_DEFINE_UNQUOTED(HEARTBEAT_RC_DIR, "$HEARTBEAT_RC_DIR", heartbeat rc script directory)
 
 HEARTBEATPKG=heartbeat
 AC_SUBST(HEARTBEATPKG)
