@@ -27,7 +27,10 @@ INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/utils \
 	-I${top_srcdir}/config -I${incdir}
 
 ifneq (${KERNEL_SRC}, )
-INCLUDE += -I${KERNEL_SRC}/include
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed -- which is incdir, which is already included
+INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
+		echo '-I${KERNEL_SRC}/include'; fi)
 endif
 
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \

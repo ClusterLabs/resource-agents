@@ -40,12 +40,12 @@ all:
 install: all
 	install -d ${module_dir}/cluster
 	install cman.ko ${module_dir}/cluster
-	install -d ${incdir}/linux/cluster
-	install cnxman.h cnxman-socket.h service.h ${incdir}/linux/cluster
+	install -d ${incdir}/cluster
+	install cnxman.h cnxman-socket.h service.h ${incdir}/cluster
 
 uninstall:
 	${UNINSTALL} cman.ko ${module_dir}/cluster
-	${UNINSTALL} cnxman.h cnxman-socket.h service.h ${incdir}/linux/cluster
+	${UNINSTALL} cnxman.h cnxman-socket.h service.h ${incdir}/cluster
 
 
 

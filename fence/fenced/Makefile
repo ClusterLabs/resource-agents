@@ -26,9 +26,13 @@ INCLUDE = -I. -I.. -I${top_srcdir}/include -I${incdir} \
 	-I${top_srcdir}/config
 
 ifneq (${KERNEL_SRC}, )
-INCLUDE += -I${KERNEL_SRC}/include/cluster
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+INCLUDE += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
+		echo '-I${KERNEL_SRC}/include/cluster'; else \
+		echo '-I${incdir}/cluster'; fi)
 else
-INCLUDE += -I/usr/include/linux/cluster
+INCLUDE += -I${incdir}/cluster
 endif
 
 LDFLAGS+= -L${libdir}

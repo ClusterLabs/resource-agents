@@ -1,5 +1,17 @@
 #!/bin/sh
 
+echo "configure cman-kernel"
+(cd cman-kernel; ./configure $@)
+
+echo "configure dlm-kernel"
+(cd dlm-kernel; ./configure $@)
+
+echo "configure gfs-kernel"
+(cd gfs-kernel; ./configure $@)
+
+echo "configure gnbd-kernel"
+(cd gnbd-kernel; ./configure $@)
+
 echo "configure magma"
 (cd magma; ./configure $@)
 

@@ -31,7 +31,13 @@ INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
 	-I${incdir}
 
 ifneq (${KERNEL_SRC}, )
-INCLUDE += -I${KERNEL_SRC}/include
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
+		echo '-I${KERNEL_SRC}/include'; else \
+		echo '-I${incdir}'; fi)
+else
+INCLUDE += -I${incdir}
 endif
 
 LDFLAGS+= -L${libdir}

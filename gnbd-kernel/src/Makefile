@@ -36,12 +36,15 @@ all:
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
  
 install: all
+	install -d ${incdir}/linux
+	install gnbd.h ${incdir}/linux
 	install -d ${module_dir}/drivers/block/gnbd
 	install gnbd.ko ${module_dir}/drivers/block/gnbd
 
 uninstall:
 	${UNINSTALL} gnbd.ko ${module_dir}/drivers/block/gnbd
-                                                                                
+	${UNINSTALL} gnbd.h ${incdir}/linux/gnbd.h
+
 clean:
 	rm -rf linux *.mod.c .gnbd.ko.cmd \
 		.tmp_versions *o .*.o.cmd *~

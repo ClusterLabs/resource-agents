@@ -19,9 +19,13 @@ CFLAGS+= -g -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\"
 
 ifneq (${KERNEL_SRC}, )
-CFLAGS += -I${KERNEL_SRC}/include/cluster
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+CFLAGS += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
+		echo '-I${KERNEL_SRC}/include/cluster'; else \
+		echo '-I${incdir}/cluster'; fi)
 else
-CFLAGS += -I/usr/include/linux/cluster
+CFLAGS += -I${incdir}/cluster
 endif
 
 

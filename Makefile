@@ -12,6 +12,10 @@
 # Order is important
 
 all:
+	cd cman-kernel && ${MAKE} all
+	cd dlm-kernel && ${MAKE} all
+	cd gfs-kernel && ${MAKE} all
+	cd gnbd-kernel && ${MAKE} all
 	cd magma && ${MAKE} all
 	cd ccs && ${MAKE} all
 	cd cman && ${MAKE} all
@@ -24,6 +28,10 @@ all:
 	cd magma-plugins && ${MAKE} all
 
 copytobin:
+	cd cman-kernel && ${MAKE} copytobin
+	cd dlm-kernel && ${MAKE} copytobin
+	cd gfs-kernel && ${MAKE} copytobin
+	cd gnbd-kernel && ${MAKE} copytobin
 	cd magma && ${MAKE} copytobin
 	cd ccs && ${MAKE} copytobin
 	cd cman && ${MAKE} copytobin
@@ -37,6 +45,10 @@ copytobin:
 
 clean:
 	rm -f *tar.gz
+	cd cman-kernel && ${MAKE} clean
+	cd dlm-kernel && ${MAKE} clean
+	cd gfs-kernel && ${MAKE} clean
+	cd gnbd-kernel && ${MAKE} clean
 	cd magma && ${MAKE} clean
 	cd ccs && ${MAKE} clean
 	cd cman && ${MAKE} clean
@@ -49,6 +61,10 @@ clean:
 	cd magma-plugins && ${MAKE} clean
 
 distclean:
+	cd cman-kernel && ${MAKE} distclean
+	cd dlm-kernel && ${MAKE} distclean
+	cd gfs-kernel && ${MAKE} distclean
+	cd gnbd-kernel && ${MAKE} distclean
 	cd magma && ${MAKE} distclean
 	cd ccs && ${MAKE} distclean
 	cd cman && ${MAKE} distclean
@@ -61,6 +77,10 @@ distclean:
 	cd magma-plugins && ${MAKE} distclean
 
 install:
+	cd cman-kernel && ${MAKE} install
+	cd dlm-kernel && ${MAKE} install
+	cd gfs-kernel && ${MAKE} install
+	cd gnbd-kernel && ${MAKE} install
 	cd magma && ${MAKE} install
 	cd ccs && ${MAKE} install
 	cd cman && ${MAKE} install
@@ -74,6 +94,10 @@ install:
 
 
 uninstall:
+	cd cman-kernel && ${MAKE} uninstall
+	cd dlm-kernel && ${MAKE} uninstall
+	cd gfs-kernel && ${MAKE} uninstall
+	cd gnbd-kernel && ${MAKE} uninstall
 	cd magma && ${MAKE} uninstall
 	cd ccs && ${MAKE} uninstall
 	cd cman && ${MAKE} uninstall

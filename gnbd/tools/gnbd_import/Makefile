@@ -24,7 +24,13 @@ INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/client \
 	-I${top_srcdir}/config
 
 ifneq (${KERNEL_SRC}, )
-INCLUDE += -I${KERNEL_SRC}/include
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
+		echo '-I${KERNEL_SRC}/include'; else \
+		echo '-I${incdir}'; fi)
+else
+INCLUDE += -I${incdir}
 endif
 
 CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"

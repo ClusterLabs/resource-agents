@@ -13,11 +13,21 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-INCLUDES+= -I. -I${KERNEL_SRC}/include/cluster -I${incdir}
+INCLUDES+= -I. -I${incdir}
 LIBS     = -L${libdir} -ldlm
 CFLAGS  += -D__CLUSTER__ -D_REENTRANT
 OBJS     = sm.o services.o
 TARGETS  = sm.so
+
+ifneq (${KERNEL_SRC}, )
+# Use the kernel tree if patched, otherwise, look where cluster headers
+#  should be installed
+INCLUDES += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
+                echo '-I${KERNEL_SRC}/include/cluster'; else \
+                echo '-I${incdir}/cluster'; fi)
+else
+INCLUDES += -I${incdir}/cluster
+endif
 
 all: $(TARGETS)
 
