@@ -1810,7 +1810,7 @@ int client_locks(struct superblock *sb, struct client *client, int check)
 
 		while (*lockp) {
 			struct snaplock_hold *hold;
-next:
+
 			for (hold = (*lockp)->holdlist; hold; hold = hold->next)
 				if (hold->client == client) {
 					if (check)
@@ -1819,6 +1819,8 @@ next:
 					goto next;
 				}
 			lockp = &(*lockp)->next;
+next:
+			continue;
 		}
 	}
 	return 0;
