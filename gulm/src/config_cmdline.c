@@ -120,6 +120,8 @@ void usage(void)
 #endif
    "  --verbosity <list>     -v <list>  List of flags.\n",
    "\n",
+   "  --use_ccs              -c         Read config values from ccs.\n",
+   "\n",
    "  --servers <list>       -s <list>  List of names or IPs.\n",
    "  --cluster_name <name>  -n <name>  The name of this cluster\n",
    "\n",
