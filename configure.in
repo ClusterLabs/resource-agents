@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.131 $) dnl cvs revision
+AC_REVISION($Revision: 1.132 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -85,6 +85,10 @@ oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 
+VARLIBDIR=$localstatedir/lib
+AC_DEFINE_UNQUOTED(VARLIBDIR, "$VARLIBDIR", /var/lib directory)
+LOGDAEMON_IPC=$VARLIBDIR/log_daemon
+AC_DEFINE_UNQUOTED(LOGDAEMON_IPC, "$LOGDAEMON_IPC", Logging Daemon IPC)
 STONITHPKG=stonith
 AC_SUBST(STONITHPKG)
 
