@@ -101,7 +101,7 @@ int start_gnbd_monitor(int minor_nr, int timeout)
   if (!timeout) 
     return 0;
 
-  snprintf(cmd, 256, "gnbd monitor %d %d", minor_nr, timeout);
+  snprintf(cmd, 256, "gnbd_monitor %d %d", minor_nr, timeout);
 
   if( (ret = system(cmd)) < 0){
      printe("system() failed : %s\n", strerror(errno));
