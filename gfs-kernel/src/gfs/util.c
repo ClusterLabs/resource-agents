@@ -579,3 +579,43 @@ gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh)
 	return 0;
 }
 
+/**
+ * gfs_printf_i -
+ * @buf:
+ * @size:
+ * @count:
+ * @fmt:
+ *
+ * Returns: 0 on success, 1 on out of space
+ */
+
+int
+gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
+	     char *fmt, ...)
+{
+	va_list args;
+	int left, out;
+
+	if (!buf) {
+		va_start(args, fmt);
+		vprintk(fmt, args);
+		va_end(args);
+		return 0;
+	}
+
+	left = size - *count;
+	if (left <= 0)
+		return 1;
+
+	va_start(args, fmt);
+	out = vsnprintf(buf + *count, left, fmt, args);
+	va_end(args);
+
+	if (out < left)
+		*count += out;
+	else
+		return 1;
+
+	return 0;
+}
+

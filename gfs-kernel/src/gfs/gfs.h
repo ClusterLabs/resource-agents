@@ -77,19 +77,4 @@
 #define gl2rgd(gl) ((struct gfs_rgrpd *)(gl)->gl_object)
 #define gl2gl(gl) ((struct gfs_glock *)(gl)->gl_object)
 
-#define gfs_printf(fmt, args...) \
-do { \
-	if (buf) { \
-		int gspf_left = size - *count, gspf_out; \
-		if (gspf_left <= 0) \
-			goto out; \
-		gspf_out = snprintf(buf + *count, gspf_left, fmt, ##args); \
-		if (gspf_out < gspf_left) \
-			*count += gspf_out; \
-		else \
-			goto out; \
-	} else \
-		printk(fmt, ##args); \
-} while (0)
-
 #endif /* __GFS_DOT_H__ */

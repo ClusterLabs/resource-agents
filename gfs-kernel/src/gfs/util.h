@@ -339,4 +339,16 @@ gfs_tune_get_i(struct gfs_tune *gt, unsigned int *p)
 gfs_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
 
 
+int
+gfs_printf_i(char *buf, unsigned int size, unsigned int *count,
+	     char *fmt, ...)
+__attribute__ ((format(printf, 4, 5)));
+
+#define gfs_printf(fmt, args...) \
+do { \
+	if (gfs_printf_i(buf, size, count, fmt, ##args)) \
+		goto out; \
+} while(0)
+
+
 #endif /* __UTIL_DOT_H__ */
