@@ -37,7 +37,7 @@
 #include <mallocdbg.h>
 #endif
 
-#define MODULE_DESCRIPTION "CMAN/DLM Plugin v1.0"
+#define MODULE_DESCRIPTION "CMAN/DLM Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 static int cman_lock(cluster_plugin_t *self, char *resource, int flags,
@@ -180,6 +180,7 @@ static int
 cman_open(cluster_plugin_t *self)
 {
 	cman_priv_t *p;
+	int e;
 
 	//printf("CMAN: %s called\n", __FUNCTION__);
 
@@ -193,6 +194,16 @@ cman_open(cluster_plugin_t *self)
 	p->sockfd = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (p->sockfd >= 0)
 		cman_quorum_status(self, NULL);
+
+	p->ls = dlm_open_lockspace("Magma");
+	if (!p->ls)
+		p->ls = dlm_create_lockspace("Magma", 0644);
+	if (!p->ls) {
+		e = errno;
+		close(p->sockfd);
+		errno = e;
+		return -1;
+	}
 
 	return p->sockfd;
 }
@@ -210,6 +221,10 @@ cman_close(cluster_plugin_t *self, int fd)
 	p = (cman_priv_t *)self->cp_private.p_data;
 	assert(p);
 	assert(fd == p->sockfd);
+
+	if (p->ls)
+		dlm_close_lockspace(p->ls);
+	p->ls = NULL;
 
 	ret = close(fd);
 	p->sockfd = -1;
@@ -299,19 +314,45 @@ cman_get_event(cluster_plugin_t *self, int fd)
 }
 
 
+static void
+ast_function(void * __attribute__ ((unused)) arg)
+{
+}
+
+
+static int
+wait_for_dlm_event(dlm_lshandle_t *ls)
+{
+	fd_set rfds;
+	int fd = dlm_ls_get_fd(ls);
+
+	FD_ZERO(&rfds);
+	FD_SET(fd, &rfds);
+
+	if (select(fd + 1, &rfds, NULL, NULL, NULL) == 1)
+		return dlm_dispatch(fd);
+
+	return -1;
+}
+
+
 static int
 cman_lock(cluster_plugin_t *self,
 	  char *resource,
 	  int flags,
 	  void **lockpp)
 {
-	int mode = 0, options = 0, ret;
-	int *lockid = NULL;
+	cman_priv_t *p;
+	dlm_lshandle_t ls;
+	int mode = 0, options = 0, ret = 0;
+	struct dlm_lksb *lksb;
 
 	assert(self);
+	p = (cman_priv_t *)self->cp_private.p_data;
+	assert(p);
+	ls = p->ls;
+	assert(ls);
 	assert(lockpp);
-
-	//printf("CMAN: %s called\n", __FUNCTION__);
 
 	if (flags & CLK_EX) {
 		mode = LKM_EXMODE;
@@ -320,43 +361,70 @@ cman_lock(cluster_plugin_t *self,
 	} else if (flags & CLK_WRITE) {
 		mode = LKM_PWMODE;
 	} else {
-		return -EINVAL;
+		errno = EINVAL;
+		return -1;
 	}
 
 	if (flags & CLK_NOWAIT)
 		options = LKF_NOQUEUE;
 
-	lockid = malloc(sizeof(int));
-	assert(lockid);
-	(*lockpp) = (void *)lockid;
-	*lockid = 0;
+	/* Allocate our lock structure. */
+	lksb = malloc(sizeof(struct dlm_lksb));
+	assert(lksb);
+	memset(lksb, 0, sizeof(*lksb));
+	(*lockpp) = (void *)lksb;
 
-	ret = lock_resource(resource, mode, options, lockid);
-	if (ret < 0) {
-		free(lockid);
-		*lockpp= NULL;
-		ret = -errno;
+	ret = dlm_ls_lock(ls, mode, lksb, options, resource,
+			  strlen(resource), 0, ast_function, lksb, NULL,
+			  NULL);
+	if (ret != 0)
+		return ret;
+
+	if (wait_for_dlm_event(ls) < 0)
+		return -1;
+
+	switch(lksb->sb_status) {
+	case 0:
+		return 0;
+	case EAGAIN:
+		free(lksb);
+		errno = EAGAIN;
+		return -1;
+	default:
+		ret = lksb->sb_status;
+		free(lksb);
+		errno = ret;
+		return -1;
 	}
-	return ret;
+
+	/* Not reached */
+	return -1;
 }
 
 
 static int
-cman_unlock(cluster_plugin_t * __attribute__ ((unused)) self,
-	    char *__attribute__((unused)) resource,
-	    void *lockp)
+cman_unlock(cluster_plugin_t *self, char *__attribute__((unused)) resource,
+	  void *lockp)
 {
-	int lock, ret;
+	cman_priv_t *p;
+	dlm_lshandle_t ls;
+	struct dlm_lksb *lksb = (struct dlm_lksb *)lockp;
+	int ret;
 
-	//printf("CMAN: %s called\n", __FUNCTION__);
+	assert(self);
+	p = (cman_priv_t *)self->cp_private.p_data;
+	assert(p);
+	ls = p->ls;
+	assert(ls);
 
-	if (!lockp)
-		errno = -EINVAL;
+	if (!lockp) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	lock = *((int *)lockp);
-	free(lockp);
-
-	ret = unlock_resource(lock);
+	ret = dlm_ls_unlock(ls, lksb->sb_lkid, 0, lksb, NULL);
+	if (ret == 0) 
+		free(lksb);
 
 	return ret;
 }
@@ -367,8 +435,10 @@ cluster_plugin_load(cluster_plugin_t *driver)
 {
 	//printf("CMAN: %s called\n", __FUNCTION__);
 
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	driver->cp_ops.s_null = cman_null;
 	driver->cp_ops.s_member_list = cman_member_list;
@@ -392,8 +462,10 @@ cluster_plugin_init(cluster_plugin_t *driver, void *priv,
 	cman_priv_t *p = NULL;
 	//printf("CMAN: %s called\n", __FUNCTION__);
 
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	if (!priv) {
 		p = malloc(sizeof(*p));
@@ -427,8 +499,10 @@ cluster_plugin_unload(cluster_plugin_t *driver)
 
 	//printf("CMAN: %s called\n", __FUNCTION__);
 
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	assert(driver);
 	p = (cman_priv_t *)driver->cp_private.p_data;
@@ -439,9 +513,6 @@ cluster_plugin_unload(cluster_plugin_t *driver)
 	free(p);
 	driver->cp_private.p_data = NULL;
 	driver->cp_private.p_datalen = 0;
-
-	/* Kill the dlm receive threads */
-	dlm_pthread_cleanup();
 
 	return 0;
 }

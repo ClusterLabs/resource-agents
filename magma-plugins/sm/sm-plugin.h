@@ -28,12 +28,15 @@
 #define SMS_LEAVING	3
 #define SMS_LEFT	4
 
+#include <libdlm.h>
+
 typedef struct {
 	int	sockfd;
 	int	quorum_state;
 	int	memb_count;
 	int     state;
 	char    *groupname;
+	dlm_lshandle_t ls;
 } sm_priv_t;
 
 #endif /* _SM_PLUGIN_H */

@@ -14,8 +14,8 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDES+= -I. -I${incdir}
-LIBS     = -L${libdir} -ldlm -lpthread
-CFLAGS  += -D_CLUSTER_ -D_REENTRANT
+LIBS     = -L${libdir} -ldlm_lt
+CFLAGS  += -D_CLUSTER_
 OBJS     = cman.o
 TARGETS  = cman.so
 

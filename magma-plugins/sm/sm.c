@@ -32,12 +32,14 @@
 #include <libdlm.h>
 #include "sm-plugin.h"
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/select.h>
 
 #ifdef MDEBUG
 #include <mallocdbg.h>
 #endif
 
-#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.0"
+#define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 /* From services.c */
@@ -308,11 +310,15 @@ sm_login(cluster_plugin_t *self, int fd, char *groupname)
 	assert(p->sockfd >= 0);
 	assert(p->sockfd == fd);
 
-	if (!groupname)
-		return -EINVAL;
+	if (!groupname) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	if (p->groupname)
-		return -EBUSY;
+	if (p->groupname) {
+		errno = EBUSY;
+		return -1;
+	}
 
 	p->groupname = strdup(groupname);
 
@@ -346,6 +352,7 @@ sm_login(cluster_plugin_t *self, int fd, char *groupname)
 static int
 sm_open(cluster_plugin_t *self)
 {
+	int e;
 	sm_priv_t *p;
 
 	assert(self);
@@ -358,6 +365,16 @@ sm_open(cluster_plugin_t *self)
 	p->sockfd = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (p->sockfd < 0)
 		return -errno;
+
+	p->ls = dlm_open_lockspace("Magma");
+	if (!p->ls)
+		p->ls = dlm_create_lockspace("Magma", 0644);
+	if (!p->ls) {
+		e = errno;
+		close(p->sockfd);
+		errno = e;
+		return -1;
+	}
 
 	return p->sockfd;
 }
@@ -409,6 +426,10 @@ sm_close(cluster_plugin_t *self, int fd)
 	p = (sm_priv_t *)self->cp_private.p_data;
 	assert(p);
 	assert(fd == p->sockfd);
+
+	if (p->ls)
+		dlm_close_lockspace(p->ls);
+	p->ls = NULL;
 
 	ret = close(fd);
 	p->sockfd = -1;
@@ -508,16 +529,44 @@ sm_get_event(cluster_plugin_t *self, int fd)
 }
 
 
+static void
+ast_function(void * __attribute__ ((unused)) arg)
+{
+}
+
+
+static int
+wait_for_dlm_event(dlm_lshandle_t *ls)
+{
+	fd_set rfds;
+	int fd = dlm_ls_get_fd(ls);
+
+	FD_ZERO(&rfds);
+	FD_SET(fd, &rfds);
+
+	if (select(fd + 1, &rfds, NULL, NULL, NULL) == 1)
+		return dlm_dispatch(fd);
+
+	return -1;
+}
+
+
 static int
 sm_lock(cluster_plugin_t *self,
 	  char *resource,
 	  int flags,
 	  void **lockpp)
 {
-	int mode = 0, options = 0;
-	int *lockid;
+	sm_priv_t *p;
+	dlm_lshandle_t ls;
+	int mode = 0, options = 0, ret = 0;
+	struct dlm_lksb *lksb;
 
 	assert(self);
+	p = (sm_priv_t *)self->cp_private.p_data;
+	assert(p);
+	ls = p->ls;
+	assert(ls);
 	assert(lockpp);
 
 	if (flags & CLK_EX) {
@@ -527,36 +576,70 @@ sm_lock(cluster_plugin_t *self,
 	} else if (flags & CLK_WRITE) {
 		mode = LKM_PWMODE;
 	} else {
-		return -EINVAL;
+		errno = EINVAL;
+		return -1;
 	}
 
 	if (flags & CLK_NOWAIT)
 		options = LKF_NOQUEUE;
 
-	lockid = malloc(sizeof(int));
-	assert(lockid);
-	(*lockpp) = (void *)lockid;
-	*lockid = 0;
+	/* Allocate our lock structure. */
+	lksb = malloc(sizeof(struct dlm_lksb));
+	assert(lksb);
+	memset(lksb, 0, sizeof(*lksb));
+	(*lockpp) = (void *)lksb;
 
-	return lock_resource(resource, mode, options, lockid);
+	ret = dlm_ls_lock(ls, mode, lksb, options, resource,
+			  strlen(resource), 0, ast_function, lksb, NULL,
+			  NULL);
+	if (ret != 0)
+		return ret;
+
+	if (wait_for_dlm_event(ls) < 0)
+		return -1;
+
+	switch(lksb->sb_status) {
+	case 0:
+		return 0;
+	case EAGAIN:
+		free(lksb);
+		errno = EAGAIN;
+		return -1;
+	default:
+		ret = lksb->sb_status;
+		free(lksb);
+		errno = ret;
+		return -1;
+	}
+
+	/* Not reached */
+	return -1;
 }
 
 
 static int
-sm_unlock(cluster_plugin_t * __attribute__ ((unused)) self,
-	    char *__attribute__((unused)) resource,
-	    void *lockp)
+sm_unlock(cluster_plugin_t *self, char *__attribute__((unused)) resource,
+	  void *lockp)
 {
-	int lock, ret;
+	sm_priv_t *p;
+	dlm_lshandle_t ls;
+	struct dlm_lksb *lksb = (struct dlm_lksb *)lockp;
+	int ret;
 
-	if (!lockp)
-		return -EINVAL;
+	assert(self);
+	p = (sm_priv_t *)self->cp_private.p_data;
+	assert(p);
+	ls = p->ls;
+	assert(ls);
 
-	lock = *((int *)lockp);
+	if (!lockp) {
+		errno = EINVAL;
+		return -1;
+	}
 
-	ret = unlock_resource(lock);
-	if (ret == 0)
-		free(lockp);
+	ret = dlm_ls_unlock(ls, lksb->sb_lkid, 0, lksb, NULL);
+	if (ret == 0) 
+		free(lksb);
 
 	return ret;
 }
@@ -565,8 +648,10 @@ sm_unlock(cluster_plugin_t * __attribute__ ((unused)) self,
 int
 cluster_plugin_load(cluster_plugin_t *driver)
 {
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	driver->cp_ops.s_null = sm_null;
 	driver->cp_ops.s_member_list = sm_member_list;
@@ -591,8 +676,10 @@ cluster_plugin_init(cluster_plugin_t *driver, void *priv,
 {
 	sm_priv_t *p = NULL;
 
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	if (!priv) {
 		p = malloc(sizeof(*p));
@@ -626,8 +713,10 @@ cluster_plugin_unload(cluster_plugin_t *driver)
 {
 	sm_priv_t *p = NULL;
 
-	if (!driver)
-		return -EINVAL;
+	if (!driver) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	assert(driver);
 	p = (sm_priv_t *)driver->cp_private.p_data;
@@ -638,9 +727,6 @@ cluster_plugin_unload(cluster_plugin_t *driver)
 	free(p);
 	driver->cp_private.p_data = NULL;
 	driver->cp_private.p_datalen = 0;
-
-	/* Kill the dlm receive threads */
-	dlm_pthread_cleanup();
 
 	return 0;
 }
