@@ -973,7 +973,8 @@ static int do_membership_packet(struct msghdr *msg, int len)
 		break;
 
 	case CLUSTER_MEM_JOINACK:
-		if (node_state == JOINING || node_state == JOINWAIT) {
+		if (node_state == JOINING || node_state == JOINWAIT ||
+		    node_state == JOINACK) {
 			do_process_joinack(msg, len);
 		}
 		break;
@@ -1568,9 +1569,9 @@ static void add_node_from_starttrans(struct msghdr *msg, int len)
 	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
 	char *msgbuf = (char *) msg->msg_iov->iov_base;
 	int ptr = sizeof (struct cl_mem_starttrans_msg);
-	char *name =
-	    msgbuf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
 	int i;
+	char *name = msgbuf + ptr + le16_to_cpu(startmsg->num_addrs) * address_length;
+	char *nodeaddr = msg->msg_iov->iov_base + sizeof(struct cl_mem_starttrans_msg);
 
 	joining_node = add_new_node(name, startmsg->votes,
 				    le32_to_cpu(startmsg->expected_votes),
@@ -1587,6 +1588,11 @@ static void add_node_from_starttrans(struct msghdr *msg, int len)
 			ptr += address_length;
 		}
 	}
+
+	/* Make sure we have a temp nodeid for the new node in case we
+	   become master */
+	joining_temp_nodeid = new_temp_nodeid(nodeaddr,
+					      address_length);
 }
 
 /* We have been nominated as master for a transition */
@@ -1595,7 +1601,6 @@ static int do_process_nominate(struct msghdr *msg, int len)
 	struct cl_mem_starttrans_msg *startmsg =
 	    (struct cl_mem_starttrans_msg *)msg->msg_iov->iov_base;
 	struct cluster_node *node = NULL;
-	char *nodeaddr = msg->msg_iov->iov_base + sizeof(struct cl_mem_starttrans_msg);
 
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
 
@@ -1606,9 +1611,6 @@ static int do_process_nominate(struct msghdr *msg, int len)
 	if (startmsg->reason == TRANS_NEWNODE) {
 		add_node_from_starttrans(msg, len);
 		node = joining_node;
-		/* Make sure we have a temp nodeid for the new node */
-		joining_temp_nodeid = new_temp_nodeid(nodeaddr,
-						      address_length);
 	}
 
 	/* This should be a TRANS_CHECK but start_transition needs some node
@@ -2178,6 +2180,9 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 		char *ptr = (char *) joinmsg;
 		char *name;
 
+		ptr += sizeof (*joinmsg);
+		name = ptr + le16_to_cpu(joinmsg->num_addr) * address_length;
+
 		/* Sanity-check the num_addrs field otherwise we could oops */
 		if (le16_to_cpu(joinmsg->num_addr) * address_length > len) {
 			printk(KERN_WARNING CMAN_NAME
@@ -2196,11 +2201,8 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			return 0;
 		}
 
-		ptr += sizeof (*joinmsg);
-		name = ptr + le16_to_cpu(joinmsg->num_addr) * address_length;
-
 		/* Check we are not exceeding the maximum number of nodes */
-		if (cluster_members > cman_config.max_nodes) {
+		if (cluster_members >= cman_config.max_nodes) {
 			printk(KERN_WARNING CMAN_NAME
 			       ": Join request from %s rejected, exceeds maximum number of nodes\n",
 			       name);
@@ -2209,7 +2211,7 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			return 0;
 		}
 
-		/* Check that we don't exceed the two_node limit */
+		/* Check that we don't exceed the two_node limit, if applicable */
 		if (two_node && cluster_members == 2) {
 			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 			       "rejected, exceeds two node limit\n", name);
@@ -2280,7 +2282,6 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 					ptr += address_length;
 				}
 			}
-
 			send_joinack(msg->msg_name, msg->msg_namelen,
 				      JOINACK_TYPE_OK);
 			joining_node = node;
@@ -2539,13 +2540,6 @@ static int do_process_leave(struct msghdr *msg, int len)
 		leavereason = (reason == CLUSTER_LEAVEFLAG_REMOVED ? 1 : 0);
 
 		a_node_just_died(node);
-
-		/* If it was the master node, then we have been nominated as
-		 * the sucessor */
-		if (node == master_node) {
-			start_transition(TRANS_DEADMASTER, master_node);
-		}
-
 	}
 	return 0;
 }
@@ -2612,7 +2606,8 @@ static int do_process_hello(struct msghdr *msg, int len)
 			if (cluster_members != le16_to_cpu(hellomsg->members)
 			    && node_state == MEMBER) {
 				printk(KERN_INFO CMAN_NAME
-				       ": nmembers in HELLO message does not match our view\n");
+				       ": nmembers in HELLO message from %s does not match our view (got %d, exp %d)\n",
+				       node->name, le16_to_cpu(hellomsg->members), cluster_members);
 				start_transition(TRANS_CHECK, node);
 				return 0;
 			}
