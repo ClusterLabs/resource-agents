@@ -23,7 +23,6 @@
 
 #include "handler.h"
 #include "gulm_lock_queue.h"
-#include "gulm_jid.h"
 
 /* things about myself */
 extern gulm_cm_t gulm_cm;
@@ -469,7 +468,6 @@ gulm_mount (char *table_name, char *host_data,
 		goto fail_callback;
 	}
 
-	jid_lockstate_reserve (gulm, first);
 	jid_fs_init (gulm);
 	get_journalID (gulm);
 
@@ -574,7 +572,6 @@ gulm_unmount (lm_lockspace_t * lockspace)
 	drop_mount_lock (gulm_fs);
 	put_journalID (gulm_fs);
 	jid_fs_release (gulm_fs);
-	jid_lockstate_release (gulm_fs);
 
 	stop_callback_qu (&gulm_fs->cq);
 
@@ -628,7 +625,7 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 		log_msg (lgm_JIDMap,
 			 "fsid=%s: Clearing JID %d for use by others\n",
 			 fs->fs_name, jid);
-		release_JID (fs, jid, FALSE);
+		release_JID (fs, jid);
 	}
 
 	/* If someone died while replaying someoneelse's journal, there will be

@@ -24,7 +24,6 @@
 #include "handler.h"
 #include "gulm_lock_queue.h"
 #include "utils_tostr.h"
-#include "gulm_jid.h"
 
 extern gulm_cm_t gulm_cm;
 

@@ -229,6 +229,17 @@ int gulm_mount (char *table_name, char *host_data,
 		unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
 
 /* from gulm_jid.c */
+void jid_fs_init (gulm_fs_t * fs);
+void jid_fs_release (gulm_fs_t * fs);
+void get_journalID (gulm_fs_t * fs);
+int lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name);
+void release_JID (gulm_fs_t * fs, uint32_t jid);
+void put_journalID (gulm_fs_t * fs);
+void check_for_stale_expires (gulm_fs_t * fs);
+
+int find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name, uint32_t * jid);
+
+/* to be called from the lg_lock callbacks. */
 void jid_header_lock_drop (uint8_t * key, uint16_t keylen);
 
 extern struct lm_lockops gulm_ops;

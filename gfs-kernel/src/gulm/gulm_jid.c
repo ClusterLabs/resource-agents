@@ -362,17 +362,16 @@ lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name)
  * 
  * actually may only need to set first byte to zero
  * 
- * Returns: int
  */
-int
-release_JID (gulm_fs_t * fs, uint32_t jid, int nop)
+void
+release_JID (gulm_fs_t * fs, uint32_t jid)
 {
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
 	uint16_t keylen = GIO_KEY_SIZE;
 
 	/* there is no such, so this becomes a nop. */
 	if (jid >= fs->JIDcount)
-		goto exit;
+		return;
 
 	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
 	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
@@ -381,14 +380,12 @@ release_JID (gulm_fs_t * fs, uint32_t jid, int nop)
 	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
 	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 
-      exit:
-	return 0;
 }
 
 void
 put_journalID (gulm_fs_t * fs)
 {
-	release_JID (fs, fs->fsJID, TRUE);
+	release_JID (fs, fs->fsJID);
 }
 
 /**
@@ -615,128 +612,6 @@ jid_header_lock_drop (uint8_t * key, uint16_t keylen)
 			(fs = get_fs_by_name (fsname)) != NULL) {
 		qu_function_call (&fs->cq, jid_unlock_callback, fs);
 	}
-}
-
-
-/****************************************************************************/
-/* I don't know why these are in this file. Laziness I would presume. */
-/* 6 bytes for stuff in key (lengths and type bytes)
- * 32 for fs name
- * 64 for node name.
- */
-#define NodeLockNameLen (6 + 32 + 64)
-
-/**
- * gulm_nodelock_finish - 
- * @item: 
- * 
- * 
- * Returns: void
- */
-void gulm_nodelock_finish (struct glck_req *item)
-{
-	struct completion *sleep = (struct completion *)item->misc;
-	complete (sleep);
-}
-
-/**
- * jid_lockstate_reserve - 
- * @fs: 
- * 
- * if we are expired, this will block until someone else has
- * cleaned our last mess up.
- *
- * Will very well may need to put in some kind of timeout
- * otherwise this may do a forever lockup much like the
- * FirstMounter lock had.
- * 
- * Returns: void
- */
-void
-jid_lockstate_reserve (gulm_fs_t * fs, int first)
-{
-	int len;
-	struct completion sleep;
-	glckr_t *item;
-	uint8_t *key;
-
-	item = glq_get_new_req();
-	if (item == NULL) {
-		return;
-	}
-
-	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
-	item->key = key;
-	if (item->key == NULL) {
-		glq_recycle_req(item);
-		return;
-	}
-	len = strlen(gulm_cm.myName);
-	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
-			fs->fs_name, gulm_cm.myName, MIN(64,len));
-	item->subid = 0;
-	item->start = 0;
-	item->stop = ~((uint64_t)0);
-	item->type = glq_req_type_state;
-	item->state = lg_lock_state_Exclusive;
-	item->flags = (first?lg_lock_flag_IgnoreExp:0)|lg_lock_flag_NoCallBacks;
-	item->error = 0;
-
-	init_completion (&sleep);
-
-	item->misc = &sleep;
-	item->finish = gulm_nodelock_finish;
-
-	glq_queue (item);
-	wait_for_completion (&sleep);
-	kfree(key);
-}
-
-/**
- * jid_lockstate_release - 
- * @fs: 
- * 
- * 
- * Returns: void
- */
-void
-jid_lockstate_release (gulm_fs_t * fs)
-{
-	int len;
-	struct completion sleep;
-	glckr_t *item;
-	uint8_t *key;
-
-	item = glq_get_new_req();
-	if (item == NULL) {
-		return;
-	}
-
-	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
-	item->key = key;
-	if (item->key == NULL) {
-		glq_recycle_req(item);
-		return;
-	}
-	len = strlen(gulm_cm.myName);
-	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
-			fs->fs_name, gulm_cm.myName, MIN(64,len));
-	item->subid = 0;
-	item->start = 0;
-	item->stop = ~((uint64_t)0);
-	item->type = glq_req_type_state;
-	item->state = lg_lock_state_Unlock;
-	item->flags = 0;
-	item->error = 0;
-
-	init_completion (&sleep);
-
-	item->misc = &sleep;
-	item->finish = gulm_nodelock_finish;
-
-	glq_queue (item);
-	wait_for_completion (&sleep);
-	kfree(key);
 }
 
 
