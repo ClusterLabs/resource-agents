@@ -117,7 +117,7 @@ static int do_process_startack(struct msghdr *msg, int len);
 static int do_process_newcluster(struct msghdr *msg, int len);
 static int do_process_nominate(struct msghdr *msg, int len);
 static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
-			     unsigned int flags);
+			     unsigned int flags, unsigned int flags2);
 static int send_joinreq(struct sockaddr_cl *addr, int addr_len);
 static int send_startack(struct sockaddr_cl *addr, int addr_len, int node_id);
 static int send_hello(void);
@@ -616,7 +616,7 @@ static int send_joinconf()
 	saddr.scl_family = AF_CLUSTER;
 	saddr.scl_nodeid = joining_temp_nodeid;
 	status = send_cluster_view(CLUSTER_MEM_JOINCONF, &saddr,
-				   MSG_NOACK);
+				   MSG_NOACK, 0);
 
 	if (status < 0) {
 		printk("Error %d sending JOINCONF, aborting transition\n", status);
@@ -671,7 +671,7 @@ static int send_startack(struct sockaddr_cl *addr, int addr_len, int node_id)
 	msg.node_id = cpu_to_le32(node_id);
 	msg.highest_node_id = cpu_to_le32(get_highest_nodeid());
 
-	return kcl_sendmsg(mem_socket, &msg, sizeof (msg), addr, addr_len, 0);
+	return kcl_sendmsg(mem_socket, &msg, sizeof (msg), addr, addr_len, MSG_REPLYEXP);
 }
 
 static int send_newcluster()
@@ -1128,7 +1128,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 		int ptr = sizeof (struct cl_mem_starttrans_msg);
 		struct list_head *addrlist;
 		unsigned short num_addrs = 0;
-		int flags = 0;
+		int flags = MSG_REPLYEXP;
 
 		/* Send the STARTTRANS message */
 		msg->cmd = CLUSTER_MEM_STARTTRANS;
@@ -1246,7 +1246,7 @@ void a_node_just_died(struct cluster_node *node)
  * this is the only message sent The rest is a set of packed node entries, which
  * are NOT split over packets. */
 static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
-			     unsigned int flags)
+			     unsigned int flags, unsigned int flags2)
 {
 	int ptr = 2;
 	int len;
@@ -1339,7 +1339,7 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 	message[1] = first_packet_flag | 2;	/* The last may also be first */
 	status = kcl_sendmsg(mem_socket, message, ptr,
 			     saddr, saddr ? sizeof (struct sockaddr_cl) : 0,
-			     flags);
+			     flags | flags2);
       send_fail:
 
 	return status;
@@ -1696,7 +1696,7 @@ static int do_process_startack(struct msghdr *msg, int len)
 			P_MEMB("Sending MASTERVIEW: expecting %d responses\n",
 			       responses_expected);
 
-			send_cluster_view(CLUSTER_MEM_MASTERVIEW, NULL, 0);
+			send_cluster_view(CLUSTER_MEM_MASTERVIEW, NULL, 0, MSG_REPLYEXP);
 
 			/* Set a timer in case we don't get 'em all back */
 			mod_timer(&transition_timer,

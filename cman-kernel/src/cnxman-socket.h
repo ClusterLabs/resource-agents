@@ -105,6 +105,7 @@
 #define MSG_MULTICAST 0x080000	/* Message was sent to all nodes in the cluster
 				 */
 #define MSG_ALLINT    0x100000	/* Send out of all interfaces */
+#define MSG_REPLYEXP  0x200000	/* Reply is expected */
 
 typedef enum { NODESTATE_REMOTEMEMBER, NODESTATE_JOINING, NODESTATE_MEMBER,
 	       NODESTATE_DEAD } nodestate_t;

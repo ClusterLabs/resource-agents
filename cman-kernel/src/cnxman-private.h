@@ -76,6 +76,7 @@ struct cl_protheader {
 	unsigned char  flags;
 	unsigned short cluster;	/* Our cluster number, little-endian */
 	unsigned short seq;	/* Packet sequence number, little-endian */
+	unsigned short ack;	/* inline ACK */
 	int            srcid;	/* Node ID of the sender */
 	int            tgtid;	/* Node ID of the target or 0 for multicast
 				 * messages */
@@ -91,11 +92,10 @@ struct cl_protmsg {
 struct cl_ackmsg {
 	struct cl_protheader header;
 	unsigned char  cmd;	/* Always CLUSTER_CMD_ACK */
-	unsigned char  remport;	/* Remoye port number the original message was
+	unsigned char  remport;	/* Remote port number the original message was
 				 * for */
 	unsigned char  aflags;	/* ACK flags 0=OK, 1=No listener */
 	unsigned char  pad;
-	unsigned short seq;	/* Sequence number we are acking */
 };
 
 /* A Cluster LISTENREQ/LISTENRESP message */

@@ -525,6 +525,41 @@ static struct cl_waiting_listen_request *find_listen_request(unsigned short tag)
 	return NULL;
 }
 
+
+static void process_ack(struct cluster_node *rem_node, unsigned short seq)
+{
+	if (rem_node && rem_node->state != NODESTATE_DEAD) {
+		/* This copes with duplicate acks from a multipathed
+		 * host */
+		if (rem_node->last_seq_acked !=
+		    le16_to_cpu(seq)) {
+			rem_node->last_seq_acked =
+				le16_to_cpu(seq);
+
+			/* Got em all */
+			if (++ack_count >= acks_expected) {
+
+				/* Cancel the timer */
+				del_timer(&ack_timer);
+				acks_expected = 0;
+				unjam();
+			}
+		}
+	}
+	else {
+		if (cluster_members) {
+#ifdef DEBUG_COMMS
+			char buf[MAX_ADDR_PRINTED_LEN];
+
+			printk(KERN_INFO CMAN_NAME
+			       ": got ack from unknown or dead node: %s\n",
+			       print_addr(addr, addrlen, buf));
+#endif
+		}
+	}
+}
+
+
 static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 				   int len, char *addr, int addrlen,
 				   struct cluster_node *rem_node)
@@ -552,35 +587,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 			rem_node ? rem_node->name : "Unknown",
 			le16_to_cpu(ackmsg->seq), cur_seq);
 
-		if (rem_node && rem_node->state != NODESTATE_DEAD) {
-			/* This copes with duplicate acks from a multipathed
-			 * host */
-			if (rem_node->last_seq_acked !=
-			    le16_to_cpu(ackmsg->seq)) {
-				rem_node->last_seq_acked =
-				    le16_to_cpu(ackmsg->seq);
-
-				/* Got em all */
-				if (++ack_count >= acks_expected) {
-
-					/* Cancel the timer */
-					del_timer(&ack_timer);
-					acks_expected = 0;
-					unjam();
-				}
-			}
-		}
-		else {
-			if (cluster_members) {
-#ifdef DEBUG_COMMS
-				char buf[MAX_ADDR_PRINTED_LEN];
-
-				printk(KERN_INFO CMAN_NAME
-				       ": got ack from unknown or dead node: %s\n",
-				       print_addr(addr, addrlen, buf));
-#endif
-			}
-		}
+		/* ACK processing has already happened */
 		break;
 
 		/* Return 1 if we have a listener on this port, 0 if not */
@@ -720,7 +727,11 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		le32_to_cpu(header->srcid), le32_to_cpu(header->tgtid),
 		le16_to_cpu(header->seq));
 
-	/* Have we received this message before ? If so just ignore it, it's a
+	if (header->ack && rem_node) {
+		process_ack(rem_node, header->ack);
+	}
+
+/* Have we received this message before ? If so just ignore it, it's a
 	 * resend for someone else's benefit */
 	if (!(header->flags & (MSG_NOACK >> 16)) &&
 	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
@@ -783,9 +794,13 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		struct cluster_sock *c = cluster_sk(port_array[header->port]);
 
 		/* ACK it */
-		if (!(header->flags & (MSG_NOACK >> 16)))
+		if (!(header->flags & (MSG_NOACK >> 16)) &&
+		    !(header->flags & (MSG_REPLYEXP >> 16))) {
+
+
 			cl_sendack(csock, header->seq, addrlen, addr,
 				   header->port, 0);
+		}
 
 		/* Call a callback if there is one */
 		if (c->kernel_callback) {
@@ -2118,6 +2133,16 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 
 	++cur_seq;
 	header.seq = cpu_to_le16(cur_seq);
+	header.ack = 0;
+
+	if (header.tgtid) {
+		struct cluster_node *remnode;
+
+		remnode = find_node_by_nodeid(nodeid);
+		if (remnode)  {
+			header.ack = cpu_to_le16(remnode->last_seq_recv);
+		}
+	}
 
 	/* Set the MULTICAST flag on messages with no particular destination */
 	if (!msg->msg_namelen) {
@@ -2202,6 +2227,7 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 	/* Save a copy of the message if we're expecting an ACK */
 	if (!(flags & MSG_NOACK) && acks_expected) {
 		mm_segment_t fs;
+		struct cl_protheader *savhdr = (struct cl_protheader *) saved_msg_buffer;
 
 		fs = get_fs();
 		set_fs(get_ds());
@@ -2213,6 +2239,10 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 		saved_msg_len = size + sizeof (header);
 		retry_count = ack_count = 0;
 		clear_bit(RESEND_NEEDED, &mainloop_flags);
+
+		/* Clear the REPLYEXPected flag so we force a real ACK
+		   if it's necessary to resend this packet */
+		savhdr->flags &= ~(MSG_REPLYEXP>>16);
 
 		start_ack_timer();
 	}
@@ -2506,12 +2536,12 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 	ackmsg.header.flags = MSG_NOACK >> 16;
 	ackmsg.header.cluster = cpu_to_le16(cluster_id);
 	ackmsg.header.srcid = us ? cpu_to_le32(us->node_id) : 0;
+	ackmsg.header.ack = seq; /* already in LE order */
 	ackmsg.header.tgtid = 0;	/* ACKS are unicast so we don't bother
 					 * to look this up */
 	ackmsg.cmd = CLUSTER_CMD_ACK;
 	ackmsg.remport = remport;
 	ackmsg.aflags = flag;
-	ackmsg.seq = seq;	/* Already in LE order */
 	vec.iov_base = &ackmsg;
 	vec.iov_len = sizeof (ackmsg);
 
