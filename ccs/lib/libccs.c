@@ -25,6 +25,143 @@
 #include <stdio.h>
 
 static int fe_port = 50006;
+static int ipv6=-1;
+
+static int setup_interface_ipv6(int *sp, int port){
+  int sock = -1;
+  int error = 0;
+  struct sockaddr_in6 addr;
+
+  ENTER("setup_interface_ipv6");
+                                                                                
+  sock = socket(PF_INET6, SOCK_STREAM, 0);
+                                                                                
+  if(sock < 0){
+    error = -errno;
+    goto fail;
+  }
+
+  addr.sin6_family = AF_INET6;
+  addr.sin6_port = htons(port);
+  addr.sin6_addr = in6addr_loopback;
+
+  if(bind(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr_in6))){
+    log_dbg("Unable to bind: %s\n", strerror(errno));
+    error = -errno;
+    goto fail;
+  }
+
+  addr.sin6_family = AF_INET6;
+  addr.sin6_addr = in6addr_any;
+  addr.sin6_port = htons(fe_port);
+  error = connect(sock, (struct sockaddr *)&addr,
+		  sizeof(struct sockaddr_in6));
+  if(error < 0){
+    log_dbg("Unable to connect to server: %s\n", strerror(errno));
+    error = -errno;
+    goto fail;
+  }
+
+  *sp = sock;
+  EXIT("setup_interface_ipv6");
+  return 0;
+
+ fail:
+  if(sock >= 0){
+    close(sock);
+  }
+  EXIT("setup_interface_ipv6");
+  return error;
+}
+
+static int setup_interface_ipv4(int *sp, int port){
+  int sock = -1;
+  int error = 0;
+  struct sockaddr_in addr;
+
+  ENTER("setup_interface_ipv4");
+                                                                                
+  sock = socket(PF_INET, SOCK_STREAM, 0);
+                                                                                
+  if(sock < 0){
+    error = -errno;
+    goto fail;
+  }
+
+  addr.sin_family = AF_INET;
+  inet_aton("127.0.0.1", (struct in_addr *)&addr.sin_addr.s_addr);
+  addr.sin_port = htons(port);
+
+  if(bindresvport(sock, &addr)){
+    log_dbg("Unable to bindresvport: %s\n", strerror(errno));
+    error = -errno;
+    goto fail;
+  }
+
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_port = htons(fe_port);
+  error = connect(sock, (struct sockaddr *)&addr,
+		  sizeof(struct sockaddr_in));
+  if(error < 0){
+    log_dbg("Unable to connect to server: %s\n", strerror(errno));
+    error = -errno;
+    goto fail;
+  }
+
+  *sp = sock;
+  EXIT("setup_interface_ipv4");
+  return 0;
+
+ fail:
+  if(sock >= 0){
+    close(sock);
+  }
+  EXIT("setup_interface_ipv4");
+  return error;
+}
+
+
+/**
+ * setup_interface
+ * @sp: pointer gets filled in with open socket
+ *
+ * This function (through helper functions) handles the details
+ * of creating and binding a socket followed be the connect.
+ *
+ * Returns: AF_INET | AF_INET6 on success, or -errno on error
+ */
+static int setup_interface(int *sp){
+  int error=-1;
+  int res_port = IPPORT_RESERVED-1;
+  int timo=1;
+  int ipv4 = (ipv6 != 1)? 1: 0;
+
+  ENTER("setup_interface");
+  srandom(getpid());
+
+  for(; res_port >= 512; res_port--){
+    if(ipv6 && !(error = setup_interface_ipv6(sp, res_port))){
+      error = AF_INET6;
+      break;
+    } else if(ipv4 && !(error = setup_interface_ipv4(sp, res_port))){
+      error = AF_INET;
+      break;
+    }
+
+    /* Connections could have colided, giving ECONNREFUSED, or **
+    ** the port we are trying to bind to may already be in use **
+    ** and since we don't want to collide again, wait a random **
+    ** amount of time......................................... */
+
+    timo = random();
+    timo /= (RAND_MAX/4);
+    sleep(timo);
+  }
+  EXIT("setup_interface");
+  return error;
+}
+
 
 /**
  * do_request: send request an receive results
@@ -37,69 +174,22 @@ static int fe_port = 50006;
  */
 static int do_request(char *buffer){
   int error=0;
-  int sock;
+  int sock=-1;
   comm_header_t *ch = (comm_header_t *)buffer;
-
-  int res_port = IPPORT_RESERVED-1;
-  struct sockaddr_in addr;
-  long int addrinuse_timo=0;
-  int connrefused_timo=1;
+  int addr_size=0;
  
   ENTER("do_request");
 
-  sock = socket(PF_INET, SOCK_STREAM, 0);
- 
-  if(sock < 0){
-    error = -errno;
-    goto fail_no_close;
-  }
- 
-  srandom(getpid());
-  for(; res_port >= 512; res_port--){
-    addr.sin_family = AF_INET;
-    inet_aton("127.0.0.1", (struct in_addr *)&addr.sin_addr.s_addr);
-    addr.sin_port = htons(res_port);
-    if(bindresvport(sock, &addr)){
-      if(errno == EADDRINUSE){
-        addrinuse_timo = random();
-        addrinuse_timo /= (RAND_MAX/4);
-        addrinuse_timo++;
-        sleep(addrinuse_timo);
-        continue;
-      } else if (errno == EINVAL){
-	error = -ECONNREFUSED;
-      } else {
-	error = -errno;
-      }
-      log_dbg("Unable to bindresvport: %s\n", strerror(errno));
-      goto fail;
-    }
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(fe_port);
-    error = connect(sock, (struct sockaddr *)&addr,
-                    sizeof(struct sockaddr_in));
-    if(error < 0){
-      if(errno == ECONNREFUSED && connrefused_timo <= 8){
-        /* server is probably overloaded.  Retry same port in a bit. */
-	res_port++;
-        sleep(connrefused_timo);
-        connrefused_timo *= 2;
-        continue;
-      } else {
-	log_dbg("Unable to connect to server: %s\n", strerror(errno));
-        error = -errno;
-	goto fail;
-      }
-    } else {
-      break;
-    }
-  }
-
-  if(res_port < 512){
-    error = -errno;
+  if((error = setup_interface(&sock)) < 0){
     goto fail;
   }
+
+  /* In the future, we will only try the protocol that worked first */
+  ipv6 = (error == AF_INET6)? 1: 0;
+
+  addr_size = (error == AF_INET6)? 
+    sizeof(struct sockaddr_in6 *):
+    sizeof(struct sockaddr_in *);
 
   error = write(sock, buffer, sizeof(comm_header_t)+ch->comm_payload_size);
   if(error < 0){
@@ -141,8 +231,7 @@ static int do_request(char *buffer){
     }
   }
  fail:
-  close(sock);
- fail_no_close:
+  if(sock >= 0) { close(sock); }
   EXIT("do_request");
   return error;
 }

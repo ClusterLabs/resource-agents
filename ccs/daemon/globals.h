@@ -9,22 +9,19 @@
 **
 *******************************************************************************
 ******************************************************************************/
-#ifndef __MISC_H__
-#define __MISC_H__
+#ifndef __GLOBALS_H__
+#define __GLOBALS_H__
 
-typedef struct open_doc {
-  int od_refs;
-  xmlDocPtr od_doc;
-} open_doc_t;
+#define DEFAULT_CONFIG_LOCATION "/etc/cluster/cluster.conf"
+#define DEFAULT_CCSD_LOCKFILE "/var/run/sistina/ccsd.pid"
 
+extern char *config_file_location;
+extern char *lockfile_location;
 
-extern int quorate;
-extern int update_required;
-extern pthread_mutex_t update_lock;
-extern open_doc_t *master_doc;
+extern int frontend_port;
+extern int backend_port;
+extern int cluster_base_port;
 
-char *get_cluster_name(xmlDocPtr ldoc);
-int get_doc_version(xmlDocPtr ldoc);
-
-
-#endif /* __MISC_H__ */
+extern int IPv6;
+extern char *multicast_address;
+#endif /* __GLOBALS_H__ */

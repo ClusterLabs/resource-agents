@@ -31,7 +31,9 @@
 #include "comm_headers.h"
 #include "debug.h"
 #include "misc.h"
+#include "globals.h"
 #include "cluster_mgr.h"
+
 
 typedef struct open_connection_s {
   char *oc_cwp;
@@ -45,6 +47,7 @@ typedef struct open_connection_s {
 **  Also would need to create a shared memory area for open cnx's */
 #define MAX_OPEN_CONNECTIONS 10
 static open_connection_t **ocs = NULL;
+
 
 static int update_config(int do_remote){
   int error = 0;
@@ -203,8 +206,11 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   int v1, v2;
   int write_to_disk = 0;
   char *tmp_name = NULL;
-  struct sockaddr_in addr;
-  int len=sizeof(struct sockaddr_in);
+  struct sockaddr_storage addr, recv_addr;
+  struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+  struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+  int addr_size = 0;
+  int len=sizeof(struct sockaddr_storage);
   comm_header_t *ch = NULL;
   char *bdoc = NULL;
   fd_set rset;
@@ -232,34 +238,105 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   }
   memset(ch, 0, sizeof(comm_header_t));
 
-  sfd = socket(PF_INET, SOCK_DGRAM, 0);
-  if(sfd < 0){
+  if(IPv6 && (sfd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) <0){
+    log_sys_err("Unable to create IPv6 socket");
+    error = -errno;
+    goto fail;
+  }
+
+  if(!IPv6 && ((sfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)){
     log_sys_err("Unable to create socket for broadcast");
     error = -errno;
     goto fail;
   }
 
   trueint = 1;
-  if((error = setsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, sizeof(int)))){
-    log_err("Unable to set socket options: %s\n", strerror(-error));
-    goto fail;
+  if(IPv6){
+    struct ipv6_mreq mreq;
+    int opt;
+
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_port = htons(backend_port);
+
+    if(!multicast_address || !strcmp(multicast_address, "default")){
+      log_dbg("Trying IPv6 multicast (default).\n");
+      if(inet_pton(AF_INET6, "ff02::1", &(addr6->sin6_addr)) <= 0){
+	log_sys_err("Unable to convert multicast address");
+	error = -errno;
+	goto fail;
+      }
+    } else {
+      log_dbg("Trying IPv6 multicast (%s).\n", multicast_address);
+      if(inet_pton(AF_INET6, multicast_address, &(addr6->sin6_addr)) <= 0){
+	log_sys_err("Unable to convert multicast address");
+	error = -errno;
+	goto fail;
+      }
+    }
+
+    memcpy(&mreq.ipv6mr_multiaddr, &(addr6->sin6_addr), sizeof(struct in6_addr));
+    mreq.ipv6mr_interface = 0;
+    opt = 0;
+
+    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+                  &opt, sizeof(opt)) < 0){
+      log_err("Unable to %s loopback.\n", opt?"SET":"UNSET");
+      error = -errno;
+      goto fail;
+    }
+
+    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+                  (const void *)&mreq, sizeof(mreq)) < 0){
+      log_err("Unable to add to membership: %s\n", strerror(errno));
+      error = -errno;
+      goto fail;
+    }
   } else {
-    log_dbg("  Broadcast enabled.\n");
+    addr4->sin_family = AF_INET;
+    addr4->sin_port = htons(backend_port);
+    if(!multicast_address){
+      log_dbg("Trying IPv4 broadcast.\n");
+
+      addr4->sin_addr.s_addr = INADDR_BROADCAST;
+      if((error = setsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, sizeof(int)))){
+	log_sys_err("Unable to set socket options");
+	error = -errno;
+	goto fail;
+      } else {
+	log_dbg("  Broadcast enabled.\n");
+      }
+    } else if(!strcmp(multicast_address, "default")){
+      log_dbg("Trying IPv4 multicast (default).\n");
+      if(inet_pton(AF_INET, "224.0.0.1", &(addr4->sin_addr)) <= 0){
+	log_sys_err("Unable to convert multicast address");
+	error = -errno;
+	goto fail;
+      }
+    } else {
+      log_dbg("Trying IPv4 multicast (%s).\n", multicast_address);
+      if(inet_pton(AF_INET, multicast_address, &(addr4->sin_addr)) <= 0){
+	log_sys_err("Unable to convert multicast address");
+	error = -errno;
+	goto fail;
+      }
+    }
   }
+
+  addr_size = IPv6? sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in);
 
   FD_ZERO(&rset);
 
   do {
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_BROADCAST;
-    /* ATTENTION -- fix hardcoded values */
-    addr.sin_port = htons(50007);
-
     ch->comm_type = COMM_BROADCAST;
 
     log_dbg("Sending broadcast.\n");
-    sendto(sfd, (char *)ch, sizeof(comm_header_t), 0,
-	   (struct sockaddr *)&addr, (socklen_t)len);
+
+    if(sendto(sfd, (char *)ch, sizeof(comm_header_t), 0,
+	      (struct sockaddr *)&addr, addr_size) < 0){
+      log_sys_err("Unable to perform sendto");
+      error = -errno;
+      goto fail;
+    }
 
     FD_SET(sfd, &rset);
     tv.tv_sec = 0;
@@ -275,11 +352,11 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	log_dbg("Checking broadcast response.\n");
 	error = 0;
 	recvfrom(sfd, (char *)ch, sizeof(comm_header_t), MSG_PEEK,
-		 (struct sockaddr *)&addr, (socklen_t *)&len);
+		 (struct sockaddr *)&recv_addr, (socklen_t *)&len);
 	if(!ch->comm_payload_size || ch->comm_error){
 	  /* clean out this reply by not using MSG_PEEK */
 	  recvfrom(sfd, (char *)ch, sizeof(comm_header_t), 0,
-		   (struct sockaddr *)&addr, (socklen_t *)&len);
+		   (struct sockaddr *)&recv_addr, (socklen_t *)&len);
 	  error = -ENODATA;
 	  FD_SET(sfd, &rset);
 	  continue;
@@ -292,7 +369,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	memset(bdoc, 0, ch->comm_payload_size + sizeof(comm_header_t));
 	/* ATTENTION -- potential for incomplete package */
 	recvfrom(sfd, bdoc, ch->comm_payload_size + sizeof(comm_header_t),
-		 0, (struct sockaddr *)&addr, &len);
+		 0, (struct sockaddr *)&recv_addr, &len);
 	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t), ch->comm_payload_size);
 	if(!tmp_doc){
 	  log_err("Unable to parse remote cluster.conf.\n");
@@ -479,9 +556,13 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   if(!master_doc->od_doc){
     master_doc->od_doc = xmlParseFile("/etc/cluster/cluster.conf");
     if(!master_doc->od_doc){
+      log_err("Unable to parse %s\n", "/etc/cluster/cluster.conf");
+      log_err("Searching cluster for valid copy.\n");
+      /* ATTENTION -- Not a problem, can get it from broadcast **
+      ** however, not having these print causes line 334 (sendto) **
+      ** to fail on ENETUNREACH -- very strange.................. **
       log_msg("Unable to parse %s\n", "/etc/cluster/cluster.conf");
-      log_msg("Searching cluster for valid copy.\n");
-      /* Not a problem, can get it from broadcast */
+      log_msg("Searching cluster for valid copy.\n");*/
     } else if((error = get_doc_version(master_doc->od_doc)) < 0){
       log_err("Unable to get config_version from cluster.conf.\n");
       log_err("Discarding data and searching for valid copy.\n");
@@ -1088,7 +1169,7 @@ int process_request(int afd){
 
 /**
  * process_broadcast
- * @afd: the accepted socket
+ * @sfd: the UDP socket
  *
  * Returns: 0 on success, < 0 on failure
  */
@@ -1097,8 +1178,8 @@ int process_broadcast(int sfd){
   comm_header_t *ch = NULL;
   char *payload = NULL;
   char *buffer = NULL;
-  struct sockaddr_in addr;
-  int len;
+  struct sockaddr_storage addr;
+  int len = sizeof(struct sockaddr_storage);  /* value/result for recvfrom */
 
   ENTER("process_broadcast");
 
@@ -1109,11 +1190,14 @@ int process_broadcast(int sfd){
   }
   memset(ch, 0, sizeof(comm_header_t));
   log_dbg("Waiting to receive broadcast request.\n");
-  recvfrom(sfd, ch, sizeof(comm_header_t), 0, (struct sockaddr *)&addr, &len);
+  if(recvfrom(sfd, ch, sizeof(comm_header_t), 0, (struct sockaddr *)&addr, &len) < 0){
+    log_sys_err("Unable to perform recvfrom");
+    error = -errno;
+    goto fail;
+  }
 
-  log_dbg("Request received.\n");
   if(ch->comm_type != COMM_BROADCAST){
-    log_err("Recieved invalid request on broadcast port.\n");
+    log_err("Received invalid request on broadcast port.\n");
     error = -EINVAL;
     goto fail;
   }
@@ -1167,8 +1251,11 @@ int process_broadcast(int sfd){
   memcpy(buffer+sizeof(comm_header_t), payload, ch->comm_payload_size);
 
   log_dbg("Sending cluster.conf...\n");
-  sendto(sfd, buffer, ch->comm_payload_size + sizeof(comm_header_t), 0,
-	 (struct sockaddr *)&addr, (socklen_t)len);
+  if(sendto(sfd, buffer, ch->comm_payload_size + sizeof(comm_header_t), 0,
+	    (struct sockaddr *)&addr, (socklen_t)len) < 0){
+    log_sys_err("Sendto failed");
+    error = -errno;
+  }
   
  fail:
   if(buffer) free(buffer);

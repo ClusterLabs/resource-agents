@@ -27,6 +27,7 @@
 #include "log.h"
 #include "debug.h"
 #include "misc.h"
+#include "globals.h"
 
 #include "magma.h"
 #include "magmamsg.h"
@@ -293,7 +294,7 @@ static void cluster_communicator(void){
 
   ENTER("cluster_communicator");
 
-  if ((listeners = msg_listen(UPDATE_BASE_PORT, 0, listen_fds, 2)) <= 0) {
+  if ((listeners = msg_listen(cluster_base_port, 0, listen_fds, 2)) <= 0) {
     log_err("Unable to setup update listener socket.\n");
     exit(EXIT_FAILURE);
   }
@@ -412,7 +413,7 @@ int update_remote_nodes(char *mem_doc, int doc_size){
 
     log_dbg("Sending COMM_UPDATE_NOTICE to %s\n", membership->cml_members[i].cm_name);
 
-    fd = msg_open(membership->cml_members[i].cm_id, UPDATE_BASE_PORT, 0, 5);
+    fd = msg_open(membership->cml_members[i].cm_id, cluster_base_port, 0, 5);
     log_dbg("Master update socket P1 (to %s) = %d\n",
 	    membership->cml_members[i].cm_name, fd);
     if(fd < 0){
@@ -444,7 +445,7 @@ int update_remote_nodes(char *mem_doc, int doc_size){
     if(membership->cml_members[i].cm_id == my_node_id){
       continue;
     }    
-    fd = msg_open(membership->cml_members[i].cm_id, UPDATE_BASE_PORT, 0, 5);
+    fd = msg_open(membership->cml_members[i].cm_id, cluster_base_port, 0, 5);
     log_dbg("Master update socket P2 (to %s) = %d\n",
 	    membership->cml_members[i].cm_name, fd);
     if(fd < 0){

@@ -30,21 +30,52 @@ applications.  It must be run on each node that wishes to join a cluster.
 \fBOPTIONS\fP
 .in +7
 
+\fB-4\fP
+.in +7
+Use IPv4 for all communication.  By default, IPv6 is tried, then IPv4.
+.sp
+.in
+
+\fB-6\fP
+.in +7
+Use IPv6 for all communication.  By default, IPv6 is tried, then IPv4.
+.sp
+.in
+
 \fB-h\fP
 .in +7
 Help.  Print out the usage syntax.
 .sp
 .in
 
-\fB-m\fP
+\fB-m <multicast address>\fP
 .in +7
-Use multicast, not broadcast.
+Used to specify the multicast address.  The keyword "default" can be used,
+in which case "ff02::1" is used for IPv6 and "224.0.0.1" is used for IPv4.
+
+If you are using IPv4, the default action is to use broadcast.  Specifying
+this option will cause multicast to be used in that instance.
 .sp
 .in
 
 \fB-n\fP
 .in +7
 No daemon.  Run in the foreground.
+.sp
+.in
+
+\fB-P <port identifier>:<port number>\fP
+.in +7
+You have the option of specifying the port numbers used by ccsd.  The port
+identifier is either: b, c, or f.  "b" is the port which ccsd attempts to
+communicate with ccsd processes on other machines, via broadcast/multicast, to
+obtain or validate its config file (cluster.conf).  This is known as the backend
+port.  "c" is the base port number of two consecutive ports used by ccsd
+processes to communicate cluster membership information.  This is known as the
+cluster base port.  "f" is the port number that listens for information requests
+from the CCS library (or programs using it).  This is known as the frontend port.
+
+So, to change the frontend port one might specify \fI-P f:60000\fP.
 .sp
 .in
 

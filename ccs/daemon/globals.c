@@ -9,22 +9,15 @@
 **
 *******************************************************************************
 ******************************************************************************/
-#ifndef __MISC_H__
-#define __MISC_H__
+#include <stdio.h>
 
-typedef struct open_doc {
-  int od_refs;
-  xmlDocPtr od_doc;
-} open_doc_t;
+char *config_file_location = NULL;
+char *lockfile_location = NULL;
 
+int frontend_port = 50006;
+int backend_port  = 50007;
+int cluster_base_port = 50008;
 
-extern int quorate;
-extern int update_required;
-extern pthread_mutex_t update_lock;
-extern open_doc_t *master_doc;
-
-char *get_cluster_name(xmlDocPtr ldoc);
-int get_doc_version(xmlDocPtr ldoc);
-
-
-#endif /* __MISC_H__ */
+/* -1 = no preference, 0 = IPv4, 1 = IPv6 */
+int IPv6=-1;
+char *multicast_address = NULL;
