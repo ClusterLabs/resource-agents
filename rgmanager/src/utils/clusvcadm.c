@@ -80,6 +80,7 @@ main(int argc, char **argv)
 	int msgfd = -1, fd;
 	SmMessageSt msg;
 	int action = RG_STATUS, svctarget = -1;
+	int node_specified = 0;
        	uint64_t msgtarget;
 	char *actionstr = NULL;
 	cluster_member_list_t *membership;
@@ -120,13 +121,12 @@ main(int argc, char **argv)
 			action = RG_RESTART;
 			svcname = optarg;
 			break;
-#if 0
 		case 'm': /* member ... */
 		case 'n': /* node .. same thing */
 
-			nodename = optarg;
+			strncpy(nodename,optarg,sizeof(nodename));
+			node_specified = 1;
 			break;
-#endif
 		case 'v':
 			printf("%s\n",PACKAGE_VERSION);
 			return 0;
@@ -154,8 +154,20 @@ main(int argc, char **argv)
 
 	membership = clu_member_list(RG_SERVICE_GROUP);
 	msg_update(membership);
-	clu_local_nodeid(RG_SERVICE_GROUP, &msgtarget);
-	clu_local_nodename(RG_SERVICE_GROUP, nodename, sizeof(nodename));
+
+	if (node_specified) {
+		msgtarget = memb_name_to_id(membership, nodename);
+		if (msgtarget == NODE_ID_NONE) {
+			fprintf(stderr, "Member %s not in membership list\n",
+				nodename);
+			return 1;
+		}
+	} else {
+		clu_local_nodeid(RG_SERVICE_GROUP, &msgtarget);
+		clu_local_nodename(RG_SERVICE_GROUP, nodename,
+				   sizeof(nodename));
+	}
+	
 
 	printf("Member %s %s %s", nodename, actionstr, svcname);
 	printf("...");
