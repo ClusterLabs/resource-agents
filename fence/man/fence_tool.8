@@ -13,7 +13,7 @@ fence_tool - A program to join and leave the fence domain
 .SH SYNOPSIS
 .B
 fence_tool
-<\fBjoin | leave\fP> 
+<\fBjoin | leave | wait\fP> 
 [\fIOPTION\fR]...
 
 .SH DESCRIPTION
@@ -42,6 +42,10 @@ A node must not leave the fence domain (fenced must not be terminated)
 while CLVM or GFS are in use.
 
 .SH OPTIONS
+.TP
+\fB-w\fP
+Wait until the join is completed.  "fence_tool join -w" is
+equivalent to "fence_tool join; fence_tool wait"
 .TP
 \fB-h\fP
 Help.  Print out the usage syntax.
