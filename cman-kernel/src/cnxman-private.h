@@ -183,6 +183,7 @@ struct cl_mem_join_msg {
 };
 
 /* State transition start reasons: */
+#define TRANS_NONE           0  /* No current transition */
 #define TRANS_NEWNODE        1	/* A new node is joining the cluster */
 #define TRANS_REMNODE        2	/* a node has left the cluster */
 #define TRANS_ANOTHERREMNODE 3	/* A node left the cluster while we were in

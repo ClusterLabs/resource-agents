@@ -953,6 +953,7 @@ static int end_transition()
 	check_barrier_returns();
 
 	leavereason = 0;
+	transitionreason = TRANS_NONE;
 	node_state = MEMBER;
 	transition_end_time = jiffies;
 
@@ -2072,6 +2073,7 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 	joining_temp_nodeid = 0;
 
 	node_state = MEMBER;
+	transitionreason = TRANS_NONE;
 
 	/* Notify other listeners that transition has completed */
 	notify_listeners();
