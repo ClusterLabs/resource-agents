@@ -339,7 +339,7 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params
 {
     int	status;
     struct lock_wait lwait;
-	
+
     if (pthread_self() == lsinfo->tid)
     {
         /* This is the DLM worker thread, don't use lwait to sync */
@@ -457,13 +457,16 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     else
     {
 	if (namelen > DLM_RESNAME_MAXLEN)
-	    return EINVAL;
+	{
+	    errno = EINVAL;
+	    return -1;
+	}
 	params->namelen = namelen;
 	memcpy(params->name, name, namelen);
     }
     len = sizeof(struct dlm_lock_params) + params->namelen - 1;
     lksb->sb_status = EINPROG;
-    
+
     status = write(lsinfo->fd, params, len);
     if (status != len)
 	return -1;
@@ -519,7 +522,10 @@ int dlm_ls_lock_wait(dlm_lshandle_t ls,
     else
     {
 	if (namelen > DLM_RESNAME_MAXLEN)
-	    return EINVAL;
+	{
+	    errno = EINVAL;
+	    return -1;
+	}
 	params->namelen = namelen;
 	memcpy(params->name, name, namelen);
     }
@@ -568,7 +574,7 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
     params.lksb  = lksb;
     params.castparam = astarg;
 	    /* DLM_USER_UNLOCK will default to existing completion AST */
-    params.castaddr = 0;  
+    params.castaddr = 0;
     lksb->sb_status = EINPROG;
 
     status = write(lsinfo->fd, &params, sizeof(params));
@@ -603,7 +609,7 @@ int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
     params.flags = 0;
     params.lksb  = lksb;
     lksb->sb_status = EINPROG;
-   
+
     status = sync_write(lsinfo, &params, sizeof(params));
     return status;
 }
