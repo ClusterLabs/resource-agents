@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.252 $) dnl cvs revision
+AC_REVISION($Revision: 1.253 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1354,19 +1354,13 @@ LRM_DIR=""
 if test "${enable_lrm}"  = "yes"; then
 	LRM_ENABLED=1
 	LRM_DIR="lrm"
-	LRM_LRMD="${LRM_DIR}/lrmd"
-	LRM_ADMIN="${LRM_DIR}/admin"
-	LRM_LIB="${LRM_DIR}/lib"
-	AC_SUBST(LRM_ENABLED)
-	AC_SUBST(LRM_DIR)
-	AC_SUBST(LRM_LIB)
-	AC_SUBST(LRM_LRMD)
-	AC_SUBST(LRM_ADMIN)
 else 
      if test -z "${enable_lrm}"; then
 		enable_lrm="no"
      fi
 fi
+AC_SUBST(LRM_ENABLED)
+AC_SUBST(LRM_DIR)
 
 echo "$as_me:$LINENO: Enabling the new Local Resource Manager... ${enable_lrm}" >&5
 echo $ECHO_N "Enabling the new Local Resource Manager... ${enable_lrm}" >&6
@@ -1528,8 +1522,8 @@ dnl testing again makes the eventual output a little easier to read
 if test "${enable_crm}"  = "yes"; then
     AC_OUTPUT(crm/Makefile				    \
 		  crm/common/Makefile			    \
-		  crm/cib/Makefile					\
-		  crm/crmd/Makefile					\
+		  crm/cib/Makefile			    \
+		  crm/crmd/Makefile			    \
 		  crm/pengine/Makefile			    \
 		  crm/tengine/Makefile			    \
 		  crm/admin/Makefile			    \
