@@ -23,7 +23,6 @@ struct config_info {
 	int dirtbl_size;
 	int max_connections;
 	int deadlocktime;
-	int resdir_expiretime;
 };
 
 extern struct config_info dlm_config;
