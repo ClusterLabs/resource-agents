@@ -639,6 +639,20 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 	return;
 }
 
+static int valid_addr_for_node(struct cluster_node *node, char *addr)
+{
+	struct list_head *addrlist;
+	struct cluster_node_addr *nodeaddr;
+
+	list_for_each(addrlist, &node->addr_list) {
+		nodeaddr = list_entry(addrlist, struct cluster_node_addr, list);
+
+		if (memcmp(nodeaddr->addr, addr, address_length) == 0)
+			return 1; /* TRUE */
+	}
+	return 0; /* FALSE */
+}
+
 static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 			     char *addr, int addrlen)
 {
@@ -718,6 +732,18 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
 		goto userport_finish;
 	}
+
+	/* Check that the message is from the node we think it is from */
+	if (rem_node && !valid_addr_for_node(rem_node, addr)) {
+		int i;
+		printk("Node %s is being spoofed by node addr: ", rem_node->name);
+		for (i=0; i<address_length; i++) {
+			printk("0x%02x ", addr[i]);
+		}
+		printk("\n");
+		return;
+	}
+
 
 	/* If it's a new node then assign it a temporary node ID */
 	if (!rem_node)
