@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.86 $) dnl cvs revision
+AC_REVISION($Revision: 1.87 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -183,7 +183,7 @@ AC_MSG_CHECKING(for the location of the lock directory)
 for TTY_LOCK_D in /var/lock /var/spool/lock /var/spool/locks
 do
   if
-    test -d $TTY_LOCK_D
+    test -d "$TTY_LOCK_D"
   then
     AC_MSG_RESULT($TTY_LOCK_D)
     AC_DEFINE_UNQUOTED(TTY_LOCK_D, "$TTY_LOCK_D", tty lock file directory)
@@ -237,7 +237,7 @@ FindADir() {
 locale_locations="/usr/share/locale /usr/lib/locale /usr/lib/nls/loc"
 LOCALE=`FindADir error "locale" $locale_locations`
 if
-  test  X$LOCALE = X
+  test  "X$LOCALE" = X
 then
   AC_MSG_ERROR(Locale directory is mandantory.)
 fi
@@ -690,6 +690,12 @@ dnl *always* cause us troubles if we set it before here.
 dnl
 dnl
 CFLAGS="$CFLAGS $CC_WARNINGS"
+
+if test "$GCC" = yes; then
+  CFLAGS="$CFLAGS -ggdb3 $CC_WARNINGS"
+else
+  CFLAGS="$CFLAGS -g $CC_WARNINGS"
+fi
 dnl AC_SUBST(CC_WARNINGS)
 
 dnl ************************************************************************
