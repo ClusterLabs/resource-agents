@@ -271,6 +271,7 @@ static struct file_operations cluster_fops = {
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = seq_release,
+	.owner = THIS_MODULE,
 };
 
 static struct file_operations service_fops = {
@@ -278,6 +279,7 @@ static struct file_operations service_fops = {
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = seq_release,
+	.owner = THIS_MODULE,
 };
 
 static int cman_config_read_proc(char *page, char **start, off_t off, int count,

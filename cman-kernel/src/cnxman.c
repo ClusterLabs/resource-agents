@@ -405,7 +405,6 @@ static int cluster_kthread(void *unused)
 	if (we_are_a_cluster_member)
 	    send_leave(us->leave_reason);
 
-	kfree(iobuf);
 	quit_threads = 1;	/* force other thread to die too */
 	node_shutdown();
 
@@ -417,6 +416,7 @@ static int cluster_kthread(void *unused)
 	wait_for_completion(&member_thread_comp);
 
 	node_cleanup();
+	kfree(iobuf);
 
 	complete(&cluster_thread_comp);
 	return 0;
@@ -3990,7 +3990,8 @@ int kcl_get_current_interface(void)
 /* Socket registration stuff */
 static struct net_proto_family cl_family_ops = {
 	.family = AF_CLUSTER,
-	.create = cl_create
+	.create = cl_create,
+	.owner  = THIS_MODULE,
 };
 
 static struct proto_ops cl_proto_ops = {
@@ -4012,6 +4013,7 @@ static struct proto_ops cl_proto_ops = {
 	.recvmsg     = cl_recvmsg,
 	.mmap        = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
+	.owner       = THIS_MODULE,
 };
 
 #ifdef MODULE
