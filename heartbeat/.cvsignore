@@ -24,3 +24,6 @@ OCF
 .libs
 .deps
 *.o
+*.beam
+parser-messages
+MISC_ERRORS
