@@ -260,13 +260,16 @@ int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp)
 	lp->lvb = NULL;
 	lp->hold_null = NULL;
 	init_completion(&lp->uast_wait);
+
 	*lpp = lp;
 	return 0;
 }
 
 void delete_lp(dlm_lock_t *lp)
 {
-	spin_lock(&lp->dlm->async_lock);
+	dlm_t *dlm = lp->dlm;
+
+	spin_lock(&dlm->async_lock);
 	if (test_bit(LFL_CLIST, &lp->flags)) {
 		printk("lock_dlm: dlm_put_lock lp on clist num=%x,%"PRIx64"\n",
 		       lp->lockname.ln_type, lp->lockname.ln_number);
@@ -289,7 +292,7 @@ void delete_lp(dlm_lock_t *lp)
 		       lp->lockname.ln_type, lp->lockname.ln_number);
 		list_del(&lp->slist);
 	}
-	spin_unlock(&lp->dlm->async_lock);
+	spin_unlock(&dlm->async_lock);
 
 	kfree(lp);
 }

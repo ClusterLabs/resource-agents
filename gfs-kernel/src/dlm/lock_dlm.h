@@ -74,6 +74,7 @@ typedef struct strname strname_t;
 #define DFL_UMOUNT		7
 #define DFL_NEED_STARTDONE	8
 #define DFL_RECOVER		9
+#define DFL_WITHDRAW		10
 
 struct dlm {
 	uint32_t		jid;
@@ -90,7 +91,7 @@ struct dlm {
 
 	lm_callback_t		fscb;
 	lm_fsdata_t *		fsdata;
-	dlm_lock_t *		jid_lock;
+	dlm_lock_t *		jid_lp;
 
 	spinlock_t		async_lock;
 	struct list_head	complete;
@@ -199,11 +200,13 @@ struct dlm_lock {
 #define NFL_RECOVERY_DONE       2
 #define NFL_LAST_FINISH         3
 #define NFL_HAVE_JID            4
+#define NFL_WITHDRAW            5
 
 struct dlm_node {
 	uint32_t		nodeid;
 	uint32_t		jid;
 	unsigned long		flags;
+	dlm_lock_t *		withdraw_lp;
 	struct list_head	list;
 };
 
@@ -266,6 +269,11 @@ void release_mountgroup(dlm_t *dlm);
 void process_start(dlm_t *dlm, dlm_start_t *ds);
 void process_finish(dlm_t *dlm);
 void jid_recovery_done(dlm_t *dlm, unsigned int jid, unsigned int message);
+
+/* mount.c */
+
+void lm_dlm_hold_withdraw(dlm_t *dlm);
+void lm_dlm_release_withdraw(dlm_t *dlm, dlm_node_t *node);
 
 /* thread.c */
 

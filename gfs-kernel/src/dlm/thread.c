@@ -205,7 +205,7 @@ static void process_complete(dlm_lock_t *lp)
 		lp->lkf |= DLM_LKF_CONVERT;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
 
-		log_debug("rereq %x,%"PRIx64" id %x %d,%d\n",
+		log_debug("rereq %x,%"PRIx64" id %x %d,%d",
 			  lp->lockname.ln_type, lp->lockname.ln_number,
 			  lp->lksb.sb_lkid, lp->cur, lp->req);
 
@@ -360,6 +360,10 @@ static int dlm_async(void *data)
 			shrink = check_shrink(dlm);
 		}
 		spin_unlock(&dlm->async_lock);
+
+		/* once withdrawn don't call into gfs for anything */
+		if (test_bit(DFL_WITHDRAW, &dlm->flags))
+			complete = blocking = drop = shrink = 0;
 
 		if (complete)
 			process_complete(lp);

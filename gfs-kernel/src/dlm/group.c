@@ -289,7 +289,7 @@ static int claim_jid(dlm_t *dlm)
 	 */
 
 	for (id = 0; id < dlm->max_nodes + 8; id++) {
-		error = id_test_and_set(dlm, id, dlm->our_nodeid, &dlm->jid_lock);
+		error = id_test_and_set(dlm, id, dlm->our_nodeid, &dlm->jid_lp);
 		if (error < 0)
 			break;
 		if (error > 0)
@@ -319,13 +319,17 @@ static int claim_jid(dlm_t *dlm)
 
 /*
  * Release our journalid, allowing it to be used by a node subsequently
- * mounting the fs.
+ * mounting the fs.  When withdrawing, we've already left the lockspace.
  */
 
 static void release_jid(dlm_t *dlm)
 {
-	id_clear(dlm, dlm->jid_lock);
-	dlm->jid_lock = NULL;
+	if (test_bit(DFL_WITHDRAW, &dlm->flags)) {
+		dlm_del_lvb(dlm->jid_lp);
+		delete_lp(dlm->jid_lp);
+	} else
+		id_clear(dlm, dlm->jid_lp);
+	dlm->jid_lp = NULL;
 }
 
 /*
@@ -384,6 +388,17 @@ static int get_our_nodeid(dlm_t *dlm)
 	return 0;
 }
 
+static void release_mg_nodes(dlm_t *dlm)
+{
+	dlm_node_t *node, *safe;
+
+	list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
+		list_del(&node->list);
+		lm_dlm_release_withdraw(dlm, node);
+		kfree(node);
+	}
+}
+
 /* 
  * Run in dlm_async thread
  */
@@ -421,11 +436,13 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		  ds->count, ds->type, ds->event_id, dlm->flags);
 
 	/*
-	 * gfs won't do journal recoveries once it's sent us an unmount
+	 * gfs won't do journal recoveries once it's sent us an unmount or
+	 * withdraw
 	 */
 
-	if (test_bit(DFL_UMOUNT, &dlm->flags)) {
-		log_debug("pr_start %d skip for umount", ds->event_id);
+	if (test_bit(DFL_UMOUNT, &dlm->flags) ||
+	    test_bit(DFL_WITHDRAW, &dlm->flags)) {
+		log_debug("pr_start %d skip for umount/wd", ds->event_id);
 		kcl_start_done(dlm->mg_local_id, ds->event_id);
 		goto out;
 	}
@@ -447,13 +464,8 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 	 * (normally, (uninterrupted starts) mg_nodes is empty at this point)
 	 */
 
-	if (test_bit(DFL_MOUNT, &dlm->flags)) {
-		dlm_node_t *safe;
-		list_for_each_entry_safe(node, safe, &dlm->mg_nodes, list) {
-			list_del(&node->list);
-			kfree(node);
-		}
-	}
+	if (test_bit(DFL_MOUNT, &dlm->flags))
+		release_mg_nodes(dlm);
 
 	/*
 	 * find nodes which are gone
@@ -474,8 +486,9 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 
 		set_bit(NFL_NOT_MEMBER, &node->flags);
 
-		/* no gfs recovery needed for nodes that left cleanly */
-		if (ds->type != SERVICE_NODE_FAILED)
+		/* failed and withdrawing nodes need journal recovery */
+		if (ds->type != SERVICE_NODE_FAILED &&
+		    !test_bit(NFL_WITHDRAW, &node->flags))
 			continue;
 
 		/* callbacks sent only for nodes in last completed MG */
@@ -554,7 +567,15 @@ void process_start(dlm_t *dlm, dlm_start_t *ds)
 		break;
 	}
 
-	/* 
+	/*
+	 * Hold withdraw locks for all nodes in PR.  We're notified by a bast
+	 * if one of them withdraws.  We promote ours to EX to withdraw
+	 * ourself.
+	 */
+
+	lm_dlm_hold_withdraw(dlm);
+
+	/*
 	 * tell SM we're done if there are no GFS recoveries to wait for
 	 */
 
@@ -589,8 +610,36 @@ void process_finish(dlm_t *dlm)
 	struct list_head *tmp, *tmpsafe;
 	dlm_node_t *node;
 	dlm_lock_t *lp;
+	int leave_blocked = FALSE;
 
 	log_debug("pr_finish flags %lx", dlm->flags);
+
+	down(&dlm->mg_nodes_lock);
+	list_for_each_safe(tmp, tmpsafe, &dlm->mg_nodes) {
+		node = list_entry(tmp, dlm_node_t, list);
+
+		if (test_bit(NFL_NOT_MEMBER, &node->flags)) {
+			list_del(&node->list);
+			lm_dlm_release_withdraw(dlm, node);
+			kfree(node);
+		} else {
+			set_bit(NFL_LAST_FINISH, &node->flags);
+
+			/* If there are still withdrawing nodes that haven't
+			   left the MG (had their journals recovered), we need
+			   to keep lock requests blocked */
+
+			if (test_bit(NFL_WITHDRAW, &node->flags)) {
+				log_debug("pr_finish leave blocked for %d",
+					node->nodeid);
+				leave_blocked = TRUE;
+			}
+		}
+	}
+	up(&dlm->mg_nodes_lock);
+
+	if (leave_blocked)
+		goto out;
 
 	spin_lock(&dlm->async_lock);
 	clear_bit(DFL_BLOCK_LOCKS, &dlm->flags);
@@ -610,19 +659,7 @@ void process_finish(dlm_t *dlm)
 	}
 	spin_unlock(&dlm->async_lock);
 
-	down(&dlm->mg_nodes_lock);
-
-	list_for_each_safe(tmp, tmpsafe, &dlm->mg_nodes) {
-		node = list_entry(tmp, dlm_node_t, list);
-
-		if (test_bit(NFL_NOT_MEMBER, &node->flags)) {
-			list_del(&node->list);
-			kfree(node);
-		} else
-			set_bit(NFL_LAST_FINISH, &node->flags);
-	}
-	up(&dlm->mg_nodes_lock);
-
+ out:
 	clear_bit(DFL_MOUNT, &dlm->flags);
 	wake_up(&dlm->wait);
 }
@@ -676,7 +713,7 @@ void release_mountgroup(dlm_t *dlm)
 	/* this flag causes a kcl_start_done() to be sent right away for
 	   any start callbacks we get from SM */
 
-	log_debug("umount flags %lx", dlm->flags);
+	log_debug("release_mountgroup flags %lx", dlm->flags);
 	set_bit(DFL_UMOUNT, &dlm->flags);
 
 	/* gfs has done a unmount and will not call jid_recovery_done()
@@ -698,7 +735,9 @@ void release_mountgroup(dlm_t *dlm)
 
 	kcl_leave_service(dlm->mg_local_id);
 	kcl_unregister_service(dlm->mg_local_id);
+
 	release_jid(dlm);
+	release_mg_nodes(dlm);
 }
 
 /*
