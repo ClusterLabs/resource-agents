@@ -30,7 +30,6 @@ endif
 
 
 TARGET=cman_tool
-TARGET8=cman_tool.8
 
 all: ${TARGET}
 
@@ -49,12 +48,9 @@ join.o: join.c cman_tool.h
 install: cman_tool
 	install -d ${sbindir}
 	install cman_tool ${sbindir}
-	install -d ${mandir}/man8
-	install ${TARGET8} ${mandir}/man8
 
 uninstall:
 	${UNINSTALL} cman_tool ${sbindir}
-	${UNINSTALL} ${TARGET8} ${mandir}/man8	
 
 clean:
 	rm -f *.o cman_tool
