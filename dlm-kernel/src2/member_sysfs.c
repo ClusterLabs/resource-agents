@@ -142,8 +142,8 @@ static ssize_t dlm_members_show(struct dlm_ls *ls, char *buf)
 	if (!down_read_trylock(&ls->ls_in_recovery))
 		return -EBUSY;
 	list_for_each_entry(memb, &ls->ls_nodes, list)
-		ret += sprintf(buf, "%u ", memb->node->nodeid);
-	ret += sprintf(buf, "\n");
+		ret += sprintf(buf+ret, "%u ", memb->node->nodeid);
+	ret += sprintf(buf+ret, "\n");
 	up_read(&ls->ls_in_recovery);
 	return ret;
 }

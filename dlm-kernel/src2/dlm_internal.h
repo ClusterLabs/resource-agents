@@ -82,7 +82,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 #define log_error(ls, fmt, args...) \
 	do { \
 		printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args); \
-		dlm_debug_log(ls, fmt, ##args); \
 	} while (0)
 
 
@@ -94,13 +93,13 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 #endif
 
 #if defined(DLM_DEBUG1)
-#define log_debug1(ls, fmt, args...) dlm_debug_log(ls, fmt, ##args)
+#define log_debug1(ls, fmt, args...) log_error(ls, fmt, ##args)
 #else
 #define log_debug1(ls, fmt, args...)
 #endif
  	 
 #if defined(DLM_DEBUG2)
-#define log_debug2(fmt, args...) dlm_debug_log(ls, fmt, ##args)
+#define log_debug2(fmt, args...) log_print(fmt, ##args)
 #else
 #define log_debug2(fmt, args...)
 #endif
@@ -110,7 +109,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
   if (!(x)) \
   { \
     dlm_locks_dump(); \
-    dlm_debug_dump(); \
     printk("\nDLM:  Assertion failed on line %d of file %s\n" \
                "DLM:  assertion:  \"%s\"\n" \
                "DLM:  time = %lu\n", \
