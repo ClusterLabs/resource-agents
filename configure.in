@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.71 $) dnl cvs revision
+AC_REVISION($Revision: 1.72 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -147,7 +147,7 @@ if test x"$?" = x"0"; then
         AC_DEFINE(PROCROUTE, "", not used in except in linux)
 	AC_MSG_RESULT(yes)
 else
-	AC_DEFINE(ROUTEPARM, " ", parameters for route to retrieve route information)
+	AC_DEFINE(ROUTEPARM, "", parameters for route to retrieve route information)
 	AC_DEFINE(PROCROUTE, "/proc/net/route", path were to find route information in proc)
 	AC_MSG_RESULT(no)
 fi
@@ -159,11 +159,25 @@ do
   if
     test "$?" = 0
   then
-    AC_DEFINE(IFCONFIG_A_OPT, "$IFCONFIG_A_OPT", option for ifconfig command)
+    AC_DEFINE_UNQUOTED(IFCONFIG_A_OPT, "$IFCONFIG_A_OPT", option for ifconfig command)
     AC_MSG_RESULT($IFCONFIG_A_OPT)
     break
   fi
 done
+
+AC_MSG_CHECKING(for the location of the lock directory)
+for TTY_LOCK_D in /var/lock /var/spool/lock
+do
+  if
+    test -d $TTY_LOCK_D
+  then
+    AC_MSG_RESULT($TTY_LOCK_D)
+    AC_DEFINE_UNQUOTED(TTY_LOCK_D, "$TTY_LOCK_D", tty lock file directory)
+    break
+  fi
+done
+
+
 AC_SUBST(IFCONFIG_A_OPT)
 
 
@@ -492,7 +506,7 @@ AC_ARG_WITH(
     [ APIGID=$withval ],
     [ APIGID=60 ],
   )
-AC_DEFINE_UNQUOTED(APIGID, "$APIGID", Group to own API fifos)
+AC_DEFINE_UNQUOTED(APIGID, $APIGID, Group to own API fifos)
 AC_SUBST(APIGID)
 
 
