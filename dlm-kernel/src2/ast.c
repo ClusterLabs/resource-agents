@@ -54,10 +54,6 @@ void remove_from_lockqueue(struct dlm_lkb *lkb)
 	down(&_lockqueue_lock);
 	list_del(&lkb->lkb_lockqueue);
 	up(&_lockqueue_lock);
-
-#ifdef CONFIG_DLM_STATS
-	dlm_stats.lockqueue_locks[lkb->lkb_lockqueue_state]++;
-#endif
 	lkb->lkb_lockqueue_state = 0;
 }
 
@@ -204,12 +200,8 @@ static void process_asts(void)
 				release_rsb(rsb);
 			}
 
-			if (cast) {
-#ifdef CONFIG_DLM_STATS
-				dlm_stats.cast++;
-#endif
+			if (cast)
 				cast(astparam);
-			}
 		}
 
 		if (flags & AST_BAST && !(flags & AST_DEL)) {
@@ -222,12 +214,8 @@ static void process_asts(void)
 				continue;
 
 			if (lkb->lkb_rqmode == DLM_LOCK_IV ||
-			    !dlm_modes_compat(lkb->lkb_rqmode, bmode)) {
+			    !dlm_modes_compat(lkb->lkb_rqmode, bmode))
 				bast(astparam, bmode);
-#ifdef CONFIG_DLM_STATS
-				dlm_stats.bast++;
-#endif
-			}
 		}
 
 		schedule();

@@ -36,8 +36,8 @@
 #include <linux/kobject.h>
 
 #include "dlm.h"
-#include "dlm_device.h"
 #include "dlm_member.h"
+#include "dlm_device.h"
 
 #ifndef TRUE
 #define TRUE (1)
@@ -71,19 +71,9 @@
 #define SCNX64 "LX"
 #endif
 
-static inline int check_timeout(unsigned long stamp, unsigned int seconds)
-{
-    return time_after(jiffies, stamp + seconds * HZ);
-}
-
 
 #define log_print(fmt, args...) printk("dlm: "fmt"\n", ##args)
-
-#define log_error(ls, fmt, args...) \
-	do { \
-		printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args); \
-	} while (0)
-
+#define log_error(ls, fmt, args...) printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args)
 
 #define DLM_DEBUG
 #if defined(DLM_DEBUG)
@@ -97,7 +87,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 #else
 #define log_debug1(ls, fmt, args...)
 #endif
- 	 
+
 #if defined(DLM_DEBUG2)
 #define log_debug2(fmt, args...) log_print(fmt, ##args)
 #else
@@ -108,7 +98,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 { \
   if (!(x)) \
   { \
-    dlm_locks_dump(); \
     printk("\nDLM:  Assertion failed on line %d of file %s\n" \
                "DLM:  assertion:  \"%s\"\n" \
                "DLM:  time = %lu\n", \
@@ -580,25 +569,8 @@ struct dlm_query_reply {
    block */
 #define GDLM_REMFLAG_ENDQUERY       1
 
-#ifdef CONFIG_DLM_STATS
-struct dlm_statinfo
-{
-	unsigned int cast;
-	unsigned int bast;
-	unsigned int lockops;
-	unsigned int unlockops;
-	unsigned int convertops;
-	unsigned long lockqueue_time[5];
-	unsigned long lockqueue_locks[5];
-};
-extern struct dlm_statinfo dlm_stats;
-#endif
-
 #ifndef BUG_ON
 #define BUG_ON(x)
 #endif
-
-void dlm_debug_log(struct dlm_ls *ls, const char *fmt, ...);
-void dlm_debug_dump(void);
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */

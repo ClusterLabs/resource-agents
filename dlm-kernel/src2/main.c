@@ -32,12 +32,9 @@
 
 int  dlm_device_init(void);
 void dlm_device_exit(void);
-void dlm_proc_init(void);
-void dlm_proc_exit(void);
 
 int __init init_dlm(void)
 {
-	dlm_proc_init();
 	dlm_lockspace_init();
 	dlm_device_init();
 	dlm_memory_init();
@@ -57,7 +54,6 @@ void __exit exit_dlm(void)
 	dlm_memory_exit();
 	dlm_config_exit();
 	dlm_lockspace_exit();
-	dlm_proc_exit();
 }
 
 MODULE_DESCRIPTION("Distributed Lock Manager " DLM_RELEASE_NAME);
@@ -71,5 +67,3 @@ EXPORT_SYMBOL(dlm_new_lockspace);
 EXPORT_SYMBOL(dlm_release_lockspace);
 EXPORT_SYMBOL(dlm_lock);
 EXPORT_SYMBOL(dlm_unlock);
-EXPORT_SYMBOL(dlm_debug_dump);
-EXPORT_SYMBOL(dlm_locks_dump);

@@ -14,7 +14,7 @@
 #ifndef __CONFIG_DOT_H__
 #define __CONFIG_DOT_H__
 
-struct config_info {
+struct dlm_config_info {
 	int tcp_port;
 	int lock_timeout;
 	int buffer_size;
@@ -26,8 +26,9 @@ struct config_info {
 	int recover_timer;
 };
 
-extern struct config_info dlm_config;
-extern int  dlm_config_init(void);
+extern struct dlm_config_info dlm_config;
+
+extern int dlm_config_init(void);
 extern void dlm_config_exit(void);
 
 #endif				/* __CONFIG_DOT_H__ */

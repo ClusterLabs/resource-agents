@@ -39,7 +39,6 @@ dlm-objs := member.o \
             main.o \
             memory.o \
             midcomms.o \
-            proc.o \
             queries.o \
             rebuild.o \
             reccomms.o \
@@ -49,7 +48,7 @@ dlm-objs := member.o \
             util.o \
             dir.o
 
-EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS -DCONFIG_DLM_STATS
+EXTRA_CFLAGS += -I$(obj)
 
 all:
 	if [ ! -e cluster ]; then ln -s . cluster; fi
