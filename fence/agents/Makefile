@@ -22,7 +22,6 @@ all:
 	cd manual && ${MAKE} all
 	cd mcdata && ${MAKE} all
 	cd rackswitch && ${MAKE} all
-	cd rib && ${MAKE} all
 	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
@@ -39,7 +38,6 @@ copytobin:
 	cd manual && ${MAKE} copytobin
 	cd mcdata && ${MAKE} copytobin
 	cd rackswitch && ${MAKE} copytobin
-	cd rib && ${MAKE} copytobin
 	cd sanbox2 && ${MAKE} copytobin
 	cd vixel && ${MAKE} copytobin
 	cd wti && ${MAKE} copytobin
@@ -56,7 +54,6 @@ clean:
 	cd manual && ${MAKE} clean
 	cd mcdata && ${MAKE} clean
 	cd rackswitch && ${MAKE} clean
-	cd rib && ${MAKE} clean
 	cd sanbox2 && ${MAKE} clean
 	cd vixel && ${MAKE} clean
 	cd wti && ${MAKE} clean
