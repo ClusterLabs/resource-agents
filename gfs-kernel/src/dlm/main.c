@@ -24,6 +24,7 @@
 #endif
 #define MAX_PROC_STRING		(16)
 
+int				lock_dlm_max_nodes;
 int				lock_dlm_drop_count;
 int				lock_dlm_drop_period;
 
@@ -147,6 +148,11 @@ static int debug_info(char *b, char **start, off_t offset, int length)
 	return n;
 }
 
+static int max_nodes_info(char *b, char **start, off_t offset, int length)
+{
+	return sprintf(b, "%d\n", lock_dlm_max_nodes);
+}
+
 static int drop_count_info(char *b, char **start, off_t offset, int length)
 {
 	return sprintf(b, "%d\n", lock_dlm_drop_count);
@@ -172,6 +178,16 @@ static int copy_string(const char *buffer, unsigned long count)
 	return len;
 }
 
+static int max_nodes_write(struct file *file, const char *buffer,
+			   unsigned long count, void *data)
+{
+	int rv = copy_string(buffer, count);
+	if (rv < 0)
+		return rv;
+	lock_dlm_max_nodes = (int) simple_strtol(proc_str, NULL, 0);
+	return rv;
+}
+
 static int drop_count_write(struct file *file, const char *buffer,
 			    unsigned long count, void *data)
 {
@@ -194,14 +210,22 @@ static int drop_period_write(struct file *file, const char *buffer,
 
 static void create_proc_entries(void)
 {
-	struct proc_dir_entry *p, *debug, *drop_count, *drop_period;
+	struct proc_dir_entry *p, *debug, *drop_count, *drop_period, *max_nodes;
 
-	debug = drop_count = drop_period = NULL;
+	debug = drop_count = drop_period = max_nodes = NULL;
 
 	proc_dir = proc_mkdir("cluster/lock_dlm", 0);
 	if (!proc_dir)
 		return;
 	proc_dir->owner = THIS_MODULE;
+
+	p = create_proc_entry("max_nodes", 0666, proc_dir);
+	if (!p)
+		goto out;
+	p->owner = THIS_MODULE;
+	p->get_info = max_nodes_info;
+	p->write_proc = max_nodes_write;
+	max_nodes = p;
 
 	p = create_proc_entry("debug", 0444, proc_dir);
 	if (!p)
@@ -235,6 +259,8 @@ static void create_proc_entries(void)
 		remove_proc_entry("drop_count", proc_dir);
 	if (debug)
 		remove_proc_entry("debug", proc_dir);
+	if (max_nodes)
+		remove_proc_entry("max_nodes", proc_dir);
 
 	remove_proc_entry("cluster/lock_dlm", NULL);
 	proc_dir = NULL;
@@ -243,6 +269,7 @@ static void create_proc_entries(void)
 static void remove_proc_entries(void)
 {
 	if (proc_dir) {
+		remove_proc_entry("max_nodes", proc_dir);
 		remove_proc_entry("debug", proc_dir);
 		remove_proc_entry("drop_period", proc_dir);
 		remove_proc_entry("drop_count", proc_dir);
@@ -268,6 +295,7 @@ int __init init_lock_dlm(void)
 		return error;
 	}
 
+	lock_dlm_max_nodes = LOCK_DLM_MAX_NODES;
 	lock_dlm_drop_count = DROP_LOCKS_COUNT;
 	lock_dlm_drop_period = DROP_LOCKS_PERIOD;
 

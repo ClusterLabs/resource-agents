@@ -209,7 +209,7 @@ static int id_value(dlm_t *dlm, uint32_t id, uint32_t *val)
 	set_bit(LFL_INLOCK, &lp->flags);
 	set_bit(LFL_NOBAST, &lp->flags);
 
-      retry:
+ retry:
 
 	error = lm_dlm_lock_sync(lock, LM_ST_UNLOCKED, LM_ST_SHARED,
 			         LM_FLAG_TRY | LM_FLAG_NOEXP);

@@ -18,6 +18,7 @@
 #include <cluster/cnxman.h>
 #include <cluster/service.h>
 
+extern int lock_dlm_max_nodes;
 extern int lock_dlm_drop_count;
 extern int lock_dlm_drop_period;
 
@@ -90,7 +91,7 @@ static int init_cluster(dlm_t *dlm, char *table_name)
 	clname = buf;
 	fsname = ++c;
 
-	dlm->max_nodes = LOCK_DLM_MAX_NODES;
+	dlm->max_nodes = lock_dlm_max_nodes;
 
 	len = strlen(clname) + 1;
 	c = kmalloc(len, GFP_KERNEL);
@@ -117,13 +118,13 @@ static int init_cluster(dlm_t *dlm, char *table_name)
 	kfree(buf);
 	return 0;
 
-      out_fn:
+ out_fn:
 	kfree(dlm->fsname);
-      out_cn:
+ out_cn:
 	kfree(dlm->clustername);
-      out_buf:
+ out_buf:
 	kfree(buf);
-      out:
+ out:
 	printk("lock_dlm: init_cluster error %d\n", error);
 	return error;
 }
@@ -281,22 +282,17 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	lockstruct->ls_lvb_size = DLM_LVB_SIZE;
 	return 0;
 
-      out_thread:
+ out_thread:
 	release_async_thread(dlm);
-
-      out_gdlm:
+ out_gdlm:
 	release_gdlm(dlm);
-
-      out_fence:
+ out_fence:
 	release_fence(dlm);
-
-      out_cluster:
+ out_cluster:
 	release_cluster(dlm);
-
-      out_free:
+ out_free:
 	kfree(dlm);
-
-      out:
+ out:
 	return error;
 }
 
