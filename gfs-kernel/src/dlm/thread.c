@@ -114,6 +114,13 @@ static void process_complete(dlm_lock_t *lp)
 	if (lp->lksb.sb_flags & DLM_SBF_VALNOTVALID)
 		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_LEN);
 
+	if (lp->lksb.sb_flags & DLM_SBF_ALTMODE) {
+		if (lp->req == DLM_LOCK_PR)
+			lp->req = DLM_LOCK_CW;
+		else if (lp->req == DLM_LOCK_CW)
+			lp->req = DLM_LOCK_PR;
+	}
+
 	/*
 	 * A canceled lock request.  The lock was just taken off the delayed
 	 * list and was never even submitted to dlm.

@@ -206,6 +206,13 @@ static unsigned int make_flags(dlm_lock_t *lp, unsigned int gfs_flags,
 		lkf |= DLM_LKF_HEADQUE;
 	}
 
+	if (gfs_flags & LM_FLAG_ANY) {
+		if (req == DLM_LOCK_PR)
+			lkf |= DLM_LKF_ALTCW;
+		else if (req == DLM_LOCK_CW)
+			lkf |= DLM_LKF_ALTPR;
+	}
+
 	if (lp->lksb.sb_lkid != 0) {
 		lkf |= DLM_LKF_CONVERT;
 
