@@ -51,8 +51,6 @@ struct cl_comms_socket {
 				 * sockets in case of network errors */
 	struct file *file;	/* file pointer for user-passed in sockets */
 
-	wait_queue_t wait;
-
 	/* The socket list */
 	struct list_head list;
 
