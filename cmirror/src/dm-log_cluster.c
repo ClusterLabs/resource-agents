@@ -98,7 +98,6 @@ struct log_c {
 	/*
 	 * Cluster log fields
 	 */
-	uint64_t zeros[16];
 	char uuid[MAX_NAME_LEN];
 	int paranoid;
 	atomic_t in_sync;  /* like sync_count, except all or nothing */
@@ -466,8 +465,8 @@ static int _core_get_resync_work(struct log_c *lc, region_t *region)
 /*************************************
  **  Common macros and structures
  ************************************/
-static uint64_t request_count=0;
-static uint64_t request_retry_count=0;
+static unsigned int request_count=0;
+static unsigned int request_retry_count=0;
 
 
 #define LRT_IS_CLEAN			0x1
@@ -551,16 +550,24 @@ static struct completion server_completion;
 /*************************************
  **  Client macros and structures
  ************************************/
-struct clear_region {
-	struct log_c *cr_lc;
-	region_t cr_region;
-	struct list_head cr_list;
+/* tracks in-use regions and regions in the process of clearing */
+struct region_state {
+	struct log_c *rs_lc;
+	int rs_marked;
+	region_t rs_region;
+	struct list_head rs_list;
 };
 
-static spinlock_t clear_region_lock;
+static spinlock_t region_state_lock;
 static int clear_region_count=0;
 static struct list_head clear_region_list;
-
+static struct list_head marked_region_list;
+static int clear_req=0;
+static int mark_req=0;
+static int insync_req=0;
+static int clear_req2ser=0;
+static int mark_req2ser=0;
+static int insync_req2ser=0;
 
 /****************************************************************
 *****************************************************************
@@ -1527,15 +1534,6 @@ static int _consult_server(struct log_c *lc, region_t region,
 		lr->u.lr_region = region;
 	}
 
-	if(&lc->zeros == 0x00100180)
-		printk("\n\nWTF!\n\n");
-
-	for(len = 0; len < 16; len++){
-		if(lc->zeros[len]){
-			printk("HEY!!! Memory overwritten.\n");
-		}
-	}
-
 	memcpy(lr->lr_uuid, lc->uuid, MAX_NAME_LEN);
 
 	memset(&saddr_in, 0, sizeof(struct sockaddr_in));
@@ -1569,6 +1567,18 @@ static int _consult_server(struct log_c *lc, region_t region,
 	       (lr->lr_type == LRT_SELECTION)? "LRT_SELECTION": "UNKNOWN"
 		);
 */
+	if(lr->lr_type == LRT_MARK_REGION){
+		mark_req2ser++;
+	}
+
+	if(lr->lr_type == LRT_CLEAR_REGION){
+		clear_req2ser++;
+	}
+	
+	if(lr->lr_type == LRT_IN_SYNC){
+		insync_req2ser++;
+	}
+	
 	fs = get_fs();
 	set_fs(get_ds());
   
@@ -1633,7 +1643,7 @@ static int _consult_server(struct log_c *lc, region_t region,
 	if(*retry){
 		request_retry_count++;
 		if(!(request_retry_count & 0x1F)){
-			printk("Retried requests :: %Lu of %Lu (%lu%%)\n",
+			printk("Retried requests :: %u of %u (%u%%)\n",
 			       request_retry_count,
 			       request_count,
 			       dm_div_up(request_retry_count*100,request_count));
@@ -1650,23 +1660,11 @@ static int consult_server(struct log_c *lc, region_t region,
 	int rtn=0;
 	int retry=0;
 	int new_server=0;
-	struct clear_region *cr=NULL;
+	struct region_state *rs=NULL;
 
 	/* ATTENTION -- need to change this, the server could fail at anypoint **
 	** we do not want to send requests to the wrong place, or fail to run  **
 	** an election when needed */
-
-	if(real_lc != lc){
-		printk("real_lc (%u) != lc (%u)\n", real_lc, lc);
-		dump_stack();
-		printk("Attempting to continue with real_lc\n");
-		lc = real_lc;
-	}
-
-	if(&lc->zeros == 0x00100180){
-		dump_stack();
-		printk("\n\nWTF!\n\n");
-	}
 
 	do{
 		retry = 0;
@@ -1676,40 +1674,58 @@ static int consult_server(struct log_c *lc, region_t region,
 			new_server = 1;
 		}
 			
-		spin_lock(&clear_region_lock);
-		if(!list_empty(&clear_region_list)){
-			cr = list_entry(clear_region_list.next,
-					struct clear_region, cr_list);
-			list_del(&cr->cr_list);
+		spin_lock(&region_state_lock);
+		if(new_server){
+			struct region_state *tmp_rs;
+			printk("Our server died.\n");
+			printk("Wiping clear region list.\n");
+			list_for_each_entry_safe(rs, tmp_rs,
+						 &clear_region_list, rs_list){
+				list_del(&rs->rs_list);
+				kfree(rs);
+			}
+			clear_region_count=0;
+			printk("Resending all mark region requests.\n");
+			list_for_each_entry(rs, &marked_region_list, rs_list){
+				do {
+					retry = 0;
+					rtn = _consult_server(rs->rs_lc, rs->rs_region,
+							      LRT_MARK_REGION, NULL, &retry);
+				} while(retry);
+			}
+			if(type == LRT_MARK_REGION){
+				/* we just handled all marks */
+				spin_unlock(&region_state_lock);
+				return rtn;
+			}
+		}
+
+		if(!list_empty(&clear_region_list) && (clear_region_count > 100)){
+			rs = list_entry(clear_region_list.next,
+					struct region_state, rs_list);
+			list_del(&rs->rs_list);
 			clear_region_count--;
 		}
-		spin_unlock(&clear_region_lock);
+		spin_unlock(&region_state_lock);
 		
 		/* ATTENTION -- it may be possible to remove a clear region **
 		** request from the list.  Then, have a mark region happen  **
 		** while we are here.  If the clear region request fails, it**
 		** would be re-added - perhaps prematurely clearing the bit */
 		
-		if(cr){
-			if(real_lc != cr->cr_lc){
-				printk("\n\nreal_lc (%u) != cr_lc (%u)\n",
-				       real_lc, cr->cr_lc);
-				printk("Attempting to continue with real_lc\n\n");
-				cr->cr_lc = real_lc;
-			}
-
-			_consult_server(cr->cr_lc, cr->cr_region,
+		if(rs){
+			_consult_server(rs->rs_lc, rs->rs_region,
 					LRT_CLEAR_REGION, NULL, &retry);
+
+			if(retry){
+				spin_lock(&region_state_lock);
+				list_add(&rs->rs_list, &clear_region_list);
+				clear_region_count++;
+				spin_unlock(&region_state_lock);
+			} else {
+				kfree(rs);
+			}
 		}
-		if(retry){
-			spin_lock(&clear_region_lock);
-			list_add(&cr->cr_list, &clear_region_list);
-			clear_region_count++;
-			spin_unlock(&clear_region_lock);
-		} else {
-			kfree(cr);
-		}
-		
 		retry = 0;
 		
 		rtn = _consult_server(lc, region, type, result, &retry);
@@ -1765,7 +1781,6 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 
 	lc = log->context;
 
-	memset(lc->zeros, 0, MAX_NAME_LEN);
 	memset(lc->uuid, 0, MAX_NAME_LEN);
 	memcpy(lc->uuid, argv[paranoid],
 	       (MAX_NAME_LEN < strlen(argv[paranoid])+1)? 
@@ -1842,7 +1857,7 @@ static int cluster_resume(struct dirty_log *log){
 	return 0;
 }
 
-static sector_t cluster_get_region_size(struct dirty_log *log)
+static uint32_t cluster_get_region_size(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
 	return lc->region_size;
@@ -1863,6 +1878,8 @@ static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
 	struct log_c *lc = (struct log_c *) log->context;
   
 	/* check known_regions, return if found */
+
+	insync_req++;
 
 	if(atomic_read(&lc->in_sync)){
 		return 1;
@@ -1886,20 +1903,35 @@ static int cluster_flush(struct dirty_log *log)
 static void cluster_mark_region(struct dirty_log *log, region_t region)
 {
 	int error = 0;
-	struct clear_region *cr, *tmp_cr;
+	struct region_state *rs, *tmp_rs, *rs_new;
 	struct log_c *lc = (struct log_c *) log->context;
 
-	spin_lock(&clear_region_lock);
-	list_for_each_entry_safe(cr, tmp_cr, &clear_region_list, cr_list){
-		if(lc == cr->cr_lc && region == cr->cr_region){
+	mark_req++;
+
+	rs_new = kmalloc(sizeof(struct region_state), GFP_ATOMIC);
+	if(!rs_new){
+		printk("Unable to allocate region_state for mark.\n");
+		BUG();
+	}
+
+	spin_lock(&region_state_lock);
+	list_for_each_entry_safe(rs, tmp_rs, &clear_region_list, rs_list){
+		if(lc == rs->rs_lc && region == rs->rs_region){
 			printk("Mark pre-empting clear of region %Lu\n", region);
-			list_del(&cr->cr_list);
+			list_del(&rs->rs_list);
+			list_add(&rs->rs_list, &marked_region_list);
 			clear_region_count--;
-			kfree(cr);
+			spin_unlock(&region_state_lock);
+			kfree(rs_new);
 			return;
 		}
-	}	
-	spin_unlock(&clear_region_lock);
+	}
+
+	rs_new->rs_lc = lc;
+	rs_new->rs_region = region;
+	list_add(&rs->rs_list, &marked_region_list);
+
+	spin_unlock(&region_state_lock);
 
 	while((error = consult_server(lc, region, LRT_MARK_REGION, NULL))){
 		DMWARN("unable to get server (%u) to mark region (%Lu)",
@@ -1913,24 +1945,27 @@ static void cluster_mark_region(struct dirty_log *log, region_t region)
 static void cluster_clear_region(struct dirty_log *log, region_t region)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-	struct clear_region *cr;
+	struct region_state *rs, *tmp_rs;
 
-	cr = kmalloc(sizeof(struct clear_region), GFP_ATOMIC);
-	if(!cr){
-		DMWARN("Unable to allocate space for clear_region struct.");
-		return;
+	clear_req++;
+
+	spin_lock(&region_state_lock);
+
+	list_for_each_entry_safe(rs, tmp_rs, &marked_region_list, rs_list){
+		if(lc == rs->rs_lc && region == rs->rs_region){
+			list_del(&rs->rs_list);
+			list_add(&rs->rs_list, &clear_region_list);
+			clear_region_count++;
+			if(!(clear_region_count & 0x7F)){
+				printk("clear_region_count :: %d\n", clear_region_count);
+			}
+			spin_unlock(&region_state_lock);
+			return;
+		}
 	}
 
-	cr->cr_lc = lc;
-	cr->cr_region = region;
-	
-	spin_lock(&clear_region_lock);
-	list_add(&cr->cr_list, &clear_region_list);
-	clear_region_count++;
-	if(!(clear_region_count & 0x7F)){
-		printk("clear_region_count :: %d\n", clear_region_count);
-	}
-	spin_unlock(&clear_region_lock);
+	spin_unlock(&region_state_lock);
+	printk("HEY!  Clearing region that is not marked.\n");
 
 	return;
 }
@@ -1988,20 +2023,26 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 	struct log_c *lc = (struct log_c *) log->context;
 	struct region_user *ru;
 	int i=0;
-	struct clear_region *cr=NULL;
 
 	switch(status){
 	case STATUSTYPE_INFO:
-		spin_lock(&clear_region_lock);
-		list_for_each_entry(cr, &clear_region_list, cr_list){
-			i++;
-		}
-		spin_unlock(&clear_region_lock);
+		spin_lock(&region_state_lock);
+		i = clear_region_count;
+		spin_unlock(&region_state_lock);
 		printk("CLIENT OUTPUT::\n");
 		printk("  Server           : %u\n", lc->server_id);
 		printk("  In-sync          : %s\n", (atomic_read(&lc->in_sync))?
 		       "YES" : "NO");
 		printk("  Regions clearing : %d\n", i);
+		printk("  Mark requests    : %d\n", mark_req);
+		printk("  Mark req to serv : %d (%d%%)\n", mark_req2ser,
+		       (mark_req2ser*100)/mark_req);
+		printk("  Clear requests   : %d\n", clear_req);
+		printk("  Clear req to serv: %d (%d%%)\n", clear_req2ser,
+		       (clear_req2ser*100)/clear_req);
+		printk("  Sync  requests   : %d\n", insync_req);
+		printk("  Sync req to serv : %d (%d%%)\n", insync_req2ser,
+		       (insync_req2ser*100)/insync_req);
 		if(lc->server_id == my_id){
 			atomic_set(&suspend_server, 1);
 			printk("SERVER OUTPUT::\n");
@@ -2146,7 +2187,8 @@ static int __init cluster_dirty_log_init(void)
 	int r;
 
 	INIT_LIST_HEAD(&clear_region_list);
-	spin_lock_init(&clear_region_lock);
+	INIT_LIST_HEAD(&marked_region_list);
+	spin_lock_init(&region_state_lock);
 	init_waitqueue_head(&suspend_client_queue);
 	init_waitqueue_head(&suspend_server_queue);
 
