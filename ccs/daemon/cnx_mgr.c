@@ -300,7 +300,6 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   int error = 0;
   int sfd = -1;
   int trueint;
-  int intlen;
   int v1, v2;
   int write_to_disk = 0;
   char *tmp_name = NULL;
@@ -333,18 +332,12 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     goto fail;
   }
 
-  getsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, &intlen);
-  if(trueint){
-    log_dbg("Broadcast is allowed.\n");
+  trueint = 1;
+  if((error = setsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, sizeof(int)))){
+    log_err("Unable to set socket options: %s\n", strerror(-error));
+    goto fail;
   } else {
-    log_dbg("Broadcast is not allowed.\n");
-    trueint = 1;
-    if((error = setsockopt(sfd, SOL_SOCKET, SO_BROADCAST, &trueint, sizeof(int)))){
-      log_err("Unable to set socket options: %s\n", strerror(-error));
-      goto fail;
-    } else {
-      log_dbg("  Broadcast enabled.\n");
-    }
+    log_dbg("  Broadcast enabled.\n");
   }
 
   FD_ZERO(&rset);
