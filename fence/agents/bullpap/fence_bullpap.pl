@@ -51,6 +51,16 @@ sub usage
 	print "  -p <string>      Password for login\n";
 	print "  -q               quiet mode\n";
 	print "  -V               version\n";
+	print "\n";
+	print "When run with no arguments, $pname takes arguments from ";
+	print "standard\ninput, one line per option.  They are as follows:\n";
+	print "\n";
+	print "  ipaddr=<ip>      Same as -a command line option\n";
+	print "  login=<name>     Same as -l command line option\n";
+	print "  domain=<domain>  Same as -d command line option\n";
+	print "  ipaddr=<ip>      Same as -a command line option\n";
+	print "  option=<string>  Same as -o command line option\n";
+	print "  passwd=<string>  Same as -p command line option\n\n";
 
 	exit 0;
 }
