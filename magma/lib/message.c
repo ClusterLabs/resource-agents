@@ -560,7 +560,7 @@ ipv4_bind(uint16_t port)
 int
 msg_listen(uint16_t baseport, int purpose, int *ret, int retlen)
 {
-	int fd, x = 0, flags;
+	int fd, x = 0;
 
 	if (retlen < 2) {
 		errno = EINVAL;
