@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs/acl.c linux-patched/fs/gfs/acl.c
 --- linux-orig/fs/gfs/acl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/acl.c	2004-11-09 02:46:37.206855007 -0600
++++ linux-patched/fs/gfs/acl.c	2004-11-09 03:22:58.195920665 -0600
 @@ -0,0 +1,375 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -379,7 +379,7 @@ diff -urN linux-orig/fs/gfs/acl.c linux-patched/fs/gfs/acl.c
 +}
 diff -urN linux-orig/fs/gfs/acl.h linux-patched/fs/gfs/acl.h
 --- linux-orig/fs/gfs/acl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/acl.h	2004-11-09 02:46:37.206855007 -0600
++++ linux-patched/fs/gfs/acl.h	2004-11-09 03:22:58.196920433 -0600
 @@ -0,0 +1,46 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -429,7 +429,7 @@ diff -urN linux-orig/fs/gfs/acl.h linux-patched/fs/gfs/acl.h
 +#endif /* __ACL_DOT_H__ */
 diff -urN linux-orig/fs/gfs/bits.c linux-patched/fs/gfs/bits.c
 --- linux-orig/fs/gfs/bits.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bits.c	2004-11-09 02:46:37.216852687 -0600
++++ linux-patched/fs/gfs/bits.c	2004-11-09 03:22:58.205918343 -0600
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -616,7 +616,7 @@ diff -urN linux-orig/fs/gfs/bits.c linux-patched/fs/gfs/bits.c
 +}
 diff -urN linux-orig/fs/gfs/bits.h linux-patched/fs/gfs/bits.h
 --- linux-orig/fs/gfs/bits.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bits.h	2004-11-09 02:46:37.216852687 -0600
++++ linux-patched/fs/gfs/bits.h	2004-11-09 03:22:58.206918111 -0600
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -652,7 +652,7 @@ diff -urN linux-orig/fs/gfs/bits.h linux-patched/fs/gfs/bits.h
 +#endif /* __BITS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/bmap.c linux-patched/fs/gfs/bmap.c
 --- linux-orig/fs/gfs/bmap.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bmap.c	2004-11-09 02:46:37.223851063 -0600
++++ linux-patched/fs/gfs/bmap.c	2004-11-09 03:22:58.213916486 -0600
 @@ -0,0 +1,1402 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2058,7 +2058,7 @@ diff -urN linux-orig/fs/gfs/bmap.c linux-patched/fs/gfs/bmap.c
 +}
 diff -urN linux-orig/fs/gfs/bmap.h linux-patched/fs/gfs/bmap.h
 --- linux-orig/fs/gfs/bmap.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/bmap.h	2004-11-09 02:46:37.234848511 -0600
++++ linux-patched/fs/gfs/bmap.h	2004-11-09 03:22:58.224913931 -0600
 @@ -0,0 +1,48 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2110,7 +2110,7 @@ diff -urN linux-orig/fs/gfs/bmap.h linux-patched/fs/gfs/bmap.h
 +#endif /* __BMAP_DOT_H__ */
 diff -urN linux-orig/fs/gfs/daemon.c linux-patched/fs/gfs/daemon.c
 --- linux-orig/fs/gfs/daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/daemon.c	2004-11-09 02:46:37.235848279 -0600
++++ linux-patched/fs/gfs/daemon.c	2004-11-09 03:22:58.225913699 -0600
 @@ -0,0 +1,259 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2373,7 +2373,7 @@ diff -urN linux-orig/fs/gfs/daemon.c linux-patched/fs/gfs/daemon.c
 +}
 diff -urN linux-orig/fs/gfs/daemon.h linux-patched/fs/gfs/daemon.h
 --- linux-orig/fs/gfs/daemon.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/daemon.h	2004-11-09 02:46:37.235848279 -0600
++++ linux-patched/fs/gfs/daemon.h	2004-11-09 03:22:58.225913699 -0600
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2401,7 +2401,7 @@ diff -urN linux-orig/fs/gfs/daemon.h linux-patched/fs/gfs/daemon.h
 +#endif /* __DAEMON_DOT_H__ */
 diff -urN linux-orig/fs/gfs/dio.c linux-patched/fs/gfs/dio.c
 --- linux-orig/fs/gfs/dio.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dio.c	2004-11-09 02:46:37.246845727 -0600
++++ linux-patched/fs/gfs/dio.c	2004-11-09 03:22:58.236911145 -0600
 @@ -0,0 +1,1326 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3731,7 +3731,7 @@ diff -urN linux-orig/fs/gfs/dio.c linux-patched/fs/gfs/dio.c
 +}
 diff -urN linux-orig/fs/gfs/dio.h linux-patched/fs/gfs/dio.h
 --- linux-orig/fs/gfs/dio.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dio.h	2004-11-09 02:46:37.252844336 -0600
++++ linux-patched/fs/gfs/dio.h	2004-11-09 03:22:58.242909752 -0600
 @@ -0,0 +1,195 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3930,7 +3930,7 @@ diff -urN linux-orig/fs/gfs/dio.h linux-patched/fs/gfs/dio.h
 +#endif				/*  __DIO_DOT_H__  */
 diff -urN linux-orig/fs/gfs/dir.c linux-patched/fs/gfs/dir.c
 --- linux-orig/fs/gfs/dir.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dir.c	2004-11-09 02:46:37.259842712 -0600
++++ linux-patched/fs/gfs/dir.c	2004-11-09 03:22:58.249908127 -0600
 @@ -0,0 +1,2274 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6208,7 +6208,7 @@ diff -urN linux-orig/fs/gfs/dir.c linux-patched/fs/gfs/dir.c
 +}
 diff -urN linux-orig/fs/gfs/dir.h linux-patched/fs/gfs/dir.h
 --- linux-orig/fs/gfs/dir.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/dir.h	2004-11-09 02:46:37.262842016 -0600
++++ linux-patched/fs/gfs/dir.h	2004-11-09 03:22:58.252907430 -0600
 @@ -0,0 +1,55 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6267,7 +6267,7 @@ diff -urN linux-orig/fs/gfs/dir.h linux-patched/fs/gfs/dir.h
 +#endif /* __DIR_DOT_H__ */
 diff -urN linux-orig/fs/gfs/eaops.c linux-patched/fs/gfs/eaops.c
 --- linux-orig/fs/gfs/eaops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eaops.c	2004-11-09 02:46:37.269840392 -0600
++++ linux-patched/fs/gfs/eaops.c	2004-11-09 03:22:58.259905805 -0600
 @@ -0,0 +1,235 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6506,7 +6506,7 @@ diff -urN linux-orig/fs/gfs/eaops.c linux-patched/fs/gfs/eaops.c
 +
 diff -urN linux-orig/fs/gfs/eaops.h linux-patched/fs/gfs/eaops.h
 --- linux-orig/fs/gfs/eaops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eaops.h	2004-11-09 02:46:37.269840392 -0600
++++ linux-patched/fs/gfs/eaops.h	2004-11-09 03:22:58.259905805 -0600
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6544,7 +6544,7 @@ diff -urN linux-orig/fs/gfs/eaops.h linux-patched/fs/gfs/eaops.h
 +
 diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 --- linux-orig/fs/gfs/eattr.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eattr.c	2004-11-09 02:46:37.276838768 -0600
++++ linux-patched/fs/gfs/eattr.c	2004-11-09 03:22:58.266904180 -0600
 @@ -0,0 +1,1968 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8516,7 +8516,7 @@ diff -urN linux-orig/fs/gfs/eattr.c linux-patched/fs/gfs/eattr.c
 +}
 diff -urN linux-orig/fs/gfs/eattr.h linux-patched/fs/gfs/eattr.h
 --- linux-orig/fs/gfs/eattr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/eattr.h	2004-11-09 02:46:37.276838768 -0600
++++ linux-patched/fs/gfs/eattr.h	2004-11-09 03:22:58.266904180 -0600
 @@ -0,0 +1,95 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8615,7 +8615,7 @@ diff -urN linux-orig/fs/gfs/eattr.h linux-patched/fs/gfs/eattr.h
 +#endif /* __EATTR_DOT_H__ */
 diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 --- linux-orig/fs/gfs/file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/file.c	2004-11-09 02:46:37.277838536 -0600
++++ linux-patched/fs/gfs/file.c	2004-11-09 03:22:58.267903948 -0600
 @@ -0,0 +1,392 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9011,7 +9011,7 @@ diff -urN linux-orig/fs/gfs/file.c linux-patched/fs/gfs/file.c
 +}
 diff -urN linux-orig/fs/gfs/file.h linux-patched/fs/gfs/file.h
 --- linux-orig/fs/gfs/file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/file.h	2004-11-09 02:46:37.277838536 -0600
++++ linux-patched/fs/gfs/file.h	2004-11-09 03:22:58.267903948 -0600
 @@ -0,0 +1,51 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9066,7 +9066,7 @@ diff -urN linux-orig/fs/gfs/file.h linux-patched/fs/gfs/file.h
 +#endif /* __FILE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/fixed_div64.h linux-patched/fs/gfs/fixed_div64.h
 --- linux-orig/fs/gfs/fixed_div64.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/fixed_div64.h	2004-11-09 02:46:37.281837608 -0600
++++ linux-patched/fs/gfs/fixed_div64.h	2004-11-09 03:22:58.271903019 -0600
 @@ -0,0 +1,142 @@
 +/*
 + * Copyright (c) 2000-2003 Silicon Graphics, Inc.  All Rights Reserved.
@@ -9212,7 +9212,7 @@ diff -urN linux-orig/fs/gfs/fixed_div64.h linux-patched/fs/gfs/fixed_div64.h
 +#endif /* __FIXED_DIV64_DOT_H__ */
 diff -urN linux-orig/fs/gfs/format.h linux-patched/fs/gfs/format.h
 --- linux-orig/fs/gfs/format.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/format.h	2004-11-09 02:46:37.282837376 -0600
++++ linux-patched/fs/gfs/format.h	2004-11-09 03:22:58.271903019 -0600
 @@ -0,0 +1,30 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9246,7 +9246,7 @@ diff -urN linux-orig/fs/gfs/format.h linux-patched/fs/gfs/format.h
 +#endif /* __FORMAT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/gfs.h linux-patched/fs/gfs/gfs.h
 --- linux-orig/fs/gfs/gfs.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/gfs.h	2004-11-09 02:46:37.286836448 -0600
++++ linux-patched/fs/gfs/gfs.h	2004-11-09 03:22:58.276901858 -0600
 @@ -0,0 +1,151 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9401,7 +9401,7 @@ diff -urN linux-orig/fs/gfs/gfs.h linux-patched/fs/gfs/gfs.h
 +#endif /* __GFS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/glock.c linux-patched/fs/gfs/glock.c
 --- linux-orig/fs/gfs/glock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glock.c	2004-11-09 02:46:37.305832040 -0600
++++ linux-patched/fs/gfs/glock.c	2004-11-09 03:22:58.295897446 -0600
 @@ -0,0 +1,2647 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12052,7 +12052,7 @@ diff -urN linux-orig/fs/gfs/glock.c linux-patched/fs/gfs/glock.c
 +}
 diff -urN linux-orig/fs/gfs/glock.h linux-patched/fs/gfs/glock.h
 --- linux-orig/fs/gfs/glock.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glock.h	2004-11-09 02:46:37.314829952 -0600
++++ linux-patched/fs/gfs/glock.h	2004-11-09 03:22:58.304895357 -0600
 @@ -0,0 +1,136 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12192,7 +12192,7 @@ diff -urN linux-orig/fs/gfs/glock.h linux-patched/fs/gfs/glock.h
 +#endif /* __GFS_GLOCK_DOT_H__ */
 diff -urN linux-orig/fs/gfs/glops.c linux-patched/fs/gfs/glops.c
 --- linux-orig/fs/gfs/glops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glops.c	2004-11-09 02:46:37.315829720 -0600
++++ linux-patched/fs/gfs/glops.c	2004-11-09 03:22:58.304895357 -0600
 @@ -0,0 +1,563 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12759,7 +12759,7 @@ diff -urN linux-orig/fs/gfs/glops.c linux-patched/fs/gfs/glops.c
 +};
 diff -urN linux-orig/fs/gfs/glops.h linux-patched/fs/gfs/glops.h
 --- linux-orig/fs/gfs/glops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/glops.h	2004-11-09 02:46:37.320828560 -0600
++++ linux-patched/fs/gfs/glops.h	2004-11-09 03:22:58.309894196 -0600
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12789,7 +12789,7 @@ diff -urN linux-orig/fs/gfs/glops.h linux-patched/fs/gfs/glops.h
 +#endif /* __GLOPS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 --- linux-orig/fs/gfs/incore.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/incore.h	2004-11-09 02:46:37.331826008 -0600
++++ linux-patched/fs/gfs/incore.h	2004-11-09 03:22:58.321891410 -0600
 @@ -0,0 +1,969 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13762,7 +13762,7 @@ diff -urN linux-orig/fs/gfs/incore.h linux-patched/fs/gfs/incore.h
 +#endif /* __INCORE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 --- linux-orig/fs/gfs/inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/inode.c	2004-11-09 02:46:37.342823456 -0600
++++ linux-patched/fs/gfs/inode.c	2004-11-09 03:22:58.332888855 -0600
 @@ -0,0 +1,2053 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -15819,7 +15819,7 @@ diff -urN linux-orig/fs/gfs/inode.c linux-patched/fs/gfs/inode.c
 +}
 diff -urN linux-orig/fs/gfs/inode.h linux-patched/fs/gfs/inode.h
 --- linux-orig/fs/gfs/inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/inode.h	2004-11-09 02:46:37.342823456 -0600
++++ linux-patched/fs/gfs/inode.h	2004-11-09 03:22:58.332888855 -0600
 @@ -0,0 +1,70 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -15893,7 +15893,7 @@ diff -urN linux-orig/fs/gfs/inode.h linux-patched/fs/gfs/inode.h
 +#endif /* __INODE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ioctl.c linux-patched/fs/gfs/ioctl.c
 --- linux-orig/fs/gfs/ioctl.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ioctl.c	2004-11-09 02:46:37.349821832 -0600
++++ linux-patched/fs/gfs/ioctl.c	2004-11-09 03:22:58.338887462 -0600
 @@ -0,0 +1,974 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16871,7 +16871,7 @@ diff -urN linux-orig/fs/gfs/ioctl.c linux-patched/fs/gfs/ioctl.c
 +}
 diff -urN linux-orig/fs/gfs/ioctl.h linux-patched/fs/gfs/ioctl.h
 --- linux-orig/fs/gfs/ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ioctl.h	2004-11-09 02:46:37.355820440 -0600
++++ linux-patched/fs/gfs/ioctl.h	2004-11-09 03:22:58.345885837 -0600
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -16896,7 +16896,7 @@ diff -urN linux-orig/fs/gfs/ioctl.h linux-patched/fs/gfs/ioctl.h
 +#endif /* __IOCTL_DOT_H__ */
 diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 --- linux-orig/fs/gfs/log.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/log.c	2004-11-09 02:46:37.366817888 -0600
++++ linux-patched/fs/gfs/log.c	2004-11-09 03:22:58.356883283 -0600
 @@ -0,0 +1,1332 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -18232,7 +18232,7 @@ diff -urN linux-orig/fs/gfs/log.c linux-patched/fs/gfs/log.c
 +}
 diff -urN linux-orig/fs/gfs/log.h linux-patched/fs/gfs/log.h
 --- linux-orig/fs/gfs/log.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/log.h	2004-11-09 02:46:37.373816264 -0600
++++ linux-patched/fs/gfs/log.h	2004-11-09 03:22:58.363881658 -0600
 @@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -18315,7 +18315,7 @@ diff -urN linux-orig/fs/gfs/log.h linux-patched/fs/gfs/log.h
 +#endif /* __LOG_DOT_H__ */
 diff -urN linux-orig/fs/gfs/lops.c linux-patched/fs/gfs/lops.c
 --- linux-orig/fs/gfs/lops.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lops.c	2004-11-09 02:46:37.377815336 -0600
++++ linux-patched/fs/gfs/lops.c	2004-11-09 03:22:58.367880729 -0600
 @@ -0,0 +1,1570 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -19889,7 +19889,7 @@ diff -urN linux-orig/fs/gfs/lops.c linux-patched/fs/gfs/lops.c
 +};
 diff -urN linux-orig/fs/gfs/lops.h linux-patched/fs/gfs/lops.h
 --- linux-orig/fs/gfs/lops.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lops.h	2004-11-09 02:46:37.382814176 -0600
++++ linux-patched/fs/gfs/lops.h	2004-11-09 03:22:58.372879568 -0600
 @@ -0,0 +1,179 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20072,7 +20072,7 @@ diff -urN linux-orig/fs/gfs/lops.h linux-patched/fs/gfs/lops.h
 +#endif /* __LOPS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/lvb.c linux-patched/fs/gfs/lvb.c
 --- linux-orig/fs/gfs/lvb.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lvb.c	2004-11-09 02:46:37.383813944 -0600
++++ linux-patched/fs/gfs/lvb.c	2004-11-09 03:22:58.372879568 -0600
 @@ -0,0 +1,148 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20224,7 +20224,7 @@ diff -urN linux-orig/fs/gfs/lvb.c linux-patched/fs/gfs/lvb.c
 +}
 diff -urN linux-orig/fs/gfs/lvb.h linux-patched/fs/gfs/lvb.h
 --- linux-orig/fs/gfs/lvb.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/lvb.h	2004-11-09 02:46:37.383813944 -0600
++++ linux-patched/fs/gfs/lvb.h	2004-11-09 03:22:58.373879336 -0600
 @@ -0,0 +1,66 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20294,7 +20294,7 @@ diff -urN linux-orig/fs/gfs/lvb.h linux-patched/fs/gfs/lvb.h
 +#endif /* __LVB_DOT_H__ */
 diff -urN linux-orig/fs/gfs/main.c linux-patched/fs/gfs/main.c
 --- linux-orig/fs/gfs/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/main.c	2004-11-09 02:46:37.390812320 -0600
++++ linux-patched/fs/gfs/main.c	2004-11-09 03:22:58.380877711 -0600
 @@ -0,0 +1,123 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20421,7 +20421,7 @@ diff -urN linux-orig/fs/gfs/main.c linux-patched/fs/gfs/main.c
 +
 diff -urN linux-orig/fs/gfs/mount.c linux-patched/fs/gfs/mount.c
 --- linux-orig/fs/gfs/mount.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/mount.c	2004-11-09 02:46:37.393811624 -0600
++++ linux-patched/fs/gfs/mount.c	2004-11-09 03:22:58.383877014 -0600
 @@ -0,0 +1,239 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20664,7 +20664,7 @@ diff -urN linux-orig/fs/gfs/mount.c linux-patched/fs/gfs/mount.c
 +}
 diff -urN linux-orig/fs/gfs/mount.h linux-patched/fs/gfs/mount.h
 --- linux-orig/fs/gfs/mount.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/mount.h	2004-11-09 02:46:37.396810928 -0600
++++ linux-patched/fs/gfs/mount.h	2004-11-09 03:22:58.386876317 -0600
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20690,7 +20690,7 @@ diff -urN linux-orig/fs/gfs/mount.h linux-patched/fs/gfs/mount.h
 +#endif /* __MOUNT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ondisk.c linux-patched/fs/gfs/ondisk.c
 --- linux-orig/fs/gfs/ondisk.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ondisk.c	2004-11-09 02:46:37.397810696 -0600
++++ linux-patched/fs/gfs/ondisk.c	2004-11-09 03:22:58.389875621 -0600
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -20722,7 +20722,7 @@ diff -urN linux-orig/fs/gfs/ondisk.c linux-patched/fs/gfs/ondisk.c
 +
 diff -urN linux-orig/fs/gfs/ops_address.c linux-patched/fs/gfs/ops_address.c
 --- linux-orig/fs/gfs/ops_address.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_address.c	2004-11-09 02:46:37.405808840 -0600
++++ linux-patched/fs/gfs/ops_address.c	2004-11-09 03:22:58.394874460 -0600
 @@ -0,0 +1,476 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21202,7 +21202,7 @@ diff -urN linux-orig/fs/gfs/ops_address.c linux-patched/fs/gfs/ops_address.c
 +};
 diff -urN linux-orig/fs/gfs/ops_address.h linux-patched/fs/gfs/ops_address.h
 --- linux-orig/fs/gfs/ops_address.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_address.h	2004-11-09 02:46:37.408808144 -0600
++++ linux-patched/fs/gfs/ops_address.h	2004-11-09 03:22:58.398873531 -0600
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21225,7 +21225,7 @@ diff -urN linux-orig/fs/gfs/ops_address.h linux-patched/fs/gfs/ops_address.h
 +#endif /* __OPS_ADDRESS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_dentry.c linux-patched/fs/gfs/ops_dentry.c
 --- linux-orig/fs/gfs/ops_dentry.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_dentry.c	2004-11-09 02:46:37.409807912 -0600
++++ linux-patched/fs/gfs/ops_dentry.c	2004-11-09 03:22:58.398873531 -0600
 @@ -0,0 +1,124 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21353,7 +21353,7 @@ diff -urN linux-orig/fs/gfs/ops_dentry.c linux-patched/fs/gfs/ops_dentry.c
 +};
 diff -urN linux-orig/fs/gfs/ops_dentry.h linux-patched/fs/gfs/ops_dentry.h
 --- linux-orig/fs/gfs/ops_dentry.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_dentry.h	2004-11-09 02:46:37.409807912 -0600
++++ linux-patched/fs/gfs/ops_dentry.h	2004-11-09 03:22:58.399873299 -0600
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21376,7 +21376,7 @@ diff -urN linux-orig/fs/gfs/ops_dentry.h linux-patched/fs/gfs/ops_dentry.h
 +#endif /* __OPS_DENTRY_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_export.c linux-patched/fs/gfs/ops_export.c
 --- linux-orig/fs/gfs/ops_export.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_export.c	2004-11-09 02:46:37.409807912 -0600
++++ linux-patched/fs/gfs/ops_export.c	2004-11-09 03:22:58.399873299 -0600
 @@ -0,0 +1,415 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21795,7 +21795,7 @@ diff -urN linux-orig/fs/gfs/ops_export.c linux-patched/fs/gfs/ops_export.c
 +
 diff -urN linux-orig/fs/gfs/ops_export.h linux-patched/fs/gfs/ops_export.h
 --- linux-orig/fs/gfs/ops_export.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_export.h	2004-11-09 02:46:37.409807912 -0600
++++ linux-patched/fs/gfs/ops_export.h	2004-11-09 03:22:58.399873299 -0600
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -21818,7 +21818,7 @@ diff -urN linux-orig/fs/gfs/ops_export.h linux-patched/fs/gfs/ops_export.h
 +#endif /* __OPS_EXPORT_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_file.c linux-patched/fs/gfs/ops_file.c
 --- linux-orig/fs/gfs/ops_file.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_file.c	2004-11-09 02:46:37.414806752 -0600
++++ linux-patched/fs/gfs/ops_file.c	2004-11-09 03:22:58.404872138 -0600
 @@ -0,0 +1,1631 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23453,7 +23453,7 @@ diff -urN linux-orig/fs/gfs/ops_file.c linux-patched/fs/gfs/ops_file.c
 +};
 diff -urN linux-orig/fs/gfs/ops_file.h linux-patched/fs/gfs/ops_file.h
 --- linux-orig/fs/gfs/ops_file.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_file.h	2004-11-09 02:46:37.418805824 -0600
++++ linux-patched/fs/gfs/ops_file.h	2004-11-09 03:22:58.408871209 -0600
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -23477,7 +23477,7 @@ diff -urN linux-orig/fs/gfs/ops_file.h linux-patched/fs/gfs/ops_file.h
 +#endif /* __OPS_FILE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_fstype.c linux-patched/fs/gfs/ops_fstype.c
 --- linux-orig/fs/gfs/ops_fstype.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_fstype.c	2004-11-09 02:46:37.429803272 -0600
++++ linux-patched/fs/gfs/ops_fstype.c	2004-11-09 03:22:58.419868655 -0600
 @@ -0,0 +1,608 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -24089,7 +24089,7 @@ diff -urN linux-orig/fs/gfs/ops_fstype.c linux-patched/fs/gfs/ops_fstype.c
 +};
 diff -urN linux-orig/fs/gfs/ops_fstype.h linux-patched/fs/gfs/ops_fstype.h
 --- linux-orig/fs/gfs/ops_fstype.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_fstype.h	2004-11-09 02:46:37.435801880 -0600
++++ linux-patched/fs/gfs/ops_fstype.h	2004-11-09 03:22:58.425867262 -0600
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -24112,7 +24112,7 @@ diff -urN linux-orig/fs/gfs/ops_fstype.h linux-patched/fs/gfs/ops_fstype.h
 +#endif /* __OPS_FSTYPE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 --- linux-orig/fs/gfs/ops_inode.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_inode.c	2004-11-09 02:46:37.440800720 -0600
++++ linux-patched/fs/gfs/ops_inode.c	2004-11-09 03:22:58.430866101 -0600
 @@ -0,0 +1,1632 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25748,7 +25748,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.c linux-patched/fs/gfs/ops_inode.c
 +
 diff -urN linux-orig/fs/gfs/ops_inode.h linux-patched/fs/gfs/ops_inode.h
 --- linux-orig/fs/gfs/ops_inode.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_inode.h	2004-11-09 02:46:37.446799328 -0600
++++ linux-patched/fs/gfs/ops_inode.h	2004-11-09 03:22:58.436864708 -0600
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -25774,7 +25774,7 @@ diff -urN linux-orig/fs/gfs/ops_inode.h linux-patched/fs/gfs/ops_inode.h
 +#endif /* __OPS_INODE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_super.c linux-patched/fs/gfs/ops_super.c
 --- linux-orig/fs/gfs/ops_super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_super.c	2004-11-09 02:46:37.454797472 -0600
++++ linux-patched/fs/gfs/ops_super.c	2004-11-09 03:22:58.444862851 -0600
 @@ -0,0 +1,424 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26202,7 +26202,7 @@ diff -urN linux-orig/fs/gfs/ops_super.c linux-patched/fs/gfs/ops_super.c
 +};
 diff -urN linux-orig/fs/gfs/ops_super.h linux-patched/fs/gfs/ops_super.h
 --- linux-orig/fs/gfs/ops_super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_super.h	2004-11-09 02:46:37.463795384 -0600
++++ linux-patched/fs/gfs/ops_super.h	2004-11-09 03:22:58.453860761 -0600
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26225,7 +26225,7 @@ diff -urN linux-orig/fs/gfs/ops_super.h linux-patched/fs/gfs/ops_super.h
 +#endif /* __OPS_SUPER_DOT_H__ */
 diff -urN linux-orig/fs/gfs/ops_vm.c linux-patched/fs/gfs/ops_vm.c
 --- linux-orig/fs/gfs/ops_vm.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_vm.c	2004-11-09 02:46:37.466794688 -0600
++++ linux-patched/fs/gfs/ops_vm.c	2004-11-09 03:22:58.455860297 -0600
 @@ -0,0 +1,239 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26468,7 +26468,7 @@ diff -urN linux-orig/fs/gfs/ops_vm.c linux-patched/fs/gfs/ops_vm.c
 +
 diff -urN linux-orig/fs/gfs/ops_vm.h linux-patched/fs/gfs/ops_vm.h
 --- linux-orig/fs/gfs/ops_vm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/ops_vm.h	2004-11-09 02:46:37.472793296 -0600
++++ linux-patched/fs/gfs/ops_vm.h	2004-11-09 03:22:58.461858904 -0600
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26492,7 +26492,7 @@ diff -urN linux-orig/fs/gfs/ops_vm.h linux-patched/fs/gfs/ops_vm.h
 +#endif /* __OPS_VM_DOT_H__ */
 diff -urN linux-orig/fs/gfs/page.c linux-patched/fs/gfs/page.c
 --- linux-orig/fs/gfs/page.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/page.c	2004-11-09 02:46:37.472793296 -0600
++++ linux-patched/fs/gfs/page.c	2004-11-09 03:22:58.462858671 -0600
 @@ -0,0 +1,278 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26774,7 +26774,7 @@ diff -urN linux-orig/fs/gfs/page.c linux-patched/fs/gfs/page.c
 +}
 diff -urN linux-orig/fs/gfs/page.h linux-patched/fs/gfs/page.h
 --- linux-orig/fs/gfs/page.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/page.h	2004-11-09 02:46:37.472793296 -0600
++++ linux-patched/fs/gfs/page.h	2004-11-09 03:22:58.462858671 -0600
 @@ -0,0 +1,26 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -26804,7 +26804,7 @@ diff -urN linux-orig/fs/gfs/page.h linux-patched/fs/gfs/page.h
 +#endif /* __PAGE_DOT_H__ */
 diff -urN linux-orig/fs/gfs/proc.c linux-patched/fs/gfs/proc.c
 --- linux-orig/fs/gfs/proc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/proc.c	2004-11-09 02:46:37.476792368 -0600
++++ linux-patched/fs/gfs/proc.c	2004-11-09 03:22:58.466857743 -0600
 @@ -0,0 +1,402 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27210,7 +27210,7 @@ diff -urN linux-orig/fs/gfs/proc.c linux-patched/fs/gfs/proc.c
 +
 diff -urN linux-orig/fs/gfs/proc.h linux-patched/fs/gfs/proc.h
 --- linux-orig/fs/gfs/proc.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/proc.h	2004-11-09 02:46:37.480791440 -0600
++++ linux-patched/fs/gfs/proc.h	2004-11-09 03:22:58.469857046 -0600
 @@ -0,0 +1,27 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -27241,7 +27241,7 @@ diff -urN linux-orig/fs/gfs/proc.h linux-patched/fs/gfs/proc.h
 +#endif /* __PROC_DOT_H__ */
 diff -urN linux-orig/fs/gfs/quota.c linux-patched/fs/gfs/quota.c
 --- linux-orig/fs/gfs/quota.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/quota.c	2004-11-09 02:46:37.483790744 -0600
++++ linux-patched/fs/gfs/quota.c	2004-11-09 03:22:58.473856117 -0600
 @@ -0,0 +1,1146 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28391,7 +28391,7 @@ diff -urN linux-orig/fs/gfs/quota.c linux-patched/fs/gfs/quota.c
 +}
 diff -urN linux-orig/fs/gfs/quota.h linux-patched/fs/gfs/quota.h
 --- linux-orig/fs/gfs/quota.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/quota.h	2004-11-09 02:46:37.489789352 -0600
++++ linux-patched/fs/gfs/quota.h	2004-11-09 03:22:58.479854724 -0600
 @@ -0,0 +1,40 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -28435,7 +28435,7 @@ diff -urN linux-orig/fs/gfs/quota.h linux-patched/fs/gfs/quota.h
 +#endif /* __QUOTA_DOT_H__ */
 diff -urN linux-orig/fs/gfs/recovery.c linux-patched/fs/gfs/recovery.c
 --- linux-orig/fs/gfs/recovery.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/recovery.c	2004-11-09 02:46:37.490789120 -0600
++++ linux-patched/fs/gfs/recovery.c	2004-11-09 03:22:58.480854492 -0600
 @@ -0,0 +1,749 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -29188,7 +29188,7 @@ diff -urN linux-orig/fs/gfs/recovery.c linux-patched/fs/gfs/recovery.c
 +}
 diff -urN linux-orig/fs/gfs/recovery.h linux-patched/fs/gfs/recovery.h
 --- linux-orig/fs/gfs/recovery.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/recovery.h	2004-11-09 02:46:37.490789120 -0600
++++ linux-patched/fs/gfs/recovery.h	2004-11-09 03:22:58.480854492 -0600
 @@ -0,0 +1,36 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -29228,8 +29228,8 @@ diff -urN linux-orig/fs/gfs/recovery.h linux-patched/fs/gfs/recovery.h
 +#endif /* __RECOVERY_DOT_H__ */
 diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 --- linux-orig/fs/gfs/rgrp.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/rgrp.c	2004-11-09 02:46:37.500786800 -0600
-@@ -0,0 +1,1936 @@
++++ linux-patched/fs/gfs/rgrp.c	2004-11-09 03:22:58.480854492 -0600
+@@ -0,0 +1,1940 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -29715,13 +29715,17 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +	struct gfs_rgrpd *rgd;
 +	struct gfs_glock *gl;
 +
++	spin_lock(&sdp->sd_rg_forward_lock);
 +	sdp->sd_rg_forward = NULL;
++	spin_unlock(&sdp->sd_rg_forward_lock);
 +
++	spin_lock(&sdp->sd_rg_recent_lock);
 +	while (!list_empty(&sdp->sd_rg_recent)) {
 +		rgd = list_entry(sdp->sd_rg_recent.next,
 +				 struct gfs_rgrpd, rd_recent);
 +		list_del(&rgd->rd_recent);
 +	}
++	spin_unlock(&sdp->sd_rg_recent_lock);
 +
 +	while (!list_empty(&sdp->sd_rglist)) {
 +		rgd = list_entry(sdp->sd_rglist.next,
@@ -30405,7 +30409,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +		recent_rgrp_add(rgd);
 +		rgd = gfs_rgrpd_get_next(rgd);
 +		if (!rgd)
-+			rgd = gfs_rgrpd_get_first(rgd);
++			rgd = gfs_rgrpd_get_first(sdp);
 +		forward_rgrp_set(sdp, rgd);
 +	}
 +
@@ -31168,7 +31172,7 @@ diff -urN linux-orig/fs/gfs/rgrp.c linux-patched/fs/gfs/rgrp.c
 +}
 diff -urN linux-orig/fs/gfs/rgrp.h linux-patched/fs/gfs/rgrp.h
 --- linux-orig/fs/gfs/rgrp.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/rgrp.h	2004-11-09 02:46:37.508784944 -0600
++++ linux-patched/fs/gfs/rgrp.h	2004-11-09 03:22:58.481854260 -0600
 @@ -0,0 +1,75 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -31247,7 +31251,7 @@ diff -urN linux-orig/fs/gfs/rgrp.h linux-patched/fs/gfs/rgrp.h
 +#endif /* __RGRP_DOT_H__ */
 diff -urN linux-orig/fs/gfs/super.c linux-patched/fs/gfs/super.c
 --- linux-orig/fs/gfs/super.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/super.c	2004-11-09 02:46:37.508784944 -0600
++++ linux-patched/fs/gfs/super.c	2004-11-09 03:22:58.487852867 -0600
 @@ -0,0 +1,1039 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32290,7 +32294,7 @@ diff -urN linux-orig/fs/gfs/super.c linux-patched/fs/gfs/super.c
 +}
 diff -urN linux-orig/fs/gfs/super.h linux-patched/fs/gfs/super.h
 --- linux-orig/fs/gfs/super.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/super.h	2004-11-09 02:46:37.508784944 -0600
++++ linux-patched/fs/gfs/super.h	2004-11-09 03:22:58.498850313 -0600
 @@ -0,0 +1,53 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32347,7 +32351,7 @@ diff -urN linux-orig/fs/gfs/super.h linux-patched/fs/gfs/super.h
 +#endif /* __SUPER_DOT_H__ */
 diff -urN linux-orig/fs/gfs/trans.c linux-patched/fs/gfs/trans.c
 --- linux-orig/fs/gfs/trans.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/trans.c	2004-11-09 02:46:37.516783088 -0600
++++ linux-patched/fs/gfs/trans.c	2004-11-09 03:22:58.506848455 -0600
 @@ -0,0 +1,418 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32769,7 +32773,7 @@ diff -urN linux-orig/fs/gfs/trans.c linux-patched/fs/gfs/trans.c
 +}
 diff -urN linux-orig/fs/gfs/trans.h linux-patched/fs/gfs/trans.h
 --- linux-orig/fs/gfs/trans.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/trans.h	2004-11-09 02:46:37.525781001 -0600
++++ linux-patched/fs/gfs/trans.h	2004-11-09 03:22:58.515846366 -0600
 @@ -0,0 +1,37 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -32810,7 +32814,7 @@ diff -urN linux-orig/fs/gfs/trans.h linux-patched/fs/gfs/trans.h
 +#endif /* __TRANS_DOT_H__ */
 diff -urN linux-orig/fs/gfs/unlinked.c linux-patched/fs/gfs/unlinked.c
 --- linux-orig/fs/gfs/unlinked.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/unlinked.c	2004-11-09 02:46:37.526780769 -0600
++++ linux-patched/fs/gfs/unlinked.c	2004-11-09 03:22:58.516846133 -0600
 @@ -0,0 +1,427 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33241,7 +33245,7 @@ diff -urN linux-orig/fs/gfs/unlinked.c linux-patched/fs/gfs/unlinked.c
 +}
 diff -urN linux-orig/fs/gfs/unlinked.h linux-patched/fs/gfs/unlinked.h
 --- linux-orig/fs/gfs/unlinked.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/unlinked.h	2004-11-09 02:46:37.526780769 -0600
++++ linux-patched/fs/gfs/unlinked.h	2004-11-09 03:22:58.516846133 -0600
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33277,7 +33281,7 @@ diff -urN linux-orig/fs/gfs/unlinked.h linux-patched/fs/gfs/unlinked.h
 +#endif /* __UNLINKED_DOT_H__ */
 diff -urN linux-orig/fs/gfs/util.c linux-patched/fs/gfs/util.c
 --- linux-orig/fs/gfs/util.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/util.c	2004-11-09 02:46:37.535778681 -0600
++++ linux-patched/fs/gfs/util.c	2004-11-09 03:22:58.525844044 -0600
 @@ -0,0 +1,326 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33607,7 +33611,7 @@ diff -urN linux-orig/fs/gfs/util.c linux-patched/fs/gfs/util.c
 +
 diff -urN linux-orig/fs/gfs/util.h linux-patched/fs/gfs/util.h
 --- linux-orig/fs/gfs/util.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs/util.h	2004-11-09 02:46:37.535778681 -0600
++++ linux-patched/fs/gfs/util.h	2004-11-09 03:22:58.525844044 -0600
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33767,7 +33771,7 @@ diff -urN linux-orig/fs/gfs/util.h linux-patched/fs/gfs/util.h
 +#endif /* __UTIL_DOT_H__ */
 diff -urN linux-orig/include/linux/gfs_ioctl.h linux-patched/include/linux/gfs_ioctl.h
 --- linux-orig/include/linux/gfs_ioctl.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gfs_ioctl.h	2004-11-09 02:46:37.291835288 -0600
++++ linux-patched/include/linux/gfs_ioctl.h	2004-11-09 03:22:58.280900929 -0600
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -33954,7 +33958,7 @@ diff -urN linux-orig/include/linux/gfs_ioctl.h linux-patched/include/linux/gfs_i
 +#endif /* ___GFS_IOCTL_DOT_H__ */
 diff -urN linux-orig/include/linux/gfs_ondisk.h linux-patched/include/linux/gfs_ondisk.h
 --- linux-orig/include/linux/gfs_ondisk.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gfs_ondisk.h	2004-11-09 02:46:37.296834128 -0600
++++ linux-patched/include/linux/gfs_ondisk.h	2004-11-09 03:22:58.286899536 -0600
 @@ -0,0 +1,1793 @@
 +/******************************************************************************
 +*******************************************************************************

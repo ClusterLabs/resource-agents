@@ -483,13 +483,17 @@ clear_rgrpdi(struct gfs_sbd *sdp)
 	struct gfs_rgrpd *rgd;
 	struct gfs_glock *gl;
 
+	spin_lock(&sdp->sd_rg_forward_lock);
 	sdp->sd_rg_forward = NULL;
+	spin_unlock(&sdp->sd_rg_forward_lock);
 
+	spin_lock(&sdp->sd_rg_recent_lock);
 	while (!list_empty(&sdp->sd_rg_recent)) {
 		rgd = list_entry(sdp->sd_rg_recent.next,
 				 struct gfs_rgrpd, rd_recent);
 		list_del(&rgd->rd_recent);
 	}
+	spin_unlock(&sdp->sd_rg_recent_lock);
 
 	while (!list_empty(&sdp->sd_rglist)) {
 		rgd = list_entry(sdp->sd_rglist.next,
