@@ -2825,8 +2825,7 @@ int _drop_locks_(LLi_t *item, void *d)
    if( dl->name != NULL ) {
       if( lk->ExpiredCount > 0 ) {
          if( cmp_lock_mask(dl->mask, dl->mlen, lk->key, lk->keylen) ) {
-            drop_expholders(dl->name, lk);
-            cnt_exp_holds --;
+            drop_expholders(dl->name, lk); /* decrements counters for us */
 
             Run_WaitQu(lk);
             check_for_recycle(lk);
