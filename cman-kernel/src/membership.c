@@ -2084,15 +2084,8 @@ static int do_process_starttrans(struct msghdr *msg, int len)
 			       le32_to_cpu(startmsg->nodeid));
 
 			/* If the old master has died then remove it */
-			node =
-			    find_node_by_nodeid(le32_to_cpu(startmsg->nodeid));
-
-			if (startmsg->reason == TRANS_DEADMASTER &&
-			    node && node->state == NODESTATE_MEMBER) {
-				down(&cluster_members_lock);
-				node->state = NODESTATE_DEAD;
-				cluster_members--;
-				up(&cluster_members_lock);
+			if (startmsg->reason == TRANS_DEADMASTER) {
+				remove_node(le32_to_cpu(startmsg->nodeid));
 			}
 
 			/* Store new master */
@@ -2102,14 +2095,7 @@ static int do_process_starttrans(struct msghdr *msg, int len)
 		/* Another node has died (or been killed) */
 		if (startmsg->reason == TRANS_ANOTHERREMNODE) {
 			/* Remove new dead node */
-			node =
-			    find_node_by_nodeid(le32_to_cpu(startmsg->nodeid));
-			if (node && node->state == NODESTATE_MEMBER) {
-				down(&cluster_members_lock);
-				node->state = NODESTATE_DEAD;
-				cluster_members--;
-				up(&cluster_members_lock);
-			}
+			remove_node(le32_to_cpu(startmsg->nodeid));
 		}
 		/* Restart the timer */
 		del_timer(&transition_timer);
