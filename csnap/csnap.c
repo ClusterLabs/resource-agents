@@ -1887,6 +1887,15 @@ int csnap_server(struct superblock *sb, int port)
 		error("Can't bind to socket");
 	listen(listener, 5);
 
+	switch (fork()) {
+	case -1:
+		error("fork failed");
+	case 0:
+		break;
+	default:
+		return 0;
+	}
+
 	pollvec[0].fd = listener;
 	pollvec[0].events = POLLIN;
 	pollvec[1].fd = getsig;

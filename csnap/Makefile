@@ -38,12 +38,11 @@ test: test1 delay test2 test3
 
 delay:
 	echo Bogus delay...
-	sleep 1
 
 test1:
 	killall csnap-server || true
 	./mksnapstore /dev/test-origin /dev/test-snapstore 8080
-	./csnap-server /dev/test-origin /dev/test-snapstore 8080 &
+	./csnap-server /dev/test-origin /dev/test-snapstore 8080
 	sudo /sbin/dmsetup remove testdev || true
 	sudo ./csnap-connect @testdev-control localhost:8080
 

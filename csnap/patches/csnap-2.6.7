@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-03 23:08:41.543373400 +0000
-@@ -0,0 +1,1053 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-04 01:38:57.000000000 +0000
+@@ -0,0 +1,1052 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -556,10 +556,9 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	goto out;
 +socket_error:
 +	warn("socket error %i", err);
-+	if (!running(info))
-+		goto out;
-+	down(&info->server_in_sem);
-+	goto connect;
++	if (running(info))
++		goto connect;
++	goto out;
 +}
 +
 +#if 0
