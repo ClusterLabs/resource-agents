@@ -21,5 +21,7 @@ uint32_t our_nodeid(void);
 int ls_nodes_reconfig(struct dlm_ls * ls, struct dlm_recover * gr, int *neg);
 int ls_nodes_init(struct dlm_ls * ls, struct dlm_recover * gr);
 int in_nodes_gone(struct dlm_ls * ls, uint32_t nodeid);
+void ls_nodes_clear(struct dlm_ls *ls);
+void ls_nodes_gone_clear(struct dlm_ls *ls);
 
 #endif				/* __NODES_DOT_H__ */

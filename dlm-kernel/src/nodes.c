@@ -23,16 +23,12 @@
 
 static struct list_head cluster_nodes;
 static spinlock_t node_lock;
-static uint32_t dlm_local_nodeid;
-static struct semaphore local_init_lock;
 
 
 void dlm_nodes_init(void)
 {
 	INIT_LIST_HEAD(&cluster_nodes);
 	spin_lock_init(&node_lock);
-	dlm_local_nodeid = 0;
-	init_MUTEX(&local_init_lock);
 }
 
 static struct dlm_node *search_node(uint32_t nodeid)
@@ -44,7 +40,7 @@ static struct dlm_node *search_node(uint32_t nodeid)
 			goto out;
 	}
 	node = NULL;
-      out:
+ out:
 	return node;
 }
 
@@ -96,11 +92,10 @@ static int get_node(uint32_t nodeid, struct dlm_node **ndp)
 	list_add_tail(&node->list, &cluster_nodes);
 	spin_unlock(&node_lock);
 
-      out:
+ out:
 	*ndp = node;
 	return 0;
-
-      fail:
+ fail:
 	return error;
 }
 
@@ -121,22 +116,12 @@ int init_new_csb(uint32_t nodeid, struct dlm_csb **ret_csb)
 		goto fail_free;
 
 	csb->node = node;
-
-	down(&local_init_lock);
-
-	if (!dlm_local_nodeid) {
-		if (nodeid == our_nodeid()) {
-			dlm_local_nodeid = node->nodeid;
-		}
-	}
-	up(&local_init_lock);
-
 	*ret_csb = csb;
 	return 0;
 
-      fail_free:
+ fail_free:
 	kfree(csb);
-      fail:
+ fail:
 	return error;
 }
 
@@ -271,11 +256,36 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	return error;
 }
 
+static void nodes_clear(struct list_head *head)
+{
+	struct dlm_csb *csb;
+
+	while (!list_empty(head)) {
+		csb = list_entry(head->next, struct dlm_csb, list);
+		list_del(&csb->list);
+		release_csb(csb);
+	}
+}
+
+void ls_nodes_clear(struct dlm_ls *ls)
+{
+	nodes_clear(&ls->ls_nodes);
+	ls->ls_num_nodes = 0;
+}
+
+void ls_nodes_gone_clear(struct dlm_ls *ls)
+{
+	nodes_clear(&ls->ls_nodes_gone);
+}
+
 int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 {
 	struct dlm_csb *csb;
 	int i, error;
 	uint32_t low = (uint32_t) (-1);
+
+	/* nodes may be left from a previous failed start */
+	ls_nodes_clear(ls);
 
 	log_all(ls, "add nodes");
 
@@ -297,17 +307,9 @@ int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 	error = nodes_reconfig_wait(ls);
 
 	log_all(ls, "total nodes %d", ls->ls_num_nodes);
-
 	return error;
-
-      fail:
-	while (!list_empty(&ls->ls_nodes)) {
-		csb = list_entry(ls->ls_nodes.next, struct dlm_csb, list);
-		list_del(&csb->list);
-		release_csb(csb);
-	}
-	ls->ls_num_nodes = 0;
-
+ fail:
+	ls_nodes_clear(ls);
 	return error;
 }
 

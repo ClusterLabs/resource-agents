@@ -449,7 +449,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *rsb;
 	struct dlm_recover *rv;
-	struct dlm_csb *csb;
 	struct list_head *head;
 	int i;
 	int busy = lockspace_busy(ls);
@@ -531,24 +530,11 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kfree(rv);
 	}
 
-	head = &ls->ls_nodes;
-	while (!list_empty(head)) {
-		csb = list_entry(head->next, struct dlm_csb, list);
-		list_del(&csb->list);
-		release_csb(csb);
-	}
-
-	head = &ls->ls_nodes_gone;
-	while (!list_empty(head)) {
-		csb = list_entry(head->next, struct dlm_csb, list);
-		list_del(&csb->list);
-		release_csb(csb);
-	}
+	ls_nodes_clear(ls);
+	ls_nodes_gone_clear(ls);
 
 	kfree(ls);
-
 	dlm_release();
-
 	module_put(THIS_MODULE);
 	return 0;
 }
