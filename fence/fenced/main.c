@@ -324,7 +324,7 @@ static int init_ccs(fd_t *fd)
 	if (fd->comline->clean_start_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//fence_daemon/@clean_start");
+	        sprintf(path, "/cluster/fence_daemon/@clean_start");
 
 		error = ccs_get(cd, path, &str);
 		if (!error)
@@ -338,7 +338,7 @@ static int init_ccs(fd_t *fd)
 	if (fd->comline->post_join_delay_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//fence_daemon/@post_join_delay");
+	        sprintf(path, "/cluster/fence_daemon/@post_join_delay");
 
 		error = ccs_get(cd, path, &str);
 		if (!error)
@@ -352,7 +352,7 @@ static int init_ccs(fd_t *fd)
 	if (fd->comline->post_fail_delay_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//fence_daemon/@post_fail_delay");
+	        sprintf(path, "/cluster/fence_daemon/@post_fail_delay");
 
 		error = ccs_get(cd, path, &str);
 		if (!error)
@@ -374,7 +374,7 @@ static int init_ccs(fd_t *fd)
 	for (i=1;;i++) {
 		name = NULL;
 	        memset(path, 0, 256);
-	        sprintf(path, "//cluster/nodes/node[%d]/@name", i);
+	        sprintf(path, "/cluster/nodes/node[%d]/@name", i);
 
 		error = ccs_get(cd, path, &name);
 		if (error || !name)
