@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.4 2004/09/03 10:00:45 lars Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.5 2004/09/14 07:49:41 zhenh Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -42,7 +42,7 @@
 
 # TODO: Move more common functionality for OCF RAs here.
 #
-
+HA_D=@sysconfdir@/ha.d
 ocf_set_defaults() {
 	ACTION="$1"
 
