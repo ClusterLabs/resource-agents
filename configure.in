@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.144 $) dnl cvs revision
+AC_REVISION($Revision: 1.145 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -1026,6 +1026,7 @@ cts/Makefile					        	\
 	cts/CTStests.py						\
 debian/Makefile							\
 doc/Makefile							\
+	doc/startstop						\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
 cts/CM_fs.py							\
@@ -1075,7 +1076,6 @@ heartbeat/Makefile						\
 		heartbeat/resource.d/MailTo			\
 		heartbeat/resource.d/Raid1			\
 		heartbeat/resource.d/ServeRAID			\
-		heartbeat/resource.d/startstop			\
 		heartbeat/resource.d/WAS			\
 		heartbeat/resource.d/WinPopup			\
 	heartbeat/shellfuncs					\
