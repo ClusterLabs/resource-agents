@@ -4023,6 +4023,11 @@ static int __init cluster_init(void)
 	printk("CMAN %s (built %s %s) installed\n",
 	       CMAN_RELEASE_NAME, __DATE__, __TIME__);
 
+	if (sock_register(&cl_family_ops)) {
+		printk(KERN_INFO "Unable to register cluster socket type\n");
+		return -1;
+	}
+
 	/* allocate our sock slab cache */
 	cluster_sk_cachep = kmem_cache_create("cluster_sock",
 					      sizeof (struct cluster_sock), 0,
@@ -4030,16 +4035,10 @@ static int __init cluster_init(void)
 	if (!cluster_sk_cachep) {
 		printk(KERN_CRIT
 		       "cluster_init: Cannot create cluster_sock SLAB cache\n");
+		sock_unregister(AF_CLUSTER);   
 		return -1;
 
 	}
-
-	if (sock_register(&cl_family_ops)) {
-		printk(KERN_INFO "Unable to register cluster socket type\n");
-		kmem_cache_destroy(cluster_sk_cachep);
-		return -1;
-	}
-
 
 #ifdef CONFIG_PROC_FS
 	create_proc_entries();
