@@ -2,7 +2,7 @@
 #
 # 
 #
-# chkconfig: 345 24 76
+# chkconfig: 345 22 78
 # description: start/stop the gulm lock daemon
 #
 #	       
@@ -213,8 +213,8 @@ stop()
 	then
 		echo "Checking for Gulm Services..."
 
-		# ignore LTPX and LT000-LT999 services
-		if gulm_tool servicelist localhost | grep -vE "^LT(PX|[0-9][0-9][0-9])\$"
+		# ignore LTPX and LT000-LT999  and Magma services
+		if gulm_tool servicelist localhost | grep -vE "^(LTPX|LT[0-9][0-9][0-9]|Magma::[0-9]*)\$"
 		then
 			if [ $force -ne 0 ]
 			then
