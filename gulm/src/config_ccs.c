@@ -53,7 +53,7 @@ void parse_serverlist(gulm_config_t *gf, int cd)
    }
 
    for(;;) {
-      if( ccs_get_list(cd, "/cluster/gulm/server/@name", &tmp) != 0 )
+      if( ccs_get_list(cd, "/cluster/gulm/lockserver/@name", &tmp) != 0 )
          break;
       if( tmp == NULL ) break;
       in = get_ipname(tmp);
