@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.262 $) dnl cvs revision
+AC_REVISION($Revision: 1.263 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -21,7 +21,7 @@ AC_SUBST(RPMREL)
 
 INIT_EXT=""
 USE_MODULES=0
-
+echo Our Host OS: $host_os
 case "$host_os" in
 solaris*)	LIBS="-L/usr/local/lib $LIBS"
 		CPPFLAGS="-I/usr/local/include -I/opt/sfw/include"
@@ -35,6 +35,10 @@ solaris*)	LIBS="-L/usr/local/lib $LIBS"
 
 *linux*)	USE_MODULES=1
  		;;
+dnl anything?
+darwin*)	LIBS="-L/usr/lib -L/sw/lib"
+		CPPFLAGS="-I/usr/include"
+		;;
 esac
 
 AC_SUBST(INIT_EXT)
@@ -461,6 +465,9 @@ elif FunIsInLib gettext intl ; then
 elif test -f /usr/local/lib/libintl.so -a -s /usr/local/lib/libintl.so; then
 	# This was added for FreeBSD
 	LIBADD_INTL="-lintl"
+elif test -f /sw/lib/libintl.a -a -s /sw/lib/libintl.la -a -s /sw/lib/libintl.dylib; then
+	# This was added for Darwin + Fink
+	LIBADD_INTL="-lintl"
 else
 	AC_MSG_ERROR(no library providing gettext found)
 fi
@@ -607,7 +614,7 @@ if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
 		SNMPLIB=`net-snmp-config --netsnmp-libs`
 		AC_MSG_RESULT($SNMPLIB)
 	fi
-else 
+elif "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
 	# UCD SNMP
 	# ucd-snmp-config does not seem to exist, so just 
 	# rely on people having their LDFLAGS set to the path where
@@ -659,6 +666,35 @@ check_for_type() {
   return 1
 }
 
+check_for_type_member() {
+  type="$1"
+  member="$2"
+  headers=""
+  shift
+  shift
+  for arg
+  do
+    headers="${headers}${arg}
+"
+  done
+  program="${type} foo;
+    if ((${type} *) 0)  return 0;
+    if (sizeof(${type}))  return 0;
+    if (sizeof(foo))  return 0;
+    (void*)foo.${member};
+    return 0;"
+  have="HAVE_`echo "$type" | tr ' ' '_' | dd conv=ucase 2>/dev/null`"
+  varhave="heartbeat_cv_$have"
+
+  AC_CACHE_CHECK([for type $type ],$varhave,[
+    AC_TRY_COMPILE([$headers], [$program], eval $varhave=yes, eval $varhave=no
+    , eval $varhave=cross)
+  ])
+  if test x"`eval echo '${'$varhave'}'`" = xyes; then
+    return 0
+  fi
+  return 1
+}
 
 dnl ************************************************************************
 dnl  checks for typedefs
@@ -694,6 +730,9 @@ do
   fi
 done
 
+if check_for_type_member "struct ucred" "cr_ref" "$headers"; then
+	 AC_DEFINE(HAVE_STRUCT_UCRED_DARWIN,1,[Do we have the Darwin version of struct ucred?])
+fi
 if check_for_type "struct ucred" "$headers"; then
 	 AC_DEFINE(HAVE_STRUCT_UCRED,1,[Do we have struct ucred?])
 fi
