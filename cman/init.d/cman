@@ -20,6 +20,16 @@ CMAN_CLUSTER_TIMEOUT=300
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
+# If gulm is in ccs, don't start cman
+# FIXME -- Should this be silent?  I think users should get some
+#          feedback, but others might not want added verbosity to
+#          the boot process.  Oh well... it's only one line :)
+if grep -qE "<[\t ]*gulm[\t ]*.*>" /etc/cluster/cluster.conf
+then
+	echo "cman: <gulm> section detected in /etc/cluster/cluster.conf"
+	exit 11
+fi
+
 LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
