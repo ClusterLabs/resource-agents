@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_locking/lock_dlm/group.c
 --- linux-orig/fs/gfs_locking/lock_dlm/group.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/group.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,771 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -775,7 +775,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/group.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking/lock_dlm/lock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/lock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/lock.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,602 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1381,8 +1381,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock.c linux-patched/fs/gfs_locking
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h
 --- linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-07-16 23:51:38.000000000 +0800
-@@ -0,0 +1,333 @@
++++ linux-patched/fs/gfs_locking/lock_dlm/lock_dlm.h	2004-07-22 20:20:13.000000000 +0800
+@@ -0,0 +1,335 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -1694,6 +1694,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +{ \
 +  if (!(x)) \
 +  { \
++    dlm_debug_dump(); \
 +    lock_dlm_debug_dump(); \
 +    printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
 +           "lock_dlm:  assertion:  \"%s\"\n" \
@@ -1701,6 +1702,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +	   __LINE__, __FILE__, #x, jiffies); \
 +    {do} \
 +    printk("\n"); \
++    BUG(); \
 +    panic("lock_dlm:  Record message above and reboot.\n"); \
 +  } \
 +}
@@ -1718,7 +1720,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/lock_dlm.h linux-patched/fs/gfs_loc
 +#endif
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking/lock_dlm/main.c
 --- linux-orig/fs/gfs_locking/lock_dlm/main.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/main.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,192 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1914,7 +1916,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/main.c linux-patched/fs/gfs_locking
 +MODULE_LICENSE("GPL");
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_locking/lock_dlm/mount.c
 --- linux-orig/fs/gfs_locking/lock_dlm/mount.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/mount.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,335 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2253,7 +2255,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/mount.c linux-patched/fs/gfs_lockin
 +};
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_locking/lock_dlm/plock.c
 --- linux-orig/fs/gfs_locking/lock_dlm/plock.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/plock.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,1033 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3290,7 +3292,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_dlm/plock.c linux-patched/fs/gfs_lockin
 +
 diff -urN linux-orig/fs/gfs_locking/lock_dlm/thread.c linux-patched/fs/gfs_locking/lock_dlm/thread.c
 --- linux-orig/fs/gfs_locking/lock_dlm/thread.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-07-16 23:51:38.000000000 +0800
++++ linux-patched/fs/gfs_locking/lock_dlm/thread.c	2004-07-22 20:20:13.000000000 +0800
 @@ -0,0 +1,385 @@
 +/******************************************************************************
 +*******************************************************************************
