@@ -2,7 +2,7 @@
 	* include/resgroup.h: Add STOP_USER so we can handle user 
 	STOP (instead of just DISABLE) requests.  #150333
 	* src/resources/fs.sh: umount should umount mount points, not
-	devices.  #150481
+	devices.  Handle symlinks to file system block devices.  #150481
 	* src/clulib/rg_strings.c: Add user stop string.
 	* src/clulib/gettid.c: errno fix from trunk
 	* src/clulib/vft.c: Connect timeout extension for VF
