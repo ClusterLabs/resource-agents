@@ -273,16 +273,13 @@ static int dlm_async(void *data)
 	uint8_t complete, blocking, submit, start, finish, drop;
 	DECLARE_WAITQUEUE(wait, current);
 
-	daemonize("lock_dlm");
-	atomic_inc(&dlm->threads);
-
-	do {
-		current->state = TASK_INTERRUPTIBLE;
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&dlm->wait, &wait);
 		if (no_work(dlm))
 			schedule();
 		remove_wait_queue(&dlm->wait, &wait);
-		current->state = TASK_RUNNING;
+		set_current_state(TASK_RUNNING);
 
 		complete = blocking = submit = start = finish = drop = 0;
 
@@ -341,9 +338,7 @@ static int dlm_async(void *data)
 
 		schedule();
 	}
-	while (!test_bit(DFL_THREAD_STOP, &dlm->flags));
 
-	atomic_dec(&dlm->threads);
 	return 0;
 }
 
@@ -354,31 +349,29 @@ static int dlm_async(void *data)
  * Returns: 0 on success, -EXXX on failure
  */
 
-int init_async_thread(dlm_t * dlm)
+int init_async_thread(dlm_t *dlm)
 {
+	struct task_struct *p;
 	int error;
 
-	clear_bit(DFL_THREAD_STOP, &dlm->flags);
-	atomic_set(&dlm->threads, 0);
-
-	error = kernel_thread(dlm_async, dlm, 0);
-	if (error < 0)
-		goto out;
-
-	error = kernel_thread(dlm_async, dlm, 0);
-	if (error < 0) {
-		release_async_thread(dlm);
-		goto out;
+	p = kthread_run(dlm_async, dlm, "lock_dlm1");
+	error = IS_ERR(p);
+	if (error) {
+		log_all("can't start lock_dlm1 daemon %d", error);
+		return error;
 	}
+	dlm->thread1 = p;
 
-	while (atomic_read(&dlm->threads) != 2)
-		schedule();
-	error = 0;
+	p = kthread_run(dlm_async, dlm, "lock_dlm2");
+	error = IS_ERR(p);
+	if (error) {
+		log_all("can't start lock_dlm2 daemon %d", error);
+		kthread_stop(dlm->thread1);
+		return error;
+	}
+	dlm->thread2 = p;
 
-      out:
-	if (error)
-		printk("lock_dlm: can't start async thread %d\n", error);
-	return error;
+	return 0;
 }
 
 /**
@@ -387,11 +380,8 @@ int init_async_thread(dlm_t * dlm)
  *
  */
 
-void release_async_thread(dlm_t * dlm)
+void release_async_thread(dlm_t *dlm)
 {
-	set_bit(DFL_THREAD_STOP, &dlm->flags);
-	while (atomic_read(&dlm->threads)) {
-		wake_up(&dlm->wait);
-		schedule();
-	}
+	kthread_stop(dlm->thread1);
+	kthread_stop(dlm->thread2);
 }

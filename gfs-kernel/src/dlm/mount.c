@@ -204,6 +204,8 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 	INIT_LIST_HEAD(&dlm->resources);
 
 	init_waitqueue_head(&dlm->wait);
+	dlm->thread1 = NULL;
+	dlm->thread2 = NULL;
 	atomic_set(&dlm->lock_count, 0);
 	dlm->drop_time = jiffies;
 

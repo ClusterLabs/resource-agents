@@ -22,6 +22,7 @@
 #include <linux/string.h>
 #include <linux/list.h>
 #include <linux/socket.h>
+#include <linux/kthread.h>
 #include <net/sock.h>
 #include <linux/lm_interface.h>
 #include <cluster/cnxman.h>
@@ -61,16 +62,15 @@ typedef struct dlm_start dlm_start_t;
 typedef struct strname strname_t;
 
 #define DFL_FIRST_MOUNT         0
-#define DFL_THREAD_STOP         1
-#define DFL_GOT_NODEID          2
-#define DFL_MG_FINISH           3
-#define DFL_HAVE_JID            4
-#define DFL_BLOCK_LOCKS         5
-#define DFL_START_ERROR         6
-#define DFL_MOUNT		7
-#define DFL_UMOUNT		8
-#define DFL_NEED_STARTDONE	9
-#define DFL_RECOVER		10
+#define DFL_GOT_NODEID          1
+#define DFL_MG_FINISH           2
+#define DFL_HAVE_JID            3
+#define DFL_BLOCK_LOCKS         4
+#define DFL_START_ERROR         5
+#define DFL_MOUNT		6
+#define DFL_UMOUNT		7
+#define DFL_NEED_STARTDONE	8
+#define DFL_RECOVER		9
 
 struct dlm {
 	uint32_t		jid;
@@ -97,7 +97,8 @@ struct dlm {
 	struct list_head	starts;
 
 	wait_queue_head_t	wait;
-	atomic_t		threads;
+	struct task_struct *	thread1;
+	struct task_struct *	thread2;
 	atomic_t		lock_count;
 	unsigned long		drop_time;
 
