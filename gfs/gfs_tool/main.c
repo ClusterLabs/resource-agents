@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <sys/param.h>
 #include <sys/mount.h>
+#include <libgen.h>
 
 #include "global.h"
 
@@ -620,6 +621,49 @@ parse_list(char *list)
 }
 
 /**
+ * is_dm_device - Report if this is a device-mapper device
+ * @device:
+ *
+ * Returns: 1 or 0
+ */
+
+static int
+is_dm_device(char *device)
+{
+	char path[512];
+	int count;
+
+	count = readlink(device, path, 511);
+	if (count < 0)
+		return 0;
+	path[count] = 0;
+
+	if (strstr(path, "mapper"))
+		return 1;
+	return 0;
+}
+
+/**
+ * dm_name - Create dm-N style name for the device
+ * @device:
+ *
+ * Returns: Pointer to dm name or basename
+ */
+
+static char *
+dm_name(char *device)
+{
+	static char name[16];
+	struct stat buf;
+
+	if (stat(device, &buf))
+		return basename(device);
+
+	snprintf(name, 16, "dm-%u", minor(buf.st_rdev));
+	return name;
+}
+
+/**
  * mp2cookie - Find the cookie for a filesystem given its mountpoint
  * @mp:
  * @ioctl_ok: If this is FALSE, it's not acceptable to open() the mountpoint
@@ -657,12 +701,11 @@ mp2cookie(char *mp, int ioctl_ok)
 			continue;
 		if (strcmp(type, "gfs"))
 			die("%s is not a GFS filesystem\n", mp);
-		for (dev = device;;) {
-			char *d = strstr(dev, "/");
-			if (!d)
-				break;
-			dev = d + 1;
-		}
+
+		if (is_dm_device(device))
+			dev = dm_name(device);
+		else
+			dev = basename(device);
 		break;
 	}
 
