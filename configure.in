@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.172 $) dnl cvs revision
+AC_REVISION($Revision: 1.173 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -118,8 +118,9 @@ mandir=`var "$mandir" "$exec_prefix/man"`
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
-LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
-AC_DEFINE_UNQUOTED(LOGDAEMON_IPC, "$LOGDAEMON_IPC", Logging Daemon IPC)
+HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
+AC_SUBST(HA_LOGDAEMON_IPC)
+AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC)
 STONITHPKG=stonith
 AC_SUBST(STONITHPKG)
 
@@ -374,9 +375,14 @@ AC_EGREP_CPP(FoundClkTck,
 ],
 [
         AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ])
+	CLK_TCK_IN_LIMITS_H=1
         AC_MSG_RESULT(Yes)
 ],
-AC_MSG_RESULT("No"))
+[
+	CLK_TCK_IN_LIMITS_H=0
+	AC_MSG_RESULT("No")
+])
+AC_SUBST(CLK_TCK_IN_LIMITS_H)
 
 dnl
 dnl	Look for #define CLK_TCK in time.h (Linux)
@@ -390,9 +396,14 @@ AC_EGREP_CPP(FoundClkTck,
 #endif
 ], [
         AC_DEFINE(CLK_TCK_IN_TIME_H,1,[ ])
+	CLK_TCK_IN_TIME_H=1
         AC_MSG_RESULT(Yes)
 ],
-AC_MSG_RESULT("No"))
+[
+	CLK_TCK_IN_TIME_H=0
+	AC_MSG_RESULT("No")
+])
+AC_SUBST(CLK_TCK_IN_TIME_H)
 
 dnl ************************************************************************
 dnl checks for libraries
@@ -578,9 +589,17 @@ AC_MSG_CHECKING(if nfds_t is defined)
 dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
 AC_TRY_COMPILE([#include <poll.h>],
 [ nfds_t te;  te = 0;],
-    AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t])
-    AC_MSG_RESULT(yes)
-,   AC_MSG_RESULT(no))
+[
+	AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t])
+	HAVE_NFDS_T=1
+	AC_MSG_RESULT(yes)
+],
+[
+	HAVE_NFDS_T=0
+	AC_MSG_RESULT(no)
+]
+)
+AC_SUBST(HAVE_NFDS_T)
 
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
@@ -929,12 +948,17 @@ dnl Check Only
 dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
-AC_CHECK_DECLS(alphasort)
-AC_CHECK_DECLS(inet_pton)
+AC_CHECK_DECLS(alphasort, HAVE_ALPHASORT=1, HAVE_ALPHASORT=0)
+AC_SUBST(HAVE_ALPHASORT)
+AC_CHECK_DECLS(inet_pton, HAVE_INET_PTON=1, HAVE_INET_PTON=0)
+AC_SUBST(HAVE_INET_PTON)
 AC_CHECK_DECLS(NoSuchFunctionName)
-AC_CHECK_DECLS(scandir)
-AC_CHECK_DECLS(setenv)
-AC_CHECK_DECLS(strerror)
+AC_CHECK_DECLS(scandir, HAVE_SCANDIR=1, HAVE_SCANDIR=0)
+AC_SUBST(HAVE_SCANDIR)
+AC_CHECK_DECLS(setenv, HAVE_SETENV=1, HAVE_SETENV=0)
+AC_SUBST(HAVE_SETENV)
+AC_CHECK_DECLS(strerror, HAVE_STRERROR=1, HAVE_STRERROR=0)
+AC_SUBST(HAVE_STRERROR)
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
@@ -1139,7 +1163,6 @@ doc/Makefile							\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
 include/Makefile						\
-        include/ha_config.h					\
         include/clplumbing/Makefile				\
         include/ocf/Makefile					\
         include/pils/Makefile					\
@@ -1147,6 +1170,7 @@ include/Makefile						\
         include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
+	linux-ha/ha_config.h					\
 lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
