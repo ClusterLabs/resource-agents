@@ -50,6 +50,4 @@ int msg_get_flags(int fd); /* Read-only for users */
 #define MSGP_ALL	-1
 #define MSGP_CLUSTER	-2
 
-#define MSG_MAX_SIZE	1024
-
 #endif

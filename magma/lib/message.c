@@ -23,7 +23,7 @@
  *  authors: Jeff Moyer <jmoyer at redhat.com>
  *	     - Original msg.c from Kimberlite
  *           Lon H. Hohberger <lhh at redhat.com>
- *           - Read-retry, IPv6, simplification
+ *           - IPv6, simplification
  */
 #include <magma.h>
 #include <magmamsg.h>
@@ -129,11 +129,6 @@ _msg_receive(int fd, void *buf, ssize_t count,
 		return -1;
 	}
 
-	if (count > MSG_MAX_SIZE) {
-		errno = EINVAL;
-		return -1;
-	}
-
 	return _read_retry(fd, buf, count, tv);
 }
 
@@ -200,11 +195,6 @@ msg_send(int fd, void *buf, ssize_t count)
 		return -1;
 	}
 
-	if (count > MSG_MAX_SIZE) {
-		errno = EINVAL;
-		return -1;
-	}
-
 	return write(fd, buf, count);
 }
 
@@ -229,8 +219,9 @@ connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 	/*
 	 * Use TCP Keepalive
 	 */
-	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags));
-
+	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags))<0)
+		return -1;
+			
 	/*
 	   Set up non-blocking connect
 	 */
@@ -815,7 +806,8 @@ msg_get_flags(int fd)
 ssize_t
 msg_peek(int sockfd, void *buf, ssize_t count)
 {
-	if (sockfd < 0 || count > MSG_MAX_SIZE) {
+
+	if (sockfd < 0) {
 		return -1;
 	}
 
