@@ -201,8 +201,8 @@ gulm_nodelist(void *misc, lglcb_t type, char *name, struct in6_addr *ip,
 			sizeof(mlp->cml_members[idx].cm_name));
 
 		mlp->cml_members[idx].cm_id =
-			((uint64_t)(ip->s6_addr32[0]) << 32) |
-			(uint64_t)ip->s6_addr32[1];
+			((uint64_t)(ip->s6_addr32[2]) << 32) |
+			(uint64_t)ip->s6_addr32[3];
 		mlp->cml_members[idx].cm_addrs = NULL;
 
 		if (state == lg_core_Logged_in)
