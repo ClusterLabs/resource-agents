@@ -115,8 +115,13 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 
 	error = midcomms_send_message(nodeid, (struct dlm_header *) rc,
 				      GFP_KERNEL);
-	DLM_ASSERT(error >= 0, printk("error = %d\n", error););
-	error = 0;
+	if (error > 0)
+		error = 0;
+	else if (error < 0) {
+		log_debug(ls, "send message %d to %u failed %d",
+			  type, nodeid, error);
+		goto out;
+	}
 
 	/* 
 	 * Wait for a reply.  Once a reply is processed from midcomms, the
@@ -127,7 +132,8 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 	if (need_reply) {
 		error = dlm_wait_function(ls, &rcom_response);
 		if (error)
-			log_debug(ls, "rcom wait error %d", error);
+			log_debug(ls, "wait message %d to %u failed %d",
+				  type, nodeid, error);
 	}
 
  out:
@@ -154,7 +160,7 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		return;
 
 	if (dlm_recovery_stopped(ls) && (rc->rc_subcmd != RECCOMM_STATUS)) {
-		log_error(ls, "ignoring recovery message %x from %u",
+		log_debug(ls, "ignoring recovery message %x from %u",
 			  rc->rc_subcmd, nodeid);
 		return;
 	}
@@ -201,7 +207,7 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		 * of recovery.
 		 */
 		if (!test_bit(LSFL_NODES_VALID, &ls->ls_flags)) {
-			log_error(ls, "ignoring RECOVERNAMES from %u", nodeid);
+			log_debug(ls, "ignoring RECOVERNAMES from %u", nodeid);
 			return;
 		}
 
@@ -360,7 +366,7 @@ static void rcom_process_reply(struct dlm_ls *ls, uint32_t nodeid,
 			       struct dlm_rcom *reply)
 {
 	if (dlm_recovery_stopped(ls)) {
-		log_error(ls, "ignoring recovery reply %x from %u",
+		log_debug(ls, "ignoring recovery reply %x from %u",
 			  reply->rc_subcmd, nodeid);
 		return;
 	}
