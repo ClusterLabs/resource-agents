@@ -398,8 +398,10 @@ static void recover_sg(sm_group_t *sg, int event_id)
 
 		/* Continue a previous, interrupted attempt to leave the sg */
 		if (sg->sevent) {
-			clear_bit(SEFL_DELAY, &sg->sevent->se_flags);
-			set_bit(SEFL_CHECK, &sg->sevent->se_flags);
+			sm_sevent_t *sev = sg->sevent;
+			log_debug(sg, "restart leave %lx", sev->se_flags);
+			clear_bit(SEFL_DELAY_RECOVERY, &sev->se_flags);
+			set_bit(SEFL_CHECK, &sev->se_flags);
 			wake_serviced(DO_JOINLEAVE);
 		}
 		break;

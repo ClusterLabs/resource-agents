@@ -51,8 +51,9 @@ typedef struct sm_msg sm_msg_t;
 #define SEFL_ALLOW_STARTDONE    (5)
 #define SEFL_ALLOW_BARRIER      (6)
 #define SEFL_DELAY              (7)
-#define SEFL_LEAVE              (8)
-#define SEFL_CANCEL             (9)
+#define SEFL_DELAY_RECOVERY     (8)
+#define SEFL_LEAVE              (9)
+#define SEFL_CANCEL             (10)
 
 /* SE States */
 #define SEST_JOIN_BEGIN         (1)

@@ -525,7 +525,7 @@ static void process_join_sevent(sm_sevent_t *sev)
 	 */
 
 	if (test_and_clear_bit(SEFL_CANCEL, &sev->se_flags)) {
-		error = -1;
+		error = 1;
 		goto cancel;
 	}
 
@@ -603,6 +603,8 @@ static void process_join_sevent(sm_sevent_t *sev)
       cancel:
 	if (error) {
 		/* restart the sevent from the beginning */
+		log_debug(sev->se_sg, "process_join error %d %lx", error,
+			  sev->se_flags);
 		sev->se_state = SEST_JOIN_BEGIN;
 		sev->se_sg->global_id = 0;
 		set_bit(SEFL_DELAY, &sev->se_flags);
@@ -872,12 +874,14 @@ static void process_leave_sevent(sm_sevent_t *sev)
 		break;
 
 	default:
-		log_error(sev->se_sg, "process_leave_sevent state=%u\n",
+		log_error(sev->se_sg, "process_leave_sevent state=%u",
 			  sev->se_state);
 	}
 
-      cancel:
+ cancel:
 	if (error) {
+		log_debug(sev->se_sg, "process_leave error %d %lx", error,
+			  sev->se_flags);
 		/* restart the sevent from the beginning */
 		sev->se_state = SEST_LEAVE_BEGIN;
 		set_bit(SEFL_DELAY, &sev->se_flags);
@@ -1149,7 +1153,8 @@ void backout_sevents(void)
 		case SEST_JOIN_ACKWAIT:
 			clear_bit(SEFL_ALLOW_JOIN, &sev->se_flags);
 			sev->se_state = SEST_JOIN_BEGIN;
-			schedule_sev_restart(sev);
+			set_bit(SEFL_CHECK, &sev->se_flags);
+			wake_serviced(DO_JOINLEAVE);
 			break;
 
 		/* backout after final process_reply and before
@@ -1243,16 +1248,15 @@ void backout_sevents(void)
 		}
 
 		if (delay) {
-			set_bit(SEFL_DELAY, &sev->se_flags);
-
 			if (test_bit(SEFL_LEAVE, &sev->se_flags)) {
 				sev->se_state = SEST_LEAVE_BEGIN;
-				/* The DELAY flag will be cleared once recovery
-				 * is done allowing the leave to be retried. */
+				set_bit(SEFL_DELAY_RECOVERY, &sev->se_flags);
+				set_bit(SEFL_CHECK, &sev->se_flags);
+				wake_serviced(DO_JOINLEAVE);
 			} else {
 				sev->se_state = SEST_JOIN_BEGIN;
-				/* restart timer function will clear DELAY */
-				schedule_sev_restart(sev);
+				set_bit(SEFL_CHECK, &sev->se_flags);
+				wake_serviced(DO_JOINLEAVE);
 			}
 		}
 	}
@@ -1275,7 +1279,8 @@ void process_joinleave(void)
 		if (!test_and_clear_bit(SEFL_CHECK, &sev->se_flags))
 			continue;
 
-		if (test_bit(SEFL_DELAY, &sev->se_flags))
+		if (test_bit(SEFL_DELAY, &sev->se_flags) ||
+		    test_bit(SEFL_DELAY_RECOVERY, &sev->se_flags))
 			continue;
 
 		if (sev->se_state < SEST_LEAVE_BEGIN)
