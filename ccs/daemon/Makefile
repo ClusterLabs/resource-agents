@@ -15,16 +15,7 @@ UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-INCLUDE += -I${incdir}/cluster
-endif
+INCLUDE= -I. -I../include -I../common -I${top_srcdir}/config -I${incdir}
 
 ifeq ($(DEBUG),y)
 CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
