@@ -556,8 +556,9 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 	lkb->lkb_resource = rsb;
 
 	if (rsb->res_nodeid == -1) {
-		log_all(ls, "convert mode %u from %u created rsb %s",
-			lkb->lkb_rqmode, remote_nodeid, rsb->res_name);
+		log_all(ls, "request mode %u from %u seq %u created rsb %s",
+			lkb->lkb_rqmode, freq->rr_resdir_seq, remote_nodeid,
+			rsb->res_name);
 		rsb->res_nodeid = 0;
 	} else {
 		GDLM_ASSERT(!rsb->res_nodeid,
