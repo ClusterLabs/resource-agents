@@ -1,12 +1,11 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.2 2004/09/06 10:32:37 lars Exp $
+#	$Id: drbd.in,v 1.3 2004/09/06 10:33:02 lars Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
 # WARNING: This is proof of concept code and likely doesn't work at all!
 #
-# Copyright (c) 2003 Tuomo Soini
 # Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
 #
