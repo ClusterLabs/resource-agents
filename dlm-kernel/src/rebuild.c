@@ -222,6 +222,7 @@ static int lkb_length(struct dlm_lkb *lkb)
 	len += sizeof(int);	/* lkb_id */
 	len += sizeof(int);	/* lkb_resource->res_reamasterid */
 	len += sizeof(int);	/* lkb_flags */
+	len += sizeof(int);	/* lkb_lockqueue_flags */
 	len += sizeof(int);	/* lkb_status */
 	len += sizeof(char);	/* lkb_rqmode */
 	len += sizeof(char);	/* lkb_grmode */
@@ -269,6 +270,7 @@ static void serialise_lkb(struct dlm_lkb *lkb, char *buf, int *offp)
 	put_int(lkb->lkb_id, buf, offp);
 	put_int(lkb->lkb_resource->res_remasterid, buf, offp);
 	put_int(flags, buf, offp);
+	put_int(lkb->lkb_lockqueue_flags, buf, offp);
 	put_int(lkb->lkb_status, buf, offp);
 	put_char(lkb->lkb_rqmode, buf, offp);
 	put_char(lkb->lkb_grmode, buf, offp);
@@ -992,6 +994,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 
 	lkb->lkb_remid = remote_lkid;
 	lkb->lkb_flags = get_int(buf, ptr);
+	lkb->lkb_lockqueue_flags = get_int(buf, ptr);
 	status = get_int(buf, ptr);
 	lkb->lkb_rqmode = get_char(buf, ptr);
 	lkb->lkb_grmode = get_char(buf, ptr);
