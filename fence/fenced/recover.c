@@ -367,16 +367,20 @@ static int reduce_victims(fd_t *fd)
 static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 {
 	struct timeval first, last, start, now;
-	int victim_count, last_count = 0;
-	int delay = 0;
+	int victim_count, last_count = 0, delay = 0;
+	fd_node_t *node;
+	char *delay_type;
 
-	if (ev->start_type == SERVICE_START_JOIN)
+	if (ev->start_type == SERVICE_START_JOIN) {
 		delay = fd->comline->post_join_delay;
-	else
+		delay_type = "post_join_delay";
+	} else {
 		delay = fd->comline->post_fail_delay;
+		delay_type = "post_fail_delay";
+	}
 
 	if (delay == 0)
-		return;
+		goto out;
 
 	gettimeofday(&first, NULL);
 	gettimeofday(&start, NULL);
@@ -407,6 +411,11 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 
 	log_debug("delay of %ds leaves %d victims",
 		  (int) (last.tv_sec - first.tv_sec), victim_count);
+ out:
+	list_for_each_entry(node, &fd->victims, list) {
+		syslog(LOG_INFO, "%s not a cluster member after %d sec %s",
+		       node->name, delay, delay_type);
+	}
 }
 
 static void fence_victims(fd_t *fd, struct cl_service_event *ev)
