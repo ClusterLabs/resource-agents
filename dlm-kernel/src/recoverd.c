@@ -639,47 +639,55 @@ static void do_ls_recovery(struct dlm_ls *ls)
 int dlm_recoverd(void *arg)
 {
 	struct dlm_ls *ls = arg;
+	int recover = 1;
 
 	hold_lockspace(ls);
 
 	for (;;) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (!test_bit(LSFL_WORK, &ls->ls_flags))
-			schedule();
-		set_current_state(TASK_RUNNING);
-
-		if (test_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags)) {
-			down(&ls->ls_recoverd_lock);
-			ls->ls_recoverd_task = NULL;
-			up(&ls->ls_recoverd_lock);
-			goto out;
+		if (recover)
+			do_ls_recovery(ls);
+		else {
+			set_current_state(TASK_INTERRUPTIBLE);
+			if (!test_bit(LSFL_WORK, &ls->ls_flags))
+				schedule();
+			set_current_state(TASK_RUNNING);
 		}
 
-		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags)) {
-			do_ls_recovery(ls);
+		down(&ls->ls_recoverd_lock);
+		recover = 1;
 
-			down(&ls->ls_recoverd_lock);
-			if (ls->ls_state == LSST_CLEAR &&
-			    !test_bit(LSFL_WORK, &ls->ls_flags)) {
+		if (!test_bit(LSFL_WORK, &ls->ls_flags)) {
+			if (ls->ls_state == LSST_CLEAR ||
+			    test_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags)) {
 				ls->ls_recoverd_task = NULL;
 				up(&ls->ls_recoverd_lock);
-				goto out;
+				break;
 			}
-			up(&ls->ls_recoverd_lock);
+			recover = 0;
 		}
+		clear_bit(LSFL_WORK, &ls->ls_flags);
+		up(&ls->ls_recoverd_lock);
 	}
 
- out:
 	put_lockspace(ls);
 	return 0;
 }
 
 void dlm_recoverd_kick(struct dlm_ls *ls)
 {
-    	struct task_struct *p;
+	struct task_struct *p;
 
 	down(&ls->ls_recoverd_lock);
-        set_bit(LSFL_WORK, &ls->ls_flags);
+
+	if (test_bit(LSFL_RECOVERD_EXIT, &ls->ls_flags)) {
+		log_error(ls, "recoverd_kick after exit\n");
+		goto out;
+	}
+
+	if (ls->ls_recoverd_task == NULL && test_bit(LSFL_WORK, &ls->ls_flags))
+		log_error(ls, "recoverd_kick error\n");
+
+	set_bit(LSFL_WORK, &ls->ls_flags);
 
 	if (!ls->ls_recoverd_task) {
 	    	p = kthread_run(dlm_recoverd, (void *) ls, "dlm_recoverd");
@@ -707,7 +715,7 @@ void dlm_recoverd_stop(struct dlm_ls *ls)
 		}
 		wake_up_process(ls->ls_recoverd_task);
 		up(&ls->ls_recoverd_lock);
-		msleep(100);
+		msleep(1000);
 	}
 }
 
