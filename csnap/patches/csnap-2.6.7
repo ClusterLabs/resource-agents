@@ -30,14 +30,15 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-03 21:02:24.000000000 +0000
-@@ -0,0 +1,916 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-24 04:37:35.000000000 +0000
+@@ -0,0 +1,1020 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
 +#include <linux/module.h>
 +#include <linux/pagemap.h>
 +#include <linux/file.h>
++#include <linux/syscalls.h> // recvmsg
 +#include <net/sock.h>
 +#include <asm/uaccess.h>
 +#include <linux/bio.h>
@@ -103,7 +104,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +
 +typedef u64 chunk_t;
-+typedef struct list_head list_t;
 +
 +#define SECTOR_SHIFT 9
 +#define IS_SNAP_FLAG 1
@@ -124,14 +124,16 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	struct inode  *inode; /* the cache */
 +	struct dm_dev *orgdev;
 +	struct dm_dev *snapdev;
-+	struct file *pipe;
++	struct file *sock;
++	struct file *control_socket;
 +	struct semaphore imutex;
 +	struct semaphore omutex;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
++	struct semaphore exit3_sem;
 +	struct semaphore work_sem;
-+	list_t pending_buckets[NUM_BUCKETS];
-+	list_t read_release_list;
++	struct list_head pending_buckets[NUM_BUCKETS];
++	struct list_head read_release_list;
 +	spinlock_t pending_lock;
 +};
 +
@@ -202,7 +204,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	unsigned chunks;
 +	unsigned id;
 +	struct bio *bio;
-+	list_t list;
++	struct list_head list;
 +};
 +
 +static void show_pending(struct snapinfo *info)
@@ -212,7 +214,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	spin_lock(&info->pending_lock);
 +	warn("");
 +	for (h = 0; h < NUM_BUCKETS; h++) {
-+		list_t *list;
++		struct list_head *list;
 +
 +		list_for_each(list, info->pending_buckets + h) {
 +			struct pending *pending = list_entry(list, struct pending, list);
@@ -239,43 +241,18 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return p;
 +}
 +
-+#if 1
++// !!! used in only one place, put it there
 +static struct pending *find_pending(struct snapinfo *info, unsigned id)
 +{
-+	list_t *list, *bucket = info->pending_buckets + hash_pending(id);
++	struct list_head *list, *bucket = info->pending_buckets + hash_pending(id);
 +	struct pending *p;
 +
-+	spin_lock(&info->pending_lock);
 +	list_for_each(list, bucket)
 +		if ((p = list_entry(list, struct pending, list))->id == id)
 +			goto found;
 +	p = NULL;
 +found:
-+	spin_unlock(&info->pending_lock);
 +	return p;
-+}
-+#else
-+static struct pending *find_pending(struct snapinfo *info, u64 chunk)
-+{
-+	list_t *list, *bucket = info->pending_buckets + hash_pending(chunk);
-+	struct pending *p;
-+
-+	spin_lock(&info->pending_lock);
-+	list_for_each(list, bucket)
-+		if ((p = list_entry(list, struct pending, list))->chunk == chunk)
-+			goto found;
-+	p = NULL;
-+found:
-+	spin_unlock(&info->pending_lock);
-+	return p;
-+}
-+#endif
-+
-+static void remove_pending(struct snapinfo *info, struct pending *p)
-+{
-+	spin_lock(&info->pending_lock);
-+	list_del(&p->list);
-+	spin_unlock(&info->pending_lock);
 +}
 +
 +/* Ah, now it gets interesting.  Called in interrupt context */
@@ -287,7 +264,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	bio_end_io_t *old_end_io;
 +	void *old_private;
 +	/* needed after end_io, for release, make it a union */
-+	list_t list;
++	struct list_head list;
 +};
 +
 +static int snapshot_read_end_io(struct bio *bio, unsigned int done, int error)
@@ -308,6 +285,13 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +/* This is the part that does all the work. */
 +
++void kick(struct block_device *dev)
++{
++	request_queue_t *q = bdev_get_queue(dev);
++	if (q->unplug_fn)
++		q->unplug_fn(q);
++}
++
 +int replied_rw(struct dm_target *target, struct rw_request *body, unsigned length, int rw, int snap)
 +{
 +	struct snapinfo *info = target->private;
@@ -327,13 +311,15 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +		trace(warn("[%Lx/%x]", chunk, chunks);)
 +		assert(chunks == 1);
-+		pending = find_pending(info, body->id);
 +
-+		if (!pending) {
++		spin_lock(&info->pending_lock);
++		if (!(pending = find_pending(info, body->id))) {
 +			warn("Can't find pending rw for chunk %u:%Lx", body->id, chunk);
 +			return -1;
 +		}
-+		remove_pending(info, pending);
++		list_del(&pending->list);
++		spin_unlock(&info->pending_lock);
++
 +		bio = pending->bio;
 +		warn("Handle pending IO sector %Lx", (long long)bio->bi_sector);
 +
@@ -348,9 +334,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		if (snap) {
 +			chunk_t *p2 = (chunk_t *)p;
 +			for (j = 0; j < chunks; j++) {
-+				u64 logical = bio->bi_sector;
-+				u64 physical = (*p2++ << shift) + (logical & mask);
-+				trace(warn("logical %Lx = physical %Lx", logical, physical));
++				u64 physical = (*p2++ << shift) + (bio->bi_sector & mask);
++				trace(warn("logical %Lx = physical %Lx", (u64)bio->bi_sector, physical));
 +				bio->bi_bdev = info->snapdev->bdev;
 +				bio->bi_sector = physical;
 +			}
@@ -381,13 +366,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		kmem_cache_free(pending_cache, pending);
 +	}
 +	if (submitted){
-+		request_queue_t *q;
-+		q = bdev_get_queue(info->orgdev->bdev);
-+		if (q->unplug_fn)
-+			q->unplug_fn(q);
-+		q = bdev_get_queue(info->snapdev->bdev);
-+		if (q->unplug_fn)
-+			q->unplug_fn(q);
++		kick(info->orgdev->bdev);
++		kick(info->snapdev->bdev);
 +	}
 +	return 0;
 +}
@@ -444,77 +424,75 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * limitations in our long life, so nothing would surprise us at this
 + * point.
 + */
-+
 +static int incoming(struct dm_target *target)
 +{
 +	struct snapinfo *info = target->private;
 +	struct messagebuf message; // !!! have a buffer in the target->info
-+	struct file *pipe;
++	struct file *sock;
 +	struct task_struct *task = current;
 +	int err, length;
 +
 +	strcpy(task->comm, "csnap-client");
 +	trace(warn("Client thread started, pid=%i", current->pid);)
 +	down(&info->imutex);
-+	trace(warn("got pipe %p", info->pipe);)
-+	pipe = info->pipe;
++	trace(warn("got socket %p", info->sock);)
++	sock = info->sock;
 +
 +	down(&info->exit2_sem);
 +	while (running(info)) { // stop on module exit
 +		int rw, to_snap;
 +
 +		trace(warn("wait message");)
-+		if ((err = readpipe(pipe, &message.head, sizeof(message.head))))
-+			goto pipe_error;
++		if ((err = readpipe(sock, &message.head, sizeof(message.head))))
++			goto socket_error;
 +		length = message.head.length;
 +		if (length > maxbody)
 +			goto message_too_long;
 +		trace(warn("%x/%u", message.head.code, length);)
-+		if ((err = readpipe(pipe, &message.body, length)))
-+			goto pipe_error;
++		if ((err = readpipe(sock, &message.body, length)))
++			goto socket_error;
 +	
 +		switch (message.head.code) {
-+			case REPLY_ORIGIN_WRITE:
-+				rw = WRITE;
-+				to_snap = 0;
-+				break;
++		case REPLY_ORIGIN_WRITE:
++			rw = WRITE;
++			to_snap = 0;
++			break;
 +
-+			case REPLY_SNAPSHOT_WRITE:
-+				rw = WRITE;
-+				to_snap = 1;
-+				break;
++		case REPLY_SNAPSHOT_WRITE:
++			rw = WRITE;
++			to_snap = 1;
++			break;
 +
-+			case REPLY_SNAPSHOT_READ_ORIGIN:
-+				rw = READ;
-+				to_snap = 0;
-+				break;
++		case REPLY_SNAPSHOT_READ_ORIGIN:
++			rw = READ;
++			to_snap = 0;
++			break;
 +
-+			case REPLY_SNAPSHOT_READ:
-+				rw = READ;
-+				to_snap = 1;
-+				break;
++		case REPLY_SNAPSHOT_READ:
++			rw = READ;
++			to_snap = 1;
++			break;
 +
-+			case REPLY_CREATE_SNAPSHOT:
-+				trace(warn("create snapshot succeeded");)
-+				continue;
++		case REPLY_CREATE_SNAPSHOT:
++			trace(warn("create snapshot succeeded");)
++			continue;
 +
-+			case REPLY_IDENTIFY:
-+				trace(warn("identify succeeded");)
-+				up(&info->omutex);
-+				continue;
++		case REPLY_IDENTIFY:
++			trace(warn("identify succeeded");)
++			up(&info->omutex);
++			continue;
 +
-+			default: 
-+				warn("Unknown message %x", message.head.code);
-+				continue;
++		default: 
++			warn("Unknown message %x", message.head.code);
++			continue;
 +		}
 +		if (length < sizeof(struct rw_request))
 +			goto message_too_short;
 +
 +		replied_rw(target, (void *)message.body, length, rw, to_snap);
 +	}
-+
 +out:
-+	up(&info->exit2_sem); /* !!! crashes if module unloaded before ret executes */
++	up(&info->exit2_sem); /* !!! will crash if module unloaded before ret executes */
 +	warn("%s exiting", task->comm);
 +	return 0;
 +message_too_long:
@@ -523,10 +501,28 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +message_too_short:
 +	warn("message %x too short (%u bytes)", message.head.code, message.head.length);
 +	goto out;
-+pipe_error:
-+	warn("pipe error %i", err);
++socket_error:
++	warn("socket error %i", err);
 +	goto out;
 +}
++
++#if 0
++/*
++ * This is disgusting, but there's no standard sock->ops method for getting it
++ */
++int recv_available(struct socket *sock)
++{
++	int bytes, err;
++	mm_segment_t oldfs = get_fs();
++	set_fs(get_ds());
++	err = sock->ops->ioctl(sock, SIOCINQ, (unsigned long)&bytes);
++	set_fs(oldfs);
++	return (err >= 0)? bytes: err;
++}
++// now, this doesn't fit the model of the worker thread bacause there's no
++// obvious way to kick it into action, and it doesn't fit the model of the
++// incoming thread because
++#endif
 +
 +/*
 + * Here is our nonblocking worker daemon.  It handles all events other
@@ -556,7 +552,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * pull down the running flag and up the work semaphore, which causes
 + * our faithful worker to drop through the floor.
 + */
-+
 +static int worker(struct dm_target *target)
 +{
 +	struct snapinfo *info = target->private;
@@ -581,22 +576,126 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +			trace(warn("%u. release sector %Lx, chunk %Lx", ++events, (long long)hook->sector, chunk);)
 +			kmem_cache_free(end_io_cache, hook);
 +			down(&info->omutex);
-+			outbead(info->pipe, FINISH_SNAPSHOT_READ, struct rw_request1,
++			outbead(info->sock, FINISH_SNAPSHOT_READ, struct rw_request1,
 +				.count = 1, .ranges[0].chunk = chunk, .ranges[0].chunks = 1);
 +			up(&info->omutex);
 +			spin_lock(&info->pending_lock);
 +		}
 +		spin_unlock(&info->pending_lock);
 +
-+		// * send any messages waiting for pipe connection
++		// * send any messages waiting for socket connection
 +		// * resent any messages needing retries
 +		// * check for timed-out messages
-+
++		// * check for control messages
 +		trace(warn("Yowza! More work?");)
 +	}
 +	up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
 +	warn("%s exiting", task->comm);
 +	return 0;
++}
++
++long recvmsg(int sock, struct msghdr *msg, unsigned flags)
++{
++	int err;
++	mm_segment_t oldseg;
++	oldseg = get_fs();
++	set_fs(get_ds());
++	err = sys_recvmsg(sock, msg, flags);
++	set_fs(oldseg);
++	return err;
++}
++
++int recv_fd(int sock, char *tag, unsigned *len)
++{
++	char payload[CMSG_SPACE(sizeof(int))];
++	struct msghdr msg = {
++		.msg_control = payload,
++		.msg_controllen = sizeof(payload),
++		.msg_iov = &(struct iovec){ .iov_base = tag, .iov_len = *len },
++		.msg_iovlen = 1,
++	};
++	struct cmsghdr *cmsg;
++	int err;
++
++	if ((err = recvmsg(sock, &msg, 0)) < 0)
++		return err;
++	*len = err;
++
++	// looping through the control messages is gratuitous and wrong
++	// for this application, it's just a demo of CMSG_NXTHDR
++	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
++		if (cmsg->cmsg_len != CMSG_LEN(sizeof(int)) ||
++			cmsg->cmsg_level != SOL_SOCKET ||
++			cmsg->cmsg_type  != SCM_RIGHTS)
++			continue;
++		return *((int *)CMSG_DATA(cmsg));
++	}
++	return 0;
++}
++
++/*
++ * Yikes, a third daemon, that makes four including the user space
++ * monitor.  This daemon proliferation is due to not using poll, which
++ * we should fix at some point.  Or maybe we should wait for aio to
++ * work properly for sockets, and use that instead.  Either way, we
++ * can combine the two socket-waiting daemons into one, which will look
++ * nicer in ps.  Practically speaking, it doesn't matter a whole lot
++ * though, if we just stay lazy and have too many daemons.
++ */
++static int control(struct dm_target *target)
++{
++	struct snapinfo *info = target->private;
++	struct messagebuf message; // !!! have a buffer in the target->info
++	struct file *sock = info->control_socket;
++	struct task_struct *task = current;
++	int err, length;
++
++	strcpy(task->comm, "csnap-control");
++	trace(warn("Control thread started, pid=%i", current->pid);)
++	trace(warn("got socket %p", info->control_socket);)
++
++	down(&info->exit3_sem);
++	while (running(info)) {
++		trace(warn("wait message");)
++		if ((err = readpipe(sock, &message.head, sizeof(message.head))))
++			goto socket_error;
++		length = message.head.length;
++		if (length > maxbody)
++			goto message_too_long;
++		trace(warn("%x/%u", message.head.code, length);)
++		if ((err = readpipe(sock, &message.body, length)))
++			goto socket_error;
++	
++		switch (message.head.code) {
++		case SERVER_CONNECT: {
++			unsigned len = 4;
++			char tag[len];
++			unsigned sock = recv_fd(sock, tag, &len);
++			warn("Received socket %i", sock);
++//			up(&info->imutex);
++//			outbead(info->sock, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
++			break;
++		}
++		default: 
++			warn("Unknown message %x", message.head.code);
++			continue;
++		}
++		if (length < sizeof(struct rw_request))
++			goto message_too_short;
++	}
++out:
++	up(&info->exit3_sem); /* !!! will crash if module unloaded before ret executes */
++	warn("%s exiting", task->comm);
++	return 0;
++message_too_long:
++	warn("message %x too long (%u bytes)", message.head.code, message.head.length);
++	goto out;
++message_too_short:
++	warn("message %x too short (%u bytes)", message.head.code, message.head.length);
++	goto out;
++socket_error:
++	warn("socket error %i", err);
++	goto out;
 +}
 +
 +/*
@@ -670,7 +769,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +	down(&info->omutex);
 +	// !!! check for dm device removed
-+	outbead(info->pipe,
++	outbead(info->sock,
 +		bio_data_dir(bio) == WRITE? QUERY_WRITE: QUERY_SNAPSHOT_READ,
 +		struct rw_request1,
 +			.id = pending->id, .count = 1,
@@ -708,21 +807,24 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	up(&info->imutex); // unblock incoming thread
 +	up(&info->omutex); // unblock io request threads
 +
-+	if (info->pipe) {
-+		struct inode *inode = info->pipe->f_dentry->d_inode;
++	if (info->sock) {
++		struct inode *inode = info->sock->f_dentry->d_inode;
 +		struct socket *sock = SOCKET_I(inode);
 +		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
 +		warn("socket shutdown, err=%i", err);
 +	}
 +	up(&info->work_sem);
 +
++	// !!! wrong! the thread might be just starting, think about this some more
 +	down(&info->exit1_sem);
 +	warn("thread 1 exited");
 +	down(&info->exit2_sem);
 +	warn("thread 2 exited");
++	down(&info->exit3_sem);
++	warn("thread 3 exited");
 +
-+	if (info->pipe)
-+		fput(info->pipe);
++	if (info->sock)
++		fput(info->sock);
 +	if (info->inode)
 +		iput(info->inode);
 +	if (info->shared_bitmap)
@@ -803,12 +905,13 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	sema_init(&info->omutex, 0);
 +	sema_init(&info->exit1_sem, 1);
 +	sema_init(&info->exit2_sem, 1);
++	sema_init(&info->exit3_sem, 1);
 +	sema_init(&info->work_sem, 0);
 +
 +	spin_lock_init(&info->pending_lock);
 +
 +	{
-+		list_t *bucket = info->pending_buckets;
++		struct list_head *bucket = info->pending_buckets;
 +		for (i = 0; i < NUM_BUCKETS; i++, bucket++)
 +			INIT_LIST_HEAD(bucket);
 +	}
@@ -817,7 +920,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	error = "Can't start daemon";
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	printk("daemon pid = %i\n", err);
 +	if ((err = kernel_thread((void *)worker, target, CLONE_KERNEL)) < 0)
 +		goto eek;
 +	warn("Created snapshot device origin=%s snapstore=%s snapshot=%i", argv[0], argv[1], snap);
@@ -838,24 +940,26 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * be useful in some other context.  You could even return blobs with this
 + * interface if you wanted too, just call put_user and friends as needed.
 + */
++/*
++ * We're going to lose this soon, and get the control socket at device
++ * create time instead.
++ */
 +int csnap_message(struct dm_target *target, int tag, int *msg, int len)
 +{
 +	struct snapinfo *info = target->private;
-+	struct file *pipe;
++	struct file *sock;
 +
-+	if (len != sizeof(int) || !(pipe = fget(msg[0])))
++	if (len != sizeof(int) || !(sock = fget(msg[0])))
 +		return -EBADF;
-+	if (!(pipe->f_mode & FMODE_WRITE)) {
-+		fput(pipe);
++	if (!(sock->f_mode & FMODE_WRITE)) {
++		fput(sock);
 +		return -EACCES;
 +	}
-+	if (info->pipe)
-+		fput(info->pipe);
-+	warn("socket = %p", pipe);
-+	info->pipe = pipe;
-+	up(&info->imutex);
-+	outbead(info->pipe, IDENTIFY, struct identify, .id = 6, .snap = info->snap);
-+	return 0;
++	if (info->control_socket)
++		fput(info->control_socket);
++	warn("socket = %p", sock);
++	info->control_socket = sock;
++	return kernel_thread((void *)control, target, CLONE_KERNEL);
 +}
 +
 +/* Is this actually useful?  It's really trying to be a message */
@@ -950,8 +1054,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers/md/dm-csnap.h
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.h	2004-08-31 17:46:46.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-08-30 04:36:36.000000000 +0000
-@@ -0,0 +1,79 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-24 00:55:49.000000000 +0000
+@@ -0,0 +1,80 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -980,6 +1084,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers
 +	DUMP_TREE,
 +	SHUTDOWN_SERVER,
 +	INITIALIZE_SNAPSTORE,
++	SERVER_CONNECT,
 +};
 +
 +struct identify { uint32_t id; int32_t snap; } PACKED;
