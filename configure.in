@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.263 $) dnl cvs revision
+AC_REVISION($Revision: 1.264 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -168,6 +168,7 @@ dnl - Determine which mail program exists. Mailx is Solaris
 AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
+AC_PATH_PROGS(SNMPCONFIG, net-snmp-config, ucd-snmp-config)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
