@@ -52,7 +52,7 @@ static struct cl_barrier *find_barrier(char *name);
 static void node_shutdown(void);
 static void node_cleanup(void);
 static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
-				 unsigned char port);
+				 unsigned int flags);
 static struct cl_comms_socket *get_next_interface(struct cl_comms_socket *cur);
 static void check_for_unacked_nodes(void);
 static void free_cluster_sockets(void);
@@ -525,7 +525,6 @@ static struct cl_waiting_listen_request *find_listen_request(unsigned short tag)
 	return NULL;
 }
 
-
 static void process_ack(struct cluster_node *rem_node, unsigned short seq)
 {
 	if (rem_node && rem_node->state != NODESTATE_DEAD) {
@@ -558,7 +557,6 @@ static void process_ack(struct cluster_node *rem_node, unsigned short seq)
 		}
 	}
 }
-
 
 static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 				   int len, char *addr, int addrlen,
@@ -731,7 +729,7 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		process_ack(rem_node, header->ack);
 	}
 
-/* Have we received this message before ? If so just ignore it, it's a
+        /* Have we received this message before ? If so just ignore it, it's a
 	 * resend for someone else's benefit */
 	if (!(header->flags & (MSG_NOACK >> 16)) &&
 	    rem_node && le16_to_cpu(header->seq) == rem_node->last_seq_recv) {
@@ -796,7 +794,6 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 		/* ACK it */
 		if (!(header->flags & (MSG_NOACK >> 16)) &&
 		    !(header->flags & (MSG_REPLYEXP >> 16))) {
-
 
 			cl_sendack(csock, header->seq, addrlen, addr,
 				   header->port, 0);
@@ -2243,7 +2240,6 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg, int size,
 		/* Clear the REPLYEXPected flag so we force a real ACK
 		   if it's necessary to resend this packet */
 		savhdr->flags &= ~(MSG_REPLYEXP>>16);
-
 		start_ack_timer();
 	}
 
@@ -2416,18 +2412,11 @@ int kcl_register_read_callback(struct socket *sock,
  * as we are also responsible to processing the ACKs that do the wake up. Try
  * to send the message immediately and queue it if that's not possible */
 static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
-				 unsigned char port)
+				 unsigned int flags)
 {
 	struct iovec iovecs[1];
 	struct msghdr msg;
-
 	int status;
-
-	/* Don't send blocked messages */
-	if (port > HIGH_PROTECTED_PORT
-	    && (!cluster_is_quorate || in_transition())) {
-		return queue_message(buf, len, caddr, port, 0);
-	}
 
 	iovecs[0].iov_base = buf;
 	iovecs[0].iov_len = len;
@@ -2437,9 +2426,9 @@ static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
 	msg.msg_namelen = caddr ? sizeof (struct sockaddr_cl) : 0;
 	msg.msg_iovlen = 1;
 	msg.msg_iov = iovecs;
-	msg.msg_flags = MSG_DONTWAIT;
+	msg.msg_flags = MSG_DONTWAIT | flags;
 
-	status = __sendmsg(NULL, &msg, len, port);
+	status = __sendmsg(NULL, &msg, len, 0);
 
 	/* Did it work ? */
 	if (status > 0) {
@@ -2451,7 +2440,7 @@ static int send_or_queue_message(void *buf, int len, struct sockaddr_cl *caddr,
 		return status;
 	}
 
-	return queue_message(buf, len, caddr, port, 0);
+	return queue_message(buf, len, caddr, 0, flags);
 }
 
 /* Send a listen request to a node */
@@ -2472,7 +2461,7 @@ static void send_listen_request(int nodeid, unsigned char port)
 	caddr.scl_port = 0;
 	caddr.scl_nodeid = nodeid;
 
-	send_or_queue_message(&listenmsg, sizeof(listenmsg), &caddr, 0);
+	send_or_queue_message(&listenmsg, sizeof(listenmsg), &caddr, MSG_REPLYEXP);
 	return;
 }
 
