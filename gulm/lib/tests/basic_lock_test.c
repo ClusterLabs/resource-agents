@@ -109,45 +109,39 @@ void act_logout_core(gulm_interface_p hookup, void *misc)
    if((err=lg_core_logout(hookup))!=0)
       die("Error sending core logout. %d\n", err);
 }
-void act_lock_status(gulm_interface_p hookup, void *misc)
-{
-   int err;
-   if((err=lg_lock_status(hookup))!=0)
-      die("Error sending core logout. %d\n", err);
-}
 void act_lock(gulm_interface_p hookup, void *misc)
 {
    int err;
-   if((err=lg_lock_state_req(hookup, "justatest", 10, lg_lock_state_Exclusive,
-         0, "FOO!", 5))!=0)
+   if((err=lg_lock_state_req(hookup, "justatest", 10, 0, 0, 0,
+               lg_lock_state_Exclusive, 0, "FOO!", 5))!=0)
       die("Error sending lock request. %d\n", err);
 }
 void act_locksh(gulm_interface_p hookup, void *misc)
 {
    int err;
-   if((err=lg_lock_state_req(hookup, "justatest", 10, lg_lock_state_Shared,
-         0, "BAR!", 5))!=0)
+   if((err=lg_lock_state_req(hookup, "justatest", 10, 0, 0, 0,
+               lg_lock_state_Shared, 0, "BAR!", 5))!=0)
       die("Error sending lock request. %d\n", err);
 }
 void act_unlock(gulm_interface_p hookup, void *misc)
 {
    int err;
-   if((err=lg_lock_state_req(hookup, "justatest", 10, lg_lock_state_Unlock,
-         0, NULL, 0))!=0)
+   if((err=lg_lock_state_req(hookup, "justatest", 10, 0, 0, 0,
+               lg_lock_state_Unlock, 0, NULL, 0))!=0)
       die("Error sending unlock request. %d\n", err);
 }
 void act_hold(gulm_interface_p hookup, void *misc)
 {
    int err;
-   if((err=lg_lock_action_req(hookup, "justatest", 10, lg_lock_act_HoldLVB,
-          NULL, 0))!=0)
+   if((err=lg_lock_action_req(hookup, "justatest", 10, 0,
+               lg_lock_act_HoldLVB, NULL, 0))!=0)
       die("Error sending hold request. %d\n", err);
 }
 void act_unhold(gulm_interface_p hookup, void *misc)
 {
    int err;
-   if((err=lg_lock_action_req(hookup, "justatest", 10, lg_lock_act_UnHoldLVB,
-          NULL, 0))!=0)
+   if((err=lg_lock_action_req(hookup, "justatest", 10, 0,
+               lg_lock_act_UnHoldLVB, NULL, 0))!=0)
       die("Error sending unhold request. %d\n", err);
 }
 
@@ -169,7 +163,6 @@ unsigned int Current_Action = 0;
 struct workstep_s Actions[] = {
    { act_hold, ws_ready },
    { act_lock, ws_ready },
-   { act_lock_status, ws_ready },
    { act_locksh, ws_ready },
    { act_unlock, ws_ready },
    { act_unhold, ws_ready },
@@ -222,7 +215,7 @@ int cb_core_logout_reply(void *misc)
 }
 
 int cb_nodechange(void *misc, char *nodename,
-                 uint32_t nodeip, uint8_t nodestate)
+                 struct in6_addr *nodeip, uint8_t nodestate)
 {
    printf("Got Nodechange, node:%s ip:%#x state:%#x\n",
          nodename, nodeip, nodestate);
@@ -246,7 +239,6 @@ lg_core_callbacks_t gulm_core_cbs = {
    statechange:  NULL,
    nodechange:   cb_nodechange,
    service_list: NULL,
-   status:       NULL,
    error:        cb_core_error
 };
 /*****************************************************************************/
@@ -269,8 +261,9 @@ int cb_lock_drop_all(void *misc)
    return 0;
 }
 
-int cb_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state, 
-                 uint32_t flags, uint32_t error,  
+int cb_lock_state(void *misc, uint8_t *key, uint16_t keylen,
+                 uint64_t subid, uint64_t start, uint64_t stop,
+                 uint8_t state, uint32_t flags, uint32_t error,  
                  uint8_t *LVB, uint16_t LVBlen)
 {
    if(LVB != NULL ) {
@@ -298,8 +291,8 @@ int cb_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state,
    return 0;
 }
 
-int cb_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action, 
-                  uint32_t error)
+int cb_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint64_t subid,
+                  uint8_t action, uint32_t error)
 {
    printf("Got lock reply: %s\n"
           "        action: %#x\n"
@@ -311,28 +304,11 @@ int cb_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action,
    return 0;
 }
 
-int cb_lock_drop_req(void *misc, uint8_t *key, uint16_t keylen, uint8_t state)
+int cb_lock_drop_req(void *misc, uint8_t *key, uint16_t keylen, uint64_t subid,
+      uint8_t state)
 {
    printf("Lock servers wants us to drop lock %s into state %#x\n",
          lkeytohex(key, keylen), state);
-   return 0;
-}
-
-int cb_lock_status(void *misc, lglcb_t type, char *key, char *value)
-{
-   if( lglcb_start == type ) {
-      printf("Got lock status, start\n");
-   }else
-   if( lglcb_item == type ) {
-      printf("Got lock status, item: %s = %s\n", key, value);
-   }else
-   if( lglcb_stop == type ) {
-      printf("Got lock status, stop\n");
-   }else
-   {
-      printf("Unknown lock lglcb_t %#x\n", type);
-   }
-   complete_action();
    return 0;
 }
 
@@ -349,7 +325,6 @@ lg_lockspace_callbacks_t gulm_lock_cbs = {
    lock_action:   cb_lock_action,
    drop_lock_req: cb_lock_drop_req,
    drop_all:      cb_lock_drop_all,
-   status:        cb_lock_status,
    error:         cb_lock_error
 };
 /*****************************************************************************/

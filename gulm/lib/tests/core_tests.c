@@ -85,7 +85,7 @@ int cb_logout_reply(void *misc)
 }
 
 int cb_nodelist(void *misc, lglcb_t type, char *name,
-               uint32_t ip, uint8_t state)
+               struct in6_addr *ip, uint8_t state)
 {
    if( lglcb_start == type ) {
       printf("Got Nodelist, start\n");
@@ -103,7 +103,7 @@ int cb_nodelist(void *misc, lglcb_t type, char *name,
 }
 
 int cb_statechange(void *misc, uint8_t corestate,
-                  uint32_t masterip, char *mastername)
+                  struct in6_addr *masterip, char *mastername)
 {
    printf("Got statechange  corestate:%#x masterip:%#x mastername:%s\n",
          corestate, masterip, mastername);
@@ -111,7 +111,7 @@ int cb_statechange(void *misc, uint8_t corestate,
 }
 
 int cb_nodechange(void *misc, char *nodename,
-                 uint32_t nodeip, uint8_t nodestate)
+                 struct in6_addr *nodeip, uint8_t nodestate)
 {
    printf("Got Nodechange, node:%s ip:%#x state:%#x\n",
          nodename, nodeip, nodestate);
@@ -181,7 +181,6 @@ int main(int argc, char **argv)
    lcb.statechange = cb_statechange;
    lcb.nodechange = cb_nodechange;
    lcb.service_list = cb_service_list;
-   lcb.status = cb_status;
    lcb.error = cb_error;
 
 
@@ -206,16 +205,6 @@ int main(int argc, char **argv)
    sleep(2); /* no real reason for this. */
 
    if((err = lg_core_nodelist(hookup)) != 0 ) {
-      die("Failed to send login request to core. err %d\n", err);
-   }
-
-   if((err = lg_core_handle_messages(hookup, &lcb, NULL)) != 0 ) {
-      die("Bad return from handle messages err %d\n", err);
-   }
-   
-   sleep(2); /* no real reason for this. */
-
-   if((err = lg_core_status(hookup)) != 0 ) {
       die("Failed to send login request to core. err %d\n", err);
    }
 
