@@ -259,8 +259,8 @@ store_resource(resource_t **reslist, resource_t *newres)
 			/*
 			   Look for conflicting primary/unique keys
 			 */
-			if (!newres->r_attrs[x].ra_flags &
-			    (RA_PRIMARY | RA_UNIQUE))
+			if (!(newres->r_attrs[x].ra_flags &
+			    (RA_PRIMARY | RA_UNIQUE)))
 				continue;
 
 			for (y = 0; curr->r_attrs[y].ra_name; y++) {

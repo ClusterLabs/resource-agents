@@ -4,6 +4,7 @@
 	devpets/usbdev/etc.
 	* src/daemons/test.c: Add a 'rules' test function for printing
 	resource rules to stdout.
+	* src/daemons/reslist.c: Fix 151095
 
 2005-03-07 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Add STOP_USER so we can handle user 
