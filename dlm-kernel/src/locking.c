@@ -529,8 +529,8 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
  retry:
 	if (rsb->res_nodeid == -1) {
 		if (get_directory_nodeid(rsb) != our_nodeid()) {
-			remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
 			up_write(&rsb->res_lock);
+			remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
 			return 0;
 		}
 
