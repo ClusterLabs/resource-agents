@@ -339,7 +339,6 @@ fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	if (sdp->sd_args.ar_spectator) {
-		sdp->sd_lockstruct.ls_jid = 0;
 		sdp->sd_jdesc = sdp->sd_jindex[0];
 		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
 	} else {

@@ -125,9 +125,13 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 		goto out;
 	}
 
-	snprintf(sdp->sd_fsname, 256, "%s.%u",
-		 (*table) ? table : sdp->sd_vfs->s_id,
-		 sdp->sd_lockstruct.ls_jid);
+	if (sdp->sd_args.ar_spectator)
+		snprintf(sdp->sd_fsname, 256, "%s.s",
+			 (*table) ? table : sdp->sd_vfs->s_id);
+	else
+		snprintf(sdp->sd_fsname, 256, "%s.%u",
+			 (*table) ? table : sdp->sd_vfs->s_id,
+			 sdp->sd_lockstruct.ls_jid);
 
 	printk("GFS: fsid=%s: Joined cluster. Now mounting FS...\n",
 	       sdp->sd_fsname);
