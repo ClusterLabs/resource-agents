@@ -73,8 +73,7 @@ static void leave(commandline_t *comline)
 			die("error getting join count");
 
 		if (!comline->force) {
-	    		fprintf(stderr, "Can't leave cluster while there are %d active subsystems\n", result);
-			goto end_leave;
+	    		die("Can't leave cluster while there are %d active subsystems\n", result);
 		}
 		flags |= CLUSTER_LEAVEFLAG_FORCE;
 	}
@@ -83,7 +82,6 @@ static void leave(commandline_t *comline)
 			    flags)))
 		die("error leaving cluster");
 
- end_leave:
 	close(cluster_sock);
 }
 
