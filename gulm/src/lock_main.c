@@ -29,7 +29,6 @@ extern uint32_t verbosity;
 extern char *ProgramName;
 /* other bits of interest */
 extern gulm_config_t gulm_config;
-extern int SIGTERM_TRIPPED;
 extern int I_am_the;
 extern struct in6_addr myIP;
 /* */
@@ -213,7 +212,6 @@ int lt_main(int argc, char **argv)
    open_lt_listener( gulm_config.lt_port + LTid );
    if( open_lt_to_core() != 0 ) return -1;
    init_lockspace(gulm_config.lt_maxlocks, gulm_config.lt_hashbuckets);
-   SIGTERM_TRIPPED = FALSE; /*jic*/
 
    /* handling incomming packets */
    lt_main_loop();

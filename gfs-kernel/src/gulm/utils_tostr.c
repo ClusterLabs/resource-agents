@@ -51,9 +51,6 @@ gio_Err_to_str (int x)
 		t = "Memory Problems";
 		break;
 
-	case gio_Err_PushQu:
-		t = "Push Queue";
-		break;
 	case gio_Err_TryFailed:
 		t = "Try Failed";
 		break;
@@ -62,16 +59,6 @@ gio_Err_to_str (int x)
 		break;
 	case gio_Err_Canceled:
 		t = "Request Canceled";
-		break;
-
-	case gio_Err_NoSuchFS:
-		t = "No Such Filesystem";
-		break;
-	case gio_Err_NoSuchJID:
-		t = "No Such JID";
-		break;
-	case gio_Err_NoSuchName:
-		t = "No Such Node";
 		break;
 	}
 	return t;

@@ -46,9 +46,6 @@
 extern uint32_t verbosity;
 extern char *ProgramName;
 
-/* signal checks. */
-extern int SIGTERM_TRIPPED;
-
 /* stuff from config. */
 extern gulm_config_t gulm_config;
 extern struct in6_addr myIP;
@@ -56,7 +53,7 @@ extern char myName[256];
 
 /*****************************************************************************/
 /*****************************************************************************/
-
+static int running = TRUE;
 static struct timeval Started_at;
 static struct timeval NOW;
 
@@ -2019,7 +2016,7 @@ static void recv_some_data(int idx)
             if( strcmp(myName, x_name) == 0 ) {
                log_msg(lgm_Network2, "Core is shutting down.\n");
                /* or should this get done differently? */
-               SIGTERM_TRIPPED = TRUE;
+               running = FALSE;
             }
          }
 
@@ -2177,7 +2174,7 @@ void ltpx_main_loop(void)
    gettimeofday(&NOW, NULL);
    get_core_state();
 
-   while( !SIGTERM_TRIPPED) {
+   while( running ) {
 
       /* If we're not logged into a Master, and we're supposed to be,
        * better get our butts hooked up.
@@ -2194,7 +2191,7 @@ void ltpx_main_loop(void)
       if( (cnt = poll(poller.polls, poller.maxi +1, 1000)) <= 0) {
          if( cnt < 0 && errno != EINTR )
             log_err("poll error: %s\n",strerror(errno));
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
       }
       gettimeofday(&NOW, NULL);
 
@@ -2232,7 +2229,7 @@ void ltpx_main_loop(void)
                   print_ipname(&poller.ipn[i]));
             close_by_idx(i);
          }
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
       }/*for( i=0; i <= poller.maxi ; i++)*/
 
       /* send things out. */
@@ -2253,7 +2250,7 @@ void ltpx_main_loop(void)
          }
       } /*for(i=0; i < gulm_config.how_many_lts; i++ )*/
 
-   }/* while(!SIGTERM_TRIPPED) */
+   }/* while(running) */
 }
 
 /* vim: set ai cin et sw=3 ts=3 : */

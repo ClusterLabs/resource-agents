@@ -46,9 +46,6 @@
 extern uint32_t verbosity;
 extern char *ProgramName;
 
-/* signal checks. */
-extern int SIGTERM_TRIPPED;
-
 extern struct in6_addr myIP;
 extern char myName[];
 
@@ -57,6 +54,7 @@ extern gulm_config_t gulm_config;
 extern char *LTname;
 extern int LTid;
 
+static int running = TRUE;
 static struct timeval Started_at;
 static struct timeval NOW;
 static ip_name_t MasterIN = {{NULL,NULL,NULL},IN6ADDR_ANY_INIT,NULL};
@@ -1991,7 +1989,7 @@ static void recv_some_data(int idx)
             if( strcmp(myName, x_name) == 0 ) {
                log_msg(lgm_Network, "Core is shutting down.\n");
                /* or should this get done differently? */
-               SIGTERM_TRIPPED = TRUE;
+               running = FALSE;
             }
          }
       }else
@@ -2006,7 +2004,7 @@ static void recv_some_data(int idx)
             if( strcmp(myName, x_name) == 0 ) {
                log_msg(lgm_Network, "Core is shutting down.\n");
                /* or should this get done differently? */
-               SIGTERM_TRIPPED = TRUE;
+               running = FALSE;
             }
          }
       }
@@ -2341,7 +2339,7 @@ void lt_main_loop(void)
    gettimeofday(&NOW, NULL);
    get_core_state();
 
-   while( !SIGTERM_TRIPPED) {
+   while( running ) {
 
       /* We're supposed to be connected to a Master server, but we seem not
        * to be at the moment.  So try again.
@@ -2359,7 +2357,7 @@ void lt_main_loop(void)
       if( (cnt = poll(poller.polls, poller.maxi +1, 1000)) <= 0) {
          if( cnt < 0 && errno != EINTR )
             log_err("poll error: %s\n",strerror(errno));
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
       }
       gettimeofday(&NOW, NULL);
 
@@ -2411,10 +2409,10 @@ void lt_main_loop(void)
             remove_slave_from_list(idx);
             close_by_idx(idx);
          }
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
       }/*for( i=0; i <= poller.maxi ; i++)*/
 
-   }/* while(!SIGTERM_TRIPPED) */
+   }/* while(running) */
 }
 
 

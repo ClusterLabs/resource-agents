@@ -34,16 +34,11 @@
 #define gio_Err_BadStateChg     (1008)
 #define gio_Err_MemoryIssues    (1009)
 
-#define gio_Err_PushQu          (1010) /* client should never see this one */
 #define gio_Err_TryFailed       (1011)
 #define gio_Err_AlreadyPend     (1013)
 #define gio_Err_Canceled        (1015)
 
-#define gio_Err_NoSuchFS        (1016)
-#define gio_Err_NoSuchJID       (1017)
-#define gio_Err_NoSuchName      (1018)
-
-/* next free error code: 1002 1012 1014 1020 */
+/* next free error code: 1002 1010 1012 1014 1016 1017 1018 1020 */
 
 /*
  * Error:  just sort of a generic error code thing.
@@ -200,6 +195,7 @@
 
 /* options that affect behavors on services. (resources) */
 #define gulm_svc_opt_important (0x00000001)
+#define gulm_svc_opt_locked    (0x00000002)
 
 /********************* Info Traffic *****************
  *

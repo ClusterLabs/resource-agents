@@ -29,7 +29,7 @@ int send_mbrshp_to_children(char *name, int st);
 int send_core_state_to_children(void);
 void dump_resources(void);
 void serialize_resources(xdr_enc_t *enc);
-int add_resource(char *name, int poll_idx, int lifelinked);
+int add_resource(char *name, int poll_idx, uint32_t options);
 int release_resource(char *name);
 int die_with_me(char *name);
 

@@ -44,8 +44,10 @@ extern uint32_t verbosity;
 extern char *ProgramName;
 
 /* signal checks. */
-extern int SIGTERM_TRIPPED;
 extern int SIGCHLD_TRIPPED;
+/* if a service locks us, we will not shutdown until they log out. */
+unsigned int shutdown_locked = 0;
+static int running = TRUE; /* this daemon runs. */
 /* confed things. */
 extern gulm_config_t gulm_config;
 extern char myName[256];
@@ -1269,7 +1271,7 @@ static void do_resource_login(int idx)
             poller.ipn[idx].name, x_clusterID, gulm_config.clusterID);
       err = gio_Err_BadCluster;
    }else
-   if( add_resource(x_name, idx, (x_opt&gulm_svc_opt_important)) != 0 ) {
+   if( add_resource(x_name, idx, x_opt) != 0 ) {
       log_err("There is already a service named \"%s\" here.\n", x_name);
       err = gio_Err_BadLogin;
    }
@@ -1785,7 +1787,17 @@ static void recv_some_data(int idx)
        * that is exactly what happened.
        */
       log_msg(lgm_Network2, "Received Shutdown request.\n");
-      SIGTERM_TRIPPED = TRUE;
+      if( shutdown_locked > 0 ) {
+         log_msg(lgm_Network, "Cannot shutdown, we are locked.\n");
+         err = gio_Err_NotAllowed;
+      }else{
+         running = FALSE;
+         err = gio_Err_Ok;
+      }
+      xdr_enc_uint32(enc, gulm_err_reply);
+      xdr_enc_uint32(enc, gulm_core_shutdown);
+      xdr_enc_uint32(enc, err);
+      xdr_enc_flush(enc);
    }else
    if( code == gulm_core_forcepend ) {
       switch_into_Pending();
@@ -1975,7 +1987,7 @@ void work_loop(void)
    Mark_Loggedin(myName);
    set_nodes_mode(myName, I_am_the);
 
-   while( !SIGTERM_TRIPPED ) {
+   while( running ) {
 
       /* the waitpid won't block, so depending on what adam sees with
        * Attachment #158 on Bug #1288  I want to try removing the SIGCHLD
@@ -2006,7 +2018,7 @@ void work_loop(void)
       if( (cnt = poll(poller.polls, poller.maxi +1, 2)) <= 0) {
          if( cnt < 0 && errno != EINTR )
             log_err("poll error: %s\n",strerror(errno));
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
          errno = 0; /* reset this. */
       }
       gettimeofday(&NOW, NULL);
@@ -2113,7 +2125,7 @@ void work_loop(void)
             close_by_idx(idx); /* or something like this. */
          }
 
-         if(SIGTERM_TRIPPED) return;
+         if(!running) return;
       }/*for( i=0; i <= poller.maxi ; i++) */
    }/* while() */
 }

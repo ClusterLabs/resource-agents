@@ -355,6 +355,7 @@ int do_shutdown_core(int argc, char **argv)
    int sk;
    xdr_enc_t *enc=NULL;
    xdr_dec_t *dec=NULL;
+   uint32_t code, error;
 
    if( argc != 3 ) die(ExitGulm_BadOption, "Wrong number of arguments.\n");
    if((sk = connect_to_server(argv[2], "core", cpl_core, &enc, &dec)) < 0 ) {
@@ -364,6 +365,20 @@ int do_shutdown_core(int argc, char **argv)
 
    xdr_enc_uint32(enc, gulm_core_shutdown);
    xdr_enc_flush(enc);
+
+   /* get reply */
+   xdr_dec_uint32(dec, &code);
+   xdr_dec_uint32(dec, &code);
+   xdr_dec_uint32(dec, &error);
+
+   /* tell server we're done. */
+   xdr_enc_uint32(enc, gulm_socket_close);
+   xdr_enc_flush(enc);
+
+   if( error != 0 ) {
+      printf("Cannot shutdown %s. Maybe try unmounting gfs?\n", argv[2]);
+      exit(1);
+   }
 
    xdr_enc_release(enc);
    xdr_dec_release(dec);

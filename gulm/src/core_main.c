@@ -42,7 +42,6 @@ extern uint32_t verbosity;
 extern char *ProgramName;
 
 /* signal checks. */
-int SIGTERM_TRIPPED = FALSE;
 int SIGUSR1_TRIPPED = FALSE;
 int SIGCHLD_TRIPPED = FALSE;
 

@@ -29,14 +29,9 @@ char *gio_Err_to_str(int x)
       case gio_Err_BadStateChg:     t = "Bad State Change"; break;
       case gio_Err_MemoryIssues:    t = "Memory Problems"; break;
 
-      case gio_Err_PushQu:          t = "Push Queue"; break;
       case gio_Err_TryFailed:       t = "Try Failed"; break;
       case gio_Err_AlreadyPend:     t = "Request Already Pending"; break;
       case gio_Err_Canceled:        t = "Request Canceled"; break;
-
-      case gio_Err_NoSuchFS:        t = "No Such Filesystem"; break;
-      case gio_Err_NoSuchJID:       t = "No Such JID"; break;
-      case gio_Err_NoSuchName:      t = "No Such Node"; break;
    }
    return t;
 }

@@ -43,7 +43,7 @@
 /* bits of data used by the log_*() and die() functions. */
 extern uint32_t verbosity;
 extern char *ProgramName;
-extern int SIGTERM_TRIPPED;
+extern unsigned int shutdown_locked;
 extern char *myName;
 extern struct in6_addr myIP;
 extern int I_am_the;
@@ -54,12 +54,7 @@ typedef struct Resource_s {
    LLi_t r_list;
    char *name;
    int poll_idx;
-
-   /* how do we react when this resource goes away without loggin out? */
-   enum {rl_ignore, rl_suicide} reaction;
-
-   /* what else? */
-
+   uint32_t options;
 }Resource_t;
 
 hash_t *Resources;
@@ -96,7 +91,7 @@ int init_resources(void)
  * 
  * Returns: int
  */
-int add_resource(char *name, int poll_idx, int lifelinked)
+int add_resource(char *name, int poll_idx, uint32_t options)
 {
    Resource_t *r;
 
@@ -113,7 +108,9 @@ int add_resource(char *name, int poll_idx, int lifelinked)
    }
 
    r->poll_idx = poll_idx;
-   r->reaction = lifelinked?rl_suicide:rl_ignore;
+   r->options = options;
+
+   if( r->options & gulm_svc_opt_locked ) shutdown_locked ++;
 
    return hash_add(Resources, &r->r_list);
 }
@@ -132,8 +129,8 @@ int release_resource(char *name)
 
    tmp = hash_del(Resources, name, strlen(name));
    if( tmp == NULL ) return -1; /* not found */
-
    r = LLi_data(tmp);
+   if( r->options & gulm_svc_opt_locked ) shutdown_locked --;
    free(r->name);
    free(r);
    return 0;
@@ -143,7 +140,7 @@ int release_resource(char *name)
  * die_with_me - 
  * @name: 
  * 
- * returns true if the reaction is rl_suicide.
+ * returns true if important.
  * 
  * Returns: TRUE or FALSE
  */
@@ -155,7 +152,7 @@ int die_with_me(char *name)
    tmp = hash_find(Resources, name, strlen(name));
    if( tmp == NULL ) return FALSE;
    r = LLi_data(tmp);
-   return r->reaction == rl_suicide;
+   return r->options & gulm_svc_opt_important;
 }
 
 /**
@@ -173,15 +170,7 @@ int _dump_resource_(LLi_t *item, void *misc)
 
    fprintf(fp, "Service = %s\n", r->name);
    fprintf(fp, "poller = %d\n", r->poll_idx);
-   fprintf(fp, "reaction = ");
-   switch(r->reaction) {
-#define CasePrint(x) case (x): fprintf(fp, "%s\n", #x ); break
-      CasePrint(rl_ignore);
-      CasePrint(rl_suicide);
-#undef CasePrint
-      default: fprintf(fp, "Unknown(%d)\n", r->reaction); break;
-   }
-   fprintf(fp, "\n");
+   fprintf(fp, "options = %#x\n\n", r->options);
 
    return 0;
 }

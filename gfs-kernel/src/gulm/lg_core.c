@@ -340,10 +340,8 @@ lg_core_login (gulm_interface_p lgp, int important)
 			break;
 		if ((err = xdr_enc_string (enc, lg->service_name)) < 0)
 			break;
-		if ((err =
-		     xdr_enc_uint32 (enc,
-				     important ? gulm_svc_opt_important : 0)) !=
-		    0)
+		if ((err = xdr_enc_uint32 (enc, gulm_svc_opt_locked |
+				      gulm_svc_opt_important)) != 0)
 			break;
 		if ((err = xdr_enc_flush (enc)) < 0)
 			break;

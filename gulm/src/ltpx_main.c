@@ -30,7 +30,6 @@ extern uint32_t verbosity;
 extern char *ProgramName;
 /* other bits of interest */
 extern gulm_config_t gulm_config;
-extern int SIGTERM_TRIPPED;
 extern int I_am_the;
 extern struct in6_addr myIP;
 /* */
@@ -157,8 +156,6 @@ int ltpx_main(int argc, char **argv)
    /* proxy port should be in the config. */
    open_ltpx_listener( gulm_config.ltpx_port );
    if( open_ltpx_to_core() != 0 ) return -1;
-
-   SIGTERM_TRIPPED = FALSE; /*jic*/
 
    initialize_ltpx_maps();
 
