@@ -495,8 +495,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 			if (lkb->lkb_lockqueue_state)
 				remove_from_lockqueue(lkb);
 
-			if (lkb->lkb_astflags & (AST_COMP | AST_BAST))
-				list_del(&lkb->lkb_astqueue);
+			remove_from_astqueue(lkb);
 
 			if (lkb->lkb_lvbptr && lkb->lkb_flags & GDLM_LKFLG_MSTCPY)
 				free_lvb(lkb->lkb_lvbptr);

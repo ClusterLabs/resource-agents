@@ -18,6 +18,7 @@ void lockqueue_lkb_mark(struct dlm_ls *ls);
 int resend_cluster_requests(struct dlm_ls *ls);
 void add_to_lockqueue(struct dlm_lkb *lkb);
 void remove_from_lockqueue(struct dlm_lkb *lkb);
+void remove_from_astqueue(struct dlm_lkb *lkb);
 void queue_ast(struct dlm_lkb *lkb, uint16_t astflags, uint8_t rqmode);
 
 void wake_astd(void);

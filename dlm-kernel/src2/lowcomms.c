@@ -50,7 +50,6 @@
 #include <linux/pagemap.h>
 #include <linux/socket.h>
 #include <linux/idr.h>
-#include <cluster/cnxman.h>
 
 #include "dlm_internal.h"
 #include "lowcomms.h"

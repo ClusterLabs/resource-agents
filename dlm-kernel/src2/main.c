@@ -19,8 +19,6 @@
 #include <linux/module.h>
 #include <net/sock.h>
 
-#include <cluster/cnxman.h>
-
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
