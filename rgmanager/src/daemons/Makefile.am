@@ -1,4 +1,4 @@
-CFLAGS+=@XMLCFLAGS@ -DMDEBUG -DFDEBUG
+CFLAGS+=@XMLCFLAGS@ #-DMDEBUG -DFDEBUG
 sbin_PROGRAMS = clurgmgrd clurmtabd
 
 clurgmgrd_SOURCES = rg_thread.c rg_locks.c main.c groups.c rg_state.c \

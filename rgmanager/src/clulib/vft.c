@@ -48,7 +48,6 @@
 #include <mallocdbg.h>
 #endif
 
-#define DEBUG
 
 
 static int vf_lfds[2];

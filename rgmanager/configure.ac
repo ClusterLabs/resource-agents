@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.57)
-AC_INIT(rgmanager, 1.9.0, lhh@redhat.com)
+AC_INIT(rgmanager, 1.9.1, lhh@redhat.com)
 AM_INIT_AUTOMAKE
 
 # Define default prefix
