@@ -7,7 +7,6 @@
  *
  */
 
-#undef BUSHY
 #define _GNU_SOURCE /* Berserk glibc headers: O_DIRECT not defined unless _GNU_SOURCE defined */
 
 #include <string.h>
@@ -35,6 +34,7 @@
 
 #define trace trace_off
 #define jtrace trace_off
+#undef BUSHY
 
 /*
 Todo:
@@ -242,7 +242,7 @@ struct superblock
 
 	/* Derived, not saved to disk */
 	u64 snapmask;
-	u32 blocksize, chunksize, keys_per_node;
+	u32 blocksize, chunksize, blocks_per_node;
 	u32 sectors_per_block_bits, sectors_per_block;
 	u32 sectors_per_chunk_bits, sectors_per_chunk;
 	unsigned flags;
@@ -551,7 +551,7 @@ void show_leaf(struct eleaf *leaf)
 	
 	printf("%i chunks: ", leaf->count);
 	for (i = 0; i < leaf->count; i++) {
-		printf("%i=", leaf->map[i].rchunk);
+		printf("%x=", leaf->map[i].rchunk);
 		// printf("@%i ", leaf->map[i].offset);
 		for (p = emap(leaf, i); p < emap(leaf, i+1); p++)
 			printf("%Lx/%08llx%s", p->chunk, p->share, p+1 < emap(leaf, i+1)? ",": " ");
@@ -631,13 +631,21 @@ found:
  * leaf-editing code complexity down to a dull roar.
  */
 
+unsigned leaf_freespace(struct eleaf *leaf)
+{
+	char *maptop = (char *)(&leaf->map[leaf->count + 1]); // include sentinel
+	return (char *)emap(leaf, 0) - maptop;
+}
+
 int add_exception_to_leaf(struct eleaf *leaf, u64 chunk, u64 exception, int snapshot, u64 active)
 {
 	unsigned i, j, target = chunk - leaf->base_chunk;
 	u64 mask = 1ULL << snapshot, sharemap;
 	struct exception *ins, *exceptions = emap(leaf, 0);
 	char *maptop = (char *)(&leaf->map[leaf->count + 1]); // include sentinel
-	int free = (char *)exceptions - maptop;
+	int free = (char *)exceptions - maptop
+// - 10
+;
 	trace(warn("chunk %Lx exception %Lx, snapshot = %i", chunk, exception, snapshot);)
 
 	for (i = 0; i < leaf->count; i++) // !!! binsearch goes here
@@ -690,7 +698,6 @@ insert:
  * the upper half of entries to the new leaf and move the lower half of
  * entries to the top of the original block.
  */
-
 u64 split_leaf(struct eleaf *leaf, struct eleaf *leaf2)
 {
 	unsigned i, nhead = (leaf->count + 1) / 2, ntail = leaf->count - nhead, tailsize;
@@ -704,7 +711,7 @@ u64 split_leaf(struct eleaf *leaf, struct eleaf *leaf2)
 
 	/* Copy upper half to new leaf */
 	memcpy(leaf2, leaf, offsetof(struct eleaf, map)); // header
-	memcpy(&leaf2->map[0], &leaf->map[nhead], (ntail + 1) * sizeof(leaf->map[0])); // map
+	memcpy(&leaf2->map[0], &leaf->map[nhead], (ntail + 1) * sizeof(struct etree_map)); // map
 	memcpy(ptail - (char *)leaf + (char *)leaf2, ptail, tailsize); // data
 	leaf2->count = ntail;
 
@@ -716,6 +723,33 @@ u64 split_leaf(struct eleaf *leaf, struct eleaf *leaf2)
 	leaf->map[nhead].rchunk = 0; // tidy up
 
 	return splitpoint;
+}
+
+void merge_leaves(struct eleaf *leaf, struct eleaf *leaf2)
+{
+	unsigned nhead = leaf->count, ntail = leaf2->count, i;
+	unsigned tailsize = (char *)emap(leaf2, ntail) - (char *)emap(leaf2, 0);
+	char *phead = (char *)emap(leaf, 0), *ptail = (char *)emap(leaf, nhead);
+
+	// adjust pointers
+	for (i = 0; i <= nhead; i++) // also adjust sentinel
+		leaf->map[i].offset -= tailsize;
+
+	// move data down
+	phead = (char *)emap(leaf, 0);
+	ptail = (char *)emap(leaf, nhead);
+	memmove(phead, phead + tailsize, ptail - phead);
+
+	// move data from leaf2 to top
+	memcpy(ptail, (char *)emap(leaf2, 0), tailsize); // data
+	memcpy(&leaf->map[nhead], &leaf2->map[0], (ntail + 1) * sizeof(struct etree_map)); // map
+	leaf->count += ntail;
+}
+
+void merge_nodes(struct enode *node, struct enode *node2)
+{
+	memcpy(&node->entries[node->count], &node2->entries[0], node2->count * sizeof(struct index_entry));
+	node->count += node2->count;
 }
 
 void init_leaf(struct eleaf *leaf, int block_size)
@@ -929,6 +963,8 @@ void show_subtree(struct superblock *sb, struct enode *node, int levels, int ind
 	printf("%i nodes:\n", node->count);
 	for (i = 0; i < node->count; i++) {
 		struct buffer *buffer = snapread(sb, node->entries[i].sector);
+		if (i)
+			printf("pivot = %Lx\n", (long long)node->entries[i].key);
 		if (levels)
 			show_subtree(sb, buffer2node(buffer), levels - 1, indent + 3);
 		else {
@@ -1030,7 +1066,7 @@ void show_tree_range(struct superblock *sb, chunk_t start, unsigned leaves)
 		trace(printf("do %i leaf nodes level = %i\n", node->count, level);)
 		while (path[level].pnext  < node->entries + node->count) {
 			leafbuf = snapread(sb, path[level].pnext++->sector);
-start:			show_leaf(buffer2leaf(leafbuf));
+start:		show_leaf(buffer2leaf(leafbuf));
 			brelse(leafbuf);
 			if (!--leaves) {
 				brelse_path(path, level + 1);
@@ -1079,7 +1115,7 @@ void add_exception_to_tree(struct superblock *sb, struct buffer *leafbuf, u64 ta
 		struct buffer *parentbuf = path[levels].buffer;
 		struct enode *parent = buffer2node(parentbuf);
 
-		if (parent->count < sb->keys_per_node) {
+		if (parent->count < sb->blocks_per_node) {
 			insert_child(parent, pnext, childsector, childkey);
 			set_buffer_dirty(parentbuf);
 			return;
@@ -1273,7 +1309,6 @@ create:
  * from bottom to top in the directory map packing nonempty entries into the
  * bottom of the map.
  */
-
 void delete_snapshots_from_leaf(struct superblock *sb, struct eleaf *leaf, u64 snapmask)
 {
 	struct exception *p = emap(leaf, leaf->count), *dest = p;
@@ -1334,6 +1369,148 @@ void delete_snapshots_from_tree(struct superblock *sb, u64 snapmask)
 			node = buffer2node(nodebuf);
 			trace(printf("pop to level %i, %i of %i nodes\n", level, path[level].pnext - node->entries, node->count);)
 		} while (path[level].pnext == node->entries + node->count);
+	};
+}
+
+void delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t start, unsigned leaves)
+{
+	int levels = sb->image.etree_levels, level = levels - 1;
+	struct etree_path path[levels], left[levels];
+	struct buffer *leafbuf, *nodebuf, *prevleaf = NULL;
+	struct enode *node;
+	unsigned i;
+
+	for (i = 0; i < levels; i++)
+		left[i] = (struct etree_path){ };
+
+	leafbuf = probe(sb, start, path);
+	nodebuf = path[level].buffer;
+	node = buffer2node(nodebuf);
+
+int try = 999;
+	while (1) {
+		show_leaf(buffer2leaf(leafbuf));
+		delete_snapshots_from_tree(sb, snapmask);
+		if (prevleaf) {
+			trace_on(warn("check leaf %p against %p", leafbuf, prevleaf);)
+			struct eleaf *this = buffer2leaf(leafbuf), *prev = buffer2leaf(prevleaf);
+			int fluff = leaf_freespace(this) + sizeof(struct eleaf) + sizeof(struct etree_map);
+			unsigned size = prev->map[prev->count].offset;
+trace_off(warn("free = %i, fluff = %i, blocksize = %i", leaf_freespace(prev), fluff, size);)
+			
+			if (try && leaf_freespace(prev) >= size - fluff) {
+try--;
+				int count = node->count;
+				trace_on(warn(">>> can merge leaf %p into leaf %p", leafbuf, prevleaf);)
+				merge_leaves(prev, this);
+				// delete this from index node
+				// no pivot for last entry
+				chunk_t pivot = (path[level].pnext)->key;
+				memmove(path[level].pnext - 1, path[level].pnext, (char *)&node->entries[count] - (char *)path[level].pnext);
+				node->count = count - 1;
+
+				--(path[level].pnext);
+
+				if (path[level].pnext == node->entries + node->count)
+					goto no_pivot;
+
+				// loop up to common parent and update pivot to deleted key
+				// what if index is now empty? (no deleted key)
+				// then eventually a key above is going to be deleted and used to set pivot
+				if (path[level].pnext == node->entries && level) {
+					for (i = level - 1; path[i].pnext - 1 == buffer2node(path[i].buffer)->entries; i--)
+						if (!i)
+							goto no_pivot;
+					(path[i].pnext - 1)->key = pivot;
+					set_buffer_dirty(path[i].buffer);
+no_pivot:				;
+				}
+				brelse(leafbuf);
+				goto keep_it;
+			}
+			brelse(prevleaf);
+		}
+		prevleaf = leafbuf;
+keep_it:
+		if (!--leaves) {
+			brelse(prevleaf);
+//			brelse_path(path, level + 1);
+			return;
+		}
+
+		if (path[level].pnext == node->entries + node->count) {
+			do {
+				// reached the end of an index block
+				// try to merge with an index block in left[]
+				// if can't merge then maybe can rebalance
+				// if can't merge then release the block in left[] and move this block to left[]
+				// can't merge if there's no block in left[] or can't fit two together
+				// if can merge
+				   // release and free this index block and
+				   // delete from parent:
+				   //   if parent count zero, the grantparent key is going to be deleted, updating the pivot
+				   //   otherwise parent's deleted key becomes new pivot 
+				if (1 && left[level].buffer) {
+					assert(level); // root node can't have any prec
+					warn("check node %p against %p", nodebuf, left[level].buffer);
+					struct enode *this = buffer2node(nodebuf), *prev = buffer2node(left[level].buffer);
+warn("this count = %i prev count = %i max = %i", this->count, prev->count, sb->blocks_per_node);
+					if (this->count <= sb->blocks_per_node - prev->count) {
+						warn(">>> can merge node %p into node %p", nodebuf, left[level].buffer);
+						merge_nodes(prev, this);
+						node = buffer2node(path[level - 1].buffer);
+						int count = node->count;
+						// delete this from index node
+						// no pivot for last entry
+						chunk_t pivot = (path[level - 1].pnext)->key;
+						memmove(path[level - 1].pnext - 1, path[level - 1].pnext, (char *)&node->entries[count] - (char *)path[level - 1].pnext);
+						node->count = count - 1;
+
+						--(path[level - 1].pnext);
+
+						if (path[level - 1].pnext == node->entries + node->count)
+							goto no_pivot2;
+		
+						// loop up to common parent and update pivot to deleted key
+						// what if index is now empty? (no deleted key)
+						// then eventually a key above is going to be deleted and used to set pivot
+						if (path[level - 1].pnext == node->entries && level - 1) {
+							for (i = level - 2; path[i].pnext - 1 == buffer2node(path[i].buffer)->entries; i--)
+								if (!i)
+									goto no_pivot2;
+							(path[i].pnext - 1)->key = pivot;
+							set_buffer_dirty(path[i].buffer);
+		no_pivot2:				;
+						}
+						brelse(nodebuf);
+						goto keep_it2;
+
+					}
+					brelse(left[level].buffer);
+				}
+				left[level].buffer = nodebuf;
+keep_it2:
+				if (!level) {
+					brelse(prevleaf);
+					brelse_path(left, levels);
+					return;
+				}
+
+				// go up to parent index block
+				nodebuf = path[--level].buffer;
+				node = buffer2node(nodebuf);
+				trace_on(printf("pop to level %i, %i of %i nodes\n", level, path[level].pnext - node->entries, node->count);)
+			} while (path[level].pnext == node->entries + node->count);
+
+			do {
+				nodebuf = snapread(sb, path[level++].pnext++->sector);
+				node = buffer2node(nodebuf);
+				path[level].buffer = nodebuf;
+				path[level].pnext = node->entries;
+				trace_on(printf("push to level %i, %i nodes\n", level, node->count);)
+			} while (level < levels - 1);
+		}
+		leafbuf = snapread(sb, path[level].pnext++->sector);
 	};
 }
 
@@ -1646,9 +1823,9 @@ void setup_sb(struct superblock *sb)
 	sb->chunksize = 1 << chunksize_bits, 
 	sb->sectors_per_block_bits = blocksize_bits - SECTOR_BITS;
 	sb->sectors_per_chunk_bits = chunksize_bits - SECTOR_BITS;
-	sb->keys_per_node = (sb->blocksize - offsetof(struct enode, entries)) / sizeof(struct index_entry);
+	sb->blocks_per_node = (sb->blocksize - offsetof(struct enode, entries)) / sizeof(struct index_entry);
 #ifdef BUSHY
-	sb->keys_per_node = 10;
+	sb->blocks_per_node = 10;
 #endif
 	sb->copybuf = malloc_aligned(sb->copybuf_size = (32 * sb->chunksize), 4096); // !!! check failed
 	sb->sectors_per_block = 1 << sb->sectors_per_block_bits;
@@ -1733,17 +1910,17 @@ int init_snapstore(struct superblock *sb)
 		struct commit_block *commit = (struct commit_block *)buffer->data;
 		*commit = (struct commit_block){ .magic = JMAGIC, .sequence = i };
 #ifdef TEST_JOURNAL
-		commit->sequence = (i + 3) % 5 ;
+		commit->sequence = (i + 3) % 5;
 #endif
 		commit->checksum = -checksum_block(sb, (void *)commit);
 		brelse_dirty(buffer);
 	}
 #ifdef TEST_JOURNAL
-show_journal(sb);
-show_tree(sb);
-flush_buffers();
-recover_journal(sb);
-show_buffers();
+	show_journal(sb);
+	show_tree(sb);
+	flush_buffers();
+	recover_journal(sb);
+	show_buffers();
 #endif
 
 #if 0
@@ -1785,6 +1962,22 @@ return 0;
 
 	brelse_dirty(rootbuf);
 	brelse_dirty(leafbuf);
+#if 0
+	struct buffer *leafbuf1 = new_leaf(sb);
+	struct buffer *leafbuf2 = new_leaf(sb);
+	struct eleaf *leaf1 = buffer2leaf(leafbuf1);
+	struct eleaf *leaf2 = buffer2leaf(leafbuf2);
+	init_leaf(leaf1, 256);
+	init_leaf(leaf2, 256);
+	add_exception_to_leaf(leaf1, 0x111, 0x11, 0, 3);
+	add_exception_to_leaf(leaf2, 0x222, 0x11, 1, 3);
+	add_exception_to_leaf(leaf2, 0x333, 0x33, 1, 3);
+	show_leaf(leaf1);
+	show_leaf(leaf2);
+	merge_leaves(leaf1, leaf2);
+	show_leaf(leaf1);
+	return 0;
+#endif
 #ifdef TEST_JOURNAL
 	show_buffers();
 	show_dirty_buffers();
@@ -2256,6 +2449,23 @@ int main(int argc, char *argv[])
 #ifdef SERVER
 	return csnap_server(sb, argv[3], atoi(argv[4]));
 #else
+#if 1
+	init_snapstore(sb); 
+	create_snapshot(sb, 0);
+
+	int i;
+	for (i = 0; i < 200; i++) {
+		make_unique(sb, i, 0);
+	}
+
+	flush_buffers();
+	evict_buffers();
+	delete_tree_range(sb, 1, 0, -1);
+//	show_buffers();
+	show_tree(sb);
+//	show_tree(sb);
+	return 0;
+#endif
 	return init_snapstore(sb); 
 #endif
 
