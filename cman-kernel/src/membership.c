@@ -292,9 +292,12 @@ static int hello_kthread(void *unused)
 	hello_task = tsk;
 	up(&hello_task_lock);
 
+	mod_timer(&hello_timer, jiffies + cman_config.hello_timer * HZ);
+
 	cman_set_realtime(current, 1);
 
-	while (node_state != REJECTED && node_state != LEFT_CLUSTER) {
+	while (node_state != REJECTED && node_state != LEFT_CLUSTER &&
+	       quit_threads == 0) {
 
 		/* Scan the nodes list for dead nodes */
 		if (node_state == MEMBER)
@@ -307,6 +310,9 @@ static int hello_kthread(void *unused)
 		if (node_state != REJECTED && node_state != LEFT_CLUSTER)
 			send_hello();
 	}
+	if (timer_pending(&hello_timer))
+		del_timer(&hello_timer);
+
 	down(&hello_task_lock);
 	hello_task = NULL;
 	up(&hello_task_lock);
@@ -453,9 +459,6 @@ static int membership_kthread(void *unused)
 		wake_up_process(hello_task);
 	up(&hello_task_lock);
 
-	if (timer_pending(&hello_timer))
-		del_timer(&hello_timer);
-
 	if (timer_pending(&transition_timer))
 		del_timer(&transition_timer);
 
@@ -571,7 +574,6 @@ static void form_cluster(void)
 	sm_member_update(cluster_is_quorate);
 	send_hello();
 	kernel_thread(hello_kthread, NULL, 0);
-	mod_timer(&hello_timer, jiffies + cman_config.hello_timer * HZ);
 }
 
 /* This does the initial JOIN part of the membership process. Actually most of
@@ -669,6 +671,7 @@ int start_membership_services(pid_t cluster_pid)
 	init_timer(&transition_timer);
 	transition_timer.function = trans_timer_expired;
 	transition_timer.data = 0L;
+	wake_flags = 0L;
 
 	/* Start the thread */
 	return kernel_thread(membership_kthread, NULL, 0);
@@ -714,6 +717,7 @@ static int send_joinconf()
 	if (joining_temp_nodeid == 0) {
 		printk(KERN_WARNING CMAN_NAME ": Failed to join node '%s'\n",
 		       joining_node?joining_node->name:"unknown");
+		remove_joiner(0);
 		return -1;
         }
 
