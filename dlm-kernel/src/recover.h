@@ -29,5 +29,7 @@ int restbl_rsb_update_recv(struct dlm_ls *ls, int nodeid, char *buf, int len,
 			   int msgid);
 int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 		       char *outbuf);
+int dlm_lvb_recovery(struct dlm_ls *ls);
+void rsb_lvb_recovery(struct dlm_rsb *r);
 
 #endif				/* __RECOVER_DOT_H__ */

@@ -194,6 +194,8 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		}
 	}
 
+	dlm_lvb_recovery(ls);
+
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
 	log_all(ls, "recover event %u done", rv->event_id);

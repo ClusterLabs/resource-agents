@@ -294,46 +294,6 @@ static void set_master_lkbs(struct dlm_rsb *rsb)
 }
 
 /*
- * This rsb struct is now the master so it is responsible for keeping the
- * latest rsb.  Find if any current lkb's have an up to date copy of the lvb to
- * be used as the rsb copy.  An equivalent step occurs as new lkb's arrive for
- * this rsb in deserialise_lkb.
- */
-
-static void set_rsb_lvb(struct dlm_rsb *rsb)
-{
-	struct dlm_lkb *lkb;
-
-	list_for_each_entry(lkb, &rsb->res_grantqueue, lkb_statequeue) {
-
-		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
-			if (!rsb->res_lvbptr)
-				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
-
-			if (lkb->lkb_grmode > DLM_LOCK_NL) {
-				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
-				       DLM_LVB_LEN);
-				return;
-			}
-		}
-	}
-
-	list_for_each_entry(lkb, &rsb->res_convertqueue, lkb_statequeue) {
-
-		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
-			if (!rsb->res_lvbptr)
-				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
-
-			if (lkb->lkb_grmode > DLM_LOCK_NL) {
-				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
-				       DLM_LVB_LEN);
-				return;
-			}
-		}
-	}
-}
-
-/*
  * Propogate the new master nodeid to locks, subrsbs, sublocks.
  * The NEW_MASTER flag tells rebuild_rsbs_send() which rsb's to consider.
  */
@@ -347,7 +307,6 @@ static void set_new_master(struct dlm_rsb *rsb, uint32_t nodeid)
 	if (nodeid == our_nodeid()) {
 		set_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = 0;
-		set_rsb_lvb(rsb);
 	} else
 		rsb->res_nodeid = nodeid;
 
@@ -456,7 +415,7 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 
 		set_new_master(rsb, r_nodeid);
 	} else {
-		/* As we are the only thread doing recovery this 
+		/* As we are the only thread doing recovery this
 		   should be safe. if not then we need to use a different
 		   ID somehow. We must set it in the RSB before rcom_send_msg
 		   completes cos we may get a reply quite quickly.
@@ -609,3 +568,87 @@ int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
  fail:
 	return -1;
 }
+
+/*
+ * For each rsb:
+ * - if there's a granted lock above mode CR, use that lvb for the rsb
+ * - if there's no granted lock above mode CR, use the lvb from the lkb
+ *   with the highest lvb sequence number and set RESFL_VALNOTVALID
+ *
+ * We may receive more locks later in rebuild_rsbs_recv().  We need to redo
+ * this lvb recovery for the rsb after each new lock is added during recovery
+ * as it may change the result of the equation above.
+ */
+
+void rsb_lvb_recovery(struct dlm_rsb *r)
+{
+	struct dlm_lkb *lkb;
+	int lock_lvb_exists = FALSE;
+
+	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
+		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
+			continue;
+
+		if (lkb->lkb_flags & GDLM_LKFLG_DELETED)
+			continue;
+
+		lock_lvb_exists = TRUE;
+
+		if (lkb->lkb_grmode > DLM_LOCK_CR)
+			goto out_set;
+	}
+
+	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
+		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
+			continue;
+
+		if (lkb->lkb_flags & GDLM_LKFLG_DELETED)
+			continue;
+
+		lock_lvb_exists = TRUE;
+
+		if (lkb->lkb_grmode > DLM_LOCK_CR)
+			goto out_set;
+	}
+
+	if (!lock_lvb_exists) {
+		/* not sure this is needed */
+		if (r->res_lvbptr)
+			set_bit(RESFL_VALNOTVALID, &r->res_flags);
+		return;
+	}
+
+	/* there are only lkb's (with lvbs) with mode NL or CR */
+
+	if (!r->res_lvbptr)
+		r->res_lvbptr = allocate_lvb(r->res_ls);
+	memset(r->res_lvbptr, 0, DLM_LVB_LEN);
+	set_bit(RESFL_VALNOTVALID, &r->res_flags);
+	return;
+
+ out_set:
+	if (!r->res_lvbptr)
+		r->res_lvbptr = allocate_lvb(r->res_ls);
+	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+	clear_bit(RESFL_VALNOTVALID, &r->res_flags);
+}
+
+int dlm_lvb_recovery(struct dlm_ls *ls)
+{
+	struct dlm_rsb *root;
+	struct dlm_rsb *subrsb;
+
+	down_read(&ls->ls_root_lock);
+	list_for_each_entry(root, &ls->ls_rootres, res_rootlist) {
+		if (root->res_nodeid)
+			continue;
+
+		rsb_lvb_recovery(root);
+		list_for_each_entry(subrsb, &root->res_subreslist, res_subreslist) {
+			rsb_lvb_recovery(subrsb);
+		}
+	}
+	up_read(&ls->ls_root_lock);
+	return 0;
+}
+

@@ -467,6 +467,12 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				lkb->lkb_range[GR_RANGE_END] =
 				    lkb->lkb_range[RQ_RANGE_END];
 			}
+
+			if (reply->rl_flags & GDLM_LKFLG_DEMOTED)
+				lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
+			if (reply->rl_flags & GDLM_LKFLG_VALNOTVALID)
+				lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
+
 			up_write(&rsb->res_lock);
 
 			lkb->lkb_retstatus = 0;
@@ -557,10 +563,11 @@ void remote_grant(struct dlm_lkb *lkb)
 	req->rr_header.rh_lkid = lkb->lkb_id;
 	req->rr_header.rh_lockspace = lkb->lkb_resource->res_ls->ls_global_id;
 	req->rr_remlkid = lkb->lkb_remid;
-	req->rr_flags = 0;
 
 	/* This is a confusing non-standard use of rr_flags which is
-	 * usually used to pass lockqueue_flags. */
+	   usually used to pass lockqueue_flags.  Here it's necessary to get
+	    DEMOTED, VALNOTVALID & RETURNLVB flags back to the other node.*/
+
 	req->rr_flags = lkb->lkb_flags;
 
 	add_request_lvb(lkb, req);
@@ -591,12 +598,12 @@ void reply_and_grant(struct dlm_lkb *lkb)
 	reply->rl_lockstate = lkb->lkb_status;
 	reply->rl_lkid = lkb->lkb_id;
 	reply->rl_flags = lkb->lkb_flags;
+	add_reply_lvb(lkb, reply);
 
 	DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_DEMOTED),);
 
 	lkb->lkb_request = NULL;
 
-	add_reply_lvb(lkb, reply);
 	midcomms_send_buffer(&reply->rl_header, e);
 }
 
@@ -936,6 +943,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb->lkb_lockqueue_flags = freq->rr_flags;
 		lkb->lkb_request = freq;
 		lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
+		lkb->lkb_flags &= ~GDLM_LKFLG_VALNOTVALID;
 
 		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK ||
 		    freq->rr_flags & DLM_LKF_VALBLK) {
@@ -1060,7 +1068,9 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 
 		if (freq->rr_flags & GDLM_LKFLG_DEMOTED)
 			lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
-
+		if (freq->rr_flags & GDLM_LKFLG_VALNOTVALID)
+			lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
+		
 		lkb->lkb_retstatus = 0;
 		queue_ast(lkb, AST_COMP, 0);
 		break;

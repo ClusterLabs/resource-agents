@@ -29,7 +29,7 @@ dlm-objs := ast.o config.o device.o dir.o lkb.o locking.o lockqueue.o \
 	lockspace.o lowcomms.o main.o memory.o midcomms.o nodes.o proc.o \
 	queries.o rebuild.o reccomms.o recover.o recoverd.o rsb.o util.o
 
-EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS
+EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS -DCONFIG_DLM_STATS
 
 all:
 	if [ ! -e cluster ]; then ln -s . cluster; fi

@@ -270,6 +270,8 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 			seq_printf(s, "%02x ",
 				   (unsigned char) res->res_lvbptr[i]);
 		}
+		if (test_bit(RESFL_VALNOTVALID, &res->res_flags))
+			seq_printf(s, " (INVALID)");
 		seq_printf(s, "\n");
 	}
 

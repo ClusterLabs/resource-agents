@@ -316,6 +316,7 @@ struct dlm_ls {
 #define RESFL_NEW_MASTER	(0)
 #define RESFL_RECOVER_LIST	(1)
 #define RESFL_MASTER		(2)
+#define RESFL_VALNOTVALID	(3)
 
 struct dlm_rsb {
 	struct list_head	res_hashchain;

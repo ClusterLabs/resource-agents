@@ -1077,25 +1077,15 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	lkb_enqueue(rsb, lkb, status);
 
 	/*
-	 * Update the rsb lvb if the lkb's lvb is up to date (grmode > NL).
-	 */
-
-	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
-		if (!rsb->res_lvbptr)
-			rsb->res_lvbptr = allocate_lvb(ls);
-		if (!rsb->res_lvbptr)
-			goto out;
-		if (lkb->lkb_grmode > DLM_LOCK_NL)
-			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-	}
-
-	/*
 	 * Clear flags that may have been sent over that are only relevant in
 	 * the context of the sender.
 	 */
 
 	lkb->lkb_flags &= ~(GDLM_LKFLG_DELETED | GDLM_LKFLG_LQRESEND |
 			    GDLM_LKFLG_NOREBUILD | GDLM_LKFLG_DEMOTED);
+
+	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK)
+		rsb_lvb_recovery(rsb);
 
       put_lkid:
 	/* Return the new LKID to the caller's buffer */

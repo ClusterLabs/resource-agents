@@ -873,8 +873,9 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr)
 				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
 				       DLM_LVB_LEN);
-			if (flags & DLM_LKF_IVVALBLK)
-				memset(rsb->res_lvbptr, 0, DLM_LVB_LEN);
+			if (flags & DLM_LKF_IVVALBLK) {
+				set_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+			}
 		}
 
 		grant_pending_locks(rsb);
@@ -954,7 +955,8 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode,
 		  lkb->lkb_id, rsb->res_name);
 
-	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED | GDLM_LKFLG_RETURNLVB);
+	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED |
+			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID);
 
 	if (flags & DLM_LKF_NODLCKWT)
 		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;
@@ -1054,16 +1056,21 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 		if (!rsb->res_lvbptr)
 			rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
 
-                lkb->lkb_flags &= ~GDLM_LKFLG_RETURNLVB;
-                b = __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
-                if (b == 1) {
-                        memcpy(lkb->lkb_lvbptr, rsb->res_lvbptr, DLM_LVB_LEN);
-                        lkb->lkb_flags |= GDLM_LKFLG_RETURNLVB;
-                }
-                if (b == 0) {
-                        memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-                }
+		lkb->lkb_flags &= ~GDLM_LKFLG_RETURNLVB;
+
+		b = __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
+		if (b == 1) {
+			memcpy(lkb->lkb_lvbptr, rsb->res_lvbptr, DLM_LVB_LEN);
+			lkb->lkb_flags |= GDLM_LKFLG_RETURNLVB;
+		}
+		if (b == 0) {
+			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+			clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+		}
 	}
+
+	if (test_bit(RESFL_VALNOTVALID, &rsb->res_flags))
+		lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
 
 	if (lkb->lkb_range) {
 		lkb->lkb_range[GR_RANGE_START] = lkb->lkb_range[RQ_RANGE_START];

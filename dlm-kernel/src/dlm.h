@@ -179,6 +179,7 @@ struct dlm_range {
  *
  * sb_flags: DLM_SBF_DEMOTED is returned if in the process of promoting a lock,
  * it was first demoted to NL to avoid conversion deadlock.
+ * DLM_SBF_VALNOTVALID is returned if the resource's LVB is marked invalid.
  *
  * sb_status: the returned status of the lock request set prior to AST
  * execution.  Possible return values:
@@ -192,6 +193,7 @@ struct dlm_range {
  */
 
 #define DLM_SBF_DEMOTED        (0x01)
+#define DLM_SBF_VALNOTVALID    (0x02)
 
 struct dlm_lksb {
 	int 	 sb_status;
