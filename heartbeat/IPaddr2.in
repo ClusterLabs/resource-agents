@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.1 2004/09/03 10:01:38 lars Exp $
+#	$Id: IPaddr2.in,v 1.2 2004/09/03 14:40:34 lars Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -263,6 +263,10 @@ ip_init() {
 	esac
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
+		if [ ! -x "$IPTABLES" ]; then
+			ha_log "ERROR: Cluster Alias IP mode selected, but iptables not configured"
+			exit $OCF_ERR_INSTALLED
+		fi
 		IP_CIP="yes"
 		if [ -z "$IF_MAC" ]; then
 			# Choose a hash.
