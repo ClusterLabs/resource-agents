@@ -1,0 +1,364 @@
+
+How to install and run clvm and gfs.
+
+Refer to the cluster project page for the latest information.
+http://sources.redhat.com/cluster/
+
+
+Get source
+----------
+
+- download the source tarballs
+
+  latest linux kernel	- ftp://ftp.kernel.org/pub/linux/
+  device-mapper		- ftp://sources.redhat.com/pub/dm/
+  lvm2			- ftp://sources.redhat.com/pub/lvm2/
+  iddev			- ftp://sources.redhat.com/pub/cluster/
+  ccs			- ftp://sources.redhat.com/pub/cluster/
+  fence			- ftp://sources.redhat.com/pub/cluster/
+  cman			- ftp://sources.redhat.com/pub/cluster/
+  cman-kernel		- ftp://sources.redhat.com/pub/cluster/
+  dlm			- ftp://sources.redhat.com/pub/cluster/
+  dlm-kernel		- ftp://sources.redhat.com/pub/cluster/
+  gfs			- ftp://sources.redhat.com/pub/cluster/
+  gfs-kernel		- ftp://sources.redhat.com/pub/cluster/
+
+
+- or to download source from cvs see
+
+  http://sources.redhat.com/dm/
+  http://sources.redhat.com/lvm2/
+  http://sources.redhat.com/cluster/
+
+  summary: after cvs login,
+  cvs -d :pserver:cvs@sources.redhat.com:/cvs/dm      checkout device-mapper
+  cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2    checkout LVM2 
+  cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout cluster 
+
+
+Build and install
+-----------------
+
+- apply kernel patches from
+
+  cman-kernel/patches/
+  dlm-kernel/patches/
+  gfs-kernel/patches/
+  
+- configure kernel, selecting DM, CMAN, DLM, GFS
+  (the final three, at least, should be built as modules)
+
+- build and install kernel and modules
+
+- build and install userland programs and libraries (order is important)
+
+  device-mapper
+  ./configure
+  make; make install
+
+  lvm2
+  ./configure --with-clvmd --with-cluster=shared
+  make; make install
+  scripts/clvmd_fix_conf.sh /lib/liblvm2clusterlock.so
+
+  ccs
+  ./configure --kernel_src=/path/to/patched/kernel
+  make; make install
+
+  cman
+  ./configure --kernel_src=/path/to/patched/kernel
+  make; make install
+
+  dlm
+  ./configure --kernel_src=/path/to/patched/kernel
+  make; make install
+
+  fence
+  ./configure --kernel_src=/path/to/patched/kernel
+  make; make install
+
+  iddev
+  ./configure
+  make; make install
+
+  gfs
+  ./configure --kernel_src=/path/to/patched/kernel
+  make; make install
+
+
+Load kernel modules
+-------------------
+
+depmod -a
+modprobe dm-mod
+device-mapper/scripts/devmap_mknod.sh
+modprobe gfs
+modprobe lock_dlm
+
+Modules that should be loaded: lock_dlm, dlm, cman, gfs, lock_harness
+and dm-mod if device-mapper was built as a module
+
+
+Startup procedure
+-----------------
+
+Run these commands on each cluster node:
+
+> ccsd                             - Starts the CCS daemon
+> cman_tool join                   - Joins the cluster
+> fence_tool join                  - Joins the fence domain (starts fenced)
+> clvmd                            - Starts the CLVM daemon
+> vgchange -aly                    - Activates LVM volumes (locally)
+> mount -t gfs /dev/vg/lvol /mnt   - Mounts a GFS file system
+
+
+Shutdown procedure
+------------------
+
+Run these commands on each cluster node:
+
+> umount /mnt			   - Unmounts a GFS file system
+> vgchange -aln                    - Deactivates LVM volumes (locally)
+> killall clvmd                    - Stops the CLVM daemon
+> fence_tool leave                 - Leaves the fence domain (stops fenced)
+> cman_tool leave                  - Leaves the cluster
+> killall ccsd                     - Stops the CCS daemon
+
+
+Creating CCS config
+-------------------
+
+There is no GUI or command line program to create the config file yet.
+The cluster config file "cluster.xml" must therefore be created manually.
+Once created, cluster.xml should be placed in the /etc/cluster/ directory
+on one cluster node.  CCS daemon (ccsd) will take care of transferring it
+to other nodes where it's needed.  (FIXME: updating cluster.xml in a running
+cluster is supported but not documented.)
+
+A minimal cluster.xml example is shown below.
+
+
+Creating CLVM logical volumes
+-----------------------------
+
+Use standard LVM commands (see LVM documentation on using pvcreate, vgcreate,
+lvcreate.)  A node must be running the CLVM system to use the LVM commands.
+Running the CLVM system means successfully running the commands above up
+through starting clvmd.
+
+
+Creating GFS file systems
+-------------------------
+
+> gfs_mkfs -p lock_dlm -t <ClusterName>:<FSName> -j <Journals> <Device>
+
+        <ClusterName> must match the cluster name used in CCS config
+        <FSName> is a unique name chosen now to distinguish this fs from others
+        <Journals> the number of journals in the fs, one for each node to mount
+        <Device> a block device, usually an LVM logical volume
+
+Creating a GFS file system means writing to a CLVM volume which means the CLVM
+system must be running (see previous section.)
+
+
+Cluster startup/shutdown notes
+------------------------------
+
+Fencing: In the start-up steps above, "fence_tool join" is the equivalent of
+simply starting fenced.  fence_tool is useful because additional options can be
+specified to delay the actual starting of fenced.  Delaying can be useful to
+avoid unnecessarily fencing nodes that haven't joined the cluster yet.  The
+only option fence_tool now provides to address this is "-t <seconds>" to wait
+the given number of seconds before starting fenced.
+
+Shutdown: There is also a practical timing issue with respect to the shutdown
+steps being run on all nodes when shutting down an entire cluster.  When
+shutting down the entire cluster (or shutting down a node for an extended
+period) use "cman_tool leave remove".  This automatically reduces the number of
+expected votes as each node leaves and prevents the loss of quorum which could
+keep the last nodes from cleanly completing shutdown.
+
+Using the "remove" leave option should not be used in general since it
+introduces potential split-brain risks.
+
+If the "remove" leave option is not used, quorum will be lost after enough
+nodes have left the cluster.  Once the cluster is inquorate, remaining members
+that have not yet completed "fence_tool leave" in the steps above will be
+stuck.  Operations such as umounting gfs or leaving the fence domain
+("fence_tool leave") will block while the cluster is inquorate.  They can
+continue and complete only once quorum is regained.
+
+If this happens, one option is to join the cluster ("cman_tool join") on some
+of the nodes that have left so that the cluster regains quorum and the stuck
+nodes can complete their shutdown.  Another option is to forcibly reduce the
+number of expected votes for the cluster which allows the cluster to become
+quorate again ("cman_tool expected <votes>").  This later method is the
+equivalent to using the "remove" option when leaving.
+
+
+Config file
+-----------
+
+This example primarily illustrates the variety of fencing configurations.
+
+The first node uses "cascade fencing"; if the first method fails (power cycling
+with an APC Masterswitch), the second is tried (port disable on a Brocade FC
+switch).  In this example, the node has dual paths to the storage so the port
+on both paths must be disabled (the same idea applies to nodes with dual power
+supplies.)
+
+There is only one method of fencing the second node (via an APC Masterswitch)
+so no cascade fencing is possible.
+
+If no hardware is available for fencing, manual fencing can be used as shown
+for the third node.  If a node with manual fencing fails, a human must take
+notice (a message appears in the system log) and run fence_ack_manual after
+resetting the failed node.  (The node that actually carries out fencing
+operations is the node with the lowest ID in the fence domain.)
+
+
+<?xml version="1.0"?>
+<cluster name="alpha" config_version="1">
+
+<cman>
+</cman>
+
+<nodes>
+<node name="nd01" votes="1">
+	<fence>
+		<method name="cascade1">
+			<device name="apc1" port="1"/>
+		</method>
+
+		<method name="cascade2">
+			<device name="brocade1" port="1"/>
+			<device name="brocade2" port="1"/>
+		</method>
+	</fence>
+</node>
+
+<node name="nd02" votes="1">
+	<fence>
+		<method name="single">
+			<device name="apc1" port="2"/>
+		</method>
+	</fence>
+</node>
+
+<node name="nd03" votes="1">
+	<fence>
+		<method name="single">
+			<device name="human" ipaddr="nd03"/>
+		</method>
+	</fence>
+</node>
+</nodes>
+
+<fence_devices>
+	<device name="apc1" agent="fence_apc" ipaddr="10.1.1.1" login="apc" passwd="apc"/>
+	<device name="brocade1" agent="fence_brocade" ipaddr="10.1.1.2" login="user" passwd="pw"/>
+	<device name="brocade2" agent="fence_brocade" ipaddr="10.1.1.3" login="user" passwd="pw"/>
+	<device name="human" agent="fence_manual"/>
+</fence_devices>
+
+</cluster>
+
+
+Multiple clusters
+-----------------
+
+When multiple clusters are used, it can be useful to specify the cluster name
+on the cman_tool command line.  This forces CCS to select a cluster.xml with
+the same cluster name.  The node then joins this cluster.
+
+> cman_tool join -c <ClusterName>
+
+
+[Note: If the -c option is not used, ccsd will first check the local copy of
+cluster.xml to extract the cluster name and will only grab a remote copy of
+cluster.xml if it has the same cluster name and a greater version number.  If a
+local copy of cluster.xml does not exist, ccsd may grab a cluster.xml for a
+different cluster than intended -- cman_tool would then report an error that
+the node is not listed in the file.
+
+So, if you don't currently have a local copy of cluster.xml (and there are
+other clusters running) or you wish to join a different cluster with a
+different cluster.xml from what exists locally, you must specify the -c
+option.]
+
+
+Two node clusters
+-----------------
+
+Ordinarily the loss of quorum after one node fails out of two will prevent the
+remaining node from continuing (if both nodes have one vote.)  Some special
+configuration options can be set to allow the one remaining node to continue
+operating if the other fails.  To do this only two nodes with one vote each can
+be defined in cluster.xml.  The two_node and expected_votes values must then be
+set to 1 in the cman config section as follows.
+
+  <cman two_node="1" expected_votes="1">
+  </cman>
+
+
+Advanced Network Configuration
+------------------------------
+
+* Multihome
+
+CMAN can be configured to use multiple network interfaces.  If one fails it
+should be able to continue running with the one remaining.  A node's name in
+cluster.xml is always associated with the IP address on one network interface;
+"nd1" in the following:
+
+<node name="nd1" votes="1">
+</node>
+
+To use a second network interface, the node must have a second hostname
+associated with the IP address on that interface; "nd1-e1" in the following.
+The second hostname is specfied in an "altname" section.
+
+<node name="nd1" votes="1">
+    <altname name="nd1-e1"/>
+</node>
+
+
+* Multicast
+
+CMAN can be configured to use multicast instead of broadcast (broadcast is used
+by default if no multicast parameters are given.)  To configure multicast when
+one network interface is used add one line under the <cman> section and another
+under the <node> section:
+
+<cman>
+    <multicast addr="224.0.0.1"/>
+</cman>
+
+<node name="nd1" votes="1">
+    <multicast addr="224.0.0.1" interface="eth0"/>
+</node>
+
+The multicast addresses must match and the address must be usable on the
+interface name given for the node.
+
+When two interfaces are used, multicast is configured as follows:
+
+<cman>
+    <multicast addr="224.0.0.1"/>
+    <multicast addr="224.0.0.9"/>
+</cman>
+
+<node name="nd1" votes="1">
+    <altname name="nd1-e1"/>
+    <multicast addr="224.0.0.1" interface="eth0"/>
+    <multicast addr="224.0.0.9" interface="eth1"/>
+</node>
+
+
+* IPv6
+
+- When using multiple interfaces, all must use the same address family.  Mixing
+  IPv4 and IPv6 is not allowed.
+
+- When using IPv6, multicast must be configured; there is no IPv6 broadcast.
+
