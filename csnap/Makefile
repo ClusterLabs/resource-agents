@@ -45,11 +45,11 @@ test1:
 	./mksnapstore /dev/test-origin /dev/test-snapstore 8080
 	./csnap-server /dev/test-origin /dev/test-snapstore 8080 &
 	sudo /sbin/dmsetup remove testdev || true
-#	sudo /sbin/dmsetup create testdev test.dm
+	sudo ./csnap-connect @testdev-control localhost:8080
 
 test2:
 	sudo ./csnap-create localhost:8080 0
-	sudo ./csnap-connect /dev/mapper/testdev localhost:8080
+	echo 0 497976 csnapshot 0 /dev/test-origin /dev/test-snapstore @testdev-control | sudo /sbin/dmsetup create testdev
 
 test3:
 #	sudo ./devpoke /dev/mapper/testdev write 2

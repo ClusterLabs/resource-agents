@@ -30,7 +30,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-01 04:53:35.000000000 +0000
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-03 23:08:41.543373400 +0000
 @@ -0,0 +1,1053 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
@@ -39,6 +39,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +#include <linux/pagemap.h>
 +#include <linux/file.h>
 +#include <linux/syscalls.h> // recvmsg
++#include <linux/socket.h>
++#include <linux/un.h>
 +#include <net/sock.h>
 +#include <asm/uaccess.h>
 +#include <linux/bio.h>
@@ -877,6 +879,29 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * device, what fun.
 + */
 +
++static int get_control_socket(char *sockname)
++{
++	mm_segment_t oldseg = get_fs();
++	struct sockaddr_un addr = { .sun_family = AF_UNIX };
++	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
++	int sock = sys_socket(AF_UNIX, SOCK_STREAM, 0), err = 0;
++
++	warn("Connect to control socket %s", sockname);
++	if (sock <= 0)
++		return sock;
++	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
++	if (sockname[0] == '@')
++		addr.sun_path[0] = 0;
++
++	set_fs(get_ds());
++	while ((err = sys_connect(sock, (struct sockaddr *)&addr, addr_len)) == -111)
++		break;
++//		yield();
++	set_fs(oldseg);
++
++	return err? err: sock;
++}
++
 +/*
 + * Round up to nearest 2**k boundary
 + * !!! lose this
@@ -886,59 +911,34 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return (n + size - 1) & ~(size - 1);
 +}
 +
-+ssize_t
-+pipe_read(struct file *filp, char __user *buf, size_t count, loff_t *ppos);
-+
 +static int csnap_create(struct dm_target *target, unsigned argc, char **argv)
 +{
 +	u64 chunksize_bits = 12; // !!! when chunksize isn't always 4K, have to move all this to identify reply handler
 +	struct dm_dev *orgdev, *snapdev;
 +	struct snapinfo *info;
-+        struct { struct head head; int fd; } PACKED message;
-+	struct file *stdin;
-+	mm_segment_t oldseg = get_fs();
-+	char uuid[64], *error;
++	struct file *control_sock;
 +	int err, i, snap, flags = 0;
 +	unsigned bm_size;
++	char *error;
 +
-+	trace_on(warn("target = %p", target);)
-+	error = "csnap usage: orgdev snapdev snapnum [uuid]";
++	error = "csnap usage: snapnum orgdev snapdev sockname";
 +	err = -EINVAL;
 +	if (argc < 3 || argc > 4)
 +		goto eek;
 +	error = "Can't get origin device";
-+	if ((err = dm_get_device(target, argv[0], 0, target->len, dm_table_get_mode(target->table), &orgdev)))
++	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &orgdev)))
 +		goto eek;
 +	error = "Can't get snapshot device";
-+	if ((err = dm_get_device(target, argv[1], 0, target->len, dm_table_get_mode(target->table), &snapdev)))
++	if ((err = dm_get_device(target, argv[2], 0, target->len, dm_table_get_mode(target->table), &snapdev)))
 +		goto eek;
-+	snap = simple_strtol(argv[2], NULL, 0);
++	error = "Can't connect control socket";
++	if ((err = get_control_socket(argv[3])) < 0)
++		goto eek;
++	control_sock = fget(err);
++
++	snap = simple_strtol(argv[0], NULL, 0);
 +	if (snap != -1)
 +		flags |= IS_SNAP_FLAG;
-+
-+	err = -EINVAL;
-+	if (argc == 4) {
-+		error = "UUID too long";
-+		if (strlen(argv[3]) > sizeof(uuid))
-+			goto eek;
-+		strncpy(uuid, argv[3], sizeof(uuid));
-+	}
-+
-+	stdin = fget(0);
-+	set_fs(get_ds()); // pipes only support ->read so we can't use readpipe, this is stupid
-+	err = stdin->f_op->read(stdin, (void *)&message, sizeof(message), &stdin->f_pos);
-+	set_fs(oldseg);
-+	fput(stdin);
-+	error = "Can't read standard input";
-+	if (err < 0)
-+		goto eek;
-+
-+	if (err != sizeof(message) || message.head.code != CONTROL_SOCKET || 
-+		message.head.length != sizeof(int)) {
-+		error = "Expecting socket fd message";
-+		err = -EINVAL;
-+		goto eek;
-+	}
 +
 +	err = -ENOMEM;
 +	if (!(info = kmalloc(sizeof(struct snapinfo), GFP_KERNEL)))
@@ -949,7 +949,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	info->len = target->len; // !!! huh? /* so we can create the bitmap when we know the chunk size */
 +	info->chunksize_bits = chunksize_bits;
 +	info->chunkshift = chunksize_bits - SECTOR_SHIFT;
-+	info->control_socket = fget(message.fd);
++	info->control_socket = control_sock;
 +	target->private = info;
 +
 +	bm_size = round_up((info->len  + 7) >> (chunksize_bits + 3), sizeof(u32)); // !!! wrong
@@ -986,7 +986,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
 +	info->child[2] = err;
-+	warn("Created snapshot device origin=%s snapstore=%s snapshot=%i", argv[0], argv[1], snap);
++	warn("Created snapshot device snapshot=%i origin=%s snapstore=%s socket=%s", snap, argv[1], argv[2], argv[3]);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
 +	return 0;
 +
