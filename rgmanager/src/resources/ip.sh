@@ -143,10 +143,13 @@ ipv6_expand()
 	typeset maskbits
 	typeset -i x
 	
-	maskbits=${addr/\*\//}
-
-	# chop off mask bits
-	addr=${addr/\/\*/}
+	maskbits=${addr/*\//}
+	if [ "$maskbits" = "$addr" ]; then
+		maskbits=""
+	else
+		# chop off mask bits
+		addr=${addr/\/*/}
+	fi
 
 	# use space as placeholder
 	addr=${addr/::/\ }
@@ -196,24 +199,25 @@ ipv6_same_subnet()
 		echo "usage: ipv6_same_subnet addr1 addr2 [mask]"
 		return 255
 	fi
-	
+
 	if [ -z "$m" ]; then
-		m=${addrl/\*\//}
+		m=${addrl/*\//}
 
 		[ -n "$m" ] || return 1
 
-		if [ "${addrr}" != "${addrr/\*\//}" ] &&
-		   [ "${addrl/\*\//}" != "${addrr/\*\//}" ]; then
-			return 1
-		fi
 	fi
 
-	addrl=${addrl/\/\*/}
+	if [ "${addrr}" != "${addrr/*\//}" ] &&
+	   [ "$m" != "${addrr/*\//}" ]; then
+		return 1
+	fi
+
+	addrl=${addrl/\/*/}
 	if [ ${#addrl} -lt 39 ]; then
 		addrl=$(ipv6_expand $addrl)
 	fi
 
-	addrr=${addrr/\/\*/}
+	addrr=${addrr/\/*/}
 	if [ ${#addrr} -lt 39 ]; then
 		addrr=$(ipv6_expand $addrr)
 	fi
@@ -225,7 +229,7 @@ ipv6_same_subnet()
 	r=$(($m%4))
 
 	if [ $r -ne 0 ]; then
-		# If we have any remaining bits, we'll need to compare
+		# If we have any remaining bits, we will need to compare
 		# them later.  Get them now.
 		llsb=`printf "%d" 0x${addrl:$x:1}`
 		rlsb=`printf "%d" 0x${addrr:$x:1}`
@@ -234,7 +238,7 @@ ipv6_same_subnet()
 		((--x))
 	fi
 	
-	# direct (string comparison) to see if they're equal
+	# direct (string comparison) to see if they are equal
 	if [ "${addrl:0:$x}" != "${addrr:0:$x}" ]; then
 		return 1
 	fi
@@ -269,24 +273,36 @@ ipv4_same_subnet()
 	declare r x llsb rlsb
 
 	if [ $# -lt 2 ]; then
-		echo "usage: ipv6_same_subnet addr1 addr2 [mask]"
+		echo "usage: ipv4_same_subnet current_addr new_addr [maskbits]"
 		return 255
 	fi
 
+
+	#
+	# Chop the netmask off of the ipaddr:
+	# e.g. 1.2.3.4/22 -> 22
+	#
 	if [ -z "$m" ]; then
-		m=${addrl/\*\//}
-
+		m=${addrl/*\//}
 		[ -n "$m" ] || return 1
-
-		if [ "${addrr}" != "${addrr/\*\//}" ] &&
-		   [ "${addrl/\*\//}" != "${addrr/\*\//}" ]; then
-			return 1
-		fi
-
 	fi
 
-	addrl=${addrl/\/\*/}
-	addrr=${addrr/\/\*/}
+	#
+	# Check to see if there was a subnet mask provided on the
+	# new IP address.  If there was one and it does not match
+	# our expected subnet mask, we are done.
+	#
+	if [ "${addrr}" != "${addrr/\/*/}" ] &&
+	   [ "$m" != "${addrr/*\//}" ]; then
+		return 1
+	fi
+
+	#
+	# Chop off subnet bits for good.
+	#
+	addrl=${addrl/\/*/}
+	addrr=${addrr/\/*/}
+
 	#
 	# Remove '.' characters from dotted decimal notation and save
 	# in arrays. i.e.
@@ -296,6 +312,7 @@ ipv4_same_subnet()
 	#	                 array[2] = 1
 	#	                 array[3] = 163
 	#
+
 	let x=0
 	for quad in ${addrl//./\ }; do
 		ip1[((x++))]=$quad
@@ -307,6 +324,7 @@ ipv4_same_subnet()
 	done
 
 	x=0
+
 	while [ $m -ge 8 ]; do
 		((m-=8))
 		if [ ${ip1[x]} -ne ${ip2[x]} ]; then
@@ -365,11 +383,13 @@ ipv6_find_interface()
 		#
 		# expand the addr to the full deal
 		#
-		ifaddr=$(ipv6_expand $addr)
+		ifaddr=$(ipv6_expand $ifaddr)
 
 		if [ "$ifaddr" = "$newaddr" ]; then
-			# for most things, 
-			echo $dev ${ifaddr/\*\/}
+			#
+			# Already running?
+			#
+			echo $dev ${ifaddr/*\/}
 			return 0
 		fi
 
@@ -378,7 +398,7 @@ ipv6_find_interface()
 		# matches based on i/f subnet.
 		#
 		if ipv6_same_subnet $ifaddr $newaddr; then
-			echo $dev ${ifaddr/\*\/}
+			echo $dev ${ifaddr/*\//}
 			return 0
 		fi
 	done < <(ip -o -f inet6 addr | awk '{print $1,$2,$4}')
@@ -419,12 +439,12 @@ ipv4_find_interface()
 
 		if [ "$ifaddr" = "$newaddr" ]; then
 			# for most things, 
-			echo $dev ${ifaddr/\*\/}
+			echo $dev ${ifaddr/*\//}
 			return 0
 		fi
 
 		if ipv4_same_subnet $ifaddr $newaddr; then
-			echo $dev ${ifaddr/\*\/}
+			echo $dev ${ifaddr/*\//}
 			return 0
 		fi
 	done < <(ip -o -f inet addr | awk '{print $1,$2,$4}')
@@ -439,14 +459,15 @@ ipv4_find_interface()
 ipv6()
 {
 	declare dev maskbits
+	declare addr=$2
 
-	read dev maskbits < <(ipv6_find_interface $2)
+	read dev maskbits < <(ipv6_find_interface $addr)
 
 	if [ -z "$dev" ]; then
 		return 1
 	fi
 
-	if [ "${addr}" = "${addr/\*\//}" ]; then
+	if [ "${addr}" = "${addr/*\//}" ]; then
 		addr="$addr/$maskbits"
 	fi
 
@@ -458,9 +479,28 @@ ipv6()
 		fi
 	fi
 
-	echo "Attempting to $1 IPv4 address $addr ($dev)"
+	echo "Attempting to $1 IPv6 address $addr ($dev)"
 
-	/sbin/ifcfg $dev $1 $addr
+	/sbin/ip -f inet6 addr $1 dev $dev $addr
+	[ $? -ne 0 ] && return 1
+
+	#
+	# NDP should take of figuring out our new address.  Plus,
+	# we do not have something (like arping) to do this for ipv6
+	# anyway.
+	# 
+	# RFC 2461, section 7.2.6 states thusly:
+	#
+   	# Note that because unsolicited Neighbor Advertisements do not
+	# reliably update caches in all nodes (the advertisements might
+	# not be received by all nodes), they should only be viewed as
+	# a performance optimization to quickly update the caches in
+	#  most neighbors. 
+	#
+
+	# Not sure if this is necessary for ipv6 either.
+	killall -HUP rdisc || rdisc -fs
+	return 0
 }
 
 
@@ -478,9 +518,9 @@ ipv4()
 		return 1
 	fi
 
-	if [ "${addr}" = "${addr/\*\//}" ]; then
-		addr="$addr/$maskbits"
-	fi
+	#if [ "${addr}" = "${addr/\*\//}" ]; then
+		#addr="$addr/$maskbits"
+	#fi
 
 	if [ "$1" = "add" ]; then
 		ethernet_link_up $dev
@@ -492,10 +532,13 @@ ipv4()
 
 	echo "Attempting to $1 IPv4 address $addr ($dev)"
 
-	/sbin/ifcfg $dev $1 $addr
-
+	#/sbin/ip $dev $1 $addr
+	/sbin/ip -f inet addr $1 dev $dev $addr
 	[ $? -ne 0 ] && return 1
 
+	#
+	# The following is needed only with ifconfig; ifcfg does it for us
+	#
 	if [ "$1" = "add" ]; then
 		# do that freak arp thing
 
@@ -503,11 +546,13 @@ ipv4()
 		hwaddr=${hwaddr/*link\/ether\ /}
 		hwaddr=${hwaddr/\ \*/}
 
-		addr=${addr/\/\*/}
+		addr=${addr/\/*/}
 		echo Sending gratuitous ARP: $addr $hwaddr
-		#cluarp $addr $hwaddr $addr ffffffffffff $devS
- 		arping -q -c 2 -U -I eth0 $addr
+ 		arping -q -c 2 -U -I $dev $addr
 	fi
+
+	killall -HUP rdisc || rdisc -fs
+	return 0
 }
 
 
@@ -567,7 +612,12 @@ ip_op()
 		fi
 		echo "OK"
 
-		# XXX may be ipv4 only.
+		#
+		# XXX may be ipv4 only; disable for now. 
+		#
+		if [ "$OCF_RESKEY_family" = "inet6" ]; then
+			return 0;
+		fi
 		[ $OCF_CHECK_LEVEL -lt 20 ] && return 0
 		rtr=`ip route | grep "default via.*dev $dev" | awk '{print $3}'`
 		[ -n "$4" ] || echo -n "Pinging $rtr..."
@@ -607,6 +657,11 @@ inet6)
 	fi
 	;;
 esac
+
+
+if [ -z "$OCF_CHECK_LEVEL" ]; then
+	OCF_CHECK_LEVEL=0
+fi
 
 
 case $1 in
