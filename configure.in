@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.229 $) dnl cvs revision
+AC_REVISION($Revision: 1.230 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -191,6 +191,7 @@ AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
 AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
+AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 
 AC_MSG_CHECKING(which glib config exists)
 if test "X${GLIBCONFIG}" = "X"; then
@@ -1008,6 +1009,8 @@ dnl             A replacement function is supplied for it.
 dnl
 dnl Check Only
 dnl
+dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h header compile cleanly.
+dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen daemon)
 AC_CHECK_FUNCS(alphasort, 
@@ -1026,7 +1029,10 @@ AC_CHECK_FUNCS(unsetenv,
 AC_CHECK_FUNCS(strnlen, 
 	AC_DEFINE(HA_HAVE_STRNLEN,   1, [Have strnlen function]))
 AC_CHECK_FUNCS(daemon, 
-	AC_DEFINE(HA_HAVE_DAEMON,   1, [Have daemon function]))
+	AC_DEFINE(HA_HAVE_DAEMON,    1, [Have daemon function]))
+AC_CHECK_FUNCS(getopt, 
+	AC_DEFINE(HAVE_DECL_GETOPT,  1, [Have getopt function]))
+
 
 AC_SUBST(HA_HAVE_ALPHASORT)
 AC_SUBST(HA_HAVE_INET_PTON)
@@ -1036,6 +1042,7 @@ AC_SUBST(HA_HAVE_STRERROR)
 AC_SUBST(HA_HAVE_UNSETENV)
 AC_SUBST(HA_HAVE_STRNLEN)
 AC_SUBST(HA_HAVE_DAEMON)
+AC_SUBST(HAVE_DECL_GETOPT)
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
