@@ -133,28 +133,28 @@ static unsigned int msgtype_to_flag(int type)
 	return flag;
 }
 
-static int test_allowed_msgtype(sm_sevent_t * sev, int type)
+static int test_allowed_msgtype(sm_sevent_t *sev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
 	return test_bit(flag, &sev->se_flags);
 }
 
-static void clear_allowed_msgtype(sm_sevent_t * sev, int type)
+static void clear_allowed_msgtype(sm_sevent_t *sev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
 	clear_bit(flag, &sev->se_flags);
 }
 
-static void set_allowed_msgtype(sm_sevent_t * sev, int type)
+static void set_allowed_msgtype(sm_sevent_t *sev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
 	set_bit(flag, &sev->se_flags);
 }
 
-static int save_global_id(sm_sevent_t * sev, sm_msg_t * smsg)
+static int save_global_id(sm_sevent_t *sev, sm_msg_t *smsg)
 {
 	sm_group_t *sg = sev->se_sg;
 
@@ -173,7 +173,7 @@ static int save_global_id(sm_sevent_t * sev, sm_msg_t * smsg)
 	return 0;
 }
 
-static void save_lastid(sm_msg_t * smsg)
+static void save_lastid(sm_msg_t *smsg)
 {
 	uint32_t gid = smsg->ms_global_lastid & 0x00FFFFFF;
 
@@ -220,7 +220,7 @@ static int next_sev_state(int msg_type, int cur_state)
  * sevent to the next stage when all the expected replies have been received.
  */
 
-static void process_reply(sm_msg_t * smsg, uint32_t nodeid)
+static void process_reply(sm_msg_t *smsg, uint32_t nodeid)
 {
 	sm_sevent_t *sev;
 	int i, expected, type = smsg->ms_type;
@@ -456,8 +456,8 @@ static void process_join_request(sm_msg_t *smsg, uint32_t nodeid, char *name)
  * the processing and then replying.
  */
 
-static void process_stop_request(sm_msg_t * smsg, uint32_t nodeid,
-				 uint32_t * msgbuf)
+static void process_stop_request(sm_msg_t *smsg, uint32_t nodeid,
+				 uint32_t *msgbuf)
 {
 	sm_group_t *sg;
 	sm_uevent_t *uev;
@@ -510,7 +510,7 @@ static void process_stop_request(sm_msg_t * smsg, uint32_t nodeid,
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
 
-static void process_start_request(sm_msg_t * smsg, uint32_t nodeid)
+static void process_start_request(sm_msg_t *smsg, uint32_t nodeid)
 {
 	sm_group_t *sg;
 	sm_uevent_t *uev;
@@ -542,7 +542,7 @@ static void process_start_request(sm_msg_t * smsg, uint32_t nodeid)
 	wake_serviced(DO_MEMBERSHIP);
 }
 
-static void process_leave_request(sm_msg_t * smsg, uint32_t nodeid)
+static void process_leave_request(sm_msg_t *smsg, uint32_t nodeid)
 {
 	sm_group_t *sg;
 	sm_node_t *node;
@@ -785,8 +785,7 @@ int send_nodeid_message(char *msg, int len, uint32_t nodeid)
 	saddr.scl_family = AF_CLUSTER;
 	saddr.scl_port = CLUSTER_PORT_SERVICES;
 	saddr.scl_nodeid = nodeid;
-	error = kcl_sendmsg(sm_socket, msg, len, &saddr,
-			    sizeof(saddr), 0);
+	error = kcl_sendmsg(sm_socket, msg, len, &saddr, sizeof(saddr), 0);
 	if (error > 0)
 		error = 0;
 
