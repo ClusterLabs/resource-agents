@@ -19,6 +19,7 @@
 #include "gulm_defines.h"
 #include "config_gulm.h"
 #include "config_priv.h"
+#include "utils_ip.h"
 #include "utils_verb_flags.h"
 #include "ccs.h"
 
@@ -38,6 +39,39 @@ extern gulm_config_t gulm_config;
 extern char myName[256];
 
 /*****************************************************************************/
+
+void parse_serverlist(gulm_config_t *gf, int cd)
+{
+   char *tmp;
+   ip_name_t *in;
+
+   /* this `overwrites' previous entries so... */
+   if( !LLi_empty(&gf->node_list) ) {
+      release_node_list(&gf->node_list);
+      gf->node_cnt = 0;
+      LLi_init_head(&gf->node_list);
+   }
+
+   for(;;) {
+      if( ccs_get_list(cd, "/cluster/gulm/server/@name", &tmp) != 0 )
+         break;
+      if( tmp == NULL ) break;
+      in = get_ipname(tmp);
+      if( in == NULL || in->name == NULL ) {
+         fprintf(stderr, "Look up on \"%s\" failed. skipping\n", tmp);
+      }else{
+         if( gf->node_cnt < 5 ) {
+            LLi_add_before( &gf->node_list, &in->in_list );
+            gf->node_cnt ++;
+         }else{
+            fprintf(stderr, "Skipping server entry \"%s\" since the max of five"
+                  " has been reached.\n", tmp);
+            free(in);
+         }
+      }
+      free(tmp);
+   }
+}
 
 /**
  * parse_ccs - 
@@ -76,8 +110,11 @@ int parse_ccs(gulm_config_t *gf)
 
    if( ccs_get(cd, "/cluster/gulm/servers", &tmp) == 0 ) {
       parse_cmdline_servers(gf, tmp);
+      fprintf(stderr, "Warning, use of /cluster/gulm/servers is depercated.\n");
       free(tmp);
    }
+
+   parse_serverlist(gf, cd);
 
    if( ccs_get(cd, "/cluster/gulm/verbosity", &tmp) == 0 ) {
       set_verbosity(tmp, &verbosity);
