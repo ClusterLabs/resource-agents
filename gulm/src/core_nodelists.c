@@ -318,15 +318,14 @@ void list_heartbeat_lru(FILE *fp)
 void dump_nodes(void)
 {
    FILE *fp;
-   char *path;
-   if( build_tmp_path("Gulm_Nodelist", &path) != 0) return;
-   if((fp = fopen(path, "a")) == NULL ) {free(path); return;}
+   int fd;
+   if( (fd=open_tmp_file("Gulm_Nodelist")) < 0 ) return;
+   if((fp = fdopen(fd, "a")) == NULL ) return;
    fprintf(fp,"========================================"
          "========================================\n");
    fdump_nodes(fp);
    list_heartbeat_lru(fp);
    fclose(fp);
-   free(path);
 }
 
 /**

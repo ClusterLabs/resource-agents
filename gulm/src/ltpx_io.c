@@ -389,10 +389,8 @@ void dump_all_master_tables(void)
 {
    int ltid;
    for(ltid=0; ltid < gulm_config.how_many_lts; ltid ++ ) {
-      dump_ltpx_senders(&MastersList[ltid].senderlist, ltid);
-      if( MastersList[ltid].pending_reqs != NULL ) {
-         dump_ltpx_locks(MastersList[ltid].pending_reqs, ltid);
-      }
+      dump_ltpx_stuff(&MastersList[ltid].senderlist,
+            MastersList[ltid].pending_reqs, ltid);
    }
 }
 

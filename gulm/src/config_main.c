@@ -149,7 +149,7 @@ uint32_t hash_config(gulm_config_t *gf)
 void dump_conf(gulm_config_t *gf, int out)
 {
    FILE *fp;
-   char *path;
+   int fd;
    LLi_t *tmp;
    ip_name_t *in;
    uint64_t pf;
@@ -157,8 +157,8 @@ void dump_conf(gulm_config_t *gf, int out)
    if( out ) {
       fp = stdout;
    }else{
-      if( build_tmp_path("Gulm_config", &path) != 0 ) return;
-      if((fp = fopen(path,"a")) == NULL ) {free(path); return;}
+      if( (fd=open_tmp_file("Gulm_config")) < 0 ) return;
+      if((fp = fdopen(fd,"a")) == NULL ) return;
    }
    fprintf(fp,"#======================================="
          "========================================\n");
@@ -206,7 +206,6 @@ void dump_conf(gulm_config_t *gf, int out)
 
    if( !out ) {
       fclose(fp);
-      free(path);
    }
 }
 

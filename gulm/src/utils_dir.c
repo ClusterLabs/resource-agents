@@ -19,28 +19,33 @@
 #include <fcntl.h>
 
 #include "gulm_defines.h"
+#include "utils_dir.h"
 
 /**
- * build_tmp_path - 
+ * open_tmp_file - 
  * @file: 
  * @path: 
  * 
- * build up the path into the tmp dir, whereever it may be.
+ * get a unique tmp file for dumping to.
+ * also opens it.
  * 
  * Returns: int
  */
-int build_tmp_path(char *file, char **path)
+int open_tmp_file(char *file)
 {
+   int fd=-1;
    char *tmp, *p;
    tmp = getenv("TMPDIR");
    if(tmp == NULL ) tmp = "/tmp";
-   p = malloc( strlen(tmp) + strlen(file) + 2);
+   p = malloc( strlen(tmp) + strlen(file) + 2 + 8);
    if( p == NULL ) return -ENOMEM;
    strcpy(p, tmp);
    strcat(p, "/");
    strcat(p, file);
-   *path = p;
-   return 0;
+   strcat(p, ".XXXXXX");
+   fd = mkstemp(p);
+   free(p);
+   return fd;
 }
 
 /**

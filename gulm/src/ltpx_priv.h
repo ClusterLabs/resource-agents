@@ -46,8 +46,7 @@ int initialize_ltpx_maps(void);
 lock_req_t *get_new_lock_req(void);
 void recycle_lock_req(lock_req_t *lq);
 hashn_t * create_new_req_map(void);
-void dump_ltpx_locks(hashn_t *map, int ltid);
 void dump_all_master_tables(void);
-void dump_ltpx_senders(Qu_t *head, int ltid);
+void dump_ltpx_stuff(Qu_t *head, hashn_t *map, int ltid);
 
 #endif /*__ltpx_priv_h__*/

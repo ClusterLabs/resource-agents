@@ -426,16 +426,17 @@ int _dump_locks_(LLi_t *item, void *d)
  */
 void dump_locks(void)
 {
-   char *path, *c;
+   char *c;
    FILE *fp;
+   int fd;
 
-   if( build_tmp_path("Gulm_LT_Lock_Dump.", &path ) != 0 ) return;
-   c = realloc(path, strlen(path) + strlen(LTname) +2);
-   if( c == NULL ) {free(path); return;}
-   path = c;
-   strcat(path, LTname);
+   c = malloc(19 + strlen(LTname) +2);
+   if( c == NULL ) return;
+   strcpy(c, "Gulm_LT_Lock_Dump.");
+   strcat(c, LTname);
    
-   if( (fp = fopen(path,"a")) == NULL) {free(path); return;}
+   if( (fd=open_tmp_file(c)) < 0 ) return;
+   if( (fp = fdopen(fd,"a")) == NULL) {free(c); return;}
 
    fprintf(fp, "# BEGIN LOCK DUMP\n");
 
@@ -445,7 +446,7 @@ void dump_locks(void)
    fprintf(fp, "#======================================="
                "========================================\n");
    fclose(fp);
-   free(path);
+   free(c);
 }
 
 void dump_holders(char *s, LLi_t *list)

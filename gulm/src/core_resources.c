@@ -192,14 +192,13 @@ int _dump_resource_(LLi_t *item, void *misc)
 void dump_resources(void)
 {
    FILE *fp;
-   char *path;
-   if( build_tmp_path("Gulm_Services", &path) != 0) return;
-   if((fp = fopen(path, "a")) == NULL ) {free(path); return;}
+   int fd;
+   if( (fd=open_tmp_file("Gulm_Services")) < 0) return;
+   if((fp = fdopen(fd, "a")) == NULL ) return;
    fprintf(fp,"========================================"
          "========================================\n");
    hash_walk(Resources, _dump_resource_, fp);
    fclose(fp);
-   free(path);
 }
 
 /**

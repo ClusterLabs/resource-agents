@@ -12,7 +12,7 @@
 ******************************************************************************/
 #ifndef __utils_dir_h__
 #define __utils_dir_h__
-int build_tmp_path(char *file, char **path);
+int open_tmp_file(char *file);
 void pid_lock(char *path, char *lf);
 void clear_pid(char *path, char *lf);
 #endif /*__utils_dir_h__*/

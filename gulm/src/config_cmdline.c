@@ -74,7 +74,7 @@ void parse_cmdline_servers(gulm_config_t *gf, char *servers)
 
          if( in == NULL ) return;
          if( in->name == NULL ) {
-            fprintf(stderr, "I cannot find the name for ip \"%s\".\n",
+            fprintf(stderr, "I cannot find the name for ip \"%s\". Stopping.\n",
                   token);
             return;
          }

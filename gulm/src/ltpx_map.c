@@ -243,40 +243,16 @@ static int _dump_lqs_(LLi_t *item, void *d)
    return 0;
 }
 
-void dump_ltpx_locks(hashn_t *map, int ltid)
+void dump_ltpx_stuff(Qu_t *head, hashn_t *map, int ltid)
 {
-   char *path;
+   int fd;
    FILE *fp;
-
-   if( build_tmp_path("Gulm_LTPX_Req_Dump", &path ) != 0 ) return;
-   
-   if( (fp = fopen(path,"a")) == NULL) {free(path); return;}
-
-   fprintf(fp, "---\n# BEGIN LTPX REQ HASH DUMP FOR %d\n", ltid);
-
-   hashn_walk(map, _dump_lqs_, fp);
-
-   fprintf(fp, "#======================================="
-               "========================================\n");
-
-   fprintf(fp, "# END LTPX REQ HASH DUMP FOR %d\n", ltid);
-
-   fprintf(fp, "#======================================="
-               "========================================\n");
-   fclose(fp);
-   free(path);
-}
-
-void dump_ltpx_senders(Qu_t *head, int ltid)
-{
-   char *path;
-   FILE *fp;
+   LLi_t *tmp;
    lock_req_t *lq;
-   Qu_t *tmp;
 
-   if( build_tmp_path("Gulm_LTPX_Req_Dump", &path ) != 0 ) return;
+   if( (fd=open_tmp_file("Gulm_LTPX_Req_Dump")) < 0 ) return;
    
-   if( (fp = fopen(path,"a")) == NULL) {free(path); return;}
+   if( (fp = fdopen(fd,"a")) == NULL) return;
 
    fprintf(fp, "---\n# BEGIN LTPX REQ SENDERS DUMP FOR %d\n", ltid);
 
@@ -290,12 +266,19 @@ void dump_ltpx_senders(Qu_t *head, int ltid)
 
    fprintf(fp, "#======================================="
                "========================================\n");
-
    fprintf(fp, "# END LTPX REQ SENDERS DUMP FOR %d\n", ltid);
+   fprintf(fp, "#======================================="
+               "========================================\n");
+   fprintf(fp, "---\n# BEGIN LTPX REQ HASH DUMP FOR %d\n", ltid);
+
+   if( map != NULL ) hashn_walk(map, _dump_lqs_, fp);
 
    fprintf(fp, "#======================================="
                "========================================\n");
+   fprintf(fp, "# END LTPX REQ HASH DUMP FOR %d\n", ltid);
+   fprintf(fp, "#======================================="
+               "========================================\n");
    fclose(fp);
-   free(path);
 }
 
+/* vim: set ai cin et sw=3 ts=3 : */
