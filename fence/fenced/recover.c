@@ -452,7 +452,7 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 		log_debug("fencing node %s", node->name);
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
-		error = dispatch_fence_agent(cd, node->name, 0);
+		error = dispatch_fence_agent(cd, node->name);
 
 		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
 		       error ? "failed" : "success");
