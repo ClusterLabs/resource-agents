@@ -556,7 +556,7 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
   }
 
   if(!quorate && !(ch->comm_flags & COMM_CONNECT_FORCE)){
-    log_msg("Cluster is not quorate.  Refusing connection.\n");
+    log_err("Cluster is not quorate.  Refusing connection.\n");
     error = -ECONNREFUSED;
     goto fail;
   }
