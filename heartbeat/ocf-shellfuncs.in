@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.3 2004/08/27 15:05:11 lars Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.4 2004/09/03 10:00:45 lars Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -46,6 +46,7 @@
 ocf_set_defaults() {
 	ACTION="$1"
 
+	# Return to sanity for the agents...
 	unset LANG
 	LC_ALL=C
 	export LC_ALL
@@ -67,23 +68,23 @@ ocf_set_defaults() {
 
 	# TODO: Anything else we should be setting?
 	if [ "x$OCF_RA_VERSION_MAJOR" != "x1" ]; then
-		echo "ERROR: This script is OCF RA API 1.x compliant only!"
+		ha_log "ERROR: This script is OCF RA API 1.x compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
 	if [ "0$OCF_RA_VERSION_MINOR" -lt "0" ]; then
-		echo "ERROR: This script is OCF RA API >1.0 compliant only!"
+		ha_log "ERROR: This script is OCF RA API >1.0 compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
 	if [ ! -d "$OCF_ROOT" ]; then
-		echo "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
+		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
 		exit $OCF_ERR_GENERIC
 	fi
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
-		echo "ERROR: Need to tell us our resource instance name."
+		ha_log "ERROR: Need to tell us our resource instance name."
 		exit $OCF_ERR_ARGS
 	fi
 	if [ -z "$OCF_RESOURCE_TYPE" ]; then
-		echo "ERROR: Need to tell us our resource type."
+		ha_log "ERROR: Need to tell us our resource type."
 		exit $OCF_ERR_ARGS
 	fi
 }
