@@ -123,7 +123,7 @@ extern int we_are_a_cluster_member;
 extern int cluster_is_quorate;
 extern struct cluster_node *us;
 extern struct list_head new_dead_node_list;
-extern struct semaphore new_dead_node_lock;
+extern spinlock_t new_dead_node_lock;
 extern char nodename[];
 extern int wanted_nodeid;
 
@@ -4130,11 +4130,11 @@ static int __init cluster_init(void)
 	init_MUTEX(&messages_list_lock);
 	init_MUTEX(&listenreq_lock);
 	init_MUTEX(&client_socket_lock);
-	init_MUTEX(&new_dead_node_lock);
 	init_MUTEX(&event_listener_lock);
 	init_MUTEX(&kernel_listener_lock);
 	init_MUTEX(&tempnode_lock);
 	spin_lock_init(&active_socket_lock);
+	spin_lock_init(&new_dead_node_lock);
 	init_timer(&ack_timer);
 
 	INIT_LIST_HEAD(&event_listener_list);

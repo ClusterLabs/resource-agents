@@ -104,7 +104,7 @@ static unsigned long transition_end_time;
  * than one element in it but I can't take that chance. only non-static so it
  * can be initialised in module_load. */
 struct list_head new_dead_node_list;
-struct semaphore new_dead_node_lock;
+spinlock_t new_dead_node_lock;
 
 static int do_membership_packet(struct msghdr *msg, char *buf, int len);
 static int do_process_joinreq(struct msghdr *msg, char *buf, int len);
@@ -236,6 +236,14 @@ static inline void set_nodeid(struct cluster_node *node, int nodeid)
 	}
 	notify_kernel_listeners(NEWNODE, (long) nodeid);
 
+	if (members_by_nodeid[nodeid] &&
+	    members_by_nodeid[nodeid] != node) {
+		printk("Attempt to re-add node with id %d\n", nodeid);
+		printk("existing node is %s\n", members_by_nodeid[nodeid]->name);
+		printk("new node is %s\n", node->name);
+		BUG();
+	}
+
 	spin_lock(&members_by_nodeid_lock);
 	members_by_nodeid[nodeid] = node;
 	spin_unlock(&members_by_nodeid_lock);
@@ -342,18 +350,21 @@ static int membership_kthread(void *unused)
 			struct list_head *nodelist, *tmp;
 			struct cl_new_dead_node *deadnode;
 
-			down(&new_dead_node_lock);
+			spin_lock(&new_dead_node_lock);
 			list_for_each_safe(nodelist, tmp, &new_dead_node_list) {
 				deadnode =
 				    list_entry(nodelist,
 					       struct cl_new_dead_node, list);
 
-				if (deadnode->node->state == NODESTATE_MEMBER)
-					a_node_just_died(deadnode->node);
 				list_del(&deadnode->list);
+				if (deadnode->node->state == NODESTATE_MEMBER) {
+					spin_unlock(&new_dead_node_lock);
+					a_node_just_died(deadnode->node);
+					spin_lock(&new_dead_node_lock);
+				}
 				kfree(deadnode);
 			}
-			up(&new_dead_node_lock);
+			spin_unlock(&new_dead_node_lock);
 		}
 
 		/* Process received messages. If dispatch_message() returns an
@@ -1243,10 +1254,10 @@ void a_node_just_died(struct cluster_node *node)
 		if (!newnode)
 			return;
 		newnode->node = node;
-		down(&new_dead_node_lock);
+		spin_lock(&new_dead_node_lock);
 		list_add_tail(&newnode->list, &new_dead_node_list);
 		set_bit(WAKE_FLAG_DEADNODE, &wake_flags);
-		up(&new_dead_node_lock);
+		spin_unlock(&new_dead_node_lock);
 		wake_up_process(membership_task);
 		P_MEMB("Passing dead node %s onto kmembershipd\n", node->name);
 		return;
@@ -1780,7 +1791,7 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 
 	if (node_opinion == NULL) {
 		node_opinion =
-		    kmalloc((1 + highest_nodeid) * sizeof (uint8_t), GFP_KERNEL);
+		    kmalloc((10 + highest_nodeid) * sizeof (uint8_t), GFP_KERNEL);
 		if (!node_opinion) {
 			panic(": malloc agree/dissent failed\n");
 		}
@@ -2196,7 +2207,8 @@ static int do_process_joinack(struct msghdr *msg, char *buf, int len)
 		node_state = REJECTED;
 	}
 
-	if (ackmsg->acktype == JOINACK_TYPE_WAIT) {
+	if (ackmsg->acktype == JOINACK_TYPE_WAIT &&
+		node_state != JOINACK) {
 		P_MEMB("Got JOINACK WAIT\n");
 		node_state = JOINWAIT;
 		joinwait_time = jiffies;
@@ -2457,9 +2469,9 @@ static int check_node(struct cluster_node *newnode, char *addrs,
 	    node->node_id != newnode->node_id ||
 	    (node->state != NODESTATE_JOINING &&
 	     node->state != newnode->state)) {
-		C_MEMB(" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
+		C_MEMB(" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d(exp: %d)\n",
 		       node->votes, newnode->votes, node->node_id,
-		       newnode->node_id, node->state);
+		       newnode->node_id, node->state, newnode->state);
 		return -1;
 	}
 	C_MEMB(" - OK\n");
