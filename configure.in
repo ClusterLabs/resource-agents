@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.50 $) dnl cvs revision
+AC_REVISION($Revision: 1.51 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -435,6 +435,7 @@ debian/Makefile							\
 doc/Makefile							\
 include/Makefile						\
         include/pils/Makefile					\
+        include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
