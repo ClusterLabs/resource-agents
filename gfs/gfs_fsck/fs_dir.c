@@ -132,8 +132,8 @@ int dirent_next(osi_buf_t *bh, struct gfs_dirent **dent)
  * Returns: 0 on success, error code otherwise
  */
 
-static int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
-		      struct gfs_dirent *prev, struct gfs_dirent *cur){
+int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
+	       struct gfs_dirent *prev, struct gfs_dirent *cur){
 	uint32 cur_rec_len, prev_rec_len;
 
 	dip->i_di.di_entries--;
@@ -172,6 +172,8 @@ static int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
 		return -1;
 	}
 
+	log_debug("Updating previous record from %u to %u\n",
+		  prev_rec_len, prev_rec_len+cur_rec_len);
 	prev_rec_len += cur_rec_len;
 	prev->de_rec_len = cpu_to_gfs16(prev_rec_len);
 
@@ -1090,7 +1092,7 @@ static int dir_e_del(struct fsck_inode *dip, osi_filename_t *filename){
 	}
 
 	if(!found)
-		return 0;
+		return 1;
 
 	if(dirent_del(dip, bh, prev, cur)){
 		fprintf(stderr, "dir_e_del:  dirent_del failed.\n");
@@ -1138,7 +1140,7 @@ static int dir_l_del(struct fsck_inode *dip, osi_buf_t *dibh,
 			log_debug("dir_l_del found no entry\n");
 			if(got_buf)
 				relse_buf(dip->i_sbd, dibh);
-			return 0;
+			return 1;
 		} else {
 			log_err("dir_l_del:  leaf_search failed.\n");
 			if(got_buf)
@@ -1403,8 +1405,8 @@ static int dir_l_add(struct fsck_inode *dip, osi_filename_t *filename,
 
 		error = dir_make_exhash(dip);
 		/* DEBUG */
-		printf( "Changing Linear dir to Exhash dir - %s\n",
-			(error)? "UNSUCCESSFUL": "SUCCESSFUL");
+		log_debug("Changing Linear dir to Exhash dir - %s\n",
+			  (error)? "UNSUCCESSFUL": "SUCCESSFUL");
 		if (!error)
 			error = dir_e_add(dip, filename, inum, type);
 

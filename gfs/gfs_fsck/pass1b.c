@@ -112,7 +112,9 @@ static int check_eattr_extentry(struct fsck_inode *ip, uint64_t *ea_data_ptr,
 }
 
 static int find_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
-			 osi_buf_t *bh, char *filename, int *update, void *priv)
+		       struct gfs_dirent *prev,
+		       osi_buf_t *bh, char *filename, int *update,
+		       uint16_t *count, void *priv)
 {
 	osi_list_t *tmp1, *tmp2;
 	struct blocks *b;

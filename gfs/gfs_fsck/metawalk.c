@@ -19,14 +19,16 @@
 #include "metawalk.h"
 
 int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
-		  int type, int *update, struct metawalk_fxns *pass)
+		  int type, int *update, uint16_t *count,
+		  struct metawalk_fxns *pass)
 {
 	struct gfs_leaf *leaf = NULL;
 	struct gfs_dirent *dent;
-	struct gfs_dirent de;
+	struct gfs_dirent de, p, *prev;
 	int error = 0;
 	char *bh_end;
 	char *filename;
+	int first = 1;
 
 	bh_end = BH_DATA(bh) + BH_SIZE(bh);
 
@@ -38,10 +40,16 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 		dent = (struct gfs_dirent *)(BH_DATA(bh)
 					     + sizeof(struct gfs_leaf));
 		leaf = (struct gfs_leaf *)BH_DATA(bh);
+		log_debug("Checking leaf %"PRIu64"\n", BH_BLKNO(bh));
 	}
 	else {
 		log_err("Invalid directory type %d specified\n", type);
 		return -1;
+	}
+
+	prev = NULL;
+	if(!pass->check_dentry) {
+		return 0;
 	}
 
 	while(1) {
@@ -49,18 +57,39 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 		gfs_dirent_in(&de, (char *)dent);
 		filename = (char *)dent + sizeof(struct gfs_dirent);
 
-		if(pass->check_dentry) {
-			error = pass->check_dentry(ip, &de, bh, filename, update,
+		if (!de.de_inum.no_formal_ino){
+			if(first){
+				log_debug("First dirent is a sentinel (place holder).\n");
+				first = 0;
+			} else {
+				/* FIXME: Do something about this */
+				log_err("Bad entry!\n");
+				return 1;
+			}
+		} else {
+			if(first)
+				first = 0;
+
+			error = pass->check_dentry(ip, dent, prev, bh,
+						   filename, update,
+						   count,
 						   pass->private);
 			if(error < 0) {
 				stack;
 				return -1;
 			}
+			/*if(error > 0) {
+			  return 1;
+			  }*/
 		}
 
 		if ((char *)dent + de.de_rec_len >= bh_end){
 			log_debug("Last entry processed.\n");
 			break;
+		}
+
+		if(!error) {
+			prev = dent;
 		}
 		dent = (struct gfs_dirent *)((char *)dent + de.de_rec_len);
 	}
@@ -78,6 +107,8 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 	osi_buf_t *lbh;
 	int index;
 	struct fsck_sb *sbp = ip->i_sbd;
+	uint16_t count;
+	int ref_count = 0, exp_count = 0;
 
 	old_leaf = 0;
 	for(index = 0; index < (1 << ip->i_di.di_depth); index++) {
@@ -95,13 +126,28 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 		/* GFS has multiple indirect pointers to the same leaf
 		 * until those extra pointers are needed, so skip the
 		 * dups */
-		if(old_leaf == leaf_no)
+		if(old_leaf == leaf_no) {
+			ref_count++;
 			continue;
+		} else {
+			if(ref_count != exp_count){
+				log_err("Dir #%"PRIu64" has an incorrect number "
+					 "of pointers to leaf #%"PRIu64"\n"
+					 "\tFound: %u,  Expected: %u\n",
+					 ip->i_num.no_addr,
+					 old_leaf,
+					 ref_count,
+					 exp_count);
+				return 1;
+			}
+			ref_count = 1;
+		}
 
+		count = 0;
 		do {
 			/* FIXME: Do other checks (see old
 			 * pass3:dir_exhash_scan() */
-
+			lbh = NULL;
 			if(pass->check_leaf) {
 				error = pass->check_leaf(ip, leaf_no, &lbh,
 							 pass->private);
@@ -113,7 +159,7 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 				if(error > 0) {
 					relse_buf(sbp, lbh);
 					lbh = NULL;
-					break;
+					return 1;
 				}
 			}
 
@@ -132,16 +178,40 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 			}
 			gfs_leaf_in(&leaf, BH_DATA(lbh));
 
-			if(ip->i_di.di_type == GFS_FILE_DIR) {
+			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
+
+			if(pass->check_dentry && 
+			   ip->i_di.di_type == GFS_FILE_DIR) {
 				error = check_entries(ip, lbh, index,
 						      DIR_EXHASH, update,
+						      &count,
 						      pass);
 
-				if(error) {
+				if(error < 0) {
 					stack;
 					relse_buf(sbp, lbh);
 					return -1;
 				}
+
+				if(error > 0) {
+					relse_buf(sbp, lbh);
+					return 1;
+				}
+
+				if(update && (count != leaf.lf_entries)) {
+					log_err("Leaf(%"PRIu64") entry count in directory %"PRIu64" doesn't match number of entries found - is %u, found %u\n", leaf_no, ip->i_num.no_addr, leaf.lf_entries, count);
+					if(query(sbp, "Update leaf entry count(y/n) ")) {
+						leaf.lf_entries = count;
+						gfs_leaf_out(&leaf, BH_DATA(lbh));
+						write_buf(sbp, lbh, 0);
+						log_warn("Leaf entry count updated\n");
+					} else {
+						log_err("Leaf entry count left in inconsistant state\n");
+					}
+				}
+				/* FIXME: Need to get entry count and
+				 * compare it against
+				 * leaf->lf_entries */
 
 				relse_buf(sbp, lbh);
 				break;
@@ -429,6 +499,7 @@ int check_metatree(struct fsck_inode *ip, struct metawalk_fxns *pass)
 	uint32_t height = ip->i_di.di_height;
 	int  i, head_size;
 	int update = 0;
+	int error = 0;
 
 	if (!height)
 		goto end;
@@ -446,8 +517,9 @@ int check_metatree(struct fsck_inode *ip, struct metawalk_fxns *pass)
 	/* We don't need to record directory blocks - they will be
 	 * recorded later...i think... */
 	if (ip->i_di.di_type == GFS_FILE_DIR) {
-		log_debug("Directory with height > 0\n");
-		goto end;
+		log_debug("Directory with height > 0 at %"PRIu64"\n",
+			  ip->i_di.di_num.no_addr);
+
 	}
 
 	/* check data blocks */
@@ -492,8 +564,11 @@ end:
 	if (ip->i_di.di_type == GFS_FILE_DIR) {
 		/* check validity of leaf blocks and leaf chains */
 		if (ip->i_di.di_flags & GFS_DIF_EXHASH) {
-			if (check_leaf(ip, &update, pass))
+			error = check_leaf(ip, &update, pass);
+			if(error < 0)
 				return -1;
+			if(error > 0)
+				return 1;
 		}
 	}
 
@@ -505,13 +580,16 @@ end:
 int check_linear_dir(struct fsck_inode *ip, osi_buf_t *bh, int *update,
 		     struct metawalk_fxns *pass)
 {
+	int error = 0;
+	uint16_t count = 0;
 
-	if(check_entries(ip, bh, 0, DIR_LINEAR, update, pass)) {
+	error = check_entries(ip, bh, 0, DIR_LINEAR, update, &count, pass);
+	if(error < 0) {
 		stack;
 		return -1;
 	}
 
-	return 0;
+	return error;
 }
 
 
@@ -520,6 +598,7 @@ int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass)
 	osi_buf_t *bh;
 	struct fsck_inode *ip;
 	int update = 0;
+	int error = 0;
 
 	if(get_and_read_buf(sbp, block, &bh, 0)){
 		log_err("Unable to retrieve block #%"PRIu64"\n",
@@ -535,20 +614,28 @@ int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass)
 	}
 
 	if(ip->i_di.di_flags & GFS_DIF_EXHASH) {
-		check_leaf(ip, &update, pass);
+
+		error = check_leaf(ip, &update, pass);
+		if(error < 0) {
+			stack;
+			free_inode(&ip);
+			relse_buf(sbp, bh);
+			return -1;
+		}
 	}
 	else {
-		check_linear_dir(ip, bh, &update, pass);
+		error = check_linear_dir(ip, bh, &update, pass);
+		if(error < 0) {
+			stack;
+			free_inode(&ip);
+			relse_buf(sbp, bh);
+			return -1;
+		}
 	}
-	/* write out changes if necessary.*/
-	if(update) {
-		gfs_dinode_out(&ip->i_di,
-			       BH_DATA(bh));
-		write_buf(sbp, bh, 0);
-	}
+
 	free_inode(&ip);
 	relse_buf(sbp, bh);
 
-	return 0;
+	return error;
 
 }

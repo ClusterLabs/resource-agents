@@ -53,7 +53,7 @@ static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 			block, ip->i_di.di_num.no_addr);
 		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
 			 ip->i_di.di_num.no_addr)) {
-			block_set(sdp->bl, block, meta_inval);
+			block_set(sdp->bl, ip->i_di.di_num.no_addr, meta_inval);
 		} else {
 			log_err("Unreadable block %"PRIu64" ignored\n");
 		}
@@ -68,6 +68,7 @@ static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 			 ip->i_di.di_num.no_addr)) {
 			block_set(sdp->bl, ip->i_di.di_num.no_addr,
 				  meta_inval);
+			log_err("Directory inode marked invalid\n");
 		} else {
 			log_err("Invalid block %"PRIu64" ignored\n");
 		}
@@ -139,7 +140,7 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 
 	if (check_range(ip->i_sbd, block)) {
 
-		log_debug( "Bad data block pointer (out of range)\n");
+		log_err( "Bad data block pointer (out of range)\n");
 		/* Mark the owner of this block with the bad_block
 		 * designator so we know to check it for out of range
 		 * blocks later */
@@ -149,17 +150,28 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 	}
 
 	if (ip->i_di.di_flags & GFS_DIF_JDATA){
+		if(ip->i_di.di_type & GFS_FILE_DIR) {
+			log_err("Directory inodes should not have GFS_DIF_JDATA\n");
+			if(query(ip->i_sbd, "Clear inode with bad flag? (y/n) ")) {
+				block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
+				log_warn("Cleared inode with bad flag\n");
+				return 1;
+			} else {
+				log_err("Inode with bad flag remains\n");
+			}
+		}
+
 		/* Journaled data *is* metadata */
 		if(get_and_read_buf(ip->i_sbd, block, &data_bh, 0)) {
 			stack;
-			block_set(sdp->bl, block, meta_inval);
+			block_set(sdp->bl, ip->i_di.di_num.no_addr, meta_inval);
 			return 1;
 		}
 		if(check_meta(data_bh, GFS_METATYPE_JD)) {
 			log_err("Block #%"PRIu64" does not have "
 				"correct meta header.\n", block);
 			relse_buf(sdp, data_bh);
-			block_set(sdp->bl, block, meta_inval);
+			block_set(sdp->bl, ip->i_di.di_num.no_addr, meta_inval);
 			return 1;
 		}
 
@@ -456,6 +468,7 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 {
 	struct block_query q = {0};
 	struct fsck_inode *ip;
+	int error;
 
 	if(copyin_inode(sdp, bh, &ip)) {
 		stack;
@@ -577,16 +590,18 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 
 	/* FIXME: fix height and depth here - wasn't implemented in
 	 * old fsck either, so no biggy... */
-#if 0
 	if (ip->i_di.di_height < compute_height(sdp, ip->i_di.di_size)){
 		log_warn("Dinode #%"PRIu64" has bad height  "
 			 "Found %u, Expected >= %u\n",
 			 ip->i_di.di_num.no_addr, ip->i_di.di_height,
 			 compute_height(sdp, ip->i_di.di_size));
 			/* once implemented, remove continue statement */
-			log_crit("Height not set.\n");
-			continue;
+		log_warn("Marking inode invalid\n");
+		if(block_set(sdp->bl, block, meta_inval)) {
+			stack;
+			goto fail;
 		}
+		goto success;
 	}
 
 	if (ip->i_di.di_type == (GFS_FILE_DIR &&
@@ -600,14 +615,26 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 				 ip->i_di.di_num.no_addr, ip->i_di.di_depth,
 				 (1 >> (ip->i_di.di_size/sizeof(uint64))));
 			/* once implemented, remove continue statement */
-			log_crit("\tDepth not set.\n");
-			continue;
+			log_warn("Marking inode invalid\n");
+			if(block_set(sdp->bl, block, meta_inval)) {
+				stack;
+				goto fail;
 			}
+			goto success;
 		}
 	}
-#endif /* unimplemented height and depth check/fix */
 
-	check_metatree(ip, &pass1_fxns);
+
+	error = check_metatree(ip, &pass1_fxns);
+	if(error < 0) {
+		return 0;
+	}
+	if(error > 0) {
+		log_warn("Marking inode invalid\n");
+		block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
+		return 0;
+	}
+
 	/* FIXME: is this correct? */
 	if(check_inode_eattr(ip, &pass1_fxns) < 0){
 		osi_buf_t	*di_bh;

@@ -72,6 +72,7 @@ static int check_leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **lbh,
 		else {
 			relse_buf(sbp, bh);
 			bh = NULL;
+			break;
 		}
 	} while(chain_no);
 
@@ -218,8 +219,10 @@ static int check_file_type(uint16_t de_type, uint8_t block_type) {
 
 /* FIXME: should maybe refactor this a bit - but need to deal with
  * FIXMEs internally first */
-int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
-		 osi_buf_t *bh, char *filename, int *update, void *priv)
+int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
+		 struct gfs_dirent *prev_de,
+		 osi_buf_t *bh, char *filename, int *update,
+		 uint16_t *count, void *priv)
 {
 	struct fsck_sb *sbp = ip->i_sbd;
 	struct block_query q = {0};
@@ -230,6 +233,12 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 	int error;
 	struct fsck_inode *entry_ip = NULL;
 	struct metawalk_fxns clear_eattrs = {0};
+	struct gfs_dirent dentry, *de;
+
+	memset(&dentry, 0, sizeof(struct gfs_dirent));
+	gfs_dirent_in(&dentry, (char *)dent);
+	de = &dentry;
+
 	clear_eattrs.check_eattr_indir = clear_eattr_indir;
 	clear_eattrs.check_eattr_leaf = clear_eattr_leaf;
 	clear_eattrs.check_eattr_entry = clear_eattr_entry;
@@ -238,22 +247,55 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 	entryblock = de->de_inum.no_addr;
 
 	/* Start of checks */
+	if (de->de_rec_len < GFS_DIRENT_SIZE(de->de_name_len)){
+		log_err("Dir entry with bad record or name length\n"
+			"\tRecord length = %u\n"
+			"\tName length = %u\n",
+			de->de_rec_len,
+			de->de_name_len);
+		block_set(sbp->bl, ip->i_num.no_addr, meta_inval);
+		return 1;
+		/* FIXME: should probably delete the entry here at the
+		 * very least - maybe look at attempting to fix it */
+	}
+
+	if (de->de_hash != gfs_dir_hash(filename, de->de_name_len)){
+	        log_err("Dir entry with bad hash or name length\n"
+			 "\tHash found         = %u\n"
+			 "\tName found         = %s\n"
+			 "\tName length found  = %u\n"
+			 "\tHash expected      = %u\n",
+			 de->de_hash,
+			 filename,
+			 de->de_name_len,
+			 gfs_dir_hash(filename, de->de_name_len));
+		return 1;
+	}
+	/* FIXME: This should probably go to the top of the fxn, and
+	 * references to filename should be replaced with tmp_name */
+	memset(tmp_name, 0, MAX_FILENAME);
+	if(de->de_name_len < MAX_FILENAME){
+		strncpy(tmp_name, filename, de->de_name_len);
+	} else {
+		strncpy(tmp_name, filename, MAX_FILENAME - 1);
+	}
+
 	if(check_range(ip->i_sbd, entryblock)) {
 		log_err("Block # referenced by directory entry %s is out of range\n",
-			filename);
+			tmp_name);
 		if(query(ip->i_sbd, "Clear directory entry tp out of range block? (y/n) ")) {
-			log_err("Clearing %s\n", filename);
-			*update = 1;
-			osifile.name = filename;
-			osifile.len = strlen(filename);
-			if(fs_dirent_del(ip, bh, &osifile)) {
+			log_err("Clearing %s\n", tmp_name);
+			if(dirent_del(ip, bh, prev_de, dent)) {
 				stack;
 				return -1;
 			}
 			return 1;
 		} else {
 			log_err("Directory entry to out of range block remains\n");
-			return 1;
+			*update = 1;
+			(*count)++;
+			ds->entry_count++;
+			return 0;
 		}
 	}
 	if(block_check(sbp->bl, de->de_inum.no_addr, &q)) {
@@ -271,9 +313,6 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 
 		if(query(sbp, "Clear entry to inode containing bad blocks? (y/n)")) {
 
-			osifile.name = filename;
-			osifile.len = strlen(filename);
-
 			load_inode(sbp, de->de_inum.no_addr, &entry_ip);
 			check_inode_eattr(entry_ip, &clear_eattrs);
 			free_inode(&entry_ip);
@@ -281,62 +320,48 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 			/* FIXME: make sure all blocks referenced by
 			 * this inode are cleared in the bitmap */
 
-			fs_dirent_del(ip, bh, &osifile);
+			dirent_del(ip, bh, prev_de, dent);
 
 			block_set(sbp->bl, de->de_inum.no_addr, meta_inval);
+			return 1;
+		} else {
+			log_warn("Entry to inode containing bad blocks remains\n");
+			*update = 1;
+			(*count)++;
+			ds->entry_count++;
+			return 0;
 		}
 
-		return 1;
 	}
 	if(q.block_type != inode_dir && q.block_type != inode_file &&
 	   q.block_type != inode_lnk && q.block_type != inode_blk &&
 	   q.block_type != inode_chr && q.block_type != inode_fifo &&
 	   q.block_type != inode_sock) {
-		log_err("Found directory entry '%s' to something"
-			" not a file or directory!\n", filename);
+		log_err("Found directory entry '%s' in %"PRIu64" to something"
+			" not a file or directory!\n", tmp_name,
+			ip->i_num.no_addr);
 		log_debug("block #%"PRIu64" in %"PRIu64"\n",
 			  de->de_inum.no_addr, ip->i_num.no_addr);
 
 		if(query(sbp, "Clear directory entry to non-inode block? (y/n) ")) {
-			*update = 1;
-
 			/* FIXME: make sure all blocks referenced by
 			 * this inode are cleared in the bitmap */
 
-			osifile.name = filename;
-			osifile.len = strlen(filename);
-			if(fs_dirent_del(ip, bh, &osifile)) {
+			if(dirent_del(ip, bh, prev_de, dent)) {
 				stack;
 				return -1;
 			}
+			log_warn("Directory entry '%s' cleared\n", tmp_name);
 			return 1;
 		} else {
 			log_err("Directory entry to non-inode block remains\n");
-			return 1;
+			*update = 1;
+			(*count)++;
+			ds->entry_count++;
+			return 0;
 		}
 	}
 
-
-	if (de->de_rec_len < GFS_DIRENT_SIZE(de->de_name_len)){
-		log_err("Dir entry with bad record or name length\n"
-			"\tRecord length = %u\n"
-			"\tName length = %u\n",
-			de->de_rec_len,
-			de->de_name_len);
-		/* FIXME: should probably delete the entry here at the
-		 * very least - maybe look at attempting to fix it */
-		return -1;
-	}
-
-
-	/* FIXME: This should probably go to the top of the fxn, and
-	 * references to filename should be replaced with tmp_name */
-	memset(tmp_name, 0, MAX_FILENAME);
-	if(de->de_name_len < MAX_FILENAME){
-		strncpy(tmp_name, filename, de->de_name_len);
-	} else {
-		strncpy(tmp_name, filename, MAX_FILENAME - 1);
-	}
 
 	error = check_file_type(de->de_type, q.block_type);
 	if(error < 0) {
@@ -352,17 +377,17 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 			check_inode_eattr(entry_ip, &clear_eattrs);
 			free_inode(&entry_ip);
 
-			osifile.name = tmp_name;
-			osifile.len = strlen(tmp_name);
-
-			if(fs_dirent_del(ip, bh, &osifile)) {
+			if(dirent_del(ip, bh, prev_de, dent)) {
 				stack;
 				return -1;
 			}
 			return 1;
 		} else {
 			log_err("Stale directory entry remains\n");
-			return 1;
+			*update  = 1;
+			(*count)++;
+			ds->entry_count++;
+			return 0;
 		}
 	}
 
@@ -371,22 +396,22 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 		if(ds->dotdir) {
 			log_err("already found '.' entry\n");
 			if(query(sbp, "Clear duplicate '.' entry? (y/n) ")) {
-				osifile.name = ".";
-				osifile.len = strlen(".");
 
 				load_inode(sbp, de->de_inum.no_addr, &entry_ip);
 				check_inode_eattr(entry_ip, &clear_eattrs);
 				free_inode(&entry_ip);
 
-				fs_dirent_del(ip, bh, &osifile);
-				*update = 1;
+				dirent_del(ip, bh, prev_de, dent);
 				return 1;
 			} else {
 				log_err("Duplicate '.' entry remains\n");
 				/* FIXME: Should we continue on here
 				 * and check the rest of the '.'
 				 * entry? */
-				return 1;
+				*update  = 1;
+				(*count)++;
+				ds->entry_count++;
+				return 0;
 			}
 		}
 
@@ -401,17 +426,22 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 				PRIu64".\n",
 				de->de_inum.no_addr,
 				ip->i_num.no_addr);
-			if(query(sbp, "Fix '.' reference? (y/n) ")) {
-				de->de_inum.no_addr = ip->i_num.no_addr;
-				*update = 1;
+			if(query(sbp, "remove '.' reference? (y/n) ")) {
+				dirent_del(ip, bh, prev_de, dent);
+
 			} else {
 				log_err("Invalid '.' reference remains\n");
-				return 1;
+				*update = 1;
+				(*count)++;
+				ds->entry_count++;
+				return 0;
 			}
 		}
 
 		ds->dotdir = 1;
 		increment_link(sbp, de->de_inum.no_addr);
+		*update = 1;
+		(*count)++;
 		ds->entry_count++;
 
 		return 0;
@@ -427,7 +457,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 				check_inode_eattr(entry_ip, &clear_eattrs);
 				free_inode(&entry_ip);
 
-				fs_dirent_del(ip, bh, &osifile);
+				dirent_del(ip, bh, prev_de, dent);
 				*update = 1;
 				return 1;
 			} else {
@@ -435,7 +465,10 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 				/* FIXME: Should we continue on here
 				 * and check the rest of the '..'
 				 * entry? */
-				return 1;
+				*update  = 1;
+				(*count)++;
+				ds->entry_count++;
+				return 0;
 			}
 		}
 
@@ -453,6 +486,8 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 
 		ds->dotdotdir = 1;
 		increment_link(sbp, de->de_inum.no_addr);
+		*update = 1;
+		(*count)++;
 		ds->entry_count++;
 		return 0;
 	}
@@ -461,6 +496,8 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 	 * directories */
 	if(q.block_type != inode_dir) {
 		increment_link(sbp, de->de_inum.no_addr);
+		*update = 1;
+		(*count)++;
 		ds->entry_count++;
 		return 0;
 	}
@@ -473,14 +510,14 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 			*update = 1;
 
 			log_err("Clearing %s\n", filename);
-			osifile.name = filename;
-			osifile.len = strlen(filename);
-			fs_dirent_del(ip, bh, &osifile);
+			dirent_del(ip, bh, prev_de, dent);
 
 			return 1;
 		} else {
 			log_err("Hard link to directory remains\n");
-			return 1;
+			*update = 1;
+			(*count)++;
+			return 0;
 		}
 	}
 	else if (error < 0) {
@@ -488,6 +525,8 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *de,
 		return -1;
 	}
 	increment_link(sbp, de->de_inum.no_addr);
+	*update = 1;
+	(*count)++;
 	ds->entry_count++;
 	/* End of checks */
 	return 0;
@@ -568,7 +607,7 @@ int check_root_dir(struct fsck_sb *sbp)
 	osi_buf_t b, *bh = &b;
 	osi_filename_t filename;
 	char tmp_name[256];
-	int update=0;
+	int update=0, error = 0;
 	/* Read in the root inode, look at its dentries, and start
 	 * reading through them */
 	rootblock = sbp->sb.sb_root_di.no_addr;
@@ -620,9 +659,13 @@ int check_root_dir(struct fsck_sb *sbp)
 		}
 		free_inode(&ip);
 	}
-	if(check_dir(sbp, rootblock, &pass2_fxns)) {
+	error = check_dir(sbp, rootblock, &pass2_fxns);
+	if(error < 0) {
 		stack;
 		return -1;
+	}
+	if (error > 0) {
+		block_mark(sbp->bl, rootblock, meta_inval);
 	}
 
 	if(get_and_read_buf(sbp, rootblock, &bh, 0)){
@@ -684,9 +727,15 @@ int check_root_dir(struct fsck_sb *sbp)
 	if(ip->i_di.di_entries != ds.entry_count) {
 		log_err("Entries is %d - should be %d for %"PRIu64"\n",
 			ip->i_di.di_entries, ds.entry_count, ip->i_di.di_num.no_addr);
-		log_warn("Fixing entries\n");
-		ip->i_di.di_entries = ds.entry_count;
-		update = 1;
+		if(query(sbp, "Fix entries for %"PRIu64"? (y/n) ",
+			 ip->i_di.di_num.no_addr)) {
+			ip->i_di.di_entries = ds.entry_count;
+			log_warn("Entries updated\n");
+			update = 1;
+		} else {
+			log_err("Entries for %"PRIu64" left out of sync\n",
+				ip->i_di.di_num.no_addr);
+		}
 	}
 
 	if(update) {
@@ -723,6 +772,7 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 		stack;
 		return -1;
 	}
+	int error = 0;
 
 	/* Grab each directory inode, and run checks on it */
 	for(i = 0; i < sbp->last_fs_block; i++) {
@@ -756,9 +806,13 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 			}
 			free_inode(&ip);
 		}
-		if(check_dir(sbp, i, &pass2_fxns)) {
+		error = check_dir(sbp, i, &pass2_fxns);
+		if(error < 0) {
 			stack;
 			return -1;
+		}
+		if (error > 0) {
+			block_mark(sbp->bl, i, meta_inval);
 		}
 		if(get_and_read_buf(sbp, i, &bh, 0)){
 			/* This shouldn't happen since we were able to

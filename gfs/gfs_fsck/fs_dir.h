@@ -26,6 +26,8 @@ typedef struct identifier_s {
 	struct gfs_inum *inum;
 } identifier_t;
 
+int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
+	       struct gfs_dirent *prev, struct gfs_dirent *cur);
 int fsck_inode_is_stuffed(struct fsck_inode *ip);
 int dirent_first(osi_buf_t *bh, struct gfs_dirent **dent);
 int get_leaf_nr(struct fsck_inode *dip, uint32 index, uint64 *leaf_out);

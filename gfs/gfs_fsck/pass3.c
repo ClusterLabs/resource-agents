@@ -18,6 +18,47 @@
 #include "inode.h"
 #include "lost_n_found.h"
 #include "block_list.h"
+#include "fs_dir.h"
+#include "link.h"
+
+static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
+			    uint64_t block)
+{
+	osi_filename_t filename;
+	struct fsck_inode *ip, *pip;
+
+	load_inode(sbp, block, &ip);
+	load_inode(sbp, newdotdot, &pip);
+	/* FIXME: Need to add some interactive
+	 * options here and come up with a
+	 * good default for non-interactive */
+	/* FIXME: do i need to correct the
+	 * '..' entry for this directory in
+	 * this case? */
+	
+	filename.len = strlen("..");
+	filename.name = malloc(sizeof(char) * filename.len);
+	memset(filename.name, 0, sizeof(char) * filename.len);
+	memcpy(filename.name, "..", filename.len);
+	if(fs_dirent_del(ip, NULL, &filename)){
+		log_warn("Unable to remove \"..\" directory entry.\n");
+	}
+	else {
+		decrement_link(sbp, block);
+	}
+	if(fs_dir_add(ip, &filename, &pip->i_num,
+		      pip->i_di.di_type)){
+		log_err("Failed to link \"..\" entry to directory.\n");
+		block_set(ip->i_sbd->bl, ip->i_num.no_addr, meta_inval);
+		free_inode(&ip);
+		free_inode(&pip);
+		return -1;
+	}
+	increment_link(sbp, block);
+	free_inode(&ip);
+	free_inode(&pip);
+	return 0;
+}
 
 struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 					struct dir_info *di)
@@ -65,6 +106,7 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 					 " fixing dotdot -> %"PRIu64"\n",
 					 di->treewalk_parent);
 				di->dotdot_parent = di->treewalk_parent;
+				attach_dotdot_to(sbp, di->dotdot_parent, di->dinode);
 			}
 		}
 		else {
@@ -73,18 +115,16 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 					 " fixing treewalk -> %"PRIu64"\n",
 					 di->dotdot_parent);
 				di->treewalk_parent = di->dotdot_parent;
+				/* FIXME: do this right */
+				log_info("Marking directory unlinked\n");
+				return NULL;
 			}
 			else {
-				/* FIXME: Need to add some interactive
-				 * options here and come up with a
-				 * good default for non-interactive */
-				/* FIXME: do i need to correct the
-				 * '..' entry for this directory in
-				 * this case? */
 				log_err("Both .. and treewalk parents are "
 					"directories, going with treewalk for "
 					"now...\n");
 				di->dotdot_parent = di->treewalk_parent;
+				attach_dotdot_to(sbp, di->dotdot_parent, di->dinode);
 			}
 		}
 	}
@@ -161,6 +201,18 @@ int pass3(struct fsck_sb *sbp, struct options *opts)
 					} else {
 						log_err("Unlinked directory with bad blocks remains\n");
 					}
+				}
+				if(q.block_type != inode_dir &&
+				   q.block_type != inode_file &&
+				   q.block_type != inode_lnk &&
+				   q.block_type != inode_blk &&
+				   q.block_type != inode_chr &&
+				   q.block_type != inode_fifo &&
+				   q.block_type != inode_sock) {
+					log_err("Unlinked block marked as inode not an inode\n");
+					block_set(sbp->bl, di->dinode, block_free);
+					log_err("Cleared\n");
+					break;
 				}
 
 				log_err("Found unlinked directory %"PRIu64"\n", di->dinode);

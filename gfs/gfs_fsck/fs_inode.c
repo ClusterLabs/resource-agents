@@ -529,7 +529,8 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	ip->i_di.di_nlink = 2;
 	ip->i_di.di_size = sdp->sb.sb_bsize - sizeof(struct gfs_dinode);
-	ip->i_di.di_flags |= GFS_DIF_JDATA;
+	ip->i_di.di_flags |= (dip->i_di.di_flags & GFS_DIF_INHERIT_DIRECTIO);
+	ip->i_di.di_flags |= (dip->i_di.di_flags & GFS_DIF_INHERIT_JDATA);
 	ip->i_di.di_payload_format = GFS_FORMAT_DE;
 	ip->i_di.di_entries = 2;
 

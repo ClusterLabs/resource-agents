@@ -199,7 +199,7 @@ int pass1c(struct fsck_sb *sbp)
 	log_info("Looking for inodes containing ea blocks...\n");
 	while (!find_next_block_type(sbp->bl, eattr_block, &block_no)) {
 
-		log_info("EA in inode %"PRIu64"\n", eattr_block);
+		log_info("EA in inode %"PRIu64"\n", block_no);
 		if(get_and_read_buf(sbp, eattr_block, &bh, 0)) {
 			stack;
 			return -1;

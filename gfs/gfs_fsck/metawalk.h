@@ -52,7 +52,9 @@ struct metawalk_fxns {
 				 uint64_t parent, osi_buf_t **bh,
 				 void *private);
 	int (*check_dentry) (struct fsck_inode *ip, struct gfs_dirent *de,
+			     struct gfs_dirent *prev,
 			     osi_buf_t *bh, char *filename, int *update,
+			     uint16_t *count,
 			     void *private);
 	int (*check_eattr_entry) (struct fsck_inode *ip,
 				  osi_buf_t *leaf_bh,

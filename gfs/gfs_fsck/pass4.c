@@ -72,7 +72,17 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 					log_err("Unlinked inode with bad blocks not cleared\n");
 				}
 			}
-
+			if(q.block_type != inode_dir &&
+			   q.block_type != inode_file &&
+			   q.block_type != inode_lnk &&
+			   q.block_type != inode_blk &&
+			   q.block_type != inode_chr &&
+			   q.block_type != inode_fifo &&
+			   q.block_type != inode_sock) {
+				log_err("Unlinked block marked as inode not an inode\n");
+				block_set(sbp->bl, ii->inode, block_free);
+				log_err("Cleared\n");
+			}
 			load_inode(sbp, ii->inode, &ip);
 			/* We don't want to clear zero-size files with
 			 * eattrs - there might be relevent info in
