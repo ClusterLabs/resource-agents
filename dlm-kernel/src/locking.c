@@ -795,8 +795,7 @@ int dlm_unlock(void *lockspace,
 	/* Save any new params */
 	if (lksb)
 		lkb->lkb_lksb = lksb;
-	if (astarg)
-		lkb->lkb_astparam = (long) astarg;
+	lkb->lkb_astparam = (long) astarg;
 	lkb->lkb_lockqueue_flags = flags;
 
 	if (lkb->lkb_nodeid)

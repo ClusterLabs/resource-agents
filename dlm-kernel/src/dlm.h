@@ -367,7 +367,7 @@ int dlm_lock(dlm_lockspace_t *lockspace,
  * lkid: the lock ID as returned in the lksb
  * flags: input flags (DLM_LKF_)
  * lksb: if NULL the lksb parameter passed to last lock request is used
- * astarg: if NULL, astarg in last lock request is used
+ * astarg: the arg used with the completion ast for the unlock
  *
  * Returns:
  * 0 if request is successfully queued for processing
