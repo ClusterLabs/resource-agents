@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.330 $) dnl cvs revision
+AC_REVISION($Revision: 1.331 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -121,6 +121,10 @@ infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
 docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 
+
+HA_VARRUNDIR="${localstatedir}/run"
+AC_SUBST(HA_VARRUNDIR)
+AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$HA_VARRUNDIR", var run directory)
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
