@@ -29,18 +29,28 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
+#include <syslog.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <syslog.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
 
 #include "cnxman-socket.h"
 #include "list.h"
 
 
-extern char *prog_name;
+extern char *             prog_name;
+extern int                debug_sock;
+extern char               debug_buf[256];
+extern struct sockaddr_un debug_addr;
+extern socklen_t          debug_addrlen;
+
+
+#define FENCED_SOCK_PATH "fenced_socket"
 
 #define DEFAULT_POST_JOIN_DELAY   6
 #define DEFAULT_POST_FAIL_DELAY   0
@@ -91,9 +101,18 @@ for (;;) \
 }
 
 /* log_debug messages only appear when -D is used and then they go to stdout */
-#define log_debug(fmt, args...) printf("fenced: " fmt "\n", ##args)
+/* #define log_debug(fmt, args...) printf("fenced: " fmt "\n", ##args) */
 
-
+#define log_debug(fmt, args...) \
+do \
+{ \
+	snprintf(debug_buf, 255, fmt "\n", ##args); \
+	printf("fenced: %s", debug_buf); \
+	sendto(debug_sock, debug_buf, strlen(debug_buf), 0, \
+	       (struct sockaddr *)&debug_addr, debug_addrlen); \
+} \
+while (0)
+	
 
 struct fd;
 struct fd_node;

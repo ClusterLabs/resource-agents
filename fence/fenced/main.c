@@ -603,6 +603,17 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 		strcpy(comline->name, "default");
 }
 
+void setup_debug(void)
+{
+	debug_sock = socket(AF_LOCAL, SOCK_DGRAM, 0);
+	if (debug_sock < 0)
+		return;
+
+	debug_addr.sun_family = AF_LOCAL;
+	strcpy(&debug_addr.sun_path[1], FENCED_SOCK_PATH);
+	debug_addrlen = sizeof(sa_family_t) + strlen(debug_addr.sun_path+1) + 1;
+}
+
 int main(int argc, char **argv)
 {
 	commandline_t comline;
@@ -610,6 +621,8 @@ int main(int argc, char **argv)
 	int error;
 
 	prog_name = argv[0];
+
+	setup_debug();
 
 	memset(&comline, 0, sizeof(commandline_t));
 
@@ -651,4 +664,9 @@ int main(int argc, char **argv)
 }
 
 char *prog_name;
+int debug_sock;
+char debug_buf[256];
+struct sockaddr_un debug_addr;
+socklen_t debug_addrlen;
+
 
