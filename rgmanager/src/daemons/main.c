@@ -552,6 +552,38 @@ int tree_delta_test(int, char**);
 void malloc_dump_table(void);
 
 
+void
+wait_for_quorum(void)
+{
+	int fd, q;
+
+	/* Do NOT log in */
+	fd = clu_connect(RG_SERVICE_GROUP, 0);
+
+	q = clu_quorum_status(RG_SERVICE_GROUP);
+	if (q & QF_QUORATE) {
+		clu_disconnect(fd);
+		return;
+	}
+
+	/*
+	   There are two ways to do this; this happens to be the simpler
+	   of the two.  The other method is to join with a NULL group 
+	   and log in -- this will cause the plugin to not select any
+	   node group (if any exist).
+	 */
+	clulog(LOG_NOTICE, "Waiting for quorum to form\n");
+
+	while (! (q&QF_QUORATE)) {
+		sleep(2);
+		q = clu_quorum_status(RG_SERVICE_GROUP);
+	}
+
+	clulog(LOG_NOTICE, "Quorum formed; resuming\n");
+	clu_disconnect(fd);
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -585,7 +617,35 @@ main(int argc, char **argv)
 		}
 	}
 
-	/* Connect to the cluster software. */
+	/*
+	   Set up logging / foreground mode, etc.
+	 */
+	if (debug)
+		clu_set_loglevel(LOG_DEBUG);
+	if (foreground)
+		clu_log_console(1);
+
+	if (!foreground && (geteuid() == 0)) 
+		daemon_init(argv[0]);
+
+	/*
+	   We need quorum before we can read the configuration data from
+	   ccsd.
+	 */
+	wait_for_quorum();
+
+	/*
+	   We know we're quorate.  At this point, we need to
+	   read the resource group trees from ccsd.
+	 */
+	if (init_resource_groups() != 0) {
+		clulog(LOG_CRIT, "Couldn't initialize resource groups\n");
+		return -1;
+	}
+
+	/*
+	   Connect to the cluster software.
+	 */
 	cluster_fd = clu_connect(RG_SERVICE_GROUP, 1);
 	if (cluster_fd < 0) {
 		clu_log_console(1);
@@ -593,22 +653,12 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (!foreground && (geteuid() == 0)) 
-		daemon_init(argv[0]);
-
-	if (foreground)
-		clu_log_console(1);
-
-	if (debug)
-		clu_set_loglevel(LOG_DEBUG);
-
 	setup_signal(SIGINT, flag_shutdown);
 	setup_signal(SIGTERM, flag_shutdown);
 	setup_signal(SIGUSR1, statedump);
 	unblock_signal(SIGCHLD);
 	setup_signal(SIGPIPE, SIG_IGN);
 	setup_signal(SIGSEGV, segfault);
-
 
 	if ((listeners = msg_listen(RG_PORT, RG_PURPOSE,
 				    listen_fds, 2)) <= 0) {
@@ -625,7 +675,6 @@ main(int argc, char **argv)
 		setup_signal(SIGTERM, graceful_exit);
 	}
 
-
 	clulog(LOG_DEBUG, "USRM: Using %s\n", clu_plugin_version());
 	clulog(LOG_DEBUG,"USRM: Cluster Status: %s\n",
 	       quorate?"Quorate":"Inquorate");
@@ -633,13 +682,22 @@ main(int argc, char **argv)
 	clu_local_nodeid(RG_SERVICE_GROUP, &myNodeID);
 	set_my_id(myNodeID);
 
+	/*
+	   Initialize the VF stuff.
+	 */
 	if (vf_init(myNodeID, RG_VF_PORT, NULL, NULL) != 0) {
 		clulog(LOG_CRIT, "Couldn't set up VF listen socket\n");
 		return -1;
 	}
 
+	/*
+	   Get an initial membership view.
+	 */
 	membership_update();
 
+	/*
+	   Do everything useful
+	 */
 	while (running)
 		event_loop(cluster_fd);
 

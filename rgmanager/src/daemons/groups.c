@@ -342,7 +342,6 @@ int
 init_resource_groups(void)
 {
 	rg_state_t rg;
-	void *lockp = NULL;
 	int fd, x;
 
 	resource_t *reslist = NULL, *res;
@@ -418,7 +417,7 @@ init_resource_groups(void)
 	pthread_rwlock_rdlock(&resource_lock);
 
 	clulog(LOG_INFO, "Initializing Resource Groups\n");
-	/* do this for each rg */
+	/* do this for each rg XXX don't do this on a reconfigure though*/
 	list_do(&_tree, curr) {
 
 		if (strcmp(curr->rn_resource->r_rule->rr_type, "group"))
@@ -429,25 +428,8 @@ init_resource_groups(void)
 
 		clulog(LOG_DEBUG, "Initializing group \"%s\"\n", name);
 
-		if (rg_lock(name, &lockp) != 0) {
-
-			/* Failed to obtain lock */
-			clulog(LOG_ERR, "Couldn't obtain lock for \"%s\"\n",
-			       name);
-		} else {
-
-			/* Obtained lock */
-			if (get_rg_state(name, &rg) != 0) {
-				clulog(LOG_ERR, "Couldn't determine initial "
-				       "state for \"%s\"\n", name);
-			}
-			rg_unlock(name, lockp);
-
-			/* Exec stop script */
-			rt_enqueue_request(rg.rs_name, RG_INIT, -1, 0,
-					   NODE_ID_NONE, 0, 0);
-		}
-
+		rt_enqueue_request(rg.rs_name, RG_INIT, -1, 0, NODE_ID_NONE,
+				   0, 0);
 	} while (!list_done(&_tree, curr));
 
 	pthread_rwlock_unlock(&resource_lock);

@@ -373,6 +373,16 @@ resgroup_thread_main(void *arg)
 			break;
 
 		case RG_DISABLE:
+			if (myself->rt_status != RG_STATE_STARTED &&
+			    myself->rt_status != RG_STATE_FAILED) {
+				pthread_mutex_unlock(&reslist_mutex);
+
+				/* It's not started locally, so we 
+				   can't stop it */
+				forward_request(req);
+				continue;
+			}
+
 			myself->rt_status = RG_STATE_STOPPING;
 			pthread_mutex_unlock(&reslist_mutex);
 
