@@ -206,15 +206,18 @@ static void khexdump(const unsigned char *c, int len)
 		       c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8],
 		       c[9], c[10], c[11], c[12], c[13], c[14], c[15]);
 		len -= 16;
+		c += 16;
 	}
 	while (len > 4) {
 		printk(KERN_INFO "%02x %02x %02x %02x\n", c[0], c[1], c[2],
 		       c[3]);
 		len -= 4;
+		c += 4;
 	}
 	while (len > 0) {
 		printk(KERN_INFO "%02x\n", c[0]);
 		len--;
+		c++;
 	}
 }
 
@@ -254,7 +257,8 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 			break;
 		err = -E2BIG;
 		if (msglen > dlm_config.buffer_size) {
-			printk("dlm: message size too big %d\n", msglen);
+			printk("dlm: message size from %d too big %d(pkt len=%d)\n", nodeid, msglen, len);
+			khexdump((const unsigned char *) msg, len);
 			break;
 		}
 		err = 0;
