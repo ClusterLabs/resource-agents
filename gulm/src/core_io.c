@@ -995,8 +995,9 @@ static int master_probe_middle(int idx)
                 * either died or logged out while we were Masterless.
                 * Remove them from our list, and tell our children they're
                 * gone.
+                * Also need to tell childred about new nodes.
                 */
-               Logout_leftovers();
+               Update_children_about_nodelist();
 
                poller.MasterIDX = idx;
                poller.state[idx] = poll_Open;

@@ -54,7 +54,7 @@ int beat_all_once(void);
 int fence_all_expired(void);
 int Mark_Old_Master_lgin(void);
 int tag_for_lost(void);
-int Logout_leftovers(void);
+int Update_children_about_nodelist(void);
 int get_node(xdr_enc_t *enc, char *name);
 int serialize_node_list(xdr_enc_t *enc);
 int deserialize_node_list(xdr_dec_t *dec);

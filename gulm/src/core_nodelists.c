@@ -58,6 +58,10 @@ typedef struct node_s {
    uint8_t last_state;
    uint8_t mode; /* Slave, Pending, Arbitrating, Master, Client */
    uint8_t sweepcheck;
+#define NLSC_Clear    (0)
+#define NLSC_Copied   (66)
+#define NLSC_New      (69)
+#define NLSC_Tagged   (42)
 
    unsigned int missed_beats;
    uint64_t last_beat;
@@ -543,6 +547,7 @@ int deserialize_node_list(xdr_dec_t *dec)
             free(n);
             return err;
          }
+         n->sweepcheck = NLSC_New;
       } else {
          n = LLi_data(tmp);
          free(x_name); /* don't need this, as it is already in the struct */
@@ -551,8 +556,8 @@ int deserialize_node_list(xdr_dec_t *dec)
           * connections.  Mark as such.
           */
          n->poll_idx = -1;
+         n->sweepcheck = NLSC_Copied;
       }
-      n->sweepcheck = 0;
 
       if((err=xdr_dec_ipv6(dec, &(n->ip) )) < 0) return err;
       if((err=xdr_dec_uint8(dec, &(n->State) )) < 0) return err;
@@ -989,19 +994,22 @@ int Mark_Old_Master_lgin(void)
  * 
  * Returns: int
  */
-int _inner_Logout_leftovers(LLi_t *item, void *misc)
+int _inner_ucan(LLi_t *item, void *misc)
 {
    Node_t *n;
    n = LLi_data(item);
 
-   if( n->sweepcheck == 42 ) {
+   if( n->sweepcheck == NLSC_Tagged ) {
+      /* This node was logged in our old nodelist.  If they got logged out
+       * since, we need to supply updates.
+       */
       if( n->State == gio_Mbr_Logged_out ) {
          if( n->last_state == gio_Mbr_Logged_in ) {
             log_msg(lgm_Always, "Node %s logged out while we were without a "
                   "Master.\n", n->Name);
             send_mbrshp_to_children(n->Name, gio_Mbr_Logged_out);
          }else
-         if( n->last_state == gio_Mbr_Logged_in ) {
+         if( n->last_state == gio_Mbr_Expired ) {
             log_msg(lgm_Always, "Node %s Expired and Fenced while we were "
                   "without a Master.\n", n->Name);
             send_mbrshp_to_children(n->Name, gio_Mbr_Expired);
@@ -1017,12 +1025,18 @@ int _inner_Logout_leftovers(LLi_t *item, void *misc)
 
       remove_from_lru(n);
       n->poll_idx = -1;
+   }else
+   if( n->sweepcheck == NLSC_New || n->sweepcheck == NLSC_Copied ) {
+      /* this node is new to us, children need to know that too. */
+      send_mbrshp_to_children(n->Name, n->State);
    }
+
+   n->sweepcheck = NLSC_Clear;
    return 0;
 }
-int Logout_leftovers(void)
+int Update_children_about_nodelist(void)
 {
-   return hash_walk(Nodes_by_Name, _inner_Logout_leftovers, NULL);
+   return hash_walk(Nodes_by_Name, _inner_ucan, NULL);
 }
 int _inner_tag_for_lost(LLi_t *item, void *misc)
 {
@@ -1030,7 +1044,7 @@ int _inner_tag_for_lost(LLi_t *item, void *misc)
    n = LLi_data(item);
 
    if( n->State != gio_Mbr_Logged_out)
-      n->sweepcheck = 42;
+      n->sweepcheck = NLSC_Tagged;
 
    return 0;
 }
