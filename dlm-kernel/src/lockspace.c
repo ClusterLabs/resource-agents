@@ -256,7 +256,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	struct dlm_ls *ls;
 	int i, size, error = -ENOMEM;
 	uint32_t local_id = 0;
-	struct task_struct *p;
 
 	if (!try_module_get(THIS_MODULE))
 		return -EINVAL;
@@ -348,14 +347,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	if (flags & DLM_LSF_NOCONVGRANT)
 		set_bit(LSFL_NOCONVGRANT, &ls->ls_flags);
 
-	p = kthread_create(dlm_recoverd, (void *) ls, "dlm_recoverd");
-	if (IS_ERR(p)) {
-		error = PTR_ERR(p);
-		log_error(ls, "can't start dlm_recoverd %d", error);
-		goto out_dirfree;
-	}
-	ls->ls_recoverd_task = p;
-
 
 	/*
 	 * Connect this lockspace with the cluster manager
@@ -395,7 +386,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	kcl_unregister_service(ls->ls_local_id);
  out_recoverd:
 	kthread_stop(ls->ls_recoverd_task);
- out_dirfree:
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
 	kfree(ls->ls_lkbtbl);

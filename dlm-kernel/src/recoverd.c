@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -22,7 +22,7 @@
 #include "lkb.h"
 #include "rebuild.h"
 
-/* 
+/*
  * next_move actions
  */
 
@@ -32,7 +32,7 @@
 #define DO_FINISH_STOP      (4)
 #define DO_FINISH_START     (5)
 
-/* 
+/*
  * Queue of lockspaces (dlm_recover structs) which need to be
  * started/recovered
  */
@@ -86,7 +86,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 	return error;
 }
 
-/* 
+/*
  * We are given here a new group of nodes which are in the lockspace.  We first
  * figure out the differences in ls membership from when we were last running.
  * If nodes from before are gone, then there will be some lock recovery to do.
@@ -110,7 +110,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	rebuild_freemem(ls);
 
-	/* 
+	/*
 	 * Add or remove nodes from the lockspace's ls_nodes list.
 	 */
 
@@ -120,7 +120,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto fail;
 	}
 
-	/* 
+	/*
 	 * Rebuild our own share of the resdir by collecting from all other
 	 * nodes rsb name/master pairs for which the name hashes to us.
 	 */
@@ -131,7 +131,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto fail;
 	}
 
-	/* 
+	/*
 	 * Purge resdir-related requests that are being held in requestqueue.
 	 * All resdir requests from before recovery started are invalid now due
 	 * to the resdir rebuild and will be resent by the requesting nodes.
@@ -140,7 +140,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	purge_requestqueue(ls);
 	set_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
-	/* 
+	/*
 	 * Wait for all nodes to complete resdir rebuild.
 	 */
 
@@ -150,7 +150,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto fail;
 	}
 
-	/* 
+	/*
 	 * Mark our own lkb's waiting in the lockqueue for remote replies from
 	 * nodes that are now departed.  These will be resent to the new
 	 * masters in resend_cluster_requests.  Also mark resdir lookup
@@ -164,14 +164,14 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto fail;
 
 	if (neg) {
-		/* 
+		/*
 		 * Clear lkb's for departed nodes.  This can't fail since it
 		 * doesn't involve communicating with other nodes.
 		 */
 
 		restbl_lkb_purge(ls);
 
-		/* 
+		/*
 		 * Get new master id's for rsb's of departed nodes.  This fails
 		 * if we can't communicate with other nodes.
 		 */
@@ -182,7 +182,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 			goto fail;
 		}
 
-		/* 
+		/*
 		 * Send our lkb info to new masters.  This fails if we can't
 		 * communicate with a node.
 		 */
@@ -217,7 +217,7 @@ static void clear_finished_nodes(struct dlm_ls *ls, int finish_event)
 	}
 }
 
-/* 
+/*
  * Between calls to this routine for a ls, there can be multiple stop/start
  * events from cman where every start but the latest is cancelled by stops.
  * There can only be a single finish from cman because every finish requires us
@@ -234,7 +234,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	unsigned int last_stop, last_start, last_finish;
 	struct dlm_recover *rv = NULL, *start_rv = NULL;
 
-	/* 
+	/*
 	 * Grab the current state of cman/sm events.
 	 */
 
@@ -271,7 +271,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	log_debug(ls, "move flags %u,%u,%u ids %u,%u,%u", stop, start, finish,
 		  last_stop, last_start, last_finish);
 
-	/* 
+	/*
 	 * Toss start events which have since been cancelled.
 	 */
 
@@ -292,7 +292,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 		}
 	}
 
-	/* 
+	/*
 	 * Eight possible combinations of events.
 	 */
 
@@ -379,7 +379,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	return cmd;
 }
 
-/* 
+/*
  * This function decides what to do given every combination of current
  * lockspace state and next lockspace state.
  */
@@ -399,7 +399,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	DLM_ASSERT(!test_bit(LSFL_LS_RUN, &ls->ls_flags),
 		    log_error(ls, "curstate=%d donow=%d", cur_state, do_now););
 
-	/* 
+	/*
 	 * LSST_CLEAR - we're not in any recovery state.  We can get a stop or
 	 * a stop and start which equates with a START.
 	 */
@@ -427,7 +427,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * LSST_WAIT_START - we're not running because of getting a stop or
 	 * failing a start.  We wait in this state for another stop/start or
 	 * just the next start to begin another reconfig attempt.
@@ -455,7 +455,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * LSST_RECONFIG_DONE - we entered this state after successfully
 	 * completing ls_reconfig and calling kcl_start_done.  We expect to get
 	 * a finish if everything goes ok.  A finish could be followed by stop
@@ -515,7 +515,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * LSST_INIT - state after ls is created and before it has been
 	 * started.  A start operation will cause the ls to be started for the
 	 * first time.  A failed start will cause to just wait in INIT for
@@ -542,7 +542,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		goto out;
 	}
 
-	/* 
+	/*
 	 * LSST_INIT_DONE - after the first start operation is completed
 	 * successfully and kcl_start_done() called.  If there are no errors, a
 	 * finish will arrive next and we'll move to LSST_CLEAR.
@@ -598,16 +598,37 @@ int dlm_recoverd(void *arg)
 			schedule();
 		set_current_state(TASK_RUNNING);
 
-		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags))
+		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags)) {
 			do_ls_recovery(ls);
+			if (ls->ls_state == LSST_CLEAR && !test_bit(LSFL_WORK, &ls->ls_flags))
+			        goto finished;
+		}
 	}
 
+ finished:
+	log_debug(ls, "recoverd finished");
+	clear_bit(LSFL_RECOVERD_RUN, &ls->ls_flags);
 	put_lockspace(ls);
 	return 0;
 }
 
 void dlm_recoverd_kick(struct dlm_ls *ls)
 {
-	set_bit(LSFL_WORK, &ls->ls_flags);
-	wake_up_process(ls->ls_recoverd_task);
+    	struct task_struct *p;
+
+        set_bit(LSFL_WORK, &ls->ls_flags);
+	if (!test_and_set_bit(LSFL_RECOVERD_RUN, &ls->ls_flags)) {
+	    	p = kthread_run(dlm_recoverd, (void *) ls, "dlm_recoverd");
+		if (IS_ERR(p)) {
+			log_error(ls, "can't start dlm_recoverd %ld", PTR_ERR(p));
+			return;
+		}
+		log_debug(ls, "Started new recoverd");
+		ls->ls_recoverd_task = p;
+
+	}
+	else {
+	        log_debug(ls, "Waking recoverd");
+	        wake_up_process(ls->ls_recoverd_task);
+	}
 }
