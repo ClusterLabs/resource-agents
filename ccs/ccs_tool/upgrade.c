@@ -78,10 +78,8 @@ static int _upgrade_file_archive(int fd){
   printf("\n<gulm>\n");
   if(tmp_cn && tmp_cn->v){
     ccs_value_t *server;
-    printf("  <servers>\n");
     for(server = tmp_cn->v; server; server = server->next)
-      printf("    %s\n", server->v.str);
-    printf("  </servers>\n");
+      printf("    <lockserver name=\"%s\"/>\n", server->v.str);
   }
   printf("</gulm>\n");
 
