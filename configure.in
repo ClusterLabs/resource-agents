@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.260 $) dnl cvs revision
+AC_REVISION($Revision: 1.261 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -566,21 +566,37 @@ dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacm_client_h" = yes)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
-AC_PATH_PROGS(SNMPCONFIG, net-snmp-config, ucd-snmp-config)
 AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
 AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 
-AC_MSG_CHECKING(which snmp config exists)
-if test "X${SNMPCONFIG}" = "X"; then
-        AC_MSG_ERROR("You need the snmp development package to continue.")
-else
-      AC_MSG_RESULT("using $SNMPCONFIG")
+if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes
+then
+	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 fi
 
-AC_MSG_CHECKING(for special snmp libraries: )
-SNMPLIB=`net-snmp-config --netsnmp-libs`
-AC_MSG_RESULT($SNMPLIB)
+if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
+	if test "X${SNMPCONFIG}" = "X"; then
+		AC_MSG_ERROR("You need the snmp development package to continue.")
+	else
+		AC_MSG_CHECKING(for special snmp libraries: )
+		SNMPLIB=`net-snmp-config --netsnmp-libs`
+		AC_MSG_RESULT($SNMPLIB)
+	fi
+else 
+	# UCD SNMP
+	# ucd-snmp-config does not seem to exist, so just 
+	# rely on people having their LDFLAGS set to the path where
+	AC_CHECK_LIB(snmp, init_snmp, SNMPLIB="-lsnmp")
+	if test "X${SNMPLIB}" = "X"; then
+		AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
+	fi
+	if test "X${SNMPLIB}" = "X"; then
+		AC_MSG_ERROR("Could not find ucdsnmp libary."
+			"Please make sure that libsnmp or libucdsnmp"
+			"are in your libaray path. Or the path to LDFLAGS")
+	fi
+fi
 AC_SUBST(SNMPLIB)
 
 dnl
