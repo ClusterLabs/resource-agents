@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.55 $) dnl cvs revision
+AC_REVISION($Revision: 1.56 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -13,7 +13,13 @@ AC_CANONICAL_HOST
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h)
 AM_INIT_AUTOMAKE(heartbeat, 0.4.9a)
+RPMREL=1
+AC_SUBST(RPMREL)
 
+
+dnl
+dnl	Don't ya just hate working around buggy code?
+dnl
 case $exec_prefix in
   NONE|""|*'${'*)	exec_prefix=$prefix;;
 esac
@@ -30,6 +36,7 @@ case $includedir in
   NONE|""|*'${'*)	includedir=$prefix/include;;
 esac
 
+dnl	We use this in the RPM specfile...
 AC_SUBST(ac_configure_args)
 
 dnl *************************************************************************
@@ -47,6 +54,7 @@ AM_PROG_LIBTOOL
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(ROUTE, route)
+AC_PATH_PROGS(RPM, rpm)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 AC_PATH_PROGS(NETSTAT, netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
@@ -110,18 +118,35 @@ dnl > UNIXWARE: /usr/lib/locale/
 dnl > FREEBSD: /usr/share/locale
 dnl > VMS:  just kidding
 dnl 
+FindADir() {
+	type="$1"
+	whatfor="$2"
+	shift; shift;
+	AC_MSG_CHECKING(for $whatfor directory)
+	for dir
+	do
+	  if
+	    test -d "$dir"
+          then
+            AC_MSG_RESULT($dir)
+	    echo $dir
+	    return 0
+	  fi
+	done
+	AC_MSG_RESULT(not found)
+        return 1
+	  
+}
 locale_locations="/usr/share/locale /usr/lib/locale /usr/lib/nls/loc"
-for l in $locale_locations
-do
-    if test -d "$l" ; then
-        LOCALE="$l"
-        break
-    fi
-done
-if test "x$LOCALE" = "x"
+LOCALE=`FindADir error "locale" $locale_locations`
+if
+  test  X$LOCALE = X
 then
-     AC_MSG_ERROR(no locales found needed for stonith)
+  AC_MSG_ERROR(Locale directory is mandantory.)
 fi
+
+RPMDIR=`FindADir warn "RPM" /usr/src/packages /usr/src/redhat`
+
 
 dnl
 dnl	Look for #define CLK_TCK in limits.h (Solaris)
@@ -518,7 +543,7 @@ AC_SUBST(LIBLTDL)
 
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
-dnl	NOTE:  this is no longer experimental...
+dnl	NOTE:  these are no longer experimental...
 dnl
 XPERIMENTALDIRS=""
 dnl AC_MSG_CHECKING(for --enable_new_modloader)
