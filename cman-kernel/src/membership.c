@@ -64,6 +64,11 @@ static char scratchbuf[MAX_CLUSTER_MESSAGE + 100];
 /* Our node name, usually system_utsname.nodename, but can be overridden */
 char nodename[MAX_CLUSTER_MEMBER_NAME_LEN + 1];
 
+/* Node ID that we want. defaults of zero means
+ *  it will be allocated by the cluster join mechanism
+ */
+int wanted_nodeid;
+
 static spinlock_t members_by_nodeid_lock;
 static int sizeof_members_array;	/* Can dynamically increase (vmalloc
 					 * permitting) */
@@ -680,9 +685,10 @@ static int send_joinreq(struct sockaddr_cl *addr, int addr_len)
 	msg->cmd = CLUSTER_MEM_JOINREQ;
 	msg->votes = votes;
 	msg->expected_votes = cpu_to_le32(expected_votes);
-	msg->major_version = cpu_to_le32(CNXMAN_MAJOR_VERSION);
-	msg->minor_version = cpu_to_le32(CNXMAN_MINOR_VERSION);
-	msg->patch_version = cpu_to_le32(CNXMAN_PATCH_VERSION);
+	msg->nodeid         = cpu_to_le32(wanted_nodeid);
+	msg->major_version  = cpu_to_le32(CNXMAN_MAJOR_VERSION);
+	msg->minor_version  = cpu_to_le32(CNXMAN_MINOR_VERSION);
+	msg->patch_version  = cpu_to_le32(CNXMAN_PATCH_VERSION);
 	msg->config_version = cpu_to_le32(config_version);
 	msg->addr_len       = cpu_to_le32(address_length);
 	strcpy(msg->clustername, cluster_name);
@@ -1381,7 +1387,7 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			}
 		}
 	}
-	
+
 	up(&cluster_members_lock);
 
 	message[1] = first_packet_flag | 2;	/* The last may also be first */
@@ -2189,27 +2195,13 @@ static int do_process_joinack(struct msghdr *msg, int len)
 	return 0;
 }
 
-/* Request to join the cluster. This makes us the master for this state
- * transition */
-static int do_process_joinreq(struct msghdr *msg, int len)
+/* Check a JOINREQ message for validity,
+   return -1 if we can't let the node join our cluster */
+static int validate_joinmsg(struct cl_mem_join_msg *joinmsg, int len)
 {
-	int status;
-	static unsigned long last_joinreq = 0;
-	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
-	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
 	struct cluster_node *node;
 
-	/* If we are in a state transition then tell the new node to wait a bit
-	 * longer */
-	if (node_state != MEMBER) {
-		if (node_state == MASTER || node_state == TRANSITION) {
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_WAIT);
-		}
-		return 0;
-	}
-
-	/* Check version number */
+        /* Check version number */
 	if (le32_to_cpu(joinmsg->major_version) == CNXMAN_MAJOR_VERSION) {
 		char *ptr = (char *) joinmsg;
 		char *name;
@@ -2222,7 +2214,7 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			printk(KERN_WARNING CMAN_NAME
 			       ": num_addr in JOIN-REQ message is rubbish: %d\n",
 			       le16_to_cpu(joinmsg->num_addr));
-			return 0;
+			return -1;
 		}
 
 		/* Check the cluster name matches */
@@ -2230,9 +2222,7 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			printk(KERN_WARNING CMAN_NAME
 			       ": attempt to join with cluster name '%s' refused\n",
 			       joinmsg->clustername);
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
+			return -1;
 		}
 
 		/* Check we are not exceeding the maximum number of nodes */
@@ -2240,18 +2230,14 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			printk(KERN_WARNING CMAN_NAME
 			       ": Join request from %s rejected, exceeds maximum number of nodes\n",
 			       name);
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
+			return -1;
 		}
 
 		/* Check that we don't exceed the two_node limit, if applicable */
 		if (two_node && cluster_members == 2) {
 			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 			       "rejected, exceeds two node limit\n", name);
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
+			return -1;
 		}
 
 		if (le32_to_cpu(joinmsg->config_version) != config_version) {
@@ -2259,90 +2245,129 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			       "rejected, config version local %u remote %u\n",
 			       name, config_version,
 			       le32_to_cpu(joinmsg->config_version));
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
+			return -1;
 		}
 
-		/* If these don't match then I don't know how the message
+		/* Validate requested static node ID */
+		if (joinmsg->nodeid &&
+		    (node = find_node_by_nodeid(le32_to_cpu(joinmsg->nodeid))) &&
+		    (node->state != NODESTATE_DEAD ||
+		     (strcmp(node->name, name)))) {
+			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
+			       "rejected, node ID %d already in use by %s\n",
+			       name, node->node_id, node->name);
+			return -1;
+		}
+		if (joinmsg->nodeid &&
+		    (node = find_node_by_name(name)) &&
+		    (node->state != NODESTATE_DEAD ||
+		     node->node_id != le32_to_cpu(joinmsg->nodeid))) {
+			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
+			       "rejected, wanted node %d but previously had %d\n",
+			       name, le32_to_cpu(joinmsg->nodeid), node->node_id);
+			return -1;
+		}
+
+                /* If these don't match then I don't know how the message
 		   arrived! However, I can't take the chance */
 		if (le32_to_cpu(joinmsg->addr_len) != address_length) {
 			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 			       "rejected, address length local: %u remote %u\n",
 			       name, address_length,
 			       le32_to_cpu(joinmsg->addr_len));
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
-		}
-
-		/* Duplicate checking: Because joining messages do not have
-		 * sequence numbers we may get as many JOINREQ messages as we
-		 * have interfaces. This bit of code here just checks for
-		 * JOINREQ messages that come in from the same node in a small
-		 * period of time and removes the duplicates */
-		if (time_before(jiffies, last_joinreq + 10 * HZ)
-		    && strcmp(name, last_name) == 0) {
-			return 0;
-		}
-
-		/* Do we already know about this node? */
-		status = check_duplicate_node(name, msg, len);
-
-		if (status < 0) {
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_NAK);
-			return 0;
-		}
-
-		/* OK, you can be in my gang */
-		if (status == 0) {
-			int i;
-			struct sockaddr_cl *addr = msg->msg_name;
-
-			last_joinreq = jiffies;
-			strcpy(last_name, name);
-
-			node =
-			    add_new_node(name, joinmsg->votes,
-					 le32_to_cpu(joinmsg->expected_votes),
-					 0, NODESTATE_JOINING);
-
-			/* Add the node's addresses */
-			if (list_empty(&node->addr_list)) {
-				for (i = 0; i < le16_to_cpu(joinmsg->num_addr);
-				     i++) {
-					add_node_address(node, ptr, address_length);
-					ptr += address_length;
-				}
-			}
-			send_joinack(msg->msg_name, msg->msg_namelen,
-				      JOINACK_TYPE_OK);
-			joining_node = node;
-			joining_temp_nodeid = addr->scl_nodeid;
-
-			/* Start the state transition */
-			start_transition(TRANS_NEWNODE, node);
+			return -1;
 		}
 	}
 	else {
 		/* Version number mismatch, don't use any part of the message
 		 * other than the version numbers as things may have moved */
-		char buf[MAX_ADDR_PRINTED_LEN];
-
 		printk(KERN_INFO CMAN_NAME
-		       ": Got join message from node running incompatible software. (us: %d.%d.%d, them: %d.%d.%d) addr: %s\n",
+		       ": Got join message from node running incompatible software. (us: %d.%d.%d, them: %d.%d.%d)\n",
 		       CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
 		       CNXMAN_PATCH_VERSION,
 		       le32_to_cpu(joinmsg->major_version),
 		       le32_to_cpu(joinmsg->minor_version),
-		       le32_to_cpu(joinmsg->patch_version),
-		       print_addr(msg->msg_name, msg->msg_namelen, buf));
+		       le32_to_cpu(joinmsg->patch_version));
+		return -1;
+	}
+	return 0;
+}
 
-		send_joinack(msg->msg_name, msg->msg_namelen,
-			      JOINACK_TYPE_NAK);
+
+/* Request to join the cluster. This makes us the master for this state
+ * transition */
+static int do_process_joinreq(struct msghdr *msg, int len)
+{
+	static unsigned long last_joinreq = 0;
+	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
+	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
+	struct cluster_node *node;
+	char *ptr = (char *) joinmsg;
+	char *name;
+	int i;
+	struct sockaddr_cl *addr = msg->msg_name;
+
+	ptr += sizeof (*joinmsg);
+	name = ptr + le16_to_cpu(joinmsg->num_addr) * address_length;
+
+	/* If we are in a state transition then tell the new node to wait a bit
+	 * longer */
+	if (node_state != MEMBER) {
+		if (node_state == MASTER || node_state == TRANSITION) {
+			send_joinack(msg->msg_name, msg->msg_namelen,
+				      JOINACK_TYPE_WAIT);
+		}
 		return 0;
 	}
+
+	/* Reject application if message is invalid for any reason */
+	if (validate_joinmsg(joinmsg, len)) {
+		send_joinack(msg->msg_name, msg->msg_namelen,
+			     JOINACK_TYPE_NAK);
+		return 0;
+	}
+
+	/* Do we already know about this node? */
+	if (check_duplicate_node(name, msg, len) < 0) {
+		send_joinack(msg->msg_name, msg->msg_namelen,
+			     JOINACK_TYPE_NAK);
+		return 0;
+	}
+
+	/* Duplicate checking: Because joining messages do not have
+	 * sequence numbers we may get as many JOINREQ messages as we
+	 * have interfaces. This bit of code here just checks for
+	 * JOINREQ messages that come in from the same node in a small
+	 * period of time and removes the duplicates */
+	if (time_before(jiffies, last_joinreq + 10 * HZ)
+	    && strcmp(name, last_name) == 0) {
+		return 0;
+	}
+
+        /* OK, you can be in my gang */
+	last_joinreq = jiffies;
+	strcpy(last_name, name);
+
+	node = add_new_node(name, joinmsg->votes,
+			    le32_to_cpu(joinmsg->expected_votes),
+			    le32_to_cpu(joinmsg->nodeid),
+			    NODESTATE_JOINING);
+
+	/* Add the node's addresses */
+	if (list_empty(&node->addr_list)) {
+		for (i = 0; i < le16_to_cpu(joinmsg->num_addr);
+		     i++) {
+			add_node_address(node, ptr, address_length);
+			ptr += address_length;
+		}
+	}
+	send_joinack(msg->msg_name, msg->msg_namelen,
+		     JOINACK_TYPE_OK);
+	joining_node = node;
+	joining_temp_nodeid = addr->scl_nodeid;
+
+	/* Start the state transition */
+	start_transition(TRANS_NEWNODE, node);
 
 	return 0;
 }

@@ -125,6 +125,7 @@ extern struct cluster_node *us;
 extern struct list_head new_dead_node_list;
 extern struct semaphore new_dead_node_lock;
 extern char nodename[];
+extern int wanted_nodeid;
 
 /* A list of processes listening for membership events */
 static struct list_head event_listener_list;
@@ -1547,8 +1548,13 @@ static int do_ioctl_set_nodename(unsigned long arg)
 
 static int do_ioctl_set_nodeid(unsigned long arg)
 {
-	// TODO
-	return -ENOTSUPP;
+	if (!capable(CAP_CLUSTER))
+		return -EPERM;
+	if (atomic_read(&cnxman_running))
+		return -EINVAL;
+
+	wanted_nodeid = (int)arg;
+	return 0;
 }
 
 static int do_ioctl_join_cluster(unsigned long arg)
@@ -2784,6 +2790,7 @@ static void node_cleanup()
 	kcluster_pid = 0;
 	clear_bit(RESEND_NEEDED, &mainloop_flags);
 	acks_expected = 0;
+	wanted_nodeid = 0;
 }
 
 /* If "cluster_is_quorate" is 0 then all activity apart from protected ports is

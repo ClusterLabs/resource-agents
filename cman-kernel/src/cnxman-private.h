@@ -171,8 +171,7 @@ struct cl_mem_join_msg {
 	unsigned char  votes;
 	unsigned short num_addr;	/* Number of addresses for this node */
 	unsigned int   expected_votes;
-	unsigned int   members;	/* Number of nodes in the cluster,
-				 * little-endian */
+        unsigned int   nodeid;	        /* node ID we want */
 	unsigned int   major_version;	/* Not backwards compatible */
 	unsigned int   minor_version;	/* Backwards compatible */
 	unsigned int   patch_version;	/* Backwards/forwards compatible */
