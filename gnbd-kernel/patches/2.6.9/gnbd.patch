@@ -1,7 +1,7 @@
-diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
---- linux-orig/drivers/block/gnbd.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/drivers/block/gnbd.c	2004-08-17 11:07:41.000000000 -0500
-@@ -0,0 +1,1054 @@
+diff -urN linux-2.6.9/drivers/block/gnbd.c linux-2.6.9-patched/drivers/block/gnbd.c
+--- linux-2.6.9/drivers/block/gnbd.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-2.6.9-patched/drivers/block/gnbd.c	2004-10-22 13:43:33.303879088 -0500
+@@ -0,0 +1,1053 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -274,7 +274,6 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +{
 +	int uptodate = (req->errors == 0) ? 1 : 0;
 +	request_queue_t *q = req->q;
-+	struct gnbd_device *dev = req->rq_disk->private_data;
 +	unsigned long flags;
 +
 +	dprintk(DBG_BLKDEV, "%s: request %p: %s\n", req->rq_disk->disk_name,
@@ -1056,9 +1055,9 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +MODULE_PARM(debugflags, "i");
 +MODULE_PARM_DESC(debugflags, "flags for controlling debug output");
 +#endif
-diff -urN linux-orig/include/linux/gnbd.h linux-patched/include/linux/gnbd.h
---- linux-orig/include/linux/gnbd.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gnbd.h	2004-08-17 11:07:41.000000000 -0500
+diff -urN linux-2.6.9/include/linux/gnbd.h linux-2.6.9-patched/include/linux/gnbd.h
+--- linux-2.6.9/include/linux/gnbd.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-2.6.9-patched/include/linux/gnbd.h	2004-10-22 13:39:34.000000000 -0500
 @@ -0,0 +1,103 @@
 +/******************************************************************************
 +*******************************************************************************
