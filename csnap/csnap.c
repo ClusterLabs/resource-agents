@@ -2535,7 +2535,6 @@ void usage(poptContext optCon, int exitcode, char *error, char *addl) {
 int main(int argc, const char *argv[])
 {
 	poptContext optCon;
-	char c;
 	unsigned volsize;
 
 	struct poptOption optionsTable[] = {
@@ -2557,6 +2556,7 @@ int main(int argc, const char *argv[])
 		exit(1);
 	}
 
+	char c;
 	while ((c = poptGetNextOpt(optCon)) >= 0)
 		;
 #if 0
@@ -2583,14 +2583,18 @@ int main(int argc, const char *argv[])
 	if (argc < 3)
 		error("usage: %s dev/snapshot dev/origin", argv[0]);
 #endif
-	if (!(sb->snapdev = open(argv[1], O_RDWR | O_DIRECT)))
+	if (!(sb->snapdev = open(poptGetArg(optCon), O_RDWR | O_DIRECT)))
 		error("Could not open snapshot store %s", argv[1]);
 
-	if (!(sb->orgdev = open(argv[2], O_RDONLY | O_DIRECT)))
+	if (!(sb->orgdev = open(poptGetArg(optCon), O_RDONLY | O_DIRECT)))
 		error("Could not open origin volume %s", argv[2]);
 #ifdef SERVER
-	return csnap_server(sb, argv[3], atoi(argv[4]));
+	const char *sockname = poptGetArg(optCon);
+	int port = atoi(poptGetArg(optCon));
+	poptFreeContext(optCon);
+	return csnap_server(sb, sockname, port);
 #else
+	poptFreeContext(optCon);
 #if 0
 	init_snapstore(sb); 
 	create_snapshot(sb, 0);
