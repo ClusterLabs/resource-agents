@@ -941,6 +941,8 @@ void list(void){
   list_t *item;
   gnbd_info_t *info;
 
+  if (verbosity == QUIET)
+    return;
   list_foreach(item, &gnbd_list){
     info = list_entry(item, gnbd_info_t, list);
     printf("Device name : %s\n"

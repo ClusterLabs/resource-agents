@@ -241,9 +241,14 @@ int gserv_list(void){
   int size;
   void *buf;
   gserv_req_t *info;
-  
+ 
   if (get_list_info(&buf, &size, LOCAL_GSERV_LIST_REQ) < 0)
     return 1;
+  if (verbosity == QUIET){
+    if (size)
+      free(buf);
+    return 0;
+  }
   if (size == 0){
     printf("no server processes\n");
     return 0;
@@ -268,6 +273,11 @@ int list(void){
   
   if (get_list_info(&buf, &size, LOCAL_FULL_LIST_REQ) < 0)
     return 1;
+  if (verbosity == QUIET){
+    if (size)
+      free(buf);
+    return 0;
+  }
   if (size == 0){
     printf("no exported GNBDs\n");
     return 0;
