@@ -1749,11 +1749,7 @@ void send_Try_Failed(Lock_t *lk, Waiters_t *lkrq)
  */
 void put_onto_conflict_queue(Lock_t *lk, Waiters_t *lkrq)
 {
-   if( lkrq->flags & gio_lck_fg_Piority ) {
-      /* uncarefuly calling with piority could deadlock. */
-      Qu_EnQu_Front(&lk->High_Waiters, &lkrq->wt_list);
-   }else
-   if( lkrq->flags & gio_lck_fg_NoExp ) {
+   if( lkrq->flags & gio_lck_fg_NoExp || lkrq->flags & gio_lck_fg_Piority ) {
       Qu_EnQu(&lk->High_Waiters, &lkrq->wt_list);
    }else{
       Qu_EnQu(&lk->Waiters, &lkrq->wt_list);
