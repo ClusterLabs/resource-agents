@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	int err, dev, command, blockshift = 12, blocksize = 1 << blockshift;
 	char *buffer = malloc_aligned(blocksize, blocksize);
 
-	if (!(dev = open(argv[1], O_RDWR /*| O_DIRECT*/)))
+	if (!(dev = open(argv[1], O_RDWR | O_DIRECT)))
 		error("Could not open %s", argv[1]);
 	if (argc != 5)
 		goto usage;

@@ -30,7 +30,7 @@
 #include "../dm-csnap.h"
 #include "trace.h"
 
-#define trace trace_off
+#define trace trace_on
 
 /*
 Todo:
@@ -178,6 +178,8 @@ static int fd_size(int fd, u64 *bytes)
 #define BUFFER_STATE_MASK 3
 #define BUFFER_BUCKETS 9999
 #define buftrace trace_off
+
+typedef unsigned long long sector_t;
 
 struct buffer
 {
@@ -405,10 +407,35 @@ void dump_buffer(struct buffer *buffer, unsigned offset, unsigned length)
 
 /* BTree Operations */
 
-struct buffer *snapread(struct superblock *sb, sector_t sector)
+/* Directory at the base of the leaf block */
+
+#define MAX_SNAPSHOTS 64
+
+struct enode
 {
-	return bread(sb->snapdev, sector, sb->blocksize);
-}
+	u32 count;
+	u32 unused;
+	struct index_entry
+	{
+		u64 key; // note: entries[0].key never accessed
+		sector_t sector; // node sector address goes here
+	} entries[];
+};
+
+struct eleaf
+{
+	le_u16 magic;
+	le_u16 version;
+	le_u32 count;
+	le_u64 base_chunk;
+	le_u64 using_mask;
+	struct etree_map
+	{
+		le_u32 offset;
+		le_u32 rchunk;
+	}
+	map[];
+};
 
 static inline struct enode *buffer2node(struct buffer *buffer)
 {
@@ -419,6 +446,60 @@ static inline struct eleaf *buffer2leaf(struct buffer *buffer)
 {
 	return (struct eleaf *)buffer->data;
 }
+
+/* On-disk Format */
+
+struct exception
+{
+	le_u64 share;
+	le_u64 chunk;
+};
+
+static inline struct exception *emap(struct eleaf *leaf, unsigned i)
+{
+	return	(struct exception *)((char *) leaf + leaf->map[i].offset);
+}
+
+struct superblock
+{
+	/* Persistent, saved to disk */
+	struct
+	{
+		sector_t etree_root;
+		sector_t bitmap_base;
+		sector_t chunks, freechunks;
+		sector_t orgchunks;
+		chunk_t last_alloc;
+		u64 flags;
+		u32 blocksize_bits, chunksize_bits;
+		u64 deleting;
+		struct snapshot
+		{
+			u8 tag;
+			u8 bit;
+			u32 create_time;
+			u16 reserved;
+		} snaplist[MAX_SNAPSHOTS];
+		u32 snapshots;
+		u32 etree_levels;
+		u32 bitmap_blocks;
+	} image;
+
+	/* Derived, not saved to disk */
+	u64 snapmask;
+	u32 blocksize, chunksize, keys_per_node;
+	u32 sectors_per_block_bits, sectors_per_block;
+	u32 sectors_per_chunk_bits, sectors_per_chunk;
+	unsigned flags;
+	unsigned snapdev, orgdev;
+	unsigned snaplock_hash_bits;
+	struct snaplock **snaplocks;
+	unsigned copybuf_size;
+	char *copybuf;
+	chunk_t source_chunk;
+	chunk_t dest_exception;
+	unsigned copy_chunks;
+};
 
 /* BTree leaf operations */
 
@@ -457,6 +538,11 @@ static inline struct eleaf *buffer2leaf(struct buffer *buffer)
  *   - binsearch for leaf, index lookup
  *   - enforce 32 bit address range within leaf
  */
+
+struct buffer *snapread(struct superblock *sb, sector_t sector)
+{
+	return bread(sb->snapdev, sector, sb->blocksize);
+}
 
 void show_leaf(struct eleaf *leaf)
 {
@@ -647,6 +733,8 @@ void init_leaf(struct eleaf *leaf, int block_size)
 /*
  * Chunk allocation via bitmaps
  */
+
+#define SB_DIRTY 1
 
 void mark_sb_dirty(struct superblock *sb)
 {
@@ -1294,6 +1382,12 @@ void reply(unsigned sock, struct messagebuf *message)
 	writepipe(sock, &message->head, message->head.length + sizeof(message->head));
 }
 
+struct client
+{
+	unsigned id, sock;
+	int snapnum;
+};
+
 struct pending
 {
 	unsigned holdcount;
@@ -1690,7 +1784,6 @@ return 0;
  */
 int incoming(struct superblock *sb, struct client *client)
 {
-	trace(static unsigned count = 0;)
 	struct messagebuf message;
 	unsigned sock = client->sock;
 	int i, j, err;
@@ -1830,8 +1923,6 @@ int incoming(struct superblock *sb, struct client *client)
 		default: 
 			outbead(sock, REPLY_ERROR, struct { int code; char error[50]; }, message.head.code, "Unknown message"); // wrong!!!
 	}
-	trace(if (++count <= 10 || count % 1000 == 0))
-		trace(warn("handled %u messages", count);)
 	return 0;
 
 message_too_long:
@@ -1854,6 +1945,8 @@ void sighandler(int signum)
 	write(sigpipe, (char[]){signum}, 1);
 }
 
+#define SB_BUSY 1
+
 int cleanup(struct superblock *sb)
 {
 	warn("cleaning up");
@@ -1865,10 +1958,10 @@ int cleanup(struct superblock *sb)
 
 int csnap_server(struct superblock *sb, int port)
 {
-	unsigned maxclients = 100, clients = 0;
+	unsigned maxclients = 100, clients = 0, others = 2;
 	struct client clientvec[maxclients];
-	struct pollfd pollvec[2+maxclients];
-	int listener, pipevec[2], getsig, err = 0;
+	struct pollfd pollvec[others+maxclients];
+	int listener, getsig, pipevec[2], err = 0;
 
 	if (pipe(pipevec))
 		error("Can't open pipe");
@@ -1896,17 +1989,15 @@ int csnap_server(struct superblock *sb, int port)
 		return 0;
 	}
 
-	pollvec[0].fd = listener;
-	pollvec[0].events = POLLIN;
-	pollvec[1].fd = getsig;
-	pollvec[1].events = POLLIN;
+	pollvec[0] = (struct pollfd){ .fd = listener, .events = POLLIN };
+	pollvec[1] = (struct pollfd){ .fd = getsig, .events = POLLIN };
 
 	signal(SIGINT, sighandler);
 	signal(SIGTERM, sighandler);
 	signal(SIGPIPE, SIG_IGN);
 
 	while (1) {
-		int activity = poll(pollvec, 2+clients, -1);
+		int activity = poll(pollvec, others+clients, -1);
 
 		if (activity < 0) {
 			if (errno != EINTR)
@@ -1919,6 +2010,7 @@ int csnap_server(struct superblock *sb, int port)
 			continue;
 		}
 
+		/* New connection? */
 		if (pollvec[0].revents) {
 			struct sockaddr_in addr;
 			int addr_len = sizeof(addr), sock;
@@ -1929,10 +2021,11 @@ int csnap_server(struct superblock *sb, int port)
 			assert(clients < maxclients); // !!! send error and disconnect
 
 			clientvec[clients] = (struct client){ .sock = sock, .id = -1, .snapnum = -1 };
-			pollvec[2+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
+			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
 			clients++;
 		}
 
+		/* Signal? */
 		if (pollvec[1].revents) {
 			u8 sig = 0;
 			/* it's stupid but this read also gets interrupted, so... */
@@ -1946,10 +2039,11 @@ int csnap_server(struct superblock *sb, int port)
 			goto done;
 		}
 
+		/* Client activity? */
 		unsigned i = 0;
 		while (i < clients) {
-			if (pollvec[2+i].revents) { // !!! check for poll error
-				trace_off(printf("event on socket %i = %x\n", clientvec[i].sock, pollvec[2+i].revents);)
+			if (pollvec[others+i].revents) { // !!! check for poll error
+				trace_off(printf("event on socket %i = %x\n", clientvec[i].sock, pollvec[others+i].revents);)
 				int result = incoming(sb, clientvec + i);
 				if (result == -1) {
 					warn("Client %i disconnected", clientvec[i].id);
