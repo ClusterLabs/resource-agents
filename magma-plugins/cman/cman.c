@@ -33,10 +33,6 @@
 #include <libdlm.h>
 #include "cman-plugin.h"
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 #define MODULE_DESCRIPTION "CMAN/DLM Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 

@@ -32,10 +32,6 @@
 #include <fcntl.h>
 #include "gulm-plugin.h"
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 #define GULM_USRM_LVB		"usrm::gulm"
 #define GULM_USRM_LVB_LEN	10
 

@@ -34,10 +34,6 @@
 #include <sys/types.h>
 #include <linux/unistd.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 static _syscall0(pid_t, gettid)
 static pid_t gettid(void);
 

@@ -35,10 +35,6 @@
 #include <sys/types.h>
 #include <sys/select.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 #define MODULE_DESCRIPTION "CMAN/SM Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
