@@ -984,7 +984,8 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 		spin_unlock(&gl->gl_spin);
 
 	} else
-		GFS_ASSERT_GLOCK(FALSE, gl,);
+		GFS_ASSERT_GLOCK(FALSE, gl,
+				 printk("ret = 0x%.8X\n", ret););
 
 	if (glops->go_xmote_bh)
 		glops->go_xmote_bh(gl);
