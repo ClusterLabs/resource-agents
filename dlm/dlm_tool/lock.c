@@ -129,7 +129,6 @@ int ls_release(int argc, char **argv)
 		log_error("lockspace %s not found", name);
 		return -1;
 	}
-	dlm_close_lockspace(ls);
 	dlm_release_lockspace(name, ls, 1);
 	return 0;
 }
@@ -142,8 +141,10 @@ int ls_lock(int argc, char **argv)
 	int mode, error;
 	char *name, *res, *mode_str, *flags_str = NULL;
 
-	if (argc < 3)
-		die("%s invalid arguments", action);
+	if (argc < 3) {
+		log_error("invalid arguments");
+		return -EINVAL;
+	}
 	if (argc > 3)
 		flags_str = argv[3];
 	name = argv[0];
@@ -165,6 +166,7 @@ int ls_lock(int argc, char **argv)
 	error = make_flags(flags_str, &flags);
 	if (error < 0)
 		goto out;
+	flags |= LKF_PERSISTENT;
 
 	printf("lock: mode 0x%x flags 0x%x name %s\n", mode, flags, res);
 
@@ -190,8 +192,10 @@ int ls_unlock(int argc, char **argv)
 	int error;
 	char *name, *lkid_str, *flags_str = NULL;
 
-	if (argc < 2)
-		die("%s invalid arguments", action);
+	if (argc < 2) {
+		log_error("invalid arguments");
+		return -EINVAL;
+	}
 	if (argc > 2)
 		flags_str = argv[2];
 	name = argv[0];
@@ -216,7 +220,8 @@ int ls_unlock(int argc, char **argv)
 	error = dlm_ls_unlock_wait(ls, lkid, flags, &lksb);
 
 	if (error)
-		log_error("dlm_ls_unlock_wait error %d errno %d", error, errno);
+		log_error("dlm_ls_unlock_wait error %d errno %d status 0x%x",
+			  error, errno, lksb.sb_status);
 	else
 		printf("status 0x%x\n", lksb.sb_status);
  out:
@@ -232,8 +237,10 @@ int ls_convert(int argc, char **argv)
 	int error, mode;
 	char *name, *lkid_str, *mode_str, *flags_str = NULL;
 
-	if (argc < 3)
-		die("%s invalid arguments", action);
+	if (argc < 3) {
+		log_error("invalid arguments");
+		return -EINVAL;
+	}
 	if (argc > 3)
 		flags_str = argv[3];
 	name = argv[0];
@@ -249,6 +256,7 @@ int ls_convert(int argc, char **argv)
 	error = make_flags(flags_str, &flags);
 	if (error < 0)
 		goto out;
+	flags |= LKF_CONVERT;
 
 	error = make_mode(mode_str, &mode);
 	if (error < 0) {
@@ -258,15 +266,16 @@ int ls_convert(int argc, char **argv)
 
 	lkid = atoll(lkid_str);
 
-	printf("convert: lkid %u flags 0x%x\n", mode, flags);
+	printf("convert: lkid %u flags 0x%x\n", lkid, flags);
 
 	memset(&lksb, 0, sizeof(lksb));
+	lksb.sb_lkid = lkid;
 
-	error = dlm_ls_lock_wait(ls, mode, &lksb, flags | LKF_CONVERT, NULL, 0,
+	error = dlm_ls_lock_wait(ls, mode, &lksb, flags, NULL, 0,
 				 0, NULL, NULL, NULL);
 
 	if (error)
-		log_error("dlm_ls_lock_wait error %d", error);
+		log_error("dlm_ls_lock_wait error %d errno %d", error, errno);
 	else
 		printf("status 0x%x\n", lksb.sb_status);
  out:
