@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.174 $) dnl cvs revision
+AC_REVISION($Revision: 1.175 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -39,7 +39,7 @@ AC_SUBST(ECHO_E)
 AC_SUBST(ECHO_CMD)
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
-AM_CONFIG_HEADER(linux-ha/config.h)
+AM_CONFIG_HEADER(linux-ha/config.h linux-ha/ha_config.h)
 ALL_LINGUAS="en fr"
 AM_INIT_AUTOMAKE(heartbeat, 0.4.9f)
 RPMREL=1
@@ -118,9 +118,12 @@ mandir=`var "$mandir" "$exec_prefix/man"`
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
+AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"${localstatedir}/lib", var lib directory)
+
 HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_SUBST(HA_LOGDAEMON_IPC)
 AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC)
+
 STONITHPKG=stonith
 AC_SUBST(STONITHPKG)
 
@@ -377,15 +380,13 @@ AC_EGREP_CPP(FoundClkTck,
 #endif
 ],
 [
-        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[ ])
-	CLK_TCK_IN_LIMITS_H=1
+        AC_DEFINE(CLK_TCK_IN_LIMITS_H,1,[CLK_TCK is defined in limits.h])
+        AC_DEFINE(HA_CLK_TCK_IN_LIMITS_H,1,[CLK_TCK is defined in limits.h])
         AC_MSG_RESULT(Yes)
 ],
 [
-	CLK_TCK_IN_LIMITS_H=0
 	AC_MSG_RESULT("No")
 ])
-AC_SUBST(CLK_TCK_IN_LIMITS_H)
 
 dnl
 dnl	Look for #define CLK_TCK in time.h (Linux)
@@ -398,15 +399,13 @@ AC_EGREP_CPP(FoundClkTck,
   FoundClkTck
 #endif
 ], [
-        AC_DEFINE(CLK_TCK_IN_TIME_H,1,[ ])
-	CLK_TCK_IN_TIME_H=1
+        AC_DEFINE(CLK_TCK_IN_TIME_H,1,[CLK_TCK is defined in time.h])
+        AC_DEFINE(HA_CLK_TCK_IN_TIME_H,1,[CLK_TCK is defined in time.h])
         AC_MSG_RESULT(Yes)
 ],
 [
-	CLK_TCK_IN_TIME_H=0
 	AC_MSG_RESULT("No")
 ])
-AC_SUBST(CLK_TCK_IN_TIME_H)
 
 dnl ************************************************************************
 dnl checks for libraries
@@ -594,15 +593,13 @@ AC_TRY_COMPILE([#include <poll.h>],
 [ nfds_t te;  te = 0;],
 [
 	AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t])
-	HAVE_NFDS_T=1
+	AC_DEFINE(HA_HAVE_NFDS_T,1,[Do we have nfds_t])
 	AC_MSG_RESULT(yes)
 ],
 [
-	HAVE_NFDS_T=0
 	AC_MSG_RESULT(no)
 ]
 )
-AC_SUBST(HAVE_NFDS_T)
 
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
@@ -829,6 +826,7 @@ AC_ARG_WITH(
     [ HA_APIGROUP="haclient" ],
   )
 AC_SUBST(HA_APIGROUP)
+AC_DEFINE_UNQUOTED(HA_APIGROUP, "$HA_APIGROUP", group for api fifos)
 
 if
   test  -z "${GETENT}" -o ! -x "${GETENT}"
@@ -859,6 +857,7 @@ then
   HA_APIGID=`getent group "$HA_APIGROUP" | cut -d: -f3`
 fi
 AC_SUBST(HA_APIGID)
+AC_DEFINE_UNQUOTED(HA_APIGID, "$HA_APIGID", id for api group)
 
 AC_ARG_WITH(
   ccmuser-name,
@@ -868,6 +867,7 @@ AC_ARG_WITH(
     [ HA_CCMUSER="hacluster" ],
   )
 AC_SUBST(HA_CCMUSER)
+AC_DEFINE_UNQUOTED(HA_CCMUSER, "$HA_CCMUSER", user for api fifos)
 
 AC_ARG_WITH(
   ccmuser-id,
@@ -882,6 +882,8 @@ then
   HA_CCMUID=`getent passwd "$HA_CCMUSER" | cut -d: -f3`
 fi
 AC_SUBST(HA_CCMUID)
+AC_DEFINE_UNQUOTED(HA_CCMUID, "$HA_CCMUID", id for ccm user)
+
 #
 #	Priority for starting via init startup scripts
 #
@@ -893,6 +895,7 @@ AC_ARG_WITH(
     [ HB_INITSTARTPRI=75 ],
   )
 AC_SUBST(HB_INITSTARTPRI)
+AC_DEFINE_UNQUOTED(HB_INITSTARTPRI,"$HB_INITSTARTPRI", init start priority)
 
 #
 #	Priority for stopping via init shutdown scripts
@@ -905,6 +908,7 @@ AC_ARG_WITH(
     [ HB_INITSTOPPRI=05 ],
   )
 AC_SUBST(HB_INITSTOPPRI)
+AC_DEFINE_UNQUOTED(HB_INITSTOPPRI,"$HB_INITSTOPPRI", init stop priority)
 
 #
 #	Name of UCD-SNMP development package
@@ -916,8 +920,9 @@ AC_ARG_WITH(
     [ UCDSNMPDEVEL=$withval ],
     [ UCDSNMPDEVEL=ucd-snmp-devel ],
   )
-AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, Name of UCD SNMP development package)
 AC_SUBST(UCDSNMPDEVEL)
+AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, 
+	Name of UCD SNMP development package)
 
 dnl ************************************************************************
 dnl checks for library functions to replace them
@@ -951,17 +956,17 @@ dnl Check Only
 dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
-AC_CHECK_DECLS(alphasort, HAVE_ALPHASORT=1, HAVE_ALPHASORT=0)
-AC_SUBST(HAVE_ALPHASORT)
-AC_CHECK_DECLS(inet_pton, HAVE_INET_PTON=1, HAVE_INET_PTON=0)
-AC_SUBST(HAVE_INET_PTON)
+AC_CHECK_DECLS(alphasort, 
+	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
+AC_CHECK_DECLS(inet_pton, 
+	AC_DEFINE(HA_HAVE_INET_PTON, 1, [Have inet_pton function]))
 AC_CHECK_DECLS(NoSuchFunctionName)
-AC_CHECK_DECLS(scandir, HAVE_SCANDIR=1, HAVE_SCANDIR=0)
-AC_SUBST(HAVE_SCANDIR)
-AC_CHECK_DECLS(setenv, HAVE_SETENV=1, HAVE_SETENV=0)
-AC_SUBST(HAVE_SETENV)
-AC_CHECK_DECLS(strerror, HAVE_STRERROR=1, HAVE_STRERROR=0)
-AC_SUBST(HAVE_STRERROR)
+AC_CHECK_DECLS(scandir, 
+	AC_DEFINE(HA_HAVE_SCANDIR,   1, [Have scandir function]))
+AC_CHECK_DECLS(setenv, 
+	AC_DEFINE(HA_HAVE_SETENV,    1, [Have setenv function]))
+AC_CHECK_DECLS(strerror, 
+	AC_DEFINE(HA_HAVE_STRERROR,  1, [Have strerror function]))
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
@@ -1132,6 +1137,7 @@ AC_SUBST(LOCALE)
 
 HB_RC_DIR=$sysconfdir/ha.d/rc.d
 AC_SUBST(HB_RC_DIR)
+AC_DEFINE_UNQUOTED(HB_RC_DIR,"$HB_RC_DIR", rc directory)
 
 HB_PKG=heartbeat
 AC_SUBST(HB_PKG)
@@ -1173,7 +1179,6 @@ include/Makefile						\
         include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
-	linux-ha/ha_config.h					\
 lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
