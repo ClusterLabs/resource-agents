@@ -39,7 +39,11 @@
 #ifndef FENCE
 #include <syslog.h>
 #include "stonith.h"
-#define log syslog
+#define log(lvl, fmt, args...) \
+do { \
+	syslog(lvl, fmt, ##args); \
+	fprintf(stderr, "%s: " fmt, #lvl, ##args); \
+} while(0)
 #else
 /* fenced doesn't use the remote calls */
 #define ST_STATUS 0
@@ -95,6 +99,7 @@ const char *ipmitool_paths[] = {
 static struct Etoken power_on_complete[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
+	{"IPMI mutex", EFAULT, 0},	/* Death */
 	{"Up/On", 0, 0},
 	{NULL, 0, 0}
 };
@@ -102,6 +107,7 @@ static struct Etoken power_on_complete[] = {
 static struct Etoken power_off_complete[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
+	{"IPMI mutex", EFAULT, 0},	/* Death */
 	{"Down/Off", 0, 0},
 	{NULL, 0, 0}
 };
@@ -112,6 +118,7 @@ static struct Etoken power_off_complete[] = {
 static struct Etoken power_status[] = {
 	{"Password:", EPERM, 0},
 	{"Unable to establish LAN", EAGAIN, 0},	/* Retry */
+	{"IPMI mutex", EFAULT, 0},	/* Death */
 	{"Chassis Power is off", STATE_OFF, 0},
 	{"Chassis Power is on", STATE_ON, 0},
 	{NULL, 0, 0}
@@ -245,24 +252,34 @@ static int
 ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 {
 	char cmd[2048];
-	int timeout = 30;
+	int retries = 5; 
 	int ret;
 
 	build_cmd(cmd, sizeof(cmd), ipmi, op);
 
 	if (ipmi_spawn(ipmi, cmd) != 0)
 		return -1;
-	ret = ipmi_expect(ipmi, toklist, 10);
+	ret = ipmi_expect(ipmi, toklist, 120);
 	ipmi_reap(ipmi);
 
-	while ((ret == EAGAIN || ret == ETIMEDOUT) && timeout > 0) {
+	while ((ret == EAGAIN || ret == ETIMEDOUT) && retries > 0) {
 		sleep(5);
-		timeout -= 5;
+		--retries;
 		
 		if (ipmi_spawn(ipmi, cmd) != 0)
 			return -1;
-		ret = ipmi_expect(ipmi, toklist, 10);
+		ret = ipmi_expect(ipmi, toklist, 120);
+		if (ret == EFAULT) {
+			/* Doomed. */
+			break;
+		}
 		ipmi_reap(ipmi);
+	}
+
+	if (ret == EFAULT) {
+		log(LOG_CRIT, "ipmilan: ipmitool failed to create "
+		    "mutex; unable to complete operation\n");
+		return ret;
 	}
 
 	if (ret == EAGAIN) {
@@ -278,7 +295,7 @@ ipmi_op(struct ipmi *ipmi, int op, struct Etoken *toklist)
 static int
 ipmi_off(struct ipmi *ipmi)
 {
-	int ret;
+	int ret, retries = 5;
 
 	ret = ipmi_op(ipmi, ST_STATUS, power_status);
 	switch(ret) {
@@ -294,14 +311,24 @@ ipmi_off(struct ipmi *ipmi)
 	if (ret != 0)
 		return ret;
 
-	sleep(5);
-	ret = ipmi_op(ipmi, ST_STATUS, power_status);
-	switch(ret) {
-	case STATE_OFF:
-		return 0;
-	case STATE_ON:
-		log(LOG_ERR, "ipmilan: Power still on\n");
+	while (retries>=0) {
+		sleep(5);
+		--retries;
+		ret = ipmi_op(ipmi, ST_STATUS, power_status);
+
+		switch(ret) {
+		case STATE_OFF:
+			return 0;
+		case EFAULT:
+			/* We're done. */
+			retries = 0;
+			break;
+		case STATE_ON:
+		default:
+			continue;
+		}
 	}
+	log(LOG_WARNING, "ipmilan: Power still on\n");
 
 	return ret;
 }
@@ -310,7 +337,7 @@ ipmi_off(struct ipmi *ipmi)
 static int
 ipmi_on(struct ipmi *ipmi)
 {
-	int ret;
+	int ret, retries = 5; 
 
 	ret = ipmi_op(ipmi, ST_STATUS, power_status);
 	switch(ret) {
@@ -326,14 +353,24 @@ ipmi_on(struct ipmi *ipmi)
 	if (ret != 0)
 		return ret;
 
-	sleep(5);
-	ret = ipmi_op(ipmi, ST_STATUS, power_status);
-	switch(ret) {
-	case STATE_ON:
-		return 0;
-	case STATE_OFF:
-		log(LOG_WARNING, "ipmilan: Power still off\n");
+	while (retries>=0) {
+		sleep(5);
+		--retries;
+		ret = ipmi_op(ipmi, ST_STATUS, power_status);
+
+		switch(ret) {
+		case STATE_ON:
+			return 0;
+		case EFAULT:
+			/* We're done. */
+			retries = 0;
+			break;
+		case STATE_OFF:
+		default:
+			continue;
+		}
 	}
+	log(LOG_WARNING, "ipmilan: Power still off\n");
 
 	return ret;
 }
@@ -483,6 +520,10 @@ st_status(Stonith *s)
 	if (ret == STATE_ON || ret == STATE_OFF)
 		return S_OK;
 
+	/* Permission denied? */
+	if (ret == EPERM)
+		return S_BADCONFIG;
+
 	return S_OOPS;
 }
 
@@ -513,6 +554,9 @@ st_reset(Stonith *s, int req, char * port)
 	case 0:
 		/* Success */
 		return S_OK;
+	case EFAULT:
+		log(LOG_CRIT, "ipmilan: unable to complete request\n");
+		return S_OOPS;
 	case EPERM:
 		return S_BADCONFIG;
 	case ETIMEDOUT:
