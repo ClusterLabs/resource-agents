@@ -23,8 +23,7 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${incdir} \
-	-I${top_srcdir}/license -I${top_srcdir}/config
+INCLUDE = -I${top_srcdir}/include -I${incdir} -I${top_srcdir}/config
 
 LDFLAGS+= -L${libdir}
 LOADLIBES+= -lccs
