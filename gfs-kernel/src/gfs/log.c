@@ -770,13 +770,15 @@ add_trans_to_ail(struct gfs_sbd *sdp, struct gfs_trans *tr)
 /**
  * log_refund - Refund log segments to the free pool
  * @sdp: The GFS superblock
- * @tr: The tranaction to examine
+ * @tr: The transaction to examine
  *
  * Look at the number of segments reserved for this transaction and the
  * number of segments actually needed for it.  If they aren't the
  * same, refund the difference to the free segment pool.
  *
- * Called with the log lock held
+ * De-alloc any unneeded log buffers and log buffer descriptors.
+ *
+ * Called with the log lock held.
  */
 
 static void
@@ -793,6 +795,7 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	num_bufs += segments + 1;
 	num_bmem += segments + 1;
 
+	/* Unreserve unneeded log segments */
 	if (tr->tr_seg_reserved > segments) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr->tr_seg_reserved - segments;
@@ -804,6 +807,7 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	} else
 		GFS_ASSERT_SBD(tr->tr_seg_reserved == segments, sdp,);
 
+	/* De-alloc unneeded log buffer descriptors */
 	GFS_ASSERT_SBD(tr->tr_num_free_bufs >= num_bufs, sdp,);
 	while (tr->tr_num_free_bufs > num_bufs) {
 		lb = list_entry(tr->tr_free_bufs.next,
@@ -813,6 +817,7 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 		tr->tr_num_free_bufs--;
 	}
 
+	/* De-alloc unneeded log buffers */
 	GFS_ASSERT_SBD(tr->tr_num_free_bmem >= num_bmem, sdp,);
 	while (tr->tr_num_free_bmem > num_bmem) {
 		bmem = tr->tr_free_bmem.next;
@@ -973,7 +978,7 @@ gfs_log_flush_glock(struct gfs_glock *gl)
  * @new_tr: the transaction to commit
  *
  * Add the transaction @new_tr to the end of the incore commit list.
- * Pull up and merge an previously commited transactions that share
+ * Pull up and merge any previously commited transactions that share
  * locks.  Also pull up any rename transactions that need it.
  */
 
@@ -1033,6 +1038,7 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 		LO_INCORE_COMMIT(sdp, trans, le);
 	}
 
+	/* If we successfully combined transactions, new_trans should be empty */
 	if (trans != new_tr) {
 		GFS_ASSERT_SBD(!new_tr->tr_num_free_bufs, sdp,);
 		GFS_ASSERT_SBD(!new_tr->tr_num_free_bmem, sdp,);
@@ -1040,6 +1046,9 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 		kfree(new_tr);
 	}
 
+	/* If we successfully combined transactions, we might have some log
+	   segments that we reserved, and log buffers and buffer descriptors
+	   that we allocated, but now don't need. */
 	log_refund(sdp, trans);
 
 	list_add(&trans->tr_list, &sdp->sd_log_incore);
@@ -1061,6 +1070,7 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	unsigned int num_mblks = 0, num_eblks = 0, num_bufs = 0, num_bmem = 0;
 	unsigned int segments;
 
+	/* Calculate actual log area needed for this trans */
 	LO_TRANS_SIZE(sdp, tr, &num_mblks, &num_eblks, &num_bufs, &num_bmem);
 
 	GFS_ASSERT_SBD(num_mblks <= tr->tr_mblks_asked &&
@@ -1076,12 +1086,14 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	num_bufs += segments + 1;
 	num_bmem += segments + 1;
 
+	/* Alloc log buffer descriptors */
 	while (num_bufs--) {
 		lb = gmalloc(sizeof(struct gfs_log_buf));
 		memset(lb, 0, sizeof(struct gfs_log_buf));
 		list_add(&lb->lb_list, &tr->tr_free_bufs);
 		tr->tr_num_free_bufs++;
 	}
+	/* Alloc log buffers */
 	while (num_bmem--) {
 		bmem = gmalloc(sdp->sd_sb.sb_bsize);
 		list_add(bmem, &tr->tr_free_bmem);
@@ -1092,6 +1104,7 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	incore_commit(sdp, tr);
 
+	/* Flush log buffers to disk if we're over the threshold */
 	if (sdp->sd_log_buffers > sdp->sd_tune.gt_incore_log_blocks) {
 		gfs_log_unlock(sdp);
 		gfs_log_flush(sdp);

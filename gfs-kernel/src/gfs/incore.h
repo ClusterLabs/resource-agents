@@ -204,7 +204,23 @@ struct gfs_rgrpd {
  *  One of these is attached as GFS private data to each FS block's buffer_head.
  *  These also link into the Active Items Lists (AIL) (buffers flushed to
  *    on-disk log, but not yet flushed to on-disk in-place locations) attached
- *    to transactions and glocks.
+ *    to 1) the latest transaction to modify and log (on-disk) the buffer,
+ *    and 2) the glock that protects the buffer's contents.
+ *  Note that multiple transactions can modify the buffer since its most
+ *    recent write to disk (in-place location).  Each transaction must log
+ *    the modified buffer to the on-disk journal (e.g. 3 transactions
+ *    will cause 3 different copies of the buffer to be logged on-disk).
+ *    The buffer is attached to only the most recent transaction's AIL
+ *    list for a couple of reasons.  One is that only the most up-to-date
+ *    buffer content needs to be written to the in-place block on-disk.  The
+ *    other is that since there is a more recent copy of the block in
+ *    the log, we don't need to keep the older copies in the log.  We can
+ *    remove them from the AIL and let the log space be reused for new
+ *    transactions.
+ *  If a transaction follows another transaction before the first transaction's
+ *    log completes, the first transaction's results are copied to a "frozen"
+ *    image of the buffer, so it can be logged properly, while the second
+ *    transaction is modifying the "real" buffer.
  */
 struct gfs_bufdata {
 	struct buffer_head *bd_bh;  /* We belong to this Linux buffer_head */
@@ -218,8 +234,10 @@ struct gfs_bufdata {
 
 	/* "Pin" means keep buffer in RAM, don't write to disk (yet) */
 	unsigned int bd_pinned;	         /* Recursive pin count */
-	struct list_head bd_ail_tr_list; /* Link to transaction's AIL list */
-	struct list_head bd_ail_gl_list; /* Link to glock's AIL list */
+
+	/* Links to Active Items Lists */
+	struct list_head bd_ail_tr_list; /* This buf's most recent trans' AIL */
+	struct list_head bd_ail_gl_list; /* This buf's glock's AIL */
 };
 
 /*
@@ -596,6 +614,8 @@ struct gfs_quota_data {
 /*
  * Log Buffer descriptor structure
  * One for each FS block buffer recorded in the log
+ * lb_bh is a "fake" buffer head that directs Linux block I/O to write the buf
+ *   to the on-disk log location, rather than the on-disk in-place location.
  */
 struct gfs_log_buf {
 	/* Link to one of the transaction structure's lists */
@@ -833,7 +853,13 @@ struct gfs_sbd {
 
 	/*  Log stuff  */
 
-	/* Transaction lock protects journal replay (recovery) */
+	/* Transaction lock protects the following from one another:
+	   normal write transaction, journal replay (recovery), fs upgrade,
+	   fs read-only => read/write and read/write => read-only conversions.
+	   Also, acquiring the transaction lock in a state other than shared
+	   causes all other machines in the cluster to sync out their dirty
+	   data, mark their journal as being clean, and prevent any new FS
+	   modifications from occuring (i.e. quiesces the FS). */
 	struct gfs_glock *sd_trans_gl;	/* Transaction glock structure */
 
 	struct gfs_inode *sd_jiinode;	/* Journal index inode */

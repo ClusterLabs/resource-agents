@@ -62,13 +62,17 @@ gfs_trans_print(struct gfs_sbd *sdp, struct gfs_trans *tr, unsigned int where)
 }
 
 /**
- * gfs_trans_begin_i - Perpare to start a transaction
+ * gfs_trans_begin_i - Prepare to start a transaction
  * @sdp: The GFS superblock
  * @meta_blocks: Reserve this many metadata blocks in the log
  * @extra_blocks: Number of non-metadata blocks to reserve
  *
- * Allocate the struct gfs_trans struct.  Do in-place and
- * log reservations.
+ * Allocate the struct gfs_trans struct.
+ * Grab a shared TRANSaction lock (protects this transaction from
+ *   overlapping with unusual fs writes, e.g. journal replay, fs upgrade,
+ *   while allowing simultaneous transaction writes throughout cluster).
+ * Reserve space in the log.  @meta_blocks and @extra_blocks must indicate
+ *   the worst case (maximum) size of the transaction.
  *
  * Returns: 0 on success, -EXXX on failure
  */
@@ -82,7 +86,9 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 	unsigned int blocks;
 	int error;
 
-	tr = gmalloc(sizeof(struct gfs_trans));
+	tr = kmalloc(sizeof(struct gfs_trans), GFP_KERNEL);
+	if (!tr)
+		return -ENOMEM;
 	memset(tr, 0, sizeof(struct gfs_trans));
 
 	INIT_LIST_HEAD(&tr->tr_elements);
@@ -160,6 +166,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 	t_gh = tr->tr_t_gh;
 	tr->tr_t_gh = NULL;
 
+	/* If no buffers were ever added to trans, forget it */
 	if (list_empty(&tr->tr_elements)) {
 		gfs_log_release(sdp, tr->tr_seg_reserved);
 		kfree(tr);
@@ -170,6 +177,7 @@ gfs_trans_end(struct gfs_sbd *sdp)
 		return;
 	}
 
+	/* Do trans_end log-operation for each log element */
 	for (head = &tr->tr_elements, tmp = head->next;
 	     tmp != head;
 	     tmp = tmp->next) {

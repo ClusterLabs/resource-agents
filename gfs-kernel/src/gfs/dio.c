@@ -646,6 +646,7 @@ gfs_attach_bufdata(struct buffer_head *bh, struct gfs_glock *gl)
 
 	lock_page(bh->b_page);
 
+	/* If there's one attached already, we're done */
 	if (bh2bd(bh)) {
 		unlock_page(bh->b_page);
 		return;
@@ -721,8 +722,8 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 	if (!bd->bd_pinned++) {
 		wait_on_buffer(bh);
 
-		/* If this buffer is in the AIL and it has already been written,
-		   remove it from the AIL. */
+		/* If this buffer is in the AIL and it has already been written
+		   to in-place disk block, remove it from the AIL. */
 
 		spin_lock(&sdp->sd_ail_lock);
 		if (!list_empty(&bd->bd_ail_tr_list) && !buffer_busy(bh)) {
@@ -760,7 +761,25 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to unpin
  * @tr: The transaction in the AIL that contains this buffer
+ *      If NULL, don't attach buffer to any AIL list
+ *      (i.e. when dropping a pin reference when merging a new transaction
+ *       with an already exist incore transaction)
  *
+ * Called for (meta) buffers, after they've been logged to on-disk journal.
+ * Make a (meta) buffer writeable to in-place location on-disk, if recursive
+ *   pin count is 1 (i.e. no other, later transaction is modifying this buffer).
+ * Add buffer to AIL lists of 1) the latest transaction that's modified and
+ *   logged (on-disk) the buffer, and of 2) the glock that protects the buffer.
+ * A single buffer might have been modified by more than one transaction
+ *   since the buffer's previous write to disk (in-place location).  We keep
+ *   the buffer on only one transaction's AIL list, i.e. that of the latest
+ *   transaction that's completed logging this buffer (no need to write it to
+ *   in-place block multiple times for multiple transactions, only once with
+ *   the most up-to-date data).
+ * A single buffer will be protected by one and only one glock.  If buffer is 
+ *   already on a (previous) transaction's AIL, we know that we're already
+ *   on buffer's glock's AIL.
+ * 
  */
 
 void
@@ -777,6 +796,7 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 
 	GFS_ASSERT_GLOCK(bd->bd_pinned, bd->bd_gl,);
 
+	/* No other (later) transaction is modifying buffer; ready to write */
 	if (bd->bd_pinned == 1)
 		mark_buffer_dirty(bh);
 
@@ -784,15 +804,16 @@ gfs_dunpin(struct gfs_sbd *sdp, struct buffer_head *bh, struct gfs_trans *tr)
 
 	gfs_unlock_buffer(bh);
 
-	/* Add the buffer to the AIL
-	   and get rid of an old reference if there is one */
-
 	if (tr) {
 		spin_lock(&sdp->sd_ail_lock);
 
-		if (list_empty(&bd->bd_ail_tr_list))
+		if (list_empty(&bd->bd_ail_tr_list)) {
+			/* Buffer not attached to any earlier transaction.
+			   Add it to glock's AIL, and this transaction's AIL (below). */
 			list_add(&bd->bd_ail_gl_list, &bd->bd_gl->gl_ail_bufs);
-		else {
+		} else {
+			/* Was part of earlier transaction.  Move from that trans' AIL
+			   to this newer one's AIL.  Buf is already on glock's AIL. */
 			list_del_init(&bd->bd_ail_tr_list);
 			brelse(bh);
 		}
