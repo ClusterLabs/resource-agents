@@ -580,7 +580,7 @@ cluster_plugin_init(cluster_plugin_t *driver, void *__attribute__((unused))priv,
 		return -1;
 	}
 
-	snprintf(myname, sizeof(myname), "Magma::%d\n",
+	snprintf(myname, sizeof(myname), "Magma::%d",
 		 gettid());
 
 	ret = lg_initialize(&pg, "", myname);
