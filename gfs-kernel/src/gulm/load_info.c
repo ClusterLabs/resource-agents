@@ -21,7 +21,6 @@
 #include <linux/utsname.h>	/* for extern system_utsname */
 
 #include "util.h"
-#include "utils_verb_flags.h"
 
 gulm_cm_t gulm_cm;
 
@@ -85,7 +84,7 @@ load_info (char *hostdata)
 	 * find another way to set them. (modprobe options for example.)
 	 * */
 	gulm_cm.handler_threads = 2;
-	set_verbosity ("Default", &gulm_cm.verbosity);
+	gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
 
 	init_ltpx ();
 
