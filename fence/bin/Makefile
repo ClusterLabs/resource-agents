@@ -21,11 +21,13 @@ SBINPROGS= \
 	fence_brocade \
 	fence_cpint \
 	fence_egenera \
-	fence_rackswitch \
-	fence_rib \
+	fence_ibmblade \
 	fence_manual \
 	fence_mcdata \
 	fence_node \
+	fence_rackswitch \
+	fence_rib \
+	fence_sanbox2 \
 	fence_tool \
 	fence_vixel \
 	fence_wti \
