@@ -949,7 +949,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 			   struct dlm_rsb *rootrsb, char *buf, int *ptr,
 			   char *outbuf, int *outoffp)
 {
-	struct dlm_lkb *lkb;
+	struct dlm_lkb *lkb, *exist_lkb = NULL;
 	struct dlm_rsb *rsb;
 	int error = -ENOMEM, parentid, rsb_rmid, remote_lkid, status, temp;
 
@@ -961,14 +961,16 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 
 	/* 
 	 * We could have received this lkb already from a previous recovery
-	 * that was interrupted.  If so, just return the lkid to the remote
-	 * node.
+	 * that was interrupted.  We still need to advance ptr so read in
+	 * lkb and then release it.  FIXME: verify this is valid.
 	 */
 	lkb = find_by_remlkid(rsb, rem_nodeid, remote_lkid);
-	if (lkb)
-		goto put_lkid;
+	if (lkb) {
+		log_all(ls, "lkb %x exists %s", remote_lkid, rsb->res_name);
+		exist_lkb = lkb;
+	}
 
-	lkb = create_lkb(rsb->res_ls);
+	lkb = create_lkb(ls);
 	if (!lkb)
 		goto out;
 
@@ -997,7 +999,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 		start = get_int64(buf, ptr);
 		end = get_int64(buf, ptr);
 
-		lkb->lkb_range = allocate_range(rsb->res_ls);
+		lkb->lkb_range = allocate_range(ls);
 		if (!lkb->lkb_range)
 			goto out;
 
@@ -1022,6 +1024,13 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 		default:
 			DLM_ASSERT(0,);
 		}
+	}
+
+	if (exist_lkb) {
+		/* verify lkb and exist_lkb values match? */
+		release_lkb(ls, lkb);
+		lkb = exist_lkb;
+		goto put_lkid;
 	}
 
 	/* Resolve local lock LKB address from parent ID */
@@ -1059,7 +1068,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	if ((lkb->lkb_flags & GDLM_LKFLG_VALBLK)
 	    && lkb->lkb_grmode > DLM_LOCK_NL) {
 		if (!rsb->res_lvbptr)
-			rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
+			rsb->res_lvbptr = allocate_lvb(ls);
 		if (!rsb->res_lvbptr)
 			goto out;
 		memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
