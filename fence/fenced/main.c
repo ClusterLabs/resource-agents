@@ -481,9 +481,14 @@ static int check_cluster(fd_t *fd)
 	if (!active)
 		die1("cman cluster manager is not running");
 
-	error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
-	if (error < 0)
-		die1("cluster getnode failed");
+	for (;;) {
+		error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+		if (!error)
+			break;
+		if (debug)
+			log_debug("cman getnode failed %d", error);
+		sleep(1);
+	}
 	memcpy(our_name, cl_node.name, strlen(cl_node.name));
 
 	if (debug)

@@ -149,9 +149,13 @@ static int get_our_name(void)
 
 	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
 
-	rv = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
-	if (rv)
-		die("cannot get node name from cluster");
+	for (;;) {
+		rv = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+		if (!rv)
+			break;
+		printf("%s: retrying cman getnode %d\n", prog_name, rv);
+		sleep(1);
+	}
 
 	memcpy(our_name, cl_node.name, strlen(cl_node.name));
 	return 0;
