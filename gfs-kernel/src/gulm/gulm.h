@@ -231,6 +231,13 @@ int find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name, uint32_t *
 
 /* to be called from the lg_lock callbacks. */
 void jid_header_lock_drop (uint8_t * key, uint16_t keylen);
+void sig_watcher_lock_drop(uint8_t * key, uint16_t keylen);
+
+/* from gulm_recsig.c */
+void tap_sig(gulm_fs_t *fs, uint8_t *name, uint8_t len);
+int watch_sig(gulm_fs_t *fs, uint8_t *name, uint8_t len,
+		void(*func)(void *misc), void *misc);
+void sig_watcher_init(void);
 
 extern struct lm_lockops gulm_ops;
 

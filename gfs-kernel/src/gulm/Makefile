@@ -34,6 +34,7 @@ lock_gulm-objs := gulm_core.o \
 	gulm_lt.o \
 	gulm_main.o \
 	gulm_plock.o \
+	gulm_recsig.o \
 	handler.o \
 	lg_core.o \
 	lg_lock.o \

@@ -71,6 +71,7 @@ init_gulm (void)
 		goto glq_fail;
 
 	init_gulm_fs ();
+	sig_watcher_init ();
 
 	printk ("Gulm %s (built %s %s) installed\n",
 		GULM_RELEASE_NAME, __DATE__, __TIME__);

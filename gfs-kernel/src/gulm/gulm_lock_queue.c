@@ -645,6 +645,7 @@ glq_drop_lock_req (void *misc, uint8_t * key, uint16_t keylen,
 {
 	do_drop_lock_req (key, keylen, state);
 	jid_header_lock_drop (key, keylen);
+	sig_watcher_lock_drop (key, keylen);
 	return 0;
 }
 

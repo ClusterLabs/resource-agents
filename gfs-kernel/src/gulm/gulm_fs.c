@@ -424,6 +424,19 @@ int expire_my_locks (gulm_fs_t * fs)
 /*****************************************************************************/
 
 /**
+ * gulm_check_replays - 
+ * @misc: 
+ * 
+ * 
+ * Returns: void
+ */
+void gulm_check_replays(void *misc)
+{
+	gulm_fs_t *fs = (gulm_fs_t*)misc;
+	qu_function_call (&fs->cq, cast_check_for_stale_expires, fs);
+}
+
+/**
  * gulm_mount
  * @table_name: clusterID:FS_Name
  * @host_data:
@@ -536,10 +549,16 @@ gulm_mount (char *table_name, char *host_data,
 	/* the mount lock HAS to be the first thing done in the LTs for this fs. */
 	error = get_mount_lock (gulm, &first);
 	if (error != 0) {
-		log_err
-		    ("fsid=%s: Error %d while trying to get the mount lock\n",
+		log_err("fsid=%s: Error %d while trying to get the mount lock\n",
 		     gulm->fs_name, error);
 		goto fail_callback;
+	}
+
+	error = watch_sig(gulm, "CFR", 4, gulm_check_replays, gulm);
+	if( error != 0 ) {
+		log_err("fsid=%s: couldn't watch CFR because %d\n",
+				gulm->fs_name, error);
+		goto fail_mountlock;
 	}
 
 	jid_fs_init (gulm);
@@ -570,6 +589,9 @@ gulm_mount (char *table_name, char *host_data,
 	gulm_cm.starts = FALSE;
 	if(work != NULL ) kfree(work);
 	return 0;
+
+fail_mountlock:
+	drop_mount_lock (gulm);
 
       fail_callback:
 	stop_callback_qu (&gulm->cq);
@@ -643,6 +665,7 @@ gulm_unmount (lm_lockspace_t * lockspace)
 	up (&filesystem_lck);
 
 	/* close and release stuff */
+	watch_sig(gulm_fs, "CFR", 4, NULL, NULL);
 	drop_mount_lock (gulm_fs);
 	put_journalID (gulm_fs, FALSE);
 	jid_fs_release (gulm_fs);
@@ -664,7 +687,6 @@ void
 gulm_withdraw(lm_lockspace_t * lockspace)
 {
 	gulm_fs_t *gulm_fs = (gulm_fs_t *) lockspace;
-printk("============= WITHDRAW =============\n");
 	down (&filesystem_lck);
 	list_del (&gulm_fs->fs_list);
 	--filesystems_count;
@@ -682,13 +704,13 @@ printk("============= WITHDRAW =============\n");
 	stop_callback_qu (&gulm_fs->cq);
 
 	expire_my_locks (gulm_fs);
-	/* TODO FIXME XXX somehow tell others that my journal needs replying. */
+	tap_sig(gulm_fs, "CFR", 4);
 
 	/* need to let things run through the queues.
 	 * Only really an issue if you happen to be the only gfs/gulm fs
 	 * mounted.
 	 * */
-	current->state = TASK_UNINTERRUPTIBLE;
+	current->state = TASK_INTERRUPTIBLE;
 	schedule_timeout( 2 * HZ);
 
 	kfree (gulm_fs);
