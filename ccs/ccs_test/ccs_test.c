@@ -95,6 +95,21 @@ int main(int argc, char *argv[]){
       if(str)free(str);
     }
   }
+  else if(!strcmp(argv[1], "get_list")){
+    if(argc < 4){
+      fprintf(stderr, "Wrong number of arguments.\n");
+      exit(EXIT_FAILURE);
+    }
+    desc = atoi(argv[2]);
+    if((error = ccs_get_list(desc, argv[3], &str))){
+      fprintf(stderr, "ccs_get failed: %s\n", strerror(-error));
+      exit(EXIT_FAILURE);
+    } else {
+      printf("Get successful.\n");
+      printf(" Value = <%s>\n", str);
+      if(str)free(str);
+    }
+  }
   else if(!strcmp(argv[1], "set")){
     if(argc < 5){
       fprintf(stderr, "Wrong number of arguments.\n");
@@ -153,11 +168,12 @@ static void print_usage(FILE *stream){
 	  "ccs_test <Command>\n"
 	  "\n"
 	  "Commands:\n"
-	  "  connect <force> <block>  Connect to CCS and return connection descriptor.\n"
-	  "  disconnect <desc>        Disconnect from CCS.\n"
-	  "  get <desc> <request>     Get a value from CCS.\n"
-	  "  set <desc> <path> <val>  Set a value in CCS.\n"
-	  "  get_state <desc>         Get the state in the connection.\n"
-	  "  set_state <desc> <ncwp>  Set the current working path.\n"
+	  "  connect <force> <block>   Connect to CCS and return connection descriptor.\n"
+	  "  disconnect <desc>         Disconnect from CCS.\n"
+	  "  get <desc> <request>      Get a value from CCS.\n"
+	  "  get_list <desc> <request> Get a value from CCS.\n"
+	  "  set <desc> <path> <val>   Set a value in CCS.\n"
+	  "  get_state <desc>          Get the state in the connection.\n"
+	  "  set_state <desc> <ncwp>   Set the current working path.\n"
 	  );
 }

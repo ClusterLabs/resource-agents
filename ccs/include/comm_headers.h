@@ -14,14 +14,15 @@
 #define __COMM_HEADERS_DOT_H__
 
 /* Types of requests */
-#define COMM_CONNECT 1
+#define COMM_CONNECT    1
 #define COMM_DISCONNECT 2
-#define COMM_GET 3
-#define COMM_SET 4
-#define COMM_GET_STATE 5
-#define COMM_SET_STATE 6
-#define COMM_BROADCAST 7
-#define COMM_UPDATE    8
+#define COMM_GET        3
+#define COMM_GET_LIST   4
+#define COMM_SET        5
+#define COMM_GET_STATE  6
+#define COMM_SET_STATE  7
+#define COMM_BROADCAST  8
+#define COMM_UPDATE     9
 
 /* Request flags */
 #define COMM_CONNECT_FORCE          1

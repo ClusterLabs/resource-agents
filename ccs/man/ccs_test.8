@@ -50,6 +50,19 @@ possibilities.
 .in +7
 Get the results of a given request.  The 'desc' is the number returned
 from the \fBconnect\fP command.  The 'request' is a valid Xpath request.
+
+If 'request' results in multiple matches, the first will be returned.
+Subsequent calls with the same 'request' will result in the subsequent
+matches.  Once all the matches have been returned, a subsequent call
+will begin again with the first result.
+.sp
+.in
+
+\fBget_list\fP \fI<desc>\fP \fI<request>\fP
+.in +7
+Similar to the \fBget\fP command.  However, issuing subsequent calls
+with the same 'request' will result in all matches being returned (one
+at a time), then null, then starting over with the first result.
 .sp
 .in
 

@@ -873,13 +873,27 @@ static int process_disconnect(comm_header_t *ch){
   return error;
 }
 
-
-static int process_get(comm_header_t *ch, char **payload){
+/*
+ * _process_get
+ * @ch
+ * @payload
+ *
+ * This function runs the xml query.  If the query is different from the
+ * previous query, it will always fill the payload with the first match.
+ * If the current query and the previous query are the same, it fills the
+ * payload with next match.  If the last of all possible matches was
+ * returned by the previous query and the current query is the same,
+ * the payload will be filled with the 1st match and 1 will be returned
+ * as the result of the function.
+ *
+ * Returns: -EXXX on error, 1 if restarting list, 0 otherwise
+ */
+static int _process_get(comm_header_t *ch, char **payload){
   int error = 0;
   xmlXPathObjectPtr obj = NULL;
   char *query = NULL;
 
-  ENTER("process_get");
+  ENTER("_process_get");
   if(!ch->comm_payload_size){
     log_err("process_get: payload size is zero.\n");
     error = -EINVAL;
@@ -939,66 +953,62 @@ static int process_get(comm_header_t *ch, char **payload){
     log_dbg("Obj type  = %d (%s)\n", obj->type, (obj->type == 1)?"XPATH_NODESET":"");
     log_dbg("Number of matches: %d\n", (obj->nodesetval)?obj->nodesetval->nodeNr:0);
     if(obj->nodesetval && (obj->nodesetval->nodeNr > 0) ){
-      if((obj->nodesetval->nodeNr == 1) || 
-	 (ocs[ch->comm_desc]->oc_index < obj->nodesetval->nodeNr)){
-	xmlNodePtr node;
-	int size=0;
-	int nnv=0; /* name 'n' value */
+      xmlNodePtr node;
+      int size=0;
+      int nnv=0; /* name 'n' value */
 
-	log_dbg("Using %s\n",(obj->nodesetval->nodeNr > 1) ? "index": "zero");
-	node = obj->nodesetval->nodeTab[(obj->nodesetval->nodeNr > 1) ?
-					ocs[ch->comm_desc]->oc_index :
-	                                0];
+      if(ocs[ch->comm_desc]->oc_index >= obj->nodesetval->nodeNr){
+	ocs[ch->comm_desc]->oc_index = 0;
+	error = 1;
+	log_dbg("Index reset to zero (end of list).\n");
+      }
+	  
+      node = obj->nodesetval->nodeTab[ocs[ch->comm_desc]->oc_index];
 	
-	log_dbg("Node (%s) type = %d (%s)\n", node->name, node->type,
-		(node->type == 1)? "XML_ELEMENT_NODE":
-		(node->type == 2)? "XML_ATTRIBUTE_NODE":"");
+      log_dbg("Node (%s) type = %d (%s)\n", node->name, node->type,
+	      (node->type == 1)? "XML_ELEMENT_NODE":
+	      (node->type == 2)? "XML_ATTRIBUTE_NODE":"");
 
-	if(!node->children->content || !strlen(node->children->content)){
-	  log_dbg("No content found.\n");
-	  error = -ENODATA;
+      if(!node->children->content || !strlen(node->children->content)){
+	log_dbg("No content found.\n");
+	error = -ENODATA;
+	goto fail;
+      }
+
+      log_dbg("Query results:: %s\n", node->children->content);
+
+      if(((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
+	 ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
+	/* add on the trailing NULL and the '=' separator for a list of attrs
+	   or an element node + CDATA*/
+	size = strlen(node->children->content)+strlen(node->name)+2;
+	nnv= 1;
+      } else {
+	size = strlen(node->children->content)+1;
+      }
+
+      if(size <= ch->comm_payload_size){  /* do we already have enough space? */
+	log_dbg("No extra space needed.\n");
+	if(nnv){
+	  sprintf(*payload, "%s=%s", node->name,node->children->content);
+	}else {
+	  sprintf(*payload, "%s", node->children->content);
+	}
+      } else {
+	log_dbg("Extra space needed.\n");
+	free(*payload);
+	*payload = (char *)malloc(size);
+	if(!*payload){
+	  error = -ENOMEM;
 	  goto fail;
 	}
-
-	log_dbg("Query results:: %s\n", node->children->content);
-
-	if(((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
-	   ((node->type == XML_ELEMENT_NODE) && strstr(query, "child::*"))){
-	  /* add on the trailing NULL and the '=' separator for a list of attrs
-	   or an element node + CDATA*/
-	  size = strlen(node->children->content)+strlen(node->name)+2;
-	  nnv= 1;
-	} else {
-	  size = strlen(node->children->content)+1;
+	if(nnv){
+	  sprintf(*payload, "%s=%s", node->name, node->children->content);
+	}else {
+	  sprintf(*payload, "%s", node->children->content);
 	}
-
-	if(size <= ch->comm_payload_size){  /* do we already have enough space? */
-	  log_dbg("No extra space needed.\n");
-	  if(nnv){
-	    sprintf(*payload, "%s=%s", node->name,node->children->content);
-	  }else {
-	    sprintf(*payload, "%s", node->children->content);
-	  }
-	} else {
-	  log_dbg("Extra space needed.\n");
-	  free(*payload);
-	  *payload = (char *)malloc(size);
-	  if(!*payload){
-	    error = -ENOMEM;
-	    goto fail;
-	  }
-	  if(nnv){
-	    sprintf(*payload, "%s=%s", node->name, node->children->content);
-	  }else {
-	    sprintf(*payload, "%s", node->children->content);
-	  }
-	}
-	ch->comm_payload_size = size;
-      } else {
-	log_dbg("Index reset (end of list).\n");
-	ch->comm_payload_size = 0;
-	ocs[ch->comm_desc]->oc_index = -1;  /* reset index after end of list */
       }
+      ch->comm_payload_size = size;
     } else {
       log_dbg("No nodes found.\n");
       ch->comm_payload_size = 0;
@@ -1010,20 +1020,43 @@ static int process_get(comm_header_t *ch, char **payload){
     error = -EINVAL;
     goto fail;
   }
-					   
+
  fail:
   if(obj){
     xmlXPathFreeObject(obj);
   }
-  if(error){
+  if(error < 0){
     ch->comm_error = error;
     ch->comm_payload_size = 0;
   }
   if(query) { free(query); }
-  EXIT("process_get");
+  EXIT("_process_get");
   return error;
 }
 
+static int process_get(comm_header_t *ch, char **payload){
+  int error;
+  ENTER("process_get");
+
+  error = _process_get(ch, payload);
+
+  EXIT("process_get");
+  return (error < 0)? error: 0;  
+}
+
+static int process_get_list(comm_header_t *ch, char **payload){
+  int error;
+  ENTER("process_get_list");
+
+  error = _process_get(ch, payload);
+  if(error){
+    ch->comm_payload_size = 0;
+    ocs[ch->comm_desc]->oc_index = -1;
+  }
+
+  EXIT("process_get_list");
+  return (error < 0)? error: 0;
+}
 
 static int process_set(comm_header_t *ch, char *payload){
   int error = 0;
@@ -1239,6 +1272,14 @@ int process_request(int afd){
     break;
   case COMM_GET:
     if((error = process_get(ch, &payload)) < 0){
+      if(error != -ENODATA){
+	log_err("Error while processing get: %s\n", strerror(-error));
+      }
+      goto fail;
+    }
+    break;
+  case COMM_GET_LIST:
+    if((error = process_get_list(ch, &payload)) < 0){
       if(error != -ENODATA){
 	log_err("Error while processing get: %s\n", strerror(-error));
       }

@@ -385,10 +385,11 @@ int ccs_disconnect(int desc){
 
 
 /**
- * ccs_get
+ * _ccs_get
  * @desc:
  * @query:
  * @rtn: value returned
+ * @list: 1 to operate in list fashion
  *
  * This function will allocate space for the value that is the result
  * of the given query.  It is the user's responsibility to ensure that
@@ -396,13 +397,13 @@ int ccs_disconnect(int desc){
  *
  * Returns: 0 on success, < 0 on failure
  */
-int ccs_get(int desc, const char *query, char **rtn){
+int _ccs_get(int desc, const char *query, char **rtn, int list){
   int error = 0;
   char *buffer = NULL;
   comm_header_t *ch = NULL;
   char *payload = NULL;
 
-  ENTER("ccs_get");
+  ENTER("_ccs_get");
 
   if(!(buffer = malloc(512))){
     error = -ENOMEM;
@@ -413,7 +414,8 @@ int ccs_get(int desc, const char *query, char **rtn){
   ch = (comm_header_t *)buffer;
   payload = (buffer + sizeof(comm_header_t));
 
-  ch->comm_type = COMM_GET;
+  log_dbg("ccs_get list? %s\n", (list)?"YES":"NO");
+  ch->comm_type = (list)?COMM_GET_LIST:COMM_GET;
   ch->comm_desc = desc;
 
   ch->comm_payload_size = sprintf(payload, "%s", query)+1;
@@ -432,8 +434,16 @@ int ccs_get(int desc, const char *query, char **rtn){
  fail:
   if(buffer) { free(buffer); }
 
-  EXIT("ccs_get");
+  EXIT("_ccs_get");
   return error;
+}
+
+int ccs_get(int desc, const char *query, char **rtn){
+  return _ccs_get(desc, query, rtn, 0);
+}
+
+int ccs_get_list(int desc, const char *query, char **rtn){
+  return _ccs_get(desc, query, rtn, 1);
 }
 
 
