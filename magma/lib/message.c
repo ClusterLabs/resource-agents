@@ -291,6 +291,7 @@ ipv6_connect(struct in6_addr *in6_addr, uint16_t port, int timeout)
 	if (fd < 0)
 		return -1;
 
+	memset(&_sin6, 0, sizeof(_sin6));
 	_sin6.sin6_family = AF_INET6;
 	_sin6.sin6_port = htons(port);
 	_sin6.sin6_flowinfo = 0;
@@ -456,6 +457,7 @@ ipv6_bind(uint16_t port)
 	if (fd < 0)
 		return -1;
 
+	memset(&_sin6, 0, sizeof(_sin6));
 	_sin6.sin6_family = AF_INET6;
 	_sin6.sin6_port = htons(port);
 	_sin6.sin6_flowinfo = 0;
