@@ -152,7 +152,7 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    sock_info.number = num;
+    sock_info.number = num + 1;
     sock_info.multicast = 1;
 
     /* Pass the multicast socket to kernel space */
@@ -233,7 +233,7 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    sock_info.number = num;
+    sock_info.number = num + 1;
 
     /* Pass the multicast socket to kernel space */
     sock_info.fd = mcast_sock;
