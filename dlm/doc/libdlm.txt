@@ -1,6 +1,8 @@
 User-space interface to DLM
 ---------------------------
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdint.h>
 #include <libdlm.h>
 
 
@@ -9,7 +11,7 @@ one that has limited functionality and assumes that the application is linked
 with pthreads. The second is the full-featured DLM interface that looks
 identical to the kernel interface.
 
-See bedrock CVS dlm/tests/usertest for examples of use of both these APIs.
+See CVS dlm/tests/usertest for examples of use of both these APIs.
 
 The simple one
 --------------
@@ -29,7 +31,7 @@ int lock_resource(const char *resource, int mode, int flags, int *lockid);
     LKF_NOQUEUE - Don't wait if the lock cannot be granted immediately,
                   will return EAGAIN if this is so.
 
-    LKF_CONVERT - Convcert lock to new mode. *lockid must be valid,
+    LKF_CONVERT - Convert lock to new mode. *lockid must be valid,
                   resource name is ignored.
 
     LKF_QUECVT  - Add conversion to the back of the convert queue - only
@@ -65,7 +67,7 @@ int dlm_pthread_init()
 
 int dlm_pthread_cleanup()
 
-  Cleans up the default lockspace threads after use. Normaly you 
+  Cleans up the default lockspace threads after use. Normally you 
   don't need to call this, but if the locking code is in a 
   dynamically loadable shared library this will probably be necessary.
 
@@ -86,16 +88,16 @@ int dlm_dispatch(int fd)
   is needed to protect local resources.
 
 
-int dlm_lock(int mode,
- 	     gdlm_lksb_t *lksb,
-  	     int flags,
-	     void *name,
+int dlm_lock(uint32_t mode,
+	     struct dlm_lksb *lksb,
+	     uint32_t flags,
+	     const void *name,
 	     unsigned int namelen,
-	     gdlm_lkid_t parent,
-	     void (*ast) (void *astarg),
+	     uint32_t parent,
+	     void (*astaddr) (void *astarg),
 	     void *astarg,
-	     void (*bast) (void *astarg),
-	     gdlm_range_t *range)
+	     void (*bastaddr) (void *astarg),
+	     struct dlm_range *range);
 	      
 
 mode		lock mode:
@@ -111,8 +113,10 @@ flags		LKF_NOQUEUE	Don't queue the lock. If it cannot be
 		LKF_CONVERT	Convert an existing lock
 		LKF_VALBLK	Lock has a value block
 		LKF_QUECVT	Put conversion to the back of the queue
+		LKF_EXPEDITE    Grant a NL lock immediately regardless of
+				other locks on the conversion queue
 		LKF_PERSISTENT  Specifies a lock that will
-                                not be freed when the process exits.
+                                not be unlocked when the process exits.
 
 lksb		Lock status block.
 		This structure contains the returned lock ID, the actual
@@ -135,8 +139,7 @@ astargs		Argument to pass to the AST routine (most people pass the lksb
 		
 bast		Blocking AST routine. address of a function to call if this 
 		lock is blocking another. The function will be called with
-		astargs. This argument may be NULL in which case the caller will
-		not be notified if it is blocking another lock
+		astargs. 
 
 range		an optional structure of two uint64_t that indicate the range
 		of the lock. Locks with overlapping ranges will be granted only
@@ -155,73 +158,38 @@ AST routine will be called when the locking is complete or has failed and the
 status is returned in the lksb.
 
 For conversion operations the name and namelen are ignored and the lock ID in
-the LKSB is used to identify the lock. There are complicated rules for
-setting/returning lock value blocks which I'll not go into here.
+the LKSB is used to identify the lock.  
+
+If a lock value block is specified then in general, a grant or a conversion to 
+an equal-level or higher-level lock mode reads the lock value from the resource 
+into the caller's lock value block. When a lock conversion from EX or PW
+to an equal-level or lower-level lock mode occurs, the contents of 
+the caller's lock value block are written into the resource.
 
 If the AST routines or parameter are passed to a conversion operation then they
 will overwrite those values that were passed to a previous dlm_lock call.
 
-int dlm_lock_wait(int mode,
- 	     gdlm_lksb_t *lksb,
-  	     int flags,
-	     void *name,
-	     unsigned int namelen,
-	     gdlm_lkid_t parent,
-	     void *bastarg,
-	     void (*bast) (void *bastarg),
-	     gdlm_range_t *range)
+int dlm_lock_wait(uint32_t mode,
+		  struct dlm_lksb *lksb,
+		  uint32_t flags,
+		  const void *name,
+		  unsigned int namelen,
+		  uint32_t parent,
+		  void *bastarg,
+		  void (*bastaddr) (void *bastarg),
+		  struct dlm_range *range);
 	      
 
-mode		lock mode:
-                LKM_NLMODE 	NULL Lock
-		LKM_CRMODE    	Concurrent read
-		LKM_CWMODE    	Concurrent write
-		LKM_PRMODE    	Protected read
-		LKM_PWMODE    	Protected write
-		LKM_EXMODE    	Exclusive
+As above except that the call will block until the lock is
+granted or has failed. The return from the function is
+the final status of the lock request (ie that was returned
+in the lksb after the AST routine was called).
 
-flags		LKF_NOQUEUE	Don't queue the lock. If it cannot be
-				granted return -EAGAIN
-		LKF_CONVERT	Convert an existing lock
-		LKF_VALBLK	Lock has a value block
-		LKF_QUECVT	Put conversion to the back of the queue
-		LKF_PERSISTENT  Specifies a lock that will
-                                not be freed when the process exits.
 
-lksb		Lock status block.
-		This structure contains the returned lock ID, the actual
-		status of the lock operation and the value block if LKF_VALBLK 
-		is set. Both the return value from dlm_unlock_wait and 
-		the condition code in the lksb must be checked to determine
-		whether a lock request completed succesfully or not.
 
-name		Name of the lock. Can be binary, max 64 bytes. Ignored for
-		lock conversions.
-
-namelen		Length of the above name. Ignored for lock conversions.
-
-parent		ID of parent lock or NULL if this is a top-level lock
-
-bastarg		Argument to pass to the blocking AST routine (most people pass the 
-		lksb in here but it can be anything you like.)
-		
-bast		Blocking AST routine. address of a function to call if this 
-		lock is blocking another. The function will be called with
-		bastargs. This argument may be NULL in which case the caller will
-		not be notified if it is blocking another lock
-
-range		an optional structure of two uint64_t that indicate the range
-		of the lock. Locks with overlapping ranges will be granted only
-		if the lock modes are compatible. locks with non-overlapping
-		ranges (on the same resource) do not conflict. A lock with no
-		range is assumed to have a range emcompassing the largest
-		possible range. ie. 0-0xFFFFFFFFFFFFFFFF.  Note that is is more
-		efficient to specify no range than to specify the full range
-		above.
-
-int dlm_unlock(gdlm_lkid_t lkid, 
-               uint32 flags, 
-               gdlm_lksb_t *lksb, 
+int dlm_unlock(uint32_t lkid, 
+               uint32_t flags, 
+               struct dlm_lksb *lksb, 
                void *astarg)
 
 lkid		Lock ID as returned in the lksb
@@ -235,13 +203,10 @@ flags		flags affecting the unlock operation:
 					
 		LKF_IVVALBLK	Invalidate value block
 
-lksb		LKSB to return status and value block information. If NULL
-		the lksb parameter passed to the last locking operation 
-		will be used.
+lksb		LKSB to return status and value block information. 
 
-astarg 		New parameter to be passed to the completion AST. If this 
-		is NULL then the astarg passed to the last locking
-		operation will be used. The completion AST routine is the
+astarg 		New parameter to be passed to the completion AST.
+		The completion AST routine is the
 		last completion AST routine specified in a dlm_lock call.
 		If dlm_lock_wait() was the last routine to issue a lock, 
 		dlm_unlock_wait() must be used to release the lock. If dlm_lock()
@@ -255,38 +220,23 @@ successfully unlocked (see below).
 Extra status returns to the completion AST (apart from those already
 defined in errno.h)
 
-GDLM_ECANCEL
+ECANCEL
   A lock conversion was successfully cancelled
   
-GDLM_EUNLOCK
+EUNLOCK
   An Unlock operation completed successfully
 
-GDLM_EDEADLOCK
+EDEADLOCK
   The lock operation is causing a deadlock and has been cancelled. If this
   was a conversion then the lock is reverted to its previously granted state.
   If it was a new lock then it has not been granted. 
   (NB Only conversion deadlocks are currently detected)
   
-int dlm_unlock_wait(gdlm_lkid_t lkid, 
-               uint32 flags, 
-               gdlm_lksb_t *lksb)
+int dlm_unlock_wait(uint32_t lkid, 
+                    uint32 flags, 
+                    struct dlm_lksb *lksb)
 
-lkid		Lock ID as returned in the lksb
-
-flags		flags affecting the unlock operation:
-		LKF_CANCEL	CANCEL a pending lock or conversion. 
-				This returns the lock to it's
-				previously granted mode (in case of a
-				conversion) or unlocks it (in case of a
-				waiting lock).
-					
-		LKF_IVVALBLK	Invalidate value block
-
-lksb		LKSB to return status and value block information. If NULL
-		the lksb parameter passed to the last locking operation 
-		will be used.		
-
-Returns when the unlock operation is complete either because it
+As above but returns when the unlock operation is complete either because it
 finished or because an error was detected. In the case where
 the unlock operation was succesful no error is returned.
 
@@ -297,22 +247,22 @@ verify that the unlock has completed succesfully.
 
 Lock Query Operations
 ---------------------
-int dlm_query(gdlm_lksb_t *lksb,
+int dlm_query(struct dlm_lksb *lksb,
               int query,
-	      struct gdlm_queryinfo *qinfo,
+	      struct dlm_queryinfo *qinfo,
 	      void (*ast_routine(void *astarg)),
 	      void *astarg);
 
 The operation is asynchronous, the ultimate status and data will be returned into the
-gdlm_query_info structure which should be checked when the ast_routine is
+dlm_query_info structure which should be checked when the ast_routine is
 called. The lksb must contain a valid lock ID in sb_lkid which is used to 
 identify the resource to be queried, status will be returned in sb_status;
 As with the locking calls an AST woutine will be called when the query completes
 if the call itself returns 0.
 
-int dlm_query_wait(gdlm_lksb_t *lksb,
-              int query,
-	      struct gdlm_queryinfo *qinfo)
+int dlm_query_wait(struct dlm_lksb *lksb,
+                   int query,
+	           struct dlm_queryinfo *qinfo)
 
 Same as dlm_query() except that it waits for the operation to complete.
 When the operation is complete the status of will be in the lksb. Both
@@ -334,8 +284,8 @@ struct gdlm_lockinfo
     uint8 lki_state;         /* Queue the lock is on */
     int8  lki_grmode         /* Granted mode */
     int8  lki_rqmode;        /* Requested mode */
-    gdlm_range_t lki_grrange /* Granted range, if applicable */
-    gdlm_range_t lki_rqrange /* Requested range, if applicable */
+    struct dlm_range lki_grrange /* Granted range, if applicable */
+    struct dlm_range lki_rqrange /* Requested range, if applicable */
 };
 
 struct gdlm_resinfo
@@ -345,14 +295,14 @@ struct gdlm_resinfo
     int  rsi_convcount;  /* No. of nodes on convert queue */
     int  rsi_waitcount;  /* No. of nodes on wait queue */
     int  rsi_masternode; /* Master for this resource */
-    char rsi_name[GDLM_RESNAME_MAXLEN]; /* Resource name */
-    char rsi_valblk[GDLM_LVB_LEN];      /* Master's LVB contents, if applicable */
+    char rsi_name[DLM_RESNAME_MAXLEN]; /* Resource name */
+    char rsi_valblk[DLM_LVB_LEN];      /* Master's LVB contents, if applicable */
 };
 
-struct gdlm_queryinfo
+struct dlm_queryinfo
 {
-    struct gdlm_resinfo  *gqi_resinfo;   /* Points to a single resinfo struct */
-    struct gdlm_lockinfo *gqi_lockinfo;  /* This points to an array of structs */
+    struct dlm_resinfo  *gqi_resinfo;   /* Points to a single resinfo struct */
+    struct dlm_lockinfo *gqi_lockinfo;  /* This points to an array of structs */
     int                   gqi_locksize;  /* input */
     int                   gqi_lockcount; /* output */
 };
@@ -364,55 +314,55 @@ The query is made up of several blocks of bits as follows:
 |    reserved    | Q | query | F | queue | lock mode |
 +----------------+---+-------+---+-------+-----------+
 
-lock mode is a normal DLM lock mode or GDLM_LOCK_THIS
+lock mode is a normal DLM lock mode or DLM_LOCK_THIS
 to use the mode of the lock in sb_lkid.
 
 queue is a bitmap of
- GDLM_QUERY_QUEUE_WAIT
- GDLM_QUERY_QUEUE_CONVERT
- GDLM_QUERY_QUEUE_GRANT
+ DLM_QUERY_QUEUE_WAIT
+ DLM_QUERY_QUEUE_CONVERT
+ DLM_QUERY_QUEUE_GRANT
 
 or one of the two shorthands:
- GDLM_QUERY_QUEUE_GRANTED (for WAIT+GRANT)
- GDLM_QUERY_QUEUE_ALL     (for all queues)
+ DLM_QUERY_QUEUE_GRANTED (for WAIT+GRANT)
+ DLM_QUERY_QUEUE_ALL     (for all queues)
 
- F is a flag GDLM_QUERY_LOCAL
-which specifies that a remote access is not
-to happen. Only lock information that can
+ F is a flag DLM_QUERY_LOCAL
+which specifies that a remote access should not
+happen. Only lock information that can
 be gleaned from the local node will be returned so
 be aware that it may not be complete.
 
 The query is one of the following:
- GDLM_QUERY_LOCKS_HIGHER
- GDLM_QUERY_LOCKS_LOWER
- GDLM_QUERY_LOCKS_EQUAL
- GDLM_QUERY_LOCKS_BLOCKING
- GDLM_QUERY_LOCKS_NOTBLOCK
- GDLM_QUERY_LOCKS_ALL
+ DLM_QUERY_LOCKS_HIGHER
+ DLM_QUERY_LOCKS_LOWER
+ DLM_QUERY_LOCKS_EQUAL
+ DLM_QUERY_LOCKS_BLOCKING
+ DLM_QUERY_LOCKS_NOTBLOCK
+ DLM_QUERY_LOCKS_ALL
 
 which specifies which locks to look for by mode,
 either the lockmode is lower, equal or higher
 to the mode at the bottom of the query. 
-GDLM_QUERY_ALL will return all locks on the
+DLM_QUERY_ALL will return all locks on the
 resource.
 
-GDLM_QUERY_LOCKS_BLOCKING returns only locks
+DLM_QUERY_LOCKS_BLOCKING returns only locks
 that are blocking the current lock. The lock
 must not be waiting for grant or conversion
 for this to be a valid query, the other flags
 are ignored.
 
-GDLM_QUERY_LOCKS_NOTBLOCKING returns only locks
+DLM_QUERY_LOCKS_NOTBLOCKING returns only locks
 that are granted but NOT blocking the current lock.
 
 Q specifies which lock queue to compare. By default
 the granted queue is used. If the flags 
-GDLM_QUERY_RQMODE is set then the requested mode
+DLM_QUERY_RQMODE is set then the requested mode
 will be used instead.
 
 
-The "normal" way to call gdlm_query is to put the
-address of the gdlm_queryinfo struct into 
+The "normal" way to call dlm_query is to put the
+address of the dlm_queryinfo struct into 
 lksb.sb_lvbptr and pass the lksb as the AST param,
 that way all the information is available to you
 in the AST routine.
@@ -488,63 +438,63 @@ int dlm_ls_pthread_init(dlm_lshandle_t lockspace)
 
 int dlm_ls_lock(dlm_lshandle_t lockspace,
 		int mode,
-		gdlm_lksb_t *lksb,
-		int flags,
+		struct dlm_lksb *lksb,
+		uint32_t flags,
 		void *name,
 		unsigned int namelen,
-		gdlm_lkid_t parent,
+		uint32_t parent,
 		void (*ast) (void *astarg),
 		void *astarg,
 		void (*bast) (void *astarg),
-		gdlm_range_t *range)
+		struct dlm_range *range)
 
   Same as dlm_lock() above but takes a lockspace argument.
 
 int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
-		int mode,
-		gdlm_lksb_t *lksb,
-		int flags,
-		void *name,
-		unsigned int namelen,
-		gdlm_lkid_t parent,
-		void *bastarg,
-		void (*bast) (void *bastarg),
-		gdlm_range_t *range)
+		     int mode,
+		     struct dlm_lksb *lksb,
+		     uint32_t flags,
+		     void *name,
+		     unsigned int namelen,
+		     uint32_t parent,
+		     void *bastarg,
+		     void (*bast) (void *bastarg),
+		     struct dlm_range *range)
 
   Same as dlm_lock_wait() above but takes a lockspace argument.
 
 
 int dlm_ls_unlock(dlm_lshandle_t lockspace,
-		  gdlm_lkid_t lkid, 
-                  uint32 flags, 
-                  gdlm_lksb_t *lksb, 
+		  uint32_t lkid, 
+                  uint32_t flags, 
+                  struct dlm_lksb *lksb, 
                   void *astarg)
 
 
   Same as dlm_unlock above but takes a lockspace argument.
 
 int dlm_ls_unlock_wait(dlm_lshandle_t lockspace,
-		  gdlm_lkid_t lkid, 
-                  uint32 flags, 
-                  gdlm_lksb_t *lksb)
+		       uint32_t lkid, 
+                       uint32_t flags, 
+                       struct dlm_lksb *lksb)
 
 
   Same as dlm_unlock_wait above but takes a lockspace argument.
 
 
 int dlm_ls_query(dlm_lshandle_t lockspace,
-                 gdlm_lksb_t *lksb,
+                 struct dlm_lksb *lksb,
                  int query,
-	         struct gdlm_queryinfo *qinfo,
+	         struct dlm_queryinfo *qinfo,
 	         void (*ast_routine(void *astarg)),
 	         void *astarg);
 
   Same as dlm_query above but takes a lockspace argument.
 
 int dlm_ls_query_wait(dlm_lshandle_t lockspace,
-                 gdlm_lksb_t *lksb,
-                 int query,
-	         struct gdlm_queryinfo *qinfo)
+                      struct dlm_lksb *lksb,
+                      int query,
+	              struct dlm_queryinfo *qinfo)
 
   Same as dlm_query_wait above but takes a lockspace argument.
 
@@ -552,4 +502,4 @@ int dlm_ls_query_wait(dlm_lshandle_t lockspace,
 One further point about lockspace operations is that there is no locking
 on the creating/destruction of lockspaces in the library so it is up to the
 application to only call dlm_*_lockspace when it is sure that
-no other locking operations are likely to be happening.
+no other locking operations are likely to be happening within that process.
