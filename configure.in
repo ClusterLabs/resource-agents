@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.334 $) dnl cvs revision
+AC_REVISION($Revision: 1.335 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -195,6 +195,7 @@ else
       AC_MSG_RESULT("$MAKE has been found.")
 fi
 
+
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(ROUTE, route)
@@ -239,6 +240,25 @@ AC_SUBST(SWIG)
 AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
+
+WHOAMI=whoami
+AC_MSG_CHECKING(if chown works for non-root)
+F=`mktemp "./.chown-testXXXXX"`
+if
+  case `$WHOAMI` in
+    root)	chown nobody $F;
+       		su nobody -c "chown root $F";;
+    *)	chown root $F
+  esac >/dev/null 2>&1
+then
+  nonroot_chown=yes
+  AC_MSG_RESULT(yes)
+else
+  nonroot_chown=no
+  AC_MSG_RESULT(no)
+fi
+rm -f $F
+AM_CONDITIONAL(NONROOT_CHOWN, test "$nonroot_chown" = yes )
 
 
 dnl ************************************************************************
