@@ -19,8 +19,8 @@
 /** @file
  * Header for clist.c
  */
-#ifndef __CLIST_H
-#define __CLIST_H
+#ifndef _CLIST_H
+#define _CLIST_H
 
 #include <sys/select.h>
 

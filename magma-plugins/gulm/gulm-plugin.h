@@ -16,8 +16,8 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
   USA.
 */
-#ifndef __GULM_PLUGIN_H
-#define __GULM_PLUGIN_H
+#ifndef _GULM_PLUGIN_H
+#define _GULM_PLUGIN_H
 
 #include <libgulm.h>
 
@@ -41,4 +41,4 @@ int gulm_lock(cluster_plugin_t *self, char *resource, int flags,
 int gulm_unlock(cluster_plugin_t *self, char *resource, void *lockp);
 
 
-#endif /* __GULM_PLUGIN_H */
+#endif /* _GULM_PLUGIN_H */

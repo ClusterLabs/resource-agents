@@ -6,25 +6,25 @@
 #include <string.h>
 #include <signal.h>
 
-struct __mallocnode {
-	TAILQ_ENTRY(__mallocnode) link;
+struct _mallocnode {
+	TAILQ_ENTRY(_mallocnode) link;
 	void *p;
 	size_t length;
 	char *file;
 	int line;
 };
 
-TAILQ_HEAD(__mallochead, __mallocnode);
-static struct __mallochead mallochead = { NULL, &mallochead.tqh_first };
+TAILQ_HEAD(_mallochead, _mallocnode);
+static struct _mallochead mallochead = { NULL, &mallochead.tqh_first };
 #ifdef FDEBUG
-static struct __mallochead freehead = { NULL, &freehead.tqh_first };
+static struct _mallochead freehead = { NULL, &freehead.tqh_first };
 #endif
 static pthread_mutex_t mallocm = PTHREAD_MUTEX_INITIALIZER;
 
 
 void dump_mem_table(void)
 {
-	struct __mallocnode *mn;
+	struct _mallocnode *mn;
 
 	printf("+++ BEGIN mem table dump\n");
 	pthread_mutex_lock(&mallocm);
@@ -39,7 +39,7 @@ void dump_mem_table(void)
 
 void _dfree(void *p, char *file, int line)
 {
-	struct __mallocnode *mn;
+	struct _mallocnode *mn;
 
 	pthread_mutex_lock(&mallocm);
 	for (mn = mallochead.tqh_first; mn; mn = mn->link.tqe_next) {
@@ -79,9 +79,9 @@ void _dfree(void *p, char *file, int line)
 void *_dmalloc(size_t count, char *file, int line)
 {
 	void *p;
-	struct __mallocnode *mn;
+	struct _mallocnode *mn;
 #ifdef FDEBUG
-	struct __mallocnode *fn;
+	struct _mallocnode *fn;
 #endif
 
 	p = malloc(count);
@@ -119,7 +119,7 @@ void *_dmalloc(size_t count, char *file, int line)
 void *
 _drealloc(void *p, size_t count, char *file, int line)
 {
-	struct __mallocnode *mn;
+	struct _mallocnode *mn;
 	int found = 0;
 
 	pthread_mutex_lock(&mallocm);

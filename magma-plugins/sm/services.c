@@ -40,7 +40,7 @@
 
 
 static uint32_t
-__group_member_ids(char *groupname, char *buffer, size_t bufferlen,
+_group_member_ids(char *groupname, char *buffer, size_t bufferlen,
 		   uint64_t **ids)
 {
 	int x;
@@ -140,7 +140,7 @@ __group_member_ids(char *groupname, char *buffer, size_t bufferlen,
 
 
 static size_t
-__read_services(char **buffer)
+_read_services(char **buffer)
 {
 	int fd, n, ret = 0;
 
@@ -168,7 +168,7 @@ __read_services(char **buffer)
 
 
 static int
-__is_member(uint64_t *member_ids, int idlen, uint64_t nodeid)
+_is_member(uint64_t *member_ids, int idlen, uint64_t nodeid)
 {
 	int x;
 
@@ -205,14 +205,14 @@ service_group_members(int sockfd, char *groupname)
 	assert(ioctl(sockfd, SIOCCLUSTER_GETMEMBERS, cman_list) == count);
 	strncpy(foo->cml_groupname, groupname, sizeof(foo->cml_groupname));
 
-	sz = __read_services(&buf);
+	sz = _read_services(&buf);
 	if (sz <= 0) {
 		free(cman_list);
 		free(foo);
 		return NULL;
 	}
 
-	group_count = __group_member_ids(groupname, buf, sz, &member_ids);
+	group_count = _group_member_ids(groupname, buf, sz, &member_ids);
 	if (group_count <= 0) {
 		free(cman_list);
 		free(foo);
@@ -221,7 +221,7 @@ service_group_members(int sockfd, char *groupname)
 
 	foo->cml_count = group_count;
 	for (x = 0, y = 0; (x < count) && (y < group_count); x++) {
-		if (!__is_member(member_ids, group_count,
+		if (!_is_member(member_ids, group_count,
 		    		 cman_list[x].node_id))
 			continue;
 
@@ -270,8 +270,8 @@ main(int argc, char **argv)
 	printf(TEST);
 	printf("***\n");
 #endif
-	len = __read_services(&buf);
-	count = __group_member_ids(argv[1], buf, len, &member_id);
+	len = _read_services(&buf);
+	count = _group_member_ids(argv[1], buf, len, &member_id);
 
 	printf("Count = %d\n", count);
 

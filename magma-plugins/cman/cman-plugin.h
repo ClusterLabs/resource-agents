@@ -1,5 +1,5 @@
-#ifndef __CMAN_PLUGIN_H
-#define __CMAN_PLUGIN_H
+#ifndef _CMAN_PLUGIN_H
+#define _CMAN_PLUGIN_H
 
 typedef struct {
 	int	sockfd;
@@ -8,4 +8,4 @@ typedef struct {
 	uint64_t memb_sum;
 } cman_priv_t;
 
-#endif /* __CMAN_PLUGIN_H */
+#endif /* _CMAN_PLUGIN_H */

@@ -27,14 +27,14 @@
 
 /**
  * This is a wrapper around select which will retry in the case we receive
- * EINTR.  This is necessary for __read_retry, since it wouldn't make sense
- * to have __read_retry terminate if and only if two EINTRs were received
+ * EINTR.  This is necessary for _read_retry, since it wouldn't make sense
+ * to have _read_retry terminate if and only if two EINTRs were received
  * in a row - one during the read() call, one during the select call...
  *
  * See select(2) for description of parameters.
  */
 int
-__select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,
+_select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,
 	       struct timeval *timeout)
 {
 	int rv;
@@ -59,7 +59,7 @@ __select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,
  * 			or -1 on error (with errno set appropriately).
  */
 ssize_t
-__write_retry(int fd, void *buf, int count, struct timeval * timeout)
+_write_retry(int fd, void *buf, int count, struct timeval * timeout)
 {
 	int n, total = 0, remain = count, rv = 0;
 	fd_set wfds, xfds;
@@ -73,7 +73,7 @@ __write_retry(int fd, void *buf, int count, struct timeval * timeout)
 		FD_SET(fd, &xfds);
 
 		/* wait for the fd to be available for writing */
-		rv = __select_retry(fd + 1, NULL, &wfds, &xfds, timeout);
+		rv = _select_retry(fd + 1, NULL, &wfds, &xfds, timeout);
 		if (rv == -1)
 			return -1;
 		else if (rv == 0) {
@@ -131,7 +131,7 @@ __write_retry(int fd, void *buf, int count, struct timeval * timeout)
  			Note that we will always return (count) or (-1).
  */
 ssize_t
-__read_retry(int sockfd, void *buf, int count, struct timeval * timeout)
+_read_retry(int sockfd, void *buf, int count, struct timeval * timeout)
 {
 	int n, total = 0, remain = count, rv = 0;
 	fd_set rfds, xfds;
@@ -146,7 +146,7 @@ __read_retry(int sockfd, void *buf, int count, struct timeval * timeout)
 		 * Select on the socket, in case it closes while we're not
 		 * looking...
 		 */
-		rv = __select_retry(sockfd + 1, &rfds, NULL, &xfds, timeout);
+		rv = _select_retry(sockfd + 1, &rfds, NULL, &xfds, timeout);
 		if (rv == -1)
 			return -1;
 		else if (rv == 0) {

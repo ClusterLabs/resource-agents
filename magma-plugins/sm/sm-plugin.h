@@ -19,8 +19,8 @@
 /** @file
   Plugin header for SM plugin
  */
-#ifndef __SM_PLUGIN_H
-#define __SM_PLUGIN_H
+#ifndef _SM_PLUGIN_H
+#define _SM_PLUGIN_H
 
 #define SMS_NONE	0
 #define SMS_JOINING	1
@@ -36,4 +36,4 @@ typedef struct {
 	char    *groupname;
 } sm_priv_t;
 
-#endif /* __SM_PLUGIN_H */
+#endif /* _SM_PLUGIN_H */

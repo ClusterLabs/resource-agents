@@ -1,5 +1,5 @@
-#ifndef __MALLOCDBG_H
-#define __MALLOCDBG_H
+#ifndef _MALLOCDBG_H
+#define _MALLOCDBG_H
 #include <sys/types.h>
 
 void dump_mem_table(void);

@@ -32,10 +32,10 @@
 
 
 /*
- * Define our __U-versions of our shared storage 
+ * Define our _U-versions of our shared storage 
  */
 int
-__U_clu_null(cluster_plugin_t __attribute__ ((unused)) *cpp)
+_U_clu_null(cluster_plugin_t __attribute__ ((unused)) *cpp)
 {
 	printf("Unimplemented NULL function called\n");
 	return 0;
@@ -43,7 +43,7 @@ __U_clu_null(cluster_plugin_t __attribute__ ((unused)) *cpp)
 
 
 cluster_member_list_t *
-__U_clu_member_list(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_member_list(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		    char __attribute__ ((unused)) *groupname)
 {
 	errno = ENOSYS;
@@ -52,7 +52,7 @@ __U_clu_member_list(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_quorum_status(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_quorum_status(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		      char __attribute__ ((unused)) *groupname)
 {
 	errno = ENOSYS;
@@ -61,7 +61,7 @@ __U_clu_quorum_status(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_get_event(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_get_event(cluster_plugin_t __attribute__ ((unused)) *cpp,
 		  int __attribute__((unused)) fd)
 {
 	errno = ENOSYS;
@@ -70,7 +70,7 @@ __U_clu_get_event(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_login(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_login(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      int __attribute__ ((unused)) fd,
 	      char __attribute__ ((unused)) *groupname)
 {
@@ -80,7 +80,7 @@ __U_clu_login(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_logout(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_logout(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	       int __attribute__((unused)) fd)
 {
 	errno = ENOSYS;
@@ -89,7 +89,7 @@ __U_clu_logout(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_close(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_close(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      int __attribute__((unused)) fd)
 {
 	errno = ENOSYS;
@@ -98,7 +98,7 @@ __U_clu_close(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_fence(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_fence(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	      cluster_member_t __attribute__((unused)) *node)
 {
 	errno = ENOSYS;
@@ -107,7 +107,7 @@ __U_clu_fence(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_lock(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_lock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	     char *__attribute__ ((unused)) resource,
 	     int __attribute__ ((unused)) flags,
 	     void **__attribute__ ((unused)) lockpp)
@@ -118,7 +118,7 @@ __U_clu_lock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 int
-__U_clu_unlock(cluster_plugin_t __attribute__ ((unused)) *cpp,
+_U_clu_unlock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 	     char *__attribute__ ((unused)) resource,
 	     void *__attribute__ ((unused)) lockp)
 {
@@ -128,7 +128,7 @@ __U_clu_unlock(cluster_plugin_t __attribute__ ((unused)) *cpp,
 
 
 char *
-__U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
+_U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 {
 	return "Unimplemented Version Function v1.0";
 }
@@ -175,7 +175,7 @@ cp_load(const char *libpath)
 
 	memset(cpp, 0, sizeof(*cpp));
 
-	/* Initially, set everything to __U */
+	/* Initially, set everything to _U */
 	CP_SET_UNIMP(cpp, null);
 	CP_SET_UNIMP(cpp, member_list);
 	CP_SET_UNIMP(cpp, login);

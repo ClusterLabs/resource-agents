@@ -38,14 +38,14 @@ static inline int clist_delete_nt(int fd);
 /**
  * Node in connection list.
  */
-typedef struct __conn_node {
-	TAILQ_ENTRY(__conn_node) cn_entries;	/**< sys/queue tailq entri */
+typedef struct _conn_node {
+	TAILQ_ENTRY(_conn_node) cn_entries;	/**< sys/queue tailq entri */
 	int	 cn_fd;			/**< File descriptor */
 	int	 cn_flags;		/**< Info about file descriptor */
 	int	 cn_purpose;		/**< Application-specific purpose */
 } conn_node_t;
 
-typedef TAILQ_HEAD(__conn_list_head, __conn_node) conn_list_head_t;
+typedef TAILQ_HEAD(_conn_list_head, _conn_node) conn_list_head_t;
 
 static pthread_mutex_t conn_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static conn_list_head_t conn_list_head = { NULL, &(conn_list_head.tqh_first) };

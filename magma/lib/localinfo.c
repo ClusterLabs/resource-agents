@@ -26,18 +26,18 @@
 #include <string.h>
 
 static pthread_mutex_t localid_mutex = PTHREAD_MUTEX_INITIALIZER;
-static uint64_t __local_nodeid = (uint64_t)0;
-static char *__local_nodename = NULL;
+static uint64_t _local_nodeid = (uint64_t)0;
+static char *_local_nodename = NULL;
 
 
 static int
-__get_local_info(char *groupname)
+_get_local_info(char *groupname)
 {
 	int x;
 
 	cluster_member_list_t *members;
 
-	if (__local_nodeid != (uint64_t)0) {
+	if (_local_nodeid != (uint64_t)0) {
 		return 0;
 	}
 		
@@ -48,8 +48,8 @@ __get_local_info(char *groupname)
 
         for (x=0; x < members->cml_count; x++) {
 		if (ip_lookup(members->cml_members[x].cm_name, NULL) == 0) {
-			__local_nodeid = members->cml_members[x].cm_id;
-			__local_nodename =
+			_local_nodeid = members->cml_members[x].cm_id;
+			_local_nodename =
 				strdup(members->cml_members[x].cm_name);
 			break;
 		}
@@ -57,7 +57,7 @@ __get_local_info(char *groupname)
 
 	free(members);
 
-	return (__local_nodename ? 0 : -1);
+	return (_local_nodename ? 0 : -1);
 }
 
 
@@ -66,14 +66,14 @@ clu_local_nodename(char *groupname, char *name, size_t namelen)
 {
 	pthread_mutex_lock(&localid_mutex);
 
-	if (!__local_nodename) {
-		if (__get_local_info(groupname) < 0) {
+	if (!_local_nodename) {
+		if (_get_local_info(groupname) < 0) {
 			pthread_mutex_unlock(&localid_mutex);
 			return -1;
 		}
 	}
 
-	strncpy(name, __local_nodename, namelen);
+	strncpy(name, _local_nodename, namelen);
 
 	pthread_mutex_unlock(&localid_mutex);
 	
@@ -86,14 +86,14 @@ clu_local_nodeid(char *groupname, uint64_t *nodeid)
 {
 	pthread_mutex_lock(&localid_mutex);
 
-	if (!__local_nodeid) {
-		if (__get_local_info(groupname) < 0) {
+	if (!_local_nodeid) {
+		if (_get_local_info(groupname) < 0) {
 			pthread_mutex_unlock(&localid_mutex);
 			return -1;
 		}
 	}
 
-	*nodeid = __local_nodeid;
+	*nodeid = _local_nodeid;
 	pthread_mutex_unlock(&localid_mutex);
 
 	return 0;

@@ -19,8 +19,8 @@
 /** @file
  * Header for ip_lookup.c
  */
-#ifndef __IP_LOOKUP_H
-#define __IP_LOOKUP_H
+#ifndef _IP_LOOKUP_H
+#define _IP_LOOKUP_H
 
 int ip_lookup(char *, struct addrinfo **);
 

@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDES+= -I. -I${incdir}
 LIBS     = -L${libdir} -ldlm -lpthread
-CFLAGS  += -D__CLUSTER__ -D_REENTRANT
+CFLAGS  += -D_CLUSTER_ -D_REENTRANT
 OBJS     = cman.o
 TARGETS  = cman.so
 
@@ -43,10 +43,10 @@ cman.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)
-	echo "int main(void) { return 0; }" > __buildtest.c
-	$(CC) -c __buildtest.c
-	$(CC) -o $@ __buildtest.o $(OBJS) $(LIBS) 
-	rm -f __buildtest*
+	echo "int main(void) { return 0; }" > _buildtest.c
+	$(CC) -c _buildtest.c
+	$(CC) -o $@ _buildtest.o $(OBJS) $(LIBS) 
+	rm -f _buildtest*
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)

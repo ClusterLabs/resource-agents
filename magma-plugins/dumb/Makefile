@@ -14,7 +14,7 @@ include ${top_srcdir}/make/defines.mk
 
 INCLUDES+= -I. -I${incdir}
 LIBS     = -L${libdir}
-CFLAGS  += -D__CLUSTER__
+CFLAGS  += -D_CLUSTER_
 OBJS     = dumb.o
 TARGETS  = dumb.so
 
@@ -28,10 +28,10 @@ dumb.so: buildtest $(OBJS)
 	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)
-	echo "int main(void) { return 0; }" > __buildtest.c
-	$(CC) -c __buildtest.c
-	$(CC) -o $@ __buildtest.o $(OBJS) -lxml2 $(LIBS)
-	rm -f __buildtest*
+	echo "int main(void) { return 0; }" > _buildtest.c
+	$(CC) -c _buildtest.c
+	$(CC) -o $@ _buildtest.o $(OBJS) -lxml2 $(LIBS)
+	rm -f _buildtest*
 
 %.o: %.c
 	$(CC) -c -o $@ $^ $(INCLUDES) $(CFLAGS)

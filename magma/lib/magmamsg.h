@@ -17,8 +17,8 @@
   Free Software Foundation, Inc.,  675 Mass Ave, Cambridge,
   MA 02139, USA.
  */
-#ifndef __MAGMACOMM_H
-#define __MAGMACOMM_H
+#ifndef _MAGMACOMM_H
+#define _MAGMACOMM_H
 #include <magma.h>
 
 int msg_update(cluster_member_list_t *membership);

@@ -37,13 +37,13 @@
 #include <mallocdbg.h>
 #endif
 
-typedef struct __ip_address {
-	TAILQ_ENTRY(__ip_address) ipa_entries;
+typedef struct _ip_address {
+	TAILQ_ENTRY(_ip_address) ipa_entries;
 	char ipa_family;
 	char *ipa_address;
 } ip_addr_t;
 
-typedef TAILQ_HEAD(__ip_list, __ip_address) ip_list_t;
+typedef TAILQ_HEAD(_ip_list, _ip_address) ip_list_t;
 
 
 static int

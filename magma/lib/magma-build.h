@@ -20,14 +20,14 @@
  * Definitions for implementing cluster infrastructure plugins; should not
  * be included by user programs directly.
  */
-#ifndef __MAGMA_BUILD_H
-#define __MAGMA_BUILD_H
+#ifndef _MAGMA_BUILD_H
+#define _MAGMA_BUILD_H
 
-#ifndef __CLUSTER__
+#ifndef _CLUSTER_
 #error "Never include this file from user programs."
 #endif
 
-#define CLUSTER_PLUGIN_API_VERSION (double)0.00007
+#define CLUSTER_PLUGIN_API_VERSION (double)0.00009
 
 #define IMPORT_PLUGIN_API_VERSION() \
 double cluster_plugin_version(void) \
@@ -54,34 +54,34 @@ double cluster_plugin_version(void) \
 /**
  * Handy macros
  */
-#define CP_IMP(ptr, func)	(ptr->cp_ops.s_##func != __U_clu_##func)
-#define CP_UNIMP(ptr, func)	(ptr->cp_ops.s_##func != __U_clu_##func)
-#define CP_SET_UNIMP(ptr, func) (ptr->cp_ops.s_##func = __U_clu_##func)
+#define CP_IMP(ptr, func)	(ptr->cp_ops.s_##func != _U_clu_##func)
+#define CP_UNIMP(ptr, func)	(ptr->cp_ops.s_##func != _U_clu_##func)
+#define CP_SET_UNIMP(ptr, func) (ptr->cp_ops.s_##func = _U_clu_##func)
 
 
 /**
  * Cluster plugin object.  This is returned by cp_load(char *filename)
  * It is up to the user to call cp_init(cluster_plugin_t *)
  */
-typedef struct __cluster_plugin {
+typedef struct _cluster_plugin {
 	/**
 	 * Plugin functions.
 	 */
 	struct {
-		int (*s_null)(struct __cluster_plugin *);
+		int (*s_null)(struct _cluster_plugin *);
 		cluster_member_list_t *
-			(*s_member_list)(struct __cluster_plugin *, char *);
+			(*s_member_list)(struct _cluster_plugin *, char *);
 
-		int (*s_quorum_status)(struct __cluster_plugin *, char *);
-		int (*s_get_event)(struct __cluster_plugin *,int);
-		char *(*s_plugin_version)(struct __cluster_plugin *);
-		int (*s_open)(struct __cluster_plugin *);
-		int (*s_fence)(struct __cluster_plugin *, cluster_member_t *);
-		int (*s_login)(struct __cluster_plugin *, int, char *);
-		int (*s_logout)(struct __cluster_plugin *,int);
-		int (*s_close)(struct __cluster_plugin *,int);
-		int (*s_lock)(struct __cluster_plugin *, char *, int, void **);
-		int (*s_unlock)(struct __cluster_plugin *, char *, void *);
+		int (*s_quorum_status)(struct _cluster_plugin *, char *);
+		int (*s_get_event)(struct _cluster_plugin *,int);
+		char *(*s_plugin_version)(struct _cluster_plugin *);
+		int (*s_open)(struct _cluster_plugin *);
+		int (*s_fence)(struct _cluster_plugin *, cluster_member_t *);
+		int (*s_login)(struct _cluster_plugin *, int, char *);
+		int (*s_logout)(struct _cluster_plugin *,int);
+		int (*s_close)(struct _cluster_plugin *,int);
+		int (*s_lock)(struct _cluster_plugin *, char *, int, void **);
+		int (*s_unlock)(struct _cluster_plugin *, char *, void *);
 	} cp_ops;
 
 	/**
@@ -97,20 +97,20 @@ typedef struct __cluster_plugin {
 		 * Plugin load function.  Generally, just sets up function
 		 * pointers.
 		 */
-		int (*p_load_func)(struct __cluster_plugin *);
+		int (*p_load_func)(struct _cluster_plugin *);
 
 		/**
 		 * Initialization function.  Generally, the last two
 		 * arguments are left as NULL, 0; they are there primarily
 		 * for testing.
 		 */
-		int (*p_init_func)(struct __cluster_plugin *, const void *,
+		int (*p_init_func)(struct _cluster_plugin *, const void *,
 				   size_t);
 
 		/**
 		 * De-initialization+unload function.
 		 */
-		int (*p_unload_func)(struct __cluster_plugin *);
+		int (*p_unload_func)(struct _cluster_plugin *);
 
 		/**
 		 * Plugin-specific private data.  Can be anything;
@@ -130,17 +130,17 @@ typedef struct __cluster_plugin {
  * plugin.c: All objects start off with these functions assigned to their
  * member functions.  These should not be called directly.
  */
-int __U_clu_null(cluster_plugin_t *);
-cluster_member_list_t *__U_clu_member_list(cluster_plugin_t *, char *); /* FREE ME! */
-int __U_clu_quorum_status(cluster_plugin_t *, char *);
-char *__U_clu_plugin_version(cluster_plugin_t *);
-int __U_clu_get_event(cluster_plugin_t *,int);
-int __U_clu_open(cluster_plugin_t *);
-int __U_clu_login(cluster_plugin_t *, int, char *);
-int __U_clu_logout(cluster_plugin_t *, int);
-int __U_clu_fence(cluster_plugin_t *, cluster_member_t *);
-int __U_clu_close(cluster_plugin_t *, int);
-int __U_clu_lock(cluster_plugin_t *, char *, int, void **);
-int __U_clu_unlock(cluster_plugin_t *, char *, void *);
+int _U_clu_null(cluster_plugin_t *);
+cluster_member_list_t *_U_clu_member_list(cluster_plugin_t *, char *); /* FREE ME! */
+int _U_clu_quorum_status(cluster_plugin_t *, char *);
+char *_U_clu_plugin_version(cluster_plugin_t *);
+int _U_clu_get_event(cluster_plugin_t *,int);
+int _U_clu_open(cluster_plugin_t *);
+int _U_clu_login(cluster_plugin_t *, int, char *);
+int _U_clu_logout(cluster_plugin_t *, int);
+int _U_clu_fence(cluster_plugin_t *, cluster_member_t *);
+int _U_clu_close(cluster_plugin_t *, int);
+int _U_clu_lock(cluster_plugin_t *, char *, int, void **);
+int _U_clu_unlock(cluster_plugin_t *, char *, void *);
 
-#endif /* __MAGMA_BUILD_H */
+#endif /* _MAGMA_BUILD_H */

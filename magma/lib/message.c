@@ -54,11 +54,11 @@ int clu_crc32(void *, int);
 /*
    From fdops.c
  */
-int __select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,
+int _select_retry(int fdmax, fd_set * rfds, fd_set * wfds, fd_set * xfds,
 		   struct timeval *timeout);
-ssize_t __read_retry(int sockfd, void *buf, int count,
+ssize_t _read_retry(int sockfd, void *buf, int count,
 		     struct timeval * timeout);
-ssize_t __write_retry(int fd, void *buf, int count, struct timeval * timeout);
+ssize_t _write_retry(int fd, void *buf, int count, struct timeval * timeout);
 
 
 /*
@@ -164,7 +164,7 @@ msg_update(cluster_member_list_t *membership)
 
 
 /**
-  Receive a message from a file descriptor.  Related of __msg_receive
+  Receive a message from a file descriptor.  Related of _msg_receive
   from Kimberlite.
 
   @param fd		File descriptor to read from.
@@ -174,7 +174,7 @@ msg_update(cluster_member_list_t *membership)
   @return 		Size of read data, or -1 on failure
  */
 static ssize_t
-__msg_receive(int fd, void *buf, ssize_t count,
+_msg_receive(int fd, void *buf, ssize_t count,
 	      struct timeval *tv)
 {
 	uint32_t crc;
@@ -197,7 +197,7 @@ __msg_receive(int fd, void *buf, ssize_t count,
 		return -1;
 	}
 
-	if ((retval = __read_retry(fd, &msg_hdr, sizeof (msg_hdr), tv)) <
+	if ((retval = _read_retry(fd, &msg_hdr, sizeof (msg_hdr), tv)) <
 	    (ssize_t) sizeof (msg_hdr)) {
 		return -1;
 	}
@@ -211,7 +211,7 @@ __msg_receive(int fd, void *buf, ssize_t count,
 		return 0;
 
 	err = errno;
-	retval = __read_retry(fd, buf, count, tv);
+	retval = _read_retry(fd, buf, count, tv);
 
 	if ((count == msg_hdr.ms_count) && (retval == count)) {
 		crc = clu_crc32(buf, retval);
@@ -238,12 +238,12 @@ __msg_receive(int fd, void *buf, ssize_t count,
   @param count		Size of expected message; must be <= size of
   			preallocated buffer.
   @return		-1 on failure or size of read data
-  @see			__msg_receive, msg_receive_timeout
+  @see			_msg_receive, msg_receive_timeout
  */
 int
 msg_receive(int fd, void *buf, ssize_t count)
 {
-	return (__msg_receive(fd, buf, count, NULL));
+	return (_msg_receive(fd, buf, count, NULL));
 }
 
 
@@ -256,7 +256,7 @@ msg_receive(int fd, void *buf, ssize_t count)
   			preallocated buffer.
   @param timeout	Timeout, in seconds, to wait for data.
   @return		-1 on failure or size of read data
-  @see			__msg_receive, msg_receive
+  @see			_msg_receive, msg_receive
  */
 ssize_t
 msg_receive_timeout(int fd, void *buf, ssize_t count,
@@ -267,7 +267,7 @@ msg_receive_timeout(int fd, void *buf, ssize_t count,
 	tv.tv_sec = timeout;
 	tv.tv_usec = 0;
 
-	return (__msg_receive(fd, buf, count, &tv));
+	return (_msg_receive(fd, buf, count, &tv));
 }
 
 
@@ -352,7 +352,7 @@ connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 		tv.tv_sec = timeout;
 		tv.tv_usec = 0;
 		
-		if (__select_retry(fd + 1, &rfds, &wfds, NULL, &tv) == 0) {
+		if (_select_retry(fd + 1, &rfds, &wfds, NULL, &tv) == 0) {
 			errno = ETIMEDOUT;
 			return -1;
 		}
@@ -914,7 +914,7 @@ msg_get_flags(int fd)
 
 
 ssize_t
-__msg_peek(int sockfd, void *buf, ssize_t count)
+_msg_peek(int sockfd, void *buf, ssize_t count)
 {
 	char *bigbuf;
 	ssize_t ret;
@@ -959,5 +959,5 @@ msg_peek(int sockfd, void *buf, ssize_t count)
 		return -1;
 	}
 
-	return (__msg_peek(sockfd, buf, count));
+	return (_msg_peek(sockfd, buf, count));
 }

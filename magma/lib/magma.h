@@ -19,25 +19,25 @@
 /** @file
   Header for Magma Cluster API Library
  */
-#ifndef __MAGMA_H
-#define __MAGMA_H
+#ifndef _MAGMA_H
+#define _MAGMA_H
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
 
-#define __MAX_SIZE 256 /** Altering this is hazardous to your health */
+#define _MAX_SIZE 256 /** Altering this is hazardous to your health */
 
-typedef struct __cluster_member {
+typedef struct _cluster_member {
 	uint64_t	cm_id;			/** Node ID */
-	uint8_t		cm_name[__MAX_SIZE];	/** Node name */
+	uint8_t		cm_name[_MAX_SIZE];	/** Node name */
 	uint8_t		cm_state; 		/** Node state */
 	uint8_t		cm_pad[7];		/** Align this */
 	struct addrinfo *cm_addrs;		/** Node IP addresses */
 } cluster_member_t;
 
-typedef struct __cluster_member_list {
-	char			cml_groupname[__MAX_SIZE]; /** Group name */
+typedef struct _cluster_member_list {
+	char			cml_groupname[_MAX_SIZE]; /** Group name */
 	uint32_t		cml_count;	/** Node count */
 	uint8_t			cml_pad[4];	/** Align this */
 	cluster_member_t	cml_members[0];	/** Node array */
@@ -48,7 +48,7 @@ typedef struct __cluster_member_list {
 	 sizeof(cluster_member_t) * c)
 
 #ifdef MDEBUG
-#define cml_alloc(size) _dmalloc(cml_size(size), __FILE__, __LINE__)
+#define cml_alloc(size) _dmalloc(cml_size(size), ___FILE___, __LINE__)
 #else
 #define cml_alloc(size) malloc(cml_size(size))
 #endif
@@ -122,7 +122,7 @@ cluster_member_list_t *cml_dup(cluster_member_list_t *ml);
  * User programs should not manipulate the ccluster_plugin_t structure,
  * so we have it as a void pointer in user programs.
  */
-#ifndef __CLUSTER__
+#ifndef _CLUSTER_
 
 typedef void cluster_plugin_t;
 
@@ -235,4 +235,4 @@ int memb_resolve_list(cluster_member_list_t *new, cluster_member_list_t *old);
  */
 void print_member_list(cluster_member_list_t *list, int verbose);
 
-#endif /* __MAGMA_H */
+#endif /* _MAGMA_H */

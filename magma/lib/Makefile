@@ -76,4 +76,4 @@ libmagmamsg.a: message.o crc32.o fdops.o
 	${AR} cr $@ $^
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS) -D__CLUSTER__
+	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS) -D_CLUSTER_
