@@ -589,8 +589,10 @@ trans_go_xmote_bh(struct gfs_glock *gl)
 			gfs_consist(sdp);
 
 		/*  Initialize some head of the log stuff  */
-		sdp->sd_sequence = head.lh_sequence;
-		sdp->sd_log_head = head.lh_first + 1;
+		if (!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)) {
+			sdp->sd_sequence = head.lh_sequence;
+			sdp->sd_log_head = head.lh_first + 1;
+		}
 	}
 
 	RET(GFN_TRANS_GO_XMOTE_BH);
