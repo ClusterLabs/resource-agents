@@ -756,6 +756,8 @@ static int process_disconnect(comm_header_t *ch){
       exit(EXIT_FAILURE);
     }
     if(tmp_odoc != master_doc && tmp_odoc->od_refs == 1){
+      log_dbg("No more references on version %d of config file, freeing...\n",
+	      get_doc_version(tmp_odoc->od_doc));
       xmlFreeDoc(tmp_odoc->od_doc);
       free(tmp_odoc);
     } else {

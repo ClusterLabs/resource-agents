@@ -95,25 +95,13 @@ static void cluster_communicator(void){
 	  break;
 	case CE_MEMB_CHANGE:
 	  log_dbg("*E* Membership change\n");
-	  cml_free(membership);
-	  membership = clu_member_list(NULL);
-	  memb_resolve_list(membership, NULL);
-	  msg_update(membership);
 	  break;
 	case CE_QUORATE:
 	  log_dbg("*E* Quorum formed\n");
-	  cml_free(membership);
-	  membership = clu_member_list(NULL);
-	  memb_resolve_list(membership, NULL);
-	  msg_update(membership);
 	  quorate = 1;
 	  break;
 	case CE_INQUORATE:
 	  log_dbg("*E* Quorum dissolved\n");
-	  cml_free(membership);
-	  membership = clu_member_list(NULL);
-	  memb_resolve_list(membership, NULL);
-	  msg_update(membership);
 	  quorate = 0;
 	  break;
 	case CE_SHUTDOWN:
@@ -125,6 +113,10 @@ static void cluster_communicator(void){
 	default:
 	  log_dbg("-E- Unknown cluster event\n");
 	}
+	cml_free(membership);
+	membership = clu_member_list(NULL);
+	memb_resolve_list(membership, NULL);
+	msg_update(membership);
       } else {
 	char *buffer;
 	int file_fd;
