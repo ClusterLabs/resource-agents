@@ -121,38 +121,24 @@ static uint32_t find_master_nodeid(fd_t *fd)
 
 static int can_avert_fence(fd_t *fd, fd_node_t *victim)
 {
-	struct cl_cluster_node *cl_node, *cl_nodes;
-	struct cl_cluster_nodelist nodelist;
-	int error, i, num_nodes, rv = FALSE;
+	struct cl_cluster_node cl_node;
+	int error;
 
-	num_nodes = ioctl(fd->cl_sock, SIOCCLUSTER_GETALLMEMBERS, 0);
+	memset(&cl_node, 0, sizeof(cl_node));
 
-	cl_nodes = malloc(num_nodes * sizeof(struct cl_cluster_node));
-	if (!cl_nodes)
+	strcpy(cl_node.name, victim->name);
+
+	error = ioctl(fd->cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+	if (error < 0)
 		return FALSE;
 
-	nodelist.max_members = num_nodes;
-	nodelist.nodes = cl_nodes;
+	log_debug("state of node %s is %d", victim->name, cl_node.state);
 
-	error = ioctl(fd->cl_sock, SIOCCLUSTER_GETALLMEMBERS, &nodelist);
-	if (error < 0) {
-		free(cl_nodes);
-		return FALSE;
-	}
+	if (cl_node.state == NODESTATE_MEMBER ||
+	    cl_node.state == NODESTATE_JOINING)
+		return TRUE;
 
-	cl_node = cl_nodes;
-
-	for (i = 0; i < num_nodes; i++) {
-		if (name_equal(victim, cl_node) &&
-		    (cl_node->state == NODESTATE_MEMBER ||
-		     cl_node->state == NODESTATE_JOINING)) {
-			rv = TRUE;
-			break;
-		}
-		cl_node++;
-	}
-	free(cl_nodes);
-	return rv;
+        return FALSE;
 }
 
 static void fence_victims(fd_t *fd)
