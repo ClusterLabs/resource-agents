@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDE+= -I${top_srcdir}/lib
 LIBS     = -L${top_srcdir}/lib -lmagma -lmagmamsg -ldl -lpthread
-TARGETS  = cpt cptester circleping
+TARGETS  = cpt cptester circleping cluster_cmd
 CFLAGS  += -DDEBUG
 
 all: $(TARGETS)
@@ -29,6 +29,9 @@ uninstall:
 
 circleping: circleping.o
 	$(CC) -o $@ $^ $(LIBS) -ggdb
+
+cluster_cmd: cluster_cmd.o
+	$(CC) -o $@ $^ $(LIBS)
 
 cpt: cpt.o
 	$(CC) -o $@ $^ $(LIBS) -ggdb
