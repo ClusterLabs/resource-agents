@@ -1,7 +1,7 @@
 diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 --- linux-orig/drivers/block/gnbd.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/drivers/block/gnbd.c	2004-06-11 13:13:58.000000000 -0500
-@@ -0,0 +1,1060 @@
++++ linux-patched/drivers/block/gnbd.c	2004-06-30 16:48:06.000000000 -0500
+@@ -0,0 +1,1076 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -94,25 +94,39 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +static ssize_t show_server(struct class_device *class_dev, char *buf)
 +{
 +	struct gnbd_device *dev = to_gnbd_dev(class_dev);
-+	return sprintf(buf, "%08x:%hx\n", dev->server_addr.s_addr,
-+			dev->server_port);
++	if (dev->server_name)
++		return sprintf(buf, "%s/%hx\n", dev->server_name,
++				dev->server_port);
++	else
++		return sprintf(buf, "\n");
 +}
 +
++/* FIXME -- should a empty store free the memory */
 +static ssize_t store_server(struct class_device *class_dev,
 +		const char *buf, size_t count)
 +{
 +	int res;
-+	struct in_addr addr;
 +	short unsigned int port;
++	char *ptr;
 +	struct gnbd_device *dev = to_gnbd_dev(class_dev);
 +	if (down_trylock(&dev->do_it_lock))
 +		return -EBUSY;
-+	res = sscanf(buf, "%8x:%4hx", &addr.s_addr, &port);
-+	if (res != 2){
++	if (dev->server_name)
++		kfree(dev->server_name);
++	dev->server_name = kmalloc(count + 1, GFP_KERNEL);
++	if (!dev->server_name)
++		return -ENOMEM;
++	memcpy(dev->server_name, buf, count);
++	dev->server_name[count] = 0;
++	ptr = strchr(dev->server_name, '/');
++	if (!ptr)
++		return -EINVAL;
++	*ptr++ = 0;
++	res = sscanf(ptr, "%4hx", &port);
++	if (res != 1){
 +		up(&dev->do_it_lock);
 +		return -EINVAL;
 +	}
-+	dev->server_addr = addr;
 +	dev->server_port = port;
 +	up(&dev->do_it_lock);
 +	return count;
@@ -940,7 +954,7 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +	printk(KERN_INFO "gnbd: registered device at major %d\n", major_nr);
 +	dprintk(DBG_INIT, "gnbd: debugflags=0x%x\n", debugflags);
 +
-+	devfs_mk_dir("gnbd");
++	devfs_mk_dir("gnbd_minor");
 +	err = class_register(&gnbd_class);
 +	if (err)
 +		goto out_unregister;
@@ -951,7 +965,7 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +		gnbd_dev[i].flags = 0;
 +		gnbd_dev[i].open_count = 0;
 +		gnbd_dev[i].receiver_pid = -1;
-+		gnbd_dev[i].server_addr.s_addr = 0;
++		gnbd_dev[i].server_name = NULL;
 +		gnbd_dev[i].server_port = 0;
 +		gnbd_dev[i].name[0] = '\0';
 +		gnbd_dev[i].bdev = NULL;
@@ -996,7 +1010,7 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +		disk->fops = &gnbd_fops;
 +		disk->private_data = &gnbd_dev[i];
 +		sprintf(disk->disk_name, "gnbd%d", i);
-+		sprintf(disk->devfs_name, "gnbd/%d", i);
++		sprintf(disk->devfs_name, "gnbd_minor/%d", i);
 +		set_capacity(disk, 0);
 +		add_disk(disk);
 +		if(sysfs_create_link(&gnbd_dev[i].class_dev.kobj,
@@ -1045,6 +1059,8 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +			blk_cleanup_queue(disk->queue);
 +			put_disk(disk);
 +		}
++		if (gnbd_dev[i].server_name)
++			kfree(gnbd_dev[i].server_name);
 +	}
 +	class_unregister(&gnbd_class);
 +	devfs_remove("gnbd");
@@ -1064,7 +1080,7 @@ diff -urN linux-orig/drivers/block/gnbd.c linux-patched/drivers/block/gnbd.c
 +#endif
 diff -urN linux-orig/include/linux/gnbd.h linux-patched/include/linux/gnbd.h
 --- linux-orig/include/linux/gnbd.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/gnbd.h	2004-06-11 13:13:58.000000000 -0500
++++ linux-patched/include/linux/gnbd.h	2004-06-30 16:48:06.000000000 -0500
 @@ -0,0 +1,103 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1120,7 +1136,7 @@ diff -urN linux-orig/include/linux/gnbd.h linux-patched/include/linux/gnbd.h
 +	int open_count;
 +	struct class_device class_dev;
 +	unsigned short int server_port;
-+	struct in_addr server_addr;
++	char *server_name;
 +	char name[32];
 +	unsigned long last_received;
 +	struct block_device *bdev;
