@@ -30,6 +30,8 @@
 #include "rsb.h"
 #include "util.h"
 
+extern struct list_head lslist;
+
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 /*
@@ -1257,3 +1259,61 @@ void process_remastered_lkb(gd_ls_t *ls, gd_lkb_t *lkb, int state)
 		GDLM_ASSERT(0,);
 	}
 }
+
+static void dump_queue(struct list_head *head)
+{
+	gd_lkb_t *lkb;
+
+	list_for_each_entry(lkb, head, lkb_statequeue) {
+		printk("%08x gr %d rq %d flg %x sts %u node %u remid %x "
+		       "lq %d,%x\n",
+		       lkb->lkb_id,
+		       lkb->lkb_grmode,
+		       lkb->lkb_rqmode,
+		       lkb->lkb_flags,
+		       lkb->lkb_status,
+		       lkb->lkb_nodeid,
+		       lkb->lkb_remid,
+		       lkb->lkb_lockqueue_state,
+		       lkb->lkb_lockqueue_flags);
+	}
+}
+
+static void dump_rsb(gd_res_t *rsb)
+{
+	printk("name \"%s\" flags %lx nodeid %u ref %u seq %u\n",
+	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
+	       atomic_read(&rsb->res_ref), rsb->res_resdir_seq);
+
+	if (!list_empty(&rsb->res_grantqueue)) {
+		printk("grant queue\n");
+		dump_queue(&rsb->res_grantqueue);
+	}
+
+	if (!list_empty(&rsb->res_convertqueue)) {
+		printk("convert queue\n");
+		dump_queue(&rsb->res_convertqueue);
+	}
+
+	if (!list_empty(&rsb->res_waitqueue)) {
+		printk("wait queue\n");
+		dump_queue(&rsb->res_waitqueue);
+	}
+}
+
+void dlm_locks_dump(void)
+{
+	gd_ls_t *ls;
+	gd_res_t *rsb;
+	struct list_head *head;
+	int i;
+
+	list_for_each_entry(ls, &lslist, ls_list) {
+		for (i = 0; i < ls->ls_hashsize; i++) {
+			head = &ls->ls_reshashtbl[i];
+			list_for_each_entry(rsb, head, res_hashchain)
+				dump_rsb(rsb);
+		}
+	}
+}
+

@@ -114,6 +114,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 { \
   if (!(x)) \
   { \
+    dlm_locks_dump(); \
     dlm_debug_dump(); \
     printk("\nDLM:  Assertion failed on line %d of file %s\n" \
                "DLM:  assertion:  \"%s\"\n" \
@@ -624,5 +625,6 @@ struct gd_remqueryreply {
 
 void dlm_debug_log(gd_ls_t *ls, const char *fmt, ...);
 void dlm_debug_dump(void);
+void dlm_locks_dump(void);
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */
