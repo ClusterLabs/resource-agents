@@ -1550,9 +1550,13 @@ static int do_ioctl_set_nodename(unsigned long arg)
 
 static int do_ioctl_set_nodeid(unsigned long arg)
 {
+	int nodeid = (int)arg;
+
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 	if (atomic_read(&cnxman_running))
+		return -EINVAL;
+	if (nodeid < 0 || nodeid > 4096)
 		return -EINVAL;
 
 	wanted_nodeid = (int)arg;
