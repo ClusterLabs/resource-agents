@@ -1,0 +1,10 @@
+The table file for the cluster mirror target looks like:
+
+<start> <length> mirror \
+cluster 2 <log device> <region size> \
+<N> <dev1> <offset> <dev2> <offset> ... <devN> <offset>
+
+an example might be:
+
+#Example device mapper table file for cluster mirror
+0 4724028 mirror cluster 2 /dev/sda1 1024 2 /dev/sda2 0 /dev/sdb2 0

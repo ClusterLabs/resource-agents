@@ -1,0 +1,19 @@
+1. Basic code clean-up
+
+2. Figure out how to best utilize dm-log.c code without duplication
+
+3. Use mempool
+
+4. Use hash for server-side region use tracking, as opposed to linked list
+
+5. register the cluster_log service with cman at a level between
+   SERVICE_LEVEL_GDLM and SERVICE_LEVEL_GFS.
+	- this is not all that important right now, since we do
+	not use the DLM.  So, recovery can happen in parallel with
+	the DLM (before or after).  It must, however, happen after
+	fence and before GFS, which is why SERVICE_LEVEL_GDLM was
+	chosen.
+
+6. Implement paranoid mode
+
+7. Implement core mode
