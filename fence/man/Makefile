@@ -19,6 +19,7 @@ TARGET8= \
 	fence_cpint.8 \
 	fence_egenera.8 \
 	fence_ibmblade.8 \
+	fence_ilo.8 \
 	fence_manual.8 \
 	fence_mcdata.8 \
 	fence_node.8 \

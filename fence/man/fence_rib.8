@@ -21,6 +21,9 @@ fence_rib - I/O Fencing agent for Compaq Remote Insight Lights Out card
 .sp
 \fBDESCRIPTION\fP
 .in +7
+.sp
+\fB*** ATTENTION: fence_rib is deprecated.  fence_ilo should be used instead ***\fP
+.sp
 fence_rib is an I/O Fencing agent used for Compaq servers with the Remote Insight Light Out (RILOE) PCI card.  The agent creates an SSL tunnel from \fIlocalport\fR (default 8888) to the RILOE card.  The card has its own interface and is 
 running on the default SSL port 443.  
 .sp
@@ -118,4 +121,12 @@ Verbose mode.
 .in -7
 \fBSEE ALSO\fP
 .in +7
-fence(8), fence_node(8)
+fence(8), fence_node(8), fence_ilo(8)
+
+
+.in -7
+\fBSEE BUGS\fP
+.in +7
+stunnel no longer works transparently for newer version of the iLO firmware, 
+resulting in connections that are dropped too soon or data that is never delivered.
+fence_ilo(8) should be used instead.
