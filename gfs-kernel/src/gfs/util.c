@@ -216,16 +216,16 @@ gfs_assert_i(char *assertion,
 {
 	gfs_in_panic = TRUE;
 
-	printk("\nGFS: Assertion failed on line %d of file %s\n"
-	       "GFS: assertion: \"%s\"\n"
-	       "GFS: time = %lu\n",
-	       line, file, assertion, get_seconds());
-
 	switch (type) {
 	case GFS_ASSERT_TYPE_SBD:
 	{
 		struct gfs_sbd *sdp = (struct gfs_sbd *)ptr;
-		printk("GFS: fsid=%s\n", sdp->sd_fsname);
+		panic("GFS: Assertion failed on line %d of file %s\n"
+		      "GFS: assertion: \"%s\"\n"
+		      "GFS: time = %lu\n"
+		      "GFS: fsid=%s\n",
+		      line, file, assertion, get_seconds(),
+		      sdp->sd_fsname);
 	}
 	break;
 
@@ -233,10 +233,14 @@ gfs_assert_i(char *assertion,
 	{
 		struct gfs_glock *gl = (struct gfs_glock *)ptr;
 		struct gfs_sbd *sdp = gl->gl_sbd;
-		printk("GFS: fsid=%s: glock = (%u, %"PRIu64")\n",
-		       sdp->sd_fsname,
-		       gl->gl_name.ln_type,
-		       gl->gl_name.ln_number);
+		panic("GFS: Assertion failed on line %d of file %s\n"
+		      "GFS: assertion: \"%s\"\n"
+		      "GFS: time = %lu\n"
+		      "GFS: fsid=%s: glock = (%u, %"PRIu64")\n",
+		      line, file, assertion, get_seconds(),
+		      sdp->sd_fsname,
+		      gl->gl_name.ln_type,
+		      gl->gl_name.ln_number);
 	}
 	break;
 
@@ -244,9 +248,13 @@ gfs_assert_i(char *assertion,
 	{
 		struct gfs_inode *ip = (struct gfs_inode *)ptr;
 		struct gfs_sbd *sdp = ip->i_sbd;
-		printk("GFS: fsid=%s: inode = %"PRIu64"/%"PRIu64"\n",
-		       sdp->sd_fsname,
-		       ip->i_num.no_formal_ino, ip->i_num.no_addr);
+		panic("GFS: Assertion failed on line %d of file %s\n"
+		      "GFS: assertion: \"%s\"\n"
+		      "GFS: time = %lu\n"
+		      "GFS: fsid=%s: inode = %"PRIu64"/%"PRIu64"\n",
+		      line, file, assertion, get_seconds(),
+		      sdp->sd_fsname,
+		      ip->i_num.no_formal_ino, ip->i_num.no_addr);
 	}
 	break;
 
@@ -254,18 +262,22 @@ gfs_assert_i(char *assertion,
 	{
 		struct gfs_rgrpd *rgd = (struct gfs_rgrpd *)ptr;
 		struct gfs_sbd *sdp = rgd->rd_sbd;
-		printk("GFS: fsid=%s: rgroup = %"PRIu64"\n",
-		       sdp->sd_fsname, rgd->rd_ri.ri_addr);
+		panic("GFS: Assertion failed on line %d of file %s\n"
+		      "GFS: assertion: \"%s\"\n"
+		      "GFS: time = %lu\n"
+		      "GFS: fsid=%s: rgroup = %"PRIu64"\n",
+		      line, file, assertion, get_seconds(),
+		      sdp->sd_fsname,
+		      rgd->rd_ri.ri_addr);
 	}
 	break;
-	}
 
-	printk("\n");
-#if 0
-	printk("GFS: Record message above and reboot.\n");
-	BUG();
-#endif
-	panic("GFS: Record message above and reboot.\n");
+	default:
+		panic("GFS: Assertion failed on line %d of file %s\n"
+		      "GFS: assertion: \"%s\"\n"
+		      "GFS: time = %lu\n",
+		      line, file, assertion, get_seconds());
+	}
 }
 
 /**
