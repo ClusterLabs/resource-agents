@@ -26,13 +26,20 @@
 
 #include "copyright.cf"
 
+/* FIFO_DIR needs to agree with the same in ack.c */
+
+#define LOCK_DIR "/var/lock"
+#define FIFO_DIR "/tmp"
+
 char *pname = NULL;
 
 char args[256];
 char name[256];
 char ipaddr[256];
-char path[256];
 char fname[256];
+char path[256];
+char lockdir[256];
+char fifodir[256];
 
 int quiet_flag = 0;
 
@@ -76,7 +83,12 @@ void get_options(int argc, char **argv)
         break;
 
       case 'p':
-        strcpy(path, optarg);
+        if (strlen(optarg) > 200)
+        {
+          fprintf(stderr, "path name too long\n");
+	  exit(1);
+        }
+        strncpy(path, optarg, 200);
         break;
 
       case 'V':
@@ -130,7 +142,11 @@ void get_options(int argc, char **argv)
   }
 
   if (!strlen(path))
-      strcpy(path, "tmp");
+    strcpy(lockdir, LOCK_DIR);
+  else
+    strcpy(lockdir, path);
+
+  strcpy(fifodir, FIFO_DIR);
 }
 
 
@@ -147,8 +163,10 @@ int main(int argc, char **argv)
   memset(args, 0, 256);
   memset(name, 0, 256);
   memset(ipaddr, 0, 256);
-  memset(path, 0, 256);
   memset(fname, 0, 256);
+  memset(path, 0, 256);
+  memset(lockdir, 0, 256);
+  memset(fifodir, 0, 256);
 
   pname = argv[0];
 
@@ -165,7 +183,7 @@ int main(int argc, char **argv)
   /* Serialize multiple fence_manual's by locking a lock file */
 
   memset(fname, 0, 256);
-  sprintf(fname, "/%s/fence_manual.lock", path);
+  sprintf(fname, "%s/fence_manual.lock", lockdir);
   lfd = open(fname, O_WRONLY | O_CREAT,
              (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
   if (lfd < 0)
@@ -197,7 +215,7 @@ int main(int argc, char **argv)
 
   umask(0);
   memset(fname, 0, 256);
-  sprintf(fname, "/%s/fence_manual.fifo", path);
+  sprintf(fname, "%s/fence_manual.fifo", fifodir);
   error = mkfifo(fname, (S_IRUSR | S_IWUSR));
   if (error && errno != EEXIST)
   {
@@ -239,7 +257,7 @@ int main(int argc, char **argv)
 
   if(!quiet_flag)
     printf("success: %s %s\n", pname, ipaddr);
-  unlink("/tmp/fence_manual.fifo");
+  unlink(fname);
   return 0;
 }
 

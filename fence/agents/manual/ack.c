@@ -24,10 +24,13 @@
 
 #include "copyright.cf"
 
-char *pname = NULL;
+#define FIFO_DIR "/tmp"
 
+char *pname = NULL;
+char fname[256];
 int quiet_flag = 0;
 int override_flag = 0;
+
 
 void print_usage(void)
 {
@@ -41,7 +44,6 @@ void print_usage(void)
 	 "  -s <ip>          IP address of machine which was manually fenced\n"
          "  -V               Version information\n", pname);
 }
-
 
 int main(int argc, char **argv)
 {
@@ -122,7 +124,10 @@ int main(int argc, char **argv)
     }
   }
 
-  fd = open("/tmp/fence_manual.fifo", O_WRONLY | O_NONBLOCK);
+  memset(fname, 0, 256);
+  sprintf(fname, "%s/fence_manual.fifo", FIFO_DIR);
+
+  fd = open(fname, O_WRONLY | O_NONBLOCK);
   if (fd < 0)
   {
     perror("can't open /tmp/fence_manual.fifo");
