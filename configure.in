@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.215 $) dnl cvs revision
+AC_REVISION($Revision: 1.216 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -108,6 +108,7 @@ AC_SUBST(pils_plugindir)
 AC_SUBST(stonith_includedir)
 AC_SUBST(stonith_plugindir)
 AC_SUBST(base_includedir)
+AC_SUBST(saf_includedir)
 
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
