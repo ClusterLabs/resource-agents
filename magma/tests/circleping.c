@@ -164,6 +164,7 @@ wait_for_stuff_to_happen(int clusterfd, int *listen_fds, int lfd_count)
 	struct timeval tv;
 	uint64_t nodeid;
 
+	FD_ZERO(&rfds);
 	max = msg_fill_fdset(&rfds, MSG_ALL, MSGP_ALL);
 
 	tv.tv_sec = 5;
@@ -178,8 +179,9 @@ wait_for_stuff_to_happen(int clusterfd, int *listen_fds, int lfd_count)
 	}
 
 	if (n < 0) {
-		printf("End of the world!!!\n");
-		exit(0);	
+		printf("Select error: %s\n", strerror(errno));
+		sleep(1);
+		return 0;
 	}
 
 	while (n) {
@@ -189,9 +191,11 @@ wait_for_stuff_to_happen(int clusterfd, int *listen_fds, int lfd_count)
 
 		--n;
 
-		if (fd == clusterfd &&
-		    handle_cluster_event(clusterfd) == CE_MEMB_CHANGE) {
-			pingpong = send_to_next(pingpong);
+		if (fd == clusterfd) {
+			if (handle_cluster_event(clusterfd) ==
+				CE_MEMB_CHANGE) {
+				pingpong = send_to_next(pingpong);
+			}
 
 			continue;
 		}
@@ -231,6 +235,7 @@ main(void)
 		return -1;
 
 	quorate = (clu_quorum_status(MY_SERVICE_GROUP) & QF_QUORATE);
+	printf("Using plugin: %s\n", clu_plugin_version());
 	printf("Initial status = %s\n", quorate?"Quorate":"Inquorate");
 
 	membership = clu_member_list(MY_SERVICE_GROUP);
