@@ -985,10 +985,8 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	 * lkb and then release it.  FIXME: verify this is valid.
 	 */
 	lkb = find_by_remlkid(rsb, rem_nodeid, remote_lkid);
-	if (lkb) {
-		log_error(ls, "lkb %x exists %s", remote_lkid, rsb->res_name);
+	if (lkb)
 		exist_lkb = lkb;
-	}
 
 	lkb = create_lkb(ls);
 	if (!lkb)
