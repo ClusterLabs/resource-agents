@@ -666,7 +666,7 @@ struct gfs_trans {
 struct gfs_gl_hash_bucket {
 	rwlock_t hb_lock;
 	struct list_head hb_list;
-} __attribute__ ((__aligned__(SMP_CACHE_BYTES)));
+};
 
 /*
  *  "Super Block" Data Structure
