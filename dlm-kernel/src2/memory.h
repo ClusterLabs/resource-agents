@@ -14,8 +14,6 @@
 #ifndef __MEMORY_DOT_H__
 #define __MEMORY_DOT_H__
 
-int dlm_memory_init(void);
-void dlm_memory_exit(void);
 struct dlm_rsb *allocate_rsb(struct dlm_ls *ls, int namelen);
 void free_rsb(struct dlm_rsb *r);
 struct dlm_lkb *allocate_lkb(struct dlm_ls *ls);

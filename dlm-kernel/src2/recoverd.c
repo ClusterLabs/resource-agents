@@ -18,9 +18,8 @@
 #include "ast.h"
 #include "recover.h"
 #include "lowcomms.h"
-#include "lockqueue.h"
-#include "lkb.h"
-#include "rebuild.h"
+#include "lock.h"
+#include "requestqueue.h"
 
 /*
  * next_move actions
@@ -75,7 +74,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto out;
 	}
 
-	error = dlm_dir_rebuild_local(ls);
+	error = dlm_recover_directory(ls);
 	if (error) {
 		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
 		goto out;
@@ -120,17 +119,27 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	 * will be processed by dlm_astd during recovery.
 	 */
 
-	astd_suspend();
-	astd_resume();
+	dlm_astd_suspend();
+	dlm_astd_resume();
 
 	/*
 	 * this list may be left over from a previous aborted recovery
 	 */
 
-	rebuild_freemem(ls);
+#if 0
+	dlm_rebuild_freemem(ls);
+#endif
+
+	/*
+	 * This list of root rsb's will be the basis of most of the recovery
+	 * routines.
+	 */
+
+	dlm_create_root_list(ls);
 
 	/*
 	 * Add or remove nodes from the lockspace's ls_nodes list.
+	 * Also waits for all nodes to complete dlm_recover_members.
 	 */
 
 	error = dlm_recover_members(ls, rv, &neg);
@@ -144,7 +153,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	 * nodes rsb name/master pairs for which the name hashes to us.
 	 */
 
-	error = dlm_dir_rebuild_local(ls);
+	error = dlm_recover_directory(ls);
 	if (error) {
 		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
 		goto fail;
@@ -156,8 +165,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	 * to the resdir rebuild and will be resent by the requesting nodes.
 	 */
 
-	purge_requestqueue(ls);
-	set_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
+	dlm_purge_requestqueue(ls);
 
 	/*
 	 * Wait for all nodes to complete resdir rebuild.
@@ -176,7 +184,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	 * requests for resending.
 	 */
 
-	lockqueue_lkb_mark(ls);
+	dlm_recover_waiters_pre(ls);
 
 	error = dlm_recovery_stopped(ls);
 	if (error)
@@ -188,8 +196,8 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		 * doesn't involve communicating with other nodes.
 		 */
 
-		restbl_lkb_purge(ls);
-
+		dlm_purge_locks(ls);
+#if 0
 		/*
 		 * Get new master id's for rsb's of departed nodes.  This fails
 		 * if we can't communicate with other nodes.
@@ -213,11 +221,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		}
 
 		dlm_lvb_recovery(ls);
+#endif
 	}
-
-	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
+	dlm_release_root_list(ls);
 
 	log_debug(ls, "recover event %u done", rv->event_id);
+
 	set_start_done(ls, rv->event_id);
 	up(&ls->ls_recoverd_active);
 	return 0;
@@ -523,7 +532,9 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	if (cur_state == LSST_RECONFIG_DONE) {
 		switch (do_now) {
 		case DO_FINISH:
-			rebuild_freemem(ls);
+#if 0
+			dlm_rebuild_freemem(ls);
+#endif
 
 			dlm_clear_members_finish(ls, finish_event);
 			next_state = LSST_CLEAR;
@@ -532,17 +543,17 @@ static void do_ls_recovery(struct dlm_ls *ls)
 			if (error)
 				break;
 
-			error = process_requestqueue(ls);
+			error = dlm_process_requestqueue(ls);
 			if (error)
 				break;
 
-			error = resend_cluster_requests(ls);
+			error = dlm_recover_waiters_post(ls);
 			if (error)
 				break;
 
-			restbl_grant_after_purge(ls);
+			dlm_grant_after_purge(ls);
 
-			wake_astd();
+			dlm_astd_wake();
 
 			log_debug(ls, "recover event %u finished", finish_event);
 			break;
@@ -628,9 +639,9 @@ static void do_ls_recovery(struct dlm_ls *ls)
 
 			enable_locking(ls, finish_event);
 
-			process_requestqueue(ls);
+			dlm_process_requestqueue(ls);
 
-			wake_astd();
+			dlm_astd_wake();
 
 			log_debug(ls, "recover event %u finished", finish_event);
 			break;

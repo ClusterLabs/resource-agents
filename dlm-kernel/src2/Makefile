@@ -25,29 +25,24 @@ TARGET = dlm.patch
 PWD := $(shell pwd)
 
 obj-m := dlm.o
-dlm-objs := member.o \
-            member_ioctl.o \
-            member_sysfs.o \
-            debug_fs.o \
-            ast.o \
-            config.o \
-            device.o \
-            lkb.o \
-            locking.o \
-            lockqueue.o \
-            lockspace.o \
-            lowcomms.o \
-            main.o \
-            memory.o \
-            midcomms.o \
-            queries.o \
-            rebuild.o \
-            reccomms.o \
-            recover.o \
-            recoverd.o \
-            rsb.o \
-            util.o \
-            dir.o
+dlm-objs :=	ast.o \
+		config.o \
+		debug_fs.o \
+		dir.o \
+		lock.o \
+		lockspace.o \
+		lowcomms.o \
+		main.o \
+		member.o \
+		member_ioctl.o \
+		member_sysfs.o \
+		memory.o \
+		midcomms.o \
+		rcom.o \
+		recover.o \
+		recoverd.o \
+		requestqueue.o \
+		util.o \
 
 EXTRA_CFLAGS += -I$(obj)
 

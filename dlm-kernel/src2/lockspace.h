@@ -18,9 +18,9 @@ int dlm_lockspace_init(void);
 void dlm_lockspace_exit(void);
 int dlm_new_lockspace(char *name, int namelen, void **ls, int flags);
 int dlm_release_lockspace(void *ls, int force);
-struct dlm_ls *find_lockspace_by_global_id(uint32_t id);
-struct dlm_ls *find_lockspace_by_local_id(void *id);
-struct dlm_ls *find_lockspace_by_name(char *name, int namelen);
+struct dlm_ls *find_lockspace_global(uint32_t id);
+struct dlm_ls *find_lockspace_local(void *id);
+struct dlm_ls *find_lockspace_name(char *name, int namelen);
 void hold_lockspace(struct dlm_ls *ls);
 void put_lockspace(struct dlm_ls *ls);
 

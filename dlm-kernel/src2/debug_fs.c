@@ -60,19 +60,19 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 {
 	seq_printf(s, "%08x %s", lkb->lkb_id, print_lockmode(lkb->lkb_grmode));
 
-	if (lkb->lkb_status == GDLM_LKSTS_CONVERT
-	    || lkb->lkb_status == GDLM_LKSTS_WAITING)
+	if (lkb->lkb_status == DLM_LKSTS_CONVERT
+	    || lkb->lkb_status == DLM_LKSTS_WAITING)
 		seq_printf(s, " (%s)", print_lockmode(lkb->lkb_rqmode));
 
 	if (lkb->lkb_range) {
 		/* This warns on Alpha. Tough. Only I see it */
-		if (lkb->lkb_status == GDLM_LKSTS_CONVERT
-		    || lkb->lkb_status == GDLM_LKSTS_GRANTED)
+		if (lkb->lkb_status == DLM_LKSTS_CONVERT
+		    || lkb->lkb_status == DLM_LKSTS_GRANTED)
 			seq_printf(s, " %" PRIx64 "-%" PRIx64,
 				   lkb->lkb_range[GR_RANGE_START],
 				   lkb->lkb_range[GR_RANGE_END]);
-		if (lkb->lkb_status == GDLM_LKSTS_CONVERT
-		    || lkb->lkb_status == GDLM_LKSTS_WAITING)
+		if (lkb->lkb_status == DLM_LKSTS_CONVERT
+		    || lkb->lkb_status == DLM_LKSTS_WAITING)
 			seq_printf(s, " (%" PRIx64 "-%" PRIx64 ")",
 				   lkb->lkb_range[RQ_RANGE_START],
 				   lkb->lkb_range[RQ_RANGE_END]);
@@ -86,10 +86,6 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 			seq_printf(s, " Master:     %08x", lkb->lkb_remid);
 	}
 
-	if (lkb->lkb_status != GDLM_LKSTS_GRANTED)
-		seq_printf(s, "  LQ: %d,0x%x", lkb->lkb_lockqueue_state,
-			   lkb->lkb_lockqueue_flags);
-
 	seq_printf(s, "\n");
 }
 
@@ -98,8 +94,7 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 	struct dlm_lkb *lkb;
 	int i;
 
-	seq_printf(s, "\nResource %p (parent %p). Name (len=%d) \"", res,
-		   res->res_parent, res->res_length);
+	seq_printf(s, "\nResource %p Name (len=%d) \"", res, res->res_length);
 	for (i = 0; i < res->res_length; i++) {
 		if (isprint(res->res_name[i]))
 			seq_printf(s, "%c", res->res_name[i]);

@@ -14,11 +14,7 @@
 #ifndef __MIDCOMMS_DOT_H__
 #define __MIDCOMMS_DOT_H__
 
-int midcomms_send_message(uint32_t csid, struct dlm_header *msg,
-			  int allocation);
-int midcomms_process_incoming_buffer(int csid, const void *buf, unsigned offset,
-				     unsigned len, unsigned limit);
-void midcomms_send_buffer(struct dlm_header *msg,
-			  struct writequeue_entry *e);
+int dlm_process_incoming_buffer(int nodeid, const void *base, unsigned offset,
+				unsigned len, unsigned limit);
 
 #endif				/* __MIDCOMMS_DOT_H__ */

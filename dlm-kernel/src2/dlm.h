@@ -353,12 +353,12 @@ int dlm_release_lockspace(dlm_lockspace_t *lockspace, int force);
  */
 
 int dlm_lock(dlm_lockspace_t *lockspace,
-	     uint32_t mode,
+	     int mode,
 	     struct dlm_lksb *lksb,
 	     uint32_t flags,
 	     void *name,
 	     unsigned int namelen,
-	     uint32_t parent,
+	     uint32_t parent_lkid,
 	     void (*lockast) (void *astarg),
 	     void *astarg,
 	     void (*bast) (void *astarg, int mode),

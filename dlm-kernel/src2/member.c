@@ -19,7 +19,6 @@
 #include "member.h"
 #include "recoverd.h"
 #include "recover.h"
-#include "reccomms.h"
 
 /* Local values must be set before the dlm is started and then
    not modified, otherwise a lock is needed. */
@@ -299,15 +298,6 @@ int dlm_recover_members_wait(struct dlm_ls *ls)
 		error = dlm_wait_status_all(ls, NODES_VALID);
 		if (!error)
 			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
-
-		/* Experimental: this delay should allow any final messages
-		 * from the previous node to be received before beginning
-		 * recovery. */
-
-		if (ls->ls_num_nodes == 1) {
-			current->state = TASK_UNINTERRUPTIBLE;
-			schedule_timeout((2) * HZ);
-		}
 	} else
 		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
 
@@ -472,8 +462,8 @@ int dlm_ls_stop(struct dlm_ls *ls)
 	 */
 
 	dlm_recoverd_suspend(ls);
-	clear_bit(LSFL_RESDIR_VALID, &ls->ls_flags);
-	clear_bit(LSFL_ALL_RESDIR_VALID, &ls->ls_flags);
+	clear_bit(LSFL_DIR_VALID, &ls->ls_flags);
+	clear_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
 	clear_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	clear_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
 	dlm_recoverd_resume(ls);

@@ -19,12 +19,11 @@
 #include "member_sysfs.h"
 #include "recoverd.h"
 #include "ast.h"
-#include "lkb.h"
 #include "dir.h"
 #include "lowcomms.h"
 #include "config.h"
 #include "memory.h"
-#include "device.h"
+#include "lock.h"
 
 #define GDST_NONE       (0)
 #define GDST_RUNNING    (1)
@@ -32,8 +31,8 @@
 static int dlmstate;
 static int dlmcount;
 static struct semaphore dlmstate_lock;
-struct list_head lslist;
-spinlock_t lslist_lock;
+static struct list_head lslist;
+static spinlock_t lslist_lock;
 
 
 int dlm_lockspace_init(void)
@@ -50,7 +49,7 @@ void dlm_lockspace_exit(void)
 {
 }
 
-struct dlm_ls *find_lockspace_by_name(char *name, int namelen)
+struct dlm_ls *find_lockspace_name(char *name, int namelen)
 {
 	struct dlm_ls *ls;
 
@@ -67,7 +66,7 @@ struct dlm_ls *find_lockspace_by_name(char *name, int namelen)
 	return ls;
 }
 
-struct dlm_ls *find_lockspace_by_global_id(uint32_t id)
+struct dlm_ls *find_lockspace_global(uint32_t id)
 {
 	struct dlm_ls *ls;
 
@@ -85,7 +84,7 @@ struct dlm_ls *find_lockspace_by_global_id(uint32_t id)
 	return ls;
 }
 
-struct dlm_ls *find_lockspace_by_local_id(void *id)
+struct dlm_ls *find_lockspace_local(void *id)
 {
 	struct dlm_ls *ls = id;
 
@@ -133,7 +132,7 @@ static int threads_start(void)
 	int error;
 
 	/* Thread which process lock requests for all ls's */
-	error = astd_start();
+	error = dlm_astd_start();
 	if (error) {
 		log_print("cannot start ast thread %d", error);
 		goto fail;
@@ -149,7 +148,7 @@ static int threads_start(void)
 	return 0;
 
  astd_fail:
-	astd_stop();
+	dlm_astd_stop();
  fail:
 	return error;
 }
@@ -157,7 +156,7 @@ static int threads_start(void)
 static void threads_stop(void)
 {
 	lowcomms_stop();
-	astd_stop();
+	dlm_astd_stop();
 }
 
 static int init_internal(void)
@@ -219,7 +218,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	if (!try_module_get(THIS_MODULE))
 		return -EINVAL;
 
-	ls = find_lockspace_by_name(name, namelen);
+	ls = find_lockspace_name(name, namelen);
 	if (ls) {
 		*lockspace = ls;
 		module_put(THIS_MODULE);
@@ -232,7 +231,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	memset(ls, 0, sizeof(struct dlm_ls) + namelen);
 	memcpy(ls->ls_name, name, namelen);
 	ls->ls_namelen = namelen;
-	ls->ls_allocation = GFP_KERNEL;
 	ls->ls_count = 0;
 	ls->ls_flags = 0;
 
@@ -244,6 +242,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 		goto out_lsfree;
 	for (i = 0; i < size; i++) {
 		INIT_LIST_HEAD(&ls->ls_rsbtbl[i].list);
+		INIT_LIST_HEAD(&ls->ls_rsbtbl[i].toss);
 		rwlock_init(&ls->ls_rsbtbl[i].lock);
 	}
 
@@ -292,14 +291,10 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_rcom_msgid = 0;
 	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_MUTEX(&ls->ls_rcom_lock);
-	init_rwsem(&ls->ls_unlock_sem);
 	init_rwsem(&ls->ls_root_lock);
 	init_rwsem(&ls->ls_in_recovery);
 
 	down_write(&ls->ls_in_recovery);
-
-	if (flags & DLM_LSF_NOTIMERS)
-		set_bit(LSFL_NOTIMERS, &ls->ls_flags);
 
 	error = dlm_recoverd_start(ls);
 	if (error) {
@@ -440,6 +435,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 
 	dlm_delete_debug_file(ls);
 
+	dlm_astd_suspend();
+
 	/*
 	 * Free direntry structs.
 	 */
@@ -451,8 +448,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	 * Free all lkb's on lkbtbl[] lists.
 	 */
 
-	astd_suspend();
-
 	for (i = 0; i < ls->ls_lkbtbl_size; i++) {
 		head = &ls->ls_lkbtbl[i].list;
 		while (!list_empty(head)) {
@@ -460,18 +455,18 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 					 lkb_idtbl_list);
 			list_del(&lkb->lkb_idtbl_list);
 
-			if (lkb->lkb_lockqueue_state)
-				remove_from_lockqueue(lkb);
+			if (lkb->lkb_wait_type)
+				dlm_remove_from_waiters(lkb);
 
-			remove_from_astqueue(lkb);
+			dlm_del_ast(lkb);
 
-			if (lkb->lkb_lvbptr && lkb->lkb_flags & GDLM_LKFLG_MSTCPY)
+			if (lkb->lkb_lvbptr && lkb->lkb_flags & DLM_IFL_MSTCPY)
 				free_lvb(lkb->lkb_lvbptr);
 
 			free_lkb(lkb);
 		}
 	}
-	astd_resume();
+	dlm_astd_resume();
 
 	kfree(ls->ls_lkbtbl);
 
@@ -481,6 +476,18 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 		head = &ls->ls_rsbtbl[i].list;
+		while (!list_empty(head)) {
+			rsb = list_entry(head->next, struct dlm_rsb,
+					 res_hashchain);
+			list_del(&rsb->res_hashchain);
+
+			if (rsb->res_lvbptr)
+				free_lvb(rsb->res_lvbptr);
+
+			free_rsb(rsb);
+		}
+
+		head = &ls->ls_rsbtbl[i].toss;
 		while (!list_empty(head)) {
 			rsb = list_entry(head->next, struct dlm_rsb,
 					 res_hashchain);
@@ -506,13 +513,10 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kfree(rv);
 	}
 
-	clear_free_de(ls);
-
+	dlm_clear_free_entries(ls);
 	dlm_clear_members(ls);
 	dlm_clear_members_gone(ls);
-	if (ls->ls_node_array)
-		kfree(ls->ls_node_array);
-
+	kfree(ls->ls_node_array);
 	kobject_unregister(&ls->ls_kobj);
 	kfree(ls);
 	release_internal();
@@ -539,7 +543,7 @@ int dlm_release_lockspace(void *lockspace, int force)
 {
 	struct dlm_ls *ls;
 
-	ls = find_lockspace_by_local_id(lockspace);
+	ls = find_lockspace_local(lockspace);
 	if (!ls)
 		return -EINVAL;
 	put_lockspace(ls);

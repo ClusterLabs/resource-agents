@@ -22,25 +22,15 @@
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
-#include "ast.h"
-#include "lkb.h"
-#include "locking.h"
-#include "config.h"
-#include "memory.h"
-#include "recover.h"
-#include "lowcomms.h"
+#include "lock.h"
 
-int  dlm_device_init(void);
-void dlm_device_exit(void);
 void dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
 
 int __init init_dlm(void)
 {
+	dlm_lock_init();
 	dlm_lockspace_init();
-	dlm_device_init();
-	dlm_memory_init();
-	dlm_config_init();
 	dlm_member_init();
 	dlm_register_debugfs();
 
@@ -53,9 +43,6 @@ int __init init_dlm(void)
 void __exit exit_dlm(void)
 {
 	dlm_member_exit();
-	dlm_device_exit();
-	dlm_memory_exit();
-	dlm_config_exit();
 	dlm_lockspace_exit();
 	dlm_unregister_debugfs();
 }

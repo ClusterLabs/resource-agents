@@ -53,9 +53,9 @@
 
 #include "dlm_internal.h"
 #include "lowcomms.h"
-#include "midcomms.h"
 #include "config.h"
 #include "member.h"
+#include "midcomms.h"
 
 /* One of these per connected node */
 struct nodeinfo
@@ -543,10 +543,10 @@ static int receive_from_sock(void)
 		return 0;
 
 	CBUF_ADD(&sctp_con.cb, ret);
-	ret = midcomms_process_incoming_buffer(cpu_to_le32(sinfo->sinfo_ppid),
-                                               page_address(sctp_con.rx_page),
-                                               sctp_con.cb.base, sctp_con.cb.len,
-                                               PAGE_CACHE_SIZE);
+	ret = dlm_process_incoming_buffer(cpu_to_le32(sinfo->sinfo_ppid),
+                                          page_address(sctp_con.rx_page),
+                                          sctp_con.cb.base, sctp_con.cb.len,
+                                          PAGE_CACHE_SIZE);
 
 	if (ret == -EBADMSG) {
 		printk(KERN_INFO "dlm: lowcomms: addr=%p, len=%u, "
@@ -698,8 +698,7 @@ static struct writequeue_entry *new_writequeue_entry(int allocation)
 	return entry;
 }
 
-struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
-					     int allocation, char **ppc)
+void *lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc)
 {
 	struct writequeue_entry *e;
 	int offset = 0;
@@ -747,8 +746,9 @@ struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
 	return NULL;
 }
 
-void lowcomms_commit_buffer(struct writequeue_entry *e)
+void lowcomms_commit_buffer(void *arg)
 {
+	struct writequeue_entry *e = (struct writequeue_entry *) arg;
 	int users;
 	struct nodeinfo *ni = e->ni;
 

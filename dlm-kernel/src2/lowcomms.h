@@ -18,10 +18,9 @@
 int lowcomms_send_message(int csid, char *buf, int len, int allocation);
 
 /* The new interface */
-struct writequeue_entry;
-extern struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
-						    int allocation, char **ppc);
-extern void lowcomms_commit_buffer(struct writequeue_entry *e);
+extern void *lowcomms_get_buffer(int nodeid, int len,
+				 int allocation, char **ppc);
+extern void lowcomms_commit_buffer(void *mh);
 
 int lowcomms_start(void);
 void lowcomms_stop(void);

@@ -18,7 +18,7 @@
 #include "dir.h"
 #include "member.h"
 #include "lockspace.h"
-#include "astd.h"
+#include "ast.h"
 #include "lock.h"
 
 /* Central locking logic has four stages:
@@ -72,7 +72,7 @@
 static struct list_head dlm_waiters;
 static struct semaphore dlm_waiters_sem;
 
-void dlm_init_lock(void)
+void dlm_lock_init(void)
 {
 	INIT_LIST_HEAD(&dlm_waiters);
 	init_MUTEX(&dlm_waiters_sem);

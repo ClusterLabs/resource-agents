@@ -16,9 +16,4 @@
 
 uint32_t dlm_hash(const char *data, int len);
 
-void print_lkb(struct dlm_lkb *lkb);
-void print_rsb(struct dlm_rsb *r);
-void print_request(struct dlm_request *req);
-void print_reply(struct dlm_reply *rp);
-
 #endif

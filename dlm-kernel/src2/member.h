@@ -36,11 +36,5 @@ int dlm_addr_nodeid(char *addr, int *nodeid);
 int dlm_our_nodeid(void);
 int dlm_our_addr(int i, char *addr);
 
-/* FIXME: just to keep src/src2 files similar for a while */
-static __inline__ int our_nodeid(void)
-{
-	return dlm_our_nodeid();
-}
-
 #endif                          /* __MEMBER_DOT_H__ */
 

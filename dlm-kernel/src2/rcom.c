@@ -64,6 +64,8 @@ int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
 {
 	int error = 0;
 
+	log_debug(ls, "dlm_send_rcom to %d type %d", nodeid, type);
+
 	if (!rc->rc_datalen)
 		rc->rc_datalen = 1;
 
@@ -172,10 +174,10 @@ void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	rc = &rc_stack;
 	memset(rc, 0, sizeof(struct dlm_rcom));
 
-	if (test_bit(LSFL_RESDIR_VALID, &ls->ls_flags))
+	if (test_bit(LSFL_DIR_VALID, &ls->ls_flags))
 		status |= DIR_VALID;
 
-	if (test_bit(LSFL_ALL_RESDIR_VALID, &ls->ls_flags))
+	if (test_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags))
 		status |= DIR_ALL_VALID;
 
 	if (test_bit(LSFL_NODES_VALID, &ls->ls_flags))
@@ -268,7 +270,7 @@ void receive_rcom_locks(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	 * during a previous recovery instance.
 	 */
 
-	if (!test_bit(LSFL_RESDIR_VALID, &ls->ls_flags)) {
+	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
 		log_debug(ls, "ignoring RCOM_LOCKS from %u", nodeid);
 		return;
 	}
@@ -339,7 +341,7 @@ void receive_rcom_locks_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 #if 0
 	int nodeid = rc_in->rc_header.h_nodeid;
 
-	if (!test_bit(LSFL_RESDIR_VALID, &ls->ls_flags)) {
+	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
 		log_debug(ls, "ignoring RCOM_LOCKS_REPLY from %u", nodeid);
 		return;
 	}

@@ -14,14 +14,11 @@
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
-#include "reccomms.h"
 #include "dir.h"
-#include "locking.h"
-#include "rsb.h"
-#include "lkb.h"
 #include "config.h"
 #include "ast.h"
 #include "memory.h"
+#include "rcom.h"
 
 /*
  * Called in recovery routines to check whether the recovery process has been
@@ -55,7 +52,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 					(dlm_config.recover_timer * HZ));
 		if (testfn(ls))
 			break;
-		if (test_bit(LSFL_LS_STOP, &ls->ls_flags)) {
+		if (dlm_recovery_stopped(ls)) {
 			error = -1;
 			break;
 		}
@@ -81,8 +78,8 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 			if (error)
 				goto out;
 
-			error = rcom_send_message(ls, memb->node->nodeid,
-						  RECCOMM_STATUS, rc, 1);
+			error = dlm_send_rcom(ls, memb->node->nodeid,
+					      DLM_RCOM_STATUS, rc, 1);
 			if (error)
 				goto out;
 
@@ -96,14 +93,14 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 		}
 	}
 
-      out:
+ out:
 	return error;
 }
 
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
 	struct dlm_rcom rc_stack, *rc;
-	uint32_t nodeid = ls->ls_low_nodeid;
+	int nodeid = ls->ls_low_nodeid;
 	int status;
 	int error = 0;
 
@@ -116,7 +113,7 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 		if (error)
 			goto out;
 
-		error = rcom_send_message(ls, nodeid, RECCOMM_STATUS, rc, 1);
+		error = dlm_send_rcom(ls, nodeid, DLM_RCOM_STATUS, rc, 1);
 		if (error)
 			break;
 
@@ -129,127 +126,11 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 		}
 	}
 
-      out:
-	return error;
-}
-
-static int purge_queue(struct dlm_ls *ls, struct list_head *queue)
-{
-	struct dlm_lkb *lkb, *safe;
-	struct dlm_rsb *rsb;
-	int count = 0;
-
-	list_for_each_entry_safe(lkb, safe, queue, lkb_statequeue) {
-		if (!lkb->lkb_nodeid)
-			continue;
-
-		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,);
-
-		if (dlm_is_removed(ls, lkb->lkb_nodeid)) {
-			list_del(&lkb->lkb_statequeue);
-
-			rsb = lkb->lkb_resource;
-			lkb->lkb_status = 0;
-
-			release_lkb(ls, lkb);
-			release_rsb_locked(rsb);
-			count++;
-		}
-	}
-
-	return count;
-}
-
-/*
- * Go through local restbl and for each rsb we're master of, clear out any
- * lkb's held by departed nodes.
- */
-
-int restbl_lkb_purge(struct dlm_ls *ls)
-{
-	struct list_head *tmp2, *safe2;
-	int count = 0;
-	struct dlm_rsb *rootrsb, *safe, *rsb;
-
-	log_debug(ls, "purge locks of departed nodes");
-	down_write(&ls->ls_root_lock);
-
-	list_for_each_entry_safe(rootrsb, safe, &ls->ls_rootres, res_rootlist) {
-
-		if (rootrsb->res_nodeid)
-			continue;
-
-		hold_rsb(rootrsb);
-		down_write(&rootrsb->res_lock);
-
-		/* This traverses the subreslist in reverse order so we purge
-		 * the children before their parents. */
-
-		for (tmp2 = rootrsb->res_subreslist.prev, safe2 = tmp2->prev;
-		     tmp2 != &rootrsb->res_subreslist;
-		     tmp2 = safe2, safe2 = safe2->prev) {
-			rsb = list_entry(tmp2, struct dlm_rsb, res_subreslist);
-
-			hold_rsb(rsb);
-			purge_queue(ls, &rsb->res_grantqueue);
-			purge_queue(ls, &rsb->res_convertqueue);
-			purge_queue(ls, &rsb->res_waitqueue);
-			release_rsb_locked(rsb);
-		}
-		count += purge_queue(ls, &rootrsb->res_grantqueue);
-		count += purge_queue(ls, &rootrsb->res_convertqueue);
-		count += purge_queue(ls, &rootrsb->res_waitqueue);
-
-		up_write(&rootrsb->res_lock);
-		release_rsb_locked(rootrsb);
-
-		schedule();
-	}
-
-	up_write(&ls->ls_root_lock);
-	log_debug(ls, "purged %d locks", count);
-
-	return 0;
-}
-
-/*
- * Grant any locks that have become grantable after a purge
- */
-
-int restbl_grant_after_purge(struct dlm_ls *ls)
-{
-	struct dlm_rsb *root, *rsb, *safe;
-	int error = 0;
-
-	down_read(&ls->ls_root_lock);
-
-	list_for_each_entry_safe(root, safe, &ls->ls_rootres, res_rootlist) {
-		/* only the rsb master grants locks */
-		if (root->res_nodeid)
-			continue;
-
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
-			log_debug(ls, "restbl_grant_after_purge aborted");
-			error = -EINTR;
-			up_read(&ls->ls_root_lock);
-			goto out;
-		}
-
-		down_write(&root->res_lock);
-		grant_pending_locks(root);
-		up_write(&root->res_lock);
-
-		list_for_each_entry(rsb, &root->res_subreslist, res_subreslist){
-			down_write(&rsb->res_lock);
-			grant_pending_locks(rsb);
-			up_write(&rsb->res_lock);
-		}
-	}
-	up_read(&ls->ls_root_lock);
-	wake_astd();
  out:
 	return error;
 }
+
+#if 0
 
 /*
  * Set the lock master for all LKBs in a lock queue
@@ -434,8 +315,7 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 		memcpy(rc->rc_buf, rsb->res_name, rsb->res_length);
 		rc->rc_datalen = rsb->res_length;
 
-		error = rcom_send_message(ls, dir_nodeid, RECCOMM_GETMASTER,
-				          rc, 0);
+		error = dlm_send_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, rc, 0);
 		if (error)
 			goto fail;
 	}
@@ -676,4 +556,5 @@ int dlm_lvb_recovery(struct dlm_ls *ls)
 	up_read(&ls->ls_root_lock);
 	return 0;
 }
+#endif
 
