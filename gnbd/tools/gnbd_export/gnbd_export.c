@@ -40,7 +40,8 @@ int start_gnbd_clusterd(void)
   int ret;
 
   if( (ret = system("gnbd_clusterd")) < 0){
-    printe("system() failed : %s\n", strerror(errno));
+    printe("system() failed. canot start gnbd_clusterd : %s\n",
+           strerror(errno));
     return -1;
   }
   if (ret != 0){
@@ -48,6 +49,21 @@ int start_gnbd_clusterd(void)
     return -1;
   }
   return 0;
+}
+
+void stop_gnbd_clusterd(void)
+{
+  int ret;
+
+  if( (ret = system("gnbd_clusterd -k")) < 0){
+    printe("system() failed. cannot stop gnbd_clusterd : %s\n",
+           strerror(errno));
+    return;
+  }
+  if (ret != 0){
+    printe("stopping gnbd_clusterd failed\n");
+    return;
+  }
 }
 
 int servcreate(char *name, char *device, uint32_t timeout, uint8_t readonly){
@@ -106,10 +122,10 @@ void invalidate_serv(char *name)
   close(fd);
 }
 
-
 void servremove(char *name)
 {
   name_req_t remove_req;
+  uint32_t reply;
   int fd;
 
   strncpy(remove_req.name, name, 32);
@@ -123,8 +139,16 @@ void servremove(char *name)
     printe("sending remove req failed: %s\n", gstrerror(errno));
     exit(1);
   }
-  if (recv_reply(fd, "remove") < 0)
+  if (retry_read(fd, &reply, sizeof(reply)) < 0){
+    printe("reading remove reply failed : %s\n", gstrerror(errno));
     exit(1);
+  }
+  if (reply && reply != LOCAL_RM_CLUSTER_REPLY){
+    printe("remove request failed : %s\n", gstrerror(errno));
+    exit(1);
+  }
+  if (reply == LOCAL_RM_CLUSTER_REPLY)
+    stop_gnbd_clusterd();
   printm("removed GNBD %s\n", name);
   close(fd);
 }

@@ -45,6 +45,32 @@ int have_devices(void)
   return !list_empty(&device_list);
 }
 
+int last_uncached_device(char *name)
+{
+  dev_info_t *dev = NULL;
+  list_t *list_item;
+  int uncached_devs = 0;
+  int found = 0;
+
+  list_foreach(list_item, &device_list) {
+    dev = list_entry(list_item, dev_info_t, list);
+    if (strcmp(name, dev->name) == 0){
+      found = 1;
+      if (dev->timeout == 0)
+        return LOCAL_SUCCESS_REPLY;
+    }
+    else if (dev->timeout)
+      uncached_devs++;
+  }
+  if (!found){
+    log_fail("cannot find gnbd '%s' to remove\n", name);
+    return -ENODEV;
+  }
+  if (uncached_devs)
+    return LOCAL_SUCCESS_REPLY;
+  return LOCAL_RM_CLUSTER_REPLY;
+}
+
 dev_info_t *find_device(char *name)
 {
   list_t *list_item;
@@ -221,6 +247,8 @@ int invalidate_device(char *name, int sock)
     return err;
   return 0;
 }
+
+
 
 int remove_device(char *name)
 {

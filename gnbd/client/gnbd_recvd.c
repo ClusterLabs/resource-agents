@@ -204,7 +204,7 @@ int kill_old_gservs(char *host, unsigned short port)
   strncpy(node.node_name, node_name, 65);
 
   if( (sock = connect_to_server(host, port)) < 0){
-    printe("cannot connect to server %s (%d) : %s\n", host, sock,
+    tell_err("cannot connect to server %s (%d) : %s\n", host, sock,
            strerror(errno));
     return -1;
   }
@@ -367,16 +367,18 @@ int main(int argc, char **argv)
   if (!pid_lock(minor_str))
     fail("%s already running for device #%d\n", program_name,
          minor_num);
+
+  if (forget_mode){
+    finish_startup("gnbd_recvd started\n");
+    have_connected = 1;
+  }
+
   get_devname();
   open_device();
 
   /* FIXME -- setup signals here */
   /* FIXME -- somewhere I should set myself to nobody */
   
-  if (forget_mode){
-    finish_startup("gnbd_recvd started\n");
-    have_connected = 1;
-  }
   while(1){
     do_receiver();
     if (!have_connected)

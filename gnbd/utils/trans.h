@@ -31,6 +31,7 @@ int send_cmd(int fd, uint32_t cmd, char *type);
 int recv_reply(int fd, char *type);
 int send_u32(int fd, uint32_t msg);
 int recv_u32(int fd, uint32_t *msg);
+int start_comm_device(char *name);
 
 /* FIXME -- there are errno values.. should I do this differently */
 #define GNBD_GOT_SIGHUP 254

@@ -30,7 +30,7 @@ struct import_info_s {
 };
 typedef struct import_info_s import_info_t;
 
-#define HOSTNAME_SIZE 256
+#define NODENAME_SIZE 65
 
 #define EXTERN_NAMES_REQ        1
 #define EXTERN_FENCE_REQ        2
@@ -40,12 +40,13 @@ typedef struct import_info_s import_info_t;
 /* FIXME -- should this be only external */
 #define EXTERN_KILL_GSERV_REQ   5
 #define EXTERN_LOGIN_REQ        6
-#define EXTERN_HOSTNAME_REQ     7
+#define EXTERN_NODENAME_REQ     7
 
 #define EXTERN_SUCCESS_REPLY    0
 /* FIXME -- is this used */
 #define REPLY_ERR(x) (-((int)(x)))
 
+extern char nodename[NODENAME_SIZE];
 int start_extern_socket(short unsigned int port);
 int accept_extern_connection(int listening_sock);
 int check_extern_data_len(uint32_t req, int size);

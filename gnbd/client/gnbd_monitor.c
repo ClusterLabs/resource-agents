@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/poll.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -35,9 +36,30 @@
 #include "extern_req.h"
 #include "gnbd_monitor.h"
 
+struct connection_s {
+  uint32_t action;
+  int size;
+  char *buf;
+  int dev; /* minor_nr of device that this connection applies to */
+};
+typedef struct connection_s connection_t;
+
+struct waiter_s {
+  pid_t pid;
+  int minor;
+  list_t list;
+};
+typedef struct waiter_s waiter_t;
+
+list_decl(waiter_list);
+connection_t *connections;
 struct pollfd *polls;
 int max_id;
 char node_name[65];
+unsigned int checks = 0;
+
+#define BUFSIZE (sizeof(monitor_info_t) + sizeof(uint32_t))
+#define RESTART_CHECK 10
 
 cluster_member_list_t *cluster_members;
 
@@ -46,84 +68,59 @@ cluster_member_list_t *cluster_members;
 
 list_t monitor_list;
 
+
 struct monitor_s {
   int minor_nr;
   int timeout;
-  int reset;
+  int state;
+  char server[65];
   list_t list;
 };
 typedef struct monitor_s monitor_t;
 
-void remove_device(int minor_nr)
-{
+monitor_t *find_device(int minor_nr){
   list_t *item;
   monitor_t *dev;
 
-  list_foreach(item, &monitor_list){
-    dev = list_entry(item, monitor_t, list);
-    if (dev->minor_nr == minor_nr){
-      list_del(&dev->list);
-      free(dev);
-      return;
-    }
-  }
-}
-
-int monitor_device(int minor_nr, int timeout)
-{
-  list_t *item;
-  monitor_t *dev;
-  
   list_foreach(item, &monitor_list){
     dev = list_entry(item, monitor_t, list);
     if (dev->minor_nr == minor_nr)
-      return 0;
+      return dev;
   }
+  return NULL;
+}
+
+void remove_device(int minor_nr)
+{
+  monitor_t *dev;
+
+  if( (dev = find_device(minor_nr)) != NULL){
+    block_sigchld();
+    list_del(&dev->list);
+    free(dev);
+    unblock_sigchld();
+  }
+  return;
+}
+
+int monitor_device(int minor_nr, int timeout, char *server)
+{
+  monitor_t *dev;
+  
+  if (strlen(server) > 64)
+    return -EINVAL;
+
+  if (find_device(minor_nr) != NULL)
+    return 0;
   dev = (monitor_t *)malloc(sizeof(monitor_t));
   if (!dev)
     return -ENOMEM;
   dev->minor_nr = minor_nr;
   dev->timeout = timeout;
-  dev->reset = 0;
+  memcpy(dev->server, server, 65);
+  dev->state = NORMAL_STATE;
   list_add(&dev->list, &monitor_list);
   return 0;
-}
-
-int start_request_sock(void)
-{
-  int sock;
-  struct sockaddr_un addr;
-  struct stat stat_buf;
-
-  if( (sock = socket(PF_UNIX, SOCK_STREAM, 0)) < 0)
-    fail_startup("cannot create unix socket : %s\n", strerror(errno));
-  
-  /* FIXME -- I should take the name out of this function, and put it
-     someplace that is user defineable */
-  addr.sun_family = AF_UNIX;
-  snprintf(addr.sun_path, 108, "%s/gnbd_monitorcomm", program_dir);
-  
-  if (stat(addr.sun_path, &stat_buf) < 0){
-    if (errno != ENOENT)
-      fail_startup("cannot stat unix socket file '%s' : %s\n", addr.sun_path,
-                   strerror(errno));
-  }
-  else if (unlink(addr.sun_path) < 0)
-    fail_startup("cannot remove unix socket file '%s' : %s\n", addr.sun_path,
-                 strerror(errno));
-
-  if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    fail_startup("cannot bind unix socket to /var/run/gnbd_servcomm : %s\n",
-                 strerror(errno));
-
-  if (chmod(addr.sun_path, S_IRUSR | S_IWUSR) < 0)
-    fail_startup("cannot set the file permissions on the unix socket : %s\n",
-                 strerror(errno));
-
-  if (listen(sock, 1) < 0)
-    fail_startup("cannot listen on unix socket : %s\n", strerror(errno));
-  
-  return sock;
 }
 
 void setup_poll(void)
@@ -132,6 +129,10 @@ void setup_poll(void)
   polls = malloc(open_max() * sizeof(struct pollfd));
   if (!polls)
     fail_startup("cannot allocate poller structure : %s\n", strerror(errno));
+  connections = malloc(open_max() * sizeof(connection_t));
+  if (!connections)
+    fail_startup("cannot allocate connection structures : %s\n",
+                 strerror(errno));
   polls[CLUSTER].fd = clu_connect(NULL, 0);
   if (polls[CLUSTER].fd < 0)
     fail_startup("cannot connect to cluster manager : %s\n",
@@ -142,7 +143,13 @@ void setup_poll(void)
   if (memb_resolve_list(cluster_members, NULL) < 0)
     fail_startup("cannot resolve member list\n");
   polls[CLUSTER].events = POLLIN;
-  polls[CONNECT].fd = start_request_sock();
+  connections[CLUSTER].buf = malloc(BUFSIZE);
+  if (!connections[CLUSTER].buf)
+    fail_startup("couldn't allocation memory for cluster connection buffer\n");
+  connections[CLUSTER].action = 0;
+  connections[CLUSTER].size = 0;
+  connections[CLUSTER].dev = -1;
+  polls[CONNECT].fd = start_comm_device("gnbd_monitorcomm");
   polls[CONNECT].events = POLLIN;
   for(i = 2; i < open_max(); i++){
     polls[i].fd = -1;
@@ -152,6 +159,7 @@ void setup_poll(void)
 }
  
 void close_poller(int index){
+  close(polls[index].fd);
   if (index == CLUSTER){
     log_err("lost connection to the cluster manager\n");
     /* FIXME -- should do something different */
@@ -162,9 +170,9 @@ void close_poller(int index){
     /* FIXME -- again, don't do this */
     exit(1);
   }
-  close(polls[index].fd);
   polls[index].fd = -1;
   polls[index].revents = 0;
+  free(connections[index].buf);
   while(polls[max_id].fd == -1)
     max_id--;
 }
@@ -187,9 +195,19 @@ void accept_connection(void)
     close(sock);
     return;
   }
+  connections[i].buf = malloc(BUFSIZE);
+  if (!connections[i].buf){
+    log_err("couldn't allocate memory for connection buffer\n");
+    close(sock);
+    return;
+  }
+  connections[i].action = 0;
+  connections[i].size = 0;
+  connections[i].dev = -1;
   polls[i].fd = sock;
   polls[i].events = POLLIN;
-  if (i > max_id) max_id = i;
+  if (i > max_id)
+    max_id = i;
 }
 
 #define DO_TRANS(action, label)\
@@ -226,80 +244,130 @@ int get_monitor_list(char **buffer, unsigned int *list_size)
     dev = list_entry(item, monitor_t, list);
     ptr->minor_nr = dev->minor_nr;
     ptr->timeout = dev->timeout;
+    ptr->state = dev->state;
     ptr++;
   }
 
   return 0;
 }
 
-cluster_member_t *check_for_host(cluster_member_list_t *list, char *host)
+cluster_member_t *check_for_node(cluster_member_list_t *list, char *node)
 {
-  int err, x;
-  struct addrinfo *ai;
-  
-  err = getaddrinfo(host, NULL, NULL, &ai);
-  if (err){
-    printe("cannot get address info for %s : %s\n", host,
-           (err = EAI_SYSTEM)? strerror(errno) : gai_strerror(err));
+  int i;
+
+  for(i = 0; i < list->cml_count; i++){
+    if (!strcmp(list->cml_members[i].cm_name, node))
+      return &list->cml_members[i];
+  }
+  return NULL;
+}
+
+void do_fail_device(waiter_t *waiter)
+{
+  int fd;
+  pid_t pid;
+
+  if( (pid = fork()) < 0){
+    log_err("cannot fork child to fail device #%d : %s\n", waiter->minor,
+            strerror(errno));
     exit(1);
   }
+  
+  if (pid != 0){
+    waiter->pid = pid;
+    return;
+  }
 
-  for (x = 0; x < list->cml_count; x++){
-    if (!list->cml_members[x].cm_addrs){
-      log_err("cluster member %s doesn't have ipaddrs resolved\n",
-              list->cml_members[x].cm_name);
-      exit(1);
+  unblock_sigchld();
+
+  if( (fd = open("/dev/gnbd_ctl", O_RDWR)) < 0){
+    log_err("cannot open /dev/gnbd_ctl : %s\n", strerror(errno));
+    exit(1);
+  }
+  if (sscanf(get_sysfs_attr(waiter->minor, "pid"), "%d", &pid) != 1){
+    log_err("cannot parse /sys/class/gnbd/gnbd%d/pid\n", waiter->minor);
+    exit(1);
+  }
+  kill(pid, SIGKILL);
+  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)waiter->minor) < 0){
+    log_err("cannot clear gnbd device #%d queue : %s\n", waiter->minor,
+           strerror(errno));
+    exit(1);
+  }
+  exit(0);
+} 
+
+void sig_chld(int sig)
+{
+  int status;
+  pid_t pid;
+  list_t *list_item;
+  waiter_t *tmp, *waiter;
+  int redo;
+  monitor_t *dev;
+  
+  while( (pid = waitpid(-1, &status, WNOHANG)) > 0){
+    redo = 0;
+    waiter = NULL;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+      redo = 1;
+    list_foreach(list_item, &waiter_list){
+      tmp = list_entry(list_item, waiter_t, list);
+      if (tmp->pid == pid){
+        waiter = tmp;
+        break;
+      }
     }
-    if (check_addr_info(ai, list->cml_members[x].cm_addrs)){
-      freeaddrinfo(ai);
-      return &list->cml_members[x];
+    if (waiter){
+      if (redo)
+        do_fail_device(waiter);
+      else{
+        if( (dev = find_device(waiter->minor)) != NULL)
+          dev->state = RESET_STATE;
+        waiter->pid = -1;
+      }
     }
   }
-  freeaddrinfo(ai);
-  return NULL;
 }
 
 void fail_device(monitor_t *dev)
 {
-  int pid;
-  int fd;
+  list_t *list_item, *tmp;
+  waiter_t *waiter;
+
+  block_sigchld();
   
-  if( (fd = open("/dev/gnbd_ctl", O_RDWR)) < 0){
-    printe("cannot open /dev/gnbd_ctl : %s\n", strerror(errno));
+  list_foreach_safe(list_item, &waiter_list, tmp) {
+    waiter = list_entry(list_item, waiter_t, list);
+    if (waiter->pid == -1){
+      list_del(&waiter->list);
+      free(waiter);
+    }
+  }
+  waiter = malloc(sizeof(waiter_t));
+  if (!waiter){
+    log_err("cannot allocate memory to fail_device #%d\n", dev->minor_nr);
     exit(1);
   }
-  if (sscanf(get_sysfs_attr(dev->minor_nr, "pid"), "%d", &pid) != 1){
-    printe("cannot parse /sys/class/gnbd/gnbd%d/pid\n", dev->minor_nr);
-    exit(1);
-  }
-  kill(pid, SIGKILL);
-  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)dev->minor_nr) < 0){
-    printe("cannot clear gnbd device #%d queue : %s\n", dev->minor_nr,
-           strerror(errno));
-    exit(1);
-  }
-  list_del(&dev->list);
-  free(dev);
-} 
+  waiter->minor = dev->minor_nr;
+  list_add(&waiter->list, &waiter_list);
+  do_fail_device(waiter);
+  unblock_sigchld();
+}
 
 void fail_devices(cluster_member_list_t *nodes)
 {
   monitor_t *dev;
   list_t *item, *next;
-  cluster_member_t *node;
-  char host[256];
-  unsigned short port;
-  
+
+  if (!nodes)
+    return;
   list_foreach_safe(item, &monitor_list, next){
     dev = list_entry(item, monitor_t, list);
-    if (sscanf(get_sysfs_attr(dev->minor_nr, "server"), "%255s/%4hx",
-               host, &port) != 2){
-      printe("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
-      exit(1);
-    }
-    node = check_for_host(nodes, host);
-    if (node)
+    if (check_for_node(nodes, dev->server)){
       fail_device(dev);
+      break;
+    }
   }
 }
 
@@ -314,10 +382,9 @@ void handle_cluster_msg(void)
     /* FIXME -- need to retry.. Can't just give up */
     exit(1);
   }
-  if (event == CE_MEMB_CHANGE){
+  else if (event != CE_INQUORATE && event != CE_SUSPEND){
     new = clu_member_list(NULL);
     lost = clu_members_lost(cluster_members, new);
-    memb_resolve_list(new, cluster_members);
     cml_free(cluster_members);
     cluster_members = new;
 
@@ -326,33 +393,58 @@ void handle_cluster_msg(void)
   }
 }
 
-void handle_request(int index){
-  uint32_t cmd;
+void handle_msg(int index){
+  connection_t *connection = &connections[index];
   uint32_t reply = MONITOR_SUCCESS_REPLY;
   int sock;
+  int bytes;
   int err;
 
   sock = polls[index].fd;
-
-  DO_TRANS(retry_read(sock, &cmd, sizeof(cmd)), exit);
   
-  switch(cmd){
+  bytes = read(sock, connection->buf + connection->size,
+               BUFSIZE - connection->size);
+  if (bytes <= 0){
+    if (bytes == 0)
+      log_err("unexpectedly read EOF on connection, device: %d, action: %d\n",
+              connection->dev, connection->action);
+    else if (errno != EINTR)
+      log_err("cannot read from connection, device: %d, action: %d : %s\n",
+              connection->dev, connection->action, strerror(errno));
+    log_verbose("total read : %d bytes\n", connection->size);
+    close_poller(index);
+    return;
+  }
+  
+  connection->size += bytes;
+  if (connection->size < sizeof(uint32_t))
+    return;
+  if (connection->action == 0)
+    memcpy(&connection->action, connection->buf, sizeof(uint32_t));
+  
+  switch(connection->action){
   case MONITOR_REQ:
     {
       monitor_info_t info;
-      DO_TRANS(retry_read(sock, &info, sizeof(info)), exit);
-      err = monitor_device(info.minor_nr, info.timeout);
+      if (connection->size < sizeof(uint32_t) + sizeof(info))
+        return;
+      memcpy(&info, connection->buf + sizeof(uint32_t), sizeof(info));
+      err = monitor_device(info.minor_nr, info.timeout, info.server);
       if (err)
         reply = -err;
       DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);
     }
+    break;
   case REMOVE_REQ:
     {
       int minor;
-      DO_TRANS(retry_read(sock, &minor, sizeof(minor)), exit);
+      if (connection->size < sizeof(uint32_t) + sizeof(minor))
+        return;
+      memcpy(&minor, connection->buf + sizeof(uint32_t), sizeof(minor));
       remove_device(minor);
       DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);
     }
+    break;
   case LIST_REQ:
     {
       char *buffer = NULL;
@@ -374,7 +466,7 @@ void handle_request(int index){
       break;
     }
   default:
-    log_err("unknown request 0x%x\n", cmd);
+    log_err("unknown request 0x%x\n", connection->action);
     reply = ENOTTY;
     DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);
   }
@@ -382,138 +474,256 @@ void handle_request(int index){
   close_poller(index);
 }
 
-int cleanup_server(monitor_t *dev){
-  char host[256];
-  unsigned short port;
-  device_req_t kill_req;
-  node_req_t node;
-  int sock;
-  uint32_t msg = EXTERN_KILL_GSERV_REQ;
-  
-  strncpy(node.node_name, node_name, 65);
-
-  if (sscanf(get_sysfs_attr(dev->minor_nr, "server"),
-             "%255s:%hx\n", host, &port) != 2){
-      printe("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
-      exit(1);
-  }
-  if (sscanf(get_sysfs_attr(dev->minor_nr, "name"),
-             "%s\n", kill_req.name) != 1){
-      printe("cannot parse /sys/class/gnbd/gnbd%d/name\n", dev->minor_nr);
-      exit(1);
-  }
-  /* FIXME -- This needs to be timed */
-  if( (sock = connect_to_server(host, port)) < 0){
-    log_err("cannot connect to %s (%d) : %s\n", host, sock, strerror(errno));
-    return -1;
-  }
-  if (send_u32(sock, msg)){
-    log_err("cannot send request to server\n");
-    return -1;
-  }
-  if (retry_write(sock, &kill_req, sizeof(kill_req))){
-    log_err("cannot send data to server\n");
-    return -1;
-  }
-  if (retry_write(sock, &node, sizeof(node)) < 0){
-    log_err("transfer of my node name to %s failed : %s\n", host,
-             strerror(errno));
-    return -1;
-  }
-  if (recv_u32(sock, &msg)){
-    log_err("cannot receive reply from server\n");
-    return -1;
-  }
-  if (msg != EXTERN_SUCCESS_REPLY){
-    log_err("cannot remove existing server from %s\n", host);
-    return -1;
-  }
-  return 0;
-}
-    
-void fence_server(monitor_t *dev)
+cluster_member_t *get_failover_server(monitor_t *dev)
 {
   char host[256];
-  unsigned short port;
   cluster_member_t *server;
+  list_t *item;
+  monitor_t *other_dev;
 
-  if (sscanf(get_sysfs_attr(dev->minor_nr, "server"),
-             "%255s/%hx\n", host, &port) != 2){
-    log_err("cannot parse /sys/class/gnbd/gnbd%d/server\n", dev->minor_nr);
+  server = check_for_node(cluster_members, dev->server);
+  if (server == NULL){
+    log_err("server %s is not a cluster member, cannot fence.\n", host);
+    return NULL;
+  }
+  list_foreach(item, &monitor_list){
+    other_dev = list_entry(item, monitor_t, list);
+    if (!strcmp(other_dev->server, dev->server))
+      continue;
+    if (other_dev->state == NORMAL_STATE)
+      return server;
+  }
+  return NULL;
+}
+
+int check_recvd(monitor_t *dev)
+{
+  char filename[32];
+  int ret;
+  int pid;
+  
+  snprintf(filename, 32, "gnbd_recvd-%d.pid", dev->minor_nr);
+  ret = __check_lock(filename, &pid);
+  if (ret < 0)
+    log_err("cannot check lockfile %s/%s : %s\n", program_dir, filename,
+            strerror(errno));
+  else
+    ret = pid;
+  return ret;
+}
+
+int check_usage(monitor_t *dev)
+{
+  int usage;
+
+  if (sscanf(get_sysfs_attr(dev->minor_nr, "usage"), "%d", &usage) != 1){
+    log_err("cannot parse /sys/class/gnbd/gnbd%d/usage\n", dev->minor_nr);
     exit(1);
   }
-  server = check_for_host(cluster_members, host);
-  if (!server){
-    log_err("server %s is not a cluster member, cannot fence.\n", host);
-    return;
+  return usage;
+}
+
+int start_recvd(monitor_t *dev)
+{
+  int i;
+  pid_t pid;
+  int status;
+  char minor_str[4];
+  int fd1[2], fd2[2];
+  
+  snprintf(minor_str, 4, "%d", dev->minor_nr);
+  minor_str[3] = 0;
+  
+  if(pipe(fd1) || pipe(fd2)){
+    log_err("pipe error : %s\n", strerror(errno));
+    return -1;
   }
-  if (clu_fence(server) < 0)
-    log_err("fence of %s failed\n", host);
-}  
+  pid = fork();
+  if (pid < 0){
+    log_err("cannot fork gnbd_recvd : %s\n", strerror(errno));
+    return -1;
+  }
+  
+  if (pid){
+    close(fd1[0]);
+    close(fd2[1]);
+    waitpid(pid, &status, 0);
+    close(fd1[1]);
+    close(fd2[0]);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0){
+      log_err("gnbd_recvd failed (%d)\n", WEXITSTATUS(status));
+      return -1;
+    }
+    return 0;
+  }
+  
+  close(fd1[1]);
+  close(fd2[0]);
+  if (fd2[1] == STDIN_FILENO){
+    fd2[1] = dup(fd2[1]);
+    if (fd2[1] < 0)
+      exit(1);
+  }
+  if (dup2(fd1[0], STDIN_FILENO) < 0)
+    exit(1);
+  if (dup2(fd2[1], STDOUT_FILENO) < 0)
+    exit(1);
+  if (dup2(fd2[1], STDERR_FILENO) < 0)
+    exit(1);
+  for(i = open_max()-1; i > 2; --i) 
+    close(i);
+  execlp("gnbd_recvd", "gnbd_recvd", "-f", "-d", minor_str);
+  exit(1);
+}
+
+int whack_recvd(monitor_t *dev)
+{
+  int ret;
+  
+  ret = check_recvd(dev);
+  if (ret < 0)
+    return ret;
+  else if (ret)
+    return kill(ret, SIGHUP);
+  else
+    return start_recvd(dev);
+}
 
 void check_devices(void)
 {
   list_t *item, *next;
   monitor_t *dev;
 
+  checks++;
+
   list_foreach_safe(item, &monitor_list, next){
     int waittime;
-    int pid;
     dev = list_entry(item, monitor_t, list);
     if (sscanf(get_sysfs_attr(dev->minor_nr, "waittime"),
                "%d", &waittime) != 1){
-      printe("cannot parse /sys/class/gnbd/gnbd%d/waittime\n", dev->minor_nr);
+      log_err("cannot parse /sys/class/gnbd/gnbd%d/waittime\n", dev->minor_nr);
       exit(1);
     }
-    if (waittime <= dev->timeout){
-      if (dev->reset)
-        dev->reset = 0;
-      continue;
+    switch(dev->state){
+    case NORMAL_STATE:
+      if (waittime > dev->timeout){
+        whack_recvd(dev);
+        dev->state = TIMED_OUT_STATE;
+      }
+      break;
+    case TIMED_OUT_STATE:
+      if (waittime <= dev->timeout){
+        dev->state = NORMAL_STATE;
+      }
+      else {
+        cluster_member_t *server;
+        server = get_failover_server(dev);
+        if (server){
+          if (clu_fence(server) < 0)
+            log_err("fence of %s failed\n", dev->server);
+          dev->state = FENCED_STATE;
+        }
+        else
+          whack_recvd(dev);
+      }
+      break;
+    case RESET_STATE:
+      if (check_usage(dev) == 0)
+        dev->state = RESTARTABLE_STATE;
+      break;
+    case RESTARTABLE_STATE:
+      if (check_recvd(dev) == 1)
+        dev->state = NORMAL_STATE;
+      else if (checks % RESTART_CHECK == 0)
+        start_recvd(dev);
+      break;
+    /* FENCED_STATE */
     }
-    if (dev->reset){
-      fail_device(dev);
-      continue;
-    }
-    if (cleanup_server(dev) < 0){
-      fence_server(dev);
-      continue;
-    }
-    if (sscanf(get_sysfs_attr(dev->minor_nr, "pid"), "%d", &pid) != 1){
-      printe("cannot parse /sys/class/gnbd/gnbd%d/pid\n", dev->minor_nr);
-      exit(1);
-    }
-    if (kill(pid, SIGTERM) < 0){ /* FIXME -- or something */
-      printe("cannot send device #%d the term signal : %s\n", dev->minor_nr,
-             strerror(errno));
-      fail_device(dev); /* FIXME -- already know that pid doesn't exist */
-    } else
-      dev->reset = 0;
   }
 }
 
 void list_monitored_devs(void){
+  char state[12];
   monitor_info_t *ptr, *devs;
   int i, count;
 
   if (do_list_monitored_devs(&devs, &count) < 0)
     exit(1);
 
-  printf("device #   timeout\n");
+  printf("device #   timeout   state\n");
   ptr = devs;
-  for(i = 0; i < count; i++, ptr++)
-    printf("%8d   %d\n", ptr->minor_nr, ptr->timeout);
+
+  for(i = 0; i < count; i++, ptr++){
+    switch(ptr->state){
+    case NORMAL_STATE:
+      strcpy(state, "normal");
+      break;
+    case TIMED_OUT_STATE:
+      strcpy(state, "timed out");
+      break;
+    case RESET_STATE:
+      strcpy(state, "reset");
+      break;
+    case RESTARTABLE_STATE:
+      strcpy(state, "restartable");
+      break;
+    case FENCED_STATE:
+      strcpy(state, "fenced");
+      break;
+    }
+    printf("%8d   %7d   %s\n", ptr->minor_nr, ptr->timeout, state);
+  }
   free(devs);
 }
     
+void do_poll(void)
+{
+  int err;
+  int i;
+  
+  err = poll(polls, max_id + 1, 5 * 1000);
+  if (err < 0){
+    if (errno != EINTR)
+      log_err("poll error : %s\n", strerror(errno));
+    return;
+  }
+  if (err == 0)
+    check_devices();
+  for (i = 0; i <= max_id; i++){
+    if (polls[i].revents & (POLLERR | POLLHUP | POLLNVAL)){
+      log_err("Bad poll result, 0x%x on id %d\n", polls[i].revents, i);
+      close_poller(i);
+      continue;
+    }
+    if (polls[i].revents & POLLIN){
+      if (i == CONNECT)
+        accept_connection();
+      else if (i == CLUSTER)
+        handle_cluster_msg();
+      else
+        handle_msg(i);
+    }
+  }
+}
 
+void setup_signals(void)
+{
+  struct sigaction act;
+
+  memset(&act, 0, sizeof(act));
+  act.sa_handler = sig_chld;
+  if( sigaction(SIGCHLD, &act, NULL) <0)
+    fail_startup("cannot setup SIGCHLD handler : %s\n", strerror(errno));
+}
 
 int main(int argc, char *argv[])
 {
   int minor_nr;
   int timeout;
+  int err;
 
-  if (argc > 3){
-    fprintf(stderr, "Usage: %s <minor_nr> <timeout>\n", argv[0]);
+  if (argc != 1 && argc != 2 && argc != 4){
+    fprintf(stderr, "Usage: %s <minor_nr> <timeout> <server>\n", argv[0]);
     exit(1);
   }
 
@@ -542,7 +752,7 @@ int main(int argc, char *argv[])
   program_name = "gnbd_monitor";
 
   if (check_lock("gnbd_monitor.pid", NULL)){
-    if (do_add_monitored_dev(minor_nr, timeout) < 0)
+    if (do_add_monitored_dev(minor_nr, timeout, argv[3]) < 0)
       exit(1);
     exit(0);
   }
@@ -552,6 +762,8 @@ int main(int argc, char *argv[])
   if (!pid_lock(""))
     fail_startup("Temporary problem running gnbd_monitor. Please retry");
     
+  setup_signals();
+
   if (get_my_nodename(node_name) < 0)
     fail_startup("cannot get node name : %s\n", strerror(errno));
   
@@ -559,49 +771,15 @@ int main(int argc, char *argv[])
 
   setup_poll();
 
-  if (monitor_device(minor_nr, timeout))
-    fail_startup("cannot add device #%d to monitor_list\n", minor_nr);
+  err = monitor_device(minor_nr, timeout, argv[3]);
+  if (err)
+    fail_startup("cannot add device #%d to monitor_list : %s\n", minor_nr,
+                 strerror(err));
   
   finish_startup("gnbd_monitor started. Monitoring device #%d\n", minor_nr);
   
   while(1){
-    int err;
-    int i;
-
-    err = poll(polls, max_id + 1, 5 * 1000);
-    if (err <= 0){
-      if (err < 0 && errno != EINTR)
-        log_err("poll error : %s\n", strerror(errno));
-      continue;
-    }
-    if (err == 0){
-      check_devices();
-    }
-    for(i = 0; i <= max_id; i++){
-      if (polls[i].revents & POLLNVAL){
-        log_err("POLLNVAL on id %d\n", i);
-        close_poller(i);
-        continue;
-      }
-      if (polls[i].revents & POLLERR){
-        log_err("POLLERR on id %d\n", i);
-        close_poller(i);
-        continue;
-      }
-      if (polls[i].revents & POLLHUP){
-        log_err("POLLHUP on id %d\n", i);
-        close_poller(i);
-        continue;
-      }
-      if (polls[i].revents & POLLIN){
-        if (i == CONNECT)
-          accept_connection();
-        else if (i == CLUSTER)
-          handle_cluster_msg();
-        else
-          handle_request(i);
-      }
-    }
+    do_poll();
   }
   return 0;
 }

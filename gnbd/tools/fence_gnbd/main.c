@@ -77,6 +77,43 @@ void print_usage()
   printf("  -V               Version information\n");
 }
 
+void parse_servers(char *str){
+  char *end, *ptr;
+  serv_list_t *tmp;
+  
+  end = str + strlen(str);
+  while (str < end){
+    if (isspace(*str)){
+      str++;
+      continue;
+    }
+    if (*str == '\'' || *str == '\"'){
+      char match = *str;
+      str++;
+      ptr = strchr(str, match);
+      if (ptr == NULL)
+        fail("no closing for quote character %c in %s\n", match, str);
+      *ptr = 0;
+    }
+    else{
+      char *match = " \f\n\r\t\v";
+      ptr = strpbrk(str, match);
+      if (ptr != NULL)
+        *ptr = 0;
+      else
+        ptr = end;
+    }
+    tmp = malloc(sizeof(serv_list_t));
+    if (!tmp)
+      fail("couldn't allocate memory for server list\n");
+    strcpy(tmp->name, str);
+    tmp->next = servers;
+    servers = tmp;
+    num_servers++;
+    str = ptr + 1;
+  }
+}
+    
 
 void get_options(int argc, char **argv)
 {
@@ -169,15 +206,8 @@ void get_options(int argc, char **argv)
         if (match != 1)
           fail("'%s' is not a valid value for retrys\n", value);
       }
-      if (!strcmp(arg, "server")){
-        serv_list_t *tmp = malloc(sizeof(serv_list_t));
-        if (!tmp)
-          fail("couldn't allocate memory for server list\n");
-        strcpy(tmp->name, value);
-        tmp->next = servers;
-        servers = tmp;
-        num_servers++;
-      }
+      if (!strcmp(arg, "server") || !strcmp(arg, "servers"))
+        parse_servers(value);
       errno = 0;
     }
     if (errno != 0)

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <string.h>
 #include <errno.h>
@@ -136,6 +137,59 @@ int retry_write(int fd, void *buf, size_t count)
   return 0;
 }
 
+int start_comm_device(char *name){
+  int sock;
+  struct sockaddr_un addr;
+  struct stat stat_buf;
+  
+  if( (sock = socket(PF_UNIX, SOCK_STREAM, 0)) < 0){
+    log_err("cannot create unix socket : %s\n", strerror(errno));
+    return -1;
+  }
+
+  addr.sun_family = AF_UNIX;
+  snprintf(addr.sun_path, 108, "%s/%s", program_dir, name);
+  
+  if (stat(addr.sun_path, &stat_buf) < 0){
+    if (errno != ENOENT){
+      log_err("cannot stat unix socket file '%s' : %s\n",
+              addr.sun_path, strerror(errno));
+      goto fail;
+    }
+  }
+  else if (unlink(addr.sun_path) < 0){
+    log_err("cannot remove unix socket file '%s' : %s\n",
+            addr.sun_path, strerror(errno));
+    goto fail;
+  }
+
+  if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0){
+    log_err("cannot bind unix socket to '%s' : %s\n", addr.sun_path,
+            strerror(errno));
+    goto fail;
+  }
+
+  if (chmod(addr.sun_path, S_IRUSR | S_IWUSR) < 0){
+    log_err("cannot set file permissions on unix socket '%s' : %s\n",
+            addr.sun_path, strerror(errno));
+    goto fail;
+  }
+
+  if (listen(sock, 1) < 0){
+    log_err("cannot listen on unix socket '%s' : %s\n",
+            addr.sun_path, strerror(errno));
+    goto fail;
+  }
+  
+  return sock;
+
+ fail:
+  close(sock);
+  return -1;
+}
+
+
+
 /* FIXME -- Are you ever called from a process that has stdout/err closed */
 int connect_to_comm_device(char *name)
 {
@@ -233,6 +287,7 @@ int connect_to_server(char *hostname, uint16_t port)
       return ret;
     }
   }
+  freeaddrinfo(ai);
   return -1;
 }
 

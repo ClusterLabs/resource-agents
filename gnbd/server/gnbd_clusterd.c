@@ -23,18 +23,40 @@
 #define INTERFACE_GROUP "cluster::usrm"
 
 static int fd = -1;
+static int quit = 0;
 
 static void sig_term(int sig)
 {
-  if (fd >= 0)
-    clu_disconnect(fd);
-  exit(0);
+  quit = 1;
 }
 
-int main(void){
+void kill_gnbd_clusterd(void){
+  int pid = 0;
+  
+  if (check_lock("gnbd_clusterd.pid", &pid) == 0)
+    return;
+  
+  kill(pid, SIGTERM);
+}
+
+
+int main(int argc, char **argv){
   struct sigaction act;
 
-  program_name = "receiver";
+  program_name = "gnbd_clusterd";
+
+  if (argc > 2 || (argc == 2 && strcmp(argv[1], "-k"))){
+    printf("Usage: gnbd_clusted [-k]\n");
+    exit(1);
+  }
+  
+  if (argc == 2){
+    kill_gnbd_clusterd();
+    exit(0);
+  }
+
+  if (check_lock("gnbd_clusterd.pid", NULL) == 1)
+    exit(0);
   
   daemonize_and_exit_parent();
   
@@ -47,15 +69,16 @@ int main(void){
     finish_startup("gnbd_clusterd already running\n");
     exit(0);
   }
-  fd = clu_connect(NULL, 0);
+  fd = clu_connect("gnbd", 1);
 
   if (fd < 0)
     fail_startup("cannot connect to cluster manager : %s\n", strerror(-fd));
   finish_startup("connected\n");
 
-  while(1){
+  while(!quit){
     pause();
   }
-
+  clu_disconnect(fd);
+  
   return 0;
 } 

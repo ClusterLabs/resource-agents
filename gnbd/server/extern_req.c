@@ -20,6 +20,8 @@
 #include <signal.h>
 #include <syslog.h>
 #include <inttypes.h>
+#include <sys/types.h>
+#include <netdb.h>
 
 #include "gnbd_endian.h"
 #include "list.h"
@@ -30,46 +32,70 @@
 #include "fence.h"
 #include "trans.h"
 
-char hostname[256];
+char nodename[NODENAME_SIZE];
 
-/* FIXME -- this can be called after startup, so the fail_startup is
-   sorta wrong */
-int start_extern_socket(short unsigned int port){
-  int sock, trueint = 1;
-  struct sockaddr_in addr;
+int do_startup(int domain, struct sockaddr *addr)
+{
+  int sock;
+  int trueint = 1;
 
-  /* FIXME -- shouldn't I call this at the start of the program
-     instead of when I open the external socket, which can get called
-     multiple times, if something goes wrong. */
-  if (gethostname(hostname, 256) < 0)
-    fail_startup("cannot get hostname : %s\n", strerror(errno));
-
-  if( (sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-    fail_startup("cannot create external socket : %s\n", strerror(errno));
-  
+  if( (sock = socket(domain, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    return -1;
   if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &trueint, sizeof(int)) < 0)
-    fail_startup("cannot set sock option SO_REUSEADDR : %s\n",
-                 strerror(errno));
-
-  if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &trueint, sizeof(int)) < 0)
-    fail_startup("cannot set sock option SO_KEEPALIVE : %s\n",
-                 strerror(errno));
-
-  if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &trueint, sizeof(int)) < 0)
-    fail_startup("cannot set sock option TCP_NODELAY : %s\n",
-                 strerror(errno));
-  
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = INADDR_ANY;
-  addr.sin_port = htons(port);
-
-  if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    fail_startup("error binding to port : %s\n", strerror(errno));
-  
+    goto fail;
+  if (domain == PF_INET6){
+    if (bind(sock, addr, sizeof(struct sockaddr_in6)) < 0)
+      goto fail;
+  }
+  else{
+    if (bind(sock, addr, sizeof(struct sockaddr_in)) < 0)
+      goto fail;
+  }
   if (listen(sock, 5) < 0)
-    fail_startup("error listening on port : %s\n", strerror(errno));
-  
+    goto fail;
   return sock;
+
+ fail:
+  close(sock);
+  return -1;
+}
+
+int start_extern_socket(uint16_t port)
+{
+  int ret;
+  char port_str[7];
+  struct addrinfo hint, *ai, *tmp;
+  memset(&hint, 0, sizeof(hint));
+  hint.ai_family = PF_UNSPEC;
+  hint.ai_socktype = SOCK_STREAM;
+  hint.ai_flags = AI_PASSIVE;
+
+  snprintf(port_str, 6, "%"PRIu16, port);
+  port_str[6] = 0;
+
+  ret = getaddrinfo(NULL, port_str, &hint, &ai);
+  if (ret)
+    return ret;
+  for (tmp = ai; tmp; tmp = tmp->ai_next){
+    if (tmp->ai_family != AF_INET6)
+      continue;
+    ret = do_startup(PF_INET6, tmp->ai_addr);
+    if (ret >= 0){
+      freeaddrinfo(ai);
+      return ret;
+    }
+  }
+  for (tmp = ai; tmp; tmp = tmp->ai_next){
+    if (tmp->ai_family != AF_INET)
+      continue;
+    ret = do_startup(PF_INET, tmp->ai_addr);
+    if (ret >= 0){
+      freeaddrinfo(ai);
+      return ret;
+    }
+  }
+  freeaddrinfo(ai);
+  return -1;
 }
 
 int accept_extern_connection(int listening_sock)
@@ -77,10 +103,19 @@ int accept_extern_connection(int listening_sock)
   int sock;
   struct sockaddr_in addr;
   socklen_t len = sizeof(addr);
+  int trueint = 1;
 
   sock = accept(listening_sock, (struct sockaddr *)&addr, &len);
   if (sock < 0){
     log_err("error accepting connect to socket : %s\n", strerror(errno));
+    return -1;
+  }
+  if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &trueint, sizeof(int)) < 0){
+    log_err("couldn't set socket keepalive option : %s\n", strerror(errno));
+    return -1;
+  }
+  if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &trueint, sizeof(int)) < 0){
+    log_err("couldn't set socket nodelay option : %s\n", strerror(errno));
     return -1;
   }
   log_verbose("opened external connection\n");
@@ -102,7 +137,7 @@ int check_extern_data_len(uint32_t req, int size)
     return (size >= sizeof(device_req_t) + sizeof(node_req_t));
   case EXTERN_LOGIN_REQ:
     return (size >= sizeof(login_req_t) + sizeof(node_req_t));
-  case EXTERN_HOSTNAME_REQ:
+  case EXTERN_NODENAME_REQ:
     return 1;
   default:
     log_err("unknown external request: %u. closing connection.\n",
@@ -173,9 +208,16 @@ void handle_extern_request(int sock, uint32_t cmd, void *buf)
       DO_TRANS(send_u32(sock, reply), exit);
       break;
     }
-  case EXTERN_HOSTNAME_REQ:
-      DO_TRANS(retry_write(sock, hostname, HOSTNAME_SIZE), exit);
+  case EXTERN_NODENAME_REQ:
+    {
+      uint32_t size;
+
+      size = strlen(nodename) + 1;
+      DO_TRANS(send_u32(sock, reply), exit);
+      DO_TRANS(send_u32(sock, size), exit);
+      DO_TRANS(retry_write(sock, nodename, size), exit);
       break;
+    }
   case EXTERN_LIST_BANNED_REQ:
     {
       char *buffer = NULL;

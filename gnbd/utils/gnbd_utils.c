@@ -75,17 +75,21 @@ int get_my_nodename(char *buf){
   return 0;
 }
 
-int check_lock(char *file, int *pid){
+
+
+int __check_lock(char *file, int *pid){
   int fd;
   char path[1024];
   struct flock lock;
 
   snprintf(path, 1024, "%s/%s", program_dir, file);
   
+  if (pid)
+    *pid = 0;
+
   if( (fd = open(path, O_RDWR)) < 0){
     if (errno != ENOENT){
-      printe("cannot open lockfile %s : %s\n", path, strerror(errno));
-      exit(1);
+      return -1;
     }
     return 0;
   }
@@ -94,10 +98,8 @@ int check_lock(char *file, int *pid){
   lock.l_whence = SEEK_SET;
   lock.l_len = 0;
 
-  if (fcntl(fd, F_GETLK, &lock) < 0){
-    printe("cannot check for locks on %s : %s\n", path, strerror(errno));
-    exit(1);
-  }
+  if (fcntl(fd, F_GETLK, &lock) < 0)
+    goto fail;
 
   if (pid && lock.l_type != F_UNLCK){
     char pid_str[13];
@@ -106,16 +108,14 @@ int check_lock(char *file, int *pid){
     
     memset(pid_str, 0, 13);
     while( (bytes = read(fd, &pid_str[count], 12 - count)) != 0){
-      if (bytes <= 0 && errno != -EINTR){
-        printe("cannot read from lockfile %s : %s\n", path, strerror(errno));
-        exit(1);
-      }
+      if (bytes <= 0 && errno != -EINTR)
+        goto fail;
       if (bytes > 0)
         count += bytes;
     }
     if (sscanf(pid_str, "%d\n", pid) != 1){
-      printe("invalid pid in lockfile %s", path);
-      exit(1);
+      errno = -EINVAL;
+      goto fail;
     }
   }
   
@@ -124,6 +124,22 @@ int check_lock(char *file, int *pid){
   if (lock.l_type == F_UNLCK)
     return 0;
   return 1;
+
+ fail:
+  close(fd);
+  return -1;
+}
+
+int check_lock(char *file, int *pid){
+  int ret;
+
+  ret = __check_lock(file, pid);
+  if (ret < 0){
+    printe("cannot check lock for %s/%s : %s\n", program_dir, file,
+           strerror(errno));
+    exit(1);
+  }
+  return ret;
 }
 
 /**

@@ -23,6 +23,8 @@
 #define LOCAL_VALIDATE_REQ      7
 
 #define LOCAL_SUCCESS_REPLY     0
+/* This is so that gnbd_export knows that it can kill gnbd_clusterd */
+#define LOCAL_RM_CLUSTER_REPLY  1024
 /* FIXME -- is this used */
 #define REPLY_ERR(x) (-((int)(x)))
 
@@ -47,7 +49,6 @@ struct gserv_req_s {
 };
 typedef struct gserv_req_s gserv_req_t;
 
-int start_local_socket(void);
 int accept_local_connection(int listening_sock);
 int check_local_data_len(uint32_t req, int size);
 void handle_local_request(int sock, uint32_t cmd, void *buf);

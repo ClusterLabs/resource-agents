@@ -43,5 +43,6 @@ int remove_device(char *name);
 int get_dev_names(char **buffer, uint32_t *list_size);
 int get_dev_info(char **buffer, uint32_t *list_size);
 dev_info_t *find_device(char *name);
+int last_uncached_device(char *name);
 
 #endif /* __device_h__ */

@@ -16,6 +16,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <netdb.h>
+#include <string.h>
 
 #include "gnbd_utils.h"
 #include "trans.h"
@@ -54,7 +55,7 @@ int check_addr_info(struct addrinfo *ai1, struct addrinfo *ai2)
   return ret;
 }
 
-int do_add_monitored_dev(int minor_nr, int timeout)
+int do_add_monitored_dev(int minor_nr, int timeout, char *server)
 {
   int sock;
   uint32_t msg = MONITOR_REQ;
@@ -62,6 +63,7 @@ int do_add_monitored_dev(int minor_nr, int timeout)
 
   info.minor_nr = minor_nr;
   info.timeout = timeout;
+  memcpy(info.server, server, 65);
   sock = connect_to_comm_device("gnbd_monitor");
   if (sock < 0)
     return -1;

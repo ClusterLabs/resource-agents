@@ -30,42 +30,6 @@
 #include "gserv.h"
 #include "trans.h"
 
-int start_local_socket(void){
-  int sock;
-  struct sockaddr_un addr;
-  struct stat stat_buf;
-  
-  if( (sock = socket(PF_UNIX, SOCK_STREAM, 0)) < 0)
-    fail_startup("cannot create unix socket : %s\n", strerror(errno));
-
-  /* FIXME -- I should take the name out of this function, and put it
-     someplace that is user defineable */
-  addr.sun_family = AF_UNIX;
-  snprintf(addr.sun_path, 108, "%s/gnbd_servcomm", program_dir);
-  
-  if (stat(addr.sun_path, &stat_buf) < 0){
-    if (errno != ENOENT)
-      fail_startup("cannot stat unix socket file '%s' : %s\n", addr.sun_path,
-                   strerror(errno));
-  }
-  else if (unlink(addr.sun_path) < 0)
-    fail_startup("cannot remove unix socket file '%s' : %s\n", addr.sun_path,
-                 strerror(errno));
-
-  if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    fail_startup("cannot bind unix socket to /var/run/gnbd_servcomm : %s\n",
-                 strerror(errno));
-
-  if (chmod(addr.sun_path, S_IRUSR | S_IWUSR) < 0)
-    fail_startup("cannot set the file permissions on the unix socket : %s\n",
-                 strerror(errno));
-
-  if (listen(sock, 1) < 0)
-    fail_startup("cannot listen on unix socket : %s\n", strerror(errno));
-  
-  return sock;
-}
-
 int accept_local_connection(int listening_sock)
 {
   int sock;
@@ -136,9 +100,16 @@ void handle_local_request(int sock, uint32_t cmd, void *buf)
   case LOCAL_REMOVE_REQ:
     {
       name_req_t *remove_req = (name_req_t *)buf;
+      err = last_uncached_device(remove_req->name);
+      if (err < 0){
+        reply = -err;
+        goto remove_reply;
+      }
+      reply = err;
       err = remove_device(remove_req->name);
       if (err < 0)
         reply = -err;
+    remove_reply:
       DO_TRANS(retry_write(sock, &reply, sizeof(reply)), exit);
       break;
     }

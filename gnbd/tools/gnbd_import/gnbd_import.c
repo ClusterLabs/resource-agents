@@ -93,19 +93,77 @@ gnbd_info_t *match_info_name(char *name){
   return NULL;
 }
 
-int start_gnbd_monitor(int minor_nr, int timeout)
+
+
+int read_from_server(char *host, uint32_t request, char **buf)
+{
+  int sock_fd;
+  int n, total;
+  uint32_t msg;
+
+  sock_fd = connect_to_server(host, (uint16_t)server_port);
+  if (sock_fd < 0){
+    printe("cannot connect to server %s (%d) : %s\n", host, sock_fd,
+           strerror(errno));
+    exit(1);
+  }
+  msg = cpu_to_be32(request);
+  if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
+    printe("error sending list request to %s : %s\n", host, strerror(errno));
+    exit(1);
+  }
+  if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
+    printe("error reading reply from %s : %s\n", host, strerror(errno));
+    exit(1);
+  }
+  msg = cpu_to_be32(msg);
+  if (msg != EXTERN_SUCCESS_REPLY){
+    printe("list request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
+    exit(1);
+  }
+  if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
+    printe("error reading size of list from %s : %s\n", host,
+           strerror(errno));
+    exit(1);
+  }
+  msg = be32_to_cpu(msg);
+  *buf = malloc(msg);
+  if (*buf == NULL){
+    printe("couldn't allocate memory for list : %s\n", strerror(errno));
+    exit(1);
+  }
+  memset(*buf, 0, msg);
+  total = 0;
+  while(total < msg){
+    n = read(sock_fd, *buf + total, msg - total);
+    if (n <= 0){
+      printe("error reading list from server %s : %s\n", host,
+             strerror(errno));
+      exit(1);
+    }
+    total += n;
+  }
+  close(sock_fd);
+  return total;
+}
+
+int start_gnbd_monitor(int minor_nr, int timeout, char *host)
 {
   int ret;
+  char *serv_node;
   char cmd[256];
 
   /* no timeout, no monitor */
   if (!timeout) 
     return 0;
 
-  snprintf(cmd, 256, "gnbd_monitor %d %d", minor_nr, timeout);
+  read_from_server(host, EXTERN_NODENAME_REQ, &serv_node);
 
-  if( (ret = system(cmd)) < 0){
-     printe("system() failed : %s\n", strerror(errno));
+  snprintf(cmd, 256, "gnbd_monitor %d %d %s", minor_nr, timeout, serv_node);
+  ret = system(cmd);
+  free(serv_node);
+  if( ret < 0){
+    printe("system() failed : %s\n", strerror(errno));
     return -1;
   }
   if (ret != 0){
@@ -437,13 +495,30 @@ int add_device(char *name)
 
 void create_generic_gnbd_file(int minor)
 {
+  int err;
   char path[LINE_MAX];
   sprintf(path, "/dev/gnbd%d", minor);
-  if (mknod(path, S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
-            makedev(gnbd_major, minor)) < 0 && errno != EEXIST){
+ retry:
+  err = mknod(path, S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH,
+              makedev(gnbd_major, minor));
+  if (err < 0 && errno != EEXIST){
     printe("could not create file %s : %s\n",
            path, strerror(errno));
     exit(1);
+  }
+  if (err < 0){
+    struct stat stats;
+    if (stat(path, &stats) < 0){
+      printe("couldn't stat file %s : %s\n", path, strerror(errno));
+      exit(1);
+    }
+    if (major(stats.st_rdev) != gnbd_major || minor(stats.st_rdev) != minor){
+      if (unlink(path) < 0){
+        printe("couldn't unlink file %s : %s\n", path, strerror(errno));
+        exit(1);
+      }
+      goto retry;
+    }
   }
 }
 
@@ -451,6 +526,11 @@ void cleanup_device(char *name, int minor, int fd)
 {
   char path[LINE_MAX];
 
+  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)minor) < 0){
+    printe("cannot clear gnbd device #%d queue : %s\n", minor,
+           strerror(errno));
+    exit(1);
+  }
   if (override){
     printm("waiting for all users to close device %s\n", name);
     while (1){
@@ -463,11 +543,6 @@ void cleanup_device(char *name, int minor, int fd)
         break;
       sleep(2);
     }
-  }
-  if (ioctl(fd, GNBD_CLEAR_QUE, (unsigned long)minor) < 0){
-    printe("cannot clear gnbd device #%d queue : %s\n", minor,
-           strerror(errno));
-    exit(1);
   }
   set_sysfs_attr(minor, "sectors", "0\n");
   if (name){
@@ -666,58 +741,6 @@ void fence(char *host, char *server, int is_fence)
   printv("%s %sd\n", host, fence_str);
 }
 
-int read_from_server(char *host, uint32_t request, char **buf)
-{
-  int sock_fd;
-  int n, total;
-  uint32_t msg;
-
-  sock_fd = connect_to_server(host, (uint16_t)server_port);
-  if (sock_fd < 0){
-    printe("cannot connect to server %s (%d) : %s\n", host, sock_fd,
-           strerror(errno));
-    exit(1);
-  }
-  msg = cpu_to_be32(request);
-  if (write(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error sending list request to %s : %s\n", host, strerror(errno));
-    exit(1);
-  }
-  if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error reading reply from %s : %s\n", host, strerror(errno));
-    exit(1);
-  }
-  msg = cpu_to_be32(msg);
-  if (msg != EXTERN_SUCCESS_REPLY){
-    printe("list request to %s failed : %s\n", host, strerror(REPLY_ERR(msg)));
-    exit(1);
-  }
-  if (read(sock_fd, &msg, sizeof(msg)) != sizeof(msg)){
-    printe("error reading size of list from %s : %s\n", host,
-           strerror(errno));
-    exit(1);
-  }
-  msg = be32_to_cpu(msg);
-  *buf = malloc(msg);
-  if (*buf == NULL){
-    printe("couldn't allocate memory for list : %s\n", strerror(errno));
-    exit(1);
-  }
-  memset(*buf, 0, msg);
-  total = 0;
-  while(total < msg){
-    n = read(sock_fd, *buf + total, msg - total);
-    if (n <= 0){
-      printe("error reading list from server %s : %s\n", host,
-             strerror(errno));
-      exit(1);
-    }
-    total += n;
-  }
-  close(sock_fd);
-  return total;
-}
-
 int start_receiver(int minor_nr)
 {
   int ret;
@@ -784,6 +807,8 @@ void reimport_device(import_info_t *info, char *host,
       printe("cannot reimport already connected device %s\n", info->name);
     return;
   }
+  printm("reimporting device %s on server %s, port %u\n", gnbd->name,
+         gnbd->server_name, gnbd->port);
   restart_device(gnbd);
 }
 
@@ -873,7 +898,7 @@ void setclients(char *host)
   while ((char *)ptr < buf + size){
     minor_nr = create_device(ptr, host);
     if (minor_nr >= 0){
-      if (start_gnbd_monitor(minor_nr, (int)ptr->timeout) < 0)
+      if (start_gnbd_monitor(minor_nr, (int)ptr->timeout, host) < 0)
         exit(1);
       if (start_receiver(minor_nr))
         exit(1);

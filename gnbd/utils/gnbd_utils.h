@@ -100,6 +100,7 @@ char *beip_to_str(ip_t ip);
 
 int daemonize(void);
 int get_my_nodename(char *buf);
+int __check_lock(char *file, int *pid);
 int check_lock(char *file, int *pid);
 int pid_lock(char *extra_info);
 void daemonize_and_exit_parent(void);

@@ -280,17 +280,6 @@ static void gnbd_end_request(struct request *req)
 		printk("%s %d called gnbd_end_request with and error\n",
 		       current->comm, current->pid);	
 	
-	spin_lock(&dev->queue_lock);
-	while (req->ref_count > 1) { /* still in send */
-		spin_unlock(&dev->queue_lock);
-		printk(KERN_DEBUG "%s: request %p still in use (%d), waiting\n",
-		    dev->disk->disk_name, req, req->ref_count);
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ); /* wait a second */
-		spin_lock(&dev->queue_lock);
-	}
-	spin_unlock(&dev->queue_lock);
-
 	spin_lock_irqsave(q->queue_lock, flags);
 	if (!end_that_request_first(req, uptodate, req->nr_sectors)) {
 		end_that_request_last(req);
@@ -318,7 +307,8 @@ static int sock_xmit(struct socket *sock, int send, void *buf, int size,
 	spin_lock_irqsave(&current->sighand->siglock, flags);
 	oldset = current->blocked;
 	sigfillset(&current->blocked);
-	sigdelsetmask(&current->blocked, sigmask(SIGKILL));
+	sigdelsetmask(&current->blocked, sigmask(SIGKILL) | sigmask(SIGTERM) |
+	              sigmask(SIGHUP));
 	recalc_sigpending();
 	spin_unlock_irqrestore(&current->sighand->siglock, flags);
 
@@ -620,14 +610,10 @@ static void do_gnbd_request(request_queue_t * q)
 		if (list_empty(&dev->queue_head))
 			dev->last_received = jiffies;
 		list_add(&req->queuelist, &dev->queue_head);
-		req->ref_count++; /* make sure req does not get freed */
 		spin_unlock(&dev->queue_lock);
 
 		err = gnbd_send_req(dev, req);
 
-		spin_lock(&dev->queue_lock);
-		req->ref_count--;
-		spin_unlock(&dev->queue_lock);
 		spin_lock_irq(q->queue_lock);
 		if (err)
 			goto sock_error;
@@ -759,15 +745,6 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 			fput(file);
 			return -EBUSY;
 		}
-		/* FIXME -- Why do this? I connected with the
-		   server. I know what these values are */
-		/*
-		error = get_server_info(dev, SOCKET_I(inode));
-		if (error){
-			fput(file);
-			return error;
-		}
-		*/
 		error = gnbd_resend_requests(dev, SOCKET_I(inode));
 		if (error){
 			printk("quitting NBD_DO_IT\n");

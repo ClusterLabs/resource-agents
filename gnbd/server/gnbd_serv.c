@@ -87,7 +87,9 @@ void setup_poll(void)
   if (!connecters)
     fail_startup("cannot allocate connecter structure : %s\n",
                  strerror(errno));
-  polls[LOCAL].fd = start_local_socket();
+  polls[LOCAL].fd = start_comm_device("gnbd_servcomm");
+  if (polls[LOCAL].fd < 0)
+    fail_startup("cannot startup local connection\n");
   polls[LOCAL].events = POLLIN;
   polls[EXTERNAL].fd = start_extern_socket(port);
   polls[EXTERNAL].events = POLLIN;
@@ -133,8 +135,12 @@ void remove_poller(int index)
 void close_poller(int index)
 {
   close(polls[index].fd);
-  if (index == LOCAL)
-    polls[LOCAL].fd = start_local_socket();
+  if (index == LOCAL){
+    polls[LOCAL].fd = start_comm_device("gnbd_servcomm");
+    if (polls[LOCAL].fd < 0)
+      /* FIXME -- should I try to recover from this */
+      raise(SIGTERM);
+  }
   else if (index == EXTERNAL)
     polls[EXTERNAL].fd = start_extern_socket(port);
   else
@@ -366,6 +372,9 @@ int main(int argc, char **argv)
 
   setup_signals();
   /* FIXME -- somewhere I should set myself to nobody */
+
+  if (get_my_nodename(nodename) < 0)
+    fail_startup("cannot get node name : %s\n", strerror(errno));
 
   setup_poll();
 

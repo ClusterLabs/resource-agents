@@ -256,22 +256,22 @@ void gserv(int sock, char *node, uint64_t sectors, unsigned int flags,
     if (be32_to_cpu(request.magic) != GNBD_REQUEST_MAGIC){
       log_fail("bad request magic 0x%lx %s, shutting down\n",
                (unsigned long)be32_to_cpu(request.magic), from_str);
-      SEND_ERR;
       exit(1);
     }
     if (len > MAXSIZE){
       log_err("request len %lu is larger than my buffer, shutting down\n",
               (unsigned long)len);
-      SEND_ERR;
       exit(1);
     }
     /* If I get these two errors, someone is sending me bunk requests. */
     if ((UINT64_MAX - offset) < len){
+      readit(sock, buf, len, from_str, 1);
       log_fail("request %s past the end of the block device\n", from_str);
       SEND_ERR;
       continue;
     }
     if ((offset + len) > device_size){
+      readit(sock, buf, len, from_str, 1);
       log_fail("request %s past the end of the device\n", from_str);
       SEND_ERR;
       continue;
