@@ -12,7 +12,7 @@
 #include "trace.h"
 #include "sock.h" // send_fd, read/writepipe, connect_socket
 
-#define trace trace_on
+#define trace trace_off
 
 #define LOCK "csnap" // !!! choose a sensible name and/or use a lockspace
 

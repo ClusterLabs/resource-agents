@@ -31,7 +31,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/Makefile 2.6.8.1.csnap/drive
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/drivers/md/dm-csnap.c
 --- 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c	2004-10-14 12:58:07.000000000 -0400
-+++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-12-07 02:23:44.000000000 -0500
++++ 2.6.8.1.csnap/drivers/md/dm-csnap.c	2004-12-08 02:46:19.056226192 -0500
 @@ -0,0 +1,1147 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
@@ -55,7 +55,7 @@ diff -up --recursive 2.6.8.1.csnap.clean/drivers/md/dm-csnap.c 2.6.8.1.csnap/dri
 +#define trace_on(args) args
 +#define trace_off(args)
 +
-+#define trace trace_on
++#define trace trace_off
 +
 +/*
 + * To do:

@@ -33,7 +33,7 @@
 #include "../dm-csnap.h"
 #include "trace.h"
 
-#define trace trace_on
+#define trace trace_off
 #define jtrace trace_off
 
 /*
@@ -1982,11 +1982,13 @@ int incoming(struct superblock *sb, struct client *client)
 	}
 	static int messages = 0;
 
+#if 0
 	if (++messages == 5) {
 		warn(">>>>Simulate server crash<<<<");
 		exit(1);
 	}
 	return 0;
+#endif
 
 message_too_long:
 	warn("message %x too long (%u bytes)\n", message.head.code, message.head.length);

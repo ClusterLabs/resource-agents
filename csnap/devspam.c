@@ -65,7 +65,6 @@ usage:		error("usage: %s device read/write/randread/randwrite tag iterations", a
 
 	while (iterations--) {
 		unsigned block = is_rand? (rand() % range): total;
-printf("remaining = %u\n", iterations);
 
 		if (is_write)
 			spamdata(buffer, blocksize, code, block);
