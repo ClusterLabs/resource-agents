@@ -35,9 +35,11 @@ install:
 	cd lib && ${MAKE} install
 	cd ccs_test && ${MAKE} install
 	cd man && ${MAKE} install
+	cd init.d && ${MAKE} install
 
 uninstall:
 	cd daemon && ${MAKE} uninstall 
 	cd lib && ${MAKE} uninstall
 	cd ccs_test && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
+	cd init.d && ${MAKE} install
