@@ -22,13 +22,18 @@
 #define LOCK_DLM_DEBUG_SIZE     (0)
 #define MAX_DEBUG_MSG_LEN       (0)
 #endif
+#define MAX_PROC_STRING		(16)
+
+int				lock_dlm_drop_count;
+int				lock_dlm_drop_period;
 
 static char *                   debug_buf;
 static unsigned int             debug_size;
 static unsigned int             debug_point;
 static int                      debug_wrap;
 static spinlock_t               debug_lock;
-static struct proc_dir_entry *  debug_proc_entry = NULL;
+static struct proc_dir_entry *	proc_dir = NULL;
+static char			proc_str[MAX_PROC_STRING + 1];
 
 
 void lock_dlm_debug_log(const char *fmt, ...)
@@ -124,7 +129,7 @@ void lock_dlm_debug_dump(void)
 EXPORT_SYMBOL(lock_dlm_debug_dump);
 
 #ifdef CONFIG_PROC_FS
-int lock_dlm_debug_info(char *b, char **start, off_t offset, int length)
+static int debug_info(char *b, char **start, off_t offset, int length)
 {
 	int i, n = 0;
 
@@ -140,6 +145,110 @@ int lock_dlm_debug_info(char *b, char **start, off_t offset, int length)
 	spin_unlock(&debug_lock);
 
 	return n;
+}
+
+static int drop_count_info(char *b, char **start, off_t offset, int length)
+{
+	return sprintf(b, "%d\n", lock_dlm_drop_count);
+}
+
+static int drop_period_info(char *b, char **start, off_t offset, int length)
+{
+	return sprintf(b, "%d\n", lock_dlm_drop_period);
+}
+
+static int copy_string(const char *buffer, unsigned long count)
+{
+	int len;
+
+	if (count > MAX_PROC_STRING)
+		len = MAX_PROC_STRING;
+	else
+		len = count;
+
+	if (copy_from_user(proc_str, buffer, len))
+		return -EFAULT;
+	proc_str[len] = '\0';
+	return len;
+}
+
+static int drop_count_write(struct file *file, const char *buffer,
+			    unsigned long count, void *data)
+{
+	int rv = copy_string(buffer, count);
+	if (rv < 0)
+		return rv;
+	lock_dlm_drop_count = (int) simple_strtol(proc_str, NULL, 0);
+	return rv;
+}
+
+static int drop_period_write(struct file *file, const char *buffer,
+			    unsigned long count, void *data)
+{
+	int rv = copy_string(buffer, count);
+	if (rv < 0)
+		return rv;
+	lock_dlm_drop_period = (int) simple_strtol(proc_str, NULL, 0);
+	return rv;
+}
+
+static void create_proc_entries(void)
+{
+	struct proc_dir_entry *p, *debug, *drop_count, *drop_period;
+
+	debug = drop_count = drop_period = NULL;
+
+	proc_dir = proc_mkdir("cluster/lock_dlm", 0);
+	if (!proc_dir)
+		return;
+	proc_dir->owner = THIS_MODULE;
+
+	p = create_proc_entry("debug", 0444, proc_dir);
+	if (!p)
+		goto out;
+	p->get_info = debug_info;
+	p->owner = THIS_MODULE;
+	debug = p;
+
+	p = create_proc_entry("drop_count", 0666, proc_dir);
+	if (!p)
+		goto out;
+	p->owner = THIS_MODULE;
+	p->get_info = drop_count_info;
+	p->write_proc = drop_count_write;
+	drop_count = p;
+
+	p = create_proc_entry("drop_period", 0666, proc_dir);
+	if (!p)
+		goto out;
+	p->owner = THIS_MODULE;
+	p->get_info = drop_period_info;
+	p->write_proc = drop_period_write;
+	drop_period = p;
+
+	return;
+
+ out:
+	if (drop_period)
+		remove_proc_entry("drop_period", proc_dir);
+	if (drop_count)
+		remove_proc_entry("drop_count", proc_dir);
+	if (debug)
+		remove_proc_entry("debug", proc_dir);
+
+	remove_proc_entry("cluster/lock_dlm", NULL);
+	proc_dir = NULL;
+}
+
+static void remove_proc_entries(void)
+{
+	if (proc_dir) {
+		remove_proc_entry("debug", proc_dir);
+		remove_proc_entry("drop_period", proc_dir);
+		remove_proc_entry("drop_count", proc_dir);
+		remove_proc_entry("cluster/lock_dlm", NULL);
+		proc_dir = NULL;
+	}
 }
 #endif
 
@@ -159,11 +268,11 @@ int __init init_lock_dlm(void)
 		return error;
 	}
 
+	lock_dlm_drop_count = DROP_LOCKS_COUNT;
+	lock_dlm_drop_period = DROP_LOCKS_PERIOD;
+
 #ifdef CONFIG_PROC_FS
-	debug_proc_entry = create_proc_entry("cluster/lock_dlm_debug", S_IRUGO,
-					     NULL);
-	if (debug_proc_entry)
-		debug_proc_entry->get_info = &lock_dlm_debug_info;
+	create_proc_entries();
 #endif
 	debug_init();
 
@@ -179,10 +288,8 @@ int __init init_lock_dlm(void)
 void __exit exit_lock_dlm(void)
 {
 	lm_unregister_proto(&lock_dlm_ops);
-
 #ifdef CONFIG_PROC_FS
-	if (debug_proc_entry)
-		remove_proc_entry("cluster/lock_dlm_debug", NULL);
+	remove_proc_entries();
 #endif
 	debug_setup(0);
 }

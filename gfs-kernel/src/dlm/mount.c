@@ -18,6 +18,10 @@
 #include <cluster/cnxman.h>
 #include <cluster/service.h>
 
+extern int lock_dlm_drop_count;
+extern int lock_dlm_drop_period;
+
+
 static int init_cman(dlm_t *dlm)
 {
 	int error = -1;
@@ -190,6 +194,9 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 		return NULL;
 
 	memset(dlm, 0, sizeof(dlm_t));
+
+	dlm->drop_locks_count = lock_dlm_drop_count;
+	dlm->drop_locks_period = lock_dlm_drop_period;
 
 	dlm->fscb = cb;
 	dlm->fsdata = fsdata;

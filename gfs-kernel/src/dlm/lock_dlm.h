@@ -46,8 +46,8 @@
 
 #define LOCK_DLM_MAX_NODES	(128)
 
-#define DROP_LOCKS_COUNT	(10000)
-#define DROP_LOCKS_TIME		(60)
+#define DROP_LOCKS_COUNT	(50000)
+#define DROP_LOCKS_PERIOD	(60)
 #define SHRINK_CACHE_COUNT	(100)
 #define SHRINK_CACHE_MAX	(1000)
 #define SHRINK_CACHE_TIME	(30)
@@ -105,6 +105,9 @@ struct dlm {
 	atomic_t		lock_count;
 	unsigned long		drop_time;
 	unsigned long		shrink_time;
+
+	int			drop_locks_count;
+	int			drop_locks_period;
 
 	int			mg_local_id;
 	int			mg_last_start;

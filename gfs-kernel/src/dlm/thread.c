@@ -320,14 +320,15 @@ static int dlm_async(void *data)
 
 		/* Don't get busy doing this stuff during recovery. */
 		if (!test_bit(DFL_RECOVER, &dlm->flags)) {
-
-			if (check_timeout(dlm->drop_time, DROP_LOCKS_TIME)) {
+			if (check_timeout(dlm->drop_time,
+					  dlm->drop_locks_period)) {
 				dlm->drop_time = jiffies;
-				if (atomic_read(&dlm->lock_count) >= DROP_LOCKS_COUNT)
+				if (atomic_read(&dlm->lock_count) >=
+						dlm->drop_locks_count)
 					drop = 1;
 			}
 
-			if (check_timeout(dlm->shrink_time, SHRINK_CACHE_TIME)) {
+			if (check_timeout(dlm->shrink_time, SHRINK_CACHE_TIME)){
 				dlm->shrink_time = jiffies;
 				shrink = 1;
 			}
