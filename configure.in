@@ -8,14 +8,14 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.363 $) dnl cvs revision
+AC_REVISION($Revision: 1.364 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h include/ha_config.h)
 ALL_LINGUAS="en fr"
-AM_INIT_AUTOMAKE(heartbeat, 1.99.2)
+AM_INIT_AUTOMAKE(heartbeat, 1.99.3)
 RPMREL=1
 AC_SUBST(RPMREL)
 HB_PKG=heartbeat
