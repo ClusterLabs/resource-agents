@@ -1,8 +1,11 @@
 #!/usr/bin/perl 
 $|=1;
 
-use Net::SSLeay;
-use Net::SSLeay::Handle;
+eval { $ssl_mod="Net::SSL" if require Net::SSL} || 
+eval { $ssl_mod="Net::SSLeay::Handle" if require Net::SSLeay::Handle } || 
+	die "Net::SSL.pm or Net::SSLeay::Handle.pm not found.\n".
+	    "Please install the perl-Crypt-SSLeay package from RHN (http://rhn.redhat.com)\n".
+	    "or Net::SSLeay from CPAN (http://www.cpan.org)\n";
 
 use IO::Socket;
 use Getopt::Std;
@@ -68,7 +71,7 @@ sub sendsock
 {
 	my ($sock, $msg, $junk) = @_;
 
-	print $sock $msg;
+	$sock->print($msg);
 	if ($verbose)
 	{
 		chomp $msg;
@@ -93,7 +96,8 @@ sub receive_response
 	my $buffer = "";
 
 	### sock should automatically be closed by iLO after 10 seconds
-	while ($buf=<$sock>)
+	### XXX read buf length of 256.  Is this enough?  Do I need to buffer?
+	while ($ssl_mod eq "Net::SSLeay::Handle" ? $buf=<$sock> : $sock->read($buf,256) )
 	{
 		$rd = length($buf);
 		last unless ($rd);
@@ -132,14 +136,24 @@ sub receive_response
 
 sub open_socket
 {
-	print "opening connection to $hostname:443\n" if $verbose;
+	print "opening connection to $hostname:$port\n" if $verbose;
 
-	# neat little trick I found in the man page for Net::SSLeay::Handle
-	tie (*SSL,"Net::SSLeay::Handle",$hostname,443)
-		or fail "Can't connect to $hostname:443 $@\n";
-
-	$socket = \*SSL;
-	return $socket;
+	if ($ssl_mod eq "Net::SSLeay::Handle")
+	{
+		# neat little trick I found in the man page for Net::SSLeay::Handle
+		tie (*SSL,"Net::SSLeay::Handle",$hostname,$port)
+			or fail "unable to connect to $hostname:$port $@\n";
+		$ssl = \*SSL;
+	}
+	else
+	{
+		$ssl = Net::SSL->new( PeerAddr => $hostname,
+			              PeerPort => $port );
+		$ssl->configure();
+		$ssl->connect($port,inet_aton($hostname)) or 
+			fail "unable to connect to $hostname:$port $@\n";
+	}
+	return $ssl; 
 }
 
 
@@ -461,6 +475,14 @@ if (@ARGV > 0) {
 	fail "unrecognised action: $action\n"
 		unless $action=~ /^(off|on|reboot|status)$/;
 }
+
+# Parse user specified port from apaddr parameter
+($hostname_tmp,$port,$junk) = split(/:/,$hostname); 
+fail "bad hostname/ipaddr format: $hostname\n" if defined $junk;
+$hostname = $hostname_tmp;
+$port = 443 unless defined $port;
+
+print "ssl module: $ssl_mod\n" if $verbose;
 
 $ribcl_vers = undef; # undef = autodetect
 $agent_status = -1;
