@@ -292,6 +292,7 @@ struct cluster_node {
 	unsigned int incarnation;	/* Incremented each time a node joins
 					 * the cluster */
 	unsigned long last_hello;	/* Jiffies */
+        struct timeval join_time;
 };
 
 /* This is how we keep a list of user processes that are listening for cluster

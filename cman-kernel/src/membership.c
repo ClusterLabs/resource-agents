@@ -1311,7 +1311,7 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 	list_for_each_safe(nodelist, temp, &cluster_members_list) {
 		node = list_entry(nodelist, struct cluster_node, list);
 
-		if (node->state == NODESTATE_MEMBER) {
+		if (node->state == NODESTATE_MEMBER || node->state == NODESTATE_DEAD) {
 			unsigned int evotes;
 			unsigned int node_id;
 			unsigned short num_addrs = 0;
@@ -1323,6 +1323,8 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			message[ptr++] = len = strlen(node->name);
 			strcpy(&message[ptr], node->name);
 			ptr += len;
+
+			message[ptr++] = node->state;
 
 			/* Count the number of addresses this node has */
 			list_for_each(addrlist, &node->addr_list) {
@@ -1337,8 +1339,8 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			list_for_each(addrlist, &node->addr_list) {
 
 				struct cluster_node_addr *nodeaddr =
-				    list_entry(addrlist,
-					       struct cluster_node_addr, list);
+					list_entry(addrlist,
+						   struct cluster_node_addr, list);
 
 				memcpy(&message[ptr], nodeaddr->addr,
 				       address_length);
@@ -1360,11 +1362,10 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 				message[1] = first_packet_flag;
 
 				up(&cluster_members_lock);
-				status =
-				    kcl_sendmsg(mem_socket, message,
-						last_node_start, saddr,
-						saddr ? sizeof (struct sockaddr_cl) : 0,
-						flags);
+				status = kcl_sendmsg(mem_socket, message,
+						     last_node_start, saddr,
+						     saddr ? sizeof (struct sockaddr_cl) : 0,
+						     flags);
 
 				if (status < 0)
 					goto send_fail;
@@ -1380,7 +1381,7 @@ static int send_cluster_view(unsigned char cmd, struct sockaddr_cl *saddr,
 			}
 		}
 	}
-
+	
 	up(&cluster_members_lock);
 
 	message[1] = first_packet_flag | 2;	/* The last may also be first */
@@ -1524,6 +1525,7 @@ static struct cluster_node *add_new_node(char *name, unsigned char votes,
 		newnode->last_seq_acked = 0;
 		newnode->last_seq_sent = 0;
 		newnode->incarnation++;
+		do_gettimeofday(&newnode->join_time);
 		/* Don't overwrite the node ID */
 
 		if (state == NODESTATE_MEMBER) {
@@ -1557,6 +1559,7 @@ static struct cluster_node *add_new_node(char *name, unsigned char votes,
 	newnode->last_seq_acked = 0;
 	newnode->last_seq_sent = 0;
 	newnode->incarnation = 0;
+	do_gettimeofday(&newnode->join_time);
 	INIT_LIST_HEAD(&newnode->addr_list);
 	set_nodeid(newnode, node_id);
 
@@ -2430,11 +2433,10 @@ static int check_node(struct cluster_node *newnode, char *addrs,
 
 	if (node->votes != newnode->votes ||
 	    node->node_id != newnode->node_id ||
-	    node->state != NODESTATE_MEMBER) {
-		C_MEMB
-		    (" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
-		     node->votes, newnode->votes, node->node_id,
-		     newnode->node_id, node->state);
+	    node->state != newnode->state) {
+		C_MEMB(" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
+		       node->votes, newnode->votes, node->node_id,
+		       newnode->node_id, node->state);
 		return -1;
 	}
 	C_MEMB(" - OK\n");
@@ -2455,7 +2457,7 @@ static int add_node(struct cluster_node *node, char *addrs,
 
 		if ((newnode =
 		     add_new_node(node->name, node->votes, node->expected_votes,
-				  node->node_id, NODESTATE_MEMBER)) == NULL) {
+				  node->node_id, node->state)) == NULL) {
 			P_MEMB("Error adding node\n");
 			return -1;
 		}
@@ -2497,6 +2499,8 @@ static int unpack_nodes(unsigned char *buf, int len,
 		nodename[namelen] = '\0';
 		ptr += namelen;
 
+		node.state = buf[ptr++];
+
 		memcpy(&num_addr, &buf[ptr], sizeof (short));
 		num_addr = le16_to_cpu(num_addr);
 		ptr += sizeof (short);
@@ -2518,7 +2522,10 @@ static int unpack_nodes(unsigned char *buf, int len,
 		/* Call the callback routine */
 		if (routine(&node, addrs, num_addr) < 0)
 			return -1;
-		num_nodes++;
+
+		/* Return the number of MEMBER nodes */
+		if (node.state == NODESTATE_MEMBER)
+			num_nodes++;
 	}
 	return num_nodes;
 }
@@ -2573,8 +2580,8 @@ static int do_process_masterview(struct msghdr *msg, int len)
 	if (message[1] & 1)
 		num_nodes = 0;
 
-	num_nodes +=
-	    unpack_nodes(msg->msg_iov->iov_base + 2, len - 2, check_node);
+	num_nodes += unpack_nodes(msg->msg_iov->iov_base + 2,
+				  len - 2, check_node);
 
 	/* Last message, check the count and reply */
 	if (message[1] & 2) {
