@@ -23,7 +23,7 @@ SOURCE= counters.c \
 	tune.c \
 	ondisk.c
 
-CFLAGS= -O2 -Wall -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
+CFLAGS+= -O2 -Wall -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
