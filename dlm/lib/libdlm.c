@@ -1042,9 +1042,9 @@ int dlm_release_lockspace(const char *name, dlm_lshandle_t ls, int force)
 	return -1;
 
     if (force)
-        req.i.lspace.flags = 2;
+        req.i.lspace.flags = DLM_USER_LSFLG_FORCEFREE;
     else
-	req.i.lspace.flags = 1;
+	req.i.lspace.flags = 0;
 
     set_version(&req);
     req.cmd = DLM_USER_REMOVE_LOCKSPACE;
