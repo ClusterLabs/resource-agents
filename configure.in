@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.166 $) dnl cvs revision
+AC_REVISION($Revision: 1.167 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -669,6 +669,10 @@ AC_ARG_ENABLE([traditional-warnings],
                           enable traditional warnings gcc (-Wtraditional)
                           [default=no]])
 
+AC_ARG_ENABLE([snmp-subagent],
+[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
+                          developement stage.  [default=no]]) 
+
 CC_WARNINGS=""
 if test "$GCC" = yes; then
 dnl
@@ -748,14 +752,15 @@ dnl Add any system specific options here.
 		-Winline $EXTRA_WARNINGS"
 fi
 
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
-                          developement stage.  [default=no]], 
-	[ SNMP_SUBAGENT_DIR="snmp_subagent" 
-	  m4_include([config/snmp_subagent.m4]) 
-	  LIB_SNMP
-	  AC_SUBST(SNMP_LIBS) ], 
-	[ SNMP_SUBAGENT_DIR="" ])
+if test "${enable_snmp_subagent+set}"  = "set"; then
+	echo "Enabling  SNMP Sub Agent"
+	SNMP_SUBAGENT_DIR="snmp_subagent"
+	m4_include([config/snmp_subagent.m4]) 
+	LIB_SNMP
+	AC_SUBST(SNMP_LIBS)
+else
+	SNMP_SUBAGENT_DIR=""
+fi
 
 AC_SUBST(SNMP_SUBAGENT_DIR)
 
