@@ -1173,7 +1173,7 @@ get_local_rgrp(struct gfs_inode *ip)
 		recent_rgrp_add(rgd);
 		rgd = gfs_rgrpd_get_next(rgd);
 		if (!rgd)
-			rgd = gfs_rgrpd_get_first(rgd);
+			rgd = gfs_rgrpd_get_first(sdp);
 		forward_rgrp_set(sdp, rgd);
 	}
 
