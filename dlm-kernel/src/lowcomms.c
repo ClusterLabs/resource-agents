@@ -308,11 +308,12 @@ static int receive_from_sock(struct connection *con)
 			goto out_resched;
 		CBUF_INIT(&con->cb, PAGE_CACHE_SIZE);
 	}
+
 	/*
-	 * To avoid doing too many short reads, we will reschedule for another
-	 * another time if there are less than 32 bytes left in the buffer.
+	 * To avoid doing too many short reads, we will reschedule for 
+	 * another time if there are less than 20 bytes left in the buffer.
 	 */
-	if (!CBUF_MAY_ADD(&con->cb, 32))
+	if (!CBUF_MAY_ADD(&con->cb, 20))
 		goto out_resched;
 
 	msg.msg_control = NULL;
