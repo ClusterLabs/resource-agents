@@ -90,6 +90,7 @@ struct dlm_lockinfo {
         int lki_mstlkid;        /* Lock ID on master node */
 	int lki_parent;
 	int lki_node;		/* Originating node (not master) */
+	int lki_ownpid;		/* Owner pid on originating node */
 	uint8_t lki_state;	/* Queue the lock is on */
 	uint8_t lki_grmode;	/* Granted mode */
 	uint8_t lki_rqmode;	/* Requested mode */

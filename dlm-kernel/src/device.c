@@ -127,7 +127,7 @@ static void put_file_info(struct file_info *f)
 static void release_lockinfo(struct lock_info *li)
 {
 	put_file_info(li->li_file);
-	if (li->li_lksb.sb_lvbptr)
+	if (li->li_lksb.sb_lvbptr && li->li_cmd != DLM_USER_QUERY)
 		kfree(li->li_lksb.sb_lvbptr);
 	kfree(li);
 }

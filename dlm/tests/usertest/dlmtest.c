@@ -92,6 +92,7 @@ static void query_ast_routine(void *arg)
 	printf("lockinfo: lock: master lkid = %x\n", li->lki_mstlkid);
 	printf("lockinfo: lock: parent lkid = %x\n", li->lki_parent);
 	printf("lockinfo: lock: node        = %d\n", li->lki_node);
+	printf("lockinfo: lock: pid         = %d\n", li->lki_ownpid);
 	printf("lockinfo: lock: state       = %d\n", li->lki_state);
 	printf("lockinfo: lock: grmode      = %d\n", li->lki_grmode);
 	printf("lockinfo: lock: rqmode      = %d\n", li->lki_rqmode);

@@ -335,6 +335,7 @@ int remote_query(int nodeid, struct dlm_ls *ls, struct dlm_header *msg)
 			put_int(qinfo.gqi_lockinfo[cur_lock].lki_mstlkid, buf, &bufidx);
 			put_int(qinfo.gqi_lockinfo[cur_lock].lki_parent, buf, &bufidx);
 			put_int(qinfo.gqi_lockinfo[cur_lock].lki_node, buf, &bufidx);
+			put_int(qinfo.gqi_lockinfo[cur_lock].lki_ownpid, buf, &bufidx);
 
 			if (valid_range(&qinfo.gqi_lockinfo[cur_lock].lki_grrange) ||
 			    valid_range(&qinfo.gqi_lockinfo[cur_lock].lki_rqrange)) {
@@ -378,7 +379,7 @@ int remote_query(int nodeid, struct dlm_ls *ls, struct dlm_header *msg)
 		goto out;
 	}
 	reply->rq_header.rh_cmd = GDLM_REMCMD_QUERYREPLY;
-	reply->rq_header.rh_flags = GDLM_REMFLAG_ENDQUERY; /* Don't support multiple blocks yet */
+	reply->rq_header.rh_flags = GDLM_REMFLAG_ENDQUERY;
 	reply->rq_header.rh_length = sizeof(struct dlm_query_reply);
 	reply->rq_header.rh_lkid = msg->rh_lkid;
 	reply->rq_header.rh_lockspace = msg->rh_lockspace;
@@ -438,6 +439,7 @@ int remote_query_reply(int nodeid, struct dlm_ls *ls, struct dlm_header *msg)
 		qinfo->gqi_lockinfo[i].lki_mstlkid = get_int(buf, &bufidx);
 		qinfo->gqi_lockinfo[i].lki_parent = get_int(buf, &bufidx);
 		qinfo->gqi_lockinfo[i].lki_node = get_int(buf, &bufidx);
+		qinfo->gqi_lockinfo[i].lki_ownpid = get_int(buf, &bufidx);
 		if (buf[bufidx++]) {
 			qinfo->gqi_lockinfo[i].lki_grrange.ra_start = get_int64(buf, &bufidx);
 			qinfo->gqi_lockinfo[i].lki_grrange.ra_end   = get_int64(buf, &bufidx);
@@ -525,6 +527,7 @@ static int add_lock(struct dlm_lkb *lkb, struct dlm_queryinfo *qinfo)
 	qinfo->gqi_lockinfo[entry].lki_state  = lkb->lkb_status;
 	qinfo->gqi_lockinfo[entry].lki_rqmode = lkb->lkb_rqmode;
 	qinfo->gqi_lockinfo[entry].lki_grmode = lkb->lkb_grmode;
+	qinfo->gqi_lockinfo[entry].lki_ownpid = lkb->lkb_ownpid;
 
 	if (lkb->lkb_range) {
 		qinfo->gqi_lockinfo[entry].lki_grrange.ra_start =

@@ -379,6 +379,11 @@ int dlm_lock(void *lockspace,
 	lkb->lkb_lockqueue_flags = flags;
 	lkb->lkb_lvbptr = lksb->sb_lvbptr;
 
+	if (!in_interrupt() && current)
+	    lkb->lkb_ownpid = (int)current->pid;
+	else
+	    lkb->lkb_ownpid = 0;
+
 	/* Copy the range if appropriate */
 	if (range) {
 		if (range->ra_start > range->ra_end) {
@@ -444,7 +449,7 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 	lkb->lkb_resource = rsb;
 	down_write(&rsb->res_lock);
 
-	log_debug(ls, "rq %u %x \"%s\"", lkb->lkb_rqmode, lkb->lkb_id,
+	log_debug(ls, "(%d) rq %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode, lkb->lkb_id,
 		  rsb->res_name);
 	/*
 	 * Next stage, do we need to find the master or can
@@ -589,7 +594,7 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	lkb->lkb_resource = rsb;
 
-	log_debug(ls, "rq %u from %u %x \"%s\"", lkb->lkb_rqmode, remote_nodeid,
+	log_debug(ls, "(%d) rq %u from %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode, remote_nodeid,
 		  lkb->lkb_id, rsb->res_name);
 
       out:
@@ -686,13 +691,13 @@ int dlm_unlock(void *lockspace,
 
 	/* Can't dequeue a master copy (a remote node's mastered lock) */
 	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
-		log_debug(ls, "unlock %x lkb_flags %x", lkid, lkb->lkb_flags);
+		log_debug(ls, "(%d) unlock %x lkb_flags %x", lkb->lkb_ownpid, lkid, lkb->lkb_flags);
 		goto out;
 	}
 
 	/* Already waiting for a remote lock operation */
 	if (lkb->lkb_lockqueue_state) {
-		log_debug(ls, "unlock %x lq%d", lkid, lkb->lkb_lockqueue_state);
+		log_debug(ls, "(%d) unlock %x lq%d", lkb->lkb_ownpid, lkid, lkb->lkb_lockqueue_state);
 		ret = -EBUSY;
 		goto out;
 	}
@@ -703,14 +708,14 @@ int dlm_unlock(void *lockspace,
 	 */
 	if ((flags & DLM_LKF_CANCEL) &&
 	    (lkb->lkb_status == GDLM_LKSTS_GRANTED)) {
-		log_debug(ls, "unlock %x %x %d", lkid, flags, lkb->lkb_status);
+		log_debug(ls, "(%d) unlock %x %x %d", lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
 		goto out;
 	}
 
 	/* "Normal" unlocks must operate on a granted lock */
 	if (!(flags & DLM_LKF_CANCEL) &&
 	    (lkb->lkb_status != GDLM_LKSTS_GRANTED)) {
-		log_debug(ls, "unlock %x %x %d", lkid, flags, lkb->lkb_status);
+		log_debug(ls, "(%d) unlock %x %x %d", lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
 		goto out;
 	}
 
@@ -729,7 +734,8 @@ int dlm_unlock(void *lockspace,
 	down_read(&ls->ls_in_recovery);
 	rsb = find_rsb_to_unlock(ls, lkb);
 
-	log_debug(ls, "un %x ref %u flg %x nodeid %d/%d \"%s\"", lkb->lkb_id,
+	log_debug(ls, "(%d) un %x ref %u flg %x nodeid %d/%d \"%s\"", lkb->lkb_ownpid,
+		  lkb->lkb_id,
 		  atomic_read(&rsb->res_ref), rsb->res_flags,
 		  lkb->lkb_nodeid, rsb->res_nodeid, rsb->res_name);
 
@@ -862,11 +868,7 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	}
 
 	if (!lksb->sb_lvbptr && (flags & DLM_LKF_VALBLK)) {
-		goto out;
-	}
-
-	if ((flags & DLM_LKF_VALBLK) && !lksb->sb_lvbptr) {
-		goto out;
+	        goto out;
 	}
 
 	/* Set up the ranges as appropriate */
@@ -883,7 +885,7 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	rsb = lkb->lkb_resource;
 	down_read(&ls->ls_in_recovery);
 
-	log_debug(ls, "cv %u %x \"%s\"", mode, lkb->lkb_id, rsb->res_name);
+	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode, lkb->lkb_id, rsb->res_name);
 
 	lkb->lkb_flags &= ~GDLM_LKFLG_VALBLK;
 	lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;

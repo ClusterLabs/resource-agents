@@ -31,6 +31,7 @@
 #include <linux/errno.h>
 #include <linux/random.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 
 #include <cluster/dlm.h>
 #include <cluster/dlm_device.h>
@@ -406,6 +407,7 @@ struct dlm_lkb {
 	int			lkb_lockqueue_state; /* reason on lockqueue */
 	int			lkb_lockqueue_flags; /* as passed into
 							lock/unlock */
+	int			lkb_ownpid;	/* pid of lock owner */
 	unsigned long		lkb_lockqueue_time;  /* time lkb went on the
 							lockqueue */
 	unsigned long		lkb_duetime;	/* for deadlock detection */
@@ -471,6 +473,7 @@ struct dlm_request {
 	uint64_t		rr_range_end;
 	uint32_t		rr_status;	/* Status to return if this is
 						   an AST request */
+        uint32_t                rr_pid;         /* Owner PID of lock */
 	uint8_t			rr_rqmode;	/* Requested lock mode */
 	uint8_t			rr_asts;	/* Whether the LKB has ASTs */
 	char			rr_lvb[DLM_LVB_LEN];
