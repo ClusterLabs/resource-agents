@@ -1,6 +1,6 @@
 diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cnxman-private.h
---- linux-orig/cluster/cman/cnxman-private.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/cnxman-private.h	2004-12-02 12:25:23.163409786 -0600
+--- linux-orig/cluster/cman/cnxman-private.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/cnxman-private.h	2004-12-08 22:02:48.843423320 +0800
 @@ -0,0 +1,430 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -433,8 +433,8 @@ diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cn
 +
 +#endif
 diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
---- linux-orig/cluster/cman/cnxman.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/cnxman.c	2004-12-02 12:25:23.165409322 -0600
+--- linux-orig/cluster/cman/cnxman.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/cnxman.c	2004-12-08 22:02:48.853421800 +0800
 @@ -0,0 +1,4217 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4654,8 +4654,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 + * End:
 + */
 diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
---- linux-orig/cluster/cman/config.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/config.c	2004-12-02 12:25:23.172407696 -0600
+--- linux-orig/cluster/cman/config.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/config.c	2004-12-08 22:02:48.854421648 +0800
 @@ -0,0 +1,49 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4707,8 +4707,8 @@ diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
 +	.newcluster_timeout = DEFAULT_NEWCLUSTER_TIMEOUT,
 +};
 diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
---- linux-orig/cluster/cman/config.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/config.h	2004-12-02 12:25:23.172407696 -0600
+--- linux-orig/cluster/cman/config.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/config.h	2004-12-08 22:02:48.854421648 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4743,8 +4743,8 @@ diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
 +
 +#endif				/* __CONFIG_DOT_H__ */
 diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
---- linux-orig/cluster/cman/kjoin.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/kjoin.c	2004-12-02 12:25:23.176406767 -0600
+--- linux-orig/cluster/cman/kjoin.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/kjoin.c	2004-12-08 22:02:48.854421648 +0800
 @@ -0,0 +1,238 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4985,8 +4985,8 @@ diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
 + * End:
 + */
 diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/membership.c
---- linux-orig/cluster/cman/membership.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/membership.c	2004-12-02 12:25:23.192403051 -0600
+--- linux-orig/cluster/cman/membership.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/membership.c	2004-12-08 22:02:48.864420128 +0800
 @@ -0,0 +1,3145 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7656,22 +7656,22 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +					  transition_end_time)) {
 +
 +				printk(KERN_INFO CMAN_NAME
-+				       ": bad generation number %d in HELLO message, expected %d\n",
++				       ": bad generation number %d in HELLO message from %d, expected %d\n",
 +				       le32_to_cpu(hellomsg->generation),
++				       saddr->scl_nodeid,
 +				       cluster_generation);
 +
-+				notify_kernel_listeners(DIED,
-+							(long) node->node_id);
-+
-+				send_kill(node->node_id);
++				start_transition(TRANS_CHECK, node);
 +				return 0;
 +			}
 +
 +			if (cluster_members != le16_to_cpu(hellomsg->members)
 +			    && node_state == MEMBER) {
 +				printk(KERN_INFO CMAN_NAME
-+				       ": nmembers in HELLO message does not match our view (got %d, exp %d)\n",
-+				       le16_to_cpu(hellomsg->members), cluster_members);
++				       ": nmembers in HELLO message from %d does not match our view (got %d, exp %d)\n",
++				       saddr->scl_nodeid,
++				       le16_to_cpu(hellomsg->members),
++				       cluster_members);
 +				start_transition(TRANS_CHECK, node);
 +				return 0;
 +			}
@@ -8134,8 +8134,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 + * End:
 + */
 diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
---- linux-orig/cluster/cman/proc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/proc.c	2004-12-02 12:25:23.192403051 -0600
+--- linux-orig/cluster/cman/proc.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/proc.c	2004-12-08 22:02:48.864420128 +0800
 @@ -0,0 +1,372 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8510,8 +8510,8 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	remove_proc_entry("cluster", NULL);
 +}
 diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
---- linux-orig/cluster/cman/sm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm.h	2004-12-02 12:25:23.195402354 -0600
+--- linux-orig/cluster/cman/sm.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm.h	2004-12-08 22:02:48.872418912 +0800
 @@ -0,0 +1,109 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8623,8 +8623,8 @@ diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
 +
 +#endif				/* __SM_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_barrier.c
---- linux-orig/cluster/cman/sm_barrier.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_barrier.c	2004-12-02 12:25:23.195402354 -0600
+--- linux-orig/cluster/cman/sm_barrier.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_barrier.c	2004-12-08 22:02:48.872418912 +0800
 @@ -0,0 +1,232 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8859,8 +8859,8 @@ diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_bar
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_barrier.h
---- linux-orig/cluster/cman/sm_barrier.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_barrier.h	2004-12-02 12:25:23.196402121 -0600
+--- linux-orig/cluster/cman/sm_barrier.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_barrier.h	2004-12-08 22:02:48.872418912 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8892,8 +8892,8 @@ diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_bar
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_control.c
---- linux-orig/cluster/cman/sm_control.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_control.c	2004-12-02 12:25:23.196402121 -0600
+--- linux-orig/cluster/cman/sm_control.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_control.c	2004-12-08 22:02:48.872418912 +0800
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9052,8 +9052,8 @@ diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_con
 +	return error;
 +}
 diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_control.h
---- linux-orig/cluster/cman/sm_control.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_control.h	2004-12-02 12:25:23.196402121 -0600
+--- linux-orig/cluster/cman/sm_control.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_control.h	2004-12-08 22:02:48.873418760 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9078,8 +9078,8 @@ diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_con
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daemon.c
---- linux-orig/cluster/cman/sm_daemon.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_daemon.c	2004-12-02 12:25:23.196402121 -0600
+--- linux-orig/cluster/cman/sm_daemon.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_daemon.c	2004-12-08 22:02:48.873418760 +0800
 @@ -0,0 +1,100 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9182,8 +9182,8 @@ diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daem
 +	kthread_stop(daemon_task);
 +}
 diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daemon.h
---- linux-orig/cluster/cman/sm_daemon.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_daemon.h	2004-12-02 12:25:23.197401889 -0600
+--- linux-orig/cluster/cman/sm_daemon.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_daemon.h	2004-12-08 22:02:48.873418760 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9218,8 +9218,8 @@ diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daem
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_internal.h
---- linux-orig/cluster/cman/sm_internal.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_internal.h	2004-12-02 12:25:23.197401889 -0600
+--- linux-orig/cluster/cman/sm_internal.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_internal.h	2004-12-08 22:02:48.873418760 +0800
 @@ -0,0 +1,231 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9453,8 +9453,8 @@ diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_in
 +
 +#endif				/* __SM_INTERNAL_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_joinleave.c
---- linux-orig/cluster/cman/sm_joinleave.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_joinleave.c	2004-12-02 12:25:23.201400960 -0600
+--- linux-orig/cluster/cman/sm_joinleave.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_joinleave.c	2004-12-08 22:02:48.874418608 +0800
 @@ -0,0 +1,1291 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10748,8 +10748,8 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_j
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_joinleave.h
---- linux-orig/cluster/cman/sm_joinleave.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_joinleave.h	2004-12-02 12:25:23.201400960 -0600
+--- linux-orig/cluster/cman/sm_joinleave.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_joinleave.h	2004-12-08 22:02:48.874418608 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10775,8 +10775,8 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_j
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_membership.c
---- linux-orig/cluster/cman/sm_membership.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_membership.c	2004-12-02 12:25:23.202400728 -0600
+--- linux-orig/cluster/cman/sm_membership.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_membership.c	2004-12-08 22:02:48.875418456 +0800
 @@ -0,0 +1,696 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11475,8 +11475,8 @@ diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_
 +	up(&sm_sglock);
 +}
 diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_membership.h
---- linux-orig/cluster/cman/sm_membership.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_membership.h	2004-12-02 12:25:23.202400728 -0600
+--- linux-orig/cluster/cman/sm_membership.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_membership.h	2004-12-08 22:02:48.875418456 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11499,8 +11499,8 @@ diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_message.c
---- linux-orig/cluster/cman/sm_message.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_message.c	2004-12-02 12:25:23.203400496 -0600
+--- linux-orig/cluster/cman/sm_message.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_message.c	2004-12-08 22:02:48.877418152 +0800
 @@ -0,0 +1,856 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12359,8 +12359,8 @@ diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_mes
 +	return error;
 +}
 diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_message.h
---- linux-orig/cluster/cman/sm_message.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_message.h	2004-12-02 12:25:23.203400496 -0600
+--- linux-orig/cluster/cman/sm_message.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_message.h	2004-12-08 22:02:48.877418152 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12397,8 +12397,8 @@ diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_mes
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
---- linux-orig/cluster/cman/sm_misc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_misc.c	2004-12-02 12:25:23.203400496 -0600
+--- linux-orig/cluster/cman/sm_misc.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_misc.c	2004-12-08 22:02:48.890416176 +0800
 @@ -0,0 +1,442 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12843,8 +12843,8 @@ diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
---- linux-orig/cluster/cman/sm_misc.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_misc.h	2004-12-02 12:25:23.204400263 -0600
+--- linux-orig/cluster/cman/sm_misc.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_misc.h	2004-12-08 22:02:48.890416176 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12876,8 +12876,8 @@ diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_recover.c
---- linux-orig/cluster/cman/sm_recover.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_recover.c	2004-12-02 12:25:23.204400263 -0600
+--- linux-orig/cluster/cman/sm_recover.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_recover.c	2004-12-08 22:02:48.890416176 +0800
 @@ -0,0 +1,524 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13404,8 +13404,8 @@ diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_rec
 +	wake_serviced(DO_RECOVERIES);
 +}
 diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_recover.h
---- linux-orig/cluster/cman/sm_recover.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_recover.h	2004-12-02 12:25:23.207399567 -0600
+--- linux-orig/cluster/cman/sm_recover.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_recover.h	2004-12-08 22:02:48.891416024 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13431,8 +13431,8 @@ diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_rec
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_services.c
---- linux-orig/cluster/cman/sm_services.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_services.c	2004-12-02 12:25:23.207399567 -0600
+--- linux-orig/cluster/cman/sm_services.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_services.c	2004-12-08 22:02:48.900414656 +0800
 @@ -0,0 +1,420 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13855,8 +13855,8 @@ diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_se
 +struct list_head sm_sg[SG_LEVELS];
 +struct semaphore sm_sglock;
 diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_services.h
---- linux-orig/cluster/cman/sm_services.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_services.h	2004-12-02 12:25:23.208399334 -0600
+--- linux-orig/cluster/cman/sm_services.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_services.h	2004-12-08 22:02:48.901414504 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13879,8 +13879,8 @@ diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_se
 +
 +#endif
 diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
---- linux-orig/cluster/cman/sm_user.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_user.c	2004-12-02 12:25:23.208399334 -0600
+--- linux-orig/cluster/cman/sm_user.c	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_user.c	2004-12-08 22:02:48.901414504 +0800
 @@ -0,0 +1,569 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14452,8 +14452,8 @@ diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
 +	}
 +}
 diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
---- linux-orig/cluster/cman/sm_user.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/cluster/cman/sm_user.h	2004-12-02 12:25:23.208399334 -0600
+--- linux-orig/cluster/cman/sm_user.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/cluster/cman/sm_user.h	2004-12-08 22:02:48.901414504 +0800
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14477,8 +14477,8 @@ diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
 +
 +#endif
 diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/cluster/cnxman-socket.h
---- linux-orig/include/cluster/cnxman-socket.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/cnxman-socket.h	2004-12-02 12:25:23.163409786 -0600
+--- linux-orig/include/cluster/cnxman-socket.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/cnxman-socket.h	2004-12-08 22:02:48.851422104 +0800
 @@ -0,0 +1,233 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14714,8 +14714,8 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +
 +#endif
 diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxman.h
---- linux-orig/include/cluster/cnxman.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/cnxman.h	2004-12-02 12:25:23.168408625 -0600
+--- linux-orig/include/cluster/cnxman.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/cnxman.h	2004-12-08 22:02:48.854421648 +0800
 @@ -0,0 +1,87 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14805,8 +14805,8 @@ diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxm
 +
 +#endif
 diff -urN linux-orig/include/cluster/service.h linux-patched/include/cluster/service.h
---- linux-orig/include/cluster/service.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/cluster/service.h	2004-12-02 12:25:23.195402354 -0600
+--- linux-orig/include/cluster/service.h	1970-01-01 07:30:00.000000000 +0730
++++ linux-patched/include/cluster/service.h	2004-12-08 22:02:48.871419064 +0800
 @@ -0,0 +1,102 @@
 +/******************************************************************************
 +*******************************************************************************
