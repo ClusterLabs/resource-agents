@@ -551,7 +551,7 @@ gulm_mount (char *table_name, char *host_data,
 		goto fail_callback;
 	}
 
-	error = watch_sig(gulm, "CFR", 4, gulm_check_replays, gulm);
+	error = watch_sig(gulm, gulm->fs_name, strlen(gulm->fs_name)+1, gulm_check_replays, gulm);
 	if( error != 0 ) {
 		log_err("fsid=%s: couldn't watch CFR because %d\n",
 				gulm->fs_name, error);
@@ -662,7 +662,7 @@ gulm_unmount (lm_lockspace_t * lockspace)
 	up (&filesystem_lck);
 
 	/* close and release stuff */
-	watch_sig(gulm_fs, "CFR", 4, NULL, NULL);
+	watch_sig(gulm_fs, gulm_fs->fs_name, strlen(gulm_fs->fs_name)+1, NULL, NULL);
 	drop_mount_lock (gulm_fs);
 	put_journalID (gulm_fs, FALSE);
 	jid_fs_release (gulm_fs);
@@ -701,8 +701,7 @@ gulm_withdraw(lm_lockspace_t * lockspace)
 	stop_callback_qu (&gulm_fs->cq);
 
 	expire_my_locks (gulm_fs);
-	tap_sig(gulm_fs, "CFR", 4);
-	watch_sig(gulm_fs, "CFR", 4, NULL, NULL);
+	tap_sig(gulm_fs, gulm_fs->fs_name, strlen(gulm_fs->fs_name)+1);
 
 	/* need to let things run through the queues.
 	 * Only really an issue if you happen to be the only gfs/gulm fs
