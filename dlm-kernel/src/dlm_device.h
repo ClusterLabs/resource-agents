@@ -30,8 +30,9 @@ struct dlm_lock_params {
 	uint32_t parent;
 	struct dlm_range range;
 	uint8_t namelen;
-        void *astparam;
-        void *astaddr;
+        void *castparam;
+	void *castaddr;
+	void *bastparam;
         void *bastaddr;
         struct dlm_lksb *lksb;
 	char name[1];

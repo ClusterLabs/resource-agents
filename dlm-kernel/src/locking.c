@@ -301,7 +301,7 @@ int dlm_lock(void *lockspace,
 	if (mode < 0 || mode > DLM_LOCK_EX)
 		goto out;
 
-	if (namelen > DLM_RESNAME_MAXLEN)
+	if (!(flags & DLM_LKF_CONVERT) && (namelen > DLM_RESNAME_MAXLEN))
 		goto out;
 
 	if (flags & DLM_LKF_CANCEL)

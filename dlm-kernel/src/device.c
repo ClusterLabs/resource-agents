@@ -52,8 +52,9 @@ struct lock_info {
 	struct dlm_lksb li_lksb;
 	wait_queue_head_t li_waitq;
 	unsigned long li_flags;
-	void __user *li_astparam;
-	void __user *li_astaddr;
+	void __user *li_castparam;
+	void __user *li_castaddr;
+	void __user *li_bastparam;
 	void __user *li_bastaddr;
 	struct file_info *li_file;
 	struct dlm_lksb __user *li_user_lksb;
@@ -204,13 +205,13 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 }
 
 /* Add it to userland's AST queue */
-static void add_to_astqueue(struct lock_info *li, void *astaddr)
+static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam)
 {
 	struct ast_info *ast = kmalloc(sizeof(struct ast_info), GFP_KERNEL);
 	if (!ast)
 		return;
 
-	ast->result.astparam  = li->li_astparam;
+	ast->result.astparam  = astparam;
 	ast->result.astaddr   = astaddr;
 	ast->result.user_lksb = li->li_user_lksb;
 	ast->result.cmd       = li->li_cmd;
@@ -231,7 +232,7 @@ static void bast_routine(void *param, int mode)
 	struct lock_info *li = param;
 
 	if (param) {
-		add_to_astqueue(li, li->li_bastaddr);
+		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam);
 	}
 }
 
@@ -249,11 +250,11 @@ static void ast_routine(void *param)
 		return;
 
 	/* If it's an async request then post data to the user's AST queue. */
-	if (li->li_astaddr) {
+	if (li->li_castaddr) {
 
 		/* Only queue AST if the device is still open */
 		if (test_bit(1, &li->li_file->fi_flags))
-			add_to_astqueue(li, li->li_astaddr);
+			add_to_astqueue(li, li->li_castaddr, li->li_castparam);
 
 		/* If it's a new lock operation that failed, then
 		 * remove it from the owner queue and free the
@@ -694,7 +695,7 @@ static int do_user_query(struct file_info *fi, struct dlm_lock_params *kparams)
 	struct lock_info *li;
 	int status;
 
-	if (!kparams->astaddr)
+	if (!kparams->castaddr)
 		return -EINVAL;
 
 	if (!kparams->lksb)
@@ -706,9 +707,10 @@ static int do_user_query(struct file_info *fi, struct dlm_lock_params *kparams)
 
 	get_file_info(fi);
 	li->li_user_lksb = kparams->lksb;
-	li->li_astparam  = kparams->astparam;
+	li->li_bastparam = kparams->bastparam;
 	li->li_bastaddr  = kparams->bastaddr;
-	li->li_astaddr   = kparams->astaddr;
+	li->li_castparam = kparams->castparam;
+	li->li_castaddr  = kparams->castaddr;
 	li->li_file      = fi;
 	li->li_flags     = 0;
 	li->li_cmd       = kparams->cmd;
@@ -773,20 +775,11 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	/*
 	 * Validate things that we need to have correct.
 	 */
-	if (kparams->namelen > DLM_RESNAME_MAXLEN)
-		return -EINVAL;
-
-	if (!kparams->astaddr)
+	if (!kparams->castaddr)
 		return -EINVAL;
 
 	if (!kparams->lksb)
 		return -EINVAL;
-
-	/* Get the lock name */
-	if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
-			   kparams->namelen)) {
-		return -EFAULT;
-	}
 
 	/* For conversions, the lock will already have a lock_info
 	   block squirelled away in astparam */
@@ -817,8 +810,9 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 
 	li->li_user_lksb = kparams->lksb;
 	li->li_bastaddr  = kparams->bastaddr;
-	li->li_astaddr   = kparams->astaddr;
-	li->li_astparam  = kparams->astparam;
+        li->li_bastparam = kparams->bastparam;
+	li->li_castaddr  = kparams->castaddr;
+	li->li_castparam = kparams->castparam;
 	li->li_flags     = 0;
 
 	/* Copy the user's LKSB into kernel space,
@@ -871,8 +865,14 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 	li = (struct lock_info *)lkb->lkb_astparam;
 
 	li->li_user_lksb = kparams->lksb;
-	li->li_astparam  = kparams->astparam;
+	li->li_castparam = kparams->castparam;
 	li->li_cmd       = kparams->cmd;
+	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
+	   the existing li_castaddr as that's the completion routine for
+	   unlocks. dlm_unlock_wait() specifies a new AST routine to be
+	   executed when the unlock completes. */
+	if (kparams->castaddr)
+		li->li_castaddr = kparams->castaddr;
 
 	/* Have to do it here cos the lkb may not exist after
 	 * dlm_unlock() */
@@ -898,7 +898,7 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 	sigset_t allsigs;
 	int status;
 
-	if (count < sizeof(kparams))
+	if (count < sizeof(kparams)-1)	/* -1 because lock name is optional */
 		return -EINVAL;
 
 	/* Has the lockspace been deleted */
