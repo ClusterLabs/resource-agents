@@ -1,0 +1,592 @@
+#!/bin/bash
+
+#
+#  Copyright Red Hat, Inc. 2002-2004
+#  Copyright Mission Critical Linux, Inc. 2000
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2, or (at your option) any
+#  later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; see the file COPYING.  If not, write to the
+#  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+#  MA 02139, USA.
+#
+
+#
+# NFS file system mount/umount/etc. agent
+#
+
+LC_ALL=C
+LANG=C
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export LC_ALL LANG PATH
+
+#
+# XXX todo - search and replace on these
+#
+SUCCESS=0
+FAIL=2
+YES=0
+NO=1
+YES_STR="yes"
+INVALIDATEBUFFERS="/bin/true"
+
+logAndPrint()
+{
+	echo $*
+}
+
+
+meta_data()
+{
+	cat <<EOT
+<?xml version="1.0" ?>
+<resource-agent name="netfs" version="rgmanager 2.0">
+    <version>1.0</version>
+
+    <longdesc lang="en">
+        This defines an NFS mount for use by cluster services.
+    </longdesc>
+    <shortdesc lang="en">
+        Defines an NFS file system mount.
+    </shortdesc>
+
+    <parameters>
+        <parameter name="name" primary="1">
+	    <longdesc lang="en">
+	        Symbolic name for this file system.
+	    </longdesc>
+            <shortdesc lang="en">
+                File System Name
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="mountpoint" unique="1" required="1">
+	    <longdesc lang="en">
+	        Path in file system heirarchy to mount this file system.
+	    </longdesc>
+            <shortdesc lang="en">
+                Mount Point
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="host" required="1">
+	    <longdesc lang="en">
+	    	NFS Server IP address or hostname
+	    </longdesc>
+            <shortdesc lang="en">
+	    	IP or Host
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="export" required="1">
+	    <longdesc lang="en">
+	    	NFS Export directory name
+	    </longdesc>
+            <shortdesc lang="en">
+	    	Export
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="fstype" required="0">
+	    <longdesc lang="en">
+	    	NFS File System type (nfs or nfs4)
+	    </longdesc>
+            <shortdesc lang="en">
+	    	NFS File System Type
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+        <parameter name="force_unmount">
+            <longdesc lang="en">
+                If set, the cluster will kill all processes using 
+                this file system when the resource group is 
+                stopped.  Otherwise, the unmount will fail, and
+                the resource group will be restarted.
+            </longdesc>
+            <shortdesc lang="en">
+                Force Unmount
+            </shortdesc>
+	    <content type="boolean"/>
+        </parameter>
+
+        <parameter name="options">
+            <longdesc lang="en">
+	    	Provides a list of mount options.  If none are specified,
+		the NFS file system is mounted -o sync.
+            </longdesc>
+            <shortdesc lang="en">
+                Mount Options
+            </shortdesc>
+	    <content type="string"/>
+        </parameter>
+
+    </parameters>
+
+    <actions>
+        <action name="start" timeout="900"/>
+	<action name="stop" timeout="30"/>
+	<!-- Recovery isn't possible; we don't know if resources are using
+	     the file system. -->
+
+	<!-- Checks to see if it's mounted in the right place -->
+	<action name="status" interval="1m" timeout="10"/>
+	<action name="monitor" interval="1m" timeout="10"/>
+
+	<!-- Checks to see if we can read from the mountpoint -->
+	<action name="status" depth="10" timeout="30" interval="5m"/>
+	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+
+	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
+	<action name="status" depth="20" timeout="30" interval="10m"/>
+	<action name="monitor" depth="20" timeout="30" interval="10m"/>
+
+	<action name="meta-data" timeout="5"/>
+	<action name="verify-all" timeout="5"/>
+    </actions>
+
+    <special tag="rgmanager">
+        <child type="nfsexport" forbid="1"/>
+    </special>
+</resource-agent>
+EOT
+}
+
+
+verify_name()
+{
+	[ -n "$OCF_RESKEY_name" ] || exit 1
+}
+
+
+verify_mountpoint()
+{
+	if [ -z "$OCF_RESKEY_mountpoint" ]; then
+		echo No mount point specified.
+		return 1
+	fi
+
+	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
+		echo "Mount point $OCF_RESKEY_mountpoint will be created "\
+		     "at mount time."
+		return 0
+	fi
+
+	[ -d "$OCF_RESKEY_mountpoint" ] && return 0
+
+	echo $OCF_RESKEY_mountpoint is not a directory
+	
+	return 1
+}
+
+
+verify_host()
+{
+	if [ -z "$OCF_RESKEY_host" ]; then
+	       echo "No server hostname or IP addess specified."
+	       return 1
+	fi
+
+	host $OCF_RESKEY_host 2>&1 | grep -vq "not found"
+	if [ $? -eq 0 ]; then
+		return 0
+	fi
+
+	echo "Hostname or IP address \"$OCF_RESKEY_host\" not valid"
+
+	return 1
+}
+
+
+verify_fstype()
+{
+	# Auto detect?
+	[ -z "$OCF_RESKEY_fstype" ] && return 0
+
+	case $OCF_RESKEY_fstype in
+	nfs|nfs4)
+		return 0
+		;;
+	*)
+		echo "File system type $OCF_RESKEY_fstype not supported"
+		return 1
+		;;
+	esac
+}
+
+
+verify_options()
+{
+	declare -i ret=0
+
+	#
+	# From mount(1)
+	#
+	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
+		case $o in
+		async|atime|auto|defaults|dev|exec|_netdev|noatime)
+			continue
+			;;
+		noauto|nodev|noexec|nosuid|nouser|ro|rw|suid|sync)
+			continue
+			;;
+		dirsync|user|users)
+			continue
+			;;
+		esac
+
+		case $OCF_RESKEY_fstype in
+		nfs|nfs4)
+			case $o in
+			#
+			# NFS / NFS4 common
+			#
+			rsize=*|wsize=*|timeo=*|retrans=*|acregmin=*)
+				continue
+				;;
+			acregmax=*|acdirmin=*|acdirmax=*|actimeo=*)
+				continue
+				;;
+			retry=*|port=*|bg|fg|soft|hard|intr|cto|ac|noac)
+				continue
+				;;
+			esac
+
+			#
+			# NFS v2/v3 only
+			#
+			if [ "$OCF_RESKEY_fstype" = "nfs" ]; then
+				case $o in
+				mountport=*|mounthost=*)
+					continue
+					;;
+				mountprog=*|mountvers=*|nfsprog=*|nfsvers=*)
+					continue
+					;;
+				namelen=*)
+					continue
+					;;
+				tcp|udp|lock|nolock)
+					continue
+					;;
+				esac
+			fi
+
+			#
+			# NFS4 only
+			#
+			if [ "$OCF_RESKEY_fstype" = "nfs4" ]; then
+				case $o in
+				proto=*|clientaddr=*|sec=*)
+					continue
+					;;
+				esac
+			fi
+
+			;;
+		esac
+
+		echo Option $o not supported for $OCF_RESKEY_fstype
+		ret=1
+	done
+
+	return $ret
+}
+
+
+verify_all()
+{
+	verify_name || return 1
+	verify_fstype|| return 1
+	verify_host || return 1
+	verify_mountpoint || return 1
+	verify_options || return 1
+}
+
+
+
+
+#
+# isMounted fullpath mount_point
+#
+# Check to see if the full path is mounted where we need it.
+#
+isMounted () {
+
+	typeset mp tmp_mp
+	typeset fullpath tmp_fullpath
+
+	if [ $# -ne 2 ]; then
+		logAndPrint $LOG_ERR "Usage: isMounted fullpathice mount_point"
+		return $FAIL
+	fi
+
+	fullpath=$1
+	mp=$2
+
+	while read tmp_fullpath tmp_mp
+	do
+		if [ "$tmp_fullpath" = "$fullpath" -a \
+		     "$tmp_mp" = "$mp" ]; then
+			return $YES
+		fi
+	done < <(mount | awk '{print $1,$3}')
+
+	return $NO
+}
+
+
+#
+# startNFSFilesystem
+#
+startNFSFilesystem() {
+	typeset -i ret_val=$SUCCESS
+	typeset mp=""			# mount point
+	typeset host=""
+	typeset fullpath=""
+	typeset exp=""
+	typeset opts=""
+	typeset mount_options=""
+
+	#
+	# Get the mount point, if it exists.  If not, no need to continue.
+	#
+	mp=${OCF_RESKEY_mountpoint}
+	case "$mp" in 
+      	""|"[ 	]*")		# nothing to mount
+    		return $SUCCESS
+    		;;
+	/*)			# found it
+	  	;;
+	*)	 		# invalid format
+			logAndPrint $LOG_ERR \
+"startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
+	    	return $FAIL
+	    	;;
+	esac
+	
+	#
+	# Get the device
+	#
+	host=${OCF_RESKEY_host}
+	exp=${OCF_RESKEY_export}
+
+	fullpath=$host:$exp
+
+	#
+	# Ensure we've got a valid directory
+	#
+	if [ -e "$mp" ]; then
+		if ! [ -d "$mp" ]; then
+			logAndPrint $LOG_ERR "\
+startFilesystem: Mount point $mp exists but is not a directory"
+			return $FAIL
+		fi
+	else
+		logAndPrint $LOG_INFO "\
+startFilesystem: Creating mount point $mp for $fullpath"
+		mkdir -p $mp
+	fi
+
+	#
+	# See if the mount path is already mounted.
+	# 
+	isMounted $fullpath $mp
+	case $? in
+	$YES)		# already mounted
+		logAndPrint $LOG_DEBUG "$fullpath already mounted on $mp"
+		return $SUCCESS
+		;;
+	$NO)		# not mounted, continue
+		;;
+	$FAIL)
+		return $FAIL
+		;;
+	esac
+
+	#
+	# Get the mount options, if they exist.
+	#
+	mount_options=""
+	opts=${OCF_RESKEY_options}
+	case "$opts" in 
+	""|"[ 	]*")
+		opts=""
+		;;
+	*)	# found it
+		mount_options="-o $opts"
+		;;
+	esac
+
+	#
+	# Mount the NFS export
+	#
+	logAndPrint $LOG_DEBUG "mount $fstype_option $mount_options $fullpath $mp"
+	mount $fstype_option $mount_options $fullpath $mp
+	ret_val=$?
+	if [ $ret_val -ne 0 ]; then
+		logAndPrint $LOG_ERR "\
+'mount $fstype_option $mount_options $fullpath $mp' failed, error=$ret_val"
+		return $FAIL
+	fi
+	
+	return $SUCCESS
+}
+
+
+#
+# stopFilesystem serviceID deviceID
+#
+# Run the stop actions
+#
+stopNFSFilesystem() {
+	typeset -i ret_val=0
+	typeset -i try=1
+	typeset -i max_tries=3		# how many times to try umount
+	typeset -i sleep_time=2		# time between each umount failure
+	typeset done=""
+	typeset umount_failed=""
+	typeset force_umount=""
+	typeset fstype=""
+
+
+	#
+	# Get the mount point, if it exists.  If not, no need to continue.
+	#
+	mp=${OCF_RESKEY_mountpoint}
+	case "$mp" in 
+      	""|"[ 	]*")		# nothing to mount
+    		return $SUCCESS
+    		;;
+	/*)			# found it
+	  	;;
+	*)	 		# invalid format
+			logAndPrint $LOG_ERR \
+"startFilesystem: Invalid mount point format (must begin with a '/'): \'$mp\'"
+	    	return $FAIL
+	    	;;
+	esac
+	
+	#
+	# Get the host/path
+	#
+	fullpath="${OCF_RESKEY_host}:${OCF_RESKEY_export}"
+
+	#
+	# Get the force unmount setting if there is a mount point.
+	#
+	if [ -n "$mp" ]; then
+		case ${OCF_RESKEY_force_unmount} in
+	        $YES_STR)	force_umount="-f" ;;
+		0)		force_umount="-f" ;;
+	        *)		force_umount="" ;;
+		esac
+	fi
+
+	#
+	# Unmount
+	#
+	isMounted $fullpath $mp
+	case $? in
+	$NO)
+		logAndPrint $LOG_INFO "$fullpath is not mounted"
+		umount_failed=
+		done=$YES
+		;;
+	$FAIL)
+		return $FAIL
+		;;
+	$YES)
+		sync; sync; sync
+		logAndPrint $LOG_INFO "unmounting $fullpath ($mp)"
+
+		umount $force_umount $mp
+		if  [ $? -eq 0 ]; then
+			return $SUCCESS
+		fi
+
+		umount_failed=yes
+
+		;;
+	*)
+		return $FAIL
+		;;
+	esac
+
+	if [ -n "$umount_failed" ]; then
+		logAndPrint $LOG_ERR "'umount $fullpath' failed ($mp), error=$ret_val"
+
+		return $FAIL
+	fi
+	return $SUCCESS
+}
+
+
+populate_defaults()
+{
+	if [ -z "$OCF_RESKEY_fstype" ]; then
+		export OCF_RESKEY_fstype=nfs
+	fi
+
+	if [ -z "$OCF_RESKEY_options" ]; then
+		export OCF_RESKEY_options=sync,soft,noac
+	fi
+}
+
+
+#
+# Main...
+#
+
+populate_defaults
+
+case $1 in
+start)
+	startNFSFilesystem
+	exit $?
+	;;
+stop)
+	stopNFSFilesystem
+	exit $?
+	;;
+status)
+	isMounted ${OCF_RESKEY_device} ${OCF_RESKEY_mountpoint}
+	exit $?
+	;;
+restart)
+	stopNFSFilesystem
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
+
+	startNFSFilesystem
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
+
+	exit 0
+	;;
+meta-data)
+	meta_data
+	exit 0
+	;;
+verify-all)
+	verify_all
+	exit $?
+	;;
+esac
+
+exit 0

@@ -90,7 +90,8 @@ meta_data()
         <attributes root="1" maxinstances="1"/>
         <child type="group" start="1" stop="5"/>
         <child type="fs" start="2" stop="4"/>
-        <child type="sharedfs" start="2" stop="4"/>
+        <child type="netfs" start="2" stop="4"/>
+        <child type="clusterfs" start="2" stop="4"/>
         <child type="ip" start="3" stop="3"/>
         <child type="samba" start="4" stop="2"/>
         <child type="script" start="5" stop="1"/>

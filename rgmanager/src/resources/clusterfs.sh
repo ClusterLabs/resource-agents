@@ -49,15 +49,14 @@ meta_data()
 {
 	cat <<EOT
 <?xml version="1.0" ?>
-<resource-agent name="fs" version="rgmanager 2.0">
+<resource-agent name="clusterfs" version="rgmanager 2.0">
     <version>1.0</version>
 
     <longdesc lang="en">
-        This defines a standard file system mount (= not a clustered
-	or otherwise shared file system).
+        This defines a cluster file system mount (i.e. GFS)
     </longdesc>
     <shortdesc lang="en">
-        Defines a file system mount.
+        Defines a cluster file system mount.
     </shortdesc>
 
     <parameters>
@@ -115,31 +114,6 @@ meta_data()
 	    <content type="boolean"/>
         </parameter>
 
-	<parameter name="self_fence">
-	    <longdesc lang="en">
-	        If set and unmounting the file system fails, the node will
-		immediately reboot.  Generally, this is used in conjunction
-		with force-unmount support, but it is not required.
-	    </longdesc>
-	    <shortdesc lang="en">
-	        Seppuku Unmount
-	    </shortdesc>
-	    <content type="boolean"/>
-	</parameter>
-
-        <parameter name="force_fsck">
-            <longdesc lang="en">
-                If set, the file system will be checked (even if
-                it is a journalled file system).  This option is
-                ignored for non-journalled file systems such as
-                ext2.
-            </longdesc>
-            <shortdesc lang="en">
-                Force fsck support
-            </shortdesc>
-	    <content type="boolean"/>
-        </parameter>
-
         <parameter name="options">
             <longdesc lang="en">
                 If set, the file system will be checked (even if
@@ -179,11 +153,11 @@ meta_data()
 
     <special tag="rgmanager">
         <child type="nfsexport"/>
-	<attributes maxinstances="1"/>
     </special>
 </resource-agent>
 EOT
 }
+
 
 verify_name()
 {
@@ -234,7 +208,7 @@ verify_fstype()
 	[ -z "$OCF_RESKEY_fstype" ] && return 0
 
 	case $OCF_RESKEY_fstype in
-	ext2|ext3|jfs|xfs|reiserfs|vfat|tmpfs)
+	gfs)
 		return 0
 		;;
 	*)
@@ -247,7 +221,7 @@ verify_fstype()
 
 verify_options()
 {
-	declare -i ret=0
+	decalre -i ret=0
 
 	#
 	# From mount(1)
@@ -266,92 +240,17 @@ verify_options()
 		esac
 
 		case $OCF_RESKEY_fstype in
-		ext2|ext3)
+		gfs)
 			case $o in
-			bsddf|minixdf|check|check=*|nocheck|debug)
-				continue
-				;;
-			errors=*|grpid|bsdgroups|nogrpid|sysvgroups)
-				continue
-				;;
-			resgid=*|resuid=*|sb=*|grpquota|noquota)
-				continue
-				;;
-			quota|usrquota|nouid32)
-				continue
-				;;
-			esac
-
-			if [ "$OCF_RESKEY_fstype" = "ext3" ]; then
-				case $0 in
-				noload|data=*)
+				lockproto=*|locktable=*|hostdata=*)
+					continue;
+					;;
+				localcaching|localflocks|ignore_local_fs)
+					continue;
+					;;
+				num_glockd|acl|suiddir)	
 					continue
 					;;
-				esac
-			fi
-			;;
-		vfat)
-			case $o in
-			blocksize=512|blocksize=1024|blocksize=2048)
-				continue
-				;;
-			uid=*|gid=*|umask=*|dmask=*|fmask=*)
-				continue
-				;;
-			check=r*|check=n*|check=s*|codepage=*)
-				continue
-				;;
-			conv=b*|conv=t*|conv=a*|cvf_format=*)
-				continue
-				;;
-			cvf_option=*|debug|fat=12|fat=16|fat=32)
-				continue
-				;;
-			iocharset=*|quiet)
-				continue
-				;;
-			esac
-			;;
-
-		jfs)
-			case $o in
-			conv|hash=rupasov|hash=tea|hash=r5|hash=detect)
-				continue
-				;;
-			hashed_relocation|no_unhashed_relocation)
-				continue
-				;;
-			noborder|nolog|notail|resize=*)
-				continue
-				;;
-			esac
-			;;
-
-		xfs)
-			case $o in
-			biosize=*|dmapi|xdsm|logbufs=*|logbsize=*)
-				continue
-				;;
-			logdev=*|rtdev=*|noalign|noatime)
-				continue
-				;;
-			norecovery|osyncisdsync|quota|userquota)
-				continue
-				;;
-			uqnoenforce|grpquota|gqnoenforce)
-				continue
-				;;
-			sunit=*|swidth=*)
-				continue
-				;;
-			esac
-			;;
-
-		tmpfs)
-			case $o in
-			size=*|nr_blocks=*|mode=*)
-				continue
-				;;
 			esac
 			;;
 		esac
@@ -675,51 +574,6 @@ Cannot mount $dev on $mp, the device or mount point is already in use!"
 		;;
 	esac
 
-
-	#
-	# Check to determine if we need to fsck the filesystem.
-	#
-	# Note: this code should not indicate in any manner suggested
-	# file systems to use in the cluster.  Known filesystems are
-	# listed here for correct operation.
-	#
-        case "$fstype" in
-        reiserfs) typeset fsck_needed="" ;;
-        ext3)     typeset fsck_needed="" ;;
-        jfs)      typeset fsck_needed="" ;;
-        xfs)      typeset fsck_needed="" ;;
-        ext2)     typeset fsck_needed=yes ;;
-        minix)    typeset fsck_needed=yes ;;
-        vfat)     typeset fsck_needed=yes ;;
-        msdos)    typeset fsck_needed=yes ;;
-	"")       typeset fsck_needed=yes ;;		# assume fsck
-	*)
-		typeset fsck_needed=yes 		# assume fsck
-	     	logAndPrint $LOG_WARNING "\
-Unknown file system type '$fstype' for device $dev.  Assuming fsck is required."
-		;;
-	esac
-
-
-	#
-	# Fsck the device, if needed.
-	#
-	if [ -n "$fsck_needed" ] || [ "${OCF_RESKEY_force_fsck}" = "yes" ] ||\
-	   [ "${OCF_RESKEY_force_fsck}" = "1" ]; then
-		typeset fsck_log=/tmp/$(basename $dev).fsck.log
-		logAndPrint $LOG_DEBUG "Running fsck on $dev"
-		fsck -p $dev >> $fsck_log 2>&1
-		ret_val=$?
-		if [ $ret_val -gt 1 ]; then
-			logAndPrint $LOG_ERR "\
-'fsck -p $dev' failed, error=$ret_val; check $fsck_log for errors"
-			logAndPrint $LOG_DEBUG "Invalidating buffers for $dev"
-			$INVALIDATEBUFFERS -f $dev
-			return $FAIL
-		fi
-		rm -f $fsck_log
-	fi
-
 	#
 	# Mount the device
 	#
@@ -786,14 +640,10 @@ stopFilesystem() {
 		esac
 	fi
 
-	if [ -n "$mp" ]; then
-		case ${OCF_RESKEY_self_fence} in
-	        $YES_STR)	self_fence=$YES ;;
-		0)		self_fence=$YES ;;
-	        *)		self_fence="" ;;
-		esac
+	if [ -z "$force_umount" ]; then
+		echo "Not umounting $dev (clustered file system)"
+		return $SUCCESS
 	fi
-
 
 	#
 	# Unmount the device.  
@@ -850,15 +700,10 @@ stopFilesystem() {
 	if [ -n "$umount_failed" ]; then
 		logAndPrint $LOG_ERR "'umount $dev' failed ($mp), error=$ret_val"
 
-		if [ "$self_fence" ]; then
-			logAndPrint $LOG_ALERT "umount failed - REBOOTING"
-			sync
-			reboot -fn
-		fi
 		return $FAIL
-	else
-		return $SUCCESS
 	fi
+
+	return $SUCCESS
 }
 
 
@@ -894,7 +739,6 @@ meta-data)
 	;;
 verify-all)
 	verify_all
-	exit $?
 	;;
 esac
 
