@@ -315,7 +315,7 @@ static int check_extended_leaf_eattr(struct fsck_inode *ip, uint64_t *data_ptr,
 		return 1;
 	}
 
-	if(check_meta(el_buf, GFS_METATYPE_EA)){
+	if(check_meta(el_buf, GFS_METATYPE_ED){
 		log_err("EA extended leaf block has incorrect type.\n");
 		relse_buf(sdp, el_buf);
 		block_set(sdp->bl, el_blk, meta_inval);
@@ -473,7 +473,7 @@ int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 
 
 
-int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
+int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block, int mfree)
 {
 	struct block_query q = {0};
 	struct fsck_inode *ip;
@@ -486,18 +486,34 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 	}
 
 	if (ip->i_di.di_flags & GFS_DIF_UNUSED){
-		log_err("Found unused inode marked in-use\n");
-		if(query(sdp, "Clear unused inode at block %"
-			 PRIu64"? (y/n) ", block)) {
-			if(block_set(sdp->bl, block, meta_inval)) {
+		if(mfree) {
+			if(block_set(sdp->bl, block, meta_free)) {
 				stack;
 				goto fail;
 			}
 			goto success;
 		} else {
-			log_err("Unused inode still marked in-use\n");
+			log_err("Found unused inode marked in-use\n");
+			if(query(sdp, "Clear unused inode at block %"
+				 PRIu64"? (y/n) ", block)) {
+				if(block_set(sdp->bl, block, meta_inval)) {
+					stack;
+					goto fail;
+				}
+				goto success;
+			} else {
+				log_err("Unused inode still marked in-use\n");
+			}
 		}
 
+	} else {
+		if(mfree) {
+			if(block_set(sdp->bl, block, meta_free)) {
+				stack;
+				goto fail;
+			}
+			goto success;
+		}
 	}
 
 	if (ip->i_di.di_num.no_addr != block) {
@@ -704,7 +720,7 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 }
 
 
-int scan_meta(struct fsck_sb *sdp, osi_buf_t *bh,  uint64_t block)
+int scan_meta(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block, int mfree)
 {
 
 	if (check_meta(bh, 0)) {
@@ -719,7 +735,7 @@ int scan_meta(struct fsck_sb *sdp, osi_buf_t *bh,  uint64_t block)
 	log_debug("Checking metadata block %"PRIu64"\n", block);
 
 	if (!check_type(bh, GFS_METATYPE_DI)) {
-		if(handle_di(sdp, bh, block)) {
+		if(handle_di(sdp, bh, block, mfree)) {
 			stack;
 			return -1;
 		}
@@ -765,6 +781,7 @@ int pass1(struct fsck_sb *sbp)
 	uint64_t blk_count;
 	uint64_t offset;
 	uint64_t rg_count = 0;
+	int mfree = 0;
 
 	/* FIXME: What other metadata should we look for? */
 
@@ -819,7 +836,7 @@ int pass1(struct fsck_sb *sbp)
 		while (1) {
 
 			/* "block" is relative to the entire file system */
-			if(next_rg_meta_free(rgd, &block, first))
+			if(next_rg_meta_free(rgd, &block, first, &mfree))
 				break;
 
 
@@ -831,7 +848,7 @@ int pass1(struct fsck_sb *sbp)
 				return -1;
 			}
 
-			if(scan_meta(sbp, bh, block)) {
+			if(scan_meta(sbp, bh, block, mfree)) {
 				stack;
 				relse_buf(sbp, bh);
 				fs_rgrp_relse(rgd);

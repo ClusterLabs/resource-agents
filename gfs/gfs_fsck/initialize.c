@@ -345,6 +345,9 @@ int init_sbp(struct fsck_sb *sbp)
 void destroy_sbp(struct fsck_sb *sbp)
 {
 	empty_super_block(sbp);
+	if(!sbp->opts->no)
+		fsync(sbp->diskfd);
+	close(sbp->diskfd);
 }
 
 int initialize(struct fsck_sb *sbp)

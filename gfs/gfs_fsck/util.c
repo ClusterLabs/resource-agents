@@ -197,7 +197,7 @@ int next_rg_meta(struct fsck_rgrp *rgd, uint64 *block, int first)
  *
  * Returns: 0 on success, -1 when finished
  */
-int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first)
+int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first, int *mfree)
 {
   fs_bitmap_t *bits = NULL;
   uint32 length = rgd->rd_ri.ri_length;
@@ -227,7 +227,13 @@ int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first)
 
     fblk = fs_bitfit(BH_DATA(rgd->rd_bh[i]) + bits->bi_offset,
 			     bits->bi_len, blk, GFS_BLKST_FREEMETA);
-    if(ublk < fblk) blk = ublk; else blk = fblk;
+    if(ublk < fblk) {
+	    blk = ublk;
+	    *mfree = 0;
+    } else {
+	    blk = fblk;
+	    *mfree = 1;
+    }
     if(blk != BFITNOENT){
 	    *block = blk + (bits->bi_start * GFS_NBBY) + rgd->rd_ri.ri_data1;
 	    break;

@@ -31,6 +31,7 @@ int add_inode_to_lf(struct fsck_inode *ip){
 	char tmp_name[256];
 	struct fsck_inode *lf_ip, *ri;
 	osi_filename_t filename;
+	struct block_query q;
 
 	if(!ip->i_sbd->lf_dip) {
 		log_info("Locating/Creating lost and found directory\n");
@@ -46,11 +47,26 @@ int add_inode_to_lf(struct fsck_inode *ip){
 			return -1;
 		}
 		log_notice("l+f directory at %"PRIu64"\n", lf_ip->i_num.no_addr);
-		increment_link(ip->i_sbd, ip->i_sbd->sb.sb_root_di.no_addr);
+
 		ip->i_sbd->lf_dip = lf_ip;
-		block_set(ip->i_sbd->bl, lf_ip->i_num.no_addr, inode_dir);
-		increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
-		increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
+		if(block_check(ip->i_sbd->bl, lf_ip->i_num.no_addr, &q)) {
+			stack;
+			return -1;
+		}
+		if(q.block_type != inode_dir) {
+			/* This is a new l+f directory, so set its
+			 * block type and increment link counts for
+			 * the directories */
+			/* FIXME: i'd feel better about this if
+			 * fs_mkdir returned whether it created a new
+			 * directory or just found an old one, and we
+			 * used that instead of the block_type to run
+			 * this */
+			block_set(ip->i_sbd->bl, lf_ip->i_num.no_addr, inode_dir);
+			increment_link(ip->i_sbd, ip->i_sbd->sb.sb_root_di.no_addr);
+			increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
+			increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
+		}
 	} else {
 		lf_ip = ip->i_sbd->lf_dip;
 	}

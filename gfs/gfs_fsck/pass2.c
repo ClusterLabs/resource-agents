@@ -220,7 +220,6 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 	struct fsck_sb *sbp = ip->i_sbd;
 	struct block_query q = {0};
 	char tmp_name[MAX_FILENAME];
-	osi_filename_t osifile;
 	uint64_t entryblock;
 	struct dir_status *ds = (struct dir_status *) priv;
 	int error;
@@ -403,6 +402,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 				/* FIXME: Should we continue on here
 				 * and check the rest of the '.'
 				 * entry? */
+				increment_link(sbp, de->de_inum.no_addr);
 				*update  = 1;
 				(*count)++;
 				ds->entry_count++;
@@ -422,10 +422,18 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 				de->de_inum.no_addr,
 				ip->i_num.no_addr);
 			if(query(sbp, "remove '.' reference? (y/n) ")) {
+				load_inode(sbp, de->de_inum.no_addr, &entry_ip);
+				check_inode_eattr(entry_ip, &clear_eattrs);
+				free_inode(&entry_ip);
+
 				dirent_del(ip, bh, prev_de, dent);
+				return 1;
 
 			} else {
 				log_err("Invalid '.' reference remains\n");
+				/* Not setting ds->dotdir here since
+				 * this '.' entry is invalid */
+				increment_link(sbp, de->de_inum.no_addr);
 				*update = 1;
 				(*count)++;
 				ds->entry_count++;
@@ -446,8 +454,6 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 		if(ds->dotdotdir) {
 			log_err("already found '..' entry\n");
 			if(query(sbp, "Clear duplicate '..' entry? (y/n) ")) {
-				osifile.name = "..";
-				osifile.len = strlen("..");
 
 				load_inode(sbp, de->de_inum.no_addr, &entry_ip);
 				check_inode_eattr(entry_ip, &clear_eattrs);
@@ -461,6 +467,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 				/* FIXME: Should we continue on here
 				 * and check the rest of the '..'
 				 * entry? */
+				increment_link(sbp, de->de_inum.no_addr);
 				*update  = 1;
 				(*count)++;
 				ds->entry_count++;
@@ -472,11 +479,16 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			log_err("Found '..' entry pointing to"
 				" something that's not a directory");
 			if(query(sbp, "Clear bad '..' directory entry? (y/n) ")) {
+				load_inode(sbp, de->de_inum.no_addr, &entry_ip);
+				check_inode_eattr(entry_ip, &clear_eattrs);
+				free_inode(&entry_ip);
+
 				dirent_del(ip, bh, prev_de, dent);
 				*update = 1;
 				return 1;
 			} else {
 				log_err("Bad '..' directory entry remains\n");
+				increment_link(sbp, de->de_inum.no_addr);
 				*update  = 1;
 				(*count)++;
 				ds->entry_count++;

@@ -53,8 +53,6 @@ static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 		log_warn("Unable to remove \"..\" directory entry.\n");
 	}
 	else {
-		/* FIXME: this isn't right, it should be the parent
-		 * that gets decremented */
 		decrement_link(sbp, olddotdot);
 	}
 	if(fs_dir_add(ip, &filename, &pip->i_num,

@@ -32,7 +32,7 @@ int set_meta(osi_buf_t *bh, int type, int format);
 int check_type(osi_buf_t *bh, int type);
 int check_meta(osi_buf_t *bh, int type);
 int next_rg_meta(struct fsck_rgrp *rgd, uint64 *block, int first);
-int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first);
+int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first, int *free);
 int next_rg_metatype(struct fsck_rgrp *rgd, uint64 *block, uint32 type, int first);
 struct di_info *search_list(osi_list_t *list, uint64 addr);
 
