@@ -44,17 +44,20 @@ void parse_serverlist(gulm_config_t *gf, int cd)
 {
    char *tmp;
    ip_name_t *in;
-
-   /* this `overwrites' previous entries so... */
-   if( !LLi_empty(&gf->node_list) ) {
-      release_node_list(&gf->node_list);
-      gf->node_cnt = 0;
-      LLi_init_head(&gf->node_list);
-   }
+   int first=TRUE;
 
    for(;;) {
       if( ccs_get_list(cd, "/cluster/gulm/lockserver/@name", &tmp) != 0 )
          break;
+      if( first ) {
+         /* this `overwrites' previous entries so... */
+         if( !LLi_empty(&gf->node_list) ) {
+            release_node_list(&gf->node_list);
+            gf->node_cnt = 0;
+            LLi_init_head(&gf->node_list);
+         }
+         first = FALSE;
+      }
       if( tmp == NULL ) break;
       in = get_ipname(tmp);
       if( in == NULL || in->name == NULL ) {
@@ -121,19 +124,19 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/heartbeat_rate", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@heartbeat_rate", &tmp) == 0 ) {
       temp = ft2uint64(atof(tmp));
       gf->heartbeat_rate = bound_to_uint64(temp, 75000, (uint64_t)~0);
       /* min is 0.075 */
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/allowed_misses", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@allowed_misses", &tmp) == 0 ) {
       gf->allowed_misses = bound_to_uint16(atoi(tmp), 1, 0xffff);
       free(tmp);
    }
 
-   if( ccs_get(cd,"/cluster/gulm/new_connection_timeout", &tmp)==0) {
+   if( ccs_get(cd,"/cluster/gulm/@new_connection_timeout", &tmp)==0) {
       temp = ft2uint64(atof(tmp));
       gf->new_con_timeout = bound_to_uint64(temp, 0, (uint64_t)~0);
       /* min should be something bigger than zero...
@@ -142,23 +145,23 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/master_scan_delay", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@master_scan_delay", &tmp) == 0 ) {
       temp = ft2uint64(atof(tmp));
       gf->master_scan_delay = bound_to_uint64(temp, 10, (uint64_t)~0);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/coreport", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@coreport", &tmp) == 0 ) {
       gf->corePort = atoi(tmp);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/ltpxport", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@ltpxport", &tmp) == 0 ) {
       gf->ltpx_port = atoi(tmp);
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/ltport", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@ltport", &tmp) == 0 ) {
       gf->lt_port = atoi(tmp);
       free(tmp);
    }
@@ -178,7 +181,7 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
-   if( ccs_get(cd, "/cluster/gulm/lt_partitions", &tmp) == 0 ) {
+   if( ccs_get(cd, "/cluster/gulm/@lt_partitions", &tmp) == 0 ) {
       gf->how_many_lts = bound_to_uint16(atoi(tmp), 1, 256);
       free(tmp);
    }
