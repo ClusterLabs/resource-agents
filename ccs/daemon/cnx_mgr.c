@@ -909,9 +909,8 @@ static int process_get(comm_header_t *ch, char **payload){
   }
 
   /* ATTENTION -- should path expansion go before index inc ? */
-  if(((ch->comm_payload_size > 2) &&
-      ((*payload)[0] == '/') &&
-      ((*payload)[1] == '/')) ||
+  if(((ch->comm_payload_size > 1) &&
+      ((*payload)[0] == '/')) ||
      !ocs[ch->comm_desc]->oc_cwp){
     log_dbg("Query involves absolute path or cwp is not set.\n");
     query = (char *)strdup(*payload);
