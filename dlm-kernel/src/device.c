@@ -799,6 +799,12 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		li->li_cmd       = kparams->cmd;
 		li->li_queryinfo  = NULL;
 
+		/* Get the lock name */
+		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
+				   kparams->namelen)) {
+			return -EFAULT;
+		}
+
 		/* semaphore to allow us to complete our work before
   		   the AST routine runs. In fact we only need (and use) this
 		   when the initial lock fails */
