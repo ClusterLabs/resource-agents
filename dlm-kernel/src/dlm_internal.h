@@ -379,8 +379,8 @@ struct dlm_rsb {
 
 #define GDLM_LKFLG_VALBLK	(0x00000008)
 #define GDLM_LKFLG_PERSISTENT	(0x00000080)	/* Don't unlock when process exits */
-#define GDLM_LKFLG_NODLCKWT	(0x00000100)    /* Don't do deadlock detection */
-#define GDLM_LKFLG_EXPEDITE	(0x00000400)    /* Move to head of convert queue */
+#define GDLM_LKFLG_NODLCKWT	(0x00000100)	/* Don't do deadlock detection */
+#define GDLM_LKFLG_EXPEDITE	(0x00000400)	/* Move to head of convert queue */
 
 /* Internal flags */
 #define GDLM_LKFLG_RANGE	(0x00001000)	/* Range field is present
@@ -398,20 +398,20 @@ struct dlm_rsb {
 #define AST_DEL			(4)
 
 struct dlm_lkb {
-	uint32_t 		lkb_flags;
-	uint16_t 		lkb_status;     /* grant, wait, convert */
-	int8_t			lkb_rqmode;     /* requested lock mode */
-	int8_t			lkb_grmode;     /* granted lock mode */
-	uint32_t		lkb_retstatus;  /* status to return in lksb */
-	uint32_t		lkb_id;         /* our lock ID */
-	struct dlm_lksb *	lkb_lksb;       /* status block of caller */
+	uint32_t		lkb_flags;
+	uint16_t		lkb_status;	/* grant, wait, convert */
+	int8_t			lkb_rqmode;	/* requested lock mode */
+	int8_t			lkb_grmode;	/* granted lock mode */
+	uint32_t		lkb_retstatus;	/* status to return in lksb */
+	uint32_t		lkb_id;		/* our lock ID */
+	struct dlm_lksb *	lkb_lksb;	/* status block of caller */
 	struct list_head	lkb_idtbl_list;	/* lockidtbl */
 	struct list_head	lkb_statequeue;	/* rsb's g/c/w queue */
 	struct dlm_rsb *	lkb_resource;
 	struct list_head	lkb_ownerqueue;	/* list of locks owned by a
 						   process */
-	struct dlm_lkb *	lkb_parent;     /* parent lock if any */
-	atomic_t		lkb_childcnt;   /* number of children */
+	struct dlm_lkb *	lkb_parent;	/* parent lock if any */
+	atomic_t		lkb_childcnt;	/* number of children */
 
 	struct list_head	lkb_lockqueue;	/* queue of locks waiting
 						   for remote reply */
@@ -420,7 +420,7 @@ struct dlm_lkb {
 							lock/unlock */
 	unsigned long		lkb_lockqueue_time;  /* time lkb went on the
 							lockqueue */
-	unsigned long		lkb_duetime;    /* for deadlock detection */
+	unsigned long		lkb_duetime;	/* for deadlock detection */
 
 	uint32_t		lkb_remid;	/* id on remote partner */
 	uint32_t		lkb_nodeid;	/* id of remote partner */
@@ -443,7 +443,7 @@ struct dlm_lkb {
 	uint64_t *		lkb_range;	/* Points to an array of 64 bit
 						   numbers that represent the
 						   requested and granted ranges
-				 		   of the lock. NULL implies
+						   of the lock. NULL implies
 						   0-ffffffffffffffff */
 };
 
@@ -478,7 +478,7 @@ struct dlm_request {
 	uint32_t		rr_remlkid;	/* Remote lock ID */
 	uint32_t		rr_remparid;	/* Parent's remote lock ID */
 	uint32_t		rr_flags;	/* Flags from lock/convert req*/
-        uint64_t		rr_range_start; /* Yes, these are in the right
+	uint64_t		rr_range_start; /* Yes, these are in the right
 						   place... */
 	uint64_t		rr_range_end;
 	uint32_t		rr_status;	/* Status to return if this is
@@ -523,7 +523,7 @@ struct dlm_rcom {
 	char			rc_buf[1];	/* first byte of data goes here
 						   and extends beyond here for
 						   another datalen - 1 bytes.
-				 		   rh_length is set to sizeof
+						   rh_length is set to sizeof
 						   dlm_rcom + datalen - 1 */
 };
 
@@ -547,16 +547,16 @@ struct dlm_query_request {
 
 struct dlm_query_reply {
 	struct dlm_header	rq_header;
-        uint32_t		rq_numlocks;  /* Number of locks in reply */
-        uint32_t		rq_startlock; /* Which lock this block starts
+	uint32_t		rq_numlocks;  /* Number of locks in reply */
+	uint32_t		rq_startlock; /* Which lock this block starts
 						 at (for multi-block replies) */
-        uint32_t		rq_status;
+	uint32_t		rq_status;
 
-        /* Resource information */
+	/* Resource information */
 	uint32_t		rq_grantcount;	/* No. of nodes on grantqueue */
 	uint32_t		rq_convcount;	/* No. of nodes on convertq */
 	uint32_t		rq_waitcount;	/* No. of nodes on waitqueue */
-        char			rq_valblk[DLM_LVB_LEN];	/* Master's LVB
+	char			rq_valblk[DLM_LVB_LEN];	/* Master's LVB
 							   contents, if
 							   applicable */
 };
@@ -565,25 +565,25 @@ struct dlm_query_reply {
  * Lockqueue wait lock states
  */
 
-#define GDLM_LQSTATE_WAIT_RSB       1
-#define GDLM_LQSTATE_WAIT_CONVERT   2
-#define GDLM_LQSTATE_WAIT_CONDGRANT 3
-#define GDLM_LQSTATE_WAIT_UNLOCK    4
+#define GDLM_LQSTATE_WAIT_RSB		1
+#define GDLM_LQSTATE_WAIT_CONVERT	2
+#define GDLM_LQSTATE_WAIT_CONDGRANT	3
+#define GDLM_LQSTATE_WAIT_UNLOCK	4
 
 /* Commands sent across the comms link */
-#define GDLM_REMCMD_LOOKUP          1
-#define GDLM_REMCMD_LOCKREQUEST     2
-#define GDLM_REMCMD_UNLOCKREQUEST   3
-#define GDLM_REMCMD_CONVREQUEST     4
-#define GDLM_REMCMD_LOCKREPLY       5
-#define GDLM_REMCMD_LOCKGRANT       6
-#define GDLM_REMCMD_SENDBAST        7
-#define GDLM_REMCMD_SENDCAST        8
-#define GDLM_REMCMD_REM_RESDATA     9
-#define GDLM_REMCMD_RECOVERMESSAGE  20
-#define GDLM_REMCMD_RECOVERREPLY    21
-#define GDLM_REMCMD_QUERY           30
-#define GDLM_REMCMD_QUERYREPLY      31
+#define GDLM_REMCMD_LOOKUP		1
+#define GDLM_REMCMD_LOCKREQUEST		2
+#define GDLM_REMCMD_UNLOCKREQUEST	3
+#define GDLM_REMCMD_CONVREQUEST		4
+#define GDLM_REMCMD_LOCKREPLY		5
+#define GDLM_REMCMD_LOCKGRANT		6
+#define GDLM_REMCMD_SENDBAST		7
+#define GDLM_REMCMD_SENDCAST		8
+#define GDLM_REMCMD_REM_RESDATA		9
+#define GDLM_REMCMD_RECOVERMESSAGE	20
+#define GDLM_REMCMD_RECOVERREPLY	21
+#define GDLM_REMCMD_QUERY		30
+#define GDLM_REMCMD_QUERYREPLY		31
 
 /* Set in rh_flags when this is the last block of
    query information. Note this could also be the first
