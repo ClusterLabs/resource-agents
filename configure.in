@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.91 $) dnl cvs revision
+AC_REVISION($Revision: 1.92 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -715,7 +715,7 @@ AC_SUBST(LIBADD_INTL)	dnl extra flags for GNU gettext stuff...
 
 AC_SUBST(LOCALE)
 
-HEARTBEAT_RC_DIR=$sysconfdir/rc.d
+HEARTBEAT_RC_DIR=$sysconfdir/ha.d/rc.d
 AC_DEFINE_UNQUOTED(HEARTBEAT_RC_DIR, "$HEARTBEAT_RC_DIR", heartbeat rc script directory)
 
 HEARTBEATPKG=heartbeat
