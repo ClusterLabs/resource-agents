@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.284 $) dnl cvs revision
+AC_REVISION($Revision: 1.285 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1251,8 +1251,8 @@ if test "$ac_cv_func_setproctitle" = "yes"; then
 else
   pf_argv_set="no"
 
-  AC_CHECK_HEADERS(sys/pstat.h,have_pstat_h="yes",have_pstat_h="no")
-  if test "$have_pstat_h" = "yes"; then
+  AC_CHECK_HEADERS(sys/pstat.h)
+  if test "$ac_cv_header_pstat_h" = "yes"; then
     AC_CHECK_FUNCS(pstat)
 
     if test "$ac_cv_func_pstat" = "yes"; then
@@ -1716,6 +1716,7 @@ dnl testing again makes the eventual output a little easier to read
 if test "${enable_crm}"  = "yes"; then
 	AC_CONFIG_FILES(crm/Makefile				\
 		  include/crm/Makefile				\
+		  include/crm/common/Makefile			\
 		  crm/common/Makefile				\
 		  crm/cib/Makefile				\
 		  crm/crmd/Makefile				\
