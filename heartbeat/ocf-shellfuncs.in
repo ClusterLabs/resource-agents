@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.9 2005/03/07 07:40:05 zhaokai Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.10 2005/04/06 14:11:31 andrew Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -64,6 +64,11 @@ ocf_set_defaults() {
 	OCF_ERR_INSTALLED=5
 	OCF_ERR_CONFIGURED=6
 	OCF_NOT_RUNNING=7
+
+	# Everything is ok, but some "special" handling is required
+	# Eg. the IP is running, but on the loopback device (IPaddr)
+	# TODO: Someone needs to figure out what this value should really be
+	OCF_SUCCESS_VARIANT=99
 
 	VARLIB=@localstatedir@/lib/@HB_PKG@
 
