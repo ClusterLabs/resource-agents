@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.1 2004/08/27 14:12:25 lars Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.2 2004/08/27 14:47:35 lars Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -66,11 +66,11 @@ ocf_set_defaults() {
 	VARLIB=@localstatedir@/lib/@HB_PKG@
 
 	# TODO: Anything else we should be setting?
-	if [ "$OCF_RA_VERSION_MAJOR" -ne "1" ]; then
+	if [ "x$OCF_RA_VERSION_MAJOR" -ne "x1" ]; then
 		echo "ERROR: This script is OCF RA API 1.x compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
-	if [ "$OCF_RA_VERSION_MINOR" -lt "0" ]; then
+	if [ "0$OCF_RA_VERSION_MINOR" -lt "0" ]; then
 		echo "ERROR: This script is OCF RA API >1.0 compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
@@ -80,11 +80,11 @@ ocf_set_defaults() {
 	fi
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
 		echo "ERROR: Need to tell us our resource instance name."
-		exit OCF_ERR_ARGS
+		exit $OCF_ERR_ARGS
 	fi
 	if [ -z "$OCF_RESOURCE_TYPE" ]; then
 		echo "ERROR: Need to tell us our resource type."
-		exit OCF_ERR_ARGS
+		exit $OCF_ERR_ARGS
 	fi
 }
 
