@@ -378,6 +378,7 @@ static char *parse_cli_args(int argc, char *argv[]){
       lockfile_location = optarg;
       buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			     "  Lock file location:: %s\n", optarg);
+      break;
     case 'P':
       if(optarg[1] != ':'){
 	fprintf(stderr, "Bad argument to '-P' option.\n"
