@@ -17,8 +17,10 @@
 #ifndef __CNXMAN_SOCKET_H
 #define __CNXMAN_SOCKET_H
 
-/* Just made these up but the address family must be less than 32 (NPROTO) */
-#define AF_CLUSTER 31
+/* A currently unused number. TIPC also uses this number and you're unlikely
+   to be using both.
+ */
+#define AF_CLUSTER 30
 #define PF_CLUSTER AF_CLUSTER
 
 /* Protocol(socket) types */
