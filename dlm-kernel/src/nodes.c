@@ -23,7 +23,7 @@
 
 static struct list_head cluster_nodes;
 static spinlock_t node_lock;
-static uint32_t local_nodeid;
+static uint32_t dlm_local_nodeid;
 static struct semaphore local_init_lock;
 
 
@@ -31,7 +31,7 @@ void dlm_nodes_init(void)
 {
 	INIT_LIST_HEAD(&cluster_nodes);
 	spin_lock_init(&node_lock);
-	local_nodeid = 0;
+	dlm_local_nodeid = 0;
 	init_MUTEX(&local_init_lock);
 }
 
@@ -124,9 +124,9 @@ int init_new_csb(uint32_t nodeid, struct dlm_csb **ret_csb)
 
 	down(&local_init_lock);
 
-	if (!local_nodeid) {
+	if (!dlm_local_nodeid) {
 		if (nodeid == our_nodeid()) {
-			local_nodeid = node->nodeid;
+			dlm_local_nodeid = node->nodeid;
 		}
 	}
 	up(&local_init_lock);
