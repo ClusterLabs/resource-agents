@@ -25,7 +25,6 @@ struct list_head dlm_nodes;
 struct semaphore dlm_nodes_sem;
 
 
-/* FIXME: get rid of this function */
 int our_nodeid(void)
 {
 	return dlm_local_nodeid;
@@ -37,6 +36,19 @@ static struct dlm_node *search_node(int nodeid)
 
 	list_for_each_entry(node, &dlm_nodes, list) {
 		if (node->nodeid == nodeid)
+			goto out;
+	}
+	node = NULL;
+ out:
+	return node;
+}
+
+static struct dlm_node *search_node_addr(char *addr)
+{
+	struct dlm_node *node;
+
+	list_for_each_entry(node, &dlm_nodes, list) {
+		if (!memcmp(node->addr, addr, DLM_ADDR_LEN))
 			goto out;
 	}
 	node = NULL;
@@ -75,11 +87,30 @@ static int get_node(int nodeid, struct dlm_node **node_ret)
 	return error;
 }
 
-void dlm_node_addr(int nodeid, char *addr)
+int dlm_nodeid_addr(int nodeid, char *addr)
 {
 	struct dlm_node *node;
-	if (!get_node(nodeid, &node))
-		memcpy(addr, node->addr, DLM_ADDR_LEN);
+
+	down(&dlm_nodes_sem);
+	node = search_node(nodeid);
+	up(&dlm_nodes_sem);
+	if (!node)
+		return -1;
+	memcpy(addr, node->addr, DLM_ADDR_LEN);
+	return 0;
+}
+
+int dlm_addr_nodeid(char *addr, int *nodeid)
+{
+	struct dlm_node *node;
+
+	down(&dlm_nodes_sem);
+	node = search_node_addr(addr);
+	up(&dlm_nodes_sem);
+	if (!node)
+		return -1;
+	*nodeid = node->nodeid;
+	return 0;
 }
 
 static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)

@@ -31,7 +31,8 @@ int dlm_recover_members_init(struct dlm_ls *ls, struct dlm_recover *rv);
 int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out);
 int dlm_is_removed(struct dlm_ls *ls, int nodeid);
 
-void dlm_node_addr(int nodeid, char *addr);
+int dlm_nodeid_addr(int nodeid, char *addr);
+int dlm_addr_nodeid(char *addr, int *nodeid);
 int our_nodeid(void);
 
 #endif                          /* __MEMBER_DOT_H__ */
