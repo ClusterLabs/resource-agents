@@ -1,7 +1,7 @@
-utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-agent sendagent testclient devpoke devspam
+binaries = mksnapstore csnap-server csnap-create csnap-delete csnap-agent sendagent testclient devpoke devspam
 headers = csnap.h ../dm-csnap.h trace.h sock.h
 
-all: $(utilities)
+all: $(binaries)
 
 mksnapstore: csnap.c $(headers)
 	cc -Wall csnap.c -DCREATE -o mksnapstore
@@ -17,7 +17,7 @@ csnap-create csnap-delete: create.c $(headers)
 	cc -Wall create.c -DDELETE -o csnap-delete
 
 testclient: testclient.c $(headers)
-	cc -Wall testclient.c -o csnap-test
+	cc -Wall testclient.c -o testclient
 
 sendagent: sendagent.c $(headers)
 	cc -Wall sendagent.c -o sendagent
@@ -29,7 +29,7 @@ devspam: devspam.c
 	cc -Wall devspam.c -o devspam
 
 clean:
-	rm -f $(utilities) *.o a.out
+	rm -f $(binaries) *.o a.out
 
 kernel:
 	cd ../../.. && make bzImage
