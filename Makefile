@@ -11,7 +11,7 @@
 # Order is important
 LATEST_TAG=scripts/latest_tag.pl
 BUILDDIR = $(shell pwd)/build
-MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir moduledir=${BUILDDIR}/module
+MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module
 
 
 all:
