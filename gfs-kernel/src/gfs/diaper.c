@@ -95,9 +95,6 @@ diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 	struct diaper_holder *dh = bw->bw_dh;
 	struct gfs_sbd *sdp = dh->dh_sbd;
 
-        if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-                error = -EIO;
-
 	bio_endio(bw->bw_orig, bytes_done, error);
 	if (bio->bi_size)
 		return 1;
@@ -127,7 +124,7 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 	atomic_inc(&sdp->sd_bio_outstanding);
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
 		atomic_dec(&sdp->sd_bio_outstanding);
-		bio_io_error(bio, bio->bi_size);
+		bio_endio(bio, bio->bi_size, 0);
 		RETURN(GFN_DIAPER_MAKE_REQUEST, 0);
 	}
 	if (bio_rw(bio) == WRITE)

@@ -605,6 +605,8 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 			gfs_io_error_bh(sdp, bh);
 			RETURN(GFN_DREREAD, -EIO);
 		}
+		if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
+			RETURN(GFN_DREREAD, -EIO);
 	}
 
 	RETURN(GFN_DREREAD, 0);
@@ -625,6 +627,8 @@ gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 	ENTER(GFN_DWRITE)
 
 	if (gfs_assert_warn(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags)))
+		RETURN(GFN_DWRITE, -EIO);
+	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		RETURN(GFN_DWRITE, -EIO);
 
 	if (flags & DIO_CLEAN) {
@@ -651,6 +655,8 @@ gfs_dwrite(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
 			gfs_io_error_bh(sdp, bh);
 			RETURN(GFN_DWRITE, -EIO);
 		}
+		if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
+			RETURN(GFN_DWRITE, -EIO);
 	}
 
 	RETURN(GFN_DWRITE, 0);
@@ -970,6 +976,8 @@ gfs_logbh_wait(struct gfs_sbd *sdp, struct buffer_head *bh)
 		gfs_io_error_bh(sdp, bh);
 		RETURN(GFN_LOGBH_WAIT, -EIO);
 	}
+	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
+		RETURN(GFN_LOGBH_WAIT, -EIO);
 
 	RETURN(GFN_LOGBH_WAIT, 0);
 }
