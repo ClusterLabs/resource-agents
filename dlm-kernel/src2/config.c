@@ -110,9 +110,14 @@ int dlm_config_init(void)
 	int i;
 	struct proc_dir_entry *pde;
 
-	dlm_dir = proc_mkdir("cluster/config/dlm", 0);
-	if (!dlm_dir)
+	if (!proc_mkdir("cluster/config", 0))
 		return -1;
+
+	dlm_dir = proc_mkdir("cluster/config/dlm", 0);
+	if (!dlm_dir) {
+		remove_proc_entry("cluster/config", NULL);
+		return -1;
+	}
 
 	dlm_dir->owner = THIS_MODULE;
 
@@ -134,4 +139,5 @@ void dlm_config_exit(void)
 	for (i=0; i<sizeof(config_proc)/sizeof(struct config_proc_info); i++)
 		remove_proc_entry(config_proc[i].name, dlm_dir);
 	remove_proc_entry("cluster/config/dlm", NULL);
+	remove_proc_entry("cluster/config", NULL);
 }

@@ -597,7 +597,14 @@ static int dlm_stats_clear(struct file *file, const char __user *buffer,
 
 void dlm_proc_init(void)
 {
+	struct proc_dir_entry *proc_cluster;
+
 #ifdef CONFIG_PROC_FS
+	proc_cluster = proc_mkdir("cluster", 0);
+	if (!proc_cluster)
+		return;
+	proc_cluster->owner = THIS_MODULE;
+
 	debug_proc_entry = create_proc_entry("cluster/dlm_debug", S_IRUGO,
 					     NULL);
 	if (!debug_proc_entry)
@@ -654,5 +661,9 @@ void dlm_proc_exit(void)
 		remove_proc_entry("cluster/dlm_locks", NULL);
 	if (dir_proc_entry)
 		remove_proc_entry("cluster/dlm_dir", NULL);
+#endif
+
+#ifdef CONFIG_PROC_FS
+	remove_proc_entry("cluster", NULL);
 #endif
 }
