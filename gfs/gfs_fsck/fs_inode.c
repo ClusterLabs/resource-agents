@@ -755,6 +755,10 @@ int fs_remove(fs_inode_t *ip)
 	       ip->i_di.di_num.no_addr);
       goto free_metalist;
     }
+    /* destroy meta-header so it can not be pulled back in - thus creating **
+    ** a circular dependency.............................................. */
+    ip->i_di.di_header.mh_magic = 0;
+    fs_copyout_dinode(ip);
   }
   
   if(fs_rgrp_read(rgd) || fs_rgrp_recount(rgd))
