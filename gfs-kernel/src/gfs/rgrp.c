@@ -104,12 +104,13 @@ gfs_mhc_add(struct gfs_rgrpd *rgd,
 	    struct buffer_head **bh, unsigned int num)
 {
 	struct gfs_sbd *sdp = rgd->rd_sbd;
-	struct gfs_meta_header_cache *mc;
 	unsigned int x;
-	uint64_t gen;
-	struct list_head *head;
 
 	for (x = 0; x < num; x++) {
+		struct gfs_meta_header_cache *mc;
+		struct list_head *head;
+		uint64_t gen;
+
 		if (gfs_meta_check(sdp, bh[x]))
 			return;
 
@@ -136,9 +137,11 @@ gfs_mhc_add(struct gfs_rgrpd *rgd,
 		atomic_inc(&sdp->sd_mhc_count);
 	}
 
+	x = gfs_tune_get(sdp, gt_max_mhc);
+
 	/* If we've got too many cached, throw some older ones away */
-	if (atomic_read(&sdp->sd_mhc_count) > sdp->sd_tune.gt_max_mhc)
-		mhc_trim(sdp, sdp->sd_tune.gt_max_mhc);
+	if (atomic_read(&sdp->sd_mhc_count) > x)
+		mhc_trim(sdp, x);
 }
 
 /**
@@ -301,7 +304,7 @@ depend_sync_old(struct gfs_rgrpd *rgd)
 
 		if (time_before(jiffies,
 				gd->gd_time +
-				sdp->sd_tune.gt_depend_secs * HZ))
+				gfs_tune_get(sdp, gt_depend_secs) * HZ))
 			return;
 
 		depend_sync_one(sdp, gd);
@@ -1976,7 +1979,8 @@ gfs_rlist_free(struct gfs_rgrp_list *rlist)
 /**
  * gfs_reclaim_metadata - reclaims unused metadata
  * @sdp: the file system
- * @stats: stats on reclaimation
+ * @inodes:
+ * @metadata:
  *
  * This function will look through the resource groups and
  * free the unused metadata.
@@ -1985,7 +1989,9 @@ gfs_rlist_free(struct gfs_rgrp_list *rlist)
  */
 
 int
-gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
+gfs_reclaim_metadata(struct gfs_sbd *sdp, 
+		     uint64_t *inodes,
+		     uint64_t *metadata)
 {
 	struct gfs_holder ji_gh, ri_gh, rgd_gh, t_gh;
 	struct gfs_rgrpd *rgd;
@@ -1997,6 +2003,8 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 	uint32_t goal;
 	unsigned int x;
 	int error = 0;
+
+	*inodes = *metadata = 0;
 
 	/* Acquire the jindex lock here so we don't deadlock with a
 	   process writing the the jindex inode. :-( */
@@ -2070,7 +2078,7 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 
 			rg->rg_freedi--;
 			rg->rg_free++;
-			stats->rc_inodes++;
+			(*inodes)++;
 		}
 
 		if (next.no_formal_ino || next.no_addr) {
@@ -2086,7 +2094,7 @@ gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats)
 						 GFS_BLKST_FREEMETA, GFS_BLKST_FREE);
 			rg->rg_freemeta--;
 			rg->rg_free++;
-			stats->rc_metadata++;
+			(*metadata)++;
 		}
 
 		gfs_trans_add_bh(rgd->rd_gl, rgd->rd_bh[0]);

@@ -14,8 +14,6 @@
 #ifndef __IOCTL_DOT_H__
 #define __IOCTL_DOT_H__
 
-int gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh);
-
-int gfs_ioctli(struct gfs_inode *ip, unsigned int cmd, void *arg);
+int gfs_ioctl_i(struct gfs_inode *ip, void *arg);
 
 #endif /* __IOCTL_DOT_H__ */

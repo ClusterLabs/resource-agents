@@ -23,6 +23,8 @@
 #include <linux/uio.h>
 #include <linux/blkdev.h>
 #include <linux/mm.h>
+#include <asm/uaccess.h>
+#include <linux/gfs_ioctl.h>
 
 #include "gfs.h"
 #include "bmap.h"
@@ -638,7 +640,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
 		/* split large writes into smaller atomic transactions */
 		while (size) {
-			s = sdp->sd_tune.gt_max_atomic_write;
+			s = gfs_tune_get(sdp, gt_max_atomic_write);
 			if (s > size)
 				s = size;
 
@@ -880,7 +882,7 @@ do_write_buf(struct file *file,
 
 	/* split large writes into smaller atomic transactions */
 	while (size) {
-		s = sdp->sd_tune.gt_max_atomic_write;
+		s = gfs_tune_get(sdp, gt_max_atomic_write);
 		if (s > size)
 			s = size;
 
@@ -1128,7 +1130,7 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 	struct filldir_bad_entry *fbe;
 	int error;
 
-	entries = sdp->sd_tune.gt_entries_per_readdir;
+	entries = gfs_tune_get(sdp, gt_entries_per_readdir);
 	size = sizeof(struct filldir_bad) +
 	    entries * (sizeof(struct filldir_bad_entry) + GFS_FAST_NAME_SIZE);
 
@@ -1222,8 +1224,23 @@ gfs_ioctl(struct inode *inode, struct file *file,
 	  unsigned int cmd, unsigned long arg)
 {
 	struct gfs_inode *ip = vn2ip(inode);
+
 	atomic_inc(&ip->i_sbd->sd_ops_file);
-	return gfs_ioctli(ip, cmd, (void *)arg);
+
+	switch (cmd) {
+	case GFS_IOCTL_IDENTIFY: {
+                unsigned int x = GFS_MAGIC;
+                if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
+                        return -EFAULT;
+		return 0;
+        }
+
+	case GFS_IOCTL_SUPER:
+		return gfs_ioctl_i(ip, (void *)arg);
+
+	default:
+		return -ENOTTY;
+	}
 }
 
 /**
@@ -1401,40 +1418,6 @@ gfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 }
 
 /**
- * do_plock - acquire/release a posix lock on a file
- * @file: the file pointer
- * @cmd: either modify or retrieve lock state, possibly wait
- * @fl: type and range of lock
- *
- * Returns: errno
- */
-
-static int
-do_plock(struct file *file, int cmd, struct file_lock *fl)
-{
-	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct lm_lockname name =
-		{ .ln_number = ip->i_num.no_formal_ino,
-		  .ln_type = LM_TYPE_PLOCK };
-
-	if (sdp->sd_args.ar_localflocks) {
-		if (IS_GETLK(cmd))
-			return LOCK_USE_CLNT;
-		return posix_lock_file_wait(file, fl);
-	}
-
-	if (IS_GETLK(cmd))
-		return gfs_lm_plock_get(sdp, &name, file, fl);
-
-	else if (fl->fl_type == F_UNLCK)
-		return gfs_lm_punlock(sdp, &name, file, fl);
-
-	else
-		return gfs_lm_plock(sdp, &name, file, cmd, fl);
-}
-
-/**
  * gfs_lock - acquire/release a posix lock on a file
  * @file: the file pointer
  * @cmd: either modify or retrieve lock state, possibly wait
@@ -1447,20 +1430,30 @@ static int
 gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 {
 	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
-	int error = 0;
+	struct gfs_sbd *sdp = ip->i_sbd;
+	struct lm_lockname name =
+		{ .ln_number = ip->i_num.no_formal_ino,
+		  .ln_type = LM_TYPE_PLOCK };
 
-	atomic_inc(&ip->i_sbd->sd_ops_file);
+	atomic_inc(&sdp->sd_ops_file);
 
+	if (!(fl->fl_flags & FL_POSIX))
+		return -ENOLCK;
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
 		return -ENOLCK;
 
-	if (fl->fl_flags & FL_POSIX)
-		error = do_plock(file, cmd, fl);
+	if (sdp->sd_args.ar_localflocks) {
+		if (IS_GETLK(cmd))
+			return LOCK_USE_CLNT;
+		return posix_lock_file_wait(file, fl);
+	}
 
+	if (IS_GETLK(cmd))
+		return gfs_lm_plock_get(sdp, &name, file, fl);
+	else if (fl->fl_type == F_UNLCK)
+		return gfs_lm_punlock(sdp, &name, file, fl);
 	else
-		error = -ENOLCK;
-
-	return error;
+		return gfs_lm_plock(sdp, &name, file, cmd, fl);
 }
 
 /**
@@ -1596,23 +1589,23 @@ static int
 gfs_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
-	int error = 0;
+	struct gfs_sbd *sdp = ip->i_sbd;
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
+	if (!(fl->fl_flags & FL_FLOCK))
+		return -ENOLCK;
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
 		return -ENOLCK;
 
-	if (fl->fl_flags & FL_FLOCK) {
-		if (fl->fl_type == F_UNLCK)
-			do_unflock(file, fl);
-		else
-			error = do_flock(file, cmd, fl);
+	if (sdp->sd_args.ar_localflocks)
+		return flock_lock_file_wait(file, fl);
 
+	if (fl->fl_type == F_UNLCK) {
+		do_unflock(file, fl);
+		return 0;
 	} else
-		error = -ENOLCK;
-
-	return error;
+		return do_flock(file, cmd, fl);
 }
 
 struct file_operations gfs_file_fops = {

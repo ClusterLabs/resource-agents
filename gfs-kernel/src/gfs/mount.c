@@ -69,8 +69,8 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 				error = -EINVAL;
 				break;
 			}
-			strncpy(args->ar_lockproto, y, 256);
-			args->ar_lockproto[255] = 0;
+			strncpy(args->ar_lockproto, y, GFS_LOCKNAME_LEN);
+			args->ar_lockproto[GFS_LOCKNAME_LEN - 1] = 0;
 		}
 
 		else if (!strcmp(x, "locktable")) {
@@ -79,8 +79,8 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 				error = -EINVAL;
 				break;
 			}
-			strncpy(args->ar_locktable, y, 256);
-			args->ar_locktable[255] = 0;
+			strncpy(args->ar_locktable, y, GFS_LOCKNAME_LEN);
+			args->ar_locktable[GFS_LOCKNAME_LEN - 1] = 0;
 		}
 
 		else if (!strcmp(x, "hostdata")) {
@@ -89,8 +89,8 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 				error = -EINVAL;
 				break;
 			}
-			strncpy(args->ar_hostdata, y, 256);
-			args->ar_hostdata[255] = 0;
+			strncpy(args->ar_hostdata, y, GFS_LOCKNAME_LEN);
+			args->ar_hostdata[GFS_LOCKNAME_LEN - 1] = 0;
 		}
 
 		else if (!strcmp(x, "ignore_local_fs"))

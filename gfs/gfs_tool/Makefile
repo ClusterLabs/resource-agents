@@ -15,14 +15,17 @@ include ${top_srcdir}/make/defines.mk
 
 TARGET= gfs_tool
 
-SOURCE= counters.c \
+SOURCE=	counters.c \
+	df.c \
 	layout.c \
 	main.c \
+	misc.c \
+	ondisk.c \
 	sb.c \
 	tune.c \
-	ondisk.c
+	util.c
 
-CFLAGS+= -O2 -Wall -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
+CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config

@@ -164,7 +164,7 @@ gfs_aspace_releasepage(struct page *page, int gfp_mask)
 			if (atomic_read(&aspace->i_writecount)) {
 				if (time_after_eq(jiffies,
 						  t +
-						  sdp->sd_tune.gt_stall_secs * HZ)) {
+						  gfs_tune_get(sdp, gt_stall_secs) * HZ)) {
 					stuck_releasepage(bh);
 					t = jiffies;
 				}
@@ -1300,7 +1300,7 @@ gfs_start_ra(struct gfs_glock *gl, uint64_t dblock, uint32_t extlen)
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 	struct buffer_head *first_bh, *bh;
-	uint32_t max_ra = sdp->sd_tune.gt_max_readahead >> sdp->sd_sb.sb_bsize_shift;
+	uint32_t max_ra = gfs_tune_get(sdp, gt_max_readahead) >> sdp->sd_sb.sb_bsize_shift;
 	int error;
 
 	if (!extlen)

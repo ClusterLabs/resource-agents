@@ -76,6 +76,8 @@ void gfs_rlist_alloc(struct gfs_rgrp_list *rlist, unsigned int state,
 		     int flags);
 void gfs_rlist_free(struct gfs_rgrp_list *rlist);
 
-int gfs_reclaim_metadata(struct gfs_sbd *sdp, struct gfs_reclaim_stats *stats);
+int gfs_reclaim_metadata(struct gfs_sbd *sdp,
+			 uint64_t *inodes,
+			 uint64_t *metadata);
 
 #endif /* __RGRP_DOT_H__ */

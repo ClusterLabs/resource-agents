@@ -11,1252 +11,196 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <time.h>
-#include <sys/ioctl.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <ctype.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 #include <limits.h>
-#include <sys/param.h>
-#include <sys/mount.h>
-#include <libgen.h>
-
-#include "global.h"
-
-#include <linux/gfs_ioctl.h>
-#include <linux/gfs_ondisk.h>
-struct file { int x; };
-struct file_lock { int x; };
-#include <linux/lm_interface.h>
+#include <errno.h>
 
 #include "copyright.cf"
 
-#define EXTERN
 #include "gfs_tool.h"
 
+char *prog_name;
+char *action = NULL;
+int override = FALSE;
+int expert = FALSE;
+int debug = FALSE;
+int continuous = FALSE;
+int interval = 1;
 
-
-const char *usage[] =
-{
-  "Print file stat data:\n",
-  "  gfs_tool stat <filename>\n",
-  "\n",
-  "Print the superblock of a mounted filesystem:\n",
-  "  gfs_tool getsb <mountpoint>\n",
-  "\n",
-  "Print the journal index of a mounted filesystem:\n",
-  "  gfs_tool jindex <mountpoint>\n",
-  "\n",
-  "Print the resource group index of a mounted filesystem:\n",
-  "  gfs_tool rindex <mountpoint>\n",
-  "\n",
-  "Print the quota file of a mounted filesystem:\n",
-  "  gfs_tool quota <mountpoint>\n",
-  "\n",
-  "Print out the ondisk layout for a file:\n",
-  "  gfs_tool layout <filename> [buffersize]\n",
-  "\n",
-  "Shrink a filesystem's inode cache:\n",
-  "  gfs_tool shrink <mountpoint>\n",
-  "\n",
-  "Have GFS dump its lock state:\n",
-  "  gfs_tool lockdump <mountpoint> [buffersize]\n",
-  "\n",
-  "Freeze a GFS cluster:\n",
-  "  gfs_tool freeze <mountpoint>\n",
-  "\n",
-  "Unfreeze a GFS cluster:\n",
-  "  gfs_tool unfreeze <mountpoint>\n",
-  "\n",
-  "Withdraw this machine from participating in a filesystem:\n",
-  "  gfs_tool withdraw <mountpoint>\n",
-  "\n",
-  "List filesystems:\n",
-  "  gfs_tool list\n",
-  "\n",
-  "Provide arguments for next mount:\n",
-  "  gfs_tool margs <mountarguments>\n",
-  "\n",
-  "Free unused disk inodes:\n",
-  "  gfs_tool reclaim <mountpoint>\n",
-  "\n",
-  "Do a GFS specific \"df\"\n",
-  "  gfs_tool df <mountpoint>\n",
-  "\n",
-  "Tune a GFS superblock\n",
-  "  gfs_tool sb <device> proto [newval]\n",
-  "  gfs_tool sb <device> table [newval]\n",
-  "  gfs_tool sb <device> ondisk [newval]\n",
-  "  gfs_tool sb <device> multihost [newval]\n",
-  "  gfs_tool sb <device> all\n",
-  "\n",
-  "Tune a running filesystem\n",
-  "  gfs_tool gettune <mountpoint>\n",
-  "  gfs_tool settune <mountpoint> <parameter> <value>\n",
-  "\n",
-  "Set a flag on a inode\n",
-  "  gfs_tool setflag flag <filenames>\n",
-  "\n",
-  "Clear a flag on a inode\n",
-  "  gfs_tool clearflag flag <filenames>\n",
-  "\n",
-  "Print the counters for a filesystem\n",
-  "  gfs_tool counters <mountpoint>\n",
-  "\n",
-  "Force files from a machine's cache\n",
-  "  gfs_tool flush <filenames>\n",
-  "\n",
-  "Print tool version information\n",
-  "  gfs_tool version\n",
-  ""
+static const char *usage[] = {
+	"Clear a flag on a inode\n",
+	"  gfs_tool clearflag flag <filenames>\n",
+	"\n",
+	"Print the counters for a filesystem\n",
+	"  gfs_tool counters <mountpoint>\n",
+	"\n",
+	"Do a GFS specific \"df\"\n",
+	"  gfs_tool df <mountpoint>\n",
+	"\n",
+	"Force files from a machine's cache\n",
+	"  gfs_tool flush <filenames>\n",
+	"\n",
+	"Freeze a GFS cluster:\n",
+	"  gfs_tool freeze <mountpoint>\n",
+	"\n",
+	"Print the superblock of a mounted filesystem:\n",
+	"  gfs_tool getsb <mountpoint>\n",
+	"\n",
+	"Get tuneable parameters for a filesystem\n",
+	"  gfs_tool gettune <mountpoint>\n",
+	"\n",
+	"Print the journal index of a mounted filesystem:\n",
+	"  gfs_tool jindex <mountpoint>\n",
+	"\n",
+	"Print out the ondisk layout for a file:\n",
+	"  gfs_tool layout <filename> [buffersize]\n",
+	"\n",
+	"List filesystems:\n",
+	"  gfs_tool list\n",
+	"\n",
+	"Have GFS dump its lock state:\n",
+	"  gfs_tool lockdump <mountpoint> [buffersize]\n",
+	"\n",
+	"Provide arguments for next mount:\n",
+	"  gfs_tool margs <mountarguments>\n",
+	"\n",
+	"Print the quota file of a mounted filesystem:\n",
+	"  gfs_tool quota <mountpoint>\n",
+	"\n",
+	"Free unused disk inodes:\n",
+	"  gfs_tool reclaim <mountpoint>\n",
+	"\n",
+	"Print the resource group index of a mounted filesystem:\n",
+	"  gfs_tool rindex <mountpoint>\n",
+	"\n",
+	"Tune a GFS superblock\n",
+	"  gfs_tool sb <device> proto [newval]\n",
+	"  gfs_tool sb <device> table [newval]\n",
+	"  gfs_tool sb <device> ondisk [newval]\n",
+	"  gfs_tool sb <device> multihost [newval]\n",
+	"  gfs_tool sb <device> all\n",
+	"\n",
+	"Set a flag on a inode\n",
+	"  gfs_tool setflag flag <filenames>\n",
+	"\n",
+	"Tune a running filesystem\n",
+	"  gfs_tool settune <mountpoint> <parameter> <value>\n",
+	"\n",
+	"Shrink a filesystem's inode cache:\n",
+	"  gfs_tool shrink <mountpoint>\n",
+	"\n",
+	"Print file stat data:\n",
+	"  gfs_tool stat <filename>\n",
+	"\n",
+	"Unfreeze a GFS cluster:\n",
+	"  gfs_tool unfreeze <mountpoint>\n",
+	"\n",
+	"Print tool version information\n",
+	"  gfs_tool version\n",
+	"\n",
+	"Withdraw this machine from participating in a filesystem:\n",
+	"  gfs_tool withdraw <mountpoint>\n",
+	"",
 };
-
-
-
-
 
 /**
  * print_usage - print out usage information
  *
  */
 
-void print_usage()
+void
+print_usage(void)
 {
-  int x;
-
-  for (x = 0; usage[x][0]; x++)
-    printf(usage[x]);
-}
-
-
-/**
- * print_flags - print the flags in a dinode's di_flags field
- * @di: the dinode structure
- *
- */
-
-static void print_flags(struct gfs_dinode *di)
-{
-  if (di->di_flags)
-  {
-    printf("Flags:\n");
-    if (di->di_flags & GFS_DIF_JDATA)
-      printf("  jdata\n");
-    if (di->di_flags & GFS_DIF_EXHASH)
-      printf("  exhash\n");
-    if (di->di_flags & GFS_DIF_UNUSED)
-      printf("  unused\n");
-    if (di->di_flags & GFS_DIF_EA_INDIRECT)
-      printf("  ea_indirect\n");
-    if (di->di_flags & GFS_DIF_DIRECTIO)
-      printf("  directio\n");
-    if (di->di_flags & GFS_DIF_IMMUTABLE)
-      printf("  immutable\n");
-    if (di->di_flags & GFS_DIF_APPENDONLY)
-      printf("  appendonly\n");
-#if 0
-    if (di->di_flags & GFS_DIF_NOATIME)
-      printf("  noatime\n");
-    if (di->di_flags & GFS_DIF_SYNC)
-      printf("  sync\n");
-#endif
-    if (di->di_flags & GFS_DIF_INHERIT_DIRECTIO)
-      printf("  inherit_directio\n");
-    if (di->di_flags & GFS_DIF_INHERIT_JDATA)
-      printf("  inherit_jdata\n");
-  }
-}
-
-
-/**
- * check_for_gfs - Check to see if a descriptor is a file on a GFS filesystem
- * @fd: the file descriptor
- * @path: the path used to open the descriptor
- *
- */
-
-void check_for_gfs(int fd, char *path)
-{
-  unsigned int magic = 0;
-  int error;
-
-  error = ioctl(fd, GFS_WHERE_ARE_YOU, &magic);
-  if (error || magic != GFS_MAGIC)
-    die("%s is not a GFS file/filesystem\n", path);
-}
-
-
-/**
- * print_stat - print out the struct gfs_dinode for a file
- * @argc:
- * @argv:
- *
- */
-
-static void print_stat(int argc, char **argv)
-{
-  struct gfs_dinode di;
-  int fd;
-
-  if (argc != 3)
-    die("Usage: gfs_tool stat <filename>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-  if (ioctl(fd, GFS_FILE_STAT, &di) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  close(fd);
-
-  gfs_dinode_print(&di);
-  printf("\n");
-  print_flags(&di);
-}
-
-
-/**
- * print_sb - the superblock
- * @argc:
- * @argv:
- *
- */
-
-static void print_sb(int argc, char **argv)
-{
-  struct gfs_sb sb;
-  int fd;
-
-  if (argc != 3)
-    die("Usage: gfs_tool getsb <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-  if (ioctl(fd, GFS_GET_SUPER, &sb) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  close(fd);
-
-  gfs_sb_print(&sb);
-}
-
-
-/**
- * print_jindex - print out the journal index
- * @argc:
- * @argv:
- *
- */
-
-static void print_jindex(int argc, char **argv)
-{
-  struct gfs_jio jt;
-  struct gfs_dinode di;
-  struct gfs_jindex ji;
-  char buf[sizeof(struct gfs_jindex)];
-  uint64 offset;
-  unsigned int x = 0;
-  int fd;
-
-
-  memset(&jt, 0, sizeof(struct gfs_jio));
-  jt.jio_file = GFS_HIDDEN_JINDEX;
-
-  if (argc != 3)
-    die("Usage: gfs_tool jindex <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-
-  jt.jio_data = (char *)&di;
-  jt.jio_size = sizeof(struct gfs_dinode);
-
-  if (ioctl(fd, GFS_JSTAT, &jt) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  gfs_dinode_print(&di);
-
-
-  for (offset = 0; ; offset += sizeof(struct gfs_jindex), x++)
-  {
-    jt.jio_data = buf;
-    jt.jio_offset = offset;
-    jt.jio_size = sizeof(struct gfs_jindex);
-
-    if (ioctl(fd, GFS_JREAD, &jt) < 0)
-      die("error doing ioctl:  %s\n", strerror(errno));
-
-    if (!jt.jio_count)
-      break;
-    if (jt.jio_count != sizeof(struct gfs_jindex))
-      die("corrupt journal index\n");
-
-    gfs_jindex_in(&ji, buf);
-
-    printf("\nJournal %u:\n\n", x);
-
-    gfs_jindex_print(&ji);
-  }
-
-
-  close(fd);
-}
-
-
-/**
- * print_rindex - print out the journal index
- * @argc:
- * @argv:
- *
- */
-
-static void print_rindex(int argc, char **argv)
-{
-  struct gfs_jio jt;
-  struct gfs_dinode di;
-  struct gfs_rindex ri;
-  char buf[sizeof(struct gfs_rindex)];
-  uint64 offset;
-  unsigned int x = 0;
-  int fd;
-
-
-  memset(&jt, 0, sizeof(struct gfs_jio));
-  jt.jio_file = GFS_HIDDEN_RINDEX;
-
-  if (argc != 3)
-    die("Usage: gfs_tool rindex <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-
-  jt.jio_data = (char *)&di;
-  jt.jio_size = sizeof(struct gfs_dinode);
-
-  if (ioctl(fd, GFS_JSTAT, &jt) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  gfs_dinode_print(&di);
-
-
-  for (offset = 0; ; offset += sizeof(struct gfs_rindex), x++)
-  {
-    jt.jio_data = buf;
-    jt.jio_offset = offset;
-    jt.jio_size = sizeof(struct gfs_rindex);
-
-    if (ioctl(fd, GFS_JREAD, &jt) < 0)
-      die("error doing ioctl:  %s\n", strerror(errno));
-
-    if (!jt.jio_count)
-      break;
-    if (jt.jio_count != sizeof(struct gfs_rindex))
-      die("corrupt resource index\n");
-
-    gfs_rindex_in(&ri, buf);
-
-    printf("\nResource Group %u:\n\n", x);
-
-    gfs_rindex_print(&ri);
-  }
-
-
-  close(fd);
-}
-
-
-/**
- * print_quota - print out the journal index
- * @argc:
- * @argv:
- *
- */
-
-static void print_quota(int argc, char **argv)
-{
-  struct gfs_jio jt;
-  struct gfs_dinode di;
-  struct gfs_quota q;
-  char buf[sizeof(struct gfs_quota)];
-  uint64 offset;
-  unsigned int x = 0;
-  int fd;
-
-
-  memset(&jt, 0, sizeof(struct gfs_jio));
-  jt.jio_file = GFS_HIDDEN_QUOTA;
-
-  if (argc != 3)
-    die("Usage: gfs_tool quota <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-
-  jt.jio_data = (char *)&di;
-  jt.jio_size = sizeof(struct gfs_dinode);
-
-  if (ioctl(fd, GFS_JSTAT, &jt) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  gfs_dinode_print(&di);
-
-
-  for (offset = 0; ; offset += sizeof(struct gfs_quota), x++)
-  {
-    jt.jio_data = buf;
-    jt.jio_offset = offset;
-    jt.jio_size = sizeof(struct gfs_quota);
-
-    if (ioctl(fd, GFS_JREAD, &jt) < 0)
-      die("error doing ioctl:  %s\n", strerror(errno));
-
-    if (!jt.jio_count)
-      break;
-    if (jt.jio_count != sizeof(struct gfs_quota))
-      die("corrupt resource index\n");
-
-    gfs_quota_in(&q, buf);
-
-    printf("\nQuota Entry %u:\n\n", x);
-
-    gfs_quota_print(&q);
-  }
-
-
-  close(fd);
-}
-
-
-/**
- * shrink - shrink the inode cache for a filesystem
- * @argc:
- * @argv:
- *
- */
-
-static void shrink(int argc, char **argv)
-{
-  int fd;
-
-  if (argc != 3)
-    die("Usage: gfs_tool shrink <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-  if (ioctl(fd, GFS_SHRINK, NULL) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  close(fd);
-}
-
-
-/**
- * dump_lockstate - dump lockstate to the debug buffer
- * @argc:
- * @argv:
- *
- */
-
-static void dump_lockstate(int argc, char **argv)
-{
-  struct gfs_user_buffer ub;
-  int fd;
-  int retry = TRUE;
-
-
-  memset(&ub, 0, sizeof(struct gfs_user_buffer));
-  ub.ub_size = 4194304;
-
-
-  if (argc == 4)
-  {
-    ub.ub_size = atoi(argv[3]);
-    retry = FALSE;
-  }
-  else if (argc != 3)
-    die("Usage: gfs_tool lockdump <mountpoint> [buffersize]\n");
-
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-
-  for (;;)
-  {
-    ub.ub_data = malloc(ub.ub_size);
-    if (!ub.ub_data)
-      die("out of memory\n");
-
-    if (ioctl(fd, GFS_LOCK_DUMP, &ub) < 0)
-    {
-      if (errno == ENOMEM)
-      {
-	if (retry)
-	{
-	  free(ub.ub_data);
-	  ub.ub_size += 4194304;
-	  fprintf(stderr, "Retrying...\n");
-	  continue;
-	}
-	else
-	  die("%u bytes isn't enough memory\n", ub.ub_size);
-      }
-      die("error doing ioctl:  %s\n", strerror(errno));
-    }
-
-    break;
-  }
-
-
-  write(STDOUT_FILENO, ub.ub_data, ub.ub_count);
-
-  free(ub.ub_data);
-
-
-  close(fd);
-}
-
-
-/**
- * get_list - Get the list of GFS filesystems
- *
- * Returns: a NULL terminated string
- */
-
-#define LIST_SIZE (1048576)
-
-static char *
-get_list(void)
-{
-	char *list;
-	int fd;
-	unsigned int x;
-
-	list = malloc(LIST_SIZE);
-	if (!list)
-		die("out of memory\n");
-
-	fd = open("/proc/fs/gfs", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs: %s\n",
-		    strerror(errno));
-
-	if (write(fd, "list", 4) != 4)
-		die("can't write list command: %s\n",
-		    strerror(errno));
-	x = read(fd, list, LIST_SIZE - 1);
-	if (x < 0)
-		die("can't get list of filesystems: %s\n",
-		    strerror(errno));
-
-	close(fd);
-
-	list[x] = 0;
-
-	return list;
-}
-
-/**
- * parse_list - parse a list of filesystem into lines
- * @list: the list
- *
- * Returns: An array of character pointers
- */
-
-static char **
-parse_list(char *list)
-{
-	char *p;
-	unsigned int n = 0;
-	char **lines;
-	unsigned int x = 0;
-
-	for (p = list; *p; p++)
-		if (*p == '\n')
-			n++;
-
-	lines = malloc((n + 1) * sizeof(char *));
-	if (!lines)
-		die("out of memory\n");
-
-	for (lines[x] = p = list; *p; p++)
-		if (*p == '\n') {
-			*p = 0;
-			lines[++x] = p + 1;
-		}
-
-	return lines;
-}
-
-/**
- * is_dm_device - Report if this is a device-mapper device
- * @device:
- *
- * Returns: 1 or 0
- */
-
-static int
-is_dm_device(char *device)
-{
-	char path[512];
-	int count;
-
-	count = readlink(device, path, 511);
-	if (count < 0)
-		return 0;
-	path[count] = 0;
-
-	if (strstr(path, "mapper"))
-		return 1;
-	return 0;
-}
-
-/**
- * dm_name - Create dm-N style name for the device
- * @device:
- *
- * Returns: Pointer to dm name or basename
- */
-
-static char *
-dm_name(char *device)
-{
-	static char name[16];
-	struct stat buf;
-
-	if (stat(device, &buf))
-		return basename(device);
-
-	snprintf(name, 16, "dm-%u", minor(buf.st_rdev));
-	return name;
-}
-
-/**
- * mp2cookie - Find the cookie for a filesystem given its mountpoint
- * @mp:
- * @ioctl_ok: If this is FALSE, it's not acceptable to open() the mountpoint
- *
- * Returns: the cookie
- */
-
-static char *
-mp2cookie(char *mp, int ioctl_ok)
-{
-	char *cookie;
-	char *list, **lines;
-	FILE *file;
-	char line[256], device[256];
-	char *dev = NULL;
-	unsigned int x;
-
-	cookie = malloc(256);
-	if (!cookie)
-		die("out of memory\n");
-	list = get_list();
-	lines = parse_list(list);
-
-	file = fopen("/proc/mounts", "r");
-	if (!file)
-		die("can't open /proc/mounts: %s\n",
-		    strerror(errno));
-
-	while (fgets(line, 256, file)) {
-		char path[256], type[256];
-
-		if (sscanf(line, "%s %s %s", device, path, type) != 3)
-			continue;
-		if (strcmp(path, mp))
-			continue;
-		if (strcmp(type, "gfs"))
-			die("%s is not a GFS filesystem\n", mp);
-
-		if (is_dm_device(device))
-			dev = dm_name(device);
-		else
-			dev = basename(device);
-		break;
-	}
-
-	fclose(file);
-
-	for (x = 0; *lines[x]; x++) {
-		char s_id[256];
-		sscanf(lines[x], "%s %s", cookie, s_id);
-		if (dev) {
-			if (!strcmp(s_id, dev))
-				return cookie;
-		} else {
-			if (!strcmp(cookie, mp))
-				return cookie;
-		}
-	}
-
-	if (ioctl_ok) {
-		int fd;
-		unsigned long cnum;
-
-		fd = open(mp, O_RDONLY);
-		if (fd < 0)
-			die("can't open %s: %s\n",
-			    mp, strerror(errno));
-
-		check_for_gfs(fd, mp);
-
-		if (ioctl(fd, GFS_COOKIE, &cnum))
-			die("can't get cookie for %s: %s\n",
-			    mp, strerror(errno));
-
-		close(fd);
-
-		sprintf(cookie, "%lu", cnum);
-		return cookie;
-	}
-
-	die("unknown mountpoint %s\n", mp);
-}
-
-
-/**
- * freeze_cluster - freeze a GFS filesystem
- * @argc:
- * @argv:
- *
- */
-
-static void
-freeze_cluster(int argc, char **argv)
-{
-	char *cookie;
-	int fd;
-	char buf[256];
 	int x;
 
-	if (argc != 3)
-		die("Usage: gfs_tool freeze <mountpoint>\n");
-
-	cookie = mp2cookie(argv[2], FALSE);
-	x = sprintf(buf, "freeze %s\n", cookie);
-
-	fd = open("/proc/fs/gfs", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs: %s\n",
-		    strerror(errno));
-
-	if (write(fd, buf, x) != x)
-		die("can't write freeze command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, 256))
-		die("can't freeze %s: %s\n",
-		    argv[2], strerror(errno));
-
-	close(fd);
-	sync();
+	for (x = 0; usage[x][0]; x++)
+		printf(usage[x]);
 }
-
-
-/**
- * unfreeze_cluster - unfreeze a GFS filesystem
- * @argc:
- * @argv:
- *
- */
-
-static void
-unfreeze_cluster(int argc, char **argv)
-{
-	char *cookie;
-	int fd;
-	char buf[256];
-	int x;
-
-	if (argc != 3)
-		die("Usage: gfs_tool unfreeze <mountpoint>\n");
-
-	cookie = mp2cookie(argv[2], FALSE);
-	x = sprintf(buf, "unfreeze %s\n", cookie);
-
-	fd = open("/proc/fs/gfs", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs: %s\n",
-		    strerror(errno));
-
-	if (write(fd, buf, x) != x)
-		die("can't write unfreeze command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, 256))
-		die("can't unfreeze %s: %s\n",
-		    argv[2], strerror(errno));
-
-	close(fd);
-}
-
-
-/**
- * withdraw - freeze a GFS filesystem
- * @argc:
- * @argv:
- *
- */
-
-static void
-withdraw(int argc, char **argv)
-{
-	char *cookie;
-	int fd;
-	char buf[256];
-	int x;
-
-	if (argc != 3)
-		die("Usage: gfs_tool withdraw <mountpoint>\n");
-
-	cookie = mp2cookie(argv[2], FALSE);
-	x = sprintf(buf, "withdraw %s\n", cookie);
-
-	fd = open("/proc/fs/gfs", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs: %s\n",
-		    strerror(errno));
-
-	if (write(fd, buf, x) != x)
-		die("can't write withdraw command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, 256))
-		die("can't withdraw %s: %s\n",
-		    argv[2], strerror(errno));
-
-	close(fd);
-}
-
-
-/**
- * print_list -
- *
- */
-
-static void
-print_list(void)
-{
-	char *list;
-	list = get_list();
-	printf("%s", list);
-}
-
-
-/**
- * margs -
- * @argc:
- * @argv:
- *
- */
-
-static void
-margs(int argc, char *argv[])
-{
-	int fd;
-	char *buf;
-	unsigned int x;
-
-	if (argc != 3)
-		die("Usage: gfs_tool margs <mountarguments>\n");
-
-	x = strlen(argv[2]) + 7;
-	buf = malloc(x + 1);
-	if (!buf)
-		die("out of memory\n");
-	sprintf(buf, "margs %s\n", argv[2]);
-
-	fd = open("/proc/fs/gfs", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs: %s\n",
-		    strerror(errno));
- 
-	if (write(fd, buf, x) != x)
-		die("can't write margs command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, x))
-		die("can't set mount args: %s\n",
-		    strerror(errno));
-
-	close(fd);
-}
-
-
-/**
- * reclaim_metadata - reclaim unused metadata blocks
- * @argc:
- * @argv:
- *
- * This routine uses an ioctl command to quiesce the cluster and then
- * hunt down and free all disk inodes that have been freed.  This will
- * gain back meta data blocks to be used for data (or metadata) again.
- */
-
-static void reclaim_metadata(int argc, char **argv)
-{
-  struct gfs_reclaim_stats stats;
-  char input[256];
-  int fd;
-
-  if (argc != 3)
-    die("Usage: gfs_tool reclaim <mountpoint>\n");
-
-  fd = open(argv[2], O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
-
-  check_for_gfs(fd, argv[2]);
-
-  printf("Don't do this if this file system is being exported by NFS (on any machine).\n");
-  printf("\nAre you sure you want to proceed? [y/n] ");
-  fgets(input, 255, stdin);
-
-  if (input[0] != 'y')
-    die("aborted\n");
-
-  printf("\n");
-
-  if (ioctl(fd, GFS_RECLAIM_METADATA, &stats) < 0)
-    die("error doing ioctl:  %s\n", strerror(errno));
-
-  close(fd);
-
-  printf("Reclaimed:\n");
-  printf("%"PRIu64" inodes\n", stats.rc_inodes);
-  printf("%"PRIu64" metadata blocks\n", stats.rc_metadata);
-}
-
-
-/**
- * do_df_one - print out information about one filesystem
- * @path: the path to the filesystem
- *
- */
-
-static void do_df_one(char *path)
-{
-  int fd;
-  struct gfs_usage usage;
-  struct gfs_args args;
-  struct gfs_sb sb;
-  struct gfs_dinode di;
-  struct gfs_jio jt;
-  uint64 used_data;
-  uint64 journals, rgrps;
-  struct lm_lockstruct ls;
-  unsigned int percentage;
-
-
-  fd = open(path, O_RDONLY);
-  if (fd < 0)
-    die("can't open %s: %s\n", path, strerror(errno));
-
-  check_for_gfs(fd, path);
-
-
-  if (ioctl(fd, GFS_STATGFS, &usage))
-    die("error doing GFS_STATGFS ioctl: %s\n", strerror(errno));
-
-
-  if (ioctl(fd, GFS_GET_ARGS, &args))
-    die("error doing GFS_GET_ARGS: %s\n", strerror(errno));
-
-
-  if (ioctl(fd, GFS_GET_SUPER, &sb))
-    die("error doing GFS_GET_SUPER ioctl: %s\n", strerror(errno));
-
-
-  memset(&jt, 0, sizeof(struct gfs_jio));
-  jt.jio_file = GFS_HIDDEN_JINDEX;
-  jt.jio_size = sizeof(struct gfs_dinode);
-  jt.jio_data = (char *)&di;
-
-  if (ioctl(fd, GFS_JSTAT, &jt))
-    die("error doing GFS_JSTAT ioctl: %s\n", strerror(errno));
-
-  journals = di.di_size;
-  if (journals % sizeof(struct gfs_jindex))
-    die("bad jindex size\n");
-  journals /= sizeof(struct gfs_jindex);
-
-
-  memset(&jt, 0, sizeof(struct gfs_jio));
-  jt.jio_file = GFS_HIDDEN_RINDEX;
-  jt.jio_size = sizeof(struct gfs_dinode);
-  jt.jio_data = (char *)&di;
-
-  if (ioctl(fd, GFS_JSTAT, &jt))
-    die("error doing GFS_JSTAT ioctl: %s\n", strerror(errno));
-
-  rgrps = di.di_size;
-  if (rgrps % sizeof(struct gfs_rindex))
-    die("bad rindex size\n");
-  rgrps /= sizeof(struct gfs_rindex);
-
-
-  used_data = usage.gu_total_blocks -
-    usage.gu_free -
-      (usage.gu_used_dinode + usage.gu_free_dinode) -
-	(usage.gu_used_meta + usage.gu_free_meta);
-
-
-  if (ioctl(fd, GFS_GET_LOCKSTRUCT, &ls))
-    die("error doing GFS_GET_LOCKSTRUCT ioctl: %s\n", strerror(errno));
-
-
-  printf("%s:\n", path);
-  printf("  SB lock proto = \"%s\"\n", sb.sb_lockproto);
-  printf("  SB lock table = \"%s\"\n", sb.sb_locktable);
-  printf("  SB ondisk format = %u\n", sb.sb_fs_format);
-  printf("  SB multihost format = %u\n", sb.sb_multihost_format);
-  printf("  Block size = %u\n", usage.gu_block_size);
-  printf("  Journals = %"PRIu64"\n", journals);
-  printf("  Resource Groups = %"PRIu64"\n", rgrps);
-  printf("  Mounted lock proto = \"%s\"\n", (*args.ar_lockproto) ? args.ar_lockproto : sb.sb_lockproto);
-  printf("  Mounted lock table = \"%s\"\n", (*args.ar_locktable) ? args.ar_locktable : sb.sb_locktable);
-  printf("  Mounted host data = \"%s\"\n", args.ar_hostdata);
-  printf("  Journal number = %u\n", ls.ls_jid);
-  printf("  Lock module flags = ");
-  if (ls.ls_flags & LM_LSFLAG_LOCAL)
-    printf("local ");
-  printf("\n");
-  printf("  Local flocks = %s\n", (args.ar_localflocks) ? "TRUE" : "FALSE");
-  printf("  Local caching = %s\n", (args.ar_localcaching) ? "TRUE" : "FALSE");
-  printf("  Oopses OK = %s\n", (args.ar_oopses_ok) ? "TRUE" : "FALSE");
-  printf("\n");
-  printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
-  printf("  ------------------------------------------------------------------------\n");
-
-  percentage = (usage.gu_used_dinode + usage.gu_free_dinode) ?
-    (100.0 * usage.gu_used_dinode / (usage.gu_used_dinode + usage.gu_free_dinode) + 0.5) : 0;
-  printf("  %-15s%-15"PRIu64"%-15"PRIu64"%-15"PRIu64"%u%%\n",
-	 "inodes",
-	 usage.gu_used_dinode + usage.gu_free_dinode,
-	 usage.gu_used_dinode,
-	 usage.gu_free_dinode,
-	 percentage);
-
-  percentage = (usage.gu_used_meta + usage.gu_free_meta) ?
-    (100.0 * usage.gu_used_meta / (usage.gu_used_meta + usage.gu_free_meta) + 0.5) : 0;
-  printf("  %-15s%-15"PRIu64"%-15"PRIu64"%-15"PRIu64"%u%%\n",
-	 "metadata",
-	 usage.gu_used_meta + usage.gu_free_meta,
-	 usage.gu_used_meta,
-	 usage.gu_free_meta,
-	 percentage);
-
-  percentage = (used_data + usage.gu_free) ?
-    (100.0 * used_data / (used_data + usage.gu_free) + 0.5) : 0;
-  printf("  %-15s%-15"PRIu64"%-15"PRIu64"%-15"PRIu64"%u%%\n",
-	 "data",
-	 used_data + usage.gu_free,
-	 used_data,
-	 usage.gu_free,
-	 percentage);
-
-
-  close(fd);
-}
-
-
-/**
- * do_df - print out information about filesystems
- * @argc:
- * @argv:
- *
- */
-
-static void do_df(int argc, char **argv)
-{
-  int first = TRUE;
-
-  if (argc == 3)
-  {
-    char buf[PATH_MAX];
-
-    if (!realpath(argv[2], buf))
-      die("can't determine real path: %s\n", strerror(errno));
-
-    do_df_one(buf);
-  }
-  else if (argc == 2)
-  {
-    char buf[256], device[256], path[256], type[256];
-    FILE *file;
-
-    file = fopen("/proc/mounts", "r");
-    if (!file)
-      die("can't open /proc/mounts: %s\n", strerror(errno));
-
-    while (fgets(buf, 256, file))
-    {
-      if (sscanf(buf, "%s %s %s", device, path, type) != 3)
-	continue;
-      if (strcmp(type, "gfs") != 0)
-	continue;
-
-      if (first)
-	first = FALSE;
-      else
-	printf("\n");
-
-      do_df_one(path);
-    }
-
-    fclose(file);
-  }
-  else
-  {
-    die("Usage: gfs_tool df <mountpoint>\n");
-  }
-}
-
-
-/**
- * set_flag - set or clear flags in some dinodes
- * @argc:
- * @argv:
- *
- */
-
-static void set_flag(int argc, char *argv[])
-{
-  struct gfs_dinode di;
-  unsigned int cmd;
-  uint32 flag;
-  unsigned int arg;
-  int fd;
-  int error;
-
-  if (argc <  3)
-  {
-    di.di_flags = 0xFFFFFFFF;
-    print_flags(&di);
-    return;
-  }
-
-  cmd = (strcmp(argv[1], "setflag") == 0) ? GFS_SET_FLAG : GFS_CLEAR_FLAG;
-
-  if (strcmp(argv[2], "jdata") == 0)
-    flag = GFS_DIF_JDATA;
-  else if (strcmp(argv[2], "exhash") == 0)
-    flag = GFS_DIF_EXHASH;
-  else if (strcmp(argv[2], "unused") == 0)
-    flag = GFS_DIF_UNUSED;
-  else if (strcmp(argv[2], "ea_indirect") == 0)
-    flag = GFS_DIF_EA_INDIRECT;
-  else if (strcmp(argv[2], "directio") == 0)
-    flag = GFS_DIF_DIRECTIO;
-  else if (strcmp(argv[2], "immutable") == 0)
-    flag = GFS_DIF_IMMUTABLE;
-  else if (strcmp(argv[2], "appendonly") == 0)
-    flag = GFS_DIF_APPENDONLY;
-#if 0
-  else if (strcmp(argv[2], "noatime") == 0)
-    flag = GFS_DIF_NOATIME;
-  else if (strcmp(argv[2], "sync") == 0)
-    flag = GFS_DIF_SYNC;
-#endif
-  else if (strcmp(argv[2], "inherit_directio") == 0)
-    flag = GFS_DIF_INHERIT_DIRECTIO;
-  else if (strcmp(argv[2], "inherit_jdata") == 0)
-    flag = GFS_DIF_INHERIT_JDATA;
-  else
-    die("unknown flags %s (run \"gfs_tool setflag\" to see valid flags)\n", argv[2]);
-
-  for (arg = 3; arg < argc; arg++)
-  {
-    fd = open(argv[arg], O_RDONLY);
-    if (fd < 0)
-      die("can't open file %s: %s\n", argv[arg], strerror(errno));
-
-    check_for_gfs(fd, argv[arg]);
-
-    error = ioctl(fd, cmd, &flag);
-    if (error)
-      die("can't change flag on %s: %s\n", argv[arg], strerror(errno));
-
-    close(fd);
-  }
-}
-
-
-/**
- * file_flush - 
- * @argc:
- * @argv:
- *
- */
-
-static void file_flush(int argc, char *argv[])
-{
-  int arg;
-  int fd;
-
-  if (argc < 3)
-    die("Usage: gfs_tool flush <filenames>\n");
-
-  for (arg = 2; arg < argc; arg++)
-  {
-    fd = open(argv[arg], O_RDONLY);
-    if (fd < 0)
-      die("can't open %s:  %s\n", argv[arg], strerror(errno));
-
-    check_for_gfs(fd, argv[arg]);
-
-    if (ioctl(fd, GFS_FILE_FLUSH, NULL) < 0)
-      die("error doing ioctl:  %s\n", strerror(errno));
-
-    close(fd);
-  }
-}
-
 
 /**
  * print_version -
+ *
+ */
+
+static void
+print_version(void)
+{
+	printf("gfs_tool %s (built %s %s)\n",
+	       GFS_RELEASE_NAME,
+	       __DATE__, __TIME__);
+	printf("%s\n",
+	       REDHAT_COPYRIGHT);
+}
+
+/**
+ * decode_arguments -
  * @argc:
  * @argv:
  *
  */
 
-static void print_version(int argc, char **argv)
+static void
+decode_arguments(int argc, char *argv[])
 {
-  printf("gfs_tool %s (built %s %s)\n", GFS_RELEASE_NAME,
-         __DATE__, __TIME__);
-  printf("%s\n", REDHAT_COPYRIGHT);
-}
+	int cont = TRUE;
+	int optchar;
 
+	while (cont) {
+		optchar = getopt(argc, argv, "cDhi:OVX");
+
+		switch (optchar) {
+		case 'c':
+			continuous = TRUE;
+			break;
+
+		case 'D':
+			debug = TRUE;
+			break;
+
+		case 'h':
+			print_usage();
+			exit(EXIT_SUCCESS);
+
+		case 'i':
+			sscanf(optarg, "%u", &interval);
+			break;
+
+		case 'O':
+			override = TRUE;
+			break;
+
+		case 'V':
+			print_version();
+			exit(EXIT_SUCCESS);
+
+		case 'X':
+			expert = TRUE;
+			break;
+
+		case EOF:
+			cont = FALSE;
+			break;
+
+		default:
+			die("unknown option: %c\n", optchar);
+		};
+	}
+
+	if (optind < argc) {
+		action = argv[optind];
+		optind++;
+	} else
+		die("no action specified\n");
+}
 
 /**
  * main - Do everything
@@ -1265,121 +209,69 @@ static void print_version(int argc, char **argv)
  *
  */
 
-int main(int argc,char *argv[])
+int
+main(int argc, char *argv[])
 {
-  prog_name = argv[0];
+	prog_name = argv[0];
 
+	if (argc < 2) {
+		print_usage();
+		exit(EXIT_SUCCESS);
+	}
 
-  if (argc < 2)
-  {
-    print_usage();
-    exit(EXIT_SUCCESS);
-  }
+	decode_arguments(argc, argv);
 
+	if (FALSE) {
+		/* Do Nothing */
+	} else if (strcmp(action, "clearflag") == 0)
+		set_flag(argc, argv);
+	else if (strcmp(action, "counters") == 0)
+		print_counters(argc, argv);
+	else if (strcmp(action, "df") == 0)
+		print_df(argc, argv);
+	else if (strcmp(action, "flush") == 0)
+		do_file_flush(argc, argv);
+	else if (strcmp(action, "freeze") == 0)
+		do_freeze(argc, argv);
+	else if (strcmp(action, "getsb") == 0)
+		print_sb(argc, argv);
+	else if (strcmp(action, "gettune") == 0)
+		get_tune(argc, argv);
+	else if (strcmp(action, "jindex") == 0)
+		print_jindex(argc, argv);
+	else if (strcmp(action, "layout") == 0)
+		print_layout(argc, argv);
+	else if (strcmp(action, "list") == 0)
+		print_list();
+	else if (strcmp(action, "lockdump") == 0)
+		print_lockdump(argc, argv);
+	else if (strcmp(action, "margs") == 0)
+		margs(argc, argv);
+	else if (strcmp(action, "quota") == 0)
+		print_quota(argc, argv);
+	else if (strcmp(action, "reclaim") == 0)
+		reclaim_metadata(argc, argv);
+	else if (strcmp(action, "rindex") == 0)
+		print_rindex(argc, argv);
+	else if (strcmp(action, "sb") == 0)
+		do_sb(argc, argv);
+	else if (strcmp(action, "setflag") == 0)
+		set_flag(argc, argv);
+	else if (strcmp(action, "settune") == 0)
+		set_tune(argc, argv);
+	else if (strcmp(action, "shrink") == 0)
+		do_shrink(argc, argv);
+	else if (strcmp(action, "stat") == 0)
+		print_stat(argc, argv);
+	else if (strcmp(action, "unfreeze") == 0)
+		do_freeze(argc, argv);
+	else if (strcmp(action, "version") == 0)
+		print_version();
+	else if (strcmp(action, "withdraw") == 0)
+		do_withdraw(argc, argv);
+	else
+		die("unknown action: %s\n",
+		    action);
 
-  if (FALSE)
-  {
-    /*  Do Nothing  */
-  }
-  else if (strcmp(argv[1], "shrink") == 0)
-  {
-    shrink(argc, argv);
-  }
-  else if (strcmp(argv[1], "stat") == 0)
-  {
-    print_stat(argc, argv);
-  }
-  else if (strcmp(argv[1], "getsb") == 0)
-  {
-    print_sb(argc, argv);
-  }
-  else if (strcmp(argv[1], "jindex") == 0)
-  {
-    print_jindex(argc, argv);
-  }
-  else if (strcmp(argv[1], "rindex") == 0)
-  {
-    print_rindex(argc, argv);
-  }
-  else if (strcmp(argv[1], "quota") == 0)
-  {
-    print_quota(argc, argv);
-  }
-  else if (strcmp(argv[1], "layout") == 0)
-  {
-    print_layout(argc, argv);
-  }
-  else if (strcmp(argv[1], "lockdump") == 0)
-  {
-    dump_lockstate(argc, argv);
-  }
-  else if (strcmp(argv[1], "freeze") == 0)
-  {
-    freeze_cluster(argc, argv);
-  }
-  else if (strcmp(argv[1], "unfreeze") == 0)
-  {
-    unfreeze_cluster(argc, argv);
-  }
-  else if (strcmp(argv[1], "withdraw") == 0)
-  {
-    withdraw(argc, argv);
-  }
-  else if (strcmp(argv[1], "list") == 0)
-  {
-    print_list();
-  }
-  else if (strcmp(argv[1], "margs") == 0)
-  {
-    margs(argc, argv);
-  }
-  else if (strcmp(argv[1], "reclaim") == 0)
-  {
-    reclaim_metadata(argc, argv);
-  }
-  else if (strcmp(argv[1], "df") == 0)
-  {
-    do_df(argc, argv);
-  }
-  else if (strcmp(argv[1], "sb") == 0)
-  {
-    do_sb(argc, argv);
-  }
-  else if (strcmp(argv[1], "gettune") == 0)
-  {
-    get_tune(argc, argv);
-  }
-  else if (strcmp(argv[1], "settune") == 0)
-  {
-    set_tune(argc, argv);
-  }
-  else if (strcmp(argv[1], "setflag") == 0 || strcmp(argv[1], "clearflag") == 0)
-  {
-    set_flag(argc, argv);
-  }
-  else if (strcmp(argv[1], "counters") == 0)
-  {
-    get_counters(argc, argv);
-  }
-  else if (strcmp(argv[1], "flush") == 0)
-  {
-    file_flush(argc, argv);
-  }
-  else if (strcmp(argv[1], "version") == 0 || strcmp(argv[1], "-V") == 0)
-  {
-    print_version(argc, argv);
-  }
-  else if (strcmp(argv[1], "-h") == 0 ||
-	   strcmp(argv[1], "--help") == 0)
-  {
-    print_usage();
-  }
-  else
-    die("%s: invalid option -- %s\nPlease use '-h' for usage.\n", 
-        argv[0], argv[1]);
-
-
-
-  exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 }
-

@@ -23,6 +23,7 @@
 #include <asm/uaccess.h>
 
 #include "gfs.h"
+#include "glock.h"
 #include "lm.h"
 #include "proc.h"
 #include "super.h"
@@ -294,6 +295,54 @@ do_withdraw(char *p)
 }
 
 /**
+ * do_lockdump - Copy out the lock hash table to userspace
+ * @p: the cookie of the filesystem
+ * @buf:
+ * @size:
+ *
+ * Returns: errno
+ */
+
+static int
+do_lockdump(char *p, char *buf, size_t size)
+{
+	struct list_head *tmp;
+	struct gfs_sbd *sdp;
+	char num[21];
+	struct gfs_user_buffer ub;
+	int error = 0;
+
+	p = find_argument(p + 8);
+	if (!p)
+		return -ENOENT;
+
+	down(&gfs_fs_lock);
+
+	for (tmp = gfs_fs_list.next; tmp != &gfs_fs_list; tmp = tmp->next) {
+		sdp = list_entry(tmp, struct gfs_sbd, sd_list);
+		sprintf(num, "%lu", (unsigned long)sdp);
+		if (strcmp(num, p) == 0)
+			break;
+	}
+
+	if (tmp == &gfs_fs_list)
+		error = -ENOENT;
+	else {
+		ub.ub_data = buf;
+		ub.ub_size = size;
+		ub.ub_count = 0;
+
+		error = gfs_dump_lockstate(sdp, &ub);
+		if (!error)
+			error = ub.ub_count;
+	}
+
+	up(&gfs_fs_lock);
+
+	return error;
+}
+
+/**
  * gfs_proc_write - take a command from userspace
  * @file:
  * @buf:
@@ -375,6 +424,8 @@ gfs_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 		error = do_margs(p);
 	else if (strncmp(p, "withdraw", 8) == 0)
 		error = do_withdraw(p);
+	else if (strncmp(p, "lockdump", 8) == 0)
+		error = do_lockdump(p, buf, size);
 	else
 		error = -ENOSYS;
 

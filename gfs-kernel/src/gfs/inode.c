@@ -313,7 +313,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 
 	spin_lock_init(&ip->i_lock);
 
-	ip->i_greedy = sdp->sd_tune.gt_greedy_default;
+	ip->i_greedy = gfs_tune_get(sdp, gt_greedy_default);
 
 	/* Lock the iopen glock (may be recursive) */
 	error = gfs_glock_nq_init(io_gl,
@@ -1177,10 +1177,10 @@ make_dinode(struct gfs_inode *dip,
 
 	if (type == GFS_FILE_REG) {
 		if ((dip->i_di.di_flags & GFS_DIF_INHERIT_JDATA) ||
-		    sdp->sd_tune.gt_new_files_jdata)
+		    gfs_tune_get(sdp, gt_new_files_jdata))
 			di.di_flags |= GFS_DIF_JDATA;
 		if ((dip->i_di.di_flags & GFS_DIF_INHERIT_DIRECTIO) ||
-		    sdp->sd_tune.gt_new_files_directio)
+		    gfs_tune_get(sdp, gt_new_files_directio))
 			di.di_flags |= GFS_DIF_DIRECTIO;
 	} else if (type == GFS_FILE_DIR) {
 		di.di_flags |= (dip->i_di.di_flags & GFS_DIF_INHERIT_DIRECTIO);
@@ -1742,7 +1742,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 	struct gfs_glock *gl = gh->gh_gl;
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_inode *ip = gl2ip(gl);
-	int64_t curtime, quantum = sdp->sd_tune.gt_atime_quantum;
+	int64_t curtime, quantum = gfs_tune_get(sdp, gt_atime_quantum);
 	unsigned int state;
 	int flags;
 	int error;

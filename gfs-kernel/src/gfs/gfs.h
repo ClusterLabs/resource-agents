@@ -18,7 +18,6 @@
 
 #include <linux/lm_interface.h>
 #include <linux/gfs_ondisk.h>
-#include <linux/gfs_ioctl.h>
 
 #include "fixed_div64.h"
 #include "lvb.h"
@@ -78,16 +77,18 @@
 #define gl2rgd(gl) ((struct gfs_rgrpd *)(gl)->gl_object)
 #define gl2gl(gl) ((struct gfs_glock *)(gl)->gl_object)
 
-#define gfs_sprintf(fmt, args...) \
+#define gfs_printf(fmt, args...) \
 do { \
 	if (buf) { \
-		if (*count + 256 > size) { \
-			error = -ENOMEM; \
+		int gspf_left = size - *count, gspf_out; \
+		if (gspf_left <= 0) \
 			goto out; \
-		} \
-		*count += snprintf(buf + *count, 256, fmt, ##args); \
-	} \
-	else \
+		gspf_out = snprintf(buf + *count, gspf_left, fmt, ##args); \
+		if (gspf_out < gspf_left) \
+			*count += gspf_out; \
+		else \
+			goto out; \
+	} else \
 		printk(fmt, ##args); \
 } while (0)
 

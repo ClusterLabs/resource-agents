@@ -18,6 +18,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <asm/uaccess.h>
 
 #include "gfs.h"
 #include "glock.h"
@@ -271,7 +272,7 @@ gfs_assert_warn_i(struct gfs_sbd *sdp,
 {
 	if (time_before(jiffies,
 			sdp->sd_last_warning +
-			sdp->sd_tune.gt_complain_secs * HZ))
+			gfs_tune_get(sdp, gt_complain_secs) * HZ))
 		return -2;
 
 	printk("GFS: fsid=%s: warning: assertion \"%s\" failed\n"
@@ -545,5 +546,36 @@ gmalloc(unsigned int size)
 	void *p;
 	RETRY_MALLOC(p = kmalloc(size, GFP_KERNEL), p);
 	return p;
+}
+
+/**
+ * gfs_add_bh_to_ub - copy a buffer up to user space
+ * @ub: the structure representing where to copy
+ * @bh: the buffer
+ *
+ * Returns: errno
+ */
+
+int
+gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh)
+{
+	uint64_t blkno = bh->b_blocknr;
+
+	if (ub->ub_count + sizeof(uint64_t) + bh->b_size > ub->ub_size)
+		return -ENOMEM;
+
+	if (copy_to_user(ub->ub_data + ub->ub_count,
+			  &blkno,
+			  sizeof(uint64_t)))
+		return -EFAULT;
+	ub->ub_count += sizeof(uint64_t);
+
+	if (copy_to_user(ub->ub_data + ub->ub_count,
+			  bh->b_data,
+			  bh->b_size))
+		return -EFAULT;
+	ub->ub_count += bh->b_size;
+
+	return 0;
 }
 

@@ -34,7 +34,8 @@ void gfs_quota_unlock_m(struct gfs_inode *ip);
 int gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid);
 
 int gfs_quota_sync(struct gfs_sbd *sdp);
-int gfs_quota_refresh(struct gfs_sbd *sdp, void *arg);
-int gfs_quota_read(struct gfs_sbd *sdp, void *arg);
+int gfs_quota_refresh(struct gfs_sbd *sdp, int user, uint32_t id);
+int gfs_quota_read(struct gfs_sbd *sdp, int user, uint32_t id,
+		   struct gfs_quota *q);
 
 #endif /* __QUOTA_DOT_H__ */

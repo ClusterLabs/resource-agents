@@ -363,13 +363,13 @@ gfs_unlinked_limit(struct gfs_sbd *sdp)
 	int error;
 
 	if (atomic_read(&sdp->sd_unlinked_ic_count) >=
-	    sdp->sd_tune.gt_ilimit2) {
-		tries = sdp->sd_tune.gt_ilimit2_tries;
-		min = sdp->sd_tune.gt_ilimit2_min;
+	    gfs_tune_get(sdp, gt_ilimit2)) {
+		tries = gfs_tune_get(sdp, gt_ilimit2_tries);
+		min = gfs_tune_get(sdp, gt_ilimit2_min);
 	} else if (atomic_read(&sdp->sd_unlinked_ic_count) >=
-		   sdp->sd_tune.gt_ilimit1) {
-		tries = sdp->sd_tune.gt_ilimit1_tries;
-		min = sdp->sd_tune.gt_ilimit1_min;
+		   gfs_tune_get(sdp, gt_ilimit1)) {
+		tries = gfs_tune_get(sdp, gt_ilimit1_tries);
+		min = gfs_tune_get(sdp, gt_ilimit1_min);
 	}
 
 	while (tries--) {

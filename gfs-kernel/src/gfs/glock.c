@@ -639,7 +639,7 @@ rq_promote(struct gfs_holder *gh)
 			/* If we notice a lot of glocks in reclaim list, free
 			   up memory for 2 of them before locking a new one */
 			if (atomic_read(&sdp->sd_reclaim_count) >
-			    sdp->sd_tune.gt_reclaim_limit &&
+			    gfs_tune_get(sdp, gt_reclaim_limit) &&
 			    !(gh->gh_flags & LM_FLAG_PRIORITY)) {
 				gfs_reclaim_glock(sdp);
 				gfs_reclaim_glock(sdp);
@@ -2053,7 +2053,7 @@ gfs_glock_prefetch_num(struct gfs_sbd *sdp,
 	struct gfs_glock *gl;
 	int error;
 
-	if (atomic_read(&sdp->sd_reclaim_count) < sdp->sd_tune.gt_reclaim_limit) {
+	if (atomic_read(&sdp->sd_reclaim_count) < gfs_tune_get(sdp, gt_reclaim_limit)) {
 		error = gfs_glock_get(sdp, number, glops, CREATE, &gl);
 		if (!error) {
 			gfs_glock_prefetch(gl, state, flags);
@@ -2353,7 +2353,7 @@ demote_ok(struct gfs_glock *gl)
 	else if (test_bit(GLF_PREFETCH, &gl->gl_flags))
 		demote = time_after_eq(jiffies,
 				       gl->gl_stamp +
-				       sdp->sd_tune.gt_prefetch_secs * HZ);
+				       gfs_tune_get(sdp, gt_prefetch_secs) * HZ);
 	else if (glops->go_demote_ok)
 		demote = glops->go_demote_ok(gl);
 
@@ -2680,7 +2680,7 @@ gfs_gl_hash_clear(struct gfs_sbd *sdp, int wait)
 		if (!wait || !cont)
 			break;
 
-		if (time_after_eq(jiffies, t + sdp->sd_tune.gt_stall_secs * HZ)) {
+		if (time_after_eq(jiffies, t + gfs_tune_get(sdp, gt_stall_secs) * HZ)) {
 			printk("GFS: fsid=%s: Unmount seems to be stalled. Dumping lock state...\n",
 			       sdp->sd_fsname);
 			gfs_dump_lockstate(sdp, NULL);
@@ -2712,23 +2712,25 @@ dump_holder(char *str, struct gfs_holder *gh,
 	    char *buf, unsigned int size, unsigned int *count)
 {
 	unsigned int x;
-	int error = 0;
+	int error = -ENOBUFS;
 
-	gfs_sprintf("  %s\n", str);
-	gfs_sprintf("    owner = %ld\n",
-		    (gh->gh_owner) ? (long)gh->gh_owner->pid : -1);
-	gfs_sprintf("    gh_state = %u\n", gh->gh_state);
-	gfs_sprintf("    gh_flags =");
+	gfs_printf("  %s\n", str);
+	gfs_printf("    owner = %ld\n",
+		   (gh->gh_owner) ? (long)gh->gh_owner->pid : -1);
+	gfs_printf("    gh_state = %u\n", gh->gh_state);
+	gfs_printf("    gh_flags =");
 	for (x = 0; x < 32; x++)
 		if (gh->gh_flags & (1 << x))
-			gfs_sprintf(" %u", x);
-	gfs_sprintf(" \n");
-	gfs_sprintf("    error = %d\n", gh->gh_error);
-	gfs_sprintf("    gh_iflags =");
+			gfs_printf(" %u", x);
+	gfs_printf(" \n");
+	gfs_printf("    error = %d\n", gh->gh_error);
+	gfs_printf("    gh_iflags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &gh->gh_iflags))
-			gfs_sprintf(" %u", x);
-	gfs_sprintf(" \n");
+			gfs_printf(" %u", x);
+	gfs_printf(" \n");
+
+	error = 0;
 
  out:
 	return error;
@@ -2749,19 +2751,21 @@ dump_inode(struct gfs_inode *ip,
 	   char *buf, unsigned int size, unsigned int *count)
 {
 	unsigned int x;
-	int error = 0;
+	int error = -ENOBUFS;
 
-	gfs_sprintf("  Inode:\n");
-	gfs_sprintf("    num = %" PRIu64 "/%" PRIu64 "\n",
+	gfs_printf("  Inode:\n");
+	gfs_printf("    num = %" PRIu64 "/%" PRIu64 "\n",
 		    ip->i_num.no_formal_ino, ip->i_num.no_addr);
-	gfs_sprintf("    type = %u\n", ip->i_di.di_type);
-	gfs_sprintf("    i_count = %d\n", atomic_read(&ip->i_count));
-	gfs_sprintf("    i_flags =");
+	gfs_printf("    type = %u\n", ip->i_di.di_type);
+	gfs_printf("    i_count = %d\n", atomic_read(&ip->i_count));
+	gfs_printf("    i_flags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &ip->i_flags))
-			gfs_sprintf(" %u", x);
-	gfs_sprintf(" \n");
-	gfs_sprintf("    vnode = %s\n", (ip->i_vnode) ? "yes" : "no");
+			gfs_printf(" %u", x);
+	gfs_printf(" \n");
+	gfs_printf("    vnode = %s\n", (ip->i_vnode) ? "yes" : "no");
+
+	error = 0;
 
  out:
 	return error;
@@ -2784,28 +2788,28 @@ dump_glock(struct gfs_glock *gl,
 	struct list_head *head, *tmp;
 	struct gfs_holder *gh;
 	unsigned int x;
-	int error = 0;
+	int error = -ENOBUFS;
 
 	spin_lock(&gl->gl_spin);
 
-	gfs_sprintf("Glock (%u, %" PRIu64 ")\n",
+	gfs_printf("Glock (%u, %" PRIu64 ")\n",
 		    gl->gl_name.ln_type,
 		    gl->gl_name.ln_number);
-	gfs_sprintf("  gl_flags =");
+	gfs_printf("  gl_flags =");
 	for (x = 0; x < 32; x++)
 		if (test_bit(x, &gl->gl_flags))
-			gfs_sprintf(" %u", x);
-	gfs_sprintf(" \n");
-	gfs_sprintf("  gl_count = %d\n", atomic_read(&gl->gl_count));
-	gfs_sprintf("  gl_state = %u\n", gl->gl_state);
-	gfs_sprintf("  lvb_count = %d\n", atomic_read(&gl->gl_lvb_count));
-	gfs_sprintf("  object = %s\n", (gl->gl_object) ? "yes" : "no");
+			gfs_printf(" %u", x);
+	gfs_printf(" \n");
+	gfs_printf("  gl_count = %d\n", atomic_read(&gl->gl_count));
+	gfs_printf("  gl_state = %u\n", gl->gl_state);
+	gfs_printf("  lvb_count = %d\n", atomic_read(&gl->gl_lvb_count));
+	gfs_printf("  object = %s\n", (gl->gl_object) ? "yes" : "no");
 	if (gl->gl_aspace)
-		gfs_sprintf("  aspace = %lu\n",
+		gfs_printf("  aspace = %lu\n",
 			    gl->gl_aspace->i_mapping->nrpages);
 	else
-		gfs_sprintf("  aspace = no\n");
-	gfs_sprintf("  reclaim = %s\n",
+		gfs_printf("  aspace = no\n");
+	gfs_printf("  reclaim = %s\n",
 		    (list_empty(&gl->gl_reclaim)) ? "no" : "yes");
 	if (gl->gl_req_gh) {
 		error = dump_holder("Request", gl->gl_req_gh, buf, size, count);
@@ -2850,9 +2854,13 @@ dump_glock(struct gfs_glock *gl,
 			error = dump_inode(gl2ip(gl), buf, size, count);
 			if (error)
 				goto out;
-		} else
-			gfs_sprintf("  Inode: busy\n");
+		} else {
+			error = -ENOBUFS;
+			gfs_printf("  Inode: busy\n");
+		}
 	}
+
+	error = 0;
 
  out:
 	spin_unlock(&gl->gl_spin);
@@ -2876,7 +2884,7 @@ gfs_dump_lockstate(struct gfs_sbd *sdp, struct gfs_user_buffer *ub)
 	struct list_head *tmp, *head;
 	struct gfs_glock *gl;
 	char *buf = NULL;
-	unsigned int size = sdp->sd_tune.gt_lockdump_size;
+	unsigned int size = gfs_tune_get(sdp, gt_lockdump_size);
 	unsigned int x, count;
 	int error = 0;
 

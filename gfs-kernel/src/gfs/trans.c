@@ -360,7 +360,7 @@ gfs_trans_add_quota(struct gfs_sbd *sdp, int64_t change,
 	int found_uid, found_gid;
 	int error;
 
-	if (!sdp->sd_tune.gt_quota_account)
+	if (!gfs_tune_get(sdp, gt_quota_account))
 		return;
 	if (gfs_assert_warn(sdp, change))
 		return;

@@ -53,7 +53,7 @@ gfs_scand(void *data)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(sdp->sd_tune.gt_scand_secs * HZ);
+		schedule_timeout(gfs_tune_get(sdp, gt_scand_secs) * HZ);
 	}
 
 	down(&sdp->sd_thread_lock);
@@ -130,7 +130,7 @@ gfs_recoverd(void *data)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(sdp->sd_tune.gt_recoverd_secs * HZ);
+		schedule_timeout(gfs_tune_get(sdp, gt_recoverd_secs) * HZ);
 	}
 
 	down(&sdp->sd_thread_lock);
@@ -167,7 +167,7 @@ gfs_logd(void *data)
 		/* Check for latest journal index */
 		if (time_after_eq(jiffies,
 				  sdp->sd_jindex_refresh_time +
-				  sdp->sd_tune.gt_jindex_refresh_secs * HZ)) {
+				  gfs_tune_get(sdp, gt_jindex_refresh_secs) * HZ)) {
 			if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags) &&
 			    !gfs_jindex_hold(sdp, &ji_gh))
 				gfs_glock_dq_uninit(&ji_gh);
@@ -178,7 +178,7 @@ gfs_logd(void *data)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(sdp->sd_tune.gt_logd_secs * HZ);
+		schedule_timeout(gfs_tune_get(sdp, gt_logd_secs) * HZ);
 	}
 
 	down(&sdp->sd_thread_lock);
@@ -210,7 +210,7 @@ gfs_quotad(void *data)
 		/* Update quota file */
 		if (time_after_eq(jiffies,
 				  sdp->sd_quota_sync_time +
-				  sdp->sd_tune.gt_quota_quantum * HZ)) {
+				  gfs_tune_get(sdp, gt_quota_quantum) * HZ)) {
 			error = gfs_quota_sync(sdp);
 			if (error &&
 			    error != -EROFS &&
@@ -227,7 +227,7 @@ gfs_quotad(void *data)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(sdp->sd_tune.gt_quotad_secs * HZ);
+		schedule_timeout(gfs_tune_get(sdp, gt_quotad_secs) * HZ);
 	}
 
 	down(&sdp->sd_thread_lock);
@@ -261,7 +261,7 @@ gfs_inoded(void *data)
 			break;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(sdp->sd_tune.gt_inoded_secs * HZ);
+		schedule_timeout(gfs_tune_get(sdp, gt_inoded_secs) * HZ);
 	}
 
 	down(&sdp->sd_thread_lock);

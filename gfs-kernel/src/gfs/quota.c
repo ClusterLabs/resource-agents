@@ -19,7 +19,6 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/tty.h>
-#include <asm/uaccess.h>
 
 #include "gfs.h"
 #include "bmap.h"
@@ -752,7 +751,7 @@ gfs_quota_hold_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 			    !test_bit(GIF_QD_LOCKED, &ip->i_flags)))
 		return -EIO;
 
-	if (!sdp->sd_tune.gt_quota_account)
+	if (!gfs_tune_get(sdp, gt_quota_account))
 		return 0;
 
 	error = gfs_quota_get(sdp, TRUE, ip->i_di.di_uid,
@@ -840,7 +839,7 @@ gfs_quota_lock_m(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 
 	gfs_quota_hold_m(ip, uid, gid);
 
-	if (!sdp->sd_tune.gt_quota_enforce)
+	if (!gfs_tune_get(sdp, gt_quota_enforce))
 		return 0;
 	if (capable(CAP_SYS_RESOURCE))
 		return 0;
@@ -898,9 +897,17 @@ gfs_quota_unlock_m(struct gfs_inode *ip)
 		else if (qd->qd_qb.qb_value >= (int64_t)qd->qd_qb.qb_limit)
 			do_sync = FALSE;
 		else {
+			struct gfs_tune *gt = &sdp->sd_tune;
+			unsigned int num, den;
 			int64_t v;
-			v = value * gfs_num_journals(sdp) * sdp->sd_tune.gt_quota_scale_num;
-			do_div(v, sdp->sd_tune.gt_quota_scale_den);
+
+			spin_lock(&gt->gt_spin);
+			num = gt->gt_quota_scale_num;
+			den = gt->gt_quota_scale_den;
+			spin_unlock(&gt->gt_spin);
+
+			v = value * gfs_num_journals(sdp) * num;
+			do_div(v, den);
 			v += qd->qd_qb.qb_value;
 			if (v < (int64_t)qd->qd_qb.qb_limit)
 				do_sync = FALSE;
@@ -1003,7 +1010,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 			   (int64_t)qd->qd_qb.qb_warn < value &&
 			   time_after_eq(jiffies,
 					 qd->qd_last_warn +
-					 sdp->sd_tune.gt_quota_warn_period * HZ)) {
+					 gfs_tune_get(sdp, gt_quota_warn_period) * HZ)) {
 			error = print_quota_message(sdp, qd, "warning");
 			qd->qd_last_warn = jiffies;
 		}
@@ -1023,7 +1030,7 @@ int
 gfs_quota_sync(struct gfs_sbd *sdp)
 {
 	struct gfs_quota_data **qda;
-	unsigned int max_qd = sdp->sd_tune.gt_quota_simul_sync;
+	unsigned int max_qd = gfs_tune_get(sdp, gt_quota_simul_sync);
 	unsigned int num_qd;
 	unsigned int x;
 	int error = 0;
@@ -1068,23 +1075,20 @@ gfs_quota_sync(struct gfs_sbd *sdp)
 /**
  * gfs_quota_refresh - Refresh the LVB for a given quota ID
  * @sdp: the filesystem
- * @arg: a pointer to a struct gfs_quota_name in user space
+ * @user:
+ * @id:
  *
  * Returns: errno
  */
 
 int
-gfs_quota_refresh(struct gfs_sbd *sdp, void *arg)
+gfs_quota_refresh(struct gfs_sbd *sdp, int user, uint32_t id)
 {
-	struct gfs_quota_name qn;
 	struct gfs_quota_data *qd;
 	struct gfs_holder q_gh;
 	int error;
 
-	if (copy_from_user(&qn, arg, sizeof(struct gfs_quota_name)))
-		return -EFAULT;
-
-	error = gfs_quota_get(sdp, qn.qn_user, qn.qn_id, CREATE, &qd);
+	error = gfs_quota_get(sdp, user, id, CREATE, &qd);
 	if (error)
 		return error;
 
@@ -1100,30 +1104,26 @@ gfs_quota_refresh(struct gfs_sbd *sdp, void *arg)
 /**
  * gfs_quota_read - Read the info a given quota ID
  * @sdp: the filesystem
- * @arg: a pointer to a gfs_quota_refresh_t in user space
+ * @user:
+ * @id:
+ * @q:
  *
  * Returns: errno
  */
 
 int
-gfs_quota_read(struct gfs_sbd *sdp, void *arg)
+gfs_quota_read(struct gfs_sbd *sdp, int user, uint32_t id,
+	       struct gfs_quota *q)
 {
-	struct gfs_quota_name qn;
 	struct gfs_quota_data *qd;
 	struct gfs_holder q_gh;
-	struct gfs_quota q;
 	int error;
 
-	if (copy_from_user(&qn, arg, sizeof(struct gfs_quota_name)))
-		return -EFAULT;
-
-	if (((qn.qn_user) ?
-	     (qn.qn_id != current->fsuid) :
-	     (!in_group_p(qn.qn_id))) &&
+	if (((user) ? (id != current->fsuid) : (!in_group_p(id))) &&
 	    !capable(CAP_SYS_ADMIN))
 		return -EACCES;
 
-	error = gfs_quota_get(sdp, qn.qn_user, qn.qn_id, CREATE, &qd);
+	error = gfs_quota_get(sdp, user, id, CREATE, &qd);
 	if (error)
 		return error;
 
@@ -1131,24 +1131,19 @@ gfs_quota_read(struct gfs_sbd *sdp, void *arg)
 	if (error)
 		goto out;
 
-	memset(&q, 0, sizeof(struct gfs_quota));
-	q.qu_limit = qd->qd_qb.qb_limit;
-	q.qu_warn = qd->qd_qb.qb_warn;
-	q.qu_value = qd->qd_qb.qb_value;
+	memset(q, 0, sizeof(struct gfs_quota));
+	q->qu_limit = qd->qd_qb.qb_limit;
+	q->qu_warn = qd->qd_qb.qb_warn;
+	q->qu_value = qd->qd_qb.qb_value;
 
 	spin_lock(&sdp->sd_quota_lock);
-	q.qu_value += qd->qd_change_new + qd->qd_change_ic;
+	q->qu_value += qd->qd_change_new + qd->qd_change_ic;
 	spin_unlock(&sdp->sd_quota_lock);
 
 	gfs_glock_dq_uninit(&q_gh);
 
  out:
 	gfs_quota_put(sdp, qd);
-
-	if (!error &&
-	    copy_to_user((char *)arg + sizeof(struct gfs_quota_name),
-			 &q, sizeof(struct gfs_quota)))
-		error = -EFAULT;
 
 	return error;
 }

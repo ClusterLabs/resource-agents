@@ -26,87 +26,72 @@
 #include <limits.h>
 #include <pwd.h>
 #include <grp.h>
+#include <stdint.h>
+#include <inttypes.h>
 
-#include "global.h"
+#include <linux/gfs_ondisk.h>
 
 #include "gfs_quota.h"
 
-
-
-uint32 name_to_id(int user, char *name, int numbers)
+uint32_t
+name_to_id(int user, char *name, int numbers)
 {
-  struct passwd *u;
-  struct group *g;
-  uint32 id;
-  int ok = FALSE;
+	struct passwd *u;
+	struct group *g;
+	uint32_t id;
+	int ok = FALSE;
 
-  if (numbers)
-  {
-  }
-  else if (user)
-  {
-    u = getpwnam(name);
-    if (u)
-    {
-      id = u->pw_uid;
-      ok = TRUE;
-    }
-  }
-  else
-  {
-    g = getgrnam(name);
-    if (g)
-    {
-      id = g->gr_gid;
-      ok = TRUE;
-    }
-  }
+	if (numbers) {
+	} else if (user) {
+		u = getpwnam(name);
+		if (u) {
+			id = u->pw_uid;
+			ok = TRUE;
+		}
+	} else {
+		g = getgrnam(name);
+		if (g) {
+			id = g->gr_gid;
+			ok = TRUE;
+		}
+	}
 
-  if (!ok)
-  {
-    if (!isdigit(name[0]))
-      die("can't find %s %s\n", (user) ? "user" : "group", name);
+	if (!ok) {
+		if (!isdigit(name[0]))
+			die("can't find %s %s\n",
+			    (user) ? "user" : "group",
+			    name);
+		sscanf(name, "%u", &id);
+	}
 
-    sscanf(name, "%u", &id);
-  }
-
-  return id;
+	return id;
 }
 
-
-char *id_to_name(int user, uint32 id, int numbers)
+char *
+id_to_name(int user, uint32_t id, int numbers)
 {
-  struct passwd *u;
-  struct group *g;
-  static char name[256];
-  int ok = FALSE;
+	struct passwd *u;
+	struct group *g;
+	static char name[256];
+	int ok = FALSE;
 
-  if (numbers)
-  {
-  }
-  else if (user)
-  {
-    u = getpwuid(id);
-    if (u)
-    {
-      strcpy(name, u->pw_name);
-      ok = TRUE;
-    }    
-  }
-  else
-  {
-    g = getgrgid(id);
-    if (g)
-    {
-      strcpy(name, g->gr_name);
-      ok = TRUE;
-    }
-  }
+	if (numbers) {
+	} else if (user) {
+		u = getpwuid(id);
+		if (u) {
+			strcpy(name, u->pw_name);
+			ok = TRUE;
+		}
+	} else {
+		g = getgrgid(id);
+		if (g) {
+			strcpy(name, g->gr_name);
+			ok = TRUE;
+		}
+	}
 
-  if (!ok)
-    sprintf(name, "%u", id);
+	if (!ok)
+		sprintf(name, "%u", id);
 
-  return name;
+	return name;
 }
-
-

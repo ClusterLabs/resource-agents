@@ -14,43 +14,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
+#include <limits.h>
 #include <errno.h>
 
-#include "global.h"
 #include <linux/gfs_ondisk.h>
 
 #include "gfs_tool.h"
 
-
-
 #define do_lseek(fd, off) \
-{ \
-  if (lseek((fd), (off), SEEK_SET) != (off)) \
-    die("bad seek: %s on line %d of file %s\n", \
-	strerror(errno),__LINE__, __FILE__); \
-}
+do { \
+	if (lseek((fd), (off), SEEK_SET) != (off)) \
+		die("bad seek: %s on line %d of file %s\n", \
+		    strerror(errno),__LINE__, __FILE__); \
+} while (0)
 
 #define do_read(fd, buff, len) \
-{ \
-  if (read((fd), (buff), (len)) != (len)) \
-    die("bad read: %s on line %d of file %s\n", \
-	strerror(errno), __LINE__, __FILE__); \
-}
+do { \
+	if (read((fd), (buff), (len)) != (len)) \
+		die("bad read: %s on line %d of file %s\n", \
+		    strerror(errno), __LINE__, __FILE__); \
+} while (0)
 
 #define do_write(fd, buff, len) \
-{ \
-  if (write((fd), (buff), (len)) != (len)) \
-    die("bad write: %s on line %d of file %s\n", \
-	strerror(errno), __LINE__, __FILE__); \
-}
-
-
-
-
+do { \
+	if (write((fd), (buff), (len)) != (len)) \
+		die("bad write: %s on line %d of file %s\n", \
+		    strerror(errno), __LINE__, __FILE__); \
+} while (0)
 
 /**
  * do_sb - examine/modify a unmounted FS' superblock
@@ -59,118 +56,111 @@
  *
  */
 
-void do_sb(int argc, char **argv)
+void
+do_sb(int argc, char **argv)
 {
-  int fd;
-  unsigned char buf[GFS_BASIC_BLOCK], input[256];
-  struct gfs_sb sb;
-  int rewrite = FALSE;
+	char *device, *field, *newval = NULL;
+	int fd;
+	unsigned char buf[GFS_BASIC_BLOCK], input[256];
+	struct gfs_sb sb;
+
+	if (optind == argc)
+		die("Usage: gfs_tool sb <device> <field> [newval]\n");
+
+	device = argv[optind++];
+
+	if (optind == argc)
+		die("Usage: gfs_tool sb <device> <field> [newval]\n");
+
+	field = argv[optind++];
+
+	if (optind < argc) {
+		if (strcmp(field, "all") == 0)
+			die("can't specify new value for \"all\"\n");
+		newval = argv[optind++];
+	}
 
 
-  if (argc != 4 && argc != 5)
-    die("bad number of arguments\n");
+	fd = open(device, (newval) ? O_RDWR : O_RDONLY);
+	if (fd < 0)
+		die("can't open %s: %s\n", device, strerror(errno));
 
-  if (argc == 5)
-    rewrite = TRUE;
+	if (newval && !override) {
+		printf("You shouldn't change any of these values if the filesystem is mounted.\n");
+		printf("\nAre you sure? [y/n] ");
+		fgets(input, 255, stdin);
 
+		if (input[0] != 'y')
+			die("aborted\n");
 
-  fd = open(argv[2], (rewrite) ? O_RDWR : O_RDONLY);
-  if (fd < 0)
-    die("can't open %s:  %s\n", argv[2], strerror(errno));
+		printf("\n");
+	}
 
+	do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
+	do_read(fd, buf, GFS_BASIC_BLOCK);
 
-  if (rewrite)
-  {
-    printf("You shouldn't change any of these values if the filesystem is mounted.\n");
-    printf("\nAre you sure? [y/n] ");
-    fgets(input, 255, stdin);
+	gfs_sb_in(&sb, buf);
 
-    if (input[0] != 'y')
-      die("aborted\n");
+	if (sb.sb_header.mh_magic != GFS_MAGIC ||
+	    sb.sb_header.mh_type != GFS_METATYPE_SB)
+		die("there isn't a GFS filesystem on %s\n", device);
 
-    printf("\n");
-  }
+	if (strcmp(field, "proto") == 0) {
+		printf("current lock protocol name = \"%s\"\n",
+		       sb.sb_lockproto);
 
+		if (newval) {
+			if (strlen(newval) >= GFS_LOCKNAME_LEN)
+				die("new lockproto name is too long\n");
+			strcpy(sb.sb_lockproto, newval);
+			printf("new lock protocol name = \"%s\"\n",
+			       sb.sb_lockproto);
+		}
+	} else if (strcmp(field, "table") == 0) {
+		printf("current lock table name = \"%s\"\n",
+		       sb.sb_locktable);
 
-  do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
-  do_read(fd, buf, GFS_BASIC_BLOCK);
+		if (newval) {
+			if (strlen(newval) >= GFS_LOCKNAME_LEN)
+				die("new locktable name is too long\n");
+			strcpy(sb.sb_locktable, newval);
+			printf("new lock table name = \"%s\"\n",
+			       sb.sb_locktable);
+		}
+	} else if (strcmp(field, "ondisk") == 0) {
+		printf("current ondisk format = %u\n",
+		       sb.sb_fs_format);
 
-  gfs_sb_in(&sb, buf);
+		if (newval) {
+			sb.sb_fs_format = atoi(newval);
+			printf("new ondisk format = %u\n",
+			       sb.sb_fs_format);
+		}
+	} else if (strcmp(field, "multihost") == 0) {
+		printf("current multihost format = %u\n",
+		       sb.sb_multihost_format);
 
+		if (newval) {
+			sb.sb_multihost_format = atoi(newval);
+			printf("new multihost format = %u\n",
+			       sb.sb_multihost_format);
+		}
+	} else if (strcmp(field, "all") == 0) {
+		gfs_sb_print(&sb);
+		newval = FALSE;
+	} else
+		die("unknown field %s\n", field);
 
-  if (sb.sb_header.mh_magic != GFS_MAGIC ||
-      sb.sb_header.mh_type != GFS_METATYPE_SB)
-    die("there isn't a GFS filesystem on %s\n", argv[2]);
+	if (newval) {
+		gfs_sb_out(&sb, buf);
 
+		do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
+		do_write(fd, buf, GFS_BASIC_BLOCK);
 
-  if (strcmp(argv[3], "proto") == 0)
-  {
-    printf("current lock protocol name = \"%s\"\n", sb.sb_lockproto);
+		fsync(fd);
 
-    if (rewrite)
-    {
-      if (strlen(argv[4]) >= GFS_LOCKNAME_LEN)
-	die("new lockproto name is too long\n");
-      strcpy(sb.sb_lockproto, argv[4]);
-      printf("new lock protocol name = \"%s\"\n", sb.sb_lockproto);
-    }
-  }
-  else if (strcmp(argv[3], "table") == 0)
-  {
-    printf("current lock table name = \"%s\"\n", sb.sb_locktable);
+		printf("Done\n");
+	}
 
-    if (rewrite)
-    {
-      if (strlen(argv[4]) >= GFS_LOCKNAME_LEN)
-	die("new locktable name is too long\n");
-      strcpy(sb.sb_locktable, argv[4]);
-      printf("new lock table name = \"%s\"\n", sb.sb_locktable);
-    }
-  }
-  else if (strcmp(argv[3], "ondisk") == 0)
-  {
-    printf("current ondisk format = %u\n", sb.sb_fs_format);
-
-    if (rewrite)
-    {
-      sb.sb_fs_format = atoi(argv[4]);
-      printf("new ondisk format = %u\n", sb.sb_fs_format);
-    }
-  }
-  else if (strcmp(argv[3], "multihost") == 0)
-  {
-    printf("current multihost format = %u\n", sb.sb_multihost_format);
-
-    if (rewrite)
-    {
-      sb.sb_multihost_format = atoi(argv[4]);
-      printf("new multihost format = %u\n", sb.sb_multihost_format);
-    }
-  }
-  else if (strcmp(argv[3], "all") == 0)
-  {
-    gfs_sb_print(&sb);
-    rewrite = FALSE;
-  }
-  else
-    die("unknown field %s\n", argv[3]);
-
-
-  if (rewrite)
-  {
-    gfs_sb_out(&sb, buf);
-
-    do_lseek(fd, GFS_SB_ADDR * GFS_BASIC_BLOCK);
-    do_write(fd, buf, GFS_BASIC_BLOCK);
-
-    fsync(fd);
-
-    printf("Done\n");
-  }
-
-
-  close(fd);
+	close(fd);
 }
-
-
-

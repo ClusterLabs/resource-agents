@@ -21,16 +21,19 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <stdint.h>
+#include <inttypes.h>
 
-#include "global.h"
 #include <linux/gfs_ondisk.h>
+#define __user
 #include <linux/gfs_ioctl.h>
 #include "osi_list.h"
+typedef uint64_t uint64;
 #include "iddev.h"
 
 #include "copyright.cf"
 
-#define BLOCK_END(buffer,type) ((buffer) + GFS_BASIC_BLOCK - sizeof(type))
+#define BLOCK_END(buffer, type) ((buffer) + GFS_BASIC_BLOCK - sizeof(type))
 
 struct rglist_entry {
 	osi_list_t list;
@@ -61,12 +64,12 @@ static int test = 0;
 static char fspath[4096];
 static char device[1024];
 static char fsoptions[4096];
-static uint64 devsize;
-static uint64 fssize;
-static uint64 override_device_size = 0;
+static uint64_t devsize;
+static uint64_t fssize;
+static uint64_t override_device_size = 0;
 static unsigned int number_of_journals = 1;
-static uint64 journal_size = 128;
-static uint64 journal_size_blocks;
+static uint64_t journal_size = 128;
+static uint64_t journal_size_blocks;
 
 /*
  * fs_sb: the superblock read from the mounted filesystem
@@ -79,48 +82,43 @@ static osi_list_decl(rglist_current);
 static osi_list_decl(jilist_current);
 static osi_list_decl(jilist_new);
 
-
-
-
-
 /**
  * device_geometry - Find out the size of a block device
  * @device: The name of the device
  *
  * Returns: The size of the device in FS blocks
  */
-static uint64 device_geometry(char *device)
+
+static uint64_t
+device_geometry(char *device)
 {
-  int fd;
-  uint64 bytes;
-  int error;
+	int fd;
+	uint64_t bytes;
+	int error;
 
-  if (override_device_size)
-    bytes = override_device_size;
-  else
-  {
-    fd = open(device, O_RDONLY);
-    if (fd < 0)
-    {
-      fprintf(stderr, "gfs_jadd: can't open %s: %s\n",
-	      device, strerror(errno));
-      exit(EXIT_FAILURE);
-    }
+	if (override_device_size)
+		bytes = override_device_size;
+	else {
+		fd = open(device, O_RDONLY);
+		if (fd < 0) {
+			fprintf(stderr, "gfs_jadd: can't open %s: %s\n",
+				device, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
 
-    error = device_size(fd, &bytes);
-    if (error)
-    {
-      fprintf(stderr, "gfs_grow: can't determine size of %s: %s\n",
-	      device, strerror(errno));
-      exit(EXIT_FAILURE);
-    }
+		error = device_size(fd, &bytes);
+		if (error) {
+			fprintf(stderr,
+				"gfs_grow: can't determine size of %s: %s\n",
+				device, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
 
-    close(fd);
-  }
+		close(fd);
+	}
 
-  return bytes >> fs_sb.sb_bsize_shift;
+	return bytes >> fs_sb.sb_bsize_shift;
 }
-
 
 /**
  * jread - Read from journaled file using ioctl()
@@ -132,24 +130,25 @@ static uint64 device_geometry(char *device)
  *
  * Returns: Error code, or amount of data read
  */
-int jread(int fd, unsigned int file, void *buf, uint64 size, uint64 *offset)
+
+int
+jread(int fd, char *file, void *buf, uint64_t size, uint64_t *offset)
 {
-  struct gfs_jio jt;
-  int ret;
+	struct gfs_ioctl gi;
+	char *argv[] = { "do_hfile_read", file };
+	int error;
 
-  jt.jio_file = file;
-  jt.jio_size = size;
-  jt.jio_offset = *offset;
-  jt.jio_data = buf;
+	gi.gi_argc = 2;
+	gi.gi_argv = argv;
+	gi.gi_data = buf;
+	gi.gi_size = size;
+	gi.gi_offset = *offset;
 
-  ret = ioctl(fd, GFS_JREAD, &jt);
-  if (!ret)
-  {
-    ret = jt.jio_count;
-    (*offset) += ret;
-  }
+	error = ioctl(fd, GFS_IOCTL_SUPER, &gi);
+	if (error > 0)
+		*offset += error;
 
-  return ret;
+	return error;
 }
 
 /**
@@ -162,26 +161,26 @@ int jread(int fd, unsigned int file, void *buf, uint64 size, uint64 *offset)
  *
  * Returns: Error code, or the amount of data written
  */
-int jwrite(int fd, unsigned int file, void *buf, uint64 size, uint64 *offset)
+
+int
+jwrite(int fd, char *file, void *buf, uint64_t size, uint64_t *offset)
 {
-  struct gfs_jio jt;
-  int ret;
+	struct gfs_ioctl gi;
+	char *argv[] = { "do_hfile_write", file };
+	int error;
 
-  jt.jio_file = file;
-  jt.jio_size = size;
-  jt.jio_offset = *offset;
-  jt.jio_data = buf;
+	gi.gi_argc = 2;
+	gi.gi_argv = argv;
+	gi.gi_data = buf;
+	gi.gi_size = size;
+	gi.gi_offset = *offset;
 
-  ret = ioctl(fd, GFS_JWRITE, &jt);
-  if (!ret)
-  {
-    ret = jt.jio_count;
-    (*offset) += ret;
-  }
+	error = ioctl(fd, GFS_IOCTL_SUPER, &gi);
+	if (error > 0)
+		*offset += error;
 
-  return ret;
+	return error;
 }
-
 
 /**
  * filesystem_size - Calculate the size of the filesystem
@@ -191,16 +190,18 @@ int jwrite(int fd, unsigned int file, void *buf, uint64 size, uint64 *offset)
  *
  * Returns: The calculated size
  */
-static uint64 filesystem_size(void)
+
+static uint64_t
+filesystem_size(void)
 {
 	osi_list_t *tmp, *head;
 	struct rglist_entry *rgl;
 	struct jilist_entry *jil;
-	uint64 size = 0;
-	uint64 extent;
+	uint64_t size = 0;
+	uint64_t extent;
 
 	tmp = head = &rglist_current;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
@@ -211,7 +212,7 @@ static uint64 filesystem_size(void)
 	}
 
 	tmp = head = &jilist_current;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
@@ -234,15 +235,18 @@ static uint64 filesystem_size(void)
  *
  * Returns: 1 on EOF, 0 otherwise
  */
-static int get_jientry(int fd, uint64 *offset)
+
+static int
+get_jientry(int fd, uint64_t *offset)
 {
 	char buffer[sizeof(struct gfs_jindex)];
-	int len = jread(fd, GFS_HIDDEN_JINDEX, buffer, sizeof(struct gfs_jindex), offset);
+	int len = jread(fd, "jindex", buffer,
+			sizeof(struct gfs_jindex), offset);
 	struct jilist_entry *jil;
+
 	if (len != sizeof(struct gfs_jindex)) {
 		if (len == 0)
 			return 1;
-
 		fprintf(stderr, "Erk! Read odd size from jindex (%d)\n", len);
 		exit(EXIT_FAILURE);
 	}
@@ -261,10 +265,13 @@ static int get_jientry(int fd, uint64 *offset)
  * @fs_fd: An fd for some file or directory within the mounted GFS filesystem
  *
  */
-static void read_journals(int fs_fd)
+
+static void
+read_journals(int fs_fd)
 {
-	uint64 offset = 0;
-	while(get_jientry(fs_fd, &offset) == 0) ;
+	uint64_t offset = 0;
+	while (get_jientry(fs_fd, &offset) == 0)
+		/* do nothing */;
 }
 
 /**
@@ -277,15 +284,18 @@ static void read_journals(int fs_fd)
  *
  * Returns: 1 on EOF, 0 otherwise
  */
-static int get_rgrp(int fd, uint64 *offset)
+
+static int
+get_rgrp(int fd, uint64_t *offset)
 {
 	char buffer[sizeof(struct gfs_rindex)];
-	int len = jread(fd, GFS_HIDDEN_RINDEX, buffer, sizeof(struct gfs_rindex), offset);
+	int len = jread(fd, "rindex", buffer,
+			sizeof(struct gfs_rindex), offset);
 	struct rglist_entry *rgl;
+
 	if (len != sizeof(struct gfs_rindex)) {
 		if (len == 0)
 			return 1;
-
 		fprintf(stderr, "Erk! Read odd size from rindex (%d)\n", len);
 		exit(EXIT_FAILURE);
 	}
@@ -304,10 +314,13 @@ static int get_rgrp(int fd, uint64 *offset)
  * @fs_fd: An fd for any file or directory within the mounted GFS filesytem
  *
  */
-static void read_rgrps(int fs_fd)
+
+static void
+read_rgrps(int fs_fd)
 {
-	uint64 offset = 0;
-	while(get_rgrp(fs_fd, &offset) == 0) ;
+	uint64_t offset = 0;
+	while (get_rgrp(fs_fd, &offset) == 0)
+		/* do nothing */;
 }
 
 /**
@@ -318,10 +331,12 @@ static void read_rgrps(int fs_fd)
  * prevents it writing to the device at a position within the control of
  * the active filesystem. 
  */
-static void write_a_block(uint64 where, uint64 seq)
+
+static void
+write_a_block(uint64_t where, uint64_t seq)
 {
 	char buffer[4096];
-	uint64 fsoffset = where * (uint64)fs_sb.sb_bsize;
+	uint64_t fsoffset = where * (uint64_t) fs_sb.sb_bsize;
 	int fd = open(device, O_RDWR);
 	struct gfs_log_header lh;
 
@@ -339,7 +354,8 @@ static void write_a_block(uint64 where, uint64 seq)
 		exit(EXIT_FAILURE);
 	}
 	if (where < fssize) {
-		fprintf(stderr, "Sanity check failed: Caught trying to write to live filesystem!\n");
+		fprintf(stderr,
+			"Sanity check failed: Caught trying to write to live filesystem!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -364,12 +380,14 @@ static void write_a_block(uint64 where, uint64 seq)
  *
  * Write a complete new journal on disk.
  */
-static void write_whole_journal(struct jilist_entry *jil)
-{
-	uint64 seg;
-	uint64 offset;
 
-	for(seg = 0; seg < jil->ji.ji_nsegment; seg++) {
+static void
+write_whole_journal(struct jilist_entry *jil)
+{
+	uint64_t seg;
+	uint64_t offset;
+
+	for (seg = 0; seg < jil->ji.ji_nsegment; seg++) {
 		offset = seg * fs_sb.sb_seg_size;
 		write_a_block(jil->ji.ji_addr + offset, offset);
 	}
@@ -383,17 +401,22 @@ static void write_whole_journal(struct jilist_entry *jil)
  *
  * Returns: The length
  */
-static uint64 get_length(int fd, unsigned int file)
+
+static uint64_t
+get_length(int fd, char *file)
 {
-        struct gfs_jio jt;
+	struct gfs_ioctl gi;
+	char *argv[] = { "get_hfile_stat", file };
 	struct gfs_dinode di;
+	int error;
 
-	jt.jio_file = file;
-	jt.jio_offset = 0;
-	jt.jio_size = sizeof(struct gfs_dinode);
-	jt.jio_data = (char *)&di;
+	gi.gi_argc = 2;
+	gi.gi_argv = argv;
+	gi.gi_data = (char *)&di;
+	gi.gi_size = sizeof(struct gfs_dinode);
 
-	if (ioctl(fd, GFS_JSTAT, &jt) < 0) {
+	error = ioctl(fd, GFS_IOCTL_SUPER, &gi);
+	if (error != gi.gi_size) {
 		perror("stat");
 		fprintf(stderr, "Failed to get size of file. Aborting.\n");
 		exit(EXIT_FAILURE);
@@ -410,28 +433,31 @@ static uint64 get_length(int fd, unsigned int file)
  * actual write to the jindex which causes the GFS filesystem to see the
  * new journals which were previously added.
  */
-static void write_jindex(int fs_fd)
+
+static void
+write_jindex(int fs_fd)
 {
 	osi_list_t *tmp, *head;
 	struct jilist_entry *jil;
 	char buffer[sizeof(struct gfs_jindex)];
-	uint64 orig_length;
-	uint64 offset;
+	uint64_t offset;
 
-	offset = orig_length = get_length(fs_fd, GFS_HIDDEN_JINDEX);
+	offset = get_length(fs_fd, "jindex");
 
 	/*
 	 * This is the critical section.
 	 * If things mess up here, it could be very difficult to put right
 	 */
 	tmp = head = &jilist_new;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
 		jil = osi_list_entry(tmp, struct jilist_entry, list);
 		gfs_jindex_out(&jil->ji, buffer);
-		if (jwrite(fs_fd, GFS_HIDDEN_JINDEX, buffer, sizeof(struct gfs_jindex), &offset) != sizeof(struct gfs_jindex)) {
+		if (jwrite(fs_fd, "jindex", buffer,
+			   sizeof(struct gfs_jindex), &offset) !=
+		    sizeof(struct gfs_jindex)) {
 			perror("write: jindex");
 			fprintf(stderr, "Aborting...\n");
 			exit(EXIT_FAILURE);
@@ -440,7 +466,6 @@ static void write_jindex(int fs_fd)
 	/*
 	 * This is the end of the critical section
 	 */
-	return;
 }
 
 /**
@@ -452,12 +477,15 @@ static void write_jindex(int fs_fd)
  * using and then calls write_jindex() to make the filesystem see
  * the newly written journal.
  */
-static void write_journals(int fs_fd)
+
+static void
+write_journals(int fs_fd)
 {
 	osi_list_t *tmp, *head;
 	struct jilist_entry *jil;
+
 	tmp = head = &jilist_new;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
@@ -480,15 +508,28 @@ static void write_journals(int fs_fd)
  * gather_info - Gathers all the information about the existing filesystem
  *
  */
-static void gather_info(void)
-{
-	int fd = open(fspath, O_RDONLY);
 
+static void
+gather_info(void)
+{
+	int fd;
+	struct gfs_ioctl gi;
+	char *argv[] = { "get_super" };
+	int error;
+
+	fd = open(fspath, O_RDONLY);
 	if (fd < 0) {
 		perror(fspath);
 		exit(EXIT_FAILURE);
 	}
-	if (ioctl(fd, GFS_GET_SUPER, &fs_sb) < 0) {
+
+	gi.gi_argc = 1;
+	gi.gi_argv = argv;
+	gi.gi_data = (char *)&fs_sb;
+	gi.gi_size = sizeof(struct gfs_sb);
+
+	error = ioctl(fd, GFS_IOCTL_SUPER, &gi);
+	if (error != gi.gi_size) {
 		perror("ioctl: GFS_GET_SUPER");
 		exit(EXIT_FAILURE);
 	}
@@ -496,7 +537,6 @@ static void gather_info(void)
 	read_rgrps(fd);
 	read_journals(fd);
 	close(fd);
-
 	devsize = device_geometry(device);
 	fssize = filesystem_size();
 
@@ -504,7 +544,7 @@ static void gather_info(void)
 	/*
 	 * Round size down to integer number of segments
 	 */
-	while(journal_size_blocks % fs_sb.sb_seg_size) {
+	while (journal_size_blocks % fs_sb.sb_seg_size) {
 		journal_size_blocks--;
 		journal_size -= fs_sb.sb_bsize;
 	}
@@ -515,23 +555,24 @@ static void gather_info(void)
  * @lh: The list of resource groups to print
  *
  */
-static void print_rgrps(osi_list_t *lh)
+
+static void
+print_rgrps(osi_list_t *lh)
 {
 	osi_list_t *tmp, *head;
 	struct rglist_entry *rgl;
 	int n = 0;
 
 	tmp = head = lh;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
 		rgl = osi_list_entry(tmp, struct rglist_entry, list);
 		n++;
-		printf("RI: Addr %"PRIu64", RgLen %u, "
-			"Start %"PRIu64", DataLen %u, BmapLen %u\n", 
-			rgl->ri.ri_addr, rgl->ri.ri_length, 
-			rgl->ri.ri_data1, rgl->ri.ri_data, rgl->ri.ri_bitbytes);
+		printf("RI: Addr %"PRIu64", RgLen %u, Start %"PRIu64", DataLen %u, BmapLen %u\n",
+		       rgl->ri.ri_addr, rgl->ri.ri_length,
+		       rgl->ri.ri_data1, rgl->ri.ri_data, rgl->ri.ri_bitbytes);
 	}
 	printf("RGRP: %d Resource groups in total\n", n);
 }
@@ -540,21 +581,23 @@ static void print_rgrps(osi_list_t *lh)
  * print_journals - Print a list of journals
  *
  */
-static void print_journals(osi_list_t *lh)
+
+static void
+print_journals(osi_list_t *lh)
 {
 	osi_list_t *tmp, *head;
 	struct jilist_entry *jil;
 	int n = 0;
 
 	tmp = head = lh;
-	for(;;) {
+	for (;;) {
 		tmp = tmp->next;
 		if (tmp == head)
 			break;
 		jil = osi_list_entry(tmp, struct jilist_entry, list);
 		n++;
-		printf("JI: Addr %"PRIu64" NumSeg %u SegSize %u\n", jil->ji.ji_addr, 
-			jil->ji.ji_nsegment, fs_sb.sb_seg_size);
+		printf("JI: Addr %"PRIu64" NumSeg %u SegSize %u\n",
+		       jil->ji.ji_addr, jil->ji.ji_nsegment, fs_sb.sb_seg_size);
 	}
 	printf("JRNL: %d Journals in total\n", n);
 }
@@ -563,7 +606,9 @@ static void print_journals(osi_list_t *lh)
  * print_info - Print out various bits of (interesting?) information
  *
  */
-static void print_info(void)
+
+static void
+print_info(void)
 {
 	printf("FS: Mount Point: %s\n", fspath);
 	printf("FS: Device: %s\n", device);
@@ -588,7 +633,9 @@ static void print_info(void)
  * @size: The size of the new journal in fs blocks
  *
  */
-uint64 make_journal(uint64 offset, uint64 size)
+
+uint64_t
+make_journal(uint64_t offset, uint64_t size)
 {
 	struct jilist_entry *jil = malloc(sizeof(struct jilist_entry));
 	if (jil == NULL) {
@@ -597,10 +644,9 @@ uint64 make_journal(uint64 offset, uint64 size)
 	}
 	memset(jil, 0, sizeof(struct jilist_entry));
 
-	if (offset % fs_sb.sb_seg_size)
-	{
-	  size -= fs_sb.sb_seg_size - (offset % fs_sb.sb_seg_size);
-	  offset += fs_sb.sb_seg_size - (offset % fs_sb.sb_seg_size);
+	if (offset % fs_sb.sb_seg_size) {
+		size -= fs_sb.sb_seg_size - (offset % fs_sb.sb_seg_size);
+		offset += fs_sb.sb_seg_size - (offset % fs_sb.sb_seg_size);
 	}
 
 	jil->ji.ji_addr = offset;
@@ -614,17 +660,23 @@ uint64 make_journal(uint64 offset, uint64 size)
  * create_journals - Create a list of the new journals
  * 
  */
-static int create_journals(void)
+
+static int
+create_journals(void)
 {
-	uint64 offset = fssize;
+	uint64_t offset = fssize;
 	int n;
 
 	if ((journal_size_blocks * number_of_journals) > (devsize - fssize)) {
-		fprintf(stderr, "Requested size (%"PRIu64" blocks) greater than available space (%"PRIu64" blocks)\n", journal_size_blocks * number_of_journals, devsize - fssize);
+		fprintf(stderr,
+			"Requested size (%" PRIu64
+			" blocks) greater than available space (%" PRIu64
+			" blocks)\n", journal_size_blocks * number_of_journals,
+			devsize - fssize);
 		return -1;
 	}
 
-	for(n = 0; n < number_of_journals; n++)
+	for (n = 0; n < number_of_journals; n++)
 		offset = make_journal(offset, journal_size_blocks);
 
 	if (offset > devsize) {
@@ -635,12 +687,13 @@ static int create_journals(void)
 	return 0;
 }
 
-
 /**
  * update_fs - Actually perform the filesystem update
  *
  */
-static void update_fs(void)
+
+static void
+update_fs(void)
 {
 	int fd = open(fspath, O_RDONLY);
 	if (fd < 0) {
@@ -661,7 +714,9 @@ static void update_fs(void)
  *
  * Returns: 0 if the filesystem is located, 1 otherwise
  */
-static int find_fs(char *name)
+
+static int
+find_fs(char *name)
 {
 	FILE *fp = fopen("/proc/mounts", "r");
 	char buffer[4096];
@@ -672,12 +727,12 @@ static int find_fs(char *name)
 		perror("open: /proc/mounts");
 		exit(EXIT_FAILURE);
 	}
-	while((fgets(buffer, 4095, fp)) != NULL) {
+	while ((fgets(buffer, 4095, fp)) != NULL) {
 		buffer[4095] = 0;
 		if (strstr(buffer, name) == 0)
 			continue;
 		if (sscanf(buffer, "%s %s %s %s %d %d", device, fspath, fstype,
-					fsoptions, &fsdump, &fspass) != 6)
+			   fsoptions, &fsdump, &fspass) != 6)
 			continue;
 		if (strcmp(fstype, "gfs") != 0)
 			continue;
@@ -696,11 +751,13 @@ static int find_fs(char *name)
  * @list: The list to delete
  *
  */
-static void delete_rgrp_list(osi_list_t *list)
+
+static void
+delete_rgrp_list(osi_list_t *list)
 {
 	struct rglist_entry *rg;
 
-	while(!osi_list_empty(list)) {
+	while (!osi_list_empty(list)) {
 		rg = osi_list_entry(list->next, struct rglist_entry, list);
 		osi_list_del(&rg->list);
 		free(rg);
@@ -712,11 +769,13 @@ static void delete_rgrp_list(osi_list_t *list)
  * @list: The list to delete
  *
  */
-static void delete_jrnl_list(osi_list_t *list)
+
+static void
+delete_jrnl_list(osi_list_t *list)
 {
 	struct jilist_entry *ji;
 
-	while(!osi_list_empty(list)) {
+	while (!osi_list_empty(list)) {
 		ji = osi_list_entry(list->next, struct jilist_entry, list);
 		osi_list_del(&ji->list);
 		free(ji);
@@ -732,7 +791,9 @@ static void delete_jrnl_list(osi_list_t *list)
  * -T flag to find out what the result would be of trying different
  * device sizes without actually having to try them manually.
  */
-static void usage(void)
+
+static void
+usage(void)
 {
 	fprintf(stdout,
 		"Usage:\n"
@@ -745,9 +806,8 @@ static void usage(void)
 		"  -j <num>         Number of journals to add (default 1)\n"
 		"  -q               Quiet, reduce verbosity\n"
 		"  -T               Test, do everything except update FS\n"
-		"  -V               Version information\n" 
-		"  -v               Verbose, increase verbosity\n"
-		);
+		"  -V               Version information\n"
+		"  -v               Verbose, increase verbosity\n");
 }
 
 /**
@@ -765,67 +825,72 @@ static void usage(void)
  *
  * Returns: 0 on success, -1 otherwise
  */
-int main(int argc, char *argv[])
+
+int
+main(int argc, char *argv[])
 {
 	int opt;
 	int error = 0;
 
 	while ((opt = getopt(argc, argv, "D:Vhj:J:vqT?")) != EOF) {
-		switch(opt) {
-			case 'D': /* This option is for testing only */
-				override_device_size = atoi(optarg);
-				override_device_size <<= 20;
-				break;
-			case 'V':
-				printf("%s %s (built %s %s)\n", argv[0],
-					GFS_RELEASE_NAME, __DATE__, __TIME__);
-				printf("%s\n", REDHAT_COPYRIGHT);
-				exit(0);
-			case 'h':
+		switch (opt) {
+		case 'D':	/* This option is for testing only */
+			override_device_size = atoi(optarg);
+			override_device_size <<= 20;
+			break;
+		case 'V':
+			printf("%s %s (built %s %s)\n", argv[0],
+			       GFS_RELEASE_NAME, __DATE__, __TIME__);
+			printf("%s\n", REDHAT_COPYRIGHT);
+			exit(0);
+		case 'h':
+			usage();
+			exit(0);
+		case 'j':
+			number_of_journals = atoi(optarg);
+			if (number_of_journals < 1) {
+				fprintf(stderr,
+					"Erk! Number of journals must be 1 or greater.\n");
 				usage();
-				exit(0);
-			case 'j':
-				number_of_journals = atoi(optarg);
-				if (number_of_journals < 1) {
-					fprintf(stderr, "Erk! Number of journals must be 1 or greater.\n");
-					usage();
-					exit(EXIT_FAILURE);
-				}
-				break;
-			case 'J':
-				journal_size = atoi(optarg);
-				if (journal_size < 32) {
-					fprintf(stderr, "Erk! Specified journal size of %"PRIu64" is too small.\n", journal_size);
-					usage();
-					exit(EXIT_FAILURE);
-				}
-				break;
-			case 'q':
-				if (verbose)
-					verbose--;
-				break;
-			case 'T':
-				test = 1;
-				break;
-			case 'v':
-				verbose++;
-				break;
-			case ':':
-			case '?':
-				fprintf(stderr, "Please use '-h' for usage.\n");
 				exit(EXIT_FAILURE);
-			default:
-				fprintf(stderr, "Bad programmer! You forgot"
-                                        " to catch the %c flag\n", opt);
+			}
+			break;
+		case 'J':
+			journal_size = atoi(optarg);
+			if (journal_size < 32) {
+				fprintf(stderr,
+					"Erk! Specified journal size of %"
+					PRIu64 " is too small.\n",
+					journal_size);
+				usage();
 				exit(EXIT_FAILURE);
-				break;
+			}
+			break;
+		case 'q':
+			if (verbose)
+				verbose--;
+			break;
+		case 'T':
+			test = 1;
+			break;
+		case 'v':
+			verbose++;
+			break;
+		case ':':
+		case '?':
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(EXIT_FAILURE);
+		default:
+			fprintf(stderr, "Bad programmer! You forgot"
+				" to catch the %c flag\n", opt);
+			exit(EXIT_FAILURE);
+			break;
 		}
 	}
 
-	if (optind == argc)
-	{
-	  usage();
-	  exit(EXIT_FAILURE);
+	if (optind == argc) {
+		usage();
+		exit(EXIT_FAILURE);
 	}
 
 	while ((argc - optind) > 0) {
@@ -835,7 +900,8 @@ int main(int argc, char *argv[])
 		}
 		gather_info();
 		if (fssize > devsize) {
-			fprintf(stderr, "Filesystem thinks device is bigger than it really is.... skipping\n");
+			fprintf(stderr,
+				"Filesystem thinks device is bigger than it really is.... skipping\n");
 			error = 1;
 			continue;
 		}
@@ -854,4 +920,3 @@ int main(int argc, char *argv[])
 
 	return error;
 }
-

@@ -281,25 +281,25 @@ static int
 gfs_statfs(struct super_block *sb, struct kstatfs *buf)
 {
 	struct gfs_sbd *sdp = vfs2sdp(sb);
-	struct gfs_usage usage;
+	struct gfs_stat_gfs sg;
 	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	error = gfs_stat_gfs(sdp, &usage, TRUE);
+	error = gfs_stat_gfs(sdp, &sg, TRUE);
 	if (error)
 		return error;
 
 	memset(buf, 0, sizeof(struct kstatfs));
 
 	buf->f_type = GFS_MAGIC;
-	buf->f_bsize = usage.gu_block_size;
-	buf->f_blocks = usage.gu_total_blocks;
-	buf->f_bfree = usage.gu_free + usage.gu_free_dinode + usage.gu_free_meta;
-	buf->f_bavail = usage.gu_free + usage.gu_free_dinode + usage.gu_free_meta;
-	buf->f_files = usage.gu_used_dinode + usage.gu_free_dinode +
-		usage.gu_free_meta + usage.gu_free;
-	buf->f_ffree = usage.gu_free_dinode + usage.gu_free_meta + usage.gu_free;
+	buf->f_bsize = sdp->sd_sb.sb_bsize;
+	buf->f_blocks = sg.sg_total_blocks;
+	buf->f_bfree = sg.sg_free + sg.sg_free_dinode + sg.sg_free_meta;
+	buf->f_bavail = sg.sg_free + sg.sg_free_dinode + sg.sg_free_meta;
+	buf->f_files = sg.sg_used_dinode + sg.sg_free_dinode +
+		sg.sg_free_meta + sg.sg_free;
+	buf->f_ffree = sg.sg_free_dinode + sg.sg_free_meta + sg.sg_free;
 	buf->f_namelen = GFS_FNAMESIZE;
 
 	return 0;

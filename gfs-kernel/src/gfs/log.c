@@ -1162,7 +1162,7 @@ gfs_log_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	incore_commit(sdp, tr);
 
 	/* Flush log buffers to disk if we're over the threshold */
-	if (sdp->sd_log_buffers > sdp->sd_tune.gt_incore_log_blocks) {
+	if (sdp->sd_log_buffers > gfs_tune_get(sdp, gt_incore_log_blocks)) {
 		gfs_log_unlock(sdp);
 		gfs_log_flush(sdp);
 	} else {

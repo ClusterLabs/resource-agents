@@ -71,7 +71,6 @@
 #include "file.h"
 #include "glock.h"
 #include "inode.h"
-#include "ioctl.h"
 #include "quota.h"
 #include "rgrp.h"
 #include "trans.h"

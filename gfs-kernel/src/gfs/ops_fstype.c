@@ -140,7 +140,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	spin_lock_init(&sdp->sd_ail_lock);
 	INIT_LIST_HEAD(&sdp->sd_recovery_bufs);
 
-	gfs_init_tune_data(sdp);
+	gfs_tune_init(&sdp->sd_tune);
 
 	error = gfs_make_args((char *)data, &sdp->sd_args);
 	if (error) {

@@ -318,4 +318,25 @@ extern kmem_cache_t *gfs_mhc_cachep;
 void *gmalloc(unsigned int size);
 
 
+struct gfs_user_buffer {
+	char *ub_data;
+	unsigned int ub_size;
+	unsigned int ub_count;
+};
+int gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh);
+
+
+static __inline__ unsigned int
+gfs_tune_get_i(struct gfs_tune *gt, unsigned int *p)
+{
+	unsigned int x;
+	spin_lock(&gt->gt_spin);
+	x = *p;
+	spin_unlock(&gt->gt_spin);
+	return x;
+}
+#define gfs_tune_get(sdp, field) \
+gfs_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
+
+
 #endif /* __UTIL_DOT_H__ */

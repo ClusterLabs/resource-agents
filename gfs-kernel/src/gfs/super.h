@@ -14,7 +14,7 @@
 #ifndef __SUPER_DOT_H__
 #define __SUPER_DOT_H__
 
-void gfs_init_tune_data(struct gfs_sbd *sdp);
+void gfs_tune_init(struct gfs_tune *gt);
 
 int gfs_check_sb(struct gfs_sbd *sdp, struct gfs_sb *sb, int silent);
 int gfs_read_sb(struct gfs_sbd *sdp, struct gfs_glock *gl, int silent);
@@ -42,7 +42,16 @@ int gfs_get_linode(struct gfs_sbd *sdp);
 int gfs_make_fs_rw(struct gfs_sbd *sdp);
 int gfs_make_fs_ro(struct gfs_sbd *sdp);
 
-int gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage,
+struct gfs_stat_gfs {
+	uint64_t sg_total_blocks;
+	uint64_t sg_free;
+	uint64_t sg_used_dinode;
+	uint64_t sg_free_dinode;
+	uint64_t sg_used_meta;
+	uint64_t sg_free_meta;
+};
+
+int gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_stat_gfs *sg,
 		 int interruptible);
 
 int gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,

@@ -297,7 +297,7 @@ inode_go_demote_ok(struct gfs_glock *gl)
 	if (!gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
 		demote = TRUE;
 	else if (!sdp->sd_args.ar_localcaching &&
-		 time_after_eq(jiffies, gl->gl_stamp + sdp->sd_tune.gt_demote_secs * HZ))
+		 time_after_eq(jiffies, gl->gl_stamp + gfs_tune_get(sdp, gt_demote_secs) * HZ))
 		demote = TRUE;
 
 	return demote;
@@ -358,19 +358,19 @@ inode_greedy(struct gfs_glock *gl)
 {
 	struct gfs_sbd *sdp = gl->gl_sbd;
 	struct gfs_inode *ip = gl2ip(gl);
+	unsigned int quantum = gfs_tune_get(sdp, gt_greedy_quantum);
+	unsigned int max = gfs_tune_get(sdp, gt_greedy_max);
 	unsigned int new_time;
 
 	spin_lock(&ip->i_lock);
 
-	if (time_after(ip->i_last_pfault +
-		       sdp->sd_tune.gt_greedy_quantum,
-		       jiffies)) {
-		new_time = ip->i_greedy + sdp->sd_tune.gt_greedy_quantum;
-		if (new_time > sdp->sd_tune.gt_greedy_max)
-			new_time = sdp->sd_tune.gt_greedy_max;
+	if (time_after(ip->i_last_pfault + quantum, jiffies)) {
+		new_time = ip->i_greedy + quantum;
+		if (new_time > max)
+			new_time = max;
 	} else {
-		new_time = ip->i_greedy - sdp->sd_tune.gt_greedy_quantum;
-		if (!new_time || new_time > sdp->sd_tune.gt_greedy_max)
+		new_time = ip->i_greedy - quantum;
+		if (!new_time || new_time > max)
 			new_time = 1;
 	}
 

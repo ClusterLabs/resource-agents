@@ -13,14 +13,17 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
 
-#include "global.h"
 #include "linux_endian.h"
 #include <linux/gfs_ondisk.h>
 
 #define printk printf
-#define pv(struct, member, fmt) printf("  "#member" = "fmt"\n", struct->member);
+#define pv(struct, member, fmt) \
+printf("  "#member" = "fmt"\n", struct->member);
 
 #define WANT_GFS_CONVERSION_FUNCTIONS
 #include <linux/gfs_ondisk.h>
+
 
