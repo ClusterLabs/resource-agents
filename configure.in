@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.308 $) dnl cvs revision
+AC_REVISION($Revision: 1.309 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1609,7 +1609,7 @@ AC_DEFINE_UNQUOTED(LSB_RA_DIR,"${INITDIR}", lsb ra dir)
 
 STONITH_RA_DIR="${hb_libdir}/stonith.d/"
 AC_SUBST(STONITH_RA_DIR)
-AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"${hb_libdir}/stonith.d", stonith ra dir)
+AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"${hb_libdir}/stonith.d/", stonith ra dir)
 
 dnl **********************************************************************
 dnl Scripting language bindings
