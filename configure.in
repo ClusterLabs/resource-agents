@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.219 $) dnl cvs revision
+AC_REVISION($Revision: 1.220 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -752,7 +752,7 @@ dnl Add any system specific options here.
 	esac
 	if test "${enable_fatal_warnings}" = yes && cc_supports_flag -Werror ; then
           echo "Enabling Fatal Warnings (-Werror) on this platform"
-    	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Werror"
+    	  FATAL_WARNINGS="-Werror"
         fi
         
 	if test "$enable_traditional_warning" = yes && \
@@ -762,7 +762,8 @@ dnl Add any system specific options here.
 	fi
 
 
-	CC_WARNINGS="$EXTRA_WARNINGS"
+	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS"
+	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 fi
 
 if test "${enable_snmp_subagent+set}"  = "set"; then
@@ -1082,6 +1083,13 @@ AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
+
+dnl
+dnl Lex and yacc can't be trusted to produce code that won't produce
+dnl warnings
+dnl
+NON_FATAL_CFLAGS="$CFLAGS $NON_FATAL_CC_WARNINGS"
+AC_SUBST(NON_FATAL_CFLAGS)
 AC_CHECK_SIZEOF(long long)
 
 dnl
