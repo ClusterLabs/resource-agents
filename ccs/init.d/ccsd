@@ -10,7 +10,7 @@
 # Provides: 
 ### END INIT INFO
 
-CCSD_OPTS="-v"
+CCSD_OPTS=
 
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
