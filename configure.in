@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.322 $) dnl cvs revision
+AC_REVISION($Revision: 1.323 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -58,9 +58,13 @@ FatalMissingThing() {
     MISSINGTHINGS="$MISSINGTHINGS, $1"
   fi
   shift
+  AC_MSG_RESULT(configure: ERROR: $1 ====================)
+  shift
   for j in "$@"
   do
-    AC_MSG_RESULT(configure: ERROR: $j ============)
+    if test "X$j" != X-; then
+       AC_MSG_RESULT(configure:        $j ==)
+    fi
   done
 }
 CheckMissingThings() {
@@ -199,7 +203,6 @@ dnl - Determine which mail program exists. Mailx is Solaris
 AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
-AC_PATH_PROGS(PKGCONFIG, pkg-config)
 AC_PATH_PROGS(BLOCKDEV, blockdev)
 AC_PATH_PROGS(FUSER, fuser)
 AC_PATH_PROGS(MOUNT, mount)
@@ -223,6 +226,7 @@ AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
 AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
+AC_PATH_PROGS(PKGCONFIG, pkg-config)
 
 
 dnl ************************************************************************
@@ -252,25 +256,27 @@ AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
 
 
 
-AC_MSG_CHECKING(which glib config exists)
-
+EXTRAGLIBMSG="-"
 if test "X${PKGCONFIG}" = "X"; then
-	FatalMissingThing "Package pkgconfig is required"
-	"See http://pkgconfig.sourceforge.net/"
-fi
-
-
-if  $PKGCONFIG --exists "glib-2.0"; then
-    GLIBCONFIG="$PKGCONFIG glib-2.0 "
+	AC_MSG_RESULT("not found")
+	FatalMissingThing "pkgconfig" "Package pkgconfig is required" 	\
+	"See http://pkgconfig.sourceforge.net/"	
+	EXTRALIBMSG="(this message might be bogus because pkgconfig is missing)"
 else
-	FatalMissingThing "glib 2.x"              \
-        "       You need the glib 2.x development package to continue." \
-        "You can get the source from ftp://ftp.gtk.org/pub/gtk/" \
-        "or you can locate it via http://www.gtk.org/download/"
-
+	AC_MSG_RESULT($PKGCONFIG)
 fi
 
-AC_MSG_RESULT("using $GLIBCONFIG")
+
+if test "X${PKGCONFIG}" != "X" && $PKGCONFIG --exists glib-2.0; then
+	GLIBCONFIG="$PKGCONFIG glib-2.0 "
+else
+	FatalMissingThing "glib2-devel"              \
+        "Package glib2-devel is missing." \
+        "You can get the source from ftp://ftp.gtk.org/pub/gtk/" \
+        "or you can locate it via http://www.gtk.org/download/" "$EXTRALIBMSG"
+
+fi
+AC_MSG_RESULT(using $GLIBCONFIG)
 
 AC_MSG_CHECKING(which libnet version is installed)
 if test x"${LIBNETCONFIG}" = x""; then
@@ -519,24 +525,26 @@ fi
 dnl
 dnl	Glib allows its headers/libraries to be installed anywhere.
 dnl	And they provide a command to let you know where they are.
-dnl	This is nice, but having them in standard places is nicer ;-)
+dnl	This is nice, but having them in standard places is nice too ;-)
 dnl
 
-AC_MSG_CHECKING(for special glib includes: )
-GLIBHEAD=`$GLIBCONFIG --cflags`
-AC_MSG_RESULT($GLIBHEAD)
+if test "X$GLIBCONFIG" != X; then
+	AC_MSG_CHECKING(for special glib includes: )
+	GLIBHEAD=`$GLIBCONFIG --cflags`
+	AC_MSG_RESULT($GLIBHEAD)
 
-CPPFLAGS="$CPPFLAGS $GLIBHEAD"
-AC_SUBST(GLIBHEAD)
+	CPPFLAGS="$CPPFLAGS $GLIBHEAD"
+	AC_SUBST(GLIBHEAD)
 
-dnl Note: Not bundling "GLIBLIB" with general "LIBS".
-dnl	1. Only very few programs require GLIBLIB
-dnl	2. Danger of creating run-time dependency on build-time LD_LIBRARY_PATH
-AC_MSG_CHECKING(for glib library flags)
-GLIBLIB=`$GLIBCONFIG --libs`
-AC_MSG_RESULT($GLIBLIB)
-AC_SUBST(GLIBLIB)
-
+	dnl Note: Not bundling "GLIBLIB" with general "LIBS".
+	dnl	1. Only very few programs require GLIBLIB
+	dnl		(This isn't true anymore -- AlanR)
+	dnl	2. Danger of creating run-time dependency on build-time LD_LIBRARY_PATH
+	AC_MSG_CHECKING(for glib library flags)
+	GLIBLIB=`$GLIBCONFIG --libs`
+	AC_MSG_RESULT($GLIBLIB)
+	AC_SUBST(GLIBLIB)
+fi
 
 dnl ************************************************************************
 dnl checks for header files
@@ -1355,7 +1363,7 @@ fi
 dnl End of tests borrowed from Proftpd
 
 
-dnl check if headfile and lib is there for hbaping
+dnl check if header file and lib are there for hbaping
 hbaping_build="yes"
 AC_CHECK_HEADERS(time.h hbaapi.h, , [hbaping_build="no"],[[#if HAVE_TIME_H 
 #include <time.h>
