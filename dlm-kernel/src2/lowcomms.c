@@ -1216,19 +1216,19 @@ void lowcomms_stop_accept(void)
 /* Return the IP address of a node given its NODEID */
 static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr)
 {
-	struct sockaddr_storage *saddr;
+	struct sockaddr_storage saddr;
 
 	if (dlm_nodeid_addr(nodeid, (char *)&saddr))
 		return -1;
 
 	/* Extract the IP address */
 	if (local_addr.ss_family == AF_INET) {
-	        struct sockaddr_in *in4  = (struct sockaddr_in *)saddr;
+	        struct sockaddr_in *in4  = (struct sockaddr_in *)&saddr;
 		struct sockaddr_in *ret4 = (struct sockaddr_in *)retaddr;
 		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
 	}
 	else {
-	        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)saddr;
+	        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&saddr;
 		struct sockaddr_in6 *ret6 = (struct sockaddr_in6 *)retaddr;
 		memcpy(&ret6->sin6_addr, &in6->sin6_addr, sizeof(in6->sin6_addr));
 	}
