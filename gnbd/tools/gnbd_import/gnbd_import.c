@@ -1124,6 +1124,11 @@ int main(int argc, char **argv)
     fence(host, fence_server, (action == ACTION_FENCE)? 1 : 0);
     return 0;
   case ACTION_REMOVE:
+    if (argc == optind){
+      printe("missing operand for remove action\n");
+      fprintf(stderr, "please use '-h' for usage.\n");
+      return 1;
+    }
     remove_clients(argv + optind, argc - optind);
     return 0;
   case ACTION_REMOVE_ALL:

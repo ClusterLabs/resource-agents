@@ -470,6 +470,11 @@ int main(int argc, char **argv){
       timeout = TIMEOUT_DEFAULT;
     return servcreate(gnbd_name, device, (uint32_t)timeout, (uint8_t)readonly);
   case ACTION_REMOVE:
+    if (optind == argc){
+      printe("missing operand for remove action\n");
+      fprintf(stderr, "please use '-h' for usage.\n");
+      return 1;
+    }
     for (i = optind; i < argc; i++){
       if (force)
         invalidate_serv(argv[i]);
