@@ -33,10 +33,11 @@ my $max_open_tries = 3;      # How many telnet attempts to make.  Because the
                              # APC can fail repeated login attempts, this number
                              # should be more than 1
 my $open_wait = 5;           # Seconds to wait between each telnet attempt
-my $telnet_timeout = 20;     # Seconds to wait for matching telent response
+my $telnet_timeout = 2;      # Seconds to wait for matching telent response
 my $debuglog = '/tmp/apclog';# Location of debugging log when in verbose mode
 $opt_o = 'reboot';           # Default fence action.  
 
+my $logged_in = 0;
 
 my $t = new Net::Telnet;
 
@@ -76,9 +77,13 @@ sub fail
 {
 	($msg)=@_;
 	print $msg."\n" unless defined $opt_q;
+
 	if (defined $t)
 	{
-		logout();
+		# make sure we don't get stuck in a loop due to errors
+		$t->errmode('return');  
+
+		logout() if $logged_in;
 		$t->close 
 	}
 	exit 1;
@@ -102,9 +107,6 @@ sub version
 
 sub login
 {
-	# Opt to return on failure and we'll retry
-	$t->errmode('return');  
-
 	for (my $i=0; $i<$max_open_tries; $i++)
 	{
 		$t->open($opt_a);
@@ -129,28 +131,53 @@ sub login
   
 		# Send password
 		$t->print($opt_p);  
-		# No point retrying if we get this far e.g. if password is rejected
-		return;
+
+		(my $dummy, $_) = $t->waitfor('/(>|(?i:user name|password)\s*:) /');
+		if (/> /)
+		{
+			$logged_in = 1;
+
+			# send newline to flush prompt
+			$t->print("");  
+
+			return;
+		}
+		else
+		{
+			fail "invalid username or password";
+		}
 	}
 	fail "failed: telnet failed: ". $t->errmsg."\n" 
 }
 
-
-# Navigate through menus to the appropriate outlet control menu of the apc
-# MasterSwitch and 79xx series switches.  Uses multi-line (mostly) 
-# case-insensitive matches to recognise menus and works out what option number 
-# to select from each menu.
-sub navigate
+# print_escape_char() -- utility subroutine for sending the 'Esc' character
+sub print_escape_char
 {
-	# Abort on failure beyond here
-	$t->errmode(\&telnet_error);  
+	# The APC menu uses "<esc>" to go 'up' menues.  We must set
+	# the output_record_separator to "" so that "\n" is not printed
+	# after the "<esc>" character
+
+	$ors=$t->output_record_separator;
+	$t->output_record_separator("");
+	$t->print("\x1b"); # send escape
+	$t->output_record_separator("$ors");
+}
+
+
+# Determine if the switch is a working state.  Also check to make sure that 
+# the switch has been specified in the case that there are slave switches
+# present.  This assumes that we are at the main menu.
+sub identify_switch
+{
+
+	($_) = $t->waitfor($cmd_prompt);
+	print_escape_char();
 
 	# determine what type of switch we are dealling with
 	($_) = $t->waitfor($cmd_prompt);
 	if ( /Switched Rack PDU: Communication Established/i)
 	{
-		# send a newline to cause APC to reprint the menu
-		$t->print("");
+		# No further test needed
 	}
 	elsif ( /MS plus 1 : Serial Communication Established/i )
 	{
@@ -162,16 +189,29 @@ sub navigate
 		{
 			fail "multiple switches detected.  'switch' must be defined.";
 		}
-
-		# send a newline to cause APC to reprint the menu
-		$t->print("");
+		else
+		{
+			$switchnum = 1;
+		}
 	}
 	else
 	{
 		fail "APC is in undetermined state"
-	}		
+	}	
 
-	while(1)
+	# send a newline to cause APC to reprint the menu
+	$t->print("");
+}
+
+
+# Navigate through menus to the appropriate outlet control menu of the apc
+# MasterSwitch and 79xx series switches.  Uses multi-line (mostly) 
+# case-insensitive matches to recognise menus and works out what option number 
+# to select from each menu.
+sub navigate
+{
+	# Limit the ammount of menu depths to 20.  We should never be this deep
+	for(my $i=20; $i ; $i--)
 	{
 		# Get the new text from the menu
 		($_) = $t->waitfor($cmd_prompt);
@@ -188,26 +228,26 @@ sub navigate
 			/--\s*device manager.*(\d+)\s*-\s*$masterswitch/is ||
 
 			# "Device Manager", "1- Cluster Node 0   ON"
-			/--\s*(?:device manager|$masterswitch).*($opt_n)\s*-[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+			/--\s*(?:device manager|$masterswitch).*(\d+)\s*-\s+Outlet\s+$switchnum:$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 			# "MasterSwitch plus 1", "1- Outlet 1:1  Outlet #1  ON"
-			/--\s*$masterswitch.*(\d+)\s*-\s*Outlet\s+$opt_n\s[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+			/--\s*$masterswitch.*(\d+)\s*-\s*Outlet\s+$switchnum:$opt_n\s[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 
 			#
 			# APC 79XX Menus
 			#
 			# "3- Outlet Control/Configuration"
-			/--\s*device manager.*(\d+)\s*-\s*Outlet Control\/Configuration/is ||
+			/--\s*device manager.*(\d+)\s*-\s*Outlet Control/is ||
 
 			# "Device Manager", "1- Cluster Node 0   ON"
-			/--\s*Outlet Control\/Configuration.*($opt_n)\s*-[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
+			/--\s*Outlet Control.*(\d+)\s*-\s+Outlet\s+$opt_n\D[^\n]*\s(?-i:ON|OFF)\*?\s/ism ||
 
 			#
 			# Common reboot menu option
 			#
 			# Outlet Control
-			/(\d+)\s*-\s*((Control|Outlet)\s?){2}\s*(\d+:)?$opt_n\s/i 
+			/(\d+)\s*-\s*(Control\s+)?Outlet\s+(control\s+)?\s*($switchnum:)?$opt_n\D/i
 		) {
 			$t->print($1);
 			next;
@@ -230,8 +270,10 @@ sub logout
 	# ($t->waitfor() can hang otherwise)
 	$t->print("");
 
-	while(1)
+	# Limit the ammount of menu depths to 20.  We should never be this deep
+	for(my $i=20; $i ; $i--)
 	{
+
 		# Get the new text from the menu
 		($_) = $t->waitfor($cmd_prompt);
 
@@ -244,15 +286,7 @@ sub logout
 		}
 		else 
 		{
-			# The APC menu uses "<esc>" to go 'up' menues.  We must set
-			# the output_record_separator to "" so that "\n" is not printed
-			# after the "<esc>" character
-
-			$ors=$t->output_record_separator;
-			$t->output_record_separator("");
-			$t->print("\x1b"); # send escape
-			$t->output_record_separator("$ors");
-
+			print_escape_char();
 			next;
 		}
 	}
@@ -411,10 +445,16 @@ if (@ARGV > 0) {
 } 
 
 $t->timeout($telnet_timeout);
-
 $t->input_log($debuglog) if $opt_v;
+$t->errmode('return');  
 
 &login;
+
+&identify_switch;
+
+# Abort on failure beyond here
+$t->errmode(\&telnet_error);  
+
 &navigate;
 &action;
 
