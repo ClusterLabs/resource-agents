@@ -36,7 +36,7 @@ start()
 	# FIXME -- Should this be silent?  I think users should get some
 	#          feedback, but others might not want added verbosity to
 	#          the boot process.  Oh well... it's only one line :)
-	if grep -qE "<[\t ]*gulm[\t ].*>" /etc/cluster/cluster.conf
+	if grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" /etc/cluster/cluster.conf
 	then
 		echo "<gulm> section detected in /etc/cluster/cluster.conf"
 		return 1

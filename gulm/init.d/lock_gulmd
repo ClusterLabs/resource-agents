@@ -156,7 +156,7 @@ start()
 	#          the boot process.  Oh well... it's only one line :)
 	if echo "$GULM_OPTS" | grep -qE "(--use_ccs|[\t ]-[VhCed]*c)" 
 	then
-		if ! grep -qE "<[\t ]*gulm[\t ]*.*>" /etc/cluster/cluster.conf 
+		if ! grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" /etc/cluster/cluster.conf 
 		then
 			echo "no <gulm> section detected in /etc/cluster/cluster.conf"
 			return 1
