@@ -1,0 +1,313 @@
+#!/bin/sh
+#
+# Copyright (C) 2003 Red Hat, Inc.
+#
+# This program is Free Software.  You may modify and/or redistribute it under
+# the terms of the GNU General Public License version 2, or (at your option)
+# any later version.
+#
+# description:  Starts and stops Red Hat Cluster Resource Manager
+# chkconfig: 2345 99 01
+#
+
+# Source function library
+. /etc/init.d/functions
+
+# Grab the network config file
+. /etc/sysconfig/network
+
+RGMGRD="rgmanager"
+
+LOG_ERR=3
+LOG_WARNING=4
+LOG_NOTICE=5
+LOG_INFO=6
+
+#
+# Only root wants to run this...
+#
+[ `id -u` = 0 ] || exit 0
+
+#
+# If we're not configured, then don't start anything.
+#
+[ "${NETWORKING}" = "yes" ] || exit 0
+[ -f "/etc/cluster/cluster.conf" ] || exit 1
+
+
+#
+# Check the cluster configuration file and load the watchdog timer if 
+# necessary.
+# XXX This loads the watchdog timer on ALL machines, even if they do not
+# have 'watchdog=yes' specified.
+#
+watchdog_init()
+{ 
+	#
+	# Check the cluster configuration for watchdog support
+	#
+	# XXX This creates and loads the watchdog module regardless of whether
+	# the local member uses it.
+	#
+	grep -q -i "watchdog=\"yes\"" $CFG_FILE
+	if [ $? -eq 1 ]; then
+		return 0
+	fi
+
+	# Check to ensure we have /dev/watchdog
+	if ! [ -c /dev/watchdog ]; then
+		if [ -f /dev/watchdog ]; then
+			action "Removing invalid /dev/watchdog:" \
+				rm -f /dev/watchdog
+		fi
+		action "Creating /dev/watchdog:" /dev/MAKEDEV watchdog
+	fi
+
+	# Check /etc/modules.conf for "alias watchdog xxxxxx" line; xxxxxx =
+	# the specific driver (see below) we're dealing with.
+	# If there is no alias, default to softdog.
+	_WDT=`grep "alias wdt" /etc/modules.conf | awk '{print $3}'`
+	if [ -z "$_WDT" ]; then
+		_PROBE=softdog
+		_WDT=softdog
+	else
+		_PROBE=wdt
+	fi
+
+	# Don't try to load the module a second time.
+	lsmod | grep -q $_WDT
+	if [ $? -ne 0 ]; then
+		action "Loading Watchdog Timer ($_WDT): " modprobe $_PROBE
+	fi
+
+	unset _WDT _PROBE
+	return 0
+}
+
+
+#
+# open a port in our firewall
+#
+open_port()
+{
+	declare PROTO=$1
+	declare -i PORT=$2
+
+	if [ -z "$1" -o -z "$2" ]; then
+		echo "usage: $0 <protocol> <port>"
+		return 1
+	fi
+
+	/sbin/iptables -I $FW_CHAIN -m state \
+		--state NEW -m $PROTO -p $PROTO --dport $PORT -j ACCEPT
+}
+
+
+#
+# Close a port in the firewall.
+#
+close_port()
+{
+	declare -i PORT=$1
+
+	while [ 0 ]; do
+
+		#
+		# Grab the rule number so we can delete it.
+		# - List our table w/ line numbers for each rule.
+		# - Grab the rule number from column 1 of the first line
+		#
+		declare rule=`iptables -L $FW_CHAIN -n --line-numbers | grep $PORT | head -1 | awk {'print $1'}`
+		[ -z "$rule" ] && break;
+		iptables -D $FW_CHAIN $rule
+	done
+
+	return 0
+}
+
+
+#
+# Read the cluster configuration and open the default and/or configured
+# ports.
+#
+cluster_firewall()
+{
+	declare -i rgmgrd_addr=34002 # Not correct yet
+	declare -i rgmgrd_addr_six=34003 # Not correct yet
+	declare port
+
+	if ! iptables -L $FW_CHAIN &> /dev/null; then
+		return 0
+	fi
+
+	case $1 in 
+	start)
+		open_port tcp $rgmgrd_addr || return 1
+		open_port tcp $rgmgrd_addr_six || return 1
+		;;
+	stop)
+		open_port tcp $rgmgrd_addr || return 1
+		open_port tcp $rgmgrd_addr_six || return 1
+		;;
+	*)
+		echo "usage: $0 {start|stop}"
+		return 1
+		;;
+	esac
+	return 0
+}
+
+
+#
+# Open firewall ports
+#
+open_firewall() {
+	if ! iptables -L $FW_CHAIN &> /dev/null; then
+		return 0
+	fi
+
+	echo -n "Opening Firewall Ports:"
+	if ! cluster_firewall start; then
+		echo_failure
+		echo
+		return 1
+	fi
+
+	echo_success
+	echo
+}
+
+
+#
+# Close firewall ports
+#
+close_firewall() {
+	if ! iptables -L $FW_CHAIN &> /dev/null; then
+		return 0
+	fi
+
+	echo -n "Closing Firewall Ports:"
+	if ! cluster_firewall stop; then
+		echo_failure
+		echo
+		return 1
+	fi
+
+	echo_success
+	echo
+	return 0
+}
+
+
+#
+# log_and_print <level> <message>
+#
+log_and_print()
+{
+	if [ -z "$1" -o -z "$2" ]; then
+		return 1;
+	fi
+
+	/usr/sbin/clulog -p $$ -n "clumanager" -s $1 "$2"
+	echo $2
+
+	return 0;
+}
+
+
+#
+# Bring down the cluster on a node.
+#
+stop_cluster()
+{
+	#
+	# Sometimes, people stop the cluster before the service manager
+	# is running - this causes the cluster stop script to hang; since
+	# the service manager never actually receives the shutdown signal.
+	# In this case, we need to resend the TERM singal to the quorum
+	# daemon - so that it can notify everyone properly.
+	#
+	killproc $RGMGRD
+
+	while [ 0 ]; do
+
+		if [ -n "`pidof $RGMGRD`" ]; then
+			echo -n $"Waiting for User Services to stop: " 
+			while [ -n "`pidof $RGMGRD`" ]; do
+				sleep 1
+			done
+			echo_success
+			echo
+		else
+			echo $"User Services are stopped."
+		fi
+
+		# Ensure all NFS rmtab daemons are dead.
+		killall $RMTABD &> /dev/null
+		
+		rm -f /var/run/$RGMGRD.pid
+
+		return 0
+	done
+}
+
+
+
+case $1 in
+	start)
+		log_and_print $LOG_NOTICE "Starting $ID..."
+		watchdog_init
+
+		open_firewall || exit 1
+
+		echo -n $"Starting Cluster Resource Manager: "
+		daemon $RGMGRD $FLAGS
+		echo
+
+		# To be consistent...
+		touch /var/lock/subsys/rgmanager
+		;;
+
+	restart)
+		$0 status &> /dev/null
+		if [ $? -ne 1 ]; then
+			$0 stop
+		fi
+		$0 start
+		;;
+		
+	condrestart)
+		$0 status $> /dev/null
+		if [ $? -eq 0 ]; then
+			$0 stop
+			$0 start
+		fi
+		;;
+
+	reload)
+		clulog -p $LOG_NOTICE "Reloading Cluster Configuration."
+		echo -n $"Reloading Cluster Configuration: "
+		killproc $RGMGRD -HUP
+		rv=$?
+		echo
+
+		exit $rv
+		;;
+
+	status)
+		status $RGMGRD
+		exit $?
+		;;
+
+	stop)
+		if [ -n "`pidof $RGMGRD`" ]; then
+			log_and_print $LOG_NOTICE "Shutting down $ID..."
+			stop_cluster
+		fi
+
+		close_firewall
+
+		rm -f /var/lock/subsys/clumanager
+		log_and_print $LOG_NOTICE "$ID is stopped."
+		;;
+esac
