@@ -189,7 +189,7 @@ struct dlm_range {
  * -ENOMEM if there is no memory to process request
  * -EINVAL if there are invalid parameters
  * -DLM_EUNLOCK if unlock request was successful
- * -DLM_ECANCEL ?
+ * -DLM_ECANCEL if a cancel completed successfully
  */
 
 #define DLM_SBF_DEMOTED        (0x01)
@@ -255,9 +255,9 @@ struct dlm_lockinfo {
 
 struct dlm_resinfo {
 	int rsi_length;
-	int rsi_grantcount;	/* No. of nodes on grant queue */
-	int rsi_convcount;	/* No. of nodes on convert queue */
-	int rsi_waitcount;	/* No. of nodes on wait queue */
+	int rsi_grantcount;	/* No. of locks on grant queue */
+	int rsi_convcount;	/* No. of locks on convert queue */
+	int rsi_waitcount;	/* No. of locks on wait queue */
 	int rsi_masternode;	/* Master for this resource */
 	char rsi_name[DLM_RESNAME_MAXLEN];	/* Resource name */
 	char rsi_valblk[DLM_LVB_LEN];	/* Master's LVB contents, if applicable
@@ -381,11 +381,11 @@ int dlm_lock(dlm_lockspace_t *lockspace,
  * -ENOTCONN if there is a communication error
  */
 
-extern int dlm_unlock(dlm_lockspace_t *lockspace,
-		       uint32_t lkid,
-		       uint32_t flags,
-		       struct dlm_lksb *lksb,
-		       void *astarg);
+int dlm_unlock(dlm_lockspace_t *lockspace,
+	       uint32_t lkid,
+	       uint32_t flags,
+	       struct dlm_lksb *lksb,
+	       void *astarg);
 
 /* Query interface
  *
@@ -402,12 +402,12 @@ extern int dlm_unlock(dlm_lockspace_t *lockspace,
  *              to put the qinfo pointer into lksb->sb_lvbptr
  *              and pass the lksb in here.
  */
-extern int dlm_query(dlm_lockspace_t *lockspace,
-		      struct dlm_lksb *lksb,
-		      int query,
-		      struct dlm_queryinfo *qinfo,
-		      void (ast_routine(void *)),
-		      void *astarg);
+int dlm_query(dlm_lockspace_t *lockspace,
+	      struct dlm_lksb *lksb,
+	      int query,
+	      struct dlm_queryinfo *qinfo,
+	      void (ast_routine(void *)),
+	      void *astarg);
 
 
 void dlm_debug_dump(void);
