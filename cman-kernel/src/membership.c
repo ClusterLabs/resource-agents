@@ -712,7 +712,9 @@ static int send_joinconf()
 	int status;
 
 	if (joining_temp_nodeid == 0) {
-		BUG();
+		printk(KERN_WARNING CMAN_NAME ": Failed to join node '%s'\n",
+		       joining_node?joining_node->name:"unknown");
+		return -1;
         }
 
 	master_state = MASTER_CONFIRM;
@@ -1699,11 +1701,17 @@ static struct cluster_node *add_new_node(char *name, unsigned char votes,
 	return NULL;
 }
 
-/* Remove node from a STARTTRANS message */
+/* Remove node from a NODEDOWN message */
 static struct cluster_node *remove_node(int nodeid, unsigned char reason)
 {
-	struct cluster_node *node = find_node_by_nodeid(nodeid);
+	struct cluster_node *node;
 
+	/* It may be a failed joiner */
+	if (joining_node && joining_node->node_id == nodeid) {
+		remove_joiner(0);
+	}
+
+	node = find_node_by_nodeid(nodeid);
 	if (node && node->state != NODESTATE_DEAD) {
 		printk(KERN_INFO CMAN_NAME ": node %s has been removed from the cluster : %s\n",
 		       node->name, leave_string(reason));
@@ -1717,7 +1725,7 @@ static struct cluster_node *remove_node(int nodeid, unsigned char reason)
 		/* If this node is us then go quietly */
 		if (node->us) {
 			printk(KERN_INFO CMAN_NAME
-			       ": killed by STARTTRANS or NOMINATE\n");
+			       ": killed by NODEDOWN message\n");
 			node_state = LEFT_CLUSTER;
 			quit_threads = 1;
 			wake_up_process(membership_task);
