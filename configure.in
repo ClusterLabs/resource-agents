@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.317 $) dnl cvs revision
+AC_REVISION($Revision: 1.318 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1816,8 +1816,8 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 pkg/Makefile							\
 	pkg/InfoFiles/pkginfo					\
-	pkg/preinstall      					\
-	pkg/postinstall						\
+	pkg/InfoFiles/preinstall 				\
+	pkg/InfoFiles/postinstall				\
 snmp_subagent/Makefile						\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
