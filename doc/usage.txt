@@ -198,8 +198,8 @@ operations is the node with the lowest ID in the fence domain.)
 <cman>
 </cman>
 
-<nodes>
-<node name="nd01" votes="1">
+<clusternodes>
+<clusternode name="nd01" votes="1">
 	<fence>
 		<method name="cascade1">
 			<device name="apc1" port="1"/>
@@ -210,31 +210,31 @@ operations is the node with the lowest ID in the fence domain.)
 			<device name="brocade2" port="1"/>
 		</method>
 	</fence>
-</node>
+</clusternode>
 
-<node name="nd02" votes="1">
+<clusternode name="nd02" votes="1">
 	<fence>
 		<method name="single">
 			<device name="apc1" port="2"/>
 		</method>
 	</fence>
-</node>
+</clusternode>
 
-<node name="nd03" votes="1">
+<clusternode name="nd03" votes="1">
 	<fence>
 		<method name="single">
 			<device name="human" ipaddr="nd03"/>
 		</method>
 	</fence>
-</node>
-</nodes>
+</clusternode>
+</clusternodes>
 
-<fence_devices>
-	<device name="apc1" agent="fence_apc" ipaddr="10.1.1.1" login="apc" passwd="apc"/>
-	<device name="brocade1" agent="fence_brocade" ipaddr="10.1.1.2" login="user" passwd="pw"/>
-	<device name="brocade2" agent="fence_brocade" ipaddr="10.1.1.3" login="user" passwd="pw"/>
-	<device name="human" agent="fence_manual"/>
-</fence_devices>
+<fencedevices>
+	<fencedevice name="apc1" agent="fence_apc" ipaddr="10.1.1.1" login="apc" passwd="apc"/>
+	<fencedevice name="brocade1" agent="fence_brocade" ipaddr="10.1.1.2" login="user" passwd="pw"/>
+	<fencedevice name="brocade2" agent="fence_brocade" ipaddr="10.1.1.3" login="user" passwd="pw"/>
+	<fencedevice name="human" agent="fence_manual"/>
+</fencedevices>
 
 </cluster>
 
@@ -293,16 +293,16 @@ should be able to continue running with the one remaining.  A node's name in
 cluster.conf is always associated with the IP address on one network
 interface; "nd1" in the following:
 
-<node name="nd1" votes="1">
-</node>
+<clusternode name="nd1" votes="1">
+</clusternode>
 
 To use a second network interface, the node must have a second hostname
 associated with the IP address on that interface; "nd1-e1" in the following.
 The second hostname is specfied in an "altname" section.
 
-<node name="nd1" votes="1">
+<clusternode name="nd1" votes="1">
     <altname name="nd1-e1"/>
-</node>
+</clusternode>
 
 
 * Multicast
@@ -310,15 +310,15 @@ The second hostname is specfied in an "altname" section.
 CMAN can be configured to use multicast instead of broadcast (broadcast is used
 by default if no multicast parameters are given.)  To configure multicast when
 one network interface is used add one line under the <cman> section and another
-under the <node> section:
+under the <clusternode> section:
 
 <cman>
     <multicast addr="224.0.0.1"/>
 </cman>
 
-<node name="nd1" votes="1">
+<clusternode name="nd1" votes="1">
     <multicast addr="224.0.0.1" interface="eth0"/>
-</node>
+</clusternode>
 
 The multicast addresses must match and the address must be usable on the
 interface name given for the node.
@@ -330,11 +330,11 @@ When two interfaces are used, multicast is configured as follows:
     <multicast addr="224.0.0.9"/>
 </cman>
 
-<node name="nd1" votes="1">
+<clusternode name="nd1" votes="1">
     <altname name="nd1-e1"/>
     <multicast addr="224.0.0.1" interface="eth0"/>
     <multicast addr="224.0.0.9" interface="eth1"/>
-</node>
+</clusternode>
 
 
 * IPv6

@@ -54,27 +54,27 @@ with gfs.
 <cman two_node="1" expected_votes="1">
 </cman>
 
-<nodes>
-<node name="node2" votes="1">
+<clusternodes>
+<clusternode name="node2" votes="1">
 	<fence>
 		<method name="single">
 			<device name="gnbd" ipaddr="node2"/>
 		</method>
 	</fence>
-</node>
+</clusternode>
 
-<node name="node3" votes="1">
+<clusternode name="node3" votes="1">
 	<fence>
 		<method name="single">
 			<device name="gnbd" ipaddr="node3"/>
 		</method>
 	</fence>
-</node>
-</nodes>
+</clusternode>
+</clusternodes>
 
-<fence_devices>
-	<device name="gnbd" agent="fence_gnbd" servers="node1"/>
-</fence_devices>
+<fencedevices>
+	<fencedevice name="gnbd" agent="fence_gnbd" servers="node1"/>
+</fencedevices>
 
 </cluster>
 
@@ -114,27 +114,27 @@ would look like this:
 <cman two_node="1" expected_votes="1">
 </cman>
 
-<nodes>
-<node name="node2" votes="1">
+<clusternodes>
+<clusternode name="node2" votes="1">
 	<fence>
 		<method name="single">
 			<device name="manual" ipaddr="node2"/>
 		</method>
 	</fence>
-</node>
+</clusternode>
 
-<node name="node3" votes="1">
+<clusternode name="node3" votes="1">
 	<fence>
 		<method name="single">
 			<device name="manual" ipaddr="node3"/>
 		</method>
 	</fence>
-</node>
-</nodes>
+</clusternode>
+</clusternodes>
 
-<fence_devices>
-	<device name="manual" agent="fence_manual"/>
-</fence_devices>
+<fencedevices>
+	<fencedevice name="manual" agent="fence_manual"/>
+</fencedevices>
 
 </cluster>
 
