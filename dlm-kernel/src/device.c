@@ -836,6 +836,9 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	if (!kparams->lksb)
 		return -EINVAL;
 
+	if (!access_ok(VERIFY_WRITE, kparams->lksb, sizeof(struct dlm_lksb)))
+		return -EFAULT;
+
 	/* For conversions, the lock will already have a lock_info
 	   block squirelled away in astparam */
 	if (kparams->flags & DLM_LKF_CONVERT) {
@@ -943,6 +946,13 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		spin_unlock(&fi->fi_lkb_lock);
 
 		up(&li->li_firstlock);
+
+		/* Copy the lkid back to userspace in case they want to cancel.
+		   This address has already been tested so /should/ be OK, if not:
+		   tough - we've taken the lock! */
+		copy_to_user(&kparams->lksb->sb_lkid,
+			     &li->li_lksb.sb_lkid,
+			     sizeof(li->li_lksb.sb_lkid));
 	}
 
 	return status;
