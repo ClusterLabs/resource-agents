@@ -341,6 +341,10 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
  * gfs_clear_inode - Deallocate an inode when VFS is done with it
  * @inode: The VFS inode
  *
+ * If there's a GFS incore inode structure attached to the VFS inode:
+ * --  Detach them from one another.
+ * --  Schedule reclaim of GFS inode struct, the glock protecting it, and
+ *     the associated iopen glock.
  */
 
 static void

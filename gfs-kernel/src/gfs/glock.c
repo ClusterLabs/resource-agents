@@ -103,7 +103,7 @@ gl_hash(struct lm_lockname *name)
 
 /**
  * glock_hold() - increment reference count on glock
- * @gl: The glock to put
+ * @gl: The glock to hold
  *
  */
 
@@ -206,6 +206,8 @@ gfs_glock_find(struct gfs_sbd *sdp, struct lm_lockname *name)
 /**
  * glock_free() - Perform a few checks and then release struct gfs_glock
  * @gl: The glock to release
+ *
+ * Also calls lock module to release its internal structure for this glock.
  *
  */
 
@@ -414,8 +416,15 @@ gfs_holder_init(struct gfs_glock *gl, unsigned int state, int flags,
  * @flags: the modifier flags
  * @gh: the holder structure
  *
+ * Preserve holder's associated glock and owning process.
+ * Reset all holder state flags (we're starting a new request from scratch),
+ *   except for HIF_ALLOCED.
+ * Don't do glock_hold() again (it was done in gfs_holder_init()).
  * Don't mess with the glock.
  *
+ * Rules:
+ *   Holder must have been gfs_holder_init()d already
+ *   Holder must *not* be in glock's holder list or wait queues now
  */
 
 void
@@ -623,6 +632,8 @@ rq_promote(struct gfs_holder *gh)
 			set_bit(GLF_LOCK, &gl->gl_flags);
 			spin_unlock(&gl->gl_spin);
 
+			/* If we notice a lot of glocks in reclaim list, free
+			   up memory for 2 of them before locking a new one */
 			if (atomic_read(&sdp->sd_reclaim_count) >
 			    sdp->sd_tune.gt_reclaim_limit &&
 			    !(gh->gh_flags & LM_FLAG_PRIORITY)) {
@@ -886,13 +897,18 @@ unlock_on_glock(struct gfs_glock *gl)
  * Called when we learn that another node needs a lock held by this node,
  *   or when this node simply wants to drop a lock as soon as it's done with
  *   it (NOCACHE flag), or dump a glock out of glock cache (reclaim it).
+ *
  * We are told the @state that will satisfy the needs of the caller, so
  *   we can ask for a demote to that state.
- * If another demote request on the queue is for a different state,
- *   set its request to UNLOCK.  This consolidates LM requests and
- *   moves the lock to the least restrictive state.  Demotes between
- *   the shared and deferred states will often fail, so don't
- *   even try.
+ *
+ * If another demote request is already on the queue for a different state, just
+ *   set its request to UNLOCK (and don't bother queueing a request for us).
+ *   This consolidates LM requests and moves the lock to the least restrictive
+ *   state, so it will be compatible with whatever reason we were called.
+ *   No need to be too smart here.  Demotes between the shared and deferred
+ *   states will often fail, so don't even try.
+ *
+ * Otherwise, queue a demote request to the requested state.
  */
 
 static void
@@ -920,12 +936,14 @@ handle_callback(struct gfs_glock *gl, unsigned int state)
 		}
 	}
 
-	/* lap 2 */
+	/* pass 2; add new holder to glock's demote request queue */
 	if (new_gh) {
 		list_add_tail(&new_gh->gh_list, &gl->gl_waiters2);
 		new_gh = NULL;
 
-	/* lap 1 */
+	/* pass 1; set up a new holder struct for a demote request, then
+	   check again to see if another process added a demote request
+	   while we were preparing this one. */
 	} else {
 		spin_unlock(&gl->gl_spin);
 
@@ -1088,11 +1106,15 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 }
 
 /**
- * gfs_glock_xmote_th - Call into the lock module to acquire a glock
+ * gfs_glock_xmote_th - Call into the lock module to acquire or change a glock
  * @gl: The glock in question
  * @state: the requested state
  * @flags: modifier flags to the lock call
  *
+ * Used to acquire a new glock, or to change an already-acquired glock to
+ *   more/less restrictive state (other than LM_ST_UNLOCKED).
+ *
+ * *Not* used to unlock a glock; use gfs_glock_drop_th() for that.
  */
 
 void
@@ -2178,10 +2200,15 @@ gfs_glock_cb(lm_fsdata_t * fsdata, unsigned int type, void *data)
 }
 
 /**
- * gfs_try_toss_inode - try to remove a particular inode from GFS' cache
+ * gfs_try_toss_inode - try to remove a particular GFS inode struct from cache
  * sdp: the filesystem
  * inum: the inode number
  *
+ * Look for the glock protecting the inode of interest.
+ * If no process is manipulating or holding the glock, see if the glock
+ *   has a gfs_inode attached.
+ * If gfs_inode has no references, unhold its iopen glock, release any
+ *   indirect addressing buffers, and destroy the gfs_inode.
  */
 
 void
@@ -2263,15 +2290,19 @@ gfs_iopen_go_callback(struct gfs_glock *io_gl, unsigned int state)
 }
 
 /**
- * demote_ok - check to see if it's ok to unlock a glock
+ * demote_ok - Check to see if it's ok to unlock a glock (to remove it
+ *       from glock cache)
  * @gl: the glock
+ *
+ * Called when trying to reclaim glocks, once it's determined that the glock
+ *   has no holders on this node.
  *
  * Returns: TRUE if it's ok
  *
  * It's not okay if:
  * --  glock is STICKY
  * --  PREFETCHed glock has not been given enough chance to be used
- * --  lock-type-specific test says "no"
+ * --  glock-type-specific test says "no"
  */
 
 static int
@@ -2316,9 +2347,27 @@ gfs_glock_schedule_for_reclaim(struct gfs_glock *gl)
 }
 
 /**
- * gfs_reclaim_glock - process the next glock on the reclaim list
+ * gfs_reclaim_glock - process the next glock on the filesystem's reclaim list
  * @sdp: the filesystem
  *
+ * Called from gfs_glockd() glock reclaim daemon, or when promoting a
+ *   (different) glock and we notice that there are a lot of glocks in the
+ *   reclaim list.
+ *
+ * Remove glock from filesystem's reclaim list, update reclaim statistics.
+ * If no holders (might have gotten added since glock was placed on reclaim
+ *   list):
+ *   --  Destroy any now-unused inode protected by glock
+ *         (and release hold on iopen glock).
+ *   --  Ask for demote to UNLOCKED to enable removal of glock from glock cache.
+ *
+ * If no further interest in glock struct, remove it from glock cache, and
+ *   free it from memory.  (During normal operation, this is the only place
+ *   that this is done).
+ *
+ * Glock-type-specific considerations for permission to demote are handled
+ *   in demote_ok().  This includes how long to retain a glock in cache after it
+ *   is no longer held by any process.
  */
 
 void
@@ -2329,11 +2378,13 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 
 	spin_lock(&sdp->sd_reclaim_lock);
 
+	/* Nothing to reclaim?  Done! */
 	if (list_empty(&sdp->sd_reclaim_list)) {
 		spin_unlock(&sdp->sd_reclaim_lock);
 		return;
 	}
 
+	/* Remove next victim from reclaim list */
 	gl = list_entry(sdp->sd_reclaim_list.next,
 			struct gfs_glock, gl_reclaim);
 	list_del_init(&gl->gl_reclaim);
@@ -2345,13 +2396,14 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 
 	if (trylock_on_glock(gl)) {
 		if (queue_empty(gl, &gl->gl_holders)) {
-			/* inode glock-type-specific */
+			/* Inode glock-type-specific; free unused gfs inode,
+			   and release hold on iopen glock */
 			if (gl->gl_ops == &gfs_inode_glops) {
 				struct gfs_inode *ip = gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count))
 					gfs_inode_destroy(ip);
 			}
-			/* generic */
+			/* Generic (including inodes); try to unlock glock */
 			if (gl->gl_state != LM_ST_UNLOCKED &&
 			    demote_ok(gl))
 				handle_callback(gl, LM_ST_UNLOCKED);
@@ -2361,6 +2413,9 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 
 	bucket = gl->gl_bucket;
 
+	/* If glock struct's only remaining reference is from being put on
+	   the reclaim list, remove glock from hash table (sd_gl_hash),
+	   and free the glock's memory */
 	write_lock(&bucket->hb_lock);
 	if (atomic_read(&gl->gl_count) == 1) {
 		list_del_init(&gl->gl_list);
@@ -2368,7 +2423,7 @@ gfs_reclaim_glock(struct gfs_sbd *sdp)
 		glock_free(gl);
 	} else {
 		write_unlock(&bucket->hb_lock);
-		glock_put(gl);
+		glock_put(gl);  /* see gfs_glock_schedule_for_reclaim() */
 	}
 }
 
@@ -2390,6 +2445,7 @@ examine_bucket(glock_examiner examiner,
 	struct gfs_glock *gl;
 	int entries;
 
+	/* Add "plug" to end of bucket list, work back up list from there */
 	memset(&plug.gl_flags, 0, sizeof(unsigned long));
 	set_bit(GLF_PLUG, &plug.gl_flags);
 
@@ -2397,11 +2453,15 @@ examine_bucket(glock_examiner examiner,
 	list_add(&plug.gl_list, &bucket->hb_list);
 	write_unlock(&bucket->hb_lock);
 
+	/* Look at each bucket entry */
 	for (;;) {
 		write_lock(&bucket->hb_lock);
 
+		/* Work back up list from plug */
 		for (;;) {
 			tmp = plug.gl_list.next;
+
+			/* Top of list; we're done */
 			if (tmp == &bucket->hb_list) {
 				list_del(&plug.gl_list);
 				entries = !list_empty(&bucket->hb_list);
@@ -2410,11 +2470,13 @@ examine_bucket(glock_examiner examiner,
 			}
 			gl = list_entry(tmp, struct gfs_glock, gl_list);
 
+			/* Move plug up list */
 			list_move(&plug.gl_list, &gl->gl_list);
 
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 
+			/* glock_hold; examiner must glock_put() */
 			atomic_inc(&gl->gl_count);
 
 			break;
@@ -2430,6 +2492,14 @@ examine_bucket(glock_examiner examiner,
  * scan_glock - look at a glock and see if we can reclaim it
  * @gl: the glock to look at
  *
+ * Called via examine_bucket() when trying to release glocks from glock cache,
+ *   during normal operation (i.e. not unmount time).
+ * 
+ * Place glock on filesystem's reclaim list if, on this node:
+ * --  No process is manipulating glock struct, and
+ * --  No current holders, and either:
+ *     --  GFS incore inode, protected by glock, is no longer in use, or
+ *     --  Glock-type-specific demote_ok glops gives permission
  */
 
 static void
@@ -2437,7 +2507,8 @@ scan_glock(struct gfs_glock *gl)
 {
 	if (trylock_on_glock(gl)) {
 		if (queue_empty(gl, &gl->gl_holders)) {
-			/* inode glock-type-specific */
+			/* Inode glock-type-specific; reclaim glock if gfs inode
+			   no longer in use. */
 			if (gl->gl_ops == &gfs_inode_glops) {
 				struct gfs_inode *ip = gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count)) {
@@ -2446,7 +2517,7 @@ scan_glock(struct gfs_glock *gl)
 					goto out;
 				}
 			}
-			/* generic */
+			/* Generic (including inodes not scheduled above) */
 			if (gl->gl_state != LM_ST_UNLOCKED &&
 			    demote_ok(gl)) {
 				unlock_on_glock(gl);
@@ -2459,7 +2530,7 @@ scan_glock(struct gfs_glock *gl)
 	}
 
  out:
-	glock_put(gl);
+	glock_put(gl);  /* see examine_bucket() */
 }
 
 /**
@@ -2467,6 +2538,13 @@ scan_glock(struct gfs_glock *gl)
  * @sdp: the filesystem
  *
  * Invokes scan_glock() for each glock in each cache bucket.
+ *
+ * Steps of reclaiming a glock:
+ * --  scan_glock() places eligible glocks on filesystem's reclaim list.
+ * --  gfs_reclaim_glock() processes list members, attaches demotion requests
+ *     to wait queues of glocks still locked at inter-node scope.
+ * --  Demote to UNLOCKED state (if not already unlocked).
+ * --  gfs_reclaim_lock() cleans up glock structure.
  */
 
 void
@@ -2481,16 +2559,17 @@ gfs_scand_internal(struct gfs_sbd *sdp)
 }
 
 /**
- * clear_glock - look at a glock and see if we can do stuff to it
+ * clear_glock - look at a glock and see if we can free it from glock cache
  * @gl: the glock to look at
- * @timeout: demote locks left unused for longer than this many seconds
  *
- * Remove glock from filesystem's reclaim list.
- * If no holders (might have gotten added since glock was placed on reclaim
- *   list):
- *   --  Destroy any inode protected by glock,
- *   --  Ask for demote to UNLOCKED to remove glock from glock cache.
- * If no further interest in glock struct, free it from memory.
+ * Called via examine_bucket() when unmounting the filesystem, or
+ *   when inter-node lock manager requests DROPLOCKS because it is running
+ *   out of capacity.
+ *
+ * Similar to gfs_reclaim_glock(), except does *not*:
+ *   --  Consult demote_ok() for permission
+ *   --  Increment sdp->sd_reclaimed statistic
+ *
  */
 
 static void
@@ -2503,19 +2582,20 @@ clear_glock(struct gfs_glock *gl)
 	if (!list_empty(&gl->gl_reclaim)) {
 		list_del_init(&gl->gl_reclaim);
 		atomic_dec(&sdp->sd_reclaim_count);
-		glock_put(gl);
+		glock_put(gl);  /* see gfs_glock_schedule_for_reclaim() */
 	}
 	spin_unlock(&sdp->sd_reclaim_lock);
 
 	if (trylock_on_glock(gl)) {
 		if (queue_empty(gl, &gl->gl_holders)) {
-			/* inode glock-type-specific */
+			/* Inode glock-type-specific; free unused gfs inode,
+			   and release hold on iopen glock */
 			if (gl->gl_ops == &gfs_inode_glops) {
 				struct gfs_inode *ip = gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count))
 					gfs_inode_destroy(ip);
 			}
-			/* generic */
+			/* Generic (including inodes); unlock glock */
 			if (gl->gl_state != LM_ST_UNLOCKED)
 				handle_callback(gl, LM_ST_UNLOCKED);
 		}
@@ -2523,6 +2603,8 @@ clear_glock(struct gfs_glock *gl)
 		unlock_on_glock(gl);
 	}
 
+	/* If glock struct's only remaining reference is from examine_bucket(),
+	   remove glock from hash table (sd_gl_hash), and free glock's memory */
 	write_lock(&bucket->hb_lock);
 	if (atomic_read(&gl->gl_count) == 1) {
 		list_del_init(&gl->gl_list);
@@ -2530,7 +2612,7 @@ clear_glock(struct gfs_glock *gl)
 		glock_free(gl);
 	} else {
 		write_unlock(&bucket->hb_lock);
-		glock_put(gl);
+		glock_put(gl);   /* see examine_bucket() */
 	}
 }
 
@@ -2539,6 +2621,8 @@ clear_glock(struct gfs_glock *gl)
  * @sdp: the filesystem
  * @wait: wait until it's all gone
  *
+ * Called when unmounting the filesystem, or when inter-node lock manager
+ *   requests DROPLOCKS because it is running out of capacity.
  */
 
 void

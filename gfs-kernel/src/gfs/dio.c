@@ -136,7 +136,7 @@ stuck_releasepage(struct buffer_head *bh)
 /**
  * gfs_aspace_releasepage - free the metadata associated with a page 
  * @page: the page that's being released
- * @gfp_mask: huh??
+ * @gfp_mask: passed from Linux VFS, ignored by us
  *
  * Call try_to_free_buffers() if the buffers in this page can be
  * released.

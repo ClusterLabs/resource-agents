@@ -332,7 +332,8 @@ struct gfs_glock_operations {
 	   (another node may change the on-disk data, so it's no good to us) */
 	void (*go_inval) (struct gfs_glock * gl, int flags);
 
-	/* Lock-type-specific check to see if it's okay to unlock a glock */
+	/* Lock-type-specific check to see if it's okay to unlock a glock
+	   at inter-node scope (and remove it from our glock cache) */
 	int (*go_demote_ok) (struct gfs_glock * gl);
 
 	/* After getting lock for first holder (within this node) */
@@ -407,8 +408,8 @@ struct gfs_holder {
 	unsigned int gh_state;         /* LM_ST_... requested lock state */
 	int gh_flags;                  /* GL_... or LM_FLAG_... req modifiers */
 
-	int gh_error;                  /* GLR_... CANCELLED or TRYFAILED or -errno */
-	unsigned long gh_iflags;       /* HIF_... see above */
+	int gh_error;                  /* GLR_... CANCELLED/TRYFAILED/-errno */
+	unsigned long gh_iflags;       /* HIF_... holder state, see above */
 	struct completion gh_wait;     /* Wait for completion of ... */
 };
 
@@ -416,8 +417,8 @@ struct gfs_holder {
  *  Glock Structure
  *  One for each inter-node lock held by this node.
  *  A glock is a local representation/abstraction of an inter-node lock.
- *    Inter-node locks are managed by a "lock module" which plugs in to the
- *    lock harness / glock interface (see gfs-kernel/harness).  Different
+ *    Inter-node locks are managed by a "lock module" (LM) which plugs in to
+ *    the lock harness / glock interface (see gfs-kernel/harness).  Different
  *    lock modules support different lock protocols (e.g. GULM, GDLM, no_lock).
  *  A glock may have one or more holders within a node.  See gfs_holder above.
  *  Glocks are managed within a hash table hosted by the in-core superblock.
@@ -426,6 +427,7 @@ struct gfs_holder {
  *    lock will not be released unless another node needs the lock (lock
  *    manager requests this via callback to GFS through LM on this node).  This
  *    provides better performance in case this node needs the glock again soon.
+ *    See comments for meta_go_demote_ok(), glops.c.
  *  Each glock has an associated vector of lock-type-specific "glops" functions
  *    which are called at important times during the life of a glock, and
  *    which define the type of lock (e.g. dinode, rgrp, non-disk, etc).
@@ -466,7 +468,8 @@ struct gfs_holder {
                                       *   (requests from other nodes) for now */
 
 struct gfs_glock {
-	struct list_head gl_list;    /* Link to superblock's hash table */
+	struct list_head gl_list;    /* Link to hb_list in one of superblock's
+	                              * sd_gl_hash glock hash table buckets */
 	unsigned long gl_flags;      /* GLF_... see above */
 	struct lm_lockname gl_name;  /* Lock number and lock type */
 	atomic_t gl_count;           /* Usage count */
@@ -485,7 +488,7 @@ struct gfs_glock {
 	struct gfs_glock_operations *gl_ops; /* function vector, defines type */
 
 	/* State to remember for async lock requests */
-	struct gfs_holder *gl_req_gh; /* Holder that generated the request */
+	struct gfs_holder *gl_req_gh; /* Holder for request being serviced */
 	gfs_glop_bh_t gl_req_bh;  /* The bottom half to execute */
 
 	lm_lock_t *gl_lock;       /* Lock module's private lock data */
@@ -789,11 +792,14 @@ struct gfs_trans {
 };
 
 /*
- *  One bucket of the glock hash table.
+ *  One bucket of the filesystem's sd_gl_hash glock hash table.
+ *
+ *  A gfs_glock links into a bucket's list via glock's gl_list member.
+ *
  */
 struct gfs_gl_hash_bucket {
-	rwlock_t hb_lock;
-	struct list_head hb_list;
+	rwlock_t hb_lock;              /* Protects list */
+	struct list_head hb_list;      /* List of glocks in this bucket */
 };
 
 /*

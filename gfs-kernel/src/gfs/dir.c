@@ -26,6 +26,7 @@
 * prev->de_rec_len += deleted->de_rec_len. Since the next dirent is obtained
 * by adding de_rec_len to the current dirent, this essentially causes the
 * deleted dirent to get jumped over when iterating through all the dirents.
+*
 * When deleting the first dirent in a block, there is no previous dirent so
 * the field de_ino is set to zero to designate it as deleted. When allocating
 * a dirent, gfs_dirent_alloc iterates through the dirents in a block. If the
@@ -33,23 +34,27 @@
 * dirent is allocated. Otherwise it must go through all the 'used' dirents
 * searching for one in which the amount of total space minus the amount of
 * used space will provide enough space for the new dirent.
+*
 * There are two types of blocks in which dirents reside. In a stuffed dinode,
-* the dirents begin at offset sizeof(struct gfs_dinode) from the beginning of the block.
-* In leaves, they begin at offset sizeof (struct gfs_leaf) from the beginning of the
-* leaf block. The dirents reside in leaves when 
+* the dirents begin at offset sizeof(struct gfs_dinode) from the beginning of
+* the block.  In leaves, they begin at offset sizeof (struct gfs_leaf) from the
+* beginning of the leaf block. The dirents reside in leaves when 
 * 
-* dip->i_di.di_regime == GFS_DIR_EXHASH.
+* dip->i_di.di_flags & GFS_DIF_EXHASH is true
 * 
-* The dirents are in the stuffed dinode when dip->i_di.di_regime == GFS_DIR_LINEAR.
+* Otherwise, the dirents are "linear", within a single stuffed dinode block.
+*
 * When the dirents are in leaves, the actual contents of the directory file are
 * used as an array of 64-bit block pointers pointing to the leaf blocks. The
 * dirents are NOT in the directory file itself. There can be more than one block
-* pointer in the array that points to the same leaf. In fact, when a directory is
-* first converted from linear to exhash, all of the pointers point to the same
-* leaf. When a leaf is completely full, the size of the hash table can be doubled
-* unless it is already at the maximum size which is hard coded into 
-* GFS_DIR_MAX_DEPTH. After that, leaves are chained together in a linked list but
-* never before the maximum hash table size has been reached.
+* pointer in the array that points to the same leaf. In fact, when a directory
+* is first converted from linear to exhash, all of the pointers point to the
+* same leaf. 
+*
+* When a leaf is completely full, the size of the hash table can be
+* doubled unless it is already at the maximum size which is hard coded into 
+* GFS_DIR_MAX_DEPTH. After that, leaves are chained together in a linked list,
+* but never before the maximum hash table size has been reached.
 */
 
 #include <linux/sched.h>
@@ -71,8 +76,8 @@
 #include "rgrp.h"
 #include "trans.h"
 
-#define IS_LEAF     (1)
-#define IS_DINODE   (2)
+#define IS_LEAF     (1) /* Hashed (leaf) directory */
+#define IS_DINODE   (2) /* Linear (stuffed dinode block) directory */
 
 #if 1
 #define gfs_dir_hash2offset(h) (((uint64_t)(h)) >> 1)
@@ -1227,10 +1232,11 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 }
 
 /**
- * dir_e_search -
+ * dir_e_search - Search exhash (leaf) dir for inode matching name
  * @dip: The GFS inode
- * @filename:
- * @inode:
+ * @filename: Filename string
+ * @inode: If non-NULL, function fills with formal inode # and block address
+ * @type: If non-NULL, function fills with GFS_FILE_... dinode type
  *
  * Returns:
  */
@@ -1576,10 +1582,11 @@ dir_e_mvino(struct gfs_inode *dip, struct qstr *filename,
 }
 
 /**
- * dir_l_search -
+ * dir_l_search - Search linear (stuffed dinode) dir for inode matching name
  * @dip: The GFS inode
- * @filename:
- * @inode:
+ * @filename: Filename string
+ * @inode: If non-NULL, function fills with formal inode # and block address
+ * @type: If non-NULL, function fills with GFS_FILE_... dinode type
  *
  * Returns:
  */
@@ -2125,8 +2132,11 @@ leaf_free(struct gfs_inode *dip,
 }
 
 /**
- * gfs_dir_exhash_free - free all the leaf block in a directory
+ * gfs_dir_exhash_free - free all the leaf blocks in a directory
  * @dip: the directory
+ *
+ * Dealloc all on-disk directory leaves to FREEMETA state
+ * Change on-disk inode type to "regular file"
  *
  * Returns: errno
  */
@@ -2140,6 +2150,7 @@ gfs_dir_exhash_free(struct gfs_inode *dip)
 
 	GFS_ASSERT_INODE(dip->i_di.di_type == GFS_FILE_DIR, dip,);
 
+	/* Dealloc on-disk leaves to FREEMETA state */
 	error = foreach_leaf(dip, leaf_free, NULL);
 	if (error)
 		return error;

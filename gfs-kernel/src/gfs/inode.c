@@ -275,10 +275,11 @@ gfs_copyin_dinode(struct gfs_inode *ip)
 }
 
 /**
- * inode_create - create a struct gfs_inode
- * @i_gl: The glock covering the inode
+ * inode_create - create a struct gfs_inode, acquire Inode-Open (iopen) glock,
+ *      read dinode from disk
+ * @i_gl: The (already held) glock covering the inode
  * @inum: The inode number
- * @io_gl: the iopen glock, or NULL
+ * @io_gl: the iopen glock to acquire/hold (using holder in new gfs_inode)
  * @io_state: the state the iopen glock should be acquired in
  * @ipp: pointer to put the returned inode in
  *
@@ -308,6 +309,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 
 	ip->i_greedy = sdp->sd_tune.gt_greedy_default;
 
+	/* Lock the iopen glock (may be recursive) */
 	error = gfs_glock_nq_init(io_gl,
 				  io_state, GL_LOCAL_EXCL | GL_EXACT,
 				  &ip->i_iopen_gh);
@@ -316,11 +318,13 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 
 	ip->i_iopen_gh.gh_owner = NULL;
 
+	/* Assign the inode's glock as this iopen glock's protected object */
 	spin_lock(&io_gl->gl_spin);
 	gfs_glock_hold(i_gl);
 	gl2gl(io_gl) = i_gl;
 	spin_unlock(&io_gl->gl_spin);
 
+	/* Read dinode from disk */
 	error = gfs_copyin_dinode(ip);
 	if (error)
 		goto fail_iopen;
@@ -416,10 +420,12 @@ gfs_inode_put(struct gfs_inode *ip)
 }
 
 /**
- * gfs_inode_destroy - Destroy an inode structure with no references on it
+ * gfs_inode_destroy - Destroy a GFS inode structure with no references on it
  * @ip: The GFS inode
  *
- * This function must be called with a glock held on the inode.
+ * Also, unhold the iopen glock and release indirect addressing buffers.
+ * This function must be called with a glocks held on the inode and 
+ *   the associated iopen.
  *
  */
 
@@ -433,6 +439,7 @@ gfs_inode_destroy(struct gfs_inode *ip)
 	GFS_ASSERT_INODE(!atomic_read(&ip->i_count), ip,);
 	GFS_ASSERT_INODE(gl2gl(io_gl) == i_gl, ip,);
 
+	/* Unhold the iopen glock */
 	spin_lock(&io_gl->gl_spin);
 	gl2gl(io_gl) = NULL;
 	gfs_glock_put(i_gl);
@@ -440,6 +447,7 @@ gfs_inode_destroy(struct gfs_inode *ip)
 
 	gfs_glock_dq_uninit(&ip->i_iopen_gh);
 
+	/* Release indirect addressing buffers, destroy the GFS inode struct */
 	gfs_flush_meta_cache(ip);
 	kmem_cache_free(gfs_inode_cachep, ip);
 
@@ -450,8 +458,13 @@ gfs_inode_destroy(struct gfs_inode *ip)
 }
 
 /**
- * dinode_mark_unused -
+ * dinode_mark_unused - Set UNUSED flag in on-disk dinode
  * @ip:
+ *
+ * Also:
+ * --  Increment incarnation number, to indicate that it no longer
+ *       represents the old inode.
+ * --  Update change time (ctime)
  *
  * Returns: errno
  */
@@ -534,10 +547,12 @@ dinode_dealloc(struct gfs_inode *ip)
 	if (error)
 		goto out_rg_gunlock;
 
+	/* Set the UNUSED flag in the on-disk dinode block, increment incarn */
 	error = dinode_mark_unused(ip);
 	if (error)
 		goto out_end_trans;
 
+	/* De-allocate on-disk dinode block to FREEMETA */
 	gfs_difree(rgd, ip);
 
 	gfs_trans_add_unlinked(sdp, GFS_LOG_DESC_IDA, &ip->i_num);
@@ -562,10 +577,15 @@ dinode_dealloc(struct gfs_inode *ip)
 }
 
 /**
- * inode_dealloc - Deallocate an inode
+ * inode_dealloc - Deallocate all on-disk blocks for an inode (dinode)
  * @sdp: the filesystem
  * @inum: the inode number to deallocate
  * @io_gh: a holder for the iopen glock for this inode
+ *
+ * De-allocates all on-disk blocks, data and metadata, associated with an inode.
+ * All metadata blocks become GFS_BLKST_FREEMETA.
+ * All data blocks become GFS_BLKST_FREE.
+ * Also de-allocates incore gfs_inode structure.
  *
  * Returns: errno
  */
@@ -578,6 +598,7 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 	struct gfs_holder i_gh;
 	int error;
 
+	/* Lock the inode as we blow it away */
 	error = gfs_glock_nq_num(sdp,
 				 inum->no_formal_ino, &gfs_inode_glops,
 				 LM_ST_EXCLUSIVE, 0, &i_gh);
@@ -585,9 +606,12 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 		return error;
 
 	/* We reacquire the iopen lock here to avoid a race with the NFS server
-	   calling gfs_read_inode() with the inode number of a inode we're in the
-	   process of deallocating.  And we can't keep our hold on the lock
-	   from try_dealloc_inode() for deadlock reasons. */
+	   calling gfs_read_inode() with the inode number of a inode we're in
+	   the process of deallocating.  And we can't keep our hold on the lock
+	   from inode_dealloc_init() for deadlock reasons.  We do, however,
+	   overlap this iopen lock with the one to be acquired EX within
+	   inode_create(), below (recursive EX locks will be granted to same
+	   holder process, i.e. this process). */
 
 	gfs_holder_reinit(LM_ST_EXCLUSIVE, LM_FLAG_TRY, io_gh);
 	error = gfs_glock_nq(io_gh);
@@ -611,11 +635,13 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 	if (error)
 		goto fail;
 
+	/* Verify disk (d)inode, gfs inode, and VFS (v)inode are unused */
 	GFS_ASSERT_INODE(!ip->i_di.di_nlink, ip,
 			 gfs_dinode_print(&ip->i_di););
 	GFS_ASSERT_INODE(atomic_read(&ip->i_count) == 1, ip,);
 	GFS_ASSERT_INODE(!ip->i_vnode, ip,);
 
+	/* Free all on-disk directory leaves (if any) to FREEMETA state */
 	if (ip->i_di.di_type == GFS_FILE_DIR &&
 	    (ip->i_di.di_flags & GFS_DIF_EXHASH)) {
 		error = gfs_dir_exhash_free(ip);
@@ -623,20 +649,25 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 			goto fail_iput;
 	}
 
+	/* Free all on-disk extended attribute blocks to FREEMETA state */
 	if (ip->i_di.di_eattr) {
 		error = gfs_ea_dealloc(ip);
 		if (error)
 			goto fail_iput;
 	}
 
+	/* Free all data blocks to FREE state, and meta blocks to FREEMETA */
 	error = gfs_shrink(ip, 0, NULL);
 	if (error)
 		goto fail_iput;
 
+	/* Set UNUSED flag and increment incarn # in on-disk dinode block,
+	   and de-alloc the block to FREEMETA */
 	error = dinode_dealloc(ip);
 	if (error)
 		goto fail_iput;
 
+	/* Free the GFS inode structure, unhold iopen and inode glocks */
 	gfs_inode_put(ip);
 	gfs_inode_destroy(ip);
 
@@ -655,10 +686,11 @@ inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum,
 }
 
 /**
- * inode_dealloc_init - Try to deallocate an inode and all its blocks
+ * inode_dealloc_init - Try to deallocate an initialized on-disk inode (dinode)
+ *      and all of its associated data and meta blocks
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -errno on error, 1 on busy
+ * Returns: 0 on success, -errno on error, 1 on busy (inode open)
  */
 
 static int
@@ -667,8 +699,11 @@ inode_dealloc_init(struct gfs_sbd *sdp, struct gfs_inum *inum)
 	struct gfs_holder io_gh;
 	int error = 0;
 
+	/* If not busy (on this node), de-alloc GFS incore inode, releasing
+	   any indirect addressing buffers, and unholding iopen glock */
 	gfs_try_toss_inode(sdp, inum);
 
+	/* Does another process (cluster-wide) have this inode open? */
 	error = gfs_glock_nq_num(sdp,
 				 inum->no_addr, &gfs_iopen_glops,
 				 LM_ST_EXCLUSIVE, LM_FLAG_TRY_1CB, &io_gh);
@@ -682,7 +717,11 @@ inode_dealloc_init(struct gfs_sbd *sdp, struct gfs_inum *inum)
 		return error;
 	}
 
+	/* Unlock here to prevent deadlock */
 	gfs_glock_dq(&io_gh);
+
+	/* No other process in the entire cluster has this inode open;
+	   we can remove it and all of its associated blocks from disk */
 	error = inode_dealloc(sdp, inum, &io_gh);
 	gfs_holder_uninit(&io_gh);
 
@@ -690,8 +729,10 @@ inode_dealloc_init(struct gfs_sbd *sdp, struct gfs_inum *inum)
 }
 
 /**
- * inode_dealloc_uninit - dealloc an uninitialized inode
+ * inode_dealloc_uninit - dealloc an uninitialized on-disk inode (dinode) block
  * @sdp: the filesystem
+ *
+ * Create a transaction to change dinode block's alloc state to FREEMETA
  *
  * Returns: 0 on success, -errno on error, 1 on busy
  */

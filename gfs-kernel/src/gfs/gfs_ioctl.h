@@ -123,9 +123,9 @@ struct gfs_tune {
 	unsigned int gt_ilimit2;
 	unsigned int gt_ilimit2_tries;
 	unsigned int gt_ilimit2_min;
-	unsigned int gt_demote_secs;
+	unsigned int gt_demote_secs;      /* Cache retention for unheld glock */
 	unsigned int gt_incore_log_blocks;
-	unsigned int gt_jindex_refresh_secs;
+	unsigned int gt_jindex_refresh_secs; /* Check for new journal index */
 	unsigned int gt_depend_secs;
 
 	/* How often various daemons run (seconds) */
@@ -146,15 +146,15 @@ struct gfs_tune {
 	unsigned int gt_new_files_jdata;
 	unsigned int gt_new_files_directio;
 	unsigned int gt_max_atomic_write; /* Split large writes into this size*/
-	unsigned int gt_max_readahead;
+	unsigned int gt_max_readahead;  /* Max bytes to read-ahead from disk */
 	unsigned int gt_lockdump_size;
-	unsigned int gt_stall_secs;
+	unsigned int gt_stall_secs;     /* Detects trouble! */
 	unsigned int gt_complain_secs;
-	unsigned int gt_reclaim_limit;
+	unsigned int gt_reclaim_limit;  /* Max # glocks in reclaim list */
 	unsigned int gt_entries_per_readdir;
-	unsigned int gt_prefetch_secs;
+	unsigned int gt_prefetch_secs;  /* Usage window for prefetched glocks */
 	unsigned int gt_statfs_slots;
-	unsigned int gt_max_mhc;
+	unsigned int gt_max_mhc;        /* Max # of meta headers in mhc cache */
 	unsigned int gt_greedy_default;
 	unsigned int gt_greedy_quantum;
 	unsigned int gt_greedy_max;

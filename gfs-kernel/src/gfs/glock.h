@@ -14,6 +14,7 @@
 #ifndef __GFS_GLOCK_DOT_H__
 #define __GFS_GLOCK_DOT_H__
 
+/* Flags for lock requests; used in gfs_holder gh_flag field. */
 /*	These are defined in lm_interface.h, commented out here.
 #define LM_FLAG_TRY       (0x00000001)
 #define LM_FLAG_TRY_1CB   (0x00000002)

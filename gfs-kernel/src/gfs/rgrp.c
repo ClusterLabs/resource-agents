@@ -1895,7 +1895,8 @@ gfs_rlist_add(struct gfs_sbd *sdp, struct gfs_rgrp_list *rlist, uint64_t block)
 }
 
 /**
- * gfs_rlist_alloc - all RGs have been added to the rlist, allocated holders for them
+ * gfs_rlist_alloc - all RGs have been added to the rlist, now allocate
+ *      and initialize an array of glock holders for them
  * @rlist: the list of resource groups
  * @state: the lock state to acquire the RG lock in
  * @flags: the modifier flags for the holder structures

@@ -57,11 +57,17 @@ void gfs_metafree(struct gfs_inode *ip, uint64_t bstart, uint32_t blen);
 void gfs_difree_uninit(struct gfs_rgrpd *rgd, uint64_t addr);
 void gfs_difree(struct gfs_rgrpd *rgd, struct gfs_inode *ip);
 
+/*
+ * gfs_rgrp_list
+ *
+ * Used to collect a list of all resource groups spanned by a given
+ *   inode/file/directory
+ */
 struct gfs_rgrp_list {
-	unsigned int rl_rgrps;
-	unsigned int rl_space;
-	struct gfs_rgrpd **rl_rgd;
-	struct gfs_holder *rl_ghs;
+	unsigned int rl_rgrps;      /* # (qty) of rgrps in list (array) */
+	unsigned int rl_space;      /* Current capacity in list for rgrps */
+	struct gfs_rgrpd **rl_rgd;  /* Array of ptrs to rgrp descriptors */
+	struct gfs_holder *rl_ghs;  /* Array of glock holders for rgrps */
 };
 
 void gfs_rlist_add(struct gfs_sbd *sdp, struct gfs_rgrp_list *rlist,

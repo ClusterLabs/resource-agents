@@ -173,6 +173,17 @@ struct gfs_inum {
  *  of the block, but also after de-allocating the block (GFS can't just throw
  *  away incore metadata for a file that it's just erased).
  *
+ *  The incarnation number is used only for on-disk (d)inodes.  GFS increments
+ *  it each time it de-allocates a dinode block (i.e. each time the dinode
+ *  loses its identity with a particular file, directory, etc.).  When the
+ *  dinode is later allocated (i.e. to be identified with a new file, etc.),
+ *  GFS copies the incarnation number into the VFS inode's i_generation member.
+ *  If GFS is used as the backing store for an NFS server, GFS uses this
+ *  i_generation number as part of the NFS filehandle, which differentiates
+ *  it from the previous identity of the dinode, and helps protect against
+ *  filesystem corruption that could happen with the use of outdated,
+ *  invalid, or malicious filehandles.  See ops_export.c.
+ *
  *  GFS caches de-allocated meta-headers, to minimize disk reads.
  *  See struct gfs_meta_header_cache.
  */
@@ -374,8 +385,8 @@ struct gfs_quota {
 #define GFS_FILE_SOCK           (102)  /* socket */
 
 /*  Dinode flags  */
-#define GFS_DIF_JDATA             (0x00000001) /* jrnl all data for this file*/
-#define GFS_DIF_EXHASH            (0x00000002) /* hashed directory */
+#define GFS_DIF_JDATA             (0x00000001) /* jrnl all data for this file */
+#define GFS_DIF_EXHASH            (0x00000002) /* hashed directory (leaves) */
 #define GFS_DIF_UNUSED            (0x00000004) /* unused dinode */
 #define GFS_DIF_EA_INDIRECT       (0x00000008) /* extended attribute, indirect*/
 #define GFS_DIF_DIRECTIO          (0x00000010)
@@ -426,7 +437,7 @@ struct gfs_dinode {
 	uint16_t di_depth;	/* Number of bits in the table */
 	uint32_t di_entries;	/* The # (qty) of entries in the directory */
 
-	/*  This list formed a chain of unused inodes  */
+	/*  This formed an on-disk chain of unused dinodes  */
 	struct gfs_inum di_next_unused;  /* used in old versions only */
 
 	uint64_t di_eattr;	/* extended attribute block number */
@@ -461,7 +472,7 @@ struct gfs_dirent {
 	uint32_t de_hash;           /* hash of the filename */
 	uint16_t de_rec_len;        /* the length of the dirent */
 	uint16_t de_name_len;       /* the length of the name */
-	uint16_t de_type;           /* type of dinode this points to */
+	uint16_t de_type;           /* GFS_FILE_... type of dinode this points to */
 
 	char de_reserved[14];
 };

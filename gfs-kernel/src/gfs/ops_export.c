@@ -113,7 +113,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 
 	fh[0] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino >> 32));
 	fh[1] = cpu_to_gfs32((uint32_t)(ip->i_num.no_formal_ino & 0xFFFFFFFF));
-	fh[2] = cpu_to_gfs32(inode->i_generation);
+	fh[2] = cpu_to_gfs32(inode->i_generation);  /* dinode's mh_incarn */
 	*len = 3;
 
 	if (maxlen < 5 || !connectable)
@@ -133,7 +133,7 @@ gfs_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 		return 5;
 	}
 
-	fh[5] = cpu_to_gfs32(inode->i_generation);
+	fh[5] = cpu_to_gfs32(inode->i_generation);  /* dinode's mh_incarn */
 
 	spin_unlock(&dentry->d_lock);
 
@@ -378,6 +378,7 @@ gfs_get_dentry(struct super_block *sb, void *inump)
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 
+	/* inode->i_generation is GFS dinode's mh_incarn value */
 	if (cookie->gen_valid && cookie->gen != inode->i_generation) {
 		iput(inode);
 		return ERR_PTR(-ESTALE);

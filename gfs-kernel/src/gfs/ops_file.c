@@ -40,6 +40,7 @@
 #include "rgrp.h"
 #include "trans.h"
 
+/* "bad" is for NFS support */
 struct filldir_bad_entry {
 	char *fbe_name;
 	unsigned int fbe_length;
@@ -60,6 +61,7 @@ struct filldir_bad {
 	unsigned int fdb_name_off;
 };
 
+/* For regular, non-NFS */
 struct filldir_reg {
 	struct gfs_sbd *fdr_sbd;
 	int fdr_prefetch;
@@ -1054,6 +1056,8 @@ readdir_reg(struct file *file, void *dirent, filldir_t filldir)
  * @offset: the entry's offset in the directory
  * @inum: the inode number the entry points to
  * @type: the type of inode the entry points to
+ *
+ * For supporting NFS.
  *
  * Returns: 0 on success, 1 if buffer full
  */

@@ -243,6 +243,7 @@ lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry)
  * gfs_lookup - Look up a filename in a directory and return its inode
  * @dir: The directory inode
  * @dentry: The dentry of the new inode
+ * @nd: passed from Linux VFS, ignored by us
  *
  * Called by the VFS layer. Lock dir and call gfs_lookupi()
  *
@@ -1211,7 +1212,7 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
  * gfs_permission_i -
  * @inode:
  * @mask:
- * @nd:
+ * @nd: ignored
  *
  * Shamelessly ripped from ext3
  *
@@ -1286,7 +1287,7 @@ gfs_permission_i(struct inode *inode, int mask, struct nameidata *nd)
  * gfs_permission -
  * @inode:
  * @mask:
- * @nd:
+ * @nd: passed from Linux VFS, ignored by us
  *
  * Returns: errno
  */
