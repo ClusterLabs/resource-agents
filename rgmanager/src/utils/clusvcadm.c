@@ -90,7 +90,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "e:d:r:n:m:vR:s:S:q")) != EOF) {
+	while ((opt = getopt(argc, argv, "e:d:r:n:m:vR:s:S:qh?")) != EOF) {
 		switch (opt) {
 		case 'e':
 			/* ENABLE */
@@ -133,6 +133,8 @@ main(int argc, char **argv)
 		case 'q':
 			close(STDOUT_FILENO);
 			break;
+		case 'h':
+		case '?':
 		default:
 			usage(basename(argv[0]));
 			return 1;

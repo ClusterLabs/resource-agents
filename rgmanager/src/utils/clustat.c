@@ -299,6 +299,22 @@ xml_cluster_status(int qs, cluster_member_list_t *membership,
 }
 
 
+void
+usage(char *arg0)
+{
+	printf(
+"usage: %s <options>\n"
+"    -i <interval>      Refresh every <interval> seconds.  May not be used\n"
+"                       with -x.\n"
+"    -I                 Display local node ID and exit\n"
+"    -m <member>        Display status of <member> and exit\n"
+"    -s <service>       Display statis of <service> and exit\n"
+"    -v                 Display version & cluster plugin and exit\n"
+"    -x                 Dump information as XML\n"
+"\n", basename(arg0));
+}
+
+
 int
 main(int argc, char **argv)
 {
@@ -319,7 +335,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 	
-	while ((opt = getopt(argc, argv, "Is:m:i:xvQ")) != EOF) {
+	while ((opt = getopt(argc, argv, "Is:m:i:xvQh?")) != EOF) {
 		switch(opt) {
 		case 'v':
 			printf("%s version %s\n", basename(argv[0]),
@@ -328,7 +344,8 @@ main(int argc, char **argv)
 			goto cleanup;
 
 		case 'I':
-			printf("%d\n",(int)local_node_id); 
+			printf("0x%08x%08x\n",(uint32_t)local_node_id>>32,
+			       (uint32_t)local_node_id&0xffffffff); 
 			goto cleanup;
 
 		case 'i':
@@ -361,10 +378,20 @@ main(int argc, char **argv)
 
 			xml = 1;
 			break;
+		case '?':
+		case 'h':
+			usage(argv[0]);
+			return 0;
+			break;
 		default:
 			errors++;
 			break;
 		}
+	}
+
+	if (errors) {
+		usage(argv[0]);
+		return 1;
 	}
 
 	/* XXX add member/rg single-shot state */
