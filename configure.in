@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.326 $) dnl cvs revision
+AC_REVISION($Revision: 1.327 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -218,7 +218,8 @@ AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
 AC_PATH_PROGS(IPTABLES, iptables)
 AC_PATH_PROGS(XML2CONFIG, xml2-config)
-AC_PATH_PROGS(WHOAMI, whoami)
+dnl "whoami", if it exists, may be hidden away on some System-V (e.g. Solaris)
+AC_PATH_PROGS(WHOAMI, whoami, , ${PATH}:/usr/ucb)
 AC_PATH_PROGS(STRINGSCMD, strings)
 AC_DEFINE_UNQUOTED(STRINGSCMD, "$STRINGSCMD", path to strings command)
 AC_SUBST(STRINGSCMD)
