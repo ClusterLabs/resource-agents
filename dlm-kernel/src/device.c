@@ -183,17 +183,16 @@ static int register_lockspace(char *name, struct user_ls **ls)
 		kfree(newls);
 		return -ENOMEM;
 	}
-	snprintf((char*)newls->ls_miscinfo.name, namelen, "%s_%s", name_prefix, name);
-
-	status = dlm_new_lockspace((char *)newls->ls_miscinfo.name+strlen(name_prefix)+1,
-				    strlen(newls->ls_miscinfo.name) - strlen(name_prefix) - 1,
-				    &newls->ls_lockspace, 0);
+	status = dlm_new_lockspace(name, strlen(name),
+				   &newls->ls_lockspace, 0);
 
 	if (status != 0) {
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
 		return status;
 	}
+
+	snprintf((char*)newls->ls_miscinfo.name, namelen, "%s_%s", name_prefix, name);
 
 	newls->ls_miscinfo.fops = &_dlm_fops;
 	newls->ls_miscinfo.minor = MISC_DYNAMIC_MINOR;
