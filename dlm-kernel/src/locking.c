@@ -563,7 +563,7 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 	lkb->lkb_resource = rsb;
 
 	if (rsb->res_nodeid == -1) {
-		log_debug(ls, "request mode %u from %u seq %u created rsb %s",
+		log_debug(ls, "request mode %u from %u seq %u rsb \"%s\"",
 			  lkb->lkb_rqmode, remote_nodeid, freq->rr_resdir_seq,
 			  rsb->res_name);
 		set_bit(RESFL_MASTER, &rsb->res_flags);

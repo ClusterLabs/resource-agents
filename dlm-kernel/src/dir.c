@@ -119,10 +119,6 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 {
 	gd_resdata_t *rd;
 	uint32_t bucket;
-	char strname[namelen+1];
-
-	memset(strname, 0, namelen+1);
-	memcpy(strname, name, namelen);
 
 	bucket = rd_hash(ls, name, namelen);
 
@@ -131,26 +127,23 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	rd = search_rdbucket(ls, name, namelen, bucket);
 
 	if (!rd) {
-		log_debug(ls, "remove from %u seq %3u, \"%s\" none",
-			  nodeid, sequence, strname);
+		log_debug(ls, "remove from %u seq %u none", nodeid, sequence);
 		goto out;
 	}
 
 	if (rd->rd_master_nodeid != nodeid) {
-		log_debug(ls, "remove from %u seq %3u, \"%s\" ID %u seq %3u",
-			  nodeid, sequence, strname, rd->rd_master_nodeid,
+		log_debug(ls, "remove from %u seq %3u ID %u seq %3u",
+			  nodeid, sequence, rd->rd_master_nodeid,
 			  rd->rd_sequence);
 		goto out;
 	}
 
 	if (rd->rd_sequence == sequence) {
-		log_debug(ls, "remove from %u seq %3u, \"%s\" ok",
-			  nodeid, sequence, strname);
 		list_del(&rd->rd_list);
 		free_resdata(rd);
 	} else {
-		log_debug(ls, "remove from %u seq %3u, \"%s\" id %u SEQ %3u",
-			  nodeid, sequence, strname, rd->rd_master_nodeid,
+		log_debug(ls, "remove from %u seq %3u id %u SEQ %3u",
+			  nodeid, sequence, rd->rd_master_nodeid,
 			 rd->rd_sequence);
 	}
 
@@ -426,8 +419,6 @@ static int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
 
  out:
-	log_debug(ls, "lookup from %u ret %u %u \"%s\"",
-		  nodeid, *r_nodeid, *r_seq, strname);
 	return 0;
 }
 
