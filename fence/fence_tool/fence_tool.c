@@ -24,8 +24,10 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <mntent.h>
+#include <libgen.h>
 
 #include "cnxman-socket.h"
+#include "ccs.h"
 #include "copyright.cf"
 
 #ifndef TRUE
@@ -33,7 +35,7 @@
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("VhScj:f:")
+#define OPTION_STRING			("VhScj:f:D")
 #define LOCKFILE_NAME                   "/var/run/fenced.pid"
 
 #define OP_JOIN  			1
@@ -49,6 +51,7 @@ do \
 while (0)
 
 char *prog_name;
+int debug;
 int operation;
 int skip_unfence;
 int cl_sock;
@@ -108,8 +111,31 @@ static int setup_sock(void)
 
 static int self_unfence(void)
 {
-	if (!skip_unfence)
-		dispatch_fence_agent(our_name, 1);
+	if (skip_unfence)
+		return 0;
+
+	if (debug)
+		printf("%s: unfence ourself\n", prog_name);
+
+	dispatch_fence_agent(our_name, 1);
+	return 0;
+}
+
+static int check_ccs(void)
+{
+	int i = 0, cd;
+
+	if (debug)
+		printf("%s: connect to ccs\n", prog_name);
+
+	while ((cd = ccs_connect()) < 0) {
+		printf("%s: waiting for ccs connection %d\n", prog_name, cd);
+		sleep(1);
+		if (++i == 10)
+			die("cannot connect to ccs %d\n", cd);
+	}
+
+	ccs_disconnect(cd);
 	return 0;
 }
 
@@ -117,6 +143,9 @@ static int get_our_name(void)
 {
 	struct cl_cluster_node cl_node;
 	int rv;
+
+	if (debug)
+		printf("%s: get our node name\n", prog_name);
 
 	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
 
@@ -155,6 +184,9 @@ static int wait_quorum(void)
 {
 	int rv, i = 0;
 
+	if (debug)
+		printf("%s: wait for quorum\n", prog_name);
+
 	while (1) {
 		rv = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, NULL);
 		if (!rv)
@@ -179,6 +211,7 @@ static void do_join(int argc, char *argv[])
 	wait_quorum();
 	get_our_name();
 	close(cl_sock);
+	check_ccs();
 	self_unfence();
 
 	/* Options for fenced can be given to this program which then passes
@@ -188,6 +221,9 @@ static void do_join(int argc, char *argv[])
 	   getopt places as the last argv.
 
 	   Fenced shouldn't barf if it gets any args specific to this program */
+
+	if (debug)
+		printf("%s: start fenced\n", prog_name);
 
 	strcpy(argv[0], "fenced");
 	argv[argc - 1] = NULL;
@@ -232,6 +268,7 @@ static void print_usage(void)
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
 	printf("  -S               Skip self unfencing on join\n");
+	printf("  -D               Enable debugging, don't fork (also passed to fenced)\n");
 	printf("\n");
 	printf("Fenced options:\n");
 	printf("  these are passed on to fenced when it's started\n");
@@ -265,6 +302,10 @@ static void decode_arguments(int argc, char *argv[])
 
 		case 'S':
 			skip_unfence = TRUE;
+			break;
+
+		case 'D':
+			debug = TRUE;
 			break;
 
 		case ':':
@@ -305,7 +346,7 @@ static void decode_arguments(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	prog_name = argv[0];
+	prog_name = basename(argv[0]);
 
 	decode_arguments(argc, argv);
 
