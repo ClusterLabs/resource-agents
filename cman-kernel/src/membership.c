@@ -143,7 +143,7 @@ static void join_or_form_cluster(void);
 static int do_timer_wakeup(void);
 static int start_transition(unsigned char reason, struct cluster_node *node);
 static uint32_t low32_of_ip(void);
-static void remove_joiner(void);
+static void remove_joiner(int tell_wait);
 int send_leave(unsigned char);
 int send_reconfigure(int, unsigned int);
 
@@ -200,6 +200,16 @@ static int dissenting_nodes;
 static uint8_t *node_opinion = NULL;
 #define OPINION_AGREE    1
 #define OPINION_DISAGREE 2
+
+
+/* None of our threads is CPU intensive, but if they don't run when they are supposed
+   to, the node can get kicked out of the cluster.
+*/
+void cman_set_realtime(struct task_struct *tsk, int prio)
+{
+        tsk->policy = SCHED_FIFO;
+        tsk->rt_priority = prio;
+}
 
 /* Set node id of a node, also add it to the members array and expand the array
  * if necessary */
@@ -281,7 +291,7 @@ static int hello_kthread(void *unused)
 	hello_task = tsk;
 	up(&hello_task_lock);
 
-	set_user_nice(current, -20);
+	cman_set_realtime(current, 1);
 
 	while (node_state != REJECTED && node_state != LEFT_CLUSTER) {
 
@@ -317,7 +327,7 @@ static int membership_kthread(void *unused)
 	sigprocmask(SIG_BLOCK, &tmpsig, NULL);
 
 	membership_task = tsk;
-	set_user_nice(current, -5);
+	cman_set_realtime(current, 1);
 
 	/* Open the socket */
 	if (init_membership_services())

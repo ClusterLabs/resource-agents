@@ -63,6 +63,7 @@ static int is_valid_temp_nodeid(int nodeid);
 extern int start_membership_services(pid_t);
 extern int kcl_leave_cluster(int remove);
 extern int send_kill(int nodeid, int needack);
+extern void cman_set_realtime(struct task_struct *tsk, int prio);
 
 static struct proto_ops cl_proto_ops;
 static struct sock *master_sock;
@@ -308,7 +309,7 @@ static int cluster_kthread(void *unused)
 	init_waitqueue_entry(&cnxman_waitq_head, current);
 	add_wait_queue(&cnxman_waitq, &cnxman_waitq_head);
 
-	set_user_nice(current, -6);
+	cman_set_realtime(current, 1);
 
 	/* Allow the sockets to start receiving */
 	list_for_each(socklist, &socket_list) {
