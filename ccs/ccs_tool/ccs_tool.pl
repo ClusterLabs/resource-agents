@@ -137,9 +137,14 @@ sub update {
 
 sub update_programs {
     my $new_version = $_[0];
+    my $output;
 
     if(system("ps -C lock_gulmd > /dev/null")){
 	# don't need to update gulm... It reads info as necessary
     }
 
-    
+    if( -e "/proc/cluster/status"){
+	# update cman info
+    }
+}
+
