@@ -1982,6 +1982,8 @@ static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
 			resend_delay = 1;
 		}
 	}
+	if (result < 0)
+		printk(KERN_ERR CMAN_NAME "sendmsg failed: %d\n", result);
 
 	/* Restore IOVs */
 	memcpy(vec, save_vectors,
