@@ -69,17 +69,18 @@ pid_t fence_node(char *name, int pause)
 {
    pid_t pid;
    int i;
-   char *argv[3];
+   char *argv[4];
 
    argv[0] = gulm_config.fencebin;
-   argv[1] = name;
-   argv[2] = NULL;
+   argv[1] = "-O";
+   argv[2] = name;
+   argv[3] = NULL;
 
    if((pid=fork()) == 0) {
       /* child */
       if( pause > 0) sleep(pause);
 
-      log_msg(lgm_Forking, "Gonna exec %s %s\n", argv[0], argv[1] );
+      log_msg(lgm_Forking, "Gonna exec %s %s %s\n", argv[0], argv[1], argv[2]);
 
       for(i=open_max()-1; i>=3; --i) close(i); /* close everything but stds */
 
@@ -88,13 +89,13 @@ pid_t fence_node(char *name, int pause)
       _exit(ExitGulm_ExecError);/*jic*/
    }else if(pid>0) {
       /*parent*/
-      log_msg(lgm_Forking, "Forked [%d] %s %s with a %d pause.\n",
-            pid, argv[0], argv[1], pause);
+      log_msg(lgm_Forking, "Forked [%d] %s %s %s with a %d pause.\n",
+            pid, argv[0], argv[1], argv[2], pause);
    }else{
       /*error*/
-      log_msg(lgm_Forking, "Problems (%d:%s) trying to start: %s %s\n",
+      log_err("Problems (%d:%s) trying to start: %s %s %s\n",
             errno, strerror(errno),
-            argv[0], argv[1]);
+            argv[0], argv[1], argv[2]);
       pid = -1;
    }
    return pid;

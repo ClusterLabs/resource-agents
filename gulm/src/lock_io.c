@@ -1007,7 +1007,8 @@ int send_act_lk_reply(Waiters_t *lkrq, uint32_t retcode)
    /* the strcmp slows things down a tiny bit.
     * wonder if there is another way.
     */
-   if( poller.ipn[lkrq->idx].name == NULL ||
+   if( poller.type[lkrq->idx] != poll_Client ||
+       poller.ipn[lkrq->idx].name == NULL ||
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
@@ -1099,7 +1100,8 @@ int send_req_lk_reply(Waiters_t *lkrq, Lock_t *lk, uint32_t retcode)
    /* the strcmp slows things down a tiny bit.
     * wonder if there is another way.
     */
-   if( poller.ipn[lkrq->idx].name == NULL ||
+   if( poller.type[lkrq->idx] != poll_Client ||
+       poller.ipn[lkrq->idx].name == NULL ||
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
@@ -1194,7 +1196,8 @@ int send_query_reply(Waiters_t *lkrq, uint32_t retcode)
 {
    /* make sure the right poller is being used. */
    if( lkrq->idx < 0 || lkrq->idx > open_max() ) lkrq->idx = 0;
-   if( poller.ipn[lkrq->idx].name == NULL ||
+   if( poller.type[lkrq->idx] != poll_Client ||
+       poller.ipn[lkrq->idx].name == NULL ||
        strcmp( lkrq->name, poller.ipn[lkrq->idx].name) != 0 ) {
       if( (lkrq->idx = find_idx_for_name(lkrq->name)) < 0 ) {
          log_err("No encoder for \"%s\"! lock:%s",
@@ -2227,6 +2230,18 @@ static void recv_some_data(int idx)
    if( gulm_lock_rerunqueues == code ) {
       rerun_wait_queues();
       recheck_reply_waiters(Slave_bitmask, 0);
+      close_by_idx(idx);
+   }else
+   if( gulm_err_reply == code ) {
+      uint32_t xc,xe;
+      xdr_dec_uint32(dec, &xc);
+      xdr_dec_uint32(dec, &xe);
+
+      log_msg(lgm_Always, "%s Gave us a %d:%s %d:%s, closing the connection.\n",
+            print_ipname(&poller.ipn[idx]),
+            xc, gio_opcodes(xc),
+            xe, gio_Err_to_str(xe));
+
       close_by_idx(idx);
    }else
    if( gio_Mbr_ama_Slave == I_am_the ) {

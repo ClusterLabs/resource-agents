@@ -106,7 +106,7 @@ int parse_ccs(gulm_config_t *gf)
 
    if( ccs_get(cd, "/cluster/gulm/servers", &tmp) == 0 ) {
       parse_cmdline_servers(gf, tmp);
-      fprintf(stderr, "Warning, use of /cluster/gulm/servers is depercated.\n");
+      fprintf(stderr, "Warning, use of /cluster/gulm/servers is deprecated.\n");
       free(tmp);
    }
 

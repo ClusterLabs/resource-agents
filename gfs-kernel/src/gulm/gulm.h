@@ -159,7 +159,7 @@ typedef struct gulm_lock_s {
    uint16_t keylen;
    gulm_fs_t *fs; /* which fs we belong to */
    char *lvb;
-   int cur_state; /* for figuring out wat reply to tell gfs. */
+   int cur_state; /* for figuring out what reply to tell gfs. */
 } gulm_lock_t;
 
 
