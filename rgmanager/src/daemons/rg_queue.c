@@ -21,10 +21,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 
 int
 __rq_queue_request(request_t **queue, char *name, uint32_t request,

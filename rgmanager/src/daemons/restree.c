@@ -32,9 +32,6 @@
 #include <clulog.h>
 #include <assert.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
 int _res_op(resource_node_t **tree, resource_t *first, char *type,
 	    void * __attribute__((unused))ret, int op);
 void print_env(char **env);
@@ -451,6 +448,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 				printf("Error: Reference to nonexistent "
 				       "resource %s (type %s)\n", ref,
 				       rule->rr_type);
+				free(ref);
 				continue;
 			}
 
@@ -458,8 +456,10 @@ build_tree(int ccsfd, resource_node_t **tree,
 				printf("Error: Reference to inlined "
 				       "resource %s (type %s) is illegal\n",
 				       ref, rule->rr_type);
+				free(ref);
 				continue;
 			}
+			free(ref);
 		}
 
 		/* Load it if its max refs hasn't been exceeded */
@@ -1198,11 +1198,6 @@ tree_delta_test(int argc, char **argv)
 	printf("COND STARTING whatever I need to from oracle...\n");
 	curres = find_resource_by_ref(&reslist2, "group", "oracle");
 	res_condstart(&tree2, curres, NULL);
-
-
-#ifdef MDEBUG
-	dump_mem_table();
-#endif
 
 	return 0;
 #endif

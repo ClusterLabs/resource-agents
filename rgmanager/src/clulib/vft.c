@@ -44,12 +44,6 @@
 #include <signals.h>
 
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
-
-
 static int vf_lfds[2];
 static int vf_lfd = 0;
 static key_node_t *key_list = NULL;	/** List of key nodes. */

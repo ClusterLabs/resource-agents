@@ -33,10 +33,6 @@
 #include <libgen.h>
 #include <clulog.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 
 /**
    Store a new resource rule in the given rule list.
@@ -87,6 +83,15 @@ destroy_resource_rule(resource_rule_t *rr)
 		}
 
 		free(rr->rr_attrs);
+	}
+
+	if (rr->rr_actions) {
+		for (x = 0; rr->rr_actions &&
+		     rr->rr_actions[x].ra_name; x++) {
+			free(rr->rr_actions[x].ra_name);
+		}
+
+		free(rr->rr_actions);
 	}
 
 	if (rr->rr_childtypes) {

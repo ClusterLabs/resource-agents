@@ -28,7 +28,7 @@ all: ${TARGETS}
 install: all
 
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
-		vft.o gettid.o rg_strings.o
+		vft.o gettid.o rg_strings.o # alloc.o
 	${AR} cru $@ $^
 	ranlib $@
 
@@ -37,12 +37,3 @@ libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
 
 clean:
 	rm -f *.o $(TARGETS)
-
-
-#INCLUDES=-I../../include
-#CFLAGS+=-DMDEBUG -DFDEBUG
-
-#noinst_LIBRARIES = libclulib.a
-
-#libclulib_a_SOURCES = clulog.c daemon_init.c signals.c \
-#	msgsimple.c vft.c gettid.c rg_strings.c #mallocdbg.c

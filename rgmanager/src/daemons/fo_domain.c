@@ -88,6 +88,7 @@ get_node(int ccsfd, char *base, int idx, fod_t *domain)
 	fodn = malloc(sizeof(*fodn));
 	if (!fodn)
 		return NULL;
+	memset(fodn, 0, sizeof(*fodn));
 
 	/* Already malloc'd; simply store */
 	fodn->fdn_name = ret;
@@ -131,9 +132,10 @@ get_domain(int ccsfd, char *base, int idx, fod_t **domains)
 		return NULL;
 	} while (!list_done(domains, fod));
 
-	fod = malloc(sizeof(*fodn));
+	fod = malloc(sizeof(*fod));
 	if (!fod)
 		return NULL;
+	memset(fod, 0, sizeof(*fod));
 	fod->fd_name = ret;
 	fod->fd_nodes = 0;
 	fod->fd_flags = 0;

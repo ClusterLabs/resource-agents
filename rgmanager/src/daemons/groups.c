@@ -30,12 +30,6 @@
 #include <reslist.h>
 
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
-//#include <pthread_dbg.h>
-
 static resource_t *_resources = NULL;
 static resource_rule_t *_rules = NULL;
 static resource_node_t *_tree = NULL;

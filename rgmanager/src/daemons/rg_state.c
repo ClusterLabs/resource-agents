@@ -31,10 +31,6 @@
 #include <rg_queue.h>
 #include <msgsimple.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 int node_should_start_safe(uint64_t, cluster_member_list_t *, char *);
 
 uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);

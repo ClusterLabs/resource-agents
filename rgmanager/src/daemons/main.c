@@ -31,10 +31,7 @@
 #include <msgsimple.h>
 #include <vf.h>
 #include <rg_queue.h>
-
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
+#include <malloc.h>
 
 
 int daemon_init(char *);
@@ -520,26 +517,39 @@ hard_exit(void)
 	rg_stopall();
 	rg_wait_threads();
 	vf_shutdown();
-#ifdef MDEBUG
-	dump_mem_table();
-#endif
 	exit(1);
 }
+
+
+void
+cleanup(int cluster_fd)
+{
+	rg_lockall();
+	rg_stopall();
+	rg_wait_threads();
+	vf_shutdown();
+	kill_resource_groups();
+	member_list_update(NULL);
+	clu_disconnect(cluster_fd);
+	msg_shutdown();
+	notify_exiting();
+}
+
 
 void dump_threads(void);
 
 void
 statedump(int sig)
 {
-#ifdef MDEBUG
-	dump_mem_table();
-#endif
 	dump_threads();
+	/*malloc_stats();*/
 }
 
 
 int test_func(int, char**);
 int tree_delta_test(int, char**);
+
+void malloc_dump_table(void);
 
 
 int
@@ -562,7 +572,6 @@ main(int argc, char **argv)
 		--argc; ++argv;
 		return tree_delta_test(argc, argv);
 	}
-
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {
@@ -635,16 +644,11 @@ main(int argc, char **argv)
 		event_loop(cluster_fd);
 
 	clulog(LOG_NOTICE, "Shutting down\n");
-	rg_lockall();
-	rg_stopall();
-	rg_wait_threads();
-	vf_shutdown();
-	kill_resource_groups();
-	clu_disconnect(cluster_fd);
-	notify_exiting();
+	cleanup(cluster_fd);
 	clulog(LOG_NOTICE, "Shutdown complete, exiting\n");
-#ifdef MDEBUG
-	dump_mem_table();
-#endif
+	
+	/*malloc_dump_table(); */ /* Only works if alloc.c us used */
+	/*malloc_stats();*/
+
 	exit(0);
 }

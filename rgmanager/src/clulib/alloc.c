@@ -1,0 +1,937 @@
+/**
+  Copyright Red Hat, Inc. 2004
+  Copyright Lon Hohberger, 2004
+
+  This program is free software; you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by the
+  Free Software Foundation; either version 2, or (at your option) any
+  later version.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc.,  675 Mass Ave, Cambridge, 
+  MA 02139, USA.
+
+  Author: Lon Hohberger <lhh at redhat.com>
+                        <lon at metamorphism.com>
+ */
+/**
+  @file
+
+  Bounded memory allocator.  This is designed for applications which require
+  bounded memory allocation and which ought not be swapped out to disk.
+
+  What it is:
+  - Replacement for malloc, calloc, free, and realloc which allocates
+  memory from a fixed-size heap, which is either allocated at the time
+  of the first allocation or during program initialization with a call
+  to 'malloc_init(size_t count)'.
+
+  - Designed for applications requiring small amounts of RAM.  Note
+  that though we use size_t arguments, the maximum supported in the
+  header structure is a 32-bit integer.
+
+  - Fairly fast.
+
+
+  What it's _not_:
+  - General purpose.  The heap is allocated either at the first call to
+  malloc() or the call to malloc_init(), and is a fixed size.
+
+  - Super-efficient.  It's reasonably fast in many situations compared to
+  glibc's malloc, but records states in the memory blocks to help prevent
+  accidental double-frees and such (it's still possible, mind you).  In 
+  general, your program will consume MORE memory when using this allocator,
+  because it preallocates a huge block.  However, your program should run
+  faster.  It's also probably not terribly efficient in a threaded
+  program, but it does work (and properly zap its mutex on fork()).
+
+
+  malloc algorithm in detail:
+
+  (1) Init the pool as necessary.  After the pool is initialized, we have
+  one large free block which is the size of the memory pool less the header.
+
+  (2) Whenever we get a call to malloc, we look for a free block.  If the
+  size of a free block matches within 25% of the requested size (bounded at
+  MIN_SAVE), we immediately return that chunk to the user.  If no blocks are
+  found matching this criteria, we look for chunks which are large enough
+  to split (i.e. with a size >= requested_size + MIN_EXTRA).
+
+  (3) If we find one, we split the block, create a new (smaller) free block,
+  and return the block to the user.
+
+  [ Note: Steps 4 and 5 only if AGGR_RECLAIM is 0 ]
+  (4) If none are found, we perform an aggressive consolidation which searches
+  the entire memory pool for free blocks next to each other and combines
+  them into one larger block.
+
+  (5) Repeat steps (2) and (3).
+
+  (6) If no blocks are found again, we're done.  Return NULL/ENOMEM.
+
+
+  free algorithm in detail:
+
+  (1) Sanity check the pointer and block structure it would point to.
+
+  (2) [ If AGGR_RECLAIM = 0 ] Consolidate this block with all free blocks
+  with a higher address than it in the pool.
+
+  (2) [ If AGGR_RECLAIM = 1 ] Aggressively consolidate all free blocks 
+  in the pool which are next to one another.
+
+
+  realloc:
+
+  ... Just an obvious wrapper around malloc.  Potentially could resize if
+  the next block was free and has enough space.  I.e.  Join-blocks,
+  resize, and split again if necessary.  For now, it works, so we'll
+  leave it alone.  This would be both an increase in speed and memory
+  efficiency (while performing the operation), but otherwise isn't necessary.
+
+
+  calloc:
+
+  ... Really obvious wrapper.  Uses memset to clear the memory.
+
+  TODO: Use futex, perhaps, instead of pthread stuff.
+ */
+#include <stdint.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <malloc.h>
+#include <stdlib.h>
+
+#if 0
+#define DEBUG			/* Record program counter of malloc/calloc */
+#endif				/* or realloc call; print misc stuff out */
+
+/* Tunable stuff */
+#define PARANOID		/* Trade off a bit of space and speed for
+				   extra sanity checks */
+#define DIE_ON_FAULT		/* Kill program if we do something bad
+				   (double free, free after overrun, etc.
+				   for instance) */
+#undef  AGGR_RECLAIM		/* consolidate_all on free (*slow*) */
+
+#define DEFAULT_SIZE	(1<<21) /* 2MB default giant block size */
+#define BUCKET_COUNT	(13)	/* 2^BUCKET_COUNT = max. interesting size */
+#define MIN_POWER	(3)	/* 2^MIN_POWER = minimum size */
+#define MIN_SIZE	(1<<MIN_POWER)
+#define ALIGN		(sizeof(void *))
+#define NOBUCKET	((uint16_t)(~0))
+#define MIN_EXTRA	(1<<5)	/* 64 bytes to split a block */
+
+
+/* Misc stuff */
+#define ST_FREE		0xfec3  /* Block is free */
+#define ST_ALLOC	0x08f7  /* Block is in use */
+
+
+#ifndef NOPTHREADS
+#include <pthread.h>
+static pthread_mutex_t _alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
+#else
+#define pthread_mutex_trylock(x) (0)
+#define pthread_mutex_lock(x)
+#define pthread_mutex_unlock(x)
+#endif
+
+#ifdef DIE_ON_FAULT
+
+#include <signal.h>
+
+#define die_or_return(val)\
+do { \
+	raise(SIGSEGV); \
+	return val; \
+} while (0)
+
+#else
+
+#define die_or_return(val)\
+do { \
+	return val; \
+} while (0)
+
+#endif
+
+
+typedef struct _memblock {
+	/*
+	   Need to align for 64-bit arches, so for now, we'll keep
+	   the header size to 8 bytes.
+	 */
+	uint32_t	mb_size;
+	uint16_t	mb_bucket;
+	uint16_t	mb_state;
+#ifdef DEBUG
+	void		*mb_pc;
+#endif
+	/* If PARANOID isn't defined, we use the following pointer for
+	   more space. */
+	struct _memblock *mb_next;
+} memblock_t;
+
+
+/**
+  mmap(2)ed memory pool.
+ */
+static void *_pool = NULL;
+
+/**
+  Pool size
+ */
+static size_t _poolsize = 0;
+
+/**
+  Free buckets
+ */
+static memblock_t *free_buckets[BUCKET_COUNT];
+
+
+#ifdef PARANOID
+
+/**
+  Allocated buckets
+ */
+static memblock_t *alloc_buckets[BUCKET_COUNT];
+
+/*
+   We use the next pointer for the alloc_bucket list if we're PARANOID, as
+   we record the allocated block list in that mode.
+ */
+#define HDR_SIZE (sizeof(memblock_t))
+
+#else /* ... not PARANOID */
+
+/*
+   We use the next pointer for extra data space if we're secure.  Makes the
+   allocator slightly more memory efficient.
+ */
+#define HDR_SIZE (sizeof(memblock_t) - sizeof(memblock_t *))
+
+#endif /* PARANOID */
+
+/* Return the user pointer for a given memblock_t structure. */
+#define pointer(block) (void *)((void *)block + HDR_SIZE)
+
+/* Return the memblock_t structure given a pointer */
+#define block(pointer) (memblock_t *)((void *)pointer - HDR_SIZE)
+
+/* Calculate and return the next memblock_t pointer in the memory pool
+   given a memblock_t pointer. */
+#define nextblock(pointer) \
+	(memblock_t *)((void *)pointer + pointer->mb_size + HDR_SIZE)
+
+/* Doesn't *ensure* a block is free, but is a pretty good heuristic */
+#define is_valid_free(block) \
+	(block->mb_bucket < BUCKET_COUNT && block->mb_state == ST_FREE)
+
+/* Doesn't *ensure* a block is allocated, but is a pretty good heuristic */
+#define is_valid_alloc(block) \
+	(block->mb_bucket == NOBUCKET && block->mb_state == ST_ALLOC && \
+	 block->mb_size != 0)
+
+
+/**
+  Find the proper bucket index, given a size
+ */
+static inline int
+find_bucket(size_t size)
+{
+	int rv = 0;
+	size_t s = size;
+	
+	s >>= MIN_POWER;
+	while (s && (rv < (BUCKET_COUNT-1))) {
+		s >>= 1;
+		rv++;
+	}
+
+	return rv;
+}
+
+
+#ifdef PARANOID
+/**
+  Check for and remove a block from its free list.
+ */
+static inline int
+remove_alloc_block(memblock_t *b)
+{
+	memblock_t *block, **prev;
+	uint16_t bucket;
+
+	/* Could improve performance if NOBUCKET wasn't used
+	   as an indicator of an allocated block */
+	bucket = find_bucket(b->mb_size);
+	prev = &(alloc_buckets[bucket]);
+
+	if (!(block = alloc_buckets[bucket]))
+		return 0;
+
+	do {
+		if (b == block) {
+			*prev = b->mb_next;
+			b->mb_next = NULL;
+			return 1;
+		}
+
+		prev = &(*prev)->mb_next;
+		block = block->mb_next;
+	} while (block);
+
+	/* Couldn't find in its appropriate bucket */
+	return 0;
+}
+#endif
+
+
+/**
+  Check for and remove a block from its free list.
+ */
+static inline int
+remove_free_block(memblock_t *b)
+{
+	memblock_t *block, **prev;
+	uint16_t bucket;
+
+	bucket = b->mb_bucket;
+	prev = &(free_buckets[bucket]);
+
+	if (!(block = free_buckets[bucket]))
+		return 0;
+
+	do {
+		if (b == block) {
+			*prev = b->mb_next;
+			b->mb_next = NULL;
+			return 1;
+		}
+
+		prev = &(*prev)->mb_next;
+		block = block->mb_next;
+	} while (block);
+
+	/* Couldn't find in its appropriate bucket */
+	return 0;
+}
+
+
+#ifdef PARANOID
+/**
+  Insert a block on to the allocated bucket list
+ */
+static inline memblock_t *
+insert_alloc_block(memblock_t *b)
+{
+	uint16_t bucket = find_bucket(b->mb_size);
+
+	b->mb_bucket = NOBUCKET;
+	b->mb_state = ST_ALLOC;
+	b->mb_next = NULL;
+
+	if (alloc_buckets[bucket] != NULL)
+		b->mb_next = alloc_buckets[bucket];
+
+	alloc_buckets[bucket] = b;
+
+	return b;
+}
+#endif
+
+
+/**
+  Insert a block on to the free bucket list
+ */
+static inline memblock_t *
+insert_free_block(memblock_t *b)
+{
+	uint16_t bucket = find_bucket(b->mb_size);
+
+	b->mb_bucket = bucket;
+	b->mb_state = ST_FREE;
+	b->mb_next = NULL;
+
+	if (free_buckets[bucket] != NULL)
+		b->mb_next = free_buckets[bucket];
+
+	free_buckets[bucket] = b;
+
+	return b;
+}
+
+
+/**
+  Consolidate a block with all free blocks to the right of it in the
+  pool.
+
+  @param left		Left block
+  @return		Number of blocks consolidated.
+ */
+static inline int
+consolidate(memblock_t *left)
+{
+	memblock_t *right;
+	int merged = 0;
+
+	while (1) {
+		right = nextblock(left);
+		if ((void *)right >= (_pool + _poolsize))
+			return merged;
+
+		if (!is_valid_free(right)) {
+			if (is_valid_alloc(right))
+				return merged;
+
+			/* Not valid free and not valid allocated. BAD. */
+			fprintf(stderr, "consolidate: Block %p corrupt. "
+				"(Overflow from block %p?)\n", right, left);
+			die_or_return(-1);
+		}
+		if (!remove_free_block(right))
+			return merged;
+
+		left->mb_size += (right->mb_size + HDR_SIZE);
+		right->mb_state = 0;
+
+		++merged;
+	}
+	/* Not reached */
+	return merged;
+}
+
+
+/**
+  Consolidate all free blocks next to each-other in the pool in to larger
+  blocks.  This algorithm is slow...
+ */
+static inline void
+consolidate_all(void)
+{
+	memblock_t *b, *p;
+	int total = 0;
+
+	p = NULL;
+	b = _pool;
+
+	while ((void *)b < (void *)(_pool + _poolsize)) {
+
+		if (is_valid_free(b)) {
+			if (!remove_free_block(b)) {
+				fprintf(stderr, "consolidate: Free block %p "
+					"was not in our free list.\n", b);
+			}
+
+			total += consolidate(b);
+			insert_free_block(b);
+		} else if (!is_valid_alloc(b)) {
+			/* Not valid free and not valid allocated. BAD. */
+			fprintf(stderr, "consolidate_all: Block %p corrupt. "
+				"(Overflow from block %p?)\n", b, p);
+			die_or_return();
+		}
+
+		/* Consolidated or we're a valid allocated block */
+		p = b;
+		b = nextblock(b);
+	}
+
+#ifdef DEBUG
+	if (total)
+		fprintf(stderr, "%s: consolidated %d\n", __FUNCTION__, total);
+#endif
+	
+}
+
+
+#ifndef NOTHREADS
+/**
+  After a fork, we need to kill the mutex so the child can still call malloc
+  without getting stuck.
+ */
+void
+zap_mutex(void)
+{
+	pthread_mutex_init(&_alloc_mutex, NULL);
+}
+#endif
+
+
+/**
+  Initialize the giant mmap pool storage.
+ */
+#ifndef NOTHREADS
+static inline int
+_malloc_init(size_t poolsize)
+#else
+int
+malloc_init(size_t poolsize)
+#endif
+{
+	int e;
+	memblock_t *first = NULL;
+
+	if (_pool)
+		return -1;
+
+	if (poolsize % 32)
+		poolsize += (32 - (poolsize % 32));
+
+	_pool = mmap(NULL, poolsize, PROT_READ | PROT_WRITE, MAP_LOCKED |
+		     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+	if ((_pool == MAP_FAILED) && (errno == EAGAIN)) {
+		/* Try again without MAP_LOCKED */
+		_pool = mmap(NULL, poolsize, PROT_READ | PROT_WRITE,
+			     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		if (_pool != MAP_FAILED)
+			fprintf(stderr, "malloc_init: Warning: using unlocked"
+				" memory pages (got root?)\n");
+	}
+
+	if (_pool == MAP_FAILED) {
+		return -1;
+	}
+
+	_poolsize = poolsize;
+
+	for (e = 0; e < BUCKET_COUNT; e++)
+		free_buckets[e] = NULL;
+
+	first = _pool;
+	first->mb_size = (_poolsize - HDR_SIZE);
+	first->mb_state = ST_FREE;
+	first->mb_next = NULL;
+	first->mb_bucket = NOBUCKET;
+
+#ifdef PARANOID
+	for (e = 0; e < BUCKET_COUNT; e++)
+		alloc_buckets[e] = NULL;
+#endif
+#ifdef DEBUG
+	fprintf(stderr, "malloc_init: %lu/%lu available\n",
+		(long unsigned)first->mb_size, (long unsigned)_poolsize);
+#endif
+
+	insert_free_block(first);
+	return 0;
+}
+
+
+#ifndef NOTHREADS
+/* Same as above, but lock first! */
+int
+malloc_init(size_t poolsize)
+{
+	int e = 0, ret = -1;
+	pthread_mutex_lock(&_alloc_mutex);
+	if (!_pool) {
+		ret = _malloc_init(poolsize);
+		e = errno;
+	}
+	pthread_atfork(NULL, NULL, zap_mutex);
+	pthread_mutex_unlock(&_alloc_mutex);
+	errno = e;
+	return ret;
+}
+#endif
+
+
+static inline memblock_t *
+split(memblock_t *block, size_t size)
+{
+	memblock_t *nb;
+	size_t oldsz;
+
+	oldsz = block->mb_size;
+
+	/* Ok, we got it. */
+	block->mb_size = size;
+	block->mb_next = NULL;
+	block->mb_state = ST_ALLOC;
+	block->mb_bucket = NOBUCKET;
+
+	nb = nextblock(block);
+	nb->mb_state = ST_FREE;
+	nb->mb_bucket = NOBUCKET;
+	nb->mb_size = (size_t)(oldsz - (HDR_SIZE + size));
+	insert_free_block(nb);
+
+	/* Created a new next-block. */
+
+	return block;
+}
+
+
+/**
+  Search the freestore and return an available block which accomodates the
+  requested size, splitting up a free block if necessary.
+ */
+static inline memblock_t *
+search_freestore(size_t size)
+{
+	uint16_t bucket;
+	memblock_t *block, **prev;
+
+	for (bucket = find_bucket(size); bucket < BUCKET_COUNT; bucket++) {
+		block = free_buckets[bucket];
+		if (!block)
+			continue;
+
+		prev = &(free_buckets[bucket]);
+
+		do {
+			/*
+		    	  Look for block with size within 25%
+			 */
+			if (block->mb_size >= size) {
+
+				/*
+				   Split if size >= size + MIN_EXTRA.
+
+				   25% of 1MB = 256kb -- which is way too much
+				   unused space to leave hanging around when
+				   we're tuned for small bits.
+				 */
+				if (block->mb_size >= (size + MIN_EXTRA)) {
+					*prev = block->mb_next;
+					block->mb_state = ST_ALLOC;
+					block->mb_bucket = NOBUCKET;
+					return split(block, size);
+				}
+
+				/*
+				   Otherwise, return if the size matches
+				   within 25%
+
+				   So, the max unused bytes from a malloc
+				   operation for a given size is 56 (since
+				   64 == MIN_EXTRA).  So the following is 
+				   very inefficient:
+
+				      p = malloc(280);
+				      free(p);
+				      p = malloc(224);
+				 */
+			    	if (block->mb_size < (size + size / 4)) {
+					*prev = block->mb_next;
+					block->mb_state = ST_ALLOC;
+					block->mb_bucket = NOBUCKET;
+					return block; 
+				}
+			}
+
+			prev = &(*prev)->mb_next;
+			block = block->mb_next;
+		} while (block);
+	}
+
+	/* Ok, nothing big enough in the free store */
+	return NULL;
+}
+
+
+/**
+  Memory allocation
+ */
+void *
+malloc(size_t size)
+{
+#ifndef NOROUND
+	size_t r;
+#endif
+	memblock_t *block;
+
+	if (size < MIN_SIZE)
+		size = MIN_SIZE;
+#ifndef NOROUND
+	else {
+		r = size % MIN_SIZE;
+		size += (r ? (MIN_SIZE - r) : 0);
+	}
+#endif /* NOROUND */
+
+	while (pthread_mutex_trylock(&_alloc_mutex) != 0);
+	if (!_pool) {
+#ifdef DEBUG
+		fprintf(stderr,
+			"malloc: Initializing region default size %lu\n",
+			(long unsigned)DEFAULT_SIZE);
+#endif
+		if (_malloc_init(DEFAULT_SIZE) < 0)
+			return NULL;
+	}
+
+	block = search_freestore(size);
+	if (block) {
+#ifdef DEBUG
+		block->mb_pc = __builtin_return_address(0);
+#endif
+#ifdef PARANOID
+		insert_alloc_block(block);
+#endif
+		pthread_mutex_unlock(&_alloc_mutex);
+		return pointer(block);
+	}
+
+#ifdef AGGR_RECLAIM
+	consolidate_all();
+	block = search_freestore(size);
+	if (block) {
+#ifdef DEBUG
+		block->mb_pc = __builtin_return_address(0);
+#endif
+#ifdef PARANOID
+		insert_alloc_block(block);
+#endif
+		pthread_mutex_unlock(&_alloc_mutex);
+		return pointer(block);
+	}
+#endif /* AGGR_RECLAIM */
+
+#ifdef DEBUG
+	fprintf(stderr, "Out of memory malloc(%lu) @ %p\n",
+		(long unsigned)size, __builtin_return_address(0));
+#endif
+	errno = ENOMEM;
+	return NULL;
+}
+
+
+/**
+  Memory free
+ */
+void
+free(void *p)
+{
+	memblock_t *b;
+
+	if (!p) {
+#if 0
+		fprintf(stderr, "free(NULL) @ %p\n",
+		       	__builtin_return_address(0));
+#endif
+		/* POSIX allows for free(NULL) */
+		return;
+	}
+
+	b = ((void *)p - HDR_SIZE);
+
+	pthread_mutex_lock(&_alloc_mutex);
+	if (((void *)b < _pool) || ((void *)b >= (_pool + _poolsize))) {
+		fprintf(stderr, "free(%p) @ %p - Out of bounds\n",
+			p, __builtin_return_address(0));
+		pthread_mutex_unlock(&_alloc_mutex);
+		die_or_return();
+	}
+
+#ifdef PARANOID
+	/* Remove from the allocated list if we're tracking it. */
+	if (!remove_alloc_block(b)) {
+		fprintf(stderr, "free(%p) @ %p - Not allocated\n",
+			p, __builtin_return_address(0));
+		pthread_mutex_unlock(&_alloc_mutex);
+		die_or_return();
+	}
+#endif
+
+	if (!is_valid_alloc(b)) {
+#ifdef DEBUG
+		if (!is_valid_free(b))
+			fprintf(stderr,
+				"free(%p) @ %p - Invalid address\n",
+				p, __builtin_return_address(0));
+		else
+			fprintf(stderr,
+				"free(%p) @ %p - Already free\n",
+				p, __builtin_return_address(0));
+#endif
+		pthread_mutex_unlock(&_alloc_mutex);
+		die_or_return();
+	}
+
+	b->mb_state = ST_FREE;
+	b->mb_next = NULL;
+
+#ifdef AGGR_RECLAIM
+	/* Aggressively search the whole pool and combine all side-by-side
+	   free blocks */
+	insert_free_block(b);
+	consolidate_all();
+#else
+	/* Combine with all blocks to the right in the pool */
+	b->mb_bucket = find_bucket(b->mb_size);
+	consolidate(b);
+	insert_free_block(b);
+#endif
+	pthread_mutex_unlock(&_alloc_mutex);
+}
+
+
+/**
+   Slow realloc.  It *should* resize the memory, but since we're dealing
+   with a static heap, it doesn't.
+ */
+void *
+realloc(void *oldp, size_t newsize)
+{
+	memblock_t *oldb;
+#ifdef DEBUG
+	memblock_t *newb;
+#endif
+	void *newp;
+
+	newp = malloc(newsize);
+
+	if (!newp) {
+		free(oldb);
+		return NULL;
+	}
+
+	oldb = block(oldp);
+	memcpy(newp, oldp, (newsize > oldb->mb_size) ?
+	       oldb->mb_size : newsize);
+	free(oldp);
+#ifdef DEBUG
+	newb = block(newp);
+	newb->mb_pc = __builtin_return_address(0);
+#endif
+	return newp;
+}
+
+
+/**
+   simple calloc.
+ */
+void *
+calloc(size_t sz, size_t nmemb)
+{
+	void *p;
+#ifdef DEBUG
+	memblock_t *newb;
+#endif
+
+	sz *= nmemb;
+	p = malloc(sz);
+	if (!p)
+		return NULL;
+
+#ifdef DEBUG
+	newb = block(p);
+	newb->mb_pc = __builtin_return_address(0);
+#endif
+	memset(p, 0, sz);
+	return p;
+}
+
+
+/**
+  Dump the allocated memory table.  Only does anything useful if PARANOID
+  is set.
+ */
+void
+malloc_dump_table(void)
+{
+#ifdef PARANOID
+	int x;
+	memblock_t *b;
+
+	fprintf(stderr, "+++ Memory table dump +++\n");
+	pthread_mutex_lock(&_alloc_mutex);
+	for (x=0; x<BUCKET_COUNT; x++) {
+		for (b = alloc_buckets[x]; b; b = b->mb_next) {
+#ifndef DEBUG
+			fprintf(stderr, "    %p: %lu bytes\n", pointer(b),
+				(unsigned long)b->mb_size);
+#else /* DEBUG */
+			fprintf(stderr, "    %p: %lu bytes (allocated @ %p)\n",
+				pointer(b), (unsigned long)b->mb_size,
+				b->mb_pc);
+#endif /* DEBUG */
+		}
+	}
+	pthread_mutex_unlock(&_alloc_mutex);
+	fprintf(stderr, "--- End Memory table dump ---\n");
+#else /* PARANOID */
+	fprintf(stderr, "malloc_dump_table: Unimplemented\n");
+#endif /* PARANOID */
+}
+
+
+/**
+  Print general stats about how we're doing with memory.
+ */
+void
+malloc_stats(void)
+{
+	int fb = 0, ub = 0, x;
+	size_t metadata = 0, ucount = 0, fcount = 0, ps = 0;
+	memblock_t *b;
+	void *p;
+
+	pthread_mutex_lock(&_alloc_mutex);
+	if (!_pool) {
+		pthread_mutex_unlock(&_alloc_mutex);
+		fprintf(stderr,"malloc_stats: No information\n");
+		return;
+	}
+
+
+	for (x=0; x<BUCKET_COUNT; x++) {
+		for (b = free_buckets[x]; b; b = b->mb_next) {
+			metadata += HDR_SIZE;
+			fcount += b->mb_size;
+			++fb;
+		}
+	}
+
+#ifdef PARANOID
+	for (x=0; x<BUCKET_COUNT; x++) {
+		for (b = alloc_buckets[x]; b; b = b->mb_next) {
+			metadata += HDR_SIZE;
+			ucount += b->mb_size;
+			++ub;
+		}
+	}
+#else
+	/* Estimate only... :( */
+	ucount = fcount - metadata;
+	ub = 0;
+#endif
+	p = _pool;
+	ps = _poolsize;
+
+	pthread_mutex_unlock(&_alloc_mutex);
+
+	fprintf(stderr, "malloc_stats:\n");
+	fprintf(stderr, "  Total: %lu bytes\n", (unsigned long)ps);
+	fprintf(stderr, "  Base address: %p\n", p);
+	fprintf(stderr, "  Free: %lu bytes in %d blocks\n",
+		(unsigned long)fcount, fb);
+#ifdef PARANOID
+	fprintf(stderr, "  Used: %lu bytes in %d blocks\n",
+		(unsigned long)ucount, ub);
+	fprintf(stderr, "  Metadata Usage: %lu bytes\n",
+		(unsigned long)metadata);
+#else
+	fprintf(stderr,
+		"  Used: %lu bytes (debugging off, block count unknown)\n",
+		(unsigned long)ucount);
+	fprintf(stderr,
+		"  Metadata Usage: %lu bytes (debugging off, estimate)\n",
+		(unsigned long)metadata);
+#endif
+}

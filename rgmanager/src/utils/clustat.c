@@ -8,10 +8,6 @@
 #include <term.h>
 #include <termios.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif

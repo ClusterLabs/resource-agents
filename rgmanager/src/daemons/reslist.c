@@ -30,23 +30,6 @@
 #include <reslist.h>
 #include <pthread.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-
-pthread_mutex_t tv_mutex = PTHREAD_MUTEX_INITIALIZER;
-char *_tmp_val;
-
-#define str_localize(x) \
-do { \
-	pthread_mutex_lock(&tv_mutex); \
-	_tmp_val = strdup(x); \
-	qfree(x); \
-	x = _tmp_val; \
-	pthread_mutex_unlock(&tv_mutex); \
-} while(0)
-
-#endif
-
 
 char *attr_value(resource_node_t *node, char *attrname);
 
@@ -321,6 +304,11 @@ destroy_resource(resource_t *res)
 		free(res->r_attrs);
 	}
 
+	if (res->r_actions) {
+		/* Don't free the strings; they're part of the rule */
+		free(res->r_actions);
+	}
+
 	free(res);
 }
 
@@ -502,10 +490,6 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 			}
 		}
 
-#ifdef MDEBUG /* We don't record allocs from ccs */
-		if (attr)
-			str_localize(attr);
-#endif
 		found = 1;
 
 		/*
@@ -679,10 +663,6 @@ test_func(int argc, char **argv)
 	destroy_resource_tree(&tree);
 	destroy_resources(&reslist);
 	destroy_resource_rules(&rulelist);
-
-#ifdef MDEBUG
-	dump_mem_table();
-#endif
 
 	return 0;
 }

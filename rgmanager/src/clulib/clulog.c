@@ -45,14 +45,8 @@
 #include <linux/unistd.h>
 #include <pthread.h>
 #include <gettid.h>
-
 #include <clulog.h>
-
 #include <string.h>
-
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
 
 
 static const char *version __attribute__ ((unused)) = "$Revision$";

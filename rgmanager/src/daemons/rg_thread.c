@@ -22,10 +22,6 @@
 #include <rg_queue.h>
 #include <assert.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 /**
  * Resource thread list entry.
  */
@@ -675,8 +671,6 @@ rg_stopall(void)
 			continue;
 
 		pthread_mutex_lock(resgroup->rt_queue_mutex);
-		purge_all(resgroup->rt_queue);
-
 		if (rq_queue_request(resgroup->rt_queue, resgroup->rt_name, 
 				     RG_STOP, 0, 0, -1, 0,
 				     NODE_ID_NONE, 0, 0) < 0)

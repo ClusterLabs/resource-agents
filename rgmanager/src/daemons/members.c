@@ -20,9 +20,6 @@
 #include <magma.h>
 #include <magmamsg.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
 
 static pthread_rwlock_t memblock = PTHREAD_RWLOCK_INITIALIZER;
 static uint64_t myid = NODE_ID_NONE;
