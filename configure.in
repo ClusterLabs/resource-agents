@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.99 $) dnl cvs revision
+AC_REVISION($Revision: 1.100 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -142,6 +142,7 @@ AC_PATH_PROGS(FSCK, fsck)
 AC_PATH_PROGS(MODPROBE, modprobe)
 AC_PATH_PROGS(RAIDSTART, raidstart)
 AC_PATH_PROGS(RAIDSTOP, raidstop)
+AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 
 AC_MSG_CHECKING(which glib config exists)
 if test x"${GLIBCONFIG}" = x""; then
@@ -151,6 +152,16 @@ if test x"${GLIBCONFIG}" = x""; then
 else
       AC_MSG_RESULT("using $GLIBCONFIG")
 fi
+
+if test x"${LIBNETCONFIG}" = x""; then
+      AC_MSG_ERROR(You need libnet to continue.  You can get libnet from http://www.packetfactory.net/libnet)
+else
+      LIBNETDEFINES=`$LIBNETCONFIG --defines` `$LIBNETCONFIG --cflags`;
+      LIBNETLIBS=`$LIBNETCONFIG --libs`;
+      AC_MSG_RESULT("using $LIBNETCONFIG")
+fi
+AC_SUBST(LIBNETDEFINES)
+AC_SUBST(LIBNETLIBS)
 
 AC_MSG_CHECKING(where is python installed)
 if test "x${PYTHON}" = x; then
