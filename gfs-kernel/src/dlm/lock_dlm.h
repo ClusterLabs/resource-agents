@@ -316,6 +316,7 @@ void lock_dlm_debug_dump(void);
 	   __LINE__, __FILE__, #x, jiffies); \
     {do} \
     printk("\n"); \
+    BUG(); \
     panic("lock_dlm:  Record message above and reboot.\n"); \
   } \
 }
