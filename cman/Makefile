@@ -13,13 +13,16 @@
 
 all:
 	cd cman_tool && ${MAKE} all
+	cd lib && ${MAKE} all
 
 copytobin:
 	cd cman_tool && ${MAKE} copytobin
+	cd lib && ${MAKE} copytobin
 
 clean:
 	cd bin && ${MAKE} clean
 	cd cman_tool && ${MAKE} clean
+	cd lib && ${MAKE} clean
 
 distclean: clean
 	rm -f make/defines.mk
@@ -27,9 +30,11 @@ distclean: clean
 install:
 	cd cman_tool && ${MAKE} install
 	cd man && ${MAKE} install
+	cd lib && ${MAKE} install
 	cd init.d && ${MAKE} install
 
 uninstall:
 	cd cman_tool && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
+	cd lib && ${MAKE} uninstall
 	cd init.d && ${MAKE} uninstall
