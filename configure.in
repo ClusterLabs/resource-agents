@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.298 $) dnl cvs revision
+AC_REVISION($Revision: 1.299 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1459,17 +1459,24 @@ AC_SUBST(ECHO_CMD)
 #
 #	AIS Event Service
 #
+RPM_FILES_LIBEVT=""
+RPM_FILES_EVT=""
+
 AC_ARG_ENABLE([eventd],
     [  --enable-eventd   AIS Event Service daemon.  [default=no]  ])
 
 if test "x${enable_eventd}" = "xyes"; then
 	echo "Enabling the AIS Event Service code..."
+	RPM_FILES_LIBEVT="${libdir}/libevent.*"
+	RPM_FILES_EVT="%dir %attr (755, root, $HA_APIGROUP) ${localstatedir}/lib/$HB_PKG/evt"
 else 
     if test -z "${enable_eventd}"; then
 	enable_eventd="no"
     fi
 fi
 AM_CONDITIONAL(EVENTD_BUILD, test "x${enable_eventd}" = "xyes")
+AC_SUBST(RPM_FILES_LIBEVT)
+AC_SUBST(RPM_FILES_EVT)
 
 #
 #	AIS Checkpoint Service
