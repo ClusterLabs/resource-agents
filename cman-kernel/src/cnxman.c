@@ -110,6 +110,7 @@ static int retry_count;
 /* Task variables */
 static pid_t kcluster_pid;
 static pid_t membership_pid;
+extern struct task_struct *membership_task;
 extern int quit_threads;
 
 wait_queue_head_t cnxman_waitq;
@@ -411,6 +412,7 @@ static int cluster_kthread(void *unused)
 		del_timer(&ack_timer);
 
 	/* Wait for membership thread to die */
+	wake_up_process(membership_task);
 	wait_for_completion(&member_thread_comp);
 
 	node_cleanup();
