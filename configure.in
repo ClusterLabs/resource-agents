@@ -5,14 +5,14 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.40 $) dnl cvs revision
+AC_REVISION($Revision: 1.41 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
 
 dnl Where #defines go (e.g. `AC_CHECK_HEADERS' below)
 AM_CONFIG_HEADER(linux-ha/config.h)
-AM_INIT_AUTOMAKE(linux-ha, 0.4.9)
+AM_INIT_AUTOMAKE(heartbeat, 0.4.9a)
 
 dnl *************************************************************************
 dnl checks for programs
