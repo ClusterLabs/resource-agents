@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.8 2004/12/20 16:17:19 sunjd Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.9 2005/03/07 07:40:05 zhaokai Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -108,6 +108,7 @@ ocf_log() {
 		msg="WARN: $msg"
 	elif  [ "$prio" = "info" ]; then
 		msg="INFO: $msg"
+	fi
 
 	msg="$OCF_RESOURCE_INSTANCE $msg"
 
