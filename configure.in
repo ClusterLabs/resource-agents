@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.76 $) dnl cvs revision
+AC_REVISION($Revision: 1.77 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -129,6 +129,9 @@ AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
 AC_PATH_PROGS(GLIBCONFIG, glib13-config)
+AC_PATH_PROGS(BLOCKDEV, blockdev)
+AC_DEFINE_UNQUOTED(BLOCKDEV, $BLOCKDEV, path to linux blockdev command)
+
 AC_MSG_CHECKING(which glib config exists)
 if test x"${GLIBCONFIG}" = x""; then
         AC_MSG_ERROR(You need the glib development package to continue.
@@ -281,8 +284,18 @@ dnl
 AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
 AC_CHECK_LIB(socket, socket)			dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
-AC_CHECK_LIB(c, dlopen)				dnl -ldl (for Linux)
+AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
+#
+#	Where is dlopen?
+#
+if test "$ac_cv_lib_c_dlopen" = yes; then
+	LIBADD_DL=""
+elif test "$ac_cv_lib_dl_dlopen" = yes; then
+	LIBADD_DL=-ldl
+else
+        LIBADD_DL=${lt_cv_dlopen_libs}
+fi
 dnl
 dnl Check for location of gettext
 dnl
@@ -292,29 +305,37 @@ dnl And do libc first.
 dnl Known examples:
 dnl    c:      Linux, Solaris 2.6+
 dnl    intl:   BSD, AIX
+
+FunIsInLib() {
+  fun=$1
+  lib=$2
+  lib_var1="ac_cv_lib_${lib}_$fun"
+  lib_var2="ac_cv_lib_${lib}___$fun"
+  for v in $lib_var1 $lib_var2
+  do
+    var=`eval echo '${'${v}'}'`
+    case $var in
+      yes)	return 0;;
+      no)	return 1;;
+    esac
+  done
+  return 0
+}
+  
+
 for gt_test_lib in c intl
 do
 	AC_CHECK_LIB($gt_test_lib, gettext)
-	if test `eval echo '$ac_cv_lib_'$ac_lib_var` = yes ; then
+	if FunIsInLib gettext $gt_test_lib; then
 		break
 	fi
 done
 #
-#	Where is dlopen?
-#
-if test "$ac_cv_lib_c_dlopen" = yes; then
-	LIBADD_DL=""
-elif test "$ac_cv_lib_dl_dlopen" = yes; then
-	LIBADD_DL=-ldl
-else
-	AC_MSG_ERROR(no library providing dlopen found)
-fi
-#
 #	Where is gettext()?
 #
-if test "$ac_cv_lib_c_gettext" = yes; then
+if FunIsInLib gettext c ; then
 	LIBADD_INTL=""
-elif test "$ac_cv_lib_intl_gettext" = yes; then
+elif FunIsInLib gettext intl ; then
 	LIBADD_INTL=-lintl
 elif test -f /usr/local/lib/libintl.so -a -s /usr/local/lib/libintl.so; then
 	# This was added for FreeBSD
