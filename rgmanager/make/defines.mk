@@ -17,9 +17,10 @@ sbindir ?= ${DESTDIR}//sbin
 mandir ?= ${DESTDIR}//usr/share/man
 libdir ?= ${DESTDIR}//usr/lib
 incdir ?= ${DESTDIR}//usr/include
+sharedir ?= ${DESTDIR}//usr/share/cluster
 
 # Where's the kernel?
-KERNEL_SRC = 
+KERNEL_SRC = /tmp/cluster_build/cluster/rgmanager/../linux-2.6.9
 
 # C Compiler defaults
 CC = gcc
@@ -33,5 +34,5 @@ RANLIB = ranlib
 # Default CFLAGS
 CFLAGS += -Wall ${INCLUDE}
 RELEASE_MAJOR = DEVEL
-RELEASE_MINOR = 1098830226
-RELEASE = DEVEL.1098830226
+RELEASE_MINOR = 1098902155
+RELEASE = DEVEL.1098902155

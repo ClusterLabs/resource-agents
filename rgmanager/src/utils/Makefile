@@ -20,28 +20,34 @@ CFLAGS+= -g -I${incdir}
 
 CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L ../clulib -lclulib
+CFLAGS+= -L../clulib -L${libdir} -lclulib -DPACKAGE_VERSION=\"${RELEASE}\"
+
+LDFLAGS+= -lmagmamsg -lmagma -lpthread -ldl  -lncurses
 TARGETS=clubufflush clufindhostname clustat clusvcadm clulog
 
 all: ${TARGETS}
 
+install: all
+	install -d ${sbindir}
+	install $(TARGETS) ${sbindir}
+
 cluarp: cluarp.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clulog: clulog.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clubufflush: clubufflush.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clufindhostname: clufindhostname.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clustat: clustat.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clusvcadm: clusvcadm.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INLUDE) $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.o $(TARGETS)

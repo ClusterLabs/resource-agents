@@ -28,11 +28,16 @@
 #include <byteswap.h>
 #include <bits/wordsize.h>
 
-#ifndef HAVE_CONFIG_H
+/*
+
+Configure is gone...
+ #ifndef HAVE_CONFIG_H
 #error "Please run configure first"
 #endif
 
-#include <config.h>
+*/
+
+/* #include <config.h> */
 
 /* No swapping on little-endian machines */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -62,15 +67,6 @@
 #define swab64(x) x=be_swap64(x)
 
 
-#if SIZEOF_VOID_P == 4
-#define ptrcast_uint64_t(ptr)	((uint64_t)((uint32_t)ptr))
-#else
-#if SIZEOF_VOID_P == 8
-#define ptrcast_uint64_t(ptr)	((uint64_t)ptr)
-#else
-#error "Unsupported architecture!"
-#endif
-#endif
 
 
 #endif /* _PLATFORM_H */

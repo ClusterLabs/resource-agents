@@ -25,15 +25,19 @@ TARGETS=libclulib.a
 
 all: ${TARGETS}
 
+install: all
+
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
 		vft.o gettid.o rg_strings.o
 	${AR} cru $@ $^
+	ranlib $@
+
+%.o: %.c
+	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS)
 
 clean:
 	rm -f *.o $(TARGETS)
 
-%.o: %.c
-	$(CC) -c -o $@ $^ $(INCLUDE) $(CFLAGS)
 
 #INCLUDES=-I../../include
 #CFLAGS+=-DMDEBUG -DFDEBUG

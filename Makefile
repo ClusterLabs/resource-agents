@@ -11,7 +11,7 @@
 # Order is important
 LATEST_TAG=scripts/latest_tag.pl
 BUILDDIR = $(shell pwd)/build
-MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module
+MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module sharedir=${BUILDDIR}
 
 
 all:
@@ -29,6 +29,7 @@ all:
 	cd gnbd && ${MAKE} install ${MAKELINE}
 	cd gulm && ${MAKE} install ${MAKELINE}
 	cd magma-plugins && ${MAKE} install ${MAKELINE}
+	cd rgmanager && ${MAKE} install ${MAKELINE}
 
 copytobin:
 	cd cman-kernel && ${MAKE} copytobin
@@ -45,6 +46,7 @@ copytobin:
 	cd gnbd && ${MAKE} copytobin
 	cd gulm && ${MAKE} copytobin
 	cd magma-plugins && ${MAKE} copytobin
+	cd rgmanager && ${MAKE} copytobin
 
 clean:
 	rm -f *tar.gz
@@ -63,6 +65,7 @@ clean:
 	cd gnbd && ${MAKE} clean
 	cd gulm && ${MAKE} clean
 	cd magma-plugins && ${MAKE} clean
+	cd rgmanager && ${MAKE} clean
 
 distclean:
 	cd cman-kernel && ${MAKE} distclean
@@ -79,6 +82,7 @@ distclean:
 	cd gnbd && ${MAKE} distclean
 	cd gulm && ${MAKE} distclean
 	cd magma-plugins && ${MAKE} distclean
+	cd rgmanager && ${MAKE} distclean
 
 install:
 	cd cman-kernel && ${MAKE} install
@@ -95,6 +99,7 @@ install:
 	cd gnbd && ${MAKE} install
 	cd gulm && ${MAKE} install
 	cd magma-plugins && ${MAKE} install
+	cd rgmanager && ${MAKE} install
 
 uninstall:
 	cd cman-kernel && ${MAKE} uninstall
@@ -111,6 +116,7 @@ uninstall:
 	cd gnbd && ${MAKE} uninstall
 	cd gulm && ${MAKE} uninstall
 	cd magma-plugins && ${MAKE} uninstall
+	cd rgmanager && ${MAKE} uninstall
 
 latest_tags:
 	${LATEST_TAG} cman-kernel
@@ -127,6 +133,7 @@ latest_tags:
 	${LATEST_TAG} gnbd
 	${LATEST_TAG} gulm
 	${LATEST_TAG} magma-plugins
+	${LATEST_TAG} rgmanager
 	echo "Beware, your directories are now in sync with their last tag." > TAG
 
 setrelease:
@@ -147,6 +154,7 @@ tarballs: TAG
 	make -s COMPONENT=gnbd RELEASE_FILE=gnbd/make/release.mk.input tarball
 	make -s COMPONENT=gulm RELEASE_FILE=gulm/make/release.mk.input tarball
 	make -s COMPONENT=magma-plugins RELEASE_FILE=magma-plugins/make/release.mk.input tarball
+	make -s COMPONENT=rgmanager RELEASE_FILE=magma-plugins/make/release.mk.input tarball
 
 ifdef RELEASE_FILE
 include ${RELEASE_FILE}

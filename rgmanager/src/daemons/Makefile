@@ -16,22 +16,29 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${incdir}
+CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
 
 CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L ../clulib -lclulib
+CFLAGS+= -L ../clulib 
+
+LDFLAGS+= -lclulib -lxml2 -lmagmamsg -lmagma -lpthread -ldl -lccs
 TARGETS=clurgmgrd clurmtabd
 
 all: ${TARGETS}
 
+install: clurgmgrd clurmtabd
+	install -d ${sbindir}
+	install clurgmgrd ${sbindir}
+	install clurmtabd ${sbindir}
+
 clurgmgrd: rg_thread.o rg_locks.o main.o groups.o rg_state.o \
 		rg_queue.o members.o rg_forward.o reslist.o \
 		resrules.o restree.o fo_domain.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clurmtabd: clurmtabd.o clurmtabd_lib.o
-	$(CC) -c -o $@ $^ $(INLUDE) $(CCFLAGS)
+	$(CC) -o $@ $^ $(INCLUDE) $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.o $(TARGETS)
