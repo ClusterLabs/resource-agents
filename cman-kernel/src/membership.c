@@ -1182,7 +1182,10 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 	    reason != TRANS_RESTART && reason != TRANS_DEADMASTER)
 		transitionreason = reason;
 
-	/* Save the info of the requesting node */
+	if (reason == TRANS_DEADMASTER)
+		transitionreason = TRANS_REMNODE;
+
+        /* Save the info of the requesting node */
 	if (reason == TRANS_NEWNODE)
 		joining_node = node;
 
