@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.321 $) dnl cvs revision
+AC_REVISION($Revision: 1.322 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -250,28 +250,26 @@ fi
 AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
 
 
+
+
 AC_MSG_CHECKING(which glib config exists)
-if test "X${PKGCONFIG}" != "X"; then
-        PKGNAME=""
-	for arg in "glib"
-	do
-	  if  $PKGCONFIG --exists "$arg"; then
-	    GLIBCONFIG="$PKGCONFIG $arg"
-	    break
-	  fi
-	done
-else
-AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
-AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
-AC_PATH_PROGS(GLIBCONFIG, glib13-config)
+
+if test "X${PKGCONFIG}" = "X"; then
+	FatalMissingThing "Package pkgconfig is required"
+	"See http://pkgconfig.sourceforge.net/"
 fi
 
-if test "X${GLIBCONFIG}" = "X"; then
-      FatalMissingThing "glib 1.x"		\
-      	"	You need the glib 1.x development package to continue." \
-      	"You can get the source from ftp://ftp.gtk.org/pub/gtk/v1.2/" \
-      	"or you can locate it via http://www.gtk.org/download/"
+
+if  $PKGCONFIG --exists "glib-2.0"; then
+    GLIBCONFIG="$PKGCONFIG glib-2.0 "
+else
+	FatalMissingThing "glib 2.x"              \
+        "       You need the glib 2.x development package to continue." \
+        "You can get the source from ftp://ftp.gtk.org/pub/gtk/" \
+        "or you can locate it via http://www.gtk.org/download/"
+
 fi
+
 AC_MSG_RESULT("using $GLIBCONFIG")
 
 AC_MSG_CHECKING(which libnet version is installed)
