@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.358 $) dnl cvs revision
+AC_REVISION($Revision: 1.359 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -940,7 +940,7 @@ AC_ARG_ENABLE([all],
 
 AC_ARG_ENABLE([ansi],
 [  --enable-ansi force GCC to compile to ANSI/ANSI standard for older compilers.
-                          [default=no]])
+                          [default=yes]])
 
 AC_ARG_ENABLE([fatal-warnings],
 [  --enable-fatal-warnings very pedantic and fatal warnings for gcc
@@ -1071,6 +1071,10 @@ dnl
 	done
 
 dnl Add any system specific options here.
+
+	if test "${enable_ansi}" = "unknown"; then
+        	enable_ansi=yes
+        fi
 
 	case "$host_os" in
   	*linux*|*bsd*)
