@@ -48,7 +48,10 @@ static struct semaphore user_ls_lock;
 #define LI_FLAG_COMPLETE  1
 #define LI_FLAG_FIRSTLOCK 2
 
+#define LOCKINFO_MAGIC 0x53595324
+
 struct lock_info {
+	uint32_t li_magic;
 	uint8_t li_cmd;
 	struct dlm_lksb li_lksb;
 	wait_queue_head_t li_waitq;
@@ -485,6 +488,9 @@ static int dlm_close(struct inode *inode, struct file *file)
 		if (lock_status != GDLM_LKSTS_GRANTED)
 			flags = DLM_LKF_CANCEL;
 
+		if (lkb->lkb_grmode >= DLM_LOCK_PW)
+			flags |= DLM_LKF_IVVALBLK;
+
 		status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, flags, &li.li_lksb, &li);
 
 		/* Must wait for it to complete as the next lock could be its
@@ -495,9 +501,9 @@ static int dlm_close(struct inode *inode, struct file *file)
 		/* If it was waiting for a conversion, it will
 		   now be granted so we can unlock it properly */
 		if (lock_status == GDLM_LKSTS_CONVERT) {
-
+			flags &= ~DLM_LKF_CANCEL;
 			clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
-			status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, 0, &li.li_lksb, &li);
+			status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, flags, &li.li_lksb, &li);
 
 			if (status == 0)
 				wait_for_ast(&li);
@@ -817,6 +823,28 @@ static int do_user_query(struct file_info *fi, struct dlm_lock_params *kparams)
 	return status;
 }
 
+static struct lock_info *allocate_lockinfo(struct file_info *fi, struct dlm_lock_params *kparams)
+{
+	struct lock_info *li;
+
+	li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
+	if (li) {
+		li->li_magic     = LOCKINFO_MAGIC;
+		li->li_file      = fi;
+		li->li_cmd       = kparams->cmd;
+		li->li_queryinfo = NULL;
+		li->li_flags     = 0;
+		li->li_pend_bastparam = NULL;
+		li->li_pend_bastaddr  = NULL;
+		li->li_lksb.sb_lvbptr = NULL;
+		li->li_bastaddr  = kparams->bastaddr;
+		li->li_bastparam = kparams->bastparam;
+
+		get_file_info(fi);
+	}
+	return li;
+}
+
 static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 			const char *buffer)
 {
@@ -837,7 +865,11 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	if (!access_ok(VERIFY_WRITE, kparams->lksb, sizeof(struct dlm_lksb)))
 		return -EFAULT;
 
-	/* For conversions, the lock will already have a lock_info
+	/* Persistent child locks are not available yet */
+	if ((kparams->flags & DLM_LKF_PERSISTENT) && kparams->parent)
+		return -EINVAL;
+
+        /* For conversions, the lock will already have a lock_info
 	   block squirelled away in astparam */
 	if (kparams->flags & DLM_LKF_CONVERT) {
 		struct dlm_lkb *lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
@@ -846,7 +878,24 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		}
 
 		li = (struct lock_info *)lkb->lkb_astparam;
-		li->li_flags = 0;
+
+		/* li may be NULL if the lock was PERSISTENT and the process went
+		   away, so we need to allocate a new one */
+		if (!li) {
+			li = allocate_lockinfo(fi, kparams);
+			if (li) {
+				spin_lock(&fi->fi_lkb_lock);
+				list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
+				spin_unlock(&fi->fi_lkb_lock);
+			}
+			else {
+				return -ENOMEM;
+			}
+		}
+
+		if (li->li_magic != LOCKINFO_MAGIC)
+			return -EINVAL;
+
 		/* For conversions don't overwrite the current blocking AST
 		   info so that:
 		   a) if a blocking AST fires before the conversion is queued
@@ -860,19 +909,9 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		li->li_pend_bastparam = kparams->bastparam;
 	}
 	else {
-		li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
+		li = allocate_lockinfo(fi, kparams);
 		if (!li)
 			return -ENOMEM;
-
-		li->li_file      = fi;
-		li->li_cmd       = kparams->cmd;
-		li->li_queryinfo = NULL;
-		li->li_flags     = 0;
-		li->li_bastaddr  = kparams->bastaddr;
-		li->li_bastparam = kparams->bastparam;
-		li->li_pend_bastparam = NULL;
-		li->li_pend_bastaddr  = NULL;
-		li->li_lksb.sb_lvbptr = NULL;
 
 		/* Get the lock name */
 		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
@@ -885,8 +924,6 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		   when the initial lock fails */
 		init_MUTEX_LOCKED(&li->li_firstlock);
 		set_bit(LI_FLAG_FIRSTLOCK, &li->li_flags);
-
-		get_file_info(fi);
 	}
 
 	li->li_user_lksb = kparams->lksb;
@@ -983,6 +1020,18 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 	}
 
 	li = (struct lock_info *)lkb->lkb_astparam;
+	if (!li) {
+		li = allocate_lockinfo(fi, kparams);
+		spin_lock(&fi->fi_lkb_lock);
+		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
+		spin_unlock(&fi->fi_lkb_lock);
+	}
+	if (!li)
+		return -ENOMEM;
+
+	if (li->li_magic != LOCKINFO_MAGIC)
+		return -EINVAL;
+
 	li->li_user_lksb = kparams->lksb;
 	li->li_castparam = kparams->castparam;
 	li->li_cmd       = kparams->cmd;
