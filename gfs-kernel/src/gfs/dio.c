@@ -41,7 +41,7 @@
  * @bh_result:
  * @create:
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -57,7 +57,7 @@ aspace_get_block(struct inode *inode, sector_t lblock,
  * @page: the page
  * @wbc:
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int 
@@ -557,7 +557,7 @@ gfs_prep_new_buffer(struct buffer_head *bh)
  * @bh: The block to read
  * @flags: Flags that control the read
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -596,7 +596,7 @@ gfs_dreread(struct gfs_sbd *sdp, struct buffer_head *bh, int flags)
  * @bh: The buffer to write
  * @flags:  DIO_XXX The type of write/wait operation to do
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -890,7 +890,7 @@ gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem
  * @bh: the buffer to write
  *
- * Returns: 0 on success, -EXXX on error;
+ * Returns: errno
  */
 
 int
@@ -905,7 +905,7 @@ gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem
  * @bh: the buffer to write
  *
- * Returns: 0 on success, -EXXX on error;
+ * Returns: errno
  */
 
 int
@@ -928,7 +928,7 @@ gfs_logbh_wait(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @gl: the journal's glock 
  * @bh: the buffer
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1162,7 +1162,7 @@ gfs_flush_meta_cache(struct gfs_inode *ip)
  * @new: Non-zero if we may create a new buffer
  * @bhp: the buffer is returned here
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1228,7 +1228,7 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
  * @new: Non-zero if this is a new allocation
  * @bhp: the buffer is returned here
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

@@ -31,7 +31,7 @@
  * @data:
  * @args:
  *
- * Return: 0 on success, -EXXX on failure
+ * Return: errno
  */
 
 int
@@ -153,7 +153,7 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
  * @args: mount arguements
  * @silent: if TRUE, don't complain if the FS isn't a GFS fs
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

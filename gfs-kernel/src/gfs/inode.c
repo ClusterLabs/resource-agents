@@ -240,7 +240,7 @@ gfs_iget(struct gfs_inode *ip, int create)
  * gfs_copyin_dinode - Refresh the incore copy of the dinode
  * @ip: The GFS inode
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -282,7 +282,7 @@ gfs_copyin_dinode(struct gfs_inode *ip)
  * @io_state: the state the iopen glock should be acquired in
  * @ipp: pointer to put the returned inode in
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -357,7 +357,7 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
  * @create: Flag to say if we are allowed to create a new struct gfs_inode
  * @ipp: pointer to put the returned inode in
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  *
  * If creating a new gfs_inode structure, reads dinode from disk.
  */
@@ -492,7 +492,7 @@ dinode_mark_unused(struct gfs_inode *ip)
  * dinode_dealloc - Put deallocate a dinode
  * @ip: The GFS inode
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -567,7 +567,7 @@ dinode_dealloc(struct gfs_inode *ip)
  * @inum: the inode number to deallocate
  * @io_gh: a holder for the iopen glock for this inode
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -763,7 +763,7 @@ gfs_inode_dealloc(struct gfs_sbd *sdp, struct gfs_inum *inum)
  * @ip: The GFS inode
  * @diff: The change in the nlink count required
  *
- * Returns: 0 on success, -EXXXX on failure.
+ * Returns: errno
  */
 
 int
@@ -803,7 +803,7 @@ gfs_change_nlink(struct gfs_inode *ip, int diff)
  * There will always be a vnode (Linux VFS inode) for the d_gh inode unless
  *   @is_root is true.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1282,7 +1282,7 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
  * file are held.  A transaction has been started and an inplace reservation
  * is held, as well.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1384,7 +1384,7 @@ gfs_createi(struct gfs_holder *d_gh, struct qstr *name,
  *
  * Assumes Glocks on both dip and ip are held.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1421,7 +1421,7 @@ gfs_unlinki(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
  *
  * Assumes Glocks on dip and ip are held
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1522,7 +1522,7 @@ gfs_unlink_ok(struct gfs_inode *dip, struct qstr *name, struct gfs_inode *ip)
  * Follow @to back to the root and make sure we don't encounter @this
  * Assumes we already hold the rename lock.
  *
- * Returns: 0 if it's ok to move, -EXXX if it isn't
+ * Returns: errno
  */
 
 int
@@ -1583,10 +1583,10 @@ gfs_ok_to_move(struct gfs_inode *this, struct gfs_inode *to)
  * @buf: a pointer to the buffer to be filled
  * @len: a pointer to the length of @buf
  *
- * If @buf is too small, a piece of memory is gmalloc()ed and needs
+ * If @buf is too small, a piece of memory is kmalloc()ed and needs
  * to be freed by the caller.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1611,12 +1611,18 @@ gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len)
 		goto out;
 
 	x = ip->i_di.di_size + 1;
-	if (x > *len)
-		*buf = gmalloc(x);
+	if (x > *len) {
+		*buf = kmalloc(x, GFP_KERNEL);
+		if (!*buf) {
+			error = -ENOMEM;
+			goto out_brelse;
+		}
+	}
 
 	memcpy(*buf, dibh->b_data + sizeof(struct gfs_dinode), x);
 	*len = x;
 
+ out_brelse:
 	brelse(dibh);
 
  out:
@@ -1633,7 +1639,7 @@ gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len)
  * Update if the difference between the current time and the current atime 
  * is greater than an interval specified at mount (or default).
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int
@@ -1761,7 +1767,7 @@ glock_compare_atime(const void *arg_a, const void *arg_b)
  * @num_gh: the number of structures
  * @ghs: an array of struct gfs_holder structures
  *
- * Returns: 0 on success (all glocks acquired), -EXXX on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
  */
 
 int

@@ -230,7 +230,7 @@ inode_go_demote_ok(struct gfs_glock *gl)
  * @gl: the glock
  * @flags: the flags passed into gfs_glock()
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -377,7 +377,7 @@ rgrp_go_demote_ok(struct gfs_glock *gl)
  * @gl: the glock
  * @flags: the flags passed into gfs_glock()
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  *
  * Read rgrp's header and block allocation bitmaps from disk.
  */

@@ -40,7 +40,7 @@
  * @create: if TRUE, create the structure, otherwise return NULL
  * @qdp: the returned quota structure
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -49,7 +49,9 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 {
 	struct gfs_quota_data *qd = NULL, *new_qd = NULL;
 	struct list_head *tmp, *head;
-	int error = 0;
+	int error;
+
+	*qdp = NULL;
 
 	for (;;) {
 		spin_lock(&sdp->sd_quota_lock);
@@ -82,10 +84,13 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 				kfree(new_qd);
 				atomic_dec(&sdp->sd_quota_count);
 			}
-			goto out;
+			*qdp = qd;
+			return 0;
 		}
 
-		new_qd = gmalloc(sizeof(struct gfs_quota_data));
+		new_qd = kmalloc(sizeof(struct gfs_quota_data), GFP_KERNEL);
+		if (!new_qd)
+			return -ENOMEM;
 		memset(new_qd, 0, sizeof(struct gfs_quota_data));
 
 		new_qd->qd_count = 1;
@@ -101,7 +106,7 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 				      &new_qd->qd_gl);
 		if (error) {
 			kfree(new_qd);
-			goto out;
+			return error;
 		}
 
 		error = gfs_lvb_hold(new_qd->qd_gl);
@@ -110,16 +115,11 @@ gfs_quota_get(struct gfs_sbd *sdp, int user, uint32_t id, int create,
 
 		if (error) {
 			kfree(new_qd);
-			goto out;
+			return error;
 		}
 
 		atomic_inc(&sdp->sd_quota_count);
 	}
-
- out:
-	*qdp = qd;
-
-	return error;
 }
 
 /**
@@ -275,7 +275,7 @@ quota_unlock(struct gfs_sbd *sdp, struct gfs_quota_data *qd)
  * @sdp: the filesystem
  * @tag: the quota change tag
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -466,7 +466,7 @@ sort_qd(const void *a, const void *b)
  * @qda: an array of struct gfs_quota_data structures to be synced
  * @num_qd: the number of elements in @qda
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -488,7 +488,9 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 	gfs_write_calc_reserv(ip, sizeof(struct gfs_quota), &data_blocks,
 			      &ind_blocks);
 
-	ghs = gmalloc(num_qd * sizeof(struct gfs_holder));
+	ghs = kmalloc(num_qd * sizeof(struct gfs_holder), GFP_KERNEL);
+	if (!ghs)
+		return -ENOMEM;
 
 	gfs_sort(qda, num_qd, sizeof (struct gfs_quota_data *), sort_qd);
 	for (qx = 0; qx < num_qd; qx++) {
@@ -654,7 +656,7 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
  * @force_refresh: If TRUE, always read from the quota file
  * @q_gh: the glock holder for the quota lock
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -737,7 +739,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
  * The struct gfs_quota_data structures representing the locks are
  * stored in the ip->i_alloc->al_qd array.
  * 
- * Returns:  0 on success, -EXXX on failure
+ * Returns:  errno
  */
 
 int
@@ -827,7 +829,7 @@ gfs_quota_unhold_m(struct gfs_inode *ip)
  * The struct gfs_quota_data structures representing the locks are
  * stored in the ip->i_alloc->al_qd array.
  * 
- * Returns:  0 on success, -EXXX on failure
+ * Returns:  errno
  */
 
 int
@@ -932,14 +934,19 @@ gfs_quota_unlock_m(struct gfs_inode *ip)
  * @qd: the quota ID that the message is about
  * @type: the type of message ("exceeded" or "warning")
  *
+ * Returns: errno
  */
 
-static void
+static int
 print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 {
-	char *line = gmalloc(256);
-	int len;
 	struct tty_struct *tty;
+	char *line;
+	int len;
+
+	line = kmalloc(256, GFP_KERNEL);
+	if (!line)
+		return -ENOMEM;
 
 	len = snprintf(line, 256, "GFS: fsid=%s: quota %s for %s %u\r\n",
 		       sdp->sd_fsname, type,
@@ -953,6 +960,8 @@ print_quota_message(struct gfs_sbd *sdp, struct gfs_quota_data *qd, char *type)
 	}
 
 	kfree(line);
+
+	return 0;
 }
 
 /**
@@ -997,7 +1006,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
 			   time_after_eq(jiffies,
 					 qd->qd_last_warn +
 					 sdp->sd_tune.gt_quota_warn_period * HZ)) {
-			print_quota_message(sdp, qd, "warning");
+			error = print_quota_message(sdp, qd, "warning");
 			qd->qd_last_warn = jiffies;
 		}
 	}
@@ -1009,7 +1018,7 @@ gfs_quota_check(struct gfs_inode *ip, uint32_t uid, uint32_t gid)
  * gfs_quota_sync - Sync quota changes to the quota file
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1023,8 +1032,9 @@ gfs_quota_sync(struct gfs_sbd *sdp)
 
 	sdp->sd_quota_sync_gen++;
 
-	qda = gmalloc(max_qd * sizeof(struct gfs_quota_data *));
-
+	qda = kmalloc(max_qd * sizeof(struct gfs_quota_data *), GFP_KERNEL);
+	if (!qda)
+		return -ENOMEM;
 	memset(qda, 0, max_qd * sizeof(struct gfs_quota_data *));
 
 	do {
@@ -1062,7 +1072,7 @@ gfs_quota_sync(struct gfs_sbd *sdp)
  * @sdp: the filesystem
  * @arg: a pointer to a struct gfs_quota_name in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1094,7 +1104,7 @@ gfs_quota_refresh(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: a pointer to a gfs_quota_refresh_t in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

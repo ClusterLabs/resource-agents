@@ -576,9 +576,11 @@ gfs_clear_rgrpd(struct gfs_sbd *sdp)
  * @rgd: The resource group descriptor
  *
  * Calculates bitmap descriptors, one for each block that contains bitmap data
+ *
+ * Returns: errno
  */
 
-static void
+static int
 compute_bitstructs(struct gfs_rgrpd *rgd)
 {
 	struct gfs_sbd *sdp = rgd->rd_sbd;
@@ -587,7 +589,9 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 	uint32_t bytes_left, bytes;
 	int x;
 
-	rgd->rd_bits = gmalloc(length * sizeof(struct gfs_bitmap));
+	rgd->rd_bits = kmalloc(length * sizeof(struct gfs_bitmap), GFP_KERNEL);
+	if (!rgd->rd_bits)
+		return -ENOMEM;
 	memset(rgd->rd_bits, 0, length * sizeof(struct gfs_bitmap));
 
 	bytes_left = rgd->rd_ri.ri_bitbytes;
@@ -634,8 +638,14 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 				rgd->rd_bits[length - 1].bi_offset);
 			 gfs_rindex_print(&rgd->rd_ri););
 
-	rgd->rd_bh = gmalloc(length * sizeof(struct buffer_head *));
+	rgd->rd_bh = kmalloc(length * sizeof(struct buffer_head *), GFP_KERNEL);
+	if (!rgd->rd_bh) {
+		kfree(rgd->rd_bits);
+		return -ENOMEM;
+	}
 	memset(rgd->rd_bh, 0, length * sizeof(struct buffer_head *));
+
+	return 0;
 }
 
 /**
@@ -671,7 +681,10 @@ gfs_ri_update(struct gfs_inode *ip)
 			goto fail;
 		}
 
-		rgd = gmalloc(sizeof(struct gfs_rgrpd));
+		rgd = kmalloc(sizeof(struct gfs_rgrpd), GFP_KERNEL);
+		error = -ENOMEM;
+		if (!rgd)
+			goto fail;
 		memset(rgd, 0, sizeof(struct gfs_rgrpd));
 
 		INIT_LIST_HEAD(&rgd->rd_mhc);
@@ -683,7 +696,9 @@ gfs_ri_update(struct gfs_inode *ip)
 
 		gfs_rindex_in(&rgd->rd_ri, buf);
 
-		compute_bitstructs(rgd);
+		error = compute_bitstructs(rgd);
+		if (error)
+			goto fail;
 
 		error = gfs_glock_get(sdp, rgd->rd_ri.ri_addr, &gfs_rgrp_glops,
 				      CREATE, &rgd->rd_gl);
@@ -758,7 +773,7 @@ gfs_rindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ri_gh)
  * Read in all of a Resource Group's header and bitmap blocks.
  * Caller must eventually call gfs_rgrp_relse() to free the bitmaps.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -847,7 +862,7 @@ gfs_rgrp_lvb_fill(struct gfs_rgrpd *rgd)
  * gfs_rgrp_lvb_init - Init the data of a RG LVB
  * @rgd: the resource group data structure
  *
- * Returns:  0 on success, -EXXX on failure
+ * Returns:  errno
  */
 
 int
@@ -872,6 +887,8 @@ gfs_rgrp_lvb_init(struct gfs_rgrpd *rgd)
  *
  * Alloc and zero an in-place reservation structure,
  *   and attach it to the GFS incore inode.
+ *
+ * FIXME: Don't use gmalloc()
  *
  * Returns: the struct gfs_alloc
  */
@@ -1139,7 +1156,7 @@ forward_rgrp_set(struct gfs_sbd *sdp, struct gfs_rgrpd *rgd)
  *
  * Try to acquire rgrp in way which avoids contending with others.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1239,7 +1256,7 @@ get_local_rgrp(struct gfs_inode *ip)
  * This should probably become more complex again, but for now, let's go
  * for simple (one resource group) reservations.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1479,7 +1496,7 @@ blkfree_internal(struct gfs_sbd *sdp, uint64_t bstart, uint32_t blen,
  * @rgd: the resource group in which to allocate
  * @first: returns the first block allocated
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  *
  * Bitmap-allocate a clump of metadata blocks
  * Write metadata blocks to disk with dummy meta-headers
@@ -1607,7 +1624,7 @@ gfs_blkalloc(struct gfs_inode *ip, uint64_t *block)
  * @ip:  the file
  * @block: the block allocated
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1836,6 +1853,8 @@ gfs_difree(struct gfs_rgrpd *rgd, struct gfs_inode *ip)
  *
  * Figure out what RG a block belongs to and add that RG to the list
  *
+ * FIXME: Don't use gmalloc()
+ *
  */
 
 void
@@ -1881,6 +1900,8 @@ gfs_rlist_add(struct gfs_sbd *sdp, struct gfs_rgrp_list *rlist, uint64_t block)
  * @state: the lock state to acquire the RG lock in
  * @flags: the modifier flags for the holder structures
  *
+ * FIXME: Don't use gmalloc()
+ *
  */
 
 void
@@ -1924,7 +1945,7 @@ gfs_rlist_free(struct gfs_rgrp_list *rlist)
  * This function will look through the resource groups and
  * free the unused metadata.
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int

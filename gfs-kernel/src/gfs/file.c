@@ -34,7 +34,7 @@
  * @offset: The offset in the buffer to copy from
  * @size: The amount of data to copy/zero
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -60,7 +60,7 @@ gfs_copy2mem(struct buffer_head *bh, void **buf, unsigned int offset,
  * @offset: The offset into the buffer
  * @size: The amount of data to copy
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -189,7 +189,7 @@ gfs_readi(struct gfs_inode *ip, void *buf,
  * @size: The amount of data to write
  * @new: Flag indicating that remaining space in the buffer should be zeroed
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -235,7 +235,7 @@ gfs_copy_from_mem(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
  * @size: The amount of data to write
  * @new: Flag indicating that remaining space in the buffer should be zeroed
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

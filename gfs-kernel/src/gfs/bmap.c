@@ -50,7 +50,7 @@ struct strip_mine {
  * @block: the block number that was allocated
  * @private: not used
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -81,7 +81,7 @@ gfs_unstuffer_sync(struct gfs_inode *ip, struct buffer_head *dibh,
  * @block: the block number that was allocated
  * @private: not used
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -114,7 +114,7 @@ gfs_unstuffer_async(struct gfs_inode *ip, struct buffer_head *dibh,
  * This routine unstuffs a dinode and returns it to a "normal" state such 
  * that the height can be grown in the traditional way.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -228,7 +228,7 @@ calc_tree_height(struct gfs_inode *ip, uint64_t size)
  * This routine makes sure that the metadata tree is tall enough to hold
  * "size" bytes of data.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -415,7 +415,7 @@ metapointer(struct buffer_head *bh, unsigned int height, struct metapath *mp)
  * height of the tree exists. If not the next height of the tree is created.
  * The block number of the next height of the metadata tree is returned.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -463,7 +463,7 @@ get_metablock(struct gfs_inode *ip,
  * block exists. It is created if it does not exist and the block number
  * on disk is returned.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -512,7 +512,7 @@ get_datablock(struct gfs_inode *ip,
  * Find the block number on the current device which corresponds to an
  * inode's block. If the block had to be created, "new" will be set.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -627,7 +627,7 @@ gfs_block_map(struct gfs_inode *ip,
  *
  * Called with an exclusive lock on @ip.
  *
- * Returns: 0 on succes, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -735,7 +735,7 @@ do_grow(struct gfs_inode *ip, uint64_t size)
  * When this is first called @height and @block should be zero and
  * @first should be TRUE.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -809,7 +809,7 @@ recursive_scan(struct gfs_inode *ip, struct buffer_head *dibh,
  * @height: the height this buffer is at
  * @data: a pointer to a struct strip_mine
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -961,7 +961,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
  * @ip: the inode
  * @size: the size the file should be
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -998,7 +998,7 @@ gfs_truncator_default(struct gfs_inode *ip, uint64_t size)
  * @ip: the inode
  * @size: the size the file should be
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1046,7 +1046,7 @@ truncator_journaled(struct gfs_inode *ip, uint64_t size)
  *
  * Called with an exclusive lock on @ip.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1214,7 +1214,7 @@ do_same(struct gfs_inode *ip)
  *
  * The file size can grow, shrink, or stay the same size.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1268,7 +1268,7 @@ gfs_write_calc_reserv(struct gfs_inode *ip, unsigned int len,
  * @len: the number of bytes being written
  * @alloc_required: the int is set to TRUE if an alloc is required, FALSE otherwise
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int

@@ -979,7 +979,7 @@ compare_dents(const void *a, const void *b)
  * the possibility that they will fall into different readdir buffers or
  * that someone will want to seek to that location.
  *
- * Returns: 0 on success, -EXXX on failure, >0 on exception from filldir
+ * Returns: errno, >0 on exception from filldir
  */
 
 static int
@@ -1055,7 +1055,7 @@ do_filldir_main(struct gfs_inode *dip, uint64_t *offset,
  * @entries: the number of entries in the block
  * @copied: pointer to int that's non-zero if a entry has been copied out
  *
- * Returns: 0 on success, -EXXX on failure, >0 on exception from filldir
+ * Returns: errno, >0 on exception from filldir
  */
 
 static int
@@ -1071,7 +1071,9 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
 	if (!entries)
 		return 0;
 
-	darr = gmalloc(entries * sizeof(struct gfs_dirent *));
+	darr = kmalloc(entries * sizeof(struct gfs_dirent *), GFP_KERNEL);
+	if (!darr)
+		return -ENOMEM;
 
 	dirent_first(dip, bh, &de);
 	do {
@@ -1100,7 +1102,7 @@ do_filldir_single(struct gfs_inode *dip, uint64_t *offset,
  * @bh: the first leaf in the list
  * @copied: pointer to int that's non-zero if a entry has been copied out
  *
- * Returns: 0 on success, -EXXX on failure, >0 on exception from filldir
+ * Returns: errno, >0 on exception from filldir
  */
 
 static int
@@ -1149,10 +1151,18 @@ do_filldir_multi(struct gfs_inode *dip, uint64_t *offset,
 
 	/*  Alloc arrays  */
 
-	if (leaves)
-		larr = gmalloc(leaves * sizeof(struct buffer_head *));
+	if (leaves) {
+		larr = kmalloc(leaves * sizeof(struct buffer_head *), GFP_KERNEL);
+		if (!larr)
+			return -ENOMEM;
+	}
 
-	darr = gmalloc(entries * sizeof(struct gfs_dirent *));
+	darr = kmalloc(entries * sizeof(struct gfs_dirent *), GFP_KERNEL);
+	if (!darr) {
+		if (larr)
+			kfree(larr);
+		return -ENOMEM;
+	}
 
 	/*  Fill in arrays  */
 
@@ -1446,6 +1456,7 @@ dir_e_del(struct gfs_inode *dip, struct qstr *filename)
  * @opaque: buffer for the filldir function to fill 
  * @filldir: points to the filldir function to use
  *
+ * Returns: errno
  */
 
 static int
@@ -1468,7 +1479,9 @@ dir_e_read(struct gfs_inode *dip, uint64_t *offset, void *opaque,
 	hash = gfs_dir_offset2hash(*offset);
 	index = hash >> (32 - dip->i_di.di_depth);
 
-	lp = gmalloc(sdp->sd_hash_bsize);
+	lp = kmalloc(sdp->sd_hash_bsize, GFP_KERNEL);
+	if (!lp)
+		return -ENOMEM;
 
 	while (index < hsize) {
 		lp_offset = index & (sdp->sd_hash_ptrs - 1);
@@ -1777,7 +1790,7 @@ dir_l_mvino(struct gfs_inode *dip, struct qstr *filename,
  * This routine searches a directory for a file or another directory.
  * Assumes a glock is held on dip.
  *
- * Returns: Inode number if found, -EXXXX on failure.
+ * Returns: errno
  */
 
 int
@@ -1881,7 +1894,7 @@ gfs_dir_read(struct gfs_inode *dip, uint64_t * offset, void *opaque,
  * by rename to change ".." when a directory is moved.
  * Assumes a glock is held on dvp.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1906,7 +1919,7 @@ gfs_dir_mvino(struct gfs_inode *dip, struct qstr *filename,
  * @lc: the function to call for each each
  * @data: private data to pass to it
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1926,7 +1939,9 @@ foreach_leaf(struct gfs_inode *dip, leaf_call_t lc, void *data)
 	hsize = 1 << dip->i_di.di_depth;
 	GFS_ASSERT_INODE(hsize * sizeof(uint64_t) == dip->i_di.di_size, dip,);
 
-	lp = gmalloc(sdp->sd_hash_bsize);
+	lp = kmalloc(sdp->sd_hash_bsize, GFP_KERNEL);
+	if (!lp)
+		return -ENOMEM;
 
 	while (index < hsize) {
 		lp_offset = index & (sdp->sd_hash_ptrs - 1);
@@ -1979,7 +1994,7 @@ foreach_leaf(struct gfs_inode *dip, leaf_call_t lc, void *data)
  * @leaf_no: the leaf number
  * @data: not used
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1999,7 +2014,9 @@ leaf_free(struct gfs_inode *dip,
 
 	memset(&rlist, 0, sizeof(struct gfs_rgrp_list));
 
-	ht = gmalloc(size);
+	ht = kmalloc(size, GFP_KERNEL);
+	if (!ht)
+		return -ENOMEM;
 	memset(ht, 0, size);
 
 	gfs_alloc_get(dip);
@@ -2111,7 +2128,7 @@ leaf_free(struct gfs_inode *dip,
  * gfs_dir_exhash_free - free all the leaf block in a directory
  * @dip: the directory
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -2158,7 +2175,7 @@ gfs_dir_exhash_free(struct gfs_inode *dip)
  * @filname: the filename that's going to be added
  * @alloc_required: the int is set to TRUE if an alloc is required, FALSE otherwise
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int

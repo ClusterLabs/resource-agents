@@ -40,7 +40,7 @@
  * @ub: the structure representing where to copy
  * @bh: the buffer
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -70,7 +70,7 @@ gfs_add_bh_to_ub(struct gfs_user_buffer *ub, struct buffer_head *bh)
  * get_meta - Read out all the metadata for a file
  * @ip: the file
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -119,7 +119,7 @@ get_meta(struct gfs_inode *ip, void *arg)
  * @ip: the inode
  * @arg: where to copy to
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -159,7 +159,9 @@ do_get_super(struct gfs_sbd *sdp, void *arg)
 	struct buffer_head *bh;
 	int error;
 
-	sb = gmalloc(sizeof(struct gfs_sb));
+	sb = kmalloc(sizeof(struct gfs_sb), GFP_KERNEL);
+	if (!sb)
+		return -ENOMEM;
 
 	error = gfs_glock_nq_num(sdp,
 				 GFS_SB_LOCK, &gfs_meta_glops,
@@ -382,7 +384,7 @@ jwrite_ioctl(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: The argument from ioctl
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -422,7 +424,7 @@ jstat_ioctl(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: The argument from ioctl
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -457,7 +459,7 @@ jtrunc_ioctl(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: a pointer to a struct gfs_user_buffer in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -485,7 +487,7 @@ lock_dump(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: the struct gfs_usage structure
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -494,7 +496,9 @@ stat_gfs_ioctl(struct gfs_sbd *sdp, void *arg)
 	struct gfs_usage *u;
 	int error;
 
-	u = gmalloc(sizeof(struct gfs_usage));
+	u = kmalloc(sizeof(struct gfs_usage), GFP_KERNEL);
+	if (!u)
+		return -ENOMEM;
 
 	error = gfs_stat_gfs(sdp, u, TRUE);
 	if (!error && copy_to_user(arg, u, sizeof(struct gfs_usage)))
@@ -510,7 +514,7 @@ stat_gfs_ioctl(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: a pointer to a struct gfs_reclaim_stats in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -536,7 +540,7 @@ reclaim_ioctl(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: a pointer to a struct gfs_tune in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -553,7 +557,7 @@ get_tune(struct gfs_sbd *sdp, void *arg)
  * @sdp: the filesystem
  * @arg: a pointer to a struct gfs_tune in user space
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -562,7 +566,9 @@ set_tune(struct gfs_sbd *sdp, void *arg)
 	struct gfs_tune *gt;
 	int error = 0;
 
-	gt = gmalloc(sizeof(struct gfs_tune));
+	gt = kmalloc(sizeof(struct gfs_tune), GFP_KERNEL);
+	if (!gt)
+		return -ENOMEM;
 
 	if (copy_from_user(gt, arg, sizeof(struct gfs_tune)))
 		error = -EFAULT;
@@ -586,7 +592,7 @@ set_tune(struct gfs_sbd *sdp, void *arg)
  * @cmd: GFS_SET_FLAG or GFS_CLEAR_FLAG
  * @arg: the flag to change (in user space)
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -783,7 +789,7 @@ fill_counters(struct gfs_sbd *sdp,
  * @sdp: the filesystem
  * @arg: the counter structure to fill
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -823,7 +829,7 @@ get_counters(struct gfs_sbd *sdp, void *arg)
  * @cmd: the ioctl number
  * @arg: the argument (still in user space)
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

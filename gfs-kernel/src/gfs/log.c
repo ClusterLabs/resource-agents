@@ -269,7 +269,7 @@ gfs_ail_empty(struct gfs_sbd *sdp)
  * @segments: The number of segments to reserve
  * @jump_queue: if TRUE, don't care about fairness ordering
  *
- * Returns:  0 on success, -EXXX on failure
+ * Returns:  errno
  */
 
 int
@@ -640,7 +640,7 @@ log_free_buf(struct gfs_sbd *sdp, struct gfs_log_buf *lb)
  *   and sync the whole transaction out to on-disk log.
  * Don't log-commit (i.e. write next transaction's log header) yet, though.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -716,7 +716,7 @@ sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
  *
  * Write next header to commit
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -741,7 +741,7 @@ commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
  * @sdp: The GFS superblock
  * @tr: The transaction
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1135,7 +1135,7 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
  * @sdp: the filesystem
  * @tr: the transaction
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 void
@@ -1319,7 +1319,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
  * gfs_log_shutdown - write a shutdown header into a journal
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1398,7 +1398,7 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 		error = gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
 
-      out:
+ out:
 	gfs_log_unlock(sdp);
 
 	kfree(lb);

@@ -246,7 +246,7 @@ glock_free(struct gfs_glock *gl)
  *
  * This does not lock a glock, just finds/creates structures for one.
  * 
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -462,10 +462,9 @@ gfs_holder_uninit(struct gfs_holder *gh)
  *
  * Figure out how big an impact this function has.  Either:
  * 1) Replace it with a cache of structures hanging off the struct gfs_sbd
- * 2) Get rid of it and call gmalloc() directly
- * 3) Leave it like it is
+ * 2) Leave it like it is
  *
- * Returns: the holder structure
+ * Returns: the holder structure, NULL on ENOMEM
  */
 
 struct gfs_holder *
@@ -473,7 +472,10 @@ gfs_holder_get(struct gfs_glock *gl, unsigned int state, int flags)
 {
 	struct gfs_holder *gh;
 
-	gh = gmalloc(sizeof(struct gfs_holder));
+	gh = kmalloc(sizeof(struct gfs_holder), GFP_KERNEL);
+	if (!gh)
+		return NULL;
+
 	gfs_holder_init(gl, state, flags, gh);
 	set_bit(HIF_ALLOCED, &gh->gh_iflags);
 
@@ -927,7 +929,8 @@ handle_callback(struct gfs_glock *gl, unsigned int state)
 	} else {
 		spin_unlock(&gl->gl_spin);
 
-		new_gh = gfs_holder_get(gl, state, LM_FLAG_TRY);
+		RETRY_MALLOC(new_gh = gfs_holder_get(gl, state, LM_FLAG_TRY),
+			     new_gh);
 		set_bit(HIF_DEMOTE, &new_gh->gh_iflags);
 		set_bit(HIF_DEALLOC, &new_gh->gh_iflags);
 		new_gh->gh_owner = NULL;
@@ -1428,7 +1431,7 @@ add_to_queue(struct gfs_holder *gh)
  *
  * if (gh->gh_flags & GL_ASYNC), this never returns an error
  *
- * Returns: 0, GLR_TRYFAILED, or -EXXX on failure
+ * Returns: 0, GLR_TRYFAILED, or errno on failure
  *
  * Rules:
  *   @gh must not be already attached to a glock.
@@ -1511,7 +1514,7 @@ gfs_glock_poll(struct gfs_holder *gh)
  * gfs_glock_wait - wait for a lock acquisition that ended in a GLR_ASYNC
  * @gh: the holder structure
  *
- * Returns: 0, GLR_TRYFAILED, or -EXXX on failure
+ * Returns: 0, GLR_TRYFAILED, or errno on failure
  */
 
 int
@@ -1755,7 +1758,7 @@ gfs_glock_be_greedy(struct gfs_glock *gl, unsigned int time)
  * @flags: the modifier flags
  * @gh: the holder structure
  *
- * Returns: 0, GLR_*, or -EXXX
+ * Returns: 0, GLR_*, or errno
  */
 
 int
@@ -1795,7 +1798,7 @@ gfs_glock_dq_uninit(struct gfs_holder *gh)
  * @flags: modifier flags for the aquisition
  * @gh: the struct gfs_holder
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -1852,7 +1855,7 @@ glock_compare(const void *arg_a, const void *arg_b)
  * @num_gh: the number of structures
  * @ghs: an array of struct gfs_holder structures
  *
- * Returns: 0 on success (all glocks acquired), -EXXX on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
  */
 
 static int
@@ -1891,7 +1894,7 @@ nq_m_sync(unsigned int num_gh, struct gfs_holder *ghs)
  * 2) Forget async stuff and just call nq_m_sync()
  * 3) Leave it like it is
  *
- * Returns: 0 on success (all glocks acquired), -EXXX on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
  */
 
 int
@@ -1971,7 +1974,7 @@ gfs_glock_dq_m(unsigned int num_gh, struct gfs_holder *ghs)
  * @state: the state to acquire the glock in
  * @flags: modifier flags for the aquisition
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 void

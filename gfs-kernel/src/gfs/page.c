@@ -144,7 +144,7 @@ gfs_sync_page(struct gfs_glock *gl, int flags)
  * @block: the block number that was allocated
  * @private: any locked page held by the caller process
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -208,7 +208,7 @@ gfs_unstuffer_page(struct gfs_inode *ip, struct buffer_head *dibh,
  * @ip: the inode
  * @size: the size the file should be
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

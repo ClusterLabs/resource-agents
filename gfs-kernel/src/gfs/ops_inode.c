@@ -48,7 +48,7 @@
  * @dentry: The dentry of the new file
  * @mode: The mode of the new file
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -127,49 +127,57 @@ gfs_create(struct inode *dir, struct dentry *dentry,
  * @dentry: the original dentry to lookup
  * @new_dentry: the new dentry, if this was a substitutable path.
  *
+ * Returns: the new dentry, a ERR_PTR, or NULL
  */
 
-static void
-lookup_cdpn_sub_at(struct gfs_sbd *sdp, struct dentry *dentry,
-		   struct dentry **new_dentry)
+static struct dentry *
+lookup_cdpn_sub_at(struct gfs_sbd *sdp, struct dentry *dentry)
 {
-	struct dentry *parent = dget_parent(dentry);
-	char *buf = gmalloc(2 * __NEW_UTS_LEN + 2);
+	struct dentry *parent, *new = NULL;
+	char *buf;
+
+	buf = kmalloc(2 * __NEW_UTS_LEN + 2, GFP_KERNEL);
+	if (!buf)
+		return ERR_PTR(-ENOMEM);
+
+	parent = dget_parent(dentry);
 
 	if (gfs_filecmp(&dentry->d_name, "@hostname", 9))
-		*new_dentry = lookup_one_len(system_utsname.nodename,
-					     parent,
-					     strlen(system_utsname.nodename));
+		new = lookup_one_len(system_utsname.nodename,
+				     parent,
+				     strlen(system_utsname.nodename));
 	else if (gfs_filecmp(&dentry->d_name, "@mach", 5))
-		*new_dentry = lookup_one_len(system_utsname.machine,
-					     parent,
-					     strlen(system_utsname.machine));
+		new = lookup_one_len(system_utsname.machine,
+				     parent,
+				     strlen(system_utsname.machine));
 	else if (gfs_filecmp(&dentry->d_name, "@os", 3))
-		*new_dentry = lookup_one_len(system_utsname.sysname,
-					     parent,
-					     strlen(system_utsname.sysname));
+		new = lookup_one_len(system_utsname.sysname,
+				     parent,
+				     strlen(system_utsname.sysname));
 	else if (gfs_filecmp(&dentry->d_name, "@uid", 4))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u", current->fsuid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u", current->fsuid));
 	else if (gfs_filecmp(&dentry->d_name, "@gid", 4))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u", current->fsgid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u", current->fsgid));
 	else if (gfs_filecmp(&dentry->d_name, "@sys", 4))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%s_%s",
-						     system_utsname.machine,
-						     system_utsname.sysname));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%s_%s",
+					     system_utsname.machine,
+					     system_utsname.sysname));
 	else if (gfs_filecmp(&dentry->d_name, "@jid", 4))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u",
-						     sdp->sd_lockstruct.ls_jid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u",
+					     sdp->sd_lockstruct.ls_jid));
 
-	kfree(buf);
 	dput(parent);
+	kfree(buf);
+
+	return new;
 }
 
 /**
@@ -178,49 +186,57 @@ lookup_cdpn_sub_at(struct gfs_sbd *sdp, struct dentry *dentry,
  * @dentry: the original dentry to lookup
  * @new_dentry: the new dentry, if this was a substitutable path.
  *
+ * Returns: the new dentry, a ERR_PTR, or NULL
  */
 
-static void
-lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry,
-		   struct dentry **new_dentry)
+static struct dentry *
+lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry)
 {
-	struct dentry *parent = dget_parent(dentry);
-	char *buf = gmalloc(2 * __NEW_UTS_LEN + 2);
+	struct dentry *parent, *new = NULL;
+	char *buf;
+
+	buf = kmalloc(2 * __NEW_UTS_LEN + 2, GFP_KERNEL);
+	if (!buf)
+		return ERR_PTR(-ENOMEM);
+
+	parent = dget_parent(dentry);
 
 	if (gfs_filecmp(&dentry->d_name, "{hostname}", 10))
-		*new_dentry = lookup_one_len(system_utsname.nodename,
-					     parent,
-					     strlen(system_utsname.nodename));
+		new = lookup_one_len(system_utsname.nodename,
+				     parent,
+				     strlen(system_utsname.nodename));
 	else if (gfs_filecmp(&dentry->d_name, "{mach}", 6))
-		*new_dentry = lookup_one_len(system_utsname.machine,
-					     parent,
-					     strlen(system_utsname.machine));
+		new = lookup_one_len(system_utsname.machine,
+				     parent,
+				     strlen(system_utsname.machine));
 	else if (gfs_filecmp(&dentry->d_name, "{os}", 4))
-		*new_dentry = lookup_one_len(system_utsname.sysname,
-					     parent,
-					     strlen(system_utsname.sysname));
+		new = lookup_one_len(system_utsname.sysname,
+				     parent,
+				     strlen(system_utsname.sysname));
 	else if (gfs_filecmp(&dentry->d_name, "{uid}", 5))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u", current->fsuid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u", current->fsuid));
 	else if (gfs_filecmp(&dentry->d_name, "{gid}", 5))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u", current->fsgid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u", current->fsgid));
 	else if (gfs_filecmp(&dentry->d_name, "{sys}", 5))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%s_%s",
-						     system_utsname.machine,
-						     system_utsname.sysname));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%s_%s",
+					     system_utsname.machine,
+					     system_utsname.sysname));
 	else if (gfs_filecmp(&dentry->d_name, "{jid}", 5))
-		*new_dentry = lookup_one_len(buf,
-					     parent,
-					     sprintf(buf, "%u",
-						     sdp->sd_lockstruct.ls_jid));
+		new = lookup_one_len(buf,
+				     parent,
+				     sprintf(buf, "%u",
+					     sdp->sd_lockstruct.ls_jid));
 
-	kfree(buf);
 	dput(parent);
+	kfree(buf);
+
+	return new;
 }
 
 /**
@@ -230,7 +246,7 @@ lookup_cdpn_sub_brace(struct gfs_sbd *sdp, struct dentry *dentry,
  *
  * Called by the VFS layer. Lock dir and call gfs_lookupi()
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static struct dentry *
@@ -246,13 +262,13 @@ gfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	/*  Do Context Dependent Path Name expansion  */
 
 	if (*dentry->d_name.name == '@' && dentry->d_name.len > 1) {
-		struct dentry *new_dentry = NULL;
-		lookup_cdpn_sub_at(dip->i_sbd, dentry, &new_dentry);
+		struct dentry *new_dentry;
+		new_dentry = lookup_cdpn_sub_at(dip->i_sbd, dentry);
 		if (new_dentry)
 			return new_dentry;
 	} else if (*dentry->d_name.name == '{' && dentry->d_name.len > 2) {
-		struct dentry *new_dentry = NULL;
-		lookup_cdpn_sub_brace(dip->i_sbd, dentry, &new_dentry);
+		struct dentry *new_dentry;
+		new_dentry = lookup_cdpn_sub_brace(dip->i_sbd, dentry);
 		if (new_dentry)
 			return new_dentry;
 	}
@@ -284,6 +300,7 @@ gfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	if (inode)
 		return d_splice_alias(inode, dentry);
 	d_add(dentry, inode);
+
 	return NULL;
 }
 
@@ -296,7 +313,7 @@ gfs_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
  * Link the inode in "old_dentry" into the directory "dir" with the
  * name in "dentry".
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -459,7 +476,7 @@ gfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
  *
  * Unlink a file.  Call gfs_unlinki()
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -526,7 +543,7 @@ gfs_unlink(struct inode *dir, struct dentry *dentry)
  * @dentry: The dentry to put the symlink in
  * @symname: The thing which the link points to
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -600,7 +617,7 @@ gfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
  * @dentry: The dentry of the new directory
  * @mode: The mode of the new directory
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -698,7 +715,7 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
  *
  * Remove a directory. Call gfs_rmdiri()
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -868,7 +885,7 @@ gfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
  * @ndir: Parent directory of new file name
  * @ndentry: The new dentry of the file
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1126,7 +1143,7 @@ gfs_rename(struct inode *odir, struct dentry *odentry,
  * @buf: the buffer to read the symlink data into
  * @size: the size of the buffer
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1304,7 +1321,7 @@ gfs_permission(struct inode *inode, int mask, struct nameidata *nd)
  * The VFS layer wants to change one or more of an inodes attributes.  Write
  * that change out to disk.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1448,7 +1465,7 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
  * @dentry: The dentry to stat
  * @stat: The inode's stats
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int

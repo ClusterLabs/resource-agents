@@ -310,7 +310,7 @@ gfs_statfs(struct super_block *sb, struct kstatfs *buf)
  * @flags:  the remount flags
  * @data:  extra data passed in (not used right now)
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int

@@ -491,7 +491,7 @@ buf_before_scan(struct gfs_sbd *sdp, unsigned int jid,
  * @tag: the block tag describing the inplace location of the block
  * @blkno: the location of the log's copy of the block
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  *
  * Read in-place block from disk
  * Read log (journal) block from disk
@@ -568,7 +568,7 @@ replay_block(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * @desc: the descriptor structure
  * @pass: the pass through the journal
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1059,7 +1059,7 @@ unlinked_before_scan(struct gfs_sbd *sdp, unsigned int jid,
  * @desc: the descriptor structure
  * @pass: the pass through the journal
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1477,7 +1477,7 @@ quota_before_scan(struct gfs_sbd *sdp, unsigned int jid,
  * @desc: the descriptor structure
  * @pass: the pass through the journal
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int

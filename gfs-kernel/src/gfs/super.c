@@ -418,7 +418,7 @@ gfs_clear_journals(struct gfs_sbd *sdp)
  * gfs_ji_update - Update the journal index information
  * @ip: The journal index inode
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 static int
@@ -434,7 +434,9 @@ gfs_ji_update(struct gfs_inode *ip)
 
 	clear_journalsi(sdp);
 
-	sdp->sd_jindex = gmalloc(ip->i_di.di_size);
+	sdp->sd_jindex = kmalloc(ip->i_di.di_size, GFP_KERNEL);
+	if (!sdp->sd_jindex)
+		return -ENOMEM;
 	memset(sdp->sd_jindex, 0, ip->i_di.di_size);
 
 	for (j = 0;; j++) {
@@ -478,7 +480,7 @@ gfs_ji_update(struct gfs_inode *ip)
  * in general we hold the jindex lock for longer periods of time and
  * we grab it far less frequently (in general) then the rgrp lock.
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -510,7 +512,7 @@ gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
  * gfs_get_jiinode - Read in the jindex inode for the superblock
  * @sdp: The GFS superblock
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -543,7 +545,7 @@ gfs_get_jiinode(struct gfs_sbd *sdp)
  * gfs_get_riinode - Read in the rindex inode for the superblock
  * @sdp: The GFS superblock
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -576,7 +578,7 @@ gfs_get_riinode(struct gfs_sbd *sdp)
  * gfs_get_rootinode - Read in the root inode
  * @sdp: The GFS superblock
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -608,7 +610,7 @@ gfs_get_rootinode(struct gfs_sbd *sdp)
  * If one is not on-disk already, create a new one.
  * Does not read in file contents, just the dinode.
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -647,7 +649,7 @@ gfs_get_qinode(struct gfs_sbd *sdp)
  * If one is not on-disk already, create a new one.
  * Does not read in file contents, just the dinode.
  *
- * Returns: 0 on success, error code otherwise
+ * Returns: errno
  */
 
 int
@@ -826,7 +828,9 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
 	memset(usage, 0, sizeof(struct gfs_usage));
 	usage->gu_block_size = sdp->sd_sb.sb_bsize;
 
-	gha = gmalloc(slots * sizeof(struct gfs_holder));
+	gha = kmalloc(slots * sizeof(struct gfs_holder), GFP_KERNEL);
+	if (!gha)
+		return -ENOMEM;
 	memset(gha, 0, slots * sizeof(struct gfs_holder));
 
 	for (;;) {

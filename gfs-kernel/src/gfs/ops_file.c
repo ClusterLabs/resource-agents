@@ -82,7 +82,7 @@ typedef ssize_t(*do_rw_t) (struct file * file,
  * SEEK_END requires the glock for the file because it references the
  * file's size.
  *
- * Returns: The new offset, or -EXXX on error
+ * Returns: The new offset, or errno
  */
 
 static loff_t
@@ -194,7 +194,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -errno on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -281,7 +281,7 @@ do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
  *
  * Outputs: Offset - updated according to number of bytes read
  *
- * Returns: The number of bytes read, -EXXX on failure
+ * Returns: The number of bytes read, errno on failure
  */
 
 static ssize_t
@@ -346,7 +346,7 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
  *
  * Outputs: Offset - updated according to number of bytes read
  *
- * Returns: The number of bytes read, -EXXX on failure
+ * Returns: The number of bytes read, errno on failure
  */
 
 static ssize_t
@@ -386,7 +386,7 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
  *
  * Outputs: Offset - updated according to number of bytes read
  *
- * Returns: The number of bytes read, -EXXX on failure
+ * Returns: The number of bytes read, errno on failure
  */
 
 static ssize_t
@@ -410,7 +410,7 @@ gfs_read(struct file *file, char *buf, size_t size, loff_t *offset)
  * sure that we don't cause recursive transactions if blocks
  * need to be allocated to the file backing the mapping.
  *
- * Returns:  0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -440,7 +440,7 @@ grope_mapping(char *buf, size_t size)
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -EXXX on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -558,7 +558,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -EXXX on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -682,7 +682,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -EXXX on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -838,7 +838,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -EXXX on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -910,7 +910,7 @@ do_write_buf(struct file *file,
  *
  * Outputs: Offset - updated according to number of bytes written
  *
- * Returns: The number of bytes written, -EXXX on failure
+ * Returns: The number of bytes written, errno on failure
  */
 
 static ssize_t
@@ -1013,7 +1013,7 @@ filldir_reg_func(void *opaque,
  * @dirent: Buffer for dirents
  * @filldir: Function used to do the copying
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1104,7 +1104,7 @@ filldir_bad_func(void *opaque,
  *
  * For supporting NFS.
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1125,7 +1125,9 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 	size = sizeof(struct filldir_bad) +
 	    entries * (sizeof(struct filldir_bad_entry) + GFS_FAST_NAME_SIZE);
 
-	fdb = gmalloc(size);
+	fdb = kmalloc(size, GFP_KERNEL);
+	if (!fdb)
+		return -ENOMEM;
 	memset(fdb, 0, size);
 
 	fdb->fdb_sbd = sdp;
@@ -1179,7 +1181,7 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
  * @dirent: Buffer for dirents
  * @filldir: Function used to do the copying
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1205,7 +1207,7 @@ gfs_readdir(struct file *file, void *dirent, filldir_t filldir)
  * @cmd: the ioctl command
  * @arg: the argument
  *
- * Returns: 0 on success, -EXXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1266,7 +1268,7 @@ gfs_mmap(struct file *file, struct vm_area_struct *vma)
  * @inode: the inode to open
  * @file: the struct file for this opening
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1279,7 +1281,9 @@ gfs_open(struct inode *inode, struct file *file)
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
-	fp = gmalloc(sizeof(struct gfs_file));
+	fp = kmalloc(sizeof(struct gfs_file), GFP_KERNEL);
+	if (!fp)
+		return -ENOMEM;
 	memset(fp, 0, sizeof(struct gfs_file));
 
 	init_MUTEX(&fp->f_fl_lock);
@@ -1335,7 +1339,7 @@ gfs_open(struct inode *inode, struct file *file)
  * @inode: the inode the struct file belongs to
  * @file: the struct file being closed
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1360,7 +1364,7 @@ gfs_close(struct inode *inode, struct file *file)
  * @file: the file that points to the dentry (we ignore this)
  * @dentry: the dentry that points to the inode to sync
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  *
  * Obtain a SHARED lock on the file, to force any node with an EXCLUSIVE lock
  *   to sync file's dirty data to disk, as it releases the EXCLUSIVE lock.
@@ -1467,7 +1471,7 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
  *
  * Outputs: offset - updated according to number of bytes read
  *
- * Returns: The number of bytes sent, -EXXX on failure
+ * Returns: The number of bytes sent, errno on failure
  */
 
 static ssize_t

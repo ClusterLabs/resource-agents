@@ -351,7 +351,7 @@ gfs_unlinked_cleanup(struct gfs_sbd *sdp)
  * gfs_unlinked_limit - limit the number of inodes waiting to be deallocated
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure;
+ * Returns: errno
  */
 
 void
@@ -391,7 +391,7 @@ gfs_unlinked_limit(struct gfs_sbd *sdp)
  * gfs_unlinked_dealloc - Go through the list of inodes to be deallocated
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 void

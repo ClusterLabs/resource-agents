@@ -108,7 +108,7 @@ gfs_clear_dirty_j(struct gfs_sbd *sdp)
  * Read the log header for a given segement in a given journal.  Do a few
  * sanity checks on it.
  *
- * Returns: 0 on success, 1 if the header was invalid or incomplete and, -EXXX on error
+ * Returns: 0 on success, 1 if the header was invalid or incomplete and, errno on error
  */
 
 static int
@@ -150,7 +150,7 @@ get_log_header(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Call get_log_header() to get a log header for a segment, but if the
  * segment is bad, either scan forward or backward until we find a good one.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -188,7 +188,7 @@ find_good_lh(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * At this point, seg and lh should be either the head of the log or just
  * before.  Scan forward until we find the head.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -233,7 +233,7 @@ verify_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Do a binary search of a journal and find the valid log entry with the
  * highest sequence number.  (i.e. the log head)
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -284,7 +284,7 @@ gfs_find_jhead(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Replace @addr with the location of the next block in the log.
  * Take care of journal wrap and skip of log header if necessary.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -336,7 +336,7 @@ gfs_increment_blkno(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Call a given function once for every log descriptor in the active
  * portion of the log.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -409,7 +409,7 @@ foreach_descriptor(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * @gl: the journal's glock
  * @head: the head journal to start from
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -526,7 +526,7 @@ clean_journal(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
  * Acquire the journal's lock, check to see if the journal is clean, and
  * do recovery if necessary.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -702,7 +702,7 @@ gfs_check_journals(struct gfs_sbd *sdp)
  * gfs_recover_dump - recover the log elements in this machine's journal
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

@@ -76,7 +76,7 @@ gfs_trans_print(struct gfs_sbd *sdp, struct gfs_trans *tr, unsigned int where)
  * Record this transaction as the *one* transaction being built by this
  *   Linux process, in current->journal_info.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -98,14 +98,17 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
 	INIT_LIST_HEAD(&tr->tr_free_bmem);
 	INIT_LIST_HEAD(&tr->tr_bufs);
 	INIT_LIST_HEAD(&tr->tr_ail_bufs);
-
 	tr->tr_file = file;
 	tr->tr_line = line;
+
+	error = -ENOMEM;
 	tr->tr_t_gh = gfs_holder_get(sdp->sd_trans_gl, LM_ST_SHARED, 0);
+	if (!tr->tr_t_gh)
+		goto fail;
 
 	error = gfs_glock_nq(tr->tr_t_gh);
 	if (error)
-		goto fail;
+		goto fail_holder_put;
 
 	if (test_bit(SDF_ROFS, &sdp->sd_flags)) {
 		tr->tr_t_gh->gh_flags |= GL_NOCACHE;
@@ -138,8 +141,10 @@ gfs_trans_begin_i(struct gfs_sbd *sdp,
  fail_gunlock:
 	gfs_glock_dq(tr->tr_t_gh);
 
- fail:
+ fail_holder_put:
 	gfs_holder_put(tr->tr_t_gh);
+
+ fail:
 	kfree(tr);
 
 	return error;
