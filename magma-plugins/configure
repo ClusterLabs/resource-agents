@@ -85,7 +85,7 @@ if (!$libdir) {
   $libdir="${prefix}/usr/lib";
 }
 if (!$slibdir) {
-  $slibdir="${prefix}/usr/lib";
+  $slibdir="${libdir}";
 }
 if (!$plugindir) {
   $plugindir="${libdir}/magma";
