@@ -19,6 +19,6 @@
 #
 MAINTAINERCLEANFILES = Makefile.in
 
-ocfdir		     = @OCF_RA_DIR@
+ocfdir		     = @OCF_RA_DIR@/heartbeat
 
 ocf_SCRIPTS	     = IPaddr
