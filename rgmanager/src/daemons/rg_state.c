@@ -40,6 +40,7 @@ static int _svc_stop_finish(char *svcName, int failed, uint32_t newstate);
 
 int set_rg_state(char *servicename, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
+void get_recovery_policy(char *rg_name, char *buf, size_t buflen);
 
 
 uint64_t
@@ -1242,3 +1243,23 @@ handle_start_remote_req(char *svcName, int req)
 	return ABORT;
 }
 
+
+/**
+  handle_recover_req
+ */
+int
+handle_recover_req(char *svcName, uint64_t *new_owner)
+{
+	char policy[20];
+
+	get_recovery_policy(svcName, policy, sizeof(policy));
+
+	if (!strcasecmp(policy, "disable")) {
+		return svc_disable(svcName);
+	} else if (!strcasecmp(policy, "relocate")) {
+		return handle_relocate_req(svcName, RG_START_RECOVER, -1,
+					   new_owner);
+	}
+
+	return handle_start_req(svcName, RG_START_RECOVER, new_owner);
+}

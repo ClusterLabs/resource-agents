@@ -5,18 +5,23 @@
 	other cluster daemons (e.g. lock_gulmd)
 	* src/daemons/groups.c: Add best_target_node, count_resource_groups.
 	Implement missing autostart-disable feature and requested exclusive
-	resource group feature.
+	resource group feature.  Store configuration view number so we can
+	tell when the configuration changes.
 	* src/daemons/main.c: Print node state transition messages before
 	calling node_event().  Use do_status_checks() so we don't try to
 	check services we're not running.  Bump periodic status event
-	queueing to 10 seconds instead of 5.
+	queueing to 10 seconds instead of 5.  Poll ccsd for config updates
+	since we have no other way to find them.
 	* src/daemons/rg_state.c: Fix handle_relocate_req so that it uses
 	best_target_node() correctly.  Leave services which failed on all
 	current nodes as 'stopped', so the next node transition will cause
-	us to try to restart it automagically.
+	us to try to restart it automagically.  Consider recovery policy
+	when taking recovery action.
+	* src/daemons/rg_thread.c: Use recovery routine instead of start.
+	* src/daemons/restree.c: Fix tree delta updates.
 	* src/resources/resourcegroup.sh: Add 'exclusive' parameter.  Change
-	'autostart' to a boolean instead of string.  Add recovery parameter
-	even though I haven't implemented it yet.
+	'autostart' to a boolean instead of string.  Add recovery policy
+	parameter.
 	* src/utils/clusvcadm.c: Make "relocate to node X" work.
 
 2005-02-28 Lon Hohberger <lhh at redhat.com>

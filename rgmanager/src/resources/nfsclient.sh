@@ -225,8 +225,12 @@ stop)
 	;;
 
 status|monitor)
-	# XXX Need status and monitor
-	rv=0
+	if [ "${OCF_RESKEY_target}" = "*" ]; then
+		export OCF_RESKEY_target="\<world\>"
+	fi
+
+	exportfs | grep -q "^${OCF_RESKEY_path}\ .*${OCF_RESKEY_target}"
+	rv=$?
 	;;
 
 recover|restart)

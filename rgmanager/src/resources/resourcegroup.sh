@@ -68,7 +68,7 @@ meta_data()
             <shortdesc lang="en">
 	    	Reboot if stop phase fails
             </shortdesc>
-            <content type="string"/>
+            <content type="boolean"/>
         </parameter>
 
         <parameter name="exclusive">
@@ -94,7 +94,9 @@ meta_data()
 		to restart failed parts of this resource group locally before
 		attempting to relocate (default); "relocate" does not bother
 		trying to restart the service locally; "disable" disables
-		the resource group if any component fails.
+		the resource group if any component fails.  Note that
+		any resource with a valid "recover" operation which can be
+		recovered without a restart will be.
             </longdesc>
             <shortdesc lang="en">
 	    	Failure recovery policy

@@ -116,7 +116,6 @@ ccs_lock(void)
 #endif
 
 
-
 int
 ccs_unlock(int fd)
 #ifndef NO_CCS

@@ -851,8 +851,8 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				printf("Node %s:%s - CONDSTART\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
-				op = RS_START;
 				 */
+				op = RS_START;
 			}
 
 			if ((op == RS_CONDSTOP) &&
@@ -861,8 +861,8 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				printf("Node %s:%s - CONDSTOP\n",
 				       node->rn_resource->r_rule->rr_type,
 				       primary_attr_value(node->rn_resource));
-				op = RS_STOP;
 				 */
+				op = RS_STOP;
 			}
 		}
 

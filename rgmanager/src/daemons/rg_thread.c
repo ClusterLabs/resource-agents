@@ -318,8 +318,7 @@ resgroup_thread_main(void *arg)
 
 			error = svc_stop(myname, 1);
 			if (error == 0) {
-			    error = handle_start_req(myname, RG_START_RECOVER,
-		    				     &newowner);
+				error = handle_recover_req(myname, &newowner);
 			}
 
 			break;

@@ -30,11 +30,13 @@
 #include <reslist.h>
 
 
+static int config_version = 0;
 static resource_t *_resources = NULL;
 static resource_rule_t *_rules = NULL;
 static resource_node_t *_tree = NULL;
 static fod_t *_domains = NULL;
 
+pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_rwlock_t resource_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 
@@ -278,10 +280,18 @@ consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
 	 * Send the resource group to a node if it's got a higher prio
 	 * to run the resource group.
 	 */
+#if 0
 	if (best_target_node(membership, my_id(), svcName, 0) !=
-	    nodeid, 0) {
+	    nodeid) {
 		return;
 	}
+#endif
+	a = node_should_start(nodeid, membership, svcName, &_domains);
+	b = node_should_start(my_id(), membership, svcName, &_domains);
+
+	if (a <= b)
+		return;
+
 
 	clulog(LOG_DEBUG, "Relocating group %s to better node %s\n",
 	       svcName,
@@ -793,6 +803,31 @@ do_condstarts(void)
 }
 
 
+int
+check_config_update(void)
+{
+	int newver = 0, fd, ret = 0;
+	char *val;
+
+       	fd = ccs_lock();
+	if (fd == -1) {
+		return 0;
+	}
+
+	if (ccs_get(fd, "/cluster/@config_version", &val) == 0) {
+		newver = atoi(val);
+	}
+
+	pthread_mutex_lock(&config_mutex);
+	if (newver && newver != config_version)
+		ret = 1;
+	pthread_mutex_unlock(&config_mutex);
+	ccs_unlock(fd);
+
+	return ret;
+}
+
+
 /**
   Initialize resource groups.  This reads all the resource groups from 
   CCS, builds the tree, etc.  Ideally, we'll have a similar function 
@@ -808,6 +843,7 @@ init_resource_groups(int reconfigure)
 	resource_rule_t *rulelist = NULL, *rule;
 	resource_node_t *tree = NULL;
 	fod_t *domains = NULL, *fod;
+	char *val;
 
 	if (reconfigure)
 		clulog(LOG_NOTICE, "Reconfiguring\n");
@@ -824,6 +860,12 @@ init_resource_groups(int reconfigure)
 	if (fd == -1) {
 		clulog(LOG_CRIT, "#5: Couldn't connect to ccsd!\n");
 		return -1;
+	}
+
+	if (ccs_get(fd, "/cluster/@config_version", &val) == 0) {
+		pthread_mutex_lock(&config_mutex);
+		config_version = atoi(val);
+		pthread_mutex_unlock(&config_mutex);
 	}
 
 	clulog(LOG_DEBUG, "Building Resource Trees\n");
@@ -898,6 +940,28 @@ init_resource_groups(int reconfigure)
 	}
 
 	return 0;
+}
+
+
+void
+get_recovery_policy(char *rg_name, char *buf, size_t buflen)
+{
+	resource_t *res;
+	char *val;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	strncpy(buf, "restart", buflen);
+	res = find_resource_by_ref(&_resources, "resourcegroup",
+				   rg_name);
+	if (res) {
+		val = res_attr_value(res, "recovery");
+		if (val) {
+			strncpy(buf, val, buflen);
+		}
+	}
+
+	pthread_rwlock_unlock(&resource_lock);
 }
 
 

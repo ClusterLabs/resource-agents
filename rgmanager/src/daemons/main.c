@@ -44,6 +44,7 @@ void graceful_exit(int);
 void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(int);
+int check_config_update(void);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 
@@ -443,7 +444,7 @@ event_loop(int clusterfd)
 
 	n = select(max + 1, &rfds, NULL, NULL, &tv);
 
-	if (need_reconfigure) {
+	if (need_reconfigure || check_config_update()) {
 		need_reconfigure = 0;
 		init_resource_groups(1);
 		return 0;
