@@ -43,10 +43,6 @@ void dlm_proc_exit(void);
 
 static void cman_callback(kcl_callback_reason reason, long arg)
 {
-	if (reason == DIED) {
-		lowcomms_close((int) arg);
-	}
-
 	/* This is unconditional. so do what we can to tidy up */
 	if (reason == LEAVING) {
 	        dlm_emergency_shutdown();

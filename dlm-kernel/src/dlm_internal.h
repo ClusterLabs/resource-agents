@@ -185,7 +185,7 @@ struct dlm_lkbtable {
 struct dlm_node {
 	struct list_head	list;
 	uint32_t		nodeid;
-	int			refcount;	/* num csb's referencing */
+	atomic_t		refcount;	/* num csb's referencing */
 };
 
 /*

@@ -237,7 +237,8 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 	}
 
 	if (lkb->lkb_status != GDLM_LKSTS_GRANTED)
-		seq_printf(s, "  LQ: %d", lkb->lkb_lockqueue_state);
+		seq_printf(s, "  LQ: %d,0x%x", lkb->lkb_lockqueue_state,
+			   lkb->lkb_lockqueue_flags);
 
 	seq_printf(s, "\n");
 }

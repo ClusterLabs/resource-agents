@@ -592,6 +592,8 @@ static int connect_to_sock(struct connection *con)
 	make_sockaddr(&saddr, dlm_config.tcp_port, &addr_len);
 
 	add_sock(sock, con);
+
+	log_print("connecting to %d", con->nodeid);
 	result =
 	    sock->ops->connect(sock, (struct sockaddr *) &saddr, addr_len,
 			       O_NONBLOCK);
@@ -944,7 +946,7 @@ static void clean_one_writequeue(struct connection *con)
 	spin_unlock(&con->writequeue_lock);
 }
 
-/* Called from recoverd when it knows that a node has
+/* Called from recovery when it knows that a node has
    left the cluster */
 int lowcomms_close(int nodeid)
 {
@@ -958,9 +960,9 @@ int lowcomms_close(int nodeid)
 	if (con) {
 		close_connection(con, TRUE);
 		clean_one_writequeue(con);
+		atomic_set(&con->waiting_requests, 0);
 	}
 	return 0;
-
 
       out:
 	return -1;

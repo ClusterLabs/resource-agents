@@ -47,8 +47,8 @@ static struct dlm_node *search_node(uint32_t nodeid)
 static void put_node(struct dlm_node *node)
 {
 	spin_lock(&node_lock);
-	node->refcount--;
-	if (node->refcount == 0) {
+	if (atomic_dec_and_test(&node->refcount)) {
+		lowcomms_close(node->nodeid);
 		list_del(&node->list);
 		spin_unlock(&node_lock);
 		kfree(node);
@@ -65,7 +65,7 @@ static int get_node(uint32_t nodeid, struct dlm_node **ndp)
 	spin_lock(&node_lock);
 	node = search_node(nodeid);
 	if (node)
-		node->refcount++;
+		atomic_inc(&node->refcount);
 	spin_unlock(&node_lock);
 
 	if (node)
@@ -81,14 +81,14 @@ static int get_node(uint32_t nodeid, struct dlm_node **ndp)
 	spin_lock(&node_lock);
 	node2 = search_node(nodeid);
 	if (node2) {
-		node2->refcount++;
+		atomic_inc(&node2->refcount);
 		spin_unlock(&node_lock);
 		kfree(node);
 		node = node2;
 		goto out;
 	}
 
-	node->refcount = 1;
+	atomic_set(&node->refcount, 1);
 	list_add_tail(&node->list, &cluster_nodes);
 	spin_unlock(&node_lock);
 
