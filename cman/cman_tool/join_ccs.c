@@ -167,11 +167,9 @@ int get_ccs_join_info(commandline_t *comline)
 			if (error)
 				vote_sum++;
 			else {
-				/* Don't allow -ve votes to screw us up */
-				if (atoi(str) >= 0)
-					vote_sum += atoi(str);
-				else
-					vote_sum++;
+				if (atoi(str) < 0)
+					die("negative votes not allowed");
+				vote_sum += atoi(str);
 				free(str);
 			}
 		}
@@ -256,7 +254,7 @@ int get_ccs_join_info(commandline_t *comline)
 		if (!error) {
 			comline->votes = atoi(str);
 			if (comline->votes < 0 || comline->votes > 255)
-				comline->votes = 1;
+				die("invalid votes value %d", comline->votes);
 			free(str);
 		}
 	}
@@ -316,11 +314,26 @@ int get_ccs_join_info(commandline_t *comline)
 		comline->two_node = atoi(str);
 		free(str);
 		if (comline->two_node) {
-			if (node_count != 2 || vote_sum != 2 ||
-			    comline->votes != 1 || comline->expected_votes != 1)
+			if (node_count != 2 || vote_sum != 2)
 				die("the two-node option requires exactly two "
-			    	    "nodes with one vote each and expected "
-				    "votes set to 1");
+				    "nodes with one vote each and expected "
+				    "votes of 1 (node_count=%d vote_sum=%d)",
+				    node_count, vote_sum);
+
+			if (comline->votes_opt && comline->votes != 1)
+				die("the two-node option requires exactly two "
+				    "nodes with one vote each and expected "
+                                    "votes of 1 (votes=%d)", comline->votes);
+
+			if (!comline->votes_opt && comline->votes != 0 &&
+			    comline->votes != 1)
+				die("the two-node option requires exactly two "
+				     "nodes with one vote each and expected "
+				     "votes of 1 (votes=%d)", comline->votes);
+
+			/* if no comline votes option and no votes value found
+			   in cluster.conf, then votes is set to DEFAULT_VOTES
+			   (1) in check_arguements() */
 		}
 	}
 
