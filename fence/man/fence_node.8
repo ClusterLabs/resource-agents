@@ -28,9 +28,34 @@ be running and properly configured for \fBfence_node\fP to work properly.
 
 \fBOPTIONS\fP
 .in +7
+
+\fB-c <cluster_name>\fP
+.in +7
+Optionally specify the cluster which the node is part of.
+.sp
+.in
+
 \fB-h\fP
 .in +7
 Help.  Print out the usage syntax.
+.sp
+.in
+
+\fB-O\fP
+.in +7
+Override the requirement that the cluster be quorate.  The
+\f-c\fP option is required with the use of this option.
+
+Normal fencing options are only allowed when a cluster is
+quorate.  This option is used to force the reading of CCS
+information regardless of the quorate state, and perform
+the fence operation.
+.sp
+.in
+
+\fB-u\fP
+.in +7
+Unfence a node.
 .sp
 .in
 
@@ -38,6 +63,7 @@ Help.  Print out the usage syntax.
 .in +7
 Print version information.
 .sp
+
 .in -7
 .in -7
 \fBEXAMPLES\fP
