@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -11,7 +11,7 @@
 *******************************************************************************
 ******************************************************************************/
 
-/* 
+/*
  * Rebuild RSB's on new masters.  Functions for transferring locks and
  * subresources to new RSB masters during recovery.
  */
@@ -54,7 +54,7 @@ struct rebuild_node {
 typedef struct rebuild_node rebuild_node_t;
 
 
-/* 
+/*
  * Root rsb passed in for which all lkb's (own and subrsbs) will be sent to new
  * master.  The rsb will be "done" with recovery when the new master has
  * replied with all the new remote lockid's for this rsb's lkb's.
@@ -66,7 +66,7 @@ void expect_new_lkids(struct dlm_rsb *rsb)
 	recover_list_add(rsb);
 }
 
-/* 
+/*
  * This function is called on root rsb or subrsb when another lkb is being sent
  * to the new master for which we expect to receive a corresponding remote lkid
  */
@@ -86,7 +86,7 @@ void need_new_lkid(struct dlm_rsb *rsb)
 	root->res_newlkid_expect++;
 }
 
-/* 
+/*
  * This function is called for each lkb for which a new remote lkid is
  * received.  Decrement the expected number of remote lkids expected for the
  * root rsb.
@@ -113,7 +113,7 @@ void have_new_lkid(struct dlm_lkb *lkb)
 	up_write(&root->res_lock);
 }
 
-/* 
+/*
  * Return the rebuild struct for a node - will create an entry on the rootrsb
  * list if necessary.
  *
@@ -142,7 +142,7 @@ static rebuild_node_t *find_rebuild_root(struct dlm_ls *ls, int nodeid)
 	return node;
 }
 
-/* 
+/*
  * Tidy up after a rebuild run.  Called when all recovery has finished
  */
 
@@ -228,6 +228,7 @@ static int lkb_length(struct dlm_lkb *lkb)
 	len += sizeof(int);	/* lkb_childcnt */
 	len += sizeof(int);	/* lkb_parent->lkb_id */
 	len += sizeof(int);	/* lkb_bastaddr */
+	len += sizeof(int);     /* lkb_ownpid */
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		len += sizeof(int);	/* number of lvb bytes */
@@ -246,7 +247,7 @@ static int lkb_length(struct dlm_lkb *lkb)
 	return len;
 }
 
-/* 
+/*
  * It's up to the caller to be sure there's enough space in the buffer.
  */
 
@@ -259,7 +260,7 @@ static void serialise_lkb(struct dlm_lkb *lkb, char *buf, int *offp)
 	if (lkb->lkb_range)
 		flags |= GDLM_LKFLG_RANGE;
 
-	/* 
+	/*
 	 * See lkb_length()
 	 * Total: 30 (no lvb) or 66 (with lvb) bytes
 	 */
@@ -281,6 +282,7 @@ static void serialise_lkb(struct dlm_lkb *lkb, char *buf, int *offp)
 		put_int(1, buf, offp);
 	else
 		put_int(0, buf, offp);
+	put_int(lkb->lkb_ownpid, buf, offp);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		DLM_ASSERT(lkb->lkb_lvbptr,);
@@ -354,7 +356,7 @@ static int lkbs_to_remaster_list(struct list_head *head)
 	return FALSE;
 }
 
-/* 
+/*
  * Used to decide if an rsb should be rebuilt on a new master.  An rsb only
  * needs to be rebuild if we have lkb's queued on it.  NOREBUILD lkb's are not
  * rebuilt.
@@ -385,7 +387,7 @@ static int lkbs_to_remaster(struct dlm_rsb *r)
 
 static void serialise_rsb(struct dlm_rsb *rsb, char *buf, int *offp)
 {
-	/* 
+	/*
 	 * See rsb_length()
 	 * Total: 36 bytes (4 + 24 + 4 + 4)
 	 */
@@ -426,7 +428,7 @@ static int pack_one_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	return -ENOSPC;
 }
 
-/* 
+/*
  * Pack all LKB's from a given queue, except for those with the NOREBUILD flag.
  */
 
@@ -472,7 +474,7 @@ static int pack_lkb_queues(struct dlm_rsb *r, rcom_fill_t *fill)
 	return error;
 }
 
-/* 
+/*
  * Pack remaining lkb's for rsb or subrsb.  This may include a partial lkb
  * queue and full lkb queues.
  */
@@ -483,7 +485,7 @@ static int pack_lkb_remaining(struct dlm_rsb *r, rcom_fill_t *fill)
 	struct dlm_lkb *lkb;
 	int error;
 
-	/* 
+	/*
 	 * Beginning with fill->lkb, pack remaining lkb's on fill->lkbqueue.
 	 */
 
@@ -504,7 +506,7 @@ static int pack_lkb_remaining(struct dlm_rsb *r, rcom_fill_t *fill)
 		}
 	}
 
-	/* 
+	/*
 	 * Pack all lkb's on r's queues following fill->lkbqueue.
 	 */
 
@@ -562,7 +564,7 @@ static int pack_subrsbs(struct dlm_rsb *rsb, struct dlm_rsb *in_subrsb,
 	struct dlm_rsb *subrsb;
 	int error = 0;
 
-	/* 
+	/*
 	 * When an initial subrsb is given, we know it needs to be packed.
 	 * When no initial subrsb is given, begin with the first (if any exist).
 	 */
@@ -591,7 +593,7 @@ static int pack_subrsbs(struct dlm_rsb *rsb, struct dlm_rsb *in_subrsb,
 	return error;
 }
 
-/* 
+/*
  * Finish packing whatever is left in an rsb tree.  If space runs out while
  * finishing, save subrsb/lkb and this will be called again for the same rsb.
  *
@@ -646,7 +648,7 @@ static int pack_rsb_tree_remaining(struct dlm_ls *ls, struct dlm_rsb *rsb,
 	return error;
 }
 
-/* 
+/*
  * Pack an RSB, all its LKB's, all its subrsb's and all their LKB's into a
  * buffer.  When the buffer runs out of space, save the place to restart (the
  * queue+lkb, subrsb, or subrsb+queue+lkb which wouldn't fit).
@@ -659,7 +661,7 @@ static int pack_rsb_tree(struct dlm_ls *ls, struct dlm_rsb *rsb,
 
 	fill->remasterid = 0;
 
-	/* 
+	/*
 	 * Pack the root rsb itself.  A 1 byte type precedes the serialised
 	 * rsb.  Then pack the lkb's for the root rsb.
 	 */
@@ -679,7 +681,7 @@ static int pack_rsb_tree(struct dlm_ls *ls, struct dlm_rsb *rsb,
 
 	up_write(&rsb->res_lock);
 
-	/* 
+	/*
 	 * Pack subrsb/lkb's under the root rsb.
 	 */
 
@@ -692,7 +694,7 @@ static int pack_rsb_tree(struct dlm_ls *ls, struct dlm_rsb *rsb,
 	return error;
 }
 
-/* 
+/*
  * Given an RSB, return the next RSB that should be sent to a new master.
  */
 
@@ -724,7 +726,7 @@ static struct dlm_rsb *next_remastered_rsb(struct dlm_ls *ls,
 	return NULL;
 }
 
-/* 
+/*
  * Given an rcom buffer, fill it with RSB's that need to be sent to a single
  * new master node.  In the case where all the data to send to one node
  * requires multiple messages, this function needs to resume filling each
@@ -742,7 +744,7 @@ static void fill_rcom_buffer(struct dlm_ls *ls, rcom_fill_t *fill,
 
 	if (!prev_rsb) {
 
-		/* 
+		/*
 		 * The first time this function is called.
 		 */
 
@@ -752,7 +754,7 @@ static void fill_rcom_buffer(struct dlm_ls *ls, rcom_fill_t *fill,
 
 	} else if (fill->subrsb || fill->lkb) {
 
-		/* 
+		/*
 		 * Continue packing an rsb tree that was partially packed last
 		 * time (fill->subrsb/lkb indicates where packing of last block
 		 * left off)
@@ -775,7 +777,7 @@ static void fill_rcom_buffer(struct dlm_ls *ls, rcom_fill_t *fill,
 		rsb = prev_rsb;
 	}
 
-	/* 
+	/*
 	 * Pack rsb trees into the buffer until we run out of space, run out of
 	 * new rsb's or hit a new nodeid.
 	 */
@@ -806,7 +808,7 @@ static void fill_rcom_buffer(struct dlm_ls *ls, rcom_fill_t *fill,
 	fill->more = 0;
 }
 
-/* 
+/*
  * Send lkb's (and subrsb/lkbs) for remastered root rsbs to new masters.
  */
 
@@ -889,7 +891,7 @@ static struct dlm_rsb *find_by_remasterid(struct dlm_ls *ls, int remasterid,
 	return rsb;
 }
 
-/* 
+/*
  * Search a queue for the given remote lock id (remlkid).
  */
 
@@ -907,7 +909,7 @@ static struct dlm_lkb *search_remlkid(struct list_head *statequeue, int nodeid,
 	return NULL;
 }
 
-/* 
+/*
  * Given a remote lock ID (and a parent resource), return the local LKB for it
  * Hopefully we dont need to do this too often on deep lock trees.  This is
  * VERY suboptimal for anything but the smallest lock trees. It searches the
@@ -953,7 +955,7 @@ static struct dlm_lkb *find_by_remlkid(struct dlm_rsb *rootrsb, int nodeid,
 	return lkb;
 }
 
-/* 
+/*
  * Unpack an LKB from a remaster operation
  */
 
@@ -971,7 +973,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	rsb = find_by_remasterid(ls, rsb_rmid, rootrsb);
 	DLM_ASSERT(rsb, printk("no RSB for remasterid %d\n", rsb_rmid););
 
-	/* 
+	/*
 	 * We could have received this lkb already from a previous recovery
 	 * that was interrupted.  We still need to advance ptr so read in
 	 * lkb and then release it.  FIXME: verify this is valid.
@@ -995,6 +997,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 
 	parentid = get_int(buf, ptr);
 	lkb->lkb_bastaddr = (void *) (long) get_int(buf, ptr);
+	lkb->lkb_ownpid = get_int(buf, ptr);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		lkb->lkb_lvbptr = allocate_lvb(ls);
@@ -1056,7 +1059,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	lkb->lkb_flags |= GDLM_LKFLG_MSTCPY;
 	lkb->lkb_nodeid = rem_nodeid;
 
-	/* 
+	/*
 	 * Put the lkb on an RSB queue.  An lkb that's in the midst of a
 	 * conversion request (on the requesting node's lockqueue and has
 	 * LQCONVERT set) should be put on the granted queue.  The convert
@@ -1073,7 +1076,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 
 	lkb_enqueue(rsb, lkb, status);
 
-	/* 
+	/*
 	 * Update the rsb lvb if the lkb's lvb is up to date (grmode > NL).
 	 */
 
@@ -1086,7 +1089,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 		memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
 	}
 
-	/* 
+	/*
 	 * Clear flags that may have been sent over that are only relevant in
 	 * the context of the sender.
 	 */
@@ -1123,7 +1126,7 @@ static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
 	if (parent_remasterid)
 		parent = find_by_remasterid(ls, parent_remasterid, rootrsb);
 
-	/* 
+	/*
 	 * The rsb reference from this find_or_create_rsb() will keep the rsb
 	 * around while we add new lkb's to it from deserialise_lkb.  Each of
 	 * the lkb's will add an rsb reference.  The reference added here is
@@ -1144,7 +1147,7 @@ static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
 	return rsb;
 }
 
-/* 
+/*
  * Processing at the receiving end of a NEWLOCKS message from a node in
  * rebuild_rsbs_send().  Rebuild a remastered lock tree.  Nodeid is the remote
  * node whose locks we are now mastering.  For a reply we need to send back the
@@ -1218,7 +1221,7 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 	if (rsb)
 		release_rsb(rsb);
 
-	/* 
+	/*
 	 * Reply with the new lock IDs.
 	 */
 
@@ -1231,7 +1234,7 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 	return error;
 }
 
-/* 
+/*
  * Processing for a NEWLOCKIDS message.  Called when we get the reply from the
  * new master telling us what the new remote lock IDs are for the remastered
  * locks
