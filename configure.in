@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.112 $) dnl cvs revision
+AC_REVISION($Revision: 1.113 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -686,6 +686,29 @@ fi
 AC_DEFINE_UNQUOTED(APIGID, $APIGID, GID to own API fifos)
 AC_SUBST(APIGID)
 
+AC_ARG_WITH(
+  ccmuser-name,
+    [  --with-ccmuser-name=CCMUSER_NAME 
+                         CCMUSER_NAME to own API fifos. [default=hacluster]  ],
+    [ CCMUSER="$withval" ],
+    [ CCMUSER="hacluster" ],
+  )
+AC_DEFINE_UNQUOTED(CCMUSER, "$CCMUSER", User to own CCM fifos)
+AC_SUBST(CCMUSER)
+
+AC_ARG_WITH(
+  ccmuser-id,
+    [  --with-ccmuser-id=CCMUSER_ID  USER_ID to own CCM fifos. [default=17]  ],
+    [ CCMUID=$withval ],
+    [ CCMUID=17 ],
+  )
+if
+  grep "^${CCMUSER}:" /etc/passwd >/dev/null
+then
+  APIGID=`grep "^${CCMUSER}:" /etc/passwd | cut -d: -f3`
+fi
+AC_DEFINE_UNQUOTED(CCMUID, $CCMUID, UID to own CCM fifos)
+AC_SUBST(CCMUID)
 #
 #	Priority for starting via init startup scripts
 #
