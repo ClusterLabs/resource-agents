@@ -561,49 +561,6 @@ int restbl_rsb_update_recv(struct dlm_ls *ls, uint32_t nodeid, char *buf,
 }
 
 /*
- * This function not used any longer.
- */
-
-int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
-		       char *outbuf)
-{
-	char *inbufptr, *outbufptr;
-
-	/*
-	 * The other node wants nodeids matching the resource names in inbuf.
-	 * The resource names are packed into inbuf as
-	 * [len1][name1][len2][name2]...  where lenX is 1 byte and nameX is
-	 * lenX bytes.  Matching nodeids are packed into outbuf in order
-	 * [nodeid1][nodeid2]...
-	 */
-
-	inbufptr = inbuf;
-	outbufptr = outbuf;
-
-	while (inbufptr < inbuf + inlen) {
-		uint32_t r_nodeid, be_nodeid;
-		int status;
-
-		status = dlm_dir_lookup(ls, nodeid, inbufptr + 1, *inbufptr,
-					&r_nodeid);
-		if (status != 0)
-			goto fail;
-
-		inbufptr += *inbufptr + 1;
-
-		be_nodeid = cpu_to_be32(r_nodeid);
-		memcpy(outbufptr, &be_nodeid, sizeof(uint32_t));
-		outbufptr += sizeof(uint32_t);
-
-		/* add assertion that outbufptr - outbuf is not > than ... */
-	}
-
-	return (outbufptr - outbuf);
- fail:
-	return -1;
-}
-
-/*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery
  * stage (implying we are the new master for it.)  So, a newly mastered rsb

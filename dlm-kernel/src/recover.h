@@ -28,8 +28,6 @@ void restbl_grant_after_purge(struct dlm_ls *ls);
 int restbl_rsb_update(struct dlm_ls *ls);
 int restbl_rsb_update_recv(struct dlm_ls *ls, int nodeid, char *buf, int len,
 			   int msgid);
-int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
-		       char *outbuf);
 int dlm_lvb_recovery(struct dlm_ls *ls);
 void rsb_lvb_recovery(struct dlm_rsb *r);
 

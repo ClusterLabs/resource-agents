@@ -258,34 +258,6 @@ static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_
 		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 		break;
 
-	case RECCOMM_BULKLOOKUP:
-
-		reply = allocate_rcom_buffer(ls);
-		DLM_ASSERT(reply,);
-
-		reply->rc_header.rh_cmd = GDLM_REMCMD_RECOVERREPLY;
-		reply->rc_header.rh_lockspace = rc->rc_header.rh_lockspace;
-		reply->rc_subcmd = rc->rc_subcmd;
-		reply->rc_msgid = rc->rc_msgid;
-
-		/* 
-		 * This is a bulk version of the above and just returns a
-		 * buffer full of node ids to match the resources
-		 */
-
-		datalen = bulk_master_lookup(ls, nodeid, rc->rc_buf,
-				             rc->rc_datalen, reply->rc_buf);
-		if (datalen < 0) {
-			free_rcom_buffer(reply);
-			reply = NULL;
-			return;
-		}
-
-		reply->rc_datalen = datalen;
-		reply->rc_header.rh_length =
-		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
-		break;
-
 		/* 
 		 * These RECCOMM messages don't need replies.
 		 */
