@@ -1786,7 +1786,7 @@ glock_compare_atime(const void *arg_a, const void *arg_b)
 int
 gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 {
-	struct gfs_holder *p[num_gh];
+	struct gfs_holder **p;
 	unsigned int x;
 	int error = 0;
 
@@ -1800,6 +1800,8 @@ gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 			error = gfs_glock_nq(ghs);
 		return error;
 	}
+
+	p = gmalloc(sizeof(struct gfs_holder *) * num_gh);
 
 	for (x = 0; x < num_gh; x++)
 		p[x] = &ghs[x];
@@ -1820,6 +1822,7 @@ gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs)
 			break;
 		}
 	}
+	kfree(p);
 
 	return error;
 }

@@ -1859,9 +1859,8 @@ glock_compare(const void *arg_a, const void *arg_b)
  */
 
 static int
-nq_m_sync(unsigned int num_gh, struct gfs_holder *ghs)
+nq_m_sync(unsigned int num_gh, struct gfs_holder *ghs, struct gfs_holder **p)
 {
-	struct gfs_holder *p[num_gh];
 	unsigned int x;
 	int error = 0;
 
@@ -1900,7 +1899,7 @@ nq_m_sync(unsigned int num_gh, struct gfs_holder *ghs)
 int
 gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 {
-	int e[num_gh];
+	int *e;
 	unsigned int x;
 	int borked = FALSE, serious = 0;
 	int error = 0;
@@ -1920,6 +1919,12 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 		gfs_glock_nq(&ghs[x]);
 	}
 
+	/* using sizeof(struct gfs_holder *) instead of sizeof(int), because
+	 * we're also using this memory for nq_m_sync and ints should never be
+	 * larger than pointers.... I hope
+	 */
+	e = gmalloc(sizeof(struct gfs_holder *) * num_gh);
+
 	/* Wait for all to complete */
 	for (x = 0; x < num_gh; x++) {
 		error = e[x] = glock_wait_internal(&ghs[x]);
@@ -1931,8 +1936,10 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 	}
 
 	/* If all good, done! */
-	if (!borked)
+	if (!borked){
+		kfree(e);
 		return 0;
+	}
 
 	for (x = 0; x < num_gh; x++)
 		if (!e[x])
@@ -1944,9 +1951,10 @@ gfs_glock_nq_m(unsigned int num_gh, struct gfs_holder *ghs)
 		for (x = 0; x < num_gh; x++)
 			gfs_holder_reinit(ghs[x].gh_state, ghs[x].gh_flags,
 					  &ghs[x]);
-		error = nq_m_sync(num_gh, ghs);
+		error = nq_m_sync(num_gh, ghs, (struct gfs_holder **)e);
 	}
 
+	kfree(e);
 	return error;
 }
 
