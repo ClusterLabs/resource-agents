@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.311 $) dnl cvs revision
+AC_REVISION($Revision: 1.312 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -859,6 +859,10 @@ dnl carefully handled afterwards.
 
 AC_C_STRINGIZE
 
+AC_ARG_ENABLE([ansi],
+[  -ansi force GCC to compile to ANSI/ANSI standard for older compilers.
+                          [default=no]])
+
 AC_ARG_ENABLE([fatal-warnings],
 [  --enable-fatal-warnings very pedantic and fatal warnings for gcc
                           [default=yes]],
@@ -973,6 +977,11 @@ dnl Add any system specific options here.
   	*solaris*)
           	;;
 	esac
+	if test "${enable_ansi}" = yes && cc_supports_flag -std=iso9899:199409 ; then
+	echo "Enabling ANSI Compatibility on this platform"
+	ANSI="-ansi"
+	fi
+
 	if test "${enable_fatal_warnings}" = yes && cc_supports_flag -Werror ; then
           echo "Enabling Fatal Warnings (-Werror) on this platform"
     	  FATAL_WARNINGS="-Werror"
@@ -985,7 +994,7 @@ dnl Add any system specific options here.
 	fi
 
 
-	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS"
+	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS $ANSI" 
 	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 fi
 
