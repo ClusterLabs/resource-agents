@@ -34,9 +34,9 @@ static void print_usage(void)
 	printf("Options:\n");
 	printf("\n");
 	printf("  -c               All nodes are in a clean state to start\n");
-	printf("  -j <secs>        Post join fencing delay (default %d)\n",
+	printf("  -j <secs>        Post-join fencing delay (default %d)\n",
 			           DEFAULT_POST_JOIN_DELAY);
-	printf("  -f <secs>        Post fail fencing delay (default %d)\n",
+	printf("  -f <secs>        Post-fail fencing delay (default %d)\n",
 				   DEFAULT_POST_FAIL_DELAY);
 	printf("  -D               Enable debugging code and don't fork\n");
 	printf("  -h               Print this help, then exit\n");
@@ -44,7 +44,7 @@ static void print_usage(void)
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 	printf("Command line values override those in cluster.conf.\n");
-	printf("For an unbounded delay use -1.\n");
+	printf("For an unbounded delay use <secs> value of -1.\n");
 	printf("\n");
 }
 
