@@ -31,21 +31,20 @@
 #include "util.h"
 
 /* Wake up flags for astd */
-#define GDLMD_WAKE_ASTS  1
-#define GDLMD_WAKE_TIMER 2
+#define WAKE_ASTS  1
+#define WAKE_TIMER 2
 
-static struct list_head _deadlockqueue;
-static struct semaphore _deadlockqueue_lock;
-static struct list_head _lockqueue;
-static struct semaphore _lockqueue_lock;
-static struct timer_list _lockqueue_timer;
-static struct list_head _ast_queue;
-static struct semaphore _ast_queue_lock;
-static wait_queue_head_t _astd_waitchan;
-static atomic_t _astd_running;
-static long _astd_pid;
-static unsigned long _astd_wakeflags;
-static struct completion _astd_done;
+static struct list_head		ast_queue;
+static struct semaphore		ast_queue_lock;
+static wait_queue_head_t	astd_waitchan;
+struct task_struct *		astd_task;
+static unsigned long		astd_wakeflags;
+
+static struct list_head		_deadlockqueue;
+static struct semaphore		_deadlockqueue_lock;
+static struct list_head		_lockqueue;
+static struct semaphore		_lockqueue_lock;
+static struct timer_list	_lockqueue_timer;
 
 void add_to_lockqueue(struct dlm_lkb *lkb)
 {
@@ -158,14 +157,11 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 				lkb->lkb_lksb->sb_flags = 0;
 		}
 
-		down(&_ast_queue_lock);
-		if (lkb->lkb_astflags & AST_DEL)
-			log_print("queue_ast on deleted lkb %x ast %x pid %u",
-				  lkb->lkb_id, lkb->lkb_astflags, current->pid);
+		down(&ast_queue_lock);
 		if (!(lkb->lkb_astflags & (AST_COMP | AST_BAST)))
-			list_add_tail(&lkb->lkb_astqueue, &_ast_queue);
+			list_add_tail(&lkb->lkb_astqueue, &ast_queue);
 		lkb->lkb_astflags |= flags;
-		up(&_ast_queue_lock);
+		up(&ast_queue_lock);
 
 		/* It is the responsibility of the caller to call wake_astd()
 		 * after it has finished other locking operations that request
@@ -188,17 +184,17 @@ static void process_asts(void)
 	uint16_t flags;
 
 	for (;;) {
-		down(&_ast_queue_lock);
-		if (list_empty(&_ast_queue)) {
-			up(&_ast_queue_lock);
+		down(&ast_queue_lock);
+		if (list_empty(&ast_queue)) {
+			up(&ast_queue_lock);
 			break;
 		}
 
-		lkb = list_entry(_ast_queue.next, struct dlm_lkb, lkb_astqueue);
+		lkb = list_entry(ast_queue.next, struct dlm_lkb, lkb_astqueue);
 		list_del(&lkb->lkb_astqueue);
 		flags = lkb->lkb_astflags;
 		lkb->lkb_astflags = 0;
-		up(&_ast_queue_lock);
+		up(&ast_queue_lock);
 
 		cast = lkb->lkb_astaddr;
 		bast = lkb->lkb_bastaddr;
@@ -488,9 +484,8 @@ static void process_lockqueue(void)
 	if (count)
 		wake_astd();
 
-	if (atomic_read(&_astd_running))
-		mod_timer(&_lockqueue_timer,
-			  jiffies + ((dlm_config.lock_timeout >> 1) * HZ));
+	mod_timer(&_lockqueue_timer,
+		  jiffies + ((dlm_config.lock_timeout >> 1) * HZ));
 }
 
 /* Look for deadlocks */
@@ -528,16 +523,16 @@ static __inline__ int no_asts(void)
 {
 	int ret;
 
-	down(&_ast_queue_lock);
-	ret = list_empty(&_ast_queue);
-	up(&_ast_queue_lock);
+	down(&ast_queue_lock);
+	ret = list_empty(&ast_queue);
+	up(&ast_queue_lock);
 	return ret;
 }
 
 static void lockqueue_timer_fn(unsigned long arg)
 {
-	set_bit(GDLMD_WAKE_TIMER, &_astd_wakeflags);
-	wake_up(&_astd_waitchan);
+	set_bit(WAKE_TIMER, &astd_wakeflags);
+	wake_up(&astd_waitchan);
 }
 
 /* 
@@ -546,34 +541,26 @@ static void lockqueue_timer_fn(unsigned long arg)
 
 static int dlm_astd(void *data)
 {
-	daemonize("dlm_astd");
-
+	/*
+	 * Set a timer to check the lockqueue for dead locks (and deadlocks).
+	 */
 	INIT_LIST_HEAD(&_lockqueue);
 	init_MUTEX(&_lockqueue_lock);
 	INIT_LIST_HEAD(&_deadlockqueue);
 	init_MUTEX(&_deadlockqueue_lock);
-	INIT_LIST_HEAD(&_ast_queue);
-	init_MUTEX(&_ast_queue_lock);
-	init_waitqueue_head(&_astd_waitchan);
-	complete(&_astd_done);
-
-	/* 
-	 * Set a timer to check the lockqueue for dead locks (and deadlocks).
-	 */
-
 	init_timer(&_lockqueue_timer);
 	_lockqueue_timer.function = lockqueue_timer_fn;
 	_lockqueue_timer.data = 0;
 	mod_timer(&_lockqueue_timer,
 		  jiffies + ((dlm_config.lock_timeout >> 1) * HZ));
 
-	while (atomic_read(&_astd_running)) {
-		wchan_cond_sleep_intr(_astd_waitchan, no_asts());
+	while (!kthread_should_stop()) {
+		wchan_cond_sleep_intr(astd_waitchan, no_asts());
 
-		if (test_and_clear_bit(GDLMD_WAKE_ASTS, &_astd_wakeflags))
+		if (test_and_clear_bit(WAKE_ASTS, &astd_wakeflags))
 			process_asts();
 
-		if (test_and_clear_bit(GDLMD_WAKE_TIMER, &_astd_wakeflags)) {
+		if (test_and_clear_bit(WAKE_TIMER, &astd_wakeflags)) {
 			process_lockqueue();
 			if (dlm_config.deadlocktime)
 				process_deadlockqueue();
@@ -583,29 +570,34 @@ static int dlm_astd(void *data)
 	if (timer_pending(&_lockqueue_timer))
 		del_timer(&_lockqueue_timer);
 
-	complete(&_astd_done);
-
 	return 0;
 }
 
 void wake_astd(void)
 {
-	set_bit(GDLMD_WAKE_ASTS, &_astd_wakeflags);
-	wake_up(&_astd_waitchan);
+	set_bit(WAKE_ASTS, &astd_wakeflags);
+	wake_up(&astd_waitchan);
 }
 
-int astd_start()
+int astd_start(void)
 {
-	init_completion(&_astd_done);
-	atomic_set(&_astd_running, 1);
-	_astd_pid = kernel_thread(dlm_astd, NULL, 0);
-	wait_for_completion(&_astd_done);
-	return 0;
+	struct task_struct *p;
+	int error = 0;
+
+	INIT_LIST_HEAD(&ast_queue);
+	init_MUTEX(&ast_queue_lock);
+	init_waitqueue_head(&astd_waitchan);
+
+	p = kthread_run(dlm_astd, NULL, "dlm_astd");
+	if (IS_ERR(p))
+		error = PTR_ERR(p);
+	else
+		astd_task = p;
+	return error;
 }
 
-void astd_stop()
+void astd_stop(void)
 {
-	atomic_set(&_astd_running, 0);
-	wake_astd();
-	wait_for_completion(&_astd_done);
+	kthread_stop(astd_task);
+	wake_up(&astd_waitchan);
 }
