@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.162 $) dnl cvs revision
+AC_REVISION($Revision: 1.163 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -668,16 +668,6 @@ AC_ARG_ENABLE([traditional-warnings],
                           enable traditional warnings gcc (-Wtraditional)
                           [default=no]])
 
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
-                          developement stage. If you want to try this code,
-                          make sure you have NET-SNMP 5.0.6 or later installed.
-                          [default=no]], 
-	[ SNMP_SUBAGENT_DIR="snmp_subagent" ], 
-	[ SNMP_SUBAGENT_DIR="" ])
-
-AC_SUBST(SNMP_SUBAGENT_DIR)
-
 CC_WARNINGS=""
 if test "$GCC" = yes; then
 dnl
@@ -752,6 +742,16 @@ dnl Add any system specific options here.
 		-Wcast-qual -Wcast-align \
 		-Winline $EXTRA_WARNINGS"
 fi
+
+AC_ARG_ENABLE([snmp-subagent],
+[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
+                          developement stage. If you want to try this code,
+                          make sure you have NET-SNMP 5.0.6 or later installed.
+                          [default=no]], 
+	[ SNMP_SUBAGENT_DIR="snmp_subagent" ], 
+	[ SNMP_SUBAGENT_DIR="" ])
+
+AC_SUBST(SNMP_SUBAGENT_DIR)
 
 AC_MSG_CHECKING(which init (rc) directory to use)
 INITDIR=""
@@ -1201,10 +1201,10 @@ AC_MSG_RESULT([ HACCM user name       = ${HA_CCMUSER}])
 AC_MSG_RESULT([ HA_CCM user id        = ${HA_CCMUID}])
 
 case x"$SNMP_SUBAGENT_DIR" in
-  no)
+  x)
     AC_MSG_RESULT([ Use snmp subagent     = no])
     ;;
-  yes)
+  xsnmp_subagent)
     AC_MSG_RESULT([ Use snmp subagent     = yes])
     AC_MSG_RESULT([ SNMP rpm name         = ${UCDSNMPDEVEL}])
     ;;
