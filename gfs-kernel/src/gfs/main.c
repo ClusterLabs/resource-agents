@@ -44,8 +44,7 @@ init_gfs_fs(void)
 	gfs_proc_entry = create_proc_read_entry("fs/gfs", S_IFREG | 0200, NULL, NULL, NULL);
 	if (!gfs_proc_entry) {
 		printk("GFS: can't register /proc/fs/gfs\n");
-		error = -EINVAL;
-		goto fail;
+	        return -EINVAL;
 	}
 	gfs_proc_entry->write_proc = gfs_proc_write;
 
@@ -55,36 +54,36 @@ init_gfs_fs(void)
 					     0, 0,
 					     NULL, NULL);
 	if (!gfs_glock_cachep)
-		goto fail2;
+		goto fail;
 
 	gfs_inode_cachep = kmem_cache_create("gfs_inode", sizeof(struct gfs_inode),
 					     0, 0,
 					     NULL, NULL);
 	if (!gfs_inode_cachep)
-		goto fail2;
+		goto fail;
 
 	gfs_bufdata_cachep = kmem_cache_create("gfs_bufdata", sizeof(struct gfs_bufdata),
 					       0, 0,
 					       NULL, NULL);
 	if (!gfs_bufdata_cachep)
-		goto fail2;
+		goto fail;
 
 	gfs_mhc_cachep = kmem_cache_create("gfs_meta_header_cache", sizeof(struct gfs_meta_header_cache),
 					   0, 0,
 					   NULL, NULL);
 	if (!gfs_mhc_cachep)
-		goto fail2;
+		goto fail;
 
 	error = register_filesystem(&gfs_fs_type);
 	if (error)
-		goto fail2;
+		goto fail;
 
 	printk("GFS %s (built %s %s) installed\n",
 	       GFS_RELEASE_NAME, __DATE__, __TIME__);
 
 	return 0;
 
-      fail2:
+ fail:
 	if (gfs_mhc_cachep)
 		kmem_cache_destroy(gfs_mhc_cachep);
 
@@ -105,7 +104,6 @@ init_gfs_fs(void)
 	up(&gfs_mount_args_lock);
 	remove_proc_entry("fs/gfs", NULL);
 
-      fail:
 	return error;
 }
 
