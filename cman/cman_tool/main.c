@@ -16,7 +16,7 @@
 #include "cnxman-socket.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:XVh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:XVh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -47,6 +47,7 @@ static void print_usage(void)
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
+	printf("  -N <id>          Node id (defaults to automatic)\n");
 	printf("  -X               Do not use CCS\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
@@ -263,6 +264,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'p':
 			comline->port = atoi(optarg);
+			break;
+
+		case 'N':
+			comline->nodeid = atoi(optarg);
 			break;
 
 		case 'c':

@@ -28,6 +28,7 @@
 #define NODEI_NAME_PATH		"//cluster/nodes/node[%d]/@name"
 #define NODE_NAME_PATH		"//cluster/nodes/node[@name=\"%s\"]/@name"
 #define NODE_VOTES_PATH		"//cluster/nodes/node[@name=\"%s\"]/@votes"
+#define NODE_NODEID_PATH	"//cluster/nodes/node[@name=\"%s\"]/@nodeid"
 #define NODE_IFNAME_PATH        "//cluster/nodes/node[@name=\"%s\"]/@ifname"
 #define NODE_ALTNAMES_PATH	"//cluster/nodes/node[@name=\"%s\"]/altname/@name"
 #define NODE_MCAST_IF_PATH	"//cluster/nodes/node[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
@@ -213,8 +214,6 @@ int get_ccs_join_info(commandline_t *comline)
 
 
 	/* find our own number of votes */
-
-
 	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_VOTES_PATH, nodename);
 
@@ -222,6 +221,17 @@ int get_ccs_join_info(commandline_t *comline)
 	if (!error) {
 		comline->votes = atoi(str);
 		free(str);
+	}
+
+	if (!comline->nodeid) {
+	    memset(path, 0, MAX_PATH_LEN);
+	    sprintf(path, NODE_NODEID_PATH, nodename);
+
+	    error = ccs_get(cd, path, &str);
+	    if (!error) {
+		comline->nodeid = atoi(str);
+		free(str);
+	    }
 	}
 
 

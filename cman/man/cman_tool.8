@@ -145,6 +145,19 @@ communication as cman_tool will (unless multicast is specified below)
 use the broadcast address associated with that hostname. If you
 are using IPv6 then you will have to use multicast rather than broadcast.
 .TP
+.I -N <nodeid>
+Overrides the node ID for this node. Normally, nodes are assigned a 
+node id by the cluster join mechanism. If you want to ensure that
+your nodes always have the same number regardless of the order in 
+which they join the cluster then you can hard-code these IDs. 
+.BR
+Setting node IDs in the cluster.conf file is a far better way to do this
+though.
+.BR
+Note that the node's application to join the cluster may be rejected if you
+try to set the nodeid to one that has already been used, or if the node 
+was previously a member of the cluster but with a different nodeid.
+.TP
 .I -m <multicast-address>
 Specifies a multicast address to use for cluster communication. This
 is required for IPv6 operation. You should also specify an ethernet 

@@ -77,6 +77,7 @@ struct commandline
 	int remove;
 	int force;
         int verbose;
+        int nodeid;
 	unsigned int config_version;
 };
 typedef struct commandline commandline_t;

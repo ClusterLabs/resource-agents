@@ -337,6 +337,17 @@ int join(commandline_t *comline)
 	goto fail;
     }
 
+    /* Optional, set the node ID */
+    if (comline->nodeid) {
+	error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODEID,
+		      comline->nodeid);
+	if (error)
+	{
+	    perror("Unable to set cluster nodeid");
+	    goto fail;
+	}
+    }
+
     /*
      * Setup the interface/multicast
      */
