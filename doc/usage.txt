@@ -52,15 +52,6 @@ Build and install
 
 - build and install userland programs and libraries (order is important)
 
-  device-mapper
-  ./configure
-  make; make install
-
-  lvm2
-  ./configure --with-clvmd --with-cluster=shared
-  make; make install
-  scripts/clvmd_fix_conf.sh /lib/liblvm2clusterlock.so
-
   ccs
   ./configure --kernel_src=/path/to/patched/kernel
   make; make install
@@ -84,6 +75,15 @@ Build and install
   gfs
   ./configure --kernel_src=/path/to/patched/kernel
   make; make install
+
+  device-mapper
+  ./configure
+  make; make install
+
+  lvm2
+  ./configure --with-clvmd --with-cluster=shared
+  make; make install
+  scripts/clvmd_fix_conf.sh /lib/liblvm2clusterlock.so
 
 
 Load kernel modules
