@@ -566,7 +566,7 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 	case CLUSTER_CMD_ACK:
 		ackmsg = (struct cl_ackmsg *) data;
 
-		if (ackmsg->aflags & 1) {
+		if (rem_node && (ackmsg->aflags & 1)) {
 			if (net_ratelimit())
 				printk(KERN_INFO CMAN_NAME
 				       ": WARNING no listener for port %d on node %s\n",
@@ -618,7 +618,8 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		    (struct cl_barriermsg *) (data +
 					      sizeof (struct cl_protheader));
 		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
-		process_barrier_msg(barriermsg, rem_node);
+		if (rem_node)
+			process_barrier_msg(barriermsg, rem_node);
 		break;
 
 	default:
@@ -3408,7 +3409,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		 * cnxman and COMPLETE may /just/ slide in
 		 * before WAIT if its in the queue
 		 */
-		P_BARRIER("Sending WAIT for %s\n", name);
+		P_BARRIER("Sending WAIT for %s\n", barrier->name);
 		status = queue_message(&bmsg, sizeof (bmsg), NULL, 0, 0);
 		if (status < 0) {
 			up(&barrier->lock);
