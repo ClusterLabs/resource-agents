@@ -1,7 +1,23 @@
 # Add GFS to the build system.
 diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.7/fs/Kconfig	2004-06-16 12:02:05.984546922 -0500
-+++ linux/fs/Kconfig	2004-06-16 12:02:05.996544135 -0500
+--- linux-2.6.7/fs/Kconfig	2004-06-25 13:57:24.435829621 -0500
++++ linux/fs/Kconfig	2004-06-25 13:59:16.786347614 -0500
+@@ -316,13 +316,13 @@ config JFS_STATISTICS
+ 	  to be made available to the user in the /proc/fs/jfs/ directory.
+ 
+ config FS_POSIX_ACL
+-# Posix ACL utility routines (for now, only ext2/ext3/jfs/reiserfs)
++# Posix ACL utility routines (for now, only ext2/ext3/jfs/reiserfs/GFS)
+ #
+ # NOTE: you can implement Posix ACLs without these helpers (XFS does).
+ # 	Never use this symbol for ifdefs.
+ #
+ 	bool
+-	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL
++	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || GFS_FS
+ 	default y
+ 
+ config XFS_FS
 @@ -1677,6 +1677,20 @@ config LOCK_HARNESS
  
  	  If you want to use GFS (a cluster filesystem) say Y here.
@@ -24,8 +40,8 @@ diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.7/fs/Makefile linux/fs/Makefile
---- linux-2.6.7/fs/Makefile	2004-06-16 12:02:05.985546690 -0500
-+++ linux/fs/Makefile	2004-06-16 12:02:05.996544135 -0500
+--- linux-2.6.7/fs/Makefile	2004-06-25 13:57:24.436829391 -0500
++++ linux/fs/Makefile	2004-06-25 13:57:24.447826863 -0500
 @@ -92,3 +92,4 @@ obj-$(CONFIG_XFS_FS)		+= xfs/
  obj-$(CONFIG_AFS_FS)		+= afs/
  obj-$(CONFIG_BEFS_FS)		+= befs/
@@ -33,7 +49,7 @@ diff -urN -p linux-2.6.7/fs/Makefile linux/fs/Makefile
 +obj-$(CONFIG_GFS_FS)		+= gfs/
 diff -urN -p linux-2.6.7/fs/gfs/Makefile linux/fs/gfs/Makefile
 --- linux-2.6.7/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-06-16 12:02:05.997543902 -0500
++++ linux/fs/gfs/Makefile	2004-06-25 13:57:24.448826633 -0500
 @@ -0,0 +1,51 @@
 +###############################################################################
 +###############################################################################
