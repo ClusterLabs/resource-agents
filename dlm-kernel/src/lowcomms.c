@@ -433,7 +433,7 @@ static int receive_from_sock(struct connection *con)
 	up_read(&con->sock_sem);
 	if (ret != -EAGAIN && !test_bit(CF_IS_OTHERCON, &con->flags)) {
 		close_connection(con, FALSE);
-		lowcomms_connect_sock(con);
+		/* Reconnect when there is something to send */
 	}
 
       out_ret:
@@ -950,10 +950,10 @@ int lowcomms_close(int nodeid)
 		goto out;
 
 	log_print("closing connection to node %d", nodeid);
-	con = connections[nodeid];
+	con = nodeid2con(nodeid, 0);
 	if (con) {
-		close_connection(con, TRUE);
 		clean_one_writequeue(con);
+		close_connection(con, TRUE);
 		atomic_set(&con->waiting_requests, 0);
 	}
 	return 0;
