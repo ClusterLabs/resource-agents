@@ -93,7 +93,7 @@ msg_receive_simple(int fd, generic_msg_hdr ** buf, int timeout)
 					strerror(errno));
 		} else if (ret != 0)	/* Blank message = probably closed socket */
 			fprintf(stderr, "fd%d peek: %d/%d bytes\n", fd,
-			       ret, sizeof (generic_msg_hdr));
+			       ret, (int)sizeof (generic_msg_hdr));
 		return -1;
 	}
 
