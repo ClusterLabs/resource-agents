@@ -296,6 +296,7 @@ static void set_master_lkbs(struct dlm_rsb *rsb)
 /*
  * Propogate the new master nodeid to locks, subrsbs, sublocks.
  * The NEW_MASTER flag tells rebuild_rsbs_send() which rsb's to consider.
+ * The NEW_MASTER2 flag tells rsb_lvb_recovery() which rsb's to consider.
  */
 
 static void set_new_master(struct dlm_rsb *rsb, uint32_t nodeid)
@@ -320,6 +321,7 @@ static void set_new_master(struct dlm_rsb *rsb, uint32_t nodeid)
 	up_write(&rsb->res_lock);
 
 	set_bit(RESFL_NEW_MASTER, &rsb->res_flags);
+	set_bit(RESFL_NEW_MASTER2, &rsb->res_flags);
 }
 
 /*
@@ -415,11 +417,16 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 
 		set_new_master(rsb, r_nodeid);
 	} else {
+		/* NEW_MASTER2 may have been set by set_new_master() in the
+		   previous recovery cycle. */
+
+		clear_bit(RESFL_NEW_MASTER2, &rsb->res_flags);
+
 		/* As we are the only thread doing recovery this
 		   should be safe. if not then we need to use a different
 		   ID somehow. We must set it in the RSB before rcom_send_msg
-		   completes cos we may get a reply quite quickly.
-		*/
+		   completes cos we may get a reply quite quickly. */
+
 		rsb->res_recover_msgid = ls->ls_rcom_msgid + 1;
 
 		recover_list_add(rsb);
@@ -482,6 +489,11 @@ int restbl_rsb_update(struct dlm_ls *ls)
 			up_read(&ls->ls_root_lock);
 			goto out_free;
 		}
+
+		if (test_bit(RESFL_VALNOTVALID, &rsb->res_flags))
+			set_bit(RESFL_VALNOTVALID_PREV, &rsb->res_flags);
+		else
+			clear_bit(RESFL_VALNOTVALID_PREV, &rsb->res_flags);
 
 		if (needs_update(ls, rsb)) {
 			error = rsb_master_lookup(rsb, rc);
@@ -570,25 +582,43 @@ int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 }
 
 /*
- * For each rsb:
- * - if there's a granted lock above mode CR, use that lvb for the rsb
- * - if there's no granted lock above mode CR, use the lvb from the lkb
- *   with the highest lvb sequence number and set RESFL_VALNOTVALID
+ * This routine is called on all master rsb's by dlm_recoverd.  It is also
+ * called on an rsb when a new lkb is received during the rebuild recovery
+ * stage (implying we are the new master for it.)  So, a newly mastered rsb
+ * will often have this function called on it by dlm_recoverd and by dlm_recvd
+ * when a new lkb is received.
  *
- * We may receive more locks later in rebuild_rsbs_recv().  We need to redo
- * this lvb recovery for the rsb after each new lock is added during recovery
- * as it may change the result of the equation above.
+ * This function is in charge of making sure the rsb's VALNOTVALID flag is
+ * set correctly and that the lvb contents are set correctly.
+ *
+ * RESFL_VALNOTVALID is set if:
+ * - it was set prior to recovery, OR
+ * - there are only NL/CR locks on the rsb
+ *
+ * RESFL_VALNOTVALID is cleared if:
+ * - it was not set prior to recovery, AND
+ * - there are locks > CR on the rsb
+ *
+ * (We'll only be clearing VALNOTVALID in this function if it
+ *  was set in a prior call to this function when there were
+ *  only NL/CR locks.)
+ *
+ * Whether this node is a new or old master of the rsb is not a factor
+ * in the decision to set/clear VALNOTVALID.
+ *
+ * The LVB contents are only considered for changing when this is a new master
+ * of the rsb (NEW_MASTER2).  Then, the rsb's lvb is taken from any lkb with
+ * mode > CR.  If no lkb's exist with mode above CR, the lvb contents are taken
+ * from the lkb with the largest lvb sequence nubmer.
  */
 
 void rsb_lvb_recovery(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb;
 	int lock_lvb_exists = FALSE;
+	int big_lock_exists = FALSE;
 
-	/* recovery can't validate an lvb that's already invalid */
-
-	if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
-		return;
+	down_write(&r->res_lock);
 
 	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
 		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
@@ -599,8 +629,10 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 
 		lock_lvb_exists = TRUE;
 
-		if (lkb->lkb_grmode > DLM_LOCK_CR)
-			goto out_set;
+		if (lkb->lkb_grmode > DLM_LOCK_CR) {
+			big_lock_exists = TRUE;
+			goto setflag;
+		}
 	}
 
 	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
@@ -612,30 +644,44 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 
 		lock_lvb_exists = TRUE;
 
-		if (lkb->lkb_grmode > DLM_LOCK_CR)
-			goto out_set;
+		if (lkb->lkb_grmode > DLM_LOCK_CR) {
+			big_lock_exists = TRUE;
+			goto setflag;
+		}
 	}
 
-	if (!lock_lvb_exists) {
-		/* not sure this is needed */
-		if (r->res_lvbptr)
-			set_bit(RESFL_VALNOTVALID, &r->res_flags);
-		return;
-	}
+ setflag:
+	/* there are no locks with lvb's */
+	if (!lock_lvb_exists)
+		goto out;
 
-	/* there are only lkb's (with lvbs) with mode NL or CR */
+	/* don't clear valnotvalid if it was already set */
+	if (test_bit(RESFL_VALNOTVALID_PREV, &r->res_flags))
+		goto setlvb;
+
+	if (big_lock_exists)
+		clear_bit(RESFL_VALNOTVALID, &r->res_flags);
+	else
+		set_bit(RESFL_VALNOTVALID, &r->res_flags);
+
+ setlvb:
+	/* don't mess with the lvb unless we're a new master */
+	if (!test_bit(RESFL_NEW_MASTER2, &r->res_flags))
+		goto out;
 
 	if (!r->res_lvbptr)
 		r->res_lvbptr = allocate_lvb(r->res_ls);
-	memset(r->res_lvbptr, 0, DLM_LVB_LEN);
-	set_bit(RESFL_VALNOTVALID, &r->res_flags);
-	return;
 
- out_set:
-	if (!r->res_lvbptr)
-		r->res_lvbptr = allocate_lvb(r->res_ls);
-	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-	clear_bit(RESFL_VALNOTVALID, &r->res_flags);
+	if (big_lock_exists)
+		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+	else {
+		/* FIXME: here we should take the lkb with largest
+		   lvbseq and copy its lvb to r's */
+		memset(r->res_lvbptr, 0, DLM_LVB_LEN);
+	}
+
+ out:
+	up_write(&r->res_lock);
 }
 
 int dlm_lvb_recovery(struct dlm_ls *ls)

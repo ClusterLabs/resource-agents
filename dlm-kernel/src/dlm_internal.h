@@ -313,10 +313,12 @@ struct dlm_ls {
  * Resource block
  */
 
-#define RESFL_NEW_MASTER	(0)
-#define RESFL_RECOVER_LIST	(1)
-#define RESFL_MASTER		(2)
-#define RESFL_VALNOTVALID	(3)
+#define RESFL_RECOVER_LIST	(0)
+#define RESFL_MASTER		(1)
+#define RESFL_NEW_MASTER	(2)
+#define RESFL_NEW_MASTER2       (3)
+#define RESFL_VALNOTVALID	(4)
+#define RESFL_VALNOTVALID_PREV	(5)
 
 struct dlm_rsb {
 	struct list_head	res_hashchain;
