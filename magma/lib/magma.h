@@ -137,6 +137,7 @@ typedef void cluster_plugin_t;
 /*
  * plugin.c: Load/unload functions
  */
+int cp_connect(cluster_plugin_t **cpp, char *groupname, int login);
 cluster_plugin_t *cp_load(const char *libpath);
 int cp_init(cluster_plugin_t *cpp, const void *priv, size_t privlen);
 int cp_unload(cluster_plugin_t *cpp);
@@ -326,6 +327,8 @@ are the set of all nodes in the cluster.
 \ref clu_fence
 \par
 \ref clu_get_event
+\par
+\ref cp_load
 
 \subsection locking Simple Cluster Locking API
 These functions may be used after
@@ -343,9 +346,9 @@ These functions are lower level than the non-reentrant versions, and provide
 a means of communicating with multiple different cluster infrastructures
 running on one node.  However, these functions are not self configuring,
 and require a more effort to provide the same functionality as the
-non-reentrant versions.
-\par
+non-reentrant versions.  Note that
 \ref cp_load
+is not reentrant, as it loads a plugin from the host file system.
 \par
 \ref cp_init
 \par

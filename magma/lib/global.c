@@ -40,10 +40,7 @@ static void _clu_clear_default(void);
 
 
 /**
-  Searches PLUGINDIR for a plugin which can successfully connect to the
-  cluster infrastructure (locking/fencing/quorum/membership) which is 
-  running locally.  This connects, and tries to log in to the specified
-  service or node group if specified.
+  Thread-safe wrapper using default plugin around cp_connect.
  
   @param groupname	Node group to connect to.
   @param login		If set to nonzero, actually try to log in to the
@@ -56,75 +53,27 @@ static void _clu_clear_default(void);
 int
 clu_connect(char *groupname, int login)
 {
-	DIR *dir;
-	int fd, ret;
-	struct dirent *entry;
-	cluster_plugin_t *cp;
-	char filename[1024];
+	int fd;
 
 	pthread_rwlock_wrlock(&dflt_lock);
 	if (_cpp) {
 		pthread_rwlock_unlock(&dflt_lock);
-		return 0;
-	}
-
-	dir = opendir(PLUGINDIR);
-	if (!dir){
-		pthread_rwlock_unlock(&dflt_lock);
 		return -1;
 	}
-	while ((entry = readdir(dir)) != NULL) {
-		snprintf(filename, sizeof(filename), "%s/%s", PLUGINDIR,
-			 entry->d_name);
 
-		cp = cp_load(filename);
-		if (cp == NULL)
-			continue;
-
-#ifdef DEBUG
-		cp_null(cp);
-		fflush(stdout);
-#endif
-
-		if (cp_init(cp, NULL, 0) < 0) {
-			cp_unload(cp);
-			cp = NULL;
-			continue;
-		}
-
-		fd = cp_open(cp);
-		if (fd < 0) {
-			cp_unload(cp);
-			cp = NULL;
-			continue;
-		}
-
-		if (login) {
-			ret = cp_login(cp, fd, groupname);
-	       		if ((ret < 0) && (ret != -ENOSYS)) {
-				cp_close(cp, fd);
-				cp_unload(cp);
-				cp = NULL;
-				continue;
-			}
-		}
-
-		_cpp = cp;
+	fd = cp_connect(&_cpp, groupname, login);
+	if (fd >= 0) {
 		_clu_set_default(_cpp);
 		_connected = 1;
-		
-		closedir(dir);
-		pthread_rwlock_unlock(&dflt_lock);
-
-		/* Don't allow msg_close() to close this socket */
-		if (fd >= 0)
-			clist_insert(fd, MSG_CONNECTED);
-		return fd;
 	}
 
-	closedir(dir);
 	pthread_rwlock_unlock(&dflt_lock);
-	return -1;
+
+	/* Don't allow msg_close() to close this socket */
+	/* XXX this should probably be removed and have the app do it */
+	if (fd >= 0)
+		clist_insert(fd, MSG_CONNECTED);
+	return fd;
 }
 
 

@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <dirent.h>
 
 #ifdef MDEBUG
 #include <mallocdbg.h>
@@ -165,6 +166,83 @@ _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 
 
 /**
+  Searches PLUGINDIR for a plugin which can successfully connect to the
+  cluster infrastructure (locking/fencing/quorum/membership) which is 
+  running locally.  This connects, and tries to log in to the specified
+  service or node group if specified.
+ 
+  @param cpp		Newly allocated cluster plugin on success
+  @param groupname	Node group to connect to.
+  @param login		If set to nonzero, actually try to log in to the
+  			node or service group.
+  @return		A file descriptor on success; -1 on failure. 
+  			select(2) may be used to wait for events on this
+			file descriptor.
+  @see clu_disconnect
+ */
+int
+cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
+{
+	DIR *dir;
+	int fd, ret;
+	struct dirent *entry;
+	cluster_plugin_t *cp;
+	char filename[1024];
+
+	if (*cpp)
+		return -1;
+
+	dir = opendir(PLUGINDIR);
+	if (!dir)
+		return -1;
+
+	while ((entry = readdir(dir)) != NULL) {
+		snprintf(filename, sizeof(filename), "%s/%s", PLUGINDIR,
+			 entry->d_name);
+
+		cp = cp_load(filename);
+		if (cp == NULL)
+			continue;
+
+#ifdef DEBUG
+		cp_null(cp);
+		fflush(stdout);
+#endif
+
+		if (cp_init(cp, NULL, 0) < 0) {
+			cp_unload(cp);
+			cp = NULL;
+			continue;
+		}
+
+		fd = cp_open(cp);
+		if (fd < 0) {
+			cp_unload(cp);
+			cp = NULL;
+			continue;
+		}
+
+		if (login) {
+			ret = cp_login(cp, fd, groupname);
+	       		if ((ret < 0) && (ret != -ENOSYS)) {
+				cp_close(cp, fd);
+				cp_unload(cp);
+				cp = NULL;
+				continue;
+			}
+		}
+
+		*cpp = cp;
+		closedir(dir);
+		return fd;
+	}
+
+	closedir(dir);
+	return -1;
+}
+
+
+/**
  * Load a cluster plugin .so file and map all the functions
  * provided to entries in a cluster_plugin_t structure.  Maps all unimplemented
  * functions to their _U_* counterparts.
@@ -182,11 +260,13 @@ cp_load(const char *libpath)
 
 	handle = dlopen(libpath, RTLD_LAZY);
 	if (!handle) {
+		printf("Failed to open %s\n", libpath);
 		return NULL;
 	}
 
 	modversion = dlsym(handle, CLU_PLUGIN_VERSION_SYM);
 	if (!modversion) {
+		printf("Failed to map %s\n", CLU_PLUGIN_VERSION_SYM);
 		dlclose(handle);
 		return NULL;
 	}
@@ -201,6 +281,7 @@ cp_load(const char *libpath)
 
 	cpp = malloc(sizeof(*cpp));
 	if (!cpp) {
+		printf("Failed to malloc %d bytes\n", sizeof(*cpp));
 		return NULL;
 	}
 
@@ -246,6 +327,7 @@ cp_load(const char *libpath)
 	}
 
 	if (cpp->cp_private.p_load_func(cpp) < 0) {
+		printf("Load function failed\n");
 		free(cpp);
 		return NULL;
 	}
