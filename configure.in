@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.93 $) dnl cvs revision
+AC_REVISION($Revision: 1.94 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -599,7 +599,7 @@ AC_ARG_WITH(
   stop-init-priority,
     [  --with-stop-init-priority=number  Init stop priority. [default=5]  ],
     [ INITSTOPPRI=$withval ],
-    [ INITSTOPPRI=5 ],
+    [ INITSTOPPRI=05 ],
   )
 AC_DEFINE_UNQUOTED(INITSTOPPRI, $INITSTOPPRI, Init stop priority)
 AC_SUBST(INITSTOPPRI)
@@ -774,6 +774,7 @@ Makefile						        \
 debian/Makefile							\
 doc/Makefile							\
 include/Makefile						\
+        include/clplumbing/Makefile				\
         include/pils/Makefile					\
         include/stonith/Makefile				\
 replace/Makefile						\
@@ -784,6 +785,7 @@ lib/Makefile							\
 		lib/plugins/InterfaceMgr/Makefile		\
 		lib/plugins/HBauth/Makefile			\
 		lib/plugins/HBcomm/Makefile			\
+	lib/clplumbing/Makefile					\
 stonith/Makefile						\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
