@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.119 $) dnl cvs revision
+AC_REVISION($Revision: 1.120 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -147,6 +147,7 @@ AC_PATH_PROGS(MODPROBE, modprobe)
 AC_PATH_PROGS(RAIDSTART, raidstart)
 AC_PATH_PROGS(RAIDSTOP, raidstop)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
+AC_PATH_PROGS(GETENT, getent)
 
 AC_MSG_CHECKING(which glib config exists)
 if test x"${GLIBCONFIG}" = x""; then
@@ -675,6 +676,16 @@ AC_ARG_WITH(
   )
 AC_DEFINE_UNQUOTED(APIGROUP, "$APIGROUP", Group to own API fifos)
 AC_SUBST(APIGROUP)
+
+if
+  test  -z "${GETENT}" -o ! -x "${GETENT}"
+then
+  GETENT=getent
+  getent() {
+    grep "^${2}:" /etc/$1
+  }
+fi
+  
 
 AC_ARG_WITH(
   group-id,
