@@ -29,7 +29,9 @@ TARGET8= \
 	fence_vixel.8 \
 	fence_wti.8 \
 	fence_xcat.8 \
-	fence_zvm.8 
+	fence_zvm.8 \
+	fence_bladecenter.8 \
+	fenced.8
 
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
