@@ -111,6 +111,9 @@ static void process_complete(dlm_lock_t *lp)
 		goto out;
 	}
 
+	if (lp->lksb.sb_flags & DLM_SBF_VALNOTVALID)
+		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_LEN);
+
 	/*
 	 * A canceled lock request.  The lock was just taken off the delayed
 	 * list and was never even submitted to dlm.
@@ -194,6 +197,10 @@ static void process_complete(dlm_lock_t *lp)
 		lp->req = DLM_LOCK_NL;
 		lp->lkf |= DLM_LKF_CONVERT;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
+
+		log_debug("rereq %x,%"PRIx64" id %x %d,%d\n",
+			  lp->lockname.ln_type, lp->lockname.ln_number,
+			  lp->lksb.sb_lkid, lp->cur, lp->req);
 
 		set_bit(LFL_REREQUEST, &lp->flags);
 		queue_submit(lp);
