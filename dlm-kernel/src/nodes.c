@@ -71,7 +71,7 @@ static int get_node(uint32_t nodeid, struct dlm_node **ndp)
 	if (node)
 		goto out;
 
-	node = (struct dlm_node *) kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
+	node = kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
 	if (!node)
 		goto fail;
 
@@ -105,7 +105,7 @@ int init_new_csb(uint32_t nodeid, struct dlm_csb **ret_csb)
 	struct dlm_node *node;
 	int error = -ENOMEM;
 
-	csb = (struct dlm_csb *) kmalloc(sizeof(struct dlm_csb), GFP_KERNEL);
+	csb = kmalloc(sizeof(struct dlm_csb), GFP_KERNEL);
 	if (!csb)
 		goto fail;
 

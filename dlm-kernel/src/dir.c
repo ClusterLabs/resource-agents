@@ -234,7 +234,7 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 	if (!rc)
 		goto out;
 
-	last_name = (char *) kmalloc(DLM_RESNAME_MAXLEN, GFP_KERNEL);
+	last_name = kmalloc(DLM_RESNAME_MAXLEN, GFP_KERNEL);
 	if (!last_name)
 		goto free_rc;
 

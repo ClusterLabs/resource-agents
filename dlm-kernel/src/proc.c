@@ -56,8 +56,12 @@ static int locks_open(struct inode *inode, struct file *file)
 static ssize_t locks_write(struct file *file, const char *buf,
 			   size_t count, loff_t * ppos)
 {
+	int error;
+
 	if (count < sizeof(proc_ls_name)) {
-		copy_from_user(proc_ls_name, buf, count);
+		error = copy_from_user(proc_ls_name, buf, count);
+		if (error)
+			return error;
 		proc_ls_name[count] = '\0';
 
 		/* Remove any trailing LF so that lazy users
