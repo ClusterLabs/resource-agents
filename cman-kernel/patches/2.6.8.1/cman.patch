@@ -1,7 +1,7 @@
 diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cnxman-private.h
 --- linux-orig/cluster/cman/cnxman-private.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/cnxman-private.h	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,430 @@
++++ linux-patched/cluster/cman/cnxman-private.h	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,431 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -175,8 +175,7 @@ diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cn
 +	unsigned char  votes;
 +	unsigned short num_addr;	/* Number of addresses for this node */
 +	unsigned int   expected_votes;
-+	unsigned int   members;	/* Number of nodes in the cluster,
-+				 * little-endian */
++        unsigned int   nodeid;	        /* node ID we want */
 +	unsigned int   major_version;	/* Not backwards compatible */
 +	unsigned int   minor_version;	/* Backwards compatible */
 +	unsigned int   patch_version;	/* Backwards/forwards compatible */
@@ -296,6 +295,7 @@ diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cn
 +	unsigned int incarnation;	/* Incremented each time a node joins
 +					 * the cluster */
 +	unsigned long last_hello;	/* Jiffies */
++        struct timeval join_time;
 +};
 +
 +/* This is how we keep a list of user processes that are listening for cluster
@@ -375,6 +375,7 @@ diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cn
 +extern void set_votes(int, int);
 +extern void kcl_wait_for_all_acks(void);
 +extern char *membership_state(char *, int);
++extern char *leave_string(int reason);
 +extern void a_node_just_died(struct cluster_node *node);
 +extern void check_barrier_returns(void);
 +extern int in_transition(void);
@@ -434,8 +435,8 @@ diff -urN linux-orig/cluster/cman/cnxman-private.h linux-patched/cluster/cman/cn
 +#endif
 diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 --- linux-orig/cluster/cman/cnxman.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/cnxman.c	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,4124 @@
++++ linux-patched/cluster/cman/cnxman.c	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,4143 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -495,7 +496,6 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +static void check_for_unacked_nodes(void);
 +static void free_cluster_sockets(void);
 +static uint16_t generate_cluster_id(char *name);
-+
 +static int is_valid_temp_nodeid(int nodeid);
 +
 +extern int start_membership_services(pid_t);
@@ -548,6 +548,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +/* Task variables */
 +static pid_t kcluster_pid;
 +static pid_t membership_pid;
++extern struct task_struct *membership_task;
 +extern int quit_threads;
 +
 +wait_queue_head_t cnxman_waitq;
@@ -562,6 +563,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +extern struct list_head new_dead_node_list;
 +extern struct semaphore new_dead_node_lock;
 +extern char nodename[];
++extern int wanted_nodeid;
 +
 +/* A list of processes listening for membership events */
 +static struct list_head event_listener_list;
@@ -838,20 +840,20 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	}
 +	P_COMMS("closing down\n");
 +
-+	if (we_are_a_cluster_member)
-+	    send_leave(us->leave_reason);
-+
-+	kfree(iobuf);
 +	quit_threads = 1;	/* force other thread to die too */
++
++	/* Wait for membership thread to finish, that way any
++	   LEAVE message will get sent. */
++	wake_up_process(membership_task);
++	wait_for_completion(&member_thread_comp);
++
 +	node_shutdown();
 +
 +	if (timer_pending(&ack_timer))
 +		del_timer(&ack_timer);
 +
-+	/* Wait for membership thread to die */
-+	wait_for_completion(&member_thread_comp);
-+
 +	node_cleanup();
++	kfree(iobuf);
 +
 +	complete(&cluster_thread_comp);
 +	return 0;
@@ -874,6 +876,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +static void check_for_unacked_nodes()
 +{
 +	struct list_head *nodelist;
++	struct list_head *temp;
 +	struct cluster_node *node;
 +
 +	clear_bit(RESEND_NEEDED, &mainloop_flags);
@@ -884,20 +887,23 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	/* Node did not ACK a message after <n> tries, remove it from the
 +	 * cluster */
 +	down(&cluster_members_lock);
-+	list_for_each(nodelist, &cluster_members_list) {
++	list_for_each_safe(nodelist, temp, &cluster_members_list) {
 +		node = list_entry(nodelist, struct cluster_node, list);
 +
-+		P_COMMS
-+		    ("checking node %s: last_acked = %d, last_seq_sent = %d\n",
-+		     node->name, node->last_seq_acked, node->last_seq_sent);
-+		if (node->state != NODESTATE_DEAD
-+		    && node->last_seq_acked != node->last_seq_sent && !node->us) {
++		P_COMMS("checking node %s: last_acked = %d, last_seq_sent = %d\n",
++			node->name, node->last_seq_acked, node->last_seq_sent);
++		if (node->state != NODESTATE_DEAD &&
++		    node->last_seq_acked != node->last_seq_sent && !node->us) {
 +			printk(KERN_WARNING CMAN_NAME
 +			       ": node %s is not responding - removing from the cluster\n",
 +			       node->name);
 +
++			/* Drop this lock or we can deadlock with membership */
++			up(&cluster_members_lock);
++
 +			/* Start a state transition */
 +			a_node_just_died(node);
++			down(&cluster_members_lock);
 +		}
 +	}
 +	up(&cluster_members_lock);
@@ -1002,7 +1008,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	case CLUSTER_CMD_ACK:
 +		ackmsg = (struct cl_ackmsg *) data;
 +
-+		if (ackmsg->aflags & 1) {
++		if (rem_node && (ackmsg->aflags & 1)) {
 +			if (net_ratelimit())
 +				printk(KERN_INFO CMAN_NAME
 +				       ": WARNING no listener for port %d on node %s\n",
@@ -1054,7 +1060,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		    (struct cl_barriermsg *) (data +
 +					      sizeof (struct cl_protheader));
 +		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
-+		process_barrier_msg(barriermsg, rem_node);
++		if (rem_node)
++			process_barrier_msg(barriermsg, rem_node);
 +		break;
 +
 +	default:
@@ -1982,8 +1989,17 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +
 +static int do_ioctl_set_nodeid(unsigned long arg)
 +{
-+	// TODO
-+	return -ENOTSUPP;
++	int nodeid = (int)arg;
++
++	if (!capable(CAP_CLUSTER))
++		return -EPERM;
++	if (atomic_read(&cnxman_running))
++		return -EINVAL;
++	if (nodeid < 0 || nodeid > 4096)
++		return -EINVAL;
++
++	wanted_nodeid = (int)arg;
++	return 0;
 +}
 +
 +static int do_ioctl_join_cluster(unsigned long arg)
@@ -2065,6 +2081,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	wake_up_interruptible(&cnxman_waitq);
 +
 +	wait_for_completion(&cluster_thread_comp);
++	atomic_set(&use_count, 0);
 +	return 0;
 +}
 +
@@ -2524,14 +2541,14 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +			down(&send_lock);
 +		}
 +
++		set_task_state(tsk, TASK_RUNNING);
++		remove_wait_queue(&socket_waitq, &wq);
++
 +		/* Going down */
 +		if (quit_threads) {
 +			up(&send_lock);
 +			return -ENOTCONN;
 +		}
-+
-+		set_task_state(tsk, TASK_RUNNING);
-+		remove_wait_queue(&socket_waitq, &wq);
 +
 +		if (signal_pending(current)) {
 +			up(&send_lock);
@@ -3052,7 +3069,9 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	struct cl_client_socket *csock;
 +	struct sk_buff *null_skb;
 +
-+	printk(KERN_INFO CMAN_NAME ": we are leaving the cluster\n");
++	if (we_are_a_cluster_member)
++		printk(KERN_INFO CMAN_NAME ": we are leaving the cluster. %s\n",
++		       us->leave_reason?leave_string(us->leave_reason):"");
 +
 +	atomic_set(&cnxman_running, 0);
 +	unjam();
@@ -3193,7 +3212,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	cluster_members = 0;
 +	up(&cluster_members_lock);
 +
-+	/* Clean the temop node IDs list. */
++	/* Clean the temp node IDs list. */
 +	down(&tempnode_lock);
 +	list_for_each_entry_safe(tn, tmp, &tempnode_list, list) {
 +		list_del(&tn->list);
@@ -3218,6 +3237,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	kcluster_pid = 0;
 +	clear_bit(RESEND_NEEDED, &mainloop_flags);
 +	acks_expected = 0;
++	wanted_nodeid = 0;
 +}
 +
 +/* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
@@ -3843,7 +3863,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +		 * cnxman and COMPLETE may /just/ slide in
 +		 * before WAIT if its in the queue
 +		 */
-+		P_BARRIER("Sending WAIT for %s\n", name);
++		P_BARRIER("Sending WAIT for %s\n", barrier->name);
 +		status = queue_message(&bmsg, sizeof (bmsg), NULL, 0, 0);
 +		if (status < 0) {
 +			up(&barrier->lock);
@@ -4299,8 +4319,6 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +}
 +
 +
-+
-+
 +/* Quorum device functions */
 +int kcl_register_quorum_device(char *name, int votes)
 +{
@@ -4413,7 +4431,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +/* Socket registration stuff */
 +static struct net_proto_family cl_family_ops = {
 +	.family = AF_CLUSTER,
-+	.create = cl_create
++	.create = cl_create,
++	.owner  = THIS_MODULE,
 +};
 +
 +static struct proto_ops cl_proto_ops = {
@@ -4435,6 +4454,7 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 +	.recvmsg     = cl_recvmsg,
 +	.mmap        = sock_no_mmap,
 +	.sendpage    = sock_no_sendpage,
++	.owner       = THIS_MODULE,
 +};
 +
 +#ifdef MODULE
@@ -4562,8 +4582,8 @@ diff -urN linux-orig/cluster/cman/cnxman.c linux-patched/cluster/cman/cnxman.c
 + */
 diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
 --- linux-orig/cluster/cman/config.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/config.c	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,46 @@
++++ linux-patched/cluster/cman/config.c	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,49 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4599,6 +4619,8 @@ diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
 +					 * restarts before we die */
 +#define DEFAULT_SM_DEBUG_SIZE	256	/* Size in bytes of SM debug buffer */
 +
++#define DEFAULT_NEWCLUSTER_TIMEOUT 16   /* Time to send NEWCLUSTER messages */
++
 +struct config_info cman_config = {
 +	.joinwait_timeout = DEFAULT_JOIN_WAIT_TIME,
 +	.joinconf_timeout = DEFAULT_JOINCONF_TIMER,
@@ -4609,11 +4631,12 @@ diff -urN linux-orig/cluster/cman/config.c linux-patched/cluster/cman/config.c
 +	.transition_restarts = DEFAULT_TRANSITION_RESTARTS,
 +	.max_nodes = DEFAULT_MAX_NODES,
 +	.sm_debug_size = DEFAULT_SM_DEBUG_SIZE,
++	.newcluster_timeout = DEFAULT_NEWCLUSTER_TIMEOUT,
 +};
 diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
 --- linux-orig/cluster/cman/config.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/config.h	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,31 @@
++++ linux-patched/cluster/cman/config.h	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4640,6 +4663,7 @@ diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
 +	int transition_restarts;
 +	int max_nodes;
 +	int sm_debug_size;
++        int newcluster_timeout;
 +};
 +
 +extern struct config_info cman_config;
@@ -4647,7 +4671,7 @@ diff -urN linux-orig/cluster/cman/config.h linux-patched/cluster/cman/config.h
 +#endif				/* __CONFIG_DOT_H__ */
 diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
 --- linux-orig/cluster/cman/kjoin.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/kjoin.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/kjoin.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,238 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4889,8 +4913,8 @@ diff -urN linux-orig/cluster/cman/kjoin.c linux-patched/cluster/cman/kjoin.c
 + */
 diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/membership.c
 --- linux-orig/cluster/cman/membership.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/membership.c	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,3047 @@
++++ linux-patched/cluster/cman/membership.c	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,3160 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4956,6 +4980,11 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +/* Our node name, usually system_utsname.nodename, but can be overridden */
 +char nodename[MAX_CLUSTER_MEMBER_NAME_LEN + 1];
++
++/* Node ID that we want. defaults of zero means
++ *  it will be allocated by the cluster join mechanism
++ */
++int wanted_nodeid;
 +
 +static spinlock_t members_by_nodeid_lock;
 +static int sizeof_members_array;	/* Can dynamically increase (vmalloc
@@ -5030,6 +5059,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +static void join_or_form_cluster(void);
 +static int do_timer_wakeup(void);
 +static int start_transition(unsigned char reason, struct cluster_node *node);
++static uint32_t low32_of_ip(void);
 +int send_leave(unsigned char);
 +int send_reconfigure(int, unsigned int);
 +
@@ -5048,9 +5078,9 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +#endif
 +
 +/* State of the node */
-+static enum { STARTING, JOINING, JOINWAIT, JOINACK, TRANSITION,
++static enum { STARTING, NEWCLUSTER, JOINING, JOINWAIT, JOINACK, TRANSITION,
 +	    TRANSITION_COMPLETE, MEMBER, REJECTED, LEFT_CLUSTER, MASTER
-+} node_state = STARTING;
++} node_state = LEFT_CLUSTER;
 +
 +/* Sub-state when we are MASTER */
 +static enum { MASTER_START, MASTER_COLLECT, MASTER_CONFIRM,
@@ -5095,19 +5125,24 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		return;
 +
 +	node->node_id = nodeid;
-+	if (nodeid > sizeof_members_array) {
++	if (nodeid >= sizeof_members_array) {
 +		int new_size = sizeof_members_array + MEMBER_INCREMENT_SIZE;
-+		struct cluster_node **new_array =
-+		    vmalloc((new_size) * sizeof (struct cluster_node *));
++		struct cluster_node **new_array;
++
++		if (new_size < nodeid)
++			new_size = nodeid + MEMBER_INCREMENT_SIZE;
++
++		new_array = vmalloc((new_size) * sizeof (struct cluster_node *));
 +		if (new_array) {
 +			spin_lock(&members_by_nodeid_lock);
 +			memcpy(new_array, members_by_nodeid,
 +			       sizeof_members_array *
 +			       sizeof (struct cluster_node *));
 +			memset(&new_array[sizeof_members_array], 0,
-+			       MEMBER_INCREMENT_SIZE *
++			       (new_size - sizeof_members_array) *
 +			       sizeof (struct cluster_node *));
 +			vfree(members_by_nodeid);
++
 +			members_by_nodeid = new_array;
 +			sizeof_members_array = new_size;
 +			spin_unlock(&members_by_nodeid_lock);
@@ -5165,7 +5200,6 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +static int membership_kthread(void *unused)
 +{
 +	struct task_struct *tsk = current;
-+	struct socket *tmp_socket;
 +	sigset_t tmpsig;
 +
 +	daemonize("cman_memb");
@@ -5270,8 +5304,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			joinwait_time = jiffies;
 +		}
 +
-+		/* Have we been in joinwait for too long... */
-+		if (node_state == JOINWAIT
++		/* Have we been in joinwait/joining for too long... */
++		if ((node_state == JOINWAIT || node_state == JOINING)
 +		    && time_after(jiffies, joinwait_time +
 +				   cman_config.join_timeout * HZ)) {
 +			printk(CMAN_NAME
@@ -5298,12 +5332,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	P_MEMB("closing down\n");
 +	quit_threads = 1;	/* force other thread to exit too */
 +
-+	/* Close the socket, NULL the pointer first so it doesn't get used
-+	 * by send_leave()
-+	 */
-+	tmp_socket = mem_socket;
-+	mem_socket = NULL;
-+	sock_release(tmp_socket);
++	send_leave(us->leave_reason);
++	sock_release(mem_socket);
 +	highest_nodeid = 0;
 +	complete(&member_thread_comp);
 +	return 0;
@@ -5395,9 +5425,11 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	printk(KERN_INFO CMAN_NAME ": forming a new cluster\n");
 +	node_state = MEMBER;
 +	we_are_a_cluster_member = TRUE;
-+	us->node_id = 1;
 +	us->state = NODESTATE_MEMBER;
-+	set_nodeid(us, 1);
++	if (wanted_nodeid)
++		set_nodeid(us, wanted_nodeid);
++	else
++		set_nodeid(us, 1);
 +	recalculate_quorum(0);
 +	sm_member_update(cluster_is_quorate);
 +	send_hello();
@@ -5415,13 +5447,14 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	printk(KERN_INFO CMAN_NAME
 +	       ": Waiting to join or form a Linux-cluster\n");
++
++ restart_joinwait:
 +	join_time = 0;
 +	start_time = jiffies;
 +	joinwait_time = jiffies;
 +	last_hello = 0;
-+	send_newcluster();
 +
-+	/* Listen for a reply */
++	/* Listen for HELLO or NEWCLUSTER messages */
 +	do {
 +		DECLARE_WAITQUEUE(wait, current);
 +		set_task_state(current, TASK_INTERRUPTIBLE);
@@ -5444,8 +5477,47 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	while (time_before(jiffies, start_time + cman_config.joinwait_timeout * HZ) &&
 +	       node_state == STARTING);
 +
-+	/* If we didn't hear any HELLO messages then form a new cluster */
 +	if (node_state == STARTING) {
++		start_time = jiffies;
++		joinwait_time = jiffies;
++		node_state = NEWCLUSTER;
++	}
++
++        /* If we didn't hear any HELLO messages then start sending NEWCLUSTER messages */
++	while (time_before(jiffies, start_time + cman_config.newcluster_timeout * HZ) &&
++	       node_state == NEWCLUSTER) {
++
++		DECLARE_WAITQUEUE(wait, current);
++
++		send_newcluster();
++
++		set_task_state(current, TASK_INTERRUPTIBLE);
++		add_wait_queue(mem_socket->sk->sk_sleep, &wait);
++
++		if (!skb_peek(&mem_socket->sk->sk_receive_queue))
++			schedule_timeout((cman_config.joinwait_timeout * HZ) /
++					 5);
++
++		set_task_state(current, TASK_RUNNING);
++		remove_wait_queue(mem_socket->sk->sk_sleep, &wait);
++
++		while (skb_peek(&mem_socket->sk->sk_receive_queue)) {
++			dispatch_messages(mem_socket);
++		}
++		/* Did we get a lower "NEWCLUSTER" message ? */
++		if (node_state == STARTING) {
++			P_MEMB("NEWCLUSTER: restarting joinwait\n");
++			goto restart_joinwait;
++		}
++
++		if (quit_threads)
++			node_state = LEFT_CLUSTER;
++
++	}
++
++
++        /* If we didn't hear any HELLO messages then form a new cluster */
++	if (node_state == NEWCLUSTER) {
 +		form_cluster();
 +	}
 +	else
@@ -5532,9 +5604,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	msg->cmd = CLUSTER_MEM_JOINREQ;
 +	msg->votes = votes;
 +	msg->expected_votes = cpu_to_le32(expected_votes);
-+	msg->major_version = cpu_to_le32(CNXMAN_MAJOR_VERSION);
-+	msg->minor_version = cpu_to_le32(CNXMAN_MINOR_VERSION);
-+	msg->patch_version = cpu_to_le32(CNXMAN_PATCH_VERSION);
++	msg->nodeid         = cpu_to_le32(wanted_nodeid);
++	msg->major_version  = cpu_to_le32(CNXMAN_MAJOR_VERSION);
++	msg->minor_version  = cpu_to_le32(CNXMAN_MINOR_VERSION);
++	msg->patch_version  = cpu_to_le32(CNXMAN_PATCH_VERSION);
 +	msg->config_version = cpu_to_le32(config_version);
 +	msg->addr_len       = cpu_to_le32(address_length);
 +	strcpy(msg->clustername, cluster_name);
@@ -5571,11 +5644,15 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +static int send_newcluster()
 +{
-+	char buf[1];
++	char buf[5];
++	uint32_t lowip;
 +
 +	buf[0] = CLUSTER_MEM_NEWCLUSTER;
++	lowip = cpu_to_le32(low32_of_ip());
++	memcpy(&buf[1], &lowip, sizeof(lowip));
 +
-+	return kcl_sendmsg(mem_socket, buf, 1, NULL, 0,
++	return kcl_sendmsg(mem_socket, buf, sizeof(uint32_t)+1,
++			   NULL, 0,
 +			   MSG_NOACK);
 +}
 +
@@ -5763,7 +5840,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	int status;
 +
 +	if (!mem_socket)
-+			return 0;
++		return 0;
 +
 +	saddr.scl_family = AF_CLUSTER;
 +	saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
@@ -5935,8 +6012,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	node = find_node_by_name(name);
 +	if (node && node->state != NODESTATE_DEAD) {
 +
-+		if ((node->state == NODESTATE_JOINING ||
-+		     node->state == NODESTATE_REMOTEMEMBER))
++		if (node->state == NODESTATE_JOINING)
 +			return +1;
 +
 +		printk(KERN_WARNING CMAN_NAME
@@ -5951,8 +6027,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	    (node = find_node_by_addr(addr, addrlen)) &&
 +	    node->state != NODESTATE_DEAD) {
 +
-+		if ((node->state == NODESTATE_JOINING ||
-+		     node->state == NODESTATE_REMOTEMEMBER))
++		if (node->state == NODESTATE_JOINING)
 +			return +1;
 +
 +		printk(KERN_WARNING CMAN_NAME
@@ -5988,7 +6063,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	    && ++transition_restarts > cman_config.transition_restarts) {
 +		printk(KERN_WARNING CMAN_NAME
 +		       ": too many transition restarts - will die\n");
-+		send_leave(CLUSTER_LEAVEFLAG_INCONSISTENT);
++		us->leave_reason = CLUSTER_LEAVEFLAG_INCONSISTENT;
 +		node_state = LEFT_CLUSTER;
 +		quit_threads = 1;
 +		wake_up_process(membership_task);
@@ -6159,7 +6234,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	list_for_each_safe(nodelist, temp, &cluster_members_list) {
 +		node = list_entry(nodelist, struct cluster_node, list);
 +
-+		if (node->state == NODESTATE_MEMBER) {
++		if (node->state == NODESTATE_MEMBER || node->state == NODESTATE_DEAD) {
 +			unsigned int evotes;
 +			unsigned int node_id;
 +			unsigned short num_addrs = 0;
@@ -6171,6 +6246,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			message[ptr++] = len = strlen(node->name);
 +			strcpy(&message[ptr], node->name);
 +			ptr += len;
++
++			message[ptr++] = node->state;
 +
 +			/* Count the number of addresses this node has */
 +			list_for_each(addrlist, &node->addr_list) {
@@ -6185,8 +6262,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			list_for_each(addrlist, &node->addr_list) {
 +
 +				struct cluster_node_addr *nodeaddr =
-+				    list_entry(addrlist,
-+					       struct cluster_node_addr, list);
++					list_entry(addrlist,
++						   struct cluster_node_addr, list);
 +
 +				memcpy(&message[ptr], nodeaddr->addr,
 +				       address_length);
@@ -6208,11 +6285,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +				message[1] = first_packet_flag;
 +
 +				up(&cluster_members_lock);
-+				status =
-+				    kcl_sendmsg(mem_socket, message,
-+						last_node_start, saddr,
-+						saddr ? sizeof (struct sockaddr_cl) : 0,
-+						flags);
++				status = kcl_sendmsg(mem_socket, message,
++						     last_node_start, saddr,
++						     saddr ? sizeof (struct sockaddr_cl) : 0,
++						     flags);
 +
 +				if (status < 0)
 +					goto send_fail;
@@ -6372,6 +6448,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		newnode->last_seq_acked = 0;
 +		newnode->last_seq_sent = 0;
 +		newnode->incarnation++;
++		do_gettimeofday(&newnode->join_time);
 +		/* Don't overwrite the node ID */
 +
 +		if (state == NODESTATE_MEMBER) {
@@ -6405,6 +6482,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	newnode->last_seq_acked = 0;
 +	newnode->last_seq_sent = 0;
 +	newnode->incarnation = 0;
++	do_gettimeofday(&newnode->join_time);
 +	INIT_LIST_HEAD(&newnode->addr_list);
 +	set_nodeid(newnode, node_id);
 +
@@ -6654,8 +6732,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			/* We must leave the cluster as we are in a minority,
 +			 * the rest of them can fight it out amongst
 +			 * themselves. */
-+			send_leave(CLUSTER_LEAVEFLAG_INCONSISTENT);
-+
++			us->leave_reason = CLUSTER_LEAVEFLAG_INCONSISTENT;
 +			agreeing_nodes = 0;
 +			dissenting_nodes = 0;
 +			kfree(node_opinion);
@@ -6929,15 +7006,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			       le32_to_cpu(startmsg->nodeid));
 +
 +			/* If the old master has died then remove it */
-+			node =
-+			    find_node_by_nodeid(le32_to_cpu(startmsg->nodeid));
-+
-+			if (startmsg->reason == TRANS_DEADMASTER &&
-+			    node && node->state == NODESTATE_MEMBER) {
-+				down(&cluster_members_lock);
-+				node->state = NODESTATE_DEAD;
-+				cluster_members--;
-+				up(&cluster_members_lock);
++			if (startmsg->reason == TRANS_DEADMASTER) {
++				remove_node(le32_to_cpu(startmsg->nodeid));
 +			}
 +
 +			/* Store new master */
@@ -6947,14 +7017,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		/* Another node has died (or been killed) */
 +		if (startmsg->reason == TRANS_ANOTHERREMNODE) {
 +			/* Remove new dead node */
-+			node =
-+			    find_node_by_nodeid(le32_to_cpu(startmsg->nodeid));
-+			if (node && node->state == NODESTATE_MEMBER) {
-+				down(&cluster_members_lock);
-+				node->state = NODESTATE_DEAD;
-+				cluster_members--;
-+				up(&cluster_members_lock);
-+			}
++			remove_node(le32_to_cpu(startmsg->nodeid));
 +		}
 +		/* Restart the timer */
 +		del_timer(&transition_timer);
@@ -7048,27 +7111,13 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	return 0;
 +}
 +
-+/* Request to join the cluster. This makes us the master for this state
-+ * transition */
-+static int do_process_joinreq(struct msghdr *msg, int len)
++/* Check a JOINREQ message for validity,
++   return -1 if we can't let the node join our cluster */
++static int validate_joinmsg(struct cl_mem_join_msg *joinmsg, int len)
 +{
-+	int status;
-+	static unsigned long last_joinreq = 0;
-+	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
-+	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
 +	struct cluster_node *node;
 +
-+	/* If we are in a state transition then tell the new node to wait a bit
-+	 * longer */
-+	if (node_state != MEMBER) {
-+		if (node_state == MASTER || node_state == TRANSITION) {
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_WAIT);
-+		}
-+		return 0;
-+	}
-+
-+	/* Check version number */
++        /* Check version number */
 +	if (le32_to_cpu(joinmsg->major_version) == CNXMAN_MAJOR_VERSION) {
 +		char *ptr = (char *) joinmsg;
 +		char *name;
@@ -7081,7 +7130,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			printk(KERN_WARNING CMAN_NAME
 +			       ": num_addr in JOIN-REQ message is rubbish: %d\n",
 +			       le16_to_cpu(joinmsg->num_addr));
-+			return 0;
++			return -1;
 +		}
 +
 +		/* Check the cluster name matches */
@@ -7089,9 +7138,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			printk(KERN_WARNING CMAN_NAME
 +			       ": attempt to join with cluster name '%s' refused\n",
 +			       joinmsg->clustername);
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
++			return -1;
 +		}
 +
 +		/* Check we are not exceeding the maximum number of nodes */
@@ -7099,18 +7146,14 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			printk(KERN_WARNING CMAN_NAME
 +			       ": Join request from %s rejected, exceeds maximum number of nodes\n",
 +			       name);
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
++			return -1;
 +		}
 +
 +		/* Check that we don't exceed the two_node limit, if applicable */
 +		if (two_node && cluster_members == 2) {
 +			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 +			       "rejected, exceeds two node limit\n", name);
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
++			return -1;
 +		}
 +
 +		if (le32_to_cpu(joinmsg->config_version) != config_version) {
@@ -7118,90 +7161,129 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +			       "rejected, config version local %u remote %u\n",
 +			       name, config_version,
 +			       le32_to_cpu(joinmsg->config_version));
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
++			return -1;
 +		}
 +
-+		/* If these don't match then I don't know how the message
++		/* Validate requested static node ID */
++		if (joinmsg->nodeid &&
++		    (node = find_node_by_nodeid(le32_to_cpu(joinmsg->nodeid))) &&
++		    (node->state != NODESTATE_DEAD ||
++		     (strcmp(node->name, name)))) {
++			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
++			       "rejected, node ID %d already in use by %s\n",
++			       name, node->node_id, node->name);
++			return -1;
++		}
++		if (joinmsg->nodeid &&
++		    (node = find_node_by_name(name)) &&
++		    (node->state != NODESTATE_DEAD ||
++		     node->node_id != le32_to_cpu(joinmsg->nodeid))) {
++			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
++			       "rejected, wanted node %d but previously had %d\n",
++			       name, le32_to_cpu(joinmsg->nodeid), node->node_id);
++			return -1;
++		}
++
++                /* If these don't match then I don't know how the message
 +		   arrived! However, I can't take the chance */
 +		if (le32_to_cpu(joinmsg->addr_len) != address_length) {
 +			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 +			       "rejected, address length local: %u remote %u\n",
 +			       name, address_length,
 +			       le32_to_cpu(joinmsg->addr_len));
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
-+		}
-+
-+		/* Duplicate checking: Because joining messages do not have
-+		 * sequence numbers we may get as many JOINREQ messages as we
-+		 * have interfaces. This bit of code here just checks for
-+		 * JOINREQ messages that come in from the same node in a small
-+		 * period of time and removes the duplicates */
-+		if (time_before(jiffies, last_joinreq + 10 * HZ)
-+		    && strcmp(name, last_name) == 0) {
-+			return 0;
-+		}
-+
-+		/* Do we already know about this node? */
-+		status = check_duplicate_node(name, msg, len);
-+
-+		if (status < 0) {
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_NAK);
-+			return 0;
-+		}
-+
-+		/* OK, you can be in my gang */
-+		if (status == 0) {
-+			int i;
-+			struct sockaddr_cl *addr = msg->msg_name;
-+
-+			last_joinreq = jiffies;
-+			strcpy(last_name, name);
-+
-+			node =
-+			    add_new_node(name, joinmsg->votes,
-+					 le32_to_cpu(joinmsg->expected_votes),
-+					 0, NODESTATE_JOINING);
-+
-+			/* Add the node's addresses */
-+			if (list_empty(&node->addr_list)) {
-+				for (i = 0; i < le16_to_cpu(joinmsg->num_addr);
-+				     i++) {
-+					add_node_address(node, ptr, address_length);
-+					ptr += address_length;
-+				}
-+			}
-+			send_joinack(msg->msg_name, msg->msg_namelen,
-+				      JOINACK_TYPE_OK);
-+			joining_node = node;
-+			joining_temp_nodeid = addr->scl_nodeid;
-+
-+			/* Start the state transition */
-+			start_transition(TRANS_NEWNODE, node);
++			return -1;
 +		}
 +	}
 +	else {
 +		/* Version number mismatch, don't use any part of the message
 +		 * other than the version numbers as things may have moved */
-+		char buf[MAX_ADDR_PRINTED_LEN];
-+
 +		printk(KERN_INFO CMAN_NAME
-+		       ": Got join message from node running incompatible software. (us: %d.%d.%d, them: %d.%d.%d) addr: %s\n",
++		       ": Got join message from node running incompatible software. (us: %d.%d.%d, them: %d.%d.%d)\n",
 +		       CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
 +		       CNXMAN_PATCH_VERSION,
 +		       le32_to_cpu(joinmsg->major_version),
 +		       le32_to_cpu(joinmsg->minor_version),
-+		       le32_to_cpu(joinmsg->patch_version),
-+		       print_addr(msg->msg_name, msg->msg_namelen, buf));
++		       le32_to_cpu(joinmsg->patch_version));
++		return -1;
++	}
++	return 0;
++}
 +
-+		send_joinack(msg->msg_name, msg->msg_namelen,
-+			      JOINACK_TYPE_NAK);
++
++/* Request to join the cluster. This makes us the master for this state
++ * transition */
++static int do_process_joinreq(struct msghdr *msg, int len)
++{
++	static unsigned long last_joinreq = 0;
++	static char last_name[MAX_CLUSTER_MEMBER_NAME_LEN];
++	struct cl_mem_join_msg *joinmsg = msg->msg_iov->iov_base;
++	struct cluster_node *node;
++	char *ptr = (char *) joinmsg;
++	char *name;
++	int i;
++	struct sockaddr_cl *addr = msg->msg_name;
++
++	ptr += sizeof (*joinmsg);
++	name = ptr + le16_to_cpu(joinmsg->num_addr) * address_length;
++
++	/* If we are in a state transition then tell the new node to wait a bit
++	 * longer */
++	if (node_state != MEMBER) {
++		if (node_state == MASTER || node_state == TRANSITION) {
++			send_joinack(msg->msg_name, msg->msg_namelen,
++				      JOINACK_TYPE_WAIT);
++		}
 +		return 0;
 +	}
++
++	/* Reject application if message is invalid for any reason */
++	if (validate_joinmsg(joinmsg, len)) {
++		send_joinack(msg->msg_name, msg->msg_namelen,
++			     JOINACK_TYPE_NAK);
++		return 0;
++	}
++
++	/* Do we already know about this node? */
++	if (check_duplicate_node(name, msg, len) < 0) {
++		send_joinack(msg->msg_name, msg->msg_namelen,
++			     JOINACK_TYPE_NAK);
++		return 0;
++	}
++
++	/* Duplicate checking: Because joining messages do not have
++	 * sequence numbers we may get as many JOINREQ messages as we
++	 * have interfaces. This bit of code here just checks for
++	 * JOINREQ messages that come in from the same node in a small
++	 * period of time and removes the duplicates */
++	if (time_before(jiffies, last_joinreq + 10 * HZ)
++	    && strcmp(name, last_name) == 0) {
++		return 0;
++	}
++
++        /* OK, you can be in my gang */
++	last_joinreq = jiffies;
++	strcpy(last_name, name);
++
++	node = add_new_node(name, joinmsg->votes,
++			    le32_to_cpu(joinmsg->expected_votes),
++			    le32_to_cpu(joinmsg->nodeid),
++			    NODESTATE_JOINING);
++
++	/* Add the node's addresses */
++	if (list_empty(&node->addr_list)) {
++		for (i = 0; i < le16_to_cpu(joinmsg->num_addr);
++		     i++) {
++			add_node_address(node, ptr, address_length);
++			ptr += address_length;
++		}
++	}
++	send_joinack(msg->msg_name, msg->msg_namelen,
++		     JOINACK_TYPE_OK);
++	joining_node = node;
++	joining_temp_nodeid = addr->scl_nodeid;
++
++	/* Start the state transition */
++	start_transition(TRANS_NEWNODE, node);
 +
 +	return 0;
 +}
@@ -7216,7 +7298,22 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	for (i=0; i<strlen(nodename); i++) {
 +		value += nodename[i];
 +	}
-+	return value & 0xF;
++	return (value & 0xF) + 1;
++}
++
++
++/* Return the low 32 bits of our IP address */
++static uint32_t low32_of_ip()
++{
++	struct cluster_node_addr *addr;
++	uint32_t lowip;
++
++	addr = list_entry(us->addr_list.next, struct cluster_node_addr, list);
++	memcpy(&lowip, addr->addr+address_length-sizeof(uint32_t), sizeof(uint32_t));
++	if (!lowip)
++		memcpy(&lowip, addr->addr - sizeof(uint32_t)*2, sizeof(uint32_t));
++
++	return lowip;
 +}
 +
 +/* A new node has stated its intent to form a new cluster. we may have
@@ -7229,6 +7326,18 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		P_MEMB("got NEWCLUSTER, backing down for %d seconds\n", node_hash());
 +		start_time = jiffies + node_hash() * HZ;
 +	}
++
++	if (node_state == NEWCLUSTER) {
++		uint32_t otherip;
++		char *newcmsg = (char *)msg->msg_iov->iov_base;
++
++		memcpy(&otherip, newcmsg+1, sizeof(otherip));
++		otherip = le32_to_cpu(otherip);
++		P_MEMB("got NEWCLUSTER, remote ip = %x, us = %x\n", otherip, low32_of_ip());
++		if (otherip < low32_of_ip())
++			node_state = STARTING;
++	}
++
 +	if (node_state == MEMBER)
 +		send_hello();
 +
@@ -7251,11 +7360,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	if (node->votes != newnode->votes ||
 +	    node->node_id != newnode->node_id ||
-+	    node->state != NODESTATE_MEMBER) {
-+		C_MEMB
-+		    (" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
-+		     node->votes, newnode->votes, node->node_id,
-+		     newnode->node_id, node->state);
++	    node->state != newnode->state) {
++		C_MEMB(" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
++		       node->votes, newnode->votes, node->node_id,
++		       newnode->node_id, node->state);
 +		return -1;
 +	}
 +	C_MEMB(" - OK\n");
@@ -7276,7 +7384,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +		if ((newnode =
 +		     add_new_node(node->name, node->votes, node->expected_votes,
-+				  node->node_id, NODESTATE_MEMBER)) == NULL) {
++				  node->node_id, node->state)) == NULL) {
 +			P_MEMB("Error adding node\n");
 +			return -1;
 +		}
@@ -7318,6 +7426,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		nodename[namelen] = '\0';
 +		ptr += namelen;
 +
++		node.state = buf[ptr++];
++
 +		memcpy(&num_addr, &buf[ptr], sizeof (short));
 +		num_addr = le16_to_cpu(num_addr);
 +		ptr += sizeof (short);
@@ -7339,7 +7449,10 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		/* Call the callback routine */
 +		if (routine(&node, addrs, num_addr) < 0)
 +			return -1;
-+		num_nodes++;
++
++		/* Return the number of MEMBER nodes */
++		if (node.state == NODESTATE_MEMBER)
++			num_nodes++;
 +	}
 +	return num_nodes;
 +}
@@ -7354,7 +7467,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	if (unpack_nodes(message + 2, len - 2, add_node) < 0) {
 +		printk(CMAN_NAME
 +		       ": Error procssing joinconf message - giving up on cluster join\n");
-+		send_leave(CLUSTER_LEAVEFLAG_PANIC);
++		us->leave_reason = CLUSTER_LEAVEFLAG_PANIC;
++		node_state = LEFT_CLUSTER;
 +		return -1;
 +	}
 +
@@ -7394,8 +7508,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	if (message[1] & 1)
 +		num_nodes = 0;
 +
-+	num_nodes +=
-+	    unpack_nodes(msg->msg_iov->iov_base + 2, len - 2, check_node);
++	num_nodes += unpack_nodes(msg->msg_iov->iov_base + 2,
++				  len - 2, check_node);
 +
 +	/* Last message, check the count and reply */
 +	if (message[1] & 2) {
@@ -7427,8 +7541,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +		if (node->state != NODESTATE_DEAD) {
 +			printk(KERN_INFO CMAN_NAME
-+			       ": Node %s is leaving the cluster, reason %d\n",
-+			       node->name, reason);
++			       ": Node %s is leaving the cluster, %s\n",
++			       node->name, leave_string(reason));
 +
 +			node->leave_reason = reason;
 +		}
@@ -7448,7 +7562,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +
 +	/* We are starting up. Send a join message to the node whose HELLO we
 +	 * just received */
-+	if (node_state == STARTING || node_state == JOINWAIT) {
++	if (node_state == STARTING || node_state == JOINWAIT ||
++	    node_state == JOINING  || node_state == NEWCLUSTER) {
 +		struct sockaddr_cl *addr = msg->msg_name;
 +
 +		printk(KERN_INFO CMAN_NAME ": sending membership request\n");
@@ -7848,6 +7963,9 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	case STARTING:
 +		strncpy(buf, "Starting", buflen);
 +		break;
++	case NEWCLUSTER:
++		strncpy(buf, "New-Cluster?", buflen);
++		break;
 +	case JOINING:
 +		strncpy(buf, "Joining", buflen);
 +		break;
@@ -7868,7 +7986,7 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +		strncpy(buf, "Rejected", buflen);
 +		break;
 +	case LEFT_CLUSTER:
-+		strncpy(buf, "Left-Cluster", buflen);
++		strncpy(buf, "Not-in-Cluster", buflen);
 +		break;
 +	case TRANSITION_COMPLETE:
 +		strncpy(buf, "Transition-Complete", buflen);
@@ -7882,6 +8000,25 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 +	}
 +
 +	return buf;
++}
++
++char *leave_string(int reason)
++{
++	switch (reason)
++	{
++	case CLUSTER_LEAVEFLAG_DOWN:
++		return "Shutdown";
++	case CLUSTER_LEAVEFLAG_KILLED:
++		return "Killed by another node";
++	case CLUSTER_LEAVEFLAG_PANIC:
++		return "Panic";
++	case CLUSTER_LEAVEFLAG_REMOVED:
++		return "Removed";
++	case CLUSTER_LEAVEFLAG_REJECTED:
++		return "Membership rejected";
++	default:
++		return "Don't know why";
++	}
 +}
 +
 +#ifdef DEBUG_MEMB
@@ -7940,8 +8077,8 @@ diff -urN linux-orig/cluster/cman/membership.c linux-patched/cluster/cman/member
 + */
 diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 --- linux-orig/cluster/cman/proc.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/proc.c	2004-09-03 18:13:05.000000000 +0800
-@@ -0,0 +1,371 @@
++++ linux-patched/cluster/cman/proc.c	2004-10-04 14:56:42.000000000 +0800
+@@ -0,0 +1,372 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -8029,6 +8166,10 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	.name = "sm_debug_size",
 +	.value = &cman_config.sm_debug_size,
 +    },
++    {
++	.name = "newcluster_timeout",
++	.value = &cman_config.newcluster_timeout,
++    },
 +};
 +
 +
@@ -8042,12 +8183,19 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +    int c = 0;
 +    char node_buf[MAX_CLUSTER_MEMBER_NAME_LEN];
 +
-+    if (!we_are_a_cluster_member) {
-+	c += sprintf(b+c, "Not a cluster member. State: %s\n",
-+		     membership_state(node_buf,
-+				      sizeof (node_buf)));
++    c += sprintf(b+c,
++		 "Version: %d.%d.%d\n",
++		 CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
++		 CNXMAN_PATCH_VERSION);
++
++    c += sprintf(b+c,
++		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: %s\n",
++		 config_version,
++		 cluster_name, cluster_id,
++		 membership_state(node_buf, sizeof (node_buf)));
++
++    if (!we_are_a_cluster_member)
 +	return c;
-+    }
 +
 +    /* Total the votes */
 +    down(&cluster_members_lock);
@@ -8064,13 +8212,6 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +    if (quorum_device && quorum_device->state == NODESTATE_MEMBER)
 +	total_votes += quorum_device->votes;
 +
-+    c += sprintf(b+c,
-+		 "Version: %d.%d.%d\nConfig version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: %s\n",
-+		 CNXMAN_MAJOR_VERSION, CNXMAN_MINOR_VERSION,
-+		 CNXMAN_PATCH_VERSION,
-+		 config_version,
-+		 cluster_name, cluster_id,
-+		 membership_state(node_buf, sizeof (node_buf)));
 +    c += sprintf(b+c,
 +		 "Nodes: %d\nExpected_votes: %d\nTotal_votes: %d\nQuorum: %d  %s\n",
 +		 cluster_members, max_expected, total_votes,
@@ -8133,9 +8274,7 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +
 +	/* Print the header */
 +	if (*pos == 0) {
-+		seq_printf(m,
-+			   "Node  Votes Exp Sts  Name\n");
-+		return csi;
++		seq_printf(m, "Node  Votes Exp Sts  Name\n");
 +	}
 +	return csi;
 +}
@@ -8177,14 +8316,11 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	case NODESTATE_JOINING:
 +		state = 'J';
 +		break;
-+	case NODESTATE_REMOTEMEMBER:
-+		state = 'R';
-+		break;
 +	case NODESTATE_DEAD:
 +		state = 'X';
 +		break;
 +	}
-+	seq_printf(m, " %3d  %3d  %3d   %c   %s\n",
++	seq_printf(m, "%4d  %3d  %3d   %c   %s\n",
 +		   node->node_id,
 +		   node->votes,
 +		   node->expected_votes,
@@ -8211,6 +8347,7 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	.read = seq_read,
 +	.llseek = seq_lseek,
 +	.release = seq_release,
++	.owner = THIS_MODULE,
 +};
 +
 +static struct file_operations service_fops = {
@@ -8218,6 +8355,7 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +	.read = seq_read,
 +	.llseek = seq_lseek,
 +	.release = seq_release,
++	.owner = THIS_MODULE,
 +};
 +
 +static int cman_config_read_proc(char *page, char **start, off_t off, int count,
@@ -8315,7 +8453,7 @@ diff -urN linux-orig/cluster/cman/proc.c linux-patched/cluster/cman/proc.c
 +}
 diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
 --- linux-orig/cluster/cman/sm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,108 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8427,7 +8565,7 @@ diff -urN linux-orig/cluster/cman/sm.h linux-patched/cluster/cman/sm.h
 +#endif				/* __SM_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_barrier.c
 --- linux-orig/cluster/cman/sm_barrier.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_barrier.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_barrier.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,232 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8663,7 +8801,7 @@ diff -urN linux-orig/cluster/cman/sm_barrier.c linux-patched/cluster/cman/sm_bar
 +}
 diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_barrier.h
 --- linux-orig/cluster/cman/sm_barrier.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_barrier.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_barrier.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8696,7 +8834,7 @@ diff -urN linux-orig/cluster/cman/sm_barrier.h linux-patched/cluster/cman/sm_bar
 +#endif
 diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_control.c
 --- linux-orig/cluster/cman/sm_control.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_control.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_control.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,156 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8856,7 +8994,7 @@ diff -urN linux-orig/cluster/cman/sm_control.c linux-patched/cluster/cman/sm_con
 +}
 diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_control.h
 --- linux-orig/cluster/cman/sm_control.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_control.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_control.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8882,7 +9020,7 @@ diff -urN linux-orig/cluster/cman/sm_control.h linux-patched/cluster/cman/sm_con
 +#endif
 diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daemon.c
 --- linux-orig/cluster/cman/sm_daemon.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_daemon.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_daemon.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,120 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9006,7 +9144,7 @@ diff -urN linux-orig/cluster/cman/sm_daemon.c linux-patched/cluster/cman/sm_daem
 +}
 diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daemon.h
 --- linux-orig/cluster/cman/sm_daemon.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_daemon.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_daemon.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9042,7 +9180,7 @@ diff -urN linux-orig/cluster/cman/sm_daemon.h linux-patched/cluster/cman/sm_daem
 +#endif
 diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_internal.h
 --- linux-orig/cluster/cman/sm_internal.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_internal.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_internal.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,231 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9277,7 +9415,7 @@ diff -urN linux-orig/cluster/cman/sm_internal.h linux-patched/cluster/cman/sm_in
 +#endif				/* __SM_INTERNAL_DOT_H__ */
 diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_joinleave.c
 --- linux-orig/cluster/cman/sm_joinleave.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_joinleave.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_joinleave.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,1291 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10572,7 +10710,7 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.c linux-patched/cluster/cman/sm_j
 +}
 diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_joinleave.h
 --- linux-orig/cluster/cman/sm_joinleave.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_joinleave.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_joinleave.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10599,7 +10737,7 @@ diff -urN linux-orig/cluster/cman/sm_joinleave.h linux-patched/cluster/cman/sm_j
 +#endif
 diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_membership.c
 --- linux-orig/cluster/cman/sm_membership.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_membership.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_membership.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,696 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11299,7 +11437,7 @@ diff -urN linux-orig/cluster/cman/sm_membership.c linux-patched/cluster/cman/sm_
 +}
 diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_membership.h
 --- linux-orig/cluster/cman/sm_membership.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_membership.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_membership.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11323,7 +11461,7 @@ diff -urN linux-orig/cluster/cman/sm_membership.h linux-patched/cluster/cman/sm_
 +#endif
 diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_message.c
 --- linux-orig/cluster/cman/sm_message.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_message.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_message.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,856 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12183,7 +12321,7 @@ diff -urN linux-orig/cluster/cman/sm_message.c linux-patched/cluster/cman/sm_mes
 +}
 diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_message.h
 --- linux-orig/cluster/cman/sm_message.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_message.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_message.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12221,7 +12359,7 @@ diff -urN linux-orig/cluster/cman/sm_message.h linux-patched/cluster/cman/sm_mes
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
 --- linux-orig/cluster/cman/sm_misc.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_misc.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_misc.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,442 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12667,7 +12805,7 @@ diff -urN linux-orig/cluster/cman/sm_misc.c linux-patched/cluster/cman/sm_misc.c
 +#endif
 diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
 --- linux-orig/cluster/cman/sm_misc.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_misc.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_misc.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12700,7 +12838,7 @@ diff -urN linux-orig/cluster/cman/sm_misc.h linux-patched/cluster/cman/sm_misc.h
 +#endif
 diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_recover.c
 --- linux-orig/cluster/cman/sm_recover.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_recover.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_recover.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,524 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13228,7 +13366,7 @@ diff -urN linux-orig/cluster/cman/sm_recover.c linux-patched/cluster/cman/sm_rec
 +}
 diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_recover.h
 --- linux-orig/cluster/cman/sm_recover.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_recover.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_recover.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13255,7 +13393,7 @@ diff -urN linux-orig/cluster/cman/sm_recover.h linux-patched/cluster/cman/sm_rec
 +#endif
 diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_services.c
 --- linux-orig/cluster/cman/sm_services.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_services.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_services.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,426 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13685,7 +13823,7 @@ diff -urN linux-orig/cluster/cman/sm_services.c linux-patched/cluster/cman/sm_se
 +struct semaphore sm_sglock;
 diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_services.h
 --- linux-orig/cluster/cman/sm_services.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_services.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_services.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13709,7 +13847,7 @@ diff -urN linux-orig/cluster/cman/sm_services.h linux-patched/cluster/cman/sm_se
 +#endif
 diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
 --- linux-orig/cluster/cman/sm_user.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_user.c	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_user.c	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,569 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14282,7 +14420,7 @@ diff -urN linux-orig/cluster/cman/sm_user.c linux-patched/cluster/cman/sm_user.c
 +}
 diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
 --- linux-orig/cluster/cman/sm_user.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/cman/sm_user.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/cluster/cman/sm_user.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,21 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14307,7 +14445,7 @@ diff -urN linux-orig/cluster/cman/sm_user.h linux-patched/cluster/cman/sm_user.h
 +#endif
 diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/cluster/cnxman-socket.h
 --- linux-orig/include/cluster/cnxman-socket.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/include/cluster/cnxman-socket.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/include/cluster/cnxman-socket.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,226 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14418,7 +14556,7 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +#define MSG_ALLINT    0x100000	/* Send out of all interfaces */
 +#define MSG_REPLYEXP  0x200000	/* Reply is expected */
 +
-+typedef enum { NODESTATE_REMOTEMEMBER, NODESTATE_JOINING, NODESTATE_MEMBER,
++typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
 +	       NODESTATE_DEAD } nodestate_t;
 +
 +
@@ -14537,7 +14675,7 @@ diff -urN linux-orig/include/cluster/cnxman-socket.h linux-patched/include/clust
 +#endif
 diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxman.h
 --- linux-orig/include/cluster/cnxman.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/include/cluster/cnxman.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/include/cluster/cnxman.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,87 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14628,7 +14766,7 @@ diff -urN linux-orig/include/cluster/cnxman.h linux-patched/include/cluster/cnxm
 +#endif
 diff -urN linux-orig/include/cluster/service.h linux-patched/include/cluster/service.h
 --- linux-orig/include/cluster/service.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/include/cluster/service.h	2004-09-03 18:13:05.000000000 +0800
++++ linux-patched/include/cluster/service.h	2004-10-04 14:56:42.000000000 +0800
 @@ -0,0 +1,102 @@
 +/******************************************************************************
 +*******************************************************************************
