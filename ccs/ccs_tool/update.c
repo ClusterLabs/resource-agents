@@ -102,6 +102,8 @@ int update(char *location){
     }
     true_location[strlen(true_location)] = '/';
     strncpy(true_location+strlen(true_location), location, 256-strlen(true_location));
+  } else {
+    strncpy(true_location, location, 256);
   }
 
  desc = ccs_connect();
