@@ -150,6 +150,24 @@ This is turned on automatically by the lock_nolock module,
 but can be overridden by using the \fBignore_local_fs\fP option.
 .in
 .sp
+\fBoopses_ok\fP
+.in +5
+Normally, GFS automatically turns on the "kernel.panic_on_oops"
+sysctl to cause the machine to panic if an oops (an in-kernel
+segfault or GFS assertion failure) happens.  An oops on one machine of
+a cluster filesystem can cause the filesystem to stall on all machines
+in the cluster.  (Panics don't have this "feature".)  By turning on
+"panic_on_oops", GFS tries to make sure the cluster remains in
+operation even if one machine has a problem.  There are cases,
+however, where this behavior is not desireable -- debugging being
+the main one.  The \fBoopses_ok\fP option causes GFS to leave the
+"panic_on_oops" variable alone so oopses can happen.  Use this option
+with care.
+
+This is turned on automatically by the lock_nolock module,
+but can be overridden by using the \fBignore_local_fs\fP option.
+.in
+.sp
 \fBignore_local_fs\fP
 .in +5
 By default, using the nolock lock module automatically turns on the

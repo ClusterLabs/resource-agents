@@ -970,6 +970,7 @@ static void do_df_one(char *path)
   printf("\n");
   printf("  Local flocks = %s\n", (args.ar_localflocks) ? "TRUE" : "FALSE");
   printf("  Local caching = %s\n", (args.ar_localcaching) ? "TRUE" : "FALSE");
+  printf("  Oopses OK = %s\n", (args.ar_oopses_ok) ? "TRUE" : "FALSE");
   printf("\n");
   printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
   printf("  ------------------------------------------------------------------------\n");
