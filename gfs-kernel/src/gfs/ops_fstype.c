@@ -137,7 +137,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op = &gfs_super_ops;
 	sb->s_export_op = &gfs_export_ops;
 	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
-	sb->s_maxbytes = ~0ULL;
+	sb->s_maxbytes = MAX_LFS_FILESIZE;
 
 	if (sdp->sd_args.ar_posixacls)
 		sb->s_flags |= MS_POSIXACL;
