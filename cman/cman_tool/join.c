@@ -276,10 +276,16 @@ int join(commandline_t *comline)
      * If the cluster is active then the interfaces are already set up
      * and this join should just add to the join_count.
      */
-    if (ioctl(cluster_sock, SIOCCLUSTER_ISACTIVE))
+    error = ioctl(cluster_sock, SIOCCLUSTER_ISACTIVE);
+    if (error == -1)
+    {
+	perror("Can't determine cluster state");
+	goto fail;
+    }
+    if (error)
     {
         fprintf(stderr, "Node is already active\n");
-        goto join;
+        goto fail;
     }
 
     /*
@@ -295,7 +301,6 @@ int join(commandline_t *comline)
     /*
      * Join cluster
      */
- join:
     join_info.votes = comline->votes;
     join_info.expected_votes = comline->expected_votes;
     strcpy(join_info.cluster_name, comline->clustername);
