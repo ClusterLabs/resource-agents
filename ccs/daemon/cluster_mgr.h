@@ -9,13 +9,13 @@
 **
 *******************************************************************************
 ******************************************************************************/
-#ifndef __CMAN_MGR_DOT_H__
-#define __CMAN_MGR_DOT_H__
+#ifndef __CLUSTER_MGR_DOT_H__
+#define __CLUSTER_MGR_DOT_H__
 
 extern int quorate;
-extern int update_config;
+extern int update_required;
 
-int start_cman_monitor_thread(void);
+int start_cluster_monitor_thread(void);
 int update_remote_nodes(char *mem_doc, int doc_size);
 
-#endif /* __CMAN_MGR_DOT_H__ */
+#endif /* __CLUSTER_MGR_DOT_H__ */

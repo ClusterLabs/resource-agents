@@ -224,7 +224,7 @@ int ccs_connect(void){
  *
  * This function will only allow a connection even if the node is not
  * part of a quorate cluster.  It will use the configuration file
- * located in /etc/cluster/cluster.xml.  If that file does not exist,
+ * located in /etc/cluster/cluster.conf.  If that file does not exist,
  * a copy of the file will be broadcasted for.  If blocking is specified,
  * the broadcasts will be retried until a config file is located.  Otherwise,
  * the fuction will return an error if the initial broadcast is not successful.
@@ -346,8 +346,8 @@ int ccs_get(int desc, const char *query, char **rtn){
  * Returns: 0 on success, < 0 on failure
  */
 int ccs_set(int desc, const char *path, char *val){
-  ENTER(ccs_set);
-  EXIT(ccs_set);
+  ENTER("ccs_set");
+  EXIT("ccs_set");
   return -ENOSYS;
 }
 

@@ -77,7 +77,7 @@ if (!$incdir) {
   $incdir="${prefix}/usr/include";
 }
 if (!$libdir) {
-  $libdir="${prefix}/lib";
+  $libdir="${prefix}/usr/lib";
 }
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";

@@ -34,14 +34,14 @@ CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE \
 	`xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-LDFLAGS+= `xml2-config --libs` -lpthread
+LDFLAGS+= `xml2-config --libs` -lpthread -lmagma -lmagmamsg -ldl
 
 all: ccsd
 
 copytobin: all
 	cp ccsd ${top_srcdir}/bin
 
-ccsd: ccsd.c cnx_mgr.c cman_mgr.c ../common/log.c
+ccsd: ccsd.c cnx_mgr.c cluster_mgr.c ../common/log.c
 	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS}
 
 install: ccsd

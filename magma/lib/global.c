@@ -61,9 +61,10 @@ clu_connect(char *groupname, int login)
 	}
 
 	dir = opendir(PLUGINDIR);
-	if (!dir)
+	if (!dir){
+		pthread_mutex_unlock(&dflt_mutex);
 		return -1;
-
+	}
 	while ((entry = readdir(dir)) != NULL) {
 		snprintf(filename, sizeof(filename), "%s/%s", PLUGINDIR,
 			 entry->d_name);

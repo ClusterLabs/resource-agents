@@ -25,7 +25,7 @@
 #include "log.h"
 #include "debug.h"
 #include "cnx_mgr.h"
-#include "cman_mgr.h"
+#include "cluster_mgr.h"
 
 #include "copyright.cf"
 
@@ -37,7 +37,7 @@ static unsigned int flags=0;
 #define FLAG_VERBOSE	4
 
 static char *config_file_location = NULL;
-#define DEFAULT_CONFIG_LOCATION "/etc/cluster/cluster.xml"
+#define DEFAULT_CONFIG_LOCATION "/etc/cluster/cluster.conf"
 static char *lockfile_location = NULL;
 #define DEFAULT_CCSD_LOCKFILE "/var/run/sistina/ccsd.pid"
 
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]){
 
   print_start_msg();
 
-  if(start_cman_monitor_thread()){
+  if(start_cluster_monitor_thread()){
     log_err("Unable to create thread.\n");
     exit(EXIT_FAILURE);
   }

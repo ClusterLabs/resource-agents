@@ -231,9 +231,7 @@ main(void)
 		return -1;
 
 	quorate = (clu_quorum_status(MY_SERVICE_GROUP) & QF_QUORATE);
-	if (quorate) {
-		printf("Initial status = %s\n", quorate?"Quorate":"Inquorate");
-	}
+	printf("Initial status = %s\n", quorate?"Quorate":"Inquorate");
 
 	membership = clu_member_list(MY_SERVICE_GROUP);
 	msg_update(membership);
