@@ -437,13 +437,10 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 	error = find_or_create_rsb(ls, parent_rsb, name, namelen, 1, &rsb);
 	if (error)
 		goto out;
-
 	lkb->lkb_resource = rsb;
-	lkb->lkb_nodeid = rsb->res_nodeid;
 
 	log_debug(ls, "rq %u %x \"%s\"", lkb->lkb_rqmode, lkb->lkb_id,
 		  rsb->res_name);
-
 	/*
 	 * Next stage, do we need to find the master or can
 	 * we get on with the real locking work ?
@@ -466,9 +463,10 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 		} else
 			clear_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = nodeid;
-		lkb->lkb_nodeid = nodeid;
 		rsb->res_resdir_seq = seq;
 	}
+
+	lkb->lkb_nodeid = rsb->res_nodeid;
 
 	error = dlm_lock_stage2(ls, lkb, rsb, flags);
 
