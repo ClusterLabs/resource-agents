@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.285 $) dnl cvs revision
+AC_REVISION($Revision: 1.286 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1610,6 +1610,21 @@ if test "${enable_swig}" = "yes"; then
 	echo "$as_me:$LINENO: Install Perl modules as vendor... ${enable_perl_vendor}" >&5
 	echo $ECHO_N "Install Perl modules as vendor... ${enable_perl_vendor}" >&6
 fi
+
+
+
+dnl testing if we can enable hbaping direcotory
+
+AC_CHECK_FILE(/usr/include/hbaapi.h,[ac_have_hbaapi_h="yes"],[],[])
+
+AC_CHECK_FILE(/usr/lib/libHBAAPI.so,[ac_have_hbaapi_lib="yes"],[],[])
+
+hbaping=""
+if test x"${ac_have_hbaapi_h}" = x"yes" &&  test x"${ac_have_hbaapi_lib}" = x"yes"; then
+        	hbaping="hbaping"
+        	AC_CONFIG_FILES(lib/plugins/HBcomm/hbaping/Makefile)   
+fi
+AC_SUBST(hbaping)
 
 
 dnl **********************************************************************
