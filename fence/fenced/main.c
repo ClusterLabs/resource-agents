@@ -20,6 +20,7 @@
 static int debug;
 static int quit;
 static int leave_finished;
+static int usr_interrupt;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
 
@@ -97,6 +98,7 @@ static void lockfile(void)
 
 static void sigusr1_handler(int sig)
 {
+	usr_interrupt = 1;
 }
 
 static void sigterm_handler(int sig)
@@ -280,7 +282,11 @@ static void process_event(fd_t *fd, struct cl_service_event *ev)
 static void process_events(fd_t *fd)
 {	
 	struct cl_service_event event;
+	sigset_t mask, oldmask;
 	int error;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGUSR1);
 
 	for (;;) {
 		memset(&event, 0, sizeof(struct cl_service_event));
@@ -289,9 +295,14 @@ static void process_events(fd_t *fd)
 		if (error < 0)
 			die("process_events: service get event failed");
 
-		if (!error)
-			pause();
-		else
+		if (!error) {
+			/* Wait for a signal to arrive. */
+			sigprocmask(SIG_BLOCK, &mask, &oldmask);
+			while (!usr_interrupt)
+				sigsuspend(&oldmask);
+			sigprocmask(SIG_UNBLOCK, &mask, NULL);
+			usr_interrupt = 0;
+		} else
 			process_event(fd, &event);
 
 		if (quit) {
