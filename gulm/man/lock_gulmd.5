@@ -27,7 +27,7 @@ above the <clusternodes/> section.
 
 Most of the config keys are equal to the long options on the command line.
 
-\fIserver\fR
+\fIlockserver\fR
 .in +7
 An IP or host name that is allowed to be a server.
 This has no default value.  You must supply 1, 3, 4, or 5 of these values,
@@ -93,9 +93,9 @@ Simple three node cluster with manual fencing.
   <cluster name="example" config_version="1">
   
     <gulm>
-      <server name="nd01"/>
-      <server name="nd02"/>
-      <server name="nd03"/>
+      <lockserver name="nd01"/>
+      <lockserver name="nd02"/>
+      <lockserver name="nd03"/>
     </gulm>
   
     <clusternodes>
