@@ -487,15 +487,8 @@ gulm_mount (char *table_name, char *host_data,
 	lockstruct->ls_lvb_size = gulm->lvb_size;
 	lockstruct->ls_lockspace = gulm;
 	lockstruct->ls_ops = &gulm_ops;
-#ifdef USE_SYNC_LOCKING
-	lockstruct->ls_flags = 0;
-
-	log_msg (lgm_Network2, "Done: %s, sync mode\n", table_name);
-#else
 	lockstruct->ls_flags = LM_LSFLAG_ASYNC;
-
 	log_msg (lgm_Network2, "Done: %s, async mode\n", table_name);
-#endif
 
 	gulm_cm.starts = FALSE;
 	return 0;
@@ -504,8 +497,8 @@ gulm_mount (char *table_name, char *host_data,
 	stop_callback_qu (&gulm->cq);
 
       fail_free_gulm:
-	kfree (gulm);
 	stop_gulm_threads ();
+	kfree (gulm);
 
       fail:
 

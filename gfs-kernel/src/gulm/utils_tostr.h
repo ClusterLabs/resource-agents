@@ -14,9 +14,4 @@
 #ifndef __utils_tostr_h__
 #define __utils_tostr_h__
 char *gio_Err_to_str (int x);
-char *gio_mbrupdate_to_str (int x);
-char *gio_mbrama_to_str (int x);
-char *gio_I_am_to_str (int x);
-char *gio_license_states (int x);
-char *gio_opcodes (int x);
 #endif /*__utils_tostr_h__*/

@@ -42,8 +42,8 @@ struct list_head *glq_ReplyMap;
 spinlock_t *glq_ReplyLock;
 
 /* The Threads. */
-struct task_struct *glq_recver_task;
-struct task_struct *glq_sender_task;
+struct task_struct *glq_recver_task = NULL;
+struct task_struct *glq_sender_task = NULL;
 struct completion glq_startedup;
 int glq_running;
 wait_queue_head_t glq_send_wchan;
