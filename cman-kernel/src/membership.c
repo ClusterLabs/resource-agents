@@ -898,11 +898,9 @@ int send_leave(unsigned char flags)
 		P_MEMB("Sending LEAVE to %s\n", node->name);
 		msg[0] = CLUSTER_MEM_LEAVE;
 		msg[1] = flags;
-		status =
-		    kcl_sendmsg(mem_socket, msg, 2,
-				&saddr, sizeof (saddr),
-				MSG_NOACK);
-
+		status = kcl_sendmsg(mem_socket, msg, 2,
+				     &saddr, sizeof (saddr),
+				     MSG_NOACK);
 		if (status < 0)
 			return status;
 	}
@@ -2581,7 +2579,6 @@ static int do_process_hello(struct msghdr *msg, int len)
 			    && time_after(jiffies,
 					  cman_config.hello_timer * HZ +
 					  transition_end_time)) {
-				char killmsg;
 
 				printk(KERN_INFO CMAN_NAME
 				       ": bad generation number %d in HELLO message, expected %d\n",
@@ -2591,10 +2588,7 @@ static int do_process_hello(struct msghdr *msg, int len)
 				notify_kernel_listeners(DIED,
 							(long) node->node_id);
 
-				killmsg = CLUSTER_MEM_KILL;
-				kcl_sendmsg(mem_socket, &killmsg, 1,
-					    saddr, sizeof (struct sockaddr_cl),
-					    MSG_NOACK);
+				send_kill(node->node_id);
 				return 0;
 			}
 
@@ -2608,21 +2602,12 @@ static int do_process_hello(struct msghdr *msg, int len)
 			}
 			/* The message is OK - save the time */
 			node->last_hello = jiffies;
-
 		}
 		else {
-			struct sockaddr_cl *addr = msg->msg_name;
-
 			/* This node is a danger to our valid cluster */
 			if (cluster_is_quorate) {
-				char killmsg;
-
-				killmsg = CLUSTER_MEM_KILL;
-				kcl_sendmsg(mem_socket, &killmsg, 1, addr,
-					    sizeof (struct sockaddr_cl),
-					    MSG_NOACK);
+				send_kill(saddr->scl_nodeid);
 			}
-
 		}
 	}
 
