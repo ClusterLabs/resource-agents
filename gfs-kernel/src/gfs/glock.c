@@ -285,7 +285,6 @@ gfs_glock_get(struct gfs_sbd *sdp,
 
 	gl->gl_sbd = sdp;
 
-	INIT_LIST_HEAD(&gl->gl_dirty_buffers);
 	INIT_LIST_HEAD(&gl->gl_ail_bufs);
 
 	if (glops == &gfs_inode_glops ||

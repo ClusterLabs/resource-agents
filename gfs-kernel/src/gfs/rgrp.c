@@ -374,7 +374,7 @@ rgrp_verify(struct gfs_rgrpd *rgd)
 
 	memset(count, 0, 4 * sizeof(uint32_t));
 
-	/* count # blocks in each of 4 possible allocation states */
+	/* Count # blocks in each of 4 possible allocation states */
 	for (buf = 0; buf < length; buf++) {
 		bits = &rgd->rd_bits[buf];
 		for (x = 0; x < 4; x++)

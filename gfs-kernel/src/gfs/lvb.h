@@ -46,9 +46,9 @@ struct gfs_rgrp_lvb {
 struct gfs_quota_lvb {
 	uint32_t qb_magic;      /* GFS_MAGIC sanity check value */
 	uint32_t qb_pad;
-	uint64_t qb_limit;      /* hard limit of # blocks to alloc */
-	uint64_t qb_warn;       /* warn user when alloc is above this # */
-	int64_t qb_value;       /* current # blocks allocated */
+	uint64_t qb_limit;      /* Hard limit of # blocks to alloc */
+	uint64_t qb_warn;       /* Warn user when alloc is above this # */
+	int64_t qb_value;       /* Current # blocks allocated */
 };
 
 /*  Translation functions  */
