@@ -16,6 +16,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <netinet/in.h>
 
 #include "libgulm.h"
 #include "glvd.h"

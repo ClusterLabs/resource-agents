@@ -8,7 +8,7 @@ on these nodes, where gulm is already up and running.  It then walks
 through the test file, making sure that it sees the results it expects.
 
 Tests don't specifiy which nodes to run on, instead they specifiy how many
-they need.  Nodes are all referenced by an index number.  Then for teh
+they need.  Nodes are all referenced by an index number.  Then for the
 actual run, the real node names on on the cmdline.
 
 Running a test is mostly just picking the test to run.  Making sure you have
@@ -22,7 +22,7 @@ Otherwise a success message gets printed to stdout, and glvd returns 0.
 glv can only work with what is returned.  To really know things are
 working, you should know what residue a test leaves behind, and investigate
 the lock dump from the server to make sure it is correct.  With that in
-mind, it is worth the effort to make all tests unlock everything befreo
+mind, it is worth the effort to make all tests unlock everything before
 finishing.  That way, if nothing else is running, the lockspace will be
 empty.
 

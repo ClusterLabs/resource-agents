@@ -1,4 +1,5 @@
-# nice simepl one node test to make sure that glv isn't too far off.
+# nice simple one node test to make sure that glv isn't too far off.
+# also nice for checking return flags of basic ops.
 nodecount 1
 
 test
@@ -10,3 +11,25 @@ test
 	lock 0 testlock unlock noflags nolvb
 	lrpl 0 testlock unlock noflags ok nolvb
 end
+
+test
+	lock 0 testlock shared noflags nolvb
+	lrpl 0 testlock shared cachable ok nolvb
+end
+
+test
+	lock 0 testlock unlock noflags nolvb
+	lrpl 0 testlock unlock noflags ok nolvb
+end
+
+test
+	lock 0 testlock deferred noflags nolvb
+	lrpl 0 testlock deferred cachable ok nolvb
+end
+
+test
+	lock 0 testlock unlock noflags nolvb
+	lrpl 0 testlock unlock noflags ok nolvb
+end
+
+

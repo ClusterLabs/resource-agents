@@ -1,0 +1,51 @@
+# grab shared
+# ask for deferred with any
+# unlock all
+# grab deferred
+# ask for shared with any
+# unlock all
+
+nodecount 2
+
+
+test
+	lock 0 theanyflag shared noflags nolvb
+	lrpl 0 theanyflag shared cachable ok nolvb
+end
+
+test
+	lock 1 theanyflag deferred any nolvb
+	lrpl 1 theanyflag shared any|cachable ok nolvb
+end
+
+test
+	lock 1 theanyflag unlock noflags nolvb
+	lrpl 1 theanyflag unlock noflags ok nolvb
+end
+
+test
+	lock 0 theanyflag unlock noflags nolvb
+	lrpl 0 theanyflag unlock noflags ok nolvb
+end
+
+# 
+test
+	lock 0 theanyflag deferred noflags nolvb
+	lrpl 0 theanyflag deferred cachable ok nolvb
+end
+
+test
+	lock 1 theanyflag shared any nolvb
+	lrpl 1 theanyflag deferred any|cachable ok nolvb
+end
+
+test
+	lock 1 theanyflag unlock noflags nolvb
+	lrpl 1 theanyflag unlock noflags ok nolvb
+end
+
+test
+	lock 0 theanyflag unlock noflags nolvb
+	lrpl 0 theanyflag unlock noflags ok nolvb
+end
+

@@ -1,0 +1,8 @@
+
+nodecount 1
+
+test
+	lock 0 testlock exclusive noflags nolvb
+	lrpl 0 testlock exclusive cachable ok nolvb
+end
+

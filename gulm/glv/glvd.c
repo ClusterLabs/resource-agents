@@ -346,7 +346,7 @@ void setup_poll(void)
 void startup_clients(void)
 {
    char buffy[160], *rsh, *user, *glvc;
-   int i;
+   int i, err;
    rsh = getenv("GLV_RSH");
    if(rsh == NULL ) rsh = "ssh";
    glvc = getenv("GLVC_PATH");
@@ -355,7 +355,8 @@ void startup_clients(void)
       snprintf(buffy, 160, "%s %s %s %s &",
             rsh, Nodes[i], glvc, hostname);
       verb(2, "calling system on %s\n", buffy);
-      system(buffy);
+      if((err=system(buffy)) != 0 )
+         die("error starting glvc: %d\n", err);
    }
 }
 
@@ -464,7 +465,8 @@ void usage(void)
    " --version  -V  version info\n",
    " --help     -h  this.\n",
    " --test     -t  make sure the testfile parses.\n",
-   "\n"
+   "\n",
+   NULL
    };
    int i;
    for(i=0; strings[i] != NULL; i++)
