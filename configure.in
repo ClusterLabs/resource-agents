@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.265 $) dnl cvs revision
+AC_REVISION($Revision: 1.266 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -615,7 +615,7 @@ if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
 		SNMPLIB=`net-snmp-config --netsnmp-libs`
 		AC_MSG_RESULT($SNMPLIB)
 	fi
-elif "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
+elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
 	# UCD SNMP
 	# ucd-snmp-config does not seem to exist, so just 
 	# rely on people having their LDFLAGS set to the path where
