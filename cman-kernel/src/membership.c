@@ -2333,7 +2333,7 @@ static int do_process_newcluster(struct msghdr *msg, int len)
 	 * of time */
 	if (node_state == STARTING) {
 		P_MEMB("got NEWCLUSTER, backing down for %d seconds\n", node_hash());
-		start_time = jiffies + node_hash() * HZ;
+		start_time = (jiffies + node_hash() * HZ) % (cman_config.joinwait_timeout-1);
 	}
 
 	return 0;

@@ -15,9 +15,9 @@
 
 /* Config file defaults */
 
-#define DEFAULT_JOIN_WAIT_TIME   11	/* Time to wait while sending JOINREQ
+#define DEFAULT_JOIN_WAIT_TIME   16	/* Time to wait while sending JOINREQ
 					 * messages. Should be at least twice
-					 * the HELLO timer */
+					 * the HELLO timer, probably 3x */
 #define DEFAULT_JOIN_TIMEOUT     30	/* How long we wait after getting a
 					 * JOINACK to regarding that node as
 					 * dead */
