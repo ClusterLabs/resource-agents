@@ -145,13 +145,13 @@ static void twistName(void)
 
    LTname = malloc(6);
    if( LTname == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
-   snprintf(LTname, 6, "%03d", LTid);
+   snprintf(LTname, 6, "LT%03d", LTid);
 
    l = strlen(ProgramName) + 8;
    c = realloc(ProgramName, l);
    if( c != NULL ) {
       ProgramName = c;
-      strcat(ProgramName, LTname); /* LT000 */
+      strcat(ProgramName, LTname+2); /* 000 */
    }
 #ifndef DEBUG
    openlog(ProgramName, LOG_PID, LOG_DAEMON);
