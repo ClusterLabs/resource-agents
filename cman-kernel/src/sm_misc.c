@@ -79,6 +79,7 @@ sm_node_t *sm_find_member(uint32_t nodeid)
 		if (node->id == nodeid)
 			return node;
 	}
+	log_print("sm_find_member %u failed", nodeid);
 	return NULL;
 }
 

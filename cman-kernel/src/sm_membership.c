@@ -420,7 +420,7 @@ static void cancel_one_uevent(sm_group_t *sg, int *effected)
 		SM_ASSERT(!failed_joiner, );
 
 		node = sm_find_member(uev->ue_nodeid);
-		if (test_bit(SNFL_NEED_RECOVERY, &node->flags))
+		if (node && test_bit(SNFL_NEED_RECOVERY, &node->flags))
 			failed_joiner = node;
 
 		if (!failed_count) {
@@ -511,7 +511,7 @@ static void cancel_one_uevent(sm_group_t *sg, int *effected)
 		SM_ASSERT(!failed_leaver, );
 
 		node = sm_find_member(uev->ue_nodeid);
-		if (test_bit(SNFL_NEED_RECOVERY, &node->flags))
+		if (node && test_bit(SNFL_NEED_RECOVERY, &node->flags))
 			failed_leaver = node;
 
 		if (!failed_count) {
@@ -577,7 +577,7 @@ static void cancel_one_uevent(sm_group_t *sg, int *effected)
 		SM_ASSERT(!failed_leaver, );
 
 		node = sm_find_member(uev->ue_nodeid);
-		if (test_bit(SNFL_NEED_RECOVERY, &node->flags))
+		if (node && test_bit(SNFL_NEED_RECOVERY, &node->flags))
 			failed_leaver = node;
 
 		if (!failed_count) {
