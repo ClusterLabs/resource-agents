@@ -86,6 +86,8 @@ struct commandline
 	int port_opt;
 	int nodeid_opt;
 	int clustername_opt;
+	int wait_opt;
+	int wait_quorate_opt;
 };
 typedef struct commandline commandline_t;
 

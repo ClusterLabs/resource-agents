@@ -16,20 +16,21 @@
 #include "cnxman-socket.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:XVh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:XVwqh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
 #define OP_VOTES		4
 #define OP_KILL			5
 #define OP_VERSION		6
+#define OP_WAIT                 7
 
 
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave|kill|expected|votes|version> [options]\n",
+	printf("%s <join|leave|kill|expected|votes|version|wait> [options]\n",
 	       prog_name);
 	printf("\n");
 	printf("Options:\n");
@@ -49,9 +50,15 @@ static void print_usage(void)
 	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
 	printf("  -X               Do not use cluster.conf values from CCS\n");
+	printf("  -w               Wait until node has joined a cluster\n");
+	printf("  -q               Wait until the cluster is quorate\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
 	printf("\n");
+	printf("wait               Wait until the node is a member of a cluster\n");
+	printf("  -q               Wait until the cluster is quorate\n");
+	printf("\n");
+
 	printf("leave\n");
 	printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
 	printf("  force            Leave even if cluster subsystems are active\n");
@@ -166,6 +173,32 @@ static void version(commandline_t *comline)
 		die("can't set version");
  out:
 	close(cluster_sock);
+}
+
+static void cluster_wait(commandline_t *comline)
+{
+    int cluster_sock;
+    int ioctl_code;
+    int recvbuf[256]; /* Plenty big enough for an OOB message */
+
+    if (comline->wait_quorate_opt)
+	    ioctl_code = SIOCCLUSTER_ISQUORATE;
+    else
+	    ioctl_code = SIOCCLUSTER_GETMEMBERS;
+
+    cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+    if (cluster_sock == -1)
+    {
+        die("Can't open cluster socket");
+    }
+
+    while (!ioctl(cluster_sock, ioctl_code, 0))
+    {
+	    if (recv(cluster_sock, recvbuf, sizeof(recvbuf), MSG_OOB) <= 0)
+		    die("Error waiting for cluster\n");
+    }
+
+    close(cluster_sock);
 }
 
 static void kill_node(commandline_t *comline)
@@ -309,6 +342,14 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 		        comline->verbose++;
 			break;
 
+		case 'w':
+			comline->wait_opt = TRUE;
+			break;
+
+		case 'q':
+			comline->wait_quorate_opt = TRUE;
+			break;
+
 		case EOF:
 			cont = FALSE;
 			break;
@@ -344,6 +385,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			if (comline->operation)
 				die("can't specify two operations");
 			comline->operation = OP_VERSION;
+		} else if (strcmp(argv[optind], "wait") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_WAIT;
 		} else if (strcmp(argv[optind], "remove") == 0) {
 			comline->remove = TRUE;
 		} else if (strcmp(argv[optind], "force") == 0) {
@@ -438,6 +483,8 @@ int main(int argc, char *argv[])
 			get_ccs_join_info(&comline);
 		check_arguments(&comline);
 		join(&comline);
+		if (comline.wait_opt || comline.wait_quorate_opt)
+			cluster_wait(&comline);
 		break;
 
 	case OP_LEAVE:
@@ -458,6 +505,10 @@ int main(int argc, char *argv[])
 
 	case OP_VERSION:
 		version(&comline);
+		break;
+
+	case OP_WAIT:
+		cluster_wait(&comline);
 		break;
 
 	/* FIXME: support CLU_SET_NODENAME? */
