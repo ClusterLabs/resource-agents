@@ -1090,6 +1090,9 @@ int grant_pending_locks(struct dlm_rsb *rsb)
 	list_for_each_safe(list, temp, &rsb->res_waitqueue) {
 		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
 
+		if (lkb->lkb_lockqueue_state)
+			continue;
+
 		if (can_be_granted(rsb, lkb))
 			grant_lock(lkb, 1);
 		else
