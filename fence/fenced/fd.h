@@ -99,7 +99,10 @@ struct commandline
 	int debug;
 	int post_join_delay;
 	int post_fail_delay;
-	int clean_start;
+	int8_t clean_start;
+	int8_t post_join_delay_opt;
+	int8_t post_fail_delay_opt;
+	int8_t clean_start_opt;
 };
 
 #define FDFL_RUN        (0)

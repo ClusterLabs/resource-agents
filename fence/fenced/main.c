@@ -44,6 +44,8 @@ static void print_usage(void)
 	printf("  -V               Print program version information, then exit\n");
 	printf("\n");
 	printf("Command line values override those in cluster.conf.\n");
+	printf("For an unbounded delay use -1.\n");
+	printf("\n");
 }
 
 static void lockfile(void)
@@ -316,7 +318,10 @@ static int init_ccs(fd_t *fd)
 			log_debug("connect to ccs error %d", cd);
 	}
 
-	if (fd->comline->clean_start == -1) {
+	/* If an option was set on the command line, don't set it
+	   from ccs. */
+
+	if (fd->comline->clean_start_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
 	        sprintf(path, "//fence_daemon/@clean_start");
@@ -330,7 +335,7 @@ static int init_ccs(fd_t *fd)
 			free(str);
 	}
 
-	if (fd->comline->post_join_delay == -1) {
+	if (fd->comline->post_join_delay_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
 	        sprintf(path, "//fence_daemon/@post_join_delay");
@@ -344,7 +349,7 @@ static int init_ccs(fd_t *fd)
 			free(str);
 	}
 
-	if (fd->comline->post_fail_delay == -1) {
+	if (fd->comline->post_fail_delay_opt == FALSE) {
 		str = NULL;
 	        memset(path, 0, 256);
 	        sprintf(path, "//fence_daemon/@post_fail_delay");
@@ -477,9 +482,9 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 	int cont = TRUE;
 	int optchar;
 
-	comline->post_join_delay = -1;
-	comline->post_fail_delay = -1;
-	comline->clean_start = -1;
+	comline->post_join_delay_opt = FALSE;
+	comline->post_fail_delay_opt = FALSE;
+	comline->clean_start_opt = FALSE;
 
 	while (cont) {
 		optchar = getopt(argc, argv, OPTION_STRING);
@@ -488,14 +493,17 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 
 		case 'c':
 			comline->clean_start = 1;
+			comline->clean_start_opt = TRUE;
 			break;
 
 		case 'j':
 			comline->post_join_delay = atoi(optarg);
+			comline->post_join_delay_opt = TRUE;
 			break;
 
 		case 'f':
 			comline->post_fail_delay = atoi(optarg);
+			comline->post_fail_delay_opt = TRUE;
 			break;
 
 		case 'D':
@@ -533,9 +541,6 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 		};
 	}
-
-	if (comline->post_join_delay < 0 || comline->post_fail_delay < 0)
-		die("delay cannot be negative");
 
 	if (!strcmp(comline->name, ""))
 		strcpy(comline->name, "default");

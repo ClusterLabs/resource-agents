@@ -360,6 +360,10 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 
 		last_count = victim_count;
 
+		/* negative delay means wait forever */
+		if (delay == -1)
+			continue;
+
 		gettimeofday(&now, NULL);
 		if (now.tv_sec - start.tv_sec >= delay)
 			break;
