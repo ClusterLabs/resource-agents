@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.282 $) dnl cvs revision
+AC_REVISION($Revision: 1.283 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1454,6 +1454,23 @@ else
 fi
 AC_SUBST(EVENTD_DIR)
 
+#
+#	AIS Checkpoint Service
+#
+AC_ARG_ENABLE([checkpointd],
+    [  --enable-checkpointd   AIS Checkpoint Service daemon.  [default=no]  ])
+
+CHECKPOINTD_DIR=""
+if test "${enable_checkpointd}" = "yes"; then
+	echo "Enabling the AIS Checkpoint Service code..."
+	CHECKPOINTD_DIR="checkpointd"
+else 
+    if test -z "${enable_checkpointd}"; then
+	enable_checkpointd="no"
+    fi
+fi
+AC_SUBST(CHECKPOINTD_DIR)
+
 AC_ARG_ENABLE([crm],
 [  --enable-crm  Compile the new Cluster Resource Manager.
                           This is still in very early developement stage.  [default=no]]) 
@@ -1626,14 +1643,12 @@ include/Makefile						\
         include/ocf/Makefile					\
         include/pils/Makefile					\
         include/pils/plugin.h					\
-	include/checkpointd/Makefile				\
         include/saf/Makefile					\
         include/stonith/Makefile				\
 replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
-	lib/checkpointd/Makefile				\
 	lib/clplumbing/Makefile					\
 	lib/hbclient/Makefile					\
 	lib/pils/Makefile					\
@@ -1693,8 +1708,7 @@ pkg/Makefile							\
 	pkg/InfoFiles/pkginfo					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
-	telecom/recoverymgrd/Makefile				\
-	telecom/checkpointd/Makefile				
+	telecom/recoverymgrd/Makefile				
 )
 
 dnl testing again makes the eventual output a little easier to read
@@ -1740,6 +1754,14 @@ dnl if eventd is enabled
 if test "${enable_eventd}"  = "yes"; then
 	AC_CONFIG_FILES(telecom/eventd/Makefile			\
 			lib/eventd/Makefile			\
+	     )
+fi
+
+dnl if checkpointd is enabled
+if test "${enable_checkpointd}"  = "yes"; then
+	AC_CONFIG_FILES(include/checkpointd/Makefile			\
+			lib/checkpointd/Makefile			\
+			telecom/checkpointd/Makefile			\
 	     )
 fi
 
@@ -1806,6 +1828,7 @@ AC_MSG_RESULT([  Build New CRM        = ${enable_crm}])
 AC_MSG_RESULT([  Build New LRM        = ${enable_lrm}])
 AC_MSG_RESULT([  Build SWIG bindings  = ${enable_swig}])
 AC_MSG_RESULT([  Build Eventd         = ${enable_eventd}])
+AC_MSG_RESULT([  Build Checkpointd    = ${enable_checkpointd}])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
