@@ -33,7 +33,6 @@ gfs-objs := acl.o \
 	dir.o \
 	eattr.o \
 	file.o \
-	flock.o \
 	glock.o \
 	glops.o \
 	inode.o \

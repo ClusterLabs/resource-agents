@@ -29,7 +29,6 @@
 #include "dio.h"
 #include "dir.h"
 #include "file.h"
-#include "flock.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
@@ -1354,6 +1353,90 @@ gfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 }
 
 /**
+ * do_flock - Acquire a flock on a file
+ * @file:
+ * @cmd:
+ * @fl:
+ *
+ * Returns: errno
+ */
+
+static int
+do_flock(struct file *file, int cmd, struct file_lock *fl)
+{
+	struct gfs_file *fp = vf2fp(file);
+	struct gfs_holder *fl_gh = &fp->f_fl_gh;
+	struct gfs_inode *ip = fp->f_inode;
+	struct gfs_glock *gl;
+	unsigned int state;
+	int flags;
+	int error = 0;
+
+	state = (fl->fl_type == F_WRLCK) ? LM_ST_EXCLUSIVE : LM_ST_SHARED;
+	flags = ((IS_SETLKW(cmd)) ? 0 : LM_FLAG_TRY) | GL_EXACT | GL_NOCACHE;
+
+	down(&fp->f_fl_lock);
+
+	gl = fl_gh->gh_gl;
+	if (gl) {
+		if (fl_gh->gh_state == state)
+			goto out;
+		gfs_glock_hold(gl);
+		flock_lock_file_wait(file,
+				     &(struct file_lock){.fl_type = F_UNLCK});		
+		gfs_glock_dq_uninit(fl_gh);
+	} else {
+		error = gfs_glock_get(ip->i_sbd,
+				      ip->i_num.no_formal_ino, &gfs_flock_glops,
+				      CREATE, &gl);
+		if (error)
+			goto out;
+	}
+
+	gfs_holder_init(gl, state, flags, fl_gh);
+	gfs_glock_put(gl);
+
+	error = gfs_glock_nq(fl_gh);
+	if (error) {
+		gfs_holder_uninit(fl_gh);
+		if (error == GLR_TRYFAILED) {
+			GFS_ASSERT_INODE(flags & LM_FLAG_TRY, ip,);
+			error = -EAGAIN;
+		}
+	} else {
+		error = flock_lock_file_wait(file, fl);
+		if (error)
+			printk("%s: local flock dropped\n",
+			       ip->i_sbd->sd_fsname);
+	}
+
+ out:
+	up(&fp->f_fl_lock);
+
+	return error;
+}
+
+/**
+ * do_unflock - Release a flock on a file
+ * @file: the file
+ * @fl:
+ *
+ */
+
+static void
+do_unflock(struct file *file, struct file_lock *fl)
+{
+	struct gfs_file *fp = vf2fp(file);
+	struct gfs_holder *fl_gh = &fp->f_fl_gh;
+
+	down(&fp->f_fl_lock);
+	flock_lock_file_wait(file, fl);
+	if (fl_gh->gh_gl)
+		gfs_glock_dq_uninit(fl_gh);
+	up(&fp->f_fl_lock);
+}
+
+/**
  * gfs_lock - acquire/release a flock or posix lock on a file
  * @file: the file pointer
  * @cmd: either modify or retrieve lock state, possibly wait
@@ -1367,56 +1450,36 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 {
 	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
 	struct gfs_sbd *sdp = ip->i_sbd;
-	struct lm_lockname name;
-	uint64_t start = fl->fl_start, end = fl->fl_end;
-	pid_t pid = fl->fl_pid;
-	int plock = (fl->fl_flags & FL_POSIX);
-	int flock = (fl->fl_flags & FL_FLOCK);
-	int get, set, wait, ex, sh, un;
-	int error;
+	int error = 0;
 
 	atomic_inc(&sdp->sd_ops_file);
-
-	if (sdp->sd_args.ar_localflocks)
-		return LOCK_USE_CLNT;
 
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
 		return -ENOLCK;
 
-	if (!flock && !plock)
-		return -ENOLCK;
-
-	get = (IS_GETLK(cmd)) ? TRUE : FALSE;
-	set = (IS_SETLK(cmd)) ? TRUE : FALSE;
-	wait = (IS_SETLKW(cmd)) ? TRUE : FALSE;
-
-	if ((flock && (get || (!set && !wait))) ||
-	    (plock && (!get && !set && !wait)))
-		return -EINVAL;
-
-	ex = (fl->fl_type == F_WRLCK) ? TRUE : FALSE;
-	sh = (fl->fl_type == F_RDLCK) ? TRUE : FALSE;
-	un = (fl->fl_type == F_UNLCK) ? TRUE : FALSE;
-
-	if (!ex && !sh && !un)
-		return -EINVAL;
-
-	if (flock) {
-		struct gfs_file *fp = vf2fp(file);
-		GFS_ASSERT(fp,);
-
-		if (un)
-			error = gfs_funlock(fp);
+	if (fl->fl_flags & FL_FLOCK) {
+		if (fl->fl_type == F_UNLCK)
+			do_unflock(file, fl);
 		else
-			error = gfs_flock(fp, ex, wait);
-	} else {
-		name.ln_number = ip->i_num.no_formal_ino;
-		name.ln_type = LM_TYPE_PLOCK;
-		if (get) {
+			error = do_flock(file, cmd, fl);
+
+	} else if (fl->fl_flags & FL_POSIX) {
+		struct lm_lockname name =
+			{ .ln_number = ip->i_num.no_formal_ino,
+			  .ln_type = LM_TYPE_PLOCK };
+
+		if (sdp->sd_args.ar_localflocks)
+			return LOCK_USE_CLNT;
+
+		if (IS_GETLK(cmd)) {
+			uint64_t start, end;
+			int ex;
+			unsigned long pid;
+
 			error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
-					sdp->sd_lockstruct.ls_lockspace,
-					&name, (unsigned long)fl->fl_owner,
-					&start, &end, &ex, (unsigned long*)&pid);
+				sdp->sd_lockstruct.ls_lockspace,
+				&name, (unsigned long)fl->fl_owner,
+				&start, &end, &ex, &pid);
 			if (error < 0)
 				return error;
 
@@ -1430,17 +1493,20 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 			fl->fl_type = (ex) ? F_WRLCK : F_RDLCK;
 
 			error = 0;
-		} else if (un)
+		} else if (fl->fl_type == F_UNLCK) {
 			error = sdp->sd_lockstruct.ls_ops->lm_punlock(
-					sdp->sd_lockstruct.ls_lockspace,
-					&name, (unsigned long)fl->fl_owner,
-					start, end);
-		else
+				sdp->sd_lockstruct.ls_lockspace,
+				&name, (unsigned long)fl->fl_owner,
+				fl->fl_start, fl->fl_end);
+		} else {
 			error = sdp->sd_lockstruct.ls_ops->lm_plock(
-					sdp->sd_lockstruct.ls_lockspace,
-					&name, (unsigned long)fl->fl_owner,
-					wait, ex, start, end);
-	}
+				sdp->sd_lockstruct.ls_lockspace,
+				&name, (unsigned long)fl->fl_owner,
+				IS_SETLKW(cmd), (fl->fl_type == F_WRLCK),
+				fl->fl_start, fl->fl_end);
+		}
+	} else
+		error = -ENOLCK;
 
 	return error;
 }

@@ -1,106 +1,76 @@
 # Make the VFS call down into the FS on flock calls.
 diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
---- linux-2.6.8.1/fs/locks.c	2004-08-23 09:51:41.753874561 -0500
-+++ linux/fs/locks.c	2004-08-23 09:51:45.705956749 -0500
-@@ -1294,6 +1294,27 @@ out_unlock:
- 	return error;
+--- linux-2.6.8.1/fs/locks.c	2004-08-26 17:38:35.200191439 -0500
++++ linux/fs/locks.c	2004-08-26 17:38:40.774899308 -0500
+@@ -1295,6 +1295,33 @@ out_unlock:
  }
  
-+/*
-+ * Wrapper function around the file_operations lock routine when called for
-+ * flock().  The lock routine is called for both fcntl() and flock(), so
-+ * the flock parameters must be translated to an equivalent fcntl()-like
-+ * lock.
+ /**
++ * flock_lock_file_wait - Apply a FLOCK-style lock to a file
++ * @filp: The file to apply the lock to
++ * @fl: The lock to be applied
 + *
-+ * Don't use locks_alloc_lock() (or flock_make_lock()) here, as
-+ * this is just a temporary lock structure.  We especially don't
-+ * want to fail because we couldn't allocate a lock structure if
-+ * this is an unlock operation.
++ * Add a FLOCK style lock to a file.
 + */
-+int flock_fs_file(struct file *filp, int type, int wait)
++int flock_lock_file_wait(struct file *filp, struct file_lock *fl)
 +{
-+	struct file_lock fl = { .fl_flags = FL_FLOCK,
-+				.fl_type = type };
++	int error;
++	might_sleep();
++	for (;;) {
++		error = flock_lock_file(filp, fl);
++		if ((error != -EAGAIN) || !(fl->fl_flags & FL_SLEEP))
++			break;
++		error = wait_event_interruptible(fl->fl_wait, !fl->fl_next);
++		if (!error)
++			continue;
 +
-+	return filp->f_op->lock(filp,
-+				(wait) ? F_SETLKW : F_SETLK,
-+				&fl);
++		locks_delete_block(fl);
++		break;
++	}
++	return error;
 +}
 +
- /**
++EXPORT_SYMBOL(flock_lock_file_wait);
++
++/**
   *	sys_flock: - flock() system call.
   *	@fd: the file descriptor to lock.
-@@ -1342,6 +1363,50 @@ asmlinkage long sys_flock(unsigned int f
+  *	@cmd: the type of lock to apply.
+@@ -1342,6 +1369,13 @@ asmlinkage long sys_flock(unsigned int f
  	if (error)
  		goto out_free;
  
-+	/*
-+	 * Execute any filesystem-specific flock routines.  The filesystem may
-+	 * maintain supplemental locks.  This code allows the supplemental locks
-+	 * to be kept in sync with the vfs flock lock.  If flock() is called on
-+	 * a lock already held for the given filp, the current flock lock is
-+	 * dropped before obtaining the requested lock.  This unlock operation
-+	 * must be completed for the any filesystem specific locks and the vfs
-+	 * flock lock before proceeding with obtaining the requested lock.  When
-+	 * the filesystem routine drops a lock for such a request, it must
-+	 * return -EDEADLK, allowing the vfs lock to be dropped, and the
-+	 * filesystem code is then re-executed to obtain the lock.
-+	 *
-+	 * A non-blocking request that returns EWOULDBLOCK also causes any vfs
-+	 * flock lock to be released, but then returns the error to the caller.
-+	 */
 +	if (filp->f_op && filp->f_op->lock) {
-+ repeat:
-+		error = flock_fs_file(filp, lock->fl_type, can_sleep);
-+		if (error < 0) {
-+			/*
-+			 * We may have dropped a lock.  We need to
-+			 * finish unlocking before returning or
-+			 * continuing with lock acquisition.
-+			 */
-+			if (error != -ENOLCK)
-+				flock_lock_file(filp, &(struct file_lock){.fl_type = F_UNLCK});
-+
-+			/*
-+			 * We already held the lock in some mode, and
-+			 * had to drop filesystem-specific locks before
-+			 * proceeding.  We come back through this
-+			 * routine to unlock the vfs flock lock.  Now go
-+			 * back and try again.  Using EAGAIN as the
-+			 * error here would be better, but the one valid
-+			 * error value defined for flock(), EWOULDBLOCK,
-+			 * is defined as EAGAIN.
-+			 */
-+			if (error == -EDEADLK)
-+				goto repeat;
-+
-+			goto out_free;
-+		}
++		error = filp->f_op->lock(filp,
++					(can_sleep) ? F_SETLKW : F_SETLK,
++					lock);
++		goto out_free;
 +	}
 +
  	for (;;) {
  		error = flock_lock_file(filp, lock);
  		if ((error != -EAGAIN) || !can_sleep)
-@@ -1354,6 +1419,13 @@ asmlinkage long sys_flock(unsigned int f
- 		break;
- 	}
+@@ -1707,6 +1741,12 @@ void locks_remove_flock(struct file *fil
+ 	if (!inode->i_flock)
+ 		return;
  
-+	/*
-+	 * If we failed to get the vfs flock, we need to clean up any
-+	 * filesystem-specific lock state that we previously obtained.
-+	 */
-+	if (error && filp->f_op && filp->f_op->lock)
-+		flock_fs_file(filp, F_UNLCK, 1);
++	if (filp->f_op && filp->f_op->lock) {
++		struct file_lock fl = { .fl_flags = FL_FLOCK,
++					.fl_type = F_UNLCK };
++		filp->f_op->lock(filp, F_SETLKW, &fl);
++	}	
 +
-  out_free:
- 	if (list_empty(&lock->fl_link)) {
- 		locks_free_lock(lock);
-@@ -1714,6 +1786,8 @@ void locks_remove_flock(struct file *fil
- 		if (fl->fl_file == filp) {
- 			if (IS_FLOCK(fl)) {
- 				locks_delete_lock(before);
-+				if (filp->f_op && filp->f_op->lock)
-+					flock_fs_file(filp, F_UNLCK, 1);
- 				continue;
- 			}
- 			if (IS_LEASE(fl)) {
+ 	lock_kernel();
+ 	before = &inode->i_flock;
+ 
+diff -urN -p linux-2.6.8.1/include/linux/fs.h linux/include/linux/fs.h
+--- linux-2.6.8.1/include/linux/fs.h	2004-08-26 17:38:35.201191207 -0500
++++ linux/include/linux/fs.h	2004-08-26 17:38:40.776898844 -0500
+@@ -687,6 +687,7 @@ extern int posix_lock_file(struct file *
+ extern void posix_block_lock(struct file_lock *, struct file_lock *);
+ extern void posix_unblock_lock(struct file *, struct file_lock *);
+ extern int posix_locks_deadlock(struct file_lock *, struct file_lock *);
++extern int flock_lock_file_wait(struct file *filp, struct file_lock *fl);
+ extern int __break_lease(struct inode *inode, unsigned int flags);
+ extern void lease_get_mtime(struct inode *, struct timespec *time);
+ extern int lock_may_read(struct inode *, loff_t start, unsigned long count);
