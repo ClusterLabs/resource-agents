@@ -32,6 +32,9 @@
 
 #define RF_INLINE	(1<<0)
 #define RF_DEFINED	(1<<1)
+#define RF_NEEDSTART	(1<<2)	/** Used when adding/changing resources */
+#define RF_NEEDSTOP	(1<<3)  /** Used when deleting/changing resources */
+#define RF_COMMON	(1<<4)	/** " */
 
 #define RES_STOPPED	(0)
 #define RES_STARTED	(1)
@@ -45,6 +48,8 @@
 #define RS_RELOAD	(5)
 #define RS_CONDRESTART  (6)
 #define	RS_RECOVER	(7)
+#define RS_CONDSTART	(8)	/** Start if flagged with RF_NEEDSTART */
+#define RS_CONDSTOP	(9)	/** STOP if flagged with RF_NEEDSTOP */
 
 
 #define RESOURCE_ROOTDIR	"/usr/share/rgmanager"
@@ -59,25 +64,25 @@
 
 
 typedef struct _resource_attribute {
-	int ra_flags;
-	char *ra_name;
-	char *ra_value;
+	int	ra_flags;
+	char	*ra_name;
+	char	*ra_value;
 } resource_attr_t;
 
 
 typedef struct _resource_child {
-	int rc_startlevel;
-	int rc_stoplevel;
-	char *rc_name;
+	int	rc_startlevel;
+	int	rc_stoplevel;
+	char	*rc_name;
 } resource_child_t;
 
 
 typedef struct _resource_act {
-	char *ra_name;
-	time_t ra_timeout;
-	time_t ra_last;
-	time_t ra_interval;
-	int ra_depth;
+	char	*ra_name;
+	time_t	ra_timeout;
+	time_t	ra_last;
+	time_t	ra_interval;
+	int	ra_depth;
 } resource_act_t;
 
 
@@ -110,22 +115,23 @@ typedef struct _resource {
 
 typedef struct _rg_node {
 	list_head();
-	struct _rg_node *rn_child, *rn_parent;
-	resource_t *rn_resource;
-	int    rn_state; /* State of this instance of rn_resource */
+	struct _rg_node	*rn_child, *rn_parent;
+	resource_t	*rn_resource;
+	int	rn_state; /* State of this instance of rn_resource */
+	int	rn_flags;
 } resource_node_t;
 
 typedef struct _fod_node {
 	list_head();
-	char *fdn_name;
-	int fdn_prio;
+	char	*fdn_name;
+	int	fdn_prio;
 } fod_node_t;
 
 typedef struct _fod {
 	list_head();
-	char *fd_name;
-	int fd_flags;
-	fod_node_t *fd_nodes;
+	char	*fd_name;
+	int	fd_flags;
+	fod_node_t	*fd_nodes;
 } fod_t;
 
 
@@ -135,7 +141,7 @@ typedef struct _fod {
 int res_start(resource_node_t **tree, resource_t *res, void *ret);
 int res_stop(resource_node_t **tree, resource_t *res, void *ret);
 int res_status(resource_node_t **tree, resource_t *res, void *ret);
-int res_resinfo(resource_node_t **tree, resource_t *res, void *ret);
+/*int res_resinfo(resource_node_t **tree, resource_t *res, void *ret);*/
 
 /*
    Load/kill resource rule sets
@@ -187,5 +193,12 @@ int store_resource(resource_t **reslist, resource_t *newres);
 void destroy_resource(resource_t *res);
 
 char *attr_value(resource_node_t *node, char *attrname);
+char *primary_attr_value(resource_t *);
+int rescmp(resource_t *l, resource_t *r);
+
+#ifdef NO_CCS
+int conf_get(char *query, char **ret);
+int conf_setconfig(char *path);
+#endif
 
 #endif /* _RESLIST_H */

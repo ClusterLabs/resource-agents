@@ -1,3 +1,19 @@
+2004-09-23 Lon Hohberger <lhh at redhat.com>
+	* include/reslist.h: Add needstart/needstop/common flags for
+	reconfiguration.  Added RS_CONDSTART/CONDSTOP to perform "stop
+	if needed/start if needed" operations after a resource [group]
+	reconfiguration.  Cleaned up structures.  Added NO_CCS define for
+	testing.
+	* src/daemons/fo_domain.c: Added NO_CCS defines for testing.
+	* src/daemons/main.c: Added reconfigure() stub function.  Added
+	testing support.
+	* src/daemons/reslist.c: Added comparsion + primary-attr functions
+	for resources.  Add printout of needstart/stop in resource dump.
+	* src/daemons/restree.c: Added resource list comparsion + 
+	resource tree comparison functions.  Added condstart/stop to ops
+	list.  Added CONDSTART/CONDSTOP handling in res_op.
+	* src/daemons/rg_locks.c: Added NO_CCS support for testing.
+
 2004-09-13 Lon Hohberger <lhh at redhat.com>
 	* include/resgroup.h: Add a default check interval.
 	* include/reslist.h: Add a recover operation, and put operations

@@ -82,6 +82,88 @@ attr_value(resource_node_t *node, char *attrname)
 }
 
 
+char *
+primary_attr_value(resource_t *res)
+{
+	int x;
+	resource_attr_t *ra;
+
+	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
+		ra = &res->r_attrs[x];
+
+		if (!(ra->ra_flags & RA_PRIMARY))
+			continue;
+
+		return ra->ra_value;
+	}
+
+	return NULL;
+}
+
+
+
+/**
+   Compare two resources.
+
+ */
+int
+rescmp(resource_t *left, resource_t *right)
+{
+	int x, y = 0, found;
+
+	/* Completely different resource class... */
+	if (strcmp(left->r_rule->rr_type, right->r_rule->rr_type)) {
+		//printf("Er, wildly different resource type! ");
+		return -1;
+	}
+
+	for (x = 0; left->r_attrs && left->r_attrs[x].ra_name; x++) {
+
+		found = 0;
+		for (y = 0; right->r_attrs && right->r_attrs[y].ra_name; y++) {
+			if (!strcmp(right->r_attrs[y].ra_name,
+			 	    left->r_attrs[x].ra_name))
+				found = 1;
+			else
+				/* Different attribute name */
+				continue;
+
+			if (right->r_attrs[y].ra_flags !=
+			    left->r_attrs[x].ra_flags) {
+				/* Flags are different.  Change in
+				   resource agents? */
+				//printf("flags differ ");
+				return 1;
+			}
+
+			if (strcmp(right->r_attrs[y].ra_value,
+				   left->r_attrs[x].ra_value)) {
+				/* Different attribute value. */
+				//printf("different value for attr '%s'  ",
+				       //right->r_attrs[y].ra_name);
+				return 1;
+			}
+		}
+
+		/* Attribute missing -> different attribute value. */
+		if (!found) {
+			//printf("Attribute %s deleted  ",
+			       //left->r_attrs[x].ra_name);
+			return 1;
+		}
+	}
+
+	/* Different attribute count */
+	if (x != y) {
+		//printf("Attribute count differ (attributes added!) ");
+		return 1;
+	}
+
+	/* All the same */
+	return 0;
+}
+
+
 /**
    Find a resource given its reference.  A reference is the value of the
    primary attribute.
@@ -276,6 +358,12 @@ print_resource(resource_t *res)
 		printf(" [ROOT]");
 	if (res->r_flags & RF_INLINE)
 		printf(" [INLINE]");
+	if (res->r_flags & RF_NEEDSTART)
+		printf(" [NEEDSTART]");
+	if (res->r_flags & RF_NEEDSTOP)
+		printf(" [NEEDSTOP]");
+	if (res->r_flags & RF_COMMON)
+		printf(" [COMMON]");
 	printf("\n");
 
 	if (res->r_rule->rr_maxrefs)
@@ -386,7 +474,11 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 		attr = NULL;
 		snprintf(ccspath, sizeof(ccspath), "%s/@%s", base, attrname);
 
+#ifndef NO_CCS
 		if (ccs_get(ccsfd, ccspath, &attr) != 0) {
+#else
+		if (conf_get(ccspath, &attr) != 0) {
+#endif
 
 			if (flags & (RA_REQUIRED | RA_PRIMARY)) {
 				/* Missing required attribute.  We're done. */

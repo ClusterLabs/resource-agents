@@ -47,6 +47,9 @@ const char *res_ops[] = {
 	"restart",
 	"reload",
 	"condrestart",		/* Unused */
+	"recover",		
+	"condstart",
+	"condstop",
 	"monitor",
 	"meta-data",		/* printenv */
 	"validate-all"
@@ -420,7 +423,11 @@ build_tree(int ccsfd, resource_node_t **tree,
 		snprintf(tok, sizeof(tok), "%s/%s[%d]/@ref", base,
 			 rule->rr_type, x);
 
+#ifndef NO_CCS
 		if (ccs_get(ccsfd, tok, &ref) != 0) {
+#else
+		if (conf_get(tok, &ref) != 0) {
+#endif
 			/* There wasn't an existing resource. See if there
 			   is one defined inline */
 			snprintf(tok, sizeof(tok), "%s/%s[%d]", base, 
@@ -579,7 +586,18 @@ _print_resource_tree(resource_node_t **tree, int level)
 		for (x = 0; x < level; x++)
 			printf("  ");
 
-		printf("%s {\n", node->rn_resource->r_rule->rr_type);
+		printf("%s", node->rn_resource->r_rule->rr_type);
+		if (node->rn_flags) {
+			printf(" [ ");
+			if (node->rn_flags & RF_NEEDSTOP)
+				printf("NEEDSTOP ");
+			if (node->rn_flags & RF_NEEDSTART)
+				printf("NEEDSTART ");
+			if (node->rn_flags & RF_COMMON)
+				printf("COMMON ");
+			printf("]");
+		}
+		printf(" {\n");
 
 		for (x = 0; node->rn_resource->r_attrs &&
 		     node->rn_resource->r_attrs[x].ra_value; x++) {
@@ -587,7 +605,8 @@ _print_resource_tree(resource_node_t **tree, int level)
 				printf("  ");
 			printf("%s = \"%s\";\n",
 			       node->rn_resource->r_attrs[x].ra_name,
-			       attr_value(node, node->rn_resource->r_attrs[x].ra_name)
+			       attr_value(node,
+					  node->rn_resource->r_attrs[x].ra_name)
 			      );
 		}
 
@@ -777,19 +796,23 @@ clear_checks(resource_node_t *node)
    @param type		Type to look for.
    @param ret		Unused, but will be used to store status information
    			such as resources consumed, etc, in the future.
-   @param op		Operation to perform if either first is found,
+   @param realop	Operation to perform if either first is found,
    			or no first is declared (in which case, all nodes
 			in the subtree).
    @see			_res_op_by_level res_exec
  */
 int
 _res_op(resource_node_t **tree, resource_t *first, char *type,
-	   void * __attribute__((unused))ret, int op)
+	   void * __attribute__((unused))ret, int realop)
 {
 	int rv, me;
 	resource_node_t *node;
+	int op;
 
 	list_do(tree, node) {
+
+		/* Restore default operation. */
+		op = realop;
 
 		/* If we're starting by type, do that funky thing. */
 		if (type && strlen(type) &&
@@ -800,11 +823,45 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 		   have the operation performed as well. */
 		me = !first || (node->rn_resource == first);
 
-		/*printf("begin %s: %s\n", res_ops[op],
-		       node->rn_resource->r_rule->rr_type);*/
+		printf("begin %s: %s %s [0x%x]\n", res_ops[op],
+		       node->rn_resource->r_rule->rr_type,
+		       primary_attr_value(node->rn_resource),
+		       node->rn_flags);
+
+		if (me) {
+			/*
+			   If we've been marked as a node which
+			   needs to be started or stopped, clear
+			   that flag and start/stop this resource
+			   and all resource babies.
+
+			   Otherwise, don't do anything; look for
+			   children with RF_NEEDSTART and
+			   RF_NEEDSTOP flags.
+
+			   CONDSTART and CONDSTOP are no-ops if
+			   the appropriate flag is not set.
+			 */
+		       	if ((op == RS_CONDSTART) &&
+			    (node->rn_flags & RF_NEEDSTART)) {
+				printf("Node %s:%s - CONDSTART\n",
+				       node->rn_resource->r_rule->rr_type,
+				       primary_attr_value(node->rn_resource));
+				op = RS_START;
+			}
+
+			if ((op == RS_CONDSTOP) &&
+			    (node->rn_flags & RF_NEEDSTOP)) {
+				printf("Node %s:%s - CONDSTOP\n",
+				       node->rn_resource->r_rule->rr_type,
+				       primary_attr_value(node->rn_resource));
+				op = RS_STOP;
+			}
+		}
 
 		/* Start starts before children */
 		if (me && (op == RS_START)) {
+			node->rn_flags &= ~RF_NEEDSTART;
 			rv = res_exec(node, op, 0);
 			if (rv != 0)
 				return rv;
@@ -822,6 +879,7 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 
 		/* Stop/status/etc stops after children have stopped */
 		if (me && (op == RS_STOP)) {
+			node->rn_flags &= ~RF_NEEDSTOP;
 			--node->rn_resource->r_incarnations;
 			rv = res_exec(node, op, 0);
 
@@ -836,8 +894,9 @@ _res_op(resource_node_t **tree, resource_t *first, char *type,
 				return rv;
 		}
 
-		/*printf("end %s: %s\n", res_ops[op],
-		       node->rn_resource->r_rule->rr_type);*/
+		printf("end %s: %s %s\n", res_ops[op],
+		       node->rn_resource->r_rule->rr_type,
+		       primary_attr_value(node->rn_resource));
 	} while (!list_done(tree, node));
 
 	return 0;
@@ -855,6 +914,34 @@ int
 res_start(resource_node_t **tree, resource_t *res, void *ret)
 {
 	return _res_op(tree, res, NULL, ret, RS_START);
+}
+
+
+/**
+   Start all occurrences of a resource in a tree
+
+   @param tree		Tree to search for our resource.
+   @param res		Resource to start/stop
+   @param ret		Unused
+ */
+int
+res_condstop(resource_node_t **tree, resource_t *res, void *ret)
+{
+	return _res_op(tree, res, NULL, ret, RS_CONDSTOP);
+}
+
+
+/**
+   Start all occurrences of a resource in a tree
+
+   @param tree		Tree to search for our resource.
+   @param res		Resource to start/stop
+   @param ret		Unused
+ */
+int
+res_condstart(resource_node_t **tree, resource_t *res, void *ret)
+{
+	return _res_op(tree, res, NULL, ret, RS_CONDSTART);
 }
 
 
@@ -897,4 +984,216 @@ int
 res_resinfo(resource_node_t **tree, resource_t *res, void *ret)
 {
 	return _res_op(tree, res, NULL, ret, RS_RESINFO);
+}
+
+
+/**
+   Find the delta of two resource lists and flag the resources which need
+   to be restarted/stopped/started. 
+  */
+int
+resource_delta(resource_t **leftres, resource_t **rightres)
+{
+	resource_t *lc, *rc;
+
+	list_do(leftres, lc) {
+		rc = find_resource_by_ref(rightres, lc->r_rule->rr_type,
+					  primary_attr_value(lc));
+
+		/* No restart.  It's gone. */
+		if (!rc) {
+			lc->r_flags |= RF_NEEDSTOP;
+			continue;
+		}
+
+		/* Ok, see if the resource is the same */
+		if (rescmp(lc, rc) == 0) {
+			rc->r_flags |= RF_COMMON;
+			continue;
+		}
+		rc->r_flags |= RF_COMMON;
+
+		/* Resource has changed.  Flag it. */
+		lc->r_flags |= RF_NEEDSTOP;
+		rc->r_flags |= RF_NEEDSTART;
+
+	} while (!list_done(leftres, lc));
+
+	/* Ok, if we weren't existing, flag as a needstart. */
+	list_do(rightres, rc) {
+		if (rc->r_flags & RF_COMMON)
+			rc->r_flags &= ~RF_COMMON;
+		else
+			rc->r_flags |= RF_NEEDSTART;
+	} while (!list_done(rightres, rc));
+	/* Easy part is done. */
+	return 0;
+}
+
+
+/**
+   Part 2 of online mods:  Tree delta.  Ow.  It hurts.  It hurts.
+   We need to do this because resources can be moved from one RG
+   to another with nothing changing (not even refcnt!).
+  */
+int
+resource_tree_delta(resource_node_t **ltree, resource_node_t **rtree)
+{
+	resource_node_t *ln, *rn;
+	int rc;
+
+	list_do(ltree, ln) {
+		/*
+		   Ok.  Run down the left tree looking for obsolete resources.
+		   (e.g. those that need to be stopped)
+
+		   If it's obsolete, continue.  All children will need to be
+		   restarted too, so we don't need to compare the children
+		   of this node.
+		 */
+		if (ln->rn_resource->r_flags & RF_NEEDSTOP) {
+			ln->rn_flags |= RF_NEEDSTOP;
+			continue;
+		}
+
+		/*
+		   Ok.  This particular node wasn't flagged. 
+		 */
+		list_do(rtree, rn) {
+
+			rc = rescmp(ln->rn_resource, rn->rn_resource);
+
+			/* Wildly different resource? */
+			if (rc <= -1)
+				continue;
+
+			/*
+			   If it needs to be started (e.g. it's been altered
+			   or is new), then we don't really care about its
+			   children.
+			 */
+			if (rn->rn_resource->r_flags & RF_NEEDSTART) {
+				rn->rn_flags |= RF_NEEDSTART;
+				continue;
+			}
+
+			if (rc == 0) {
+				/* Ok, same resource.  Recurse. */
+				ln->rn_flags |= RF_COMMON;
+				rn->rn_flags |= RF_COMMON;
+				resource_tree_delta(&ln->rn_child,
+						    &rn->rn_child);
+			}
+
+		} while (!list_done(rtree, rn));
+
+		if (ln->rn_flags & RF_COMMON)
+			ln->rn_flags &= ~RF_COMMON;
+		else 
+			ln->rn_flags |= RF_NEEDSTOP;
+
+	} while (!list_done(ltree, ln));
+
+	/*
+	   See if we need to start anything.  Stuff which wasn't flagged
+	   as COMMON needs to be started.
+
+	   As always, if we have to start a node, everything below it
+	   must also be started.
+	 */
+	list_do(rtree, rn) {
+		if (rn->rn_flags & RF_COMMON)
+			rn->rn_flags &= ~RF_COMMON;
+		else
+			rn->rn_flags |= RF_NEEDSTART;
+	} while (!list_done(rtree, rn));
+
+	return 0;
+}
+
+
+int
+tree_delta_test(int argc, char **argv)
+{
+#ifndef NO_CCS
+	printf("This operation is not supported with the current build.\n");
+#else
+	resource_rule_t *rulelist = NULL, *currule, *rulelist2 = NULL;
+	resource_t *reslist = NULL, *curres, *reslist2 = NULL;
+	resource_node_t *tree = NULL, *tree2 = NULL;
+	int ccsfd;
+
+	if (argc < 2) {
+		printf("Operation requires two arguments\n");
+		return -1;
+	}
+
+	currule = NULL;
+	curres = NULL;
+
+	printf("Running in resource tree delta test mode.\n");
+
+	conf_setconfig(argv[1]);
+
+       	ccsfd = ccs_lock();
+	load_resource_rules(&rulelist);
+	load_resources(ccsfd, &reslist, &rulelist);
+	build_resource_tree(ccsfd, &tree, &rulelist, &reslist);
+	ccs_unlock(ccsfd);
+
+	conf_setconfig(argv[2]);
+
+       	ccsfd = ccs_lock();
+	load_resource_rules(&rulelist2);
+	load_resources(ccsfd, &reslist2, &rulelist2);
+	build_resource_tree(ccsfd, &tree2, &rulelist2, &reslist2);
+	ccs_unlock(ccsfd);
+
+	resource_delta(&reslist, &reslist2);
+
+	printf("=== Old Resource List ===\n");
+	list_do(&reslist, curres) {
+		print_resource(curres);
+	} while (!list_done(&reslist, curres));
+	printf("=== New Resource List ===\n");
+	list_do(&reslist2, curres) {
+		print_resource(curres);
+	} while (!list_done(&reslist2, curres));
+
+	curres = find_resource_by_ref(&reslist, "group", "oracle");
+
+	printf("CLEANING UP group oracle\n");
+	res_stop(&tree, curres, NULL);
+
+	curres = find_resource_by_ref(&reslist, "group", "oracle");
+	printf("Starting oracle...\n");
+	if (res_start(&tree, curres, NULL)) {
+		printf("Failed to start oracle\n");
+		return 1;
+	}
+	printf("Start of oracle complete\n");
+
+
+	resource_tree_delta(&tree, &tree2);
+	printf("=== Old Resource Tree ===\n");
+	print_resource_tree(&tree);
+	printf("=== New Resource Tree ===\n");
+	print_resource_tree(&tree2);
+
+	/* HARDCODED TEST -- badbad */
+	printf("COND STOPPING whatever I need to from oracle...\n");
+	curres = find_resource_by_ref(&reslist, "group", "oracle");
+	res_condstop(&tree, curres, NULL);
+
+	printf("COND STARTING whatever I need to from oracle...\n");
+	curres = find_resource_by_ref(&reslist2, "group", "oracle");
+	res_condstart(&tree2, curres, NULL);
+
+
+#ifdef MDEBUG
+	dump_mem_table();
+#endif
+
+	return 0;
+#endif
 }

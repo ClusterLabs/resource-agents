@@ -140,6 +140,12 @@ request_failbacks(void)
 }
 
 
+void
+reconfigure(int sig)
+{
+}
+
+
 /**
   Called to handle the transition of a cluster member from up->down or
   down->up.  This handles initializing services (in the local node-up case),
@@ -173,6 +179,7 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 		}
 		setup_signal(SIGINT, graceful_exit);
 		setup_signal(SIGTERM, graceful_exit);
+		setup_signal(SIGHUP, reconfigure);
 
 		eval_groups(1, nodeID, STATE_UP);
 		return;
@@ -532,6 +539,7 @@ statedump(int sig)
 
 
 int test_func(int, char**);
+int tree_delta_test(int, char**);
 
 
 int
@@ -549,6 +557,12 @@ main(int argc, char **argv)
 		--argc; ++argv;
 		return test_func(argc, argv);
 	}
+
+	if (argc >= 2 && !strcmp(argv[1],"delta")) {
+		--argc; ++argv;
+		return tree_delta_test(argc, argv);
+	}
+
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {

@@ -18,7 +18,15 @@
 */
 #include <pthread.h>
 #include <stdio.h>
+#ifdef NO_CCS
+#include <libxml/xmlmemory.h>
+#include <libxml/parser.h>
+#include <libxml/xpath.h>
+#include <string.h>
+char*xpath_get_one(xmlDocPtr, xmlXPathContextPtr, char *);
+#else
 #include <ccs.h>
+#endif
 
 #include <mallocdbg.h>
 
@@ -32,6 +40,11 @@ static pthread_cond_t unlock_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t zero_cond = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t init_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t __ccs_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+#ifdef NO_CCS
+static xmlDocPtr ccs_doc = NULL;
+static char *conffile = "/etc/cluster/cluster.conf";
+#endif
 
 int
 rg_initialized(void)
@@ -81,6 +94,7 @@ rg_wait_initialized(void)
   */
 int
 ccs_lock(void)
+#ifndef NO_CCS
 {
 	int ret;
 	pthread_mutex_lock(&__ccs_mutex);
@@ -89,12 +103,23 @@ ccs_lock(void)
 		pthread_mutex_unlock(&__ccs_mutex);
 		return -1;
 	}
+	return ret;
+}
+#else /* No ccs support */
+{
+	pthread_mutex_lock(&__ccs_mutex);
+       	ccs_doc = xmlParseFile(conffile);
+	if (!ccs_doc)
+		return -1;
 	return 0;
 }
+#endif
+
 
 
 int
 ccs_unlock(int fd)
+#ifndef NO_CCS
 {
 	int ret;
 
@@ -105,6 +130,41 @@ ccs_unlock(int fd)
 	}
 	return 0;
 }
+#else
+{
+	xmlFreeDoc(ccs_doc);
+	ccs_doc = NULL;
+	pthread_mutex_unlock(&__ccs_mutex);
+	return 0;
+}
+
+
+void
+conf_setconfig(char *path)
+{
+	pthread_mutex_lock(&__ccs_mutex);
+	conffile = path;
+	pthread_mutex_unlock(&__ccs_mutex);
+}
+
+
+int
+conf_get(char *path, char **value)
+{
+	char *foo;
+	xmlXPathContextPtr ctx;
+
+	ctx = xmlXPathNewContext(ccs_doc);
+	foo = xpath_get_one(ccs_doc, ctx, path);
+	xmlXPathFreeContext(ctx);
+
+	if (foo) {
+		*value = foo;
+		return 0;	
+	}
+	return 1;
+}
+#endif
 
 
 int

@@ -48,6 +48,10 @@
 #define RETURN(val) return(val)
 #endif
 
+#ifdef NO_CCS
+#define ccs_get(fd, query, ret) conf_get(query, ret)
+#endif
+
 /*
    <failoverdomains>
      <failoverdomain name="foo">
