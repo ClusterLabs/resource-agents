@@ -709,10 +709,6 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 			   print_lkb(lkb);
 			   print_rsb(rsb););
 
-		DLM_ASSERT(rsb->res_nodeid == -1,
-			   print_lkb(lkb);
-			   print_rsb(rsb););
-
 		log_debug(ls, "send lu %x to %u", lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOOKUP;
