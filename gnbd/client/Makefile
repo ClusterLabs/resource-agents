@@ -31,7 +31,7 @@ INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gnbd.h ]; then \
 		echo '-I${KERNEL_SRC}/include'; fi)
 endif
 
-MON_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl
+MON_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl -lpthread
 
 CFLAGS+= -O2 -DGNBD_RELEASE_NAME=\"${RELEASE}\"
 

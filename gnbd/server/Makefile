@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 
 CLU_SOURCE= gnbd_clusterd.c $(top_srcdir)/utils/gnbd_utils.c
 
-CLU_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl
+CLU_LIBS= ${LDLIBS} -L${libdir} -lmagma -ldl -lpthread
 
 SRV_SOURCE= gnbd_serv.c local_req.c extern_req.c device.c gserv.c fence.c \
 	$(top_srcdir)/utils/trans.c $(top_srcdir)/utils/gnbd_utils.c
