@@ -8,6 +8,15 @@
 # Provides: 
 ### END INIT INFO
 
+# CMAN_CLUSTER_TIMEOUT -- amount of time to wait for joinging a cluster
+#     before giving up.  If CMAN_CLUSTER_TIMEOUT is positive, then we will
+#     wait CMAN_CLUSTER_TIMEOUT seconds before giving up and failing when
+#     a cluster is not joined.  If CMAN_CLUSTER_TIMEOUT is zero, then
+#     wait indefinately for a cluster join.  If CMAN_CLUSTER_TIMEOUT is
+#     negative, do not check to see that the cluster has been joined
+CMAN_CLUSTER_TIMEOUT=300
+
+
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
 
@@ -15,6 +24,11 @@ LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
 nodename=$(hostname -s)
+
+in_cluster()
+{
+	awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes
+}
 
 start()
 {
@@ -30,18 +44,30 @@ start()
 		[ -n "$CMAN_TRANSITION_RESTARTS" ] && 
 			echo $CMAN_TRANSITION_RESTARTS > /proc/cluster/config/cman/transition_restarts
 
+		if in_cluster
+		then
+			rtrn=0
+			break
+		fi
+
+		cman_tool join $cman_join_opts || break
+
 		# make sure that we are in the correct state
-		until awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes 
+       		stoptime=$(($SECONDS + $CMAN_CLUSTER_TIMEOUT))
+		while [ $CMAN_CLUSTER_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
 		do
-			# join the cluster
-			cman_tool join $cman_join_opts > /dev/null 2>&1 
+			if in_cluster
+			then
+				rtrn=0
+				break
+			fi
+			
 			sleep 1
 		done
+		[ $CMAN_CLUSTER_TIMEOUT -lt 0 ] && rtrn=0
 
 		# FIXME -- make sure that we are quorate?  
 		# probably not a good idea since we may need to fence nodes.
-		
-		rtrn=0
 	done
 
 	if [ $rtrn -eq 0 ]
@@ -63,11 +89,19 @@ stop()
 	
 	if [ -r /proc/cluster/status ] 
 	then
+		do_leave=1
+
 		# make sure that we are in the correct state
-		while awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes 
+		while in_cluster
 		do
-			# join the cluster
-			cman_tool leave > /dev/null 2>&1 
+			if [ $do_leave -eq 1 ]
+			then
+				# cman_tool leave will fail if the cluster is in
+				# transition (another node is leaving at the same time
+				# we are)
+				cman_tool leave &>/dev/null && do_leave=0
+			fi
+
 			sleep 1
 		done
 
