@@ -285,6 +285,8 @@ static void process_callback(uint32_t local_id, int event_id)
 			return;
 		}
 
+		log_debug(sg, "cb recover state %u", sg->recover_state);
+
 		if (sg->recover_state == RECOVER_START)
 			sg->recover_state = RECOVER_STARTDONE;
 		else
