@@ -49,15 +49,12 @@ extern gulm_config_t gulm_config;
  */
 unsigned long max_locks     = 1024 * 1024;
 
-
-/* these four ar not really accurate anymore */
-unsigned long cnt_unl_locks = 0;
-unsigned long cnt_exl_locks = 0;
-unsigned long cnt_shd_locks = 0;
-unsigned long cnt_dfr_locks = 0;
-
+/* these count the number of holders in each state or type. */
+unsigned long cnt_exl_holds = 0;
+unsigned long cnt_shd_holds = 0;
+unsigned long cnt_dfr_holds = 0;
 unsigned long cnt_lvb_holds = 0;
-unsigned long cnt_exp_locks = 0;
+unsigned long cnt_exp_holds = 0;
 
 unsigned long cur_lops = 0;
 unsigned long cnt_conflicts = 0;
@@ -489,15 +486,15 @@ int send_stats(xdr_enc_t *enc)
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "exclusive")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_exl_locks);
+   snprintf(tmp, 256, "%lu", cnt_exl_holds);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "shared")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_shd_locks);
+   snprintf(tmp, 256, "%lu", cnt_shd_holds);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "deferred")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_dfr_locks);
+   snprintf(tmp, 256, "%lu", cnt_dfr_holds);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "lvbs")) != 0) return err;
@@ -505,7 +502,7 @@ int send_stats(xdr_enc_t *enc)
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "expired")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_exp_locks);
+   snprintf(tmp, 256, "%lu", cnt_exp_holds);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "lock ops")) != 0) return err;
@@ -766,9 +763,9 @@ void delete_entire_holder_list(LLi_t *list)
 void increment_global_state_counters(int state)
 {
    switch(state) {
-      case gio_lck_st_Exclusive: cnt_exl_locks++; break;
-      case gio_lck_st_Deferred: cnt_dfr_locks++; break;
-      case gio_lck_st_Shared: cnt_shd_locks++; break;
+      case gio_lck_st_Exclusive: cnt_exl_holds++; break;
+      case gio_lck_st_Deferred: cnt_dfr_holds++; break;
+      case gio_lck_st_Shared: cnt_shd_holds++; break;
    }
 }
 /**
@@ -781,9 +778,9 @@ void increment_global_state_counters(int state)
 void decrement_global_state_counters(int state)
 {
    switch(state) {
-      case gio_lck_st_Exclusive: cnt_exl_locks--; break;
-      case gio_lck_st_Deferred: cnt_dfr_locks--; break;
-      case gio_lck_st_Shared: cnt_shd_locks--; break;
+      case gio_lck_st_Exclusive: cnt_exl_holds--; break;
+      case gio_lck_st_Deferred: cnt_dfr_holds--; break;
+      case gio_lck_st_Shared: cnt_shd_holds--; break;
    }
 }
 /*****************************************************************************/
@@ -891,6 +888,7 @@ int move_to_Expholders(Holders_t *h, Lock_t *lk)
    LLi_unhook(&h->cl_list);
    LLi_add_after( &lk->ExpHolders, &h->cl_list );
    lk->ExpiredCount++;
+   cnt_exp_holds ++;
    return 0;
 }
 
@@ -941,6 +939,7 @@ int drop_expholders(uint8_t *name, Lock_t *lk)
          LLi_del(tmp);
          recycle_holder(h);
          lk->ExpiredCount--;
+         cnt_exp_holds --;
          ret = TRUE;
       }
    }
@@ -966,8 +965,8 @@ int add_to_LVB_holders(uint8_t *name, Lock_t *lk)
       return -1;
 
    lk->LVB_holder_cnt++;
+   cnt_lvb_holds++;
    if( lk->LVB_holder_cnt == 1 ) { /* first lvb hold */
-      cnt_lvb_holds++;
       lk->LVBlen = FIRST_LVB_SIZE;
       if( lk->LVB == NULL ) {
          lk->LVB = malloc(FIRST_LVB_SIZE);
@@ -1007,10 +1006,10 @@ int drop_LVB_holder(uint8_t *name, Lock_t *lk)
 
    if(remove_holder_from_list(name, &lk->LVB_holders)) {
       lk->LVB_holder_cnt--;
+      cnt_lvb_holds--;
       if( lk->LVB_holder_cnt == 0) {
          lk->LVBlen = 0; /* no more lvb holders */
          if( lk->LVB != NULL ) {free(lk->LVB); lk->LVB = NULL;}
-         cnt_lvb_holds--;
       }
       return 0;
    }
@@ -1122,7 +1121,6 @@ Lock_t *find_lock(uint8_t *key, uint8_t keylen)
                lkeytohex(key, keylen), ret);
       }
       cnt_locks++;
-      cnt_unl_locks++;
    } else {
       lk = LLi_data(tmp);
    }
@@ -1192,7 +1190,6 @@ void check_for_recycle(Lock_t *lk)
       LLi_unhook( &lk->lk_list );
       LLi_add_before( &Free_lock, &lk->lk_list );
       cnt_locks--;
-      cnt_unl_locks--;
       free_locks ++;
 
       /* only keep a limited number of free structs around. */
@@ -1439,12 +1436,11 @@ void clear_lockspace(void)
 
    /* reset counters. */
    cnt_locks     = 0;
-   cnt_unl_locks = 0;
-   cnt_exl_locks = 0;
-   cnt_shd_locks = 0;
-   cnt_dfr_locks = 0;
+   cnt_exl_holds = 0;
+   cnt_shd_holds = 0;
+   cnt_dfr_holds = 0;
    cnt_lvb_holds = 0;
-   cnt_exp_locks = 0;
+   cnt_exp_holds = 0;
    cnt_inq       = 0;
    cnt_confq     = 0;
    cnt_replyq    = 0;
@@ -1890,7 +1886,6 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
       /* do unlock */
       ret = drop_holder_by_range(lk, lkrq);
       lkrq->flags &= ~gio_lck_fg_Cachable;
-      if( lk->HolderCount == 0 ) cnt_unl_locks ++;
       /* check lvb save */
       if( saveLVB && ret == 0 ) lvbcpy(lk, lkrq);
       ret = send_lock_success(lk, lkrq);
@@ -1914,7 +1909,6 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
          /* Internal Unlock */
          drop_holder_by_range(lk, lkrq);
          lkrq->flags &= ~gio_lck_fg_Cachable;
-         if( lk->HolderCount == 0 ) cnt_unl_locks ++;
 
          /* then queue me on conflict. */
          put_onto_conflict_queue(lk, lkrq);
@@ -1944,10 +1938,7 @@ int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
        * The down side is that certain range activity will end up with a
        * lot more memory used than if real merges happened.
        */
-      if( lk->HolderCount == 0 ) {
-         /* no current holders, so just add. */
-         cnt_unl_locks--;
-      }else{
+      if( lk->HolderCount != 0 ) {
          /* maybe stuff to drop. */
          drop_holder_by_range(lk, lkrq);
       }
@@ -2279,13 +2270,10 @@ int force_lock_state(Waiters_t *lkrq)
 
    if( lkrq->state == gio_lck_st_Unlock ) {
       drop_holder_by_range(lk, lkrq);
-      if( lk->HolderCount == 0 ) cnt_unl_locks++;
       check_for_recycle(lk);
    }else
    {
-      if( lk->HolderCount == 0 )
-         cnt_unl_locks--;
-      else
+      if( lk->HolderCount != 0 )
          drop_holder_by_range(lk, lkrq);
       add_to_holders(lk, lkrq);
    }
@@ -2675,6 +2663,7 @@ int _expire_locks_(LLi_t *item, void *d)
       if( strcmp(h->name, name) == 0 ) {
          LLi_del(tp);
          lk->HolderCount --;
+         decrement_global_state_counters(h->state);
          switch(h->state) {
             case gio_lck_st_Exclusive:
                /* move to exp list */
@@ -2778,9 +2767,8 @@ int _drop_locks_(LLi_t *item, void *d)
       if( lk->ExpiredCount > 0 ) {
          if( cmp_lock_mask(dl->mask, dl->mlen, lk->key, lk->keylen) ) {
             drop_expholders(dl->name, lk);
+            cnt_exp_holds --;
 
-            if( lk->ExpiredCount == 0 ) cnt_exp_locks--;
- 
             Run_WaitQu(lk);
             check_for_recycle(lk);
          }
@@ -2789,8 +2777,8 @@ int _drop_locks_(LLi_t *item, void *d)
       if( lk->ExpiredCount > 0 ) {
          if( cmp_lock_mask(dl->mask, dl->mlen, lk->key, lk->keylen) ) {
             delete_entire_holder_list( &lk->ExpHolders );
+            cnt_exp_holds -= lk->ExpiredCount;
             lk->ExpiredCount = 0;
-            cnt_exp_locks--;
     
             Run_WaitQu(lk);
             check_for_recycle(lk);
@@ -2992,13 +2980,11 @@ int deserialize_lockspace(int fd)
          if( lk->LVB == NULL ) {err=-ENOMEM;goto fail;}
          len = lk->LVBlen;
          if( (err=xdr_dec_raw(xdr, lk->LVB, &len)) != 0 ) goto fail;
-         cnt_lvb_holds++;
       }else{
          lk->LVB = NULL;
       }
 
       if( (err=xdr_dec_uint32(xdr, &lk->HolderCount)) != 0 ) goto fail;
-      if( lk->HolderCount != 0 ) cnt_unl_locks--;
       counter = 0;
       if( (err=xdr_dec_list_start(xdr)) != 0 ) goto fail;
       while( xdr_dec_list_stop(xdr) != 0 ) {
@@ -3035,6 +3021,7 @@ int deserialize_lockspace(int fd)
          if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
          LLi_add_after( &lk->LVB_holders, &h->cl_list);
          counter ++;
+         cnt_lvb_holds ++;
       }
       if( counter != lk->LVB_holder_cnt ) {
          log_msg(lgm_Always,"AH! counter != lk->LVB_holder_cnt %d != %d "
@@ -3055,6 +3042,7 @@ int deserialize_lockspace(int fd)
          if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
          LLi_add_after( &lk->ExpHolders, &h->cl_list);
          counter ++;
+         cnt_exp_holds ++;
 
       }
       if( counter != lk->ExpiredCount ) {
@@ -3062,7 +3050,6 @@ int deserialize_lockspace(int fd)
                  "Using counter.\n", counter, lk->ExpiredCount);
          lk->ExpiredCount = counter;
       }
-      if( lk->ExpiredCount > 0 ) cnt_exp_locks ++;
    }
 
    xdr_dec_release(xdr);
