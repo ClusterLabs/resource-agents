@@ -1,8 +1,8 @@
 # Add lock_dlm to the build system.
-diff -urN -p linux-2.6.9-rc1-mm2/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.9-rc1-mm2/fs/Kconfig	2004-08-31 16:45:18.358624128 -0500
-+++ linux/fs/Kconfig	2004-08-31 16:45:18.369621589 -0500
-@@ -1804,6 +1804,12 @@ config LOCK_NOLOCK
+diff -urN -p linux-2.6.9-rc1-mm3/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9-rc1-mm3/fs/Kconfig	2004-09-03 13:48:57.245919384 -0500
++++ linux/fs/Kconfig	2004-09-03 13:48:57.256916866 -0500
+@@ -1807,6 +1807,12 @@ config LOCK_NOLOCK
  	help
  	  A "fake" lock module that allows GFS to run as a local filesystem.
  
@@ -15,18 +15,18 @@ diff -urN -p linux-2.6.9-rc1-mm2/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.9-rc1-mm2/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.9-rc1-mm2/fs/gfs_locking/Makefile	2004-08-31 16:45:18.358624128 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-08-31 16:45:18.369621589 -0500
+diff -urN -p linux-2.6.9-rc1-mm3/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.9-rc1-mm3/fs/gfs_locking/Makefile	2004-09-03 13:48:57.245919384 -0500
++++ linux/fs/gfs_locking/Makefile	2004-09-03 13:48:57.256916866 -0500
 @@ -12,4 +12,5 @@
  
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
  obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
 +obj-$(CONFIG_LOCK_DLM)		+= lock_dlm/
  
-diff -urN -p linux-2.6.9-rc1-mm2/fs/gfs_locking/lock_dlm/Makefile linux/fs/gfs_locking/lock_dlm/Makefile
---- linux-2.6.9-rc1-mm2/fs/gfs_locking/lock_dlm/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_dlm/Makefile	2004-08-31 16:45:18.369621589 -0500
+diff -urN -p linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_dlm/Makefile linux/fs/gfs_locking/lock_dlm/Makefile
+--- linux-2.6.9-rc1-mm3/fs/gfs_locking/lock_dlm/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_dlm/Makefile	2004-09-03 13:48:57.257916637 -0500
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################
