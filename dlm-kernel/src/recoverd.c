@@ -299,14 +299,14 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 		list_del(&gr->gr_list);
 
 		if (gr->gr_event_id <= last_stop) {
+			log_debug(ls, "move skip event %u", gr->gr_event_id);
 			kfree(gr->gr_nodeids);
 			free_dlm_recover(gr);
 			gr = NULL;
-			log_debug(ls, "move skip event %u", gr->gr_event_id);
 		} else {
+			log_debug(ls, "move use event %u", gr->gr_event_id);
 			GDLM_ASSERT(!start_gr,);
 			start_gr = gr;
-			log_debug(ls, "move use event %u", gr->gr_event_id);
 		}
 	}
 
