@@ -265,7 +265,6 @@ int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 			low = csb->node->nodeid;
 	}
 
-	rcom_log_clear(ls);
 	ls->ls_low_nodeid = low;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;

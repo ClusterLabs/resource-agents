@@ -32,6 +32,5 @@
 int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 		      struct dlm_rcom *rc, int need_reply);
 void process_recovery_comm(uint32_t nodeid, struct dlm_header *header);
-void rcom_log_clear(struct dlm_ls *ls);
 
 #endif
