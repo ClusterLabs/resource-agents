@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.255 $) dnl cvs revision
+AC_REVISION($Revision: 1.256 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1355,16 +1355,16 @@ LRM_DIR=""
 
 if test "${enable_crm}" = "yes"; then
    if test "${enable_lrm}" = "no"; then
-      AC_MSG_WARN(crm enabled, overriding --enable-lrm=no with --enable-lrm=yes)
+      AC_MSG_WARN([crm enabled, overriding --enable-lrm=no with --enable-lrm=yes])
    elif test -z "${enable_lrm}"; then
-      AC_MSG_WARN(crm enabled, defaulting to --enable-lrm=yes)
+	   AC_MSG_WARN([crm enabled, defaulting to --enable-lrm=yes])
 dnl else
 dnl anything here?
    fi
    enable_lrm="yes"
 fi
 
-if 
+if test -z "${enable_lrm}"; then
    enable_lrm="no"
 fi
 
