@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.275 $) dnl cvs revision
+AC_REVISION($Revision: 1.276 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -609,7 +609,7 @@ AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 SNMPLIB=""
 SNMPCONFIG=""
-if test "${enable_snmp_subagent}"  = "set"; then
+if test "${enable_snmp_subagent}"  = "yes"; then
 	if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
 		AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 		if test "X${SNMPCONFIG}" = "X"; then
@@ -971,7 +971,7 @@ dnl Add any system specific options here.
 	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 fi
 
-if test "${enable_snmp_subagent+set}"  = "set"; then
+if test "${enable_snmp_subagent}"  = "yes"; then
 	echo "Enabling  SNMP Sub Agent"
 	SNMP_SUBAGENT_DIR="snmp_subagent"
 	sinclude([config/snmp_subagent.m4]) 
@@ -1466,7 +1466,6 @@ CRM_DIR=""
 CRM_LIBS=""
 CRM_ENABLED=0
 if test "${enable_crm}" = "yes"; then
-
 	if test -n "$XML2CONFIG"; then
 	   CRM_DIR="crm"
 	   CRM_ENABLED=1
@@ -1749,6 +1748,13 @@ if test "${enable_eventd}"  = "yes"; then
 fi
 
 
+dnl if snmp_subagent is enabled
+if test "${enable_snmp_subagent}"  = "yes"; then
+	AC_CONFIG_FILES(snmp_subagent/Makefile			\
+	     )
+fi
+
+
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
 AC_OUTPUT()
@@ -1803,8 +1809,7 @@ esac
 AC_MSG_RESULT([  Build New CRM        = ${enable_crm}])
 AC_MSG_RESULT([  Build New LRM        = ${enable_lrm}])
 AC_MSG_RESULT([  Build SWIG bindings  = ${enable_swig}])
+AC_MSG_RESULT([  Build Eventd         = ${enable_eventd}])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
-
-AC_MSG_RESULT([  Build Eventd         = ${enable_eventd}])
