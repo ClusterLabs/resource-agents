@@ -1215,6 +1215,8 @@ int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 					      "len=%d\n", type, nodeid, ptr,
 					      len););
 		}
+
+		schedule();
 	}
 
 	if (rsb)

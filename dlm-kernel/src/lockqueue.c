@@ -182,6 +182,7 @@ int process_requestqueue(struct dlm_ls *ls)
 			error = -EINTR;
 			break;
 		}
+		schedule();
 	}
 
 	log_debug(ls, "processed %d requests", count);
@@ -249,6 +250,8 @@ void purge_requestqueue(struct dlm_ls *ls)
 				count++;
 			}
 		}
+
+		schedule();
 	}
 	up(&ls->ls_requestqueue_lock);
 

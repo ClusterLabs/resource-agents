@@ -224,6 +224,8 @@ int restbl_lkb_purge(struct dlm_ls *ls)
 
 		up_write(&rootrsb->res_lock);
 		release_rsb_locked(rootrsb);
+
+		schedule();
 	}
 
 	up_write(&ls->ls_root_lock);
@@ -523,6 +525,7 @@ int restbl_rsb_update(struct dlm_ls *ls)
 			}
 			count++;
 		}
+		schedule();
 	}
 	up_read(&ls->ls_root_lock);
 

@@ -272,6 +272,8 @@ void lockqueue_lkb_mark(struct dlm_ls *ls)
 		if (lkb->lkb_resource->res_ls != ls)
 			continue;
 
+		schedule();
+
 		log_debug(ls, "mark %x lq %d nodeid %d", lkb->lkb_id,
 			  lkb->lkb_lockqueue_state, lkb->lkb_nodeid);
 
@@ -397,6 +399,8 @@ int resend_cluster_requests(struct dlm_ls *ls)
 			error = -EINTR;
 			break;
 		}
+
+		schedule();
 
 		r = lkb->lkb_resource;
 
