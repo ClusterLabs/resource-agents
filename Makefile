@@ -12,7 +12,7 @@
 LATEST_TAG=scripts/latest_tag.pl
 BUILD_SRPMS=scripts/build_srpms.pl
 BUILDDIR = $(shell pwd)/build
-MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module sharedir=${BUILDDIR}
+MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/man incdir=${BUILDDIR}/incdir module_dir=${BUILDDIR}/module sharedir=${BUILDDIR} slibdir=${BUILDDIR}/slib
 
 
 all:
