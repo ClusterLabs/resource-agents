@@ -17,7 +17,7 @@
 
 #if defined(LOCK_DLM_DEBUG)
 #define LOCK_DLM_DEBUG_SIZE     (4096)
-#define MAX_DEBUG_MSG_LEN       (64)
+#define MAX_DEBUG_MSG_LEN       (80)
 #else
 #define LOCK_DLM_DEBUG_SIZE     (0)
 #define MAX_DEBUG_MSG_LEN       (0)

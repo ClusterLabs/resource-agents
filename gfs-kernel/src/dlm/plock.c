@@ -29,11 +29,13 @@
 
 #define HEAD      1
 
-
-static int check_conflict(dlm_t *dlm, struct dlm_resource *r,
+static int local_conflict(dlm_t *dlm, struct dlm_resource *r,
 			  struct lm_lockname *name, unsigned long owner,
 			  uint64_t start, uint64_t end, int ex);
 
+static int global_conflict(dlm_t *dlm, struct lm_lockname *name,
+			   unsigned long owner, uint64_t start, uint64_t end,
+			   int ex);
 
 static int lock_resource(struct dlm_resource *r)
 {
@@ -793,29 +795,19 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (error)
 		goto out;
 
-#if 0
-	/* Wait, without holding any locks, until this plock request is not
-	   blocked by plocks of *other* *local* processes.  Then, none of the
-	   dlm requests below will wait on a lock from a local process.
-
-	   This should not be necessary since we wait for completion after
-	   up().  This means a local process p1 can unlock lkb X while local p2
-	   is waiting for X (in wait_async_list). */
-	error = wait_local(r, owner, wait, ex, start, end);
-	if (error)
-		goto out_put;
-#endif
-
 	down(&r->sema);
+
+	if (!wait && local_conflict(dlm, r, name, owner, start, end, ex)) {
+		error = -1;
+		goto out_up;
+	}
+
 	error = lock_resource(r);
 	if (error)
 		goto out_up;
 
-	/* check_conflict() checks for conflicts with plocks from other local
-	   processes and other nodes. */
-
-	if (!wait && check_conflict(dlm, r, name, owner, start, end, ex)) {
-		error = -1;
+	if (!wait && global_conflict(dlm, name, owner, start, end, ex)) {
+		error = -2;
 		unlock_resource(r);
 		goto out_up;
 	}
@@ -960,6 +952,8 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 
 	kfree(qinfo.gqi_lockinfo);
 
+	log_debug("global conflict %d %"PRIx64"-%"PRIx64" ex %d own %lu pid %u",
+		  error, *start, *end, *ex, *rowner, current->pid);
  out:
 	do_dlm_unlock_sync(lp);
 	kfree(lp);
@@ -1022,26 +1016,26 @@ int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	return error;
 }
 
-static int check_conflict(dlm_t *dlm, struct dlm_resource *r,
+static int local_conflict(dlm_t *dlm, struct dlm_resource *r,
 			  struct lm_lockname *name, unsigned long owner,
 			  uint64_t start, uint64_t end, int ex)
 {
 	uint64_t get_start = start, get_end = end;
 	unsigned long get_owner = 0;
-	int get_ex = ex, error;
+	int get_ex = ex;
 
-	error = get_conflict_local(dlm, r, name, owner,
-				   &get_start, &get_end, &get_ex, &get_owner);
-	if (error)
-		goto out;
-
-	error = get_conflict_global(dlm, name, owner,
-				    &get_start, &get_end, &get_ex, &get_owner);
- out:
-	log_debug("check_conflict %d %"PRIx64"-%"PRIx64" %"PRIx64"-%"PRIx64" "
-	          "ex %d %d own %lu %lu pid %u", error, start, end,
-	          get_start, get_end, ex, get_ex, owner, get_owner,
-		  current->pid);
-	return error;
+	return get_conflict_local(dlm, r, name, owner,
+				  &get_start, &get_end, &get_ex, &get_owner);
 }
 
+static int global_conflict(dlm_t *dlm, struct lm_lockname *name,
+			   unsigned long owner, uint64_t start, uint64_t end,
+			   int ex)
+{
+	uint64_t get_start = start, get_end = end;
+	unsigned long get_owner = 0;
+	int get_ex = ex;
+
+	return get_conflict_global(dlm, name, owner,
+				    &get_start, &get_end, &get_ex, &get_owner);
+}
