@@ -33,6 +33,9 @@ struct lm_lockops nolock_ops;
  * @table_name: the name of the space to mount
  * @host_data: host specific data
  * @cb: the callback
+ * @fsdata:
+ * @min_lvb_size:
+ * @flags:
  * @lockstruct: the structure of crap to fill in
  *
  * Returns: 0 on success, -EXXX on failure
@@ -41,7 +44,8 @@ struct lm_lockops nolock_ops;
 static int
 nolock_mount(char *table_name, char *host_data,
 	     lm_callback_t cb, lm_fsdata_t *fsdata,
-	     unsigned int min_lvb_size, struct lm_lockstruct *lockstruct)
+	     unsigned int min_lvb_size, int flags,
+	     struct lm_lockstruct *lockstruct)
 {
 	char *c;
 	unsigned int jid;

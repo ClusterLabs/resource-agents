@@ -177,6 +177,10 @@ away in the future.
 \fBacl\fP
 Enables POSIX Access Control List \fBacl\fP(5) support within GFS.
 .TP
+\fBspectator\fP
+Mount this filesystem using a special form of read-only mount.  The mount
+does not use one of the filesystem's journals.
+.TP
 \fBsuiddir\fP
 Sets owner of any newly created file or directory to be that of parent
 directory, if parent directory has S_ISUID permission attribute bit set.

@@ -243,7 +243,7 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 
 static int lm_dlm_mount(char *table_name, char *host_data,
 			lm_callback_t cb, lm_fsdata_t *fsdata,
-			unsigned int min_lvb_size,
+			unsigned int min_lvb_size, int flags,
 			struct lm_lockstruct *lockstruct)
 {
 	dlm_t *dlm;

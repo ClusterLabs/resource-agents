@@ -58,7 +58,11 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	ENTER(GFN_LM_MOUNT)
 	struct gfs_sb *sb = NULL;
 	char *proto, *table;
+	int flags = 0;
 	int error;
+
+	if (sdp->sd_args.ar_spectator)
+		flags |= LM_MFLAG_SPECTATOR;
 
 	proto = sdp->sd_args.ar_lockproto;
 	table = sdp->sd_args.ar_locktable;
@@ -105,7 +109,8 @@ gfs_lm_mount(struct gfs_sbd *sdp, int silent)
 	atomic_inc(&sdp->sd_lm_outstanding);
 	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 			 lm_cb, sdp,
-			 GFS_MIN_LVB_SIZE, &sdp->sd_lockstruct);
+			 GFS_MIN_LVB_SIZE, flags,
+			 &sdp->sd_lockstruct);
 	atomic_dec(&sdp->sd_lm_outstanding);
 	if (error) {
 		printk("GFS: can't mount proto = %s, table = %s, hostdata = %s\n",

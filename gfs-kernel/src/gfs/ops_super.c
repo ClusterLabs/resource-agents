@@ -177,7 +177,8 @@ gfs_put_super(struct super_block *sb)
 	gfs_glock_put(sdp->sd_trans_gl);
 	gfs_glock_put(sdp->sd_rename_gl);
 
-	gfs_glock_dq_uninit(&sdp->sd_journal_gh);
+	if (!sdp->sd_args.ar_spectator)
+		gfs_glock_dq_uninit(&sdp->sd_journal_gh);
 
 	gfs_glock_dq_uninit(&sdp->sd_live_gh);
 
@@ -343,12 +344,16 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 	else
 		clear_bit(SDF_NOATIME, &sdp->sd_flags);
 
-	if (*flags & MS_RDONLY) {
-		if (!test_bit(SDF_ROFS, &sdp->sd_flags))
-			error = gfs_make_fs_ro(sdp);
-	} else if (!(*flags & MS_RDONLY) &&
-		   test_bit(SDF_ROFS, &sdp->sd_flags)) {
-		error = gfs_make_fs_rw(sdp);
+	if (sdp->sd_args.ar_spectator)
+		*flags |= MS_RDONLY;
+	else {
+		if (*flags & MS_RDONLY) {
+			if (!test_bit(SDF_ROFS, &sdp->sd_flags))
+				error = gfs_make_fs_ro(sdp);
+		} else if (!(*flags & MS_RDONLY) &&
+			   test_bit(SDF_ROFS, &sdp->sd_flags)) {
+			error = gfs_make_fs_rw(sdp);
+		}
 	}
 
 	/*  Don't let the VFS update atimes.  GFS handles this itself. */
@@ -417,6 +422,8 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",hostdata=");
 		seq_puts(s, args->ar_hostdata);
 	}
+	if (args->ar_spectator)
+		seq_printf(s, ",spectator");
 	if (args->ar_ignore_local_fs)
 		seq_printf(s, ",ignore_local_fs");
 	if (args->ar_localflocks)

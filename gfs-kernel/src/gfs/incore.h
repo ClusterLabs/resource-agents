@@ -819,6 +819,8 @@ struct gfs_args {
 	char ar_locktable[GFS_LOCKNAME_LEN]; /* The name of the Lock Table */
 	char ar_hostdata[GFS_LOCKNAME_LEN]; /* The host specific data */
 
+	int ar_spectator; /* Don't get a journal because we're always RO. */
+
         /*
 	 * GFS can invoke some flock and disk caching optimizations if it is
 	 * not in a cluster, i.e. is a local filesystem.  The chosen lock

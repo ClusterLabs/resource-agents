@@ -94,6 +94,9 @@ gfs_make_args(char *data_arg, struct gfs_args *args)
 			args->ar_hostdata[GFS_LOCKNAME_LEN - 1] = 0;
 		}
 
+		else if (!strcmp(x, "spectator"))
+			args->ar_spectator = TRUE;
+
 		else if (!strcmp(x, "ignore_local_fs"))
 			args->ar_ignore_local_fs = TRUE;
 

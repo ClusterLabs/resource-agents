@@ -52,6 +52,12 @@ typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
 			       void *data);
 
 /*
+ * Flags passed to lm_mount() to do stuff.
+ */
+
+#define LM_MFLAG_SPECTATOR     (0x00000001)
+
+/*
  * Flags for the struct lm_lockstruct->ls_flags field.
  * The nolock module is useful for single-node mounting of GFS; it sets the
  *   LOCAL flag to allow GFS to perform caching and other optimizations that
@@ -143,7 +149,7 @@ struct lm_lockops {
 	/* Mount the lock module on lock harness, so GFS can use it */
 	int (*lm_mount) (char *table_name, char *host_data,
 			 lm_callback_t cb, lm_fsdata_t *fsdata,
-			 unsigned int min_lvb_size,
+			 unsigned int min_lvb_size, int flags,
 			 struct lm_lockstruct *lockstruct);
 
 	/* We've completed mount operations for this GFS filesystem/lockspace,
@@ -240,7 +246,8 @@ void lm_unregister_proto(struct lm_lockops *proto);
 int lm_mount(char *proto_name,
 	     char *table_name, char *host_data,
 	     lm_callback_t cb, lm_fsdata_t *fsdata,
-	     unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
+	     unsigned int min_lvb_size, int flags,
+	     struct lm_lockstruct *lockstruct);
 void lm_unmount(struct lm_lockstruct *lockstruct);
 void lm_withdraw(struct lm_lockstruct *lockstruct);
 

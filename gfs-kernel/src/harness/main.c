@@ -111,6 +111,7 @@ lm_unregister_proto(struct lm_lockops *proto)
  * @cb - the callback to the code using the lock module
  * @fsdata - data to pass back with the callback
  * @min_lvb_size - the mininum LVB size that the caller can deal with
+ * @flags - LM_MFLAG_*
  * @lockstruct - a structure returned describing the mount
  *
  * Returns: 0 on success, -EXXX on failure
@@ -119,7 +120,8 @@ lm_unregister_proto(struct lm_lockops *proto)
 int
 lm_mount(char *proto_name, char *table_name, char *host_data,
 	 lm_callback_t cb, lm_fsdata_t * fsdata,
-	 unsigned int min_lvb_size, struct lm_lockstruct *lockstruct)
+	 unsigned int min_lvb_size, int flags,
+	 struct lm_lockstruct *lockstruct)
 {
 	struct list_head *tmp;
 	struct lmh_wrapper *lw = NULL;
@@ -159,7 +161,9 @@ lm_mount(char *proto_name, char *table_name, char *host_data,
 	}
 
 	error = lw->lw_ops->lm_mount(table_name, host_data,
-				     cb, fsdata, min_lvb_size, lockstruct);
+				     cb, fsdata,
+				     min_lvb_size, flags,
+				     lockstruct);
 	if (error)
 		module_put(lw->lw_ops->lm_owner);
 

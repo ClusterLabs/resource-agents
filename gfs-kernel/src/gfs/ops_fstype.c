@@ -149,6 +149,11 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_vfree;
 	}
 
+	if (sdp->sd_args.ar_spectator) {
+		sb->s_flags |= MS_RDONLY;
+		set_bit(SDF_ROFS, &sdp->sd_flags);
+	}
+
 	/*  Copy VFS mount flags  */
 
 	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
@@ -333,27 +338,33 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_trans_gl;
 	}
 
-	/*  Discover this node's journal number (lock module tells us
-	    which one to use), and lock it */
-	error = -EINVAL;
-	if (sdp->sd_lockstruct.ls_jid >= sdp->sd_journals) {
-		printk("GFS: fsid=%s: can't mount journal #%u\n",
-		       sdp->sd_fsname, sdp->sd_lockstruct.ls_jid);
-		printk("GFS: fsid=%s: there are only %u journals (0 - %u)\n",
-		     sdp->sd_fsname, sdp->sd_journals, sdp->sd_journals - 1);
-		goto fail_gunlock_ji;
-	}
-	sdp->sd_jdesc = sdp->sd_jindex[sdp->sd_lockstruct.ls_jid];
-	sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
+	if (sdp->sd_args.ar_spectator) {
+		sdp->sd_lockstruct.ls_jid = 0;
+		sdp->sd_jdesc = sdp->sd_jindex[0];
+		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
+	} else {
+		/*  Discover this node's journal number (lock module tells us
+		    which one to use), and lock it */
+		error = -EINVAL;
+		if (sdp->sd_lockstruct.ls_jid >= sdp->sd_journals) {
+			printk("GFS: fsid=%s: can't mount journal #%u\n",
+			       sdp->sd_fsname, sdp->sd_lockstruct.ls_jid);
+			printk("GFS: fsid=%s: there are only %u journals (0 - %u)\n",
+			       sdp->sd_fsname, sdp->sd_journals, sdp->sd_journals - 1);
+			goto fail_gunlock_ji;
+		}
+		sdp->sd_jdesc = sdp->sd_jindex[sdp->sd_lockstruct.ls_jid];
+		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
 
-	error = gfs_glock_nq_num(sdp,
-				 sdp->sd_jdesc.ji_addr, &gfs_meta_glops,
-				 LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
-				 &sdp->sd_journal_gh);
-	if (error) {
-		printk("GFS: fsid=%s: can't acquire the journal glock: %d\n",
-		       sdp->sd_fsname, error);
-		goto fail_gunlock_ji;
+		error = gfs_glock_nq_num(sdp,
+					 sdp->sd_jdesc.ji_addr, &gfs_meta_glops,
+					 LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
+					 &sdp->sd_journal_gh);
+		if (error) {
+			printk("GFS: fsid=%s: can't acquire the journal glock: %d\n",
+			       sdp->sd_fsname, error);
+			goto fail_gunlock_ji;
+		}
 	}
 
 	if (sdp->sd_lockstruct.ls_first) {
@@ -372,7 +383,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 		}
 
 		gfs_lm_others_may_mount(sdp);
-	} else {
+	} else if (!sdp->sd_args.ar_spectator) {
 		/*  We're not the first; replay only our own journal. */
 		error = gfs_recover_journal(sdp,
 					    sdp->sd_lockstruct.ls_jid,
@@ -589,7 +600,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 	gfs_quota_cleanup(sdp);
 
  fail_gunlock_journal:
-	gfs_glock_dq_uninit(&sdp->sd_journal_gh);
+	if (!sdp->sd_args.ar_spectator)
+		gfs_glock_dq_uninit(&sdp->sd_journal_gh);
 
  fail_gunlock_ji:
 	if (jindex)
