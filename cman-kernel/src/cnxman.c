@@ -402,14 +402,16 @@ static int cluster_kthread(void *unused)
 	P_COMMS("closing down\n");
 
 	quit_threads = 1;	/* force other thread to die too */
+
+	/* Wait for membership thread to finish, that way any
+	   LEAVE message will get sent. */
+	wake_up_process(membership_task);
+	wait_for_completion(&member_thread_comp);
+
 	node_shutdown();
 
 	if (timer_pending(&ack_timer))
 		del_timer(&ack_timer);
-
-	/* Wait for membership thread to die */
-	wake_up_process(membership_task);
-	wait_for_completion(&member_thread_comp);
 
 	node_cleanup();
 	kfree(iobuf);
@@ -2766,7 +2768,7 @@ static void node_cleanup()
 	cluster_members = 0;
 	up(&cluster_members_lock);
 
-	/* Clean the temop node IDs list. */
+	/* Clean the temp node IDs list. */
 	down(&tempnode_lock);
 	list_for_each_entry_safe(tn, tmp, &tempnode_list, list) {
 		list_del(&tn->list);
