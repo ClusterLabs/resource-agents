@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.303 $) dnl cvs revision
+AC_REVISION($Revision: 1.304 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1724,21 +1724,6 @@ lib/Makefile							\
 		lib/bindings/perl/Makefile.PL			\
 			lib/bindings/perl/cl_raw/Makefile.PL	\
 	lib/checkpointd/Makefile				\
-	lib/checkpointd/test/Makefile				\
-	lib/checkpointd/test/api_test/Makefile			\
-	lib/checkpointd/test/api_test/ckpt_mg/Makefile		\
-	lib/checkpointd/test/api_test/data_access/Makefile	\
-	lib/checkpointd/test/api_test/lib_life/Makefile		\
-	lib/checkpointd/test/api_test/sect_mg/Makefile		\
-	lib/checkpointd/test/func_test/Makefile			\
-	lib/checkpointd/test/func_test/active/Makefile		\
-	lib/checkpointd/test/func_test/close/Makefile		\
-	lib/checkpointd/test/func_test/open/Makefile		\
-	lib/checkpointd/test/func_test/overwrite/Makefile	\
-	lib/checkpointd/test/func_test/sect_create/Makefile	\
-	lib/checkpointd/test/func_test/sect_delete/Makefile	\
-	lib/checkpointd/test/func_test/sync/Makefile		\
-	lib/checkpointd/test/func_test/write/Makefile		\
 	lib/clplumbing/Makefile					\
 	lib/eventd/Makefile					\
 	lib/cmsclient/Makefile                                  \
