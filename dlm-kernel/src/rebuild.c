@@ -1112,6 +1112,8 @@ static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
 	error = find_or_create_rsb(ls, parent, name, length, 1, &rsb);
 	DLM_ASSERT(!error,);
 
+	set_bit(RESFL_MASTER, &rsb->res_flags);
+
 	/* There is a case where the above needs to create the RSB. */
 	if (rsb->res_nodeid == -1)
 		rsb->res_nodeid = our_nodeid();
