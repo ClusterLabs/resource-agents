@@ -1077,12 +1077,15 @@ incore_commit(struct gfs_sbd *sdp, struct gfs_trans *new_tr)
 		trans->tr_num_free_bufs += new_tr->tr_num_free_bufs;
 		trans->tr_num_free_bmem += new_tr->tr_num_free_bmem;
 
+		/* Move free log buffer descriptors to surviving trans */
 		while (!list_empty(&new_tr->tr_free_bufs)) {
 			lb = list_entry(new_tr->tr_free_bufs.next,
 					struct gfs_log_buf, lb_list);
 			list_move(&lb->lb_list, &trans->tr_free_bufs);
 			new_tr->tr_num_free_bufs--;
 		}
+
+		/* Move free log buffers to surviving trans */
 		while (!list_empty(&new_tr->tr_free_bmem)) {
 			bmem = new_tr->tr_free_bmem.next;
 			list_move(bmem, &trans->tr_free_bmem);

@@ -212,7 +212,24 @@ gfs_trans_end(struct gfs_sbd *sdp)
  * gfs_trans_add_gl - Add a glock to a transaction
  * @gl: the glock
  *
- * Add the given glock to this process's transaction
+ * If not already attached, add the given glock to this process's transaction.
+ *
+ * Even though no glock info will be written to the on-disk log, the glocks
+ *   associated with a transaction provide bridges by which to combine
+ *   a just-built transaction with an earlier incore committed transaction
+ *   that was protected by the same glock.  See incore_commit().
+ *   Combining transactions makes for more efficient logging.
+ *
+ * Note that more than one glock may be associated with a single transaction.
+ *   However, a given glock protects no more than *one* transaction at a
+ *   given stage in the transaction pipeline (i.e. new or incore-committed).
+ *   After all, the process holds the glock EX (so no other process can be
+ *   building a separate trans protected by this glock), and the process can
+ *   build only one transaction at a time.
+ *
+ * Rules:
+ *   This process must hold the glock in EXclusive mode, since we're going
+ *   to be writing to something protected by this glock.
  */
 
 void
@@ -223,8 +240,11 @@ gfs_trans_add_gl(struct gfs_glock *gl)
 				 gfs_glock_is_held_excl(gl), gl,);
 		gfs_glock_hold(gl); /* Released in glock_trans_end() */
 
+		/* Ask for eventual flush of (meta)data protected by this glock,
+		   once trans is complete and logged.  */
 		set_bit(GLF_DIRTY, &gl->gl_flags);
 
+		/* Invoke generic_le_add() */
 		LO_ADD(gl->gl_sbd, &gl->gl_new_le);
 		gl->gl_new_le.le_trans->tr_num_gl++;
 	}

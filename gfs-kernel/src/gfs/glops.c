@@ -34,6 +34,15 @@
  * @gl: the glock
  * @flags: DIO_*
  *
+ * Used for meta and rgrp glocks.
+ *
+ * Called when demoting (gfs_glock_xmote_th()) or unlocking
+ * (gfs_glock_drop_th() an EX glock at inter-node scope.  We must flush
+ * to disk all dirty buffers/pages relating to this glock, and must not
+ * not return to caller to demote/unlock the glock until I/O is complete.
+ *
+ * This is *not* called from gfs_glock_dq(), because GL_SYNC flag is not
+ * currently used for anything but inode glocks.
  */
 
 static void
@@ -47,6 +56,7 @@ meta_go_sync(struct gfs_glock *gl, int flags)
 		gfs_sync_buf(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
 	}
 
+	/* We've synced everything, clear SYNC request and DIRTY flags */
 	clear_bit(GLF_DIRTY, &gl->gl_flags);
 	clear_bit(GLF_SYNC, &gl->gl_flags);
 }
@@ -189,6 +199,25 @@ inode_go_drop_th(struct gfs_glock *gl)
  *         DIO_DATA     -- sync inode's data
  *         DIO_INVISIBLE --  don't clear glock's DIRTY flag when done
  *
+ * If DIO_INVISIBLE:
+ *   1) Called from gfs_glock_dq(), when releasing the last holder for an EX
+ *   glock (but glock is still in our glock cache in EX state, and might
+ *   stay there for a few minutes).  Holder had GL_SYNC flag set, asking
+ *   for early sync (i.e. now, instead of later when we release the EX at
+ *   inter-node scope).  GL_SYNC is currently used only for inodes in
+ *   special cases, so inode is the only type of glock for which
+ *   DIO_INVISIBLE would apply.
+ *   2) Called from depend_sync_one() to sync deallocated inode metadata
+ *   before it can be reallocated by another process or machine.  Since
+ *   this call can happen at any time during the lifetime of the
+ *   glock, don't clear the sync bit (more data might be dirtied
+ *   momentarily).
+ * Else (later):
+ *   Called when demoting (gfs_glock_xmote_th()) or unlocking
+ *   (gfs_glock_drop_th() an EX glock at inter-node scope.  We must flush
+ *   to disk all dirty buffers/pages relating to this glock, and must not
+ *   return to caller to demote/unlock the glock until I/O is complete.
+ *
  * Syncs go in following order:
  *   Start data page writes
  *   Sync metadata to log (wait to complete I/O)
@@ -216,6 +245,8 @@ inode_go_sync(struct gfs_glock *gl, int flags)
 			gfs_sync_page(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
 	}
 
+	/* If we've synced everything, clear the SYNC request.
+	   If we're doing the final (not early) sync, clear DIRTY */
 	if (meta && data) {
 		if (!(flags & DIO_INVISIBLE))
 			clear_bit(GLF_DIRTY, &gl->gl_flags);

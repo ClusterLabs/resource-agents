@@ -762,6 +762,8 @@ rq_greedy(struct gfs_holder *gh)
  * run_queue - process holder structures on the glock's wait queues
  * @gl: the glock
  *
+ * Rules:
+ *   Caller must hold gl->gl_spin.
  */
 
 static void
@@ -1121,6 +1123,7 @@ gfs_glock_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
 	GFS_ASSERT_GLOCK(state != LM_ST_UNLOCKED, gl,);
 	GFS_ASSERT_GLOCK(state != gl->gl_state, gl,);
 
+	/* Current state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
 			glops->go_sync(gl, DIO_METADATA | DIO_DATA);
@@ -1212,6 +1215,7 @@ gfs_glock_drop_th(struct gfs_glock *gl)
 	GFS_ASSERT_GLOCK(queue_empty(gl, &gl->gl_holders), gl,);
 	GFS_ASSERT_GLOCK(gl->gl_state != LM_ST_UNLOCKED, gl,);
 
+	/* Leaving state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
 			glops->go_sync(gl, DIO_METADATA | DIO_DATA);
@@ -1594,6 +1598,7 @@ gfs_glock_dq(struct gfs_holder *gh)
 		if (glops->go_unlock)
 			glops->go_unlock(gl, gh->gh_flags);
 
+		/* Do "early" sync, if requested by holder */
 		if (test_bit(GLF_SYNC, &gl->gl_flags)) {
 			if (glops->go_sync)
 				glops->go_sync(gl,

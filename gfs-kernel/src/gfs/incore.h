@@ -253,25 +253,46 @@ struct gfs_rgrpd {
 /*
  *  Per-buffer data
  *  One of these is attached as GFS private data to each FS block's buffer_head.
- *  These also link into the Active Items Lists (AIL) (buffers flushed to
- *    on-disk log, but not yet flushed to on-disk in-place locations) attached
- *    to 1) the latest transaction to modify and log (on-disk) the buffer,
- *    and 2) the glock that protects the buffer's contents.
+ *  These keep track of a buffer's progress through the transaction pipeline,
+ *    using the "new" embedded log element to attach it to a being-built
+ *    transaction, and moving the attachment point to the "incore" LE once
+ *    the transaction completes (at which time the buffer becomes a candidate
+ *    to be written to the on-disk log).
+ *  A buffer may be attached simultaneously to a new and an incore transaction,
+ *    but no more than one of each:  Only one new trans may be built at a time
+ *    for a given buffer, obviously, since the buffer's contents are protected
+ *    by an EXclusive glock when writing.  And, when a transaction is completely
+ *    built, GFS combines incore transactions that share glocks (see
+ *    incore_commit()), i.e. the glock that protects the buffer, so a buffer
+ *    never needs to be attached to more than one (combined) incore trans.
  *  Note that multiple transactions can modify the buffer since its most
- *    recent write to disk (in-place location).  Each transaction must log
- *    the modified buffer to the on-disk journal (e.g. 3 transactions
- *    will cause 3 different copies of the buffer to be logged on-disk).
- *    The buffer is attached to only the most recent transaction's AIL
+ *    recent writes to disk.  This principle applies to both in-place and
+ *    journal block locations on-disk, allowing this node to keep modifying the
+ *    cached data without writing it to disk, unless/until another node needs
+ *    to access the data, or the Linux OS tells us to sync to disk.
+ *  If a transaction follows another transaction before the first transaction's
+ *    log completes (indicated by the in-place buffer head still being pinned
+ *    in RAM), GFS copies the first transaction's results to a "frozen"
+ *    image of the buffer, so the first transaction results (an atomic
+ *    snapshot) can be logged properly, while the second transaction is
+ *    modifying the "real" buffer.  This frozen copy lives only until the new
+ *    transaction is complete, at which point one of two things has occurred:
+ *    1).  Buffer was logged successfully; frozen copy's job is done.
+ *    2).  Buffer was not yet logged; frozen copy no longer needed, newer
+ *         buffer becomes the log candidate.
+ *
+ *  gfs_bufdata structs also link into the Active Items Lists (AIL) (buffers
+ *    flushed to on-disk log, but not yet flushed to on-disk in-place locations)
+ *    attached to:
+ *    1).  The latest transaction to modify and log (on-disk) the buffer, and
+ *    2).  The glock that protects the buffer's contents.
+ *  The buffer is attached to only the most recent transaction's AIL
  *    list for a couple of reasons.  One is that only the most up-to-date
  *    buffer content needs to be written to the in-place block on-disk.  The
  *    other is that since there is a more recent copy of the block in
  *    the log, we don't need to keep the older copies in the log.  We can
  *    remove them from the AIL and let the log space be reused for new
  *    transactions (GFS advances the log tail when removing buffers from AIL).
- *  If a transaction follows another transaction before the first transaction's
- *    log completes, the first transaction's results are copied to a "frozen"
- *    image of the buffer, so it can be logged properly, while the second
- *    transaction is modifying the "real" buffer.
  */
 struct gfs_bufdata {
 	struct buffer_head *bd_bh;  /* We belong to this Linux buffer_head */
@@ -619,7 +640,7 @@ struct gfs_file {
 #define ULF_INCORE_UL           (1)  /* Part of incore-committed trans */
 #define ULF_IC_LIST             (2)
 #define ULF_OD_LIST             (3)
-#define ULF_LOCK                (4)
+#define ULF_LOCK                (4)  /* Protects access to this structure */
 
 struct gfs_unlinked {
 	struct list_head ul_list;    /* Link to superblock's sd_unlinked_list */

@@ -237,11 +237,21 @@ buf_print(struct gfs_sbd *sdp, struct gfs_log_element *le, unsigned int where)
 }
 
 /**
- * buf_incore_commit - commit this LE to the incore log
+ * buf_incore_commit - commit this buffer LE to the incore log
  * @sdp: the filesystem
  * @tr: the incore transaction this LE is a part of
- * @le: the log element
+ * @le: the log element for the "new" (just now complete) trans
  *
+ * Invoked from incore_commit().
+ * Move this buffer from "new" stage to "incore committed" stage of the
+ *   transaction pipeline.
+ * If this buffer was already attached to a pre-existing incore trans, GFS is
+ *   combining the new and incore transactions; decrement buffer's recursive
+ *   pin count that was incremented when it was added to the new transaction,
+ *   and remove the reference to the "new" (being swallowed) trans.
+ * Else, move this buffer's attach point from "new" to "incore" embedded LE
+ *   (same transaction, just new status) and add this buf to (incore) trans'
+ *   LE list.
  */
 
 static void
@@ -250,11 +260,16 @@ buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 {
 	struct gfs_bufdata *bd = container_of(le, struct gfs_bufdata, bd_new_le);
 
+	/* We've completed our (atomic) changes to this buffer for this trans.
+	   We no longer need the frozen copy.  If frozen copy was not written
+	   to on-disk log already, there's no longer a need to; we can now
+	   write the "real" buffer (with more up-to-date content) instead. */
 	if (bd->bd_frozen) {
 		kfree(bd->bd_frozen);
 		bd->bd_frozen = NULL;
 	}
 
+	/* New trans being combined with pre-existing incore trans? */
 	if (bd->bd_incore_le.le_trans) {
 		GFS_ASSERT_SBD(bd->bd_incore_le.le_trans == tr, sdp,);
 		gfs_dunpin(sdp, bd->bd_bh, NULL);
@@ -267,6 +282,7 @@ buf_incore_commit(struct gfs_sbd *sdp, struct gfs_trans *tr,
 		sdp->sd_log_buffers++;
 	}
 
+	/* Reset buffer's bd_new_le */
 	le->le_trans = NULL;
 	list_del_init(&le->le_list);
 }
@@ -425,8 +441,11 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	     tmp != head;
 	     tmp = tmp->next) {
 		le = list_entry(tmp, struct gfs_log_element, le_list);
+
+		/* Skip over non-buffer (e.g. glock, unlinked, etc.) LEs */
 		if (le->le_ops != &gfs_buf_lops)
 			continue;
+
 		bd = container_of(le, struct gfs_bufdata, bd_incore_le);
 
 		gfs_meta_check(sdp, bd->bd_bh);
@@ -435,6 +454,10 @@ buf_build_bhlist(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 		increment_generation(sdp, bd);
 
+		/* Create "fake" buffer head to write block to on-disk log.  Use
+		   frozen copy if another transaction is modifying the "real"
+		   buffer contents.  Unlock real bh after log write completes,
+		   so Linux can write real contents to inplace block. */
 		gfs_log_fake_buf(sdp, tr,
 				 (bd->bd_frozen) ? bd->bd_frozen : bd->bd_bh->b_data,
 				 bd->bd_bh);

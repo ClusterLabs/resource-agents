@@ -418,7 +418,7 @@ gfs_inval_buf(struct gfs_glock *gl)
 /**
  * gfs_sync_buf - Sync all buffers associated with a glock
  * @gl: The glock
- * @flags: DIO_START | DIO_WAIT
+ * @flags: DIO_START | DIO_WAIT | DIO_CHECK
  *
  */
 
@@ -443,7 +443,7 @@ gfs_sync_buf(struct gfs_glock *gl, int flags)
  * getbuf - Get a buffer with a given address space
  * @sdp: the filesystem
  * @aspace: the address space
- * @blkno: the block number
+ * @blkno: the block number (filesystem scope)
  * @create: TRUE if the buffer should be created
  *
  * Returns: the buffer
@@ -459,8 +459,8 @@ getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	unsigned int bufnum;
 
 	shift = PAGE_CACHE_SHIFT - sdp->sd_sb.sb_bsize_shift;
-	index = blkno >> shift;
-	bufnum = blkno - (index << shift);
+	index = blkno >> shift;             /* convert block to page */
+	bufnum = blkno - (index << shift);  /* block buf index within page */
 
 	if (create) {
 		RETRY_MALLOC(page = grab_cache_page(aspace->i_mapping, index), page);
@@ -473,6 +473,7 @@ getbuf(struct gfs_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	if (!page_has_buffers(page))
 		create_empty_buffers(page, sdp->sd_sb.sb_bsize, 0);
 
+	/* Locate header for our buffer within our page */
 	for (bh = page_buffers(page); bufnum--; bh = bh->b_this_page)
 		/* Do nothing */;
 	get_bh(bh);
@@ -518,9 +519,9 @@ gfs_dgetblk(struct gfs_sbd *sdp, uint64_t blkno, struct gfs_glock *gl)
  * @blkno: The block number
  * @gl: The glock covering the block
  * @flags: flags to gfs_dreread()
- * @bhp: the place where the buffer is returned
+ * @bhp: the place where the buffer is returned (NULL on failure)
  *
- * Returns: The buffer on success, NULL on failur
+ * Returns: errno
  */
 
 int
@@ -705,6 +706,12 @@ gfs_is_pinned(struct gfs_sbd *sdp, struct buffer_head *bh)
  * "Pinning" means keeping buffer from being written to its in-place location.
  * A buffer should be pinned from the time it is added to a new transaction,
  *   until after it has been written to the log.
+ * If an earlier change to this buffer is still pinned, waiting to be written
+ *   to on-disk log, we need to keep a "frozen" copy of the old data while this
+ *   transaction is modifying the real data.  We keep the frozen copy until
+ *   this transaction's incore_commit(), i.e. until the transaction has
+ *   finished modifying the real data, at which point we can use the real
+ *   buffer for logging, even if the frozen copy didn't get written to the log.
  */
 
 void
@@ -748,6 +755,8 @@ gfs_dpin(struct gfs_sbd *sdp, struct buffer_head *bh)
 		data = gmalloc(sdp->sd_sb.sb_bsize);
 
 		gfs_lock_buffer(bh);
+
+		/* Create frozen copy, if needed. */
 		if (bd->bd_pinned > 1) {
 			memcpy(data, bh->b_data, sdp->sd_sb.sb_bsize);
 			bd->bd_frozen = data;
@@ -890,6 +899,7 @@ gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem
  * @bh: the buffer to write
  *
+ * This starts a block write to our journal.
  */
 
 void
@@ -902,6 +912,8 @@ gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh)
  * gfs_logbh_wait - Wait for the write of a fake buffer head to complete
  * @sdp: the filesystem
  * @bh: the buffer to write
+ *
+ * This waits for a block write to our journal to complete.
  *
  * Returns: errno
  */
@@ -1037,9 +1049,10 @@ gfs_replay_wait(struct gfs_sbd *sdp)
  * @blen: the number of buffers in the run
  *
  * Called when de-allocating a contiguous run of meta blocks within an rgrp.
- * Make sure all buffers for de-alloc'd are removed from the AIL.
- * Add relevant meta-headers to meta-header cache, so we don't need to read
- *   disk if we re-allocate blocks.
+ * Make sure all buffers for de-alloc'd blocks are removed from the AIL, if
+ * they can be.  Dirty or pinned blocks are left alone.  Add relevant
+ * meta-headers to meta-header cache, so we don't need to read disk
+ * if we re-allocate blocks.
  */
 
 void

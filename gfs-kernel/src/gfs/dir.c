@@ -573,7 +573,7 @@ linked_leaf_search(struct gfs_inode *dip, struct qstr *filename,
 }
 
 /**
- * dir_make_exhash - Convet a stuffed directory into an ExHash directory
+ * dir_make_exhash - Convert a stuffed directory into an ExHash directory
  * @dip: The GFS inode
  *
  * Returns: 0 on success, error code otherwise
