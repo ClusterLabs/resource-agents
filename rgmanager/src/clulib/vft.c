@@ -60,6 +60,7 @@ static uint16_t __port = 0;		/** Our daemon ID, set with vf_init. */
  * TODO: We could make it thread safe, but this might be unnecessary work
  * Solution: Super-coarse-grained-bad-code-locking!
  */
+static pthread_mutex_t biglock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t id_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t key_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t vf_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -1192,19 +1193,23 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	if (!data || !datalen || !keyid || !strlen(keyid) || !membership)
 		return -1;
 
+	pthread_mutex_lock(&biglock);
 	/* Obtain cluster lock on it. */
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
+		pthread_mutex_unlock(&biglock);
 		return l;
 	}
 
 	/* set to -1 */
 	count = sizeof(int) * (membership->cml_count + 1);
 	peer_fds = malloc(count);
-	if(!peer_fds)
+	if(!peer_fds) {
+		pthread_mutex_unlock(&biglock);
 		return -1;
+	}
 
 	for (x=0; x < membership->cml_count + 1; x++)
 		peer_fds[x] = -1;
@@ -1251,6 +1256,7 @@ retry_top:
 			free(peer_fds);
 
 			clu_unlock(lock_name, lockp);
+			pthread_mutex_unlock(&biglock);
 			return -1;
 		}
 
@@ -1264,6 +1270,7 @@ retry_top:
 		if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 			pthread_mutex_unlock(&key_list_mutex);
 			clu_unlock(lock_name, lockp);
+			pthread_mutex_unlock(&biglock);
 			return -1;
 		}
 		key_node = kn_find_key(keyid);
@@ -1277,6 +1284,7 @@ retry_top:
 
 	if (!join_view) {
 		clu_unlock(lock_name, lockp);
+		pthread_mutex_unlock(&biglock);
 		return -1;
 	}
 
@@ -1300,6 +1308,7 @@ retry_top:
 
 			free(join_view);
 			clu_unlock(lock_name, lockp);
+			pthread_mutex_unlock(&biglock);
 			return -1;
 		} 
 
@@ -1333,6 +1342,7 @@ retry_top:
 	free(join_view);
 	free(peer_fds);
 	clu_unlock(lock_name, lockp);
+	pthread_mutex_unlock(&biglock);
 
 	if (rv) {
 		getuptime(&end);
@@ -1522,10 +1532,12 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	int l;
 
 	/* Obtain cluster lock on it. */
+	pthread_mutex_lock(&biglock);
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
+		pthread_mutex_unlock(&biglock);
 		printf("Couldn't lock %s\n", keyid);
 		return l;
 	}
@@ -1538,6 +1550,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 			if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 				pthread_mutex_unlock(&key_list_mutex);
 				clu_unlock(lock_name, lockp);
+				pthread_mutex_unlock(&biglock);
 				printf("Couldn't locate %s\n", keyid);
 				return VFR_ERROR;
 			}
@@ -1560,6 +1573,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 		if (!membership) {
 			clu_unlock(lock_name, lockp);
 			//printf("Membership NULL, can't find %s\n", keyid);
+			pthread_mutex_unlock(&biglock);
 			return VFR_ERROR;
 		}
 
@@ -1568,6 +1582,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	       	if (l == VFR_NODATA || l == VFR_ERROR) {
 			clu_unlock(lock_name, lockp);
 			//printf("Requesting current failed %s %d\n", keyid, l);
+			pthread_mutex_unlock(&biglock);
 			return l;
 		}
 	}
@@ -1576,6 +1591,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	if (! *data) {
 		pthread_mutex_unlock(&key_list_mutex);
 		clu_unlock(lock_name, lockp);
+		pthread_mutex_unlock(&biglock);
 		printf("Couldn't malloc %s\n", keyid);
 		return VFR_ERROR;
 	}
@@ -1586,6 +1602,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 
 	pthread_mutex_unlock(&key_list_mutex);
 	clu_unlock(lock_name, lockp);
+	pthread_mutex_unlock(&biglock);
 
 	return VFR_OK;
 }
