@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.38 $) dnl cvs revision
+AC_REVISION($Revision: 1.39 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -365,18 +365,34 @@ AC_SUBST(XPERIMENTALDIRS)
 AC_CONFIG_SUBDIRS(libltdl)
 
 dnl The Makefiles and shell scripts we output
-AC_OUTPUT(Makefile doc/Makefile replace/Makefile heartbeat/Makefile \
-heartbeat/lib/Makefile heartbeat/rc.d/Makefile heartbeat/resource.d/Makefile \
-heartbeat/init.d/Makefile heartbeat/logrotate.d/Makefile \
-ldirectord/Makefile ldirectord/init.d/Makefile \
-ldirectord/logrotate.d/Makefile \
-stonith/Makefile lib/pils/Makefile lib/plugins/InterfaceMgr/Makefile \
-lib/plugins/HBauth/Makefile \
-heartbeat/shellfuncs heartbeat/init.d/heartbeat heartbeat/lib/mach_down \
-heartbeat/lib/req_resource heartbeat/lib/ResourceManager \
-heartbeat/resource.d/AudibleAlarm heartbeat/resource.d/Filesystem \
-heartbeat/resource.d/IPaddr heartbeat/resource.d/Raid1 \
-heartbeat/resource.d/MailTo
+AC_OUTPUT(Makefile						\
+doc/Makefile							\
+replace/Makefile						\
+lib/Makefile							\
+	lib/pils/Makefile					\
+	lib/plugins/Makefile					\
+		lib/plugins/InterfaceMgr/Makefile		\
+		lib/plugins/HBauth/Makefile			\
+stonith/Makefile						\
+heartbeat/Makefile						\
+	heartbeat/rc.d/Makefile					\
+	heartbeat/resource.d/Makefile				\
+	heartbeat/init.d/Makefile				\
+	heartbeat/logrotate.d/Makefile				\
+	heartbeat/lib/Makefile					\
+		heartbeat/lib/mach_down				\
+		heartbeat/lib/req_resource			\
+		heartbeat/lib/ResourceManager			\
+		heartbeat/init.d/heartbeat			\
+		heartbeat/resource.d/AudibleAlarm		\
+		heartbeat/resource.d/Filesystem			\
+		heartbeat/resource.d/IPaddr			\
+		heartbeat/resource.d/Raid1			\
+		heartbeat/resource.d/MailTo			\
+	heartbeat/shellfuncs					\
+ldirectord/Makefile						\
+	ldirectord/init.d/Makefile				\
+	ldirectord/logrotate.d/Makefile				\
 )
 
 dnl subpackages configuration - perhaps configure it properly some other time
