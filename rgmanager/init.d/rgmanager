@@ -32,7 +32,7 @@ LOG_INFO=6
 # If we're not configured, then don't start anything.
 #
 [ "${NETWORKING}" = "yes" ] || exit 0
-[ -f "/etc/cluster/cluster.conf" ] || exit 1
+[ -f "/etc/cluster/cluster.conf" ] || exit 0
 
 
 #
@@ -208,7 +208,7 @@ log_and_print()
 		return 1;
 	fi
 
-	/usr/sbin/clulog -p $$ -n "clumanager" -s $1 "$2"
+	/usr/sbin/clulog -p $$ -n "rgmanager" -s $1 "$2"
 	echo $2
 
 	return 0;
@@ -220,13 +220,6 @@ log_and_print()
 #
 stop_cluster()
 {
-	#
-	# Sometimes, people stop the cluster before the service manager
-	# is running - this causes the cluster stop script to hang; since
-	# the service manager never actually receives the shutdown signal.
-	# In this case, we need to resend the TERM singal to the quorum
-	# daemon - so that it can notify everyone properly.
-	#
 	killproc $RGMGRD
 
 	while [ 0 ]; do
@@ -258,9 +251,9 @@ case $1 in
 		log_and_print $LOG_NOTICE "Starting $ID..."
 		watchdog_init
 
-		open_firewall || exit 1
+		#open_firewall || exit 1
 
-		echo -n $"Starting Cluster Resource Manager: "
+		echo -n $"Starting Resource Group Manager: "
 		daemon $RGMGRD $FLAGS
 		echo
 
@@ -285,8 +278,8 @@ case $1 in
 		;;
 
 	reload)
-		clulog -p $LOG_NOTICE "Reloading Cluster Configuration."
-		echo -n $"Reloading Cluster Configuration: "
+		clulog -p $LOG_NOTICE "Reloading Resource Configuration."
+		echo -n $"Reloading Resource Configuration: "
 		killproc $RGMGRD -HUP
 		rv=$?
 		echo
@@ -305,9 +298,9 @@ case $1 in
 			stop_cluster
 		fi
 
-		close_firewall
+		#close_firewall
 
-		rm -f /var/lock/subsys/clumanager
+		rm -f /var/lock/subsys/rgmanager
 		log_and_print $LOG_NOTICE "$ID is stopped."
 		;;
 esac
