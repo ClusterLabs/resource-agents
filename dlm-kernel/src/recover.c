@@ -585,6 +585,11 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 	struct dlm_lkb *lkb;
 	int lock_lvb_exists = FALSE;
 
+	/* recovery can't validate an lvb that's already invalid */
+
+	if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
+		return;
+
 	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
 		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
 			continue;
