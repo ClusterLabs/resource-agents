@@ -34,13 +34,10 @@ unsigned int glq_FreeCount;
 struct list_head glq_OutQueue;
 spinlock_t glq_OutLock;
 unsigned int glq_OutCount;
-/* Not sure that ReplyMap really needs to be this big.  Things shouldn't be
- * on it that long.  maybe 1<<8?  must test and see. later.
- */
-#define ReplyMapSize (1<<13)  /* map size is a power of 2 */
-#define ReplyMapBits (0x1FFF) /* & is faster than % */
-struct list_head *glq_ReplyMap;
-spinlock_t *glq_ReplyLock;
+#define ReplyMapBits (13)
+#define ReplyMapSize (1 << ReplyMapBits)
+#define ReplyMapMask (ReplyMapSize - 1)
+gulm_hb_t *glq_ReplyMap;
 
 /* The Threads. */
 struct task_struct *glq_recver_task = NULL;
@@ -75,18 +72,13 @@ int glq_init(void)
 	spin_lock_init (&glq_OutLock);
 	glq_OutCount = 0;
 
-	glq_ReplyMap = vmalloc(sizeof(struct list_head) * ReplyMapSize);
+	glq_ReplyMap = vmalloc(sizeof(gulm_hb_t) * ReplyMapSize);
 	if( glq_ReplyMap == NULL ) {
 		return -ENOMEM;
 	}
-	glq_ReplyLock = vmalloc(sizeof(spinlock_t) * ReplyMapSize);
-	if( glq_ReplyLock == NULL ) {
-		vfree(glq_ReplyMap);
-		return -ENOMEM;
-	}
 	for(i=0; i < ReplyMapSize; i++) {
-		INIT_LIST_HEAD (&glq_ReplyMap[i]);
-		spin_lock_init (&glq_ReplyLock[i]);
+		INIT_LIST_HEAD (&glq_ReplyMap[i].bucket);
+		spin_lock_init (&glq_ReplyMap[i].lock);
 	}
 	/* ?Add some empty reqs to the Free list right now? */
 	return 0;
@@ -123,7 +115,7 @@ void glq_release(void)
 	}
 	glq_OutCount = 0;
 	for(i=0; i < ReplyMapSize; i++) {
-		list_for_each_safe (tmp, lltmp, &glq_ReplyMap[i]) {
+		list_for_each_safe (tmp, lltmp, &glq_ReplyMap[i].bucket) {
 			item = list_entry (tmp, glckr_t, list);
 			list_del (tmp);
 			if (item->key != NULL) kfree (item->key);
@@ -132,7 +124,6 @@ void glq_release(void)
 		}
 	}
 
-	vfree(glq_ReplyLock);
 	vfree(glq_ReplyMap);
 }
 
@@ -239,7 +230,7 @@ int glq_calc_hash_key_long(uint8_t *key, uint16_t keylen,
 	ret = crc32 (ret, &subid, sizeof(uint64_t));
 	ret = crc32 (ret, &start, sizeof(uint64_t));
 	ret = crc32 (ret, &stop, sizeof(uint64_t));
-	ret &= ReplyMapBits;
+	ret &= ReplyMapMask;
 	return ret;
 }
 
@@ -371,9 +362,9 @@ int glq_sender_thread(void *data)
 		if (item->type == glq_req_type_state ) {
 			INIT_LIST_HEAD (&item->list);
 			bucket = glq_calc_hash_key(item);
-			spin_lock (&glq_ReplyLock[bucket]);
-			list_add (&item->list, &glq_ReplyMap[bucket]);
-			spin_unlock (&glq_ReplyLock[bucket]);
+			spin_lock (&glq_ReplyMap[bucket].lock);
+			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_state_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->start,
 					item->stop, item->state, item->flags,
@@ -381,18 +372,18 @@ int glq_sender_thread(void *data)
 		} else if (item->type == glq_req_type_action) {
 			INIT_LIST_HEAD (&item->list);
 			bucket = glq_calc_hash_key(item);
-			spin_lock (&glq_ReplyLock[bucket]);
-			list_add (&item->list, &glq_ReplyMap[bucket]);
-			spin_unlock (&glq_ReplyLock[bucket]);
+			spin_lock (&glq_ReplyMap[bucket].lock);
+			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_action_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->state,
 					item->lvb, item->lvblen);
 		} else if (item->type == glq_req_type_query ) {
 			INIT_LIST_HEAD (&item->list);
 			bucket = glq_calc_hash_key(item);
-			spin_lock (&glq_ReplyLock[bucket]);
-			list_add (&item->list, &glq_ReplyMap[bucket]);
-			spin_unlock (&glq_ReplyLock[bucket]);
+			spin_lock (&glq_ReplyMap[bucket].lock);
+			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_query_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->start,
 					item->stop, item->state);
@@ -480,8 +471,8 @@ glq_lock_state (void *misc, uint8_t * key, uint16_t keylen,
 
 	/* lookup and remove from ReplyMap */
 	bucket = glq_calc_hash_key_long(key, keylen, subid, start, stop);
-	spin_lock (&glq_ReplyLock[bucket]);
-	list_for_each(tmp, &glq_ReplyMap[bucket]) {
+	spin_lock (&glq_ReplyMap[bucket].lock);
+	list_for_each(tmp, &glq_ReplyMap[bucket].bucket) {
 		item = list_entry (tmp, glckr_t, list);
 		if (item->subid == subid &&
 		    item->start == start &&
@@ -494,7 +485,7 @@ glq_lock_state (void *misc, uint8_t * key, uint16_t keylen,
 			break;
 		}
 	}
-	spin_unlock(&glq_ReplyLock[bucket]);
+	spin_unlock(&glq_ReplyMap[bucket].lock);
 
 	if( !found ) {
 		/* not found complaint */
@@ -539,8 +530,8 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 
 	/* lookup and remove from ReplyMap */
 	bucket = glq_calc_hash_key_long(key, keylen, subid, 0, ~((uint64_t)0));
-	spin_lock (&glq_ReplyLock[bucket]);
-	list_for_each(tmp, &glq_ReplyMap[bucket]) {
+	spin_lock (&glq_ReplyMap[bucket].lock);
+	list_for_each(tmp, &glq_ReplyMap[bucket].bucket) {
 		item = list_entry (tmp, glckr_t, list);
 		if (item->subid == subid &&
 		    item->start == 0 &&
@@ -553,7 +544,7 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 			break;
 		}
 	}
-	spin_unlock(&glq_ReplyLock[bucket]);
+	spin_unlock(&glq_ReplyMap[bucket].lock);
 
 	if( !found ) {
 		/* not found complaint */
@@ -592,8 +583,8 @@ glq_lock_query (void *misc, uint8_t * key, uint16_t keylen,
 
 	/* lookup and remove from ReplyMap */
 	bucket = glq_calc_hash_key_long(key, keylen, subid, start, stop);
-	spin_lock (&glq_ReplyLock[bucket]);
-	list_for_each(tmp, &glq_ReplyMap[bucket]) {
+	spin_lock (&glq_ReplyMap[bucket].lock);
+	list_for_each(tmp, &glq_ReplyMap[bucket].bucket) {
 		item = list_entry (tmp, glckr_t, list);
 		if (item->subid == subid &&
 		    item->start == start &&
@@ -606,7 +597,7 @@ glq_lock_query (void *misc, uint8_t * key, uint16_t keylen,
 			break;
 		}
 	}
-	spin_unlock(&glq_ReplyLock[bucket]);
+	spin_unlock(&glq_ReplyMap[bucket].lock);
 
 	if( !found ) {
 		/* not found complaint */

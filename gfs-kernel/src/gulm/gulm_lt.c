@@ -26,6 +26,10 @@
 #include "gulm_lock_queue.h"
 #include "utils_tostr.h"
 
+#define gulm_gfs_lmBits (13)
+#define gulm_gfs_lmSize (1 << gulm_gfs_lmBits)
+#define gulm_gfs_lmMask (gulm_gfs_lmSize - 1)
+
 extern gulm_cm_t gulm_cm;
 
 /****************************************************************************/
@@ -252,17 +256,12 @@ int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname)
 int gulm_lt_init (void)
 {
 	int i;
-	gulm_cm.gfs_lockmap = vmalloc(sizeof(struct list_head)*gulm_gfs_lmSize);
+	gulm_cm.gfs_lockmap = vmalloc(sizeof(gulm_hb_t) * gulm_gfs_lmSize);
 	if (gulm_cm.gfs_lockmap == NULL)
 		return -ENOMEM;
-	gulm_cm.gfs_locklock = vmalloc(sizeof(spinlock_t) * gulm_gfs_lmSize);
-	if (gulm_cm.gfs_locklock == NULL) {
-		vfree(gulm_cm.gfs_lockmap);
-		return -ENOMEM;
-	}
 	for(i=0; i < gulm_gfs_lmSize; i++) {
-		spin_lock_init (&gulm_cm.gfs_locklock[i]);
-		INIT_LIST_HEAD (&gulm_cm.gfs_lockmap[i]);
+		spin_lock_init (&gulm_cm.gfs_lockmap[i].lock);
+		INIT_LIST_HEAD (&gulm_cm.gfs_lockmap[i].bucket);
 	}
 	return 0;
 }
@@ -277,7 +276,7 @@ void gulm_lt_release(void)
 	int i;
 
 	for(i=0; i < gulm_gfs_lmSize; i++) {
-		list_for_each_safe (tmp, lltmp, &gulm_cm.gfs_lockmap[i]) {
+		list_for_each_safe (tmp, lltmp, &gulm_cm.gfs_lockmap[i].bucket) {
 			lck = list_entry (tmp, gulm_lock_t, gl_list);
 			list_del (tmp);
 
@@ -288,7 +287,6 @@ void gulm_lt_release(void)
 	}
 
 	vfree (gulm_cm.gfs_lockmap);
-	vfree (gulm_cm.gfs_locklock);
 }
 
 /**
@@ -311,10 +309,10 @@ find_and_mark_lock (uint8_t * key, uint8_t keylen, gulm_lock_t ** lockp)
 
 	/* now find the lock */
 	bkt = crc32 (GULM_CRC_INIT, key, keylen);
-	bkt &= gulm_gfs_lmBits;
+	bkt &= gulm_gfs_lmMask;
 
-	spin_lock (&gulm_cm.gfs_locklock[bkt]);
-	list_for_each (tmp, &gulm_cm.gfs_lockmap[bkt]) {
+	spin_lock (&gulm_cm.gfs_lockmap[bkt].lock);
+	list_for_each (tmp, &gulm_cm.gfs_lockmap[bkt].bucket) {
 		lck = list_entry (tmp, gulm_lock_t, gl_list);
 		if (memcmp (lck->key, key, keylen) == 0) {
 			found = TRUE;
@@ -322,7 +320,7 @@ find_and_mark_lock (uint8_t * key, uint8_t keylen, gulm_lock_t ** lockp)
 			break;
 		}
 	}
-	spin_unlock (&gulm_cm.gfs_locklock[bkt]);
+	spin_unlock (&gulm_cm.gfs_lockmap[bkt].lock);
 
 	if (found)
 		*lockp = lck;
@@ -362,14 +360,14 @@ unmark_and_release_lock (gulm_lock_t * lck)
 	int deld = FALSE;
 
 	bkt = crc32 (GULM_CRC_INIT, lck->key, lck->keylen);
-	bkt &= gulm_gfs_lmBits;
+	bkt &= gulm_gfs_lmMask;
 
-	spin_lock (&gulm_cm.gfs_locklock[bkt]);
+	spin_lock (&gulm_cm.gfs_lockmap[bkt].lock);
 	if (atomic_dec_and_test (&lck->count)) {
 		list_del (&lck->gl_list);
 		deld = TRUE;
 	}
-	spin_unlock (&gulm_cm.gfs_locklock[bkt]);
+	spin_unlock (&gulm_cm.gfs_lockmap[bkt].lock);
 	if (deld) {
 		if (lck->lvb != NULL) {
 			kfree (lck->lvb);
@@ -576,11 +574,11 @@ gulm_get_lock (lm_lockspace_t * lockspace, struct lm_lockname *name,
 		lck->cur_state = LM_ST_UNLOCKED;
 
 		bkt = crc32 (GULM_CRC_INIT, key, len);
-		bkt &= gulm_gfs_lmBits;
+		bkt &= gulm_gfs_lmMask;
 
-		spin_lock (&gulm_cm.gfs_locklock[bkt]);
-		list_add (&lck->gl_list, &gulm_cm.gfs_lockmap[bkt]);
-		spin_unlock (&gulm_cm.gfs_locklock[bkt]);
+		spin_lock (&gulm_cm.gfs_lockmap[bkt].lock);
+		list_add (&lck->gl_list, &gulm_cm.gfs_lockmap[bkt].bucket);
+		spin_unlock (&gulm_cm.gfs_lockmap[bkt].lock);
 
 	}
 	*lockp = lck;

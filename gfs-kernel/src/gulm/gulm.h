@@ -89,8 +89,20 @@
 #define GIO_NAME_SIZE (32)
 #define GIO_NAME_LEN  (GIO_NAME_SIZE-1)
 #define GULM_CRC_INIT (0x6d696b65)
-#define gulm_gfs_lmSize (1<<13)  /* map size is a power of 2 */
-#define gulm_gfs_lmBits (0x1FFF) /* & is faster than % */
+
+/* a hash bucket
+ * this puts the bucket list and the spinlock for the list next to each
+ * other.  Mostly because it makes things nice and easy if we're on a
+ * nonsmp machine and the spinlocks don't exist.  (previously I tried to
+ * malloc nothing.  kernel wasn't happy about that.)
+ *
+ * An array of these makes a hash table.
+ */
+struct gulm_hash_bucket_s {
+	struct list_head bucket;
+	spinlock_t lock;
+};
+typedef struct gulm_hash_bucket_s gulm_hb_t;
 
 /* What we know about this filesytem */
 struct gulm_fs_s {
@@ -132,8 +144,7 @@ typedef struct gulm_cm_s {
 	 * the panic you get if you send a cb up about a lock that has been
 	 * put away.
 	 */
-	struct list_head *gfs_lockmap;
-	spinlock_t *gfs_locklock;
+	gulm_hb_t *gfs_lockmap;
 
 	gulm_interface_p hookup;
 
