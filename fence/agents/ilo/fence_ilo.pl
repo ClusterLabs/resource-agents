@@ -39,6 +39,31 @@ sub usage
 }
 
 
+sub fail
+{
+	($msg)=@_;
+	print $msg unless defined $quiet;
+	exit 1;
+}
+
+
+sub fail_usage
+{
+	($msg)=@_;
+	print STDERR $msg if $msg;
+	print STDERR "Please use '-h' for usage.\n";
+	exit 1;
+}
+
+
+sub version
+{
+	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
+	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
+	exit 0;
+}
+
+
 sub sendsock
 {
 	my ($sock, $msg, $junk) = @_;
@@ -332,13 +357,6 @@ sub get_power_state
 	return $response;
 }
 
-sub fail
-{
-	($msg)=@_;
-	print $msg unless defined $quiet;
-	exit 1;
-}
-
 
 sub get_options_stdin
 {
@@ -399,23 +417,6 @@ sub get_options_stdin
 			fail "parse error: unknown option \"$opt\"\n";
 		}
 	}
-}
-
-sub fail_usage
-{
-	($msg)=@_;
-	print STDERR $msg if $msg;
-	print STDERR "Please use '-h' for usage.\n";
-	exit 1;
-}
-
-
-sub version
-{
-	print "$pname $FENCE_RELEASE_NAME $BUILD_DATE\n";
-	print "$SISTINA_COPYRIGHT\n" if ( $SISTINA_COPYRIGHT );
-
-	exit 0;
 }
 
 ################################################################################
