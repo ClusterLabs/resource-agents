@@ -398,8 +398,6 @@ struct dlm_lkb {
 	struct list_head	lkb_idtbl_list;	/* lockidtbl */
 	struct list_head	lkb_statequeue;	/* rsb's g/c/w queue */
 	struct dlm_rsb *	lkb_resource;
-	struct list_head	lkb_ownerqueue;	/* list of locks owned by a
-						   process */
 	struct dlm_lkb *	lkb_parent;	/* parent lock if any */
 	atomic_t		lkb_childcnt;	/* number of children */
 

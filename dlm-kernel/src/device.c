@@ -59,6 +59,7 @@ struct lock_info {
 	void __user *li_bastaddr;
 	void __user *li_pend_bastparam;
 	void __user *li_pend_bastaddr;
+	struct list_head li_ownerqueue;
 	struct file_info *li_file;
 	struct dlm_lksb __user *li_user_lksb;
 	struct semaphore li_firstlock;
@@ -254,7 +255,7 @@ static void bast_routine(void *param, int mode)
 {
 	struct lock_info *li = param;
 
-	if (param) {
+	if (li && li->li_bastaddr) {
 		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam, AST_BAST);
 	}
 }
@@ -269,7 +270,7 @@ static void ast_routine(void *param)
 	struct lock_info *li = param;
 
 	/* Param may be NULL if a persistent lock is unlocked by someone else */
-	if (!param)
+	if (!li)
 		return;
 
 	/* If this is a succesful conversion then activate the blocking ast
@@ -281,6 +282,7 @@ static void ast_routine(void *param)
 		li->li_bastaddr = li->li_pend_bastaddr;
 		li->li_pend_bastaddr = NULL;
 	}
+
 	/* If it's an async request then post data to the user's AST queue. */
 	if (li->li_castaddr) {
 
@@ -299,15 +301,18 @@ static void ast_routine(void *param)
 
 			/* Wait till dlm_lock() has finished */
 			down(&li->li_firstlock);
-			lkb = dlm_get_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
-			if (lkb) {
-				spin_lock(&li->li_file->fi_lkb_lock);
-				list_del(&lkb->lkb_ownerqueue);
-				spin_unlock(&li->li_file->fi_lkb_lock);
-			}
 			up(&li->li_firstlock);
-			put_file_info(li->li_file);
-			kfree(li);
+
+			/* If the LKB has been freed then we need to tidy up too */
+			lkb = dlm_get_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
+			if (!lkb) {
+				spin_lock(&li->li_file->fi_lkb_lock);
+				list_del(&li->li_ownerqueue);
+				spin_unlock(&li->li_file->fi_lkb_lock);
+
+				put_file_info(li->li_file);
+				kfree(li);
+			}
 			return;
 		}
 		/* Free unlocks & queries */
@@ -405,9 +410,9 @@ static int dlm_close(struct inode *inode, struct file *file)
 {
 	struct file_info *f = file->private_data;
 	struct lock_info li;
+	struct lock_info *old_li, *safe;
 	sigset_t tmpsig;
 	sigset_t allsigs;
-	struct dlm_lkb *lkb, *safe;
 	struct user_ls *lsinfo;
 	DECLARE_WAITQUEUE(wq, current);
 
@@ -441,21 +446,17 @@ static int dlm_close(struct inode *inode, struct file *file)
 	 * (what would be the point?), foreach_safe is needed
 	 * because the lkbs are freed during dlm_unlock operations
 	 */
-	list_for_each_entry_safe(lkb, safe, &f->fi_lkb_list, lkb_ownerqueue) {
+	list_for_each_entry_safe(old_li, safe, &f->fi_lkb_list, li_ownerqueue) {
 		int status;
 		int lock_status;
 		int flags = 0;
-		struct lock_info *old_li;
+		struct dlm_lkb *lkb;
 
-		/* Make a copy of this pointer. If all goes well we will
-		 * free it later. if not it will be left to the AST routine
-		 * to tidy up
-		 */
-		old_li = (struct lock_info *)lkb->lkb_astparam;
+		lkb = dlm_get_lkb(f->fi_ls->ls_lockspace, old_li->li_lksb.sb_lkid);
 
 		/* Don't unlock persistent locks */
 		if (lkb->lkb_flags & GDLM_LKFLG_PERSISTENT) {
-			list_del(&lkb->lkb_ownerqueue);
+			list_del(&old_li->li_ownerqueue);
 
 			/* But tidy our references in it */
 			kfree(old_li);
@@ -832,6 +833,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 		if (!lkb) {
 			return -EINVAL;
 		}
+
 		li = (struct lock_info *)lkb->lkb_astparam;
 		li->li_flags = 0;
 		/* For conversions don't overwrite the current blocking AST
@@ -906,18 +908,11 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	/* If it succeeded (this far) with a new lock then keep track of
 	   it on the file's lkb list */
 	if (!status && !(kparams->flags & DLM_LKF_CONVERT)) {
-		struct dlm_lkb *lkb;
-		lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
 
-		if (lkb) {
-			spin_lock(&fi->fi_lkb_lock);
-			list_add(&lkb->lkb_ownerqueue,
-				 &fi->fi_lkb_list);
-			spin_unlock(&fi->fi_lkb_lock);
-		}
-		else {
-			log_print("failed to get lkb for new lock");
-		}
+		spin_lock(&fi->fi_lkb_lock);
+		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
+		spin_unlock(&fi->fi_lkb_lock);
+
 		up(&li->li_firstlock);
 	}
 
@@ -943,10 +938,10 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 	}
 
 	li = (struct lock_info *)lkb->lkb_astparam;
-
 	li->li_user_lksb = kparams->lksb;
 	li->li_castparam = kparams->castparam;
 	li->li_cmd       = kparams->cmd;
+
 	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
 	   the existing li_castaddr as that's the completion routine for
 	   unlocks. dlm_unlock_wait() specifies a new AST routine to be
@@ -958,19 +953,18 @@ static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 	 * dlm_unlock() */
 	if (!convert_cancel) {
 		spin_lock(&fi->fi_lkb_lock);
-		list_del(&lkb->lkb_ownerqueue);
+		list_del(&li->li_ownerqueue);
 		spin_unlock(&fi->fi_lkb_lock);
 	}
 
 	/* Use existing lksb & astparams */
 	status = dlm_unlock(fi->fi_ls->ls_lockspace,
 			     kparams->lkid,
-			     kparams->flags, NULL, NULL);
-
+			     kparams->flags, &li->li_lksb, li);
 	if (status && !convert_cancel) {
 		/* It failed, put it back on the list */
 		spin_lock(&fi->fi_lkb_lock);
-		list_add(&lkb->lkb_ownerqueue, &fi->fi_lkb_list);
+		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
 		spin_unlock(&fi->fi_lkb_lock);
 	}
 
