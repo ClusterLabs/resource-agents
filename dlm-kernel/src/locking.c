@@ -879,8 +879,7 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 		}
 
 		grant_pending_locks(rsb);
-	} else
-		DLM_ASSERT(0, print_lkb(lkb); print_rsb(rsb););
+	}
 
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
 
@@ -1368,6 +1367,7 @@ static void dump_rsb(struct dlm_rsb *rsb)
 		dump_queue(&rsb->res_waitqueue, "W");
 }
 
+/* This is only called from DLM_ASSERT */
 void dlm_locks_dump(void)
 {
 	struct dlm_ls *ls;
@@ -1378,7 +1378,6 @@ void dlm_locks_dump(void)
 	lowcomms_stop_accept();
 
 	list_for_each_entry(ls, &lslist, ls_list) {
-		down_write(&ls->ls_in_recovery);
 		for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 			head = &ls->ls_rsbtbl[i].list;
 			list_for_each_entry(rsb, head, res_hashchain)
