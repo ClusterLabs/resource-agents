@@ -304,9 +304,8 @@ static int init_nodes(fd_t *fd)
 	char *name = NULL;
 	int error, cd;
 
-	cd = ccs_connect();
-	if (cd < 0)
-		return cd;
+	while ((cd = ccs_connect()) < 0)
+		sleep(1);
 
 	memset(path, 0, 256);
 	sprintf(path, "//nodes/node/@name");

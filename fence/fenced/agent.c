@@ -281,9 +281,8 @@ int dispatch_fence_agent(char *victim)
 	char *method, *device;
 	int cd, num_methods, num_devices, m, d, error = -1;
 
-	cd = ccs_connect();
-	if (cd < 0)
-		return cd;
+	while ((cd = ccs_connect()) < 0)
+		sleep(1);
 
 	num_methods = count_methods(cd, victim);
 
