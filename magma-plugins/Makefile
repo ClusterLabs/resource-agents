@@ -32,6 +32,7 @@ uninstall:
 	cd dumb && ${MAKE} uninstall
 	cd gulm && ${MAKE} uninstall
 	cd sm && ${MAKE} uninstall
+	rm -rf /lib/magma
 
 distclean: clean
 	rm -f make/defines.mk

@@ -66,6 +66,7 @@ uninstall:
 		$(LIBNAME).so \
 		$(LIBNAME).so.$(RELEASE_MAJOR) \
 		${LIBNAME}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
+	rm -f /lib/${LIBNAME}.*
 
 clean:
 	rm -f *.o *.a *.so *.so.* *.po

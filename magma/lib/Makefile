@@ -48,6 +48,7 @@ install: all
 uninstall:
 	${UNINSTALL} ${TARGETS} ${libdir}
 	${UNINSTALL} magma.h magmamsg.h magma-build.h ${incdir}
+	rm -f /lib/libmagma.* /lib/libmagmamsg.*
 
 libmagma.so: libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
 	ln -snf $^ $@

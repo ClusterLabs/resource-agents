@@ -44,6 +44,7 @@ install: libccs.a ccs.h
 uninstall:
 	${UNINSTALL} libccs.a ${libdir} 
 	${UNINSTALL} ccs.h ${incdir} 
+	rm -f /lib/libccs.a
 
 clean:
 	rm -rf *~ *.o libccs.a

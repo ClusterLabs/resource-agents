@@ -139,6 +139,7 @@ uninstall:
 	${UNINSTALL} lock_gulmd.8 gulm_tool.8 ${mandir}/man8
 	${UNINSTALL} libgulm.a ${libdir}
 	${UNINSTALL} libgulm.h ${incdir}
+	rm -f /lib/libgulm.*
 
 cscope cscope.out: $(gulmd_src) $(tool_src) $(lib_src)
 	@find ./ -name '*.[chlyCGHL]' -type f -print > cscope.files
