@@ -29,6 +29,10 @@ cman-objs := cnxman.o config.o membership.o proc.o \
 	sm_barrier.o sm_control.o sm_daemon.o sm_joinleave.o\
 	sm_membership.o sm_message.o sm_misc.o sm_recover.o sm_services.o \
 	sm_user.o
+
+ifeq ($(CONFIG_COMPAT),y)
+cman-objs += cnxman-ioctl32.o
+endif
  
 EXTRA_CFLAGS += -I$(obj)
 

@@ -433,6 +433,11 @@ extern inline char *print_addr(unsigned char *addr, int len, char *buf)
 #define C_MEMB(fmt, args...)
 #endif
 
+#ifdef CONFIG_COMPAT
+extern void cnxman_ioctl32_init(void);
+extern void cnxman_ioctl32_exit(void);
+#endif
+
 #endif				/* __KERNEL */
 
 #endif

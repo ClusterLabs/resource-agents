@@ -4209,6 +4209,9 @@ static int __init cluster_init(void)
 
 	atomic_set(&cnxman_running, 0);
 
+#ifdef CONFIG_COMPAT
+	cnxman_ioctl32_init();
+#endif
 	sm_init();
 
 	return 0;
@@ -4220,6 +4223,9 @@ static void __exit cluster_exit(void)
 	cleanup_proc_entries();
 #endif
 
+#ifdef CONFIG_COMPAT
+	cnxman_ioctl32_exit();
+#endif
 	sock_unregister(AF_CLUSTER);
 	kmem_cache_destroy(cluster_sk_cachep);
 }
