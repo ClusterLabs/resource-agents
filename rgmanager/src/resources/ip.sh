@@ -94,7 +94,20 @@ meta_data()
         <action name="start" timeout="20"/>
         <action name="stop" timeout="20"/>
         <action name="recover" timeout="20"/>
+
+	<!-- Checks to see if the IP is up and (optionally) the link is
+	     working -->
         <action name="status" timeout="20"/>
+        <action name="monitor" timeout="20"/>
+
+	<!-- Checks to see if we can ping the IP address locally -->
+        <action name="status" depth="10" interval="5m" timeout="20"/>
+        <action name="monitor" depth="10" interval="5m" timeout="20"/>
+
+	<!-- Checks to see if we can ping the router -->
+        <action name="status" depth="20" interval="10m" timeout="20"/>
+        <action name="monitor" depth="20" interval="10m" timeout="20"/>
+
         <action name="meta-data" timeout="20"/>
         <action name="verify-all" timeout="20"/>
     </actions>

@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.57)
-AC_INIT(rgmanager, 1.9.1, lhh@redhat.com)
+AC_INIT(rgmanager, 1.9.3, lhh@redhat.com)
 AM_INIT_AUTOMAKE
 
 # Define default prefix
@@ -12,7 +12,7 @@ AM_CONFIG_HEADER([include/config.h])
 #
 # See below for assignment to REAL CFLAGS var.
 #
-cflags="-Wall -Wstrict-prototypes -Wshadow -O2 -fPIC -D_GNU_SOURCE -ggdb"
+cflags="-Wall -Werror -Wstrict-prototypes -Wshadow -O2 -fPIC -D_GNU_SOURCE -ggdb"
 
 # Checks for programs.
 AC_PROG_AWK
@@ -153,4 +153,5 @@ AC_CONFIG_FILES([Makefile
                  src/resources/Makefile
                  src/utils/Makefile])
 
-AC_OUTPUT([examples/rgmanager.spec])
+AC_OUTPUT()
+#AC_OUTPUT([examples/rgmanager.spec])

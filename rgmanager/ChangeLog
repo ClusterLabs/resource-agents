@@ -1,2 +1,10 @@
+2004-08-30 Lon Hohberger <lhh at redhat.com>
+	* src/resources/*: Add status/monitor actions to metadata
+	* include/list.h: Update to fix compiler warnings.  This is not
+	complete; it's better to add a 'field' to structures requiring 
+	list specs.
+	* src/clulib/vft.c: Remove unnecessary pthread locks.
+	* src/daemons/*: Misc. code cleanups.
+
 2004-08-12 Lon Hohberger <lhh at redhat.com>
 	* global: prepare for RPM build

@@ -31,6 +31,7 @@
 #include <pthread.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <clulog.h>
 
 #ifdef MDEBUG
 #include <mallocdbg.h>
@@ -42,17 +43,19 @@
 
    @param rulelist	List of rules to store new rule in.
    @param newrule	New rule to store.
-   @return		0
+   @return		0 on success or -1 if rule with same name
+			already exists in rulelist
  */
 int
 store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 {
-	if (!*rulelist) {
-		/* first resource */
-		list_insert(rulelist, newrule);
-		return 0;
-	}
+	resource_rule_t *curr;
 
+	list_do(rulelist, curr) {
+		if (!strcmp(newrule->rr_type, curr->rr_type))
+			return -1;
+	} while (!list_done(rulelist, curr));
+			
 	list_insert(rulelist, newrule);
 	return 0;
 }
@@ -130,7 +133,9 @@ _get_maxparents(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 	char xpath[256];
 	char *ret = NULL;
 
-	snprintf(xpath, sizeof(xpath), "%s/special[@tag=\"rgmanager\"]/attributes/@maxinstances", base);
+	snprintf(xpath, sizeof(xpath),
+		 "%s/special[@tag=\"rgmanager\"]/attributes/@maxinstances",
+		 base);
 	ret = xpath_get_one(doc, ctx, xpath);
 	if (ret) {
 		rr->rr_maxrefs = atoi(ret);
@@ -188,40 +193,6 @@ _get_root(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		free(ret);
 	}
 }
-
-
-#if 0
-/**
-   Get and store the resouce agent (script) which is used to start/stop
-   resources of the given type.
-
-   @param doc		Pre-parsed XML document pointer.
-   @param ctx		Pre-allocated XML XPath context pointer.
-   @param base		XPath prefix to search
-   @param rr		Resource rule to store new information in.
- */
-void
-_get_script(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
-	    resource_rule_t *rr)
-{
-	char xpath[2048];
-	char *ret = NULL;
-	struct stat sb;
-
-	snprintf(xpath, sizeof(xpath), "%s/@agent", base);
-	ret = xpath_get_one(doc, ctx, xpath);
-	if (ret) {
-		snprintf(xpath, sizeof(xpath), "%s/%s", RESOURCE_ROOTDIR, ret);
-	       	if (stat(xpath, &sb) == 0) {
-			rr->rr_agent = ret;
-		} else {
-			printf("Warning: Agent script %s nonexistent\n",
-			       rr->rr_type);
-			free(ret);
-		}
-	}
-}
-#endif
 
 
 /**
@@ -465,7 +436,8 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 	int x, flags, primary_found = 0;
 
 	for (x = 1; 1; x++) {
-		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@name", base, x);
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@name",
+ 			 base, x);
 
 		ret = xpath_get_one(doc,ctx,xpath);
 		if (!ret)
@@ -478,8 +450,8 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		   See if this is either the primary identifier or
 		   a required field.
 		 */
-		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@required", base,
-			 x);
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@required",
+			 base, x);
 		if ((ret = xpath_get_one(doc,ctx,xpath))) {
 			if ((atoi(ret) != 0) || (ret[0] == 'y')) 
 				flags |= RA_REQUIRED;
@@ -489,16 +461,16 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		/*
 		   See if this is supposed to be unique
 		 */
-		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@unique", base,
-			 x);
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@unique",
+			 base, x);
 		if ((ret = xpath_get_one(doc,ctx,xpath))) {
 			if ((atoi(ret) != 0) || (ret[0] == 'y'))
 				flags |= RA_UNIQUE;
 			free(ret);
 		}
 
-		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@primary", base,
-			 x);
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@primary",
+			 base, x);
 		if ((ret = xpath_get_one(doc,ctx,xpath))) {
 			if ((atoi(ret) != 0) || (ret[0] == 'y')) {
 				if (primary_found) {
@@ -515,12 +487,11 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 			free(ret);
 		}
 
-
 		/*
 		   See if this is supposed to be inherited
 		 */
-		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@inherit", base,
-			 x);
+		snprintf(xpath, sizeof(xpath), "%s/parameter[%d]/@inherit",
+			 base, x);
 		if ((ret = xpath_get_one(doc,ctx,xpath))) {
 			flags |= RA_INHERIT;
 
@@ -753,14 +724,18 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		 */
 		_get_version(doc, ctx, base, rr);
 
-		snprintf(base, sizeof(base), "/resource-agent[%d]/special[@tag=\"rgmanager\"]", ruleid);
+		snprintf(base, sizeof(base),
+			 "/resource-agent[%d]/special[@tag=\"rgmanager\"]",
+			 ruleid);
 		_get_root(doc, ctx, base, rr);
 		_get_maxparents(doc, ctx, base, rr);
-#if 0
-		_get_script(doc, ctx, base, rr);
-#endif
 		rr->rr_agent = strdup(filename);
 		_get_handler(doc, ctx, base, rr);
+
+		/*
+		   Get the OCF status check intervals/monitor.
+		 */
+		_get_checklevels(doc, ctx, base, rr);
 
 		/*
 		   Second, add the allowable-children fields
@@ -771,14 +746,18 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		   Last, load the attributes from our XML file and their
 		   respective instantiations from CCS
 		 */
-		snprintf(base, sizeof(base), "/resource-agent[%d]/parameters", ruleid);
+		snprintf(base, sizeof(base),
+			 "/resource-agent[%d]/parameters", ruleid);
 		if (_get_rule_attrs(doc, ctx, base, rr) < 0) {
 			destroy_resource_rule(rr);
 			rr = NULL;
 		}
 
 		if (rr) {
-			list_insert(rules, rr);
+			if (store_rule(rules, rr) != 0)
+				destroy_resource_rule(rr);
+				rr = NULL;
+			}
 		}
 	} while (1);
 

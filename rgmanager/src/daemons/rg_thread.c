@@ -30,7 +30,7 @@
  * Resource thread list entry.
  */
 typedef struct __resthread {
-	struct list_entry rt_q;			/** Next/prev pointers */
+	list_head();
 	pthread_t	rt_thread;		/** Thread identifier */
 	int		rt_status;		/** Resource status */
 	int		rt_request;		/** Current pending operation */

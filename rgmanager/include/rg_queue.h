@@ -10,7 +10,7 @@
  * Resource Group thread request queue entry.
  */
 typedef struct __request {
-	struct list_entry rr_q;			/** Next/prev pointers */
+	list_head();				/** Next/prev pointers */
 	uint32_t	rr_request;		/** Request */
 	char		rr_group[64];		/** Resource Group */
 	uint32_t	rr_errorcode;		/** Error condition */

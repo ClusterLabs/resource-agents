@@ -1,1 +1,59 @@
-See README ;)
+* Not currently tested with GuLM.
+
+* Resource group state is not persistent.  That is, a disabled
+service will revert to the "stopped" state when the resource manager
+is restarted.  This may not be a problem; the only time you'll
+get here is after a loss of quorum.
+  - Might be better to start with all services disabled, but this would
+    break automatic recovery after a total cluster outage.
+  - Could have a tag in the RG group config: Don't start this automatically
+    initially.
+
+* Online configuration changes don't work yet (at all).
+  - Need a way for CCS to notify clients of a configuration change
+  - Still working out with visegrips.
+
+* OCF status/monitor check levels/time intervals don't work yet.
+  - These will eventually supercede the old "check interval" notion,
+    which is thus not implemented.
+
+* Samba failover is not complete.
+  - We can do the old RHEL model which required everyone to have a copy
+    of each samba.conf.sharename
+  - We could add internal Samba configuration info into the DB as XML
+    tags/attributes.
+  - We could dump the entire samba.conf.sharename for each sharename into
+    cluster.xml as CDATA, and have special tags for IP addrs so that we
+    know where to insert the IPs from the resource group.
+    - This requires adding something to allow the determination of all
+      IPs in a resource group for a given samba service.  Vile.
+
+* Too much RAM allocated. ;)  Silly pthreads.
+  - Need to check out how much stack size we actually need.  Obviously,
+    resource group threads need the most of any due to recursion and
+    the whole arbitrarily complex tree structure of resource groups.
+
+* I suspect View-Formation is not scalable more than about 32 nodes
+the way it's currently implemented.
+  - Another implementation would be to only keep track of pieces of data
+    relevant to resource groups running on each node and update a
+    centralized server.  This is more scalable, but requires more recovery
+    in the event that the centralized server fails.  Centralized server
+    can simply be high-node-ID or low-node-ID of the current active
+    membership.
+
+* No man pages.
+
+* Init script 100% broken.
+  - Ok, all we need to do is start clurgmgrd and stop it.
+
+* Ordered failover domain "relocate-to-more-preferred-node" is broken
+at the moment.
+
+* Rewrite list handling code or hack around linux/list.h's restrictions.
+  - sys/queue.h is BSD stuff, I don't want to go there again.
+
+* Write RHEL 3 -> LCP upgrade.
+  - Should be simple; the resource group structure is based on the RHEL3
+    cluster manager model.
+

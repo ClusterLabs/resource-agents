@@ -8,7 +8,7 @@
 #include <list.h>
 
 struct __mallocnode {
-	struct list_entry link;
+	list_head();
 	void *p;
 	size_t length;
 	char *file;

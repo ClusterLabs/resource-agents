@@ -9,40 +9,6 @@ plugins to be available (the dumb plugin will work just fine, but will
 only get you one node...).
 
 
-Known issues:
-
-(1) Not currently tested with GuLM.
-
-(2) Overly complex code makes it hard to debug.
-
-(3) Resource group state is not persistent.  That is, a disabled
-service will revert to the "stopped" state when the resource manager
-is restarted.  This may not be a problem; the only time you'll
-get here is after a loss of quorum.
-
-(4) Online configuration changes don't work yet (at all).
-
-(5) OCF status/monitor check levels/time intervals don't work yet.
-These will eventually supercede the old "check interval" notion,
-which is thus not implemented.
-
-(6) Samba failover is not complete.
-
-(7) Too much RAM allocated. ;)  Silly pthreads.
-
-(8) I suspect View-Formation is not scalable more than about 32 nodes
-the way it's currently implemented.
-
-(9) No man pages.
-
-(10) Init script 100% broken.
-
-(11) Ordered failover domain "relocate-to-more-preferred-node" is broken
-at the moment.
-
-(12) Misc bugs exist all over the place.
-
-
 Note: I tend to use "service" and "resource group" to mean the same
 thing.  While they are slightly different, "services" were simply
 collections of different things (IPs, file systems, etc.), as are

@@ -161,7 +161,8 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 
 		if (!rg_initialized()) {
 			if (init_resource_groups() != 0) {
-				clulog(LOG_ERR, "Cannot initialize services\n");
+				clulog(LOG_ERR,
+				       "Cannot initialize services\n");
 				hard_exit();
 			}
 		}

@@ -53,15 +53,13 @@
 static int vf_lfds[2];
 static int vf_lfd = 0;
 static key_node_t *key_list = NULL;	/** List of key nodes. */
-static uint64_t __node_id = (uint64_t)-1;/** Our node ID, set with vf_init. */
-static uint16_t __port = 0;		/** Our daemon ID, set with vf_init. */
+static uint64_t _node_id = (uint64_t)-1;/** Our node ID, set with vf_init. */
+static uint16_t _port = 0;		/** Our daemon ID, set with vf_init. */
 
 /*
  * TODO: We could make it thread safe, but this might be unnecessary work
  * Solution: Super-coarse-grained-bad-code-locking!
  */
-static pthread_mutex_t biglock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t id_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t key_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t vf_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t vf_thread = (pthread_t)-1;
@@ -980,15 +978,13 @@ vf_init(uint64_t my_node_id, uint16_t my_port, vf_vote_cb_t vcb,
 	va->port = my_port;
 
 	pthread_create(&vf_thread, NULL, vf_server, va);
-	pthread_mutex_unlock(&vf_mutex);
 
 	/* Write/read needs this */
-	pthread_mutex_lock(&id_mutex);
-	__port = my_port;
-	__node_id = my_node_id;
+	_port = my_port;
+	_node_id = my_node_id;
 	default_vote_cb = vcb;
 	default_commit_cb = ccb;
-	pthread_mutex_unlock(&id_mutex);
+	pthread_mutex_unlock(&vf_mutex);
 
 	vf_wait_ready();
 
@@ -1016,13 +1012,8 @@ vf_shutdown(void)
 	for (x = 0 ; x < vf_lfd; x++)
 		msg_close(vf_lfds[x]);
 
-	pthread_mutex_unlock(&vf_mutex);
-
-	pthread_mutex_lock(&id_mutex);
-	__port = 0;
-	__node_id = (uint64_t)-1;
-	pthread_mutex_unlock(&id_mutex);
-
+	_port = 0;
+	_node_id = (uint64_t)-1;
 	pthread_mutex_lock(&key_list_mutex);
 
 	while ((c_key = key_list) != NULL) {
@@ -1047,6 +1038,7 @@ vf_shutdown(void)
 	}
 
 	pthread_mutex_unlock(&key_list_mutex);
+	pthread_mutex_unlock(&vf_mutex);
 
 	return 0;
 }
@@ -1151,7 +1143,7 @@ build_vf_data_message(int cmd, char *keyid, void *data, uint32_t datalen,
 	/* Data */
 	strncpy(msg->vm_msg.vf_keyid,keyid,sizeof(msg->vm_msg.vf_keyid));
 	msg->vm_msg.vf_datalen = datalen;
-	msg->vm_msg.vf_coordinator = __node_id;
+	msg->vm_msg.vf_coordinator = _node_id;
 	msg->vm_msg.vf_view = viewno;
 	memcpy(msg->vm_msg.vf_data, data, datalen);
 
@@ -1193,13 +1185,13 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	if (!data || !datalen || !keyid || !strlen(keyid) || !membership)
 		return -1;
 
-	pthread_mutex_lock(&biglock);
+	pthread_mutex_lock(&vf_mutex);
 	/* Obtain cluster lock on it. */
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
-		pthread_mutex_unlock(&biglock);
+		pthread_mutex_unlock(&vf_mutex);
 		return l;
 	}
 
@@ -1207,7 +1199,7 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	count = sizeof(int) * (membership->cml_count + 1);
 	peer_fds = malloc(count);
 	if(!peer_fds) {
-		pthread_mutex_unlock(&biglock);
+		pthread_mutex_unlock(&vf_mutex);
 		return -1;
 	}
 
@@ -1240,9 +1232,7 @@ retry_top:
 		printf("VF: Connecting to member #%d\n", (int)nodeid);
 		fflush(stdout);
 #endif
-		pthread_mutex_lock(&id_mutex);
-		peer_fds[y] = msg_open(nodeid, __port, MSGP_VFC, 4);
-		pthread_mutex_unlock(&id_mutex);
+		peer_fds[y] = msg_open(nodeid, _port, MSGP_VFC, 4);
 
 		if (peer_fds[y] == -1) {
 #ifdef DEBUG
@@ -1256,7 +1246,7 @@ retry_top:
 			free(peer_fds);
 
 			clu_unlock(lock_name, lockp);
-			pthread_mutex_unlock(&biglock);
+			pthread_mutex_unlock(&vf_mutex);
 			return -1;
 		}
 
@@ -1270,7 +1260,7 @@ retry_top:
 		if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 			pthread_mutex_unlock(&key_list_mutex);
 			clu_unlock(lock_name, lockp);
-			pthread_mutex_unlock(&biglock);
+			pthread_mutex_unlock(&vf_mutex);
 			return -1;
 		}
 		key_node = kn_find_key(keyid);
@@ -1284,12 +1274,12 @@ retry_top:
 
 	if (!join_view) {
 		clu_unlock(lock_name, lockp);
-		pthread_mutex_unlock(&biglock);
+		pthread_mutex_unlock(&vf_mutex);
 		return -1;
 	}
 
 #ifdef DEBUG
-	printf("VF: Push %d.%d #%d\n", (int)__node_id, getpid(),
+	printf("VF: Push %d.%d #%d\n", (int)_node_id, getpid(),
 	       (int)join_view->vm_msg.vf_view);
 #endif
 	/* 
@@ -1308,7 +1298,7 @@ retry_top:
 
 			free(join_view);
 			clu_unlock(lock_name, lockp);
-			pthread_mutex_unlock(&biglock);
+			pthread_mutex_unlock(&vf_mutex);
 			return -1;
 		} 
 
@@ -1342,7 +1332,7 @@ retry_top:
 	free(join_view);
 	free(peer_fds);
 	clu_unlock(lock_name, lockp);
-	pthread_mutex_unlock(&biglock);
+	pthread_mutex_unlock(&vf_mutex);
 
 	if (rv) {
 		getuptime(&end);
@@ -1532,12 +1522,12 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	int l;
 
 	/* Obtain cluster lock on it. */
-	pthread_mutex_lock(&biglock);
+	pthread_mutex_lock(&vf_mutex);
 	snprintf(lock_name, sizeof(lock_name), "usrm::vf");
 	l = clu_lock(lock_name, CLK_EX, &lockp);
 	if (l < 0) {
 		clu_unlock(lock_name, lockp);
-		pthread_mutex_unlock(&biglock);
+		pthread_mutex_unlock(&vf_mutex);
 		printf("Couldn't lock %s\n", keyid);
 		return l;
 	}
@@ -1550,7 +1540,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 			if ((vf_key_init_nt(keyid, 10, NULL, NULL) < 0)) {
 				pthread_mutex_unlock(&key_list_mutex);
 				clu_unlock(lock_name, lockp);
-				pthread_mutex_unlock(&biglock);
+				pthread_mutex_unlock(&vf_mutex);
 				printf("Couldn't locate %s\n", keyid);
 				return VFR_ERROR;
 			}
@@ -1573,7 +1563,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 		if (!membership) {
 			clu_unlock(lock_name, lockp);
 			//printf("Membership NULL, can't find %s\n", keyid);
-			pthread_mutex_unlock(&biglock);
+			pthread_mutex_unlock(&vf_mutex);
 			return VFR_ERROR;
 		}
 
@@ -1582,7 +1572,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	       	if (l == VFR_NODATA || l == VFR_ERROR) {
 			clu_unlock(lock_name, lockp);
 			//printf("Requesting current failed %s %d\n", keyid, l);
-			pthread_mutex_unlock(&biglock);
+			pthread_mutex_unlock(&vf_mutex);
 			return l;
 		}
 	}
@@ -1591,7 +1581,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 	if (! *data) {
 		pthread_mutex_unlock(&key_list_mutex);
 		clu_unlock(lock_name, lockp);
-		pthread_mutex_unlock(&biglock);
+		pthread_mutex_unlock(&vf_mutex);
 		printf("Couldn't malloc %s\n", keyid);
 		return VFR_ERROR;
 	}
@@ -1602,7 +1592,7 @@ vf_read(cluster_member_list_t *membership, char *keyid, uint64_t *view,
 
 	pthread_mutex_unlock(&key_list_mutex);
 	clu_unlock(lock_name, lockp);
-	pthread_mutex_unlock(&biglock);
+	pthread_mutex_unlock(&vf_mutex);
 
 	return VFR_OK;
 }
@@ -1706,15 +1696,12 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 	generic_msg_hdr * gh;
 	uint64_t me;
 
-	pthread_mutex_lock(&id_mutex);
-	if (__port == 0) {
-		pthread_mutex_unlock(&id_mutex);
+	if (_port == 0) {
 		return -1;
 	}
 
-	port = __port;
-	me = __node_id;
-	pthread_mutex_unlock(&id_mutex);
+	port = _port;
+	me = _node_id;
 
 	memset(msg, 0, sizeof(*msg));
 	msg->vm_hdr.gh_magic = GENERIC_HDR_MAGIC;

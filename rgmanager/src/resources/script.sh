@@ -61,7 +61,13 @@ meta_data()
     <actions>
         <action name="start" timeout="0"/>
         <action name="stop" timeout="0"/>
+
+	<!-- This is just a wrapper for LSB init scripts, so monitor
+	     and status can't have a timeout, nor do they do any extra
+	     work regardless of the depth -->
         <action name="status" timeout="0"/>
+        <action name="monitor" timeout="0"/>
+
         <action name="recover" timeout="0"/>
         <action name="meta-data" timeout="0"/>
         <action name="verify-all" timeout="0"/>

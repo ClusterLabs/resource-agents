@@ -47,6 +47,11 @@ meta_data()
     <actions>
         <action name="start" timeout="5"/>
         <action name="stop" timeout="5"/>
+	
+	<!-- No-ops.  Groups are abstract resource types.  -->
+        <action name="status" timeout="5"/>
+        <action name="monitor" timeout="5"/>
+
         <action name="recover" timeout="5"/>
         <action name="reload" timeout="5"/>
         <action name="meta-data" timeout="5"/>

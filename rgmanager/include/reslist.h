@@ -71,8 +71,15 @@ typedef struct _resource_child {
 } resource_child_t;
 
 
+typedef struct _resource_monitor {
+	time_t rcl_last;
+	time_t rcl_interval;
+	int rcl_check_level;
+} resource_monitor_t;
+
+
 typedef struct _resource_rule {
-	struct list_entry rr_list;
+	list_head();
 	char *	rr_type;
 	char *	rr_agent;
 	char *	rr_handler;	/** /bin/bash; /usr/bin/perl... */
@@ -81,11 +88,12 @@ typedef struct _resource_rule {
 	int	rr_maxrefs;
 	resource_attr_t *	rr_attrs;
 	resource_child_t *	rr_childtypes;
+	resource_monitor_t *	rr_monitor_levels;
 } resource_rule_t;
 
 
 typedef struct _resource {
-	struct list_entry r_list;
+	list_head();
 	resource_rule_t *	r_rule;
 	char *	r_name;
 	resource_attr_t *	r_attrs;
@@ -95,20 +103,20 @@ typedef struct _resource {
 
 
 typedef struct _rg_node {
-	struct list_entry rn_list;
+	list_head();
 	struct _rg_node *rn_child, *rn_parent;
 	resource_t *rn_resource;
 	int    rn_state; /* State of this instance of rn_resource */
 } resource_node_t;
 
 typedef struct _fod_node {
-	struct list_entry fdn_l;
+	list_head();
 	char *fdn_name;
 	int fdn_prio;
 } fod_node_t;
 
 typedef struct _fod {
-	struct list_entry fd_l;
+	list_head();
 	char *fd_name;
 	int fd_flags;
 	fod_node_t *fd_nodes;

@@ -99,8 +99,11 @@ meta_data()
         <action name="start" timeout="90"/>
         <action name="stop" timeout="5"/>
         <action name="recover" timeout="90"/>
+
+	<!-- Checks to see if the export exists in /var/lib/nfs/etab -->
         <action name="status" timeout="5"/>
         <action name="monitor" timeout="5"/>
+
         <action name="meta-data"/>
         <action name="verify-all"/>
     </actions>

@@ -147,7 +147,19 @@ meta_data()
         <action name="start" timeout="900"/>
 	<action name="stop" timeout="30"/>
         <action name="recover" timeout="930"/>
+
+	<!-- Checks to see if it's mounted in the right place -->
 	<action name="status" timeout="10"/>
+	<action name="monitor" timeout="10"/>
+
+	<!-- Checks to see if we can read from the mountpoint -->
+	<action name="status" depth="10" timeout="30" interval="5m"/>
+	<action name="monitor" depth="10" timeout="30" interval="5m"/>
+
+	<!-- Checks to see if we can write to the mountpoint (if !ROFS) -->
+	<action name="status" depth="20" timeout="30" interval="10m"/>
+	<action name="monitor" depth="20" timeout="30" interval="10m"/>
+
 	<action name="meta-data" timeout="5"/>
 	<action name="verify-all" timeout="5"/>
     </actions>
