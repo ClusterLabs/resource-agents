@@ -700,21 +700,19 @@ int dlm_unlock(void *lockspace,
 		goto out;
 
 	down_write(&ls->ls_unlock_sem);
-
 	/* Can't dequeue a lock with sublocks */
 	if (atomic_read(&lkb->lkb_childcnt)) {
 		up_write(&ls->ls_unlock_sem);
 		ret = -ENOTEMPTY;
 		goto out;
 	}
-
-	rsb = find_rsb_to_unlock(ls, lkb);
-
 	/* Mark it as deleted so we can't use it as a parent in dlm_lock() */
 	if (!(flags & DLM_LKF_CANCEL))
 		lkb->lkb_flags |= GDLM_LKFLG_DELETED;
-
 	up_write(&ls->ls_unlock_sem);
+
+	down_read(&ls->ls_in_recovery);
+	rsb = find_rsb_to_unlock(ls, lkb);
 
 	log_debug(ls, "un %x ref %u flg %x nodeid %d/%d \"%s\"", lkb->lkb_id,
 		  atomic_read(&rsb->res_ref), rsb->res_flags,
@@ -725,16 +723,12 @@ int dlm_unlock(void *lockspace,
 		lkb->lkb_lksb = lksb;
 	if (astarg)
 		lkb->lkb_astparam = (long) astarg;
-
 	lkb->lkb_lockqueue_flags = flags;
-
-	down_read(&ls->ls_in_recovery);
 
 	if (lkb->lkb_nodeid)
 		ret = remote_stage(lkb, GDLM_LQSTATE_WAIT_UNLOCK);
 	else
 		ret = dlm_unlock_stage2(lkb, rsb, flags);
-
 	up_read(&ls->ls_in_recovery);
 
 	wake_astd();

@@ -297,9 +297,19 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 			    print_reply(reply););
 
 		if (reply->rl_nodeid == our_nodeid()) {
-			set_bit(RESFL_MASTER, &rsb->res_flags);
-			rsb->res_nodeid = 0;
+			if (rsb->res_nodeid == -1) {
+				set_bit(RESFL_MASTER, &rsb->res_flags);
+				rsb->res_nodeid = 0;
+			} else {
+				log_all(ls, "ignore master reply %x %u",
+					lkb->lkb_id, nodeid);
+			}
 		} else {
+			GDLM_ASSERT(rsb->res_nodeid == -1,
+				   print_lkb(lkb);
+				   print_rsb(rsb);
+				   print_reply(reply););
+
 			clear_bit(RESFL_MASTER, &rsb->res_flags);
 			rsb->res_nodeid = reply->rl_nodeid;
 		}
@@ -719,7 +729,8 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 				  nodeid);
 		add_to_requestqueue(lspace, nodeid, (char *) req,
 				    req->rh_length);
-		log_debug(lspace, "process_cluster_request abort");
+		log_debug(lspace, "process_cluster_request queue %d from %u",
+			  req->rh_cmd, nodeid);
 		status = -EINTR;
 		goto out;
 	}
