@@ -161,6 +161,9 @@ $t->print("show port $opt_n");
 if (!((($opt_o =~ /disable/i) && ($text =~ /AdminState\ *Offline/i)) ||
     (($opt_o =~ /enable/i) && ($text =~ /AdminState\ *Online/i))))
 {
+  # Get out of admin mode before failing
+  $t->print("admin end");
+  $t->waitfor('/\>/');
   fail "failed: could not change state to $opt_o\n"; 
 }
 
