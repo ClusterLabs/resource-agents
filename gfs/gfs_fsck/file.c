@@ -39,8 +39,6 @@ int readi(struct fsck_inode *ip, void *buf, uint64 offset, unsigned int size)
 	int copied = 0;
 	int error = 0;
 
-	NEEDS_CHECKING;
-
 	if (offset >= ip->i_di.di_size){
 		log_debug("readi:  Offset (%"PRIu64") is >= "
 			"the file size (%"PRIu64").\n",
@@ -138,7 +136,6 @@ int writei(struct fsck_inode *ip, void *buf, uint64_t offset, unsigned int size)
 	int copied = 0;
 	int error = 0;
 
-	NEEDS_CHECKING;
 	/*  Bomb out on writing nothing.
 	    Posix says we can't change the time here.  */
 

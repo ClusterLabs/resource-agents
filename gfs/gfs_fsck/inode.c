@@ -130,7 +130,6 @@ static int fs_get_istruct(struct fsck_sb *sdp, struct gfs_inum *inum,
 {
 	struct fsck_inode *ip = NULL;
 	int error = 0;
-	NEEDS_CHECKING;
 
 	if (!create){
 		/* we are not currently tracking which inodes we already have */
@@ -176,7 +175,6 @@ static int make_dinode(struct fsck_inode *dip, struct fsck_sb *sdp,
 	osi_buf_t *dibh;
 	struct fsck_rgrp *rgd;
 	int error;
-	NEEDS_CHECKING;
 
 	error = get_and_read_buf(sdp, inum->no_addr, &dibh, 0);
 	if (error)

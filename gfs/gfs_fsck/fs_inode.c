@@ -49,7 +49,6 @@ static int fs_get_istruct(struct fsck_sb *sdp, struct gfs_inum *inum,
 {
 	struct fsck_inode *ip = NULL;
 	int error = 0;
-	NEEDS_CHECKING;
 
 	if (!create){
 		/* we are not currently tracking which inodes we already have */
@@ -87,7 +86,6 @@ int fs_copyin_dinode(struct fsck_inode *ip, osi_buf_t *dibh)
 /*	osi_buf_t *dibh;*/
 	int do_relse = 0;
 	int error = 0;
-	NEEDS_CHECKING;
 
 	if(!dibh) {
 		error = get_and_read_buf(ip->i_sbd,
@@ -126,7 +124,6 @@ int fs_copyin_dinode(struct fsck_inode *ip, osi_buf_t *dibh)
 int fs_copyout_dinode(struct fsck_inode *ip){
 	osi_buf_t *dibh;
 	int error;
-	NEEDS_CHECKING;
 
 	error = get_and_read_buf(ip->i_sbd, ip->i_num.no_addr, &dibh, 0);
 	if(error){
@@ -164,7 +161,6 @@ static int make_dinode(struct fsck_inode *dip, struct gfs_inum *inum,
 	osi_buf_t *dibh;
 	struct fsck_rgrp *rgd;
 	int error;
-	NEEDS_CHECKING;
 
 	error = get_and_read_buf(sdp, inum->no_addr, &dibh, 0);
 	if (error)
@@ -256,7 +252,6 @@ static int fs_change_nlink(struct fsck_inode *ip, int diff)
 	osi_buf_t *dibh;
 	uint32 nlink;
 	int error=0;
-	NEEDS_CHECKING;
 
 	nlink = ip->i_di.di_nlink + diff;
 
@@ -295,7 +290,6 @@ static int fs_lookupi(struct fsck_inode *dip, osi_filename_t *name,
 	int error = 0;
 	identifier_t id;
 
-	NEEDS_CHECKING;
 	memset(&id, 0, sizeof(identifier_t));
 	id.filename = name;
 	id.type = ID_FILENAME;
@@ -339,7 +333,6 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 	int error;
 	int allocate=0;
 	identifier_t id;
-	NEEDS_CHECKING;
 
 	memset(&id, 0, sizeof(identifier_t));
 
@@ -513,7 +506,6 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 	struct fsck_sb *sdp = dip->i_sbd;
 	osi_filename_t name;
 	int new;
-	NEEDS_CHECKING;
 
 	name.name = new_dir;
 	name.len = strlen(new_dir);

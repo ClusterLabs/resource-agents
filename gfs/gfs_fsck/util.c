@@ -41,8 +41,6 @@ int compute_height(struct fsck_sb *sdp, uint64 sz)
   uint64 space, old_space;
   unsigned int bsize = sdp->sb.sb_bsize;
 
-  NEEDS_CHECKING;
-
   if (sz <= (bsize - sizeof(struct gfs_dinode)))
     return 0;
 
@@ -89,7 +87,6 @@ int check_range(struct fsck_sb *sdp, uint64 blkno){
  */
 int set_meta(osi_buf_t *bh, int type, int format){
   struct gfs_meta_header header;
-  NEEDS_CHECKING;
 
   if(!check_meta(bh, 0)){
     ((struct gfs_meta_header *)BH_DATA(bh))->mh_type = cpu_to_gfs32(type);
@@ -118,7 +115,7 @@ int set_meta(osi_buf_t *bh, int type, int format){
 int check_meta(osi_buf_t *bh, int type){
   uint32 check_magic = ((struct gfs_meta_header *)BH_DATA((bh)))->mh_magic;
   uint32 check_type = ((struct gfs_meta_header *)BH_DATA((bh)))->mh_type;
-  NEEDS_CHECKING;
+ 
   check_magic = gfs32_to_cpu(check_magic);
   check_type = gfs32_to_cpu(check_type);
   if((check_magic != GFS_MAGIC) || (type && (check_type != type))){
@@ -137,7 +134,7 @@ int check_meta(osi_buf_t *bh, int type){
 int check_type(osi_buf_t *bh, int type){
   uint32 check_magic = ((struct gfs_meta_header *)BH_DATA((bh)))->mh_magic;
   uint32 check_type = ((struct gfs_meta_header *)BH_DATA((bh)))->mh_type;
-  NEEDS_CHECKING;
+ 
   check_magic = gfs32_to_cpu(check_magic);
   check_type = gfs32_to_cpu(check_type);
   if((check_magic != GFS_MAGIC) || (check_type != type)){
@@ -163,7 +160,6 @@ int next_rg_meta(struct fsck_rgrp *rgd, uint64 *block, int first)
   uint32 length = rgd->rd_ri.ri_length;
   uint32 blk = (first)? 0: (uint32)((*block+1)-rgd->rd_ri.ri_data1);
   int i;
-  NEEDS_CHECKING;
 
   if(!first && (*block < rgd->rd_ri.ri_data1)){
     fprintf(stderr, "next_rg_meta:  Start block is outside rgrp bounds.\n");
@@ -217,7 +213,6 @@ int next_rg_meta_free(struct fsck_rgrp *rgd, uint64 *block, int first)
   uint32 blk = (first)? 0: (uint32)((*block+1)-rgd->rd_ri.ri_data1);
   uint32 ublk, fblk;
   int i;
-  NEEDS_CHECKING;
 
   if(!first && (*block < rgd->rd_ri.ri_data1)){
     fprintf(stderr, "next_rg_meta:  Start block is outside rgrp bounds.\n");
@@ -270,7 +265,6 @@ int next_rg_metatype(struct fsck_rgrp *rgd, uint64 *block, uint32 type, int firs
 {
   struct fsck_sb *sdp = rgd->rd_sbd;
   osi_buf_t *bh=NULL;
-  NEEDS_CHECKING;
 
   do{
     relse_buf(sdp, bh);
@@ -310,8 +304,6 @@ struct di_info *search_list(osi_list_t *list, uint64 addr)
 {
   osi_list_t *tmp;
   struct di_info *dinfo;
-
-  NEEDS_CHECKING;
 
   for (tmp = list->next; tmp != list; tmp = tmp->next)
   {

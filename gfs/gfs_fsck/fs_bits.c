@@ -30,7 +30,7 @@ static void fs_setbit(unsigned char *buffer, unsigned int buflen,
 {
 	unsigned char *byte, *end, cur_state;
 	unsigned int bit;
-	NEEDS_CHECKING;
+
 	byte = buffer + (block / GFS_NBBY);
 	bit = (block % GFS_NBBY) * GFS_BIT_SIZE;
 	end = buffer + buflen;
@@ -61,7 +61,7 @@ uint32_t fs_bitfit(unsigned char *buffer, unsigned int buflen,
 	unsigned char *byte, *end, alloc;
 	uint32_t blk = goal;
 	unsigned int bit;
-	NEEDS_CHECKING;
+
 
 	byte = buffer + (goal / GFS_NBBY);
 	bit = (goal % GFS_NBBY) * GFS_BIT_SIZE;
@@ -107,7 +107,6 @@ uint32_t fs_bitcount(unsigned char *buffer, unsigned int buflen,
 	unsigned char *byte, *end;
 	unsigned int bit;
 	uint32_t count = 0;
-	NEEDS_CHECKING;
 
 	byte = buffer;
 	bit = 0;
@@ -147,7 +146,7 @@ uint32_t fs_blkalloc_internal(struct fsck_rgrp *rgd, uint32_t goal,
 	uint32_t length = rgd->rd_ri.ri_length;
 	uint32_t block = 0;
 	unsigned int buf, x;
-	NEEDS_CHECKING;
+
 	goal = ((int)(goal - rgd->rd_ri.ri_data1) < 0) ? 0: goal - rgd->rd_ri.ri_data1;
 
 	for (buf = 0; buf < length; buf++){
@@ -224,7 +223,6 @@ int fs_get_bitmap(struct fsck_sb *sdp, uint64 blkno, struct fsck_rgrp *rgd){
 	unsigned int  bit;
 	unsigned char *byte;
 	int local_rgd = 0;
-	NEEDS_CHECKING;
 
 	if(check_range(sdp, blkno)){
 		printf( "Block #%"PRIu64" is out of range.\n", blkno);
@@ -288,7 +286,6 @@ int fs_set_bitmap(struct fsck_sb *sdp, uint64 blkno, int state){
 	uint32_t        rgrp_block;
 	fs_bitmap_t	*bits = NULL;
 	struct fsck_rgrp	*rgd;
-	NEEDS_CHECKING;
 
 	if((state != GFS_BLKST_FREE) && (state != GFS_BLKST_USED) &&
 	   (state != GFS_BLKST_FREEMETA) && (state != GFS_BLKST_USEDMETA)){

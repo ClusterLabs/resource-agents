@@ -45,7 +45,6 @@ int dirent_first(osi_buf_t *bh, struct gfs_dirent **dent)
 {
 	struct gfs_leaf *leaf;
 	struct gfs_dinode *dinode;
-	NEEDS_CHECKING;
 
 	leaf = (struct gfs_leaf *)BH_DATA(bh);
 
@@ -82,7 +81,6 @@ int dirent_next(osi_buf_t *bh, struct gfs_dirent **dent)
 	struct gfs_dirent *tmp, *cur;
 	char *bh_end;
 	uint32 cur_rec_len;
-	NEEDS_CHECKING;
 
 	cur = *dent;
 	bh_end = BH_DATA(bh) + BH_SIZE(bh);
@@ -138,7 +136,6 @@ static int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
 		      struct gfs_dirent *prev, struct gfs_dirent *cur){
 	uint32 cur_rec_len, prev_rec_len;
 
-	NEEDS_CHECKING;
 	dip->i_di.di_entries--;
 	if(!cur->de_inum.no_formal_ino){
 		log_err("dirent_del:  "
@@ -199,7 +196,6 @@ static int dirent_del(struct fsck_inode *dip, osi_buf_t *bh,
 static int get_leaf(struct fsck_inode *dip, uint64 leaf_no, osi_buf_t **bhp)
 {
 	int error;
-	NEEDS_CHECKING;
 
 	error = get_and_read_buf(dip->i_sbd, leaf_no, bhp, 0);
 
@@ -227,7 +223,6 @@ static int get_first_leaf(struct fsck_inode *dip, uint32 index, osi_buf_t **bh_o
 {
 	uint64 leaf_no;
 	int error;
-	NEEDS_CHECKING;
 
 	error = get_leaf_nr(dip, index, &leaf_no);
 	if (!error)
@@ -277,7 +272,6 @@ static int leaf_search(osi_buf_t *bh, identifier_t *id,
 	struct gfs_dirent *dent, *prev = NULL;
 	unsigned int entries = 0, x = 0;
 	int type;
-	NEEDS_CHECKING;
 
 	type = dirent_first(bh, &dent);
 
@@ -370,7 +364,6 @@ static int linked_leaf_search(struct fsck_inode *dip, identifier_t *id,
 	uint32 hsize, index;
 	uint32 hash;
 	int error;
-	NEEDS_CHECKING;
 
 	hsize = 1 << dip->i_di.di_depth;
 	if(hsize * sizeof(uint64) != dip->i_di.di_size){
@@ -466,7 +459,6 @@ static int dir_e_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 	osi_buf_t *bh;
 	struct gfs_dirent *dent;
 	int error;
-	NEEDS_CHECKING;
 
 	error = linked_leaf_search(dip, id, &dent, NULL, &bh);
 	if (error){
@@ -521,7 +513,6 @@ static int dir_l_search(struct fsck_inode *dip, identifier_t *id, unsigned int *
 	osi_buf_t *dibh;
 	struct gfs_dirent *dent;
 	int error;
-	NEEDS_CHECKING;
 
 	if(!fs_is_stuffed(dip)){
 		fprintf(stderr, "A linear search was attempted on a directory "
@@ -591,7 +582,6 @@ static int dir_make_exhash(struct fsck_inode *dip)
 	uint32 x;
 	uint64 *lp, bn;
 	int error;
-	NEEDS_CHECKING;
 
 	/*  Sanity checks  */
 
@@ -738,7 +728,6 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 	uint32 name_len;
 	int x, moved = FALSE;
 	int error;
-	NEEDS_CHECKING;
 
 	/*  Allocate the new leaf block  */
 
@@ -963,7 +952,6 @@ static int dir_double_exhash(struct fsck_inode *dip)
 	uint64 block;
 	int x;
 	int error = 0;
-	NEEDS_CHECKING;
 
 	/*  Sanity Checks  */
 
@@ -1059,7 +1047,6 @@ static int dir_e_del(struct fsck_inode *dip, osi_filename_t *filename){
 	osi_buf_t *bh;
 	identifier_t id;
 	struct gfs_dirent *cur, *prev;
-	NEEDS_CHECKING;
 
 	id.type = ID_FILENAME;
 	id.filename = filename;
@@ -1118,7 +1105,6 @@ static int dir_l_del(struct fsck_inode *dip, osi_buf_t *dibh,
 	int got_buf = 0;
 	struct gfs_dirent *cur, *prev;
 	identifier_t id;
-	NEEDS_CHECKING;
 
 	id.type = ID_FILENAME;
 	id.filename = filename;
@@ -1183,7 +1169,6 @@ static int dir_l_del(struct fsck_inode *dip, osi_buf_t *dibh,
  */
 int fs_dirent_del(struct fsck_inode *dip, osi_buf_t *bh, osi_filename_t *filename){
 	int error;
-	NEEDS_CHECKING;
 
 	if(dip->i_di.di_type != GFS_FILE_DIR){
 		fprintf(stderr, "fs_dirent_del:  parent inode is not a directory.\n");
@@ -1219,7 +1204,6 @@ static int dir_e_add(struct fsck_inode *dip, osi_filename_t *filename,
 	uint32 hash;
 	uint64 leaf_no, bn;
 	int error;
-	NEEDS_CHECKING;
 
  restart:
 
@@ -1395,7 +1379,6 @@ static int dir_l_add(struct fsck_inode *dip, osi_filename_t *filename,
 	osi_buf_t *dibh;
 	struct gfs_dirent *dent;
 	int error;
-	NEEDS_CHECKING;
 
 	/*  Sanity checks  */
 
@@ -1469,7 +1452,6 @@ int fs_dir_add(struct fsck_inode *dip, osi_filename_t *filename,
 	       struct gfs_inum *inum, unsigned int type)
 {
 	int error;
-	NEEDS_CHECKING;
 
 	if(dip->i_di.di_type != GFS_FILE_DIR){
 		fprintf(stderr, "fs_dir_add:  parent inode is not a directory.\n");
@@ -1504,7 +1486,6 @@ int fs_dirent_alloc(struct fsck_inode *dip, osi_buf_t *bh,
 	unsigned int rec_len = GFS_DIRENT_SIZE(name_len);
 	unsigned int entries = 0, offset = 0, x = 0;
 	int type;
-	NEEDS_CHECKING;
 
 	type = dirent_first(bh, &dent);
 
@@ -1594,7 +1575,6 @@ int get_leaf_nr(struct fsck_inode *dip, uint32 index, uint64 *leaf_out)
 {
 	uint64 leaf_no;
 	int error = -1;
-	NEEDS_CHECKING;
 	error = readi(dip, (char *)&leaf_no,
 		      index * sizeof(uint64), sizeof(uint64));
 	if (error != sizeof(uint64)){
@@ -1621,7 +1601,6 @@ int get_leaf_nr(struct fsck_inode *dip, uint32 index, uint64 *leaf_out)
  */
 int fs_filecmp(osi_filename_t *file1, char *file2, int len_of_file2)
 {
-	NEEDS_CHECKING;
 	if (file1->len != len_of_file2){
 		return FALSE;
 	}
@@ -1649,7 +1628,6 @@ int fs_filecmp(osi_filename_t *file1, char *file2, int len_of_file2)
 int fs_dir_search(struct fsck_inode *dip, identifier_t *id,  unsigned int *type)
 {
 	int error;
-	NEEDS_CHECKING;
 
 	if(dip->i_di.di_type != GFS_FILE_DIR){
 		fprintf(stderr, "An attempt was made to search an inode "

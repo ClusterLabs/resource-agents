@@ -42,7 +42,6 @@
 static int check_sb(struct fsck_sb *sdp, struct gfs_sb *sb)
 {
 	int error = 0;
-	NEEDS_CHECKING;
 	if (sb->sb_header.mh_magic != GFS_MAGIC ||
 	    sb->sb_header.mh_type != GFS_METATYPE_SB){
 		log_crit("Either the super block is corrupted, or this "
@@ -81,7 +80,6 @@ int read_sb(struct fsck_sb *sdp)
 	uint64 space = 0;
 	unsigned int x;
 	int error;
-	NEEDS_CHECKING;
 	error = get_and_read_buf(sdp, GFS_SB_ADDR >> sdp->fsb2bb_shift,
 				    &bh, 0);
 	if (error){
@@ -98,7 +96,6 @@ int read_sb(struct fsck_sb *sdp)
 		goto out;
 
 /* FIXME: Need to verify all this */
-	NEEDS_CHECKING;
 	/* FIXME: What's this 9? */
 	sdp->fsb2bb_shift = sdp->sb.sb_bsize_shift - 9;
 	sdp->diptrs =
@@ -167,7 +164,6 @@ int ji_update(struct fsck_sb *sdp)
 	unsigned int j;
 	int error=0;
 
-	NEEDS_CHECKING;
 
 	if(ip->i_di.di_size % sizeof(struct gfs_jindex) != 0){
 		log_err("The size reported in the journal index"
@@ -228,8 +224,6 @@ int ri_update(struct fsck_sb *sdp)
 	struct gfs_rindex buf;
 	unsigned int rg;
 	int error, count1 = 0, count2 = 0;
-
-	NEEDS_CHECKING;
 
 	for (rg = 0; ; rg++)
 	{

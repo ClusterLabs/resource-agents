@@ -126,7 +126,6 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
  */
 int pass4(struct fsck_sb *sbp, struct options *opts)
 {
-	NOT_IMPLEMENTED;
 	uint32_t i;
 	osi_list_t *list;
 

@@ -40,7 +40,6 @@ int fs_unstuff_dinode(struct fsck_inode *ip)
 	int journaled = fs_is_jdata(ip);
 	uint64 block = 0;
 	int error;
-	NEEDS_CHECKING;
 
 	if(!fs_is_stuffed(ip)){
 		fprintf(stderr, "Trying to unstuff a dinode that is already unstuffed.\n");
@@ -147,7 +146,6 @@ static unsigned int calc_tree_height(struct fsck_inode *ip, uint64 size)
 	struct fsck_sb *sdp = ip->i_sbd;
 	uint64 *arr;
 	unsigned int max, height;
-	NEEDS_CHECKING;
 
 	if (ip->i_di.di_size > size)
 		size = ip->i_di.di_size;
@@ -184,7 +182,6 @@ static int build_height(struct fsck_inode *ip, int height)
 	unsigned int x;
 	int new_block;
 	int error;
-	NEEDS_CHECKING;
 
 	while (ip->i_di.di_height < height){
 		error = get_and_read_buf(ip->i_sbd, ip->i_num.no_addr, &dibh, 0);
@@ -261,7 +258,6 @@ static void find_metapath(struct fsck_inode *ip, metapath_t *mp, uint64 block)
 {
 	struct fsck_sb *sdp = ip->i_sbd;
 	unsigned int i;
-	NEEDS_CHECKING;
 
 	for (i = ip->i_di.di_height; i--; ){
 		mp->mp_list[i] = block % sdp->inptrs;
@@ -311,7 +307,6 @@ static int get_metablock(struct fsck_inode *ip,
 {
 	uint64 *ptr = metapointer(bh, level, mp);
 	int error = 0;
-	NEEDS_CHECKING;
 
 	*new = 0;
 	*block = 0;
@@ -362,7 +357,6 @@ static int get_datablock(struct fsck_inode *ip,
 {
 	uint64 *ptr = metapointer(bh, ip->i_di.di_height - 1, mp);
 	int error = 0;
-	NEEDS_CHECKING;
 
 	*new = 0;
 	*block = 0;
@@ -425,7 +419,6 @@ int fs_block_map(struct fsck_inode *ip, uint64 lblock, int *new,
 	uint64 tmp_dblock;
 	int tmp_new;
 	int error = 0;
-	NEEDS_CHECKING;
 
 	*new = 0;
 	*dblock = 0;

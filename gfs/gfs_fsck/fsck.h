@@ -20,28 +20,6 @@
 struct gfs_sb;
 struct fsck_sb;
 
-#define NOT_IMPLEMENTED log_debug("Warning: %s (%s:%d) not implemented\n",\
-			           __func__, __FILE__, __LINE__)
-
-#define NEEDS_CHECKING log_debug("Warning: %s (%s:%d) needs verification\n", \
-			         __func__, __FILE__, __LINE__)
-
-/* from gfs_ondisk.h
-#define GFS_NBBY                (4)
-#define GFS_BIT_SIZE            (2)
-#define GFS_BIT_MASK            (0x00000003)
-
-#define GFS_BLKST_FREE          (0)
-#define GFS_BLKST_USED          (1)
-#define GFS_BLKST_FREEMETA      (2)
-#define GFS_BLKST_USEDMETA      (3)
-*/
-/* Need a bitmap to store used blocks in */
-/* number of fs blocks in fs / GFS_NBBY */
-/* bleh - this is *huge* - how do we get around this? 128 MB/bitmap
- * for 2TB fs with 4k blocksize - 1024MB bitmap with 512byte blocksize */
-
-
 struct options {
 	char *device;
 	int yes:1;

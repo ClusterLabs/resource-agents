@@ -34,7 +34,6 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	uint32 length = rgd->rd_ri.ri_length;
 	uint32 bytes_left, bytes;
 	int x;
-	NEEDS_CHECKING;
 	rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t));
 	memset(rgd->rd_bits, 0, length * sizeof(fs_bitmap_t));
 
@@ -112,7 +111,7 @@ struct fsck_rgrp *fs_blk2rgrpd(struct fsck_sb *sdp, uint64 blk)
 	osi_list_t *tmp;
 	struct fsck_rgrp *rgd = NULL;
 	struct gfs_rindex *ri;
-	NEEDS_CHECKING;
+
 	for(tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next){
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
 		ri = &rgd->rd_ri;
@@ -131,7 +130,7 @@ int fs_rgrp_read(struct fsck_rgrp *rgd)
 	struct fsck_sb *sdp = rgd->rd_sbd;
 	unsigned int x, length = rgd->rd_ri.ri_length;
 	int error;
-	NEEDS_CHECKING;
+
 	if(rgd->rd_open_count){
 		log_debug("rgrp already read...\n");
 		rgd->rd_open_count++;
@@ -174,7 +173,7 @@ int fs_rgrp_read(struct fsck_rgrp *rgd)
 void fs_rgrp_relse(struct fsck_rgrp *rgd)
 {
 	int x, length = rgd->rd_ri.ri_length;
-	NEEDS_CHECKING;
+
 	rgd->rd_open_count--;
 	if(rgd->rd_open_count){
 		log_debug("rgrp still held...\n");
@@ -200,7 +199,7 @@ int fs_rgrp_verify(struct fsck_rgrp *rgd)
 	uint32 length = rgd->rd_ri.ri_length;
 	uint32 count[4], tmp;
 	int buf, x;
-	NEEDS_CHECKING;
+
 	for (x = 0; x < 4; x++){
 		count[x] = 0;
 
@@ -260,7 +259,7 @@ int fs_rgrp_recount(struct fsck_rgrp *rgd){
 	fs_bitmap_t *bits = NULL;
 	uint32 length = rgd->rd_ri.ri_length;
 	uint32 count[4], tmp;
-	NEEDS_CHECKING;
+
 	for(i=0; i < 4; i++){
 		count[i] = 0;
 		for(j = 0; j < length; j++){
@@ -356,7 +355,7 @@ int clump_alloc(struct fsck_rgrp *rgd, uint32 goal)
 	uint32 block;
 	int i,j;
 	int error = 0;
-	NEEDS_CHECKING;
+
 	memset(&mh, 0, sizeof(struct gfs_meta_header));
 	mh.mh_magic = GFS_MAGIC;
 	mh.mh_type = GFS_METATYPE_NONE;
@@ -430,7 +429,7 @@ int fs_blkalloc(struct fsck_inode *ip, uint64 *block)
 	struct fsck_rgrp *rgd;
 	uint32 goal;
 	int same;
-	NEEDS_CHECKING;
+
 	for(tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next){
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
 
@@ -496,7 +495,7 @@ int fs_metaalloc(struct fsck_inode *ip, uint64 *block)
 	uint32 goal;
 	int same;
 	int error = 0;
-	NEEDS_CHECKING;
+
 	/* ATTENTION -- maybe we should try to allocate from goal rgrp first */
 	for(tmp = sdp->rglist.next; tmp != &sdp->rglist; tmp = tmp->next){
 		rgd = osi_list_entry(tmp, struct fsck_rgrp, rd_list);

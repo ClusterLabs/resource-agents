@@ -42,7 +42,6 @@ int init_journals(struct fsck_sb *sbp)
 				return 1;
 			}
 		} else {
-			NOT_IMPLEMENTED;
 			/* ATTENTION -- Journal replay is not supported */
 			if(reconstruct_journals(sbp)){
 				stack;
@@ -154,8 +153,6 @@ static int set_block_ranges(struct fsck_sb *sdp)
 	uint64 rmin = 0;
 	uint64 i;
 	int error;
-
-	NEEDS_CHECKING;
 
 	log_info("Setting block ranges...\n");
 
