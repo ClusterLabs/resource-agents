@@ -37,17 +37,17 @@ int msg_next_fd(fd_set *set);
 ssize_t msg_send(int fd, void *buf, ssize_t count);
 int msg_set_purpose(int fd, int purpose);
 int msg_get_purpose(int fd);
-int msg_get_flags(int fd); /* Read-only for users */
+int msg_get_flags(int fd);
 
-#define MSG_OPEN	0x1
-#define MSG_LISTEN	0x2
-#define MSG_CONNECTED	0x4
-#define MSG_WRITE	0x8
-#define MSG_READ	0x10
+#define MSG_OPEN	0x1	/** FD was opened by us somehow. */
+#define MSG_LISTEN	0x2	/** Set up with msg_listen */
+#define MSG_CONNECTED	0x4	/** Attained via msg_accept or msg_open */
+#define MSG_WRITE	0x8	/** Attained via msg_accept or msg_open */
+#define MSG_READ	0x10	/** Attained via msg_accept or msg_open */
 #define MSG_ALL		0x0	/** No set -> Don't care what flags exist */
 
-#define MSGP_GENERIC	0
-#define MSGP_ALL	-1
-#define MSGP_CLUSTER	-2
+#define MSGP_GENERIC	0	/** Default generic purpose. */
+#define MSGP_ALL	-1	/** All defined purposes. */
+#define MSGP_CLUSTER	-2	/** Cluster infrastructure FD only. */
 
 #endif
