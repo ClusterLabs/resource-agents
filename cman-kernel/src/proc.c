@@ -113,9 +113,10 @@ static int proc_cluster_status(char *b, char **start, off_t offset, int length)
 		 CNXMAN_PATCH_VERSION);
 
     c += sprintf(b+c,
-		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nMembership state: ",
+		 "Config version: %d\nCluster name: %s\nCluster ID: %d\nCluster Member: %s\nMembership state: ",
 		 config_version,
-		 cluster_name, cluster_id);
+		 cluster_name, cluster_id,
+		 we_are_a_cluster_member?"Yes":"No");
 
     membership_state(b+c, length-c);
     c += strlen(b+c);
