@@ -1,0 +1,264 @@
+#!/bin/sh
+#
+#	Description:	IPsrcaddr - Preferred source address modification
+#
+#	Author:			John Sutton <john@scl.co.uk>
+#	Support:		linux-ha@muc.de
+#	License:		GNU General Public License (GPL)
+#	Copyright:		SCL Internet
+#
+#	Based on the IPaddr script.
+#
+#	This script manages the preferred source address associated with
+#	packets which originate on the localhost and are routed through the
+#	default route.  By default, i.e. without the use of this script or
+#	similar, these packets will carry the IP of the primary i.e. the
+#	non-aliased interface.  This can be a nuisance if you need to ensure
+#	that such packets carry the same IP irrespective of which host in
+#	a redundant cluster they actually originate from.
+#
+#	It can add a preferred source address, or remove one.
+#
+#	usage: IPsrcaddr {start|stop|status|monitor|meta-data}
+#
+#	The "start" arg adds a preferred source address.
+#
+#	Surprisingly, the "stop" arg removes it.	:-)
+#
+#	NOTES:
+#
+#	1) There must be one and not more than 1 default route!  Mainly because
+#	I can't see why you should have more than one.  And if there is more
+#	than one, we would have to box clever to find out which one is to be
+#	modified, or we would have to pass its identity as an argument.
+#
+#	2) The script depends on Alexey Kuznetsov's ip utility from the
+#	iproute aka iproute2 package.
+#
+#	3) No checking is done to see if the passed in IP address can
+#	reasonably be associated with the interface on which the default
+#	route exists.  So unless you want to deliberately spoof your source IP,
+#	check it!  Normally, I would expect that your haresources looks
+#	something like:
+#
+#		nodename ip1 ip2 ... ipN IPsrcaddr::ipX
+#
+#	where ipX is one of the ip1 to ipN.
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_ipaddress
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+IPROUTE=@IP2UTIL@
+USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
+
+  CMDSHOW="$IPROUTE route show   to exact 0/0"
+CMDCHANGE="$IPROUTE route change to "
+
+usage() {
+	echo $USAGE >&2
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPsrcaddr" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for IPsrcaddr. It manages the preferred source address
+modification. 
+</longdesc>
+<shortdesc lang="en">IPsrcaddr resource agent</shortdesc>
+
+<parameters>
+<parameter name="ipaddress" unique="0">
+<longdesc lang="en">
+The IP address. 
+</longdesc>
+<shortdesc lang="en">IP address</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="40" />
+<action name="stop" timeout="40" />
+<action name="stop" timeout="20" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+errorexit() {
+	ocf_log "err" "$*"
+	exit 1
+}
+
+#
+#	We can distinguish 3 cases: no preferred source address, a
+#	preferred source address exists which matches that specified, and one
+#	exists but doesn't match that specified.  srca_read() returns 1,0,2
+#	respectively.
+#
+#	The output of route show is something along the lines of:
+#
+#		default via X.X.X.X dev eth1 src Y.Y.Y.Y
+#
+#	where the src clause "src Y.Y.Y.Y" may or may not be present
+
+WS="[`echo -en ' \t'`]"
+OCTET="[0-9]\{1,3\}"
+IPADDR="\($OCTET\.\)\{3\}$OCTET"
+SRCCLAUSE="src$WS$WS*\($IPADDR\)"
+MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
+
+srca_read() {
+	# Capture the default route - doublequotes prevent word splitting...
+	DEFROUTE="`$CMDSHOW`" || errorexit "command '$CMDSHOW' failed"
+
+	# ... so we can make sure there is only 1 default route
+	[ 1 -eq `echo "$DEFROUTE" | wc -l` ] || \
+		errorexit "more than 1 default route exists"
+
+	# But there might still be no default route
+	[ -z "$DEFROUTE" ] && errorexit "no default route exists"
+
+	# Sed out the source ip address if it exists
+	SRCIP=`echo $DEFROUTE | sed -n "s/$MATCHROUTE/\3/p"`
+
+	# and what remains after stripping out the source ip address clause
+	ROUTE_WO_SRC=`echo $DEFROUTE | sed "s/$MATCHROUTE/\1\5/"`
+
+	[ -z "$SRCIP" ] && return 1
+	[ $SRCIP = $1 ] && return 0
+	return 2
+}
+
+#
+#	Add (or change if it already exists) the preferred source address
+#	The exit code should conform to LSB exit codes.
+#
+
+srca_start() {
+	srca_read $1
+
+	$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
+
+	return $?
+}
+
+#
+#	Remove (if it exists) the preferred source address.
+#	If one exists but it's not the same as the one specified, that's
+#	an error.  Maybe that's the wrong behaviour because if this fails
+#	then when IPaddr releases the associated interface (if there is one)
+#	your default route will also get dropped ;-(
+#	The exit code should conform to LSB exit codes.
+#
+
+srca_stop() {
+	srca_read $1
+
+	[ $? = 2 ] && errorexit "addresses don't match"
+
+	$CMDCHANGE $ROUTE_WO_SRC || \
+		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
+
+	return $?
+}
+
+#
+#	The only difference between status and monitor is that the latter
+#	returns an appropriate exit code whereas status always returns 0.
+#	The return code should conform to LSB exit codes.
+#
+
+srca_status() {
+	srca_read $1
+
+	case $? in
+		0)	echo "OK"
+			return 0;;
+
+		1)	echo "No preferred source address defined"
+			return 3;;
+
+		2)	echo "Preferred source address has incorrect value"
+			return 4;;
+	esac
+}
+
+srca_monitor() {
+	srca_status $1
+
+	return $?
+}
+
+#
+#	Add or remove the preferred source IP address to be used for packets
+#	originating on the localhost and leaving via the default route.
+#
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  [ -z "$OCF_RESKEY_ipaddress" ]
+then
+  usage
+  exit 1
+fi
+
+ipaddress=$OCF_RESKEY_ipaddress
+
+case $1 in
+	meta-data)	meta_data 
+			exit $OCF_SUCCESS
+			;;
+	start)		srca_start $ipaddress
+			;;
+	stop)		srca_stop $ipaddress
+			;;
+	status)		srca_status $ipaddress
+			;;
+	monitor)	srca_monitor $ipaddress
+			;;
+	usage)		usage
+			exit $OCF_SUCCESS
+			;;
+	*)		usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+
+exit $?
+
+#
+# Version 0.3  2002/11/04 17:00:00 John Sutton <john@scl.co.uk>
+# Name changed from IPsrcroute to IPsrcaddr and now reports errors
+# using ha_log rather than on stderr.
+#
+# Version 0.2  2002/11/02 17:00:00 John Sutton <john@scl.co.uk>
+# Changed status output to "OK" to satisfy ResourceManager's
+# we_own_resource() function.
+#
+# Version 0.1  2002/11/01 17:00:00 John Sutton <john@scl.co.uk>
+# First effort but does the job?
+#

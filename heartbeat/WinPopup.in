@@ -1,0 +1,159 @@
+#!/bin/sh
+#
+# Resource script for sending WinPopups using smbclient
+# derived from Alan Robertson's MailTo script
+#
+# Author: Sandro Poppi <spoppi@gmx.de>
+#
+# Description: sends WinPopups to a sysadmin's workstation
+#	       whenever a takeover occurs.
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_hostfile
+#		
+#	where "hostfile" is a file containing the IPs/Workstation names
+#	one by line to be sent WinPopups
+#
+# License: GPL
+
+#######################################################################
+# Initialization:
+
+# Source function library.
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+ARGS="$0 $*"
+
+us=`uname -n`
+
+usage() {
+  echo "Usage: $0 {start|stop|status|monitor}"
+  echo "$Id: WinPopup.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $"
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="WinPopup" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for WinPopup. It sends sends WinPopups message to a 
+sysadmin's workstation whenever a takeover occurs.
+</longdesc>
+<shortdesc lang="en">WinPopup resource agent</shortdesc>
+
+<parameters>
+<parameter name="hostfile" unique="0">
+<longdesc lang="en">
+The subject of the email.
+</longdesc>
+<shortdesc lang="en">Host file</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="30" />
+<action name="stop" timeout="30" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+sendWinPopup() {
+  # if workstation file exists and is not zero
+  if [ -s "$hostfile" ] ; then
+    subject=$1
+    shift
+
+    for i in `cat $hostfile` ; do
+      echo "$subject $*" | smbclient -M $i >/dev/null 2>&1
+    done
+  else
+    logger -is -t HA-WinPopup "ERROR: Workstation file $hostfile missing or corrupt!"
+    return 2
+  fi
+
+  return $?
+}
+
+SubjectLine() {
+  case $1 in
+    ??*)	echo $1;;
+    *)		echo "Resource Group";;
+  esac
+}
+
+
+WinPopupStart() {
+
+	Subject="`SubjectLine $2` Takeover in progress on $us"
+ 
+	sendWinPopup "$Subject" $1
+
+	return $?
+}
+
+WinPopupStop () {
+	Subject="`SubjectLine $2` Reestablishing original master connection in progress on $us"
+
+	sendWinPopup "$Subject" $1
+
+	return $?
+}
+
+WinPopupStatus () {
+	echo "Do nothing ... "
+
+	return 0
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+# See how the environment virables were set.
+if [ ! -z "$OCF_RESKEY_hostfile" ]; then
+  hostfile=$OCF_RESKEY_hostfile
+else
+  hostfile="hosts"
+fi
+
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  start)
+	WinPopupStart
+	;;
+  stop)
+	WinPopupStop
+	;;
+
+	#	Not quite sure what to do with this one...
+  status|monitor)
+	WinPopupStatus
+	;;
+  usage)
+	usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+        usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+
+exit $?
+

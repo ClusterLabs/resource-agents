@@ -1,0 +1,446 @@
+#!/bin/sh
+#
+# $Id: ServeRAID.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# ServeRAID
+#
+# Description:	Enables/Disables shared ServeRAID merge groups
+#
+# Author:	Alan Robertson, Renzo Alejandro Granados
+#
+# Support:	linux-ha-dev@lists.tummy.com
+#
+# License:	GNU Lesser General Public License (LGPL)
+#
+# Copyright:	(C) 2002 International Business Machines
+#		(C) 2002 Renzo Alejandro Granados
+#
+# usage: ./ServeRAID (start|stop|status|monitor|meta-data)
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_serveraid
+#                  (Adapter number of the ServeRAID adapter)
+#		OCF_RESKEY_mergegroup
+#                  (MergeGroup # of the logical drive under consideration)
+#
+# The ServeRAID clustering model is a bit odd, and its terminology needs
+# a little explanation
+#
+#	Logical Volume - a particular SCSI id {target id and LUN} on
+#		a particular controller.
+#
+#	Merge Group - when active on one side or the other of the ServeRAID
+#		configuration it corresponds with a logical drive.
+#		Merge group numbers are permanently assigned to a particular
+#		chunk of storage.  Shared merge groups are in the
+#		range of 1 to 8, and are largely arbitrary.
+#		Unshared merge groups start at 200.
+#		We can only deal with shared merge groups.  When a merge
+#		group is activated on one of the controllers, it becomes
+#		a logical volume on that system.  NOTE:  The order in
+#		which the Merge Groups are activated determines which
+#		SCSI Ids they become.  This makes for extra headaches
+#		for this script to deal with.  It also means that if
+#		you have more than one shared ServeRAID merge group on
+#		a particular controller, that the SCSI IDs will not
+#		be constant.  This requires mounting by uuid or label.
+#
+#	One of the ServerRAID controllers has to be configured with
+#	SCSI initiator ID 6, and the other with SCSI id 7.
+#
+#	At this time, the ServeRAID clustering solution only works with
+#	RAID 1 setups.  It does NOT support RAID 5.  This is a firmware
+#	bug in the ServeRAID where it doesn't fail over correctly
+#	if the RAID5 array is in a critical state...
+#
+#	Note that this script requires ServeRAID software version 6.10 or
+#	later.  This software is now available from IBM.
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 ServeRAID::1::1
+#
+
+#	Older ServeRAID utility returns 1 when it succeeds (weird)
+#	BUT - the newly released version is more normal...
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+srsuccess=0
+
+PERL="perl"
+SCSI="scsi "
+
+usage() {
+  cat <<-! >&1
+	usage: $0 (start|stop|status|monitor|meta-data)
+
+	You have to set the following environment virables before running $0 :
+		OCF_RESKEY_serveraid
+			(Adapter number of the ServeRAID adapter)
+		OCF_RESKEY_mergegroup
+			(MergeGroup # of the logical drive under consideration)
+
+	ServeRAID adapters are numbered starting from 1.
+
+	The shared merge group number is a number between 1 and 8 inclusive.
+	It indicates to the controller which logical disk to fail over.
+
+                node1  10.0.0.170 ServeRAID::1::1
+
+	PREREQUISITES:
+	You must configure your ServeRAID adapters for clustering for this
+	to work.
+
+	To do this, you must use the bootable "ServeRAID Support CD" and right
+	click your controller and pick "configure for clustering".  The Linux
+	version of the ServeRAID manager does not have the "configure for
+	clustering" option.
+
+	You will need at least version 6.10 (~July 2003 release) of the ipssend
+	command for this script to work.
+
+	For the time being, you will need to grab a "correct" version of
+	the ipssend command here:
+	        http://linux-ha.org/download/ipssend.gz
+
+	NOTE: This a temporary URL which will go away once the official
+	version becomes available.
+
+
+	$Id: ServeRAID.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="ServeRAID" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for ServeRAID. It enables/disables shared ServeRAID merge groups.
+</longdesc>
+<shortdesc lang="en">ServeRAID resource agent</shortdesc>
+
+<parameters>
+<parameter name="serveraid" unique="0">
+<longdesc lang="en">
+The adapter number of the ServeRAID adapter.
+</longdesc>
+<shortdesc lang="en">serveraid</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
+<parameter name="mergegroup" unique="0">
+<longdesc lang="en">
+The logical drive under consideration. 
+</longdesc>
+<shortdesc lang="en">mergegroup</shortdesc>
+<content type="integer" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="40" />
+<action name="stop" timeout="40" />
+<action name="status" depth="0" timeout="20" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="20" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+ServeRAID_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	methods
+	usage
+	meta-data
+	!
+}
+
+ServeRAIDSCSI="/proc/scsi/ips"
+
+ 
+IPS=ipssend
+proc_scsi=/proc/scsi/scsi
+
+
+parseinst() {
+  sr_adapter=error
+  sr_mergegroup=error
+  hostid=error
+  sr_logicaldrivenumber=error
+  if
+    [ $# -ne 2 ]
+  then
+    echo "Invalid ServeRAID instance: $*" >&2
+    return 1
+  fi
+  PerlScript='next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/'
+  # Get the list of host ids of the ServeRAID host adapters
+  hostlist=`$PERL -ne "${PerlScript}" <$proc_scsi`
+  # Figure the host id of the desired ServeRAID adapter
+  hostid=`echo $hostlist | cut -d' ' -f$1`
+  if
+    [ ! -f "$ServeRAIDSCSI/$hostid" ]
+  then
+    echo "No such ServeRAID adapter: $1" >&2
+    hostid=error
+    return 2
+  fi
+    
+  case $2 in
+    [1-8]);;
+    *)	echo "Invalid Shared Merge Group Number: $2" >&2
+        hostid=error
+	return 3;;
+  esac
+  sr_adapter=$1
+  sr_mergegroup=$2
+  CheckRaidLevel
+  return $?
+}
+
+#
+#	Run:  Run a script, and log its output.
+#	Note that we know the stupid ipssend command has its return
+#	codes reversed - it returns 1 for success, and 0 for failure...
+#	We account for that too...
+#
+run() {
+  output=`"$@" 2>&1`
+  rc=$?
+  output=`echo $output`
+  if
+    [ $rc -eq $srsuccess ]
+  then 
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "info" "$output"
+    fi
+    return 0
+  else
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "err" "$output"
+    else
+      ocf_log "err"  "command failed: $*"
+    fi
+    return 1
+  fi
+}
+
+SRLogicalDriveConfig() {
+  $IPS getconfig $sr_adapter ld
+}
+
+MergeGroupToSCSI_ID() {
+
+  PerlScript="while (<>) {
+	/logical drive number *([0-9]+)/i && (\$ld=\$1);
+	/part of merge group *: *$sr_mergegroup *\$/i && print \$ld - 1, \"\n\";
+  }"
+
+  ID=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
+  case $ID in
+    [0-9]*)	echo "$ID"; return 0;;
+    *)		return 1;;
+  esac
+}
+
+MergeGroupRaidLevel() {
+
+  PerlScript="while (<>) {
+	/RAID level *: *([0-9]+[A-Za-z]*)/i && (\$ld=\$1);
+	/part of merge group *: *$sr_mergegroup *\$/i && print \$ld, \"\n\";
+  }"
+
+  Level=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
+  case $Level in
+    ?*)	echo "$Level"; return 0;;
+    *)		return 1;;
+  esac
+}
+
+CheckRaidLevel() {
+  RAIDlevel=`MergeGroupRaidLevel`
+  case $RAIDlevel in
+    *5*)
+      echo "ERROR: ServeRAID device $sr_adapter $sr_mergegroup is RAID level $RAIDlevel"
+      echo "	This level of ServeRAID RAID is not supported for failover by the firmware."
+      return 1;;
+  esac
+  return 0
+}
+
+    
+	
+
+ReleaseSCSI() {
+  targetid=`MergeGroupToSCSI_ID`
+  echo "${SCSI}remove-single-device $hostid 0 $targetid 0" > $proc_scsi
+}
+
+AddSCSI() {
+  targetid=`MergeGroupToSCSI_ID`
+  echo "${SCSI}add-single-device $hostid 0 $targetid 0" > $proc_scsi
+}
+
+#
+# start: Enable the given ServeRAID device
+#
+ServeRAID_start() {
+  parseinst "$@" || return $?
+  if
+    run $IPS UNMERGE $sr_adapter $sr_mergegroup
+  then
+    if
+      #
+      # Normally we do a MERGE PARTNER, but if we still own the drive for
+      # some reason, then we'll need to do a MERGE OWN instead...
+      #
+      out=`$IPS MERGE $sr_adapter $sr_mergegroup PARTNER 2>&1`
+      if
+        [ $? -eq $srsuccess ]
+      then
+	echo "info: $out"
+      else
+        run $IPS MERGE $sr_adapter $sr_mergegroup OWN
+      fi
+    then
+      : OK All is well!
+      targetid=`MergeGroupToSCSI_ID`
+      sr_logicaldrivenumber=`expr $targetid + 1`
+      #run $IPS SYNCH $sr_adapter $sr_logicaldrivenumber &
+      # This version of the SYNCH command requires the 6.10 or later
+      # ServeRAID support CD.
+      run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup &
+      AddSCSI
+    else
+      return $?
+    fi
+  else
+    return $?
+  fi
+  if
+    ServeRAID_status "$@"
+  then
+    return 0
+  else
+    echo "ERROR: ServeRAID device $1 not active!"
+    return 1
+  fi
+}
+
+
+#
+# stop: Disable the given ServeRAID device
+#
+ServeRAID_stop() {
+  parseinst "$@" || return $?
+  ReleaseSCSI
+  if
+    run $IPS UNMERGE $sr_adapter $sr_mergegroup
+  then
+    : UNMERGE $sr_adapter $sr_mergegroup worked
+  fi
+  if
+    ServeRAID_status "$@"
+  then
+    echo "ERROR: ServeRAID device $@ is still active!"
+    return 1
+  else
+    return 0
+  fi
+}
+
+
+#
+# status: is the given device now available?
+#
+ServeRAID_status() {
+  parseinst "$@" || return $?
+  #
+  # The output we're looking for
+  #	Part of merge group            : 2   
+  #
+  SRLogicalDriveConfig 		\
+  |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *\$" >/dev/null
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  ( [ -z "$OCF_RESKEY_serveraid" ] || [ -z "$OCF_RESKEY_mergegroup" ] )
+then
+  echo "You have to set the OCF_RESKEY_serveraid and OCF_RESKEY_mergegroup\n 
+        enviroment virables before running $0 !"
+  usage
+  exit 1
+fi
+
+: Right Number of arguments..
+serveraid=$OCF_RESKEY_serveraid
+mergegroup=$OCF_RESKEY_mergegroup
+
+# Look for the start, stop, status, or methods calls...
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS;;
+  stop)
+	ServeRAID_stop $serveraid $mergegroup
+	exit $?;;
+  start)
+	ServeRAID_start $serveraid $mergegroup
+	exit $?;;
+  status|monitor) 
+	if
+	  ServeRAID_status $serveraid $mergegroup
+	then
+	  echo ServeRAID merge group $serveraid $mergegroup is running.
+	  exit 0
+	else
+	  echo ServeRAID merge group $serveraid $mergegroup is stopped.
+	  exit 1
+	fi
+	exit $?;;
+
+#
+# methods: What methods do we support?
+#
+  methods) 
+	ServeRAID_methods
+	exit $?;;
+
+  usage)
+    usage
+    exit $OCF_SUCCESS;;
+  *)
+    usage
+    exit $OCF_ERR_UNIMPLEMENTED;;
+
+esac
+
+exit 1

@@ -1,0 +1,559 @@
+#!/bin/sh
+#
+# $Id: WAS.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# WAS
+#
+# Description:	Manages a Websphere Application Server as an HA resource
+#
+#
+# Author:	Alan Robertson
+# Support:	linux-ha-dev@lists.tummy.com
+# License:	GNU Lesser General Public License (LGPL)
+# Copyright:	(C) 2002 International Business Machines, Inc.
+#
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 WAS::/opt/WebSphere/ApplicationServer/config/server-cfg.xml
+#
+# See usage() function below for more details...
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_config
+#		  (WAS-configuration file, used for the single server edition of WAS)
+#		OCF_RESKEY_port
+#		  (WAS-<snoop>-port-number, used for the advanced edition of WAS)
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+#
+WASDIR=/opt/WebSphere/AppServer
+if
+  [ ! -d $WASDIR ]
+then
+  WASDIR=/usr/WebSphere/AppServer
+fi
+STARTTIME=300	#	5 minutes
+WGET=/usr/bin/wget
+DEFAULT_WASPORTS="9080"
+#
+#
+WASBIN=$WASDIR/bin
+DEFAULT=$WASDIR/config/server-cfg.xml
+
+#
+#	Print usage message
+#
+usage() {
+  methods=`WAS_methods | grep -v methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-! >&1
+	usage: $0 ($methods)
+
+	For the single server edition of WAS, you have to set the following
+	enviroment virable:
+		OCF_RESKEY_config
+			(WAS-configuration file)
+
+	For the advanced edition of WAS, you have to set the following
+	enviroment virable:
+		OCF_RESKEY_port
+			(WAS-<snoop>-port-number)
+
+	$0 manages a Websphere Application Server (WAS) as an HA resource
+
+	The 'start' operation starts WAS.
+	The 'stop' operation stops WAS.
+	The 'status' operation reports whether WAS is running
+	The 'monitor' operation reports whether the WAS seems to be working
+		(httpd also needs to be working for this case)
+	The 'methods' operation reports on the methods $0 supports
+
+	This is known to work with the Single Server edition of Websphere,
+	and is believed to work with the Advanced edition too.
+	Since the Advanced Edition has no configuration file (it's in a the
+	database) you need to give a port number instead of a
+	configuration file for this config parameter.
+
+	The default configuration file for the single server edition is:
+	$DEFAULT
+
+	The default snoop-port for the advanced edition is: $DEFAULT_WASPORTS
+
+	The start and stop operations must be run as root.
+
+	The status operation will report a pid of "-" for the
+	WAS root process using unless it is run as root.
+
+	If you don't have xmllint on your system, parsing of WAS
+	configuration files is very primitive.
+	In this case, the port specification we need from the XML
+	config file has to be on the same line as the
+	first part of the <transports/> tag.
+
+	We run servlet/snoop on the first transport port listed in
+	the config file for the "monitor" operation.
+
+	$Id: WAS.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="WAS" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for WAS. It manages a Websphere Application Server (WAS) as 
+an HA resource.
+</longdesc>
+<shortdesc lang="en">WAS resource agent</shortdesc>
+
+<parameters>
+<parameter name="config" unique="0">
+<longdesc lang="en">
+The WAS-configuration file.
+</longdesc>
+<shortdesc lang="en">configration file</shortdesc>
+<content type="string" default="$DEFAULT" />
+</parameter>
+
+<parameter name="port" unique="0">
+<longdesc lang="en">
+The WAS-(snoop)-port-number.
+</longdesc>
+<shortdesc lang="en">port</shortdesc>
+<content type="integer" default="$DEFAULT_WASPORTS" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="300" />
+<action name="stop" timeout="300" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+#	Run:  Run a script, and log its output.
+#
+run() {
+  output=`"$@" 2>&1`
+  rc=$?
+  output=`echo $output`
+  if
+    [ $rc -eq 0 ]
+  then 
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "info" "$output"
+    fi
+    return 0
+  else
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "err" "$output"
+    else
+      ocf_log "err" "command failed: $*"
+    fi
+    return $rc
+  fi
+}
+
+#
+#	Reformat the XML document in a sort of canonical form
+#	if we can.  If we don't have xmllint, we just cat it out
+#	and hope for the best ;-)
+#
+xmlcat() {
+  if
+    [ "X$XMLcat" == X ]
+  then
+    XMLcat=`which xmllint 2>/dev/null`
+    if
+      [ "X${XMLcat}" == X  -o ! -x "${XMLcat}" ]
+    then
+      XMLcat=cat
+    else
+      XMLcat="$XMLcat --recover --format"
+    fi
+  fi
+  for j in "$@"
+  do
+    ${XMLcat} "$j"
+  done
+}
+
+#
+#This is a bit skanky, but it works anyway...
+#
+#<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_1" hostname="*" port="9080"/>
+#<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_2" hostname="*" port="9443" sslEnabled="true"/>
+#<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_3" hostname="*" port="9090" external="false"/>
+#
+# It's not really skanky if we can find xmllint on the system, because it
+# reformats tags so they are all on one line, which is all we we need...
+#
+
+#
+# Get the numbers of the ports WAS should be listening on...
+#
+# If we don't have xmllint around, then the applicationserver and the
+# port= specification have to be on the same line in the XML config file.
+#
+GetWASPorts() {
+  case $1 in
+    [0-9]*)	echo "$1" | tr ',' '\012';;
+    *)	
+	xmlcat $1 | grep -i 'transports.*applicationserver:HTTPTransport' |
+	grep port= 				|
+	sed -e 's%.*port= *"* *%%'		\
+		-e 's%[^0-9][^0-9]*.*$%%'
+	# Delete up to port=, throw away optional quote and optional
+	#	white space.
+	# Throw away everything after the first non-digit.
+	# This should leave us the port number all by itself...
+  esac
+}
+
+#
+#	We assume that the first port listed in the <transports/>
+#	is the one we should run servlet/snoop on.
+#
+GetWASSnoopPort() {
+	GetWASPorts "$@" | head -n1
+}
+
+#
+#	Return information on the processname/id for the WAS ports
+#
+#	pid/java	is the expected output.  Several lines, one per port...
+#
+#
+WASPortInfo() {
+  pat=""
+  once=yes
+  PortCount=0
+  for j in $*
+  do
+    case $pat in
+      "")	pat="$j";;
+      *)	pat="$pat|$j";;
+    esac
+    PortCount=`expr $PortCount + 1`
+  done
+  netstat -ltnp  2>/dev/null| egrep -i "($pat) .*LISTEN" | sed 's%.*LISTEN *%%'
+}
+
+#
+#	Return the number of WAS ports which are open
+#
+CheckWASPortsInUse() {
+  count=`WASPortInfo "$@" | wc -l`
+  echo $count
+}
+
+#
+#	Return the pid(s) of the processes that have WAS ports open
+#
+WASPIDs() {
+  WASPortInfo "$@" | sort -u | cut -f1 -d/
+}
+
+#
+#	The version of ps that returns all processes and their (long) args
+#	It's only used by WAS_procs, which isn't used for anything ;-)
+#
+ps_long() {
+  ps axww
+}
+
+
+#
+#	The total set of WAS processes (single server only)
+#
+WAS_procs() {
+  ps_long | grep -i "config=$1"  | grep -i java | cut -d' ' -f1
+}
+
+
+
+#
+# methods: What methods/operations do we support?
+#
+WAS_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	methods
+	meta-data
+	monitor
+	usage
+	!
+  if
+    [ -f $WGET -a -x $WGET ]
+  then
+    echo monitor
+  fi
+}
+
+#
+#	Return WAS status (silently)
+#
+WAS_status() {
+  WASPorts=`GetWASPorts $1`
+  PortsInUse=`CheckWASPortsInUse $WASPorts`
+  case $PortsInUse in
+    0)	false;;
+    *)	true;;
+  esac
+}
+
+#
+#	Report on WAS status to stdout...
+#
+WAS_report_status() {
+  WASPorts=`GetWASPorts $1`
+  PortCount=`echo $WASPorts | wc -w`
+  PortCount=`echo $PortCount`
+  PortsInUse=`CheckWASPortsInUse $WASPorts`
+  case $PortsInUse in
+    0)	echo "WAS: server $1 is stopped."; false;;
+    *)
+	pids=`WASPIDs $WASPorts`
+	if
+	  [ $PortsInUse -ge $PortCount ]
+	then
+    	  echo "WAS: server $1 is running (pid" $pids "et al)."
+	else
+    	  echo "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
+        fi
+	true;;
+  esac
+}
+
+#
+#	Monitor WAS - does it really seem to be working?
+#
+#	For this we invoke the snoop applet via wget.
+#
+#	This is actually faster than WAS_status above...
+#
+WAS_monitor() {
+  tmpfile=/tmp/$$.was-mon
+  SnoopPort=`GetWASSnoopPort $1`
+  output=`$WGET -nv -O$tmpfile  http://localhost:$SnoopPort/servlet/snoop 2>&1`
+  rc=$?
+  if
+    [ $rc -eq 0 ]
+  then
+    if
+      grep -i 'user-agent.*Wget' $tmpfile >/dev/null
+    then
+      : OK
+    else
+      ocf_log "err" "WAS: $1: no user-agent from snoop application"
+      rc=1
+    fi
+  else
+    ocf_log "err" "WAS: $1: wget failure: $output"
+    rc=1
+  fi
+  rm -fr $tmpfile
+  return $rc
+}
+
+#
+#	Start WAS instance
+#
+WAS_start() {
+# Launch Arguments:
+#
+#      -configFile      <configFile>
+#      -nodeName        <nodeName>
+#      -serverName      <serverName>
+#      -oltEnabled
+#      -oltHost         <hostname>
+#      -oltPort         <port>
+#      -debugEnabled
+#      -jdwpPort        <port>
+#      -debugSource     <sourcePath>
+#      -serverTrace     <traceString>
+#      -serverTraceFile <traceFile>
+#      -script          [<scriptFile>]
+#      -platform        <platformName>
+#      -noExecute
+#      -help
+  if
+    [ -x $WASBIN/startServer.sh ]
+  then
+    cmd="$WASBIN/startServer.sh -configFile $1"
+  else
+    cmd="$WASBIN/startupServer.sh"
+  fi
+    
+  if
+    run $cmd
+  then
+    if
+      WAS_wait_4_start $STARTTIME "$@"
+    then
+      #true
+      return 0
+    else
+      ocf_log "err" "WAS server $1 did not start correctly"
+      return 1
+    fi
+  else
+    #false
+    return 1
+  fi
+}
+
+#
+#	Wait for WAS to actually start up.
+#
+#	It seems to take between 30 and 60 seconds for it to
+#	start up on a trivial WAS instance.
+#
+WAS_wait_4_start() {
+  max=$1
+  retries=0
+  shift
+  while
+    [ $retries -lt $max ]
+  do
+    if
+      WAS_status "$@"
+    then
+      return 0
+    else
+      sleep 1
+    fi
+    retries=`expr $retries + 1`
+  done
+  WAS_status "$@"
+}
+  
+
+#
+#	Shut down WAS
+#
+WAS_stop() {
+  # They don't return good return codes...
+  # And, they seem to allow anyone to stop WAS (!)
+  if
+    [ -x $WASBIN/stopServer.sh ]
+  then
+    run $WASBIN/stopServer.sh -configFile $1
+  else
+    WASPorts=`GetWASPorts $1`
+    kill `WASPIDs $WASPorts`
+  fi
+  if
+    WAS_status $1
+  then
+    ocf_log "err" "WAS: $1 did not stop correctly"
+    #false
+    return 1
+  else
+    #true
+    return 0
+  fi
+}
+
+
+#
+#	'main' starts here...
+#
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+#
+#	Supply default configuration parameter(s)
+#
+
+if
+  ( [ -z $OCF_RESKEY_config ] && [ -z $OCF_RESKEY_port ] )
+then
+  if
+    [ -f $DEFAULT ]
+  then
+    arg=$DEFAULT
+  else
+    arg=$DEFAULT_WASPORTS
+  fi
+fi
+
+if
+  [ ! -z $OCF_RESKEY_config ]  
+then
+  arg=$OCF_RESKEY_config
+else
+  arg=$OCF_RESKEY_port
+fi
+
+if
+  [ ! -f $arg ]
+then
+  case $arg in
+    [0-9]*)	;;	# ignore port numbers...
+    *)		ocf_log "err" "WAS configuration file $arg does not exist!"
+  		usage
+  		exit 1;;
+  esac
+fi
+  
+
+# What kind of method was invoked?
+case "$1" in
+
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  start)	WAS_start $arg
+		exit $?;;
+
+  stop)		WAS_stop $arg
+		exit $?;;
+
+  status)	WAS_report_status $arg
+		exit $?;;
+
+  monitor)	WAS_monitor $arg
+		exit $?;;
+
+  methods)	WAS_methods
+		exit $?;;
+
+  usage)	usage
+		exit $OCF_SUCCESS;;
+
+  *)		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+exit 1

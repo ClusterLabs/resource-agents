@@ -1,0 +1,177 @@
+#!/bin/sh
+#
+#	$Id: Delay.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+#
+#	This script is a test resource for introducing delay.
+#
+#	usage: $0  {start|stop|status|monitor|meta-data}
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_delay
+#		OCF_RESKEY_startdelay
+#		OCF_RESKEY_stopdelay
+#
+#	This is really a test resource script.
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+VARLIB=@localstatedir@/lib/@HB_PKG@
+VLFILE=$VARLIB/rsctmp/Delay
+
+usage() {
+  cat <<-!
+	usage: $0 {start|stop|status|monitor}
+  	$Id: Delay.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Delay" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+This script is a test resource for introducing delay.
+</longdesc>
+<shortdesc lang="en">Delay resource agent</shortdesc>
+
+<parameters>
+<parameter name="delay" unique="0">
+<longdesc lang="en">
+How long to delay on start and stop.
+</longdesc>
+<shortdesc lang="en">Delay</shortdesc>
+<content type="integer" default="30" />
+</parameter>
+
+<parameter name="startdelay" unique="0">
+<longdesc lang="en">
+How long to delay on start.
+</longdesc>
+<shortdesc lang="en">Start delay</shortdesc>
+<content type="integer" default="30" />
+</parameter>
+
+<parameter name="stopdelay" unique="0">
+<longdesc lang="en">
+How long to delay on stop.
+</longdesc>
+<shortdesc lang="en">Stop delay</shortdesc>
+<content type="integer" default="30" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="30" />
+<action name="stop" timeout="30" />
+<action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+Delay_stat() {
+    test -f $VLFILE
+
+}
+
+Delay_Status() {
+  if
+    Delay_stat
+  then
+    echo "Delay is running OK"
+    return 0
+  else
+    echo "Delay is not operational"
+    return 1
+  fi
+}
+
+Delay_Start() {
+  if
+    Delay_stat
+  then
+    echo "Delay already running"
+    return 0
+  else
+    touch $VLFILE
+    rc=$?
+    sleep $StartDelay
+    return $rc
+  fi
+}
+
+Delay_Stop() {
+  if
+    Delay_stat
+  then
+    unlink $VLFILE
+    rc=$?
+    sleep $StopDelay
+    return $rc
+  else
+    echo "Delay already stopped"
+    return 0
+  fi
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+Delay=$OCF_RESKEY_delay
+if 
+  [ -z "$Delay" ]
+then
+  StartDelay=30
+  StopDelay=30
+else
+  StartDelay=$OCF_RESKEY_delay
+  StopDelay=$OCF_RESKEY_delay
+fi
+
+Delay=$OCF_RESKEY_startdelay
+if 
+  [ -z "$Delay" ]
+then
+  StartDelay=30
+fi
+
+Delay=$OCF_RESKEY_stopdelay
+if 
+  [ -z "$Delay" ] 
+then
+  StopDelay=30
+fi
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)		Delay_Start
+			;;
+  stop)			Delay_Stop
+			;;
+  status|monitor)	Delay_Status
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?

@@ -1,0 +1,185 @@
+#!/bin/sh
+#
+# Startup/shutdown script for services managed by xinetd.
+#
+#	Copyright (C) 2003 Charlie Brooks
+#
+#  WARNING:  tested ONLY on Red Hat 7.3 at this time.
+#
+# Author:	Charlie Brooks <ha@HBCS.Org>
+# Description:	given parameters of a service name and start|stop|status,
+#		will enable, disable or report on a specified xinetd service
+# Config:	all services must have a descriptor file in /etc/xinetd.d
+# Support:	Linux-HA mailing list -- http://linux-ha.org/contact/
+# License:	GPL
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_service
+
+VARRUN=@localstatedir@/run
+ETC=@sysconfdir@
+XPIDFILE=$VARRUN/xinetd.pid
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Xinetd" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for Xinetd. It startup/shutdown the services mananged
+by xinetd.
+</longdesc>
+<shortdesc lang="en">Xinetd resource agent</shortdesc>
+
+<parameters>
+<parameter name="service" unique="0">
+<longdesc lang="en">
+The service name managed by xinetd. 
+</longdesc>
+<shortdesc lang="en">service name</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="restart" timeout="40" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+# It's important to note that the absence of a xinetd PID file causes
+# this script to assume that xinetd is not yet running, and therefore
+# that we are in the initial boot process.  If you port this script to
+# a distro that keeps the pid files in some other place, be sure to 
+# make an appropriate revision.
+
+hup_inetd () {
+    if [ -s $XPIDFILE ]; then
+      if ! kill -HUP `cat $XPIDFILE`; then
+          ocf_log "err" "Could not SigHUP xinetd superdaemon!"
+          ocf_log "perhaps we are booting after a system crash"
+          exit 2
+      fi
+    else
+       ocf_log "info" "xinetd superdaemon PID file $XPIDFILE not found!"
+       ocf_log "perhaps we are currently booting the system."
+fi
+}
+
+xup_start () {
+  ocf_log "info" "$0: enabling in $RCFILE"
+  if gawk '!/disable/' $RCFILE > $RCFILE.xup
+    then
+      if mv $RCFILE.xup $RCFILE
+        then
+          ocf_log "info" "$0: Starting"
+          hup_inetd
+          touch $PIDFILE
+        else
+          ocf_log "err" "Could not replace $RCFILE"
+      fi
+    else
+      ocf_log "err" "Could not rewrite $RCFILE!"
+  fi
+}
+
+xup_stop () {
+  ocf_log "info" "$0: disabling in $RCFILE"
+  if gawk '!/disable/;/{/{printf "\tdisable\t\t\t= yes\n"}' $RCFILE >$RCFILE.xup
+    then
+      if mv $RCFILE.xup $RCFILE
+        then
+          ocf_log "info" "$0: Shutting down"
+          hup_inetd 
+          rm -f $PIDFILE
+        else
+          ocf_log "err" "Could not replace $RCFILE"
+      fi
+    else
+      ocf_log "err" "Could not rewrite $RCFILE!"
+  fi
+}
+
+xup_usage () {
+        echo "Usage: $0 {start|stop|restart|status|monitor|meta-data}"
+	return 0
+}
+
+xup_status () {
+  	if [ -f $PIDFILE ]; then
+		echo running
+	else
+		echo stopped
+	fi
+	return 0
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  xup_usage
+  exit 1
+fi
+
+if 
+  [ -z "$OCF_RESKEY_service" ]
+then
+  xup_usage
+  exit 1
+fi
+
+service=$OCF_RESKEY_service
+RCFILE=$ETC/xinetd.d/$service
+PIDFILE=$VARRUN/xup$service
+
+# Make sure the OCF_RESKEY_service is a valid xinetd service name
+if ! [ -f $RCFILE ]; then
+    ocf_log "err" "Service descriptor /etc/xinetd.d/$service not found!"
+    xup_usage
+    exit 1
+fi
+
+# See how we were called.
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  start)
+	xup_start
+	;;
+  stop)
+	xup_stop
+	;;
+  restart)
+	$0 stop
+	$0 start
+	;;
+  status|monitor)
+	xup_status
+	;;
+  usage)
+	xup_usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+	xup_usage
+	exit $OCF_ERR_UNIMPLEMENTED
+esac
+
+exit $?

@@ -1,0 +1,283 @@
+#!/bin/sh
+#
+# $Id: LinuxSCSI.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# LinuxSCSI
+#
+# Description:	Enables/Disables SCSI devices to protect them from being
+#		used by mistake
+#
+#
+# Author:	Alan Robertson
+#		Support: linux-ha-dev@lists.tummy.com
+# License:	GNU Lesser General Public License (LGPL)
+# Copyright:	(C) 2002 IBM
+#
+# CAVEATS:	See the usage message for some important warnings
+#
+# usage: ./LinuxSCSI (start|stop|status|monitor|meta-data|methods)
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_scsi
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 LinuxSCSI:0:0:11 
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+zeropat="[ 0]0"
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+PROCSCSI=/proc/scsi/scsi
+
+usage() {
+  cat <<-! >&1
+	usage: $0 (start|stop|status|monitor|meta-data|methods)
+
+	$0 manages the availability of a SCSI device from the point
+	of view of the linux kernel.  It make Linux believe the
+	device has gone away, and it can make it come back again.
+
+	The purpose of this resource script is to keep admins from
+	accidentally messing with a shared disk that is managed by the
+	HA subsystem and is currently owned by the other side.
+
+	To get maximum benefit from this feature, you should (manually)
+	disable the resources on boot, and let your HA software enable
+	them when it wants to acquire the disk.
+	
+	The kernel code says this is potentially dangerous.  DO NOT USE
+	IT ON AN ACTIVE DEVICE.  If the device is inactive, this script
+	will make it stay inactive, when given "off".  If you inactivate
+	the wrong device, you may have to reboot your machine, and your
+	data may take a hit.
+
+	On the other hand, at least one RAID controller requires the
+	use of this technique for it to work correctly in a failover
+	environment - so it is believed that it is more stable in this
+	usage than the comments in the code imply.
+
+	Here are the warnings from the kernel source about the "stop"
+	operation as of 2.4.10:
+
+	------------------------------
+	Consider this feature pre-BETA.
+	    CAUTION: This is not for hotplugging your peripherals. As
+	    SCSI was not designed for this, you could damage your
+	    hardware and thoroughly confuse the SCSI subsystem.
+
+	Similar warnings apply to the "start" operation...
+
+	 Consider this feature BETA.
+	     CAUTION: This is not for hotplugging your peripherals.
+	     As SCSI was not designed for this you could damage your
+	     hardware !
+	However perhaps it is legal to switch on an already connected
+	device. It is perhaps not guaranteed this device doesn't corrupt
+	an ongoing data transfer.
+	-------------------------
+
+	So, Caveat Emptor, and test this feature thoroughly on
+	your kernel and your configuration with real load on the SCSI
+	bus before using it in production!
+
+	Another potential trouble spot...
+	The order in which you bring up LinuxSCSI resources determines which
+	SCSI device they show up as on Linux.  If you have two SCSI devices
+	in different resource groups they will be brought up asyncronously
+	resulting in indeterminate device name assignments.  This usually
+	happens in an active-active configuration.
+	
+	To solve this you probably should use LVM or EVMS to manage these
+	volumes.  LVM and EVMS solve this problem for you by labels they
+	keep in the volumes.  If you don't use a reasonable volume manager,
+	then you'll have to mount by UUID.
+
+	$Id: LinuxSCSI.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="MailTo" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a resource agent for LinuxSCSI. It manages the availability of a 
+SCSI device from the point of view of the linux kernel. It make Linux 
+believe the device has gone away, and it can make it come back again. 
+</longdesc>
+<shortdesc lang="en">LinuxSCSI resource agent</shortdesc>
+
+<parameters>
+<parameter name="scsi" unique="0">
+<longdesc lang="en">
+The SCSI instance to be managed.
+</longdesc>
+<shortdesc lang="en">SCSI instance</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="10" />
+<action name="methods" timeout="5" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+scsi_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	methods
+	!
+}
+
+
+parseinst() {
+  lun=0
+  case "$1" in
+	
+    [0-9]*:[0-9]*:[0-9]*);;
+
+    [0-9]*:[0-9]*:[0-9]*:[0-9]*)
+	lun=`echo "$1" | cut -d: -f4`;;
+
+    *)	host=error
+	channel=error
+	target=error
+	lun=error
+	echo "Invalid SCSI instance $1" >&2
+  esac
+  host=`echo "$1" | cut -d: -f1`
+  channel=`echo "$1" | cut -d: -f2`
+  target=`echo "$1" | cut -d: -f3`
+}
+
+#
+# start: Enable the given SCSI device in the kernel
+#
+scsi_start() {
+  parseinst "$1"
+  [ $target = error ] && exit 1
+  echo "scsi-add-single-device $host $channel $target $lun" >>$PROCSCSI
+  if
+    scsi_status "$1"
+  then
+    return 0
+  else
+    echo "ERROR: SCSI device $1 not active!"
+    return 1
+  fi
+}
+
+
+#
+# stop: Disable the given SCSI device in the kernel
+#
+scsi_stop() {
+  parseinst "$1"
+  [ $target = error ] && exit 1
+  echo "scsi-remove-single-device $host $channel $target $lun" >>$PROCSCSI
+  if
+    scsi_status "$1"
+  then
+    echo "ERROR: SCSI device $1 still active!"
+    return 1
+  else
+    return 0
+  fi
+}
+
+
+#
+# status: is the given device now available?
+#
+scsi_status() {
+  parseinst "$1"
+  [ $target = error ] && exit 1
+  [ $channel -eq 0 ]	&& channel=$zeropat
+  [ $target -eq 0 ]	&& target=$zeropat
+  [ $lun -eq 0 ]	&& lun=$zeropat
+  greppat="Host: *scsi$host *Channel: *$channel *Id: *$target *Lun: *$lun"
+  grep -i "$greppat" $PROCSCSI >/dev/null
+}
+
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if
+  [ -z "$OCF_RESKEY_scsi" ] && [ "X$1" = "Xmethods" ]
+then
+  scsi_methods
+  exit #?
+fi
+
+if 
+  [ -z "$OCF_RESKEY_scsi" ]
+then
+  echo "You have to set a valid scsi id at least!"
+  usage
+  exit 1
+fi
+
+instance=$OCF_RESKEY_scsi
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)		scsi_start $instance
+			;;
+  stop)			scsi_stop $instance
+			;;
+  status|monitor)	
+	 		if
+			  scsi_status $instance
+			then
+			  echo SCSI device $instance is running
+			  exit 0
+			else
+			  echo SCSI device $instance is stopped
+			  exit 1
+			fi
+			;;
+#
+# methods: What methods do we support?
+#
+  methods)
+			scsi_methods
+			;;
+
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?
+

@@ -1,0 +1,328 @@
+#!/bin/sh
+#
+# $Id: Raid1.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# Raid1
+#      Description: Manages a software Raid1 device on a shared storage medium.
+#  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
+# Original Release: 25 Oct 2000
+#          Support: linux-ha-dev@lists.tummy.com
+#     RAID patches: http://people.redhat.com/mingo/raid-patches/
+# Word to the Wise: http://lwn.net/2000/0810/a/raid-faq.php3
+#  Sympathetic Ear: mailto:linux-raid@vger.kernel.org
+#
+# usage: $0 {start|stop|status|monitor|meta-data}
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_raidconf
+#                  (name of MD configuration file. e.g. /etc/raidtab)
+#		OCF_RESKEY_raiddev
+#                  (of the form /dev/md?? the block device to use)   
+#
+# in /etc/ha.d/haresources, use a line such as:
+# nodea  10.0.0.170 Raid1::/etc/raidtab.md0::/dev/md0 Filesystem::/dev/md0::/data1::ext2
+#
+# This script assumes you are running the so-called RAID v.90 patches vs.
+# the Linux 2.2 kernel (distributed with RedHat 6.2).   I have not used 
+# kernel version 2.4.   
+#
+# The "start" arg starts up the raid device
+# The "stop" arg stops it.  NOTE: all filesystems must be unmounted
+#  and no processes should be accessing the device.
+# The "status" arg just prints out whether the device is running or not
+#
+# 
+# DISCLAIMER: Use at your own risk!
+#
+#  Besides all of the usual legalese that accompanies free software, 
+#  I will warn you that I do not yet use this kind of setup (software RAID 
+#  over shared storage) in production, and I have reservations about doing so.
+#
+#  The linux md driver/scsi drivers under Raid 0.90 and kernel version 2.2 
+#  do not behave well when a drive is in the process of going bad.  
+#  The kernel slows down, but doesn't completely crash.  This is about the 
+#  worst possible thing that could happen in an un-attended HA type 
+#  environment.  (Once the system is rebooted, the sofware raid stuff works 
+#  like a champ.)  
+#  My other reservation has to do with the interation of RAID recovery with 
+#  journaling filesystems and other parts of the kernel.  Subscribe to 
+#  linux-raid@vger.kernel.org  for other opinions and possible solutions.
+#
+#  -EZA 25 Oct 2000 
+# 
+# SETUP:
+#
+# You might need to pass the command line parameter: raid=noautodetect 
+# in an HA environment so that the kernel doesn't automatically start
+# up your raid partitions when you boot the node.  This means that it isn't
+# going to work to use RAID for the system disks and the shared disks.
+#
+# 0) partition the disks to use for RAID.  Use normal Linux partition 
+#     types, not the RAID autodetect type for your partitions.
+# 1) Create /etc/raidtab.md?  on both systems (see example file below)
+# 2) Initialize your raid partition with 
+#     /sbin/mkraid --configfile /etc/raidtab.md? /dev/md?
+# 3) Format your filesystem
+#     mke2fs /dev/md0  # for ext2fs... a journaling filesystem would be nice
+# 3) Create the mount point on both systems.
+#     DO NOT add your raid filesystem to /etc/fstab
+# 4) copy this script (to /etc/rc.d/init.d if you wish) and edit it to
+#    reflect your desired settings.
+# 5) Modify the heartbeat 'haresources' setup file
+# 6) unmount the filesystem and stop the raid device with 'raidstop'
+# 7) fire up heartbeat!
+#
+# 
+# EXAMPLE config file /etc/raidtab.md0
+# This file must exist on both machines!
+#
+#  raiddev		    /dev/md0
+#  raid-level		    1
+#  nr-raid-disks		    2
+#  chunk-size		    64k
+#  persistent-superblock	    1
+#  #nr-spare-disks	    0
+#    device	    /dev/sda1
+#    raid-disk     0
+#    device	    /dev/sdb1
+#    raid-disk     1
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+# Utilities used by this script
+MODPROBE=@MODPROBE@
+FSCK=@FSCK@
+FUSER=@FUSER@
+RAIDSTART=@RAIDSTART@
+MOUNT=@MOUNT@
+UMOUNT=@UMOUNT@
+RAIDSTOP=@RAIDSTOP@
+
+check_util () {
+    if [ ! -x "$1" ] ; then
+	ocf_log "err" "setup problem: Couldn't find utility $1"
+	exit 1
+    fi
+}
+
+usage() {
+cat <<-EOT;
+	usage: $0 {start|stop|status|monitor|meta-data}
+	$Id: Raid1.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+EOT
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="RAID1" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for RAID1. It manages a software Raid1 device on a shared 
+storage medium. 
+</longdesc>
+<shortdesc lang="en">RAID1 resource agent</shortdesc>
+
+<parameters>
+<parameter name="raidconf" unique="0">
+<longdesc lang="en">
+The name of RAID configuration file. e.g. /etc/raidtab.
+</longdesc>
+<shortdesc lang="en">RAID tab config file</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="raiddev" unique="0">
+<longdesc lang="en">
+The block device to use.
+</longdesc>
+<shortdesc lang="en">block device</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="10" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+# START: Start up the RAID device
+#
+raid1_start() {
+	# See if the md device is already mounted.
+	# NOTE: this will not work right if you have more than 10 md devices!
+	$MOUNT | grep -e "^$MDDEV" >/dev/null
+	if [ $? -ne 1 ] ; then
+	    ocf_log "err" "Device $MDDEV is already mounted!"
+	    return 1;
+	fi
+	
+	# Insert SCSI module
+	$MODPROBE scsi_hostadapter
+	if [ $? -ne 0 ] ; then
+	    ocf_log "warn" "Couldn't insert SCSI module."
+	fi
+
+	# Insert raid personality module
+	$MODPROBE raid1
+	if [ $? -ne 0 ] ; then
+	    ocf_log "err" "Couldn't insert RAID1 module"
+	    return 1
+	fi
+
+	# Run raidstart to start up the RAID array
+	$RAIDSTART --configfile $RAIDTAB_CONFIG $MDDEV
+	if [ $? -ne 0 ] ; then
+		ocf_log "err" "Couldn't start RAID for $MDDEV"
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# STOP: stop the RAID device
+#
+raid1_stop() {
+	# See if the MD device is online
+	grep -e "^$MD" /proc/mdstat >/dev/null
+	if [ $? -ne 0 ] ; then
+	        ocf_log "warn" "device $MD is not online according to kernel"
+		return 0
+	fi
+
+	# See if the MD device is mounted
+	# NOTE: this will not work right if you have more than 10 md devices!
+	$MOUNT | grep -e "^$MDDEV" >/dev/null
+	if [ $? -ne 1 ] ; then
+		# Kill all processes open on filesystem
+		$FUSER -mk $MOUNTPOINT
+
+		# the return from fuser doesn't tell us much
+		#if [ $? -ne 0 ] ; then
+		#	ocf_log "err" "Couldn't kill processes on $MOUNTPOINT"
+		#	return 1;
+		#fi
+
+		# Unmount the filesystem
+		$UMOUNT $MDDEV
+		if [ $? -ne 0 ] ; then
+			ocf_log "err" "Couldn't unmount filesystem for $MDDEV"
+			return 1
+		fi
+
+		$MOUNT | grep -e "^$MDDEV" >/dev/null
+		if [ $? -ne 1 ] ; then
+		    ocf_log "err" "filesystem for $MDDEV still mounted"
+		    return 1
+		fi
+	fi
+
+	# Turn off raid
+	$RAIDSTOP --configfile /etc/raidtab.$MD $MDDEV
+	if [ $? -ne 0 ] ; then
+		ocf_log "err" "Couldn't stop RAID for $MDDEV"
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# STATUS: is the raid device online or offline?
+#
+raid1_status() { 
+
+	# See if the MD device is online
+	grep -e "^$MD" /proc/mdstat >/dev/null
+	if [ $? -ne 0 ] ; then
+	    echo "stopped"
+	else
+	    echo "running"
+	fi
+
+	return 0
+}    
+
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+#
+# Check the necessary enviroment virable's setting 
+# 
+RAIDTAB_CONFIG=$OCF_RESKEY_raidconf
+MDDEV=$OCF_RESKEY_raiddev
+
+if [ ! -f "$RAIDTAB_CONFIG" ] ; then
+	ocf_log "err" "Couldn't open file $RAIDTAB_CONFIG"
+	usage
+	exit 1
+fi
+
+if [ ! -b "$MDDEV" ] ; then
+	ocf_log "err" "Couldn't find MD device $MDDEV. Expected /dev/md* to exist"
+	usage
+	exit 1
+fi
+
+# strip off the /dev/ prefix to get the name of the MD device
+MD=`echo $MDDEV | sed -e 's/\/dev\///'`
+
+# Check to make sure the utilites are found
+check_util $MODPROBE
+check_util $FUSER
+check_util $RAIDSTART
+check_util $MOUNT
+check_util $UMOUNT
+check_util $RAIDSTOP
+
+
+# Look for how we are called 
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  start)
+	raid1_start
+	;;
+  stop)
+	raid1_stop
+	;;
+  status) 
+	raid1_status
+	;;
+
+  usage) 
+	usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED 
+	;;
+esac
+
+exit $?

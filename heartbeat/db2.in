@@ -1,0 +1,364 @@
+#!/bin/sh
+#
+# $Id: db2.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# db2
+#
+# Description:	Manages a DB2 Universal Database as a High-Availability
+#		resource
+#
+#
+# Author:	Alan Robertson
+#		Support: linux-ha-dev@lists.tummy.com
+# License:	GNU Lesser General Public License (LGPL)
+# Copyright:	(C) 2002 International Business Machines, Inc.
+#
+#		This code inspired by the FailSafe db2 resource script
+#		written by Joachim Gleissner <jg@suse.de>
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 db2::db2inst1
+#
+# See usage() function below for more details...
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+SH=/bin/bash
+
+usage() {
+  methods=`db2_methods | grep -v methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-! >&1
+	usage: $0 db2-database-owner-id ($methods)
+	usage: $0 methods
+
+	$0 manages a DB2 Universal Database instance as an HA resource.
+
+	The 'start' operation starts the database.
+	The 'stop' operation stops the database.
+	The 'status' operation reports whether the database is running
+	The 'monitor' operation reports whether the database seems to be working
+	The 'methods' operation reports on the methods $0 supports
+
+	$Id: db2.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="db2" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for db2. It manages a DB2 Universal Database instance as an HA resource.
+</longdesc>
+<shortdesc lang="en">db2 resource agent</shortdesc>
+
+<parameters>
+<parameter name="instance" unique="0">
+<longdesc lang="en">
+The instance of database.
+</longdesc>
+<shortdesc lang="en">instance</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="120" />
+<action name="stop" timeout="120" />
+<action name="status" timeout="60" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+<action name="methods" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+#
+# methods: What methods/operations do we support?
+#
+db2_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	methods
+	meta-data
+	usage
+	!
+}
+
+
+#	Gather up information about our db2 instance
+
+db2info() {
+	instance=$1
+	db2admin=$instance
+	db2home=`bash -c "echo ~$db2admin"`
+	db2sql=$db2home/sqllib
+	db2profile=$db2sql/db2profile
+	db2adm=$db2sql/adm
+	db2ctrl=$db2sql/ctrl
+	db2bin=$db2sql/bin
+	db2db2=$db2bin/db2
+
+	#	Let's make sure a few important things are there...
+	if
+	  [ -d "$db2sql" -a  -d "$db2bin" -a -f "$db2profile" -a \
+		-x "$db2profile" -a -x "$db2db2" ]
+	then
+	  db2instance=`runasdb2 'echo $DB2INSTANCE'`
+	  test ! -z "$db2instance"
+        else
+	  false
+	fi
+	rc=$?
+	if
+	  [ $rc -ne 0 ]
+	then
+	  ocf_log "err" "DB2 instance [$instance] not available"
+	fi
+	return $rc
+}
+
+#
+#	Run the given command in the db2 admin environment...
+#
+runasdb2() {
+	if
+	  [ $US = $db2admin ]
+	then
+	  $SH -c ". $db2profile; $*"
+	else
+	  su $db2admin -c ". $db2profile; $*"
+	fi
+}
+
+#
+#	Run a command as the DB2 admin, and log the output
+#
+logasdb2() {
+	output=`runasdb2 $*`
+	rc=$?
+	if
+	  [ $rc -eq 0 ]
+	then
+	  ocf_log "info" "$output"
+	else
+	  ocf_log "err" "$output"
+	fi
+	return $rc
+}
+
+
+#
+# db2_start: Start the given db2 instance
+#
+db2_start() {
+  if
+    output=`runasdb2 $db2adm/db2start`
+  then
+    : Hurray! DB2 started OK
+    ocf_log "info" "DB2 UDB instance $1 started: $output"
+  else
+    case $output in
+      SQL1026N*|*"is already active"*)
+    		ocf_log "info" "DB2 UDB instance $1 already running: $output";;
+
+      *)	ocf_log "err" "$output"; return 1;;
+    esac
+  fi
+  if
+    db2_status "$1"
+  then
+    if
+      runasdb2 $db2bin/db2jstrt 
+    then
+      for DB in `db2_dblist`
+      do
+        runasdb2 $db2db2 activate database $DB
+      done
+    fi
+    return $?
+  else
+    echo "ERROR: DB2 UDB instance $1 not active!"
+    return 1
+  fi
+}
+
+#
+# db2_stop: Stop the given db2 database instance
+#
+db2_stop() {
+  # We ignore the instance, the info we need is already in $vars
+  rc=0
+  if
+    output=`runasdb2 $db2adm/db2stop force`
+  then
+    : DB2 stopped OK
+    ocf_log "info" "DB2 UDB instance $1 stopped: $output"
+  else
+    case $output in
+
+      SQL1032N*|*"No start database manager command"*)
+		ocf_log "info" "$output";;
+
+      *)	ocf_log "err" "DB2 UDB instance $1 stop failed: $output"
+		rc=1;;
+    esac
+  fi
+  logasdb2 $db2db2 terminate
+  logasdb2 $db2bin/db2_kill
+  pids=`our_db2_ps | grep db2jd | cut -d' ' -f1`
+  for j in $pids
+  do
+    runasdb2 kill -9 $j
+  done
+  return $rc
+}
+
+
+#
+# db2_status: is the given db2 instance running?
+#
+db2_status() {
+  # We ignore the instance, the info we need is already in $vars
+  pscount=`runasdb2 $db2bin/db2_local_ps | grep ' db2[^ ]*$' | wc -l`
+  test $pscount -ge 5
+}
+
+our_db2_ps() {
+  ps -u $db2admin | grep db2
+}
+
+
+db2_dblist() {
+  runasdb2 $db2db2 list database directory	\
+  |	grep -i 'Database name.*=' | sed 's%.*= *%%'
+}
+
+
+#
+# db2_monitor: Can the given db2 instance do anything useful?
+#
+db2_monitor() {
+  # We ignore the instance, the info we need is already in $vars
+  for DB in `db2_dblist`
+  do
+
+  CMD="	if $db2db2 connect to $DB;
+	then 
+	  $db2db2 select \* from sysibm.sysversions ; rc=\$?;
+	  $db2db2 disconnect $DB;
+	else
+          rc=\$?;
+	fi;
+	exit \$rc"
+
+    : Running this command: $CMD
+    if
+      output=`runasdb2 $CMD`
+    then
+      : Command succeeded!
+    else
+      ocf_log "err" "DB2 UDB instance $1 DB $DB is not working"
+      ocf_log "err" "DB2 UDB message: $output"
+      return 1
+    fi
+  done
+  : ocf_log "info" "All DBs in DB2 UDB instance $1 appear to be working"
+}
+
+#
+#	'main' starts here...
+#
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  [ -z "$OCF_RESKEY_instance" ]
+then
+  usage
+  exit 1
+fi
+
+instance=$OCF_RESKEY_instance
+
+US=`id -u -n`
+US=`echo $US`
+if
+  [ $US != root -a $US != $instance ]
+then
+  ocf_log "err" "$0 must be run as root or $instance"
+  exit 1
+fi
+
+#
+#	Grab common db2 information...
+#
+if
+  db2info $instance 
+then
+  : DB2 info is OK!
+else
+  rc=$?
+  exit $rc
+fi
+
+
+# What kind of method was invoked?
+case "$1" in
+
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  start)	db2_start $instance
+		exit $?;;
+
+  stop)		db2_stop $instance
+		exit $?;;
+
+  status)	if
+		  db2_status $instance
+		then
+		  echo DB2 UDB instance $instance is running
+		  exit 0
+		else
+		  echo DB2 UDB instance $instance is stopped
+		  exit 1
+		fi
+		exit $?;;
+
+  monitor)	db2_monitor $instance
+		exit $?;;
+
+  methods)	db2_methods
+		exit $?;;
+
+  usage)	usage
+		exit $OCF_SUCCESS;;
+
+  *)		db2_methods
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
+exit 1

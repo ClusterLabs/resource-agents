@@ -1,0 +1,354 @@
+#!/bin/sh
+#
+# $Id: Filesystem.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# Filesystem
+#      Description: Manages a Filesystem on a shared storage medium.
+#  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
+# Original Release: 25 Oct 2000
+#          Support: linux-ha-dev@lists.tummy.com
+#
+# usage: ./Filesystem {start|stop|status|monitor}
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_device
+#		OCF_RESKEY_directory
+#		OCF_RESKEY_fstype
+#		OCF_RESKEY_options
+#
+#OCF_RESKEY_device    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+#			Or a -U or -L option for mount, or an NFS mount specification
+#OCF_RESKEY_directory : the mount point for the filesystem
+#OCF_RESKEY_fstype    : name of the filesystem type. e.g. ext2
+#OCF_RESKEY_options   : options to be given to the mount command via -o
+#
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
+#  or
+#       node1  10.0.0.170 Filesystem::-Ldata1::/data1::ext2
+#  or
+#       node1  10.0.0.170 Filesystem::server:/data1::/data1::nfs::ro
+#
+# This assumes you want to manage a filesystem on a shared (scsi) bus.
+# Do not put this filesystem in /etc/fstab.  This script manages all of
+# that for you.
+#
+# If you are interested in High Availability, you will probably also want
+# some sort of external hardware RAID controller in front of the actual 
+# disks.  I don't mean a RAID controller embedded in the host controller -
+# it has to be a external controller.
+#
+# It can also be an internal RAID controller if the controller supports
+# failover.  IBM's ServeRAID controller does this, and it automatically
+# prohibits concurrent access too, so it's pretty cool in this application.
+#
+# There is a script for software RAID-1 included in this directory.  Right 
+# now, I wouldn't recommend using software RAID (see notes in the Raid1 script)
+#
+# NOTE: There is no locking (such as a SCSI reservation) being done here.
+#       I would if the SCSI driver could properly maintain the reservation,
+#       which it cannot, even with the 'scsi reservation' patch submitted
+#       earlier this year by James Bottomley.  The patch minimizes the
+#       bus resets caused by a RESERVATION_CONFLICT return, and helps the 
+#       reservation stay when 2 nodes contend for a reservation, 
+#       but it does not attempt to recover the reservation in the 
+#       case of a bus reset.  
+#
+#       What all this means is that if 2 nodes mount the same file system
+#       read-write, the filesystem is going to become corrupted.
+#
+#	As a result, you should use this together with the stonith option
+#	and redundant, independent communications paths.
+#
+#	If you don't do this, don't blame us when you scramble your disk.
+# 
+#	Note:  the ServeRAID controller does prohibit concurrent acess
+#	In this case, you don't actually need STONITH, but redundant comm is
+#	still an excellent idea.
+#
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+# Utilities used by this script
+MODPROBE=@MODPROBE@
+FSCK=@FSCK@
+FUSER=@FUSER@
+MOUNT=@MOUNT@
+UMOUNT=@UMOUNT@
+BLOCKDEV=@BLOCKDEV@
+
+check_util () {
+    if [ ! -x "$1" ] ; then
+	ocf_log "err" "Setup problem: Couldn't find utility $1"
+	exit 1
+    fi
+}
+
+usage() {
+
+cat <<-EOT;
+	usage: $0 {start|stop|status|monitor}
+	$Id: Filesystem.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	EOT
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="Filesystem" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for Filesystem. It manages a Filesystem on a shared storage medium. 
+</longdesc>
+<shortdesc lang="en">Filesystem resource agent</shortdesc>
+
+<parameters>
+<parameter name="device" unique="0">
+<longdesc lang="en">
+The name of block device for the filesystem.
+</longdesc>
+<shortdesc lang="en">block device</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="directory" unique="0">
+<longdesc lang="en">
+The mount point for the filesystem.
+</longdesc>
+<shortdesc lang="en">mount pint</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="fstype" unique="0">
+<longdesc lang="en">
+The name of the filesystem type.
+</longdesc>
+<shortdesc lang="en">filesystem type</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="options" unique="0">
+<longdesc lang="en">
+The options to be given as -o options to mount.
+</longdesc>
+<shortdesc lang="en">options</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="60" />
+<action name="stop" timeout="60" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+#	Make sure the kernel does the right thing with the FS buffers
+#	This function should be called after unmounting and before mounting
+#	It may not be necessary in 2.4 and later kernels, but it shouldn't hurt
+#	anything either...
+#
+#	It's really a bug that you have to do this at all...
+#
+flushbufs() {
+  if
+    [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" ]
+  then
+    case $1 in
+      -*|[^/]*:/*)	
+			;;
+      *)		$BLOCKDEV --flushbufs $1
+			return $?
+			;;
+    esac
+  fi
+  
+  return 0
+}
+
+#
+# START: Start up the filesystem
+#
+Filesystem_start()
+{
+	# See if the device is already mounted.
+	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
+	if [ $? -ne 1 ] ; then
+	    ocf_log "err" "Filesystem $MOUNTPOINT is already mounted!"
+	    return 1;
+	fi
+
+	# Insert SCSI module
+	$MODPROBE scsi_hostadapter >/dev/null 2>&1
+
+	# Insert Filesystem module
+	$MODPROBE $FSTYPE >/dev/null 2>&1
+	grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+	if [ $? != 0  ] ; then
+		ocf_log "err" "Couldn't find filesystem $FSTYPE in /proc/filesystems"
+		usage
+		return 1
+	fi
+
+	# Check the filesystem & auto repair.  
+	# NOTE: Some filesystem types don't need this step...  Please modify
+	#       accordingly
+
+	if
+	  case $FSTYPE in
+	    ext3|reiserfs|xfs|jfs|vfat|fat|nfs)	false;;
+	    *)				true;;
+	  esac
+        then
+	  ocf_log "info"  "Starting filesystem check on $DEVICE"
+	  $FSCK -t $FSTYPE -a $DEVICE
+	
+	  # NOTE: if any errors at all are detected, it returns non-zero
+	  # if the error is >4 then there is a big problem
+	  if
+	    [ $? -ge 4 ]
+	  then
+	    ocf_log "err" "Couldn't sucessfully fsck filesystem for $DEVICE"
+	    return 1	
+	  fi	
+	fi
+
+	flushbufs $DEVICE
+	# Mount the filesystem.
+	if
+	  $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
+        then
+	  : Mount worked!
+        else
+	  ocf_log "err" "Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+	  return 1
+	fi
+
+	return $?
+}
+# end of Filesystem_start
+
+#
+# STOP: Unmount the filesystem
+#
+Filesystem_stop()
+{
+	# See if the device is currently mounted
+	if
+	  $MOUNT | grep -e " on $MOUNTPOINT " >/dev/null
+	then
+		# Kill all processes open on filesystem
+		$FUSER -mk $MOUNTPOINT
+
+		# Get the current real device name...
+		# (specified devname could be -L or -U...)
+
+		DEV=`$MOUNT | grep "on $MOUNTPOINT " | cut -d' ' -f1`
+		# Unmount the filesystem
+		$UMOUNT $MOUNTPOINT
+		if [ $? -ne 0 ] ; then
+			ocf_log "err" "Couldn't unmount $MOUNTPOINT"
+			return 1
+		fi
+		flushbufs $DEV
+	else
+		ocf_log "warn" "Filesystem $MOUNTPOINT not mounted?"
+	fi
+
+	return $?
+}
+# end of Filesystem_stop
+
+#
+# STATUS: is the filesystem mounted or not?
+#
+Filesystem_status()
+{
+	$MOUNT | grep -e "on $MOUNTPOINT " >/dev/null
+	rc=$?
+	if [ $rc = 0 ] ; then
+		echo "$MOUNTPOINT is mounted (running)"
+	else
+		echo "$MOUNTPOINT is unmounted (stopped)"
+	fi
+
+	return $rc
+}
+# end of Filesystem_status
+
+# Check the arguments passed to this script
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+# Check the OCF_RESKEY_ environment virables
+DEVICE=$OCF_RESKEY_device
+MOUNTPOINT=$OCF_RESKEY_directory
+FSTYPE=$OCF_RESKEY_fstype
+if [ ! -z "$OCF_RESKEY_options" ]; then
+	options = "-o $OCF_RESKEY_options"
+fi
+
+case $DEVICE in
+  -*) # Oh... An option to mount instead...  Typically -U or -L
+	;;
+  [^/]*:/*)	# An NFS filesystem specification...
+	;;
+  *)	if [ ! -b "$DEVICE" ] ; then
+	  ocf_log "err" "Couldn't find device $DEVICE. Expected /dev/??? to exist"
+	  usage
+	  exit 1
+	fi;;
+esac
+
+if [ ! -d "$MOUNTPOINT" ] ; then
+	ocf_log "err" "Couldn't find directory  $MOUNTPOINT to use as a mount point"
+	usage
+	exit 1	
+fi
+	
+
+# Check to make sure the utilites are found
+check_util $MODPROBE
+check_util $FSCK
+check_util $FUSER
+check_util $MOUNT
+check_util $UMOUNT
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)		Filesystem_start
+			;;
+  stop)			Filesystem_stop
+			;;
+  status|monitor)	Filesystem_status
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?

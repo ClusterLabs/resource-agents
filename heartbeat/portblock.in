@@ -1,0 +1,300 @@
+#!/bin/sh
+#
+#	portblock: iptables temporary portblocking control 
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_protocol
+#		OCF_RESKEY_portno
+#		OCF_RESKEY_action
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+VARLIB=@localstatedir@/lib/@HB_PKG@/rsctmp
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+CMD=`basename $0`
+
+iptables=/usr/sbin/iptables
+BlockOrUnblock=block
+
+usage()
+{
+	cat <<-!USAGE >&2
+	usage: $CMD {start|stop|status|monitor|meta-data}
+
+	$CMD is used to temporarily block ports using iptables.
+
+	It can be used to turn off a port before bringing
+	up an IP address, and enable it after a service is started.
+	To do that for samba, the following resource line can be used:
+
+	$CMD::tcp::137,138::block		\\
+	    10.10.10.20				\\
+	    nmbd smbd 				\\
+	    $CMD::tcp::137,138::unblock
+
+	This will do the follwing things:
+
+	  - DROP all incoming packets for TCP ports 137 and 138
+	  - Bring up the IP alias 10.10.10.20
+	  - start the nmbd and smbd services
+	  - Re-enable TCP ports 137 and 138
+	        (enable normal firewall rules on those ports)
+
+	This prevents clients from getting ICMP port unreachable
+	if they try to reconnect to the service after the alias is
+	enabled but before nmbd and smbd are running.  These packets
+	will cause some clients to give up attempting to reconnect to
+	the server.
+
+	NOTE:  iptables is linux-specific...
+
+	!USAGE
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="portblock" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for portblock. It is used to temporarily block ports 
+using iptables. 
+</longdesc>
+<shortdesc lang="en">portblock resource agent</shortdesc>
+
+<parameters>
+<parameter name="protocol" unique="0">
+<longdesc lang="en">
+The protocol used to be blocked/unblocked.
+</longdesc>
+<shortdesc lang="en">protocol</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="portno" unique="0">
+<longdesc lang="en">
+The port number used to be blocked/unblocked.
+</longdesc>
+<shortdesc lang="en">portno</shortdesc>
+<content type="integer" default="" />
+</parameter>
+
+<parameter name="action" unique="0">
+<longdesc lang="en">
+The action (block/unblock) to be done on the protocol::portno.
+</longdesc>
+<shortdesc lang="en">action</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="20" />
+<action name="stop" timeout="20" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+
+#
+#	Because this is the normal usage, we consider "block"
+#	resources to be pseudo-resources -- that is, their status can't
+#	be reliably determined through external means.
+#	This is because we expect an "unblock" resource to come along
+#	and disable us -- but we're still in some sense active...
+#
+#	So, we track the state here using the pseudo_resource() function.
+#
+#	The psuedo_resource function should be moved into the functions
+#	available to resources so other resource scripts could use it...
+#
+#
+
+# pseudo_resource filename operation
+pseudo_resource()
+{
+  file="$VARLIB/$1"
+  case $2 in
+    start|restart|reload)  touch "$file";;
+    stop) rm -f $file;;
+    status) test -f "$file";;
+    *)	exit 3;;
+  esac
+}
+
+#iptables_spec {udp|tcp} portno,portno
+iptables_spec()
+{
+  echo -D INPUT -p $1 -m multiport --dports $2 -j DROP
+}
+
+#active_grep_pat {udp|tcp} portno,portno
+active_grep_pat()
+{
+  w="[ 	][ 	]*"
+  any="0\\.0\\.0\\.0/0"
+  echo "^DROP${w}${1}${w}--${w}${any}${w}${any}${w}multiport${w}dports${w}${2} "
+}
+
+#chain_isactive  {udp|tcp} portno,portno
+chain_isactive()
+{
+  PAT=`active_grep_pat "$1" "$2"`
+  $iptables -n -L INPUT | grep "$PAT" >/dev/null
+}
+
+SayActive()
+{
+  echo "$CMD DROP rule for INPUT chain [$*]  is running (OK)"
+  return 0
+}
+
+SayConsideredActive()
+{
+  echo "$CMD DROP rule for INPUT chain [$*] considered to be running (OK)"
+  return 0
+}
+
+SayInactive()
+{
+  echo "$CMD DROP rule for INPUT chain [$*] is inactive"
+  return 1
+}
+
+#IptablesStatus  {udp|tcp} portno,portno {block|unblock}
+IptablesStatus()
+{
+  activewords="$CMD $1 $2 is running (OK)"
+  if
+    chain_isactive "$1" "$2"
+  then
+    case $3 in
+	  block)	SayActive $*; return $?;;
+	  *) 		SayInactive $*; return $?;;
+    esac
+  else
+    case $3 in
+	  block)
+	        if
+		  pseudo_resource "$RSCNAME" status
+		then
+		  SayConsideredActive $*; return $?
+		else
+		  SayInactive $*; return $?
+		fi;;
+
+	  *)	SayActive $*; return $?;;
+    esac
+  fi      
+}
+
+#IptablesBLOCK  {udp|tcp} portno,portno
+IptablesBLOCK()
+{
+  if
+    chain_isactive "$1" "$2"
+  then
+    : OK -- chain already active
+  else
+    $iptables -I INPUT -p "$1" -m multiport --dports "$2" -j DROP
+  fi
+
+  return $?
+}
+
+#IptablesUNBLOCK  {udp|tcp} portno,portno
+IptablesUNBLOCK()
+{
+  if
+    chain_isactive "$1" "$2"
+  then
+    $iptables -D INPUT -p "$1" -m multiport --dports "$2" -j DROP
+  else
+    : Chain Not active
+  fi
+
+  return $?
+}
+
+#IptablesStart  {udp|tcp} portno,portno {block|unblock}
+IptablesStart()
+{
+  pseudo_resource "$RSCNAME" start
+  case $3 in
+    block)	IptablesBLOCK "$@";;
+    unblock)	IptablesUNBLOCK "$@";;
+    *)		usage; return 1;
+  esac
+
+  return $?
+}
+
+#IptablesStop  {udp|tcp} portno,portno {block|unblock}
+IptablesStop()
+{
+  pseudo_resource "$RSCNAME" stop
+  case $3 in
+    block)	IptablesUNBLOCK "$@";;
+    unblock)	IptablesBLOCK "$@";;
+    *)		usage; return 1;;
+  esac
+
+  return $?
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  ( [ -z "$OCF_RESKEY_protocol" ] ||  [ -z "$OCF_RESKEY_portno" ] || [ -z "$OCF_RESKEY_action" ] )
+then
+  usage
+  exit 1
+fi
+
+protocol=$OCF_RESKEY_protocol
+portno=$OCF_RESKEY_portno
+action=$OCF_RESKEY_action
+
+RSCNAME=${CMD}_${protocol}_${portno}_${action}
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)	
+			IptablesStart $protocol $portno $action 
+			;;
+
+  stop)		
+			IptablesStop $protocol $portno $action
+			;;
+
+  status|monitor)	
+			IptablesStatus $protocol $portno $action
+			;;
+
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+
+exit $?

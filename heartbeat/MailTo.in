@@ -1,0 +1,173 @@
+#!/bin/sh
+#
+# Resource script for MailTo
+#
+# Author: Alan Robertson <alanr@unix.sh>
+#
+# Description: sends email to a sysadmin whenever a takeover occurs.
+#
+#	Note: This command requires an argument, unlike normal init scripts.
+#
+#	This can be given in the haresources file as:
+#
+#	You can also give a mail subject line or even multiple addresses
+#		MailTo::alanr@unix.sh::BigImportantWebServer
+#		MailTo::alanr@unix.sh,spoppi@gmx.de::BigImportantWebServer
+#
+#	This will then be put into the message subject and body.
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_email
+#		OCF_RESKEY_subject
+#
+# License: GPL
+#
+#set -x
+
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+ARGS="$0 $*"
+
+# Source function library.
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+us=`uname -n`
+
+usage() {
+  echo "Usage: $0 {start|stop|status|meta-data}"
+  echo "$Id: MailTo.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $"
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="MailTo" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a resource agent for MailTo. It sends email to a sysadmin whenever 
+a takeover occurs.
+</longdesc>
+<shortdesc lang="en">MailTo resource agent</shortdesc>
+
+<parameters>
+<parameter name="email" unique="0">
+<longdesc lang="en">
+The email address of sysadmin.
+</longdesc>
+<shortdesc lang="en">Email address</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="subject" unique="0">
+<longdesc lang="en">
+The subject of the email.
+</longdesc>
+<shortdesc lang="en">Subject</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="10" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+MailProgram() {
+	/usr/bin/mail -s "$1" "$email"  <<EOF
+        $Subject
+ 
+        Command line was:
+        $ARGS
+EOF
+	return $?
+}
+
+SubjectLine() {
+  case $1 in
+    ??*)	echo $1;;
+    *)		echo "Resource Group";;
+  esac
+}
+
+
+MailToStart() {
+
+	Subject="`SubjectLine $subject` Takeover in progress on $us"
+
+	MailProgram "$Subject" $1
+	return $?
+}
+
+MailToStop () {
+	Subject="`SubjectLine $subject` Migrating resource away from $us"
+
+	MailProgram "$Subject" $1
+	return $?
+}
+
+MailToStatus () {
+	echo "stopped"
+
+	return 0
+}
+
+# 
+# See how we were called.
+#
+#	The order in which heartbeat provides arguments to resource
+#	scripts is broken.  It should be fixed.
+#
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  [ -z "$OCF_RESKEY_email" ]
+then
+  echo "At least 1 Email address has to be given!"
+  usage
+  exit 1
+fi
+
+email=$OCF_RESKEY_email
+subject=$OCF_RESKEY_subject
+
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  start)		MailToStart
+			;;
+  stop)			MailToStop
+			;;
+	#	Not quite sure what to do with this one...
+	#	We aren't a continuously running service - so it's not clear
+	#
+  status|monitor)	MailToStatus
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			usage
+			exit $OCF_ERR_UNIMPLEMENTED
+			;;
+esac
+exit $?

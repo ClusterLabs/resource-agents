@@ -1,0 +1,171 @@
+#!/bin/sh
+#
+# Startup script for the Audible Alarm
+#
+# author: Kirk Lawson <lklawson@heapy.com> 
+#         Horms <horms@vergenet.net>
+#
+# description: sets an audiable alarm running by beeping at a set interval
+# processname: alarm
+# config: /etc/AudibleAlarm/AudibleAlarm.conf - not yet implemented
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_nodelist
+#		
+# Licence: GPL
+
+#######################################################################
+# Initialization:
+
+# Source function library.
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+PIDFILE=@localstatedir@/run/heartbeat-bell
+#For testing
+#PIDFILE=/tmp/heartbeat-bell
+
+# What host are we running on?
+us=`uname -n`
+
+usage() {
+	echo "Usage: $0 {start|stop|restart|status|monitor}"
+	echo "  The node list is an optional space delimited"
+	echo "  list of hosts that should never sound the alarm."
+	echo "$Id: AudibleAlarm.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $";
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="AudibleAlarm" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for AudibleAlarm. It sets an audiable alarm running by beeping 
+at a set interval. 
+</longdesc>
+<shortdesc lang="en">AudibleAlarm resource agent</shortdesc>
+
+<parameters>
+<parameter name="nodelist" unique="0">
+<longdesc lang="en">
+The node list that should never sound the alarm.
+</longdesc>
+<shortdesc lang="en">Node list</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="10" />
+<action name="restart" timeout="10" />
+<action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+audiablealarm_start () {
+	ocf_log "info" "$0: Starting"
+    	if [ -f $PIDFILE ]; then
+        	PID=`head -n 1 $PIDFILE`
+		ocf_log "info" "$0: Appears to already be running, killing [$PID]"
+		kill $PID > /dev/null
+	fi
+	while [ 1 ]; do 
+		sleep 1  #Sleep first, incase we bail out
+		echo -ne "\a" > /dev/console 
+		# Uncomment this line to cause floppy drive light
+		# to flash (requires fdutils package).
+		# /usr/bin/floppycontrol --pollstate > /dev/null
+	done&
+	if ! echo $! >  $PIDFILE; then
+		ocf_log "info" "$0: Could not write to pid file \"$PIDFILE\", bailing"
+		kill $!
+		return 1
+	fi
+
+	return $?
+}
+
+audiablealarm_stop () {
+	ocf_log "info" "$0: Shutting down"
+  	if [ -f $PIDFILE ]; then
+		PID=`head -n 1 $PIDFILE`
+		# ocf_log "info" "$0: Appears to already be running, killing [$PID]"
+		# commented by Phost, since the confusion in the log.
+		kill $PID > /dev/null
+		rm -f $PIDFILE
+	fi
+
+	return $?
+}
+
+audiablealarm_restart () {
+	audiablealarm_stop 
+	audiablealarm_start 
+
+	return $?
+}
+
+audiablealarm_status () {
+  	if [ -f $PIDFILE ]; then
+		echo running
+	else
+		echo stopped
+	fi
+
+	return 0
+}
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+case "$1" in
+   meta-data)		
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+   start)
+	for arg in "$OCF_RESKEY_nodelist"
+ 	  do
+	    if [ "$us" = "$arg" ]; then
+	      # We should not start because we are on a host
+	      # listed in our argument list.
+              exit 0
+	    fi
+	  done
+	audiablealarm_start
+	;;
+  stop)
+	audiablealarm_stop
+	;;
+  restart)
+	audiablealarm_restart 
+	;;
+  status|monitor)
+	audiablealarm_status 
+	;;
+  usage)
+	usage 
+	exit $OCF_SUCCESS
+	;;
+
+  *)
+	usage
+	exit $OCF_ERR_UNIMPLEMENTED
+	;;
+esac
+
+exit $?

@@ -1,0 +1,277 @@
+#!/bin/sh
+#
+# $Id: LVM.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# 
+# LVM
+#
+# Description:	Manages an LVM volume as an HA resource
+#
+#
+# Author:	Alan Robertson
+# Support:	linux-ha-dev@lists.tummy.com
+# License:	GNU Lesser General Public License (LGPL)
+# Copyright:	(C) 2002 International Business Machines, Inc.
+#
+#	This code significantly inspired by the LVM resource
+#	in FailSafe by Lars Marowsky-Bree
+#
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 ServeRAID::1::1 LVM::myvolname
+#
+# See usage() function below for more details...
+#
+#	  OCF parameters are as below:
+#		OCF_RESKEY_volgrpname
+#		
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+#######################################################################
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+
+usage() {
+  methods=`LVM_methods | grep -v methods`
+  methods=`echo $methods | tr ' ' '|'`
+  cat <<-! >&1
+	usage: $0 <LVM-configuration file> ($methods)
+	usage: $0 methods
+
+	$0 manages an  Linux Volume Manager volume (LVM) as an HA resource
+
+	The 'start' operation brings the given volume online
+	The 'stop' operation takes the given volume offline
+	The 'status' operation reports whether the volume is available
+	The 'monitor' operation reports whether the volume seems present
+	The 'methods' operation reports on the methods $0 supports
+
+	$Id: LVM.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	!
+  exit 1
+
+}
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="LVM" version="0.9">
+<version>1.0</version>
+
+<longdesc lang="en">
+Resource script for LVM. It manages an  Linux Volume Manager volume (LVM) 
+as an HA resource. 
+</longdesc>
+<shortdesc lang="en">LVM resource agent</shortdesc>
+
+<parameters>
+<parameter name="volgrpname" unique="0">
+<longdesc lang="en">
+The name of volume group.
+</longdesc>
+<shortdesc lang="en">Volume group name</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+
+<actions>
+<action name="start" timeout="30" />
+<action name="stop" timeout="30" />
+<action name="status" timeout="30" />
+<action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="methods" timeout="5" />
+<action name="meta-data" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+#
+#	run:  run a script, and log its output.
+#
+run() {
+  output=`"$@" 2>&1`
+  rc=$?
+  output=`echo $output`
+  if
+    [ $rc -eq 0 ]
+  then 
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "info" "$output"
+    fi
+    return 0
+  else
+    if
+      [ ! -z "$output" ]
+    then
+      ocf_log "err" "$output"
+    else
+      ocf_log "err" "command failed: $*"
+    fi
+    return $rc
+  fi
+}
+
+
+
+#
+# methods: What methods/operations do we support?
+#
+LVM_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	monitor
+	methods
+	usage
+	!
+}
+
+#
+#	Return LVM status (silently)
+#
+LVM_status() {
+
+  vgdisplay $1 | grep -i 'Status.*available' >/dev/null
+  
+}
+
+#
+#	Report on LVM volume status to stdout...
+#
+LVM_report_status() {
+
+  VGOUT=`vgdisplay $1 2>&1`
+  if
+    echo "$VGOUT" | grep -i 'Status.*available' >/dev/null
+  then
+    : Volume $1 is available
+  else
+    echo "LVM Volume $1 is not available (stopped)"
+    return 1
+  fi
+  if
+    echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
+  then
+    echo "Volume $1 is available read/write (running)"
+  else
+    echo "Volume $1 is available read-only (running)"
+  fi
+  
+  return $? 
+}
+
+#
+#	Monitor the volume - does it really seem to be working?
+#
+#
+LVM_monitor() {
+
+  if
+    LVM_status $1
+  then
+    : OK
+  else
+    ha_log "ERROR: LVM Volume $1 is offline"
+    return 1
+  fi
+
+  run vgck $1
+
+  return $?
+}
+
+#
+#	Enable LVM volume
+#
+LVM_start() {
+
+  ha_log "Activating volume group $1"
+  run vgscan $1
+  run vgchange -a y $1 || return 1
+
+  if
+    LVM_status $1
+  then
+    : OK Volume $1 activated just fine!
+    return 0
+  else
+    ha_log "ERROR: LVM: $1 did not activate correctly"
+    return 1
+  fi
+}
+
+#
+#	Disable the LVM volume
+#
+LVM_stop() {
+
+  ha_log "Deactivating volume group $1"
+  run vgchange -a n $1 || return 1
+
+  if
+    LVM_status $1
+  then
+    ha_log "ERROR: LVM: $1 did not stop correctly"
+    return 1
+  fi
+  return 0
+}
+
+
+#
+#	'main' starts here...
+#
+
+if
+  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+then
+  usage
+  exit 1
+fi
+
+if 
+  [ -z "$OCF_RESKEY_volgrpname" ]
+then
+  echo "You must identify the volume group name!"
+  usage
+  exit 1
+fi
+
+VOLUME=$OCF_RESKEY_volgrpname
+
+# What kind of method was invoked?
+case "$1" in
+
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  start)	LVM_start $VOLUME
+		exit $?;;
+
+  stop)		LVM_stop $VOLUME
+		exit $?;;
+
+  status)	LVM_report_status $VOLUME
+		exit $?;;
+
+  monitor)	LVM_monitor $VOLUME
+		exit $?;;
+
+  methods)	LVM_methods
+		exit $?;;
+
+  usage)	usage
+		exit exit $OCF_SUCCESS;;
+
+  *)		usage
+		exit $OCF_ERR_UNIMPLEMENTED;;
+esac
+
