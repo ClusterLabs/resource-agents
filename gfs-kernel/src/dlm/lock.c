@@ -495,8 +495,8 @@ void lm_dlm_cancel(lm_lock_t *lock)
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 	int dlist = FALSE;
 
-	printk("lock_dlm: cancel num=%x,%"PRIx64"\n",
-	       lp->lockname.ln_type, lp->lockname.ln_number);
+	log_all("cancel %x,%"PRIx64" flags %lx\n",
+		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	spin_lock(&lp->dlm->async_lock);
 	if (test_and_clear_bit(LFL_DLIST, &lp->flags)) {
@@ -508,6 +508,7 @@ void lm_dlm_cancel(lm_lock_t *lock)
 
 	if (dlist) {
 		set_bit(LFL_CANCEL, &lp->flags);
+		set_bit(LFL_WAIT_COMPLETE, &lp->flags);
 		queue_complete(lp);
 	}
 }

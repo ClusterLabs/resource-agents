@@ -127,6 +127,8 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_CANCEL, &lp->flags)) {
+		log_all("cancel %x,%"PRIx64" complete",
+			lp->lockname.ln_type, lp->lockname.ln_number);
 		lp->req = lp->cur;
 		acb.lc_ret |= LM_OUT_CANCELED;
 		goto out;
