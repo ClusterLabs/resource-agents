@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.266 $) dnl cvs revision
+AC_REVISION($Revision: 1.267 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -584,8 +584,12 @@ AC_CHECK_HEADERS(OpenIPMI/ipmi_auth.h)
 
 
 AC_MSG_CHECKING(for special libxml2 includes: )
-XML2HEAD=`$XML2CONFIG --cflags`
-AC_MSG_RESULT($XML2HEAD)
+if test "x$XML2CONFIG" = "x"; then
+   AC_MSG_RESULT(libxml2 config not found)
+else
+   XML2HEAD=`$XML2CONFIG --cflags`
+   AC_MSG_RESULT($XML2HEAD)
+fi
 
 CPPFLAGS="$CPPFLAGS $XML2HEAD"
 
