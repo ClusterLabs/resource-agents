@@ -61,7 +61,7 @@
 #define GFS_FORMAT_QU           (1500)
 #define GFS_FORMAT_EA           (1600)
 /*  These are part of the superblock  */
-#define GFS_FORMAT_FS           (1308)
+#define GFS_FORMAT_FS           (1309)
 #define GFS_FORMAT_MULTI        (1401)
 
 /*
