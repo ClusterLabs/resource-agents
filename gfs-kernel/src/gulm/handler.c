@@ -329,7 +329,7 @@ start_callback_qu (callback_qu_t * cq, int cnt)
 	if (cnt <= 0)
 		cnt = 2;
 	for (; cnt > 0; cnt--) {
-		err = kernel_thread (handler, cq, 0);	/* XXX linux part */
+		err = kernel_thread (handler, cq, 0);
 		if (err < 0) {
 			stop_callback_qu (cq);
 			/* calling stop here might not behave correctly in all error

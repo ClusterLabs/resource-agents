@@ -14,7 +14,7 @@
 #ifndef GULM_DOT_H
 #define GULM_DOT_H
 
-#define GULM_RELEASE_NAME "v6.0.0"
+#define GULM_RELEASE_NAME "<CVS>"
 
 #ifdef MODVERSIONS
 #include <linux/modversions.h>
@@ -30,6 +30,7 @@
 #include <linux/smp_lock.h>
 #include <linux/ctype.h>
 #include <linux/string.h>
+#include <linux/list.h>
 
 #ifndef TRUE
 #define TRUE (1)
@@ -63,7 +64,6 @@
 #define SCNX64 "LX"
 #endif
 
-#include <linux/list.h>
 
 #undef MAX
 #define MAX(a,b) ((a>b)?a:b)
@@ -107,6 +107,9 @@
 #define GIO_LVB_SIZE  (32)
 #define GIO_NAME_SIZE (32)
 #define GIO_NAME_LEN  (GIO_NAME_SIZE-1)
+#define GULM_CRC_INIT (0x6d696b65)
+#define gulm_gfs_lmSize (1<<13)  /* map size is a power of 2 */
+#define gulm_gfs_lmBits (0x1FFF) /* & is faster than % */
 
 /* What we know about this filesytem */
 struct gulm_fs_s {
@@ -121,80 +124,20 @@ struct gulm_fs_s {
 	uint32_t fsJID;
 	uint32_t lvb_size;
 
-	struct semaphore get_lock;	/* I am not 100% sure this is needed.
-					 * But it only hurts performance,
-					 * not correctness if it is
-					 * useless.  Sometime post52, need
-					 * to investigate.
-					 */
-
 	/* Stuff for the first mounter lock and state */
 	int firstmounting;
 	/* the recovery done func needs to behave slightly differnt when we are
 	 * the first node in an fs.
 	 */
 
-	void *mountlock;	/* this lock holds the Firstmounter state of the FS */
-	/* this is because all lock traffic is async, and really at this point
-	 * in time we want a sync behavor, so I'm left with doing something to
-	 * achive that.
-	 *
-	 * this works, but it is crufty, but I don't want to build a huge
-	 * queuing system for one lock that we touch twice at the beginning and
-	 * once on the end.
-	 *
-	 * I should change the firstmounter lock to work like the journal locks
-	 * and the node locks do.  Things are a lot cleaner now with the libgulm
-	 * interface than before. (when the firstmounter lock code was written)
-	 */
-	struct completion sleep;
-
 	/* Stuff for JID mapping locks */
 	uint32_t JIDcount;	/* how many JID locks are there. */
 };
 typedef struct gulm_fs_s gulm_fs_t;
 
-/* What we know about each locktable.
- * only one now-a-days. (the LTPX)
- * */
-typedef struct lock_table_s {
-	uint32_t magic_one;
-
-	int running;
-	struct task_struct *recver_task;
-	struct completion startup;
-	struct semaphore sender;
-
-	struct task_struct *sender_task;
-	wait_queue_head_t send_wchan;
-	spinlock_t queue_sender;
-	struct list_head to_be_sent;
-
-	int hashbuckets;
-	spinlock_t *hshlk;
-	struct list_head *lkhsh;
-
-	/* stats
-	 * it may be wise to make some of these into atomic numbers.
-	 * or something.  or not.
-	 * */
-	uint32_t locks_total;
-	uint32_t locks_unl;
-	uint32_t locks_exl;
-	uint32_t locks_shd;
-	uint32_t locks_dfr;
-	uint32_t locks_lvbs;
-	atomic_t locks_pending;
-	/* cannot count expired here. clients don't know this */
-
-	uint32_t lops;		/* just incr on each op */
-
-} lock_table_t;
-
 typedef struct gulm_cm_s {
 	uint8_t myName[64];
 	uint8_t clusterID[256]; /* doesn't need to be 256. */
-	uint8_t loaded;		/* True|False whether we grabbed the config data */
 	uint8_t starts;
 
 	uint32_t handler_threads;	/* howmany to have */
@@ -202,7 +145,13 @@ typedef struct gulm_cm_s {
 
 	uint64_t GenerationID;
 
-	lock_table_t ltpx;
+	/* lm interface pretty much requires that we maintian a table of
+	 * locks.  The way lvbs work is a prefect example of why.  As is
+	 * the panic you get if you send a cb up about a lock that has been
+	 * put away.
+	 */
+	struct list_head *gfs_lockmap;
+	spinlock_t *gfs_locklock;
 
 	gulm_interface_p hookup;
 
@@ -210,60 +159,54 @@ typedef struct gulm_cm_s {
 
 /* things about each lock. */
 typedef struct gulm_lock_s {
-	struct list_head gl_list;
-	atomic_t count;
+   struct list_head gl_list;
+   atomic_t count; /* gfs can call multiple gets and puts for same lock. */
 
-	uint32_t magic_one;
-	gulm_fs_t *fs;		/* which filesystem we belong to. */
-	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen;
-	uint8_t last_suc_state;	/* last state we succesfully got. */
-	char *lvb;
-
-	/* this is true when there is a lock request sent out for this lock.
-	 * All it really means is that if we've lost the master, and reconnect
-	 * to another, this lock needs to have it's request resent.
-	 *
-	 * This now has two stages.  Since a lock could be pending, but still in
-	 * the send queue.  So we don't want to resend requests that haven't
-	 * been sent yet.
-	 *
-	 * we don't handle the master losses here any more.  LTPX does that for
-	 * us.  Should consider removing the dupicated code then.
-	 */
-	int actuallypending;	/* may need to be atomic */
-	int in_to_be_sent;
-
-	enum { glck_nothing, glck_action, glck_state } req_type;
-	/* these three for the lock req.  We save them here so we can rebuild
-	 * the lock request if there was a server failover. (?still needed?)
-	 */
-	unsigned int cur_state;
-	unsigned int req_state;
-	unsigned int flags;
-
-	/* these three for actions. First is the action, next is result, last is
-	 * what threads wait on for the reply.
-	 */
-	int action;
-	int result;		/* ok, both are using this. */
-	struct completion actsleep;
-
+   uint8_t *key;
+   uint16_t keylen;
+   gulm_fs_t *fs; /* which fs we belong to */
+   char *lvb;
+   int cur_state; /* for figuring out wat reply to tell gfs. */
 } gulm_lock_t;
+
 
 /*****************************************************************************/
 /* cross pollenate prototypes */
 
-/* from gulm_lt.c */
-int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
-		uint8_t *fsname, uint8_t *pk, uint8_t pklen);
-void lt_logout (void);
-int lt_login (void);
+/* from gulm_firstlock.c */
 int get_mount_lock (gulm_fs_t * fs, int *first);
 int downgrade_mount_lock (gulm_fs_t * fs);
 int drop_mount_lock (gulm_fs_t * fs);
-int send_drop_all_exp (lock_table_t * lt);
-int send_drop_exp (gulm_fs_t * fs, lock_table_t * lt, char *name);
+
+/* from gulm_lt.c */
+int gulm_lt_init (void);
+void gulm_lt_release(void);
+int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
+		uint8_t *fsname, uint8_t *pk, uint8_t pklen);
+int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname);
+void do_drop_lock_req (uint8_t *key, uint16_t keylen, uint8_t state);
+int gulm_get_lock (lm_lockspace_t * lockspace, struct lm_lockname *name,
+	       lm_lock_t ** lockp);
+void gulm_put_lock (lm_lock_t * lock);
+unsigned int gulm_lock (lm_lock_t * lock, unsigned int cur_state,
+	   unsigned int req_state, unsigned int flags);
+unsigned int gulm_unlock (lm_lock_t * lock, unsigned int cur_state);
+void gulm_cancel (lm_lock_t * lock);
+int gulm_hold_lvb (lm_lock_t * lock, char **lvbp);
+void gulm_unhold_lvb (lm_lock_t * lock, char *lvb);
+void gulm_sync_lvb (lm_lock_t * lock, char *lvb);
+
+/* from gulm_plock.c */
+int gulm_plock_get (lm_lockspace_t * lockspace,
+		struct lm_lockname *name, unsigned long owner,
+		uint64_t * start, uint64_t * end, int *exclusive,
+		unsigned long *rowner);
+int gulm_plock (lm_lockspace_t * lockspace,
+	    struct lm_lockname *name, unsigned long owner,
+	    int wait, int exclusive, uint64_t start, uint64_t end);
+int gulm_punlock (lm_lockspace_t * lockspace,
+	      struct lm_lockname *name, unsigned long owner,
+	      uint64_t start, uint64_t end);
 
 /*from gulm_core.c */
 void cm_logout (void);

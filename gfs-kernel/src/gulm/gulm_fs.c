@@ -19,11 +19,10 @@
 #include <linux/file.h>
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
+#include <linux/utsname.h>	/* for extern system_utsname */
 
-#include "util.h"
-#include "load_info.h"
 #include "handler.h"
-#include "gulm_procinfo.h"
+#include "gulm_lock_queue.h"
 #include "gulm_jid.h"
 
 /* things about myself */
@@ -32,11 +31,12 @@ extern gulm_cm_t gulm_cm;
 /* globals for this file.*/
 uint32_t filesystems_count = 0;
 LIST_HEAD (filesystems_list);
-struct semaphore filesystem_lck;	/* we use a sema instead of a spin here because
-					 * all of the interruptible things we do inside
-					 * of it.
-					 * If i stop doing nasty things within this it doesn't need
-					 * to be a sema.
+struct semaphore filesystem_lck;	/* we use a sema instead of a spin
+					 * here because all of the
+					 * interruptible things we do
+					 * inside of it.  If i stop doing
+					 * nasty things within this it
+					 * doesn't need to be a sema.
 					 */
 struct semaphore start_stop_lock;
 atomic_t start_stop_cnt;
@@ -75,9 +75,10 @@ request_journal_replay_per_fs (void *d)
 			 "In fs (%s), jid %d was found for name (%s).\n",
 			 rf->fs->fs_name, jid, rf->name);
 
-		/* all that the replay journal call back into gfs does is malloc
-		 * some memory and add it to a list.  So we really don't need to
-		 * queue that action.  Since that is what gfs is doing.
+		/* all that the replay journal call back into gfs does is
+		 * malloc some memory and add it to a list.  So we really
+		 * don't need to queue that action.  Since that is what gfs
+		 * is doing.
 		 *
 		 * This will need to change if gfs changes.
 		 *
@@ -153,7 +154,8 @@ passup_droplocks (void)
 		fs = list_entry (tmp, gulm_fs_t, fs_list);
 		qu_drop_req (&fs->cq, fs->cb, fs->fsdata, LM_CB_DROPLOCKS, 0,
 			     0);
-		/* If this decides to block someday, we need to change this function.
+		/* If this decides to block someday, we need to change this
+		 * function.
 		 */
 	}
 	up (&filesystem_lck);
@@ -205,48 +207,6 @@ get_fs_by_name (uint8_t * name)
 /*****************************************************************************/
 
 /**
- * clear_locks - 
- * 
- * quick check to see if there was leaking
- * should I panic on these? or just complain?
- * 
- * Returns: void
- */
-void
-clear_locks (void)
-{
-	int i;
-	lock_table_t *lt = &gulm_cm.ltpx;
-
-	for (i = 0; i < lt->hashbuckets; i++) {
-		struct list_head *lcktmp, *lckfoo;
-		spin_lock (&lt->hshlk[i]);
-		list_for_each_safe (lcktmp, lckfoo, &lt->lkhsh[i]) {
-			gulm_lock_t *lck = NULL;
-			lck = list_entry (lcktmp, gulm_lock_t, gl_list);
-			/* need to relelase it. umm, should any even exist? */
-			log_err ("AH! Rogue lock buffer! refcount:%d\n",
-				 atomic_read (&lck->count));
-
-			if (lck->lvb) {
-				log_err ("AH! Rogue lock buffer with LVB!\n");
-				kfree (lck->lvb);
-			}
-
-			list_del (lcktmp);
-			kfree (lck);
-
-		}
-		spin_unlock (&lt->hshlk[i]);
-	}
-	kfree (lt->hshlk);
-	lt->hshlk = NULL;
-	kfree (lt->lkhsh);
-	lt->lkhsh = NULL;
-}
-
-/*****************************************************************************/
-/**
  * start_gulm_threads - 
  * @host_data: 
  * 
@@ -254,7 +214,7 @@ clear_locks (void)
  * Returns: int
  */
 int
-start_gulm_threads (char *csnm, char *host_data)
+start_gulm_threads (char *csnm, char *hostdata)
 {
 	int error = 0;
 
@@ -265,6 +225,14 @@ start_gulm_threads (char *csnm, char *host_data)
 		strncpy (gulm_cm.clusterID, csnm, 255);
 		gulm_cm.clusterID[255] = '\0';
 
+		if (hostdata != NULL && strlen (hostdata) > 0) {
+			strncpy (gulm_cm.myName, hostdata, 64);
+		} else {
+			strncpy (gulm_cm.myName, system_utsname.nodename, 64);
+		}
+		gulm_cm.myName[63] = '\0';
+
+
 		error = lg_initialize (&gulm_cm.hookup, gulm_cm.clusterID,
 				       "GFS Kernel Interface");
 		if (error != 0) {
@@ -273,11 +241,13 @@ start_gulm_threads (char *csnm, char *host_data)
 		}
 		gulm_cm.starts = TRUE;
 
-		error = load_info (host_data);
-		if (error != 0) {
-			log_err ("load_info failed. %d\n", error);
-			goto fail;
-		}
+		/* breaking away from ccs. just hardcoding defaults here.
+		 * Noone really used these anyways and if ppl want them
+		 * badly, we'll find another way to set them. (modprobe
+		 * options for example. or maybe sysfs?)
+		 * */
+		gulm_cm.handler_threads = 2;
+		gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
 
 		jid_init ();
 
@@ -286,10 +256,12 @@ start_gulm_threads (char *csnm, char *host_data)
 			log_err ("cm_login failed. %d\n", error);
 			goto fail;
 		}
+		error = glq_startup ();
+		if (error != 0) {
+			log_err ("glq_startup failed. %d\n", error);
+			goto fail;
+		}
 
-		/* lt_login() is called after the success packet for cm_login()
-		 * returns.
-		 */
 	}
       fail:
 	up (&start_stop_lock);
@@ -306,17 +278,71 @@ stop_gulm_threads (void)
 	atomic_dec (&start_stop_cnt);
 	if (atomic_read (&start_stop_cnt) == 0) {
 		/* last one, put it all away. */
-		lt_logout ();
+		glq_shutdown ();
 		cm_logout ();
-		clear_locks ();
 		lg_release (gulm_cm.hookup);
 		gulm_cm.hookup = NULL;
-		gulm_cm.loaded = FALSE;
 		gulm_cm.GenerationID = 0;
 	}
 	up (&start_stop_lock);
 }
 
+/*****************************************************************************/
+/**
+ * send_drop_exp - 
+ * @fs: 
+ * @name: 
+ * 
+ * 
+ * Returns: int
+ */
+int send_drop_exp (gulm_fs_t * fs, char *name)
+{
+	int len;
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if( item == NULL ) {
+		log_err("drop_exp: failed to get needed memory. skipping.\n");
+		return -ENOMEM;
+	}
+
+	item->key = kmalloc(GIO_KEY_SIZE, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		log_err("drop_exp: failed to get needed memory. skipping.\n");
+		return -ENOMEM;
+	}
+	item->keylen = pack_drop_mask(item->key, GIO_KEY_SIZE, fs->fs_name);
+
+	/* pretent lvb is name for drops. */
+	if (name != NULL) {
+		len = strlen(name) +1;
+		item->lvb = kmalloc(len, GFP_KERNEL);
+		if (item->lvb == NULL) {
+			glq_recycle_req(item); /* frees key for us */
+			log_err("drop_exp: failed to get needed memory. skipping.\n");
+			return -ENOMEM;
+		}
+		memcpy(item->lvb, name, len);
+	} else {
+		item->lvb = NULL;
+	}
+
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_drop;
+	item->state = 0;
+	item->flags = 0;
+	item->error = 0;
+	item->lvblen = 0;
+	item->finish = NULL;
+
+	glq_queue (item);
+
+	return 0;
+}
 /*****************************************************************************/
 
 /**
@@ -416,8 +442,6 @@ gulm_mount (char *table_name, char *host_data,
 	gulm->cb = cb;
 	gulm->fsdata = fsdata;
 	gulm->lvb_size = min_lvb_size;
-	init_completion (&gulm->sleep);
-	init_MUTEX (&gulm->get_lock);
 
 	if ((error = start_gulm_threads (work, host_data)) != 0) {
 		log_err ("Got a %d trying to start the threads.\n", error);
@@ -457,10 +481,6 @@ gulm_mount (char *table_name, char *host_data,
 
 	log_msg (lgm_JIDMap, "fsid=%s: We will be using jid %d\n",
 		 gulm->fs_name, gulm->fsJID);
-
-	if (add_to_proc (gulm) != 0) {
-		/* ignored for now */
-	}
 
 	lockstruct->ls_jid = gulm->fsJID;
 	lockstruct->ls_first = first;
@@ -509,11 +529,10 @@ gulm_others_may_mount (lm_lockspace_t * lockspace)
 {
 	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
 	int err = 0;
-	lock_table_t *lt = &gulm_cm.ltpx;
 
 	/* first send the drop all exp message.
 	 * */
-	err = send_drop_exp (fs, lt, NULL);
+	err = send_drop_exp (fs, NULL);
 	if (err < 0)
 		log_err
 		    ("fsid=%s: Problems sending DropExp request to LTPX: %d\n",
@@ -555,8 +574,6 @@ gulm_unmount (lm_lockspace_t * lockspace)
 	jid_lockstate_release (gulm_fs);
 
 	stop_callback_qu (&gulm_fs->cq);
-
-	remove_from_proc (gulm_fs);
 
 	kfree (gulm_fs);
 
@@ -601,7 +618,7 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 	log_msg (lgm_JIDMap, "fsid=%s: Found %s for jid %d\n",
 		 fs->fs_name, name, jid);
 
-	err = send_drop_exp (fs, &gulm_cm.ltpx, name);
+	err = send_drop_exp (fs, name);
 
 	if (jid != fs->fsJID) {
 		/* rather dumb to do this to ourselves right after we mount... */

@@ -11,6 +11,9 @@
 *******************************************************************************
 ******************************************************************************/
 
+/* TODO what do all of these defines do?
+ * do I use any of them anymore?
+ */
 #define EXPORT_SYMTAB
 #define WANT_DEBUG_NAMES
 #define WANT_GMALLOC_NAMES
@@ -19,14 +22,33 @@
 
 #include <linux/init.h>
 
-#include "util.h"
-#include "gulm_procinfo.h"
+#include "gulm_lock_queue.h"
 
 MODULE_DESCRIPTION ("Grand Unified Locking Module " GULM_RELEASE_NAME);
 MODULE_AUTHOR ("Red Hat, Inc.");
 MODULE_LICENSE ("GPL");
 
-extern gulm_cm_t gulm_cm;
+gulm_cm_t gulm_cm;
+
+struct lm_lockops gulm_ops = {
+      lm_proto_name:PROTO_NAME,
+      lm_mount:gulm_mount,
+      lm_others_may_mount:gulm_others_may_mount,
+      lm_unmount:gulm_unmount,
+      lm_get_lock:gulm_get_lock,
+      lm_put_lock:gulm_put_lock,
+      lm_lock:gulm_lock,
+      lm_unlock:gulm_unlock,
+      lm_cancel:gulm_cancel,
+      lm_hold_lvb:gulm_hold_lvb,
+      lm_unhold_lvb:gulm_unhold_lvb,
+      lm_sync_lvb:gulm_sync_lvb,
+      lm_plock_get:gulm_plock_get,
+      lm_plock:gulm_plock,
+      lm_punlock:gulm_punlock,
+      lm_recovery_done:gulm_recovery_done,
+      lm_owner:THIS_MODULE,
+};
 
 /**
  * init_gulm - Initialize the gulm module
@@ -39,7 +61,6 @@ init_gulm (void)
 	int error;
 
 	memset (&gulm_cm, 0, sizeof (gulm_cm_t));
-	gulm_cm.loaded = FALSE;
 	gulm_cm.hookup = NULL;
 
 	/* register with the lm layers. */
@@ -47,10 +68,13 @@ init_gulm (void)
 	if (error)
 		goto fail;
 
-	error = init_proc_dir ();
-	if (error != 0) {
-		goto fail_lm;
-	}
+	error = glq_init();
+	if (error != 0 )
+		goto lm_fail;
+
+	error = gulm_lt_init();
+	if (error != 0)
+		goto glq_fail;
 
 	init_gulm_fs ();
 
@@ -59,7 +83,10 @@ init_gulm (void)
 
 	return 0;
 
-      fail_lm:
+glq_fail:
+	glq_release();
+
+   lm_fail:
 	lm_unregister_proto (&gulm_ops);
 
       fail:
@@ -74,7 +101,8 @@ init_gulm (void)
 void __exit
 exit_gulm (void)
 {
-	remove_proc_dir ();
+	gulm_lt_release();
+	glq_release();
 	lm_unregister_proto (&gulm_ops);
 }
 
@@ -105,3 +133,4 @@ EXPORT_SYMBOL (lg_lock_state_req);
 EXPORT_SYMBOL (lg_lock_cancel_req);
 EXPORT_SYMBOL (lg_lock_action_req);
 EXPORT_SYMBOL (lg_lock_drop_exp);
+/* vim: set ai cin noet sw=8 ts=8 : */

@@ -27,18 +27,17 @@ PWD := $(shell pwd)
   
 obj-m := lock_gulm.o
 lock_gulm-objs := gulm_core.o \
+	gulm_firstlock.o \
 	gulm_fs.o \
 	gulm_jid.o \
+	gulm_lock_queue.o \
 	gulm_lt.o \
-	gulm_procinfo.o \
+	gulm_main.o \
+	gulm_plock.o \
 	handler.o \
 	lg_core.o \
 	lg_lock.o \
 	lg_main.o \
-	linux_gulm_main.o \
-	load_info.o \
-	util.o \
-	utils_crc.o \
 	utils_tostr.o \
 	xdr_base.o \
 	xdr_io.o \

@@ -162,6 +162,7 @@ int lg_lock_drop_exp (gulm_interface_p, uint8_t * holder,
 #define lg_lock_flag_IgnoreExp   (0x00000008)
 #define lg_lock_flag_Cachable    (0x00000020)
 #define lg_lock_flag_Piority     (0x00000040)
+#define lg_lock_flag_NoCallBacks (0x00000100)
 
 /* These are the possible values that can be in the error fields. */
 #define lg_err_Ok              (0)

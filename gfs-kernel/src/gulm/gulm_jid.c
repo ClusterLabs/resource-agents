@@ -20,7 +20,7 @@
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
 
-#include "util.h"
+#include "gulm_lock_queue.h"
 
 extern gulm_cm_t gulm_cm;
 
@@ -41,18 +41,6 @@ extern gulm_cm_t gulm_cm;
  */
 #define jid_header_lvb_size (8)
 
-struct jid_lookup_item_s {
-	struct list_head jp_list;
-	uint8_t *key;
-	uint16_t keylen;
-	uint8_t *lvb;
-	uint16_t lvblen;
-	struct completion waitforit;
-};
-typedef struct jid_lookup_item_s jid_lookup_item_t;
-
-LIST_HEAD (jid_pending_locks);
-spinlock_t jid_pending;
 struct semaphore jid_listlock;
 
 /**
@@ -61,7 +49,6 @@ struct semaphore jid_listlock;
 void
 jid_init (void)
 {
-	spin_lock_init (&jid_pending);
 	init_MUTEX (&jid_listlock);
 }
 
@@ -140,106 +127,81 @@ jid_get_lock_name (uint8_t * fsname, uint32_t jid, uint8_t * key,
 }
 
 /**
- * jid_hold_lvb - 
- * @key: 
- * @keylen: 
+ * gulm_jid_finish - 
+ * @item: 
  * 
- * 
- */
-void
-jid_hold_lvb (uint8_t * key, uint16_t keylen)
-{
-	jid_lookup_item_t jp;
-	GULM_ASSERT (keylen > 6,);
-	jp.key = key;
-	jp.keylen = keylen;
-	jp.lvb = NULL;
-	jp.lvblen = 0;
-	INIT_LIST_HEAD (&jp.jp_list);
-	init_completion (&jp.waitforit);
-
-	spin_lock (&jid_pending);
-	list_add (&jp.jp_list, &jid_pending_locks);
-	spin_unlock (&jid_pending);
-
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-			    lg_lock_act_HoldLVB, NULL, 0);
-
-	wait_for_completion (&jp.waitforit);
-}
-
-void
-jid_unhold_lvb (uint8_t * key, uint16_t keylen)
-{
-	jid_lookup_item_t jp;
-	GULM_ASSERT (keylen > 6,);
-	jp.key = key;
-	jp.keylen = keylen;
-	jp.lvb = NULL;
-	jp.lvblen = 0;
-	INIT_LIST_HEAD (&jp.jp_list);
-	init_completion (&jp.waitforit);
-
-	spin_lock (&jid_pending);
-	list_add (&jp.jp_list, &jid_pending_locks);
-	spin_unlock (&jid_pending);
-
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-			    lg_lock_act_UnHoldLVB, NULL, 0);
-
-	wait_for_completion (&jp.waitforit);
-}
-
-void
-jid_sync_lvb (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
-{
-	jid_lookup_item_t jp;
-	GULM_ASSERT (keylen > 6,);
-	jp.key = key;
-	jp.keylen = keylen;
-	jp.lvb = NULL;
-	jp.lvblen = 0;
-	INIT_LIST_HEAD (&jp.jp_list);
-	init_completion (&jp.waitforit);
-
-	spin_lock (&jid_pending);
-	list_add (&jp.jp_list, &jid_pending_locks);
-	spin_unlock (&jid_pending);
-
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-			    lg_lock_act_SyncLVB, lvb, lvblen);
-
-	wait_for_completion (&jp.waitforit);
-}
-
-/**
- * jid_action_reply - 
- * @key: 
- * @keylen: 
- * 
- * called from the lock handler callback.
  * 
  * Returns: void
  */
-void
-jid_action_reply (uint8_t * key, uint16_t keylen)
+void gulm_jid_finish (struct glck_req *item)
 {
-	struct list_head *tmp, *nxt;
-	jid_lookup_item_t *jp, *fnd = NULL;
-	spin_lock (&jid_pending);
-	list_for_each_safe (tmp, nxt, &jid_pending_locks) {
-		jp = list_entry (tmp, jid_lookup_item_t, jp_list);
-		if (memcmp (key, jp->key, MIN (keylen, jp->keylen)) == 0) {
-			fnd = jp;
-			list_del (tmp);
-			break;
-		}
-	}
-	spin_unlock (&jid_pending);
-
-	if (fnd != NULL)
-		complete (&fnd->waitforit);
+	struct completion *sleep = (struct completion *)item->misc;
+	complete (sleep);
 }
+
+/**
+ * jid_lvb_action - 
+ * @key: 
+ * @keylen: 
+ * @lvb: 
+ * @lvblen: 
+ * @action: 
+ * 
+ * 
+ * Returns: void
+ */
+void jid_lvb_action (uint8_t * key, uint16_t keylen, uint8_t * lvb,
+		uint16_t lvblen, uint8_t action)
+{
+	struct completion sleep;
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if (item == NULL) {
+		return;
+	}
+
+	item->key = kmalloc(keylen, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		return;
+	}
+	memcpy(item->key, key, keylen);
+	item->keylen = keylen;
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_action;
+	item->state = action;
+	item->flags = 0;
+	item->error =  0;
+	item->lvb = lvb;
+	item->lvblen = lvblen;
+
+	init_completion (&sleep);
+
+	item->misc = &sleep;
+	item->finish = gulm_jid_finish;
+
+	glq_queue (item);
+	wait_for_completion (&sleep);
+}
+void
+jid_sync_lvb (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
+{
+	jid_lvb_action (key, keylen, lvb, lvblen, lg_lock_act_SyncLVB);
+}
+void
+jid_unhold_lvb (uint8_t * key, uint16_t keylen)
+{
+	jid_lvb_action (key, keylen, NULL, 0, lg_lock_act_UnHoldLVB);
+}
+void
+jid_hold_lvb (uint8_t * key, uint16_t keylen)
+{
+	jid_lvb_action (key, keylen, NULL, 0, lg_lock_act_HoldLVB);
+}
+
 
 /**
  * jid_get_lock_state_inr - 
@@ -256,24 +218,41 @@ void
 jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 			uint32_t flags, uint8_t * lvb, uint16_t lvblen)
 {
-	jid_lookup_item_t jp;
+	struct completion sleep;
+	glckr_t *item;
 	GULM_ASSERT (keylen > 6,
 			printk("keylen: %d\n", keylen););
-	jp.key = key;
-	jp.keylen = keylen;
-	jp.lvb = lvb;
-	jp.lvblen = lvblen;
-	INIT_LIST_HEAD (&jp.jp_list);
-	init_completion (&jp.waitforit);
 
-	spin_lock (&jid_pending);
-	list_add (&jp.jp_list, &jid_pending_locks);
-	spin_unlock (&jid_pending);
+	init_completion (&sleep);
 
-	lg_lock_state_req (gulm_cm.hookup, key, keylen, 0, 0, ~((uint64_t)0),
-			state, flags, lvb, lvblen);
+	item = glq_get_new_req();
+	if (item == NULL) {
+		return;
+	}
 
-	wait_for_completion (&jp.waitforit);
+	item->key = kmalloc(keylen, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		return;
+	}
+	memcpy(item->key, key, keylen);
+	item->keylen = keylen;
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_state;
+	item->state = state;
+	item->flags = flags;
+	item->error =  0;
+	item->lvb = lvb;
+	item->lvblen = lvblen;
+
+	item->misc = &sleep;
+	item->finish = gulm_jid_finish;
+
+	glq_queue (item);
+
+	wait_for_completion (&sleep);
 }
 
 /**
@@ -304,38 +283,6 @@ void
 jid_get_lock_state (uint8_t * key, uint16_t keylen, uint8_t state)
 {
 	jid_get_lock_state_inr (key, keylen, state, 0, NULL, 0);
-}
-
-/**
- * jid_state_reply - 
- * @key: 
- * @keylen: 
- * @lvb: 
- * @lvblen: 
- * 
- * 
- */
-void
-jid_state_reply (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
-{
-	struct list_head *tmp, *nxt;
-	jid_lookup_item_t *jp, *fnd = NULL;
-	spin_lock (&jid_pending);
-	list_for_each_safe (tmp, nxt, &jid_pending_locks) {
-		jp = list_entry (tmp, jid_lookup_item_t, jp_list);
-		if (memcmp (key, jp->key, MIN (keylen, jp->keylen)) == 0) {
-			fnd = jp;
-			list_del (tmp);
-			break;
-		}
-	}
-	spin_unlock (&jid_pending);
-
-	if (fnd != NULL) {
-		if (lvb != NULL && fnd->lvb != NULL)
-			memcpy (fnd->lvb, lvb, MIN (fnd->lvblen, lvblen));
-		complete (&fnd->waitforit);
-	}
 }
 
 /****************************************************************************/
@@ -393,19 +340,9 @@ void
 jid_rehold_lvbs (gulm_fs_t * fs)
 {
 	int i;
-	uint32_t oldjcnt;
-	uint8_t key[GIO_KEY_SIZE], lvb[jid_header_lvb_size];
+	uint32_t oldjcnt=0;
+	uint8_t key[GIO_KEY_SIZE];
 	uint16_t keylen = GIO_KEY_SIZE;
-
-	oldjcnt = fs->JIDcount;
-
-	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_get_lock_state_lvb (key, keylen, lg_lock_state_Shared, lvb,
-				jid_header_lvb_size);
-	fs->JIDcount = (uint32_t) (lvb[0]) << 0;
-	fs->JIDcount |= (uint32_t) (lvb[1]) << 8;
-	fs->JIDcount |= (uint32_t) (lvb[2]) << 16;
-	fs->JIDcount |= (uint32_t) (lvb[3]) << 24;
 
 	for (i = oldjcnt; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
@@ -413,36 +350,6 @@ jid_rehold_lvbs (gulm_fs_t * fs)
 		jid_hold_lvb (key, keylen);
 	}
 
-}
-
-void
-jid_grow_space (gulm_fs_t * fs)
-{
-	uint8_t key[GIO_KEY_SIZE], lvb[jid_header_lvb_size];
-	uint16_t keylen = GIO_KEY_SIZE;
-	uint32_t jidc;
-
-	keylen = sizeof (key);
-	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-				lg_lock_flag_IgnoreExp, lvb,
-				jid_header_lvb_size);
-	jidc = (uint32_t) (lvb[0]) << 0;
-	jidc |= (uint32_t) (lvb[1]) << 8;
-	jidc |= (uint32_t) (lvb[2]) << 16;
-	jidc |= (uint32_t) (lvb[3]) << 24;
-	jidc += 300;
-	lvb[3] = (jidc >> 24) & 0xff;
-	lvb[2] = (jidc >> 16) & 0xff;
-	lvb[1] = (jidc >> 8) & 0xff;
-	lvb[0] = (jidc >> 0) & 0xff;
-	jid_sync_lvb (key, keylen, lvb, jid_header_lvb_size);
-	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
-	/* do an unlock here, so that when rehold grabs it shared, there is no
-	 * lvb writing.
-	 */
-
-	jid_rehold_lvbs (fs);
 }
 
 /**
@@ -543,7 +450,6 @@ get_journalID (gulm_fs_t * fs)
 	uint16_t keylen = GIO_KEY_SIZE;
 	int first_clear = -1;
 
-      retry:
 	jid_hold_list_lock (fs);
 
 	/* find an empty space, or ourselves again */
@@ -577,12 +483,7 @@ get_journalID (gulm_fs_t * fs)
 	/* unlock the header lock */
 	jid_release_list_lock (fs);
 
-	if (first_clear < 0) {
-		/* nothing found, grow and try again. */
-		jid_grow_space (fs);
-		goto retry;
-	}
-
+	GULM_ASSERT( first_clear >= 0,);
 }
 
 /**
@@ -669,17 +570,12 @@ check_for_stale_expires (gulm_fs_t * fs)
  * jid_fs_init - 
  * @fs: 
  * 
+ * This is very icky. but it works for the time being. must fix later.
  */
 void
 jid_fs_init (gulm_fs_t * fs)
 {
-	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen = GIO_KEY_SIZE;
-
-	fs->JIDcount = 0;
-
-	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_hold_lvb (key, keylen);
+	fs->JIDcount = 300;
 	jid_rehold_lvbs (fs);
 }
 
@@ -699,104 +595,76 @@ jid_fs_release (gulm_fs_t * fs)
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
 		jid_unhold_lvb (key, keylen);
 	}
-	keylen = sizeof (key);
-	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_unhold_lvb (key, keylen);
-	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
-}
-
-/**
- * jid_unlock_callback - 
- * @d: 
- * 
- * *MUST* be called from a Handler thread.
- * 
- * Returns: int
- */
-void
-jid_unlock_callback (void *d)
-{
-	uint8_t key[GIO_KEY_SIZE];
-	uint16_t keylen = GIO_KEY_SIZE;
-
-	gulm_fs_t *fs = (gulm_fs_t *) d;
-	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
-
-	jid_rehold_lvbs (fs);
-}
-
-/**
- * jid_header_lock_drop - 
- * @key: 
- * @keylen: 
- * 
- * Returns: void
- */
-void
-jid_header_lock_drop (uint8_t * key, uint16_t keylen)
-{
-	gulm_fs_t *fs;
-	/* make sure this is the header lock.... */
-	if (key[1] == 'H' && (fs = get_fs_by_name (&key[10])) != NULL) {
-		qu_function_call (&fs->cq, jid_unlock_callback, fs);
-	}
 }
 
 /****************************************************************************/
-/**
- * jid_get_lsresv_name - 
- * @fsname: 
- * @key: 
- * @keylen: 
- * 
- * 
- * Returns: int
+/* 6 bytes for stuff in key (lengths and type bytes)
+ * 32 for fs name
+ * 64 for node name.
  */
-int
-jid_get_lsresv_name (char *fsname, uint8_t * key, uint16_t * keylen)
+#define NodeLockNameLen (6 + 32 + 64)
+
+/**
+ * gulm_nodelock_finish - 
+ * @item: 
+ * 
+ * 
+ * Returns: void
+ */
+void gulm_nodelock_finish (struct glck_req *item)
 {
-	int len;
-
-	len = strlen(gulm_cm.myName);
-	len = pack_lock_key(key, *keylen, 'N', fsname, gulm_cm.myName,
-			MIN(64,len));
-	if( len <=0 ) return len;
-
-	*keylen = len;
-
-	return 0;
+	struct completion *sleep = (struct completion *)item->misc;
+	complete (sleep);
 }
 
 /**
  * jid_lockstate_reserve - 
  * @fs: 
  * 
+ * if we are expired, this will block until someone else has
+ * cleaned our last mess up.
+ *
+ * Will very well may need to put in some kind of timeout
+ * otherwise this may do a forever lockup much like the
+ * FirstMounter lock had.
  * 
  * Returns: void
  */
 void
 jid_lockstate_reserve (gulm_fs_t * fs, int first)
 {
-	uint8_t key[5 + 32 + 64];
-	uint16_t keylen = 5 + 32 + 64;
-	/* 5 bytes for stuff in key (lengths and type bytes)
-	 * 32 for fs name
-	 * 64 for node name.
-	 */
+	int len;
+	struct completion sleep;
+	glckr_t *item;
 
-	jid_get_lsresv_name (fs->fs_name, key, &keylen);
+	item = glq_get_new_req();
+	if (item == NULL) {
+		return;
+	}
 
-	/* if we are expired, this will block until someone else has
-	 * cleaned our last mess up.
-	 *
-	 * Will very well may need to put in some kind of timeout
-	 * otherwise this may do a forever lockup much like the
-	 * FirstMounter lock had.
-	 */
-	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-			first?lg_lock_flag_IgnoreExp:0, NULL, 0);
+	item->key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		return;
+	}
+	len = strlen(gulm_cm.myName);
+	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
+			fs->fs_name, gulm_cm.myName, MIN(64,len));
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_state;
+	item->state = lg_lock_state_Exclusive;
+	item->flags = (first?lg_lock_flag_IgnoreExp:0)|lg_lock_flag_NoCallBacks;
+	item->error = 0;
 
+	init_completion (&sleep);
+
+	item->misc = &sleep;
+	item->finish = gulm_nodelock_finish;
+
+	glq_queue (item);
+	wait_for_completion (&sleep);
 }
 
 /**
@@ -809,13 +677,38 @@ jid_lockstate_reserve (gulm_fs_t * fs, int first)
 void
 jid_lockstate_release (gulm_fs_t * fs)
 {
-	uint8_t key[5 + 32 + 64];
-	uint16_t keylen = 5 + 32 + 64;
+	int len;
+	struct completion sleep;
+	glckr_t *item;
 
-	jid_get_lsresv_name (fs->fs_name, key, &keylen);
+	item = glq_get_new_req();
+	if (item == NULL) {
+		return;
+	}
 
-	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
+	item->key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		return;
+	}
+	len = strlen(gulm_cm.myName);
+	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
+			fs->fs_name, gulm_cm.myName, MIN(64,len));
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_state;
+	item->state = lg_lock_state_Unlock;
+	item->flags = 0;
+	item->error = 0;
 
+	init_completion (&sleep);
+
+	item->misc = &sleep;
+	item->finish = gulm_nodelock_finish;
+
+	glq_queue (item);
+	wait_for_completion (&sleep);
 }
 
 

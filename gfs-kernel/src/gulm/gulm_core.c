@@ -20,7 +20,7 @@
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
 
-#include "util.h"
+#include "gulm_lock_queue.h"
 #include "utils_tostr.h"
 
 extern gulm_cm_t gulm_cm;
@@ -51,12 +51,6 @@ gulm_core_login_reply (void *misc, uint64_t gen, uint32_t error,
 	}
 	gulm_cm.GenerationID = gen;
 
-	error = lt_login ();
-	if (error != 0) {
-		log_err ("lt_login failed. %d\n", error);
-		lg_core_logout (gulm_cm.hookup);	/* XXX is this safe? */
-		return error;
-	}
 
 	log_msg (lgm_Network2, "Logged into local core.\n");
 
@@ -90,7 +84,7 @@ gulm_core_nodechange (void *misc, char *nodename,
 	 */
 	if (gulm_cm.starts && nodestate == lg_core_Logged_out &&
 			strcmp(gulm_cm.myName, nodename) == 0 ) {
-		lt_logout();
+		glq_shutdown ();
 		cm_thd_running = FALSE;
 		lg_core_logout (gulm_cm.hookup);
 		return -1;

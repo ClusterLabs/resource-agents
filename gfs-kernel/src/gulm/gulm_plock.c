@@ -1,0 +1,204 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#include "gulm.h"
+
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/slab.h>
+#include <linux/file.h>
+#define __KERNEL_SYSCALLS__
+#include <linux/unistd.h>
+
+#include "gulm_lock_queue.h"
+
+/*****************************************************************************/
+struct gulm_pret_s {
+	int error;
+	struct completion sleep;
+};
+
+/**
+ * gulm_plock_packname - 
+ * @fsname: 
+ * @num: 
+ * @key: 
+ * @keylen: 
+ * 
+ * 
+ * Returns: int
+ */
+int gulm_plock_packname(uint8_t * fsname, uint64_t num, uint8_t *key, uint16_t keylen)
+{
+	uint8_t temp[8];
+	temp[0] = (num >> 56) & 0xff;
+	temp[1] = (num >> 48) & 0xff;
+	temp[2] = (num >> 40) & 0xff;
+	temp[3] = (num >> 32) & 0xff;
+	temp[4] = (num >> 24) & 0xff;
+	temp[5] = (num >> 16) & 0xff;
+	temp[6] = (num >> 8) & 0xff;
+	temp[7] = (num >> 0) & 0xff;
+	return pack_lock_key(key, keylen, 'P', fsname, temp, 8);
+}
+
+/**
+ * gulm_plock_finish - 
+ * @glck: 
+ * 
+ * 
+ * Returns: void
+ */
+void gulm_plock_finish(struct glck_req *glck)
+{
+	struct gulm_pret_s *g = (struct gulm_pret_s *)glck->misc;
+	g->error = glck->error;
+	complete (&g->sleep);
+}
+
+/**
+ * gulm_plock_get - 
+ */
+int
+gulm_plock_get (lm_lockspace_t * lockspace,
+		struct lm_lockname *name, unsigned long owner,
+		uint64_t * start, uint64_t * end, int *exclusive,
+		unsigned long *rowner)
+{
+	/* gulm currently does not have an interface for this.
+	 * I'm not sure what i will do here, but I am sure i cannot leave
+	 * it as enosys.
+	 */
+	/* One idea is add a test flag.  This flag would return error codes
+	 * similar to what the Try flag would, but would never actually get
+	 * the lock.
+	 *
+	 * This is not quite what plockget is.  But would as acurate as
+	 * plcokget has ever been tell you if what you asked for is
+	 * avaible.  Where is breaks, is that you do not get the range and
+	 * pid of who is blocking you.  But you cannot get those values in
+	 * a meaningful way unless you have soemthing like ssi running
+	 * anyways.  (and i get the feeling that ppl with that won't be
+	 * running gulm anyhow.)
+	 *
+	 * In anycase, adding the test flag will be the least amount of
+	 * code changes require to get something here working.
+	 */
+	/* the simplest idea of course, is to always return nothing
+	 * blocking.  Not very correct either, but giving the racy
+	 * semantics this has, one could argue....
+	 */
+	return -ENOSYS;
+}
+
+/**
+ * gulm_plock - 
+ */
+int
+gulm_plock (lm_lockspace_t * lockspace,
+	    struct lm_lockname *name, unsigned long owner,
+	    int wait, int exclusive, uint64_t start, uint64_t end)
+{
+	int err = 0;
+	struct gulm_pret_s pret;
+	uint8_t key[GIO_KEY_SIZE];
+	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if( item == NULL ) {
+		err = -ENOMEM;
+		goto fail;
+	}
+
+	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
+			key, GIO_KEY_SIZE);
+	item->key = key;
+	item->subid = owner;
+	item->start = start;
+	item->stop = end;
+	item->type = glq_req_type_state;
+	if (exclusive) {
+		item->state = lg_lock_state_Exclusive;
+	} else {
+		item->state = lg_lock_state_Shared;
+	}
+	item->flags = lg_lock_flag_NoCallBacks;
+	if (wait)
+		item->flags |= lg_lock_flag_Try;
+	item->error = pret.error = 0;
+
+	init_completion (&pret.sleep);
+
+	item->misc = &pret;
+	item->finish = gulm_plock_finish;
+
+	glq_queue (item);
+	wait_for_completion (&pret.sleep);
+
+	if (pret.error == lg_err_TryFailed) {
+		err = -EAGAIN;
+	} else {
+		err = -pret.error;
+	}
+
+fail:
+	return err;
+}
+
+/**
+ * gulm_unplock - 
+ */
+int
+gulm_punlock (lm_lockspace_t * lockspace,
+	      struct lm_lockname *name, unsigned long owner,
+	      uint64_t start, uint64_t end)
+{
+	int err = 0;
+	struct gulm_pret_s pret;
+	uint8_t key[GIO_KEY_SIZE];
+	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if( item == NULL ) {
+		err = -ENOMEM;
+		goto fail;
+	}
+
+	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
+			key, GIO_KEY_SIZE);
+	item->key = key;
+	item->subid = owner;
+	item->start = start;
+	item->stop = end;
+	item->type = glq_req_type_state;
+	item->state = lg_lock_state_Unlock;
+	item->flags = 0;
+	item->error = pret.error = 0;
+
+	init_completion (&pret.sleep);
+
+	item->misc = &pret;
+	item->finish = gulm_plock_finish;
+
+	glq_queue (item);
+	wait_for_completion (&pret.sleep);
+
+	err = -pret.error;
+
+fail:
+	return err;
+}
+
+/* vim: set ai cin noet sw=8 ts=8 : */
