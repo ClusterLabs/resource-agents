@@ -52,9 +52,11 @@ static uint32_t lookup_bcast(uint32_t localaddr)
     return 0;
 }
 
+/* Set the socket priority to INTERACTIVE to ensure
+   that our messages don't get queued behind anything else */
 static void set_priority(int sock)
 {
-    int prio = 3;
+    int prio = 6; /* TC_PRIO_INTERACTIVE */
 
     if (setsockopt(sock, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)))
 	perror("Error setting socket priority");
