@@ -735,15 +735,8 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 
 	/* Check that the message is from the node we think it is from */
 	if (rem_node && !valid_addr_for_node(rem_node, addr)) {
-		int i;
-		printk("Node %s is being spoofed by node addr: ", rem_node->name);
-		for (i=0; i<address_length; i++) {
-			printk("0x%02x ", addr[i]);
-		}
-		printk("\n");
 		return;
 	}
-
 
 	/* If it's a new node then assign it a temporary node ID */
 	if (!rem_node)
