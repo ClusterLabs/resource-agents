@@ -380,7 +380,7 @@ gfs_proc_init(void)
 	spin_lock_init(&gfs_proc_margs_lock);
 	spin_lock_init(&req_lock);
 
-	pde = create_proc_entry("fs/gfs", S_IFREG | 0200, NULL);
+	pde = create_proc_entry("fs/gfs", S_IFREG | 0600, NULL);
 	if (pde) {
 		pde->owner = THIS_MODULE;
 		pde->proc_fops = &gfs_proc_fops;
