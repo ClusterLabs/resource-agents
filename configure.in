@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.22 $) dnl cvs revision
+AC_REVISION($Revision: 1.23 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -197,8 +197,9 @@ fi
 case "$host_os" in
 *solaris*)	HEARTBEAT_LIBS="-lposix4"
 		;;
-dnl *bsd*)	STONITH_LDADD="-lintl"
-dnl 		;;
+*bsd*)		LIBS="$LIBS -L/usr/local/libs"
+dnl		STONITH_LDADD="-lintl"
+		;;
 dnl *linux*)	STONITH_LDADD="-ldl"
 dnl 		;;
 esac
