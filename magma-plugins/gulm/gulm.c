@@ -536,8 +536,12 @@ gulm_get_event(cluster_plugin_t *self, int fd)
 
         } while (ret >= 0);
 
-	if (ret < 0)
+	if (ret < 0) {
+		/* Broken pipe/shutdown.  At this point, we need to kill
+		   the lock file descriptor too. */
+		close(lg_lock_selector(pg));
 		return CE_SHUTDOWN;
+	}
 
         return event;
 }
