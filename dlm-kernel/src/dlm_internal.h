@@ -93,11 +93,15 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 
 #define log_all(ls, fmt, args...) \
 	do { \
+		dlm_debug_log(ls, fmt, ##args); \
+	} while (0)
+
+#define log_error(ls, fmt, args...) \
+	do { \
 		printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args); \
 		dlm_debug_log(ls, fmt, ##args); \
 	} while (0)
 
-#define log_error log_all
 
 #if defined(DLM_DEBUG2)
 int nibbler_printf(const char *fmt, ...);

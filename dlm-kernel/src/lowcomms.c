@@ -484,7 +484,7 @@ static int accept_from_sock(struct connection *con)
 		return -1;
 	}
 
-	log_print("got connection from %d", nodeid);
+	log_debug2("got connection from %d", nodeid);
 
 	/*  Check to see if we already have a connection to this node. This
 	 *  could happen if the two nodes initiate a connection at roughly
@@ -587,7 +587,7 @@ static int connect_to_sock(struct connection *con)
 
 	add_sock(sock, con);
 
-	log_print("connecting to %d", con->nodeid);
+	log_debug2("connecting to %d", con->nodeid);
 	result =
 	    sock->ops->connect(sock, (struct sockaddr *) &saddr, addr_len,
 			       O_NONBLOCK);
@@ -949,7 +949,7 @@ int lowcomms_close(int nodeid)
 	if (!connections)
 		goto out;
 
-	log_print("closing connection to node %d", nodeid);
+	log_debug2("closing connection to node %d", nodeid);
 	con = nodeid2con(nodeid, 0);
 	if (con) {
 		clean_one_writequeue(con);
