@@ -35,6 +35,11 @@ struct glock_plug {
 	unsigned long gl_flags;
 };
 
+struct greedy {
+	struct gfs_holder gr_gh;
+	struct work_struct gr_work;
+};
+
 typedef void (*glock_examiner) (struct gfs_glock * gl);
 
 /**
@@ -201,6 +206,7 @@ glock_free(struct gfs_glock *gl)
 	GFS_ASSERT_GLOCK(list_empty(&gl->gl_holders), gl,);
 	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters1), gl,);
 	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters2), gl,);
+	GFS_ASSERT_GLOCK(list_empty(&gl->gl_waiters3), gl,);
 	GFS_ASSERT_GLOCK(gl->gl_state == LM_ST_UNLOCKED, gl,);
 	GFS_ASSERT_GLOCK(!gl->gl_object, gl,);
 	GFS_ASSERT_GLOCK(!gl->gl_lvb, gl,);
@@ -266,6 +272,7 @@ gfs_glock_get(struct gfs_sbd *sdp,
 	INIT_LIST_HEAD(&gl->gl_holders);
 	INIT_LIST_HEAD(&gl->gl_waiters1);
 	INIT_LIST_HEAD(&gl->gl_waiters2);
+	INIT_LIST_HEAD(&gl->gl_waiters3);
 
 	gl->gl_ops = glops;
 
@@ -479,7 +486,7 @@ handle_recurse(struct gfs_holder *gh)
 
 	GFS_ASSERT_GLOCK(gh->gh_owner, gl,);
 
-	for (head = &gl->gl_waiters2, tmp = head->next, next = tmp->next;
+	for (head = &gl->gl_waiters3, tmp = head->next, next = tmp->next;
 	     tmp != head;
 	     tmp = next, next = tmp->next) {
 		tmp_gh = list_entry(tmp, struct gfs_holder, gh_list);
@@ -502,7 +509,7 @@ handle_recurse(struct gfs_holder *gh)
 }
 
 /**
- * do_unrecurse - a recursive holder was just dropped of the waiters2 list
+ * do_unrecurse - a recursive holder was just dropped of the waiters3 list
  * @gh: the holder
  *
  * If there is only one other recursive holder, clear is HIF_RECURSE bit.
@@ -520,7 +527,7 @@ do_unrecurse(struct gfs_holder *gh)
 
 	GFS_ASSERT_GLOCK(gh->gh_owner, gl,);
 
-	for (head = &gl->gl_waiters2, tmp = head->next;
+	for (head = &gl->gl_waiters3, tmp = head->next;
 	     tmp != head;
 	     tmp = tmp->next) {
 		tmp_gh = list_entry(tmp, struct gfs_holder, gh_list);
@@ -545,7 +552,7 @@ do_unrecurse(struct gfs_holder *gh)
  * rq_mutex - process a mutex request in the queue
  * @gh: the glock holder
  *
- * Returns: TRUE if the queue is blocked, 
+ * Returns: TRUE if the queue is blocked
  */
 
 static int
@@ -566,7 +573,7 @@ rq_mutex(struct gfs_holder *gh)
  * @gh: the glock holder
  * @promote_ok: It's ok to ask the LM to do promotes on a sync lock module
  *
- * Returns: TRUE if the queue is blocked, 
+ * Returns: TRUE if the queue is blocked
  */
 
 static int
@@ -632,7 +639,7 @@ rq_promote(struct gfs_holder *gh, int promote_ok)
  * rq_demote - process a demote request in the queue
  * @gh: the glock holder
  *
- * Returns: TRUE if the queue is blocked, 
+ * Returns: TRUE if the queue is blocked
  */
 
 static int
@@ -671,6 +678,31 @@ rq_demote(struct gfs_holder *gh)
 }
 
 /**
+ * rq_greedy - process a greedy request in the queue
+ * @gh: the glock holder
+ *
+ * Returns: TRUE if the queue is blocked
+ */
+
+static int
+rq_greedy(struct gfs_holder *gh)
+{
+	struct gfs_glock *gl = gh->gh_gl;
+
+	list_del_init(&gh->gh_list);
+	/*  gh->gh_error never examined.  */
+	clear_bit(GLF_GREEDY, &gl->gl_flags);
+	spin_unlock(&gl->gl_spin);
+
+	gfs_holder_uninit(gh);
+	kfree(container_of(gh, struct greedy, gr_gh));
+
+	spin_lock(&gl->gl_spin);		
+
+	return FALSE;
+}
+
+/**
  * run_queue - process holder structures on a glock
  * @gl: the glock
  * @promote_ok: It's ok to ask the LM to do promotes on a sync lock module
@@ -696,14 +728,24 @@ run_queue(struct gfs_glock *gl, int promote_ok)
 			else
 				GFS_ASSERT_GLOCK(FALSE, gl,);
 
-		} else if (!list_empty(&gl->gl_waiters2)) {
+		} else if (!list_empty(&gl->gl_waiters2) &&
+			   !test_bit(GLF_SKIP_WAITERS2, &gl->gl_flags)) {
 			gh = list_entry(gl->gl_waiters2.next,
+					struct gfs_holder, gh_list);
+
+			if (test_bit(HIF_DEMOTE, &gh->gh_iflags))
+				blocked = rq_demote(gh);
+			else if (test_bit(HIF_GREEDY, &gh->gh_iflags))
+				blocked = rq_greedy(gh);
+			else
+				GFS_ASSERT_GLOCK(FALSE, gl,);
+
+		} else if (!list_empty(&gl->gl_waiters3)) {
+			gh = list_entry(gl->gl_waiters3.next,
 					struct gfs_holder, gh_list);
 
 			if (test_bit(HIF_PROMOTE, &gh->gh_iflags))
 				blocked = rq_promote(gh, promote_ok);
-			else if (test_bit(HIF_DEMOTE, &gh->gh_iflags))
-				blocked = rq_demote(gh);
 			else
 				GFS_ASSERT_GLOCK(FALSE, gl,);
 
@@ -806,7 +848,7 @@ handle_callback(struct gfs_glock *gl, unsigned int state)
 	}
 
 	if (new_gh) {
-		list_add(&new_gh->gh_list, &gl->gl_waiters2);
+		list_add_tail(&new_gh->gh_list, &gl->gl_waiters2);
 		new_gh = NULL;
 	} else {
 		spin_unlock(&gl->gl_spin);
@@ -1252,7 +1294,7 @@ add_to_queue(struct gfs_holder *gh)
 			}
 		}
 
-		for (head = &gl->gl_waiters2, tmp = head->next;
+		for (head = &gl->gl_waiters3, tmp = head->next;
 		     tmp != head;
 		     tmp = tmp->next) {
 			tmp_gh = list_entry(tmp, struct gfs_holder, gh_list);
@@ -1274,7 +1316,7 @@ add_to_queue(struct gfs_holder *gh)
 				set_bit(HIF_RECURSE, &gh->gh_iflags);
 				set_bit(HIF_RECURSE, &tmp_gh->gh_iflags);
 
-				list_add_tail(&gh->gh_list, &gl->gl_waiters2);
+				list_add_tail(&gh->gh_list, &gl->gl_waiters3);
 
 				return;
 			}
@@ -1282,9 +1324,9 @@ add_to_queue(struct gfs_holder *gh)
 	}
 
 	if (gh->gh_flags & LM_FLAG_PRIORITY)
-		list_add(&gh->gh_list, &gl->gl_waiters2);
+		list_add(&gh->gh_list, &gl->gl_waiters3);
 	else
-		list_add_tail(&gh->gh_list, &gl->gl_waiters2);
+		list_add_tail(&gh->gh_list, &gl->gl_waiters3);
 }
 
 /**
@@ -1471,6 +1513,7 @@ gfs_glock_prefetch(struct gfs_glock *gl, unsigned int state, int flags)
 	    !list_empty(&gl->gl_holders) ||
 	    !list_empty(&gl->gl_waiters1) ||
 	    !list_empty(&gl->gl_waiters2) ||
+	    !list_empty(&gl->gl_waiters3) ||
 	    relaxed_state_ok(gl->gl_state, state, flags)) {
 		spin_unlock(&gl->gl_spin);
 		return;
@@ -1503,12 +1546,84 @@ gfs_glock_force_drop(struct gfs_glock *gl)
 	gh.gh_owner = NULL;
 
 	spin_lock(&gl->gl_spin);
-	list_add(&gh.gh_list, &gl->gl_waiters2);
+	list_add_tail(&gh.gh_list, &gl->gl_waiters2);
 	run_queue(gl, FALSE);
 	spin_unlock(&gl->gl_spin);
 
 	wait_for_completion(&gh.gh_wait);
 	gfs_holder_uninit(&gh);
+}
+
+/**
+ * greedy_work -
+ * @data:
+ *
+ */
+
+static void
+greedy_work(void *data)
+{
+	struct greedy *gr = (struct greedy *)data;
+	struct gfs_holder *gh = &gr->gr_gh;
+	struct gfs_glock *gl = gh->gh_gl;
+	struct gfs_glock_operations *glops = gl->gl_ops;
+
+	clear_bit(GLF_SKIP_WAITERS2, &gl->gl_flags);
+
+	if (glops->go_greedy)
+		glops->go_greedy(gl);
+
+	spin_lock(&gl->gl_spin);
+
+	if (list_empty(&gl->gl_waiters2)) {
+		clear_bit(GLF_GREEDY, &gl->gl_flags);
+		spin_unlock(&gl->gl_spin);
+		gfs_holder_uninit(gh);
+		kfree(gr);
+	} else {
+		glock_hold(gl);
+		list_add_tail(&gh->gh_list, &gl->gl_waiters2);
+		run_queue(gl, FALSE);
+		spin_unlock(&gl->gl_spin);
+		glock_put(gl);
+	}
+}
+
+/**
+ * gfs_glock_be_greedy -
+ * @gl:
+ * @time:
+ *
+ * Returns: 0 if go_greedy will be called, 1 otherwise
+ */
+
+int
+gfs_glock_be_greedy(struct gfs_glock *gl, unsigned int time)
+{
+	struct greedy *gr;
+	struct gfs_holder *gh;
+
+	if (!time ||
+	    gl->gl_sbd->sd_args.ar_localcaching ||
+	    test_and_set_bit(GLF_GREEDY, &gl->gl_flags))
+		return 1;
+
+	gr = kmalloc(sizeof(struct greedy), GFP_KERNEL);
+	if (!gr) {
+		clear_bit(GLF_GREEDY, &gl->gl_flags);
+		return 1;
+	}
+	gh = &gr->gr_gh;
+
+	gfs_holder_init(gl, 0, 0, gh);
+	set_bit(HIF_GREEDY, &gh->gh_iflags);
+	gh->gh_owner = NULL;
+	INIT_WORK(&gr->gr_work, greedy_work, gr);
+
+	set_bit(GLF_SKIP_WAITERS2, &gl->gl_flags);
+	schedule_delayed_work(&gr->gr_work, time);
+
+	return 0;
 }
 
 /**
@@ -2435,6 +2550,14 @@ dump_glock(struct gfs_glock *gl,
 	     tmp = tmp->next) {
 		gh = list_entry(tmp, struct gfs_holder, gh_list);
 		error = dump_holder("Waiter2", gh, buf, size, count);
+		if (error)
+			goto out;
+	}
+	for (head = &gl->gl_waiters3, tmp = head->next;
+	     tmp != head;
+	     tmp = tmp->next) {
+		gh = list_entry(tmp, struct gfs_holder, gh_list);
+		error = dump_holder("Waiter3", gh, buf, size, count);
 		if (error)
 			goto out;
 	}

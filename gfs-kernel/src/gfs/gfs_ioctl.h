@@ -117,7 +117,7 @@ struct gfs_quota_name {
  *  You can tune a filesystem, but you can't tune a yak.
  */
 
-#define GFS_TUNE_VERSION ((GFS_IOCTL_VERSION << 16) | (138))
+#define GFS_TUNE_VERSION ((GFS_IOCTL_VERSION << 16) | (139))
 
 struct gfs_tune {
 	unsigned int gt_tune_version;
@@ -157,6 +157,9 @@ struct gfs_tune {
 	unsigned int gt_prefetch_secs;
 	unsigned int gt_statfs_slots;
 	unsigned int gt_max_mhc;
+	unsigned int gt_greedy_default;
+	unsigned int gt_greedy_quantum;
+	unsigned int gt_greedy_max;
 };
 
 /*

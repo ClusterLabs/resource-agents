@@ -32,6 +32,27 @@
 #include "trans.h"
 
 /**
+ * pfault_be_greedy -
+ * @ip:
+ *
+ */
+
+static void
+pfault_be_greedy(struct gfs_inode *ip)
+{
+	unsigned int time;
+
+	spin_lock(&ip->i_lock);
+	time = ip->i_greedy;
+	ip->i_last_pfault = jiffies;
+	spin_unlock(&ip->i_lock);
+
+	gfs_inode_hold(ip);
+	if (gfs_glock_be_greedy(ip->i_gl, time))
+		gfs_inode_put(ip);
+}
+
+/**
  * gfs_private_nopage -
  * @area:
  * @address:
@@ -58,6 +79,9 @@ gfs_private_nopage(struct vm_area_struct *area,
 	set_bit(GIF_PAGED, &ip->i_flags);
 
 	result = filemap_nopage(area, address, type);
+
+	if (result && result != NOPAGE_OOM)
+		pfault_be_greedy(ip);
 
 	gfs_glock_dq_uninit(&i_gh);
 
@@ -192,9 +216,12 @@ gfs_sharewrite_nopage(struct vm_area_struct *area,
 		if (error) {
 			page_cache_release(result);
 			result = NULL;
+			goto out;
 		}
 		set_page_dirty(result);
 	}
+
+	pfault_be_greedy(ip);
 
  out:
 	gfs_glock_dq_uninit(&i_gh);

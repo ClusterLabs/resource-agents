@@ -30,7 +30,7 @@
 
 
 
-#if GFS_TUNE_VERSION != (((0) << 16) | (138))
+#if GFS_TUNE_VERSION != (((0) << 16) | (139))
 #error update GFS/src/tool/gfs_tool/tune.c
 #endif
 
@@ -130,6 +130,9 @@ void get_tune(int argc, char **argv)
   printf("prefetch_secs = %u\n", gt.gt_prefetch_secs);
   printf("statfs_slots = %u\n", gt.gt_statfs_slots);
   printf("max_mhc = %u\n", gt.gt_max_mhc);
+  printf("greedy_default = %u\n", gt.gt_greedy_default);
+  printf("greedy_max = %u\n", gt.gt_greedy_max);
+  printf("greedy_quantum = %u\n", gt.gt_greedy_quantum);
 }
 
 
@@ -303,6 +306,15 @@ void set_tune(int argc, char **argv)
 
   else if (strcmp(argv[3], "max_mhc") == 0)
     gt.gt_max_mhc = atou(argv[4]);
+
+  else if (strcmp(argv[3], "greedy_default") == 0)
+    gt.gt_greedy_default = atou(argv[4]);
+
+  else if (strcmp(argv[3], "greedy_max") == 0)
+    gt.gt_greedy_max = atou(argv[4]);
+
+  else if (strcmp(argv[3], "greedy_quantum") == 0)
+    gt.gt_greedy_quantum = atou(argv[4]);
 
   else
     die("unknown tuning parameter\n");

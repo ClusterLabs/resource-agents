@@ -81,6 +81,9 @@ gfs_init_tune_data(struct gfs_sbd *sdp)
 	gt->gt_prefetch_secs = 10;
 	gt->gt_statfs_slots = 64;
 	gt->gt_max_mhc = 10000;
+	gt->gt_greedy_default = HZ / 10;
+	gt->gt_greedy_quantum = HZ / 40;
+	gt->gt_greedy_max = HZ / 4;
 }
 
 /**

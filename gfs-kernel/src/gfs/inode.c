@@ -284,6 +284,8 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 
 	spin_lock_init(&ip->i_lock);
 
+	ip->i_greedy = sdp->sd_tune.gt_greedy_default;
+
 	error = gfs_glock_nq_init(io_gl,
 				  io_state, GL_LOCAL_EXCL | GL_EXACT,
 				  &ip->i_iopen_gh);
@@ -372,7 +374,7 @@ gfs_inode_get(struct gfs_glock *i_gl, struct gfs_inum *inum, int create,
 void
 gfs_inode_hold(struct gfs_inode *ip)
 {
-	GFS_ASSERT_INODE(atomic_read(&ip->i_count), ip,);
+	GFS_ASSERT_INODE(atomic_read(&ip->i_count) > 0, ip,);
 	atomic_inc(&ip->i_count);
 }
 

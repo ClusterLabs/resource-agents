@@ -71,6 +71,8 @@ foreach $file (@files)
 	    $line =~ s/ (4) / sync[$1] /;
 	    $line =~ s/ (5) / dirty[$1] /;
 	    $line =~ s/ (6) / lvb_invalid[$1] /;
+	    $line =~ s/ (7) / skip_waiters2[$1] /;
+	    $line =~ s/ (8) / greedy[$1] /;
 	}
 	if ($line =~ /state/)
 	{
@@ -99,12 +101,13 @@ foreach $file (@files)
 	    $line =~ s/ (0) / mutex[$1] /;
 	    $line =~ s/ (1) / promote[$1] /;
 	    $line =~ s/ (2) / demote[$1] /;
-	    $line =~ s/ (3) / alloced[$1] /;
-	    $line =~ s/ (4) / dealloc[$1] /;
-	    $line =~ s/ (5) / holder[$1] /;
-	    $line =~ s/ (6) / first[$1] /;
-	    $line =~ s/ (7) / wakeup[$1] /;
-	    $line =~ s/ (8) / recurse[$1] /;
+	    $line =~ s/ (3) / greedy[$1] /;
+	    $line =~ s/ (4) / alloced[$1] /;
+	    $line =~ s/ (5) / dealloc[$1] /;
+	    $line =~ s/ (6) / holder[$1] /;
+	    $line =~ s/ (7) / first[$1] /;
+	    $line =~ s/ (8) / wakeup[$1] /;
+	    $line =~ s/ (9) / recurse[$1] /;
 	}
 	if ($line =~ /owner/)
 	{

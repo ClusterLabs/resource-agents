@@ -253,6 +253,42 @@ inode_go_unlock(struct gfs_glock *gl, int flags)
 }
 
 /**
+ * inode_greedy -
+ * @gl: the glock
+ *
+ */
+
+static void
+inode_greedy(struct gfs_glock *gl)
+{
+	struct gfs_inode *ip = (struct gfs_inode *)gl->gl_object;
+	struct gfs_sbd *sdp = ip->i_sbd;
+	unsigned int new_time;
+
+	GFS_ASSERT_GLOCK(ip, gl,);
+
+	spin_lock(&ip->i_lock);
+
+	if (time_after(ip->i_last_pfault +
+		       sdp->sd_tune.gt_greedy_quantum,
+		       jiffies)) {
+		new_time = ip->i_greedy + sdp->sd_tune.gt_greedy_quantum;
+		if (new_time > sdp->sd_tune.gt_greedy_max)
+			new_time = sdp->sd_tune.gt_greedy_max;
+	} else {
+		new_time = ip->i_greedy - sdp->sd_tune.gt_greedy_quantum;
+		if (!new_time || new_time > sdp->sd_tune.gt_greedy_max)
+			new_time = 1;
+	}
+
+	ip->i_greedy = new_time;
+
+	spin_unlock(&ip->i_lock);
+
+	gfs_inode_put(ip);
+}
+
+/**
  * rgrp_go_xmote_th - promote/demote a glock
  * @gl: the glock
  * @state: the requested state
@@ -477,6 +513,7 @@ struct gfs_glock_operations gfs_inode_glops = {
       .go_demote_ok = inode_go_demote_ok,
       .go_lock = inode_go_lock,
       .go_unlock = inode_go_unlock,
+      .go_greedy = inode_greedy,
       .go_type = LM_TYPE_INODE
 };
 

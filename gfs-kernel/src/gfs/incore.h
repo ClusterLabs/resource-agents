@@ -207,6 +207,7 @@ struct gfs_glock_operations {
 	int (*go_lock) (struct gfs_glock * gl, int flags);
 	void (*go_unlock) (struct gfs_glock * gl, int flags);
 	void (*go_callback) (struct gfs_glock * gl, unsigned int state);
+	void (*go_greedy) (struct gfs_glock * gl);
 	int go_type;
 };
 
@@ -214,14 +215,15 @@ struct gfs_glock_operations {
 #define HIF_MUTEX               (0)
 #define HIF_PROMOTE             (1)
 #define HIF_DEMOTE              (2)
+#define HIF_GREEDY              (3)
 
 /*  States  */
-#define HIF_ALLOCED             (3)
-#define HIF_DEALLOC             (4)
-#define HIF_HOLDER              (5)
-#define HIF_FIRST               (6)
-#define HIF_WAKEUP              (7)
-#define HIF_RECURSE             (8)
+#define HIF_ALLOCED             (4)
+#define HIF_DEALLOC             (5)
+#define HIF_HOLDER              (6)
+#define HIF_FIRST               (7)
+#define HIF_WAKEUP              (8)
+#define HIF_RECURSE             (9)
 
 struct gfs_holder {
 	struct list_head gh_list;
@@ -247,6 +249,8 @@ struct gfs_holder {
 #define GLF_SYNC                (4)
 #define GLF_DIRTY               (5)
 #define GLF_LVB_INVALID         (6)
+#define GLF_SKIP_WAITERS2       (7)
+#define GLF_GREEDY              (8)
 
 struct gfs_glock {
 	struct list_head gl_list;
@@ -259,7 +263,8 @@ struct gfs_glock {
 	unsigned int gl_state;
 	struct list_head gl_holders;
 	struct list_head gl_waiters1;	/*  HIF_MUTEX  */
-	struct list_head gl_waiters2;	/*  HIF_DEMOTE, HIF_PROMOTE  */
+	struct list_head gl_waiters2;	/*  HIF_DEMOTE, HIF_GREEDY  */
+	struct list_head gl_waiters3;	/*  HIF_PROMOTE  */
 
 	struct gfs_glock_operations *gl_ops;
 
@@ -356,6 +361,9 @@ struct gfs_inode {
 
 	spinlock_t i_lock;
 	struct buffer_head *i_cache[GFS_MAX_META_HEIGHT];
+
+	unsigned int i_greedy;
+	unsigned long i_last_pfault;
 };
 
 /*

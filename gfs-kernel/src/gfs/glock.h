@@ -98,6 +98,8 @@ void gfs_glock_dq(struct gfs_holder *gh);
 void gfs_glock_prefetch(struct gfs_glock *gl, unsigned int state, int flags);
 void gfs_glock_force_drop(struct gfs_glock *gl);
 
+int gfs_glock_be_greedy(struct gfs_glock *gl, unsigned int time);
+
 int gfs_glock_nq_init(struct gfs_glock *gl, unsigned int state, int flags,
 		      struct gfs_holder *gh);
 void gfs_glock_dq_uninit(struct gfs_holder *gh);
