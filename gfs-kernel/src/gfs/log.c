@@ -282,7 +282,6 @@ int
 gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 {
 	ENTER(GFN_LOG_RESERVE)
-	unsigned long start;
 	struct list_head list;
 	unsigned int try = 0;
 
@@ -291,7 +290,6 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 		RETURN(GFN_LOG_RESERVE, -EINVAL);
 
 	INIT_LIST_HEAD(&list);
-	start = jiffies;
 
 	for (;;) {
 		spin_lock(&sdp->sd_log_seg_lock);
@@ -334,7 +332,6 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 		gfs_ail_empty(sdp);
 
 		try++;
-		gfs_assert_warn(sdp, time_before(jiffies, start + 60 * HZ));
 		yield();
 	}
 
