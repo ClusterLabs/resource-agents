@@ -118,9 +118,13 @@ int remote_stage(struct dlm_lkb *lkb, int state)
  * request queue and processed when recovery is complete.
  */
 
-void add_to_requestqueue(struct dlm_ls *ls, int nodeid, char *request, int length)
+void add_to_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 {
 	struct rq_entry *entry;
+	int length = hd->rh_length;
+
+	if (test_bit(LSFL_REQUEST_WARN, &ls->ls_flags))
+		log_error(ls, "request during recovery from %u", nodeid);
 
 	if (in_nodes_gone(ls, nodeid))
 		return;
@@ -132,9 +136,9 @@ void add_to_requestqueue(struct dlm_ls *ls, int nodeid, char *request, int lengt
 		return;
 	}
 
-	log_debug(ls, "add_to_requestqueue %d", nodeid);
+	log_debug(ls, "add_to_requestqueue cmd %d from %d", hd->rh_cmd, nodeid);
 	entry->rqe_nodeid = nodeid;
-	memcpy(entry->rqe_request, request, length);
+	memcpy(entry->rqe_request, hd, length);
 	list_add_tail(&entry->rqe_list, &ls->ls_requestqueue);
 }
 
@@ -753,13 +757,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	 */
  retry:
 	if (!test_bit(LSFL_LS_RUN, &lspace->ls_flags)) {
-		if (test_bit(LSFL_REQUEST_WARN, &lspace->ls_flags))
-			log_error(lspace, "process_cluster_request warning %u",
-				  nodeid);
-		add_to_requestqueue(lspace, nodeid, (char *) req,
-				    req->rh_length);
-		log_debug(lspace, "process_cluster_request queue %d from %u",
-			  req->rh_cmd, nodeid);
+		add_to_requestqueue(lspace, nodeid, req);
 		status = -EINTR;
 		goto out;
 	}
