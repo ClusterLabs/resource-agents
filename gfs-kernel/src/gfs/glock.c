@@ -1252,12 +1252,12 @@ do_cancels(struct gfs_holder *gh)
 		      (gl->gl_req_gh->gh_flags & GL_NOCANCEL))) {
 			spin_unlock(&gl->gl_spin);
 			gl->gl_sbd->sd_lockstruct.ls_ops->lm_cancel(gl->gl_lock);
-			set_current_state(TASK_INTERRUPTIBLE);
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		} else {
 			spin_unlock(&gl->gl_spin);
-			set_current_state(TASK_INTERRUPTIBLE);
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule_timeout(HZ / 10);
 			spin_lock(&gl->gl_spin);
 		}
