@@ -1627,6 +1627,7 @@ static int do_ioctl_leave_cluster(unsigned long leave_flags)
 	wake_up_interruptible(&cnxman_waitq);
 
 	wait_for_completion(&cluster_thread_comp);
+	atomic_set(&use_count, 0);
 	return 0;
 }
 
