@@ -24,6 +24,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/file.h>
+#include <linux/kthread.h>
 #include <net/sock.h>
 
 #include <cluster/cnxman.h>

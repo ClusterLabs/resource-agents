@@ -15,22 +15,18 @@
 
 static unsigned long		daemon_flags;
 static struct task_struct *	daemon_task;
-static struct completion	daemon_done;
-static wait_queue_head_t	daemon_wait;
 extern int			sm_quorum;
 
 void init_serviced(void)
 {
 	daemon_flags = 0;
 	daemon_task = NULL;
-	init_completion(&daemon_done);
-	init_waitqueue_head(&daemon_wait);
 }
 
 void wake_serviced(int do_flag)
 {
 	set_bit(do_flag, &daemon_flags);
-	wake_up(&daemon_wait);
+	wake_up_process(daemon_task);
 }
 
 static inline int got_work(void)
@@ -51,14 +47,7 @@ static inline int got_work(void)
 
 static int serviced(void *arg)
 {
-	DECLARE_WAITQUEUE(wait, current);
-
-	daemonize("cman_serviced");
-	daemon_task = current;
-	set_bit(DO_RUN, &daemon_flags);
-	complete(&daemon_done);
-
-	for (;;) {
+	while (!kthread_should_stop()) {
 		if (test_and_clear_bit(DO_START_RECOVERY, &daemon_flags))
 			process_nodechange();
 
@@ -82,39 +71,30 @@ static int serviced(void *arg)
 				process_membership();
 		}
 
-		if (!test_bit(DO_RUN, &daemon_flags))
-			break;
-
-		current->state = TASK_INTERRUPTIBLE;
-		add_wait_queue(&daemon_wait, &wait);
-		if (!got_work() && test_bit(DO_RUN, &daemon_flags))
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (!got_work())
 			schedule();
-		remove_wait_queue(&daemon_wait, &wait);
-		current->state = TASK_RUNNING;
+		set_current_state(TASK_RUNNING);
 	}
 
-	complete(&daemon_done);
 	return 0;
 }
 
 int start_serviced(void)
 {
-	int error;
+	struct task_struct *p;
 
-	error = kernel_thread(serviced, NULL, 0);
-	if (error < 0)
-		goto out;
+	p = kthread_run(serviced, NULL, "cman_serviced");
+	if (IS_ERR(p)) {
+		printk("can't start cman_serviced daemon");
+		return (IS_ERR(p));
+	}
 
-	error = 0;
-	wait_for_completion(&daemon_done);
-
-      out:
-	return error;
+	daemon_task = p;
+	return 0;
 }
 
 void stop_serviced(void)
 {
-	clear_bit(DO_RUN, &daemon_flags);
-	wake_up(&daemon_wait);
-	wait_for_completion(&daemon_done);
+	kthread_stop(daemon_task);
 }
