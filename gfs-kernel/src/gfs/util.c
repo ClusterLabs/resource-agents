@@ -217,8 +217,7 @@ gfs_assert_i(char *assertion,
 	gfs_in_panic = TRUE;
 
 	switch (type) {
-	case GFS_ASSERT_TYPE_SBD:
-	{
+	case GFS_ASSERT_TYPE_SBD: {
 		struct gfs_sbd *sdp = (struct gfs_sbd *)ptr;
 		panic("GFS: Assertion failed on line %d of file %s\n"
 		      "GFS: assertion: \"%s\"\n"
@@ -227,10 +226,8 @@ gfs_assert_i(char *assertion,
 		      line, file, assertion, get_seconds(),
 		      sdp->sd_fsname);
 	}
-	break;
 
-	case GFS_ASSERT_TYPE_GLOCK:
-	{
+	case GFS_ASSERT_TYPE_GLOCK: {
 		struct gfs_glock *gl = (struct gfs_glock *)ptr;
 		struct gfs_sbd *sdp = gl->gl_sbd;
 		panic("GFS: Assertion failed on line %d of file %s\n"
@@ -242,10 +239,8 @@ gfs_assert_i(char *assertion,
 		      gl->gl_name.ln_type,
 		      gl->gl_name.ln_number);
 	}
-	break;
 
-	case GFS_ASSERT_TYPE_INODE:
-	{
+	case GFS_ASSERT_TYPE_INODE: {
 		struct gfs_inode *ip = (struct gfs_inode *)ptr;
 		struct gfs_sbd *sdp = ip->i_sbd;
 		panic("GFS: Assertion failed on line %d of file %s\n"
@@ -256,21 +251,18 @@ gfs_assert_i(char *assertion,
 		      sdp->sd_fsname,
 		      ip->i_num.no_formal_ino, ip->i_num.no_addr);
 	}
-	break;
 
-	case GFS_ASSERT_TYPE_RGRPD:
-	{
+	case GFS_ASSERT_TYPE_RGRPD: {
 		struct gfs_rgrpd *rgd = (struct gfs_rgrpd *)ptr;
 		struct gfs_sbd *sdp = rgd->rd_sbd;
 		panic("GFS: Assertion failed on line %d of file %s\n"
 		      "GFS: assertion: \"%s\"\n"
 		      "GFS: time = %lu\n"
-		      "GFS: fsid=%s: rgroup = %"PRIu64"\n",
+		      "GFS: fsid=%s: RG = %"PRIu64"\n",
 		      line, file, assertion, get_seconds(),
 		      sdp->sd_fsname,
 		      rgd->rd_ri.ri_addr);
 	}
-	break;
 
 	default:
 		panic("GFS: Assertion failed on line %d of file %s\n"
@@ -294,26 +286,24 @@ void gfs_io_error_i(struct gfs_sbd *sdp,
 		    char *file, unsigned int line)
 {
 	switch (type) {
-	case GFS_IO_ERROR_TYPE_BH:
-	{
+	case GFS_IO_ERROR_TYPE_BH: {
 		struct buffer_head *bh = (struct buffer_head *)ptr;
 		printk("GFS: fsid=%s: I/O error on block %"PRIu64"\n",
 		       sdp->sd_fsname, (uint64_t)bh->b_blocknr);
+		break;
 	}
-	break;
 
-	case GFS_IO_ERROR_TYPE_INODE:
-	{
+	case GFS_IO_ERROR_TYPE_INODE: {
 		struct gfs_inode *ip = (struct gfs_inode *)ptr;
 		printk("GFS: fsid=%s: I/O error in inode %"PRIu64"/%"PRIu64"\n",
 		       sdp->sd_fsname,
 		       ip->i_num.no_formal_ino, ip->i_num.no_addr);
+		break;
 	}
-	break;
 
 	default:
-	printk("GFS: fsid=%s: I/O error\n", sdp->sd_fsname);
-	break;
+		printk("GFS: fsid=%s: I/O error\n", sdp->sd_fsname);
+		break;
 	}
 
 	GFS_ASSERT_SBD(FALSE, sdp,);

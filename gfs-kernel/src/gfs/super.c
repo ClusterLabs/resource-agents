@@ -670,7 +670,7 @@ gfs_get_linode(struct gfs_sbd *sdp)
  * gfs_make_fs_rw - Turn a RO FS into a RW one
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -725,7 +725,7 @@ gfs_make_fs_rw(struct gfs_sbd *sdp)
  * gfs_make_fs_ro - Turn a RW FS into a RO one
  * @sdp: the filesystem
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -770,7 +770,7 @@ gfs_make_fs_ro(struct gfs_sbd *sdp)
  *
  * This really shouldn't busy wait like this.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -849,7 +849,7 @@ stat_gfs_async(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
  * @usage: the usage structure
  * @interruptible:  Stop if there is a signal pending
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
@@ -927,7 +927,7 @@ gfs_stat_gfs(struct gfs_sbd *sdp, struct gfs_usage *usage, int interruptible)
  * @state: the state to put the transaction lock into
  * @t_gh: the hold on the transaction lock
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int
@@ -993,7 +993,7 @@ gfs_lock_fs_check_clean(struct gfs_sbd *sdp, unsigned int state,
  * aquiring the transaction log exclusively.  All journals are
  * ensured to be in a clean state as well.
  *
- * Returns: 0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int
