@@ -1212,8 +1212,12 @@ static int do_ioctl_set_version(unsigned long arg)
 
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
+
 	if (arg == 0)
 		return -EINVAL;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	u_version = (struct cl_version *) arg;
 
@@ -1243,6 +1247,9 @@ static int do_ioctl_get_members(unsigned long arg)
 	struct cl_cluster_node *user_node;
 	struct list_head *nodelist;
 	int num_nodes = 0;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	if (arg == 0)
 		return cluster_members;
@@ -1288,6 +1295,9 @@ static int do_ioctl_get_all_members(unsigned long arg)
 	struct list_head *nodelist;
 	int num_nodes = 0;
 
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
+
 	if (arg &&
 	    copy_from_user(&user_format_nodelist,
 			   (void __user *)arg, sizeof(struct cl_cluster_nodelist)))
@@ -1327,6 +1337,9 @@ static int do_ioctl_get_all_members(unsigned long arg)
 static int do_ioctl_get_cluster(unsigned long arg)
 {
 	struct cl_cluster_info __user *info;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	info = (struct cl_cluster_info *)arg;
 
@@ -1380,8 +1393,12 @@ static int do_ioctl_set_expected(unsigned long arg)
 
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
+
 	if (arg == 0)
 		return -EINVAL;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	newquorum = calculate_quorum(1, arg, &total_votes);
 
@@ -1416,6 +1433,8 @@ static int do_ioctl_kill_node(unsigned long arg)
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	if ((node = find_node_by_nodeid(arg)) == NULL)
 		return -EINVAL;
@@ -1442,6 +1461,9 @@ static int do_ioctl_barrier(unsigned long arg)
 
 	if (!capable(CAP_CLUSTER))
 			return -EPERM;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	if (copy_from_user(&info, (void *)arg, sizeof(info))  != 0)
 		return -EFAULT;
@@ -1475,6 +1497,9 @@ static int do_ioctl_islistening(unsigned long arg)
 
 	if (!arg)
 		return -EINVAL;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	if (copy_from_user(&rq, (void *) arg, sizeof (rq)) != 0)
 		return -EFAULT;
@@ -1571,6 +1596,9 @@ static int do_ioctl_set_votes(unsigned long arg)
 
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	/* Check votes is valid */
 	saved_votes = us->votes;
@@ -1711,6 +1739,9 @@ static int do_ioctl_leave_cluster(unsigned long leave_flags)
 
 	if (!atomic_read(&cnxman_running))
 		return -ENOTCONN;
+
+	if (!we_are_a_cluster_member)
+		return -ENOENT;
 
 	if (in_transition())
 		return -EBUSY;
