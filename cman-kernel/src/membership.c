@@ -1110,8 +1110,7 @@ static int do_membership_packet(struct msghdr *msg, char *buf, int len)
 		break;
 
 	case CLUSTER_MEM_JOINACK:
-		if (node_state == JOINING || node_state == JOINWAIT ||
-		    node_state == JOINACK) {
+		if (node_state == JOINING || node_state == JOINWAIT) {
 			do_process_joinack(msg, buf, len);
 		}
 		break;
