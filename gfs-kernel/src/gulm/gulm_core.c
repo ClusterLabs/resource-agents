@@ -244,6 +244,7 @@ cm_login (void)
 
 	err = 0;
       exit:
+	if (err > 0) err = - err;
 	return err;
 }
 /* vim: set ai cin noet sw=8 ts=8 : */
