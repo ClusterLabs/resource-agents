@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.30 $) dnl cvs revision
+AC_REVISION($Revision: 1.31 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -305,8 +305,12 @@ dnl
 dnl	Enable optional, experimental directories here...
 dnl
 XPERIMENTALDIRS=""
+AC_MSG_CHECKING(for --enable_new_modloader)
 if test "$enable_new_modloader" = yes; then
+  AC_MSG_RESULT(yes)
   XPERIMENTALDIRS="$XPERIMANTALDIRS lib/upmls"
+else
+  AC_MSG_RESULT(no)
 fi
 AC_SUBST(XPERIMENTALDIRS)
 
