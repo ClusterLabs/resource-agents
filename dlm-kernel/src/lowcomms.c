@@ -246,13 +246,13 @@ static void make_sockaddr(struct sockaddr_in6 *saddr, uint16_t port,
 {
         saddr->sin6_family = local_addr.sin6_family;
         if (local_addr.sin6_family == AF_INET) {
-	    struct sockaddr_in *in4_addr = (struct sockaddr_in *)saddr;
-	    in4_addr->sin_port = cpu_to_be16(port);
-	    *addr_len = sizeof(struct sockaddr_in);
+		struct sockaddr_in *in4_addr = (struct sockaddr_in *)saddr;
+		in4_addr->sin_port = cpu_to_be16(port);
+		*addr_len = sizeof(struct sockaddr_in);
 	}
 	else {
-	    saddr->sin6_port = cpu_to_be16(port);
-	    *addr_len = sizeof(struct sockaddr_in6);
+		saddr->sin6_port = cpu_to_be16(port);
+		*addr_len = sizeof(struct sockaddr_in6);
 	}
 }
 
@@ -310,7 +310,7 @@ static int receive_from_sock(struct connection *con)
 	}
 
 	/*
-	 * To avoid doing too many short reads, we will reschedule for 
+	 * To avoid doing too many short reads, we will reschedule for
 	 * another time if there are less than 20 bytes left in the buffer.
 	 */
 	if (!CBUF_MAY_ADD(&con->cb, 20))
@@ -528,6 +528,7 @@ static int connect_to_sock(struct connection *con)
 	if (result < 0)
 		goto out_err;
 
+	memset(&saddr, 0, sizeof(saddr));
 	if (lowcomms_ipaddr_from_nodeid(con->nodeid, (struct sockaddr *)&saddr) < 0)
 	        goto out_err;
 
@@ -1299,7 +1300,7 @@ static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr)
 	saddr = (struct sockaddr_in6 *)current_addr->addr;
 
 	/* Extract the IP address */
-	if (saddr->sin6_family == AF_INET) {
+	if (local_addr.sin6_family == AF_INET) {
 	        struct sockaddr_in *in4  = (struct sockaddr_in *)saddr;
 		struct sockaddr_in *ret4 = (struct sockaddr_in *)retaddr;
 		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
@@ -1319,7 +1320,7 @@ static int lowcomms_nodeid_from_ipaddr(struct sockaddr *addr, int addr_len)
 	struct sockaddr_in6 ipv6_addr;
 	struct sockaddr_in  ipv4_addr;
 
-	if (addr->sa_family == AF_INET) {
+	if (local_addr.sin6_family == AF_INET) {
 	        struct sockaddr_in *in4 = (struct sockaddr_in *)addr;
 		memcpy(&ipv4_addr, &local_addr, addr_len);
 		memcpy(&ipv4_addr.sin_addr, &in4->sin_addr, sizeof(ipv4_addr.sin_addr));

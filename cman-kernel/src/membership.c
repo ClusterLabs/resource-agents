@@ -2676,7 +2676,7 @@ struct cluster_node *find_node_by_addr(unsigned char *addr, int addr_len)
 			    list_entry(addrlist, struct cluster_node_addr,
 				       list);
 
-			if (memcmp(nodeaddr->addr, addr, address_length) == 0) {
+			if (memcmp(nodeaddr->addr+2, addr+2, address_length-2) == 0) {
 				up(&cluster_members_lock);
 				return node;
 			}
