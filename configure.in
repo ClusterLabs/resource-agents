@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.182 $) dnl cvs revision
+AC_REVISION($Revision: 1.183 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -956,16 +956,16 @@ dnl Check Only
 dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
-AC_CHECK_DECLS(alphasort, 
+AC_CHECK_FUNCS(alphasort, 
 	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
-AC_CHECK_DECLS(inet_pton, 
+AC_CHECK_FUNCS(inet_pton, 
 	AC_DEFINE(HA_HAVE_INET_PTON, 1, [Have inet_pton function]))
-AC_CHECK_DECLS(NoSuchFunctionName)
-AC_CHECK_DECLS(scandir, 
+AC_CHECK_FUNCS(NoSuchFunctionName)
+AC_CHECK_FUNCS(scandir, 
 	AC_DEFINE(HA_HAVE_SCANDIR,   1, [Have scandir function]))
-AC_CHECK_DECLS(setenv, 
+AC_CHECK_FUNCS(setenv, 
 	AC_DEFINE(HA_HAVE_SETENV,    1, [Have setenv function]))
-AC_CHECK_DECLS(strerror, 
+AC_CHECK_FUNCS(strerror, 
 	AC_DEFINE(HA_HAVE_STRERROR,  1, [Have strerror function]))
 
 AC_SUBST(HA_HAVE_ALPHASORT)
@@ -1178,7 +1178,6 @@ doc/Makefile							\
 contrib/Makefile						\
 	contrib/ipfail/Makefile					\
 include/Makefile						\
-	include/ha_config.h					\
         include/clplumbing/Makefile				\
         include/ocf/Makefile					\
         include/pils/Makefile					\
