@@ -223,8 +223,8 @@ static void print_usage(FILE *stream){
 	  "ccsd [Options]\n"
 	  "\n"
 	  "Options:\n"
-	  " -4	          Use IPv4 only.\n"
-	  " -6	          Use IPv6 only.\n"
+	  " -4            Use IPv4 only.\n"
+	  " -6            Use IPv6 only.\n"
 	  " -h            Help.\n"
 	  " -m <addr>     Specify multicast address (\"default\" ok).\n"
 	  " -n            No Daemon.  Run in the foreground.\n"
@@ -383,16 +383,31 @@ static char *parse_cli_args(int argc, char *argv[]){
       switch(optarg[0]){
       case 'b': /* backend port number */
 	backend_port = atoi(optarg+2);
+	if(backend_port < 1024){
+	  fprintf(stderr, "Bad backend port number.\n");
+	  error = -EINVAL;
+	  goto fail;
+	}
 	buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			       "  Backend Port:: %d\n", backend_port);
 	break;
       case 'c': /* cluster base port number */
 	cluster_base_port = atoi(optarg+2);
+	if(cluster_base_port < 1024){
+	  fprintf(stderr, "Bad cluster base port number.\n");
+	  error = -EINVAL;
+	  goto fail;
+	}
 	buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			       "  Cluster base port:: %d\n", cluster_base_port);
 	break;
       case 'f': /* frontend port number */
 	frontend_port = atoi(optarg+2);
+	if(frontend_port < 1024){
+	  fprintf(stderr, "Bad frontend port number.\n");
+	  error = -EINVAL;
+	  goto fail;
+	}
 	buff_index += snprintf(buff+buff_index, buff_size-buff_index,
 			       "  Frontend Port:: %d\n", frontend_port);
 	break;
