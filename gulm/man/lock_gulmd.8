@@ -275,15 +275,8 @@ configuration as we see it and exit.
 
 \fBSIGTERM\fP
 .in +7
-Cleanly logout from the cluster.  \fBlock_gulmd\fP sends a logout message
-to the Master server.  If it is the Master, it informs the slaves that they
-need to pick a new Master.  If there are not any slaves, it just stops.
-The server will stop when it gets this signal, so be careful to make sure
-all clients are logged out if there are not any slave servers to take
-over.
-
-While you can stop the server with this signal, the proper method of
-stopping the server is to use the shutdown command from \fBgulm_tool\fP.
+This signal is ignored.  To stop gulm you should use the shutdown command
+to gulm_tool.
 
 .in -7
 
