@@ -1297,7 +1297,7 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 
 		error = gfs_trans_begin(sdp, 3, 2);
 		if (error)
-			goto fail_gunlock_q;
+			goto fail_inplace;
 	}
 
 	error = gfs_dir_add(dip, name, inum, type);
