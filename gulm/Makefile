@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -80,24 +80,23 @@ CFLAGS+=-DRELEASE=\"$(RELEASE)\"
 #######################################
 # build rules
 
-all: src/lock_gulmd src/gulm_tool lib/libgulm.a
+all: src/lock_gulmd src/gulm_tool lib/libgulm.so lib/libgulm.so.$(RELEASE_MAJOR)
 
 src/lock_gulmd: $(gulmd_src:.c=.o) 
 	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o $@
-
-#	whoami > src/buildinfo
-#	uname -n >> src/buildinfo
-#	date >> src/buildinfo
-#	md5sum $(gulmd_src) >> src/buildinfo
-#	objcopy --add-section buildinfo=src/buildinfo src/gulmd src/lock_gulmd
 
 lib/libgulm.a: $(lib_src:.c=.o)
 	${LD} ${LDFLAGS} -r $^ -o $@ --retain-symbols-file=lib/exported_symbols.sym
 	#xdr_* functions still `visable'. for relocation i think.
 
-# don't think this is right yet, so only building .a for now.
-lib/libgulm.so.1.0: libgulm.a
-	${LD} -shared -soname libgulm.so.1 -o $@ -lc lib/libgulm.a
+lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): lib/libgulm.a
+	${LD} -shared -soname libgulm.so.$(RELEASE_MAJOR) -o $@ $^ -lc
+
+lib/libgulm.so.$(RELEASE_MAJOR): lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
+	ln -snf libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $@
+
+lib/libgulm.so: lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
+	ln -snf libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $@
 
 src/gulm_tool: $(tool_src:.c=.o)
 	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -o $@
@@ -107,7 +106,7 @@ src/gulm_tool: $(tool_src:.c=.o)
 
 clean:
 	find ./ -name '*.o' -print | xargs rm -f dummy
-	rm -f src/lock_gulmd src/gulm_tool lib/libgulm.a
+	rm -f src/lock_gulmd src/gulm_tool lib/libgulm.a lib/libgulm.so*
 
 distclean: clean
 	rm -f make/defines.mk cscope.files cscope.out
@@ -121,6 +120,9 @@ install: all
 	install man/lock_gulmd.8 man/gulm_tool.8 ${mandir}/man8
 	install -d ${libdir}
 	install -m644 lib/libgulm.a ${libdir}
+	install -m644 lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
+	install -m644 lib/libgulm.so.$(RELEASE_MAJOR) ${libdir}
+	install -m644 lib/libgulm.so ${libdir}
 	install -d ${incdir}
 	install -m644 lib/libgulm.h ${incdir}
 	cd init.d && ${MAKE} install
