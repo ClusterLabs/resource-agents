@@ -454,6 +454,8 @@ static int membership_kthread(void *unused)
 	send_leave(us->leave_reason);
 	sock_release(mem_socket);
 	highest_nodeid = 0;
+	joining_node = NULL;
+	master_node = NULL;
 	complete(&member_thread_comp);
 	return 0;
 }

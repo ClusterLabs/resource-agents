@@ -2872,6 +2872,7 @@ static void node_cleanup()
 	clear_bit(RESEND_NEEDED, &mainloop_flags);
 	acks_expected = 0;
 	wanted_nodeid = 0;
+	quorum_device = NULL;
 }
 
 /* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
