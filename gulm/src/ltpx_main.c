@@ -38,15 +38,6 @@ extern uint32_t myIP;
 /*****************************************************************************/
 
 /**
- * sigact_term - Logout and stop.
- * @sig: 
- */
-static void sigact_term(int sig)
-{
-   SIGTERM_TRIPPED = TRUE;
-}
-
-/**
  * sigact_usr1 - 
  * @sig: 
  * 
@@ -101,7 +92,7 @@ static void setupsignals(void)
    struct sigaction act;
 
    memset(&act,0,sizeof(act));
-   act.sa_handler = sigact_term;
+   act.sa_handler = SIG_IGN; /* use gulm_tool shutdown or kill -9 */
    if( sigaction(SIGTERM, &act, NULL) <0)
       die(ExitGulm_InitFailed,
             "Failed to install signal SIGTERM handler: %s\n",strerror(errno));

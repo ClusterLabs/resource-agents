@@ -18,6 +18,7 @@
 #include <netinet/tcp.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
 
 /*****************************************************************************/
 #ifdef OPEN_MAX
