@@ -30,9 +30,9 @@ foreach $target (@targets) {
     $newdir = $target."-".$version."-".$date;
     print `cp -r $target $newdir`;
     print `rm -rf 'find $newdir -name CVS'`;
-    print `tar -zcvf $newdir.tar.gz $newdir`;
+    print `tar -zcf $newdir.tar.gz $newdir`;
     print `rm -rf $newdir`;
-    print `rpmbuild -ts $newdir.tar.gz`;
+    print `rpmbuild --define "_srcrpmdir ./" --nodeps -ts $newdir.tar.gz `;
     print `rm $newdir.tar.gz`;
     chdir $target;
     setReleaseFile(1);
