@@ -1,0 +1,2 @@
+KERNEL="dlm_control", NAME="misc/dlm-control"
+KERNEL="dlm-*", NAME="misc/%k"
