@@ -64,7 +64,10 @@ static int process_join_stop(sm_group_t *sg)
 	sm_set_event_id(&uev->ue_id);
 
 	node = sm_find_joiner(sg, uev->ue_nodeid);
-	SM_ASSERT(node,);
+	if (!node) {
+		log_error(sg, "process_join_stop: no node %d", uev->ue_nodeid);
+		return -1;
+	}
 
 	sg->state = SGST_UEVENT;
 	sg->ops->stop(sg->service_data);
