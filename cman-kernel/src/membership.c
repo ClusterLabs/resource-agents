@@ -136,7 +136,7 @@ static void reset_hello_time(void);
 static int add_us(void);
 static int send_joinconf(void);
 static int init_membership_services(void);
-static int elect_master(struct cluster_node **);
+static int elect_master(struct cluster_node **, int disallow_node);
 static void trans_timer_expired(unsigned long arg);
 static void hello_timer_expired(unsigned long arg);
 static void join_or_form_cluster(void);
@@ -235,6 +235,22 @@ static inline void set_nodeid(struct cluster_node *node, int nodeid)
 		}
 	}
 	notify_kernel_listeners(NEWNODE, (long) nodeid);
+
+	/* The old node may be a failed joiner, in which case we can overwrite it with
+	   the new node */
+	if (members_by_nodeid[nodeid] &&
+	    members_by_nodeid[nodeid]->state == NODESTATE_JOINING) {
+
+		P_MEMB("Removing failed joining node %s (%d)\n",
+		       members_by_nodeid[nodeid]->name, members_by_nodeid[nodeid]->node_id);
+
+		down(&cluster_members_lock);
+		list_del(&members_by_nodeid[nodeid]->list);
+		up(&cluster_members_lock);
+
+		kfree(members_by_nodeid[nodeid]);
+		members_by_nodeid[nodeid] = NULL;
+	}
 
 	if (members_by_nodeid[nodeid] &&
 	    members_by_nodeid[nodeid] != node) {
@@ -502,7 +518,7 @@ static int do_timer_wakeup()
 			struct cluster_node *node;
 
 			P_MEMB("Master node is dead...Election!\n");
-			if (elect_master(&node)) {
+			if (elect_master(&node, 0)) {
 
 				/* We are master now, all kneel */
 				start_transition(TRANS_DEADMASTER, master_node);
@@ -879,9 +895,19 @@ static int end_transition()
 	/* When that's all settled down, do the transition completion barrier */
 	kcl_wait_for_all_acks();
 
+	/* We check this below too, but this can save us 3 seconds in a transition */
+	if (test_bit(WAKE_FLAG_DEADNODE, &wake_flags)) {
+		P_MEMB("Node died during ACK collection - restart\n");
+		return 0;
+	}
+
 	if (wait_for_completion_barrier() != 0) {
 		P_MEMB("Barrier timed out - restart\n");
-		start_transition(TRANS_RESTART, us);
+
+		/* If a node died while we were waiting then restart transition with ANOTHERREMNODE */
+		if (!test_bit(WAKE_FLAG_DEADNODE, &wake_flags)) {
+			start_transition(TRANS_RESTART, us);
+		}
 		return 0;
 	}
 
@@ -1151,7 +1177,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 	P_MEMB("Start transition - reason = %d(last reason = %d)\n", reason, transitionreason);
 
 	/* If this is a restart then zero the counters */
-	if (reason == TRANS_RESTART) {
+	if (reason == TRANS_RESTART || reason == TRANS_NEWMASTER) {
 		agreeing_nodes = 0;
 		dissenting_nodes = 0;
 		if (node_opinion) {
@@ -1163,6 +1189,13 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 		/* Make sure we restart with the right new node if applicable. */
 		if (transitionreason == TRANS_NEWNODE && joining_node)
 			node = joining_node;
+
+		/* If we are a new master then restart the transition proper */
+		if (reason == TRANS_NEWMASTER) {
+			reason = transitionreason;
+			if (reason == TRANS_NEWNODE)
+				node = joining_node;
+		}
 	}
 
 	/* If we have timed out too many times then just die */
@@ -1293,7 +1326,7 @@ void a_node_just_died(struct cluster_node *node)
 	 * new one */
 	if (node_state == TRANSITION) {
 		if (master_node == node) {
-			if (elect_master(&node)) {
+			if (elect_master(&node, 0)) {
 				del_timer(&transition_timer);
 				node_state = MASTER;
 
@@ -1855,6 +1888,31 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 	return 0;
 }
 
+/* Remove the node from the list if it's a brand-new node,
+ * otherwise we end up knowing about a node that no-one
+ * else has and transitions get a bit fragile!
+ */
+static void remove_joiner(void)
+{
+	if (!joining_node)
+		return;
+
+	if (joining_node->incarnation == 0) {
+		down(&cluster_members_lock);
+		list_del(&joining_node->list);
+		up(&cluster_members_lock);
+
+		if (joining_node->node_id)
+			members_by_nodeid[joining_node->node_id] = NULL;
+		kfree(joining_node);
+	}
+	else {
+		joining_node->state = NODESTATE_DEAD;
+	}
+	joining_node = NULL;
+	joining_temp_nodeid = 0;
+}
+
 /* Got an ENDTRANS message */
 static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 {
@@ -1884,11 +1942,15 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 
 	node_state = TRANSITION_COMPLETE;
 
-	confirm_joiner();
+	if (endmsg->new_node_id)
+		confirm_joiner();
+	else
+		remove_joiner();
+
 	cluster_generation = le32_to_cpu(endmsg->generation);
 
 	if (wait_for_completion_barrier() != 0) {
-		P_MEMB("Barrier timed out - restart\n");
+		P_MEMB("Barrier timed out - restart client(ie do nowt)\n");
 		node_state = TRANSITION;
 		mod_timer(&transition_timer,
 			  jiffies + cman_config.transition_timeout * HZ);
@@ -1970,8 +2032,19 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 	/* If we are also a master then decide between us */
 	if (node_state == MASTER) {
 
+		int not_master = 0;
+
+		/* If one node is doing a CHECK and another a "real" transition then prevent
+		   the CHECK from being master as it's a waste of time */
+		if (transitionreason != startmsg->reason) {
+			if (transitionreason == TRANS_CHECK)
+				not_master = us->node_id;
+			if (startmsg->reason == TRANS_CHECK)
+				not_master = saddr->scl_nodeid;
+		}
+
 		/* See if we really want the responsibility of being master */
-		if (elect_master(&node)) {
+		if (elect_master(&node, not_master)) {
 
 			/* I reluctantly accept this position of responsibility
 			 */
@@ -1987,7 +2060,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			/* Back down */
 			P_MEMB("Backing down from MASTER status\n");
 			master_node = node;
-			node_state = MEMBER;
+			node_state = TRANSITION;
 
 			/* If we were bringing a new node into the cluster then
 			 * we will have to abandon that now and tell the new
@@ -2004,24 +2077,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 				send_joinack((char *)&saddr, sizeof(saddr),
 					      JOINACK_TYPE_WAIT);
 
-				/* This is the only time we remove a node from the list
-				   (if it's a brand-new node), otherwise we end up knowing about
-				   a node that no-one else has and transitions get a bit fragile!
-				*/
-				if (joining_node->incarnation == 0) {
-					down(&cluster_members_lock);
-					list_del(&joining_node->list);
-					up(&cluster_members_lock);
-
-					if (joining_node->node_id)
-						members_by_nodeid[joining_node->node_id] = NULL;
-					kfree(joining_node);
-				}
-				else {
-					joining_node->state = NODESTATE_DEAD;
-				}
-				joining_node = NULL;
-				joining_temp_nodeid = 0;
+				remove_joiner();
 			}
 
 			/* If the new master is not us OR the node we just got
@@ -2118,6 +2174,7 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 
 	return 0;
 }
+
 
 /* Change a cluster parameter */
 static int do_process_reconfig(struct msghdr *msg, char *buf, int len)
@@ -2977,13 +3034,14 @@ unsigned int get_highest_nodeid()
 /* Elect a new master if there is a clash. Returns 1 if we are the new master,
  * the master's struct will also be returned. This, rather primitively, uses
  * the lowest node ID */
-static int elect_master(struct cluster_node **master_node)
+static int elect_master(struct cluster_node **master_node, int disallow_node)
 {
 	int i;
 
 	for (i = 1; i < sizeof_members_array; i++) {
-		if (members_by_nodeid[i]
-		    && members_by_nodeid[i]->state == NODESTATE_MEMBER) {
+		if (members_by_nodeid[i] &&
+		    members_by_nodeid[i]->state == NODESTATE_MEMBER &&
+		    i != disallow_node) {
 			*master_node = members_by_nodeid[i];
 			P_MEMB("Elected master is %s\n", (*master_node)->name);
 			return (*master_node)->us;
