@@ -181,6 +181,18 @@ int kcl_join_service(uint32_t local_id)
 		goto out;
 	}
 
+	sev = kmalloc(sizeof(sm_sevent_t), GFP_KERNEL);
+	if (!sev) {
+		up(&sm_sglock);
+		error = -ENOMEM;
+		goto out;
+	}
+
+	memset(sev, 0, sizeof (sm_sevent_t));
+	sev->se_state = SEST_JOIN_BEGIN;
+	sm_set_event_id(&sev->se_id);
+	sev->se_sg = sg;
+	sg->sevent = sev;
 	sg->state = SGST_JOIN;
 	set_bit(SGFL_SEVENT, &sg->flags);
 	list_del(&sg->list);
@@ -191,18 +203,6 @@ int kcl_join_service(uint32_t local_id)
 	/*
 	 * The join is a service event which will be processed asynchronously.
 	 */
-
-	sev = kmalloc(sizeof(sm_sevent_t), GFP_KERNEL);
-	if (!sev) {
-		error = -ENOMEM;
-		goto out;
-	}
-
-	memset(sev, 0, sizeof (sm_sevent_t));
-	sev->se_state = SEST_JOIN_BEGIN;
-	sev->se_sg = sg;
-	sg->sevent = sev;
-	sm_set_event_id(&sev->se_id);
 
 	new_joinleave(sev);
 	wait_for_completion(&sg->event_comp);
@@ -230,22 +230,30 @@ int kcl_leave_service(uint32_t local_id)
 	if (sg->state == SGST_NONE)
 		goto out;
 
-	/* may still be joining */
-	error = -EBUSY;
-	if (test_and_set_bit(SGFL_SEVENT, &sg->flags))
-		goto out;
+	down(&sm_sglock);
 
-	error = -ENOMEM;
-	sev = kmalloc(sizeof(sm_sevent_t), GFP_KERNEL);
-	if (!sev)
+	/* may still be joining */
+	if (test_and_set_bit(SGFL_SEVENT, &sg->flags)) {
+		up(&sm_sglock);
+		error = -EBUSY;
 		goto out;
+	}
+
+	sev = kmalloc(sizeof(sm_sevent_t), GFP_KERNEL);
+	if (!sev) {
+		up(&sm_sglock);
+		error = -ENOMEM;
+		goto out;
+	}
 
 	memset(sev, 0, sizeof (sm_sevent_t));
 	sev->se_state = SEST_LEAVE_BEGIN;
+	sm_set_event_id(&sev->se_id);
 	set_bit(SEFL_LEAVE, &sev->se_flags);
 	sev->se_sg = sg;
 	sg->sevent = sev;
-	sm_set_event_id(&sev->se_id);
+
+	up(&sm_sglock);
 
 	new_joinleave(sev);
 	wait_for_completion(&sg->event_comp);
