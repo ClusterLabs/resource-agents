@@ -12,7 +12,7 @@ AM_CONFIG_HEADER([include/config.h])
 #
 # See below for assignment to REAL CFLAGS var.
 #
-cflags="-Wall -Werror -Wstrict-prototypes -Wshadow -O2 -fPIC -D_GNU_SOURCE -ggdb"
+cflags="-Wall -Wstrict-prototypes -Wshadow -O2 -fPIC -D_GNU_SOURCE -ggdb"
 
 # Checks for programs.
 AC_PROG_AWK

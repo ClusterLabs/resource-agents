@@ -48,6 +48,8 @@
 #include <mallocdbg.h>
 #endif
 
+#define DEBUG
+
 
 static int vf_lfds[2];
 static int vf_lfd = 0;
@@ -566,7 +568,7 @@ vf_buffer_join_msg(int fd, vf_msg_t *hdr, struct timeval *timeout)
 		if (getuptime(&newp->vn_timeout) == -1) {
 			/* XXX What do we do here? */
 			free(newp);
-		return 0;
+			return 0;
 		}
 	
 		newp->vn_timeout.tv_sec += timeout->tv_sec;
@@ -1202,7 +1204,11 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	/* set to -1 */
 	count = sizeof(int) * (membership->cml_count + 1);
 	peer_fds = malloc(count);
-	memset((void *)(peer_fds), 0xff, count);
+	if(!peer_fds)
+		return -1;
+
+	for (x=0; x < membership->cml_count + 1; x++)
+		peer_fds[x] = -1;
 	getuptime(&start);
 
 retry_top:
@@ -1228,6 +1234,7 @@ retry_top:
 		nodeid = membership->cml_members[x].cm_id;
 #ifdef DEBUG
 		printf("VF: Connecting to member #%d\n", (int)nodeid);
+		fflush(stdout);
 #endif
 		pthread_mutex_lock(&id_mutex);
 		peer_fds[y] = msg_open(nodeid, __port, MSGP_VFC, 4);
@@ -1426,6 +1433,7 @@ int
 vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 {
 	vf_msg_t *hdrp;
+	int ret;
 
 	if ((nbytes <= 0) || (nbytes < sizeof(generic_msg_hdr)) ||
 	    (msgp->gh_command != VF_MESSAGE))
@@ -1463,7 +1471,6 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 			fprintf(stderr, "VF: JOIN_VIEW: Invalid size %d/%d\n",
 				nbytes, hdrp->vm_msg.vf_datalen + sizeof(*hdrp));
 
-			free(msgp);
 			return VFR_ERROR;
 		}
 		return vf_handle_join_view_msg(handle, hdrp);
@@ -1478,9 +1485,12 @@ vf_process_msg(int handle, generic_msg_hdr *msgp, int nbytes)
 		printf("VF: Received VF_VIEW_FORMED, fd%d\n",
 		       handle);
 #endif
+		pthread_mutex_lock(&key_list_mutex);
 		vf_buffer_commit(handle);
-		return (vf_resolve_views(kn_find_fd(handle)) ?
+		ret = (vf_resolve_views(kn_find_fd(handle)) ?
 			VFR_COMMIT : VFR_OK);
+		pthread_mutex_unlock(&key_list_mutex);
+		return ret;
 			
 	default:
 		printf("VF: Unknown msg type 0x%08x\n",
@@ -1677,6 +1687,7 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 	int fd, x, n, rv = VFR_OK, port;
 	vf_msg_t rmsg;
 	vf_msg_t *msg = &rmsg;
+	generic_msg_hdr * gh;
 	uint64_t me;
 
 	pthread_mutex_lock(&id_mutex);
@@ -1725,15 +1736,16 @@ vf_request_current(cluster_member_list_t *membership, char *keyid,
 			continue;
 		}
 
-		msg = NULL;
-		if ((n = msg_receive_simple(fd, (generic_msg_hdr **)&msg, 10))
+		gh = NULL;
+		if ((n = msg_receive_simple(fd, (generic_msg_hdr **)&gh, 10))
 		    == -1) {
-			if (msg)
-				free(msg);
+			if (gh)
+				free(gh);
 			msg_close(fd);
 			continue;
 		}
 		msg_close(fd);
+		msg = (vf_msg_t *)gh;
 		break;
 	}
 
