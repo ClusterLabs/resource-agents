@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.27 $) dnl cvs revision
+AC_REVISION($Revision: 1.28 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -133,6 +133,7 @@ AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw.h)
 AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
+AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
 
 
 dnl ************************************************************************
@@ -238,8 +239,8 @@ AC_CHECK_FUNCS(scandir)
 AC_CHECK_FUNCS(strerror)
 AC_CHECK_FUNCS(inet_aton)
 AC_CHECK_FUNCS(flock fcntl)
-AC_CHECK_FUNCS(setenv scandir)
-AC_REPLACE_FUNCS(setenv scandir)
+AC_CHECK_FUNCS(setenv scandir inet_pton)
+AC_REPLACE_FUNCS(setenv scandir inet_pton)
 
 dnl
 dnl We reset CFLAGS to include our warnings *after* all function
