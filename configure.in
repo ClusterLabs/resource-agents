@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.143 $) dnl cvs revision
+AC_REVISION($Revision: 1.144 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -849,6 +849,8 @@ AC_CHECK_FUNCS(alphasort)
 AC_CHECK_FUNCS(inet_aton)
 AC_CHECK_FUNCS(flock fcntl)
 AC_CHECK_FUNCS(sigignore)
+AC_CHECK_FUNCS(seteuid)
+AC_CHECK_FUNCS(setegid)
 AC_CHECK_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 AC_REPLACE_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
 
