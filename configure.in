@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.336 $) dnl cvs revision
+AC_REVISION($Revision: 1.337 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1730,12 +1730,16 @@ AC_MSG_CHECKING(which swig/perl version)
 if test "${enable_swig}" = "yes"; then
 	if test -z "$SWIG"; then
 		enable_swig="no (swig not found)"
-		AC_MSG_RESULT(swig not found)
+		AC_MSG_RESULT($enable_swig)
+		FatalMissingThing "swig" "SWIG was requested, but not installed" \
+		"You can get it from http://swig.org/"
 	else
 		SWIG_VERSION="`$SWIG -version 2>&1 | sed -ne 's/SWIG Version 1.3.//p'`"
 		if test "0$SWIG_VERSION" -lt "19" 2>&1 ; then
 			enable_swig="no (version 1.3.x, x>=19 required)"
-			AC_MSG_RESULT(swig version 1.3.x, x>=19 required)
+			AC_MSG_RESULT($enable_swig)
+			FatalMissingThing "swig" "SWIG version must be > 1.3.19" \
+			"You can get it from http://swig.org/"
 		else
 			if $PERL -e "use 5.008001;" >& /dev/null; then
 				SWIG_ENABLED=1
@@ -1743,6 +1747,8 @@ if test "${enable_swig}" = "yes"; then
 						SWIG bindings enabled)
 			else
 				enable_swig="no (invalid perl version)"
+				AC_MSG_RESULT($enable_swig)
+				FatalMissingThing "swig-perl" "SWIG-enabled Perl" 
 			fi
 		fi
 	fi
