@@ -11,7 +11,7 @@
 ###############################################################################
 ###############################################################################
 
-SOURCE=libdlm.c
+SOURCE=libdlm.c libaislock.c
 
 LIBNAME=libdlm
 SHAREDLIB=$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR} $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}
@@ -37,16 +37,16 @@ endif
 
 all: $(STATICLIB) $(SHAREDLIB)
 
-$(LIBNAME).a: libdlm.o
-	${AR} r libdlm.a libdlm.o
+$(LIBNAME).a: libdlm.o libaislock.o
+	${AR} cr libdlm.a libdlm.o libaislock.o
 	${RANLIB} libdlm.a 
 
-$(LIBNAME)_lt.a: libdlm_lt.o
-	${AR} r libdlm_lt.a libdlm_lt.o
+$(LIBNAME)_lt.a: libdlm_lt.o 
+	${AR} r libdlm_lt.a libdlm_lt.o 
 	${RANLIB} libdlm_lt.a 
 
-$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po
-	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
+$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po
+	$(LD) -shared -o $@ -soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
 
 $(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
 	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
@@ -55,6 +55,12 @@ libdlm.po: libdlm.c
 	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
 
 libdlm.o: libdlm.c
+	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
+
+libaislock.po: libaislock.c
+	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
+
+libaislock.o: libaislock.c
 	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
 
 libdlm_lt.po: libdlm.c
