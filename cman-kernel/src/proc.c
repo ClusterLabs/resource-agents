@@ -33,7 +33,7 @@ extern struct semaphore cluster_members_lock;
 extern struct cluster_node *quorum_device;
 extern int we_are_a_cluster_member;
 extern int cluster_is_quorate;
-extern unsigned short cluster_id;
+extern uint16_t cluster_id;
 extern atomic_t use_count;
 extern unsigned int address_length;
 extern unsigned int config_version;

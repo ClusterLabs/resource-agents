@@ -52,6 +52,7 @@
 #define SIOCCLUSTER_SERVICE_GLOBALID  _IOR('x', 0x70, uint32_t)
 #define SIOCCLUSTER_SERVICE_SETLEVEL  _IOR('x', 0x80, int)
 #define SIOCCLUSTER_GETNODE	      _IOWR('x', 0x90, struct cl_cluster_node)
+#define SIOCCLUSTER_GETCLUSTER	      _IOWR('x', 0x91, struct cl_cluster_info)
 #define SIOCCLUSTER_BARRIER           _IOW('x', 0x0a0, struct cl_barrier_info)
 
 /* These were setsockopts */
@@ -184,6 +185,11 @@ struct cl_barrier_info {
 	char name[MAX_BARRIER_NAME_LEN];
 	unsigned int flags;
 	unsigned long arg;
+};
+
+struct cl_cluster_info {
+	char name[MAX_CLUSTER_NAME_LEN+1];
+	uint16_t number;
 };
 
 typedef enum { SERVICE_EVENT_STOP, SERVICE_EVENT_START, SERVICE_EVENT_FINISH,

@@ -78,7 +78,7 @@ static struct sock *port_array[256];
 static struct semaphore port_array_lock;
 
 /* Our cluster name & number */
-unsigned short cluster_id;
+uint16_t cluster_id;
 char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 
 /* Two-node mode: causes cluster to remain quorate if one of two nodes fails.
@@ -1321,6 +1321,22 @@ static int do_ioctl_get_all_members(unsigned long arg)
 	return num_nodes;
 }
 
+
+static int do_ioctl_get_cluster(unsigned long arg)
+{
+	struct cl_cluster_info __user *info;
+
+	info = (struct cl_cluster_info *)arg;
+
+	if (copy_to_user(&info->number, &cluster_id, sizeof(cluster_id)))
+	    return -EFAULT;
+
+	if (copy_to_user(&info->name, cluster_name, strlen(cluster_name)+1))
+		return -EFAULT;
+
+	return 0;
+}
+
 static int do_ioctl_get_node(unsigned long arg)
 {
 	struct cluster_node *node;
@@ -1782,6 +1798,10 @@ static int cl_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		err = do_ioctl_get_node(arg);
 		break;
 
+	case SIOCCLUSTER_GETCLUSTER:
+		err = do_ioctl_get_cluster(arg);
+		break;
+
 	case SIOCCLUSTER_ISQUORATE:
 		return cluster_is_quorate;
 
@@ -1882,14 +1902,6 @@ static int cl_shutdown(struct socket *sock, int how)
 	release_sock(sk);
 
 	return err;
-}
-
-static int cl_setsockopt(struct socket *sock, int level, int optname,
-			 char *optval, int optlen)
-{
-	/* TODO Remove this after a short time */
-	printk("An old version of cman_tool attempted to start the cluster\n");
-	return -EINVAL;
 }
 
 
@@ -4068,7 +4080,7 @@ static struct proto_ops cl_proto_ops = {
 	.ioctl       = cl_ioctl,
 	.listen      = sock_no_listen,
 	.shutdown    = cl_shutdown,
-	.setsockopt  = cl_setsockopt,
+	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
 	.sendmsg     = cl_sendmsg,
 	.recvmsg     = cl_recvmsg,
