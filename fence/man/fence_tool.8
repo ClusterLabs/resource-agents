@@ -1,0 +1,90 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+.tl 'fence_tool(8)''fence_tool(8)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 fence_tool.8 | less'
+
+\fBNAME\fP
+.in +7
+fence_tool - A program to join and leave the fence domain
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_tool\fP <\fBjoin | leave\fP> [\fBoptions\fP]
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+\fBfence_tool\fP is a program used to join or leave the default fence
+domain.  Specifically, it starts the fence daemon (fenced) to join the
+domain and kills fenced to leave the domain.  Fenced can be started
+and stopped directly without using this program, but fence_tool takes
+some added steps that are often helpful.
+
+Before joining or leaving the fence domain, fence_tool waits for the
+cluster be in a quorate state.  The user can cancel fence_tool while it's
+waiting for quorum.  It's generally nicer to block waiting for quorum here
+than to have the fence daemon itself waiting to join or leave the domain
+while the cluster is inquorate.
+
+Before joining the domain, fence_tool unfences the node it's being run on.
+(Unfencing only applies to certain fencing agents, e.g. SAN-based.  It
+does nothing when the agents for the target node don't support unfencing,
+e.g. NPS-based.)  The unfencing step can be skipped with the -S option.
+
+Since \fBfence_tool join\fP is the usual way of starting fenced, the
+fenced options -j, -f, and -c can also be passed to fence_tool which
+passes them on to fenced.
+
+Warning:  a node must not leave the fence domain (fenced must not be
+terminated) while CLVM or GFS are in use.  fence_tool does not prevent
+such a mistake at present.
+.in
+
+\fBOPTIONS\fP
+
+.in +7
+
+\fB-h\fP
+.in +7
+Help.  Print out the usage syntax.
+.sp
+.in
+
+\fB-V\fP
+.in +7
+Print version information.
+.sp
+.in
+
+\fB-S\fP
+.in +7
+Skip self unfencing before joining.
+.sp
+.in
+
+\fB-j\fP \fIsecs\fP
+.in +7
+Post-join fencing delay (passed to fenced)
+.sp
+.in
+
+\fB-f\fP \fIsecs\fP
+.in +7
+Post-fail fencing delay (passed to fenced)
+.sp
+.in
+
+\fB-c\fP
+.in +7
+All nodes are in a clean state to start (passed to fenced)
+.sp
+.in -7
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fenced(8), fence(8), fence_node(8)
