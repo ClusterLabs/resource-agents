@@ -144,7 +144,7 @@
 #define DLM_LKF_NOQUEUEBAST    (0x00000800)
 
 /*
- * Some return codes that are not not in errno.h
+ * Some return codes that are not in errno.h
  */
 
 #define DLM_ECANCEL            (0x10001)
@@ -199,8 +199,7 @@ struct dlm_lksb {
 };
 
 /*
- * These defines are the bits that make up the
- * query code.
+ * These defines are the bits that make up the query code.
  */
 
 /* Bits 0, 1, 2, the lock mode or DLM_LOCK_THIS, see DLM_LOCK_NL etc in

@@ -32,6 +32,7 @@
 #include <linux/random.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/kthread.h>
 
 #include <cluster/dlm.h>
 #include <cluster/dlm_device.h>
@@ -281,6 +282,7 @@ struct dlm_ls {
 
 	/* recovery related */
 
+	struct task_struct *	ls_recoverd_task;
 	struct list_head	ls_recover;	/* dlm_recover structs */
 	spinlock_t		ls_recover_lock;
 	int			ls_last_stop;

@@ -33,40 +33,9 @@
 #define DO_FINISH_START     (5)
 
 /* 
- * recoverd_flags for thread
- */
-
-#define THREAD_STOP         (0)
-
-/* 
- * local thread variables
- */
-
-static unsigned long recoverd_flags;
-static struct completion recoverd_run;
-static wait_queue_head_t recoverd_wait;
-static struct task_struct *recoverd_task;
-
-/* 
  * Queue of lockspaces (dlm_recover structs) which need to be
  * started/recovered
  */
-
-static struct list_head recoverd_start_queue;
-static atomic_t recoverd_start_count;
-
-extern struct list_head lslist;
-extern spinlock_t lslist_lock;
-
-void dlm_recoverd_init(void)
-{
-	INIT_LIST_HEAD(&recoverd_start_queue);
-	atomic_set(&recoverd_start_count, 0);
-
-	init_completion(&recoverd_run);
-	init_waitqueue_head(&recoverd_wait);
-	memset(&recoverd_flags, 0, sizeof(unsigned long));
-}
 
 static int enable_locking(struct dlm_ls *ls, int event_id)
 {
@@ -223,7 +192,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 			log_error(ls, "rebuild_rsbs_send failed %d", error);
 			goto fail;
 		}
-	}
+}
 
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
@@ -617,94 +586,28 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	}
 }
 
-static __inline__ struct dlm_ls *get_work(int clear)
+int dlm_recoverd(void *arg)
 {
-	struct dlm_ls *ls;
+	struct dlm_ls *ls = arg;
 
-	spin_lock(&lslist_lock);
+	hold_lockspace(ls);
 
-	list_for_each_entry(ls, &lslist, ls_list) {
-		if (clear) {
-			if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags)) {
-				hold_lockspace(ls);
-			        goto got_work;
-			}
-		} else {
-			if (test_bit(LSFL_WORK, &ls->ls_flags))
-			        goto got_work;
-		}
-	}
-	ls = NULL;
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (!test_bit(LSFL_WORK, &ls->ls_flags))
+			schedule();
+		set_current_state(TASK_RUNNING);
 
- got_work:
-	spin_unlock(&lslist_lock);
-
-	return ls;
-}
-
-/* 
- * Thread which does recovery for all lockspaces.
- */
-
-static int dlm_recoverd(void *arg)
-{
-	struct dlm_ls *ls;
-
-	daemonize("dlm_recoverd");
-	recoverd_task = current;
-	complete(&recoverd_run);
-
-	while (!test_bit(THREAD_STOP, &recoverd_flags)) {
-		wchan_cond_sleep_intr(recoverd_wait, !get_work(0));
-		if ((ls = get_work(1))) {
+		if (test_and_clear_bit(LSFL_WORK, &ls->ls_flags))
 			do_ls_recovery(ls);
-			put_lockspace(ls);
-		}
 	}
 
-	complete(&recoverd_run);
+	put_lockspace(ls);
 	return 0;
 }
-
-/* 
- * Mark a specific lockspace as needing work and wake up the thread to do it.
- */
 
 void dlm_recoverd_kick(struct dlm_ls *ls)
 {
 	set_bit(LSFL_WORK, &ls->ls_flags);
-	wake_up(&recoverd_wait);
-}
-
-/* 
- * Start the recoverd thread when dlm is started (before any lockspaces).
- */
-
-int dlm_recoverd_start(void)
-{
-	int error;
-
-	clear_bit(THREAD_STOP, &recoverd_flags);
-	error = kernel_thread(dlm_recoverd, NULL, 0);
-	if (error < 0)
-		goto out;
-
-	error = 0;
-	wait_for_completion(&recoverd_run);
-
-      out:
-	return error;
-}
-
-/* 
- * Stop the recoverd thread when dlm is shut down (all lockspaces are gone).
- */
-
-int dlm_recoverd_stop(void)
-{
-	set_bit(THREAD_STOP, &recoverd_flags);
-	wake_up(&recoverd_wait);
-	wait_for_completion(&recoverd_run);
-
-	return 0;
+	wake_up_process(ls->ls_recoverd_task);
 }

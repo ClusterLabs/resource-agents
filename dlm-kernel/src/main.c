@@ -23,7 +23,6 @@
 
 #include "dlm_internal.h"
 #include "lockspace.h"
-#include "recoverd.h"
 #include "ast.h"
 #include "lkb.h"
 #include "nodes.h"
@@ -58,7 +57,6 @@ int __init init_dlm(void)
 {
 	dlm_proc_init();
 	dlm_lockspace_init();
-	dlm_recoverd_init();
 	dlm_nodes_init();
 	dlm_device_init();
 	dlm_memory_init();

@@ -241,12 +241,12 @@ static int queuecvt_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 
 static int can_be_granted(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
-        if (test_bit(LSFL_NOCONVGRANT, &rsb->res_ls->ls_flags) &&
+	if (test_bit(LSFL_NOCONVGRANT, &rsb->res_ls->ls_flags) &&
 	    lkb->lkb_grmode == DLM_LOCK_IV &&
 	    !list_empty(&rsb->res_convertqueue))
 	        return FALSE;
 
-        if (lkb->lkb_rqmode == DLM_LOCK_NL)
+	if (lkb->lkb_rqmode == DLM_LOCK_NL)
 		return TRUE;
 
 	if (lkb->lkb_rqmode == lkb->lkb_grmode)

@@ -137,18 +137,11 @@ static int threads_start(void)
 {
 	int error;
 
-	/* Thread which interacts with cman for all ls's */
-	error = dlm_recoverd_start();
-	if (error) {
-		log_print("cannot start recovery thread %d", error);
-		goto fail;
-	}
-
 	/* Thread which process lock requests for all ls's */
 	error = astd_start();
 	if (error) {
 		log_print("cannot start ast thread %d", error);
-		goto recoverd_fail;
+		goto fail;
 	}
 
 	/* Thread for sending/receiving messages for all ls's */
@@ -163,9 +156,6 @@ static int threads_start(void)
       astd_fail:
 	astd_stop();
 
-      recoverd_fail:
-	dlm_recoverd_stop();
-
       fail:
 	return error;
 }
@@ -174,7 +164,6 @@ static void threads_stop(void)
 {
 	lowcomms_stop();
 	astd_stop();
-	dlm_recoverd_stop();
 }
 
 static int init_internal(void)
@@ -267,6 +256,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	struct dlm_ls *ls;
 	int i, size, error = -ENOMEM;
 	uint32_t local_id = 0;
+	struct task_struct *p;
 
 	if (!try_module_get(THIS_MODULE))
 		return -EINVAL;
@@ -274,8 +264,9 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	if (namelen > MAX_SERVICE_NAME_LEN)
 		return -EINVAL;
 
-	if ((ls = find_lockspace_by_name(name, namelen))) {
-		*lockspace = (void *)(long)ls->ls_local_id;
+	ls = find_lockspace_by_name(name, namelen);
+	if (ls) {
+		*lockspace = (void *)(long) ls->ls_local_id;
 		return -EEXIST;
 	}
 
@@ -346,15 +337,25 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_rcom_msgid = 0;
 	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_MUTEX(&ls->ls_rcom_lock);
-	init_rwsem(&ls->ls_in_recovery);
 	init_rwsem(&ls->ls_unlock_sem);
 	init_rwsem(&ls->ls_root_lock);
+	init_rwsem(&ls->ls_in_recovery);
+
 	down_write(&ls->ls_in_recovery);
 
 	if (flags & DLM_LSF_NOTIMERS)
 		set_bit(LSFL_NOTIMERS, &ls->ls_flags);
 	if (flags & DLM_LSF_NOCONVGRANT)
 		set_bit(LSFL_NOCONVGRANT, &ls->ls_flags);
+
+	p = kthread_create(dlm_recoverd, (void *) ls, "dlm_recoverd");
+	if (IS_ERR(p)) {
+		error = PTR_ERR(p);
+		log_error(ls, "can't start dlm_recoverd %d", error);
+		goto out_dirfree;
+	}
+	ls->ls_recoverd_task = p;
+
 
 	/*
 	 * Connect this lockspace with the cluster manager
@@ -363,7 +364,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	error = kcl_register_service(name, namelen, SERVICE_LEVEL_GDLM,
 				     &ls_ops, TRUE, (void *) ls, &local_id);
 	if (error)
-		goto out_dirfree;
+		goto out_recoverd;
 
 	ls->ls_state = LSST_INIT;
 	ls->ls_local_id = local_id;
@@ -386,12 +387,14 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	   anything at a future date without breaking clients. But returning
 	   the address of the lockspace is a bad idea as it could get
 	   forcibly removed, leaving client with a dangling pointer */
-	*lockspace = (void *)(long)local_id;
 
+	*lockspace = (void *)(long) local_id;
 	return 0;
 
  out_reg:
 	kcl_unregister_service(ls->ls_local_id);
+ out_recoverd:
+	kthread_stop(ls->ls_recoverd_task);
  out_dirfree:
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
@@ -471,6 +474,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kcl_leave_service(ls->ls_local_id);
 		kcl_unregister_service(ls->ls_local_id);
 	}
+
+	kthread_stop(ls->ls_recoverd_task);
 
 	remove_lockspace(ls);
 
