@@ -372,22 +372,26 @@ cman_lock(cluster_plugin_t *self,
 		options = LKF_NOQUEUE;
 
 	/* Allocate our lock structure. */
-	lksb = malloc(sizeof(struct dlm_lksb));
+	lksb = malloc(sizeof(*lksb));
 	assert(lksb);
 	memset(lksb, 0, sizeof(*lksb));
-	(*lockpp) = (void *)lksb;
 
 	ret = dlm_ls_lock(p->ls, mode, lksb, options, resource,
 			  strlen(resource), 0, ast_function, lksb, NULL,
 			  NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		free(lksb);
 		return ret;
+	}
 
-	if (wait_for_dlm_event(p->ls) < 0)
+	if (wait_for_dlm_event(p->ls) < 0) {
+		free(lksb);
 		return -1;
+	}
 
 	switch(lksb->sb_status) {
 	case 0:
+		*lockpp = (void *)lksb;
 		return 0;
 	case EAGAIN:
 		free(lksb);
@@ -403,6 +407,7 @@ cman_lock(cluster_plugin_t *self,
 	/* Not reached */
 	return -1;
 }
+
 
 
 static int
@@ -426,8 +431,18 @@ cman_unlock(cluster_plugin_t *self, char *__attribute__((unused)) resource,
 	}
 
 	ret = dlm_ls_unlock(ls, lksb->sb_lkid, 0, lksb, NULL);
-	if (ret == 0) 
-		free(lksb);
+
+	if (ret != 0) 
+		return ret;
+
+	/* lksb->sb_status should be EINPROG at this point */
+
+	if (wait_for_dlm_event(p->ls) < 0) {
+		errno = lksb->sb_status;
+		return -1;
+	}
+
+	free(lksb);
 
 	return ret;
 }
