@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.249 $) dnl cvs revision
+AC_REVISION($Revision: 1.250 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1310,7 +1310,6 @@ AC_ARG_ENABLE([crm],
 [  --enable-crm  Compile the new Cluster Resource Manager.
                           This is still in very early developement stage.  [default=no]]) 
 
-
 CRM_DIR=""
 CRM_LIBS=""
 CRM_ENABLED=0
@@ -1343,6 +1342,33 @@ dnl CRM_DEBUG_LIBS=-ldmalloc
 AC_SUBST(CRM_DEBUG_LIBS)
 AC_SUBST(CRM_DEBUG_FLAGS)
 dnl AC_DEFINE_UNQUOTED(CRM_DEBUG_DMALLOC, 1, Use the dmalloc libraries)
+
+dnl lrm configuration
+AC_ARG_ENABLE([lrm],
+[  --enable-lrm  Compile the new Cluster Resource Manager.
+                          This is still in developement stage.  [default=no]]) 
+
+LRM_ENABLED=0
+LRM_DIR=""
+if test "${enable_lrm}"  = "yes"; then
+	LRM_ENABLED=1
+	LRM_DIR="lrm"
+	LRM_LRMD="${LRM_DIR}/lrmd"
+	LRM_ADMNI="${LRM_DIR}/admin"
+	LRM_LIB="${LRM_DIR}/lib"
+	AC_SUBST(LRM_ENABLED)
+	AC_SUBST(LRM_DIR)
+	AC_SUBST(LRM_LIB)
+	AC_SUBST(LRM_LRMD)
+	AC_SUBST(LRM_ADMIN)
+else 
+     if test -z "${enable_lrm}"; then
+		enable_lrm="no"
+     fi
+fi
+
+echo "$as_me:$LINENO: Enabling the new Local Resource Manager... ${enable_lrm}" >&5
+echo $ECHO_N "Enabling the new Local Resource Manager... ${enable_lrm}" >&6
 
 dnl **********************************************************************
 dnl Scripting language bindings
@@ -1515,6 +1541,18 @@ dnl	   exit(1);
 dnl	fi
 fi
 
+dnl enable output Makefile for LRM compiling
+if test "${enable_lrm}"  = "yes"; then
+	AC_OUTPUT(include/lrm/Makefile			\
+		  lib/plugins/lrm/Makefile		\
+		  lib/lrm/Makefile			\
+		  lrm/Makefile				\
+		  lrm/lrmd/Makefile			\
+		  lrm/admin/Makefile			\
+		  lrm/test/Makefile			\
+		)
+fi
+
 if test "${enable_swig}" = "yes"; then
 	AC_OUTPUT(	lib/bindings/Makefile	\
 			lib/bindings/perl/Makefile \
@@ -1578,6 +1616,7 @@ case x"$SNMP_SUBAGENT_DIR" in
 esac
 
 AC_MSG_RESULT([  Build New CRM        = ${enable_crm}])
+AC_MSG_RESULT([  Build New LRM        = ${enable_lrm}])
 AC_MSG_RESULT([  Build SWIG bindings  = ${enable_swig}])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
