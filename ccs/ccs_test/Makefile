@@ -19,9 +19,10 @@ ccs_libdir=${top_srcdir}/lib
 INCLUDE+= -I. -I${top_srcdir}/include -I${ccs_libdir} -I${top_srcdir}/config
 
 ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g
+CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DDEBUG -g \
+	-DCCS_RELEASE_NAME=\"${RELEASE}\"
 else
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DCCS_RELEASE_NAME=\"${RELEASE}\"
 endif
 
 LDFLAGS+= -L${ccs_libdir}

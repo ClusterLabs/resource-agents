@@ -33,6 +33,18 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
 
+  for(i=1; i < argc; i++){
+    if(!strcmp(argv[i], "-h")){
+      print_usage(stdout);
+      exit(EXIT_SUCCESS);
+    }
+    if(!strcmp(argv[i], "-V")){
+      printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME, __DATE__, __TIME__);
+      printf("%s\n", REDHAT_COPYRIGHT);
+      exit(EXIT_SUCCESS);
+    }
+  }
+
   if(!strcmp(argv[1], "connect")){
     for(i=2; i < argc; i++){
       if(!strcmp(argv[i], "force")){
@@ -165,7 +177,11 @@ static void print_usage(FILE *stream){
   fprintf(stream,
 	  "Usage:\n"
 	  "\n"
-	  "ccs_test <Command>\n"
+	  "ccs_test [Options] <Command>\n"
+	  "\n"
+	  "Options:\n"
+	  "  -h                        Print usage.\n"
+	  "  -V                        Print version information.\n"
 	  "\n"
 	  "Commands:\n"
 	  "  connect <force> <block>   Connect to CCS and return connection descriptor.\n"
