@@ -38,7 +38,7 @@ int dlm_our_addr(int i, char *addr)
 		return -ENOENT;
 	if (i > local_count - 1)
 		return -EINVAL;
-	memcpy(addr, local_addr[i], DLM_ADDR_LEN);
+	memcpy(addr, local_addr[i], sizeof(struct sockaddr_storage));
 	return 0;
 }
 
@@ -65,7 +65,7 @@ static struct dlm_node *search_node_addr(char *addr)
 	struct dlm_node *node;
 
 	list_for_each_entry(node, &nodes, list) {
-		if (!memcmp(node->addr, addr, DLM_ADDR_LEN))
+		if (!memcmp(node->addr, addr, sizeof(struct sockaddr_storage)))
 			goto out;
 	}
 	node = NULL;
