@@ -1045,8 +1045,6 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_UNLOCK)
 			        return 0;
 
-			print_lkb(lkb);
-			print_request(freq);
 			remove_from_lockqueue(lkb);
 			if (!lkb->lkb_remid)
 				lkb->lkb_remid = req->rh_lkid;
