@@ -469,10 +469,10 @@ static int query_resource(struct dlm_rsb *rsb, struct dlm_resinfo *resinfo)
 {
 	struct list_head *tmp;
 
-
 	if (rsb->res_lvbptr)
 		memcpy(resinfo->rsi_valblk, rsb->res_lvbptr, DLM_LVB_LEN);
 
+	down_read(&rsb->res_lock);
 	resinfo->rsi_grantcount = 0;
 	list_for_each(tmp, &rsb->res_grantqueue) {
 		resinfo->rsi_grantcount++;
@@ -487,6 +487,7 @@ static int query_resource(struct dlm_rsb *rsb, struct dlm_resinfo *resinfo)
 	list_for_each(tmp, &rsb->res_convertqueue) {
 		resinfo->rsi_convcount++;
 	}
+	up_read(&rsb->res_lock);
 
 	return 0;
 }
@@ -547,13 +548,15 @@ static int add_lock(struct dlm_lkb *lkb, struct dlm_queryinfo *qinfo)
 	return 0;
 }
 
-static int query_lkb_queue(struct list_head *queue, int query,
+static int query_lkb_queue(struct dlm_rsb *rsb,
+			   struct list_head *queue, int query,
 			   struct dlm_queryinfo *qinfo)
 {
 	struct list_head *tmp;
 	int status = 0;
 	int mode = query & DLM_QUERY_MODE_MASK;
 
+	down_read(&rsb->res_lock);
 	list_for_each(tmp, queue) {
 		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 		int lkmode;
@@ -590,6 +593,7 @@ static int query_lkb_queue(struct list_head *queue, int query,
 			break;
 		}
 	}
+	up_read(&rsb->res_lock);
 	return status;
 }
 
@@ -616,6 +620,7 @@ static int get_blocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qinfo)
 	struct list_head *tmp;
 	int status = 0;
 
+	down_read(&qlkb->lkb_resource->res_lock);
 	list_for_each(tmp, &qlkb->lkb_resource->res_grantqueue) {
 		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 
@@ -623,6 +628,7 @@ static int get_blocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qinfo)
 		    !__dlm_compat_matrix[lkb->lkb_grmode + 1][qlkb->lkb_rqmode + 1])
 			status = add_lock(lkb, qinfo);
 	}
+	up_read(&qlkb->lkb_resource->res_lock);
 
 	return status;
 }
@@ -632,6 +638,7 @@ static int get_nonblocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qin
 	struct list_head *tmp;
 	int status = 0;
 
+	down_read(&qlkb->lkb_resource->res_lock);
 	list_for_each(tmp, &qlkb->lkb_resource->res_grantqueue) {
 		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 
@@ -639,6 +646,7 @@ static int get_nonblocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qin
 		      !__dlm_compat_matrix[lkb->lkb_grmode + 1][qlkb->lkb_rqmode + 1]))
 			status = add_lock(lkb, qinfo);
 	}
+	up_read(&qlkb->lkb_resource->res_lock);
 
 	return status;
 }
@@ -671,17 +679,20 @@ static int query_locks(int query, struct dlm_lkb *lkb, struct dlm_queryinfo *qin
 
         /* Do the lock queues that were requested */
 	if (query & DLM_QUERY_QUEUE_GRANT) {
-		status = query_lkb_queue(&lkb->lkb_resource->res_grantqueue,
+		status = query_lkb_queue(lkb->lkb_resource,
+					 &lkb->lkb_resource->res_grantqueue,
 					 query,	qinfo);
 	}
 
 	if (!status && (query & DLM_QUERY_QUEUE_CONVERT)) {
-		status = query_lkb_queue(&lkb->lkb_resource->res_convertqueue,
+		status = query_lkb_queue(lkb->lkb_resource,
+					 &lkb->lkb_resource->res_convertqueue,
 					 query, qinfo);
 	}
 
 	if (!status && (query & DLM_QUERY_QUEUE_WAIT)) {
-		status = query_lkb_queue(&lkb->lkb_resource->res_waitqueue,
+		status = query_lkb_queue(lkb->lkb_resource,
+					 &lkb->lkb_resource->res_waitqueue,
 					 query, qinfo);
 	}
 
