@@ -14,7 +14,6 @@
 #ifndef __IDDEV_DOT_H__
 #define __IDDEV_DOT_H__
 
-
 /**
  * indentify_device - figure out what's on a device
  * @fd: a file descriptor open on a device open for (at least) reading
@@ -30,7 +29,6 @@
 
 int identify_device(int fd, char *type, unsigned type_len);
 
-
 /**
  * device_size - figure out a device's size
  * @fd: the file descriptor of a device
@@ -39,8 +37,6 @@ int identify_device(int fd, char *type, unsigned type_len);
  * Returns: -1 on error (with errno set), 0 on success (with @bytes set)
  */
 
-int device_size(int fd, uint64 *bytes);
-
+int device_size(int fd, uint64_t *bytes);
 
 #endif /* __IDDEV_DOT_H__ */
-
