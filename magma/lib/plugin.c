@@ -25,6 +25,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 
 /**
@@ -161,6 +163,78 @@ _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 
 
 /**
+  Free up a null-terminated array of strings
+ */
+void
+free_dirnames(char **dirnames)
+{
+	int x = 0;
+
+	for (; dirnames[x]; x++)
+		free(dirnames[x]);
+
+	free(dirnames);
+}
+
+
+/**
+  Read all entries in a directory and return them in a NULL-terminated,
+  sorted array.
+ */
+int
+read_dirnames_sorted(char *directory, char ***dirnames)
+{
+	DIR *dir;
+	struct dirent *entry;
+	char filename[1024];
+	int count = 0, x = 0;
+
+	dir = opendir(directory);
+	if (!dir)
+		return -1;
+
+	/* Count the number of plugins */
+	while ((entry = readdir(dir)) != NULL)
+		++count;
+
+	/* Malloc the entries */
+	*dirnames = malloc(sizeof(char *) * (count+1));
+	if (!*dirnames) {
+		fprintf(stderr, "%s: Failed to malloc %d bytes",
+			__FUNCTION__, sizeof(char *) * (count+1));
+		closedir(dir);
+		errno = ENOMEM;
+		return -1;
+	}
+	memset(*dirnames, 0, sizeof(char *) * (count + 1));
+	rewinddir(dir);
+
+	/* Store the directory names. */
+	while ((entry = readdir(dir)) != NULL) {
+		snprintf(filename, sizeof(filename), "%s/%s", directory,
+			 entry->d_name);
+
+		(*dirnames)[x] = strdup(filename);
+		if (!(*dirnames)[x]) {
+			fprintf(stderr, "Failed to duplicate %s\n", filename);
+			free_dirnames(*dirnames);
+			closedir(dir);
+			errno = ENOMEM;
+			return -1;
+		}
+		++x;
+	}
+
+	closedir(dir);
+
+	/* Sort the directory names. */
+	qsort((*dirnames), count, sizeof(char *), alphasort);
+
+	return 0;
+}
+
+
+/**
   Searches PLUGINDIR for a plugin which can successfully connect to the
   cluster infrastructure (locking/fencing/quorum/membership) which is 
   running locally.  This connects, and tries to log in to the specified
@@ -178,26 +252,23 @@ _U_clu_plugin_version(cluster_plugin_t __attribute__ ((unused)) *cpp)
 int
 cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 {
-	DIR *dir;
 	int fd, ret, found = 0;
-	struct dirent *entry;
 	cluster_plugin_t *cp;
-	char filename[1024];
+	char **filenames;
+	int fcount = 0;
 
 	if (*cpp) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	dir = opendir(PLUGINDIR);
-	if (!dir)
+	if (read_dirnames_sorted(PLUGINDIR, &filenames) != 0) {
 		return -1;
+	}
 
-	while ((entry = readdir(dir)) != NULL) {
-		snprintf(filename, sizeof(filename), "%s/%s", PLUGINDIR,
-			 entry->d_name);
+	for (fcount = 0; filenames[fcount]; fcount++) {
 
-		cp = cp_load(filename);
+		cp = cp_load(filenames[fcount]);
 		if (cp == NULL)
 			continue;
 		++found;
@@ -231,11 +302,11 @@ cp_connect(cluster_plugin_t **cpp, char *groupname, int login)
 		}
 
 		*cpp = cp;
-		closedir(dir);
+		free_dirnames(filenames);
 		return fd;
 	}
 
-	closedir(dir);
+	free_dirnames(filenames);
 	if (!found)
 		errno = ELIBACC;
 	else
@@ -259,9 +330,25 @@ cp_load(const char *libpath)
 	void *handle = NULL;
 	cluster_plugin_t *cpp = NULL;
 	double (*modversion)(void);
+	struct stat sb;
 
 	if (!libpath) {
 		errno = EINVAL;
+		return NULL;
+	}
+
+	if (stat(libpath, &sb) != 0) {
+		return NULL;
+	}
+
+	/*
+	   If it's not owner-readable or it's a directory,
+	   ignore/fail.  Thus, a user may change the permission of
+	   a plugin "u-r" and this would then prevent magma apps
+	   from loading it.
+	 */
+	if (!(sb.st_mode & S_IRUSR) || (S_ISDIR(sb.st_mode))) {
+		errno = EPERM;
 		return NULL;
 	}
 

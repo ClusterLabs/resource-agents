@@ -28,7 +28,7 @@ TARGETS=libmagma.a \
 
 INCLUDE=-I.
 CFLAGS+=-g -Werror -Wstrict-prototypes -Wshadow \
-	-fPIC -DPLUGINDIR=\"${libdir}/magma/plugins\" \
+	-fPIC -DPLUGINDIR=\"${libdir}/magma\" \
 	-D_GNU_SOURCE
 
 all: $(TARGETS)

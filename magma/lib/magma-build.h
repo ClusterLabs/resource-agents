@@ -27,7 +27,15 @@
 #error "Never include this file from user programs."
 #endif
 
-#define CLUSTER_PLUGIN_API_VERSION (double)0.00010
+#define CLUSTER_PLUGIN_API_VERSION (double)0.00012
+
+#ifndef PLUGINDIR
+#define PLUGINDIR "/usr/lib/magma"
+#endif
+
+#ifndef MAGMACONF
+#define MAGMACONF "/etc/cluster/magma.conf"
+#endif
 
 #define IMPORT_PLUGIN_API_VERSION() \
 double cluster_plugin_version(void) \
