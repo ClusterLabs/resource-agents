@@ -1982,6 +1982,8 @@ static void remove_joiner(int tell_wait)
 	if (joining_node->incarnation == 0) {
 		P_MEMB("Removing joining node %s\n", joining_node->name);
 		down(&cluster_members_lock);
+		if (joining_node->state == NODESTATE_MEMBER)
+			cluster_members--;
 		list_del(&joining_node->list);
 		up(&cluster_members_lock);
 
