@@ -2626,8 +2626,9 @@ static void node_shutdown()
 	struct cl_client_socket *csock;
 	struct sk_buff *null_skb;
 
-	printk(KERN_INFO CMAN_NAME ": we are leaving the cluster. %s\n",
-	       us->leave_reason?leave_string(us->leave_reason):"");
+	if (we_are_a_cluster_member)
+		printk(KERN_INFO CMAN_NAME ": we are leaving the cluster. %s\n",
+		       us->leave_reason?leave_string(us->leave_reason):"");
 
 	atomic_set(&cnxman_running, 0);
 	unjam();
