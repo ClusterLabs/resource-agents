@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.113 $) dnl cvs revision
+AC_REVISION($Revision: 1.114 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -732,6 +732,18 @@ AC_ARG_WITH(
   )
 AC_DEFINE_UNQUOTED(INITSTOPPRI, $INITSTOPPRI, Init stop priority)
 AC_SUBST(INITSTOPPRI)
+
+#
+#	Name of UCD-SNMP development package
+#
+AC_ARG_WITH(
+  ucd-snmp-devel,
+    [  --with-snmp-init-priority=name of ucd snmp developemnt RPM. [default=ucd-snmp-devel]  ],
+    [ UCDSNMPDEVEL=$withval ],
+    [ UCDSNMPDEVEL=ucd-snmp-devel ],
+  )
+AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, Name of UCD SNMP development package)
+AC_SUBST(UCDSNMPDEVEL)
 
 dnl ************************************************************************
 dnl checks for library functions
