@@ -2685,6 +2685,8 @@ static void node_cleanup()
 	struct list_head *temp;
 	struct list_head *socklist;
 	struct list_head *blist;
+	struct temp_node *tn;
+	struct temp_node *tmp;
 	struct cl_comms_socket *sock;
 	struct kernel_notify_struct *knotify;
 
@@ -2739,6 +2741,14 @@ static void node_cleanup()
 	cluster_members = 0;
 	up(&cluster_members_lock);
 
+	/* Clean the temop node IDs list. */
+	down(&tempnode_lock);
+	list_for_each_entry_safe(tn, tmp, &tempnode_list, list) {
+		list_del(&tn->list);
+		kfree(tn);
+	}
+	up(&tempnode_lock);
+	
 	/* Free the memory allocated to the outgoing sockets */
 	free_cluster_sockets();
 
