@@ -31,6 +31,8 @@ typedef struct lock_req_s {
 
    int poll_idx;/* who made this request. */
 
+   int error;
+
 } lock_req_t;
 
 int init_ltpx_poller(void);
@@ -45,6 +47,7 @@ void ltpx_main_loop(void);
 int initialize_ltpx_maps(void);
 lock_req_t *get_new_lock_req(void);
 void recycle_lock_req(lock_req_t *lq);
+lock_req_t *duplicate_lock_req(lock_req_t *old);
 hashn_t * create_new_req_map(void);
 void dump_all_master_tables(void);
 void dump_ltpx_stuff(Qu_t *head, hashn_t *map, int ltid);

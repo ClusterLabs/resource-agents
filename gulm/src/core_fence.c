@@ -92,7 +92,7 @@ pid_t fence_node(char *name, int pause)
             pid, argv[0], argv[1], pause);
    }else{
       /*error*/
-      log_err("Problems (%d:%s) trying to start: %s %s\n",
+      log_msg(lgm_Forking, "Problems (%d:%s) trying to start: %s %s\n",
             errno, strerror(errno),
             argv[0], argv[1]);
       pid = -1;

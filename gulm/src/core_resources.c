@@ -242,7 +242,7 @@ int _send_mbrshp_to_children_(LLi_t *item, void *misc)
             s->name, r->name);
 
       if( send_update(r->poll_idx, s->name, s->st, &s->ip) < 0 ) {
-         log_err("Error sending sub info to child(%s). (%s)\n",
+         log_msg(lgm_Network, "Error sending sub info to child(%s). (%s)\n",
                r->name, strerror(errno));
          /* really not sure how to handle errors from resources. */
       }
@@ -298,7 +298,8 @@ int _send_core_state_to_children_(LLi_t *item, void *misc)
               gio_I_am_to_str(I_am_the), r->name);
 
       if( send_core_state_update(r->poll_idx) != 0 ) 
-         log_err("Error sending core state information to child %s: %s\n",
+         log_msg(lgm_Network,
+               "Error sending core state information to child %s: %s\n",
                r->name, strerror(errno));
    }
 

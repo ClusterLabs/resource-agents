@@ -187,6 +187,35 @@ void recycle_lock_req(lock_req_t *lq)
    }
 }
 
+lock_req_t *duplicate_lock_req(lock_req_t *old)
+{
+   lock_req_t *new;
+   new = get_new_lock_req();
+   new->code = old->code;
+   new->subid = old->subid;
+   new->keylen = old->keylen;
+   new->state = old->state;
+   new->flags = old->flags;
+   new->lvblen = old->lvblen;
+   new->poll_idx = old->poll_idx;
+   new->key = malloc(new->keylen);
+   if( new->key == NULL ) {
+      recycle_lock_req(new);
+      return NULL;
+   }
+   memcpy(new->key, old->key, new->keylen);
+   if( new->lvblen > 0 ) {
+      new->lvb = malloc(new->lvblen);
+      if( new->lvb == NULL ) {
+         recycle_lock_req(new);
+         return NULL;
+      }
+      memcpy(new->lvb, old->lvb, new->lvblen);
+   }
+   return new;
+}
+
+
 /**
  * create_new_req_map - 
  * 

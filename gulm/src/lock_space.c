@@ -414,7 +414,7 @@ void dump_locks(void)
 
    c = malloc(19 + strlen(LTname) +2);
    if( c == NULL ) return;
-   strcpy(c, "Gulm_LT_Lock_Dump.LT");
+   strcpy(c, "Gulm_LT_Lock_Dump.");
    strcat(c, LTname);
    
    if( (fd=open_tmp_file(c)) < 0 ) return;
@@ -455,6 +455,9 @@ void dump_holders(char *s, LLi_t *list)
  *
  * It is rather painful to try and get everything, so this is just the
  * lockspace.  
+ *
+ * This does not include space used by io buffers, stacks, keynames, LVBs,
+ * or holder names.  Making it a rather poor estimate.
  * 
  * Returns: long
  */
@@ -462,7 +465,7 @@ unsigned long estimate_lockspace_size(void)
 {
    unsigned long acc;
    acc  = sizeof(Lock_t) * cnt_locks;
-   acc  = sizeof(Lock_t) * free_locks;
+   acc += sizeof(Lock_t) * free_locks;
    acc += sizeof(Waiters_t) * used_lkrqs;
    acc += sizeof(Waiters_t) * free_lkrqs;
    acc += sizeof(Holders_t) * used_holders;
@@ -548,7 +551,7 @@ int send_stats(xdr_enc_t *enc)
    snprintf(tmp, 256, "%lu", used_holders);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
-   if((err = xdr_enc_string(enc, "lss")) != 0) return err;
+   if((err = xdr_enc_string(enc, "elss")) != 0) return err;
    snprintf(tmp, 256, "%lu", estimate_lockspace_size());
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
@@ -1211,7 +1214,7 @@ void check_for_recycle(Lock_t *lk)
       GULMD_ASSERT( chck == lk, );
 
       /* everything is as it should be. */
-      if( lk->LVB ) {free( lk->LVB ); lk->LVB = NULL; }
+      if( lk->LVB ) {free( lk->LVB ); lk->LVB = NULL;}
       free(lk->key);
       lk->key = NULL;
       /* stick it onto the free lock list */
@@ -2135,7 +2138,7 @@ int Run_Action_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
          }
       }else
       {
-         log_err("Unknown action:%#x name:%s lock:%s \n", lkrq->state, 
+         log_err("Unknown action:%#x name:%s lock:%s \n", lkrq->state,
                  lkrq->name, lkeytob64(lkrq->key, lkrq->keylen));
          err = gio_Err_BadStateChg;
       }

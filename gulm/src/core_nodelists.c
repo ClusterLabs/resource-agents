@@ -422,12 +422,7 @@ int add_node(char *name, struct in6_addr *ip)
       memcpy(&n->ip, ip, sizeof(struct in6_addr));
       if(n->Name == NULL) goto fail;
 
-      e = hash_add(Nodes_by_Name, &n->By_Name);
-      if( e<0) {
-         log_err("Failed to add %s(%s) to Name hash. %s\n", name, ip6tostr(ip),
-               (e==-1)?"All ready in table":"");
-         goto fail;
-      }
+      if( hash_add(Nodes_by_Name, &n->By_Name) < 0 ) goto fail;
    }else{
       n = LLi_data(tmp);
    }
@@ -544,7 +539,6 @@ int deserialize_node_list(xdr_dec_t *dec)
             /* should not get here, since we just checked to see that this
              * name was not in the hash.
              */
-            log_err("Failed to add %s to the Name hash.\n", x_name);
             free(x_name);
             free(n);
             return err;
@@ -815,7 +809,7 @@ int beat_node(char *name, int poll_idx)
    n = LLi_data(tmp);
 
    if( n->State != gio_Mbr_Logged_in && n->State != gio_Mbr_OM_lgin ) {
-      log_err("Cannot heartbeat if not logged in.\n");
+      log_msg(lgm_Network2, "Cannot heartbeat if not logged in.\n");
       print_node(stderr,n);
       return gio_Err_NotAllowed;
    }

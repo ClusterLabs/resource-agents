@@ -59,6 +59,7 @@ static struct timeval NOW;
 
 static ip_name_t MasterIN = {{NULL,NULL,NULL},IN6ADDR_ANY_INIT,NULL};
 static int I_am_the = gio_Mbr_ama_Pending;/* what state we are in */
+static unsigned long totaloutqueue = 0;
 
 typedef struct lsfilter_s {
    uint8_t *key;
@@ -76,6 +77,10 @@ struct {
    uint64_t *times;
    ip_name_t *ipn;
    ls_filter_t *space;
+
+   Qu_t          *outq;
+   uint32_t      *outqlen;
+
    unsigned int maxi;
    int coreIDX;
    int listenFD; /* socket for new connections. */
@@ -203,6 +208,12 @@ int init_ltpx_poller(void)
    poller.dec = malloc(open_max() * sizeof(xdr_dec_t*));
    if( poller.dec == NULL ) goto nomem;
 
+   poller.outq = malloc(open_max() * sizeof(Qu_t));
+   if( poller.outq == NULL ) goto nomem;
+
+   poller.outqlen = malloc(open_max() * sizeof(uint32_t));
+   if( poller.outqlen == NULL ) goto nomem;
+
    for(i=0; i < open_max(); i++) {
       poller.polls[i].fd = -1;
       poller.state[i] = poll_Closed;
@@ -212,6 +223,8 @@ int init_ltpx_poller(void)
       poller.ipn[i].name = NULL;
       poller.enc[i] = NULL;
       poller.dec[i] = NULL;
+      Qu_init_head( &poller.outq[i] );
+      poller.outqlen[i] = 0;
    }
 
    poller.maxi = 0;
@@ -518,6 +531,10 @@ static int send_io_stats(xdr_enc_t *enc)
 
    xdr_enc_string(enc, "verbosity");
    get_verbosity_string(tmp, 256, verbosity);
+   xdr_enc_string(enc, tmp);
+
+   xdr_enc_string(enc, "clientoutqueue");
+   snprintf(tmp, 256, "%lu", totaloutqueue);
    xdr_enc_string(enc, tmp);
 
    for(ltid=0; ltid < gulm_config.how_many_lts; ltid ++ ) {
@@ -1151,7 +1168,7 @@ int select_master_server(uint8_t *key, uint16_t keylen)
       }
    }
    /* now, since the loop above avoids overlap, it also missed anyone with
-    * a tblkey of 255, so this below is now wrong.  It is one more than it
+    * a tblkey of 255, so that is still wrong.  It is one more than it
     * should be.  But we'll just generalize the whole thing and do a MIN().
     */
    return MIN(ltid, (gulm_config.how_many_lts - 1));
@@ -1488,6 +1505,100 @@ int forward_expire(int idx)
    return 0;
 }
 
+/****************************************************************************/
+int send_lock_state_rpl(int idx, lock_req_t *lq)
+{
+   int err;
+   xdr_enc_t *enc = poller.enc[idx];
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_state_rpl)) != 0 ) break;
+      if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->start)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->stop)) != 0 ) break;
+      if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
+      if((err = xdr_enc_uint32(enc, lq->flags)) != 0 ) break;
+      if((err = xdr_enc_uint32(enc, lq->error)) != 0 ) break;
+      if( lq->flags & gio_lck_fg_hasLVB)
+         if((err = xdr_enc_raw(enc, lq->lvb, lq->lvblen)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   return err;
+}
+
+int send_lock_action_rpl(int idx, lock_req_t *lq)
+{
+   int err;
+   xdr_enc_t *enc = poller.enc[idx];
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
+      if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+      if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
+      if((err = xdr_enc_uint32(enc, lq->error)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   return err;
+}
+
+int send_lock_cb_state(int idx, lock_req_t *lq)
+{
+   int err;
+   xdr_enc_t *enc = poller.enc[idx];
+   do{
+      if((err = xdr_enc_uint32(enc, gulm_lock_cb_state)) != 0 ) break;
+      if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+      if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
+      if((err = xdr_enc_flush(enc)) != 0 ) break;
+   }while(0);
+   return err;
+}
+
+static void send_some_data(int idx)
+{
+   LLi_t *tmp;
+   lock_req_t *lq;
+   int err=0;
+
+   if( !Qu_empty(&poller.outq[idx]) ) {
+      tmp = Qu_DeQu(&poller.outq[idx]);
+      lq = Qu_data(tmp);
+      totaloutqueue --;
+      poller.outqlen[idx] --;
+      switch(lq->code) {
+         case gulm_lock_state_rpl:
+            err = send_lock_state_rpl(idx, lq);
+            break;
+         case gulm_lock_action_rpl:
+            err = send_lock_action_rpl(idx, lq);
+            break;
+         case gulm_lock_cb_state:
+            err = send_lock_cb_state(idx, lq);
+            break;
+         default:
+            log_msg(lgm_Network, "Cannot send packet type %#x:%s !\n",
+                  lq->code, gio_opcodes(lq->code));
+            break;
+      }
+      recycle_lock_req(lq);
+   }
+
+   if( Qu_empty(&poller.outq[idx]) ) poller.polls[idx].events &= ~POLLOUT;
+}
+
+void queue_send_lock_req(int idx, lock_req_t *lq)
+{
+   /* really need these two? */
+   LLi_del(&lq->ls_list);
+   LLi_unhook(&lq->ls_list);
+
+   Qu_EnQu(&poller.outq[idx], &lq->ls_list);
+   poller.outqlen[idx] ++;
+   totaloutqueue ++;
+   poller.polls[idx].events |= POLLOUT;
+}
+/****************************************************************************/
 /**
  * forward_drop_all - 
  * @idx: 
@@ -1543,12 +1654,6 @@ int retrive_and_relpy_lock_state(int idx)
       goto exit;
    }
 
-#if 0
-   /* just moves the delay. doesn't solve it. */
-   err=1;
-   setsockopt(poller.polls[idx].fd, SOL_TCP, TCP_QUICKACK, &err, sizeof(int));
-#endif
-
    do{
       if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0) break;
       if((err = xdr_dec_uint64(dec, &searchkey.subid)) != 0 ) break;
@@ -1579,36 +1684,20 @@ int retrive_and_relpy_lock_state(int idx)
    MastersList[ltid].pendreqcnt --;
    if( tmp != NULL ) {
       lock_req_t *lq;
-      xdr_enc_t *enc;
-
       lq = LLi_data(tmp);
-      enc = poller.enc[ lq->poll_idx ];
-      if( enc == NULL ) {
-         /* FIXME Ummm, what to do here? */
-         log_err("Client left before getting reply.\n");
-         recycle_lock_req(lq);
-         goto exit;
+      /* copy in LVB */
+      if( searchkey.flags & gio_lck_fg_hasLVB ) {
+         uint8_t *tmp;
+         tmp = realloc(lq->lvb, x_ll);
+         if( tmp == NULL ) die(ExitGulm_NoMemory,"Out of Memory.\n");
+         lq->lvb = tmp;
+         lq->lvblen = x_ll;
+         memcpy(lq->lvb, x_lvb, x_ll);
       }
 
-      do{
-         if((err = xdr_enc_uint32(enc, gulm_lock_state_rpl)) != 0 ) break;
-         if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
-         if((err = xdr_enc_uint64(enc, searchkey.subid)) != 0 ) break;
-         if((err = xdr_enc_uint64(enc, searchkey.start)) != 0 ) break;
-         if((err = xdr_enc_uint64(enc, searchkey.stop)) != 0 ) break;
-         if((err = xdr_enc_uint8(enc, searchkey.state)) != 0 ) break;
-         if((err = xdr_enc_uint32(enc, searchkey.flags)) != 0 ) break;
-         if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
-         if( searchkey.flags & gio_lck_fg_hasLVB)
-            if((err = xdr_enc_raw(enc, x_lvb, x_ll)) != 0 ) break;
-         if((err = xdr_enc_flush(enc)) != 0 ) break;
-      }while(0);
-      if( err != 0 ) {
-         log_err("XDR error %d:%s\n", err, strerror(err));
-         goto exit;
-      }
-
-      recycle_lock_req(lq);
+      lq->code = gulm_lock_state_rpl;
+      lq->error = x_error;
+      queue_send_lock_req(lq->poll_idx, lq);
    }
 
 exit:
@@ -1666,28 +1755,9 @@ int retrive_and_relpy_lock_action(int idx)
    MastersList[ltid].pendreqcnt --;
    if( tmp != NULL ) {
       lock_req_t *lq = LLi_data(tmp);
-      xdr_enc_t *enc = poller.enc[ lq->poll_idx ];
-      if( enc == NULL ) {
-         /* FIXME Ummm, what to do here? */
-         log_err("Client left before getting reply.\n");
-         recycle_lock_req(lq);
-         goto exit;
-      }
-
-      do{
-         if((err = xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
-         if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
-         if((err = xdr_enc_uint64(enc, x_subid)) != 0 ) break;
-         if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
-         if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
-         if((err = xdr_enc_flush(enc)) != 0 ) break;
-      }while(0);
-      if( err != 0 ) {
-         log_err("XDR error %d:%s\n", err, strerror(err));
-         goto exit;
-      }
-
-      recycle_lock_req(lq);
+      lq->code = gulm_lock_action_rpl;
+      lq->error = x_error;
+      queue_send_lock_req(lq->poll_idx, lq);
    }
 
 exit:
@@ -1828,52 +1898,22 @@ int forward_cb_to_some_clients(int idx)
    uint16_t x_kl;
    uint8_t x_st;
    xdr_dec_t *dec = poller.dec[idx];
-   xdr_enc_t *enc;
-#ifdef TIMECALLBACKS
-   int64_t res;
-   uint64_t x_time;
-   struct timeval tv;
-#endif
+   lock_req_t *lq;
 
    /* keep these around. Fewer mallocs == faster */
    static uint8_t *x_key=NULL;
    static uint16_t x_kbl=0;
-
-#ifdef TIMECALLBACKS
-   gettimeofday(&tv, NULL);
-#endif
 
    do{
       if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0 )
          break;
       if((err = xdr_dec_uint64(dec, &x_sbd)) != 0 ) break;
       if((err = xdr_dec_uint8(dec, &x_st)) != 0 ) break;
-#ifdef TIMECALLBACKS
-      if((err = xdr_dec_uint64(dec, &x_time)) != 0) break;
-#endif
    }while(0);
    if( err != 0 ) {
       log_err("XDR error %d:%s\n", err, strerror(err));
       goto exit;
    }
-
-#if 0
-   /* this seems to just increase the delay. (as well as just moving it.)
-    */
-   do{
-      xdr_enc_uint32(poller.enc[idx], gulm_nop);
-      xdr_enc_flush(poller.enc[idx]);
-   }while(0);
-#endif
-
-#ifdef TIMECALLBACKS
-   res = tvs2uint64(tv) - x_time;
-   if( res > 5000 ) {
-      log_msg(lgm_Always, "Long send time for callback packet. "
-            "%"PRIu64" - %"PRIu64" = %lld\n",
-            tvs2uint64(tv), x_time, res);
-   }
-#endif
 
    /* should look into ways of making this loop faster.
     * maybe it shouldn't be a loop?
@@ -1890,18 +1930,16 @@ int forward_cb_to_some_clients(int idx)
          continue;
       }
 
-      enc = poller.enc[i];
-      do{
-         if((err = xdr_enc_uint32(enc, gulm_lock_cb_state)) != 0 ) break;
-         if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
-         if((err = xdr_enc_uint64(enc, x_sbd)) != 0 ) break;
-         if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
-         if((err = xdr_enc_flush(enc)) != 0 ) break;
-      }while(0);
-      if( err != 0 ) {
-         log_err("XDR error %d:%s\n", err, strerror(err));
-         goto exit;
-      }
+      lq = get_new_lock_req();
+      if( lq == NULL ) die(ExitGulm_NoMemory,"Out of Memory.\n");
+      lq->code = gulm_lock_cb_state;
+      lq->key = malloc(x_kl);
+      if( lq->key == NULL ) die(ExitGulm_NoMemory,"Out of Memory.\n");
+      lq->keylen = x_kl;
+      memcpy(lq->key, x_key, x_kl);
+      lq->subid = x_sbd;
+      lq->state = x_st;
+      queue_send_lock_req(i, lq);
    }
 
 exit:
@@ -1935,7 +1973,6 @@ static void do_login(int idx)
    }
 
    if( ! IN6_IS_ADDR_LOOPBACK(poller.ipn[idx].ip.s6_addr32) ) {
-      /* XXX will I have to check for v4 loopback as well? */
       log_err("Only connections from localhost are allowed."
             " You're from %s\n",
             print_ipname(&poller.ipn[idx]));
@@ -2317,6 +2354,11 @@ void ltpx_main_loop(void)
                }
             }
          }
+         if( poller.polls[i].revents & POLLOUT &&
+             poller.type[i] == poll_Client ) {
+            send_some_data(i);
+         }
+
          /* check for timed out pollers. */
          if( poller.times[i] != 0 &&
              poller.times[i]+ gulm_config.new_con_timeout < tvs2uint64(NOW)) {

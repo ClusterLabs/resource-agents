@@ -552,12 +552,12 @@ static int accept_connection(void)
 
    i = sizeof(struct sockaddr_in6);
    if( (clisk = accept(poller.listenFD, (struct sockaddr*)&adr, &i)) <0) {
-      log_err("error in accept: %s", strerror(errno));
+      log_msg(lgm_SockSetup, "error in accept: %s", strerror(errno));
       return -1;
    }
 
    if( set_opts(clisk) <0) {
-      log_err("Cannot set socket options for new connection. Killing it.\n");
+      log_msg(lgm_SockSetup, "Cannot set socket options for new connection. Killing it.\n");
       close(clisk);
       return -1;
    }
@@ -565,12 +565,13 @@ static int accept_connection(void)
    i = add_to_pollers(clisk, poll_Accepting, tvs2uint64(NOW),
                       ip6tostr(&adr.sin6_addr), &adr.sin6_addr);
    if( i < 0 ) {
-      log_err("Failed to add new socket to poller list. %s\n", strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to add new socket to poller list. %s\n",
+            strerror(errno));
       close(clisk);
       return -1;
    }
    if( add_xdr_to_poller(i) != 0 ) {
-      log_err("Failed to attatch xdr to new socket due to lack of memory.\n");
+      log_msg(lgm_SockSetup, "Failed to attatch xdr to new socket due to lack of memory.\n");
       close_by_idx(i);
       return -1;
    }
@@ -613,7 +614,7 @@ static int master_probe_top(void)
    idx = add_to_pollers(cmFD, poll_Connecting, tvs2uint64(NOW),
          in->name, &in->ip);
    if( idx < 0 ) { /* out of free FDs. */
-      log_err("Failed to find unused poller space.\n");
+      log_msg(lgm_LoginLoops, "Failed to find unused poller space.\n");
       close(cmFD);
       return -1;
    }
@@ -624,8 +625,8 @@ static int master_probe_top(void)
 
    /* set socket to non-blocking */
    if(fcntl(cmFD, F_SETFL, O_NONBLOCK) < 0 ) {
-      log_err("Cannot set Nonblock on new socket. %d:%s\n", errno,
-            strerror(errno));
+      log_msg(lgm_LoginLoops, "Cannot set Nonblock on new socket. %d:%s\n",
+            errno, strerror(errno));
       close_by_idx(idx);
       return -1;
    }
@@ -663,7 +664,7 @@ static int master_probe_connected(int idx)
    /* check the error codes. */
    if( getsockopt(poller.polls[idx].fd, SOL_SOCKET, SO_ERROR,
             &sock_error, &solen ) < 0) {
-      log_err("Failed to get socket error off of master connect %d:%s\n",
+      log_msg(lgm_LoginLoops, "Failed to get socket error off of master connect %d:%s\n",
             errno, strerror(errno));
       goto fail;
    }
@@ -676,7 +677,7 @@ static int master_probe_connected(int idx)
    
    /* set socket to blocking. */
    if(fcntl(poller.polls[idx].fd, F_SETFL, 0) < 0 ) {
-      log_err("Cannot set block on new socket. %d:%s\n", errno,
+      log_msg(lgm_LoginLoops, "Cannot set block on new socket. %d:%s\n", errno,
             strerror(errno));
       goto fail;
    }
@@ -687,7 +688,7 @@ static int master_probe_connected(int idx)
    }
 
    if( add_xdr_to_poller(idx) < 0 ) {
-      log_err("Failed to allocate memory for xdr.\n");
+      log_msg(lgm_LoginLoops, "Failed to allocate memory for xdr.\n");
       goto fail;
    }
    xdr = poller.enc[idx];
@@ -984,7 +985,8 @@ static int master_probe_middle(int idx)
              */
             tag_for_lost();
             if( (err = deserialize_node_list(xdr)) != 0 ) {
-               log_err("Failed to deserialize initial Node list from "
+               log_msg(lgm_LoginLoops,
+                     "Failed to deserialize initial Node list from "
                        "Master %s (%d:%d:%s)\n", poller.ipn[idx].name,
                        err, errno, strerror(errno));
                close_by_idx(idx);
@@ -1052,12 +1054,12 @@ static int master_probe_middle(int idx)
       }
    } else {
       if( rpl_err != 0 ) {
-         log_err("Got error from reply: (%s) %d:%s\n",
+         log_msg(lgm_LoginLoops, "Got error from reply: (%s) %d:%s\n",
                print_ipname(&poller.ipn[idx]),
                rpl_err, gio_Err_to_str(rpl_err));
       }
       if( err < 0 ) {
-         log_err("Errors on xdr: (%s) %d:%d:%s\n",
+         log_msg(lgm_LoginLoops, "Errors on xdr: (%s) %d:%d:%s\n",
                print_ipname(&poller.ipn[idx]),
                err, errno, strerror(errno));
       }
@@ -1154,8 +1156,6 @@ int send_core_state_update(int poll_idx)
    if((err=xdr_enc_uint8(enc, I_am_the)) !=0 ) return err;
    if((err=xdr_enc_uint8(enc, quorate)) != 0 ) return err;
    if( I_am_the == gio_Mbr_ama_Slave ) {
-      if( MasterIN == NULL )
-         log_err("MasterIN is NULL!!!!!!!\n");
       if((err=xdr_enc_ipv6(enc, &MasterIN->ip)) !=0 ) return err;
       if((err=xdr_enc_string(enc, MasterIN->name)) !=0 ) return err;
    }
@@ -1232,13 +1232,15 @@ static void do_resource_login(int idx)
       if((err = xdr_dec_uint32(dec, &x_opt)) != 0) break;
       if( x_proto != GIO_WIREPROT_VERS) {
          err=gio_Err_BadWireProto;
-         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
+         log_msg(lgm_Always,
+               "Protocol Mismatch: We're %#x and They (%s) are %#x\n",
                GIO_WIREPROT_VERS, x_name, x_proto);
          break;
       }
    } while(0);
    if( err != 0 ) {
-      log_err("Failed to recv all of the service login packet. %d:%s\n",
+      log_msg(lgm_SockSetup, 
+            "Failed to recv all of the service login packet. %d:%s\n",
             err, (err<1000)?strerror(err):gio_Err_to_str(err));
       close_by_idx(idx);
       goto exit;
@@ -1247,18 +1249,20 @@ static void do_resource_login(int idx)
    err = gio_Err_Ok;
    if( ! IN6_IS_ADDR_LOOPBACK(poller.ipn[idx].ip.s6_addr32) ) {
       /* XXX will I have to check for v4 loopback as well? */
-      log_err("Services cannot connect from anything other than localhost."
+      log_msg(lgm_Always,
+            "Services cannot connect from anything other than localhost."
             " You're from %s\n",
             print_ipname(&poller.ipn[idx]));
       err = gio_Err_NotAllowed;
    }else
    if( x_clusterID != NULL && strcmp(x_clusterID, gulm_config.clusterID)!=0) {
-      log_err("%s claims to be part of %s, but we are %s\n",
+      log_msg(lgm_Always, "%s claims to be part of %s, but we are %s\n",
             poller.ipn[idx].name, x_clusterID, gulm_config.clusterID);
       err = gio_Err_BadCluster;
    }else
    if( add_resource(x_name, idx, x_opt) != 0 ) {
-      log_err("There is already a service named \"%s\" here.\n", x_name);
+      log_msg(lgm_Always, "There is already a service named \"%s\" here.\n",
+            x_name);
       err = gio_Err_BadLogin;
    }
 
@@ -1271,7 +1275,7 @@ static void do_resource_login(int idx)
       if((e = xdr_enc_flush(enc)) != 0) break;
    }while(0);
    if( e != 0 ) {
-      log_err("Got %d sending reply to service %s\n", e, x_name);
+      log_msg(lgm_SockSetup, "Got %d sending reply to service %s\n", e, x_name);
       close_by_idx(idx);
       goto exit;
    }
@@ -1314,7 +1318,8 @@ static void do_new_login(int idx)
       if((err = xdr_dec_uint32(dec, &x_proto)) != 0) break;
       if( x_proto != GIO_WIREPROT_VERS) {
          err=gio_Err_BadWireProto;
-         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
+         log_msg(lgm_Always,
+               "Protocol Mismatch: We're %#x and They (%s) are %#x\n",
                GIO_WIREPROT_VERS, print_ipname(&poller.ipn[idx]), x_proto);
          break;
       }
@@ -1325,7 +1330,7 @@ static void do_new_login(int idx)
       if((err = xdr_dec_uint32(dec, &x_rank)) != 0) break;
    } while(0);
    if( err != 0 ) {
-      log_err("Failed to recv all of the login packet. %d:%s\n",
+      log_msg(lgm_SockSetup, "Failed to recv all of the login packet. %d:%s\n",
             err, (err<1000)?strerror(err):gio_Err_to_str(err));
       close_by_idx(idx);
       goto exit;
@@ -1346,7 +1351,8 @@ static void do_new_login(int idx)
          if((e = xdr_enc_flush(enc)) != 0) break;
       } while(0);
       if( e != 0 ) {
-         log_err("Got %d sending slave reply to %s\n", e, x_name);
+         log_msg(lgm_SockSetup, "Got %d sending slave reply to %s\n",
+               e, x_name);
       }
       log_msg(lgm_Network2, "dnl: We are a %s. Telling %s to go away.\n",
             gio_I_am_to_str(I_am_the), x_name);
@@ -1367,7 +1373,8 @@ static void do_new_login(int idx)
     */
    if( verify_name_and_ip(x_name, &poller.ipn[idx].ip) == 0 ) {
       err = gio_Err_NotAllowed;
-      log_err("Node (%s %s) has been denied from connecting here.\n",
+      log_msg(lgm_SockSetup,
+            "Node (%s %s) has been denied from connecting here.\n",
             x_name, ip6tostr(&poller.ipn[idx].ip));
    }else
    if( strncmp(x_clusterID, gulm_config.clusterID, CLUSTERIDLEN) != 0 ) {
@@ -1402,7 +1409,7 @@ static void do_new_login(int idx)
             x_name, ip6tostr(&poller.ipn[idx].ip));
    }else
    if( (err=beat_node(x_name, idx)) != gio_Err_Ok) {
-      log_err("Failed to heartbeat node. (%s %s)\n",
+      log_msg(lgm_SockSetup, "Failed to heartbeat node. (%s %s)\n",
               x_name, ip6tostr(&poller.ipn[idx].ip));
    }
 
@@ -1416,7 +1423,8 @@ static void do_new_login(int idx)
    } while(0);
 
    if( e != 0 ) {
-      log_err("Errors sending login reply! %d:%s\n", errno, strerror(errno));
+      log_msg(lgm_SockSetup, "Errors sending login reply! %d:%s\n",
+            errno, strerror(errno));
       close_by_idx(idx);
       goto exit;
    }
@@ -1464,7 +1472,7 @@ static void do_new_login(int idx)
     * list to the slave/client.
     */
    if( serialize_node_list(enc) != 0 ) {
-      log_err("Failed to send serialization of node list.\n");
+      log_msg(lgm_SockSetup, "Failed to send serialization of node list.\n");
 
       Mark_Loggedout(x_name); /* ? really do this here ? */
 
@@ -1512,19 +1520,6 @@ static void recv_some_data(int idx)
    uint8_t *x_name = NULL;
    uint8_t x_ama;
    int err;
-
-   if( dec == NULL ) {
-      log_err("There is no Decoder on poller (%s idx:%d fd:%d)!!\n",
-            print_ipname(&poller.ipn[idx]),
-            idx, poller.polls[idx].fd);
-      return;
-   }
-   if( enc == NULL ) {
-      log_err("There is no Encoder on poller (%s idx:%d fd:%d)!!\n",
-            print_ipname(&poller.ipn[idx]),
-            idx, poller.polls[idx].fd);
-      return;
-   }
 
    errno = 0;
    err = xdr_dec_uint32(dec, &code);
@@ -1805,7 +1800,7 @@ static void recv_some_data(int idx)
       }while(0);
    }else
    {
-      log_err("Unexpected op code %#x (%s), on fd:%d name:%s\n",
+      log_msg(lgm_Network, "Unexpected op code %#x (%s), on fd:%d name:%s\n",
             code, gio_opcodes(code),
             poller.polls[idx].fd, poller.ipn[idx].name);
       close_by_idx(idx);
@@ -2011,7 +2006,7 @@ void work_loop(void)
 
       if( (cnt = poll(poller.polls, poller.maxi +1, 2)) <= 0) {
          if( cnt < 0 && errno != EINTR )
-            log_err("poll error: %s\n",strerror(errno));
+            log_msg(lgm_Network2, "poll error: %s\n", strerror(errno));
          if(!running) return;
          errno = 0; /* reset this. */
       }
@@ -2025,7 +2020,7 @@ void work_loop(void)
       }
       for( idx=0; idx <= poller.maxi ; idx++) {
          if (poller.polls[idx].revents & POLLNVAL ) {
-            log_err("POLLNVAL on idx:%d fd:%d name:%s\n", idx,
+            log_msg(lgm_Network2, "POLLNVAL on idx:%d fd:%d name:%s\n", idx,
                   poller.polls[idx].fd, poller.ipn[idx].name);
             close_by_idx(idx);
          }
@@ -2073,7 +2068,7 @@ void work_loop(void)
                      print_ipname(&poller.ipn[idx]),
                      idx, poller.polls[idx].fd);
             }else{
-               log_err("POLLHUP on idx:%d fd:%d name:%s\n", idx,
+               log_msg(lgm_Network2, "POLLHUP on idx:%d fd:%d name:%s\n", idx,
                      poller.polls[idx].fd, poller.ipn[idx].name);
             }
             if( ( I_am_the == gio_Mbr_ama_Pending ||
@@ -2091,7 +2086,8 @@ void work_loop(void)
                      print_ipname(&poller.ipn[idx]),
                      idx, poller.polls[idx].fd);
             }else{
-               log_err("An error on poller idx:%d fd:%d name:%s\n", idx,
+               log_msg(lgm_Network2,
+                     "An error on poller idx:%d fd:%d name:%s\n", idx,
                      poller.polls[idx].fd, poller.ipn[idx].name);
             }
             if( ( I_am_the == gio_Mbr_ama_Pending ||

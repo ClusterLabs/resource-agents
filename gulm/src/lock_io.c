@@ -517,7 +517,8 @@ int open_lt_to_core(void)
    uint8_t x_ama;
 
    if((cfd = socket(AF_INET6, SOCK_STREAM, 0)) <0) {
-      log_err("Failed to create socket. %d:%s\n", errno, strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to create socket. %d:%s\n",
+            errno, strerror(errno));
       return -1;
    }
 
@@ -528,18 +529,19 @@ int open_lt_to_core(void)
 
    if( connect(cfd, (struct sockaddr*)&adr, sizeof(struct sockaddr_in6))<0) {
       close(cfd);
-      log_err("Failed to connect to core. %d:%s\n", errno, strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to connect to core. %d:%s\n",
+            errno, strerror(errno));
       return -1;
    }
 
    idx = add_to_pollers(cfd, poll_Open, 0, "_ core _", &in6addr_loopback);
    if( idx < 0 ) {
-      log_err("Failed to find unsed poller space.\n");
+      log_msg(lgm_SockSetup, "Failed to find unsed poller space.\n");
       close_by_idx(idx);
       return -1;
    }
    if( add_xdr_to_poller(idx) < 0 ) {
-      log_err("Failed to allocate momeory for xdr.\n");
+      log_msg(lgm_SockSetup, "Failed to allocate momeory for xdr.\n");
       close_by_idx(idx);
       return -1;
    }
@@ -556,8 +558,8 @@ int open_lt_to_core(void)
       if((err = xdr_enc_flush(poller.enc[idx]))<0) break;
    }while(0);
    if(err != 0 ) {
-      log_err("Failed to send login request to core. %d:%d:%s\n", err, errno,
-            strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to send login request to core. %d:%d:%s\n",
+            err, errno, strerror(errno));
       close_by_idx(idx);
       return -1;
    }
@@ -572,19 +574,21 @@ int open_lt_to_core(void)
       if((err = xdr_dec_uint8(poller.dec[idx], &x_ama))<0) break;
    }while(0);
    if( err != 0 ) {
-      log_err("Failed to receive login reply. %d:%d:%s\n", err, errno, 
-            strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to receive login reply. %d:%d:%s\n",
+            err, errno, strerror(errno));
       close_by_idx(idx);
       return -1;
    }
 
    if( x_code != gulm_core_login_rpl ) {
-      log_err("Did not get the expected packet in return. got %#x\n", x_code);
+      log_msg(lgm_SockSetup,
+            "Did not get the expected packet in return. got %#x\n", x_code);
       close_by_idx(idx);
       return -1;
    }
    if( x_error != gio_Err_Ok ) {
-      log_err("Core returned error %d:%s.\n", x_error, gio_Err_to_str(x_error));
+      log_msg(lgm_SockSetup, "Core returned error %d:%s.\n",
+            x_error, gio_Err_to_str(x_error));
       close_by_idx(idx);
       return -1;
    }
@@ -1453,12 +1457,13 @@ static int accept_connection(void)
 
    i = sizeof(struct sockaddr_in6);
    if( (clisk = accept(poller.listenFD, (struct sockaddr*)&adr, &i)) <0) {
-      log_err("error in accept: %s", strerror(errno));
+      log_msg(lgm_SockSetup, "error in accept: %s", strerror(errno));
       return -1;
    }
 
    if( set_opts(clisk) <0) {
-      log_err("Cannot set socket options for new connection. Killing it.\n");
+      log_msg(lgm_SockSetup,
+            "Cannot set socket options for new connection. Killing it.\n");
       close(clisk);
       return -1;
    }
@@ -1466,12 +1471,14 @@ static int accept_connection(void)
    i = add_to_pollers(clisk, poll_Accepting, tvs2uint64(NOW),
                       ip6tostr(&adr.sin6_addr), &adr.sin6_addr);
    if( i < 0 ) {
-      log_err("Failed to add new socket to poller list. %s\n", strerror(errno));
+      log_msg(lgm_SockSetup, "Failed to add new socket to poller list. %s\n",
+            strerror(errno));
       close(clisk);
       return -1;
    }
    if( add_xdr_to_poller(i) != 0 ) {
-      log_err("Failed to attatch xdr to new socket do to lack of memory.\n");
+      log_msg(lgm_SockSetup,
+            "Failed to attatch xdr to new socket do to lack of memory.\n");
       close_by_idx(i);
       return -1;
    }
@@ -1495,7 +1502,7 @@ static int logintoMaster(void)
 
    /* socket connect to CM */
    if((cmFD = socket(AF_INET6, SOCK_STREAM, 0)) <0){
-      log_err("Failed to create socket. %s\n", strerror(errno));
+      log_msg(lgm_LoginLoops, "Failed to create socket. %s\n", strerror(errno));
       return -1;
    }
 
@@ -1522,12 +1529,12 @@ static int logintoMaster(void)
    i = add_to_pollers(cmFD, poll_Trying, tvs2uint64(NOW),
                       MasterIN.name, &MasterIN.ip);
    if( i < 0 ) { /* out of free FDs. */
-      log_err("Failed to find unused poller space.\n");
+      log_msg(lgm_LoginLoops, "Failed to find unused poller space.\n");
       close_by_idx(i);
       return -1;
    }
    if( add_xdr_to_poller(i) < 0 ) {
-      log_err("Failed to allocate memory for xdr.\n");
+      log_msg(lgm_LoginLoops, "Failed to allocate memory for xdr.\n");
       close_by_idx(i);
       return -1;
    }
@@ -1576,7 +1583,8 @@ static int recv_Masterlogin_reply(int idx)
       if((err = xdr_dec_uint8(xdr, &rpl_ama)) != 0) break;
    } while(0);
    if( err != 0 ) {
-      log_err("Errors trying to login to Master: (%s idx:%d fd:%d) %d:%s\n",
+      log_msg(lgm_LoginLoops,
+            "Errors trying to login to Master: (%s idx:%d fd:%d) %d:%s\n",
             print_ipname(&poller.ipn[idx]),
             idx, poller.polls[idx].fd,
             err, strerror(errno));
@@ -1584,7 +1592,7 @@ static int recv_Masterlogin_reply(int idx)
    }
 
    if( rpl_err != 0 ) {
-      log_err("Errors trying to login to Master: (%s) %d:%s\n",
+      log_msg(lgm_LoginLoops, "Errors trying to login to Master: (%s) %d:%s\n",
             print_ipname(&poller.ipn[idx]),
             rpl_err, gio_Err_to_str(rpl_err));
       err = rpl_err;
@@ -1594,7 +1602,8 @@ static int recv_Masterlogin_reply(int idx)
    PartialLockspace = TRUE;
    /* get current state */
    if( (err=deserialize_lockspace(poller.polls[idx].fd)) != 0 ) {
-      log_err("Failed to deserialize initial lockspace from Master"
+      log_msg(lgm_LoginLoops,
+            "Failed to deserialize initial lockspace from Master"
               " (%d:%d:%s)\n", err, errno, strerror(errno));
       goto exit;
    }
@@ -1666,12 +1675,13 @@ int send_some_data(int idx)
             break;
 
          default:
-            log_err("Cannot send packet type %#x:%s !\n",
+            log_msg(lgm_Network, "Cannot send packet type %#x:%s !\n",
                   lkrq->op, gio_opcodes(lkrq->op));
             break;
       }
       if( err != 0 ) {
-         log_err("Warning! When trying to send a %#x:%s packet, we got a "
+         log_msg(lgm_Network, 
+               "Warning! When trying to send a %#x:%s packet, we got a "
                "%d:%d:%s\n", lkrq->op, gio_opcodes(lkrq->op),
                err, errno, strerror(errno));
       }
@@ -1972,19 +1982,6 @@ static void recv_some_data(int idx)
    int err;
    Waiters_t *lkrq;
 
-   if( dec == NULL ) {
-      log_err("There is no Decoder on poller (%s idx:%d fd:%d)!!\n",
-            print_ipname(&poller.ipn[idx]),
-            idx, poller.polls[idx].fd);
-      return;
-   }
-   if( enc == NULL ) {
-      log_err("There is no Encoder on poller (%s idx:%d fd:%d)!!\n",
-            print_ipname(&poller.ipn[idx]),
-            idx, poller.polls[idx].fd);
-      return;
-   }
-
    errno=0;
    err = xdr_dec_uint32(dec, &code);
    if( err == -EPROTO ) {
@@ -2123,7 +2120,8 @@ static void recv_some_data(int idx)
          }
       }while(0);
       if( err != 0 ) {
-         log_err("Failed to recv Core state update! %s\n", strerror(errno));
+         log_msg(lgm_Network, "Failed to recv Core state update! %s\n",
+               strerror(errno));
       }else{
          /* 
           * This could use a little clean up.
@@ -2341,7 +2339,7 @@ static void recv_some_data(int idx)
                increment_slave_update_replies(x_key, x_len, soff,Slave_bitmask);
             }
          }else{
-            log_err("xdr_dec error %d\n", err);
+            log_msg(lgm_Network, "xdr_dec error %d\n", err);
          }
 
          if( x_key != NULL ) {free(x_key); x_key = NULL;}
@@ -2376,7 +2374,7 @@ static void recv_some_data(int idx)
          err = do_lock_query(lkrq);
       }else
       {
-         log_err("Unexpected op code %#x (%s), on fd:%d name:%s\n",
+         log_msg(lgm_Network, "Unexpected op code %#x (%s), on fd:%d name:%s\n",
                code, gio_opcodes(code),
                poller.polls[idx].fd, poller.ipn[idx].name);
 
@@ -2384,7 +2382,7 @@ static void recv_some_data(int idx)
       }
    }else
    {
-      log_err("Unexpected op code %#x (%s), on fd:%d name:%s\n",
+      log_msg(lgm_Network, "Unexpected op code %#x (%s), on fd:%d name:%s\n",
             code, gio_opcodes(code),
             poller.polls[idx].fd, poller.ipn[idx].name);
 
@@ -2447,7 +2445,7 @@ void lt_main_loop(void)
 
       if( (cnt = poll(poller.polls, poller.maxi +1, 1000)) <= 0) {
          if( cnt < 0 && errno != EINTR )
-            log_err("poll error: %s\n",strerror(errno));
+            log_msg(lgm_Network2, "poll error: %s\n",strerror(errno));
          if(!running) return;
       }
       gettimeofday(&NOW, NULL);
