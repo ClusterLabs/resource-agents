@@ -99,7 +99,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 
 #define log_error log_all
 
-#define DLM_DEBUG2
 #if defined(DLM_DEBUG2)
 int nibbler_printf(const char *fmt, ...);
 #define log_debug2(fmt, args...) nibbler_printf(fmt"\n", ##args)
