@@ -27,3 +27,6 @@ OCF
 *.beam
 parser-messages
 MISC_ERRORS
+drbd
+Dummy
+ocf-shellfuncs
