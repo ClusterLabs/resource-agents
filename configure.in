@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.315 $) dnl cvs revision
+AC_REVISION($Revision: 1.316 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -26,12 +26,12 @@ USE_MODULES=0
 echo Our Host OS: $host_os
 case "$host_os" in
 solaris*)	LIBS="-L/usr/local/lib $LIBS"
-		CPPFLAGS="-I/usr/local/include -I/opt/sfw/include"
+		CPPFLAGS="$CPPFLAGS -I/usr/local/include -I/opt/sfw/include"
 		INIT_EXT=".sh"
 		;;
 
 *bsd*)		LIBS="-L/usr/local/lib"
-		CPPFLAGS="-I/usr/local/include"
+		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		INIT_EXT=".sh"
 		;;
 
@@ -39,7 +39,7 @@ solaris*)	LIBS="-L/usr/local/lib $LIBS"
  		;;
 dnl anything?
 darwin*)	LIBS="-L/usr/lib -L/sw/lib"
-		CPPFLAGS="-I/usr/include -I/sw/usr/include -I/sw/include"
+		CPPFLAGS="$CPPFLAGS -I/usr/include -I/sw/usr/include -I/sw/include"
 		DARWIN=1
 		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
 		;;
