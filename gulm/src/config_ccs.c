@@ -76,34 +76,6 @@ void parse_serverlist(gulm_config_t *gf, int cd)
 }
 
 /**
- * parse_nodespcifics - 
- * @gf: 
- * @cd: 
- * 
- * This doesn't quite do what I think people expect.
- * Need to think on it more.
- *
- * If users specify IPs in the server list, I don't think this is even
- * needed anymore.
- * 
- * Returns: void
- */
-void parse_nodespcifics(gulm_config_t *gf, int cd)
-{
-   char work[1024];
-   char *tmp;
-
-   snprintf(work, 1024,
-         "/cluster/clusternodes/clusternode[@name='%s']/gulm/@ifdev", 
-         gf->name);
-   if( ccs_get(cd, work, &tmp) == 0 ) {
-      strdup_with_free((char**)&gf->netdev, optarg);
-      free(tmp);
-   }
-}
-
-
-/**
  * parse_ccs - 
  * @gf: 
  * 

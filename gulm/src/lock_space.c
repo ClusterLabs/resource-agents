@@ -2583,7 +2583,7 @@ int _recheck_reply_waiters_(LLi_t *item, void *d)
           * So we set reply bit.
           */
          if( (lkrq->Slave_sent & rrw->onlogin) == rrw->onlogin ) {
-      log_msg(lgm_Always, "%s Sent but not recved on Slave login. Marking.\n",
+      log_msg(lgm_locking, "%s Sent but not recved on Slave login. Marking.\n",
             lkeytob64(lkrq->key, lkrq->keylen));
             lkrq->Slave_rpls |= rrw->onlogin;
          }

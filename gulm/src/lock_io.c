@@ -1796,7 +1796,7 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
    }else
    {
       err = -1;
-      log_err("Bad code!\n");
+      log_err("Unknown packet code %#x!\n", code);
    }
    if( x_name != NULL ) free(x_name);
    return err;
