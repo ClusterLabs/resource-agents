@@ -25,9 +25,12 @@
 
 struct region_user {
 	struct list_head ru_list;
+	int32_t  ru_rw;
 	uint32_t ru_nodeid;
 	region_t ru_region;
 };
+
+static mempool_t *region_user_pool;
 
 static atomic_t server_run;
 static struct completion server_completion;
@@ -37,6 +40,17 @@ static atomic_t _suspend;
 
 static int debug_disk_write = 0;
 extern struct list_head log_list_head;
+
+
+static void *region_user_alloc(int gfp_mask, void *pool_data){
+	return kmalloc(sizeof(struct region_user), gfp_mask);
+}
+
+
+static void region_user_free(void *element, void *pool_data){
+	kfree(element);
+}
+
 
 /*
  * The touched member needs to be updated every time we access
@@ -213,9 +227,9 @@ static int print_zero_bits(unsigned char *str, int offset, int bit_count){
       continue;
     } else if(str[i] == 0xFF){
       if(range_count==1){
-	printk("  %d\n", region - 1);
+	DMINFO("  %d", region - 1);
       } else if(range_count){
-	printk("  %d - %d\n", region-range_count, region-1);
+	DMINFO("  %d - %d", region-range_count, region-1);
       }
       range_count = 0;
       region+=(bit_count < 8)? bit_count: 8;      
@@ -233,9 +247,9 @@ static int print_zero_bits(unsigned char *str, int offset, int bit_count){
 	count++;
       } else {
 	if(range_count==1){
-	  printk("  %d\n", region - 1);
+	  DMINFO("  %d", region - 1);
 	} else if(range_count){
-	  printk("  %d - %d\n", region-range_count, region-1);
+	  DMINFO("  %d - %d", region-range_count, region-1);
 	}
 	range_count = 0;
 	region++;
@@ -244,9 +258,9 @@ static int print_zero_bits(unsigned char *str, int offset, int bit_count){
   }
 
   if(range_count==1){
-    printk("  %d\n", region - 1);
+    DMINFO("  %d", region - 1);
   } else if(range_count){
-    printk("  %d - %d\n", region-range_count, region);
+    DMINFO("  %d - %d", region-range_count, region);
   }
   return count;
 }
@@ -260,7 +274,7 @@ static int disk_resume(struct log_c *lc)
 	struct region_user *tmp_ru, *ru;
 	unsigned char live_nodes[16]; /* Attention -- max of 128 nodes... */
 
-	printk("Disk Resume::\n");
+	DMINFO("Disk Resume::");
 
 	debug_disk_write = 1;
 
@@ -310,23 +324,23 @@ static int disk_resume(struct log_c *lc)
 			bad_count++;
 			log_clear_bit(lc, lc->sync_bits, ru->ru_region);
 			list_del(&ru->ru_list);
-			kfree(ru);
+			mempool_free(ru, region_user_pool);
 		}
 	}
 
-	printk("  Live nodes        :: %d\n", global_count);
-	printk("  In-Use Regions    :: %d\n", good_count+bad_count);
-	printk("  Good IUR's        :: %d\n", good_count);
-	printk("  Bad IUR's         :: %d\n", bad_count);
+	DMINFO("  Live nodes        :: %d", global_count);
+	DMINFO("  In-Use Regions    :: %d", good_count+bad_count);
+	DMINFO("  Good IUR's        :: %d", good_count);
+	DMINFO("  Bad IUR's         :: %d", bad_count);
 
 	lc->sync_count = count_bits32(lc->sync_bits, lc->bitset_uint32_count);
 
-	printk("  Sync count        :: %Lu\n", lc->sync_count);
-	printk("  Disk Region count :: %Lu\n", lc->header.nr_regions);
-	printk("  Region count      :: %Lu\n", lc->region_count);
+	DMINFO("  Sync count        :: %Lu", lc->sync_count);
+	DMINFO("  Disk Region count :: %Lu", lc->header.nr_regions);
+	DMINFO("  Region count      :: %Lu", lc->region_count);
 
 	if(lc->header.nr_regions != lc->region_count){
-		printk("  NOTE:  Mapping has changed.\n");
+		DMINFO("  NOTE:  Mapping has changed.");
 	}
 /* Take this out for now.
 	if(list_empty(&lc->region_users) && (lc->sync_count != lc->header.nr_regions)){
@@ -347,7 +361,7 @@ static int disk_resume(struct log_c *lc)
 					}
 					new->ru_nodeid = global_nodeids[i];
 					new->ru_region = region;
-					printk("Adding %u/%Lu\n",
+					DMINFO("Adding %u/%Lu",
 					       new->ru_nodeid, new->ru_region);
 					list_add(&new->ru_list, &lc->region_users);
 				}
@@ -356,11 +370,13 @@ static int disk_resume(struct log_c *lc)
 	}			
 
 */
-	printk("Marked regions::\n");
-	print_zero_bits((unsigned char *)lc->clean_bits, 0, lc->header.nr_regions);
+	DMINFO("Marked regions::");
+	i = print_zero_bits((unsigned char *)lc->clean_bits, 0, lc->header.nr_regions);
+	DMINFO("  Total = %d", i);
 
-	printk("Out-of-sync regions::\n");
-	print_zero_bits((unsigned char *)lc->sync_bits, 0, lc->header.nr_regions);
+	DMINFO("Out-of-sync regions::");
+	i = print_zero_bits((unsigned char *)lc->sync_bits, 0, lc->header.nr_regions);
+	DMINFO("  Total = %d", i);
 
 	/* write the bits */
 	r = write_bits(lc);
@@ -411,16 +427,7 @@ static int server_in_sync(struct log_c *lc, struct log_request *lr){
 static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t who){
 	struct region_user *ru, *new;
 
-#ifdef DEBUG
-	if(who > 5 || lr->u.lr_region > lc->region_count){
-		printk("Refusing to add crap to region_user list\n");
-		printk("  who    :: %u\n", who);
-		printk("  region :: %Lu\n", lr->u.lr_region);
-		return -EINVAL;
-	}
-#endif
-
-	new = kmalloc(sizeof(struct region_user), GFP_KERNEL);
+	new = mempool_alloc(region_user_pool, GFP_KERNEL);
 	if(!new){
 		return -ENOMEM;
 	}
@@ -436,23 +443,13 @@ static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t
 	} else if(!find_ru(lc, who, lr->u.lr_region)){
 		list_add(&new->ru_list, &ru->ru_list);
 	} else {
-		kfree(new);
+		DMWARN("Attempt to mark a already marked region (%u,"
+		       SECTOR_FORMAT
+		       ")",
+		       who, lr->u.lr_region);
+		mempool_free(new, region_user_pool);
 	}
 
-#ifdef DEBUG
-	{int z=0;
-	list_for_each_entry(ru, &lc->region_users, ru_list){
-		z++;
-		if(ru->ru_nodeid > 5){
-			printk("\nNODEID (%u) IS TOO LARGE.\n", ru->ru_nodeid);
-		}
-		if(ru->ru_region > lc->region_count){
-			printk("REGION (%Lu) IS OUT OF RANGE.\n", ru->ru_region);
-		}
-	}
-	printk("MARK ::%d regions marked\n", z);
-	}
-#endif
 	return 0;
 }
 
@@ -475,22 +472,9 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 		/*return -EINVAL;*/
 	} else {
 		list_del(&ru->ru_list);
-		kfree(ru);
+		mempool_free(ru, region_user_pool);
 	}
-#ifdef DEBUG
-	{int z=0;
-	list_for_each_entry(ru, &lc->region_users, ru_list){
-		z++;
-		if(ru->ru_nodeid > 5){
-			printk("\nNODEID (%u) IS TOO LARGE.\n", ru->ru_nodeid);
-		}
-		if(ru->ru_region > lc->region_count){
-			printk("REGION (%Lu) IS OUT OF RANGE.\n", ru->ru_region);
-		}
-	}
-	if(!z) printk("CLEAR::%d regions marked\n", z);
-	}
-#endif
+
 	if(!find_ru_by_region(lc, lr->u.lr_region)){
 		log_set_bit(lc, lc->clean_bits, lr->u.lr_region);
 		write_bits(lc);
@@ -702,11 +686,11 @@ static int process_log_request(struct socket *sock){
 		   lr.lr_type == LRT_MASTER_LEAVING){
 			uint32_t old = (lc)?lc->server_id: 0xDEAD;
 			if(process_election(&lr, lc, &saddr_in)){
-				printk("Election processing failed.\n");
+				DMERR("Election processing failed.");
 				return -1;
 			}
 			if(lc && (old != lc->server_id) && (my_id == lc->server_id)){
-				printk("I'm cluster log server, READING DISK\n");
+				DMINFO("I'm the cluster log server, READING DISK");
 				disk_resume(lc);
 			}
 			goto reply;
@@ -858,7 +842,7 @@ static int cluster_log_serverd(void *data){
 		case SERVICE_NODE_FAILED:
 			DMINFO("A node has %s",
 			       (restart_event_type == SERVICE_NODE_FAILED) ?
-			       "failed." : "left the cluster.\n");
+			       "failed." : "left the cluster.");
 			
 			list_for_each_entry(lc, &log_list_head, log_list){
 				if(lc->server_id == my_id){
@@ -879,7 +863,7 @@ static int cluster_log_serverd(void *data){
 		}
 		
 		if(process_log_request(sock)){
-			printk("process_log_request:: failed\n");
+			DMINFO("process_log_request:: failed");
 			/* ATTENTION -- what to do with error ? */
 		}
 		schedule();
@@ -900,6 +884,36 @@ static int cluster_log_serverd(void *data){
 	return error;
 }
 
+void print_server_status(struct log_c *lc){
+	int i;
+
+	atomic_set(&_suspend, 1);
+
+	DMINFO("SERVER OUTPUT::");
+
+	DMINFO("  Live nodes        :: %d", global_count);
+	DMINFO("  Sync count        :: %Lu", lc->sync_count);
+	DMINFO("  Disk Region count :: %Lu", lc->header.nr_regions);
+	DMINFO("  Region count      :: %Lu", lc->region_count);
+	DMINFO("  nr_regions        :: %Lu", lc->header.nr_regions);
+	DMINFO("  region_count      :: %Lu", lc->region_count);
+
+	if(lc->header.nr_regions != lc->region_count){
+		DMINFO("  NOTE:  Mapping has changed.");
+	}
+
+	DMINFO("Marked regions::");
+	i = print_zero_bits((unsigned char *)lc->clean_bits, 0, lc->bitset_uint32_count);
+	DMINFO("  Total = %d", i);
+
+	DMINFO("Out-of-sync regions::");
+	i = print_zero_bits((unsigned char *)lc->sync_bits, 0, lc->bitset_uint32_count);
+	DMINFO("  Total = %d", i);
+
+	atomic_set(&_suspend, 0);
+	wake_up_all(&_suspend_queue);
+}
+
 
 int suspend_server(void){
 	atomic_set(&_suspend, 1);
@@ -914,6 +928,13 @@ int resume_server(void){
 
 int start_server(void /* log_devices ? */){
 	int error;
+
+	region_user_pool = mempool_create(100, region_user_alloc,
+					  region_user_free, NULL);
+	if(!region_user_pool){
+		DMWARN("unable to allocate region user pool for server");
+		return -ENOMEM;
+	}
 
 	init_waitqueue_head(&_suspend_queue);
 

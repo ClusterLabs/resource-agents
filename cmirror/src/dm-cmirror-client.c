@@ -24,22 +24,28 @@
 #include "dm-cmirror-server.h"
 #include "dm-cmirror-cman.h"
 
+LIST_HEAD(log_list_head);
+
 struct region_state {
 	struct log_c *rs_lc;
-	int rs_marked;
 	region_t rs_region;
 	struct list_head rs_list;
 };
 
-LIST_HEAD(log_list_head);
-
-static uint32_t request_count=0;
-static uint32_t request_retry_count=0;
-
+static mempool_t *region_state_pool = NULL;
 static spinlock_t region_state_lock;
 static int clear_region_count=0;
 static struct list_head clear_region_list;
 static struct list_head marked_region_list;
+
+static int shutting_down=0;
+static atomic_t suspend_client;
+static wait_queue_head_t suspend_client_queue;
+
+
+/* These vars are just for stats, and will be removed */
+static uint32_t request_count=0;
+static uint32_t request_retry_count=0;
 static int clear_req=0;
 static int mark_req=0;
 static int insync_req=0;
@@ -47,9 +53,14 @@ static int clear_req2ser=0;
 static int mark_req2ser=0;
 static int insync_req2ser=0;
 
-static int shutting_down=0;
-static atomic_t suspend_client;
-static wait_queue_head_t suspend_client_queue;
+
+static void *region_state_alloc(int gfp_mask, void *pool_data){
+	return kmalloc(sizeof(struct region_state), gfp_mask);
+}
+
+static void region_state_free(void *element, void *pool_data){
+	kfree(element);
+}
 
 #define BYTE_SHIFT 3
 static int core_ctr(struct dirty_log *log, struct dm_target *ti,
@@ -88,7 +99,7 @@ static int core_ctr(struct dirty_log *log, struct dm_target *ti,
 
 	lc = kmalloc(sizeof(*lc), GFP_KERNEL);
 	if (!lc) {
-		DMWARN("couldn't allocate core log");
+		DMWARN("Couldn't allocate core log");
 		return -ENOMEM;
 	}
 
@@ -249,7 +260,9 @@ static int run_election(struct log_c *lc){
   
 	saddr_in.sin_family = AF_INET;
 	saddr_in.sin_port = CLUSTER_LOG_PORT;
-	saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(my_id);
+	if(!(saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(my_id))){
+		DMERR("Unable to convert nodeid_to_ipaddr in run_election");
+	}
 	msg.msg_name = &saddr_in;
 	msg.msg_namelen = sizeof(saddr_in);
 
@@ -331,14 +344,19 @@ static int _consult_server(struct log_c *lc, region_t region,
   
 	saddr_in.sin_family = AF_INET;
 	saddr_in.sin_port = CLUSTER_LOG_PORT;
-	saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(lc->server_id);
+	if(!(saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(lc->server_id))){
+		DMERR("Unable to convert nodeid_to_ipaddr in _consult_server");
+		error = -ENXIO;
+		*retry = 1;
+		goto fail;
+	}
 	msg.msg_name = &saddr_in;
 	msg.msg_namelen = sizeof(saddr_in);
 
 	iov.iov_len = sizeof(struct log_request);
 	iov.iov_base = lr;
 /*
-	printk("To  :: 0x%x, %s\n", 
+	DMERR("To  :: 0x%x, %s", 
 	       saddr_in.sin_addr.s_addr,
 	       (lr->lr_type == LRT_IS_CLEAN)? "LRT_IS_CLEAN":
 	       (lr->lr_type == LRT_IN_SYNC)? "LRT_IN_SYNC":
@@ -436,7 +454,20 @@ static int _consult_server(struct log_c *lc, region_t region,
 	}
 
 	if(lr) kfree(lr);
-	printk("_consult_server failed :: %d\n", error);
+#ifdef DEBUG
+	DMWARN("Request (%s) to server failed :: %d",
+	       (type == LRT_IS_CLEAN)? "LRT_IS_CLEAN":
+	       (type == LRT_IN_SYNC)? "LRT_IN_SYNC":
+	       (type == LRT_MARK_REGION)? "LRT_MARK_REGION":
+	       (type == LRT_GET_RESYNC_WORK)? "LRT_GET_RESYNC_WORK":
+	       (type == LRT_GET_SYNC_COUNT)? "LRT_GET_SYNC_COUNT":
+	       (type == LRT_CLEAR_REGION)? "LRT_CLEAR_REGION":
+	       (type == LRT_COMPLETE_RESYNC_WORK)? "LRT_COMPLETE_RESYNC_WORK":
+	       (type == LRT_MASTER_LEAVING)? "LRT_MASTER_LEAVING":
+	       (type == LRT_ELECTION)? "LRT_ELECTION":
+	       (type == LRT_SELECTION)? "LRT_SELECTION": "UNKNOWN",
+	       error);
+#endif
 	return error;
 }
 
@@ -463,19 +494,25 @@ static int consult_server(struct log_c *lc, region_t region,
 		if(new_server && 
 		   (!list_empty(&clear_region_list) ||
 		    !list_empty(&marked_region_list))){
+			int i=0;
 			struct region_state *tmp_rs;
+
 			DMWARN("Clean-up required due to server failure");
 			DMWARN(" - Wiping clear region list");
 			list_for_each_entry_safe(rs, tmp_rs,
 						 &clear_region_list, rs_list){
-				list_del(&rs->rs_list);
-				kfree(rs);
+				i++;
+				list_del_init(&rs->rs_list);
+				mempool_free(rs, region_state_pool);
 			}
 			clear_region_count=0;
+			DMWARN(" - %d clear region requests wiped", i);
+
 			DMWARN(" - Resending all mark region requests");
 			list_for_each_entry(rs, &marked_region_list, rs_list){
 				do {
 					retry = 0;
+					DMWARN("   - " SECTOR_FORMAT, rs->rs_region);
 					rtn = _consult_server(rs->rs_lc, rs->rs_region,
 							      LRT_MARK_REGION, NULL, &retry);
 				} while(retry);
@@ -483,17 +520,35 @@ static int consult_server(struct log_c *lc, region_t region,
 			DMWARN("Clean-up complete");
 			if(type == LRT_MARK_REGION){
 				/* we just handled all marks */
+				DMWARN("Mark request ignored.\n");
 				spin_unlock(&region_state_lock);
+
 				return rtn;
+			} else {
+				DMWARN("Continuing request:: %s", 
+				      (type == LRT_IS_CLEAN)? "LRT_IS_C	LEAN":
+				      (type == LRT_IN_SYNC)? "LRT_IN_SYNC":
+				      (type == LRT_MARK_REGION)? "LRT_MARK_REGION":
+				      (type == LRT_GET_RESYNC_WORK)? "LRT_GET_RESYNC_WORK":
+				      (type == LRT_GET_SYNC_COUNT)? "LRT_GET_SYNC_COUNT":
+				      (type == LRT_CLEAR_REGION)? "LRT_CLEAR_REGION":
+				      (type == LRT_COMPLETE_RESYNC_WORK)? "LRT_COMPLETE_RESYNC_WORK":
+				      (type == LRT_MASTER_LEAVING)? "LRT_MASTER_LEAVING":
+				      (type == LRT_ELECTION)? "LRT_ELECTION":
+				      (type == LRT_SELECTION)? "LRT_SELECTION": "UNKNOWN"
+					);
 			}
 		}
 
-		if(!list_empty(&clear_region_list) && (clear_region_count > 100)){
+		rs = NULL;
+
+		if(!list_empty(&clear_region_list)){
 			rs = list_entry(clear_region_list.next,
 					struct region_state, rs_list);
-			list_del(&rs->rs_list);
+			list_del_init(&rs->rs_list);
 			clear_region_count--;
 		}
+
 		spin_unlock(&region_state_lock);
 		
 		/* ATTENTION -- it may be possible to remove a clear region **
@@ -510,8 +565,9 @@ static int consult_server(struct log_c *lc, region_t region,
 				list_add(&rs->rs_list, &clear_region_list);
 				clear_region_count++;
 				spin_unlock(&region_state_lock);
+
 			} else {
-				kfree(rs);
+				mempool_free(rs, region_state_pool);
 			}
 		}
 		retry = 0;
@@ -559,7 +615,7 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 		/* NOTE -- we take advantage of the fact that disk_ctr does **
 		** not actually read the disk.  I suppose, however, that if **
 		** it does in the future, we will simply reread it when a   **
-		** servier is started here................................. */
+		** server is started here.................................. */
 		if((error = disk_ctr(log, ti, argc - paranoid, argv + paranoid))){
 			DMWARN("Cluster mirror:: disk_ctr failed");
 			return error;
@@ -596,7 +652,9 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 
 	saddr_in.sin_family = AF_INET;
 	saddr_in.sin_port = CLUSTER_LOG_PORT+1;
-	saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(my_id);
+	if(!(saddr_in.sin_addr.s_addr = nodeid_to_ipaddr(my_id))){
+		DMERR("Unable to convert nodeid_to_ipaddr in cluster_ctr");
+	}
 	error = lc->client_sock->ops->bind(lc->client_sock,
 					   (struct sockaddr *)&saddr_in,
 					   sizeof(struct sockaddr_in));
@@ -624,7 +682,7 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 static void cluster_dtr(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-	list_del(&lc->log_list);
+	list_del_init(&lc->log_list);
 	if(lc->server_id == my_id)
 		consult_server(lc, 0, LRT_MASTER_LEAVING, NULL);
 	sock_release(lc->client_sock);
@@ -682,9 +740,15 @@ static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
 
 static int cluster_flush(struct dirty_log *log)
 {
-	/* no need to flush, since server writes to disk before **
-	** responding back to a client......................... */
-	return 0;
+	struct log_c *lc = (struct log_c *) log->context;
+	if(lc->paranoid){
+		/* there should be no pending requests */
+		return 0;
+	} else {
+		/* flush all clear_region requests to server */
+		/* ATTENTION -- not implemented */
+		return 0;
+	}
 }
 
 static void cluster_mark_region(struct dirty_log *log, region_t region)
@@ -695,28 +759,45 @@ static void cluster_mark_region(struct dirty_log *log, region_t region)
 
 	mark_req++;
 
-	rs_new = kmalloc(sizeof(struct region_state), GFP_ATOMIC);
-	if(!rs_new){
-		printk("Unable to allocate region_state for mark.\n");
-		BUG();
-	}
-
 	spin_lock(&region_state_lock);
 	list_for_each_entry_safe(rs, tmp_rs, &clear_region_list, rs_list){
 		if(lc == rs->rs_lc && region == rs->rs_region){
-			printk("Mark pre-empting clear of region %Lu\n", region);
-			list_del(&rs->rs_list);
+#ifdef DEBUG
+			DMINFO("Mark pre-empting clear of region %Lu", region);
+#endif
+			list_del_init(&rs->rs_list);
 			list_add(&rs->rs_list, &marked_region_list);
 			clear_region_count--;
 			spin_unlock(&region_state_lock);
-			kfree(rs_new);
+
+			return;
+		}
+	}
+	/* ATTENTION -- this check should not be necessary.   **
+	** Why are regions being marked again before a clear? */
+	list_for_each_entry(rs, &marked_region_list, rs_list){
+		if(lc == rs->rs_lc && region == rs->rs_region){
+#ifdef DEBUG
+			DMINFO("Double mark on region ("
+			       SECTOR_FORMAT ")", region);
+#endif
+			spin_unlock(&region_state_lock);
+
 			return;
 		}
 	}
 
+	/* ATTENTION -- Do I want to alloc outside of the spinlock? */
+	rs_new = mempool_alloc(region_state_pool, GFP_KERNEL);
+	if(!rs_new){
+		DMERR("Unable to allocate region_state for mark.");
+		BUG();
+	}
+
 	rs_new->rs_lc = lc;
 	rs_new->rs_region = region;
-	list_add(&rs->rs_list, &marked_region_list);
+	INIT_LIST_HEAD(&rs_new->rs_list);
+	list_add(&rs_new->rs_list, &marked_region_list);
 
 	spin_unlock(&region_state_lock);
 
@@ -725,35 +806,60 @@ static void cluster_mark_region(struct dirty_log *log, region_t region)
 		       lc->server_id, region);
 		DMWARN("Reason :: %d", error);
 	}
-
 	return;
 }
 
 static void cluster_clear_region(struct dirty_log *log, region_t region)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-	struct region_state *rs, *tmp_rs;
+	struct region_state *rs, *tmp_rs, *rs_new;
 
 	clear_req++;
 
 	spin_lock(&region_state_lock);
 
+	list_for_each_entry_safe(rs, tmp_rs, &clear_region_list, rs_list){
+		if(lc == rs->rs_lc && region == rs->rs_region){
+			DMINFO("%d) Double clear on region ("
+			      SECTOR_FORMAT ")", __LINE__, region);
+			spin_unlock(&region_state_lock);
+			return;
+		}
+	}
+
 	list_for_each_entry_safe(rs, tmp_rs, &marked_region_list, rs_list){
 		if(lc == rs->rs_lc && region == rs->rs_region){
-			list_del(&rs->rs_list);
+			list_del_init(&rs->rs_list);
 			list_add(&rs->rs_list, &clear_region_list);
 			clear_region_count++;
 			if(!(clear_region_count & 0x7F)){
-				printk("clear_region_count :: %d\n", clear_region_count);
+				DMINFO("clear_region_count :: %d", clear_region_count);
 			}
 			spin_unlock(&region_state_lock);
 			return;
 		}
 	}
 
-	spin_unlock(&region_state_lock);
-	printk("HEY!  Clearing region that is not marked.\n");
+	/* We can get here because we my be doing resync_work, and therefore, **
+	** clearing without ever marking..................................... */
 
+	/* ATTENTION -- Do I want to alloc outside of the spinlock? */
+	rs_new = mempool_alloc(region_state_pool, GFP_ATOMIC);
+	if(!rs_new){
+		DMERR("Unable to allocate region_state for mark.");
+		BUG();
+	}
+
+	rs_new->rs_lc = lc;
+	rs_new->rs_region = region;
+	INIT_LIST_HEAD(&rs_new->rs_list);
+	list_add(&rs_new->rs_list, &clear_region_list);
+	clear_region_count++;
+	if(!(clear_region_count & 0x7F)){
+		DMINFO("clear_region_count :: %d", clear_region_count);
+	}
+
+	spin_unlock(&region_state_lock);
 	return;
 }
 
@@ -783,6 +889,10 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 {
 	region_t rtn;
 	struct log_c *lc = (struct log_c *) log->context;
+	if(atomic_read(&lc->in_sync)){
+		return lc->region_count;
+	}
+
 	if(consult_server(lc, 0, LRT_GET_SYNC_COUNT, &rtn)){
 		return 0;
 	}
@@ -814,48 +924,37 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 	int sz = 0;
 	char buffer[16];
 	struct log_c *lc = (struct log_c *) log->context;
-	//	struct region_user *ru;
-	int i=0;
+	struct region_state *rs;
+	int i=0, j=0;
 
 	switch(status){
 	case STATUSTYPE_INFO:
 		spin_lock(&region_state_lock);
 		i = clear_region_count;
-		spin_unlock(&region_state_lock);
-		printk("CLIENT OUTPUT::\n");
-		printk("  Server           : %u\n", lc->server_id);
-		printk("  In-sync          : %s\n", (atomic_read(&lc->in_sync)>0)?
-		       "YES" : "NO");
-		printk("  Regions clearing : %d\n", i);
-		printk("  Mark requests    : %d\n", mark_req);
-		printk("  Mark req to serv : %d (%d%%)\n", mark_req2ser,
-		       (mark_req2ser*100)/mark_req);
-		printk("  Clear requests   : %d\n", clear_req);
-		printk("  Clear req to serv: %d (%d%%)\n", clear_req2ser,
-		       (clear_req2ser*100)/clear_req);
-		printk("  Sync  requests   : %d\n", insync_req);
-		printk("  Sync req to serv : %d (%d%%)\n", insync_req2ser,
-		       (insync_req2ser*100)/insync_req);
-		/*
-		if(lc->server_id == my_id){
-			atomic_set(&suspend_server, 1);
-			printk("SERVER OUTPUT::\n");
-			printk("Marked regions::\n");
-			print_zero_bits((unsigned char *)lc->clean_bits, 0,
-					lc->header.nr_regions);
-
-			printk("Out-of-sync regions::\n");
-			print_zero_bits((unsigned char *)lc->sync_bits, 0,
-					lc->header.nr_regions);
-
-			printk("Region user list::\n");
-			list_for_each_entry(ru, &lc->region_users, ru_list){
-				printk("  %u, %Lu\n", ru->ru_nodeid, ru->ru_region);
-			}
-			atomic_set(&suspend_server, 0);
-			wake_up_all(&suspend_server_queue);
+		list_for_each_entry(rs, &marked_region_list, rs_list){
+			j++;
 		}
-		*/
+		spin_unlock(&region_state_lock);
+
+		DMINFO("CLIENT OUTPUT::");
+		DMINFO("  My ID            : %u", my_id);
+		DMINFO("  Server ID        : %u", lc->server_id);
+		DMINFO("  In-sync          : %s", (atomic_read(&lc->in_sync)>0)?
+		       "YES" : "NO");
+		DMINFO("  Regions marked   : %d", j);
+		DMINFO("  Regions clearing : %d", i);
+		DMINFO("  Mark requests    : %d", mark_req);
+		DMINFO("  Mark req to serv : %d (%d%%)", mark_req2ser,
+		       (mark_req2ser*100)/(mark_req+1));
+		DMINFO("  Clear requests   : %d", clear_req);
+		DMINFO("  Clear req to serv: %d (%d%%)", clear_req2ser,
+		       (clear_req2ser*100)/(clear_req+1));
+		DMINFO("  Sync  requests   : %d", insync_req);
+		DMINFO("  Sync req to serv : %d (%d%%)", insync_req2ser,
+		       (insync_req2ser*100)/(insync_req+1));
+		if(lc->server_id == my_id){
+			print_server_status(lc);
+		}
                 break;
 
         case STATUSTYPE_TABLE:
@@ -873,7 +972,7 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 static int clog_stop(void *data){
 	struct log_c *lc;
 
-	DMINFO("Cluster mirror stop initiated");
+	DMINFO("Cluster mirror 'stop' initiated");
 
 	DMINFO(" - Suspending client operations");
 	atomic_set(&suspend_client, 1);
@@ -891,7 +990,7 @@ static int clog_stop(void *data){
 		DMINFO(" - Cluster mirror shutting down");
 	}
 
-	DMINFO("Cluster mirror stop complete");
+	DMINFO("Cluster mirror 'stop' complete");
 	return 0;
 }
 
@@ -901,7 +1000,7 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 	struct log_c *lc;
 	struct kcl_cluster_node node;
 
-	DMINFO("Cluster mirror start initiated");
+	DMINFO("Cluster mirror 'start' initiated");
 	if(global_nodeids){
 		kfree(global_nodeids);
 	}
@@ -937,18 +1036,18 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 	DMINFO(" - Resuming cluster log server");
 	resume_server();
 	DMINFO(" - Resuming cluster log server: done");
-	DMINFO("Cluster mirror start complete");
+	DMINFO("Cluster mirror 'start' complete");
 	return 0;
 }
 
 static void clog_finish(void *data, int event_id){
-	DMINFO("Cluster mirror finish initiated");
+	DMINFO("Cluster mirror 'finish' initiated");
 
 	DMINFO(" - Resuming client operations");
 	atomic_set(&suspend_client, 0);
 	wake_up_all(&suspend_client_queue);
 	DMINFO(" - Resuming client operations: done");
-	DMINFO("Cluster mirror finish complete");
+	DMINFO("Cluster mirror 'finish' complete");
 }
 
 static struct kcl_service_ops clog_ops = {
@@ -979,12 +1078,21 @@ static struct dirty_log_type _cluster_type = {
 
 static int __init cluster_dirty_log_init(void)
 {
-	int r;
+	int r=0;
 
 	INIT_LIST_HEAD(&clear_region_list);
 	INIT_LIST_HEAD(&marked_region_list);
+
 	spin_lock_init(&region_state_lock);
+	region_state_pool = mempool_create(20, region_state_alloc,
+					   region_state_free, NULL);
+	if(!region_state_pool){
+		DMWARN("couldn't create region state pool");
+		goto fail1;
+	}
+
 	init_waitqueue_head(&suspend_client_queue);
+
 
 	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
 				 1, NULL, &local_id);

@@ -16,7 +16,7 @@ DO NOT CONSIDER PRODUCTION READY UNTIL THESE BUGS ARE CLEARED.
 	4) machines continue to use region without server knowing region
 	   should be in dirty state
 	5) one of the original machines dies
-	*) FIX IDENTIFIED: IMPLEMENTING
+	*) FIX IN PLACE: VERIFYING
 
 MEDIUM PRIORITY (functionality related, but data not at risk)
 ===============
@@ -37,9 +37,9 @@ LOW PRIORITY (coding practice, extended functionality, etc)
 
 2. Figure out how to best utilize dm-log.c code without duplication
 
-3. Use mempool
+3. Use mempool  -DONE-
 
-4. Use hash for server-side region use tracking, as opposed to linked list
+4. Use hash/tree for server-side region use tracking, as opposed to linked list
 
 5. register the cluster_log service with cman at a level between
    SERVICE_LEVEL_GDLM and SERVICE_LEVEL_GFS.
@@ -50,6 +50,8 @@ LOW PRIORITY (coding practice, extended functionality, etc)
 	chosen.
 
 6. Implement paranoid mode
+	1) Requires changes to dm-raid1.c.  Specifically, it requires a
+	   mark/clear region request to exist for reads as well as writes
 
 7. Implement core mode
 

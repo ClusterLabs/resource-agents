@@ -36,11 +36,12 @@ int my_recvmsg(struct socket *sock, struct msghdr *msg,
 	rtn = sock_recvmsg(sock, msg, size, flags);
 	del_timer(&timer);
 
+	/* flush after recalc?  Redo this function.  */
 	spin_lock_irqsave(&current->sighand->siglock, sig_flags);
-        flush_signals(current);
         current->blocked = blocked_save;
         recalc_sigpending();
         spin_unlock_irqrestore(&current->sighand->siglock, sig_flags);
+        flush_signals(current);
 
 	if(rtn < 0){
 		return -ETIMEDOUT;  /* perhaps not the best error number */
