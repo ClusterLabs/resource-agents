@@ -622,7 +622,6 @@ static int copy_query_result(struct ast_info *ast)
 			   sizeof(struct dlm_queryinfo)))
 		goto copy_out;
 
-	/* TODO: does this deref a user pointer? */
 	if (put_user(ast->queryinfo->gqi_lockcount,
 		     &ast->user_queryinfo->gqi_lockcount))
 		goto copy_out;
