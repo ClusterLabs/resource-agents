@@ -710,7 +710,7 @@ void fence(char *host, char *server, int is_fence)
   strncpy(node.node_name, host, 65);
   sock_fd = connect_to_server(server, (uint16_t)server_port);
   if (sock_fd < 0){
-    printe("cannot connect to %s (%d) : %s\n", host, sock_fd, strerror(errno));
+    printe("cannot connect to %s (%d) : %s\n", server, sock_fd, strerror(errno));
     exit(1);
   }
   if (is_fence)

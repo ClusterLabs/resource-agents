@@ -75,9 +75,15 @@ Print out a version message, then exit.
 This option is used by fence_node(8) and is ignored by fence_gnbd.
 .sp
 
-\fIipaddr = < hostname | ip >\fP
+\fIipaddr = < clustername >\fP
 .sp
-IP address or hostname of the node to be fenced (required).
+The cluster name of the node to be fenced (required) \fBNOTE:\fP This parameter
+no longer allows the IP address of the node to be used. This parameter is
+deprecated. Please use \fInodename\fP instead.
+.sp
+\fInodename = < clustername >\fP
+.sp
+The cluster name of the node to be fenced (required)
 .sp
 \fIservers = < hostname [ hostname ... ] >\fP
 .sp

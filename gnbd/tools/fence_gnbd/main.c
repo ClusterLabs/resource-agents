@@ -194,8 +194,11 @@ void get_options(int argc, char **argv)
         else
           printe("warning: option %s not recognized\n", value);
       }
-      if (!strcmp(arg, "ipaddr"))
+      if (!strcmp(arg, "ipaddr") || !strcmp(arg, "nodename")){
+        if (!strcmp(arg, "ipaddr"))
+          printe("warning: 'ipaddr' key is depricated, please see man page\n");
         strcpy(ipaddr, value);
+      }
       if (!strcmp(arg, "wait_time")){
         int match = sscanf(value, "%u", &wait_time);
         if (match != 1 || !wait_time)
