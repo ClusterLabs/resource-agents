@@ -797,7 +797,6 @@ realloc(void *oldp, size_t newsize)
 	newp = malloc(newsize);
 
 	if (!newp) {
-		free(oldb);
 		return NULL;
 	}
 
