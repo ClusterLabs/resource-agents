@@ -1288,7 +1288,9 @@ static int do_ioctl_get_all_members(unsigned long arg)
 	struct list_head *nodelist;
 	int num_nodes = 0;
 
-	if (copy_from_user(&user_format_nodelist, (void __user *)arg, sizeof(struct cl_cluster_nodelist)))
+	if (arg &&
+	    copy_from_user(&user_format_nodelist,
+			   (void __user *)arg, sizeof(struct cl_cluster_nodelist)))
 		return -EFAULT;
 
 	down(&cluster_members_lock);
