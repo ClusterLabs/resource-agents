@@ -22,7 +22,8 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS += -g -O -I. -fPIC
+CFLAGS += -g -I. -O2
+LDFLAGS +=  
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -37,38 +38,33 @@ endif
 
 all: $(STATICLIB) $(SHAREDLIB)
 
-$(LIBNAME).a: libdlm.o libaislock.o
-	${AR} cr libdlm.a libdlm.o libaislock.o
+
+$(LIBNAME).a: libdlm.o libaislock.o dlm32.o
+	${AR} cr libdlm.a $^
 	${RANLIB} libdlm.a 
-
-$(LIBNAME)_lt.a: libdlm_lt.o 
-	${AR} r libdlm_lt.a libdlm_lt.o 
+  
+$(LIBNAME)_lt.a: libdlm_lt.o dlm32.o
+	${AR} r libdlm_lt.a $^
 	${RANLIB} libdlm_lt.a 
-
-$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po
-	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
-
-$(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po
-	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
-
-libdlm.po: libdlm.c
-	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
-
-libdlm.o: libdlm.c
-	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
-
-libaislock.po: libaislock.c
-	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
-
-libaislock.o: libaislock.c
-	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
-
-libdlm_lt.po: libdlm.c
+  
+$(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm.po libaislock.po dlm32.po
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
+  
+$(LIBNAME)_lt.so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libdlm_lt.po dlm32.po
+	$(CC) $(LDFLAGS) -shared -o $@ -Wl,-soname=$(LIBNAME)_lt.so.$(RELEASE_MAJOR) $^
+  
+%_lt.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-
-libdlm_lt.o: libdlm.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
+  
+%_lt.po: %.c
+	$(CC) $(CFLAGS) -fPIC -c -o $@ $<
+  
+%.o: %.c
+	$(CC) $(CFLAGS) -D_REENTRANT -c -o $@ $<
+  
+%.po: %.c
+	$(CC) $(CFLAGS) -fPIC -D_REENTRANT -c -o $@ $<
+  
 copytobin: all
 
 

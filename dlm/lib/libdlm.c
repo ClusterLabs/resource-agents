@@ -46,15 +46,6 @@
 #include "libdlm.h"
 #include "dlm_device.h"
 
-/* Add other grotesqueries here as they arise */
-#if defined(__sparc__) && __WORDSIZE == 32
-#include "dlm32.c"
-#else
-#define dlm_write write
-#define dlm_read read
-#endif
-
-
 #define MISC_PREFIX "/dev/misc/"
 #define PROC_MISC "/proc/misc"
 #define DLM_PREFIX "dlm_"
@@ -75,6 +66,10 @@ struct dlm_ls_info
     int tid;
 #endif
 };
+
+extern ssize_t dlm_read(int, struct dlm_lock_result *);
+extern ssize_t dlm_read_data(int, struct dlm_lock_result *, size_t);
+extern ssize_t dlm_write(int, struct dlm_write_request *, size_t);
 
 /* The default lockspace.
    I've resisted putting locking around this as the user should be
@@ -399,14 +394,14 @@ static int open_control_device()
 
 static int do_dlm_dispatch(int fd)
 {
-    char resultbuf[sizeof(struct dlm_lock_result)];
-    struct dlm_lock_result *result = (struct dlm_lock_result *)resultbuf;
-    char *fullresult=NULL;
+    struct dlm_lock_result resultbuf;
+    struct dlm_lock_result *result = &resultbuf; 
+    char *fullresult = NULL;
     int status;
     void (*astaddr)(void *astarg);
 
     /* Just read the header first */
-    status = dlm_read(fd, result, sizeof(struct dlm_lock_result));
+    status = dlm_read(fd, result);
     if (status <= 0)
 	return -1;
 
@@ -418,7 +413,7 @@ static int do_dlm_dispatch(int fd)
 	if (!fullresult)
 	    return -1;
 
-	newstat = dlm_read(fd, fullresult, result->length);
+	newstat = dlm_read_data(fd, (struct dlm_lock_result *)fullresult, result->length);
 
 	/* If it read OK then use the new data. otherwise we can
 	   still deliver the AST, it just might not have all the

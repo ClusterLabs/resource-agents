@@ -23,7 +23,25 @@
 /* Convert 32 bit userland reads & writes to something suitable for
    a 64 bit kernel */
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <sys/utsname.h>
+#include <string.h>
+#include <unistd.h>
+#include "dlm.h"
+#include "dlm_device.h"
 
+#include <stdio.h>
+
+#if (defined(__s390__) || defined(__sparc__)) && __WORDSIZE == 32
+# define BUILD_BIARCH
+#endif
+
+extern ssize_t dlm_read(int, struct dlm_lock_result *);
+extern ssize_t dlm_read_data(int, struct dlm_lock_result *, size_t);
+extern ssize_t dlm_write(int, struct dlm_write_request *, size_t);
+
+#ifdef BUILD_BIARCH
 /* 64 bit versions of the structs */
 struct dlm_lock_params64 {
 	uint8_t mode;
@@ -32,10 +50,10 @@ struct dlm_lock_params64 {
 	uint32_t parent;
 	struct dlm_range range;
 	uint8_t namelen;
-        uint64_t castparam;
+	uint64_t castparam;
 	uint64_t castaddr;
 	uint64_t bastparam;
-        uint64_t bastaddr;
+	uint64_t bastaddr;
 	uint64_t lksb;
 	char lvb[DLM_LVB_LEN];
 	char name[1];
@@ -73,10 +91,10 @@ struct dlm_write_request64 {
 
 struct dlm_lksb64
 {
-        int      sb_status;
-        uint32_t sb_lkid;
-        char     sb_flags;
-        uint64_t sb_lvbptr;
+	int      sb_status;
+	uint32_t sb_lkid;
+	char     sb_flags;
+	uint64_t sb_lvbptr;
 };
 
 /* struct read from the "device" fd,
@@ -104,16 +122,38 @@ struct dlm_queryinfo64 {
 	int gqi_lockcount;	/* output */
 };
 
+static bool check_biarch_convert(void)
+{
+	static enum { undefined, native, convert } status;
+	if (status == undefined)
+	{
+		struct utsname buf;
+		if (uname(&buf) != 0)
+			status = native;
+		else if (strcmp(buf.machine,
+#ifdef __s390__
+				"s390x"
+#endif
+#ifdef __sparc__
+				"sparc64"
+#endif
+			  ) == 0)
+			status = convert;
+		else
+			status = native;
+	}
+	if (status == convert)
+		return true;
+	return false;
+}
 
-int dlm_write(int fd, void *buf, int len)
+static ssize_t _dlm_write_convert(int fd, struct dlm_write_request *req32, size_t len32)
 {
 	char buf64[sizeof(struct dlm_write_request64) + DLM_RESNAME_MAXLEN];
 	struct dlm_write_request64 *req64;
-	struct dlm_write_request   *req32;
 	int len64;
 	int ret;
 
-	req32 = (struct dlm_write_request *)buf;
 	req64 = (struct dlm_write_request64 *)buf64;
 	len64 = sizeof(struct dlm_write_request64);
 
@@ -167,21 +207,17 @@ int dlm_write(int fd, void *buf, int len)
 
 	/* Fake the return length */
 	if (ret == len64)
-		ret = len;
+		ret = len32;
 
 	return ret;
 }
 
-
-int dlm_read(int fd, void *buf, int len)
+static ssize_t _dlm_read_convert(bool data, int fd, struct dlm_lock_result *res32, ssize_t len32)
 {
-	int ret;
-	int len64;
-	struct dlm_lock_result *res32;
+	ssize_t ret;
+	size_t len64;
 	struct dlm_lock_result64 *res64;
 	struct dlm_lock_result64 buf64;
-
-	res32 = (struct dlm_lock_result *)buf;
 
 	/* There are two types of read done here, the first just gets the structure, for that
 	   we need our own buffer because the 64 bit one is larger than the 32bit.
@@ -189,15 +225,15 @@ int dlm_read(int fd, void *buf, int len)
 	   size of the buffer by the kernel so we can use that buffer for reading, that
 	   also avoids the need to copy the extended data blocks too.
 	*/
-	if (len == sizeof(struct dlm_lock_result))
+	if (!data)
 	{
-		len64 = sizeof(struct dlm_lock_result64);
+		len64 = sizeof(buf64);
 		res64 = &buf64;
 	}
 	else
 	{
-		len64 = len;
-		res64 = (struct dlm_lock_result64 *)buf;
+		len64 = len32;
+		res64 = (struct dlm_lock_result64 *)res32;
 	}
 
 	ret = read(fd, res64, len64);
@@ -222,10 +258,47 @@ int dlm_read(int fd, void *buf, int len)
 			struct dlm_queryinfo64 *qinfo64;
 			struct dlm_queryinfo *qinfo32;
 
-			qinfo64 = (struct dlm_queryinfo64 *)(buf+res32->qinfo_offset);
-			qinfo32 = (struct dlm_queryinfo *)(buf+res32->qinfo_offset);
+			qinfo64 = (struct dlm_queryinfo64 *)((char*)res32+res32->qinfo_offset);
+			qinfo32 = (struct dlm_queryinfo *)((char *)res32+res32->qinfo_offset);
 			qinfo32->gqi_lockcount = qinfo64->gqi_lockcount;
 		}
 	}
 	return ret;
 }
+
+ssize_t dlm_read(int fd, struct dlm_lock_result *res)
+{
+	if (check_biarch_convert())
+		return _dlm_read_convert(false, fd, res, 0);
+	return read(fd, res, sizeof(struct dlm_lock_result));
+}
+
+ssize_t dlm_read_data(int fd, struct dlm_lock_result *res, size_t len)
+{
+	if (check_biarch_convert())
+		return _dlm_read_convert(true, fd, res, len);
+	return read(fd, res, len);
+}
+
+ssize_t dlm_write(int fd, struct dlm_write_request *req, size_t len)
+{
+	if (check_biarch_convert())
+		return _dlm_write_convert(fd, req, len);
+	return write(fd, req, len);
+}
+#else /* BUILD_BIARCH */
+ssize_t dlm_read(int fd, struct dlm_lock_result *res)
+{
+	return read(fd, res, sizeof(struct dlm_lock_result));
+}
+
+ssize_t dlm_read_data(int fd, struct dlm_lock_result *res, size_t len)
+{
+	return read(fd, res, len);
+}
+
+ssize_t dlm_write(int fd, struct dlm_write_request *req, size_t len)
+{
+	return write(fd, req, len);
+}
+#endif /* BUILD_BIARCH */
