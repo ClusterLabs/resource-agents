@@ -1080,13 +1080,13 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	 * Update the rsb lvb if the lkb's lvb is up to date (grmode > NL).
 	 */
 
-	if ((lkb->lkb_flags & GDLM_LKFLG_VALBLK)
-	    && lkb->lkb_grmode > DLM_LOCK_NL) {
+	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		if (!rsb->res_lvbptr)
 			rsb->res_lvbptr = allocate_lvb(ls);
 		if (!rsb->res_lvbptr)
 			goto out;
-		memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+		if (lkb->lkb_grmode > DLM_LOCK_NL)
+			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
 	}
 
 	/*

@@ -306,29 +306,29 @@ static void set_rsb_lvb(struct dlm_rsb *rsb)
 
 	list_for_each_entry(lkb, &rsb->res_grantqueue, lkb_statequeue) {
 
-		if (!(lkb->lkb_flags & GDLM_LKFLG_DELETED) &&
-		    (lkb->lkb_flags & GDLM_LKFLG_VALBLK) &&
-		    (lkb->lkb_grmode > DLM_LOCK_NL))
-		{
+		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 			if (!rsb->res_lvbptr)
 				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
 
-			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-			return;
+			if (lkb->lkb_grmode > DLM_LOCK_NL) {
+				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
+				       DLM_LVB_LEN);
+				return;
+			}
 		}
 	}
 
 	list_for_each_entry(lkb, &rsb->res_convertqueue, lkb_statequeue) {
 
-		if (!(lkb->lkb_flags & GDLM_LKFLG_DELETED) &&
-		    (lkb->lkb_flags & GDLM_LKFLG_VALBLK) &&
-		    (lkb->lkb_grmode > DLM_LOCK_NL))
-		{
+		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 			if (!rsb->res_lvbptr)
 				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
 
-			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-			return;
+			if (lkb->lkb_grmode > DLM_LOCK_NL) {
+				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
+				       DLM_LVB_LEN);
+				return;
+			}
 		}
 	}
 }
