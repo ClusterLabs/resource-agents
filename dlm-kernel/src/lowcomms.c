@@ -315,13 +315,13 @@ static void close_connection(struct connection *con, int and_other)
 	if (con->sock) {
 		sock_release(con->sock);
 		con->sock = NULL;
-		if (con->othercon && and_other) {
-			/* Argh! recursion in kernel code!
-			   Actually, this isn't a list so it
-			   will only re-enter once.
-			*/
-			close_connection(con->othercon, TRUE);
-		}
+	}
+	if (con->othercon && and_other) {
+		/* Argh! recursion in kernel code!
+		   Actually, this isn't a list so it
+		   will only re-enter once.
+		*/
+		close_connection(con->othercon, FALSE);
 	}
 	if (con->rx_page) {
 		__free_page(con->rx_page);
@@ -1203,7 +1203,7 @@ void lowcomms_stop(void)
 	*/
 	for (i = 0; i < conn_array_size; i++) {
 		if (connections[i])
-			connections[i]->flags = 0x7;
+			connections[i]->flags |= 0x7;
 	}
 	daemons_stop();
 	clean_writequeues();
