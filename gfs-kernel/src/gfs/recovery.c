@@ -181,7 +181,7 @@ find_good_lh(struct gfs_sbd *sdp, struct gfs_jindex *jdesc,
 			if (++*seg == jdesc->ji_nsegment)
 				*seg = 0;
 		} else {
-			if (*seg-- == 0)
+			if ((*seg)-- == 0)
 				*seg = jdesc->ji_nsegment - 1;
 		}
 
