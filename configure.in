@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.169 $) dnl cvs revision
+AC_REVISION($Revision: 1.170 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -933,9 +933,6 @@ dnl
 dnl
 dnl Check Only
 dnl
-dnl     sigignore: Only on Solaris.
-dnl             it is a solaris replacement for signal(s,SIG_IGN).
-dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
 
@@ -945,7 +942,6 @@ AC_CHECK_FUNCS(inet_aton)
 AC_CHECK_FUNCS(mallinfo)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
-AC_CHECK_FUNCS(sigignore)
 
 
 dnl **********************************************************************
@@ -1039,6 +1035,21 @@ dnl *always* cause us troubles if we set it before here.
 dnl
 dnl
 CFLAGS="$CFLAGS $CC_WARNINGS"
+
+dnl NOTE:
+dnl This check should only be done after CFLAGS is set. Otherwise
+dnl linux box will complain because of a warning of the undefined 
+dnl function sigignore(). 
+dnl 
+dnl In theory, all function checks should be done after the CFLAGS is 
+dnl set since we are enforcing the -Werror. But this would have a big
+dnl impact on the whole source tree so I am only moving the
+dnl sigignore for now. A bit of a hack. 
+dnl
+dnl     sigignore: Only on Solaris.
+dnl             it is a solaris replacement for signal(s,SIG_IGN).
+dnl
+AC_CHECK_FUNCS(sigignore)
 
 dnl
 dnl Make sure that CFLAGS is not exported. If the user did
