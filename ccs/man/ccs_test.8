@@ -4,50 +4,33 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'ccs_test(8)''ccs_test(8)'
-'\"     View with 'groff -t -e -mandoc -Tlatin1 ccs_test.8 | less'
+.TH ccs_test 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 ccs_test - The diagnostic tool for a running Cluster Configuration System.
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBccs_test\fP [\fBoptions\fP] <\fBcommand\fP>
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH SYNOPSIS
+.B ccs_test
+[\fBoptions\fP]
+<\fBcommand\fP>
+
+.SH DESCRIPTION
 \fBccs_test\fP is part of the Cluster Configuration System (CCS).  It
 is a diagnostic tool designed to validate the correct operation of a
 running CCS system.  It will communicate with the CCS daemon - \fBccsd\fP -
 to obtain any information stored in the system.
 
-.sp
-.in
-
-\fBOPTIONS\fP
-.in +7
-
+.SH OPTIONS
+.TP
 \fB-h\fP
-.in +7
 Help.  Print out the usage syntax and exit.
-.sp
-.in
-
+.TP
 \fB-V\fP
-.in +7
 Print the version information and exit.
-.sp
-.in
 
-.in -7
-
-\fBCOMMANDS\fP
-.in +7
+.SH COMMANDS
+.TP
 \fBconnect\fP \fI[force]\fP \fI[block]\fP \fI[cluster name]\fP
-.in +7
 This command creates a connection to ccsd.  It returns a descriptor, which
 is used as an parameter to other commands.
 
@@ -61,10 +44,8 @@ The 'cluster name' is used (with the 'force' key-word) to specify that
 only configuration files containing the given cluster name are valid
 possibilities.
 
-.sp
-.in
+.TP
 \fBget\fP \fI<desc>\fP \fI<request>\fP
-.in +7
 Get the results of a given request.  The 'desc' is the number returned
 from the \fBconnect\fP command.  The 'request' is a valid Xpath request.
 
@@ -72,108 +53,88 @@ If 'request' results in multiple matches, the first will be returned.
 Subsequent calls with the same 'request' will result in the subsequent
 matches.  Once all the matches have been returned, a subsequent call
 will begin again with the first result.
-.sp
-.in
 
+.TP
 \fBget_list\fP \fI<desc>\fP \fI<request>\fP
-.in +7
 Similar to the \fBget\fP command.  However, issuing subsequent calls
 with the same 'request' will result in all matches being returned (one
 at a time), then null, then starting over with the first result.
-.sp
-.in
 
+.TP
 \fBset\fP \fI<desc>\fP \fI<path>\fP \fI<value>\fP
-.in +7
 Sets a particular 'path' to the given 'value'.  Not yet implemented.
-.sp
-.in
 
+.TP
 \fBget_state\fP \fI<desc>\fP
-.in +7
 Get the state associated with a given connection.
-.sp
-.in
 
+.TP
 \fBset_state\fP \fI<desc>\fP \fI<ncwp>\fP
-.in +7
 Set the current working path (cwp) to 'ncwp' for a given connection.
-.sp
-.in
 
-.in -7
-\fBEXAMPLES\fP
-.in +7
-\fBTo connect to ccsd:\fP
-.sp
+.SH EXAMPLES
+.SS To connect to ccsd:
+
 > ccs_test connect
 
 Connect successful.
  Connection descriptor = 0
-.sp
+
 Or, if the cluster is not yet quorate and the name of the cluster is 'mycluster':
-.sp
+
 > ccs_test connect force block mycluster
 
 Connect successful.
  Connection descriptor = 0
-.sp
 
-\fBTo get the cluster name from ccsd:\fP
-.sp
-> ccs_test get 0 //cluster/@name
+.SS To get the cluster name from ccsd:
+
+> ccs_test get 0 /cluster/@name
 
 Get successful.
  Value = <mycluster>
-.sp
 
-\fBTo get the connection state:\fP
-.sp
+.SS To get the connection state:
+
 > ccs_test get_state 0
 
 Get state successful.
  Current working path:
- Previous query      : //cluster/@name
-.sp
+ Previous query      : /cluster/@name
 
-\fBTo set the connection state:\fP
-.sp
-> ccs_test set_state 0 //cluster
+
+.SS To set the connection state:
+
+> ccs_test set_state 0 /cluster
 
 Set state successful.
-.sp
 
-\fBAfter setting the connection state, note the change:\fP
-.sp
+
+.SS After setting the connection state, note the change:
+
 > ccs_test get_state 0
 
 Get state successful.
- Current working path: //cluster
- Previous query      : //cluster/@name
-.sp
+ Current working path: /cluster
+ Previous query      : /cluster/@name
 
-\fBAfter setting the connection state, you can now query with an absolute
-or relative path:\fP
-.sp
+.SS After setting the connection state, you can now query with an absolute or relative path:
+
 > ccs_test get 0 @name
 
 Get successful.
  Value = <brassow>
 
-> ccs_test get 0 //cluster/@name
+> ccs_test get 0 /cluster/@name
 
 Get successful.
  Value = <brassow>
-.sp
 
-\fBTo disconnect:\fP
-.sp
+.SS To disconnect:
+
 > ccs_test disconnect 0
 
 Disconnect successful.
-.sp
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 ccs(7), ccsd(8), cluster.conf(5)

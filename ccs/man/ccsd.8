@@ -5,67 +5,42 @@
 .\"  modify, copy, or redistribute it subject to the terms and conditions
 .\"  of the GNU General Public License v.2.
 
-.tl 'ccsd(8)''ccsd(8)'
-'\"     View with 'groff -t -e -mandoc -Tlatin1 ccsd.8 | less'
+.TH ccsd 8
 
-\fBNAME\fP
-.in +7
+.SH NAME
 ccsd - The daemon used to access CCS cluster configuration files.
 
-.in
-\fBSYNOPSIS\fP
-.in +7
-\fBccsd\fP [\fBoptions\fP]
-.sp
-.in
-\fBDESCRIPTION\fP
-.in +7
+.SH SYNOPSIS
+.B ccsd
+[\fIOPTION\fR]..
+
+.SH DESCRIPTION
 \fBccsd\fP is part of the Cluster Configuration System (CCS).  It is the
 daemon which accesses cluster the configuration file for other cluster
 applications.  It must be run on each node that wishes to join a cluster.
 
-.sp
-.in
-
-\fBOPTIONS\fP
-.in +7
-
+.SH OPTIONS
+.TP
 \fB-4\fP
-.in +7
 Use IPv4 for all communication.  By default, IPv6 is tried, then IPv4.
-.sp
-.in
-
+.TP
 \fB-6\fP
-.in +7
 Use IPv6 for all communication.  By default, IPv6 is tried, then IPv4.
-.sp
-.in
-
+.TP
 \fB-h\fP
-.in +7
 Help.  Print out the usage syntax.
-.sp
-.in
-
+.TP
 \fB-m <multicast address>\fP
-.in +7
 Used to specify the multicast address.  The keyword "default" can be used,
 in which case "ff02::3:1" is used for IPv6 and "224.0.2.5" is used for IPv4.
 
 If you are using IPv4, the default action is to use broadcast.  Specifying
 this option will cause multicast to be used in that instance.
-.sp
-.in
-
+.TP
 \fB-n\fP
-.in +7
 No daemon.  Run in the foreground.
-.sp
-.in
-
+.TP
 \fB-P <port identifier>:<port number>\fP
-.in +7
 You have the option of specifying the port numbers used by ccsd.  The port
 identifier is either: b, c, or f.  "b" is the port which ccsd attempts to
 communicate with ccsd processes on other machines, via broadcast/multicast, to
@@ -76,22 +51,12 @@ cluster base port.  "f" is the port number that listens for information requests
 from the CCS library (or programs using it).  This is known as the frontend port.
 
 So, to change the frontend port one might specify \fI-P f:60000\fP.
-.sp
-.in
-
+.TP
 \fB-t <ttl>\fP
-.in +7
 Set the multicast threshold (aka time to live).
-.sp
-.in
-
+.TP
 \fB-V\fP
-.in +7
 Print the version information.
-.sp
-.in
 
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 ccs(7), ccs_tool(8), ccs_test(8), cluster.conf(5)

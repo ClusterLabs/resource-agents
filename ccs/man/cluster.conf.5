@@ -2,19 +2,12 @@
 .\"  Copyright 2001-2003 Sistina Software, Inc.
 .\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 
-.\" groff -t -e -mandoc -Tlatin1 cluster.conf.5 | less
+.TH cluster.conf 5
 
-.tl 'cluster.conf(5)' 'cluster.conf(5)'
-
-\fBNAME\fP
-.in +7
+.SH NAME
 cluster.conf - The configuration file for cluster products
-.sp
-.in -7
 
-
-\fBDESCRIPTION\fP
-.in +7
+.SH DESCRIPTION
 The \fBcluster.conf\fP file is located in the /etc/cluster directory.  It
 is the source of information used by the cluster products - accessed
 indirectly through CCS (see \fBccs(7)\fP).  This file contains all the
@@ -186,10 +179,6 @@ might look like:
   </fencedevices>
 </cluster>
 
-
-.sp
-.in -7
-\fBSEE ALSO\fP
-.in +7
+.SH SEE ALSO
 ccs(7), ccs_tool(8), lock_gulmd(5), cman(5)
 
