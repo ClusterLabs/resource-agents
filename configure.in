@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.205 $) dnl cvs revision
+AC_REVISION($Revision: 1.206 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -625,11 +625,13 @@ AC_C_STRINGIZE
 
 AC_ARG_ENABLE([fatal-warnings],
 [  --enable-fatal-warnings very pedantic and fatal warnings for gcc
-                          [default=yes]])
+                          [default=yes]],
+                          [], [enable_fatal_warnings=unknown])
 
 AC_ARG_ENABLE([no-long-long],
 [  --enable-no-long-long removes no long long warning for gcc
-                          [default=yes]])
+                          [default=yes]],
+                          [], [enable_no_long_long=yes])
 
 AC_ARG_ENABLE([traditional-warnings],
 [  --enable-traditional-warnings 
@@ -709,7 +711,7 @@ dnl
 	  then
             case $j in
                "no-long-long")
-        		if test "${disable_no_long_long}" != "yes"; then
+        		if test "${enable_no_long_long}" = "yes"; then
 			  EXTRA_WARNINGS="$EXTRA_WARNINGS -W$j"
 			fi;;
 
@@ -723,7 +725,7 @@ dnl Add any system specific options here.
 
 	case "$host_os" in
   	*linux*|*bsd*)
-		if test "${disable_fatal_warnings}" != "yes"; then
+		if test "${enable_fatal_warnings}" = "unknown"; then
         		enable_fatal_warnings=yes
         	fi
           	;;
@@ -1275,30 +1277,34 @@ eval my_sysconfdir="`eval echo ${sysconfdir}`"
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
-AC_MSG_RESULT([  Version              = $VERSION])
+AC_MSG_RESULT([  Version              = "$VERSION"])
 
-AC_MSG_RESULT([  Executables          = $my_sbindir])
-AC_MSG_RESULT([  Man pages            = $my_mandir])
-AC_MSG_RESULT([  Libraries            = $my_libdir])
-AC_MSG_RESULT([  Header files         = $my_includedir])
-AC_MSG_RESULT([  Data files           = $my_datadir])
-AC_MSG_RESULT([  State information    = $my_localstatedir])
-AC_MSG_RESULT([  System configuration = $my_sysconfdir])
-AC_MSG_RESULT([  Init (rc) scripts    = $my_initdir])
+AC_MSG_RESULT([  Executables          = "$my_sbindir"])
+AC_MSG_RESULT([  Man pages            = "$my_mandir"])
+AC_MSG_RESULT([  Libraries            = "$my_libdir"])
+AC_MSG_RESULT([  Header files         = "$my_includedir"])
+AC_MSG_RESULT([  Data files           = "$my_datadir"])
+AC_MSG_RESULT([  State information    = "$my_localstatedir"])
+AC_MSG_RESULT([  System configuration = "$my_sysconfdir"])
+AC_MSG_RESULT([  Init (rc) scripts    = "$my_initdir"])
 
-AC_MSG_RESULT([ API fifo group name   = ${HA_APIGROUP}])
-AC_MSG_RESULT([ API fifo group id     = ${HA_APIGID}])
-AC_MSG_RESULT([ HACCM user name       = ${HA_CCMUSER}])
-AC_MSG_RESULT([ HA_CCM user id        = ${HA_CCMUID}])
+AC_MSG_RESULT([  API fifo group name  = "${HA_APIGROUP}"])
+AC_MSG_RESULT([  API fifo group id    = "${HA_APIGID}"])
+AC_MSG_RESULT([  HACCM user name      = "${HA_CCMUSER}"])
+AC_MSG_RESULT([  HA_CCM user id       = "${HA_CCMUID}"])
 
 case x"$SNMP_SUBAGENT_DIR" in
   x)
-    AC_MSG_RESULT([ Build snmp subagent   = no])
+    AC_MSG_RESULT([  Build snmp subagent  = no])
     ;;
   xsnmp_subagent)
-    AC_MSG_RESULT([ Build snmp subagent   = yes])
-    AC_MSG_RESULT([ ucd_snmp_devel name   = ${UCDSNMPDEVEL}])
-    AC_MSG_RESULT([ SNMP libraries        = ${SNMP_LIBS}])
-    AC_MSG_RESULT([ SNMP MIB directory    = ${MIBS_DIR}])
+    AC_MSG_RESULT([  Build snmp subagent  = yes])
+    AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
+    AC_MSG_RESULT([  SNMP libraries       = "${SNMP_LIBS}"])
+    AC_MSG_RESULT([  SNMP MIB directory   = "${MIBS_DIR}"])
     ;;
 esac
+
+AC_MSG_RESULT([  CC_WARNINGS         = "${CC_WARNINGS}"])
+AC_MSG_RESULT([  Mangled CFLAGS      = "${CFLAGS}"])
+
