@@ -1223,6 +1223,8 @@ void lowcomms_stop(void)
 int lowcomms_start(void)
 {
 	int error = 0;
+	struct connection *temp;
+	struct connection *lcon;
 
 	INIT_LIST_HEAD(&read_sockets);
 	INIT_LIST_HEAD(&write_sockets);
@@ -1269,11 +1271,18 @@ int lowcomms_start(void)
 
 	error = daemons_start();
 	if (error)
-		goto fail_free_slab;
+		goto fail_unlisten;
 
 	atomic_set(&accepting, 1);
 
 	return 0;
+
+      fail_unlisten:
+	close_connection(connections[0], 0);
+	list_for_each_entry_safe(lcon, temp, &listen_sockets, listenlist) {
+		sock_release(lcon->sock);
+		kmem_cache_free(con_cache, lcon);
+	}
 
       fail_free_slab:
 	kmem_cache_destroy(con_cache);
