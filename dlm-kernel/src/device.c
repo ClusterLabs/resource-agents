@@ -42,6 +42,7 @@ extern struct dlm_lkb *dlm_get_lkb(struct dlm_ls *, int);
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
 static struct list_head user_ls_list;
+static struct semaphore user_ls_lock;
 
 /* Flags in li_flags */
 #define LI_FLAG_COMPLETE  1
@@ -117,8 +118,7 @@ static void put_file_info(struct file_info *f)
 		kfree(f);
 }
 
-/* Find a lockspace struct given the device minor number */
-static struct user_ls *find_lockspace(int minor)
+static struct user_ls *__find_lockspace(int minor)
 {
 	struct user_ls *lsinfo;
 
@@ -130,9 +130,23 @@ static struct user_ls *find_lockspace(int minor)
 	return NULL;
 }
 
+/* Find a lockspace struct given the device minor number */
+static struct user_ls *find_lockspace(int minor)
+{
+	struct user_ls *lsinfo;
+
+	down(&user_ls_lock);
+	lsinfo = __find_lockspace(minor);
+	up(&user_ls_lock);
+
+	return lsinfo;
+}
+
 static void add_lockspace_to_list(struct user_ls *lsinfo)
 {
+	down(&user_ls_lock);
 	list_add(&lsinfo->ls_list, &user_ls_list);
+	up(&user_ls_lock);
 }
 
 /* Register a lockspace with the DLM and create a misc
@@ -185,6 +199,7 @@ static int register_lockspace(char *name, struct user_ls **ls)
 	return 0;
 }
 
+/* Called with the user_ls_lock semaphore held */
 static int unregister_lockspace(struct user_ls *lsinfo, int force)
 {
 	int status;
@@ -198,8 +213,12 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 		return status;
 
 	list_del(&lsinfo->ls_list);
-	kfree(lsinfo->ls_miscinfo.name);
-	kfree(lsinfo);
+	set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
+	lsinfo->ls_lockspace = NULL;
+	if (atomic_dec_and_test(&lsinfo->ls_refcnt)) {
+		kfree(lsinfo->ls_miscinfo.name);
+		kfree(lsinfo);
+	}
 
 	return 0;
 }
@@ -471,8 +490,9 @@ static int dlm_close(struct inode *inode, struct file *file)
 	remove_wait_queue(&li.li_waitq, &wq);
 
 	/* If this is the last reference, and the lockspace has been deleted
-	   the free the struct */
+	   then free the struct */
 	if (atomic_dec_and_test(&lsinfo->ls_refcnt) && !lsinfo->ls_lockspace) {
+		kfree(lsinfo->ls_miscinfo.name);
 		kfree(lsinfo);
 	}
 
@@ -549,10 +569,15 @@ static int dlm_ctl_ioctl(struct inode *inode, struct file *file,
 		if (!capable(CAP_SYS_ADMIN))
 			return -EPERM;
 
-		lsinfo = find_lockspace(u);
-		if (!lsinfo)
+		down(&user_ls_lock);
+		lsinfo = __find_lockspace(u);
+		if (!lsinfo) {
+			up(&user_ls_lock);
 			return -EINVAL;
+		}
+
 		status = unregister_lockspace(lsinfo, force);
+		up(&user_ls_lock);
 		break;
 
 	default:
@@ -950,20 +975,24 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 		return status;
 }
 
+/* Called when the cluster is shutdown uncleanly, all lockspaces
+   have been summarily removed */
 void dlm_device_free_devices()
 {
 	struct user_ls *tmp;
 	struct user_ls *lsinfo;
 
+	down(&user_ls_lock);
 	list_for_each_entry_safe(lsinfo, tmp, &user_ls_list, ls_list) {
 		misc_deregister(&lsinfo->ls_miscinfo);
 
 		/* Tidy up, but don't delete the lsinfo struct until
 		   all the users have closed their devices */
 		list_del(&lsinfo->ls_list);
-		kfree(lsinfo->ls_miscinfo.name);
 		set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
+		lsinfo->ls_lockspace = NULL;
 	}
+	up(&user_ls_lock);
 }
 
 static struct file_operations _dlm_fops = {
@@ -991,6 +1020,7 @@ int dlm_device_init(void)
 	int r;
 
 	INIT_LIST_HEAD(&user_ls_list);
+	init_MUTEX(&user_ls_lock);
 
 	ctl_device.name = "dlm-control";
 	ctl_device.fops = &_dlm_ctl_fops;
