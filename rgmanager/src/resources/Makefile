@@ -17,7 +17,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-TARGETS=fs.sh resourcegroup.sh ip.sh nfsclient.sh nfsexport.sh \
+TARGETS=fs.sh service.sh ip.sh nfsclient.sh nfsexport.sh \
 	script.sh netfs.sh clusterfs.sh # oracleas
 all:
 

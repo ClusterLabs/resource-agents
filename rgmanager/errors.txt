@@ -1,4 +1,4 @@
-Resource Group Manager Errors
+Service (Resource Group) Manager Errors
 
 Herein lie explanations as to the various errors and warnings that you may
 see while running the resource group manager.  This is meant to be
@@ -17,7 +17,7 @@ and the resource group manager restarts, waiting for a quorum to form.
 If this node was disconnected, it should be evicted and fenced by the rest
 of the cluster.  Nodes which become inquorate may reboot themselves.
 
-#2: Resource group <name> returned failure code.  Last owner: <name>
+#2: Service <name> returned failure code.  Last owner: <name>
 
 The resource group named <name> has failed to stop.  This generally means
 that it may not be automatically recovered and that the system administrator
@@ -29,7 +29,7 @@ and is the safest measure to take prior to restarting the failed service.
 
 This, however, is not required.
 
-#3: Resource group <name> returned failure code.  Last owner:
+#3: Service <name> returned failure code.  Last owner:
 <integer>
 
 Same as #2, but the node name was not determinable given the node ID.
@@ -37,7 +37,7 @@ Same as #2, but the node name was not determinable given the node ID.
 #4: Administrator intervention required.
 
 Only occurs after #2 or #3.  Complaint stating that the administrator
-must take action after a resource group failed.  See #2.
+must take action after a service failed.  See #2.
 
 #5: Couldn't connect to ccsd!
 
@@ -49,7 +49,7 @@ to ccsd's port is not blocked.  Additionally, it could be that there is
 a conflict between ccsd and the version of the system library (libccs) that
 rgmanager was built against.
 
-#6: Error loading resource groups
+#6: Error loading services
 
 The resource group manager was unable to load configuration information
 from ccsd.  This could mean a communication problem or an invalid
@@ -65,7 +65,7 @@ configuration.
 
 This error is fatal; the resource group manager aborts.
 
-#8: Couldn't initialize resource groups
+#8: Couldn't initialize services
 
 The resource group manager was unable to load configuration information
 from ccsd.  This could mean a communication problem or an invalid
@@ -94,12 +94,12 @@ applications to use the port that rgmanager wants to use for this purpose.
 
 #12: RG <name> failed to stop; intervention required
 
-The resource group manager has failed to cleanly stop a resource group.
+The resource group manager has failed to cleanly stop a service.
 See #2 for actions to take.
 
-#13: Resource group <name> failed to stop cleanly
+#13: Service <name> failed to stop cleanly
 
-The resource group manager has failed to cleanly stop a resource group after
+The resource group manager has failed to cleanly stop a service after
 failing to start the same resource group during an enable or start operation.
 See #2 for actions to take.
 
@@ -219,8 +219,8 @@ If this occurs, please file a Bugzilla.
 
 #33: Unable to obtain cluster lock: <error>
 
-This occurs while evaluating resource groups after a node transition.  If
-this occurs, the current resource group under evaluation will not be able
+This occurs while evaluating services after a node transition.  If
+this occurs, the current service under evaluation will not be able
 to be checked for possible starting.
 
 Possible reasons obtaining a cluster lock would fail:
@@ -230,20 +230,20 @@ Possible reasons obtaining a cluster lock would fail:
 
 #34: Cannot get status for service <name>
 
-This occurs while evaluating resource groups after a node transition.  The
-resource group <name> has an indeterminable state.  This could indicate a
-bug with the data distribution subsystem, or an invalid resource group.
+This occurs while evaluating services after a node transition.  The
+service <name> has an indeterminable state.  This could indicate a
+bug with the data distribution subsystem, or an invalid service.
 
 #35: Unable to inform partner to start failback
 
 This occurs after a node transition where a node asks other nodes for
 services (resource groups) which it should own.  This generally indicates
 a communication problem between the cluster nodes.  If this occurs,
-resource groups may not migrate to the node which just came online.
+services may not migrate to the node which just came online.
 
 #36: Cannot initialize services
 
-The resource group manager could not initialize resource groups after a node
+The resource group manager could not initialize services after a node
 transition.  This is fatal, and rgmanager exits uncleanly afterward.
 
 #37: Error receiving message header
@@ -264,11 +264,11 @@ is rejected.
 
 #39: Error receiving entire request
 
-This occurs after an incoming request causes the resource group manager to
+This occurs after an incoming request causes the service manager to
 accept a new connection.  The amount of data received did not match the amount
 of data specified in the message header.  This could indicate a mismatched
-version between resource group managers or an unauthorized program attempting
-to communicate with the resource group manager.  The connection is dropped
+version between service managers or an unauthorized program attempting
+to communicate with the service manager.  The connection is dropped
 and the message is rejected.
 
 #40: Error replying to action request.
@@ -288,20 +288,20 @@ of the service will be unknown.
 
 See #33 for reasons as to why obtaining a lock might fail.
 
-#42: Cannot stop RG <name>: Invalid State <integer>
+#42: Cannot stop service <name>: Invalid State <integer>
 
-The resource group <name> could not be stopped.  It was in an invalid state.
+The service <name> could not be stopped.  It was in an invalid state.
 This could indicate a bug in rgmanager.
 
-#43: Resource group <name> has failed on all applicable members; can not
+#43: Service <name> has failed on all applicable members; can not
 start.
 
 I don't know how to make this more verbose.  The service must be disabled and
 enabled prior to being allowed to start.  See #2 and #3 for more information.
 
-#44: Cannot start RG <name>: Invalid State <integer>
+#44: Cannot start service <name>: Invalid State <integer>
 
-The resource group <name> could not be stopped.  It was in an invalid state.
+The service <name> could not be stopped.  It was in an invalid state.
 This could indicate a bug in rgmanager.
 
 #45: Unable to obtain cluster lock: <error>
@@ -320,7 +320,7 @@ to starting it.  If this occurs, the start operation will fail.
 Generally, this indicates attempt to retrieve the current view of that 
 resource group's state after quorum has dissolved.
 
-#47: Failed changing resource group status
+#47: Failed changing service status
 
 This occurs while trying to write out a new ownership state of a resource 
 group prior to starting it.  If this occurs, the start operation will fail.
@@ -357,7 +357,7 @@ if possible.
 See #33 for reasons as to why obtaining a lock might fail.
 See #2 for steps to take after a resource group has failed.
 
-#51: Failed getting status for RG <name>
+#51: Failed getting status for service <name>
 
 This occurs while trying to determine the state of a resource group prior
 to performing a stop or disable operation on it.  If this occurs, the stop
@@ -519,7 +519,7 @@ processing of a relocate operation.  (A relocate operation occurs either
 by an administrator manually relocating a service or the service being
 relocated after a fail-to-restart event.)
 
-#71: Relocating failed resource group <name>
+#71: Relocating failed service <name>
 
 The resource group <name> failed a status check and subsequently failed to
 restart.  At this point, we try to send it to another applicable node in

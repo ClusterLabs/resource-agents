@@ -226,7 +226,7 @@ tree_delta_test(int argc, char **argv)
 		print_resource(curres);
 	} while (!list_done(&reslist2, curres));
 
-	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
+	curres = find_root_by_ref(&reslist, "oracle");
 
 	resource_tree_delta(&tree, &tree2);
 	printf("=== Old Resource Tree ===\n");

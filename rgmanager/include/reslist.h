@@ -195,6 +195,7 @@ int node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
    Handy functions
  */
 resource_t *find_resource_by_ref(resource_t **reslist, char *type, char *ref);
+resource_t *find_root_by_ref(resource_t **reslist, char *ref);
 resource_rule_t *find_rule_by_type(resource_rule_t **rulelist, char *type);
 
 /*

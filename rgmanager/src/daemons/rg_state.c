@@ -92,10 +92,10 @@ svc_report_failure(char *svcName)
 	membership = member_list();
 	nodeName = memb_id_to_name(membership, svcStatus.rs_last_owner);
 	if (nodeName) {
-		clulog(LOG_ALERT, "#2: Resource group %s returned failure "
+		clulog(LOG_ALERT, "#2: Service %s returned failure "
 		       "code.  Last Owner: %s\n", svcName, nodeName);
 	} else {
-		clulog(LOG_ALERT, "#3: Resource group %s returned failure "
+		clulog(LOG_ALERT, "#3: Service %s returned failure "
 		       "code.  Last Owner: %d\n",
 		       svcName, (int)svcStatus.rs_last_owner);
 	}
@@ -421,13 +421,13 @@ svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_UNINITIALIZED:
 		if (req == RG_DISABLE) {
 			clulog(LOG_NOTICE,
-			       "Disabling disabled resource group %s\n",
+			       "Disabling disabled service %s\n",
 			       svcName);
 			ret = 1;
 			break;
 		}
 
-		clulog(LOG_DEBUG, "Not stopping disabled RG %s\n",
+		clulog(LOG_DEBUG, "Not stopping disabled service %s\n",
 		       svcName);
 		break;
 
@@ -464,7 +464,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	switch(svcStatus->rs_state) {
 	case RG_STATE_FAILED:
 		clulog(LOG_ERR,
-		       "#43: Resource group %s has failed; can not start.\n",
+		       "#43: Service %s has failed; can not start.\n",
 		       svcName);
 		break;
 		
@@ -500,7 +500,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 
 		if (svcStatus->rs_owner == NODE_ID_NONE) {
 			clulog(LOG_NOTICE,
-			       "Starting stopped resource group %s\n",
+			       "Starting stopped service%s\n",
 			       svcName);
 			ret = 1;
 			break;
@@ -510,7 +510,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		 * Service is running but owner is down -> FAILOVER
 		 */
 		clulog(LOG_NOTICE,
-		       "Taking over resource group %s from down member %s\n",
+		       "Taking over service %s from down member %s\n",
 		       svcName, memb_id_to_name(membership,
 						svcStatus->rs_owner));
 		ret = 1;
@@ -522,7 +522,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		 */
 		if (req == RG_START_RECOVER) {
 			clulog(LOG_NOTICE,
-			       "Recovering failed resource group %s\n",
+			       "Recovering failed service %s\n",
 			       svcName);
 			svcStatus->rs_state = RG_STATE_STOPPED;
 			/* Start! */
@@ -538,7 +538,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 		break;
 
 	case RG_STATE_STOPPED:
-		clulog(LOG_NOTICE, "Starting stopped resource group %s\n",
+		clulog(LOG_NOTICE, "Starting stopped service %s\n",
 		       svcName);
 		ret = 1;
 		break;
@@ -547,7 +547,7 @@ svc_advise_start(rg_state_t *svcStatus, char *svcName, int req)
 	case RG_STATE_UNINITIALIZED:
 		if (req == RG_ENABLE) {
 			clulog(LOG_NOTICE,
-			       "Starting disabled resource group %s\n",
+			       "Starting disabled service %s\n",
 			       svcName);
 			ret = 1;
 			break;
@@ -623,7 +623,7 @@ svc_start(char *svcName, int req)
 
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		clulog(LOG_ERR,
-		       "#47: Failed changing resource group status\n");
+		       "#47: Failed changing service status\n");
 		rg_unlock(svcName, lockp);
 		return FAIL;
 	}
@@ -643,7 +643,7 @@ svc_start(char *svcName, int req)
 	svcStatus.rs_state = RG_STATE_STARTED;
 	if (set_rg_state(svcName, &svcStatus) != 0) {
 		clulog(LOG_ERR,
-		       "#75: Failed changing resource group status\n");
+		       "#75: Failed changing service status\n");
 		rg_unlock(svcName, lockp);
 		return FAIL;
 	}
@@ -651,7 +651,7 @@ svc_start(char *svcName, int req)
        
 	if (ret == 0)
 		clulog(LOG_NOTICE,
-		       "Resource group %s started\n",
+		       "Service %s started\n",
 		       svcName);
 	else
 		clulog(LOG_WARNING,
@@ -752,7 +752,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 		break;
 	}
 
-	clulog(LOG_NOTICE, "Stopping resource group %s\n", svcName);
+	clulog(LOG_NOTICE, "Stopping service %s\n", svcName);
 
 	if (recover)
 		svcStatus.rs_state = RG_STATE_ERROR;
@@ -814,7 +814,7 @@ _svc_stop_finish(char *svcName, int failed, uint32_t newstate)
 	else
 		svcStatus.rs_state = newstate;
 
-	clulog(LOG_NOTICE, "Resource group %s is %s\n", svcName,
+	clulog(LOG_NOTICE, "Service %s is %s\n", svcName,
 	       rg_state_str(svcStatus.rs_state));
 	//printf("rg state = %s\n", rg_state_str(svcStatus.rs_state));
 
@@ -1131,7 +1131,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			return 0;
 		case 0:
 			*new_owner = target;
-			clulog(LOG_NOTICE, "Resource group %s is now running "
+			clulog(LOG_NOTICE, "Service %s is now running "
 			       "on member %d\n", svcName, (int)target);
 			cml_free(allowed_nodes);
 			return 0;
@@ -1156,7 +1156,7 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 	 */
 exhausted:
 	clulog(LOG_WARNING,
-	       "#70: Attempting to restart resource group %s locally.\n",
+	       "#70: Attempting to restart service %s locally.\n",
 	       svcName);
 	if (svc_start(svcName, RG_START_RECOVER) == 0) {
 		*new_owner = me;
@@ -1226,10 +1226,10 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	 * Keep the state open so the other nodes don't try to start
 	 * it.  This allows us to be the 'root' of a given service.
 	 */
-	clulog(LOG_DEBUG, "Stopping failed resource group %s\n", svcName);
+	clulog(LOG_DEBUG, "Stopping failed service %s\n", svcName);
 	if (svc_stop(svcName, RG_STOP_RECOVER) != 0) {
 		clulog(LOG_CRIT,
-		       "#13: Resource group %s failed to stop cleanly",
+		       "#13: Service %s failed to stop cleanly",
 		       svcName);
 		(void) svc_fail(svcName);
 
@@ -1245,7 +1245,7 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	 * OK, it failed to start - but succeeded to stop.  Now,
 	 * we should relocate the service.
 	 */
-	clulog(LOG_WARNING, "#71: Relocating failed resource group %s\n",
+	clulog(LOG_WARNING, "#71: Relocating failed service %s\n",
 	       svcName);
 	ret = handle_relocate_req(svcName, RG_START_RECOVER, -1, new_owner);
 

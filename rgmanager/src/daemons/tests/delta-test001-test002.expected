@@ -1,22 +1,22 @@
 === Old Resource List ===
-Resource type: resourcegroup [ROOT] [INLINE]
+Resource type: service [ROOT] [INLINE]
 Instances: 1/1
-Agent: resourcegroup.sh
+Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
 === New Resource List ===
-Resource type: resourcegroup [ROOT]
+Resource type: service [ROOT]
 Instances: 1/1
-Agent: resourcegroup.sh
+Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
 === Old Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
 }
 === New Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
 }

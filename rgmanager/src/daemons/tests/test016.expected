@@ -78,18 +78,6 @@ Attributes:
   address = 192.168.1.4 [ primary unique ]
   monitor_link = yes
 
-Resource type: resourcegroup [ROOT]
-Instances: 1/1
-Agent: resourcegroup.sh
-Attributes:
-  name = test1 [ primary unique required ]
-
-Resource type: resourcegroup [ROOT]
-Instances: 1/1
-Agent: resourcegroup.sh
-Attributes:
-  name = test2 [ primary unique required ]
-
 Resource type: nfsexport
 Agent: nfsexport.sh
 Attributes:
@@ -97,8 +85,20 @@ Attributes:
   device [ inherit("device") ]
   path [ inherit("mountpoint") ]
 
+Resource type: service [ROOT]
+Instances: 1/1
+Agent: service.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
+Resource type: service [ROOT]
+Instances: 1/1
+Agent: service.sh
+Attributes:
+  name = test2 [ primary unique required ]
+
 === Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
   fs {
     name = "mount1";
@@ -138,7 +138,7 @@ resourcegroup {
     file = "/etc/init.d/sshd";
   }
 }
-resourcegroup {
+service {
   name = "test2";
   fs {
     name = "mount2";

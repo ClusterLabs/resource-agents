@@ -228,6 +228,44 @@ find_resource_by_ref(resource_t **reslist, char *type, char *ref)
 
 
 /**
+   Find a root resource by ref (service, usually).  No name is required.
+   Only one type of root resource may exist because of the primary
+   attribute flag
+
+   @param reslist	List of resources to traverse.
+   @param ref		Reference
+   @return		Resource matching type/ref or NULL if none.
+ */   
+resource_t *
+find_root_by_ref(resource_t **reslist, char *ref)
+{
+	resource_t *curr;
+	int x;
+
+	list_do(reslist, curr) {
+		if (curr->r_rule->rr_root == 0)
+			continue;
+
+		/*
+		   This should be one operation - the primary attr
+		   is generally at the head of the array.
+		 */
+		for (x = 0; curr->r_attrs && curr->r_attrs[x].ra_name;
+		     x++) {
+			if (!(curr->r_attrs[x].ra_flags & RA_PRIMARY))
+				continue;
+			if (strcmp(ref, curr->r_attrs[x].ra_value))
+				continue;
+
+			return curr;
+		}
+	} while (!list_done(reslist, curr));
+
+	return NULL;
+}
+
+
+/**
    Store a resource in the resource list if it's legal to do so.
    Otherwise, don't store it.
    Note: This function needs to be rewritten; it's way too long and way

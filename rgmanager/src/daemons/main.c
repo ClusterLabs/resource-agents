@@ -191,7 +191,7 @@ node_event(int local, uint64_t nodeID, int nodeStatus)
 	 * Nothing to do for events from other nodes if we are not ready.
 	 */
 	if (!rg_initialized()) {
-		clulog(LOG_DEBUG, "Resource groups not initialized.\n");
+		clulog(LOG_DEBUG, "Services not initialized.\n");
 		return;
 	}
 
@@ -318,7 +318,7 @@ dispatch_msg(int fd, uint64_t nodeid)
 
 	switch (msg_hdr.gh_command) {
 	case RG_STATUS:
-		clulog(LOG_DEBUG, "Sending resource group states to fd%d\n",fd);
+		clulog(LOG_DEBUG, "Sending service states to fd%d\n",fd);
 		send_rg_states(fd);
 		break;
 
@@ -636,7 +636,7 @@ main(int argc, char **argv)
 	   read the resource group trees from ccsd.
 	 */
 	if (init_resource_groups(0) != 0) {
-		clulog(LOG_CRIT, "#8: Couldn't initialize resource groups\n");
+		clulog(LOG_CRIT, "#8: Couldn't initialize services\n");
 		return -1;
 	}
 

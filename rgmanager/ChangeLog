@@ -5,8 +5,11 @@
 	returns failure, hang during shutdown if user relocate is in-flight.
 	Fix service state getting stuck in "recoverable" on fail-to-start
 	scenarios where other nodes failed (or no other node was available)
-	* src/services/fs.sh, clusterfs.sh: Fix #151077: Force unmount broken
-	* src/services/netfs.sh: Fix #151091: netfs status broken
+	Rename "resourcegroup" to "service" to be consistent with UI
+	* src/resources/fs.sh, clusterfs.sh: Fix #151077: Force unmount broken
+	* src/resources/netfs.sh: Fix #151091: netfs status broken
+	* src/resources/resourcegroup.sh, service.sh: Remove resourcegroup,
+	rename to service.sh
 
 2005-03-14 Lon Hohberger <lhh at redhat.com>
 	* src/resources/clusterfs.sh, fs.sh: Make clusterfs actually work.

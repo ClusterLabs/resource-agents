@@ -48,8 +48,18 @@ store_rule(resource_rule_t **rulelist, resource_rule_t *newrule)
 	resource_rule_t *curr;
 
 	list_do(rulelist, curr) {
-		if (!strcmp(newrule->rr_type, curr->rr_type))
+		if (!strcmp(newrule->rr_type, curr->rr_type)) {
+			fprintf(stderr, "Error storing %s: Duplicate\n",
+				newrule->rr_type);
 			return -1;
+		}
+		if (newrule->rr_root && curr->rr_root) {
+			fprintf(stderr, "Error storing %s: root "
+				"resource type %s exists already\n",
+				newrule->rr_type, curr->rr_type);
+			return -1;
+		}
+
 	} while (!list_done(rulelist, curr));
 			
 	list_insert(rulelist, newrule);

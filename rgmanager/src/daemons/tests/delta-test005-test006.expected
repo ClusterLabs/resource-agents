@@ -12,9 +12,9 @@ Attributes:
   address = 192.168.1.2 [ primary unique ]
   monitor_link = 1
 
-Resource type: resourcegroup [ROOT]
+Resource type: service [ROOT]
 Instances: 1/1
-Agent: resourcegroup.sh
+Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
@@ -32,14 +32,14 @@ Attributes:
   address = 192.168.1.2 [ primary unique ]
   monitor_link = yes
 
-Resource type: resourcegroup [ROOT]
+Resource type: service [ROOT]
 Instances: 1/1
-Agent: resourcegroup.sh
+Agent: service.sh
 Attributes:
   name = test1 [ primary unique required ]
 
 === Old Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
   ip [ NEEDSTOP ] {
     address = "192.168.1.2";
@@ -51,7 +51,7 @@ resourcegroup {
   }
 }
 === New Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
   ip [ NEEDSTART ] {
     address = "192.168.1.2";

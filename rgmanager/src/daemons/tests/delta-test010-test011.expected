@@ -21,18 +21,18 @@ Attributes:
   address = 192.168.1.3 [ primary unique ]
   monitor_link = yes
 
-Resource type: resourcegroup [ROOT]
-Instances: 1/1
-Agent: resourcegroup.sh
-Attributes:
-  name = test1 [ primary unique required ]
-
 Resource type: nfsexport
 Agent: nfsexport.sh
 Attributes:
   name = Dummy Export [ primary ]
   device [ inherit("device") ]
   path [ inherit("mountpoint") ]
+
+Resource type: service [ROOT]
+Instances: 1/1
+Agent: service.sh
+Attributes:
+  name = test1 [ primary unique required ]
 
 === New Resource List ===
 Resource type: nfsclient [NEEDSTART]
@@ -97,12 +97,6 @@ Attributes:
   address = 192.168.1.3 [ primary unique ]
   monitor_link = yes
 
-Resource type: resourcegroup [ROOT]
-Instances: 1/1
-Agent: resourcegroup.sh
-Attributes:
-  name = test1 [ primary unique required ]
-
 Resource type: nfsexport
 Agent: nfsexport.sh
 Attributes:
@@ -110,8 +104,14 @@ Attributes:
   device [ inherit("device") ]
   path [ inherit("mountpoint") ]
 
+Resource type: service [ROOT]
+Instances: 1/1
+Agent: service.sh
+Attributes:
+  name = test1 [ primary unique required ]
+
 === Old Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
   fs {
     name = "mount1";
@@ -129,7 +129,7 @@ resourcegroup {
   }
 }
 === New Resource Tree ===
-resourcegroup {
+service {
   name = "test1";
   fs {
     name = "mount1";

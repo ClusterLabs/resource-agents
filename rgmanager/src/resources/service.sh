@@ -9,16 +9,15 @@ meta_data()
 {
     cat <<EOT
 <?xml version="1.0"?>
-<resource-agent version="rgmanager 2.0" name="resourcegroup">
+<resource-agent version="rgmanager 2.0" name="service">
     <version>1.0</version>
 
     <longdesc lang="en">
         This defines a collection of resources, known as a resource
-        group.  A resource group might also be know as a "clustered
-	service".
+        group or cluster service.
     </longdesc>
     <shortdesc lang="en">
-        Defines a resource group.
+        Defines a services.
     </shortdesc>
 
     <parameters>
@@ -121,7 +120,6 @@ meta_data()
     
     <special tag="rgmanager">
         <attributes root="1" maxinstances="1"/>
-        <child type="group" start="1" stop="5"/>
         <child type="fs" start="2" stop="4"/>
         <child type="netfs" start="2" stop="4"/>
         <child type="clusterfs" start="2" stop="4"/>

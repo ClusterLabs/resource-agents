@@ -72,7 +72,7 @@ count_resource_groups(uint64_t nodeid, int *excl)
 		*excl = 0;
 
 	list_do(&_resources, res) {
-		if (strcmp(res->r_rule->rr_type, "resourcegroup"))
+		if (res->r_rule->rr_type == 0)
 			continue;
 
 		rgname = res->r_attrs[0].ra_value;
@@ -149,8 +149,7 @@ best_target_node(cluster_member_list_t *allowed, uint64_t owner,
 		   isn't running any services currently.  Set score to 0 if
 		   it's an exclusive service and the target node already
 		   is running a service. */
-		res = find_resource_by_ref(&_resources, "resourcegroup",
-					   rg_name);
+		res = find_root_by_ref(&_resources, rg_name);
 		val = res_attr_value(res, "exclusive");
 		exclusive = val && ((!strcmp(val, "yes") || (atoi(val)>0)));
 
@@ -319,7 +318,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	int ret;
 
 	if (rg_locked()) {
-		clulog(LOG_NOTICE, "Resource groups locked\n");
+		clulog(LOG_NOTICE, "Services locked\n");
 		return -EAGAIN;
 	}
 
@@ -327,8 +326,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, node) {
 
-		if (strcmp(node->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (node->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		svcName = node->rn_resource->r_attrs->ra_value;
@@ -426,7 +424,7 @@ group_op(char *groupname, int op)
 
 	pthread_rwlock_rdlock(&resource_lock);
 	/* XXX get group from somewhere else */
-	res = find_resource_by_ref(&_resources, "resourcegroup", groupname);
+	res = find_root_by_ref(&_resources, groupname);
 	if (!res) {
 		pthread_rwlock_unlock(&resource_lock);
 		return -1;
@@ -489,7 +487,7 @@ group_property(char *groupname, char *property, char *ret, size_t len)
 	int x = 0;
 
 	pthread_rwlock_rdlock(&resource_lock);
-	res = find_resource_by_ref(&_resources, "resourcegroup", groupname);
+	res = find_root_by_ref(&_resources, groupname);
 	if (!res) {
 		pthread_rwlock_unlock(&resource_lock);
 		return -1;
@@ -554,7 +552,7 @@ send_rg_states(int fd)
 	pthread_rwlock_rdlock(&resource_lock);
 
 	list_do(&_resources, res) {
-		if (strcmp(res->r_rule->rr_type, "resourcegroup"))
+		if (res->r_rule->rr_root == 0)
 			continue;
 
 		send_rg_state(fd, res->r_attrs[0].ra_value);
@@ -578,8 +576,7 @@ rg_doall(int request, int block, char *debugfmt)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (curr->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		/* Group name */
@@ -612,8 +609,7 @@ do_status_checks(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (curr->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		/* Group name */
@@ -660,8 +656,7 @@ do_condstops(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (curr->rn_resource->r_rule->rr_root == 0)
 			continue;
 
 		/* Group name */
@@ -714,8 +709,7 @@ do_condstarts(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (curr->rn_resource->r_rule->rr_type == 0)
 			continue;
 
 		/* Group name */
@@ -760,8 +754,7 @@ do_condstarts(void)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, curr) {
 
-		if (strcmp(curr->rn_resource->r_rule->rr_type,
-			   "resourcegroup"))
+		if (curr->rn_resource->r_rule->rr_type == 0)
 			continue;
 
 		/* Group name */
@@ -847,7 +840,7 @@ init_resource_groups(int reconfigure)
 
 	if (reconfigure)
 		clulog(LOG_NOTICE, "Reconfiguring\n");
-	clulog(LOG_INFO, "Loading Resource Groups\n");
+	clulog(LOG_INFO, "Loading Service Data\n");
 	clulog(LOG_DEBUG, "Loading Resource Rules\n");
 	if (load_resource_rules(RESOURCE_ROOTDIR, &rulelist) != 0) {
 		return -1;
@@ -871,7 +864,7 @@ init_resource_groups(int reconfigure)
 	clulog(LOG_DEBUG, "Building Resource Trees\n");
 	/* About to update the entire resource tree... */
 	if (load_resources(fd, &reslist, &rulelist) != 0) {
-		clulog(LOG_CRIT, "#6: Error loading resource groups\n");
+		clulog(LOG_CRIT, "#6: Error loading services\n");
 		destroy_resources(&reslist);
 		destroy_resource_rules(&rulelist);
 		ccs_unlock(fd);
@@ -933,9 +926,9 @@ init_resource_groups(int reconfigure)
 		do_condstarts();
 	} else {
 		/* Do initial stop-before-start */
-		clulog(LOG_INFO, "Initializing Resource Groups\n");
+		clulog(LOG_INFO, "Initializing Services\n");
 		rg_doall(RG_INIT, 1, "Initializing %s\n");
-		clulog(LOG_INFO, "Resource Groups Initialized\n");
+		clulog(LOG_INFO, "Services Initialized\n");
 		rg_set_initialized();
 	}
 
@@ -952,8 +945,7 @@ get_recovery_policy(char *rg_name, char *buf, size_t buflen)
 	pthread_rwlock_rdlock(&resource_lock);
 
 	strncpy(buf, "restart", buflen);
-	res = find_resource_by_ref(&_resources, "resourcegroup",
-				   rg_name);
+	res = find_root_by_ref(&_resources, rg_name);
 	if (res) {
 		val = res_attr_value(res, "recovery");
 		if (val) {
