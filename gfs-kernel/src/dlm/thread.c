@@ -158,7 +158,8 @@ static void process_complete(dlm_lock_t *lp)
 		lp->req = lp->prev_req;
 		lp->prev_req = DLM_LOCK_IV;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
-		lp->lkf |= DLM_LKF_QUECVT;
+		if (!(lp->lkf & DLM_LKF_EXPEDITE))
+			lp->lkf |= DLM_LKF_QUECVT;
 
 		set_bit(LFL_NOCACHE, &lp->flags);
 
