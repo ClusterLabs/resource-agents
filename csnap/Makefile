@@ -1,4 +1,4 @@
-utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-connect csnap-test devpoke devspam
+utilities = mksnapstore csnap-server csnap-create csnap-delete csnap-agent csnap-test devpoke devspam
 headers = csnap.h ../dm-csnap.h trace.h sock.h
 
 all: $(utilities)
@@ -9,8 +9,8 @@ mksnapstore: csnap.c $(headers)
 csnap-server: csnap.c $(headers)
 	cc -Wall csnap.c -DSERVER -o csnap-server
 
-csnap-connect: service.c $(headers)
-	cc -Wall service.c -o csnap-connect
+csnap-agent: agent.c $(headers)
+	cc -Wall agent.c -o csnap-agent
 
 csnap-create csnap-delete: create.c $(headers)
 	cc -Wall create.c -DCREATE -o csnap-create
@@ -44,7 +44,7 @@ test1:
 	./mksnapstore /dev/test-origin /dev/test-snapstore 8080
 	./csnap-server /dev/test-origin /dev/test-snapstore 8080
 	sudo /sbin/dmsetup remove testdev || true
-	sudo ./csnap-connect @testdev-control localhost:8080
+	sudo ./csnap-agent @testdev-control localhost:8080
 
 test2:
 	sudo ./csnap-create localhost:8080 0

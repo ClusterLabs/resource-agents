@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-04 01:38:57.000000000 +0000
-@@ -0,0 +1,1052 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-10-04 18:21:15.000000000 +0000
+@@ -0,0 +1,1028 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -56,7 +56,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +#define trace trace_on
 +
-+/* Pipe helpers */
++/* Useful gizmos */
 +
 +static int rwpipe(struct file *file, const void *buffer, unsigned int count,
 +	ssize_t (*op)(struct kiocb *, const char *, size_t, loff_t), int mode)
@@ -104,7 +104,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		{ { CODE, sizeof(STRUCT) }, { VALUES } }; \
 +	writepipe(SOCK, &message, sizeof(message)); })
 +
-+
 +/*
 + * This gets the job done but it sucks as an internal interface: there
 + * is no reason to deal with fds at all, we just want to receive the
@@ -148,7 +147,14 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return *((int *)CMSG_DATA(cmsg));
 +}
 +
-+/* ...pipe helpers */
++void kick(struct block_device *dev)
++{
++	request_queue_t *q = bdev_get_queue(dev);
++	if (q->unplug_fn)
++		q->unplug_fn(q);
++}
++
++/* ...Useful gizmos */
 +
 +typedef u64 chunk_t;
 +
@@ -175,13 +181,12 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	struct file *control_socket;
 +	struct semaphore server_in_sem;
 +	struct semaphore server_out_sem;
++	struct semaphore work_sem;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
 +	struct semaphore exit3_sem;
-+	struct semaphore work_sem;
 +	struct list_head pending_buckets[NUM_BUCKETS];
 +	struct list_head read_release_list;
-+	int child[3]; // put the exit sems here
 +	spinlock_t pending_lock;
 +};
 +
@@ -333,13 +338,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +/* This is the part that does all the work. */
 +
-+void kick(struct block_device *dev)
-+{
-+	request_queue_t *q = bdev_get_queue(dev);
-+	if (q->unplug_fn)
-+		q->unplug_fn(q);
-+}
-+
 +int replied_rw(struct dm_target *target, struct rw_request *body, unsigned length, int rw, int snap)
 +{
 +	struct snapinfo *info = target->private;
@@ -352,17 +350,16 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		rw == READ? "read from": "write to", snap? "snapshot": "origin");)
 +
 +	for (i = 0; i < body->count; i++) { // !!! check for length overrun
-+		u64 chunk = p->chunk;
 +		unsigned chunks = p->chunks;
 +		struct pending *pending;
 +		struct bio *bio;
 +
-+		trace(warn("[%Lx/%x]", chunk, chunks);)
++		trace(warn("[%Lx/%x]", p->chunk, chunks);)
 +		assert(chunks == 1);
 +
 +		spin_lock(&info->pending_lock);
 +		if (!(pending = find_pending(info, body->id))) {
-+			warn("Can't find pending rw for chunk %u:%Lx", body->id, chunk);
++			warn("Can't find pending rw for chunk %u:%Lx", body->id, p->chunk);
 +			return -1;
 +		}
 +		list_del(&pending->list);
@@ -561,24 +558,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	goto out;
 +}
 +
-+#if 0
-+/*
-+ * This is disgusting, but there's no standard sock->ops method for getting it
-+ */
-+int recv_available(struct socket *sock)
-+{
-+	int bytes, err;
-+	mm_segment_t oldfs = get_fs();
-+	set_fs(get_ds());
-+	err = sock->ops->ioctl(sock, SIOCINQ, (unsigned long)&bytes);
-+	set_fs(oldfs);
-+	return (err >= 0)? bytes: err;
-+}
-+// now, this doesn't fit the model of the worker thread bacause there's no
-+// obvious way to kick it into action, and it doesn't fit the model of the
-+// incoming thread because
-+#endif
-+
 +/*
 + * Here is our nonblocking worker daemon.  It handles all events other
 + * than incoming socket traffic.  At the moment, its only job is to
@@ -641,7 +620,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		// * send any messages waiting for socket connection
 +		// * resent any messages needing retries
 +		// * check for timed-out messages
-+		// * check for control messages
 +		trace(warn("Yowza! More work?");)
 +	}
 +	up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
@@ -825,34 +803,35 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * a basic flaw in Linux that I hope to get around to fixing at some
 + * point, one way or another.
 + */
++static int shutdown_socket(struct file *socket)
++{
++	struct socket *sock = SOCKET_I(socket->f_dentry->d_inode);
++	return sock->ops->shutdown(sock, RCV_SHUTDOWN);
++}
++
 +static void csnap_destroy(struct dm_target *target)
 +{
 +	struct snapinfo *info = target->private;
++	int err; /* I have no mouth but I must scream */
 +
 +	trace(warn("%p", target);)
 +	if (!info)
 +		return;
 +
++	/* Unblock helper threads */
 +	info->flags |= FINISH_FLAG;
 +	up(&info->server_in_sem); // unblock incoming thread
 +	up(&info->server_out_sem); // unblock io request threads
 +
-+	if (info->sock) {
-+		struct inode *inode = info->sock->f_dentry->d_inode;
-+		struct socket *sock = SOCKET_I(inode);
-+		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
-+		warn("socket shutdown, err=%i", err);
-+	}
-+	if (info->control_socket) {
-+		struct inode *inode = info->control_socket->f_dentry->d_inode;
-+		struct socket *sock = SOCKET_I(inode);
-+		int err = sock->ops->shutdown(sock, RCV_SHUTDOWN);
-+		warn("socket shutdown, err=%i", err);
-+	}
-+//	wake_up_process(find_task_by_pid(info->child[2]));
++	if (info->sock && (err = shutdown_socket(info->sock)))
++		warn("server socket shutdown error %i", err);
++	if (info->sock && (err = shutdown_socket(info->control_socket)))
++		warn("control socket shutdown error %i", err);
++
 +	up(&info->work_sem);
 +
 +	// !!! wrong! the thread might be just starting, think about this some more
++	// ah, don't let csnap_destroy run while csnap_create is spawning threads
 +	down(&info->exit1_sem);
 +	warn("thread 1 exited");
 +	down(&info->exit2_sem);
@@ -877,7 +856,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 + * Woohoo, we are going to instantiate a new cluster snapshot virtual
 + * device, what fun.
 + */
-+
 +static int get_control_socket(char *sockname)
 +{
 +	mm_segment_t oldseg = get_fs();
@@ -934,6 +912,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if ((err = get_control_socket(argv[3])) < 0)
 +		goto eek;
 +	control_sock = fget(err);
++	sys_close(err);
 +
 +	snap = simple_strtol(argv[0], NULL, 0);
 +	if (snap != -1)
@@ -978,13 +957,10 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	error = "Can't start daemon";
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	info->child[0] = err;
 +	if ((err = kernel_thread((void *)worker, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	info->child[1] = err;
 +	if ((err = kernel_thread((void *)control, target, CLONE_KERNEL)) < 0)
 +		goto eek;
-+	info->child[2] = err;
 +	warn("Created snapshot device snapshot=%i origin=%s snapstore=%s socket=%s", snap, argv[1], argv[2], argv[3]);
 +	target->split_io = 1 << info->chunkshift; // !!! lose this as soon as possible
 +	return 0;
