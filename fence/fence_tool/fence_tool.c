@@ -37,7 +37,7 @@
 #define FALSE 0
 #endif
 
-#define OPTION_STRING			("VhScj:f:Dw")
+#define OPTION_STRING			("VhScj:f:DwQ")
 #define LOCKFILE_NAME                   "/var/run/fenced.pid"
 #define FENCED_SOCK_PATH                "fenced_socket"
 
@@ -61,6 +61,7 @@ int debug;
 int operation;
 int skip_unfence;
 int child_wait;
+int quorum_wait = TRUE;
 int cl_sock;
 char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
@@ -190,12 +191,12 @@ static int get_our_name(void)
  * join/leave process.)
  */
 
-static int wait_quorum(void)
+static int check_quorum(void)
 {
 	int rv, i = 0;
 
 	if (debug)
-		printf("%s: wait for quorum\n", prog_name);
+		printf("%s: wait for quorum %d\n", prog_name, quorum_wait);
 
 	while (1) {
 		rv = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, NULL);
@@ -204,15 +205,15 @@ static int wait_quorum(void)
 
 		rv = ioctl(cl_sock, SIOCCLUSTER_ISQUORATE, NULL);
 		if (rv)
-			break;
+			return TRUE;
+		else if (!quorum_wait)
+			return FALSE;
 
 		sleep(1);
 
 		if (++i > 9 && !(i % 10))
 			printf("%s: waiting for cluster quorum\n", prog_name);
 	}
-
-	return 0;
 }
 
 /*
@@ -229,7 +230,7 @@ static int do_wait(void)
 
 	file = fopen("/proc/cluster/services", "r");
 	if (!file)
-		return -1;
+		return EXIT_FAILURE;
 
 	while (1) {
 		memset(line, 0, 256);
@@ -251,15 +252,18 @@ static int do_wait(void)
                         
  out:
 	fclose(file);
-	return 0;
+	return EXIT_SUCCESS;
 }
 
-static void do_join(int argc, char *argv[])
+static int do_join(int argc, char *argv[])
 {
 	int cd;
 
 	setup_sock();
-	wait_quorum();
+
+	if (!check_quorum())
+		return EXIT_FAILURE;
+
 	get_our_name();
 	close(cl_sock);
 	cd = check_ccs();
@@ -295,9 +299,11 @@ static void do_join(int argc, char *argv[])
 
 	execvp("fenced", argv);
 	die("starting fenced failed");
+
+	return EXIT_FAILURE;
 }
 
-static void do_leave(void)
+static int do_leave(void)
 {
 	FILE *f;
 	char buf[33] = "";
@@ -316,13 +322,18 @@ static void do_leave(void)
 
 	check_mounted();
 	setup_sock();
-	wait_quorum();
+
+	if (!check_quorum())
+		return EXIT_FAILURE;
+
 	close(cl_sock);
 
 	kill(pid, SIGTERM);
+
+	return EXIT_SUCCESS;
 }
 
-static void do_monitor(void)
+static int do_monitor(void)
 {
 	int sfd, error, rv;
 	struct sockaddr_un addr;
@@ -350,6 +361,8 @@ static void do_monitor(void)
 
 		printf("%s", buf);
 	}
+
+	return EXIT_SUCCESS;
 }
 
 static void print_usage(void)
@@ -367,6 +380,7 @@ static void print_usage(void)
 	printf("  -w               Wait for join to complete\n");
 	printf("  -V               Print program version information, then exit\n");
 	printf("  -h               Print this help, then exit\n");
+	printf("  -Q               Fail if cluster is not quorate, don't wait\n");
 	printf("  -S               Skip self unfencing on join\n");
 	printf("  -D               Enable debugging, don't fork (also passed to fenced)\n");
 	printf("\n");
@@ -398,6 +412,10 @@ static void decode_arguments(int argc, char *argv[])
 		case 'h':
 			print_usage();
 			exit(EXIT_SUCCESS);
+			break;
+
+		case 'Q':
+			quorum_wait = FALSE;
 			break;
 
 		case 'S':
@@ -460,18 +478,14 @@ int main(int argc, char *argv[])
 
 	switch (operation) {
 	case OP_JOIN:
-		do_join(argc, argv);
-		break;
+		return do_join(argc, argv);
 	case OP_LEAVE:
-		do_leave();
-		break;
+		return do_leave();
 	case OP_MONITOR:
-		do_monitor();
-		break;
+		return do_monitor();
 	case OP_WAIT:
-		do_wait();
-		break;
+		return do_wait();
 	}
 
-	exit(EXIT_SUCCESS);
+	return EXIT_FAILURE;
 }
