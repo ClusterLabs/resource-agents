@@ -1205,6 +1205,7 @@ int lowcomms_start(void)
 	return 0;
 
       fail_free_conn:
+	kcl_releaseref_cluster();
 	kfree(connections);
 
       out:
