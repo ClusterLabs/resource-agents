@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.190 $) dnl cvs revision
+AC_REVISION($Revision: 1.191 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -546,7 +546,8 @@ dnl	These next two are used to help us figure out whether to include
 dnl	some optional STONITH plugins...
 dnl
 AC_CHECK_HEADERS(vacm_client_api.h)
-AC_CHECK_HEADERS(ucd-snmp/snmp.h)
+AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
+#include <ucd-snmp/asn1.h>])
 AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 
 dnl
@@ -1182,7 +1183,6 @@ replace/Makefile						\
 linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
-	lib/recoverymgr/Makefile					\
 	lib/clplumbing/Makefile					\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
@@ -1190,7 +1190,6 @@ lib/Makefile							\
 		lib/plugins/HBauth/Makefile			\
 		lib/plugins/HBcomm/Makefile			\
 		lib/plugins/stonith/Makefile			\
-		lib/plugins/AppHBNotification/Makefile			\
 	lib/stonith/Makefile					\
 heartbeat/Makefile						\
 	heartbeat/rc.d/Makefile					\
@@ -1229,7 +1228,6 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
-	telecom/recoverymgrd/Makefile					\
 snmp_subagent/Makefile                                          \
 )
 
