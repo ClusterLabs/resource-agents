@@ -119,6 +119,10 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 {
 	gd_resdata_t *rd;
 	uint32_t bucket;
+	char strname[namelen+1];
+
+	memset(strname, 0, namelen+1);
+	memcpy(strname, name, namelen);
 
 	bucket = rd_hash(ls, name, namelen);
 
@@ -127,23 +131,27 @@ void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 	rd = search_rdbucket(ls, name, namelen, bucket);
 
 	if (!rd) {
-		log_debug(ls, "remove_resdata not found nodeid=%u", nodeid);
+		log_debug(ls, "remove from %u seq %3u, \"%s\" none",
+			  nodeid, sequence, strname);
 		goto out;
 	}
 
 	if (rd->rd_master_nodeid != nodeid) {
-		log_debug(ls, "remove_resdata wrong nodeid=%u", nodeid);
+		log_debug(ls, "remove from %u seq %3u, \"%s\" ID %u seq %3u",
+			  nodeid, sequence, strname, rd->rd_master_nodeid,
+			  rd->rd_sequence);
 		goto out;
 	}
 
 	if (rd->rd_sequence == sequence) {
+		log_debug(ls, "remove from %u seq %3u, \"%s\" ok",
+			  nodeid, sequence, strname);
 		list_del(&rd->rd_list);
 		free_resdata(rd);
 	} else {
-		/* 
-		log_debug(ls, "remove_resdata mismatch nodeid=%u rd=%u in=%u",
-		          nodeid, rd->rd_sequence, sequence);
-		*/
+		log_debug(ls, "remove from %u seq %3u, \"%s\" id %u SEQ %3u",
+			  nodeid, sequence, strname, rd->rd_master_nodeid,
+			 rd->rd_sequence);
 	}
 
       out:
@@ -362,21 +370,38 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 	return offset;
 }
 
-int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
-		gd_resdata_t **rdp, int recovery)
+static void inc_sequence(gd_resdata_t *rd, int recovery)
 {
-	gd_resdata_t *rd;
-	gd_resdata_t *tmp;
+	if (!recovery) {
+		if (++rd->rd_sequence == 0)
+			rd->rd_sequence++;
+	} else
+		rd->rd_sequence = 1;
+}
+
+static int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+		       uint32_t *r_nodeid, uint8_t *r_seq, int recovery)
+{
+	gd_resdata_t *rd, *tmp;
 	uint32_t bucket;
+	char strname[namelen+1];
+
+	memset(strname, 0, namelen+1);
+	memcpy(strname, name, namelen);
 
 	bucket = rd_hash(ls, name, namelen);
 
-	read_lock(&ls->ls_resdir_hash[bucket].rb_lock);
+	write_lock(&ls->ls_resdir_hash[bucket].rb_lock);
 	rd = search_rdbucket(ls, name, namelen, bucket);
-	read_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
-
-	if (rd)
+	if (rd) {
+		inc_sequence(rd, recovery);
+		*r_nodeid = rd->rd_master_nodeid;
+		*r_seq = rd->rd_sequence;
+		write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
 		goto out;
+	}
+
+        write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
 
 	rd = allocate_resdata(ls, namelen);
 	if (!rd)
@@ -384,30 +409,39 @@ int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 
 	rd->rd_master_nodeid = nodeid;
 	rd->rd_length = namelen;
+	rd->rd_sequence = 1;
 	memcpy(rd->rd_name, name, namelen);
 
 	write_lock(&ls->ls_resdir_hash[bucket].rb_lock);
 	tmp = search_rdbucket(ls, name, namelen, bucket);
-	if (!tmp)
-		list_add_tail(&rd->rd_list,
-			      &ls->ls_resdir_hash[bucket].rb_reslist);
-	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
-
 	if (tmp) {
 		free_resdata(rd);
 		rd = tmp;
-	}
-
-      out:
-	*rdp = rd;
-
-	if (!recovery) {
-		if (++rd->rd_sequence == 0)
-			rd->rd_sequence++;
+		inc_sequence(rd, recovery);
 	} else
-		rd->rd_sequence = 1;
+		list_add_tail(&rd->rd_list,
+			      &ls->ls_resdir_hash[bucket].rb_reslist);
+	*r_nodeid = rd->rd_master_nodeid;
+	*r_seq = rd->rd_sequence;
+	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
 
+ out:
+	log_debug(ls, "lookup from %u ret %u %u \"%s\"",
+		  nodeid, *r_nodeid, *r_seq, strname);
 	return 0;
+}
+
+int dlm_dir_lookup(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+		   uint32_t *r_nodeid, uint8_t *r_seq)
+{
+	return get_resdata(ls, nodeid, name, namelen, r_nodeid, r_seq, 0);
+}
+
+int dlm_dir_lookup_recovery(gd_ls_t *ls, uint32_t nodeid, char *name,
+			    int namelen, uint32_t *r_nodeid)
+{
+	uint8_t seq;
+	return get_resdata(ls, nodeid, name, namelen, r_nodeid, &seq, 1);
 }
 
 /* 

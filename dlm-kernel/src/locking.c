@@ -420,8 +420,8 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 {
 	gd_res_t *rsb, *parent_rsb = NULL;
 	gd_lkb_t *parent_lkb = lkb->lkb_parent;
-	gd_resdata_t *rd;
 	uint32_t nodeid;
+	uint8_t seq;
 	int error;
 
 	if (parent_lkb)
@@ -445,17 +445,16 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
 			goto out;
 		}
 
-		error = get_resdata(ls, our_nodeid(), rsb->res_name,
-				    rsb->res_length, &rd, 0);
+		error = dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
+				       rsb->res_length, &nodeid, &seq);
 		if (error)
 			goto out;
 
-		nodeid = rd->rd_master_nodeid;
 		if (nodeid == our_nodeid())
 			nodeid = 0;
 		rsb->res_nodeid = nodeid;
 		lkb->lkb_nodeid = nodeid;
-		rsb->res_resdir_seq = rd->rd_sequence;
+		rsb->res_resdir_seq = seq;
 	}
 
 	error = dlm_lock_stage2(ls, lkb, rsb, flags);
@@ -649,6 +648,7 @@ int dlm_unlock(void *lockspace,
 	gd_ls_t *ls = find_lockspace_by_local_id(lockspace);
 	gd_lkb_t *lkb;
 	gd_res_t *rsb;
+	uint32_t res_nodeid;
 	int ret = -EINVAL;
 
 	if (!ls)
@@ -693,6 +693,11 @@ int dlm_unlock(void *lockspace,
 	/* Mark it as deleted so we can't use it as a parent in dlm_lock() */
 	if (!(flags & DLM_LKF_CANCEL))
 		lkb->lkb_flags |= GDLM_LKFLG_DELETED;
+
+	rsb = lkb->lkb_resource;
+	res_nodeid = rsb->res_nodeid;
+	if (!rsb->res_parent && atomic_read(&rsb->res_ref) == 1)
+		rsb->res_nodeid = -1;
 	up_write(&ls->ls_unlock_sem);
 
 	/* Save any new params */
@@ -707,7 +712,7 @@ int dlm_unlock(void *lockspace,
 
 	down_read(&ls->ls_in_recovery);
 
-	if (rsb->res_nodeid)
+	if (res_nodeid)
 		ret = remote_stage(lkb, GDLM_LQSTATE_WAIT_UNLOCK);
 	else
 		ret = dlm_unlock_stage2(lkb, flags);

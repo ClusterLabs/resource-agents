@@ -14,17 +14,19 @@
 #ifndef __DIR_DOT_H__
 #define __DIR_DOT_H__
 
-uint32_t name_to_directory_nodeid(gd_ls_t * ls, char *name, int length);
-uint32_t get_directory_nodeid(gd_res_t * rsb);
-void remove_resdata(gd_ls_t * ls, uint32_t nodeid, char *name, int namelen,
+int dlm_dir_lookup(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+			uint32_t *r_nodeid, uint8_t *r_seq);
+int dlm_dir_lookup_recovery(gd_ls_t *ls, uint32_t nodeid, char *name,
+                            int namelen, uint32_t *r_nodeid);
+uint32_t name_to_directory_nodeid(gd_ls_t *ls, char *name, int length);
+uint32_t get_directory_nodeid(gd_res_t *rsb);
+void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
 		    uint8_t sequence);
-int resdir_rebuild_local(gd_ls_t * ls);
-int resdir_rebuild_send(gd_ls_t * ls, char *inbuf, int inlen, char *outbuf,
+int resdir_rebuild_local(gd_ls_t *ls);
+int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 			int outlen, uint32_t nodeid);
-int get_resdata(gd_ls_t * ls, uint32_t nodeid, char *name, int namelen,
-		gd_resdata_t ** rdp, int recovery);
 int resdir_rebuild_wait(gd_ls_t * ls);
-void resdir_clear(gd_ls_t * ls);
-void resdir_dump(gd_ls_t * ls);
+void resdir_clear(gd_ls_t *ls);
+void resdir_dump(gd_ls_t *ls);
 
 #endif				/* __DIR_DOT_H__ */

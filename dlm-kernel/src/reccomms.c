@@ -214,9 +214,8 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 {
 	gd_rcom_t rc_stack;
 	gd_rcom_t *reply = NULL;
-	gd_resdata_t *rd;
 	int status, datalen, maxlen;
-	uint32_t be_nodeid;
+	uint32_t r_nodeid, be_nodeid;
 
 	if (!ls)
 		return;
@@ -302,14 +301,14 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 		 * The other node wants to know the master of a named resource.
 		 */
 
-		status = get_resdata(ls, nodeid, rc->rc_buf, rc->rc_datalen,
-				     &rd, 1);
+		status = dlm_dir_lookup_recovery(ls, nodeid, rc->rc_buf,
+						 rc->rc_datalen, &r_nodeid);
 		if (status != 0) {
 			free_rcom_buffer(reply);
 			reply = NULL;
 			return;
 		}
-		be_nodeid = cpu_to_be32(rd->rd_master_nodeid);
+		be_nodeid = cpu_to_be32(r_nodeid);
 		memcpy(reply->rc_buf, &be_nodeid, sizeof(uint32_t));
 		reply->rc_datalen = sizeof(uint32_t);
 		reply->rc_header.rh_length =

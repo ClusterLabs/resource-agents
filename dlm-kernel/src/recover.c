@@ -475,19 +475,18 @@ void recover_list_dump(gd_ls_t *ls)
 static int rsb_master_lookup(gd_res_t *rsb, gd_rcom_t *rc)
 {
 	gd_ls_t *ls = rsb->res_ls;
-	gd_resdata_t *rd;
-	uint32_t dir_nodeid;
+	uint32_t dir_nodeid, r_nodeid;
 	int error;
 
 	dir_nodeid = get_directory_nodeid(rsb);
 
 	if (dir_nodeid == our_nodeid()) {
-		error = get_resdata(ls, dir_nodeid, rsb->res_name,
-				    rsb->res_length, &rd, 1);
+		error = dlm_dir_lookup_recovery(ls, dir_nodeid, rsb->res_name,
+				    	        rsb->res_length, &r_nodeid);
 		if (error)
 			goto fail;
 
-		rsb->res_nodeid = rd->rd_master_nodeid;
+		rsb->res_nodeid = r_nodeid;
 		set_new_master(rsb);
 	} else {
 		/* As we are the only thread doing recovery this 
@@ -607,18 +606,17 @@ int bulk_master_lookup(gd_ls_t *ls, int nodeid, char *inbuf, int inlen,
 	outbufptr = outbuf;
 
 	while (inbufptr < inbuf + inlen) {
-		gd_resdata_t *rd;
-		uint32_t be_nodeid;
+		uint32_t r_nodeid, be_nodeid;
 		int status;
 
-		status = get_resdata(ls, nodeid, inbufptr + 1, *inbufptr,
-				     &rd, 1);
+		status = dlm_dir_lookup_recovery(ls, nodeid, inbufptr + 1,
+						 *inbufptr, &r_nodeid);
 		if (status != 0)
 			goto fail;
 
 		inbufptr += *inbufptr + 1;
 
-		be_nodeid = cpu_to_be32(rd->rd_master_nodeid);
+		be_nodeid = cpu_to_be32(r_nodeid);
 		memcpy(outbufptr, &be_nodeid, sizeof(uint32_t));
 		outbufptr += sizeof(uint32_t);
 

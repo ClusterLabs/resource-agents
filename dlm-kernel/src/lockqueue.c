@@ -695,9 +695,9 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 	case GDLM_REMCMD_LOOKUP:
 		{
-			gd_resdata_t *rd;
+			uint32_t dir_nodeid, r_nodeid;
 			int status;
-			uint32_t dir_nodeid;
+			uint8_t r_seq;
 
 			namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
 
@@ -707,15 +707,15 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 			if (dir_nodeid != our_nodeid())
 				log_debug(lspace, "ignoring directory lookup");
 
-			status = get_resdata(lspace, nodeid, freq->rr_name,
-					     namelen, &rd, 0);
+			status = dlm_dir_lookup(lspace, nodeid, freq->rr_name,
+					        namelen, &r_nodeid, &r_seq);
 			if (status)
 				status = -ENOMEM;
 
 			reply.rl_status = status;
 			reply.rl_lockstate = 0;
-			reply.rl_nodeid = rd->rd_master_nodeid;
-			reply.rl_resdir_seq = rd->rd_sequence;
+			reply.rl_nodeid = r_nodeid;
+			reply.rl_resdir_seq = r_seq;
 		}
 		send_reply = 1;
 		break;
