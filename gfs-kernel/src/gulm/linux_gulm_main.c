@@ -96,7 +96,6 @@ EXPORT_SYMBOL (lg_core_corestate);
 EXPORT_SYMBOL (lg_core_shutdown);
 EXPORT_SYMBOL (lg_core_forceexpire);
 EXPORT_SYMBOL (lg_core_forcepending);
-EXPORT_SYMBOL (lg_core_status);
 
 EXPORT_SYMBOL (lg_lock_handle_messages);
 EXPORT_SYMBOL (lg_lock_selector);
@@ -106,4 +105,3 @@ EXPORT_SYMBOL (lg_lock_state_req);
 EXPORT_SYMBOL (lg_lock_cancel_req);
 EXPORT_SYMBOL (lg_lock_action_req);
 EXPORT_SYMBOL (lg_lock_drop_exp);
-EXPORT_SYMBOL (lg_lock_status);

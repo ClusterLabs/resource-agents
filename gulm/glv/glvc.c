@@ -82,38 +82,39 @@ int glv_lock_login_reply(void *misc, uint32_t error, uint8_t which)
 }
 
 int glv_lock_state(void *misc, uint8_t *key, uint16_t keylen,
-      uint8_t state, uint32_t flags, uint32_t error,  
-                    uint8_t *LVB, uint16_t LVBlen)
+      uint64_t subid, uint64_t start, uint64_t stop, uint8_t state,
+      uint32_t flags, uint32_t error,  uint8_t *LVB, uint16_t LVBlen)
 {
    char buffy[160];
-   int actual;
+   int actual, sid = (int)subid;
    /* kinda a cheet here. */
    if( strlen(LVB) == 0 ) LVBlen = 0;
 
-   actual = snprintf(buffy, 160, "lrpl %s %d %d %d %s\n", key, state, flags,
-         error, LVBlen==0?"nolvb":(char*)LVB);
+   actual = snprintf(buffy, 160, "lrpl %d %s %d %d %d %s\n", sid, key,
+         state, flags, error, LVBlen==0?"nolvb":(char*)LVB);
    verb(3, "Sending to glvd: %s", buffy);
    send(masterSK, buffy, actual, 0);
    return 0;
 }
 
-int glv_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action, 
-                     uint32_t error)
+int glv_lock_action(void *misc, uint8_t *key, uint16_t keylen,
+      uint64_t subid, uint8_t action, uint32_t error)
 {
    char buffy[160];
-   int actual;
-   actual = snprintf(buffy, 160, "arpl %s %d %d\n", key, action, error);
+   int actual, sid = (int)subid;
+   actual = snprintf(buffy, 160, "arpl %d %s %d %d\n",
+                     sid, key, action, error);
    verb(3, "Sending to glvd: %s", buffy);
    send(masterSK, buffy, actual, 0);
    return 0;
 }
 
 int glv_lock_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
-      uint8_t state)
+      uint64_t subid, uint8_t state)
 {
    char buffy[160];
-   int actual;
-   actual = snprintf(buffy, 160, "drop %s %d\n", key, state);
+   int actual, sid = (int)subid;
+   actual = snprintf(buffy, 160, "drop %d %s %d\n", sid, key, state);
    verb(3, "Sending to glvd: %s", buffy);
    send(masterSK, buffy, actual, 0);
    return 0;
@@ -137,7 +138,7 @@ error: glv_lock_error
 void parse_action(int sk)
 {
    char buffy[160], *key=NULL, *lvb=NULL;
-   int cnt, state, flags;
+   int cnt, state, flags, subid;
    
    if( (cnt=recv(sk, buffy, 160, 0)) <0)
       die("read failed. %d\n");
@@ -149,21 +150,22 @@ void parse_action(int sk)
    buffy[cnt-1] = '\0';
    verb(3, "Got from glvd: %s\n", buffy);
 
-   if(sscanf(buffy, "lock %as %d %d %as", &key, &state, &flags, &lvb) == 4) {
+   if(sscanf(buffy, "lock %d %as %d %d %as",
+            &subid, &key, &state, &flags, &lvb) == 5) {
       if( strcmp(lvb, "nolvb") == 0 ) {free(lvb); lvb=NULL;}
       verb(3, "Matched lock.\n");
-      lg_lock_state_req(hookup, key, strlen(key)+1, state, flags, lvb,
-            lvb==NULL?0:(strlen(lvb)+1) );
+      lg_lock_state_req(hookup, key, strlen(key)+1, subid, 0, 0, state,
+            flags, lvb, lvb==NULL?0:(strlen(lvb)+1) );
    }else
-   if(sscanf(buffy, "action %as %d %as", &key, &state, &lvb) == 3) {
+   if(sscanf(buffy, "action %d %as %d %as", &subid, &key, &state, &lvb) == 4) {
       if( strcmp(lvb, "nolvb") == 0 ) {free(lvb); lvb=NULL;}
       verb(3, "Matched action.\n");
-      lg_lock_action_req(hookup, key, strlen(key)+1, state, lvb,
+      lg_lock_action_req(hookup, key, strlen(key)+1, subid, state, lvb,
             lvb==NULL?0:(strlen(lvb)+1) );
    }else
-   if(sscanf(buffy, "cancel %as", &key) == 1) {
+   if(sscanf(buffy, "cancel %d %as", &subid, &key) == 2) {
       verb(3, "Matched cancel.\n");
-      lg_lock_cancel_req(hookup, key, strlen(key)+1);
+      lg_lock_cancel_req(hookup, key, strlen(key)+1, subid);
    }else
    if(sscanf(buffy, "dropexp %as %as", &lvb, &key) == 2) {
       verb(3, "Matched dropexp.\n");

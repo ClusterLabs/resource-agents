@@ -471,8 +471,8 @@ send_lock_action (gulm_lock_t * lck, uint8_t action)
 
 	GULM_ASSERT (lck->req_type == glck_action, dump_gulm_lock_t (lck););
 
-	err = lg_lock_action_req (gulm_cm.hookup, lck->key, lck->keylen, action,
-				  lck->lvb, lck->fs->lvb_size);
+	err = lg_lock_action_req (gulm_cm.hookup, lck->key, lck->keylen,
+				  0, action, lck->lvb, lck->fs->lvb_size);
 	if (err != 0)
 		log_err ("Issues sending action request. %d\n", err);
 
@@ -534,6 +534,7 @@ send_lock_req (gulm_lock_t * lck)
 	}
 
 	err = lg_lock_state_req (gulm_cm.hookup, lck->key, lck->keylen,
+				 0, 0, ~((uint64_t)0),
 				 state, flags, lck->lvb, lck->fs->lvb_size);
 	if (err != 0)
 		log_err ("Issues sending state request. %d\n", err);
@@ -872,7 +873,7 @@ lt_io_sender_thread (void *data)
 		} else if (sr->type == sr_cancel) {
 			err =
 			    lg_lock_cancel_req (gulm_cm.hookup, sr->who->key,
-						sr->who->keylen);
+						sr->who->keylen, 0);
 			if (err == 0)
 				unmark_and_release_lock (sr->who);
 		} else if (sr->type == sr_drop) {
@@ -1021,6 +1022,7 @@ gulm_lt_logout_reply (void *misc)
  */
 int
 gulm_lt_lock_state (void *misc, uint8_t * key, uint16_t keylen,
+		    uint64_t subid, uint64_t start, uint64_t stop,
 		    uint8_t state, uint32_t flags, uint32_t error,
 		    uint8_t * LVB, uint16_t LVBlen)
 {
@@ -1076,7 +1078,7 @@ gulm_lt_lock_state (void *misc, uint8_t * key, uint16_t keylen,
  */
 int
 gulm_lt_lock_action (void *misc, uint8_t * key, uint16_t keylen,
-		     uint8_t action, uint32_t error)
+		     uint64_t subid, uint8_t action, uint32_t error)
 {
 	gulm_lock_t *lck;
 
@@ -1122,7 +1124,7 @@ gulm_lt_lock_action (void *misc, uint8_t * key, uint16_t keylen,
  */
 int
 gulm_lt_drop_lock_req (void *misc, uint8_t * key, uint16_t keylen,
-		       uint8_t state)
+		       uint64_t subid, uint8_t state)
 {
 	gulm_lock_t *lck;
 

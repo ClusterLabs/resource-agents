@@ -162,8 +162,8 @@ jid_hold_lvb (uint8_t * key, uint16_t keylen)
 	list_add (&jp.jp_list, &jid_pending_locks);
 	spin_unlock (&jid_pending);
 
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, lg_lock_act_HoldLVB,
-			    NULL, 0);
+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
+			    lg_lock_act_HoldLVB, NULL, 0);
 
 	wait_for_completion (&jp.waitforit);
 }
@@ -184,8 +184,8 @@ jid_unhold_lvb (uint8_t * key, uint16_t keylen)
 	list_add (&jp.jp_list, &jid_pending_locks);
 	spin_unlock (&jid_pending);
 
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, lg_lock_act_UnHoldLVB,
-			    NULL, 0);
+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
+			    lg_lock_act_UnHoldLVB, NULL, 0);
 
 	wait_for_completion (&jp.waitforit);
 }
@@ -206,8 +206,8 @@ jid_sync_lvb (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
 	list_add (&jp.jp_list, &jid_pending_locks);
 	spin_unlock (&jid_pending);
 
-	lg_lock_action_req (gulm_cm.hookup, key, keylen, lg_lock_act_SyncLVB,
-			    lvb, lvblen);
+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
+			    lg_lock_act_SyncLVB, lvb, lvblen);
 
 	wait_for_completion (&jp.waitforit);
 }
@@ -270,7 +270,8 @@ jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 	list_add (&jp.jp_list, &jid_pending_locks);
 	spin_unlock (&jid_pending);
 
-	lg_lock_state_req (gulm_cm.hookup, key, keylen, state, flags, lvb, lvblen);
+	lg_lock_state_req (gulm_cm.hookup, key, keylen, 0, 0, ~((uint64_t)0),
+			state, flags, lvb, lvblen);
 
 	wait_for_completion (&jp.waitforit);
 }
@@ -357,7 +358,8 @@ jid_hold_list_lock (gulm_fs_t * fs)
 
 	keylen = sizeof (key);
 	jid_get_listlock_name (fs->fs_name, key, &keylen);
-	jid_get_lock_state (key, keylen, lg_lock_state_Exclusive);
+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+			lg_lock_flag_IgnoreExp, NULL, 0);
 
 }
 
@@ -422,7 +424,8 @@ jid_grow_space (gulm_fs_t * fs)
 
 	keylen = sizeof (key);
 	jid_get_header_name (fs->fs_name, key, &keylen);
-	jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive, lvb,
+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+				lg_lock_flag_IgnoreExp, lvb,
 				jid_header_lvb_size);
 	jidc = (uint32_t) (lvb[0]) << 0;
 	jidc |= (uint32_t) (lvb[1]) << 8;
@@ -466,7 +469,8 @@ lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name)
 	jid_hold_list_lock (fs);
 
 	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
-	jid_get_lock_state_lvb (key, keylen, lg_lock_state_Shared, lvb, 64);
+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+				lg_lock_flag_IgnoreExp, lvb, 64);
 
 	if (lvb[0] != 0) {
 		memcpy (name, &lvb[1], strlen (&lvb[1]) + 1);
@@ -504,7 +508,8 @@ release_JID (gulm_fs_t * fs, uint32_t jid, int nop)
 	jid_hold_list_lock (fs);
 
 	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
-	jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive, lvb, 64);
+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+				lg_lock_flag_IgnoreExp, lvb, 64);
 	lvb[0] = 0;
 	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
 	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
@@ -533,7 +538,7 @@ put_journalID (gulm_fs_t * fs)
 void
 get_journalID (gulm_fs_t * fs)
 {
-	uint32_t i = 0, jifc;
+	uint32_t i = 0;
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
 	uint16_t keylen = GIO_KEY_SIZE;
 	int first_clear = -1;
@@ -545,8 +550,8 @@ get_journalID (gulm_fs_t * fs)
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
-		jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive,
-					lvb, 64);
+		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+					lg_lock_flag_IgnoreExp, lvb, 64);
 		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 		if (first_clear == -1 && lvb[0] == 0 ) {
 			first_clear = i;
@@ -559,8 +564,8 @@ get_journalID (gulm_fs_t * fs)
 		/* take the jid we have found */
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, first_clear, key, &keylen);
-		jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive,
-					lvb, 64);
+		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+					lg_lock_flag_IgnoreExp, lvb, 64);
 		lvb[0] = 2;
 		memcpy (&lvb[1], gulm_cm.myName, strlen (gulm_cm.myName) + 1);
 		jid_sync_lvb (key, keylen, lvb, strlen (gulm_cm.myName) + 2);
@@ -603,8 +608,8 @@ find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name,
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
-		jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive,
-					lvb, 64);
+		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+					lg_lock_flag_IgnoreExp, lvb, 64);
 		if (strcmp (name, &lvb[1]) == 0) {
 			*jid = i;
 			found = 0;
@@ -643,8 +648,8 @@ check_for_stale_expires (gulm_fs_t * fs)
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);
-		jid_get_lock_state_lvb (key, keylen, lg_lock_state_Shared, lvb,
-					64);
+		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
+					lg_lock_flag_IgnoreExp, lvb, 64);
 		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 
 		if (lvb[0] == 1) {

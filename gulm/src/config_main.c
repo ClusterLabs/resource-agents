@@ -326,10 +326,11 @@ uint64_t ft2uint64(float time)
  */
 void validate_config(gulm_config_t *gf)
 {
-   /*while assert works, really needs to be something more friendly. */
-   GULMD_ASSERT(gf->node_cnt > 0 && gf->node_cnt < 5 && gf->node_cnt != 2,
-         fprintf(stderr, "gf->node_cnt = %d\n", gf->node_cnt);
-         );
+   if( !(gf->node_cnt > 0 && gf->node_cnt < 5 && gf->node_cnt != 2) ) {
+      fprintf(stderr, "Gulm requires 1,3,4, or 5 nodes to be specified in "
+            "the servers list.  You specified %d\n", gf->node_cnt);
+      exit(ExitGulm_ParseFail);
+   }
 }
 
 /**
@@ -369,6 +370,7 @@ void default_config(gulm_config_t *gf)
    gf->conf_test = FALSE;
    gf->leave_std_open = FALSE;
    gf->daemon_fork = TRUE;
+   gf->ccs_desc = -1;
 
 }
 

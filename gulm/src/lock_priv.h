@@ -17,15 +17,18 @@
 #include "xdr.h"
 /* these get used in both io and space, so we'll drop them here. */
 typedef struct waiters_s {
-   Qu_t     wt_list;
+   Qu_t      wt_list;
    uint8_t  *name;
+   uint64_t  subid;
    uint8_t  *key;
    uint16_t  keylen;
    uint32_t  op;
-   uint8_t  state;
+   uint8_t   state;
    uint32_t  flags;
+   uint64_t  start;
+   uint64_t  stop;
    uint8_t  *LVB;
-   uint16_t LVBlen;
+   uint16_t  LVBlen;
    /* stuff for replies.*/
    uint8_t Slave_rpls; /* bitmask of which slaves have replied */
    uint8_t Slave_sent; /* which slaves we sent the update to */
@@ -38,28 +41,31 @@ typedef struct waiters_s {
    uint64_t stoptime;  /* when did we make it history? */
 #endif
 }Waiters_t;
-/* uses 152 bytes on 32bits
- *      184 bytes on 64bits
+/* uses 168 bytes on 32bits
+ *      200 bytes on 64bits
  */
 
 typedef struct Holders_s {
-	LLi_t   cl_list;
+	LLi_t    cl_list;
    uint8_t *name;
-   int     idx; /* used by the send_drp_req() function.  It is a caching of
+   uint64_t subid;
+   uint8_t  state;
+   uint64_t start; /* range start */
+   uint64_t stop;  /* reange stop */
+   int      idx; /* used by the send_drp_req() function.  It is a caching of
                  * the idx offset into the pollers.  It is checked to be
                  * valid before use, and if wrong updated.  As such, it
                  * should be inited to 0 and ignored by others.
                  */
 } Holders_t;
-/* uses 20 on 32bits
- *      40 on 64bits
+/* uses 37 on 32bits
+ *      57 on 64bits
  */
 
 typedef struct Lock_s {
    LLi_t     lk_list;
    uint8_t   *key;
    uint8_t   keylen;
-   uint8_t   state;
    uint8_t   LVBlen;
    uint8_t   *LVB;
 
@@ -89,8 +95,8 @@ typedef struct Lock_s {
 #endif
 
 } Lock_t;
-/* uses 272 on 32bits
- *      392 on 64bits
+/* uses 271 on 32bits
+ *      391 on 64bits
  */
 
 /* About the queues in Lock_t
@@ -125,7 +131,7 @@ int send_act_lk_reply(Waiters_t *lkrq, uint32_t retcode);
 void send_req_update_to_slaves(Waiters_t *lkrq);
 void send_act_update_to_slaves(Waiters_t *lkrq);
 void send_update_reply_to_master(Waiters_t *lkrq);
-void send_drp_req(uint8_t *name, Lock_t *lk, int DesireState);
+void send_drp_req(Lock_t *lk, Waiters_t *lkrq);
 void send_drop_all_req(void);
 void lt_main_loop(void);
 
@@ -155,6 +161,7 @@ void __inline__ rerun_wait_queues(void);
 int serialize_lockspace(int fd);
 int deserialize_lockspace(int fd);
 int list_expired_holders(xdr_enc_t *enc);
+int __inline__ compare_holder_waiter_names(Holders_t *h, Waiters_t *w);
 
 #endif /*__gulm_lock_priv_h__*/
 /* vim: set ai cin et sw=3 ts=3 : */

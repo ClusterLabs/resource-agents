@@ -18,11 +18,13 @@
 #include <sys/time.h>
 
 #include "gulm_defines.h"
-#include "hash.h"
+#include "hashn.h"
 #include "LLi.h"
 #include "ltpx_priv.h"
 #include "config_gulm.h"
 #include "utils_dir.h"
+#include "utils_crc.h"
+#include "utils_tostr.h"
 
 /*****************************************************************************/
 /* bits of data used by the log_*() and die() functions. */
@@ -34,13 +36,45 @@ unsigned long free_reqs = 0;
 unsigned long used_reqs = 0;
 
 /*****************************************************************************/
-unsigned char *getlkxpname(void *item) {
-   lock_req_t *c = (lock_req_t*)item;
-   return c->key;
+/**
+ * lq_cmp - 
+ * @a: 
+ * @b: 
+ * 
+ * -1 if a < b
+ *  0 if a == b
+ *  1 if a > b
+ * Returns: int
+ */
+int lq_cmp(void *a, void *b)
+{
+   lock_req_t *lqA = (lock_req_t *)a;
+   lock_req_t *lqB = (lock_req_t *)b;
+
+   if( lqA->subid == lqB->subid ) {
+      return memcmp(lqA->key, lqB->key, MIN(lqA->keylen, lqB->keylen));
+   }else
+   if( lqA->subid < lqB->subid ) {
+      return -1;
+   }else
+   {
+      return 1;
+   }
 }
-int getlkxpnlen(void *item) {
-   lock_req_t *c = (lock_req_t*)item;
-   return c->keylen;
+/**
+ * lq_hash - 
+ * @a: 
+ * 
+ * 
+ * Returns: int
+ */
+int lq_hash(void *a)
+{
+   lock_req_t *lqA = (lock_req_t *)a;
+   int ck;
+   ck = crc32(lqA->key, lqA->keylen, lqA->keylen);
+   ck = crc32((uint8_t*)&lqA->subid, sizeof(uint64_t), ck);
+   return ck;
 }
 
 /*****************************************************************************/
@@ -99,6 +133,7 @@ lock_req_t *get_new_lock_req(void)
    used_reqs ++;
    LLi_init( &lq->ls_list, lq);
    lq->code = 0;
+   lq->subid = 0;
    lq->key = NULL;
    lq->keylen = 0;
    lq->state = 0;
@@ -157,10 +192,10 @@ void recycle_lock_req(lock_req_t *lq)
  * 
  * Returns: hash_t
  */
-hash_t *create_new_req_map(void)
+hashn_t *create_new_req_map(void)
 {
    /* ??other thigns to init?? */
-   return hash_create(gulm_config.lt_hashbuckets, getlkxpname, getlkxpnlen);
+   return hashn_create(gulm_config.lt_hashbuckets, lq_cmp, lq_hash);
 }
 
 /**
@@ -170,9 +205,9 @@ hash_t *create_new_req_map(void)
  * mostly just here for completeness. duno if i'll use it.
  * 
  */
-void release_req_map(hash_t *map)
+void release_req_map(hashn_t *map)
 {
-   hash_destroy(map);
+   hashn_destroy(map);
 }
 
 /* add item */
@@ -187,7 +222,8 @@ char *lvbtohex(uint8_t *lvb, uint8_t lvblen);
 static void print_lock_req(FILE *FP, lock_req_t *lq)
 {
    fprintf(FP, "%s : \n", lkeytohex(lq->key, lq->keylen));
-   fprintf(FP, " code : %#x\n", lq->code);
+   fprintf(FP, " subid : %"PRIu64"\n", lq->subid);
+   fprintf(FP, " code : %s\n", gio_opcodes(lq->code));
    fprintf(FP, " state : %#x\n", lq->state);
    fprintf(FP, " flags : %#x\n", lq->flags);
    fprintf(FP, " lvb : %s\n", lvbtohex(lq->lvb, lq->lvblen));
@@ -207,7 +243,7 @@ static int _dump_lqs_(LLi_t *item, void *d)
    return 0;
 }
 
-void dump_ltpx_locks(hash_t *map, int ltid)
+void dump_ltpx_locks(hashn_t *map, int ltid)
 {
    char *path;
    FILE *fp;
@@ -218,7 +254,7 @@ void dump_ltpx_locks(hash_t *map, int ltid)
 
    fprintf(fp, "---\n# BEGIN LTPX REQ HASH DUMP FOR %d\n", ltid);
 
-   hash_walk(map, _dump_lqs_, fp);
+   hashn_walk(map, _dump_lqs_, fp);
 
    fprintf(fp, "#======================================="
                "========================================\n");

@@ -16,6 +16,7 @@ struct glv_action {
    unsigned int line;
    enum {glv_lock, glv_act, glv_cancel, glv_dropexp} action;
    int nodeidx;
+   int subid;
    char *key;
    int state;
    int flags;
@@ -25,6 +26,7 @@ struct glv_reaction {
    unsigned int line;
    enum {glv_lrpl, glv_arpl, glv_drop} react;
    int nodeidx;
+   int subid;
    char *key;
    int state;
    int flags;

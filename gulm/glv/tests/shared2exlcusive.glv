@@ -8,61 +8,61 @@ nodecount 4
 
 
 test
-	lock 0 sharedfun shared noflags nolvb
-	lrpl 0 sharedfun shared cachable ok nolvb
+	lock 0 0 sharedfun shared noflags nolvb
+	lrpl 0 0 sharedfun shared cachable ok nolvb
 end
 
 test
-	lock 1 sharedfun shared noflags nolvb
-	lrpl 1 sharedfun shared cachable ok nolvb
+	lock 1 0 sharedfun shared noflags nolvb
+	lrpl 1 0 sharedfun shared cachable ok nolvb
 end
 
 test
-	lock 2 sharedfun shared noflags nolvb
-	lrpl 2 sharedfun shared cachable ok nolvb
+	lock 2 0 sharedfun shared noflags nolvb
+	lrpl 2 0 sharedfun shared cachable ok nolvb
 end
 
 test
-	lock 3 sharedfun exclusive try|docb nolvb
-	lrpl 3 sharedfun exclusive try|docb tryfailed nolvb
-	drop 0 sharedfun exclusive
-	drop 1 sharedfun exclusive
-	drop 2 sharedfun exclusive
+	lock 3 0 sharedfun exclusive try|docb nolvb
+	lrpl 3 0 sharedfun exclusive try|docb tryfailed nolvb
+	drop 0 0 sharedfun exclusive
+	drop 1 0 sharedfun exclusive
+	drop 2 0 sharedfun exclusive
 end
 
 test
-	lock 3 sharedfun exclusive noflags nolvb
-	drop 0 sharedfun exclusive
-	drop 1 sharedfun exclusive
-	drop 2 sharedfun exclusive
+	lock 3 0 sharedfun exclusive noflags nolvb
+	drop 0 0 sharedfun exclusive
+	drop 1 0 sharedfun exclusive
+	drop 2 0 sharedfun exclusive
 end
 
 test
-	lock 2 sharedfun unlock noflags nolvb
-	lrpl 2 sharedfun unlock noflags ok nolvb
-	drop 0 sharedfun exclusive
-	drop 1 sharedfun exclusive
+	lock 2 0 sharedfun unlock noflags nolvb
+	lrpl 2 0 sharedfun unlock noflags ok nolvb
+	drop 0 0 sharedfun exclusive
+	drop 1 0 sharedfun exclusive
 end
 
 test
-	lock 1 sharedfun exclusive noflags nolvb
-	drop 0 sharedfun exclusive
+	lock 1 0 sharedfun exclusive noflags nolvb
+	drop 0 0 sharedfun exclusive
 end
 
 test
-	lock 0 sharedfun unlock noflags nolvb
-	lrpl 0 sharedfun unlock noflags ok nolvb
-	lrpl 3 sharedfun exclusive cachable ok nolvb
-	drop 3 sharedfun exclusive
+	lock 0 0 sharedfun unlock noflags nolvb
+	lrpl 0 0 sharedfun unlock noflags ok nolvb
+	lrpl 3 0 sharedfun exclusive cachable ok nolvb
+	drop 3 0 sharedfun exclusive
 end
 
 test
-	lock 3 sharedfun unlock noflags nolvb
-	lrpl 3 sharedfun unlock noflags ok nolvb
-	lrpl 1 sharedfun exclusive noflags ok nolvb
+	lock 3 0 sharedfun unlock noflags nolvb
+	lrpl 3 0 sharedfun unlock noflags ok nolvb
+	lrpl 1 0 sharedfun exclusive noflags ok nolvb
 end
 
 test
-	lock 1 sharedfun unlock noflags nolvb
-	lrpl 1 sharedfun unlock noflags ok nolvb
+	lock 1 0 sharedfun unlock noflags nolvb
+	lrpl 1 0 sharedfun unlock noflags ok nolvb
 end

@@ -703,6 +703,9 @@ static int _send_req_update_(int idx, Waiters_t *lkrq)
    do {
       if((e=xdr_enc_uint32(enc, gulm_lock_state_updt)) != 0) break;
       if((e=xdr_enc_string(enc, lkrq->name)) != 0) break;
+      if((e=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
+      if((e=xdr_enc_uint64(enc, lkrq->start)) != 0 ) break;
+      if((e=xdr_enc_uint64(enc, lkrq->stop)) != 0 ) break;
       if((e=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0) break;
       if((e=xdr_enc_uint8(enc, lkrq->state)) != 0) break;
       if((e=xdr_enc_uint32(enc, lkrq->flags)) != 0) break;
@@ -753,6 +756,7 @@ static int _send_act_update_(int idx, Waiters_t *lkrq)
    do {
       if((e=xdr_enc_uint32(enc, gulm_lock_action_updt)) != 0) break;
       if((e=xdr_enc_string(enc, lkrq->name)) != 0) break;
+      if((e=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
       if((e=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0) break;
       if((e=xdr_enc_uint8(enc, lkrq->state)) != 0) break;
       if( lkrq->state == gio_lck_st_SyncLVB ) {
@@ -911,6 +915,7 @@ static int _send_lk_act_reply_(int idx, Waiters_t *lkrq)
    do{
       if((err=xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
       if((err=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
       if((err=xdr_enc_uint8(enc, lkrq->state)) != 0 ) break;
       if((err=xdr_enc_uint32(enc, lkrq->ret)) != 0 ) break;
       if((err=xdr_enc_flush(enc)) != 0 ) break;
@@ -993,6 +998,9 @@ static int _send_lk_req_reply_(int idx, Waiters_t *lkrq)
    do{
       if((err=xdr_enc_uint32(enc, gulm_lock_state_rpl)) != 0 ) break;
       if((err=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->start)) != 0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->stop)) != 0 ) break;
       if((err=xdr_enc_uint8(enc, lkrq->state)) != 0 ) break;
       if((err=xdr_enc_uint32(enc, lkrq->flags)) != 0 ) break;
       if((err=xdr_enc_uint32(enc, lkrq->ret)) != 0 ) break;
@@ -1050,7 +1058,6 @@ int send_req_lk_reply(Waiters_t *lkrq, Lock_t *lk, uint32_t retcode)
    if( retcode == gio_Err_Ok &&
        lk != NULL &&
        lkrq->state != gio_lck_st_Unlock &&
-       lk->state != gio_lck_st_Unlock &&
        lk->LVBlen > 0 &&
        lk->LVB != NULL )
    {
@@ -1101,6 +1108,7 @@ static int _send_drp_req_(int idx, Waiters_t *lkrq)
    do {
       if((err=xdr_enc_uint32(enc, gulm_lock_cb_state)) !=0 ) break;
       if((err=xdr_enc_raw(enc, lkrq->key, lkrq->keylen)) !=0 ) break;
+      if((err=xdr_enc_uint64(enc, lkrq->subid)) != 0 ) break;
       if((err=xdr_enc_uint8(enc, lkrq->state)) !=0 ) break;
 #ifdef TIMECALLBACKS
       if((err=xdr_enc_uint64(enc, tvs2uint64(tv))) != 0) break;
@@ -1118,31 +1126,29 @@ static int _send_drp_req_(int idx, Waiters_t *lkrq)
  * 
  * 
  */
-void send_drp_req(uint8_t *name, Lock_t *lk, int DesireState)
+void send_drp_req(Lock_t *lk, Waiters_t *lkrq)
 {
    int idx;
    LLi_t *tp;
    Holders_t *h;
    Waiters_t *new;
 
-   GULMD_ASSERT( lk != NULL, );
-   GULMD_ASSERT( name != NULL, );
-
    if( ! LLi_empty( &lk->Holders ) ) {
       for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
          h = LLi_data(tp);
-         if( strcmp(h->name, name) != 0 ) {
+         if( ! compare_holder_waiter_names(h, lkrq) ) {
 
             new = get_new_lkrq();
             GULMD_ASSERT( new != NULL, );
             new->op = gulm_lock_cb_state;
             new->name = strdup(h->name);
             GULMD_ASSERT( new->name != NULL, );
+            new->subid = h->subid;
             new->keylen = lk->keylen;
             new->key = malloc(lk->keylen);
             GULMD_ASSERT( new->key != NULL, );
             memcpy(new->key, lk->key, lk->keylen);
-            new->state = DesireState;
+            new->state = lkrq->state; /* which state we'd like */
 
             if( (idx = find_and_cache_idx_for_holder(h)) > 0 ) {
                queue_lkrq_for_sending(idx, new); 
@@ -1582,6 +1588,9 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
          if( lkrq->name == NULL ) { err = -ENOMEM; break; }
          if((err = xdr_dec_raw_m(dec, (void**)&lkrq->key, &lkrq->keylen)) != 0 )
             break;
+         if((err = xdr_dec_uint64(dec, &lkrq->subid)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->start)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->stop)) != 0 ) break;
          if((err = xdr_dec_uint8(dec, &lkrq->state)) != 0 ) break;
          if((err = xdr_dec_uint32(dec, &lkrq->flags)) != 0 ) break;
          if( lkrq->flags & gio_lck_fg_hasLVB ) {
@@ -1596,6 +1605,9 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
    if( gulm_lock_state_updt == code ) {
       do {
          if((err = xdr_dec_string(dec, &lkrq->name)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->subid)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->start)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->stop)) != 0 ) break;
          if((err = xdr_dec_raw_m(dec, (void**)&lkrq->key, &lkrq->keylen)) != 0 )
             break;
          if((err = xdr_dec_uint8(dec, &lkrq->state)) != 0 ) break;
@@ -1615,6 +1627,7 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
          if( lkrq->name == NULL ) { err = -ENOMEM; break; }
          if((err = xdr_dec_raw_m(dec, (void**)&lkrq->key, &lkrq->keylen)) != 0 )
             break;
+         if((err = xdr_dec_uint64(dec, &lkrq->subid)) != 0 ) break;
          if((err = xdr_dec_uint8(dec, &lkrq->state)) != 0 ) break;
          if( lkrq->state == gio_lck_st_SyncLVB ) {
             if((err = xdr_dec_raw_m(dec, (void**)&lkrq->LVB, &lkrq->LVBlen))!=0)
@@ -1628,6 +1641,7 @@ int pack_lkrq_from_io(Waiters_t *lkrq, uint32_t code,
    if( gulm_lock_action_updt == code ) {
       do {
          if((err = xdr_dec_string(dec, &lkrq->name)) != 0 ) break;
+         if((err = xdr_dec_uint64(dec, &lkrq->subid)) != 0 ) break;
          if((err = xdr_dec_raw_m(dec, (void**)&lkrq->key, &lkrq->keylen)) != 0 )
             break;
          if((err = xdr_dec_uint8(dec, &lkrq->state)) != 0 ) break;

@@ -240,11 +240,6 @@ lg_core_handle_messages (gulm_interface_p lgp, lg_core_callbacks_t * ccbp,
 		err = ccbp->service_list (misc, lglcb_stop, NULL);
 		goto exit;
 	} else if (gulm_info_stats_rpl == x_code) {
-		if (ccbp->status != NULL) {
-			if ((err =
-			     ccbp->status (misc, lglcb_start, NULL, NULL)) != 0)
-				goto exit;
-		}
 		do {
 			if ((err = xdr_dec_list_start (dec)) != 0)
 				break;
@@ -257,24 +252,8 @@ lg_core_handle_messages (gulm_interface_p lgp, lg_core_callbacks_t * ccbp,
 				     xdr_dec_string_ag (dec, &lg->cfbb,
 							&lg->cfbb_len)) != 0)
 					break;
-				if (ccbp->status != NULL) {
-					if ((err =
-					     ccbp->status (misc, lglcb_item,
-							   lg->cfba,
-							   lg->cfbb)) != 0) {
-						goto exit;
-					}
-				}
 			}
 		} while (0);
-		if (err != 0) {
-			goto exit;
-		}
-		if (ccbp->status == NULL) {
-			err = 0;
-			goto exit;
-		}
-		err = ccbp->status (misc, lglcb_stop, NULL, NULL);
 		goto exit;
 	} else if (gulm_err_reply == x_code) {
 		if ((err = xdr_dec_uint32 (dec, &x_code)) != 0)
@@ -687,38 +666,4 @@ lg_core_forcepending (gulm_interface_p lgp)
 	return err;
 }
 
-/**
- * lg_core_status - 
- * @lgp: 
- * 
- * 
- * Returns: int
- */
-int
-lg_core_status (gulm_interface_p lgp)
-{
-	gulm_interface_t *lg = (gulm_interface_t *) lgp;
-	xdr_enc_t *enc;
-	int err;
-
-	/* make sure it is a gulm_interface_p. */
-	if (lg == NULL)
-		return -EINVAL;
-	if (lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC)
-		return -EINVAL;
-
-	if (lg->core_fd < 0 || lg->core_enc == NULL || lg->core_dec == NULL)
-		return -EINVAL;
-
-	enc = lg->core_enc;
-
-	down (&lg->core_sender);
-	do {
-		if ((err = xdr_enc_uint32 (enc, gulm_info_stats_req)) != 0)
-			break;
-		if ((err = xdr_enc_flush (enc)) != 0)
-			break;
-	} while (0);
-	up (&lg->core_sender);
-	return err;
-}
+/* vim: set ai cin noet sw=8 ts=8 : */

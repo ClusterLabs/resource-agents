@@ -747,6 +747,7 @@ int Force_Node_Expire(char *name)
    if( tmp == NULL) return gio_Err_Unknown_Cs;
 
    n = LLi_data(tmp);
+   if( n->State != gio_Mbr_Logged_in) return gio_Err_BadStateChg;
 
    do_node_Expired(n);
    return gio_Err_Ok;

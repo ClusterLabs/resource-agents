@@ -3,98 +3,98 @@ nodecount 1
 
 #exl => shr
 test
-	lock 0 testlock exclusive noflags nolvb
-	lrpl 0 testlock exclusive cachable ok nolvb
+	lock 0 0 testlock exclusive noflags nolvb
+	lrpl 0 0 testlock exclusive cachable ok nolvb
 end
 
 test
-	lock 0 testlock shared noflags nolvb
-	lrpl 0 testlock shared cachable ok nolvb
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 #exl =>dfr
 test
-	lock 0 testlock exclusive noflags nolvb
-	lrpl 0 testlock exclusive cachable ok nolvb
+	lock 0 0 testlock exclusive noflags nolvb
+	lrpl 0 0 testlock exclusive cachable ok nolvb
 end
 
 test
-	lock 0 testlock deferred noflags nolvb
-	lrpl 0 testlock deferred cachable ok nolvb
+	lock 0 0 testlock deferred noflags nolvb
+	lrpl 0 0 testlock deferred cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 #dfr => shr
 test
-	lock 0 testlock deferred noflags nolvb
-	lrpl 0 testlock deferred cachable ok nolvb
+	lock 0 0 testlock deferred noflags nolvb
+	lrpl 0 0 testlock deferred cachable ok nolvb
 end
 
 test
-	lock 0 testlock shared noflags nolvb
-	lrpl 0 testlock shared cachable ok nolvb
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 #shr => dfr
 test
-	lock 0 testlock shared noflags nolvb
-	lrpl 0 testlock shared cachable ok nolvb
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
 end
 
 test
-	lock 0 testlock deferred noflags nolvb
-	lrpl 0 testlock deferred cachable ok nolvb
+	lock 0 0 testlock deferred noflags nolvb
+	lrpl 0 0 testlock deferred cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 #shr => exl
 test
-	lock 0 testlock shared noflags nolvb
-	lrpl 0 testlock shared cachable ok nolvb
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
 end
 
 test
-	lock 0 testlock exclusive noflags nolvb
-	lrpl 0 testlock exclusive cachable ok nolvb
+	lock 0 0 testlock exclusive noflags nolvb
+	lrpl 0 0 testlock exclusive cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 #dfr => exl
 test
-	lock 0 testlock deferred noflags nolvb
-	lrpl 0 testlock deferred cachable ok nolvb
+	lock 0 0 testlock deferred noflags nolvb
+	lrpl 0 0 testlock deferred cachable ok nolvb
 end
 
 test
-	lock 0 testlock exclusive noflags nolvb
-	lrpl 0 testlock exclusive cachable ok nolvb
+	lock 0 0 testlock exclusive noflags nolvb
+	lrpl 0 0 testlock exclusive cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 

@@ -3,38 +3,38 @@
 nodecount 2
 
 test
-	lock 0 testlock exclusive noflags nolvb
-	lrpl 0 testlock exclusive cachable ok nolvb
+	lock 0 0 testlock exclusive noflags nolvb
+	lrpl 0 0 testlock exclusive cachable ok nolvb
 end
 
 test
-	lock 1 testlock exclusive try nolvb
-	lrpl 1 testlock exclusive try tryfailed nolvb
+	lock 1 0 testlock exclusive try nolvb
+	lrpl 1 0 testlock exclusive try tryfailed nolvb
 end
 
 test
-	lock 1 testlock exclusive try|docb nolvb
-	lrpl 1 testlock exclusive try|docb tryfailed nolvb
-	drop 0 testlock exclusive
+	lock 1 0 testlock exclusive try|docb nolvb
+	lrpl 1 0 testlock exclusive try|docb tryfailed nolvb
+	drop 0 0 testlock exclusive
 end
 
 test
-	lock 1 testlock shared noflags nolvb
-	drop 0 testlock shared
+	lock 1 0 testlock shared noflags nolvb
+	drop 0 0 testlock shared
 end
 
 test
-	lock 0 testlock shared noflags nolvb
-	lrpl 0 testlock shared cachable ok nolvb
-	lrpl 1 testlock shared cachable ok nolvb
+	lock 0 0 testlock shared noflags nolvb
+	lrpl 0 0 testlock shared cachable ok nolvb
+	lrpl 1 0 testlock shared cachable ok nolvb
 end
 
 test
-	lock 0 testlock unlock noflags nolvb
-	lrpl 0 testlock unlock noflags ok nolvb
+	lock 0 0 testlock unlock noflags nolvb
+	lrpl 0 0 testlock unlock noflags ok nolvb
 end
 
 test
-	lock 1 testlock unlock noflags nolvb
-	lrpl 1 testlock unlock noflags ok nolvb
+	lock 1 0 testlock unlock noflags nolvb
+	lrpl 1 0 testlock unlock noflags ok nolvb
 end

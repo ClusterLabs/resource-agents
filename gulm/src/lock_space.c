@@ -253,30 +253,33 @@ char *lvbtob64(uint8_t *key, uint8_t keylen)
  */
 void print_waiter(FILE *FP, Waiters_t *w)
 {
-         fprintf(FP," - key         : '%s'\n", lkeytob64(w->key, w->keylen));
-         fprintf(FP,"   name        : %s\n", w->name);
+         fprintf(FP," - key        : '%s'\n", lkeytob64(w->key, w->keylen));
+         fprintf(FP,"   name       : %s\n", w->name);
+         fprintf(FP,"   subid      : %"PRIu64"\n", w->subid);
          switch(w->state) {
-#define CasePrint(x) case (x): fprintf(FP,"   state       : %s\n",#x); break
+#define CasePrint(x) case (x): fprintf(FP,"   state      : %s\n",#x); break
             CasePrint(gio_lck_st_Unlock);
             CasePrint(gio_lck_st_Exclusive);
             CasePrint(gio_lck_st_Deferred);
             CasePrint(gio_lck_st_Shared);
 #undef CasePrint
-            default: fprintf(FP,"   state       : %d(unknown)\n",w->state);break;
+            default: fprintf(FP,"   state      : %d(unknown)\n",w->state);break;
          }
-         fprintf(FP,"   flags       : %#x\n", w->flags);
+         fprintf(FP,"   flags      : %#x\n", w->flags);
+         fprintf(FP,"   start      : %"PRIu64"\n", w->start);
+         fprintf(FP,"   stop       : %"PRIu64"\n", w->stop);
          if( w->LVB == NULL ) {
-            fprintf(FP,"   LVB         :\n");
+            fprintf(FP,"   LVB        :\n");
          }else{
-            fprintf(FP,"   LVB         : '%s'\n", lvbtob64(w->LVB, w->LVBlen));
+            fprintf(FP,"   LVB        : '%s'\n", lvbtob64(w->LVB, w->LVBlen));
          }
-         fprintf(FP,"   Slave_rply  : 0x%x\n", w->Slave_rpls);
-         fprintf(FP,"   Slave_sent  : 0x%x\n", w->Slave_sent);
-         fprintf(FP,"   idx         : %d\n", w->idx);
+         fprintf(FP,"   Slave_rply : 0x%x\n", w->Slave_rpls);
+         fprintf(FP,"   Slave_sent : 0x%x\n", w->Slave_sent);
+         fprintf(FP,"   idx        : %d\n", w->idx);
 #ifdef LOCKHISTORY
-         fprintf(FP,"   ret         : %d\n", w->ret);
-         fprintf(FP,"   starttime   : %"PRIu64"\n", w->starttime);
-         fprintf(FP,"   stoptime    : %"PRIu64"\n", w->stoptime);
+         fprintf(FP,"   ret        : %d\n", w->ret);
+         fprintf(FP,"   starttime  : %"PRIu64"\n", w->starttime);
+         fprintf(FP,"   stoptime   : %"PRIu64"\n", w->stoptime);
 #endif
 }
 
@@ -297,24 +300,45 @@ void print_wait_queue(FILE *FP, LLi_t *list)
    }
 }
 
+/**
+ * print_holder - 
+ * @FP: 
+ * @h: 
+ */
+void print_holder(FILE *FP, Holders_t *h)
+{
+   fprintf(FP," - name   : %s\n", h->name);
+   fprintf(FP,"   subid  : %"PRIu64"\n", h->subid);
+   fprintf(FP,"   state  : ");
+   switch(h->state) {
+#define CasePrint(x) case (x): fprintf(FP,"%s\n",#x); break
+      CasePrint(gio_lck_st_Unlock);
+      CasePrint(gio_lck_st_Exclusive);
+      CasePrint(gio_lck_st_Deferred);
+      CasePrint(gio_lck_st_Shared);
+#undef CasePrint
+      default: fprintf(FP,"%d(unknown)\n", h->state); break;
+   }
+   fprintf(FP,"   start  : %"PRIu64"\n", h->start);
+   fprintf(FP,"   stop   : %"PRIu64"\n", h->stop);
+   fprintf(FP,"   pollidx: %d\n", h->idx);
+}
+
+/**
+ * print_holder_list - 
+ * @FP: 
+ * @list: 
+ */
 void print_holder_list(FILE *FP, LLi_t *list)
 {
    LLi_t *tp;
    Holders_t *h;
 
    if( ! LLi_empty( list ) ) {
-      tp = LLi_next(list);
-      h = LLi_data(tp);
-
-      fprintf(FP, "[ %s", h->name);
-
-      for(tp=LLi_next(tp); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+      for(tp=LLi_next(list); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
          h = LLi_data(tp);
-         fprintf(FP,", %s", h->name);
+         print_holder(FP, h);
       }
-      fprintf(FP, " ]\n");
-   }else{
-      fprintf(FP, "\n");
    }
 }
 
@@ -330,15 +354,6 @@ void print_holder_list(FILE *FP, LLi_t *list)
 void print_lock(FILE *FP, Lock_t *lk)
 {
    fprintf(FP,"---\nkey            : '%s'\n", lkeytob64(lk->key, lk->keylen));
-   switch(lk->state) {
-#define CasePrint(x) case (x): fprintf(FP,"state          : %s\n",#x); break
-      CasePrint(gio_lck_st_Unlock);
-      CasePrint(gio_lck_st_Exclusive);
-      CasePrint(gio_lck_st_Deferred);
-      CasePrint(gio_lck_st_Shared);
-#undef CasePrint
-      default: fprintf(FP,"state          : %d(unknown)\n", lk->state); break;
-   }
    fprintf(FP,"LVBlen         : %d\n", lk->LVBlen);
    if( lk->LVB == NULL ) {
       fprintf(FP,"LVB            :\n");
@@ -347,15 +362,15 @@ void print_lock(FILE *FP, Lock_t *lk)
    }
    fprintf(FP,"HolderCount    : %d\n", lk->HolderCount);
    
-   fprintf(FP,"Holders        : ");
+   fprintf(FP,"Holders        :\n");
    print_holder_list(FP, &lk->Holders);
 
    fprintf(FP,"LVBHolderCount : %d\n", lk->LVB_holder_cnt);
-   fprintf(FP,"LVBHolders     : ");
+   fprintf(FP,"LVBHolders     :\n");
    print_holder_list(FP, &lk->LVB_holders );
 
    fprintf(FP,"ExpiredCount   : %d\n", lk->ExpiredCount);
-   fprintf(FP,"ExpiredHolders : ");
+   fprintf(FP,"ExpiredHolders :\n");
    print_holder_list(FP, &lk->ExpHolders );
 
    if( lk->reply_waiter == NULL ) {
@@ -607,6 +622,42 @@ void recycle_holder(Holders_t *h)
 }
 
 /**
+ * compare_names_subids - 
+ * @nA: 
+ * @sA: 
+ * @nB: 
+ * @sB: 
+ * 
+ * compares the names, including the optional subid
+ *
+ * if names are equal
+ * and
+ *  subids are NULL
+ *  or
+ *   both subids are not null
+ *   and
+ *   subids match
+ * 
+ * Returns: TRUE if equal, FALSE if not
+ */
+int __inline__ compare_names_subids(uint8_t *nA, uint64_t sA, uint8_t *nB, uint64_t sB)
+{
+   return ( strcmp(nA, nB) == 0 && sA == sB );
+}
+int __inline__ compare_holder_waiter_names(Holders_t *h, Waiters_t *w)
+{
+   return compare_names_subids(h->name, h->subid, w->name, w->subid);
+}
+int __inline__ compare_waiter_waiter_names(Waiters_t *h, Waiters_t *w)
+{
+   return compare_names_subids(h->name, h->subid, w->name, w->subid);
+}
+int __inline__ compare_holder_holder_names(Holders_t *h, Holders_t *w)
+{
+   return compare_names_subids(h->name, h->subid, w->name, w->subid);
+}
+
+/**
  * add_holder_to_list - 
  * @name: 
  * @list: 
@@ -700,47 +751,170 @@ void delete_entire_holder_list(LLi_t *list)
 
 /*****************************************************************************/
 
-int __inline__ add_to_holders(uint8_t *name, Lock_t *lk)
+/**
+ * add_to_holders - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+int add_to_holders(Lock_t *lk, Waiters_t *lkrq)
 {
-   if( add_holder_to_list(name, &lk->Holders ) == 0 ) {
-      lk->HolderCount++;
-      return 0;
+   Holders_t *h;
+
+   h = get_new_holder();
+   if( h == NULL ) return -1;
+   LLi_init( &h->cl_list, h );
+   h->name = strdup(lkrq->name);
+   if( h->name == NULL ) {
+      recycle_holder(h);
+      return -1;
    }
-   return -1;
+   h->subid = lkrq->subid;
+   h->idx = lkrq->idx;
+   h->state = lkrq->state;
+   h->start = lkrq->start;
+   h->stop = lkrq->stop;
+
+   /* increment state counters. */
+   switch(h->state) {
+      case gio_lck_st_Exclusive: cnt_exl_locks++; break;
+      case gio_lck_st_Deferred: cnt_dfr_locks++; break;
+      case gio_lck_st_Shared: cnt_shd_locks++; break;
+   }
+
+   LLi_add_after( &lk->Holders, &h->cl_list);
+   lk->HolderCount++;
+   return 0;
 }
 
-int __inline__ check_for_holder(uint8_t *name, Lock_t *lk)
-{ return have_holder_in_list(name, &lk->Holders); }
-
-int __inline__ drop_holder(uint8_t *name, Lock_t *lk)
+/**
+ * check_for_holder - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+int check_for_holder(Lock_t *lk, Waiters_t *lkrq)
 {
-   if(remove_holder_from_list(name, &lk->Holders)) {
-      lk->HolderCount--;
-      return 0;
+   LLi_t *tp;
+   Holders_t *h;
+
+   if( ! LLi_empty( &lk->Holders ) ) {
+      for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+         h = LLi_data(tp);
+         if( compare_holder_waiter_names(h, lkrq) ) {
+            return TRUE;
+         }
+      }
+   }
+   return FALSE;
+}
+
+/**
+ * drop_holder - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: int
+ */
+int drop_holder(Lock_t *lk, Waiters_t *lkrq)
+{
+   LLi_t *tp;
+   Holders_t *h;
+
+   if( ! LLi_empty( &lk->Holders ) ) {
+      for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+         h = LLi_data(tp);
+         if( compare_holder_waiter_names(h, lkrq) ) {
+            LLi_del(tp);
+            lk->HolderCount--;
+            /* decrement state counter. */
+            switch(h->state) {
+               case gio_lck_st_Exclusive: cnt_exl_locks--; break;
+               case gio_lck_st_Deferred: cnt_dfr_locks--; break;
+               case gio_lck_st_Shared: cnt_shd_locks--; break;
+            }
+            recycle_holder(h);
+            return 0;
+         }
+      }
    }
    return -1;
 }
 
 /*****************************************************************************/
-int __inline__ add_Expholders(uint8_t *name, Lock_t *lk)
+/**
+ * move_to_Expholders - 
+ * @h: 
+ * @lk: 
+ * 
+ * Move Holder h, to the Expired list.
+ * 
+ * Returns: int
+ */
+int move_to_Expholders(Holders_t *h, Lock_t *lk)
 {
-   if( add_holder_to_list(name, &lk->ExpHolders ) == 0 ) {
-      lk->ExpiredCount++;
-      return 0;
-   }
-   return -1;
+   LLi_unhook(&h->cl_list);
+   LLi_add_after( &lk->ExpHolders, &h->cl_list );
+   lk->ExpiredCount++;
+   return 0;
 }
 
-int __inline__ check_for_expholder(uint8_t *name, Lock_t *lk)
-{ return have_holder_in_list(name, &lk->ExpHolders); }
-
-int __inline__ drop_expholder(uint8_t *name, Lock_t *lk)
+/**
+ * check_for_expholder - 
+ * @hld: 
+ * @lk: 
+ * 
+ * 
+ * Returns: int
+ */
+int check_for_expholder(Holders_t *hld, Lock_t *lk)
 {
-   if(remove_holder_from_list(name, &lk->ExpHolders)) {
-      lk->ExpiredCount--;
-      return 0;
+   LLi_t *tp;
+   Holders_t *h;
+
+   if( ! LLi_empty( &lk->ExpHolders ) ) {
+      for(tp=LLi_next(&lk->ExpHolders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+         h = LLi_data(tp);
+         if( compare_holder_holder_names(h, hld) ) {
+            return TRUE;
+         }
+      }
    }
-   return -1;
+   return FALSE;
+}
+
+/**
+ * drop_expholders - 
+ * @name: 
+ * @lk: 
+ * 
+ * This drops every exp holder with matching name.
+ * subids are ignored here.
+ * 
+ * Returns: int
+ */
+int drop_expholders(uint8_t *name, Lock_t *lk)
+{
+   LLi_t *tmp,*next;
+   Holders_t *h;
+   int ret = FALSE;
+
+   for(tmp = LLi_next(&lk->ExpHolders); LLi_data(tmp) != NULL; tmp = next) {
+      next = LLi_next(tmp);
+      h = LLi_data(tmp);
+      if( strcmp(name, h->name) == 0) {
+         LLi_del(tmp);
+         recycle_holder(h);
+         lk->ExpiredCount--;
+         ret = TRUE;
+      }
+   }
+   return ret;
 }
 
 /*****************************************************************************/
@@ -822,15 +996,15 @@ int drop_LVB_holder(uint8_t *name, Lock_t *lk)
  * this action could cause the resizing of the LVB in the lock struct, we
  * need to make sure of a few things.
  * 
- * Returns: 0
  */
-int lvbcpy(Lock_t *lk, Waiters_t *lkrq)
+void lvbcpy(Lock_t *lk, Waiters_t *lkrq)
 {
+   if( lk->LVB == NULL || lkrq->LVB == NULL || lkrq->LVBlen == 0 ) {
+      /* skip */
+      return;
+   }else
    if( lk->LVBlen == lkrq->LVBlen ) {
       memcpy(lk->LVB, lkrq->LVB, lk->LVBlen);
-   }else
-   if( lkrq->LVBlen == 0 || lkrq->LVB == NULL ) {
-      /* skip */
    }else
    if( lk->LVBlen != lkrq->LVBlen ) { /* handle grows or shrinks. */
       uint8_t *c;
@@ -842,8 +1016,9 @@ int lvbcpy(Lock_t *lk, Waiters_t *lkrq)
       lk->LVBlen = lkrq->LVBlen;
       memcpy(lk->LVB, lkrq->LVB, lk->LVBlen);
    }
-
-   return 0;
+   lvb_log_msg("For %s, Lock %s: Saved LVB %s\n",
+       lkrq->name, lkeytohex(lk->key,lk->keylen),
+       lvbtohex(lk->LVB, lk->LVBlen));
 }
 
 /*****************************************************************************/
@@ -889,7 +1064,6 @@ Lock_t *find_lock(uint8_t *key, uint8_t keylen)
                "Failed to malloc new key.\n");
       memcpy(lk->key, key, keylen);
       lk->keylen = keylen;
-      lk->state = gio_lck_st_Unlock;
       lk->LVBlen = 0;
       lk->LVB = NULL;
       lk->HolderCount = 0;
@@ -942,8 +1116,7 @@ void check_for_recycle(Lock_t *lk)
    GULMD_ASSERT( lk != NULL , );
    GULMD_ASSERT( lk->key != NULL , );
 
-   if( lk->state == gio_lck_st_Unlock &&
-       lk->HolderCount == 0 &&
+   if( lk->HolderCount == 0 &&
        lk->ExpiredCount == 0 &&
        lk->LVB_holder_cnt == 0 &&
        Qu_empty( &lk->Waiters ) &&
@@ -1077,6 +1250,7 @@ void recycle_lkrq(Waiters_t *lkrq)
  * Doing this because there is no easy way right now to have one lkrq in
  * multiple queues.  Once I fix that, this will get replaced with something
  * that just increaments a mark coutner or somesuch.
+ * Or maybe I'll just keep doing this way because it works.
  *
  * Returns: Waiters_t
  */
@@ -1091,8 +1265,11 @@ Waiters_t *duplicate_lkrw(Waiters_t *old)
    if( new->key == NULL ) goto fail;
    memcpy(new->key, old->key, old->keylen);
    new->keylen = old->keylen;
+   new->subid = old->subid;
    new->op = old->op;
    new->state = old->state;
+   new->start = old->start;
+   new->stop = old->stop;
    new->flags = old->flags;
    new->LVB = malloc(old->LVBlen);
    if( new->LVB == NULL ) goto fail;
@@ -1175,7 +1352,6 @@ void delete_entire_waiters_list( Qu_t *q)
  */
 void reset_lockstruct(Lock_t *lk)
 {
-   lk->state  = gio_lck_st_Unlock;
    lk->LVBlen = 0;
    if( lk->LVB != NULL ) {free(lk->LVB);lk->LVB=NULL;}
    lk->HolderCount    = 0;
@@ -1275,317 +1451,295 @@ int __inline__ conflict_queue_empty(Lock_t *lk)
    return Qu_empty(&lk->Waiters) && Qu_empty(&lk->High_Waiters);
 }
 
-/**
- * do_unlock - 
- * @lk: <> the lock we want to unlock
- * @lkrq: <> The request of state change
- *
- * unlocks are never Queued.  They always jump to the front.
- * 
- * 
- * Returns: int
+/* State conflict table.
+ * is A compatible with B?
+ * (sct[A] >> B) & 0x1
  */
-int do_unlock(Lock_t *lk, Waiters_t *lkrq)
+uint32_t state_conflict_table[] = {
+   /* unlock */ 0xffffffff,  /* unlock is compatible with everything. */
+   /* exl    */ 0x00000000,  /* not compat with anyone. */
+   /* shr    */ 0x00000004,  /* only with other shares */
+   /* dfr    */ 0x00000008   /* only with other defers */
+};
+
+/**
+ * Do_Holder_Waiter_conflict - 
+ * @h: 
+ * @w: 
+ * 
+ * 
+ * Returns: TRUE if conflict, FALSE if compatible.
+ */
+int Do_Holder_Waiter_conflict(Holders_t *h, Waiters_t *w)
 {
-   if( check_for_holder(lkrq->name, lk) ) {
+   /* if ranges do not over lap, no conflict. */
+   if( h->start > w->stop || h->stop < w->start ) return FALSE;
 
-      drop_holder(lkrq->name, lk); /* decerments HolderCount */
-      lkrq->flags &= ~gio_lck_fg_Cachable;
+   /* if overlap, and same name, no conflict */ /* its a xmot */
+   /* need to check sub ID here.
+    * sub ID, if exists, behaves like it is part of name for conflict
+    * checking. (for expire commands it is ignored.)
+    * */
+   if( compare_holder_waiter_names(h,w) ) return FALSE;
 
-      switch (lk->state) {
-         case gio_lck_st_Exclusive:
-            lk->state = gio_lck_st_Unlock;
-            cnt_exl_locks--;
-            cnt_unl_locks++;
-            break;
-         case gio_lck_st_Shared:
-            if( lk->HolderCount == 0) {
-               lk->state = gio_lck_st_Unlock;
-               cnt_shd_locks--;
-               cnt_unl_locks++;
-            }
-            break;
-         case gio_lck_st_Deferred:
-            if( lk->HolderCount == 0) {
-               lk->state = gio_lck_st_Unlock;
-               cnt_dfr_locks--;
-               cnt_unl_locks++;
-            }
-            break;
-      }
-      return gio_Err_Ok;
-   }else{
-#if 0
-      log_bug("On lock %s, for %s, Cannot unlock what you do not hold.\n",
-            lkeytohex(lk->key, lk->keylen), lkrq->name);
-#endif
-      lkrq->flags &= ~gio_lck_fg_Cachable;
-      return gio_Err_Ok;
-      /* you're not holding it, so you cannot unlock it.  Which it the same
-       * as unlocking it.
-       *
-       * This does happen on occasion after the Master lock server dies and
-       * a slave takes over.
-       */
-   }
+   /* if overlap, different names, but compatible states, no conflict */
+   if( (state_conflict_table[h->state] >> w->state) & 0x1 ) return FALSE;
+
+   return TRUE;
 }
 
 /**
- * do_lock_shared - 
+ * check_for_conflict - 
  * @lk: 
  * @lkrq: 
- * @inRunQu: < False if this is the initial req.
  * 
+ * does this lock request conflist with any existing holders?
+ *
+ * stop after first found. Only need one conflict for this check.
  * 
- * Returns: int
+ * Returns: TRUE if conflict, FALSE if compatible.
  */
-int do_lock_shared(Lock_t *lk, Waiters_t *lkrq, int inRunQu)
+int check_for_conflict(Lock_t *lk, Waiters_t *lkrq)
 {
-   if( check_for_holder( lkrq->name, lk ) ) {
+   LLi_t *tp;
+   Holders_t *h;
 
-      switch (lk->state) {
-         case gio_lck_st_Exclusive: /* mutate down */
-            lk->state = gio_lck_st_Shared;
-            cnt_exl_locks--;
-            cnt_shd_locks++;
-            return gio_Err_Ok;
-            break;
-
-         case gio_lck_st_Deferred:
-            if( lk->HolderCount == 1 ) {
-               if( inRunQu || conflict_queue_empty(lk) ) {
-                  lk->state = gio_lck_st_Shared;/* only holder, mutate across */
-                  cnt_dfr_locks--;
-                  cnt_shd_locks++;
-                  return gio_Err_Ok;
-               } else if( lkrq->flags & gio_lck_fg_Try ){
-                  return gio_Err_PushQu;
-               } else {
-                  /*let go so others in front can do their stuff*/
-                  log_msg(lgm_locking, "Asking for Shd, I am holding Dfr, but "
-                        "someone else is in the queue before me.\n");
-                  do_unlock(lk, lkrq);
-                  return gio_Err_PushQu;
-               }
-            } else {
-               if( inRunQu || conflict_queue_empty(lk) ) {
-                  return gio_Err_PushQu;
-               } else if( lkrq->flags & gio_lck_fg_Try ){
-                  return gio_Err_PushQu;
-               }else{
-                  /*let go so others in front can do their stuff*/
-                  log_msg(lgm_locking, "Asking for Shd, I am holding Dfr, but "
-                        "someone else is in the queue before me. B\n");
-                  do_unlock(lk, lkrq);
-                  return gio_Err_PushQu;
-               }
-            }
-            break;
-
-         case gio_lck_st_Unlock:
-            /* WARN! I am holding this lock, but it is unlocked?!?!?! */
-            return gio_Err_BadStateChg;
-            break;
-         case gio_lck_st_Shared:
-            /* WARN! I am already holding it shared! */
-            lkrq->flags &= ~gio_lck_fg_Cachable;
-            return gio_Err_Ok;
-            break;
-      }
-
-   }else{
-      /* Requester does not have a hold on this lock */
-      switch (lk->state) {
-         case gio_lck_st_Unlock:
-            add_to_holders(lkrq->name, lk);
-            lk->state = gio_lck_st_Shared;
-            cnt_unl_locks--;
-            cnt_shd_locks++;
-            return gio_Err_Ok;
-            break;
-
-         case gio_lck_st_Shared:
-            /* if others are waiting on queue, get in line. */
-            if( inRunQu || conflict_queue_empty(lk) ) {
-               add_to_holders(lkrq->name, lk);
-               return gio_Err_Ok;
-            }else{
-               return gio_Err_PushQu;
-            }
-            break;
-
-         case gio_lck_st_Deferred:
-         case gio_lck_st_Exclusive:
-            return gio_Err_PushQu;
-            break;
+   if( !LLi_empty(&lk->Holders) ) {
+      for(tp = LLi_next(&lk->Holders);
+          NULL != LLi_data(tp);
+          tp = LLi_next(tp)) {
+         h = LLi_data(tp);
+         if( Do_Holder_Waiter_conflict(h,lkrq) ) return TRUE;
       }
    }
-   return gio_Err_BadStateChg;
-}
-/**
- * do_lock_deferred - 
- * @lk: 
- * @lkrq:
- * @inRunQu:    ie. at front of queue. (temp. not on it for processesing)
- * 
- * 
- * Returns: int
- */
-int do_lock_deferred(Lock_t *lk, Waiters_t *lkrq, int inRunQu)
-{
-   if( check_for_holder( lkrq->name, lk ) ) {
-      switch (lk->state) {
-         case gio_lck_st_Exclusive: /* mutate down */
-            lk->state = gio_lck_st_Deferred;
-            cnt_exl_locks--;
-            cnt_dfr_locks++;
-            return gio_Err_Ok;
-            break;
 
-         case gio_lck_st_Shared:
-            if( lk->HolderCount == 1 ) {
-               if( inRunQu || conflict_queue_empty(lk) ) {
-                  lk->state = gio_lck_st_Deferred;/*only holder, mutate across*/
-                  cnt_shd_locks--;
-                  cnt_dfr_locks++;
-                  return gio_Err_Ok;
-               } else if( lkrq->flags & gio_lck_fg_Try ){
-                  return gio_Err_PushQu;
-               } else {
-                  /* let go so others in front can do their stuff*/
-                  log_msg(lgm_locking, "Asking for Dfr, I am holding Shd, but "
-                        "someone else is in the queue before me.\n");
-                  do_unlock(lk, lkrq);
-                  return gio_Err_PushQu;
-               }
-            }else{ /* what about try? */
-               if( inRunQu || conflict_queue_empty(lk) ) {
-                  return gio_Err_PushQu;
-               } else if( lkrq->flags & gio_lck_fg_Try ){
-                  return gio_Err_PushQu;
-               }else{
-                  /* let go so others in front can do their stuff*/
-                  log_msg(lgm_locking, "Asking for Dfr, I am holding Shd, but "
-                        "someone else is in the queue before me. B\n");
-                  do_unlock(lk, lkrq);
-                  return gio_Err_PushQu;
-               }
-            }
-            break;
-
-         case gio_lck_st_Unlock:
-            /* WARN! I am holding this lock, but it is unlocked?!?!?! */
-            return gio_Err_BadStateChg;
-            break;
-         case gio_lck_st_Deferred:
-            /* WARN! I am already holding it shared! */
-            lkrq->flags &= ~gio_lck_fg_Cachable;
-            return gio_Err_Ok;
-            break;
-      }
-   }else{
-      /* Requester does not have a hold on this lock */
-      switch (lk->state) {
-         case gio_lck_st_Unlock:
-            add_to_holders(lkrq->name, lk);
-            lk->state = gio_lck_st_Deferred;
-            cnt_unl_locks--;
-            cnt_dfr_locks++;
-            return gio_Err_Ok;
-            break;
-
-         case gio_lck_st_Deferred:
-            /* if others are waiting on queue, get in line. */
-            if( inRunQu || conflict_queue_empty(lk) ) {
-               add_to_holders(lkrq->name, lk);
-               return gio_Err_Ok;
-            }else{
-               return gio_Err_PushQu;
-            }
-            break;
-
-         case gio_lck_st_Shared:
-         case gio_lck_st_Exclusive:
-            return gio_Err_PushQu;
-            break;
-      }
-   }
-   return gio_Err_BadStateChg;
+   return FALSE; /* no conflicts. */
 }
 
 /**
- * do_lock_exclusive - 
+ * send_lock_success - 
  * @lk: 
- * @lkrq:
- * @inRunQu:
+ * @lkrq: 
  * 
- * Returns: int
+ * 
+ * Returns: void
  */
-int do_lock_exclusive(Lock_t *lk, Waiters_t *lkrq, int inRunQu)
+int send_lock_success(Lock_t *lk, Waiters_t *lkrq)
 {
-   if( check_for_holder( lkrq->name, lk ) ) {
-      switch(lk->state) {
-         case gio_lck_st_Deferred:
-         case gio_lck_st_Shared:
-            /* mutate up */
-            if( lk->HolderCount == 1 ) {
-               if( inRunQu || conflict_queue_empty(lk) ) {
-                     if(lk->state==gio_lck_st_Deferred) cnt_dfr_locks--;
-                     else cnt_shd_locks--;
-                     cnt_exl_locks++;
-                  lk->state = gio_lck_st_Exclusive;
-                  return gio_Err_Ok;
-               }else if( lkrq->flags & gio_lck_fg_Try ){
-                  return gio_Err_PushQu;
-               } else {
-                  /* let go so others in front can do their stuff*/
-                  log_msg(lgm_locking, "Asking for exl, where I hold the lock "
-                        "%s, and someone else is queued before me.\n",
-                        (lk->state==gio_lck_st_Deferred)?"Dfr":"Shr");
-                  do_unlock(lk, lkrq);
-                  return gio_Err_PushQu;
-               }
-            }else if( lkrq->flags & gio_lck_fg_Try ){
-               return gio_Err_PushQu;
-            }else{
-#if 0 /* good greif this happens a lot. */
-               log_msg(lgm_locking, "Asking for exl, where I hold the lock %s, "
-                       "and someone else is queued with EXL before me.\n",
-                       (lk->state==gio_lck_st_Deferred)?"Dfr":"Shr");
-#endif
-               do_unlock(lk, lkrq);
-               return gio_Err_PushQu;
-            }
-            break;
-
-         case gio_lck_st_Unlock:
-            /* WARN! I am holding this lock, but it is unlocked?!?!?! */
-            return gio_Err_BadStateChg;
-            break;
-         case gio_lck_st_Exclusive:
-            /* WARN! I am already holding it shared! */
-            lkrq->flags &= ~gio_lck_fg_Cachable;
-            return gio_Err_Ok;
-            break;
-      }
+   if( gulm_config.fog ) {
+      lk->reply_waiter = lkrq;
+      cnt_replyq ++;
+      send_req_update_to_slaves(lkrq);
+      return 1; /* gotta wait for the reply_waiter to get flushed. */
    }else{
-      switch(lk->state) {
-         case gio_lck_st_Unlock:
-            add_to_holders(lkrq->name, lk);
-            lk->state = gio_lck_st_Exclusive;
-            cnt_unl_locks--;
-            cnt_exl_locks++;
-            return gio_Err_Ok;
-            break;
+      send_req_lk_reply(lkrq, lk, gio_Err_Ok);
+   }
+   return 0;
+}
 
-         case gio_lck_st_Exclusive:
-         case gio_lck_st_Deferred:
-         case gio_lck_st_Shared:
-            return gio_Err_PushQu;
-            break;
+/**
+ * send_Try_Failed - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: void
+ */
+void send_Try_Failed(Lock_t *lk, Waiters_t *lkrq)
+{
+   lkrq->flags &= ~gio_lck_fg_Cachable;
+   if( lkrq->flags & gio_lck_fg_Do_CB )
+      send_drp_req(lk, lkrq);
+   send_req_lk_reply(lkrq, lk, gio_Err_TryFailed);
+}
+
+/**
+ * put_onto_conflict_queue - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: void
+ */
+void put_onto_conflict_queue(Lock_t *lk, Waiters_t *lkrq)
+{
+   if( lkrq->flags & gio_lck_fg_Piority ) {
+      /* not fully sure if this will do what is wanted.
+       * it seems to.
+       */
+      Qu_EnQu_Front(&lk->High_Waiters, &lkrq->wt_list);
+   }else
+   if( lkrq->flags & gio_lck_fg_NoExp ) {
+      Qu_EnQu(&lk->High_Waiters, &lkrq->wt_list);
+   }else{
+      Qu_EnQu(&lk->Waiters, &lkrq->wt_list);
+   }
+   cnt_confq ++;
+   cnt_conflicts ++;
+}
+
+/**
+ * requeue_conflict - 
+ * @lk: 
+ * @lkrq: 
+ * 
+ * 
+ * Returns: void
+ */
+void requeue_conflict(Lock_t *lk, Waiters_t *lkrq)
+{
+   /* push back onto front. We'll try again later. */
+   if((lkrq->flags & gio_lck_fg_Piority) || (lkrq->flags & gio_lck_fg_NoExp)){
+      Qu_EnQu_Front( &lk->High_Waiters, &lkrq->wt_list );
+   }else{
+      Qu_EnQu_Front( &lk->Waiters, &lkrq->wt_list );
+   }
+   cnt_confq++;
+   /* Next lock on Qu is incompatible.
+    * Send a drop request to the current holder.
+    */
+   /* send drop reqs may have to change to work with ranges. XXX */
+   send_drp_req(lk, lkrq);
+}
+
+/**
+ * check_for_any_flag - 
+ * @lk: 
+ * @lkrq: 
+ *
+ * Handle the Any flag.  Very much a GFS-ism.
+ *
+ * this may have to change to work with ranges. XXX
+ * 
+ */
+void check_for_any_flag(Lock_t *lk, Waiters_t *lkrq)
+{
+   Holders_t *h;
+
+   if( lkrq->flags & gio_lck_fg_Any &&
+       (lkrq->state == gio_lck_st_Deferred ||
+        lkrq->state == gio_lck_st_Shared) ) {
+      /* ok, lkrq meets any preqs. does the lock? */
+      /* We're taking a short cut here, Assuming if the first holder is Shd
+       * or Dfr then all are.
+       * If new lock states are added in the future that are compat with
+       * Shd or Dfr, then this function will need to be revisited.
+       */
+      if( lk->HolderCount > 0 &&
+          (h=LLi_data(LLi_next(&lk->Holders))) != NULL &&
+          (h->state == gio_lck_st_Deferred ||
+           h->state == gio_lck_st_Shared) ) {
+         /* lock meets preqs too, rewrite the request's state. */
+         lkrq->state = h->state;
       }
    }
-   return gio_Err_BadStateChg;
+}
+
+/**
+ * lkrq_onto_lock - 
+ * @lk: 
+ * @lkrq: < the lock req to handle.  Should NOT be on any queues!
+ * @incomming: < TRUE if this is called from the incomming Queue.
+ * 
+ * this is called by both incomming queue runer and conflict queue runner.
+ * 
+ * Returns: =0:Queue Emptied !0:Items still in Queue.
+ */
+int lkrq_onto_lock(Lock_t *lk, Waiters_t *lkrq, int incomming)
+{
+   int saveLVB=FALSE, ret=0, singleExl=FALSE;
+   Holders_t *h;
+
+   check_for_any_flag(lk, lkrq);
+
+   /* Do I have the Exclusive hold on this lock?
+    * knowing this lets us do demotes without going through unlock.
+    */
+   singleExl = lk->HolderCount == 1 &&
+               !LLi_empty(&lk->Holders) &&
+               (h=LLi_data(LLi_next(&lk->Holders))) != NULL &&
+               h->state == gio_lck_st_Exclusive;
+
+   /* the decision to save the LVB or not needs to be made before we
+    * actually change the state of the lock and holders.
+    * So 'if we will save this LVB' is decided here, but not done until
+    * after this req gets the lock.
+    */
+   saveLVB = lkrq->state != gio_lck_st_Exclusive &&
+             (lkrq->flags & gio_lck_fg_hasLVB) &&
+             singleExl &&
+             check_for_LVB_holder(lkrq->name, lk);
+             /* don't need to cmp name, since if holder is exl and if we
+              * get it below, we're obiviously the holder.
+              */
+
+   if( lkrq->state == gio_lck_st_Unlock ) {
+      /* do unlock */
+      ret = drop_holder(lk, lkrq);
+      lkrq->flags &= ~gio_lck_fg_Cachable;
+      if( lk->HolderCount == 0 ) cnt_unl_locks ++;
+      /* check lvb save */
+      if( saveLVB && ret == 0 ) lvbcpy(lk, lkrq);
+      ret = send_lock_success(lk, lkrq);
+   }else
+   if( lk->ExpiredCount > 0 && !(lkrq->flags & gio_lck_fg_NoExp ) ) {
+      if( incomming ) {
+         put_onto_conflict_queue(lk, lkrq);
+      }else 
+      {
+         requeue_conflict(lk, lkrq);
+         ret = 1;
+      }
+   }else
+   if( incomming && !singleExl && ! conflict_queue_empty(lk) &&
+       check_for_holder(lk, lkrq) ) {
+      /* I hold lock, I want to convert. but others in way. */
+      if( lkrq->flags & gio_lck_fg_Try ) {
+         send_Try_Failed(lk, lkrq);
+      }else
+      {
+         /* Internal Unlock */
+         drop_holder(lk, lkrq);
+         lkrq->flags &= ~gio_lck_fg_Cachable;
+
+         /* then queue me on conflict. */
+         put_onto_conflict_queue(lk, lkrq);
+      }
+   }else
+   if( check_for_conflict(lk, lkrq) ) {
+      if( lkrq->flags & gio_lck_fg_Try ) {
+         send_Try_Failed(lk, lkrq);
+      }else
+      {
+         if( incomming ) {
+            put_onto_conflict_queue(lk, lkrq);
+         }else
+         {
+            requeue_conflict(lk, lkrq);
+            ret = 1;
+         }
+      }
+   }else
+   {
+      if( lk->HolderCount == 0 ) cnt_unl_locks--;
+      /* Do we currently have a hold? if yes, we're mutating, not adding
+       * So we can either write a new loop function that does a 'if found
+       * change, else add' or just do a drop followed by an add.
+       *
+       * Easier to reuse code for now, even though it feels like it is
+       * doing extra work.  Will need to change for ranges anyways.
+       * */
+      drop_holder(lk, lkrq);
+      add_to_holders(lk, lkrq);
+
+      /* check lvb save */
+      if( saveLVB ) lvbcpy(lk, lkrq);
+
+      /* send lock success reply */
+      ret = send_lock_success(lk, lkrq);
+   }
+
+   return ret;
 }
 
 /**
@@ -1596,7 +1750,7 @@ int do_lock_exclusive(Lock_t *lk, Waiters_t *lkrq, int inRunQu)
  * 
  * Returns: TRUE or FALSE
  */
-int check_for_waiter(uint8_t *name, Lock_t *lk)
+int check_for_waiter(Lock_t *lk, Waiters_t *lkrq)
 {
    LLi_t *tp;
    Waiters_t *w;
@@ -1605,7 +1759,7 @@ int check_for_waiter(uint8_t *name, Lock_t *lk)
    if( ! LLi_empty( &lk->High_Waiters ) ) {
       for(tp=LLi_next(&lk->High_Waiters);LLi_data(tp) != NULL;tp=LLi_next(tp)) {
          w = LLi_data(tp);
-         if( strcmp(w->name, name) == 0 ) {
+         if( compare_waiter_waiter_names(lkrq, w) ) {
             return TRUE;
          }
       }
@@ -1613,7 +1767,7 @@ int check_for_waiter(uint8_t *name, Lock_t *lk)
    if( ! LLi_empty( &lk->Waiters ) ) {
       for(tp=LLi_next(&lk->Waiters); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
          w = LLi_data(tp);
-         if( strcmp(w->name, name) == 0 ) {
+         if( compare_waiter_waiter_names(lkrq, w) ) {
             return TRUE;
          }
       }
@@ -1630,7 +1784,7 @@ int check_for_waiter(uint8_t *name, Lock_t *lk)
  * 
  * Returns: int
  */
-int inner_cancel_waiting_lkrq(LLi_t *list, uint8_t *name, Lock_t *lk)
+int inner_cancel_waiting_lkrq(LLi_t *list, Waiters_t *lkrq, Lock_t *lk)
 {
    LLi_t *tp, *next;
    Waiters_t *w;
@@ -1644,7 +1798,7 @@ int inner_cancel_waiting_lkrq(LLi_t *list, uint8_t *name, Lock_t *lk)
          w = LLi_data(tp);
          /* do not cancel unlocks. */
          if( w->state != gio_lck_st_Unlock &&
-             w->name != NULL && strcmp(w->name, name) == 0 ) {
+             compare_waiter_waiter_names(lkrq, w) ) {
             LLi_del(tp);
             send_req_lk_reply(w, lk, gio_Err_Canceled);
             found = TRUE;
@@ -1662,7 +1816,7 @@ int inner_cancel_waiting_lkrq(LLi_t *list, uint8_t *name, Lock_t *lk)
  *
  * Returns: TRUE or FALSE
  */
-int cancel_waiting_lkrq(uint8_t *name, Lock_t *lk)
+int cancel_waiting_lkrq(Lock_t *lk, Waiters_t *lkrq)
 {
    int found=FALSE,A,B,C,D;
 
@@ -1675,13 +1829,13 @@ int cancel_waiting_lkrq(uint8_t *name, Lock_t *lk)
     * (and if you don't know why that would be different, go back to
     * school.)
     */
-   A = inner_cancel_waiting_lkrq(&lk->State_Waiters, name, lk);
+   A = inner_cancel_waiting_lkrq(&lk->State_Waiters, lkrq, lk);
    if( A ) cnt_inq --;
-   B = inner_cancel_waiting_lkrq(&lk->Action_Waiters, name, lk);
+   B = inner_cancel_waiting_lkrq(&lk->Action_Waiters, lkrq, lk);
    if( B ) cnt_inq --;
-   C = inner_cancel_waiting_lkrq(&lk->High_Waiters, name, lk);
+   C = inner_cancel_waiting_lkrq(&lk->High_Waiters, lkrq, lk);
    if( C ) cnt_confq --;
-   D = inner_cancel_waiting_lkrq(&lk->Waiters, name, lk);
+   D = inner_cancel_waiting_lkrq(&lk->Waiters, lkrq, lk);
    if( D ) cnt_confq --;
    return found || A || B || C || D;
 }
@@ -1697,6 +1851,7 @@ int Run_Action_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
 {
    Qu_t *tmp;
    Waiters_t *lkrq;
+   Holders_t *h;
    int err=0;
 
    while( !Qu_empty( CurrentQu ) ) {
@@ -1719,7 +1874,10 @@ int Run_Action_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
          err = gio_Err_Ok;
       }else
       if( lkrq->state == gio_lck_st_SyncLVB ) {
-         if( lk->state == gio_lck_st_Exclusive &&
+         if( lk->HolderCount == 1 &&
+             !LLi_empty(&lk->Holders) &&
+             (h=LLi_data(LLi_next(&lk->Holders))) != NULL &&
+             h->state == gio_lck_st_Exclusive &&
              lk->LVB != NULL && lkrq->LVB != NULL &&
              check_for_LVB_holder(lkrq->name, lk) ) {
             lvbcpy(lk, lkrq);
@@ -1727,14 +1885,14 @@ int Run_Action_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
          }else{
             err = gio_Err_NotAllowed;
             log_msg(lgm_Always,
-                  "state:%#x lk->LVB:%p lkrq->LVB:%p lvbholder:%s holder:%s\n",
-                  lk->state, lk->LVB, lkrq->LVB,
+                  "lk->LVB:%p lkrq->LVB:%p lvbholder:%s holder:%s\n",
+                  lk->LVB, lkrq->LVB,
                   check_for_LVB_holder(lkrq->name, lk)?"true":"false",
-                  check_for_holder(lkrq->name, lk)?"true":"false" );
+                  check_for_holder(lk, lkrq)?"true":"false" );
          }
       }else
       {
-         log_err("Unknown action:%#x name:%s lock:%s \n", lk->state, 
+         log_err("Unknown action:%#x name:%s lock:%s \n", lkrq->state, 
                  lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
          err = gio_Err_BadStateChg;
       }
@@ -1769,7 +1927,6 @@ int Run_state_Conflict_Queue(Qu_t *CurrentQu, Lock_t *lk)
 {
    Qu_t *tmp;
    Waiters_t *lkrq;
-   int err=0, saveLVB=FALSE;
 
    while( !Qu_empty( CurrentQu ) ) {
       /* need to take the req we're processing off the qu since the lock
@@ -1778,92 +1935,10 @@ int Run_state_Conflict_Queue(Qu_t *CurrentQu, Lock_t *lk)
        */
       tmp = Qu_DeQu( CurrentQu );
       lkrq = Qu_data(tmp);
-
-      saveLVB = lkrq->state != gio_lck_st_Exclusive &&
-                lk->state == gio_lck_st_Exclusive &&
-                (lkrq->flags & gio_lck_fg_hasLVB) &&
-                check_for_LVB_holder(lkrq->name, lk);
-
-      /* If the ANY flag is set, peek at the locks current state, and then
-       * modify the lock request to be for that state.
-       */
-      if( lkrq->flags & gio_lck_fg_Any && 
-          lk->state != gio_lck_st_Unlock && 
-          lk->state != gio_lck_st_Exclusive ) {
-         lkrq->state = lk->state;
-      }
-
-      if( lkrq->state == gio_lck_st_Unlock ) {
-         err = do_unlock(lk, lkrq);
-         /* unlocks can get queued now.  reply_waiter and all. */
-      }else
-      if( lk->ExpiredCount > 0  && !( lkrq->flags & gio_lck_fg_NoExp ) ) {
-         /* if the lock expired while we were waiting for it, we'll need to
-          * wait for the expired status to be cleared before we can do
-          * anything.
-          * Unless of course, we've the noexp flag.
-          */
-         err = gio_Err_PushQu;
-      }else
-      if( lkrq->state == gio_lck_st_Shared ) {
-         err = do_lock_shared(lk, lkrq, TRUE);
-      }else
-      if( lkrq->state == gio_lck_st_Deferred ) {
-         err = do_lock_deferred(lk, lkrq, TRUE);
-      }else
-      if( lkrq->state == gio_lck_st_Exclusive ) {
-         err = do_lock_exclusive(lk, lkrq, TRUE );
-      }
-
       cnt_confq --;
-      if( err == gio_Err_Ok ) {
-         /* handle LVB */
-         if( saveLVB && lk->LVB != NULL && lkrq->LVB != NULL ) {
-            lvbcpy(lk, lkrq);
-            lvb_log_msg("For %s, Lock %s: Saved LVB %s\n",
-                lkrq->name, lkeytohex(lk->key,lk->keylen),
-                lvbtohex(lk->LVB, lk->LVBlen));
-#if 0
-            GULMD_ASSERT( check_for_LVB_holder(lkrq->name, lk), );
-#endif
-         }
 
-         /* now we first send updates out to the slaves.
-          * then once we get enough replies, we send to the client.
-          */
-         if( gulm_config.fog ) {
-            lk->reply_waiter = lkrq;
-            cnt_replyq++;
-            send_req_update_to_slaves(lkrq);
-            return 1; /* gotta wait for the reply_waiter to get flushed. */
-         }else{
-            send_req_lk_reply(lkrq, lk, gio_Err_Ok);
-         }
+      if( lkrq_onto_lock(lk, lkrq, FALSE) != 0 ) return 1;
 
-      }else
-      if( err == gio_Err_PushQu ) {
-         if( lkrq->flags & gio_lck_fg_Try ) {
-            lkrq->flags &= ~gio_lck_fg_Cachable;
-            if( lkrq->flags & gio_lck_fg_Do_CB )
-               send_drp_req(lkrq->name, lk, lkrq->state);
-            send_req_lk_reply(lkrq, lk, gio_Err_TryFailed);
-            /* do we ever see trys get this far? (as into the conf queue?) */
-log_msg(lgm_Always, "Reply to Try in Conf queue.\n");
-         }else{
-            /* push back onto front. We'll try again later. */
-            Qu_EnQu_Front( CurrentQu, tmp );
-            cnt_confq++;
-            /* Next lock on Qu is incompatible.
-             * Send a drop request to the current holder.
-             */
-            send_drp_req(lkrq->name, lk, lkrq->state);
-            return 1; /* nothing more to do here. (for now) */
-         }
-      }else
-      {
-         log_err("Unexpected error value %d %s\n", err, gio_Err_to_str(err));
-         send_req_lk_reply(lkrq, lk, err);
-      }
    }/* while( !Qu_empty( CurrentQu ) ) */
 
    return 0;
@@ -1880,136 +1955,20 @@ log_msg(lgm_Always, "Reply to Try in Conf queue.\n");
  * requeued here.  They must either have an error sent back to the client,
  * send success and mod the lock, or push the item on the Conflict queue.
  * 
- *
- *
  * Returns: int
  */
 int Run_state_Incomming_Queue(Qu_t *CurrentQu, Lock_t *lk)
 {
    Qu_t *tmp;
    Waiters_t *lkrq;
-   int err=0, saveLVB=FALSE;
 
    while( !Qu_empty( CurrentQu ) ) {
-      /* need to take the req we're processing off the qu since the lock
-       * state functions make decisions based on if there is reqs waiting
-       * in the Qu.
-       */
       tmp = Qu_DeQu( CurrentQu );
       lkrq = Qu_data(tmp);
-
-      saveLVB = lkrq->state != gio_lck_st_Exclusive &&
-                lk->state == gio_lck_st_Exclusive &&
-                (lkrq->flags & gio_lck_fg_hasLVB) &&
-                check_for_LVB_holder(lkrq->name, lk);
-
-      /* If the ANY flag is set, peek at the locks current state, and then
-       * modify the lock request to be for that state.
-       */
-      if( lkrq->flags & gio_lck_fg_Any && 
-          lk->state != gio_lck_st_Unlock && 
-          lk->state != gio_lck_st_Exclusive ) {
-         lkrq->state = lk->state;
-      }
-
-      if( lkrq->state == gio_lck_st_Unlock ) {
-         err = do_unlock(lk, lkrq);
-         /* unlocks can get queued now.  reply_waiter and all. */
-      }else
-      if( lk->ExpiredCount > 0  && !( lkrq->flags & gio_lck_fg_NoExp ) ) {
-         /* if the lock expired while we were waiting for it, we'll need to
-          * wait for the expired status to be cleared before we can do
-          * anything.
-          * Unless of course, we've the noexp flag.
-          */
-         err = gio_Err_PushQu;
-      }else
-      if( lkrq->state == gio_lck_st_Shared ) {
-         err = do_lock_shared(lk, lkrq, FALSE);
-      }else
-      if( lkrq->state == gio_lck_st_Deferred ) {
-         err = do_lock_deferred(lk, lkrq, FALSE);
-      }else
-      if( lkrq->state == gio_lck_st_Exclusive ) {
-         err = do_lock_exclusive(lk, lkrq, FALSE );
-      }
-
       cnt_inq--;
 
-      if( err == gio_Err_Ok ) {
-         /* handle LVB */
-         if( saveLVB && lk->LVB != NULL && lkrq->LVB != NULL ) {
-            lvbcpy(lk, lkrq);
-            lvb_log_msg("For %s, Lock %s: Saved LVB %s\n",
-                lkrq->name, lkeytohex(lk->key,lk->keylen),
-                lvbtohex(lk->LVB, lk->LVBlen));
-#if 0
-            /* XXX is this assert necessary?
-             * (the check_for_LVB_holder could get expensive)
-             * */
-            GULMD_ASSERT( check_for_LVB_holder(lkrq->name, lk), );
-#endif
-         }
+      if( lkrq_onto_lock(lk, lkrq, TRUE) != 0 ) return 1;
 
-         /* now we first send updates out to the slaves.
-          * then once we get enough replies, we send to the client.
-          */
-         if( gulm_config.fog ) {
-            lk->reply_waiter = lkrq;
-            cnt_replyq ++;
-            send_req_update_to_slaves(lkrq);
-            return 1; /* gotta wait for the reply_waiter to get flushed. */
-         }else{
-            send_req_lk_reply(lkrq, lk, gio_Err_Ok);
-         }
-
-      }else
-      if( err == gio_Err_PushQu ) {
-         if( lkrq->flags & gio_lck_fg_Try ) {
-            lkrq->flags &= ~gio_lck_fg_Cachable;
-            if( lkrq->flags & gio_lck_fg_Do_CB )
-               send_drp_req(lkrq->name, lk, lkrq->state);
-            send_req_lk_reply(lkrq, lk, gio_Err_TryFailed);
-         }else{
-            /* HERE is the difference between the conflict and Incomming
-             * queues.  Conflit requeues on self, Incomming requeues onto
-             * Conflict.
-             */
-
-            if( lkrq->flags & gio_lck_fg_Piority ) {
-               /* not fully sure if this will do what is wanted.
-                */
-               Qu_EnQu_Front(&lk->High_Waiters, &lkrq->wt_list);
-            }else
-            if( lkrq->flags & gio_lck_fg_NoExp ) {
-               Qu_EnQu(&lk->High_Waiters, &lkrq->wt_list);
-            }else{
-               Qu_EnQu(&lk->Waiters, &lkrq->wt_list);
-            }
-            cnt_confq ++;
-            cnt_conflicts ++;
-
-            /* keep going until there is someone in the reply_waiter. */
-
-            /* ummm, shouldn't there be a send_drp_req() here?
-             * I know the conflict queue will send one, but how long until
-             * it does?
-             *
-             * Ok, the reason for not doing this, is when there are many
-             * items on the conflict queues.  The drop request is supposed
-             * to be for the next item that should ge the lock, not the
-             * last.  But for this slightly contrived test, this should
-             * show me how relivent it is here.
-             *
-             * No difference at all, so not doing it.
-             *
-             */
-         }
-      }else
-      {
-         log_err("Unexpected error value %d %s\n", err, gio_Err_to_str(err));
-         send_req_lk_reply(lkrq, lk, err);
-      }
    }/* while( !Qu_empty( CurrentQu ) ) */
 
    return 0;
@@ -2076,6 +2035,7 @@ void check_lists_for_desyncs(Lock_t *lk)
 int force_lock_state(Waiters_t *lkrq)
 {
    Lock_t *lk;
+   Holders_t *h;
 
    lk = find_lock( lkrq->key, lkrq->keylen );
 
@@ -2085,8 +2045,11 @@ int force_lock_state(Waiters_t *lkrq)
 
    /* copy the LVB if we need to. */
    if(lkrq->state != gio_lck_st_Exclusive &&
-      lk->state == gio_lck_st_Exclusive &&
       (lkrq->flags & gio_lck_fg_hasLVB) &&
+      lk->HolderCount == 1 &&
+      !LLi_empty(&lk->Holders) &&
+      (h=LLi_data(LLi_next(&lk->Holders))) != NULL &&
+      h->state == gio_lck_st_Exclusive &&
       lk->LVB != NULL && lkrq->LVB != NULL &&
       check_for_LVB_holder(lkrq->name, lk) 
      ) {
@@ -2094,61 +2057,14 @@ int force_lock_state(Waiters_t *lkrq)
    }
 
    if( lkrq->state == gio_lck_st_Unlock ) {
-      drop_holder(lkrq->name, lk);
-      if( lk->HolderCount == 0 ) {
-         switch(lk->state) {
-            case gio_lck_st_Unlock:    cnt_unl_locks --; break;
-            case gio_lck_st_Shared:    cnt_shd_locks --; break;
-            case gio_lck_st_Deferred:  cnt_dfr_locks --; break;
-            case gio_lck_st_Exclusive: cnt_exl_locks --; break;
-         }
-         cnt_unl_locks ++;
-         lk->state = gio_lck_st_Unlock;
-         check_for_recycle(lk);
-      }
+      drop_holder(lk, lkrq);
+      if( lk->HolderCount == 0 ) cnt_unl_locks++;
+      check_for_recycle(lk);
    }else
-   if( lkrq->state == gio_lck_st_Shared ) {
-      if( ! check_for_holder(lkrq->name, lk) ) add_to_holders(lkrq->name, lk);
-      /* what does it mean if the node is already in the holder list
-       * when we get the update here?
-       *
-       * In the case of a mutate, we will be the only holder in the list.
-       * So this is valid. ok.
-       *
-       */
-      switch(lk->state) {
-         case gio_lck_st_Unlock:    cnt_unl_locks --; break;
-         case gio_lck_st_Shared:    cnt_shd_locks --; break;
-         case gio_lck_st_Deferred:  cnt_dfr_locks --; break;
-         case gio_lck_st_Exclusive: cnt_exl_locks --; break;
-      }
-      cnt_shd_locks ++;
-      lk->state = gio_lck_st_Shared;
-   }else
-   if( lkrq->state == gio_lck_st_Deferred ) {
-      if( ! check_for_holder(lkrq->name, lk) ) add_to_holders(lkrq->name, lk);
-      switch(lk->state) {
-         case gio_lck_st_Unlock:    cnt_unl_locks --; break;
-         case gio_lck_st_Shared:    cnt_shd_locks --; break;
-         case gio_lck_st_Deferred:  cnt_dfr_locks --; break;
-         case gio_lck_st_Exclusive: cnt_exl_locks --; break;
-      }
-      cnt_dfr_locks ++;
-      lk->state = gio_lck_st_Deferred;
-   }else
-   if( lkrq->state == gio_lck_st_Exclusive ) {
-      delete_entire_holder_list(&lk->Holders);
-      lk->HolderCount = 0;
-      add_to_holders(lkrq->name, lk);
-
-      switch(lk->state) {
-         case gio_lck_st_Unlock:    cnt_unl_locks --; break;
-         case gio_lck_st_Shared:    cnt_shd_locks --; break;
-         case gio_lck_st_Deferred:  cnt_dfr_locks --; break;
-         case gio_lck_st_Exclusive: cnt_exl_locks --; break;
-      }
-      cnt_exl_locks ++;
-      lk->state = gio_lck_st_Exclusive;
+   {
+      if( lk->HolderCount == 0 ) cnt_unl_locks--;
+      drop_holder(lk, lkrq);
+      add_to_holders(lk, lkrq);
    }
 
    /* tell the master we got it. */
@@ -2189,7 +2105,7 @@ int do_lock_state(Waiters_t *lkrq)
     * pending per client per lock.
     * this should NEVER happen.  It violates how the IO works.
     * */
-   if( check_for_waiter(lkrq->name, lk) ) {
+   if( check_for_waiter(lk, lkrq) ) {
       log_msg(lgm_locking,
             "Warning! Duplicate lock requests, using first one. %s %s\n",
             lkrq->name, lkeytohex(lk->key, lk->keylen));
@@ -2227,6 +2143,7 @@ int do_lock_state(Waiters_t *lkrq)
 int force_lock_action(Waiters_t *lkrq)
 {
    Lock_t *lk;
+   Holders_t *h;
 
    lk = find_lock( lkrq->key, lkrq->keylen);
 
@@ -2245,17 +2162,17 @@ int force_lock_action(Waiters_t *lkrq)
       check_for_recycle(lk);
    }else
    if( lkrq->state == gio_lck_st_SyncLVB ) {
-      if( lk->state == gio_lck_st_Exclusive &&
+      if( lk->HolderCount == 1 &&
+          !LLi_empty(&lk->Holders) &&
+          (h=LLi_data(LLi_next(&lk->Holders))) != NULL &&
+          h->state == gio_lck_st_Exclusive &&
           lk->LVB != NULL && lkrq->LVB != NULL &&
           check_for_LVB_holder(lkrq->name, lk) ) {
          lvbcpy(lk, lkrq);
-         lvb_log_msg("For %s, Lock %s: Synced LVB %s\n",
-                  lkrq->name, lkeytohex(lk->key,lk->keylen),
-                  lvbtohex(lk->LVB, lk->LVBlen));
       }
    }else
    {
-      log_err("Unknown force action:%#x name:%s lock:%s \n", lk->state, 
+      log_err("Unknown force action:%#x name:%s lock:%s \n", lkrq->state, 
               lkrq->name, lkeytohex(lkrq->key, lkrq->keylen));
    }
 
@@ -2283,7 +2200,7 @@ int do_lock_action(Waiters_t *lkrq)
    cur_lops++;
 
    if( lkrq->state == gio_lck_st_Cancel ) {
-      ret = cancel_waiting_lkrq(lkrq->name, lk);
+      ret = cancel_waiting_lkrq(lk, lkrq);
       Run_WaitQu(lk);
       check_for_recycle(lk);
       return 0;
@@ -2520,6 +2437,8 @@ int _expire_locks_(LLi_t *item, void *d)
    uint8_t *name = (uint8_t*)d;
    Lock_t *lk;
    int modQ=FALSE;
+   LLi_t *tp;
+   Holders_t *h;
 
    lk = LLi_data(item);
 
@@ -2528,41 +2447,31 @@ int _expire_locks_(LLi_t *item, void *d)
    if( drop_LVB_holder(name, lk) == 0 ) {
       modQ = TRUE;
    }
-   if( check_for_holder(name, lk) ) {
-      switch(lk->state) {
-         case gio_lck_st_Exclusive:
-            /* move to expired list
-             * could get multiple if you're replaying your own journal.
-             * */
-            if( !check_for_expholder(name, lk ) )
-               add_Expholders(name, lk);
 
-            /* reset LVB, even if there are other holder.
-             * GFS expects the LVB of an EXL holder to get zeroed on expire.
-             */
-            if( lk->LVB != NULL ) memset( lk->LVB, 0, lk->LVBlen);
-
-            /* twist counters and remove from holder list. */
-            cnt_exp_locks++;
-            drop_holder(name, lk);
-            lk->state = gio_lck_st_Unlock;
-            cnt_exl_locks--;
-            cnt_unl_locks++;
-            /* lock is now unlocked, with expired holders. */
-            break;
-         case gio_lck_st_Shared:
-         case gio_lck_st_Deferred:
-            drop_holder(name, lk);
-            if( lk->HolderCount == 0) {
-               if(lk->state==gio_lck_st_Shared) cnt_shd_locks--;
-               else cnt_dfr_locks--;
-               cnt_unl_locks++;
-               lk->state = gio_lck_st_Unlock;
-            }
-            modQ = TRUE;
-            break;
+   for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
+      h = LLi_data(tp);
+      if( strcmp(h->name, name) == 0 ) {
+         LLi_del(tp);
+         switch(h->state) {
+            case gio_lck_st_Exclusive:
+               /* move to exp list */
+               if( !check_for_expholder(h, lk ) ) {
+                  move_to_Expholders(h, lk);
+               }
+               /* reset LVB */
+               if( lk->LVB != NULL ) memset( lk->LVB, 0, lk->LVBlen);
+               break;
+            case gio_lck_st_Shared:
+            case gio_lck_st_Deferred:
+               /* just drop it... */
+               modQ = TRUE;
+               recycle_holder(h);
+               break;
+         }
+         break; /* should only be one holder by name */
       }
    }
+
    if( modQ ) {
       /* a change that might let queued requests advance happened */
       Run_WaitQu(lk);
@@ -2644,14 +2553,9 @@ int _drop_locks_(LLi_t *item, void *d)
    lk = LLi_data(item);
 
    if( dl->name != NULL ) {
-      if( check_for_expholder(dl->name, lk) ) {
+      if( lk->ExpiredCount > 0 ) {
          if( cmp_lock_mask(dl->mask, dl->mlen, lk->key, lk->keylen) ) {
-            drop_expholder(dl->name, lk);
-            /* does this following if ever return true if the lock state is NOT
-             * unlocked?
-             */
-            if( lk->HolderCount == 0 && lk->ExpiredCount == 0 )
-               lk->state = gio_lck_st_Unlock;
+            drop_expholders(dl->name, lk);
 
             if( lk->ExpiredCount == 0 ) cnt_exp_locks--;
  
@@ -2762,7 +2666,6 @@ int _serialize_lockspace_(LLi_t *item, void *d)
 
    if((err = xdr_enc_uint8(xdr, lk->keylen)) != 0 ) return err;
    if((err = xdr_enc_raw(xdr, lk->key, lk->keylen)) != 0 ) return err;
-   if((err = xdr_enc_uint8(xdr, lk->state)) != 0 ) return err;
    if((err = xdr_enc_uint8(xdr, lk->LVBlen)) != 0 ) return err;
    if( lk->LVBlen > 0 ) {
       if((err = xdr_enc_raw(xdr, lk->LVB, lk->LVBlen)) != 0 ) return err;
@@ -2773,6 +2676,10 @@ int _serialize_lockspace_(LLi_t *item, void *d)
    for(tp=LLi_next(&lk->Holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
       h = LLi_data(tp);
       if((err = xdr_enc_string(xdr, h->name)) != 0 ) return err;
+      if((err = xdr_enc_uint64(xdr, h->subid)) != 0 ) return err;
+      if((err = xdr_enc_uint8(xdr, h->state)) != 0 ) return err;
+      if((err = xdr_enc_uint64(xdr, h->start)) != 0 ) return err;
+      if((err = xdr_enc_uint64(xdr, h->stop)) != 0 ) return err;
    }
    if((err = xdr_enc_list_stop(xdr)) != 0 ) return err;
 
@@ -2781,6 +2688,7 @@ int _serialize_lockspace_(LLi_t *item, void *d)
    for(tp=LLi_next(&lk->LVB_holders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
       h = LLi_data(tp);
       if((err = xdr_enc_string(xdr, h->name)) != 0 ) return err;
+      if((err = xdr_enc_uint64(xdr, h->subid)) != 0 ) return err;
    }
    if((err = xdr_enc_list_stop(xdr)) != 0 ) return err;
 
@@ -2789,6 +2697,7 @@ int _serialize_lockspace_(LLi_t *item, void *d)
    for(tp=LLi_next(&lk->ExpHolders); LLi_data(tp) != NULL; tp=LLi_next(tp)) {
       h = LLi_data(tp);
       if((err = xdr_enc_string(xdr, h->name)) != 0 ) return err;
+      if((err = xdr_enc_uint64(xdr, h->subid)) != 0 ) return err;
    }
    if((err = xdr_enc_list_stop(xdr)) != 0 ) return err;
 
@@ -2855,16 +2764,6 @@ int deserialize_lockspace(int fd)
       if( (err=xdr_dec_raw(xdr, key, &len)) != 0 ) goto fail;
       lk = find_lock(key, keylen);
 
-      if( (err=xdr_dec_uint8(xdr, &lk->state)) != 0 ) goto fail;
-      /* set counters. */
-      cnt_unl_locks --;
-      switch(lk->state){
-         case gio_lck_st_Exclusive: cnt_exl_locks++; break;
-         case gio_lck_st_Shared:    cnt_shd_locks++; break;
-         case gio_lck_st_Deferred:  cnt_dfr_locks++; break;
-         case gio_lck_st_Unlock:    cnt_unl_locks++; break;
-      }
-
       if( (err=xdr_dec_uint8(xdr, &lk->LVBlen)) != 0 ) goto fail;
       if( lk->LVBlen > 0 ) {
          lk->LVB = malloc(lk->LVBlen);
@@ -2877,6 +2776,7 @@ int deserialize_lockspace(int fd)
       }
 
       if( (err=xdr_dec_uint32(xdr, &lk->HolderCount)) != 0 ) goto fail;
+      if( lk->HolderCount != 0 ) cnt_unl_locks--;
       counter = 0;
       if( (err=xdr_dec_list_start(xdr)) != 0 ) goto fail;
       while( xdr_dec_list_stop(xdr) != 0 ) {
@@ -2886,6 +2786,15 @@ int deserialize_lockspace(int fd)
          LLi_init(&h->cl_list, h);
          h->name = name;
          h->idx = 0;
+         if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
+         if( (err=xdr_dec_uint8(xdr, &h->state)) != 0 ) goto fail;
+         switch(h->state) {
+            case gio_lck_st_Exclusive: cnt_exl_locks++; break;
+            case gio_lck_st_Deferred: cnt_dfr_locks++; break;
+            case gio_lck_st_Shared: cnt_shd_locks++; break;
+         }
+         if( (err=xdr_dec_uint64(xdr, &h->start)) != 0 ) goto fail;
+         if( (err=xdr_dec_uint64(xdr, &h->stop)) != 0 ) goto fail;
          LLi_add_after( &lk->Holders, &h->cl_list);
          counter ++;
       }
@@ -2905,6 +2814,7 @@ int deserialize_lockspace(int fd)
          LLi_init(&h->cl_list, h);
          h->name = name;
          h->idx = 0;
+         if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
          LLi_add_after( &lk->LVB_holders, &h->cl_list);
          counter ++;
       }
@@ -2924,6 +2834,7 @@ int deserialize_lockspace(int fd)
          LLi_init(&h->cl_list, h);
          h->name = name;
          h->idx = 0;
+         if( (err=xdr_dec_uint64(xdr, &h->subid)) != 0 ) goto fail;
          LLi_add_after( &lk->ExpHolders, &h->cl_list);
          counter ++;
 

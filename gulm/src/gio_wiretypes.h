@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000010)
+#define GIO_WIREPROT_VERS (0x67000011)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -264,6 +264,8 @@
  *    uint8:  Slave/Master
  *    xdr of current lock state if no errors and master sending reply
  *       and you're a slave.
+ *       uh, i think i assume that it is only four bytes in some places.
+ *       Need to look into this...
  *
  * logout req:
  *    uint32: gLL2
@@ -278,12 +280,18 @@
  * lock req:
  *    uint32: gLR0
  *    raw:    key
+ *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    uint8:  state
  *    uint32: flags
  *    raw:    lvb -- Only exists if hasLVB flag is true.
  * lock rpl:
  *    uint32: gLR1
  *    raw:    key
+ *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    uint8:  state
  *    uint32: flags
  *    uint32: error code
@@ -292,6 +300,9 @@
  * lock state update:
  *    uint32: gLRU
  *    string: node name
+ *    uint64: sub id
+ *    uint64: start
+ *    uint64: stop
  *    raw:    key
  *    uint8:  state
  *    uint32: flags
@@ -300,17 +311,20 @@
  * Action req:
  *    uint32: gLA0
  *    raw:    key
+ *    uint64: sub id
  *    uint8:  action
  *    raw:    lvb -- Only exists if action is SyncLVB
  * Action Rpl:
  *    uint32: gLA1
  *    raw:    key
+ *    uint64: sub id
  *    uint8:  action
  *    uint32: error code
  *
  * Action update:
  *    uint32: gLAU
  *    string: node name
+ *    uint64: sub id
  *    raw:    key
  *    uint8:  action
  *    raw:    lvb -- Only exists if action is SyncLVB
@@ -322,6 +336,7 @@
  * Drop lock Callback:
  *    uint32: gLC0
  *    raw:    key
+ *    uint64: subid
  *    uint8:  state
  *
  * Drop all locks callback:  This is the highwater locks thing
@@ -329,7 +344,7 @@
  *
  * Drop expired locks:
  *    uint32: gLEO
- *    string: node name  if NULL, then drap all exp for mask.
+ *    string: node name  if NULL, then drop all exp for mask.
  *    raw:    keymask  if keymask & key == key, then dropexp on this lock.
  *
  * Lock list req:
@@ -339,20 +354,25 @@
  *    list start mark
  *     uint8: key length
  *     raw:   key
- *     uint8: state
  *     uint8: lvb length
  *     if lvb length > 0, raw: LVB
  *     uint32: Holder count
  *     list start mark
  *      string: holders
+ *      uint64: subid
+ *      uint8: state
+ *      uint64: start
+ *      uint64: stop
  *     list stop mark
  *     uint32: LVB holder count
  *     list start mark
  *      string: LVB Holders
+ *      uint64: subid
  *     list stop mark
  *     uint32: Expired holder count
  *     list start mark
  *      string: ExpHolders
+ *      uint64: subid
  *     list stop mark
  *    list stop mark
  *
@@ -399,6 +419,10 @@
 #define gio_lck_fg_hasLVB      (0x00000010)
 #define gio_lck_fg_Cachable    (0x00000020)
 #define gio_lck_fg_Piority     (0x00000040)
+ /* this is just an idea, but it might be useful.  Basically just says to
+  * not keep the exp hold, just drop this hold like a shared would eb.
+  */
+#define gio_lck_fg_DropOnExp   (0x00000080)
 
 #endif /*__gio_wiretypes_h__*/
 /* vim: set ai cin et sw=3 ts=3 : */

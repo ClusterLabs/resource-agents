@@ -51,6 +51,7 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 	gulm_interface_t *lg = (gulm_interface_t *) lgp;
 	xdr_dec_t *dec;
 	int err = 0;
+	uint64_t x_subid, x_start, x_stop;
 	uint32_t x_code, x_error, x_flags;
 	uint16_t x_keylen, x_lvblen = 0;
 	uint8_t x_state;
@@ -109,6 +110,12 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 			     xdr_dec_raw_ag (dec, (void **) &lg->lfba,
 					     &lg->lfba_len, &x_keylen)) != 0)
 				break;
+         		if ((err = xdr_dec_uint64(dec, &x_subid)) != 0 )
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_start)) != 0 )
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_stop)) != 0 )
+				break;
 			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
 				break;
 			if ((err = xdr_dec_uint32 (dec, &x_flags)) != 0)
@@ -135,6 +142,7 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 			goto exit;
 		}
 		err = cbp->lock_state (misc, &lg->lfba[4], x_keylen - 4,
+				       x_subid, x_start, x_stop,
 				       x_state, x_flags, x_error,
 				       lg->lfbb, x_lvblen);
 		goto exit;
@@ -143,6 +151,8 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 			if ((err =
 			     xdr_dec_raw_ag (dec, (void **) &lg->lfba,
 					     &lg->lfba_len, &x_keylen)) != 0)
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_subid)) != 0 )
 				break;
 			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
 				break;
@@ -161,14 +171,16 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 			goto exit;
 		}
 		err =
-		    cbp->lock_action (misc, &lg->lfba[4], x_keylen - 4, x_state,
-				      x_error);
+		    cbp->lock_action (misc, &lg->lfba[4], x_keylen - 4,
+				      x_subid, x_state, x_error);
 		goto exit;
 	} else if (gulm_lock_cb_state == x_code) {
 		do {
 			if ((err =
 			     xdr_dec_raw_ag (dec, (void **) &lg->lfba,
 					     &lg->lfba_len, &x_keylen)) != 0)
+				break;
+         		if ((err = xdr_dec_uint64(dec, &x_subid)) != 0 )
 				break;
 			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
 				break;
@@ -182,7 +194,7 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 		}
 		err =
 		    cbp->drop_lock_req (misc, &lg->lfba[4], x_keylen - 4,
-					x_state);
+					x_subid, x_state);
 		goto exit;
 	} else if (gulm_lock_cb_dropall == x_code) {
 		if (cbp->drop_all == NULL) {
@@ -192,11 +204,6 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 		err = cbp->drop_all (misc);
 		goto exit;
 	} else if (gulm_info_stats_rpl == x_code) {
-		if (cbp->status != NULL) {
-			if ((err =
-			     cbp->status (misc, lglcb_start, NULL, NULL)) != 0)
-				goto exit;
-		}
 		do {
 			if ((err = xdr_dec_list_start (dec)) != 0)
 				break;
@@ -209,24 +216,8 @@ lg_lock_handle_messages (gulm_interface_p lgp, lg_lockspace_callbacks_t * cbp,
 				     xdr_dec_string_ag (dec, &lg->lfbb,
 							&lg->lfbb_len)) != 0)
 					break;
-				if (cbp->status != NULL) {
-					if ((err =
-					     cbp->status (misc, lglcb_item,
-							  lg->lfba,
-							  lg->lfbb)) != 0) {
-						break;
-					}
-				}
 			}
 		} while (0);
-		if (err != 0) {
-			goto exit;
-		}
-		if (cbp->status == NULL) {
-			err = 0;
-			goto exit;
-		}
-		err = cbp->status (misc, lglcb_stop, NULL, NULL);
 		goto exit;
 	} else if (gulm_err_reply == x_code) {
 		do {
@@ -396,6 +387,7 @@ lg_lock_logout (gulm_interface_p lgp)
  */
 int
 lg_lock_state_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
+		   uint64_t subid, uint64_t start, uint64_t stop,
 		   uint8_t state, uint32_t flags, uint8_t * LVB,
 		   uint16_t LVBlen)
 {
@@ -447,6 +439,12 @@ lg_lock_state_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
 			break;
 		if ((err = xdr_enc_raw_iov (enc, 2, iov)) != 0)
 			break;
+		if ((err = xdr_enc_uint64 (enc, subid)) != 0)
+			break;
+		if ((err = xdr_enc_uint64 (enc, start)) != 0)
+			break;
+		if ((err = xdr_enc_uint64 (enc, stop)) != 0)
+			break;
 		if ((err = xdr_enc_uint8 (enc, state)) != 0)
 			break;
 		if ((err = xdr_enc_uint32 (enc, iflgs)) != 0)
@@ -471,7 +469,8 @@ lg_lock_state_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
  * Returns: int
  */
 int
-lg_lock_cancel_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen)
+lg_lock_cancel_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
+		uint64_t subid)
 {
 	gulm_interface_t *lg = (gulm_interface_t *) lgp;
 	struct iovec iov[2];
@@ -500,6 +499,8 @@ lg_lock_cancel_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen)
 			break;
 		if ((err = xdr_enc_raw_iov (enc, 2, iov)) != 0)
 			break;
+		if ((err = xdr_enc_uint64 (enc, subid)) != 0)
+			break;
 		if ((err = xdr_enc_uint8 (enc, gio_lck_st_Cancel)) != 0)
 			break;
 		if ((err = xdr_enc_flush (enc)) != 0)
@@ -526,7 +527,8 @@ lg_lock_cancel_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen)
  */
 int
 lg_lock_action_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
-		    uint8_t action, uint8_t * LVB, uint16_t LVBlen)
+		    uint64_t subid, uint8_t action, uint8_t * LVB,
+		    uint16_t LVBlen)
 {
 	gulm_interface_t *lg = (gulm_interface_t *) lgp;
 	struct iovec iov[2];
@@ -558,6 +560,8 @@ lg_lock_action_req (gulm_interface_p lgp, uint8_t * key, uint16_t keylen,
 		if ((err = xdr_enc_uint32 (enc, gulm_lock_action_req)) != 0)
 			break;
 		if ((err = xdr_enc_raw_iov (enc, 2, iov)) != 0)
+			break;
+		if ((err = xdr_enc_uint64 (enc, subid)) != 0)
 			break;
 		if ((err = xdr_enc_uint8 (enc, action)) != 0)
 			break;
@@ -630,38 +634,5 @@ lg_lock_drop_exp (gulm_interface_p lgp, uint8_t * holder, uint8_t * key,
 	return err;
 }
 
-/**
- * lg_lock_status - 
- * @lgp: 
- * 
- * 
- * Returns: int
- */
-int
-lg_lock_status (gulm_interface_p lgp)
-{
-	gulm_interface_t *lg = (gulm_interface_t *) lgp;
-	xdr_enc_t *enc;
-	int err;
+/* vim: set ai cin noet sw=8 ts=8 : */
 
-	/* make sure it is a gulm_interface_p. */
-	if (lg == NULL)
-		return -EINVAL;
-	if (lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC)
-		return -EINVAL;
-
-	if (lg->lock_fd < 0 || lg->lock_enc == NULL || lg->lock_dec == NULL)
-		return -EINVAL;
-
-	enc = lg->lock_enc;
-
-	down (&lg->lock_sender);
-	do {
-		if ((err = xdr_enc_uint32 (enc, gulm_info_stats_req)) != 0)
-			break;
-		if ((err = xdr_enc_flush (enc)) != 0)
-			break;
-	} while (0);
-	up (&lg->lock_sender);
-	return err;
-}

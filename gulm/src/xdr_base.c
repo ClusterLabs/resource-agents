@@ -769,7 +769,7 @@ int xdr_dec_string_ag(xdr_dec_t *xdr, uint8_t **s, uint16_t *bl)
    xdr->curloc +=2;
 
    if( len == 0 ) { /* empty string */
-      **s = '\0';
+      if( *s != NULL ) **s = '\0';
       *(xdr->stream) = XDR_NULL;
       return 0;
    }

@@ -40,6 +40,7 @@ gulmd_src = \
 	src/core_nodelists.c \
 	src/core_resources.c \
 	src/hash.c \
+	src/hashn.c \
 	src/lock_io.c \
 	src/lock_main.c \
 	src/lock_space.c \
@@ -99,6 +100,12 @@ all: lock_gulmd gulm_tool libgulm.a
 
 lock_gulmd: $(gulmd_src:.c=.o) 
 	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o src/lock_gulmd
+
+#	whoami > src/buildinfo
+#	uname -n >> src/buildinfo
+#	date >> src/buildinfo
+#	md5sum $(gulmd_src) >> src/buildinfo
+#	objcopy --add-section buildinfo=src/buildinfo src/gulmd src/lock_gulmd
 
 libgulm.a: $(lib_src:.c=.o)
 	${LD} ${LDFLAGS} -r $^ -o lib/libgulm.a --retain-symbols-file=lib/exported_symbols.sym

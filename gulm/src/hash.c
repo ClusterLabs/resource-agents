@@ -88,7 +88,7 @@ acceptable.  Do NOT use for cryptographic purposes.
 --------------------------------------------------------------------
 */
 
-/* XXX this thing doesn't appear to maintain results acorss
+/* XXX this thing doesn't appear to maintain results across
  * cpu/libc/kernels So must use a real crc for that.
  */
 uint32_t bob_hash( k, length, initval)

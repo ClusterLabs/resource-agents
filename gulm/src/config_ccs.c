@@ -62,6 +62,10 @@ int parse_ccs(gulm_config_t *gf)
    uint64_t temp;
    char *tmp;
 
+   /* don't know wtf is going on, but ccs isn't working again. */
+   gf->ccs_desc = -1;
+   return -1;
+
    if( (gf->ccs_desc=ccs_force_connect(gf->clusterID, 1/*?blocking?*/)) < 0 ) {
       fprintf(stderr, "No ccs, checking for cmdline config. (%d:%s)\n",
             gf->ccs_desc, strerror(abs(gf->ccs_desc)));

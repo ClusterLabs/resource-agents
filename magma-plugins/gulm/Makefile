@@ -14,7 +14,7 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 INCLUDES+= -I. -I${incdir}
-LIBS     = -L${libdir} -lgulm
+LIBS    += -L${libdir} -lgulm
 CFLAGS  += -D_CLUSTER_ -D_REENTRANT
 OBJS     = gulm.o gulm-lock.o
 TARGETS  = gulm.so

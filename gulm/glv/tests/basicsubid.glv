@@ -1,0 +1,36 @@
+# super simple test to show that we can grab locks with different subids.
+# Then we show that we can grab the same lock twice just by changing the
+# sub id.
+nodecount 1
+
+test
+	lock 0 42 testlock exclusive noflags nolvb
+	lrpl 0 42 testlock exclusive cachable ok nolvb
+end
+
+test
+	lock 0 42 testlock unlock noflags nolvb
+	lrpl 0 42 testlock unlock noflags ok nolvb
+end
+
+# ok, now multiple with diff sids.
+test
+	lock 0 42 testlock shared noflags nolvb
+	lrpl 0 42 testlock shared cachable ok nolvb
+end
+
+test
+	lock 0 66 testlock shared noflags nolvb
+	lrpl 0 66 testlock shared cachable ok nolvb
+end
+
+test
+	lock 0 42 testlock unlock noflags nolvb
+	lrpl 0 42 testlock unlock noflags ok nolvb
+end
+
+test
+	lock 0 66 testlock unlock noflags nolvb
+	lrpl 0 66 testlock unlock noflags ok nolvb
+end
+

@@ -68,50 +68,59 @@ int nodeidx_from_fd(int fd)
  */
 void verify_reaction(struct glv_reaction *in, struct glv_test *running)
 {
-   int allmatched = 1, found = 0;
+   int allmatched = 1, found = 0, errors = FALSE;
    struct glv_reaction *tmp;
    for(tmp = running->react; tmp != NULL; tmp = tmp->next) {
       if( tmp->matched == 0 &&
           in->nodeidx == tmp->nodeidx &&
+          in->subid == tmp->subid &&
           in->react == tmp->react &&
           strcmp(in->key, tmp->key) == 0 ) {
          /* ok, does the rest ok? */
 
+         if( in->error != tmp->error ) {
+            perr("Expected error(%s) is not what we got(%s) on line %d\n",
+                  errstring(tmp->error), errstring(in->error), tmp->line);
+            errors = TRUE;
+         }
          if( in->state != tmp->state ) {
             /* print incomming */
-            die("Expected state(%s) is not what we got(%s) on line %d\n",
+            perr("Expected state(%s) is not what we got(%s) on line %d\n",
                   statestrings(tmp->state), statestrings(in->state), tmp->line);
+            errors = TRUE;
          }
          if( in->flags != tmp->flags ) {
             char temp[60];
             strcpy(temp, flagsstr(in->flags));
-            die("Expected flags(%s %#x) is not what we got(%s %#x) on line %d\n",
+            perr("Expected flags(%s %#x) is not what we got(%s %#x) on line %d\n",
                   flagsstr(tmp->flags), tmp->flags,
                   temp, in->flags,
                   tmp->line);
-         }
-         if( in->error != tmp->error ) {
-            die("Expected error(%s) is not what we got(%s) on line %d\n",
-                  errstring(tmp->error), errstring(in->error), tmp->line);
+            errors = TRUE;
          }
          if( in->lvb == NULL && tmp->lvb == NULL ) {
             /* both NULL, things are ok. so a nop. */
          }else
          if( in->lvb == NULL && tmp->lvb != NULL ) {
             /* die */
-            die("Expected lvb(%s) but got nothing on line %d\n",
+            perr("Expected lvb(%s) but got nothing on line %d\n",
                   tmp->lvb, tmp->line);
+            errors = TRUE;
          }else
          if( in->lvb != NULL && tmp->lvb == NULL ) {
             /* die */
-            die("Expected no lvb, but got(%s) on line %d\n",
+            perr("Expected no lvb, but got(%s) on line %d\n",
                   in->lvb, tmp->line);
+            errors = TRUE;
          }else
          if( strcmp(in->lvb, tmp->lvb) != 0 ) {
             /* die */
-            die("Expected lvb(%s) is not what we got(%s) on line %d\n",
+            perr("Expected lvb(%s) is not what we got(%s) on line %d\n",
                   tmp->lvb, in->lvb, tmp->line);
+            errors = TRUE;
          }
+
+         if( errors ) exit(1);
 
          tmp->matched = 1;
          found = 1;
@@ -157,9 +166,10 @@ void check_reactions(int sk, struct glv_test *running)
    buffy[cnt-1] = '\0';
    verb(3, "Got from glvc[%d]: %s\n", incomming.nodeidx, buffy);
 
-   if(sscanf(buffy, "lrpl %s %d %d %d %s", 
+   if(sscanf(buffy, "lrpl %d %s %d %d %d %s", 
+               &incomming.subid, 
                key, &incomming.state, &incomming.flags,
-               &incomming.error, lvb) == 5) {
+               &incomming.error, lvb) == 6) {
       if( strcmp(lvb, "nolvb") == 0 ) {
          incomming.lvb = NULL;
       }else{
@@ -169,14 +179,16 @@ void check_reactions(int sk, struct glv_test *running)
       incomming.key = key;
       verify_reaction(&incomming, running);
    }else
-   if(sscanf(buffy, "arpl %s %d %d", 
-               key, &incomming.state, &incomming.error) == 3 ) {
+   if(sscanf(buffy, "arpl %d %s %d %d", 
+               &incomming.subid, 
+               key, &incomming.state, &incomming.error) == 4 ) {
       incomming.react = glv_arpl;
       incomming.key = key;
       verify_reaction(&incomming, running);
    }else
-   if(sscanf(buffy, "drop %s %d", key,
-               &incomming.state) == 2 ) {
+   if(sscanf(buffy, "drop %d %s %d",
+               &incomming.subid, key,
+               &incomming.state) == 3 ) {
       incomming.react = glv_drop;
       incomming.key = key;
       verify_reaction(&incomming, running);
@@ -199,22 +211,23 @@ void do_action(struct glv_action *action)
    int actual;
    switch(action->action) {
       case glv_lock:
-         actual = snprintf(buffy, 160, "lock %s %d %d %s\n",
+         actual = snprintf(buffy, 160, "lock %d %s %d %d %s\n",
+               action->subid,
                action->key, action->state, action->flags,
                action->lvb==NULL?"nolvb":action->lvb);
          verb(3, "Sending to glvc[%d] %s", action->nodeidx, buffy);
          send(NodeSKs[action->nodeidx], buffy, actual, 0);
          break;
       case glv_act:
-         actual = snprintf(buffy, 160, "action %s %d %s\n",
-               action->key, action->state,
+         actual = snprintf(buffy, 160, "action %d %s %d %s\n",
+               action->subid, action->key, action->state,
                action->lvb==NULL?"nolvb":action->lvb);
          verb(3, "Sending to glvc[%d] %s", action->nodeidx, buffy);
          send(NodeSKs[action->nodeidx], buffy, actual, 0);
          break;
       case glv_cancel:
-         actual = snprintf(buffy, 160, "cancel %s\n",
-               action->key);
+         actual = snprintf(buffy, 160, "cancel %d %s\n",
+               action->subid, action->key);
          verb(3, "Sending to glvc[%d] %s", action->nodeidx, buffy);
          send(NodeSKs[action->nodeidx], buffy, actual, 0);
          break;

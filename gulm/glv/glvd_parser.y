@@ -90,6 +90,7 @@ int yylex();
 %type <react> reaction
 %type <react> reactions
 %type <num> nodeidx
+%type <num> subid
 %type <str> lvb
 %type <num> state
 %type <num> actname
@@ -139,37 +140,40 @@ test : TEST action reactions END
       }
      ;
 
-action : LOCK nodeidx STRING state flags lvb
+action : LOCK nodeidx subid STRING state flags lvb
         { struct glv_action *tmp;
           tmp = malloc(sizeof(struct glv_action));
           tmp->line = linenumber;
           tmp->action = glv_lock;
           tmp->nodeidx = $2;
-          tmp->key = $3;
-          tmp->state = $4;
-          tmp->flags = $5;
-          tmp->lvb = $6;
+          tmp->subid = $3;
+          tmp->key = $4;
+          tmp->state = $5;
+          tmp->flags = $6;
+          tmp->lvb = $7;
           $$ = tmp;
         }
-       | ACTION nodeidx STRING actname lvb
+       | ACTION nodeidx subid STRING actname lvb
         { struct glv_action *tmp;
           tmp = malloc(sizeof(struct glv_action));
           tmp->line = linenumber;
           tmp->action = glv_act;
           tmp->nodeidx = $2;
-          tmp->key = $3;
-          tmp->state = $4;
+          tmp->subid = $3;
+          tmp->key = $4;
+          tmp->state = $5;
           tmp->flags = 0;
-          tmp->lvb = $5;
+          tmp->lvb = $6;
           $$ = tmp;
         }
-       | CANCEL nodeidx STRING
+       | CANCEL nodeidx subid STRING
         { struct glv_action *tmp;
           tmp = malloc(sizeof(struct glv_action));
           tmp->line = linenumber;
           tmp->action = glv_cancel;
           tmp->nodeidx = $2;
-          tmp->key = $3;
+          tmp->subid = $3;
+          tmp->key = $4;
           tmp->state = 0;
           tmp->flags = 0;
           tmp->lvb = NULL;
@@ -181,6 +185,7 @@ action : LOCK nodeidx STRING state flags lvb
           tmp->line = linenumber;
           tmp->action = glv_dropexp;
           tmp->nodeidx = $2;
+          tmp->subid = 0;
           tmp->key = $3;
           tmp->state = 0;
           tmp->flags = 0;
@@ -198,44 +203,47 @@ reactions : reactions reaction
           | NOREACTION
           { $$ = NULL; }
           ;
-reaction : LRPL nodeidx STRING state flags errorcode lvb
+reaction : LRPL nodeidx subid STRING state flags errorcode lvb
           { struct glv_reaction *tmp;
             tmp = malloc(sizeof(struct glv_reaction));
             tmp->line = linenumber;
             tmp->react = glv_lrpl;
             tmp->nodeidx = $2;
-            tmp->key = $3;
-            tmp->state = $4;
-            tmp->flags = $5;
-            tmp->error = $6;
-            tmp->lvb = $7;
+            tmp->subid = $3;
+            tmp->key = $4;
+            tmp->state = $5;
+            tmp->flags = $6;
+            tmp->error = $7;
+            tmp->lvb = $8;
             tmp->matched = 0;
             tmp->next = NULL;
             $$ = tmp;
           }
-         | ARPL nodeidx STRING actname errorcode
+         | ARPL nodeidx subid STRING actname errorcode
           { struct glv_reaction *tmp;
             tmp = malloc(sizeof(struct glv_reaction));
             tmp->line = linenumber;
             tmp->react = glv_arpl;
             tmp->nodeidx = $2;
-            tmp->key = $3;
-            tmp->state = $4;
+            tmp->subid = $3;
+            tmp->key = $4;
+            tmp->state = $5;
             tmp->flags = 0;
-            tmp->error = $5;
+            tmp->error = $6;
             tmp->lvb = NULL;
             tmp->matched = 0;
             tmp->next = NULL;
             $$ = tmp;
           }
-         | DROP nodeidx STRING state
+         | DROP nodeidx subid STRING state
           { struct glv_reaction *tmp;
             tmp = malloc(sizeof(struct glv_reaction));
             tmp->line = linenumber;
             tmp->react = glv_drop;
             tmp->nodeidx = $2;
-            tmp->key = $3;
-            tmp->state = $4;
+            tmp->subid = $3;
+            tmp->key = $4;
+            tmp->state = $5;
             tmp->flags = 0;
             tmp->error = 0;
             tmp->lvb = NULL;
@@ -247,6 +255,9 @@ reaction : LRPL nodeidx STRING state flags errorcode lvb
 
 nodeidx : NUMBER
         ;
+
+subid : NUMBER
+      ;
 
 state : EXCLUSIVE
        { $$ = lg_lock_state_Exclusive; }
@@ -351,19 +362,21 @@ void print_action(FILE *fp, struct glv_action *action)
 {
    switch(action->action) {
       case glv_lock:
-         fprintf(fp, "  lock %d %s %s %s %s\n", action->nodeidx,
+         fprintf(fp, "  lock %d %d %s %s %s %s\n", action->nodeidx,
+                action->subid, 
                 action->key, statestrings(action->state),
                 flagsstr(action->flags),
                 action->lvb==NULL?"nolvb":action->lvb);
          break;
       case glv_act:
-         fprintf(fp, "  action %d %s %s %s\n", action->nodeidx,
+         fprintf(fp, "  action %d %d %s %s %s\n", action->nodeidx,
+                action->subid, 
                 action->key, statestrings(action->state),
                 action->lvb==NULL?"nolvb":action->lvb);
          break;
       case glv_cancel:
-         fprintf(fp, "  cancel %d %s\n", action->nodeidx,
-                action->key);
+         fprintf(fp, "  cancel %d %d %s\n", action->nodeidx,
+                action->subid, action->key);
          break;
       case glv_dropexp:
          fprintf(fp, "  dropexp %d %s %s\n", action->nodeidx,
@@ -377,18 +390,21 @@ void print_reaction(FILE *fp, struct glv_reaction *ract)
 {
    switch(ract->react) {
       case glv_lrpl:
-         printf("  lrpl %d %s %s %s %s %s\n", ract->nodeidx,
+         fprintf(fp, "  lrpl %d %d %s %s %s %s %s\n", ract->nodeidx,
+                ract->subid,
                 ract->key, statestrings(ract->state),
                 flagsstr(ract->flags), errstring(ract->error),
                 ract->lvb==NULL?"nolvb":ract->lvb);
          break;
       case glv_arpl:
-         printf("  arpl %d %s %s %s\n", ract->nodeidx,
+         fprintf(fp, "  arpl %d %d %s %s %s\n", ract->nodeidx,
+                ract->subid,
                 ract->key, statestrings(ract->state),
                 errstring(ract->error));
          break;
       case glv_drop:
-         printf("  drop %d %s %s\n", ract->nodeidx,
+         fprintf(fp, "  drop %d %d %s %s\n", ract->nodeidx,
+                ract->subid,
                 ract->key, statestrings(ract->state));
          break;
    }

@@ -12,7 +12,7 @@
 ******************************************************************************/
 #ifndef __ltpx_priv_h__
 #define __ltpx_priv_h__
-#include "hash.h"
+#include "hashn.h"
 #include "Qu.h"
 
 typedef struct lock_req_s {
@@ -21,6 +21,9 @@ typedef struct lock_req_s {
    uint32_t code; /* gulm_lock_state_req or gulm_lock_action_req */
    uint8_t  *key;
    uint16_t keylen;
+   uint64_t subid;
+   uint64_t start;
+   uint64_t stop;
    uint8_t  state; /* or action if this is an action req */
    uint32_t flags;
    uint8_t  *lvb; /* drop overloads this to be name as well */
@@ -42,8 +45,8 @@ void ltpx_main_loop(void);
 int initialize_ltpx_maps(void);
 lock_req_t *get_new_lock_req(void);
 void recycle_lock_req(lock_req_t *lq);
-hash_t * create_new_req_map(void);
-void dump_ltpx_locks(hash_t *map, int ltid);
+hashn_t * create_new_req_map(void);
+void dump_ltpx_locks(hashn_t *map, int ltid);
 void dump_all_master_tables(void);
 void dump_ltpx_senders(Qu_t *head, int ltid);
 

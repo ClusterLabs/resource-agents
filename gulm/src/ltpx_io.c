@@ -30,7 +30,7 @@
 #include "myio.h"
 #include "LLi.h"
 #include "Qu.h"
-#include "hash.h"
+#include "hashn.h"
 #include "gio_wiretypes.h"
 #include "xdr.h"
 #include "ltpx_priv.h"
@@ -89,7 +89,7 @@ typedef struct {
    int logging_in;
    uint8_t start;
    uint8_t stop;
-   hash_t *pending_reqs;
+   hashn_t *pending_reqs;
    Qu_t senderlist;
    uint32_t senderlistlen;
    uint32_t pendreqcnt;
@@ -606,6 +606,9 @@ int send_lk_st_req(int ltid, lock_req_t *lq)
    do{
       if((err = xdr_enc_uint32(enc, gulm_lock_state_req)) != 0 ) break;
       if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->start)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->stop)) != 0 ) break;
       if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
       if((err = xdr_enc_uint32(enc, lq->flags)) != 0 ) break;
       if( lq->flags & gio_lck_fg_hasLVB )
@@ -646,6 +649,7 @@ int send_lk_act_req(int ltid, lock_req_t *lq)
    do{
       if((err = xdr_enc_uint32(enc, gulm_lock_action_req)) != 0 ) break;
       if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+      if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
       if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
       if( lq->state == gio_lck_st_SyncLVB )
          if((err = xdr_enc_raw(enc, lq->lvb, lq->lvblen)) != 0 ) break;
@@ -700,14 +704,13 @@ int send_lk_drop_req(int ltid, lock_req_t *lq)
 /**
  * find_in_senders_list - 
  * @ltid: 
- * @key: 
- * @keylen: 
+ * @lock_req_t: 
  * 
  * gross, but I don't know where else to look.
  * 
  * Returns: int
  */
-int find_in_senders_list(int ltid, uint8_t *key, uint16_t keylen)
+int find_in_senders_list(int ltid, lock_req_t *search)
 {
    lock_req_t *lq;
    LLi_t *q;
@@ -717,9 +720,10 @@ int find_in_senders_list(int ltid, uint8_t *key, uint16_t keylen)
         q = LLi_next(q) )
    {
       lq = LLi_data(q);
-      if( memcmp(key, lq->key, MIN(keylen, lq->keylen)) == 0 ) {
+      if( search->subid == lq->subid &&
+         memcmp(search->key, lq->key, MIN(search->keylen, lq->keylen)) == 0 ) {
          log_msg(lgm_Always, "XXX Found in senders %s\n",
-               lkeytohex(key, keylen));
+               lkeytohex(search->key, search->keylen));
          return TRUE;
       }
    }
@@ -739,7 +743,7 @@ int resend_reqs(LLi_t *item, void *misc)
    lock_req_t *lq = LLi_data(item);
    int ltid = *((int*)misc);
 
-   find_in_senders_list(ltid, lq->key, lq->keylen);
+   find_in_senders_list(ltid, lq);
    /* move to sender queue */
    LLi_del(item);
    LLi_unhook(item);
@@ -895,7 +899,7 @@ static int recv_Masterlogin_reply(int idx)
       MastersList[ltid].pending_reqs = create_new_req_map();
    }else
    {
-      err = hash_walk(MastersList[ltid].pending_reqs, resend_reqs, &ltid);
+      err = hashn_walk(MastersList[ltid].pending_reqs, resend_reqs, &ltid);
       if( err != 0 ) {
          log_err("%d trying to resend requsts to LT%03d\n", err, ltid);
       }
@@ -1005,7 +1009,7 @@ int send_senderlist(int ltid)
          recycle_lock_req(lq);
       }else
       {
-         err = hash_add( MastersList[ltid].pending_reqs, &lq->ls_list);
+         err = hashn_add( MastersList[ltid].pending_reqs, &lq->ls_list);
          if( err != 0 ) {
             log_err("AH! Postponed Dup Entries! Horror! Horror!\n");
          }
@@ -1098,6 +1102,9 @@ int store_and_forward_lock_state(int idx)
 
    do{
       if((err = xdr_dec_raw_m(dec, (void**)&lq->key, &lq->keylen)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->subid)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->start)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->stop)) != 0 ) break;
       if((err = xdr_dec_uint8(dec, &lq->state)) != 0 ) break;
       if((err = xdr_dec_uint32(dec, &lq->flags)) != 0 ) break;
       if( lq->flags & gio_lck_fg_hasLVB ) {
@@ -1116,11 +1123,14 @@ int store_and_forward_lock_state(int idx)
    ltid = select_master_server(lq->key, lq->keylen);
 
    /* check for duplicates */
-   if( hash_find(MastersList[ltid].pending_reqs, lq->key, lq->keylen)!=NULL ||
-         find_in_senders_list(ltid, lq->key, lq->keylen) ){
+   if( hashn_find(MastersList[ltid].pending_reqs, &lq->ls_list)!=NULL ||
+         find_in_senders_list(ltid, lq) ){
       do{
          if((err = xdr_enc_uint32(enc, gulm_lock_state_rpl)) != 0 ) break;
          if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->start)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->stop)) != 0 ) break;
          if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
          if((err = xdr_enc_uint32(enc, lq->flags & ~gio_lck_fg_hasLVB)) != 0 )
             break;
@@ -1168,6 +1178,7 @@ int store_and_forward_lock_action(int idx)
 
    do{
       if((err = xdr_dec_raw_m(dec, (void**)&lq->key, &lq->keylen)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &lq->subid)) != 0 ) break;
       if((err = xdr_dec_uint8(dec, &lq->state)) != 0 ) break;
       if( lq->state == gio_lck_st_SyncLVB ) {
          if((err = xdr_dec_raw_m(dec, (void**)&lq->lvb, &lq->lvblen)) != 0 )
@@ -1195,12 +1206,13 @@ int store_and_forward_lock_action(int idx)
    }
 
    /* check for dups. */
-   if( hash_find( MastersList[ltid].pending_reqs, lq->key, lq->keylen)!=NULL ||
-         find_in_senders_list(ltid, lq->key, lq->keylen) ) {
+   if( hashn_find( MastersList[ltid].pending_reqs, &lq->ls_list)!=NULL ||
+         find_in_senders_list(ltid, lq) ) {
       /* send dup error */
       do{
          if((err = xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
          if((err = xdr_enc_raw(enc, lq->key, lq->keylen)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, lq->subid)) != 0 ) break;
          if((err = xdr_enc_uint8(enc, lq->state)) != 0 ) break;
          if((err = xdr_enc_uint32(enc, gio_Err_AlreadyPend)) != 0 ) break;
          if((err = xdr_enc_flush(enc)) != 0 ) break;
@@ -1316,11 +1328,11 @@ char *lkeytohex(uint8_t *key, uint8_t keylen);
 int retrive_and_relpy_lock_state(int idx)
 {
    int err, ltid=-1;
-   uint32_t x_flags, x_error;
+   uint32_t x_error;
    uint16_t x_kl, x_ll;
-   uint8_t x_st;
    LLi_t *tmp;
    xdr_dec_t *dec = poller.dec[idx];
+   lock_req_t searchkey;
    /* keep these around. Fewer mallocs == faster */
    static uint8_t *x_key=NULL, *x_lvb=NULL;
    static uint16_t x_kbl=0, x_lbl=0;
@@ -1339,10 +1351,13 @@ int retrive_and_relpy_lock_state(int idx)
 
    do{
       if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0) break;
-      if((err = xdr_dec_uint8(dec, &x_st)) != 0) break;
-      if((err = xdr_dec_uint32(dec, &x_flags)) != 0) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.subid)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.start)) != 0 ) break;
+      if((err = xdr_dec_uint64(dec, &searchkey.stop)) != 0 ) break;
+      if((err = xdr_dec_uint8(dec, &searchkey.state)) != 0) break;
+      if((err = xdr_dec_uint32(dec, &searchkey.flags)) != 0) break;
       if((err = xdr_dec_uint32(dec, &x_error)) != 0) break;
-      if( x_flags & gio_lck_fg_hasLVB)
+      if( searchkey.flags & gio_lck_fg_hasLVB)
          if((err = xdr_dec_raw_ag(dec, (void**)&x_lvb, &x_lbl, &x_ll)) != 0)
             break;
    }while(0);
@@ -1355,7 +1370,12 @@ int retrive_and_relpy_lock_state(int idx)
     * if not there, drop.
     * if there, forward reply to lq->poll_idx
     */
-   tmp = hash_del(MastersList[ltid].pending_reqs, x_key, x_kl);
+   LLi_init( &searchkey.ls_list, &searchkey);
+   searchkey.key = x_key;
+   searchkey.keylen = x_kl;
+
+   tmp = hashn_del(MastersList[ltid].pending_reqs, &searchkey.ls_list);
+
    MastersList[ltid].pendreqcnt --;
    if( tmp != NULL ) {
       lock_req_t *lq;
@@ -1373,10 +1393,13 @@ int retrive_and_relpy_lock_state(int idx)
       do{
          if((err = xdr_enc_uint32(enc, gulm_lock_state_rpl)) != 0 ) break;
          if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
-         if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
-         if((err = xdr_enc_uint32(enc, x_flags)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.subid)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.start)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, searchkey.stop)) != 0 ) break;
+         if((err = xdr_enc_uint8(enc, searchkey.state)) != 0 ) break;
+         if((err = xdr_enc_uint32(enc, searchkey.flags)) != 0 ) break;
          if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
-         if( x_flags & gio_lck_fg_hasLVB)
+         if( searchkey.flags & gio_lck_fg_hasLVB)
             if((err = xdr_enc_raw(enc, x_lvb, x_ll)) != 0 ) break;
          if((err = xdr_enc_flush(enc)) != 0 ) break;
       }while(0);
@@ -1386,6 +1409,9 @@ int retrive_and_relpy_lock_state(int idx)
       }
 
       recycle_lock_req(lq);
+   }else{
+      log_err("MUCK FE! Got a lock reply that we didn't ask for! %s %d\n",
+            lkeytohex(x_key,x_kl), searchkey.subid);
    }
 
 exit:
@@ -1404,11 +1430,13 @@ exit:
 int retrive_and_relpy_lock_action(int idx)
 {
    int err, ltid;
+   uint64_t x_subid;
    uint32_t x_error;
    uint16_t x_kl;
    uint8_t x_st;
    LLi_t *tmp;
    xdr_dec_t *dec = poller.dec[idx];
+   lock_req_t searchkey;
    static uint8_t *x_key=NULL;
    static uint16_t x_kbl=0;
 
@@ -1420,6 +1448,7 @@ int retrive_and_relpy_lock_action(int idx)
 
    do{
       if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0) break;
+      if((err = xdr_dec_uint64(dec, &x_subid)) != 0 ) break;
       if((err = xdr_dec_uint8(dec, &x_st)) != 0) break;
       if((err = xdr_dec_uint32(dec, &x_error)) != 0) break;
    }while(0);
@@ -1432,7 +1461,11 @@ int retrive_and_relpy_lock_action(int idx)
     * if not there, drop.
     * if there, forward reply to lq->poll_idx
     */
-   tmp = hash_del(MastersList[ltid].pending_reqs, x_key, x_kl);
+   LLi_init( &searchkey.ls_list, &searchkey);
+   searchkey.key = x_key;
+   searchkey.keylen = x_kl;
+   searchkey.subid = x_subid;
+   tmp = hashn_del(MastersList[ltid].pending_reqs, &searchkey.ls_list);
    MastersList[ltid].pendreqcnt --;
    if( tmp != NULL ) {
       lock_req_t *lq = LLi_data(tmp);
@@ -1447,6 +1480,7 @@ int retrive_and_relpy_lock_action(int idx)
       do{
          if((err = xdr_enc_uint32(enc, gulm_lock_action_rpl)) != 0 ) break;
          if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, x_subid)) != 0 ) break;
          if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
          if((err = xdr_enc_uint32(enc, x_error)) != 0 ) break;
          if((err = xdr_enc_flush(enc)) != 0 ) break;
@@ -1477,6 +1511,7 @@ exit:
 int forward_cb_to_some_clients(int idx)
 {
    int i, err;
+   uint64_t x_sbd;
    uint16_t x_kl;
    uint8_t x_st;
    xdr_dec_t *dec = poller.dec[idx];
@@ -1498,6 +1533,7 @@ int forward_cb_to_some_clients(int idx)
    do{
       if((err = xdr_dec_raw_ag(dec, (void**)&x_key, &x_kbl, &x_kl)) != 0 )
          break;
+      if((err = xdr_dec_uint64(dec, &x_sbd)) != 0 ) break;
       if((err = xdr_dec_uint8(dec, &x_st)) != 0 ) break;
 #ifdef TIMECALLBACKS
       if((err = xdr_dec_uint64(dec, &x_time)) != 0) break;
@@ -1545,6 +1581,7 @@ int forward_cb_to_some_clients(int idx)
       do{
          if((err = xdr_enc_uint32(enc, gulm_lock_cb_state)) != 0 ) break;
          if((err = xdr_enc_raw(enc, x_key, x_kl)) != 0 ) break;
+         if((err = xdr_enc_uint64(enc, x_sbd)) != 0 ) break;
          if((err = xdr_enc_uint8(enc, x_st)) != 0 ) break;
          if((err = xdr_enc_flush(enc)) != 0 ) break;
       }while(0);

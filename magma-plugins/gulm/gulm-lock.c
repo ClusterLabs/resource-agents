@@ -46,12 +46,13 @@
 static int null_lk_login_reply(void *misc, uint32_t error, uint8_t which);
 static int null_lk_logout_reply(void *misc);
 static int null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen,
+			      uint64_t subid, uint64_t start, uint64_t stop,
 			      uint8_t state, uint32_t flags, uint32_t error,
 			      uint8_t *LVB, uint16_t LVBlen);
 static int null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen,
-			       uint8_t action, uint32_t error);
+			       uint64_t subid, uint8_t action, uint32_t error);
 static int null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
-				 uint8_t state);
+				 uint64_t subid, uint8_t state);
 static int null_lk_drop_all(void *misc);
 static int null_lk_status(void *misc, lglcb_t type, char *key, char *value);
 static int null_lk_error(void *misc, uint32_t err);
@@ -89,7 +90,8 @@ null_lk_logout_reply(void *misc)
 
 
 static int
-null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state,
+null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen,
+		   uint64_t subid, uint64_t start, uint64_t stop, uint8_t state,
 		   uint32_t flags, uint32_t error, uint8_t *LVB,
 		   uint16_t LVBlen)
 {
@@ -99,8 +101,8 @@ null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state,
 
 
 static int
-null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action,
-		    uint32_t error)
+null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen,
+		    uint64_t subid, uint8_t action, uint32_t error)
 {
 	printf("GuLM Lock: %s called\n", __FUNCTION__);
 	return 0;
@@ -109,7 +111,7 @@ null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action,
 
 static int
 null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
-		      uint8_t state)
+		      uint64_t subid, uint8_t state)
 {
 	printf("GuLM Lock: %s called\n", __FUNCTION__);
 	return 0;
@@ -217,7 +219,9 @@ gulm_lock_logout(gulm_interface_p pg)
  *
  */
 int
-gulm_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state, 
+gulm_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen,
+		   uint64_t subid, uint64_t start, uint64_t stop,
+		   uint8_t state,
 		   uint32_t flags, uint32_t error, uint8_t *LVB,
 		   uint16_t LVBlen)
 {
@@ -248,49 +252,6 @@ gulm_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state,
 }
 
 
-/**
- * Gulm doesn't handle per-process locking, only per-node.
- * So we add per-process here.
- */
-int
-gulm_node_lock(char *resource, int flags)
-{
-	char filename[1024];
-	int fd;
-	struct flock fl;
-
-	snprintf(filename, 1024, "/var/lock/cluster/%s", resource);
-
-	fd = open(filename, O_CREAT | O_TRUNC | O_RDWR);
-	assert(fd != -1);
-	memset(&fl, 0, sizeof(fl));
-
-	if (flags & (CLK_EX | CLK_WRITE)) 
-		fl.l_type = F_WRLCK;
-	else
-		fl.l_type = F_RDLCK;
-
-	if (fcntl(fd, (flags & CLK_NOWAIT) ? F_SETLK : F_SETLKW, &fl) != 0) {
-		perror("fcntl");
-		return -errno;
-	}
-
-	return fd;	
-}
-
-
-int
-gulm_node_unlock(char *resource, int fd)
-{
-	char filename[1024];
-	snprintf(filename, 1024, "/var/lock/cluster/%s", resource);
-	unlink(filename);
-	close(fd);
-	
-	return 0;
-}
-
-
 
 /**
  *
@@ -305,7 +266,8 @@ gulm_lock(cluster_plugin_t *self,
 	uint16_t reslen;
 	uint8_t state;
 	uint32_t lkflags = 0;
-	int ret, flag = 0, fd;
+	int ret, flag = 0;
+	uint64_t pid;
 	gulm_interface_p pg;
 	gulm_priv_t *priv;
 
@@ -327,9 +289,7 @@ gulm_lock(cluster_plugin_t *self,
 		return -EINVAL;
 	}
 
-	fd = gulm_node_lock(resource, flags);
-	if (fd < 0)
-		return fd;
+	pid = getpid();
 
 	if (flags & CLK_NOWAIT)
 		lkflags |= lg_lock_flag_Try;
@@ -338,7 +298,9 @@ gulm_lock(cluster_plugin_t *self,
 		/*
 		 * Send lock request to GuLM.
 		 */
-		ret = lg_lock_state_req(pg, (uint8_t *)resource, reslen, state,
+		ret = lg_lock_state_req(pg, (uint8_t *)resource, reslen,
+					pid, 0, ~0ULL,
+					state,
 					lkflags, GULM_USRM_LVB, GULM_USRM_LVB_LEN);
 
 		if (ret != 0)
@@ -353,15 +315,13 @@ gulm_lock(cluster_plugin_t *self,
 
 		switch(ret) {
 		case -EINPROGRESS:
-			lg_lock_cancel_req(pg, resource, reslen);
+			lg_lock_cancel_req(pg, resource, reslen, pid);
 			break;
 		case -EAGAIN:
 			if (!(lkflags & lg_lock_flag_Try))
 				break;
 			return ret;
 		case 0:
-			*lockpp = malloc(sizeof(int));
-			*((int *)(*lockpp)) = fd;
 		default:
 			return ret;
 		}
@@ -384,6 +344,7 @@ gulm_unlock(cluster_plugin_t *self,
 	lg_lockspace_callbacks_t cb = lock_callbacks_initializer;
 	uint16_t reslen;
 	int ret, flag = 0;
+	uint64_t pid;
 	gulm_interface_p pg;
 	gulm_priv_t *priv;
 
@@ -394,11 +355,13 @@ gulm_unlock(cluster_plugin_t *self,
 	assert(resource);
 	reslen = (uint16_t)strlen(resource);
 	assert(reslen);
+	pid = getpid();
 
 	/*
 	 * Send lock request to GuLM.
 	 */
 	ret = lg_lock_state_req(pg, (uint8_t *)resource, reslen, 
+				pid, 0, ~0ULL,
 				lg_lock_state_Unlock,
 				0, GULM_USRM_LVB, GULM_USRM_LVB_LEN);
 
@@ -411,11 +374,6 @@ gulm_unlock(cluster_plugin_t *self,
 	do {
 		ret = lg_lock_handle_messages(pg, &cb, &flag);
 	} while (!flag);
-
-	if (ret == 0 && lockp) {
-		gulm_node_unlock(resource, *((int *)(lockp)));
-		free(lockp);
-	}
 
 	return ret;
 }

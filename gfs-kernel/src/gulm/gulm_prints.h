@@ -40,6 +40,6 @@
 }
 
 #define log_nop(fmt, args...)
-#define TICK printk("TICK==>" PROTO_NAME ": [%s:%d] pid:%ld\n",__FILE__,__LINE__,osi_pid())
+#define TICK printk("TICK==>" PROTO_NAME ": [%s:%d] pid:%d\n" , __FILE__ , __LINE__ , current->pid )
 
 #endif /*__gulm_prints_h__*/
