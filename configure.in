@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.347 $) dnl cvs revision
+AC_REVISION($Revision: 1.348 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1810,6 +1810,7 @@ AC_CONFIG_FILES(heartbeat.spec 					\
 Makefile						        \
 README							        \
 config/Makefile					        	\
+logd/Makefile							\
 cts/Makefile					        	\
 	cts/CM_fs.py						\
 	cts/CM_hb.py						\
