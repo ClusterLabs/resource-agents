@@ -22,6 +22,8 @@
 #include <getopt.h>
 
 #include "libdlm.h"
+//#include <cluster/dlm_device.h>
+#define DLM_LSF_NOCONVGRANT 2
 
 static struct dlm_lksb lksb;
 static int use_threads = 0;
@@ -142,6 +144,7 @@ int main(int argc, char *argv[])
     int  release_ls = 1;
     int  open_ls = 0;
     int  force = 0;
+    int  sleeptime = 5;
     signed char opt;
     char lsname[64];
     dlm_lshandle_t  ls;
@@ -151,7 +154,7 @@ int main(int argc, char *argv[])
     /* Deal with command-line arguments */
     opterr = 0;
     optind = 0;
-    while ((opt=getopt(argc,argv,"?m:nqupc:l:rfoV")) != EOF)
+    while ((opt=getopt(argc,argv,"?m:nqupd:c:l:rfoV")) != EOF)
     {
 	switch(opt)
 	{
@@ -173,6 +176,10 @@ int main(int argc, char *argv[])
 
 	case 'l':
 	    strcpy(lsname, optarg);
+	    break;
+
+	case 'd':
+	    sleeptime = atoi(optarg);
 	    break;
 
         case 'p':
@@ -221,7 +228,7 @@ int main(int argc, char *argv[])
 
 
 	ls = dlm_create_lockspace(lsname, 0444);
-	if (ls < 0)
+	if (ls == NULL)
 	{
 	    perror("ls create");
 	    exit(4);
@@ -234,7 +241,7 @@ int main(int argc, char *argv[])
 
 
 	ls = dlm_open_lockspace(lsname);
-	if (ls < 0)
+	if (ls == NULL)
 	{
 	    perror("ls open");
 	    exit(4);
@@ -255,7 +262,8 @@ int main(int argc, char *argv[])
 	pthread_mutex_init(&mutex, NULL);
 	pthread_mutex_lock(&mutex);
 
-	dlm_ls_pthread_init(ls);
+	status = dlm_ls_pthread_init(ls); printf("status=%d\n", status);
+	status = dlm_ls_pthread_init(ls); printf("status=%d\n", status);
     }
 
     status = dlm_ls_lock(ls,mode,
@@ -282,13 +290,14 @@ int main(int argc, char *argv[])
     else
 	poll_for_ast(ls);
 
-    sleep(5);
     if (!quiet)
     {
         fprintf(stderr, "unlocking %s...", resource);
         fflush(stderr);
     }
 
+    sleep(sleeptime);
+    
     if (do_unlock)
     {
 	status = dlm_ls_unlock(ls,
