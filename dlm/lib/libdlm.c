@@ -343,9 +343,23 @@ static int create_control_device()
 
 static int open_control_device()
 {
+    int minor;
+    struct stat st;
+    int stat_ret;
+
     if (control_fd == -1)
     {
+	stat_ret = stat(DLM_CTL_DEVICE_NAME, &st);
+
+	if (!stat_ret) 
+	{
+	    minor = find_minor_from_proc("",DLM_CONTROL_DEV);
+	    if (S_ISCHR(st.st_mode) && st.st_rdev != makedev(MISC_MAJOR, minor))
+		unlink(DLM_CTL_DEVICE_NAME);
+	}
+
 	control_fd = open(DLM_CTL_DEVICE_NAME, O_RDWR);
+
 	if (control_fd == -1)
 	{
 	    create_control_device();
@@ -471,14 +485,14 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 }
 #endif
 
-static int find_minor_from_proc(const char *lsname)
+static int find_minor_from_proc(const char *prefix, const char *lsname)
 {
     FILE *f = fopen(PROC_MISC, "r");
-    char miscname[strlen(lsname)+strlen(DLM_PREFIX)+1];
+    char miscname[strlen(lsname)+strlen(prefix)+1];
     char name[256];
     int minor;
 
-    sprintf(miscname, "%s%s", DLM_PREFIX, lsname);
+    sprintf(miscname, "%s%s", prefix, lsname);
 
     if (f)
     {
@@ -970,7 +984,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     }
     else {
 	if (minor <= 0)
-	    minor = find_minor_from_proc(name);
+	    minor = find_minor_from_proc(DLM_PREFIX,name);
     }
 
     if (create_dev && minor > 0) {
