@@ -97,11 +97,11 @@ static void process_complete(dlm_lock_t *lp)
 			lp->lksb.sb_lkid = 0;
 		}
 
-		/*
+		if (!test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags))
+			goto out;
+
 		complete(&lp->uast_wait);
 		return;
-		*/
-		goto out;
 	}
 
 	/*

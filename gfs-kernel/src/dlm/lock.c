@@ -241,6 +241,7 @@ int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp)
 	lp->lockname = *name;
 	lp->dlm = dlm;
 	lp->cur = DLM_LOCK_IV;
+	lp->lvb = NULL;
 	init_completion(&lp->uast_wait);
 	*lpp = lp;
 	return 0;
@@ -281,6 +282,7 @@ void lm_dlm_put_lock(lm_lock_t *lock)
 	if (lp->cur != DLM_LOCK_IV)
 		do_unlock(lp);
 	*/
+	DLM_ASSERT(!lp->lvb,);
 
 	/* FIXME: get rid of these checks */
 	spin_lock(&lp->dlm->async_lock);
@@ -311,15 +313,19 @@ void lm_dlm_put_lock(lm_lock_t *lock)
 
 void do_dlm_unlock(dlm_lock_t *lp)
 {
+	unsigned int lkf = 0;
 	int error;
 
 	set_bit(LFL_DLM_UNLOCK, &lp->flags);
 	set_bit(LFL_WAIT_COMPLETE, &lp->flags);
 
-	log_debug("un %x,%"PRIx64" id %x cur %d", lp->lockname.ln_type,
-		  lp->lockname.ln_number, lp->lksb.sb_lkid, lp->cur);
+	if (lp->lvb)
+		lkf = DLM_LKF_VALBLK;
 
-	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, &lp->lksb,
+	log_debug("un %x,%"PRIx64" id %x cur %d %x", lp->lockname.ln_type,
+		  lp->lockname.ln_number, lp->lksb.sb_lkid, lp->cur, lkf);
+
+	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, &lp->lksb,
 			    (void *) lp);
 
 	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
@@ -329,6 +335,7 @@ void do_dlm_unlock(dlm_lock_t *lp)
 
 void do_dlm_unlock_sync(dlm_lock_t *lp)
 {
+	set_bit(LFL_UNLOCK_SYNC, &lp->flags);
 	init_completion(&lp->uast_wait);
 	do_dlm_unlock(lp);
 	wait_for_completion(&lp->uast_wait);
@@ -440,16 +447,16 @@ unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	/*
-	check_cur_state(lp, cur_state);
-	lp->req = DLM_LOCK_NL;
-	lp->lkf = make_flags(lp, 0, lp->cur, lp->req);
-	do_dlm_lock(lp, NULL);
-	*/
-
-	if (lp->cur == DLM_LOCK_IV)
-		return 0;
-	do_dlm_unlock(lp);
+	if (lp->lvb) {
+		check_cur_state(lp, cur_state);
+		lp->req = DLM_LOCK_NL;
+		lp->lkf = make_flags(lp, 0, lp->cur, lp->req);
+		do_dlm_lock(lp, NULL);
+	} else {
+		if (lp->cur == DLM_LOCK_IV)
+			return 0;
+		do_dlm_unlock(lp);
+	}
 	return LM_OUT_ASYNC;
 }
 
@@ -526,6 +533,9 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
+
+	if (lp->cur == DLM_LOCK_NL)
+		do_dlm_unlock_sync(lp);
 	kfree(lvb);
 	lp->lvb = NULL;
 	lp->lksb.sb_lvbptr = NULL;
