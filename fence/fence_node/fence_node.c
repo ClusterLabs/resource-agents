@@ -19,27 +19,98 @@
 
 #include "copyright.cf"
 
-int dispatch_fence_agent(char *victim);
+#define OPTION_STRING           ("uhV")
+
+#define die(fmt, args...) \
+do \
+{ \
+  fprintf(stderr, "%s: ", prog_name); \
+  fprintf(stderr, fmt "\n", ##args); \
+  exit(EXIT_FAILURE); \
+} \
+while (0)
+
+char *prog_name;
+int unfence;
+
+int dispatch_fence_agent(char *victim, int in);
+
+static void print_usage(void)
+{
+	printf("Usage:\n");
+	printf("\n");
+	printf("%s [options] node_name\n", prog_name);
+	printf("\n");
+	printf("Options:\n");
+	printf("\n");
+	printf("  -u               Unfence the node\n");
+	printf("  -h               Print this help, then exit\n");
+	printf("  -V               Print program version information, then exit\n");
+	printf("\n");
+}
 
 int main(int argc, char *argv[])
 {
-	int error;
+	int cont = 1, optchar, error;
+	char *victim = NULL;
 
-	if (argc != 2) {
-		fprintf(stderr, "%s [-V] <node_name>\n", argv[0]);
-		exit(EXIT_FAILURE);
+	prog_name = argv[0];
+
+	while (cont) {
+		optchar = getopt(argc, argv, OPTION_STRING);
+
+		switch (optchar) {
+
+		case 'u':
+			unfence = 1;
+			break;
+
+		case 'h':
+			print_usage();
+			exit(EXIT_SUCCESS);
+			break;
+
+		case 'V':
+			printf("%s %s (built %s %s)\n", prog_name,
+				FENCE_RELEASE_NAME, __DATE__, __TIME__);
+			printf("%s\n", REDHAT_COPYRIGHT);
+			exit(EXIT_SUCCESS);
+			break;
+
+		case ':':
+		case '?':
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(EXIT_FAILURE);
+			break;
+
+		case EOF:
+			cont = 0;
+			break;
+
+		default:
+			die("unknown option: %c", optchar);
+			break;
+		};
 	}
 
-	if (!strcmp("-V", argv[1])) {
-		printf("%s %s (built %s %s)\n", argv[0], FENCE_RELEASE_NAME,
-		       __DATE__, __TIME__);
-		printf("%s\n", REDHAT_COPYRIGHT);
+	while (optind < argc) {
+		if (victim)
+			die("unknown option %s", argv[optind]);
+		victim = argv[optind];
+		optind++;
+	}
+
+	if (!victim)
+		die("no node name specified");
+
+	if (unfence) {
+		dispatch_fence_agent(victim, 1);
 		exit(EXIT_SUCCESS);
 	}
 
 	openlog("fence_node", LOG_PID, LOG_USER);
 
-	error = dispatch_fence_agent(argv[1]);
+	error = dispatch_fence_agent(argv[1], 0);
 	if (error) {
 		syslog(LOG_ERR, "Fence of \"%s\" was unsuccessful\n", argv[1]);
 		exit(EXIT_FAILURE);
