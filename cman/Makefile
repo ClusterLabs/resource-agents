@@ -27,7 +27,9 @@ distclean: clean
 install:
 	cd cman_tool && ${MAKE} install
 	cd man && ${MAKE} install
+	cd init.d && ${MAKE} install
 
 uninstall:
 	cd cman_tool && ${MAKE} uninstall
 	cd man && ${MAKE} uninstall
+	cd init.d && ${MAKE} uninstall
