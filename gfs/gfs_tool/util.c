@@ -122,46 +122,49 @@ str2lines(char *str)
 }
 
 /**
- * is_dm_device - Report if this is a device-mapper device
- * @device:
- *
- * Returns: 1 or 0
- */
-
-static int
-is_dm_device(char *device)
-{
-	char path[512];
-	int count;
-
-	count = readlink(device, path, 511);
-	if (count < 0)
-		return 0;
-	path[count] = 0;
-
-	if (strstr(path, "mapper"))
-		return 1;
-	return 0;
-}
-
-/**
- * dm_name - Create dm-N style name for the device
+ * do_basename - Create dm-N style name for the device
  * @device:
  *
  * Returns: Pointer to dm name or basename
  */
 
 static char *
-dm_name(char *device)
+do_basename(char *device)
 {
-	static char name[16];
-	struct stat buf;
+	FILE *file;
+	int found = FALSE;
+	char line[256], major_name[256];
+	unsigned int major_number;
+	struct stat st;
 
-	if (stat(device, &buf))
-		return basename(device);
+	file = fopen("/proc/devices", "r");
+	if (!file)
+		goto punt;
 
-	snprintf(name, 16, "dm-%u", minor(buf.st_rdev));
-	return name;
+	while (fgets(line, 256, file)) {
+		if (sscanf(line, "%u %s", &major_number, major_name) != 2)
+			continue;
+		if (strcmp(major_name, "device-mapper") != 0)
+			continue;
+		found = TRUE;
+		break;
+	}
+
+	fclose(file);
+
+	if (!found)
+		goto punt;
+
+	if (stat(device, &st))
+		goto punt;
+	if (major(st.st_rdev) == major_number) {
+		static char realname[16];
+		snprintf(realname, 16, "dm-%u", minor(st.st_rdev));
+		return realname;
+	}
+
+ punt:
+	return basename(device);
 }
 
 /**
@@ -203,10 +206,8 @@ mp2cookie(char *mp, int ioctl_ok)
 		if (strcmp(type, "gfs"))
 			die("%s is not a GFS filesystem\n", mp);
 
-		if (is_dm_device(device))
-			dev = dm_name(device);
-		else
-			dev = basename(device);
+		dev = do_basename(device);
+
 		break;
 	}
 
