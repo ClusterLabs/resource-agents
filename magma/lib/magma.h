@@ -30,7 +30,7 @@
 
 typedef struct _cluster_member {
 	uint64_t	cm_id;			/** Node ID */
-	uint8_t		cm_name[_MAX_SIZE];	/** Node name */
+	char		cm_name[_MAX_SIZE];	/** Node name */
 	uint8_t		cm_state; 		/** Node state */
 	uint8_t		cm_pad[7];		/** Align this */
 	struct addrinfo *cm_addrs;		/** Node IP addresses */
