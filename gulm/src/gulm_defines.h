@@ -23,8 +23,6 @@
 #include <inttypes.h>
 #include "osi_endian.h" /* because cpu_to_beXX() is damn nice. */
 
-#define RELEASE "<CVS>"  /* The Marketing version */
-
 #if !defined(TRUE) || !defined(FALSE)
 #undef TRUE
 #undef FALSE

@@ -10,12 +10,28 @@
 ##
 ###############################################################################
 ###############################################################################
-top_srcdir=.
-include ${top_srcdir}/make/defines.mk
-UNINSTALL=${top_srcdir}/scripts/uninstall.pl
+# You should always run configure first.
+# ignore this stunt. since if you did not run configure, it assumes things
+# are setup for my private build/test environment.
+ifeq (make/defines.mk, $(wildcard make/defines.mk))
+include make/defines.mk
+else
+#working in my private playground, thus set the location of things.
+sbindir=${DESTDIR}/sbin
+mandir=${DESTDIR}/usr/share/man
+libdir=${DESTDIR}/lib
+incdir=${DESTDIR}/usr/include
+RELEASE=internalonly
+INCLUDE+=-I../ccs/lib
+LDFLAGS+=-L../ccs/lib
+CFLAGS+=-Wall
+CC=ccache distcc gcc
+endif
+UNINSTALL=scripts/uninstall.pl
 
 #source lists.
 gulmd_src = \
+	src/config_ccs.c \
 	src/config_cmdline.c \
 	src/config_main.c \
 	src/core_fence.c \
@@ -60,12 +76,6 @@ tool_src = \
 	src/xdr_io.c \
 	src/xdr_socket.c
 
-# When libccs settles down, I'll need some work here.  Just placeholding
-# for now.
-# SOURCE += config_ccs.c
-# CFLAGS += -DHAS_CCS
-# LDLIBS += -lccs
-
 # For debugging what gulm does to each lock.  This makes gulmd suck up
 # memory like you cannot believe, since it is saving the last n requests on
 # every lock it ever sees.  Only set this if you know how to use it.
@@ -80,6 +90,7 @@ CFLAGS+=$(INCLUDE)
 # this is mostly for the lib.  Does it hurt any having it for everyone?
 CFLAGS+=-D_REENTRANT -fpic
 CFLAGS+=-g -O
+CFLAGS+=-DRELEASE=\"$(RELEASE)\"
 
 #######################################
 # build rules
@@ -87,11 +98,13 @@ CFLAGS+=-g -O
 all: lock_gulmd gulm_tool libgulm.a
 
 lock_gulmd: $(gulmd_src:.c=.o) 
-	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -o src/lock_gulmd
+	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o src/lock_gulmd
 
 libgulm.a: $(lib_src:.c=.o)
-	${LD} ${LDFLAGS} -r $^ -o lib/libgulm.a
+	${LD} ${LDFLAGS} -r $^ -o lib/libgulm.a --retain-symbols-file=lib/exported_symbols.sym
+	#xdr_* functions still `visable'. for relocation i think.
 
+# don't think this is right yet, so only building .a for now.
 libgulm.so: libgulm.a
 	${LD} -shared -soname libgulm.so.1 -o lib/libgulm.so.1.0 -lc lib/libgulm.a
 

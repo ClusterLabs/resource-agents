@@ -226,6 +226,7 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
          case hbr_opt:
             temp = ft2uint64(atof(optarg));
             gf->heartbeat_rate = bound_to_uint64(temp, 75000, (uint64_t)~0);
+            /* min is 0.075 */
             break;
          case am_opt:
             gf->allowed_misses = bound_to_uint16(atoi(optarg), 1, 0xffff);
@@ -233,6 +234,9 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
          case nct_opt:
             temp = ft2uint64(atof(optarg));
             gf->new_con_timeout = bound_to_uint64(temp, 0, (uint64_t)~0);
+            /* min should be something bigger than zero...
+             * say 0.5? why?
+             */
             break;
          case msd_opt:
             temp = ft2uint64(atof(optarg));

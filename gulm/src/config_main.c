@@ -388,11 +388,11 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
    /* should set defaults here. */
    default_config(gf);
 
-#ifdef HAS_CCS
+#ifdef READYFORCCS
    /* parse ccs */
    err = parse_ccs(gf);
-   /* Note errors, but do not stop. */
 #endif
+   /* Note errors, but do not stop. */
 
    /* parse local file */
    /* later */
@@ -459,13 +459,12 @@ int verify_name_and_ip(char *name, struct in6_addr *ip)
       return 0;
    }
 
-#ifdef HAS_CCS
+#ifdef READYFORCCS
    /* if ccs, check with them too */
    if( verify_name_and_ip_ccs(name, ip) == 0 ) {
       return 0;
    }
 #endif
-
 
    return 1;
 }

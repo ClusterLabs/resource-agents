@@ -25,6 +25,6 @@ uint64_t ft2uint64(float time);
 
 int parse_ccs(gulm_config_t *gf);
 int parse_cmdline(gulm_config_t *gf, int argc, char **argv);
-int verify_name_and_ip_ccs(char *name, uint32_t ip);
+int verify_name_and_ip_ccs(char *name, struct in6_addr *ip);
 #endif /*__config_priv_h__*/
 

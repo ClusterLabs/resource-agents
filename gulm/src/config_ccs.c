@@ -19,9 +19,6 @@
 #include "gulm_defines.h"
 #include "config_gulm.h"
 #include "config_priv.h"
-#include "utils_ip.h"
-#include "utils_verb_flags.h"
-#include "utils_dir.h"
 #include "ccs.h"
 
 /* Mostly, this is the extra functions I need to get stuff from the ccslib.
@@ -41,214 +38,132 @@ extern char myName[256];
 
 /*****************************************************************************/
 
-/**
- * scan_cluster_section - 
- * @gf: 
- * @rt: 
- * 
- * 
- * Returns: int
- */
-int scan_cluster_section(gulm_config_t *gf, ccs_node_t *rt)
+int extendargv(int *argc, char ***argv, int growth)
 {
-   if(gf->clusterID != NULL ) free(gf->clusterID);
-   gf->clusterID = strdup( find_ccs_str(rt, "cluster/name", '/',
-                                        "cluster") );
-   if( gf->clusterID == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
+   char **temp;
+   if( growth <= *argc ) return 0;
 
-   if( strlen(gf->clusterID) <= 0 )
-      die(ExitGulm_ParseFail, "Cluster name \"%s\" is too short\n",
-            gf->clusterID);
-   if( strlen(gf->clusterID) > 16 )
-      die(ExitGulm_ParseFail, "Cluster name \"%s\" is too long\n",
-            gf->clusterID);
+   temp = realloc(*argv, growth * sizeof(char**));
+   if( temp == NULL ) return -ENOMEM;
+
+   *argv = temp;
+   *argc = growth;
 
    return 0;
 }
 
-/**
- * scan_server_list - 
- * @gf: 
- * @nd: 
- * 
- * 
- * Returns: int
- */
-int scan_server_list(gulm_config_t *gf, ccs_node_t *nd)
+void push_opts(char *name, char *value, int *argc, char ***argv, int *next)
 {
-   ccs_value_t *val;
-   ip_name_t *in;
-
-   if( nd == NULL || nd->v == NULL ) {
-      fprintf(stderr,
-            "I couldn't find a \"cluster { lock_gulm { servers = [] } }\""
-            " section.\n");
-      return -1;
+   if( *next >= *argc ) {
+      if( extendargv(argc, argv, *next + 10 ) != 0 )
+         die(1, "Out of Memory.\n");
    }
 
-   for(val = nd->v; val; val = val->next) {
-      if( val->type != CCS_STRING ) { return -1; }
-      in = malloc(sizeof(ip_name_t));
-      if( in == NULL ) return -1;
-      LLi_init( &in->in_list, in);
-
-      if( gulm_aton(val->v.str, &in->ip) == 0 ) {
-         char nme[64], *c;
-         /* they gave a dotted ip, try to find name */
-         /* get things into the expected byte order. */
-         in->ip = osi_cpu_to_be32(in->ip);
-         if( get_name_for_ip(nme, 64, in->ip) != 0 ) {
-            fprintf(stderr, "I cannot find the name for ip \"%s\".\n",
-                  val->v.str);
-            return -1;
-         }else {
-            nme[63] = '\0'; /* jic */
-            c = strstr(nme, ".");
-            if( c != NULL ) *c = '\0';
-            in->name = strdup(nme);
-            if( in->name == NULL ) die(ExitGulm_NoMemory, "Out of memory.\n");
-         }
-      }else
-      if( get_ip_for_name(val->v.str, &in->ip) == 0 ) {
-         /* they gave a name, and we just got the ip */
-         in->name = strdup(val->v.str);
-         if( in->name == NULL ) die(ExitGulm_NoMemory, "Out of memory.\n");
-      }else
-      {
-         /* not an ip or name of an ip */
-         free(in);
-         fprintf(stderr, "I cannot find the ip of \"%s\".\n",
-               val->v.str);
-         return -1;
-      }
-      if( gf->node_cnt < 5 ) {
-         LLi_add_before( &gf->node_list, &in->in_list );
-         gf->node_cnt ++;
-      }else{
-         fprintf(stderr, "Skipping server entry \"%s\" since the max of five"
-               " has been reached.\n", val->v.str);
-         free(in);
-      }
-
-   }
-
-   return 0;
-}
-
-/**
- * scan_gulm_section - 
- * @gf: 
- * @rt: 
- * 
- * 
- * Returns: int
- */
-int scan_gulm_section(gulm_config_t *gf, ccs_node_t *rt)
-{
-   char *tmpstr;
-   float tmp_ft;
-#define CGPRE "cluster/lock_gulm/"
-
-   /* find int values */
-   gf->corePort = find_ccs_int(rt, CGPRE"coreport", '/', 40040);
-   gf->ltpx_port = find_ccs_int(rt, CGPRE"ltpx_port", '/', 40042);
-   gf->lt_port = find_ccs_int(rt, CGPRE"lt_base_port", '/', 41040);
-
-   tmp_ft = find_ccs_float(rt, CGPRE"heartbeat_rate", '/', 15.0);
-   gf->heartbeat_rate = bound_to_uint64(ft2uint64(tmp_ft), 75000,(uint64_t)~0);
-
-   gf->allowed_misses = bound_to_uint16( find_ccs_int(rt,
-            CGPRE"allowed_misses", '/', 2), 1, 0xffff);
-
-   tmp_ft = find_ccs_float(rt, CGPRE"new_connection_timeout", '/', 15.0);
-   gf->new_con_timeout = bound_to_uint64(ft2uint64(tmp_ft), 0,(uint64_t)~0);
-
-   tmp_ft = find_ccs_float(rt, CGPRE"master_scan_delay", '/', 1.0);
-   gf->master_scan_delay = bound_to_uint64(ft2uint64(tmp_ft), 10, (uint64_t)~0);
-
-   gf->how_many_lts = bound_to_uint16( find_ccs_int(rt,
-            CGPRE"lt_partitions", '/', 1), 1, 256);
-
-   gf->lt_hashbuckets = bound_to_uint( find_ccs_int(rt,
-            CGPRE"lt_hash_buckets", '/', 65536), 1024, 0xffff);
-
-   gf->lt_maxlocks = bound_to_ulong( find_ccs_int(rt,
-            CGPRE"lt_high_locks", '/', 1024 * 1024), 10000, ~0UL);
-
-   gf->lt_prelocks = bound_to_uint( find_ccs_int(rt,
-            CGPRE"prealloc_locks", '/', 10 ), 0, ~0U);
-   gf->lt_preholds = bound_to_uint( find_ccs_int(rt,
-            CGPRE"prealloc_holders", '/', 10 ), 0, ~0U);
-   gf->lt_prelkrqs = bound_to_uint( find_ccs_int(rt,
-            CGPRE"prealloc_lkrqs", '/', 10 ), 0, ~0U);
-
-   gf->lt_cf_rate = bound_to_uint( find_ccs_int(rt,
-            CGPRE"lt_drop_req_rate", '/', 10), 5, ~0U);
-
-   /* find strings that are copied in. */
-   if(gf->fencebin != NULL ) free(gf->fencebin);
-   gf->fencebin = strdup( find_ccs_str(rt,
-            CGPRE"fencebin", '/', "fence_node") );
-   if( gf->fencebin == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
-
-   if(gf->run_as != NULL ) free(gf->run_as);
-   gf->run_as = strdup( find_ccs_str(rt, CGPRE"run_as", '/', "root") );
-   if( gf->run_as == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
-
-   if(gf->lock_file != NULL ) free(gf->lock_file);
-   gf->lock_file = strdup( find_ccs_str(rt, CGPRE"lock_dir", '/',
-                                        "/var/run/sistina") );
-   if( gf->lock_file == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
-
-   /* find strings that are parsed more */
-   tmpstr = (char*)find_ccs_str(rt, CGPRE"verbosity", '/', NULL);
-   if( tmpstr != NULL ) set_verbosity(tmpstr, &verbosity);
-
-   /* now get the list of servers. */
-   if( scan_server_list(gf, find_ccs_node(rt, CGPRE"servers", '/')) < 0 ) {
-      release_node_list(&gf->node_list);
-      gf->node_cnt = 0;
-      LLi_init_head(&gf->node_list);
-      return -1;
-   }
-
-#undef CGPRE
-
-   return 0;
+   (*argv)[(*next)++] = name;
+   (*argv)[(*next)++] = value;
 }
 
 /**
  * parse_ccs - 
  * @gf: 
  * 
+ * Thinking to have this actually just build an array of the strings it
+ * pulls out of the ccs, and format that array as cmdline args, then pass
+ * that to parse_cmdline().  ccs gives me strings, and I already wrote all
+ * that sctring parsing stuff over there, so why not just reused it?
+ * (possibly weird error messages.)
+ *
+ * Of course, one must wonder if we should do things in a way that is a bit
+ * more xml friendly.  Mostly instead of:
+ *  <servers>a,b,c</servers>
+ * have:
+ *  <server>a</server> <server>b</server> <server>c</server>
  * 
  * Returns: int
  */
 int parse_ccs(gulm_config_t *gf)
 {
-   ccs_node_t *rt;
-   int err=0;
+   int ccs_argc=0, next=0;
+   char **ccs_argv=NULL, *tmp=NULL;
 
-   if((err=open_ccs_file(&rt, "cluster.ccs")) != 0 ) {
-      fprintf(stderr, "Failed to get \"cluster.ccs\" from ccsd: %d:%d:%s\n",
-            err, errno, strerror(errno));
-      fprintf(stderr, "Skipping all of ccs for configs.\n");
-      return err;
+   if( (gf->ccs_desc=ccs_force_connect(NULL, 1/*?blocking?*/)) < 0 ) {
+      fprintf(stderr, "No ccs, checking for cmdline config. (%d:%s)\n",
+            gf->ccs_desc, strerror(abs(gf->ccs_desc)));
+      gf->ccs_desc = -1;
+      return -1;
    }
 
-   /* get cluster section info */
-   if( (err = scan_cluster_section(gf, rt)) < 0 ) {
-      goto exit;
-   }
+   if( ccs_get(gf->ccs_desc, "/cluster/@name", &tmp) == 0 )
+      push_opts("--cluster_name", tmp, &ccs_argc, &ccs_argv, &next);
 
-   /* get cluster/lock_gulm info */
-   if( (err = scan_gulm_section(gf, rt)) < 0 ) {
-      goto exit;
-   }
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/servers", &tmp) == 0 )
+      push_opts("--servers", tmp, &ccs_argc, &ccs_argv, &next);
 
-exit:
-   close_ccs_file(rt);
-   return err;
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/verbosity", &tmp) == 0 )
+      push_opts("--verbosity", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/heartbeat_rate", &tmp) == 0 )
+      push_opts("--heartbeat_rate", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/allowed_misses", &tmp) == 0 )
+      push_opts("--allowed_misses", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/new_connection_timeout", &tmp) == 0 )
+      push_opts("--new_connection_timeout", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/master_scan_delay", &tmp) == 0 )
+      push_opts("--master_scan_delay", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/coreport", &tmp) == 0 )
+      push_opts("--coreport", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltpxport", &tmp) == 0 )
+      push_opts("--ltpxport", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltport", &tmp) == 0 )
+      push_opts("--ltport", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/fence_bin", &tmp) == 0 )
+      push_opts("--fence_bin", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/run_as", &tmp) == 0 )
+      push_opts("--run_as", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lock_dir", &tmp) == 0 )
+      push_opts("--lock_dir", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_partitions", &tmp) == 0 )
+      push_opts("--lt_partitions", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_high_locks", &tmp) == 0 )
+      push_opts("--lt_high_locks", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_drop_req_rate", &tmp) == 0 )
+      push_opts("--lt_drop_req_rate", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_locks", &tmp) == 0 )
+      push_opts("--prealloc_locks", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_holders", &tmp) == 0 )
+      push_opts("--prealloc_holders", tmp, &ccs_argc, &ccs_argv, &next);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_lkrqs", &tmp) == 0 )
+      push_opts("--prealloc_lkrqs", tmp, &ccs_argc, &ccs_argv, &next);
+
+   push_opts(NULL, NULL, &ccs_argc, &ccs_argv, &next);
+
+   parse_cmdline(gf, next, ccs_argv);
+
+   for(; next > 0 ; next--) {
+      /* items with -- are not malloced. */
+      if( ccs_argv[next] != NULL &&
+          ccs_argv[next][0] != '-' &&
+          ccs_argv[next][1] != '-' )
+         free(ccs_argv[next]);
+   }
+   free(ccs_argv);
+
+   return 0;
 }
 
 /**
@@ -256,44 +171,28 @@ exit:
  * @name: 
  * @ip: 
  * 
- * check ccs for node {name {}} entry.
- * (ip has already been validated by libresolv)
- *
- * If there isn't a nodes.ccs file, then say there ok, since that is
- * different from there being a file and the name isn't in it.
- * 
  * Returns: =0:Deny =1:Allow
  */
-int verify_name_and_ip_ccs(char *name, uint32_t ip)
+int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
 {
-   ccs_node_t *rt=NULL, *nd=NULL;
-   char req[256];
    int n, ret=1;
+   char req[256], *tmp=NULL;
 
-   if((n=open_ccs_file(&rt, "nodes.ccs")) != 0) {
-      log_msg(lgm_Network2,"Failed to open nodes.ccs: %d:%d:%s\n",
-            n, errno, strerror(errno));
-      ret = 1; /* ccs isn't there, ignore it */
-      goto fail;
-   }
+   if( gulm_config.ccs_desc < 0 ) return 1;
 
-   n = snprintf(req, 256, "nodes/%s", name);
+   n = snprintf(req, 256, "/nodes/node[@name='%s']", name);
    if( n < 0 || n > 255 ) {
       log_msg(lgm_Network2,"snprintf failed\n");
       ret = 0;
       goto fail; /* snprintf failed */
    }
 
-   nd = find_ccs_node(rt, req, '/');
-   if( nd == NULL ) {
-      log_msg(lgm_Network2,"Node name %s is not in CCS. (correct case?)\n",
-            name);
+   if( ccs_get(gulm_config.ccs_desc, req, &tmp) != 0 ) {
       ret = 0;
-      goto fail;
    }
+   if(tmp!=NULL)free(tmp);
 
 fail:
-   if( rt != NULL ) close_ccs_file(rt);
    return ret;
 }
 

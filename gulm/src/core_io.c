@@ -35,7 +35,6 @@
 #include "utils_ip.h"
 #include "utils_tostr.h"
 #include "utils_verb_flags.h"
-#include "config_ccs.h"
 
 /*****************************************************************************/
 /* First data that is stored in the main. */
