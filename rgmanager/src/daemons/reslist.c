@@ -371,8 +371,6 @@ print_resource(resource_t *res)
 		       res->r_rule->rr_maxrefs);
 	if (res->r_rule->rr_agent)
 		printf("Agent: %s\n", res->r_rule->rr_agent);
-	if (res->r_rule->rr_handler)
-		printf("Handler: %s\n", res->r_rule->rr_handler);
 	
 	printf("Attributes:\n");
 	if (!res->r_attrs) {

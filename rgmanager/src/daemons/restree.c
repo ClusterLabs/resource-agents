@@ -295,8 +295,7 @@ restore_signals(void)
 
 
 /**
-   Execute a resource-specific agent within its associated handler for a
-   resource node in the tree.
+   Execute a resource-specific agent for a resource node in the tree.
 
    @param node		Resource tree node we're dealing with
    @param op		Operation to perform (stop/start/etc.)
@@ -341,9 +340,6 @@ res_exec(resource_node_t *node, int op, int depth)
 		if (!env)
 			exit(-ENOMEM);
 
-		if (!res->r_rule->rr_handler)
-			res->r_rule->rr_handler = "/bin/bash";
-
 		if (res->r_rule->rr_agent[0] != '/')
 			snprintf(fullpath, sizeof(fullpath), "%s/%s",
 				 RESOURCE_ROOTDIR, res->r_rule->rr_agent);
@@ -353,8 +349,7 @@ res_exec(resource_node_t *node, int op, int depth)
 
 		restore_signals();
 
-		execle(res->r_rule->rr_handler, res->r_rule->rr_handler, 
-		       fullpath, res_ops[op], NULL, env);
+		execle(fullpath, fullpath, res_ops[op], NULL, env);
 	}
 
 #ifdef DEBUG

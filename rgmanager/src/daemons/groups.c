@@ -405,7 +405,7 @@ init_resource_groups(void)
 	/* XXX refresh resource groups here? */
 	pthread_rwlock_wrlock(&resource_lock);
 	if (_tree)
-		destroy_resource_tree(&tree);
+		destroy_resource_tree(&_tree);
 	_tree = tree;
 	if (_resources)
 		destroy_resources(&_resources);

@@ -90,7 +90,6 @@ typedef struct _resource_rule {
 	list_head();
 	char *	rr_type;
 	char *	rr_agent;
-	char *	rr_handler;	/** /bin/bash; /usr/bin/perl... */
 	char *	rr_version;	/** agent XML spec version; OCF-ism */
 	int	rr_root;
 	int	rr_maxrefs;

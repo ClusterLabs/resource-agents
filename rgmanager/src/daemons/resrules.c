@@ -480,8 +480,6 @@ print_resource_rule(resource_rule_t *rr)
 		printf("Max instances: %d\n", rr->rr_maxrefs);
 	if (rr->rr_agent)
 		printf("Agent: %s\n", rr->rr_agent);
-	if (rr->rr_handler)
-		printf("Handler: %s\n", rr->rr_handler);
 	
 	printf("Attributes:\n");
 	if (!rr->rr_attrs) {
@@ -771,28 +769,6 @@ read_pipe(int fd, char **file, size_t *length)
 }
 
 
-void
-_get_handler(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
-	     resource_rule_t *rr)
-{
- 	char xpath[256];
-	char *ret = NULL;
-	struct stat sb;
- 
-	snprintf(xpath, sizeof(xpath), "%s/attributes/@handler", base);
-	ret = xpath_get_one(doc, ctx, xpath);
-	if (ret) {
-	       	if (stat(ret, &sb) == 0) {
-			rr->rr_handler = ret;
-		} else {
-			printf("Warning: Handler for %s nonexistent\n",
-			       rr->rr_type);
- 			free(ret);
- 		}
-	}
-}
-
-
 xmlDocPtr
 read_resource_agent_metadata(char *filename)
 {
@@ -895,7 +871,6 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		_get_root(doc, ctx, base, rr);
 		_get_maxparents(doc, ctx, base, rr);
 		rr->rr_agent = strdup(filename);
-		_get_handler(doc, ctx, base, rr);
 
 		/*
 		   Second, add the allowable-children fields
