@@ -500,7 +500,8 @@ void remove_gnbd(char *name, int minor, int pid)
              name);
     }
   }
-  kill(pid, SIGKILL);
+  if (pid > 0)
+  	kill(pid, SIGKILL);
   cleanup_device(name, minor, fd);
   close(fd);
 }

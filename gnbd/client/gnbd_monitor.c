@@ -144,7 +144,7 @@ void setup_poll(void)
   polls[CLUSTER].events = POLLIN;
   polls[CONNECT].fd = start_request_sock();
   polls[CONNECT].events = POLLIN;
-  for(i = 0; i < open_max(); i++){
+  for(i = 2; i < open_max(); i++){
     polls[i].fd = -1;
     polls[i].revents = 0;
   }
