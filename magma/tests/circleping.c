@@ -231,8 +231,22 @@ main(void)
 	/* Connect to the cluster software. */
 	cluster_fd = clu_connect(MY_SERVICE_GROUP, 1);
 
-	if (cluster_fd < 0)
+	if (cluster_fd < 0) {
+		switch(errno) {
+		case ELIBACC:
+			fprintf(stderr, "No plugins found.\n");
+			break;
+		case ESRCH:
+			fprintf(stderr, "No matching plugin found or cluster "
+				"not running.\n");
+			break;
+		default:
+			fprintf(stderr, "%s\n", strerror(errno));
+			break;
+		}
+
 		return -1;
+	}
 
 	quorate = (clu_quorum_status(MY_SERVICE_GROUP) & QF_QUORATE);
 	printf("Using plugin: %s\n", clu_plugin_version());
