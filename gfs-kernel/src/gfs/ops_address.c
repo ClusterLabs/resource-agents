@@ -277,11 +277,12 @@ gfs_readpage(struct file *file, struct page *page)
 {
 	ENTER(GFN_READPAGE)
 	struct gfs_inode *ip = vn2ip(page->mapping->host);
+	struct gfs_sbd *sdp = ip->i_sbd;
 	int error;
 
-	atomic_inc(&ip->i_sbd->sd_ops_address);
+	atomic_inc(&sdp->sd_ops_address);
 
-	if (gfs_assert_warn(ip->i_sbd, gfs_glock_is_locked_by_me(ip->i_gl))) {
+	if (gfs_assert_warn(sdp, gfs_glock_is_locked_by_me(ip->i_gl))) {
 		unlock_page(page);
 		RETURN(GFN_READPAGE, -ENOSYS);
 	}
@@ -294,6 +295,9 @@ gfs_readpage(struct file *file, struct page *page)
 			error = block_read_full_page(page, get_block);
 	} else
 		error = readi_readpage(page);
+
+	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
+		error = -EIO;
 
 	RETURN(GFN_READPAGE, error);
 }
