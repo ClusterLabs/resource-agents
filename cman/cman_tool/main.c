@@ -133,15 +133,45 @@ static void show_services(void)
 	show_file("/proc/cluster/services");
 }
 
+static int open_cluster_socket()
+{
+	int cluster_sock;
+
+	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
+	if (cluster_sock == -1)
+		die("can't open cluster socket, cman kernel module probably not loaded");
+
+	return cluster_sock;
+}
+
+char *cman_error(int err)
+{
+	char *die_error;
+
+	switch (errno) {
+	case ENOTCONN:
+		die_error = "Cluster software not started";
+		break;
+	case ENOENT:
+		die_error = "Node is not yet a cluster member";
+		break;
+	case EBUSY:
+		die_error = "Cluster is in transition, try later or use -w";
+		break;
+	default:
+		die_error = strerror(errno);
+		break;
+	}
+	return die_error;
+}
+
 static void leave(commandline_t *comline)
 {
 	int cluster_sock;
 	int result;
 	int flags = CLUSTER_LEAVEFLAG_DOWN;
 
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("can't open cluster socket");
+	cluster_sock = open_cluster_socket();
 
 	/* "cman_tool leave remove" adjusts quorum downward */
 
@@ -153,7 +183,7 @@ static void leave(commandline_t *comline)
 
 	if ((result = ioctl(cluster_sock, SIOCCLUSTER_GET_JOINCOUNT, 0)) != 0) {
 		if (result < 0)
-			die("error getting join count");
+			die("error getting join count: %s", cman_error(errno));
 
 		if (!comline->force) {
 	    		die("Can't leave cluster while there are %d active subsystems\n", result);
@@ -174,8 +204,9 @@ static void leave(commandline_t *comline)
 
 	} while (result < 0 && errno == EBUSY && comline->wait_opt);
 
-	if (result)
-		die("Error leaving cluster: %s", strerror(errno));
+	if (result) {
+		die("Error leaving cluster: %s", cman_error(errno));
+	}
 
 	close(cluster_sock);
 }
@@ -185,13 +216,11 @@ static void set_expected(commandline_t *comline)
 	int cluster_sock;
 	int result;
 
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("Can't open cluster socket");
+	cluster_sock = open_cluster_socket();
 
 	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SETEXPECTED_VOTES,
 			    comline->expected_votes)))
-		die("can't set expected votes");
+		die("can't set expected votes: %s", cman_error(errno));
 
 	close(cluster_sock);
 }
@@ -201,13 +230,11 @@ static void set_votes(commandline_t *comline)
 	int cluster_sock;
 	int result;
 
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("can't open cluster socket");
+	cluster_sock = open_cluster_socket();
 
 	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SET_VOTES,
 			    comline->votes)))
-		die("can't set votes");
+		die("can't set votes: %s", cman_error(errno));
 
 	close(cluster_sock);
 }
@@ -218,12 +245,10 @@ static void version(commandline_t *comline)
 	int cluster_sock;
 	int result;
 
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("can't open cluster socket");
+	cluster_sock = open_cluster_socket();
 
 	if ((result = ioctl(cluster_sock, SIOCCLUSTER_GET_VERSION, &ver)))
-		die("can't get version");
+		die("can't get version: %s", cman_error(errno));
 
 	if (!comline->config_version) {
 		printf("%d.%d.%d config %d\n", ver.major, ver.minor, ver.patch,
@@ -234,7 +259,7 @@ static void version(commandline_t *comline)
 	ver.config = comline->config_version;
 
 	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SET_VERSION, &ver)))
-		die("can't set version");
+		die("can't set version: %s", cman_error(errno));
  out:
 	close(cluster_sock);
 }
@@ -263,9 +288,8 @@ static int cluster_wait(commandline_t *comline)
     int ret = 0;
 
     cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-    if (cluster_sock == -1) {
-        die("Can't open cluster socket");
-    }
+    if (cluster_sock == -1)
+	    die("can't open cluster socket, cman kernel module probably not loaded");
 
     if (comline->wait_quorate_opt) {
 	    while (ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0) <= 0) {
@@ -296,10 +320,7 @@ static void kill_node(commandline_t *comline)
 	    die("No node name specified\n");
 	}
 
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("can't open cluster socket");
-
+	cluster_sock = open_cluster_socket();
 
 	for (i=0; i<comline->num_nodenames; i++) {
 

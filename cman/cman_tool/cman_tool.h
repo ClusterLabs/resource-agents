@@ -94,5 +94,6 @@ typedef struct commandline commandline_t;
 
 int join(commandline_t *comline);
 int get_ccs_join_info(commandline_t *comline);
+char *cman_error(int err);
 
 #endif  /*  __CMAN_TOOL_DOT_H__  */

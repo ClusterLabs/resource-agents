@@ -348,14 +348,14 @@ int join(commandline_t *comline)
 
     error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODENAME, nodename);
     if (error)
-	die("Unable to set cluster node name");
+	die("Unable to set cluster node name: %s", cman_error(errno));
 
     /* Optional, set the node ID */
     if (comline->nodeid) {
 	error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODEID,
 		      comline->nodeid);
 	if (error)
-	    die("Unable to set cluster nodeid");
+	    die("Unable to set cluster nodeid: %s", cman_error(errno));
     }
 
     /*
@@ -379,7 +379,7 @@ int join(commandline_t *comline)
 
     if (ioctl(cluster_sock, SIOCCLUSTER_JOIN_CLUSTER, &join_info))
     {
-        die("error joining cluster");
+        die("error joining cluster: %s", cman_error(errno));
     }
 
     close(cluster_sock);
