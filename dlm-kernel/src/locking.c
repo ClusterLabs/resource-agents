@@ -875,6 +875,7 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr) {
 				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
 				       DLM_LVB_LEN);
+				rsb->res_lvbseq++;
 				clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
 			}
 			if (flags & DLM_LKF_IVVALBLK)
