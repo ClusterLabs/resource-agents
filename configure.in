@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.259 $) dnl cvs revision
+AC_REVISION($Revision: 1.260 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -529,6 +529,8 @@ else
 	AC_CHECK_HEADERS(sys/ucred.h,[],[],[#include <sys/param.h>])
 fi
 
+
+
 dnl ************************************************************************
 dnl checks for headers needed by clplumbing On Solaris
 AC_CHECK_HEADERS(sys/cred.h xti.h)
@@ -588,15 +590,85 @@ dnl
 AC_CHECK_LIB(crypto, CRYPTO_free, CRYPTOLIB="-lcrypto",)
 AC_SUBST(CRYPTOLIB)
 
+dnl ************************************************************************
+dnl  Handy function for checking for typedefs or struct defs
+dnl ************************************************************************
+
+check_for_type() {
+  type="$1"
+  headers=""
+  shift
+  for arg
+  do
+    headers="${headers}${arg}
+"
+  done
+  program="if ((${type} *) 0)  return 0;
+    if (sizeof(${type}))  return 0; 
+    return 0;"
+  have="HAVE_`echo "$type" | tr ' ' '_' | dd conv=ucase 2>/dev/null`"
+  varhave="heartbeat_cv_$have"
+
+  AC_CACHE_CHECK([for type $type ],$varhave,[
+    AC_TRY_COMPILE([$headers], [$program], eval $varhave=yes, eval $varhave=no
+    , eval $varhave=cross)
+  ])
+  if test x"`eval echo '${'$varhave'}'`" = xyes; then
+    return 0
+  fi
+  return 1
+}
 
 
 dnl ************************************************************************
 dnl  checks for typedefs
 dnl
 
+dnl 
+dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
+dnl 
+
+if check_for_type "nfds_t" "#include <poll.h>"; then
+	 AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t?])
+	 AC_DEFINE(HA_HAVE_NFDS_T,1,[Do we have nfds_t?])
+fi
+
 dnl ************************************************************************
 dnl checks for structures
 dnl
+
+
+
+#
+#	Look for all the variants of local/UNIX socket credentials
+#
+#	Include all of these headers that we can find...
+#
+headers=""
+for hdr in "sys/param.h" "sys/socket.h" "sys/ucred.h"
+do
+  hdrvar=ac_cv_header_`echo $hdr | sed -e 's%\.%_%' -e 's%/%_%'`
+  if test x"`eval echo '${'$hdrvar'}'`" = xyes; then
+    headers="$headers
+#include <$hdr>"
+  fi
+done
+
+if check_for_type "struct ucred" "$headers"; then
+	 AC_DEFINE(HAVE_STRUCT_UCRED,1,[Do we have struct ucred?])
+fi
+if check_for_type "struct cmsgcred" "$headers" ; then
+	 AC_DEFINE(HAVE_STRUCT_CMSGCRED,1,[Do we have struct cmsgcred?])
+fi
+if check_for_type "struct fcred" "$headers"; then
+	 AC_DEFINE(HAVE_STRUCT_FCRED,1,[Do we have struct fcred?])
+fi
+if check_for_type "struct cred" "$headers"; then
+	 AC_DEFINE(HAVE_STRUCT_CRED,1,[Do we have struct cred?])
+fi
+if check_for_type "struct sockcred" "$headers"; then
+	 AC_DEFINE(HAVE_STRUCT_SOCKCRED,1,[Do we have struct sockcred?])
+fi
 
 dnl Check TERMIOS for components (e.g. c_line not present on Solaris)
 dnl
@@ -608,21 +680,6 @@ samba_cv_HAVE_TERMIOS_C_LINE=yes,samba_cv_HAVE_TERMIOS_C_LINE=no,samba_cv_HAVE_T
 if test x"$samba_cv_HAVE_TERMIOS_C_LINE" = x"yes"; then
     AC_DEFINE(HAVE_TERMIOS_C_LINE,1,[ ])
 fi
-
-AC_MSG_CHECKING(if nfds_t is defined)
-dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
-AC_TRY_COMPILE([#include <poll.h>],
-[ nfds_t te;  te = 0;],
-[
-	AC_DEFINE(HAVE_NFDS_T,1,[Do we have nfds_t])
-	AC_DEFINE(HA_HAVE_NFDS_T,1,[Do we have nfds_t])
-	AC_MSG_RESULT(yes)
-],
-[
-	AC_MSG_RESULT(no)
-]
-)
-
 
 dnl Check sockaddr_in for components (e.g. sin_len not present on Solaris)
 dnl
@@ -921,17 +978,17 @@ AC_DEFINE_UNQUOTED(HA_APIGID, "$HA_APIGID", id for api group)
 AC_ARG_WITH(
   ccmuser-name,
     [  --with-ccmuser-name=HA_CCMUSER_NAME
-                          HA_CCMUSER_NAME to own API fifos. [default=hacluster]  ],
+                          HA_CCMUSER_NAME to run privileged non-root things as. [default=hacluster]  ],
     [ HA_CCMUSER="$withval" ],
     [ HA_CCMUSER="hacluster" ],
   )
 AC_SUBST(HA_CCMUSER)
-AC_DEFINE_UNQUOTED(HA_CCMUSER, "$HA_CCMUSER", user for api fifos)
+AC_DEFINE_UNQUOTED(HA_CCMUSER, "$HA_CCMUSER", user to run privileged non-root things as)
 
 AC_ARG_WITH(
   ccmuser-id,
     [  --with-ccmuser-id=HA_HA_CCMUSER_ID  
-                          USER_ID to own CCM fifos. [default=17]  ],
+                          USER_ID to run privileged non-root things as. [default=17]  ],
     [ HA_CCMUID="$withval" ],
     [ HA_CCMUID=17 ],
   )
@@ -1070,6 +1127,7 @@ AC_CHECK_FUNCS(__default_morecore)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
 AC_CHECK_FUNCS(dmalloc)
+AC_CHECK_FUNCS(getpeereid)
 AM_CONDITIONAL(USE_DMALLOC, test "$ac_cv_func_dmalloc" = "yes" -a "${enable_dmalloc}" = "yes")
 
 if  test "$ac_cv_func_dmalloc" = "yes" -a "${enable_dmalloc}" = "yes"; then
@@ -1616,8 +1674,8 @@ AC_MSG_RESULT([  Init (rc) scripts    = "$my_initdir"])
 
 AC_MSG_RESULT([  API fifo group name  = "${HA_APIGROUP}"])
 AC_MSG_RESULT([  API fifo group id    = "${HA_APIGID}"])
-AC_MSG_RESULT([  HACCM user name      = "${HA_CCMUSER}"])
-AC_MSG_RESULT([  HA_CCM user id       = "${HA_CCMUID}"])
+AC_MSG_RESULT([  HA client user name  = "${HA_CCMUSER}"])
+AC_MSG_RESULT([  HA client user id    = "${HA_CCMUID}"])
 
 case x"$SNMP_SUBAGENT_DIR" in
   x)
