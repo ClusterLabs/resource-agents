@@ -99,16 +99,10 @@ int remote_stage(struct dlm_lkb *lkb, int state)
 
 	error = send_cluster_request(lkb, state);
 	if (error < 0) {
-		log_print("remote_stage error sending request %d", error);
-
+		log_error(lkb->lkb_resource->res_ls, "remote_stage error %d %x",
+			  error, lkb->lkb_id);
 		/* Leave on lockqueue, it will be resent to correct node during
 		 * recovery. */
-
-		 /*
-		 lkb->lkb_lockqueue_state = 0;
-		 remove_from_lockqueue(lkb);
-		 return -ENOTCONN;
-		 */
 	}
 	return 0;
 }

@@ -673,8 +673,10 @@ int dlm_unlock(void *lockspace,
 	struct dlm_rsb *rsb;
 	int ret = -EINVAL;
 
-	if (!ls)
+	if (!ls) {
+		log_print("dlm_unlock: lkid %x lockspace not found", lkid);
 		return ret;
+	}
 
 	lkb = find_lock_by_id(ls, lkid);
 	if (!lkb) {
