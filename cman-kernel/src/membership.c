@@ -1833,6 +1833,11 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 {
 	struct sockaddr_cl *saddr = msg->msg_name;
 
+
+	/* This has been known to happen, but I'm not sure why */
+	if (saddr->scl_nodeid < 1)
+		return 0;
+
 	if (node_opinion == NULL) {
 		node_opinion =
 		    kmalloc((10 + highest_nodeid) * sizeof (uint8_t), GFP_KERNEL);
@@ -2070,6 +2075,12 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 	if ((newgen < cluster_generation) ||
 	    (newgen == 0xFFFFFFFF && cluster_generation == 0)) {
 		P_MEMB("Ignoring STARTTRANS with old generation number\n");
+
+		/* if a node has died we still need to do something about it */
+		if (startmsg->reason == TRANS_REMNODE ||
+		    startmsg->reason == TRANS_ANOTHERREMNODE) {
+			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
+		}
 		return 0;
 	}
 
