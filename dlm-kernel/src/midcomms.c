@@ -41,12 +41,12 @@
 
 static void host_to_network(void *msg)
 {
-	struct gd_req_header *head = msg;
-	struct gd_remlockrequest *req = msg;
-	struct gd_remlockreply *reply = msg;
-	struct gd_remquery *query = msg;
-	struct gd_remqueryreply *queryrep = msg;
-	gd_rcom_t *rc = msg;
+	struct dlm_header *head = msg;
+	struct dlm_request *req = msg;
+	struct dlm_reply *rep = msg;
+	struct dlm_query_request *qreq = msg;
+	struct dlm_query_reply *qrep= msg;
+	struct dlm_rcom *rc = msg;
 
 	/* Force into network byte order */
 
@@ -80,9 +80,9 @@ static void host_to_network(void *msg)
 		break;
 
 	case GDLM_REMCMD_LOCKREPLY:
-		reply->rl_lockstate = cpu_to_le32(reply->rl_lockstate);
-		reply->rl_nodeid = cpu_to_le32(reply->rl_nodeid);
-		reply->rl_status = cpu_to_le32(reply->rl_status);
+		rep->rl_lockstate = cpu_to_le32(rep->rl_lockstate);
+		rep->rl_nodeid = cpu_to_le32(rep->rl_nodeid);
+		rep->rl_status = cpu_to_le32(rep->rl_status);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:
@@ -92,17 +92,17 @@ static void host_to_network(void *msg)
 		break;
 
 	case GDLM_REMCMD_QUERY:
-	        query->rq_mstlkid = cpu_to_le32(query->rq_mstlkid);
-		query->rq_query = cpu_to_le32(query->rq_query);
-		query->rq_maxlocks = cpu_to_le32(query->rq_maxlocks);
+	        qreq->rq_mstlkid = cpu_to_le32(qreq->rq_mstlkid);
+		qreq->rq_query = cpu_to_le32(qreq->rq_query);
+		qreq->rq_maxlocks = cpu_to_le32(qreq->rq_maxlocks);
 		break;
 
 	case GDLM_REMCMD_QUERYREPLY:
-	        queryrep->rq_numlocks = cpu_to_le32(queryrep->rq_numlocks);
-		queryrep->rq_status = cpu_to_le32(queryrep->rq_status);
-		queryrep->rq_grantcount = cpu_to_le32(queryrep->rq_grantcount);
-		queryrep->rq_waitcount = cpu_to_le32(queryrep->rq_waitcount);
-		queryrep->rq_convcount = cpu_to_le32(queryrep->rq_convcount);
+	        qrep->rq_numlocks = cpu_to_le32(qrep->rq_numlocks);
+		qrep->rq_status = cpu_to_le32(qrep->rq_status);
+		qrep->rq_grantcount = cpu_to_le32(qrep->rq_grantcount);
+		qrep->rq_waitcount = cpu_to_le32(qrep->rq_waitcount);
+		qrep->rq_convcount = cpu_to_le32(qrep->rq_convcount);
 		break;
 
 	default:
@@ -113,12 +113,12 @@ static void host_to_network(void *msg)
 
 static void network_to_host(void *msg)
 {
-	struct gd_req_header *head = msg;
-	struct gd_remlockrequest *req = msg;
-	struct gd_remlockreply *reply = msg;
-	struct gd_remquery *query = msg;
-	struct gd_remqueryreply *queryrep = msg;
-	gd_rcom_t *rc = msg;
+	struct dlm_header *head = msg;
+	struct dlm_request *req = msg;
+	struct dlm_reply *rep = msg;
+	struct dlm_query_request *qreq = msg;
+	struct dlm_query_reply *qrep = msg;
+	struct dlm_rcom *rc = msg;
 
 	/* Force into host byte order */
 
@@ -153,9 +153,9 @@ static void network_to_host(void *msg)
 		break;
 
 	case GDLM_REMCMD_LOCKREPLY:
-		reply->rl_lockstate = le32_to_cpu(reply->rl_lockstate);
-		reply->rl_nodeid = le32_to_cpu(reply->rl_nodeid);
-		reply->rl_status = le32_to_cpu(reply->rl_status);
+		rep->rl_lockstate = le32_to_cpu(rep->rl_lockstate);
+		rep->rl_nodeid = le32_to_cpu(rep->rl_nodeid);
+		rep->rl_status = le32_to_cpu(rep->rl_status);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:
@@ -166,17 +166,17 @@ static void network_to_host(void *msg)
 
 
 	case GDLM_REMCMD_QUERY:
-	        query->rq_mstlkid = le32_to_cpu(query->rq_mstlkid);
-		query->rq_query = le32_to_cpu(query->rq_query);
-		query->rq_maxlocks = le32_to_cpu(query->rq_maxlocks);
+	        qreq->rq_mstlkid = le32_to_cpu(qreq->rq_mstlkid);
+		qreq->rq_query = le32_to_cpu(qreq->rq_query);
+		qreq->rq_maxlocks = le32_to_cpu(qreq->rq_maxlocks);
 		break;
 
 	case GDLM_REMCMD_QUERYREPLY:
-	        queryrep->rq_numlocks = le32_to_cpu(queryrep->rq_numlocks);
-		queryrep->rq_status = le32_to_cpu(queryrep->rq_status);
-		queryrep->rq_grantcount = le32_to_cpu(queryrep->rq_grantcount);
-		queryrep->rq_waitcount = le32_to_cpu(queryrep->rq_waitcount);
-		queryrep->rq_convcount = le32_to_cpu(queryrep->rq_convcount);
+	        qrep->rq_numlocks = le32_to_cpu(qrep->rq_numlocks);
+		qrep->rq_status = le32_to_cpu(qrep->rq_status);
+		qrep->rq_grantcount = le32_to_cpu(qrep->rq_grantcount);
+		qrep->rq_waitcount = le32_to_cpu(qrep->rq_waitcount);
+		qrep->rq_convcount = le32_to_cpu(qrep->rq_convcount);
 		break;
 
 	default:
@@ -233,16 +233,16 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 				     unsigned offset, unsigned len,
 				     unsigned limit)
 {
-	unsigned char __tmp[sizeof(struct gd_req_header) + 64];
-	struct gd_req_header *msg = (struct gd_req_header *) __tmp;
+	unsigned char __tmp[sizeof(struct dlm_header) + 64];
+	struct dlm_header *msg = (struct dlm_header *) __tmp;
 	int ret = 0;
 	int err = 0;
 	unsigned msglen;
 	__u32 id, space;
 
-	while (len > sizeof(struct gd_req_header)) {
+	while (len > sizeof(struct dlm_header)) {
 		/* Get message header and check it over */
-		copy_from_cb(msg, base, offset, sizeof(struct gd_req_header),
+		copy_from_cb(msg, base, offset, sizeof(struct dlm_header),
 			     limit);
 		msglen = le16_to_cpu(msg->rh_length);
 		id = msg->rh_lkid;
@@ -250,7 +250,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 
 		/* Check message size */
 		err = -EINVAL;
-		if (msglen < sizeof(struct gd_req_header))
+		if (msglen < sizeof(struct dlm_header))
 			break;
 		err = -E2BIG;
 		if (msglen > dlm_config.buffer_size) {
@@ -265,7 +265,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 
 		/* Make sure our temp buffer is large enough */
 		if (msglen > sizeof(__tmp) &&
-		    msg == (struct gd_req_header *) __tmp) {
+		    msg == (struct dlm_header *) __tmp) {
 			msg = kmalloc(dlm_config.buffer_size, GFP_KERNEL);
 			if (msg == NULL)
 				return ret;
@@ -282,7 +282,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 
 		if ((msg->rh_cmd > 32) ||
 		    (msg->rh_cmd == 0) ||
-		    (msg->rh_length < sizeof(struct gd_req_header)) ||
+		    (msg->rh_length < sizeof(struct dlm_header)) ||
 		    (msg->rh_length > dlm_config.buffer_size)) {
 
 			printk("dlm: midcomms: cmd=%u, flags=%u, length=%hu, "
@@ -293,7 +293,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 			printk("dlm: midcomms: base=%p, offset=%u, len=%u, "
 			       "ret=%u, limit=%08x newbuf=%d\n",
 			       base, offset, len, ret, limit,
-			       ((struct gd_req_header *) __tmp == msg));
+			       ((struct dlm_header *) __tmp == msg));
 
 			khexdump((const unsigned char *) msg, msg->rh_length);
 
@@ -310,7 +310,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
 		}
 	}
 
-	if (msg != (struct gd_req_header *) __tmp)
+	if (msg != (struct dlm_header *) __tmp)
 		kfree(msg);
 
 	return err ? err : ret;
@@ -320,7 +320,7 @@ int midcomms_process_incoming_buffer(int nodeid, const void *base,
  * Send a lowcomms buffer
  */
 
-void midcomms_send_buffer(struct gd_req_header *msg, struct writequeue_entry *e)
+void midcomms_send_buffer(struct dlm_header *msg, struct writequeue_entry *e)
 {
 	host_to_network(msg);
 	lowcomms_commit_buffer(e);
@@ -330,7 +330,7 @@ void midcomms_send_buffer(struct gd_req_header *msg, struct writequeue_entry *e)
  * Make the message into network byte order and send it
  */
 
-int midcomms_send_message(uint32_t nodeid, struct gd_req_header *msg,
+int midcomms_send_message(uint32_t nodeid, struct dlm_header *msg,
 			  int allocation)
 {
 	int len = msg->rh_length;

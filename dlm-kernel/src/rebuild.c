@@ -37,9 +37,9 @@ struct rcom_fill {
 	int 			maxlen;		/* Max value of offset */
 	int 			remasterid;
 	int 			count;
-	gd_res_t *		rsb;
-	gd_res_t *		subrsb;
-	gd_lkb_t *		lkb;
+	struct dlm_rsb *	rsb;
+	struct dlm_rsb *	subrsb;
+	struct dlm_lkb *	lkb;
 	struct list_head *	lkbqueue;
 	char 			more;
 };
@@ -49,7 +49,7 @@ typedef struct rcom_fill rcom_fill_t;
 struct rebuild_node {
 	struct list_head	list;
 	int 			nodeid;
-	gd_res_t *		rootrsb;
+	struct dlm_rsb *	rootrsb;
 };
 typedef struct rebuild_node rebuild_node_t;
 
@@ -60,7 +60,7 @@ typedef struct rebuild_node rebuild_node_t;
  * replied with all the new remote lockid's for this rsb's lkb's.
  */
 
-void expect_new_lkids(gd_res_t *rsb)
+void expect_new_lkids(struct dlm_rsb *rsb)
 {
 	rsb->res_newlkid_expect = 0;
 	recover_list_add(rsb);
@@ -71,9 +71,9 @@ void expect_new_lkids(gd_res_t *rsb)
  * to the new master for which we expect to receive a corresponding remote lkid
  */
 
-void need_new_lkid(gd_res_t *rsb)
+void need_new_lkid(struct dlm_rsb *rsb)
 {
-	gd_res_t *root = rsb;
+	struct dlm_rsb *root = rsb;
 
 	if (rsb->res_parent)
 		root = rsb->res_root;
@@ -81,7 +81,7 @@ void need_new_lkid(gd_res_t *rsb)
 	if (!root->res_newlkid_expect)
 		recover_list_add(root);
 	else
-		GDLM_ASSERT(test_bit(RESFL_RECOVER_LIST, &root->res_flags),);
+		DLM_ASSERT(test_bit(RESFL_RECOVER_LIST, &root->res_flags),);
 
 	root->res_newlkid_expect++;
 }
@@ -92,17 +92,17 @@ void need_new_lkid(gd_res_t *rsb)
  * root rsb.
  */
 
-void have_new_lkid(gd_lkb_t *lkb)
+void have_new_lkid(struct dlm_lkb *lkb)
 {
-	gd_res_t *root = lkb->lkb_resource;
+	struct dlm_rsb *root = lkb->lkb_resource;
 
 	if (root->res_parent)
 		root = root->res_root;
 
 	down_write(&root->res_lock);
 
-	GDLM_ASSERT(root->res_newlkid_expect,
-		    printk("newlkid_expect=%d\n", root->res_newlkid_expect););
+	DLM_ASSERT(root->res_newlkid_expect,
+		   printk("newlkid_expect=%d\n", root->res_newlkid_expect););
 
 	root->res_newlkid_expect--;
 
@@ -117,11 +117,11 @@ void have_new_lkid(gd_lkb_t *lkb)
  * Return the rebuild struct for a node - will create an entry on the rootrsb
  * list if necessary.
  *
- * Currently no locking is needed here as it all happens in the gdlm_recvd
+ * Currently no locking is needed here as it all happens in the dlm_recvd
  * thread
  */
 
-static rebuild_node_t *find_rebuild_root(gd_ls_t *ls, int nodeid)
+static rebuild_node_t *find_rebuild_root(struct dlm_ls *ls, int nodeid)
 {
 	rebuild_node_t *node = NULL;
 
@@ -146,7 +146,7 @@ static rebuild_node_t *find_rebuild_root(gd_ls_t *ls, int nodeid)
  * Tidy up after a rebuild run.  Called when all recovery has finished
  */
 
-void rebuild_freemem(gd_ls_t *ls)
+void rebuild_freemem(struct dlm_ls *ls)
 {
 	rebuild_node_t *node = NULL, *s;
 
@@ -215,7 +215,7 @@ static void get_bytes(char *bytes, int *len, char *buf, int *offp)
 	*offp += *len;
 }
 
-static int lkb_length(gd_lkb_t *lkb)
+static int lkb_length(struct dlm_lkb *lkb)
 {
 	int len = 0;
 
@@ -250,7 +250,7 @@ static int lkb_length(gd_lkb_t *lkb)
  * It's up to the caller to be sure there's enough space in the buffer.
  */
 
-static void serialise_lkb(gd_lkb_t *lkb, char *buf, int *offp)
+static void serialise_lkb(struct dlm_lkb *lkb, char *buf, int *offp)
 {
 	int flags;
 
@@ -283,7 +283,7 @@ static void serialise_lkb(gd_lkb_t *lkb, char *buf, int *offp)
 		put_int(0, buf, offp);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
-		GDLM_ASSERT(lkb->lkb_lvbptr,);
+		DLM_ASSERT(lkb->lkb_lvbptr,);
 		put_bytes(lkb->lkb_lvbptr, DLM_LVB_LEN, buf, offp);
 	}
 
@@ -305,12 +305,12 @@ static void serialise_lkb(gd_lkb_t *lkb, char *buf, int *offp)
 			put_int64(lkb->lkb_range[GR_RANGE_END], buf, offp);
 			break;
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 	}
 }
 
-static int rsb_length(gd_res_t *rsb)
+static int rsb_length(struct dlm_rsb *rsb)
 {
 	int len = 0;
 
@@ -322,21 +322,21 @@ static int rsb_length(gd_res_t *rsb)
 	return len;
 }
 
-static inline gd_res_t *next_subrsb(gd_res_t *subrsb)
+static inline struct dlm_rsb *next_subrsb(struct dlm_rsb *subrsb)
 {
 	struct list_head *tmp;
-	gd_res_t *r;
+	struct dlm_rsb *r;
 
 	tmp = subrsb->res_subreslist.next;
-	r = list_entry(tmp, gd_res_t, res_subreslist);
+	r = list_entry(tmp, struct dlm_rsb, res_subreslist);
 
 	return r;
 }
 
-static inline int last_in_list(gd_res_t *r, struct list_head *head)
+static inline int last_in_list(struct dlm_rsb *r, struct list_head *head)
 {
-	gd_res_t *last = list_entry(head->prev, gd_res_t, res_subreslist);
-
+	struct dlm_rsb *last;
+	last = list_entry(head->prev, struct dlm_rsb, res_subreslist);
 	if (last == r)
 		return 1;
 	return 0;
@@ -348,10 +348,10 @@ static inline int last_in_list(gd_res_t *r, struct list_head *head)
  * wait queue are not rebuilt.
  */
 
-static int lkbs_to_remaster(gd_res_t *r)
+static int lkbs_to_remaster(struct dlm_rsb *r)
 {
-	gd_lkb_t *lkb;
-	gd_res_t *sub;
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *sub;
 
 	if (!list_empty(&r->res_grantqueue) ||
 	    !list_empty(&r->res_convertqueue))
@@ -378,7 +378,7 @@ static int lkbs_to_remaster(gd_res_t *r)
 	return FALSE;
 }
 
-static void serialise_rsb(gd_res_t *rsb, char *buf, int *offp)
+static void serialise_rsb(struct dlm_rsb *rsb, char *buf, int *offp)
 {
 	/* 
 	 * See rsb_length()
@@ -393,7 +393,7 @@ static void serialise_rsb(gd_res_t *rsb, char *buf, int *offp)
 	else
 		put_int(0, buf, offp);
 
-	GDLM_ASSERT(!rsb->res_lvbptr,);
+	DLM_ASSERT(!rsb->res_lvbptr,);
 }
 
 /* 
@@ -402,7 +402,8 @@ static void serialise_rsb(gd_res_t *rsb, char *buf, int *offp)
  * master.
  */
 
-static int pack_one_lkb(gd_res_t *r, gd_lkb_t *lkb, rcom_fill_t *fill)
+static int pack_one_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb,
+			rcom_fill_t *fill)
 {
 	if (fill->offset + 1 + lkb_length(lkb) > fill->maxlen)
 		goto nospace;
@@ -424,10 +425,10 @@ static int pack_one_lkb(gd_res_t *r, gd_lkb_t *lkb, rcom_fill_t *fill)
  * Pack all LKB's from a given queue, except for those with the NOREBUILD flag.
  */
 
-static int pack_lkb_queue(gd_res_t *r, struct list_head *queue,
+static int pack_lkb_queue(struct dlm_rsb *r, struct list_head *queue,
 			  rcom_fill_t *fill)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	int error;
 
 	list_for_each_entry(lkb, queue, lkb_statequeue) {
@@ -448,7 +449,7 @@ static int pack_lkb_queue(gd_res_t *r, struct list_head *queue,
 	return error;
 }
 
-static int pack_lkb_queues(gd_res_t *r, rcom_fill_t *fill)
+static int pack_lkb_queues(struct dlm_rsb *r, rcom_fill_t *fill)
 {
 	int error;
 
@@ -471,10 +472,10 @@ static int pack_lkb_queues(gd_res_t *r, rcom_fill_t *fill)
  * queue and full lkb queues.
  */
 
-static int pack_lkb_remaining(gd_res_t *r, rcom_fill_t *fill)
+static int pack_lkb_remaining(struct dlm_rsb *r, rcom_fill_t *fill)
 {
 	struct list_head *tmp, *start, *end;
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	int error;
 
 	/* 
@@ -489,7 +490,7 @@ static int pack_lkb_remaining(gd_res_t *r, rcom_fill_t *fill)
 	end = fill->lkbqueue;
 
 	for (tmp = start; tmp != end; tmp = tmp->next) {
-		lkb = list_entry(tmp, gd_lkb_t, lkb_statequeue);
+		lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 
 		error = pack_one_lkb(r, lkb, fill);
 		if (error) {
@@ -507,7 +508,7 @@ static int pack_lkb_remaining(gd_res_t *r, rcom_fill_t *fill)
 	if (fill->lkbqueue == &r->res_convertqueue)
 		goto skip;
 
-	GDLM_ASSERT(fill->lkbqueue == &r->res_grantqueue,);
+	DLM_ASSERT(fill->lkbqueue == &r->res_grantqueue,);
 
 	error = pack_lkb_queue(r, &r->res_convertqueue, fill);
 	if (error)
@@ -519,7 +520,8 @@ static int pack_lkb_remaining(gd_res_t *r, rcom_fill_t *fill)
 	return error;
 }
 
-static int pack_one_subrsb(gd_res_t *rsb, gd_res_t *subrsb, rcom_fill_t *fill)
+static int pack_one_subrsb(struct dlm_rsb *rsb, struct dlm_rsb *subrsb,
+			   rcom_fill_t *fill)
 {
 	int error;
 
@@ -549,9 +551,10 @@ static int pack_one_subrsb(gd_res_t *rsb, gd_res_t *subrsb, rcom_fill_t *fill)
 	return -ENOSPC;
 }
 
-static int pack_subrsbs(gd_res_t *rsb, gd_res_t *in_subrsb, rcom_fill_t *fill)
+static int pack_subrsbs(struct dlm_rsb *rsb, struct dlm_rsb *in_subrsb,
+			rcom_fill_t *fill)
 {
-	gd_res_t *subrsb;
+	struct dlm_rsb *subrsb;
 	int error = 0;
 
 	/* 
@@ -563,7 +566,7 @@ static int pack_subrsbs(gd_res_t *rsb, gd_res_t *in_subrsb, rcom_fill_t *fill)
 		if (list_empty(&rsb->res_subreslist))
 			goto out;
 
-		subrsb = list_entry(rsb->res_subreslist.next, gd_res_t,
+		subrsb = list_entry(rsb->res_subreslist.next, struct dlm_rsb,
 			       	    res_subreslist);
 	} else
 		subrsb = in_subrsb;
@@ -594,10 +597,10 @@ static int pack_subrsbs(gd_res_t *rsb, gd_res_t *in_subrsb, rcom_fill_t *fill)
  *                  a new rsb in pack_rsb_tree().
  */
 
-static int pack_rsb_tree_remaining(gd_ls_t *ls, gd_res_t *rsb,
+static int pack_rsb_tree_remaining(struct dlm_ls *ls, struct dlm_rsb *rsb,
 				   rcom_fill_t *fill)
 {
-	gd_res_t *subrsb = NULL;
+	struct dlm_rsb *subrsb = NULL;
 	int error = 0;
 
 	if (!fill->subrsb && fill->lkb) {
@@ -644,7 +647,8 @@ static int pack_rsb_tree_remaining(gd_ls_t *ls, gd_res_t *rsb,
  * queue+lkb, subrsb, or subrsb+queue+lkb which wouldn't fit).
  */
 
-static int pack_rsb_tree(gd_ls_t *ls, gd_res_t *rsb, rcom_fill_t *fill)
+static int pack_rsb_tree(struct dlm_ls *ls, struct dlm_rsb *rsb,
+			 rcom_fill_t *fill)
 {
 	int error = -ENOSPC;
 
@@ -687,10 +691,11 @@ static int pack_rsb_tree(gd_ls_t *ls, gd_res_t *rsb, rcom_fill_t *fill)
  * Given an RSB, return the next RSB that should be sent to a new master.
  */
 
-static gd_res_t *next_remastered_rsb(gd_ls_t *ls, gd_res_t *rsb)
+static struct dlm_rsb *next_remastered_rsb(struct dlm_ls *ls,
+					   struct dlm_rsb *rsb)
 {
 	struct list_head *tmp, *start, *end;
-	gd_res_t *r;
+	struct dlm_rsb *r;
 
 	if (!rsb)
 		start = ls->ls_rootres.next;
@@ -700,7 +705,7 @@ static gd_res_t *next_remastered_rsb(gd_ls_t *ls, gd_res_t *rsb)
 	end = &ls->ls_rootres;
 
 	for (tmp = start; tmp != end; tmp = tmp->next) {
-		r = list_entry(tmp, gd_res_t, res_rootlist);
+		r = list_entry(tmp, struct dlm_rsb, res_rootlist);
 
 		if (test_bit(RESFL_NEW_MASTER, &r->res_flags)) {
 			if (r->res_nodeid && lkbs_to_remaster(r)) {
@@ -722,9 +727,10 @@ static gd_res_t *next_remastered_rsb(gd_ls_t *ls, gd_res_t *rsb)
  * filled up.
  */
 
-static void fill_rcom_buffer(gd_ls_t *ls, rcom_fill_t *fill, uint32_t *nodeid)
+static void fill_rcom_buffer(struct dlm_ls *ls, rcom_fill_t *fill,
+			     uint32_t *nodeid)
 {
-	gd_res_t *rsb, *prev_rsb = fill->rsb;
+	struct dlm_rsb *rsb, *prev_rsb = fill->rsb;
 	int error;
 
 	fill->offset = 0;
@@ -799,14 +805,14 @@ static void fill_rcom_buffer(gd_ls_t *ls, rcom_fill_t *fill, uint32_t *nodeid)
  * Send lkb's (and subrsb/lkbs) for remastered root rsbs to new masters.
  */
 
-int rebuild_rsbs_send(gd_ls_t *ls)
+int rebuild_rsbs_send(struct dlm_ls *ls)
 {
-	gd_rcom_t *rc;
+	struct dlm_rcom *rc;
 	rcom_fill_t fill;
 	uint32_t nodeid;
 	int error;
 
-	GDLM_ASSERT(recover_list_empty(ls),);
+	DLM_ASSERT(recover_list_empty(ls),);
 
 	log_all(ls, "rebuild locks");
 
@@ -818,7 +824,7 @@ int rebuild_rsbs_send(gd_ls_t *ls)
 	error = 0;
 	memset(&fill, 0, sizeof(rcom_fill_t));
 	fill.outbuf = rc->rc_buf;
-	fill.maxlen = dlm_config.buffer_size - sizeof(gd_rcom_t);
+	fill.maxlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);
 
 	do {
 		fill_rcom_buffer(ls, &fill, &nodeid);
@@ -831,13 +837,13 @@ int rebuild_rsbs_send(gd_ls_t *ls)
 			goto out;
 
 		schedule();
-		error = gdlm_recovery_stopped(ls);
+		error = dlm_recovery_stopped(ls);
 		if (error)
 			goto out;
 	}
 	while (fill.more);
 
-	error = gdlm_wait_function(ls, &recover_list_empty);
+	error = dlm_wait_function(ls, &recover_list_empty);
 
 	log_all(ls, "rebuilt %d locks", fill.count);
 
@@ -849,12 +855,12 @@ int rebuild_rsbs_send(gd_ls_t *ls)
 	return error;
 }
 
-static gd_res_t *find_by_remasterid(gd_ls_t *ls, int remasterid,
-				    gd_res_t *rootrsb)
+static struct dlm_rsb *find_by_remasterid(struct dlm_ls *ls, int remasterid,
+				    	  struct dlm_rsb *rootrsb)
 {
-	gd_res_t *rsb;
+	struct dlm_rsb *rsb;
 
-	GDLM_ASSERT(rootrsb,);
+	DLM_ASSERT(rootrsb,);
 
 	if (rootrsb->res_remasterid == remasterid) {
 		rsb = rootrsb;
@@ -875,10 +881,10 @@ static gd_res_t *find_by_remasterid(gd_ls_t *ls, int remasterid,
  * Search a queue for the given remote lock id (remlkid).
  */
 
-static gd_lkb_t *search_remlkid(struct list_head *statequeue, int nodeid,
-				int remid)
+static struct dlm_lkb *search_remlkid(struct list_head *statequeue, int nodeid,
+				      int remid)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, statequeue, lkb_statequeue) {
 		if (lkb->lkb_nodeid == nodeid && lkb->lkb_remid == remid) {
@@ -898,10 +904,11 @@ static gd_lkb_t *search_remlkid(struct list_head *statequeue, int nodeid,
  * we are building up the remastered LKBs
  */
 
-static gd_lkb_t *find_by_remlkid(gd_res_t *rootrsb, int nodeid, int remid)
+static struct dlm_lkb *find_by_remlkid(struct dlm_rsb *rootrsb, int nodeid,
+				       int remid)
 {
-	gd_lkb_t *lkb;
-	gd_res_t *rsb;
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *rsb;
 
 	lkb = search_remlkid(&rootrsb->res_grantqueue, nodeid, remid);
 	if (lkb)
@@ -938,18 +945,19 @@ static gd_lkb_t *find_by_remlkid(gd_res_t *rootrsb, int nodeid, int remid)
  * Unpack an LKB from a remaster operation
  */
 
-static int deserialise_lkb(gd_ls_t *ls, int rem_nodeid, gd_res_t *rootrsb,
-			   char *buf, int *ptr, char *outbuf, int *outoffp)
+static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
+			   struct dlm_rsb *rootrsb, char *buf, int *ptr,
+			   char *outbuf, int *outoffp)
 {
-	gd_lkb_t *lkb;
-	gd_res_t *rsb;
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *rsb;
 	int error = -ENOMEM, parentid, rsb_rmid, remote_lkid, status, temp;
 
 	remote_lkid = get_int(buf, ptr);
 
 	rsb_rmid = get_int(buf, ptr);
 	rsb = find_by_remasterid(ls, rsb_rmid, rootrsb);
-	GDLM_ASSERT(rsb, printk("no RSB for remasterid %d\n", rsb_rmid););
+	DLM_ASSERT(rsb, printk("no RSB for remasterid %d\n", rsb_rmid););
 
 	/* 
 	 * We could have received this lkb already from a previous recovery
@@ -1012,7 +1020,7 @@ static int deserialise_lkb(gd_ls_t *ls, int rem_nodeid, gd_res_t *rootrsb,
 			lkb->lkb_range[GR_RANGE_END] = end;
 			break;
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 	}
 
@@ -1036,7 +1044,7 @@ static int deserialise_lkb(gd_ls_t *ls, int rem_nodeid, gd_res_t *rootrsb,
 
 	if (lkb->lkb_flags & GDLM_LKFLG_LQCONVERT) {
 		lkb->lkb_flags &= ~GDLM_LKFLG_LQCONVERT;
-		GDLM_ASSERT(status == GDLM_LKSTS_CONVERT,
+		DLM_ASSERT(status == GDLM_LKSTS_CONVERT,
 			    printk("status=%d\n", status););
 		lkb->lkb_rqmode = DLM_LOCK_IV;
 		status = GDLM_LKSTS_GRANTED;
@@ -1075,16 +1083,17 @@ static int deserialise_lkb(gd_ls_t *ls, int rem_nodeid, gd_res_t *rootrsb,
 	return error;
 }
 
-static gd_res_t *deserialise_rsb(gd_ls_t *ls, int nodeid, gd_res_t *rootrsb,
-				 char *buf, int *ptr)
+static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
+				       struct dlm_rsb *rootrsb, char *buf,
+				       int *ptr)
 {
 	int length;
 	int remasterid;
 	int parent_remasterid;
 	char name[DLM_RESNAME_MAXLEN];
 	int error;
-	gd_res_t *parent = NULL;
-	gd_res_t *rsb;
+	struct dlm_rsb *parent = NULL;
+	struct dlm_rsb *rsb;
 
 	get_bytes(name, &length, buf, ptr);
 	remasterid = get_int(buf, ptr);
@@ -1101,7 +1110,7 @@ static gd_res_t *deserialise_rsb(gd_ls_t *ls, int nodeid, gd_res_t *rootrsb,
 	 */
 
 	error = find_or_create_rsb(ls, parent, name, length, 1, &rsb);
-	GDLM_ASSERT(!error,);
+	DLM_ASSERT(!error,);
 
 	/* There is a case where the above needs to create the RSB. */
 	if (rsb->res_nodeid == -1)
@@ -1119,10 +1128,10 @@ static gd_res_t *deserialise_rsb(gd_ls_t *ls, int nodeid, gd_res_t *rootrsb,
  * new lockids of the remastered locks so that remote ops can find them.
  */
 
-int rebuild_rsbs_recv(gd_ls_t *ls, int nodeid, char *buf, int len)
+int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 {
-	gd_rcom_t *rc;
-	gd_res_t *rsb = NULL;
+	struct dlm_rcom *rc;
+	struct dlm_rsb *rsb = NULL;
 	rebuild_node_t *rnode;
 	char *outbuf;
 	int outptr, ptr = 0, error = -ENOMEM;
@@ -1177,7 +1186,7 @@ int rebuild_rsbs_recv(gd_ls_t *ls, int nodeid, char *buf, int len)
 			break;
 
 		default:
-			GDLM_ASSERT(0, printk("type=%d nodeid=%u ptr=%d "
+			DLM_ASSERT(0, printk("type=%d nodeid=%u ptr=%d "
 					      "len=%d\n", type, nodeid, ptr,
 					      len););
 		}
@@ -1205,7 +1214,7 @@ int rebuild_rsbs_recv(gd_ls_t *ls, int nodeid, char *buf, int len)
  * locks
  */
 
-int rebuild_rsbs_lkids_recv(gd_ls_t *ls, int nodeid, char *buf, int len)
+int rebuild_rsbs_lkids_recv(struct dlm_ls *ls, int nodeid, char *buf, int len)
 {
 	int offset = 0;
 
@@ -1215,7 +1224,7 @@ int rebuild_rsbs_lkids_recv(gd_ls_t *ls, int nodeid, char *buf, int len)
 	while (offset < len) {
 		int remote_id;
 		int local_id;
-		gd_lkb_t *lkb;
+		struct dlm_lkb *lkb;
 
 		if (offset + 8 > len) {
 			log_error(ls, "rebuild_rsbs_lkids_recv: bad data "

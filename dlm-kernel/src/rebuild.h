@@ -14,9 +14,9 @@
 #ifndef __REBUILD_DOT_H__
 #define __REBUILD_DOT_H__
 
-int rebuild_rsbs_send(gd_ls_t * ls);
-int rebuild_rsbs_recv(gd_ls_t * ls, int nodeid, char *buf, int len);
-int rebuild_rsbs_lkids_recv(gd_ls_t * ls, int nodeid, char *buf, int len);
-int rebuild_freemem(gd_ls_t * ls);
+int rebuild_rsbs_send(struct dlm_ls *ls);
+int rebuild_rsbs_recv(struct dlm_ls *ls, int nodeid, char *buf, int len);
+int rebuild_rsbs_lkids_recv(struct dlm_ls *ls, int nodeid, char *buf, int len);
+int rebuild_freemem(struct dlm_ls *ls);
 
 #endif				/* __REBUILD_DOT_H__ */

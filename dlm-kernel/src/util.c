@@ -81,7 +81,7 @@ static const uint32_t crc_32_tab[] = {
 };
 
 /**
- * gdlm_hash - hash an array of data
+ * dlm_hash - hash an array of data
  * @data: the data to be hashed
  * @len: the length of data to be hashed
  *
@@ -99,7 +99,7 @@ static const uint32_t crc_32_tab[] = {
  * Returns: the hash
  */
 
-uint32_t gdlm_hash(const char *data, int len)
+uint32_t dlm_hash(const char *data, int len)
 {
 	uint32_t hash = 0xFFFFFFFF;
 
@@ -111,7 +111,7 @@ uint32_t gdlm_hash(const char *data, int len)
 	return hash;
 }
 
-uint32_t gdlm_next_power2(uint32_t val)
+uint32_t dlm_next_power2(uint32_t val)
 {
 	uint32_t x;
 
@@ -120,7 +120,7 @@ uint32_t gdlm_next_power2(uint32_t val)
 	return x;
 }
 
-void print_lkb(gd_lkb_t *lkb)
+void print_lkb(struct dlm_lkb *lkb)
 {
 	printk("dlm: lkb\n"
 	       "id %x\n"
@@ -143,7 +143,7 @@ void print_lkb(gd_lkb_t *lkb)
 		lkb->lkb_lockqueue_flags);
 }
 
-void print_rsb(gd_res_t *r)
+void print_rsb(struct dlm_rsb *r)
 {
 	printk("dlm: rsb\n"
 	       "name \"%s\"\n"
@@ -156,7 +156,7 @@ void print_rsb(gd_res_t *r)
 	       atomic_read(&r->res_ref));
 }
 
-void print_request(struct gd_remlockrequest *req)
+void print_request(struct dlm_request *req)
 {
 	printk("dlm: request\n"
 	       "rh_cmd %u\n"
@@ -175,7 +175,7 @@ void print_request(struct gd_remlockrequest *req)
 	       req->rr_resdir_seq);
 }
 
-void print_reply(struct gd_remlockreply *rp)
+void print_reply(struct dlm_reply *rp)
 {
 	printk("dlm: reply\n"
 	       "rh_cmd %u\n"

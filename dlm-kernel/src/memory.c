@@ -43,34 +43,34 @@ int dlm_memory_init()
 
 	rsb_cache_small =
 	    kmem_cache_create("dlm_rsb(small)",
-			      (sizeof(gd_res_t) + LARGE_RSB_NAME + BYTES_PER_WORD-1) & ~(BYTES_PER_WORD-1),
-			      __alignof__(gd_res_t), 0, NULL, NULL);
+			      (sizeof(struct dlm_rsb) + LARGE_RSB_NAME + BYTES_PER_WORD-1) & ~(BYTES_PER_WORD-1),
+			      __alignof__(struct dlm_rsb), 0, NULL, NULL);
 	if (!rsb_cache_small)
 		goto out;
 
 	rsb_cache_large =
 	    kmem_cache_create("dlm_rsb(large)",
-			      sizeof(gd_res_t) + DLM_RESNAME_MAXLEN,
-			      __alignof__(gd_res_t), 0, NULL, NULL);
+			      sizeof(struct dlm_rsb) + DLM_RESNAME_MAXLEN,
+			      __alignof__(struct dlm_rsb), 0, NULL, NULL);
 	if (!rsb_cache_large)
 		goto out_free_rsbs;
 
-	lkb_cache = kmem_cache_create("dlm_lkb", sizeof(gd_lkb_t),
-				      __alignof__(gd_lkb_t), 0, NULL, NULL);
+	lkb_cache = kmem_cache_create("dlm_lkb", sizeof(struct dlm_lkb),
+				      __alignof__(struct dlm_lkb), 0, NULL, NULL);
 	if (!lkb_cache)
 		goto out_free_rsbl;
 
 	resdir_cache_large =
 	    kmem_cache_create("dlm_resdir(l)",
-			      sizeof(gd_resdata_t) + DLM_RESNAME_MAXLEN,
-			      __alignof__(gd_resdata_t), 0, NULL, NULL);
+			      sizeof(struct dlm_direntry) + DLM_RESNAME_MAXLEN,
+			      __alignof__(struct dlm_direntry), 0, NULL, NULL);
 	if (!resdir_cache_large)
 		goto out_free_lkb;
 
 	resdir_cache_small =
 	    kmem_cache_create("dlm_resdir(s)",
-			      (sizeof(gd_resdata_t) + LARGE_RES_NAME + BYTES_PER_WORD-1) & ~(BYTES_PER_WORD-1),
-			      __alignof__(gd_resdata_t), 0, NULL, NULL);
+			      (sizeof(struct dlm_direntry) + LARGE_RES_NAME + BYTES_PER_WORD-1) & ~(BYTES_PER_WORD-1),
+			      __alignof__(struct dlm_direntry), 0, NULL, NULL);
 	if (!resdir_cache_small)
 		goto out_free_resl;
 
@@ -112,11 +112,11 @@ void dlm_memory_exit()
 	kmem_cache_destroy(lvb_cache);
 }
 
-gd_res_t *allocate_rsb(gd_ls_t *ls, int namelen)
+struct dlm_rsb *allocate_rsb(struct dlm_ls *ls, int namelen)
 {
-	gd_res_t *r;
+	struct dlm_rsb *r;
 
-	GDLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
+	DLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
 
 	if (namelen >= LARGE_RSB_NAME)
 		r = kmem_cache_alloc(rsb_cache_large, ls->ls_allocation);
@@ -124,17 +124,17 @@ gd_res_t *allocate_rsb(gd_ls_t *ls, int namelen)
 		r = kmem_cache_alloc(rsb_cache_small, ls->ls_allocation);
 
 	if (r)
-		memset(r, 0, sizeof(gd_res_t) + namelen);
+		memset(r, 0, sizeof(struct dlm_rsb) + namelen);
 
 	return r;
 }
 
-void free_rsb(gd_res_t *r)
+void free_rsb(struct dlm_rsb *r)
 {
 	int length = r->res_length;
 
 #ifdef POISON
-	memset(r, 0x55, sizeof(gd_res_t) + r->res_length);
+	memset(r, 0x55, sizeof(struct dlm_rsb) + r->res_length);
 #endif
 
 	if (length >= LARGE_RSB_NAME)
@@ -143,30 +143,30 @@ void free_rsb(gd_res_t *r)
 		kmem_cache_free(rsb_cache_small, r);
 }
 
-gd_lkb_t *allocate_lkb(gd_ls_t *ls)
+struct dlm_lkb *allocate_lkb(struct dlm_ls *ls)
 {
-	gd_lkb_t *l;
+	struct dlm_lkb *l;
 
 	l = kmem_cache_alloc(lkb_cache, ls->ls_allocation);
 	if (l)
-		memset(l, 0, sizeof(gd_lkb_t));
+		memset(l, 0, sizeof(struct dlm_lkb));
 
 	return l;
 }
 
-void free_lkb(gd_lkb_t *l)
+void free_lkb(struct dlm_lkb *l)
 {
 #ifdef POISON
-	memset(l, 0xAA, sizeof(gd_lkb_t));
+	memset(l, 0xAA, sizeof(struct dlm_lkb));
 #endif
 	kmem_cache_free(lkb_cache, l);
 }
 
-gd_resdata_t *allocate_resdata(gd_ls_t *ls, int namelen)
+struct dlm_direntry *allocate_resdata(struct dlm_ls *ls, int namelen)
 {
-	gd_resdata_t *rd;
+	struct dlm_direntry *rd;
 
-	GDLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
+	DLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
 
 	if (namelen >= LARGE_RES_NAME)
 		rd = kmem_cache_alloc(resdir_cache_large, ls->ls_allocation);
@@ -174,20 +174,20 @@ gd_resdata_t *allocate_resdata(gd_ls_t *ls, int namelen)
 		rd = kmem_cache_alloc(resdir_cache_small, ls->ls_allocation);
 
 	if (rd)
-		memset(rd, 0, sizeof(gd_resdata_t));
+		memset(rd, 0, sizeof(struct dlm_direntry));
 
 	return rd;
 }
 
-void free_resdata(gd_resdata_t *rd)
+void free_resdata(struct dlm_direntry *de)
 {
-	if (rd->rd_length >= LARGE_RES_NAME)
-		kmem_cache_free(resdir_cache_large, rd);
+	if (de->length >= LARGE_RES_NAME)
+		kmem_cache_free(resdir_cache_large, de);
 	else
-		kmem_cache_free(resdir_cache_small, rd);
+		kmem_cache_free(resdir_cache_small, de);
 }
 
-char *allocate_lvb(gd_ls_t *ls)
+char *allocate_lvb(struct dlm_ls *ls)
 {
 	char *l;
 
@@ -205,7 +205,7 @@ void free_lvb(char *l)
 
 /* Ranges are allocated from the LVB cache as they are the same size (4x64
  * bits) */
-uint64_t *allocate_range(gd_ls_t * ls)
+uint64_t *allocate_range(struct dlm_ls * ls)
 {
 	uint64_t *l;
 
@@ -221,9 +221,9 @@ void free_range(uint64_t *l)
 	kmem_cache_free(lvb_cache, l);
 }
 
-gd_rcom_t *allocate_rcom_buffer(gd_ls_t *ls)
+struct dlm_rcom *allocate_rcom_buffer(struct dlm_ls *ls)
 {
-	gd_rcom_t *rc;
+	struct dlm_rcom *rc;
 
 	rc = kmalloc(dlm_config.buffer_size, ls->ls_allocation);
 	if (rc)
@@ -232,7 +232,7 @@ gd_rcom_t *allocate_rcom_buffer(gd_ls_t *ls)
 	return rc;
 }
 
-void free_rcom_buffer(gd_rcom_t *rc)
+void free_rcom_buffer(struct dlm_rcom *rc)
 {
 	kfree(rc);
 }

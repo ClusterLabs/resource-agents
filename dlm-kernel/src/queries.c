@@ -34,8 +34,8 @@
 #include "midcomms.h"
 #include "rsb.h"
 
-static int query_resource(gd_res_t *rsb, struct dlm_resinfo *resinfo);
-static int query_locks(int query, gd_lkb_t *lkb, struct dlm_queryinfo *qinfo);
+static int query_resource(struct dlm_rsb *rsb, struct dlm_resinfo *resinfo);
+static int query_locks(int query, struct dlm_lkb *lkb, struct dlm_queryinfo *qinfo);
 
 /*
  * API entry point.
@@ -48,9 +48,9 @@ int dlm_query(void *lockspace,
 	      void *astarg)
 {
 	int status = -EINVAL;
-	gd_lkb_t *target_lkb;
-	gd_lkb_t *query_lkb = NULL;	/* Our temporary LKB */
-	gd_ls_t  *ls = (gd_ls_t *) find_lockspace_by_local_id(lockspace);
+	struct dlm_lkb *target_lkb;
+	struct dlm_lkb *query_lkb = NULL;	/* Our temporary LKB */
+	struct dlm_ls  *ls = (struct dlm_ls *) find_lockspace_by_local_id(lockspace);
 
 
 	if (!qinfo)
@@ -139,7 +139,7 @@ int dlm_query(void *lockspace,
 	/* Remote master */
 	if (target_lkb->lkb_resource->res_nodeid != 0)
 	{
-		struct gd_remquery *remquery;
+		struct dlm_query_request *remquery;
 		struct writequeue_entry *e;
 
 		/* Clear this cos the receiving end adds to it with
@@ -148,10 +148,10 @@ int dlm_query(void *lockspace,
 
 		/* Squirrel a pointer to the query info struct
 		   somewhere illegal */
-		query_lkb->lkb_request = (struct gd_remlockrequest *) qinfo;
+		query_lkb->lkb_request = (struct dlm_request *) qinfo;
 
 		e = lowcomms_get_buffer(query_lkb->lkb_resource->res_nodeid,
-					sizeof(struct gd_remquery),
+					sizeof(struct dlm_query_request),
 					ls->ls_allocation,
 					(char **) &remquery);
 		if (!e) {
@@ -160,7 +160,7 @@ int dlm_query(void *lockspace,
 		}
 
 		/* Build remote packet */
-		memset(remquery, 0, sizeof(struct gd_remquery));
+		memset(remquery, 0, sizeof(struct dlm_query_request));
 
 		remquery->rq_maxlocks  = qinfo->gqi_locksize;
 		remquery->rq_query     = query;
@@ -170,7 +170,7 @@ int dlm_query(void *lockspace,
 
 		remquery->rq_header.rh_cmd       = GDLM_REMCMD_QUERY;
 		remquery->rq_header.rh_flags     = 0;
-		remquery->rq_header.rh_length    = sizeof(struct gd_remquery);
+		remquery->rq_header.rh_length    = sizeof(struct dlm_query_request);
 		remquery->rq_header.rh_lkid      = query_lkb->lkb_id;
 		remquery->rq_header.rh_lockspace = ls->ls_global_id;
 
@@ -226,15 +226,15 @@ static uint64_t get_int64(char *buf, int *offp)
 #define LOCK_LEN (sizeof(int)*4 + sizeof(uint8_t)*4)
 
 /* Called from recvd to get lock info for a remote node */
-int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
+int remote_query(int nodeid, struct dlm_ls *ls, struct dlm_header *msg)
 {
-        struct gd_remquery *query = (struct gd_remquery *) msg;
-	struct gd_remqueryreply *reply;
+        struct dlm_query_request *query = (struct dlm_query_request *) msg;
+	struct dlm_query_reply *reply;
 	struct dlm_resinfo resinfo;
 	struct dlm_queryinfo qinfo;
 	struct writequeue_entry *e;
 	char *buf;
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	int status = 0;
 	int bufidx;
 	int finished = 0;
@@ -276,7 +276,7 @@ int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 	/* Send as many blocks as needed for all the locks */
 	do {
 		int i;
-		int msg_len = sizeof(struct gd_remqueryreply);
+		int msg_len = sizeof(struct dlm_query_reply);
 		int last_msg_len = msg_len; /* keeps compiler quiet */
 		int last_lock;
 
@@ -325,7 +325,7 @@ int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 		memcpy(reply->rq_valblk, qinfo.gqi_resinfo->rsi_valblk, DLM_LVB_LEN);
 
 		buf = (char *)reply;
-		bufidx = sizeof(struct gd_remqueryreply);
+		bufidx = sizeof(struct dlm_query_reply);
 
 		for (; cur_lock < last_lock; cur_lock++) {
 
@@ -371,7 +371,7 @@ int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 
  send_error:
 	e = lowcomms_get_buffer(nodeid,
-				sizeof(struct gd_remqueryreply),
+				sizeof(struct dlm_query_reply),
 				ls->ls_allocation,
 				(char **) &reply);
 	if (!e) {
@@ -380,7 +380,7 @@ int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 	}
 	reply->rq_header.rh_cmd = GDLM_REMCMD_QUERYREPLY;
 	reply->rq_header.rh_flags = GDLM_REMFLAG_ENDQUERY; /* Don't support multiple blocks yet */
-	reply->rq_header.rh_length = sizeof(struct gd_remqueryreply);
+	reply->rq_header.rh_length = sizeof(struct dlm_query_reply);
 	reply->rq_header.rh_lkid = msg->rh_lkid;
 	reply->rq_header.rh_lockspace = msg->rh_lockspace;
 	reply->rq_status     = status;
@@ -396,11 +396,11 @@ int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 }
 
 /* Reply to a remote query */
-int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
+int remote_query_reply(int nodeid, struct dlm_ls *ls, struct dlm_header *msg)
 {
-	gd_lkb_t *query_lkb;
+	struct dlm_lkb *query_lkb;
 	struct dlm_queryinfo *qinfo;
-	struct gd_remqueryreply *reply;
+	struct dlm_query_reply *reply;
 	char *buf;
 	int i;
 	int bufidx;
@@ -410,7 +410,7 @@ int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 		return -EINVAL;
 
 	qinfo = (struct dlm_queryinfo *) query_lkb->lkb_request;
-	reply = (struct gd_remqueryreply *) msg;
+	reply = (struct dlm_query_reply *) msg;
 
 	/* Copy the easy bits first */
 	qinfo->gqi_lockcount += reply->rq_numlocks;
@@ -423,10 +423,10 @@ int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 	}
 
 	/* Now unpack the locks */
-	bufidx = sizeof(struct gd_remqueryreply);
+	bufidx = sizeof(struct dlm_query_reply);
 	buf = (char *) msg;
 
-	GDLM_ASSERT(reply->rq_startlock + reply->rq_numlocks <= qinfo->gqi_locksize,
+	DLM_ASSERT(reply->rq_startlock + reply->rq_numlocks <= qinfo->gqi_locksize,
 		    printk("start = %d, num + %d. Max=  %d\n",
 			   reply->rq_startlock, reply->rq_numlocks, qinfo->gqi_locksize););
 
@@ -464,7 +464,7 @@ int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg)
 }
 
 /* Aggregate resource information */
-static int query_resource(gd_res_t *rsb, struct dlm_resinfo *resinfo)
+static int query_resource(struct dlm_rsb *rsb, struct dlm_resinfo *resinfo)
 {
 	struct list_head *tmp;
 
@@ -490,7 +490,7 @@ static int query_resource(gd_res_t *rsb, struct dlm_resinfo *resinfo)
 	return 0;
 }
 
-static int add_lock(gd_lkb_t *lkb, struct dlm_queryinfo *qinfo)
+static int add_lock(struct dlm_lkb *lkb, struct dlm_queryinfo *qinfo)
 {
 	int entry;
 
@@ -553,7 +553,7 @@ static int query_lkb_queue(struct list_head *queue, int query,
 	int mode = query & DLM_QUERY_MODE_MASK;
 
 	list_for_each(tmp, queue) {
-		gd_lkb_t *lkb = list_entry(tmp, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 		int lkmode;
 
 		if (query & DLM_QUERY_RQMODE)
@@ -591,7 +591,7 @@ static int query_lkb_queue(struct list_head *queue, int query,
  * Return 1 if the locks' ranges overlap
  * If the lkb has no range then it is assumed to cover 0-ffffffff.ffffffff
  */
-static inline int ranges_overlap(gd_lkb_t *lkb1, gd_lkb_t *lkb2)
+static inline int ranges_overlap(struct dlm_lkb *lkb1, struct dlm_lkb *lkb2)
 {
 	if (!lkb1->lkb_range || !lkb2->lkb_range)
 		return 1;
@@ -605,13 +605,13 @@ static inline int ranges_overlap(gd_lkb_t *lkb1, gd_lkb_t *lkb2)
 extern const int __dlm_compat_matrix[8][8];
 
 
-static int get_blocking_locks(gd_lkb_t *qlkb, struct dlm_queryinfo *qinfo)
+static int get_blocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qinfo)
 {
 	struct list_head *tmp;
 	int status = 0;
 
 	list_for_each(tmp, &qlkb->lkb_resource->res_grantqueue) {
-		gd_lkb_t *lkb = list_entry(tmp, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 
 		if (ranges_overlap(lkb, qlkb) &&
 		    !__dlm_compat_matrix[lkb->lkb_grmode + 1][qlkb->lkb_rqmode + 1])
@@ -621,13 +621,13 @@ static int get_blocking_locks(gd_lkb_t *qlkb, struct dlm_queryinfo *qinfo)
 	return status;
 }
 
-static int get_nonblocking_locks(gd_lkb_t *qlkb, struct dlm_queryinfo *qinfo)
+static int get_nonblocking_locks(struct dlm_lkb *qlkb, struct dlm_queryinfo *qinfo)
 {
 	struct list_head *tmp;
 	int status = 0;
 
 	list_for_each(tmp, &qlkb->lkb_resource->res_grantqueue) {
-		gd_lkb_t *lkb = list_entry(tmp, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *lkb = list_entry(tmp, struct dlm_lkb, lkb_statequeue);
 
 		if (!(ranges_overlap(lkb, qlkb) &&
 		      !__dlm_compat_matrix[lkb->lkb_grmode + 1][qlkb->lkb_rqmode + 1]))
@@ -638,7 +638,7 @@ static int get_nonblocking_locks(gd_lkb_t *qlkb, struct dlm_queryinfo *qinfo)
 }
 
 /* Gather a list of appropriate locks */
-static int query_locks(int query, gd_lkb_t *lkb, struct dlm_queryinfo *qinfo)
+static int query_locks(int query, struct dlm_lkb *lkb, struct dlm_queryinfo *qinfo)
 {
 	int status = 0;
 

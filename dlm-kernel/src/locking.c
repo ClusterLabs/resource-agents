@@ -96,19 +96,19 @@ const int __lvb_operations[8][8] = {
 	{  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
 
-static void grant_lock(gd_lkb_t * lkb, int send_remote);
-static void send_blocking_asts(gd_res_t * rsb, gd_lkb_t * lkb);
-static void send_blocking_asts_all(gd_res_t *rsb, gd_lkb_t *lkb);
-static int convert_lock(gd_ls_t * ls, int mode, struct dlm_lksb *lksb,
+static void grant_lock(struct dlm_lkb * lkb, int send_remote);
+static void send_blocking_asts(struct dlm_rsb * rsb, struct dlm_lkb * lkb);
+static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
+static int convert_lock(struct dlm_ls * ls, int mode, struct dlm_lksb *lksb,
 			int flags, void *ast, void *astarg, void *bast,
 			struct dlm_range *range);
-static int dlm_lock_stage1(gd_ls_t * lspace, gd_lkb_t * lkb, int flags,
+static int dlm_lock_stage1(struct dlm_ls * lspace, struct dlm_lkb * lkb, int flags,
 			   char *name, int namelen);
 
 
-static inline int first_in_list(gd_lkb_t *lkb, struct list_head *head)
+static inline int first_in_list(struct dlm_lkb *lkb, struct list_head *head)
 {
-	gd_lkb_t *first = list_entry(head->next, gd_lkb_t, lkb_statequeue);
+	struct dlm_lkb *first = list_entry(head->next, struct dlm_lkb, lkb_statequeue);
 
 	if (lkb->lkb_id == first->lkb_id)
 		return 1;
@@ -121,7 +121,7 @@ static inline int first_in_list(gd_lkb_t *lkb, struct list_head *head)
  * If the lkb has no range then it is assumed to cover 0-ffffffff.ffffffff
  */
 
-static inline int ranges_overlap(gd_lkb_t *lkb1, gd_lkb_t *lkb2)
+static inline int ranges_overlap(struct dlm_lkb *lkb1, struct dlm_lkb *lkb2)
 {
 	if (!lkb1->lkb_range || !lkb2->lkb_range)
 		return 1;
@@ -142,9 +142,9 @@ static inline int ranges_overlap(gd_lkb_t *lkb1, gd_lkb_t *lkb2)
  * the flag consistently) the false return value is used.
  */
 
-static int conversion_deadlock_resolve(gd_res_t *rsb, gd_lkb_t *lkb)
+static int conversion_deadlock_resolve(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
-	gd_lkb_t *this;
+	struct dlm_lkb *this;
 	int rv = TRUE;
 
 	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
@@ -173,9 +173,9 @@ static int conversion_deadlock_resolve(gd_res_t *rsb, gd_lkb_t *lkb)
  * mode of the other lock."
  */
 
-static int conversion_deadlock_detect(gd_res_t *rsb, gd_lkb_t *lkb)
+static int conversion_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
-	gd_lkb_t *this;
+	struct dlm_lkb *this;
 
 	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
 		if (this == lkb)
@@ -194,9 +194,9 @@ static int conversion_deadlock_detect(gd_res_t *rsb, gd_lkb_t *lkb)
  * Check if the given lkb conflicts with another lkb on the queue.
  */
 
-static int queue_conflict(struct list_head *head, gd_lkb_t *lkb)
+static int queue_conflict(struct list_head *head, struct dlm_lkb *lkb)
 {
-	gd_lkb_t *this;
+	struct dlm_lkb *this;
 
 	list_for_each_entry(this, head, lkb_statequeue) {
 		if (this == lkb)
@@ -215,9 +215,9 @@ static int queue_conflict(struct list_head *head, gd_lkb_t *lkb)
  * the queue would prevent a lock ahead of it from being granted.
  */
 
-static int queuecvt_deadlock_detect(gd_res_t *rsb, gd_lkb_t *lkb)
+static int queuecvt_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
-	gd_lkb_t *this;
+	struct dlm_lkb *this;
 
 	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
 		if (this == lkb)
@@ -234,7 +234,7 @@ static int queuecvt_deadlock_detect(gd_res_t *rsb, gd_lkb_t *lkb)
  * Also detect and resolve conversion deadlocks.
  */
 
-static int can_be_granted(gd_res_t *rsb, gd_lkb_t *lkb)
+static int can_be_granted(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
         if (test_bit(LSFL_NOCONVGRANT, &rsb->res_ls->ls_flags) &&
 	    lkb->lkb_grmode == DLM_LOCK_IV &&
@@ -290,8 +290,8 @@ int dlm_lock(void *lockspace,
 	     void (*bast) (void *astarg, int mode),
 	     struct dlm_range *range)
 {
-	gd_ls_t *lspace;
-	gd_lkb_t *lkb = NULL, *parent_lkb = NULL;
+	struct dlm_ls *lspace;
+	struct dlm_lkb *lkb = NULL, *parent_lkb = NULL;
 	int ret = -EINVAL;
 
 	lspace = find_lockspace_by_local_id(lockspace);
@@ -423,11 +423,11 @@ int dlm_lock(void *lockspace,
 	return ret;
 }
 
-int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
+int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags, char *name,
 		    int namelen)
 {
-	gd_res_t *rsb, *parent_rsb = NULL;
-	gd_lkb_t *parent_lkb = lkb->lkb_parent;
+	struct dlm_rsb *rsb, *parent_rsb = NULL;
+	struct dlm_lkb *parent_lkb = lkb->lkb_parent;
 	uint32_t nodeid;
 	uint8_t seq;
 	int error;
@@ -483,11 +483,11 @@ int dlm_lock_stage1(gd_ls_t *ls, gd_lkb_t *lkb, int flags, char *name,
  * or a local one, or perhaps a shiny new one all of our very own
  */
 
-int dlm_lock_stage2(gd_ls_t *ls, gd_lkb_t *lkb, gd_res_t *rsb, int flags)
+int dlm_lock_stage2(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_rsb *rsb, int flags)
 {
 	int error = 0;
 
-	GDLM_ASSERT(rsb->res_nodeid != -1, print_lkb(lkb); print_rsb(rsb););
+	DLM_ASSERT(rsb->res_nodeid != -1, print_lkb(lkb); print_rsb(rsb););
 
 	if (rsb->res_nodeid) {
 		res_lkb_enqueue(rsb, lkb, GDLM_LKSTS_WAITING);
@@ -505,11 +505,11 @@ int dlm_lock_stage2(gd_ls_t *ls, gd_lkb_t *lkb, gd_res_t *rsb, int flags)
  * This is analagous to sections of dlm_lock() and dlm_lock_stage1().
  */
 
-gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
-			struct gd_remlockrequest *freq)
+struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
+			struct dlm_request *freq)
 {
-	gd_res_t *rsb = NULL, *parent_rsb = NULL;
-	gd_lkb_t *lkb = NULL, *parent_lkb = NULL;
+	struct dlm_rsb *rsb = NULL, *parent_rsb = NULL;
+	struct dlm_lkb *lkb = NULL, *parent_lkb = NULL;
 	int error, namelen;
 
 	if (freq->rr_remparid) {
@@ -578,7 +578,7 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
 		set_bit(RESFL_MASTER, &rsb->res_flags);
 		rsb->res_nodeid = 0;
 	} else {
-		GDLM_ASSERT(!rsb->res_nodeid,
+		DLM_ASSERT(!rsb->res_nodeid,
 			    print_lkb(lkb);
 			    print_request(freq);
 			    printk("nodeid %u\n", remote_nodeid););
@@ -608,9 +608,9 @@ gd_lkb_t *remote_stage2(int remote_nodeid, gd_ls_t *ls,
  * waitqueue and blocking asts are sent.
  */
 
-void dlm_lock_stage3(gd_lkb_t *lkb)
+void dlm_lock_stage3(struct dlm_lkb *lkb)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
 
 	/*
 	 * This is a locally mastered lock on a resource that already exists,
@@ -663,9 +663,9 @@ int dlm_unlock(void *lockspace,
 	       struct dlm_lksb *lksb,
 	       void *astarg)
 {
-	gd_ls_t *ls = find_lockspace_by_local_id(lockspace);
-	gd_lkb_t *lkb;
-	gd_res_t *rsb;
+	struct dlm_ls *ls = find_lockspace_by_local_id(lockspace);
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *rsb;
 	int ret = -EINVAL;
 
 	if (!ls)
@@ -736,7 +736,7 @@ int dlm_unlock(void *lockspace,
 	return ret;
 }
 
-int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags)
+int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 {
 	int remote = lkb->lkb_flags & GDLM_LKFLG_MSTCPY;
 	int old_status;
@@ -824,12 +824,12 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags)
  * Lock conversion
  */
 
-static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
+static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 			int flags, void *ast, void *astarg, void *bast,
 			struct dlm_range *range)
 {
-	gd_lkb_t *lkb;
-	gd_res_t *rsb;
+	struct dlm_lkb *lkb;
+	struct dlm_rsb *rsb;
 	int ret = -EINVAL;
 
 	lkb = find_lock_by_id(ls, lksb->sb_lkid);
@@ -871,7 +871,7 @@ static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
 	}
 
 	rsb = lkb->lkb_resource;
-	down_read(&rsb->res_ls->ls_in_recovery);
+	down_read(&ls->ls_in_recovery);
 
 	log_debug(ls, "cv %u %x \"%s\"", mode, lkb->lkb_id, rsb->res_name);
 
@@ -898,7 +898,7 @@ static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
 		ret = dlm_convert_stage2(lkb, FALSE);
 	}
 
-	up_read(&rsb->res_ls->ls_in_recovery);
+	up_read(&ls->ls_in_recovery);
 
 	wake_astd();
 
@@ -912,9 +912,9 @@ static int convert_lock(gd_ls_t *ls, int mode, struct dlm_lksb *lksb,
  * remote conversion requests of MSTCPY locks (from process_cluster_request).
  */
 
-int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
+int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
 	int ret = 0;
 
 	down_write(&rsb->res_lock);
@@ -973,16 +973,16 @@ int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast)
  * completion ast.  rsb res_lock must be held in write when this is called.
  */
 
-static void grant_lock(gd_lkb_t *lkb, int send_remote)
+static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
 
 	if (lkb->lkb_duetime)
 		remove_from_deadlockqueue(lkb);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		int b;
-		GDLM_ASSERT(lkb->lkb_lvbptr,);
+		DLM_ASSERT(lkb->lkb_lvbptr,);
 
 		if (!rsb->res_lvbptr)
 			rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
@@ -1031,9 +1031,9 @@ static void grant_lock(gd_lkb_t *lkb, int send_remote)
 
 }
 
-static void send_bast_queue(struct list_head *head, gd_lkb_t *lkb)
+static void send_bast_queue(struct list_head *head, struct dlm_lkb *lkb)
 {
-	gd_lkb_t *gr;
+	struct dlm_lkb *gr;
 
 	list_for_each_entry(gr, head, lkb_statequeue) {
 		if (gr->lkb_bastaddr &&
@@ -1049,14 +1049,14 @@ static void send_bast_queue(struct list_head *head, gd_lkb_t *lkb)
  * Notify granted locks if they are blocking a newly forced-to-wait lock.
  */
 
-static void send_blocking_asts(gd_res_t *rsb, gd_lkb_t *lkb)
+static void send_blocking_asts(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
 	send_bast_queue(&rsb->res_grantqueue, lkb);
 	/* check if the following improves performance */
 	/* send_bast_queue(&rsb->res_convertqueue, lkb); */
 }
 
-static void send_blocking_asts_all(gd_res_t *rsb, gd_lkb_t *lkb)
+static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 {
 	send_bast_queue(&rsb->res_grantqueue, lkb);
 	send_bast_queue(&rsb->res_convertqueue, lkb);
@@ -1068,15 +1068,15 @@ static void send_blocking_asts_all(gd_res_t *rsb, gd_lkb_t *lkb)
  * The rsb res_lock must be held in write when this function is called.
  */
 
-int grant_pending_locks(gd_res_t *rsb)
+int grant_pending_locks(struct dlm_rsb *rsb)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	struct list_head *list;
 	struct list_head *temp;
 	int8_t high = DLM_LOCK_IV;
 
 	list_for_each_safe(list, temp, &rsb->res_convertqueue) {
-		lkb = list_entry(list, gd_lkb_t, lkb_statequeue);
+		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
 
 		if (can_be_granted(rsb, lkb))
 			grant_lock(lkb, 1);
@@ -1085,7 +1085,7 @@ int grant_pending_locks(gd_res_t *rsb)
 	}
 
 	list_for_each_safe(list, temp, &rsb->res_waitqueue) {
-		lkb = list_entry(list, gd_lkb_t, lkb_statequeue);
+		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
 
 		if (can_be_granted(rsb, lkb))
 			grant_lock(lkb, 1);
@@ -1103,7 +1103,7 @@ int grant_pending_locks(gd_res_t *rsb)
 
 	if (high > DLM_LOCK_IV) {
 		list_for_each_safe(list, temp, &rsb->res_grantqueue) {
-			lkb = list_entry(list, gd_lkb_t, lkb_statequeue);
+			lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
 
 			if (lkb->lkb_bastaddr &&
 			    (lkb->lkb_highbast < high) &&
@@ -1128,7 +1128,7 @@ int grant_pending_locks(gd_res_t *rsb)
  * A completion AST will be delivered to the caller.
  */
 
-int cancel_lockop(gd_lkb_t *lkb, int status)
+int cancel_lockop(struct dlm_lkb *lkb, int status)
 {
 	int state = lkb->lkb_lockqueue_state;
 	uint16_t astflags = AST_COMP;
@@ -1170,12 +1170,12 @@ int cancel_lockop(gd_lkb_t *lkb, int status)
  * return lkb to kill, else return NULL
  */
 
-gd_lkb_t *conversion_deadlock_check(gd_lkb_t *lkb)
+struct dlm_lkb *conversion_deadlock_check(struct dlm_lkb *lkb)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
 	struct list_head *entry;
 
-	GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_CONVERT,);
+	DLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_CONVERT,);
 
 	/* Work our way up to the head of the queue looking for locks that
 	 * conflict with us */
@@ -1184,7 +1184,7 @@ gd_lkb_t *conversion_deadlock_check(gd_lkb_t *lkb)
 
 	entry = lkb->lkb_statequeue.prev;
 	while (entry != &rsb->res_convertqueue) {
-		gd_lkb_t *lkb2 = list_entry(entry, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *lkb2 = list_entry(entry, struct dlm_lkb, lkb_statequeue);
 
 		if (ranges_overlap(lkb, lkb2) && !modes_compat(lkb2, lkb)) {
 			up_read(&rsb->res_lock);
@@ -1202,9 +1202,9 @@ gd_lkb_t *conversion_deadlock_check(gd_lkb_t *lkb)
  * ret contains the return code to pass onto the user
  */
 
-void cancel_conversion(gd_lkb_t *lkb, int ret)
+void cancel_conversion(struct dlm_lkb *lkb, int ret)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
 
 	/* Stick it back on the granted queue */
 	res_lkb_swqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
@@ -1224,9 +1224,9 @@ void cancel_conversion(gd_lkb_t *lkb, int ret)
  * GDLM_LQSTATE_WAIT_UNLOCK, GDLM_LQSTATE_WAIT_CONVERT.
  */
 
-void process_remastered_lkb(gd_ls_t *ls, gd_lkb_t *lkb, int state)
+void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state)
 {
-	gd_res_t *rsb;
+	struct dlm_rsb *rsb;
 
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
@@ -1251,13 +1251,13 @@ void process_remastered_lkb(gd_ls_t *ls, gd_lkb_t *lkb, int state)
 		break;
 
 	default:
-		GDLM_ASSERT(0,);
+		DLM_ASSERT(0,);
 	}
 }
 
 static void dump_queue(struct list_head *head)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, head, lkb_statequeue) {
 		printk("%08x gr %d rq %d flg %x sts %u node %u remid %x "
@@ -1274,7 +1274,7 @@ static void dump_queue(struct list_head *head)
 	}
 }
 
-static void dump_rsb(gd_res_t *rsb)
+static void dump_rsb(struct dlm_rsb *rsb)
 {
 	printk("name \"%s\" flags %lx nodeid %u ref %u seq %u\n",
 	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
@@ -1298,14 +1298,14 @@ static void dump_rsb(gd_res_t *rsb)
 
 void dlm_locks_dump(void)
 {
-	gd_ls_t *ls;
-	gd_res_t *rsb;
+	struct dlm_ls *ls;
+	struct dlm_rsb *rsb;
 	struct list_head *head;
 	int i;
 
 	list_for_each_entry(ls, &lslist, ls_list) {
-		for (i = 0; i < ls->ls_hashsize; i++) {
-			head = &ls->ls_reshashtbl[i];
+		for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+			head = &ls->ls_rsbtbl[i].list;
 			list_for_each_entry(rsb, head, res_hashchain)
 				dump_rsb(rsb);
 		}

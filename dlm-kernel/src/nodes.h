@@ -15,11 +15,11 @@
 #define __NODES_DOT_H__
 
 void dlm_nodes_init(void);
-int init_new_csb(uint32_t nodeid, gd_csb_t ** ret_csb);
-void release_csb(gd_csb_t * csb);
+int init_new_csb(uint32_t nodeid, struct dlm_csb ** ret_csb);
+void release_csb(struct dlm_csb * csb);
 uint32_t our_nodeid(void);
-int ls_nodes_reconfig(gd_ls_t * ls, gd_recover_t * gr, int *neg);
-int ls_nodes_init(gd_ls_t * ls, gd_recover_t * gr);
-int in_nodes_gone(gd_ls_t * ls, uint32_t nodeid);
+int ls_nodes_reconfig(struct dlm_ls * ls, struct dlm_recover * gr, int *neg);
+int ls_nodes_init(struct dlm_ls * ls, struct dlm_recover * gr);
+int in_nodes_gone(struct dlm_ls * ls, uint32_t nodeid);
 
 #endif				/* __NODES_DOT_H__ */

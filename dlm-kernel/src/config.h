@@ -18,8 +18,9 @@ struct config_info {
 	int tcp_port;
 	int lock_timeout;
 	int buffer_size;
-	int reshashtbl;
-	int lockidtbl;
+	int rsbtbl_size;
+	int lkbtbl_size;
+	int dirtbl_size;
 	int max_connections;
 	int deadlocktime;
 	int resdir_expiretime;

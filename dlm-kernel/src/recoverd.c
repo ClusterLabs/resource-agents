@@ -48,7 +48,7 @@ static wait_queue_head_t recoverd_wait;
 static struct task_struct *recoverd_task;
 
 /* 
- * Queue of lockspaces (gr_recover_t structs) which need to be
+ * Queue of lockspaces (dlm_recover structs) which need to be
  * started/recovered
  */
 
@@ -68,7 +68,7 @@ void dlm_recoverd_init(void)
 	memset(&recoverd_flags, 0, sizeof(unsigned long));
 }
 
-static int enable_locking(gd_ls_t *ls, int event_id)
+static int enable_locking(struct dlm_ls *ls, int event_id)
 {
 	int error = 0;
 
@@ -84,34 +84,34 @@ static int enable_locking(gd_ls_t *ls, int event_id)
 	return error;
 }
 
-static int ls_first_start(gd_ls_t *ls, gd_recover_t *gr)
+static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 {
 	int error;
 
-	log_all(ls, "recover event %u (first)", gr->gr_event_id);
+	log_all(ls, "recover event %u (first)", rv->event_id);
 
 	kcl_global_service_id(ls->ls_local_id, &ls->ls_global_id);
 
-	error = ls_nodes_init(ls, gr);
+	error = ls_nodes_init(ls, rv);
 	if (error) {
 		log_error(ls, "nodes_init failed %d", error);
 		goto out;
 	}
 
-	error = resdir_rebuild_local(ls);
+	error = dlm_dir_rebuild_local(ls);
 	if (error) {
-		log_error(ls, "resdir_rebuild_local failed %d", error);
+		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
 		goto out;
 	}
 
-	error = resdir_rebuild_wait(ls);
+	error = dlm_dir_rebuild_wait(ls);
 	if (error) {
-		log_error(ls, "resdir_rebuild_wait failed %d", error);
+		log_error(ls, "dlm_dir_rebuild_wait failed %d", error);
 		goto out;
 	}
 
-	log_all(ls, "recover event %u done", gr->gr_event_id);
-	kcl_start_done(ls->ls_local_id, gr->gr_event_id);
+	log_all(ls, "recover event %u done", rv->event_id);
+	kcl_start_done(ls->ls_local_id, rv->event_id);
 
       out:
 	return error;
@@ -129,17 +129,17 @@ static int ls_first_start(gd_ls_t *ls, gd_recover_t *gr)
  * joined.
  */
 
-static int ls_reconfig(gd_ls_t *ls, gd_recover_t *gr)
+static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 {
 	int error, neg = 0;
 
-	log_all(ls, "recover event %u", gr->gr_event_id);
+	log_all(ls, "recover event %u", rv->event_id);
 
 	/* 
 	 * Add or remove nodes from the lockspace's ls_nodes list.
 	 */
 
-	error = ls_nodes_reconfig(ls, gr, &neg);
+	error = ls_nodes_reconfig(ls, rv, &neg);
 	if (error) {
 		log_error(ls, "nodes_reconfig failed %d", error);
 		goto fail;
@@ -150,9 +150,9 @@ static int ls_reconfig(gd_ls_t *ls, gd_recover_t *gr)
 	 * nodes rsb name/master pairs for which the name hashes to us.
 	 */
 
-	error = resdir_rebuild_local(ls);
+	error = dlm_dir_rebuild_local(ls);
 	if (error) {
-		log_error(ls, "resdir_rebuild_local failed %d", error);
+		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
 		goto fail;
 	}
 
@@ -169,9 +169,9 @@ static int ls_reconfig(gd_ls_t *ls, gd_recover_t *gr)
 	 * Wait for all nodes to complete resdir rebuild.
 	 */
 
-	error = resdir_rebuild_wait(ls);
+	error = dlm_dir_rebuild_wait(ls);
 	if (error) {
-		log_error(ls, "resdir_rebuild_wait failed %d", error);
+		log_error(ls, "dlm_dir_rebuild_wait failed %d", error);
 		goto fail;
 	}
 
@@ -184,7 +184,7 @@ static int ls_reconfig(gd_ls_t *ls, gd_recover_t *gr)
 
 	lockqueue_lkb_mark(ls);
 
-	error = gdlm_recovery_stopped(ls);
+	error = dlm_recovery_stopped(ls);
 	if (error)
 		goto fail;
 
@@ -226,24 +226,24 @@ static int ls_reconfig(gd_ls_t *ls, gd_recover_t *gr)
 
 	clear_bit(LSFL_REQUEST_WARN, &ls->ls_flags);
 
-	log_all(ls, "recover event %u done", gr->gr_event_id);
-	kcl_start_done(ls->ls_local_id, gr->gr_event_id);
+	log_all(ls, "recover event %u done", rv->event_id);
+	kcl_start_done(ls->ls_local_id, rv->event_id);
 	return 0;
 
  fail_up:
 	up_read(&ls->ls_rec_rsblist);
  fail:
-	log_all(ls, "recover event %d error %d", gr->gr_event_id, error);
+	log_all(ls, "recover event %d error %d", rv->event_id, error);
 	return error;
 }
 
-static void clear_finished_nodes(gd_ls_t *ls, int finish_event)
+static void clear_finished_nodes(struct dlm_ls *ls, int finish_event)
 {
-	gd_csb_t *csb, *safe;
+	struct dlm_csb *csb, *safe;
 
-	list_for_each_entry_safe(csb, safe, &ls->ls_nodes_gone, csb_list) {
-		if (csb->csb_gone_event <= finish_event) {
-			list_del(&csb->csb_list);
+	list_for_each_entry_safe(csb, safe, &ls->ls_nodes_gone, list) {
+		if (csb->gone_event <= finish_event) {
+			list_del(&csb->list);
 			release_csb(csb);
 		}
 	}
@@ -258,12 +258,13 @@ static void clear_finished_nodes(gd_ls_t *ls, int finish_event)
  * and boils them down to one course of action.
  */
 
-int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
+static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
+		     int *finish_out)
 {
 	LIST_HEAD(events);
 	unsigned int cmd = 0, stop, start, finish;
 	unsigned int last_stop, last_start, last_finish;
-	gd_recover_t *gr = NULL, *start_gr = NULL;
+	struct dlm_recover *rv = NULL, *start_rv = NULL;
 
 	/* 
 	 * Grab the current state of cman/sm events.
@@ -280,9 +281,9 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 	last_finish = ls->ls_last_finish;
 
 	while (!list_empty(&ls->ls_recover)) {
-		gr = list_entry(ls->ls_recover.next, gd_recover_t, gr_list);
-		list_del(&gr->gr_list);
-		list_add_tail(&gr->gr_list, &events);
+		rv = list_entry(ls->ls_recover.next, struct dlm_recover, list);
+		list_del(&rv->list);
+		list_add_tail(&rv->list, &events);
 	}
 	spin_unlock(&ls->ls_recover_lock);
 
@@ -294,19 +295,19 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 	 */
 
 	while (!list_empty(&events)) {
-		GDLM_ASSERT(start,);
-		gr = list_entry(events.next, gd_recover_t, gr_list);
-		list_del(&gr->gr_list);
+		DLM_ASSERT(start,);
+		rv = list_entry(events.next, struct dlm_recover, list);
+		list_del(&rv->list);
 
-		if (gr->gr_event_id <= last_stop) {
-			log_debug(ls, "move skip event %u", gr->gr_event_id);
-			kfree(gr->gr_nodeids);
-			free_dlm_recover(gr);
-			gr = NULL;
+		if (rv->event_id <= last_stop) {
+			log_debug(ls, "move skip event %u", rv->event_id);
+			kfree(rv->nodeids);
+			kfree(rv);
+			rv = NULL;
 		} else {
-			log_debug(ls, "move use event %u", gr->gr_event_id);
-			GDLM_ASSERT(!start_gr,);
-			start_gr = gr;
+			log_debug(ls, "move use event %u", rv->event_id);
+			DLM_ASSERT(!start_rv,);
+			start_rv = rv;
 		}
 	}
 
@@ -316,16 +317,16 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 
 	/* 0 */
 	if (!stop && !start && !finish) {
-		GDLM_ASSERT(!start_gr,);
+		DLM_ASSERT(!start_rv,);
 		cmd = 0;
 		goto out;
 	}
 
 	/* 1 */
 	if (!stop && !start && finish) {
-		GDLM_ASSERT(!start_gr,);
-		GDLM_ASSERT(last_start > last_stop,);
-		GDLM_ASSERT(last_finish == last_start,);
+		DLM_ASSERT(!start_rv,);
+		DLM_ASSERT(last_start > last_stop,);
+		DLM_ASSERT(last_finish == last_start,);
 		cmd = DO_FINISH;
 		*finish_out = last_finish;
 		goto out;
@@ -333,31 +334,31 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 
 	/* 2 */
 	if (!stop && start && !finish) {
-		GDLM_ASSERT(start_gr,);
-		GDLM_ASSERT(last_start > last_stop,);
+		DLM_ASSERT(start_rv,);
+		DLM_ASSERT(last_start > last_stop,);
 		cmd = DO_START;
-		*gr_out = start_gr;
+		*rv_out = start_rv;
 		goto out;
 	}
 
 	/* 3 */
 	if (!stop && start && finish) {
-		GDLM_ASSERT(0, printk("finish and start with no stop\n"););
+		DLM_ASSERT(0, printk("finish and start with no stop\n"););
 	}
 
 	/* 4 */
 	if (stop && !start && !finish) {
-		GDLM_ASSERT(!start_gr,);
-		GDLM_ASSERT(last_start == last_stop,);
+		DLM_ASSERT(!start_rv,);
+		DLM_ASSERT(last_start == last_stop,);
 		cmd = DO_STOP;
 		goto out;
 	}
 
 	/* 5 */
 	if (stop && !start && finish) {
-		GDLM_ASSERT(!start_gr,);
-		GDLM_ASSERT(last_finish == last_start,);
-		GDLM_ASSERT(last_stop == last_start,);
+		DLM_ASSERT(!start_rv,);
+		DLM_ASSERT(last_finish == last_start,);
+		DLM_ASSERT(last_stop == last_start,);
 		cmd = DO_FINISH_STOP;
 		*finish_out = last_finish;
 		goto out;
@@ -365,12 +366,12 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 
 	/* 6 */
 	if (stop && start && !finish) {
-		if (start_gr) {
-			GDLM_ASSERT(last_start > last_stop,);
+		if (start_rv) {
+			DLM_ASSERT(last_start > last_stop,);
 			cmd = DO_START;
-			*gr_out = start_gr;
+			*rv_out = start_rv;
 		} else {
-			GDLM_ASSERT(last_stop == last_start,);
+			DLM_ASSERT(last_stop == last_start,);
 			cmd = DO_STOP;
 		}
 		goto out;
@@ -378,15 +379,15 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
 
 	/* 7 */
 	if (stop && start && finish) {
-		if (start_gr) {
-			GDLM_ASSERT(last_start > last_stop,);
-			GDLM_ASSERT(last_start > last_finish,);
+		if (start_rv) {
+			DLM_ASSERT(last_start > last_stop,);
+			DLM_ASSERT(last_start > last_finish,);
 			cmd = DO_FINISH_START;
 			*finish_out = last_finish;
-			*gr_out = start_gr;
+			*rv_out = start_rv;
 		} else {
-			GDLM_ASSERT(last_start == last_stop,);
-			GDLM_ASSERT(last_start > last_finish,);
+			DLM_ASSERT(last_start == last_stop,);
+			DLM_ASSERT(last_start > last_finish,);
 			cmd = DO_FINISH_STOP;
 			*finish_out = last_finish;
 		}
@@ -402,19 +403,19 @@ int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out)
  * lockspace state and next lockspace state.
  */
 
-static void do_ls_recovery(gd_ls_t *ls)
+static void do_ls_recovery(struct dlm_ls *ls)
 {
-	gd_recover_t *gr = NULL;
+	struct dlm_recover *rv = NULL;
 	int error, cur_state, next_state = 0, do_now, finish_event = 0;
 
-	do_now = next_move(ls, &gr, &finish_event);
+	do_now = next_move(ls, &rv, &finish_event);
 	if (!do_now)
 		goto out;
 
 	cur_state = ls->ls_state;
 	next_state = 0;
 
-	GDLM_ASSERT(!test_bit(LSFL_LS_RUN, &ls->ls_flags),
+	DLM_ASSERT(!test_bit(LSFL_LS_RUN, &ls->ls_flags),
 		    log_error(ls, "curstate=%d donow=%d", cur_state, do_now););
 
 	/* 
@@ -429,7 +430,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 			break;
 
 		case DO_START:
-			error = ls_reconfig(ls, gr);
+			error = ls_reconfig(ls, rv);
 			if (error)
 				next_state = LSST_WAIT_START;
 			else
@@ -440,7 +441,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 		case DO_FINISH_STOP:	/* invalid */
 		case DO_FINISH_START:	/* invalid */
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 		goto out;
 	}
@@ -457,7 +458,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 			break;
 
 		case DO_START:
-			error = ls_reconfig(ls, gr);
+			error = ls_reconfig(ls, rv);
 			if (error)
 				next_state = LSST_WAIT_START;
 			else
@@ -468,7 +469,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 		case DO_FINISH_STOP:	/* invalid */
 		case DO_FINISH_START:	/* invalid */
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 		goto out;
 	}
@@ -518,7 +519,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 			/* fall into DO_START */
 
 		case DO_START:
-			error = ls_reconfig(ls, gr);
+			error = ls_reconfig(ls, rv);
 			if (error)
 				next_state = LSST_WAIT_START;
 			else
@@ -526,7 +527,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 			break;
 
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 		goto out;
 	}
@@ -541,7 +542,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 	if (cur_state == LSST_INIT) {
 		switch (do_now) {
 		case DO_START:
-			error = ls_first_start(ls, gr);
+			error = ls_first_start(ls, rv);
 			if (!error)
 				next_state = LSST_INIT_DONE;
 			break;
@@ -553,7 +554,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 		case DO_FINISH_STOP:	/* invalid */
 		case DO_FINISH_START:	/* invalid */
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 		goto out;
 	}
@@ -573,7 +574,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 
 		case DO_START:
 		case DO_FINISH_START:
-			error = ls_reconfig(ls, gr);
+			error = ls_reconfig(ls, rv);
 			if (error)
 				next_state = LSST_WAIT_START;
 			else
@@ -587,7 +588,7 @@ static void do_ls_recovery(gd_ls_t *ls)
 			break;
 
 		default:
-			GDLM_ASSERT(0,);
+			DLM_ASSERT(0,);
 		}
 		goto out;
 	}
@@ -596,15 +597,15 @@ static void do_ls_recovery(gd_ls_t *ls)
 	if (next_state)
 		ls->ls_state = next_state;
 
-	if (gr) {
-		kfree(gr->gr_nodeids);
-		free_dlm_recover(gr);
+	if (rv) {
+		kfree(rv->nodeids);
+		kfree(rv);
 	}
 }
 
-static __inline__ gd_ls_t *get_work(int clear)
+static __inline__ struct dlm_ls *get_work(int clear)
 {
-	gd_ls_t *ls;
+	struct dlm_ls *ls;
 
 	spin_lock(&lslist_lock);
 
@@ -632,7 +633,7 @@ static __inline__ gd_ls_t *get_work(int clear)
 
 static int dlm_recoverd(void *arg)
 {
-	gd_ls_t *ls;
+	struct dlm_ls *ls;
 
 	daemonize("dlm_recoverd");
 	recoverd_task = current;
@@ -652,17 +653,17 @@ static int dlm_recoverd(void *arg)
  * Mark a specific lockspace as needing work and wake up the thread to do it.
  */
 
-void recoverd_kick(gd_ls_t *ls)
+void dlm_recoverd_kick(struct dlm_ls *ls)
 {
 	set_bit(LSFL_WORK, &ls->ls_flags);
 	wake_up(&recoverd_wait);
 }
 
 /* 
- * Start the recoverd thread when gdlm is started (before any lockspaces).
+ * Start the recoverd thread when dlm is started (before any lockspaces).
  */
 
-int recoverd_start(void)
+int dlm_recoverd_start(void)
 {
 	int error;
 
@@ -679,10 +680,10 @@ int recoverd_start(void)
 }
 
 /* 
- * Stop the recoverd thread when gdlm is shut down (all lockspaces are gone).
+ * Stop the recoverd thread when dlm is shut down (all lockspaces are gone).
  */
 
-int recoverd_stop(void)
+int dlm_recoverd_stop(void)
 {
 	set_bit(THREAD_STOP, &recoverd_flags);
 	wake_up(&recoverd_wait);

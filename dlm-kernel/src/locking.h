@@ -14,19 +14,19 @@
 #ifndef __LOCKING_DOT_H__
 #define __LOCKING_DOT_H__
 
-void process_remastered_lkb(gd_ls_t *ls, gd_lkb_t *lkb, int state);
-void dlm_lock_stage3(gd_lkb_t *lkb);
-int dlm_convert_stage2(gd_lkb_t *lkb, int do_ast);
-int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags);
-int dlm_lock_stage2(gd_ls_t *lspace, gd_lkb_t *lkb, gd_res_t *rsb, int flags);
-gd_res_t *create_rsb(gd_ls_t *lspace, gd_lkb_t *lkb, char *name, int namelen);
-int free_rsb_if_unused(gd_res_t *rsb);
-gd_lkb_t *remote_stage2(int remote_csid, gd_ls_t *lspace,
-			struct gd_remlockrequest *freq);
-int cancel_lockop(gd_lkb_t *lkb, int status);
-int dlm_remove_lock(gd_lkb_t *lkb, uint32_t flags);
-int grant_pending_locks(gd_res_t *rsb);
-void cancel_conversion(gd_lkb_t *lkb, int ret);
-gd_lkb_t *conversion_deadlock_check(gd_lkb_t *lkb);
+void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state);
+void dlm_lock_stage3(struct dlm_lkb *lkb);
+int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast);
+int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags);
+int dlm_lock_stage2(struct dlm_ls *lspace, struct dlm_lkb *lkb, struct dlm_rsb *rsb, int flags);
+struct dlm_rsb *create_rsb(struct dlm_ls *lspace, struct dlm_lkb *lkb, char *name, int namelen);
+int free_rsb_if_unused(struct dlm_rsb *rsb);
+struct dlm_lkb *remote_stage2(int remote_csid, struct dlm_ls *lspace,
+			struct dlm_request *freq);
+int cancel_lockop(struct dlm_lkb *lkb, int status);
+int dlm_remove_lock(struct dlm_lkb *lkb, uint32_t flags);
+int grant_pending_locks(struct dlm_rsb *rsb);
+void cancel_conversion(struct dlm_lkb *lkb, int ret);
+struct dlm_lkb *conversion_deadlock_check(struct dlm_lkb *lkb);
 
 #endif				/* __LOCKING_DOT_H__ */

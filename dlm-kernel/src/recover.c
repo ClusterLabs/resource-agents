@@ -30,14 +30,14 @@
  * the beginning when the lockspace is "started" again.
  */
 
-int gdlm_recovery_stopped(gd_ls_t *ls)
+int dlm_recovery_stopped(struct dlm_ls *ls)
 {
 	return test_bit(LSFL_LS_STOP, &ls->ls_flags);
 }
 
-static void gdlm_wait_timer_fn(unsigned long data)
+static void dlm_wait_timer_fn(unsigned long data)
 {
-	gd_ls_t *ls = (gd_ls_t *) data;
+	struct dlm_ls *ls = (struct dlm_ls *) data;
 
 	wake_up(&ls->ls_wait_general);
 }
@@ -51,13 +51,13 @@ static void gdlm_wait_timer_fn(unsigned long data)
  * abort due to a node failure.
  */
 
-int gdlm_wait_function(gd_ls_t *ls, int (*testfn) (gd_ls_t * ls))
+int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls * ls))
 {
 	struct timer_list timer;
 	int error = 0;
 
 	init_timer(&timer);
-	timer.function = gdlm_wait_timer_fn;
+	timer.function = dlm_wait_timer_fn;
 	timer.data = (long) ls;
 
 	for (;;) {
@@ -82,24 +82,24 @@ int gdlm_wait_function(gd_ls_t *ls, int (*testfn) (gd_ls_t * ls))
 	return error;
 }
 
-int gdlm_wait_status_all(gd_ls_t *ls, unsigned int wait_status)
+int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
-	gd_rcom_t rc_stack, *rc;
-	gd_csb_t *csb;
+	struct dlm_rcom rc_stack, *rc;
+	struct dlm_csb *csb;
 	int status;
 	int error = 0;
 
-	memset(&rc_stack, 0, sizeof(gd_rcom_t));
+	memset(&rc_stack, 0, sizeof(struct dlm_rcom));
 	rc = &rc_stack;
 	rc->rc_datalen = 0;
 
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
 		for (;;) {
-			error = gdlm_recovery_stopped(ls);
+			error = dlm_recovery_stopped(ls);
 			if (error)
 				goto out;
 
-			error = rcom_send_message(ls, csb->csb_node->gn_nodeid,
+			error = rcom_send_message(ls, csb->node->nodeid,
 						  RECCOMM_STATUS, rc, 1);
 			if (error)
 				goto out;
@@ -118,19 +118,19 @@ int gdlm_wait_status_all(gd_ls_t *ls, unsigned int wait_status)
 	return error;
 }
 
-int gdlm_wait_status_low(gd_ls_t *ls, unsigned int wait_status)
+int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
-	gd_rcom_t rc_stack, *rc;
+	struct dlm_rcom rc_stack, *rc;
 	uint32_t nodeid = ls->ls_low_nodeid;
 	int status;
 	int error = 0;
 
-	memset(&rc_stack, 0, sizeof(gd_rcom_t));
+	memset(&rc_stack, 0, sizeof(struct dlm_rcom));
 	rc = &rc_stack;
 	rc->rc_datalen = 0;
 
 	for (;;) {
-		error = gdlm_recovery_stopped(ls);
+		error = dlm_recovery_stopped(ls);
 		if (error)
 			goto out;
 
@@ -151,17 +151,17 @@ int gdlm_wait_status_low(gd_ls_t *ls, unsigned int wait_status)
 	return error;
 }
 
-static int purge_queue(gd_ls_t *ls, struct list_head *queue)
+static int purge_queue(struct dlm_ls *ls, struct list_head *queue)
 {
-	gd_lkb_t *lkb, *safe;
-	gd_res_t *rsb;
+	struct dlm_lkb *lkb, *safe;
+	struct dlm_rsb *rsb;
 	int count = 0;
 
 	list_for_each_entry_safe(lkb, safe, queue, lkb_statequeue) {
 		if (!lkb->lkb_nodeid)
 			continue;
 
-		GDLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,);
+		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,);
 
 		if (in_nodes_gone(ls, lkb->lkb_nodeid)) {
 			list_del(&lkb->lkb_statequeue);
@@ -187,11 +187,11 @@ static int purge_queue(gd_ls_t *ls, struct list_head *queue)
  * lkb's held by departed nodes.
  */
 
-int restbl_lkb_purge(gd_ls_t *ls)
+int restbl_lkb_purge(struct dlm_ls *ls)
 {
 	struct list_head *tmp2, *safe2;
 	int count = 0;
-	gd_res_t *rootrsb, *safe, *rsb;
+	struct dlm_rsb *rootrsb, *safe, *rsb;
 
 	log_all(ls, "purge locks of departed nodes");
 
@@ -211,7 +211,7 @@ int restbl_lkb_purge(gd_ls_t *ls)
 		for (tmp2 = rootrsb->res_subreslist.prev, safe2 = tmp2->prev;
 		     tmp2 != &rootrsb->res_subreslist;
 		     tmp2 = safe2, safe2 = safe2->prev) {
-			rsb = list_entry(tmp2, gd_res_t, res_subreslist);
+			rsb = list_entry(tmp2, struct dlm_rsb, res_subreslist);
 
 			hold_rsb(rsb);
 			purge_queue(ls, &rsb->res_grantqueue);
@@ -236,9 +236,9 @@ int restbl_lkb_purge(gd_ls_t *ls)
  * Grant any locks that have become grantable after a purge
  */
 
-int restbl_grant_after_purge(gd_ls_t *ls)
+int restbl_grant_after_purge(struct dlm_ls *ls)
 {
-	gd_res_t *root, *rsb, *safe;
+	struct dlm_rsb *root, *rsb, *safe;
 	int error = 0;
 
 	down_write(&ls->ls_gap_rsblist);
@@ -277,7 +277,7 @@ int restbl_grant_after_purge(gd_ls_t *ls)
 
 static void set_lock_master(struct list_head *queue, int nodeid)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, queue, lkb_statequeue) {
 		/* Don't muck around with pre-exising sublocks */
@@ -286,7 +286,7 @@ static void set_lock_master(struct list_head *queue, int nodeid)
 	}
 }
 
-static void set_master_lkbs(gd_res_t *rsb)
+static void set_master_lkbs(struct dlm_rsb *rsb)
 {
 	set_lock_master(&rsb->res_grantqueue, rsb->res_nodeid);
 	set_lock_master(&rsb->res_convertqueue, rsb->res_nodeid);
@@ -300,9 +300,9 @@ static void set_master_lkbs(gd_res_t *rsb)
  * this rsb in deserialise_lkb.
  */
 
-static void set_rsb_lvb(gd_res_t *rsb)
+static void set_rsb_lvb(struct dlm_rsb *rsb)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, &rsb->res_grantqueue, lkb_statequeue) {
 
@@ -338,9 +338,9 @@ static void set_rsb_lvb(gd_res_t *rsb)
  * The NEW_MASTER flag tells rebuild_rsbs_send() which rsb's to consider.
  */
 
-static void set_new_master(gd_res_t *rsb)
+static void set_new_master(struct dlm_rsb *rsb)
 {
-	gd_res_t *subrsb;
+	struct dlm_rsb *subrsb;
 
 	down_write(&rsb->res_lock);
 
@@ -370,7 +370,7 @@ static void set_new_master(gd_res_t *rsb)
  * new lkb's and need to receive new corresponding lkid's.
  */
 
-int recover_list_empty(gd_ls_t *ls)
+int recover_list_empty(struct dlm_ls *ls)
 {
 	int empty;
 
@@ -381,7 +381,7 @@ int recover_list_empty(gd_ls_t *ls)
 	return empty;
 }
 
-int recover_list_count(gd_ls_t *ls)
+int recover_list_count(struct dlm_ls *ls)
 {
 	int count;
 
@@ -392,9 +392,9 @@ int recover_list_count(gd_ls_t *ls)
 	return count;
 }
 
-void recover_list_add(gd_res_t *rsb)
+void recover_list_add(struct dlm_rsb *rsb)
 {
-	gd_ls_t *ls = rsb->res_ls;
+	struct dlm_ls *ls = rsb->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
 	if (!test_and_set_bit(RESFL_RECOVER_LIST, &rsb->res_flags)) {
@@ -405,9 +405,9 @@ void recover_list_add(gd_res_t *rsb)
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-void recover_list_del(gd_res_t *rsb)
+void recover_list_del(struct dlm_rsb *rsb)
 {
-	gd_ls_t *ls = rsb->res_ls;
+	struct dlm_ls *ls = rsb->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
 	clear_bit(RESFL_RECOVER_LIST, &rsb->res_flags);
@@ -418,9 +418,9 @@ void recover_list_del(gd_res_t *rsb)
 	release_rsb(rsb);
 }
 
-static gd_res_t *recover_list_find(gd_ls_t *ls, int msgid)
+static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
 {
-	gd_res_t *rsb = NULL;
+	struct dlm_rsb *rsb = NULL;
 
 	spin_lock(&ls->ls_recover_list_lock);
 
@@ -436,15 +436,15 @@ static gd_res_t *recover_list_find(gd_ls_t *ls, int msgid)
 }
 
 #if 0
-static void recover_list_clear(gd_ls_t *ls)
+static void recover_list_clear(struct dlm_ls *ls)
 {
-	gd_res_t *rsb;
+	struct dlm_rsb *rsb;
 
 
 	spin_lock(&ls->ls_recover_list_lock);
 
 	while (!list_empty(&ls->ls_recover_list)) {
-		rsb = list_entry(ls->ls_recover_list.next, gd_res_t,
+		rsb = list_entry(ls->ls_recover_list.next, struct dlm_rsb,
 			         res_recover_list);
 		list_del(&rsb->res_recover_list);
 		ls->ls_recover_list_count--;
@@ -454,27 +454,9 @@ static void recover_list_clear(gd_ls_t *ls)
 }
 #endif
 
-#if 0
-void recover_list_dump(gd_ls_t *ls)
+static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 {
-	struct list_head *tmp;
-	gd_res_t *rsb;
-
-	spin_lock(&ls->ls_recover_list_lock);
-
-	printk("recover_list_count=%d\n", ls->ls_recover_list_count);
-
-	list_for_each(tmp, &ls->ls_recover_list) {
-		rsb = list_entry(tmp, gd_res_t, res_recover_list);
-		gdlm_res_dbprint(rsb);
-	}
-	spin_unlock(&ls->ls_recover_list_lock);
-}
-#endif
-
-static int rsb_master_lookup(gd_res_t *rsb, gd_rcom_t *rc)
-{
-	gd_ls_t *ls = rsb->res_ls;
+	struct dlm_ls *ls = rsb->res_ls;
 	uint32_t dir_nodeid, r_nodeid;
 	int error;
 
@@ -521,10 +503,10 @@ static int rsb_master_lookup(gd_res_t *rsb, gd_rcom_t *rc)
  * correct resdir node.  The replies are processed in rsb_master_recv().
  */
 
-int restbl_rsb_update(gd_ls_t *ls)
+int restbl_rsb_update(struct dlm_ls *ls)
 {
-	gd_res_t *rsb, *safe;
-	gd_rcom_t *rc;
+	struct dlm_rsb *rsb, *safe;
+	struct dlm_rcom *rc;
 	int error = -ENOMEM;
 	int count = 0;
 
@@ -538,7 +520,7 @@ int restbl_rsb_update(gd_ls_t *ls)
 		if (!rsb->res_nodeid)
 			continue;
 
-		error = gdlm_recovery_stopped(ls);
+		error = dlm_recovery_stopped(ls);
 		if (error)
 			goto out_free;
 
@@ -550,7 +532,7 @@ int restbl_rsb_update(gd_ls_t *ls)
 		}
 	}
 
-	error = gdlm_wait_function(ls, &recover_list_empty);
+	error = dlm_wait_function(ls, &recover_list_empty);
 
 	log_all(ls, "updated %d resources", count);
 
@@ -561,10 +543,10 @@ int restbl_rsb_update(gd_ls_t *ls)
 	return error;
 }
 
-int restbl_rsb_update_recv(gd_ls_t *ls, uint32_t nodeid, char *buf, int length,
-			   int msgid)
+int restbl_rsb_update_recv(struct dlm_ls *ls, uint32_t nodeid, char *buf,
+			   int length, int msgid)
 {
-	gd_res_t *rsb;
+	struct dlm_rsb *rsb;
 	uint32_t be_nodeid;
 
 	rsb = recover_list_find(ls, msgid);
@@ -589,7 +571,7 @@ int restbl_rsb_update_recv(gd_ls_t *ls, uint32_t nodeid, char *buf, int length,
  * This function not used any longer.
  */
 
-int bulk_master_lookup(gd_ls_t *ls, int nodeid, char *inbuf, int inlen,
+int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 		       char *outbuf)
 {
 	char *inbufptr, *outbufptr;

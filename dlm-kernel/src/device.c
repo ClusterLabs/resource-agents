@@ -38,7 +38,7 @@
 #include "dlm_internal.h"
 #include "device.h"
 
-extern gd_lkb_t *dlm_get_lkb(gd_ls_t *, int);
+extern struct dlm_lkb *dlm_get_lkb(struct dlm_ls *, int);
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
 static struct list_head user_ls_list;
@@ -262,7 +262,7 @@ static void ast_routine(void *param)
 		 */
 		if (test_and_clear_bit(LI_FLAG_FIRSTLOCK, &li->li_flags) &&
 		    li->li_lksb.sb_status != 0) {
-			gd_lkb_t *lkb;
+			struct dlm_lkb *lkb;
 
 			/* Wait till dlm_lock() has finished */
 			down(&li->li_firstlock);
@@ -374,7 +374,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 	struct lock_info li;
 	sigset_t tmpsig;
 	sigset_t allsigs;
-	gd_lkb_t *lkb, *safe;
+	struct dlm_lkb *lkb, *safe;
 	struct user_ls *lsinfo;
 	DECLARE_WAITQUEUE(wq, current);
 
@@ -785,7 +785,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	/* For conversions, the lock will already have a lock_info
 	   block squirelled away in astparam */
 	if (kparams->flags & DLM_LKF_CONVERT) {
-		gd_lkb_t *lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
+		struct dlm_lkb *lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
 		if (!lkb) {
 			return -EINVAL;
 		}
@@ -843,7 +843,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 	/* If it succeeded (this far) with a new lock then keep track of
 	   it on the file's lkb list */
 	if (!status && !(kparams->flags & DLM_LKF_CONVERT)) {
-		gd_lkb_t *lkb;
+		struct dlm_lkb *lkb;
 		lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
 
 		if (lkb) {
@@ -864,7 +864,7 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 static int do_user_unlock(struct file_info *fi, struct dlm_lock_params *kparams)
 {
 	struct lock_info *li;
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	int status;
 
 	lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);

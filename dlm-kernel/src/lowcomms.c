@@ -886,7 +886,7 @@ int lowcomms_send_message(int nodeid, char *buf, int len, int allocation)
 	struct writequeue_entry *e;
 	char *b;
 
-	GDLM_ASSERT(nodeid < dlm_config.max_connections,
+	DLM_ASSERT(nodeid < dlm_config.max_connections,
 		    printk("nodeid=%u\n", nodeid););
 
 	e = lowcomms_get_buffer(nodeid, len, allocation, &b);

@@ -15,8 +15,8 @@
 #define __RECOVERD_DOT_H__
 
 void dlm_recoverd_init(void);
-void recoverd_kick(gd_ls_t * ls);
-int recoverd_start(void);
-int recoverd_stop(void);
+void dlm_recoverd_kick(struct dlm_ls *ls);
+int dlm_recoverd_start(void);
+int dlm_recoverd_stop(void);
 
 #endif				/* __RECOVERD_DOT_H__ */

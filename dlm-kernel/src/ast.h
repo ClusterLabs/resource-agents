@@ -14,13 +14,13 @@
 #ifndef __AST_DOT_H__
 #define __AST_DOT_H__
 
-void lockqueue_lkb_mark(gd_ls_t *ls);
-int resend_cluster_requests(gd_ls_t *ls);
-void add_to_lockqueue(gd_lkb_t *lkb);
-void remove_from_lockqueue(gd_lkb_t *lkb);
-void add_to_deadlockqueue(gd_lkb_t *lkb);
-void remove_from_deadlockqueue(gd_lkb_t *lkb);
-void queue_ast(gd_lkb_t *lkb, uint16_t astflags, uint8_t rqmode);
+void lockqueue_lkb_mark(struct dlm_ls *ls);
+int resend_cluster_requests(struct dlm_ls *ls);
+void add_to_lockqueue(struct dlm_lkb *lkb);
+void remove_from_lockqueue(struct dlm_lkb *lkb);
+void add_to_deadlockqueue(struct dlm_lkb *lkb);
+void remove_from_deadlockqueue(struct dlm_lkb *lkb);
+void queue_ast(struct dlm_lkb *lkb, uint16_t astflags, uint8_t rqmode);
 void wake_astd(void);
 int astd_start(void);
 void astd_stop(void);

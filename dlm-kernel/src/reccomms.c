@@ -26,19 +26,19 @@
 /* Running on the basis that only a single recovery communication will be done
  * at a time per lockspace */
 
-static void rcom_process_message(gd_ls_t * ls, uint32_t nodeid, gd_rcom_t * rc);
+static void rcom_process_message(struct dlm_ls * ls, uint32_t nodeid, struct dlm_rcom * rc);
 
 /*
  * Track per-node progress/stats during recovery to help debugging.
  */
 
-void rcom_log(gd_ls_t *ls, int nodeid, gd_rcom_t *rc, int send)
+void rcom_log(struct dlm_ls *ls, int nodeid, struct dlm_rcom *rc, int send)
 {
-	gd_csb_t *csb;
+	struct dlm_csb *csb;
 	int found = 0;
  
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
-		if (csb->csb_node->gn_nodeid == nodeid) {
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
+		if (csb->node->nodeid == nodeid) {
 			found = TRUE;
 			break;
 		}
@@ -49,40 +49,40 @@ void rcom_log(gd_ls_t *ls, int nodeid, gd_rcom_t *rc, int send)
 
 	if (rc->rc_subcmd == RECCOMM_RECOVERNAMES) {
 		if (send) {
-			csb->csb_names_send_count++;
-			csb->csb_names_send_msgid = rc->rc_msgid;
+			csb->names_send_count++;
+			csb->names_send_msgid = rc->rc_msgid;
 		} else {
-			csb->csb_names_recv_count++;
-			csb->csb_names_recv_msgid = rc->rc_msgid;
+			csb->names_recv_count++;
+			csb->names_recv_msgid = rc->rc_msgid;
 		}
 	} else if (rc->rc_subcmd == RECCOMM_NEWLOCKS) {
 		if (send) {
-			csb->csb_locks_send_count++;
-			csb->csb_locks_send_msgid = rc->rc_msgid;
+			csb->locks_send_count++;
+			csb->locks_send_msgid = rc->rc_msgid;
 		} else {
-			csb->csb_locks_recv_count++;
-			csb->csb_locks_recv_msgid = rc->rc_msgid;
+			csb->locks_recv_count++;
+			csb->locks_recv_msgid = rc->rc_msgid;
 		}
 	}
 }
 
-void rcom_log_clear(gd_ls_t *ls)
+void rcom_log_clear(struct dlm_ls *ls)
 {
-	gd_csb_t *csb;
+	struct dlm_csb *csb;
  
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
-		csb->csb_names_send_count = 0;
-		csb->csb_names_send_msgid = 0;
-		csb->csb_names_recv_count = 0;
-		csb->csb_names_recv_msgid = 0;
-		csb->csb_locks_send_count = 0;
-		csb->csb_locks_send_msgid = 0;
-		csb->csb_locks_recv_count = 0;
-		csb->csb_locks_recv_msgid = 0;
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
+		csb->names_send_count = 0;
+		csb->names_send_msgid = 0;
+		csb->names_recv_count = 0;
+		csb->names_recv_msgid = 0;
+		csb->locks_send_count = 0;
+		csb->locks_send_msgid = 0;
+		csb->locks_recv_count = 0;
+		csb->locks_recv_msgid = 0;
 	}
 }
 
-static int rcom_response(gd_ls_t *ls)
+static int rcom_response(struct dlm_ls *ls)
 {
 	return test_bit(LSFL_RECCOMM_READY, &ls->ls_flags);
 }
@@ -105,10 +105,10 @@ static int rcom_response(gd_ls_t *ls)
  * iv)  Submit the rc to this function:
  *          rcom_send_message(rc);
  *
- * The max value of "mylen" is dlm_config.buffer_size - sizeof(gd_rcom_t).  If
- * more data must be passed in one send, use rcom_expand_buffer() which
- * incrementally increases the size of the rc buffer by dlm_config.buffer_size
- * bytes.
+ * The max value of "mylen" is dlm_config.buffer_size - sizeof(struct
+ * dlm_rcom).  If more data must be passed in one send, use
+ * rcom_expand_buffer() which incrementally increases the size of the rc buffer
+ * by dlm_config.buffer_size bytes.
  *
  * Any data returned for the message (when need_reply is set) will saved in
  * rc->rc_buf when this function returns and rc->rc_datalen will be set to the
@@ -117,8 +117,8 @@ static int rcom_response(gd_ls_t *ls)
  * Returns: 0 on success, -EXXX on failure
  */
 
-int rcom_send_message(gd_ls_t *ls, uint32_t nodeid, int type, gd_rcom_t *rc,
-		      int need_reply)
+int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
+		      struct dlm_rcom *rc, int need_reply)
 {
 	int error = 0;
 
@@ -131,7 +131,7 @@ int rcom_send_message(gd_ls_t *ls, uint32_t nodeid, int type, gd_rcom_t *rc,
 
 	rc->rc_header.rh_cmd = GDLM_REMCMD_RECOVERMESSAGE;
 	rc->rc_header.rh_lockspace = ls->ls_global_id;
-	rc->rc_header.rh_length = sizeof(gd_rcom_t) + rc->rc_datalen - 1;
+	rc->rc_header.rh_length = sizeof(struct dlm_rcom) + rc->rc_datalen - 1;
 	rc->rc_subcmd = type;
 	rc->rc_msgid = ++ls->ls_rcom_msgid;
 
@@ -155,7 +155,7 @@ int rcom_send_message(gd_ls_t *ls, uint32_t nodeid, int type, gd_rcom_t *rc,
 	 * ls->ls_rcom->rc_buf;
 	 */
 
-	GDLM_ASSERT(!test_bit(LSFL_RECCOMM_READY, &ls->ls_flags),);
+	DLM_ASSERT(!test_bit(LSFL_RECCOMM_READY, &ls->ls_flags),);
 
 	/* 
 	 * The WAIT bit indicates that we're waiting for and willing to accept a
@@ -179,19 +179,19 @@ int rcom_send_message(gd_ls_t *ls, uint32_t nodeid, int type, gd_rcom_t *rc,
 
 	log_debug(ls, "rcom send %d to %u id %u", type, nodeid, rc->rc_msgid);
 
-	error = midcomms_send_message(nodeid, (struct gd_req_header *) rc,
+	error = midcomms_send_message(nodeid, (struct dlm_header *) rc,
 				      GFP_KERNEL);
-	GDLM_ASSERT(error >= 0, printk("error = %d\n", error););
+	DLM_ASSERT(error >= 0, printk("error = %d\n", error););
 	error = 0;
 
 	/* 
 	 * Wait for a reply.  Once a reply is processed from midcomms, the
-	 * READY bit will be set and we'll be awoken (gdlm_wait_function will
+	 * READY bit will be set and we'll be awoken (dlm_wait_function will
 	 * return 0).
 	 */
 
 	if (need_reply) {
-		error = gdlm_wait_function(ls, &rcom_response);
+		error = dlm_wait_function(ls, &rcom_response);
 		if (error)
 			log_debug(ls, "rcom wait error %d", error);
 	}
@@ -210,10 +210,10 @@ int rcom_send_message(gd_ls_t *ls, uint32_t nodeid, int type, gd_rcom_t *rc,
  * Runs in same context as midcomms.
  */
 
-static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
+static void rcom_process_message(struct dlm_ls *ls, uint32_t nodeid, struct dlm_rcom *rc)
 {
-	gd_rcom_t rc_stack;
-	gd_rcom_t *reply = NULL;
+	struct dlm_rcom rc_stack;
+	struct dlm_rcom *reply = NULL;
 	int status, datalen, maxlen;
 	uint32_t r_nodeid, be_nodeid;
 
@@ -222,7 +222,7 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 
 	rcom_log(ls, nodeid, rc, 0);
 
-	if (gdlm_recovery_stopped(ls) && (rc->rc_subcmd != RECCOMM_STATUS)) {
+	if (dlm_recovery_stopped(ls) && (rc->rc_subcmd != RECCOMM_STATUS)) {
 		log_error(ls, "ignoring recovery message %x from %u",
 			  rc->rc_subcmd, nodeid);
 		return;
@@ -232,7 +232,7 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 
 	case RECCOMM_STATUS:
 
-		memset(&rc_stack, 0, sizeof(gd_rcom_t));
+		memset(&rc_stack, 0, sizeof(struct dlm_rcom));
 		reply = &rc_stack;
 
 		reply->rc_header.rh_cmd = GDLM_REMCMD_RECOVERREPLY;
@@ -255,7 +255,7 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 
 		reply->rc_datalen = 1;
 		reply->rc_header.rh_length =
-			sizeof(gd_rcom_t) + reply->rc_datalen - 1;
+			sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 
 		log_debug(ls, "rcom status %x to %u", reply->rc_buf[0], nodeid);
 		break;
@@ -263,8 +263,8 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 	case RECCOMM_RECOVERNAMES:
 
 		reply = allocate_rcom_buffer(ls);
-		GDLM_ASSERT(reply,);
-		maxlen = dlm_config.buffer_size - sizeof(gd_rcom_t);
+		DLM_ASSERT(reply,);
+		maxlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);
 
 		reply->rc_header.rh_cmd = GDLM_REMCMD_RECOVERREPLY;
 		reply->rc_header.rh_lockspace = rc->rc_header.rh_lockspace;
@@ -276,12 +276,12 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 		 * the resource to begin with is in rc->rc_buf.
 		 */
 
-		datalen = resdir_rebuild_send(ls, rc->rc_buf, rc->rc_datalen,
-					      reply->rc_buf, maxlen, nodeid);
+		datalen = dlm_dir_rebuild_send(ls, rc->rc_buf, rc->rc_datalen,
+					       reply->rc_buf, maxlen, nodeid);
 
 		reply->rc_datalen = datalen;
 		reply->rc_header.rh_length =
-		    sizeof(gd_rcom_t) + reply->rc_datalen - 1;
+		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 
 		log_debug(ls, "rcom names len %d to %u id %u", datalen, nodeid,
 			  reply->rc_msgid);
@@ -290,7 +290,7 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 	case RECCOMM_GETMASTER:
 
 		reply = allocate_rcom_buffer(ls);
-		GDLM_ASSERT(reply,);
+		DLM_ASSERT(reply,);
 
 		reply->rc_header.rh_cmd = GDLM_REMCMD_RECOVERREPLY;
 		reply->rc_header.rh_lockspace = rc->rc_header.rh_lockspace;
@@ -312,13 +312,13 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 		memcpy(reply->rc_buf, &be_nodeid, sizeof(uint32_t));
 		reply->rc_datalen = sizeof(uint32_t);
 		reply->rc_header.rh_length =
-		    sizeof(gd_rcom_t) + reply->rc_datalen - 1;
+		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 		break;
 
 	case RECCOMM_BULKLOOKUP:
 
 		reply = allocate_rcom_buffer(ls);
-		GDLM_ASSERT(reply,);
+		DLM_ASSERT(reply,);
 
 		reply->rc_header.rh_cmd = GDLM_REMCMD_RECOVERREPLY;
 		reply->rc_header.rh_lockspace = rc->rc_header.rh_lockspace;
@@ -340,7 +340,7 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 
 		reply->rc_datalen = datalen;
 		reply->rc_header.rh_length =
-		    sizeof(gd_rcom_t) + reply->rc_datalen - 1;
+		    sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 		break;
 
 		/* 
@@ -360,17 +360,17 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 		break;
 
 	default:
-		GDLM_ASSERT(0, printk("cmd=%x\n", rc->rc_subcmd););
+		DLM_ASSERT(0, printk("cmd=%x\n", rc->rc_subcmd););
 	}
 
 	if (reply) {
 		if (nodeid == our_nodeid()) {
-			GDLM_ASSERT(rc == ls->ls_rcom,);
+			DLM_ASSERT(rc == ls->ls_rcom,);
 			memcpy(rc->rc_buf, reply->rc_buf, reply->rc_datalen);
 			rc->rc_datalen = reply->rc_datalen;
 		} else {
 			midcomms_send_message(nodeid,
-					      (struct gd_req_header *) reply,
+					      (struct dlm_header *) reply,
 					      GFP_KERNEL);
 		}
 
@@ -379,9 +379,10 @@ static void rcom_process_message(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *rc)
 	}
 }
 
-static void process_reply_sync(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
+static void process_reply_sync(struct dlm_ls *ls, uint32_t nodeid,
+			       struct dlm_rcom *reply)
 {
-	gd_rcom_t *rc = ls->ls_rcom;
+	struct dlm_rcom *rc = ls->ls_rcom;
 
 	if (!test_bit(LSFL_RECCOMM_WAIT, &ls->ls_flags)) {
 		log_error(ls, "unexpected rcom reply nodeid=%u", nodeid);
@@ -405,7 +406,8 @@ static void process_reply_sync(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
 	wake_up(&ls->ls_wait_general);
 }
 
-static void process_reply_async(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
+static void process_reply_async(struct dlm_ls *ls, uint32_t nodeid,
+				struct dlm_rcom *reply)
 {
 	restbl_rsb_update_recv(ls, nodeid, reply->rc_buf, reply->rc_datalen,
 			       reply->rc_msgid);
@@ -415,9 +417,10 @@ static void process_reply_async(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
  * Runs in same context as midcomms.
  */
 
-static void rcom_process_reply(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
+static void rcom_process_reply(struct dlm_ls *ls, uint32_t nodeid,
+			       struct dlm_rcom *reply)
 {
-	if (gdlm_recovery_stopped(ls)) {
+	if (dlm_recovery_stopped(ls)) {
 		log_error(ls, "ignoring recovery reply %x from %u",
 			  reply->rc_subcmd, nodeid);
 		return;
@@ -440,13 +443,13 @@ static void rcom_process_reply(gd_ls_t *ls, uint32_t nodeid, gd_rcom_t *reply)
 }
 
 
-static int send_ls_not_ready(uint32_t nodeid, struct gd_req_header *header)
+static int send_ls_not_ready(uint32_t nodeid, struct dlm_header *header)
 {
 	struct writequeue_entry *wq;
-	gd_rcom_t *rc = (gd_rcom_t *) header;
-	gd_rcom_t *reply;
+	struct dlm_rcom *rc = (struct dlm_rcom *) header;
+	struct dlm_rcom *reply;
 
-	wq = lowcomms_get_buffer(nodeid, sizeof(gd_rcom_t), GFP_KERNEL,
+	wq = lowcomms_get_buffer(nodeid, sizeof(struct dlm_rcom), GFP_KERNEL,
 			         (char **)&reply);
 	if (!wq)
 		return -ENOMEM;
@@ -458,9 +461,9 @@ static int send_ls_not_ready(uint32_t nodeid, struct gd_req_header *header)
 	reply->rc_buf[0] = 0;
 
 	reply->rc_datalen = 1;
-	reply->rc_header.rh_length = sizeof(gd_rcom_t) + reply->rc_datalen - 1;
+	reply->rc_header.rh_length = sizeof(struct dlm_rcom) + reply->rc_datalen - 1;
 
-	midcomms_send_buffer((struct gd_req_header *)reply, wq);
+	midcomms_send_buffer((struct dlm_header *)reply, wq);
 	return 0;
 }
 
@@ -470,10 +473,10 @@ static int send_ls_not_ready(uint32_t nodeid, struct gd_req_header *header)
  * replies come through this function.
  */
 
-void process_recovery_comm(uint32_t nodeid, struct gd_req_header *header)
+void process_recovery_comm(uint32_t nodeid, struct dlm_header *header)
 {
-	gd_ls_t *ls = find_lockspace_by_global_id(header->rh_lockspace);
-	gd_rcom_t *rc = (gd_rcom_t *) header;
+	struct dlm_ls *ls = find_lockspace_by_global_id(header->rh_lockspace);
+	struct dlm_rcom *rc = (struct dlm_rcom *) header;
 
 	/* If the lockspace doesn't exist then still send a status message
 	   back, it's possible that it just doesn't have it's global_id
@@ -495,7 +498,7 @@ void process_recovery_comm(uint32_t nodeid, struct gd_req_header *header)
 		break;
 
 	default:
-		GDLM_ASSERT(0, printk("cmd=%x\n", header->rh_cmd););
+		DLM_ASSERT(0, printk("cmd=%x\n", header->rh_cmd););
 	}
 }
 

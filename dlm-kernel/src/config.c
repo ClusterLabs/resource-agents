@@ -22,8 +22,9 @@
 #define DEFAULT_TCP_PORT       21064
 #define DEFAULT_LOCK_TIMEOUT      30
 #define DEFAULT_BUFFER_SIZE     4096
-#define DEFAULT_RESHASHTBL       256
-#define DEFAULT_LOCKIDTBL       1024
+#define DEFAULT_RSBTBL_SIZE      256
+#define DEFAULT_LKBTBL_SIZE     1024
+#define DEFAULT_DIRTBL_SIZE      512
 #define DEFAULT_MAX_CONNECTIONS  128
 #define DEFAULT_DEADLOCKTIME      10
 #define DEFAULT_RESDIREXPIRE       5
@@ -32,8 +33,9 @@ struct config_info dlm_config = {
 	.tcp_port = DEFAULT_TCP_PORT,
 	.lock_timeout = DEFAULT_LOCK_TIMEOUT,
 	.buffer_size = DEFAULT_BUFFER_SIZE,
-	.reshashtbl = DEFAULT_RESHASHTBL,
-	.lockidtbl = DEFAULT_LOCKIDTBL,
+	.rsbtbl_size = DEFAULT_RSBTBL_SIZE,
+	.lkbtbl_size = DEFAULT_LKBTBL_SIZE,
+	.dirtbl_size = DEFAULT_DIRTBL_SIZE,
 	.max_connections = DEFAULT_MAX_CONNECTIONS,
 	.deadlocktime = DEFAULT_DEADLOCKTIME,
 	.resdir_expiretime = DEFAULT_RESDIREXPIRE,
@@ -57,12 +59,16 @@ static struct config_proc_info {
 	.value = &dlm_config.buffer_size,
     },
     {
-	.name = "reshashtbl",
-	.value = &dlm_config.reshashtbl,
+	.name = "rsbtbl_size",
+	.value = &dlm_config.rsbtbl_size,
     },
     {
-	.name = "lockidtbl",
-	.value = &dlm_config.lockidtbl,
+	.name = "lkbtbl_size",
+	.value = &dlm_config.lkbtbl_size,
+    },
+    {
+	.name = "dirtbl_size",
+	.value = &dlm_config.dirtbl_size,
     },
     {
 	.name = "max_connections",

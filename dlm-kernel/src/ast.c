@@ -47,7 +47,7 @@ static long _astd_pid;
 static unsigned long _astd_wakeflags;
 static struct completion _astd_done;
 
-void add_to_lockqueue(gd_lkb_t *lkb)
+void add_to_lockqueue(struct dlm_lkb *lkb)
 {
 	/* Time stamp the entry so we know if it's been waiting too long */
 	lkb->lkb_lockqueue_time = jiffies;
@@ -57,14 +57,14 @@ void add_to_lockqueue(gd_lkb_t *lkb)
 	up(&_lockqueue_lock);
 }
 
-void remove_from_lockqueue(gd_lkb_t *lkb)
+void remove_from_lockqueue(struct dlm_lkb *lkb)
 {
 	down(&_lockqueue_lock);
 	list_del(&lkb->lkb_lockqueue);
 	up(&_lockqueue_lock);
 }
 
-void add_to_deadlockqueue(gd_lkb_t *lkb)
+void add_to_deadlockqueue(struct dlm_lkb *lkb)
 {
 	if (test_bit(LSFL_NOTIMERS, &lkb->lkb_resource->res_ls->ls_flags))
 		return;
@@ -74,7 +74,7 @@ void add_to_deadlockqueue(gd_lkb_t *lkb)
 	up(&_deadlockqueue_lock);
 }
 
-void remove_from_deadlockqueue(gd_lkb_t *lkb)
+void remove_from_deadlockqueue(struct dlm_lkb *lkb)
 {
 	if (test_bit(LSFL_NOTIMERS, &lkb->lkb_resource->res_ls->ls_flags))
 		return;
@@ -91,7 +91,7 @@ void remove_from_deadlockqueue(gd_lkb_t *lkb)
  * deliver an AST to a user
  */
 
-static void deliver_ast(gd_lkb_t *lkb, uint16_t ast_type)
+static void deliver_ast(struct dlm_lkb *lkb, uint16_t ast_type)
 {
 	void (*cast) (long param) = lkb->lkb_astaddr;
 	void (*bast) (long param, int mode) = lkb->lkb_bastaddr;
@@ -114,7 +114,7 @@ static void deliver_ast(gd_lkb_t *lkb, uint16_t ast_type)
  * kernel ASTs, usermode API will piggyback on top of this.
  *
  * This can be called in either the user or DLM context.
- * ASTs are queued EVEN IF we are already running in gdlm_astd
+ * ASTs are queued EVEN IF we are already running in dlm_astd
  * context as we don't know what other locks are held (eg we could
  * be being called from a lock operation that was called from
  * another AST!
@@ -122,9 +122,9 @@ static void deliver_ast(gd_lkb_t *lkb, uint16_t ast_type)
  * the target system via midcomms.
  */
 
-void queue_ast(gd_lkb_t *lkb, uint16_t flags, uint8_t rqmode)
+void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 {
-	struct gd_remlockrequest req;
+	struct dlm_request req;
 
 	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
 		/* 
@@ -201,7 +201,7 @@ void queue_ast(gd_lkb_t *lkb, uint16_t flags, uint8_t rqmode)
 
 static void process_asts(void)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	uint16_t flags;
 
 	for (;;) {
@@ -211,7 +211,7 @@ static void process_asts(void)
 			break;
 		}
 
-		lkb = list_entry(_ast_queue.next, gd_lkb_t, lkb_astqueue);
+		lkb = list_entry(_ast_queue.next, struct dlm_lkb, lkb_astqueue);
 		list_del(&lkb->lkb_astqueue);
 		flags = lkb->lkb_astflags;
 		lkb->lkb_astflags = 0;
@@ -224,10 +224,10 @@ static void process_asts(void)
 			deliver_ast(lkb, AST_BAST);
 
 		if (flags & AST_DEL) {
-			gd_res_t *rsb = lkb->lkb_resource;
-			gd_ls_t *ls = rsb->res_ls;
+			struct dlm_rsb *rsb = lkb->lkb_resource;
+			struct dlm_ls *ls = rsb->res_ls;
 
-			GDLM_ASSERT(lkb->lkb_astflags == 0,
+			DLM_ASSERT(lkb->lkb_astflags == 0,
 			    printk("%x %x\n", lkb->lkb_id, lkb->lkb_astflags););
 
 			down_read(&ls->ls_in_recovery);
@@ -240,9 +240,9 @@ static void process_asts(void)
 	}
 }
 
-void lockqueue_lkb_mark(gd_ls_t *ls)
+void lockqueue_lkb_mark(struct dlm_ls *ls)
 {
-	gd_lkb_t *lkb, *safe;
+	struct dlm_lkb *lkb, *safe;
 	int count = 0;
 
 	log_all(ls, "mark waiting requests");
@@ -265,7 +265,7 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 		 */
 
 		if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_RSB) {
-			GDLM_ASSERT(lkb->lkb_nodeid == -1,
+			DLM_ASSERT(lkb->lkb_nodeid == -1,
 				    print_lkb(lkb);
 				    print_rsb(lkb->lkb_resource););
 
@@ -293,7 +293,7 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 			 */
 
 			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_CONDGRANT) {
-				GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_WAITING,
+				DLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_WAITING,
 					    print_lkb(lkb);
 					    print_rsb(lkb->lkb_resource););
 				lkb->lkb_flags |= GDLM_LKFLG_NOREBUILD;
@@ -308,7 +308,7 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 			 */
 
 			else if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_CONVERT) {
-				GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_CONVERT,
+				DLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_CONVERT,
 					    print_lkb(lkb);
 					    print_rsb(lkb->lkb_resource););
 				lkb->lkb_flags |= GDLM_LKFLG_LQCONVERT;
@@ -322,9 +322,9 @@ void lockqueue_lkb_mark(gd_ls_t *ls)
 	log_all(ls, "marked %d requests", count);
 }
 
-int resend_cluster_requests(gd_ls_t *ls)
+int resend_cluster_requests(struct dlm_ls *ls)
 {
-	gd_lkb_t *lkb, *safe;
+	struct dlm_lkb *lkb, *safe;
 	int error = 0, state, count = 0;
 
 	log_all(ls, "resend marked requests");
@@ -404,8 +404,8 @@ int resend_cluster_requests(gd_ls_t *ls)
 
 static void process_lockqueue(void)
 {
-	gd_lkb_t *lkb, *safe;
-	gd_ls_t *ls;
+	struct dlm_lkb *lkb, *safe;
+	struct dlm_ls *ls;
 	int count = 0;
 
 	down(&_lockqueue_lock);
@@ -442,12 +442,12 @@ static void process_lockqueue(void)
 /* Look for deadlocks */
 static void process_deadlockqueue(void)
 {
-	gd_lkb_t *lkb, *safe;
+	struct dlm_lkb *lkb, *safe;
 
 	down(&_deadlockqueue_lock);
 
 	list_for_each_entry_safe(lkb, safe, &_deadlockqueue, lkb_deadlockq) {
-		gd_lkb_t *kill_lkb;
+		struct dlm_lkb *kill_lkb;
 
 		/* Only look at "due" locks */
 		if (!check_timeout(lkb->lkb_duetime, dlm_config.deadlocktime))

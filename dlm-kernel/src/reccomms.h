@@ -29,9 +29,9 @@
 #define RECCOMM_NEWLOCKIDS      (6)
 #define RECCOMM_REMRESDATA      (7)
 
-int rcom_send_message(gd_ls_t * ls, uint32_t nodeid, int type, gd_rcom_t * rc,
-		      int need_reply);
-void process_recovery_comm(uint32_t nodeid, struct gd_req_header *header);
-void rcom_log_clear(gd_ls_t *ls);
+int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
+		      struct dlm_rcom *rc, int need_reply);
+void process_recovery_comm(uint32_t nodeid, struct dlm_header *header);
+void rcom_log_clear(struct dlm_ls *ls);
 
 #endif

@@ -110,7 +110,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 #endif
 
 
-#define GDLM_ASSERT(x, do) \
+#define DLM_ASSERT(x, do) \
 { \
   if (!(x)) \
   { \
@@ -128,271 +128,243 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 }
 
 
-struct gd_ls;
-struct gd_lkb;
-struct gd_res;
-struct gd_csb;
-struct gd_node;
-struct gd_resmov;
-struct gd_resdata;
-struct gd_recover;
-struct gd_recinfo;
-struct gd_resdir_bucket;
-struct gd_remlockreply;
-struct gd_remlockrequest;
-struct gd_rcom;
+struct dlm_ls;
+struct dlm_lkb;
+struct dlm_rsb;
+struct dlm_csb;
+struct dlm_node;
+struct dlm_lkbtable;
+struct dlm_rsbtable;
+struct dlm_dirtable;
+struct dlm_direntry;
+struct dlm_recover;
+struct dlm_header;
+struct dlm_request;
+struct dlm_reply;
+struct dlm_rcom;
+struct dlm_query_request;
+struct dlm_query_reply;
 
-typedef struct gd_ls gd_ls_t;
-typedef struct gd_lkb gd_lkb_t;
-typedef struct gd_res gd_res_t;
-typedef struct gd_csb gd_csb_t;
-typedef struct gd_node gd_node_t;
-typedef struct gd_resmov gd_resmov_t;
-typedef struct gd_resdata gd_resdata_t;
-typedef struct gd_recover gd_recover_t;
-typedef struct gd_resdir_bucket gd_resdir_bucket_t;
-typedef struct gd_rcom gd_rcom_t;
 
-/*
- * Resource Data - an entry for a resource in the resdir hash table
- */
-
-struct gd_resdata {
-	struct list_head rd_list;
-	uint32_t rd_master_nodeid;
-	uint16_t rd_length;
-	uint8_t rd_sequence;
-        unsigned long rd_duetime;
-        struct list_head rd_expirelist;
-	char rd_name[1];	/* <rd_length> bytes */
+struct dlm_direntry {
+	struct list_head	list;
+	uint32_t		master_nodeid;
+	uint16_t		length;
+	uint8_t			sequence;
+	unsigned long		duetime;
+	struct list_head	expirelist;
+	char			name[1];
 };
 
-/*
- * Resource Directory Bucket - a hash bucket of resdata entries in the resdir
- * hash table
- */
-
-struct gd_resdir_bucket {
-	struct list_head rb_reslist;
-	rwlock_t rb_lock;
+struct dlm_dirtable {
+	struct list_head	list;
+	rwlock_t		lock;
 };
 
-/*
- * A resource description as moved between nodes
- */
-
-struct gd_resmov {
-	uint32_t rm_nodeid;
-	uint16_t rm_length;
-	uint16_t rm_pad;
+struct dlm_rsbtable {
+	struct list_head	list;
+	rwlock_t		lock;
 };
 
-/*
- * An entry in the lock ID table.  Locks for this bucket are kept on list.
- * Counter is used to assign an id to locks as they are added to this bucket.
- */
-
-struct gd_lockidtbl_entry {
-	struct list_head list;
-	uint16_t counter;
-};
-
-/* Elements in the range array */
-
-#define GR_RANGE_START 0
-#define GR_RANGE_END   1
-#define RQ_RANGE_START 2
-#define RQ_RANGE_END   3
-
-/*
- * Lockspace structure.  The context for GDLM locks.
- */
-
-#define RESHASHTBL_SIZE     (256)
-
-#define RESDIRHASH_SHIFT    (9)
-#define RESDIRHASH_SIZE     (1 << RESDIRHASH_SHIFT)
-#define RESDIRHASH_MASK     (RESDIRHASH_SIZE - 1)
-
-#define LSFL_WORK               (0)
-#define LSFL_LS_RUN             (1)
-#define LSFL_LS_STOP            (2)
-#define LSFL_LS_START           (3)
-#define LSFL_LS_FINISH          (4)
-#define LSFL_RECCOMM_WAIT       (5)
-#define LSFL_RECCOMM_READY      (6)
-#define LSFL_NOTIMERS           (7)
-#define LSFL_FINISH_RECOVERY    (8)
-#define LSFL_RESDIR_VALID       (9)
-#define LSFL_ALL_RESDIR_VALID   (10)
-#define LSFL_NODES_VALID        (11)
-#define LSFL_ALL_NODES_VALID    (12)
-#define LSFL_REQUEST_WARN       (13)
-#define LSFL_NOCONVGRANT        (14)
-
-#define LSST_NONE           (0)
-#define LSST_INIT           (1)
-#define LSST_INIT_DONE      (2)
-#define LSST_CLEAR          (3)
-#define LSST_WAIT_START     (4)
-#define LSST_RECONFIG_DONE  (5)
-
-struct gd_ls {
-	struct list_head ls_list;	/* list of lockspaces */
-	uint32_t ls_local_id;	/* local unique lockspace ID */
-	uint32_t ls_global_id;	/* global unique lockspace ID */
-	int ls_allocation;	/* Memory allocation policy */
-	unsigned long ls_flags;	/* LSFL_ */
-
-	struct list_head ls_rootres;	/* List of root resources */
-
-	int ls_hashsize;
-	int ls_hashmask;
-	struct list_head *ls_reshashtbl;	/* Hash table for resources */
-	rwlock_t ls_reshash_lock;	/* Lock for hash table */
-
-	struct gd_lockidtbl_entry *ls_lockidtbl;
-	uint32_t ls_lockidtbl_size;	/* Size of lock id table */
-	rwlock_t ls_lockidtbl_lock;
-
-	struct list_head ls_nodes;	/* current nodes in RC */
-	uint32_t ls_num_nodes;	/* number of nodes in RC */
-	uint32_t ls_nodes_mask;
-	uint32_t ls_low_nodeid;
-
-	int ls_state;		/* state changes for recovery */
-	struct list_head ls_recover;	/* gr_recover_t structs */
-	int ls_last_stop;	/* event ids from sm */
-	int ls_last_start;
-	int ls_last_finish;
-	spinlock_t ls_recover_lock;
-	struct list_head ls_nodes_gone;	/* dead node list for recovery */
-
-	wait_queue_head_t ls_wait_general;
-
-	gd_rcom_t *ls_rcom;
-	uint32_t ls_rcom_msgid;
-	struct semaphore ls_rcom_lock;
-
-	struct list_head ls_recover_list;
-	int ls_recover_list_count;
-	spinlock_t ls_recover_list_lock;
-
-	struct rw_semaphore ls_in_recovery;	/* held in write during
-						 * recovery, read for normal
-						 * locking ops */
-	struct rw_semaphore ls_unlock_sem;	/* To prevent unlock on a
-						 * parent lock racing with a
-						 * new child lock */
-
-	struct rw_semaphore ls_rec_rsblist;	/* To prevent incoming recovery
-						 * operations happening while
-						 * we are purging */
-
-	struct rw_semaphore ls_gap_rsblist;	/* To protect rootres list
-						 * in grant_after_purge() which
-						 * runs outside recovery */
-
-	struct list_head ls_rebuild_rootrsb_list;	/* Root of lock trees
-							 * we are deserialising
-							 */
-
-	struct list_head ls_deadlockq;	/* List of locks in conversion ordered
-					 * by duetime. for deadlock detection */
-
-	struct list_head ls_requestqueue;	/* List of incoming requests
-						 * held while we are in
-						 * recovery */
-
-	gd_resdir_bucket_t ls_resdir_hash[RESDIRHASH_SIZE];
-
-	int ls_namelen;
-	char ls_name[1];	/* <namelen> bytes */
+struct dlm_lkbtable {
+	struct list_head	list;
+	rwlock_t		lock;
+	uint16_t		counter;
 };
 
 /*
  * Cluster node (per node in cluster)
  */
 
-struct gd_node {
-	struct list_head gn_list;	/* global list of cluster nodes */
-	uint32_t gn_nodeid;	/* cluster unique nodeid (cman) */
-	uint32_t gn_ipaddr;	/* node's first IP address (cman) */
-	int gn_refcount;	/* number of csb's referencing */
+struct dlm_node {
+	struct list_head	list;
+	uint32_t		nodeid;
+	int			refcount;	/* num csb's referencing */
 };
 
 /*
  * Cluster System Block (per node in a ls)
  */
 
-struct gd_csb {
-	struct list_head csb_list;	/* per-lockspace list of nodes */
-	gd_node_t *csb_node;	/* global node structure */
-	int csb_gone_event;	/* event id when node was removed */
+struct dlm_csb {
+	struct list_head	list;		/* per-lockspace node list */
+	struct dlm_node *	node;		/* global node structure */
+	int			gone_event;	/* event id when node removed */
 
-	uint32_t csb_names_send_count;
-	uint32_t csb_names_send_msgid;
-	uint32_t csb_names_recv_count;
-	uint32_t csb_names_recv_msgid;
-	uint32_t csb_locks_send_count;
-	uint32_t csb_locks_send_msgid;
-	uint32_t csb_locks_recv_count;
-	uint32_t csb_locks_recv_msgid;
+	/* recovery stats for debugging */
+
+	uint32_t		names_send_count;
+	uint32_t		names_send_msgid;
+	uint32_t		names_recv_count;
+	uint32_t		names_recv_msgid;
+	uint32_t		locks_send_count;
+	uint32_t		locks_send_msgid;
+	uint32_t		locks_recv_count;
+	uint32_t		locks_recv_msgid;
+};
+
+/*
+ * Used to save and manage recovery state for a lockspace.
+ */
+
+struct dlm_recover {
+	struct list_head	list;
+	uint32_t *		nodeids;
+	int			node_count;
+	int			event_id;
+};
+
+/*
+ * Elements in the range array
+ */
+
+#define GR_RANGE_START		(0)
+#define GR_RANGE_END		(1)
+#define RQ_RANGE_START		(2)
+#define RQ_RANGE_END		(3)
+
+/*
+ * Lockspace structure
+ */
+
+#define LSFL_WORK		(0)
+#define LSFL_LS_RUN		(1)
+#define LSFL_LS_STOP		(2)
+#define LSFL_LS_START		(3)
+#define LSFL_LS_FINISH		(4)
+#define LSFL_RECCOMM_WAIT	(5)
+#define LSFL_RECCOMM_READY	(6)
+#define LSFL_NOTIMERS		(7)
+#define LSFL_FINISH_RECOVERY	(8)
+#define LSFL_RESDIR_VALID	(9)
+#define LSFL_ALL_RESDIR_VALID	(10)
+#define LSFL_NODES_VALID	(11)
+#define LSFL_ALL_NODES_VALID	(12)
+#define LSFL_REQUEST_WARN	(13)
+#define LSFL_NOCONVGRANT	(14)
+
+#define LSST_NONE		(0)
+#define LSST_INIT		(1)
+#define LSST_INIT_DONE		(2)
+#define LSST_CLEAR		(3)
+#define LSST_WAIT_START		(4)
+#define LSST_RECONFIG_DONE	(5)
+
+struct dlm_ls {
+	struct list_head	ls_list;	/* list of lockspaces */
+	uint32_t		ls_local_id;	/* local unique lockspace ID */
+	uint32_t		ls_global_id;	/* global unique lockspace ID */
+	int			ls_allocation;	/* Memory allocation policy */
+	unsigned long		ls_flags;	/* LSFL_ */
+
+	struct dlm_rsbtable *	ls_rsbtbl;
+	uint32_t		ls_rsbtbl_size;
+
+	struct dlm_lkbtable *	ls_lkbtbl;
+	uint32_t		ls_lkbtbl_size;
+
+	struct dlm_dirtable *	ls_dirtbl;
+	uint32_t		ls_dirtbl_size;
+
+	struct list_head	ls_nodes;	/* current nodes in RC */
+	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
+	uint32_t		ls_num_nodes;	/* number of nodes in RC */
+	uint32_t		ls_nodes_mask;
+	uint32_t		ls_low_nodeid;
+
+	struct rw_semaphore	ls_unlock_sem;	/* To prevent unlock on a
+						   parent lock racing with a
+						   new child lock */
+
+	struct list_head	ls_deadlockq;	/* List of locks in conversion
+						   ordered by duetime. for
+						   deadlock detection */
+
+	/* recovery related */
+
+	struct list_head	ls_recover;	/* dlm_recover structs */
+	spinlock_t		ls_recover_lock;
+	int			ls_last_stop;
+	int			ls_last_start;
+	int			ls_last_finish;
+	int			ls_state;	/* recovery states */
+
+	struct rw_semaphore	ls_in_recovery;	/* block local requests */
+	struct list_head	ls_requestqueue;/* queue remote requests */
+
+	struct dlm_rcom *	ls_rcom;	/* recovery comms */
+	uint32_t		ls_rcom_msgid;
+	struct semaphore	ls_rcom_lock;
+
+	struct list_head	ls_recover_list;
+	spinlock_t		ls_recover_list_lock;
+	int			ls_recover_list_count;
+	wait_queue_head_t	ls_wait_general;
+
+	struct list_head	ls_rootres;	/* List of root resources */
+
+	struct rw_semaphore	ls_rec_rsblist;	/* To prevent incoming recovery
+						   operations happening while
+						   we are purging */
+
+	struct rw_semaphore	ls_gap_rsblist;	/* To protect rootres list
+						   in grant_after_purge() which
+						   runs outside recovery */
+
+	struct list_head	ls_rebuild_rootrsb_list; /* Root of lock trees
+							    we are
+							    deserialising */
+	int			ls_namelen;
+	char			ls_name[1];
 };
 
 /*
  * Resource block
  */
 
-/* status */
+#define RESFL_NEW_MASTER	(0)
+#define RESFL_RECOVER_LIST	(1)
+#define RESFL_MASTER		(2)
 
-#define GDLM_RESSTS_DIRENTRY     1	/* This is a directory entry */
-#define GDLM_RESSTS_LVBINVALID   2	/* The LVB is invalid */
+struct dlm_rsb {
+	struct list_head	res_hashchain;
+	uint32_t		res_bucket;
 
-#define RESFL_NEW_MASTER         (0)
-#define RESFL_RECOVER_LIST       (1)
-#define RESFL_MASTER             (2)
+	struct dlm_ls *		res_ls;		/* The owning lockspace */
 
-struct gd_res {
-	struct list_head res_hashchain;	/* Chain of resources in this hash
-					 * bucket */
+	struct list_head	res_rootlist;	/* List of root rsb's */
 
-	gd_ls_t *res_ls;	/* The owning lockspace */
+	struct list_head	res_subreslist;	/* List of all sub-resources
+						   for this root rsb */
 
-	struct list_head res_rootlist;	/* List of root resources in lockspace */
+	uint8_t			res_depth;	/* Depth in resource tree */
+	unsigned long		res_flags;	/* Flags, RESFL_ */
 
-	struct list_head res_subreslist;	/* List of all sub-resources
-						 * for this root res. */
-	/* This is a list head on the root res and holds the whole tree below
-	 * it. */
-	uint8_t res_depth;	/* Depth in resource tree */
-	uint16_t res_status;
-	unsigned long res_flags;	/* Flags, RESFL_ */
+	struct list_head	res_grantqueue;
+	struct list_head	res_convertqueue;
+	struct list_head	res_waitqueue;
 
-	struct list_head res_grantqueue;
-	struct list_head res_convertqueue;
-	struct list_head res_waitqueue;
+	uint32_t		res_nodeid;	/* nodeid of master node */
 
-	uint32_t res_nodeid;	/* nodeid of master node */
+	struct dlm_rsb *	res_root;	/* root rsb if a subresource */
+	struct dlm_rsb *	res_parent;	/* parent rsb (if any) */
 
-	gd_res_t *res_root;	/* If a subresource, this is our root */
-	gd_res_t *res_parent;	/* Our parent resource (if any) */
+	atomic_t		res_ref;	/* Number of lkb's */
+	uint16_t		res_remasterid;	/* ID used during remaster */
 
-	atomic_t res_ref;	/* No of lkb's */
-	uint16_t res_remasterid;	/* ID used during remaster */
-	struct list_head res_recover_list;	/* General list for use during
-						 * recovery */
-	int res_recover_msgid;
-	int res_newlkid_expect;
+	struct list_head	res_recover_list; /* General list for use
+						     during recovery */
+	int			res_recover_msgid;
+	int			res_newlkid_expect;
 
-	struct rw_semaphore res_lock;
+	struct rw_semaphore	res_lock;
 
-	char *res_lvbptr;	/* Lock value block */
+	char *			res_lvbptr;	/* Lock value block */
 
-	uint8_t res_resdir_seq;	/* Last directory sequence number */
+	uint8_t			res_resdir_seq;	/* Last dir sequence number */
 
-	uint8_t res_length;
-	char res_name[1];	/* <res_length> bytes */
+	uint8_t			res_length;
+	char			res_name[1];	/* <res_length> bytes */
 };
 
 /*
@@ -400,32 +372,32 @@ struct gd_res {
  * public flags, they should have the same value.
  */
 
-#define GDLM_LKSTS_NEW          (0)
-#define GDLM_LKSTS_WAITING      (1)
-#define GDLM_LKSTS_GRANTED      (2)
-#define GDLM_LKSTS_CONVERT      (3)
+#define GDLM_LKSTS_NEW		(0)
+#define GDLM_LKSTS_WAITING	(1)
+#define GDLM_LKSTS_GRANTED	(2)
+#define GDLM_LKSTS_CONVERT	(3)
 
-#define GDLM_LKFLG_VALBLK       (0x00000008)
-#define GDLM_LKFLG_PERSISTENT   (0x00000080)	/* Don't unlock when process exits */
-#define GDLM_LKFLG_NODLCKWT     (0x00000100)    /* Don't do deadlock detection */
-#define GDLM_LKFLG_EXPEDITE     (0x00000400)    /* Move to head of convert queue */
+#define GDLM_LKFLG_VALBLK	(0x00000008)
+#define GDLM_LKFLG_PERSISTENT	(0x00000080)	/* Don't unlock when process exits */
+#define GDLM_LKFLG_NODLCKWT	(0x00000100)    /* Don't do deadlock detection */
+#define GDLM_LKFLG_EXPEDITE	(0x00000400)    /* Move to head of convert queue */
 
 /* Internal flags */
-#define GDLM_LKFLG_RANGE        (0x00001000)	/* Range field is present
+#define GDLM_LKFLG_RANGE	(0x00001000)	/* Range field is present
 						   (remote protocol only) */
-#define GDLM_LKFLG_MSTCPY       (0x00002000)
-#define GDLM_LKFLG_DELETED      (0x00004000)	/* LKB is being deleted */
-#define GDLM_LKFLG_LQCONVERT    (0x00008000)
-#define GDLM_LKFLG_LQRESEND     (0x00010000)	/* LKB on lockqueue must be resent */
-#define GDLM_LKFLG_DEMOTED      (0x00020000)
-#define GDLM_LKFLG_RESENT       (0x00040000)
-#define GDLM_LKFLG_NOREBUILD    (0x00080000)
+#define GDLM_LKFLG_MSTCPY	(0x00002000)
+#define GDLM_LKFLG_DELETED	(0x00004000)	/* LKB is being deleted */
+#define GDLM_LKFLG_LQCONVERT	(0x00008000)
+#define GDLM_LKFLG_LQRESEND	(0x00010000)	/* LKB on lockqueue must be resent */
+#define GDLM_LKFLG_DEMOTED	(0x00020000)
+#define GDLM_LKFLG_RESENT	(0x00040000)
+#define GDLM_LKFLG_NOREBUILD	(0x00080000)
 
 #define AST_COMP		(1)
 #define AST_BAST		(2)
 #define AST_DEL			(4)
 
-struct gd_lkb {
+struct dlm_lkb {
 	uint32_t 		lkb_flags;
 	uint16_t 		lkb_status;     /* grant, wait, convert */
 	int8_t			lkb_rqmode;     /* requested lock mode */
@@ -435,10 +407,10 @@ struct gd_lkb {
 	struct dlm_lksb *	lkb_lksb;       /* status block of caller */
 	struct list_head	lkb_idtbl_list;	/* lockidtbl */
 	struct list_head	lkb_statequeue;	/* rsb's g/c/w queue */
-	gd_res_t *		lkb_resource;
+	struct dlm_rsb *	lkb_resource;
 	struct list_head	lkb_ownerqueue;	/* list of locks owned by a
 						   process */
-	gd_lkb_t *		lkb_parent;     /* parent lock if any */
+	struct dlm_lkb *	lkb_parent;     /* parent lock if any */
 	atomic_t		lkb_childcnt;   /* number of children */
 
 	struct list_head	lkb_lockqueue;	/* queue of locks waiting
@@ -461,7 +433,7 @@ struct gd_lkb {
 	uint8_t			lkb_bastmode;	/* requested mode */
 	uint8_t			lkb_highbast;	/* highest mode bast sent for */
 
-	struct gd_remlockrequest *lkb_request;
+	struct dlm_request *	lkb_request;
 
 	struct list_head	lkb_deadlockq;	/* ls_deadlockq list */
 
@@ -476,17 +448,6 @@ struct gd_lkb {
 };
 
 /*
- * Used to save and manage recovery state for a lockspace.
- */
-
-struct gd_recover {
-	struct list_head gr_list;
-	uint32_t *gr_nodeids;
-	int gr_node_count;
-	int gr_event_id;
-};
-
-/*
  * Header part of the mid-level comms system. All packets start with
  * this header so we can identify them. The comms packet can
  * contain many of these structs but the are split into individual
@@ -494,14 +455,14 @@ struct gd_recover {
  * below this are the structs that this is a header for
  */
 
-struct gd_req_header {
-	uint8_t rh_cmd;		/* What we are */
-	uint8_t rh_flags;	/* maybe just a pad */
-	uint16_t rh_length;	/* Length of struct (so we can send several in
-				 * one message) */
-	uint32_t rh_lkid;	/* Lock ID tag: ie the local (requesting) lock
-				 * ID */
-	uint32_t rh_lockspace;	/* Lockspace ID */
+struct dlm_header {
+	uint8_t			rh_cmd;		/* What we are */
+	uint8_t			rh_flags;	/* maybe just a pad */
+	uint16_t		rh_length;	/* Length of struct (so we can
+						   send many in 1 message) */
+	uint32_t		rh_lkid;	/* Lock ID tag: ie the local
+						   (requesting) lock ID */
+	uint32_t		rh_lockspace;	/* Lockspace ID */
 };
 
 /*
@@ -512,22 +473,25 @@ struct gd_req_header {
  * but still with the gd_req_header on the front.
  */
 
-struct gd_remlockrequest {
-	struct gd_req_header rr_header;
-
-	uint32_t rr_remlkid;	/* Remote lock ID */
-	uint32_t rr_remparid;	/* Parent's remote lock ID or 0 */
-	uint32_t rr_flags;	/* Flags from lock/convert request */
-        uint64_t rr_range_start;/* Yes, these are in the right place... */
-	uint64_t rr_range_end;
-	uint32_t rr_status;	/* Status to return if this is an AST request */
-	uint8_t rr_rqmode;	/* Requested lock mode */
-	uint8_t rr_asts;	/* Whether the LKB has ASTs or not */
-	uint8_t rr_resdir_seq;	/* Directory sequence number */
-	char rr_lvb[DLM_LVB_LEN];	/* Value block */
-	char rr_name[1];	/* As long as needs be. Only used for directory
-				 * lookups. The length of this can be worked
-				 * out from the packet length */
+struct dlm_request {
+	struct dlm_header	rr_header;
+	uint32_t		rr_remlkid;	/* Remote lock ID */
+	uint32_t		rr_remparid;	/* Parent's remote lock ID */
+	uint32_t		rr_flags;	/* Flags from lock/convert req*/
+        uint64_t		rr_range_start; /* Yes, these are in the right
+						   place... */
+	uint64_t		rr_range_end;
+	uint32_t		rr_status;	/* Status to return if this is
+						   an AST request */
+	uint8_t			rr_rqmode;	/* Requested lock mode */
+	uint8_t			rr_asts;	/* Whether the LKB has ASTs */
+	uint8_t			rr_resdir_seq;	/* Directory sequence number */
+	char			rr_lvb[DLM_LVB_LEN];
+	char			rr_name[1];	/* As long as needs be. Only
+						   used for directory lookups.
+						   The length of this can be
+						   worked out from the packet
+						   length */
 };
 
 /*
@@ -535,41 +499,43 @@ struct gd_remlockrequest {
  * The mid-level comms API should turn this into native byte order.
  */
 
-struct gd_remlockreply {
-	struct gd_req_header rl_header;
-
-	uint32_t rl_lockstate;	/* Whether request was queued/granted/waiting */
-	uint32_t rl_nodeid;	/* nodeid of lock master */
-	uint32_t rl_status;	/* Status to return to caller */
-	uint32_t rl_lkid;	/* Remote lkid */
-	uint8_t rl_resdir_seq;	/* Returned directory sequence number */
-	char rl_lvb[DLM_LVB_LEN];	/* LVB itself */
+struct dlm_reply {
+	struct dlm_header	rl_header;
+	uint32_t		rl_lockstate;	/* Whether request was
+						   queued/granted/waiting */
+	uint32_t		rl_nodeid;	/* nodeid of lock master */
+	uint32_t		rl_status;	/* Status to return to caller */
+	uint32_t		rl_lkid;	/* Remote lkid */
+	uint8_t			rl_resdir_seq;	/* Returned dir seq number */
+	char			rl_lvb[DLM_LVB_LEN];
 };
 
 /*
  * Recovery comms message
  */
 
-struct gd_rcom {
-	struct gd_req_header rc_header;	/* 32 byte aligned */
-	uint32_t rc_msgid;
-	uint16_t rc_datalen;
-	uint8_t rc_expanded;
-	uint8_t rc_subcmd;	/* secondary command */
-	char rc_buf[1];		/* first byte of data goes here and extends
-				 * beyond here for another datalen - 1 bytes.
-				 * rh_length is set to sizeof(gd_rcom_t) +
-				 * datalen - 1 */
+struct dlm_rcom {
+	struct dlm_header	rc_header;	/* 32 byte aligned */
+	uint32_t		rc_msgid;
+	uint16_t		rc_datalen;
+	uint8_t			rc_expanded;
+	uint8_t			rc_subcmd;	/* secondary command */
+	char			rc_buf[1];	/* first byte of data goes here
+						   and extends beyond here for
+						   another datalen - 1 bytes.
+				 		   rh_length is set to sizeof
+						   dlm_rcom + datalen - 1 */
 };
 
 
 /* A remote query: GDLM_REMCMD_QUERY */
-struct gd_remquery {
-	struct gd_req_header rq_header;
 
-	uint32_t rq_mstlkid;   /* LockID on master node */
-        uint32_t rq_query;     /* query from the user */
-        uint32_t rq_maxlocks;  /* max number of locks we can cope with */
+struct dlm_query_request {
+	struct dlm_header	rq_header;
+	uint32_t		rq_mstlkid;   /* LockID on master node */
+	uint32_t		rq_query;     /* query from the user */
+	uint32_t		rq_maxlocks;  /* max number of locks we can
+						 cope with */
 };
 
 /* First block of a reply query.  cmd = GDLM_REMCMD_QUERY */
@@ -578,18 +544,21 @@ struct gd_remquery {
    a normal header. The last of these will have rh_flags set to
    GDLM_REMFLAG_ENDQUERY
  */
-struct gd_remqueryreply {
-	struct gd_req_header rq_header;
 
-        uint32_t rq_numlocks;  /* Number of locks in reply */
-        uint32_t rq_startlock; /* Which lock this block starts at (for multiple block replies) */
-        uint32_t rq_status;
+struct dlm_query_reply {
+	struct dlm_header	rq_header;
+        uint32_t		rq_numlocks;  /* Number of locks in reply */
+        uint32_t		rq_startlock; /* Which lock this block starts
+						 at (for multi-block replies) */
+        uint32_t		rq_status;
 
         /* Resource information */
-	uint32_t rq_grantcount;	/* No. of nodes on grant queue */
-	uint32_t rq_convcount;	/* No. of nodes on convert queue */
-	uint32_t rq_waitcount;	/* No. of nodes on wait queue */
-        char rq_valblk[DLM_LVB_LEN];	/* Master's LVB contents, if applicable */
+	uint32_t		rq_grantcount;	/* No. of nodes on grantqueue */
+	uint32_t		rq_convcount;	/* No. of nodes on convertq */
+	uint32_t		rq_waitcount;	/* No. of nodes on waitqueue */
+        char			rq_valblk[DLM_LVB_LEN];	/* Master's LVB
+							   contents, if
+							   applicable */
 };
 
 /*
@@ -625,7 +594,7 @@ struct gd_remqueryreply {
 #define BUG_ON(x)
 #endif
 
-void dlm_debug_log(gd_ls_t *ls, const char *fmt, ...);
+void dlm_debug_log(struct dlm_ls *ls, const char *fmt, ...);
 void dlm_debug_dump(void);
 void dlm_locks_dump(void);
 

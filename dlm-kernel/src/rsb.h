@@ -15,17 +15,16 @@
 #define __RSB_DOT_H__
 
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode);
-void _release_rsb(gd_res_t *r);
-void release_rsb(gd_res_t *r);
-void hold_rsb(gd_res_t *r);
-int find_or_create_rsb(gd_ls_t *ls, gd_res_t *parent, char *name, int namelen,
-		       int create, gd_res_t **rp);
-gd_res_t *find_rsb_to_unlock(gd_ls_t *ls, gd_lkb_t *lkb);
-void lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type);
-void res_lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type);
-int lkb_dequeue(gd_lkb_t *lkb);
-int res_lkb_dequeue(gd_lkb_t *lkb);
-int lkb_swqueue(gd_res_t *r, gd_lkb_t *lkb, int type);
-int res_lkb_swqueue(gd_res_t *r, gd_lkb_t *lkb, int type);
+void release_rsb(struct dlm_rsb *r);
+void hold_rsb(struct dlm_rsb *r);
+int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
+		       int namelen, int create, struct dlm_rsb **rp);
+struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb);
+void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
+void res_lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
+int lkb_dequeue(struct dlm_lkb *lkb);
+int res_lkb_dequeue(struct dlm_lkb *lkb);
+int lkb_swqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
+int res_lkb_swqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
 
 #endif				/* __RSB_DOT_H__ */

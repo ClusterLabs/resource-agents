@@ -14,16 +14,16 @@
 #ifndef __LOCKQUEUE_DOT_H__
 #define __LOCKQUEUE_DOT_H__
 
-void remote_grant(gd_lkb_t * lkb);
-void reply_and_grant(gd_lkb_t * lkb);
-int remote_stage(gd_lkb_t * lkb, int state);
-int process_cluster_request(int csid, struct gd_req_header *req, int recovery);
-int send_cluster_request(gd_lkb_t * lkb, int state);
-void purge_requestqueue(gd_ls_t * ls);
-int process_requestqueue(gd_ls_t * ls);
-int reply_in_requestqueue(gd_ls_t * ls, int lkid);
-void remote_remove_resdata(gd_ls_t * ls, int nodeid, char *name, int namelen,
+void remote_grant(struct dlm_lkb * lkb);
+void reply_and_grant(struct dlm_lkb * lkb);
+int remote_stage(struct dlm_lkb * lkb, int state);
+int process_cluster_request(int csid, struct dlm_header *req, int recovery);
+int send_cluster_request(struct dlm_lkb * lkb, int state);
+void purge_requestqueue(struct dlm_ls * ls);
+int process_requestqueue(struct dlm_ls * ls);
+int reply_in_requestqueue(struct dlm_ls * ls, int lkid);
+void remote_remove_resdata(struct dlm_ls * ls, int nodeid, char *name, int namelen,
 			   uint8_t sequence);
-void allocate_and_copy_lvb(gd_ls_t * ls, char **lvbptr, char *src);
+void allocate_and_copy_lvb(struct dlm_ls * ls, char **lvbptr, char *src);
 
 #endif				/* __LOCKQUEUE_DOT_H__ */

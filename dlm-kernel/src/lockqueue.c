@@ -39,8 +39,8 @@
 #include "queries.h"
 #include "util.h"
 
-static void add_reply_lvb(gd_lkb_t * lkb, struct gd_remlockreply *reply);
-static void add_request_lvb(gd_lkb_t * lkb, struct gd_remlockrequest *req);
+static void add_reply_lvb(struct dlm_lkb * lkb, struct dlm_reply *reply);
+static void add_request_lvb(struct dlm_lkb * lkb, struct dlm_request *req);
 
 /*
  * format of an entry on the request queue
@@ -90,7 +90,7 @@ struct rq_entry {
  * request to the new master.
  */
 
-int remote_stage(gd_lkb_t *lkb, int state)
+int remote_stage(struct dlm_lkb *lkb, int state)
 {
 	int error;
 
@@ -118,7 +118,7 @@ int remote_stage(gd_lkb_t *lkb, int state)
  * request queue and processed when recovery is complete.
  */
 
-void add_to_requestqueue(gd_ls_t *ls, int nodeid, char *request, int length)
+void add_to_requestqueue(struct dlm_ls *ls, int nodeid, char *request, int length)
 {
 	struct rq_entry *entry;
 
@@ -138,16 +138,16 @@ void add_to_requestqueue(gd_ls_t *ls, int nodeid, char *request, int length)
 	list_add_tail(&entry->rqe_list, &ls->ls_requestqueue);
 }
 
-int process_requestqueue(gd_ls_t *ls)
+int process_requestqueue(struct dlm_ls *ls)
 {
 	int error = 0, count = 0;
 	struct rq_entry *entry, *safe;
-	struct gd_req_header *req;
+	struct dlm_header *req;
 
 	log_all(ls, "process held requests");
 
 	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct gd_req_header *) entry->rqe_request;
+		req = (struct dlm_header *) entry->rqe_request;
 		log_debug(ls, "process_requestqueue %u", entry->rqe_nodeid);
 
 		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
@@ -172,7 +172,7 @@ int process_requestqueue(gd_ls_t *ls)
 	return error;
 }
 
-void wait_requestqueue(gd_ls_t *ls)
+void wait_requestqueue(struct dlm_ls *ls)
 {
 	while (!list_empty(&ls->ls_requestqueue) &&
 		test_bit(LSFL_LS_RUN, &ls->ls_flags))
@@ -185,19 +185,19 @@ void wait_requestqueue(gd_ls_t *ls)
  * gone are also invalid.
  */
 
-void purge_requestqueue(gd_ls_t *ls)
+void purge_requestqueue(struct dlm_ls *ls)
 {
 	int count = 0;
 	struct rq_entry *entry, *safe;
-	struct gd_req_header *req;
-	struct gd_remlockrequest *freq;
-	gd_lkb_t *lkb;
+	struct dlm_header *req;
+	struct dlm_request *freq;
+	struct dlm_lkb *lkb;
 
 	log_all(ls, "purge requests");
 
 	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct gd_req_header *) entry->rqe_request;
-		freq = (struct gd_remlockrequest *) req;
+		req = (struct dlm_header *) entry->rqe_request;
+		freq = (struct dlm_request *) req;
 
 		if (req->rh_cmd == GDLM_REMCMD_REM_RESDATA ||
 		    req->rh_cmd == GDLM_REMCMD_LOOKUP ||
@@ -219,7 +219,7 @@ void purge_requestqueue(gd_ls_t *ls)
 			 */
 
 			lkb = find_lock_by_id(ls, freq->rr_header.rh_lkid);
-			GDLM_ASSERT(lkb,);
+			DLM_ASSERT(lkb,);
 			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_RSB) {
 				list_del(&entry->rqe_list);
 				kfree(entry);
@@ -235,16 +235,16 @@ void purge_requestqueue(gd_ls_t *ls)
  * Check if there's a reply for the given lkid in the requestqueue.
  */
 
-int reply_in_requestqueue(gd_ls_t *ls, int lkid)
+int reply_in_requestqueue(struct dlm_ls *ls, int lkid)
 {
 	int rv = FALSE;
 	struct rq_entry *entry, *safe;
-	struct gd_req_header *req;
-	struct gd_remlockrequest *freq;
+	struct dlm_header *req;
+	struct dlm_request *freq;
 
 	list_for_each_entry_safe(entry, safe, &ls->ls_requestqueue, rqe_list) {
-		req = (struct gd_req_header *) entry->rqe_request;
-		freq = (struct gd_remlockrequest *) req;
+		req = (struct dlm_header *) entry->rqe_request;
+		freq = (struct dlm_request *) req;
 
 		if (req->rh_cmd == GDLM_REMCMD_LOCKREPLY &&
 		    freq->rr_header.rh_lkid == lkid) {
@@ -256,7 +256,7 @@ int reply_in_requestqueue(gd_ls_t *ls, int lkid)
 	return rv;
 }
 
-void allocate_and_copy_lvb(gd_ls_t *ls, char **lvbptr, char *src)
+void allocate_and_copy_lvb(struct dlm_ls *ls, char **lvbptr, char *src)
 {
 	if (!*lvbptr)
 		*lvbptr = allocate_lvb(ls);
@@ -270,12 +270,12 @@ void allocate_and_copy_lvb(gd_ls_t *ls, char **lvbptr, char *src)
  * on the machine that requested the lock.
  */
 
-static void process_lockqueue_reply(gd_lkb_t *lkb,
-				    struct gd_remlockreply *reply,
+static void process_lockqueue_reply(struct dlm_lkb *lkb,
+				    struct dlm_reply *reply,
 				    uint32_t nodeid)
 {
-	gd_res_t *rsb = lkb->lkb_resource;
-	gd_ls_t *ls = rsb->res_ls;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
+	struct dlm_ls *ls = rsb->res_ls;
 	int oldstate, state = lkb->lkb_lockqueue_state;
 
 	lkb->lkb_lockqueue_state = 0;
@@ -285,12 +285,12 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
 
-		GDLM_ASSERT(reply->rl_status == 0,
+		DLM_ASSERT(reply->rl_status == 0,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_reply(reply););
 
-		GDLM_ASSERT(rsb->res_nodeid == -1 ||
+		DLM_ASSERT(rsb->res_nodeid == -1 ||
 			    rsb->res_nodeid == 0,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
@@ -305,7 +305,7 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 					lkb->lkb_id, nodeid);
 			}
 		} else {
-			GDLM_ASSERT(rsb->res_nodeid == -1,
+			DLM_ASSERT(rsb->res_nodeid == -1,
 				   print_lkb(lkb);
 				   print_rsb(rsb);
 				   print_reply(reply););
@@ -345,7 +345,7 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 		 */
 
 		if (reply->rl_status != 0) {
-			GDLM_ASSERT(reply->rl_status == -EAGAIN,);
+			DLM_ASSERT(reply->rl_status == -EAGAIN,);
 
 			if (state == GDLM_LQSTATE_WAIT_CONDGRANT) {
 				res_lkb_dequeue(lkb);
@@ -423,7 +423,7 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
 		 * always sends completion AST with status in lksb
 		 */
 
-		GDLM_ASSERT(reply->rl_status == 0,);
+		DLM_ASSERT(reply->rl_status == 0,);
 		oldstate = res_lkb_dequeue(lkb);
 
 		/* Differentiate between unlocks and conversion cancellations */
@@ -451,21 +451,21 @@ static void process_lockqueue_reply(gd_lkb_t *lkb,
  * also responsible for sending the completion AST.
  */
 
-void remote_grant(gd_lkb_t *lkb)
+void remote_grant(struct dlm_lkb *lkb)
 {
 	struct writequeue_entry *e;
-	struct gd_remlockrequest *req;
+	struct dlm_request *req;
 
 	// TODO Error handling
 	e = lowcomms_get_buffer(lkb->lkb_nodeid,
-				sizeof(struct gd_remlockrequest),
+				sizeof(struct dlm_request),
 				lkb->lkb_resource->res_ls->ls_allocation,
 				(char **) &req);
 	if (!e)
 		return;
 
 	req->rr_header.rh_cmd = GDLM_REMCMD_LOCKGRANT;
-	req->rr_header.rh_length = sizeof(struct gd_remlockrequest);
+	req->rr_header.rh_length = sizeof(struct dlm_request);
 	req->rr_header.rh_flags = 0;
 	req->rr_header.rh_lkid = lkb->lkb_id;
 	req->rr_header.rh_lockspace = lkb->lkb_resource->res_ls->ls_global_id;
@@ -482,15 +482,15 @@ void remote_grant(gd_lkb_t *lkb)
 	midcomms_send_buffer(&req->rr_header, e);
 }
 
-void reply_and_grant(gd_lkb_t *lkb)
+void reply_and_grant(struct dlm_lkb *lkb)
 {
-	struct gd_remlockrequest *req = lkb->lkb_request;
-	struct gd_remlockreply *reply;
+	struct dlm_request *req = lkb->lkb_request;
+	struct dlm_reply *reply;
 	struct writequeue_entry *e;
 
 	// TODO Error handling
 	e = lowcomms_get_buffer(lkb->lkb_nodeid,
-				sizeof(struct gd_remlockreply),
+				sizeof(struct dlm_reply),
 				lkb->lkb_resource->res_ls->ls_allocation,
 				(char **) &reply);
 	if (!e)
@@ -498,7 +498,7 @@ void reply_and_grant(gd_lkb_t *lkb)
 
 	reply->rl_header.rh_cmd = GDLM_REMCMD_LOCKREPLY;
 	reply->rl_header.rh_flags = 0;
-	reply->rl_header.rh_length = sizeof(struct gd_remlockreply);
+	reply->rl_header.rh_length = sizeof(struct dlm_reply);
 	reply->rl_header.rh_lkid = req->rr_header.rh_lkid;
 	reply->rl_header.rh_lockspace = req->rr_header.rh_lockspace;
 
@@ -506,7 +506,7 @@ void reply_and_grant(gd_lkb_t *lkb)
 	reply->rl_lockstate = lkb->lkb_status;
 	reply->rl_lkid = lkb->lkb_id;
 
-	GDLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_DEMOTED),);
+	DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_DEMOTED),);
 
 	lkb->lkb_request = NULL;
 
@@ -518,14 +518,14 @@ void reply_and_grant(gd_lkb_t *lkb)
  * Request removal of a dead entry in the resource directory
  */
 
-void remote_remove_resdata(gd_ls_t *ls, int nodeid, char *name, int namelen,
-			   uint8_t sequence)
+void remote_remove_resdata(struct dlm_ls *ls, int nodeid, char *name,
+			   int namelen, uint8_t sequence)
 {
 	struct writequeue_entry *e;
-	struct gd_remlockrequest *req;
+	struct dlm_request *req;
 
 	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
-		gd_rcom_t *rc = allocate_rcom_buffer(ls);
+		struct dlm_rcom *rc = allocate_rcom_buffer(ls);
 
 		memcpy(rc->rc_buf, name, namelen);
 		rc->rc_datalen = namelen;
@@ -537,15 +537,15 @@ void remote_remove_resdata(gd_ls_t *ls, int nodeid, char *name, int namelen,
 	}
 	// TODO Error handling
 	e = lowcomms_get_buffer(nodeid,
-				sizeof(struct gd_remlockrequest) + namelen - 1,
+				sizeof(struct dlm_request) + namelen - 1,
 				ls->ls_allocation, (char **) &req);
 	if (!e)
 		return;
 
-	memset(req, 0, sizeof(struct gd_remlockrequest) + namelen - 1);
+	memset(req, 0, sizeof(struct dlm_request) + namelen - 1);
 	req->rr_header.rh_cmd = GDLM_REMCMD_REM_RESDATA;
 	req->rr_header.rh_length =
-	    sizeof(struct gd_remlockrequest) + namelen - 1;
+	    sizeof(struct dlm_request) + namelen - 1;
 	req->rr_header.rh_flags = 0;
 	req->rr_header.rh_lkid = 0;
 	req->rr_header.rh_lockspace = ls->ls_global_id;
@@ -561,12 +561,12 @@ void remote_remove_resdata(gd_ls_t *ls, int nodeid, char *name, int namelen,
  * is put on the lock queue.  Runs in the context of the locking caller.
  */
 
-int send_cluster_request(gd_lkb_t *lkb, int state)
+int send_cluster_request(struct dlm_lkb *lkb, int state)
 {
 	uint32_t target_nodeid;
-	gd_res_t *rsb = lkb->lkb_resource;
-	gd_ls_t *ls = rsb->res_ls;
-	struct gd_remlockrequest *req;
+	struct dlm_rsb *rsb = lkb->lkb_resource;
+	struct dlm_ls *ls = rsb->res_ls;
+	struct dlm_request *req;
 	struct writequeue_entry *e;
 
 	if (state == GDLM_LQSTATE_WAIT_RSB)
@@ -577,7 +577,7 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	/* during recovery it's valid for target_nodeid to equal our own;
 	   resend_cluster_requests does this to get requests back on track */
 
-	GDLM_ASSERT(target_nodeid && target_nodeid != -1,
+	DLM_ASSERT(target_nodeid && target_nodeid != -1,
 		    print_lkb(lkb);
 		    print_rsb(rsb);
 		    printk("target_nodeid %u\n", target_nodeid););
@@ -589,12 +589,12 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	}
 
 	e = lowcomms_get_buffer(target_nodeid,
-				sizeof(struct gd_remlockrequest) +
+				sizeof(struct dlm_request) +
 				rsb->res_length - 1, ls->ls_allocation,
 				(char **) &req);
 	if (!e)
 		return -ENOBUFS;
-	memset(req, 0, sizeof(struct gd_remlockrequest) + rsb->res_length - 1);
+	memset(req, 0, sizeof(struct dlm_request) + rsb->res_length - 1);
 
 	/* Common stuff, some are just defaults */
 
@@ -609,7 +609,7 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	req->rr_rqmode = lkb->lkb_rqmode;
 	req->rr_remlkid = lkb->lkb_remid;
 	req->rr_header.rh_length =
-	    sizeof(struct gd_remlockrequest) + rsb->res_length - 1;
+	    sizeof(struct dlm_request) + rsb->res_length - 1;
 	req->rr_header.rh_flags = 0;
 	req->rr_header.rh_lkid = lkb->lkb_id;
 	req->rr_header.rh_lockspace = ls->ls_global_id;
@@ -618,11 +618,11 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_RSB:
 
-		GDLM_ASSERT(!lkb->lkb_parent,
+		DLM_ASSERT(!lkb->lkb_parent,
 			    print_lkb(lkb);
 			    print_rsb(rsb););
 
-		GDLM_ASSERT(rsb->res_nodeid == -1,
+		DLM_ASSERT(rsb->res_nodeid == -1,
 			    print_lkb(lkb);
 			    print_rsb(rsb););
 
@@ -634,7 +634,7 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_CONVERT:
 
-		GDLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
+		DLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
 			    print_lkb(lkb);
 			    print_rsb(rsb););
 
@@ -650,7 +650,7 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_CONDGRANT:
 
-		GDLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
+		DLM_ASSERT(lkb->lkb_nodeid == rsb->res_nodeid,
 			    print_lkb(lkb);
 			    print_rsb(rsb););
 
@@ -678,7 +678,7 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 		break;
 
 	default:
-		GDLM_ASSERT(0, printk("Unknown cluster request\n"););
+		DLM_ASSERT(0, printk("Unknown cluster request\n"););
 	}
 
 	add_request_lvb(lkb, req);
@@ -693,15 +693,15 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
  * recvd thread.
  */
 
-int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
+int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 {
-	gd_ls_t *lspace;
-	gd_lkb_t *lkb = NULL;
-	gd_res_t *rsb;
+	struct dlm_ls *lspace;
+	struct dlm_lkb *lkb = NULL;
+	struct dlm_rsb *rsb;
 	int send_reply = 0, status = 0, namelen;
-	struct gd_remlockrequest *freq = (struct gd_remlockrequest *) req;
-	struct gd_remlockreply *rp = (struct gd_remlockreply *) req;
-	struct gd_remlockreply reply;
+	struct dlm_request *freq = (struct dlm_request *) req;
+	struct dlm_reply *rp = (struct dlm_reply *) req;
+	struct dlm_reply reply;
 
 	lspace = find_lockspace_by_global_id(req->rh_lockspace);
 
@@ -806,7 +806,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 				 */
 
 				if (lkb->lkb_retstatus == -EAGAIN) {
-					GDLM_ASSERT(lkb->lkb_lockqueue_flags &
+					DLM_ASSERT(lkb->lkb_lockqueue_flags &
 						    DLM_LKF_NOQUEUE,);
 					rsb = lkb->lkb_resource;
 					release_lkb(lspace, lkb);
@@ -824,30 +824,30 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
 		rsb = lkb->lkb_resource;
 
-		GDLM_ASSERT(rsb,
+		DLM_ASSERT(rsb,
 			    print_lkb(lkb);
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(!rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_rsb(rsb);
-			    print_request(freq);
-			    printk("nodeid %u\n", nodeid););
-
-		GDLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
+		DLM_ASSERT(!rsb->res_nodeid,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_GRANTED,
+		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
+			    print_lkb(lkb);
+			    print_rsb(rsb);
+			    print_request(freq);
+			    printk("nodeid %u\n", nodeid););
+
+		DLM_ASSERT(lkb->lkb_status == GDLM_LKSTS_GRANTED,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_request(freq);
@@ -898,11 +898,11 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, req->rh_lkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_reply(rp);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
+		DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
 			    print_lkb(lkb);
 			    print_reply(rp);
 			    printk("nodeid %u\n", nodeid););
@@ -919,24 +919,24 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
 		rsb = lkb->lkb_resource;
 
-		GDLM_ASSERT(rsb,
+		DLM_ASSERT(rsb,
 			    print_lkb(lkb);
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(rsb->res_nodeid,
+		DLM_ASSERT(rsb->res_nodeid,
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
+		DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_MSTCPY),
 			    print_lkb(lkb);
 			    print_rsb(rsb);
 			    print_request(freq);
@@ -976,7 +976,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
@@ -990,7 +990,7 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
@@ -1004,11 +1004,11 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
 
-		GDLM_ASSERT(lkb,
+		DLM_ASSERT(lkb,
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
 
-		GDLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
+		DLM_ASSERT(lkb->lkb_flags & GDLM_LKFLG_MSTCPY,
 			    print_lkb(lkb);
 			    print_request(freq);
 			    printk("nodeid %u\n", nodeid););
@@ -1053,13 +1053,13 @@ int process_cluster_request(int nodeid, struct gd_req_header *req, int recovery)
 	return status;
 }
 
-static void add_reply_lvb(gd_lkb_t *lkb, struct gd_remlockreply *reply)
+static void add_reply_lvb(struct dlm_lkb *lkb, struct dlm_reply *reply)
 {
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK)
 		memcpy(reply->rl_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
 }
 
-static void add_request_lvb(gd_lkb_t *lkb, struct gd_remlockrequest *req)
+static void add_request_lvb(struct dlm_lkb *lkb, struct dlm_request *req)
 {
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK)
 		memcpy(req->rr_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);

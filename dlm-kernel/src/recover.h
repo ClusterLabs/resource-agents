@@ -14,21 +14,20 @@
 #ifndef __RECOVER_DOT_H__
 #define __RECOVER_DOT_H__
 
-int gdlm_wait_function(gd_ls_t * ls, int (*testfn) (gd_ls_t * ls));
-int gdlm_wait_status_all(gd_ls_t * ls, unsigned int wait_status);
-int gdlm_wait_status_low(gd_ls_t * ls, unsigned int wait_status);
-int gdlm_recovery_stopped(gd_ls_t * ls);
-int recover_list_empty(gd_ls_t * ls);
-int recover_list_count(gd_ls_t * ls);
-void recover_list_add(gd_res_t * rsb);
-void recover_list_del(gd_res_t * rsb);
-void recover_list_dump(gd_ls_t * ls);
-int restbl_lkb_purge(gd_ls_t * ls);
-void restbl_grant_after_purge(gd_ls_t * ls);
-int restbl_rsb_update(gd_ls_t * ls);
-int restbl_rsb_update_recv(gd_ls_t * ls, int nodeid, char *buf, int len,
+int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls * ls));
+int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status);
+int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status);
+int dlm_recovery_stopped(struct dlm_ls *ls);
+int recover_list_empty(struct dlm_ls *ls);
+int recover_list_count(struct dlm_ls *ls);
+void recover_list_add(struct dlm_rsb *rsb);
+void recover_list_del(struct dlm_rsb *rsb);
+int restbl_lkb_purge(struct dlm_ls *ls);
+void restbl_grant_after_purge(struct dlm_ls *ls);
+int restbl_rsb_update(struct dlm_ls *ls);
+int restbl_rsb_update_recv(struct dlm_ls *ls, int nodeid, char *buf, int len,
 			   int msgid);
-int bulk_master_lookup(gd_ls_t * ls, int nodeid, char *inbuf, int inlen,
+int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 		       char *outbuf);
 
 #endif				/* __RECOVER_DOT_H__ */

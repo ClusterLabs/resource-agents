@@ -25,6 +25,13 @@
 static LIST_HEAD(expired_resdata_list);
 static spinlock_t expired_resdata_lock = SPIN_LOCK_UNLOCKED;
 
+struct resmov {
+	uint32_t rm_nodeid;
+	uint16_t rm_length;
+	uint16_t rm_pad;
+};
+
+
 /* 
  * We use the upper 16 bits of the hash value to select the directory node.
  * Low bits are used for distribution of rsb's among hash buckets on each node.
@@ -43,10 +50,10 @@ static spinlock_t expired_resdata_lock = SPIN_LOCK_UNLOCKED;
  * nodeid's to give the particular nodeid of the directory node.
  */
 
-uint32_t name_to_directory_nodeid(gd_ls_t *ls, char *name, int length)
+uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length)
 {
 	struct list_head *tmp;
-	gd_csb_t *csb = NULL;
+	struct dlm_csb *csb = NULL;
 	uint32_t hash, node, n = 0, nodeid;
 
 	if (ls->ls_num_nodes == 1) {
@@ -54,181 +61,175 @@ uint32_t name_to_directory_nodeid(gd_ls_t *ls, char *name, int length)
 		goto out;
 	}
 
-	hash = gdlm_hash(name, length);
+	hash = dlm_hash(name, length);
 	node = (hash >> 16) & ls->ls_nodes_mask;
 	node %= ls->ls_num_nodes;
 
 	list_for_each(tmp, &ls->ls_nodes) {
 		if (n++ != node)
 			continue;
-		csb = list_entry(tmp, gd_csb_t, csb_list);
+		csb = list_entry(tmp, struct dlm_csb, list);
 		break;
 	}
 
-	GDLM_ASSERT(csb, printk("num_nodes=%u n=%u node=%u mask=%x\n",
+	DLM_ASSERT(csb, printk("num_nodes=%u n=%u node=%u mask=%x\n",
 				ls->ls_num_nodes, n, node, ls->ls_nodes_mask););
-	nodeid = csb->csb_node->gn_nodeid;
+	nodeid = csb->node->nodeid;
 
       out:
 	return nodeid;
 }
 
-uint32_t get_directory_nodeid(gd_res_t *rsb)
+uint32_t get_directory_nodeid(struct dlm_rsb *rsb)
 {
 	return name_to_directory_nodeid(rsb->res_ls, rsb->res_name,
 					rsb->res_length);
 }
 
-static inline uint32_t rd_hash(gd_ls_t *ls, char *name, int len)
+static inline uint32_t dir_hash(struct dlm_ls *ls, char *name, int len)
 {
 	uint32_t val;
 
-	val = gdlm_hash(name, len);
-	val &= RESDIRHASH_MASK;
+	val = dlm_hash(name, len);
+	val &= (ls->ls_dirtbl_size - 1);
 
 	return val;
 }
 
-static void add_resdata_to_hash(gd_ls_t *ls, gd_resdata_t *rd)
+static void add_resdata_to_hash(struct dlm_ls *ls, struct dlm_direntry *de)
 {
-	gd_resdir_bucket_t *bucket;
-	uint32_t hashval;
-
-	hashval = rd_hash(ls, rd->rd_name, rd->rd_length);
-	bucket = &ls->ls_resdir_hash[hashval];
-
-	list_add_tail(&rd->rd_list, &bucket->rb_reslist);
-}
-
-static gd_resdata_t *search_rdbucket(gd_ls_t *ls, char *name, int namelen,
-				     uint32_t bucket)
-{
-	struct list_head *head;
-	gd_resdata_t *rd;
-
-	head = &ls->ls_resdir_hash[bucket].rb_reslist;
-	list_for_each_entry(rd, head, rd_list) {
-		if (rd->rd_length == namelen &&
-		    !memcmp(name, rd->rd_name, namelen))
-			goto out;
-	}
-	rd = NULL;
-      out:
-	return rd;
-}
-
-void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
-		    uint8_t sequence)
-{
-	gd_resdata_t *rd;
 	uint32_t bucket;
 
-	bucket = rd_hash(ls, name, namelen);
+	bucket = dir_hash(ls, de->name, de->length);
+	list_add_tail(&de->list, &ls->ls_dirtbl[bucket].list);
+}
 
-	write_lock(&ls->ls_resdir_hash[bucket].rb_lock);
+static struct dlm_direntry *search_bucket(struct dlm_ls *ls, char *name,
+					  int namelen, uint32_t bucket)
+{
+	struct dlm_direntry *de;
 
-	rd = search_rdbucket(ls, name, namelen, bucket);
+	list_for_each_entry(de, &ls->ls_dirtbl[bucket].list, list) {
+		if (de->length == namelen && !memcmp(name, de->name, namelen))
+			goto out;
+	}
+	de = NULL;
+      out:
+	return de;
+}
 
-	if (!rd) {
+void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
+		    uint8_t sequence)
+{
+	struct dlm_direntry *de;
+	uint32_t bucket;
+
+	bucket = dir_hash(ls, name, namelen);
+
+	write_lock(&ls->ls_dirtbl[bucket].lock);
+
+	de = search_bucket(ls, name, namelen, bucket);
+
+	if (!de) {
 		log_debug(ls, "remove from %u seq %u none", nodeid, sequence);
 		goto out;
 	}
 
-	if (rd->rd_master_nodeid != nodeid) {
+	if (de->master_nodeid != nodeid) {
 		log_debug(ls, "remove from %u seq %u ID %u seq %3u",
-			  nodeid, sequence, rd->rd_master_nodeid,
-			  rd->rd_sequence);
+			  nodeid, sequence, de->master_nodeid,
+			  de->sequence);
 		goto out;
 	}
 
-	if (rd->rd_sequence == sequence) {
+	if (de->sequence == sequence) {
 		/* Expire immediately if timeout is 0 */
 		if (!dlm_config.resdir_expiretime) {
-			list_del(&rd->rd_list);
-			free_resdata(rd);
+			list_del(&de->list);
+			free_resdata(de);
 			goto out;
 		}
 		/* If it's already on the timeout list, then just adjust the
 		 * expiry due time.
 		 */
-	        if (!rd->rd_duetime) {
-		  	spin_lock(&expired_resdata_lock);
-			list_add_tail(&rd->rd_expirelist, &expired_resdata_list);
+	        if (!de->duetime) {
+			spin_lock(&expired_resdata_lock);
+			list_add_tail(&de->expirelist, &expired_resdata_list);
 			spin_unlock(&expired_resdata_lock);
 	        }
-	    	rd->rd_duetime = jiffies + dlm_config.resdir_expiretime*HZ; 
+	    	de->duetime = jiffies + dlm_config.resdir_expiretime*HZ; 
 	} else {
 		log_debug(ls, "remove from %u seq %u id %u SEQ %3u",
-			  nodeid, sequence, rd->rd_master_nodeid,
-			  rd->rd_sequence);
+			  nodeid, sequence, de->master_nodeid,
+			  de->sequence);
 	}
 
-      out:
-	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
+ out:
+	write_unlock(&ls->ls_dirtbl[bucket].lock);
 }
 
 /* Called now and then from astd */
 void process_expired_resdata(void)
 {
-    gd_resdata_t *rd;
-    struct list_head *pos, *tmp;
+	struct dlm_direntry *de;
+	struct list_head *pos, *tmp;
 	
-    spin_lock(&expired_resdata_lock);
-    list_for_each_safe(pos, tmp, &expired_resdata_list) {
-	    rd = list_entry(pos, gd_resdata_t, rd_expirelist);
+	spin_lock(&expired_resdata_lock);
+	list_for_each_safe(pos, tmp, &expired_resdata_list) {
+		de = list_entry(pos, struct dlm_direntry, expirelist);
 
-	    if (time_after(jiffies, rd->rd_duetime)) {
-	    	list_del(&rd->rd_list);
-	    	list_del(&rd->rd_expirelist);
-	    	free_resdata(rd);
-	    }
-    }
-    spin_unlock(&expired_resdata_lock);
+		if (time_after(jiffies, de->duetime)) {
+			list_del(&de->list);
+			list_del(&de->expirelist);
+			free_resdata(de);
+		}
+	}
+	spin_unlock(&expired_resdata_lock);
 }
 
-void resdir_clear(gd_ls_t *ls)
+void dlm_dir_clear(struct dlm_ls *ls)
 {
 	struct list_head *head;
-	gd_resdata_t *rd;
+	struct dlm_direntry *de;
 	int i;
 
-	for (i = 0; i < RESDIRHASH_SIZE; i++) {
-		head = &ls->ls_resdir_hash[i].rb_reslist;
+	for (i = 0; i < ls->ls_dirtbl_size; i++) {
+		head = &ls->ls_dirtbl[i].list;
 		while (!list_empty(head)) {
-			rd = list_entry(head->next, gd_resdata_t, rd_list);
-			list_del(&rd->rd_list);
-				if (rd->rd_duetime) {
-    					spin_lock(&expired_resdata_lock);
-					list_del(&rd->rd_expirelist);
-    					spin_unlock(&expired_resdata_lock);
-				}
-			free_resdata(rd);
+			de = list_entry(head->next, struct dlm_direntry, list);
+			list_del(&de->list);
+			if (de->duetime) {
+				spin_lock(&expired_resdata_lock);
+				list_del(&de->expirelist);
+				spin_unlock(&expired_resdata_lock);
+			}
+			free_resdata(de);
 		}
 	}
 }
 
-static void gdlm_resmov_in(gd_resmov_t *rm, char *buf)
+static void resmov_in(struct resmov *rm, char *buf)
 {
-	gd_resmov_t tmp;
+	struct resmov tmp;
 
-	memcpy(&tmp, buf, sizeof(gd_resmov_t));
+	memcpy(&tmp, buf, sizeof(struct resmov));
 
 	rm->rm_nodeid = be32_to_cpu(tmp.rm_nodeid);
 	rm->rm_length = be16_to_cpu(tmp.rm_length);
 }
 
-int resdir_rebuild_local(gd_ls_t *ls)
+int dlm_dir_rebuild_local(struct dlm_ls *ls)
 {
-	gd_csb_t *csb;
-	gd_resdata_t *rd;
-	gd_rcom_t *rc;
-	gd_resmov_t mov, last_mov;
+	struct dlm_csb *csb;
+	struct dlm_direntry *de;
+	struct dlm_rcom *rc;
+	struct resmov mov, last_mov;
 	char *b, *last_name;
 	int error = -ENOMEM, count = 0;
 
 	log_all(ls, "rebuild resource directory");
 
-	resdir_clear(ls);
+	dlm_dir_clear(ls);
 
 	rc = allocate_rcom_buffer(ls);
 	if (!rc)
@@ -238,17 +239,17 @@ int resdir_rebuild_local(gd_ls_t *ls)
 	if (!last_name)
 		goto free_rc;
 
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
 		last_mov.rm_length = 0;
 		for (;;) {
-			error = gdlm_recovery_stopped(ls);
+			error = dlm_recovery_stopped(ls);
 			if (error)
 				goto free_last;
 
 			memcpy(rc->rc_buf, last_name, last_mov.rm_length);
 			rc->rc_datalen = last_mov.rm_length;
 
-			error = rcom_send_message(ls, csb->csb_node->gn_nodeid,
+			error = rcom_send_message(ls, csb->node->nodeid,
 						  RECCOMM_RECOVERNAMES, rc, 1);
 			if (error)
 				goto free_last;
@@ -262,8 +263,8 @@ int resdir_rebuild_local(gd_ls_t *ls)
 			b = rc->rc_buf;
 
 			for (;;) {
-				gdlm_resmov_in(&mov, b);
-				b += sizeof(gd_resmov_t);
+				resmov_in(&mov, b);
+				b += sizeof(struct resmov);
 
 				/* Length of 0 with a non-zero nodeid marks the 
 				 * end of the list */
@@ -275,23 +276,23 @@ int resdir_rebuild_local(gd_ls_t *ls)
 					break;
 
 				error = -ENOMEM;
-				rd = allocate_resdata(ls, mov.rm_length);
-				if (!rd)
+				de = allocate_resdata(ls, mov.rm_length);
+				if (!de)
 					goto free_last;
 
-				rd->rd_master_nodeid = mov.rm_nodeid;
-				rd->rd_length = mov.rm_length;
-				rd->rd_sequence = 1;
+				de->master_nodeid = mov.rm_nodeid;
+				de->length = mov.rm_length;
+				de->sequence = 1;
 
-				memcpy(rd->rd_name, b, mov.rm_length);
+				memcpy(de->name, b, mov.rm_length);
 				b += mov.rm_length;
 
-				add_resdata_to_hash(ls, rd);
+				add_resdata_to_hash(ls, de);
 				count++;
 
 				last_mov = mov;
 				memset(last_name, 0, DLM_RESNAME_MAXLEN);
-				memcpy(last_name, rd->rd_name, rd->rd_length);
+				memcpy(last_name, de->name, de->length);
 			}
 		}
 	      done:
@@ -314,18 +315,18 @@ int resdir_rebuild_local(gd_ls_t *ls)
 }
 
 /* 
- * The reply end of resdir_rebuild_local/RECOVERNAMES.  Collect and send as
+ * The reply end of dlm_dir_rebuild_local/RECOVERNAMES.  Collect and send as
  * many resource names as can fit in the buffer.
  */
 
-int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
-			int outlen, uint32_t nodeid)
+int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
+			 char *outbuf, int outlen, uint32_t nodeid)
 {
 	struct list_head *list;
-	gd_res_t *start_rsb = NULL, *rsb;
+	struct dlm_rsb *start_rsb = NULL, *rsb;
 	int offset = 0, start_namelen, error;
 	char *start_name;
-	gd_resmov_t tmp;
+	struct resmov tmp;
 	uint32_t dir_nodeid;
 
 	/* 
@@ -338,7 +339,7 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 	if (start_namelen > 1) {
 		error = find_or_create_rsb(ls, NULL, start_name,
 				           start_namelen, 0, &start_rsb);
-		GDLM_ASSERT(!error && start_rsb, printk("error %d\n", error););
+		DLM_ASSERT(!error && start_rsb, printk("error %d\n", error););
 		release_rsb(start_rsb);
 	}
 
@@ -354,7 +355,7 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 		list = ls->ls_rootres.next;
 
 	for (offset = 0; list != &ls->ls_rootres; list = list->next) {
-		rsb = list_entry(list, gd_res_t, res_rootlist);
+		rsb = list_entry(list, struct dlm_rsb, res_rootlist);
 		if (rsb->res_nodeid)
 			continue;
 
@@ -362,20 +363,20 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 		if (dir_nodeid != nodeid)
 			continue;
 
-		if (offset + sizeof(gd_resmov_t)*2 + rsb->res_length > outlen) {
+		if (offset + sizeof(struct resmov)*2 + rsb->res_length > outlen) {
 			/* Write end-of-block record */
-			memset(&tmp, 0, sizeof(gd_resmov_t));
-			memcpy(outbuf + offset, &tmp, sizeof(gd_resmov_t));
-			offset += sizeof(gd_resmov_t);
+			memset(&tmp, 0, sizeof(struct resmov));
+			memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
+			offset += sizeof(struct resmov);
 			goto out;
 		}
 
-		memset(&tmp, 0, sizeof(gd_resmov_t));
+		memset(&tmp, 0, sizeof(struct resmov));
 		tmp.rm_nodeid = cpu_to_be32(our_nodeid());
 		tmp.rm_length = cpu_to_be16(rsb->res_length);
 
-		memcpy(outbuf + offset, &tmp, sizeof(gd_resmov_t));
-		offset += sizeof(gd_resmov_t);
+		memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
+		offset += sizeof(struct resmov);
 
 		memcpy(outbuf + offset, rsb->res_name, rsb->res_length);
 		offset += rsb->res_length;
@@ -387,15 +388,15 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 	 */
 
 	if ((list == &ls->ls_rootres) &&
-	    (offset + sizeof(gd_resmov_t) <= outlen)) {
+	    (offset + sizeof(struct resmov) <= outlen)) {
 
-		memset(&tmp, 0, sizeof(gd_resmov_t));
+		memset(&tmp, 0, sizeof(struct resmov));
 		/* This only needs to be non-zero */
 		tmp.rm_nodeid = cpu_to_be32(1);
 		/* and this must be zero */
 		tmp.rm_length = 0;
-		memcpy(outbuf + offset, &tmp, sizeof(gd_resmov_t));
-		offset += sizeof(gd_resmov_t);
+		memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
+		offset += sizeof(struct resmov);
 	}
 
  out:
@@ -403,79 +404,75 @@ int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
 	return offset;
 }
 
-static void inc_sequence(gd_resdata_t *rd, int recovery)
+static void inc_sequence(struct dlm_direntry *de, int recovery)
 {
 	if (!recovery) {
-		if (++rd->rd_sequence == 0)
-			rd->rd_sequence++;
+		if (++de->sequence == 0)
+			de->sequence++;
 	} else
-		rd->rd_sequence = 1;
+		de->sequence = 1;
 }
 
-static int get_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
-		       uint32_t *r_nodeid, uint8_t *r_seq, int recovery)
+static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
+		       int namelen, uint32_t *r_nodeid, uint8_t *r_seq,
+		       int recovery)
 {
-	gd_resdata_t *rd, *tmp;
+	struct dlm_direntry *de, *tmp;
 	uint32_t bucket;
-	char strname[namelen+1];
 
-	memset(strname, 0, namelen+1);
-	memcpy(strname, name, namelen);
+	bucket = dir_hash(ls, name, namelen);
 
-	bucket = rd_hash(ls, name, namelen);
-
-	write_lock(&ls->ls_resdir_hash[bucket].rb_lock);
-	rd = search_rdbucket(ls, name, namelen, bucket);
-	if (rd) {
-		inc_sequence(rd, recovery);
-		*r_nodeid = rd->rd_master_nodeid;
-		*r_seq = rd->rd_sequence;
-		write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
+	write_lock(&ls->ls_dirtbl[bucket].lock);
+	de = search_bucket(ls, name, namelen, bucket);
+	if (de) {
+		inc_sequence(de, recovery);
+		*r_nodeid = de->master_nodeid;
+		*r_seq = de->sequence;
+		write_unlock(&ls->ls_dirtbl[bucket].lock);
 		goto out;
 	}
 
-        write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
+        write_unlock(&ls->ls_dirtbl[bucket].lock);
 
-	rd = allocate_resdata(ls, namelen);
-	if (!rd)
+	de = allocate_resdata(ls, namelen);
+	if (!de)
 		return -ENOMEM;
 
-	rd->rd_master_nodeid = nodeid;
-	rd->rd_length = namelen;
-	rd->rd_sequence = 1;
-	memcpy(rd->rd_name, name, namelen);
+	de->master_nodeid = nodeid;
+	de->length = namelen;
+	de->sequence = 1;
+	memcpy(de->name, name, namelen);
 
-	write_lock(&ls->ls_resdir_hash[bucket].rb_lock);
-	tmp = search_rdbucket(ls, name, namelen, bucket);
+	write_lock(&ls->ls_dirtbl[bucket].lock);
+	tmp = search_bucket(ls, name, namelen, bucket);
 	if (tmp) {
-		free_resdata(rd);
-		rd = tmp;
-		inc_sequence(rd, recovery);
+		free_resdata(de);
+		de = tmp;
+		inc_sequence(de, recovery);
 	} else
-		list_add_tail(&rd->rd_list,
-			      &ls->ls_resdir_hash[bucket].rb_reslist);
+		list_add_tail(&de->list, &ls->ls_dirtbl[bucket].list);
 
-	if (rd->rd_duetime) {
+	if (de->duetime) {
 		spin_lock(&expired_resdata_lock);
-		list_del(&rd->rd_expirelist);
+		list_del(&de->expirelist);
 		spin_unlock(&expired_resdata_lock);
-	    	rd->rd_duetime = 0L;
+	    	de->duetime = 0L;
 	}
-	*r_nodeid = rd->rd_master_nodeid;
-	*r_seq = rd->rd_sequence;
-	write_unlock(&ls->ls_resdir_hash[bucket].rb_lock);
+	*r_nodeid = de->master_nodeid;
+	*r_seq = de->sequence;
+	write_unlock(&ls->ls_dirtbl[bucket].lock);
 
  out:
 	return 0;
 }
 
-int dlm_dir_lookup(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 		   uint32_t *r_nodeid, uint8_t *r_seq)
 {
 	return get_resdata(ls, nodeid, name, namelen, r_nodeid, r_seq, 0);
 }
 
-int dlm_dir_lookup_recovery(gd_ls_t *ls, uint32_t nodeid, char *name,
+int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
 			    int namelen, uint32_t *r_nodeid)
 {
 	uint8_t seq;
@@ -487,16 +484,16 @@ int dlm_dir_lookup_recovery(gd_ls_t *ls, uint32_t nodeid, char *name,
  * All other nodes query the low nodeid for this.
  */
 
-int resdir_rebuild_wait(gd_ls_t *ls)
+int dlm_dir_rebuild_wait(struct dlm_ls *ls)
 {
 	int error;
 
 	if (ls->ls_low_nodeid == our_nodeid()) {
-		error = gdlm_wait_status_all(ls, RESDIR_VALID);
+		error = dlm_wait_status_all(ls, RESDIR_VALID);
 		if (!error)
 			set_bit(LSFL_ALL_RESDIR_VALID, &ls->ls_flags);
 	} else
-		error = gdlm_wait_status_low(ls, RESDIR_ALL_VALID);
+		error = dlm_wait_status_low(ls, RESDIR_ALL_VALID);
 
 	return error;
 }

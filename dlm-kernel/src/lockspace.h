@@ -19,11 +19,9 @@ int dlm_init(void);
 int dlm_release(void);
 int dlm_new_lockspace(char *name, int namelen, void **ls, int flags);
 int dlm_release_lockspace(void *ls, int force);
-gd_ls_t *find_lockspace_by_global_id(uint32_t id);
-gd_ls_t *find_lockspace_by_local_id(void *id);
-gd_ls_t *find_lockspace_by_name(char *name, int namelen);
-void free_dlm_recover(gd_recover_t *gr);
-int next_move(gd_ls_t *ls, gd_recover_t **gr_out, int *finish_out);
+struct dlm_ls *find_lockspace_by_global_id(uint32_t id);
+struct dlm_ls *find_lockspace_by_local_id(void *id);
+struct dlm_ls *find_lockspace_by_name(char *name, int namelen);
 void dlm_emergency_shutdown(void);
 
 #endif				/* __LOCKSPACE_DOT_H__ */

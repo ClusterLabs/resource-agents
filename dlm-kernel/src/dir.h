@@ -14,20 +14,20 @@
 #ifndef __DIR_DOT_H__
 #define __DIR_DOT_H__
 
-int dlm_dir_lookup(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+int dlm_dir_lookup(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 			uint32_t *r_nodeid, uint8_t *r_seq);
-int dlm_dir_lookup_recovery(gd_ls_t *ls, uint32_t nodeid, char *name,
+int dlm_dir_lookup_recovery(struct dlm_ls *ls, uint32_t nodeid, char *name,
                             int namelen, uint32_t *r_nodeid);
-uint32_t name_to_directory_nodeid(gd_ls_t *ls, char *name, int length);
-uint32_t get_directory_nodeid(gd_res_t *rsb);
-void remove_resdata(gd_ls_t *ls, uint32_t nodeid, char *name, int namelen,
+uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length);
+uint32_t get_directory_nodeid(struct dlm_rsb *rsb);
+void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 		    uint8_t sequence);
-int resdir_rebuild_local(gd_ls_t *ls);
-int resdir_rebuild_send(gd_ls_t *ls, char *inbuf, int inlen, char *outbuf,
-			int outlen, uint32_t nodeid);
-int resdir_rebuild_wait(gd_ls_t * ls);
-void resdir_clear(gd_ls_t *ls);
-void resdir_dump(gd_ls_t *ls);
+int dlm_dir_rebuild_local(struct dlm_ls *ls);
+int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
+			 char *outbuf, int outlen, uint32_t nodeid);
+int dlm_dir_rebuild_wait(struct dlm_ls * ls);
+void dlm_dir_clear(struct dlm_ls *ls);
+void dlm_dir_dump(struct dlm_ls *ls);
 void process_expired_resdata(void);
 
 #endif				/* __DIR_DOT_H__ */

@@ -14,11 +14,11 @@
 #ifndef __MIDCOMMS_DOT_H__
 #define __MIDCOMMS_DOT_H__
 
-int midcomms_send_message(uint32_t csid, struct gd_req_header *msg,
+int midcomms_send_message(uint32_t csid, struct dlm_header *msg,
 			  int allocation);
 int midcomms_process_incoming_buffer(int csid, const void *buf, unsigned offset,
 				     unsigned len, unsigned limit);
-void midcomms_send_buffer(struct gd_req_header *msg,
+void midcomms_send_buffer(struct dlm_header *msg,
 			  struct writequeue_entry *e);
 
 #endif				/* __MIDCOMMS_DOT_H__ */

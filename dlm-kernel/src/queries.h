@@ -14,7 +14,7 @@
 #ifndef __QUERIES_DOT_H__
 #define __QUERIES_DOT_H__
 
-extern int remote_query(int nodeid, gd_ls_t *ls, struct gd_req_header *msg);
-extern int remote_query_reply(int nodeid, gd_ls_t *ls, struct gd_req_header *msg);
+extern int remote_query(int nodeid, struct dlm_ls *ls, struct dlm_header *msg);
+extern int remote_query_reply(int nodeid, struct dlm_ls *ls, struct dlm_header *msg);
 
 #endif                          /* __QUERIES_DOT_H__ */

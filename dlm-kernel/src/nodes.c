@@ -35,12 +35,12 @@ void dlm_nodes_init(void)
 	init_MUTEX(&local_init_lock);
 }
 
-static gd_node_t *search_node(uint32_t nodeid)
+static struct dlm_node *search_node(uint32_t nodeid)
 {
-	gd_node_t *node;
+	struct dlm_node *node;
 
-	list_for_each_entry(node, &cluster_nodes, gn_list) {
-		if (node->gn_nodeid == nodeid)
+	list_for_each_entry(node, &cluster_nodes, list) {
+		if (node->nodeid == nodeid)
 			goto out;
 	}
 	node = NULL;
@@ -48,12 +48,12 @@ static gd_node_t *search_node(uint32_t nodeid)
 	return node;
 }
 
-static void put_node(gd_node_t *node)
+static void put_node(struct dlm_node *node)
 {
 	spin_lock(&node_lock);
-	node->gn_refcount--;
-	if (node->gn_refcount == 0) {
-		list_del(&node->gn_list);
+	node->refcount--;
+	if (node->refcount == 0) {
+		list_del(&node->list);
 		spin_unlock(&node_lock);
 		kfree(node);
 		return;
@@ -61,39 +61,39 @@ static void put_node(gd_node_t *node)
 	spin_unlock(&node_lock);
 }
 
-static int get_node(uint32_t nodeid, gd_node_t **ndp)
+static int get_node(uint32_t nodeid, struct dlm_node **ndp)
 {
-	gd_node_t *node, *node2;
+	struct dlm_node *node, *node2;
 	int error = -ENOMEM;
 
 	spin_lock(&node_lock);
 	node = search_node(nodeid);
 	if (node)
-		node->gn_refcount++;
+		node->refcount++;
 	spin_unlock(&node_lock);
 
 	if (node)
 		goto out;
 
-	node = (gd_node_t *) kmalloc(sizeof(gd_node_t), GFP_KERNEL);
+	node = (struct dlm_node *) kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
 	if (!node)
 		goto fail;
 
-	memset(node, 0, sizeof(gd_node_t));
-	node->gn_nodeid = nodeid;
+	memset(node, 0, sizeof(struct dlm_node));
+	node->nodeid = nodeid;
 
 	spin_lock(&node_lock);
 	node2 = search_node(nodeid);
 	if (node2) {
-		node2->gn_refcount++;
+		node2->refcount++;
 		spin_unlock(&node_lock);
 		kfree(node);
 		node = node2;
 		goto out;
 	}
 
-	node->gn_refcount = 1;
-	list_add_tail(&node->gn_list, &cluster_nodes);
+	node->refcount = 1;
+	list_add_tail(&node->list, &cluster_nodes);
 	spin_unlock(&node_lock);
 
       out:
@@ -104,29 +104,29 @@ static int get_node(uint32_t nodeid, gd_node_t **ndp)
 	return error;
 }
 
-int init_new_csb(uint32_t nodeid, gd_csb_t **ret_csb)
+int init_new_csb(uint32_t nodeid, struct dlm_csb **ret_csb)
 {
-	gd_csb_t *csb;
-	gd_node_t *node;
+	struct dlm_csb *csb;
+	struct dlm_node *node;
 	int error = -ENOMEM;
 
-	csb = (gd_csb_t *) kmalloc(sizeof(gd_csb_t), GFP_KERNEL);
+	csb = (struct dlm_csb *) kmalloc(sizeof(struct dlm_csb), GFP_KERNEL);
 	if (!csb)
 		goto fail;
 
-	memset(csb, 0, sizeof(gd_csb_t));
+	memset(csb, 0, sizeof(struct dlm_csb));
 
 	error = get_node(nodeid, &node);
 	if (error)
 		goto fail_free;
 
-	csb->csb_node = node;
+	csb->node = node;
 
 	down(&local_init_lock);
 
 	if (!local_nodeid) {
 		if (nodeid == our_nodeid()) {
-			local_nodeid = node->gn_nodeid;
+			local_nodeid = node->nodeid;
 		}
 	}
 	up(&local_init_lock);
@@ -140,9 +140,9 @@ int init_new_csb(uint32_t nodeid, gd_csb_t **ret_csb)
 	return error;
 }
 
-void release_csb(gd_csb_t *csb)
+void release_csb(struct dlm_csb *csb)
 {
-	put_node(csb->csb_node);
+	put_node(csb->node);
 	kfree(csb);
 }
 
@@ -151,12 +151,12 @@ uint32_t our_nodeid(void)
 	return lowcomms_our_nodeid();
 }
 
-int nodes_reconfig_wait(gd_ls_t *ls)
+int nodes_reconfig_wait(struct dlm_ls *ls)
 {
 	int error;
 
 	if (ls->ls_low_nodeid == our_nodeid()) {
-		error = gdlm_wait_status_all(ls, NODES_VALID);
+		error = dlm_wait_status_all(ls, NODES_VALID);
 		if (!error)
 			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
 
@@ -170,22 +170,22 @@ int nodes_reconfig_wait(gd_ls_t *ls)
 		}
 
 	} else
-		error = gdlm_wait_status_low(ls, NODES_ALL_VALID);
+		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
 
 	return error;
 }
 
-static void add_ordered_node(gd_ls_t *ls, gd_csb_t *new)
+static void add_ordered_node(struct dlm_ls *ls, struct dlm_csb *new)
 {
-	gd_csb_t *csb = NULL;
+	struct dlm_csb *csb = NULL;
 	struct list_head *tmp;
-	struct list_head *newlist = &new->csb_list;
+	struct list_head *newlist = &new->list;
 	struct list_head *head = &ls->ls_nodes;
 
 	list_for_each(tmp, head) {
-		csb = list_entry(tmp, gd_csb_t, csb_list);
+		csb = list_entry(tmp, struct dlm_csb, list);
 
-		if (new->csb_node->gn_nodeid < csb->csb_node->gn_nodeid)
+		if (new->node->nodeid < csb->node->nodeid)
 			break;
 	}
 
@@ -200,9 +200,9 @@ static void add_ordered_node(gd_ls_t *ls, gd_csb_t *new)
 	}
 }
 
-int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
+int ls_nodes_reconfig(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 {
-	gd_csb_t *csb, *safe;
+	struct dlm_csb *csb, *safe;
 	int error, i, found, pos = 0, neg = 0;
 	uint32_t low = (uint32_t) (-1);
 
@@ -210,10 +210,10 @@ int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
 	 * Remove (and save) departed nodes from lockspace's nodes list
 	 */
 
-	list_for_each_entry_safe(csb, safe, &ls->ls_nodes, csb_list) {
+	list_for_each_entry_safe(csb, safe, &ls->ls_nodes, list) {
 		found = FALSE;
-		for (i = 0; i < gr->gr_node_count; i++) {
-			if (csb->csb_node->gn_nodeid == gr->gr_nodeids[i]) {
+		for (i = 0; i < rv->node_count; i++) {
+			if (csb->node->nodeid == rv->nodeids[i]) {
 				found = TRUE;
 				break;
 			}
@@ -221,11 +221,11 @@ int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
 
 		if (!found) {
 			neg++;
-			csb->csb_gone_event = gr->gr_event_id;
-			list_del(&csb->csb_list);
-			list_add_tail(&csb->csb_list, &ls->ls_nodes_gone);
+			csb->gone_event = rv->event_id;
+			list_del(&csb->list);
+			list_add_tail(&csb->list, &ls->ls_nodes_gone);
 			ls->ls_num_nodes--;
-			log_all(ls, "remove node %u", csb->csb_node->gn_nodeid);
+			log_all(ls, "remove node %u", csb->node->nodeid);
 		}
 	}
 
@@ -233,10 +233,10 @@ int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
 	 * Add new nodes to lockspace's nodes list
 	 */
 
-	for (i = 0; i < gr->gr_node_count; i++) {
+	for (i = 0; i < rv->node_count; i++) {
 		found = FALSE;
-		list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
-			if (csb->csb_node->gn_nodeid == gr->gr_nodeids[i]) {
+		list_for_each_entry(csb, &ls->ls_nodes, list) {
+			if (csb->node->nodeid == rv->nodeids[i]) {
 				found = TRUE;
 				break;
 			}
@@ -245,23 +245,23 @@ int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
 		if (!found) {
 			pos++;
 
-			error = init_new_csb(gr->gr_nodeids[i], &csb);
-			GDLM_ASSERT(!error,);
+			error = init_new_csb(rv->nodeids[i], &csb);
+			DLM_ASSERT(!error,);
 
 			add_ordered_node(ls, csb);
 			ls->ls_num_nodes++;
-			log_all(ls, "add node %u", csb->csb_node->gn_nodeid);
+			log_all(ls, "add node %u", csb->node->nodeid);
 		}
 	}
 
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
-		if (csb->csb_node->gn_nodeid < low)
-			low = csb->csb_node->gn_nodeid;
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
+		if (csb->node->nodeid < low)
+			low = csb->node->nodeid;
 	}
 
 	rcom_log_clear(ls);
 	ls->ls_low_nodeid = low;
-	ls->ls_nodes_mask = gdlm_next_power2(ls->ls_num_nodes) - 1;
+	ls->ls_nodes_mask = dlm_next_power2(ls->ls_num_nodes) - 1;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;
 
@@ -272,28 +272,28 @@ int ls_nodes_reconfig(gd_ls_t *ls, gd_recover_t *gr, int *neg_out)
 	return error;
 }
 
-int ls_nodes_init(gd_ls_t *ls, gd_recover_t *gr)
+int ls_nodes_init(struct dlm_ls *ls, struct dlm_recover *rv)
 {
-	gd_csb_t *csb;
+	struct dlm_csb *csb;
 	int i, error;
 	uint32_t low = (uint32_t) (-1);
 
 	log_all(ls, "add nodes");
 
-	for (i = 0; i < gr->gr_node_count; i++) {
-		error = init_new_csb(gr->gr_nodeids[i], &csb);
+	for (i = 0; i < rv->node_count; i++) {
+		error = init_new_csb(rv->nodeids[i], &csb);
 		if (error)
 			goto fail;
 
 		add_ordered_node(ls, csb);
 		ls->ls_num_nodes++;
 
-		if (csb->csb_node->gn_nodeid < low)
-			low = csb->csb_node->gn_nodeid;
+		if (csb->node->nodeid < low)
+			low = csb->node->nodeid;
 	}
 
 	ls->ls_low_nodeid = low;
-	ls->ls_nodes_mask = gdlm_next_power2(ls->ls_num_nodes) - 1;
+	ls->ls_nodes_mask = dlm_next_power2(ls->ls_num_nodes) - 1;
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 
 	error = nodes_reconfig_wait(ls);
@@ -304,8 +304,8 @@ int ls_nodes_init(gd_ls_t *ls, gd_recover_t *gr)
 
       fail:
 	while (!list_empty(&ls->ls_nodes)) {
-		csb = list_entry(ls->ls_nodes.next, gd_csb_t, csb_list);
-		list_del(&csb->csb_list);
+		csb = list_entry(ls->ls_nodes.next, struct dlm_csb, list);
+		list_del(&csb->list);
 		release_csb(csb);
 	}
 	ls->ls_num_nodes = 0;
@@ -313,12 +313,12 @@ int ls_nodes_init(gd_ls_t *ls, gd_recover_t *gr)
 	return error;
 }
 
-int in_nodes_gone(gd_ls_t *ls, uint32_t nodeid)
+int in_nodes_gone(struct dlm_ls *ls, uint32_t nodeid)
 {
-	gd_csb_t *csb;
+	struct dlm_csb *csb;
 
-	list_for_each_entry(csb, &ls->ls_nodes_gone, csb_list) {
-		if (csb->csb_node->gn_nodeid == nodeid)
+	list_for_each_entry(csb, &ls->ls_nodes_gone, list) {
+		if (csb->node->nodeid == nodeid)
 			return TRUE;
 	}
 	return FALSE;

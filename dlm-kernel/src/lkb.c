@@ -38,71 +38,20 @@
  * Internal find lock by ID. Must be called with the lockidtbl spinlock held.
  */
 
-static gd_lkb_t *__find_lock_by_id(gd_ls_t *ls, uint32_t lkid)
+static struct dlm_lkb *__find_lock_by_id(struct dlm_ls *ls, uint32_t lkid)
 {
-	uint16_t entry = lkid & 0xFFFF;
-	gd_lkb_t *lkb;
+	uint16_t bucket = lkid & 0xFFFF;
+	struct dlm_lkb *lkb;
 
-	if (entry >= ls->ls_lockidtbl_size)
+	if (bucket >= ls->ls_lkbtbl_size)
 		goto out;
 
-	list_for_each_entry(lkb, &ls->ls_lockidtbl[entry].list, lkb_idtbl_list){
+	list_for_each_entry(lkb, &ls->ls_lkbtbl[bucket].list, lkb_idtbl_list){
 		if (lkb->lkb_id == lkid)
 			return lkb;
 	}
-
-      out:
+ out:
 	return NULL;
-}
-
-/* 
- * Should be called at lockspace initialisation time.
- */
-
-int init_lockidtbl(gd_ls_t *ls, int entries)
-{
-	int i;
-
-	/* Make sure it's a power of two */
-	GDLM_ASSERT(!(entries & (entries - 1)),);
-
-	ls->ls_lockidtbl_size = entries;
-	rwlock_init(&ls->ls_lockidtbl_lock);
-
-	ls->ls_lockidtbl = kmalloc(entries * sizeof(struct gd_lockidtbl_entry),
-		               	   GFP_KERNEL);
-	if (!ls->ls_lockidtbl)
-		return -ENOMEM;
-
-	for (i = 0; i < entries; i++) {
-		INIT_LIST_HEAD(&ls->ls_lockidtbl[i].list);
-		ls->ls_lockidtbl[i].counter = 1;
-	}
-
-	return 0;
-}
-
-/* 
- * Free up the space - returns an error if there are still locks hanging around
- */
-
-int free_lockidtbl(gd_ls_t *ls)
-{
-	int i;
-
-	write_lock(&ls->ls_lockidtbl_lock);
-
-	for (i = 0; i < ls->ls_lockidtbl_size; i++) {
-		if (!list_empty(&ls->ls_lockidtbl[i].list)) {
-			write_unlock(&ls->ls_lockidtbl_lock);
-			return -1;
-		}
-	}
-	kfree(ls->ls_lockidtbl);
-
-	write_unlock(&ls->ls_lockidtbl_lock);
-
-	return 0;
 }
 
 /* 
@@ -116,9 +65,9 @@ int free_lockidtbl(gd_ls_t *ls)
  *
  */
 
-gd_lkb_t *create_lkb(gd_ls_t *ls)
+struct dlm_lkb *create_lkb(struct dlm_ls *ls)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
 	uint32_t lkid;
 	uint16_t bucket;
 
@@ -126,19 +75,23 @@ gd_lkb_t *create_lkb(gd_ls_t *ls)
 	if (!lkb)
 		goto out;
 
-	write_lock(&ls->ls_lockidtbl_lock);
-	do {
-		get_random_bytes(&bucket, sizeof(bucket));
-		bucket &= (ls->ls_lockidtbl_size - 1);
-		lkid = bucket | (ls->ls_lockidtbl[bucket].counter++ << 16);
+ retry:
+	get_random_bytes(&bucket, sizeof(bucket));
+	bucket &= (ls->ls_lkbtbl_size - 1);
+
+	write_lock(&ls->ls_lkbtbl[bucket].lock);
+
+	lkid = bucket | (ls->ls_lkbtbl[bucket].counter++ << 16);
+
+	if (__find_lock_by_id(ls, lkid)) {
+		write_unlock(&ls->ls_lkbtbl[bucket].lock);
+		goto retry;
 	}
-	while (__find_lock_by_id(ls, lkid));
 
-	lkb->lkb_id = (uint32_t) lkid;
-	list_add(&lkb->lkb_idtbl_list, &ls->ls_lockidtbl[bucket].list);
-	write_unlock(&ls->ls_lockidtbl_lock);
-
-      out:
+	lkb->lkb_id = lkid;
+	list_add(&lkb->lkb_idtbl_list, &ls->ls_lkbtbl[bucket].list);
+	write_unlock(&ls->ls_lkbtbl[bucket].lock);
+ out:
 	return lkb;
 }
 
@@ -148,8 +101,10 @@ gd_lkb_t *create_lkb(gd_ls_t *ls)
  * rsb unless its reference count is zero.
  */
 
-void release_lkb(gd_ls_t *ls, gd_lkb_t *lkb)
+void release_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb)
 {
+	uint16_t bucket = lkb->lkb_id & 0xFFFF;
+
 	if (lkb->lkb_status) {
 		log_error(ls, "release lkb with status %u", lkb->lkb_status);
 		print_lkb(lkb);
@@ -159,9 +114,9 @@ void release_lkb(gd_ls_t *ls, gd_lkb_t *lkb)
 	if (lkb->lkb_parent)
 		atomic_dec(&lkb->lkb_parent->lkb_childcnt);
 
-	write_lock(&ls->ls_lockidtbl_lock);
+	write_lock(&ls->ls_lkbtbl[bucket].lock);
 	list_del(&lkb->lkb_idtbl_list);
-	write_unlock(&ls->ls_lockidtbl_lock);
+	write_unlock(&ls->ls_lkbtbl[bucket].lock);
 
 	/* if this is not a master copy then lvbptr points into the user's
 	 * lksb, so don't free it */
@@ -174,20 +129,21 @@ void release_lkb(gd_ls_t *ls, gd_lkb_t *lkb)
 	free_lkb(lkb);
 }
 
-gd_lkb_t *find_lock_by_id(gd_ls_t *ls, uint32_t lkid)
+struct dlm_lkb *find_lock_by_id(struct dlm_ls *ls, uint32_t lkid)
 {
-	gd_lkb_t *lkb;
+	struct dlm_lkb *lkb;
+	uint16_t bucket = lkid & 0xFFFF;
 
-	read_lock(&ls->ls_lockidtbl_lock);
+	read_lock(&ls->ls_lkbtbl[bucket].lock);
 	lkb = __find_lock_by_id(ls, lkid);
-	read_unlock(&ls->ls_lockidtbl_lock);
+	read_unlock(&ls->ls_lkbtbl[bucket].lock);
 
 	return lkb;
 }
 
-gd_lkb_t *dlm_get_lkb(void *ls, uint32_t lkid)
+struct dlm_lkb *dlm_get_lkb(void *ls, uint32_t lkid)
 {
-        gd_ls_t *lspace = find_lockspace_by_local_id(ls);
+        struct dlm_ls *lspace = find_lockspace_by_local_id(ls);
 	return find_lock_by_id(lspace, lkid);
 }
 
@@ -195,7 +151,7 @@ gd_lkb_t *dlm_get_lkb(void *ls, uint32_t lkid)
  * Initialise the range parts of an LKB.
  */
 
-int lkb_set_range(gd_ls_t *lspace, gd_lkb_t *lkb, uint64_t start, uint64_t end)
+int lkb_set_range(struct dlm_ls *lspace, struct dlm_lkb *lkb, uint64_t start, uint64_t end)
 {
 	int ret = -ENOMEM;
 

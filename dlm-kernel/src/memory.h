@@ -16,17 +16,17 @@
 
 int dlm_memory_init(void);
 void dlm_memory_exit(void);
-gd_res_t *allocate_rsb(gd_ls_t * ls, int namelen);
-void free_rsb(gd_res_t * r);
-gd_lkb_t *allocate_lkb(gd_ls_t * ls);
-void free_lkb(gd_lkb_t * l);
-gd_resdata_t *allocate_resdata(gd_ls_t * ls, int namelen);
-void free_resdata(gd_resdata_t * rd);
-char *allocate_lvb(gd_ls_t * ls);
+struct dlm_rsb *allocate_rsb(struct dlm_ls *ls, int namelen);
+void free_rsb(struct dlm_rsb *r);
+struct dlm_lkb *allocate_lkb(struct dlm_ls *ls);
+void free_lkb(struct dlm_lkb *l);
+struct dlm_direntry *allocate_resdata(struct dlm_ls *ls, int namelen);
+void free_resdata(struct dlm_direntry *de);
+char *allocate_lvb(struct dlm_ls *ls);
 void free_lvb(char *l);
-gd_rcom_t *allocate_rcom_buffer(gd_ls_t * ls);
-void free_rcom_buffer(gd_rcom_t * rc);
-uint64_t *allocate_range(gd_ls_t * ls);
-void free_range(uint64_t * l);
+struct dlm_rcom *allocate_rcom_buffer(struct dlm_ls *ls);
+void free_rcom_buffer(struct dlm_rcom *rc);
+uint64_t *allocate_range(struct dlm_ls *ls);
+void free_range(uint64_t *l);
 
 #endif		/* __MEMORY_DOT_H__ */

@@ -14,14 +14,10 @@
 #ifndef __LKB_DOT_H__
 #define __LKB_DOT_H__
 
-int free_lockidtbl(gd_ls_t * lspace);
-int init_lockidtbl(gd_ls_t * lspace, int entries);
-
-gd_lkb_t *find_lock_by_id(gd_ls_t *ls, uint32_t lkid);
-gd_lkb_t *create_lkb(gd_ls_t *ls);
-void release_lkb(gd_ls_t *ls, gd_lkb_t *lkb);
-gd_lkb_t *dlm_get_lkb(void *ls, uint32_t lkid);
-int verify_lkb_nodeids(gd_ls_t *ls);
-int lkb_set_range(gd_ls_t *lspace, gd_lkb_t *lkb, uint64_t start, uint64_t end);
+struct dlm_lkb *find_lock_by_id(struct dlm_ls *ls, uint32_t lkid);
+struct dlm_lkb *create_lkb(struct dlm_ls *ls);
+void release_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb);
+struct dlm_lkb *dlm_get_lkb(void *ls, uint32_t lkid);
+int lkb_set_range(struct dlm_ls *lspace, struct dlm_lkb *lkb, uint64_t start, uint64_t end);
 
 #endif				/* __LKB_DOT_H__ */

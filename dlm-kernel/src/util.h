@@ -14,12 +14,12 @@
 #ifndef __UTIL_DOT_H__
 #define __UTIL_DOT_H__
 
-uint32_t gdlm_hash(const char *data, int len);
-uint32_t gdlm_next_power2(uint32_t val);
+uint32_t dlm_hash(const char *data, int len);
+uint32_t dlm_next_power2(uint32_t val);
 
-void print_lkb(gd_lkb_t *lkb);
-void print_rsb(gd_res_t *r);
-void print_request(struct gd_remlockrequest *req);
-void print_reply(struct gd_remlockreply *rp);
+void print_lkb(struct dlm_lkb *lkb);
+void print_rsb(struct dlm_rsb *r);
+void print_request(struct dlm_request *req);
+void print_reply(struct dlm_reply *rp);
 
 #endif

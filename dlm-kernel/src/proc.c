@@ -76,41 +76,46 @@ static struct file_operations locks_fops = {
 struct ls_dumpinfo {
 	int entry;
 	struct list_head *next;
-	gd_ls_t *ls;
-	gd_res_t *rsb;
+	struct dlm_ls *ls;
+	struct dlm_rsb *rsb;
 };
 
-static int print_resource(gd_res_t * res, struct seq_file *s);
+static int print_resource(struct dlm_rsb * res, struct seq_file *s);
 
 static struct ls_dumpinfo *next_rsb(struct ls_dumpinfo *di)
 {
-	read_lock(&di->ls->ls_reshash_lock);
+	int i;
+
 	if (!di->next) {
 		/* Find the next non-empty hash bucket */
-		while (list_empty(&di->ls->ls_reshashtbl[di->entry]) &&
-		       di->entry < di->ls->ls_hashsize) {
-			di->entry++;
+		for (i = di->entry; i < di->ls->ls_rsbtbl_size; i++) {
+			read_lock(&di->ls->ls_rsbtbl[i].lock);
+			if (!list_empty(&di->ls->ls_rsbtbl[i].list)) {
+				di->next = di->ls->ls_rsbtbl[i].list.next;
+				read_unlock(&di->ls->ls_rsbtbl[i].lock);
+				break;
+			}
+			read_unlock(&di->ls->ls_rsbtbl[i].lock);
 		}
-		if (di->entry >= di->ls->ls_hashsize) {
-			read_unlock(&di->ls->ls_reshash_lock);
-			return NULL;	/* End of hash list */
-		}
+		di->entry = i;
 
-		di->next = di->ls->ls_reshashtbl[di->entry].next;
+		if (di->entry >= di->ls->ls_rsbtbl_size)
+			return NULL;    /* End of hash list */
 	} else {		/* Find the next entry in the list */
-
+		i = di->entry;
+		read_lock(&di->ls->ls_rsbtbl[i].lock);
 		di->next = di->next->next;
-		if (di->next->next == di->ls->ls_reshashtbl[di->entry].next) {
+		if (di->next->next == di->ls->ls_rsbtbl[i].list.next) {
 			/* End of list - move to next bucket */
 			di->next = NULL;
 			di->entry++;
-			read_unlock(&di->ls->ls_reshash_lock);
-
+			printk("next %d\n", di->entry);
+			read_unlock(&di->ls->ls_rsbtbl[i].lock);
 			return next_rsb(di);	/* do the top half of this conditional */
 		}
+		read_unlock(&di->ls->ls_rsbtbl[i].lock);
 	}
-	di->rsb = list_entry(di->next, gd_res_t, res_hashchain);
-	read_unlock(&di->ls->ls_reshash_lock);
+	di->rsb = list_entry(di->next, struct dlm_rsb, res_hashchain);
 
 	return di;
 }
@@ -118,7 +123,7 @@ static struct ls_dumpinfo *next_rsb(struct ls_dumpinfo *di)
 static void *s_start(struct seq_file *m, loff_t * pos)
 {
 	struct ls_dumpinfo *di;
-	gd_ls_t *ls;
+	struct dlm_ls *ls;
 	int i;
 
 	ls = find_lockspace_by_name(proc_ls_name, strlen(proc_ls_name));
@@ -192,7 +197,7 @@ static char *print_lockmode(int mode)
 	}
 }
 
-static void print_lock(struct seq_file *s, gd_lkb_t * lkb, gd_res_t * res)
+static void print_lock(struct seq_file *s, struct dlm_lkb * lkb, struct dlm_rsb * res)
 {
 
 	seq_printf(s, "%08x %s", lkb->lkb_id, print_lockmode(lkb->lkb_grmode));
@@ -229,7 +234,7 @@ static void print_lock(struct seq_file *s, gd_lkb_t * lkb, gd_res_t * res)
 	seq_printf(s, "\n");
 }
 
-static int print_resource(gd_res_t *res, struct seq_file *s)
+static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 {
 	int i;
 	struct list_head *locklist;
@@ -263,29 +268,29 @@ static int print_resource(gd_res_t *res, struct seq_file *s)
 	/* Print the locks attached to this resource */
 	seq_printf(s, "Granted Queue\n");
 	list_for_each(locklist, &res->res_grantqueue) {
-		gd_lkb_t *this_lkb =
-		    list_entry(locklist, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *this_lkb =
+		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
 		print_lock(s, this_lkb, res);
 	}
 
 	seq_printf(s, "Conversion Queue\n");
 	list_for_each(locklist, &res->res_convertqueue) {
-		gd_lkb_t *this_lkb =
-		    list_entry(locklist, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *this_lkb =
+		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
 		print_lock(s, this_lkb, res);
 	}
 
 	seq_printf(s, "Waiting Queue\n");
 	list_for_each(locklist, &res->res_waitqueue) {
-		gd_lkb_t *this_lkb =
-		    list_entry(locklist, gd_lkb_t, lkb_statequeue);
+		struct dlm_lkb *this_lkb =
+		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
 		print_lock(s, this_lkb, res);
 	}
 	return 0;
 }
 #endif				/* CONFIG_CLUSTER_DLM_PROCLOCKS */
 
-void dlm_debug_log(gd_ls_t *ls, const char *fmt, ...)
+void dlm_debug_log(struct dlm_ls *ls, const char *fmt, ...)
 {
 	va_list va;
 	int i, n, size, len;
@@ -393,8 +398,8 @@ int dlm_debug_info(char *b, char **start, off_t offset, int length)
 
 int dlm_rcom_info(char *b, char **start, off_t offset, int length)
 {
-	gd_ls_t *ls;
-	gd_csb_t *csb;
+	struct dlm_ls *ls;
+	struct dlm_csb *csb;
 	int n = 0;
 
 	ls = find_lockspace_by_name(proc_ls_name, strlen(proc_ls_name));
@@ -406,17 +411,17 @@ int dlm_rcom_info(char *b, char **start, off_t offset, int length)
 				   "locks_send_count locks_send_msgid "
 				   "locks_recv_count locks_recv_msgid\n");
 
-	list_for_each_entry(csb, &ls->ls_nodes, csb_list) {
+	list_for_each_entry(csb, &ls->ls_nodes, list) {
 		n += sprintf(b + n, "%u %u %u %u %u %u %u %u %u\n",
-			     csb->csb_node->gn_nodeid,
-			     csb->csb_names_send_count,
-                	     csb->csb_names_send_msgid,
-                	     csb->csb_names_recv_count,
-                	     csb->csb_names_recv_msgid,
-                	     csb->csb_locks_send_count,
-                	     csb->csb_locks_send_msgid,
-                	     csb->csb_locks_recv_count,
-                	     csb->csb_locks_recv_msgid);
+			     csb->node->nodeid,
+			     csb->names_send_count,
+                	     csb->names_send_msgid,
+                	     csb->names_recv_count,
+                	     csb->names_recv_msgid,
+                	     csb->locks_send_count,
+                	     csb->locks_send_msgid,
+                	     csb->locks_recv_count,
+                	     csb->locks_recv_msgid);
         }
 	return n;
 }

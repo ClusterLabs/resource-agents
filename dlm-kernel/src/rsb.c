@@ -19,10 +19,11 @@
 #include "dir.h"
 #include "util.h"
 
-static gd_res_t *search_hashchain(struct list_head *head, gd_res_t *parent,
-				  char *name, int namelen)
+static struct dlm_rsb *search_hashchain(struct list_head *head,
+					struct dlm_rsb *parent,
+					char *name, int namelen)
 {
-	gd_res_t *r;
+	struct dlm_rsb *r;
 
 	list_for_each_entry(r, head, res_hashchain) {
 		if ((parent == r->res_parent) && (namelen == r->res_length) &&
@@ -40,7 +41,7 @@ static gd_res_t *search_hashchain(struct list_head *head, gd_res_t *parent,
  * to make sure it doesn't go away.  Opposite of release_rsb().
  */
 
-void hold_rsb(gd_res_t *r)
+void hold_rsb(struct dlm_rsb *r)
 {
 	atomic_inc(&r->res_ref);
 }
@@ -52,20 +53,20 @@ void hold_rsb(gd_res_t *r)
  * queue's or anywhere else.
  */
 
-void release_rsb(gd_res_t *r)
+void release_rsb(struct dlm_rsb *r)
 {
-	gd_ls_t *ls = r->res_ls;
+	struct dlm_ls *ls = r->res_ls;
 	int removed = FALSE;
 
-	write_lock(&ls->ls_reshash_lock);
+	write_lock(&ls->ls_rsbtbl[r->res_bucket].lock);
 	if (atomic_dec_and_test(&r->res_ref)) {
-		GDLM_ASSERT(list_empty(&r->res_grantqueue), print_rsb(r););
-		GDLM_ASSERT(list_empty(&r->res_waitqueue), print_rsb(r););
-		GDLM_ASSERT(list_empty(&r->res_convertqueue), print_rsb(r););
+		DLM_ASSERT(list_empty(&r->res_grantqueue), print_rsb(r););
+		DLM_ASSERT(list_empty(&r->res_waitqueue), print_rsb(r););
+		DLM_ASSERT(list_empty(&r->res_convertqueue), print_rsb(r););
 		removed = TRUE;
 		list_del(&r->res_hashchain);
 	}
-	write_unlock(&ls->ls_reshash_lock);
+	write_unlock(&ls->ls_rsbtbl[r->res_bucket].lock);
 
 	if (!removed)
 		return;
@@ -98,14 +99,15 @@ void release_rsb(gd_res_t *r)
 	free_rsb(r);
 }
 
-gd_res_t *find_rsb_to_unlock(gd_ls_t *ls, gd_lkb_t *lkb)
+struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 {
-	gd_res_t *r;
-	write_lock(&ls->ls_reshash_lock);
-	r = lkb->lkb_resource;
+	struct dlm_rsb *r = lkb->lkb_resource;
+
+	write_lock(&ls->ls_rsbtbl[r->res_bucket].lock);
 	if (!r->res_parent && atomic_read(&r->res_ref) == 1)
 		r->res_nodeid = -1;   
-	write_unlock(&ls->ls_reshash_lock);
+	write_unlock(&ls->ls_rsbtbl[r->res_bucket].lock);
+
 	return r;
 }
 
@@ -115,21 +117,21 @@ gd_res_t *find_rsb_to_unlock(gd_ls_t *ls, gd_lkb_t *lkb)
  * doesn't exist, it's created with a ref count of one.
  */
 
-int find_or_create_rsb(gd_ls_t *ls, gd_res_t *parent, char *name, int namelen,
-		       int create, gd_res_t **rp)
+int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
+		       int namelen, int create, struct dlm_rsb **rp)
 {
-	uint32_t hash;
-	gd_res_t *r, *tmp;
+	uint32_t bucket;
+	struct dlm_rsb *r, *tmp;
 	int error = -ENOMEM;
 
-	GDLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
+	DLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
 
-	hash = gdlm_hash(name, namelen);
-	hash &= ls->ls_hashmask;
+	bucket = dlm_hash(name, namelen);
+	bucket &= (ls->ls_rsbtbl_size - 1);
 
-	read_lock(&ls->ls_reshash_lock);
-	r = search_hashchain(&ls->ls_reshashtbl[hash], parent, name, namelen);
-	read_unlock(&ls->ls_reshash_lock);
+	read_lock(&ls->ls_rsbtbl[bucket].lock);
+	r = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
+	read_unlock(&ls->ls_rsbtbl[bucket].lock);
 
 	if (r)
 		goto out_set;
@@ -152,6 +154,7 @@ int find_or_create_rsb(gd_ls_t *ls, gd_res_t *parent, char *name, int namelen,
 	r->res_ls = ls;
 	init_rwsem(&r->res_lock);
 	atomic_set(&r->res_ref, 1);
+	r->res_bucket = bucket;
 
 	if (parent) {
 		r->res_parent = parent;
@@ -165,15 +168,15 @@ int find_or_create_rsb(gd_ls_t *ls, gd_res_t *parent, char *name, int namelen,
 		r->res_nodeid = -1;
 	}
 
-	write_lock(&ls->ls_reshash_lock);
-	tmp = search_hashchain(&ls->ls_reshashtbl[hash], parent, name, namelen);
+	write_lock(&ls->ls_rsbtbl[bucket].lock);
+	tmp = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
 	if (tmp) {
-		write_unlock(&ls->ls_reshash_lock);
+		write_unlock(&ls->ls_rsbtbl[bucket].lock);
 		free_rsb(r);
 		r = tmp;
 	} else {
-		list_add(&r->res_hashchain, &ls->ls_reshashtbl[hash]);
-		write_unlock(&ls->ls_reshash_lock);
+		list_add(&r->res_hashchain, &ls->ls_rsbtbl[bucket].list);
+		write_unlock(&ls->ls_rsbtbl[bucket].lock);
 
 		down_read(&ls->ls_gap_rsblist);
 		if (parent)
@@ -200,7 +203,7 @@ int find_or_create_rsb(gd_ls_t *ls, gd_res_t *parent, char *name, int namelen,
 
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode)
 {
-	gd_lkb_t *lkb = NULL;
+	struct dlm_lkb *lkb = NULL;
 
 	list_for_each_entry(lkb, head, lkb_statequeue) {
 		if (lkb->lkb_rqmode < mode)
@@ -219,10 +222,11 @@ void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode)
  * The rsb res_lock must be held in write when this function is called.
  */
 
-void lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
+void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 {
-
-	GDLM_ASSERT(!lkb->lkb_status, printk("status=%u\n", lkb->lkb_status););
+	DLM_ASSERT(!lkb->lkb_status,
+		   print_lkb(lkb);
+		   print_rsb(r););
 
 	lkb->lkb_status = type;
 
@@ -250,11 +254,11 @@ void lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
 		break;
 
 	default:
-		GDLM_ASSERT(0,);
+		DLM_ASSERT(0,);
 	}
 }
 
-void res_lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
+void res_lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 {
 	down_write(&r->res_lock);
 	lkb_enqueue(r, lkb, type);
@@ -265,7 +269,7 @@ void res_lkb_enqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
  * The rsb res_lock must be held in write when this function is called.
  */
 
-int lkb_dequeue(gd_lkb_t *lkb)
+int lkb_dequeue(struct dlm_lkb *lkb)
 {
 	int status = lkb->lkb_status;
 
@@ -279,7 +283,7 @@ int lkb_dequeue(gd_lkb_t *lkb)
 	return status;
 }
 
-int res_lkb_dequeue(gd_lkb_t *lkb)
+int res_lkb_dequeue(struct dlm_lkb *lkb)
 {
 	int status;
 
@@ -294,7 +298,7 @@ int res_lkb_dequeue(gd_lkb_t *lkb)
  * The rsb res_lock must be held in write when this function is called.
  */
 
-int lkb_swqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
+int lkb_swqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 {
 	int status;
 
@@ -304,7 +308,7 @@ int lkb_swqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
 	return status;
 }
 
-int res_lkb_swqueue(gd_res_t *r, gd_lkb_t *lkb, int type)
+int res_lkb_swqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 {
 	int status;
 
