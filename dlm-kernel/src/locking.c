@@ -1236,36 +1236,43 @@ static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 }
 
 /*
- * When we go through the convert queue trying to grant locks, we may demote
- * some lkb's later in the list that would allow lkb's earlier in the list to
- * be granted when they weren't before.  (When the second form of conversion
- * deadlock resolution occurs.)  When this happens we need to go through a
- * second time.
+ * When we go through the convert queue trying to grant locks, we may grant or
+ * demote some lkb's later in the list that would allow lkb's earlier in the
+ * list to be granted when they weren't before.  When this happens we need to
+ * go through the list again.
  */
 
 static int grant_pending_convert(struct dlm_rsb *r, int high)
 {
 	struct dlm_lkb *lkb, *s;
-	int demoted, quit = 0, restart = 0;
+	int hi, demoted, quit, grant_restart, demote_restart;
 
- retry:
+	quit = 0;
+ restart:
+	grant_restart = 0;
+	demote_restart = 0;
+	hi = DLM_LOCK_IV;
+
 	list_for_each_entry_safe(lkb, s, &r->res_convertqueue, lkb_statequeue) {
 		demoted = lkb->lkb_flags & GDLM_LKFLG_DEMOTED;
-		if (can_be_granted(r, lkb, FALSE))
+		if (can_be_granted(r, lkb, FALSE)) {
 			grant_lock(lkb, 1);
-		else {
-			high = MAX(lkb->lkb_rqmode, high);
+			grant_restart = 1;
+		} else {
+			hi = MAX(lkb->lkb_rqmode, hi);
 			if (!demoted && lkb->lkb_flags & GDLM_LKFLG_DEMOTED)
-				restart = 1;
+				demote_restart = 1;
 		}
 	}
 
-	if (restart && !quit) {
+	if (grant_restart)
+		goto restart;
+	if (demote_restart && !quit) {
 		quit = 1;
-		goto retry;
+		goto restart;
 	}
 
-	return high;
+	return MAX(high, hi);
 }
 
 static int grant_pending_wait(struct dlm_rsb *r, int high)
