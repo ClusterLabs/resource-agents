@@ -1331,8 +1331,11 @@ static int do_ioctl_get_node(unsigned long arg)
 	if (copy_from_user(&k_node, u_node, sizeof(struct cl_cluster_node)))
 		return -EFAULT;
 
-	if (k_node.node_id)
+	if (!k_node.name[0]) {
+		if (k_node.node_id == 0)
+			k_node.node_id = us->node_id;
 		node = find_node_by_nodeid(k_node.node_id);
+	}
 	else
 		node = find_node_by_name(k_node.name);
 
@@ -1456,6 +1459,8 @@ static int do_ioctl_islistening(unsigned long arg)
 		return -EFAULT;
 
 	nodeid = rq.nodeid;
+	if (!nodeid)
+		nodeid = us->node_id;
 
 	rem_node = find_node_by_nodeid(nodeid);
 
@@ -1468,7 +1473,7 @@ static int do_ioctl_islistening(unsigned long arg)
 
 	/* If the request is for us then just look in the ports
 	 * array */
-	if (nodeid == us->node_id)
+	if (rem_node->us)
 		return (port_array[rq.port] != 0) ? 1 : 0;
 
 	/* For a remote node we need to send a request out */
