@@ -628,7 +628,7 @@ static int do_user_remove_lockspace(struct file_info *fi, uint8_t cmd,
 				    struct dlm_lspace_params *kparams)
 {
 	int status;
-	int force = 0;
+	int force = 1;
 	struct user_ls *lsinfo;
 
 	if (!capable(CAP_SYS_ADMIN))
