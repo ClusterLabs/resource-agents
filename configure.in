@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.310 $) dnl cvs revision
+AC_REVISION($Revision: 1.311 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -18,6 +18,8 @@ ALL_LINGUAS="en fr"
 AM_INIT_AUTOMAKE(heartbeat, 1.3.0.cvs.20040818)
 RPMREL=1
 AC_SUBST(RPMREL)
+HB_PKG=heartbeat
+AC_SUBST(HB_PKG)
 
 INIT_EXT=""
 USE_MODULES=0
@@ -86,6 +88,7 @@ includedir=`var "$includedir" "$exec_prefix/include"`
 oldincludedir=`var "$oldincludedir" "$exec_prefix/include"`
 infodir=`var "$infodir" "$prefix/info"`
 mandir=`var "$mandir" "$exec_prefix/man"`
+docdir=${datadir}/doc/${HB_PKG}-${VERSION}
 
 
 HA_VARLIBDIR="${localstatedir}/lib"
@@ -114,6 +117,7 @@ AC_SUBST(stonith_includedir)
 AC_SUBST(stonith_plugindir)
 AC_SUBST(base_includedir)
 AC_SUBST(saf_includedir)
+AC_SUBST(docdir)
 
 #
 #	Other interesting variables: ${host_vendor} and ${host_os}
@@ -1421,8 +1425,6 @@ HB_RC_DIR=$sysconfdir/ha.d/rc.d
 AC_SUBST(HB_RC_DIR)
 AC_DEFINE_UNQUOTED(HB_RC_DIR,"$HB_RC_DIR", rc directory)
 
-HB_PKG=heartbeat
-AC_SUBST(HB_PKG)
 
 dnl libltdl additions
 AC_SUBST(INCLTDL)
