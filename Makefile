@@ -8,8 +8,8 @@
 ##
 ###############################################################################
 ###############################################################################
-
 # Order is important
+LATEST_TAG=scripts/latest_tag.pl
 
 all:
 	cd cman-kernel && ${MAKE} all
@@ -92,7 +92,6 @@ install:
 	cd gulm && ${MAKE} install
 	cd magma-plugins && ${MAKE} install
 
-
 uninstall:
 	cd cman-kernel && ${MAKE} uninstall
 	cd dlm-kernel && ${MAKE} uninstall
@@ -109,19 +108,36 @@ uninstall:
 	cd gulm && ${MAKE} uninstall
 	cd magma-plugins && ${MAKE} uninstall
 
-tarballs:
+latest_tags:
+	${LATEST_TAG} cman-kernel
+	${LATEST_TAG} dlm-kernel
+	${LATEST_TAG} gfs-kernel
+	${LATEST_TAG} gnbd-kernel
+	${LATEST_TAG} magma
+	${LATEST_TAG} ccs
+	${LATEST_TAG} cman
+	${LATEST_TAG} dlm
+	${LATEST_TAG} fence
+	${LATEST_TAG} iddev
+	${LATEST_TAG} gfs
+	${LATEST_TAG} gnbd
+	${LATEST_TAG} gulm
+	${LATEST_TAG} magma-plugins
+	echo "Beware, your directories are now in sync with their last tag." > TAG
+
+tarballs: TAG
+	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball
+	make -s COMPONENT=dlm-kernel RELEASE_FILE=dlm-kernel/make/release.mk.input tarball
+	make -s COMPONENT=gfs-kernel RELEASE_FILE=gfs-kernel/make/release.mk.input tarball
+	make -s COMPONENT=gnbd-kernel RELEASE_FILE=gnbd-kernel/make/release.mk.input tarball
 	make -s COMPONENT=magma RELEASE_FILE=magma/make/release.mk.input tarball
 	make -s COMPONENT=ccs RELEASE_FILE=ccs/make/release.mk.input tarball
 	make -s COMPONENT=cman RELEASE_FILE=cman/make/release.mk.input tarball
-	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball
 	make -s COMPONENT=dlm RELEASE_FILE=dlm/make/release.mk.input tarball
-	make -s COMPONENT=dlm-kernel RELEASE_FILE=dlm-kernel/make/release.mk.input tarball
 	make -s COMPONENT=fence RELEASE_FILE=fence/make/release.mk.input tarball
 	make -s COMPONENT=iddev RELEASE_FILE=iddev/make/release.mk.input tarball
 	make -s COMPONENT=gfs RELEASE_FILE=gfs/make/release.mk.input tarball
-	make -s COMPONENT=gfs-kernel RELEASE_FILE=gfs-kernel/make/release.mk.input tarball
 	make -s COMPONENT=gnbd RELEASE_FILE=gnbd/make/release.mk.input tarball
-	make -s COMPONENT=gnbd-kernel RELEASE_FILE=gnbd-kernel/make/release.mk.input tarball
 	make -s COMPONENT=gulm RELEASE_FILE=gulm/make/release.mk.input tarball
 	make -s COMPONENT=magma-plugins RELEASE_FILE=magma-plugins/make/release.mk.input tarball
 
@@ -131,10 +147,11 @@ endif
 
 ifneq (${RELEASE_MAJOR}, DEVEL)
 tarball:
-	mv ${COMPONENT} ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR}
+	cp -r ${COMPONENT} ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR}
+	rm -rf `find ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR} -name CVS`;
 	tar -zcvf ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR}.tar.gz \
 	${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR}
-	mv ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR} ${COMPONENT}
+	rm -rf ${COMPONENT}-${RELEASE_MAJOR}.${RELEASE_MINOR}
 else
 tarball:
 	echo "${COMPONENT}:: Version number not set."
