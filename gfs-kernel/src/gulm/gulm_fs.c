@@ -507,6 +507,10 @@ gulm_mount (char *table_name, char *host_data,
 	gulm_cm.starts = FALSE;
 	log_msg (lgm_Always, "fsid=%s: Exiting gulm_mount with errors %d\n",
 		 table_name, error);
+	/* VFS does weird things with the error results, so before we try
+	 * to return a gulm error code, flip it to -1.
+	 */
+	if (error > 999 || error < -999 ) error = -1;
 	return error;
 }
 
