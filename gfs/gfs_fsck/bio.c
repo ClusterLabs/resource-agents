@@ -135,6 +135,9 @@ int write_buf(struct fsck_sb *sdp, osi_buf_t *bh, int flags){
 		return -1;
 	}
 
+	log_debug("Writing to %"PRIu64" - %"PRIu64" %u\n",
+		  (uint64)(BH_BLKNO(bh) * BH_SIZE(bh)),
+		  BH_BLKNO(bh), BH_SIZE(bh));
 	if(do_write(disk_fd, BH_DATA(bh), BH_SIZE(bh))) {
 		log_err("Unable to write %u bytes to position %"PRIu64"\n",
 			BH_SIZE(bh), (uint64)(BH_BLKNO(bh) * BH_SIZE(bh)));

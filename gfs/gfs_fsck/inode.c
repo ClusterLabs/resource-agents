@@ -272,6 +272,11 @@ int create_inode(struct fsck_sb *sbp, unsigned int type, struct fsck_inode **ip)
 		if(rgd->rd_rg.rg_freemeta){
 			block = fs_blkalloc_internal(rgd, 0,
 						     GFS_BLKST_FREEMETA, GFS_BLKST_USEDMETA, 1);
+			log_debug("Got block %"PRIu64"\n", block);
+			if(block == BFITNOENT) {
+				fs_rgrp_relse(rgd);
+				continue;
+			}
 			block += rgd->rd_ri.ri_data1;
 
 			inum.no_addr = inum.no_formal_ino = block;
@@ -288,6 +293,12 @@ int create_inode(struct fsck_sb *sbp, unsigned int type, struct fsck_inode **ip)
 				block = fs_blkalloc_internal(rgd, 0,
 							     GFS_BLKST_FREEMETA,
 							     GFS_BLKST_USEDMETA, 1);
+				log_debug("Got block %"PRIu64"\n", block);
+
+				if(block == BFITNOENT) {
+					fs_rgrp_relse(rgd);
+					continue;
+				}
 				block += rgd->rd_ri.ri_data1;
 
 				inum.no_addr = inum.no_formal_ino = block;

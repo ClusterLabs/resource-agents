@@ -25,6 +25,8 @@
 int fix_inode_count(struct fsck_sb *sbp, struct inode_info *ii,
 		    struct fsck_inode *ip)
 {
+	if(ip->i_di.di_nlink == ii->counted_links)
+		return 0;
 	ip->i_di.di_nlink = ii->counted_links;
 
 	log_debug("Changing inode %"PRIu64" to have %u links\n",
@@ -82,6 +84,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 				log_err("Unlinked block marked as inode not an inode\n");
 				block_set(sbp->bl, ii->inode, block_free);
 				log_err("Cleared\n");
+				break;
 			}
 			load_inode(sbp, ii->inode, &ip);
 			/* We don't want to clear zero-size files with
@@ -131,9 +134,7 @@ int scan_inode_list(struct fsck_sb *sbp, osi_list_t *list) {
 	if (lf_addition) {
 		ii = inode_hash_search(sbp->inode_hash,
 				       sbp->lf_dip->i_num.no_addr);
-		load_inode(sbp, ii->inode, &ip);
-		fix_inode_count(sbp, ii, ip);
-		free_inode(&ip);
+		fix_inode_count(sbp, ii, sbp->lf_dip);
 	}
 
 
@@ -153,7 +154,9 @@ int pass4(struct fsck_sb *sbp, struct options *opts)
 {
 	uint32_t i;
 	osi_list_t *list;
-
+	if(sbp->lf_dip)
+		log_debug("At beginning of pass4, l+f entries is %u\n",
+			  sbp->lf_dip->i_di.di_entries);
 	for (i = 0; i < FSCK_HASH_SIZE; i++) {
 		list = &sbp->inode_hash[i];
 		if(scan_inode_list(sbp, list)) {
@@ -162,5 +165,8 @@ int pass4(struct fsck_sb *sbp, struct options *opts)
 		}
 	}
 
+	if(sbp->lf_dip)
+		log_debug("At end of pass4, l+f entries is %u\n",
+			  sbp->lf_dip->i_di.di_entries);
 	return 0;
 }

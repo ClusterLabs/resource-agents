@@ -146,7 +146,7 @@ int convert_mark(enum mark_block mark, uint32_t *count)
 		return GFS_BLKST_FREEMETA;
 
 	case meta_inval:
-		/* Convert free inodes and invalid metadata to free blocks */
+		/* Convert invalid metadata to free blocks */
 		count[0]++;
 		return GFS_BLKST_FREE;
 
@@ -309,9 +309,15 @@ int pass5(struct fsck_sb *sbp, struct options *opts)
 		log_info("Updating Resource Group %"PRIu64"\n", rg_count);
 		memset(count, 0, sizeof(*count) * 5);
 		rgp = osi_list_entry(tmp, struct fsck_rgrp, rd_list);
+
+		if(fs_rgrp_read(rgp)){
+			stack;
+			return -1;
+		}
 		/* Compare the bitmaps and report the differences */
 		update_rgrp(rgp, count);
 		rg_count++;
+		fs_rgrp_relse(rgp);
 	}
 	/* Fix up superblock info based on this - don't think there's
 	 * anything to do here... */

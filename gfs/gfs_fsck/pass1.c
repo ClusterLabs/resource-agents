@@ -62,8 +62,10 @@ static int leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **bh,
 
 	if(check_meta(*bh, GFS_METATYPE_LF)){
 		log_err("Bad meta header for leaf block #%"PRIu64
-			"in directory #%"PRIu64".\n",
-			 BH_BLKNO(*bh), ip->i_di.di_num.no_addr);
+			" in directory #%"PRIu64". - is %u, should be %u\n",
+			 BH_BLKNO(*bh), ip->i_di.di_num.no_addr,
+			((struct gfs_meta_header *)BH_DATA((*bh)))->mh_type,
+			GFS_METATYPE_LF);
 		if(query(sdp, "Clear directory inode at %"PRIu64"? (y/n) ",
 			 ip->i_di.di_num.no_addr)) {
 			block_set(sdp->bl, ip->i_di.di_num.no_addr,
@@ -150,17 +152,6 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 	}
 
 	if (ip->i_di.di_flags & GFS_DIF_JDATA){
-		if(ip->i_di.di_type & GFS_FILE_DIR) {
-			log_err("Directory inodes should not have GFS_DIF_JDATA\n");
-			if(query(ip->i_sbd, "Clear inode with bad flag? (y/n) ")) {
-				block_set(ip->i_sbd->bl, ip->i_di.di_num.no_addr, meta_inval);
-				log_warn("Cleared inode with bad flag\n");
-				return 1;
-			} else {
-				log_err("Inode with bad flag remains\n");
-			}
-		}
-
 		/* Journaled data *is* metadata */
 		if(get_and_read_buf(ip->i_sbd, block, &data_bh, 0)) {
 			stack;
@@ -168,8 +159,12 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 			return 1;
 		}
 		if(check_meta(data_bh, GFS_METATYPE_JD)) {
-			log_err("Block #%"PRIu64" does not have "
-				"correct meta header.\n", block);
+			log_err("Block #%"PRIu64" in inode %"PRIu64" does not have "
+				"correct meta header. is %u should be %u\n",
+				block, ip->i_di.di_num.no_addr,
+				gfs32_to_cpu(((struct gfs_meta_header *)
+					      BH_DATA((data_bh)))->mh_type),
+				GFS_METATYPE_JD);
 			relse_buf(sdp, data_bh);
 			block_set(sdp->bl, ip->i_di.di_num.no_addr, meta_inval);
 			return 1;
@@ -420,7 +415,6 @@ struct metawalk_fxns pass1_fxns = {
 
 int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 {
-	osi_list_t *tmp, *list_prev;
 	struct dir_info *di = NULL;
 	struct dir_info *newdi;
 
@@ -428,22 +422,12 @@ int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 	 * something...but since most of the time we're going to be
 	 * tacking the directory onto the end of the list, it doesn't
 	 * matter too much */
-	for (tmp = sbp->dir_list.prev; tmp != &sbp->dir_list; tmp = tmp->prev)
-	{
-		di = osi_list_entry(tmp, struct dir_info, list);
-		if(di->dinode < block)
-			break;
-		if(di->dinode == block) {
-			log_err("Attempting to add directory block %"PRIu64
-				" which is already in list\n");
-			return -1;
-		}
+	find_di(sbp, block, &di);
+	if(di) {
+		log_err("Attempting to add directory block %"PRIu64
+			" which is already in list\n", block);
+		return -1;
 	}
-
-	if(!di)
-		list_prev = &sbp->dir_list;
-	else
-		list_prev = &di->list;
 
 	if(!(newdi = (struct dir_info *) malloc(sizeof(*newdi)))) {
 		log_crit("Unable to allocate dir_info structure\n");
@@ -456,7 +440,7 @@ int add_to_dir_list(struct fsck_sb *sbp, uint64_t block)
 
 	newdi->dinode = block;
 
-	osi_list_add(&newdi->list, list_prev);
+	dinode_hash_insert(sbp->dir_hash, block, newdi);
 
 	return 0;
 }
@@ -691,6 +675,10 @@ int scan_meta(struct fsck_sb *sdp, osi_buf_t *bh,  uint64_t block)
 			stack;
 			return -1;
 		}
+	} else {
+		log_debug("Metadata block %"PRIu64
+			  " not an inode or free metadata\n",
+			  block);
 	}
 	/* Ignore everything else - they should be hit by the
 	 * handle_di step */
@@ -760,7 +748,7 @@ int pass1(struct fsck_sb *sbp)
 			stack;
 			return -1;
 		}
-
+		log_debug("RG at %"PRIu64" is %u long\n", rgd->rd_ri.ri_addr, rgd->rd_ri.ri_length);
 		for (i = 0; i < rgd->rd_ri.ri_length; i++) {
 			if(block_set(sbp->bl, rgd->rd_ri.ri_addr + i,
 				     meta_other)){
@@ -798,6 +786,7 @@ int pass1(struct fsck_sb *sbp)
 			relse_buf(sbp, bh);
 			first = 0;
 		}
+		fs_rgrp_relse(rgd);
 	}
 
 	return 0;

@@ -15,6 +15,8 @@
 #include "bio.h"
 #include "fs_dir.h"
 #include "inode.h"
+#include "util.h"
+#include "hash.h"
 
 #include "metawalk.h"
 
@@ -24,7 +26,7 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 {
 	struct gfs_leaf *leaf = NULL;
 	struct gfs_dirent *dent;
-	struct gfs_dirent de, p, *prev;
+	struct gfs_dirent de, *prev;
 	int error = 0;
 	char *bh_end;
 	char *filename;
@@ -63,12 +65,10 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 				first = 0;
 			} else {
 				/* FIXME: Do something about this */
-				log_err("Bad entry!\n");
+				log_err("Directory entry with inode number of zero in leaf %"PRIu64" of directory %"PRIu64"!\n", BH_BLKNO(bh), ip->i_di.di_num.no_addr);
 				return 1;
 			}
 		} else {
-			if(first)
-				first = 0;
 
 			error = pass->check_dentry(ip, dent, prev, bh,
 						   filename, update,
@@ -88,9 +88,15 @@ int check_entries(struct fsck_inode *ip, osi_buf_t *bh, int index,
 			break;
 		}
 
-		if(!error) {
+		/* If we didn't clear the dentry, or if we did, but it
+		 * was the first dentry, set prev  */
+		if(!error || first) {
 			prev = dent;
 		}
+
+		first = 0;
+
+
 		dent = (struct gfs_dirent *)((char *)dent + de.de_rec_len);
 	}
 	return 0;
@@ -179,7 +185,8 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 			gfs_leaf_in(&leaf, BH_DATA(lbh));
 
 			exp_count = (1 << (ip->i_di.di_depth - leaf.lf_depth));
-
+			log_debug("expected count %u - %u %u\n", exp_count,
+				  ip->i_di.di_depth, leaf.lf_depth);
 			if(pass->check_dentry && 
 			   ip->i_di.di_type == GFS_FILE_DIR) {
 				error = check_entries(ip, lbh, index,
@@ -187,20 +194,35 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 						      &count,
 						      pass);
 
+				/* Since the buffer possibly got
+				   updated directly, release it now,
+				   and grab it again later if we need
+				   it */
+				relse_buf(sbp, lbh);
 				if(error < 0) {
 					stack;
-					relse_buf(sbp, lbh);
 					return -1;
 				}
 
 				if(error > 0) {
-					relse_buf(sbp, lbh);
 					return 1;
 				}
 
 				if(update && (count != leaf.lf_entries)) {
+
+					if(get_and_read_buf(sbp, leaf_no,
+							    &lbh, 0)){
+						log_err("Unable to read leaf block #%"
+							PRIu64" for "
+							"directory #%"PRIu64".\n",
+							leaf_no,
+							ip->i_di.di_num.no_addr);
+						return -1;
+					}
+					gfs_leaf_in(&leaf, BH_DATA(lbh));
+
 					log_err("Leaf(%"PRIu64") entry count in directory %"PRIu64" doesn't match number of entries found - is %u, found %u\n", leaf_no, ip->i_num.no_addr, leaf.lf_entries, count);
-					if(query(sbp, "Update leaf entry count(y/n) ")) {
+					if(query(sbp, "Update leaf entry count? (y/n) ")) {
 						leaf.lf_entries = count;
 						gfs_leaf_out(&leaf, BH_DATA(lbh));
 						write_buf(sbp, lbh, 0);
@@ -208,12 +230,12 @@ int check_leaf(struct fsck_inode *ip, int *update, struct metawalk_fxns *pass)
 					} else {
 						log_err("Leaf entry count left in inconsistant state\n");
 					}
+					relse_buf(sbp, lbh);
 				}
 				/* FIXME: Need to get entry count and
 				 * compare it against
 				 * leaf->lf_entries */
 
-				relse_buf(sbp, lbh);
 				break;
 			} else {
 				relse_buf(sbp, lbh);
@@ -638,4 +660,137 @@ int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass)
 
 	return error;
 
+}
+
+
+static int remove_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
+		  struct gfs_dirent *prev_de,
+		  osi_buf_t *bh, char *filename, int *update,
+		  uint16_t *count,
+		  void *private)
+{
+	/* the metawalk_fxn's private field must be set to the dentry
+	 * block we want to clear */
+	uint64_t *dentryblock = (uint64_t *) private;
+	struct gfs_dirent dentry, *de;
+
+	memset(&dentry, 0, sizeof(struct gfs_dirent));
+	gfs_dirent_in(&dentry, (char *)dent);
+	de = &dentry;
+
+	if(de->de_inum.no_addr == *dentryblock) {
+		*update = 1;
+		if(dirent_del(ip, bh, prev_de, dent)) {
+			stack;
+			return -1;
+		}
+	}
+	else {
+		(*count)++;
+		*update = 1;
+	}
+
+	return 0;
+
+}
+
+int remove_dentry_from_dir(struct fsck_sb *sbp, uint64_t dir,
+			   uint64_t dentryblock)
+{
+	struct metawalk_fxns remove_dentry_fxns = {0};
+	struct block_query q;
+	int error;
+
+	log_debug("Removing dentry %"PRIu64" from directory %"PRIu64"\n",
+		  dentryblock, dir);
+	if(check_range(sbp, dir)) {
+		log_err("Parent directory out of range\n");
+		return 1;
+	}
+	remove_dentry_fxns.private = &dentryblock;
+	remove_dentry_fxns.check_dentry = remove_dentry;
+
+	if(block_check(sbp->bl, dir, &q)) {
+		stack;
+		return -1;
+	}
+	if(q.block_type != inode_dir) {
+		log_info("Parent block is not a directory...ignoring\n");
+		return 1;
+	}
+	/* Need to run check_dir with a private var of dentryblock,
+	 * and fxns that remove that dentry if found */
+	error = check_dir(sbp, dir, &remove_dentry_fxns);
+
+	return error;
+}
+
+/* FIXME: These should be merged with the hash routines in inode_hash.c */
+static uint32_t dinode_hash(uint64_t block_no)
+{
+	unsigned int h;
+
+	h = fsck_hash(&block_no, sizeof (uint64_t));
+	h &= FSCK_HASH_MASK;
+
+	return h;
+}
+
+int find_di(struct fsck_sb *sbp, uint64_t childblock, struct dir_info **dip)
+{
+	osi_list_t *bucket = &sbp->dir_hash[dinode_hash(childblock)];
+	osi_list_t *tmp;
+	struct dir_info *di = NULL;
+
+	osi_list_foreach(tmp, bucket) {
+		di = osi_list_entry(tmp, struct dir_info, list);
+		if(di->dinode == childblock) {
+			*dip = di;
+			return 0;
+		}
+	}
+	*dip = NULL;
+	return -1;
+
+}
+
+int dinode_hash_insert(osi_list_t *buckets, uint64_t key, struct dir_info *di)
+{
+	osi_list_t *tmp;
+	osi_list_t *bucket = &buckets[dinode_hash(key)];
+	struct dir_info *dtmp = NULL;
+
+	if(osi_list_empty(bucket)) {
+		osi_list_add(&di->list, bucket);
+		return 0;
+	}
+
+	osi_list_foreach(tmp, bucket) {
+		dtmp = osi_list_entry(tmp, struct dir_info, list);
+		if(dtmp->dinode < key) {
+			osi_list_add(&di->list, tmp);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+
+int dinode_hash_remove(osi_list_t *buckets, uint64_t key)
+{
+	osi_list_t *tmp;
+	osi_list_t *bucket = &buckets[dinode_hash(key)];
+	struct dir_info *dtmp = NULL;
+
+	if(osi_list_empty(bucket)) {
+		return -1;
+	}
+	osi_list_foreach(tmp, bucket) {
+		dtmp = osi_list_entry(tmp, struct dir_info, list);
+		if(dtmp->dinode == key) {
+			osi_list_del(tmp);
+			return 0;
+		}
+	}
+	return -1;
 }

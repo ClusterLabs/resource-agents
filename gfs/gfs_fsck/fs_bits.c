@@ -15,7 +15,7 @@
 #include "bio.h"
 #include "rgrp.h"
 
-
+#include "fsck_incore.h"
 #include "fs_bits.h"
 /**
  * fs_setbit - Set a bit in the bitmaps
@@ -45,7 +45,59 @@ static void fs_setbit(unsigned char *buffer, unsigned int buflen,
 	*byte |= new_state << bit;
 }
 
+uint32_t fs_bitfit_core(struct fsck_sb *sbp, uint64_t goal, uint64_t start, uint64_t len,
+		   unsigned char old_state)
+{
+	uint64_t block;
+	struct block_query q;
 
+	log_debug("Goal: %"PRIu64", Start: %"PRIu64" len: %"PRIu64"\n",
+		  goal, start, len);
+	for(block = start+goal; block < start+len; block++) {
+		block_check(sbp->bl, block, &q);
+		switch(old_state) {
+		case GFS_BLKST_FREE:
+			switch(q.block_type) {
+			case block_free:
+				return block - start;
+			}
+			break;
+		case GFS_BLKST_FREEMETA:
+			switch(q.block_type) {
+			case meta_free:
+				return block - start;
+			}
+			break;
+		case GFS_BLKST_USEDMETA:
+			switch(q.block_type) {
+			case inode_dir:
+			case inode_file:
+			case inode_lnk:
+			case inode_blk:
+			case inode_chr:
+			case inode_fifo:
+			case inode_sock:
+			case indir_blk:
+			case leaf_blk:
+			case journal_blk:
+			case meta_other:
+			case meta_eattr:
+				return block - start;
+			}
+			break;
+		case GFS_BLKST_USED:
+			switch(q.block_type) {
+			case block_used:
+				return block - start;
+			}
+			break;
+		default:
+			log_err("Invalid type");
+			break;
+		}
+	}
+	return BFITNOENT;
+}
 /**
  * fs_bitfit - Find a free block in the bitmaps
  * @buffer: the buffer that holds the bitmaps
@@ -142,61 +194,45 @@ uint32_t fs_blkalloc_internal(struct fsck_rgrp *rgd, uint32_t goal,
 			      unsigned char new_state, int do_it)
 {
 	struct fsck_sb *sdp = rgd->rd_sbd;
-	fs_bitmap_t *bits = NULL;
-	uint32_t length = rgd->rd_ri.ri_length;
 	uint32_t block = 0;
-	unsigned int buf, x;
-
-	goal = ((int)(goal - rgd->rd_ri.ri_data1) < 0) ? 0: goal - rgd->rd_ri.ri_data1;
-
-	for (buf = 0; buf < length; buf++){
-		bits = &rgd->rd_bits[buf];
-		if (goal < (bits->bi_start + bits->bi_len) * GFS_NBBY)
-			break;
-	}
-
-	if(buf >= length){
-		/* ATTENTION */
-		fprintf(stderr,
-			"fs_blkalloc_internal:  goal is outside rgrp boundaries.\n");
-		exit(1);
-	}
-	goal -= bits->bi_start * GFS_NBBY;
+	log_debug("fs_blkalloc_internal got %u as goal\n", goal);
+	goal = ((int)(goal - rgd->rd_ri.ri_data1) < 0)
+		? 0
+		: goal - rgd->rd_ri.ri_data1;
 
 
-	/*  "x <= length" because we're skipping over some of the first
-	    buffer when the goal is non-zero.  */
+	block = fs_bitfit_core(sdp, goal, rgd->rd_ri.ri_data1,
+			       rgd->rd_ri.ri_data, old_state);
 
-	for (x = 0; x <= length; x++){
-		block = fs_bitfit(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
-				  bits->bi_len, goal, old_state);
-		if (block != BFITNOENT)
-			break;
-		buf = (buf + 1) % length;
-		bits = &rgd->rd_bits[buf];
-		goal = 0;
-	}
 
-	if(x > length){
-		/* DEBUGGING */
-		printf( "fs_blkalloc_internal:  No bits left in old_state?\n"
-			"\told_state   = %u\n"
-			"\tnew_state   = %u\n"
-			"\trg_free     = %u\n"
-			"\trg_freemeta = %u\n",
+	if(block == BFITNOENT) {
+		log_debug("No bits left in old_state?\n"
+			  "\told_state   = %u\n"
+			  "\tnew_state   = %u\n"
+			  "\trg_free     = %u\n"
+			  "\trg_freemeta = %u\n",
 			old_state, new_state,
 			rgd->rd_rg.rg_free,
 			rgd->rd_rg.rg_freemeta);
 		return BFITNOENT;
 	}
 
-	if (do_it){
-		fs_setbit(BH_DATA(rgd->rd_bh[buf]) + bits->bi_offset,
-			  bits->bi_len, block, new_state);
-		write_buf(sdp, rgd->rd_bh[buf], 0);
+	log_debug("fs_blkalloc_internal found block %u\n", block);
+	switch(new_state) {
+	case GFS_BLKST_FREE:
+		block_set(sdp->bl, block + rgd->rd_ri.ri_data1, block_free);
+		break;
+	case GFS_BLKST_USED:
+		block_set(sdp->bl, block + rgd->rd_ri.ri_data1, block_used);
+		break;
+	case GFS_BLKST_USEDMETA:
+		block_set(sdp->bl, block + rgd->rd_ri.ri_data1, meta_other);
+		break;
+	case GFS_BLKST_FREEMETA:
+		block_set(sdp->bl, block + rgd->rd_ri.ri_data1, meta_free);
+		break;
 	}
-
-	return bits->bi_start * GFS_NBBY + block;
+	return  block;
 }
 
 
@@ -294,8 +330,16 @@ int fs_set_bitmap(struct fsck_sb *sdp, uint64 blkno, int state){
 
 	rgd = fs_blk2rgrpd(sdp, blkno);
 
-	if(fs_rgrp_read(rgd))
+	if(!rgd) {
+		log_err("Unable to get resource group for blkno %"PRIu64"\n",
+			blkno);
 		return -1;
+	}
+
+	if(fs_rgrp_read(rgd)) {
+		stack;
+		return -1;
+	}
 	rgrp_block = (uint32_t)(blkno - rgd->rd_ri.ri_data1);
 	for(buf= 0; buf < rgd->rd_ri.ri_length; buf++){
 		bits = &(rgd->rd_bits[buf]);

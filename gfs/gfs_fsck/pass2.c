@@ -93,28 +93,25 @@ static int check_leaf(struct fsck_inode *ip, uint64_t block, osi_buf_t **lbh,
 }
 
 
-
 /* Set children's parent inode in dir_info structure - ext2 does not set
  * dotdot inode here, but instead in pass3 - should we? */
 int set_parent_dir(struct fsck_sb *sbp, uint64_t childblock,
 		   uint64_t parentblock)
 {
-	osi_list_t *tmp;
 	struct dir_info *di;
 
-	osi_list_foreach(tmp, &sbp->dir_list) {
-		di = osi_list_entry(tmp, struct dir_info, list);
+	if(!find_di(sbp, childblock, &di)) {
 		if(di->dinode == childblock) {
 			if (di->treewalk_parent) {
-				log_err("Another directory already contains"
-					" this child\n");
+				log_err("Another directory (%"PRIu64
+					") already contains"
+					" this child - checking %"PRIu64"\n",
+					di->treewalk_parent, parentblock);
 				return 1;
 			}
 			di->treewalk_parent = parentblock;
-			break;
 		}
-	}
-	if(tmp == &sbp->dir_list) {
+	} else {
 		log_err("Unable to find block %"PRIu64" in dir_info list\n",
 			childblock);
 		return -1;
@@ -127,11 +124,9 @@ int set_parent_dir(struct fsck_sb *sbp, uint64_t childblock,
 int set_dotdot_dir(struct fsck_sb *sbp, uint64_t childblock,
 		   uint64_t parentblock)
 {
-	osi_list_t *tmp;
 	struct dir_info *di;
 
-	osi_list_foreach(tmp, &sbp->dir_list) {
-		di = osi_list_entry(tmp, struct dir_info, list);
+	if(!find_di(sbp, childblock, &di)) {
 		if(di->dinode == childblock) {
 			/* Special case for root inode because we set
 			 * it earlier */
@@ -144,10 +139,8 @@ int set_dotdot_dir(struct fsck_sb *sbp, uint64_t childblock,
 				return -1;
 			}
 			di->dotdot_parent = parentblock;
-			break;
 		}
-	}
-	if(tmp == &sbp->dir_list) {
+	} else {
 		log_err("Unable to find block %"PRIu64" in dir_info list\n",
 			childblock);
 		return -1;
@@ -391,7 +384,9 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 		}
 	}
 
+
 	if(!strcmp(".", tmp_name)) {
+		log_debug("Found . dentry\n");
 
 		if(ds->dotdir) {
 			log_err("already found '.' entry\n");
@@ -447,6 +442,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 		return 0;
 	}
 	if(!strcmp("..", tmp_name)) {
+		log_debug("Found .. dentry\n");
 		if(ds->dotdotdir) {
 			log_err("already found '..' entry\n");
 			if(query(sbp, "Clear duplicate '..' entry? (y/n) ")) {
@@ -472,6 +468,21 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 			}
 		}
 
+		if(q.block_type != inode_dir) {
+			log_err("Found '..' entry pointing to"
+				" something that's not a directory");
+			if(query(sbp, "Clear bad '..' directory entry? (y/n) ")) {
+				dirent_del(ip, bh, prev_de, dent);
+				*update = 1;
+				return 1;
+			} else {
+				log_err("Bad '..' directory entry remains\n");
+				*update  = 1;
+				(*count)++;
+				ds->entry_count++;
+				return 0;
+			}
+		}
 		/* GFS does not rely on '..' being in a
 		 * certain location */
 
@@ -495,6 +506,7 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 	/* After this point we're only concerned with
 	 * directories */
 	if(q.block_type != inode_dir) {
+		log_debug("Found non-dir inode dentry\n");
 		increment_link(sbp, de->de_inum.no_addr);
 		*update = 1;
 		(*count)++;
@@ -502,15 +514,16 @@ int check_dentry(struct fsck_inode *ip, struct gfs_dirent *dent,
 		return 0;
 	}
 
+	log_debug("Found plain directory dentry\n");
 	error = set_parent_dir(sbp, entryblock, ip->i_num.no_addr);
 	if(error > 0) {
-		log_err("Hard link to directory %s detected.\n", filename);
+		log_err("Hard link to block %"PRIu64" detected.\n", filename, entryblock);
 
 		if(query(sbp, "Clear hard link to directory? (y/n) ")) {
 			*update = 1;
 
-			log_err("Clearing %s\n", filename);
 			dirent_del(ip, bh, prev_de, dent);
+			log_warn("Directory entry %s cleared\n", filename);
 
 			return 1;
 		} else {
@@ -812,6 +825,34 @@ int pass2(struct fsck_sb *sbp, struct options *opts)
 			return -1;
 		}
 		if (error > 0) {
+			struct dir_info *di = NULL;
+			error = find_di(sbp, i, &di);
+			if(error < 0) {
+				stack;
+				return -1;
+			}
+			if(error == 0) {
+				/* FIXME: factor */
+				if(query(sbp, "Remove directory entry for bad"
+					 " inode %"PRIu64" in %"PRIu64
+					 "? (y/n)", i, di->treewalk_parent)) {
+					error = remove_dentry_from_dir(sbp,
+								       di->treewalk_parent,
+								       i);
+					if(error < 0) {
+						stack;
+						return -1;
+					}
+					if(error > 0) {
+						log_warn("Unable to find dentry for %"
+							 PRIu64" in %"PRIu64"\n",
+							 i, di->treewalk_parent);
+					}
+					log_warn("Directory entry removed\n");
+				} else {
+					log_err("Directory entry to invalid inode remains\n");
+				}
+			}
 			block_mark(sbp->bl, i, meta_inval);
 		}
 		if(get_and_read_buf(sbp, i, &bh, 0)){

@@ -351,7 +351,7 @@ int clump_alloc(struct fsck_rgrp *rgd, uint32 goal)
 {
 	struct fsck_sb *sdp = rgd->rd_sbd;
 	struct gfs_meta_header mh;
-	osi_buf_t *bh[GFS_META_CLUMP];
+	osi_buf_t *bh[GFS_META_CLUMP] = {0};
 	uint32 block;
 	int i,j;
 	int error = 0;
@@ -369,8 +369,15 @@ int clump_alloc(struct fsck_rgrp *rgd, uint32 goal)
 		block = fs_blkalloc_internal(rgd, goal,
 					     GFS_BLKST_FREE,
 					     GFS_BLKST_FREEMETA, TRUE);
+		log_debug("Got block %u\n", block);
 
-		if(get_buf(sdp, rgd->rd_ri.ri_data1 + block, &(bh[i]))){
+		if(block == BFITNOENT) {
+			log_err("Unable to get enough blocks\n");
+			goto fail;
+		}
+		block += rgd->rd_ri.ri_data1;
+		block_set(rgd->rd_sbd->bl, block, meta_free);
+		if(get_buf(sdp, block, &(bh[i]))){
 			log_err("Unable to allocate new buffer.\n");
 			goto fail;
 		}
@@ -455,19 +462,25 @@ int fs_blkalloc(struct fsck_inode *ip, uint64 *block)
 					      GFS_BLKST_FREE,
 					      GFS_BLKST_USED, TRUE);
 
+		log_debug("Got block %"PRIu64"\n", *block);
+		if(*block == BFITNOENT) {
+			fs_rgrp_relse(rgd);
+			continue;
+		}
 		if (!same){
 			ip->i_di.di_goal_rgrp = rgd->rd_ri.ri_addr;
 			ip->i_di.di_goal_mblk = 0;
 		}
-		ip->i_di.di_goal_dblk = *block;
 
 		*block += rgd->rd_ri.ri_data1;
+		ip->i_di.di_goal_dblk = *block;
 
 		rgd->rd_rg.rg_free--;
 
 		gfs_rgrp_out(&rgd->rd_rg, BH_DATA(rgd->rd_bh[0]));
 		if(write_buf(sdp, rgd->rd_bh[0], 0)){
-			fprintf(stderr, "Unable to write out rgrp block #%"PRIu64".\n",
+			fprintf(stderr, "Unable to write out rgrp block #%"
+				PRIu64".\n",
 				BH_BLKNO(rgd->rd_bh[0]));
 			fs_rgrp_relse(rgd);
 			return -1;
@@ -529,14 +542,17 @@ int fs_metaalloc(struct fsck_inode *ip, uint64 *block)
 		*block = fs_blkalloc_internal(rgd, goal,
 					      GFS_BLKST_FREEMETA,
 					      GFS_BLKST_USEDMETA, TRUE);
-
+		log_debug("Got block %"PRIu64"\n", *block);
+		if(*block == BFITNOENT) {
+			fs_rgrp_relse(rgd);
+			continue;
+		}
 		if (!same){
 			ip->i_di.di_goal_rgrp = rgd->rd_ri.ri_addr;
 			ip->i_di.di_goal_dblk = 0;
 		}
-		ip->i_di.di_goal_mblk = *block;
-
 		*block += rgd->rd_ri.ri_data1;
+		ip->i_di.di_goal_mblk = *block;
 
 		rgd->rd_rg.rg_freemeta--;
 		rgd->rd_rg.rg_usedmeta++;

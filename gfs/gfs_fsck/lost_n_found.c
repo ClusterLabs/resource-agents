@@ -31,11 +31,9 @@ int add_inode_to_lf(struct fsck_inode *ip){
 	char tmp_name[256];
 	struct fsck_inode *lf_ip, *ri;
 	osi_filename_t filename;
-	osi_buf_t b, *bh = &b;
-	struct fsck_inode *mip;
-	log_info("Locating/creating l+f directory...\n");
 
 	if(!ip->i_sbd->lf_dip) {
+		log_info("Locating/Creating lost and found directory\n");
 
 		load_inode(ip->i_sbd, ip->i_sbd->sb.sb_root_di.no_addr, &ri);
 
@@ -48,6 +46,7 @@ int add_inode_to_lf(struct fsck_inode *ip){
 			return -1;
 		}
 		log_notice("l+f directory at %"PRIu64"\n", lf_ip->i_num.no_addr);
+		increment_link(ip->i_sbd, ip->i_sbd->sb.sb_root_di.no_addr);
 		ip->i_sbd->lf_dip = lf_ip;
 		block_set(ip->i_sbd->bl, lf_ip->i_num.no_addr, inode_dir);
 		increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
@@ -100,13 +99,16 @@ int add_inode_to_lf(struct fsck_inode *ip){
 	if(fs_dir_add(lf_ip, &filename, &(ip->i_num), ip->i_di.di_type)){
 		log_err("Failed to add inode #%"PRIu64" to l+f dir.\n",
 			ip->i_num.no_addr);
+		/* FIXME: don't return -1 here, just mark the inode bad */
 		free(filename.name);
-		return -1;
+		block_set(ip->i_sbd->bl, ip->i_num.no_addr, meta_inval);
+		return 0;
 	}
   	increment_link(ip->i_sbd, ip->i_num.no_addr);
 	if(ip->i_di.di_type == GFS_FILE_DIR) {
 		increment_link(ip->i_sbd, lf_ip->i_num.no_addr);
 	}
 	free(filename.name);
+	log_notice("Added inode #%"PRIu64" to l+f dir\n", ip->i_num.no_addr);
 	return 0;
 }

@@ -20,6 +20,7 @@
 #include "block_list.h"
 #include "fs_dir.h"
 #include "link.h"
+#include "metawalk.h"
 
 static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 			    uint64_t block)
@@ -35,7 +36,7 @@ static int attach_dotdot_to(struct fsck_sb *sbp, uint64_t newdotdot,
 	/* FIXME: do i need to correct the
 	 * '..' entry for this directory in
 	 * this case? */
-	
+
 	filename.len = strlen("..");
 	filename.name = malloc(sizeof(char) * filename.len);
 	memset(filename.name, 0, sizeof(char) * filename.len);
@@ -64,7 +65,7 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 					struct dir_info *di)
 {
 	struct dir_info *pdi;
-	osi_list_t *tmp;
+
 	struct block_query q_dotdot, q_treewalk;
 
 	di->checked = 1;
@@ -111,12 +112,33 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 		}
 		else {
 			if(q_treewalk.block_type != inode_dir) {
-				log_warn(".. parent is correct,"
-					 " fixing treewalk -> %"PRIu64"\n",
-					 di->dotdot_parent);
-				di->treewalk_parent = di->dotdot_parent;
-				/* FIXME: do this right */
+				int error = 0;
+				log_warn(".. parent is valid, but treewalk"
+					 "is bad - reattaching to l+f");
+
+				/* FIXME: add a dinode for this entry instead? */
+				if(query(sbp, "Remove directory entry for bad"
+					 " inode %"PRIu64" in %"PRIu64
+					 "? (y/n)", di->dinode,
+					 di->treewalk_parent)) {
+					error = remove_dentry_from_dir(sbp,
+								       di->treewalk_parent,
+								       di->dinode);
+					if(error < 0) {
+						stack;
+						return NULL;
+					}
+					if(error > 0) {
+						log_warn("Unable to find dentry for %"
+							 PRIu64" in %"PRIu64"\n",
+							 di->dinode, di->treewalk_parent);
+					}
+					log_warn("Directory entry removed\n");
+				} else {
+					log_err("Directory entry to invalid inode remains\n");
+				}
 				log_info("Marking directory unlinked\n");
+
 				return NULL;
 			}
 			else {
@@ -141,13 +163,9 @@ struct dir_info *mark_and_return_parent(struct fsck_sb *sbp,
 			return NULL;
 		}
 	}
-	osi_list_foreach(tmp, &sbp->dir_list) {
-		pdi = osi_list_entry(tmp, struct dir_info, list);
-		if(pdi->dinode == di->dotdot_parent) {
-			return pdi;
-		}
-	}
-	return NULL;
+	find_di(sbp, di->dotdot_parent, &pdi);
+
+	return pdi;
 
 }
 
@@ -163,22 +181,20 @@ int pass3(struct fsck_sb *sbp, struct options *opts)
 	struct dir_info *di, *tdi;
 	struct fsck_inode *ip;
 	struct block_query q;
+	int i;
 
-	/* Mark the root inode as checked */
-	osi_list_foreach(tmp, &sbp->dir_list) {
-		di = osi_list_entry(tmp, struct dir_info, list);
-		if(di->dinode == sbp->sb.sb_root_di.no_addr) {
-			log_info("Marking root inode connected\n");
-			di->checked = 1;
-			break;
-		}
+	find_di(sbp, sbp->sb.sb_root_di.no_addr, &di);
+	if(di) {
+		log_info("Marking root inode connected\n");
+		di->checked = 1;
 	}
 
 	/* Go through the directory list, working up through the parents
 	 * until we find one that's been checked already.  If we don't
 	 * find a parent, put in lost+found.
 	 */
-	osi_list_foreach(tmp, &sbp->dir_list) {
+	for(i = 0; i < FSCK_HASH_SIZE; i++) {
+	osi_list_foreach(tmp, &sbp->dir_hash[i]) {
 		di = osi_list_entry(tmp, struct dir_info, list);
 		while(!di->checked) {
 			/* FIXME: Change this so it returns success or
@@ -234,6 +250,7 @@ int pass3(struct fsck_sb *sbp, struct options *opts)
 						stack;
 						return -1;
 					}
+					log_warn("Directory relinked to l+f\n");
 				} else {
 					log_err("Unlinked directory remains unlinked\n");
 				}
@@ -247,7 +264,9 @@ int pass3(struct fsck_sb *sbp, struct options *opts)
 			di = tdi;
 		}
 	}
-
-
+	}
+	if(sbp->lf_dip)
+		log_debug("At end of pass3, l+f entries is %u\n",
+			  sbp->lf_dip->i_di.di_entries);
 	return 0;
 }

@@ -21,6 +21,11 @@ struct metawalk_fxns;
 int check_inode_eattr(struct fsck_inode *ip, struct metawalk_fxns *pass);
 int check_metatree(struct fsck_inode *ip, struct metawalk_fxns *pass);
 int check_dir(struct fsck_sb *sbp, uint64_t block, struct metawalk_fxns *pass);
+int remove_dentry_from_dir(struct fsck_sb *sbp, uint64_t dir,
+			   uint64_t dentryblock);
+int find_di(struct fsck_sb *sbp, uint64_t childblock, struct dir_info **dip);
+int dinode_hash_insert(osi_list_t *buckets, uint64_t key, struct dir_info *di);
+int dinode_hash_remove(osi_list_t *buckets, uint64_t key);
 
 /* metawalk_fxns: function pointers to check various parts of the fs
  *

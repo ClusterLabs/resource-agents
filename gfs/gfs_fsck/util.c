@@ -89,6 +89,7 @@ int set_meta(osi_buf_t *bh, int type, int format){
   struct gfs_meta_header header;
 
   if(!check_meta(bh, 0)){
+	  log_debug("Setting metadata\n");
     ((struct gfs_meta_header *)BH_DATA(bh))->mh_type = cpu_to_gfs32(type);
     ((struct gfs_meta_header *)BH_DATA(bh))->mh_format = cpu_to_gfs32(format);
   } else {
@@ -119,6 +120,8 @@ int check_meta(osi_buf_t *bh, int type){
   check_magic = gfs32_to_cpu(check_magic);
   check_type = gfs32_to_cpu(check_type);
   if((check_magic != GFS_MAGIC) || (type && (check_type != type))){
+	  log_debug("For %"PRIu64" Expected %X:%X - got %X:%X\n", BH_BLKNO(bh), GFS_MAGIC, type,
+		    check_magic, check_type);
     return -1;
   }
   return 0;

@@ -41,58 +41,81 @@ int fs_unstuff_dinode(struct fsck_inode *ip)
 	uint64 block = 0;
 	int error;
 
+	log_debug("Unstuffing inode %"PRIu64" - %u\n", ip->i_di.di_num.no_addr,
+		  journaled);
+
 	if(!fs_is_stuffed(ip)){
-		fprintf(stderr, "Trying to unstuff a dinode that is already unstuffed.\n");
+		log_err("Trying to unstuff a dinode that is already unstuffed.\n");
 		return -1;
 	}
 
 
 	error = get_and_read_buf(sdp, ip->i_num.no_addr, &dibh, 0);
-	if (error)
+	if (error) {
+		stack;
 		goto fail;
+	}
 
 	error = check_meta(dibh, GFS_METATYPE_DI);
-	if(error)
+	if(error) {
+		stack;
 		goto fail;
+	}
 
 	if (ip->i_di.di_size){
+		log_err("Allocating new block for unstuffed dinode\n");
 		if(journaled){
 			error = fs_metaalloc(ip, &block);
-			if (error)
+			if (error) {
+				stack;
 				goto fail;
-
+			}
+			log_err("Got block %"PRIu64"\n", block);
 			error = get_buf(sdp, block, &bh);
-			if (error)
+			if (error) {
+				stack;
 				goto fail;
+			}
+
+			set_meta(bh, GFS_METATYPE_JD, GFS_FORMAT_JD);
 
 			memcpy(BH_DATA(bh)+sizeof(struct gfs_meta_header),
 			       BH_DATA(dibh)+sizeof(struct gfs_dinode),
 			       BH_SIZE(dibh)-sizeof(struct gfs_dinode));
 
 			error = write_buf(sdp, bh, 0);
-			if(error)
+			if(error) {
+				stack;
 				goto fail;
+			}
 			relse_buf(sdp, bh);
+			block_set(sdp->bl, block, journal_blk);
 		}
 		else{
 			error = fs_blkalloc(ip, &block);
 
-			if(error)
+			if(error) {
+				stack;
 				goto fail;
-
+			}
 
 			error = get_buf(sdp, block, &bh);
-			if (error)
+			if (error) {
+				stack;
 				goto fail;
+			}
 
 			memcpy(BH_DATA(bh)+sizeof(struct gfs_meta_header),
 			       BH_DATA(dibh)+sizeof(struct gfs_dinode),
 			       BH_SIZE(dibh)-sizeof(struct gfs_dinode));
 
 			error = write_buf(sdp, bh, 0);
-			if(error)
+			if(error) {
+				stack;
 				goto fail;
+			}
 			relse_buf(sdp, bh);
+			block_set(sdp->bl, block, block_used);
 		}
 	}
 
@@ -111,7 +134,7 @@ int fs_unstuff_dinode(struct fsck_inode *ip)
 
 	gfs_dinode_out(&ip->i_di, BH_DATA(dibh));
 	if(write_buf(sdp, dibh, 0)){
-		fprintf(stderr, "Dinode unstuffed, but unable to write back dinode.\n");
+		log_err("Dinode unstuffed, but unable to write back dinode.\n");
 		goto fail;
 	}
 	relse_buf(sdp, dibh);

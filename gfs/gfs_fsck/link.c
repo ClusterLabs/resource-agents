@@ -19,7 +19,7 @@
 int set_link_count(struct fsck_sb *sbp, uint64_t inode_no, uint32_t count)
 {
 	struct inode_info *ii = NULL;
-
+	log_debug("Setting link count to %u for %"PRIu64"\n", count, inode_no);
 	/* If the list has entries, look for one that matches
 	 * inode_no */
 	ii = inode_hash_search(sbp->inode_hash, inode_no);
@@ -61,6 +61,8 @@ int increment_link(struct fsck_sb *sbp, uint64_t inode_no)
 	 * inode_no */
 	if(ii) {
 		ii->counted_links++;
+		log_debug("Incremented counted links to %u for %"PRIu64"\n",
+			  ii->counted_links, inode_no);
 		return 0;
 	}
 	log_debug("No match found when incrementing link for %"PRIu64"!\n",

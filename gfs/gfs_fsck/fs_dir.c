@@ -674,6 +674,7 @@ static int dir_make_exhash(struct fsck_inode *dip)
 	}
 	relse_buf(dip->i_sbd, bh); bh=NULL;
 
+	block_set(dip->i_sbd->bl, bn, leaf_blk);
 	/*  We're done with the new leaf block, now setup the new
 	    hash table.  */
 
@@ -784,6 +785,7 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 
 	start = (index & ~(len - 1));
 
+	log_debug("Splitting leaf: len = %u, half_len = %u\n", len, half_len);
 
 	/*  Change the pointers.
 	    Don't bother distinguishing stuffed from non-stuffed.
@@ -849,6 +851,10 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 			nleaf->lf_entries = cpu_to_gfs16(nleaf->lf_entries);
 
 			dirent_del(dip, obh, prev, dent);
+			/* Dirent del decrements entries, but we're
+			 * just shifting entries around, so increment
+			 * it again */
+			dip->i_di.di_entries++;
 
 			if(!gfs16_to_cpu(oleaf->lf_entries)){
 				fprintf(stderr, "dir_split_leaf:  old leaf contains no entries.\n");
@@ -921,6 +927,8 @@ static int dir_split_leaf(struct fsck_inode *dip, uint32 index, uint64 leaf_no)
 		goto fail_nrelse;
 	}
 	relse_buf(sdp, nbh);
+
+	block_set(dip->i_sbd->bl, BH_BLKNO(nbh), leaf_blk);
 
 	return 0;
 
@@ -1301,7 +1309,8 @@ static int dir_e_add(struct fsck_inode *dip, osi_filename_t *filename,
 					return -1;
 				}
 				set_meta(nbh, GFS_METATYPE_LF, GFS_FORMAT_LF);
-
+				/* Make sure the bitmap is updated */
+				block_set(dip->i_sbd->bl, bn, leaf_blk);
 				memset(BH_DATA(nbh)+sizeof(struct gfs_meta_header), 0,
 				       BH_SIZE(nbh)-sizeof(struct gfs_meta_header));
 
@@ -1357,6 +1366,8 @@ static int dir_e_add(struct fsck_inode *dip, osi_filename_t *filename,
 
 		dip->i_di.di_entries++;
 		dip->i_di.di_mtime = dip->i_di.di_ctime = osi_current_time();
+		log_err("Entries for %"PRIu64" is %u\n", dip->i_di.di_num.no_addr,
+			dip->i_di.di_entries);
 
 		gfs_dinode_out(&dip->i_di, BH_DATA(dibh));
 		write_buf(sdp, dibh, 0);
@@ -1423,7 +1434,8 @@ static int dir_l_add(struct fsck_inode *dip, osi_filename_t *filename,
 
 	dip->i_di.di_entries++;
 	dip->i_di.di_mtime = dip->i_di.di_ctime = osi_current_time();
-
+	log_err("Entries for %"PRIu64" is %u\n", dip->i_di.di_num.no_addr,
+		dip->i_di.di_entries);
 	gfs_dinode_out(&dip->i_di, BH_DATA(dibh));
 	if(write_buf(dip->i_sbd, dibh, 0)){
 		fprintf(stderr, "dir_l_add:  bad write_buf()\n");

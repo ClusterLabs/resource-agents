@@ -128,7 +128,7 @@ struct fsck_sb {
 
 	/* dir_list is used to keep track of directory inodes and
 	 * their parents */
-	osi_list_t dir_list;
+	osi_list_t dir_hash[FSCK_HASH_SIZE];
 
 	/* inode_list is used to keep track of the link count of
 	 * inodes */

@@ -188,6 +188,10 @@ int writei(struct fsck_inode *ip, void *buf, uint64_t offset, unsigned int size)
 		if (error)
 			goto fail;
 
+		if(journaled && dblock != ip->i_di.di_num.no_addr ) {
+			set_meta(bh, GFS_METATYPE_JD, GFS_FORMAT_JD);
+		}
+
 		memcpy(BH_DATA(bh)+offset, buf+copied, amount);
 		write_buf(ip->i_sbd, bh, 0);
 		relse_buf(ip->i_sbd, bh);

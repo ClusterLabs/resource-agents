@@ -400,9 +400,15 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 			return -1;
 		if(rgd->rd_rg.rg_freemeta){
 			block = fs_blkalloc_internal(rgd, dip->i_num.no_addr,
-						     GFS_BLKST_FREEMETA, GFS_BLKST_USEDMETA, 1);
+						     GFS_BLKST_FREEMETA,
+						     GFS_BLKST_USEDMETA, 1);
+			log_debug("Got block %"PRIu64"\n", block);
+			if(block == BFITNOENT) {
+				fs_rgrp_relse(rgd);
+				continue;
+			}
 			block += rgd->rd_ri.ri_data1;
-
+			log_debug("Got block #%"PRIu64"\n", block);
 			inum.no_addr = inum.no_formal_ino = block;
 			rgd->rd_rg.rg_freemeta--;
 			rgd->rd_rg.rg_useddi++;
@@ -425,6 +431,12 @@ int fs_createi(struct fsck_inode *dip, osi_filename_t *name,
 					block = fs_blkalloc_internal(rgd, dip->i_num.no_addr,
 								     GFS_BLKST_FREEMETA,
 								     GFS_BLKST_USEDMETA, 1);
+					log_debug("Got block %"PRIu64"\n",
+						  block);
+					if(block == BFITNOENT) {
+						fs_rgrp_relse(rgd);
+						continue;
+					}
 					block += rgd->rd_ri.ri_data1;
 
 					inum.no_addr = inum.no_formal_ino = block;
@@ -529,8 +541,7 @@ int fs_mkdir(struct fsck_inode *dip, char *new_dir, int mode, struct fsck_inode 
 
 	ip->i_di.di_nlink = 2;
 	ip->i_di.di_size = sdp->sb.sb_bsize - sizeof(struct gfs_dinode);
-	ip->i_di.di_flags |= (dip->i_di.di_flags & GFS_DIF_INHERIT_DIRECTIO);
-	ip->i_di.di_flags |= (dip->i_di.di_flags & GFS_DIF_INHERIT_JDATA);
+	ip->i_di.di_flags |= GFS_DIF_JDATA;
 	ip->i_di.di_payload_format = GFS_FORMAT_DE;
 	ip->i_di.di_entries = 2;
 

@@ -110,14 +110,6 @@ static void empty_super_block(struct fsck_sb *sdp)
 		free(rgd);
 	}
 
-	while(!osi_list_empty(&sdp->dir_list)) {
-		struct dir_info *di;
-		di = osi_list_entry(sdp->dir_list.next,
-				    struct dir_info, list);
-		osi_list_del(&di->list);
-		free(di);
-	}
-
 	for(i = 0; i < FSCK_HASH_SIZE; i++) {
 		while(!osi_list_empty(&sdp->inode_hash[i])) {
 			struct inode_info *ii;
@@ -125,6 +117,13 @@ static void empty_super_block(struct fsck_sb *sdp)
 					    struct inode_info, list);
 			osi_list_del(&ii->list);
 			free(ii);
+		}
+		while(!osi_list_empty(&sdp->dir_hash[i])) {
+			struct dir_info *di;
+			di = osi_list_entry(sdp->dir_hash[i].next,
+					    struct dir_info, list);
+			osi_list_del(&di->list);
+			free(di);
 		}
 	}
 
@@ -222,8 +221,8 @@ static int fill_super_block(struct fsck_sb *sdp)
 	 ********************************************************************/
 	log_info("Initializing lists...\n");
 	osi_list_init(&sdp->rglist);
-	osi_list_init(&sdp->dir_list);
 	for(i = 0; i < FSCK_HASH_SIZE; i++) {
+		osi_list_init(&sdp->dir_hash[i]);
 		osi_list_init(&sdp->inode_hash[i]);
 	}
 
