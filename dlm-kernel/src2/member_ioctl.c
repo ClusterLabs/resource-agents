@@ -66,12 +66,11 @@ static int copy_params(struct dlm_member_ioctl __user *u_param,
 
 static int validate_params(struct dlm_member_ioctl *param)
 {
-	uint32_t data_size = param->data_size;
-
 	/* Ensure strings are terminated */
 	param->name[DLM_LOCKSPACE_LEN - 1] = '\0';
 	param->op[DLM_OP_LEN - 1] = '\0';
 
+	/*
 	if (!strcmp(param->op, "stop")) {
 		if (data_size != sizeof(struct dlm_member_ioctl))
 			return -EINVAL;
@@ -84,10 +83,14 @@ static int validate_params(struct dlm_member_ioctl *param)
 	} else if (!strcmp(param->op, "status")) {
 		if (data_size != sizeof(struct dlm_member_ioctl))
 			return -EINVAL;
-	} else if (!strcmp(param->op, "init")) {
+	} else if (!strcmp(param->op, "set_local")) {
+		if (data_size != sizeof(struct dlm_member_ioctl))
+			return -EINVAL;
+	} else if (!strcmp(param->op, "set_node")) {
 		if (data_size != sizeof(struct dlm_member_ioctl))
 			return -EINVAL;
 	}
+	*/
 
 	return 0;
 }
@@ -95,7 +98,7 @@ static int validate_params(struct dlm_member_ioctl *param)
 static int check_version(unsigned int cmd,
 			 struct dlm_member_ioctl __user *u_param)
 {
-	uint32_t version[3];
+	u32 version[3];
 	int error = 0;
 
 	if (copy_from_user(version, u_param->version, sizeof(version)))
@@ -103,8 +106,8 @@ static int check_version(unsigned int cmd,
 
 	if ((DLM_MEMBER_VERSION_MAJOR != version[0]) ||
 	    (DLM_MEMBER_VERSION_MINOR < version[1])) {
-		printk("dlm_member_ioctl interface mismatch: "
-		       "kernel(%u.%u.%u), user(%u.%u.%u), cmd(%d)",
+		printk("dlm member_ioctl: interface mismatch: "
+		       "kernel(%u.%u.%u), user(%u.%u.%u), cmd(%d)\n",
 		       DLM_MEMBER_VERSION_MAJOR,
 		       DLM_MEMBER_VERSION_MINOR,
 		       DLM_MEMBER_VERSION_PATCH,
@@ -131,7 +134,7 @@ static struct op_functions {
 	{"terminate", dlm_ls_terminate},
 	{"status", dlm_ls_status},
 	{"set_node", dlm_set_node},
-	{"init", dlm_set_local},
+	{"set_local", dlm_set_local},
 };
 
 static ioctl_fn lookup_fn(char *name)
@@ -139,7 +142,7 @@ static ioctl_fn lookup_fn(char *name)
 	int i, n = sizeof(opfn) / sizeof(struct op_functions);
 
 	for (i = 0; i < n; i++) {
-		if (!strcmp(name, opfn[i].op))
+		if (!strncmp(name, opfn[i].op, strlen(opfn[i].op)))
 			return opfn[i].fn;
 	}
 	return NULL;
@@ -150,7 +153,7 @@ static int member_ioctl(struct inode *inode, struct file *file,
 {
 	struct dlm_member_ioctl *param;
 	struct dlm_member_ioctl __user *u_param;
-	unsigned int cmd;
+	unsigned int cmd, type;
 	ioctl_fn fn = NULL;
 	int error;
 
@@ -159,9 +162,14 @@ static int member_ioctl(struct inode *inode, struct file *file,
 	if (!capable(CAP_SYS_ADMIN))
 		return -EACCES;
 
-	if (_IOC_TYPE(command) != DLM_IOCTL)
-		return -ENOTTY;
+	type = _IOC_TYPE(command);
 	cmd = _IOC_NR(command);
+
+	if (type != DLM_IOCTL || cmd > DLM_MEMBER_OP_CMD) {
+		printk("dlm member_ioctl: bad command 0x%x 0x%x 0x%x\n",
+		       command, type, cmd);
+		return -ENOTTY;
+	}
 
 	error = check_version(cmd, u_param);
 	if (error)
@@ -179,12 +187,16 @@ static int member_ioctl(struct inode *inode, struct file *file,
 		goto out;
 
 	fn = lookup_fn(param->op);
-	if (!fn)
+	if (!fn) {
+		printk("dlm member_ioctl: unknown op \"%s\"\n", param->op);
 		return -ENOTTY;
+	}
 
 	error = fn(param);
-	if (error)
+	if (error) {
+		printk("dlm member_ioctl: %s error %d\n", param->op, error);
 		goto out;
+	}
 
 	if (copy_to_user(u_param, param, sizeof(struct dlm_member_ioctl)))
 		error = -EFAULT;
@@ -210,13 +222,13 @@ int dlm_member_ioctl_init(void)
 
 	error = misc_register(&member_misc);
 	if (error)
-		printk("misc_register failed for dlm member control device\n");
+		printk("dlm member_ioctl: misc_register failed %d\n", error);
 	return error;
 }
 
 void dlm_member_ioctl_exit(void)
 {
 	if (misc_deregister(&member_misc) < 0)
-		printk("misc_deregister failed for dlm member control device\n");
+		printk("dlm member_ioctl: misc_deregister failed\n");
 }
 

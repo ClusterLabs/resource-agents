@@ -433,6 +433,7 @@ int dlm_ls_status(struct dlm_member_ioctl *param)
 	param->finish_event = ls->ls_last_finish;
 	param->startdone_event = ls->ls_startdone;
 	param->node_count = ls->ls_num_nodes;
+	param->global_id = ls->ls_global_id;
 	spin_unlock(&ls->ls_recover_lock);
 	return 0;
 }

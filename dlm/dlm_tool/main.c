@@ -23,7 +23,20 @@ int do_command(struct dlm_member_ioctl *mi);
 
 static void status(struct dlm_member_ioctl *mi, int argc, char **argv)
 {
+	if (argc != 1)
+		die("%s invalid arguments", action);
+	strcpy(mi->name, argv[0]);
+
 	do_command(mi);
+
+	printf("version         %u.%u.%u\n",
+	       mi->version[0], mi->version[1], mi->version[2]);
+	printf("start_event     %u\n", mi->start_event);
+	printf("stop_event      %u\n", mi->stop_event);
+	printf("finish_event    %u\n", mi->finish_event);
+	printf("startdone_event %u\n", mi->startdone_event);
+	printf("node_count      %u\n", mi->node_count);
+	printf("global_id       %u\n", mi->global_id);
 }
 
 static void set_ipaddr(struct dlm_member_ioctl *mi, char *ip)
@@ -82,7 +95,7 @@ static void finish(struct dlm_member_ioctl *mi, int argc, char **argv)
 static void start(struct dlm_member_ioctl *mi_in, int argc, char **argv)
 {
 	struct dlm_member_ioctl *mi;
-	int i, len = sizeof(struct dlm_member_ioctl) + 1;
+	int i, len = sizeof(struct dlm_member_ioctl);
 	char *str;
 
 	if (argc < 4)
@@ -92,18 +105,22 @@ static void start(struct dlm_member_ioctl *mi_in, int argc, char **argv)
 		len += strlen(argv[i]) + 1;
 
 	mi = malloc(len);
-	mi->data_size = len;
+	memset(mi, 0, len);
 	memcpy(mi, mi_in, sizeof(struct dlm_member_ioctl));
 	strcpy(mi->name, argv[0]);
 	mi->start_event = atoi(argv[1]);
 	mi->global_id = atoi(argv[2]);
+	mi->data_size = len;
 
 	str = (char *) mi + sizeof(struct dlm_member_ioctl);
 
 	for (i = 3; i < argc; i++) {
 		strcat(str, argv[i]);
 		strcat(str, " ");
+		mi->node_count++;
 	}
+
+	printf("start node_count %d \"%s\"\n", mi->node_count, str);
 
 	do_command(mi);
 
@@ -137,6 +154,7 @@ static void print_usage(void)
 	printf("\n");
 	printf("set_local  <nodeid> <ipaddr>\n");
 	printf("set_node   <nodeid> <ipaddr> <weight>\n");
+	printf("status     <ls_name>\n");
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
 	printf("start      <ls_name> <event_nr> <global_id> <nodeid>...\n");
@@ -213,6 +231,7 @@ int main(int argc, char **argv)
 
 	open_control();
 
+	memset(&mi, 0, sizeof(mi));
 	mi.version[0] = DLM_MEMBER_VERSION_MAJOR;
 	mi.version[1] = DLM_MEMBER_VERSION_MINOR;
 	mi.version[2] = DLM_MEMBER_VERSION_PATCH;

@@ -352,11 +352,11 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 
 	error = kobject_set_name(&ls->ls_kobj, ls->ls_name);
 	if (error)
-		goto out_recoverd;
+		goto out_del;
 	ls->ls_kobj.kset = &dlm_kset;
 	error = kobject_register(&ls->ls_kobj);
 	if (error)
-		goto out_recoverd;
+		goto out_del;
 
 	error = kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
 
@@ -379,7 +379,10 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 
  out_unreg:
 	kobject_unregister(&ls->ls_kobj);
- out_recoverd:
+ out_del:
+	spin_lock(&lslist_lock);
+	list_del(&ls->ls_list);
+	spin_unlock(&lslist_lock);
 	dlm_recoverd_stop(ls);
  out_dirfree:
 	kfree(ls->ls_dirtbl);
