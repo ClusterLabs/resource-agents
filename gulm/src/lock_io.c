@@ -46,7 +46,6 @@
 extern uint32_t verbosity;
 extern char *ProgramName;
 
-extern struct in6_addr myIP;
 extern char myName[];
 
 /* confed things. */

@@ -455,7 +455,7 @@ void validate_config(gulm_config_t *gf)
       fprintf(stderr, "Gulm requires a cluster name. You left it blank.\n");
       exit(ExitGulm_ParseFail);
    }
-   if( !(gf->node_cnt > 0 && gf->node_cnt < 5 && gf->node_cnt != 2) ) {
+   if( !(gf->node_cnt > 0 && gf->node_cnt <= 5 && gf->node_cnt != 2) ) {
       fprintf(stderr, "Gulm requires 1,3,4, or 5 nodes to be specified in "
             "the servers list.  You specified %d\n", gf->node_cnt);
       exit(ExitGulm_ParseFail);

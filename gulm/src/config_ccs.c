@@ -36,7 +36,6 @@ extern char *ProgramName;
 
 /* confed things. */
 extern gulm_config_t gulm_config;
-extern char myName[256];
 
 /*****************************************************************************/
 
@@ -81,6 +80,11 @@ void parse_serverlist(gulm_config_t *gf, int cd)
  * @gf: 
  * @cd: 
  * 
+ * This doesn't quite do what I think people expect.
+ * Need to think on it more.
+ *
+ * If users specify IPs in the server list, I don't think this is even
+ * needed anymore.
  * 
  * Returns: void
  */
@@ -102,12 +106,6 @@ void parse_nodespcifics(gulm_config_t *gf, int cd)
 /**
  * parse_ccs - 
  * @gf: 
- * 
- * Of course, one must wonder if we should do things in a way that is a bit
- * more xml friendly.  Mostly instead of:
- *  <servers>a,b,c</servers>
- * have:
- *  <server>a</server> <server>b</server> <server>c</server>
  * 
  * Returns: int
  */

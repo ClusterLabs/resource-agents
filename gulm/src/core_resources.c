@@ -44,8 +44,6 @@
 extern uint32_t verbosity;
 extern char *ProgramName;
 extern unsigned int shutdown_locked;
-extern char *myName;
-extern struct in6_addr myIP;
 extern int I_am_the;
 extern gulm_config_t gulm_config;
 

@@ -31,7 +31,6 @@ extern char *ProgramName;
 /* other bits of interest */
 extern gulm_config_t gulm_config;
 extern int I_am_the;
-extern struct in6_addr myIP;
 /* */
 
 /*****************************************************************************/

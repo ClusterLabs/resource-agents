@@ -47,12 +47,6 @@ int SIGCHLD_TRIPPED = FALSE;
 
 extern gulm_config_t gulm_config;
 
-/* these are calculated at run time.
- * I will need to do something in the future for nodes with multiple ips.
- * */
-extern char myName[256];
-extern struct in6_addr myIP;
-
 /*****************************************************************************/
 
 /**
