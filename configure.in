@@ -5,8 +5,8 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.45 $) dnl cvs revision
-AC_INIT(Specfile)
+AC_REVISION($Revision: 1.46 $) dnl cvs revision
+AC_INIT(heartbeat.spec.in)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
 
@@ -335,6 +335,29 @@ dnl 		;;
 esac
 
 
+dnl **********************************************************************
+dnl checks for group to install fifos as
+
+AC_ARG_WITH(
+  group-name,
+    [  --with-group-name=GROUP_NAME 
+                         GROUP_NAME to own fifos. [default=haclient]  ],
+    [ APIGROUP="$withval" ],
+    [ APIGROUP="haclient" ],
+  )
+AC_DEFINE_UNQUOTED(APIGROUP, "$APIGROUP", Group to own fifos)
+AC_SUBST(APIGROUP)
+
+AC_ARG_WITH(
+  group-id,
+    [  --with-group-id=GROUP_ID  GROUP_ID to own fifos. [default=60]  ],
+    [ APIGID="$withval" ],
+    [ APIGID="60" ],
+  )
+AC_DEFINE_UNQUOTED(APIGID, "$APIGID", Group to own fifos)
+AC_SUBST(APIGID)
+
+
 dnl ************************************************************************
 dnl checks for library functions
 dnl
@@ -409,9 +432,14 @@ AC_SUBST(XPERIMENTALDIRS)
 AC_CONFIG_SUBDIRS(libltdl)
 
 dnl The Makefiles and shell scripts we output
-AC_OUTPUT(Makefile						\
+AC_OUTPUT(heartbeat.spec \
+Makefile						        \
+debian/Makefile							\
 doc/Makefile							\
+include/Makefile						\
+        include/pils/Makefile					\
 replace/Makefile						\
+linux-ha/Makefile						\
 lib/Makefile							\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
