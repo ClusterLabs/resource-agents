@@ -26,6 +26,8 @@ void init_serviced(void)
 void wake_serviced(int do_flag)
 {
 	set_bit(do_flag, &daemon_flags);
+	if (!daemon_task)
+		return;
 	wake_up_process(daemon_task);
 }
 
@@ -76,7 +78,7 @@ static int serviced(void *arg)
 			schedule();
 		set_current_state(TASK_RUNNING);
 	}
-
+	daemon_task = NULL;
 	return 0;
 }
 
