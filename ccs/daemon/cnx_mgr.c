@@ -861,8 +861,10 @@ static int process_get(comm_header_t *ch, char **payload){
 
 	log_dbg("Query results:: %s\n", node->children->content);
 
-	if((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")){
-	  /* add on the trailing NULL and the '=' separator */
+	if(((node->type == XML_ATTRIBUTE_NODE) && strstr(query, "@*")) ||
+	    (node->type == XML_ELEMENT_NODE)){
+	  /* add on the trailing NULL and the '=' separator for a list of attrs
+	   or an element node + CDATA*/
 	  size = strlen(node->children->content)+strlen(node->name)+2;
 	  nnv= 1;
 	} else {
