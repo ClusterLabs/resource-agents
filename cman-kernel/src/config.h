@@ -25,6 +25,7 @@ struct config_info {
 	int max_nodes;
 	int sm_debug_size;
         int newcluster_timeout;
+	int max_retries;
 };
 
 extern struct config_info cman_config;

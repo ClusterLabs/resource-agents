@@ -471,7 +471,7 @@ static int do_timer_wakeup()
 	if (node_state == MASTER && master_state == MASTER_CONFIRM) {
 		mod_timer(&transition_timer,
 			  jiffies + cman_config.joinconf_timeout * HZ);
-		if (++joinconf_count < MAX_RETRIES) {
+		if (++joinconf_count < cman_config.max_retries) {
 			P_MEMB("Resending JOINCONF\n");
 			send_joinconf();
 		}
@@ -1014,7 +1014,7 @@ int send_leave(unsigned char flags)
 	return 0;
 }
 
-int send_kill(int nodeid)
+int send_kill(int nodeid, int needack)
 {
 	char killmsg;
 	struct sockaddr_cl saddr;
@@ -1025,7 +1025,7 @@ int send_kill(int nodeid)
 	saddr.scl_port = CLUSTER_PORT_MEMBERSHIP;
 	saddr.scl_nodeid = nodeid;
 	return kcl_sendmsg(mem_socket, &killmsg, 1, &saddr,
-			   sizeof (struct sockaddr_cl), MSG_NOACK);
+			   sizeof (struct sockaddr_cl), needack?0:MSG_NOACK);
 }
 
 /* Process a message */
@@ -1846,7 +1846,7 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 
 			for (i = 1; i <= responses_collected; i++) {
 				if (node_opinion[i] == OPINION_DISAGREE)
-					send_kill(i);
+					send_kill(i, 1);
 			}
 		}
 		else {
@@ -2772,7 +2772,7 @@ static int do_process_hello(struct msghdr *msg, char *buf, int len)
 		else {
 			/* This node is a danger to our valid cluster */
 			if (cluster_is_quorate) {
-				send_kill(saddr->scl_nodeid);
+				send_kill(saddr->scl_nodeid, 0);
 			}
 		}
 	}
@@ -2933,7 +2933,7 @@ static void check_for_dead_nodes()
 			leavereason = 0;
 
 			/* This is unlikely to work but it's worth a try! */
-			send_kill(node->node_id);
+			send_kill(node->node_id, 0);
 
 			/* Start state transition */
 			a_node_just_died(node);

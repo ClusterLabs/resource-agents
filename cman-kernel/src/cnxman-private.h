@@ -19,7 +19,6 @@
 #define CNXMAN_MINOR_VERSION 0
 #define CNXMAN_PATCH_VERSION 1
 
-#define MAX_RETRIES 3		/* Maximum number of send retries */
 #define CAP_CLUSTER CAP_SYS_ADMIN	/* Capability needed to manage the
 					 * cluster */
 #ifdef __KERNEL__

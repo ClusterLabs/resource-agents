@@ -89,6 +89,11 @@ static struct config_proc_info {
 	.name = "newcluster_timeout",
 	.value = &cman_config.newcluster_timeout,
     },
+    {
+        .name = "max_retries",
+        .value = &cman_config.max_retries,
+    },
+
 };
 
 

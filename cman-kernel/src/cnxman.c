@@ -62,7 +62,7 @@ static int is_valid_temp_nodeid(int nodeid);
 
 extern int start_membership_services(pid_t);
 extern int kcl_leave_cluster(int remove);
-extern int send_kill(int nodeid);
+extern int send_kill(int nodeid, int needack);
 
 static struct proto_ops cl_proto_ops;
 static struct sock *master_sock;
@@ -485,7 +485,7 @@ static void ack_timer_fn(unsigned long arg)
 	P_COMMS("%ld: ack_timer fired, retries=%d\n", jiffies, retry_count);
 
 	/* Too many retries ? */
-	if (++retry_count > MAX_RETRIES) {
+	if (++retry_count > cman_config.max_retries) {
 		set_bit(ACK_TIMEOUT, &mainloop_flags);
 		wake_up_interruptible(&cnxman_waitq);
 	}
@@ -1426,7 +1426,7 @@ static int do_ioctl_kill_node(unsigned long arg)
 		return -EINVAL;
 
 	/* Just in case it is alive, send a KILL message */
-	send_kill(arg);
+	send_kill(arg, 1);
 
 	node->leave_reason = CLUSTER_LEAVEFLAG_KILLED;
 	a_node_just_died(node);
@@ -1910,7 +1910,7 @@ static int cl_shutdown(struct socket *sock, int how)
 
 /* We'll be giving out reward points next... */
 /* Send the packet and save a copy in case someone loses theirs. Should be
- * protected by the send mutexphore */
+ * protected by the send semaphore */
 static int __send_and_save(struct cl_comms_socket *csock, struct msghdr *msg,
 			   struct kvec *vec, int veclen,
 			   int size, int needack)
