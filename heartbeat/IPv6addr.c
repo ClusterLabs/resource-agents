@@ -683,7 +683,7 @@ create_pid_directory(const char *pid_file)
 
 	dir = strdup(pid_file);
 	if (!dir) {
-		cl_log(LOG_INFO, "Memory allocation failure: %s\n",
+		cl_log(LOG_INFO, "Memory allocation failure: %s",
 				strerror(errno));
 		return -1;
 	}
@@ -807,7 +807,7 @@ write_pid_file(const char *pid_file)
 			return -1;
 		}
 
-		cl_log(LOG_INFO, "Killed old send_arp process [%lu]\n", pid);
+		cl_log(LOG_INFO, "Killed old send_arp process [%lu]", pid);
 	}
 
 	if (snprintf(pidbuf, sizeof(pidbuf), "%u"
