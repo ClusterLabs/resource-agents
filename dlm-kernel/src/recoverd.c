@@ -293,9 +293,9 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 		log_all(ls, "move reset stop %d start %d finish %d",
 			last_stop, last_start, last_finish);
 		ls->ls_last_stop = 0;
+		ls->ls_last_start = 0;
 		last_stop = 0;
 		last_start = 0;
-
 	}
 	spin_unlock(&ls->ls_recover_lock);
 
