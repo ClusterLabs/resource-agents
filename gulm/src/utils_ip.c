@@ -69,15 +69,25 @@ __inline__ const char *ip6tostr(struct in6_addr *ip)
  * 
  * Returns: int
  */
-int get_ip_for_name(char *name, struct in6_addr *ip)
+int get_ip_for_name(char *name, struct in6_addr *ip6)
 {
    struct hostent *he;
-   struct in_addr t;
+   struct in_addr ip4;
 
-   he = gethostbyname(name);
-   if( he == NULL ) return -1;
-   t.s_addr = (uint32_t)(*(uint32_t*)(he->h_addr_list[0]));
-   map_v4_to_v6(&t, ip);
+   if( ip6 == NULL ) return -1;
+
+   he = gethostbyname2(name, AF_INET6);
+   if( he == NULL ) {
+      he = gethostbyname2(name, AF_INET);
+      if( he != NULL ) {
+         memcpy(&ip4, he->h_addr_list[0], sizeof(struct in_addr));
+         map_v4_to_v6(&ip4, ip6);
+      }else{
+         return -1;
+      }
+   }else{
+      memcpy(&ip6, he->h_addr_list[0], sizeof(struct in6_addr));
+   }
    return 0;
 }
 

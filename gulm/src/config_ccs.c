@@ -62,10 +62,8 @@ int parse_ccs(gulm_config_t *gf)
    uint64_t temp;
    char *tmp;
 
-   return 1; /* ccs and gulm are not even remotely close to working. */
-
-   if( (gf->ccs_desc=ccs_force_connect(gf->clusterID, 1/*?blocking?*/)) < 0 ) {
-      fprintf(stderr, "No ccs, checking for cmdline config. (%d:%s)\n",
+   if( (gf->ccs_desc=ccs_force_connect(gf->clusterID, 0)) < 0 ) {
+      fprintf(stderr, "No ccsd, checking for cmdline config. (%d:%s)\n",
             gf->ccs_desc, strerror(abs(gf->ccs_desc)));
       gf->ccs_desc = -1;
       return -1;

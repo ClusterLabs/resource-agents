@@ -325,6 +325,10 @@ uint64_t ft2uint64(float time)
  */
 void validate_config(gulm_config_t *gf)
 {
+   if( gf->clusterID == NULL ) {
+      fprintf(stderr, "Gulm requires a cluster name. You left it blank.\n");
+      exit(ExitGulm_ParseFail);
+   }
    if( !(gf->node_cnt > 0 && gf->node_cnt < 5 && gf->node_cnt != 2) ) {
       fprintf(stderr, "Gulm requires 1,3,4, or 5 nodes to be specified in "
             "the servers list.  You specified %d\n", gf->node_cnt);
@@ -369,6 +373,8 @@ void default_config(gulm_config_t *gf)
    gf->conf_test = FALSE;
    gf->leave_std_open = FALSE;
    gf->daemon_fork = TRUE;
+   gf->name = NULL;
+   memcpy(&gf->ip, &in6addr_any, sizeof(struct in6_addr));
    gf->ccs_desc = -1;
 
 }
@@ -387,13 +393,6 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
 
    /* should set defaults here. */
    default_config(gf);
-
-   /* parse ccs */
-   err = parse_ccs(gf);
-   /* Note errors, but do not stop. */
-
-   /* parse local file */
-   /* later, maybe */
 
    /* parse cmdline args */
    err = parse_cmdline(gf, argc, argv);
@@ -431,12 +430,15 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
  * @name: < name that this node is claiming.
  * @ip: < ip from which this node came
  * 
+ *
  * 
  * Returns: =0:Deny =1:Allow
  */
 int verify_name_and_ip(char *name, struct in6_addr *ip)
 {
    struct in6_addr testip;
+
+   return 1;
 
    /* check with libresolv */
    if( get_ip_for_name(name, &testip) != 0 ) {

@@ -150,11 +150,16 @@ void become_nobody(void)
 void set_myID(void)
 {
    /* cute tricks to set the default name and IP. */
-   gethostname(myName, 256);
+   if( gulm_config.name == NULL ) gethostname(myName, 256);
+   else strcpy(myName, gulm_config.name);
    /* lookup my ip from my full name. */
-   if( get_ip_for_name(myName, &myIP) != 0 )
-      die(ExitGulm_InitFailed, "Failed to find IP for my name (%s)\n",
-            myName);
+   if( IN6_IS_ADDR_UNSPECIFIED(&gulm_config.ip) ) {
+      if( get_ip_for_name(myName, &myIP) != 0 )
+         die(ExitGulm_InitFailed, "Failed to find IP for my name (%s)\n",
+               myName);
+   }else{
+      memcpy(&myIP, &gulm_config.ip, sizeof(struct in6_addr));
+   }
 }
 
 /**
@@ -192,8 +197,8 @@ int main(int argc, char **argv)
    if( ProgramName == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
    set_verbosity("Default", &verbosity);
 
-   /* scan for -h --help -V --version */
-   short_parse_conf(argc, argv);
+   /* parse cmdline (and config) */
+   if( parse_conf(&gulm_config, argc, argv) != 0 ) return -1;
 
    /*splits*/
    if( strcmp("lock_gulmd", ProgramName) == 0 ) {
@@ -216,9 +221,6 @@ int main(int argc, char **argv)
 
       return 0;
    }
-
-   /* parse cmdline (and config) */
-   if( parse_conf(&gulm_config, argc, argv) != 0 ) return -1;
 
    /* daemonize ourselves here */
    become_nobody();
