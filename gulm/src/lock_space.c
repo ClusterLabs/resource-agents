@@ -481,10 +481,6 @@ int send_stats(xdr_enc_t *enc)
    int err;
    char tmp[256];
 
-   if((err = xdr_enc_string(enc, "unlocked")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_unl_locks);
-   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
-
    if((err = xdr_enc_string(enc, "exclusive")) != 0) return err;
    snprintf(tmp, 256, "%lu", cnt_exl_holds);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
