@@ -41,7 +41,8 @@ void print_usage(void)
          "Options:\n"
          "  -h               usage\n"
 	 "  -O               override\n"
-	 "  -s <ip>          IP address of machine which was manually fenced\n"
+	 "  -n <nodename>    Name of node that was manually fenced\n"
+	 "  -s <ip>          IP address of machine that was manually fenced (deprecated)\n"
          "  -V               Version information\n", pname);
 }
 
@@ -57,7 +58,7 @@ int main(int argc, char **argv)
 
   pname = argv[0];
     
-  while ((c = getopt(argc, argv, "hOs:qV")) != -1)
+  while ((c = getopt(argc, argv, "hOs:n:qV")) != -1)
   {
     switch(c)
     {
@@ -70,6 +71,10 @@ int main(int argc, char **argv)
       break;
 
     case 's':
+      ipaddr = optarg;
+      break;
+
+    case 'n':
       ipaddr = optarg;
       break;
 
@@ -107,12 +112,11 @@ int main(int argc, char **argv)
 
   if(!override_flag)
   {
-    printf("\nWarning:  If the machine with IP address \"%s\" has not been\n"
-   	   "manually fenced (i.e. power cycled or disconnected from all\n"
-	   "storage devices) the GFS file system may become corrupted and all\n"
-	   "its data unrecoverable!  Please verify that the above IP address\n"
-	   "correctly matches the machine you just rebooted (or disconnected).\n", 
-	   ipaddr);
+    printf("\nWarning:  If the node \"%s\" has not been manually fenced\n"
+	   "(i.e. power cycled or disconnected from shared storage devices)\n"
+	   "the GFS file system may become corrupted and all its data\n"
+	   "unrecoverable!  Please verify that the node shown above has\n"
+	   "been reset or disconnected from storage.\n", ipaddr);
 
     printf("\nAre you certain you want to continue? [yN] ");
     scanf("%s", response);

@@ -18,247 +18,312 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <syslog.h>
 
+#include <cluster/cnxman-socket.h>
 #include "copyright.cf"
 
-/* FIFO_DIR needs to agree with the same in ack.c */
+/* FIFO_DIR needs to agree with the same in manual/ack.c */
 
-#define LOCK_DIR "/var/lock"
-#define FIFO_DIR "/tmp"
+#define OPTION_STRING                   "hn:s:p:qV"
+#define LOCK_DIR			"/var/lock"
+#define FIFO_DIR			"/tmp"
 
-char *pname = NULL;
-
-char args[256];
-char name[256];
-char ipaddr[256];
-char fname[256];
 char path[256];
 char lockdir[256];
 char fifodir[256];
+char fname[256];
 
-int quiet_flag = 0;
+char args[256];
+char agent[256];
+char victim[256];
+
+char *prog_name;
+
+int quiet_flag;
+int fifo_fd;
+int cl_sock;
+
 
 void print_usage(void)
 {
-  printf("Usage:\n");
-  printf("\n");
-  printf("%s [options]\n"
-         "\n"
-         "Options:\n"
-	 "  -h               usage\n"
-	 "  -q               quiet\n"
-	 "  -s <ip>          IP address of machine to fence\n"
-	 "  -V               Version\n",pname);
+	printf("Usage:\n");
+	printf("\n");
+	printf("%s [options]\n", prog_name);
+	printf("\n");
+	printf("Options:\n");
+	printf("  -h               usage\n");
+	printf("  -q               quiet\n");
+	printf("  -n <nodename>    node to fence\n");
+	printf("  -V               version\n");
 }
-
 
 void get_options(int argc, char **argv)
 {
-  int c, rv;
-  char *curr;
-  char *rest;
-  char *value;
+	int c, rv;
+	char *curr;
+	char *rest;
+	char *value;
 
-  if (argc > 1)
-  {        
-    while ((c = getopt(argc, argv, "hs:p:qV")) != -1)
-    {
-      switch(c)
-      {
-      case 'h':
-        print_usage();
-        exit(0);
+	if (argc > 1) {
+		while ((c = getopt(argc, argv, OPTION_STRING)) != -1) {
+			switch(c) {
+			case 'h':
+				print_usage();
+				exit(0);
+
+			case 'n':
+				if (strlen(optarg) > 255) {
+					fprintf(stderr, "node name too long\n");
+					exit(1);
+				}
+				strcpy(victim, optarg);
+				break;
+
+			case 'q':
+				quiet_flag = 1;
+				break;
+
+			case 'p':
+				if (strlen(optarg) > 200) {
+					fprintf(stderr, "path name too long\n");
+					exit(1);
+				}
+				strncpy(path, optarg, 200);
+				break;
+
+			case 'V':
+				printf("%s %s (built %s %s)\n", prog_name,
+					FENCE_RELEASE_NAME,
+					__DATE__, __TIME__);
+				printf("%s\n", REDHAT_COPYRIGHT);
+				exit(0);
+				break;
 	
-      case 's':
-        strcpy(ipaddr, optarg);
-        break;
+			case ':':		
+			case '?':
+				fprintf(stderr, "Please use '-h' for usage.\n");
+				exit(1);
+				break;
 
-      case 'q':
-        quiet_flag = 1;
-        break;
+			default:
+				fprintf(stderr, "unknown option: %c\n", c);
+				exit(1);
+				break;
 
-      case 'p':
-        if (strlen(optarg) > 200)
-        {
-          fprintf(stderr, "path name too long\n");
-	  exit(1);
-        }
-        strncpy(path, optarg, 200);
-        break;
+			}
+		}
+	} else {
+		if ((rv = read(0, args, 255)) < 0) {
+			if (!quiet_flag)
+				printf("failed: no input\n");
+			exit(1);
+		}
 
-      case 'V':
-        printf("%s %s (built %s %s)\n", pname, FENCE_RELEASE_NAME,
-               __DATE__, __TIME__);
-        printf("%s\n", REDHAT_COPYRIGHT);
-        exit(0);
-        break;
-  
-      case ':':    
-      case '?':
-        fprintf(stderr, "Please use '-h' for usage.\n");
-        exit(1);
-        break;
+		curr = args;
 
-      default:
-        fprintf(stderr, "Bad programmer! You forgot to catch the %c flag\n", c);
-        exit(1);
-        break;
+		while ((rest = strchr(curr, '\n')) != NULL) {
+			*rest = 0;
+			rest++;
+			if ((value = strchr(curr, '=')) == NULL) {
+				printf("failed: invalid input\n");
+				exit(1);
+			}
+			*value = 0;
+			value++;
+			if (!strcmp(curr, "agent")){
+				strcpy(agent, value);
+				prog_name = agent;
+			}
+			if (!strcmp(curr, "nodename"))
+				strcpy(victim, value);
+			/* deprecated */
+			if (!strcmp(curr, "ipaddr"))
+				strcpy(victim, value);
+			curr = rest;
+		}
+	}
 
-      }
-    }
-  }
-  
-  else
-  {
-    if ((rv = read(0, args, 255)) < 0)
-    {
-      if(!quiet_flag)
-        printf("failed: no input\n");
-      exit(1);
-    }
-    curr = args;
-    while ((rest = strchr(curr, '\n')) != NULL){
-      *rest = 0;
-      rest++;
-      if ((value = strchr(curr, '=')) == NULL){
-	printf("failed: invalid input\n");
-	exit(1);
-      }
-      *value = 0;
-      value++;
-      if (!strcmp(curr, "agent")){
-	strcpy(name, value);
-        pname = name;
-      }
-      if (!strcmp(curr, "ipaddr"))
-	strcpy(ipaddr, value);
-      curr = rest;
-    }
-  }
+	if (!strlen(path))
+		strcpy(lockdir, LOCK_DIR);
+	else
+		strcpy(lockdir, path);
 
-  if (!strlen(path))
-    strcpy(lockdir, LOCK_DIR);
-  else
-    strcpy(lockdir, path);
-
-  strcpy(fifodir, FIFO_DIR);
+	strcpy(fifodir, FIFO_DIR);
 }
 
+void lockfile(void)
+{
+	int fd, error;
+	struct flock lock;
 
+	memset(fname, 0, 256);
+	sprintf(fname, "%s/fence_manual.lock", lockdir);
+
+	fd = open(fname, O_WRONLY | O_CREAT | O_NONBLOCK,
+		  (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+	if (fd < 0) {
+		if (!quiet_flag)
+			printf("failed: %s %s lockfile open error\n",
+				prog_name, victim);
+		exit(1);
+	}
+
+	lock.l_type = F_WRLCK;
+	lock.l_start = 0;
+	lock.l_whence = SEEK_SET;
+	lock.l_len = 0;
+
+	error = fcntl(fd, F_SETLKW, &lock);
+	if (error < 0) {
+		if (!quiet_flag)
+			printf("failed: fcntl errno %d\n", errno);
+		exit(1);
+	}
+}
+
+void setup_fifo(void)
+{
+	int fd, error;
+
+	memset(fname, 0, 256);
+	sprintf(fname, "%s/fence_manual.fifo", fifodir);
+
+	umask(0);
+
+	error = mkfifo(fname, (S_IRUSR | S_IWUSR));
+	if (error && errno != EEXIST) {
+		if (!quiet_flag)
+			printf("failed: %s mkfifo error\n", prog_name);
+		exit(1);
+	}
+
+	fd = open(fname, O_RDONLY | O_NONBLOCK);
+	if (fd < 0) {
+		if (!quiet_flag)
+			printf("failed: %s %s open error\n", prog_name, victim);
+		exit(1);
+	}
+
+	fifo_fd = fd;
+}
+
+void setup_sock(void)
+{
+	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+	if (cl_sock < 0)
+		cl_sock = 0;
+}
+
+int check_ack(void)
+{
+	int error;
+	char line[256], *mw, *ok;
+
+	memset(line, 0, 256);
+
+	error = read(fifo_fd, line, 256);
+	if (error < 0)
+		return error;
+	if (error == 0)
+		return 0;
+
+	mw = strstr(line, "meatware");
+	ok = strstr(line, "ok");
+
+	if (!mw || !ok)
+		return -ENOMSG;
+
+	return 1;
+}
+
+int check_cluster(void)
+{
+	struct cl_cluster_node cl_node;
+	int error;
+
+	if (!cl_sock)
+		return 0;
+
+	memset(&cl_node, 0, sizeof(cl_node));
+
+	strcpy(cl_node.name, victim);
+
+	error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+	if (error < 0)
+		return 0;
+
+	if (cl_node.state == NODESTATE_MEMBER ||
+	    cl_node.state == NODESTATE_JOINING)
+		return 1;
+
+	return 0;
+}
+
+void cleanup(void)
+{
+	memset(fname, 0, 256);
+	sprintf(fname, "%s/fence_manual.fifo", fifodir);
+	unlink(fname);
+}
 
 int main(int argc, char **argv)
 {
-  int error, fd, lfd;
-  char line[256], *mw, *ok;
-  struct flock lock;
+	int rv;
 
+	prog_name = argv[0];
 
-  openlog("fence_manual", 0, LOG_DAEMON);
+	get_options(argc, argv);
 
-  memset(args, 0, 256);
-  memset(name, 0, 256);
-  memset(ipaddr, 0, 256);
-  memset(fname, 0, 256);
-  memset(path, 0, 256);
-  memset(lockdir, 0, 256);
-  memset(fifodir, 0, 256);
+	if (victim[0] == 0) {
+		if (!quiet_flag)
+			printf("failed: %s no node name\n", agent);
+		exit(1);
+	}
 
-  pname = argv[0];
+	lockfile();
 
-  get_options(argc, argv);
+	openlog("fence_manual", 0, LOG_DAEMON);
 
-  if (ipaddr[0] == 0)
-  {
-    if(!quiet_flag)
-      printf("failed: %s no IP addr\n", name);
-    exit(1);
-  }
+	syslog(LOG_CRIT, "Node %s needs to be reset before recovery can "
+			 "procede.  Waiting for %s to rejoin the cluster "
+			 "or for manual acknowledgement that it has been reset "
+			 "(i.e. fence_ack_manual -s %s)\n",
+			 victim, victim, victim);
 
+	setup_fifo();
+	setup_sock();
 
-  /* Serialize multiple fence_manual's by locking a lock file */
+	for (;;) {
+		rv = check_ack();
+		if (rv)
+			break;
 
-  memset(fname, 0, 256);
-  sprintf(fname, "%s/fence_manual.lock", lockdir);
-  lfd = open(fname, O_WRONLY | O_CREAT,
-             (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
-  if (lfd < 0)
-  {
-    if (!quiet_flag)
-      printf("failed: %s %s lockfile open error\n", pname, ipaddr);
-    exit(1);
-  }
+		rv = check_cluster();
+		if (rv)
+			break;
 
-  lock.l_type = F_WRLCK;
-  lock.l_start = 0;
-  lock.l_whence = SEEK_SET;
-  lock.l_len = 0;
+		sleep(1);
+	}
 
-  error = fcntl(lfd, F_SETLKW, &lock);
-  if (error < 0)
-  {
-    if (!quiet_flag)
-      printf("failed: fcntl errno %d\n", errno);
-    exit(1);
-  }
+	if (rv < 0) {
+		if (!quiet_flag)
+			printf("failed: %s %s rv %d\n", prog_name, victim, rv);
+		cleanup();
+		exit(1);
+	} else {
+		if (!quiet_flag)
+			printf("success: %s %s\n", prog_name, victim);
+		cleanup();
+		exit(0);
+	}
 
-
-  /* It's our turn to use the fifo */
-
-  syslog(LOG_CRIT, "Node %s requires hard reset.  Run \"fence_ack_manual -s %s\""
-                   " after power cycling the machine.\n", 
-                   ipaddr, ipaddr);
-
-  umask(0);
-  memset(fname, 0, 256);
-  sprintf(fname, "%s/fence_manual.fifo", fifodir);
-  error = mkfifo(fname, (S_IRUSR | S_IWUSR));
-  if (error && errno != EEXIST)
-  {
-    if (!quiet_flag)
-      printf("failed: %s mkfifo error\n", pname);
-    exit(1);
-  }
-
-  fd = open(fname, O_RDONLY);
-  if (fd < 0)
-  {
-    if (!quiet_flag)
-      printf("failed: %s %s open error\n", pname, ipaddr);
-    exit(1);
-  }
-
-
-  /* Get result from ack_manual */
-
-  memset(line, 0, 256);
-  error = read(fd, line, 256);
-  if (error < 0)
-  {
-    if(!quiet_flag)
-      printf("failed: %s %s read error\n", pname, ipaddr);
-    exit(1);
-  }
-
-
-  mw = strstr(line, "meatware");
-  ok = strstr(line, "ok");
-
-  if (!mw || !ok)
-  {
-    if(!quiet_flag)
-      printf("failed: %s %s improper message\n", pname, ipaddr);
-    exit(1);
-  }
-
-  if(!quiet_flag)
-    printf("success: %s %s\n", pname, ipaddr);
-  unlink(fname);
-  return 0;
+	return 0;
 }
-
 
