@@ -136,13 +136,10 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 		return 1;
 	}
 
-	/* FIXME: Have to really go over this section... */
 	if (ip->i_di.di_flags & GFS_DIF_JDATA){
 		/* Journaled data *is* metadata */
 		if(get_and_read_buf(ip->i_sbd, block, &data_bh, 0)) {
 			stack;
-			/* FIXME: should i mark this with meta_inval
-			 * instead */
 			block_set(sdp->bl, block, meta_inval);
 			return 1;
 		}
@@ -480,23 +477,25 @@ int handle_di(struct fsck_sb *sdp, osi_buf_t *bh, uint64_t block)
 
 	}
 
-	switch(ip->i_di.di_type) {
-
-	case GFS_FILE_DIR:
-		/* FIXME: does it make sense to have this check for
-		 * dups here? */
-		if(block_check(sdp->bl, block, &q)) {
+	/* FIXME: does it make sense to have this check for dups
+	 * here? */
+	if(block_check(sdp->bl, block, &q)) {
+		stack;
+		goto fail;
+	}
+	if(q.block_type != block_free) {
+		log_debug("Found duplicate block at %"PRIu64"\n",
+			  block);
+		if(block_mark(sdp->bl, block, dup_block)) {
 			stack;
 			goto fail;
 		}
-		if(q.block_type != block_free) {
-			log_debug("Found duplicate block at %"PRIu64"\n",
-				  block);
-/*			if(block_mark(sdp->bl, block, dup_block)) {
-				stack;
-				goto fail;
-				} */
-		}
+		goto success;
+	}
+
+	switch(ip->i_di.di_type) {
+
+	case GFS_FILE_DIR:
 		if(block_set(sdp->bl, block, inode_dir)) {
 			stack;
 			goto fail;

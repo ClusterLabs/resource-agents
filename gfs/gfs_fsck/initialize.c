@@ -303,9 +303,6 @@ static int fill_super_block(struct fsck_sb *sdp)
 
 	sdp->bl = block_list_create(sdp->last_fs_block+1, gbmap);
 
-	block_set(sdp->bl, sdp->sb.sb_rindex_di.no_addr, meta_other);
-	block_set(sdp->bl, sdp->sb.sb_jindex_di.no_addr, meta_other);
-
 	return 0;
 
  fail:
