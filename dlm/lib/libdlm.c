@@ -372,7 +372,7 @@ static int open_control_device()
     {
 	stat_ret = stat(DLM_CTL_DEVICE_NAME, &st);
 
-	if (!stat_ret) 
+	if (!stat_ret)
 	{
 	    minor = find_minor_from_proc("",DLM_CONTROL_DEV);
 	    if (S_ISCHR(st.st_mode) && st.st_rdev != makedev(MISC_MAJOR, minor))
@@ -389,13 +389,14 @@ static int open_control_device()
 		return -1;
 	}
     }
+    fcntl(control_fd, F_SETFD, 1);
     return 0;
 }
 
 static int do_dlm_dispatch(int fd)
 {
     struct dlm_lock_result resultbuf;
-    struct dlm_lock_result *result = &resultbuf; 
+    struct dlm_lock_result *result = &resultbuf;
     char *fullresult = NULL;
     int status;
     void (*astaddr)(void *astarg);
@@ -1013,6 +1014,7 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	return NULL;
     }
     newls->tid = 0;
+    fcntl(newls->fd, F_SETFD, 1);
 
     return (dlm_lshandle_t)newls;
 }
@@ -1087,6 +1089,7 @@ dlm_lshandle_t dlm_open_lockspace(const char *name)
 	errno = saved_errno;
 	return NULL;
     }
+    fcntl(newls->fd, F_SETFD, 1);
 
     return (dlm_lshandle_t)newls;
 }
