@@ -27,10 +27,13 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-dlm_controld: main.o ioctl.o action.o
+dlm_controld: main.o member_cman.o ioctl.o action.o libcman.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+member_cman.o: member_cman.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 action.o: action.c

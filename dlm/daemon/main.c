@@ -40,19 +40,13 @@ int ls_finish(int argc, char **argv);
 int ls_set_id(int argc, char **argv);
 int ls_get_done(int argc, char **argv, int *event_nr);
 
+int setup_cman(void);
+int process_cman(void);
+
 int groupd_fd;
 int uevent_fd;
 int member_fd;
 
-
-/* Detect new cluster members and set up their nodeid/addr values in
-   dlm using the dlm-member ioctls.  This requires hooks into the
-   membership manager.  Until this works, dlm_tool set_local/set_node
-   must be run manually. */
-
-void process_member(void)
-{
-}
 
 void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -188,57 +182,26 @@ int process_uevent(void)
 	return 0;
 }
 
-void process_input(int fd)
-{
-	if (fd == groupd_fd)
-		process_groupd();
-	else if (fd == uevent_fd)
-		process_uevent();
-	else if (fd == member_fd)
-		process_member();
-}
+/* Detect new cluster members and set up their nodeid/addr values in
+   dlm using the dlm-member ioctls.  This requires hooks into the
+   membership manager (cman, ...) */
 
-void process_hup(int fd)
+void process_member(void)
 {
-	if (fd == groupd_fd)
-		close(groupd_fd);
-	else if (fd == uevent_fd)
-		close(uevent_fd);
+	process_cman();
 }
 
 int setup_groupd(void)
 {
-	char buf[] = "setup dlm 1";
-	int rv;
-
-	rv = write(groupd_fd, &buf, strlen(buf));
-	if (rv < 0) {
-		log_error("write error %d errno %d %s", rv, errno, buf);
-		return -1;
-	}
-	return 0;
-}
-
-int loop(void)
-{
-	struct pollfd *pollfd;
 	struct sockaddr_un sun;
-	struct sockaddr_nl snl;
 	socklen_t addrlen;
-	int s, rv, i, maxi;
-
-
-	pollfd = malloc(MAXCON * sizeof(struct pollfd));
-	if (!pollfd)
-		return -1;
-
-
-	/* connect to the groupd server */
+	char buf[] = "setup dlm 1";
+	int s, rv;
 
 	s = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (s < 0) {
-		log_error("socket");
-		goto out_free;
+		log_error("local socket");
+		return s;
 	}
 
 	memset(&sun, 0, sizeof(sun));
@@ -248,21 +211,30 @@ int loop(void)
 
 	rv = connect(s, (struct sockaddr *) &sun, addrlen);
 	if (rv < 0) {
-		log_error("sun connect error %d errno %d", rv, errno);
-		goto out_sun;
+		log_error("groupd connect error %d errno %d", rv, errno);
+		close(s);
+		return rv;
 	}
 
-	groupd_fd = s;
-	pollfd[0].fd = s;
-	pollfd[0].events = POLLIN;
+	rv = write(groupd_fd, &buf, strlen(buf));
+	if (rv < 0) {
+		log_error("groupd write error %d errno %d %s", rv, errno, buf);
+		close(s);
+		return rv;
+	}
 
+	return 0;
+}
 
-	/* get uevents from the kernel */
+int setup_uevent(void)
+{
+	struct sockaddr_nl snl;
+	int s, rv;
 
 	s = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
 	if (s < 0) {
-		log_error("socket");
-		goto out_sun;
+		log_error("netlink socket");
+		return s;
 	}
 
 	memset(&snl, 0, sizeof(snl));
@@ -272,21 +244,43 @@ int loop(void)
 
 	rv = bind(s, (struct sockaddr *) &snl, sizeof(snl));
 	if (rv < 0) {
-		log_error("bind error %d errno %d", rv, errno);
-		goto out_snl;
+		log_error("uevent bind error %d errno %d", rv, errno);
+		close(s);
+		return rv;
 	}
 
-	uevent_fd = s;
-	pollfd[1].fd = s;
+	return 0;
+}
+
+int setup_member(void)
+{
+	return setup_cman();
+}
+
+int loop(void)
+{
+	struct pollfd *pollfd;
+	int rv, i, maxi;
+
+
+	pollfd = malloc(MAXCON * sizeof(struct pollfd));
+	if (!pollfd)
+		return -1;
+
+
+	groupd_fd = setup_groupd();
+	pollfd[0].fd = groupd_fd;
+	pollfd[0].events = POLLIN;
+
+	uevent_fd = setup_uevent();
+	pollfd[1].fd = uevent_fd;
 	pollfd[1].events = POLLIN;
 
-	maxi = 1;
+	member_fd = setup_member();
+	pollfd[2].fd = member_fd;
+	pollfd[2].events = POLLIN;
 
-	rv = setup_groupd();
-	if (rv < 0) {
-		log_error("setup_groupd");
-		goto out_snl;
-	}
+	maxi = 2;
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -294,17 +288,22 @@ int loop(void)
 			log_error("poll");
 
 		for (i = 0; i <= maxi; i++) {
+			if (pollfd[i].revents & POLLIN) {
+				if (pollfd[i].fd == groupd_fd)
+					process_groupd();
+				else if (pollfd[i].fd == uevent_fd)
+					process_uevent();
+				else if (pollfd[i].fd == member_fd)
+					process_member();
+			}
+
 			if (pollfd[i].revents & POLLHUP) {
-				process_hup(pollfd[i].fd);
-			} else if (pollfd[i].revents & POLLIN) {
-				process_input(pollfd[i].fd);
+				log_error("closing fd %d", pollfd[i].fd);
+				close(pollfd[i].fd);
 			}
 		}
 	}
 
-out_snl:
-out_sun:
-out_free:
 	free(pollfd);
 	return 0;
 }
