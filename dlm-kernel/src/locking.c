@@ -565,7 +565,7 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 	if (error)
 		goto fail_free;
 
-	if (!rsb || rsb->res_nodeid == -1) {
+	if (!rsb || rsb->res_nodeid != 0) {
 		log_debug(ls, "send einval to %u", remote_nodeid);
 		lkb->lkb_retstatus = -EINVAL;
 		if (rsb)
@@ -577,12 +577,6 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	log_debug(ls, "rq %u from %u %x \"%s\"", lkb->lkb_rqmode, remote_nodeid,
 		  lkb->lkb_id, rsb->res_name);
-
-	DLM_ASSERT(rsb->res_nodeid == 0,
-		   print_lkb(lkb);
-		   print_rsb(rsb);
-		   print_request(freq);
-		   printk("nodeid %u\n", remote_nodeid););
 
       out:
 	return lkb;
