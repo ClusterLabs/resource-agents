@@ -23,6 +23,7 @@ distclean: clean
 install:
 	cd src && ${MAKE} install
 	cd man && ${MAKE} install
+	cd init.d && ${MAKE} install
 
 check:
 	cd src && ${MAKE} check
