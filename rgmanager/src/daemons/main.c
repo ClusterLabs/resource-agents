@@ -48,6 +48,8 @@ int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 
 #define request_failback(a) 0
 
+uint64_t next_node_id(cluster_member_list_t *membership, uint64_t me);
+
 
 void
 segfault(int sig)
@@ -420,30 +422,6 @@ handle_cluster_event(int fd)
 }
 
 
-uint64_t
-next_node_id(cluster_member_list_t *membership, uint64_t me)
-{
-	uint64_t low = (uint64_t)(-1);
-	uint64_t next = me, curr;
-	int x;
-
-	for (x = 0; x < membership->cml_count; x++) {
-		curr = membership->cml_members[x].cm_id;
-		if (curr < low)
-			low = curr;
-
-		if ((curr > me) && ((next == me) || (curr < next)))
-			next = curr;
-	}
-
-	/* I am highest ID; go to lowest */
-	if (next == me)
-		next = low;
-
-	return next;
-}
-
-
 int
 event_loop(int clusterfd)
 {
@@ -555,9 +533,6 @@ statedump(int sig)
 }
 
 
-int test_func(int, char**);
-int tree_delta_test(int, char**);
-
 void malloc_dump_table(void);
 
 
@@ -603,16 +578,6 @@ main(int argc, char **argv)
 	uint64_t myNodeID;
 
 	clu_set_loglevel(LOG_NOTICE);
-
-	if (argc >= 2 && !strcmp(argv[1],"test")) {
-		--argc; ++argv;
-		return test_func(argc, argv);
-	}
-
-	if (argc >= 2 && !strcmp(argv[1],"delta")) {
-		--argc; ++argv;
-		return tree_delta_test(argc, argv);
-	}
 
 	while ((rv = getopt(argc, argv, "fd")) != EOF) {
 		switch (rv) {

@@ -593,7 +593,7 @@ init_resource_groups(int reconfigure)
 		clulog(LOG_NOTICE, "Reconfiguring\n");
 	clulog(LOG_INFO, "Loading Resource Groups\n");
 	clulog(LOG_DEBUG, "Loading Resource Rules\n");
-	if (load_resource_rules(&rulelist) != 0) {
+	if (load_resource_rules(RESOURCE_ROOTDIR, &rulelist) != 0) {
 		return -1;
 	}
 	x = 0;

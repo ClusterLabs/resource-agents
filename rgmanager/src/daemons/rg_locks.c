@@ -106,7 +106,9 @@ ccs_lock(void)
 #else /* No ccs support */
 {
 	pthread_mutex_lock(&_ccs_mutex);
+	xmlInitParser();
        	ccs_doc = xmlParseFile(conffile);
+	xmlCleanupParser();
 	if (!ccs_doc)
 		return -1;
 	return 0;

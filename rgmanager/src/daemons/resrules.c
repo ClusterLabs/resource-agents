@@ -488,7 +488,7 @@ print_resource_rule(resource_rule_t *rr)
 	if (rr->rr_maxrefs)
 		printf("Max instances: %d\n", rr->rr_maxrefs);
 	if (rr->rr_agent)
-		printf("Agent: %s\n", rr->rr_agent);
+		printf("Agent: %s\n", basename(rr->rr_agent));
 	
 	printf("Attributes:\n");
 	if (!rr->rr_attrs) {
@@ -964,17 +964,18 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 			errors were encountered.
   */
 int
-load_resource_rules(resource_rule_t **rules)
+load_resource_rules(const char *rpath, resource_rule_t **rules)
 {
 	DIR *dir;
 	struct dirent *de;
 	char *fn;//, *dot;
 	char path[2048];
 
-	dir = opendir(RESOURCE_ROOTDIR);
+	dir = opendir(rpath);
 	if (!dir)
 		return -1;
 
+	xmlInitParser();
 	while ((de = readdir(dir))) {
 		
 		fn = basename(de->d_name);
@@ -982,10 +983,11 @@ load_resource_rules(resource_rule_t **rules)
 			continue;
 
 		snprintf(path, sizeof(path), "%s/%s",
-			 RESOURCE_ROOTDIR, de->d_name);
+			 rpath, de->d_name);
 
 		load_resource_rulefile(path, rules);
 	}
+	xmlCleanupParser();
 
 	closedir(dir);
 

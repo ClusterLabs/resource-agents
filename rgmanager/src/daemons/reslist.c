@@ -358,7 +358,7 @@ print_resource(resource_t *res)
 		printf("Instances: %d/%d\n", res->r_refs,
 		       res->r_rule->rr_maxrefs);
 	if (res->r_rule->rr_agent)
-		printf("Agent: %s\n", res->r_rule->rr_agent);
+		printf("Agent: %s\n", basename(res->r_rule->rr_agent));
 	
 	printf("Attributes:\n");
 	if (!res->r_attrs) {
@@ -573,96 +573,3 @@ load_resources(int ccsfd, resource_t **reslist, resource_rule_t **rulelist)
 	return 0;
 }
 
-
-int
-test_func(int argc, char **argv)
-{
-	fod_t *domains = NULL;
-	resource_rule_t *rulelist = NULL, *currule;
-	resource_t *reslist = NULL, *curres;
-	resource_node_t *tree = NULL;
-	int ccsfd;
-
-	printf("Running in test mode.\n");
-
-	load_resource_rules(&rulelist);
-
-       	ccsfd = ccs_lock();
-
-	if (ccsfd == FAIL) {
-		printf("Couldn't connect to ccs\n");
-		return 0;
-	}
-
-	construct_domains(ccsfd, &domains);
-	load_resources(ccsfd, &reslist, &rulelist);
-	build_resource_tree(ccsfd, &tree, &rulelist, &reslist);
-
-	if (argc == 1) {
-		printf("=== Resource XML Rules ===\n");
-		list_do(&rulelist, currule) {
-			print_resource_rule(currule);
-		} while (!list_done(&rulelist, currule));
-
-		printf("=== Resources from CCS ===\n");
-		list_do(&reslist, curres) {
-			print_resource(curres);
-		} while (!list_done(&reslist, curres));
-
-		printf("=== Resource Tree ===\n");
-		print_resource_tree(&tree);
-
-		printf("=== Failover Domains ===\n");
-		print_domains(&domains);
-	}
-
-	ccs_unlock(ccsfd);
-
-	if (argc < 4) {
-		printf("to play with resources:\n");
-		printf("   %s <start|stop|status> <type> <reference>\n",
-		       argv[0]);
-		return 0;
-	}
-
-	curres = find_resource_by_ref(&reslist, argv[2], argv[3]);
-	if (!curres) {
-		printf("No resource %s of type %s found\n",
-		       argv[3], argv[2]);
-		return 0;
-	}
-
-	if (!strcmp(argv[1], "start")) {
-		printf("Starting %s...\n", argv[3]);
-
-		if (res_start(&tree, curres, NULL)) {
-			printf("Failed to start %s\n", argv[3]);
-			return 1;
-		}
-		printf("Start of %s complete\n", argv[3]);
-		return 0;
-	} else if (!strcmp(argv[1], "stop")) {
-		printf("Stopping %s...\n", argv[3]);
-
-		if (res_stop(&tree, curres, NULL)) {
-			return 1;
-		}
-		printf("Stop of %s complete\n", argv[3]);
-		return 0;
-	} else if (!strcmp(argv[1], "status")) {
-		printf("Checking status of %s...\n", argv[3]);
-
-		if (res_status(&tree, curres, NULL)) {
-			printf("Status check of %s failed\n", argv[3]);
-			return 1;
-		}
-		printf("Status of %s is good\n", argv[3]);
-		return 0;
-	}
-
-	destroy_resource_tree(&tree);
-	destroy_resources(&reslist);
-	destroy_resource_rules(&rulelist);
-
-	return 0;
-}

@@ -333,6 +333,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 
 	nodename = memb_id_to_name(membership, nodeid);
 
+#ifndef NO_CCS /* XXX Testing only */
 	if (group_property(rg_name, "domain",
 			    domainname, sizeof(domainname))) {
 		/*
@@ -345,6 +346,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 #endif
 		RETURN(FOD_BEST);
 	}
+#endif
 
 	/*
 	 * Ok, we've got a failover domain associated with the service.

@@ -42,6 +42,30 @@ int set_rg_state(char *servicename, rg_state_t *svcblk);
 int get_rg_state(char *servicename, rg_state_t *svcblk);
 
 
+uint64_t
+next_node_id(cluster_member_list_t *membership, uint64_t me)
+{
+	uint64_t low = (uint64_t)(-1);
+	uint64_t next = me, curr;
+	int x;
+
+	for (x = 0; x < membership->cml_count; x++) {
+		curr = membership->cml_members[x].cm_id;
+		if (curr < low)
+			low = curr;
+
+		if ((curr > me) && ((next == me) || (curr < next)))
+			next = curr;
+	}
+
+	/* I am highest ID; go to lowest */
+	if (next == me)
+		next = low;
+
+	return next;
+}
+
+
 int
 svc_report_failure(char *svcName)
 {

@@ -465,7 +465,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 		/* Load it if its max refs hasn't been exceeded */
 		if (rule->rr_maxrefs && (curres->r_refs >= rule->rr_maxrefs)){
 			printf("Warning: Max references exceeded for resource"
-			       " %s (type %s)", curres->r_attrs[0].ra_name,
+			       " %s (type %s)\n", curres->r_attrs[0].ra_name,
 			       rule->rr_type);
 			continue;
 		}
@@ -1118,87 +1118,4 @@ resource_tree_delta(resource_node_t **ltree, resource_node_t **rtree)
 	} while (!list_done(rtree, rn));
 
 	return 0;
-}
-
-
-int
-tree_delta_test(int argc, char **argv)
-{
-#ifndef NO_CCS
-	printf("This operation is not supported with the current build.\n");
-	return 0;
-#else
-	resource_rule_t *rulelist = NULL, *currule, *rulelist2 = NULL;
-	resource_t *reslist = NULL, *curres, *reslist2 = NULL;
-	resource_node_t *tree = NULL, *tree2 = NULL;
-	int ccsfd;
-
-	if (argc < 2) {
-		printf("Operation requires two arguments\n");
-		return -1;
-	}
-
-	currule = NULL;
-	curres = NULL;
-
-	printf("Running in resource tree delta test mode.\n");
-
-	conf_setconfig(argv[1]);
-
-       	ccsfd = ccs_lock();
-	load_resource_rules(&rulelist);
-	load_resources(ccsfd, &reslist, &rulelist);
-	build_resource_tree(ccsfd, &tree, &rulelist, &reslist);
-	ccs_unlock(ccsfd);
-
-	conf_setconfig(argv[2]);
-
-       	ccsfd = ccs_lock();
-	load_resource_rules(&rulelist2);
-	load_resources(ccsfd, &reslist2, &rulelist2);
-	build_resource_tree(ccsfd, &tree2, &rulelist2, &reslist2);
-	ccs_unlock(ccsfd);
-
-	resource_delta(&reslist, &reslist2);
-
-	printf("=== Old Resource List ===\n");
-	list_do(&reslist, curres) {
-		print_resource(curres);
-	} while (!list_done(&reslist, curres));
-	printf("=== New Resource List ===\n");
-	list_do(&reslist2, curres) {
-		print_resource(curres);
-	} while (!list_done(&reslist2, curres));
-
-	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
-
-	printf("CLEANING UP group oracle\n");
-	res_stop(&tree, curres, NULL);
-
-	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
-	printf("Starting oracle...\n");
-	if (res_start(&tree, curres, NULL)) {
-		printf("Failed to start oracle\n");
-		return 1;
-	}
-	printf("Start of oracle complete\n");
-
-
-	resource_tree_delta(&tree, &tree2);
-	printf("=== Old Resource Tree ===\n");
-	print_resource_tree(&tree);
-	printf("=== New Resource Tree ===\n");
-	print_resource_tree(&tree2);
-
-	/* HARDCODED TEST -- badbad */
-	printf("COND STOPPING whatever I need to from oracle...\n");
-	curres = find_resource_by_ref(&reslist, "resourcegroup", "oracle");
-	res_condstop(&tree, curres, NULL);
-
-	printf("COND STARTING whatever I need to from oracle...\n");
-	curres = find_resource_by_ref(&reslist2, "resourcegroup", "oracle");
-	res_condstart(&tree2, curres, NULL);
-
-	return 0;
-#endif
 }
