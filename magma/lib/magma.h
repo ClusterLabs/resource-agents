@@ -195,7 +195,7 @@ int clu_unlock(char *resource, void *lockinfo);
 int clu_connect(char *, int); /** Search for and log in to whatever we find */
 int clu_disconnect(int); /** Log out of whatever module we loaded */
 int clu_connected(void); /** are we successfully connected? */
-int cp_fence(cluster_member_t *); /** Fence a member.  Don't do this unless
+int clu_fence(cluster_member_t *); /** Fence a member.  Don't do this unless
 				      you know what you're doing */
 
 
