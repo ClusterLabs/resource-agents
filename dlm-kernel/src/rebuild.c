@@ -1143,6 +1143,7 @@ static struct dlm_rsb *deserialise_rsb(struct dlm_ls *ls, int nodeid,
 		rsb->res_nodeid = our_nodeid();
 
 	rsb->res_remasterid = remasterid;
+	rsb->res_parent = parent;
 
 	return rsb;
 }
