@@ -463,7 +463,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kcl_unregister_service(ls->ls_local_id);
 	}
 
-	kthread_stop(ls->ls_recoverd_task);
+	if (test_and_clear_bit(LSFL_RECOVERD_RUN, &ls->ls_flags))
+		kthread_stop(ls->ls_recoverd_task);
 
 	remove_lockspace(ls);
 
