@@ -15,7 +15,7 @@
 #define __CNXMAN_PRIVATE_H
 
 /* Protocol Version triplet */
-#define CNXMAN_MAJOR_VERSION 4
+#define CNXMAN_MAJOR_VERSION 5
 #define CNXMAN_MINOR_VERSION 0
 #define CNXMAN_PATCH_VERSION 1
 
@@ -226,6 +226,14 @@ struct cl_mem_reconfig_msg {
 	unsigned int   value;
 };
 
+/* Tell the cluster a node has died */
+struct cl_mem_nodedown_msg {
+	unsigned char  cmd;
+	unsigned char  reason;
+	unsigned short pad;
+	unsigned int   nodeid;
+};
+
 /* Structure containing information about an outstanding listen request */
 struct cl_waiting_listen_request {
 	wait_queue_head_t waitq;
@@ -254,6 +262,7 @@ struct cl_waiting_listen_request {
 #define CLUSTER_MEM_NEWCLUSTER 15
 #define CLUSTER_MEM_CONFACK    16
 #define CLUSTER_MEM_NOMINATE   17
+#define CLUSTER_MEM_NODEDOWN   18
 
 /* Flags in the HELLO message */
 #define HELLO_FLAG_MASTER       1

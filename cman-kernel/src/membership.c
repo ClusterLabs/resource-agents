@@ -115,6 +115,7 @@ static int do_process_hello(struct msghdr *msg, char *buf, int len);
 static int do_process_kill(struct msghdr *msg, char *buf, int len);
 static int do_process_reconfig(struct msghdr *msg, char *buf, int len);
 static int do_process_starttrans(struct msghdr *msg, char *buf, int len);
+static int do_process_nodedown(struct msghdr *msg, char *buf, int len);
 static int do_process_masterview(struct msghdr *msg, char *buf, int len);
 static int do_process_endtrans(struct msghdr *msg, char *buf, int len);
 static int do_process_viewack(struct msghdr *msg, char *buf, int len);
@@ -1044,6 +1045,20 @@ int send_kill(int nodeid, int needack)
 			   sizeof (struct sockaddr_cl), needack?0:MSG_NOACK);
 }
 
+/* Tell the rest of the cluster a node has gone down */
+static int send_nodedown(int nodeid, unsigned char reason)
+{
+	struct cl_mem_nodedown_msg downmsg;
+	int status;
+
+	downmsg.reason = reason;
+	downmsg.nodeid = cpu_to_le32(nodeid);
+	downmsg.cmd = CLUSTER_MEM_NODEDOWN;
+
+	status = kcl_sendmsg(mem_socket, (char *)&downmsg, sizeof(downmsg), NULL, 0, 0);
+	return status;
+}
+
 /* Process a message */
 static int do_membership_packet(struct msghdr *msg, char *buf, int len)
 {
@@ -1106,6 +1121,10 @@ static int do_membership_packet(struct msghdr *msg, char *buf, int len)
 
 	case CLUSTER_MEM_STARTTRANS:
 		result = do_process_starttrans(msg, buf, len);
+		break;
+
+	case CLUSTER_MEM_NODEDOWN:
+		result = do_process_nodedown(msg, buf, len);
 		break;
 
 	case CLUSTER_MEM_ENDTRANS:
@@ -1330,6 +1349,8 @@ void a_node_just_died(struct cluster_node *node)
 		cluster_members--;
 	node->state = NODESTATE_DEAD;
 	up(&cluster_members_lock);
+
+	send_nodedown(node->node_id, node->leave_reason);
 
 	/* Notify listeners */
 	notify_kernel_listeners(DIED, (long) node->node_id);
@@ -1750,10 +1771,6 @@ static int do_process_nominate(struct msghdr *msg, char *buf, int len)
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
 	remove_joiner(1);
 
-	if (startmsg->reason == TRANS_REMNODE) {
-		node = remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
-	}
-
 	if (startmsg->reason == TRANS_NEWNODE) {
 		add_node_from_starttrans(msg, buf, len);
 		node = joining_node;
@@ -2052,6 +2069,16 @@ static int send_nominate(struct cl_mem_starttrans_msg *startmsg, int msglen,
 			   &maddr, sizeof (maddr), 0);
 }
 
+/* Got a NODEDOWN message */
+static int do_process_nodedown(struct msghdr *msg, char *buf, int len)
+{
+	struct cl_mem_nodedown_msg *downmsg =
+		(struct cl_mem_nodedown_msg *)buf;
+
+	remove_node(le32_to_cpu(downmsg->nodeid), downmsg->reason);
+	return 0;
+}
+
 /* Got a STARTTRANS message */
 static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 {
@@ -2075,12 +2102,6 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 	if ((newgen < cluster_generation) ||
 	    (newgen == 0xFFFFFFFF && cluster_generation == 0)) {
 		P_MEMB("Ignoring STARTTRANS with old generation number\n");
-
-		/* if a node has died we still need to do something about it */
-		if (startmsg->reason == TRANS_REMNODE ||
-		    startmsg->reason == TRANS_ANOTHERREMNODE) {
-			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
-		}
 		return 0;
 	}
 
@@ -2156,10 +2177,6 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			add_node_from_starttrans(msg, buf, len);
 		}
 
-		if (startmsg->reason == TRANS_REMNODE ||
-		    startmsg->reason == TRANS_ANOTHERREMNODE) {
-			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
-		}
 		send_startack(saddr, msg->msg_namelen);
 
 		/* Establish timer in case the master dies */
@@ -2201,20 +2218,10 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 			       TRANS_NEWMASTER ? "NEWMASTER" : "DEADMASTER",
 			       le32_to_cpu(startmsg->nodeid));
 
-			/* If the old master has died then remove it */
-			if (startmsg->reason == TRANS_DEADMASTER) {
-				remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
-			}
-
 			/* Store new master */
 			master_node = find_node_by_nodeid(saddr->scl_nodeid);
 		}
 
-		/* Another node has died (or been killed) */
-		if (startmsg->reason == TRANS_ANOTHERREMNODE) {
-			/* Remove new dead node */
-			remove_node(le32_to_cpu(startmsg->nodeid), startmsg->flags);
-		}
 
 		/* Restart the timer */
 		del_timer(&transition_timer);
@@ -3258,6 +3265,8 @@ static char *msgname(int msg)
 		return "CONFACK";
 	case CLUSTER_MEM_NOMINATE:
 		return "NOMINATE";
+	case CLUSTER_MEM_NODEDOWN:
+		return "NODEDOWN";
 
 	default:
 		return "??UNKNOWN??";
