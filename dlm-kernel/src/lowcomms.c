@@ -87,6 +87,7 @@ struct connection {
 	struct page *rx_page;
 	struct cbuf cb;
 	int retries;
+	atomic_t waiting_requests;
 #define MAX_CONNECT_RETRIES 3
 	struct connection *othersock;
 };
@@ -157,6 +158,7 @@ static void lowcomms_data_ready(struct sock *sk, int count_unused)
 {
 	struct connection *con = sock2con(sk);
 
+	atomic_inc(&con->waiting_requests);
 	if (test_and_set_bit(CF_READ_PENDING, &con->flags))
 		return;
 
@@ -366,12 +368,6 @@ static int receive_from_sock(struct connection *con)
 		goto out_close;
 	CBUF_EAT(&con->cb, ret);
 
-	spin_lock_irq(&con->sock->sk->sk_receive_queue.lock);
-	if (skb_peek(&con->sock->sk->sk_receive_queue)) {
-		call_again_soon = 1;
-	}
-	spin_unlock_irq(&con->sock->sk->sk_receive_queue.lock);
-
 	if (CBUF_EMPTY(&con->cb) && !call_again_soon) {
 		__free_page(con->rx_page);
 		con->rx_page = NULL;
@@ -492,14 +488,14 @@ static int accept_from_sock(struct connection *con)
 	lowcomms_data_ready(newsock->sk, 0);
 	up_read(&con->sock_sem);
 
-      accept_out:
 	return 0;
 
       accept_err:
 	up_read(&con->sock_sem);
 	sock_release(newsock);
 
-	printk("dlm: error accepting connection from node: %d\n", result);
+	if (result != -EAGAIN)
+		printk("dlm: error accepting connection from node: %d\n", result);
 	return result;
 }
 
@@ -916,7 +912,17 @@ static void process_sockets(void)
 
 		spin_unlock_bh(&read_sockets_lock);
 
-		con->rx_action(con);
+		/* This can reach zero if we a reprocessing requests
+		 * as they come in.
+		 */
+		if (atomic_read(&con->waiting_requests) == 0) {
+			spin_lock_bh(&read_sockets_lock);
+			continue;
+		}
+
+		do {
+			con->rx_action(con);
+		} while (!atomic_dec_and_test(&con->waiting_requests));
 
 		/* Don't starve out everyone else */
 		schedule();
