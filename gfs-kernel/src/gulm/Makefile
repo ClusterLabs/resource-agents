@@ -40,7 +40,6 @@ lock_gulm-objs := gulm_core.o \
 	util.o \
 	utils_crc.o \
 	utils_tostr.o \
-	utils_verb_flags.o \
 	xdr_base.o \
 	xdr_io.o \
 	xdr_socket.o
