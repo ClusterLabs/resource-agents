@@ -1632,12 +1632,16 @@ gfs_readlinki(struct gfs_inode *ip, char **buf, unsigned int *len)
 }
 
 /**
- * gfs_glock_nq_atime - Acquire the glock and conditionally update the atime on an inode
+ * gfs_glock_nq_atime - Acquire a hold on an inode's glock, and
+ *       conditionally update the inode's atime
  * @gh: the holder to acquire
  *
- * Tests atime for gfs_read, gfs_readdir and gfs_test_mmap
- * Update if the difference between the current time and the current atime 
- * is greater than an interval specified at mount (or default).
+ * Tests atime (access time) for gfs_read, gfs_readdir and gfs_mmap
+ * Update if the difference between the current time and the inode's current
+ * atime is greater than an interval specified at mount (or default).
+ *
+ * Will not update if GFS mounted NOATIME (this is *the* place where NOATIME
+ *   has an effect) or Read-Only.
  *
  * Returns: errno
  */
@@ -1660,6 +1664,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 	ip = gl2ip(gl);
 	GFS_ASSERT_GLOCK(ip, gl,);
 
+	/* Save original request state of lock holder */
 	state = gh->gh_state;
 	flags = gh->gh_flags;
 
@@ -1673,6 +1678,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 
 	curtime = get_seconds();
 	if (curtime - ip->i_di.di_atime >= quantum) {
+		/* Get EX hold (force EX glock via !ANY) to write the dinode */
 		gfs_glock_dq(gh);
 		gfs_holder_reinit(LM_ST_EXCLUSIVE,
 				  gh->gh_flags & ~LM_FLAG_ANY,
@@ -1681,7 +1687,7 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 		if (error)
 			return error;
 
-		/* Verify this hasn't been updated while we were
+		/* Verify that atime hasn't been updated while we were
 		   trying to get exclusive lock. */
 
 		curtime = get_seconds();
@@ -1707,6 +1713,9 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 			gfs_trans_end(sdp);
 		}
 
+		/* If someone else has asked for the glock,
+		   unlock and let them have it. Then reacquire
+		   in the original state. */
 		if (gfs_glock_is_blocking(gl)) {
 			gfs_glock_dq(gh);
 			gfs_holder_reinit(state, flags, gh);
@@ -1726,10 +1735,17 @@ gfs_glock_nq_atime(struct gfs_holder *gh)
 }
 
 /**
- * glock_compare_atime - Compare two struct gfs_glock structures for sorting
+ * glock_compare_atime - Compare two struct gfs_glock structures for gfs_sort()
  * @arg_a: the first structure
  * @arg_b: the second structure
  *
+ * Sort order determined by (in order of priority):
+ * -- lock number
+ * -- lock state (SHARED > EXCLUSIVE or GL_ATIME, which can demand EXCLUSIVE)
+ *
+ * Returns: 1 if A > B
+ *         -1 if A < B
+ *          0 if A = B
  */
 
 static int
@@ -1758,11 +1774,13 @@ glock_compare_atime(const void *arg_a, const void *arg_b)
 }
 
 /**
- * gfs_glock_nq_m_atime - acquire multiple glocks where one may need an atime update
+ * gfs_glock_nq_m_atime - acquire multiple glocks where one may need an
+ *      atime update
  * @num_gh: the number of structures
  * @ghs: an array of struct gfs_holder structures
  *
- * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired),
+ *          errno on failure (no glocks acquired)
  */
 
 int

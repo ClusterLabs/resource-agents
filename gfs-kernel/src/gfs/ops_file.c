@@ -183,7 +183,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 }
 
 /**
- * walk_vma - Walk the vmas associated with a buffer for read or write.
+ * walk_vm - Walk the vmas associated with a buffer for read or write.
  *    If any of them are gfs, pass the gfs inode down to the read/write
  *    worker function so that locks can be acquired in the correct order.
  * @file: The file to read/write from/to

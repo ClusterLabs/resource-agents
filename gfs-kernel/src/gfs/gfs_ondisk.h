@@ -381,8 +381,10 @@ struct gfs_quota {
 #define GFS_DIF_DIRECTIO          (0x00000010)
 #define GFS_DIF_IMMUTABLE         (0x00000020) /* Can't change file */
 #define GFS_DIF_APPENDONLY        (0x00000040) /* Can only add to end of file */
-#define GFS_DIF_NOATIME           (0x00000080) /* Don't update access time */
-#define GFS_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache */
+#define GFS_DIF_NOATIME           (0x00000080) /* Don't update access time
+						  (currently unused/ignored) */
+#define GFS_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache
+						  (currently unused/ignored) */
 #define GFS_DIF_INHERIT_DIRECTIO  (0x40000000) /* new files get DIRECTIO flag */
 #define GFS_DIF_INHERIT_JDATA     (0x80000000) /* new files get JDATA flag */
 

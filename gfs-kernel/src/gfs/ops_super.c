@@ -334,7 +334,7 @@ gfs_remount_fs(struct super_block *sb, int *flags, char *data)
 		error = gfs_make_fs_rw(sdp);
 	}
 
-	/*  Don't let the VFS update atimes.  */
+	/*  Don't let the VFS update atimes.  GFS handles this itself. */
 	*flags |= MS_NOATIME | MS_NODIRATIME;
 
 	return error;

@@ -41,9 +41,28 @@
  * gfs_read_super - Read in superblock
  * @sb: The VFS superblock
  * @data: Mount options
- * @silent: Don't complain if its not a GFS filesystem
+ * @silent: Don't complain if it's not a GFS filesystem
  *
  * Returns: errno
+ *
+ * After cross-linking Linux VFS incore superblock and our GFS incore superblock
+ *   (filesystem instance structures) to one another, we:
+ * -- Init some of our GFS incore superblock, including some temporary
+ *       block-size values (enough to read on-disk superblock).
+ * -- Set up some things in Linux VFS superblock.
+ * -- Mount a lock module, init glock system (incl. glock reclaim daemons),
+ *       and init some important inter-node locks (MOUNT, LIVE, SuperBlock).
+ * -- Read-in the GFS on-disk superblock (1st time, to get enough info
+ *       to do filesystem upgrade and journal replay, incl. journal index).
+ * -- Upgrade on-disk filesystem format (rarely needed).
+ * -- Replay journal(s) (always; replay *all* journals if we're first-to-mount).
+ * -- Read-in on-disk superblock and journal index special file again (2nd time,
+ *       assumed 100% valid now after journal replay).
+ * -- Read-in info on other special (hidden) files (root inode, resource index,
+ *       quota inode, license inode).
+ * -- Start other daemons (journal/log recovery, log tail, quota updates, inode
+ *       reclaim) for periodic maintenance.
+ * 
  */
 
 static int
@@ -126,26 +145,30 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_vfree;
 	}
 
-	/*  Copy out mount flags  */
+	/*  Copy VFS mount flags  */
 
 	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
 		set_bit(SDF_NOATIME, &sdp->sd_flags);
 	if (sb->s_flags & MS_RDONLY)
 		set_bit(SDF_ROFS, &sdp->sd_flags);
 
-	/*  Setup up Virtual Super Block  */
+	/*  Set up Linux Virtual (VFS) Super Block  */
 
 	sb->s_magic = GFS_MAGIC;
 	sb->s_op = &gfs_super_ops;
 	sb->s_export_op = &gfs_export_ops;
+
+	/*  Don't let the VFS update atimes.  GFS handles this itself. */
 	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
 
+	/*  If we were mounted with -o acl (to support POSIX access control
+	    lists), tell VFS */
 	if (sdp->sd_args.ar_posix_acls)
 		sb->s_flags |= MS_POSIXACL;
 
-	/*  Set up the buffer cache and fill in some fake values
-	   to allow us to read in the superblock.  */
+	/*  Set up the buffer cache and fill in some fake block size values
+	   to allow us to read-in the on-disk superblock.  */
 
 	sdp->sd_sb.sb_bsize = sb_min_blocksize(sb, GFS_BASIC_BLOCK);
 	sdp->sd_sb.sb_bsize_shift = sb->s_blocksize_bits;
@@ -153,6 +176,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 
 	GFS_ASSERT_SBD(sizeof(struct gfs_sb) <= sdp->sd_sb.sb_bsize, sdp,);
+
+	/*  Mount an inter-node lock module, check for local optimizations */
 
 	error = gfs_mount_lockproto(sdp, silent);
 	if (error)
@@ -191,6 +216,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 		wait_for_completion(&sdp->sd_thread_completion);
 	}
 
+	/*  Only one node may mount at a time */
 	error = gfs_glock_nq_num(sdp,
 				 GFS_MOUNT_LOCK, &gfs_nondisk_glops,
 				 LM_ST_EXCLUSIVE, LM_FLAG_NOEXP | GL_NOCACHE,
@@ -201,6 +227,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_glockd;
 	}
 
+	/*  Show that cluster is alive */
 	error = gfs_glock_nq_num(sdp,
 				 GFS_LIVE_LOCK, &gfs_nondisk_glops,
 				 LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT,
@@ -212,6 +239,9 @@ fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	sdp->sd_live_gh.gh_owner = NULL;
+
+	/*  Read the SuperBlock from disk, get enough info to enable us
+	    to read-in the journal index and replay all journals. */
 
 	error = gfs_glock_nq_num(sdp,
 				 GFS_SB_LOCK, &gfs_meta_glops,
@@ -230,7 +260,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_gunlock_sb;
 	}
 
-	/*  Set up the buffer cache and SB for real  */
+	/*  Set up the buffer cache and SB for real, now that we know block
+	      sizes, version #s, locations of important on-disk inodes, etc.  */
 
 	error = -EINVAL;
 	if (sdp->sd_sb.sb_bsize < bdev_hardsect_size(sb->s_bdev)) {
@@ -251,7 +282,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	sb_set_blocksize(sb, sdp->sd_sb.sb_bsize);
 
-	/*  Read in journal index inode  */
+	/*  Read-in journal index inode (but not the file contents, yet)  */
 
 	error = gfs_get_jiinode(sdp);
 	if (error) {
@@ -262,7 +293,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	init_MUTEX(&sdp->sd_jindex_lock);
 
-	/*  Get a handle on the transaction glock  */
+	/*  Get a handle on the transaction glock; we need this for disk format
+	    upgrade and journal replays, as well as normal operation.  */
 
 	error = gfs_glock_get(sdp, GFS_TRANS_LOCK, &gfs_trans_glops,
 			      CREATE, &sdp->sd_trans_gl);
@@ -270,7 +302,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_ji_free;
 	set_bit(GLF_STICKY, &sdp->sd_trans_gl->gl_flags);
 
-	/*  Upgrade version numbers if we need to  */
+	/*  Upgrade GFS on-disk format version numbers if we need to  */
 
 	if (sdp->sd_args.ar_upgrade) {
 		error = gfs_do_upgrade(sdp, sb_gh.gh_gl);
@@ -278,7 +310,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 			goto fail_trans_gl;
 	}
 
-	/*  Load in the journal index  */
+	/*  Load in the journal index special file */
 
 	error = gfs_jindex_hold(sdp, &ji_gh);
 	if (error) {
@@ -287,6 +319,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 		goto fail_trans_gl;
 	}
 
+	/*  Discover this node's journal number (lock module tells us
+	    which one to use), and lock it */
 	error = -EINVAL;
 	if (sdp->sd_lockstruct.ls_jid >= sdp->sd_journals) {
 		printk("GFS: fsid=%s: can't mount journal #%u\n",
@@ -309,6 +343,9 @@ fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	if (sdp->sd_lockstruct.ls_first) {
+		/*  We're first node within cluster to mount this filesystem,
+		    replay ALL of the journals, then let lock module know
+		    that we're done. */
 		for (x = 0; x < sdp->sd_journals; x++) {
 			error = gfs_recover_journal(sdp,
 						    x, sdp->sd_jindex + x,
@@ -323,8 +360,10 @@ fill_super(struct super_block *sb, void *data, int silent)
 		sdp->sd_lockstruct.ls_ops->lm_others_may_mount(sdp->sd_lockstruct.ls_lockspace);
 		sdp->sd_lockstruct.ls_first = FALSE;
 	} else {
+		/*  We're not the first; replay only our own journal. */
 		error = gfs_recover_journal(sdp,
-					    sdp->sd_lockstruct.ls_jid, &sdp->sd_jdesc,
+					    sdp->sd_lockstruct.ls_jid,
+					    &sdp->sd_jdesc,
 					    TRUE);
 		if (error) {
 			printk("GFS: fsid=%s: error recovering my journal: %d\n",
@@ -340,7 +379,10 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	sdp->sd_journal_gh.gh_owner = NULL;
 
-	/*  Drop our cache and reread all the things we read before the replay.  */
+	/*  Drop our buffer cache and reread all the things we read before
+	    the journal replay, on the unlikely chance that the replay might
+	    have affected (corrected/updated) the superblock contents
+	    or journal index. */
 
 	error = gfs_read_sb(sdp, sb_gh.gh_gl, FALSE);
 	if (error) {
@@ -370,7 +412,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 		}
 	}
 
-	/*  Start up the recover thread  */
+	/*  Start up the journal recovery thread  */
 
 	error = kernel_thread(gfs_recoverd, sdp, 0);
 	if (error < 0) {
@@ -421,7 +463,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	gfs_glock_dq_uninit(&sb_gh);
 	super = FALSE;
 
-	/*  Get the inode/dentry  */
+	/*  Get the root inode/dentry  */
 
 	inode = gfs_iget(sdp->sd_rooti, CREATE);
 	if (!inode) {

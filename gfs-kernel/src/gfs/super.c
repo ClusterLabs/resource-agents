@@ -473,7 +473,8 @@ gfs_ji_update(struct gfs_inode *ip)
  * @ji_gh: the holder for the jindex glock
  *
  * This makes sure that we're using the latest copy of the journal index
- *   special file, which might have been updated if someone added journals
+ *   special file (this describes all of the journals for this filesystem),
+ *   which might have been updated if someone added journals
  *   (via gfs_jadd utility).
  *
  * This is very similar to the gfs_rindex_hold() function, except that
@@ -509,10 +510,13 @@ gfs_jindex_hold(struct gfs_sbd *sdp, struct gfs_holder *ji_gh)
 }
 
 /**
- * gfs_get_jiinode - Read in the jindex inode for the superblock
+ * gfs_get_jiinode - Read-in the special (hidden) journal index inode
  * @sdp: The GFS superblock
  *
  * Returns: errno
+ *
+ * This reads-in just the dinode, not the special file contents that describe
+ *   the journals themselves (see gfs_jindex_hold()).
  */
 
 int
@@ -542,10 +546,13 @@ gfs_get_jiinode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_get_riinode - Read in the rindex inode for the superblock
+ * gfs_get_riinode - Read in the special (hidden) resource group index inode
  * @sdp: The GFS superblock
  *
  * Returns: errno
+ *
+ * This reads-in just the dinode, not the special file contents that describe
+ *   the resource groups themselves (see gfs_rindex_hold()).
  */
 
 int
@@ -575,7 +582,7 @@ gfs_get_riinode(struct gfs_sbd *sdp)
 }
 
 /**
- * gfs_get_rootinode - Read in the root inode
+ * gfs_get_rootinode - Read in the filesystem's root inode
  * @sdp: The GFS superblock
  *
  * Returns: errno
