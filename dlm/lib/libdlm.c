@@ -264,9 +264,12 @@ static int create_control_device()
     char name[256];
     int status = 0;
     int saved_errno = 0;
+    mode_t oldmode;
 
     /* Make sure the parent directory exists */
-    status = mkdir(MISC_PREFIX, 0600);
+    oldmode = umask(0);
+    status = mkdir(MISC_PREFIX, 0755);
+    umask(oldmode);
     if (status != 0 && errno != EEXIST)
     {
 	return status;
