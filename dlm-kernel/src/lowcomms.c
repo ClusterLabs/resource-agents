@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -47,6 +47,7 @@
 #include <net/sock.h>
 #include <net/tcp.h>
 #include <linux/pagemap.h>
+#include <linux/idr.h>
 #include <cluster/cnxman.h>
 
 #include "dlm_internal.h"
@@ -129,11 +130,12 @@ static wait_queue_head_t lowcomms_send_waitq;
 static wait_queue_t lowcomms_recv_waitq_head;
 static wait_queue_head_t lowcomms_recv_waitq;
 
-/* An array of pointers to connections, indexed by NODEID */
-static struct connection **connections;
+/* Connections list, indexed by nodeid */
+static DEFINE_IDR(connections_idr);
 static struct rw_semaphore connections_lock;
+static int max_nodeid;
 static kmem_cache_t *con_cache;
-static int conn_array_size;
+
 static atomic_t accepting;
 
 /* List of sockets that have reads pending */
@@ -154,53 +156,57 @@ static struct list_head listen_sockets;
 static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr);
 static int lowcomms_nodeid_from_ipaddr(struct sockaddr *addr, int addr_len);
 
-
-static struct connection *nodeid2con(int nodeid, int allocation)
+static struct connection *nodeid2con(int nodeid, int alloc)
 {
-	struct connection *con = NULL;
+	struct connection *con;
+	int r;
+	int n;
 
 	down_read(&connections_lock);
-	if (nodeid >= conn_array_size) {
-		int new_size = nodeid + dlm_config.conn_increment;
-		struct connection **new_conns;
+	con = idr_find(&connections_idr, nodeid);
+	up_read(&connections_lock);
 
-		new_conns = kmalloc(sizeof(struct connection *) *
-				    new_size, allocation);
-		if (!new_conns)
-			goto finish;
-
-		up_read(&connections_lock);
-		/* The worst that can happen here (I think), is that
-		   we get two consecutive reallocations */
+	if (!con && alloc) {
 		down_write(&connections_lock);
 
-		memset(new_conns, 0, sizeof(struct connection *) * new_size);
-		memcpy(new_conns, connections,  sizeof(struct connection *) * conn_array_size);
-		conn_array_size = new_size;
-		kfree(connections);
-		connections = new_conns;
+		con = idr_find(&connections_idr, nodeid);
+		if (con)
+			goto out_up;
 
+		r = idr_pre_get(&connections_idr, alloc);
+		if (!r)
+			goto out_up;
+
+		con = kmem_cache_alloc(con_cache, alloc);
+                if (!con)
+                        goto out_up;
+
+		r = idr_get_new_above(&connections_idr, con, nodeid, &n);
+		if (r) {
+			kfree(con);
+			con = NULL;
+			goto out_up;
+		}
+		if (n != nodeid) {
+			idr_remove(&connections_idr, n);
+			kmem_cache_free(con_cache, con);
+			con = NULL;
+			goto out_up;
+		}
+
+                memset(con, 0, sizeof(*con));
+                con->nodeid = nodeid;
+                init_rwsem(&con->sock_sem);
+                INIT_LIST_HEAD(&con->writequeue);
+                spin_lock_init(&con->writequeue_lock);
+
+		if (nodeid > max_nodeid)
+			max_nodeid = nodeid;
+
+	out_up:
 		up_write(&connections_lock);
-		down_read(&connections_lock);
 	}
 
-	con = connections[nodeid];
-	if (con == NULL && allocation) {
-		con = kmem_cache_alloc(con_cache, allocation);
-		if (!con)
-			goto finish;
-
-		memset(con, 0, sizeof(*con));
-		con->nodeid = nodeid;
-		init_rwsem(&con->sock_sem);
-		INIT_LIST_HEAD(&con->writequeue);
-		spin_lock_init(&con->writequeue_lock);
-
-		connections[nodeid] = con;
-	}
-
- finish:
-	up_read(&connections_lock);
 	return con;
 }
 
@@ -950,9 +956,6 @@ int lowcomms_close(int nodeid)
 {
 	struct connection *con;
 
-	if (!connections)
-		goto out;
-
 	log_debug2("closing connection to node %d", nodeid);
 	con = nodeid2con(nodeid, 0);
 	if (con) {
@@ -961,9 +964,6 @@ int lowcomms_close(int nodeid)
 		atomic_set(&con->waiting_requests, 0);
 	}
 	return 0;
-
-      out:
-	return -1;
 }
 
 /* API send message call, may queue the request */
@@ -1077,7 +1077,7 @@ static void clean_writequeues(void)
 {
 	int nodeid;
 
-	for (nodeid = 1; nodeid < conn_array_size; nodeid++) {
+	for (nodeid = 1; nodeid <= max_nodeid; nodeid++) {
 		struct connection *con = nodeid2con(nodeid, 0);
 
 		if (con)
@@ -1195,30 +1195,31 @@ void lowcomms_stop(void)
 	int i;
 	struct connection *temp;
 	struct connection *lcon;
+	struct connection *con;
 
 	atomic_set(&accepting, 0);
 
 	/* Set all the activity flags to prevent any
 	   socket activity.
 	*/
-	for (i = 0; i < conn_array_size; i++) {
-		if (connections[i])
-			connections[i]->flags |= 0x7;
+	for (i = 0; i <= max_nodeid; i++) {
+		con = idr_find(&connections_idr, i);
+		if (con)
+			con->flags |= 0x7;
 	}
 	daemons_stop();
 	clean_writequeues();
 
-	for (i = 0; i < conn_array_size; i++) {
-		if (connections[i]) {
-			close_connection(connections[i], TRUE);
-			if (connections[i]->othercon)
-				kmem_cache_free(con_cache, connections[i]->othercon);
-			kmem_cache_free(con_cache, connections[i]);
+	for (i = 0; i <= max_nodeid; i++) {
+		con = idr_find(&connections_idr, i);
+		if (con) {
+			close_connection(con, TRUE);
+			idr_remove(&connections_idr, i);
+			if (con->othercon)
+				kmem_cache_free(con_cache, con->othercon);
+			kmem_cache_free(con_cache, con);
 		}
 	}
-
-	kfree(connections);
-	connections = NULL;
 
 	/* Free up any dynamically allocated listening sockets */
 	list_for_each_entry_safe(lcon, temp, &listen_sockets, listenlist) {
@@ -1227,6 +1228,7 @@ void lowcomms_stop(void)
 	}
 
 	kmem_cache_destroy(con_cache);
+	max_nodeid = 0;
 	kcl_releaseref_cluster();
 }
 
@@ -1259,21 +1261,11 @@ int lowcomms_start(void)
 	init_waitqueue_head(&lowcomms_send_waitq);
 
 	error = -ENOMEM;
-	connections = kmalloc(sizeof(struct connection *) *
-			      dlm_config.conn_increment, GFP_KERNEL);
-	if (!connections)
-		goto out;
-
-	memset(connections, 0,
-	       sizeof(struct connection *) * dlm_config.conn_increment);
-
-	conn_array_size = dlm_config.conn_increment;
 
 	con_cache = kmem_cache_create("dlm_conn", sizeof(struct connection),
 				      __alignof__(struct connection), 0, NULL, NULL);
 	if (!con_cache)
 		goto fail_free_conn;
-
 
 	/* Start listening */
 	error = listen_for_all();
@@ -1289,8 +1281,11 @@ int lowcomms_start(void)
 	return 0;
 
       fail_unlisten:
-	close_connection(connections[0], 0);
-	kmem_cache_free(con_cache, connections[0]);
+	lcon = idr_find(&connections_idr, 0);
+	if (lcon) {
+		close_connection(lcon, 0);
+		kmem_cache_free(con_cache, lcon);
+	}
 	list_for_each_entry_safe(lcon, temp, &listen_sockets, listenlist) {
 		sock_release(lcon->sock);
 		kmem_cache_free(con_cache, lcon);
@@ -1300,7 +1295,6 @@ int lowcomms_start(void)
 
       fail_free_conn:
 	kcl_releaseref_cluster();
-	kfree(connections);
 
       out:
 	return error;
