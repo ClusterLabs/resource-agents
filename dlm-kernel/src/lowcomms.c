@@ -68,6 +68,11 @@ struct cbuf {
                              (cb)->base += (n); (cb)->base &= (cb)->mask; } while(0)
 #define CBUF_DATA(cb) (((cb)->base + (cb)->len) & (cb)->mask)
 
+/* Maximum number of incoming messages to process before
+   doing a schedule()
+*/
+#define MAX_RX_MSG_COUNT 25
+
 struct connection {
 	struct socket *sock;	/* NULL if not connected */
 	uint32_t nodeid;	/* So we know who we are in the list */
@@ -982,9 +987,11 @@ static void process_sockets(void)
 {
 	struct list_head *list;
 	struct list_head *temp;
+	int count = 0;
 
 	spin_lock_bh(&read_sockets_lock);
 	list_for_each_safe(list, temp, &read_sockets) {
+
 		struct connection *con =
 		    list_entry(list, struct connection, read_list);
 		list_del(&con->read_list);
@@ -1002,11 +1009,16 @@ static void process_sockets(void)
 
 		do {
 			con->rx_action(con);
+
+			/* Don't starve out everyone else */
+			if (++count >= MAX_RX_MSG_COUNT) {
+				schedule();
+				count = 0;
+			}
+
 		} while (!atomic_dec_and_test(&con->waiting_requests) &&
 			 !kthread_should_stop());
 
-		/* Don't starve out everyone else */
-		schedule();
 		spin_lock_bh(&read_sockets_lock);
 	}
 	spin_unlock_bh(&read_sockets_lock);
