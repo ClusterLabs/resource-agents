@@ -1,3 +1,20 @@
+2005-03-07 Lon Hohberger <lhh at redhat.com>
+	* include/resgroup.h: Add STOP_USER so we can handle user 
+	STOP (instead of just DISABLE) requests.  #150333
+	* src/resources/fs.sh: umount should umount mount points, not
+	devices.  #150481
+	* src/clulib/rg_strings.c: Add user stop string.
+	* src/clulib/gettid.c: errno fix from trunk
+	* src/clulib/vft.c: Connect timeout extension for VF
+	* src/daemons/main.c: Separate connect + login.  GuLM doesn't know
+	about SGs.
+	* src/daemons/rg_state.c: Change stop handling.  Add generic recover
+	function.
+	* src/daemons/rg_thread.c: Add support for RESTART, USER_STOP.
+	#150330, #150333
+	* src/utils/clusvcadm.c: Use USER_STOP to signal a user-called stop.
+	#150333
+
 2005-03-02 Lon Hohberger <lhh at redhat.com>
 	* include/clulog.h: Change default log level to INFO
 	* include/resgroup.h: Add proto for "best_target_node"

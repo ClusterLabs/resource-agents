@@ -550,4 +550,3 @@ will report a failure.
 
 Generally, this indicates attempt to retrieve the current view of that 
 resource group's state after quorum has dissolved.
-

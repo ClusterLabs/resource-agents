@@ -69,7 +69,8 @@ typedef struct __attribute__ ((packed)) {
 #define RG_RELOCATE 13
 #define RG_CONDSTOP 14
 #define RG_CONDSTART 15
-#define RG_START_REMOTE 16 /* Part of a relocate */
+#define RG_START_REMOTE 16	/* Part of a relocate */
+#define RG_STOP_USER 17		/* User-stop request */
 #define RG_NONE     999
 
 extern const char *rg_req_strings[];
@@ -79,6 +80,7 @@ extern const char *rg_req_strings[];
 int handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			uint64_t *new_owner);
 int handle_start_req(char *svcName, int req, uint64_t *new_owner);
+int handle_recover_req(char *svcName, uint64_t *new_owner);
 int handle_start_remote_req(char *svcName, int req);
 
 /* Resource group states (for now) */

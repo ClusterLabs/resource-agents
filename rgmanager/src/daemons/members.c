@@ -23,7 +23,6 @@
 
 static pthread_rwlock_t memblock = PTHREAD_RWLOCK_INITIALIZER;
 static uint64_t myid = NODE_ID_NONE;
-
 static cluster_member_list_t *membership = NULL;
 
 void

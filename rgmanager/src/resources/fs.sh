@@ -816,9 +816,9 @@ stopFilesystem() {
 			;;
 		$YES)
 			sync; sync; sync
-			logAndPrint $LOG_INFO "unmounting $dev ($mp)"
+			logAndPrint $LOG_INFO "unmounting $mp"
 
-			umount $dev
+			umount $mp
 			if  [ $? -eq 0 ]; then
 				umount_failed=
 				done=$YES
@@ -852,7 +852,7 @@ stopFilesystem() {
 	done # while 
 
 	if [ -n "$umount_failed" ]; then
-		logAndPrint $LOG_ERR "'umount $dev' failed ($mp), error=$ret_val"
+		logAndPrint $LOG_ERR "'umount $mp' failed, error=$ret_val"
 
 		if [ "$self_fence" ]; then
 			logAndPrint $LOG_ALERT "umount failed - REBOOTING"

@@ -30,5 +30,6 @@ const char *rg_req_strings[] = {
 	"conditional stop",
 	"conditional start",
 	"remote start",
+	"user stop",
 	""
 };

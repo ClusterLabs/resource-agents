@@ -822,10 +822,10 @@ svc_disable(char *svcName)
 
 
 int
-svc_stop(char *svcName, int recover)
+svc_stop(char *svcName, int req)
 {
-	return _svc_stop(svcName, recover?RG_STOP_RECOVER : RG_STOP,
-			  recover, RG_STATE_STOPPED);
+	return _svc_stop(svcName, req, (req == RG_STOP_RECOVER),
+			 RG_STATE_STOPPED);
 }
 
 
@@ -1100,7 +1100,7 @@ exhausted:
 		return FAIL;
 	}
 		
-	if (svc_stop(svcName, 0) != 0) {
+	if (svc_stop(svcName, RG_STOP) != 0) {
 		svc_fail(svcName);
 		svc_report_failure(svcName);
 	}
@@ -1164,7 +1164,7 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 	 * it.  This allows us to be the 'root' of a given service.
 	 */
 	clulog(LOG_DEBUG, "Stopping failed resource group %s\n", svcName);
-	if (svc_stop(svcName, 1) != 0) {
+	if (svc_stop(svcName, RG_STOP_RECOVER) != 0) {
 		clulog(LOG_CRIT,
 		       "#13: Resource group %s failed to stop cleanly",
 		       svcName);
@@ -1236,7 +1236,7 @@ handle_start_remote_req(char *svcName, int req)
 	if (svc_start(svcName, req) == 0)
 		return 0;
 
-	if (svc_stop(svcName, 1) == 0)
+	if (svc_stop(svcName, RG_STOP_RECOVER) == 0)
 		return FAIL;
 
 	svc_fail(svcName);

@@ -113,7 +113,7 @@ main(int argc, char **argv)
 		case 's':
 			/* stop */
 			actionstr = "stopping";
-			action = RG_STOP;
+			action = RG_STOP_USER;
 			svcname = optarg;
 			break;
 		case 'R':

@@ -643,12 +643,15 @@ main(int argc, char **argv)
 	/*
 	   Connect to the cluster software.
 	 */
-	cluster_fd = clu_connect(RG_SERVICE_GROUP, 1);
+	cluster_fd = clu_connect(RG_SERVICE_GROUP, 0);
 	if (cluster_fd < 0) {
 		clu_log_console(1);
 		clulog(LOG_CRIT, "#9: Couldn't connect to cluster\n");
 		return -1;
 	}
+   	msg_set_purpose(cluster_fd, MSGP_CLUSTER);
+
+	clulog(LOG_DEBUG, "Using %s\n", clu_plugin_version());
 
 	setup_signal(SIGINT, flag_shutdown);
 	setup_signal(SIGTERM, flag_shutdown);
@@ -662,23 +665,21 @@ main(int argc, char **argv)
 		clulog(LOG_CRIT, "#10: Couldn't set up listen socket\n");
 		return -1;
 	}
+
 	for (rv = 0; rv < listeners; rv++)
 		set_nonblock(listen_fds[rv]);
-
-   	msg_set_purpose(cluster_fd, MSGP_CLUSTER);
 	quorate = (clu_quorum_status(RG_SERVICE_GROUP) & QF_QUORATE);
-	if (quorate)
+
+	if (quorate) {
 		rg_set_quorate();
-	else {
+	} else {
 		setup_signal(SIGINT, graceful_exit);
 		setup_signal(SIGTERM, graceful_exit);
 	}
-
-	clulog(LOG_DEBUG, "USRM: Using %s\n", clu_plugin_version());
-	clulog(LOG_DEBUG,"USRM: Cluster Status: %s\n",
+	clulog(LOG_DEBUG, "Cluster Status: %s\n",
 	       quorate?"Quorate":"Inquorate");
 
-	clu_local_nodeid(RG_SERVICE_GROUP, &myNodeID);
+	clu_local_nodeid(NULL, &myNodeID);
 	set_my_id(myNodeID);
 
 	/*
@@ -687,6 +688,22 @@ main(int argc, char **argv)
 	if (vf_init(myNodeID, RG_VF_PORT, NULL, NULL) != 0) {
 		clulog(LOG_CRIT, "#11: Couldn't set up VF listen socket\n");
 		return -1;
+	}
+
+	if (clu_login(cluster_fd, RG_SERVICE_GROUP) == -1) {
+		if (errno != ENOSYS) {
+			clu_log_console(1);
+			clulog(LOG_CRIT,
+			       "#XX: Couldn't log in to service group!\n");
+		}
+		/* Not all support node groups. If we don't support
+		   node groups, don't try to fake it. */
+		clulog(LOG_INFO, "Faking SG support\n");
+		//have_groups = 0;
+	} else {
+		clulog(LOG_INFO, "Logged in SG \"%s\"\n",
+		       RG_SERVICE_GROUP);
+		//have_groups = 1;
 	}
 
 	/*

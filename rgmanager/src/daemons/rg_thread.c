@@ -241,25 +241,6 @@ resgroup_thread_main(void *arg)
 				ret = RG_NONE;
 			break;
 
-		case RG_STOP:
-			error = svc_stop(myname, 0);
-
-			if (error == 0 || error == FORWARD) {
-				ret = RG_SUCCESS;
-
-				pthread_mutex_lock(&my_queue_mutex);
-				purge_status_checks(&my_queue);
-				pthread_mutex_unlock(&my_queue_mutex);
-				break;
-			} else {
-				/*
-				 * Bad news. 
-				 */
-				ret = RG_FAIL;
-			}
-
-			break;
-
 		case RG_INIT:
 			/* Stop without changing shared state of it */
 			error = group_op(myname, RG_STOP);
@@ -284,9 +265,33 @@ resgroup_thread_main(void *arg)
 			group_op(myname, RG_CONDSTART);
 			break;
 
+		case RG_STOP:
+		case RG_STOP_USER:
+			/* Disable and user stop requests need to be
+			   forwarded; they're user requests */
+			error = svc_stop(myname, req->rr_request);
+
+			if (error == 0) {
+				ret = RG_SUCCESS;
+
+				pthread_mutex_lock(&my_queue_mutex);
+				purge_status_checks(&my_queue);
+				pthread_mutex_unlock(&my_queue_mutex);
+			} else if (error == FORWARD) {
+				ret = RG_NONE;
+				break;
+			} else {
+				/*
+				 * Bad news. 
+				 */
+				ret = RG_FAIL;
+			}
+
+			break;
+
 		case RG_DISABLE:
-			/* Disable requests need to be forwarded; they're
-			   user requests */
+			/* Disable and user stop requests need to be
+			   forwarded; they're user requests */
 			error = svc_disable(myname);
 
 			if (error == 0) {
@@ -295,6 +300,31 @@ resgroup_thread_main(void *arg)
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
 				pthread_mutex_unlock(&my_queue_mutex);
+			} else if (error == FORWARD) {
+				ret = RG_NONE;
+				break;
+			} else {
+				/*
+				 * Bad news. 
+				 */
+				ret = RG_FAIL;
+			}
+
+			break;
+
+		case RG_RESTART:
+			error = svc_stop(myname, RG_STOP_USER);
+
+			if (error == 0) {
+				pthread_mutex_lock(&my_queue_mutex);
+				purge_status_checks(&my_queue);
+				pthread_mutex_unlock(&my_queue_mutex);
+
+				error = handle_start_req(myname,
+							 req->rr_request,
+							 &newowner);
+				break;
+
 			} else if (error == FORWARD) {
 				ret = RG_NONE;
 				break;
@@ -316,7 +346,7 @@ resgroup_thread_main(void *arg)
 			if (error == 0)
 				break;
 
-			error = svc_stop(myname, 1);
+			error = svc_stop(myname, RG_STOP_RECOVER);
 			if (error == 0) {
 				error = handle_recover_req(myname, &newowner);
 			}
