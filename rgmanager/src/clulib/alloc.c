@@ -664,14 +664,20 @@ malloc(size_t size)
 	}
 #endif /* NOROUND */
 
+#ifndef NOTHREADS
 	while (pthread_mutex_trylock(&_alloc_mutex) != 0);
+#endif
 	if (!_pool) {
 #ifdef DEBUG
 		fprintf(stderr,
 			"malloc: Initializing region default size %lu\n",
 			(long unsigned)DEFAULT_SIZE);
 #endif
+#ifndef NOTHREADS
 		if (_malloc_init(DEFAULT_SIZE) < 0)
+#else
+		if (malloc_init(DEFAULT_SIZE) < 0)
+#endif
 			return NULL;
 	}
 
@@ -683,7 +689,9 @@ malloc(size_t size)
 #ifdef PARANOID
 		insert_alloc_block(block);
 #endif
+#ifndef NOTHREADS
 		pthread_mutex_unlock(&_alloc_mutex);
+#endif
 		return pointer(block);
 	}
 
@@ -800,10 +808,12 @@ realloc(void *oldp, size_t newsize)
 		return NULL;
 	}
 
-	oldb = block(oldp);
-	memcpy(newp, oldp, (newsize > oldb->mb_size) ?
-	       oldb->mb_size : newsize);
-	free(oldp);
+	if (oldp) {
+		oldb = block(oldp);
+		memcpy(newp, oldp, (newsize > oldb->mb_size) ?
+		       oldb->mb_size : newsize);
+		free(oldp);
+	}
 #ifdef DEBUG
 	newb = block(newp);
 	newb->mb_pc = __builtin_return_address(0);

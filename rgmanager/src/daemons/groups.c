@@ -58,6 +58,64 @@ node_should_start_safe(uint64_t nodeid, cluster_member_list_t *membership,
 
 
 /**
+  Start or failback a resource group: if it's not running, start it.
+  If it is running and we're a better member to run it, then ask for
+  it.
+ */
+void
+consider_start(char *svcName, rg_state_t *svcStatus,
+	       cluster_member_list_t *membership)
+{
+	/*
+	 * Service must be not be running elsewhere to consider for a
+	 * local start.
+	 */
+	if (svcStatus->rs_state == RG_STATE_STARTED &&
+	    svcStatus->rs_state == my_id())
+		return;
+
+	/*
+	 * Start any stopped services, or started services
+	 * that are owned by a down node.
+	 */
+	if (node_should_start(my_id(), membership, svcName, &_domains) ==
+	    FOD_BEST)
+		rt_enqueue_request(svcName, RG_START, -1, 0, my_id(), 0, 0);
+}
+
+
+void
+consider_relocate(char *svcName, rg_state_t *svcStatus, uint64_t nodeid,
+		  cluster_member_list_t *membership)
+{
+	int a, b;
+	/*
+	   Service must be running locally in order to consider for
+	   a relocate
+	 */
+	if (svcStatus->rs_state != RG_STATE_STARTED ||
+	    svcStatus->rs_owner != my_id())
+		return;
+
+	/*
+	 * Send the resource group to a node if it's got a higher prio
+	 * to run the resource group.
+	 */
+	a = node_should_start(nodeid, membership, svcName, &_domains);
+	b = node_should_start(my_id(), membership, svcName, &_domains);
+
+	if (a <= b)
+		return;
+
+	clulog(LOG_DEBUG, "Relocating group %s to better node %s\n",
+	       svcName,
+	       memb_id_to_name(membership, nodeid));
+
+	rt_enqueue_request(svcName, RG_RELOCATE, -1, 0, nodeid, 0, 0);
+}
+
+
+/**
  * Called to decide what services to start locally during a node_event.
  * Originally a part of node_event, it is now its own function to cut down
  * on the length of node_event.
@@ -83,7 +141,8 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 	pthread_rwlock_rdlock(&resource_lock);
 	list_do(&_tree, node) {
 
-		if (strcmp(node->rn_resource->r_rule->rr_type, "resourcegroup"))
+		if (strcmp(node->rn_resource->r_rule->rr_type,
+			   "resourcegroup"))
 			continue;
 
 		svcName = node->rn_resource->r_attrs->ra_value;
@@ -115,15 +174,12 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 			nodeName = memb_id_to_name(membership,
 						   svcStatus.rs_owner);
 
+		/* Disabled/failed/in recovery?  Do nothing */
 		if ((svcStatus.rs_state == RG_STATE_DISABLED) ||
 		    (svcStatus.rs_state == RG_STATE_FAILED) ||
 		    (svcStatus.rs_state == RG_STATE_RECOVER)) {
 			continue;
 		}
-
-		if (svcStatus.rs_state == RG_STATE_STARTED &&
-		    svcStatus.rs_owner == my_id())
-			continue;
 
 		clulog(LOG_DEBUG, "Evaluating RG %s, state %s, owner "
 		       "%s\n", svcName,
@@ -132,15 +188,7 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 
 		if (local && (nodeStatus == STATE_UP)) {
 
-			/*
-			 * Start any stopped services, or started services
-			 * that are owned by a down node.
-			 */
-			if (node_should_start(my_id(), membership,
-					      svcName, &_domains) ==
-			    FOD_BEST)
-				rt_enqueue_request(svcName, RG_START, -1, 0,
-						   my_id(), 0, 0);
+			consider_start(svcName, &svcStatus, membership);
 
 		} else if (!local && (nodeStatus == STATE_DOWN)) {
 
@@ -148,23 +196,18 @@ eval_groups(int local, uint64_t nodeid, int nodeStatus)
 			 * Start any stopped services, or started services
 			 * that are owned by a down node.
 			 */
-			if (node_should_start(my_id(), membership,
-					      svcName, &_domains) ==
-			    FOD_BEST)
-				rt_enqueue_request(svcName, RG_START, -1, 0,
-				  		   my_id(), 0, 0);
-#if 0
-			else
-				check_rdomain_crash(svcID, &svcStatus);
-#endif
+			consider_start(svcName, &svcStatus, membership);
+
 			/*
 			 * TODO
 			 * Mark a service as 'stopped' if no members in its
-			 * restricted
-			 * fail-over domain are running.
+			 * restricted fail-over domain are running.
 			 */
 		} else {
-			//printf("Do nothing: Non-local node-up\n");
+			/* Send to the node if that ndoe is a better
+			   owner for this service */
+			consider_relocate(svcName, &svcStatus, nodeid,
+					  membership);
 		}
 
 	} while (!list_done(&_tree, node));

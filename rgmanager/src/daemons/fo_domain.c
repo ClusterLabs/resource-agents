@@ -30,11 +30,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-/*
-#ifndef DEBUG
-#define DEBUG
-#endif
-*/
+
+//#define DEBUG
 
 #ifdef DEBUG
 #define ENTER() clulog(LOG_DEBUG, "ENTER: %s\n", __FUNCTION__)
@@ -378,7 +375,7 @@ node_should_start(uint64_t nodeid, cluster_member_list_t *membership,
 	/*
 	 * Determine whether this domain is ordered or not...
 	 */
-	ordered = !!(fod->fd_flags & FOD_RESTRICTED);
+	ordered = !!(fod->fd_flags & FOD_ORDERED);
 
 	switch (node_in_domain(nodename, fod, membership)) {
 	case 0:

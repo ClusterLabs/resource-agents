@@ -245,6 +245,18 @@ resgroup_thread_main(void *arg)
 		case RG_ENABLE:
 		case RG_START:
 		case RG_START_RECOVER:
+			if (myself->rt_status == RG_STATE_STARTED) {
+				pthread_mutex_unlock(&reslist_mutex);
+				/*
+				   If it's already started, return
+				   success.  When we start,
+				   other nodes may send us 
+				   start requests immediately
+				 */
+				error = 0;
+				break;
+			}
+			
 			if (myself->rt_status != RG_STATE_STOPPED) {
 				pthread_mutex_unlock(&reslist_mutex);
 				error = -1;

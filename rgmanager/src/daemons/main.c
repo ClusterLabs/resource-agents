@@ -381,8 +381,10 @@ handle_cluster_event(int fd)
 
 	switch(ret) {
 	case CE_NULL:
+		clulog(LOG_DEBUG, "NULL cluster event\n");
 		break;
 	case CE_SUSPEND:
+		clulog(LOG_DEBUG, "Suspend Event\n");
 		rg_lockall();
 		break;
 	case CE_MEMB_CHANGE:

@@ -4,17 +4,6 @@
   - Need a way for CCS to notify clients of a configuration change
   - Still working out with visegrips.
 
-* Samba failover is not complete.
-  - We can do the old RHEL model which required everyone to have a copy
-    of each samba.conf.sharename
-  - We could add internal Samba configuration info into the DB as XML
-    tags/attributes.
-  - We could dump the entire samba.conf.sharename for each sharename into
-    cluster.xml as CDATA, and have special tags for IP addrs so that we
-    know where to insert the IPs from the resource group.
-    - This requires adding something to allow the determination of all
-      IPs in a resource group for a given samba service.  Vile.
-
 * Too much RAM allocated. ;)  Silly pthreads.
   - Need to check out how much stack size we actually need.  Obviously,
     resource group threads need the most of any due to recursion and
@@ -34,13 +23,6 @@ the way it's currently implemented.
 * Init script 100% broken.
   - Ok, all we need to do is start clurgmgrd and stop it.
 
-* Ordered failover domain "relocate-to-more-preferred-node" is broken
-at the moment.
-
-* Rewrite list handling code or hack around linux/list.h's restrictions.
-  - sys/queue.h is BSD stuff, I don't want to go there again.
-
 * Write RHEL 3 -> LCP upgrade.
   - Should be simple; the resource group structure is based on the RHEL3
     cluster manager model.
-
