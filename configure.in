@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.316 $) dnl cvs revision
+AC_REVISION($Revision: 1.317 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1569,7 +1569,8 @@ if test "x${enable_crm}" = "xyes"; then
 	   CRM_ENABLED=1
 	   AC_DEFINE_UNQUOTED(WITH_CRM, 1, Use the new Cluster Resource Manager)
 	else
-		enable_crm="no (libxml2 not found)"
+            FatalMissingThing "libxml2-devel" "You need libxml2 to build heartbeat with the CRM."
+	    enable_crm="no (libxml2 not found)"
 	fi
 else 
      if test -z "${enable_crm}"; then
@@ -1815,6 +1816,8 @@ membership/Makefile						\
 	membership/ccm/Makefile					\
 pkg/Makefile							\
 	pkg/InfoFiles/pkginfo					\
+	pkg/preinstall      					\
+	pkg/postinstall						\
 snmp_subagent/Makefile						\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
