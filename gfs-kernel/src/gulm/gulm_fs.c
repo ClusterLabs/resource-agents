@@ -141,6 +141,7 @@ request_journal_replay (uint8_t * name)
 	up (&filesystem_lck);
 }
 
+/* can you say kludges kids?!  I *knew* you could. */
 void
 cast_check_for_stale_expires(void*d)
 {
@@ -188,6 +189,7 @@ passup_droplocks (void)
 	up (&filesystem_lck);
 }
 
+#if 0
 /**
  * dump_internal_lists - 
  * 
@@ -206,6 +208,7 @@ dump_internal_lists (void)
 	}
 	up (&filesystem_lck);
 }
+#endif
 
 /**
  * get_fs_by_name - 
@@ -272,6 +275,7 @@ start_gulm_threads (char *csnm, char *hostdata)
 		 * Noone really used these anyways and if ppl want them
 		 * badly, we'll find another way to set them. (modprobe
 		 * options for example. or maybe sysfs?)
+		 * ppl want verbosity
 		 * */
 		gulm_cm.handler_threads = 2;
 		gulm_cm.verbosity = lgm_Network ;
@@ -340,7 +344,7 @@ int send_drop_exp (gulm_fs_t * fs, char *name)
 	}
 	item->keylen = pack_drop_mask(item->key, item->keylen, fs->fs_name);
 
-	/* pretent lvb is name for drops. */
+	/* lvb is name for drops. */
 	if (name != NULL) {
 		item->lvblen = strlen(name) +1;
 		item->lvb = kmalloc(item->lvblen, GFP_KERNEL);
@@ -359,6 +363,55 @@ int send_drop_exp (gulm_fs_t * fs, char *name)
 	item->start = 0;
 	item->stop = ~((uint64_t)0);
 	item->type = glq_req_type_drop;
+	item->state = 0;
+	item->flags = 0;
+	item->error = 0;
+	item->finish = NULL;
+
+	glq_queue (item);
+
+	return 0;
+}
+/**
+ * expire_my_locks - 
+ * @fs: 
+ * 
+ * 
+ * Returns: int
+ */
+int expire_my_locks (gulm_fs_t * fs)
+{
+	glckr_t *item;
+
+	item = glq_get_new_req();
+	if( item == NULL ) {
+		log_err("drop_exp: failed to get needed memory. skipping.\n");
+		return -ENOMEM;
+	}
+
+	item->keylen = 3 + strlen(fs->fs_name);
+	item->key = kmalloc(item->keylen, GFP_KERNEL);
+	if (item->key == NULL) {
+		glq_recycle_req(item);
+		log_err("drop_exp: failed to get needed memory. skipping.\n");
+		return -ENOMEM;
+	}
+	item->keylen = pack_drop_mask(item->key, item->keylen, fs->fs_name);
+
+	/* lvb is name for drops. */
+	item->lvblen = strlen(gulm_cm.myName) +1;
+	item->lvb = kmalloc(item->lvblen, GFP_KERNEL);
+	if (item->lvb == NULL) {
+		glq_recycle_req(item); /* frees key for us */
+		log_err("drop_exp: failed to get needed memory. skipping.\n");
+		return -ENOMEM;
+	}
+	memcpy(item->lvb, gulm_cm.myName, item->lvblen);
+
+	item->subid = 0;
+	item->start = 0;
+	item->stop = ~((uint64_t)0);
+	item->type = glq_req_type_expire;
 	item->state = 0;
 	item->flags = 0;
 	item->error = 0;
@@ -591,7 +644,7 @@ gulm_unmount (lm_lockspace_t * lockspace)
 
 	/* close and release stuff */
 	drop_mount_lock (gulm_fs);
-	put_journalID (gulm_fs);
+	put_journalID (gulm_fs, FALSE);
 	jid_fs_release (gulm_fs);
 
 	stop_callback_qu (&gulm_fs->cq);
@@ -610,7 +663,37 @@ gulm_unmount (lm_lockspace_t * lockspace)
 void
 gulm_withdraw(lm_lockspace_t * lockspace)
 {
-	GULM_ASSERT(FALSE,);
+	gulm_fs_t *gulm_fs = (gulm_fs_t *) lockspace;
+printk("============= WITHDRAW =============\n");
+	down (&filesystem_lck);
+	list_del (&gulm_fs->fs_list);
+	--filesystems_count;
+	up (&filesystem_lck);
+
+	/* close and release stuff */
+	drop_mount_lock (gulm_fs);
+	/* leave this around for others to clean up.
+	 * marking myself as being replayed right away so in bad cases,
+	 * atleast check_for_stale will find us.
+	 * */
+	put_journalID (gulm_fs, TRUE);
+	jid_fs_release (gulm_fs);
+
+	stop_callback_qu (&gulm_fs->cq);
+
+	expire_my_locks (gulm_fs);
+	/* TODO FIXME XXX somehow tell others that my journal needs replying. */
+
+	/* need to let things run through the queues.
+	 * Only really an issue if you happen to be the only gfs/gulm fs
+	 * mounted.
+	 * */
+	current->state = TASK_UNINTERRUPTIBLE;
+	schedule_timeout( 2 * HZ);
+
+	kfree (gulm_fs);
+
+	stop_gulm_threads ();
 }
 
 /**
@@ -626,11 +709,17 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 {
 	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
 	int err;
-	uint8_t name[64];
+	uint8_t *name=NULL;
 
 	if (message != LM_RD_SUCCESS) {
 		/* Need to start thinking about how I want to use this... */
-		return;
+		goto exit;
+	}
+
+	name = kmalloc(64, GFP_KERNEL);
+	if(name == NULL) {
+		log_err("out of memory.\n");
+		goto exit;
 	}
 
 	if (jid == fs->fsJID) {	/* this may be drifting crud through. */
@@ -640,12 +729,12 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 		log_msg (lgm_JIDMap,
 			 "fsid=%s: Could not find a client for jid %d\n",
 			 fs->fs_name, jid);
-		return;
+		goto exit;
 	}
 	if (strlen (name) == 0) {
 		log_msg (lgm_JIDMap, "fsid=%s: No one mapped to jid %d\n",
 			 fs->fs_name, jid);
-		return;
+		goto exit;
 	}
 	log_msg (lgm_JIDMap, "fsid=%s: Found %s for jid %d\n",
 		 fs->fs_name, name, jid);
@@ -665,5 +754,7 @@ gulm_recovery_done (lm_lockspace_t * lockspace, unsigned int jid,
 	 */
 	check_for_stale_expires (fs);
 
+exit:
+	if(name!=NULL) kfree(name);
 }
 /* vim: set ai cin noet sw=8 ts=8 : */

@@ -181,7 +181,8 @@ void glq_recycle_req(glckr_t *item)
 	INIT_LIST_HEAD (&item->list);
 
 	if (item->type == glq_req_type_drop ||
-	    item->type == glq_req_type_cancel) {
+	    item->type == glq_req_type_cancel ||
+	    item->type == glq_req_type_expire) {
 		if (item->key != NULL) {
 			kfree(item->key);
 			item->key = NULL;
@@ -276,7 +277,7 @@ void glq_cancel(glckr_t *cancel)
 {
 	int found = FALSE;
 	struct list_head *tmp, *lltmp;
-	glckr_t *item;
+	glckr_t *item = NULL;
 
 	spin_lock (&glq_OutLock);
 	list_for_each_safe (tmp, lltmp, &glq_OutQueue) {
@@ -289,18 +290,22 @@ void glq_cancel(glckr_t *cancel)
 			/* found it. */
 			list_del (tmp);
 			found = TRUE;
-			item->error = lg_err_Canceled;
-			if (item->finish != NULL )
-				item->finish (item);
-			glq_recycle_req (item);
 			break;
 		}
 	}
 	spin_unlock(&glq_OutLock);
 
 	if (!found) {
+		/* send cancel request to server. */
 		cancel->type = glq_req_type_cancel;
 		glq_queue (cancel);
+	}else{
+		/* finish it here */
+		item->error = lg_err_Canceled;
+		if (item->finish != NULL )
+			item->finish (item);
+		glq_recycle_req (item);
+		glq_recycle_req (cancel);
 	}
 }
 
@@ -391,6 +396,11 @@ int glq_sender_thread(void *data)
 			err = lg_lock_drop_exp (gulm_cm.hookup, item->lvb,
 					item->key, item->keylen);
 			/* drop exp has no reply. */
+			glq_recycle_req (item);
+		} else if (item->type == glq_req_type_expire) {
+			err = lg_lock_expire (gulm_cm.hookup, item->lvb,
+					item->key, item->keylen);
+			/* expire has no reply. */
 			glq_recycle_req (item);
 		} else if (item->type == glq_req_type_cancel) {
 			err = lg_lock_cancel_req (gulm_cm.hookup, item->key,
@@ -565,7 +575,7 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 /**
  * glq_lock_query -
  * this is an ugly interface.....
- * there is somehtign that needs to be done here to clean things up.  I'm
+ * there is somehting that needs to be done here to clean things up.  I'm
  * not sure what that is right now, and I need to have somehting working.
  * So we're going with this for now.
  *

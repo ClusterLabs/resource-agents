@@ -34,6 +34,7 @@
 #define glq_req_type_drop   (3)
 #define glq_req_type_cancel (4)
 #define glq_req_type_query  (5)
+#define glq_req_type_expire (6)
 typedef struct glck_req {
 	struct list_head list;
 

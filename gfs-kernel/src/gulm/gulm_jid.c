@@ -397,11 +397,11 @@ release_JID (gulm_fs_t * fs, uint32_t jid)
  * put_journalID - 
  * @fs: 
  * 
- * This is called when this node unmounts.
+ * This is called when this node unmounts or withdraws.
  * 
  */
 void
-put_journalID (gulm_fs_t * fs)
+put_journalID (gulm_fs_t * fs, int leavebehind)
 {
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
 	uint16_t keylen = GIO_KEY_SIZE;
@@ -413,7 +413,10 @@ put_journalID (gulm_fs_t * fs)
 	jid_get_lock_name (fs->fs_name, fs->fsJID, key, &keylen);
 	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 				lg_lock_flag_IgnoreExp, lvb, 64);
-	lvb[0] = 0;
+	if(leavebehind)
+		lvb[0] = 1;
+	else
+		lvb[0] = 0;
 	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
 	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 }
@@ -495,7 +498,7 @@ find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name,
 	uint8_t key[GIO_KEY_SIZE], lvb[64];
 	uint16_t keylen = GIO_KEY_SIZE;
 
-	down (&fs->headerlock);
+	down (&fs->headerlock); /*???*/
 	for (i = 0; i < fs->JIDcount; i++) {
 		keylen = sizeof (key);
 		jid_get_lock_name (fs->fs_name, i, key, &keylen);

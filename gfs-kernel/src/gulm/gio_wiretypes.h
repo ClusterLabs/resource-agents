@@ -17,7 +17,7 @@
  * the wires.
  * If I was really cute, this would be effectivily a checksum of this file.
  */
-#define GIO_WIREPROT_VERS (0x67000013)
+#define GIO_WIREPROT_VERS (0x67000014)
 
 /*****************Error codes.
  * everyone uses these same error codes.
@@ -373,6 +373,11 @@
  *    string: node name  if NULL, then drop all exp for mask.
  *    raw:    keymask  if keymask & key == key, then dropexp on this lock.
  *
+ * Expire Locks:
+ *    uint32: gLEE
+ *    string: node name  cannot be NULL
+ *    raw:    keymask  if keymask & key == key, then expire on this lock.
+ *
  * Lock list req:
  *    uint32: gLD0
  * Lock list rpl:
@@ -420,6 +425,7 @@
 #define gulm_lock_cb_state    (0x674C4300) /* gLC0 */
 #define gulm_lock_cb_dropall  (0x674C4302) /* gLC2 */
 #define gulm_lock_drop_exp    (0x674C454F) /* gLEO */
+#define gulm_lock_expire      (0x674C4545) /* gLEE */
 #define gulm_lock_dump_req    (0x674c4400) /* gLD0 */
 #define gulm_lock_dump_rpl    (0x674c4401) /* gLD1 */
 #define gulm_lock_rerunqueues (0x674c5251) /* gLRQ */

@@ -224,7 +224,7 @@ void jid_fs_release (gulm_fs_t * fs);
 void get_journalID (gulm_fs_t * fs);
 int lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name);
 void release_JID (gulm_fs_t * fs, uint32_t jid);
-void put_journalID (gulm_fs_t * fs);
+void put_journalID (gulm_fs_t * fs, int leavebehind);
 void check_for_stale_expires (gulm_fs_t * fs);
 
 int find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name, uint32_t * jid);

@@ -150,6 +150,8 @@ int lg_lock_query_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
       uint64_t subid, uint64_t start, uint64_t stop, uint8_t state);
 int lg_lock_drop_exp (gulm_interface_p, uint8_t * holder,
 		      uint8_t * keymask, uint16_t kmlen);
+int lg_lock_expire (gulm_interface_p lgp, uint8_t * holder, uint8_t * key,
+		  uint16_t keylen);
 
 /* state requests */
 #define lg_lock_state_Unlock    (0x00)

@@ -741,5 +741,45 @@ lg_lock_drop_exp (gulm_interface_p lgp, uint8_t * holder, uint8_t * key,
 	return err;
 }
 
+int
+lg_lock_expire (gulm_interface_p lgp, uint8_t * holder, uint8_t * key,
+		  uint16_t keylen)
+{
+	gulm_interface_t *lg = (gulm_interface_t *) lgp;
+	struct iovec iov[2];
+	xdr_enc_t *enc;
+	int err;
+
+	/* make sure it is a gulm_interface_p. */
+	if (lg == NULL)
+		return -EINVAL;
+	if (lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC)
+		return -EINVAL;
+
+	if (lg->lock_fd < 0 || lg->lock_enc == NULL || lg->lock_dec == NULL)
+		return -EINVAL;
+
+	enc = lg->lock_enc;
+
+	iov[0].iov_base = lg->lockspace;
+	iov[0].iov_len = 4;
+	iov[1].iov_base = key;
+	iov[1].iov_len = (key != NULL) ? keylen : 0;
+
+	down (&lg->lock_sender);
+	do {
+		if ((err = xdr_enc_uint32 (enc, gulm_lock_expire)) != 0)
+			break;
+		if ((err = xdr_enc_string (enc, holder)) != 0)
+			break;
+		if ((err = xdr_enc_raw_iov (enc, 2, iov)) != 0)
+			break;
+		if ((err = xdr_enc_flush (enc)) != 0)
+			break;
+	} while (0);
+	up (&lg->lock_sender);
+	return err;
+}
+
 /* vim: set ai cin noet sw=8 ts=8 : */
 
