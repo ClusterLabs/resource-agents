@@ -116,9 +116,12 @@ trace_change(int argc, char *argv[])
 				    error, strerror(errno));
 
 			error = read(fd, buf, 256);
-			if (error)
+			if (error) {
+				if (error < 0 && errno == EILSEQ)
+					die("symbol mismatch between kernel and kdbl_tool (recompile)\n");
 				die("can't read trace_change command (%d): %s\n",
 				    error, strerror(errno));
+			}
 		}
 	}
 
@@ -255,6 +258,8 @@ profile_dump(int argc, char *argv[])
 		    error, strerror(errno));
 
 	error = read(fd, data, flags * sizeof(struct profile_element));
+	if (error < 0 && errno == EILSEQ)
+		die("symbol mismatch between kernel and kdbl_tool (recompile)\n");
 	if (error != flags * sizeof(struct profile_element))
 		die("can't read profile_dump (%d): %s\n",
 		    error, strerror(errno));

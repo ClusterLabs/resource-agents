@@ -350,10 +350,11 @@ trace_change(char *command)
 	if (tmp == head)
 		goto out;
 
-	error = -EINVAL;
+	error = -EILSEQ;
 	if (strcmp(tc->tc_version, words[2]) != 0)
 		goto out;
 
+        error = -EINVAL;
 	if (sscanf(words[3], "%u", &flag) != 1)
 		goto out;
 	if (flag >= tc->tc_flags)
@@ -561,7 +562,7 @@ profile_dump(char *command, char __user *buf, unsigned int size)
 	if (tmp == head)
 		goto out;
 
-	error = -EINVAL;
+	error = -EILSEQ;
 	if (strcmp(pc->pc_version, words[2]) != 0)
 		goto out;
 
