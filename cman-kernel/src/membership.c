@@ -143,7 +143,7 @@ static void join_or_form_cluster(void);
 static int do_timer_wakeup(void);
 static int start_transition(unsigned char reason, struct cluster_node *node);
 static uint32_t low32_of_ip(void);
-static void remove_joiner(void);
+static void remove_joiner(int tell_wait);
 int send_leave(unsigned char);
 int send_reconfigure(int, unsigned int);
 
