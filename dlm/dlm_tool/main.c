@@ -17,26 +17,26 @@ char *prog_name;
 char *action = NULL;
 int debug = FALSE;
 
-void open_control(void);
 int do_command(struct dlm_member_ioctl *mi);
 
 
-static void status(struct dlm_member_ioctl *mi, int argc, char **argv)
+/*
+ * ioctl interface only used for setting up addr/nodeid info
+ * with set_local and set_node
+ */
+
+void init_mi(struct dlm_member_ioctl *mi)
 {
-	if (argc != 1)
-		die("%s invalid arguments", action);
-	strcpy(mi->name, argv[0]);
+	memset(mi, 0, sizeof(struct dlm_member_ioctl));
 
-	do_command(mi);
+	mi->version[0] = DLM_MEMBER_VERSION_MAJOR;
+	mi->version[1] = DLM_MEMBER_VERSION_MINOR;
+	mi->version[2] = DLM_MEMBER_VERSION_PATCH;
 
-	printf("version         %u.%u.%u\n",
-	       mi->version[0], mi->version[1], mi->version[2]);
-	printf("start_event     %u\n", mi->start_event);
-	printf("stop_event      %u\n", mi->stop_event);
-	printf("finish_event    %u\n", mi->finish_event);
-	printf("startdone_event %u\n", mi->startdone_event);
-	printf("node_count      %u\n", mi->node_count);
-	printf("global_id       %u\n", mi->global_id);
+	mi->data_size = sizeof(struct dlm_member_ioctl);
+	mi->data_start = sizeof(struct dlm_member_ioctl);
+
+	strcpy(mi->op, action);
 }
 
 static void set_ipaddr(struct dlm_member_ioctl *mi, char *ip)
@@ -48,105 +48,204 @@ static void set_ipaddr(struct dlm_member_ioctl *mi, char *ip)
 	memcpy(mi->addr, &sin, sizeof(sin));
 }
 
-static void set_node(struct dlm_member_ioctl *mi, int argc, char **argv)
+static void set_node(int argc, char **argv)
 {
+	struct dlm_member_ioctl mi;
+
 	if (argc < 2 || argc > 3)
 		die("%s invalid arguments", action);
-	mi->nodeid = atoi(argv[0]);
-	set_ipaddr(mi, argv[1]);
+
+	init_mi(&mi);
+	mi.nodeid = atoi(argv[0]);
+	set_ipaddr(&mi, argv[1]);
 	if (argc > 2)
-		mi->weight = atoi(argv[2]);
-	do_command(mi);
+		mi.weight = atoi(argv[2]);
+	do_command(&mi);
 }
 
-static void set_local(struct dlm_member_ioctl *mi, int argc, char **argv)
+static void set_local(int argc, char **argv)
 {
+	struct dlm_member_ioctl mi;
+
 	if (argc < 2 || argc > 3)
 		die("%s invalid arguments", action);
-	mi->nodeid = atoi(argv[0]);
-	set_ipaddr(mi, argv[1]);
+
+	init_mi(&mi);
+	mi.nodeid = atoi(argv[0]);
+	set_ipaddr(&mi, argv[1]);
 	if (argc > 2)
-		mi->weight = atoi(argv[2]);
-	do_command(mi);
+		mi.weight = atoi(argv[2]);
+	do_command(&mi);
 }
 
-static void stop(struct dlm_member_ioctl *mi, int argc, char **argv)
+/*
+ * sysfs interface used for lockspace control (stop/start/finish/terminate),
+ * for setting lockspace id, lockspace members
+ */
+
+static void stop(int argc, char **argv)
 {
+	char fname[512];
+	int rv, fd;
+
 	if (argc != 1)
 		die("%s invalid arguments", action);
-	strcpy(mi->name, argv[0]);
-	do_command(mi);
+
+	sprintf(fname, "/sys/kernel/dlm/%s/stop", argv[0]);
+
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %d %d\n", action, fd, errno);
+		exit(1);
+	}
+
+	rv = write(fd, "1", strlen("1"));
+	if (rv != 1) {
+		printf("%s write error %d %d\n", action, rv, errno);
+		exit(1);
+	}
 }
 
-static void terminate(struct dlm_member_ioctl *mi, int argc, char **argv)
+static void terminate(int argc, char **argv)
 {
+	char fname[512];
+	int rv, fd;
+
 	if (argc != 1)
 		die("%s invalid arguments", action);
-	strcpy(mi->name, argv[0]);
-	do_command(mi);
+
+	sprintf(fname, "/sys/kernel/dlm/%s/terminate", argv[0]);
+
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %d %d\n", action, fd, errno);
+		exit(1);
+	}
+
+	rv = write(fd, "1", strlen("1"));
+	if (rv != 1) {
+		printf("%s write error %d %d\n", action, rv, errno);
+		exit(1);
+	}
 }
 
-static void finish(struct dlm_member_ioctl *mi, int argc, char **argv)
+static void finish(int argc, char **argv)
 {
+	char fname[512];
+	int rv, fd;
+
 	if (argc != 2)
 		die("%s invalid arguments", action);
-	strcpy(mi->name, argv[0]);
-	mi->finish_event = atoi(argv[1]);
-	do_command(mi);
+
+	sprintf(fname, "/sys/kernel/dlm/%s/finish", argv[0]);
+
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %d %d\n", action, fd, errno);
+		exit(1);
+	}
+
+	rv = write(fd, argv[1], strlen(argv[1]));
+	if (rv != strlen(argv[1])) {
+		printf("%s write error %d %d\n", action, rv, errno);
+		exit(1);
+	}
 }
 
-static void start(struct dlm_member_ioctl *mi_in, int argc, char **argv)
+static void start(int argc, char **argv)
 {
-	struct dlm_member_ioctl *mi;
-	int i, len = sizeof(struct dlm_member_ioctl);
-	char *str;
+	char fname[512];
+	int i, rv, fd, len = 0;
+	char *p;
 
-	if (argc < 4)
+	if (argc < 3)
 		die("%s invalid arguments", action);
 
-	for (i = 3; i < argc; i++)
+	/* first set up new members */
+
+	for (i = 2; i < argc; i++)
 		len += strlen(argv[i]) + 1;
+	len -= 1;
 
-	mi = malloc(len);
-	memset(mi, 0, len);
-	memcpy(mi, mi_in, sizeof(struct dlm_member_ioctl));
-	strcpy(mi->name, argv[0]);
-	mi->start_event = atoi(argv[1]);
-	mi->global_id = atoi(argv[2]);
-	mi->data_size = len;
+	p = malloc(len);
+	if (!p) {
+		printf("%s malloc error\n", action);
+		exit(1);
+	}
+	memset(p, 0, len);
 
-	str = (char *) mi + sizeof(struct dlm_member_ioctl);
-
-	for (i = 3; i < argc; i++) {
-		strcat(str, argv[i]);
-		strcat(str, " ");
-		mi->node_count++;
+	for (i = 2; i < argc; i++) {
+		if (i != 2)
+			strcat(p, " ");
+		strcat(p, argv[i]);
 	}
 
-	printf("start node_count %d \"%s\"\n", mi->node_count, str);
+	sprintf(fname, "/sys/kernel/dlm/%s/members", argv[0]);
 
-	do_command(mi);
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %s %d %d\n", action, fname, fd, errno);
+		exit(1);
+	}
 
-	free(mi);
+	printf("write to %s %d: \"%s\"\n", fname, len, p);
+	rv = write(fd, p, len);
+	if (rv != len) {
+		printf("%s write error %s %d %d\n", action, fname, rv, errno);
+		exit(1);
+	}
+
+	free(p);
+	close(fd);
+
+	/* second do the start */
+
+	sprintf(fname, "/sys/kernel/dlm/%s/start", argv[0]);
+
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %s %d %d\n", action, fname, fd, errno);
+		exit(1);
+	}
+
+	printf("write to %s: \"%s\"\n", fname, argv[1]);
+	len = strlen(argv[1]);
+	rv = write(fd, argv[1], len);
+	if (rv != len) {
+		printf("%s write error %s %d %d\n", action, fname, rv, errno);
+		exit(1);
+	}
 }
 
-static void poll_done(struct dlm_member_ioctl *mi, int argc, char **argv)
+static void set_id(int argc, char **argv)
 {
-	int event_nr;
+	char fname[512];
+	int len, fd, rv;
 
 	if (argc != 2)
-		die("poll_done invalid arguments");
+		die("%s invalid arguments", action);
 
-	strcpy(mi->op, "status");
-	strcpy(mi->name, argv[0]);
-	event_nr = atoi(argv[1]);
+	sprintf(fname, "/sys/kernel/dlm/%s/id", argv[0]);
 
-	while (1) {
-		status(mi, 0, NULL);
-		if (mi->startdone_event == event_nr)
-			break;
-		sleep(1);
+	fd = open(fname, O_RDWR);
+	if (fd < 0) {
+		printf("%s open error %d %d\n", action, fd, errno);
+		exit(1);
 	}
+
+	len = strlen(argv[1]);
+	rv = write(fd, argv[1], len);
+	if (rv != len) {
+		printf("%s write error %d %d\n", action, rv, errno);
+		exit(1);
+	}
+}
+
+static void poll_done(int argc, char **argv)
+{
+	/* FIXME: loop reading /sys/kernel/dlm/<ls>/done until it
+	   equals the given event_nr */
+	printf("not yet implemented\n");
 }
 
 static void print_usage(void)
@@ -157,12 +256,12 @@ static void print_usage(void)
 	printf("\n");
 	printf("set_local  <nodeid> <ipaddr> [<weight>]\n");
 	printf("set_node   <nodeid> <ipaddr> [<weight>]\n");
-	printf("status     <ls_name>\n");
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
-	printf("start      <ls_name> <event_nr> <global_id> <nodeid>...\n");
+	printf("start      <ls_name> <event_nr> <nodeid>...\n");
 	printf("finish     <ls_name> <event_nr>\n");
 	printf("poll_done  <ls_name> <event_nr>\n");
+	printf("set_id     <ls_name> <id>\n");
 }
 
 static void print_version(void)
@@ -219,7 +318,6 @@ static void decode_arguments(int *argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	struct dlm_member_ioctl mi;
 	int x = argc;
 
 	prog_name = argv[0];
@@ -232,33 +330,22 @@ int main(int argc, char **argv)
 	decode_arguments(&argc, argv);
 	argv += (x - argc);
 
-	open_control();
-
-	memset(&mi, 0, sizeof(mi));
-	mi.version[0] = DLM_MEMBER_VERSION_MAJOR;
-	mi.version[1] = DLM_MEMBER_VERSION_MINOR;
-	mi.version[2] = DLM_MEMBER_VERSION_PATCH;
-	mi.data_size = sizeof(mi);
-	mi.data_start = sizeof(mi);
-
-	strcpy(mi.op, action);
-
-	if (strcmp(action, "status") == 0)
-		status(&mi, argc, argv);
-	else if (strcmp(action, "set_local") == 0)
-		set_local(&mi, argc, argv);
+	if (strcmp(action, "set_local") == 0)
+		set_local(argc, argv);
 	else if (strcmp(action, "set_node") == 0)
-		set_node(&mi, argc, argv);
+		set_node(argc, argv);
 	else if (strcmp(action, "stop") == 0)
-		stop(&mi, argc, argv);
+		stop(argc, argv);
 	else if (strcmp(action, "terminate") == 0)
-		terminate(&mi, argc, argv);
+		terminate(argc, argv);
 	else if (strcmp(action, "start") == 0)
-		start(&mi, argc, argv);
+		start(argc, argv);
 	else if (strcmp(action, "finish") == 0)
-		finish(&mi, argc, argv);
+		finish(argc, argv);
+	else if (strcmp(action, "set_id") == 0)
+		set_id(argc, argv);
 	else if (strcmp(action, "poll_done") == 0)
-		poll_done(&mi, argc, argv);
+		poll_done(argc, argv);
 	else
 		die("unknown action: %s", action);
 

@@ -146,6 +146,8 @@ int do_command(struct dlm_member_ioctl *mi)
 {
 	int error;
 
+	open_control();
+
 	printf("do_command %s data_size %d\n", mi->op, mi->data_size);
 
 	error = ioctl(control_fd, DLM_MEMBER_OP, mi);
