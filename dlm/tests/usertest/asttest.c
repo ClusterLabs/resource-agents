@@ -225,6 +225,7 @@ int main(int argc, char *argv[])
 
 	return -1;
     }
+    printf("(lkid=%x)", lksb.sb_lkid);
 
     /* Wait */
     if (use_threads)

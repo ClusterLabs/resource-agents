@@ -22,8 +22,6 @@
 #include <getopt.h>
 
 #include "libdlm.h"
-//#include <cluster/dlm_device.h>
-#define DLM_LSF_NOCONVGRANT 2
 
 static struct dlm_lksb lksb;
 static int use_threads = 0;
@@ -72,7 +70,6 @@ static void usage(char *prog, FILE *file)
     fprintf(file, "   -V         Show version of dlmtest\n");
     fprintf(file, "   -h         Show this help information\n");
     fprintf(file, "   -m <mode>  lock mode (default EX)\n");
-    fprintf(file, "   -c <mode>  mode to convert to (default none)\n");
     fprintf(file, "   -n         don't block\n");
     fprintf(file, "   -p         Use pthreads\n");
     fprintf(file, "   -q         Quiet\n");
@@ -139,7 +136,6 @@ int main(int argc, char *argv[])
     int  flags = 0;
     int  status;
     int  mode = LKM_EXMODE;
-    int  convmode = -1;
     int  do_unlock = 1;
     int  release_ls = 1;
     int  open_ls = 0;
@@ -168,10 +164,6 @@ int main(int argc, char *argv[])
 
 	case 'm':
 	    mode = modetonum(optarg);
-	    break;
-
-	case 'c':
-	    convmode = modetonum(optarg);
 	    break;
 
 	case 'l':
@@ -211,7 +203,7 @@ int main(int argc, char *argv[])
             break;
 
 	case 'V':
-	    printf("\nasttest version 0.1\n\n");
+	    printf("\nasttest version 0.2\n\n");
 	    exit(1);
 	    break;
 	}
@@ -290,14 +282,14 @@ int main(int argc, char *argv[])
     else
 	poll_for_ast(ls);
 
+    sleep(sleeptime);
+
     if (!quiet)
     {
         fprintf(stderr, "unlocking %s...", resource);
         fflush(stderr);
     }
 
-    sleep(sleeptime);
-    
     if (do_unlock)
     {
 	status = dlm_ls_unlock(ls,
