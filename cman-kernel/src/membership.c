@@ -1236,11 +1236,15 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 		if (transitionreason == TRANS_NEWNODE && joining_node)
 			node = joining_node;
 
-		/* If we are a new master then restart the transition proper */
+		/* If we are a new master then try to restart the transition proper */
 		if (reason == TRANS_NEWMASTER) {
 			reason = transitionreason;
-			if (reason == TRANS_NEWNODE)
-				node = joining_node;
+			if (reason == TRANS_NEWNODE) {
+				if (joining_node)
+					node = joining_node;
+				else
+					reason = TRANS_NEWMASTER;
+			}
 		}
 	}
 
