@@ -869,13 +869,16 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 	 */
 
 	if (old_status == GDLM_LKSTS_GRANTED) {
-		if (rsb->res_lvbptr && (lkb->lkb_grmode >= DLM_LOCK_PW)) {
-			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr)
+		if (lkb->lkb_grmode >= DLM_LOCK_PW) {
+			if (!rsb->res_lvbptr)
+				rsb->res_lvbptr = allocate_lvb(rsb->res_ls);
+			if ((flags & DLM_LKF_VALBLK) && lkb->lkb_lvbptr) {
 				memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr,
 				       DLM_LVB_LEN);
-			if (flags & DLM_LKF_IVVALBLK) {
-				set_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+				clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
 			}
+			if (flags & DLM_LKF_IVVALBLK)
+				set_bit(RESFL_VALNOTVALID, &rsb->res_flags);
 		}
 
 		grant_pending_locks(rsb);
