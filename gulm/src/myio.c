@@ -180,7 +180,8 @@ int serv_listen(unsigned int port)
 
    if( set_opts(sk) <0)
       goto error_exit;
-   
+
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    adr.sin6_addr = in6addr_any;
    adr.sin6_port = htons( port );
