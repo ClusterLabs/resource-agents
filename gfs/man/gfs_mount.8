@@ -1,0 +1,225 @@
+.\"  Portions copyright (c) 2001-2003 The OpenGFS Project
+.\"  Portions copyright (c) 2004 ben.m.cahill@intel.com
+.\"
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+.\"
+.tl 'gfs_mount(8)''gfs_mount(8)'
+
+\fBNAME\fP
+.in +7
+gfs_mount - GFS mount options
+.in
+.sp
+\fBSYNOPSIS\fP
+.in +7
+\fBmount\fP [StandardMountOptions] \fB-t\fP gfs \fIdevice\fR \fImountpoint\fR \fB-o\fP [GFSOption1,GFSOption2,GFSOptionX...]
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+GFS may be used as a local (single computer) filesystem, but its real purpose
+is in clusters, where multiple computers (nodes) share a common storage device.
+
+Above is the format typically used to mount a GFS filesystem, using the
+\fBmount\fP(8) command.  The \fIdevice\fR may be any block device on which you
+have created a GFS filesystem.  Examples include a
+single disk partition (e.g. /dev/sdb3), a loopback device, a device exported
+from another node (e.g. an iSCSI device or a \fBgnbd\fP(8) device), or a
+logical volume (typically comprised of a number of individual disks).
+
+\fIdevice\fR does not necessarily need to match the device name as seen on
+another node in the cluster, nor does it need to be a logical volume.  However,
+the use of a cluster-aware volume manager such as CLVM2 (see \fBlvm\fP(8))
+will guarantee that the managed devices are named identically on each node in a
+cluster (for much easier management), and will allow you to configure a very
+large volume from multiple storage units (e.g. disk drives).
+
+\fIdevice\fR must make the entire filesystem storage area visible to the
+computer.  That is, you cannot mount different parts of a single filesystem on
+different computers.  Each computer must see an entire filesystem.  You
+may, however, mount several GFS filesystems if you want to distribute your
+data storage in a controllable way.
+
+\fImountpoint\fR is the same as \fIdir\fR in the \fBmount\fP(8) man page.
+
+This man page describes GFS-specific options that can be passed to the GFS 
+file system at mount time, using the \fB-o\fP flag.  There are many other
+\fB-o\fP options handled by the generic mount command \fBmount\fP(8).
+However, the options described below are specifically for GFS, and are not
+interpreted by the mount command nor by the kernel's Virtual File System.  GFS
+and non-GFS options may be intermingled after the \fB-o\fP, separated by
+commas (but no spaces).
+
+As an alternative to mount command line options, you may send mount options
+to /proc/fs/gfs (after loading the gfs kernel module, but before mounting GFS).
+For example, you may need to do this when working from an initial ramdisk
+\fBinitrd\fP(4).  The options are restricted to the ones described on this man
+page (no general \fBmount\fP(8) options will be recognized), must not be
+preceded by -o, and must be separated by commas (no spaces).  Example:
+
+# echo "lockproto=lock_nolock,ignore_local_fs" > /proc/fs/gfs 
+
+Options loaded via /proc/fs/gfs have a lifetime of only one GFS mount.  If you
+wish to mount another GFS filesystem, you must send another set of options
+to /proc/fs/gfs.
+
+If you have trouble mounting GFS, check the syslog (e.g. /var/log/messages)
+for specific error messages.
+.sp
+.in
+\fBOPTIONS\fP
+.in +7
+
+\fBlockproto=\fP\fILockModuleName\fR
+.in +5
+This specifies which inter-node lock protocol is used by the GFS filesystem
+for this mount, overriding the default lock protocol name stored in the
+filesystem's on-disk superblock.
+
+The \fILockModuleName\fR must be an exact match of the protocol name presented
+by the lock module when it registers with the lock harness.  Traditionally,
+this matches the .o filename of the lock module, e.g. \fIlock_dlm\fR,
+\fIlock_gulm\fR, or \fIlock_nolock\fR.
+
+The default lock protocol name is written to disk initially when creating the
+filesystem with \fBgfs_mkfs\fP(8), -p option.  It can be changed on-disk by
+using the \fBgfs_tool\fP(8) utility's \fBsb proto\fP command.
+
+The \fBlockproto\fP mount option should be used only under special
+circumstances in which you want to temporarily use a different lock protocol
+without changing the on-disk default.
+.in
+.sp
+\fBlocktable=\fP\fILockTableName\fR
+.in +5
+This specifies the identity of the cluster and of the filesystem for this
+mount, overriding the default cluster/filesystem identify stored in the
+filesystem's on-disk superblock.  The cluster/filesystem name is recognized
+globally throughout the cluster, and establishes a unique namespace for
+the inter-node locking system, enabling the mounting of multiple GFS
+filesystems.
+
+The format of \fILockTableName\fR is lock-module-specific.  For lock_gulm
+and lock_dlm, the format is \fIclustername:fsname\fR.  For
+lock_nolock, the field is ignored.
+
+The default cluster/filesystem name is written to disk initially when creating
+the filesystem with \fBgfs_mkfs\fP(8), -t option.  It can be changed on-disk
+by using the \fBgfs_tool\fP(8) utility's \fBsb table\fP command.
+
+The \fBlocktable\fP mount option should be used only under special
+circumstances in which you want to mount the filesystem in a different cluster,
+or mount it as a different filesystem name, without changing the on-disk
+default.
+.in
+.sp
+\fBhostdata=\fP\fIHostIDInfo\fR
+.in +5
+This field sends host (the computer on which the filesystem is being mounted)
+identity information to the lock module.
+
+The format and behavior of \fIHostIDInfo\fR is lock-module-specific.
+For lock_gulm, it overrides the \fBuname\fP(1) -n network node name
+used as default by lock_gulm.
+
+This field is ignored by \fIlock_dlm\fR and \fIlock_nolock\fR.
+.in
+.sp
+\fBlocalcaching\fP
+.in +5
+This flag tells GFS that it is running as a local (not clustered) filesystem,
+so it can turn on some block caching optimizations that can't be used when
+running in cluster mode.
+
+This is turned on automatically by the lock_nolock module,
+but can be overridden by using the \fBignore_local_fs\fP option.
+.in
+.sp
+\fBlocalflocks\fP
+.in +5
+This flag tells GFS that it is running as a local (not clustered) filesystem,
+so it can allow the kernel VFS layer to do all flock and fcntl file locking.
+When running in cluster mode, these file locks require inter-node locks,
+and require the support of GFS.  When running locally, better performance
+is achieved by letting VFS handle the whole job.
+
+This is turned on automatically by the lock_nolock module,
+but can be overridden by using the \fBignore_local_fs\fP option.
+.in
+.sp
+\fBignore_local_fs\fP
+.in +5
+By default, using the nolock lock module automatically turns on the
+\fBlocalcaching\fP and \fBlocalflocks\fP optimizations.  \fBignore_local_fs\fP
+forces GFS to treat the filesystem as if it were a multihost (clustered)
+filesystem, with \fBlocalcaching\fP and \fBlocalflocks\fP optimizations
+turned off.
+.in
+.sp
+\fBupgrade\fP
+.in +5
+This flag tells GFS to upgrade the filesystem's on-disk format to the version
+supported by the current GFS software installation on this computer.
+If you try to mount an old-version disk image, GFS will notify you via a syslog
+message that you need to upgrade.  Try mounting again, using the
+\fB-o upgrade\fP option.  When upgrading, only one node may mount the GFS
+filesystem.
+.in
+.sp
+\fBnum_glockd\fP
+.in +5
+Tunes GFS to alleviate memory pressure when rapidly aquiring many locks (e.g.
+several processes scanning through huge directory trees).  GFS' glockd kernel
+daemon cleans up memory for no-longer-needed glocks.  Multiple instances
+of the daemon clean up faster than a single instance.  The default value is
+one daemon, with a maximum of 32.  Since this option was introduced, other
+methods of rapid cleanup have been developed within GFS, so this option may go
+away in the future.
+.in
+.sp
+\fBacl\fP
+.in +5
+Enables POSIX Access Control List \fBacl\fP(5) support within GFS.
+.in
+.sp
+\fBsuiddir\fP
+.in +5
+Sets owner of any newly created file or directory to be that of parent
+directory, if parent directory has S_ISUID permission attribute bit set.
+Sets S_ISUID in any new directory, if its parent directory's S_ISUID is set.
+Strips all execution bits on a new file, if parent directory owner is different
+from owner of process creating the file.  Set this option only if you know
+why you are setting it.
+.in
+.sp
+.in -7
+\fBLINKS\fP
+.in +7
+http://sources.redhat.com/cluster
+.in +7
+-- home site of GFS
+.in
+.sp
+http://www.suse.de/~agruen/acl/linux-acls/
+.in +7
+-- good writeup on ACL support in Linux
+.in
+.in -7
+.sp
+\fBSEE ALSO\fP
+.in +7
+
+\fBgfs\fP(8), 
+\fBmount\fP(8) for general mount options,
+\fBchmod\fP(1) and \fBchmod\fP(2) for access permission flags,
+\fBacl\fP(5) for access control lists,
+\fBlvm\fP(8) for volume management,
+\fBccs\fP(7) for cluster management,
+\fBlock_gulmd\fP(8),
+\fBumount\fP(8),
+\fBinitrd\fP(4).
+.sp
+.in
+
