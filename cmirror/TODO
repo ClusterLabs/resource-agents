@@ -1,3 +1,10 @@
+0. FIX
+	Clients are only made aware of a server failure if they need
+	something from it.  So, if a server dies, some may see this
+	and appoint a new master.  When the original server comes
+	back, we can have a split - those who found a new master and
+	those that haven't.
+
 1. Basic code clean-up
 
 2. Figure out how to best utilize dm-log.c code without duplication
@@ -17,3 +24,9 @@
 6. Implement paranoid mode
 
 7. Implement core mode
+
+8. Unable to specify port numbers (unable to change the default)
+
+9. the uuid scheme for identifying logs sucks
+
+10. the _in_sync flag should be per log

@@ -8,9 +8,27 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/list.h>
+#include <linux/net.h>
+#include <linux/in.h>
+#include <linux/socket.h>
+#include <linux/timer.h>
+#include <linux/signal.h>
+#include <cluster/service.h>
+#include <cluster/cnxman.h>
+#include <cluster/cnxman-socket.h>
 
 #include "dm-log.h"
 #include "dm-io.h"
+
+/******************************************************************
+ ******************************************************************
+ ** BEGIN COPIED CODE
+ **
+ ** This section of this file is taken from <kernel>/drivers/md/dm-log.c
+ ******************************************************************
+ *****************************************************************/
+
 
 /*-----------------------------------------------------------------
  * Persistent and core logs share a lot of their implementation.
@@ -29,7 +47,7 @@
 #define MAX_NAME_LEN 256
 
 
-static struct log_header {
+struct log_header {
 	uint32_t magic;
 
 	/*
@@ -40,7 +58,7 @@ static struct log_header {
 	sector_t nr_regions;
 };
 
-static struct log_c {
+struct log_c {
 	struct dm_target *ti;
 	int touched;
 	sector_t region_size;
@@ -91,7 +109,7 @@ static struct log_c {
  * The touched member needs to be updated every time we access
  * one of the bitsets.
  */
-static  inline int log_test_bit(uint32_t *bs, unsigned bit)
+static inline int log_test_bit(uint32_t *bs, unsigned bit)
 {
 	return test_bit(bit, (unsigned long *) bs) ? 1 : 0;
 }
@@ -246,6 +264,7 @@ static int core_ctr(struct dirty_log *log, struct dm_target *ti,
 	}
 
 	region_count = dm_div_up(ti->len, region_size);
+	printk("REGION COUNT :: %u\n", region_count);
 
 	lc = kmalloc(sizeof(*lc), GFP_KERNEL);
 	if (!lc) {
@@ -439,9 +458,14 @@ static int _disk_resume(struct log_c *lc)
 
 static int _core_get_resync_work(struct log_c *lc, region_t *region)
 {
-	if (lc->sync_search >= lc->region_count)
+	/*
+	printk("_core:: sync_search  == %d, ", lc->sync_search);
+	printk("sync_count   == %Lu, ",lc->sync_count);
+	printk("region_count == %u\n", lc->region_count);
+	*/
+	if (lc->sync_search >= lc->region_count){
 		return 0;
-
+	}
 	do {
 		*region = find_next_zero_bit((unsigned long *) lc->sync_bits,
 					     lc->region_count,
@@ -458,30 +482,23 @@ static int _core_get_resync_work(struct log_c *lc, region_t *region)
 }
 
 
+/******************************************************************
+ ******************************************************************
+ ** END COPIED CODE
+ ******************************************************************
+ *****************************************************************/
+
+
 /********************************************************
  ** Cluster dirty log type
  *******************************************************/
-/**************
- * short-comings
- * - can not specify comm ports
- * - the uuid scheme for id'ing logs sucks
- * - the region_user list should be hashed or something
- *
- *************/
 
 /*************************************
  **  Common macros and structures
  ************************************/
+static uint64_t request_count=0;
+static uint64_t request_retry_count=0;
 
-#include <linux/list.h>
-#include <linux/net.h>
-#include <linux/in.h>
-#include <linux/socket.h>
-#include <linux/timer.h>
-#include <linux/signal.h>
-#include <cluster/service.h>
-#include <cluster/cnxman.h>
-#include <cluster/cnxman-socket.h>
 
 #define LRT_IS_CLEAN			0x1
 #define LRT_IN_SYNC             	0x2
@@ -498,7 +515,7 @@ static int _core_get_resync_work(struct log_c *lc, region_t *region)
 
 LIST_HEAD(log_list_head);
 
-static struct log_request {
+struct log_request {
 	int lr_type;
 	union {
 		struct {
@@ -527,7 +544,7 @@ static uint32_t *global_nodeids=NULL;
 /*************************************
  **  Server macros and structures
  ************************************/
-static struct region_user {
+struct region_user {
 	struct list_head ru_list;
 	uint32_t ru_nodeid;
 	region_t ru_region;
@@ -539,7 +556,7 @@ static struct completion server_completion;
 /*************************************
  **  Client macros and structures
  ************************************/
-static struct clear_region {
+struct clear_region {
 	struct log_c *cr_lc;
 	region_t cr_region;
 	struct list_head cr_list;
@@ -547,6 +564,8 @@ static struct clear_region {
 
 static spinlock_t clear_region_lock;
 static struct list_head clear_region_list;
+
+static atomic_t _in_sync;
 
 
 /****************************************************************
@@ -574,7 +593,6 @@ static void set_sigusr1(unsigned long arg){
 
 static int my_recvmsg(struct socket *sock, struct msghdr *msg,
 		      size_t size, int flags, int time_out){
-	static int count = 0;
 	int rtn;
 	unsigned long sig_flags;
 	sigset_t blocked_save;
@@ -599,8 +617,6 @@ static int my_recvmsg(struct socket *sock, struct msghdr *msg,
         spin_unlock_irqrestore(&current->sighand->siglock, sig_flags);
 
 	if(rtn < 0){
-		printk("%d sock_recvmsg errored with %d (%s).\n",
-		       ++count, rtn, (rtn == -EINTR)? "EINTR": "unknown");
 		return -ETIMEDOUT;  /* perhaps not the best error number */
 	}
 	return rtn;
@@ -847,7 +863,6 @@ static int process_election(struct log_request *lr, struct log_c *lc,
  * Returns: 0 on success, -1 on error
  */
 static int process_log_request(struct socket *sock){
-	static int warn_print=1;
 	int error;
 	int i;
 	struct msghdr msg;
@@ -912,10 +927,19 @@ static int process_log_request(struct socket *sock){
 			}
 
 			if(!lc){
-				DMWARN("log context can not be found for request");
+				DMWARN("Log context can not be found for request");
 				lr.u.lr_int_rtn = -ENXIO;
 				goto reply;
 			}
+
+/*
+			if(lc->server_id != my_id){
+				DMWARN("I am not the server for this request");
+				lr.u.lr_int_rtn = -ENXIO;
+				goto reply;
+			}
+*/				
+
 			if(atomic_read(&lc->suspend)){
 				lr.u.lr_int_rtn = -EAGAIN;
 				goto reply;
@@ -929,15 +953,15 @@ static int process_log_request(struct socket *sock){
 				error = server_in_sync(lc, &lr);
 				break;
 			case LRT_MARK_REGION:
-				kcl_get_node_by_addr(&saddr_in, sizeof(saddr_in), &_node);
+				kcl_get_node_by_addr((unsigned char *)&saddr_in, sizeof(saddr_in), &_node);
 				error = server_mark_region(lc, &lr, _node.node_id);
 				break;
 			case LRT_CLEAR_REGION:
-				kcl_get_node_by_addr(&saddr_in, sizeof(saddr_in), &_node);
+				kcl_get_node_by_addr((unsigned char *)&saddr_in, sizeof(saddr_in), &_node);
 				error = server_clear_region(lc, &lr, _node.node_id);
 				break;
 			case LRT_GET_RESYNC_WORK:
-				kcl_get_node_by_addr(&saddr_in, sizeof(saddr_in), &_node);
+				kcl_get_node_by_addr((unsigned char *)&saddr_in, sizeof(saddr_in), &_node);
 				error = server_get_resync_work(lc, &lr, _node.node_id);
 				break;
 			case LRT_COMPLETE_RESYNC_WORK:
@@ -1001,12 +1025,6 @@ static int process_log_request(struct socket *sock){
 			return 0;
 		} else {
 			/* ATTENTION -- what do we do with this ? */
-			if(warn_print){
-				warn_print=0;
-				DMWARN("Failed to recvmsg from cluster log client (error = %d).\n",
-				       error);
-			}
-			
 			return error;
 		}
 	}
@@ -1229,6 +1247,12 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 		goto fail;
 	}
 */	
+
+/*
+	printk("cluster_ctr:: sync_search  == %d, ", lc->sync_search);
+	printk("sync_count   == %Lu, ",lc->sync_count);
+	printk("region_count == %u\n", lc->region_count);
+*/
 	return 0;
 
  fail:
@@ -1263,7 +1287,7 @@ static int cluster_resume(struct dirty_log *log){
 static sector_t cluster_get_region_size(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-//	printk("-- %llu cluster_get_region_size\n", lc->region_size);
+//	printk("-- %lu cluster_get_region_size\n", lc->region_size);
 	return lc->region_size;
 }
 
@@ -1345,8 +1369,10 @@ static int _consult_server(struct log_c *lc, region_t region,
 	mm_segment_t fs;
 	struct log_request lr;  /* ATTENTION -- could be too much on the stack */
 
-	memset(&lr, 0, sizeof(lr));
+	request_count++;
 
+	memset(&lr, 0, sizeof(lr));
+	
 	lr.lr_type = type;
 	lr.u.lr_region = region;
 	memcpy(lr.lr_uuid, lc->uuid, MAX_NAME_LEN);
@@ -1408,23 +1434,24 @@ static int _consult_server(struct log_c *lc, region_t region,
 
 	if(len <= 0){
 		/* ATTENTION -- what do we do with this ? */
-		DMWARN("Failed to recvmsg from cluster log server.\n");
+//		DMWARN("Failed to recvmsg from cluster log server.");
 		error = len;
 		*retry = 1;
 		goto fail;
 	}
     
-
 	if(lr.u.lr_int_rtn == -EAGAIN){
 		DMWARN("server tells us to try again (%d).  Mirror suspended?",
 		       lr.lr_type);
 		*retry = 1;
+		goto fail;
 	}
 
 	if(lr.u.lr_int_rtn == -ENXIO){
-		DMWARN("server tells us it no longer has the log.");
+		DMWARN("server tells us it no longer controls the log.");
 		lc->server_id = 0xDEAD;
 		*retry = 1;
+		goto fail;
 	}
 
 	if(lr.u.lr_int_rtn < 0){
@@ -1435,7 +1462,17 @@ static int _consult_server(struct log_c *lc, region_t region,
 		*result = lr.u.lr_region_rtn;
 	return lr.u.lr_int_rtn;
  fail:
-	set_fs(fs);
+	if(*retry){
+		request_retry_count++;
+		if((request_retry_count & 0xF) == 0xA){
+			printk("Retried requests :: %Lu\n"
+			       "Total requests   :: %Lu\n"
+			       "Retry percentage :: %lu\n",
+			       request_retry_count,
+			       request_count,
+			       dm_div_up(request_retry_count*100,request_count));
+		}
+	}
 	return error;
 }
 
@@ -1462,13 +1499,14 @@ static int consult_server(struct log_c *lc, region_t region,
 		INIT_LIST_HEAD(&clear_region_list);
 		spin_unlock(&clear_region_lock);
 
-//		printk("Clearing regions::\n");
 		list_for_each_entry_safe(cr, tmp, &clear, cr_list){
-//			printk("  %llu\n", cr->cr_region);
 			if(!new_server){
 				/* ATTENTION -- need to handle errors */
-				_consult_server(cr->cr_lc, cr->cr_region,
-						LRT_CLEAR_REGION, NULL, &retry);
+				do {
+					retry = 0;
+					_consult_server(cr->cr_lc, cr->cr_region,
+							LRT_CLEAR_REGION, NULL, &retry);
+				} while(retry);
 			}
 			list_del(&cr->cr_list);
 			kfree(cr);
@@ -1497,7 +1535,12 @@ static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
 	struct log_c *lc = (struct log_c *) log->context;
   
 	/* check known_regions, return if found */
-  
+
+	if(atomic_read(&_in_sync)){
+//		printk("_in_sync is set, allowing read.\n");
+		return 1;
+	}
+
 	if(!block){
 //		printk("-- -EWOULDBLOCK cluster_in_sync\n");
 		return -EWOULDBLOCK;
@@ -1546,11 +1589,11 @@ static void cluster_clear_region(struct dirty_log *log, region_t region)
 	list_add(&cr->cr_list, &clear_region_list);
 	spin_unlock(&clear_region_lock);
 
-//	printk("++ cluster_clear_region(<log>, %llu)\n", region);
+//	printk("++ cluster_clear_region(<log>, %lu)\n", region);
 /*
 	while(consult_server(lc, region, LRT_CLEAR_REGION, NULL)){
 		DMWARN("unable to get server to clear region");
-		printk("++ cluster_clear_region(<log>, %llu)\n", region);
+		printk("++ cluster_clear_region(<log>, %lu)\n", region);
 	}
 */
 	return;
@@ -1563,7 +1606,7 @@ static int cluster_get_resync_work(struct dirty_log *log, region_t *region)
 
 	rtn = consult_server(lc, 0, LRT_GET_RESYNC_WORK, region);
 
-//	printk("-- %d cluster_get_resync_work (region = %llu)\n", rtn, *region);
+//	printk("-- %d cluster_get_resync_work (region = %lu)\n", rtn, *region);
 
 	return rtn;
 }
@@ -1573,10 +1616,10 @@ static void cluster_complete_resync_work(struct dirty_log *log,
 {
 	struct log_c *lc = (struct log_c *) log->context;
 
-//	printk("++ void cluster_complete_resync_work(<log>, %llu, %d)\n", region, success);
+//	printk("++ void cluster_complete_resync_work(<log>, %lu, %d)\n", region, success);
 	while(consult_server(lc, region, LRT_COMPLETE_RESYNC_WORK, NULL)){
 		DMWARN("unable to notify server of completed resync work");
-//		printk("++ void cluster_complete_resync_work(<log>, %llu, %d)\n", region, success);
+//		printk("++ void cluster_complete_resync_work(<log>, %lu, %d)\n", region, success);
 	}
 
 	return;
@@ -1591,7 +1634,15 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 		return 0;
 	}
 
-//	printk("-- %llu cluster_get_sync_count\n", rtn);
+//	printk("-- %lu cluster_get_sync_count\n", rtn);
+	if(rtn >= lc->region_count){
+		printk("All regions in sync.  _in_sync is SET.\n");
+		atomic_set(&_in_sync, 1);
+	}/*
+	else {
+		printk("Not all regions in sync (%Lu/%u).  _in_sync is UNSET.\n",
+		       rtn, lc->region_count);
+		       }*/
 
 	return rtn;
 }
@@ -1612,15 +1663,17 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 *****************************************************************
 ****************************************************************/
 static int clog_stop(void *data){
-	printk("stop event received\n");
-  
 	/* stop the server */
 
-	printk("suspending server.\n");
+//	printk("suspending server.\n");
 	down(&server_suspend);
 
-	printk("server is suspended.\n");
+//	printk("server is suspended.\n");
 	/* ATTENTION -- freeze client operations ?*/
+
+	printk("Cluster stopping.  _in_sync is UNSET.\n");
+	atomic_set(&_in_sync, 0);
+	
 	return 0;
 }
 
@@ -1712,6 +1765,8 @@ static int __init cluster_dirty_log_init(void)
 
 	INIT_LIST_HEAD(&clear_region_list);
 	spin_lock_init(&clear_region_lock);
+	printk("Initial state.  _in_sync is UNSET.\n");
+	atomic_set(&_in_sync, 0);
 
 	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
 				 1, NULL, &local_id);
@@ -1756,13 +1811,11 @@ static int __init cluster_dirty_log_init(void)
 
 static void __exit cluster_dirty_log_exit(void)
 {
-	printk("Trying exit function.\n");
 	if(!list_empty(&log_list_head)){
 		DMWARN("attempt to remove module, but dirty logs are still in place!");
 		DMWARN("this is a fatal error");
 		BUG();
 	}
-	printk("Calling unregister.\n");
 	dm_unregister_dirty_log_type(&_cluster_type);
 	kcl_leave_service(local_id);
 	stop_server();
