@@ -1838,6 +1838,7 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 				leavereason = 0;
 				joining_temp_nodeid = 0;
 				node_state = MEMBER;
+				sm_member_update(cluster_is_quorate);
 			}
 		}
 		else {
