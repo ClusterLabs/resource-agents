@@ -1980,15 +1980,15 @@ int incoming(struct superblock *sb, struct client *client)
 		default: 
 			outbead(sock, REPLY_ERROR, struct { int code; char error[50]; }, message.head.code, "Unknown message"); // wrong!!!
 	}
-	static int messages = 0;
 
 #if 0
+	static int messages = 0;
 	if (++messages == 5) {
 		warn(">>>>Simulate server crash<<<<");
 		exit(1);
 	}
-	return 0;
 #endif
+	return 0;
 
 message_too_long:
 	warn("message %x too long (%u bytes)\n", message.head.code, message.head.length);
@@ -2044,8 +2044,8 @@ int resolve_self(int family, void *result, int length)
 
 int csnap_server(struct superblock *sb, char *sockname, int port)
 {
-	unsigned maxclients = 100, clients = 0, others = 2;
-	struct client clientvec[maxclients];
+	unsigned maxclients = 100, clients = 0, others = 3;
+	struct client *clientvec[maxclients];
 	struct pollfd pollvec[others+maxclients];
 	int listener, getsig, pipevec[2], err = 0;
 
@@ -2070,44 +2070,41 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 
 	warn("csnap server bound to port %i", port);
 
-	if (sockname)
-	{
-		struct sockaddr_un addr = { .sun_family = AF_UNIX };
-		int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
-		int sock, len;
+	/* Get agent connection */
+	struct sockaddr_un addr = { .sun_family = AF_UNIX };
+	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname);
+	int sock, len;
 
-		trace(warn("Connect to control socket %s", sockname);)
-		if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
-			error("Can't get socket");
-		strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
-		if (sockname[0] == '@')
-			addr.sun_path[0] = 0;
+	trace(warn("Connect to control socket %s", sockname);)
+	if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+		error("Can't get socket");
+	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
+	if (sockname[0] == '@')
+		addr.sun_path[0] = 0;
 
-		if (connect(sock, (struct sockaddr *)&addr, addr_len) == -1)
-			error("Can't connect to control socket");
+	if (connect(sock, (struct sockaddr *)&addr, addr_len) == -1)
+		error("Can't connect to control socket");
 
-		/* control connection will just be a normal client for now */
-		trace_on(warn("Received control connection");)
-		clientvec[0] = (struct client){ .sock = sock, .id = -2, .snapnum = -2 };
-		pollvec[others] = (struct pollfd){ .fd = sock, .events = POLLIN };
-		clients = 1;
+	trace_on(warn("Received control connection");)
+	pollvec[2] = (struct pollfd){ .fd = sock, .events = POLLIN };
 
-		if ((len = resolve_self(AF_INET, server.address, sizeof(server.address))) == -1)
-			error("Can't get own address, %s (%i)", strerror(errno), errno);
-		server.address_len = len;
-		warn("host = %x/%u", *(int *)server.address, server.address_len);
-		writepipe(sock, &(struct head){ SERVER_READY, sizeof(server) }, sizeof(struct head));
-		writepipe(sock, &server, sizeof(server));
-	}
+	if ((len = resolve_self(AF_INET, server.address, sizeof(server.address))) == -1)
+		error("Can't get own address, %s (%i)", strerror(errno), errno);
+	server.address_len = len;
+	warn("host = %x/%u", *(int *)server.address, server.address_len);
+	writepipe(sock, &(struct head){ SERVER_READY, sizeof(server) }, sizeof(struct head));
+	writepipe(sock, &server, sizeof(server));
 
+#if 1
 	switch (fork()) {
 	case -1:
 		error("fork failed");
-	case 0:
+	case 0: // !!! daemonize goes here
 		break;
 	default:
 		return 0;
 	}
+#endif
 
 	pollvec[0] = (struct pollfd){ .fd = listener, .events = POLLIN };
 	pollvec[1] = (struct pollfd){ .fd = getsig, .events = POLLIN };
@@ -2140,7 +2137,10 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 
 			trace_on(warn("Received connection");)
 			assert(clients < maxclients); // !!! send error and disconnect
-			clientvec[clients] = (struct client){ .sock = sock, .id = -1, .snapnum = -1 };
+
+			struct client *client = malloc(sizeof(client));
+			*client = (struct client){ .sock = sock };
+			clientvec[clients] = client;
 			pollvec[others+clients] = (struct pollfd){ .fd = sock, .events = POLLIN };
 			clients++;
 		}
@@ -2159,19 +2159,29 @@ int csnap_server(struct superblock *sb, char *sockname, int port)
 			goto done;
 		}
 
-		/* Client activity? */
+		/* Agent message? */
+		if (pollvec[2].revents)
+			incoming(sb, &(struct client){ .sock = sock, .id = -2, .snapnum = -2 });
+
+		/* Client message? */
 		unsigned i = 0;
 		while (i < clients) {
 			if (pollvec[others+i].revents) { // !!! check for poll error
-				trace_off(printf("event on socket %i = %x\n", clientvec[i].sock, pollvec[others+i].revents);)
-				int result = incoming(sb, clientvec + i);
-				if (result == -1) {
-					warn("Client %i disconnected", clientvec[i].id);
+				struct client *client = clientvec[i];
+				int result;
+
+				trace_off(printf("event on socket %i = %x\n", client->sock, pollvec[others+i].revents);)
+				if ((result = incoming(sb, client)) == -1) {
+					warn("Client %i disconnected", client->id);
 					save_state(sb); // !!! just for now
-					close(clientvec[i].sock);
-					memmove(clientvec + i, clientvec + i + 1, sizeof(struct client) * --clients);
+					close(client->sock);
+					free(client);
+					--clients;
+					clientvec[i] = clientvec[clients];
+					pollvec[others + i] = pollvec[others + clients];
 					continue;
 				}
+
 				if (result == -2) { // !!! wrong !!!
 					cleanup(sb);
 					goto done;
