@@ -42,7 +42,7 @@ Method 1: outside the kernel source tree
 3. build cluster kernel modules and user space
    cd cluster
    ./configure --kernel_src=/path/to/kernel
-   make; make install
+   make install
 
 4. build device mapper user space
    cd device-mapper
@@ -71,7 +71,7 @@ Method 2: using kernel patches
 4. build user space components
    cd cluster
    ./configure --kernel_src=/path/to/kernel
-   make; make install
+   make install
 
 5. build device mapper user space
    cd device-mapper
