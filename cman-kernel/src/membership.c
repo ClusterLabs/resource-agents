@@ -1896,8 +1896,10 @@ static int do_process_endtrans(struct msghdr *msg, char *buf, int len)
 
 	purge_temp_nodeids();
 
-	/* Clear the master node */
+	/* Clear up */
 	master_node = NULL;
+	joining_node = NULL;
+	joining_temp_nodeid = 0;
 
 	node_state = MEMBER;
 
