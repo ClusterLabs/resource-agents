@@ -147,18 +147,16 @@ struct lm_lockops {
 	/* Posix Lock oriented operations  */
 
 	int (*lm_plock_get) (lm_lockspace_t *lockspace,
-			     struct lm_lockname *name, unsigned long owner,
-			     uint64_t *start, uint64_t *end, int *exclusive,
-			     unsigned long *rowner);
+			     struct lm_lockname *name,
+			     struct file *file, struct file_lock *fl);
 
 	int (*lm_plock) (lm_lockspace_t *lockspace,
-			 struct lm_lockname *name, unsigned long owner,
-			 int wait, int exclusive, uint64_t start,
-			 uint64_t end);
+			 struct lm_lockname *name,
+			 struct file *file, int cmd, struct file_lock *fl);
 
 	int (*lm_punlock) (lm_lockspace_t *lockspace,
-			   struct lm_lockname *name, unsigned long owner,
-			   uint64_t start, uint64_t end);
+			   struct lm_lockname *name,
+			   struct file *file, struct file_lock *fl);
 
 	/* Client oriented operations */
 

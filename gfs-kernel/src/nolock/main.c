@@ -16,6 +16,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/types.h>
+#include <linux/fs.h>
 #include <linux/lm_interface.h>
 
 #define RELEASE_NAME "<CVS>"
@@ -219,60 +220,55 @@ nolock_sync_lvb(lm_lock_t *lock, char *lvb)
  * nolock_plock_get - 
  * @lockspace: the lockspace
  * @name:
- * @owner:
- * @start:
- * @end:
- * @exclusive:
- * @rowner:
+ * @file:
+ * @fl:
  *
+ * Returns: errno
  */
 
 static int
 nolock_plock_get(lm_lockspace_t *lockspace,
-		 struct lm_lockname *name, unsigned long owner,
-		 uint64_t *start, uint64_t *end, int *exclusive,
-		 unsigned long *rowner)
+		 struct lm_lockname *name,
+		 struct file *file, struct file_lock *fl)
 {
-	return -ENOSYS;
+	return LOCK_USE_CLNT;
 }
 
 /**
  * nolock_plock -
  * @lockspace: the lockspace
  * @name:
- * @owner:
- * @wait:
- * @exclusive:
- * @start:
- * @end:
+ * @file:
+ * @cmd:
+ * @fl:
  *
+ * Returns: errno
  */
 
 static int
 nolock_plock(lm_lockspace_t *lockspace,
-	     struct lm_lockname *name, unsigned long owner,
-	     int wait, int exclusive, uint64_t start,
-	     uint64_t end)
+	     struct lm_lockname *name,
+	     struct file *file, int cmd, struct file_lock *fl)
 {
-	return -ENOSYS;
+	return posix_lock_file_wait(file, fl);
 }
 
 /**
  * nolock_punlock -
  * @lockspace: the lockspace
  * @name:
- * @owner:
- * @start:
- * @end:
+ * @file:
+ * @fl:
  *
+ * Returns: errno
  */
 
 static int
 nolock_punlock(lm_lockspace_t *lockspace,
-	       struct lm_lockname *name, unsigned long owner,
-	       uint64_t start, uint64_t end)
+	       struct lm_lockname *name,
+	       struct file *file, struct file_lock *fl)
 {
-	return -ENOSYS;
+	return posix_lock_file_wait(file, fl);
 }
 
 /**

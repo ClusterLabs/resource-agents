@@ -1398,48 +1398,27 @@ do_plock(struct file *file, int cmd, struct file_lock *fl)
 	struct lm_lockname name =
 		{ .ln_number = ip->i_num.no_formal_ino,
 		  .ln_type = LM_TYPE_PLOCK };
-	int error;
 
-	if (sdp->sd_args.ar_localflocks)
-		return LOCK_USE_CLNT;
+	if (sdp->sd_args.ar_localflocks) {
+		if (IS_GETLK(cmd))
+			return LOCK_USE_CLNT;
+		return posix_lock_file_wait(file, fl);
+	}
 
-	if (IS_GETLK(cmd)) {
-		uint64_t start = fl->fl_start, end = fl->fl_end;
-		int ex = (fl->fl_type == F_WRLCK) ? 1 : 0;
-		unsigned long pid;
-
-		error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
+	if (IS_GETLK(cmd))
+		return sdp->sd_lockstruct.ls_ops->lm_plock_get(
 			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			&start, &end, &ex, &pid);
-		if (error < 0)
-			return error;
+			&name, file, fl);
 
-		fl->fl_type = F_UNLCK;
-		if (!error)
-			return error;
-
-		fl->fl_start = start;
-		fl->fl_end = end;
-		fl->fl_pid = pid;
-		fl->fl_type = (ex) ? F_WRLCK : F_RDLCK;
-
-		error = 0;
-
-	} else if (fl->fl_type == F_UNLCK)
-		error = sdp->sd_lockstruct.ls_ops->lm_punlock(
+	else if (fl->fl_type == F_UNLCK)
+		return sdp->sd_lockstruct.ls_ops->lm_punlock(
 			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			fl->fl_start, fl->fl_end);
+			&name, file, fl);
 
 	else
-		error = sdp->sd_lockstruct.ls_ops->lm_plock(
+		return sdp->sd_lockstruct.ls_ops->lm_plock(
 			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			IS_SETLKW(cmd), (fl->fl_type == F_WRLCK),
-			fl->fl_start, fl->fl_end);
-
-	return error;
+			&name, file, cmd, fl);
 }
 
 /**

@@ -1,7 +1,7 @@
 # Add GFS to the build system.
-diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.8.1/fs/Kconfig	2004-10-05 11:11:20.666987577 -0500
-+++ linux/fs/Kconfig	2004-10-05 11:11:20.677985026 -0500
+diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9/fs/Kconfig	2004-10-21 17:14:32.464039622 -0500
++++ linux/fs/Kconfig	2004-10-21 17:14:32.475037060 -0500
 @@ -283,13 +283,13 @@ config JFS_STATISTICS
  	  to be made available to the user in the /proc/fs/jfs/ directory.
  
@@ -13,12 +13,12 @@ diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
  # 	Never use this symbol for ifdefs.
  #
  	bool
--	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL
-+	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || GFS_FS
+-	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4
++	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4 || GFS_FS
  	default y
  
  config XFS_FS
-@@ -1756,6 +1756,20 @@ config LOCK_HARNESS
+@@ -1776,6 +1776,20 @@ config LOCK_HARNESS
  
  	  If you want to use GFS (a cluster filesystem) say Y here.
  
@@ -39,17 +39,17 @@ diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.8.1/fs/Makefile linux/fs/Makefile
---- linux-2.6.8.1/fs/Makefile	2004-10-05 11:11:20.666987577 -0500
-+++ linux/fs/Makefile	2004-10-05 11:11:20.678984794 -0500
-@@ -92,3 +92,4 @@ obj-$(CONFIG_XFS_FS)		+= xfs/
- obj-$(CONFIG_AFS_FS)		+= afs/
- obj-$(CONFIG_BEFS_FS)		+= befs/
+diff -urN -p linux-2.6.9/fs/Makefile linux/fs/Makefile
+--- linux-2.6.9/fs/Makefile	2004-10-21 17:14:32.464039622 -0500
++++ linux/fs/Makefile	2004-10-21 17:14:32.476036827 -0500
+@@ -94,3 +94,4 @@ obj-$(CONFIG_BEFS_FS)		+= befs/
+ obj-$(CONFIG_HOSTFS)		+= hostfs/
+ obj-$(CONFIG_HPPFS)		+= hppfs/
  obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
 +obj-$(CONFIG_GFS_FS)		+= gfs/
-diff -urN -p linux-2.6.8.1/fs/gfs/Makefile linux/fs/gfs/Makefile
---- linux-2.6.8.1/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-10-05 11:11:47.677720979 -0500
+diff -urN -p linux-2.6.9/fs/gfs/Makefile linux/fs/gfs/Makefile
+--- linux-2.6.9/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/Makefile	2004-10-21 17:14:32.476036827 -0500
 @@ -0,0 +1,51 @@
 +###############################################################################
 +###############################################################################

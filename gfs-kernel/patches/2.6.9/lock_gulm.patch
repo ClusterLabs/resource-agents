@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,416 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gio_wiretypes.h	2004-10-21 18:18:33.154522940 -0500
+@@ -0,0 +1,465 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -21,7 +21,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + * the wires.
 + * If I was really cute, this would be effectivily a checksum of this file.
 + */
-+#define GIO_WIREPROT_VERS (0x67000011)
++#define GIO_WIREPROT_VERS (0x67000013)
 +
 +/*****************Error codes.
 + * everyone uses these same error codes.
@@ -38,7 +38,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 +#define gio_Err_BadStateChg     (1008)
 +#define gio_Err_MemoryIssues    (1009)
 +
-+#define gio_Err_PushQu          (1010)	/* client should never see this one */
++#define gio_Err_PushQu          (1010) /* client should never see this one */
 +#define gio_Err_TryFailed       (1011)
 +#define gio_Err_AlreadyPend     (1013)
 +#define gio_Err_Canceled        (1015)
@@ -55,9 +55,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: opcode that this is in reply to. (can be zeros)
 + *    uint32: error code
 + */
-+#define gulm_err_reply (0x67455252)	/* gERR */
++#define gulm_err_reply (0x67455252) /* gERR */
 +
-+#define gulm_nop (0x674e4f50)	/* gNOP */
++#define gulm_nop (0x674e4f50)  /* gNOP */
 +
 +/********************* Core *****************/
 +/* 
@@ -148,9 +148,14 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + * Core state changes:
 + *    uint32: gCSC
 + *    uint8:  state  (slave, pending, arbitrating, master)
++ *    uint8:  quorate (true/false)
 + *  If state == Slave, then the next two will follow.
 + *    IPv6:   MasterIP
 + *    string: MasterName
++ *
++ * Quorum Change:
++ *    uint32: gCQC
++ *    uint8:  quorate (true/false)
 + *
 + * Core shutdown req:
 + *    uint32: gCSD
@@ -159,24 +164,25 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: gCSP
 + *
 + */
-+#define gulm_core_login_req  (0x67434c00)	/* gCL0 */
-+#define gulm_core_login_rpl  (0x67434c01)	/* gCL1 */
-+#define gulm_core_logout_req (0x67434c02)	/* gCL2 */
-+#define gulm_core_logout_rpl (0x67434c03)	/* gCL3 */
-+#define gulm_core_reslgn_req (0x67434c04)	/* gCL4 */
-+#define gulm_core_beat_req   (0x67434200)	/* gCB0 */
-+#define gulm_core_beat_rpl   (0x67434201)	/* gCB1 */
-+#define gulm_core_mbr_req    (0x67434d41)	/* gCMA */
-+#define gulm_core_mbr_updt   (0x67434d55)	/* gCMU */
-+#define gulm_core_mbr_lstreq (0x67434d6c)	/* gCMl */
-+#define gulm_core_mbr_lstrpl (0x67434d4c)	/* gCML */
-+#define gulm_core_mbr_force  (0x67434645)	/* gCFE */
-+#define gulm_core_res_req    (0x67435200)	/* gCR0 */
-+#define gulm_core_res_list   (0x67435201)	/* gCR1 */
-+#define gulm_core_state_req  (0x67435352)	/* gCSR */
-+#define gulm_core_state_chgs (0x67435343)	/* gCSC */
-+#define gulm_core_shutdown   (0x67435344)	/* gCSD */
-+#define gulm_core_forcepend  (0x67435350)	/* gCSP */
++#define gulm_core_login_req  (0x67434c00) /* gCL0 */
++#define gulm_core_login_rpl  (0x67434c01) /* gCL1 */
++#define gulm_core_logout_req (0x67434c02) /* gCL2 */
++#define gulm_core_logout_rpl (0x67434c03) /* gCL3 */
++#define gulm_core_reslgn_req (0x67434c04) /* gCL4 */
++#define gulm_core_beat_req   (0x67434200) /* gCB0 */
++#define gulm_core_beat_rpl   (0x67434201) /* gCB1 */
++#define gulm_core_mbr_req    (0x67434d41) /* gCMA */
++#define gulm_core_mbr_updt   (0x67434d55) /* gCMU */
++#define gulm_core_mbr_lstreq (0x67434d6c) /* gCMl */
++#define gulm_core_mbr_lstrpl (0x67434d4c) /* gCML */
++#define gulm_core_mbr_force  (0x67434645) /* gCFE */
++#define gulm_core_res_req    (0x67435200) /* gCR0 */
++#define gulm_core_res_list   (0x67435201) /* gCR1 */
++#define gulm_core_state_req  (0x67435352) /* gCSR */
++#define gulm_core_state_chgs (0x67435343) /* gCSC */
++#define gulm_core_quorm_chgs (0x67435143) /* gCSC */
++#define gulm_core_shutdown   (0x67435344) /* gCSD */
++#define gulm_core_forcepend  (0x67435350) /* gCSP */
 +
 +/* in the st field */
 +#define gio_Mbr_Logged_in  (0x05)
@@ -247,12 +253,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *       uint32: poller idx
 + *    list stop:
 + */
-+#define gulm_info_stats_req      (0x67495300)	/* gIS0 */
-+#define gulm_info_stats_rpl      (0x67495301)	/* gIS1 */
-+#define gulm_info_set_verbosity  (0x67495600)	/* gIV0 */
-+#define gulm_socket_close        (0x67534300)	/* gSC0 */
-+#define gulm_info_slave_list_req (0x67494c00)	/* gIL0 */
-+#define gulm_info_slave_list_rpl (0x67494c01)	/* gIL1 */
++#define gulm_info_stats_req      (0x67495300) /* gIS0 */
++#define gulm_info_stats_rpl      (0x67495301) /* gIS1 */
++#define gulm_info_set_verbosity  (0x67495600) /* gIV0 */
++#define gulm_socket_close        (0x67534300) /* gSC0 */
++#define gulm_info_slave_list_req (0x67494c00) /* gIL0 */
++#define gulm_info_slave_list_rpl (0x67494c01) /* gIL1 */
 +
 +/********************* Lock Traffic *****************
 + * All lock traffic.
@@ -285,6 +291,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: gLR0
 + *    raw:    key
 + *    uint64: sub id
++ *    uint64: start
++ *    uint64: stop
 + *    uint8:  state
 + *    uint32: flags
 + *    raw:    lvb -- Only exists if hasLVB flag is true.
@@ -292,6 +300,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: gLR1
 + *    raw:    key
 + *    uint64: sub id
++ *    uint64: start
++ *    uint64: stop
 + *    uint8:  state
 + *    uint32: flags
 + *    uint32: error code
@@ -301,6 +311,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: gLRU
 + *    string: node name
 + *    uint64: sub id
++ *    uint64: start
++ *    uint64: stop
 + *    raw:    key
 + *    uint8:  state
 + *    uint32: flags
@@ -331,6 +343,30 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    uint32: gLUR
 + *    raw:    key
 + *
++ * Query Lock request:
++ *    uint32: gLQ0
++ *    raw:    key
++ *    uint64: subid
++ *    uint64: start
++ *    uint64: stop
++ *    uint8:  state
++ * 
++ * Query Lock Reply:
++ *    uint32: gLQ1
++ *    raw:    key
++ *    uint64: subid
++ *    uint64: start
++ *    uint64: stop
++ *    uint8:  state
++ *    uint32: error
++ *    list start mark
++ *     string: node
++ *     uint64: subid
++ *     uint64: start
++ *     uint64: stop
++ *     uint8:  state
++ *    list stop mark
++ *
 + * Drop lock Callback:
 + *    uint32: gLC0
 + *    raw:    key
@@ -359,6 +395,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *      string: holders
 + *      uint64: subid
 + *      uint8: state
++ *      uint64: start
++ *      uint64: stop
 + *     list stop mark
 + *     uint32: LVB holder count
 + *     list start mark
@@ -373,24 +411,26 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 + *    list stop mark
 + *
 + */
-+#define gulm_lock_login_req   (0x674C4C00)	/* gLL0 */
-+#define gulm_lock_login_rpl   (0x674C4C01)	/* gLL1 */
-+#define gulm_lock_logout_req  (0x674C4C02)	/* gLL2 */
-+#define gulm_lock_logout_rpl  (0x674C4C03)	/* gLL3 */
-+#define gulm_lock_sel_lckspc  (0x674C5300)	/* gLS0 */
-+#define gulm_lock_state_req   (0x674C5200)	/* gLR0 */
-+#define gulm_lock_state_rpl   (0x674C5201)	/* gLR1 */
-+#define gulm_lock_state_updt  (0x674C5255)	/* gLRU */
-+#define gulm_lock_action_req  (0x674C4100)	/* gLA0 */
-+#define gulm_lock_action_rpl  (0x674C4101)	/* gLA1 */
-+#define gulm_lock_action_updt (0x674C4155)	/* gLAU */
-+#define gulm_lock_update_rpl  (0x674c5552)	/* gLUR */
-+#define gulm_lock_cb_state    (0x674C4300)	/* gLC0 */
-+#define gulm_lock_cb_dropall  (0x674C4302)	/* gLC2 */
-+#define gulm_lock_drop_exp    (0x674C454F)	/* gLEO */
-+#define gulm_lock_dump_req    (0x674c4400)	/* gLD0 */
-+#define gulm_lock_dump_rpl    (0x674c4401)	/* gLD1 */
-+#define gulm_lock_rerunqueues (0x674c5152)	/* gLQR */
++#define gulm_lock_login_req   (0x674C4C00) /* gLL0 */
++#define gulm_lock_login_rpl   (0x674C4C01) /* gLL1 */
++#define gulm_lock_logout_req  (0x674C4C02) /* gLL2 */
++#define gulm_lock_logout_rpl  (0x674C4C03) /* gLL3 */
++#define gulm_lock_sel_lckspc  (0x674C5300) /* gLS0 */
++#define gulm_lock_state_req   (0x674C5200) /* gLR0 */
++#define gulm_lock_state_rpl   (0x674C5201) /* gLR1 */
++#define gulm_lock_state_updt  (0x674C5255) /* gLRU */
++#define gulm_lock_action_req  (0x674C4100) /* gLA0 */
++#define gulm_lock_action_rpl  (0x674C4101) /* gLA1 */
++#define gulm_lock_action_updt (0x674C4155) /* gLAU */
++#define gulm_lock_update_rpl  (0x674c5552) /* gLUR */
++#define gulm_lock_query_req   (0x674c5100) /* gLQ0 */
++#define gulm_lock_query_rpl   (0x674c5101) /* gLQ1 */
++#define gulm_lock_cb_state    (0x674C4300) /* gLC0 */
++#define gulm_lock_cb_dropall  (0x674C4302) /* gLC2 */
++#define gulm_lock_drop_exp    (0x674C454F) /* gLEO */
++#define gulm_lock_dump_req    (0x674c4400) /* gLD0 */
++#define gulm_lock_dump_rpl    (0x674c4401) /* gLD1 */
++#define gulm_lock_rerunqueues (0x674c5251) /* gLRQ */
 +
 +/* marks for the login */
 +#define gio_lck_st_Slave     (0x00)
@@ -415,13 +455,22 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gio_wiretypes.h linux-patched/fs/g
 +#define gio_lck_fg_hasLVB      (0x00000010)
 +#define gio_lck_fg_Cachable    (0x00000020)
 +#define gio_lck_fg_Piority     (0x00000040)
++ /* this is just an idea, but it might be useful.  Basically just says to
++  * not keep the exp hold, just drop this hold like a shared would be.
++  */
++#define gio_lck_fg_DropOnExp   (0x00000080)
++ /* this is saved on each holder, basically, you are gonna ignore any
++  * callbacks about this lock, so tell the server not to even bother
++  * sending them.  A tiny performance boost by lowering the network load.
++  */
++#define gio_lck_fg_NoCallBacks (0x00000100)
 +
 +#endif /*__gio_wiretypes_h__*/
 +/* vim: set ai cin et sw=3 ts=3 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_locking/lock_gulm/gulm.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,290 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm.h	2004-10-21 18:18:33.154522940 -0500
+@@ -0,0 +1,237 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -438,7 +487,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +#ifndef GULM_DOT_H
 +#define GULM_DOT_H
 +
-+#define GULM_RELEASE_NAME "v6.0.0"
++#define GULM_RELEASE_NAME "<CVS>"
 +
 +#ifdef MODVERSIONS
 +#include <linux/modversions.h>
@@ -454,6 +503,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +#include <linux/smp_lock.h>
 +#include <linux/ctype.h>
 +#include <linux/string.h>
++#include <linux/list.h>
 +
 +#ifndef TRUE
 +#define TRUE (1)
@@ -487,7 +537,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +#define SCNX64 "LX"
 +#endif
 +
-+#include <linux/list.h>
 +
 +#undef MAX
 +#define MAX(a,b) ((a>b)?a:b)
@@ -531,6 +580,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +#define GIO_LVB_SIZE  (32)
 +#define GIO_NAME_SIZE (32)
 +#define GIO_NAME_LEN  (GIO_NAME_SIZE-1)
++#define GULM_CRC_INIT (0x6d696b65)
++#define gulm_gfs_lmSize (1<<13)  /* map size is a power of 2 */
++#define gulm_gfs_lmBits (0x1FFF) /* & is faster than % */
 +
 +/* What we know about this filesytem */
 +struct gulm_fs_s {
@@ -545,80 +597,21 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +	uint32_t fsJID;
 +	uint32_t lvb_size;
 +
-+	struct semaphore get_lock;	/* I am not 100% sure this is needed.
-+					 * But it only hurts performance,
-+					 * not correctness if it is
-+					 * useless.  Sometime post52, need
-+					 * to investigate.
-+					 */
-+
 +	/* Stuff for the first mounter lock and state */
 +	int firstmounting;
 +	/* the recovery done func needs to behave slightly differnt when we are
 +	 * the first node in an fs.
 +	 */
 +
-+	void *mountlock;	/* this lock holds the Firstmounter state of the FS */
-+	/* this is because all lock traffic is async, and really at this point
-+	 * in time we want a sync behavor, so I'm left with doing something to
-+	 * achive that.
-+	 *
-+	 * this works, but it is crufty, but I don't want to build a huge
-+	 * queuing system for one lock that we touch twice at the beginning and
-+	 * once on the end.
-+	 *
-+	 * I should change the firstmounter lock to work like the journal locks
-+	 * and the node locks do.  Things are a lot cleaner now with the libgulm
-+	 * interface than before. (when the firstmounter lock code was written)
-+	 */
-+	struct completion sleep;
-+
 +	/* Stuff for JID mapping locks */
 +	uint32_t JIDcount;	/* how many JID locks are there. */
++	struct semaphore headerlock;
 +};
 +typedef struct gulm_fs_s gulm_fs_t;
-+
-+/* What we know about each locktable.
-+ * only one now-a-days. (the LTPX)
-+ * */
-+typedef struct lock_table_s {
-+	uint32_t magic_one;
-+
-+	int running;
-+	struct task_struct *recver_task;
-+	struct completion startup;
-+	struct semaphore sender;
-+
-+	struct task_struct *sender_task;
-+	wait_queue_head_t send_wchan;
-+	spinlock_t queue_sender;
-+	struct list_head to_be_sent;
-+
-+	int hashbuckets;
-+	spinlock_t *hshlk;
-+	struct list_head *lkhsh;
-+
-+	/* stats
-+	 * it may be wise to make some of these into atomic numbers.
-+	 * or something.  or not.
-+	 * */
-+	uint32_t locks_total;
-+	uint32_t locks_unl;
-+	uint32_t locks_exl;
-+	uint32_t locks_shd;
-+	uint32_t locks_dfr;
-+	uint32_t locks_lvbs;
-+	atomic_t locks_pending;
-+	/* cannot count expired here. clients don't know this */
-+
-+	uint32_t lops;		/* just incr on each op */
-+
-+} lock_table_t;
 +
 +typedef struct gulm_cm_s {
 +	uint8_t myName[64];
 +	uint8_t clusterID[256]; /* doesn't need to be 256. */
-+	uint8_t loaded;		/* True|False whether we grabbed the config data */
 +	uint8_t starts;
 +
 +	uint32_t handler_threads;	/* howmany to have */
@@ -626,7 +619,13 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +
 +	uint64_t GenerationID;
 +
-+	lock_table_t ltpx;
++	/* lm interface pretty much requires that we maintian a table of
++	 * locks.  The way lvbs work is a prefect example of why.  As is
++	 * the panic you get if you send a cb up about a lock that has been
++	 * put away.
++	 */
++	struct list_head *gfs_lockmap;
++	spinlock_t *gfs_locklock;
 +
 +	gulm_interface_p hookup;
 +
@@ -634,60 +633,54 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +
 +/* things about each lock. */
 +typedef struct gulm_lock_s {
-+	struct list_head gl_list;
-+	atomic_t count;
++   struct list_head gl_list;
++   atomic_t count; /* gfs can call multiple gets and puts for same lock. */
 +
-+	uint32_t magic_one;
-+	gulm_fs_t *fs;		/* which filesystem we belong to. */
-+	uint8_t key[GIO_KEY_SIZE];
-+	uint16_t keylen;
-+	uint8_t last_suc_state;	/* last state we succesfully got. */
-+	char *lvb;
-+
-+	/* this is true when there is a lock request sent out for this lock.
-+	 * All it really means is that if we've lost the master, and reconnect
-+	 * to another, this lock needs to have it's request resent.
-+	 *
-+	 * This now has two stages.  Since a lock could be pending, but still in
-+	 * the send queue.  So we don't want to resend requests that haven't
-+	 * been sent yet.
-+	 *
-+	 * we don't handle the master losses here any more.  LTPX does that for
-+	 * us.  Should consider removing the dupicated code then.
-+	 */
-+	int actuallypending;	/* may need to be atomic */
-+	int in_to_be_sent;
-+
-+	enum { glck_nothing, glck_action, glck_state } req_type;
-+	/* these three for the lock req.  We save them here so we can rebuild
-+	 * the lock request if there was a server failover. (?still needed?)
-+	 */
-+	unsigned int cur_state;
-+	unsigned int req_state;
-+	unsigned int flags;
-+
-+	/* these three for actions. First is the action, next is result, last is
-+	 * what threads wait on for the reply.
-+	 */
-+	int action;
-+	int result;		/* ok, both are using this. */
-+	struct completion actsleep;
-+
++   uint8_t *key;
++   uint16_t keylen;
++   gulm_fs_t *fs; /* which fs we belong to */
++   char *lvb;
++   int cur_state; /* for figuring out wat reply to tell gfs. */
 +} gulm_lock_t;
++
 +
 +/*****************************************************************************/
 +/* cross pollenate prototypes */
 +
-+/* from gulm_lt.c */
-+int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
-+		uint8_t *fsname, uint8_t *pk, uint8_t pklen);
-+void lt_logout (void);
-+int lt_login (void);
++/* from gulm_firstlock.c */
 +int get_mount_lock (gulm_fs_t * fs, int *first);
 +int downgrade_mount_lock (gulm_fs_t * fs);
 +int drop_mount_lock (gulm_fs_t * fs);
-+int send_drop_all_exp (lock_table_t * lt);
-+int send_drop_exp (gulm_fs_t * fs, lock_table_t * lt, char *name);
++
++/* from gulm_lt.c */
++int gulm_lt_init (void);
++void gulm_lt_release(void);
++int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
++		uint8_t *fsname, uint8_t *pk, uint8_t pklen);
++int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname);
++void do_drop_lock_req (uint8_t *key, uint16_t keylen, uint8_t state);
++int gulm_get_lock (lm_lockspace_t * lockspace, struct lm_lockname *name,
++	       lm_lock_t ** lockp);
++void gulm_put_lock (lm_lock_t * lock);
++unsigned int gulm_lock (lm_lock_t * lock, unsigned int cur_state,
++	   unsigned int req_state, unsigned int flags);
++unsigned int gulm_unlock (lm_lock_t * lock, unsigned int cur_state);
++void gulm_cancel (lm_lock_t * lock);
++int gulm_hold_lvb (lm_lock_t * lock, char **lvbp);
++void gulm_unhold_lvb (lm_lock_t * lock, char *lvb);
++void gulm_sync_lvb (lm_lock_t * lock, char *lvb);
++
++/* from gulm_plock.c */
++int gulm_plock_get (lm_lockspace_t * lockspace,
++		struct lm_lockname *name, unsigned long owner,
++		uint64_t * start, uint64_t * end, int *exclusive,
++		unsigned long *rowner);
++int gulm_plock (lm_lockspace_t * lockspace,
++	    struct lm_lockname *name, unsigned long owner,
++	    int wait, int exclusive, uint64_t start, uint64_t end);
++int gulm_punlock (lm_lockspace_t * lockspace,
++	      struct lm_lockname *name, unsigned long owner,
++	      uint64_t start, uint64_t end);
 +
 +/*from gulm_core.c */
 +void cm_logout (void);
@@ -708,14 +701,17 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm.h linux-patched/fs/gfs_lockin
 +		lm_callback_t cb, lm_fsdata_t * fsdata,
 +		unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
 +
++/* from gulm_jid.c */
++void jid_header_lock_drop (uint8_t * key, uint16_t keylen);
++
 +extern struct lm_lockops gulm_ops;
 +
 +#endif				/*  GULM_DOT_H  */
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,255 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_core.c	2004-10-21 18:18:33.155522708 -0500
+@@ -0,0 +1,250 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -738,7 +734,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +#define __KERNEL_SYSCALLS__
 +#include <linux/unistd.h>
 +
-+#include "util.h"
++#include "gulm_lock_queue.h"
 +#include "utils_tostr.h"
 +
 +extern gulm_cm_t gulm_cm;
@@ -769,12 +765,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +	}
 +	gulm_cm.GenerationID = gen;
 +
-+	error = lt_login ();
-+	if (error != 0) {
-+		log_err ("lt_login failed. %d\n", error);
-+		lg_core_logout (gulm_cm.hookup);	/* XXX is this safe? */
-+		return error;
-+	}
 +
 +	log_msg (lgm_Network2, "Logged into local core.\n");
 +
@@ -808,7 +798,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +	 */
 +	if (gulm_cm.starts && nodestate == lg_core_Logged_out &&
 +			strcmp(gulm_cm.myName, nodename) == 0 ) {
-+		lt_logout();
++		glq_shutdown ();
 +		cm_thd_running = FALSE;
 +		lg_core_logout (gulm_cm.hookup);
 +		return -1;
@@ -816,7 +806,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +	return 0;
 +}
 +
-+int gulm_core_statechange (void *misc, uint8_t corestate,
++int gulm_core_statechange (void *misc, uint8_t corestate, uint8_t quorate,
 +                           struct in6_addr *masterip, char *mastername)
 +{
 +	int *cst = (int *)misc;
@@ -968,13 +958,328 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_core.c linux-patched/fs/gfs_l
 +
 +	err = 0;
 +      exit:
++	if (err > 0) err = - err;
 +	return err;
 +}
 +/* vim: set ai cin noet sw=8 ts=8 : */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_firstlock.c linux-patched/fs/gfs_locking/lock_gulm/gulm_firstlock.c
+--- linux-orig/fs/gfs_locking/lock_gulm/gulm_firstlock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_firstlock.c	2004-10-21 18:18:33.180516911 -0500
+@@ -0,0 +1,310 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#include "gulm.h"
++
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/slab.h>
++#include <linux/file.h>
++#include <linux/crc32.h>
++#define __KERNEL_SYSCALLS__
++#include <linux/unistd.h>
++
++#include "handler.h"
++#include "gulm_lock_queue.h"
++
++extern gulm_cm_t gulm_cm;
++
++/****************************************************************************/
++struct gulm_flck_return_s {
++	int error;
++	struct completion sleep;
++};
++
++/**
++ * gulm_firstlock_finish - 
++ * @item: 
++ * 
++ * 
++ * Returns: void
++ */
++void gulm_firstlock_finish (struct glck_req *item)
++{
++	struct gulm_flck_return_s *g = (struct gulm_flck_return_s *)item->misc;
++	g->error = item->error;
++	complete (&g->sleep);
++}
++
++/**
++ * gulm_cancel_firstlock - 
++ * @misc: 
++ * 
++ */
++void gulm_cancel_firstlock (void *misc)
++{
++	gulm_fs_t *fs = (gulm_fs_t *)misc;
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		log_err ("Out of memory, Cannot cancel Firstlock request.\n");
++		return;
++	}
++
++	/* after cancel is processed, glq will call kfree on item->key. */
++	item->key = kmalloc(GIO_KEY_SIZE, GFP_KERNEL);
++	if (item->key == NULL) {
++		glq_recycle_req(item);
++		log_err ("Out of memory, Cannot cancel Firstlock request.\n");
++		return;
++	}
++	item->keylen = pack_lock_key(item->key, GIO_KEY_SIZE, 'F',
++			fs->fs_name, "irstMount", 9);
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_cancel;
++	item->finish = NULL;
++
++	glq_cancel(item);
++}
++
++/**
++ * do_lock_time_out - 
++ * @d: 
++ *
++ * after timeout, set cancel request on the handler queue. (since we cannot
++ * call it from within the timer code. (socket io within interrupt space is
++ * bad.))
++ * 
++ */
++static void
++do_lock_time_out (unsigned long d)
++{
++	gulm_fs_t *fs = (gulm_fs_t *)d;
++	qu_function_call (&fs->cq, gulm_cancel_firstlock, fs);
++}
++
++/**
++ * get_mount_lock - 
++ * @fs: 
++ * @first: 
++ * 
++ * Get the Firstmount lock.
++ * We try to grab it Exl.  IF we get that, then we are the first client
++ * mounting this fs.  Otherwise we grab it shared to show that there are
++ * clients using this fs.
++ * 
++ * Returns: int
++ */
++int
++get_mount_lock (gulm_fs_t * fs, int *first)
++{
++	int err, keylen;
++	struct timer_list locktimeout;
++	struct gulm_flck_return_s gret;
++	uint8_t key[GIO_KEY_SIZE];
++	glckr_t *item;
++
++	keylen = pack_lock_key(key, GIO_KEY_SIZE, 'F', fs->fs_name, "irstMount", 9);
++	if( keylen <= 0 ) return keylen;
++
++
++      try_it_again:
++	*first = FALSE;		/* assume we're not first */
++
++	item = glq_get_new_req();
++	if (item == NULL) {
++		err = -ENOMEM;
++		goto fail;
++	}
++
++	/* glq does not try to free the key for state or action requests. */
++	item->key = key;
++	item->keylen = keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Exclusive;
++	item->flags = lg_lock_flag_Try|lg_lock_flag_IgnoreExp|lg_lock_flag_NoCallBacks;
++	item->error = gret.error = 0;
++
++	init_completion (&gret.sleep);
++
++	item->misc = &gret;
++	item->finish = gulm_firstlock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&gret.sleep);
++
++	if (gret.error == 0) {
++		/* we got the lock, we're the first mounter. */
++		*first = TRUE;
++		log_msg (lgm_locking, "fsid=%s: Got mount lock Exclusive.\n",
++			 fs->fs_name);
++		return 0;
++	} else {
++		log_msg (lgm_locking,
++			 "fsid=%s: Didn't get mount lock Exl, someone else "
++			 "was first, trying for shared.\n", fs->fs_name);
++
++		/* the try failed, pick it up shared.
++		 * If it takes too long, start over.
++		 * */
++		init_timer (&locktimeout);
++		locktimeout.function = do_lock_time_out;
++		locktimeout.data = (unsigned long)fs;
++		mod_timer (&locktimeout, jiffies + (120 * HZ));
++
++		item = glq_get_new_req();
++		if (item == NULL) {
++			err = -ENOMEM;
++			goto fail;
++		}
++
++		item->key = key;
++		item->keylen = keylen;
++		item->subid = 0;
++		item->start = 0;
++		item->stop = ~((uint64_t)0);
++		item->type = glq_req_type_state;
++		item->state = lg_lock_state_Shared;
++		item->flags = lg_lock_flag_NoCallBacks;
++		item->error = gret.error = 0;
++
++		init_completion (&gret.sleep);
++
++		item->misc = &gret;
++		item->finish = gulm_firstlock_finish;
++
++		glq_queue (item);
++		wait_for_completion (&gret.sleep);
++
++		del_timer (&locktimeout);
++
++		if (gret.error == 0) {
++			/* kewl we got it. */
++			log_msg (lgm_locking,
++				 "fsid=%s: Got mount lock shared.\n",
++				 fs->fs_name);
++			return 0;
++		}
++
++		log_msg (lgm_locking,
++			 "fsid=%s: Shared req timed out, trying Exl again.\n",
++			 fs->fs_name);
++		goto try_it_again;
++	}
++      fail:
++	log_err ("Exit get_mount_lock err=%d\n", err);
++	return err;
++}
++
++/**
++ * downgrade_mount_lock - 
++ * @fs: 
++ * 
++ * drop the Firstmount lock down to shared.  This lets others mount.
++ * 
++ * Returns: int
++ */
++int
++downgrade_mount_lock (gulm_fs_t * fs)
++{
++	int keylen;
++	struct gulm_flck_return_s gret;
++	uint8_t key[GIO_KEY_SIZE];
++	glckr_t *item;
++
++	keylen = pack_lock_key(key, GIO_KEY_SIZE, 'F',
++			fs->fs_name, "irstMount", 9);
++	if( keylen <= 0 ) return keylen;
++
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return -ENOMEM;
++	}
++
++	item->key = key;
++	item->keylen = keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Shared;
++	item->flags = lg_lock_flag_NoCallBacks;
++	item->error = gret.error = 0;
++
++	init_completion (&gret.sleep);
++
++	item->misc = &gret;
++	item->finish = gulm_firstlock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&gret.sleep);
++
++	if (gret.error != 0)
++		log_err ("fsid=%s: Couldn't unlock mount lock!!!!!! %d\n",
++			 fs->fs_name, gret.error);
++	return 0;
++}
++
++/**
++ * drop_mount_lock - drop our hold on the firstmount lock.
++ * @fs: <> the filesystem pointer.
++ * 
++ * Returns: int
++ */
++int
++drop_mount_lock (gulm_fs_t * fs)
++{
++	int keylen;
++	struct gulm_flck_return_s gret;
++	uint8_t key[GIO_KEY_SIZE];
++	glckr_t *item;
++
++	keylen = pack_lock_key(key, GIO_KEY_SIZE, 'F', fs->fs_name, "irstMount", 9);
++	if( keylen <= 0 ) return keylen;
++
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return -ENOMEM;
++	}
++
++	item->key = key;
++	item->keylen = keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Unlock;
++	item->flags = 0;
++	item->error = gret.error = 0;
++
++	init_completion (&gret.sleep);
++
++	item->misc = &gret;
++	item->finish = gulm_firstlock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&gret.sleep);
++
++	if (gret.error != 0)
++		log_err ("fsid=%s: Couldn't unlock mount lock!!!!!! %d\n",
++			 fs->fs_name, gret.error);
++	return 0;
++}
++
++/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,620 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_fs.c	2004-10-21 18:18:33.180516911 -0500
+@@ -0,0 +1,633 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -996,11 +1301,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +#include <linux/file.h>
 +#define __KERNEL_SYSCALLS__
 +#include <linux/unistd.h>
++#include <linux/utsname.h>	/* for extern system_utsname */
 +
-+#include "util.h"
-+#include "load_info.h"
 +#include "handler.h"
-+#include "gulm_procinfo.h"
++#include "gulm_lock_queue.h"
 +#include "gulm_jid.h"
 +
 +/* things about myself */
@@ -1009,11 +1313,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +/* globals for this file.*/
 +uint32_t filesystems_count = 0;
 +LIST_HEAD (filesystems_list);
-+struct semaphore filesystem_lck;	/* we use a sema instead of a spin here because
-+					 * all of the interruptible things we do inside
-+					 * of it.
-+					 * If i stop doing nasty things within this it doesn't need
-+					 * to be a sema.
++struct semaphore filesystem_lck;	/* we use a sema instead of a spin
++					 * here because all of the
++					 * interruptible things we do
++					 * inside of it.  If i stop doing
++					 * nasty things within this it
++					 * doesn't need to be a sema.
 +					 */
 +struct semaphore start_stop_lock;
 +atomic_t start_stop_cnt;
@@ -1052,9 +1357,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +			 "In fs (%s), jid %d was found for name (%s).\n",
 +			 rf->fs->fs_name, jid, rf->name);
 +
-+		/* all that the replay journal call back into gfs does is malloc
-+		 * some memory and add it to a list.  So we really don't need to
-+		 * queue that action.  Since that is what gfs is doing.
++		/* all that the replay journal call back into gfs does is
++		 * malloc some memory and add it to a list.  So we really
++		 * don't need to queue that action.  Since that is what gfs
++		 * is doing.
 +		 *
 +		 * This will need to change if gfs changes.
 +		 *
@@ -1130,7 +1436,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +		fs = list_entry (tmp, gulm_fs_t, fs_list);
 +		qu_drop_req (&fs->cq, fs->cb, fs->fsdata, LM_CB_DROPLOCKS, 0,
 +			     0);
-+		/* If this decides to block someday, we need to change this function.
++		/* If this decides to block someday, we need to change this
++		 * function.
 +		 */
 +	}
 +	up (&filesystem_lck);
@@ -1182,48 +1489,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +/*****************************************************************************/
 +
 +/**
-+ * clear_locks - 
-+ * 
-+ * quick check to see if there was leaking
-+ * should I panic on these? or just complain?
-+ * 
-+ * Returns: void
-+ */
-+void
-+clear_locks (void)
-+{
-+	int i;
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+
-+	for (i = 0; i < lt->hashbuckets; i++) {
-+		struct list_head *lcktmp, *lckfoo;
-+		spin_lock (&lt->hshlk[i]);
-+		list_for_each_safe (lcktmp, lckfoo, &lt->lkhsh[i]) {
-+			gulm_lock_t *lck = NULL;
-+			lck = list_entry (lcktmp, gulm_lock_t, gl_list);
-+			/* need to relelase it. umm, should any even exist? */
-+			log_err ("AH! Rogue lock buffer! refcount:%d\n",
-+				 atomic_read (&lck->count));
-+
-+			if (lck->lvb) {
-+				log_err ("AH! Rogue lock buffer with LVB!\n");
-+				kfree (lck->lvb);
-+			}
-+
-+			list_del (lcktmp);
-+			kfree (lck);
-+
-+		}
-+		spin_unlock (&lt->hshlk[i]);
-+	}
-+	kfree (lt->hshlk);
-+	lt->hshlk = NULL;
-+	kfree (lt->lkhsh);
-+	lt->lkhsh = NULL;
-+}
-+
-+/*****************************************************************************/
-+/**
 + * start_gulm_threads - 
 + * @host_data: 
 + * 
@@ -1231,7 +1496,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 + * Returns: int
 + */
 +int
-+start_gulm_threads (char *csnm, char *host_data)
++start_gulm_threads (char *csnm, char *hostdata)
 +{
 +	int error = 0;
 +
@@ -1242,6 +1507,14 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +		strncpy (gulm_cm.clusterID, csnm, 255);
 +		gulm_cm.clusterID[255] = '\0';
 +
++		if (hostdata != NULL && strlen (hostdata) > 0) {
++			strncpy (gulm_cm.myName, hostdata, 64);
++		} else {
++			strncpy (gulm_cm.myName, system_utsname.nodename, 64);
++		}
++		gulm_cm.myName[63] = '\0';
++
++
 +		error = lg_initialize (&gulm_cm.hookup, gulm_cm.clusterID,
 +				       "GFS Kernel Interface");
 +		if (error != 0) {
@@ -1250,23 +1523,25 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +		}
 +		gulm_cm.starts = TRUE;
 +
-+		error = load_info (host_data);
-+		if (error != 0) {
-+			log_err ("load_info failed. %d\n", error);
-+			goto fail;
-+		}
-+
-+		jid_init ();
++		/* breaking away from ccs. just hardcoding defaults here.
++		 * Noone really used these anyways and if ppl want them
++		 * badly, we'll find another way to set them. (modprobe
++		 * options for example. or maybe sysfs?)
++		 * */
++		gulm_cm.handler_threads = 2;
++		gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
 +
 +		error = cm_login ();
 +		if (error != 0) {
 +			log_err ("cm_login failed. %d\n", error);
 +			goto fail;
 +		}
++		error = glq_startup ();
++		if (error != 0) {
++			log_err ("glq_startup failed. %d\n", error);
++			goto fail;
++		}
 +
-+		/* lt_login() is called after the success packet for cm_login()
-+		 * returns.
-+		 */
 +	}
 +      fail:
 +	up (&start_stop_lock);
@@ -1283,17 +1558,71 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	atomic_dec (&start_stop_cnt);
 +	if (atomic_read (&start_stop_cnt) == 0) {
 +		/* last one, put it all away. */
-+		lt_logout ();
++		glq_shutdown ();
 +		cm_logout ();
-+		clear_locks ();
 +		lg_release (gulm_cm.hookup);
 +		gulm_cm.hookup = NULL;
-+		gulm_cm.loaded = FALSE;
 +		gulm_cm.GenerationID = 0;
 +	}
 +	up (&start_stop_lock);
 +}
 +
++/*****************************************************************************/
++/**
++ * send_drop_exp - 
++ * @fs: 
++ * @name: 
++ * 
++ * 
++ * Returns: int
++ */
++int send_drop_exp (gulm_fs_t * fs, char *name)
++{
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		log_err("drop_exp: failed to get needed memory. skipping.\n");
++		return -ENOMEM;
++	}
++
++	item->keylen = 3 + strlen(fs->fs_name);
++	item->key = kmalloc(item->keylen, GFP_KERNEL);
++	if (item->key == NULL) {
++		glq_recycle_req(item);
++		log_err("drop_exp: failed to get needed memory. skipping.\n");
++		return -ENOMEM;
++	}
++	item->keylen = pack_drop_mask(item->key, item->keylen, fs->fs_name);
++
++	/* pretent lvb is name for drops. */
++	if (name != NULL) {
++		item->lvblen = strlen(name) +1;
++		item->lvb = kmalloc(item->lvblen, GFP_KERNEL);
++		if (item->lvb == NULL) {
++			glq_recycle_req(item); /* frees key for us */
++			log_err("drop_exp: failed to get needed memory. skipping.\n");
++			return -ENOMEM;
++		}
++		memcpy(item->lvb, name, item->lvblen);
++	} else {
++		item->lvb = NULL;
++		item->lvblen = 0;
++	}
++
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_drop;
++	item->state = 0;
++	item->flags = 0;
++	item->error = 0;
++	item->finish = NULL;
++
++	glq_queue (item);
++
++	return 0;
++}
 +/*****************************************************************************/
 +
 +/**
@@ -1393,8 +1722,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	gulm->cb = cb;
 +	gulm->fsdata = fsdata;
 +	gulm->lvb_size = min_lvb_size;
-+	init_completion (&gulm->sleep);
-+	init_MUTEX (&gulm->get_lock);
 +
 +	if ((error = start_gulm_threads (work, host_data)) != 0) {
 +		log_err ("Got a %d trying to start the threads.\n", error);
@@ -1435,34 +1762,24 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	log_msg (lgm_JIDMap, "fsid=%s: We will be using jid %d\n",
 +		 gulm->fs_name, gulm->fsJID);
 +
-+	if (add_to_proc (gulm) != 0) {
-+		/* ignored for now */
-+	}
-+
 +	lockstruct->ls_jid = gulm->fsJID;
 +	lockstruct->ls_first = first;
 +	lockstruct->ls_lvb_size = gulm->lvb_size;
 +	lockstruct->ls_lockspace = gulm;
 +	lockstruct->ls_ops = &gulm_ops;
-+#ifdef USE_SYNC_LOCKING
-+	lockstruct->ls_flags = 0;
-+
-+	log_msg (lgm_Network2, "Done: %s, sync mode\n", table_name);
-+#else
 +	lockstruct->ls_flags = LM_LSFLAG_ASYNC;
-+
 +	log_msg (lgm_Network2, "Done: %s, async mode\n", table_name);
-+#endif
 +
 +	gulm_cm.starts = FALSE;
++	if(work != NULL ) kfree(work);
 +	return 0;
 +
 +      fail_callback:
 +	stop_callback_qu (&gulm->cq);
 +
 +      fail_free_gulm:
-+	kfree (gulm);
 +	stop_gulm_threads ();
++	kfree (gulm);
 +
 +      fail:
 +
@@ -1470,6 +1787,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	gulm_cm.starts = FALSE;
 +	log_msg (lgm_Always, "fsid=%s: Exiting gulm_mount with errors %d\n",
 +		 table_name, error);
++	/* VFS does weird things with the error results, so before we try
++	 * to return a gulm error code, flip it to -1.
++	 */
++	if (error > 999 || error < -999 ) error = -1;
 +	return error;
 +}
 +
@@ -1486,11 +1807,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +{
 +	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
 +	int err = 0;
-+	lock_table_t *lt = &gulm_cm.ltpx;
 +
 +	/* first send the drop all exp message.
 +	 * */
-+	err = send_drop_exp (fs, lt, NULL);
++	err = send_drop_exp (fs, NULL);
 +	if (err < 0)
 +		log_err
 +		    ("fsid=%s: Problems sending DropExp request to LTPX: %d\n",
@@ -1532,8 +1852,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	jid_lockstate_release (gulm_fs);
 +
 +	stop_callback_qu (&gulm_fs->cq);
-+
-+	remove_from_proc (gulm_fs);
 +
 +	kfree (gulm_fs);
 +
@@ -1578,7 +1896,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +	log_msg (lgm_JIDMap, "fsid=%s: Found %s for jid %d\n",
 +		 fs->fs_name, name, jid);
 +
-+	err = send_drop_exp (fs, &gulm_cm.ltpx, name);
++	err = send_drop_exp (fs, name);
 +
 +	if (jid != fs->fsJID) {
 +		/* rather dumb to do this to ourselves right after we mount... */
@@ -1597,8 +1915,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_fs.c linux-patched/fs/gfs_loc
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,822 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.c	2004-10-21 18:18:33.181516680 -0500
+@@ -0,0 +1,739 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -1621,7 +1939,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +#define __KERNEL_SYSCALLS__
 +#include <linux/unistd.h>
 +
-+#include "util.h"
++#include "gulm_lock_queue.h"
 +
 +extern gulm_cm_t gulm_cm;
 +
@@ -1642,30 +1960,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 + */
 +#define jid_header_lvb_size (8)
 +
-+struct jid_lookup_item_s {
-+	struct list_head jp_list;
-+	uint8_t *key;
-+	uint16_t keylen;
-+	uint8_t *lvb;
-+	uint16_t lvblen;
-+	struct completion waitforit;
-+};
-+typedef struct jid_lookup_item_s jid_lookup_item_t;
-+
-+LIST_HEAD (jid_pending_locks);
-+spinlock_t jid_pending;
-+struct semaphore jid_listlock;
-+
-+/**
-+ * jid_init - 
-+ */
-+void
-+jid_init (void)
-+{
-+	spin_lock_init (&jid_pending);
-+	init_MUTEX (&jid_listlock);
-+}
-+
 +/**
 + * jid_get_header_name - 
 + * @fs: <
@@ -1682,20 +1976,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +{
 +	int len;
 +
-+	len = pack_lock_key(key, *keylen, 'J', fsname, "Header\0\0\0", 9);
-+	if( len <=0 ) return len;
-+
-+	*keylen = len;
-+
-+	return 0;
-+}
-+
-+int
-+jid_get_listlock_name (uint8_t * fsname, uint8_t * key, uint16_t * keylen)
-+{
-+	int len;
-+
-+	len = pack_lock_key(key, *keylen, 'J', fsname, "Llistlock", 9);
++	len = pack_lock_key(key, *keylen, 'J', fsname, "Header", 6);
 +	if( len <=0 ) return len;
 +
 +	*keylen = len;
@@ -1741,106 +2022,76 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +}
 +
 +/**
-+ * jid_hold_lvb - 
-+ * @key: 
-+ * @keylen: 
++ * gulm_jid_finish - 
++ * @item: 
 + * 
-+ * 
-+ */
-+void
-+jid_hold_lvb (uint8_t * key, uint16_t keylen)
-+{
-+	jid_lookup_item_t jp;
-+	GULM_ASSERT (keylen > 6,);
-+	jp.key = key;
-+	jp.keylen = keylen;
-+	jp.lvb = NULL;
-+	jp.lvblen = 0;
-+	INIT_LIST_HEAD (&jp.jp_list);
-+	init_completion (&jp.waitforit);
-+
-+	spin_lock (&jid_pending);
-+	list_add (&jp.jp_list, &jid_pending_locks);
-+	spin_unlock (&jid_pending);
-+
-+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-+			    lg_lock_act_HoldLVB, NULL, 0);
-+
-+	wait_for_completion (&jp.waitforit);
-+}
-+
-+void
-+jid_unhold_lvb (uint8_t * key, uint16_t keylen)
-+{
-+	jid_lookup_item_t jp;
-+	GULM_ASSERT (keylen > 6,);
-+	jp.key = key;
-+	jp.keylen = keylen;
-+	jp.lvb = NULL;
-+	jp.lvblen = 0;
-+	INIT_LIST_HEAD (&jp.jp_list);
-+	init_completion (&jp.waitforit);
-+
-+	spin_lock (&jid_pending);
-+	list_add (&jp.jp_list, &jid_pending_locks);
-+	spin_unlock (&jid_pending);
-+
-+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-+			    lg_lock_act_UnHoldLVB, NULL, 0);
-+
-+	wait_for_completion (&jp.waitforit);
-+}
-+
-+void
-+jid_sync_lvb (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
-+{
-+	jid_lookup_item_t jp;
-+	GULM_ASSERT (keylen > 6,);
-+	jp.key = key;
-+	jp.keylen = keylen;
-+	jp.lvb = NULL;
-+	jp.lvblen = 0;
-+	INIT_LIST_HEAD (&jp.jp_list);
-+	init_completion (&jp.waitforit);
-+
-+	spin_lock (&jid_pending);
-+	list_add (&jp.jp_list, &jid_pending_locks);
-+	spin_unlock (&jid_pending);
-+
-+	lg_lock_action_req (gulm_cm.hookup, key, keylen, 0,
-+			    lg_lock_act_SyncLVB, lvb, lvblen);
-+
-+	wait_for_completion (&jp.waitforit);
-+}
-+
-+/**
-+ * jid_action_reply - 
-+ * @key: 
-+ * @keylen: 
-+ * 
-+ * called from the lock handler callback.
 + * 
 + * Returns: void
 + */
-+void
-+jid_action_reply (uint8_t * key, uint16_t keylen)
++void gulm_jid_finish (struct glck_req *item)
 +{
-+	struct list_head *tmp, *nxt;
-+	jid_lookup_item_t *jp, *fnd = NULL;
-+	spin_lock (&jid_pending);
-+	list_for_each_safe (tmp, nxt, &jid_pending_locks) {
-+		jp = list_entry (tmp, jid_lookup_item_t, jp_list);
-+		if (memcmp (key, jp->key, MIN (keylen, jp->keylen)) == 0) {
-+			fnd = jp;
-+			list_del (tmp);
-+			break;
-+		}
-+	}
-+	spin_unlock (&jid_pending);
-+
-+	if (fnd != NULL)
-+		complete (&fnd->waitforit);
++	struct completion *sleep = (struct completion *)item->misc;
++	complete (sleep);
 +}
++
++/**
++ * jid_lvb_action - 
++ * @key: 
++ * @keylen: 
++ * @lvb: 
++ * @lvblen: 
++ * @action: 
++ * 
++ * 
++ * Returns: void
++ */
++void jid_lvb_action (uint8_t * key, uint16_t keylen, uint8_t * lvb,
++		uint16_t lvblen, uint8_t action)
++{
++	struct completion sleep;
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return;
++	}
++
++	item->key = key;
++	item->keylen = keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_action;
++	item->state = action;
++	item->flags = 0;
++	item->error =  0;
++	item->lvb = lvb;
++	item->lvblen = lvblen;
++
++	init_completion (&sleep);
++
++	item->misc = &sleep;
++	item->finish = gulm_jid_finish;
++
++	glq_queue (item);
++	wait_for_completion (&sleep);
++}
++void
++jid_sync_lvb (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
++{
++	jid_lvb_action (key, keylen, lvb, lvblen, lg_lock_act_SyncLVB);
++}
++void
++jid_unhold_lvb (uint8_t * key, uint16_t keylen)
++{
++	jid_lvb_action (key, keylen, NULL, 0, lg_lock_act_UnHoldLVB);
++}
++void
++jid_hold_lvb (uint8_t * key, uint16_t keylen)
++{
++	jid_lvb_action (key, keylen, NULL, 0, lg_lock_act_HoldLVB);
++}
++
 +
 +/**
 + * jid_get_lock_state_inr - 
@@ -1857,24 +2108,36 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 +			uint32_t flags, uint8_t * lvb, uint16_t lvblen)
 +{
-+	jid_lookup_item_t jp;
++	struct completion sleep;
++	glckr_t *item;
 +	GULM_ASSERT (keylen > 6,
 +			printk("keylen: %d\n", keylen););
-+	jp.key = key;
-+	jp.keylen = keylen;
-+	jp.lvb = lvb;
-+	jp.lvblen = lvblen;
-+	INIT_LIST_HEAD (&jp.jp_list);
-+	init_completion (&jp.waitforit);
 +
-+	spin_lock (&jid_pending);
-+	list_add (&jp.jp_list, &jid_pending_locks);
-+	spin_unlock (&jid_pending);
++	init_completion (&sleep);
 +
-+	lg_lock_state_req (gulm_cm.hookup, key, keylen, 0, 0, ~((uint64_t)0),
-+			state, flags, lvb, lvblen);
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return;
++	}
 +
-+	wait_for_completion (&jp.waitforit);
++	item->key = key;
++	item->keylen = keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = state;
++	item->flags = flags;
++	item->error =  0;
++	item->lvb = lvb;
++	item->lvblen = lvblen;
++
++	item->misc = &sleep;
++	item->finish = gulm_jid_finish;
++
++	glq_queue (item);
++
++	wait_for_completion (&sleep);
 +}
 +
 +/**
@@ -1907,82 +2170,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	jid_get_lock_state_inr (key, keylen, state, 0, NULL, 0);
 +}
 +
-+/**
-+ * jid_state_reply - 
-+ * @key: 
-+ * @keylen: 
-+ * @lvb: 
-+ * @lvblen: 
-+ * 
-+ * 
-+ */
-+void
-+jid_state_reply (uint8_t * key, uint16_t keylen, uint8_t * lvb, uint16_t lvblen)
-+{
-+	struct list_head *tmp, *nxt;
-+	jid_lookup_item_t *jp, *fnd = NULL;
-+	spin_lock (&jid_pending);
-+	list_for_each_safe (tmp, nxt, &jid_pending_locks) {
-+		jp = list_entry (tmp, jid_lookup_item_t, jp_list);
-+		if (memcmp (key, jp->key, MIN (keylen, jp->keylen)) == 0) {
-+			fnd = jp;
-+			list_del (tmp);
-+			break;
-+		}
-+	}
-+	spin_unlock (&jid_pending);
-+
-+	if (fnd != NULL) {
-+		if (lvb != NULL && fnd->lvb != NULL)
-+			memcpy (fnd->lvb, lvb, MIN (fnd->lvblen, lvblen));
-+		complete (&fnd->waitforit);
-+	}
-+}
-+
 +/****************************************************************************/
-+
-+/**
-+ * jid_hold_list_lock - 
-+ * @fs: 
-+ * 
-+ * only make one call to this per node.
-+ * 
-+ * Returns: void
-+ */
-+void
-+jid_hold_list_lock (gulm_fs_t * fs)
-+{
-+	uint8_t key[GIO_KEY_SIZE];
-+	uint16_t keylen = GIO_KEY_SIZE;
-+
-+	down (&jid_listlock);
-+
-+	keylen = sizeof (key);
-+	jid_get_listlock_name (fs->fs_name, key, &keylen);
-+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-+			lg_lock_flag_IgnoreExp, NULL, 0);
-+
-+}
-+
-+/**
-+ * jid_release_list_lock - 
-+ * @fs: 
-+ * 
-+ * 
-+ * Returns: void
-+ */
-+void
-+jid_release_list_lock (gulm_fs_t * fs)
-+{
-+	uint8_t key[GIO_KEY_SIZE];
-+	uint16_t keylen = GIO_KEY_SIZE;
-+
-+	keylen = sizeof (key);
-+	jid_get_listlock_name (fs->fs_name, key, &keylen);
-+	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
-+
-+	up (&jid_listlock);
-+}
 +
 +/**
 + * jid_rehold_lvbs - 
@@ -2008,10 +2196,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	fs->JIDcount |= (uint32_t) (lvb[2]) << 16;
 +	fs->JIDcount |= (uint32_t) (lvb[3]) << 24;
 +
-+	for (i = oldjcnt; i < fs->JIDcount; i++) {
-+		keylen = sizeof (key);
-+		jid_get_lock_name (fs->fs_name, i, key, &keylen);
-+		jid_hold_lvb (key, keylen);
++	if( fs->JIDcount > oldjcnt ) {
++		for (i = oldjcnt; i < fs->JIDcount; i++) {
++			keylen = sizeof (key);
++			jid_get_lock_name (fs->fs_name, i, key, &keylen);
++			jid_hold_lvb (key, keylen);
++		}
 +	}
 +
 +}
@@ -2025,14 +2215,14 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +
 +	keylen = sizeof (key);
 +	jid_get_header_name (fs->fs_name, key, &keylen);
-+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-+				lg_lock_flag_IgnoreExp, lvb,
++	down (&fs->headerlock);
++	jid_get_lock_state_lvb (key, keylen, lg_lock_state_Exclusive, lvb,
 +				jid_header_lvb_size);
 +	jidc = (uint32_t) (lvb[0]) << 0;
 +	jidc |= (uint32_t) (lvb[1]) << 8;
 +	jidc |= (uint32_t) (lvb[2]) << 16;
 +	jidc |= (uint32_t) (lvb[3]) << 24;
-+	jidc += 300;
++	jidc += 1;
 +	lvb[3] = (jidc >> 24) & 0xff;
 +	lvb[2] = (jidc >> 16) & 0xff;
 +	lvb[1] = (jidc >> 8) & 0xff;
@@ -2040,10 +2230,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	jid_sync_lvb (key, keylen, lvb, jid_header_lvb_size);
 +	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +	/* do an unlock here, so that when rehold grabs it shared, there is no
-+	 * lvb writing.
++	 * lvb writing. yeah, bit icky.  fix some other day.
 +	 */
 +
 +	jid_rehold_lvbs (fs);
++	up (&fs->headerlock);
 +}
 +
 +/**
@@ -2067,8 +2258,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +		goto exit;
 +	}
 +
-+	jid_hold_list_lock (fs);
-+
 +	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
 +	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 +				lg_lock_flag_IgnoreExp, lvb, 64);
@@ -2081,8 +2270,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +
 +	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +
-+	jid_release_list_lock (fs);
-+
 +      exit:
 +	return err;
 +}
@@ -2092,7 +2279,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 + * @fs: 
 + * @jid: 
 + * 
-+ * actually may only need to et first byte to zero
++ * actually may only need to set first byte to zero
 + * 
 + * Returns: int
 + */
@@ -2106,16 +2293,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	if (jid >= fs->JIDcount)
 +		goto exit;
 +
-+	jid_hold_list_lock (fs);
-+
 +	jid_get_lock_name (fs->fs_name, jid, key, &keylen);
 +	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 +				lg_lock_flag_IgnoreExp, lvb, 64);
 +	lvb[0] = 0;
 +	jid_sync_lvb (key, keylen, lvb, strlen (&lvb[1]) + 2);
 +	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
-+
-+	jid_release_list_lock (fs);
 +
 +      exit:
 +	return 0;
@@ -2132,28 +2315,26 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 + * @fs: 
 + * @jid: 
 + * 
-+ * This is broken.
++ * grab EXL on names until we find one we want. (or have all.)
++ * grab that one.
++ * Unlock everything we got.
 + * 
 + * Returns: int
 + */
 +void
 +get_journalID (gulm_fs_t * fs)
 +{
-+	uint32_t i = 0;
 +	uint8_t key[GIO_KEY_SIZE], lvb[64];
 +	uint16_t keylen = GIO_KEY_SIZE;
-+	int first_clear = -1;
++	int i, first_clear = -1, lockedto;
 +
-+      retry:
-+	jid_hold_list_lock (fs);
-+
++retry:
 +	/* find an empty space, or ourselves again */
-+	for (i = 0; i < fs->JIDcount; i++) {
++	for (i = 0, lockedto = 0; i < fs->JIDcount; i++, lockedto++) {
 +		keylen = sizeof (key);
 +		jid_get_lock_name (fs->fs_name, i, key, &keylen);
 +		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
 +					lg_lock_flag_IgnoreExp, lvb, 64);
-+		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +		if (first_clear == -1 && lvb[0] == 0 ) {
 +			first_clear = i;
 +		} else if (strcmp (gulm_cm.myName, &lvb[1]) == 0) {
@@ -2162,28 +2343,31 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +		}
 +	}
 +	if (first_clear >= 0) {
-+		/* take the jid we have found */
-+		keylen = sizeof (key);
-+		jid_get_lock_name (fs->fs_name, first_clear, key, &keylen);
-+		jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-+					lg_lock_flag_IgnoreExp, lvb, 64);
++		/* we should be hold all jid mapping locks up to this one
++		 * (and maybe beyond) EXL, so just lvb sync to the one we
++		 * want.
++		 */
 +		lvb[0] = 2;
 +		memcpy (&lvb[1], gulm_cm.myName, strlen (gulm_cm.myName) + 1);
++
++		keylen = sizeof (key);
++		jid_get_lock_name (fs->fs_name, first_clear, key, &keylen);
 +		jid_sync_lvb (key, keylen, lvb, strlen (gulm_cm.myName) + 2);
-+		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +
 +		fs->fsJID = first_clear;
 +	}
 +
-+	/* unlock the header lock */
-+	jid_release_list_lock (fs);
++	/* unlock them so others can find */
++	for (; lockedto >= 0; lockedto--) {
++		keylen = sizeof (key);
++		jid_get_lock_name (fs->fs_name, lockedto, key, &keylen);
++		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
++	}
 +
 +	if (first_clear < 0) {
-+		/* nothing found, grow and try again. */
 +		jid_grow_space (fs);
 +		goto retry;
 +	}
-+
 +}
 +
 +/**
@@ -2203,9 +2387,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	uint8_t key[GIO_KEY_SIZE], lvb[64];
 +	uint16_t keylen = GIO_KEY_SIZE;
 +
-+	/* grab list lock */
-+	jid_hold_list_lock (fs);
-+
 +	for (i = 0; i < fs->JIDcount; i++) {
 +		keylen = sizeof (key);
 +		jid_get_lock_name (fs->fs_name, i, key, &keylen);
@@ -2222,8 +2403,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +		jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +
 +	}
-+	/* unlock the list lock */
-+	jid_release_list_lock (fs);
 +
 +	return found;
 +}
@@ -2243,9 +2422,6 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	uint16_t keylen = GIO_KEY_SIZE;
 +	unsigned int ujid;
 +
-+	/* grab list lock */
-+	jid_hold_list_lock (fs);
-+
 +	for (i = 0; i < fs->JIDcount; i++) {
 +		keylen = sizeof (key);
 +		jid_get_lock_name (fs->fs_name, i, key, &keylen);
@@ -2261,10 +2437,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +			fs->cb (fs->fsdata, LM_CB_NEED_RECOVERY, &ujid);
 +		}
 +	}
-+
-+	/* unlock the list lock */
-+	jid_release_list_lock (fs);
 +}
++
 +
 +/**
 + * jid_fs_init - 
@@ -2278,6 +2452,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +	uint16_t keylen = GIO_KEY_SIZE;
 +
 +	fs->JIDcount = 0;
++
++	init_MUTEX (&fs->headerlock);
 +
 +	jid_get_header_name (fs->fs_name, key, &keylen);
 +	jid_hold_lvb (key, keylen);
@@ -2300,7 +2476,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +		jid_get_lock_name (fs->fs_name, i, key, &keylen);
 +		jid_unhold_lvb (key, keylen);
 +	}
-+	keylen = sizeof (key);
++	keylen = GIO_KEY_SIZE;
 +	jid_get_header_name (fs->fs_name, key, &keylen);
 +	jid_unhold_lvb (key, keylen);
 +	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
@@ -2322,9 +2498,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +
 +	gulm_fs_t *fs = (gulm_fs_t *) d;
 +	jid_get_header_name (fs->fs_name, key, &keylen);
++
++	down (&fs->headerlock);
 +	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
 +
 +	jid_rehold_lvbs (fs);
++	up (&fs->headerlock);
 +}
 +
 +/**
@@ -2338,66 +2517,94 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +jid_header_lock_drop (uint8_t * key, uint16_t keylen)
 +{
 +	gulm_fs_t *fs;
++	uint8_t *fsname;
++	uint8_t len;
++	uint8_t ktype, jtype;
++	ktype = key[0];
++	len = key[1];
++	fsname = &key[2];
++	jtype = key[4 + len];
++
 +	/* make sure this is the header lock.... */
-+	if (key[1] == 'H' && (fs = get_fs_by_name (&key[10])) != NULL) {
++	if (ktype == 'J' && jtype == 'H' &&
++			(fs = get_fs_by_name (fsname)) != NULL) {
 +		qu_function_call (&fs->cq, jid_unlock_callback, fs);
 +	}
 +}
 +
++
 +/****************************************************************************/
-+/**
-+ * jid_get_lsresv_name - 
-+ * @fsname: 
-+ * @key: 
-+ * @keylen: 
-+ * 
-+ * 
-+ * Returns: int
++/* I don't know why these are in this file. Laziness I would presume. */
++/* 6 bytes for stuff in key (lengths and type bytes)
++ * 32 for fs name
++ * 64 for node name.
 + */
-+int
-+jid_get_lsresv_name (char *fsname, uint8_t * key, uint16_t * keylen)
++#define NodeLockNameLen (6 + 32 + 64)
++
++/**
++ * gulm_nodelock_finish - 
++ * @item: 
++ * 
++ * 
++ * Returns: void
++ */
++void gulm_nodelock_finish (struct glck_req *item)
 +{
-+	int len;
-+
-+	len = strlen(gulm_cm.myName);
-+	len = pack_lock_key(key, *keylen, 'N', fsname, gulm_cm.myName,
-+			MIN(64,len));
-+	if( len <=0 ) return len;
-+
-+	*keylen = len;
-+
-+	return 0;
++	struct completion *sleep = (struct completion *)item->misc;
++	complete (sleep);
 +}
 +
 +/**
 + * jid_lockstate_reserve - 
 + * @fs: 
 + * 
++ * if we are expired, this will block until someone else has
++ * cleaned our last mess up.
++ *
++ * Will very well may need to put in some kind of timeout
++ * otherwise this may do a forever lockup much like the
++ * FirstMounter lock had.
 + * 
 + * Returns: void
 + */
 +void
 +jid_lockstate_reserve (gulm_fs_t * fs, int first)
 +{
-+	uint8_t key[5 + 32 + 64];
-+	uint16_t keylen = 5 + 32 + 64;
-+	/* 5 bytes for stuff in key (lengths and type bytes)
-+	 * 32 for fs name
-+	 * 64 for node name.
-+	 */
++	int len;
++	struct completion sleep;
++	glckr_t *item;
++	uint8_t *key;
 +
-+	jid_get_lsresv_name (fs->fs_name, key, &keylen);
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return;
++	}
 +
-+	/* if we are expired, this will block until someone else has
-+	 * cleaned our last mess up.
-+	 *
-+	 * Will very well may need to put in some kind of timeout
-+	 * otherwise this may do a forever lockup much like the
-+	 * FirstMounter lock had.
-+	 */
-+	jid_get_lock_state_inr (key, keylen, lg_lock_state_Exclusive,
-+			first?lg_lock_flag_IgnoreExp:0, NULL, 0);
++	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
++	item->key = key;
++	if (item->key == NULL) {
++		glq_recycle_req(item);
++		return;
++	}
++	len = strlen(gulm_cm.myName);
++	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
++			fs->fs_name, gulm_cm.myName, MIN(64,len));
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Exclusive;
++	item->flags = (first?lg_lock_flag_IgnoreExp:0)|lg_lock_flag_NoCallBacks;
++	item->error = 0;
 +
++	init_completion (&sleep);
++
++	item->misc = &sleep;
++	item->finish = gulm_nodelock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&sleep);
++	kfree(key);
 +}
 +
 +/**
@@ -2410,21 +2617,49 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.c linux-patched/fs/gfs_lo
 +void
 +jid_lockstate_release (gulm_fs_t * fs)
 +{
-+	uint8_t key[5 + 32 + 64];
-+	uint16_t keylen = 5 + 32 + 64;
++	int len;
++	struct completion sleep;
++	glckr_t *item;
++	uint8_t *key;
 +
-+	jid_get_lsresv_name (fs->fs_name, key, &keylen);
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return;
++	}
 +
-+	jid_get_lock_state (key, keylen, lg_lock_state_Unlock);
++	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
++	item->key = key;
++	if (item->key == NULL) {
++		glq_recycle_req(item);
++		return;
++	}
++	len = strlen(gulm_cm.myName);
++	item->keylen = pack_lock_key(item->key, NodeLockNameLen, 'N',
++			fs->fs_name, gulm_cm.myName, MIN(64,len));
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Unlock;
++	item->flags = 0;
++	item->error = 0;
 +
++	init_completion (&sleep);
++
++	item->misc = &sleep;
++	item->finish = gulm_nodelock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&sleep);
++	kfree(key);
 +}
 +
 +
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,41 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_jid.h	2004-10-21 18:18:33.181516680 -0500
+@@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2441,11 +2676,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h linux-patched/fs/gfs_lo
 +#ifndef __GULM_JID_H__
 +#define __GULM_JID_H__
 +#include "gulm.h"
-+void jid_init (void);
 +void jid_fs_init (gulm_fs_t * fs);
 +void jid_fs_release (gulm_fs_t * fs);
 +int get_journalID (gulm_fs_t * fs);
-+int lookup_jid_by_name (gulm_fs_t * fs, uint8_t * name, uint32_t * injid);
 +int lookup_name_by_jid (gulm_fs_t * fs, uint32_t jid, uint8_t * name);
 +void release_JID (gulm_fs_t * fs, uint32_t jid, int owner);
 +void put_journalID (gulm_fs_t * fs);
@@ -2454,21 +2687,877 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_jid.h linux-patched/fs/gfs_lo
 +int
 + find_jid_by_name_and_mark_replay (gulm_fs_t * fs, uint8_t * name, uint32_t * jid);
 +
-+void jid_start_journal_reply (gulm_fs_t * fs, uint32_t jid);
-+void jid_finish_journal_reply (gulm_fs_t * fs, uint32_t jid);
-+
 +void jid_lockstate_reserve (gulm_fs_t * fs, int first);
 +void jid_lockstate_release (gulm_fs_t * fs);
 +
 +/* to be called from the lg_lock callbacks. */
-+void jid_state_reply (uint8_t * key, uint16_t keylen, uint8_t * lvb,
-+		      uint16_t lvblen);
-+void jid_action_reply (uint8_t * key, uint16_t keylen);
 +void jid_header_lock_drop (uint8_t * key, uint16_t keylen);
 +#endif /*__GULM_JID_H__*/
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.c linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.c
+--- linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.c	2004-10-21 18:18:33.181516680 -0500
+@@ -0,0 +1,775 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#include "gulm.h"
++
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/slab.h>
++#include <linux/file.h>
++#include <linux/smp_lock.h>
++#include <linux/crc32.h>
++#define __KERNEL_SYSCALLS__
++#include <linux/unistd.h>
++
++#include "handler.h"
++
++#include "gulm_lock_queue.h"
++
++/* The Queues. */
++struct list_head glq_Free;
++spinlock_t glq_FreeLock;
++unsigned int glq_FreeCount;
++struct list_head glq_OutQueue;
++spinlock_t glq_OutLock;
++unsigned int glq_OutCount;
++/* Not sure that ReplyMap really needs to be this big.  Things shouldn't be
++ * on it that long.  maybe 1<<8?  must test and see. later.
++ */
++#define ReplyMapSize (1<<13)  /* map size is a power of 2 */
++#define ReplyMapBits (0x1FFF) /* & is faster than % */
++struct list_head *glq_ReplyMap;
++spinlock_t *glq_ReplyLock;
++
++/* The Threads. */
++struct task_struct *glq_recver_task = NULL;
++struct task_struct *glq_sender_task = NULL;
++struct completion glq_startedup;
++int glq_running;
++wait_queue_head_t glq_send_wchan;
++
++/* */
++extern gulm_cm_t gulm_cm;
++
++/* The code. */
++/**
++ * glq_init - 
++ * 
++ * Returns: int
++ */
++int glq_init(void)
++{
++	int i;
++
++	glq_running = FALSE;
++	glq_recver_task = NULL;
++	glq_sender_task = NULL;
++	init_waitqueue_head (&glq_send_wchan);
++	init_completion (&glq_startedup);
++
++	INIT_LIST_HEAD (&glq_Free);
++	spin_lock_init (&glq_FreeLock);
++	glq_FreeCount = 0;
++	INIT_LIST_HEAD (&glq_OutQueue);
++	spin_lock_init (&glq_OutLock);
++	glq_OutCount = 0;
++
++	glq_ReplyMap = kmalloc(sizeof(struct list_head) * ReplyMapSize, GFP_KERNEL);
++	if( glq_ReplyMap == NULL ) {
++		return -ENOMEM;
++	}
++	glq_ReplyLock = kmalloc(sizeof(spinlock_t) * ReplyMapSize, GFP_KERNEL);
++	if( glq_ReplyLock == NULL ) {
++		kfree(glq_ReplyMap);
++		return -ENOMEM;
++	}
++	for(i=0; i < ReplyMapSize; i++) {
++		INIT_LIST_HEAD (&glq_ReplyMap[i]);
++		spin_lock_init (&glq_ReplyLock[i]);
++	}
++	/* ?Add some empty reqs to the Free list right now? */
++	return 0;
++}
++
++/**
++ * glq_release - 
++ *
++ * doesn't grab spins, because by the time this is called, there should be
++ * no other threads anywhere that could possibly be working on these lists.
++ * 
++ * Returns: void
++ */
++void glq_release(void)
++{
++	struct list_head *tmp, *lltmp;
++	glckr_t *item;
++	int i;
++
++	list_for_each_safe (tmp, lltmp, &glq_OutQueue) {
++		item = list_entry (tmp, glckr_t, list);
++		list_del (tmp);
++		if (item->key != NULL) kfree (item->key);
++		if (item->lvb != NULL) kfree (item->lvb);
++		kfree (item);
++	}
++	glq_FreeCount = 0;
++	list_for_each_safe (tmp, lltmp, &glq_Free) {
++		item = list_entry (tmp, glckr_t, list);
++		list_del (tmp);
++		if (item->key != NULL) kfree (item->key);
++		if (item->lvb != NULL) kfree (item->lvb);
++		kfree (item);
++	}
++	glq_OutCount = 0;
++	for(i=0; i < ReplyMapSize; i++) {
++		list_for_each_safe (tmp, lltmp, &glq_ReplyMap[i]) {
++			item = list_entry (tmp, glckr_t, list);
++			list_del (tmp);
++			if (item->key != NULL) kfree (item->key);
++			if (item->lvb != NULL) kfree (item->lvb);
++			kfree (item);
++		}
++	}
++
++	kfree(glq_ReplyLock);
++	kfree(glq_ReplyMap);
++}
++
++/**
++ * glq_get_new_req - 
++ *
++ * WARNING! For state and action requests, glq will not free the key or
++ * lvb pointers.  For drop and cancel glq WILL free the pointer when it is
++ * finished.
++ * 
++ * Returns: glckr_t
++ */
++glckr_t *glq_get_new_req(void)
++{
++	struct list_head *tmp;
++	glckr_t *item = NULL;
++
++	/* try to reclaim a recycled req first. */
++	spin_lock (&glq_FreeLock);
++	if (!list_empty (&glq_Free)) {
++		tmp = glq_Free.next;
++		list_del (tmp);
++		item = list_entry (tmp, glckr_t, list);
++		glq_FreeCount --;
++	}
++	spin_unlock (&glq_FreeLock);
++
++	/* nothing on Free list, make new. */
++	if (item == NULL) {
++		item = kmalloc(sizeof(glckr_t), GFP_KERNEL);
++		if (item == NULL) 
++			return NULL;
++		memset(item, 0, sizeof(glckr_t));
++	}
++
++	/* initialize.
++	 * reset list so its good.
++	 */
++	INIT_LIST_HEAD (&item->list);
++
++	return item;
++}
++
++/**
++ * glq_recycle_req - 
++ * @lckr_t: 
++ * 
++ * assumes that item is not on any lists.
++ * 
++ * Returns: void
++ */
++void glq_recycle_req(glckr_t *item)
++{
++	/* clean it up */
++	INIT_LIST_HEAD (&item->list);
++
++	if (item->type == glq_req_type_drop ||
++	    item->type == glq_req_type_cancel) {
++		if (item->key != NULL) {
++			kfree(item->key);
++			item->key = NULL;
++		}
++		if (item->lvb != NULL) {
++			kfree(item->lvb);
++			item->lvb = NULL;
++		}
++	} else {
++		item->key = NULL;
++		item->lvb = NULL;
++	}
++	item->misc = NULL;
++	item->finish = NULL;
++
++	/* everything else is ignoreable. */
++
++	/* onto the Free list. unless too many. */
++	spin_lock (&glq_FreeLock);
++	if (glq_FreeCount > 20) { /* XXX icky hidden constant */
++		kfree (item);
++	}else{
++		list_add (&item->list, &glq_Free);
++		glq_FreeCount ++;
++	}
++	spin_unlock (&glq_FreeLock);
++}
++
++/**
++ * glq_calc_hash_key_long - 
++ * @key: 
++ * @keylen: 
++ * @subid: 
++ * @start: 
++ * @stop: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_calc_hash_key_long(uint8_t *key, uint16_t keylen,
++		uint64_t subid, uint64_t start, uint64_t stop)
++{
++	int ret = GULM_CRC_INIT;
++	ret = crc32 (ret, &keylen, sizeof(uint16_t));
++	ret = crc32 (ret, key, keylen);
++	ret = crc32 (ret, &subid, sizeof(uint64_t));
++	ret = crc32 (ret, &start, sizeof(uint64_t));
++	ret = crc32 (ret, &stop, sizeof(uint64_t));
++	ret &= ReplyMapBits;
++	return ret;
++}
++
++/**
++ * glq_calc_hash_key - 
++ * @item: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_calc_hash_key(glckr_t *item)
++{
++	return glq_calc_hash_key_long (item->key, item->keylen, item->subid,
++			item->start, item->stop);
++}
++
++/**
++ * glq_queue - 
++ * @item: 
++ * 
++ * 
++ * Returns: void
++ */
++void glq_queue(glckr_t *item)
++{
++	spin_lock (&glq_OutLock);
++	list_add (&item->list, &glq_OutQueue);
++	glq_OutCount++;
++	spin_unlock (&glq_OutLock);
++	wake_up (&glq_send_wchan);
++}
++
++/**
++ * glq_cancel - 
++ * @item: 
++ * 
++ * You MUST call glq_get_new_req() and fill that with the info of the
++ * request you want to cancel.
++ * 
++ * Returns: void
++ */
++void glq_cancel(glckr_t *cancel)
++{
++	int found = FALSE;
++	struct list_head *tmp, *lltmp;
++	glckr_t *item;
++
++	spin_lock (&glq_OutLock);
++	list_for_each_safe (tmp, lltmp, &glq_OutQueue) {
++		item = list_entry (tmp, glckr_t, list);
++		if (item->subid == cancel->subid &&
++		    item->start == cancel->start &&
++		    item->stop  == cancel->stop &&
++		    item->keylen == cancel->keylen &&
++		    memcmp(item->key, cancel->key, cancel->keylen) ) {
++			/* found it. */
++			list_del (tmp);
++			found = TRUE;
++			item->error = lg_err_Canceled;
++			if (item->finish != NULL )
++				item->finish (item);
++			glq_recycle_req (item);
++			break;
++		}
++	}
++	spin_unlock(&glq_OutLock);
++
++	if (!found) {
++		cancel->type = glq_req_type_cancel;
++		glq_queue (cancel);
++	}
++}
++
++/**
++ * glq_send_queue_empty - 
++ * 
++ * Returns: int
++ */
++static int glq_send_queue_empty(void)
++{
++	int ret;
++	spin_lock (&glq_OutLock);
++	ret = list_empty (&glq_OutQueue);
++	spin_unlock (&glq_OutLock);
++	return ret;
++}
++
++/**
++ * glq_sender_thread - 
++ * @data: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_sender_thread(void *data)
++{
++	int err=0, bucket;
++	struct list_head *tmp;
++	glckr_t *item = NULL;
++	DECLARE_WAITQUEUE (__wait_chan, current);
++
++	daemonize ("gulm_glq_sender");
++	glq_sender_task = current;
++	complete (&glq_startedup);
++
++	while (glq_running) {
++		/* wait for item */
++		current->state = TASK_INTERRUPTIBLE; 
++		add_wait_queue (&glq_send_wchan, &__wait_chan);
++		if( glq_send_queue_empty () )
++			schedule ();
++		remove_wait_queue (&glq_send_wchan, &__wait_chan);
++		current->state = TASK_RUNNING;
++		if (!glq_running) break;
++
++		/* pull item off queue */
++		spin_lock (&glq_OutLock);
++		if (list_empty (&glq_OutQueue) ) {
++			spin_unlock (&glq_OutLock);
++			continue;
++		}
++		tmp = glq_OutQueue.prev;
++		list_del (tmp);
++		glq_OutCount--;
++		spin_unlock (&glq_OutLock);
++		item = list_entry (tmp, glckr_t, list);
++
++		/* send to local ltpx or die */
++		if (item->type == glq_req_type_state ) {
++			INIT_LIST_HEAD (&item->list);
++			bucket = glq_calc_hash_key(item);
++			spin_lock (&glq_ReplyLock[bucket]);
++			list_add (&item->list, &glq_ReplyMap[bucket]);
++			spin_unlock (&glq_ReplyLock[bucket]);
++			err = lg_lock_state_req (gulm_cm.hookup, item->key,
++					item->keylen, item->subid, item->start,
++					item->stop, item->state, item->flags,
++					item->lvb, item->lvblen);
++		} else if (item->type == glq_req_type_action) {
++			INIT_LIST_HEAD (&item->list);
++			bucket = glq_calc_hash_key(item);
++			spin_lock (&glq_ReplyLock[bucket]);
++			list_add (&item->list, &glq_ReplyMap[bucket]);
++			spin_unlock (&glq_ReplyLock[bucket]);
++			err = lg_lock_action_req (gulm_cm.hookup, item->key,
++					item->keylen, item->subid, item->state,
++					item->lvb, item->lvblen);
++		} else if (item->type == glq_req_type_query ) {
++			INIT_LIST_HEAD (&item->list);
++			bucket = glq_calc_hash_key(item);
++			spin_lock (&glq_ReplyLock[bucket]);
++			list_add (&item->list, &glq_ReplyMap[bucket]);
++			spin_unlock (&glq_ReplyLock[bucket]);
++			err = lg_lock_query_req (gulm_cm.hookup, item->key,
++					item->keylen, item->subid, item->start,
++					item->stop, item->state);
++		} else if (item->type == glq_req_type_drop) {
++			err = lg_lock_drop_exp (gulm_cm.hookup, item->lvb,
++					item->key, item->keylen);
++			/* drop exp has no reply. */
++			glq_recycle_req (item);
++		} else if (item->type == glq_req_type_cancel) {
++			err = lg_lock_cancel_req (gulm_cm.hookup, item->key,
++					item->keylen, item->subid);
++			/* cancels have no reply. */
++			glq_recycle_req (item);
++		} else {
++			/* bad type. */
++			log_err ("Unknown send type %d, tossing request.\n",
++					item->type);
++			glq_recycle_req (item);
++		}
++		if (err != 0 ) {
++			log_err ("gulm_glq_sender error %d\n", err);
++			glq_running = FALSE;
++			glq_recycle_req (item);
++			break;
++		}
++	}
++	complete (&glq_startedup);
++	return 0;
++}
++
++/**
++ * glq_login_reply - 
++ * @misc: 
++ * @err: 
++ * @which: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_login_reply (void *misc, uint32_t error, uint8_t which)
++{
++	if (error != 0) {
++		glq_running = FALSE;
++		log_err ("glq: Got error %d from login request.\n", error);
++	}
++	return error;
++}
++
++/**
++ * glq_logout_reply - 
++ * @misc: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_logout_reply (void *misc)
++{
++	glq_running = FALSE; /* if it isn't already. */
++	return 0;
++}
++
++/**
++ * glq_lock_state - 
++ * @misc: 
++ * @key: 
++ * @keylen: 
++ * @state: 
++ * @flags: 
++ * @error: 
++ * @LVB: 
++ * @LVBlen: 
++ * 
++ * 
++ * Returns: int
++ */
++int
++glq_lock_state (void *misc, uint8_t * key, uint16_t keylen,
++		    uint64_t subid, uint64_t start, uint64_t stop,
++		    uint8_t state, uint32_t flags, uint32_t error,
++		    uint8_t * LVB, uint16_t LVBlen)
++{
++	int bucket, found = FALSE;
++	struct list_head *tmp;
++	glckr_t *item=NULL;
++
++	/* lookup and remove from ReplyMap */
++	bucket = glq_calc_hash_key_long(key, keylen, subid, start, stop);
++	spin_lock (&glq_ReplyLock[bucket]);
++	list_for_each(tmp, &glq_ReplyMap[bucket]) {
++		item = list_entry (tmp, glckr_t, list);
++		if (item->subid == subid &&
++		    item->start == start &&
++		    item->stop  == stop &&
++		    item->keylen == keylen &&
++		    memcmp(item->key, key, keylen) == 0 ) {
++			/* found it. */
++			list_del (tmp);
++			found = TRUE;
++			break;
++		}
++	}
++	spin_unlock(&glq_ReplyLock[bucket]);
++
++	if( !found ) {
++		/* not found complaint */
++		return 0;
++	}
++
++	/* restuff results */
++	item->state = state;
++	item->flags = flags;
++	item->error = error;
++	if (item->lvb != NULL && LVB != NULL) {
++		item->lvblen = MIN(item->lvblen, LVBlen);
++		memcpy(item->lvb, LVB, item->lvblen);
++	}
++
++	/* call finish */
++	if (item->finish != NULL) item->finish (item);
++
++	/* put on Free */
++	glq_recycle_req(item);
++	return 0;
++}
++
++/**
++ * glq_lock_action - 
++ * @misc: 
++ * @key: 
++ * @keylen: 
++ * @action: 
++ * @error: 
++ * 
++ * 
++ * Returns: int
++ */
++int
++glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
++		     uint64_t subid, uint8_t action, uint32_t error)
++{
++	int bucket, found = FALSE;
++	struct list_head *tmp;
++	glckr_t *item = NULL;
++
++	/* lookup and remove from ReplyMap */
++	bucket = glq_calc_hash_key_long(key, keylen, subid, 0, ~((uint64_t)0));
++	spin_lock (&glq_ReplyLock[bucket]);
++	list_for_each(tmp, &glq_ReplyMap[bucket]) {
++		item = list_entry (tmp, glckr_t, list);
++		if (item->subid == subid &&
++		    item->start == 0 &&
++		    item->stop  == ~((uint64_t)0) &&
++		    item->keylen == keylen &&
++		    memcmp(item->key, key, keylen) == 0 ) {
++			/* found it. */
++			list_del (tmp);
++			found = TRUE;
++			break;
++		}
++	}
++	spin_unlock(&glq_ReplyLock[bucket]);
++
++	if( !found ) {
++		/* not found complaint */
++		return 0;
++	}
++
++	/* restuff results */
++	item->error = error;
++
++	/* call finish */
++	if (item->finish != NULL) item->finish (item);
++
++	/* put on Free */
++	glq_recycle_req(item);
++	return 0;
++}
++
++/**
++ * glq_lock_query -
++ * this is an ugly interface.....
++ * there is somehtign that needs to be done here to clean things up.  I'm
++ * not sure what that is right now, and I need to have somehting working.
++ * So we're going with this for now.
++ *
++ */
++int 
++glq_lock_query (void *misc, uint8_t * key, uint16_t keylen,
++		   uint64_t subid, uint64_t start, uint64_t stop,
++		   uint8_t state, uint32_t error, uint8_t * cnode,
++		   uint64_t csubid, uint64_t cstart, uint64_t cstop,
++		   uint8_t cstate)
++{
++	int bucket, found = FALSE;
++	struct list_head *tmp;
++	glckr_t *item = NULL;
++
++	/* lookup and remove from ReplyMap */
++	bucket = glq_calc_hash_key_long(key, keylen, subid, start, stop);
++	spin_lock (&glq_ReplyLock[bucket]);
++	list_for_each(tmp, &glq_ReplyMap[bucket]) {
++		item = list_entry (tmp, glckr_t, list);
++		if (item->subid == subid &&
++		    item->start == start &&
++		    item->stop  == stop &&
++		    item->keylen == keylen &&
++		    memcmp(item->key, key, keylen) == 0 ) {
++			/* found it. */
++			list_del (tmp);
++			found = TRUE;
++			break;
++		}
++	}
++	spin_unlock(&glq_ReplyLock[bucket]);
++
++	if( !found ) {
++		/* not found complaint */
++		return 0;
++	}
++
++	/* restuff results */
++	item->error = error;
++	item->subid = csubid;
++	item->start = cstart;
++	item->stop = cstop;
++	item->state = cstate;
++
++	/* call finish */
++	if (item->finish != NULL) item->finish (item);
++
++	/* put on Free */
++	glq_recycle_req(item);
++	return 0;
++}
++
++/**
++ * glq_drop_lock_req - 
++ * @misc: 
++ * @key: 
++ * @keylen: 
++ * @state: 
++ * 
++ * 
++ * Returns: int
++ */
++int
++glq_drop_lock_req (void *misc, uint8_t * key, uint16_t keylen,
++		       uint64_t subid, uint8_t state)
++{
++	do_drop_lock_req (key, keylen, state);
++	jid_header_lock_drop (key, keylen);
++	return 0;
++}
++
++/**
++ * glq_drop_all - 
++ * @misc: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_drop_all (void *misc)
++{
++	passup_droplocks ();
++	return 0;
++}
++
++/**
++ * glq_error - 
++ * @misc: 
++ * @error: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_error (void *misc, uint32_t error)
++{
++	log_err ("glq: weird last gasp error %d\n", error);
++	return error;
++}
++
++static lg_lockspace_callbacks_t glq_lock_ops = {
++      login_reply:glq_login_reply,
++      logout_reply:glq_logout_reply,
++      lock_state:glq_lock_state,
++      lock_action:glq_lock_action,
++      lock_query:glq_lock_query,
++      drop_lock_req:glq_drop_lock_req,
++      drop_all:glq_drop_all,
++      error:glq_error
++};
++/**
++ * glq_recving_thread - 
++ * @data: 
++ * 
++ * 
++ * Returns: int
++ */
++int glq_recving_thread(void *data)
++{
++	int err;
++	daemonize ("gulm_glq_recver");
++	glq_recver_task = current;
++	complete (&glq_startedup);
++
++	while (glq_running) {
++		err = lg_lock_handle_messages (gulm_cm.hookup, &glq_lock_ops, NULL);
++		if (err != 0) {
++			log_err ("gulm_glq_recver error %d\n", err);
++			glq_running = FALSE;
++			wake_up (&glq_send_wchan);
++			break;
++		}
++	}
++	complete (&glq_startedup);
++	return 0;
++}
++
++/**
++ * glq_shutdown - 
++ * 
++ * Returns: void
++ */
++void glq_shutdown(void)
++{
++	if (glq_running) glq_running = FALSE;
++	if (glq_sender_task != NULL) {
++		wake_up (&glq_send_wchan);
++		wait_for_completion (&glq_startedup);
++		glq_sender_task = NULL;
++	}
++	if (glq_recver_task != NULL) {
++		lg_lock_logout (gulm_cm.hookup);
++		wait_for_completion (&glq_startedup);
++		glq_recver_task = NULL;
++	}
++}
++
++/**
++ * glq_startup - 
++ * 
++ * Returns: int
++ */
++int glq_startup(void)
++{
++	int err;
++
++	if (glq_running) return 0;
++
++	err = lg_lock_login (gulm_cm.hookup, "GFS ");
++	if (err != 0) {
++		log_err ("Failed to send lock login. %d\n", err);
++		return -err;
++	}
++
++	glq_running = TRUE;
++	if( glq_recver_task == NULL ) {
++		err = kernel_thread (glq_recving_thread, NULL, 0);
++		if( err < 0 ) {
++			log_err ("Failed to start glq_recving_thread %d\n",
++					err);
++			glq_shutdown();
++			return err;
++		}
++		wait_for_completion (&glq_startedup);
++	}
++
++	if (glq_sender_task == NULL) {
++		err = kernel_thread (glq_sender_thread, NULL, 0);
++		if( err < 0 ) {
++			log_err ("Failed to start glq_sender_thread %d\n",
++					err);
++			glq_shutdown();
++			return err;
++		}
++		wait_for_completion (&glq_startedup);
++	}
++	return 0;
++}
++
++/* vim: set ai cin noet sw=8 ts=8 : */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.h linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.h
+--- linux-orig/fs/gfs_locking/lock_gulm/gulm_lock_queue.h	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lock_queue.h	2004-10-21 18:18:33.182516448 -0500
+@@ -0,0 +1,79 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++
++/* 
++ * So what if we change this to a request chain like I've got in the
++ * servers.  There are three lists. Free, Send, Reply.  Where the Reply
++ * list is actually more of a hash.
++ *
++ * Activity goes:
++ * - Grab struct from Free, malloc if needed.
++ * - Stuff, stick on Send.
++ * - Send, sends, then sticks on Reply.
++ * - When handle_messages gets a reply, it looks up on Reply and handles
++ *   from there.
++ *
++ * If Reply is a hash, it must be keyed on all important parts!
++ * (keyname, subid, start, stop)
++ */
++#ifndef __gulm_lockqueue_h__
++#define __gulm_lockqueue_h__
++#define glq_req_type_state  (1)
++#define glq_req_type_action (2)
++#define glq_req_type_drop   (3)
++#define glq_req_type_cancel (4)
++#define glq_req_type_query  (5)
++typedef struct glck_req {
++	struct list_head list;
++
++	/* these five for the key for hash-map look ups.
++	* Any part of any of these can change and thus be a unique request.
++	* (this struct is only put into a hash map to match replies.)
++	*/
++	uint8_t *key;
++	uint16_t keylen;
++	uint64_t subid;
++	uint64_t start;
++	uint64_t stop;
++
++	/* other info about this request. */
++	uint8_t type;
++	uint8_t state;  /* also action */ /* changes on reply (anyflag) */
++	uint32_t flags; /* changes on reply */
++	uint8_t *lvb; /* changes on reply */
++	uint16_t lvblen;
++	uint32_t error;  /* changes on reply */
++
++	/* when we get a reply, do this
++	* this glck_req will not be on any list when finish is called.  Upon
++	* the return of finish, it will be placed onto the Free list.
++	*/
++	void *misc;
++	void (*finish)(struct glck_req *glck);
++
++} glckr_t;
++
++/* prototypes */
++int glq_init(void);
++int glq_startup(void);
++void glq_shutdown(void);
++void glq_release(void);
++glckr_t *glq_get_new_req(void);
++void glq_recycle_req(glckr_t *);
++void glq_queue(glckr_t *);
++void glq_cancel(glckr_t *);
++
++
++#endif /*__gulm_lockqueue_h__*/
++/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h	2004-10-21 18:18:33.186515520 -0500
 @@ -0,0 +1,40 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -2512,8 +3601,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_log_msg_bits.h linux-patched/
 +#endif /*__gulm_log_msg_bits_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,2024 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_lt.c	2004-10-21 18:18:33.187515288 -0500
+@@ -0,0 +1,990 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2533,11 +3622,12 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/file.h>
++#include <linux/crc32.h>
 +#define __KERNEL_SYSCALLS__
 +#include <linux/unistd.h>
 +
-+#include "util.h"
 +#include "handler.h"
++#include "gulm_lock_queue.h"
 +#include "utils_tostr.h"
 +#include "gulm_jid.h"
 +
@@ -2568,6 +3658,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	return workspace;
 +}
 +
++#if 0
 +static void __inline__
 +db_lck_entered (gulm_lock_t * lck)
 +{
@@ -2583,6 +3674,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	lck_key_to_hex (lck->key, lck->keylen, bb);
 +	printk ("Finished lock 0x%s result:%#x\n", bb, lck->result);
 +}
++#endif
 +
 +static void __inline__
 +dump_gulm_lock_t (gulm_lock_t * lck)
@@ -2591,15 +3683,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +
 +	lck_key_to_hex (lck->key, lck->keylen, bb);
 +	log_msg (lgm_Always, " key = 0x%s\n", bb);
-+	log_msg (lgm_Always, " req_type = %#x\n", lck->req_type);
-+	log_msg (lgm_Always, " last_suc_state = %#x\n", lck->last_suc_state);
-+	log_msg (lgm_Always, " actuallypending = %d\n", lck->actuallypending);
-+	log_msg (lgm_Always, " in_to_be_sent = %d\n", lck->in_to_be_sent);
 +	log_msg (lgm_Always, " cur_state = %d\n", lck->cur_state);
-+	log_msg (lgm_Always, " req_state = %d\n", lck->req_state);
-+	log_msg (lgm_Always, " flags = %#x\n", lck->flags);
-+	log_msg (lgm_Always, " action = %d\n", lck->action);
-+	log_msg (lgm_Always, " result = %d\n", lck->result);
 +}
 +
 +/* DEBUG_BY_LOCK is gone.  I may later add something back if needed.
@@ -2668,7 +3752,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 + * @keylen: 
 + * 
 + * key is: <type><fsname len><fsname>\0<pk len><pk>\0
-+ * <type> is: G J F N
++ * <type> is: G J F N P
 + * <fsname len> is 0-256
 + * 
 + * Returns: int
@@ -2754,7 +3838,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	int fsnlen;
 +	fsnlen = strlen(fsname);
 +
-+	memset (mask, 0, GIO_KEY_SIZE);
++	memset (mask, 0, mlen);
 +
 +	mask[0] = 0xff;
 +	mask[1] = fsnlen;
@@ -2763,6 +3847,53 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	/* rest should be 0xff */
 +
 +	return 3 + fsnlen;
++}
++
++/**
++ * gulm_lt_init - 
++ * 
++ * Returns: int
++ */
++int gulm_lt_init (void)
++{
++	int i;
++	gulm_cm.gfs_lockmap = kmalloc(sizeof(struct list_head) * gulm_gfs_lmSize, GFP_KERNEL);
++	if (gulm_cm.gfs_lockmap == NULL)
++		return -ENOMEM;
++	gulm_cm.gfs_locklock = kmalloc(sizeof(spinlock_t) * gulm_gfs_lmSize, GFP_KERNEL);
++	if (gulm_cm.gfs_locklock == NULL) {
++		kfree(gulm_cm.gfs_lockmap);
++		return -ENOMEM;
++	}
++	for(i=0; i < gulm_gfs_lmSize; i++) {
++		spin_lock_init (&gulm_cm.gfs_locklock[i]);
++		INIT_LIST_HEAD (&gulm_cm.gfs_lockmap[i]);
++	}
++	return 0;
++}
++
++/**
++ * gulm_lt_release - 
++ */
++void gulm_lt_release(void)
++{
++	struct list_head *tmp, *lltmp;
++	gulm_lock_t *lck;
++	int i;
++
++	for(i=0; i < gulm_gfs_lmSize; i++) {
++		list_for_each_safe (tmp, lltmp, &gulm_cm.gfs_lockmap[i]) {
++			lck = list_entry (tmp, gulm_lock_t, gl_list);
++			list_del (tmp);
++
++			if (lck->lvb != NULL) kfree (lck->lvb);
++
++			kfree(lck);
++		}
++	}
++
++	kfree (gulm_cm.gfs_lockmap);
++	kfree (gulm_cm.gfs_locklock);
 +}
 +
 +/**
@@ -2784,11 +3915,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	struct list_head *tmp;
 +
 +	/* now find the lock */
-+	bkt = hash_lock_key (key, keylen);
-+	bkt %= gulm_cm.ltpx.hashbuckets;
++	bkt = crc32 (GULM_CRC_INIT, key, keylen);
++	bkt &= gulm_gfs_lmBits;
 +
-+	spin_lock (&gulm_cm.ltpx.hshlk[bkt]);
-+	list_for_each (tmp, &gulm_cm.ltpx.lkhsh[bkt]) {
++	spin_lock (&gulm_cm.gfs_locklock[bkt]);
++	list_for_each (tmp, &gulm_cm.gfs_lockmap[bkt]) {
 +		lck = list_entry (tmp, gulm_lock_t, gl_list);
 +		if (memcmp (lck->key, key, keylen) == 0) {
 +			found = TRUE;
@@ -2796,7 +3927,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +			break;
 +		}
 +	}
-+	spin_unlock (&gulm_cm.ltpx.hshlk[bkt]);
++	spin_unlock (&gulm_cm.gfs_locklock[bkt]);
 +
 +	if (found)
 +		*lockp = lck;
@@ -2835,20 +3966,20 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	uint32_t bkt;
 +	int deld = FALSE;
 +
-+	bkt = hash_lock_key (lck->key, lck->keylen);
-+	bkt %= gulm_cm.ltpx.hashbuckets;
-+	spin_lock (&gulm_cm.ltpx.hshlk[bkt]);
++	bkt = crc32 (GULM_CRC_INIT, lck->key, lck->keylen);
++	bkt &= gulm_gfs_lmBits;
++
++	spin_lock (&gulm_cm.gfs_locklock[bkt]);
 +	if (atomic_dec_and_test (&lck->count)) {
 +		list_del (&lck->gl_list);
 +		deld = TRUE;
 +	}
-+	spin_unlock (&gulm_cm.ltpx.hshlk[bkt]);
++	spin_unlock (&gulm_cm.gfs_locklock[bkt]);
 +	if (deld) {
-+		gulm_cm.ltpx.locks_total--;
-+		gulm_cm.ltpx.locks_unl--;
 +		if (lck->lvb != NULL) {
 +			kfree (lck->lvb);
 +		}
++		kfree (lck->key);
 +		kfree (lck);
 +	}
 +
@@ -2870,7 +4001,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +
 +	pos = key[1] + 4;
 +	/* pos now points to the first byte of the GFS lockname that was
-+	 * embedded in the gulm lock key
++	 * embedded in the gulm lock key, skipping over the fs name.
 +	 */
 +
 +	(*lockname).ln_type = key[pos];
@@ -2884,19 +4015,23 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	(*lockname).ln_number |= (u64) (key[pos+8]) << 0;
 +}
 +
++/**
++ * do_drop_lock_req - 
++ * @key: 
++ * @keylen: 
++ * @state: 
++ * 
++ * 
++ * Returns: void
++ */
 +void
-+do_drop_lock_req (gulm_fs_t * fs, uint8_t state, uint8_t key[GIO_KEY_SIZE])
++do_drop_lock_req (uint8_t *key, uint16_t keylen, uint8_t state)
 +{
++	gulm_lock_t *lck;
 +	unsigned int type;
 +	struct lm_lockname lockname;
-+	/* i might want to shove most of this function into the new
-+	 * lockcallback handing queue.
-+	 * later.
-+	 */
 +
-+	/* don't do callbacks on the gulm mount lock.
-+	 * */
-+	if (key[0] != 'G') {
++	if (!find_and_mark_lock (key, keylen, &lck)) {
 +		return;
 +	}
 +
@@ -2919,185 +4054,13 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	}
 +	gulm_key_to_lm_lockname (key, &lockname);
 +
-+	qu_drop_req (&fs->cq, fs->cb, fs->fsdata, type,
++	qu_drop_req (&lck->fs->cq, lck->fs->cb, lck->fs->fsdata, type,
 +		     lockname.ln_type, lockname.ln_number);
++
++	unmark_and_release_lock (lck);
 +}
 +
-+/**
-+ * send_async_reply - 
-+ * @lck: 
-+ * 
-+ * 
-+ * Returns: void
-+ */
-+void
-+send_async_reply (gulm_lock_t * lck)
-+{
-+	gulm_fs_t *fs = lck->fs;
-+	struct lm_lockname lockname;
-+
-+	if (lck->key[0] == 'F') {
-+		/* whee! it is the first mounter lock.  two things:
-+		 * A: gfs could care less about this.
-+		 * B: we need to up the sleeper in the fs.  (hack)
-+		 */
-+		complete (&fs->sleep);
-+		return;
-+	}
-+
-+	if( lck->key[0] != 'G' ) return;
-+
-+	gulm_key_to_lm_lockname (lck->key, &lockname);
-+
-+	qu_async_rpl (&fs->cq, fs->cb, fs->fsdata, &lockname, lck->result);
-+}
-+
-+/**
-+ * send_drop_exp_inter - 
-+ * @lt: 
-+ * @name: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+send_drop_exp_inter (gulm_fs_t * fs, lock_table_t * lt, char *name)
-+{
-+	int err, len;
-+	uint8_t mask[GIO_KEY_SIZE];
-+
-+	len = pack_drop_mask(mask, GIO_KEY_SIZE, fs->fs_name); 
-+
-+	err = lg_lock_drop_exp (gulm_cm.hookup, name, mask, len);
-+
-+	return err;
-+}
-+
-+/**
-+ * send_lock_action - 
-+ * @lck: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+send_lock_action (gulm_lock_t * lck, uint8_t action)
-+{
-+	int err;
-+
-+	GULM_ASSERT (lck->req_type == glck_action, dump_gulm_lock_t (lck););
-+
-+	err = lg_lock_action_req (gulm_cm.hookup, lck->key, lck->keylen,
-+				  0, action, lck->lvb, lck->fs->lvb_size);
-+	if (err != 0)
-+		log_err ("Issues sending action request. %d\n", err);
-+
-+	return err;
-+}
-+
-+/**
-+ * send_lock_req - 
-+ * @lck: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+send_lock_req (gulm_lock_t * lck)
-+{
-+	gulm_fs_t *fs = lck->fs;
-+	int err;
-+	uint32_t flags = 0;
-+	uint8_t state;
-+
-+	GULM_ASSERT (lck->req_type == glck_state, dump_gulm_lock_t (lck););
-+
-+	switch (lck->req_state) {
-+	case LM_ST_EXCLUSIVE:
-+		state = lg_lock_state_Exclusive;
-+		break;
-+	case LM_ST_DEFERRED:
-+		state = lg_lock_state_Deferred;
-+		break;
-+	case LM_ST_SHARED:
-+		state = lg_lock_state_Shared;
-+		break;
-+	case LM_ST_UNLOCKED:
-+		state = lg_lock_state_Unlock;
-+		break;
-+	default:
-+		GULM_ASSERT (0, log_err ("fsid=%s: Anit no lock state %d.\n",
-+					 fs->fs_name, lck->req_state););
-+		break;
-+	}
-+	if (lck->flags & LM_FLAG_TRY) {
-+		flags |= lg_lock_flag_Try;
-+	}
-+	if (lck->flags & LM_FLAG_TRY_1CB) {
-+		flags |= lg_lock_flag_Try | lg_lock_flag_DoCB;
-+	}
-+	if (lck->flags & LM_FLAG_NOEXP) {
-+		flags |= lg_lock_flag_IgnoreExp;
-+	}
-+	if (lck->flags & LM_FLAG_ANY) {
-+		flags |= lg_lock_flag_Any;
-+	}
-+	if (lck->flags & LM_FLAG_PRIORITY) {
-+		flags |= lg_lock_flag_Piority;
-+	}
-+	if (lck->lvb != NULL) {
-+		print_lk_lvb (lck->key, lck->lvb, lck->req_state, "Sending");
-+	}
-+
-+	err = lg_lock_state_req (gulm_cm.hookup, lck->key, lck->keylen,
-+				 0, 0, ~((uint64_t)0),
-+				 state, flags, lck->lvb, lck->fs->lvb_size);
-+	if (err != 0)
-+		log_err ("Issues sending state request. %d\n", err);
-+
-+	return err;
-+}
-+
-+/**
-+ * toggle_lock_counters - 
-+ * 
-+ * called after a succesful request to change lock state.  Decrements
-+ * counts for what the lock was, and increments for what it is now.
-+ */
-+void
-+toggle_lock_counters (lock_table_t * lt, int old, int new)
-+{
-+	/* what we had it in */
-+	switch (old) {
-+	case LM_ST_EXCLUSIVE:
-+		lt->locks_exl--;
-+		break;
-+	case LM_ST_DEFERRED:
-+		lt->locks_dfr--;
-+		break;
-+	case LM_ST_SHARED:
-+		lt->locks_shd--;
-+		break;
-+	case LM_ST_UNLOCKED:
-+		lt->locks_unl--;
-+		break;
-+	}
-+	/* what we have it in */
-+	switch (new) {
-+	case LM_ST_EXCLUSIVE:
-+		lt->locks_exl++;
-+		break;
-+	case LM_ST_DEFERRED:
-+		lt->locks_dfr++;
-+		break;
-+	case LM_ST_SHARED:
-+		lt->locks_shd++;
-+		break;
-+	case LM_ST_UNLOCKED:
-+		lt->locks_unl++;
-+		break;
-+	}
-+}
++/****************************************************************************/
 +
 +/**
 + * calc_lock_result - 
@@ -3115,60 +4078,39 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +		  uint8_t state, uint32_t error, uint32_t flags)
 +{
 +	gulm_fs_t *fs = lck->fs;
-+	lock_table_t *lt = &gulm_cm.ltpx;
 +	int result = -69;
 +
 +	/* adjust result based on success status. */
 +	switch (error) {
 +	case lg_err_Ok:
 +		/* set result to current lock state. */
-+		if (!(lck->flags & LM_FLAG_ANY)) {
-+			/* simple case, we got what we asked for. */
-+			result = lck->req_state;
-+		} else {
-+			/* complex case, we got something else, but we said that was ok */
-+			switch (state) {
-+			case lg_lock_state_Shared:
-+				result = LM_ST_SHARED;
-+				break;
-+			case lg_lock_state_Deferred:
-+				result = LM_ST_DEFERRED;
-+				break;
-+
-+			case lg_lock_state_Exclusive:
-+			case lg_lock_state_Unlock:
-+				GULM_ASSERT (0,
-+					     dump_gulm_lock_t (lck);
-+					     log_err
-+					     ("fsid=%s: lock state %d is invalid on "
-+					      "ANY flag return\n", fs->fs_name,
-+					      state);
-+				    );
-+				break;
-+
-+			default:
-+				GULM_ASSERT (0,
-+					     dump_gulm_lock_t (lck);
-+					     log_err_lck (lck,
-+							  "fsid=%s: Anit no lock state %d.\n",
-+							  fs->fs_name, state);
-+				    );
-+				break;
-+			}
++		switch (state) {
++		case lg_lock_state_Shared:
++			result = LM_ST_SHARED;
++			break;
++		case lg_lock_state_Deferred:
++			result = LM_ST_DEFERRED;
++			break;
++		case lg_lock_state_Exclusive:
++			result = LM_ST_EXCLUSIVE;
++			break;
++		case lg_lock_state_Unlock:
++			result = LM_ST_UNLOCKED;
++			break;
++		default:
++			GULM_ASSERT (0,
++				     dump_gulm_lock_t (lck);
++				     log_err_lck
++				     (lck, "fsid=%s: Anit no lock state %d.\n",
++						  fs->fs_name, state);
++			    );
++			break;
 +		}
-+
-+		/* toggle counters.
-+		 * due to ANY flag, new state may not be req_state.
-+		 * */
-+		toggle_lock_counters (lt, lck->cur_state, result);
 +
 +		/* if no internal unlocks, it is cachable. */
 +		if (result != LM_ST_UNLOCKED && (flags & lg_lock_flag_Cachable))
 +			result |= LM_OUT_CACHEABLE;
 +
-+		/* record and move on
-+		 * */
-+		lck->last_suc_state = result & LM_OUT_ST_MASK;
 +		break;
 +	case lg_err_Canceled:
 +		result = LM_OUT_CANCELED | lck->cur_state;
@@ -3184,689 +4126,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	return result;
 +}
 +
-+/**
-+ * my_strdup - 
-+ * @s: 
-+ * 
-+ * 
-+ * Returns: char
-+ */
-+char *
-+my_strdup (char *s)
-+{
-+	char *tmp;
-+	int len;
-+	len = strlen (s) + 1;
-+	tmp = kmalloc (len, GFP_KERNEL);
-+	if (tmp == NULL)
-+		return NULL;
-+	memcpy (tmp, s, len);
-+	return tmp;
-+}
-+
-+/* Instead of directly calling the send function below, the functions will
-+ * create of of these.
-+ * Which exist only because I cannot stick the lock_t onto two lists
-+ * at once.
-+ *
-+ * this could use some clean up.
-+ */
-+typedef struct send_req_s {
-+	struct list_head sr_list;
-+	enum { sr_lock, sr_act, sr_cancel, sr_drop } type;
-+	gulm_lock_t *who;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
-+	char *name;
-+} send_req_t;
-+
-+/**
-+ * alloc_send_req - 
-+ * @oid: 
-+ * 
-+ * 
-+ * Returns: send_req_t
-+ */
-+send_req_t *
-+alloc_send_req (void)
-+{
-+	send_req_t *tmp;
-+	tmp = kmalloc (sizeof (send_req_t), GFP_KERNEL);
-+	GULM_ASSERT (tmp != NULL,);	/* so evil.... */
-+	return tmp;
-+}
-+
-+/**
-+ * send_drop_exp - 
-+ * @fs: 
-+ * @lt: 
-+ * @name: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+send_drop_exp (gulm_fs_t * fs, lock_table_t * lt, char *name)
-+{
-+	send_req_t *sr;
-+
-+	sr = alloc_send_req ();
-+	INIT_LIST_HEAD (&sr->sr_list);
-+	sr->type = sr_drop;
-+	sr->who = NULL;
-+	sr->fs = fs;
-+	sr->lt = lt;
-+	if (name != NULL) {
-+		sr->name = my_strdup (name);
-+	} else {
-+		sr->name = NULL;
-+	}
-+
-+	spin_lock (&lt->queue_sender);
-+	list_add (&sr->sr_list, &lt->to_be_sent);
-+	spin_unlock (&lt->queue_sender);
-+
-+	wake_up (&lt->send_wchan);
-+	return 0;
-+}
-+
-+/**
-+ * add_lock_to_send_req_queue - 
-+ * @lt: 
-+ * @lck: 
-+ * 
-+ * 
-+ * Returns: void
-+ */
-+void
-+add_lock_to_send_req_queue (lock_table_t * lt, gulm_lock_t * lck, int type)
-+{
-+	send_req_t *sr;
-+
-+	sr = alloc_send_req ();
-+	INIT_LIST_HEAD (&sr->sr_list);
-+	sr->type = type;
-+	sr->who = lck;
-+	sr->fs = NULL;
-+	sr->lt = NULL;
-+	sr->name = NULL;
-+	if (type != sr_cancel)
-+		lck->in_to_be_sent = TRUE;
-+
-+	mark_lock (lck);
-+
-+	spin_lock (&lt->queue_sender);
-+	list_add (&sr->sr_list, &lt->to_be_sent);
-+	spin_unlock (&lt->queue_sender);
-+
-+	wake_up (&lt->send_wchan);
-+}
-+
-+/**
-+ * queue_empty - 
-+ * @lt: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+static __inline__ int
-+queue_empty (lock_table_t * lt)
-+{
-+	int ret;
-+	spin_lock (&lt->queue_sender);
-+	ret = list_empty (&lt->to_be_sent);
-+	spin_unlock (&lt->queue_sender);
-+	return ret;
-+}
-+
-+/**
-+ * lt_io_sender_thread - 
-+ * @data: 
-+ *
-+ * Right now, only gfs lock requests should go through this thread.
-+ * Must look, May not even need this.
-+ * well, it is nice to get the socket io off of what ever process the user
-+ * is running that is going through gfs into here. ?is it?
-+ *
-+ * 
-+ * Returns: int
-+ */
-+int
-+lt_io_sender_thread (void *data)
-+{
-+	lock_table_t *lt = (lock_table_t *) data;
-+	struct list_head *tmp;
-+	send_req_t *sr = NULL;
-+	int err = 0;
-+
-+	daemonize ("gulm_LT_sender");
-+	lt->sender_task = current;
-+	complete (&lt->startup);
-+
-+	while (lt->running) {
-+		do {
-+			DECLARE_WAITQUEUE (__wait_chan, current);
-+			current->state = TASK_INTERRUPTIBLE;
-+			add_wait_queue (&lt->send_wchan, &__wait_chan);
-+			if (queue_empty (lt))
-+				schedule ();
-+			remove_wait_queue (&lt->send_wchan, &__wait_chan);
-+			current->state = TASK_RUNNING;
-+		} while (0);
-+		if (!lt->running)
-+			break;
-+
-+		/* check to make sure socket is ok. */
-+		down (&lt->sender);
-+
-+		/* pop next item to be sent
-+		 *  (it will get pushed back if there was problems.)
-+		 */
-+		spin_lock (&lt->queue_sender);
-+		if (list_empty (&lt->to_be_sent)) {
-+			spin_unlock (&lt->queue_sender);
-+			up (&lt->sender);
-+			continue;
-+		}
-+		tmp = (&lt->to_be_sent)->prev;
-+		list_del (tmp);
-+		spin_unlock (&lt->queue_sender);
-+		sr = list_entry (tmp, send_req_t, sr_list);
-+
-+		/* send. */
-+		if (sr->type == sr_lock) {
-+			err = send_lock_req (sr->who);
-+			if (err == 0) {
-+				sr->who->in_to_be_sent = FALSE;
-+				unmark_and_release_lock (sr->who);
-+			}
-+		} else if (sr->type == sr_act) {
-+			err = send_lock_action (sr->who, sr->who->action);
-+			if (err == 0) {
-+				sr->who->in_to_be_sent = FALSE;
-+				unmark_and_release_lock (sr->who);
-+			}
-+		} else if (sr->type == sr_cancel) {
-+			err =
-+			    lg_lock_cancel_req (gulm_cm.hookup, sr->who->key,
-+						sr->who->keylen, 0);
-+			if (err == 0)
-+				unmark_and_release_lock (sr->who);
-+		} else if (sr->type == sr_drop) {
-+			/* XXX sr->lt isn't really needed.
-+			 * just lt should be fine.
-+			 * look into it someday.
-+			 */
-+			err = send_drop_exp_inter (sr->fs, sr->lt, sr->name);
-+		} else {
-+			log_err ("Unknown send_req type! %d\n", sr->type);
-+		}
-+		up (&lt->sender);
-+
-+		/* if no errors, remove from queue. */
-+		if (err == 0) {
-+			if (sr->type == sr_drop && sr->name != NULL)
-+				kfree (sr->name);
-+			kfree (sr);
-+			sr = NULL;
-+		} else {
-+			/* if errors, re-queue.
-+			 * the send_* funcs already reported the error, so we won't
-+			 * repeat that.
-+			 * */
-+			spin_lock (&lt->queue_sender);
-+			/* reset the pointers. otherwise things get weird. */
-+			INIT_LIST_HEAD (&sr->sr_list);
-+			list_add_tail (&sr->sr_list, &lt->to_be_sent);
-+			spin_unlock (&lt->queue_sender);
-+
-+			current->state = TASK_INTERRUPTIBLE;
-+			schedule_timeout (3 * HZ);
-+
-+			/* gotta break shit up.
-+			 * else this loops hard and fast.
-+			 */
-+		}
-+	}			/* while( lt->running ) */
-+
-+	complete (&lt->startup);
-+	return 0;
-+}
-+
-+/**
-+ * cancel_pending_sender - 
-+ * @lck: 
-+ * 
-+ * want to cancel a lock request that we haven't sent to the server yet.
-+ * 
-+ * this must skip over unlock requests. (never cancel unlocks)
-+ * 
-+ * Returns: int
-+ */
-+int
-+cancel_pending_sender (gulm_lock_t * lck)
-+{
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+	struct list_head *tmp, *nxt;
-+	send_req_t *sr;
-+	int found = FALSE;
-+
-+	spin_lock (&lt->queue_sender);
-+
-+	list_for_each_safe (tmp, nxt, &lt->to_be_sent) {
-+		sr = list_entry (tmp, send_req_t, sr_list);
-+		if (sr->who == lck) {	/* good enough? */
-+			if (lck->req_type == sr_cancel)
-+				continue;
-+			if (lck->req_state == LM_ST_UNLOCKED)
-+				continue;	/*donot cancel unlocks */
-+			list_del (tmp);
-+			kfree (sr);
-+			found = TRUE;
-+			lck->in_to_be_sent = FALSE;
-+
-+			/* Now we need to tell the waiting lock req that it got canceled.
-+			 * basically, we need to fake a lg_err_Canceled return....
-+			 */
-+			lck->result = LM_OUT_CANCELED | lck->cur_state;
-+			lck->actuallypending = FALSE;
-+			lck->req_type = glck_nothing;
-+			atomic_dec (&lt->locks_pending);
-+#ifndef USE_SYNC_LOCKING
-+			send_async_reply (lck);
-+#else
-+			complete (&lck->actsleep);
-+#endif
-+			unmark_and_release_lock (lck);
-+			break;
-+		}
-+	}
-+
-+	spin_unlock (&lt->queue_sender);
-+	return found;
-+}
-+
-+/**
-+ * gulm_lt_login_reply - 
-+ * @misc: 
-+ * @error: 
-+ * @which: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_login_reply (void *misc, uint32_t error, uint8_t which)
-+{
-+	if (error != 0) {
-+		gulm_cm.ltpx.running = FALSE;
-+		log_err ("LTPX: Got a %d from the login request.\n", error);
-+	} else {
-+		log_msg (lgm_Network2, "Logged into local LTPX.\n");
-+	}
-+	return error;
-+}
-+
-+/**
-+ * gulm_lt_logout_reply - 
-+ * @misc: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_logout_reply (void *misc)
-+{
-+	gulm_cm.ltpx.running = FALSE;
-+	log_msg (lgm_Network2, "Logged out of local LTPX.\n");
-+	return 0;
-+}
-+
-+/**
-+ * gulm_lt_lock_state - 
-+ * @misc: 
-+ * @key: 
-+ * @keylen: 
-+ * @state: 
-+ * @flags: 
-+ * @error: 
-+ * @LVB: 
-+ * @LVBlen: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_lock_state (void *misc, uint8_t * key, uint16_t keylen,
-+		    uint64_t subid, uint64_t start, uint64_t stop,
-+		    uint8_t state, uint32_t flags, uint32_t error,
-+		    uint8_t * LVB, uint16_t LVBlen)
-+{
-+	gulm_lock_t *lck;
-+
-+	if (key[0] == 'J' || key[0] == 'N' ) {
-+		jid_state_reply (key, keylen, LVB, LVBlen);
-+		return 0;
-+	}
-+
-+	if (!find_and_mark_lock (key, keylen, &lck)) {
-+		log_err_lk (key, keylen, "Got a lock state reply for a lock "
-+			    "that we don't know of. state:%#x flags:%#x error:%#x\n",
-+			    state, flags, error);
-+		return 0;
-+	}
-+
-+	lck->result = calc_lock_result (lck, state, error, flags);
-+
-+	if ((lck->result & LM_OUT_ST_MASK) != LM_ST_UNLOCKED &&
-+	    lck->lvb != NULL) {
-+		memcpy (lck->lvb, LVB, MIN (lck->fs->lvb_size, LVBlen));
-+	}
-+
-+	lck->actuallypending = FALSE;
-+	lck->req_type = glck_nothing;
-+	atomic_dec (&gulm_cm.ltpx.locks_pending);
-+#ifndef USE_SYNC_LOCKING
-+	send_async_reply (lck);
-+#else
-+	complete (&lck->actsleep);
-+#endif
-+
-+	if (error != 0 && error != lg_err_TryFailed && error != lg_err_Canceled)
-+		log_msg_lck (lck, "Error: %d:%s (req:%#x rpl:%#x lss:%#x)\n",
-+			     error, gio_Err_to_str (error),
-+			     lck->req_state, state, lck->last_suc_state);
-+
-+	unmark_and_release_lock (lck);
-+	return 0;
-+}
-+
-+/**
-+ * gulm_lt_lock_action - 
-+ * @misc: 
-+ * @key: 
-+ * @keylen: 
-+ * @action: 
-+ * @error: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_lock_action (void *misc, uint8_t * key, uint16_t keylen,
-+		     uint64_t subid, uint8_t action, uint32_t error)
-+{
-+	gulm_lock_t *lck;
-+
-+	if (key[0] == 'J') {
-+		jid_action_reply (key, keylen);
-+		return 0;
-+	}
-+
-+	if (!find_and_mark_lock (key, keylen, &lck)) {
-+		log_err_lk (key, keylen, "Got a lock action reply for a lock "
-+			    "that we don't know of. action:%#x error:%#x\n",
-+			    action, error);
-+		return 0;
-+	}
-+
-+	if (action == lg_lock_act_HoldLVB ||
-+	    action == lg_lock_act_UnHoldLVB || action == lg_lock_act_SyncLVB) {
-+		/*  */
-+		lck->result = error;
-+		if (error != lg_err_Ok) {
-+			log_err ("on action reply act:%d err:%d\n", action,
-+				 error);
-+		}
-+		lck->req_type = glck_nothing;
-+		lck->actuallypending = FALSE;
-+		complete (&lck->actsleep);
-+	} else {
-+		log_err_lck (lck, "Got strange Action %#x\n", action);
-+	}
-+	unmark_and_release_lock (lck);
-+	return 0;
-+}
-+
-+/**
-+ * gulm_lt_drop_lock_req - 
-+ * @misc: 
-+ * @key: 
-+ * @keylen: 
-+ * @state: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_drop_lock_req (void *misc, uint8_t * key, uint16_t keylen,
-+		       uint64_t subid, uint8_t state)
-+{
-+	gulm_lock_t *lck;
-+
-+	if (key[0] == 'J') {
-+		jid_header_lock_drop (key, keylen);
-+		return 0;
-+	}
-+
-+	if (!find_and_mark_lock (key, keylen, &lck)) {
-+		log_err_lk (key, keylen, "Got a drop lcok request for a lock "
-+			    "that we don't know of. state:%#x\n", state);
-+		return 0;
-+	}
-+
-+	do_drop_lock_req (lck->fs, state, key);
-+
-+	unmark_and_release_lock (lck);
-+	return 0;
-+}
-+
-+/**
-+ * gulm_lt_drop_all - 
-+ * @misc: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_drop_all (void *misc)
-+{
-+	passup_droplocks ();
-+	return 0;
-+}
-+
-+/**
-+ * gulm_lt_error - 
-+ * @misc: 
-+ * @err: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+gulm_lt_error (void *misc, uint32_t err)
-+{
-+	log_err ("LTPX: RANDOM ERROR %d\n", err);
-+	return err;
-+}
-+
-+static lg_lockspace_callbacks_t lock_cb = {
-+      login_reply:gulm_lt_login_reply,
-+      logout_reply:gulm_lt_logout_reply,
-+      lock_state:gulm_lt_lock_state,
-+      lock_action:gulm_lt_lock_action,
-+      drop_lock_req:gulm_lt_drop_lock_req,
-+      drop_all:gulm_lt_drop_all,
-+      error:gulm_lt_error
-+};
-+
-+/**
-+ * lt_io_recving_thread - 
-+ * @data: 
-+ * 
-+ * 
-+ * Returns: int
-+ */
-+int
-+lt_io_recving_thread (void *data)
-+{
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+	int err;
-+
-+	daemonize ("gulm_LT_recver");
-+	lt->recver_task = current;
-+	complete (&lt->startup);
-+
-+	while (lt->running) {
-+		err = lg_lock_handle_messages (gulm_cm.hookup, &lock_cb, NULL);
-+		if (err != 0) {
-+			log_err ("gulm_LT_recver err %d\n", err);
-+			lt->running = FALSE;	/* should stop the sender thread. */
-+			wake_up (&lt->send_wchan);
-+			break;
-+		}
-+	}			/* while( lt->running ) */
-+
-+	complete (&lt->startup);
-+	return 0;
-+}
-+
-+/**
-+ * lt_logout - log out of all of the lock tables
-+ */
-+void
-+lt_logout (void)
-+{
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+	int err;
-+
-+	if (lt->running) {
-+		lt->running = FALSE;
-+
-+		/* stop sender thread */
-+		wake_up (&lt->send_wchan);
-+		wait_for_completion (&lt->startup);
-+
-+		/* stop recver thread */
-+		down (&lt->sender);
-+		err = lg_lock_logout (gulm_cm.hookup);
-+		up (&lt->sender);
-+
-+		/* wait for thread to finish */
-+		wait_for_completion (&lt->startup);
-+	}
-+
-+}
-+
-+/**
-+ * lt_login - login to lock tables.
-+ * 
-+ * Returns: int
-+ */
-+int
-+lt_login (void)
-+{
-+	int err;
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+
-+	if (lt->running)
-+		log_err
-+		    ("Trying to log into LTPX when it appears to be logged in!\n");
-+
-+	err = lg_lock_login (gulm_cm.hookup, "GFS ");
-+	if (err != 0) {
-+		log_err ("Failed to send login request. %d\n", err);
-+		goto fail;
-+	}
-+
-+	/* start recver thread. */
-+	lt->running = TRUE;
-+	err = kernel_thread (lt_io_recving_thread, lt, 0);
-+	if (err < 0) {
-+		log_err ("Failed to start gulm_lt_IOd. (%d)\n", err);
-+		goto fail;
-+	}
-+	wait_for_completion (&lt->startup);
-+
-+	/* start sender thread */
-+	err = kernel_thread (lt_io_sender_thread, lt, 0);
-+	if (err < 0) {
-+		log_err ("Failed to start gulm_LT_sender. (%d)\n", err);
-+		goto fail;
-+	}
-+	wait_for_completion (&lt->startup);
-+
-+	return 0;
-+      fail:
-+	lt_logout ();
-+	log_msg (lgm_Always, "Exiting lt_login. err:%d\n", err);
-+	return err;
-+}
-+
 +/****************************************************************************/
-+
-+/**
-+ * internal_gulm_get_lock - 
-+ * @fs: 
-+ * @key: 
-+ * @keylen: 
-+ * @lockp: 
-+ * 
-+ * 
-+ * Returns: 0 on success, -EXXX on failure
-+ */
-+int
-+internal_gulm_get_lock (gulm_fs_t * fs, uint8_t * key, uint8_t keylen,
-+			gulm_lock_t ** lockp)
-+{
-+	int found = FALSE;
-+	uint32_t bkt;
-+	gulm_lock_t *lck = NULL;
-+
-+	found = find_and_mark_lock (key, keylen, &lck);
-+
-+	/* malloc space */
-+	if (found) {
-+		GULM_ASSERT (lck->magic_one == 0xAAAAAAAA,);
-+	} else {
-+		lck = kmalloc (sizeof (gulm_lock_t), GFP_KERNEL);
-+		if (lck == NULL) {
-+			log_err
-+			    ("fsid=%s: Out of memory for lock struct in get_lock!\n",
-+			     fs->fs_name);
-+			return -ENOMEM;
-+		}
-+		memset (lck, 0, sizeof (gulm_lock_t));
-+		INIT_LIST_HEAD (&lck->gl_list);
-+		atomic_set (&lck->count, 1);
-+		lck->magic_one = 0xAAAAAAAA;
-+		lck->fs = fs;
-+		memcpy (lck->key, key, keylen);
-+		lck->keylen = keylen;
-+		lck->lvb = NULL;
-+		init_completion (&lck->actsleep);
-+		lck->actuallypending = FALSE;
-+		lck->in_to_be_sent = FALSE;
-+		lck->result = 0;
-+		lck->action = -1;
-+		lck->req_type = glck_nothing;
-+		lck->last_suc_state = LM_ST_UNLOCKED;
-+
-+		gulm_cm.ltpx.locks_total++;
-+		gulm_cm.ltpx.locks_unl++;
-+
-+		bkt = hash_lock_key (key, keylen);
-+		bkt %= gulm_cm.ltpx.hashbuckets;
-+
-+		spin_lock (&gulm_cm.ltpx.hshlk[bkt]);
-+		list_add (&lck->gl_list, &gulm_cm.ltpx.lkhsh[bkt]);
-+		spin_unlock (&gulm_cm.ltpx.hshlk[bkt]);
-+	}
-+
-+	*lockp = lck;
-+
-+	return 0;
-+}
 +
 +/**
 + * gulm_get_lock - 
@@ -3880,12 +4140,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +gulm_get_lock (lm_lockspace_t * lockspace, struct lm_lockname *name,
 +	       lm_lock_t ** lockp)
 +{
-+	int err, len;
++	int err=0, len, bkt;
 +	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
-+	uint8_t key[GIO_KEY_SIZE]; uint8_t temp[9];
-+
-+	down (&fs->get_lock);
-+
++	uint8_t key[GIO_KEY_SIZE];
++	uint8_t temp[9];
++	gulm_lock_t *lck=NULL;
 +
 +	temp[0] = name->ln_type & 0xff;
 +	temp[1] = (name->ln_number >> 56) & 0xff;
@@ -3900,9 +4159,37 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	len = pack_lock_key(key, GIO_KEY_SIZE, 'G', fs->fs_name, temp, 9);
 +	if( len <=0 ) {err = len; goto exit;}
 +
-+	err = internal_gulm_get_lock (fs, key, len, (gulm_lock_t **) lockp);
++	if (!find_and_mark_lock (key, len, &lck)) {
++		/* not found, must create. */
++		lck = kmalloc(sizeof(gulm_lock_t), GFP_KERNEL);
++		if (lck == NULL) {
++			err = -ENOMEM;
++			goto exit;
++		}
++		INIT_LIST_HEAD (&lck->gl_list);
++		atomic_set (&lck->count, 1);
++		lck->key = kmalloc (len, GFP_KERNEL);
++		if (lck->key == NULL) {
++			kfree(lck);
++			err = -ENOMEM;
++			goto exit;
++		}
++		memcpy (lck->key, key, len);
++		lck->keylen = len;
++		lck->fs = fs;
++		lck->lvb = NULL;
++		lck->cur_state = LM_ST_UNLOCKED;
 +
-+	up (&fs->get_lock);
++		bkt = crc32 (GULM_CRC_INIT, key, len);
++		bkt &= gulm_gfs_lmBits;
++
++		spin_lock (&gulm_cm.gfs_locklock[bkt]);
++		list_add (&lck->gl_list, &gulm_cm.gfs_lockmap[bkt]);
++		spin_unlock (&gulm_cm.gfs_locklock[bkt]);
++
++	}
++	*lockp = lck;
++
 +exit:
 +	return err;
 +}
@@ -3917,70 +4204,31 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +void
 +gulm_put_lock (lm_lock_t * lock)
 +{
-+	gulm_lock_t *lck = (gulm_lock_t *) lock;
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+	gulm_fs_t *fs = lck->fs;
-+
-+	down (&fs->get_lock);
-+
-+	GULM_ASSERT (lt != NULL,);
-+
-+	if (lck->last_suc_state != LM_ST_UNLOCKED) {
-+		log_err_lck (lck,
-+			     "fsid=%s: gulm_put_lock called on a lock that is not unlocked!"
-+			     " Current state:%#x\n", lck->fs->fs_name,
-+			     lck->last_suc_state);
-+		/* I'm still not sure about this one.  We should never see it, so I
-+		 * don't think it is that big of a deal, but i duno.
-+		 *
-+		 * Maybe should just make it an assertion.
-+		 *
-+		 * with the mark/unmark code, is it even a concern?
-+		 */
-+	}
-+
-+	unmark_and_release_lock (lck);
-+	/* lck = NULL; */
-+
-+	up (&fs->get_lock);
-+
-+}
-+
-+static int
-+valid_trasition (unsigned int cur, unsigned int req)
-+{
-+	int lock_state_changes[16] = {	/* unl   exl    def    shr  */
-+		FALSE, TRUE, TRUE, TRUE,	/* unl */
-+		TRUE, FALSE, TRUE, TRUE,	/* exl */
-+		TRUE, TRUE, FALSE, TRUE,	/* def */
-+		TRUE, TRUE, TRUE, FALSE	/* shr */
-+	};
-+	GULM_ASSERT (cur < 4
-+		     && req < 4, log_err ("cur:%d req:%d\n", cur, req););
-+
-+	return (lock_state_changes[4 * cur + req]);
++	unmark_and_release_lock ((gulm_lock_t *) lock);
 +}
 +
 +/**
-+ * verify_gulm_lock_t - 
-+ * @lck: 
++ * gulm_lock_finish - 
++ * @glck: 
 + * 
-+ * wonder if I should add some other checks.
 + * 
-+ * Returns: int
++ * Returns: void
 + */
-+int
-+verify_gulm_lock_t (gulm_lock_t * lck)
++void gulm_lock_finish (struct glck_req *item)
 +{
-+	if (lck == NULL) {
-+		log_err ("Lock pointer was NULL!\n");
-+		return -1;
-+	}
-+	if (lck->fs == NULL) {
-+		log_err ("This lock has no filesystem!!!\n");
-+		return -1;
-+	}
-+	return 0;
++	int result;
++	gulm_lock_t *lck = (gulm_lock_t *)item->misc;
++	gulm_fs_t *fs = lck->fs;
++	struct lm_lockname lockname;
++
++	result = calc_lock_result (lck, item->state, item->error, item->flags);
++
++	gulm_key_to_lm_lockname (lck->key, &lockname);
++
++	qu_async_rpl (&fs->cq, fs->cb, fs->fsdata, &lockname, result);
++
++	/* marked in gulm_lock() */
++	unmark_and_release_lock (lck);
 +}
 +
 +/**
@@ -3997,54 +4245,75 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +gulm_lock (lm_lock_t * lock, unsigned int cur_state,
 +	   unsigned int req_state, unsigned int flags)
 +{
-+	gulm_lock_t *lck = NULL;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
++	glckr_t *item;
++	gulm_lock_t *lck = (gulm_lock_t *) lock;
++	gulm_fs_t *fs = lck->fs;
 +
-+	/* verify vars. */
-+	lck = (gulm_lock_t *) lock;
-+	if (verify_gulm_lock_t (lck) != 0) {
-+		return -EINVAL;
++	item = glq_get_new_req();
++	if (item == NULL) {
++		return -ENOMEM;
 +	}
-+	lt = &gulm_cm.ltpx;
-+	fs = lck->fs;
 +
-+	GULM_ASSERT (valid_trasition (cur_state, req_state),
-+		     log_err_lck (lck, "want %d with %s thinks:%d\n", req_state,
-+				  (LM_FLAG_TRY & flags) ? "try" : (LM_FLAG_NOEXP
-+								   & flags) ?
-+				  "noexp" : "no flags", cur_state);
-+	    );
++	mark_lock (lck); /* matching unmark is in gulm_lock_finish */
 +
-+	GULM_ASSERT (lck->actuallypending == FALSE, dump_gulm_lock_t (lck););
++	item->key = lck->key;
++	item->keylen = lck->keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_state;
 +
-+	/* save the details of this request. */
-+	lck->req_type = glck_state;
-+	lck->result = 0;
++	switch (req_state) {
++	case LM_ST_EXCLUSIVE:
++		item->state = lg_lock_state_Exclusive;
++		break;
++	case LM_ST_DEFERRED:
++		item->state = lg_lock_state_Deferred;
++		break;
++	case LM_ST_SHARED:
++		item->state = lg_lock_state_Shared;
++		break;
++	case LM_ST_UNLOCKED:
++		item->state = lg_lock_state_Unlock;
++		break;
++	default:
++		GULM_ASSERT (0, log_err ("fsid=%s: Anit no lock state %d.\n",
++					 fs->fs_name, req_state););
++		break;
++	}
++	item->flags = 0;
++	if (flags & LM_FLAG_TRY) {
++		item->flags |= lg_lock_flag_Try;
++	}
++	if (flags & LM_FLAG_TRY_1CB) {
++		item->flags |= lg_lock_flag_Try | lg_lock_flag_DoCB;
++	}
++	if (flags & LM_FLAG_NOEXP) {
++		item->flags |= lg_lock_flag_IgnoreExp;
++	}
++	if (flags & LM_FLAG_ANY) {
++		item->flags |= lg_lock_flag_Any;
++	}
++	if (flags & LM_FLAG_PRIORITY) {
++		item->flags |= lg_lock_flag_Piority;
++	}
++	if (lck->lvb != NULL) {
++		item->lvb = lck->lvb;
++		item->lvblen = fs->lvb_size;
++	}else{
++		item->lvb = NULL;
++		item->lvblen = 0;
++	}
++	item->error = 0;
++
++	item->misc = lck;
++	item->finish = gulm_lock_finish;
++
 +	lck->cur_state = cur_state;
-+	lck->req_state = req_state;
-+	lck->flags = flags;
 +
-+	/* moving these here fixes a race on the s390 that ben found.
-+	 * basically, the request was sent to the server, the server receives
-+	 * it, the server processes, the server sends a reply, the client
-+	 * receives the reply, and the client tries to processe the reply before
-+	 * this thread could mark it as actuallypending.
-+	 * */
-+	lck->actuallypending = TRUE;
-+	atomic_inc (&lt->locks_pending);
-+	add_lock_to_send_req_queue (lt, lck, sr_lock);
++	glq_queue (item);
 +
-+	lt->lops++;
-+#ifdef USE_SYNC_LOCKING
-+	wait_for_completion (&lck->actsleep);
-+#endif
-+
-+#ifdef USE_SYNC_LOCKING
-+	return lck->result;
-+#else
 +	return LM_OUT_ASYNC;
-+#endif
 +}
 +
 +/**
@@ -4071,31 +4340,52 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +void
 +gulm_cancel (lm_lock_t * lock)
 +{
-+	gulm_lock_t *lck;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
++	glckr_t *item;
++	gulm_lock_t *lck = (gulm_lock_t *) lock;
 +
-+	/* verify vars. */
-+	lck = (gulm_lock_t *) lock;
-+	if (verify_gulm_lock_t (lck) != 0) {
-+		return;
++	mark_lock (lck);
++
++	item = glq_get_new_req();
++	if( item == NULL ) goto exit;
++
++	/* have to make a copy for cancel req. */
++	item->key = kmalloc(lck->keylen, GFP_KERNEL);
++	if (item->key == NULL) {
++		glq_recycle_req(item);
++		goto exit;
 +	}
-+	lt = &gulm_cm.ltpx;
-+	fs = lck->fs;
++	memcpy(item->key, lck->key, lck->keylen);
++	item->keylen = lck->keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_cancel;
++	item->finish = NULL;
 +
-+	if (lck->actuallypending) {
-+		if (lck->in_to_be_sent) {
-+			/* this should pull the req out of the send queue and have it
-+			 * return with a cancel code without going to the server.
-+			 */
-+			cancel_pending_sender (lck);
-+		} else {
-+			add_lock_to_send_req_queue (lt, lck, sr_cancel);
-+		}
-+	} else {
-+		log_msg_lck (lck, "Cancel called with no pending request.\n");
-+	}
++	glq_cancel(item);
 +
++exit:
++	unmark_and_release_lock (lck);
++}
++
++/****************************************************************************/
++struct gulm_lvb_temp_s {
++	int error;
++	struct completion sleep;
++};
++
++/**
++ * gulm_lvb_finish - 
++ * @glck: 
++ * 
++ * 
++ * Returns: void
++ */
++void gulm_lvb_finish(struct glck_req *glck)
++{
++	struct gulm_lvb_temp_s *g = (struct gulm_lvb_temp_s *)glck->misc;
++	g->error = glck->error;
++	complete (&g->sleep);
 +}
 +
 +/**
@@ -4109,34 +4399,34 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +int
 +gulm_hold_lvb (lm_lock_t * lock, char **lvbp)
 +{
-+	gulm_lock_t *lck;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
 +	int err = -1;
++	struct gulm_lvb_temp_s ghlt;
++	glckr_t *item;
++	gulm_lock_t *lck = (gulm_lock_t *) lock;
++	gulm_fs_t *fs = lck->fs;
 +
-+	/* verify vars. */
-+	lck = (gulm_lock_t *) lock;
-+	if (verify_gulm_lock_t (lck) != 0) {
-+		return -EINVAL;
++	mark_lock (lck);
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		err = -ENOMEM;
++		goto fail;
 +	}
-+	lt = &gulm_cm.ltpx;
-+	fs = lck->fs;
 +
-+	/* what where these for? */
-+	GULM_ASSERT (lck->magic_one == 0xAAAAAAAA,
-+		     log_msg_lck (lck, "Bad gulm_lock magic.\n"););
-+	GULM_ASSERT (lt->magic_one == 0xAAAAAAAA,
-+		     log_msg_lck (lck, "Bad lock_table magic.\n"););
++	item->key = lck->key;
++	item->keylen = lck->keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_action;
++	item->state = lg_lock_act_HoldLVB;
++	item->flags = 0;
++	item->error = ghlt.error = 0;
 +
-+	lvb_log_msg_lk (lck->key, "Entering gulm_hold_lvb\n");
++	init_completion (&ghlt.sleep);
 +
-+	GULM_ASSERT (lck->lvb == NULL,
-+		     log_msg_lck (lck,
-+				  "fsid=%s: Lvb data wasn't null! must be held "
-+				  "already.\n", fs->fs_name);
-+	    );
-+
-+	GULM_ASSERT (lck->actuallypending == FALSE, dump_gulm_lock_t (lck););
++	item->misc = &ghlt;
++	item->finish = gulm_lvb_finish;
 +
 +	lck->lvb = kmalloc (fs->lvb_size, GFP_KERNEL);
 +	if (lck->lvb == NULL) {
@@ -4145,30 +4435,33 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +	}
 +	memset (lck->lvb, 0, fs->lvb_size);
 +
-+	lck->req_type = glck_action;
-+	lck->action = lg_lock_act_HoldLVB;
-+	lck->result = 0;
-+	lck->actuallypending = TRUE;
-+	add_lock_to_send_req_queue (lt, lck, sr_act);
++	item->lvb = lck->lvb;
++	item->lvblen = fs->lvb_size;
 +
-+	wait_for_completion (&lck->actsleep);
++	glq_queue (item);
++	wait_for_completion (&ghlt.sleep);
++	/* after here, item is no longer valid
++	 * (memory was probably freed.)
++	 * is why we use ghlt.error and not item->error.
++	 */
 +
-+	if (lck->result != lg_err_Ok) {
++	if (ghlt.error != lg_err_Ok) {
 +		log_err ("fsid=%s: Got error %d on hold lvb request.\n",
-+			 fs->fs_name, lck->result);
++			 fs->fs_name, ghlt.error);
 +		kfree (lck->lvb);
 +		lck->lvb = NULL;
 +		goto fail;
 +	}
 +
-+	lt->locks_lvbs++;
-+
 +	*lvbp = lck->lvb;
++
++	unmark_and_release_lock (lck);
 +
 +	lvb_log_msg_lk (lck->key, "fsid=%s: Exiting gulm_hold_lvb\n",
 +			fs->fs_name);
 +	return 0;
 +      fail:
++	unmark_and_release_lock (lck);
 +	if (err != 0)
 +		log_msg (lgm_Always,
 +			 "fsid=%s: Exiting gulm_hold_lvb with errors (%d)\n",
@@ -4187,51 +4480,57 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +void
 +gulm_unhold_lvb (lm_lock_t * lock, char *lvb)
 +{
-+	gulm_lock_t *lck = NULL;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
++	struct gulm_lvb_temp_s ghlt;
++	glckr_t *item;
++	gulm_lock_t *lck = (gulm_lock_t *) lock;
++	gulm_fs_t *fs = lck->fs;
 +
-+	/* verify vars. */
-+	lck = (gulm_lock_t *) lock;
-+	if (verify_gulm_lock_t (lck) != 0) {
-+		return;
-+	}
-+	lt = &gulm_cm.ltpx;
-+	fs = lck->fs;
++	mark_lock (lck);
 +
-+	GULM_ASSERT (lck->actuallypending == FALSE, dump_gulm_lock_t (lck););
-+
-+	if (lck->lvb != lvb) {
-+		log_err ("fsid=%s: AH! LVB pointer missmatch! %p != %p\n",
-+			 fs->fs_name, lck->lvb, lvb);
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		log_err("unhold_lvb: failed to get needed memory. skipping.\n");
 +		goto exit;
 +	}
 +
-+	lvb_log_msg_lk (lck->key, "Entering gulm_unhold_lvb\n");
++	item->key = lck->key;
++	item->keylen = lck->keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_action;
++	item->state = lg_lock_act_UnHoldLVB;
++	item->flags = 0;
++	item->error = ghlt.error = 0;
 +
-+	lck->req_type = glck_action;
-+	lck->action = lg_lock_act_UnHoldLVB;
-+	lck->result = 0;
-+	lck->actuallypending = TRUE;
-+	add_lock_to_send_req_queue (lt, lck, sr_act);
++	init_completion (&ghlt.sleep);
 +
-+	wait_for_completion (&lck->actsleep);
++	item->misc = &ghlt;
++	item->finish = gulm_lvb_finish;
 +
-+	/* XXX ummm, is it sane to not free the memory if the command fails?
-+	 * gfs will still think that the lvb was dropped sucessfully....
-+	 * (it assumes it is always sucessful)
-+	 * Maybe I should retry the drop request then?
++	item->lvb = lck->lvb;
++	item->lvblen = fs->lvb_size;
++
++	glq_queue (item);
++	wait_for_completion (&ghlt.sleep);
++	/* after here, item is no longer valid
++	 * (memory was probably freed.)
++	 * is why we use ghlt.error and not item->error.
 +	 */
-+	if (lck->result != lg_err_Ok) {
++
++	if (ghlt.error != lg_err_Ok) {
 +		log_err ("fsid=%s: Got error %d on unhold LVB request.\n",
-+			 lck->fs->fs_name, lck->result);
-+	} else {
-+		if (lck->lvb != NULL)
-+			kfree (lck->lvb);
-+		lck->lvb = NULL;
-+		lt->locks_lvbs--;
++			 lck->fs->fs_name, ghlt.error);
 +	}
++	/* free it always.  GFS thinks it is gone no matter what the server
++	 * thinks. (and as much as i hate to say it this way, far better to
++	 * leak in userspace than in kernel space.)
++	 */
++	if (lck->lvb != NULL)
++		kfree (lck->lvb);
++	lck->lvb = NULL;
 +      exit:
++	unmark_and_release_lock (lck);
 +	lvb_log_msg ("Exiting gulm_unhold_lvb\n");
 +}
 +
@@ -4240,284 +4539,90 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 + * @lock: 
 + * @lvb: 
 + * 
-+ * umm, is this even used anymore? yes.
-+ * 
-+ * Returns: void
 + */
 +void
 +gulm_sync_lvb (lm_lock_t * lock, char *lvb)
 +{
-+	gulm_lock_t *lck = NULL;
-+	gulm_fs_t *fs;
-+	lock_table_t *lt;
++	struct gulm_lvb_temp_s ghlt;
++	glckr_t *item;
++	gulm_lock_t *lck = (gulm_lock_t *) lock;
++	gulm_fs_t *fs = lck->fs;
 +
-+	/* verify vars. */
-+	lck = (gulm_lock_t *) lock;
-+	if (verify_gulm_lock_t (lck) != 0) {
-+		return;
-+	}
-+	lt = &gulm_cm.ltpx;
-+	fs = lck->fs;
++	mark_lock (lck);
 +
-+	GULM_ASSERT (lck->actuallypending == FALSE, dump_gulm_lock_t (lck););
-+
-+	/* this check is also in the server, so it isn't really needed here. */
-+	if (lck->last_suc_state != LM_ST_EXCLUSIVE) {
-+		log_err ("sync_lvb: You must hold the lock Exclusive first.\n");
-+		goto exit;	/*cannot do anything */
-+	}
-+	if (lck->lvb == NULL) {
-+		log_err ("sync_lvb: You forgot to call hold lvb first.\n");
-+		goto exit;
-+	}
-+	if (lck->lvb != lvb) {
-+		log_err ("fsid=%s: AH! LVB pointer missmatch! %p != %p\n",
-+			 fs->fs_name, lck->lvb, lvb);
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		log_err("sync_lvb: failed to get needed memory. skipping.\n");
 +		goto exit;
 +	}
 +
-+	lvb_log_msg_lk (lck->key, "Entering gulm_sync_lvb\n");
++	item->key = lck->key;
++	item->keylen = lck->keylen;
++	item->subid = 0;
++	item->start = 0;
++	item->stop = ~((uint64_t)0);
++	item->type = glq_req_type_action;
++	item->state = lg_lock_act_SyncLVB;
++	item->flags = 0;
++	item->error = ghlt.error = 0;
 +
-+	lck->req_type = glck_action;
-+	lck->action = lg_lock_act_SyncLVB;
-+	lck->result = 0;
-+	lck->actuallypending = TRUE;
-+	add_lock_to_send_req_queue (lt, lck, sr_act);
++	init_completion (&ghlt.sleep);
 +
-+	wait_for_completion (&lck->actsleep);
++	item->misc = &ghlt;
++	item->finish = gulm_lvb_finish;
 +
-+	/* XXX? retry if I get an error? */
-+	if (lck->result != lg_err_Ok) {
-+		log_err_lck (lck,
-+			     "fsid=%s: Got error %d:%s on Sync LVB request.\n",
-+			     fs->fs_name, lck->result,
-+			     gio_Err_to_str (lck->result));
++	item->lvb = lck->lvb;
++	item->lvblen = fs->lvb_size;
++
++	glq_queue (item);
++	wait_for_completion (&ghlt.sleep);
++	/* after here, item is no longer valid
++	 * (memory was probably freed.)
++	 * is why we use ghlt.error and not item->error.
++	 */
++
++	if (ghlt.error != lg_err_Ok) {
++		log_err ("fsid=%s: Got error %d on sync LVB request.\n",
++			 lck->fs->fs_name, ghlt.error);
 +	}
++
 +      exit:
++	unmark_and_release_lock (lck);
 +	lvb_log_msg ("Exiting gulm_sync_lvb\n");
++
 +}
 +
-+/*****************************************************************************/
-+static int
-+gulm_plock_get (lm_lockspace_t * lockspace,
-+		struct lm_lockname *name, unsigned long owner,
-+		uint64_t * start, uint64_t * end, int *exclusive,
-+		unsigned long *rowner)
-+{
-+	return -ENOSYS;
-+}
++/* vim: set ai cin noet sw=8 ts=8 : */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_main.c linux-patched/fs/gfs_locking/lock_gulm/gulm_main.c
+--- linux-orig/fs/gfs_locking/lock_gulm/gulm_main.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_main.c	2004-10-21 18:18:33.187515288 -0500
+@@ -0,0 +1,130 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
 +
-+static int
-+gulm_plock (lm_lockspace_t * lockspace,
-+	    struct lm_lockname *name, unsigned long owner,
-+	    int wait, int exclusive, uint64_t start, uint64_t end)
-+{
-+	return -ENOSYS;
-+}
++#define EXTERN
++#include "gulm.h"
 +
-+static int
-+gulm_punlock (lm_lockspace_t * lockspace,
-+	      struct lm_lockname *name, unsigned long owner,
-+	      uint64_t start, uint64_t end)
-+{
-+	return -ENOSYS;
-+}
++#include <linux/init.h>
 +
-+/****************************************************************************/
-+/****************************************************************************/
-+/****************************************************************************/
-+/* should move the firstmounter lock stuff into its own file perhaps? */
-+/**
-+ * get_special_lock - 
-+ * @fs: <> filesystem we're getting special lock for
-+ *
-+ * Returns: gulm_lock_t
-+ */
-+STATIC gulm_lock_t *
-+get_special_lock (gulm_fs_t * fs)
-+{
-+	int err, len;
-+	gulm_lock_t *lck = NULL;
-+	uint8_t key[GIO_KEY_SIZE];
++#include "gulm_lock_queue.h"
 +
-+	len = pack_lock_key(key, GIO_KEY_SIZE, 'F', fs->fs_name, "irstMount", 9);
-+	if( len <= 0 ) return NULL;
++MODULE_DESCRIPTION ("Grand Unified Locking Module " GULM_RELEASE_NAME);
++MODULE_AUTHOR ("Red Hat, Inc.");
++MODULE_LICENSE ("GPL");
 +
-+	err = internal_gulm_get_lock (fs, key, len, &lck);
++gulm_cm_t gulm_cm;
 +
-+	/* return pointer */
-+	return lck;
-+}
-+
-+/**
-+ * do_lock_time_out - 
-+ * @d: 
-+ *
-+ * after timeout, set cancel request on the handler queue. (since we cannot
-+ * call it from within the timer code.
-+ * 
-+ */
-+static void
-+do_lock_time_out (unsigned long d)
-+{
-+	gulm_lock_t *lck = (gulm_lock_t *) d;
-+	qu_function_call (&lck->fs->cq, gulm_cancel, lck);
-+}
-+
-+/**
-+ * get_mount_lock - 
-+ * @fs: 
-+ * @first: 
-+ * 
-+ * Get the Firstmount lock.
-+ * We try to grab it Exl.  IF we get that, then we are the first client
-+ * mounting this fs.  Otherwise we grab it shared to show that there are
-+ * clients using this fs.
-+ * 
-+ * Returns: int
-+ */
-+int
-+get_mount_lock (gulm_fs_t * fs, int *first)
-+{
-+	int err;
-+	struct timer_list locktimeout;
-+	gulm_lock_t *lck = NULL;
-+	/*
-+	 * first we need to get the lock into the hash.
-+	 * then we can try to get it Exl with try and noexp.
-+	 * if the try fails, grab it shared.
-+	 */
-+
-+	lck = get_special_lock (fs);	/* there is only a mount lock. */
-+	if (lck == NULL) {
-+		err = -ENOMEM;
-+		goto fail;
-+	}
-+
-+	fs->mountlock = lck;
-+      try_it_again:
-+	*first = FALSE;		/* assume we're not first */
-+
-+	err = gulm_lock (lck, LM_ST_UNLOCKED, LM_ST_EXCLUSIVE,
-+			 LM_FLAG_TRY | LM_FLAG_NOEXP);
-+#ifndef USE_SYNC_LOCKING
-+	wait_for_completion (&fs->sleep);
-+#endif
-+
-+	if ((lck->result & LM_OUT_ST_MASK) == LM_ST_EXCLUSIVE) {
-+		/* we got the lock, we're the first mounter. */
-+		*first = TRUE;
-+		log_msg (lgm_locking, "fsid=%s: Got mount lock Exclusive.\n",
-+			 fs->fs_name);
-+		return 0;
-+	} else if ((lck->result & LM_OUT_ST_MASK) == LM_ST_UNLOCKED) {
-+		log_msg (lgm_locking,
-+			 "fsid=%s: Didn't get mount lock Exl, someone else "
-+			 "was first, trying for shared.\n", fs->fs_name);
-+
-+		/* the try failed, pick it up shared. */
-+		/* There was a case (bug #220) where we could hang here.
-+		 *
-+		 * To handle this, we put up a timer for a couple of
-+		 * minutes.  That if it trips, it cancels our shared
-+		 * request.  Which we then see, so we go back and try the
-+		 * EXL again.  If the Firstmounter is fine and is just
-+		 * taking a damn long time to do its work, this just ends
-+		 * back here, no worse for the wear.
-+		 *
-+		 * Another way to do this, is to wait for a killed message
-+		 * for the master.  When we get that, && we're pending
-+		 * shared here, send the gulm_canel for the mounter lock.
-+		 * (too bad we are not in the fs list yet at this point.
-+		 * (well, maybe that *isn't* a bad thing))
-+		 */
-+		init_timer (&locktimeout);
-+		locktimeout.function = do_lock_time_out;
-+		locktimeout.data = (unsigned long) lck;
-+		mod_timer (&locktimeout, jiffies + (120 * HZ));
-+		err = gulm_lock (lck, LM_ST_UNLOCKED, LM_ST_SHARED, 0);
-+#ifndef USE_SYNC_LOCKING
-+		wait_for_completion (&fs->sleep);
-+#endif
-+		del_timer (&locktimeout);
-+
-+		if ((lck->result & LM_OUT_ST_MASK) == LM_ST_SHARED) {
-+			/* kewl we got it. */
-+			log_msg (lgm_locking,
-+				 "fsid=%s: Got mount lock shared.\n",
-+				 fs->fs_name);
-+			return 0;
-+		}
-+
-+		log_msg (lgm_locking,
-+			 "fsid=%s: Shared req timed out, trying Exl again.\n",
-+			 fs->fs_name);
-+		goto try_it_again;
-+	}
-+      fail:
-+	log_err ("Exit get_mount_lock err=%d\n", err);
-+	return err;
-+}
-+
-+/**
-+ * downgrade_mount_lock - 
-+ * @fs: 
-+ * 
-+ * drop the Firstmount lock down to shared.  This lets other mount.
-+ * 
-+ * Returns: int
-+ */
-+int
-+downgrade_mount_lock (gulm_fs_t * fs)
-+{
-+	int err;
-+	gulm_lock_t *lck = (gulm_lock_t *) fs->mountlock;
-+	/* we were first, so we have it exl.
-+	 * shift it to shared so others may mount.
-+	 */
-+	err = gulm_lock (lck, LM_ST_EXCLUSIVE, LM_ST_SHARED, LM_FLAG_NOEXP);
-+#ifndef USE_SYNC_LOCKING
-+	wait_for_completion (&fs->sleep);
-+#endif
-+
-+	if ((lck->result & LM_OUT_ST_MASK) != LM_ST_SHARED) {
-+		log_err
-+		    ("fsid=%s: Couldn't downgrade mount lock to shared!!!!!\n",
-+		     fs->fs_name);
-+	}
-+	return 0;
-+}
-+
-+/**
-+ * drop_mount_lock - drop our hold on the firstmount lock.
-+ * @fs: <> the filesystem pointer.
-+ * 
-+ * Returns: int
-+ */
-+int
-+drop_mount_lock (gulm_fs_t * fs)
-+{
-+	int err;
-+	gulm_lock_t *lck = (gulm_lock_t *) fs->mountlock;
-+
-+	if (fs->mountlock == NULL) {
-+		log_err ("fsid=%s: There's no Mount lock!!!!!\n", fs->fs_name);
-+		return -1;
-+	}
-+	err = gulm_unlock (lck, LM_ST_SHARED);
-+#ifndef USE_SYNC_LOCKING
-+	wait_for_completion (&fs->sleep);
-+#endif
-+
-+	if (lck->result != LM_ST_UNLOCKED)
-+		log_err ("fsid=%s: Couldn't unlock mount lock!!!!!!\n",
-+			 fs->fs_name);
-+	gulm_put_lock (fs->mountlock);
-+	fs->mountlock = NULL;
-+	return 0;
-+}
-+
-+/*****************************************************************************/
 +struct lm_lockops gulm_ops = {
 +      lm_proto_name:PROTO_NAME,
 +      lm_mount:gulm_mount,
@@ -4537,10 +4642,354 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_lt.c linux-patched/fs/gfs_loc
 +      lm_recovery_done:gulm_recovery_done,
 +      lm_owner:THIS_MODULE,
 +};
++
++/**
++ * init_gulm - Initialize the gulm module
++ *
++ * Returns: 0 on success, -EXXX on failure
++ */
++int __init
++init_gulm (void)
++{
++	int error;
++
++	memset (&gulm_cm, 0, sizeof (gulm_cm_t));
++	gulm_cm.hookup = NULL;
++
++	/* register with the lm layers. */
++	error = lm_register_proto (&gulm_ops);
++	if (error)
++		goto fail;
++
++	error = glq_init();
++	if (error != 0 )
++		goto lm_fail;
++
++	error = gulm_lt_init();
++	if (error != 0)
++		goto glq_fail;
++
++	init_gulm_fs ();
++
++	printk ("Gulm %s (built %s %s) installed\n",
++		GULM_RELEASE_NAME, __DATE__, __TIME__);
++
++	return 0;
++
++glq_fail:
++	glq_release();
++
++   lm_fail:
++	lm_unregister_proto (&gulm_ops);
++
++      fail:
++	return error;
++}
++
++/**
++ * exit_gulm - cleanup the gulm module
++ *
++ */
++
++void __exit
++exit_gulm (void)
++{
++	gulm_lt_release();
++	glq_release();
++	lm_unregister_proto (&gulm_ops);
++}
++
++module_init (init_gulm);
++module_exit (exit_gulm);
++
++/* the libgulm.h interface. */
++EXPORT_SYMBOL (lg_initialize);
++EXPORT_SYMBOL (lg_release);
++
++EXPORT_SYMBOL (lg_core_handle_messages);
++EXPORT_SYMBOL (lg_core_selector);
++EXPORT_SYMBOL (lg_core_login);
++EXPORT_SYMBOL (lg_core_logout);
++EXPORT_SYMBOL (lg_core_nodeinfo);
++EXPORT_SYMBOL (lg_core_nodelist);
++EXPORT_SYMBOL (lg_core_servicelist);
++EXPORT_SYMBOL (lg_core_corestate);
++EXPORT_SYMBOL (lg_core_shutdown);
++EXPORT_SYMBOL (lg_core_forceexpire);
++EXPORT_SYMBOL (lg_core_forcepending);
++
++EXPORT_SYMBOL (lg_lock_handle_messages);
++EXPORT_SYMBOL (lg_lock_selector);
++EXPORT_SYMBOL (lg_lock_login);
++EXPORT_SYMBOL (lg_lock_logout);
++EXPORT_SYMBOL (lg_lock_state_req);
++EXPORT_SYMBOL (lg_lock_cancel_req);
++EXPORT_SYMBOL (lg_lock_action_req);
++EXPORT_SYMBOL (lg_lock_drop_exp);
++/* vim: set ai cin noet sw=8 ts=8 : */
+diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c linux-patched/fs/gfs_locking/lock_gulm/gulm_plock.c
+--- linux-orig/fs/gfs_locking/lock_gulm/gulm_plock.c	1969-12-31 18:00:00.000000000 -0600
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_plock.c	2004-10-21 18:18:33.188515056 -0500
+@@ -0,0 +1,256 @@
++/******************************************************************************
++*******************************************************************************
++**
++**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
++**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++**
++**  This copyrighted material is made available to anyone wishing to use,
++**  modify, copy, or redistribute it subject to the terms and conditions
++**  of the GNU General Public License v.2.
++**
++*******************************************************************************
++******************************************************************************/
++
++#include "gulm.h"
++
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/slab.h>
++#include <linux/file.h>
++#define __KERNEL_SYSCALLS__
++#include <linux/unistd.h>
++
++#include "gulm_lock_queue.h"
++
++/*****************************************************************************/
++struct gulm_pret_s {
++	int error;
++	struct completion sleep;
++};
++
++/**
++ * gulm_plock_packname - 
++ * @fsname: 
++ * @num: 
++ * @key: 
++ * @keylen: 
++ * 
++ * 
++ * Returns: int
++ */
++int gulm_plock_packname(uint8_t * fsname, uint64_t num, uint8_t *key, uint16_t keylen)
++{
++	uint8_t temp[8];
++	temp[0] = (num >> 56) & 0xff;
++	temp[1] = (num >> 48) & 0xff;
++	temp[2] = (num >> 40) & 0xff;
++	temp[3] = (num >> 32) & 0xff;
++	temp[4] = (num >> 24) & 0xff;
++	temp[5] = (num >> 16) & 0xff;
++	temp[6] = (num >> 8) & 0xff;
++	temp[7] = (num >> 0) & 0xff;
++	return pack_lock_key(key, keylen, 'P', fsname, temp, 8);
++}
++
++/**
++ * gulm_plock_finish - 
++ * @glck: 
++ * 
++ * 
++ * Returns: void
++ */
++void gulm_plock_finish(struct glck_req *glck)
++{
++	struct gulm_pret_s *g = (struct gulm_pret_s *)glck->misc;
++	g->error = glck->error;
++	complete (&g->sleep);
++}
++
++struct gulm_pqur_s {
++	uint64_t start;
++	uint64_t stop;
++	uint64_t subid;
++	int error;
++	uint8_t state;
++	struct completion sleep;
++};
++/**
++ * gulm_plock_query_finish - 
++ * @glck: 
++ * 
++ * 
++ * Returns: void
++ */
++void gulm_plock_query_finish(struct glck_req *glck)
++{
++	struct gulm_pqur_s *g = (struct gulm_pqur_s *)glck->misc;
++	g->error = glck->error;
++	g->start = glck->start;
++	g->stop = glck->stop;
++	g->subid = glck->subid;
++	g->state = glck->state;
++	complete (&g->sleep);
++}
++/**
++ * gulm_plock_get - 
++ */
++int
++gulm_plock_get (lm_lockspace_t * lockspace,
++		struct lm_lockname *name, unsigned long owner,
++		uint64_t * start, uint64_t * end, int *exclusive,
++		unsigned long *rowner)
++{
++	int err = 0;
++	struct gulm_pqur_s pqur;
++	uint8_t key[GIO_KEY_SIZE];
++	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		err = -ENOMEM;
++		goto fail;
++	}
++
++	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
++			key, GIO_KEY_SIZE);
++	item->key = key;
++	item->subid = owner;
++	item->start = *start;
++	item->stop = *end;
++	item->type = glq_req_type_query;
++	if (*exclusive) {
++		item->state = lg_lock_state_Exclusive;
++	} else {
++		item->state = lg_lock_state_Shared;
++	}
++	item->flags = lg_lock_flag_NoCallBacks;
++	item->error = pqur.error = 0;
++
++	init_completion (&pqur.sleep);
++
++	item->misc = &pqur;
++	item->finish = gulm_plock_query_finish;
++
++	glq_queue (item);
++	wait_for_completion (&pqur.sleep);
++
++	if (pqur.error == lg_err_TryFailed) {
++		err = -EAGAIN;
++		*start = pqur.start;
++		*end = pqur.stop;
++		*rowner = pqur.subid;
++		if( pqur.state == lg_lock_state_Exclusive )
++			*exclusive = TRUE;
++		else
++			*exclusive = FALSE;
++	} else {
++		err = -pqur.error;
++	}
++
++fail:
++	return err;
++}
++
++/**
++ * gulm_plock - 
++ *
++ */
++int
++gulm_plock (lm_lockspace_t * lockspace,
++	    struct lm_lockname *name, unsigned long owner,
++	    int wait, int exclusive, uint64_t start, uint64_t end)
++{
++	int err = 0;
++	struct gulm_pret_s pret;
++	uint8_t key[GIO_KEY_SIZE];
++	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		err = -ENOMEM;
++		goto fail;
++	}
++
++	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
++			key, GIO_KEY_SIZE);
++	item->key = key;
++	item->subid = owner;
++	item->start = start;
++	item->stop = end;
++	item->type = glq_req_type_state;
++	if (exclusive) {
++		item->state = lg_lock_state_Exclusive;
++	} else {
++		item->state = lg_lock_state_Shared;
++	}
++	item->flags = lg_lock_flag_NoCallBacks;
++	if (wait)
++		item->flags |= lg_lock_flag_Try;
++	item->error = pret.error = 0;
++
++	init_completion (&pret.sleep);
++
++	item->misc = &pret;
++	item->finish = gulm_plock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&pret.sleep);
++
++	if (pret.error == lg_err_TryFailed) {
++		err = -EAGAIN;
++	} else {
++		err = -pret.error;
++	}
++
++fail:
++	return err;
++}
++
++/**
++ * gulm_unplock - 
++ */
++int
++gulm_punlock (lm_lockspace_t * lockspace,
++	      struct lm_lockname *name, unsigned long owner,
++	      uint64_t start, uint64_t end)
++{
++	int err = 0;
++	struct gulm_pret_s pret;
++	uint8_t key[GIO_KEY_SIZE];
++	gulm_fs_t *fs = (gulm_fs_t *) lockspace;
++	glckr_t *item;
++
++	item = glq_get_new_req();
++	if( item == NULL ) {
++		err = -ENOMEM;
++		goto fail;
++	}
++
++	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
++			key, GIO_KEY_SIZE);
++	item->key = key;
++	item->subid = owner;
++	item->start = start;
++	item->stop = end;
++	item->type = glq_req_type_state;
++	item->state = lg_lock_state_Unlock;
++	item->flags = 0;
++	item->error = pret.error = 0;
++
++	init_completion (&pret.sleep);
++
++	item->misc = &pret;
++	item->finish = gulm_plock_finish;
++
++	glq_queue (item);
++	wait_for_completion (&pret.sleep);
++
++	err = -pret.error;
++
++fail:
++	return err;
++}
++
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h
 --- linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/gulm_prints.h	2004-10-21 18:18:33.188515056 -0500
 @@ -0,0 +1,45 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -4587,204 +5036,9 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_prints.h linux-patched/fs/gfs
 +#define TICK printk("TICK==>" PROTO_NAME ": [%s:%d] pid:%d\n" , __FILE__ , __LINE__ , current->pid )
 +
 +#endif /*__gulm_prints_h__*/
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_procinfo.c linux-patched/fs/gfs_locking/lock_gulm/gulm_procinfo.c
---- linux-orig/fs/gfs_locking/lock_gulm/gulm_procinfo.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_procinfo.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,165 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#include "gulm.h"
-+#include <linux/kernel.h>
-+#include <linux/proc_fs.h>
-+#include "util.h"
-+
-+extern gulm_cm_t gulm_cm;
-+
-+struct proc_dir_entry *gulm_proc_dir;
-+struct proc_dir_entry *gulm_fs_proc_dir;
-+
-+/* the read operating function. */
-+int
-+gulm_fs_proc_read (char *buf, char **start, off_t off, int count, int *eof,
-+		   void *data)
-+{
-+	gulm_fs_t *fs = (gulm_fs_t *) data;
-+	count = 0;		/* ignore how much it wants */
-+
-+	count += sprintf (buf + count, "Filesystem: %s\nJID: %d\n"
-+			  "handler_queue_cur: %d\n"
-+			  "handler_queue_max: %d\n",
-+			  fs->fs_name, fs->fsJID,
-+			  fs->cq.task_count, fs->cq.task_max);
-+
-+	*eof = TRUE;
-+	if (off >= count)
-+		return 0;
-+	*start = buf + off;
-+	return (count - off);
-+}
-+
-+/* read the stuff for all */
-+int
-+gulm_core_proc_read (char *buf, char **start, off_t off, int count,
-+		     int *eof, void *data)
-+{
-+	count = 0;		/* ignore how much it wants */
-+
-+	count = sprintf (buf,
-+			 "cluster id: %s\n"
-+			 "my name: %s\n", gulm_cm.clusterID, gulm_cm.myName);
-+
-+	*eof = TRUE;
-+	if (off >= count)
-+		return 0;
-+	*start = buf + off;
-+	return (count - off);
-+}
-+
-+int
-+gulm_lt_proc_read (char *buf, char **start, off_t off, int count,
-+		   int *eof, void *data)
-+{
-+	lock_table_t *lt = (lock_table_t *) data;
-+	count = 0;		/* ignore how much it wants */
-+
-+	count += sprintf (buf + count, "\n"
-+			  "lock counts:\n"
-+			  "  total: %d\n"
-+			  "    unl: %d\n"
-+			  "    exl: %d\n"
-+			  "    shd: %d\n"
-+			  "    dfr: %d\n"
-+			  "pending: %d\n"
-+			  "   lvbs: %d\n"
-+			  "   lops: %d\n\n",
-+			  lt->locks_total,
-+			  lt->locks_unl,
-+			  lt->locks_exl,
-+			  lt->locks_shd,
-+			  lt->locks_dfr,
-+			  atomic_read (&lt->locks_pending),
-+			  lt->locks_lvbs, lt->lops);
-+
-+	*eof = TRUE;
-+	if (off >= count)
-+		return 0;
-+	*start = buf + off;
-+	return (count - off);
-+}
-+
-+/* add entry to our proc folder
-+ * call this on mount.
-+ * */
-+int
-+add_to_proc (gulm_fs_t * fs)
-+{
-+	if (!(create_proc_read_entry (fs->fs_name, S_IFREG | S_IRUGO,
-+				      gulm_fs_proc_dir, gulm_fs_proc_read,
-+				      (void *) fs))) {
-+		log_err ("couldn't register proc entry for %s\n", fs->fs_name);
-+		return -EINVAL;
-+	}
-+	return 0;
-+}
-+
-+/* get rid of it
-+ * this on umount.
-+ * */
-+void
-+remove_from_proc (gulm_fs_t * fs)
-+{
-+	remove_proc_entry (fs->fs_name, gulm_fs_proc_dir);
-+}
-+
-+ /* create our own root dir.
-+  * initmodule
-+  * */
-+int
-+init_proc_dir (void)
-+{
-+	if ((gulm_proc_dir = proc_mkdir ("gulm", &proc_root)) == NULL) {
-+		log_err ("cannot create the gulm directory in /proc\n");
-+		return -EINVAL;
-+	}
-+	if (!(create_proc_read_entry ("core", S_IFREG | S_IRUGO, gulm_proc_dir,
-+				      gulm_core_proc_read, NULL))) {
-+		log_err ("couldn't register proc entry for core\n");
-+		remove_proc_entry ("gulm", &proc_root);
-+		return -EINVAL;
-+	}
-+	if ((gulm_fs_proc_dir =
-+	     proc_mkdir ("filesystems", gulm_proc_dir)) == NULL) {
-+		log_err
-+		    ("cannot create the filesystems directory in /proc/gulm\n");
-+		remove_proc_entry ("core", gulm_proc_dir);
-+		remove_proc_entry ("gulm", &proc_root);
-+		return -EINVAL;
-+	}
-+	if (!(create_proc_read_entry ("lockspace", S_IFREG | S_IRUGO,
-+				      gulm_proc_dir, gulm_lt_proc_read,
-+				      (void *) &gulm_cm.ltpx))) {
-+		remove_proc_entry ("filesystems", gulm_proc_dir);
-+		remove_proc_entry ("core", gulm_proc_dir);
-+		remove_proc_entry ("gulm", &proc_root);
-+		return -EINVAL;
-+	}
-+
-+	return 0;
-+}
-+
-+/* destroy it
-+ * close module
-+ * */
-+void
-+remove_proc_dir (void)
-+{
-+	remove_proc_entry ("lockspace", gulm_proc_dir);
-+	remove_proc_entry ("filesystems", gulm_proc_dir);
-+	remove_proc_entry ("core", gulm_proc_dir);
-+	remove_proc_entry ("gulm", &proc_root);
-+}
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/gulm_procinfo.h linux-patched/fs/gfs_locking/lock_gulm/gulm_procinfo.h
---- linux-orig/fs/gfs_locking/lock_gulm/gulm_procinfo.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/gulm_procinfo.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,22 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __procinfo_h__
-+#define __procinfo_h__
-+int add_to_proc (gulm_fs_t * fs);
-+void remove_from_proc (gulm_fs_t * fs);
-+void remove_locktables_from_proc (void);
-+void add_locktables_to_proc (void);
-+int init_proc_dir (void);
-+void remove_proc_dir (void);
-+#endif /*__procinfo_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.c linux-patched/fs/gfs_locking/lock_gulm/handler.c
 --- linux-orig/fs/gfs_locking/lock_gulm/handler.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/handler.c	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/handler.c	2004-10-21 18:18:33.188515056 -0500
 @@ -0,0 +1,343 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5117,7 +5371,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.c linux-patched/fs/gfs_loc
 +	if (cnt <= 0)
 +		cnt = 2;
 +	for (; cnt > 0; cnt--) {
-+		err = kernel_thread (handler, cq, 0);	/* XXX linux part */
++		err = kernel_thread (handler, cq, 0);
 +		if (err < 0) {
 +			stop_callback_qu (cq);
 +			/* calling stop here might not behave correctly in all error
@@ -5131,7 +5385,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.c linux-patched/fs/gfs_loc
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.h linux-patched/fs/gfs_locking/lock_gulm/handler.h
 --- linux-orig/fs/gfs_locking/lock_gulm/handler.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/handler.h	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/handler.h	2004-10-21 18:18:33.189514825 -0500
 @@ -0,0 +1,42 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5177,8 +5431,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/handler.h linux-patched/fs/gfs_loc
 +#endif /*__handler_c__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_locking/lock_gulm/lg_core.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_core.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_core.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,669 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_core.c	2004-10-21 18:18:33.189514825 -0500
+@@ -0,0 +1,671 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -5348,6 +5602,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_loc
 +		do {
 +			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
 +				break;
++			if ((err = xdr_dec_uint8 (dec, &x_mode)) != 0)
++				break;
 +			if (x_state == gio_Mbr_ama_Slave) {
 +				if ((err = xdr_dec_ipv6 (dec, &x_ip)) != 0)
 +					break;
@@ -5364,7 +5620,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_loc
 +			err = 0;
 +			goto exit;
 +		}
-+		err = ccbp->statechange (misc, x_state, &x_ip, lg->cfba);
++		err = ccbp->statechange (misc, x_state, x_mode, &x_ip, lg->cfba);
 +		goto exit;
 +	} else if (gulm_core_mbr_updt == x_code) {
 +		do {
@@ -5850,8 +6106,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_core.c linux-patched/fs/gfs_loc
 +/* vim: set ai cin noet sw=8 ts=8 : */
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,638 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_lock.c	2004-10-21 18:18:33.190514593 -0500
+@@ -0,0 +1,745 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -6027,6 +6283,56 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_loc
 +		err =
 +		    cbp->lock_action (misc, &lg->lfba[4], x_keylen - 4,
 +				      x_subid, x_state, x_error);
++		goto exit;
++	} else if (gulm_lock_query_rpl == x_code) {
++		uint64_t x_c_subid=0, x_c_start=0, x_c_stop=0;
++		uint8_t x_c_state=0;
++		do {
++			if ((err =
++			     xdr_dec_raw_ag (dec, (void **) &lg->lfba,
++					     &lg->lfba_len, &x_keylen)) != 0)
++				break;
++         		if ((err = xdr_dec_uint64(dec, &x_subid)) != 0 )
++				break;
++         		if ((err = xdr_dec_uint64(dec, &x_start)) != 0 )
++				break;
++         		if ((err = xdr_dec_uint64(dec, &x_stop)) != 0 )
++				break;
++			if ((err = xdr_dec_uint8 (dec, &x_state)) != 0)
++				break;
++			if ((err = xdr_dec_uint32 (dec, &x_error)) != 0)
++				break;
++			/* i realize that I'm pretty much ignoring the fact that
++			 * this is can be a list of items.  As of current, there
++			 * is never more than one item on this list.
++			 * I think I made it a list so it could be in the future,
++			 * even though I cannot think of why.
++			 */
++			if ((err = xdr_dec_list_start(dec)) != 0)
++				break;
++			while (xdr_dec_list_stop(dec) != 0) {
++				if((err = xdr_dec_string_ag(dec, &lg->lfbb, &lg->lfbb_len)) != 0) break;
++				if((err = xdr_dec_uint64(dec, &x_c_subid)) != 0 ) break;
++				if((err = xdr_dec_uint64(dec, &x_c_start)) != 0 ) break;
++				if((err = xdr_dec_uint64(dec, &x_c_stop)) != 0 ) break;
++				if((err = xdr_dec_uint8(dec, &x_c_state)) != 0) break;
++			}
++		} while (0);
++		if (err != 0) {
++			goto exit;
++		}
++		if (x_keylen <= 4) {
++			err = -EPROTO;	/* or something */
++			goto exit;
++		}
++		if (cbp->lock_query == NULL) {
++			err = 0;
++			goto exit;
++		}
++		err = cbp->lock_query (misc, &lg->lfba[4], x_keylen - 4,
++				       x_subid, x_start, x_stop, x_state,
++				       x_error, lg->lfbb, x_c_subid,
++				       x_c_start, x_c_stop, x_c_state);
 +		goto exit;
 +	} else if (gulm_lock_cb_state == x_code) {
 +		do {
@@ -6430,6 +6736,63 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_loc
 +}
 +
 +/**
++ * lg_lock_query_req - 
++ * @lgp: 
++ * @key: 
++ * @keylen: 
++ * @subid: 
++ * @start: 
++ * @stop: 
++ * @state: 
++ * 
++ * 
++ * Returns: int
++ */
++int lg_lock_query_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
++      uint64_t subid, uint64_t start, uint64_t stop, uint8_t state)
++{
++   gulm_interface_t *lg = (gulm_interface_t *)lgp;
++   struct iovec iov[2];
++   xdr_enc_t *enc;
++   int err;
++
++   /* make sure it is a gulm_interface_p. */
++   if( lg == NULL ) return -EINVAL;
++   if( lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC ) return -EINVAL;
++
++   if( lg->lock_fd < 0 || lg->lock_enc == NULL || lg->lock_dec == NULL)
++      return -EINVAL;
++
++   if( state != lg_lock_state_Unlock &&
++       state != lg_lock_state_Exclusive &&
++       state != lg_lock_state_Deferred &&
++       state != lg_lock_state_Shared )
++      return -EINVAL;
++
++   if( stop < start ) return -EINVAL;
++
++   enc = lg->lock_enc;
++
++   iov[0].iov_base = lg->lockspace;
++   iov[0].iov_len = 4;
++   iov[1].iov_base = key;
++   iov[1].iov_len = keylen;
++
++	down (&lg->lock_sender);
++   do{
++      if((err = xdr_enc_uint32(enc, gulm_lock_query_req)) != 0 ) break;
++      if((err = xdr_enc_raw_iov(enc, 2, iov)) != 0 ) break;
++      if((err = xdr_enc_uint64(enc, subid)) != 0) break;
++      if((err = xdr_enc_uint64(enc, start)) != 0) break;
++      if((err = xdr_enc_uint64(enc, stop)) != 0) break;
++      if((err = xdr_enc_uint8(enc, state)) != 0 ) break;
++      if((err = xdr_enc_flush(enc)) != 0 ) break;
++   }while(0);
++	up (&lg->lock_sender);
++   return err;
++}
++
++/**
 + * lg_lock_drop_exp - 
 + * @ulm_interface_p: 
 + * @holder: 
@@ -6492,7 +6855,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_lock.c linux-patched/fs/gfs_loc
 +
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_main.c linux-patched/fs/gfs_locking/lock_gulm/lg_main.c
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_main.c	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_main.c	2004-10-21 18:18:33.190514593 -0500
 @@ -0,0 +1,209 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6705,7 +7068,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_main.c linux-patched/fs/gfs_loc
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h
 --- linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/lg_priv.h	2004-10-21 18:18:33.191514361 -0500
 @@ -0,0 +1,86 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6795,8 +7158,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/lg_priv.h linux-patched/fs/gfs_loc
 +#endif /*__lg_priv_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_locking/lock_gulm/libgulm.h
 --- linux-orig/fs/gfs_locking/lock_gulm/libgulm.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/libgulm.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,189 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/libgulm.h	2004-10-21 18:18:33.191514361 -0500
+@@ -0,0 +1,197 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -6844,7 +7207,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +	int (*logout_reply) (void *misc);
 +	int (*nodelist) (void *misc, lglcb_t type, char *name,
 +			 struct in6_addr * ip, uint8_t state);
-+	int (*statechange) (void *misc, uint8_t corestate,
++	int (*statechange) (void *misc, uint8_t corestate, uint8_t quorate,
 +			    struct in6_addr * masterip, char *mastername);
 +	int (*nodechange) (void *misc, char *nodename,
 +			   struct in6_addr * nodeip, uint8_t nodestate);
@@ -6910,6 +7273,11 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +			    uint64_t subid, uint8_t action, uint32_t error);
 +	int (*drop_lock_req) (void *misc, uint8_t * key, uint16_t keylen,
 +			      uint64_t subid, uint8_t state);
++	int (*lock_query) (void *misc, uint8_t * key, uint16_t keylen,
++			   uint64_t subid, uint64_t start, uint64_t stop,
++			   uint8_t state, uint32_t error, uint8_t * cnode,
++			   uint64_t csubid, uint64_t cstart, uint64_t cstop,
++			   uint8_t cstate);
 +	int (*drop_all) (void *misc);
 +	int (*error) (void *misc, uint32_t err);
 +} lg_lockspace_callbacks_t;
@@ -6940,6 +7308,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +int lg_lock_action_req (gulm_interface_p, uint8_t * key, uint16_t keylen,
 +			uint64_t subid, uint8_t action,
 +			uint8_t * LVB, uint16_t LVBlen);
++int lg_lock_query_req(gulm_interface_p lgp, uint8_t *key, uint16_t keylen,
++      uint64_t subid, uint64_t start, uint64_t stop, uint8_t state);
 +int lg_lock_drop_exp (gulm_interface_p, uint8_t * holder,
 +		      uint8_t * keymask, uint16_t kmlen);
 +
@@ -6961,6 +7331,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +#define lg_lock_flag_IgnoreExp   (0x00000008)
 +#define lg_lock_flag_Cachable    (0x00000020)
 +#define lg_lock_flag_Piority     (0x00000040)
++#define lg_lock_flag_NoCallBacks (0x00000100)
 +
 +/* These are the possible values that can be in the error fields. */
 +#define lg_err_Ok              (0)
@@ -6986,769 +7357,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/libgulm.h linux-patched/fs/gfs_loc
 +#endif /*__libgulm_h__*/
 +
 +/* vim: set ai cin noet sw=8 ts=8 : */
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/linux_gulm_main.c linux-patched/fs/gfs_locking/lock_gulm/linux_gulm_main.c
---- linux-orig/fs/gfs_locking/lock_gulm/linux_gulm_main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/linux_gulm_main.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,107 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#define EXPORT_SYMTAB
-+#define WANT_DEBUG_NAMES
-+#define WANT_GMALLOC_NAMES
-+#define EXTERN
-+#include "gulm.h"
-+
-+#include <linux/init.h>
-+
-+#include "util.h"
-+#include "gulm_procinfo.h"
-+
-+MODULE_DESCRIPTION ("Grand Unified Locking Module " GULM_RELEASE_NAME);
-+MODULE_AUTHOR ("Red Hat, Inc.");
-+MODULE_LICENSE ("GPL");
-+
-+extern gulm_cm_t gulm_cm;
-+
-+/**
-+ * init_gulm - Initialize the gulm module
-+ *
-+ * Returns: 0 on success, -EXXX on failure
-+ */
-+int __init
-+init_gulm (void)
-+{
-+	int error;
-+
-+	memset (&gulm_cm, 0, sizeof (gulm_cm_t));
-+	gulm_cm.loaded = FALSE;
-+	gulm_cm.hookup = NULL;
-+
-+	/* register with the lm layers. */
-+	error = lm_register_proto (&gulm_ops);
-+	if (error)
-+		goto fail;
-+
-+	error = init_proc_dir ();
-+	if (error != 0) {
-+		goto fail_lm;
-+	}
-+
-+	init_gulm_fs ();
-+
-+	printk ("Gulm %s (built %s %s) installed\n",
-+		GULM_RELEASE_NAME, __DATE__, __TIME__);
-+
-+	return 0;
-+
-+      fail_lm:
-+	lm_unregister_proto (&gulm_ops);
-+
-+      fail:
-+	return error;
-+}
-+
-+/**
-+ * exit_gulm - cleanup the gulm module
-+ *
-+ */
-+
-+void __exit
-+exit_gulm (void)
-+{
-+	remove_proc_dir ();
-+	lm_unregister_proto (&gulm_ops);
-+}
-+
-+module_init (init_gulm);
-+module_exit (exit_gulm);
-+
-+/* the libgulm.h interface. */
-+EXPORT_SYMBOL (lg_initialize);
-+EXPORT_SYMBOL (lg_release);
-+
-+EXPORT_SYMBOL (lg_core_handle_messages);
-+EXPORT_SYMBOL (lg_core_selector);
-+EXPORT_SYMBOL (lg_core_login);
-+EXPORT_SYMBOL (lg_core_logout);
-+EXPORT_SYMBOL (lg_core_nodeinfo);
-+EXPORT_SYMBOL (lg_core_nodelist);
-+EXPORT_SYMBOL (lg_core_servicelist);
-+EXPORT_SYMBOL (lg_core_corestate);
-+EXPORT_SYMBOL (lg_core_shutdown);
-+EXPORT_SYMBOL (lg_core_forceexpire);
-+EXPORT_SYMBOL (lg_core_forcepending);
-+
-+EXPORT_SYMBOL (lg_lock_handle_messages);
-+EXPORT_SYMBOL (lg_lock_selector);
-+EXPORT_SYMBOL (lg_lock_login);
-+EXPORT_SYMBOL (lg_lock_logout);
-+EXPORT_SYMBOL (lg_lock_state_req);
-+EXPORT_SYMBOL (lg_lock_cancel_req);
-+EXPORT_SYMBOL (lg_lock_action_req);
-+EXPORT_SYMBOL (lg_lock_drop_exp);
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/lm_interface.h linux-patched/fs/gfs_locking/lock_gulm/lm_interface.h
---- linux-orig/fs/gfs_locking/lock_gulm/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lm_interface.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,193 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+/*
-+
-+   Sooner or later, I need to put all the documentation back into this file.
-+   In the mean time, here are some notes.
-+
-+   -  The lock module is now responsible for STOMITHing the an expired
-+   client before calling the callback with type LM_CB_NEED_RECOVERY.
-+
-+   -  If mount() operation returns first == TRUE, GFS will check all the
-+   journals.  GFS itself can't/shouldn't stomith the machines, so the lock module
-+   needs to make sure that there are no zombie machines on any of the
-+   journals.  (i.e. this should probably be on the first mount of the lock
-+   space where all mounts by other machines are blocked.)  GFS will call
-+   others_may_mount() when the filesystem is in a consistent state.
-+
-+   -  GFS can issue multiple simultaneous get_lock()s for the same lockname.
-+   The lock module needs to deal with it, either by 1)  building a hash table
-+   to lookup the structures and keeping a reference count so there is only
-+   on lm_lock_t for a given lockname. or 2) just dealing with multiple 
-+   lm_lock_t structures for a given lockname.
-+
-+*/
-+
-+#ifndef __LM_INTERFACE_DOT_H__
-+#define __LM_INTERFACE_DOT_H__
-+
-+typedef void lm_lockspace_t;
-+typedef void lm_lock_t;
-+typedef void lm_fsdata_t;
-+typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
-+			       void *data);
-+
-+/* Flags for the struct lm_lockstruct->ls_flags field */
-+
-+#define LM_LSFLAG_LOCAL        (0x00000001)
-+#define LM_LSFLAG_ASYNC        (0x00000002)
-+
-+/* Lock types */
-+
-+#define LM_TYPE_RESERVED       (0x00)
-+#define LM_TYPE_NONDISK        (0x01)
-+#define LM_TYPE_INODE          (0x02)
-+#define LM_TYPE_RGRP           (0x03)
-+#define LM_TYPE_META           (0x04)
-+#define LM_TYPE_IOPEN          (0x05)
-+#define LM_TYPE_FLOCK          (0x06)
-+#define LM_TYPE_PLOCK          (0x07)
-+#define LM_TYPE_QUOTA          (0x08)
-+
-+/* States passed to lock() */
-+
-+#define LM_ST_UNLOCKED         (0)
-+#define LM_ST_EXCLUSIVE        (1)
-+#define LM_ST_DEFERRED         (2)
-+#define LM_ST_SHARED           (3)
-+
-+/* Flags passed to lock() */
-+
-+#define LM_FLAG_TRY            (0x00000001)
-+#define LM_FLAG_TRY_1CB        (0x00000002)
-+#define LM_FLAG_NOEXP          (0x00000004)
-+#define LM_FLAG_ANY            (0x00000008)
-+#define LM_FLAG_PRIORITY       (0x00000010)
-+
-+/* Flags returned by lock() */
-+
-+#define LM_OUT_ST_MASK         (0x00000003)
-+#define LM_OUT_CACHEABLE       (0x00000004)
-+#define LM_OUT_CANCELED        (0x00000008)
-+#define LM_OUT_NEED_E          (0x00000010)
-+#define LM_OUT_NEED_D          (0x00000020)
-+#define LM_OUT_NEED_S          (0x00000040)
-+#define LM_OUT_ASYNC           (0x00000080)
-+#define LM_OUT_LVB_INVALID     (0x00000100)
-+
-+/* Callback types */
-+
-+#define LM_CB_NEED_E           (257)
-+#define LM_CB_NEED_D           (258)
-+#define LM_CB_NEED_S           (259)
-+#define LM_CB_NEED_RECOVERY    (260)
-+#define LM_CB_DROPLOCKS        (261)
-+#define LM_CB_ASYNC            (262)
-+
-+/* Reset_exp messages */
-+
-+#define LM_RD_GAVEUP           (308)
-+#define LM_RD_SUCCESS          (309)
-+
-+struct lm_lockname {
-+	uint64_t ln_number;
-+	unsigned int ln_type;
-+};
-+
-+#define lm_name_equal(name1, name2) \
-+(((name1)->ln_number == (name2)->ln_number) && \
-+ ((name1)->ln_type == (name2)->ln_type)) \
-+
-+struct lm_async_cb {
-+	struct lm_lockname lc_name;
-+	int lc_ret;
-+};
-+
-+struct lm_lockstruct;
-+
-+struct lm_lockops {
-+	char lm_proto_name[256];
-+
-+	/* Mount/Unmount */
-+
-+	int (*lm_mount) (char *table_name, char *host_data,
-+			 lm_callback_t cb, lm_fsdata_t *fsdata,
-+			 unsigned int min_lvb_size,
-+			 struct lm_lockstruct *lockstruct);
-+	void (*lm_others_may_mount) (lm_lockspace_t *lockspace);
-+	void (*lm_unmount) (lm_lockspace_t *lockspace);
-+
-+	/* Lock oriented operations */
-+
-+	int (*lm_get_lock) (lm_lockspace_t *lockspace,
-+			    struct lm_lockname *name, lm_lock_t **lockp);
-+	void (*lm_put_lock) (lm_lock_t *lock);
-+
-+	unsigned int (*lm_lock) (lm_lock_t *lock, unsigned int cur_state,
-+				 unsigned int req_state, unsigned int flags);
-+	unsigned int (*lm_unlock) (lm_lock_t *lock, unsigned int cur_state);
-+
-+	void (*lm_cancel) (lm_lock_t *lock);
-+
-+	int (*lm_hold_lvb) (lm_lock_t *lock, char **lvbp);
-+	void (*lm_unhold_lvb) (lm_lock_t *lock, char *lvb);
-+	void (*lm_sync_lvb) (lm_lock_t *lock, char *lvb);
-+
-+	/* Posix Lock oriented operations  */
-+
-+	int (*lm_plock_get) (lm_lockspace_t *lockspace,
-+			     struct lm_lockname *name, unsigned long owner,
-+			     uint64_t *start, uint64_t *end, int *exclusive,
-+			     unsigned long *rowner);
-+
-+	int (*lm_plock) (lm_lockspace_t *lockspace,
-+			 struct lm_lockname *name, unsigned long owner,
-+			 int wait, int exclusive, uint64_t start,
-+			 uint64_t end);
-+
-+	int (*lm_punlock) (lm_lockspace_t *lockspace,
-+			   struct lm_lockname *name, unsigned long owner,
-+			   uint64_t start, uint64_t end);
-+
-+	/* Client oriented operations */
-+
-+	void (*lm_recovery_done) (lm_lockspace_t *lockspace, unsigned int jid,
-+				  unsigned int message);
-+
-+	struct module *lm_owner;
-+};
-+
-+struct lm_lockstruct {
-+	unsigned int ls_jid;
-+	unsigned int ls_first;
-+	unsigned int ls_lvb_size;
-+	lm_lockspace_t *ls_lockspace;
-+	struct lm_lockops *ls_ops;
-+	int ls_flags;
-+};
-+
-+/* Bottom interface */
-+
-+int lm_register_proto(struct lm_lockops *proto);
-+void lm_unregister_proto(struct lm_lockops *proto);
-+
-+/* Top interface */
-+
-+int lm_mount(char *proto_name,
-+	     char *table_name, char *host_data,
-+	     lm_callback_t cb, lm_fsdata_t *fsdata,
-+	     unsigned int min_lvb_size, struct lm_lockstruct *lockstruct);
-+void lm_unmount(struct lm_lockstruct *lockstruct);
-+
-+#endif /* __LM_INTERFACE_DOT_H__ */
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/load_info.c linux-patched/fs/gfs_locking/lock_gulm/load_info.c
---- linux-orig/fs/gfs_locking/lock_gulm/load_info.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/load_info.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,95 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#include "gulm.h"
-+
-+#include <linux/kernel.h>
-+#include <linux/sched.h>
-+#define __KERNEL_SYSCALLS__
-+#include <linux/unistd.h>
-+
-+#include <linux/utsname.h>	/* for extern system_utsname */
-+
-+#include "util.h"
-+
-+gulm_cm_t gulm_cm;
-+
-+/**
-+ * init_ltpx - 
-+ */
-+int
-+init_ltpx (void)
-+{
-+	int j;
-+	lock_table_t *lt = &gulm_cm.ltpx;
-+
-+	INIT_LIST_HEAD (&lt->to_be_sent);
-+	spin_lock_init (&lt->queue_sender);
-+	init_waitqueue_head (&lt->send_wchan);
-+	lt->magic_one = 0xAAAAAAAA;
-+	init_MUTEX (&lt->sender);
-+	init_completion (&lt->startup);
-+	atomic_set (&lt->locks_pending, 0);
-+	lt->hashbuckets = 8191;
-+	lt->hshlk = kmalloc (sizeof (spinlock_t) * lt->hashbuckets, GFP_KERNEL);
-+	if (lt->hshlk == NULL)
-+		return -ENOMEM;
-+	lt->lkhsh =
-+	    kmalloc (sizeof (struct list_head) * lt->hashbuckets, GFP_KERNEL);
-+	if (lt->lkhsh == NULL) {
-+		kfree (lt->hshlk);
-+		return -ENOMEM;
-+	}
-+	for (j = 0; j < lt->hashbuckets; j++) {
-+		spin_lock_init (&lt->hshlk[j]);
-+		INIT_LIST_HEAD (&lt->lkhsh[j]);
-+	}
-+	return 0;
-+}
-+
-+/**
-+ * load_info - 
-+ * @hostdata: < optionally override the name of this node.
-+ * 
-+ * Returns: int
-+ */
-+int
-+load_info (char *hostdata)
-+{
-+	int err = 0;
-+
-+	if (gulm_cm.loaded)
-+		goto exit;
-+
-+	gulm_cm.verbosity = 0;
-+	if (hostdata != NULL && strlen (hostdata) > 0) {
-+		strncpy (gulm_cm.myName, hostdata, 64);
-+	} else {
-+		strncpy (gulm_cm.myName, system_utsname.nodename, 64);
-+	}
-+	gulm_cm.myName[63] = '\0';
-+
-+	/* breaking away from ccs. just hardcoding defaults here.
-+	 * Noone really used these anyways and if ppl want them badly, we'll
-+	 * find another way to set them. (modprobe options for example.)
-+	 * */
-+	gulm_cm.handler_threads = 2;
-+	gulm_cm.verbosity = lgm_Network | lgm_Stomith | lgm_Forking;
-+
-+	init_ltpx ();
-+
-+	gulm_cm.loaded = TRUE;
-+      exit:
-+	return err;
-+}
-+/* vim: set ai cin noet sw=8 ts=8 : */
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/load_info.h linux-patched/fs/gfs_locking/lock_gulm/load_info.h
---- linux-orig/fs/gfs_locking/lock_gulm/load_info.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/load_info.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,17 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __load_info_h__
-+#define __load_info_h__
-+int load_info (char *);
-+#endif /*__load_info_h__*/
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/lock_gulm.mod.c linux-patched/fs/gfs_locking/lock_gulm/lock_gulm.mod.c
---- linux-orig/fs/gfs_locking/lock_gulm/lock_gulm.mod.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/lock_gulm.mod.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,64 @@
-+#include <linux/module.h>
-+#include <linux/vermagic.h>
-+#include <linux/compiler.h>
-+
-+MODULE_INFO(vermagic, VERMAGIC_STRING);
-+
-+#undef unix
-+struct module __this_module
-+__attribute__((section(".gnu.linkonce.this_module"))) = {
-+ .name = __stringify(KBUILD_MODNAME),
-+ .init = init_module,
-+#ifdef CONFIG_MODULE_UNLOAD
-+ .exit = cleanup_module,
-+#endif
-+};
-+
-+static const struct modversion_info ____versions[]
-+__attribute_used__
-+__attribute__((section("__versions"))) = {
-+	{ 0x4cdc490c, "cleanup_module" },
-+	{ 0xcd58c830, "init_module" },
-+	{ 0x2fd6183e, "struct_module" },
-+	{ 0x7da8156e, "__kmalloc" },
-+	{ 0x15413d5, "del_timer" },
-+	{ 0xfcb2e1be, "malloc_sizes" },
-+	{ 0xf28971c5, "remove_wait_queue" },
-+	{ 0x6cef6a5d, "sock_release" },
-+	{ 0xa82cd6, "sock_recvmsg" },
-+	{ 0x7ff583dc, "remove_proc_entry" },
-+	{ 0x1d26aa98, "sprintf" },
-+	{ 0xda02d67, "jiffies" },
-+	{ 0x62129c6f, "default_wake_function" },
-+	{ 0x4abe8112, "wait_for_completion" },
-+	{ 0x364f95fe, "proc_mkdir" },
-+	{ 0x1b7d4074, "printk" },
-+	{ 0x4ee7a0fa, "sock_sendmsg" },
-+	{ 0x1075bf0, "panic" },
-+	{ 0x97abb28c, "in6addr_loopback" },
-+	{ 0xa34f1ef5, "crc32_le" },
-+	{ 0x44524640, "mod_timer" },
-+	{ 0xe98f1978, "kmem_cache_alloc" },
-+	{ 0xb12cdfe7, "system_utsname" },
-+	{ 0x17d59d01, "schedule_timeout" },
-+	{ 0x4292364c, "schedule" },
-+	{ 0xfb6af58d, "recalc_sigpending" },
-+	{ 0xe4e2b8a4, "create_proc_entry" },
-+	{ 0x685bdb69, "proc_root" },
-+	{ 0x830eb7ae, "__wake_up" },
-+	{ 0xf4e820df, "add_wait_queue" },
-+	{ 0x37a0cba, "kfree" },
-+	{ 0x2e60bace, "memcpy" },
-+	{ 0x3ff1c2f5, "sock_create" },
-+	{ 0x7e9ebb05, "kernel_thread" },
-+	{ 0xd22b546, "__up_wakeup" },
-+	{ 0x136eba7c, "complete" },
-+	{ 0xf2520b76, "__down_failed" },
-+	{ 0xdc43a9c8, "daemonize" },
-+};
-+
-+static const char __module_depends[]
-+__attribute_used__
-+__attribute__((section(".modinfo"))) =
-+"depends=ipv6,crc32";
-+
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/util.c linux-patched/fs/gfs_locking/lock_gulm/util.c
---- linux-orig/fs/gfs_locking/lock_gulm/util.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/util.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,109 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#include <linux/kernel.h>
-+#include <linux/types.h>
-+#include <linux/string.h>
-+#include <linux/crc32.h>
-+
-+/**
-+ * atoi
-+ *
-+ * @c:
-+ *
-+ */
-+
-+int
-+atoi (char *c)
-+{
-+	int x = 0;
-+
-+	while ('0' <= *c && *c <= '9') {
-+		x = x * 10 + (*c - '0');
-+		c++;
-+	}
-+
-+	return (x);
-+}
-+
-+/**
-+ * inet_aton
-+ *
-+ * @ascii:
-+ * @ip:
-+ *
-+ */
-+
-+int
-+inet_aton (char *ascii, uint32_t * ip)
-+{
-+	uint32_t value;
-+	int x;
-+
-+	*ip = 0;
-+
-+	for (x = 0; x < 4; x++) {
-+		value = atoi (ascii);
-+		if (value > 255)
-+			return (-1);
-+
-+		*ip = (*ip << 8) | value;
-+
-+		if (x != 3) {
-+			for (; *ascii != '.' && *ascii != '\0'; ascii++) {
-+				if (*ascii < '0' || *ascii > '9') {
-+					/* not a number. stop */
-+					return -1;
-+				}
-+			}
-+			if (*ascii == '\0')
-+				return (-1);
-+
-+			ascii++;
-+		}
-+	}
-+
-+	return (0);
-+}
-+
-+/**
-+ * inet_ntoa
-+ *
-+ * @ascii:
-+ * @ip:
-+ *
-+ */
-+void
-+inet_ntoa (uint32_t ip, char *buf)
-+{
-+	int i;
-+	char *p;
-+
-+	p = buf;
-+
-+	for (i = 3; i >= 0; i--) {
-+		p += sprintf (p, "%d", (ip >> (8 * i)) & 0xFF);
-+		if (i > 0)
-+			*(p++) = '.';
-+	}
-+
-+}
-+
-+/* public functions */
-+#define hash_init_val 0x6d696b65
-+
-+uint32_t __inline__
-+hash_lock_key (uint8_t * in, uint8_t len)
-+{
-+   return crc32 (hash_init_val, in, len);
-+}
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/util.h linux-patched/fs/gfs_locking/lock_gulm/util.h
---- linux-orig/fs/gfs_locking/lock_gulm/util.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/util.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,29 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __UTIL_DOT_H__
-+#define __UTIL_DOT_H__
-+
-+int atoi (char *c);
-+int inet_aton (char *ascii, uint32_t * ip);
-+void inet_ntoa (uint32_t ip, char *buf);
-+void dump_buffer (void *buf, int len);
-+
-+uint32_t __inline__ hash_lock_key (uint8_t * in, uint8_t len);
-+uint8_t __inline__ fourtoone (uint32_t);
-+
-+__inline__ int testbit (uint16_t bit, uint8_t * set);
-+__inline__ void setbit (uint16_t bit, uint8_t * set);
-+__inline__ void clearbit (uint16_t bit, uint8_t * set);
-+
-+#endif				/*  __UTIL_DOT_H__  */
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_crc.c linux-patched/fs/gfs_locking/lock_gulm/utils_crc.c
---- linux-orig/fs/gfs_locking/lock_gulm/utils_crc.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_crc.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,92 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#include <linux/types.h>
-+
-+static const uint32_t crc_32_tab[] = {
-+	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
-+	0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
-+	0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
-+	0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
-+	0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9,
-+	0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-+	0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c,
-+	0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
-+	0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
-+	0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
-+	0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d, 0x76dc4190, 0x01db7106,
-+	0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-+	0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d,
-+	0x91646c97, 0xe6635c01, 0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
-+	0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
-+	0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
-+	0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7,
-+	0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-+	0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa,
-+	0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
-+	0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
-+	0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
-+	0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683, 0xe3630b12, 0x94643b84,
-+	0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-+	0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb,
-+	0x196c3671, 0x6e6b06e7, 0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
-+	0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
-+	0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
-+	0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55,
-+	0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-+	0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28,
-+	0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
-+	0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
-+	0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
-+	0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242,
-+	0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-+	0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69,
-+	0x616bffd3, 0x166ccf45, 0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
-+	0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
-+	0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
-+	0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693,
-+	0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-+	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
-+};
-+
-+/**
-+ * crc32 - hash an array of data
-+ * @data: the data to be hashed
-+ * @len: the length of data to be hashed
-+ *
-+ * completely copied from GFS/src/fs.c
-+ *
-+ * Take some data and convert it to a 32-bit hash.
-+ *
-+ * The hash function is a 32-bit CRC of the data.  The algorithm uses
-+ * the crc_32_tab table above.
-+ *
-+ * This may not be the fastest hash function, but it does a fair bit better
-+ * at providing uniform results than the others I've looked at.  That's
-+ * really important for efficient directories.
-+ *
-+ * Returns: the hash
-+ */
-+
-+uint32_t
-+crc32 (const char *data, int len, uint32_t init)
-+{
-+	uint32_t hash = init;
-+
-+	for (; len--; data++)
-+		hash = crc_32_tab[(hash ^ *data) & 0xFF] ^ (hash >> 8);
-+
-+	hash = ~hash;
-+
-+	return hash;
-+}
-diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_crc.h linux-patched/fs/gfs_locking/lock_gulm/utils_crc.h
---- linux-orig/fs/gfs_locking/lock_gulm/utils_crc.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_crc.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,17 @@
-+/******************************************************************************
-+*******************************************************************************
-+**
-+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
-+**
-+**  This copyrighted material is made available to anyone wishing to use,
-+**  modify, copy, or redistribute it subject to the terms and conditions
-+**  of the GNU General Public License v.2.
-+**
-+*******************************************************************************
-+******************************************************************************/
-+
-+#ifndef __utils_crc_h__
-+#define __utils_crc_h__
-+uint32_t crc32 (const char *data, int len, uint32_t init);
-+#endif /*__utils_crc_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c
 --- linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,207 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.c	2004-10-21 18:18:33.191514361 -0500
+@@ -0,0 +1,79 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -7828,138 +7440,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.c linux-patched/fs/gfs
 +	return t;
 +}
 +
-+char *
-+gio_mbrupdate_to_str (int x)
-+{
-+	char *t = "Unknown Membership Update";
-+	switch (x) {
-+	case gio_Mbr_Logged_in:
-+		t = "Logged in";
-+		break;
-+	case gio_Mbr_Logged_out:
-+		t = "Logged out";
-+		break;
-+	case gio_Mbr_Expired:
-+		t = "Expired";
-+		break;
-+	case gio_Mbr_Killed:
-+		t = "Fenced";
-+		break;
-+	case gio_Mbr_OM_lgin:
-+		t = "Was Logged in";
-+		break;
-+	}
-+	return t;
-+}
-+
-+char *
-+gio_I_am_to_str (int x)
-+{
-+	switch (x) {
-+	case gio_Mbr_ama_Slave:
-+		return "Slave";
-+		break;
-+	case gio_Mbr_ama_Pending:
-+		return "Pending";
-+		break;
-+	case gio_Mbr_ama_Arbitrating:
-+		return "Arbitrating";
-+		break;
-+	case gio_Mbr_ama_Master:
-+		return "Master";
-+		break;
-+	case gio_Mbr_ama_Resource:
-+		return "Service";
-+		break;
-+	case gio_Mbr_ama_Client:
-+		return "Client";
-+		break;
-+	default:
-+		return "Unknown I_am state";
-+		break;
-+	}
-+}
-+
-+char *
-+gio_license_states (int x)
-+{
-+	switch (x) {
-+	case 0:
-+		return "valid";
-+		break;
-+	case 1:
-+		return "expired";
-+		break;
-+	case 2:
-+		return "invalid";
-+		break;
-+	default:
-+		return "unknown";
-+		break;
-+	}
-+}
-+
-+char *
-+gio_opcodes (int x)
-+{
-+	switch (x) {
-+#define CP(x) case (x): return #x ; break
-+		CP (gulm_err_reply);
-+
-+		CP (gulm_core_login_req);
-+		CP (gulm_core_login_rpl);
-+		CP (gulm_core_logout_req);
-+		CP (gulm_core_logout_rpl);
-+		CP (gulm_core_reslgn_req);
-+		CP (gulm_core_beat_req);
-+		CP (gulm_core_beat_rpl);
-+		CP (gulm_core_mbr_req);
-+		CP (gulm_core_mbr_updt);
-+		CP (gulm_core_mbr_lstreq);
-+		CP (gulm_core_mbr_lstrpl);
-+		CP (gulm_core_mbr_force);
-+		CP (gulm_core_res_req);
-+		CP (gulm_core_res_list);
-+		CP (gulm_core_state_req);
-+		CP (gulm_core_state_chgs);
-+		CP (gulm_core_shutdown);
-+		CP (gulm_core_forcepend);
-+
-+		CP (gulm_info_stats_req);
-+		CP (gulm_info_stats_rpl);
-+		CP (gulm_info_set_verbosity);
-+		CP (gulm_socket_close);
-+		CP (gulm_info_slave_list_req);
-+		CP (gulm_info_slave_list_rpl);
-+
-+		CP (gulm_lock_login_req);
-+		CP (gulm_lock_login_rpl);
-+		CP (gulm_lock_logout_req);
-+		CP (gulm_lock_logout_rpl);
-+		CP (gulm_lock_state_req);
-+		CP (gulm_lock_state_rpl);
-+		CP (gulm_lock_state_updt);
-+		CP (gulm_lock_action_req);
-+		CP (gulm_lock_action_rpl);
-+		CP (gulm_lock_action_updt);
-+		CP (gulm_lock_update_rpl);
-+		CP (gulm_lock_cb_state);
-+		CP (gulm_lock_cb_dropall);
-+		CP (gulm_lock_drop_exp);
-+		CP (gulm_lock_dump_req);
-+		CP (gulm_lock_dump_rpl);
-+		CP (gulm_lock_rerunqueues);
-+
-+#undef CP
-+	default:
-+		return "Unknown Op Code";
-+		break;
-+	}
-+}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h
 --- linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h	2004-09-08 13:26:32.000000000 -0500
-@@ -0,0 +1,22 @@
++++ linux-patched/fs/gfs_locking/lock_gulm/utils_tostr.h	2004-10-21 18:18:33.191514361 -0500
+@@ -0,0 +1,17 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -7976,15 +7460,10 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/utils_tostr.h linux-patched/fs/gfs
 +#ifndef __utils_tostr_h__
 +#define __utils_tostr_h__
 +char *gio_Err_to_str (int x);
-+char *gio_mbrupdate_to_str (int x);
-+char *gio_mbrama_to_str (int x);
-+char *gio_I_am_to_str (int x);
-+char *gio_license_states (int x);
-+char *gio_opcodes (int x);
 +#endif /*__utils_tostr_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr.h linux-patched/fs/gfs_locking/lock_gulm/xdr.h
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr.h	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr.h	2004-10-21 18:18:33.192514129 -0500
 @@ -0,0 +1,98 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8086,7 +7565,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr.h linux-patched/fs/gfs_locking
 +#endif /*__gulm_xdr_h__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_base.c	2004-10-21 18:18:33.192514129 -0500
 @@ -0,0 +1,904 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8994,7 +8473,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_base.c linux-patched/fs/gfs_lo
 +}
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_io.c	2004-10-21 18:18:33.192514129 -0500
 @@ -0,0 +1,169 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9167,7 +8646,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_io.c linux-patched/fs/gfs_lock
 +#endif /*__KERNEL__*/
 diff -urN linux-orig/fs/gfs_locking/lock_gulm/xdr_socket.c linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c
 --- linux-orig/fs/gfs_locking/lock_gulm/xdr_socket.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c	2004-09-08 13:26:32.000000000 -0500
++++ linux-patched/fs/gfs_locking/lock_gulm/xdr_socket.c	2004-10-21 18:18:33.193513897 -0500
 @@ -0,0 +1,82 @@
 +/******************************************************************************
 +*******************************************************************************

@@ -41,9 +41,10 @@
  * @inode: The inode
  * @sync: synchronous write flag
  *
+ * Returns: errno
  */
 
-static void
+static int
 gfs_write_inode(struct inode *inode, int sync)
 {
 	struct gfs_inode *ip = vn2ip(inode);
@@ -52,6 +53,8 @@ gfs_write_inode(struct inode *inode, int sync)
 
 	if (ip && sync && !gfs_in_panic)
 		gfs_log_flush_glock(ip->i_gl);
+
+	return 0;
 }
 
 /**

@@ -18,6 +18,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include <linux/kmod.h>
+#include <linux/fs.h>
 #include <linux/lm_interface.h>
 
 #define RELEASE_NAME "<CVS>"

@@ -1,8 +1,8 @@
 # Add lock_nolock to the build system.
-diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.8.1/fs/Kconfig	2004-10-05 11:12:07.473128365 -0500
-+++ linux/fs/Kconfig	2004-10-05 11:12:07.484125813 -0500
-@@ -1770,6 +1770,12 @@ config GFS_FS
+diff -urN -p linux-2.6.9/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.9/fs/Kconfig	2004-10-21 17:14:36.370129713 -0500
++++ linux/fs/Kconfig	2004-10-21 17:14:36.381127151 -0500
+@@ -1790,6 +1790,12 @@ config GFS_FS
  	  GFS is perfect consistency -- changes made to the filesystem on one
  	  machine show up immediately on all other machines in the cluster.
  
@@ -15,18 +15,18 @@ diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
  endmenu
  
  menu "Partition Types"
-diff -urN -p linux-2.6.8.1/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
---- linux-2.6.8.1/fs/gfs_locking/Makefile	2004-10-05 11:11:20.666987577 -0500
-+++ linux/fs/gfs_locking/Makefile	2004-10-05 11:12:07.485125581 -0500
+diff -urN -p linux-2.6.9/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.9/fs/gfs_locking/Makefile	2004-10-21 17:14:32.465039389 -0500
++++ linux/fs/gfs_locking/Makefile	2004-10-21 17:14:36.381127151 -0500
 @@ -11,4 +11,5 @@
  ###############################################################################
  
  obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
 +obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
  
-diff -urN -p linux-2.6.8.1/fs/gfs_locking/lock_nolock/Makefile linux/fs/gfs_locking/lock_nolock/Makefile
---- linux-2.6.8.1/fs/gfs_locking/lock_nolock/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs_locking/lock_nolock/Makefile	2004-10-05 11:12:07.485125581 -0500
+diff -urN -p linux-2.6.9/fs/gfs_locking/lock_nolock/Makefile linux/fs/gfs_locking/lock_nolock/Makefile
+--- linux-2.6.9/fs/gfs_locking/lock_nolock/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_nolock/Makefile	2004-10-21 17:14:36.381127151 -0500
 @@ -0,0 +1,16 @@
 +###############################################################################
 +###############################################################################

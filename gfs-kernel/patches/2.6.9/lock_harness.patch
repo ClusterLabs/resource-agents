@@ -1,7 +1,7 @@
 diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
 --- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-08-23 09:54:44.954342126 -0500
-@@ -0,0 +1,226 @@
++++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-10-21 18:18:17.815082384 -0500
+@@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -22,6 +22,7 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +#include <linux/wait.h>
 +#include <linux/sched.h>
 +#include <linux/kmod.h>
++#include <linux/fs.h>
 +#include <linux/lm_interface.h>
 +
 +#define RELEASE_NAME "<CVS>"
@@ -230,8 +231,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unmount);
 diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
 --- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-08-23 09:54:44.953342358 -0500
-@@ -0,0 +1,193 @@
++++ linux-patched/include/linux/lm_interface.h	2004-10-21 18:18:17.797086560 -0500
+@@ -0,0 +1,191 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -381,18 +382,16 @@ diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm
 +	/* Posix Lock oriented operations  */
 +
 +	int (*lm_plock_get) (lm_lockspace_t *lockspace,
-+			     struct lm_lockname *name, unsigned long owner,
-+			     uint64_t *start, uint64_t *end, int *exclusive,
-+			     unsigned long *rowner);
++			     struct lm_lockname *name,
++			     struct file *file, struct file_lock *fl);
 +
 +	int (*lm_plock) (lm_lockspace_t *lockspace,
-+			 struct lm_lockname *name, unsigned long owner,
-+			 int wait, int exclusive, uint64_t start,
-+			 uint64_t end);
++			 struct lm_lockname *name,
++			 struct file *file, int cmd, struct file_lock *fl);
 +
 +	int (*lm_punlock) (lm_lockspace_t *lockspace,
-+			   struct lm_lockname *name, unsigned long owner,
-+			   uint64_t start, uint64_t end);
++			   struct lm_lockname *name,
++			   struct file *file, struct file_lock *fl);
 +
 +	/* Client oriented operations */
 +
