@@ -165,9 +165,12 @@ int parse_ccs(gulm_config_t *gf)
       free(tmp);
    }
 
+   ccs_disconnect(gf->ccs_desc);
+   gf->ccs_desc = -1;
    return 0;
 }
 
+#if 0
 /**
  * verify_name_and_ip_ccs - 
  * @name: 
@@ -226,5 +229,5 @@ int verify_name_and_ip_ccs(char *name, struct in6_addr *ip)
 fail:
    return ret;
 }
-
+#endif
 /* vim: set ai cin et sw=3 ts=3 : */

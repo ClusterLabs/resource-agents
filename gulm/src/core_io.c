@@ -1768,10 +1768,7 @@ static void recv_some_data(int idx)
       close_by_idx(idx);
    }else
    if( gulm_core_shutdown == code ) {
-      /* logout and sutdown.
-       * Since this is the same as getting a SIGTERM, we'll just pretend
-       * that is exactly what happened.
-       */
+      /* logout and sutdown.  */
       log_msg(lgm_Network2, "Received Shutdown request.\n");
       if( shutdown_locked > 0 ) {
          log_msg(lgm_Network, "Cannot shutdown, we are locked.\n");
