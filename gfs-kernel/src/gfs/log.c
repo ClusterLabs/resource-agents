@@ -678,18 +678,7 @@ sync_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	     tmp != head;
 	     tmp = prev, prev = tmp->prev) {
 		lb = list_entry(tmp, struct gfs_log_buf, lb_list);
-
-		if (error) {
-			list_del(&lb->lb_list);
-			log_free_buf(sdp, lb);
-		} else {
-			e = gfs_logbh_start(sdp, &lb->lb_bh);
-			if (e) {
-				list_del(&lb->lb_list);
-				log_free_buf(sdp, lb);
-				error = e;
-			}
-		}
+		gfs_logbh_start(sdp, &lb->lb_bh);
 	}
 
 	/* Wait on I/O
@@ -727,9 +716,8 @@ commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	lb = log_get_header(sdp, tr, TRUE);
 
-	error = gfs_logbh_start(sdp, &lb->lb_bh);
-	if (!error)
-		error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	gfs_logbh_start(sdp, &lb->lb_bh);
+	error = gfs_logbh_wait(sdp, &lb->lb_bh);
 
 	log_free_buf(sdp, lb);
 
@@ -1358,9 +1346,8 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_logbh_init(sdp, &lb->lb_bh, sdp->sd_log_head, bmem);
 	memset(bmem, 0, sdp->sd_sb.sb_bsize);
 	gfs_desc_out(&desc, lb->lb_bh.b_data);
-	error = gfs_logbh_start(sdp, &lb->lb_bh);
-	if (!error)
-		error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	gfs_logbh_start(sdp, &lb->lb_bh);
+	error = gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
 
 	if (error)
@@ -1393,9 +1380,8 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_log_header_out(&head,
 			   lb->lb_bh.b_data + GFS_BASIC_BLOCK -
 			   sizeof(struct gfs_log_header));
-	error = gfs_logbh_start(sdp, &lb->lb_bh);
-	if (!error)
-		error = gfs_logbh_wait(sdp, &lb->lb_bh);
+	gfs_logbh_start(sdp, &lb->lb_bh);
+	error = gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
 
  out:

@@ -890,14 +890,12 @@ gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
  * @sdp: the filesystem
  * @bh: the buffer to write
  *
- * Returns: errno
  */
 
-int
+void
 gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
 	submit_bh(WRITE, bh);
-	return 0;
 }
 
 /**

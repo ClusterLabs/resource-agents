@@ -56,7 +56,7 @@ void gfs_unlock_buffer(struct buffer_head *bh)
 void gfs_logbh_init(struct gfs_sbd *sdp, struct buffer_head *bh, uint64_t blkno,
 		    char *data);
 void gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh);
-int gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh);
+void gfs_logbh_start(struct gfs_sbd *sdp, struct buffer_head *bh);
 int gfs_logbh_wait(struct gfs_sbd *sdp, struct buffer_head *bh);
 
 int gfs_replay_buf(struct gfs_glock *gl, struct buffer_head *bh);
