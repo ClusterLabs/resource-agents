@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.78 $) dnl cvs revision
+AC_REVISION($Revision: 1.79 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -476,49 +476,19 @@ dnl This policy is not an accident, nor was it chosen without significant
 dnl thought and experience.
 dnl 
 
-        AC_MSG_CHECKING("Setting -Werror")
+	case "$host_os" in
+  	*linux*)
+          	if test "$enable_fatal_warnings" = ""; then
+          	echo "defaulting  --enable-fatal_warnings on this platform"
+              	enable_fatal_warnings=yes
+          	fi
+          	;;
+	esac
 
-        #dnl If libtool 1.4 has been used to create ./libltdl
-        #dnl then libltdl/configre will fail if -Werror is turned on
-        #LIBTOOL_VERSION=`./libtool --version`
-        #case "$LIBTOOL_VERSION" in
-        #*") 1.4 ("*|*") 1.3.4 ("*)
-        #        if test "$enable_fatal_warnings" = ""; then
-        #                enable_fatal_warnings=no
-        #        fi
-        #        ;;
-        #esac
-        #
-        #dnl If libltdl 1.0 is being used then libltdl/configre 
-        #dnl will fail if -Werror is turned on
-        #LIBLTDL_VERSION=\
-        #        `fgrep \\\\AM\_INIT\_AUTOMAKE libltdl/configure.in | head -1`
-        #if test  "$?" != "0"; then
-        #        AC_MSG_ERROR("Could not determine libltdl version")
-        #fi
-        #case "$LIBLTDL_VERSION" in
-        #*",1.0,"*)
-        #        if test "$enable_fatal_warnings" = ""; then
-        #                enable_fatal_warnings=no
-        #        fi
-        #        ;;
-        #esac
-
-	#case "$host_os" in
-  	#*linux*)
-  	#        if test "$enable_fatal_warnings" = ""; then
-      	#                enable_fatal_warnings=yes
-  	#        fi
-        #  	;;
-#
-#	esac
 
 	EXTRA_WARNINGS=""
 	if test "$enable_fatal_warnings" = yes; then
-          AC_MSG_RESULT("Yes")
     	  EXTRA_WARNINGS="-Werror"
-        else
-          AC_MSG_RESULT("No")
 	fi
 
 	if test "$enable_traditional_warning" = yes; then
