@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.274 $) dnl cvs revision
+AC_REVISION($Revision: 1.275 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -614,7 +614,7 @@ if test "${enable_snmp_subagent}"  = "set"; then
 		AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 		if test "X${SNMPCONFIG}" = "X"; then
 			AC_MSG_RESULT(You need the net snmp development package to continue.)
-			enable_snmp_subagent=""
+			enable_snmp_subagent="no"
 		else
 			AC_MSG_CHECKING(for special snmp libraries: )
 			SNMPLIB=`net-snmp-config --netsnmp-libs`
@@ -629,7 +629,7 @@ if test "${enable_snmp_subagent}"  = "set"; then
 			AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
 		fi
 		if test "X${SNMPLIB}" = "X"; then
-			enable_snmp_subagent=""
+			enable_snmp_subagent="no"
 			AC_MSG_RESULT("Could not find ucdsnmp libary."
 				"Please make sure that libsnmp or libucdsnmp"
 				"are in your libaray path. Or the path to LDFLAGS")
