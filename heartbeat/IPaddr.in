@@ -50,7 +50,7 @@ meta_data() {
         cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="IPaddr2" version="0.9">
+<resource-agent name="IPaddr" version="0.1">
 <version>1.0</version>
 <parameters>
 <parameter name="ip" unique="1">
@@ -654,7 +654,6 @@ ip_start() {
 
 ip_status() {
   IF=`find_interface $BASEIP`
-  ocf_log "zhaokai::IF=$IF"
 
   case $SYSTYPE in
     *BSD)
