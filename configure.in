@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.301 $) dnl cvs revision
+AC_REVISION($Revision: 1.302 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1818,6 +1818,9 @@ telecom/Makefile						\
 	telecom/cms/doc/Makefile                                \
 	telecom/recoverymgrd/Makefile				\
 tools/Makefile							\
+resources/Makefile						\
+	  resources/OCF/Makefile				\
+		   resources/OCF/IPaddr				\
 		)
 
 dnl Now process the entire list of files added by previous 
