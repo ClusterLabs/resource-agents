@@ -12,6 +12,7 @@
 ******************************************************************************/
 
 #include "lock_dlm.h"
+#include <linux/fcntl.h>
 
 #define MIN(a,b) ((a) <= (b)) ? (a) : (b)
 #define MAX(a,b) ((a) >= (b)) ? (a) : (b)
@@ -37,6 +38,102 @@ static int global_conflict(dlm_t *dlm, struct lm_lockname *name,
 			   unsigned long owner, uint64_t start, uint64_t end,
 			   int ex);
 
+/* remove lru lp from end of list, null_cache_spin must be held */
+
+static dlm_lock_t *lru_null(dlm_t *dlm)
+{
+	dlm_lock_t *lp;
+
+	lp = list_entry(dlm->null_cache.next, dlm_lock_t, null_list);
+	list_del(&lp->null_list);
+	dlm->null_count--;
+
+	return lp;
+}
+
+/* It's important that the lock_dlm thread not block doing any synchronous
+   dlm operations because a recovery event (which makes sync requests) can
+   happen during this.  If both lock_dlm threads do sync requests they deadlock
+   since one is required to process asts.  We also break out early if there's a
+   recovery so it doesn't have to wait. */
+
+void shrink_null_cache(dlm_t *dlm)
+{
+	dlm_lock_t *lp;
+
+	while (1) {
+		spin_lock(&dlm->null_cache_spin);
+		if (dlm->null_count <= SHRINK_CACHE_COUNT ||
+		    test_bit(DFL_RECOVER, &dlm->flags)) {
+			spin_unlock(&dlm->null_cache_spin);
+			break;
+		}
+
+		lp = lru_null(dlm);
+		spin_unlock(&dlm->null_cache_spin);
+
+		set_bit(LFL_UNLOCK_DELETE, &lp->flags);
+		do_dlm_unlock(lp);
+		delete_lp(lp);
+		schedule();
+	}
+}
+
+void clear_null_cache(dlm_t *dlm)
+{
+	dlm_lock_t *lp, *safe;
+
+	spin_lock(&dlm->null_cache_spin);
+	list_for_each_entry_safe(lp, safe, &dlm->null_cache, null_list) {
+		list_del(&lp->null_list);
+		dlm->null_count--;
+		delete_lp(lp);
+	}
+	spin_unlock(&dlm->null_cache_spin);
+}
+
+static void keep_null_lock(dlm_t *dlm, dlm_lock_t *lp)
+{
+	dlm_lock_t *lp2 = NULL;
+
+	spin_lock(&dlm->null_cache_spin);
+	/* add to front of list wrt list_add_tail/list_for_each */
+	list_add_tail(&lp->null_list, &dlm->null_cache);
+	dlm->null_count++;
+
+	/* help to shrink cache if too many null locks are piling up */
+	if (dlm->null_count > SHRINK_CACHE_MAX)
+		lp2 = lru_null(dlm);
+	spin_unlock(&dlm->null_cache_spin);
+
+	if (lp2) {
+		set_bit(LFL_UNLOCK_DELETE, &lp2->flags);
+		do_dlm_unlock(lp2);
+		delete_lp(lp2);
+	}
+}
+
+static dlm_lock_t *find_null_lock(dlm_t *dlm, struct lm_lockname *name)
+{
+	dlm_lock_t *lp;
+	int found = FALSE;
+
+	spin_lock(&dlm->null_cache_spin);
+	list_for_each_entry(lp, &dlm->null_cache, null_list) {
+		if (lm_name_equal(&lp->lockname, name)) {
+			list_del(&lp->null_list);
+			dlm->null_count--;
+			found = TRUE;
+			break;
+		}
+	}
+	spin_unlock(&dlm->null_cache_spin);
+
+	if (!found)
+		lp = NULL;
+	return lp;
+}
+
 static int lock_resource(struct dlm_resource *r)
 {
 	dlm_lock_t *lp;
@@ -46,12 +143,16 @@ static int lock_resource(struct dlm_resource *r)
 	name.ln_type = LM_TYPE_PLOCK_UPDATE;
 	name.ln_number = r->name.ln_number;
 
-	error = create_lp(r->dlm, &name, &lp);
-	if (error)
-		return error;
+	lp = find_null_lock(r->dlm, &name);
+	if (!lp) {
+		error = create_lp(r->dlm, &name, &lp);
+		if (error)
+			return error;
+		set_bit(LFL_NOBAST, &lp->flags);
+		set_bit(LFL_INLOCK, &lp->flags);
+	} else
+		lp->lkf = DLM_LKF_CONVERT;
 
-	set_bit(LFL_NOBAST, &lp->flags);
-	set_bit(LFL_INLOCK, &lp->flags);
 	lp->req = DLM_LOCK_EX;
 	error = do_dlm_lock_sync(lp, NULL);
 	if (error) {
@@ -65,8 +166,15 @@ static int lock_resource(struct dlm_resource *r)
 
 static void unlock_resource(struct dlm_resource *r)
 {
-	do_dlm_unlock_sync(r->update);
-	delete_lp(r->update);
+	dlm_lock_t *lp = r->update;
+
+	set_bit(LFL_NOBAST, &lp->flags);
+	set_bit(LFL_INLOCK, &lp->flags);
+	lp->req = DLM_LOCK_NL;
+	lp->lkf = DLM_LKF_CONVERT;
+	do_dlm_lock_sync(lp, NULL);
+	keep_null_lock(r->dlm, lp);
+	r->update = NULL;
 }
 
 static struct dlm_resource *search_resource(dlm_t *dlm, struct lm_lockname *name)
@@ -112,6 +220,7 @@ static int get_resource(dlm_t *dlm, struct lm_lockname *name, int create,
 	INIT_LIST_HEAD(&r->async_locks);
 	init_MUTEX(&r->sema);
 	spin_lock_init(&r->async_spin);
+	init_waitqueue_head(&r->waiters);
 
 	down(&dlm->res_lock);
 	r2 = search_resource(dlm, name);
@@ -330,10 +439,10 @@ static void request_lock(dlm_lock_t *lp, int wait)
 	lp->req = lp->posix->ex ? DLM_LOCK_EX : DLM_LOCK_PR;
 	lp->lkf = make_flags_posix(lp, wait);
 
-	log_debug("req %x,%"PRIx64" %s %"PRIx64"-%"PRIx64" %x %u w %u",
+	log_debug("req %x,%"PRIx64" %s %"PRIx64"-%"PRIx64" lkf %x wait %u",
 		  lp->lockname.ln_type, lp->lockname.ln_number,
 		  lp->posix->ex ? "ex" : "sh", lp->posix->start,
-		  lp->posix->end, lp->lkf, current->pid, wait);
+		  lp->posix->end, lp->lkf, wait);
 
 	do_range_lock(lp);
 }
@@ -413,8 +522,7 @@ static int remove_lock(dlm_lock_t *lp)
 {
 	struct dlm_resource *r = lp->posix->resource;
 
-	log_debug("remove %x,%"PRIx64" %u",
-		  r->name.ln_type, r->name.ln_number, current->pid);
+	log_debug("remove %x,%"PRIx64"", r->name.ln_type, r->name.ln_number);
 
 	do_dlm_unlock_sync(lp);
 	put_lock(lp);
@@ -780,16 +888,48 @@ static int punlock_internal(struct dlm_resource *r, unsigned long owner,
 	return error;
 }
 
+static int wait_local(struct dlm_resource *r, unsigned long owner,
+		      uint64_t start, uint64_t end, int ex)
+{
+	DECLARE_WAITQUEUE(wait, current);
+	int error = 0;
+
+	add_wait_queue(&r->waiters, &wait);
+
+	for (;;) {
+		set_current_state(TASK_INTERRUPTIBLE);
+
+		if (!local_conflict(r->dlm, r, &r->name, owner, start, end, ex))
+			break;
+
+		if (signal_pending(current)) {
+			up(&r->sema);
+			error = -EINTR;
+			break;
+		}
+
+		up(&r->sema);
+		schedule();
+		down(&r->sema);
+	}
+
+	remove_wait_queue(&r->waiters, &wait);
+	set_current_state(TASK_RUNNING);
+	return error;
+}
+
 int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-                 unsigned long owner, int wait, int ex, uint64_t start,
-                 uint64_t end)
+		 struct file *file, int cmd, struct file_lock *fl)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
+	unsigned long owner = (unsigned long) fl->fl_owner;
+	int wait = IS_SETLKW(cmd);
+	int ex = (fl->fl_type == F_WRLCK);
+	uint64_t start = fl->fl_start, end = fl->fl_end;
 	struct dlm_resource *r;
 	int error;
 
-	log_debug("en plock %u %x,%"PRIx64"", current->pid,
-		  name->ln_type, name->ln_number);
+	log_debug("en plock %x,%"PRIx64"", name->ln_type, name->ln_number);
 
 	error = get_resource(dlm, name, CREATE, &r);
 	if (error)
@@ -799,9 +939,22 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (error)
 		goto out_put;
 
-	if (!wait && local_conflict(dlm, r, name, owner, start, end, ex)) {
-		error = -EAGAIN;
-		goto out_up;
+	/* We wait here until we aren't blocked by any other local locks.
+	   Then we can request the lock from the dlm, request the vfs lock
+	   (without it blocking) and release r->sema before waiting on the dlm
+	   request.  [We can't release the semaphore between the dlm and vfs
+	   requests, but we must release it before waiting for the ast.] */
+
+	error = local_conflict(dlm, r, name, owner, start, end, ex);
+	if (error) {
+		if (!wait) {
+			error = -EAGAIN;
+			goto out_up;
+		}
+		error = wait_local(r, owner, start, end, ex);
+		if (error)
+			goto out_put;
+		/* wait_local returns with r->sema held if no error */
 	}
 
 	error = lock_resource(r);
@@ -817,43 +970,51 @@ int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	/* If NO_WAIT all requests should return immediately.
 	   If WAIT all requests go on r->async_locks which we wait on in
 	   wait_async_locks().  This means DLM should not return -EAGAIN and we
-	   should never block waiting for a plock to be released (by a local or
-	   remote process) until we call wait_async_list(). */
+	   should never block waiting for a plock to be released until we call
+	   wait_async_list(). */
 
 	error = plock_internal(r, owner, wait, ex, start, end);
 	unlock_resource(r);
 
-	/* wait_async_list() must follow the up() because we must be able
-	   to punlock a range on this resource while there's a blocked plock
-	   request to prevent deadlock between nodes (and processes). */
+	if (!error) {
+		/* this won't block due to wait_local above and not yet
+		   having released r->sema */
+		if (posix_lock_file_wait(file, fl) < 0)
+			log_error("lm_dlm_plock: vfs lock error %x,%"PRIx64"",
+				  name->ln_type, name->ln_number);
+	}
 
  out_up:
 	up(&r->sema);
 	wait_async_list(r, owner);
+	wake_up_all(&r->waiters);
  out_put:
 	put_resource(r);
  out:
-	log_debug("ex plock %u error %d", current->pid, error);
+	log_debug("ex plock %d", error);
 	return error;
 }
 
 int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-                   unsigned long owner, uint64_t start, uint64_t end)
+		   struct file *file, struct file_lock *fl)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
+	unsigned long owner = (unsigned long) fl->fl_owner;
+	uint64_t start = fl->fl_start, end = fl->fl_end;
 	struct dlm_resource *r;
 	int error;
 
-	log_debug("en punlock %u %x,%"PRIx64"", current->pid,
-		  name->ln_type, name->ln_number);
+	log_debug("en punlock %x,%"PRIx64"", name->ln_type, name->ln_number);
 
 	error = get_resource(dlm, name, NO_CREATE, &r);
 	if (error)
 		goto out;
 
-	error = down_interruptible(&r->sema);
-	if (error)
-		goto out_put;
+	down(&r->sema);
+
+	if (posix_lock_file_wait(file, fl) < 0)
+		log_error("lm_dlm_punlock: vfs unlock error %x,%"PRIx64"",
+			  name->ln_type, name->ln_number);
 
 	error = lock_resource(r);
 	if (error)
@@ -865,10 +1026,10 @@ int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
  out_up:
 	up(&r->sema);
 	wait_async_list(r, owner);
- out_put:
+	wake_up_all(&r->waiters);
 	put_resource(r);
  out:
-	log_debug("ex punlock %u error %d", current->pid, error);
+	log_debug("ex punlock %d", error);
 	return error;
 }
 
@@ -878,7 +1039,7 @@ static void query_ast(void *astargs)
 	complete(&lp->uast_wait);
 }
 
-static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
+static int get_global_conflict(dlm_t *dlm, struct lm_lockname *name,
 			       unsigned long owner, uint64_t *start,
 			       uint64_t *end, int *ex, unsigned long *rowner)
 {
@@ -889,14 +1050,17 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 
 	/* acquire a null lock on which to base the query */
 
-	error = create_lp(dlm, name, &lp);
-	if (error)
-		goto ret;
+	lp = find_null_lock(dlm, name);
+	if (!lp) {
+		error = create_lp(dlm, name, &lp);
+		if (error)
+			goto ret;
 
-	lp->req = DLM_LOCK_NL;
-	lp->lkf = DLM_LKF_EXPEDITE;
-	set_bit(LFL_INLOCK, &lp->flags);
-	do_dlm_lock_sync(lp, NULL);
+		lp->req = DLM_LOCK_NL;
+		lp->lkf = DLM_LKF_EXPEDITE;
+		set_bit(LFL_INLOCK, &lp->flags);
+		do_dlm_lock_sync(lp, NULL);
+	}
 
 	/* do query, repeating if insufficient space */
 
@@ -959,16 +1123,15 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 
 	kfree(qinfo.gqi_lockinfo);
 
-	log_debug("global conflict %d %"PRIx64"-%"PRIx64" ex %d own %lu pid %u",
-		  error, *start, *end, *ex, *rowner, current->pid);
+	log_debug("global conflict %d %"PRIx64"-%"PRIx64" ex %d own %lu",
+		  error, *start, *end, *ex, *rowner);
  out:
-	do_dlm_unlock_sync(lp);
-	kfree(lp);
+	keep_null_lock(dlm, lp);
  ret:
 	return error;
 }
 
-static int get_conflict_local(dlm_t *dlm, struct dlm_resource *r,
+static int get_local_conflict(dlm_t *dlm, struct dlm_resource *r,
 			      struct lm_lockname *name, unsigned long owner,
 			      uint64_t *start, uint64_t *end, int *ex,
 			      unsigned long *rowner)
@@ -994,11 +1157,10 @@ static int get_conflict_local(dlm_t *dlm, struct dlm_resource *r,
 	return found;
 }
 
-int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
-                     unsigned long owner, uint64_t *start, uint64_t *end,
-                     int *ex, unsigned long *rowner)
+static int do_plock_get(dlm_t *dlm, struct lm_lockname *name,
+			unsigned long owner, uint64_t *start, uint64_t *end,
+			int *ex, unsigned long *rowner)
 {
-	dlm_t *dlm = (dlm_t *) lockspace;
 	struct dlm_resource *r;
 	int error, found;
 
@@ -1010,7 +1172,7 @@ int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 			goto out;
 		}
 
-		found = get_conflict_local(dlm, r, name, owner, start, end, ex,
+		found = get_local_conflict(dlm, r, name, owner, start, end, ex,
 					   rowner);
 		up(&r->sema);
 		put_resource(r);
@@ -1018,7 +1180,7 @@ int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 			goto out;
 	}
 
-	error = get_conflict_global(dlm, name, owner, start, end, ex, rowner);
+	error = get_global_conflict(dlm, name, owner, start, end, ex, rowner);
 	if (error == -EAGAIN) {
 		log_debug("pl get global conflict %"PRIx64"-%"PRIx64" %d %lu",
 			  *start, *end, *ex, *rowner);
@@ -1036,7 +1198,7 @@ static int local_conflict(dlm_t *dlm, struct dlm_resource *r,
 	unsigned long get_owner = 0;
 	int get_ex = ex;
 
-	return get_conflict_local(dlm, r, name, owner,
+	return get_local_conflict(dlm, r, name, owner,
 				  &get_start, &get_end, &get_ex, &get_owner);
 }
 
@@ -1048,6 +1210,29 @@ static int global_conflict(dlm_t *dlm, struct lm_lockname *name,
 	unsigned long get_owner = 0;
 	int get_ex = ex;
 
-	return get_conflict_global(dlm, name, owner,
-				    &get_start, &get_end, &get_ex, &get_owner);
+	return get_global_conflict(dlm, name, owner,
+				   &get_start, &get_end, &get_ex, &get_owner);
+}
+
+int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		     struct file *file, struct file_lock *fl)
+{
+	dlm_t *dlm = (dlm_t *) lockspace;
+	unsigned long pid;
+	int ex, error;
+
+	ex = (fl->fl_type == F_WRLCK) ? 1 : 0;
+
+	error = do_plock_get(dlm, name, fl->fl_pid, &fl->fl_start,
+			     &fl->fl_end, &ex, &pid);
+	if (error < 0)
+		return error;
+	if (error == 0)
+		fl->fl_type = F_UNLCK;
+	else {
+		fl->fl_type = (ex) ? F_WRLCK : F_RDLCK;
+		fl->fl_pid = pid;
+	}
+
+	return 0;
 }

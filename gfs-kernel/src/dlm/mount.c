@@ -202,16 +202,21 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 	INIT_LIST_HEAD(&dlm->submit);
 	INIT_LIST_HEAD(&dlm->starts);
 	INIT_LIST_HEAD(&dlm->resources);
+	INIT_LIST_HEAD(&dlm->null_cache);
 
 	init_waitqueue_head(&dlm->wait);
 	dlm->thread1 = NULL;
 	dlm->thread2 = NULL;
 	atomic_set(&dlm->lock_count, 0);
 	dlm->drop_time = jiffies;
+	dlm->shrink_time = jiffies;
 
 	INIT_LIST_HEAD(&dlm->mg_nodes);
 	init_MUTEX(&dlm->mg_nodes_lock);
 	init_MUTEX(&dlm->res_lock);
+
+	dlm->null_count = 0;
+	spin_lock_init(&dlm->null_cache_spin);
 
 	return dlm;
 }
@@ -315,6 +320,7 @@ static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 	release_gdlm(dlm);
 	release_fence(dlm);
 	release_cluster(dlm);
+	clear_null_cache(dlm);
 	kfree(dlm);
 }
 

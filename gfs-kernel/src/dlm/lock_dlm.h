@@ -48,6 +48,9 @@
 
 #define DROP_LOCKS_COUNT	(10000)
 #define DROP_LOCKS_TIME		(60)
+#define SHRINK_CACHE_COUNT	(100)
+#define SHRINK_CACHE_MAX	(1000)
+#define SHRINK_CACHE_TIME	(30)
 
 struct dlm;
 struct dlm_lock;
@@ -101,6 +104,7 @@ struct dlm {
 	struct task_struct *	thread2;
 	atomic_t		lock_count;
 	unsigned long		drop_time;
+	unsigned long		shrink_time;
 
 	int			mg_local_id;
 	int			mg_last_start;
@@ -111,6 +115,9 @@ struct dlm {
 
 	struct list_head	resources;
 	struct semaphore	res_lock;
+	struct list_head	null_cache;
+	spinlock_t		null_cache_spin;
+	uint32_t		null_count;
 };
 
 struct dlm_resource {
@@ -123,6 +130,7 @@ struct dlm_resource {
 	dlm_lock_t *		update;
 	struct list_head	async_locks;
 	spinlock_t		async_spin;
+	wait_queue_head_t	waiters;
 };
 
 struct posix_lock {
@@ -177,8 +185,9 @@ struct dlm_lock {
 	struct list_head	dlist;		/* delayed */
 	struct list_head	slist;		/* submit */
 
-	struct dlm_lock *	hold_null;
+	struct dlm_lock *	hold_null;	/* NL lock for hold_lvb */
 	struct posix_lock *	posix;
+	struct list_head	null_list;	/* NL lock cache for plocks */
 };
 
 #define NFL_SENT_CB             0
@@ -294,16 +303,14 @@ void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
 
 /* plock.c */
 
-int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-              unsigned long owner, int wait, int ex, uint64_t start,
-              uint64_t end);
-
-int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-                unsigned long owner, uint64_t start, uint64_t end);
-
 int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
-                  unsigned long owner, uint64_t *start, uint64_t *end,
-                  int *ex, unsigned long *rowner);
+		     struct file *file, struct file_lock *fl);
+int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		 struct file *file, int cmd, struct file_lock *fl);
+int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		   struct file *file, struct file_lock *fl);
+void clear_null_cache(dlm_t *dlm);
+void shrink_null_cache(dlm_t *dlm);
 
 /* main.c */
 

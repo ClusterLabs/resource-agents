@@ -47,6 +47,7 @@ void lock_dlm_debug_log(const char *fmt, ...)
 
 	n = 0;
 	/* n = snprintf(buf, size, "%s ", dlm->fsname); */
+	n = snprintf(buf, size, "%u ", current->pid);
 	size -= n;
 
 	va_start(va, fmt);
