@@ -18,6 +18,10 @@
  */
 /** @file
  * Dumb test "Driver"
+ *
+ * Well, it's really not very dumb anymore.  This provides a single
+ * machine access to the magma APIs without configuring other cluster
+ * infrastructures.
  */
 #include <magma.h>
 #include <errno.h>
@@ -25,9 +29,15 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/fcntl.h>
+#include <netinet/in.h>
+#include <assert.h>
 
-#define MODULE_DESCRIPTION "Dumb Plugin v1.0"
+#define MODULE_DESCRIPTION "Dumb Plugin v1.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
+#define DUMB_LOCK_PATH	   "/tmp/magma-dumb"
 
 /*
  * Grab the version from the header file so we don't cause API problems
@@ -50,13 +60,19 @@ dumb_member_list(cluster_plugin_t * __attribute__ ((unused)) self,
 {
 	cluster_member_list_t *foo;
 
-	printf("DUMB: %s called\n", __FUNCTION__);
-
+	//printf("DUMB: %s called\n", __FUNCTION__);
 	foo = malloc(sizeof(cluster_member_list_t) +
 		     sizeof(cluster_member_t));
+	memset(foo, 0, sizeof(cluster_member_list_t) + sizeof(cluster_member_t));
+
+	/* Store our info.  We're up, node ID 0. */
 	foo->cml_count = 1;
+
+	/* XXX should check for errors. */
 	gethostname(foo->cml_members[0].cm_name,
 		    sizeof(foo->cml_members[0].cm_name));
+	foo->cml_members[0].cm_state = STATE_UP;
+	foo->cml_members[0].cm_id = (uint64_t)0;
 	return foo;
 }
 
@@ -65,15 +81,17 @@ static int
 dumb_quorum_status(cluster_plugin_t * __attribute__ ((unused)) self,
 		   char __attribute__ ((unused)) *groupname)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	return 0;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	/* Make believe there's a group and we're a member */
+	return QF_QUORATE | QF_GROUPMEMBER;
 }
 
 
 static char *
 dumb_version(cluster_plugin_t * __attribute__ ((unused)) self)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
+	//printf("DUMB: %s called\n", __FUNCTION__);
 	return MODULE_DESCRIPTION;
 }
 
@@ -81,9 +99,10 @@ dumb_version(cluster_plugin_t * __attribute__ ((unused)) self)
 static int
 dumb_open(cluster_plugin_t * __attribute__ ((unused)) self)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	/* Make believe there's a real need for this fd */
+	return socket(AF_INET, SOCK_DGRAM, 0);
 }
 
 
@@ -92,9 +111,10 @@ dumb_login(cluster_plugin_t * __attribute__ ((unused)) self,
 	   int __attribute__ ((unused)) fd,
 	   char __attribute__ ((unused)) *groupname)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	/* Make believe there's a group */
+	return 0;
 }
 
 
@@ -102,19 +122,18 @@ static int
 dumb_logout(cluster_plugin_t * __attribute__ ((unused)) self,
 	    int __attribute__((unused)) fd)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	/* Make believe there's a group */
+	return 0;
 }
 
 
 static int
-dumb_close(cluster_plugin_t * __attribute__ ((unused)) self,
-	   int __attribute__((unused)) fd)
+dumb_close(cluster_plugin_t * __attribute__ ((unused)) self, int fd)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+	return close(fd);
 }
 
 
@@ -122,7 +141,7 @@ static int
 dumb_fence(cluster_plugin_t __attribute__ ((unused)) *self,
 	   cluster_member_t __attribute__((unused)) *node)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
+	//printf("DUMB: %s called\n", __FUNCTION__);
 	errno = ENOSYS;
 	return -1;
 }
@@ -130,24 +149,67 @@ dumb_fence(cluster_plugin_t __attribute__ ((unused)) *self,
 
 static int
 dumb_lock(cluster_plugin_t * __attribute__ ((unused)) self,
-	  char *__attribute__((unused)) resource,
-	  int __attribute__((unused)) flags,
-	  void **__attribute__((unused)) lockpp)
+	  char *resource, int flags, void **lockpp)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	struct flock fl;
+	int *fdp;
+	int esv;
+	char pathname[1024];
+
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	fdp = malloc(sizeof(int));
+	if (!fdp)
+		return -1;
+
+	/*
+	 * File system based locks using fcntl.
+	 */
+	snprintf(pathname, sizeof(pathname), "%s/%s",
+		 DUMB_LOCK_PATH, resource);
+
+	*fdp = open(pathname, O_RDWR | O_CREAT | O_TRUNC,
+		    S_IRUSR|S_IWUSR);
+	if (*fdp == -1) {
+		esv = errno;
+		free(fdp);
+		errno = esv;
+		return -1;
+	}
+
+	memset(&fl, 0, sizeof(fl));
+	fl.l_type = (flags & CLK_WRITE) ? F_WRLCK : F_RDLCK;
+
+	if (fcntl(*fdp, (flags & CLK_NOWAIT) ? F_SETLKW : F_SETLK, &fl) == -1){
+		esv = errno;
+		free(fdp);
+		errno = esv;
+		return -1;
+	}
+
+	*lockpp = (void *)fdp;
+	return 0;
 }
 
 
 static int
 dumb_unlock(cluster_plugin_t * __attribute__ ((unused)) self,
-	    char *__attribute__((unused)) resource,
-	    void *__attribute__((unused)) lockp)
+	    char *resource, void *lockp)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	char pathname[1024];
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	assert(resource);
+	assert(lockp);
+	assert(*((int *)lockp) >= 0);
+
+	snprintf(pathname, sizeof(pathname), "%s/%s",
+		 DUMB_LOCK_PATH, resource);
+
+	close(*((int *)lockp));
+	free(lockp);
+	unlink(pathname);
+	return 0;
 }
 
 
@@ -155,16 +217,17 @@ static int
 dumb_get_event(cluster_plugin_t * __attribute__ ((unused)) self,
 	       int __attribute__((unused)) fd)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-	errno = ENOSYS;
-	return -1;
+	//printf("DUMB: %s called\n", __FUNCTION__);
+
+	/* Never a real event */
+	return CE_NULL;
 }
 
 
 int
 cluster_plugin_load(cluster_plugin_t *driver)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
+	//printf("DUMB: %s called\n", __FUNCTION__);
 
 	if (!driver) {
 		errno = EINVAL;
@@ -193,12 +256,19 @@ cluster_plugin_init(cluster_plugin_t *driver,
 		    void *__attribute__((unused)) priv,
 		    size_t __attribute__((unused)) privlen)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-
-	printf("DUMB: Plugin API version: %f\n", cluster_plugin_version());
-
+	//printf("DUMB: %s called\n", __FUNCTION__);
 	if (!driver) {
 		errno = EINVAL;
+		return -1;
+	}
+
+	//printf("DUMB: Plugin API version: %f\n", cluster_plugin_version());
+	if (mkdir(DUMB_LOCK_PATH, 0700)) {
+		if (errno == EEXIST) {
+			if (chmod(DUMB_LOCK_PATH, 0700))
+				return -1;
+			return 0;
+		}
 		return -1;
 	}
 
@@ -212,8 +282,7 @@ cluster_plugin_init(cluster_plugin_t *driver,
 int
 cluster_plugin_unload(cluster_plugin_t *driver)
 {
-	printf("DUMB: %s called\n", __FUNCTION__);
-
+	//printf("DUMB: %s called\n", __FUNCTION__);
 	if (driver->cp_private.p_data)
 		free(driver->cp_private.p_data);
 
