@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.195 $) dnl cvs revision
+AC_REVISION($Revision: 1.196 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -49,22 +49,16 @@ AC_SUBST(RPMREL)
 CFLAGS=""
 INIT_EXT=""
 USE_MODULES=0
-SYS_INCLUDES=""
 
 case "$host_os" in
-solaris*)	HEARTBEAT_LIBS="-lposix4"
-		# I don't think this is necessary any more...
-		LIBS="-L/usr/local/lib $LIBS"
-		INCLUDES="-I/usr/local/include $INCLUDES"
-		SYS_INCLUDES="-I/usr/local/include"
-		AC_MSG_CHECKING(setting SYS_INCLUDES)
+solaris*)	LIBS="-L/usr/local/lib $LIBS"
+		CPPFLAGS="-I/usr/local/include -I/opt/sfw/include"
+		INIT_EXT=".sh"
 		;;
 
-*bsd*)		LIBS="-L/usr/local/lib $LIBS"
-		INCLUDES="-I/usr/local/include $INCLUDES"
+*bsd*)		LIBS="-L/usr/local/lib"
+		CPPFLAGS="-I/usr/local/include"
 		INIT_EXT=".sh"
-		SYS_INCLUDES="-I/usr/local/include"
-		AC_MSG_CHECKING(setting SYS_INCLUDES)
 		;;
 
 *linux*)	USE_MODULES=1
@@ -73,7 +67,6 @@ esac
 
 AC_SUBST(INIT_EXT)
 AC_SUBST(USE_MODULES)
-AC_SUBST(SYS_INCLUDES)
 
 dnl
 dnl
@@ -511,12 +504,22 @@ dnl
 dnl check for ANSI *.h files first
 dnl	asm/page.h: Linux, for system PAGE_SIZE
 AC_HEADER_STDC
-AC_CHECK_HEADERS(db.h asm/page.h time.h stdarg.h)
+AC_CHECK_HEADERS(db.h)
+AC_CHECK_HEADERS(asm/page.h)
+AC_CHECK_HEADERS(time.h)
+AC_CHECK_HEADERS(stdarg.h)
+AC_CHECK_HEADERS(netinet/in.h)
+
 AC_CHECK_HEADERS(netinet/in_systm.h)
-AC_CHECK_HEADERS(netinet/ip_var.h netinet/ip.h netinet/ip_compat.h netinet/ip_fw.h)
+AC_CHECK_HEADERS(netinet/ip.h)
+AC_CHECK_HEADERS(netinet/ip_var.h)
+AC_CHECK_HEADERS(netinet/ip_compat.h)
+AC_CHECK_HEADERS(netinet/ip_fw.h)
 AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(libintl.h)
-AC_CHECK_HEADERS(sys/types.h sys/socket.h netinet/in.h arpa/inet.h)
+AC_CHECK_HEADERS(sys/types.h)
+AC_CHECK_HEADERS(sys/socket.h)
+AC_CHECK_HEADERS(arpa/inet.h)
 AC_CHECK_HEADERS(net/ethernet.h)
 AC_CHECK_HEADERS(strings.h malloc.h)
 AC_CHECK_HEADERS(termio.h)
@@ -954,11 +957,15 @@ dnl
 dnl     strerror: returns a string that corresponds to an errno.
 dnl             A replacement function is supplied for it.
 dnl
+dnl     unsetenv: is some bsdish function that should also be avoided (No 
+dnl             replacement)
+dnl             A replacement function is supplied for it.
+dnl
 dnl
 dnl Check Only
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv)
 AC_CHECK_FUNCS(alphasort, 
 	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
 AC_CHECK_FUNCS(inet_pton, 
@@ -970,12 +977,15 @@ AC_CHECK_FUNCS(setenv,
 	AC_DEFINE(HA_HAVE_SETENV,    1, [Have setenv function]))
 AC_CHECK_FUNCS(strerror, 
 	AC_DEFINE(HA_HAVE_STRERROR,  1, [Have strerror function]))
+AC_CHECK_FUNCS(unsetenv, 
+	AC_DEFINE(HA_HAVE_UNSETENV,    1, [Have unsetenv function]))
 
 AC_SUBST(HA_HAVE_ALPHASORT)
 AC_SUBST(HA_HAVE_INET_PTON)
 AC_SUBST(HA_HAVE_SCANDIR)
 AC_SUBST(HA_HAVE_SETENV)
 AC_SUBST(HA_HAVE_STRERROR)
+AC_SUBST(HA_HAVE_UNSETENV)
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
