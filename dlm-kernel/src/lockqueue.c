@@ -563,8 +563,10 @@ int send_cluster_request(gd_lkb_t *lkb, int state)
 	else
 		target_nodeid = lkb->lkb_nodeid;
 
-	GDLM_ASSERT(target_nodeid &&
-		    target_nodeid != -1 && target_nodeid != our_nodeid(),
+	/* during recovery it's valid for target_nodeid to equal our own;
+	   resend_cluster_requests does this to get requests back on track */
+
+	GDLM_ASSERT(target_nodeid && target_nodeid != -1,
 		    print_lkb(lkb);
 		    print_rsb(rsb);
 		    printk("target_nodeid %u\n", target_nodeid););
