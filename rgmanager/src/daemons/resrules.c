@@ -735,7 +735,7 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		/*
 		   Get the OCF status check intervals/monitor.
 		 */
-		_get_checklevels(doc, ctx, base, rr);
+		//_get_checklevels(doc, ctx, base, rr);
 
 		/*
 		   Second, add the allowable-children fields
@@ -754,7 +754,7 @@ load_resource_rulefile(char *filename, resource_rule_t **rules)
 		}
 
 		if (rr) {
-			if (store_rule(rules, rr) != 0)
+			if (store_rule(rules, rr) != 0) {
 				destroy_resource_rule(rr);
 				rr = NULL;
 			}
