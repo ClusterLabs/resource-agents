@@ -245,6 +245,7 @@ int lg_core_login(gulm_interface_p lgp, int important)
    if( lg == NULL ) return -EINVAL;
    if( lg->first_magic != LGMAGIC || lg->last_magic != LGMAGIC ) return -EINVAL;
 
+   memset(&adr, 0, sizeof(struct sockaddr_in6));
    adr.sin6_family = AF_INET6;
    adr.sin6_addr = in6addr_loopback;
    adr.sin6_port = htons(lg->core_port);

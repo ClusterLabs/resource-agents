@@ -16,7 +16,7 @@ all: libgulm.a
 .PHONY: libgulm.a clean dep depends
 
 libgulm.a:
-	cd .. && ${MAKE} libgulm.a
+	cd .. && ${MAKE} lib/libgulm.a
 
 clean:
 	cd .. && ${MAKE} clean
