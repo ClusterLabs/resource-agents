@@ -1740,6 +1740,8 @@ static void recv_some_data(int idx)
                   send_mbrshp_to_children(MasterIN->name, gio_Mbr_Logged_out);
                   MasterIN = NULL; /* clear this so old Master isn't fenced. */
                   close_by_idx(idx);
+                  quorate = FALSE;
+                  send_core_state_to_children();
                }
             }else
             if( x_cur_state == gio_Mbr_Expired) {
@@ -1995,6 +1997,8 @@ void work_loop(void)
             if( MasterIN != NULL )
                send_mbrshp_to_children(MasterIN->name, gio_Mbr_Expired);
             close_by_idx(poller.MasterIDX);
+            quorate = FALSE;
+            send_core_state_to_children();
          }
       }else
       if( I_am_the == gio_Mbr_ama_Master ||
