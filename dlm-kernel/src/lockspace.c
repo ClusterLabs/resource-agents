@@ -531,6 +531,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		kfree(rv);
 	}
 
+	clear_free_de(ls);
+
 	ls_nodes_clear(ls);
 	ls_nodes_gone_clear(ls);
 

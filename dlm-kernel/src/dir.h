@@ -28,5 +28,6 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 int dlm_dir_rebuild_wait(struct dlm_ls * ls);
 void dlm_dir_clear(struct dlm_ls *ls);
 void dlm_dir_dump(struct dlm_ls *ls);
+void clear_free_de(struct dlm_ls *ls);
 
 #endif				/* __DIR_DOT_H__ */

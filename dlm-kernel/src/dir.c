@@ -65,7 +65,7 @@ static struct dlm_direntry *get_free_de(struct dlm_ls *ls, int len)
 	return de;
 }
 
-static void clear_free_de(struct dlm_ls *ls)
+void clear_free_de(struct dlm_ls *ls)
 {
 	struct dlm_direntry *de;
 
