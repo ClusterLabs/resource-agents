@@ -22,6 +22,7 @@ SBINPROGS= \
 	fence_cpint \
 	fence_egenera \
 	fence_ibmblade \
+	fence_ilo \
 	fence_manual \
 	fence_mcdata \
 	fence_node \

@@ -18,6 +18,7 @@ all:
 	cd cpint && ${MAKE} all
 	cd egenera && ${MAKE} all
 	cd ibmblade && ${MAKE} all
+	cd ilo && ${MAKE} all
 	cd manual && ${MAKE} all
 	cd mcdata && ${MAKE} all
 	cd rackswitch && ${MAKE} all
@@ -34,6 +35,7 @@ copytobin:
 	cd cpint && ${MAKE} copytobin
 	cd egenera && ${MAKE} copytobin
 	cd ibmblade && ${MAKE} copytobin
+	cd ilo && ${MAKE} copytobin
 	cd manual && ${MAKE} copytobin
 	cd mcdata && ${MAKE} copytobin
 	cd rackswitch && ${MAKE} copytobin
@@ -50,6 +52,7 @@ clean:
 	cd cpint && ${MAKE} clean
 	cd egenera && ${MAKE} clean
 	cd ibmblade && ${MAKE} clean
+	cd ilo && ${MAKE} clean
 	cd manual && ${MAKE} clean
 	cd mcdata && ${MAKE} clean
 	cd rackswitch && ${MAKE} clean
