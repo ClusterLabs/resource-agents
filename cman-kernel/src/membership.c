@@ -461,6 +461,7 @@ static int do_timer_wakeup()
 		}
 		else {
 			P_MEMB("JOINCONF not acked, cancelling transition\n");
+			joining_node->state = NODESTATE_DEAD;
 			end_transition();
 		}
 		return -1;
@@ -1750,7 +1751,8 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 
 		/* Behave a little differently if we are on our own */
 		if (cluster_members == 1) {
-			if (transitionreason == TRANS_NEWNODE) {
+			if (transitionreason == TRANS_NEWNODE &&
+			    joining_temp_nodeid) {
 				/* If the cluster is just us then confirm at
 				 * once */
 				joinconf_count = 0;
@@ -1763,6 +1765,7 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 			else {	/* Node leaving the cluster */
 				recalculate_quorum(leavereason);
 				leavereason = 0;
+				joining_temp_nodeid = 0;
 				node_state = MEMBER;
 			}
 		}
