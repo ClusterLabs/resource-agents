@@ -3480,7 +3480,6 @@ int kcl_barrier_register(char *name, unsigned int flags, unsigned int nodes)
 			printk(KERN_WARNING CMAN_NAME
 			       ": Barrier registration failed for '%s', expected nodes=%d, requested=%d\n",
 			       name, barrier->expected_nodes, nodes);
-			up(&barrier_list_lock);
 			return -EINVAL;
 		}
 		else
