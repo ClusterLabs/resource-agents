@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.149 $) dnl cvs revision
+AC_REVISION($Revision: 1.150 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -618,13 +618,22 @@ dnl carefully handled afterwards.
 
 AC_C_STRINGIZE
 
+AC_ARG_ENABLE([fatal-warnings], 
+[  --enable-fatal-warnings very pedantic and fatal warnings for gcc
+                          [default=no, default=yes on Linux]])
+
+AC_ARG_ENABLE([traditional-warnings], 
+[  --enable-traditional-warnings 
+                          enable traditional warnings gcc (-Wtraditional)
+                          [default=no]])
+
 CC_WARNINGS=""
 if test "$GCC" = yes; then
 dnl
 dnl We make sure warnings are carefully scrubbed out of the output if
 dnl you're running on some platforms.  You can enable that behavior with
 dnl the option "fatal_warnings", by specifying --enable-fatal_warnings.
-dnl Or, you can disable it with --disable-fatal_warnings.
+dnl Or, you can disable it with --disable-fatal-warnings.
 dnl
 
 dnl Horms 10th August 2001
