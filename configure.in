@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.360 $) dnl cvs revision
+AC_REVISION($Revision: 1.361 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1645,9 +1645,19 @@ AC_SUBST(RPM_FILES_CMS)
 
 AC_ARG_ENABLE([crm],
 [  --enable-crm  Compile the new Cluster Resource Manager.
-                          This is still in very early developement stage.  [default=no]]) 
+                     This is still in the developement stage.  [default=no]]) 
+
+AC_ARG_ENABLE([crm-dev],
+[  --enable-crm-dev  Compile the new Cluster Resource Manager with 
+   		     developmental asserts turned on and extra code for testing.
+                     This is still in the developement stage.  [default=no]]) 
 
 CRM_ENABLED=0
+if test "x${enable_crm_dev}" = "xyes"; then
+   enable_crm="yes"
+   AC_DEFINE_UNQUOTED(CRM_DEV_BUILD, 1, Enable extra asserts and testing code for the new Cluster Resource Manager)
+fi
+
 if test "x${enable_crm}" = "xyes"; then
 	if test -n "$XML2CONFIG"; then
 	   CRM_ENABLED=1
