@@ -1620,10 +1620,10 @@ clump_alloc(struct gfs_rgrpd *rgd, uint32_t *first)
 
 	/* Array of bh pointers used in several steps */
 	bh = gmalloc(GFS_META_CLUMP * sizeof(struct buffer_head *));
-	memset(bh, 0, sizeof(GFS_META_CLUMP * sizeof(struct buffer_head *)));
+	memset(bh, 0, GFS_META_CLUMP * sizeof(struct buffer_head *));
 
 	/* Since we're looking for data blocks to change into meta blocks,
-	     use last alloc'd *data* (not meta) block as start point */
+	   use last alloc'd *data* (not meta) block as start point */
 	goal = rgd->rd_last_alloc_data;
 
 	for (x = 0; x < GFS_META_CLUMP; x++) {
