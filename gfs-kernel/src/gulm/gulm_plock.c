@@ -95,10 +95,8 @@ void gulm_plock_query_finish(struct glck_req *glck)
  * gulm_plock_get - 
  */
 int
-gulm_plock_get (lm_lockspace_t * lockspace,
-		struct lm_lockname *name, unsigned long owner,
-		uint64_t * start, uint64_t * end, int *exclusive,
-		unsigned long *rowner)
+gulm_plock_get (lm_lockspace_t * lockspace, struct lm_lockname *name,
+		 struct file *file, struct file_lock *fl)
 {
 	int err = 0;
 	struct gulm_pqur_s pqur;
@@ -115,11 +113,11 @@ gulm_plock_get (lm_lockspace_t * lockspace,
 	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 			key, GIO_KEY_SIZE);
 	item->key = key;
-	item->subid = owner;
-	item->start = *start;
-	item->stop = *end;
+	item->subid = (unsigned long) fl->fl_owner;
+	item->start = fl->fl_start;
+	item->stop = fl->fl_end;
 	item->type = glq_req_type_query;
-	if (*exclusive) {
+	if (fl->fl_type == F_WRLCK) {
 		item->state = lg_lock_state_Exclusive;
 	} else {
 		item->state = lg_lock_state_Shared;
@@ -137,13 +135,15 @@ gulm_plock_get (lm_lockspace_t * lockspace,
 
 	if (pqur.error == lg_err_TryFailed) {
 		err = -EAGAIN;
-		*start = pqur.start;
-		*end = pqur.stop;
-		*rowner = pqur.subid;
+		fl->fl_start = pqur.start;
+		fl->fl_end = pqur.stop;
+		fl->fl_pid = pqur.subid;
 		if( pqur.state == lg_lock_state_Exclusive )
-			*exclusive = TRUE;
+			fl->fl_type = F_WRLCK;
 		else
-			*exclusive = FALSE;
+			fl->fl_type = F_RDLCK;
+	} else if (pqur.error == 0) {
+		fl->fl_type = F_UNLCK;
 	} else {
 		err = -pqur.error;
 	}
@@ -157,9 +157,8 @@ fail:
  *
  */
 int
-gulm_plock (lm_lockspace_t * lockspace,
-	    struct lm_lockname *name, unsigned long owner,
-	    int wait, int exclusive, uint64_t start, uint64_t end)
+gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
+		struct file *file, int cmd, struct file_lock *fl)
 {
 	int err = 0;
 	struct gulm_pret_s pret;
@@ -176,17 +175,17 @@ gulm_plock (lm_lockspace_t * lockspace,
 	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 			key, GIO_KEY_SIZE);
 	item->key = key;
-	item->subid = owner;
-	item->start = start;
-	item->stop = end;
+	item->subid = (unsigned long) fl->fl_owner;
+	item->start = fl->fl_start;
+	item->stop = fl->fl_end;
 	item->type = glq_req_type_state;
-	if (exclusive) {
+	if (fl->fl_type == F_WRLCK) {
 		item->state = lg_lock_state_Exclusive;
 	} else {
 		item->state = lg_lock_state_Shared;
 	}
 	item->flags = lg_lock_flag_NoCallBacks;
-	if (wait)
+	if (IS_SETLKW(cmd))
 		item->flags |= lg_lock_flag_Try;
 	item->error = pret.error = 0;
 
@@ -196,6 +195,7 @@ gulm_plock (lm_lockspace_t * lockspace,
 	item->finish = gulm_plock_finish;
 
 	glq_queue (item);
+	/* TODO should be interruptible by signals */
 	wait_for_completion (&pret.sleep);
 
 	if (pret.error == lg_err_TryFailed) {
@@ -203,6 +203,8 @@ gulm_plock (lm_lockspace_t * lockspace,
 	} else {
 		err = -pret.error;
 	}
+
+	if ( err != 0) err = posix_lock_file_wait(file, fl);
 
 fail:
 	return err;
@@ -212,9 +214,8 @@ fail:
  * gulm_unplock - 
  */
 int
-gulm_punlock (lm_lockspace_t * lockspace,
-	      struct lm_lockname *name, unsigned long owner,
-	      uint64_t start, uint64_t end)
+gulm_punlock (lm_lockspace_t * lockspace, struct lm_lockname *name,
+	      struct file *file, struct file_lock *fl)
 {
 	int err = 0;
 	struct gulm_pret_s pret;
@@ -231,9 +232,9 @@ gulm_punlock (lm_lockspace_t * lockspace,
 	item->keylen = gulm_plock_packname(fs->fs_name, name->ln_number,
 			key, GIO_KEY_SIZE);
 	item->key = key;
-	item->subid = owner;
-	item->start = start;
-	item->stop = end;
+	item->subid = (unsigned long) fl->fl_owner;
+	item->start = fl->fl_start;
+	item->stop = fl->fl_end;
 	item->type = glq_req_type_state;
 	item->state = lg_lock_state_Unlock;
 	item->flags = 0;
@@ -245,9 +246,11 @@ gulm_punlock (lm_lockspace_t * lockspace,
 	item->finish = gulm_plock_finish;
 
 	glq_queue (item);
+	/* TODO should be interruptible by signals */
 	wait_for_completion (&pret.sleep);
 
 	err = -pret.error;
+	if ( err != 0) err = posix_lock_file_wait(file, fl);
 
 fail:
 	return err;

@@ -16,6 +16,7 @@
 
 #define GULM_RELEASE_NAME "<CVS>"
 
+/* uh, do I need all of these headers? */
 #ifdef MODVERSIONS
 #include <linux/modversions.h>
 #endif				/*  MODVERSIONS  */
@@ -31,6 +32,9 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/list.h>
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/fs.h>
 
 #ifndef TRUE
 #define TRUE (1)
@@ -198,16 +202,12 @@ void gulm_unhold_lvb (lm_lock_t * lock, char *lvb);
 void gulm_sync_lvb (lm_lock_t * lock, char *lvb);
 
 /* from gulm_plock.c */
-int gulm_plock_get (lm_lockspace_t * lockspace,
-		struct lm_lockname *name, unsigned long owner,
-		uint64_t * start, uint64_t * end, int *exclusive,
-		unsigned long *rowner);
-int gulm_plock (lm_lockspace_t * lockspace,
-	    struct lm_lockname *name, unsigned long owner,
-	    int wait, int exclusive, uint64_t start, uint64_t end);
-int gulm_punlock (lm_lockspace_t * lockspace,
-	      struct lm_lockname *name, unsigned long owner,
-	      uint64_t start, uint64_t end);
+int gulm_punlock (lm_lockspace_t * lockspace, struct lm_lockname *name,
+	      struct file *file, struct file_lock *fl);
+int gulm_plock (lm_lockspace_t *lockspace, struct lm_lockname *name,
+		struct file *file, int cmd, struct file_lock *fl);
+int gulm_plock_get (lm_lockspace_t * lockspace, struct lm_lockname *name,
+		 struct file *file, struct file_lock *fl);
 
 /*from gulm_core.c */
 void cm_logout (void);
