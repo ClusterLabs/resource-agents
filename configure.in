@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.124 $) dnl cvs revision
+AC_REVISION($Revision: 1.125 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -175,6 +175,13 @@ else
       LIBNETDEFINES="`$LIBNETCONFIG --defines` `$LIBNETCONFIG --cflags`";
       LIBNETLIBS="`$LIBNETCONFIG --libs`";
       AC_MSG_RESULT("using $LIBNETCONFIG")
+      case $LIBNETLIBS in
+        *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
+        *)	libnet=$LIBNETLIBS;;
+      esac
+      AC_CHECK_LIB($libnet,libnet_init,
+      [AC_DEFINE(HAVE_LIBNET_1_1_API, 1, Libnet 1.1 API)],
+      [AC_DEFINE(HAVE_LIBNET_1_0_API, 1, Libnet 1.0 API)])
 fi
 AC_SUBST(LIBNETDEFINES)
 AC_SUBST(LIBNETLIBS)
