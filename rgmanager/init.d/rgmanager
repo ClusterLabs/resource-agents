@@ -16,7 +16,13 @@
 # Grab the network config file
 . /etc/sysconfig/network
 
-RGMGRD="rgmanager"
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+export PATH
+
+ID="Resource Group Manager"
+RGMGRD="clurgmgrd"
+CFG_FILE="/etc/cluster/cluster.conf"
 
 LOG_ERR=3
 LOG_WARNING=4
@@ -32,7 +38,7 @@ LOG_INFO=6
 # If we're not configured, then don't start anything.
 #
 [ "${NETWORKING}" = "yes" ] || exit 0
-[ -f "/etc/cluster/cluster.conf" ] || exit 0
+[ -f "$CFG_FILE" ] || exit 0
 
 
 #
@@ -132,8 +138,8 @@ close_port()
 #
 cluster_firewall()
 {
-	declare -i rgmgrd_addr=34002 # Not correct yet
-	declare -i rgmgrd_addr_six=34003 # Not correct yet
+	declare -i rgmgrd_addr=41966
+	declare -i rgmgrd_addr_six=41967
 	declare port
 
 	if ! iptables -L $FW_CHAIN &> /dev/null; then
@@ -208,7 +214,7 @@ log_and_print()
 		return 1;
 	fi
 
-	/usr/sbin/clulog -p $$ -n "rgmanager" -s $1 "$2"
+	clulog -p $$ -n "rgmanager" -s $1 "$2"
 	echo $2
 
 	return 0;
@@ -225,14 +231,14 @@ stop_cluster()
 	while [ 0 ]; do
 
 		if [ -n "`pidof $RGMGRD`" ]; then
-			echo -n $"Waiting for User Services to stop: " 
+			echo -n $"Waiting for Resource Groups to stop: " 
 			while [ -n "`pidof $RGMGRD`" ]; do
 				sleep 1
 			done
 			echo_success
 			echo
 		else
-			echo $"User Services are stopped."
+			echo $"Resource Groups are stopped."
 		fi
 
 		# Ensure all NFS rmtab daemons are dead.
@@ -248,8 +254,7 @@ stop_cluster()
 
 case $1 in
 	start)
-		log_and_print $LOG_NOTICE "Starting $ID..."
-		watchdog_init
+		#watchdog_init
 
 		#open_firewall || exit 1
 
