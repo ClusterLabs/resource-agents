@@ -43,11 +43,6 @@ struct file_lock { int x; };
 
 const char *usage[] =
 {
-#ifdef DEBUG_STACK
-  "Print out stack traces:\n",
-  "  gfs_tool stack <mountpoint>\n",
-  "\n",
-#endif
   "Print file stat data:\n",
   "  gfs_tool stat <filename>\n",
   "\n",
@@ -1204,12 +1199,6 @@ int main(int argc,char *argv[])
   {
     /*  Do Nothing  */
   }
-#ifdef DEBUG_STACK
-  else if (strcmp(argv[1], "stack") == 0)
-  {
-    print_stack(argc, argv);
-  }
-#endif
   else if (strcmp(argv[1], "shrink") == 0)
   {
     shrink(argc, argv);

@@ -16,7 +16,6 @@ include ${top_srcdir}/make/defines.mk
 TARGET= gfs_tool
 
 SOURCE= counters.c \
-	debug.c \
 	layout.c \
 	main.c \
 	sb.c \
@@ -36,10 +35,6 @@ INCLUDE += $(shell if [ -e ${KERNEL_SRC}/include/linux/gfs_ondisk.h ]; then \
 		echo '-I${incdir}'; fi)
 else
 INCLUDE += -I${incdir}
-endif
-
-ifeq ($(FS_DEBUG_STACK),y)
-CFLAGS += -DDEBUG_STACK
 endif
 
 all: ${TARGET}

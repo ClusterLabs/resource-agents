@@ -47,11 +47,6 @@ EXTERN char *prog_name;
 void get_counters(int argc, char **argv);
 
 
-/*  debug.c  */
-
-void print_stack(int argc, char **argv);
-
-
 /*  layout.c  */
 
 void print_layout(int argc, char *argv[]);
