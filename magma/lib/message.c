@@ -485,7 +485,7 @@ msg_open(uint64_t nodeid, uint16_t baseport, int purpose, int timeout)
 		if (ai->ai_family != AF_INET6)
 			continue;
 
-		if (ai->ai_protocol != SOCK_STREAM)
+		if (ai->ai_socktype != SOCK_STREAM)
 			continue;
 
 		fd = ipv6_connect(
@@ -507,6 +507,9 @@ msg_open(uint64_t nodeid, uint16_t baseport, int purpose, int timeout)
 	/* Try IPv4 */
 	for (ai = nodep->cm_addrs; ai; ai = ai->ai_next) {
 		if (ai->ai_family != AF_INET)
+			continue;
+
+		if (ai->ai_socktype != SOCK_STREAM)
 			continue;
 
 		fd = ipv4_connect(
