@@ -48,7 +48,7 @@ static void print_usage(void)
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to unqualified hostname)\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
-	printf("  -X               Do not use CCS\n");
+	printf("  -X               Do not use cluster.conf values from CCS\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
 	printf("\n");
@@ -248,14 +248,17 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'r':
 			comline->config_version = atoi(optarg);
+			comline->config_version_opt = TRUE;
 			break;
 
 		case 'v':
 			comline->votes = atoi(optarg);
+			comline->votes_opt = TRUE;
 			break;
 
 		case 'e':
 			comline->expected_votes = atoi(optarg);
+			comline->expected_votes_opt = TRUE;
 			break;
 
 		case '2':
@@ -264,10 +267,12 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'p':
 			comline->port = atoi(optarg);
+			comline->port_opt = TRUE;
 			break;
 
 		case 'N':
 			comline->nodeid = atoi(optarg);
+			comline->nodeid_opt = TRUE;
 			break;
 
 		case 'c':
@@ -275,6 +280,7 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 				die("maximum cluster name length is %d",
 				    MAX_CLUSTER_NAME_LEN);
 			strcpy(comline->clustername, optarg);
+			comline->clustername_opt = TRUE;
 			break;
 
 		case 'X':
@@ -374,10 +380,9 @@ static void check_arguments(commandline_t *comline)
 
 	if (!comline->nodenames[0]) {
 		struct utsname utsname;
-
 		error = uname(&utsname);
 		if (error)
-		    die("uname failed!");
+			die("cannot get node name, uname failed");
 
 		comline->nodenames[0] = strdup(utsname.nodename);
 		comline->num_nodenames++;

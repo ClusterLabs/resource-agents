@@ -34,15 +34,50 @@
 #define NODE_MCAST_IF_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
 
 
-
+/*
+ * It's ok to let a node join the cluster even if it's not in cluster.conf.
+ * It's similar to allowing the admin to lower expected_votes dynamically.  The
+ * biggest risk with this kind of thing is that an inquorate cluster partition
+ * will gain quorum creating a split-brain scenario where two partitions have
+ * quorum.
+ *
+ * This poses no real danger to GFS.  Even in a split-brain cluster, the
+ * fencing domain ensures that one half or the other is fenced before gfs usage
+ * is allowed.  If both halves gain quorum, both halves will attempt to fence
+ * each other instead of the normal scenario where the quorate half will fence
+ * the inquorate half.  Regardless the outcome of this fencing battle, gfs
+ * integrity is preserved.
+ *
+ * [This does require that the fence daemon only allow a node to join the fence
+ * domain if that node's cluster nodename is in cluster.conf.  Mounting gfs is
+ * then only permitted if the node is in the fence domain.]
+ *
+ * So, if the user wants a node that's not in cluster.conf to join the cluster
+ * that's fine, they can always do that using the -X option to ignore
+ * cluster.conf.  Here, when using ccs/cluster.conf, we'll assume that the user
+ * has made an error if we find that a node's name is missing from cluster.conf
+ * since that's the most likely situation and most helpful to the non-expert.
+ */
+ 
 int get_ccs_join_info(commandline_t *comline)
 {
 	char path[MAX_PATH_LEN];
 	char nodename[MAX_NODE_NAME_LEN];
-	char *str, *name, *cname = NULL;
+	char *str, *name, *cname = NULL, *dot = NULL;
 	int cd, error, i, vote_sum = 0, node_count = 0;
 
-	if (comline->clustername[0])
+
+	if (comline->config_version_opt ||
+	    comline->votes_opt ||
+	    comline->expected_votes_opt ||
+	    comline->port_opt ||
+	    comline->nodeid_opt)
+		printf("command line options may override cluster.conf values\n");
+
+
+	/* connect to ccsd */
+
+	if (comline->clustername_opt)
 		cname = comline->clustername;
 
 	cd = ccs_force_connect(cname, 1);
@@ -50,86 +85,69 @@ int get_ccs_join_info(commandline_t *comline)
 		die("cannot connect to ccs (name=%s)",
 		    cname ? comline->clustername : "none");
 
-	if (comline->num_multicasts ||
-	    comline->num_nodenames ||
-	    comline->config_version ||
-	    comline->votes ||
-	    comline->expected_votes ||
-	    comline->two_node ||
-	    comline->nodeid ||
-	    comline->port)
-		printf("command line values will override some CCS values\n");
-
-	memset(&nodename, 0, MAX_NODE_NAME_LEN);
-
-	/* nodenames[0] may be used as a nodename override from the
-	   command-line. else we use uname */
-	if (comline->nodenames[0])
-	{
-	    strcpy(nodename, comline->nodenames[0]);
-	}
-	else
-	{
-	    struct utsname utsname;
-
-	    error = uname(&utsname);
-	    if (error)
-		die("uname failed!");
-
-	    strcpy(nodename, utsname.nodename);
-	}
-
-	/* If it wasn't specified on the commandline
-	   Look for the node in CCS, if we don't find it and uname has returned
-	   a FQDN then strip the domain off and try again */
-	if (!comline->nodenames[0])
-	{
-		memset(path, 0, MAX_PATH_LEN);
-		sprintf(path, NODE_NAME_PATH, nodename);
-
-		error = ccs_get(cd, path, &str);
-		if (error)
-		{
-			char *dot;
-			dot = strstr(nodename, ".");
-			if (dot)
-			{
-				*dot = '\0';
-
-				sprintf(path, NODE_NAME_PATH, nodename);
-				error = ccs_get(cd, path, &str);
-				if (error)
-					die("cannot find local node name \"%s\" in ccs", nodename);
-			}
-			else
-			{
-				die("cannot find local node name \"%s\" in ccs", nodename);
-			}
-		}
-		free(str);
-	}
 
 	/* cluster name */
 
 	error = ccs_get(cd, CLUSTER_NAME_PATH, &str);
-	if (!error) {
+	if (error)
+		die("cannot find cluster name in config file");
+
+	if (comline->clustername_opt) {
+		if (strcmp(cname, str))
+			die("cluster names not equal %s %s", cname, str);
+	} else
 		strcpy(comline->clustername, str);
-		free(str);
+	free(str);
+
+
+	/* our nodename */
+
+	memset(nodename, 0, MAX_NODE_NAME_LEN);
+
+	if (comline->num_nodenames > 0)
+		strcpy(nodename, comline->nodenames[0]);
+	else {
+		struct utsname utsname;
+		error = uname(&utsname);
+		if (error)
+			die("cannot get node name, uname failed");
+		/* we set up the comline nodenames below */
+		strcpy(nodename, utsname.nodename);
 	}
+
+
+	/* find our nodename in cluster.conf */
+
+ retry_name:
+	memset(path, 0, MAX_PATH_LEN);
+	sprintf(path, NODE_NAME_PATH, nodename);
+
+	error = ccs_get(cd, path, &str);
+	if (error) {
+		if (dot || !strstr(nodename, "."))
+			die("local node name \"%s\" not found in cluster.conf",
+			    nodename);
+		dot = strstr(nodename, ".");
+		*dot = '\0';
+		goto retry_name;
+	} else
+		free(str);
 
 
 	/* config version */
 
-	error = ccs_get(cd, CONFIG_VERSION_PATH, &str);
-	if (!error) {
-		comline->config_version = atoi(str);
-		free(str);
+	if (!comline->config_version_opt) {
+		error = ccs_get(cd, CONFIG_VERSION_PATH, &str);
+		if (!error) {
+			comline->config_version = atoi(str);
+			free(str);
+		}
 	}
 
 
 	/* sum node votes for expected */
-	if (!comline->expected_votes)
-	{
+
+	if (!comline->expected_votes_opt) {
 		for (i = 1; ; i++) {
 			name = NULL;
 			memset(path, 0, MAX_PATH_LEN);
@@ -154,7 +172,6 @@ int get_ccs_join_info(commandline_t *comline)
 			}
 		}
 
-
 		/* optional expected_votes supercedes vote sum */
 
 		error = ccs_get(cd, EXP_VOTES_PATH, &str);
@@ -163,11 +180,12 @@ int get_ccs_join_info(commandline_t *comline)
 			free(str);
 		} else
 			comline->expected_votes = vote_sum;
-
 	}
+
+
 	/* optional port */
-	if (!comline->port)
-	{
+
+	if (!comline->port_opt) {
 		error = ccs_get(cd, PORT_PATH, &str);
 		if (!error) {
 			comline->port = atoi(str);
@@ -177,8 +195,8 @@ int get_ccs_join_info(commandline_t *comline)
 
 
 	/* optional multicast name(s) with interfaces */
-	if (!comline->num_multicasts)
-	{
+
+	if (!comline->num_multicasts) {
 		comline->num_multicasts = 0;
 		comline->num_interfaces = 0;
 
@@ -189,8 +207,8 @@ int get_ccs_join_info(commandline_t *comline)
 			if (error || !str)
 				break;
 
-			/* If we get the same thing twice, it's probably the end of a
-			   1-element list */
+			/* If we get the same thing twice, it's probably the
+			   end of a 1-element list */
 
 			if (i > 0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
 				free(str);
@@ -222,11 +240,14 @@ int get_ccs_join_info(commandline_t *comline)
 		}
 	}
 
+
+
 	/* find our own number of votes */
-	memset(path, 0, MAX_PATH_LEN);
-	sprintf(path, NODE_VOTES_PATH, nodename);
-	if (!comline->votes)
-	{
+
+	if (!comline->votes_opt) {
+		memset(path, 0, MAX_PATH_LEN);
+		sprintf(path, NODE_VOTES_PATH, nodename);
+
 		error = ccs_get(cd, path, &str);
 		if (!error) {
 			comline->votes = atoi(str);
@@ -234,7 +255,10 @@ int get_ccs_join_info(commandline_t *comline)
 		}
 	}
 
-	if (!comline->nodeid) {
+
+	/* optional nodeid */
+
+	if (!comline->nodeid_opt) {
 		memset(path, 0, MAX_PATH_LEN);
 		sprintf(path, NODE_NODEID_PATH, nodename);
 
@@ -245,9 +269,10 @@ int get_ccs_join_info(commandline_t *comline)
 		}
 	}
 
+
 	/* get all alternative node names */
-	if (!comline->num_nodenames)
-	{
+
+	if (!comline->num_nodenames) {
 		comline->nodenames[0] = strdup(nodename);
 		comline->num_nodenames = 1;
 
@@ -261,8 +286,8 @@ int get_ccs_join_info(commandline_t *comline)
 			if (error || !str)
 				break;
 
-			/* If we get the same thing twice, it's probably the end of a
-			   1-element list */
+			/* If we get the same thing twice, it's probably the
+			   end of a 1-element list */
 
 			if (strcmp(str, comline->nodenames[i-1]) == 0) {
 				free(str);
@@ -276,6 +301,7 @@ int get_ccs_join_info(commandline_t *comline)
 			comline->num_nodenames++;
 		}
 	}
+
 
 	/* two_node mode */
 

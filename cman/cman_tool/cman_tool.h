@@ -79,11 +79,17 @@ struct commandline
         int verbose;
         int nodeid;
 	unsigned int config_version;
+
+	int config_version_opt;
+	int votes_opt;
+	int expected_votes_opt;
+	int port_opt;
+	int nodeid_opt;
+	int clustername_opt;
 };
 typedef struct commandline commandline_t;
 
 int join(commandline_t *comline);
 int get_ccs_join_info(commandline_t *comline);
-int uname_to_nodename(char *name);
 
 #endif  /*  __CMAN_TOOL_DOT_H__  */
