@@ -22,9 +22,6 @@
 #include "recover.h"
 #include "util.h"
 
-static LIST_HEAD(expired_resdata_list);
-static spinlock_t expired_resdata_lock = SPIN_LOCK_UNLOCKED;
-
 struct resmov {
 	uint32_t rm_nodeid;
 	uint16_t rm_length;
@@ -137,54 +134,14 @@ void remove_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen,
 
 	if (de->master_nodeid != nodeid) {
 		log_debug(ls, "remove from %u seq %u ID %u seq %3u",
-			  nodeid, sequence, de->master_nodeid,
-			  de->sequence);
+			  nodeid, sequence, de->master_nodeid);
 		goto out;
 	}
 
-	if (de->sequence == sequence) {
-		/* Expire immediately if timeout is 0 */
-		if (!dlm_config.resdir_expiretime) {
-			list_del(&de->list);
-			free_resdata(de);
-			goto out;
-		}
-		/* If it's already on the timeout list, then just adjust the
-		 * expiry due time.
-		 */
-	        if (!de->duetime) {
-			spin_lock(&expired_resdata_lock);
-			list_add_tail(&de->expirelist, &expired_resdata_list);
-			spin_unlock(&expired_resdata_lock);
-	        }
-	    	de->duetime = jiffies + dlm_config.resdir_expiretime*HZ; 
-	} else {
-		log_debug(ls, "remove from %u seq %u id %u SEQ %3u",
-			  nodeid, sequence, de->master_nodeid,
-			  de->sequence);
-	}
-
+	list_del(&de->list);
+	free_resdata(de);
  out:
 	write_unlock(&ls->ls_dirtbl[bucket].lock);
-}
-
-/* Called now and then from astd */
-void process_expired_resdata(void)
-{
-	struct dlm_direntry *de;
-	struct list_head *pos, *tmp;
-	
-	spin_lock(&expired_resdata_lock);
-	list_for_each_safe(pos, tmp, &expired_resdata_list) {
-		de = list_entry(pos, struct dlm_direntry, expirelist);
-
-		if (time_after(jiffies, de->duetime)) {
-			list_del(&de->list);
-			list_del(&de->expirelist);
-			free_resdata(de);
-		}
-	}
-	spin_unlock(&expired_resdata_lock);
 }
 
 void dlm_dir_clear(struct dlm_ls *ls)
@@ -198,11 +155,6 @@ void dlm_dir_clear(struct dlm_ls *ls)
 		while (!list_empty(head)) {
 			de = list_entry(head->next, struct dlm_direntry, list);
 			list_del(&de->list);
-			if (de->duetime) {
-				spin_lock(&expired_resdata_lock);
-				list_del(&de->expirelist);
-				spin_unlock(&expired_resdata_lock);
-			}
 			free_resdata(de);
 		}
 	}
@@ -282,7 +234,6 @@ int dlm_dir_rebuild_local(struct dlm_ls *ls)
 
 				de->master_nodeid = mov.rm_nodeid;
 				de->length = mov.rm_length;
-				de->sequence = 1;
 
 				memcpy(de->name, b, mov.rm_length);
 				b += mov.rm_length;
@@ -404,15 +355,6 @@ int dlm_dir_rebuild_send(struct dlm_ls *ls, char *inbuf, int inlen,
 	return offset;
 }
 
-static void inc_sequence(struct dlm_direntry *de, int recovery)
-{
-	if (!recovery) {
-		if (++de->sequence == 0)
-			de->sequence++;
-	} else
-		de->sequence = 1;
-}
-
 static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 		       int namelen, uint32_t *r_nodeid, uint8_t *r_seq,
 		       int recovery)
@@ -425,9 +367,7 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	write_lock(&ls->ls_dirtbl[bucket].lock);
 	de = search_bucket(ls, name, namelen, bucket);
 	if (de) {
-		inc_sequence(de, recovery);
 		*r_nodeid = de->master_nodeid;
-		*r_seq = de->sequence;
 		write_unlock(&ls->ls_dirtbl[bucket].lock);
 		goto out;
 	}
@@ -440,7 +380,6 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 
 	de->master_nodeid = nodeid;
 	de->length = namelen;
-	de->sequence = 1;
 	memcpy(de->name, name, namelen);
 
 	write_lock(&ls->ls_dirtbl[bucket].lock);
@@ -448,18 +387,10 @@ static int get_resdata(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	if (tmp) {
 		free_resdata(de);
 		de = tmp;
-		inc_sequence(de, recovery);
-	} else
+	} else {
 		list_add_tail(&de->list, &ls->ls_dirtbl[bucket].list);
-
-	if (de->duetime) {
-		spin_lock(&expired_resdata_lock);
-		list_del(&de->expirelist);
-		spin_unlock(&expired_resdata_lock);
-	    	de->duetime = 0L;
 	}
 	*r_nodeid = de->master_nodeid;
-	*r_seq = de->sequence;
 	write_unlock(&ls->ls_dirtbl[bucket].lock);
 
  out:

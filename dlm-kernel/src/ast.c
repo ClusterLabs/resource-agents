@@ -521,8 +521,6 @@ static int dlm_astd(void *data)
 
 		if (test_and_clear_bit(GDLMD_WAKE_TIMER, &_astd_wakeflags)) {
 			process_lockqueue();
-			if (dlm_config.resdir_expiretime)
-			        process_expired_resdata();
 			if (dlm_config.deadlocktime)
 				process_deadlockqueue();
 		}

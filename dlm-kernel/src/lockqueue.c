@@ -333,6 +333,37 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		 * (which may be in the same network message)
 		 */
 
+
+		/* the destination wasn't the master */
+		if (reply->rl_status == -EINVAL) {
+			int master_nodeid;
+			uint8_t seq;
+
+			log_debug(ls, "resend lookup");
+			lkb_dequeue(lkb);
+			rsb->res_nodeid = -1;
+			lkb->lkb_nodeid = -1;
+			if (get_directory_nodeid(rsb) != our_nodeid())
+				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
+			else {
+			    	dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
+					       rsb->res_length, &master_nodeid,
+					       &seq);
+			    	if (master_nodeid == our_nodeid()) {
+					set_bit(RESFL_MASTER, &rsb->res_flags);
+					master_nodeid = 0;
+			        } 
+				else
+					clear_bit(RESFL_MASTER,&rsb->res_flags);
+			        rsb->res_nodeid = master_nodeid;
+			        lkb->lkb_nodeid = master_nodeid;
+			        rsb->res_resdir_seq = seq;
+			        dlm_lock_stage2(ls, lkb, rsb,
+			 			lkb->lkb_lockqueue_flags);
+			}
+			break;
+		}
+
 		if (!lkb->lkb_remid)
 			lkb->lkb_remid = reply->rl_lkid;
 
@@ -785,7 +816,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb = remote_stage2(nodeid, lspace, freq);
 		if (lkb) {
 			lkb->lkb_request = freq;
-			dlm_lock_stage3(lkb);
+			if (lkb->lkb_retstatus != -EINVAL)
+				dlm_lock_stage3(lkb);
 
 			/*
 			 * If the request was granted in lock_stage3, then a
@@ -806,11 +838,13 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 				 */
 
 				if (lkb->lkb_retstatus == -EAGAIN) {
-					DLM_ASSERT(lkb->lkb_lockqueue_flags &
-						    DLM_LKF_NOQUEUE,);
 					rsb = lkb->lkb_resource;
 					release_lkb(lspace, lkb);
 					release_rsb(rsb);
+					lkb = NULL;
+				}
+				else if (lkb->lkb_retstatus == -EINVAL) {
+					release_lkb(lspace, lkb);
 					lkb = NULL;
 				}
 			}

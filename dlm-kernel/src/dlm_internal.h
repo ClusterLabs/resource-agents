@@ -150,9 +150,6 @@ struct dlm_direntry {
 	struct list_head	list;
 	uint32_t		master_nodeid;
 	uint16_t		length;
-	uint8_t			sequence;
-	unsigned long		duetime;
-	struct list_head	expirelist;
 	char			name[1];
 };
 

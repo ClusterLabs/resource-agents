@@ -561,32 +561,30 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
 
-	error = find_or_create_rsb(ls, parent_rsb, freq->rr_name, namelen, 1,
+	error = find_or_create_rsb(ls, parent_rsb, freq->rr_name, namelen, 0,
 				   &rsb);
 	if (error)
 		goto fail_free;
 
+	if (!rsb || rsb->res_nodeid == -1) {
+		log_debug(ls, "inval rsb to %u", remote_nodeid);
+		lkb->lkb_retstatus = -EINVAL;
+		goto out;
+	}
+	
 	lkb->lkb_resource = rsb;
 
 	log_debug(ls, "rq %u from %u %x \"%s\"", lkb->lkb_rqmode, remote_nodeid,
 		  lkb->lkb_id, rsb->res_name);
 
-	if (rsb->res_nodeid == -1) {
-		log_debug(ls, "request mode %u from %u seq %u rsb \"%s\"",
-			  lkb->lkb_rqmode, remote_nodeid, freq->rr_resdir_seq,
-			  rsb->res_name);
-		set_bit(RESFL_MASTER, &rsb->res_flags);
-		rsb->res_nodeid = 0;
-	} else {
-		DLM_ASSERT(!rsb->res_nodeid,
-			    print_lkb(lkb);
-			    print_request(freq);
-			    printk("nodeid %u\n", remote_nodeid););
-	}
+	DLM_ASSERT(rsb->res_nodeid == 0,
+		   print_lkb(lkb);
+		   print_request(freq);
+		   printk("nodeid %u\n", remote_nodeid););
 
 	if (freq->rr_resdir_seq)
 		rsb->res_resdir_seq = freq->rr_resdir_seq;
-
+      out:
 	return lkb;
 
 
