@@ -44,50 +44,50 @@ level of the \fBcluster.conf\fP file.  Given this information, your
 
 </cluster>
 
-A manditory subsection of \fIcluster\fP is \fIfence_devices\fP.  It contains
+A manditory subsection of \fIcluster\fP is \fIfencedevices\fP.  It contains
 all of the I/O fencing devices at the disposal of the cluster.  The I/O
-fencing devices are listed as entities designated as \fIdevice\fP and have
+fencing devices are listed as entities designated as \fIfencedevice\fP and have
 attributes that describe the particular fencing device.  For example:
 
-  <fence_device>
-    <device name="apc" agent="fence_apc"
+  <fencedevices>
+    <fencedevice name="apc" agent="fence_apc"
             ipaddr="apc_1" login="apc" passwd="apc"/>
-  </fence_device>
+  </fencedevices>
 
-Concerning the \fIdevice\fP entity, the \fIname\fP and \fIagent\fP attributes
+Concerning the \fIfencedevice\fP entity, the \fIname\fP and \fIagent\fP attributes
 must be specified for all I/O fence devices.  The remaining attributes are
 device specific and are used to specify the neccessary information to
 access the device.  The \fIname\fP attribute must be unique and is used to
 reference the I/O fence device in other sections of the \fBcluster.conf\fP file.  The \fIagent\fP attribute is used to specify the binary fence agent program used to communicate with the particular device.  Your \fBcluster.conf\fP file might now look something like:
 
 <cluster name="alpha" config_version="1">
-  <fence_device>
-    <device name="apc" agent="fence_apc"
+  <fencedevices>
+    <fencedevice name="apc" agent="fence_apc"
             ipaddr="apc_1" login="apc" passwd="apc"/>
 
-    <device name="brocade" agent="fence_brocade"
+    <fencedevice name="brocade" agent="fence_brocade"
             ipaddr="brocade_1" login="bro" passwd="bro"/>
 
     <!-- The WTI fence device requires no login name -->
-    <device name="wti" agent="fence_wti"
+    <fencedevice name="wti" agent="fence_wti"
             ipaddr="wti_1" passwd="wti"/>
 
-    <device name="last_resort" agent="fence_manual"/>
-  </fence_device>
+    <fencedevice name="last_resort" agent="fence_manual"/>
+  </fencedevices>
 </cluster>
 
-The final manditory subsection of \fIcluster\fP is \fInodes\fP.  It contains
+The final manditory subsection of \fIcluster\fP is \fIclusternodes\fP.  It contains
 the individual specification of all the machines (members) in the cluster.
-Each machine has it's own section, \fInode\fP, which has the \fIname\fP
-attribute - this should be the name of the machine.  The \fInode\fP section
-also contains the \fIfence\fP section.  Not to be confused with \fIfence_device\fP the \fIfence\fP section is used to specify all the possible "methods" for
+Each machine has it's own section, \fIclusternode\fP, which has the \fIname\fP
+attribute - this should be the name of the machine.  The \fIclusternode\fP section
+also contains the \fIfence\fP section.  Not to be confused with \fIfencedevices\fP the \fIfence\fP section is used to specify all the possible "methods" for
 fencing a particular machine, as well as the device used to perform that method
-and the machine specific parameters neccessary.  By example, the \fInodes\fP
+and the machine specific parameters neccessary.  By example, the \fIclusternodes\fP
 section may look as follows:
 
   <!-- This example only contains one machine -->
-  <nodes>
-    <node name="nd01">
+  <clusternodes>
+    <clusternode name="nd01">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -104,16 +104,16 @@ section may look as follows:
           <device name="last_resort" ipaddr="nd01"/>
         </method>
       </fence>
-    </node>
-  </nodes>  
+    </clusternode>
+  </clusternodes>  
 
 Putting it all together, a three node cluster's \fBcluster.conf\fP file
 might look like:
 
 
 <cluster name="example" config_version="1">
-  <nodes>
-    <node name="nd01">
+  <clusternodes>
+    <clusternode name="nd01">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -130,8 +130,8 @@ might look like:
           <device name="last_resort" ipaddr="nd01"/>
         </method>
       </fence>
-    </node>
-    <node name="nd02">
+    </clusternode>
+    <clusternode name="nd02">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -148,8 +148,8 @@ might look like:
           <device name="last_resort" ipaddr="nd02"/>
         </method>
       </fence>
-    </node>
-    <node name="nd11">
+    </clusternode>
+    <clusternode name="nd11">
       <fence>
         <!-- "power" method is tried before all others -->
         <method name="power">
@@ -168,22 +168,22 @@ might look like:
           <device name="last_resort" ipaddr="nd11"/>
         </method>
       </fence>
-    </node>
-  </nodes>  
+    </clusternode>
+  </clusternodes>  
 
-  <fence_device>
-    <device name="apc" agent="fence_apc"
+  <fencedevices>
+    <fencedevice name="apc" agent="fence_apc"
             ipaddr="apc_1" login="apc" passwd="apc"/>
 
-    <device name="brocade" agent="fence_brocade"
+    <fencedevice name="brocade" agent="fence_brocade"
             ipaddr="brocade_1" login="bro" passwd="bro"/>
 
     <!-- The WTI fence device requires no login name -->
-    <device name="wti" agent="fence_wti"
+    <fencedevice name="wti" agent="fence_wti"
             ipaddr="wti_1" passwd="wti"/>
 
-    <device name="last_resort" agent="fence_manual"/>
-  </fence_device>
+    <fencedevice name="last_resort" agent="fence_manual"/>
+  </fencedevices>
 </cluster>
 
 
