@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.79 $) dnl cvs revision
+AC_REVISION($Revision: 1.80 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -286,6 +286,7 @@ AC_CHECK_LIB(socket, socket)			dnl -lsocket
 AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
 AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
+AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 #
 #	Where is dlopen?
 #
@@ -494,6 +495,7 @@ dnl
 	if test "$enable_traditional_warning" = yes; then
     	  EXTRA_WARNINGS="$EXTRA_WARNINGS -Wtraditional"
 	fi
+	# had to eliminate -Wnested-externs because of libtool changes
 
 	CC_WARNINGS="-Wall -Wmissing-prototypes \
 		-Wmissing-declarations \
@@ -502,7 +504,7 @@ dnl
 		-Wpointer-arith \
 		-Wwrite-strings \
 		-Wcast-qual -Wcast-align \
-		-Wnested-externs -Winline $EXTRA_WARNINGS"
+		-Winline $EXTRA_WARNINGS"
 fi
 
 INIT_EXT=""
