@@ -43,6 +43,7 @@ sub usage
     print "  -h               usage\n";
     print "  -n <num>         Physical plug number on NPS\n";
     print "  -p <string>      Password if NPS requires one\n";
+    print "  -o <operation>   Operation to perform (on, off, reboot)\n";
     print "  -q               quiet mode\n";
     print "  -T               test reports state of plug (no power cycle)\n";
     print "  -V               Version\n";
@@ -75,7 +76,7 @@ sub version
 }
 
 if (@ARGV > 0) {
-   getopts("a:hn:p:qTV") || fail_usage ;
+   getopts("a:hn:p:qTVo:") || fail_usage ;
 
    usage if defined $opt_h;
    version if defined $opt_V;
@@ -85,6 +86,7 @@ if (@ARGV > 0) {
    fail_usage "No '-a' flag specified." unless defined $opt_a;
    fail_usage "No '-n' flag specified." unless defined $opt_n;
    fail_usage "No '-p' flag specified." unless defined $opt_p;
+   fail_usage "No '-o' flag specified." unless defined $opt_o;
 
 } else {
    get_options_stdin();
@@ -92,6 +94,7 @@ if (@ARGV > 0) {
    fail "failed: no IP address" unless defined $opt_a;
    fail "failed: no plug number" unless defined $opt_n;
    fail "failed: no password" unless defined $opt_p;
+   fail "failed: no operation specified" unless defined $opt_o;
 }
 
 $t = new Net::Telnet;
@@ -117,7 +120,7 @@ while (1)
     $ver1 = $1;
     $ver2 = $2;
 
-    $t->waitfor('/NPS\>/'); 
+    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/'); 
     last;
   }
 }
@@ -132,99 +135,99 @@ if (defined $opt_T)
 
 # to be most certain of success, turn off, check for OFF status, turn ON, check
 # for ON status
+if (($opt_o eq "off") || ($opt_o eq "reboot")) {
+  $t->print("/off $opt_n");
+  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS)\>/');
 
-$t->print("/off $opt_n");
-($line, $match) = $t->waitfor('/\(Y\/N\)|NPS\>/');
-
-if ($match =~ /Y\/N/)
-{
-  $t->print("y");
-  $t->waitfor('/NPS\>/');
-}
-
-$t->print("/s");
-
-while (1)
-{
-  ($line, $match) = $t->waitfor('/\n|NPS\>/');
-
-  if ($match =~ /NPS\>/)
+  if ($match =~ /Y\/N/)
   {
-    print "failed: plug number \"$opt_n\" not found\n"
-       unless defined $opt_q;
-    exit 1;
+    $t->print("y");
+    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
   }
-    
-  $line =~ /^\s+(\d).*/;
 
-  if ($1 == $opt_n)
+  $t->print("/s");
+
+  while (1)
   {
-    $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/; 
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
 
-    $state = $2;
-
-    if ($state =~ /OFF/)
+    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
     {
-      $t->waitfor('/NPS\>/');
-      last;
+      print "failed: plug number \"$opt_n\" not found\n"
+         unless defined $opt_q;
+      exit 1;
     }
+    
+    $line =~ /^\s+(\d).*/;
 
-    print "failed: plug not off ($state)\n"
-       unless defined $opt_q;
-    exit 1;
+    if ($1 == $opt_n)
+    {
+      $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/; 
+
+      $state = $2;
+
+      if ($state =~ /OFF/)
+      {
+        $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+        last;
+      }
+
+      print "failed: plug not off ($state)\n"
+         unless defined $opt_q;
+      exit 1;
+    }
   }
 }
-
-sleep(2);
 
 
 # at this point, failing to turn the machine back on shouldn't be a failure
 
+if (($opt_o eq "on") || ($opt_o eq "reboot")) {
+  $t->print("/on $opt_n");
+  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS)\>/');
 
-$t->print("/on $opt_n");
-($line, $match) = $t->waitfor('/\(Y\/N\)|NPS\>/');
-
-if ($match =~ /Y\/N/)
-{
-  $t->print("y");
-  $t->waitfor('/NPS\>/');
-}
-
-$t->print("/s");
-
-while (1)
-{
-  ($line, $match) = $t->waitfor('/\n|NPS\>/');
-
-  if ($match =~ /NPS\>/)
+  if ($match =~ /Y\/N/)
   {
-    print "success: plug-on warning\n"
-       unless defined $opt_q;
-    exit 0;
+    $t->print("y");
+    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
   }
 
-  $line =~ /^\s+(\d).*/;
-
-  if ($1 == $opt_n)
+  $t->print("/s");
+  
+  while (1)
   {
-    $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/;
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
 
-    $state = $2;
-
-    if ($state =~ /ON/)
+    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
     {
-      $t->waitfor('/NPS\>/');
-      last;
+      print "success: plug-on warning\n"
+         unless defined $opt_q;
+      exit 0;
     }
 
-    print "success: plug state warning ($state)\n"  
-      unless defined $opt_q;
+    $line =~ /^\s+(\d).*/;
 
-    exit 0;
+    if ($1 == $opt_n)
+    {
+      $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/;
+
+      $state = $2;
+
+      if ($state =~ /ON/)
+      {
+        $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+        last;
+      }
+
+      print "success: plug state warning ($state)\n"  
+        unless defined $opt_q;
+
+      exit 0;
+    }
   }
 }
 
-print "success: booted plug $opt_n\n" unless defined $opt_q;
+print "success: $opt_o operation on plug $opt_n\n" unless defined $opt_q;
 
 exit 0;
 
@@ -238,9 +241,9 @@ sub test
 
   while (1)
   {
-    ($line, $match) = $t->waitfor('/\n|NPS\>/');
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
 
-    if ($match =~ /NPS\>/)
+    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
     {
       print "failed: plug number \"$opt_n\" not found\n"
           unless defined $opt_q;
@@ -326,6 +329,10 @@ sub get_options_stdin
         elsif ($name eq "port" )
         {
             $opt_n = $val;
+        }
+        elsif ($name eq "option" )
+        {
+            $opt_o = $val;
         }
         # elsif ($name eq "test" ) 
         # {
