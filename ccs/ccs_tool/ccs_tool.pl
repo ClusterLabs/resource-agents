@@ -4,20 +4,43 @@
 exit;
 
 sub main {
+    my $command = "";
+    my @argv = ();
 
-    if(scalar(@ARGV) < 1){
+    foreach $x (@ARGV){
+	if($x eq "-h" || $x eq "--help" || $x eq "help"){
+	    print_usage(STDOUT);
+	    exit;
+	} else {
+	    @argv = (@argv, $x);
+	}
+    }
+
+    if(scalar(@argv) < 1){
 	print_usage(STDERR);
 	exit 1;
     }
 
-    if($ARGV[0] eq "upgrade"){
+    if($argv[0] eq "upgrade"){
 	die "function not implemented.\n";
     }
 
-    if($ARGV[0] eq "update"){
-	update($ARGV[1]);
+    if($argv[0] eq "update"){
+	update($argv[1]);
     }
 
+}
+
+sub print_usage {
+    my $stream = $_[0];
+    print $stream
+	"Usage::\n".
+	"  ccs_tool [options] <command>\n".
+	"\n".
+	"Commands:\n".
+	"  help                Print this usage.\n".
+	"  update [file]       Tells ccsd to upgrade to new config file.\n".
+	"\n";
 }
 
 sub update {
@@ -108,13 +131,3 @@ sub update {
     }	
 }
 
-sub print_usage {
-    my $stream = $_[0];
-    print $stream
-	"Usage::\n".
-	"  ccs_tool [options] <command>\n".
-	"\n".
-	"Commands:\n".
-	"  update [file]       Tells ccsd to upgrade to new config file.\n".
-	"\n";
-}
