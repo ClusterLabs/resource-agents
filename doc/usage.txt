@@ -279,6 +279,13 @@ set to 1 in the cman config section as follows.
 Advanced Network Configuration
 ------------------------------
 
+* UDP Port
+
+CMAN uses UDP port 6809 by default.  A different port number can be used by:
+
+<cman port="6809">
+</cman>
+
 * Multihome
 
 CMAN can be configured to use multiple network interfaces.  If one fails it
