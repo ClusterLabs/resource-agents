@@ -427,6 +427,7 @@ static int receive_from_sock(struct connection *con)
 	lowcomms_data_ready(con->sock->sk, 0);
 	up_read(&con->sock_sem);
 	ret = 0;
+	schedule();
 	goto out_ret;
 
       out_close:
