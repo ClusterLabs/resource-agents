@@ -35,13 +35,6 @@ int dlm_recovery_stopped(struct dlm_ls *ls)
 	return test_bit(LSFL_LS_STOP, &ls->ls_flags);
 }
 
-static void dlm_wait_timer_fn(unsigned long data)
-{
-	struct dlm_ls *ls = (struct dlm_ls *) data;
-
-	wake_up(&ls->ls_wait_general);
-}
-
 /*
  * Wait until given function returns non-zero or lockspace is stopped (LS_STOP
  * set due to failure of a node in ls_nodes).  When another function thinks it
@@ -53,26 +46,15 @@ static void dlm_wait_timer_fn(unsigned long data)
 
 int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
-	struct timer_list timer;
 	int error = 0;
 
-	init_timer(&timer);
-	timer.function = dlm_wait_timer_fn;
-	timer.data = (long) ls;
-
 	for (;;) {
-		mod_timer(&timer, jiffies + (dlm_config.recover_timer * HZ));
-
-		error = wait_event_interruptible(ls->ls_wait_general,
-					!testfn(ls) &&
-					!test_bit(LSFL_LS_STOP, &ls->ls_flags));
-
-		if (timer_pending(&timer))
-			del_timer(&timer);
-
-		if (error || testfn(ls))
+		wait_event_interruptible_timeout(ls->ls_wait_general,
+					testfn(ls) ||
+					test_bit(LSFL_LS_STOP, &ls->ls_flags),
+					(dlm_config.recover_timer * HZ));
+		if (testfn(ls))
 			break;
-
 		if (test_bit(LSFL_LS_STOP, &ls->ls_flags)) {
 			error = -1;
 			break;

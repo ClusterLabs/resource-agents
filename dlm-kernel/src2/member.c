@@ -10,6 +10,8 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <linux/socket.h>
+
 #include "dlm_internal.h"
 #include "member_ioctl.h"
 #include "member_sysfs.h"
@@ -111,7 +113,7 @@ int dlm_nodeid_addr(int nodeid, char *addr)
 	up(&nodes_sem);
 	if (!node)
 		return -1;
-	memcpy(addr, node->addr, DLM_ADDR_LEN);
+	memcpy(addr, node->addr, sizeof(struct sockaddr_storage));
 	return 0;
 }
 
