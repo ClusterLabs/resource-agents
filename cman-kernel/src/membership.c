@@ -729,8 +729,7 @@ static int send_joinconf()
 				   MSG_NOACK, 0);
 
 	if (status < 0) {
-		printk("Error %d sending JOINCONF, aborting transition\n", status);
-		end_transition();
+		printk("Error %d sending JOINCONF\n", status);
         }
 	return status;
 }
@@ -1828,7 +1827,8 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 				mod_timer(&transition_timer,
 					  jiffies +
 					  cman_config.joinconf_timeout * HZ);
-				send_joinconf();
+				if (send_joinconf() < 0)
+					end_transition();
 				return 0;
 			}
 			else {	/* Node leaving the cluster */
@@ -1945,8 +1945,9 @@ static int do_process_viewack(struct msghdr *msg, char *reply, int len)
 			mod_timer(&transition_timer,
 				  jiffies + cman_config.joinconf_timeout * HZ);
 			joinconf_count = 0;
-			send_joinconf();
-			return 0;
+			if (send_joinconf() >= 0)
+				return 0;
+			/* if send_joinconf failed then complete the transition here and how */
 		}
 
 		master_state = MASTER_COMPLETE;
@@ -2942,7 +2943,8 @@ static int dispatch_messages(struct socket *mem_socket)
 		struct sockaddr_cl sin;
 		int len;
 
-		if (quit_threads)
+		/* Something more important to do ? */
+		if (quit_threads ||test_bit(WAKE_FLAG_DEADNODE, &wake_flags))
 			return 0;
 
 		memset(&sin, 0, sizeof (sin));
