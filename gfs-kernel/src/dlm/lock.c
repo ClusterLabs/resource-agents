@@ -495,7 +495,7 @@ void lm_dlm_cancel(lm_lock_t *lock)
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 	int dlist = FALSE;
 
-	log_all("cancel %x,%"PRIx64" flags %lx\n",
+	log_all("cancel %x,%"PRIx64" flags %lx",
 		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	spin_lock(&lp->dlm->async_lock);
