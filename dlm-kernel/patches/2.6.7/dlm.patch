@@ -1,7 +1,7 @@
 diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 --- linux-orig/cluster/dlm/ast.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/ast.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,613 @@
++++ linux-patched/cluster/dlm/ast.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,611 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -89,28 +89,6 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +
 +	/* Invalidate the due time */
 +	memset(&lkb->lkb_duetime, 0, sizeof(lkb->lkb_duetime));
-+}
-+
-+/* 
-+ * deliver an AST to a user
-+ */
-+
-+static void deliver_ast(struct dlm_lkb *lkb, uint16_t ast_type)
-+{
-+	void (*cast) (long param) = lkb->lkb_astaddr;
-+	void (*bast) (long param, int mode) = lkb->lkb_bastaddr;
-+
-+	if (ast_type == AST_BAST) {
-+		if (!bast)
-+			return;
-+		if (lkb->lkb_status != GDLM_LKSTS_GRANTED)
-+			return;
-+		bast(lkb->lkb_astparam, (int) lkb->lkb_bastmode);
-+	} else {
-+		if (!cast)
-+			return;
-+		cast(lkb->lkb_astparam);
-+	}
 +}
 +
 +/* 
@@ -205,7 +183,12 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +
 +static void process_asts(void)
 +{
++	struct dlm_ls *ls;
++	struct dlm_rsb *rsb;
 +	struct dlm_lkb *lkb;
++	void (*cast) (long param);
++	void (*bast) (long param, int mode);
++	long astparam;
 +	uint16_t flags;
 +
 +	for (;;) {
@@ -221,26 +204,41 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +		lkb->lkb_astflags = 0;
 +		up(&_ast_queue_lock);
 +
-+		if (flags & AST_COMP)
-+			deliver_ast(lkb, AST_COMP);
++		cast = lkb->lkb_astaddr;
++		bast = lkb->lkb_bastaddr;
++		astparam = lkb->lkb_astparam;
++		rsb = lkb->lkb_resource;
++		ls = rsb->res_ls;
 +
-+		if (flags & AST_BAST)
-+			deliver_ast(lkb, AST_BAST);
++		if (flags & AST_COMP) {
++			if (flags & AST_DEL) {
++				DLM_ASSERT(lkb->lkb_astflags == 0,);
 +
-+		if (flags & AST_DEL) {
-+			struct dlm_rsb *rsb = lkb->lkb_resource;
-+			struct dlm_ls *ls = rsb->res_ls;
++				/* FIXME: we don't want to block asts for other
++				   lockspaces while one is being recovered */
 +
-+			DLM_ASSERT(lkb->lkb_astflags == 0,
-+			    printk("%x %x\n", lkb->lkb_id, lkb->lkb_astflags););
++				down_read(&ls->ls_in_recovery);
++				release_lkb(ls, lkb);
++				release_rsb(rsb);
++				up_read(&ls->ls_in_recovery);
++			}
 +
-+			/* FIXME: we don't want to block asts for other
-+			   lockspaces while one is being recovered */
++			if (cast)
++				cast(astparam);
++		}
 +
-+			down_read(&ls->ls_in_recovery);
-+			release_lkb(ls, lkb);
-+			release_rsb(rsb);
-+			up_read(&ls->ls_in_recovery);
++		if (flags & AST_BAST && !(flags & AST_DEL)) {
++			int bmode = lkb->lkb_bastmode;
++
++			/* gr or rq mode of the lock may have changed since the
++			   ast was queued making the delivery unnecessary */
++
++			if (!bast || dlm_modes_compat(lkb->lkb_grmode, bmode))
++				continue;
++
++			if (lkb->lkb_rqmode == DLM_LOCK_IV ||
++			    !dlm_modes_compat(lkb->lkb_rqmode, bmode))
++				bast(astparam, bmode);
 +		}
 +
 +		schedule();
@@ -617,7 +615,7 @@ diff -urN linux-orig/cluster/dlm/ast.c linux-patched/cluster/dlm/ast.c
 +}
 diff -urN linux-orig/cluster/dlm/ast.h linux-patched/cluster/dlm/ast.h
 --- linux-orig/cluster/dlm/ast.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/ast.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/ast.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,28 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -649,7 +647,7 @@ diff -urN linux-orig/cluster/dlm/ast.h linux-patched/cluster/dlm/ast.h
 +#endif				/* __AST_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/config.c linux-patched/cluster/dlm/config.c
 --- linux-orig/cluster/dlm/config.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/config.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/config.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,137 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -790,7 +788,7 @@ diff -urN linux-orig/cluster/dlm/config.c linux-patched/cluster/dlm/config.c
 +}
 diff -urN linux-orig/cluster/dlm/config.h linux-patched/cluster/dlm/config.h
 --- linux-orig/cluster/dlm/config.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/config.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/config.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -827,8 +825,8 @@ diff -urN linux-orig/cluster/dlm/config.h linux-patched/cluster/dlm/config.h
 +#endif				/* __CONFIG_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 --- linux-orig/cluster/dlm/device.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/device.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,1020 @@
++++ linux-patched/cluster/dlm/device.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,1093 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -873,6 +871,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +static struct file_operations _dlm_fops;
 +static const char *name_prefix="dlm";
 +static struct list_head user_ls_list;
++static struct semaphore user_ls_lock;
 +
 +/* Flags in li_flags */
 +#define LI_FLAG_COMPLETE  1
@@ -883,9 +882,12 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	struct dlm_lksb li_lksb;
 +	wait_queue_head_t li_waitq;
 +	unsigned long li_flags;
-+	void __user *li_astparam;
-+	void __user *li_astaddr;
++	void __user *li_castparam;
++	void __user *li_castaddr;
++	void __user *li_bastparam;
 +	void __user *li_bastaddr;
++	void __user *li_pend_bastparam;
++	void __user *li_pend_bastaddr;
 +	struct file_info *li_file;
 +	struct dlm_lksb __user *li_user_lksb;
 +	struct semaphore li_firstlock;
@@ -947,8 +949,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +		kfree(f);
 +}
 +
-+/* Find a lockspace struct given the device minor number */
-+static struct user_ls *find_lockspace(int minor)
++static struct user_ls *__find_lockspace(int minor)
 +{
 +	struct user_ls *lsinfo;
 +
@@ -960,9 +961,23 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	return NULL;
 +}
 +
++/* Find a lockspace struct given the device minor number */
++static struct user_ls *find_lockspace(int minor)
++{
++	struct user_ls *lsinfo;
++
++	down(&user_ls_lock);
++	lsinfo = __find_lockspace(minor);
++	up(&user_ls_lock);
++
++	return lsinfo;
++}
++
 +static void add_lockspace_to_list(struct user_ls *lsinfo)
 +{
++	down(&user_ls_lock);
 +	list_add(&lsinfo->ls_list, &user_ls_list);
++	up(&user_ls_lock);
 +}
 +
 +/* Register a lockspace with the DLM and create a misc
@@ -1015,6 +1030,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	return 0;
 +}
 +
++/* Called with the user_ls_lock semaphore held */
 +static int unregister_lockspace(struct user_ls *lsinfo, int force)
 +{
 +	int status;
@@ -1028,20 +1044,24 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +		return status;
 +
 +	list_del(&lsinfo->ls_list);
-+	kfree(lsinfo->ls_miscinfo.name);
-+	kfree(lsinfo);
++	set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
++	lsinfo->ls_lockspace = NULL;
++	if (atomic_dec_and_test(&lsinfo->ls_refcnt)) {
++		kfree(lsinfo->ls_miscinfo.name);
++		kfree(lsinfo);
++	}
 +
 +	return 0;
 +}
 +
 +/* Add it to userland's AST queue */
-+static void add_to_astqueue(struct lock_info *li, void *astaddr)
++static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam)
 +{
 +	struct ast_info *ast = kmalloc(sizeof(struct ast_info), GFP_KERNEL);
 +	if (!ast)
 +		return;
 +
-+	ast->result.astparam  = li->li_astparam;
++	ast->result.astparam  = astparam;
 +	ast->result.astaddr   = astaddr;
 +	ast->result.user_lksb = li->li_user_lksb;
 +	ast->result.cmd       = li->li_cmd;
@@ -1062,7 +1082,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	struct lock_info *li = param;
 +
 +	if (param) {
-+		add_to_astqueue(li, li->li_bastaddr);
++		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam);
 +	}
 +}
 +
@@ -1079,12 +1099,21 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	if (!param)
 +		return;
 +
++	/* If this is a succesful conversion then activate the blocking ast
++	 * args from the conversion request */
++	if (!test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags) &&
++	    li->li_lksb.sb_status == 0) {
++
++		li->li_bastparam = li->li_pend_bastparam;
++		li->li_bastaddr = li->li_pend_bastaddr;
++		li->li_pend_bastaddr = NULL;
++	}
 +	/* If it's an async request then post data to the user's AST queue. */
-+	if (li->li_astaddr) {
++	if (li->li_castaddr) {
 +
 +		/* Only queue AST if the device is still open */
 +		if (test_bit(1, &li->li_file->fi_flags))
-+			add_to_astqueue(li, li->li_astaddr);
++			add_to_astqueue(li, li->li_castaddr, li->li_castparam);
 +
 +		/* If it's a new lock operation that failed, then
 +		 * remove it from the owner queue and free the
@@ -1301,8 +1330,9 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	remove_wait_queue(&li.li_waitq, &wq);
 +
 +	/* If this is the last reference, and the lockspace has been deleted
-+	   the free the struct */
++	   then free the struct */
 +	if (atomic_dec_and_test(&lsinfo->ls_refcnt) && !lsinfo->ls_lockspace) {
++		kfree(lsinfo->ls_miscinfo.name);
 +		kfree(lsinfo);
 +	}
 +
@@ -1379,10 +1409,15 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +		if (!capable(CAP_SYS_ADMIN))
 +			return -EPERM;
 +
-+		lsinfo = find_lockspace(u);
-+		if (!lsinfo)
++		down(&user_ls_lock);
++		lsinfo = __find_lockspace(u);
++		if (!lsinfo) {
++			up(&user_ls_lock);
 +			return -EINVAL;
++		}
++
 +		status = unregister_lockspace(lsinfo, force);
++		up(&user_ls_lock);
 +		break;
 +
 +	default:
@@ -1525,15 +1560,22 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	struct lock_info *li;
 +	int status;
 +
++	if (!kparams->castaddr)
++		return -EINVAL;
++
++	if (!kparams->lksb)
++		return -EINVAL;
++
 +	li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
 +	if (!li)
 +		return -ENOMEM;
 +
 +	get_file_info(fi);
 +	li->li_user_lksb = kparams->lksb;
-+	li->li_astparam  = kparams->astparam;
++	li->li_bastparam = kparams->bastparam;
 +	li->li_bastaddr  = kparams->bastaddr;
-+	li->li_astaddr   = kparams->astaddr;
++	li->li_castparam = kparams->castparam;
++	li->li_castaddr  = kparams->castaddr;
 +	li->li_file      = fi;
 +	li->li_flags     = 0;
 +	li->li_cmd       = kparams->cmd;
@@ -1598,20 +1640,11 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	/*
 +	 * Validate things that we need to have correct.
 +	 */
-+	if (kparams->namelen > DLM_RESNAME_MAXLEN)
-+		return -EINVAL;
-+
-+	if (!kparams->astaddr)
++	if (!kparams->castaddr)
 +		return -EINVAL;
 +
 +	if (!kparams->lksb)
 +		return -EINVAL;
-+
-+	/* Get the lock name */
-+	if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
-+			   kparams->namelen)) {
-+		return -EFAULT;
-+	}
 +
 +	/* For conversions, the lock will already have a lock_info
 +	   block squirelled away in astparam */
@@ -1621,31 +1654,37 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +			return -EINVAL;
 +		}
 +		li = (struct lock_info *)lkb->lkb_astparam;
-+
-+		/* Only override these if they are provided */
-+		if (li->li_user_lksb)
-+			li->li_user_lksb = kparams->lksb;
-+		if (li->li_astparam)
-+			li->li_astparam  = kparams->astparam;
-+		if (li->li_bastaddr)
-+			li->li_bastaddr  = kparams->bastaddr;
-+		if (li->li_bastaddr)
-+			li->li_astaddr   = kparams->astaddr;
-+		li->li_flags     = 0;
++		li->li_flags = 0;
++		/* For conversions don't overwrite the current blocking AST
++		   info so that:
++		   a) if a blocking AST fires before the conversion is queued
++		      it runs the current handler
++		   b) if the conversion is cancelled, the original blocking AST
++		      declaration is active
++		   The pend_ info is made active when the conversion
++		   completes.
++		*/
++		li->li_pend_bastaddr  = kparams->bastaddr;
++		li->li_pend_bastparam = kparams->bastparam;
 +	}
 +	else {
 +		li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
 +		if (!li)
 +			return -ENOMEM;
 +
-+		li->li_user_lksb = kparams->lksb;
-+		li->li_astparam  = kparams->astparam;
-+		li->li_bastaddr  = kparams->bastaddr;
-+		li->li_astaddr   = kparams->astaddr;
 +		li->li_file      = fi;
-+		li->li_flags     = 0;
 +		li->li_cmd       = kparams->cmd;
-+		li->li_queryinfo  = NULL;
++		li->li_queryinfo = NULL;
++		li->li_flags     = 0;
++		li->li_bastaddr  = kparams->bastaddr;
++		li->li_bastparam = kparams->bastparam;
++		li->li_pend_bastparam = NULL;
++
++		/* Get the lock name */
++		if (copy_from_user(name, buffer + offsetof(struct dlm_lock_params, name),
++				   kparams->namelen)) {
++			return -EFAULT;
++		}
 +
 +		/* semaphore to allow us to complete our work before
 +  		   the AST routine runs. In fact we only need (and use) this
@@ -1655,6 +1694,10 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +
 +		get_file_info(fi);
 +	}
++
++	li->li_user_lksb = kparams->lksb;
++	li->li_castaddr  = kparams->castaddr;
++	li->li_castparam = kparams->castparam;
 +
 +	/* Copy the user's LKSB into kernel space,
 +	   needed for conversions & value block operations */
@@ -1668,7 +1711,8 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +			   kparams->parent,
 +			   ast_routine,
 +			   li,
-+			   li->li_bastaddr ? bast_routine : NULL,
++			   (li->li_pend_bastaddr || li->li_bastaddr) ?
++			                            bast_routine : NULL,
 +			   kparams->range.ra_end ? &kparams->range : NULL);
 +
 +	/* If it succeeded (this far) with a new lock then keep track of
@@ -1697,28 +1741,50 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	struct lock_info *li;
 +	struct dlm_lkb *lkb;
 +	int status;
++	int convert_cancel = 0;
 +
 +	lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
 +	if (!lkb) {
 +		return -EINVAL;
 +	}
 +
++	/* Cancelling a conversion doesn't remove the lock...*/
++	if (kparams->flags & DLM_LKF_CANCEL &&
++	    lkb->lkb_status == GDLM_LKSTS_CONVERT) {
++		convert_cancel = 1;
++	}
++
 +	li = (struct lock_info *)lkb->lkb_astparam;
 +
 +	li->li_user_lksb = kparams->lksb;
-+	li->li_astparam  = kparams->astparam;
++	li->li_castparam = kparams->castparam;
 +	li->li_cmd       = kparams->cmd;
++	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
++	   the existing li_castaddr as that's the completion routine for
++	   unlocks. dlm_unlock_wait() specifies a new AST routine to be
++	   executed when the unlock completes. */
++	if (kparams->castaddr)
++		li->li_castaddr = kparams->castaddr;
 +
 +	/* Have to do it here cos the lkb may not exist after
 +	 * dlm_unlock() */
-+	spin_lock(&fi->fi_lkb_lock);
-+	list_del(&lkb->lkb_ownerqueue);
-+	spin_unlock(&fi->fi_lkb_lock);
++	if (!convert_cancel) {
++		spin_lock(&fi->fi_lkb_lock);
++		list_del(&lkb->lkb_ownerqueue);
++		spin_unlock(&fi->fi_lkb_lock);
++	}
 +
 +	/* Use existing lksb & astparams */
 +	status = dlm_unlock(fi->fi_ls->ls_lockspace,
 +			     kparams->lkid,
 +			     kparams->flags, NULL, NULL);
++
++	if (status && !convert_cancel) {
++		/* It failed, put it back on the list */
++		spin_lock(&fi->fi_lkb_lock);
++		list_add(&lkb->lkb_ownerqueue, &fi->fi_lkb_list);
++		spin_unlock(&fi->fi_lkb_lock);
++	}
 +
 +	return status;
 +}
@@ -1733,7 +1799,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	sigset_t allsigs;
 +	int status;
 +
-+	if (count < sizeof(kparams))
++	if (count < sizeof(kparams)-1)	/* -1 because lock name is optional */
 +		return -EINVAL;
 +
 +	/* Has the lockspace been deleted */
@@ -1779,20 +1845,24 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +		return status;
 +}
 +
++/* Called when the cluster is shutdown uncleanly, all lockspaces
++   have been summarily removed */
 +void dlm_device_free_devices()
 +{
 +	struct user_ls *tmp;
 +	struct user_ls *lsinfo;
 +
++	down(&user_ls_lock);
 +	list_for_each_entry_safe(lsinfo, tmp, &user_ls_list, ls_list) {
 +		misc_deregister(&lsinfo->ls_miscinfo);
 +
 +		/* Tidy up, but don't delete the lsinfo struct until
 +		   all the users have closed their devices */
 +		list_del(&lsinfo->ls_list);
-+		kfree(lsinfo->ls_miscinfo.name);
 +		set_bit(1, &lsinfo->ls_flags); /* LS has been deleted */
++		lsinfo->ls_lockspace = NULL;
 +	}
++	up(&user_ls_lock);
 +}
 +
 +static struct file_operations _dlm_fops = {
@@ -1820,6 +1890,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 +	int r;
 +
 +	INIT_LIST_HEAD(&user_ls_list);
++	init_MUTEX(&user_ls_lock);
 +
 +	ctl_device.name = "dlm-control";
 +	ctl_device.fops = &_dlm_ctl_fops;
@@ -1851,7 +1922,7 @@ diff -urN linux-orig/cluster/dlm/device.c linux-patched/cluster/dlm/device.c
 + */
 diff -urN linux-orig/cluster/dlm/device.h linux-patched/cluster/dlm/device.h
 --- linux-orig/cluster/dlm/device.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/device.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/device.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,19 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -1874,8 +1945,8 @@ diff -urN linux-orig/cluster/dlm/device.h linux-patched/cluster/dlm/device.h
 +#endif				/* __DEVICE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 --- linux-orig/cluster/dlm/dir.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/dir.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,457 @@
++++ linux-patched/cluster/dlm/dir.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,467 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -1905,6 +1976,14 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +	uint16_t rm_length;
 +	uint16_t rm_pad;
 +};
++
++void print_name(char *b, int len)
++{
++	int i;
++	for (i = 0; i < len; i++)
++		printk("%c", b[i]);
++	printk("\n");
++}
 +
 +static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
 +{
@@ -2039,11 +2118,13 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +
 +	if (!de) {
 +		log_all(ls, "remove fr %u none", nodeid);
++		print_name(name, namelen);
 +		goto out;
 +	}
 +
 +	if (de->master_nodeid != nodeid) {
 +		log_all(ls, "remove fr %u ID %u", nodeid, de->master_nodeid);
++		print_name(name, namelen);
 +		goto out;
 +	}
 +
@@ -2201,8 +2282,8 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +	start_name = inbuf;
 +
 +	if (start_namelen > 1) {
-+		error = find_or_create_rsb(ls, NULL, start_name,
-+				           start_namelen, 0, &start_rsb);
++		error = find_rsb(ls, NULL, start_name, start_namelen, 0,
++				 &start_rsb);
 +		DLM_ASSERT(!error && start_rsb, printk("error %d\n", error););
 +		release_rsb(start_rsb);
 +	}
@@ -2281,10 +2362,12 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +	if (de) {
 +		*r_nodeid = de->master_nodeid;
 +		write_unlock(&ls->ls_dirtbl[bucket].lock);
-+		goto out;
++		if (*r_nodeid == nodeid)
++			return -EEXIST;
++		return 0;
 +	}
 +
-+        write_unlock(&ls->ls_dirtbl[bucket].lock);
++	write_unlock(&ls->ls_dirtbl[bucket].lock);
 +
 +	de = allocate_direntry(ls, namelen);
 +	if (!de)
@@ -2304,8 +2387,6 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +	}
 +	*r_nodeid = de->master_nodeid;
 +	write_unlock(&ls->ls_dirtbl[bucket].lock);
-+
-+ out:
 +	return 0;
 +}
 +
@@ -2335,8 +2416,8 @@ diff -urN linux-orig/cluster/dlm/dir.c linux-patched/cluster/dlm/dir.c
 +}
 diff -urN linux-orig/cluster/dlm/dir.h linux-patched/cluster/dlm/dir.h
 --- linux-orig/cluster/dlm/dir.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/dir.h	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,31 @@
++++ linux-patched/cluster/dlm/dir.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2353,6 +2434,7 @@ diff -urN linux-orig/cluster/dlm/dir.h linux-patched/cluster/dlm/dir.h
 +#ifndef __DIR_DOT_H__
 +#define __DIR_DOT_H__
 +
++void print_name(char *b, int len);
 +uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length);
 +uint32_t get_directory_nodeid(struct dlm_rsb *rsb);
 +
@@ -2370,8 +2452,8 @@ diff -urN linux-orig/cluster/dlm/dir.h linux-patched/cluster/dlm/dir.h
 +#endif				/* __DIR_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_internal.h
 --- linux-orig/cluster/dlm/dlm_internal.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/dlm_internal.h	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,588 @@
++++ linux-patched/cluster/dlm/dlm_internal.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,589 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -2404,6 +2486,7 @@ diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_in
 +#include <linux/list.h>
 +#include <linux/errno.h>
 +#include <linux/random.h>
++#include <linux/delay.h>
 +
 +#include <cluster/dlm.h>
 +#include <cluster/dlm_device.h>
@@ -2962,7 +3045,7 @@ diff -urN linux-orig/cluster/dlm/dlm_internal.h linux-patched/cluster/dlm/dlm_in
 +#endif				/* __DLM_INTERNAL_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lkb.c linux-patched/cluster/dlm/lkb.c
 --- linux-orig/cluster/dlm/lkb.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lkb.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lkb.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3149,7 +3232,7 @@ diff -urN linux-orig/cluster/dlm/lkb.c linux-patched/cluster/dlm/lkb.c
 +}
 diff -urN linux-orig/cluster/dlm/lkb.h linux-patched/cluster/dlm/lkb.h
 --- linux-orig/cluster/dlm/lkb.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lkb.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lkb.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,23 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -3176,8 +3259,8 @@ diff -urN linux-orig/cluster/dlm/lkb.h linux-patched/cluster/dlm/lkb.h
 +#endif				/* __LKB_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 --- linux-orig/cluster/dlm/locking.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/locking.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,1310 @@
++++ linux-patched/cluster/dlm/locking.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,1320 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -3276,15 +3359,20 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	{  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 +};
 +
-+static void grant_lock(struct dlm_lkb * lkb, int send_remote);
-+static void send_blocking_asts(struct dlm_rsb * rsb, struct dlm_lkb * lkb);
++static void grant_lock(struct dlm_lkb *lkb, int send_remote);
++static void send_blocking_asts(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
 +static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
-+static int convert_lock(struct dlm_ls * ls, int mode, struct dlm_lksb *lksb,
++static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 +			int flags, void *ast, void *astarg, void *bast,
 +			struct dlm_range *range);
-+static int dlm_lock_stage1(struct dlm_ls * lspace, struct dlm_lkb * lkb, int flags,
++static int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 +			   char *name, int namelen);
 +
++
++inline int dlm_modes_compat(int mode1, int mode2)
++{
++	return __dlm_compat_matrix[mode1 + 1][mode2 + 1];
++}
 +
 +static inline int first_in_list(struct dlm_lkb *lkb, struct list_head *head)
 +{
@@ -3481,7 +3569,7 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	if (mode < 0 || mode > DLM_LOCK_EX)
 +		goto out;
 +
-+	if (namelen > DLM_RESNAME_MAXLEN)
++	if (!(flags & DLM_LKF_CONVERT) && (namelen > DLM_RESNAME_MAXLEN))
 +		goto out;
 +
 +	if (flags & DLM_LKF_CANCEL)
@@ -3611,15 +3699,16 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	struct dlm_rsb *rsb, *parent_rsb = NULL;
 +	struct dlm_lkb *parent_lkb = lkb->lkb_parent;
 +	uint32_t nodeid;
-+	int error;
++	int error, dir_error = 0;
 +
 +	if (parent_lkb)
 +		parent_rsb = parent_lkb->lkb_resource;
 +
-+	error = find_or_create_rsb(ls, parent_rsb, name, namelen, 1, &rsb);
++	error = find_rsb(ls, parent_rsb, name, namelen, CREATE, &rsb);
 +	if (error)
-+		goto out;
++		return error;
 +	lkb->lkb_resource = rsb;
++	down_write(&rsb->res_lock);
 +
 +	log_debug(ls, "rq %u %x \"%s\"", lkb->lkb_rqmode, lkb->lkb_id,
 +		  rsb->res_name);
@@ -3628,32 +3717,43 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	 * we get on with the real locking work ?
 +	 */
 +
++ retry:
 +	if (rsb->res_nodeid == -1) {
 +		if (get_directory_nodeid(rsb) != our_nodeid()) {
-+			error = remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
-+			goto out;
++			remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
++			up_write(&rsb->res_lock);
++			return 0;
 +		}
 +
 +		error = dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
 +				       rsb->res_length, &nodeid);
-+		if (error)
-+			goto out;
++		if (error) {
++			DLM_ASSERT(error == -EEXIST,);
++			log_all(ls, "dir entry exists %x %s", lkb->lkb_id,
++				rsb->res_name);
++			msleep(500);
++			dir_error = error;
++			goto retry;
++		}
 +
 +		if (nodeid == our_nodeid()) {
 +			set_bit(RESFL_MASTER, &rsb->res_flags);
-+			nodeid = 0;
-+		} else
++			rsb->res_nodeid = 0;
++		} else {
 +			clear_bit(RESFL_MASTER, &rsb->res_flags);
-+		rsb->res_nodeid = nodeid;
++			rsb->res_nodeid = nodeid;
++		}
++
++		if (dir_error) {
++			log_all(ls, "dir lookup retry %x %u", lkb->lkb_id,
++				nodeid);
++		}
 +	}
 +
 +	lkb->lkb_nodeid = rsb->res_nodeid;
++	up_write(&rsb->res_lock);
 +
 +	error = dlm_lock_stage2(ls, lkb, rsb, flags);
-+
-+      out:
-+	if (error)
-+		release_rsb(rsb);
 +
 +	return error;
 +}
@@ -3742,16 +3842,14 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +
 +	namelen = freq->rr_header.rh_length - sizeof(*freq) + 1;
 +
-+	error = find_or_create_rsb(ls, parent_rsb, freq->rr_name, namelen, 0,
-+				   &rsb);
++	error = find_rsb(ls, parent_rsb, freq->rr_name, namelen, MASTER, &rsb);
 +	if (error)
 +		goto fail_free;
 +
-+	if (!rsb || rsb->res_nodeid != 0) {
++	if (!rsb) {
 +		log_debug(ls, "send einval to %u", remote_nodeid);
++		/* print_name(freq->rr_name, namelen); */
 +		lkb->lkb_retstatus = -EINVAL;
-+		if (rsb)
-+			release_rsb(rsb);
 +		goto out;
 +	}
 +	
@@ -4056,12 +4154,9 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +
 +	if (flags & DLM_LKF_NODLCKWT)
 +		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;
-+	if (ast)
-+		lkb->lkb_astaddr = ast;
-+	if (astarg)
-+		lkb->lkb_astparam = (long) astarg;
-+	if (bast)
-+		lkb->lkb_bastaddr = bast;
++	lkb->lkb_astaddr = ast;
++	lkb->lkb_astparam = (long) astarg;
++	lkb->lkb_bastaddr = bast;
 +	lkb->lkb_rqmode = mode;
 +	lkb->lkb_lockqueue_flags = flags;
 +	lkb->lkb_flags |= (flags & DLM_LKF_VALBLK) ? GDLM_LKFLG_VALBLK : 0;
@@ -4263,6 +4358,9 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	list_for_each_safe(list, temp, &rsb->res_waitqueue) {
 +		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
 +
++		if (lkb->lkb_lockqueue_state)
++			continue;
++
 +		if (can_be_granted(rsb, lkb))
 +			grant_lock(lkb, 1);
 +		else
@@ -4431,13 +4529,14 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +	}
 +}
 +
-+static void dump_queue(struct list_head *head)
++static void dump_queue(struct list_head *head, char *qname)
 +{
 +	struct dlm_lkb *lkb;
 +
 +	list_for_each_entry(lkb, head, lkb_statequeue) {
-+		printk("%08x gr %d rq %d flg %x sts %u node %u remid %x "
++		printk("%s %08x gr %d rq %d flg %x sts %u node %u remid %x "
 +		       "lq %d,%x\n",
++		       qname,
 +		       lkb->lkb_id,
 +		       lkb->lkb_grmode,
 +		       lkb->lkb_rqmode,
@@ -4452,24 +4551,18 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +
 +static void dump_rsb(struct dlm_rsb *rsb)
 +{
-+	printk("name \"%s\" flags %lx nodeid %u ref %u\n",
++	printk("name \"%s\" flags %lx nodeid %d ref %u\n",
 +	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
 +	       atomic_read(&rsb->res_ref));
 +
-+	if (!list_empty(&rsb->res_grantqueue)) {
-+		printk("grant queue\n");
-+		dump_queue(&rsb->res_grantqueue);
-+	}
++	if (!list_empty(&rsb->res_grantqueue))
++		dump_queue(&rsb->res_grantqueue, "G");
 +
-+	if (!list_empty(&rsb->res_convertqueue)) {
-+		printk("convert queue\n");
-+		dump_queue(&rsb->res_convertqueue);
-+	}
++	if (!list_empty(&rsb->res_convertqueue))
++		dump_queue(&rsb->res_convertqueue, "C");
 +
-+	if (!list_empty(&rsb->res_waitqueue)) {
-+		printk("wait queue\n");
-+		dump_queue(&rsb->res_waitqueue);
-+	}
++	if (!list_empty(&rsb->res_waitqueue))
++		dump_queue(&rsb->res_waitqueue, "W");
 +}
 +
 +void dlm_locks_dump(void)
@@ -4490,8 +4583,8 @@ diff -urN linux-orig/cluster/dlm/locking.c linux-patched/cluster/dlm/locking.c
 +
 diff -urN linux-orig/cluster/dlm/locking.h linux-patched/cluster/dlm/locking.h
 --- linux-orig/cluster/dlm/locking.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/locking.h	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,32 @@
++++ linux-patched/cluster/dlm/locking.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4508,6 +4601,7 @@ diff -urN linux-orig/cluster/dlm/locking.h linux-patched/cluster/dlm/locking.h
 +#ifndef __LOCKING_DOT_H__
 +#define __LOCKING_DOT_H__
 +
++int dlm_modes_compat(int mode1, int mode2);
 +void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state);
 +void dlm_lock_stage3(struct dlm_lkb *lkb);
 +int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast);
@@ -4526,8 +4620,8 @@ diff -urN linux-orig/cluster/dlm/locking.h linux-patched/cluster/dlm/locking.h
 +#endif				/* __LOCKING_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue.c
 --- linux-orig/cluster/dlm/lockqueue.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lockqueue.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,1124 @@
++++ linux-patched/cluster/dlm/lockqueue.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,1145 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -4846,33 +4940,25 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +	switch (state) {
 +	case GDLM_LQSTATE_WAIT_RSB:
 +
-+		DLM_ASSERT(reply->rl_status == 0,
-+			   print_lkb(lkb);
-+			   print_rsb(rsb);
-+			   print_reply(reply););
++		if (reply->rl_status) {
++			DLM_ASSERT(reply->rl_status == -EEXIST,);
++			log_all(ls, "dir entry exists %x fr %d r %d %s",
++				lkb->lkb_id, nodeid, rsb->res_nodeid,
++				rsb->res_name);
 +
-+		DLM_ASSERT(rsb->res_nodeid == -1 ||
-+			   rsb->res_nodeid == 0,
-+			   print_lkb(lkb);
-+			   print_rsb(rsb);
-+			   print_reply(reply););
-+
-+		if (reply->rl_nodeid == our_nodeid()) {
 +			if (rsb->res_nodeid == -1) {
++				msleep(500);
++				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
++				break;
++			}
++		} else {
++			if (reply->rl_nodeid == our_nodeid()) {
 +				set_bit(RESFL_MASTER, &rsb->res_flags);
 +				rsb->res_nodeid = 0;
 +			} else {
-+				log_all(ls, "ignore master reply %x %u",
-+					lkb->lkb_id, nodeid);
++				clear_bit(RESFL_MASTER, &rsb->res_flags);
++				rsb->res_nodeid = reply->rl_nodeid;
 +			}
-+		} else {
-+			DLM_ASSERT(rsb->res_nodeid == -1,
-+				   print_lkb(lkb);
-+				   print_rsb(rsb);
-+				   print_reply(reply););
-+
-+			clear_bit(RESFL_MASTER, &rsb->res_flags);
-+			rsb->res_nodeid = reply->rl_nodeid;
 +		}
 +
 +		log_debug(ls, "lu rep %x fr %u %u", lkb->lkb_id, nodeid,
@@ -4886,43 +4972,78 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +	case GDLM_LQSTATE_WAIT_CONDGRANT:
 +
 +		/*
++		 * the destination wasn't the master
++		 * this implies the request was a CONDGRANT
++		 */
++
++		if (reply->rl_status == -EINVAL) {
++			int master_nodeid;
++
++			DLM_ASSERT(state == GDLM_LQSTATE_WAIT_CONDGRANT, );
++
++			log_debug(ls, "req reply einval %x fr %d r %d %s",
++				  lkb->lkb_id, nodeid, rsb->res_nodeid, rsb->res_name);
++
++			lkb_dequeue(lkb);
++
++			if (rsb->res_nodeid == lkb->lkb_nodeid || rsb->res_nodeid == -1){
++				/*
++				 * We need to re-lookup the master and resend our
++				 * request to it.
++				 */
++
++				lkb->lkb_nodeid = -1;
++				rsb->res_nodeid = -1;
++
++				if (get_directory_nodeid(rsb) != our_nodeid())
++					remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
++				else {
++			    		int error = dlm_dir_lookup(ls, our_nodeid(),
++							   	   rsb->res_name,
++							   	   rsb->res_length,
++							   	   &master_nodeid);
++					if (error == -EEXIST) {
++						/* don't expect this will happen */
++						log_all(ls, "EEXIST %x", lkb->lkb_id);
++						print_lkb(lkb);
++						print_rsb(rsb);
++					}
++
++			    		if (master_nodeid == our_nodeid()) {
++						set_bit(RESFL_MASTER, &rsb->res_flags);
++						master_nodeid = 0;
++			        	} else
++						clear_bit(RESFL_MASTER,&rsb->res_flags);
++
++					rsb->res_nodeid = master_nodeid;
++					lkb->lkb_nodeid = master_nodeid;
++
++					dlm_lock_stage2(ls, lkb, rsb,
++							lkb->lkb_lockqueue_flags);
++				}
++			} else {
++				/*
++				 * Another request on this rsb has since found
++				 * the master, we'll use that one although it too
++				 * may be invalid requiring us to retry again.
++				 */
++
++				lkb->lkb_nodeid = rsb->res_nodeid;
++				dlm_lock_stage2(ls, lkb, rsb,
++						lkb->lkb_lockqueue_flags);
++			}
++
++			break;
++		}
++
++
++		/*
 +		 * After a remote lock/conversion/grant request we put the lock
 +		 * on the right queue and send an AST if appropriate.  Any lock
 +		 * shuffling (eg newly granted locks because this one was
 +		 * converted downwards) will be dealt with in seperate messages
 +		 * (which may be in the same network message)
 +		 */
-+
-+		/* the destination wasn't the master */
-+		if (reply->rl_status == -EINVAL) {
-+			int master_nodeid;
-+
-+			log_debug(ls, "rq rep %x fr %u einval",
-+				  lkb->lkb_id, nodeid);
-+
-+			schedule();
-+			lkb_dequeue(lkb);
-+			rsb->res_nodeid = -1;
-+			lkb->lkb_nodeid = -1;
-+			if (get_directory_nodeid(rsb) != our_nodeid())
-+				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
-+			else {
-+			    	dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
-+					       rsb->res_length, &master_nodeid);
-+					       
-+			    	if (master_nodeid == our_nodeid()) {
-+					set_bit(RESFL_MASTER, &rsb->res_flags);
-+					master_nodeid = 0;
-+			        } 
-+				else
-+					clear_bit(RESFL_MASTER,&rsb->res_flags);
-+			        rsb->res_nodeid = master_nodeid;
-+			        lkb->lkb_nodeid = master_nodeid;
-+			        dlm_lock_stage2(ls, lkb, rsb,
-+			 			lkb->lkb_lockqueue_flags);
-+			}
-+			break;
-+		}
 +
 +		if (!lkb->lkb_remid)
 +			lkb->lkb_remid = reply->rl_lkid;
@@ -5212,10 +5333,6 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +			   print_lkb(lkb);
 +			   print_rsb(rsb););
 +
-+		DLM_ASSERT(rsb->res_nodeid == -1,
-+			   print_lkb(lkb);
-+			   print_rsb(rsb););
-+
 +		log_debug(ls, "send lu %x to %u", lkb->lkb_id, target_nodeid);
 +
 +		req->rr_header.rh_cmd = GDLM_REMCMD_LOOKUP;
@@ -5258,10 +5375,6 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +	case GDLM_LQSTATE_WAIT_UNLOCK:
 +
 +		log_debug(ls, "send un %x to %u", lkb->lkb_id, target_nodeid);
-+
-+		if (rsb->res_nodeid != -1)
-+			log_all(ls, "un %x to %u rsb nodeid %u", lkb->lkb_id,
-+				target_nodeid, rsb->res_nodeid);
 +
 +		req->rr_header.rh_cmd = GDLM_REMCMD_UNLOCKREQUEST;
 +		break;
@@ -5344,9 +5457,6 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +
 +			status = dlm_dir_lookup(lspace, nodeid, freq->rr_name,
 +					        namelen, &r_nodeid);
-+			if (status)
-+				status = -ENOMEM;
-+
 +			reply.rl_status = status;
 +			reply.rl_lockstate = 0;
 +			reply.rl_nodeid = r_nodeid;
@@ -5526,7 +5636,12 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +			   printk("nodeid %u\n", nodeid););
 +
 +		if (lkb->lkb_lockqueue_state) {
-+			log_error(rsb->res_ls, "granting lock on lockqueue");
++			log_debug(rsb->res_ls, "granting lock on lockqueue, state = %d", lkb->lkb_lockqueue_state);
++
++			/* Don't grant locks that are waiting for an unlock */
++			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_UNLOCK)
++			        return 0;
++
 +			print_lkb(lkb);
 +			print_request(freq);
 +			lkb->lkb_lockqueue_state = 0;
@@ -5654,7 +5769,7 @@ diff -urN linux-orig/cluster/dlm/lockqueue.c linux-patched/cluster/dlm/lockqueue
 +}
 diff -urN linux-orig/cluster/dlm/lockqueue.h linux-patched/cluster/dlm/lockqueue.h
 --- linux-orig/cluster/dlm/lockqueue.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lockqueue.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lockqueue.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -5687,7 +5802,7 @@ diff -urN linux-orig/cluster/dlm/lockqueue.h linux-patched/cluster/dlm/lockqueue
 +#endif				/* __LOCKQUEUE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lockspace.c linux-patched/cluster/dlm/lockspace.c
 --- linux-orig/cluster/dlm/lockspace.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lockspace.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lockspace.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,729 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6420,7 +6535,7 @@ diff -urN linux-orig/cluster/dlm/lockspace.c linux-patched/cluster/dlm/lockspace
 +};
 diff -urN linux-orig/cluster/dlm/lockspace.h linux-patched/cluster/dlm/lockspace.h
 --- linux-orig/cluster/dlm/lockspace.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lockspace.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lockspace.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,29 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -6453,8 +6568,8 @@ diff -urN linux-orig/cluster/dlm/lockspace.h linux-patched/cluster/dlm/lockspace
 +#endif				/* __LOCKSPACE_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 --- linux-orig/cluster/dlm/lowcomms.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lowcomms.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,1363 @@
++++ linux-patched/cluster/dlm/lowcomms.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,1376 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -7094,6 +7209,7 @@ diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 +	struct socket *sock = NULL;
 +	struct list_head *addr_list;
 +	struct connection *con = nodeid2con(0);
++	struct connection *temp;
 +	struct cluster_node_addr *node_addr;
 +	char local_addr[sizeof(struct sockaddr_in6)];
 +
@@ -7113,7 +7229,8 @@ diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 +			con = kmalloc(sizeof(struct connection), GFP_KERNEL);
 +			if (!con) {
 +				printk("dlm: failed to allocate listen socket\n");
-+				goto create_out;
++				result = -ENOMEM;
++				goto create_free;
 +			}
 +			memset(con, 0, sizeof(*con));
 +			init_rwsem(&con->sock_sem);
@@ -7127,20 +7244,31 @@ diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 +					  node_addr->addr_len);
 +		if (sock) {
 +			add_sock(sock, con);
++
++			/* Keep a list of dynamically allocated listening sockets
++			   so we can free them at shutdown */
++			if (test_bit(CF_IS_OTHERSOCK, &con->flags)) {
++				list_add_tail(&con->listenlist, &listen_sockets);
++			}
 +		}
 +		else {
++			result = -EADDRINUSE;
 +			kfree(con);
++			goto create_free;
 +		}
 +
-+		/* Keep a list of dynamically allocated listening sockets
-+		   so we can free them at shutdown */
-+		if (test_bit(CF_IS_OTHERSOCK, &con->flags)) {
-+			list_add_tail(&con->listenlist, &listen_sockets);
-+		}
 +		con = NULL;
 +	}
 +
 +      create_out:
++	return result;
++
++      create_free:
++	/* Free up any dynamically allocated listening sockets */
++	list_for_each_entry_safe(con, temp, &listen_sockets, listenlist) {
++		sock_release(con->sock);
++		kfree(con);
++	}
 +	return result;
 +}
 +
@@ -7820,7 +7948,7 @@ diff -urN linux-orig/cluster/dlm/lowcomms.c linux-patched/cluster/dlm/lowcomms.c
 + */
 diff -urN linux-orig/cluster/dlm/lowcomms.h linux-patched/cluster/dlm/lowcomms.h
 --- linux-orig/cluster/dlm/lowcomms.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/lowcomms.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/lowcomms.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -7858,8 +7986,8 @@ diff -urN linux-orig/cluster/dlm/lowcomms.h linux-patched/cluster/dlm/lowcomms.h
 +#endif				/* __LOWCOMMS_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/main.c linux-patched/cluster/dlm/main.c
 --- linux-orig/cluster/dlm/main.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/main.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,98 @@
++++ linux-patched/cluster/dlm/main.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,99 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -7958,9 +8086,10 @@ diff -urN linux-orig/cluster/dlm/main.c linux-patched/cluster/dlm/main.c
 +EXPORT_SYMBOL(dlm_lock);
 +EXPORT_SYMBOL(dlm_unlock);
 +EXPORT_SYMBOL(dlm_debug_dump);
++EXPORT_SYMBOL(dlm_locks_dump);
 diff -urN linux-orig/cluster/dlm/memory.c linux-patched/cluster/dlm/memory.c
 --- linux-orig/cluster/dlm/memory.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/memory.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/memory.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,238 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8202,7 +8331,7 @@ diff -urN linux-orig/cluster/dlm/memory.c linux-patched/cluster/dlm/memory.c
 +}
 diff -urN linux-orig/cluster/dlm/memory.h linux-patched/cluster/dlm/memory.h
 --- linux-orig/cluster/dlm/memory.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/memory.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/memory.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,32 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8238,7 +8367,7 @@ diff -urN linux-orig/cluster/dlm/memory.h linux-patched/cluster/dlm/memory.h
 +#endif		/* __MEMORY_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/midcomms.c linux-patched/cluster/dlm/midcomms.c
 --- linux-orig/cluster/dlm/midcomms.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/midcomms.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/midcomms.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,351 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8593,7 +8722,7 @@ diff -urN linux-orig/cluster/dlm/midcomms.c linux-patched/cluster/dlm/midcomms.c
 +}
 diff -urN linux-orig/cluster/dlm/midcomms.h linux-patched/cluster/dlm/midcomms.h
 --- linux-orig/cluster/dlm/midcomms.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/midcomms.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/midcomms.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8621,7 +8750,7 @@ diff -urN linux-orig/cluster/dlm/midcomms.h linux-patched/cluster/dlm/midcomms.h
 +#endif				/* __MIDCOMMS_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/nodes.c linux-patched/cluster/dlm/nodes.c
 --- linux-orig/cluster/dlm/nodes.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/nodes.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/nodes.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,323 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8948,7 +9077,7 @@ diff -urN linux-orig/cluster/dlm/nodes.c linux-patched/cluster/dlm/nodes.c
 +}
 diff -urN linux-orig/cluster/dlm/nodes.h linux-patched/cluster/dlm/nodes.h
 --- linux-orig/cluster/dlm/nodes.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/nodes.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/nodes.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,25 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -8977,7 +9106,7 @@ diff -urN linux-orig/cluster/dlm/nodes.h linux-patched/cluster/dlm/nodes.h
 +#endif				/* __NODES_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/proc.c linux-patched/cluster/dlm/proc.c
 --- linux-orig/cluster/dlm/proc.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/proc.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/proc.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,618 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -9599,7 +9728,7 @@ diff -urN linux-orig/cluster/dlm/proc.c linux-patched/cluster/dlm/proc.c
 +}
 diff -urN linux-orig/cluster/dlm/queries.c linux-patched/cluster/dlm/queries.c
 --- linux-orig/cluster/dlm/queries.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/queries.c	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/queries.c	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,695 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10298,7 +10427,7 @@ diff -urN linux-orig/cluster/dlm/queries.c linux-patched/cluster/dlm/queries.c
 + */
 diff -urN linux-orig/cluster/dlm/queries.h linux-patched/cluster/dlm/queries.h
 --- linux-orig/cluster/dlm/queries.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/queries.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/queries.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,20 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -10322,8 +10451,8 @@ diff -urN linux-orig/cluster/dlm/queries.h linux-patched/cluster/dlm/queries.h
 +#endif                          /* __QUERIES_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 --- linux-orig/cluster/dlm/rebuild.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/rebuild.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,1273 @@
++++ linux-patched/cluster/dlm/rebuild.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,1277 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -10668,37 +10797,42 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	return 0;
 +}
 +
-+/* 
-+ * Used to decide if an rsb should be rebuilt on a new master.  An rsb only
-+ * needs to be rebuild if we have lkb's queued on it.  NOREBUILD lkb's on the
-+ * wait queue are not rebuilt.
-+ */
-+
-+static int lkbs_to_remaster(struct dlm_rsb *r)
++static int lkbs_to_remaster_list(struct list_head *head)
 +{
 +	struct dlm_lkb *lkb;
-+	struct dlm_rsb *sub;
 +
-+	if (!list_empty(&r->res_grantqueue) ||
-+	    !list_empty(&r->res_convertqueue))
-+		return TRUE;
-+
-+	list_for_each_entry(lkb, &r->res_waitqueue, lkb_statequeue) {
++	list_for_each_entry(lkb, head, lkb_statequeue) {
 +		if (lkb->lkb_flags & GDLM_LKFLG_NOREBUILD)
 +			continue;
 +		return TRUE;
 +	}
++	return FALSE;
++}
++
++/* 
++ * Used to decide if an rsb should be rebuilt on a new master.  An rsb only
++ * needs to be rebuild if we have lkb's queued on it.  NOREBUILD lkb's are not
++ * rebuilt.
++ */
++
++static int lkbs_to_remaster(struct dlm_rsb *r)
++{
++	struct dlm_rsb *sub;
++
++	if (lkbs_to_remaster_list(&r->res_grantqueue))
++		return TRUE;
++	if (lkbs_to_remaster_list(&r->res_convertqueue))
++		return TRUE;
++	if (lkbs_to_remaster_list(&r->res_waitqueue))
++		return TRUE;
 +
 +	list_for_each_entry(sub, &r->res_subreslist, res_subreslist) {
-+		if (!list_empty(&sub->res_grantqueue) ||
-+		    !list_empty(&sub->res_convertqueue))
++		if (lkbs_to_remaster_list(&sub->res_grantqueue))
 +			return TRUE;
-+
-+		list_for_each_entry(lkb, &sub->res_waitqueue, lkb_statequeue) {
-+			if (lkb->lkb_flags & GDLM_LKFLG_NOREBUILD)
-+				continue;
++		if (lkbs_to_remaster_list(&sub->res_convertqueue))
 +			return TRUE;
-+		}
++		if (lkbs_to_remaster_list(&sub->res_waitqueue))
++			return TRUE;
 +	}
 +
 +	return FALSE;
@@ -10722,7 +10856,7 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	DLM_ASSERT(!rsb->res_lvbptr,);
 +}
 +
-+/* 
++/*
 + * Flatten an LKB into a buffer for sending to the new RSB master.  As a
 + * side-effect the nodeid of the lock is set to the nodeid of the new RSB
 + * master.
@@ -11182,7 +11316,6 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	log_all(ls, "rebuilt %d locks", fill.count);
 +
 +      out:
-+	rebuild_freemem(ls);
 +	free_rcom_buffer(rc);
 +
 +      ret:
@@ -11452,7 +11585,7 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	 * removed by release_rsb() after all lkb's are added.
 +	 */
 +
-+	error = find_or_create_rsb(ls, parent, name, length, 1, &rsb);
++	error = find_rsb(ls, parent, name, length, CREATE, &rsb);
 +	DLM_ASSERT(!error,);
 +
 +	set_bit(RESFL_MASTER, &rsb->res_flags);
@@ -11485,7 +11618,7 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	if (!rnode)
 +		goto out;
 +
-+	/* 
++	/*
 +	 * Allocate a buffer for the reply message which is a list of remote
 +	 * lock IDs and their (new) local lock ids.  It will always be big
 +	 * enough to fit <n> ID pairs if it already fit <n> LKBs.
@@ -11497,7 +11630,7 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +	outbuf = rc->rc_buf;
 +	outptr = 0;
 +
-+	/* 
++	/*
 +	 * Unpack RSBs and LKBs, saving new LKB id's in outbuf as they're
 +	 * created.  Each deserialise_rsb adds an rsb reference that must be
 +	 * removed with release_rsb once all new lkb's for an rsb have been
@@ -11599,7 +11732,7 @@ diff -urN linux-orig/cluster/dlm/rebuild.c linux-patched/cluster/dlm/rebuild.c
 +}
 diff -urN linux-orig/cluster/dlm/rebuild.h linux-patched/cluster/dlm/rebuild.h
 --- linux-orig/cluster/dlm/rebuild.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/rebuild.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/rebuild.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -11625,8 +11758,8 @@ diff -urN linux-orig/cluster/dlm/rebuild.h linux-patched/cluster/dlm/rebuild.h
 +#endif				/* __REBUILD_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/reccomms.c linux-patched/cluster/dlm/reccomms.c
 --- linux-orig/cluster/dlm/reccomms.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/reccomms.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,504 @@
++++ linux-patched/cluster/dlm/reccomms.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,505 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -11933,6 +12066,7 @@ diff -urN linux-orig/cluster/dlm/reccomms.c linux-patched/cluster/dlm/reccomms.c
 +		status = dlm_dir_lookup(ls, nodeid, rc->rc_buf, rc->rc_datalen,
 +					&r_nodeid);
 +		if (status != 0) {
++			log_all(ls, "rcom lookup error %d", status);
 +			free_rcom_buffer(reply);
 +			reply = NULL;
 +			return;
@@ -12133,7 +12267,7 @@ diff -urN linux-orig/cluster/dlm/reccomms.c linux-patched/cluster/dlm/reccomms.c
 +
 diff -urN linux-orig/cluster/dlm/reccomms.h linux-patched/cluster/dlm/reccomms.h
 --- linux-orig/cluster/dlm/reccomms.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/reccomms.h	2004-07-29 11:30:25.000000000 +0800
++++ linux-patched/cluster/dlm/reccomms.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,37 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12174,8 +12308,8 @@ diff -urN linux-orig/cluster/dlm/reccomms.h linux-patched/cluster/dlm/reccomms.h
 +#endif
 diff -urN linux-orig/cluster/dlm/recover.c linux-patched/cluster/dlm/recover.c
 --- linux-orig/cluster/dlm/recover.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/recover.c	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,608 @@
++++ linux-patched/cluster/dlm/recover.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,611 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -12626,7 +12760,10 @@ diff -urN linux-orig/cluster/dlm/recover.c linux-patched/cluster/dlm/recover.c
 +	if (dir_nodeid == our_nodeid()) {
 +		error = dlm_dir_lookup(ls, dir_nodeid, rsb->res_name,
 +				       rsb->res_length, &r_nodeid);
-+		if (error)
++		if (error == -EEXIST) {
++			log_all(ls, "rsb_master_lookup %u EEXIST %s",
++				r_nodeid, rsb->res_name);
++		} else if (error)
 +			goto fail;
 +
 +		set_new_master(rsb, r_nodeid);
@@ -12786,7 +12923,7 @@ diff -urN linux-orig/cluster/dlm/recover.c linux-patched/cluster/dlm/recover.c
 +}
 diff -urN linux-orig/cluster/dlm/recover.h linux-patched/cluster/dlm/recover.h
 --- linux-orig/cluster/dlm/recover.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/recover.h	2004-07-29 11:30:26.000000000 +0800
++++ linux-patched/cluster/dlm/recover.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,33 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -12823,8 +12960,8 @@ diff -urN linux-orig/cluster/dlm/recover.h linux-patched/cluster/dlm/recover.h
 +#endif				/* __RECOVER_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 --- linux-orig/cluster/dlm/recoverd.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/recoverd.c	2004-07-29 11:30:26.000000000 +0800
-@@ -0,0 +1,701 @@
++++ linux-patched/cluster/dlm/recoverd.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,710 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -12961,6 +13098,12 @@ diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 +	int error, neg = 0;
 +
 +	log_all(ls, "recover event %u", rv->event_id);
++
++	/*
++	 * this list may be left over from a previous aborted recovery
++	 */
++
++	rebuild_freemem(ls);
 +
 +	/* 
 +	 * Add or remove nodes from the lockspace's ls_nodes list.
@@ -13114,8 +13257,9 @@ diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 +		log_all(ls, "move reset stop %d start %d finish %d",
 +			last_stop, last_start, last_finish);
 +		ls->ls_last_stop = 0;
++		ls->ls_last_start = 0;
 +		last_stop = 0;
-+
++		last_start = 0;
 +	}
 +	spin_unlock(&ls->ls_recover_lock);
 +
@@ -13317,6 +13461,8 @@ diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 +	if (cur_state == LSST_RECONFIG_DONE) {
 +		switch (do_now) {
 +		case DO_FINISH:
++			rebuild_freemem(ls);
++
 +			clear_finished_nodes(ls, finish_event);
 +			next_state = LSST_CLEAR;
 +
@@ -13528,7 +13674,7 @@ diff -urN linux-orig/cluster/dlm/recoverd.c linux-patched/cluster/dlm/recoverd.c
 +}
 diff -urN linux-orig/cluster/dlm/recoverd.h linux-patched/cluster/dlm/recoverd.h
 --- linux-orig/cluster/dlm/recoverd.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/recoverd.h	2004-07-29 11:30:26.000000000 +0800
++++ linux-patched/cluster/dlm/recoverd.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,22 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -13554,8 +13700,8 @@ diff -urN linux-orig/cluster/dlm/recoverd.h linux-patched/cluster/dlm/recoverd.h
 +#endif				/* __RECOVERD_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 --- linux-orig/cluster/dlm/rsb.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/rsb.c	2004-07-29 11:30:26.000000000 +0800
-@@ -0,0 +1,328 @@
++++ linux-patched/cluster/dlm/rsb.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,329 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -13576,6 +13722,7 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +#include "nodes.h"
 +#include "dir.h"
 +#include "util.h"
++#include "rsb.h"
 +
 +static struct dlm_rsb *search_hashchain(struct list_head *head,
 +					struct dlm_rsb *parent,
@@ -13586,7 +13733,6 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +	list_for_each_entry(r, head, res_hashchain) {
 +		if ((parent == r->res_parent) && (namelen == r->res_length) &&
 +		    (memcmp(name, r->res_name, namelen) == 0)) {
-+			atomic_inc(&r->res_ref);
 +			return r;
 +		}
 +	}
@@ -13668,12 +13814,6 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 +{
 +	struct dlm_rsb *r = lkb->lkb_resource;
-+
-+	write_lock(&ls->ls_rsbtbl[r->res_bucket].lock);
-+	if (!r->res_parent && atomic_read(&r->res_ref) == 1)
-+		r->res_nodeid = -1;   
-+	write_unlock(&ls->ls_rsbtbl[r->res_bucket].lock);
-+
 +	return r;
 +}
 +
@@ -13683,30 +13823,36 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 + * doesn't exist, it's created with a ref count of one.
 + */
 +
-+int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
-+		       int namelen, int create, struct dlm_rsb **rp)
++int find_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name, int len,
++	     int flags, struct dlm_rsb **rp)
 +{
 +	uint32_t bucket;
 +	struct dlm_rsb *r, *tmp;
 +	int error = -ENOMEM;
 +
-+	DLM_ASSERT(namelen <= DLM_RESNAME_MAXLEN,);
++	DLM_ASSERT(len <= DLM_RESNAME_MAXLEN,);
 +
-+	bucket = dlm_hash(name, namelen);
++	bucket = dlm_hash(name, len);
 +	bucket &= (ls->ls_rsbtbl_size - 1);
 +
 +	read_lock(&ls->ls_rsbtbl[bucket].lock);
-+	r = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
++	r = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, len);
++	if (r) {
++		if (r->res_nodeid != 0 && (flags & MASTER))
++			r = NULL;
++		else
++			atomic_inc(&r->res_ref);
++	}
 +	read_unlock(&ls->ls_rsbtbl[bucket].lock);
 +
 +	if (r)
 +		goto out_set;
-+	if (!create) {
++	if (!(flags & CREATE)) {
 +		*rp = NULL;
 +		goto out;
 +	}
 +
-+	r = allocate_rsb(ls, namelen);
++	r = allocate_rsb(ls, len);
 +	if (!r)
 +		goto fail;
 +
@@ -13715,8 +13861,8 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +	INIT_LIST_HEAD(&r->res_convertqueue);
 +	INIT_LIST_HEAD(&r->res_waitqueue);
 +
-+	memcpy(r->res_name, name, namelen);
-+	r->res_length = namelen;
++	memcpy(r->res_name, name, len);
++	r->res_length = len;
 +	r->res_ls = ls;
 +	init_rwsem(&r->res_lock);
 +	atomic_set(&r->res_ref, 1);
@@ -13735,8 +13881,9 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +	}
 +
 +	write_lock(&ls->ls_rsbtbl[bucket].lock);
-+	tmp = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, namelen);
++	tmp = search_hashchain(&ls->ls_rsbtbl[bucket].list, parent, name, len);
 +	if (tmp) {
++		atomic_inc(&tmp->res_ref);
 +		write_unlock(&ls->ls_rsbtbl[bucket].lock);
 +		free_rsb(r);
 +		r = tmp;
@@ -13886,8 +14033,8 @@ diff -urN linux-orig/cluster/dlm/rsb.c linux-patched/cluster/dlm/rsb.c
 +}
 diff -urN linux-orig/cluster/dlm/rsb.h linux-patched/cluster/dlm/rsb.h
 --- linux-orig/cluster/dlm/rsb.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/rsb.h	2004-07-29 11:30:26.000000000 +0800
-@@ -0,0 +1,31 @@
++++ linux-patched/cluster/dlm/rsb.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,34 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -13904,12 +14051,15 @@ diff -urN linux-orig/cluster/dlm/rsb.h linux-patched/cluster/dlm/rsb.h
 +#ifndef __RSB_DOT_H__
 +#define __RSB_DOT_H__
 +
++#define CREATE 1
++#define MASTER 2
++
 +void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode);
 +void release_rsb(struct dlm_rsb *r);
 +void release_rsb_locked(struct dlm_rsb *r);
 +void hold_rsb(struct dlm_rsb *r);
-+int find_or_create_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
-+		       int namelen, int create, struct dlm_rsb **rp);
++int find_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name,
++	     int namelen, int flags, struct dlm_rsb **rp);
 +struct dlm_rsb *find_rsb_to_unlock(struct dlm_ls *ls, struct dlm_lkb *lkb);
 +void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
 +void res_lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type);
@@ -13921,8 +14071,8 @@ diff -urN linux-orig/cluster/dlm/rsb.h linux-patched/cluster/dlm/rsb.h
 +#endif				/* __RSB_DOT_H__ */
 diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
 --- linux-orig/cluster/dlm/util.c	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/util.c	2004-07-29 11:30:26.000000000 +0800
-@@ -0,0 +1,181 @@
++++ linux-patched/cluster/dlm/util.c	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,183 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -14045,7 +14195,7 @@ diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
 +	       "status %x\n"
 +	       "rqmode %d\n"
 +	       "grmode %d\n"
-+	       "nodeid %u\n"
++	       "nodeid %d\n"
 +	       "lqstate %x\n"
 +	       "lqflags %x\n",
 +		lkb->lkb_id,
@@ -14063,10 +14213,12 @@ diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
 +{
 +	printk("dlm: rsb\n"
 +	       "name \"%s\"\n"
-+	       "nodeid %u\n"
++	       "nodeid %d\n"
++	       "flags %lx\n"
 +	       "ref %u\n",
 +	       r->res_name,
 +	       r->res_nodeid,
++	       r->res_flags,
 +	       atomic_read(&r->res_ref));
 +}
 +
@@ -14106,7 +14258,7 @@ diff -urN linux-orig/cluster/dlm/util.c linux-patched/cluster/dlm/util.c
 +
 diff -urN linux-orig/cluster/dlm/util.h linux-patched/cluster/dlm/util.h
 --- linux-orig/cluster/dlm/util.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/cluster/dlm/util.h	2004-07-29 11:30:26.000000000 +0800
++++ linux-patched/cluster/dlm/util.h	2004-08-13 17:27:37.000000000 +0800
 @@ -0,0 +1,24 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -14134,8 +14286,8 @@ diff -urN linux-orig/cluster/dlm/util.h linux-patched/cluster/dlm/util.h
 +#endif
 diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
 --- linux-orig/include/cluster/dlm.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/include/cluster/dlm.h	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,412 @@
++++ linux-patched/include/cluster/dlm.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,413 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -14544,14 +14696,15 @@ diff -urN linux-orig/include/cluster/dlm.h linux-patched/include/cluster/dlm.h
 +
 +
 +void dlm_debug_dump(void);
++void dlm_locks_dump(void);
 +
 +#endif				/* __KERNEL__ */
 +
 +#endif				/* __DLM_DOT_H__ */
 diff -urN linux-orig/include/cluster/dlm_device.h linux-patched/include/cluster/dlm_device.h
 --- linux-orig/include/cluster/dlm_device.h	1970-01-01 07:30:00.000000000 +0730
-+++ linux-patched/include/cluster/dlm_device.h	2004-07-29 11:30:25.000000000 +0800
-@@ -0,0 +1,63 @@
++++ linux-patched/include/cluster/dlm_device.h	2004-08-13 17:27:37.000000000 +0800
+@@ -0,0 +1,64 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -14584,8 +14737,9 @@ diff -urN linux-orig/include/cluster/dlm_device.h linux-patched/include/cluster/
 +	uint32_t parent;
 +	struct dlm_range range;
 +	uint8_t namelen;
-+        void *astparam;
-+        void *astaddr;
++        void *castparam;
++	void *castaddr;
++	void *bastparam;
 +        void *bastaddr;
 +        struct dlm_lksb *lksb;
 +	char name[1];
