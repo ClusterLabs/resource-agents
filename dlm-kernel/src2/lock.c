@@ -236,13 +236,6 @@ void hold_rsb(struct dlm_rsb *r)
 	kref_get(&r->res_ref);
 }
 
-/* See comment on unhold_lkb. */
-
-void unhold_rsb(struct dlm_rsb *r)
-{
-	DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),);
-}
-
 void toss_rsb(struct kref *kref)
 {
 	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
@@ -318,6 +311,8 @@ void kill_lkb(struct kref *kref)
 
 	list_del(&lkb->lkb_idtbl_list);
 
+	detach_lkb(lkb);
+
 	/* for local/process lkbs, lvbptr points to the caller's lksb */
 	if (lkb->lkb_lvbptr && is_master_copy(lkb))
 		free_lvb(lkb->lkb_lvbptr);
@@ -390,7 +385,6 @@ void unhold_lkb(struct dlm_lkb *lkb)
 void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 {
 	kref_get(&lkb->lkb_ref);
-	hold_rsb(r);
 
 	DLM_ASSERT(!lkb->lkb_status,);
 
@@ -427,7 +421,23 @@ void del_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	lkb->lkb_status = 0;
 	list_del(&lkb->lkb_statequeue);
 	unhold_lkb(lkb);
-	unhold_rsb(r);
+}
+
+/* Attaching/detaching lkb's from rsb's is for rsb reference counting.
+   The rsb must exist as long as any lkb's for it do. */
+
+void attach_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
+{
+	hold_rsb(r);
+	lkb->lkb_resource = r;
+}
+
+void detach_lkb(struct dlm_lkb *lkb)
+{
+	if (lkb->lkb_resource) {
+		put_rsb(lkb->lkb_resource);
+		lkb->lkb_resource = NULL;
+	}
 }
 
 void add_ast_list(struct dlm_lkb *lkb, int type)
@@ -915,7 +925,7 @@ int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name, int len)
 
 	lock_rsb(r);
 
-	lkb->lkb_resource = r;
+	attach_lkb(r, lkb);
 	error = _request_lock(r, lkb);
 
 	unlock_rsb(r);
@@ -1886,7 +1896,7 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 
 	lock_rsb(r);
 
-	lkb->lkb_resource = r;
+	attach_lkb(r, lkb);
 	error = do_request(r, lkb);
 	send_request_reply(r, lkb, error);
 
