@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.362 $) dnl cvs revision
+AC_REVISION($Revision: 1.363 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1838,6 +1838,7 @@ if test "${enable_pretty}" = "yes"; then
    PRETTY_CC="`dirname ${install_sh}`/tools/ccdv"
    dnl It would be nice if this was rebuilt when needed too...
    (cd `dirname ${install_sh}`/tools ; gcc -o ccdv ccdv.c )
+   CC="\$(PRETTY_CC) ${CC}"
 fi
 if test "${enable_quiet}" = "yes"; then
    QUIET_LIBTOOL_OPTS="--tag=CC --quiet"
@@ -1848,7 +1849,6 @@ AC_MSG_RESULT(Supressing make details: ${enable_quiet})
 AC_MSG_RESULT(Pretty printing of compiler output: ${enable_pretty})
 
 dnl Put the above variables to use
-CC="\$(PRETTY_CC) ${CC}"
 LIBTOOL="${LIBTOOL} \$(QUIET_LIBTOOL_OPTS)"
 MAKE="${MAKE} \$(QUIET_MAKE_OPTS)"
 
