@@ -871,6 +871,21 @@ static int send_to_sock(struct connection *con)
 	return 0;
 }
 
+static void clean_one_writequeue(struct connection *con)
+{
+	struct list_head *list;
+	struct list_head *temp;
+
+	spin_lock(&con->writequeue_lock);
+	list_for_each_safe(list, temp, &con->writequeue) {
+		struct writequeue_entry *e =
+			list_entry(list, struct writequeue_entry, list);
+		list_del(&e->list);
+		free_entry(e);
+	}
+	spin_unlock(&con->writequeue_lock);
+}
+
 /* Called from recoverd when it knows that a node has
    left the cluster */
 int lowcomms_close(int nodeid)
@@ -883,6 +898,7 @@ int lowcomms_close(int nodeid)
 	con = nodeid2con(nodeid);
 	if (con->sock) {
 		close_connection(con);
+		clean_one_writequeue(con);
 		return 0;
 	}
 
@@ -990,24 +1006,16 @@ static void process_state_queue(void)
 	spin_unlock_bh(&state_sockets_lock);
 }
 
+
 /* Discard all entries on the write queues */
 static void clean_writequeues(void)
 {
-	struct list_head *list;
-	struct list_head *temp;
 	int nodeid;
 
 	for (nodeid = 1; nodeid < dlm_config.max_connections; nodeid++) {
 		struct connection *con = nodeid2con(nodeid);
 
-		spin_lock(&con->writequeue_lock);
-		list_for_each_safe(list, temp, &con->writequeue) {
-			struct writequeue_entry *e =
-			    list_entry(list, struct writequeue_entry, list);
-			list_del(&e->list);
-			free_entry(e);
-		}
-		spin_unlock(&con->writequeue_lock);
+		clean_one_writequeue(con);
 	}
 }
 
