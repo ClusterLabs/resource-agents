@@ -159,8 +159,6 @@ static void process_complete(dlm_lock_t *lp)
 		lp->req = lp->prev_req;
 		lp->prev_req = DLM_LOCK_IV;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
-		if (!(lp->lkf & DLM_LKF_EXPEDITE))
-			lp->lkf |= DLM_LKF_QUECVT;
 
 		set_bit(LFL_NOCACHE, &lp->flags);
 
@@ -190,7 +188,6 @@ static void process_complete(dlm_lock_t *lp)
 		lp->req = DLM_LOCK_NL;
 		lp->lkf |= DLM_LKF_CONVERT;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
-		lp->lkf &= ~DLM_LKF_QUECVT;
 
 		set_bit(LFL_REREQUEST, &lp->flags);
 		queue_submit(lp);
@@ -202,7 +199,7 @@ static void process_complete(dlm_lock_t *lp)
 	 * told it cannot cache data for this lock.
 	 */
 
-	if (lp->lksb.sb_flags == DLM_SBF_DEMOTED)
+	if (lp->lksb.sb_flags & DLM_SBF_DEMOTED)
 		set_bit(LFL_NOCACHE, &lp->flags);
 
       out:

@@ -30,9 +30,10 @@ static void queue_complete(dlm_lock_t *lp)
 
 	clear_bit(LFL_WAIT_COMPLETE, &lp->flags);
 
-	log_debug("qc %x,%"PRIx64" %d,%d id %x sts %d",
+	log_debug("qc %x,%"PRIx64" %d,%d id %x sts %d %x",
 		  lp->lockname.ln_type, lp->lockname.ln_number,
-		  lp->cur, lp->req, lp->lksb.sb_lkid, lp->lksb.sb_status);
+		  lp->cur, lp->req, lp->lksb.sb_lkid, lp->lksb.sb_status,
+		  lp->lksb.sb_flags);
 
 	spin_lock(&dlm->async_lock);
 	list_add_tail(&lp->clist, &dlm->complete);
@@ -199,17 +200,18 @@ static unsigned int make_flags(dlm_lock_t *lp, unsigned int gfs_flags,
 		lkf |= DLM_LKF_NOQUEUEBAST;
 	}
 
+	if (gfs_flags & LM_FLAG_PRIORITY) {
+		lkf |= DLM_LKF_NOORDER;
+		lkf |= DLM_LKF_HEADQUE;
+	}
+
 	if (lp->lksb.sb_lkid != 0) {
 		lkf |= DLM_LKF_CONVERT;
-
-		if (gfs_flags & LM_FLAG_PRIORITY)
-			lkf |= DLM_LKF_EXPEDITE;
-		else if (req > cur)
-			lkf |= DLM_LKF_QUECVT;
 
 		/* Conversion deadlock avoidance by DLM */
 
 		if (!test_bit(LFL_FORCE_PROMOTE, &lp->flags) &&
+		    !(lkf & DLM_LKF_NOQUEUE) &&
 		    cur > DLM_LOCK_NL && req > DLM_LOCK_NL && cur != req)
 			lkf |= DLM_LKF_CONVDEADLK;
 	}
@@ -248,6 +250,7 @@ int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp)
 	lp->dlm = dlm;
 	lp->cur = DLM_LOCK_IV;
 	lp->lvb = NULL;
+	lp->hold_null = NULL;
 	init_completion(&lp->uast_wait);
 	*lpp = lp;
 	return 0;
@@ -328,11 +331,11 @@ void do_dlm_unlock(dlm_lock_t *lp)
 	if (lp->lvb)
 		lkf = DLM_LKF_VALBLK;
 
-	log_debug("un %x,%"PRIx64" id %x cur %d %x", lp->lockname.ln_type,
+	log_debug("un %x,%"PRIx64" %x %d %x", lp->lockname.ln_type,
 		  lp->lockname.ln_number, lp->lksb.sb_lkid, lp->cur, lkf);
 
-	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, &lp->lksb,
-			    (void *) lp);
+	error = dlm_unlock(lp->dlm->gdlm_lsp, lp->lksb.sb_lkid, lkf, NULL,
+			   NULL);
 
 	DLM_ASSERT(!error, printk("%s: error=%d num=%x,%"PRIx64"\n",
 			      lp->dlm->fsname, error, lp->lockname.ln_type,
@@ -456,16 +459,9 @@ unsigned int lm_dlm_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	if (lp->lvb) {
-		check_cur_state(lp, cur_state);
-		lp->req = DLM_LOCK_NL;
-		lp->lkf = make_flags(lp, 0, lp->cur, lp->req);
-		do_dlm_lock(lp, NULL);
-	} else {
-		if (lp->cur == DLM_LOCK_IV)
-			return 0;
-		do_dlm_unlock(lp);
-	}
+	if (lp->cur == DLM_LOCK_IV)
+		return 0;
+	do_dlm_unlock(lp);
 	return LM_OUT_ASYNC;
 }
 
@@ -506,6 +502,41 @@ void lm_dlm_cancel(lm_lock_t *lock)
 	}
 }
 
+static int hold_null_lock(dlm_lock_t *lp)
+{
+	dlm_lock_t *lpn;
+	int error;
+
+	if (lp->hold_null) {
+		printk("lock_dlm: lvb already held\n");
+		return 0;
+	}
+
+	error = create_lp(lp->dlm, &lp->lockname, &lpn);
+	if (error)
+		return error;
+
+	lpn->req = DLM_LOCK_NL;
+	set_bit(LFL_NOBAST, &lpn->flags);
+	set_bit(LFL_INLOCK, &lpn->flags);
+
+	error = do_dlm_lock_sync(lpn, NULL);
+	if (error) {
+		delete_lp(lpn);
+		lpn = NULL;
+	}
+
+	lp->hold_null = lpn;
+	return error;
+}
+
+static void unhold_null_lock(dlm_lock_t *lp)
+{
+	do_dlm_unlock_sync(lp->hold_null);
+	delete_lp(lp->hold_null);
+	lp->hold_null = NULL;
+}
+
 /**
  * dlm_hold_lvb - hold on to a lock value block
  * @lock: the lock the LVB is associated with
@@ -518,6 +549,7 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 	char *lvb;
+	int error;
 
 	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
 	if (!lvb)
@@ -529,7 +561,18 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 	lp->lvb = lvb;
 	*lvbp = lvb;
 
-	return 0;
+	/* acquire a NL lock because gfs requires the value block to remain
+	   intact on the resource while the lvb is "held" even if it's holding
+	   no locks on the resource */
+
+	error = hold_null_lock(lp);
+	if (error) {
+		kfree(lvb);
+		lp->lvb = NULL;
+		lp->lksb.sb_lvbptr = NULL;
+	}
+
+	return error;
 }
 
 /**
@@ -543,8 +586,8 @@ void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	if (lp->cur == DLM_LOCK_NL)
-		do_dlm_unlock_sync(lp);
+	unhold_null_lock(lp);
+
 	kfree(lvb);
 	lp->lvb = NULL;
 	lp->lksb.sb_lvbptr = NULL;

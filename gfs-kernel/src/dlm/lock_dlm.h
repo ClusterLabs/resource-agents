@@ -152,6 +152,7 @@ struct posix_lock {
 #define LFL_CANCEL              13
 #define LFL_UNLOCK_SYNC         14
 #define LFL_NOBAST              15
+#define LFL_HEADQUE             16
 
 struct dlm_lock {
 	dlm_t *			dlm;
@@ -174,6 +175,7 @@ struct dlm_lock {
 	struct list_head	dlist;		/* delayed */
 	struct list_head	slist;		/* submit */
 
+	struct dlm_lock *	hold_null;
 	struct posix_lock *	posix;
 };
 

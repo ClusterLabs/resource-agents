@@ -23,9 +23,11 @@
 #define NO_WAIT   0
 #define X_WAIT   -1
 
-#define EX	  1
+#define EX        1
 #define NO_EX     0
 #define SH        NO_EX
+
+#define HEAD      1
 
 
 static int check_conflict(dlm_t *dlm, struct dlm_resource *r,
@@ -300,16 +302,17 @@ static int create_lock(struct dlm_resource *r, unsigned long owner, int ex,
 
 static unsigned int make_flags_posix(dlm_lock_t *lp, int wait)
 {
-	unsigned int lkf = 0;
+	unsigned int lkf = DLM_LKF_NOORDER;
+
+	if (test_and_clear_bit(LFL_HEADQUE, &lp->flags))
+		lkf |= DLM_LKF_HEADQUE;
 
 	if (wait == NO_WAIT || wait == X_WAIT)
 		lkf |= DLM_LKF_NOQUEUE;
 
-	if (lp->lksb.sb_lkid != 0) {
+	if (lp->lksb.sb_lkid != 0)
 		lkf |= DLM_LKF_CONVERT;
-		if (wait == WAIT)
-			lkf |= DLM_LKF_EXPEDITE;
-	}
+
 	return lkf;
 }
 
@@ -321,14 +324,14 @@ static void do_range_lock(dlm_lock_t *lp)
 
 static void request_lock(dlm_lock_t *lp, int wait)
 {
-	log_debug("req %x,%"PRIx64" %s %"PRIx64"-%"PRIx64" %u w %u",
-		  lp->lockname.ln_type, lp->lockname.ln_number,
-		  lp->posix->ex ? "ex" : "sh", lp->posix->start,
-		  lp->posix->end, current->pid, wait);
-
 	set_bit(LFL_INLOCK, &lp->flags);
 	lp->req = lp->posix->ex ? DLM_LOCK_EX : DLM_LOCK_PR;
 	lp->lkf = make_flags_posix(lp, wait);
+
+	log_debug("req %x,%"PRIx64" %s %"PRIx64"-%"PRIx64" %x %u w %u",
+		  lp->lockname.ln_type, lp->lockname.ln_number,
+		  lp->posix->ex ? "ex" : "sh", lp->posix->start,
+		  lp->posix->end, lp->lkf, current->pid, wait);
 
 	do_range_lock(lp);
 }
@@ -390,13 +393,15 @@ static void update_lock(dlm_lock_t *lp, int wait)
 }
 
 static void add_lock(struct dlm_resource *r, unsigned long owner, int wait,
-		     int ex, uint64_t start, uint64_t end)
+		     int ex, uint64_t start, uint64_t end, int head)
 {
 	dlm_lock_t *lp;
 	int error;
 
 	error = create_lock(r, owner, ex, start, end, &lp);
 	DLM_ASSERT(!error, );
+	if (head == HEAD)
+		set_bit(LFL_HEADQUE, &lp->flags);
 
 	hold_resource(r);
 	update_lock(lp, wait);
@@ -435,10 +440,10 @@ static int lock_case1(struct posix_lock *po, struct dlm_resource *r,
 	po->ex = ex;
 
 	if (ex) {
-		add_lock(r, owner, X_WAIT, SH, start2, end2);
+		add_lock(r, owner, X_WAIT, SH, start2, end2, HEAD);
 		update_lock(po->lp, wait);
 	} else {
-		add_lock(r, owner, WAIT, EX, start2, end2);
+		add_lock(r, owner, WAIT, EX, start2, end2, HEAD);
 		update_lock(po->lp, X_WAIT);
 	}
 	return 0;
@@ -454,8 +459,8 @@ static int lock_case2(struct posix_lock *po, struct dlm_resource *r,
 		      uint64_t end)
 {
 	if (ex) {
-		add_lock(r, owner, X_WAIT, SH, po->start, start-1);
-		add_lock(r, owner, X_WAIT, SH, end+1, po->end);
+		add_lock(r, owner, X_WAIT, SH, po->start, start-1, HEAD);
+		add_lock(r, owner, X_WAIT, SH, end+1, po->end, HEAD);
 
 		po->start = start;
 		po->end = end;
@@ -463,8 +468,8 @@ static int lock_case2(struct posix_lock *po, struct dlm_resource *r,
 
 		update_lock(po->lp, wait);
 	} else {
-		add_lock(r, owner, WAIT, EX, po->start, start-1);
-		add_lock(r, owner, WAIT, EX, end+1, po->end);
+		add_lock(r, owner, WAIT, EX, po->start, start-1, HEAD);
+		add_lock(r, owner, WAIT, EX, end+1, po->end, HEAD);
 
 		po->start = start;
 		po->end = end;
@@ -515,13 +520,13 @@ static int fill_gaps(struct list_head *exist, struct dlm_resource *r,
 		if (next_exist(exist, &exist_start, &exist_end))
 			break;
 		if (start < exist_start)
-			add_lock(r, owner, wait, ex, start, exist_start-1);
+			add_lock(r, owner, wait, ex, start, exist_start-1, 0);
 		start = exist_end + 1;
 	}
 
 	/* cover gap after last existing lock */
 	if (exist_end < end)
-		add_lock(r, owner, wait, ex, exist_end+1, end);
+		add_lock(r, owner, wait, ex, exist_end+1, end, 0);
 
 	return 0;
 }
@@ -609,7 +614,7 @@ static int lock_case4(struct posix_lock *opo, struct list_head *exist,
 		/* 1. add a shared lock in the non-overlap range
 		   2. convert RE to overlap range and requested mode */
 
-		add_lock(r, owner, X_WAIT, SH, frag_start, frag_end);
+		add_lock(r, owner, X_WAIT, SH, frag_start, frag_end, HEAD);
 
 		opo->start = over_start;
 		opo->end = over_end;
@@ -621,7 +626,7 @@ static int lock_case4(struct posix_lock *opo, struct list_head *exist,
 		   2. convert RE to non-overlap range
 		   3. wait for shared lock to complete */
 
-		add_lock(r, owner, WAIT, SH, over_start, over_end);
+		add_lock(r, owner, WAIT, SH, over_start, over_end, HEAD);
 
 		opo->start = frag_start;
 		opo->end = frag_end;
@@ -698,7 +703,7 @@ static int plock_internal(struct dlm_resource *r, unsigned long owner,
 	else if (!list_empty(&exist))
 		error = lock_case3(&exist, r, owner, wait, ex, start, end);
 	else
-		add_lock(r, owner, wait, ex, start, end);
+		add_lock(r, owner, wait, ex, start, end, 0);
 
  out:
 	return error;
@@ -740,7 +745,7 @@ static int punlock_internal(struct dlm_resource *r, unsigned long owner,
 			 * fragment, and add a new lock for back fragment */
 
 			add_lock(r, owner, po->ex ? WAIT : X_WAIT, po->ex,
-				 end+1, po->end);
+				 end+1, po->end, HEAD);
 
 			po->end = start - 1;
 			update_lock(po->lp, X_WAIT);
@@ -883,13 +888,14 @@ static int get_conflict_global(dlm_t *dlm, struct lm_lockname *name,
 	struct dlm_lockinfo *lki;
 	int query = 0, s, error;
 
-	/* acquire a null lock on which base the query */
+	/* acquire a null lock on which to base the query */
 
 	error = create_lp(dlm, name, &lp);
 	if (error)
 		goto ret;
 
 	lp->req = DLM_LOCK_NL;
+	lp->lkf = DLM_LKF_EXPEDITE;
 	set_bit(LFL_INLOCK, &lp->flags);
 	do_dlm_lock_sync(lp, NULL);
 
