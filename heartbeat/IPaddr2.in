@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.4 2005/03/11 10:13:25 zhaokai Exp $
+#	$Id: IPaddr2.in,v 1.5 2005/04/06 14:10:38 andrew Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -235,6 +235,10 @@ ip_init() {
 	ARP_REPEAT=${OCF_RESKEY_arp_count:-5}
 	ARP_BACKGROUND=${OCF_RESKEY_arp_bg:-yes}
 	ARP_NETMASK=${OCF_RESKEY_arp_mac:-ffffffffffff}
+
+	if [ x"$IP_INC_GLOBAL" = "x" ]; then
+	    IP_INC_GLOBAL=1
+	fi
 
 	# TODO: Perform validation here...
 	local VALID=1
