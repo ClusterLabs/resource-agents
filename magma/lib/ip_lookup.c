@@ -34,10 +34,6 @@
 #include <netdb.h>
 #include <sys/queue.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 typedef struct _ip_address {
 	TAILQ_ENTRY(_ip_address) ipa_entries;
 	char ipa_family;

@@ -94,12 +94,11 @@ libmagmamsg.so.$(RELEASE_MAJOR): libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR
 	ln -snf $^ $@
 
 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): global.o plugin.o \
-			localinfo.o ip_lookup.o memberlist.o clist.o \
-			mallocdbg.o
+			localinfo.o ip_lookup.o memberlist.o clist.o
 	${LD} -shared -soname libmagma.so.$(RELEASE_MAJOR) -o $@ $^ -lc
 
 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): plugin.o localinfo.o \
-			ip_lookup.o memberlist.o mallocdbg.o
+			ip_lookup.o memberlist.o
 	${LD} -shared -soname libmagma_nt.so.$(RELEASE_MAJOR) -o $@ $^ -lc
 
 libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o fdops.o

@@ -28,11 +28,6 @@
 #include <arpa/inet.h>
 #include <string.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
-
 /**
   Generate and return a list of members which are now online in a new
   membership list, given the old membership list.  User must call

@@ -47,11 +47,7 @@ typedef struct _cluster_member_list {
 	(sizeof(cluster_member_list_t) + \
 	 sizeof(cluster_member_t) * c)
 
-#ifdef MDEBUG
-#define cml_alloc(size) _dmalloc(cml_size(size), __FILE__, __LINE__)
-#else
 #define cml_alloc(size) malloc(cml_size(size))
-#endif
 
 
 /* don't call this from within modules. */

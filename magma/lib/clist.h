@@ -26,6 +26,7 @@
 
 int clist_insert(int fd, int flags);
 int clist_delete(int fd);
+void clist_purgeall(void);
 int clist_fill_fdset(fd_set *set, int flags, int purpose);
 int clist_next_set(fd_set *set);
 int clist_set_purpose(int fd, int purpose);

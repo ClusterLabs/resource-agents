@@ -28,10 +28,7 @@
 #include <stdint.h>
 #include <magmamsg.h>
 #include <stdio.h>
-
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
+#include <unistd.h>
 
 static inline int clist_delete_nt(int fd);
 
@@ -114,6 +111,26 @@ clist_delete(int fd)
 	pthread_mutex_unlock(&conn_list_mutex);
 
 	return rv;
+}
+
+
+/**
+  Purge all entries in the connection list
+ */
+void
+clist_purgeall(void)
+{
+	conn_node_t *curr;
+
+	pthread_mutex_lock(&conn_list_mutex);
+
+	while ((curr = conn_list_head.tqh_first)) {
+		TAILQ_REMOVE(&conn_list_head, curr, cn_entries);
+		close(curr->cn_fd);
+		free(curr);
+	}
+
+	pthread_mutex_unlock(&conn_list_mutex);
 }
 
 

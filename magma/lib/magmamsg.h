@@ -22,6 +22,7 @@
 #include <magma.h>
 
 int msg_update(cluster_member_list_t *membership);
+void msg_shutdown(void);
 ssize_t msg_receive_timeout(int fd, void *buf, ssize_t count,
 			    unsigned int timeout);
 int msg_receive(int fd, void *buf, ssize_t buflen);

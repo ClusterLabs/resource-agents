@@ -41,10 +41,6 @@
 #include <arpa/inet.h>
 #include "clist.h"
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
 #define IPV6_PORT_OFFSET 1	/** When binding an IPv6 port, increment by
 				  this number so we don't conflict with the
 				  IPv4 port. */
@@ -105,6 +101,21 @@ msg_update(cluster_member_list_t *membership)
 
 	pthread_mutex_unlock(&ml_mutex);
 	return 0;
+}
+
+
+/**
+  Shut down the mssage subsystem.  Closes all file descriptors and cleans up
+  the membership list.
+ */
+void
+msg_shutdown(void)
+{
+	pthread_mutex_lock(&ml_mutex);
+	if (ml_membership)
+		cml_free(ml_membership);
+	pthread_mutex_unlock(&ml_mutex);
+	clist_purgeall();
 }
 
 

@@ -27,11 +27,6 @@
 #include <string.h>
 #include <dirent.h>
 
-#ifdef MDEBUG
-#include <mallocdbg.h>
-#endif
-
-
 /**
   Unimplemented stub s_null function for plugins
  */
