@@ -43,7 +43,9 @@
 #include "dlm_device.h"
 
 #define MISC_PREFIX "/dev/misc/"
-#define DLM_MISC_PREFIX MISC_PREFIX "dlm_"
+#define PROC_MISC "/proc/misc"
+#define DLM_PREFIX "dlm_"
+#define DLM_MISC_PREFIX MISC_PREFIX DLM_PREFIX
 #define DLM_CONTROL_DEV "dlm-control"
 
 /* This is the name of the control device */
@@ -372,6 +374,32 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_lock_params *params
 	pthread_mutex_unlock(&lwait.mutex);
     }
     return 0;	/* lock status is in the lksb */
+}
+
+static int find_minor_from_proc(const char *lsname)
+{
+    FILE *f = fopen(PROC_MISC, "r");
+    char miscname[strlen(lsname)+strlen(DLM_PREFIX)+1];
+    char name[256];
+    int minor;
+
+    sprintf(miscname, "%s%s", DLM_PREFIX, lsname);
+
+    if (f)
+    {
+	while (!feof(f))
+	{
+	    if (fscanf(f, "%d %s", &minor, name) == 2 &&
+		strcmp(name, miscname) == 0)
+	    {
+		fclose(f);
+		return minor;
+	    }
+	}
+    }
+
+    fclose(f);
+    return 0;
 }
 
 /* Lock on default lockspace*/
@@ -817,7 +845,8 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
     int status;
     int minor;
     struct stat st;
-    int create_dev;
+    int stat_ret;
+    int create_dev = 1;
     char dev_name[PATH_MAX];
     struct dlm_ls_info *newls;
 
@@ -838,21 +867,24 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	return NULL;
     }
 
-    /* If the lockspace already exists, don't try to create
-     * the device node - we don't know the minor number anyway!
+    /* If the lockspace already exists, we don't get the minor
+     * number returned. If the device exists we assume it is correct.
+     * If the device doesn't exist then we have to look in /proc/misc
+     * to find the minor number.
      */
-    if (errno == EEXIST)
-	create_dev = 0;
-    else
-	create_dev = 1;
+    stat_ret = stat(dev_name, &st);
 
     /* Check if the device exists and has the right modes */
-    if (create_dev && !stat(dev_name, &st)) {
+    if (!stat_ret) {
 	if (S_ISCHR(st.st_mode) && st.st_rdev == makedev(MISC_MAJOR, minor))
 	    create_dev = 0;
     }
+    else {
+	if (minor <= 0)
+	    minor = find_minor_from_proc(name);
+    }
 
-    if (create_dev) {
+    if (create_dev && minor > 0) {
 
 	unlink(dev_name);
 
