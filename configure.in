@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.173 $) dnl cvs revision
+AC_REVISION($Revision: 1.174 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -174,7 +174,10 @@ fi
 AC_CHECK_PROG(HTML2TXT, lynx, lynx)
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AC_PATH_PROGS(ROUTE, route)
-AC_PATH_PROGS(RPM, rpm)
+AC_PATH_PROGS(RPM, rpmbuild)
+if test x"${RPM}" = x""; then
+    AC_PATH_PROGS(RPM, rpm)
+fi
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 AC_PATH_PROGS(NETSTAT, netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
