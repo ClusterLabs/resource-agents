@@ -366,16 +366,16 @@ static int receive_from_sock(struct connection *con)
 		goto out_close;
 	CBUF_EAT(&con->cb, ret);
 
-	if (CBUF_EMPTY(&con->cb) && !call_again_soon) {
-		__free_page(con->rx_page);
-		con->rx_page = NULL;
-	}
-
 	spin_lock_irq(&con->sock->sk->sk_receive_queue.lock);
 	if (skb_peek(&con->sock->sk->sk_receive_queue)) {
 		call_again_soon = 1;
 	}
 	spin_unlock_irq(&con->sock->sk->sk_receive_queue.lock);
+
+	if (CBUF_EMPTY(&con->cb) && !call_again_soon) {
+		__free_page(con->rx_page);
+		con->rx_page = NULL;
+	}
 
       out:
 	if (call_again_soon)
@@ -461,30 +461,27 @@ static int accept_from_sock(struct connection *con)
 		othercon = kmalloc(sizeof(struct connection), GFP_KERNEL);
 		if (!othercon) {
 		        printk("dlm: failed to allocate incoming socket\n");
-		        sock_release(newsock);
 			up_write(&newcon->sock_sem);
-			up_read(&con->sock_sem);
-			goto accept_out;
+			result = -ENOMEM;
+			goto accept_err;
 		}
 		memset(othercon, 0, sizeof(*othercon));
 		newcon->othersock = othercon;
 		othercon->nodeid = nodeid;
 		othercon->sock = newsock;
 		othercon->rx_action = receive_from_sock;
-		add_sock(newsock, othercon);
 		init_rwsem(&othercon->sock_sem);
 		set_bit(CF_IS_OTHERSOCK, &othercon->flags);
 		newsock->sk->sk_user_data = othercon;
+		add_sock(newsock, othercon);
+	}
+	else {
+		newsock->sk->sk_user_data = newcon;
+		newcon->rx_action = receive_from_sock;
+		add_sock(newsock, newcon);
 
-		up_write(&newcon->sock_sem);
-		lowcomms_data_ready(newsock->sk, 0);
-		up_read(&con->sock_sem);
-		goto accept_out;
 	}
 
-	newsock->sk->sk_user_data = newcon;
-	newcon->rx_action = receive_from_sock;
-	add_sock(newsock, newcon);
 	up_write(&newcon->sock_sem);
 
 	/*
@@ -493,7 +490,6 @@ static int accept_from_sock(struct connection *con)
 	 * to the read_sockets list
 	 */
 	lowcomms_data_ready(newsock->sk, 0);
-
 	up_read(&con->sock_sem);
 
       accept_out:
