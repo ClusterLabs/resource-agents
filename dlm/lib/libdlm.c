@@ -37,6 +37,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <linux/major.h>
+#ifdef HAVE_SELINUX
+#include <selinux/selinux.h>
+#endif
 #include "dlm.h"
 #define BUILDING_LIBDLM
 #include "libdlm.h"
@@ -182,6 +185,28 @@ int unlock_resource(int lockid)
 	return 0;
 }
 
+#ifdef HAVE_SELINUX
+static int set_selinux_context(const char *path)
+{
+	security_context_t scontext;
+
+	if (is_selinux_enabled() <= 0)
+		return 1;
+
+	if (matchpathcon(path, 0, &scontext) < 0) {
+		return 0;
+	}
+
+	if ((lsetfilecon(path, scontext) < 0) && (errno != ENOTSUP)) {
+		freecon(scontext);
+		return 0;
+	}
+
+	free(scontext);
+	return 1;
+}
+#endif
+
 /* Tidy up threads after a lockspace is closed */
 static int ls_pthread_cleanup(struct dlm_ls_info *lsinfo)
 {
@@ -277,7 +302,7 @@ static int create_control_device()
 	return status;
     }
 
-    pmisc = fopen("/proc/misc", "r");
+    pmisc = fopen(PROC_MISC, "r");
     if (!pmisc)
 	return -1;
 
@@ -288,6 +313,10 @@ static int create_control_device()
 	{
 	    status = mknod(DLM_CTL_DEVICE_NAME, S_IFCHR | 0600, makedev(MISC_MAJOR, minor));
 	    saved_errno = errno;
+#ifdef HAVE_SELINUX
+	    if (status == 0)
+		set_selinux_context(DLM_CTL_DEVICE_NAME);
+#endif
 	    break;
 	}
     }
@@ -898,6 +927,9 @@ dlm_lshandle_t dlm_create_lockspace(const char *name, mode_t mode)
 	    free(newls);
 	    return NULL;
 	}
+#ifdef HAVE_SELINUX
+	set_selinux_context(dev_name);
+#endif
     }
 
     /* Open it and return the struct as a handle */
