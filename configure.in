@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.97 $) dnl cvs revision
+AC_REVISION($Revision: 1.98 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -125,6 +125,7 @@ AC_PATH_PROGS(RPM, rpm)
 AC_DEFINE_UNQUOTED(ROUTE, "$ROUTE", path to route command)
 AC_PATH_PROGS(NETSTAT, netstat)
 AC_DEFINE_UNQUOTED(NETSTAT, "$NETSTAT", path to the netstat command)
+AC_PATH_PROGS(PING, ping)
 AC_PATH_PROGS(IFCONFIG, ifconfig)
 AC_PATH_PROGS(SSH, ssh)
 AC_PATH_PROGS(SCP, scp)
@@ -166,6 +167,22 @@ else
 	AC_DEFINE(NETSTATPARM, "-rn ", parameters to netstat to retrieve route information)
 	AC_MSG_RESULT("no")
 fi
+
+dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
+
+AC_MSG_CHECKING(ping option for timeout - w or t)
+for PING_TIMEOUT_OPT in "-w1" "-t1"
+do
+  $PING -nq -c1 $PING_TIMEOUT_OPT localhost > /dev/null 2>&1
+  if
+    test "$?" = 0
+  then
+    AC_DEFINE_UNQUOTED(PING_TIMEOUT_OPT, "$PING_TIMEOUT_OPT", option for ping timeout)
+    AC_MSG_RESULT($PING_TIMEOUT_OPT)
+    break
+  fi
+done
+AC_SUBST(PING_TIMEOUT_OPT)
 
 dnl Determining a route (particularly for "findif").
 dnl There are various mechanisms on different systems.
@@ -793,6 +810,12 @@ Makefile						        \
 	cts/CTStests.py						\
 debian/Makefile							\
 doc/Makefile							\
+cts/CM_fs.py							\
+cts/CM_hb.py							\
+cts/CTS.py							\
+cts/CTSaudits.py						\
+cts/CTSlab.py							\
+cts/CTStests.py							\
 include/Makefile						\
         include/clplumbing/Makefile				\
         include/pils/Makefile					\
