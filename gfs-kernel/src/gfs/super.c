@@ -794,8 +794,7 @@ stat_gfs_fill(struct gfs_rgrpd *rgd, struct gfs_usage *usage)
 {
 	struct gfs_rgrp_lvb *rb = (struct gfs_rgrp_lvb *)rgd->rd_gl->gl_lvb;
 
-	if (test_bit(GLF_LVB_INVALID, &rgd->rd_gl->gl_flags) ||
-	    gfs32_to_cpu(rb->rb_magic) != GFS_MAGIC)
+	if (gfs32_to_cpu(rb->rb_magic) != GFS_MAGIC)
 		return -ESTALE;
 
 	usage->gu_total_blocks += rgd->rd_ri.ri_data;

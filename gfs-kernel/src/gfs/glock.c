@@ -1013,17 +1013,6 @@ xmote_bh(struct gfs_glock *gl, unsigned int ret)
 
 	state_change(gl, ret & LM_OUT_ST_MASK);
 
-	/* Another node needs the lock when we're done */
-	if (ret & LM_OUT_NEED_E)
-		handle_callback(gl, LM_ST_UNLOCKED);
-	else if (ret & LM_OUT_NEED_D)
-		handle_callback(gl, LM_ST_DEFERRED);
-	else if (ret & LM_OUT_NEED_S)
-		handle_callback(gl, LM_ST_SHARED);
-
-	if (ret & LM_OUT_LVB_INVALID)
-		set_bit(GLF_LVB_INVALID, &gl->gl_flags);
-
 	if (prev_state != LM_ST_UNLOCKED && !(ret & LM_OUT_CACHEABLE)) {
 		if (glops->go_inval)
 			glops->go_inval(gl, DIO_METADATA | DIO_DATA);

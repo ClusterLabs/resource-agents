@@ -599,7 +599,6 @@ do_quota_sync(struct gfs_sbd *sdp, struct gfs_quota_data **qda,
 		qda[x]->qd_qb.qb_value = q.qu_value;
 
 		gfs_quota_lvb_out(&qda[x]->qd_qb, qda[x]->qd_gl->gl_lvb);
-		clear_bit(GLF_LVB_INVALID, &qda[x]->qd_gl->gl_flags);
 	}
 
 	gfs_trans_end(sdp);
@@ -676,8 +675,7 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 	gfs_quota_lvb_in(&qd->qd_qb, qd->qd_gl->gl_lvb);
 
 	if (force_refresh ||
-	    qd->qd_qb.qb_magic != GFS_MAGIC ||
-	    test_bit(GLF_LVB_INVALID, &qd->qd_gl->gl_flags)) {
+	    qd->qd_qb.qb_magic != GFS_MAGIC) {
 		gfs_glock_dq_uninit(q_gh);
 		error = gfs_glock_nq_init(qd->qd_gl,
 					  LM_ST_EXCLUSIVE, GL_NOCACHE,
@@ -712,7 +710,6 @@ glock_q(struct gfs_sbd *sdp, struct gfs_quota_data *qd, int force_refresh,
 		qd->qd_qb.qb_value = q.qu_value;
 
 		gfs_quota_lvb_out(&qd->qd_qb, qd->qd_gl->gl_lvb);
-		clear_bit(GLF_LVB_INVALID, &qd->qd_gl->gl_flags);
 
 		gfs_glock_dq_uninit(q_gh);
 		force_refresh = FALSE;

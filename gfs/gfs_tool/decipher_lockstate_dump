@@ -70,9 +70,8 @@ foreach $file (@files)
 	    $line =~ s/ (3) / prefetch[$1]/;
 	    $line =~ s/ (4) / sync[$1] /;
 	    $line =~ s/ (5) / dirty[$1] /;
-	    $line =~ s/ (6) / lvb_invalid[$1] /;
-	    $line =~ s/ (7) / skip_waiters2[$1] /;
-	    $line =~ s/ (8) / greedy[$1] /;
+	    $line =~ s/ (6) / skip_waiters2[$1] /;
+	    $line =~ s/ (7) / greedy[$1] /;
 	}
 	if ($line =~ /state/)
 	{

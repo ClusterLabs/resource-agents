@@ -1,6 +1,6 @@
 diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_locking/lock_harness/main.c
 --- linux-orig/fs/gfs_locking/lock_harness/main.c	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-11-22 12:16:01.878259409 -0600
++++ linux-patched/fs/gfs_locking/lock_harness/main.c	2004-12-06 16:26:03.760579965 -0600
 @@ -0,0 +1,227 @@
 +/******************************************************************************
 +*******************************************************************************
@@ -231,8 +231,8 @@ diff -urN linux-orig/fs/gfs_locking/lock_harness/main.c linux-patched/fs/gfs_loc
 +EXPORT_SYMBOL_GPL(lm_unmount);
 diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm_interface.h
 --- linux-orig/include/linux/lm_interface.h	1969-12-31 18:00:00.000000000 -0600
-+++ linux-patched/include/linux/lm_interface.h	2004-11-22 12:16:01.877259641 -0600
-@@ -0,0 +1,247 @@
++++ linux-patched/include/linux/lm_interface.h	2004-12-06 16:26:03.760579965 -0600
+@@ -0,0 +1,243 @@
 +/******************************************************************************
 +*******************************************************************************
 +**
@@ -332,11 +332,7 @@ diff -urN linux-orig/include/linux/lm_interface.h linux-patched/include/linux/lm
 +#define LM_OUT_ST_MASK         (0x00000003) /* 4-state LM_ST_XX mask */
 +#define LM_OUT_CACHEABLE       (0x00000004)
 +#define LM_OUT_CANCELED        (0x00000008) /* Lock request was cancelled */
-+#define LM_OUT_NEED_E          (0x00000010) /* Other node needs EXCLUSIVE lck */
-+#define LM_OUT_NEED_D          (0x00000020) /* Other node needs DEFERRED lock */
-+#define LM_OUT_NEED_S          (0x00000040) /* Other node needs SHARED lock */
 +#define LM_OUT_ASYNC           (0x00000080)
-+#define LM_OUT_LVB_INVALID     (0x00000100) /* Lock Value Block not valid */
 +
 +/* Callback types */
 +

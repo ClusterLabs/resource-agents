@@ -854,8 +854,6 @@ gfs_rgrp_lvb_fill(struct gfs_rgrpd *rgd)
 	rb->rb_freedi = cpu_to_gfs32(rg->rg_freedi);
 	rb->rb_usedmeta = cpu_to_gfs32(rg->rg_usedmeta);
 	rb->rb_freemeta = cpu_to_gfs32(rg->rg_freemeta);
-
-	clear_bit(GLF_LVB_INVALID, &rgd->rd_gl->gl_flags);
 }
 
 /**

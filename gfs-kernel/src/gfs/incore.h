@@ -460,11 +460,9 @@ struct gfs_holder {
                                       *   there are no more holders */
 #define GLF_DIRTY               (5)  /* There is dirty data for this lock,
                                       *   sync before releasing inter-node */
-#define GLF_LVB_INVALID         (6)  /* Lock Value Block does not contain
-                                      *   valid data */
-#define GLF_SKIP_WAITERS2       (7)  /* Make run_queue() ignore gl_waiters2
+#define GLF_SKIP_WAITERS2       (6)  /* Make run_queue() ignore gl_waiters2
                                       *   (demote/greedy) holders */
-#define GLF_GREEDY              (8)  /* This lock is ignoring callbacks
+#define GLF_GREEDY              (7)  /* This lock is ignoring callbacks
                                       *   (requests from other nodes) for now */
 
 struct gfs_glock {

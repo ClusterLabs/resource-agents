@@ -97,11 +97,7 @@ typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
 #define LM_OUT_ST_MASK         (0x00000003) /* 4-state LM_ST_XX mask */
 #define LM_OUT_CACHEABLE       (0x00000004)
 #define LM_OUT_CANCELED        (0x00000008) /* Lock request was cancelled */
-#define LM_OUT_NEED_E          (0x00000010) /* Other node needs EXCLUSIVE lck */
-#define LM_OUT_NEED_D          (0x00000020) /* Other node needs DEFERRED lock */
-#define LM_OUT_NEED_S          (0x00000040) /* Other node needs SHARED lock */
 #define LM_OUT_ASYNC           (0x00000080)
-#define LM_OUT_LVB_INVALID     (0x00000100) /* Lock Value Block not valid */
 
 /* Callback types */
 
