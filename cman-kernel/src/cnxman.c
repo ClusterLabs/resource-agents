@@ -340,10 +340,6 @@ static int cluster_kthread(void *unused)
 		if (quit_threads)
 			break;
 
-		if (test_and_clear_bit(ACK_TIMEOUT, &mainloop_flags)) {
-			check_for_unacked_nodes();
-		}
-
 		/* Now receive any messages waiting for us */
 		spin_lock_irq(&active_socket_lock);
 		list_for_each_safe(socklist, temp, &active_socket_list) {
@@ -367,6 +363,10 @@ static int cluster_kthread(void *unused)
 				break;	/* EOF on socket */
 		}
 		spin_unlock_irq(&active_socket_lock);
+
+		if (test_and_clear_bit(ACK_TIMEOUT, &mainloop_flags)) {
+			check_for_unacked_nodes();
+		}
 
 		/* Resend any unacked messages */
 		if (test_and_clear_bit(RESEND_NEEDED, &mainloop_flags)
@@ -1686,7 +1686,7 @@ static int do_ioctl_join_cluster(unsigned long arg)
 {
 	struct cl_join_cluster_info join_info;
 	pid_t membership_pid;
-	
+
 	if (!capable(CAP_CLUSTER))
 		return -EPERM;
 
@@ -2254,7 +2254,9 @@ static int __sendmsg(struct socket *sock, struct msghdr *msg,
 	header.srcid = us ? cpu_to_le32(us->node_id) : 0;
 	header.tgtid = caddr ? cpu_to_le32(nodeid) : 0;
 
-	++cur_seq;
+	if (++cur_seq == 0)
+		++cur_seq;
+
 	header.seq = cpu_to_le16(cur_seq);
 	header.ack = 0;
 
