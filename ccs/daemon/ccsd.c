@@ -227,6 +227,9 @@ static void parse_cli_args(int argc, char *argv[]){
       goto fail;
     case 'm':
       flags |= FLAG_MULTICAST;
+      fprintf(stderr, "The '-m' option is not yet implemented.\n");
+      error = -EINVAL;
+      goto fail;
       break;
     case 'n':
       flags |= FLAG_NODAEMON;

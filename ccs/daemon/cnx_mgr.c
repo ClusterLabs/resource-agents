@@ -1202,7 +1202,7 @@ int process_broadcast(int sfd){
     if(!master_doc->od_doc){
       free(master_doc);
       master_doc = NULL;
-      log_err("Unable to parse %s: %s\n", "/etc/cluster/cluster.conf", strerror(errno));
+      log_err("Unable to parse %s.\n", "/etc/cluster/cluster.conf");
       error = -ENODATA;
       goto fail;
     }
