@@ -62,7 +62,6 @@ static void check_for_unacked_nodes(void);
 static void free_cluster_sockets(void);
 static uint16_t generate_cluster_id(char *name);
 
-static int new_temp_nodeid(char *addr, int addrlen);
 static int is_valid_temp_nodeid(int nodeid);
 
 extern int start_membership_services(pid_t);
@@ -761,6 +760,7 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 	/* Get the port number and look for a listener */
 	down(&port_array_lock);
 	if (port_array[header->port]) {
+		int native_srcid;
 		struct cluster_sock *c = cluster_sk(port_array[header->port]);
 
 		/* ACK it */
@@ -791,7 +791,8 @@ static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 
 		/* Put the nodeid into cb so we can pass it to the clients */
 		skb->cb[0] = 0; /* Clear flags */
-		memcpy(skb->cb + 1, &header->srcid, sizeof(int));
+		native_srcid = le32_to_cpu(header->srcid);
+		memcpy(skb->cb + 1, &native_srcid, sizeof(int));
 
 		if ((err =
 		     sock_queue_rcv_skb(port_array[header->port], skb)) < 0) {
@@ -3723,7 +3724,7 @@ int get_addr_from_temp_nodeid(int nodeid, char *addr, int *addrlen)
 /* Create a new temporary node ID. This list will only ever be very small
    (usaully only 1 item) but I can't take the risk that someone won't try to
    boot 128 nodes all at exactly the same time. */
-static int new_temp_nodeid(char *addr, int addrlen)
+int new_temp_nodeid(char *addr, int addrlen)
 {
 	struct temp_node *tn;
 	int err = -1;
@@ -3795,6 +3796,8 @@ static int is_valid_temp_nodeid(int nodeid)
 	return err;
 }
 
+/* TODO: This needs to clean the list more fully of
+   nodes that are now full members but we did not master the transition */
 void remove_temp_nodeid(int nodeid)
 {
 	struct temp_node *tn;

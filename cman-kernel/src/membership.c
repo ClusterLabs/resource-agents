@@ -1593,8 +1593,9 @@ static void add_node_from_starttrans(struct msghdr *msg, int len)
 static int do_process_nominate(struct msghdr *msg, int len)
 {
 	struct cl_mem_starttrans_msg *startmsg =
-	    (struct cl_mem_starttrans_msg *) msg->msg_iov->iov_base;
+	    (struct cl_mem_starttrans_msg *)msg->msg_iov->iov_base;
 	struct cluster_node *node = NULL;
+	char *nodeaddr = msg->msg_iov->iov_base + sizeof(struct cl_mem_starttrans_msg);
 
 	P_MEMB("nominate reason is %d\n", startmsg->reason);
 
@@ -1605,6 +1606,9 @@ static int do_process_nominate(struct msghdr *msg, int len)
 	if (startmsg->reason == TRANS_NEWNODE) {
 		add_node_from_starttrans(msg, len);
 		node = joining_node;
+		/* Make sure we have a temp nodeid for the new node */
+		joining_temp_nodeid = new_temp_nodeid(nodeaddr,
+						      address_length);
 	}
 
 	/* This should be a TRANS_CHECK but start_transition needs some node

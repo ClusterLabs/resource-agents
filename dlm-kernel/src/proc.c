@@ -35,11 +35,11 @@ static int			debug_wrap;
 static spinlock_t		debug_lock;
 static struct proc_dir_entry *	debug_proc_entry = NULL;
 static struct proc_dir_entry *	rcom_proc_entry = NULL;
+static char			proc_ls_name[255] = "";
 
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
 static struct proc_dir_entry *	locks_proc_entry = NULL;
 static struct seq_operations	locks_info_op;
-static char			proc_ls_name[255] = "";
 
 
 static int locks_open(struct inode *inode, struct file *file)
