@@ -1117,6 +1117,7 @@ tree_delta_test(int argc, char **argv)
 {
 #ifndef NO_CCS
 	printf("This operation is not supported with the current build.\n");
+	return 0;
 #else
 	resource_rule_t *rulelist = NULL, *currule, *rulelist2 = NULL;
 	resource_t *reslist = NULL, *curres, *reslist2 = NULL;

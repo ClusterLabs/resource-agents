@@ -757,7 +757,7 @@ rmtab_unpack(rmtab_node **head, char *src, size_t srclen)
 
 		len += sizeof(uint32_t);
 
-		if ((last = rmtab_insert(head, last, hostp, pathp,
+		if ((last = rmtab_insert(head, NULL, hostp, pathp,
 					 *countp)) == NULL)
 			return -1;
 

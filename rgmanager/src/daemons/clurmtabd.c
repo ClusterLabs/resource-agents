@@ -144,7 +144,7 @@ rmtab_copy_bypath(rmtab_node ** dest, rmtab_node ** src, const char *path)
 	rmtab_node *curr, *last = NULL;
 
 	for (curr = *src; curr; curr = curr->rn_next)
-		if (!strncmp(path, curr->rn_path, strlen(path)))
+		if (!strcmp(path, curr->rn_path))
 			if ((last = rmtab_insert(dest, last,
 						curr->rn_hostname,
 						curr->rn_path,
