@@ -43,8 +43,6 @@
 #include <magmamsg.h>
 #include <platform.h>
 
-#include <mallocdbg.h>
-
 ssize_t msg_peek(int sockfd, void *buf, ssize_t count);
 
 /*

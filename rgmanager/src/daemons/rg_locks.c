@@ -28,8 +28,6 @@ char*xpath_get_one(xmlDocPtr, xmlXPathContextPtr, char *);
 #include <ccs.h>
 #endif
 
-#include <mallocdbg.h>
-
 static int __rg_quorate = 0;
 static int __rg_lock = 0;
 static int __rg_threadcnt = 0;
