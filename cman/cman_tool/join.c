@@ -303,8 +303,14 @@ int join(commandline_t *comline)
     cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
     if (cluster_sock == -1)
     {
+	int e = errno;
         perror("can't open cluster socket");
-	return -1;
+
+	if (e == EAFNOSUPPORT)
+	{
+	    fprintf(stderr, "The cman kernel module may not be loaded\n");
+	}
+	exit(EXIT_FAILURE);
     }
 
     /*
@@ -314,13 +320,13 @@ int join(commandline_t *comline)
     error = ioctl(cluster_sock, SIOCCLUSTER_ISACTIVE);
     if (error == -1)
     {
-	perror("Can't determine cluster state");
-	goto fail;
+	die("Can't determine cluster state");
     }
+
     if (error)
     {
         fprintf(stderr, "Node is already active\n");
-        goto fail;
+	exit(EXIT_FAILURE);
     }
 
     /* Set the node name - without domain part */
@@ -333,8 +339,7 @@ int join(commandline_t *comline)
 		  unqual_nodename);
     if (error)
     {
-	perror("Unable to set cluster node name");
-	goto fail;
+	die("Unable to set cluster node name");
     }
 
     /* Optional, set the node ID */
@@ -343,8 +348,7 @@ int join(commandline_t *comline)
 		      comline->nodeid);
 	if (error)
 	{
-	    perror("Unable to set cluster nodeid");
-	    goto fail;
+	    die("Unable to set cluster nodeid");
 	}
     }
 
@@ -355,7 +359,10 @@ int join(commandline_t *comline)
     {
 	error = setup_interface(comline, i);
 	if (error)
-	    goto fail;
+	{
+	    printf("Unable to setup network interface(s)\n");
+	    exit(EXIT_FAILURE);
+	}
     }
 
     /*
@@ -369,14 +376,9 @@ int join(commandline_t *comline)
 
     if (ioctl(cluster_sock, SIOCCLUSTER_JOIN_CLUSTER, &join_info))
     {
-        perror("error joining cluster");
-        goto fail;
+        die("error joining cluster");
     }
 
     close(cluster_sock);
     return 0;
-
- fail:
-    close(cluster_sock);
-    return -1;
 }
