@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.23 $) dnl cvs revision
+AC_REVISION($Revision: 1.24 $) dnl cvs revision
 AC_INIT(Specfile)
 dnl AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -78,8 +78,8 @@ else
 #
 #	Is dlopen in library -lintl?
 #
-	AC_CHECK_LIB(intl, dlopen)	 dnl -lintl (for FreeBsd)
-	if test "$ac_cv_lib_intl_dlopen" = yes; then
+	AC_CHECK_LIB(intl, gettext)	 dnl -lintl (for FreeBsd)
+	if test "$ac_cv_lib_intl_gettext" = yes; then
 		LIBADD_DL=-lintl
 	else
 #
@@ -197,7 +197,7 @@ fi
 case "$host_os" in
 *solaris*)	HEARTBEAT_LIBS="-lposix4"
 		;;
-*bsd*)		LIBS="$LIBS -L/usr/local/libs"
+*bsd*)		LIBS="$LIBS -L/usr/local/lib"
 dnl		STONITH_LDADD="-lintl"
 		;;
 dnl *linux*)	STONITH_LDADD="-ldl"
