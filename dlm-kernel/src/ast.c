@@ -161,6 +161,8 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 				lkb->lkb_lksb->sb_flags |= DLM_SBF_DEMOTED;
 			if (lkb->lkb_flags & GDLM_LKFLG_VALNOTVALID)
 				lkb->lkb_lksb->sb_flags |= DLM_SBF_VALNOTVALID;
+			if (lkb->lkb_flags & GDLM_LKFLG_ALTMODE)
+				lkb->lkb_lksb->sb_flags |= DLM_SBF_ALTMODE;
 		}
 
 		down(&ast_queue_lock);

@@ -194,7 +194,7 @@ static int queue_conflict(struct list_head *head, struct dlm_lkb *lkb)
  * References are from chapter 6 of "VAXcluster Principles" by Roy Davis
  */
 
-static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
+static int _can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 {
 	int8_t conv = (lkb->lkb_grmode != DLM_LOCK_IV);
 
@@ -310,6 +310,36 @@ static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 	}
 
 	return FALSE;
+}
+
+static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
+{
+	uint32_t flags = lkb->lkb_lockqueue_flags;
+	int rv;
+	int8_t alt = 0, rqmode = lkb->lkb_rqmode;
+
+	rv = _can_be_granted(r, lkb, now);
+	if (rv)
+		goto out;
+
+	if (lkb->lkb_flags & GDLM_LKFLG_DEMOTED)
+		goto out;
+
+	if (rqmode != DLM_LOCK_PR && flags & DLM_LKF_ALTPR)
+		alt = DLM_LOCK_PR;
+	else if (rqmode != DLM_LOCK_CW && flags & DLM_LKF_ALTCW)
+		alt = DLM_LOCK_CW;
+
+	if (alt) {
+		lkb->lkb_rqmode = alt;
+		rv = _can_be_granted(r, lkb, now);
+		if (rv)
+			lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
+		else
+			lkb->lkb_rqmode = rqmode;
+	}
+ out:
+	return rv;
 }
 
 int dlm_lock(void *lockspace,
@@ -959,7 +989,8 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 		  lkb->lkb_id, rsb->res_name);
 
 	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED |
-			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID);
+			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID |
+			    GDLM_LKFLG_ALTMODE);
 
 	if (flags & DLM_LKF_NODLCKWT)
 		lkb->lkb_flags |= GDLM_LKFLG_NODLCKWT;

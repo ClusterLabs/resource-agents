@@ -144,6 +144,8 @@
 #define DLM_LKF_HEADQUE        (0x00001000)
 #define DLM_LKF_NOORDER        (0x00002000)
 #define DLM_LKF_ORPHAN         (0x00004000)
+#define DLM_LKF_ALTPR          (0x00008000)
+#define DLM_LKF_ALTCW          (0x00010000)
 
 /*
  * Some return codes that are not in errno.h
@@ -194,6 +196,7 @@ struct dlm_range {
 
 #define DLM_SBF_DEMOTED        (0x01)
 #define DLM_SBF_VALNOTVALID    (0x02)
+#define DLM_SBF_ALTMODE        (0x04)
 
 struct dlm_lksb {
 	int 	 sb_status;

@@ -473,6 +473,8 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 			if (reply->rl_flags & GDLM_LKFLG_VALNOTVALID)
 				lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
+			if (reply->rl_flags & GDLM_LKFLG_ALTMODE)
+				lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
 
 			up_write(&rsb->res_lock);
 
@@ -947,6 +949,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		lkb->lkb_request = freq;
 		lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
 		lkb->lkb_flags &= ~GDLM_LKFLG_VALNOTVALID;
+		lkb->lkb_flags &= ~GDLM_LKFLG_ALTMODE;
 
 		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK ||
 		    freq->rr_flags & DLM_LKF_VALBLK) {
@@ -1074,6 +1077,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 		if (freq->rr_flags & GDLM_LKFLG_VALNOTVALID)
 			lkb->lkb_flags |= GDLM_LKFLG_VALNOTVALID;
+		if (freq->rr_flags & GDLM_LKFLG_ALTMODE)
+			lkb->lkb_flags |= GDLM_LKFLG_ALTMODE;
 		
 		lkb->lkb_retstatus = 0;
 		queue_ast(lkb, AST_COMP, 0);
