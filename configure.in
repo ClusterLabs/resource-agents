@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.253 $) dnl cvs revision
+AC_REVISION($Revision: 1.254 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1314,6 +1314,13 @@ CRM_DIR=""
 CRM_LIBS=""
 CRM_ENABLED=0
 if test "${enable_crm}"  = "yes"; then
+
+	if test "${enable_lrm}"  = "no"; then
+	   AC_MSG_ERROR(Overriding --enable-lrm=no)
+	   AC_MSG_ERROR(The LRM is required for use with the new Cluster Resource Manager)
+	fi
+	${enable_lrm}="yes"
+
 	if test -n "$XML2CONFIG"; then
 	   CRM_DIR="crm"
 	   CRM_ENABLED=1
@@ -1322,6 +1329,7 @@ if test "${enable_crm}"  = "yes"; then
 		enable_crm="no (libxml2 not found)"
 	fi
 else 
+     AC_MSG_RESULT(no);
      if test -z "${enable_crm}"; then
 		enable_crm="no"
      fi
@@ -1330,7 +1338,6 @@ fi
 echo "$as_me:$LINENO: Enabling the new Cluster Resource Manager... ${enable_crm}" >&5
 echo $ECHO_N "Enabling the new Cluster Resource Manager... ${enable_crm}" >&6
 
- 
 AC_SUBST(CRM_ENABLED)
 AC_SUBST(CRM_LIBS)
 AC_SUBST(CRM_DIR)
@@ -1430,7 +1437,7 @@ AC_SUBST(XPERIMENTALDIRS)
 AC_CONFIG_SUBDIRS(libltdl)
 
 dnl The Makefiles and shell scripts we output
-AC_OUTPUT(heartbeat.spec 					\
+AC_CONFIG_FILES(heartbeat.spec 					\
 Makefile						        \
 README							        \
 config/Makefile					        	\
@@ -1459,7 +1466,7 @@ linux-ha/Makefile						\
 lib/Makefile							\
 	lib/apphb/Makefile					\
 	lib/clplumbing/Makefile					\
-	lib/hbclient/Makefile						\
+	lib/hbclient/Makefile					\
 	lib/pils/Makefile					\
 	lib/plugins/Makefile					\
 		lib/plugins/InterfaceMgr/Makefile		\
@@ -1520,13 +1527,14 @@ telecom/Makefile						\
 
 dnl testing again makes the eventual output a little easier to read
 if test "${enable_crm}"  = "yes"; then
-    AC_OUTPUT(crm/Makefile				    \
-		  crm/common/Makefile			    \
-		  crm/cib/Makefile			    \
-		  crm/crmd/Makefile			    \
-		  crm/pengine/Makefile			    \
-		  crm/tengine/Makefile			    \
-		  crm/admin/Makefile			    \
+	AC_CONFIG_FILES(crm/Makefile				\
+		  include/crm/Makefile				\
+		  crm/common/Makefile				\
+		  crm/cib/Makefile				\
+		  crm/crmd/Makefile				\
+		  crm/pengine/Makefile				\
+		  crm/tengine/Makefile				\
+		  crm/admin/Makefile				\
 )
 dnl else
 dnl For when the CRM is manditory...
@@ -1537,30 +1545,36 @@ fi
 
 dnl enable output Makefile for LRM compiling
 if test "${enable_lrm}"  = "yes"; then
-	AC_OUTPUT(include/lrm/Makefile			\
-		  lib/plugins/lrm/Makefile		\
-		  lib/lrm/Makefile			\
-		  lrm/Makefile				\
-		  lrm/lrmd/Makefile			\
-		  lrm/admin/Makefile			\
-		  lrm/test/Makefile			\
+	AC_CONFIG_FILES(include/lrm/Makefile			\
+		  lib/plugins/lrm/Makefile			\
+		  lib/lrm/Makefile				\
+		  lrm/Makefile					\
+		  lrm/lrmd/Makefile				\
+		  lrm/admin/Makefile				\
+		  lrm/test/Makefile				\
 		)
+
 fi
 
 if test "${enable_swig}" = "yes"; then
-	AC_OUTPUT(	lib/bindings/Makefile	\
-			lib/bindings/perl/Makefile \
-			lib/bindings/perl/Makefile.PL \
-			lib/bindings/perl/cl_raw/Makefile.PL \
+	AC_CONFIG_FILES(lib/bindings/Makefile			\
+			lib/bindings/perl/Makefile		\
+			lib/bindings/perl/Makefile.PL		\
+			lib/bindings/perl/cl_raw/Makefile.PL	\
 		)
 fi
 
 dnl if eventd is enabled
 if test "${enable_eventd}"  = "yes"; then
-    AC_OUTPUT(telecom/eventd/Makefile				\
-	      lib/eventd/Makefile				\
+	AC_CONFIG_FILES(telecom/eventd/Makefile			\
+			lib/eventd/Makefile			\
 	     )
 fi
+
+
+dnl Now process the entire list of files added by previous 
+dnl  calls to AC_CONFIG_FILES()
+AC_OUTPUT()
 
 dnl subpackages configuration - perhaps configure it properly some other time
 dnl when it has been discussed at linux-ha-dev
