@@ -308,10 +308,9 @@ void lm_dlm_put_lock(lm_lock_t *lock)
 {
 	dlm_lock_t *lp = (dlm_lock_t *) lock;
 
-	if (lp->cur != DLM_LOCK_IV) {
+	if (lp->cur != DLM_LOCK_IV)
 		do_unlock(lp);
-		kfree(lp);
-	}
+	kfree(lp);
 }
 
 /**
