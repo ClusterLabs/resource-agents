@@ -34,19 +34,24 @@
 
 static struct buffer *buffer_table[BUFFER_BUCKETS];
 LIST_HEAD(dirty_buffers);
+unsigned dirty_buffer_count;
 
 void set_buffer_dirty(struct buffer *buffer)
 {
 	buftrace(printf("set_buffer_dirty %llx state=%u\n", buffer->sector, buffer->flags & BUFFER_STATE_MASK);)
-	if (!buffer_dirty(buffer))
+	if (!buffer_dirty(buffer)) {
 		list_add_tail(&buffer->list, &dirty_buffers);
+		dirty_buffer_count++;
+	}
 	buffer->flags = BUFFER_STATE_DIRTY | (buffer->flags & ~BUFFER_STATE_MASK);
 }
 
 void set_buffer_uptodate(struct buffer *buffer)
 {
-	if (buffer_dirty(buffer))
+	if (buffer_dirty(buffer)) {
 		list_del(&buffer->list);
+		dirty_buffer_count--;
+	}
 	buffer->flags = BUFFER_STATE_CLEAN | (buffer->flags & ~BUFFER_STATE_MASK);
 }
 
@@ -156,6 +161,9 @@ error("bad read");
 
 void evict_buffer(struct buffer *buffer)
 {
+	if (buffer_dirty(buffer))
+		set_buffer_uptodate(buffer);
+
 	struct buffer **pbuffer = &buffer_table[buffer_hash(buffer->sector)];
 
 	for (; *pbuffer; pbuffer = &(*pbuffer)->hashlist)
@@ -197,7 +205,9 @@ void flush_buffers(void) // !!! should use lru list
 
 void show_buffer(struct buffer *buffer)
 {
-	printf("%s%llx/%i ", buffer_dirty(buffer)? "+": buffer_uptodate(buffer)? "": "?", buffer->sector, buffer->count);
+	printf("%s%llx/%i ", 
+		buffer_dirty(buffer)? "+": buffer_uptodate(buffer)? "": "?", 
+		buffer->sector, buffer->count);
 }
 
 void show_buffers_(int all)
@@ -253,4 +263,6 @@ void dump_buffer(struct buffer *buffer, unsigned offset, unsigned length)
 void init_buffers(void)
 {
 	memset(buffer_table, 0, sizeof(buffer_table));
+	INIT_LIST_HEAD(&dirty_buffers);
+	dirty_buffer_count = 0;
 }

@@ -21,6 +21,7 @@ struct buffer
 };
 
 struct list_head dirty_buffers;
+extern unsigned dirty_buffer_count;
 
 void show_dirty_buffers(void);
 void set_buffer_dirty(struct buffer *buffer);

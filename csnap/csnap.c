@@ -801,11 +801,16 @@ static inline void clear_bitmap_bit(unsigned char *bitmap, unsigned bit)
 	bitmap[bit >> 3] &= ~(1 << (bit & 7));
 }
 
+static unsigned calc_bitmap_blocks(struct superblock *sb, u64 chunks)
+{
+	unsigned chunkshift = sb->image.chunksize_bits;
+	return (chunks + (1 << (chunkshift + 3)) - 1) >> (chunkshift + 3);
+}
+
 static void init_allocation(struct superblock *sb)
 {
 	u64 chunks = sb->image.chunks;
-	unsigned chunkshift = sb->image.chunksize_bits;
-	unsigned bitmaps = (chunks + (1 << (chunkshift + 3)) - 1) >> (chunkshift + 3);
+	unsigned bitmaps = calc_bitmap_blocks(sb, chunks);
 	unsigned bitmap_base_chunk = (SB_SECTOR + sb->sectors_per_block + sb->sectors_per_chunk  - 1) >> sb->sectors_per_chunk_bits;
 	unsigned bitmap_chunks = sb->image.bitmap_blocks = bitmaps; // !!! chunksize same as blocksize
 	unsigned reserved = bitmap_base_chunk + bitmap_chunks + sb->image.journal_size; // !!! chunksize same as blocksize
@@ -860,7 +865,6 @@ static inline void free_block(struct superblock *sb, sector_t address)
 	free_chunk(sb, address >> sb->sectors_per_chunk_bits); // !!! assumes blocksize = chunksize
 }
 
-#if 0
 void grab_chunk(struct superblock *sb, chunk_t chunk) // just for testing
 {
 	unsigned bitmap_shift = sb->image.blocksize_bits + 3, bitmap_mask = (1 << bitmap_shift ) - 1;
@@ -871,7 +875,6 @@ void grab_chunk(struct superblock *sb, chunk_t chunk) // just for testing
 	set_bitmap_bit(buffer->data, chunk & bitmap_mask);
 	brelse_dirty(buffer);
 }
-#endif
 
 chunk_t alloc_chunk_range(struct superblock *sb, chunk_t chunk, chunk_t range)
 {
@@ -1319,7 +1322,7 @@ create:
  * from bottom to top in the directory map packing nonempty entries into the
  * bottom of the map.
  */
-int delete_snapshots_from_leaf(struct superblock *sb, struct eleaf *leaf, u64 snapmask)
+int delete_snapshots_from_leaf(struct superblock *sb, struct eleaf *leaf, u64 snapmask, unsigned max_dirty)
 {
 	struct exception *p = emap(leaf, leaf->count), *dest = p;
 	struct etree_map *pmap, *dmap;
@@ -1329,6 +1332,8 @@ int delete_snapshots_from_leaf(struct superblock *sb, struct eleaf *leaf, u64 sn
 	 * non-zero entries to top of block */
 	for (i = leaf->count; i--;) {
 		while (p != emap(leaf, i)) {
+			if (max_dirty >= dirty_buffer_count)
+				snapmask = 0;
 			u64 share = (--p)->share;
 
 			any |= share & snapmask;
@@ -1372,7 +1377,7 @@ void delete_snapshots_from_tree(struct superblock *sb, u64 snapmask)
 		while (path[level].pnext  < node->entries + node->count) {
 			struct buffer *leafbuf = snapread(sb, path[level].pnext++->sector);
 			trace_off(printf("process leaf %Lx\n", leafbuf->sector);)
-			delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask);
+			delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask, -1);
 			brelse(leafbuf);
 		}
 
@@ -1454,7 +1459,7 @@ static void brelse_free(struct superblock *sb, struct buffer *buffer)
 	evict_buffer(buffer);
 }
 
-static void delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t start, unsigned leaves)
+static chunk_t delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t resume, unsigned max_dirty)
 {
 	int levels = sb->image.etree_levels, level = levels - 1;
 	struct etree_path path[levels], hold[levels];
@@ -1464,14 +1469,15 @@ static void delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t start
 	for (i = 0; i < levels; i++) // can be initializer if not dynamic array (change it?)
 		hold[i] = (struct etree_path){ };
 
-	leafbuf = probe(sb, start, path);
+	leafbuf = probe(sb, resume, path);
 
-	while (1) { /* walk all leafs */
+	while (1) { /* in-order leaf walk */
 		trace_off(show_leaf(buffer2leaf(leafbuf));)
-		if (delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask))
+		// should pass in and act on max_dirty...
+		if (delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask, max_dirty))
 			set_buffer_dirty(leafbuf);
 
-		if (prevleaf) { /* try to merge leafs */
+		if (prevleaf) { /* try to merge this leaf with prev */
 			struct eleaf *this = buffer2leaf(leafbuf);
 			struct eleaf *prev = buffer2leaf(prevleaf);
 			trace_off(warn("check leaf %p against %p", leafbuf, prevleaf);)
@@ -1488,14 +1494,8 @@ static void delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t start
 		}
 		prevleaf = leafbuf;
 keep_prev_leaf:
-		if (!--leaves) {
-			brelse(prevleaf);
-//			brelse_path(path, level + 1);
-			return;
-		}
-
 		if (finished_level(path, level)) {
-			do { /* merge and pop finished nodes */
+			do { /* pop and try to merge finished nodes */
 				if (hold[level].buffer) {
 					assert(level); /* root node can't have any prev */
 					struct enode *this = path_node(path, level);
@@ -1525,7 +1525,7 @@ keep_prev_node:
 					}
 					brelse(prevleaf);
 					brelse_path(hold, levels);
-					return;
+					return 0;
 				}
 
 				level--;
@@ -1538,6 +1538,18 @@ keep_prev_node:
 				path[level].pnext = buffer2node(nodebuf)->entries;
 				trace_off(printf("push to level %i, %i nodes\n", level, path_node(path, level)->count);)
 			} while (level < levels - 1);
+		}
+
+		/* Exit if dirty buffer count above threshold */
+		// might incur a few extra index reads but oh well
+		if (dirty_buffer_count >= max_dirty) {
+			brelse(prevleaf);
+			brelse_path(path, levels);
+			for (i = 0; i < levels; i++)
+				if (hold[i].buffer)
+					brelse(hold[i].buffer);
+//			sb->delete_progress = ???;
+			return 1;
 		}
 
 		leafbuf = snapread(sb, path[level].pnext++->sector);
@@ -2024,6 +2036,58 @@ return 0;
 	return 0;
 }
 
+// Expand snapshot store:
+//   Calculate num bitmap blocks for new size
+//   Copy bitmap blocks to current top
+//   Clear new bitmap blocks
+//   Reserve new bitmap blocks
+//   Clear remainder bits in old last bitmap byte
+//   Set remainder bits in new last bitmap byte
+//   Set new bitmap base and chunks count
+
+static void expand_snapstore(struct superblock *sb, u64 newchunks)
+{
+	u64 oldchunks = sb->image.chunks;
+	unsigned oldbitmaps = sb->image.bitmap_blocks;
+	unsigned newbitmaps = calc_bitmap_blocks(sb, newchunks);
+	unsigned blocksize = sb->blocksize;
+	unsigned blockshift = sb->image.blocksize_bits;
+	u64 oldbase = sb->image.bitmap_base << SECTOR_BITS;
+	u64 newbase = sb->image.bitmap_base << SECTOR_BITS;
+	
+	int i;
+	for (i = 0; i < oldbitmaps; i++) {
+		// do it one block at a time for now !!! sucks
+		// maybe should do copy with bread/write?
+		pread(sb->snapdev, sb->copybuf, blocksize, oldbase + (i << blockshift));  // 64 bit!!!
+		pwrite(sb->snapdev, sb->copybuf, blocksize, newbase + (i << blockshift));  // 64 bit!!!
+	}
+
+	if ((oldchunks & 7)) {
+		sector_t sector = (oldbase >> SECTOR_BITS) + ((oldbitmaps - 1) << sb->sectors_per_block_bits);
+		struct buffer *buffer = getblk(sb->snapdev, sector, blocksize);
+		buffer->data[(oldchunks >> 3) & (blocksize - 1)] &= ~(0xff << (oldchunks & 7));
+		brelse_dirty(buffer);
+	}
+
+	for (i = oldbitmaps; i < newbitmaps; i++) {
+		struct buffer *buffer = getblk(sb->snapdev, newbase >> SECTOR_BITS, blocksize);
+		memset(buffer->data, 0, sb->blocksize);
+		/* Suppress overrun allocation in partial last byte */
+		if (i == newbitmaps - 1 && (newchunks & 7))
+			buffer->data[(newchunks >> 3) & (blocksize - 1)] |= 0xff << (newchunks & 7);
+		brelse_dirty(buffer);
+	}
+
+	for (i = 0; i < newbitmaps; i++) {
+		grab_chunk(sb, (newbase >> blockshift) + i); // !!! assume blocksize = chunksize
+	}
+
+	sb->image.bitmap_base = newbase >> SECTOR_BITS;
+	sb->image.chunks = newchunks;
+	save_state(sb);
+}
+
 int client_locks(struct superblock *sb, struct client *client, int check)
 {
 	int i;
@@ -2491,8 +2555,9 @@ int main(int argc, char *argv[])
 	flush_buffers();
 	evict_buffers();
 	warn("delete...");
-	delete_tree_range(sb, 1, 0, -1);
-//	show_buffers();
+	delete_tree_range(sb, 1, 0, 5);
+	show_buffers();
+	warn("dirty buffers = %i", dirty_buffer_count);
 	show_tree(sb);
 	return 0;
 #endif
