@@ -1,6 +1,7 @@
 ###############################################################################
 ###############################################################################
 ##
+##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 ##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
@@ -9,34 +10,19 @@
 ##
 ###############################################################################
 ###############################################################################
+top_srcdir=..
+UNINSTALL = ${top_srcdir}/scripts/uninstall.pl
 
-all:
-	cd daemon && ${MAKE} all
-	cd lib && ${MAKE} all
-	cd ccs_test && ${MAKE} all
-
-copytobin:
-	cd daemon && ${MAKE} copytobin
-	cd lib && ${MAKE} copytobin
-	cd ccs_test && ${MAKE} copytobin
-
-clean:
-	cd daemon && ${MAKE} clean
-	cd lib && ${MAKE} clean
-	cd ccs_test && ${MAKE} clean
-	rm -f *~
-
-distclean: clean
-	rm -f make/defines.mk
+include ${top_srcdir}/make/defines.mk
 
 install:
-	cd daemon && ${MAKE} install 
-	cd lib && ${MAKE} install
-	cd ccs_test && ${MAKE} install
-	cd man && ${MAKE} install
+	install -d ${mandir}/man5
+	install -d ${mandir}/man7
+	install ccs.7 ${mandir}/man7
+	install -d ${mandir}/man8
+	install ccsd.8 ccs_test.8 ${mandir}/man8
 
 uninstall:
-	cd daemon && ${MAKE} uninstall 
-	cd lib && ${MAKE} uninstall
-	cd ccs_test && ${MAKE} uninstall
-	cd man && ${MAKE} uninstall
+	${UNINSTALL} ccs.7 ${mandir}/man7
+	${UNINSTALL} ccsd.8 ccs_test.8 ${mandir}/man8
+

@@ -1,0 +1,68 @@
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'ccs(7)''ccs(7)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 ccs.7 | less'
+
+\fBNAME\fP
+.in +7
+ccs - Cluster Configuration System
+
+.in
+\fBDESCRIPTION\fP
+.in +7
+A cluster environment that shares resources has information that is
+essential to correct operation which must be available to
+every node in the cluster.  This information may include:
+names of the nodes composing the cluster, I/O fencing methods, and
+more.  \fICCS\fP is the system that makes it possible for the nodes in a
+cluster to retrieve the information they need.
+
+.sp
+.in
+\fBOVERVIEW\fP
+.in +7
+The following is a generic description of the steps one should take to produce
+a working CCS environment.
+
+\fBStep 1)\fP
+.sp
+Choose a cluster name.  It is important to determine
+a name for the cluster before starting.  The cluster name is what
+binds a machine to specific resources that can only be shared by
+machines that are members of the same cluster name.
+
+\fBStep 2)\fP
+.sp
+Create the directory \fI/etc/cluster\fP.
+
+\fBStep 3)\fP
+.sp
+Create the \fI/etc/cluster/cluster.conf\fP file, according to the
+\fBcluster.conf(5)\fP man page, on one node in your cluster.
+
+\fBStep 4)\fP
+.sp
+Start \fBccsd\fP and test the cluster.conf file by using \fBccs_test\fP.
+If you haven't started a cluster manager yet, you should use the 'force'
+option to \fBccs_test\fP - see the \fBccs_test(8)\fP man page for more info.
+
+If a failure occurs while parsing the config file, \fBccs_test\fP should
+report "ccs_connect failed: No data available" and /var/log/messages
+should report "Unable to parse /etc/cluster/cluster.conf".
+.sp
+.in
+
+\fBFORMAT OF THE CCS FILE\fP
+.in +7
+.sp
+See \fBcluster.conf(5)\fP
+.sp
+.in
+
+\fBSEE ALSO\fP
+.in +7
+ccsd(8), ccs_test(8), cluster.conf(5)
