@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.305 $) dnl cvs revision
+AC_REVISION($Revision: 1.306 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1581,12 +1581,15 @@ AM_CONDITIONAL(LRM_BUILD, test "x${enable_lrm}" = "xyes")
 echo "$as_me:$LINENO: Enabling the new Local Resource Manager... ${enable_lrm}" >&5
 echo $ECHO_N "Enabling the new Local Resource Manager... ${enable_lrm}" >&6
 
-ra_plugindir="${libdir}/${HB_PKG}/plugins/RAExec"
+hb_libdir="${libdir}/${HB_PKG}"
+AC_SUBST(hb_libdir)
+
+ra_plugindir="${hb_libdir}/plugins/RAExec"
 AC_SUBST(ra_plugindir)
 
-PLUGIN_DIR="${libdir}/${HB_PKG}/plugins"
+PLUGIN_DIR="${hb_libdir}/plugins"
 AC_SUBST(PLUGIN_DIR)
-AC_DEFINE_UNQUOTED(PLUGIN_DIR,"${libdir}/${HB_PKG}/plugins", pils plugin dir)
+AC_DEFINE_UNQUOTED(PLUGIN_DIR,"${hb_libdir}/plugins", pils plugin dir)
 
 RA_PLUGIN_DIR="${ra_plugindir}"
 AC_SUBST(RA_PLUGIN_DIR)
@@ -1596,17 +1599,17 @@ HB_RA_DIR="/etc/ha.d/resource.d/"
 AC_SUBST(HB_RA_DIR)
 AC_DEFINE_UNQUOTED(HB_RA_DIR,"/etc/ha.d/resource.d/", heartbeat ra dir)
 
-OCF_RA_DIR="/usr/lib/ocf/resource.d/"
+OCF_RA_DIR="${libdir}/ocf/resource.d/"
 AC_SUBST(OCF_RA_DIR)
-AC_DEFINE_UNQUOTED(OCF_RA_DIR,"/usr/lib/ocf/resource.d/", ocf ra dir)
+AC_DEFINE_UNQUOTED(OCF_RA_DIR,"${libdir}/ocf/resource.d/", ocf ra dir)
 
 LSB_RA_DIR="/etc/init.d/"
 AC_SUBST(LSB_RA_DIR)
 AC_DEFINE_UNQUOTED(LSB_RA_DIR,"/etc/init.d/", lsb ra dir)
 
-STONITH_RA_DIR="/usr/lib/heartbeat/stonith.d/"
+STONITH_RA_DIR="${hb_libdir}/stonith.d/"
 AC_SUBST(STONITH_RA_DIR)
-AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"/usr/lib/heartbeat/stonith.d/", stonith ra dir)
+AC_DEFINE_UNQUOTED(STONITH_RA_DIR,"${hb_libdir}/stonith.d", stonith ra dir)
 
 dnl **********************************************************************
 dnl Scripting language bindings
@@ -1759,27 +1762,6 @@ heartbeat/Makefile						\
 		heartbeat/lib/ResourceManager			\
 		heartbeat/lib/TestHeartbeatComm			\
 		heartbeat/lib/hb_takeover			\
-	heartbeat/resource.d/Makefile				\
-		heartbeat/resource.d/apache			\
-		heartbeat/resource.d/AudibleAlarm		\
-		heartbeat/resource.d/Delay			\
-		heartbeat/resource.d/db2			\
-		heartbeat/resource.d/Filesystem			\
-		heartbeat/resource.d/ICP			\
-		heartbeat/resource.d/IPaddr			\
-		heartbeat/resource.d/IPaddr2			\
-		heartbeat/resource.d/IPsrcaddr			\
-		heartbeat/resource.d/LinuxSCSI			\
-		heartbeat/resource.d/LVM			\
-		heartbeat/resource.d/MailTo			\
-		heartbeat/resource.d/OCF			\
-		heartbeat/resource.d/portblock			\
-		heartbeat/resource.d/Raid1			\
-		heartbeat/resource.d/ServeRAID			\
-		heartbeat/resource.d/SendArp			\
-		heartbeat/resource.d/WAS			\
-		heartbeat/resource.d/WinPopup			\
-		heartbeat/resource.d/Xinetd			\
 	heartbeat/shellfuncs					\
 	heartbeat/libnet_util/Makefile				\
 	heartbeat/logrotate.d/Makefile				\
@@ -1802,8 +1784,29 @@ telecom/Makefile						\
 	telecom/recoverymgrd/Makefile				\
 tools/Makefile							\
 resources/Makefile						\
-	  resources/OCF/Makefile				\
-		   resources/OCF/IPaddr				\
+	resources/OCF/Makefile					\
+	resources/OCF/IPaddr					\
+	resources/heartbeat/Makefile				\
+	resources/heartbeat/apache				\
+	resources/heartbeat/AudibleAlarm			\
+	resources/heartbeat/Delay				\
+	resources/heartbeat/db2					\
+	resources/heartbeat/Filesystem				\
+	resources/heartbeat/ICP					\
+	resources/heartbeat/IPaddr				\
+	resources/heartbeat/IPaddr2				\
+	resources/heartbeat/IPsrcaddr				\
+	resources/heartbeat/LinuxSCSI				\
+	resources/heartbeat/LVM					\
+	resources/heartbeat/MailTo				\
+	resources/heartbeat/OCF					\
+	resources/heartbeat/portblock				\
+	resources/heartbeat/Raid1				\
+	resources/heartbeat/ServeRAID				\
+	resources/heartbeat/SendArp				\
+	resources/heartbeat/WAS					\
+	resources/heartbeat/WinPopup				\
+	resources/heartbeat/Xinetd				\
 		)
 
 dnl Now process the entire list of files added by previous 
