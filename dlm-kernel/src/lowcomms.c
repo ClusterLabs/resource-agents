@@ -775,15 +775,16 @@ static struct writequeue_entry *new_writequeue_entry(struct connection *con,
 struct writequeue_entry *lowcomms_get_buffer(int nodeid, int len,
 					     int allocation, char **ppc)
 {
-	struct connection *con = nodeid2con(nodeid, allocation);
+	struct connection *con;
 	struct writequeue_entry *e;
 	int offset = 0;
 	int users = 0;
 
-	if (!con)
+	if (!atomic_read(&accepting))
 		return NULL;
 
-	if (!atomic_read(&accepting))
+	con = nodeid2con(nodeid, allocation);
+	if (!con)
 		return NULL;
 
 	spin_lock(&con->writequeue_lock);
