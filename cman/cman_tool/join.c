@@ -125,7 +125,7 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     }
     else {
 	/* Broadcast */
-	int one;
+	int one=1;
 	memcpy(&mcast_sin.sin_addr, &bcast, sizeof(struct in_addr));
 	if (setsockopt(mcast_sock, SOL_SOCKET, SO_BROADCAST, (void *)&one, sizeof(int)))
 	    die("Can't enable broadcast: %s", strerror(errno));
