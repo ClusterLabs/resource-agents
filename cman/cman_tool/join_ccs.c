@@ -49,6 +49,14 @@ int get_ccs_join_info(commandline_t *comline)
 		die("cannot connect to ccs (name=%s)",
 		    cname ? comline->clustername : "none");
 
+	if (comline->num_multicasts ||
+	    comline->num_nodenames ||
+	    comline->config_version ||
+	    comline->votes ||
+	    comline->expected_votes ||
+	    comline->two_node ||
+	    comline->port)
+		printf("ccs values will override some command line values\n");
 
 	memset(&nodename, 0, MAX_NODE_NAME_LEN);
 	error = uname_to_nodename(nodename);
@@ -116,46 +124,53 @@ int get_ccs_join_info(commandline_t *comline)
 	if (!error) {
 		comline->port = atoi(str);
 		free(str);
-		if (comline->verbose)
-		    printf("Got port number %d\n", comline->port);
 	}
 
 
 	/* optional multicast name(s) with interfaces */
-	i=0;
-	do {
-	    str = NULL;
-	    error = ccs_get(cd, MCAST_ADDR_PATH, &str);
-	    if (!error && str) {
+
+	comline->num_multicasts = 0;
+	comline->num_interfaces = 0;
+
+	for (i = 0; ; i++) {
+		str = NULL;
+
+		error = ccs_get(cd, MCAST_ADDR_PATH, &str);
+		if (error || !str)
+			break;
+
 		/* If we get the same thing twice, it's probably the end of a
-		 * 1-element list */
-		if (i>0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
+		   1-element list */
+
+		if (i > 0 && strcmp(str, comline->multicast_names[i-1]) == 0) {
 			free(str);
 			break;
 		}
-		comline->multicast_names[i++] = str;
 
 		if (comline->verbose)
-		    printf("Got Multicast address %s\n", str);
-	    }
+			printf("multicast address %s\n", str);
 
-	} while (str);
-
-	comline->num_multicasts = i;
-	for (i=0; i<comline->num_multicasts; i++) {
-	    sprintf(path, NODE_MCAST_IF_PATH, nodename, comline->multicast_names[i]);
-	    error = ccs_get(cd, path, &str);
-	    if (!error) {
-		comline->interfaces[i] = str;
-
-		if (comline->verbose)
-		    printf("Got Interface %s for multicast %s\n", str, comline->multicast_names[i]);
-
-	    }
-	    else
-		die("No interface for multicast address %s\n", comline->multicast_names[i]);
+		comline->multicast_names[i] = str;
+		comline->num_multicasts++;
 	}
-	comline->num_interfaces = comline->num_multicasts;
+
+	for (i = 0; i < comline->num_multicasts; i++) {
+		str = NULL;
+		name = comline->multicast_names[i];
+		memset(path, 0, MAX_PATH_LEN);
+		sprintf(path, NODE_MCAST_IF_PATH, nodename, name);
+
+		error = ccs_get(cd, path, &str);
+		if (error || !str)
+			die("no interface for multicast address %s", name);
+
+		if (comline->verbose)
+			printf("if %s for mcast address %s\n", str, name);
+
+		comline->interfaces[i] = str;
+		comline->num_interfaces++;
+	}
+
 
 	/* find our own number of votes */
 
@@ -176,31 +191,39 @@ int get_ccs_join_info(commandline_t *comline)
 		free(str);
 	}
 
-	/* Get all alternative node names */
+
+	/* get all alternative node names */
+
 	comline->nodenames[0] = strdup(nodename);
+	comline->num_nodenames = 1;
+
+	memset(path, 0, MAX_PATH_LEN);
 	sprintf(path, NODE_ALTNAMES_PATH, nodename);
-	i=1;
-	do {
-	    str = NULL;
-	    error = ccs_get(cd, path, &str);
-	    if (!error && str) {
+
+	for (i = 1; ; i++) {
+		str = NULL;
+
+		error = ccs_get(cd, path, &str);
+		if (error || !str)
+			break;
+
 		/* If we get the same thing twice, it's probably the end of a
-		 * 1-element list */
-		if (i>0 && strcmp(str, comline->nodenames[i-1]) == 0) {
+		   1-element list */
+
+		if (strcmp(str, comline->nodenames[i-1]) == 0) {
 			free(str);
 			break;
 		}
-		comline->nodenames[i++] = str;
 
 		if (comline->verbose)
-		    printf("Got alternative node name %s\n", str);
-	    }
+			printf("alternative node name %s\n", str);
 
-	} while (str);
-	comline->num_nodenames = i;
+		comline->nodenames[i] = str;
+		comline->num_nodenames++;
+	}
 
 
-	/* two_node */
+	/* two_node mode */
 
 	error = ccs_get(cd, TWO_NODE_PATH, &str);
 	if (!error) {

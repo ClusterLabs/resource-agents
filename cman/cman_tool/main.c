@@ -315,7 +315,8 @@ static void check_arguments(commandline_t *comline)
 		comline->port = DEFAULT_PORT;
 
 	if (comline->two_node && comline->expected_votes != 1)
-		die("expected_votes must be 1 with special two node mode");
+		die("expected_votes value (%d) invalid in two node mode",
+		    comline->expected_votes);
 
 	if (!comline->nodenames[0]) {
 		comline->nodenames[0] = malloc(255);
@@ -332,19 +333,24 @@ static void check_arguments(commandline_t *comline)
 	}
 
 	if (comline->num_multicasts != comline->num_interfaces) {
-	        die("Number of multicast addresses must match number of interfaces");
+	        die("Number of multicast addresses (%d) must match number of "
+		    "interfaces (%d)", comline->num_multicasts,
+		    comline->num_interfaces);
 	}
 
 	if (comline->num_nodenames && comline->num_multicasts &&
 	    comline->num_nodenames != comline->num_multicasts) {
-	        die("Number of nodenames must match number of multicast addresses");
+	        die("Number of node names (%d) must match number of multicast "
+		    "addresses (%d)", comline->num_nodenames,
+		    comline->num_multicasts);
 	}
 
 	if (comline->port <= 0 || comline->port > 65535)
 		die("Port must be a number between 1 and 65535");
 
 	if (strlen(comline->clustername) > MAX_CLUSTER_NAME_LEN) {
-	        die("Cluster name must be <= %d characters long", MAX_CLUSTER_NAME_LEN);
+	        die("Cluster name must be <= %d characters long",
+		    MAX_CLUSTER_NAME_LEN);
 	}
 }
 
