@@ -22,6 +22,7 @@ int recover_list_empty(struct dlm_ls *ls);
 int recover_list_count(struct dlm_ls *ls);
 void recover_list_add(struct dlm_rsb *rsb);
 void recover_list_del(struct dlm_rsb *rsb);
+void recover_list_clear(struct dlm_ls *ls);
 int restbl_lkb_purge(struct dlm_ls *ls);
 void restbl_grant_after_purge(struct dlm_ls *ls);
 int restbl_rsb_update(struct dlm_ls *ls);

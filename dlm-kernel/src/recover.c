@@ -398,7 +398,7 @@ static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
 	return rsb;
 }
 
-static void recover_list_clear(struct dlm_ls *ls)
+void recover_list_clear(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r, *s;
 

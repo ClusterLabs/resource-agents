@@ -870,6 +870,8 @@ int rebuild_rsbs_send(struct dlm_ls *ls)
 	free_rcom_buffer(rc);
 
       ret:
+	if (error)
+		recover_list_clear(ls);
 	return error;
 }
 
