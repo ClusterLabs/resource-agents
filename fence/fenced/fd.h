@@ -49,6 +49,16 @@ extern char *prog_name;
 /* should match service.h MAX_SERVICE_NAME_LEN */
 #define MAX_NAME_LEN	33
 
+/* use this one before we fork into the background */
+#define die1(fmt, args...) \
+do \
+{ \
+  fprintf(stderr, "%s: ", prog_name); \
+  fprintf(stderr, fmt "\n", ##args); \
+  exit(EXIT_FAILURE); \
+} \
+while (0)
+
 #define die(fmt, args...) \
 do \
 { \

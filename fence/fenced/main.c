@@ -17,8 +17,10 @@
 
 
 /* static pthread_t recv_thread; */
-static int quit = 0;
-static int leave_finished = 0;
+static int debug;
+static int quit;
+static int leave_finished;
+char our_name[MAX_CLUSTER_MEMBER_NAME_LEN+1];
 
 
 #define OPTION_STRING			("cj:f:Dn:hVS")
@@ -306,20 +308,76 @@ static void process_events(fd_t *fd)
 	}
 }
 
-static int init_ccs(fd_t *fd)
+static int fence_domain_add(fd_t *fd)
+{
+	int cl_sock, error;
+
+	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+	if (cl_sock < 0)
+		die("fence_domain_add: can't create cluster socket");
+
+	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_REGISTER, fd->name);
+	if (error < 0)
+		die("fence_domain_add: service register failed");
+
+	/* FIXME: SERVICE_LEVEL_FENCE is 0 but defined in service.h */
+	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_SETLEVEL, 0);
+	if (error < 0)
+		die("fence_domain_add: service set level failed");
+
+	signal(SIGUSR1, sigusr1_handler);
+	signal(SIGTERM, sigterm_handler);
+
+	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_SETSIGNAL, SIGUSR1);
+	if (error < 0)
+		die("fence_domain_add: service set signal failed");
+
+	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_JOIN, NULL);
+	if (error < 0)
+		die("fence_domain_add: service join failed");
+
+	fd->cl_sock = cl_sock;
+
+	/* Main loop */
+	process_events(fd);
+
+	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_UNREGISTER, NULL);
+	if (error < 0)
+		die("fence_domain_add: unregister failed");
+
+	return 0;
+}
+
+static int check_ccs(fd_t *fd)
 {
 	char path[256];
 	char *name = NULL, *str = NULL;
 	int error, cd, i = 0, count = 0;
 
+
 	while ((cd = ccs_connect()) < 0) {
 		sleep(1);
 		if (++i > 9 && !(i % 10))
-			log_debug("connect to ccs error %d", cd);
+			log_debug("connect to ccs error %d, "
+				  "check ccsd or cluster status", cd);
 	}
 
-	/* If an option was set on the command line, don't set it
-	   from ccs. */
+
+	/* Our own nodename must be in cluster.conf before we're allowed to
+	   join the fence domain and then mount gfs; other nodes need this to
+	   fence us. */
+
+	memset(path, 0, 256);
+	snprintf(path, 256, "/cluster/clusternodes/clusternode[@name=\"%s\"]",
+		 our_name);
+
+	error = ccs_get(cd, path, &str);
+	if (error)
+		die1("local node name \"%s\" not found in cluster.conf",
+		     our_name);
+
+
+	/* If an option was set on the command line, don't set it from ccs. */
 
 	if (fd->comline->clean_start_opt == FALSE) {
 		str = NULL;
@@ -363,11 +421,14 @@ static int init_ccs(fd_t *fd)
 			free(str);
 	}
 
-	log_debug("delays post_join %ds post_fail %ds",
-		  fd->comline->post_join_delay, fd->comline->post_fail_delay);
+	if (debug)
+		log_debug("delay post_join %ds post_fail %ds",
+		          fd->comline->post_join_delay,
+		          fd->comline->post_fail_delay);
 
 	if (fd->comline->clean_start) {
-		log_debug("clean start, skipping initial nodes");
+		if (debug)
+			log_debug("clean start, skipping initial nodes");
 		goto out;
 	}
 
@@ -385,25 +446,51 @@ static int init_ccs(fd_t *fd)
 		count++;
 	}
 
-	log_debug("added %d nodes from ccs", count);
+	if (debug)
+		log_debug("added %d nodes from ccs", count);
  out:
 	ccs_disconnect(cd);
 	return 0;
 }
 
-int fence_domain_add(commandline_t *comline)
+static int check_cluster(fd_t *fd)
 {
-	int cl_sock;
+	struct cl_cluster_node cl_node;
+	int cl_sock, active, error;
+
+	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
+
+	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+	if (cl_sock < 0)
+		die1("can't create cman cluster socket");
+
+	active = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, 0);
+	if (!active)
+		die1("cman cluster manager is not running");
+
+	error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+	if (error < 0)
+		die1("cluster getnode failed");
+	memcpy(our_name, cl_node.name, strlen(cl_node.name));
+
+	if (debug)
+		log_debug("our name from cman \"%s\"", our_name);
+
+	close(cl_sock);
+	return 0;
+}
+
+static fd_t *new_fd(commandline_t *comline)
+{
 	int namelen = strlen(comline->name);
 	fd_t *fd;
-	int error;
 
 	if (namelen > MAX_NAME_LEN-1)
-		return -ENAMETOOLONG;
+		die1("cluster name too long, max %d", MAX_NAME_LEN-1);
 
-	fd = (fd_t *) malloc(sizeof(fd_t) + MAX_NAME_LEN);
+	fd = malloc(sizeof(fd_t) + MAX_NAME_LEN);
 	if (!fd)
-		return -ENOMEM;
+		die1("no memory");
 
 	memset(fd, 0, sizeof(fd_t) + MAX_NAME_LEN);
 	memcpy(fd->name, comline->name, namelen);
@@ -420,61 +507,7 @@ int fence_domain_add(commandline_t *comline)
 	INIT_LIST_HEAD(&fd->leaving);
 	INIT_LIST_HEAD(&fd->complete);
 
-	error = init_ccs(fd);
-	if (error)
-		die("fence_domain_add: init_ccs error %d", error);
-
-	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-	if (cl_sock < 0)
-		die("fence_domain_add: can't create cluster socket");
-
-	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_REGISTER, fd->name);
-	if (error < 0)
-		die("fence_domain_add: service register failed");
-
-	/* FIXME: SERVICE_LEVEL_FENCE is 0 but defined in service.h */
-	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_SETLEVEL, 0);
-	if (error < 0)
-		die("fence_domain_add: service set level failed");
-
-	signal(SIGUSR1, sigusr1_handler);
-	signal(SIGTERM, sigterm_handler);
-
-	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_SETSIGNAL, SIGUSR1);
-	if (error < 0)
-		die("fence_domain_add: service set signal failed");
-
-	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_JOIN, NULL);
-	if (error < 0)
-		die("fence_domain_add: service join failed");
-
-	fd->cl_sock = cl_sock;
-
-	process_events(fd);
-
-	error = ioctl(cl_sock, SIOCCLUSTER_SERVICE_UNREGISTER, NULL);
-	if (error < 0)
-		die("fence_domain_add: unregister failed");
-
-	free(fd);
-	return 0;
-}
-
-static void check_cluster(void)
-{
-	int cl_sock, active;
-
-	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-	if (cl_sock < 0)
-		die("can't create cman cluster socket");
-
-	active = ioctl(cl_sock, SIOCCLUSTER_ISACTIVE, 0);
-	if (!active)
-		die("CMAN cluster manager is not running");
-
-	/* FIXME: check if fence service is registered and exit if so */
-
-	close(cl_sock);
+	return fd;
 }
 
 static void decode_arguments(int argc, char **argv, commandline_t *comline)
@@ -508,6 +541,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 
 		case 'D':
 			comline->debug = TRUE;
+			debug = TRUE;
 			break;
 
 		case 'n':
@@ -542,36 +576,38 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 
 		default:
-			die("unknown option: %c", optchar);
+			die1("unknown option: %c", optchar);
 			break;
 		};
 	}
 
 	if (!strcmp(comline->name, ""))
 		strcpy(comline->name, "default");
-
-	if (comline->debug) {
-		printf("Command Line Arguments:\n");
-		printf("  name = %s\n", comline->name);
-		printf("  debug = %d\n", comline->debug);
-		printf("  post_join_delay = %d\n", comline->post_join_delay);
-		printf("  post_fail_delay = %d\n", comline->post_fail_delay);
-		printf("  clean_start = %d\n", comline->clean_start);
-	}
 }
 
 int main(int argc, char **argv)
 {
 	commandline_t comline;
+	fd_t *fd;
+	int error;
 
 	prog_name = argv[0];
 
 	memset(&comline, 0, sizeof(commandline_t));
+
 	decode_arguments(argc, argv, &comline);
 
-	check_cluster();
+	fd = new_fd(&comline);
 
-	if (!comline.debug) {
+	error = check_cluster(fd);
+	if (error)
+		die1("check_cluster error %d", error);
+
+	error = check_ccs(fd);
+	if (error)
+		die1("check_ccs error %d", error);
+
+	if (!debug) {
 		pid_t pid = fork();
 		if (pid < 0) {
 			perror("main: cannot fork");
@@ -590,7 +626,9 @@ int main(int argc, char **argv)
 
 	lockfile();
 
-	fence_domain_add(&comline);
+	fence_domain_add(fd);
+
+	free(fd);
 	return 0;
 }
 
