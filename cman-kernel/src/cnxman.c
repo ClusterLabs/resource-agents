@@ -519,16 +519,13 @@ static struct cl_waiting_listen_request *find_listen_request(unsigned short tag)
 	struct list_head *llist;
 	struct cl_waiting_listen_request *listener;
 
-	down(&listenreq_lock);
 	list_for_each(llist, &listenreq_list) {
-		listener =
-		    list_entry(llist, struct cl_waiting_listen_request, list);
+		listener = list_entry(llist, struct cl_waiting_listen_request,
+				      list);
 		if (listener->tag == tag) {
-			up(&listenreq_lock);
 			return listener;
 		}
 	}
-	up(&listenreq_lock);
 	return NULL;
 }
 
@@ -606,12 +603,14 @@ static void process_cnxman_message(struct cl_comms_socket *csock, char *data,
 		    (struct cl_listenmsg *) (data +
 					     sizeof (struct cl_protheader));
 		cl_sendack(csock, header->seq, addrlen, addr, header->port, 0);
+		down(&listenreq_lock);
 		listen_request = find_listen_request(listenmsg->tag);
 		if (listen_request) {
 			listen_request->result = listenmsg->listening;
 			listen_request->waiting = 0;
 			wake_up_interruptible(&listen_request->waitq);
 		}
+		up(&listenreq_lock);
 		break;
 
 	case CLUSTER_CMD_PORTCLOSED:
@@ -1417,14 +1416,17 @@ static int do_ioctl_islistening(unsigned long arg)
 		remove_wait_queue(&listen_request->waitq, &wq);
 
 		if (signal_pending(current)) {
-			list_del(&listen_request->list);
-			kfree(listen_request);
-			return -ERESTARTSYS;
+			result = -ERESTARTSYS;
+			goto end_listen;
 		}
 	}
 	result = listen_request->result;
+
+ end_listen:
+	down(&listenreq_lock);
 	list_del(&listen_request->list);
 	kfree(listen_request);
+	up(&listenreq_lock);
 	return result;
 }
 
