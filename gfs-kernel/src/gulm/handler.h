@@ -18,8 +18,8 @@
 struct callback_qu_s {
 	struct completion startup;
 	int running;
-	int task_count;
-	int task_max;
+	unsigned int task_count;
+	unsigned int task_max;
 	struct list_head run_tasks;
 	spinlock_t list_lock;
 	wait_queue_head_t waiter;

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -31,118 +31,6 @@
 #define gulm_gfs_lmMask (gulm_gfs_lmSize - 1)
 
 extern gulm_cm_t gulm_cm;
-
-/****************************************************************************/
-/* A bunch of prints that hopefully contain more information that is also
- * useful
- *
- * these are a mess.
- */
-
-/**
- * lck_key_to_hex - 
- * @key: 
- * @len: 
- * @workspace: <> place to put string. !! better be 2x len !!
- * 
- * 
- * Returns: char
- */
-static char *
-lck_key_to_hex (uint8_t * key, uint16_t len, char *workspace)
-{
-	int i;
-	for (i = 0; i < len; i++)
-		sprintf (&workspace[i * 2], "%02x", (key[i] & 0xff));
-	return workspace;
-}
-
-#if 0
-static void __inline__
-db_lck_entered (gulm_lock_t * lck)
-{
-	char bb[GIO_KEY_SIZE * 2 + 3];
-	lck_key_to_hex (lck->key, lck->keylen, bb);
-	printk ("Started  lock 0x%s cur:%#x req:%#x flags:%#x\n", bb,
-		lck->cur_state, lck->req_state, lck->flags);
-}
-static void __inline__
-db_lck_exited (gulm_lock_t * lck)
-{
-	char bb[GIO_KEY_SIZE * 2 + 3];
-	lck_key_to_hex (lck->key, lck->keylen, bb);
-	printk ("Finished lock 0x%s result:%#x\n", bb, lck->result);
-}
-#endif
-
-static void __inline__
-dump_gulm_lock_t (gulm_lock_t * lck)
-{
-	char bb[GIO_KEY_SIZE * 2 + 3];
-
-	lck_key_to_hex (lck->key, lck->keylen, bb);
-	log_msg (lgm_Always, " key = 0x%s\n", bb);
-	log_msg (lgm_Always, " cur_state = %d\n", lck->cur_state);
-}
-
-/* DEBUG_BY_LOCK is gone.  I may later add something back if needed.
- *
- * I love the idea of being able to log only certain locks, I just cannot
- * think of an easy way to do it.  The best I can come up with is some
- * pattern (or set of) that are used to decide which locks get logged.  But
- * that could be expensive if the pattern is checked everytime, and won't
- * behave as expected if only applied in get_lock.
- * */
-
-/* The old log functions.
- * These need their own sort of clean up someday as well.
- * */
-#define log_msg_lk(key, keylen, fmt, args...) {\
-      uint8_t bb[GIO_KEY_SIZE*2 +3]; \
-      lck_key_to_hex( key, keylen, bb); \
-      printk(PROTO_NAME ": On lock 0x%s " fmt , bb , ## args ); \
-   }
-
-#define log_err_lk(key, keylen, fmt, args...) {\
-      uint8_t bb[GIO_KEY_SIZE*2 +3]; \
-      lck_key_to_hex( key, keylen, bb); \
-      printk(KERN_ERR PROTO_NAME ": ERROR On lock 0x%s " fmt , bb , ## args ); \
-   }
-
-#define log_msg_lck(lck, fmt, args...) {\
-      uint8_t bb[GIO_KEY_SIZE*2 +3]; \
-      lck_key_to_hex( (lck)->key, (lck)->keylen, bb); \
-      printk(PROTO_NAME ": On lock 0x%s " fmt , bb , ## args ); \
-   }
-
-#define log_err_lck(lck, fmt, args...) {\
-      uint8_t bb[GIO_KEY_SIZE*2 +3]; \
-      lck_key_to_hex( (lck)->key, (lck)->keylen, bb); \
-      printk(KERN_ERR PROTO_NAME ": ERROR On lock 0x%s " fmt , bb , ## args ); \
-   }
-
-#ifdef DEBUG_LVB
-static void __inline__
-print_lk_lvb (uint8_t * key, uint8_t * lvb, uint8_t st, uint8_t * dir)
-{
-	uint8_t bk[GIO_KEY_SIZE * 2 + 3];
-	uint8_t bl[GIO_LVB_SIZE * 2 + 3];
-	int i;
-	for (i = 0; i < GIO_KEY_SIZE; i++)
-		sprintf (&bk[(i * 2)], "%02x", (key[i]) & 0xff);
-	for (i = 0; i < GIO_LVB_SIZE; i++)
-		sprintf (&bl[(i * 2)], "%02x", (lvb[i]) & 0xff);
-	printk (PROTO_NAME ": On lock 0x%s with state %d\n\t%s LVB 0x%s\n",
-		bk, st, dir, bl);
-}
-
-#define lvb_log_msg_lk(k, fmt, args...) log_msg_lk( k , fmt , ## args )
-#define lvb_log_msg(fmt, args...) log_msg(lgm_Always , fmt , ## args )
-#else				/*DEBUG_LVB */
-#define print_lk_lvb(k,l,s,d)
-#define lvb_log_msg_lk(k, fmt, args...)
-#define lvb_log_msg(fmt, args...)
-#endif				/*DEBUG_LVB */
 
 /****************************************************************************/
 /**
@@ -181,6 +69,7 @@ int pack_lock_key(uint8_t *key, uint16_t keylen, uint8_t type,
 	return fsnlen + pklen + 5;
 }
 
+#if 0
 /**
  * unpack_lock_key - 
  * @key: <
@@ -223,6 +112,7 @@ int unpack_lock_key(uint8_t *key, uint16_t keylen, uint8_t *type,
 
 	return fsnl + pkl + 5;
 }
+#endif
 
 /**
  * pack_drop_mask - 
@@ -843,8 +733,6 @@ gulm_hold_lvb (lm_lock_t * lock, char **lvbp)
 
 	unmark_and_release_lock (lck);
 
-	lvb_log_msg_lk (lck->key, "fsid=%s: Exiting gulm_hold_lvb\n",
-			fs->fs_name);
 	return 0;
       fail:
 	unmark_and_release_lock (lck);
@@ -917,7 +805,6 @@ gulm_unhold_lvb (lm_lock_t * lock, char *lvb)
 	lck->lvb = NULL;
       exit:
 	unmark_and_release_lock (lck);
-	lvb_log_msg ("Exiting gulm_unhold_lvb\n");
 }
 
 /**
@@ -974,8 +861,6 @@ gulm_sync_lvb (lm_lock_t * lock, char *lvb)
 
       exit:
 	unmark_and_release_lock (lck);
-	lvb_log_msg ("Exiting gulm_sync_lvb\n");
-
 }
 
 /* vim: set ai cin noet sw=8 ts=8 : */

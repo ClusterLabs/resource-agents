@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -14,7 +14,6 @@
 #include "gulm.h"
 
 #include <linux/utsname.h>	/* for extern system_utsname */
-
 #include "handler.h"
 #include "gulm_lock_queue.h"
 

@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -30,14 +30,15 @@
 /* The Queues. */
 struct list_head glq_Free;
 spinlock_t glq_FreeLock;
-unsigned int glq_FreeCount;
+unsigned long glq_FreeCount;
 struct list_head glq_OutQueue;
 spinlock_t glq_OutLock;
-unsigned int glq_OutCount;
+unsigned long glq_OutCount;
 #define ReplyMapBits (13)
 #define ReplyMapSize (1 << ReplyMapBits)
 #define ReplyMapMask (ReplyMapSize - 1)
 gulm_hb_t *glq_ReplyMap;
+unsigned long glq_ReplyCount;
 
 /* The Threads. */
 struct task_struct *glq_recver_task = NULL;
@@ -80,6 +81,7 @@ int glq_init(void)
 		INIT_LIST_HEAD (&glq_ReplyMap[i].bucket);
 		spin_lock_init (&glq_ReplyMap[i].lock);
 	}
+	glq_ReplyCount = 0;
 	/* ?Add some empty reqs to the Free list right now? */
 	return 0;
 }
@@ -252,6 +254,11 @@ int glq_calc_hash_key(glckr_t *item)
  * glq_queue - 
  * @item: 
  * 
+ * Think about maybe blocking if send queue is too full?
+ * what is too full?
+ * (want this to slow/stop ravious memory consuption.)
+ * Maybe not block, but do sleeps? Force gfs to go slower?
+ * really?
  * 
  * Returns: void
  */
@@ -311,7 +318,7 @@ void glq_cancel(glckr_t *cancel)
 
 /**
  * glq_send_queue_empty - 
- * 
+ *
  * Returns: int
  */
 static int glq_send_queue_empty(void)
@@ -335,7 +342,6 @@ int glq_sender_thread(void *data)
 	int err=0, bucket;
 	struct list_head *tmp;
 	glckr_t *item = NULL;
-	DECLARE_WAITQUEUE (__wait_chan, current);
 
 	daemonize ("gulm_glq_sender");
 	glq_sender_task = current;
@@ -343,12 +349,10 @@ int glq_sender_thread(void *data)
 
 	while (glq_running) {
 		/* wait for item */
-		current->state = TASK_INTERRUPTIBLE; 
-		add_wait_queue (&glq_send_wchan, &__wait_chan);
-		if( glq_send_queue_empty () )
-			schedule ();
-		remove_wait_queue (&glq_send_wchan, &__wait_chan);
-		current->state = TASK_RUNNING;
+		err = wait_event_interruptible(glq_send_wchan, 
+				(!glq_running || !glq_send_queue_empty()) );
+		if( err != 0 )
+			flush_signals(current);
 		if (!glq_running) break;
 
 		/* pull item off queue */
@@ -369,6 +373,7 @@ int glq_sender_thread(void *data)
 			bucket = glq_calc_hash_key(item);
 			spin_lock (&glq_ReplyMap[bucket].lock);
 			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			glq_ReplyCount++;
 			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_state_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->start,
@@ -379,6 +384,7 @@ int glq_sender_thread(void *data)
 			bucket = glq_calc_hash_key(item);
 			spin_lock (&glq_ReplyMap[bucket].lock);
 			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			glq_ReplyCount++;
 			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_action_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->state,
@@ -388,6 +394,7 @@ int glq_sender_thread(void *data)
 			bucket = glq_calc_hash_key(item);
 			spin_lock (&glq_ReplyMap[bucket].lock);
 			list_add (&item->list, &glq_ReplyMap[bucket].bucket);
+			glq_ReplyCount++;
 			spin_unlock (&glq_ReplyMap[bucket].lock);
 			err = lg_lock_query_req (gulm_cm.hookup, item->key,
 					item->keylen, item->subid, item->start,
@@ -491,6 +498,7 @@ glq_lock_state (void *misc, uint8_t * key, uint16_t keylen,
 		    memcmp(item->key, key, keylen) == 0 ) {
 			/* found it. */
 			list_del (tmp);
+			glq_ReplyCount--;
 			found = TRUE;
 			break;
 		}
@@ -550,6 +558,7 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 		    memcmp(item->key, key, keylen) == 0 ) {
 			/* found it. */
 			list_del (tmp);
+			glq_ReplyCount--;
 			found = TRUE;
 			break;
 		}
@@ -575,8 +584,8 @@ glq_lock_action (void *misc, uint8_t * key, uint16_t keylen,
 /**
  * glq_lock_query -
  * this is an ugly interface.....
- * there is somehting that needs to be done here to clean things up.  I'm
- * not sure what that is right now, and I need to have somehting working.
+ * there is something that needs to be done here to clean things up.  I'm
+ * not sure what that is right now, and I need to have something working.
  * So we're going with this for now.
  *
  */
@@ -603,6 +612,7 @@ glq_lock_query (void *misc, uint8_t * key, uint16_t keylen,
 		    memcmp(item->key, key, keylen) == 0 ) {
 			/* found it. */
 			list_del (tmp);
+			glq_ReplyCount--;
 			found = TRUE;
 			break;
 		}

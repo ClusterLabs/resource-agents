@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -76,21 +76,17 @@ handler (void *d)
 	struct list_head *tmp;
 	struct lm_lockname lockname;
 	struct lm_async_cb acb;
+   int err;
 
 	daemonize ("gulm_Cb_Handler");
 	atomic_inc (&cq->num_threads);
 	complete (&cq->startup);
 
 	while (cq->running) {
-		do {
-			DECLARE_WAITQUEUE (__wait_chan, current);
-			current->state = TASK_INTERRUPTIBLE;
-			add_wait_queue (&cq->waiter, &__wait_chan);
-			if (queue_empty (cq))
-				schedule ();
-			remove_wait_queue (&cq->waiter, &__wait_chan);
-			current->state = TASK_RUNNING;
-		} while (0);
+      err = wait_event_interruptible(cq->waiter,
+            (!cq->running || !queue_empty(cq)) );
+      if( err != 0 )
+         flush_signals(current);
 
 		if (!cq->running)
 			break;
@@ -105,7 +101,7 @@ handler (void *d)
 		 */
 		tmp = (&cq->run_tasks)->prev;
 		list_del (tmp);
-		cq->task_count--;
+      cq->task_count--;
 		spin_unlock (&cq->list_lock);
 
 		rt = list_entry (tmp, runtask_t, rt_list);
@@ -322,7 +318,7 @@ start_callback_qu (callback_qu_t * cq, int cnt)
 	spin_lock_init (&cq->list_lock);
 	init_completion (&cq->startup);
 	init_waitqueue_head (&cq->waiter);
-	atomic_set (&cq->num_threads, 0);
+	atomic_set( &cq->num_threads, 0);
 	cq->running = TRUE;
 	cq->task_count = 0;
 	cq->task_max = 0;
