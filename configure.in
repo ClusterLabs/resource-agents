@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.352 $) dnl cvs revision
+AC_REVISION($Revision: 1.353 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1932,11 +1932,27 @@ fencing/Makefile						\
 tools/Makefile							\
 resources/Makefile						\
 	resources/OCF/Makefile					\
+	resources/OCF/ocf-shellfuncs				\
+	resources/OCF/Dummy					\
+	resources/OCF/apache					\
+	resources/OCF/AudibleAlarm				\
+	resources/OCF/Delay					\
+	resources/OCF/db2					\
+	resources/OCF/drbd					\
+	resources/OCF/Filesystem				\
+	resources/OCF/ICP					\
 	resources/OCF/IPaddr					\
 	resources/OCF/IPaddr2					\
-	resources/OCF/Dummy					\
-	resources/OCF/drbd					\
-	resources/OCF/ocf-shellfuncs				\
+	resources/OCF/IPsrcaddr					\
+	resources/OCF/LinuxSCSI					\
+	resources/OCF/LVM					\
+	resources/OCF/MailTo					\
+	resources/OCF/portblock					\
+	resources/OCF/Raid1					\
+	resources/OCF/ServeRAID					\
+	resources/OCF/WAS					\
+	resources/OCF/WinPopup					\
+	resources/OCF/Xinetd					\
 	resources/heartbeat/Makefile				\
 	resources/heartbeat/apache				\
 	resources/heartbeat/AudibleAlarm			\
