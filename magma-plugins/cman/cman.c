@@ -117,7 +117,6 @@ cman_member_list(cluster_plugin_t *self,
 		p->memb_sum += foo->cml_members[x].cm_id;
 
 		switch(cman_nl.nodes[x].state) {
-		case NODESTATE_REMOTEMEMBER:
 		case NODESTATE_MEMBER:
 			foo->cml_members[x].cm_state = STATE_UP;
 			break;

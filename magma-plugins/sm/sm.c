@@ -126,7 +126,6 @@ sm_member_list(cluster_plugin_t *self, char *groupname)
 		foo->cml_members[x].cm_id = (uint64_t)sm_nl.nodes[x].node_id;
 
 		switch(sm_nl.nodes[x].state) {
-		case NODESTATE_REMOTEMEMBER:
 		case NODESTATE_MEMBER:
 			foo->cml_members[x].cm_state = STATE_UP;
 			break;
