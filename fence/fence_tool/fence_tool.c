@@ -167,7 +167,7 @@ static int wait_quorum(void)
 		sleep(1);
 
 		if (++i > 9 && !(i % 10))
-			printf("waiting for cluster quorum\n");
+			printf("%s: waiting for cluster quorum\n", prog_name);
 	}
 
 	return 0;
