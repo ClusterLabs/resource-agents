@@ -513,28 +513,34 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 	case GDLM_LQSTATE_WAIT_UNLOCK:
 
 		/*
-		 * Unlocks should never fail.  Update local lock info.  This
-		 * always sends completion AST with status in lksb
+		 * Unlocks should never fail, but cancels can.  Update local
+		 * lock info.  This always sends completion AST with status in
+		 * lksb
 		 */
 
-		DLM_ASSERT(reply->rl_status == 0,);
 		oldstate = res_lkb_dequeue(lkb);
+		lkb->lkb_retstatus = reply->rl_status;
 
-		/* Differentiate between unlocks and conversion cancellations */
-		if (lkb->lkb_lockqueue_flags & DLM_LKF_CANCEL) {
+		if (reply->rl_status == -DLM_ECANCEL) {
+			DLM_ASSERT(lkb->lkb_lockqueue_flags & DLM_LKF_CANCEL,);
 			if (oldstate == GDLM_LKSTS_CONVERT) {
 				res_lkb_enqueue(lkb->lkb_resource, lkb,
 						GDLM_LKSTS_GRANTED);
-				lkb->lkb_retstatus = -DLM_ECANCEL;
+				lkb->lkb_rqmode = DLM_LOCK_IV;
 				queue_ast(lkb, AST_COMP, 0);
+			} else if (oldstate == GDLM_LKSTS_WAITING) {
+				lkb->lkb_rqmode = DLM_LOCK_IV;
+				queue_ast(lkb, AST_COMP | AST_DEL, 0);
 			} else
-				log_error(ls, "cancel state %d", oldstate);
-		} else {
+				log_error(ls, "cancel reply %d", oldstate);
+
+		} else if (reply->rl_status == -DLM_EUNLOCK) {
 			DLM_ASSERT(oldstate == GDLM_LKSTS_GRANTED,
 				   print_lkb(lkb););
-
-			lkb->lkb_retstatus = -DLM_EUNLOCK;
 			queue_ast(lkb, AST_COMP | AST_DEL, 0);
+		} else {
+			log_error(ls, "cancel reply ret %d", reply->rl_status);
+			queue_ast(lkb, AST_COMP, 0);
 		}
 		break;
 
@@ -1126,6 +1132,12 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 	case GDLM_REMCMD_UNLOCKREQUEST:
 
 		lkb = find_lock_by_id(lspace, freq->rr_remlkid);
+
+		if (!lkb && freq->rr_flags & DLM_LKF_CANCEL) {
+			reply.rl_status = -EINVAL;
+			send_reply = 1;
+			break;
+		}
 
 		DLM_ASSERT(lkb,
 			   print_request(freq);
