@@ -967,8 +967,6 @@ static void do_df_one(char *path)
   printf("  Lock module flags = ");
   if (ls.ls_flags & LM_LSFLAG_LOCAL)
     printf("local ");
-  if (ls.ls_flags & LM_LSFLAG_ASYNC)
-    printf("async ");
   printf("\n");
   printf("  Local flocks = %s\n", (args.ar_localflocks) ? "TRUE" : "FALSE");
   printf("  Local caching = %s\n", (args.ar_localcaching) ? "TRUE" : "FALSE");
