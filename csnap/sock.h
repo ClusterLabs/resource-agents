@@ -1,5 +1,4 @@
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <netdb.h>
 
 /*
@@ -35,8 +34,8 @@ static inline int open_socket(char *name, unsigned port)
 }
 
 /*
- * Pass a fd over a local socket connection.  You have to pass some non-zero amount 
- * of stream data as well, just to make an ugly interface even more irritating.
+ * Pass a fd over a local socket connection.  You have to send some stream
+ * data as well, just to make an ugly interface even more irritating.
  */
 int send_fd(int sock, int fd, char *bogus, unsigned len)
 {

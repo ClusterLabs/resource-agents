@@ -7,10 +7,9 @@
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include "trace.h"
-#include "sock.h"
-#include "../dm-csnap.h"
+#include "sock.h" // send_fd, read/writepipe, connect_socket
+#include "../dm-csnap.h" // message codes
 #include "csnap.h" // outbead
-#include "../../../include/linux/dm-ioctl.h"
 
 #define trace trace_on
 
@@ -44,7 +43,7 @@ pipe_error:
 
 int main(int argc, char *argv[])
 {
-	int sock, sockpair[2];
+	int sock, sockpair[2], pipepair[2];
 
 	if (argc != 3)
 		error("usage: %s <device> host:port", argv[0]);
@@ -63,19 +62,22 @@ int main(int argc, char *argv[])
 		error("Can't connect to %s:%i", host, port);
 
 	switch (fork()) {
+	case -1:
+		error("fork failed");
 	case 0: 
-		close(sockpair[0]);
+		pipe(pipepair);
+		dup2(pipepair[0], 0);
+		close(pipepair[0]);
+		if (outbead(pipepair[1], CONTROL_SOCKET, struct {int fd;} PACKED, 3) == -1)
+			error("pipe error %i, %s", errno, strerror(errno));
 		close(sockpair[1]);
 		execl("/sbin/dmsetup", "/sbin/dmsetup", "create", "testdev", "test.dm", NULL);
 		error("exec failed, %s", strerror(errno));
-	case -1:
-		error("fork failed");
 	}
+
+	close(sockpair[0]);
 	if (wait(NULL) == -1)
 		error("Device create failed, %s", strerror(errno));
-
-	if (ioctl(open(argv[1], O_RDWR), DM_MESSAGE, (int[4]){ 0, 9, sizeof(int), sockpair[0]}))
-		error("Socket connect ioctl on %s failed: %s", argv[1], strerror(errno));
 
 	if (outbead(sockpair[1], CONNECT_SERVER, struct { }) < 0)
 		error("Could not send connect message");

@@ -30,8 +30,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/Makefile 2.6.7.csnap/drivers/m
        cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers/md/dm-csnap.c
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.c	2004-08-31 17:46:41.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-29 04:35:13.000000000 +0000
-@@ -0,0 +1,1054 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.c	2004-09-29 20:22:49.842202936 +0000
+@@ -0,0 +1,1044 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -67,7 +67,10 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	if (!(file->f_mode & mode))
 +		return -EBADF;
 +	if (!op)
++{
++warn("no aio operator");
 +		return -EINVAL;
++}
 +	init_sync_kiocb(&iocb, file); // new in 2.5 (hmm)
 +	iocb.ki_pos = file->f_pos;
 +	oldseg = get_fs();
@@ -173,7 +176,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	struct file *control_socket;
 +	struct semaphore imutex;
 +	struct semaphore omutex;
-+	struct semaphore init3_sem;
 +	struct semaphore exit1_sem;
 +	struct semaphore exit2_sem;
 +	struct semaphore exit3_sem;
@@ -663,7 +665,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +	strcpy(task->comm, "csnap-control");
 +	trace(warn("Control thread started, pid=%i", current->pid);)
-+	down(&info->init3_sem);
 +	sock = info->control_socket;
 +	trace(warn("got socket %p", sock);)
 +
@@ -829,7 +830,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	info->flags |= FINISH_FLAG;
 +	up(&info->imutex); // unblock incoming thread
 +	up(&info->omutex); // unblock io request threads
-+	up(&info->init3_sem); // unblock io request threads
 +
 +	if (info->sock) {
 +		struct inode *inode = info->sock->f_dentry->d_inode;
@@ -880,11 +880,17 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return (n + size - 1) & ~(size - 1);
 +}
 +
++ssize_t
++pipe_read(struct file *filp, char __user *buf, size_t count, loff_t *ppos);
++
 +static int csnap_create(struct dm_target *target, unsigned argc, char **argv)
 +{
 +	u64 chunksize_bits = 12; // !!! when chunksize isn't always 4K, have to move all this to identify reply handler
 +	struct dm_dev *orgdev, *snapdev;
 +	struct snapinfo *info;
++        struct { struct head head; int fd; } PACKED message;
++	struct file *stdin;
++	mm_segment_t oldseg = get_fs();
 +	char uuid[64], *error;
 +	int err, i, snap, flags = 0;
 +	unsigned bm_size;
@@ -912,6 +918,22 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		strncpy(uuid, argv[3], sizeof(uuid));
 +	}
 +
++	stdin = fget(0);
++	set_fs(get_ds()); // pipes only support ->read so we can't use readpipe, this is stupid
++	err = stdin->f_op->read(stdin, (void *)&message, sizeof(message), &stdin->f_pos);
++	set_fs(oldseg);
++	fput(stdin);
++	error = "Can't read standard input";
++	if (err < 0)
++		goto eek;
++
++	if (err != sizeof(message) || message.head.code != CONTROL_SOCKET || 
++		message.head.length != sizeof(int)) {
++		error = "Expecting socket fd message";
++		err = -EINVAL;
++		goto eek;
++	}
++
 +	err = -ENOMEM;
 +	if (!(info = kmalloc(sizeof(struct snapinfo), GFP_KERNEL)))
 +		goto eek;
@@ -921,6 +943,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	info->len = target->len; // !!! huh? /* so we can create the bitmap when we know the chunk size */
 +	info->chunksize_bits = chunksize_bits;
 +	info->chunkshift = chunksize_bits - SECTOR_SHIFT;
++	info->control_socket = fget(message.fd);
 +	target->private = info;
 +
 +	bm_size = round_up((info->len  + 7) >> (chunksize_bits + 3), sizeof(u32)); // !!! wrong
@@ -933,7 +956,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +
 +	sema_init(&info->imutex, 0);
 +	sema_init(&info->omutex, 0);
-+	sema_init(&info->init3_sem, 0);
 +	sema_init(&info->exit1_sem, 1);
 +	sema_init(&info->exit2_sem, 1);
 +	sema_init(&info->exit3_sem, 1);
@@ -946,8 +968,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +		for (i = 0; i < NUM_BUCKETS; i++, bucket++)
 +			INIT_LIST_HEAD(bucket);
 +	}
-+
 +	INIT_LIST_HEAD(&info->read_release_list);
++
 +	error = "Can't start daemon";
 +	if ((err = kernel_thread((void *)incoming, target, CLONE_KERNEL)) < 0)
 +		goto eek;
@@ -963,37 +985,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	csnap_destroy(target);
 +	target->error = error;
 +	return err;
-+}
-+
-+/*
-+ * This is a device mapper hook I cooked up for the purpose of connecting
-+ * or reconnecting a pipe to the client, for communication to the server.
-+ * It really only needs to be able to pass a couple of integers, but it
-+ * was scarcely harder to make it handle generic blobs as well, which might
-+ * be useful in some other context.  You could even return blobs with this
-+ * interface if you wanted too, just call put_user and friends as needed.
-+ */
-+/*
-+ * We're going to lose this soon, and get the control socket at device
-+ * create time instead.
-+ */
-+int csnap_message(struct dm_target *target, int tag, int *msg, int len)
-+{
-+	struct snapinfo *info = target->private;
-+	struct file *sock;
-+
-+	if (len != sizeof(int) || !(sock = fget(msg[0])))
-+		return -EBADF;
-+	if (!(sock->f_mode & FMODE_WRITE)) {
-+		fput(sock);
-+		return -EACCES;
-+	}
-+	if (info->control_socket)
-+		fput(info->control_socket);
-+	warn("socket fd %i = %p", msg[0], sock);
-+	info->control_socket = sock;
-+	up(&info->init3_sem);
-+	return 0;
 +}
 +
 +/* Is this actually useful?  It's really trying to be a message */
@@ -1020,15 +1011,14 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	return 0;
 +}
 +
-+static struct target_type supersnap = {
-+	.name = "supersnap",
++static struct target_type csnapshot = {
++	.name = "csnapshot",
 +	.version = {0, 0, 0},
 +	.module = THIS_MODULE,
 +	.ctr = csnap_create,
 +	.dtr = csnap_destroy,
 +	.map = csnap_map,
 +	.status = csnap_status,
-+	.message = (dm_message_fn)csnap_message,
 +};
 +
 +int __init dm_csnap_init(void)
@@ -1036,7 +1026,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +	int err;
 +
 +	trace_on(warn(">>> module init");)
-+	if ((err = dm_register_target(&supersnap))) {
++	if ((err = dm_register_target(&csnapshot))) {
 +		DMERR("Snapshot register failed %d\n", err);
 +		goto bad1;
 +	}
@@ -1066,7 +1056,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +bad3:
 +	kmem_cache_destroy(pending_cache);
 +bad2:
-+	dm_unregister_target(&supersnap);
++	dm_unregister_target(&csnapshot);
 +bad1:
 +	return err;
 +}
@@ -1075,7 +1065,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +{
 +	int err;
 +	trace_on(warn(">>> module exit");)
-+	if ((err = dm_unregister_target(&supersnap)))
++	if ((err = dm_unregister_target(&csnapshot)))
 +		DMERR("Snapshot unregister failed %d", err);
 +	if (pending_cache)
 +		kmem_cache_destroy(pending_cache);
@@ -1088,8 +1078,8 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.c 2.6.7.csnap/drivers
 +module_exit(dm_csnap_exit);
 diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers/md/dm-csnap.h
 --- 2.6.7.csnap.clean/drivers/md/dm-csnap.h	2004-08-31 17:46:46.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-29 04:25:19.000000000 +0000
-@@ -0,0 +1,81 @@
++++ 2.6.7.csnap/drivers/md/dm-csnap.h	2004-09-29 19:11:33.000000000 +0000
+@@ -0,0 +1,82 @@
 +#define PACKED __attribute__ ((packed))
 +#define MAGIC  0xadbe
 +
@@ -1120,6 +1110,7 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers
 +	INITIALIZE_SNAPSTORE,
 +	CONNECT_SERVER,
 +	REPLY_CONNECT_SERVER,
++	CONTROL_SOCKET,
 +};
 +
 +struct identify { uint32_t id; int32_t snap; } PACKED;
@@ -1171,76 +1162,6 @@ diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm-csnap.h 2.6.7.csnap/drivers
 +	return n; 
 +#endif
 +}
-diff -up --recursive 2.6.7.csnap.clean/drivers/md/dm.c 2.6.7.csnap/drivers/md/dm.c
---- 2.6.7.csnap.clean/drivers/md/dm.c	2004-06-16 05:19:44.000000000 +0000
-+++ 2.6.7.csnap/drivers/md/dm.c	2004-08-30 04:36:36.000000000 +0000
-@@ -15,6 +15,7 @@
- #include <linux/buffer_head.h>
- #include <linux/mempool.h>
- #include <linux/slab.h>
-+#include <linux/dm-ioctl.h>
- 
- static const char *_name = DM_NAME;
- #define MAX_DEVICES 1024
-@@ -227,6 +228,50 @@ static inline void free_tio(struct mappe
- 	mempool_free(tio, md->tio_pool);
- }
- 
-+
-+static int dm_message(struct mapped_device *md, int ith, int tag, void *msg,
-+		      int len)
-+{
-+	int r = -ENXIO;
-+	struct dm_table *table;
-+	struct dm_target *target;
-+
-+	if (!(table = dm_get_table(md)))
-+		return r;
-+	if (!(target = dm_table_get_target(table, ith)))
-+		goto out;
-+	if (target->type->message)
-+		r = target->type->message(target, tag, msg, len);
-+out:
-+	dm_table_put(table);
-+	return r;
-+}	
-+
-+static int dm_blk_ioctl(struct inode *inode, struct file *file,
-+			unsigned int cmd, unsigned long a)
-+{
-+	struct mapped_device *md;
-+
-+	md = inode->i_bdev->bd_disk->private_data;
-+
-+	switch (cmd){
-+	case DM_MESSAGE: {
-+		int head[3];
-+		if (!copy_from_user(head, (void *)a, sizeof(head))){
-+			int ith = head[0], tag = head[1], len = head[2];
-+			char msg[64];
-+			if (len <= 64 && !copy_from_user(msg, (int *)a + 3, len))
-+				return dm_message(md, ith, tag, msg, len);
-+		}
-+	}
-+	default:
-+		DMWARN("unknown block ioctl 0x%x", cmd);
-+		return -ENOTTY;
-+	}
-+
-+	return 0;
-+}
-+
- /*
-  * Add the bio to the list of deferred io.
-  */
-@@ -1082,6 +1127,7 @@ int dm_suspended(struct mapped_device *m
- static struct block_device_operations dm_blk_dops = {
- 	.open = dm_blk_open,
- 	.release = dm_blk_close,
-+	.ioctl = dm_blk_ioctl,
- 	.owner = THIS_MODULE
- };
- 
 diff -up --recursive 2.6.7.csnap.clean/fs/super.c 2.6.7.csnap/fs/super.c
 --- 2.6.7.csnap.clean/fs/super.c	2004-06-16 05:19:22.000000000 +0000
 +++ 2.6.7.csnap/fs/super.c	2004-08-30 04:36:36.000000000 +0000
@@ -1262,72 +1183,6 @@ diff -up --recursive 2.6.7.csnap.clean/fs/super.c 2.6.7.csnap/fs/super.c
  /**
   *	destroy_super	-	frees a superblock
   *	@s: superblock to free
-diff -up --recursive 2.6.7.csnap.clean/include/linux/compat_ioctl.h 2.6.7.csnap/include/linux/compat_ioctl.h
---- 2.6.7.csnap.clean/include/linux/compat_ioctl.h	2004-06-16 05:20:04.000000000 +0000
-+++ 2.6.7.csnap/include/linux/compat_ioctl.h	2004-08-30 04:36:36.000000000 +0000
-@@ -138,6 +138,7 @@ COMPATIBLE_IOCTL(DM_TABLE_CLEAR_32)
- COMPATIBLE_IOCTL(DM_TABLE_DEPS_32)
- COMPATIBLE_IOCTL(DM_TABLE_STATUS_32)
- COMPATIBLE_IOCTL(DM_LIST_VERSIONS_32)
-+COMPATIBLE_IOCTL(DM_MESSAGE_32)
- COMPATIBLE_IOCTL(DM_VERSION)
- COMPATIBLE_IOCTL(DM_REMOVE_ALL)
- COMPATIBLE_IOCTL(DM_LIST_DEVICES)
-@@ -152,6 +153,7 @@ COMPATIBLE_IOCTL(DM_TABLE_CLEAR)
- COMPATIBLE_IOCTL(DM_TABLE_DEPS)
- COMPATIBLE_IOCTL(DM_TABLE_STATUS)
- COMPATIBLE_IOCTL(DM_LIST_VERSIONS)
-+COMPATIBLE_IOCTL(DM_MESSAGE)
- /* Big K */
- COMPATIBLE_IOCTL(PIO_FONT)
- COMPATIBLE_IOCTL(GIO_FONT)
-diff -up --recursive 2.6.7.csnap.clean/include/linux/device-mapper.h 2.6.7.csnap/include/linux/device-mapper.h
---- 2.6.7.csnap.clean/include/linux/device-mapper.h	2004-06-16 05:19:42.000000000 +0000
-+++ 2.6.7.csnap/include/linux/device-mapper.h	2004-08-30 04:36:36.000000000 +0000
-@@ -56,6 +56,8 @@ typedef void (*dm_resume_fn) (struct dm_
- 
- typedef int (*dm_status_fn) (struct dm_target *ti, status_type_t status_type,
- 			     char *result, unsigned int maxlen);
-+typedef int (*dm_message_fn)(struct dm_target *ti, int tag, void *msg, int len);
-+
- 
- void dm_error(const char *message);
- 
-@@ -82,6 +84,7 @@ struct target_type {
- 	dm_suspend_fn suspend;
- 	dm_resume_fn resume;
- 	dm_status_fn status;
-+	dm_message_fn message;
- };
- 
- struct io_restrictions {
-diff -up --recursive 2.6.7.csnap.clean/include/linux/dm-ioctl.h 2.6.7.csnap/include/linux/dm-ioctl.h
---- 2.6.7.csnap.clean/include/linux/dm-ioctl.h	2004-06-16 05:18:38.000000000 +0000
-+++ 2.6.7.csnap/include/linux/dm-ioctl.h	2004-08-31 22:07:35.000000000 +0000
-@@ -204,6 +204,7 @@ enum {
- 
- 	/* Added later */
- 	DM_LIST_VERSIONS_CMD,
-+	DM_MESSAGE_CMD,
- };
- 
- /*
-@@ -232,6 +233,7 @@ typedef char ioctl_struct[308];
- #define DM_TABLE_DEPS_32    _IOWR(DM_IOCTL, DM_TABLE_DEPS_CMD, ioctl_struct)
- #define DM_TABLE_STATUS_32  _IOWR(DM_IOCTL, DM_TABLE_STATUS_CMD, ioctl_struct)
- #define DM_LIST_VERSIONS_32 _IOWR(DM_IOCTL, DM_LIST_VERSIONS_CMD, ioctl_struct)
-+#define DM_MESSAGE_32       _IOWR(DM_IOCTL, DM_MESSAGE_CMD, ioctl_struct)
- #endif
- 
- #define DM_IOCTL 0xfd
-@@ -253,6 +255,7 @@ typedef char ioctl_struct[308];
- #define DM_TABLE_STATUS  _IOWR(DM_IOCTL, DM_TABLE_STATUS_CMD, struct dm_ioctl)
- 
- #define DM_LIST_VERSIONS _IOWR(DM_IOCTL, DM_LIST_VERSIONS_CMD, struct dm_ioctl)
-+#define DM_MESSAGE       _IOWR(DM_IOCTL, DM_MESSAGE_CMD, int[3])
- 
- #define DM_VERSION_MAJOR	4
- #define DM_VERSION_MINOR	1
 diff -up --recursive 2.6.7.csnap.clean/include/linux/fs.h 2.6.7.csnap/include/linux/fs.h
 --- 2.6.7.csnap.clean/include/linux/fs.h	2004-06-16 05:19:02.000000000 +0000
 +++ 2.6.7.csnap/include/linux/fs.h	2004-08-30 04:36:36.000000000 +0000
