@@ -2797,9 +2797,6 @@ struct cluster_node *find_node_by_nodeid(unsigned int id)
 	if (id > sizeof_members_array)
 		return NULL;
 
-	if (id == 0)
-		return us;
-
 	spin_lock(&members_by_nodeid_lock);
 	node = members_by_nodeid[id];
 	spin_unlock(&members_by_nodeid_lock);
