@@ -270,7 +270,6 @@ static void gnbd_end_request(struct request *req)
 {
 	int uptodate = (req->errors == 0) ? 1 : 0;
 	request_queue_t *q = req->q;
-	struct gnbd_device *dev = req->rq_disk->private_data;
 	unsigned long flags;
 
 	dprintk(DBG_BLKDEV, "%s: request %p: %s\n", req->rq_disk->disk_name,
