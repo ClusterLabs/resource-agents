@@ -13,6 +13,5 @@
 #define __CLUSTER_MGR_DOT_H__
 
 int start_cluster_monitor_thread(void);
-int update_remote_nodes(char *mem_doc, int doc_size);
 
 #endif /* __CLUSTER_MGR_DOT_H__ */

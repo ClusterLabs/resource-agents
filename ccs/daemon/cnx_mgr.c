@@ -32,7 +32,6 @@
 #include "debug.h"
 #include "misc.h"
 #include "globals.h"
-#include "cluster_mgr.h"
 
 
 typedef struct open_connection_s {
@@ -48,65 +47,21 @@ typedef struct open_connection_s {
 #define MAX_OPEN_CONNECTIONS 10
 static open_connection_t **ocs = NULL;
 
-char *update_result_str = NULL;
-
-
-/*
- * superdup
- * @base: base of the string.  WILL BE FREED!
- * @append: string to append to the base
- *
- * 'base' is freed unless there is an error.
- *
- * Returns: 'base' on error, allocated string otherwise
- */
-static char *superdup(char *base, const char *append){
-  int size;
-  char *new_str;
-
-  if(!base)
-    return strdup(append);
-
-  size = strlen(base)+strlen(append)+1;
-  new_str = malloc(size);
-  if(!new_str)
-    return base;
-
-  memset(new_str, 0, size);
-  memcpy(new_str, base, strlen(base));
-  memcpy(new_str+strlen(base), append, strlen(append));
-  free(base);
-  
-  return new_str;
-}
-
-
-static int _update_config(int do_remote, char *location){
+static int _update_config(char *location){
   int error = 0;
   int v1=0, v2=0;
   open_doc_t *tmp_odoc = NULL;
   xmlDocPtr tmp_doc = NULL;
-  char *mem_doc = NULL;
-  int mem_doc_size;
 
   ENTER("_update_config");
-
-  if(update_result_str){
-    free(update_result_str);
-    update_result_str = NULL;
-  }
 
   tmp_doc = xmlParseFile(location);
   if(!tmp_doc){
     log_err("Unable to parse %s\n", location);
-    update_result_str = superdup(update_result_str,
-			 "File can not be parsed.\n");
     error = -EINVAL;
     goto fail;
   } else if((v2 = get_doc_version(tmp_doc)) < 0){
     log_err("Unable to get config_version from cluster.conf.\n");
-    update_result_str = superdup(update_result_str,
-			 "Unable to identify the config_version.\n");
     error = v2;
     goto fail;
   } else if(master_doc && master_doc->od_doc){
@@ -115,8 +70,6 @@ static int _update_config(int do_remote, char *location){
       log_err("cluster.conf on-disk version is <= to in-memory version.\n");
       log_err(" On-disk version   : %d\n", v2);
       log_err(" In-memory version : %d\n", v1);
-      update_result_str = superdup(update_result_str,
-			   "The config_version is not greater than the in-use version.\n");
       error = -EPERM;
       goto fail;
     }
@@ -124,41 +77,16 @@ static int _update_config(int do_remote, char *location){
     v1 = 0;
   }
 
-  log_dbg("remote is %s\n", do_remote?"SET": "UNSET");
-
-  /* allocate this structure before doing remote call.  Otherwise, if it fails, we **
-  ** have no way of reverting the remote nodes to the old copy                     */
   if(!(tmp_odoc = malloc(sizeof(open_doc_t)))){
     error = -ENOMEM;
     goto fail;
   }
   memset(tmp_odoc, 0, sizeof(open_doc_t));
 
-  if(do_remote){
-    xmlDocDumpFormatMemory(tmp_doc, (xmlChar **)&mem_doc, &mem_doc_size, 0);
-    if(!mem_doc_size || !mem_doc){
-      log_err("Unable to dump document to memory.\n");
-      update_result_str = superdup(update_result_str,
-			   "Ran out of memory while trying to perform update.\n");
-      /* ATTENTION -- assuming ENOMEM */
-      error = -ENOMEM;
-      goto fail;
-    }
-
-    if((error = update_remote_nodes(mem_doc, mem_doc_size))){
-      update_result_str = superdup(update_result_str,
-			   "Update failed on remote nodes.\n"
-			   "Check the log on this machine for the reason.\n");
-      log_err("Failed to update remote nodes.\n");
-      goto fail;
-    }
-  }
-
   tmp_odoc->od_doc = tmp_doc;
 
   log_dbg("There are %d references open on version %d of the config file.\n",
 	  (master_doc)?master_doc->od_refs:0, v1);
-  log_msg("Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
   if(master_doc && !master_doc->od_refs){
     log_dbg("Freeing version %d\n", v1);
     xmlFreeDoc(master_doc->od_doc);
@@ -168,13 +96,7 @@ static int _update_config(int do_remote, char *location){
     master_doc = tmp_odoc;
   }
 
-  {
-    char tmp_str[128];
-    sprintf(tmp_str, "Updating in-memory cluster.conf (version %d => %d).\n", v1, v2);
-    update_result_str = superdup(update_result_str,
-				 tmp_str);
-  }
-  log_msg("Update complete.\n");
+  log_msg("Update of cluster.conf complete (version %d -> %d).\n", v1, v2);
  fail:
   {
     int fd;	
@@ -199,34 +121,25 @@ static int _update_config(int do_remote, char *location){
     }
   }
 
-  if(mem_doc){
-    free(mem_doc);
-  }
-
   EXIT("_update_config");
   return error;
 }
 
 
-static int update_config(int do_remote){
+static int update_config(void){
   int error = 0;
   ENTER("update_config");
 
   /* If update_required is set, it means that there is still a pending **
   ** update.  We need to pull this one in before doing anything else.  */
   if(update_required){
-    error = _update_config(0, "/etc/cluster/.cluster.conf");
+    error = _update_config("/etc/cluster/.cluster.conf");
     update_required = 0;
     if(error){
       log_err("Previous update could not be completed.\n");
       goto fail;
     }
   }
-
-  /* If do_remote is set, it means that the update is originating **
-  ** on this machine.  So, the main file has been changed........ */
-  if(do_remote)
-    error = _update_config(do_remote, "/etc/cluster/cluster.conf");
 
  fail:
   EXIT("update_config");
@@ -413,7 +326,8 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 	/* ATTENTION -- potential for incomplete package */
 	recvfrom(sfd, bdoc, ch->comm_payload_size + sizeof(comm_header_t),
 		 0, (struct sockaddr *)&recv_addr, &len);
-	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t), ch->comm_payload_size);
+	tmp_doc = xmlParseMemory(bdoc+sizeof(comm_header_t),
+				 ch->comm_payload_size);
 	if(!tmp_doc){
 	  log_err("Unable to parse remote cluster.conf.\n");
 	  free(bdoc); bdoc = NULL;
@@ -551,41 +465,6 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   return error;
 }
 
-
-static int process_update(comm_header_t *ch, char **payload){
-  int error = 0;
-  char *location = NULL;
-
-  ENTER("process_update");
-  if(!ch->comm_payload_size){
-    log_err("process_update: no filename given for update.\n");
-    *payload = strdup("Filename not given for update.\n");
-    error = -EINVAL;
-    goto fail;
-  }
-
-  location = *payload;
-  *payload = NULL;
-  
-  if(!quorate){
-    log_err("process_update: cluster is not quorate - refusing update.\n");
-    *payload = strdup("Cluster is not quorate - refusing update.\n");
-    error = -ECONNREFUSED;
-    goto fail;
-  }
-
-  error = _update_config(1, location);
-  if(update_result_str)
-    *payload = strdup(update_result_str);
-
- fail:
-  if(location) free(location);
-  ch->comm_payload_size = (*payload)? strlen(*payload)+1: 0;
-
-  EXIT("process_update");
-  return error;
-}
-
 /**
  * process_connect: process a connect request
  * @afd: accepted socket connection
@@ -710,12 +589,11 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
 
   if(update_required){
     log_dbg("Update is required.\n");
-    if((error = update_config(0))){
+    if((error = update_config())){
       log_err("Failed to update config file, required by cluster.\n");
       /* ATTENTION -- remove all open_doc_t's ? */
       goto fail;
     }
-    update_required = 0;
   }
 
   for(i=0; i < MAX_OPEN_CONNECTIONS; i++){
@@ -1268,14 +1146,6 @@ int process_request(int afd){
       goto fail;
     }
     break;
-  case COMM_UPDATE_START:
-    if((error = process_update(ch, &payload)) < 0){
-      log_err("Error while processing update: %s\n", strerror(-error));
-      /* we do not goto fail here because we want the error message, **
-      ** which is contained in the payload to go to the requestor    */
-      ch->comm_error = error;
-    }
-    break;
   default:
     log_err("Unknown connection request received.\n");
     error = -EINVAL;
@@ -1384,12 +1254,11 @@ int process_broadcast(int sfd){
     log_dbg("master_doc found and loaded.\n");
   } else if(update_required){
     log_dbg("Update is required.\n");
-    if((error = update_config(0))){
+    if((error = update_config())){
       log_err("Failed to update config file, required by cluster.\n");
       /* ATTENTION -- remove all open_doc_t's ? */
       goto fail;
     }
-    update_required = 0;
   }
 
   /* allocates space for the payload */

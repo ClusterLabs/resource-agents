@@ -33,7 +33,6 @@
 #define COMM_UPDATE_NOTICE_ACK	    32
 #define COMM_UPDATE_COMMIT	    64
 #define COMM_UPDATE_COMMIT_ACK	    128
-#define COMM_UPDATE_START           256
 
 typedef struct comm_header_s {
   int comm_type;

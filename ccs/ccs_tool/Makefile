@@ -24,8 +24,8 @@ CFLAGS+= -Wall -O2 -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE \
         `xml2-config --cflags` -DCCS_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-LDFLAGS+= `xml2-config --libs` -L${ccs_libdir}
-LOADLIBES+= -lccs
+LDFLAGS+= -L${ccs_libdir} `xml2-config --libs` -L${libdir}
+LOADLIBES+= -lccs -lmagma -lmagmamsg -ldl
 
 all: ccs_tool
 

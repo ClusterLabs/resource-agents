@@ -20,6 +20,5 @@ int ccs_get_list(int desc, const char *query, char **rtn);
 int ccs_set(int desc, const char *path, char *val);
 int ccs_get_state(int desc, char **cw_path, char **prev_query);
 int ccs_set_state(int desc, const char *cw_path, int reset_query);
-int ccs_update(char *new_config, char **rtn_str);
 
 #endif /*  __CCS_DOT_H__ */
