@@ -122,7 +122,7 @@ int get_size(int fd, uint64_t *sectors)
      be correct in 2.6 */
   struct stat stat_buf;
   uint64_t size_64;
-  long sectors_long;
+  unsigned long sectors_long;
   off_t off_mask = ~(off_t)511;
   uint64_t mask = ~(uint64_t)511;
   
