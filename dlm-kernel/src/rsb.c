@@ -58,9 +58,8 @@ void release_rsb(gd_res_t *r)
 	int removed = FALSE;
 
 	write_lock(&ls->ls_reshash_lock);
-	atomic_dec(&r->res_ref);
 
-	if (!atomic_read(&r->res_ref)) {
+	if (atomic_dec_and_test(&r->res_ref)) {
 		GDLM_ASSERT(list_empty(&r->res_grantqueue),);
 		GDLM_ASSERT(list_empty(&r->res_waitqueue),);
 		GDLM_ASSERT(list_empty(&r->res_convertqueue),);
