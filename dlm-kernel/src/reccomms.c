@@ -73,6 +73,8 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 
 	/* 
 	 * Fill in the header.
+	 * FIXME: set msgid's differently, rsb_master_lookup needs to
+	 * set and remember the msgid before calling here.
 	 */
 
 	rc->rc_header.rh_cmd = GDLM_REMCMD_RECOVERMESSAGE;
@@ -84,29 +86,17 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 	/* 
 	 * When a reply is received, the reply data goes back into this buffer.
 	 * Synchronous rcom requests (need_reply=1) are serialised because of
-	 * the single ls_rcom.
+	 * the single ls_rcom.  After sending the message we'll wait at the end
+	 * of this function to get a reply.  The READY flag will be set when
+	 * the reply has been received and requested data has been copied into
+	 * ls->ls_rcom->rc_buf;
 	 */
 
 	if (need_reply) {
 		down(&ls->ls_rcom_lock);
 		ls->ls_rcom = rc;
+		DLM_ASSERT(!test_bit(LSFL_RECCOMM_READY, &ls->ls_flags),);
 	}
-
-	/* 
-	 * After sending the message we'll wait at the end of this function to
-	 * get a reply.  The READY flag will be set when the reply has been
-	 * received and requested data has been copied into
-	 * ls->ls_rcom->rc_buf;
-	 */
-
-	DLM_ASSERT(!test_bit(LSFL_RECCOMM_READY, &ls->ls_flags),);
-
-	/* 
-	 * The WAIT bit indicates that we're waiting for and willing to accept a
-	 * reply.  Any replies are ignored unless this bit is set.
-	 */
-
-	set_bit(LSFL_RECCOMM_WAIT, &ls->ls_flags);
 
 	/* 
 	 * Process the message locally.
@@ -140,12 +130,11 @@ int rcom_send_message(struct dlm_ls *ls, uint32_t nodeid, int type,
 			log_debug(ls, "rcom wait error %d", error);
 	}
 
-      out:
-	clear_bit(LSFL_RECCOMM_WAIT, &ls->ls_flags);
-	clear_bit(LSFL_RECCOMM_READY, &ls->ls_flags);
-
-	if (need_reply)
+ out:
+	if (need_reply) {
+		clear_bit(LSFL_RECCOMM_READY, &ls->ls_flags);
 		up(&ls->ls_rcom_lock);
+	}
 
 	return error;
 }
@@ -338,11 +327,6 @@ static void process_reply_sync(struct dlm_ls *ls, uint32_t nodeid,
 			       struct dlm_rcom *reply)
 {
 	struct dlm_rcom *rc = ls->ls_rcom;
-
-	if (!test_bit(LSFL_RECCOMM_WAIT, &ls->ls_flags)) {
-		log_error(ls, "unexpected rcom reply nodeid=%u", nodeid);
-		return;
-	}
 
 	if (reply->rc_msgid != le32_to_cpu(rc->rc_msgid)) {
 		log_error(ls, "unexpected rcom msgid %x/%x nodeid=%u",

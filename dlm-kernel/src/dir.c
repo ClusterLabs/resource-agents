@@ -193,6 +193,8 @@ void dlm_dir_clear(struct dlm_ls *ls)
 	struct dlm_direntry *de;
 	int i;
 
+	DLM_ASSERT(list_empty(&ls->ls_recover_list), );
+
 	for (i = 0; i < ls->ls_dirtbl_size; i++) {
 		write_lock(&ls->ls_dirtbl[i].lock);
 		head = &ls->ls_dirtbl[i].list;

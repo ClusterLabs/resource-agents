@@ -326,9 +326,9 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			}
 		}
 
-		log_debug(ls, "(%d) lu rep %x fr %u %u", lkb->lkb_ownpid,
-			  lkb->lkb_id, nodeid,
-			  rsb->res_nodeid);
+		log_debug1(ls, "(%d) lu rep %x fr %u %u", lkb->lkb_ownpid,
+			   lkb->lkb_id, nodeid,
+			   rsb->res_nodeid);
 
 		lkb->lkb_nodeid = rsb->res_nodeid;
 		dlm_lock_stage2(ls, lkb, rsb, lkb->lkb_lockqueue_flags);
@@ -720,8 +720,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 			   print_lkb(lkb);
 			   print_rsb(rsb););
 
-		log_debug(ls, "(%d) send lu %x to %u",
-			  lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
+		log_debug1(ls, "(%d) send lu %x to %u",
+			   lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOOKUP;
 		memcpy(req->rr_name, rsb->res_name, rsb->res_length);
@@ -733,8 +733,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 			   print_lkb(lkb);
 			   print_rsb(rsb););
 
-		log_debug(ls, "(%d) send cv %x to %u",
-			  lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
+		log_debug1(ls, "(%d) send cv %x to %u",
+			   lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_CONVREQUEST;
 		if (lkb->lkb_range) {
@@ -750,8 +750,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 			   print_lkb(lkb);
 			   print_rsb(rsb););
 
-		log_debug(ls, "(%d) send rq %x to %u",
-			  lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
+		log_debug1(ls, "(%d) send rq %x to %u",
+			   lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_LOCKREQUEST;
 		memcpy(req->rr_name, rsb->res_name, rsb->res_length);
@@ -764,8 +764,8 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 
 	case GDLM_LQSTATE_WAIT_UNLOCK:
 
-		log_debug(ls, "(%d) send un %x to %u",
-			  lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
+		log_debug1(ls, "(%d) send un %x to %u",
+			   lkb->lkb_ownpid, lkb->lkb_id, target_nodeid);
 
 		req->rr_header.rh_cmd = GDLM_REMCMD_UNLOCKREQUEST;
 		break;
@@ -968,9 +968,9 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			}
 		}
 
-		log_debug(lspace, "(%d) cv %u from %u %x \"%s\"",
-			  lkb->lkb_ownpid, lkb->lkb_rqmode, nodeid,
-			  lkb->lkb_id, rsb->res_name);
+		log_debug1(lspace, "(%d) cv %u from %u %x \"%s\"",
+			   lkb->lkb_ownpid, lkb->lkb_rqmode, nodeid,
+			   lkb->lkb_id, rsb->res_name);
 
 		dlm_convert_stage2(lkb, FALSE);
 
@@ -1140,8 +1140,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 
 		rsb = find_rsb_to_unlock(lspace, lkb);
 
-		log_debug(lspace, "(%d) un from %u %x \"%s\"", lkb->lkb_ownpid,
-			  nodeid, lkb->lkb_id, rsb->res_name);
+		log_debug1(lspace, "(%d) un from %u %x \"%s\"", lkb->lkb_ownpid,
+			   nodeid, lkb->lkb_id, rsb->res_name);
 
 		reply.rl_status = dlm_unlock_stage2(lkb, rsb, freq->rr_flags);
 		send_reply = 1;

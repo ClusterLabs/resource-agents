@@ -519,8 +519,8 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 	lkb->lkb_resource = rsb;
 	down_write(&rsb->res_lock);
 
-	log_debug(ls, "(%d) rq %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode,
-		  lkb->lkb_id, rsb->res_name);
+	log_debug1(ls, "(%d) rq %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode,
+		   lkb->lkb_id, rsb->res_name);
 	/*
 	 * Next stage, do we need to find the master or can
 	 * we get on with the real locking work ?
@@ -662,9 +662,9 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	lkb->lkb_resource = rsb;
 
-	log_debug(ls, "(%d) rq %u from %u %x \"%s\"",
-		  lkb->lkb_ownpid, lkb->lkb_rqmode, remote_nodeid,
-		  lkb->lkb_id, rsb->res_name);
+	log_debug1(ls, "(%d) rq %u from %u %x \"%s\"",
+		   lkb->lkb_ownpid, lkb->lkb_rqmode, remote_nodeid,
+		   lkb->lkb_id, rsb->res_name);
 
       out:
 	return lkb;
@@ -825,13 +825,13 @@ int dlm_unlock(void *lockspace,
 	down_read(&ls->ls_in_recovery);
 	rsb = find_rsb_to_unlock(ls, lkb);
 
-	log_debug(ls, "(%d) un %x %x %d %d \"%s\"",
-		  lkb->lkb_ownpid,
-		  lkb->lkb_id,
-		  lkb->lkb_flags,
-		  lkb->lkb_nodeid,
-		  rsb->res_nodeid,
-		  rsb->res_name);
+	log_debug1(ls, "(%d) un %x %x %d %d \"%s\"",
+		   lkb->lkb_ownpid,
+		   lkb->lkb_id,
+		   lkb->lkb_flags,
+		   lkb->lkb_nodeid,
+		   rsb->res_nodeid,
+		   rsb->res_name);
 
 	/* Save any new params */
 	if (lksb)
@@ -996,8 +996,8 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	rsb = lkb->lkb_resource;
 	down_read(&ls->ls_in_recovery);
 
-	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode,
-		  lkb->lkb_id, rsb->res_name);
+	log_debug1(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode,
+		   lkb->lkb_id, rsb->res_name);
 
 	lkb->lkb_flags &= ~(GDLM_LKFLG_VALBLK | GDLM_LKFLG_DEMOTED |
 			    GDLM_LKFLG_RETURNLVB | GDLM_LKFLG_VALNOTVALID |

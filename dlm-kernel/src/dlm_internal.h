@@ -92,18 +92,10 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 #define log_print(fmt, args...) printk("dlm: "fmt"\n", ##args)
 
 #define log_error(ls, fmt, args...) \
-	do { \
-		printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args); \
-		dlm_debug_log(ls, fmt, ##args); \
-	} while (0)
-
-
-#if defined(DLM_DEBUG2)
-int nibbler_printf(const char *fmt, ...);
-#define log_debug2(fmt, args...) nibbler_printf(fmt"\n", ##args)
-#else
-#define log_debug2(fmt, args...)
-#endif
+do { \
+	printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args); \
+	dlm_debug_log(ls, fmt, ##args); \
+} while (0)
 
 #define DLM_DEBUG
 #if defined(DLM_DEBUG)
@@ -112,12 +104,22 @@ int nibbler_printf(const char *fmt, ...);
 #define log_debug(ls, fmt, args...)
 #endif
 
+#if defined(DLM_DEBUG1)
+#define log_debug1(ls, fmt, args...) dlm_debug_log(ls, fmt, ##args)
+#else
+#define log_debug1(ls, fmt, args...)
+#endif
+
+#if defined(DLM_DEBUG2)
+#define log_debug2(fmt, args...) dlm_debug_log(ls, fmt, ##args)
+#else
+#define log_debug2(fmt, args...)
+#endif
 
 #define DLM_ASSERT(x, do) \
 { \
   if (!(x)) \
   { \
-    dlm_locks_dump(); \
     dlm_debug_dump(); \
     printk("\nDLM:  Assertion failed on line %d of file %s\n" \
                "DLM:  assertion:  \"%s\"\n" \
@@ -221,16 +223,15 @@ struct dlm_recover {
 #define LSFL_LS_STOP		(2)
 #define LSFL_LS_START		(3)
 #define LSFL_LS_FINISH		(4)
-#define LSFL_RECCOMM_WAIT	(5)
-#define LSFL_RECCOMM_READY	(6)
-#define LSFL_NOTIMERS		(7)
-#define LSFL_FINISH_RECOVERY	(8)
-#define LSFL_RESDIR_VALID	(9)
-#define LSFL_ALL_RESDIR_VALID	(10)
-#define LSFL_NODES_VALID	(11)
-#define LSFL_ALL_NODES_VALID	(12)
-#define LSFL_REQUEST_WARN	(13)
-#define LSFL_RECOVERD_EXIT      (14)
+#define LSFL_RECCOMM_READY	(5)
+#define LSFL_NOTIMERS		(6)
+#define LSFL_FINISH_RECOVERY	(7)
+#define LSFL_RESDIR_VALID	(8)
+#define LSFL_ALL_RESDIR_VALID	(9)
+#define LSFL_NODES_VALID	(10)
+#define LSFL_ALL_NODES_VALID	(11)
+#define LSFL_REQUEST_WARN	(12)
+#define LSFL_RECOVERD_EXIT      (13)
 
 #define LSST_NONE		(0)
 #define LSST_INIT		(1)
