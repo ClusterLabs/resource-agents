@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.82 $) dnl cvs revision
+AC_REVISION($Revision: 1.83 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -179,7 +179,7 @@ do
 done
 
 AC_MSG_CHECKING(for the location of the lock directory)
-for TTY_LOCK_D in /var/lock /var/spool/lock
+for TTY_LOCK_D in /var/lock /var/spool/lock /var/spool/locks
 do
   if
     test -d $TTY_LOCK_D
