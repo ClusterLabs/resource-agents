@@ -1229,8 +1229,8 @@ static void do_resource_login(int idx)
       if((err = xdr_dec_uint32(dec, &x_proto)) != 0) break;
       if( x_proto != GIO_WIREPROT_VERS) {
          err=gio_Err_BadWireProto;
-         log_err("Protocol Mismatch: We're %#x and They're %#x\n",
-               GIO_WIREPROT_VERS, x_proto);
+         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
+               GIO_WIREPROT_VERS, print_ipname(&poller.ipn[idx]), x_proto);
          break;
       }
       if((err = xdr_dec_string(dec, &x_clusterID)) != 0) break;
@@ -1314,8 +1314,8 @@ static void do_new_login(int idx)
       if((err = xdr_dec_uint32(dec, &x_proto)) != 0) break;
       if( x_proto != GIO_WIREPROT_VERS) {
          err=gio_Err_BadWireProto;
-         log_err("Protocol Mismatch: We're %#x and They're %#x\n",
-               GIO_WIREPROT_VERS, x_proto);
+         log_err("Protocol Mismatch: We're %#x and They (%s) are %#x\n",
+               GIO_WIREPROT_VERS, print_ipname(&poller.ipn[idx]), x_proto);
          break;
       }
       if((err = xdr_dec_string(dec, &x_clusterID)) != 0) break;
