@@ -298,7 +298,6 @@ stop_gulm_threads (void)
  */
 int send_drop_exp (gulm_fs_t * fs, char *name)
 {
-	int len;
 	glckr_t *item;
 
 	item = glq_get_new_req();
@@ -307,26 +306,28 @@ int send_drop_exp (gulm_fs_t * fs, char *name)
 		return -ENOMEM;
 	}
 
-	item->key = kmalloc(GIO_KEY_SIZE, GFP_KERNEL);
+	item->keylen = 3 + strlen(fs->fs_name);
+	item->key = kmalloc(item->keylen, GFP_KERNEL);
 	if (item->key == NULL) {
 		glq_recycle_req(item);
 		log_err("drop_exp: failed to get needed memory. skipping.\n");
 		return -ENOMEM;
 	}
-	item->keylen = pack_drop_mask(item->key, GIO_KEY_SIZE, fs->fs_name);
+	item->keylen = pack_drop_mask(item->key, item->keylen, fs->fs_name);
 
 	/* pretent lvb is name for drops. */
 	if (name != NULL) {
-		len = strlen(name) +1;
-		item->lvb = kmalloc(len, GFP_KERNEL);
+		item->lvblen = strlen(name) +1;
+		item->lvb = kmalloc(item->lvblen, GFP_KERNEL);
 		if (item->lvb == NULL) {
 			glq_recycle_req(item); /* frees key for us */
 			log_err("drop_exp: failed to get needed memory. skipping.\n");
 			return -ENOMEM;
 		}
-		memcpy(item->lvb, name, len);
+		memcpy(item->lvb, name, item->lvblen);
 	} else {
 		item->lvb = NULL;
+		item->lvblen = 0;
 	}
 
 	item->subid = 0;
@@ -336,7 +337,6 @@ int send_drop_exp (gulm_fs_t * fs, char *name)
 	item->state = 0;
 	item->flags = 0;
 	item->error = 0;
-	item->lvblen = 0;
 	item->finish = NULL;
 
 	glq_queue (item);
@@ -491,6 +491,7 @@ gulm_mount (char *table_name, char *host_data,
 	log_msg (lgm_Network2, "Done: %s, async mode\n", table_name);
 
 	gulm_cm.starts = FALSE;
+	if(work != NULL ) kfree(work);
 	return 0;
 
       fail_callback:

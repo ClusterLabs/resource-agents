@@ -161,12 +161,7 @@ void jid_lvb_action (uint8_t * key, uint16_t keylen, uint8_t * lvb,
 		return;
 	}
 
-	item->key = kmalloc(keylen, GFP_KERNEL);
-	if (item->key == NULL) {
-		glq_recycle_req(item);
-		return;
-	}
-	memcpy(item->key, key, keylen);
+	item->key = key;
 	item->keylen = keylen;
 	item->subid = 0;
 	item->start = 0;
@@ -230,12 +225,7 @@ jid_get_lock_state_inr (uint8_t * key, uint16_t keylen, uint8_t state,
 		return;
 	}
 
-	item->key = kmalloc(keylen, GFP_KERNEL);
-	if (item->key == NULL) {
-		glq_recycle_req(item);
-		return;
-	}
-	memcpy(item->key, key, keylen);
+	item->key = key;
 	item->keylen = keylen;
 	item->subid = 0;
 	item->start = 0;
@@ -636,13 +626,15 @@ jid_lockstate_reserve (gulm_fs_t * fs, int first)
 	int len;
 	struct completion sleep;
 	glckr_t *item;
+	uint8_t *key;
 
 	item = glq_get_new_req();
 	if (item == NULL) {
 		return;
 	}
 
-	item->key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	item->key = key;
 	if (item->key == NULL) {
 		glq_recycle_req(item);
 		return;
@@ -665,6 +657,7 @@ jid_lockstate_reserve (gulm_fs_t * fs, int first)
 
 	glq_queue (item);
 	wait_for_completion (&sleep);
+	kfree(key);
 }
 
 /**
@@ -680,13 +673,15 @@ jid_lockstate_release (gulm_fs_t * fs)
 	int len;
 	struct completion sleep;
 	glckr_t *item;
+	uint8_t *key;
 
 	item = glq_get_new_req();
 	if (item == NULL) {
 		return;
 	}
 
-	item->key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	key = kmalloc(NodeLockNameLen, GFP_KERNEL);
+	item->key = key;
 	if (item->key == NULL) {
 		glq_recycle_req(item);
 		return;
@@ -709,6 +704,7 @@ jid_lockstate_release (gulm_fs_t * fs)
 
 	glq_queue (item);
 	wait_for_completion (&sleep);
+	kfree(key);
 }
 
 

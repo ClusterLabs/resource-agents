@@ -233,7 +233,7 @@ int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname)
 	int fsnlen;
 	fsnlen = strlen(fsname);
 
-	memset (mask, 0, GIO_KEY_SIZE);
+	memset (mask, 0, mlen);
 
 	mask[0] = 0xff;
 	mask[1] = fsnlen;
@@ -374,6 +374,7 @@ unmark_and_release_lock (gulm_lock_t * lck)
 		if (lck->lvb != NULL) {
 			kfree (lck->lvb);
 		}
+		kfree (lck->key);
 		kfree (lck);
 	}
 

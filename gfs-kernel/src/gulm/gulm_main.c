@@ -11,12 +11,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-/* TODO what do all of these defines do?
- * do I use any of them anymore?
- */
-#define EXPORT_SYMTAB
-#define WANT_DEBUG_NAMES
-#define WANT_GMALLOC_NAMES
 #define EXTERN
 #include "gulm.h"
 
