@@ -1,0 +1,526 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/smp_lock.h>
+#include <linux/spinlock.h>
+#include <asm/semaphore.h>
+#include <linux/completion.h>
+#include <linux/buffer_head.h>
+
+#include "gfs.h"
+#include "dio.h"
+#include "glock.h"
+#include "glops.h"
+#include "inode.h"
+#include "log.h"
+#include "page.h"
+#include "recovery.h"
+#include "rgrp.h"
+
+/**
+ * meta_go_sync - sync out the metadata for this glock
+ * @gl: the glock
+ * @flags: DIO_*
+ *
+ */
+
+static void
+meta_go_sync(struct gfs_glock *gl, int flags)
+{
+	if (!(flags & DIO_METADATA))
+		return;
+
+	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
+		gfs_log_flush_glock(gl);
+		gfs_sync_buf(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
+	}
+
+	clear_bit(GLF_DIRTY, &gl->gl_flags);
+	clear_bit(GLF_SYNC, &gl->gl_flags);
+}
+
+/**
+ * meta_go_inval - invalidate the metadata for this glock
+ * @gl: the glock
+ * @flags: 
+ *
+ */
+
+static void
+meta_go_inval(struct gfs_glock *gl, int flags)
+{
+	if (!(flags & DIO_METADATA))
+		return;
+
+	gfs_inval_buf(gl);
+	gl->gl_vn++;
+}
+
+/**
+ * meta_go_demote_ok - check to see if it's ok to unlock a glock
+ * @gl: the glock
+ *
+ * Returns: TRUE if it's ok
+ */
+
+static int
+meta_go_demote_ok(struct gfs_glock *gl)
+{
+	return (gl->gl_aspace->i_mapping->nrpages) ? FALSE : TRUE;
+}
+
+/**
+ * inode_go_xmote_th - promote/demote a glock
+ * @gl: the glock
+ * @state: the requested state
+ * @flags: the flags passed into gfs_glock()
+ *
+ */
+
+static void
+inode_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
+{
+	if (gl->gl_state != LM_ST_UNLOCKED)
+		gfs_inval_pte(gl);
+	gfs_glock_xmote_th(gl, state, flags);
+}
+
+/**
+ * inode_go_xmote_bh - promote/demote a glock
+ * @gl: the glock
+ *
+ * This will be really broken when (no_formal_ino != no_addr)
+ *
+ */
+
+static void
+inode_go_xmote_bh(struct gfs_glock *gl)
+{
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	struct gfs_holder *gh = gl->gl_req_gh;
+	struct buffer_head *bh;
+	int error;
+
+	if (gl->gl_state != LM_ST_UNLOCKED &&
+	    (!gh || !(gh->gh_flags & GL_SKIP))) {
+		error = gfs_dread(sdp, gl->gl_name.ln_number, gl, DIO_START, &bh);
+		if (!error)
+			brelse(bh);
+	}
+}
+
+/**
+ * inode_go_drop_th - unlock a glock
+ * @gl: the glock
+ *
+ */
+
+static void
+inode_go_drop_th(struct gfs_glock *gl)
+{
+	gfs_inval_pte(gl);
+	gfs_glock_drop_th(gl);
+}
+
+/**
+ * inode_go_sync - Sync the dirty data for a inode glock
+ * @gl: the glock
+ * @flags: 
+ *
+ */
+
+static void
+inode_go_sync(struct gfs_glock *gl, int flags)
+{
+	int meta = (flags & DIO_METADATA);
+	int data = (flags & DIO_DATA);
+
+	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
+		if (meta && data) {
+			gfs_sync_page(gl, flags | DIO_START);
+			gfs_log_flush_glock(gl);
+			gfs_sync_buf(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
+			gfs_sync_page(gl, flags | DIO_WAIT | DIO_CHECK);
+		} else if (meta) {
+			gfs_log_flush_glock(gl);
+			gfs_sync_buf(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
+		} else if (data)
+			gfs_sync_page(gl, flags | DIO_START | DIO_WAIT | DIO_CHECK);
+	}
+
+	if (meta && data) {
+		if (!(flags & DIO_INVISIBLE))
+			clear_bit(GLF_DIRTY, &gl->gl_flags);
+		clear_bit(GLF_SYNC, &gl->gl_flags);
+	}
+}
+
+/**
+ * inode_go_inval - prepare a inode glock to be released
+ * @gl: the glock
+ * @flags: 
+ *
+ */
+
+static void
+inode_go_inval(struct gfs_glock *gl, int flags)
+{
+	int meta = (flags & DIO_METADATA);
+	int data = (flags & DIO_DATA);
+
+	if (meta) {
+		gfs_inval_buf(gl);
+		gl->gl_vn++;
+	}
+	if (data)
+		gfs_inval_page(gl);
+}
+
+/**
+ * inode_go_demote_ok - check to see if it's ok to unlock a glock
+ * @gl: the glock
+ *
+ * Returns: TRUE if it's ok
+ */
+
+static int
+inode_go_demote_ok(struct gfs_glock *gl)
+{
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	int demote = FALSE;
+
+	if (!gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
+		demote = TRUE;
+	else if (!sdp->sd_args.ar_localcaching &&
+		 time_after_eq(jiffies, gl->gl_stamp + sdp->sd_tune.gt_demote_secs * HZ))
+		demote = TRUE;
+
+	return demote;
+}
+
+/**
+ * inode_go_lock - operation done after an inode lock is locked by a process
+ * @gl: the glock
+ * @flags: the flags passed into gfs_glock()
+ *
+ * Returns: 0 on success, -EXXX on failure
+ */
+
+static int
+inode_go_lock(struct gfs_glock *gl, int flags)
+{
+	struct gfs_inode *ip = gl2ip(gl);
+	int error = 0;
+
+	if (ip && ip->i_vn != gl->gl_vn) {
+		error = gfs_copyin_dinode(ip);
+		if (!error)
+			gfs_inode_attr_in(ip);
+	}
+
+	return error;
+}
+
+/**
+ * inode_go_unlock - operation done before an inode lock is unlocked by a process
+ * @gl: the glock
+ * @flags: the flags passed into gfs_gunlock()
+ *
+ */
+
+static void
+inode_go_unlock(struct gfs_glock *gl, int flags)
+{
+	struct gfs_inode *ip = gl2ip(gl);
+
+	if (ip && test_bit(GLF_DIRTY, &gl->gl_flags))
+		gfs_inode_attr_in(ip);
+
+	if (ip)
+		gfs_flush_meta_cache(ip);
+}
+
+/**
+ * rgrp_go_xmote_th - promote/demote a glock
+ * @gl: the glock
+ * @state: the requested state
+ * @flags: the flags passed into gfs_glock()
+ *
+ */
+
+static void
+rgrp_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
+{
+	struct gfs_rgrpd *rgd = gl2rgd(gl);
+
+	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
+
+	gfs_mhc_zap(rgd);
+	gfs_depend_sync(rgd);
+	gfs_glock_xmote_th(gl, state, flags);
+}
+
+/**
+ * rgrp_go_drop_th - unlock a glock
+ * @gl: the glock
+ *
+ */
+
+static void
+rgrp_go_drop_th(struct gfs_glock *gl)
+{
+	struct gfs_rgrpd *rgd = gl2rgd(gl);
+
+	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
+
+	gfs_mhc_zap(rgd);
+	gfs_depend_sync(rgd);
+	gfs_glock_drop_th(gl);
+}
+
+/**
+ * rgrp_go_demote_ok - check to see if it's ok to unlock a glock
+ * @gl: the glock
+ *
+ * Returns: TRUE if it's ok
+ */
+
+static int
+rgrp_go_demote_ok(struct gfs_glock *gl)
+{
+	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	int demote = TRUE;
+
+	if (gl->gl_aspace->i_mapping->nrpages)
+		demote = FALSE;
+	else if (rgd && !list_empty(&rgd->rd_mhc)) /* Don't bother with lock here */
+		demote = FALSE;
+
+	return demote;
+}
+
+/**
+ * rgrp_go_lock - operation done after an rgrp lock is locked by a process
+ * @gl: the glock
+ * @flags: the flags passed into gfs_glock()
+ *
+ * Returns: 0 on success, -EXXX on failure
+ */
+
+static int
+rgrp_go_lock(struct gfs_glock *gl, int flags)
+{
+	struct gfs_rgrpd *rgd = gl2rgd(gl);
+	int error = 0;
+
+	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
+
+	if (!(flags & GL_SKIP))
+		error = gfs_rgrp_read(rgd);
+
+	return error;
+}
+
+/**
+ * rgrp_go_unlock - operation done before an rgrp lock is unlocked by a process
+ * @gl: the glock
+ * @flags: the flags passed into gfs_gunlock()
+ *
+ */
+
+static void
+rgrp_go_unlock(struct gfs_glock *gl, int flags)
+{
+	struct gfs_rgrpd *rgd = gl2rgd(gl);
+
+	GFS_ASSERT_GLOCK(rgd && gl->gl_lvb, gl,);
+
+	if (!(flags & GL_SKIP)) {
+		gfs_rgrp_relse(rgd);
+		if (test_bit(GLF_DIRTY, &gl->gl_flags))
+			gfs_rgrp_lvb_fill(rgd);
+	}
+}
+
+/**
+ * trans_go_xmote_th - promote/demote a metadata glock
+ * @gl: the glock
+ * @state: the requested state
+ * @flags: the flags passed into gfs_glock()
+ *
+ */
+
+static void
+trans_go_xmote_th(struct gfs_glock *gl, unsigned int state, int flags)
+{
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	int error;
+
+	if (gl->gl_state != LM_ST_UNLOCKED &&
+	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
+		gfs_sync_meta(sdp);
+
+		error = gfs_log_shutdown(sdp);
+		if (error)
+			gfs_io_error(sdp);
+	}
+
+	gfs_glock_xmote_th(gl, state, flags);
+}
+
+/**
+ * trans_go_xmote_bh - promote/demote a metadata glock
+ * @gl: the glock
+ *
+ */
+
+static void
+trans_go_xmote_bh(struct gfs_glock *gl)
+{
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	struct gfs_glock *j_gl = sdp->sd_journal_gh.gh_gl;
+	struct gfs_log_header head;
+	int error;
+
+	if (gl->gl_state != LM_ST_UNLOCKED &&
+	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
+		j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
+
+		error = gfs_find_jhead(sdp, &sdp->sd_jdesc, j_gl, &head);
+		GFS_ASSERT_SBD(!error, sdp,);  /* FixMe!!! */
+		GFS_ASSERT_SBD(head.lh_flags & GFS_LOG_HEAD_UNMOUNT, sdp,);
+
+		/*  Initialize some head of the log stuff  */
+		sdp->sd_sequence = head.lh_sequence;
+		sdp->sd_log_head = head.lh_first + 1;
+	}
+}
+
+/**
+ * trans_go_drop_th - prepare the transaction glock to be released
+ * @gl: the glock
+ *
+ * We want to sync the device even with localcaching.  Remember
+ * that localcaching journal replay only marks buffers dirty.
+ */
+
+static void
+trans_go_drop_th(struct gfs_glock *gl)
+{
+	struct gfs_sbd *sdp = gl->gl_sbd;
+	int error;
+
+	if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
+		gfs_sync_meta(sdp);
+
+		error = gfs_log_shutdown(sdp);
+		if (error)
+			gfs_io_error(sdp);
+	}
+
+	gfs_glock_drop_th(gl);
+}
+
+/**
+ * nondisk_go_demote_ok - check to see if it's ok to unlock a glock
+ * @gl: the glock
+ *
+ * Returns: TRUE if it's ok
+ */
+
+static int
+nondisk_go_demote_ok(struct gfs_glock *gl)
+{
+	return FALSE;
+}
+
+/**
+ * quota_go_demote_ok - check to see if it's ok to unlock a glock
+ * @gl: the glock
+ *
+ * Returns: TRUE if it's ok
+ */
+
+static int
+quota_go_demote_ok(struct gfs_glock *gl)
+{
+	return !atomic_read(&gl->gl_lvb_count);
+}
+
+struct gfs_glock_operations gfs_meta_glops = {
+      .go_xmote_th = gfs_glock_xmote_th,
+      .go_drop_th = gfs_glock_drop_th,
+      .go_sync = meta_go_sync,
+      .go_inval = meta_go_inval,
+      .go_demote_ok = meta_go_demote_ok,
+      .go_type = LM_TYPE_META
+};
+
+struct gfs_glock_operations gfs_inode_glops = {
+      .go_xmote_th = inode_go_xmote_th,
+      .go_xmote_bh = inode_go_xmote_bh,
+      .go_drop_th = inode_go_drop_th,
+      .go_sync = inode_go_sync,
+      .go_inval = inode_go_inval,
+      .go_demote_ok = inode_go_demote_ok,
+      .go_lock = inode_go_lock,
+      .go_unlock = inode_go_unlock,
+      .go_type = LM_TYPE_INODE
+};
+
+struct gfs_glock_operations gfs_rgrp_glops = {
+      .go_xmote_th = rgrp_go_xmote_th,
+      .go_drop_th = rgrp_go_drop_th,
+      .go_sync = meta_go_sync,
+      .go_inval = meta_go_inval,
+      .go_demote_ok = rgrp_go_demote_ok,
+      .go_lock = rgrp_go_lock,
+      .go_unlock = rgrp_go_unlock,
+      .go_type = LM_TYPE_RGRP
+};
+
+struct gfs_glock_operations gfs_trans_glops = {
+      .go_xmote_th = trans_go_xmote_th,
+      .go_xmote_bh = trans_go_xmote_bh,
+      .go_drop_th = trans_go_drop_th,
+      .go_type = LM_TYPE_NONDISK
+};
+
+struct gfs_glock_operations gfs_iopen_glops = {
+      .go_xmote_th = gfs_glock_xmote_th,
+      .go_drop_th = gfs_glock_drop_th,
+      .go_callback = gfs_iopen_go_callback,
+      .go_type = LM_TYPE_IOPEN
+};
+
+struct gfs_glock_operations gfs_flock_glops = {
+      .go_xmote_th = gfs_glock_xmote_th,
+      .go_drop_th = gfs_glock_drop_th,
+      .go_type = LM_TYPE_FLOCK
+};
+
+struct gfs_glock_operations gfs_nondisk_glops = {
+      .go_xmote_th = gfs_glock_xmote_th,
+      .go_drop_th = gfs_glock_drop_th,
+      .go_demote_ok = nondisk_go_demote_ok,
+      .go_type = LM_TYPE_NONDISK
+};
+
+struct gfs_glock_operations gfs_quota_glops = {
+      .go_xmote_th = gfs_glock_xmote_th,
+      .go_drop_th = gfs_glock_drop_th,
+      .go_demote_ok = quota_go_demote_ok,
+      .go_type = LM_TYPE_QUOTA
+};

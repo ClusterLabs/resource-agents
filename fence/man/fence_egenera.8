@@ -1,0 +1,114 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_egenera(8)''fence_egenera(8)'
+
+\fBNAME\fP
+.in +7
+fence_egenera - I/O Fencing agent for the Egenera BladeFrame
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_egenera -c\fP \fIcserver\fR \fB-l\fP \fIlpan\fR \fB-p\fP \fIpserver\fR [\fB-o\fP action] 
+[\fB-q\fP] 
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_egenera is an I/O Fencing agent which can be used with the Egenera
+BladeFrame.  It logs into a control blade (cserver) via ssh and operates
+on a processing blade (pserver) identified by the pserver name and the 
+logical process area network (LPAN) that it is in.  fence_egenera requires
+that ssh keys have been setup so that the fence_egenera does not require
+a password to authenticate.  Refer to ssh(8) for more information on setting
+up ssh keys.
+.sp
+fence_egenera accepts options on the command line as well as from stdin.  
+Fenced sends parameters through stdin when it execs the agent.  fence_egenera 
+can also be run by itself with command line options.  
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-c\fP \fIcserver\fR
+.in +7
+The cserver to ssh to.  cserver can be in the form user@hostname to
+specify a different user to login as.
+.sp
+.in
+\fB-h\fP 
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-l\fP \fIlpan\fR
+.in +7
+the lpan to operate on
+.sp
+.in
+\fB-o\fP \fIaction\fR
+.in +7
+The action required.  reboot (default), off, on or status.
+.in
+.sp
+\fB-p\fP \fIpserver\fR
+.in +7
+the pserver to operate on
+.sp
+.in
+\fB-q\fP
+.in +7
+quite mode.  supress output.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.in
+.sp
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI action = < param >\fR
+.sp
+The action required.  reboot (default), off, on or status.
+.sp
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_apc.
+.sp
+
+\fI cserver = < param >\fR
+.sp
+The cserver to ssh to.  cserver can be in the form user@hostname to
+specify a different user to login as.
+.sp
+
+\fI lpan = < param >\fR
+.sp
+The lpan to operate on
+.sp
+
+\fI pserver = < param >\fR
+.sp
+The pserver to operate on
+.sp
+
+\fI esh = < param >\fR
+.sp
+The path to the esh command on the cserver (default is /opt/panmgr/bin/esh )
+.sp
+
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8), ssh(8)

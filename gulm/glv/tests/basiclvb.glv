@@ -1,0 +1,57 @@
+# just push a lvb around a bit
+
+nodecount 1
+
+test
+	action 0 testlvb holdlvb nolvb
+	arpl 0 testlvb holdlvb ok
+end
+
+# LVB is not writen here.
+test
+	lock 0 testlvb exclusive noflags this_is_a_lvb
+	lrpl 0 testlvb exclusive cachable ok nolvb
+end
+
+# But here. (when you *leave* exclusive.)
+test
+	lock 0 testlvb unlock noflags this_is_a_lvb
+	lrpl 0 testlvb unlock noflags ok nolvb
+end
+
+# so if we grab it again...
+test
+	lock 0 testlvb shared noflags nolvb
+	lrpl 0 testlvb shared cachable ok this_is_a_lvb
+end
+
+test
+	action 0 testlvb unholdlvb nolvb
+	arpl 0 testlvb unholdlvb ok
+end
+
+test
+	lock 0 testlvb unlock noflags nolvb
+	lrpl 0 testlvb unlock noflags ok nolvb
+end
+
+# now lets grab it, without the hold
+test
+	lock 0 testlvb exclusive noflags nolvb
+	lrpl 0 testlvb exclusive cachable ok nolvb
+end
+# we can send a lvb, but it won't write.
+test
+	lock 0 testlvb unlock noflags this_is_a_lvb
+	lrpl 0 testlvb unlock noflags ok nolvb
+end
+# so if we grab it again this way...
+test
+	lock 0 testlvb shared noflags nolvb
+	lrpl 0 testlvb shared cachable ok nolvb
+end
+
+test
+	lock 0 testlvb unlock noflags nolvb
+	lrpl 0 testlvb unlock noflags ok nolvb
+end

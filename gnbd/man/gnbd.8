@@ -1,0 +1,41 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.tl 'GNBD(8)''GNBD(8)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 gnbd.8 | less'
+
+\fBNAME\fP
+.in +7
+GNBD reference guide
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+Overview of manpages and their locations
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+The GFS Network Block Device has two parts, the client (which requires the
+\fBgnbd.o\fP module and the \fBgnbd_import\fP program) and the server
+(which requires the \fBgnbd_serv.o\fP module and the \fBgnbd_export\fP program).  The GNBD server allows a computer
+to export multiple block devices or files (GNBDs).  The GNBD client allows a
+computer to import these GNBDs, and use them as if they were local block
+devices.  The primary difference between GNBD and NBD (the network block
+device distributed with the Linux kernel) is GNBD's ability to have multiple
+clients all accessing the same served file or block device at the same
+time.   
+.sp
+The GNBD documentation has been split into a number of sections.  Please
+refer to the table below to determine which man page coincides with the
+command/feature you are looking for.
+.sp
+ \fBgnbd\fP                 GNBD overview (this man page)
+ \fBgnbd_import\fP          Configure a GNBD Client
+ \fBgnbd_export\fP          Configure a GNBD Server
+ \fBfence_gnbd\fP           Fence method for GNBD
+.sp
+.in
+\fBSEE ALSO\fP
+.in +7
+pool(8), gfs(8), fence(8), fence_gnbd(8)

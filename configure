@@ -1,0 +1,31 @@
+#!/bin/sh
+
+echo "configure magma"
+(cd magma; ./configure $@)
+
+echo "configure ccs"
+(cd ccs; ./configure $@)
+
+echo "configure cman"
+(cd cman; ./configure $@)
+
+echo "configure dlm"
+(cd dlm; ./configure $@)
+
+echo "configure fence"
+(cd fence; ./configure $@)
+
+echo "configure iddev"
+(cd iddev; ./configure $@)
+
+echo "configure gfs"
+(cd gfs; ./configure $@)
+
+echo "configure gnbd"
+(cd gnbd; ./configure $@)
+
+echo "configure gulm"
+(cd gulm; ./configure $@)
+
+echo "configure magma-plugins"
+(cd magma-plugins; ./configure $@)

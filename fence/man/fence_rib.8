@@ -1,0 +1,121 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_rib(8)''fence_rib(8)'
+
+\fBNAME\fP
+.in +7
+fence_rib - I/O Fencing agent for Compaq Remote Insight Lights Out card
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_rib -a\fP \fIIPaddress:SSLPort\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIlocalport\fR 
+[\fB-o\fP action] [\fB-vqVh\fP] 
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_rib is an I/O Fencing agent used for Compaq servers with the Remote Insight Light Out (RILOE) PCI card.  The agent creates an SSL tunnel from \fIlocalport\fR (default 8888) to the RILOE card.  The card has its own interface and is 
+running on the default SSL port 443.  
+.sp
+fence_rib accepts options on the command line as well as from stdin.  
+Fenced sends parameters through stdin when it execs the agent.  fence_rib 
+can be run by itself with command line options.  This is useful for testing 
+and for turning outlets on or off from scripts.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-a\fP \fIIPaddress[:port]\fR
+.in +7
+IP address or hostname of the switch.  If the SSL server of the card is 
+not running on the default SSL prt, 443, then [:port] will also need to be 
+specified.
+.sp
+.in
+\fB-h\fP 
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-l\fP \fIlogin\fR
+.in +7
+Login name.
+.sp
+.in
+\fB-n\fP \fIlocalport\fR
+.in +7
+The local INET port to connect the SSL connection to.  
+.sp
+.in
+\fB-o\fP \fIaction\fR
+.in +7
+The action required.  reboot (default), off, on or status.
+.in
+.sp
+\fB-p\fP \fIpassword\fR
+.in +7
+Password for login.
+.sp
+.in
+\fB-v\fP
+.in +7
+Verbose.  
+.in
+.sp
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.in
+.sp
+
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fIaction = < param >\fR
+.sp
+The action required.  reboot (default), off, on or status.
+.sp
+
+\fIagent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_rib.
+.sp
+
+\fIhostname = < hostname | ip >\fR
+.sp
+IP address or hostname of the RILOE card.
+.sp
+
+\fIlocalport = < param >\fR
+.sp
+The local INET port to connect the SSL connection to.
+.sp
+
+\fIlogin = < param >\fR
+.sp
+Login name.
+.sp
+
+\fIpasswd = < param >\fR
+.sp
+Password for login.
+.sp
+
+\fIverbose = < param >\fR
+.sp
+Verbose mode.
+.sp
+
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8)

@@ -1,0 +1,39 @@
+.TH "CLU_GET_EVENT" "3" "Mar 2004" "" "Magma Cluster Plugin Library"
+.SH NAME
+clu_get_event \- Obtain an event description of whatever made
+.SH SYNOPSIS
+.nf
+.B #include <magma.h>
+.sp
+.BI "int clu_get_event(int fd);"
+.sp
+.SH DESCRIPTION
+.LP
+The \fBclu_get_event()\fP function retrieves an event from an active cluster
+file descriptor \fBfd\fP.
+.SH "RETURN VALUE"
+.LP
+.B CEV_NULL 
+\- Spurious Event Wakeup
+.LP
+.B CEV_SHUTDOWN
+\- Local node left or is leaving the cluster.
+.LP
+.B CEV_MEMB_CHANGE
+\- Change in membership / Node transition.  This should only be handled when
+the local node is quorate, and should be ignored at all other times.
+Generally, programs ought to call \fBclu_member_list()\fP to retrieve the
+active membership after this event is received.  It is up to the caller
+to figure out the differences in the membership lists.
+.LP
+.B CEV_QUORATE
+\- The local node is now a part of the cluster quorum.  Generally, programs
+ought to call \fBclu_member_list()\fP to retrieve the active membership
+after this event is received.
+.LP
+.B CEV_INQUORATE
+\- The local node is no longer a part of the cluster quorum; expect to be
+fenced.
+
+.SH "SEE ALSO"
+clu_connect(3), clu_disconnect(3), clu_member_list(3)

@@ -1,0 +1,53 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fenced(8)''fenced(8)'
+
+\fBNAME\fP
+.in +7
+fenced- the I/O Fencing daemon
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfenced [options]\fP
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+The fencing daemon, \fBfenced\fP, should be run on every node in a cluster
+whose cluster membership is tracked in a distributed manner.  This is the
+case when using a lock manager like the Distributed Locking Manager (DLM).
+Locking managers, such as the Single Locking Manager (SLM) or Redundant
+Locking Manager (RLM), track cluster membership centrally, and do not
+require \fBfenced\fP to be running.
+
+.sp
+.in
+\fBOPTIONS\fP
+.in +7
+.sp
+\fB-h\fP 
+.in +7
+Print out a help message describing available options, then exit.
+.in
+.sp
+\fB-n\fP
+.in +7
+No daemon.  Run in the foreground.
+.in
+.sp
+\fB-V\fP
+.in +7
+Print the version information and exit.
+.in
+.sp
+.in -7
+\fBSEE ALSO\fP
+.in +7
+gfs(8), fence(8)
+

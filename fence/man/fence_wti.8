@@ -1,0 +1,103 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_wti(8)''fence_wti(8)'
+
+\fBNAME\fP
+.in +7
+fence_wti - I/O Fencing agent for WTI Network Power Switch
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_wti -a\fP \fIIPaddress\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIplug\fR [\fB-T\fP]
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_wti is an I/O Fencing agent which can be used with the WTI Network 
+Power Switch (NPS).  It logs into an NPS via telnet and boots a specified plug.
+Lengthy telnet connections to the NPS should be avoided while a GFS cluster is 
+running because the connection will block any necessary fencing actions.
+.sp
+fence_wti accepts options on the command line as well as from stdin.  
+fenced sends the options through stdin when it execs the agent.  fence_wti 
+can be run by itself with command line options which is useful for testing.
+.sp
+.in 
+\fBOPTIONS\fP
+.in 
+\fB-a\fP \fIIPaddress\fP
+.in +7
+IP address of the switch.
+.sp
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.in
+.sp
+\fB-n\fP \fIplug\fP
+.in +7
+The plug number to power cycle.
+.in
+.sp
+\fB-p\fP \fIpassword\fP
+.in +7
+Password for login.
+.sp
+.in
+\fB-T\fP
+.in +7
+Test only.  Do not power cycle.  Reports state of the plug.
+.in
+.sp
+\fB-q\fP
+.in +7
+Quiet operation.  Only print out error messages.
+.in
+.sp
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.in
+.sp
+
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_wti.
+.sp
+
+\fIipaddr = < hostname | ip >\fR
+.sp
+IP address or hostname of the switch.
+.sp
+
+\fI passwd = < param >\fR
+.sp
+Password for login.
+.sp
+
+\fI port = < param >\fR
+.sp
+The outlet number to act upon.
+.sp
+
+\fI test = < param >\fR
+.sp
+Test only.  Answer NO to the confirmation prompt instead of YES.
+.sp
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8)

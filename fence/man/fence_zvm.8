@@ -1,0 +1,93 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_zvm(8)''fence_zvm(8)'
+
+\fBNAME\fP
+.in +7
+fence_zvm - I/O Fencing agent for GFS on s390 and zSeries VM clusters
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_zvm -a\fP \fIIPaddress\fP \fB-u\fP \fIuserid\fP \fB-p\fP \fIpassword\fP
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_zvm is an I/O Fencing agent used on a GFS virtual machine in a s390 or zSeries VM cluster.
+It uses the s3270 program to log the specified virtual machine out of VM.
+For fence_zvm to execute correctly, you must have s3270 in your PATH.
+
+.sp
+fence_zvm accepts options on the command line as well as from stdin.
+fence_node sends the options through stdin when it execs the agent.
+fence_zvm can be run by itself with command line options which is useful
+for testing.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-a\fP \fIIPaddress\fP
+.in +7
+IP address or hostname of the Physical machine (required).
+.sp
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-u\fP \fIuserid\fP
+.in +7
+userid of the virtual machine to fence (required).
+.sp
+.in
+\fB-p\fP \fIpassword\fP
+.in +7
+password of the virtual machine to fence (required).
+.sp
+.in
+\fB-q\fP
+.in +7
+quiet mode, no output.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.sp
+.in
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fIagent = < param >\fP
+.sp
+This option is used by fence_node(8) and is ignored by fence_zvm.
+.sp
+
+\fIipaddr = < hostname | ip >\fP
+.sp
+IP address or hostname of the Physical machine (required).
+.sp
+
+\fIpasswd = < param >\fP
+.sp
+password of the virtual machine to fence (required).
+.sp
+
+\fIuserid = < param >\fP
+.sp
+userid of the virtual machine to fence (required).
+.sp
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fenced(8), fence_node(8)

@@ -1,0 +1,32 @@
+
+Logging in is the only tightly bound request/response action.
+glvc> Hello <name>\n
+glvd> HI\n
+
+
+All the rest are fairly free form. Since the client is mostly just a
+pass-through for stuff to gulm.
+
+glvd sends:
+ lock <key> <state> <flags> <lvb>\n
+ action <key> <action> <lvb>\n
+ cancel <key>\n
+ dropexp <nodename> <mask>\n
+ GOODBYE\n
+
+glvc send:
+ lrpl <key> <state> <flags> <error> <lvb>\n
+ arpl <key> <action> <error>\n
+ drop <key> <state>\n
+ GOODBYE\n
+
+
+<key> is [a-zA-Z0-9_]
+<state> is [0-9]
+<action> is [0-9]
+<flags> is [0-9]
+<nodename> is [a-zA-Z0-9_]
+<mask> is [a-zA-Z0-9_]
+<lvb> is either 'nolvb' or [a-zA-Z0-9_]
+<error> is [0-9]
+

@@ -1,0 +1,178 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.tl 'gnbd_export(8)''gnbd_export(8)'
+
+\fBNAME\fP 
+.in +7
+gnbd_export - the interface to export GNBDs
+
+.in
+\fBSYNOPSIS\fP 
+.in +7
+\fBgnbd_export\fP [options]
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+gnbd_export exports local block devices or files as GNBDs.
+.sp
+.in
+\fBOPTIONS\fP
+.in +7
+\fB-c\fP
+.in +7
+Enable caching.
+.sp
+Reads from the exported GNBD will take advantage of the linux page cache.
+This option is used with \fB-e\fP. \fBNOTE:\fP This was the default
+behavior for gnbd_export through GFS 5.2.  If this option is not specified,
+gnbd will run with a noticeable performance decrease.  Also, if this option
+is not specified, the exported GNBD will run in timeout mode, with the
+default timeout (see the \fB-t\fP option).  Customers who have been GFS 5.2
+or earlier and do not want to change their gnbd setup should specify this
+option. \fBWARNING:\fP You must NOT specify this option if you wish to use
+gnbd with pool multipathing.  To set up pool multipathing over gnbd, all
+gnbds that are part of the pool must run with caching disabled.  Pool will
+not check that this has been done correctly, and data corruption will occur
+if the GNBD devices are run with caching.
+.sp
+.in
+\fB-d\fI pathname\fR
+.in +7
+Device.
+.sp
+Specify the device to export as a GNBD.  This option is used with \fB-e\fP. 
+\fIpathname\fR may be either a block device or a regular file.  Usually block 
+devices are used, because this increases GNBD performance.
+.sp
+.in
+\fB-e\fI gnbdname\fR
+.in +7
+Export.
+.sp
+Export a device as a GNBD with the Device name \fIgnbdname\fR. You must also
+specify the pathname of the device with the \fB-d\fP option.  Once a GNBD 
+has been exported, clients can import it with \fBgnbd_import\fP.
+.sp
+.in
+\fB-h\fP
+.in +7
+Help.
+.sp
+Print the usage information.
+.sp
+.in
+\fB-l\fP 
+.in +7
+List.
+.sp
+List all exported GNBDs and kgnbd_portd server information.  The listing 
+contains each server's number (which is only for internal use), its Device 
+name, the pathname of the device that is being exported, and the port that 
+clients can use to access it.
+.sp
+.in
+\fB-O\fP
+.in +7
+Override
+.sp
+This option allows you to unexport gnbd devices, even if they are still in
+use.  When an agent other than fence_gnbd is used to fence gnbd client nodes,
+occasionally gnbd server threads are not correctly cleaned up.  This causes
+no performance issues. However, the affected gnbd devices cannot be unexported.
+In this case, using the \fB-O\fP option with either \fB-r\fP or \fB-R\fP will
+allow you to unexport the GNBD devices.  \fBWARNING:\fP Make sure
+that no clients have the GNBD imported before using this option.
+.sp
+.in
+\fB-p\fP [\fIport\fR]
+.in +7
+Start kgnbd_portd.
+.sp
+Start the kbgnbd_portd daemon (default port 14243). The kgnbd_portd daemon 
+provides gndb_import with the information necessary to import the GNBDs.
+If the daemon is started on a different port, the \fBgnbd_import\fP command 
+must be run with the \fB-p\fP option.
+.sp
+.in
+\fB-P\fP \fIport\fP
+.in +7
+GNBD Port
+.sp
+Specify the port to export a GNBD on.  This option is used with \fB-e\fP.
+if \fB-P\fP isn't specified, an random port is chosen. The -P option is
+necessary for autoreconnection with pool multipathing over gnbd. In order for
+a gnbd client to autoreconnect to a server when pool tries to reintegrate
+paths (see pool_mp(8) for details), the GNBD server must be at the same
+IP and port as it was previously.
+.sp
+.in
+\fB-q\fP 
+.in +7
+Quiet.
+.sp
+Only prints out error messages.
+.sp
+.in
+\fB-R\fP
+.in +7
+Remove All.
+.sp
+Remove all exported GNBDs.
+.sp
+.in
+\fB-r\fP [\fIGNBD(s)\fR]
+.in +7
+Remove.
+.sp
+Remove named GNBD(s).
+.sp
+.in
+\fB-s\fP
+.in +7
+Stop kgnbd_portd.
+.sp
+Stop the current kgnbd_portd daemon.  When the daemon is stopped, it will be
+impossible for gnbd_import import the GNBDs. \fBNOTE:\fP This is not a
+security feature.  It is still possible for someone who knows the port and
+name of the GNBD to access it. This option mainly exists to allow the port
+to be changed.
+.sp
+.in
+\fB-t\fP [\fIseconds\fR]
+.in +7
+Timeout.
+.sp
+Set the exported GNBD to timeout mode  This option is used with \fB-p\fP.
+This is the default for uncached GNBDs. For cached GNBDs, the default is wait
+mode (For GFS versions up through 5.2, all GNBDs were in wait mode).  In wait
+mode, if the connection to the server is lost, the gnbd client waits for the
+connection to be reestablished, and then resends all the pending requests.  In
+timeout mode, if the connection is lost or if the gnbd client does not receive a
+response from the server within the timeout period, the gnbd client returns all
+pending and future requests as failures until the imported GNBD is closed. The
+default timeout period is 5 seconds. Timeout mode is necessary for failover to
+work with pool multipathing over gnbd.
+.sp
+.in
+\fB-v\fP
+.in +7
+Verbose.
+.sp
+Increase the verbosity of the output.  This option is the most useful with
+\fB-l\fP.  If it is used along with \fB-l\fP, an extended list of information
+on each exported device will be printed.
+.sp
+.in
+\fB-V\fP
+.in +7
+Version information.
+.sp
+Print out version information.
+.sp
+.in
+.in -7
+\fBSEE ALSO\fP
+.in +7
+gnbd_import(8), gnbd(8)

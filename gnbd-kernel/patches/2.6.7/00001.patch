@@ -1,0 +1,26 @@
+diff -urN linux-2.6.7/drivers/block/Kconfig linux-2.6.7-patched/drivers/block/Kconfig
+--- linux-2.6.7/drivers/block/Kconfig	2004-06-16 00:19:01.000000000 -0500
++++ linux-2.6.7-patched/drivers/block/Kconfig	2004-06-17 16:38:45.000000000 -0500
+@@ -347,6 +347,13 @@
+ 	  your machine, or if you want to have a raid or loopback device
+ 	  bigger than 2TB.  Otherwise say N.
+ 
++config BLK_DEV_GNBD
++	tristate "Global network block device support"
++	depends on NET
++	---help---
++	  
++	  If unsure, say N.
++
+ source "drivers/s390/block/Kconfig"
+ 
+ endmenu
+diff -urN linux-2.6.7/drivers/block/Makefile linux-2.6.7-patched/drivers/block/Makefile
+--- linux-2.6.7/drivers/block/Makefile	2004-06-16 00:19:52.000000000 -0500
++++ linux-2.6.7-patched/drivers/block/Makefile	2004-06-17 16:38:45.000000000 -0500
+@@ -42,4 +42,4 @@
+ 
+ obj-$(CONFIG_VIODASD)		+= viodasd.o
+ obj-$(CONFIG_BLK_DEV_CARMEL)	+= carmel.o
+-
++obj-$(CONFIG_BLK_DEV_GNBD)	+= gnbd.o

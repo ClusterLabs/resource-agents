@@ -1,0 +1,40 @@
+# This test checks how two nodes asking for the same exlcusive lock with
+# various flags and stuff.
+nodecount 2
+
+test
+	lock 0 testlock exclusive noflags nolvb
+	lrpl 0 testlock exclusive cachable ok nolvb
+end
+
+test
+	lock 1 testlock exclusive try nolvb
+	lrpl 1 testlock exclusive try tryfailed nolvb
+end
+
+test
+	lock 1 testlock exclusive try|docb nolvb
+	lrpl 1 testlock exclusive try|docb tryfailed nolvb
+	drop 0 testlock exclusive
+end
+
+test
+	lock 1 testlock shared noflags nolvb
+	drop 0 testlock shared
+end
+
+test
+	lock 0 testlock shared noflags nolvb
+	lrpl 0 testlock shared cachable ok nolvb
+	lrpl 1 testlock shared cachable ok nolvb
+end
+
+test
+	lock 0 testlock unlock noflags nolvb
+	lrpl 0 testlock unlock noflags ok nolvb
+end
+
+test
+	lock 1 testlock unlock noflags nolvb
+	lrpl 1 testlock unlock noflags ok nolvb
+end

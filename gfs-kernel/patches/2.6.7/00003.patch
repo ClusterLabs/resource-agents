@@ -1,0 +1,88 @@
+# Add GFS to the build system.
+diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.7/fs/Kconfig	2004-06-16 12:02:05.984546922 -0500
++++ linux/fs/Kconfig	2004-06-16 12:02:05.996544135 -0500
+@@ -1677,6 +1677,20 @@ config LOCK_HARNESS
+ 
+ 	  If you want to use GFS (a cluster filesystem) say Y here.
+ 
++config GFS_FS
++	tristate "GFS file system support"
++	depends on LOCK_HARNESS
++	help
++	  A cluster filesystem.
++
++	  Allows a cluster of computers to simultaneously use a block device
++	  that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
++	  and writes to the block device like a local filesystem, but also uses
++	  a lock module to allow the computers coordinate their I/O so
++	  filesystem consistency is maintained.  One of the nifty features of
++	  GFS is perfect consistency -- changes made to the filesystem on one
++	  machine show up immediately on all other machines in the cluster.
++
+ endmenu
+ 
+ menu "Partition Types"
+diff -urN -p linux-2.6.7/fs/Makefile linux/fs/Makefile
+--- linux-2.6.7/fs/Makefile	2004-06-16 12:02:05.985546690 -0500
++++ linux/fs/Makefile	2004-06-16 12:02:05.996544135 -0500
+@@ -92,3 +92,4 @@ obj-$(CONFIG_XFS_FS)		+= xfs/
+ obj-$(CONFIG_AFS_FS)		+= afs/
+ obj-$(CONFIG_BEFS_FS)		+= befs/
+ obj-$(CONFIG_LOCK_HARNESS)	+= gfs_locking/
++obj-$(CONFIG_GFS_FS)		+= gfs/
+diff -urN -p linux-2.6.7/fs/gfs/Makefile linux/fs/gfs/Makefile
+--- linux-2.6.7/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs/Makefile	2004-06-16 12:02:05.997543902 -0500
+@@ -0,0 +1,51 @@
++###############################################################################
++###############################################################################
++##
++##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++##
++##  This copyrighted material is made available to anyone wishing to use,
++##  modify, copy, or redistribute it subject to the terms and conditions
++##  of the GNU General Public License v.2.
++##
++###############################################################################
++###############################################################################
++
++obj-$(CONFIG_GFS_FS) += gfs.o
++
++gfs-y	:=	acl.o \
++		bits.o \
++		bmap.o \
++		daemon.o \
++		dio.o \
++		dir.o \
++		eattr.o \
++		file.o \
++		flock.o \
++		glock.o \
++		glops.o \
++		inode.o \
++		ioctl.o \
++		locking.o \
++		log.o \
++		lops.o \
++		lvb.o \
++		main.o \
++		mount.o \
++		ondisk.o \
++		ops_address.o \
++		ops_dentry.o \
++		ops_export.o \
++		ops_file.o \
++		ops_fstype.o \
++		ops_inode.o \
++		ops_super.o \
++		ops_vm.o \
++		page.o \
++		quota.o \
++		recovery.o \
++		rgrp.o \
++		super.o \
++		trans.o \
++		unlinked.o \
++		util.o
++

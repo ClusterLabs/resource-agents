@@ -1,0 +1,68 @@
+# grab lock shared
+# ask exclusive.
+# convert a shared to exclusive
+# unlock others.
+# unlock exclusives.
+
+nodecount 4
+
+
+test
+	lock 0 sharedfun shared noflags nolvb
+	lrpl 0 sharedfun shared cachable ok nolvb
+end
+
+test
+	lock 1 sharedfun shared noflags nolvb
+	lrpl 1 sharedfun shared cachable ok nolvb
+end
+
+test
+	lock 2 sharedfun shared noflags nolvb
+	lrpl 2 sharedfun shared cachable ok nolvb
+end
+
+test
+	lock 3 sharedfun exclusive try|docb nolvb
+	lrpl 3 sharedfun exclusive try|docb tryfailed nolvb
+	drop 0 sharedfun exclusive
+	drop 1 sharedfun exclusive
+	drop 2 sharedfun exclusive
+end
+
+test
+	lock 3 sharedfun exclusive noflags nolvb
+	drop 0 sharedfun exclusive
+	drop 1 sharedfun exclusive
+	drop 2 sharedfun exclusive
+end
+
+test
+	lock 2 sharedfun unlock noflags nolvb
+	lrpl 2 sharedfun unlock noflags ok nolvb
+	drop 0 sharedfun exclusive
+	drop 1 sharedfun exclusive
+end
+
+test
+	lock 1 sharedfun exclusive noflags nolvb
+	drop 0 sharedfun exclusive
+end
+
+test
+	lock 0 sharedfun unlock noflags nolvb
+	lrpl 0 sharedfun unlock noflags ok nolvb
+	lrpl 3 sharedfun exclusive cachable ok nolvb
+	drop 3 sharedfun exclusive
+end
+
+test
+	lock 3 sharedfun unlock noflags nolvb
+	lrpl 3 sharedfun unlock noflags ok nolvb
+	lrpl 1 sharedfun exclusive noflags ok nolvb
+end
+
+test
+	lock 1 sharedfun unlock noflags nolvb
+	lrpl 1 sharedfun unlock noflags ok nolvb
+end

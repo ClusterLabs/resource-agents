@@ -1,0 +1,90 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+
+.tl 'fence_xcat(8)''fence_xcat(8)'
+
+\fBNAME\fP
+.in +7
+fence_xcat - I/O Fencing agent for xcat environments
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_xcat -n\fP \fInodename\fR \fB -o\fP \fIaction\fR \fB -r\fP \fIrpower\fR 
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_xcat is a wrapper to the rpower(1) command that is distributed
+with the xCAT project available at http://www.xcat.org.  Use of 
+fence_xcat requires that xcat has already been properlly configfured
+for your environment.  Refer to xCAT(1) for more information on 
+configuring xCAT.
+.sp
+fence_xcat accepts options on the command line as well as from stdin.
+fenced sends parameters through stdin when it execs the agent.  fence_xcat 
+can be run by itself with command line options which is useful for testing.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-n\fP \fInodename\fP
+.in +7
+The nodename as defined in nodelist.tab of the xCAT setup.
+.in
+.sp
+\fB-o\fP \fIaction\fP
+.in +7
+The action required.  on, off, reset (default) or stat.
+.in
+.sp
+\fB-r\fP \fIrpower\fP
+.in +7
+The path to the rpower binary.
+.sp
+.in
+\fB-q\fP
+.in +7
+Quiet mode: print only error messages.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.sp
+.in
+
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_xcat.
+.sp
+
+\fI nodename = < param >\fR
+.sp
+The nodename as defined in nodelist.tab of the xCAT setup.
+.sp
+
+\fI action = < param >\fR
+.sp
+The action required.  on, off, reset (default) or stat.
+.sp
+
+\fI rpower = < param >\fR
+.sp
+The path to the rpower binary.
+.sp
+
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8), nodelist.tab(8), rpower(1), xCAT(1)

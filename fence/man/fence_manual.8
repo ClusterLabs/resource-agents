@@ -1,0 +1,74 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_manual(8)''fence_manual(8)'
+
+\fBNAME\fP
+.in +7
+fence_manual - program run by fenced as a part of manual I/O Fencing
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_ack_manual -s\fP \fIIPaddress\fP
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+fence_manual is run by fenced.  It creates a fifo and waits for 
+its counter-part fence_ack_manual(8) to acknowledge that a failed node
+has been reset.  fence_ack_manual(8) should only be run after the operator
+has reset the faulty node.
+.sp
+Note:  fence_manual is provided for use during testing and evaluation
+only.  Sites should not use fence_manual as the primary fencing method
+on a production cluster.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-q\fP
+.in +7
+quiet mode, no output.
+.sp
+.in
+\fB-s\fP \fIIPaddress\fP
+.in +7
+IP address or hostname of the machine which needs to be reset or disconnected from storage.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.sp
+.in
+.in -7
+
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_manual.
+.sp
+
+\fI ipaddr = < param >\fR
+.sp
+IP address or hostname of the machine which needs to be reset or disconnected from storage.
+.sp
+.in -7
+
+
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8), fence_ack_manual(8)

@@ -1,0 +1,75 @@
+# this isn't quite BNF, should fix that.
+
+file: <defines> <tests>
+
+defines: nodecount
+
+nodecount: nodecount <number>
+
+tests: test tests
+     | test
+
+test: test <action> <reactions> end
+
+reactions: noreaction
+         | <reaction> <reactions>
+         | <reaction>
+
+reaction: lrpl
+        | arpl
+        | drop
+
+action: lock
+      | act
+      | cancel
+      | dropexp
+
+lock: lock <nodeidx> <keyname> <state> <flags> <lvb>
+
+act: action <nodeidx> <keyname> <actname> <lvb>
+
+cancel: cancel <nodeidx> <keyname>
+
+dropexp: dropexp <nodeidx> <string> <keyname>
+
+lrpl: lrpl <nodeidx> <keyname> <state> <flags> <error> <lvb>
+
+arpl: arpl <nodeidx> <keyname> <actname> <error>
+
+drop: drop <nodeidx> <keyname> <state>
+
+nodeidx: <number>
+
+keyname: <string>
+
+lvb: nolvb
+   |<string>
+
+state: exclusive
+     | shared
+     | deferred
+     | unlock
+
+actname: holdlvb
+       | unholdlvb
+       | synclvb
+
+flags: noflags
+     | <iflg>
+
+iflg: <flag>|<iflg>
+    | <flag>
+
+flag: docb
+    | try
+    | any
+    | ignoreexp
+    | cachable
+    | piority
+
+error: ok
+     | tryfailed
+     | badstate
+     | canceled
+     | alreadypending
+# ?others?

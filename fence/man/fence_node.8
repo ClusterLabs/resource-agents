@@ -1,0 +1,53 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+.tl 'fence_node(8)''fence_node(8)'
+'\"     View with 'groff -t -e -mandoc -Tlatin1 fence_node.8 | less'
+
+\fBNAME\fP
+.in +7
+fence_node - A program which performs I/O fencing on a single node.
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_node\fP [\fBoptions\fP] <\fBnode\fP>
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+\fBfence_node\fP is a program which accumulates all the necessary information
+for I/O fencing a particular node and then performs the fencing action by
+issuing a call to the proper fencing agent.  \fBfence_node\fP gets the
+necessary information from the Cluster Configuration System (CCS).  CCS must
+be running and properly configured for \fBfence_node\fP to work properly.
+.in
+
+\fBOPTIONS\fP
+.in +7
+\fB-h\fP
+.in +7
+Help.  Print our the usage syntax.
+.sp
+.in
+
+\fB-V\fP
+.in +7
+Print version information.
+.sp
+.in -7
+.in -7
+\fBEXAMPLES\fP
+.in +7
+To fence a node called ``bellerophon'':
+.in +7
+prompt> fence_node bellerophon
+.in -7
+.sp
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), ccs(8)

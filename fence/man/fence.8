@@ -1,0 +1,44 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence(8)''fence(8)'
+
+\fBNAME\fP
+.in +7
+I/O Fencing reference guide
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+Overview of related manual pages
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+The I/O Fencing documentation has been split into a number of sections.  Please
+refer to the table below to determine which man page coincides with the
+command/feature you are looking for.
+.sp
+ fence          I/O Fencing overview (this man page)
+ fenced         I/O Fencing daemon
+
+I/O Fencing agents
+
+ fence_apc           for the APC MasterSwitch
+ fence_brocade       for Brocade switches (PortDisable)
+ fence_gnbd          for GNBD-based GFS clusters
+ fence_vixel         for Vixel switches (PortDisable)
+ fence_wti           for WTI Network Power Switch
+ fence_rib           for Compaq RILOE cards
+ fence_manual        for manual intervention
+ fence_ack_manual    for manual intervention
+ fence_node          for use by lock_gulmd
+.sp
+.in
+\fBSEE ALSO\fP
+.in +7
+gnbd(8), gfs(8)

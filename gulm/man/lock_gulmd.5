@@ -1,0 +1,98 @@
+.\"
+.\"  Copyright 2001-2003 Sistina Software, Inc.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.\" groff -t -e -mandoc -Tlatin1 lock_gulmd.5 | less
+
+.tl 'lock_gulmd(5)' 'lock_gulmd(5)'
+
+\fBNAME\fP
+.in +7
+lock_gulm - configuration section for lock_gulmd
+.sp
+.in -7
+
+
+\fBDESCRIPTION\fP
+.in +7
+This is the subsection to the cluster section in the cluster.ccs file for
+configuring gulm (Which is both the server, lock_gulmd, and the kernel
+module lock_gulm.o).
+
+Most configurations need only the servers key.  All other keys are optional,
+as the defaults work for nearly all cases.
+
+
+\fIheartbeat_rate\fR
+.in +7
+The rate at which the heartbeats are checked by the server in seconds.
+Two-thirds of this time is the rate at which the heartbeats are sent.
+Default is 15.
+.in -7
+
+\fIallowed_misses\fR
+.in +7
+How many consecutive heartbeats can be missed before we mark the node
+expired.
+Default is 2.
+.in -7
+
+\fIcoreport\fR
+.in +7
+The port used by the gulm core.
+Default is 40040.
+.in -7
+
+\fIltpx_port\fR
+.in +7
+The port used by the LTPX.
+Default is 40042.
+.in -7
+
+\fIlt_base_port\fR
+.in +7
+What port the first lock table uses.  Each additional lock table will
+increment this to get their port. (If you have lt_partitions greater than 1.)
+Default is 41040.
+.in -7
+
+\fIservers\fR
+.in +7
+A list of IPs or host names that are allowed to be servers.
+This has no default value.  You must supply this value, and the nodes must
+be listed in the nodes.ccs file.
+.in -7
+
+\fIlt_partitions\fR
+.in +7
+How many partitions of the lock space should there be.  Typically, one
+partition per cpu on the server nodes seems to be the best.
+Default is 1.
+.in -7
+
+
+
+.sp
+.in -7
+
+\fBEXAMPLES\fP
+.in +7
+
+This is the most basic cluster.ccs file with lock_gulmd you can have.
+
+ cluster {
+   name = "myclsuter"
+   lock_gulm {
+     servers = [ "ServA", "ServB", "ServC" ]
+   }
+ }
+
+
+
+.sp
+.in -7
+
+\fBSEE ALSO\fP
+.in +7
+lock_gulmd(8), ccs(8)
+

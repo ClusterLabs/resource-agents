@@ -1,0 +1,102 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
+#include "global.h"
+
+#include "iddev.h"
+
+
+
+
+
+#if defined(__linux__)
+
+/**
+ * do_device_size - determine the size of a Linux block device
+ * @device: the path to the device node
+ *
+ * Returns: the size of the device in basic blocks
+ */
+
+#include <sys/mount.h>
+
+#ifndef BLKGETSIZE64
+#define BLKGETSIZE64 _IOR(0x12, 114, uint64)
+#endif
+
+static int do_device_size(int fd, uint64 *bytes)
+{
+  unsigned long size;
+  int error;
+
+  error = ioctl(fd, BLKGETSIZE64, bytes);  /*  Size in bytes  */
+  if (!error)
+    return 0;
+
+  error = ioctl(fd, BLKGETSIZE, &size);  /*  Size in 512-byte blocks  */
+  if (!error)
+  {
+    *bytes = ((uint64)size) << 9;
+    return 0;
+  }
+
+  return error;
+}
+
+#endif  /*  __linux__  */
+
+
+/**
+ * device_size - figure out a device's size
+ * @fd: the file descriptor of a device
+ * @bytes: the number of bytes the device holds
+ *
+ * Returns: -1 on error (with errno set), 0 on success (with @bytes set)
+ */
+
+int device_size(int fd, uint64 *bytes)
+{
+  struct stat st;
+  int error;
+
+  error = fstat(fd, &st);
+  if (error)
+    return error;
+
+  if (S_ISREG(st.st_mode))
+  {
+    *bytes = st.st_size;
+    return 0;
+  }
+  else if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
+    return do_device_size(fd, bytes);
+  else if (S_ISDIR(st.st_mode))
+    errno = EISDIR;
+  else
+    errno = EINVAL;
+
+  return -1;
+}
+
+
+
+

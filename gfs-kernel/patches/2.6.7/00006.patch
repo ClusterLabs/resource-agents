@@ -1,0 +1,63 @@
+# Add lock_gulm to the build system.
+diff -urN -p linux-2.6.7/fs/Kconfig linux/fs/Kconfig
+--- linux-2.6.7/fs/Kconfig	2004-06-16 12:02:16.816030294 -0500
++++ linux/fs/Kconfig	2004-06-16 12:02:16.827027739 -0500
+@@ -1703,6 +1703,12 @@ config LOCK_DLM
+ 	help
+ 	  A lock module that allows GFS to use a Distributed Lock Manager.
+ 
++config LOCK_GULM
++	tristate "Lock GULM"
++	depends on LOCK_HARNESS
++	help
++	  A lock module that allows GFS to use a Failover Lock Manager.
++
+ endmenu
+ 
+ menu "Partition Types"
+diff -urN -p linux-2.6.7/fs/gfs_locking/Makefile linux/fs/gfs_locking/Makefile
+--- linux-2.6.7/fs/gfs_locking/Makefile	2004-06-16 12:02:16.817030062 -0500
++++ linux/fs/gfs_locking/Makefile	2004-06-16 12:02:16.828027507 -0500
+@@ -13,4 +13,5 @@
+ obj-$(CONFIG_LOCK_HARNESS)	+= lock_harness/
+ obj-$(CONFIG_LOCK_NOLOCK)	+= lock_nolock/
+ obj-$(CONFIG_LOCK_DLM)		+= lock_dlm/
++obj-$(CONFIG_LOCK_GULM)		+= lock_gulm/
+ 
+diff -urN -p linux-2.6.7/fs/gfs_locking/lock_gulm/Makefile linux/fs/gfs_locking/lock_gulm/Makefile
+--- linux-2.6.7/fs/gfs_locking/lock_gulm/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/fs/gfs_locking/lock_gulm/Makefile	2004-06-16 12:02:16.828027507 -0500
+@@ -0,0 +1,33 @@
++###############################################################################
++###############################################################################
++##
++##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
++##
++##  This copyrighted material is made available to anyone wishing to use,
++##  modify, copy, or redistribute it subject to the terms and conditions
++##  of the GNU General Public License v.2.
++##
++###############################################################################
++###############################################################################
++
++obj-$(CONFIG_LOCK_GULM) += lock_gulm.o
++
++lock_gulm-y	:=	gulm_core.o \
++		gulm_fs.o \
++		gulm_jid.o \
++		gulm_lt.o \
++		gulm_procinfo.o \
++		handler.o \
++		lg_core.o \
++		lg_lock.o \
++		lg_main.o \
++		linux_gulm_main.o \
++		load_info.o \
++		util.o \
++		utils_crc.o \
++		utils_tostr.o \
++		utils_verb_flags.o \
++		xdr_base.o \
++		xdr_io.o \
++		xdr_socket.o
++

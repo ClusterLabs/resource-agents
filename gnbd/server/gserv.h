@@ -1,0 +1,65 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#ifndef __gserv_h__
+#define __gserv_h__
+
+#include "device.h"
+
+#define PROTOCOL_VERSION 2
+
+struct login_req_s {
+  uint64_t timestamp;
+  uint16_t version;
+  char devname[32];
+};
+typedef struct login_req_s login_req_t;
+
+#define BE_LOGIN_REQ_TO_CPU(x)\
+(x)->timestamp = be64_to_cpu((x)->timestamp);\
+(x)->version = be16_to_cpu((x)->version);
+
+#define CPU_TO_BE_LOGIN_REQ(x)\
+(x)->timestamp = cpu_to_be64((x)->timestamp);\
+(x)->version = cpu_to_be16((x)->version);
+
+struct login_reply_s {
+  uint64_t sectors;
+  uint16_t version;
+  uint8_t err;
+};
+typedef struct login_reply_s login_reply_t;
+
+#define BE_LOGIN_REPLY_TO_CPU(x)\
+(x)->sectors = be64_to_cpu((x)->sectors);\
+(x)->version = be16_to_cpu((x)->version);
+
+#define CPU_TO_BE_LOGIN_REPLY(x)\
+(x)->sectors = cpu_to_be64((x)->sectors);\
+(x)->version = cpu_to_be16((x)->version);
+
+void gserv(int sock, ip_t client_ip, uint64_t sectors, unsigned int flags,
+           char *name, int devfd);
+int add_gserv_info(int sock, ip_t client_ip, dev_info_t *dev, pid_t pid);
+/* FIXME -- should this be in extern_req.c */
+void fork_gserv(int sock, ip_t client_ip, dev_info_t *dev, int devfd);
+int gserv_login(int sock, ip_t client_ip, login_req_t *login_req,
+                dev_info_t **dev, int *devfd);
+int kill_gserv(ip_t client_ip, dev_info_t * dev, int sock);
+void kill_gserv_by_name(ip_t client_ip, char *name);
+int find_gserv_info(ip_t client_ip, dev_info_t * dev);
+void sig_chld(int sig);
+void kill_all_gserv(void);
+int get_gserv_info(char **buffer, uint32_t *size_size);
+void validate_gservs(void);
+
+#endif /* __gserv_h__ */

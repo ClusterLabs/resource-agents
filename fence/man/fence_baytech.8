@@ -1,0 +1,121 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.tl 'fence_baytech(8)''fence_baytech(8)'
+
+\fBNAME\fP
+.in +7
+fence_baytech - I/O Fencing agent for Baytech RPC switches in combination with a Cyclades Terminal Server
+
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBfence_baytech -a\fP \fIhost\fR \fB-l\fP \fIlogin\fR \fB-p\fP \fIpassword\fR \fB-n\fP \fIoutletname\fR \fB-o\fP \fIaction\fR
+
+.in
+.sp
+\fBDESCRIPTION\fP
+.in +7
+
+This fencing agent is written for the Baytech RPC27-20nc in combination with
+a Cyclades terminal server.  The Cyclades TS exports the RPC's serial port
+via a Telnet interface.  Other interfaces, such as SSH, are possible.  
+However, this script relys upon the assumption that Telnet is used.  Future
+features to this agent would allow the agent to work with a mulitude of 
+different communication protocols such as Telnet, SSH or Kermit.
+.sp
+The other assumption that is made is that Outlet names do not end in space.
+The name "Foo" and "Foo    " are identical when the RPC prints them with
+the status command.
+.sp
+fence_baytech accepts options on the command line as well as from stdin.
+fenced sends parameters through stdin when it execs the agent.  fence_baytech
+can be run by itself with command line options which is useful for testing.
+.sp
+.in
+\fBOPTIONS\fP
+.in
+\fB-a\fP \fIhost\fP
+.in +7 
+IP address or hostname to connect to.
+.sp
+.in
+\fB-h\fP
+.in +7
+Print out a help message describing available options, then exit.
+.sp
+.in
+\fB-l\fP \fIlogin\fP
+.in +7
+Username name for the switch.
+.sp
+.in
+\fB-n\fP \fIport\fP
+.in +7
+The name of the outlet to act upon.
+.in
+.sp
+\fB-o\fP \fIaction\fP
+.in +7
+The action required.  disable (default) or enable.
+.in
+.sp
+\fB-p\fP \fIpassword\fP
+.in +7
+Password for login.
+.sp
+.in
+\fB-q\fP
+.in +7
+Quiet mode: print only error messages.
+.sp
+.in
+\fB-V\fP
+.in +7
+Print out a version message, then exit.
+.sp
+.in
+
+.in -7
+\fBSTDIN PARAMETERS\fP
+.in
+
+\fI agent = < param >\fR
+.sp
+This option is used by fence_node(8) and is ignored by fence_baytech.
+.sp
+
+\fI host = < hostname | ip >\fR
+.sp
+IP address or hostname to connect to.
+.sp
+
+\fI login = < param >\fR
+.sp
+Login name.
+.sp
+
+\fI action = < param >\fR
+.sp
+The action required.  On, Off, Status or Reboot (default)
+.sp
+
+\fI passwd = < param >\fR
+.sp
+Password for login.
+.sp
+
+\fI outlet = < param >\fR
+.sp
+The name of the outlet to act upon.
+.sp
+
+
+.in -7
+\fBSEE ALSO\fP
+.in +7
+fence(8), fence_node(8)

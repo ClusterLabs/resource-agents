@@ -1,0 +1,151 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.tl 'gfs_quota(8)''gfs_quota(8)'
+
+\fBNAME\fP
+.in +7
+gfs_quota - Manipulate GFS disk quotas
+.sp
+.in
+\fBSYNOPSIS\fP
+.in +7
+\fBgfs_quota\fP <list|sync|get|limit|warn|check|init> [options]
+.sp
+.in
+\fBDESCRIPTION\fP
+.in +7
+gfs_quota is used to examine and change quota values in a GFS filesystem.
+This command has a number of different actions.
+.sp
+.in
+\fBACTIONS\fP
+.in +7
+\fBlist\fP
+.in +7
+List the contents of the quota file.  Only IDs that have a non-zero hard limit,
+warn limit, or value are printed.
+.in
+.sp
+\fBsync\fP
+.in +7
+Sync any local quota changes to the quota file.
+.in
+.sp
+\fBget\fP
+.in +7
+Get the current data for the ID specified by the -u or -g argument.
+.in
+.sp
+\fBlimit\fP
+.in +7
+Set the current hard limit for the ID specified by the -u or -g argument to 
+the value specified by the -l argument on the specified filesystem.
+The filesystem won't let the user or group use more than this much space.
+A value of zero here means that no limit is enforced.
+.in
+.sp
+\fBwarn\fP
+.in +7
+Set the current warn limit for the ID specified by the -u or -g argument to 
+the value specified by the -l argument on the specified filesystem.
+The filesystem will start complaining to the user or group when more
+than this much space is used.  A value of zero here means that the
+user won't ever be warned.
+.in
+.sp
+\fBcheck\fP
+.in +7
+Scan a filesystem and make sure that what's out there on the disk matches
+what's in the quota file.  This is only accurate if the filesystem is
+idle when this is running.  If there is a mismatch, it is printed to
+stdout.  Note: GFS quotas are transactional and a quota check is \fBnot\fP
+needed every time there is a system crash.
+.in
+.sp
+\fBinit\fP
+.in +7
+Scan a filesystem and initialize the quota file with the values obtained
+from the scan.  The filesystem should be idle when this is run.  You should
+only need to do this if you upgrade a pre-quota GFS filesystem (pre-GFS 5.1).
+.in
+.sp
+.in -7
+\fBOPTIONS\fP
+.in +7
+\fB-b\fP
+.in +7
+The units for disk space are filesystem blocks.
+.in
+.sp
+\fB-d\fP
+.in +7
+Don't include the space allocated to GFS' hidden files in
+what's reported for the root UID and GID values.  This is useful
+if you're trying to get the numbers reported by gfs_quota to match
+up with the numbers reported by du.
+.in
+.sp
+\fB-f\fP \fIDirectory\fR 
+.in +7
+Specifies which filesystem to perform the action on.
+.in
+.sp
+\fB-g\fP \fIGID\fR 
+.in +7
+Specifies the group ID for get, limit, or warn.  It can be either
+the group name from the group file, or the GID number.
+.in
+.sp
+\fB-h\fP
+.in +7
+Print  out  a  help  message  describing  available
+options, then exit.
+.in
+.sp
+\fB-k\fP
+.in +7
+The units for disk space are kilobytes.
+.in
+.sp
+\fB-l\fP \fISize\fR 
+.in +7
+Specifies the new value for the limit or warn actions.
+The value is assumed to be in the units specified by the
+-m, -k, -s, -b arguments.  The default is megabytes.
+.in
+.sp
+\fB-m\fP
+.in +7
+The units for disk space are megabytes.  This is the default.
+.in
+.sp
+\fB-n\fP
+.in +7
+Don't try to resolve UIDs and GIDs into user and group names.
+.in
+.sp
+\fB-s\fP
+.in +7
+The units for disk space are sectors (512-byte blocks).
+.in
+.sp
+\fB-u\fP \fIUID\fR 
+.in +7
+Specifies the user ID for get, limit, or warn.  It can be either
+the username from the password file, or the UID number.
+.in
+.sp
+\fB-V\fP
+.in +7
+Print program version information, then exit.
+.in
+.sp
+.in -7
+\fBEXAMPLE\fP
+.in +7
+To set the hard limit for user "nobody" to
+1048576 kilobytes on filesystem /gfs0
+.in +7
+gfs_quota limit -l 1048576 -k -u nobody -f /gfs0
+

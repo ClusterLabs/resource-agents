@@ -1,0 +1,237 @@
+.\"
+.\"  Copyright 2001-2003 Sistina Software, Inc.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+
+.\" groff -t -e -mandoc -Tlatin1 gulm.8 | less
+
+.tl 'lock_gulmd(8)' 'lock_gulmd(8)'
+
+\fBNAME\fP
+.in +7
+lock_gulmd - Grand Unified Lock Manager
+.sp
+.in -7
+\fBSYNOPSIS\fP
+.in +7
+\fBlock_gulmd\fP
+.sp
+.in -7
+
+\fBDESCRIPTION\fP
+.in +7
+\fBlock_gulmd\fP is a lock manager for \fBGFS\fP that was
+designed to take advantage of the way \fBGFS\fP uses locks, and the way data
+is transferred over TCP/IP.
+
+\fBlock_gulmd\fP supports failover so that your gfs cluster can keep
+running if the lockserver machine dies (or if one machine of a lockserver 
+cluster dies).  
+You can also run \fBlock_gulmd\fP
+on the same nodes that mount your gfs filesystem(s).
+
+\fBlock_gulmd\fP is really three servers in one: It contains the core,
+locktable interface, 
+and locktable servers.  Each of these gets its own process, and the 
+locktable server may get more than one process depending on your config.  
+Core is responsible for client membership and heartbeats.
+Locktable and locktable interface handle the locking.  
+Multiple locktable processes can be run to improve performance on SMP systems 
+via the \fIlt_partitions\fR option in the configuration. 
+
+.sp
+.in -7
+
+\fBOPTIONS\fP
+.in +7
+\fB-h\fP
+.in +7
+Print usage information, then exit.
+
+.sp
+.in -7
+\fB-C\fP
+.in +7
+Parse the configuration file and quit.
+
+.sp
+.in -7
+\fB-v\fP \fIverbose flags\fR
+.in +7
+Sets which types of messages can be logged.
+
+\fIverbose flags\fR is a comma separated list of the possible flags.  If a
+flag is prefixed with a '-', it is unset, other wise it is set.  The
+special flag 'clear' unsets all verbosity flags.  Any flag that is not
+recognized is ignored.
+
+The verbosity flags for gulm:
+
+.TS
+l l.
+Network	Basic network related messages
+Network2	T{
+More specific network messages
+T}
+Network3	A debug message for nearly every packet
+Fencing	T{
+When calling out to the fencing sub-system
+T}
+Heartbeat	T{
+Every heartbeat sent and received
+T}
+Locking	T{
+Various internal informational messages about the locks
+T}
+Forking	T{
+Anytime a child processes is spawned
+T}
+ServerState	T{
+Print out a message when ever the server changes state, saying what state
+it is now in.
+T}
+JIDMap	T{
+Details of each JID Mapping request
+T}
+JIDUpdates	T{
+JID Mapping updates sent to slaves
+T}
+LockUpdates	T{
+Lock requests sent to slaves
+T}
+LoginLoops	T{
+Messages related to searching for and becoming the Master
+T}
+
+ReallyAll	All messages above
+Default	same as -v "Network,Fencing,Forking"
+All	T{
+same as -v "ReallyAll,-Network3,-JIDUpdates,-LockUpdates"
+T}
+.TE
+
+Since Network3, JIDUpdates, and LockUpdates are extremely verbose and rarely
+needed, they are excluded from the 'All' flag (which is why there is a
+ReallyAll flag.)
+
+Do not use ReallyAll unless you are willing to deal with 100M and larger
+log files.  A loaded system can produce up to a megabyte a minute with the
+ReallyAll flag.
+
+.sp
+.in -7
+\fB-V\fP
+.in +7
+Print version information, then exit.
+
+.sp
+.in -7
+\fB-m\fP \fIname\fR
+.in +7
+Deprecated method of setting the name of this node for \fBgulm\fP.
+\fBGulm\fP now looks at the hostname for this info. ( `\fIuname -n\fR` )
+
+.sp
+.in -7
+\fB-l\fP
+.in +7
+Deprecated method of setting the name of this node from the hostname.  This
+is the method that \fBgulm\fP always uses now.
+
+.sp
+.in -7
+\fB-e\fP
+.in +7
+When switching into daemon mode, leave stderr and stdout open.
+
+.sp
+.in -7
+.in -7
+
+\fBSIGNALS\fP
+.in +7
+
+\fBSIGTERM\fP
+.in +7
+Cleanly logout from the cluster.  \fBlock_gulmd\fP sends a logout message
+to the Master server.  If it is the Master, it informs the slaves that they
+need to pick a new Master.  If there are not any slaves, it just stops.
+The server will stop when it gets this signal, so be careful to make sure
+all clients are logged out if there are not any slave servers to take
+over.
+
+While you can stop the server with this signal, the proper method of
+stopping the server is to use the shutdown command from \fBgulm_tool\fP.
+
+.in -7
+
+\fBSIGUSR1\fP
+.in +7
+Dump out internal tables for debugging.  This creates a bunch of files in
+\fI/tmp\fR (or whatever you have TMPDIR set to).  All of these start with
+the prefix \fIGulm_\fR and will be appended to if the file already exists.
+
+Much of the information in these dump files is available via
+\fBgulm_tool\fP, and \fBgulm_tool\fP is the preferred method of getting this 
+information; the action of dumping these tables out stops all other activity 
+and thus can have negative affects on the performance of \fBlock_gulmd\fP.  You
+should not send this signal unless you really want those dump files and
+know what to do with them.
+.in -7
+
+.in -7
+
+\fBEXAMPLE\fP
+.in +7
+With all of the configuration in \fBCCS\fP, there are not many options that
+this daemon takes at start.  You must have the \fBCCS\fP system up and
+running before you start \fBlock_gulmd\fP.
+
+The command to start \fBlock_gulmd\fP is just:
+.in +3
+lock_gulmd
+.in -3
+
+This adds the following two flags to the default set:
+.in +3
+lock_gulmd -v "Heartbeat,Locking"
+.in -3
+
+Show only the Network messages:
+.in +3
+lock_gulmd -v "clear,Network"
+.in -3
+or
+.in +3
+lock_gulmd -v "-Fencing,-Forking"
+.in -3
+
+Stopping the server:
+.in +3
+gulm_tool shutdown localhost
+.in -3
+
+The verbose flags can be changed while \fBlock_gulmd\fP is running with
+\fBgulm_tool\fP.
+.in -7
+
+\fBFILES\fP
+.in +7
+\fB/var/run/sistina/lock_gulmd_core.pid\fP
+\fB/var/run/sistina/lock_gulmd_LTPX.pid\fP
+\fB/var/run/sistina/lock_gulmd_LT000.pid\fP
+.in +7
+These are the pid lock files to keep more than one instance of the servers
+running per node.  They can be put elsewhere via a configuration option.
+
+\fBlock_gulmd\fP does not create the \fIsistina\fR directory in the
+\fI/var/run/\fR directory.
+
+.in -7
+.in -7
+
+\fBSEE ALSO\fP
+.in +7
+gulm_tool(8), lock_gulmd(5), ccs(8)
+
+.in -7
+
