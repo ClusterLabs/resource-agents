@@ -225,6 +225,7 @@ static void print_usage(FILE *stream){
 	  " -m <addr>     Specify multicast address (\"default\" ok).\n"
 	  " -n            No Daemon.  Run in the foreground.\n"
 	  /*	  " -p <file>     Specify the location of the pid file.\n"*/
+	  " -t <ttl>      Multicast threshold (aka Time to Live) value.\n"
 	  " -P [bcf]:#    Specify various port numbers.\n"
 	  " -V            Print version information.\n"
 	  " -v            Verbose.\n"
@@ -286,7 +287,7 @@ static char *parse_cli_args(int argc, char *argv[]){
 
   memset(buff, 0, buff_size);
 
-  while((c = getopt(argc, argv, "46cdf:hlm:nP:sVv")) != -1){
+  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sVv")) != -1){
     switch(c){
     case '4':
       if(IPv6 == 1){
@@ -403,6 +404,9 @@ static char *parse_cli_args(int argc, char *argv[]){
 	      "Try '-h' for help.\n");
       error = -EINVAL;
       goto fail;
+    case 't':
+      ttl = atoi(optarg);
+      break;
     case 'V':
       printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME, __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
@@ -679,7 +683,7 @@ static int join_group(int sfd, int loopback, int port){
   
   if(IPv6){
     if(!multicast_address || !strcmp("default", multicast_address)){
-      addr_string = "ff02::1";
+      addr_string = "ff02::3:1";
     } else {
       addr_string = multicast_address;
     }
@@ -688,7 +692,7 @@ static int join_group(int sfd, int loopback, int port){
     addr6->sin6_port = htons(port);
   } else {
     if(!strcmp("default", multicast_address)){
-      addr_string = "224.0.0.1";
+      addr_string = "224.0.2.5";
     } else {
       addr_string = multicast_address;
     }

@@ -51,7 +51,7 @@ Help.  Print out the usage syntax.
 \fB-m <multicast address>\fP
 .in +7
 Used to specify the multicast address.  The keyword "default" can be used,
-in which case "ff02::1" is used for IPv6 and "224.0.0.1" is used for IPv4.
+in which case "ff02::3:1" is used for IPv6 and "224.0.2.5" is used for IPv4.
 
 If you are using IPv4, the default action is to use broadcast.  Specifying
 this option will cause multicast to be used in that instance.
@@ -76,6 +76,12 @@ cluster base port.  "f" is the port number that listens for information requests
 from the CCS library (or programs using it).  This is known as the frontend port.
 
 So, to change the frontend port one might specify \fI-P f:60000\fP.
+.sp
+.in
+
+\fB-t <ttl>\fP
+.in +7
+Set the multicast threshold (aka time to live).
 .sp
 .in
 

@@ -200,6 +200,7 @@ static void update_handler(int sig){
  * Returns: 0 on success, < 0 on error
  */
 static int broadcast_for_doc(char *cluster_name, int blocking){
+  int opt;
   int error = 0;
   int sfd = -1;
   int trueint;
@@ -253,14 +254,13 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
   trueint = 1;
   if(IPv6){
     struct ipv6_mreq mreq;
-    int opt;
 
     addr6->sin6_family = AF_INET6;
     addr6->sin6_port = htons(backend_port);
 
     if(!multicast_address || !strcmp(multicast_address, "default")){
       log_dbg("Trying IPv6 multicast (default).\n");
-      if(inet_pton(AF_INET6, "ff02::1", &(addr6->sin6_addr)) <= 0){
+      if(inet_pton(AF_INET6, "ff02::3:1", &(addr6->sin6_addr)) <= 0){
 	log_sys_err("Unable to convert multicast address");
 	error = -errno;
 	goto fail;
@@ -284,13 +284,6 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       error = -errno;
       goto fail;
     }
-
-    if(setsockopt(sfd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-                  (const void *)&mreq, sizeof(mreq)) < 0){
-      log_err("Unable to add to membership: %s\n", strerror(errno));
-      error = -errno;
-      goto fail;
-    }
   } else {
     addr4->sin_family = AF_INET;
     addr4->sin_port = htons(backend_port);
@@ -305,23 +298,29 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       } else {
 	log_dbg("  Broadcast enabled.\n");
       }
-    } else if(!strcmp(multicast_address, "default")){
-      log_dbg("Trying IPv4 multicast (default).\n");
-      if(inet_pton(AF_INET, "224.0.0.1", &(addr4->sin_addr)) <= 0){
-	log_sys_err("Unable to convert multicast address");
-	error = -errno;
-	goto fail;
-      }
     } else {
-      log_dbg("Trying IPv4 multicast (%s).\n", multicast_address);
-      if(inet_pton(AF_INET, multicast_address, &(addr4->sin_addr)) <= 0){
-	log_sys_err("Unable to convert multicast address");
-	error = -errno;
-	goto fail;
+      if(!strcmp(multicast_address, "default")){
+	log_dbg("Trying IPv4 multicast (default).\n");
+	if(inet_pton(AF_INET, "224.0.2.5", &(addr4->sin_addr)) <= 0){
+	  log_sys_err("Unable to convert multicast address");
+	  error = -errno;
+	  goto fail;
+	}
+      } else {
+	log_dbg("Trying IPv4 multicast (%s).\n", multicast_address);
+	if(inet_pton(AF_INET, multicast_address, &(addr4->sin_addr)) <= 0){
+	  log_sys_err("Unable to convert multicast address");
+	  error = -errno;
+	  goto fail;
+	}
+      }
+      opt = 0;
+      setsockopt(sfd, IPPROTO_IP, IP_MULTICAST_LOOP, &opt, sizeof(opt));
+      if(setsockopt(sfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0){
+	log_sys_err("Unable to set multicast threshold.\n");
       }
     }
   }
-
   addr_size = IPv6? sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in);
 
   FD_ZERO(&rset);
