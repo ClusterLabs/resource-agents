@@ -134,7 +134,7 @@ _get_maxparents(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 	char *ret = NULL;
 
 	snprintf(xpath, sizeof(xpath),
-		 "%s/special[@tag=\"rgmanager\"]/attributes/@maxinstances",
+		 "%s/attributes/@maxinstances",
 		 base);
 	ret = xpath_get_one(doc, ctx, xpath);
 	if (ret) {
@@ -490,7 +490,7 @@ print_resource_rule(resource_rule_t *rr)
 	for (x = 0; rr->rr_attrs[x].ra_name; x++) {
 		printf("  %s", rr->rr_attrs[x].ra_name);
 
-		if (!rr->rr_attrs[x].ra_flags) {
+		if (!rr->rr_attrs[x].ra_flags && !rr->rr_attrs[x].ra_value) {
 			printf("\n");
 			continue;
 		}
@@ -504,6 +504,8 @@ print_resource_rule(resource_rule_t *rr)
 			printf(" required");
 		if (rr->rr_attrs[x].ra_flags & RA_INHERIT)
 			printf(" inherit");
+		else if (rr->rr_attrs[x].ra_value)
+			printf(" default=\"%s\"", rr->rr_attrs[x].ra_value);
 		printf(" ]\n");
 	}
 
@@ -573,7 +575,7 @@ int
 _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 		resource_rule_t *rr)
 {
-	char *ret, *attrname, xpath[256];
+	char *ret, *attrname, *dflt = NULL, xpath[256];
 	int x, flags, primary_found = 0;
 
 	for (x = 1; 1; x++) {
@@ -586,6 +588,13 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 
 		flags = 0;
 		attrname = ret;
+		
+		/*
+		   See if there's a default value.
+		 */
+		snprintf(xpath, sizeof(xpath),
+			 "%s/parameter[%d]/content/@default", base, x);
+		dflt = xpath_get_one(doc,ctx,xpath);
 
 		/*
 		   See if this is either the primary identifier or
@@ -643,10 +652,18 @@ _get_rule_attrs(xmlDocPtr doc, xmlXPathContextPtr ctx, char *base,
 				return -1;
 			}
 			/*
-			   don't free ret - store it in the attr of the rule
+			   don't free ret.  Store as attr value.  If we had
+			   a default value specified from above, free it;
+			   inheritance supercedes a specified default value.
 			 */
+			if (dflt)
+				free(dflt);
 		} else {
-			ret = NULL;
+			/*
+			   Use default value, if specified, as the attribute
+			   value.
+			 */
+			ret = dflt;
 		}
 
 		/*

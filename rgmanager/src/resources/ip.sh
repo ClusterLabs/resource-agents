@@ -86,7 +86,7 @@ meta_data()
             <shortdesc lang="en">
                 Monitor NIC Link
             </shortdesc>
-            <content type="boolean"/>
+            <content type="boolean" default="1"/>
         </parameter>
     </parameters>
 

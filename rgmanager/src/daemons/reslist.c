@@ -486,8 +486,19 @@ load_resource(int ccsfd, resource_rule_t *rule, char *base)
 			}
 
 			if (!(flags & RA_INHERIT)) {
-				free(attrname);
-				continue;
+				/*
+				   If we don't have the inherit flag, see if
+				   we have a value anyway.  If we do,
+				   this value is the default value, and
+				   should be used.
+				 */
+				if (!rule->rr_attrs[x].ra_value) {
+					free(attrname);
+					continue;
+				}
+
+				/* Copy default value from resource rule */
+				attr = strdup(rule->rr_attrs[x].ra_value);
 			}
 		}
 
