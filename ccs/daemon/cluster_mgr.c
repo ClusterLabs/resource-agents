@@ -317,10 +317,32 @@ static void cluster_communicator(void){
 
  restart:
   while(cluster_fd < 0){
-    sleep(1);
     cluster_fd = clu_connect(NULL, 0);
-    /* this while loop eats alot of CPU until cluster mgr is started,
-       consider a sleep? */
+    if(cluster_fd < 0){
+      switch(errno){
+      case ENOENT:
+      case ELIBACC:
+	exit(EXIT_MAGMA_PLUGINS);
+	break;
+      case EINVAL:
+	exit(EXIT_CLUSTER_FAIL);
+	break;
+      case ESRCH:
+      default:
+	/* All fine, just haven't gotten ahold of the cluster mgr yet **
+	** at this point, we can tell the parent to exit              */
+	if(ppid){
+	  kill(ppid, SIGTERM);	
+	  ppid = 0;
+	}
+	break;
+      }
+    }
+    sleep(1);
+  }
+  if(ppid){
+    kill(ppid, SIGTERM);	
+    ppid = 0;
   }
 
   log_dbg("cluster_fd = %d\n", cluster_fd);

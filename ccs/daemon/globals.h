@@ -15,6 +15,12 @@
 #define DEFAULT_CONFIG_LOCATION "/etc/cluster/cluster.conf"
 #define DEFAULT_CCSD_LOCKFILE "/var/run/cluster/ccsd.pid"
 
+#define EXIT_MAGMA_PLUGINS 2  /* Magma plugins are not available */
+#define EXIT_CLUSTER_FAIL  3  /* General failure to connect to cluster */
+#define EXIT_LOCKFILE      4  /* Failed to create lock file */
+
+extern int ppid;
+
 extern char *config_file_location;
 extern char *lockfile_location;
 

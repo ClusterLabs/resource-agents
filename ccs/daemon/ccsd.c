@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -31,8 +32,7 @@
 
 #include "copyright.cf"
 
-int parent_exit_code=-1;
-
+static int exit_now=0;
 static unsigned int flags=0;
 #define FLAG_NODAEMON	1
 
@@ -566,22 +566,10 @@ static int create_lockfile(char *lockfile){
  * parent_exit_handler: exit the parent
  * @sig: the signal
  *
- * This function allows us to send the parent process any
- * failure notices that might occur in the child when daemonizing.
- * This way, the user can be notified by the proper process.
  */
 static void parent_exit_handler(int sig){
   ENTER("parent_exit_handler");
-
-  switch(sig){
-  case SIGUSR1:
-    fprintf(stderr, "Failed to create lock file.\n");
-    parent_exit_code = EXIT_FAILURE;
-    break;
-  default:
-    parent_exit_code = EXIT_SUCCESS;
-  }
-
+  exit_now=1;
   EXIT("parent_exit_handler");
 }
 
@@ -653,7 +641,6 @@ static void daemonize(void){
     log_dbg("Entering daemon mode.\n");
 
     signal(SIGTERM, &parent_exit_handler);
-    signal(SIGUSR1, &parent_exit_handler);
 
     pid = fork();
 
@@ -664,12 +651,26 @@ static void daemonize(void){
     }
 
     if(pid){
-      while(parent_exit_code == -1){  /* parent awaits signal from child */
-	sleep(5);
-      }
-      exit(parent_exit_code);
-    }
+      int status;
+      while(!waitpid(pid, &status, WNOHANG) && !exit_now);
+      if(exit_now)
+	exit(EXIT_SUCCESS);
 
+      switch(WEXITSTATUS(status)){
+      case EXIT_MAGMA_PLUGINS:
+	fprintf(stderr, "Failed to connect to cluster manager.\n"
+		"Hint: Magma plugins are not in the right spot.\n");
+	break;
+      case EXIT_CLUSTER_FAIL:
+	fprintf(stderr, "Failed to connect to cluster manager.\n");
+	break;
+      case EXIT_LOCKFILE:
+	fprintf(stderr, "Failed to create lockfile.\n");
+	break;
+      }
+      exit(EXIT_FAILURE);
+    }
+    ppid = getppid();
     setsid();
     chdir("/");
     umask(0);
@@ -682,11 +683,12 @@ static void daemonize(void){
     log_open("ccsd", LOG_PID, LOG_DAEMON);
 
     if((error = create_lockfile(lockfile_location))){
-      kill(getppid(), SIGUSR1);
-      goto fail;
+      exit(EXIT_LOCKFILE);
     }
 
-    kill(getppid(), SIGTERM);
+    /* hold off on shutting down parent.  Let cluster_communicator do it **
+    ** after if figures out if it can use magma or not.................. **
+    **    kill(getppid(), SIGTERM); */
     signal(SIGINT, &sig_handler);
     signal(SIGQUIT, &sig_handler);
     signal(SIGTERM, &sig_handler);

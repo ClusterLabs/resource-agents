@@ -11,6 +11,8 @@
 ******************************************************************************/
 #include <stdio.h>
 
+int ppid = 0;
+
 char *config_file_location = NULL;
 char *lockfile_location = NULL;
 
