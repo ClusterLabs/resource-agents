@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.170 $) dnl cvs revision
+AC_REVISION($Revision: 1.171 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -755,13 +755,7 @@ fi
 if test "${enable_snmp_subagent+set}"  = "set"; then
 	echo "Enabling  SNMP Sub Agent"
 	SNMP_SUBAGENT_DIR="snmp_subagent"
- dnl do not change this line #7!
- dnl do not change this line #8!
- dnl do not change this line #9!
-	m4_include([config/snmp_subagent.m4]) 
- dnl do not change this line #0!
- dnl do not change this line #a!
- dnl do not change this line #b!
+	sinclude([config/snmp_subagent.m4]) 
 	LIB_SNMP
 	AC_SUBST(SNMP_LIBS)
 else
