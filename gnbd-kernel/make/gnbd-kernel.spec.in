@@ -23,8 +23,8 @@
 # ATTENTION -- do we need to obsolete GFS-[modules-][smp | hugemem]?
 # Need to set a kernel version for the Requires
 Name: gnbd-kernel
-Version: ${vers}
-Release: ${rel}
+Version: %{vers}
+Release: %{rel}
 License: GPL
 Group: System Environment/Kernel
 Summary: gnbd-kernel - The kernel module for GFS's Network Block Device
@@ -37,7 +37,7 @@ Conflicts: GFS-modules
 Requires: kernel gnbd
 Provides: kernel-modules
 
-Source0: %{name}-%{version}-${release}.tar.gz
+Source0: %{name}-%{version}-%{release}.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 

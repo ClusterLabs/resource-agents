@@ -1,6 +1,10 @@
 #!/usr/bin/perl -w
 
-@targets = qw(ccs cman cman-kernel dlm dlm-kernel fence gfs gfs-kernel gnbd gnbd-kernel gulm iddev magma magma-plugins rgmanager);
+if ($#ARGV == -1) {
+  @targets = qw(ccs cman cman-kernel dlm dlm-kernel fence gfs gfs-kernel gnbd gnbd-kernel gulm iddev magma magma-plugins rgmanager);
+} else {
+  @targets = @ARGV;
+}
 
 $date = `date +%G%m%d%H%M%S`;
 chomp($date);
@@ -9,31 +13,31 @@ foreach $target (@targets) {
   chdir $target;
   if (-e "make/$target.spec.in" && -e "make/release.mk.input" ) { 
     $version = getVersion(); 
-  print $target ." ".$version."\n";
-  open IFILE, "<make/$target.spec.in";
-  open OFILE, ">make/$target.spec";
-  while (<IFILE>) {
-    $_ =~ s/\@VERS\@/${version}/;
-    $_ =~ s/\@REL\@/${date}/;
-    print OFILE "$_";
+    print $target ." ".$version."\n";
+    open IFILE, "<make/$target.spec.in";
+    open OFILE, ">make/$target.spec";
+    while (<IFILE>) {
+      $_ =~ s/\@VERS\@/${version}/;
+      $_ =~ s/\@REL\@/${date}/;
+      print OFILE "$_";
+    }
+    close IFILE;
+    close OFILE;
+
+    setReleaseFile(0,$version,$date);
+
+    chdir "..";
+    $newdir = $target."-".$version."-".$date;
+    print `cp -r $target $newdir`;
+    print `rm -rf 'find $newdir -name CVS'`;
+    print `tar -zcvf $newdir.tar.gz $newdir`;
+    print `rm -rf $newdir`;
+    print `rpmbuild -ts $newdir.tar.gz`;
+    print `rm $newdir.tar.gz`;
+    chdir $target;
+    setReleaseFile(1);
   }
-  close IFILE;
-  close OFILE;
-
-  setReleaseFile(0,$version,$date);
-
   chdir "..";
-  $newdir = $target."-".$version."-".$date;
-  print `cp -r $target $newdir`;
-  print `rm -rf 'find $newdir -name CVS'`;
-  print `tar -zcvf $newdir.tar.gz $newdir`;
-  print `rm -rf $newdir`;
-  print `rpmbuild -ts $newdir.tar.gz`;
-  print `rm $newdir.tar.gz`;
-  chdir $target;
-  setReleaseFile(1);
-}
-chdir "..";
 }
 
 
@@ -57,13 +61,14 @@ sub setReleaseFile {
   my ($reset,$version,$date) = @_;
   if ($reset == 1) {
     print `mv make/release.mk.input.bak make/release.mk.input`;
-     return;
-  }
+    print `rm make/*.spec`;
+		    return;
+		    }
 
-  open IFILE, "<make/release.mk.input";
-  open OFILE, ">make/release.mk.output";
-  while (<IFILE>) {
-    $_ =~ s/(^RELEASE_MAJOR = ).*/$1$version/;
+		    open IFILE, "<make/release.mk.input";
+		    open OFILE, ">make/release.mk.output";
+		    while (<IFILE>) {
+		    $_ =~ s/(^RELEASE_MAJOR = ).*/$1$version/;
     $_ =~ s/(^RELEASE_MINOR = ).*/$1$date/;
     print OFILE "$_";
   }
