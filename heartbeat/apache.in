@@ -92,7 +92,7 @@ action:
 
 	meta-data show meta data message
 	!
-  exit $OCF_ERR_UNIMPLEMENTED
+  exit $OCF_ERR_ARGS
 }
 
 methods_apache() {
@@ -120,16 +120,16 @@ run() {
     if
       [ ! -z "$output" ]
     then
-      ha_log "info: $output"
+      ocf_log "info: $output"
     fi
     return $OCF_SUCCESS
   else
     if
       [ ! -z "$output" ]
     then
-      ha_log "ERROR: $output"
+      ocf_log "ERROR: $output"
     else
-      ha_log "ERROR: command failed: $*"
+      ocf_log "ERROR: command failed: $*"
     fi
     return $OCF_ERR_GENERIC
   fi
@@ -314,24 +314,24 @@ stop_apache() {
       do
         sleep 1
         kill $ApachePID >/dev/null 2>&1
-        ha_log "Killing apache PID $ApachePID"
+        ocf_log "Killing apache PID $ApachePID"
         tries=`expr $tries + 1`
       done
     else
-      ha_log "Killing apache PID $ApachePID FAILED."
+      ocf_log "Killing apache PID $ApachePID FAILED."
     fi
     if
       ProcessRunning $ApachePID
     then
       echo "$CMD still running ($ApachePID)."
-      ha_log "$CMD still running ($ApachePID)."
+      ocf_log "$CMD still running ($ApachePID)."
       false
     else
       echo "$CMD stopped."
     fi
   else
     echo "$CMD not running."
-    ha_log "$CMD is not running."
+    ocf_log "$CMD is not running."
   fi
 }
 
