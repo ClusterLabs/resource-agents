@@ -18,7 +18,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
-#include <linux/xattr_acl.h>
+#include <linux/posix_acl.h>
 
 #include "gfs.h"
 #include "acl.h"
@@ -265,8 +265,8 @@ gfs_copyin_dinode(struct gfs_inode *ip)
 
 static int
 inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
-	       struct gfs_glock *io_gl, unsigned int io_state,
-	       struct gfs_inode **ipp)
+	     struct gfs_glock *io_gl, unsigned int io_state,
+	     struct gfs_inode **ipp)
 {
 	struct gfs_sbd *sdp = i_gl->gl_sbd;
 	struct gfs_inode *ip;
@@ -357,7 +357,7 @@ gfs_inode_get(struct gfs_glock *i_gl, struct gfs_inum *inum, int create,
 				      CREATE, &io_gl);
 		if (!error) {
 			error = inode_create(i_gl, inum, io_gl,
-					       LM_ST_SHARED, ipp);
+					     LM_ST_SHARED, ipp);
 			gfs_glock_put(io_gl);
 		}
 	}
@@ -475,26 +475,26 @@ static int
 dinode_dealloc(struct gfs_inode *ip)
 {
 	struct gfs_sbd *sdp = ip->i_sbd;
+	struct gfs_alloc *al;
 	struct gfs_rgrpd *rgd;
-	struct gfs_holder ri_gh, rgd_gh;
 	int error;
 
-	gfs_alloc_get(ip);
+	al = gfs_alloc_get(ip);
 
 	error = gfs_quota_hold_m(ip, NO_QUOTA_CHANGE, NO_QUOTA_CHANGE);
 	if (error)
-		goto fail;
+		goto out;
 
-	error = gfs_rindex_hold(sdp, &ri_gh);
+	error = gfs_rindex_hold(sdp, &al->al_ri_gh);
 	if (error)
-		goto fail_qs;
+		goto out_qs;
 
 	rgd = gfs_blk2rgrpd(sdp, ip->i_num.no_addr);
 	GFS_ASSERT_INODE(rgd, ip,);
 
-	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &rgd_gh);
+	error = gfs_glock_nq_init(rgd->rd_gl, LM_ST_EXCLUSIVE, 0, &al->al_rgd_gh);
 	if (error)
-		goto fail_rindex_relse;
+		goto out_rindex_relse;
 
 	GFS_ASSERT_INODE(ip->i_di.di_blocks == 1, ip,
 			 gfs_dinode_print(&ip->i_di););
@@ -508,40 +508,30 @@ dinode_dealloc(struct gfs_inode *ip)
 
 	error = gfs_trans_begin(sdp, 3, 2);
 	if (error)
-		goto fail_rg_gunlock;
+		goto out_rg_gunlock;
 
 	error = dinode_mark_unused(ip);
 	if (error)
-		goto fail_end_trans;
+		goto out_end_trans;
 
 	gfs_difree(rgd, ip);
 
 	gfs_trans_add_unlinked(sdp, GFS_LOG_DESC_IDA, &ip->i_num);
 	clear_bit(GLF_STICKY, &ip->i_gl->gl_flags);
 
+ out_end_trans:
 	gfs_trans_end(sdp);
 
-	gfs_glock_dq_uninit(&rgd_gh);
-	gfs_glock_dq_uninit(&ri_gh);
+ out_rg_gunlock:
+	gfs_glock_dq_uninit(&al->al_rgd_gh);
 
-	gfs_quota_unhold_m(ip);
-	gfs_alloc_put(ip);
+ out_rindex_relse:
+	gfs_glock_dq_uninit(&al->al_ri_gh);
 
-	return 0;
-
- fail_end_trans:
-	gfs_trans_end(sdp);
-
- fail_rg_gunlock:
-	gfs_glock_dq_uninit(&rgd_gh);
-
- fail_rindex_relse:
-	gfs_glock_dq_uninit(&ri_gh);
-
- fail_qs:
+ out_qs:
 	gfs_quota_unhold_m(ip);
 
- fail:
+ out:
 	gfs_alloc_put(ip);
 
 	return error;
@@ -1128,14 +1118,15 @@ make_dinode(struct gfs_inode *dip,
 static int
 inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 		    struct gfs_inum *inum, struct gfs_glock *gl,
-		    unsigned int type, unsigned int mode)
+		    unsigned int type, mode_t mode)
 {
 	struct gfs_sbd *sdp = dip->i_sbd;
-	struct posix_acl *acl = NULL;
 	struct gfs_alloc *al;
 	struct gfs_inode *ip;
 	unsigned int uid, gid;
 	int alloc_required;
+	void *acl_a_data = NULL, *acl_d_data = NULL;
+	unsigned int acl_size = 0, acl_blocks = 0;
 	int error;
 
 	if (sdp->sd_args.ar_suiddir &&
@@ -1156,7 +1147,9 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	} else
 		gid = current->fsgid;
 
-	error = gfs_setup_new_acl(dip, type, &mode, &acl);
+	error = gfs_acl_new_prep(dip, type, &mode,
+				 &acl_a_data, &acl_d_data,
+				 &acl_size, &acl_blocks);
 	if (error)
 		return error;
 
@@ -1170,7 +1163,7 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 	if (error)
 		goto fail_gunlock_q;
 
-	if (acl)
+	if (acl_blocks)
 		alloc_required = TRUE;
 	else {
 		error = gfs_diradd_alloc_required(dip, name, &alloc_required);
@@ -1183,7 +1176,7 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 		if (error)
 			goto fail_gunlock_q;
 
-		al->al_requested_meta = sdp->sd_max_dirres + GFS_MAX_EA_ACL_BLKS;
+		al->al_requested_meta = sdp->sd_max_dirres + acl_blocks;
 
 		error = gfs_inplace_reserve(dip);
 		if (error)
@@ -1196,9 +1189,8 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 		   one block for an unlinked tag. */
 
 		error = gfs_trans_begin(sdp,
-					2 + sdp->sd_max_dirres +
-					al->al_rgd->rd_ri.ri_length +
-					GFS_MAX_EA_ACL_BLKS, 2);
+					2 + sdp->sd_max_dirres + acl_blocks +
+					al->al_rgd->rd_ri.ri_length, 2);
 		if (error)
 			goto fail_inplace;
 	} else {
@@ -1224,18 +1216,15 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 					   &(struct gfs_inum){0, inum->no_addr});
 	gfs_trans_add_quota(sdp, +1, uid, gid);
 
-	/* Gfs_inode_get() can't fail here.  But then again, it shouldn't be
-	   here (it should be in gfs_createi()).  Gfs_init_acl() has no
-	   business needing a memory-resident inode. */
-
+	/* gfs_inode_get() can't fail here. */
 	gfs_inode_get(gl, inum, CREATE, &ip);
 
-	if (acl) {
-		error = gfs_init_acl(dip, ip, type, acl);
-		GFS_ASSERT(!error, ); /* Sigh. */
-	}
+	if (acl_blocks)
+		error = gfs_acl_new_init(dip, ip,
+					 acl_a_data, acl_d_data,
+					 acl_size);
 
-	return 0;
+	return error;
 
  fail_end_trans:
 	gfs_trans_end(sdp);
@@ -1249,8 +1238,10 @@ inode_init_and_link(struct gfs_inode *dip, struct qstr *name,
 
  fail:
 	gfs_alloc_put(dip);
-	if (acl)
-		posix_acl_release(acl);
+	if (acl_a_data)
+		kfree(acl_a_data);
+	else if (acl_d_data)
+		kfree(acl_d_data);
 
 	return error;
 }
@@ -1815,6 +1806,44 @@ gfs_try_toss_vnode(struct gfs_inode *ip)
 
 	inode->i_nlink = 0;
 	iput(inode);
+}
+
+/**
+ * gfs_setattr_simple -
+ * @ip:
+ * @attr:
+ *
+ * Called with a reference on the vnode.
+ *
+ * Returns: errno
+ */
+
+int
+gfs_setattr_simple(struct gfs_inode *ip, struct iattr *attr)
+{
+	struct buffer_head *dibh;
+	int error;
+
+	/* Trans may require:
+	   one dinode block. */
+
+	error = gfs_trans_begin(ip->i_sbd, 1, 0);
+	if (error)
+		return error;
+
+	error = gfs_get_inode_buffer(ip, &dibh);
+	if (!error) {
+		inode_setattr(ip->i_vnode, attr);
+		gfs_inode_attr_out(ip);
+
+		gfs_trans_add_bh(ip->i_gl, dibh);
+		gfs_dinode_out(&ip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
+
+	gfs_trans_end(ip->i_sbd);
+
+	return error;
 }
 
 /**

@@ -38,61 +38,61 @@ void bitch_about(struct gfs_sbd *sdp, unsigned long *last, char *about);
 #define GFS_ASSERT_TYPE_INODE     (21)
 #define GFS_ASSERT_TYPE_RGRPD     (22)
 
-#define GFS_ASSERT(x, todo) \
+#define GFS_ASSERT(assertion, todo) \
 do \
 { \
-  if (!(x)) \
+  if (!(assertion)) \
   { \
     {todo} \
-    gfs_assert_i(#x, GFS_ASSERT_TYPE_NONE, NULL, __FILE__, __LINE__); \
+    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_NONE, NULL, __FILE__, __LINE__); \
  } \
 } \
 while (0)
 
-#define GFS_ASSERT_SBD(x, sdp, todo) \
+#define GFS_ASSERT_SBD(assertion, sdp, todo) \
 do \
 { \
-  if (!(x)) \
+  if (!(assertion)) \
   { \
     struct gfs_sbd *gfs_assert_sbd = (sdp); \
     {todo} \
-    gfs_assert_i(#x, GFS_ASSERT_TYPE_SBD, gfs_assert_sbd, __FILE__, __LINE__); \
+    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_SBD, gfs_assert_sbd, __FILE__, __LINE__); \
   } \
 } \
 while (0)
 
-#define GFS_ASSERT_GLOCK(x, gl, todo) \
+#define GFS_ASSERT_GLOCK(assertion, gl, todo) \
 do \
 { \
-  if (!(x)) \
+  if (!(assertion)) \
   { \
     struct gfs_glock *gfs_assert_glock = (gl); \
     {todo} \
-    gfs_assert_i(#x, GFS_ASSERT_TYPE_GLOCK, gfs_assert_glock, __FILE__, __LINE__); \
+    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_GLOCK, gfs_assert_glock, __FILE__, __LINE__); \
   } \
 } \
 while (0)
 
-#define GFS_ASSERT_INODE(x, ip, todo) \
+#define GFS_ASSERT_INODE(assertion, ip, todo) \
 do \
 { \
-  if (!(x)) \
+  if (!(assertion)) \
   { \
     struct gfs_inode *gfs_assert_inode = (ip); \
     {todo} \
-    gfs_assert_i(#x, GFS_ASSERT_TYPE_INODE, gfs_assert_inode, __FILE__, __LINE__); \
+    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_INODE, gfs_assert_inode, __FILE__, __LINE__); \
   } \
 } \
 while (0)
 
-#define GFS_ASSERT_RGRPD(x, rgd, todo) \
+#define GFS_ASSERT_RGRPD(assertion, rgd, todo) \
 do \
 { \
-  if (!(x)) \
+  if (!(assertion)) \
   { \
     struct gfs_rgrpd *gfs_assert_rgrpd = (rgd); \
     {todo} \
-    gfs_assert_i(#x, GFS_ASSERT_TYPE_RGRPD, gfs_assert_rgrpd, __FILE__, __LINE__); \
+    gfs_assert_i(#assertion, GFS_ASSERT_TYPE_RGRPD, gfs_assert_rgrpd, __FILE__, __LINE__); \
   } \
 } \
 while (0)

@@ -155,7 +155,9 @@ gfs_unstuffer_page(struct gfs_inode *ip, struct buffer_head *dibh,
 	int release = FALSE;
 
 	if (!page || page->index) {
-		RETRY_MALLOC(page = grab_cache_page(inode->i_mapping, 0), page);
+		page = grab_cache_page(inode->i_mapping, 0);
+		if (!page)
+			return -ENOMEM;
 		release = TRUE;
 	}
 

@@ -104,7 +104,9 @@ gfs_mhc_add(struct gfs_rgrpd *rgd,
 	for (x = 0; x < num; x++) {
 		gfs_meta_check(sdp, bh[x]);
 
-		RETRY_MALLOC(mc = kmem_cache_alloc(gfs_mhc_cachep, GFP_KERNEL), mc);
+		mc = kmem_cache_alloc(gfs_mhc_cachep, GFP_KERNEL);
+		if (!mc)
+			return;
 		memset(mc, 0, sizeof(struct gfs_meta_header_cache));
 
 		mc->mc_block = bh[x]->b_blocknr;

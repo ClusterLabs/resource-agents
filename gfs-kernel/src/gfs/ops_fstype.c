@@ -139,7 +139,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
 	sb->s_maxbytes = MAX_LFS_FILESIZE;
 
-	if (sdp->sd_args.ar_posixacls)
+	if (sdp->sd_args.ar_posix_acls)
 		sb->s_flags |= MS_POSIXACL;
 
 	/*  Set up the buffer cache and fill in some fake values

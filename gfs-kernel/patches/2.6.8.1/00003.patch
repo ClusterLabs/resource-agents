@@ -1,7 +1,7 @@
 # Add GFS to the build system.
 diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
---- linux-2.6.8.1/fs/Kconfig	2004-08-26 17:38:48.175184040 -0500
-+++ linux/fs/Kconfig	2004-08-26 17:38:48.187181259 -0500
+--- linux-2.6.8.1/fs/Kconfig	2004-10-05 11:11:20.666987577 -0500
++++ linux/fs/Kconfig	2004-10-05 11:11:20.677985026 -0500
 @@ -283,13 +283,13 @@ config JFS_STATISTICS
  	  to be made available to the user in the /proc/fs/jfs/ directory.
  
@@ -40,8 +40,8 @@ diff -urN -p linux-2.6.8.1/fs/Kconfig linux/fs/Kconfig
  
  menu "Partition Types"
 diff -urN -p linux-2.6.8.1/fs/Makefile linux/fs/Makefile
---- linux-2.6.8.1/fs/Makefile	2004-08-26 17:38:48.176183808 -0500
-+++ linux/fs/Makefile	2004-08-26 17:38:48.187181259 -0500
+--- linux-2.6.8.1/fs/Makefile	2004-10-05 11:11:20.666987577 -0500
++++ linux/fs/Makefile	2004-10-05 11:11:20.678984794 -0500
 @@ -92,3 +92,4 @@ obj-$(CONFIG_XFS_FS)		+= xfs/
  obj-$(CONFIG_AFS_FS)		+= afs/
  obj-$(CONFIG_BEFS_FS)		+= befs/
@@ -49,8 +49,8 @@ diff -urN -p linux-2.6.8.1/fs/Makefile linux/fs/Makefile
 +obj-$(CONFIG_GFS_FS)		+= gfs/
 diff -urN -p linux-2.6.8.1/fs/gfs/Makefile linux/fs/gfs/Makefile
 --- linux-2.6.8.1/fs/gfs/Makefile	1969-12-31 18:00:00.000000000 -0600
-+++ linux/fs/gfs/Makefile	2004-08-26 17:38:48.187181259 -0500
-@@ -0,0 +1,50 @@
++++ linux/fs/gfs/Makefile	2004-10-05 11:11:47.677720979 -0500
+@@ -0,0 +1,51 @@
 +###############################################################################
 +###############################################################################
 +##
@@ -71,6 +71,7 @@ diff -urN -p linux-2.6.8.1/fs/gfs/Makefile linux/fs/gfs/Makefile
 +		daemon.o \
 +		dio.o \
 +		dir.o \
++		eaops.o \
 +		eattr.o \
 +		file.o \
 +		glock.o \

@@ -14,9 +14,9 @@
 #ifndef __FILE_DOT_H__
 #define __FILE_DOT_H__
 
-typedef int (*read_copy_fn_t) (struct buffer_head * bh, void **buf,
+typedef int (*read_copy_fn_t) (struct buffer_head *bh, void **buf,
 			       unsigned int offset, unsigned int size);
-typedef int (*write_copy_fn_t) (struct gfs_inode * ip, struct buffer_head * bh,
+typedef int (*write_copy_fn_t) (struct gfs_inode *ip, struct buffer_head *bh,
 				void **buf, unsigned int offset,
 				unsigned int size, int new);
 

@@ -396,7 +396,7 @@ gfs_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",upgrade");
 	if (args->ar_num_glockd != GFS_GLOCKD_DEFAULT)
 		seq_printf(s, ",num_glockd=%u", args->ar_num_glockd);
-	if (args->ar_posixacls)
+	if (args->ar_posix_acls)
 		seq_printf(s, ",acl");
 	if (args->ar_suiddir)
 		seq_printf(s, ",suiddir");

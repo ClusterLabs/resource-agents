@@ -56,9 +56,6 @@
 #define GFS_GET_TUNE            _GFSC_(21)
 #define GFS_SET_TUNE            _GFSC_(22)
 
-#define GFS_EATTR_GET           _GFSC_(26)
-#define GFS_EATTR_SET           _GFSC_(27)
-
 #define GFS_WHERE_ARE_YOU       _GFSC_(35)
 
 #define GFS_SET_FLAG            _GFSC_(36)
@@ -162,43 +159,6 @@ struct gfs_tune {
 	unsigned int gt_greedy_max;
 };
 
-/*
- * Extended Attribute Ioctl structures
- *
- * Note: The name_len does not include a null character.
- *
- * Getting and setting EAs return the following errors that aren't
- * what they seem
- *
- * ENODATA - No such extended attribute
- * ERANGE - Extended attribute data is too large for the buffer
- * ENOSPC - No space left for extended attributes
- * EEXIST - Extended attribute already exists
- */
-
-#define GFS_EACMD_SET       (0)
-#define GFS_EACMD_CREATE    (1)
-#define GFS_EACMD_REPLACE   (2)
-#define GFS_EACMD_REMOVE    (3)
-
-struct gfs_eaget_io {
-	char *eg_data;
-	char *eg_name;
-	char *eg_len;
-	uint32_t eg_data_len;
-	uint8_t eg_name_len;
-	uint8_t eg_type;	/* GFS_EATYPE_... */
-};
-
-struct gfs_easet_io {
-	const char *es_data;
-	char *es_name;
-	uint16_t es_data_len;
-	uint8_t es_name_len;	/* not counting the NULL */
-	uint8_t es_cmd;		/* GFS_EACMD_...  */
-	uint8_t es_type;	/* GFS_EATYPE_... */
-};
-
 #define GFS_GLOCKD_DEFAULT (1)
 #define GFS_GLOCKD_MAX (32)
 
@@ -215,7 +175,7 @@ struct gfs_args {
 
 	unsigned int ar_num_glockd;
 
-	int ar_posixacls;	/* Enable posix acls */
+	int ar_posix_acls;	/* Enable posix acls */
 	int ar_suiddir;         /* suiddir support */
 };
 

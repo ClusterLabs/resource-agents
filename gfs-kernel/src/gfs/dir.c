@@ -1988,7 +1988,6 @@ leaf_free(struct gfs_inode *dip,
 	  uint64_t leaf_no, void *data)
 {
 	struct gfs_sbd *sdp = dip->i_sbd;
-	struct gfs_holder ri_gh;
 	struct gfs_leaf tmp_leaf;
 	struct gfs_rgrp_list rlist;
 	struct buffer_head *bh, *dibh;
@@ -2009,7 +2008,7 @@ leaf_free(struct gfs_inode *dip,
 	if (error)
 		goto fail;
 
-	error = gfs_rindex_hold(sdp, &ri_gh);
+	error = gfs_rindex_hold(sdp, &dip->i_alloc->al_ri_gh);
 	if (error)
 		goto fail_qs;
 
@@ -2027,15 +2026,15 @@ leaf_free(struct gfs_inode *dip,
 
 	gfs_rlist_alloc(&rlist, LM_ST_EXCLUSIVE, 0);
 
-	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
-	if (error)
-		goto fail_rlist;
-
 	for (x = 0; x < rlist.rl_rgrps; x++) {
 		struct gfs_rgrpd *rgd;
 		rgd = gl2rgd(rlist.rl_ghs[x].gh_gl);
 		rg_blocks += rgd->rd_ri.ri_length;
 	}
+
+	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
+	if (error)
+		goto fail_rlist;
 
 	/* Trans may require:
 	   All the bitmaps that were reserved.
@@ -2058,6 +2057,7 @@ leaf_free(struct gfs_inode *dip,
 
 		gfs_metafree(dip, blk, 1);
 
+		GFS_ASSERT_INODE(dip->i_di.di_blocks, dip,);
 		dip->i_di.di_blocks--;
 	}
 
@@ -2080,7 +2080,7 @@ leaf_free(struct gfs_inode *dip,
 
 	gfs_glock_dq_m(rlist.rl_rgrps, rlist.rl_ghs);
 	gfs_rlist_free(&rlist);
-	gfs_glock_dq_uninit(&ri_gh);
+	gfs_glock_dq_uninit(&dip->i_alloc->al_ri_gh);
 	gfs_quota_unhold_m(dip);
 	gfs_alloc_put(dip);
 	kfree(ht);
@@ -2095,7 +2095,7 @@ leaf_free(struct gfs_inode *dip,
 
  fail_rlist:
 	gfs_rlist_free(&rlist);
-	gfs_glock_dq_uninit(&ri_gh);
+	gfs_glock_dq_uninit(&dip->i_alloc->al_ri_gh);
 
  fail_qs:
 	gfs_quota_unhold_m(dip);
@@ -2226,11 +2226,12 @@ gfs_diradd_alloc_required(struct gfs_inode *dip, struct qstr *filename,
  * @leaf_no: the leaf number
  * @data: a pointer to a struct gfs_user_buffer structure
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
-do_gdm(struct gfs_inode *dip, uint32_t index, uint32_t len, uint64_t leaf_no,
+do_gdm(struct gfs_inode *dip,
+       uint32_t index, uint32_t len, uint64_t leaf_no,
        void *data)
 {
 	struct gfs_user_buffer *ub = (struct gfs_user_buffer *)data;
@@ -2262,7 +2263,7 @@ do_gdm(struct gfs_inode *dip, uint32_t index, uint32_t len, uint64_t leaf_no,
  * @dip: the directory
  * @ub: the structure representing the meta
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int

@@ -167,8 +167,8 @@ void do_indirect_extended(char *buf)
 
 void do_leaf_extended(char *buf)
 {
-  int x;
   struct gfs_dirent de;
+  unsigned int x;
 
 
   printf("\nDirectory Entries:\n");
@@ -179,6 +179,39 @@ void do_leaf_extended(char *buf)
     gfs_dirent_in(&de, buf + x);
     if (de.de_inum.no_formal_ino)
 	gfs_dirent_print(&de, buf + x + sizeof(struct gfs_dirent));
+  }
+}
+
+
+/******************************************************************************
+*******************************************************************************
+**
+** do_eattr_extended()
+**
+** Description:
+**
+** Input(s):
+**
+** Output(s):
+**
+** Returns:
+**
+*******************************************************************************
+******************************************************************************/
+
+void do_eattr_extended(char *buf)
+{
+  struct gfs_ea_header ea;
+  unsigned int x;
+
+
+  printf("\nEattr Entries:\n");
+
+  for (x = sizeof(struct gfs_meta_header); x < bsize; x += ea.ea_rec_len)
+  {
+    printf("\n");
+    gfs_ea_header_in(&ea, buf + x);
+    gfs_ea_header_print(&ea, buf + x + sizeof(struct gfs_ea_header));
   }
 }
 
@@ -320,6 +353,26 @@ int display_gfs(int extended)
       printf("Log Descriptor:\n\n");
       gfs_desc_in(&ld, buf);
       gfs_desc_print(&ld);
+
+      if (extended)
+	printf("\nNo Extended data\n");
+
+      break;
+
+
+    case GFS_METATYPE_EA:
+      printf("Eattr Block:\n\n");
+      gfs_meta_header_print(&mh);
+
+      if (extended)
+	do_eattr_extended(buf);
+
+      break;
+
+
+    case GFS_METATYPE_ED:
+      printf("Eattr Data Block:\n\n");
+      gfs_meta_header_print(&mh);
 
       if (extended)
 	printf("\nNo Extended data\n");

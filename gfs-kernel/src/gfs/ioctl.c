@@ -942,16 +942,6 @@ gfs_ioctli(struct gfs_inode *ip, unsigned int cmd, void *arg)
 			error = -EACCES;
 		break;
 
-	case GFS_EATTR_GET:
-		/*  Permissions handled later  */
-		error = gfs_get_eattr_ioctl(sdp, ip, arg);
-		break;
-
-	case GFS_EATTR_SET:
-		/*  Permissions handled later  */
-		error = gfs_set_eattr_ioctl(sdp, ip, arg);
-		break;
-
 	case GFS_WHERE_ARE_YOU:
 		{
 			unsigned int x = GFS_MAGIC;

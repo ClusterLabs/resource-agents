@@ -1,7 +1,7 @@
 # Make the VFS call down into the FS on flock calls.
 diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
 --- linux-2.6.8.1/fs/locks.c	2004-08-23 09:21:15.000000000 -0500
-+++ linux/fs/locks.c	2004-08-31 15:31:18.709980313 -0500
++++ linux/fs/locks.c	2004-10-05 11:09:49.134222294 -0500
 @@ -718,6 +718,33 @@ out:
  	return error;
  }
@@ -75,7 +75,7 @@ diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
  
 diff -urN -p linux-2.6.8.1/include/linux/fs.h linux/include/linux/fs.h
 --- linux-2.6.8.1/include/linux/fs.h	2004-08-23 09:21:21.000000000 -0500
-+++ linux/include/linux/fs.h	2004-08-31 15:27:29.585833998 -0500
++++ linux/include/linux/fs.h	2004-10-05 11:09:49.135222062 -0500
 @@ -687,6 +687,7 @@ extern int posix_lock_file(struct file *
  extern void posix_block_lock(struct file_lock *, struct file_lock *);
  extern void posix_unblock_lock(struct file *, struct file_lock *);

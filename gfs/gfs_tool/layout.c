@@ -164,6 +164,8 @@ static void check_list(world_t *w)
     case GFS_METATYPE_EA:
       type = "GFS_METATYPE_EA";
       break;
+    case GFS_METATYPE_ED:
+      die("GFS_METATYPE_ED shouldn't be present\n");
     default:
       die("strange meta type\n");
     }
@@ -634,6 +636,102 @@ static void print_leaves(world_t *w)
 
 
 /**
+ * print_eattr_data - print out the locations of the eattr data blocks
+ * @w: the world
+ *
+ */
+
+#define MAKE_MULT8(x) (((x) + 7) & ~7)
+#define GFS_EA_REC_LEN(ea) gfs32_to_cpu((ea)->ea_rec_len)
+#define GFS_EA_IS_STUFFED(ea) (!(ea)->ea_num_ptrs)
+#define GFS_EA_IS_LAST(ea) ((ea)->ea_flags & GFS_EAFLAG_LAST)
+#define GFS_EA2NAME(ea) ((char *)((struct gfs_ea_header *)(ea) + 1))
+#define GFS_EA2DATAPTRS(ea) \
+((uint64_t *)(GFS_EA2NAME(ea) + MAKE_MULT8((ea)->ea_name_len)))
+#define GFS_EA2NEXT(ea) \
+((struct gfs_ea_header *)((char *)(ea) + GFS_EA_REC_LEN(ea)))
+#define GFS_EA_BH2FIRST(b) \
+((struct gfs_ea_header *)((b)->data + \
+			  sizeof(struct gfs_meta_header)))
+
+static void print_eattr_data(world_t *w, uint64_t blkno, int *first)
+{
+	buffer_t *b = getbuf(w, blkno);
+	struct gfs_ea_header *ea;
+
+	ea = GFS_EA_BH2FIRST(b);
+	for (;;) {
+		if (!GFS_EA_IS_STUFFED(ea)) {
+			char name[300];
+			uint64_t *p, blkno;
+			uint64_t b;
+			unsigned int l;
+			unsigned int x;
+			int c;
+
+			if (*first) {
+				printf("\nExtended Attributes data blocks:\n");
+				printf("  %-20s %-10s %s\n",
+				       "DBlock", "Blocks", "Name");
+				*first = FALSE;
+			}
+
+			if (ea->ea_type == GFS_EATYPE_UNUSED)
+				strcpy(name, "unused");
+			else {
+				unsigned int x;
+				switch (ea->ea_type) {
+				case GFS_EATYPE_USR:
+					strcpy(name, "user.");
+					break;
+				case GFS_EATYPE_SYS:
+					strcpy(name, "system.");
+					break;
+				default:
+					strcpy(name, "unknown.");
+					break;
+				}
+				x = strlen(name);
+				memcpy(name + x,
+				       GFS_EA2NAME(ea),
+				       ea->ea_name_len);
+				name[x + ea->ea_name_len] = 0;
+			}
+
+			b = 0;
+			l = 0;
+			c = FALSE;
+
+			p = GFS_EA2DATAPTRS(ea);
+			for (x = 0; x < ea->ea_num_ptrs; x++) {
+				blkno = gfs64_to_cpu(*p);
+				if (b + l == blkno)
+					l++;
+				else {
+					if (b) {
+						printf("  %-20"PRIu64" %-10u %s\n",
+						       b, l, name);
+						if (!c) {
+							strcat(name, " (cont)");
+							c = TRUE;
+						}
+					}
+					b = blkno;
+					l = 1;
+				}
+				p++;
+			}
+			printf("  %-20"PRIu64" %-10u %s\n",
+			       b, l, name);
+		}
+		if (GFS_EA_IS_LAST(ea))
+			break;
+		ea = GFS_EA2NEXT(ea);
+	}
+}
+
+
+/**
  * print_eattr - print out the locations of the eattr blocks
  * @w: the world
  *
@@ -641,10 +739,38 @@ static void print_leaves(world_t *w)
 
 static void print_eattr(world_t *w)
 {
-  printf("\nExtended Attribute block:\n");
-  printf("  %"PRIu64"\n", w->di.di_eattr);
+	int first = TRUE;
 
-  getbuf(w, w->di.di_eattr);
+	if (w->di.di_flags & GFS_DIF_EA_INDIRECT) {
+		buffer_t *b = getbuf(w, w->di.di_eattr);
+		uint64_t *blkno;
+		unsigned int x;
+
+		printf("\nExtended Attribute indirect block:\n");
+		printf("  %"PRIu64"\n", w->di.di_eattr);
+
+		printf("\nExtended Attribute blocks:\n");
+		blkno = (uint64_t *)(b->data + sizeof(struct gfs_indirect));
+		for (x = 0; x < w->inptrs; x++) {
+			if (!*blkno)
+				break;
+			printf("  %"PRIu64"\n", gfs64_to_cpu(*blkno));
+			blkno++;
+		}
+
+		blkno = (uint64_t *)(b->data + sizeof(struct gfs_indirect));
+		for (x = 0; x < w->inptrs; x++) {
+			if (!*blkno)
+				break;
+			print_eattr_data(w, gfs64_to_cpu(*blkno), &first);			
+			blkno++;
+		}		
+	} else {
+		printf("\nExtended Attribute block:\n");
+		printf("  %"PRIu64"\n", w->di.di_eattr);
+
+		print_eattr_data(w, w->di.di_eattr, &first);
+	}
 }
 
 

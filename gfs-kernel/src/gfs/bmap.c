@@ -842,7 +842,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	metadata = (height != ip->i_di.di_height - 1) || gfs_is_jdata(ip);
 
-	error = gfs_rindex_hold(sdp, &ri_gh);
+	error = gfs_rindex_hold(sdp, &ip->i_alloc->al_ri_gh);
 	if (error)
 		return error;
 
@@ -874,15 +874,15 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 
 	gfs_rlist_alloc(&rlist, LM_ST_EXCLUSIVE, 0);
 
-	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
-	if (error)
-		goto fail;
-
 	for (x = 0; x < rlist.rl_rgrps; x++) {
 		struct gfs_rgrpd *rgd;
 		rgd = gl2rgd(rlist.rl_ghs[x].gh_gl);
 		rg_blocks += rgd->rd_ri.ri_length;
 	}
+
+	error = gfs_glock_nq_m(rlist.rl_rgrps, rlist.rl_ghs);
+	if (error)
+		goto fail;
 
 	/* Trans may require:
 	   All the bitmaps that were reserved. 
@@ -921,9 +921,9 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 		}
 
 		*p = 0;
+		GFS_ASSERT_INODE(ip->i_di.di_blocks, ip,);
 		ip->i_di.di_blocks--;
 	}
-
 	if (bstart) {
 		if (metadata)
 			gfs_metafree(ip, bstart, blen);
@@ -941,7 +941,7 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 	gfs_rlist_free(&rlist);
 
  out:
-	gfs_glock_dq_uninit(&ri_gh);
+	gfs_glock_dq_uninit(&ip->i_alloc->al_ri_gh);
 
 	return 0;
 
@@ -1331,7 +1331,7 @@ gfs_write_alloc_required(struct gfs_inode *ip,
  *
  * If this is a journaled file, copy out the data too.
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 static int
@@ -1339,10 +1339,7 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
        struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
        unsigned int height, void *data)
 {
-	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_user_buffer *ub = (struct gfs_user_buffer *)data;
-	struct buffer_head *data_bh;
-	uint64_t *bp, bn;
 	int error;
 
 	error = gfs_add_bh_to_ub(ub, bh);
@@ -1353,12 +1350,14 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
 	    height + 1 != ip->i_di.di_height)
 		return 0;
 
-	for (bp = top; bp < bottom; bp++)
-		if (*bp) {
-			bn = gfs64_to_cpu(*bp);
+	for (; top < bottom; top++)
+		if (*top) {
+			struct buffer_head *data_bh;
 
-			error = gfs_dread(sdp, bn, ip->i_gl,
-					  DIO_START | DIO_WAIT, &data_bh);
+			error = gfs_dread(ip->i_sbd,
+					  gfs64_to_cpu(*top), ip->i_gl,
+					  DIO_START | DIO_WAIT,
+					  &data_bh);
 			if (error)
 				return error;
 
@@ -1378,24 +1377,23 @@ do_gfm(struct gfs_inode *ip, struct buffer_head *dibh,
  * @ip: the file
  * @ub: the structure representing the meta
  *
- * Returns: 0 on success, -EXXX on failure
+ * Returns: errno
  */
 
 int
 gfs_get_file_meta(struct gfs_inode *ip, struct gfs_user_buffer *ub)
 {
-	struct buffer_head *dibh;
-	struct metapath *mp;
 	int error;
 
 	if (gfs_is_stuffed(ip)) {
+		struct buffer_head *dibh;
 		error = gfs_get_inode_buffer(ip, &dibh);
 		if (!error) {
 			error = gfs_add_bh_to_ub(ub, dibh);
 			brelse(dibh);
 		}
 	} else {
-		mp = find_metapath(ip, 0);
+		struct metapath *mp = find_metapath(ip, 0);
 		error = recursive_scan(ip, NULL, mp, 0, 0, TRUE, do_gfm, ub);
 		kfree(mp);
 	}

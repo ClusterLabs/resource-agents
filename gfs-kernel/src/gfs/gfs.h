@@ -60,8 +60,9 @@
 #define SCNX64 "LX"
 #endif
 
-/*  Divide x by y.  Round up if there is a remainder.  */
-#define DIV_RU(x, y) (((x) + (y) - 1) / (y))
+/*  Divide num by den.  Round up if there is a remainder.  */
+#define DIV_RU(num, den) (((num) + (den) - 1) / (den))
+#define MAKE_MULT8(x) (((x) + 7) & ~7)
 
 #define GFS_FAST_NAME_SIZE (8)
 
@@ -82,7 +83,8 @@ do \
   meta_check_magic = gfs32_to_cpu(meta_check_magic); \
   GFS_ASSERT_SBD(meta_check_magic == GFS_MAGIC, (sdp), \
 		 struct gfs_meta_header meta_check_mh; \
-		 printk("Bad metadata at %"PRIu64"\n", (uint64_t)(bh)->b_blocknr); \
+		 printk("Bad metadata at %"PRIu64"\n", \
+			(uint64_t)(bh)->b_blocknr); \
 		 gfs_meta_header_in(&meta_check_mh, (bh)->b_data); \
 		 gfs_meta_header_print(&meta_check_mh);); \
 } \
@@ -98,7 +100,26 @@ do \
   GFS_ASSERT_SBD(metatype_check_magic == GFS_MAGIC && \
 		 metatype_check_type == (type), (sdp), \
 		 struct gfs_meta_header metatype_check_mh; \
-		 printk("Bad metadata at %"PRIu64", should be %u\n", (uint64_t)(bh)->b_blocknr, (type)); \
+		 printk("Bad metadata at %"PRIu64", should be %u\n", \
+                        (uint64_t)(bh)->b_blocknr, (type)); \
+		 gfs_meta_header_in(&metatype_check_mh, (bh)->b_data); \
+		 gfs_meta_header_print(&metatype_check_mh);); \
+} \
+while (0)
+
+#define gfs_metatype_check2(sdp, bh, type1, type2) \
+do \
+{ \
+  uint32_t metatype_check_magic = ((struct gfs_meta_header *)(bh)->b_data)->mh_magic; \
+  uint32_t metatype_check_type = ((struct gfs_meta_header *)(bh)->b_data)->mh_type; \
+  metatype_check_magic = gfs32_to_cpu(metatype_check_magic); \
+  metatype_check_type = gfs32_to_cpu(metatype_check_type); \
+  GFS_ASSERT_SBD(metatype_check_magic == GFS_MAGIC && \
+		 (metatype_check_type == (type1) || \
+		  metatype_check_type == (type2)), (sdp), \
+		 struct gfs_meta_header metatype_check_mh; \
+		 printk("Bad metadata at %"PRIu64", should be %u or %u\n", \
+                        (uint64_t)(bh)->b_blocknr, (type1), (type2)); \
 		 gfs_meta_header_in(&metatype_check_mh, (bh)->b_data); \
 		 gfs_meta_header_print(&metatype_check_mh);); \
 } \

@@ -31,6 +31,7 @@ gfs-objs := acl.o \
 	daemon.o \
 	dio.o \
 	dir.o \
+	eaops.o \
 	eattr.o \
 	file.o \
 	glock.o \

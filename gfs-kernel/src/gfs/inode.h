@@ -46,6 +46,8 @@ int gfs_glock_nq_m_atime(unsigned int num_gh, struct gfs_holder *ghs);
 
 void gfs_try_toss_vnode(struct gfs_inode *ip);
 
+int gfs_setattr_simple(struct gfs_inode *ip, struct iattr *attr);
+
 /*  Backwards compatibility functions  */
 
 int gfs_alloc_qinode(struct gfs_sbd *sdp);

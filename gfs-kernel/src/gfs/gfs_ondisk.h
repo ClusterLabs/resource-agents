@@ -68,6 +68,7 @@
 #define GFS_FORMAT_DE           (1200) /* Directory Entry */
 #define GFS_FORMAT_QU           (1500) /* Quota */
 #define GFS_FORMAT_EA           (1600) /* Extended Attribute */
+#define GFS_FORMAT_ED           (1700) /* Extended Attribute data */
 /*  These version #s are embedded in the superblock  */
 #define GFS_FORMAT_FS           (1309) /* Filesystem (all-encompassing) */
 #define GFS_FORMAT_MULTI        (1401) /* Multi-Host */
@@ -106,6 +107,7 @@ struct gfs_inum {
 #define GFS_METATYPE_LH         (8)    /* Log Header (gfs_log_header) */
 #define GFS_METATYPE_LD         (9)    /* Log Descriptor (gfs_log_descriptor) */
 #define GFS_METATYPE_EA         (10)   /* Extended Attribute */
+#define GFS_METATYPE_ED         (11)   /* Extended Attribute data */
 
 #define GFS_META_CLUMP          (64)   /* # blocks to convert fm data to meta */
 
@@ -489,15 +491,13 @@ struct gfs_quota_tag {
  */
 
 #define GFS_EA_MAX_NAME_LEN     (255)
-#define GFS_EA_MAX_DATA_LEN     (65535)
+#define GFS_EA_MAX_DATA_LEN     (65536)
 
 #define GFS_EATYPE_UNUSED       (0)
 #define GFS_EATYPE_USR          (1)     /* user attribute */
 #define GFS_EATYPE_SYS          (2)     /* system attribute */
 
-/* validity check, for requests only */
-#define GFS_EATYPE_LAST	        (2)     /* largest GFS_EATYPE_ type # */
-#define GFS_EATYPE_VALID(x)     ((x) && (x) <= GFS_EATYPE_LAST)
+#define GFS_EATYPE_VALID(x)     ((x) <= 2)
 
 #define GFS_EAFLAG_LAST         (0x01)	/* last ea in block */
 
@@ -507,7 +507,7 @@ struct gfs_ea_header {
 	uint8_t ea_name_len;    /* no NULL pointer after the string */
 	uint8_t ea_type;        /* GFS_EATYPE_... */
 	uint8_t ea_flags;       /* GFS_EAFLAG_... */
-	uint8_t ea_num_ptrs;    /* (# fs blocks needed for EA) - 1 */
+	uint8_t ea_num_ptrs;    /* # fs blocks needed for EA */
 	uint32_t ea_pad;
 };
 
@@ -589,7 +589,7 @@ void gfs_log_header_print(struct gfs_log_header *head);
 void gfs_desc_print(struct gfs_log_descriptor *desc);
 void gfs_block_tag_print(struct gfs_block_tag *tag);
 void gfs_quota_tag_print(struct gfs_quota_tag *tag);
-void gfs_ea_header_print(struct gfs_ea_header *tag);
+void gfs_ea_header_print(struct gfs_ea_header *ea, char *name);
 
 /*  The hash function for ExHash directories  */
 
@@ -1705,8 +1705,10 @@ gfs_ea_header_out(struct gfs_ea_header *ea, char *buf)
  */
 
 void
-gfs_ea_header_print(struct gfs_ea_header *ea)
+gfs_ea_header_print(struct gfs_ea_header *ea, char *name)
 {
+	char buf[GFS_EA_MAX_NAME_LEN + 1];
+
 	pv(ea, ea_rec_len, "%u");
 	pv(ea, ea_data_len, "%u");
 	pv(ea, ea_name_len, "%u");
@@ -1714,6 +1716,10 @@ gfs_ea_header_print(struct gfs_ea_header *ea)
 	pv(ea, ea_flags, "%u");
 	pv(ea, ea_num_ptrs, "%u");
 	pv(ea, ea_pad, "%u");
+
+	memset(buf, 0, GFS_EA_MAX_NAME_LEN + 1);
+	memcpy(buf, name, ea->ea_name_len);
+	printk("  name = %s\n", buf);
 }
 
 static const uint32_t crc_32_tab[] =

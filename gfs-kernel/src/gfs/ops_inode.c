@@ -21,8 +21,8 @@
 #include <linux/namei.h>
 #include <linux/utsname.h>
 #include <asm/uaccess.h>
-#include <linux/xattr.h>
 #include <linux/mm.h>
+#include <linux/xattr.h>
 #include <linux/posix_acl.h>
 
 #include "gfs.h"
@@ -30,6 +30,7 @@
 #include "bmap.h"
 #include "dio.h"
 #include "dir.h"
+#include "eaops.h"
 #include "eattr.h"
 #include "glock.h"
 #include "inode.h"
@@ -561,7 +562,7 @@ gfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	gfs_holder_init(dip->i_gl, 0, 0, &d_gh);
 
 	error = gfs_createi(&d_gh, &dentry->d_name,
-			    GFS_FILE_LNK, 0777,
+			    GFS_FILE_LNK, S_IFLNK | S_IRWXUGO,
 			    &i_gh);
 	if (error) {
 		gfs_holder_uninit(&d_gh);
@@ -631,7 +632,7 @@ gfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	gfs_holder_init(dip->i_gl, 0, 0, &d_gh);
 
 	error = gfs_createi(&d_gh, &dentry->d_name,
-			    GFS_FILE_DIR, mode,
+			    GFS_FILE_DIR, S_IFDIR | mode,
 			    &i_gh);
 	if (error) {
 		gfs_holder_uninit(&d_gh);
@@ -1232,6 +1233,81 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 }
 
 /**
+ * gfs_permission_i -
+ * @inode:
+ * @mask:
+ * @nd:
+ *
+ * Shamelessly ripped from ext3
+ *
+ * Returns: errno
+ */
+
+static int
+gfs_permission_i(struct inode *inode, int mask, struct nameidata *nd)
+{
+	int mode = inode->i_mode;
+      
+	/* Nobody gets write access to a read-only fs */
+	if ((mask & MAY_WRITE) &&
+	    IS_RDONLY(inode) &&
+	    (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode)))
+		return -EROFS;
+
+	/* Nobody gets write access to an immutable file */
+	if ((mask & MAY_WRITE) && IS_IMMUTABLE(inode))
+		return -EACCES;
+
+	if (current->fsuid == inode->i_uid)
+		mode >>= 6;
+	else if (IS_POSIXACL(inode)) {
+		struct posix_acl *acl = NULL;
+		int error;
+
+		/* The access ACL cannot grant access if the group class
+		   permission bits don't contain all requested permissions. */
+		if (((mode >> 3) & mask & S_IRWXO) != mask)
+			goto check_groups;
+
+		error = gfs_acl_get(vn2ip(inode), TRUE, &acl);
+		if (error)
+			return error;
+
+		if (acl) {
+			int error = posix_acl_permission(inode, acl, mask);
+			posix_acl_release(acl);
+			if (error == -EACCES)
+				goto check_capabilities;
+			return error;
+		} else
+			goto check_groups;
+	} else {
+	check_groups:
+		if (in_group_p(inode->i_gid))
+			mode >>= 3;
+	}
+
+	if ((mode & mask & S_IRWXO) == mask)
+		return 0;
+      
+ check_capabilities:
+	/* Allowed to override Discretionary Access Control? */
+	if (!(mask & MAY_EXEC) ||
+	    (inode->i_mode & S_IXUGO) ||
+	    S_ISDIR(inode->i_mode))
+		if (capable(CAP_DAC_OVERRIDE))
+			return 0;
+
+	/* Read and search granted if capable(CAP_DAC_READ_SEARCH) */
+	if (capable(CAP_DAC_READ_SEARCH) &&
+	    ((mask == MAY_READ) ||
+	     (S_ISDIR(inode->i_mode) && !(mask & MAY_WRITE))))
+		return 0;
+
+	return -EACCES;
+}
+
+/**
  * gfs_permission -
  * @inode:
  * @mask:
@@ -1245,8 +1321,6 @@ gfs_permission(struct inode *inode, int mask, struct nameidata *nd)
 {
 	struct gfs_inode *ip = vn2ip(inode);
 	struct gfs_holder i_gh;
-	struct posix_acl *acl;
-	umode_t mode = inode->i_mode;
 	int error;
 
 	atomic_inc(&ip->i_sbd->sd_ops_inode);
@@ -1257,56 +1331,8 @@ gfs_permission(struct inode *inode, int mask, struct nameidata *nd)
 	if (error)
 		return error;
 
-	if (mask & MAY_WRITE) {
-		if (IS_RDONLY(inode) &&
-		    (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode))) {
-			error = -EROFS;
-			goto out;
-		}
-		if (IS_IMMUTABLE(inode)) {
-			error = -EACCES;
-			goto out;
-		}
-	}
+	error = gfs_permission_i(inode, mask, nd);
 
-	if (capable(CAP_DAC_OVERRIDE))
-		if (!(mask & MAY_EXEC) || (mode & S_IXUGO))
-			goto out;
-
-	if (capable(CAP_DAC_READ_SEARCH) &&
-	    (mask == MAY_READ ||
-	     (!(mask & MAY_WRITE) && S_ISDIR(mode))))
-		goto out;
-
-	if (inode->i_uid == current->fsuid) {
-		if ((mask & (mode >> 6)) != mask)
-			error = -EACCES;
-		goto out;
-	}
-
-	if ((mask & (mode >> 3)) == mask) {
-		error = gfs_getacl(inode, TRUE, &acl);
-		if (acl) {
-			error = posix_acl_permission(inode, acl, mask);
-			goto out;
-		} else if (error && error != -ENODATA)
-			goto out;
-		error = 0;
-		if (in_group_p(inode->i_gid)) {
-			error = 0;
-			goto out;
-		}
-	} else if (in_group_p(inode->i_gid)) {
-		error = -EACCES;
-		goto out;
-	}
-
-	if ((mask & mode) == mask)
-		goto out;
-
-	error = -EACCES;
-
- out:
 	gfs_glock_dq_uninit(&i_gh);
 
 	return error;
@@ -1330,10 +1356,7 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 	struct gfs_inode *ip = vn2ip(inode);
 	struct gfs_sbd *sdp = ip->i_sbd;
 	struct gfs_holder i_gh;
-	struct gfs_alloc *al;
-	struct buffer_head *dibh;
-	uint32_t ouid, ogid, nuid, ngid;
-	int error = 0;
+	int error;
 
 	atomic_inc(&sdp->sd_ops_inode);
 
@@ -1366,6 +1389,10 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 	}
 
 	else if (attr->ia_valid & (ATTR_UID | ATTR_GID)) {
+		struct gfs_alloc *al;
+		struct buffer_head *dibh;
+		uint32_t ouid, ogid, nuid, ngid;
+
 		ouid = ip->i_di.di_uid;
 		ogid = ip->i_di.di_gid;
 		nuid = attr->ia_uid;
@@ -1419,29 +1446,16 @@ gfs_setattr(struct dentry *dentry, struct iattr *attr)
 		gfs_alloc_put(ip);
 	}
 
-	else {
-		/* Trans may require:
-		   one dinode block plus changes for acl. */
-
-		error = gfs_trans_begin(sdp,
-					1 + GFS_MAX_EA_ACL_BLKS, 0);
+	else if ((attr->ia_valid & ATTR_MODE) && IS_POSIXACL(inode)) {
+		error = gfs_acl_chmod(ip, attr);
 		if (error)
 			goto fail;
+	}
 
-		error = gfs_get_inode_buffer(ip, &dibh);
-		if (!error) {
-			inode_setattr(inode, attr);
-			gfs_inode_attr_out(ip);
-
-			if (attr->ia_valid & ATTR_MODE)
-				error = gfs_acl_setattr(inode);
-
-			gfs_trans_add_bh(ip->i_gl, dibh);
-			gfs_dinode_out(&ip->i_di, dibh->b_data);
-			brelse(dibh);
-		}
-
-		gfs_trans_end(sdp);
+	else {
+		error = gfs_setattr_simple(ip, attr);
+		if (error)
+			goto fail;
 	}
 
 	gfs_glock_dq_uninit(&i_gh);
@@ -1495,40 +1509,14 @@ gfs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 }
 
 /**
- * get_eatype - get the type of the ea, and trucate the type from the name
- * @namep: ea name, possibly with type appended
- *
- * Returns: GFS_EATYPE_XXX
- */
-
-int
-get_eatype(const char *name, char **truncated_name)
-{
-	int type;
-
-	if (strncmp(name, "system.", 7) == 0) {
-		type = GFS_EATYPE_SYS;
-		*truncated_name = strchr(name, '.') + 1;
-	} else if (strncmp(name, "user.", 5) == 0) {
-		type = GFS_EATYPE_USR;
-		*truncated_name = strchr(name, '.') + 1;
-	} else {
-		type = GFS_EATYPE_UNUSED;
-		*truncated_name = NULL;
-	}
-
-	return type;
-}
-
-/**
  * gfs_setxattr - Set (or create or replace) an inode's extended attribute
- * @dentry: inode's dentry
- * @name: name of the extended attribute
- * @data: the value of the extended attribute
- * @size: the size of data
- * @flags: used to specify create or replace actions
+ * @dentry: 
+ * @name: 
+ * @data: 
+ * @size: 
+ * @flags: 
  *
- * Returns:  0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int
@@ -1536,34 +1524,20 @@ gfs_setxattr(struct dentry *dentry, const char *name,
 	     const void *data, size_t size,
 	     int flags)
 {
-	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = vn2ip(inode);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_easet_io req;
-	char *truncated_name;
-	int error = 0;
+	struct gfs_ea_request er;
 
-	atomic_inc(&sdp->sd_ops_inode);
+	atomic_inc(&vfs2sdp(dentry->d_inode->i_sb)->sd_ops_inode);
 
-	req.es_type = get_eatype(name, &truncated_name);
+	memset(&er, 0, sizeof(struct gfs_ea_request));
+	er.er_type = gfs_ea_name2type(name, &er.er_name);
+	if (er.er_type == GFS_EATYPE_UNUSED)
+	        return -EOPNOTSUPP;
+	er.er_data = (char *)data;
+	er.er_name_len = strlen(er.er_name);
+	er.er_data_len = size;
+	er.er_flags = flags;
 
-	if (req.es_type == GFS_EATYPE_UNUSED)
-		error = -EOPNOTSUPP;
-	else {
-		req.es_data = data;
-		req.es_name = truncated_name;
-		req.es_data_len = size;
-		req.es_name_len = strlen(truncated_name);
-		if (flags & XATTR_CREATE)
-			req.es_cmd = GFS_EACMD_CREATE;
-		else if (flags & XATTR_REPLACE)
-			req.es_cmd = GFS_EACMD_REPLACE;
-		else
-			req.es_cmd = GFS_EACMD_SET;
-		error = gfs_set_eattr(sdp, ip, &req);
-	}
-
-	return error;
+	return gfs_ea_set(vn2ip(dentry->d_inode), &er);
 }
 
 /**
@@ -1573,36 +1547,26 @@ gfs_setxattr(struct dentry *dentry, const char *name,
  * @data:
  * @size:
  *
- * Returns:  0 on success, -EXXX on error
+ * Returns: The number of bytes put into data, or -errno
  */
 
 ssize_t
 gfs_getxattr(struct dentry *dentry, const char *name,
 	     void *data, size_t size)
 {
-	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = vn2ip(inode);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_eaget_io req;
-	char *truncated_name;
-	int error = 0;
+	struct gfs_ea_request er;
 
-	atomic_inc(&sdp->sd_ops_inode);
+	atomic_inc(&vfs2sdp(dentry->d_inode->i_sb)->sd_ops_inode);
 
-	req.eg_type = get_eatype(name, &truncated_name);
+	memset(&er, 0, sizeof(struct gfs_ea_request));
+	er.er_type = gfs_ea_name2type(name, &er.er_name);
+	if (er.er_type == GFS_EATYPE_UNUSED)
+	        return -EOPNOTSUPP;
+	er.er_data = data;
+	er.er_name_len = strlen(er.er_name);
+	er.er_data_len = size;
 
-	if (req.eg_type == GFS_EATYPE_UNUSED)
-		error = -EOPNOTSUPP;
-	else {
-		req.eg_name = truncated_name;
-		req.eg_name_len = strlen(truncated_name);
-		req.eg_data = data;
-		req.eg_data_len = size;
-		req.eg_len = NULL;
-		error = gfs_get_eattr(sdp, ip, &req, gfs_ea_memcpy);
-	}
-
-	return error;
+	return gfs_ea_get(vn2ip(dentry->d_inode), &er);
 }
 
 /**
@@ -1611,27 +1575,21 @@ gfs_getxattr(struct dentry *dentry, const char *name,
  * @buffer:
  * @size:
  *
- * Returns:  0 on success, -EXXX on error
+ * Returns: The number of bytes put into data, or -errno
  */
 
 ssize_t
 gfs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
-	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = vn2ip(inode);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_eaget_io req;
+	struct gfs_ea_request er;
 
-	atomic_inc(&sdp->sd_ops_inode);
+	atomic_inc(&vfs2sdp(dentry->d_inode->i_sb)->sd_ops_inode);
 
-	req.eg_type = 0;
-	req.eg_name = NULL;
-	req.eg_name_len = 0;
-	req.eg_data = buffer;
-	req.eg_data_len = size;
-	req.eg_len = NULL;
+	memset(&er, 0, sizeof(struct gfs_ea_request));
+	er.er_data = (size) ? buffer : NULL;
+	er.er_data_len = size;
 
-	return gfs_get_eattr(sdp, ip, &req, gfs_ea_memcpy);
+	return gfs_ea_list(vn2ip(dentry->d_inode), &er);
 }
 
 /**
@@ -1639,35 +1597,23 @@ gfs_listxattr(struct dentry *dentry, char *buffer, size_t size)
  * @dentry:
  * @name:
  *
- * Returns:  0 on success, -EXXX on error
+ * Returns: errno
  */
 
 int
 gfs_removexattr(struct dentry *dentry, const char *name)
 {
-	struct inode *inode = dentry->d_inode;
-	struct gfs_inode *ip = vn2ip(inode);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct gfs_easet_io req;
-	char *truncated_name;
-	int error = 0;
+	struct gfs_ea_request er;
 
-	atomic_inc(&sdp->sd_ops_inode);
+	atomic_inc(&vfs2sdp(dentry->d_inode->i_sb)->sd_ops_inode);
 
-	req.es_type = get_eatype(name, &truncated_name);
+	memset(&er, 0, sizeof(struct gfs_ea_request));
+	er.er_type = gfs_ea_name2type(name, &er.er_name);
+	if (er.er_type == GFS_EATYPE_UNUSED)
+	        return -EOPNOTSUPP;
+	er.er_name_len = strlen(er.er_name);
 
-	if (req.es_type == GFS_EATYPE_UNUSED)
-		error = -EOPNOTSUPP;
-	else {
-		req.es_name = truncated_name;
-		req.es_data = NULL;
-		req.es_data_len = 0;
-		req.es_name_len = strlen(truncated_name);
-		req.es_cmd = GFS_EACMD_REMOVE;
-		error = gfs_set_eattr(sdp, ip, &req);
-	}
-
-	return error;
+	return gfs_ea_remove(vn2ip(dentry->d_inode), &er);
 }
 
 struct inode_operations gfs_file_iops = {
