@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# chkconfig: 345 22 78
+# chkconfig: 345 23 77
 # description: Starts and stops fence domain
 #
 #	       
