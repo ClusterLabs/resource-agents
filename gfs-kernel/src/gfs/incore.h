@@ -1102,7 +1102,7 @@ struct gfs_sbd {
 	struct list_head sd_log_incore;	/* "Next" is newest, "prev" is oldest */
 	unsigned int sd_log_buffers;	/* # of buffers in the incore log */
 
-	struct semaphore sd_log_lock;	/* Lock for access to log values */
+	struct rw_semaphore sd_log_lock;	/* Lock for access to log values */
 
 	uint64_t sd_log_dump_last;
 	uint64_t sd_log_dump_last_wrap;

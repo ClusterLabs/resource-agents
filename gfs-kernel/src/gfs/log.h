@@ -23,7 +23,7 @@
 static __inline__ void
 gfs_log_lock(struct gfs_sbd *sdp)
 {
-	down(&sdp->sd_log_lock);
+	down_write(&sdp->sd_log_lock);
 }
 
 /**
@@ -35,7 +35,7 @@ gfs_log_lock(struct gfs_sbd *sdp)
 static __inline__ void
 gfs_log_unlock(struct gfs_sbd *sdp)
 {
-	up(&sdp->sd_log_lock);
+	up_write(&sdp->sd_log_lock);
 }
 
 unsigned int gfs_struct2blk(struct gfs_sbd *sdp, unsigned int nstruct,

@@ -129,7 +129,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	init_waitqueue_head(&sdp->sd_log_seg_wait);
 	INIT_LIST_HEAD(&sdp->sd_log_ail);
 	INIT_LIST_HEAD(&sdp->sd_log_incore);
-	init_MUTEX(&sdp->sd_log_lock);
+	init_rwsem(&sdp->sd_log_lock);
 	INIT_LIST_HEAD(&sdp->sd_unlinked_list);
 	spin_lock_init(&sdp->sd_unlinked_lock);
 	INIT_LIST_HEAD(&sdp->sd_quota_list);
