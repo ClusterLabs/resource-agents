@@ -1422,6 +1422,8 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_logbh_wait(sdp, &lb->lb_bh);
 	gfs_logbh_uninit(sdp, &lb->lb_bh);
 
+	sdp->sd_log_head++;
+
  out:
 	gfs_log_unlock(sdp);
 
