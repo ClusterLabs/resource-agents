@@ -151,7 +151,7 @@ _read_services(char **buffer)
 
 	while ((n = read(fd, *buffer, BLOCK_SIZE)) == BLOCK_SIZE) {
 		ret += BLOCK_SIZE;
-		*buffer = realloc(*buffer, ret + BLOCK_SIZE);
+		*buffer = realloc(*buffer, ret);
 	}
 
 	if (n < 0) {
@@ -185,49 +185,68 @@ cluster_member_list_t *
 service_group_members(int sockfd, char *groupname)
 {
        	cluster_member_list_t *foo = NULL;
-	struct cl_cluster_node *cman_list = NULL;
-	int x, y, count = 0, group_count;
+	struct cl_cluster_nodelist cman_nl = { 0, NULL };
+	int x, y, group_count;
 	size_t sz = 0;
 	char *buf = NULL;
 	uint64_t *member_ids = NULL;
 
-	count = ioctl(sockfd, SIOCCLUSTER_GETMEMBERS, NULL);
-	if (count <= 0)
-		return NULL;
-	
-	/* BIG malloc here */
-	cman_list = malloc(cml_size(count));
-	assert(cman_list != NULL);
-	
+	do {
+		/* Clean up if necessary */
+		if (cman_nl.nodes)
+			free(cman_nl.nodes);
+		if (foo)
+			/* Don't need to cml_free - we know we didn't
+			   resolve anything */
+			free(foo);
+
+		x = ioctl(sockfd, SIOCCLUSTER_GETMEMBERS, NULL);
+		if (x <= 0)
+			return NULL;
+
+		cman_nl.max_members = x;
+
+		/* BIG malloc here */
+		sz = sizeof(struct cl_cluster_node) * cman_nl.max_members;
+		cman_nl.nodes = malloc(sz);
+		assert(cman_nl.nodes != NULL);
+
+		/* Another biggie */
+		foo = cml_alloc(cman_nl.max_members);
+		assert(foo != NULL);
+
+	} while (ioctl(sockfd, SIOCCLUSTER_GETMEMBERS, &cman_nl) !=
+		 cman_nl.max_members);
+
 	/* Another biggie */
-	foo = malloc(cml_size(count));
+	foo = malloc(cml_size(cman_nl.max_members));
 	assert(foo != NULL);
-	assert(ioctl(sockfd, SIOCCLUSTER_GETMEMBERS, cman_list) == count);
 	strncpy(foo->cml_groupname, groupname, sizeof(foo->cml_groupname));
 
 	sz = _read_services(&buf);
 	if (sz <= 0) {
-		free(cman_list);
+		free(cman_nl.nodes);
 		free(foo);
 		return NULL;
 	}
 
 	group_count = _group_member_ids(groupname, buf, sz, &member_ids);
 	if (group_count <= 0) {
-		free(cman_list);
+		free(cman_nl.nodes);
 		free(foo);
 		return NULL;
 	}
 
 	foo->cml_count = group_count;
-	for (x = 0, y = 0; (x < count) && (y < group_count); x++) {
+	for (x = 0, y = 0; (x < cman_nl.max_members) &&
+			   (y < group_count); x++) {
 		if (!_is_member(member_ids, group_count,
-		    		 cman_list[x].node_id))
+		    		 cman_nl.nodes[x].node_id))
 			continue;
 
-		foo->cml_members[y].cm_id = cman_list[x].node_id;
+		foo->cml_members[y].cm_id = cman_nl.nodes[x].node_id;
 
-		switch(cman_list[x].state) {
+		switch(cman_nl.nodes[x].state) {
 		case NODESTATE_REMOTEMEMBER:
 		case NODESTATE_MEMBER:
 			foo->cml_members[y].cm_state = STATE_UP;
@@ -241,7 +260,7 @@ service_group_members(int sockfd, char *groupname)
 			break;
 		}
 		
-		strncpy(foo->cml_members[y].cm_name, cman_list[x].name,
+		strncpy(foo->cml_members[y].cm_name, cman_nl.nodes[x].name,
 			sizeof(foo->cml_members[y].cm_name));
 		++y;
 	}
@@ -250,8 +269,8 @@ service_group_members(int sockfd, char *groupname)
 		free(buf);
 	if (member_ids)
 		free(member_ids);
-	if (cman_list)
-		free(cman_list);
+	if (cman_nl.nodes)
+		free(cman_nl.nodes);
 	return foo;
 }
 

@@ -57,10 +57,10 @@ if ($help || !$err) {
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
-  print "--libdir=\tthe base directory for libraries.  (Default: /lib)\n";
+  print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
-  print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
+  print "--sbindir=\tthe base directory for system binaries.  (Default: /usr/sbin)\n";
   print "--verbose\t\tVerbose output\n";
   exit $ret;
 }
@@ -74,13 +74,13 @@ if (!$incdir) {
   $incdir="${prefix}/usr/include";
 }
 if (!$libdir) {
-  $libdir="${prefix}/lib";
+  $libdir="${prefix}/usr/lib";
 }
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
 }
 if (!$sbindir) {
-  $sbindir="${prefix}/sbin";
+  $sbindir="${prefix}/usr/sbin";
 }
 
 
