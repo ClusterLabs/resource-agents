@@ -267,9 +267,9 @@ static inline void set_nodeid(struct cluster_node *node, int nodeid)
 
 	if (members_by_nodeid[nodeid] &&
 	    members_by_nodeid[nodeid] != node) {
-		printk("Attempt to re-add node with id %d\n", nodeid);
-		printk("existing node is %s\n", members_by_nodeid[nodeid]->name);
-		printk("new node is %s\n", node->name);
+		printk(KERN_ERR CMAN_NAME ": Attempt to re-add node with id %d\n", nodeid);
+		printk(KERN_ERR CMAN_NAME ": existing node is %s\n", members_by_nodeid[nodeid]->name);
+		printk(KERN_ERR CMAN_NAME ": new node is %s\n", node->name);
 		BUG();
 	}
 
@@ -448,7 +448,7 @@ static int membership_kthread(void *unused)
 		if (node_state == JOINWAIT &&
 		    time_after(jiffies,
 			       joinwait_time + cman_config.joinwait_timeout * HZ)) {
-			printk(CMAN_NAME
+			printk(KERN_WARNING CMAN_NAME
 			       ": Been in JOINWAIT for too long - giving up\n");
 			goto leave_cluster;
 		}
@@ -722,7 +722,7 @@ static int send_joinconf()
 	int status;
 
 	if (joining_temp_nodeid == 0) {
-		printk(KERN_WARNING CMAN_NAME ": Failed to join node '%s'\n",
+		printk(KERN_DEBUG CMAN_NAME ": Failed to join node '%s'\n",
 		       joining_node?joining_node->name:"unknown");
 		remove_joiner(0);
 		return -1;
@@ -736,7 +736,7 @@ static int send_joinconf()
 				   MSG_NOACK, 0);
 
 	if (status < 0) {
-		printk("Error %d sending JOINCONF\n", status);
+		printk(KERN_WARNING CMAN_NAME ": Error %d sending JOINCONF\n", status);
         }
 	return status;
 }
@@ -883,7 +883,7 @@ static int wait_for_completion_barrier(void)
 	P_MEMB("Waiting for completion barrier: %d members\n", cluster_members);
 	if ((status =
 	     kcl_barrier_register(barriername, 0, cluster_members)) < 0) {
-		printk(CMAN_NAME ": Error registering barrier: %d\n", status);
+		printk(KERN_ERR CMAN_NAME ": Error registering barrier: %d\n", status);
 		return -1;
 	}
 	kcl_barrier_setattr(barriername, BARRIER_SETATTR_TIMEOUT,
@@ -2706,7 +2706,7 @@ static int unpack_nodes(unsigned char *buf, int len,
 static int do_process_joinconf(struct msghdr *msg, char *buf, int len)
 {
 	if (unpack_nodes(buf + 2, len - 2, add_node) < 0) {
-		printk(CMAN_NAME
+		printk(KERN_ERR CMAN_NAME
 		       ": Error procssing joinconf message - giving up on cluster join\n");
 		us->leave_reason = CLUSTER_LEAVEFLAG_PANIC;
 		node_state = LEFT_CLUSTER;
@@ -2824,7 +2824,7 @@ static int do_process_hello(struct msghdr *msg, char *buf, int len)
 					  cman_config.hello_timer * HZ +
 					  transition_end_time)) {
 
-				printk(KERN_INFO CMAN_NAME
+				printk(KERN_DEBUG CMAN_NAME
 				       ": bad generation number %d in HELLO message from %d, expected %d\n",
 				       le32_to_cpu(hellomsg->generation),
 				       saddr->scl_nodeid,
@@ -2836,7 +2836,7 @@ static int do_process_hello(struct msghdr *msg, char *buf, int len)
 
 			if (cluster_members != le16_to_cpu(hellomsg->members)
 			    && node_state == MEMBER) {
-				printk(KERN_INFO CMAN_NAME
+				printk(KERN_DEBUG CMAN_NAME
 				       ": nmembers in HELLO message from %d does not match our view (got %d, exp %d)\n",
 				       saddr->scl_nodeid,
 				       le16_to_cpu(hellomsg->members),
