@@ -262,6 +262,13 @@ static int create_control_device()
     int status = 0;
     int saved_errno = 0;
 
+    /* Make sure the parent directory exists */
+    status = mkdir(MISC_PREFIX, 0600);
+    if (status != 0 && errno != EEXIST)
+    {
+	return status;
+    }
+
     pmisc = fopen("/proc/misc", "r");
     if (!pmisc)
 	return -1;
