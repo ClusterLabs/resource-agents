@@ -37,7 +37,6 @@ gulmd_src = \
 	src/utils_crc.c \
 	src/utils_dir.c \
 	src/utils_ip.c \
-	src/utils_srt.c \
 	src/utils_tostr.c \
 	src/utils_verb_flags.c \
 	src/xdr_base.c \
