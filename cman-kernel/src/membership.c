@@ -2634,7 +2634,7 @@ static int do_process_hello(struct msghdr *msg, int len)
 
 	/* We are starting up. Send a join message to the node whose HELLO we
 	 * just received */
-	if (node_state == STARTING || node_state == JOINWAIT) {
+	if (node_state == STARTING || node_state == JOINWAIT || node_state == NEWCLUSTER) {
 		struct sockaddr_cl *addr = msg->msg_name;
 
 		printk(KERN_INFO CMAN_NAME ": sending membership request\n");
