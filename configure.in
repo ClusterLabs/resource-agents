@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.225 $) dnl cvs revision
+AC_REVISION($Revision: 1.226 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1233,6 +1233,12 @@ echo "$as_me:$LINENO: result: ${enable_crm}" >&5
 echo "${ECHO_T}"\t${enable_crm} >&6
  
 AC_SUBST(CRM_DIR)
+
+CRM_DEBUG_LIBS=""
+CRM_DEBUG_OPTS=""
+AC_SUBST(CRM_DEBUG_LIBS)
+AC_SUBST(CRM_DEBUG_FLAGS)
+dnl AC_DEFINE_UNQUOTED(DMALLOC, 1, Use the dmalloc libraries)
 
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
