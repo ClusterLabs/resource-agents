@@ -67,7 +67,7 @@ libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): global.o plugin.o localinfo.o ip_
 		        memberlist.o clist.o
 	${LD} -shared -soname libmagma.so.$(RELEASE_MAJOR) -o $@ $^ -lc
 
-libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o crc32.o fdops.o
+libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o fdops.o
 	${LD} -shared -soname libmagmamsg.so.$(RELEASE_MAJOR) -o $@ $^ -lc
 
 libmagma.a: global.o plugin.o localinfo.o ip_lookup.o \
