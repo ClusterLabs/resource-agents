@@ -14,6 +14,7 @@
 #ifndef __DIR_DOT_H__
 #define __DIR_DOT_H__
 
+void print_name(char *b, int len);
 uint32_t name_to_directory_nodeid(struct dlm_ls *ls, char *name, int length);
 uint32_t get_directory_nodeid(struct dlm_rsb *rsb);
 

@@ -39,6 +39,8 @@
 #include "queries.h"
 #include "util.h"
 
+#include <linux/delay.h>
+
 static void add_reply_lvb(struct dlm_lkb * lkb, struct dlm_reply *reply);
 static void add_request_lvb(struct dlm_lkb * lkb, struct dlm_request *req);
 
@@ -316,27 +318,34 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 	switch (state) {
 	case GDLM_LQSTATE_WAIT_RSB:
 
-		DLM_ASSERT(reply->rl_status == 0,
-			   print_lkb(lkb);
-			   print_rsb(rsb);
-			   print_reply(reply););
+		if (reply->rl_status) {
+			DLM_ASSERT(reply->rl_status == -EEXIST,);
+			log_all(ls, "dir entry exists %x fr %d", lkb->lkb_id,
+				nodeid);
+			/* print_rsb(rsb); */
 
-		DLM_ASSERT(rsb->res_nodeid == -1 ||
-			   rsb->res_nodeid == 0,
-			   print_lkb(lkb);
-			   print_rsb(rsb);
-			   print_reply(reply););
+			if (rsb->res_nodeid != -1)
+				goto stage2;
+
+			/* could the lookup bypass a dir remove? requiring:
+			 * remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB); */
+		}
 
 		if (reply->rl_nodeid == our_nodeid()) {
 			if (rsb->res_nodeid == -1) {
 				set_bit(RESFL_MASTER, &rsb->res_flags);
 				rsb->res_nodeid = 0;
 			} else {
-				log_all(ls, "ignore master reply %x %u",
-					lkb->lkb_id, nodeid);
+				DLM_ASSERT(rsb->res_nodeid == 0,
+					   print_lkb(lkb);
+					   print_rsb(rsb);
+					   print_reply(reply););
+				log_all(ls, "lookup reply ignore %x %u \"%s\"",
+					lkb->lkb_id, nodeid, rsb->res_name);
 			}
 		} else {
-			DLM_ASSERT(rsb->res_nodeid == -1,
+			DLM_ASSERT(rsb->res_nodeid == -1 ||
+				   rsb->res_nodeid == reply->rl_nodeid,
 				   print_lkb(lkb);
 				   print_rsb(rsb);
 				   print_reply(reply););
@@ -345,6 +354,7 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			rsb->res_nodeid = reply->rl_nodeid;
 		}
 
+ stage2:
 		log_debug(ls, "lu rep %x fr %u %u", lkb->lkb_id, nodeid,
 			  rsb->res_nodeid);
 
@@ -374,22 +384,30 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			lkb_dequeue(lkb);
 			rsb->res_nodeid = -1;
 			lkb->lkb_nodeid = -1;
+
 			if (get_directory_nodeid(rsb) != our_nodeid())
 				remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
 			else {
-			    	dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
-					       rsb->res_length, &master_nodeid);
-					       
+			    	int error = dlm_dir_lookup(ls, our_nodeid(),
+							   rsb->res_name,
+							   rsb->res_length,
+							   &master_nodeid);
+				if (error == -EEXIST) {
+					/* don't expect this will happen */
+					log_all(ls, "EEXIST %x", lkb->lkb_id);
+					print_rsb(rsb);
+				}
+
 			    	if (master_nodeid == our_nodeid()) {
 					set_bit(RESFL_MASTER, &rsb->res_flags);
 					master_nodeid = 0;
-			        } 
-				else
+			        } else
 					clear_bit(RESFL_MASTER,&rsb->res_flags);
-			        rsb->res_nodeid = master_nodeid;
-			        lkb->lkb_nodeid = master_nodeid;
-			        dlm_lock_stage2(ls, lkb, rsb,
-			 			lkb->lkb_lockqueue_flags);
+
+				rsb->res_nodeid = master_nodeid;
+				lkb->lkb_nodeid = master_nodeid;
+				dlm_lock_stage2(ls, lkb, rsb,
+						lkb->lkb_lockqueue_flags);
 			}
 			break;
 		}
@@ -729,10 +747,6 @@ int send_cluster_request(struct dlm_lkb *lkb, int state)
 
 		log_debug(ls, "send un %x to %u", lkb->lkb_id, target_nodeid);
 
-		if (rsb->res_nodeid != -1)
-			log_all(ls, "un %x to %u rsb nodeid %u", lkb->lkb_id,
-				target_nodeid, rsb->res_nodeid);
-
 		req->rr_header.rh_cmd = GDLM_REMCMD_UNLOCKREQUEST;
 		break;
 
@@ -814,9 +828,6 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 
 			status = dlm_dir_lookup(lspace, nodeid, freq->rr_name,
 					        namelen, &r_nodeid);
-			if (status)
-				status = -ENOMEM;
-
 			reply.rl_status = status;
 			reply.rl_lockstate = 0;
 			reply.rl_nodeid = r_nodeid;

@@ -138,10 +138,12 @@ void print_rsb(struct dlm_rsb *r)
 {
 	printk("dlm: rsb\n"
 	       "name \"%s\"\n"
-	       "nodeid %u\n"
+	       "nodeid %d\n"
+	       "flags %lx\n"
 	       "ref %u\n",
 	       r->res_name,
 	       r->res_nodeid,
+	       r->res_flags,
 	       atomic_read(&r->res_ref));
 }
 

@@ -438,8 +438,9 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 
 	error = find_or_create_rsb(ls, parent_rsb, name, namelen, 1, &rsb);
 	if (error)
-		goto out;
+		return error;
 	lkb->lkb_resource = rsb;
+	down_write(&rsb->res_lock);
 
 	log_debug(ls, "rq %u %x \"%s\"", lkb->lkb_rqmode, lkb->lkb_id,
 		  rsb->res_name);
@@ -450,30 +451,32 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 
 	if (rsb->res_nodeid == -1) {
 		if (get_directory_nodeid(rsb) != our_nodeid()) {
-			error = remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
-			goto out;
+			remote_stage(lkb, GDLM_LQSTATE_WAIT_RSB);
+			up_write(&rsb->res_lock);
+			return 0;
 		}
 
 		error = dlm_dir_lookup(ls, our_nodeid(), rsb->res_name,
 				       rsb->res_length, &nodeid);
-		if (error)
-			goto out;
+		if (error) {
+			DLM_ASSERT(error == -EEXIST,);
+			log_all(ls, "dir entry exists %x", lkb->lkb_id);
+			/* print_rsb(rsb); */
+		}
 
 		if (nodeid == our_nodeid()) {
 			set_bit(RESFL_MASTER, &rsb->res_flags);
-			nodeid = 0;
-		} else
+			rsb->res_nodeid = 0;
+		} else {
 			clear_bit(RESFL_MASTER, &rsb->res_flags);
-		rsb->res_nodeid = nodeid;
+			rsb->res_nodeid = nodeid;
+		}
 	}
 
 	lkb->lkb_nodeid = rsb->res_nodeid;
+	up_write(&rsb->res_lock);
 
 	error = dlm_lock_stage2(ls, lkb, rsb, flags);
-
-      out:
-	if (error)
-		release_rsb(rsb);
 
 	return error;
 }
@@ -568,7 +571,9 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 		goto fail_free;
 
 	if (!rsb || rsb->res_nodeid != 0) {
-		log_debug(ls, "send einval to %u", remote_nodeid);
+		log_debug(ls, "send einval to %u r %d", remote_nodeid,
+			  (rsb ? rsb->res_nodeid : 0));
+		/* print_name(freq->rr_name, namelen); */
 		lkb->lkb_retstatus = -EINVAL;
 		if (rsb)
 			release_rsb(rsb);

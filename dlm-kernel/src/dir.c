@@ -28,6 +28,14 @@ struct resmov {
 	uint16_t rm_pad;
 };
 
+void print_name(char *b, int len)
+{
+	int i;
+	for (i = 0; i < len; i++)
+		printk("%c", b[i]);
+	printk("\n");
+}
+
 static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
 {
 	spin_lock(&ls->ls_recover_list_lock);
@@ -161,11 +169,13 @@ void dlm_dir_remove(struct dlm_ls *ls, uint32_t nodeid, char *name, int namelen)
 
 	if (!de) {
 		log_all(ls, "remove fr %u none", nodeid);
+		print_name(name, namelen);
 		goto out;
 	}
 
 	if (de->master_nodeid != nodeid) {
 		log_all(ls, "remove fr %u ID %u", nodeid, de->master_nodeid);
+		print_name(name, namelen);
 		goto out;
 	}
 
@@ -403,10 +413,12 @@ static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	if (de) {
 		*r_nodeid = de->master_nodeid;
 		write_unlock(&ls->ls_dirtbl[bucket].lock);
-		goto out;
+		if (*r_nodeid == nodeid)
+			return -EEXIST;
+		return 0;
 	}
 
-        write_unlock(&ls->ls_dirtbl[bucket].lock);
+	write_unlock(&ls->ls_dirtbl[bucket].lock);
 
 	de = allocate_direntry(ls, namelen);
 	if (!de)
@@ -426,8 +438,6 @@ static int get_entry(struct dlm_ls *ls, uint32_t nodeid, char *name,
 	}
 	*r_nodeid = de->master_nodeid;
 	write_unlock(&ls->ls_dirtbl[bucket].lock);
-
- out:
 	return 0;
 }
 

@@ -88,28 +88,6 @@ void remove_from_deadlockqueue(struct dlm_lkb *lkb)
 }
 
 /* 
- * deliver an AST to a user
- */
-
-static void deliver_ast(struct dlm_lkb *lkb, uint16_t ast_type)
-{
-	void (*cast) (long param) = lkb->lkb_astaddr;
-	void (*bast) (long param, int mode) = lkb->lkb_bastaddr;
-
-	if (ast_type == AST_BAST) {
-		if (!bast)
-			return;
-		if (lkb->lkb_status != GDLM_LKSTS_GRANTED)
-			return;
-		bast(lkb->lkb_astparam, (int) lkb->lkb_bastmode);
-	} else {
-		if (!cast)
-			return;
-		cast(lkb->lkb_astparam);
-	}
-}
-
-/* 
  * Queue an AST for delivery, this will only deal with
  * kernel ASTs, usermode API will piggyback on top of this.
  *
@@ -201,6 +179,9 @@ void queue_ast(struct dlm_lkb *lkb, uint16_t flags, uint8_t rqmode)
 
 static void process_asts(void)
 {
+	void (*cast) (long param);
+	void (*bast) (long param, int mode);
+	long astparam;
 	struct dlm_lkb *lkb;
 	uint16_t flags;
 
@@ -217,26 +198,33 @@ static void process_asts(void)
 		lkb->lkb_astflags = 0;
 		up(&_ast_queue_lock);
 
-		if (flags & AST_COMP)
-			deliver_ast(lkb, AST_COMP);
+		cast = lkb->lkb_astaddr;
+		bast = lkb->lkb_bastaddr;
+		astparam = lkb->lkb_astparam;
 
-		if (flags & AST_BAST)
-			deliver_ast(lkb, AST_BAST);
-
-		if (flags & AST_DEL) {
+		if (flags & AST_COMP) {
 			struct dlm_rsb *rsb = lkb->lkb_resource;
 			struct dlm_ls *ls = rsb->res_ls;
 
-			DLM_ASSERT(lkb->lkb_astflags == 0,
-			    printk("%x %x\n", lkb->lkb_id, lkb->lkb_astflags););
+			if (flags & AST_DEL) {
+				DLM_ASSERT(lkb->lkb_astflags == 0,);
 
-			/* FIXME: we don't want to block asts for other
-			   lockspaces while one is being recovered */
+				/* FIXME: we don't want to block asts for other
+				   lockspaces while one is being recovered */
 
-			down_read(&ls->ls_in_recovery);
-			release_lkb(ls, lkb);
-			release_rsb(rsb);
-			up_read(&ls->ls_in_recovery);
+				down_read(&ls->ls_in_recovery);
+				release_lkb(ls, lkb);
+				release_rsb(rsb);
+				up_read(&ls->ls_in_recovery);
+			}
+
+			if (cast)
+				cast(astparam);
+		}
+
+		if (flags & AST_BAST) {
+			if (bast && lkb->lkb_status == GDLM_LKSTS_GRANTED)
+				bast(astparam, (int) lkb->lkb_bastmode);
 		}
 
 		schedule();

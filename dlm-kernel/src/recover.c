@@ -448,7 +448,10 @@ static int rsb_master_lookup(struct dlm_rsb *rsb, struct dlm_rcom *rc)
 	if (dir_nodeid == our_nodeid()) {
 		error = dlm_dir_lookup(ls, dir_nodeid, rsb->res_name,
 				       rsb->res_length, &r_nodeid);
-		if (error)
+		if (error == -EEXIST) {
+			log_all(ls, "rsb_master_lookup %u EEXIST %s",
+				r_nodeid, rsb->res_name);
+		} else if (error)
 			goto fail;
 
 		set_new_master(rsb, r_nodeid);
