@@ -144,7 +144,7 @@ void servremove(char *name)
     exit(1);
   }
   if (reply && reply != LOCAL_RM_CLUSTER_REPLY){
-    printe("remove request failed : %s\n", gstrerror(errno));
+    printe("remove request failed : %s\n", strerror(reply));
     exit(1);
   }
   if (reply == LOCAL_RM_CLUSTER_REPLY)
