@@ -50,7 +50,7 @@ Build and install
    cd LVM2
    ./configure --with-clvmd --with-cluster=shared
    make; make install
-   LVM2/scripts/clvmd_fix_conf.sh /lib
+   LVM2/scripts/clvmd_fix_conf.sh /usr/lib
 
 
 Load kernel modules
@@ -58,7 +58,6 @@ Load kernel modules
 
 depmod -a
 modprobe dm-mod
-device-mapper/scripts/devmap_mknod.sh
 modprobe gfs
 modprobe lock_dlm
 
@@ -195,14 +194,6 @@ number of expected votes for the cluster which allows the cluster to become
 quorate again ("cman_tool expected <votes>").
 
 
-Cluster information
--------------------
-
-/proc/cluster/status
-/proc/cluster/nodes
-/proc/cluster/services
-
-
 Cluster config file - cluster.conf
 ----------------------------------
 
@@ -281,7 +272,7 @@ To update the config file in a running cluster:
 3. on this same node run "killall -HUP ccsd"
 4. verify that the new cluster.conf exists on all nodes
 5. on this same node run "cman_tool -r <new config_version>"
-6. check /proc/cluster/status to verify the new config version
+6. check 'cman_tool status' to verify the new config version
 
 
 Multiple clusters
@@ -331,31 +322,13 @@ CMAN uses UDP port 6809 by default.  A different port number can be used by:
 <cman port="6809">
 </cman>
 
-* Multihome
-
-CMAN can be configured to use multiple network interfaces.  If one fails it
-should be able to continue running with the one remaining.  A node's name in
-cluster.conf is always associated with the IP address on one network
-interface; "nd1" in the following:
-
-<clusternode name="nd1">
-</clusternode>
-
-To use a second network interface, the node must have a second hostname
-associated with the IP address on that interface; "nd1-e1" in the following.
-The second hostname is specfied in an "altname" section.
-
-<clusternode name="nd1">
-    <altname name="nd1-e1"/>
-</clusternode>
-
 
 * Multicast
 
-CMAN can be configured to use multicast instead of broadcast (broadcast is used
-by default if no multicast parameters are given.)  To configure multicast when
-one network interface is used add one line under the <cman> section and another
-under the <clusternode> section:
+CMAN can be configured to use multicast instead of broadcast (broadcast is
+used by default if no multicast parameters are given.)  To configure multicast
+add one line under the <cman> section and another under the <clusternode>
+section:
 
 <cman>
     <multicast addr="224.0.0.1"/>
@@ -368,24 +341,8 @@ under the <clusternode> section:
 The multicast addresses must match and the address must be usable on the
 interface name given for the node.
 
-When two interfaces are used, multicast is configured as follows:
-
-<cman>
-    <multicast addr="224.0.0.1"/>
-    <multicast addr="224.0.0.9"/>
-</cman>
-
-<clusternode name="nd1">
-    <altname name="nd1-e1"/>
-    <multicast addr="224.0.0.1" interface="eth0"/>
-    <multicast addr="224.0.0.9" interface="eth1"/>
-</clusternode>
-
 
 * IPv6
-
-- When using multiple interfaces, all must use the same address family.  Mixing
-  IPv4 and IPv6 is not allowed.
 
 - When using IPv6, multicast must be configured; there is no IPv6 broadcast.
 
