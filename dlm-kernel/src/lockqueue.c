@@ -303,7 +303,6 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 	struct dlm_ls *ls = rsb->res_ls;
 	int oldstate, state = lkb->lkb_lockqueue_state;
 
-	lkb->lkb_lockqueue_state = 0;
 	if (state)
 		remove_from_lockqueue(lkb);
 
@@ -1031,7 +1030,6 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 
 			print_lkb(lkb);
 			print_request(freq);
-			lkb->lkb_lockqueue_state = 0;
 			remove_from_lockqueue(lkb);
 			if (!lkb->lkb_remid)
 				lkb->lkb_remid = req->rh_lkid;

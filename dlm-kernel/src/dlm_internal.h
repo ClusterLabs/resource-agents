@@ -597,6 +597,20 @@ struct dlm_query_reply {
    block */
 #define GDLM_REMFLAG_ENDQUERY       1
 
+#ifdef CONFIG_DLM_STATS
+struct dlm_statinfo
+{
+	unsigned int cast;
+	unsigned int bast;
+	unsigned int lockops;
+	unsigned int unlockops;
+	unsigned int convertops;
+	unsigned long lockqueue_time[5];
+	unsigned long lockqueue_locks[5];
+};
+extern struct dlm_statinfo dlm_stats;
+#endif
+
 #ifndef BUG_ON
 #define BUG_ON(x)
 #endif

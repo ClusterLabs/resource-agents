@@ -378,6 +378,9 @@ int dlm_lock(void *lockspace,
 		goto out;
 	}
 
+#ifdef CONFIG_DLM_STATS
+	dlm_stats.lockops++;
+#endif
 	/*
 	 * Take new lock path.
 	 */
@@ -744,6 +747,9 @@ int dlm_unlock(void *lockspace,
 		goto out;
 	}
 
+#ifdef CONFIG_DLM_STATS
+	dlm_stats.unlockops++;
+#endif
 	/* Can only cancel WAITING or CONVERTing locks.
 	 * This is just a quick check - it is also checked in unlock_stage2()
 	 * (which may be on the master) under the semaphore.
@@ -927,6 +933,9 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	        goto out;
 	}
 
+#ifdef CONFIG_DLM_STATS
+	dlm_stats.convertops++;
+#endif
 	/* Set up the ranges as appropriate */
 	if (range) {
 		if (range->ra_start > range->ra_end)

@@ -534,6 +534,62 @@ int dlm_debug_info(char *b, char **start, off_t offset, int length)
 	return n;
 }
 
+#ifdef CONFIG_DLM_STATS
+struct dlm_statinfo dlm_stats;
+static struct proc_dir_entry *stats_proc_entry = NULL;
+static int dlm_stats_info(char *b, char **start, off_t offset, int length)
+{
+	int n=0;
+	int i;
+	long lq_locks = 0;
+	unsigned long lq_time = 0;
+
+	n += sprintf(b+n, "DLM stats (HZ=%d)\n\n", HZ);
+	n += sprintf(b+n, "Lock operations:    %7d\n", dlm_stats.lockops);
+	n += sprintf(b+n, "Unlock operations:  %7d\n", dlm_stats.unlockops);
+	n += sprintf(b+n, "Convert operations: %7d\n", dlm_stats.convertops);
+	n += sprintf(b+n, "Completion ASTs:    %7d\n", dlm_stats.cast);
+	n += sprintf(b+n, "Blocking ASTs:      %7d\n", dlm_stats.bast);
+	n += sprintf(b+n, "\n");
+	n += sprintf(b+n, "Lockqueue        num  waittime   ave\n");
+	for (i=1; i<=4 ; i++) {
+		char *lq_reason="???";
+		switch (i){
+		case 1: lq_reason = "WAIT_RSB   ";
+			break;
+		case 2: lq_reason = "WAIT_CONV  ";
+			break;
+		case 3: lq_reason = "WAIT_GRANT ";
+			break;
+		case 4: lq_reason = "WAIT_UNLOCK";
+			break;
+		}
+		if (dlm_stats.lockqueue_locks[i])
+			n += sprintf(b+n, "%s   %6lu   %7lu   %3lu\n",
+				     lq_reason,
+				     dlm_stats.lockqueue_locks[i],
+				     dlm_stats.lockqueue_time[i],
+				     dlm_stats.lockqueue_time[i]/
+				     dlm_stats.lockqueue_locks[i]);
+
+		lq_locks += dlm_stats.lockqueue_locks[i];
+		lq_time += dlm_stats.lockqueue_time[i];
+	}
+	if (lq_locks)
+		n += sprintf(b+n, "Total         %6lu   %7lu   %3lu\n",
+			     lq_locks, lq_time, lq_time/lq_locks);
+	return n;
+}
+
+static int dlm_stats_clear(struct file *file, const char __user *buffer,
+                           unsigned long count, void *data)
+{
+	memset(&dlm_stats, 0, sizeof(dlm_stats));
+	return count;
+}
+
+#endif
+
 int dlm_rcom_info(char *b, char **start, off_t offset, int length)
 {
 	struct dlm_ls *ls;
@@ -581,6 +637,15 @@ void dlm_proc_init(void)
 
 	rcom_proc_entry->get_info = &dlm_rcom_info;
 #endif
+#ifdef CONFIG_DLM_STATS
+	stats_proc_entry = create_proc_entry("cluster/dlm_stats", S_IRUSR | S_IWUSR, NULL);
+	if (!stats_proc_entry)
+		return;
+
+	stats_proc_entry->get_info = &dlm_stats_info;
+	stats_proc_entry->write_proc = &dlm_stats_clear;
+#endif
+
 	dlm_debug_init();
 
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
@@ -610,6 +675,10 @@ void dlm_proc_exit(void)
 
 	if (rcom_proc_entry)
 		remove_proc_entry("cluster/dlm_rcom", NULL);
+#endif
+#ifdef CONFIG_DLM_STATS
+	if (stats_proc_entry)
+		remove_proc_entry("cluster/dlm_stats", NULL);
 #endif
 
 #ifdef CONFIG_CLUSTER_DLM_PROCLOCKS
