@@ -1409,9 +1409,6 @@ int retrive_and_relpy_lock_state(int idx)
       }
 
       recycle_lock_req(lq);
-   }else{
-      log_err("MUCK FE! Got a lock reply that we didn't ask for! %s %d\n",
-            lkeytohex(x_key,x_kl), searchkey.subid);
    }
 
 exit:
