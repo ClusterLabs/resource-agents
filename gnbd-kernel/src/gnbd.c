@@ -950,7 +950,7 @@ static int __init gnbd_init(void)
 	printk(KERN_INFO "gnbd: registered device at major %d\n", major_nr);
 	dprintk(DBG_INIT, "gnbd: debugflags=0x%x\n", debugflags);
 
-	devfs_mk_dir("gnbd");
+	devfs_mk_dir("gnbd_minor");
 	err = class_register(&gnbd_class);
 	if (err)
 		goto out_unregister;
@@ -1006,7 +1006,7 @@ static int __init gnbd_init(void)
 		disk->fops = &gnbd_fops;
 		disk->private_data = &gnbd_dev[i];
 		sprintf(disk->disk_name, "gnbd%d", i);
-		sprintf(disk->devfs_name, "gnbd/%d", i);
+		sprintf(disk->devfs_name, "gnbd_minor/%d", i);
 		set_capacity(disk, 0);
 		add_disk(disk);
 		if(sysfs_create_link(&gnbd_dev[i].class_dev.kobj,
