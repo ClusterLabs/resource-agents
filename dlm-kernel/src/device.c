@@ -187,7 +187,7 @@ static int register_lockspace(char *name, struct user_ls **ls)
 
 	status = dlm_new_lockspace((char *)newls->ls_miscinfo.name+strlen(name_prefix)+1,
 				    strlen(newls->ls_miscinfo.name) - strlen(name_prefix) - 1,
-				    &newls->ls_lockspace, DLM_LSF_NOCONVGRANT);
+				    &newls->ls_lockspace, 0);
 
 	if (status != 0) {
 		kfree(newls->ls_miscinfo.name);

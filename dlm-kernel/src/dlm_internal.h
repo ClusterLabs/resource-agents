@@ -99,6 +99,12 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 
 #define log_error log_all
 
+#if defined(DLM_DEBUG2)
+int nibbler_printf(const char *fmt, ...);
+#define log_debug2(fmt, args...) nibbler_printf(fmt"\n", ##args)
+#else
+#define log_debug2(fmt, args...)
+#endif
 
 #define DLM_DEBUG
 #if defined(DLM_DEBUG)
@@ -241,8 +247,7 @@ struct dlm_recover {
 #define LSFL_NODES_VALID	(11)
 #define LSFL_ALL_NODES_VALID	(12)
 #define LSFL_REQUEST_WARN	(13)
-#define LSFL_NOCONVGRANT	(14)
-#define LSFL_RECOVERD_RUN       (15)
+#define LSFL_RECOVERD_RUN       (14)
 
 #define LSST_NONE		(0)
 #define LSST_INIT		(1)
@@ -361,8 +366,16 @@ struct dlm_rsb {
 };
 
 /*
- * Lock block. To avoid confusion, where flags mirror the
- * public flags, they should have the same value.
+ * Lock block. To avoid confusion, where flags mirror the public flags, they
+ * should have the same value.
+ *
+ * In general, DLM_LKF flags from dlm.h apply only to lkb_lockqueue_flags
+ * and GDLM_LKFLG flags from dlm_internal.h apply only to lkb_flags.
+ * The rr_flags field in the request struct is a copy of lkb_lockqueue_flags.
+ * There is one dangerous exception: GDLM_LKFLG_RANGE is set in rr_flags
+ * when sending a remote range lock request.  This value is then copied into
+ * the remote lkb_lockqueue_flags field.  This means GDLM_LKFLG_RANGE must
+ * not have the same value as any external DLM_LKF flag.
  */
 
 #define GDLM_LKSTS_NEW		(0)
@@ -370,22 +383,23 @@ struct dlm_rsb {
 #define GDLM_LKSTS_GRANTED	(2)
 #define GDLM_LKSTS_CONVERT	(3)
 
+/* mirror external flags */
 #define GDLM_LKFLG_VALBLK	(0x00000008)
-#define GDLM_LKFLG_PERSISTENT	(0x00000080)	/* Don't unlock when process exits */
-#define GDLM_LKFLG_NODLCKWT	(0x00000100)	/* Don't do deadlock detection */
-#define GDLM_LKFLG_EXPEDITE	(0x00000400)	/* Move to head of convert queue */
+#define GDLM_LKFLG_PERSISTENT	(0x00000080)
+#define GDLM_LKFLG_NODLCKWT	(0x00000100)
+#define GDLM_LKFLG_EXPEDITE	(0x00000400)
+/* external flags now go up to: (0x00002000) : DLM_LKF_NOORDER */
 
-/* Internal flags */
-#define GDLM_LKFLG_RANGE	(0x00001000)	/* Range field is present
-						   (remote protocol only) */
-#define GDLM_LKFLG_MSTCPY	(0x00002000)
-#define GDLM_LKFLG_DELETED	(0x00004000)	/* LKB is being deleted */
-#define GDLM_LKFLG_LQCONVERT	(0x00008000)
-#define GDLM_LKFLG_LQRESEND	(0x00010000)	/* LKB on lockqueue must be resent */
-#define GDLM_LKFLG_DEMOTED	(0x00020000)
-#define GDLM_LKFLG_RESENT	(0x00040000)
-#define GDLM_LKFLG_NOREBUILD	(0x00080000)
-#define GDLM_LKFLG_UNLOCKDONE	(0x00100000)
+/* internal-only flags */
+#define GDLM_LKFLG_RANGE	(0x00010000)
+#define GDLM_LKFLG_MSTCPY	(0x00020000)
+#define GDLM_LKFLG_DELETED	(0x00040000)
+#define GDLM_LKFLG_LQCONVERT	(0x00080000)
+#define GDLM_LKFLG_LQRESEND	(0x00100000)
+#define GDLM_LKFLG_DEMOTED	(0x00200000)
+#define GDLM_LKFLG_RESENT	(0x00400000)
+#define GDLM_LKFLG_NOREBUILD	(0x00800000)
+#define GDLM_LKFLG_UNLOCKDONE	(0x01000000)
 
 #define AST_COMP		(1)
 #define AST_BAST		(2)
@@ -408,7 +422,7 @@ struct dlm_lkb {
 	struct list_head	lkb_lockqueue;	/* queue of locks waiting
 						   for remote reply */
 	int			lkb_lockqueue_state; /* reason on lockqueue */
-	int			lkb_lockqueue_flags; /* as passed into
+	uint32_t		lkb_lockqueue_flags; /* as passed into
 							lock/unlock */
 	int			lkb_ownpid;	/* pid of lock owner */
 	unsigned long		lkb_lockqueue_time;  /* time lkb went on the

@@ -331,7 +331,8 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			}
 		}
 
-		log_debug(ls, "(%d) lu rep %x fr %u %u", lkb->lkb_ownpid, lkb->lkb_id, nodeid,
+		log_debug(ls, "(%d) lu rep %x fr %u %u", lkb->lkb_ownpid,
+			  lkb->lkb_id, nodeid,
 			  rsb->res_nodeid);
 
 		lkb->lkb_nodeid = rsb->res_nodeid;
@@ -352,8 +353,8 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 			DLM_ASSERT(state == GDLM_LQSTATE_WAIT_CONDGRANT, );
 
 			log_debug(ls, "(%d) req reply einval %x fr %d r %d %s",
-				  lkb->lkb_ownpid, lkb->lkb_id, nodeid, rsb->res_nodeid,
-				  rsb->res_name);
+				  lkb->lkb_ownpid, lkb->lkb_id, nodeid,
+				  rsb->res_nodeid, rsb->res_name);
 
 			lkb_dequeue(lkb);
 
@@ -510,13 +511,18 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 		oldstate = res_lkb_dequeue(lkb);
 
 		/* Differentiate between unlocks and conversion cancellations */
-		if (lkb->lkb_lockqueue_flags & DLM_LKF_CANCEL &&
-		    oldstate == GDLM_LKSTS_CONVERT) {
-			res_lkb_enqueue(lkb->lkb_resource, lkb,
-					GDLM_LKSTS_GRANTED);
-			lkb->lkb_retstatus = -DLM_ECANCEL;
-			queue_ast(lkb, AST_COMP, 0);
+		if (lkb->lkb_lockqueue_flags & DLM_LKF_CANCEL) {
+			if (oldstate == GDLM_LKSTS_CONVERT) {
+				res_lkb_enqueue(lkb->lkb_resource, lkb,
+						GDLM_LKSTS_GRANTED);
+				lkb->lkb_retstatus = -DLM_ECANCEL;
+				queue_ast(lkb, AST_COMP, 0);
+			} else
+				log_error(ls, "cancel state %d", oldstate);
 		} else {
+			DLM_ASSERT(oldstate == GDLM_LKSTS_GRANTED,
+				   print_lkb(lkb););
+
 			lkb->lkb_retstatus = -DLM_EUNLOCK;
 			queue_ast(lkb, AST_COMP | AST_DEL, 0);
 		}
@@ -944,8 +950,9 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			}
 		}
 
-		log_debug(lspace, "(%d) cv %u from %u %x \"%s\"", lkb->lkb_ownpid,
-			  lkb->lkb_rqmode, nodeid, lkb->lkb_id, rsb->res_name);
+		log_debug(lspace, "(%d) cv %u from %u %x \"%s\"",
+			  lkb->lkb_ownpid, lkb->lkb_rqmode, nodeid,
+			  lkb->lkb_id, rsb->res_name);
 
 		dlm_convert_stage2(lkb, FALSE);
 
@@ -1013,7 +1020,8 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   printk("nodeid %u\n", nodeid););
 
 		if (lkb->lkb_lockqueue_state) {
-			log_debug(rsb->res_ls, "granting lock on lockqueue, state = %d", lkb->lkb_lockqueue_state);
+			log_debug(rsb->res_ls, "grant lock on lockqueue %d",
+				  lkb->lkb_lockqueue_state);
 
 			/* Don't grant locks that are waiting for an unlock */
 			if (lkb->lkb_lockqueue_state == GDLM_LQSTATE_WAIT_UNLOCK)
@@ -1093,10 +1101,15 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			   print_request(freq);
 			   printk("nodeid %u\n", nodeid););
 
+		DLM_ASSERT(lkb->lkb_nodeid == nodeid,
+			   print_lkb(lkb);
+			   print_request(freq);
+			   printk("nodeid %u\n", nodeid););
+
 		rsb = find_rsb_to_unlock(lspace, lkb);
 
-		log_debug(lspace, "(%d) un from %u %x \"%s\"", lkb->lkb_ownpid, nodeid,
-			  lkb->lkb_id, rsb->res_name);
+		log_debug(lspace, "(%d) un from %u %x \"%s\"", lkb->lkb_ownpid,
+			  nodeid, lkb->lkb_id, rsb->res_name);
 
 		reply.rl_status = dlm_unlock_stage2(lkb, rsb, freq->rr_flags);
 		send_reply = 1;

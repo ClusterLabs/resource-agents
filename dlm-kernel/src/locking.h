@@ -19,7 +19,7 @@ void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state);
 void dlm_lock_stage3(struct dlm_lkb *lkb);
 int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast);
 int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags);
-int dlm_lock_stage2(struct dlm_ls *lspace, struct dlm_lkb *lkb, struct dlm_rsb *rsb, int flags);
+int dlm_lock_stage2(struct dlm_ls *lspace, struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags);
 struct dlm_rsb *create_rsb(struct dlm_ls *lspace, struct dlm_lkb *lkb, char *name, int namelen);
 int free_rsb_if_unused(struct dlm_rsb *rsb);
 struct dlm_lkb *remote_stage2(int remote_csid, struct dlm_ls *lspace,

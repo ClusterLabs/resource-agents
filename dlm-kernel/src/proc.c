@@ -294,6 +294,7 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 		    list_entry(locklist, struct dlm_lkb, lkb_statequeue);
 		print_lock(s, this_lkb, res);
 	}
+
 	return 0;
 }
 

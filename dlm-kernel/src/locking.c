@@ -29,6 +29,7 @@
 #include "memory.h"
 #include "rsb.h"
 #include "util.h"
+#include "lowcomms.h"
 
 extern struct list_head lslist;
 
@@ -100,10 +101,10 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote);
 static void send_blocking_asts(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
 static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb);
 static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
-			int flags, void *ast, void *astarg, void *bast,
+			uint32_t flags, void *ast, void *astarg, void *bast,
 			struct dlm_range *range);
-static int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
-			   char *name, int namelen);
+static int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			   uint32_t flags, char *name, int namelen);
 
 
 inline int dlm_modes_compat(int mode1, int mode2)
@@ -139,46 +140,13 @@ static inline int ranges_overlap(struct dlm_lkb *lkb1, struct dlm_lkb *lkb2)
 }
 
 /*
- * Resolve conversion deadlock by changing to NL the granted mode of deadlocked
- * locks on the convert queue.  One of the deadlocked locks is allowed to
- * retain its original granted state (we choose the lkb provided although it
- * shouldn't matter which.)  We do not change the granted mode on locks without
- * the CONVDEADLK flag.  If any of these exist (there shouldn't if the app uses
- * the flag consistently) the false return value is used.
- */
-
-static int conversion_deadlock_resolve(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
-{
-	struct dlm_lkb *this;
-	int rv = TRUE;
-
-	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
-		if (this == lkb)
-			continue;
-
-		if (!ranges_overlap(lkb, this))
-			continue;
-
-		if (!modes_compat(this, lkb) && !modes_compat(lkb, this)) {
-
-			if (!(this->lkb_lockqueue_flags & DLM_LKF_CONVDEADLK)){
-				rv = FALSE;
-				continue;
-			}
-			this->lkb_grmode = DLM_LOCK_NL;
-			this->lkb_flags |= GDLM_LKFLG_DEMOTED;
-		}
-	}
-	return rv;
-}
-
-/*
  * "A conversion deadlock arises with a pair of lock requests in the converting
  * queue for one resource.  The granted mode of each lock blocks the requested
  * mode of the other lock."
  */
 
-static int conversion_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
+static struct dlm_lkb *conversion_deadlock_detect(struct dlm_rsb *rsb,
+						  struct dlm_lkb *lkb)
 {
 	struct dlm_lkb *this;
 
@@ -190,9 +158,10 @@ static int conversion_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
 			continue;
 
 		if (!modes_compat(this, lkb) && !modes_compat(lkb, this))
-			return TRUE;
+			return this;
 	}
-	return FALSE;
+
+	return NULL;
 }
 
 /*
@@ -213,72 +182,132 @@ static int queue_conflict(struct list_head *head, struct dlm_lkb *lkb)
 }
 
 /*
- * Deadlock can arise when using the QUECVT flag if the requested mode of the
- * first converting lock is incompatible with the granted mode of another
- * converting lock further down the queue.  To prevent this deadlock, a
- * requested QUEUECVT lock is granted immediately if adding it to the end of
- * the queue would prevent a lock ahead of it from being granted.
- */
-
-static int queuecvt_deadlock_detect(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
-{
-	struct dlm_lkb *this;
-
-	list_for_each_entry(this, &rsb->res_convertqueue, lkb_statequeue) {
-		if (this == lkb)
-			break;
-
-		if (ranges_overlap(lkb, this) && !modes_compat(lkb, this))
-			return TRUE;
-	}
-	return FALSE;
-}
-
-/*
  * Return 1 if the lock can be granted, 0 otherwise.
  * Also detect and resolve conversion deadlocks.
+ *
+ * lkb is the lock to be granted
+ *
+ * now is 1 if the function is being called in the context of the
+ * immediate request, it is 0 if called later, after the lock has been
+ * queued.
+ *
+ * References are from chapter 6 of "VAXcluster Principles" by Roy Davis
  */
 
-static int can_be_granted(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
+static int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 {
-	if (test_bit(LSFL_NOCONVGRANT, &rsb->res_ls->ls_flags) &&
-	    lkb->lkb_grmode == DLM_LOCK_IV &&
-	    !list_empty(&rsb->res_convertqueue))
-	        return FALSE;
+	int8_t conv = (lkb->lkb_grmode != DLM_LOCK_IV);
 
-	if (lkb->lkb_rqmode == DLM_LOCK_NL)
+	/*
+	 * 6-10: Version 5.4 introduced an option to address the phenomenon of
+	 * a new request for a NL mode lock being blocked.
+	 *
+	 * 6-11: If the optional EXPEDITE flag is used with the new NL mode
+	 * request, then it would be granted.  In essence, the use of this flag
+	 * tells the Lock Manager to expedite theis request by not considering
+	 * what may be in the CONVERTING or WAITING queues...  As of this
+	 * writing, the EXPEDITE flag can be used only with new requests for NL
+	 * mode locks.  This flag is not valid for conversion requests.
+	 *
+	 * A shortcut.  Earlier checks return an error if EXPEDITE is used in a
+	 * conversion or used with a non-NL requested mode.  We also know an
+	 * EXPEDITE request is always granted immediately, so now must always
+	 * be 1.  The full condition to grant an expedite request: (now &&
+	 * !conv && lkb->rqmode == DLM_LOCK_NL && (flags & EXPEDITE)) can
+	 * therefore be shortened to just checking the flag.
+	 */
+
+	if (lkb->lkb_lockqueue_flags & DLM_LKF_EXPEDITE)
 		return TRUE;
 
-	if (lkb->lkb_rqmode == lkb->lkb_grmode)
+	/*
+	 * A shortcut. Without this, !queue_conflict(grantqueue, lkb) would be
+	 * added to the remaining conditions.
+	 */
+
+	if (queue_conflict(&r->res_grantqueue, lkb))
+		goto out;
+
+	/*
+	 * 6-3: By default, a conversion request is immediately granted if the
+	 * requested mode is compatible with the modes of all other granted
+	 * locks
+	 */
+
+	if (queue_conflict(&r->res_convertqueue, lkb))
+		goto out;
+
+	/*
+	 * 6-5: But the default algorithm for deciding whether to grant or
+	 * queue conversion requests does not by itself guarantee that such
+	 * requests are serviced on a "first come first serve" basis.  This, in
+	 * turn, can lead to a phenomenon known as "indefinate postponement".
+	 *
+	 * 6-7: This issue is dealt with by using the optional QUECVT flag with
+	 * the system service employed to request a lock conversion.  This flag
+	 * forces certain conversion requests to be queued, even if they are
+	 * compatible with the granted modes of other locks on the same
+	 * resource.  Thus, the use of this flag results in conversion requests
+	 * being ordered on a "first come first servce" basis.
+	 */
+
+	if (now && conv && !(lkb->lkb_lockqueue_flags & DLM_LKF_QUECVT))
 		return TRUE;
 
-	if (queue_conflict(&rsb->res_grantqueue, lkb))
-		return FALSE;
+	/*
+	 * When using range locks the NOORDER flag is set to avoid the standard
+	 * vms rules on grant order.
+	 */
 
-	if (!queue_conflict(&rsb->res_convertqueue, lkb)) {
-		if (!(lkb->lkb_lockqueue_flags & DLM_LKF_QUECVT))
-			return TRUE;
+	if (lkb->lkb_lockqueue_flags & DLM_LKF_NOORDER)
+		return TRUE;
 
-		if (list_empty(&rsb->res_convertqueue) ||
-		    first_in_list(lkb, &rsb->res_convertqueue) ||
-		    queuecvt_deadlock_detect(rsb, lkb))
-			return TRUE;
-		else
-			return FALSE;
+	/*
+	 * 6-3: Once in that queue [CONVERTING], a conversion request cannot be
+	 * granted until all other conversion requests ahead of it are granted
+	 * and/or canceled.
+	 */
+
+	if (!now && conv && first_in_list(lkb, &r->res_convertqueue))
+		return TRUE;
+
+	/*
+	 * 6-4: By default, a new request is immediately granted only if all
+	 * three of the following conditions are satisfied when the request is
+	 * issued:
+	 * - The queue of ungranted conversion requests for the resource is
+	 *   empty.
+	 * - The queue of ungranted new requests for the resource is empty.
+	 * - The mode of the new request is compatible with the most
+	 *   restrictive mode of all granted locks on the resource.
+	 */
+
+	if (now && !conv && list_empty(&r->res_convertqueue) &&
+	    list_empty(&r->res_waitqueue))
+		return TRUE;
+
+	/*
+	 * 6-4: Once a lock request is in the queue of ungranted new requests,
+	 * it cannot be granted until the queue of ungranted conversion
+	 * requests is empty, all ungranted new requests ahead of it are
+	 * granted and/or canceled, and it is compatible with the granted mode
+	 * of the most restrictive lock granted on the resource.
+	 */
+
+	if (!now && !conv && list_empty(&r->res_convertqueue) &&
+	    first_in_list(lkb, &r->res_waitqueue))
+		return TRUE;
+
+ out:
+	/*
+	 * The following, enabled by CONVDEADLK, departs from VMS.
+	 */
+
+	if (now && conv && (lkb->lkb_lockqueue_flags & DLM_LKF_CONVDEADLK) &&
+	    conversion_deadlock_detect(r, lkb)) {
+		lkb->lkb_grmode = DLM_LOCK_NL;
+		lkb->lkb_flags |= GDLM_LKFLG_DEMOTED;
 	}
-
-	/* there *is* a conflict between this lkb and a converting lock so
-	   we return false unless conversion deadlock resolution is permitted
-	   (only conversion requests will have the CONVDEADLK flag set) */
-
-	if (!(lkb->lkb_lockqueue_flags & DLM_LKF_CONVDEADLK))
-		return FALSE;
-
-	if (!conversion_deadlock_detect(rsb, lkb))
-		return FALSE;
-
-	if (conversion_deadlock_resolve(rsb, lkb))
-		return TRUE;
 
 	return FALSE;
 }
@@ -315,13 +344,22 @@ int dlm_lock(void *lockspace,
 	if (flags & DLM_LKF_QUECVT && !(flags & DLM_LKF_CONVERT))
 		goto out;
 
-	if (flags & DLM_LKF_EXPEDITE && !(flags & DLM_LKF_CONVERT))
+	if (flags & DLM_LKF_CONVDEADLK && !(flags & DLM_LKF_CONVERT))
+		goto out;
+
+	if (flags & DLM_LKF_CONVDEADLK && flags & DLM_LKF_NOQUEUE)
+		goto out;
+
+	if (flags & DLM_LKF_EXPEDITE && flags & DLM_LKF_CONVERT)
 		goto out;
 
 	if (flags & DLM_LKF_EXPEDITE && flags & DLM_LKF_QUECVT)
 		goto out;
 
 	if (flags & DLM_LKF_EXPEDITE && flags & DLM_LKF_NOQUEUE)
+		goto out;
+
+	if (flags & DLM_LKF_EXPEDITE && (mode != DLM_LOCK_NL))
 		goto out;
 
 	if (!ast || !lksb)
@@ -380,11 +418,10 @@ int dlm_lock(void *lockspace,
 	lkb->lkb_lvbptr = lksb->sb_lvbptr;
 
 	if (!in_interrupt() && current)
-	    lkb->lkb_ownpid = (int)current->pid;
+		lkb->lkb_ownpid = (int) current->pid;
 	else
-	    lkb->lkb_ownpid = 0;
+		lkb->lkb_ownpid = 0;
 
-	/* Copy the range if appropriate */
 	if (range) {
 		if (range->ra_start > range->ra_end) {
 			ret = -EINVAL;
@@ -432,7 +469,7 @@ int dlm_lock(void *lockspace,
 	return ret;
 }
 
-int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
+int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 		    char *name, int namelen)
 {
 	struct dlm_rsb *rsb, *parent_rsb = NULL;
@@ -449,8 +486,8 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
 	lkb->lkb_resource = rsb;
 	down_write(&rsb->res_lock);
 
-	log_debug(ls, "(%d) rq %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode, lkb->lkb_id,
-		  rsb->res_name);
+	log_debug(ls, "(%d) rq %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode,
+		  lkb->lkb_id, rsb->res_name);
 	/*
 	 * Next stage, do we need to find the master or can
 	 * we get on with the real locking work ?
@@ -503,7 +540,7 @@ int dlm_lock_stage1(struct dlm_ls *ls, struct dlm_lkb *lkb, int flags,
  */
 
 int dlm_lock_stage2(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_rsb *rsb,
-		    int flags)
+		    uint32_t flags)
 {
 	int error = 0;
 
@@ -594,7 +631,8 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	lkb->lkb_resource = rsb;
 
-	log_debug(ls, "(%d) rq %u from %u %x \"%s\"", lkb->lkb_ownpid, lkb->lkb_rqmode, remote_nodeid,
+	log_debug(ls, "(%d) rq %u from %u %x \"%s\"",
+		  lkb->lkb_ownpid, lkb->lkb_rqmode, remote_nodeid,
 		  lkb->lkb_id, rsb->res_name);
 
       out:
@@ -633,7 +671,7 @@ void dlm_lock_stage3(struct dlm_lkb *lkb)
 
 	down_write(&rsb->res_lock);
 
-	if (can_be_granted(rsb, lkb)) {
+	if (can_be_granted(rsb, lkb, TRUE)) {
 		grant_lock(lkb, 0);
 		goto out;
 	}
@@ -657,6 +695,10 @@ void dlm_lock_stage3(struct dlm_lkb *lkb)
 	 * is mastered here, send blocking asts for the lkb's blocking the
 	 * request.
 	 */
+
+	log_debug2("w %x %d %x %d,%d %d %s", lkb->lkb_id, lkb->lkb_nodeid,
+		   lkb->lkb_remid, lkb->lkb_grmode, lkb->lkb_rqmode,
+		   lkb->lkb_status, rsb->res_name);
 
 	lkb->lkb_retstatus = 0;
 	lkb_enqueue(rsb, lkb, GDLM_LKSTS_WAITING);
@@ -691,13 +733,15 @@ int dlm_unlock(void *lockspace,
 
 	/* Can't dequeue a master copy (a remote node's mastered lock) */
 	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
-		log_debug(ls, "(%d) unlock %x lkb_flags %x", lkb->lkb_ownpid, lkid, lkb->lkb_flags);
+		log_debug(ls, "(%d) unlock %x lkb_flags %x",
+			  lkb->lkb_ownpid, lkid, lkb->lkb_flags);
 		goto out;
 	}
 
 	/* Already waiting for a remote lock operation */
 	if (lkb->lkb_lockqueue_state) {
-		log_debug(ls, "(%d) unlock %x lq%d", lkb->lkb_ownpid, lkid, lkb->lkb_lockqueue_state);
+		log_debug(ls, "(%d) unlock %x lq%d",
+			  lkb->lkb_ownpid, lkid, lkb->lkb_lockqueue_state);
 		ret = -EBUSY;
 		goto out;
 	}
@@ -708,14 +752,22 @@ int dlm_unlock(void *lockspace,
 	 */
 	if ((flags & DLM_LKF_CANCEL) &&
 	    (lkb->lkb_status == GDLM_LKSTS_GRANTED)) {
-		log_debug(ls, "(%d) unlock %x %x %d", lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
+		log_debug(ls, "(%d) unlock %x %x %d",
+			  lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
 		goto out;
 	}
 
 	/* "Normal" unlocks must operate on a granted lock */
 	if (!(flags & DLM_LKF_CANCEL) &&
 	    (lkb->lkb_status != GDLM_LKSTS_GRANTED)) {
-		log_debug(ls, "(%d) unlock %x %x %d", lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
+		log_debug(ls, "(%d) unlock %x %x %d",
+			  lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
+		goto out;
+	}
+
+	if (lkb->lkb_flags & GDLM_LKFLG_DELETED) {
+		log_debug(ls, "(%d) unlock deleted %x %x %d",
+			  lkb->lkb_ownpid, lkid, flags, lkb->lkb_status);
 		goto out;
 	}
 
@@ -734,10 +786,13 @@ int dlm_unlock(void *lockspace,
 	down_read(&ls->ls_in_recovery);
 	rsb = find_rsb_to_unlock(ls, lkb);
 
-	log_debug(ls, "(%d) un %x ref %u flg %x nodeid %d/%d \"%s\"", lkb->lkb_ownpid,
+	log_debug(ls, "(%d) un %x %x %d %d \"%s\"",
+		  lkb->lkb_ownpid,
 		  lkb->lkb_id,
-		  atomic_read(&rsb->res_ref), rsb->res_flags,
-		  lkb->lkb_nodeid, rsb->res_nodeid, rsb->res_name);
+		  lkb->lkb_flags,
+		  lkb->lkb_nodeid,
+		  rsb->res_nodeid,
+		  rsb->res_name);
 
 	/* Save any new params */
 	if (lksb)
@@ -773,6 +828,10 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 		queue_ast(lkb, AST_COMP, 0);
 	        goto out;
 	}
+
+	log_debug2("u %x %d %x %d,%d %d %s", lkb->lkb_id, lkb->lkb_nodeid,
+		   lkb->lkb_remid, lkb->lkb_grmode, lkb->lkb_rqmode,
+		   lkb->lkb_status, rsb->res_name);
 
 	old_status = lkb_dequeue(lkb);
 
@@ -816,7 +875,8 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 		}
 
 		grant_pending_locks(rsb);
-	}
+	} else
+		DLM_ASSERT(0, print_lkb(lkb); print_rsb(rsb););
 
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
 
@@ -841,7 +901,7 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
  */
 
 static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
-			int flags, void *ast, void *astarg, void *bast,
+			uint32_t flags, void *ast, void *astarg, void *bast,
 			struct dlm_range *range)
 {
 	struct dlm_lkb *lkb;
@@ -885,7 +945,8 @@ static int convert_lock(struct dlm_ls *ls, int mode, struct dlm_lksb *lksb,
 	rsb = lkb->lkb_resource;
 	down_read(&ls->ls_in_recovery);
 
-	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode, lkb->lkb_id, rsb->res_name);
+	log_debug(ls, "(%d) cv %u %x \"%s\"", lkb->lkb_ownpid, mode,
+		  lkb->lkb_id, rsb->res_name);
 
 	lkb->lkb_flags &= ~GDLM_LKFLG_VALBLK;
 	lkb->lkb_flags &= ~GDLM_LKFLG_DEMOTED;
@@ -928,24 +989,13 @@ int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast)
 
 	down_write(&rsb->res_lock);
 
-	if (can_be_granted(rsb, lkb)) {
+	if (can_be_granted(rsb, lkb, TRUE)) {
 		grant_lock(lkb, 0);
 		grant_pending_locks(rsb);
 		goto out;
 	}
 
-	/*
-	 * Remove lkb from granted queue.
-	 */
-
-	lkb_dequeue(lkb);
-
-	/*
-	 * The user won't wait so stick it back on the grant queue
-	 */
-
 	if (lkb->lkb_lockqueue_flags & DLM_LKF_NOQUEUE) {
-		lkb_enqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
 		ret = lkb->lkb_retstatus = -EAGAIN;
 		if (do_ast)
 			queue_ast(lkb, AST_COMP, 0);
@@ -954,18 +1004,20 @@ int dlm_convert_stage2(struct dlm_lkb *lkb, int do_ast)
 		goto out;
 	}
 
-	/*
-	 * The lkb's status tells which queue it's on.  Put back on convert
-	 * queue.  (QUECVT requests added at end of the queue, all others in
-	 * order.)
-	 */
+	log_debug2("c %x %d %x %d,%d %d %s", lkb->lkb_id, lkb->lkb_nodeid,
+		   lkb->lkb_remid, lkb->lkb_grmode, lkb->lkb_rqmode,
+		   lkb->lkb_status, rsb->res_name);
 
 	lkb->lkb_retstatus = 0;
-	lkb_enqueue(rsb, lkb, GDLM_LKSTS_CONVERT);
+	lkb_swqueue(rsb, lkb, GDLM_LKSTS_CONVERT);
 
 	/*
-	 * If the request can't be granted
+	 * The granted mode may have been reduced to NL by conversion deadlock
+	 * avoidance in can_be_granted().  If so, try to grant other locks.
 	 */
+
+	if (lkb->lkb_flags & GDLM_LKFLG_DEMOTED)
+		grant_pending_locks(rsb);
 
 	send_blocking_asts(rsb, lkb);
 
@@ -1008,10 +1060,15 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 		lkb->lkb_range[GR_RANGE_END] = lkb->lkb_range[RQ_RANGE_END];
 	}
 
-	lkb->lkb_grmode = lkb->lkb_rqmode;
-	lkb->lkb_rqmode = DLM_LOCK_IV;
-	lkb_swqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
+	log_debug2("g %x %d %x %d,%d %d %s", lkb->lkb_id, lkb->lkb_nodeid,
+	           lkb->lkb_remid, lkb->lkb_grmode, lkb->lkb_rqmode,
+		   lkb->lkb_status, rsb->res_name);
 
+	if (lkb->lkb_grmode != lkb->lkb_rqmode) {
+		lkb->lkb_grmode = lkb->lkb_rqmode;
+		lkb_swqueue(rsb, lkb, GDLM_LKSTS_GRANTED);
+	}
+	lkb->lkb_rqmode = DLM_LOCK_IV;
 	lkb->lkb_highbast = 0;
 	lkb->lkb_retstatus = 0;
 	queue_ast(lkb, AST_COMP, 0);
@@ -1077,29 +1134,23 @@ static void send_blocking_asts_all(struct dlm_rsb *rsb, struct dlm_lkb *lkb)
  * The rsb res_lock must be held in write when this function is called.
  */
 
-int grant_pending_locks(struct dlm_rsb *rsb)
+int grant_pending_locks(struct dlm_rsb *r)
 {
-	struct dlm_lkb *lkb;
-	struct list_head *list;
-	struct list_head *temp;
+	struct dlm_lkb *lkb, *s;
 	int8_t high = DLM_LOCK_IV;
 
-	list_for_each_safe(list, temp, &rsb->res_convertqueue) {
-		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
-
-		if (can_be_granted(rsb, lkb))
+	list_for_each_entry_safe(lkb, s, &r->res_convertqueue, lkb_statequeue) {
+		if (can_be_granted(r, lkb, FALSE))
 			grant_lock(lkb, 1);
 		else
 			high = MAX(lkb->lkb_rqmode, high);
 	}
 
-	list_for_each_safe(list, temp, &rsb->res_waitqueue) {
-		lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
-
+	list_for_each_entry_safe(lkb, s, &r->res_waitqueue, lkb_statequeue) {
 		if (lkb->lkb_lockqueue_state)
 			continue;
 
-		if (can_be_granted(rsb, lkb))
+		if (can_be_granted(r, lkb, FALSE))
 			grant_lock(lkb, 1);
 		else
 			high = MAX(lkb->lkb_rqmode, high);
@@ -1114,13 +1165,10 @@ int grant_pending_locks(struct dlm_rsb *rsb)
 	 */
 
 	if (high > DLM_LOCK_IV) {
-		list_for_each_safe(list, temp, &rsb->res_grantqueue) {
-			lkb = list_entry(list, struct dlm_lkb, lkb_statequeue);
-
-			if (lkb->lkb_bastaddr &&
-			    (lkb->lkb_highbast < high) &&
+		list_for_each_entry_safe(lkb, s, &r->res_grantqueue,
+					 lkb_statequeue) {
+			if (lkb->lkb_bastaddr && (lkb->lkb_highbast < high) &&
 			    !__dlm_compat_matrix[lkb->lkb_grmode+1][high+1]) {
-
 				queue_ast(lkb, AST_BAST, high);
 				lkb->lkb_highbast = high;
 			}
@@ -1310,7 +1358,10 @@ void dlm_locks_dump(void)
 	struct list_head *head;
 	int i;
 
+	lowcomms_stop_accept();
+
 	list_for_each_entry(ls, &lslist, ls_list) {
+		down_write(&ls->ls_in_recovery);
 		for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 			head = &ls->ls_rsbtbl[i].list;
 			list_for_each_entry(rsb, head, res_hashchain)

@@ -243,7 +243,10 @@ void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 
 	switch (type) {
 	case GDLM_LKSTS_WAITING:
-		list_add_tail(&lkb->lkb_statequeue, &r->res_waitqueue);
+		if (lkb->lkb_lockqueue_flags & DLM_LKF_HEADQUE)
+			list_add(&lkb->lkb_statequeue, &r->res_waitqueue);
+		else
+			list_add_tail(&lkb->lkb_statequeue, &r->res_waitqueue);
 		break;
 
 	case GDLM_LKSTS_GRANTED:
@@ -252,16 +255,11 @@ void lkb_enqueue(struct dlm_rsb *r, struct dlm_lkb *lkb, int type)
 		break;
 
 	case GDLM_LKSTS_CONVERT:
-	        if (lkb->lkb_lockqueue_flags & DLM_LKF_EXPEDITE)
-		        list_add(&lkb->lkb_statequeue, &r->res_convertqueue);
-
+		if (lkb->lkb_lockqueue_flags & DLM_LKF_HEADQUE)
+			list_add(&lkb->lkb_statequeue, &r->res_convertqueue);
 		else
-		        if (lkb->lkb_lockqueue_flags & DLM_LKF_QUECVT)
-			        list_add_tail(&lkb->lkb_statequeue,
-					      &r->res_convertqueue);
-			else
-			        lkb_add_ordered(&lkb->lkb_statequeue,
-						&r->res_convertqueue, lkb->lkb_rqmode);
+			list_add_tail(&lkb->lkb_statequeue,
+				      &r->res_convertqueue);
 		break;
 
 	default:

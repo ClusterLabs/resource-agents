@@ -48,15 +48,9 @@
  * DLM_LSF_NOTIMERS
  *
  * Do not subject locks in this lockspace to time-outs.
- *
- * DLM_LSF_NOCONVGRANT
- *
- * Do not grant new locks unless the conversion queue is empty.
- *
  */
 
 #define DLM_LSF_NOTIMERS       (1)
-#define DLM_LSF_NOCONVGRANT    (2)
 
 /*
  * Flags to dlm_lock
@@ -83,11 +77,8 @@
  *
  * DLM_LKF_QUECVT
  *
- * Force a conversion lock request to the back of the convert queue.  All other
- * conversion requests ahead of it must be granted before it can be granted.
- * This enforces a FIFO ordering on the convert queue.  When this flag is set,
- * indefinite postponement is averted.  This flag is allowed only when
- * converting a lock to a more restrictive mode.
+ * Force a conversion request to be queued, even if it is compatible with
+ * the granted modes of other locks on the same resource.
  *
  * DLM_LKF_CANCEL
  *
@@ -119,8 +110,8 @@
  *
  * DLM_LKF_EXPEDITE
  *
- * If this lock conversion cannot be granted immediately it is to go to the
- * head of the conversion queue regardless of its requested lock mode.
+ * Used only with new requests for NL mode locks.  Tells the lock manager
+ * to grant the lock, ignoring other locks in convert and wait queues.
  *
  * DLM_LKF_NOQUEUEBAST
  *
@@ -128,6 +119,14 @@
  * used along with the NOQUEUE flag.  Blocking AST's are not sent for failed
  * NOQUEUE requests otherwise.
  *
+ * DLM_LKF_HEADQUE
+ *
+ * Add a lock to the head of the convert or wait queue rather than the tail.
+ *
+ * DLM_LKF_NOORDER
+ *
+ * Disregard the standard grant order rules and grant a lock as soon as it
+ * is compatible with other granted locks.
  */
 
 #define DLM_LKF_NOQUEUE        (0x00000001)
@@ -142,6 +141,8 @@
 #define DLM_LKF_NODLCKBLK      (0x00000200)
 #define DLM_LKF_EXPEDITE       (0x00000400)
 #define DLM_LKF_NOQUEUEBAST    (0x00000800)
+#define DLM_LKF_HEADQUE        (0x00001000)
+#define DLM_LKF_NOORDER        (0x00002000)
 
 /*
  * Some return codes that are not in errno.h
