@@ -1712,7 +1712,7 @@ static int do_process_startack(struct msghdr *msg, char *buf, int len)
 		struct cl_mem_startack_msg *ackmsg =
 			(struct cl_mem_startack_msg *)buf;
 
-		if (ackmsg->node_id) {
+		if (ackmsg->node_id && !joining_node->node_id) {
 			set_nodeid(joining_node, le32_to_cpu(ackmsg->node_id));
 		}
 		highest_nodeid =
@@ -2451,9 +2451,12 @@ static int check_node(struct cluster_node *newnode, char *addrs,
 		return -1;
 	}
 
+	/* Don't fail things if we have a node flagged as JOINING
+	   but the master thinks is DEAD */
 	if (node->votes != newnode->votes ||
 	    node->node_id != newnode->node_id ||
-	    node->state != newnode->state) {
+	    (node->state != NODESTATE_JOINING &&
+	     node->state != newnode->state)) {
 		C_MEMB(" - wrong info: votes=%d(exp: %d) id=%d(exp: %d) state = %d\n",
 		       node->votes, newnode->votes, node->node_id,
 		       newnode->node_id, node->state);
