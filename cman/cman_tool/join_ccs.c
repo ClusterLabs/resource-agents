@@ -18,20 +18,20 @@
 #include "cman_tool.h"
 
 
-#define CLUSTER_NAME_PATH	"//cluster/@name"
-#define CONFIG_VERSION_PATH	"//cluster/@config_version"
-#define EXP_VOTES_PATH		"//cluster/cman/@expected_votes"
-#define TWO_NODE_PATH		"//cluster/cman/@two_node"
-#define MCAST_ADDR_PATH		"//cluster/cman/multicast/@addr"
-#define PORT_PATH		"//cluster/cman/@port"
+#define CLUSTER_NAME_PATH	"/cluster/@name"
+#define CONFIG_VERSION_PATH	"/cluster/@config_version"
+#define EXP_VOTES_PATH		"/cluster/cman/@expected_votes"
+#define TWO_NODE_PATH		"/cluster/cman/@two_node"
+#define MCAST_ADDR_PATH		"/cluster/cman/multicast/@addr"
+#define PORT_PATH		"/cluster/cman/@port"
 
-#define NODEI_NAME_PATH		"//cluster/nodes/node[%d]/@name"
-#define NODE_NAME_PATH		"//cluster/nodes/node[@name=\"%s\"]/@name"
-#define NODE_VOTES_PATH		"//cluster/nodes/node[@name=\"%s\"]/@votes"
-#define NODE_NODEID_PATH	"//cluster/nodes/node[@name=\"%s\"]/@nodeid"
-#define NODE_IFNAME_PATH        "//cluster/nodes/node[@name=\"%s\"]/@ifname"
-#define NODE_ALTNAMES_PATH	"//cluster/nodes/node[@name=\"%s\"]/altname/@name"
-#define NODE_MCAST_IF_PATH	"//cluster/nodes/node[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
+#define NODEI_NAME_PATH		"/cluster/clusternodes/clusternode[%d]/@name"
+#define NODE_NAME_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
+#define NODE_VOTES_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@votes"
+#define NODE_NODEID_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/@nodeid"
+#define NODE_IFNAME_PATH        "/cluster/clusternodes/clusternode[@name=\"%s\"]/@ifname"
+#define NODE_ALTNAMES_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/altname/@name"
+#define NODE_MCAST_IF_PATH	"/cluster/clusternodes/clusternode[@name=\"%s\"]/multicast[@addr=\"%s\"]/@interface"
 
 
 
