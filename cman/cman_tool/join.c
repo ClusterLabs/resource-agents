@@ -197,7 +197,7 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (!comline->multicast_names[num])
 	die("No multicast address for IPv6 node %s\n", comline->nodenames[num]);
 
-    ret = gethostbyname2_r(comline->multicast_names[num], AF_INET,
+    ret = gethostbyname2_r(comline->multicast_names[num], AF_INET6,
 			   &realbhe, he_buffer, sizeof(he_buffer), &bhe,
 			   &he_errno);
 
