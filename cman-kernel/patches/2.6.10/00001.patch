@@ -1,0 +1,230 @@
+diff -urN -p linux-2.6.10/Makefile linux/Makefile
+--- linux-2.6.10/Makefile	2005-01-14 01:27:09.916506407 -0600
++++ linux/Makefile	2005-01-14 01:27:15.364284817 -0600
+@@ -468,7 +468,7 @@ scripts_basic: include/linux/autoconf.h
+ 
+ # Objects we will link into vmlinux / subdirs we need to visit
+ init-y		:= init/
+-drivers-y	:= drivers/ sound/
++drivers-y	:= drivers/ sound/ cluster/
+ net-y		:= net/
+ libs-y		:= lib/
+ core-y		:= usr/
+diff -urN -p linux-2.6.10/arch/alpha/Kconfig linux/arch/alpha/Kconfig
+--- linux-2.6.10/arch/alpha/Kconfig	2005-01-14 01:27:09.917506182 -0600
++++ linux/arch/alpha/Kconfig	2005-01-14 01:27:15.365284593 -0600
+@@ -600,3 +600,4 @@ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
+ 
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/arm/Kconfig linux/arch/arm/Kconfig
+--- linux-2.6.10/arch/arm/Kconfig	2005-01-14 01:27:09.917506182 -0600
++++ linux/arch/arm/Kconfig	2005-01-14 01:27:15.365284593 -0600
+@@ -714,3 +714,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/arm26/Kconfig linux/arch/arm26/Kconfig
+--- linux-2.6.10/arch/arm26/Kconfig	2005-01-14 01:27:09.917506182 -0600
++++ linux/arch/arm26/Kconfig	2005-01-14 01:27:15.366284369 -0600
+@@ -222,3 +222,4 @@ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
+ 
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/cris/Kconfig linux/arch/cris/Kconfig
+--- linux-2.6.10/arch/cris/Kconfig	2005-01-14 01:27:09.918505958 -0600
++++ linux/arch/cris/Kconfig	2005-01-14 01:27:15.366284369 -0600
+@@ -174,3 +174,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/i386/Kconfig linux/arch/i386/Kconfig
+--- linux-2.6.10/arch/i386/Kconfig	2005-01-14 01:27:09.918505958 -0600
++++ linux/arch/i386/Kconfig	2005-01-14 01:27:15.367284145 -0600
+@@ -1211,6 +1211,8 @@ config GENERIC_IRQ_PROBE
+ 	bool
+ 	default y
+ 
++source "cluster/Kconfig"
++
+ config X86_SMP
+ 	bool
+ 	depends on SMP && !X86_VOYAGER
+diff -urN -p linux-2.6.10/arch/ia64/Kconfig linux/arch/ia64/Kconfig
+--- linux-2.6.10/arch/ia64/Kconfig	2005-01-14 01:27:09.919505734 -0600
++++ linux/arch/ia64/Kconfig	2005-01-14 01:27:15.367284145 -0600
+@@ -390,3 +390,5 @@ source "arch/ia64/Kconfig.debug"
+ source "security/Kconfig"
+ 
+ source "crypto/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/m68k/Kconfig linux/arch/m68k/Kconfig
+--- linux-2.6.10/arch/m68k/Kconfig	2005-01-14 01:27:09.919505734 -0600
++++ linux/arch/m68k/Kconfig	2005-01-14 01:27:15.368283921 -0600
+@@ -664,3 +664,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/mips/Kconfig linux/arch/mips/Kconfig
+--- linux-2.6.10/arch/mips/Kconfig	2005-01-14 01:27:09.920505510 -0600
++++ linux/arch/mips/Kconfig	2005-01-14 01:27:15.368283921 -0600
+@@ -1587,6 +1587,8 @@ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
+ 
++source "cluster/Kconfig"
++
+ #
+ # Use the generic interrupt handling code in kernel/irq/:
+ #
+diff -urN -p linux-2.6.10/arch/parisc/Kconfig linux/arch/parisc/Kconfig
+--- linux-2.6.10/arch/parisc/Kconfig	2005-01-14 01:27:09.920505510 -0600
++++ linux/arch/parisc/Kconfig	2005-01-14 01:27:15.369283696 -0600
+@@ -195,3 +195,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/ppc/Kconfig linux/arch/ppc/Kconfig
+--- linux-2.6.10/arch/ppc/Kconfig	2005-01-14 01:27:09.921505286 -0600
++++ linux/arch/ppc/Kconfig	2005-01-14 01:27:15.369283696 -0600
+@@ -1214,3 +1214,5 @@ source "arch/ppc/Kconfig.debug"
+ source "security/Kconfig"
+ 
+ source "crypto/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/ppc64/Kconfig linux/arch/ppc64/Kconfig
+--- linux-2.6.10/arch/ppc64/Kconfig	2005-01-14 01:27:09.921505286 -0600
++++ linux/arch/ppc64/Kconfig	2005-01-14 01:27:15.370283472 -0600
+@@ -384,3 +384,5 @@ config KEYS_COMPAT
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/s390/Kconfig linux/arch/s390/Kconfig
+--- linux-2.6.10/arch/s390/Kconfig	2005-01-14 01:27:09.922505061 -0600
++++ linux/arch/s390/Kconfig	2005-01-14 01:27:15.370283472 -0600
+@@ -466,3 +466,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/sh/Kconfig linux/arch/sh/Kconfig
+--- linux-2.6.10/arch/sh/Kconfig	2005-01-14 01:27:09.922505061 -0600
++++ linux/arch/sh/Kconfig	2005-01-14 01:27:15.371283248 -0600
+@@ -789,3 +789,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/sparc/Kconfig linux/arch/sparc/Kconfig
+--- linux-2.6.10/arch/sparc/Kconfig	2005-01-14 01:27:09.923504837 -0600
++++ linux/arch/sparc/Kconfig	2005-01-14 01:27:15.371283248 -0600
+@@ -385,3 +385,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/sparc64/Kconfig linux/arch/sparc64/Kconfig
+--- linux-2.6.10/arch/sparc64/Kconfig	2005-01-14 01:27:09.923504837 -0600
++++ linux/arch/sparc64/Kconfig	2005-01-14 01:27:15.372283024 -0600
+@@ -602,3 +602,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/arch/um/Kconfig linux/arch/um/Kconfig
+--- linux-2.6.10/arch/um/Kconfig	2005-01-14 01:27:09.924504613 -0600
++++ linux/arch/um/Kconfig	2005-01-14 01:27:15.372283024 -0600
+@@ -256,6 +256,8 @@ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
+ 
++source "cluster/Kconfig"
++
+ menu "SCSI support"
+ depends on BROKEN
+ 
+diff -urN -p linux-2.6.10/arch/x86_64/Kconfig linux/arch/x86_64/Kconfig
+--- linux-2.6.10/arch/x86_64/Kconfig	2005-01-14 01:27:09.924504613 -0600
++++ linux/arch/x86_64/Kconfig	2005-01-14 01:27:15.372283024 -0600
+@@ -445,3 +445,5 @@ source "security/Kconfig"
+ source "crypto/Kconfig"
+ 
+ source "lib/Kconfig"
++
++source "cluster/Kconfig"
+diff -urN -p linux-2.6.10/cluster/Kconfig linux/cluster/Kconfig
+--- linux-2.6.10/cluster/Kconfig	1969-12-31 18:00:00.000000000 -0600
++++ linux/cluster/Kconfig	2005-01-14 01:27:15.373282800 -0600
+@@ -0,0 +1,13 @@
++menu "Cluster Support"
++
++config CLUSTER
++	tristate "Cluster support"
++	---help---
++	Enable clustering support. This is not the high-performance clustering
++	made famous by beowulf. It is a high-availability cluster often using
++	shared storage. 
++	The cluster manager is the heart(beat) of the cluster system. It is
++	needed by all the other components. It provides membership services
++	for those other subsystems.
++
++endmenu
+diff -urN -p linux-2.6.10/cluster/Makefile linux/cluster/Makefile
+--- linux-2.6.10/cluster/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/cluster/Makefile	2005-01-14 01:27:15.373282800 -0600
+@@ -0,0 +1,3 @@
++obj-y	:= nocluster.o
++
++obj-$(CONFIG_CLUSTER)         += cman/
+diff -urN -p linux-2.6.10/cluster/cman/Makefile linux/cluster/cman/Makefile
+--- linux-2.6.10/cluster/cman/Makefile	1969-12-31 18:00:00.000000000 -0600
++++ linux/cluster/cman/Makefile	2005-01-14 01:27:15.373282800 -0600
+@@ -0,0 +1,6 @@
++cman-objs := cnxman.o config.o membership.o proc.o\
++	     sm_barrier.o sm_control.o sm_daemon.o sm_joinleave.o\
++	     sm_membership.o sm_message.o sm_misc.o sm_recover.o sm_services.o \
++	     sm_user.o
++
++obj-$(CONFIG_CLUSTER) := cman.o
+diff -urN -p linux-2.6.10/cluster/nocluster.c linux/cluster/nocluster.c
+--- linux-2.6.10/cluster/nocluster.c	1969-12-31 18:00:00.000000000 -0600
++++ linux/cluster/nocluster.c	2005-01-14 01:27:15.373282800 -0600
+@@ -0,0 +1,20 @@
++/*
++ * cluster/nocluster.c
++ *
++ * Copy from net/nonet.c
++ * Dummy functions to allow us to configure cluster support entirely
++ * out of the kernel.
++ *
++ * Distributed under the terms of the GNU GPL version 2.
++ * Copyright (c) Matthew Wilcox 2003
++ */
++
++#include <linux/module.h>
++#include <linux/errno.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++
++void __init nocluster_init(void)
++{
++}
