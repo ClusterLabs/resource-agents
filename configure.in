@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.135 $) dnl cvs revision
+AC_REVISION($Revision: 1.136 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -212,7 +212,13 @@ else
 	AC_MSG_RESULT("no")
 fi
 
+if test X${PING} = X
+then
+  AC_MSG_ERROR(ping command is mandantory)
+fi
+
 dnl Determine if we use -w1 or -t1 for ping (in PYTHON Scripts)
+  
 
 AC_MSG_CHECKING(ping option for timeout - w or t)
 for PING_TIMEOUT_OPT in "-w1" "-t1"
