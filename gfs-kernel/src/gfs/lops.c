@@ -442,6 +442,13 @@ buf_before_scan(struct gfs_sbd *sdp, unsigned int jid,
  * @blkno: the location of the log's copy of the block
  *
  * Returns: 0 on success, -EXXX on failure
+ *
+ * Read in-place block from disk
+ * Read log (journal) block from disk
+ * Compare generation numbers
+ * Copy log block to in-place block on-disk if:
+ *   log generation # > in-place generation #
+ *   OR generation #s are ==, but data contained in block is different (corrupt)
  */
 
 static int

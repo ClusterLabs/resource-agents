@@ -129,17 +129,20 @@ struct gfs_tune {
 	unsigned int gt_incore_log_blocks;
 	unsigned int gt_jindex_refresh_secs;
 	unsigned int gt_depend_secs;
-	unsigned int gt_scand_secs;
-	unsigned int gt_recoverd_secs;
-	unsigned int gt_logd_secs;
-	unsigned int gt_quotad_secs;
-	unsigned int gt_inoded_secs;
-	unsigned int gt_quota_simul_sync;
-	unsigned int gt_quota_warn_period;
+
+	/* how often various daemons run (seconds) */
+	unsigned int gt_scand_secs;       /* find unused glocks and inodes */
+	unsigned int gt_recoverd_secs;    /* recover journal of crashed node */
+	unsigned int gt_logd_secs;        /* update log tail as AIL flushes */
+	unsigned int gt_quotad_secs;      /* sync changes to quota file, clean */
+	unsigned int gt_inoded_secs;      /* toss unused inodes */
+
+	unsigned int gt_quota_simul_sync; /* max # quotavals to sync at once */
+	unsigned int gt_quota_warn_period; /* secs between quota warn msgs */
 	unsigned int gt_atime_quantum;
-	unsigned int gt_quota_quantum;
-	unsigned int gt_quota_scale_num;
-	unsigned int gt_quota_scale_den;
+	unsigned int gt_quota_quantum;    /* secs between syncs to quota file */
+	unsigned int gt_quota_scale_num;  /* numerator */
+	unsigned int gt_quota_scale_den;  /* denominator */
 	unsigned int gt_quota_enforce;
 	unsigned int gt_quota_account;
 	unsigned int gt_new_files_jdata;

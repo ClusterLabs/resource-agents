@@ -11,26 +11,44 @@
 *******************************************************************************
 ******************************************************************************/
 
+/*
+ * Formats of Lock Value Blocks (LVBs) for various types of locks.
+ * These 32-bit data chunks can be shared quickly between nodes
+ *   via the inter-node lock manager (via LAN instead of on-disk).
+ */
+
 #ifndef __LVB_DOT_H__
 #define __LVB_DOT_H__
 
 #define GFS_MIN_LVB_SIZE (32)
 
+/*
+ * Resource Group block allocation statistics
+ * Each resource group lock contains one of these in its LVB.
+ * Used for sharing approximate current statistics for statfs.
+ * Not used for actual block allocation.
+ */
 struct gfs_rgrp_lvb {
-	uint32_t rb_magic;
-	uint32_t rb_free;
-	uint32_t rb_useddi;
-	uint32_t rb_freedi;
-	uint32_t rb_usedmeta;
-	uint32_t rb_freemeta;
+	uint32_t rb_magic;      /* GFS_MAGIC sanity check value */
+	uint32_t rb_free;       /* # free data blocks */
+	uint32_t rb_useddi;     /* # used dinode blocks */
+	uint32_t rb_freedi;     /* # free dinode blocks */
+	uint32_t rb_usedmeta;   /* # used metadata blocks */
+	uint32_t rb_freemeta;   /* # free metadata blocks */
 };
 
+/*
+ * Quota
+ * Each quota lock contains one of these in its LVB.
+ * Keeps track of block allocation limits and current block allocation
+ *   for either a cluster-wide user or a cluster-wide group.
+ */
 struct gfs_quota_lvb {
-	uint32_t qb_magic;
+	uint32_t qb_magic;      /* GFS_MAGIC sanity check value */
 	uint32_t qb_pad;
-	uint64_t qb_limit;
-	uint64_t qb_warn;
-	int64_t qb_value;
+	uint64_t qb_limit;      /* hard limit of # blocks to alloc */
+	uint64_t qb_warn;       /* warn user when alloc is above this # */
+	int64_t qb_value;       /* current # blocks allocated */
 };
 
 /*  Translation functions  */

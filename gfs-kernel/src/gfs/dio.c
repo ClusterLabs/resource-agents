@@ -1078,6 +1078,9 @@ gfs_wipe_buffers(struct gfs_inode *ip, struct gfs_rgrpd *rgd,
  * gfs_sync_meta - sync all the buffers in a filesystem
  * @sdp: the filesystem
  *
+ * Flush metadata blocks to on-disk journal, then
+ * Flush metadata blocks (now in AIL) to on-disk in-place locations
+ * Periodically keep checking until done (AIL empty)
  */
 
 void

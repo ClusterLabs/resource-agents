@@ -374,6 +374,7 @@ rgrp_verify(struct gfs_rgrpd *rgd)
 
 	memset(count, 0, 4 * sizeof(uint32_t));
 
+	/* count # blocks in each of 4 possible allocation states */
 	for (buf = 0; buf < length; buf++) {
 		bits = &rgd->rd_bits[buf];
 		for (x = 0; x < 4; x++)
@@ -533,6 +534,7 @@ gfs_clear_rgrpd(struct gfs_sbd *sdp)
  * gfs_compute_bitstructs - Compute the bitmap sizes
  * @rgd: The resource group descriptor
  *
+ * Calculates bitmap descriptors, one for each block that contains bitmap data
  */
 
 static void
@@ -540,7 +542,7 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 {
 	struct gfs_sbd *sdp = rgd->rd_sbd;
 	struct gfs_bitmap *bits;
-	uint32_t length = rgd->rd_ri.ri_length;
+	uint32_t length = rgd->rd_ri.ri_length; /* # blocks in hdr & bitmap */
 	uint32_t bytes_left, bytes;
 	int x;
 
@@ -552,21 +554,25 @@ compute_bitstructs(struct gfs_rgrpd *rgd)
 	for (x = 0; x < length; x++) {
 		bits = &rgd->rd_bits[x];
 
+		/* small rgrp; bitmap stored completely in header block */
 		if (length == 1) {
 			bytes = bytes_left;
 			bits->bi_offset = sizeof(struct gfs_rgrp);
 			bits->bi_start = 0;
 			bits->bi_len = bytes;
+		/* header block */
 		} else if (x == 0) {
 			bytes = sdp->sd_sb.sb_bsize - sizeof(struct gfs_rgrp);
 			bits->bi_offset = sizeof(struct gfs_rgrp);
 			bits->bi_start = 0;
 			bits->bi_len = bytes;
+		/* last block */
 		} else if (x + 1 == length) {
 			bytes = bytes_left;
 			bits->bi_offset = sizeof(struct gfs_meta_header);
 			bits->bi_start = rgd->rd_ri.ri_bitbytes - bytes_left;
 			bits->bi_len = bytes;
+		/* other blocks */
 		} else {
 			bytes = sdp->sd_sb.sb_bsize - sizeof(struct gfs_meta_header);
 			bits->bi_offset = sizeof(struct gfs_meta_header);
@@ -857,10 +863,12 @@ gfs_alloc_put(struct gfs_inode *ip)
  * @rgd: the RG data
  * @al: the struct gfs_alloc structure describing the reservation
  *
- * Sets the $ir_datares field in @res.
- * Sets the $ir_metares field in @res.
+ * If there's room for the requested blocks to be allocated from the RG:
+ *   Sets the $al_reserved_data field in @al.
+ *   Sets the $al_reserved_meta field in @al.
+ *   Sets the $al_rgd field in @al.
  *
- * Returns: 1 on success, 0 on failure
+ * Returns: 1 on success (it fits), 0 on failure (it doesn't fit)
  */
 
 static int
@@ -902,7 +910,7 @@ try_rgrp_fit(struct gfs_rgrpd *rgd, struct gfs_alloc *al)
 }
 
 /**
- * recent_rgrp_first - get first RG from recent list
+ * recent_rgrp_first - get first RG from "recent" list
  * @sdp: The GFS superblock
  * @rglast: address of the rgrp used last
  *
@@ -941,7 +949,7 @@ recent_rgrp_first(struct gfs_sbd *sdp, uint64_t rglast)
 }
 
 /**
- * recent_rgrp_next - get next RG from recent list
+ * recent_rgrp_next - get next RG from "recent" list
  * @cur_rgd: current rgrp
  *
  * Returns: The next rgrp in the recent list
@@ -980,7 +988,7 @@ recent_rgrp_next(struct gfs_rgrpd *cur_rgd)
 }
 
 /**
- * recent_rgrp_remove - remove an RG from recent list
+ * recent_rgrp_remove - remove an RG from "recent" list
  * @rgd: The rgrp to remove
  *
  */
@@ -994,9 +1002,14 @@ recent_rgrp_remove(struct gfs_rgrpd *rgd)
 }
 
 /**
- * recent_rgrp_add - add an RG to recent list
+ * recent_rgrp_add - add an RG to tail of "recent" list
  * @new_rgd: The rgrp to add
  *
+ * Before adding, make sure that:
+ *   1) it's not already on the list
+ *   2) there's still room for more entries
+ * The capacity limit imposed on the "recent" list is basically a node's "share"
+ *   of rgrps within a cluster, i.e. (total # rgrps) / (# nodes (journals))
  */
 
 static void

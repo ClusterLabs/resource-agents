@@ -134,7 +134,8 @@ log_incr_head(struct gfs_sbd *sdp, uint64_t * head)
 /**
  * gfs_ail_start - Start I/O on the AIL
  * @sdp: the filesystem
- * @flags:
+ * @flags:  DIO_ALL -- flush *all* AIL transactions to disk
+ *          default -- flush first-on-list AIL transaction to disk
  *
  */
 
@@ -1207,7 +1208,7 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 		LO_CLEAN_DUMP(sdp, le);
 	}
 
-	/* If there isn't anything the AIL, we won't get back the log
+	/* If there isn't anything in the AIL, we won't get back the log
 	   space we reserved unless we do it ourselves. */
 
 	if (list_empty(&sdp->sd_log_ail)) {

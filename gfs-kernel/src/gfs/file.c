@@ -199,15 +199,20 @@ gfs_copy_from_mem(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 	char **p = (char **)buf;
 	int error = 0;
 
+	/* The dinode block always gets journaled */
 	if (bh->b_blocknr == ip->i_num.no_addr) {
 		GFS_ASSERT_INODE(!new, ip,);
 		gfs_trans_add_bh(ip->i_gl, bh);
 		memcpy(bh->b_data + offset, *p, size);
+
+	/* Data blocks for journaled files get written added to the journal */
 	} else if (gfs_is_jdata(ip)) {
 		gfs_trans_add_bh(ip->i_gl, bh);
 		memcpy(bh->b_data + offset, *p, size);
 		if (new)
 			gfs_buffer_clear_ends(bh, offset, size, TRUE);
+
+	/* Non-journaled data blocks get written to in-place disk blocks */
 	} else {
 		memcpy(bh->b_data + offset, *p, size);
 		if (new)
@@ -240,11 +245,14 @@ gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 	char **p = (char **)buf;
 	int error = 0;
 
+	/* the dinode block always gets journaled */
 	if (bh->b_blocknr == ip->i_num.no_addr) {
 		GFS_ASSERT_INODE(!new, ip,);
 		gfs_trans_add_bh(ip->i_gl, bh);
 		if (copy_from_user(bh->b_data + offset, *p, size))
 			error = -EFAULT;
+
+	/* Data blocks for journaled files get written added to the journal */
 	} else if (gfs_is_jdata(ip)) {
 		gfs_trans_add_bh(ip->i_gl, bh);
 		if (copy_from_user(bh->b_data + offset, *p, size))
@@ -254,6 +262,8 @@ gfs_copy_from_user(struct gfs_inode *ip, struct buffer_head *bh, void **buf,
 			if (error)
 				memset(bh->b_data + offset, 0, size);
 		}
+
+	/* non-journaled data blocks get written to in-place disk blocks */
 	} else {
 		if (copy_from_user(bh->b_data + offset, *p, size))
 			error = -EFAULT;
