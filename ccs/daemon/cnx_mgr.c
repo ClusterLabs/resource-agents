@@ -49,7 +49,7 @@ typedef struct open_connection_s {
 static open_connection_t **ocs = NULL;
 
 
-static int update_config(int do_remote){
+static int _update_config(int do_remote, char *location){
   int error = 0;
   int v1=0, v2=0;
   open_doc_t *tmp_odoc = NULL;
@@ -57,11 +57,11 @@ static int update_config(int do_remote){
   char *mem_doc = NULL;
   int mem_doc_size;
 
-  ENTER("update_config");
+  ENTER("_update_config");
 
-  tmp_doc = xmlParseFile("/etc/cluster/cluster.conf");
+  tmp_doc = xmlParseFile(location);
   if(!tmp_doc){
-    log_err("Unable to parse %s\n", "/etc/cluster/cluster.conf");
+    log_err("Unable to parse %s\n", location);
     /* ATTENTION -- write working copy to cluster.conf-old ? */
     error = -EINVAL;
     goto fail;
@@ -127,7 +127,7 @@ static int update_config(int do_remote){
     char *buffer;
     int size;
 
-    rename("/etc/cluster/cluster.conf", "/etc/cluster/cluster.conf-rej");
+    rename(location, "/etc/cluster/cluster.conf-rej");
     if(tmp_odoc){
       free(tmp_odoc);
     }
@@ -135,12 +135,9 @@ static int update_config(int do_remote){
       xmlFreeDoc(tmp_doc);
     }
 
-    v2 = get_doc_version(master_doc->od_doc);
-    log_dbg("%d should equal %d\n", v2, v1);
-
     xmlDocDumpFormatMemory(master_doc->od_doc, (xmlChar **)&buffer, &size, 0);
 
-    fd = open("/etc/cluster/cluster.conf",
+    fd = open(location,
 	      O_CREAT | O_WRONLY | O_TRUNC,
 	      S_IRUSR | S_IRGRP);
     if(fd >= 0){
@@ -153,10 +150,29 @@ static int update_config(int do_remote){
     free(mem_doc);
   }
 
-  EXIT("update_config");
+  EXIT("_update_config");
   return error;
 }
 
+
+static int update_config(int do_remote){
+  int error = 0;
+  ENTER("update_config");
+
+  if(update_required){
+    error = _update_config(0, "/etc/cluster/.cluster.conf");
+    update_required = 0;
+    if(error){
+      log_err("Previous update could not be completed.\n");
+      goto fail;
+    }
+  }
+  error = _update_config(do_remote, "/etc/cluster/cluster.conf");
+
+ fail:
+  EXIT("update_config");
+  return error;
+}
 
 static void update_handler(int sig){
   ENTER("update_handler");

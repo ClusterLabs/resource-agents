@@ -86,7 +86,7 @@ static int check_update_doc(xmlDocPtr tmp_doc){
 static int handle_cluster_message(int fd){
   int error = 0;
   int afd= -1;
-  int file_fd = -1;;
+  FILE *fp = NULL;
   int unlock=0;
   char *buffer = NULL;
   xmlDocPtr tmp_doc = NULL;
@@ -154,16 +154,14 @@ static int handle_cluster_message(int fd){
       goto fail;
     }
 
-    file_fd = open("/etc/cluster/cluster.conf-update",
-		   O_CREAT | O_WRONLY | O_TRUNC,
-		   S_IRUSR | S_IRGRP);
-    if(file_fd < 0){
+    fp = fopen("/etc/cluster/cluster.conf-update", "w");
+    if(!fp){
       log_sys_err("Unable to open /etc/cluster/cluster.conf-update");
-      error = file_fd;
+      error = -errno;
       goto fail;
     }
 
-    if((error = write(file_fd, buffer+sizeof(comm_header_t), ch.comm_payload_size)) < 0){
+    if(xmlDocDump(fp, tmp_doc) < 0){
       log_sys_err("Unable to write /etc/cluster/cluster.conf-update");
       goto fail;
     }
@@ -205,6 +203,18 @@ static int handle_cluster_message(int fd){
       goto fail;
     }
     
+    fp = fopen("/etc/cluster/.cluster.conf", "w");
+    if(!fp){
+      log_sys_err("Unable to open /etc/cluster/.cluster.conf");
+      error = -errno;
+      goto fail;
+    }
+
+    if(xmlDocDump(fp, tmp_doc) < 0){
+      log_sys_err("Unable to write /etc/cluster/.cluster.conf");
+      goto fail;
+    }
+
     rename("/etc/cluster/cluster.conf-update", "/etc/cluster/cluster.conf");
     update_required=1;
     ch.comm_flags = COMM_UPDATE_COMMIT_ACK;
@@ -217,8 +227,8 @@ static int handle_cluster_message(int fd){
   }
   
  fail:
-  if(file_fd >= 0){
-    close(file_fd);
+  if(fp){
+    fclose(fp);
   }
   if(afd >= 0){
     msg_close(afd);
