@@ -23,14 +23,17 @@
 #define OP_VOTES		4
 #define OP_KILL			5
 #define OP_VERSION		6
-#define OP_WAIT                 7
+#define OP_WAIT			7
+#define OP_STATUS		8
+#define OP_NODES		9
+#define OP_SERVICES		10
 
 
 static void print_usage(void)
 {
 	printf("Usage:\n");
 	printf("\n");
-	printf("%s <join|leave|kill|expected|votes|version|wait> [options]\n",
+	printf("%s <join|leave|kill|expected|votes|version|wait|status|nodes|services> [options]\n",
 	       prog_name);
 	printf("\n");
 	printf("Options:\n");
@@ -76,9 +79,46 @@ static void print_usage(void)
 	printf("  -v <votes>       New number of votes for this node\n");
 
 	printf("\n");
+	printf("status             Show local record of cluster status\n");
+	printf("\n");
+	printf("nodes              Show local record of cluster nodes\n");
+	printf("\n");
+	printf("services           Show local record of cluster services\n");
+
+	printf("\n");
 	printf("version\n");
 	printf("  -r <config>      A new config version to set on all members\n");
 	printf("\n");
+}
+
+static void show_file(char *name)
+{
+	FILE *file;
+	char line[256];
+
+	file = fopen(name, "r");
+	if (!file)
+		die("can't open %s, cman not running", name);
+
+	while (fgets(line, 256, file))
+		printf("%s", line);
+
+	fclose(file);
+}
+
+static void show_status(void)
+{
+	show_file("/proc/cluster/status");
+}
+
+static void show_nodes(void)
+{
+	show_file("/proc/cluster/nodes");
+}
+
+static void show_services(void)
+{
+	show_file("/proc/cluster/services");
 }
 
 static void leave(commandline_t *comline)
@@ -389,6 +429,18 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 			if (comline->operation)
 				die("can't specify two operations");
 			comline->operation = OP_WAIT;
+		} else if (strcmp(argv[optind], "status") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_STATUS;
+		} else if (strcmp(argv[optind], "nodes") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_NODES;
+		} else if (strcmp(argv[optind], "services") == 0) {
+			if (comline->operation)
+				die("can't specify two operations");
+			comline->operation = OP_SERVICES;
 		} else if (strcmp(argv[optind], "remove") == 0) {
 			comline->remove = TRUE;
 		} else if (strcmp(argv[optind], "force") == 0) {
@@ -509,6 +561,18 @@ int main(int argc, char *argv[])
 
 	case OP_WAIT:
 		cluster_wait(&comline);
+		break;
+
+	case OP_STATUS:
+		show_status();
+		break;
+
+	case OP_NODES:
+		show_nodes();
+		break;
+
+	case OP_SERVICES:
+		show_services();
 		break;
 
 	/* FIXME: support CLU_SET_NODENAME? */
