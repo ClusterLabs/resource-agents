@@ -586,7 +586,7 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 		lkb->lkb_retstatus = -EINVAL;
 		goto out;
 	}
-	
+
 	lkb->lkb_resource = rsb;
 
 	log_debug(ls, "rq %u from %u %x \"%s\"", lkb->lkb_rqmode, remote_nodeid,

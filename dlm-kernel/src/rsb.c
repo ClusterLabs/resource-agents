@@ -143,7 +143,9 @@ int find_rsb(struct dlm_ls *ls, struct dlm_rsb *parent, char *name, int len,
 
 	if (r)
 		goto out_set;
-	if (!(flags & CREATE)) {
+
+	/* Always create sublocks */
+	if (!(flags & CREATE) && !parent) {
 		*rp = NULL;
 		goto out;
 	}

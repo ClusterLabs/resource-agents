@@ -72,6 +72,7 @@ struct ast_info {
 	struct dlm_queryinfo *queryinfo;
 	struct dlm_queryinfo __user *user_queryinfo;
 	struct list_head list;
+	uint32_t ast_reason;	/* AST_COMP or AST_BAST from dlm_internal.h */
 };
 
 /* One of these per userland lockspace */
@@ -226,7 +227,7 @@ static int unregister_lockspace(struct user_ls *lsinfo, int force)
 }
 
 /* Add it to userland's AST queue */
-static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam)
+static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam, uint32_t reason)
 {
 	struct ast_info *ast = kmalloc(sizeof(struct ast_info), GFP_KERNEL);
 	if (!ast)
@@ -236,6 +237,7 @@ static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam)
 	ast->result.astaddr   = astaddr;
 	ast->result.user_lksb = li->li_user_lksb;
 	ast->result.cmd       = li->li_cmd;
+	ast->ast_reason	      = reason;
 	memcpy(&ast->result.lksb, &li->li_lksb, sizeof(struct dlm_lksb));
 
 	/* These two will both be NULL for anything other than queries */
@@ -253,7 +255,7 @@ static void bast_routine(void *param, int mode)
 	struct lock_info *li = param;
 
 	if (param) {
-		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam);
+		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam, AST_BAST);
 	}
 }
 
@@ -284,7 +286,7 @@ static void ast_routine(void *param)
 
 		/* Only queue AST if the device is still open */
 		if (test_bit(1, &li->li_file->fi_flags))
-			add_to_astqueue(li, li->li_castaddr, li->li_castparam);
+			add_to_astqueue(li, li->li_castaddr, li->li_castparam, AST_COMP);
 
 		/* If it's a new lock operation that failed, then
 		 * remove it from the owner queue and free the
@@ -698,6 +700,12 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 	ret = sizeof(struct dlm_lock_result);
 	if (copy_to_user(buffer, &ast->result, sizeof(struct dlm_lock_result)))
 		ret = -EFAULT;
+	if (ast->ast_reason == AST_COMP &&
+	    ast->result.cmd == DLM_USER_LOCK && ast->result.lksb.sb_lvbptr) {
+		if (copy_to_user(ast->result.user_lksb->sb_lvbptr, ast->result.lksb.sb_lvbptr, DLM_LVB_LEN))
+			ret = -EFAULT;
+		kfree(ast->result.lksb.sb_lvbptr);
+	}
 
 	/* If it was a query then copy the result block back here */
 	if (ast->queryinfo) {
@@ -872,9 +880,18 @@ static int do_user_lock(struct file_info *fi, struct dlm_lock_params *kparams,
 
 	/* Copy the user's LKSB into kernel space,
 	   needed for conversions & value block operations */
-	if (kparams->lksb && copy_from_user(&li->li_lksb, kparams->lksb,
-					    sizeof(struct dlm_lksb)))
+	if (copy_from_user(&li->li_lksb, kparams->lksb,sizeof(struct dlm_lksb)))
 		return -EFAULT;
+	if ((kparams->flags & DLM_LKF_VALBLK) && li->li_lksb.sb_lvbptr) {
+		li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN, GFP_KERNEL);
+		if (!li->li_lksb.sb_lvbptr)
+			return -ENOMEM;
+		if (copy_from_user(li->li_lksb.sb_lvbptr, kparams->lksb->sb_lvbptr,
+				   DLM_LVB_LEN))
+			return -EFAULT;
+	} else	{
+		li->li_lksb.sb_lvbptr = NULL;
+	}
 
 	/* Lock it ... */
 	status = dlm_lock(fi->fi_ls->ls_lockspace, kparams->mode, &li->li_lksb,

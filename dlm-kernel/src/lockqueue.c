@@ -1029,7 +1029,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 		down_write(&rsb->res_lock);
 
 		if (lkb->lkb_flags & GDLM_LKFLG_VALBLK)
-			memcpy(lkb->lkb_lvbptr, freq->rr_lvb, DLM_LVB_LEN);
+			allocate_and_copy_lvb(lspace, &lkb->lkb_lvbptr, freq->rr_lvb);
 
 		lkb->lkb_grmode = lkb->lkb_rqmode;
 		lkb->lkb_rqmode = DLM_LOCK_IV;
