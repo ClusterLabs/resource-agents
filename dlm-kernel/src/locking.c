@@ -883,12 +883,11 @@ int dlm_unlock_stage2(struct dlm_lkb *lkb, struct dlm_rsb *rsb, uint32_t flags)
 		up_write(&rsb->res_lock);
 		release_lkb(rsb->res_ls, lkb);
 		release_rsb(rsb);
-		goto out2;
+		return 0;
 	}
 
  out:
 	up_write(&rsb->res_lock);
- out2:
 	wake_astd();
 	return 0;
 }
