@@ -162,8 +162,10 @@ gfs_sort(void *base, unsigned int num_elem, unsigned int size,
 {
 	register char *pbase = (char *)base;
 	int i, j, k, h;
-	int cols[16] = {1391376, 463792, 198768, 86961, 33936, 13776, 4592,
-			1968, 861, 336, 112, 48, 21, 7, 3, 1};
+	static int cols[16] = {1391376, 463792, 198768, 86961,
+			       33936, 13776, 4592, 1968,
+			       861, 336, 112, 48,
+			       21, 7, 3, 1};
 	
 	for (k = 0; k < 16; k++) {
 		h = cols[k];
