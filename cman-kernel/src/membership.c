@@ -256,7 +256,9 @@ static int hello_kthread(void *unused)
 		set_task_state(current, TASK_INTERRUPTIBLE);
 		schedule();
 		set_task_state(current, TASK_RUNNING);
-		send_hello();
+
+		if (node_state != REJECTED && node_state != LEFT_CLUSTER)
+			send_hello();
 	}
 	down(&hello_task_lock);
 	hello_task = NULL;
