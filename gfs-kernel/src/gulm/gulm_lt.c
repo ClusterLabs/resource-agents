@@ -16,6 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/file.h>
 #include <linux/crc32.h>
 #define __KERNEL_SYSCALLS__
@@ -251,12 +252,12 @@ int pack_drop_mask(uint8_t *mask, uint16_t mlen, uint8_t *fsname)
 int gulm_lt_init (void)
 {
 	int i;
-	gulm_cm.gfs_lockmap = kmalloc(sizeof(struct list_head) * gulm_gfs_lmSize, GFP_KERNEL);
+	gulm_cm.gfs_lockmap = vmalloc(sizeof(struct list_head)*gulm_gfs_lmSize);
 	if (gulm_cm.gfs_lockmap == NULL)
 		return -ENOMEM;
-	gulm_cm.gfs_locklock = kmalloc(sizeof(spinlock_t) * gulm_gfs_lmSize, GFP_KERNEL);
+	gulm_cm.gfs_locklock = vmalloc(sizeof(spinlock_t) * gulm_gfs_lmSize);
 	if (gulm_cm.gfs_locklock == NULL) {
-		kfree(gulm_cm.gfs_lockmap);
+		vfree(gulm_cm.gfs_lockmap);
 		return -ENOMEM;
 	}
 	for(i=0; i < gulm_gfs_lmSize; i++) {
@@ -286,8 +287,8 @@ void gulm_lt_release(void)
 		}
 	}
 
-	kfree (gulm_cm.gfs_lockmap);
-	kfree (gulm_cm.gfs_locklock);
+	vfree (gulm_cm.gfs_lockmap);
+	vfree (gulm_cm.gfs_locklock);
 }
 
 /**

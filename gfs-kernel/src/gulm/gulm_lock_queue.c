@@ -16,6 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <linux/file.h>
 #include <linux/smp_lock.h>
 #include <linux/crc32.h>
@@ -74,13 +75,13 @@ int glq_init(void)
 	spin_lock_init (&glq_OutLock);
 	glq_OutCount = 0;
 
-	glq_ReplyMap = kmalloc(sizeof(struct list_head) * ReplyMapSize, GFP_KERNEL);
+	glq_ReplyMap = vmalloc(sizeof(struct list_head) * ReplyMapSize);
 	if( glq_ReplyMap == NULL ) {
 		return -ENOMEM;
 	}
-	glq_ReplyLock = kmalloc(sizeof(spinlock_t) * ReplyMapSize, GFP_KERNEL);
+	glq_ReplyLock = vmalloc(sizeof(spinlock_t) * ReplyMapSize);
 	if( glq_ReplyLock == NULL ) {
-		kfree(glq_ReplyMap);
+		vfree(glq_ReplyMap);
 		return -ENOMEM;
 	}
 	for(i=0; i < ReplyMapSize; i++) {
@@ -131,8 +132,8 @@ void glq_release(void)
 		}
 	}
 
-	kfree(glq_ReplyLock);
-	kfree(glq_ReplyMap);
+	vfree(glq_ReplyLock);
+	vfree(glq_ReplyMap);
 }
 
 /**
