@@ -524,12 +524,12 @@ int send_stats(xdr_enc_t *enc)
    snprintf(tmp, 256, "%lu", cnt_replyq);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
-   if((err = xdr_enc_string(enc, "used_locks")) != 0) return err;
-   snprintf(tmp, 256, "%lu", cnt_locks);
-   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
-
    if((err = xdr_enc_string(enc, "free_locks")) != 0) return err;
    snprintf(tmp, 256, "%lu", free_locks);
+   if((err = xdr_enc_string(enc, tmp)) != 0) return err;
+
+   if((err = xdr_enc_string(enc, "used_locks")) != 0) return err;
+   snprintf(tmp, 256, "%lu", cnt_locks);
    if((err = xdr_enc_string(enc, tmp)) != 0) return err;
 
    if((err = xdr_enc_string(enc, "free_lkrqs")) != 0) return err;

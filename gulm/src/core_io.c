@@ -955,7 +955,7 @@ static int master_probe_middle(int idx)
                /* clients die when genids go bad. bug #173 */
                if( MyRank < 0 ) {
                   die(ExitGulm_SelfKill,
-                        "GenertationID missmatch: "
+                        "GenerationID missmatch: "
                         "me:%"PRIu64" they:%"PRIu64"\n",
                         GenerationID, generation);
                }
@@ -964,14 +964,15 @@ static int master_probe_middle(int idx)
                    * state.  So we can flip back to pending with GenID 0
                    * and keep going without issue.
                    */
-                  log_msg(lgm_Always, "GenertationID missmatch: "
+                  log_msg(lgm_Always, "GenerationID missmatch: "
                      "me:%"PRIu64" they:%"PRIu64" "
                      "In startup, reseting. Continuing to scan.\n",
                    GenerationID, generation);
                   GenerationID = 0;
                   I_am_the = gio_Mbr_ama_Pending;
+                  Login_state.try_again = TRUE;
                } else {
-                  log_msg(lgm_Always, "GenertationID missmatch: "
+                  log_msg(lgm_Always, "GenerationID missmatch: "
                         "me:%"PRIu64" they:%"PRIu64" "
                         "Continuing to scan.\n",
                       GenerationID, generation);
