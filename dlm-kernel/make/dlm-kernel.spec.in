@@ -38,7 +38,7 @@ Requires: kernel dlm
 Requires: cman-kernel >= 2.6.9
 Provides: kernel-modules
 
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}-%{release}.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
@@ -56,7 +56,7 @@ The dlm kernel headers are used by various cluster packages.
 ##  THE PREP SECTION
 ####################################################################################
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q -n %{name}-%{version}-%{release}
 
 ####################################################################################
 ##  THE BUILD SECTION

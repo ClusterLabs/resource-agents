@@ -25,7 +25,7 @@ BuildRequires: cman-kernheaders ccs-devel
 Conflicts: GFS <= 6.0
 Conflicts: GFS-modules
 
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}-%{release}.tar.gz
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
