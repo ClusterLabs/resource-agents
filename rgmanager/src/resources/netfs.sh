@@ -37,7 +37,6 @@ FAIL=2
 YES=0
 NO=1
 YES_STR="yes"
-INVALIDATEBUFFERS="/bin/true"
 
 logAndPrint()
 {
@@ -315,7 +314,6 @@ verify_all()
 	verify_mountpoint || return 1
 	verify_options || return 1
 }
-
 
 
 

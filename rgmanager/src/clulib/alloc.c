@@ -112,18 +112,29 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
-#if 0
+#ifndef DEBUG
 #define DEBUG			/* Record program counter of malloc/calloc */
 #endif				/* or realloc call; print misc stuff out */
 
-/* Tunable stuff */
+/* Tunable stuff XXX This should be external */
 #define PARANOID		/* Trade off a bit of space and speed for
 				   extra sanity checks */
 #define DIE_ON_FAULT		/* Kill program if we do something bad
 				   (double free, free after overrun, etc.
 				   for instance) */
 #undef  AGGR_RECLAIM		/* consolidate_all on free (*slow*) */
+#define GDB_HOOK		/* Dump program addresses in malloc_table
+				   using a fork/exec of gdb (SLOW but fun)
+				   building this defeats the purpose of
+				   a bounded memory allocator, and is only
+				   useful for debugging memory leaks.
+				   This does not harm anything except code
+				   size until "malloc_dump_table" is called.
+				   Given that this is not a normal malloc
+				   API, this should not matter. */
 
 #define DEFAULT_SIZE	(1<<21) /* 2MB default giant block size */
 #define BUCKET_COUNT	(13)	/* 2^BUCKET_COUNT = max. interesting size */
@@ -132,6 +143,9 @@
 #define ALIGN		(sizeof(void *))
 #define NOBUCKET	((uint16_t)(~0))
 #define MIN_EXTRA	(1<<5)	/* 64 bytes to split a block */
+#define STACKSIZE	4	/* backtrace to store if DEBUG is set
+				   XXX seems to break for values > 5.
+				   unsure why. */
 
 
 /* Misc stuff */
@@ -177,7 +191,7 @@ typedef struct _memblock {
 	uint16_t	mb_bucket;
 	uint16_t	mb_state;
 #ifdef DEBUG
-	void		*mb_pc;
+	void		*mb_pc[STACKSIZE];
 #endif
 	/* If PARANOID isn't defined, we use the following pointer for
 	   more space. */
@@ -521,9 +535,11 @@ malloc_init(size_t poolsize)
 	for (e = 0; e < BUCKET_COUNT; e++)
 		alloc_buckets[e] = NULL;
 #endif
+#if 0
 #ifdef DEBUG
 	fprintf(stderr, "malloc_init: %lu/%lu available\n",
 		(long unsigned)first->mb_size, (long unsigned)_poolsize);
+#endif
 #endif
 
 	insert_free_block(first);
@@ -644,6 +660,48 @@ search_freestore(size_t size)
 }
 
 
+#ifdef DEBUG
+
+#define stack_pointer(n) \
+	(__builtin_frame_address(n)?__builtin_return_address(n):NULL)
+			
+#define assign_address(_ptr, _cnt) \
+{ \
+	switch(_cnt) { \
+	case 0: \
+		(_ptr)[_cnt] = stack_pointer(0); \
+		break; \
+	case 1: \
+		(_ptr)[_cnt] = stack_pointer(1); \
+		break; \
+	case 2: \
+		(_ptr)[_cnt] = stack_pointer(2); \
+		break; \
+	case 3: \
+		(_ptr)[_cnt] = stack_pointer(3); \
+		break; \
+	case 4: \
+		(_ptr)[_cnt] = stack_pointer(4); \
+		break; \
+	case 5: \
+		(_ptr)[_cnt] = stack_pointer(5); \
+		break; \
+	case 6: \
+		(_ptr)[_cnt] = stack_pointer(6); \
+		break; \
+	case 7: \
+		(_ptr)[_cnt] = stack_pointer(7); \
+		break; \
+	case 8: \
+		raise(SIGKILL); \
+		break; \
+	}\
+}
+#endif
+
+
+
+
 /**
   Memory allocation
  */
@@ -654,6 +712,9 @@ malloc(size_t size)
 	size_t r;
 #endif
 	memblock_t *block;
+#ifdef DEBUG
+	int sp;
+#endif
 
 	if (size < MIN_SIZE)
 		size = MIN_SIZE;
@@ -668,10 +729,12 @@ malloc(size_t size)
 	while (pthread_mutex_trylock(&_alloc_mutex) != 0);
 #endif
 	if (!_pool) {
+#if 0
 #ifdef DEBUG
 		fprintf(stderr,
 			"malloc: Initializing region default size %lu\n",
 			(long unsigned)DEFAULT_SIZE);
+#endif
 #endif
 #ifndef NOTHREADS
 		if (_malloc_init(DEFAULT_SIZE) < 0)
@@ -684,7 +747,11 @@ malloc(size_t size)
 	block = search_freestore(size);
 	if (block) {
 #ifdef DEBUG
-		block->mb_pc = __builtin_return_address(0);
+		for (sp = 0; sp < STACKSIZE; sp++) {
+			assign_address(block->mb_pc, sp);
+			if (!block->mb_pc[sp])
+				break;
+		}
 #endif
 #ifdef PARANOID
 		insert_alloc_block(block);
@@ -700,7 +767,11 @@ malloc(size_t size)
 	block = search_freestore(size);
 	if (block) {
 #ifdef DEBUG
-		block->mb_pc = __builtin_return_address(0);
+		for (sp = 0; sp < STACKSIZE; sp++) {
+			assign_address(block->mb_pc, sp);
+			if (!block->mb_pc[sp])
+				break;
+		}
 #endif
 #ifdef PARANOID
 		insert_alloc_block(block);
@@ -799,6 +870,7 @@ realloc(void *oldp, size_t newsize)
 	memblock_t *oldb;
 #ifdef DEBUG
 	memblock_t *newb;
+	int sp;
 #endif
 	void *newp;
 
@@ -816,7 +888,11 @@ realloc(void *oldp, size_t newsize)
 	}
 #ifdef DEBUG
 	newb = block(newp);
-	newb->mb_pc = __builtin_return_address(0);
+	for (sp = 0; sp < STACKSIZE; sp++) {
+		assign_address(newb->mb_pc, sp);
+		if (!newb->mb_pc[sp])
+			break;
+	}
 #endif
 	return newp;
 }
@@ -831,6 +907,7 @@ calloc(size_t sz, size_t nmemb)
 	void *p;
 #ifdef DEBUG
 	memblock_t *newb;
+	int sp;
 #endif
 
 	sz *= nmemb;
@@ -840,11 +917,18 @@ calloc(size_t sz, size_t nmemb)
 
 #ifdef DEBUG
 	newb = block(p);
-	newb->mb_pc = __builtin_return_address(0);
+	for (sp = 0; sp < STACKSIZE; sp++) {
+		assign_address(newb->mb_pc, sp);
+		if (!newb->mb_pc[sp])
+			break;
+	}
 #endif
 	memset(p, 0, sz);
 	return p;
 }
+
+
+void resolve_stack_gdb(void **, size_t);
 
 
 /**
@@ -855,25 +939,42 @@ void
 malloc_dump_table(void)
 {
 #ifdef PARANOID
+	int any = 0;
 	int x;
+#ifndef GDB_HOOK
+	int sp;
+#endif
 	memblock_t *b;
 
-	fprintf(stderr, "+++ Memory table dump +++\n");
+	fflush(stdout);
 	pthread_mutex_lock(&_alloc_mutex);
 	for (x=0; x<BUCKET_COUNT; x++) {
 		for (b = alloc_buckets[x]; b; b = b->mb_next) {
+			if (!any)
+				fprintf(stderr,
+					"+++ Memory table dump +++\n");
+			any++;
 #ifndef DEBUG
-			fprintf(stderr, "    %p: %lu bytes\n", pointer(b),
+			fprintf(stderr, "  %p (%lu bytes)\n", pointer(b),
 				(unsigned long)b->mb_size);
 #else /* DEBUG */
-			fprintf(stderr, "    %p: %lu bytes (allocated @ %p)\n",
-				pointer(b), (unsigned long)b->mb_size,
-				b->mb_pc);
+			fprintf(stderr,
+				"  %p (%lu bytes) allocation trace:\n",
+				pointer(b), (unsigned long)b->mb_size);
+#ifdef GDB_HOOK
+			resolve_stack_gdb(b->mb_pc, STACKSIZE);
+			fprintf(stderr,"\n");
+#else
+			for (sp = 0; sp < STACKSIZE; sp++)
+				fprintf(stderr,"\t%p\n",b->mb_pc[sp]);
+#endif
 #endif /* DEBUG */
 		}
 	}
 	pthread_mutex_unlock(&_alloc_mutex);
-	fprintf(stderr, "--- End Memory table dump ---\n");
+	if (any)
+		fprintf(stderr, "--- End Memory table dump ---\n");
+
 #else /* PARANOID */
 	fprintf(stderr, "malloc_dump_table: Unimplemented\n");
 #endif /* PARANOID */
@@ -944,3 +1045,148 @@ malloc_stats(void)
 		(unsigned long)metadata);
 #endif
 }
+
+
+#ifdef GDB_HOOK
+void
+show_gdb_address(char *buf, size_t buflen, void *address)
+{
+	char *line;
+	char *end = buf + buflen;
+	char foo[32];
+
+	snprintf(foo, sizeof(foo), "%p", address);
+
+	line = buf;
+	while ((line = strchr(line, '\n'))) {
+
+		if ((line + strlen(foo) + 1) > end)
+			return;
+		++line;
+
+		if (!strncmp(line, foo, strlen(foo))) {
+			end = strchr(line, ':');
+			if (end)
+				*end = 0;
+			fprintf(stderr,"\t%s\n", line);
+			if (end)
+				*end = ':';
+			return;
+		}
+	}
+}
+
+
+int
+my_system(char *foo, char *outbuf, size_t buflen)
+{
+	char cmd[4096];
+	char *args[128];
+	int x = 0, y;
+	int pid, arg;
+	int p[2];
+
+	strncpy(cmd, foo, sizeof(cmd));
+	foo = NULL;
+	do {
+		if (!x)
+			args[x] = strtok_r(cmd, " ", &foo);
+		else
+			args[x] = strtok_r(NULL, " ", &foo);
+
+	} while (args[x++]);
+
+	pipe(p);
+	pid = fork();
+	if (!pid) {
+		close(STDOUT_FILENO);
+		dup2(p[1], STDOUT_FILENO);
+		execv(args[0], args);
+		exit(1);
+	}
+
+	close(p[1]);
+
+	y = 0;
+	arg = WNOHANG;
+	memset(outbuf, 0, buflen);
+	while (waitpid(pid, NULL, arg) != pid) {
+
+		/* Interrupt after we decided to block for child */
+		if (!arg)
+			continue;
+
+		if (y >= buflen) {
+			/* Out of space.  Wait for child without
+			   the WNOHANG flag now... */
+			arg = 0;
+			continue;
+		}
+		x = read(p[0], outbuf + y, 1);
+		++y;
+	}
+		
+	return 0;
+}
+	
+
+/*
+   Yes, it's slow.  Painfully slow.
+ */
+void
+resolve_stack_gdb(void **stack, size_t stacksize)
+{
+	int pid, fd;
+	char fname[1024];
+	char programname[1024];
+	char commandline[4096];
+	char tmp[4096];
+	int s;
+
+	pid = fork();
+	if (pid < 0) {
+		return;
+	}
+
+	if (pid) {
+		while (waitpid(pid, &s, 0) != pid);
+		return;
+	}
+
+	/* Child */
+
+	pid = getppid();
+
+	snprintf(fname, sizeof(fname), "/proc/%d/exe", pid);
+	memset(programname, 0, sizeof(programname));
+	readlink(fname, programname, sizeof(programname));
+
+	snprintf(fname, sizeof(fname), "/tmp/alloc.gdb.XXXXXX");
+
+	fd = mkstemp(fname);
+	for (s = 0; s < stacksize; s++) {
+		if (!stack[s])
+			break;
+		snprintf(tmp, sizeof(tmp), "x/i %p\n", stack[s]);
+		write(fd, tmp, strlen(tmp));
+	}
+	snprintf(tmp, sizeof(tmp), "quit\n");
+	write(fd, tmp, strlen(tmp));
+	fsync(fd);
+	fdatasync(fd);
+
+	snprintf(commandline, sizeof(commandline),
+		 "/usr/bin/gdb %s %d -batch -x %s",
+		 programname, pid, fname);
+	my_system(commandline, tmp, sizeof(tmp));
+	for (s = 0; s < stacksize; s++) {
+		if (!stack[s])
+			break;
+		show_gdb_address(tmp, sizeof(tmp), stack[s]);
+	}
+	
+	unlink(fname);
+	close(fd);
+	exit(0);
+}
+#endif

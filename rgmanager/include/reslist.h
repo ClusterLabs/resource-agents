@@ -162,7 +162,7 @@ int resource_tree_delta(resource_node_t **, resource_node_t **);
 /*
    Load/kill resource rule sets
  */
-int load_resource_rules(resource_rule_t **rules);
+int load_resource_rules(const char *rpath, resource_rule_t **rules);
 void print_resource_rule(resource_rule_t *rr);
 void destroy_resource_rules(resource_rule_t **rules);
 

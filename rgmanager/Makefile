@@ -22,6 +22,10 @@ distclean: clean
 
 install:
 	cd src && ${MAKE} install
+	cd man && ${MAKE} install
+
+check:
+	cd src && ${MAKE} check
 
 uninstall:
 	cd src && ${MAKE} uninstall

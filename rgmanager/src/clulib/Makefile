@@ -18,10 +18,10 @@ INCLUDE += -I $(top_srcdir)/include
 
 CFLAGS+= -g -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 
-CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 
-TARGETS=libclulib.a
+TARGETS=libclulib.a liblalloc.a
 
 all: ${TARGETS}
 
@@ -30,7 +30,11 @@ install: all
 uninstall:
 
 libclulib.a: clulog.o daemon_init.o signals.o msgsimple.o \
-		vft.o gettid.o rg_strings.o # alloc.o
+		vft.o gettid.o rg_strings.o
+	${AR} cru $@ $^
+	ranlib $@
+
+liblalloc.a: alloc.o
 	${AR} cru $@ $^
 	ranlib $@
 

@@ -114,7 +114,9 @@ meta_data()
         <action name="verify-all" timeout="20"/>
     </actions>
 
-    <special tag="rgmanager"/>
+    <special tag="rgmanager">
+	<attributes maxinstances="1"/>
+    </special>
 </resource-agent>
 EOT
 }

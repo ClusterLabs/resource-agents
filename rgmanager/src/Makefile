@@ -12,28 +12,32 @@
 ###############################################################################
 
 all:
+	cd resources && ${MAKE} all
 	cd clulib && ${MAKE} all
 	cd daemons && ${MAKE} all
 	cd utils && ${MAKE} all
-	cd resources && ${MAKE} all
 
 clean:
+	cd resources && ${MAKE} clean
 	cd clulib && ${MAKE} clean
 	cd daemons && ${MAKE} clean
 	cd utils && ${MAKE} clean
-	cd resources && ${MAKE} clean
+
+check:
+	cd resources && ${MAKE} check
+	cd daemons && ${MAKE} check
 
 distclean: clean
 	rm -f make/defines.mk
 
 install:
+	cd resources && ${MAKE} install
 	cd clulib && ${MAKE} install
 	cd daemons && ${MAKE} install
 	cd utils && ${MAKE} install
-	cd resources && ${MAKE} install
 
 uninstall:
+	cd resources && ${MAKE} uninstall
 	cd clulib && ${MAKE} uninstall
 	cd daemons && ${MAKE} uninstall
 	cd utils && ${MAKE} uninstall
-	cd resources && ${MAKE} uninstall

@@ -38,4 +38,5 @@ check: $(TARGETS) ra-api-1-modified.dtd
 		echo "   ./$$f "; \
 		./$$f meta-data | xmllint --dtdvalid \
 				  ./ra-api-1-modified.dtd --noout -; \
+		if [ $$? -ne 0 ]; then exit 1; fi \
 	done

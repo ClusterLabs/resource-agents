@@ -18,7 +18,7 @@ INCLUDE += -I $(top_srcdir)/include
 
 CFLAGS+= -g -I${incdir}
 
-CFLAGS+= -g -Werror -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
+CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
 CFLAGS+= -L../clulib -L${libdir} -lclulib -DPACKAGE_VERSION=\"${RELEASE}\"
 
