@@ -41,6 +41,7 @@ $err = &GetOptions (\%options,
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
+		    'sharedir=s',
 		    'verbose');
 
 if(!$err) {
@@ -61,6 +62,7 @@ if ($help || !$err) {
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /usr/sbin)\n";
+  print "--sharedir=\tthe base directory for misc cluster files.  (Default: /usr/share/cluster)\n";
   print "--verbose\t\tVerbose output\n";
   exit $ret;
 }
@@ -80,7 +82,10 @@ if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
 }
 if (!$sbindir) {
-  $sbindir="${prefix}/usr/sbin";
+  $sbindir="${prefix}/sbin";
+}
+if (!$sharedir) {
+  $sharedir="${prefix}/usr/share/cluster";
 }
 
 
@@ -97,6 +102,7 @@ while (<IFILE>) {
   $_ =~ s/\@LIBDIR\@/$libdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
+  $_ =~ s/\@SHAREDIR\@/$sharedir/;
   print OFILE "$_\n";
 }
 
