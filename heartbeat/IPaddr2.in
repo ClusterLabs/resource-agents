@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.2 2004/09/03 14:40:34 lars Exp $
+#	$Id: IPaddr2.in,v 1.3 2004/09/14 07:48:43 zhenh Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -486,7 +486,7 @@ ip_start() {
 	#
 	local ip_status=`ip_served`
 
-	if [ "$ip_status" = "ok" ];
+	if [ "$ip_status" = "ok" ]; then
 		exit $OCF_SUCCESS
 	fi
 	
@@ -517,7 +517,7 @@ ip_start() {
 		echo "+$IP_INC_NO" >$IP_CIP_FILE
 	fi
 	
-	if [ "$ip_status" = "no" ];
+	if [ "$ip_status" = "no" ]; then
 		# TODO: Needs to be an instance parameter!
 		case `find_interface $BASEIP` in
 		lo)
