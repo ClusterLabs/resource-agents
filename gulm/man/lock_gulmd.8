@@ -42,20 +42,26 @@ via the \fIlt_partitions\fR option in the configuration.
 .in -7
 
 \fBOPTIONS\fP
+
+You can completely configure gulm from the command line.  If you do this, you
+need to use the same options on every node in the cluster.  None of the options
+are required if you use \fBccsd\fP for the configuration.  Otherwise
+\fB--cluster_name\fP and \fB--servers\fP are required.
+
 .in +7
-\fB-h\fP
+\fB-h --help\fP
 .in +7
 Print usage information, then exit.
 
 .sp
 .in -7
-\fB-C\fP
+\fB-V --version\fP
 .in +7
-Parse the configuration file and quit.
+Print version information, then exit.
 
 .sp
 .in -7
-\fB-v\fP \fIverbose flags\fR
+\fB-v --verbosity\fP \fIverbose flags\fR
 .in +7
 Sets which types of messages can be logged.
 
@@ -72,7 +78,7 @@ Network	Basic network related messages
 Network2	T{
 More specific network messages
 T}
-Network3	A debug message for nearly every packet
+Network3	Nothing currently
 Fencing	T{
 When calling out to the fencing sub-system
 T}
@@ -117,31 +123,136 @@ Do not use ReallyAll unless you are willing to deal with 100M and larger
 log files.  A loaded system can produce up to a megabyte a minute with the
 ReallyAll flag.
 
-.sp
-.in -7
-\fB-V\fP
-.in +7
-Print version information, then exit.
+Default is Default.  (witty no?)
 
 .sp
 .in -7
-\fB-m\fP \fIname\fR
+\fB-s --servers\fP \fIserver list\fR
 .in +7
-Deprecated method of setting the name of this node for \fBgulm\fP.
-\fBGulm\fP now looks at the hostname for this info. ( `\fIuname -n\fR` )
+Comma seperated list of nodes that can be master servers.
+No default.
 
 .sp
 .in -7
-\fB-l\fP
+\fB-n --cluster_name\fP \fIstring\fR
 .in +7
-Deprecated method of setting the name of this node from the hostname.  This
-is the method that \fBgulm\fP always uses now.
+The name of this cluster.
+No default.
+
+.sp
+.in -7
+\fB--heartbeat_rate\fP \fInumber\fR
+.in +7
+Number of seconds to wait before checking for missed heartbeats.  2/3 of this
+value is the rate at which nodes send heartbeats to the master server.  You can
+specify this as a floating point number to get less than a second times.
+
+Use subsecond values at your own risk, since in our expirence variating network
+loads can cause false node expirations.
+
+Default is 15.
+
+.sp
+.in -7
+\fB--allowed_misses\fP \fInumber\fR
+.in +7
+How many heartbeats can be missed before the node is considered to have expired.
+Default is 2.
+
+.sp
+.in -7
+\fB--new_connection_timeout\fP \fInumber\fR
+.in +7
+How many seconds to wait before deciding a new socket is bogus and dropping it.
+Can use floating point for sub second values.
+Default is 15.
+
+.sp
+.in -7
+\fB--master_scan_delay\fP \fInumber\fR
+.in +7
+How many seconds between each probe for a new master server.
+Can use floating point for sub second values.
+Default is 1.
+
+.sp
+.in -7
+\fB--coreport\fP \fInumber\fR
+.in +7
+Which port does the core server listen on and connect to.
+Default is 40040.
+
+.sp
+.in -7
+\fB--ltpxport\fP \fInumber\fR
+.in +7
+Which port does the ltpx server listen on and lock clients connect to.
+Default is 40042.
+
+.sp
+.in -7
+\fB--ltport\fP \fInumber\fR
+.in +7
+Which port does the LT server listen on, and LT and LTPX clients connect to.
+If you have multiple \fBlt_partitions\fP, the LT's id is added to this to get
+its port. (Using the default, LT000 is at 41040, LT001 is at 41041, ect)
+Default is 41040.
+
+.sp
+.in -7
+\fB--fence_bin\fP \fIstring\fR
+.in +7
+The name of the program that handles fencing nodes for gulm.  This needs to be a
+full path.
+
+The program takes a single argument, the name of the node to be fenced.  If the
+program returns an exit status of 0, then the fencing was succesful.  Otherwise
+gulm waits 5 seconds, and calls it again.
+
+Default is /sbin/fence_node
+
+.sp
+.in -7
+\fB--run_as\fP \fIstring\fR
+.in +7
+User to switch into and run as.  Default is root. (which is not good.)
+
+.sp
+.in -7
+\fB--lock_dir\fP \fIstring\fR
+.in +7
+The directory to place and store the pid lock files.  Does NOT create this
+directory.  Default is /var/run/sistina/
+
+.sp
+.in -7
+\fB--lt_partitions\fP \fInumber\fR
+.in +7
+Number of Lock Tables to run.  If more than one there will be
+multiple LTs, and the LTPXes will stripe the locks across the LTs.  This is for
+preformance on servers with multiple CPUs.  Generally, you don't need it.  (very
+few work loads on GFS acutally generate enough lock traffic for this to make a
+difference.)
+Default is 1. 
 
 .sp
 .in -7
 \fB-e\fP
 .in +7
 When switching into daemon mode, leave stderr and stdout open.
+
+.sp
+.in -7
+\fB-d\fP
+.in +7
+Do not damonize. (will still fork each server.)
+
+.sp
+.in -7
+\fB-C\fP
+.in +7
+Load all config items (command line arguments and ccs data), and print
+configuration as we see it and exit.
 
 .sp
 .in -7
@@ -217,7 +328,9 @@ The verbose flags can be changed while \fBlock_gulmd\fP is running with
 \fBFILES\fP
 .in +7
 \fB/var/run/sistina/lock_gulmd_core.pid\fP
+
 \fB/var/run/sistina/lock_gulmd_LTPX.pid\fP
+
 \fB/var/run/sistina/lock_gulmd_LT000.pid\fP
 .in +7
 These are the pid lock files to keep more than one instance of the servers

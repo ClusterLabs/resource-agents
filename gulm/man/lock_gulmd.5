@@ -15,13 +15,25 @@ lock_gulm - configuration section for lock_gulmd
 
 \fBDESCRIPTION\fP
 .in +7
-This is the subsection to the cluster section in the cluster.ccs file for
+This is the subsection to the cluster section in the cluster.conf file for
 configuring gulm (Which is both the server, lock_gulmd, and the kernel
 module lock_gulm.o).
 
 Most configurations need only the servers key.  All other keys are optional,
 as the defaults work for nearly all cases.
 
+All gulm options are withing the <gulm></gulm> section, which should be placed
+above the <nodes/> section.
+
+All of the config keys are equal to the long options on the command line.
+
+\fIservers\fR
+.in +7
+A list of IPs or host names that are allowed to be servers.
+This has no default value.  You must supply this value, and the nodes must
+be listed in the <nodes/> section.  lock_gulmd can parse node names, IPv4, and
+IPv6 addresses.
+.in -7
 
 \fIheartbeat_rate\fR
 .in +7
@@ -49,18 +61,11 @@ The port used by the LTPX.
 Default is 40042.
 .in -7
 
-\fIlt_base_port\fR
+\fIlt_port\fR
 .in +7
 What port the first lock table uses.  Each additional lock table will
 increment this to get their port. (If you have lt_partitions greater than 1.)
 Default is 41040.
-.in -7
-
-\fIservers\fR
-.in +7
-A list of IPs or host names that are allowed to be servers.
-This has no default value.  You must supply this value, and the nodes must
-be listed in the nodes.ccs file.
 .in -7
 
 \fIlt_partitions\fR
@@ -78,14 +83,47 @@ Default is 1.
 \fBEXAMPLES\fP
 .in +7
 
-This is the most basic cluster.ccs file with lock_gulmd you can have.
+Simple three node cluster with manual fencing.
 
- cluster {
-   name = "myclsuter"
-   lock_gulm {
-     servers = [ "ServA", "ServB", "ServC" ]
-   }
- }
+  <?xml version="1.0"?>
+  <cluster name="example" config_version="1">
+  
+    <gulm>
+      <servers>nd01 nd02 nd05</servers>
+    </gulm>
+  
+    <nodes>
+      <node name="nd01" votes="1">
+        <fence>
+          <method name="single">
+            <device name="human" ipaddr="nd01"/>
+          </method>
+        </fence>
+      </node>
+  
+      <node name="nd02" votes="1">
+        <fence>
+          <method name="single">
+            <device name="human" ipaddr="nd02"/>
+          </method>
+        </fence>
+      </node>
+  
+      <node name="nd03" votes="1">
+        <fence>
+          <method name="single">
+            <device name="human" ipaddr="nd03"/>
+          </method>
+        </fence>
+      </node>
+    </nodes>
+  
+    <fence_devices>
+      <device name="human" agent="fence_manual"/>
+    </fence_devices>
+  
+  </cluster>
+
 
 
 
