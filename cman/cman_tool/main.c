@@ -405,6 +405,12 @@ static void check_arguments(commandline_t *comline)
 	if (comline->port <= 0 || comline->port > 65535)
 		die("Port must be a number between 1 and 65535");
 
+	/* This message looks like it contradicts the condition but
+	   a nodeid of zero simply means "assign one for me" and is a
+	   perfectly reasonable override */
+	if (comline->nodeid < 0 || comline->nodeid > 4096)
+	        die("Node id must be between 1 and 4096");
+
 	if (strlen(comline->clustername) > MAX_CLUSTER_NAME_LEN) {
 	        die("Cluster name must be <= %d characters long",
 		    MAX_CLUSTER_NAME_LEN);
