@@ -506,8 +506,10 @@ int dlm_get_fd()
 int dlm_dispatch(int fd)
 {
     int status;
+    int fdflags;
 
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    fdflags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL,  fdflags | O_NONBLOCK);
     do
     {
 	status = do_dlm_dispatch(fd);
@@ -517,6 +519,7 @@ int dlm_dispatch(int fd)
     if (status < 0 && errno == EAGAIN)
 	status = 0;
 
+    fcntl(fd, F_SETFL, fdflags);
     return status;
 }
 
@@ -544,6 +547,12 @@ int dlm_pthread_init()
     if (open_default_lockspace())
 	return -1;
 
+    if (default_ls->tid)
+    {
+	errno = EEXIST;
+	return -1;
+    }
+
     if (pthread_create(&default_ls->tid, NULL, dlm_recv_thread, default_ls))
     {
 	int saved_errno = errno;
@@ -559,9 +568,15 @@ int dlm_pthread_init()
 /* And same, for those with their own lockspace */
 int dlm_ls_pthread_init(dlm_lshandle_t ls)
 {
-    static pthread_t recv_thread;
+    struct dlm_ls_info *lsinfo = (struct dlm_ls_info *)ls;
 
-    return pthread_create(&recv_thread, NULL, dlm_recv_thread, (void *)ls);
+    if (lsinfo->tid)
+    {
+	errno = EEXIST;
+	return -1;
+    }
+
+    return pthread_create(&lsinfo->tid, NULL, dlm_recv_thread, (void *)ls);
 }
 #endif
 
