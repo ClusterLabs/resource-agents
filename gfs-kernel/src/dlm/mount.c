@@ -533,9 +533,7 @@ static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 	do_withdraw(dlm);
 	release_gdlm(dlm);
 	release_mountgroup(dlm);
-	release_async_thread(dlm);
 	release_cluster(dlm);
-	clear_null_cache(dlm);
 
 	/* FIXME: free all outstanding memory */
 	log_all("withdraw abandoned memory");
