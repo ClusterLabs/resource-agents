@@ -147,7 +147,6 @@ extern int dlm_query(struct dlm_lksb *lksb,
 		     void *astarg);
 
 
-#ifdef _REENTRANT
 extern int dlm_lock_wait(uint32_t mode,
 			 struct dlm_lksb *lksb,
 			 uint32_t flags,
@@ -165,7 +164,6 @@ extern int dlm_unlock_wait(uint32_t lkid,
 extern int dlm_query_wait(struct dlm_lksb *lksb,
 			  int query,
 			  struct dlm_queryinfo *qinfo);
-#endif
 
 /* These two are for users that want to do their
  * own FD handling
@@ -203,7 +201,6 @@ extern int dlm_ls_lock(dlm_lshandle_t lockspace,
 		       void (*bastaddr) (void *astarg),
 		       struct dlm_range *range);
 
-#ifdef _REENTRANT
 extern int dlm_ls_lock_wait(dlm_lshandle_t lockspace,
 			       uint32_t mode,
 			       struct dlm_lksb *lksb,
@@ -223,7 +220,6 @@ extern int dlm_ls_query_wait(dlm_lshandle_t lockspace,
 			     struct dlm_lksb *lksb,
 			     int query,
 			     struct dlm_queryinfo *qinfo);
-#endif
 
 extern int dlm_ls_unlock(dlm_lshandle_t lockspace,
 			 uint32_t lkid,
@@ -282,9 +278,7 @@ extern int dlm_pthread_cleanup();
 #define LKF_NOORDER        (0x00002000)
 
 /* Userspace flag only, for synchronous API calls */
-#ifdef _REENTRANT
 #define LKF_WAIT           (0x80000000)
-#endif
 /*
  * Extra return codes used by the DLM
  */

@@ -107,6 +107,10 @@ static int set_selinux_context(const char *path)
 #endif
 
 
+static void dummy_ast_routine(void *arg)
+{
+}
+
 #ifdef _REENTRANT
 /* Used for the synchronous and "simplified, synchronous" API routines */
 struct lock_wait
@@ -115,10 +119,6 @@ struct lock_wait
     pthread_mutex_t mutex;
     struct dlm_lksb lksb;
 };
-
-static void dummy_ast_routine(void *arg)
-{
-}
 
 static void sync_ast_routine(void *arg)
 {
@@ -462,7 +462,6 @@ static int do_dlm_dispatch(int fd)
 }
 
 #ifdef _REENTRANT
-
 /* Helper routine which supports the synchronous DLM calls. This
    writes a parameter block down to the DLM and waits for the
    operation to complete. This hides the different completion mechanism
@@ -504,6 +503,28 @@ static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req,
 	pthread_mutex_unlock(&lwait.mutex);
     }
     return status;	/* lock status is in the lksb */
+}
+#else
+static int sync_write(struct dlm_ls_info *lsinfo, struct dlm_write_request *req, int len)
+{
+	int status;
+
+        req->i.lock.castaddr  = dummy_ast_routine;
+        req->i.lock.castparam = NULL;
+
+        status = dlm_write(lsinfo->fd, req, len);
+        if (status < 0)
+            return -1;
+
+        while (req->i.lock.lksb->sb_status == EINPROG) {
+            do_dlm_dispatch(lsinfo->fd);
+        }
+        
+        errno = req->i.lock.lksb->sb_status;
+        if (errno)
+ 		return -1;
+	else
+		return 0;
 }
 #endif
 
@@ -591,11 +612,9 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     len = sizeof(struct dlm_write_request) + namelen - 1;
     lksb->sb_status = EINPROG;
 
-#ifdef _REENTRANT
     if (flags & LKF_WAIT)
 	status = sync_write(lsinfo, req, len);
     else
-#endif
 	status = dlm_write(lsinfo->fd, req, len);
 
     if (status < 0)
@@ -610,7 +629,6 @@ int dlm_ls_lock(dlm_lshandle_t ls,
     }
 }
 
-#ifdef _REENTRANT
 int dlm_lock_wait(uint32_t mode,
 		     struct dlm_lksb *lksb,
 		     uint32_t flags,
@@ -712,7 +730,6 @@ int dlm_query_wait(struct dlm_lksb *lksb,
     return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
 }
 
-#endif
 
 /* Unlock on default lockspace*/
 int dlm_unlock(uint32_t lkid,
@@ -751,11 +768,9 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
     req.i.lock.castaddr = 0;
     lksb->sb_status = EINPROG;
 
-#ifdef _REENTRANT
     if (flags & LKF_WAIT)
 	    status = sync_write(lsinfo, &req, sizeof(req));
     else
-#endif
 	    status = dlm_write(lsinfo->fd, &req, sizeof(req));
 
     if (status < 0)
