@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.171 $) dnl cvs revision
+AC_REVISION($Revision: 1.172 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -929,6 +929,12 @@ dnl Check Only
 dnl
 
 AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror )
+AC_CHECK_DECLS(alphasort)
+AC_CHECK_DECLS(inet_pton)
+AC_CHECK_DECLS(NoSuchFunctionName)
+AC_CHECK_DECLS(scandir)
+AC_CHECK_DECLS(setenv)
+AC_CHECK_DECLS(strerror)
 
 AC_CHECK_FUNCS(fcntl)
 AC_CHECK_FUNCS(flock)
@@ -1119,6 +1125,7 @@ AC_CONFIG_SUBDIRS(libltdl)
 dnl The Makefiles and shell scripts we output
 AC_OUTPUT(heartbeat.spec 					\
 Makefile						        \
+config/Makefile					        	\
 cts/Makefile					        	\
 	cts/CM_fs.py						\
 	cts/CM_hb.py						\
