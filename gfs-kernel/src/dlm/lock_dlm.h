@@ -309,6 +309,7 @@ void lock_dlm_debug_dump(void);
 { \
   if (!(x)) \
   { \
+    dlm_debug_dump(); \
     lock_dlm_debug_dump(); \
     printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
            "lock_dlm:  assertion:  \"%s\"\n" \
