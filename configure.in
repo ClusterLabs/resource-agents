@@ -7,7 +7,7 @@ dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.152 $) dnl cvs revision
+AC_REVISION($Revision: 1.153 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 dnl Some scripts require options to "echo"
@@ -194,6 +194,7 @@ AC_PATH_PROGS(RAIDSTART, raidstart)
 AC_PATH_PROGS(RAIDSTOP, raidstop)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
+AC_PATH_PROGS(IP2UTIL, ip)
 
 AC_MSG_CHECKING(which glib config exists)
 if test "X${GLIBCONFIG}" = "X"; then
@@ -759,7 +760,13 @@ then
     grep "^${2}:" /etc/$1
   }
 fi
-  
+
+if
+  test  -z "${IP2UTIL}" -o ! -x "${IP2UTIL}"
+then
+  IP2UTIL=/sbin/ip
+fi
+
 
 AC_ARG_WITH(
   group-id,
@@ -843,6 +850,8 @@ dnl	alphasort: Only on BSD.
 dnl		System-V systems may have it, but hidden and/or deprecated.
 dnl		A replacement function is supplied for it.
 dnl
+dnl	strerror: returns a string that corresponds to an errno.
+dnl
 dnl	setenv: is some bsdish function that should also be avoided (use
 dnl             putenv instead)
 dnl		On the other hand, putenv doesn't provide the right API for the
@@ -861,8 +870,8 @@ AC_CHECK_FUNCS(sigignore)
 AC_CHECK_FUNCS(seteuid)
 AC_CHECK_FUNCS(setegid)
 AC_CHECK_FUNCS(mallinfo)
-AC_CHECK_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
-AC_REPLACE_FUNCS(setenv scandir inet_pton NoSuchFunctionName)
+AC_CHECK_FUNCS(setenv scandir strerror inet_pton NoSuchFunctionName)
+AC_REPLACE_FUNCS(setenv scandir strerror inet_pton NoSuchFunctionName)
 
 dnl **********************************************************************
 dnl Check for various argv[] replacing functions on various OSs
@@ -1077,6 +1086,7 @@ heartbeat/Makefile						\
 		heartbeat/resource.d/Filesystem			\
 		heartbeat/resource.d/ICP			\
 		heartbeat/resource.d/IPaddr			\
+		heartbeat/resource.d/IPsrcaddr			\
 		heartbeat/resource.d/LinuxSCSI			\
 		heartbeat/resource.d/LVM			\
 		heartbeat/resource.d/MailTo			\
