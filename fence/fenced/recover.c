@@ -440,13 +440,14 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 		syslog(LOG_INFO, "fencing node \"%s\"", node->name);
 
 		error = dispatch_fence_agent(node->name, 0);
+
+		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
+		       error ? "failed" : "success");
+
 		if (!error) {
 			list_del(&node->list);
 			free(node);
 		}
-
-		syslog(LOG_INFO, "fence \"%s\" %s", node->name,
-		       error ? "failed" : "success");
 		sleep(1);
 	}
 }
