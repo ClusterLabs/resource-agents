@@ -88,7 +88,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 
 #define DLM_DEBUG
 #if defined(DLM_DEBUG)
-#define log_debug(ls, fmt, args...) dlm_debug_log(ls, fmt, ##args)
+#define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
 #else
 #define log_debug(ls, fmt, args...)
 #endif

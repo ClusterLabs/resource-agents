@@ -18,23 +18,37 @@
 #include "recover.h"
 #include "reccomms.h"
 
+/* Local values must be set before the dlm is started and then
+   not modified, otherwise a lock is needed. */
 
-int              dlm_local_nodeid;
-char             dlm_local_addr[DLM_ADDR_LEN];
-struct list_head dlm_nodes;
-struct semaphore dlm_nodes_sem;
+static char *           local_addr[DLM_MAX_ADDR_COUNT];
+static int              local_nodeid;
+static int              local_weight;
+static int              local_count;
+static struct list_head nodes;
+static struct semaphore nodes_sem;
 
 
-int our_nodeid(void)
+int dlm_our_addr(int i, char *addr)
 {
-	return dlm_local_nodeid;
+	if (!local_count)
+		return -ENOENT;
+	if (i > local_count - 1)
+		return -EINVAL;
+	memcpy(addr, local_addr[i], DLM_ADDR_LEN);
+	return 0;
+}
+
+int dlm_our_nodeid(void)
+{
+	return local_nodeid;
 }
 
 static struct dlm_node *search_node(int nodeid)
 {
 	struct dlm_node *node;
 
-	list_for_each_entry(node, &dlm_nodes, list) {
+	list_for_each_entry(node, &nodes, list) {
 		if (node->nodeid == nodeid)
 			goto out;
 	}
@@ -47,7 +61,7 @@ static struct dlm_node *search_node_addr(char *addr)
 {
 	struct dlm_node *node;
 
-	list_for_each_entry(node, &dlm_nodes, list) {
+	list_for_each_entry(node, &nodes, list) {
 		if (!memcmp(node->addr, addr, DLM_ADDR_LEN))
 			goto out;
 	}
@@ -72,7 +86,7 @@ static int _get_node(int nodeid, struct dlm_node **node_ret)
 	}
 	memset(node, 0, sizeof(struct dlm_node));
 	node->nodeid = nodeid;
-	list_add_tail(&node->list, &dlm_nodes);
+	list_add_tail(&node->list, &nodes);
  out:
 	*node_ret = node;
 	return error;
@@ -81,9 +95,9 @@ static int _get_node(int nodeid, struct dlm_node **node_ret)
 static int get_node(int nodeid, struct dlm_node **node_ret)
 {
 	int error;
-	down(&dlm_nodes_sem);
+	down(&nodes_sem);
 	error = _get_node(nodeid, node_ret);
-	up(&dlm_nodes_sem);
+	up(&nodes_sem);
 	return error;
 }
 
@@ -91,9 +105,9 @@ int dlm_nodeid_addr(int nodeid, char *addr)
 {
 	struct dlm_node *node;
 
-	down(&dlm_nodes_sem);
+	down(&nodes_sem);
 	node = search_node(nodeid);
-	up(&dlm_nodes_sem);
+	up(&nodes_sem);
 	if (!node)
 		return -1;
 	memcpy(addr, node->addr, DLM_ADDR_LEN);
@@ -104,9 +118,9 @@ int dlm_addr_nodeid(char *addr, int *nodeid)
 {
 	struct dlm_node *node;
 
-	down(&dlm_nodes_sem);
+	down(&nodes_sem);
 	node = search_node_addr(addr);
-	up(&dlm_nodes_sem);
+	up(&nodes_sem);
 	if (!node)
 		return -1;
 	*nodeid = node->nodeid;
@@ -243,7 +257,7 @@ int dlm_recover_members_wait(struct dlm_ls *ls)
 {
 	int error;
 
-	if (ls->ls_low_nodeid == dlm_local_nodeid) {
+	if (ls->ls_low_nodeid == local_nodeid) {
 		error = dlm_wait_status_all(ls, NODES_VALID);
 		if (!error)
 			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
@@ -336,14 +350,20 @@ int dlm_recover_members_init(struct dlm_ls *ls, struct dlm_recover *rv)
 
 int __init dlm_member_init(void)
 {
-	INIT_LIST_HEAD(&dlm_nodes);
-	init_MUTEX(&dlm_nodes_sem);
+	INIT_LIST_HEAD(&nodes);
+	init_MUTEX(&nodes_sem);
 	return dlm_member_ioctl_init();
 }
 
 void dlm_member_exit(void)
 {
+	int i;
 	dlm_member_ioctl_exit();
+	for (i = 0; i < local_count; i++)
+		kfree(local_addr[i]);
+	local_nodeid = 0;
+	local_weight = 0;
+	local_count = 0;
 }
 
 static struct dlm_ls *find_lockspace(struct dlm_member_ioctl *param)
@@ -402,20 +422,30 @@ int dlm_set_node(struct dlm_member_ioctl *param)
 	struct dlm_node *node;
 	int error;
 
-	down(&dlm_nodes_sem);
+	down(&nodes_sem);
 	error = _get_node(param->nodeid, &node);
 	if (!error) {
 		memcpy(node->addr, param->addr, DLM_ADDR_LEN);
 		node->weight = param->weight;
 	}
-	up(&dlm_nodes_sem);
+	up(&nodes_sem);
 	return error;
 }
 
 int dlm_set_local(struct dlm_member_ioctl *param)
 {
-	dlm_local_nodeid = param->nodeid;
-	memcpy(dlm_local_addr, param->addr, DLM_ADDR_LEN);
+	char *p;
+
+	if (local_count > DLM_MAX_ADDR_COUNT - 1)
+		return -EINVAL;
+	local_nodeid = param->nodeid;
+	local_weight = param->weight;
+
+	p = kmalloc(DLM_ADDR_LEN, GFP_KERNEL);
+	if (!p)
+		return -ENOMEM;
+	memcpy(p, param->addr, DLM_ADDR_LEN);
+	local_addr[local_count++] = p;
 	return 0;
 }
 

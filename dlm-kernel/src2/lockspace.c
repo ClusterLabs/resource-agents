@@ -359,10 +359,12 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 		goto out_del;
 
 	error = kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
+	if (error)
+		log_error(ls, "kobject_uevent error %d", error);
 
-	/* Now we depend on userspace the new ls, joining the ls and giving us
-	   a start (or terminate).  The ls isn't actually running until it
-	   receives a start. */
+	/* Now we depend on userspace to notice the new ls, join it and
+	   give us a start or terminate.  The ls isn't actually running
+	   until it receives a start. */
 
 	error = wait_event_interruptible(ls->ls_wait_member,
 				test_bit(LSFL_JOIN_DONE, &ls->ls_flags));
@@ -393,6 +395,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
  out_lsfree:
 	kfree(ls);
  out:
+	module_put(THIS_MODULE);
 	return error;
 }
 
