@@ -253,6 +253,9 @@ xml_member_states(cluster_member_list_t *membership)
 {
 	int x;
 
+	if (!membership)
+		return;
+
 	printf("  <nodes>\n");
 	for (x = 0; x < membership->cml_count; x++)
 		xml_member_state(&membership->cml_members[x]);
