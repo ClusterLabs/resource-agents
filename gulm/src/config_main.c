@@ -164,48 +164,45 @@ void dump_conf(gulm_config_t *gf, int out)
          "========================================\n");
 
    fprintf(fp, "# hashed: %#x\n", gf->hashval);
-   fprintf(fp, "cluster {\n name = \"%s\"\n", gf->clusterID);
-   fprintf(fp, " lock_gulm {\n");
+   fprintf(fp, "/cluster/@name = \"%s\"\n", gf->clusterID);
    pf = gf->heartbeat_rate / 1000;
-   fprintf(fp, "  heartbeat_rate = %.3f\n", pf / 1000.0 );
-   fprintf(fp, "  allowed_misses = %d\n", gf->allowed_misses);
-   fprintf(fp, "  coreport = %d\n", gf->corePort);
+   fprintf(fp, "/cluster/gulm/heartbeat_rate = %.3f\n", pf / 1000.0 );
+   fprintf(fp, "/cluster/gulm/allowed_misses = %d\n", gf->allowed_misses);
+   fprintf(fp, "/cluster/gulm/coreport = %d\n", gf->corePort);
    pf = gf->new_con_timeout / 1000;
-   fprintf(fp, "  new_connection_timeout = %.3f\n", pf / 1000.0 );
-   fprintf(fp, "  # quorum = %d\n", gf->quorum);
-   fprintf(fp, "  # server cnt: %d\n", gf->node_cnt);
+   fprintf(fp, "/cluster/gulm/new_connection_timeout = %.3f\n", pf / 1000.0 );
+   fprintf(fp, "# quorum = %d\n", gf->quorum);
+   fprintf(fp, "# server cnt: %d\n", gf->node_cnt);
 
    tmp = LLi_next(&gf->node_list);
    in = LLi_data(tmp);
-   fprintf(fp, "  # servers = [\"%s\"", in->name);
+   fprintf(fp, "# servers = %s", in->name);
    for(tmp = LLi_next(tmp);
        NULL != LLi_data(tmp);
        tmp = LLi_next(tmp) ) {
       in = LLi_data(tmp);
-      fprintf(fp, ", \"%s\"", in->name);
+      fprintf(fp, " %s", in->name);
    }
-   fprintf(fp, "]\n");
+   fprintf(fp, "\n");
    tmp = LLi_next(&gf->node_list);
    in = LLi_data(tmp);
-   fprintf(fp, "  servers = [\"%s\"", ip6tostr(&in->ip));
+   fprintf(fp, "/cluster/gulm/servers = %s", ip6tostr(&in->ip));
    for(tmp = LLi_next(tmp);
        NULL != LLi_data(tmp);
        tmp = LLi_next(tmp) ) {
       in = LLi_data(tmp);
-      fprintf(fp, ", \"%s\"", ip6tostr(&in->ip));
+      fprintf(fp, " %s", ip6tostr(&in->ip));
    }
-   fprintf(fp, "]\n");
+   fprintf(fp, "\n");
 
-   fprintf(fp, "  lt_partitions = %d\n", gf->how_many_lts);
-   fprintf(fp, "  lt_base_port = %d\n", gf->lt_port);
-   fprintf(fp, "  lt_high_locks = %ld\n", gf->lt_maxlocks);
-   fprintf(fp, "  lt_drop_req_rate = %d\n", gf->lt_cf_rate);
-   fprintf(fp, "  prealloc_locks = %d\n", gf->lt_prelocks);
-   fprintf(fp, "  prealloc_holders = %d\n", gf->lt_preholds);
-   fprintf(fp, "  prealloc_lkrqs = %d\n", gf->lt_prelkrqs);
-   fprintf(fp, "  ltpx_port = %d\n", gf->ltpx_port);
-
-   fprintf(fp, " }\n}\n");
+   fprintf(fp, "/cluster/gulm/lt_partitions = %d\n", gf->how_many_lts);
+   fprintf(fp, "/cluster/gulm/lt_base_port = %d\n", gf->lt_port);
+   fprintf(fp, "/cluster/gulm/lt_high_locks = %ld\n", gf->lt_maxlocks);
+   fprintf(fp, "/cluster/gulm/lt_drop_req_rate = %d\n", gf->lt_cf_rate);
+   fprintf(fp, "/cluster/gulm/prealloc_locks = %d\n", gf->lt_prelocks);
+   fprintf(fp, "/cluster/gulm/prealloc_holders = %d\n", gf->lt_preholds);
+   fprintf(fp, "/cluster/gulm/prealloc_lkrqs = %d\n", gf->lt_prelkrqs);
+   fprintf(fp, "/cluster/gulm/ltpx_port = %d\n", gf->ltpx_port);
 
    if( !out ) {
       fclose(fp);
@@ -329,7 +326,7 @@ uint64_t ft2uint64(float time)
  */
 void validate_config(gulm_config_t *gf)
 {
-   /*while assert works, really needs to be someting more friendly. */
+   /*while assert works, really needs to be something more friendly. */
    GULMD_ASSERT(gf->node_cnt > 0 && gf->node_cnt < 5 && gf->node_cnt != 2,
          fprintf(stderr, "gf->node_cnt = %d\n", gf->node_cnt);
          );
@@ -346,7 +343,7 @@ void default_config(gulm_config_t *gf)
 
    memset(gf, 0, sizeof(gulm_config_t));
 
-   gf->clusterID = strdup("cluster");
+   gf->clusterID = NULL; //strdup("cluster");
    gf->fencebin = strdup("fence_node");
    gf->run_as = strdup("root");
    gf->lock_file = strdup("/var/run/sistina");
@@ -379,6 +376,8 @@ void default_config(gulm_config_t *gf)
  * parse_conf - 
  * @gf: 
  *
+ * Now do heavy parsing.
+ *
  * Returns: int
  */
 int parse_conf(gulm_config_t *gf, int argc, char **argv)
@@ -388,14 +387,12 @@ int parse_conf(gulm_config_t *gf, int argc, char **argv)
    /* should set defaults here. */
    default_config(gf);
 
-#ifdef READYFORCCS
    /* parse ccs */
    err = parse_ccs(gf);
-#endif
    /* Note errors, but do not stop. */
 
    /* parse local file */
-   /* later */
+   /* later, maybe */
 
    /* parse cmdline args */
    err = parse_cmdline(gf, argc, argv);
@@ -459,12 +456,10 @@ int verify_name_and_ip(char *name, struct in6_addr *ip)
       return 0;
    }
 
-#ifdef READYFORCCS
    /* if ccs, check with them too */
    if( verify_name_and_ip_ccs(name, ip) == 0 ) {
       return 0;
    }
-#endif
 
    return 1;
 }

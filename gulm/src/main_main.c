@@ -175,6 +175,8 @@ void banner_msg(void)
    log_msg(lgm_Always, "I am (%s) with ip (%s)\n", myName, ip6tostr(&myIP));
 }
 
+
+
 /**
  * main - 
  * @argc: 
@@ -190,8 +192,8 @@ int main(int argc, char **argv)
    if( ProgramName == NULL ) die(ExitGulm_NoMemory, "Out of Memory.\n");
    set_verbosity("Default", &verbosity);
 
-   /* parse cmdline (and config) */
-   if( parse_conf(&gulm_config, argc, argv) != 0 ) return -1;
+   /* scan for -h --help -V --version */
+   short_parse_conf(argc, argv);
 
    /*splits*/
    if( strcmp("lock_gulmd", ProgramName) == 0 ) {
@@ -214,6 +216,9 @@ int main(int argc, char **argv)
 
       return 0;
    }
+
+   /* parse cmdline (and config) */
+   if( parse_conf(&gulm_config, argc, argv) != 0 ) return -1;
 
    /* daemonize ourselves here */
    become_nobody();

@@ -23,6 +23,7 @@ unsigned long bound_to_ulong(int val, unsigned long min, unsigned long max);
 uint64_t bound_to_uint64(uint64_t val, uint64_t min, uint64_t max);
 uint64_t ft2uint64(float time);
 
+void parse_cmdline_servers(gulm_config_t *gf, char *servers);
 int parse_ccs(gulm_config_t *gf);
 int parse_cmdline(gulm_config_t *gf, int argc, char **argv);
 int verify_name_and_ip_ccs(char *name, struct in6_addr *ip);

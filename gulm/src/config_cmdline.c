@@ -316,4 +316,31 @@ int parse_cmdline(gulm_config_t *gf, int argc, char **argv)
    return 0;
 }
 
+/**
+ * short_parse_conf - 
+ * @argc: 
+ * @argv: 
+ * 
+ * 
+ * Returns: int
+ */
+int short_parse_conf(int argc, char **argv)
+{
+   int i;
+   for(i=0; i < argc; i++) {
+      if( strcmp("-h", argv[i]) == 0 ||
+          strcmp("--help", argv[i]) == 0 ) {
+            usage();
+      }else
+      if( strcmp("-V", argv[i]) == 0 ||
+          strcmp("--version", argv[i]) == 0) {
+            printf("%s %s (built " __DATE__ " " __TIME__ ")\n"
+                  "Copyright (C) 2004 Red Hat, Inc.  All rights reserved.\n",
+                    ProgramName, RELEASE);
+            exit(ExitGulm_Usage);
+      }
+   }
+   return 0;
+}
+
 

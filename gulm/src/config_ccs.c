@@ -19,6 +19,7 @@
 #include "gulm_defines.h"
 #include "config_gulm.h"
 #include "config_priv.h"
+#include "utils_verb_flags.h"
 #include "ccs.h"
 
 /* Mostly, this is the extra functions I need to get stuff from the ccslib.
@@ -37,31 +38,6 @@ extern gulm_config_t gulm_config;
 extern char myName[256];
 
 /*****************************************************************************/
-
-int extendargv(int *argc, char ***argv, int growth)
-{
-   char **temp;
-   if( growth <= *argc ) return 0;
-
-   temp = realloc(*argv, growth * sizeof(char**));
-   if( temp == NULL ) return -ENOMEM;
-
-   *argv = temp;
-   *argc = growth;
-
-   return 0;
-}
-
-void push_opts(char *name, char *value, int *argc, char ***argv, int *next)
-{
-   if( *next >= *argc ) {
-      if( extendargv(argc, argv, *next + 10 ) != 0 )
-         die(1, "Out of Memory.\n");
-   }
-
-   (*argv)[(*next)++] = name;
-   (*argv)[(*next)++] = value;
-}
 
 /**
  * parse_ccs - 
@@ -83,85 +59,117 @@ void push_opts(char *name, char *value, int *argc, char ***argv, int *next)
  */
 int parse_ccs(gulm_config_t *gf)
 {
-   int ccs_argc=0, next=0;
-   char **ccs_argv=NULL, *tmp=NULL;
+   uint64_t temp;
+   char *tmp;
 
-   if( (gf->ccs_desc=ccs_force_connect(NULL, 1/*?blocking?*/)) < 0 ) {
+   if( (gf->ccs_desc=ccs_force_connect(gf->clusterID, 1/*?blocking?*/)) < 0 ) {
       fprintf(stderr, "No ccs, checking for cmdline config. (%d:%s)\n",
             gf->ccs_desc, strerror(abs(gf->ccs_desc)));
       gf->ccs_desc = -1;
       return -1;
    }
 
-   if( ccs_get(gf->ccs_desc, "/cluster/@name", &tmp) == 0 )
-      push_opts("--cluster_name", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/servers", &tmp) == 0 )
-      push_opts("--servers", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/verbosity", &tmp) == 0 )
-      push_opts("--verbosity", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/heartbeat_rate", &tmp) == 0 )
-      push_opts("--heartbeat_rate", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/allowed_misses", &tmp) == 0 )
-      push_opts("--allowed_misses", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/new_connection_timeout", &tmp) == 0 )
-      push_opts("--new_connection_timeout", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/master_scan_delay", &tmp) == 0 )
-      push_opts("--master_scan_delay", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/coreport", &tmp) == 0 )
-      push_opts("--coreport", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltpxport", &tmp) == 0 )
-      push_opts("--ltpxport", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltport", &tmp) == 0 )
-      push_opts("--ltport", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/fence_bin", &tmp) == 0 )
-      push_opts("--fence_bin", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/run_as", &tmp) == 0 )
-      push_opts("--run_as", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lock_dir", &tmp) == 0 )
-      push_opts("--lock_dir", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_partitions", &tmp) == 0 )
-      push_opts("--lt_partitions", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_high_locks", &tmp) == 0 )
-      push_opts("--lt_high_locks", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_drop_req_rate", &tmp) == 0 )
-      push_opts("--lt_drop_req_rate", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_locks", &tmp) == 0 )
-      push_opts("--prealloc_locks", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_holders", &tmp) == 0 )
-      push_opts("--prealloc_holders", tmp, &ccs_argc, &ccs_argv, &next);
-
-   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_lkrqs", &tmp) == 0 )
-      push_opts("--prealloc_lkrqs", tmp, &ccs_argc, &ccs_argv, &next);
-
-   push_opts(NULL, NULL, &ccs_argc, &ccs_argv, &next);
-
-   parse_cmdline(gf, next, ccs_argv);
-
-   for(; next > 0 ; next--) {
-      /* items with -- are not malloced. */
-      if( ccs_argv[next] != NULL &&
-          ccs_argv[next][0] != '-' &&
-          ccs_argv[next][1] != '-' )
-         free(ccs_argv[next]);
+   if( ccs_get(gf->ccs_desc, "/cluster/@name", &tmp) == 0 ) {
+      strdup_with_free((char**)&gf->clusterID, tmp);
+      free(tmp);
    }
-   free(ccs_argv);
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/servers", &tmp) == 0 ) {
+      parse_cmdline_servers(gf, tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/verbosity", &tmp) == 0 ) {
+      set_verbosity(tmp, &verbosity);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/heartbeat_rate", &tmp) == 0 ) {
+      temp = ft2uint64(atof(tmp));
+      gf->heartbeat_rate = bound_to_uint64(temp, 75000, (uint64_t)~0);
+      /* min is 0.075 */
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/allowed_misses", &tmp) == 0 ) {
+      gf->allowed_misses = bound_to_uint16(atoi(tmp), 1, 0xffff);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc,"/cluster/gulm/new_connection_timeout", &tmp)==0) {
+      temp = ft2uint64(atof(tmp));
+      gf->new_con_timeout = bound_to_uint64(temp, 0, (uint64_t)~0);
+      /* min should be something bigger than zero...
+       * say 0.5? why?
+       */
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/master_scan_delay", &tmp) == 0 ) {
+      temp = ft2uint64(atof(tmp));
+      gf->master_scan_delay = bound_to_uint64(temp, 10, (uint64_t)~0);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/coreport", &tmp) == 0 ) {
+      gf->corePort = atoi(tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltpxport", &tmp) == 0 ) {
+      gf->ltpx_port = atoi(tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/ltport", &tmp) == 0 ) {
+      gf->lt_port = atoi(tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/fence_bin", &tmp) == 0 ) {
+      strdup_with_free((char**)&gf->fencebin, tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/run_as", &tmp) == 0 ) {
+      strdup_with_free((char**)&gf->run_as, tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lock_dir", &tmp) == 0 ) {
+      strdup_with_free((char**)&gf->lock_file, tmp);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_partitions", &tmp) == 0 ) {
+      gf->how_many_lts = bound_to_uint16(atoi(tmp), 1, 256);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_high_locks", &tmp) == 0 ) {
+      gf->lt_maxlocks = bound_to_ulong(atoi(tmp), 10000, ~0UL);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/lt_drop_req_rate", &tmp) == 0 ) {
+      gf->lt_cf_rate = bound_to_uint(atoi(tmp), 5, ~0U);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_locks", &tmp) == 0 ) {
+      gf->lt_prelocks = bound_to_uint(atoi(tmp), 0, ~0U);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_holders", &tmp) == 0 ) {
+      gf->lt_preholds = bound_to_uint(atoi(tmp), 0, ~0U);
+      free(tmp);
+   }
+
+   if( ccs_get(gf->ccs_desc, "/cluster/gulm/prealloc_lkrqs", &tmp) == 0 ) {
+      gf->lt_prelkrqs = bound_to_uint(atoi(tmp), 0, ~0U);
+      free(tmp);
+   }
 
    return 0;
 }
