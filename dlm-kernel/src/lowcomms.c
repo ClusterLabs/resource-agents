@@ -79,7 +79,7 @@ struct connection {
 #define CF_READ_PENDING 1
 #define CF_WRITE_PENDING 2
 #define CF_CONNECT_PENDING 3
-#define CF_IS_OTHERSOCK 4
+#define CF_IS_OTHERCON 4
 	struct list_head writequeue;	/* List of outgoing writequeue_entries */
 	struct list_head listenlist;    /* List of allocated listening sockets */
 	spinlock_t writequeue_lock;
@@ -89,7 +89,7 @@ struct connection {
 	int retries;
 	atomic_t waiting_requests;
 #define MAX_CONNECT_RETRIES 3
-	struct connection *othersock;
+	struct connection *othercon;
 };
 #define sock2con(x) ((struct connection *)(x)->sk_user_data)
 
@@ -310,14 +310,12 @@ static void close_connection(struct connection *con, int and_other)
 	if (con->sock) {
 		sock_release(con->sock);
 		con->sock = NULL;
-		if (con->othersock && and_other) {
+		if (con->othercon && and_other) {
 			/* Argh! recursion in kernel code!
-			   Actually, it's not so bad, there will be
-			   usually a maximum of 2 sockets in this list.
+			   Actually, this isn't a list so it
+			   will only re-enter once.
 			*/
-			close_connection(con->othersock, TRUE);
-			kmem_cache_free(con_cache, con->othersock);
-			con->othersock = NULL;
+			close_connection(con->othercon, TRUE);
 		}
 	}
 	if (con->rx_page) {
@@ -433,7 +431,7 @@ static int receive_from_sock(struct connection *con)
 
       out_close:
 	up_read(&con->sock_sem);
-	if (ret != -EAGAIN && !test_bit(CF_IS_OTHERSOCK, &con->flags)) {
+	if (ret != -EAGAIN && !test_bit(CF_IS_OTHERCON, &con->flags)) {
 		close_connection(con, FALSE);
 		lowcomms_connect_sock(con);
 	}
@@ -492,7 +490,7 @@ static int accept_from_sock(struct connection *con)
 	 *  could happen if the two nodes initiate a connection at roughly
 	 *  the same time and the connections cross on the wire.
 	 * TEMPORARY FIX:
-	 *  In this case we store the incoming one in "othersock"
+	 *  In this case we store the incoming one in "othercon"
 	 */
 	newcon = nodeid2con(nodeid, GFP_KERNEL);
 	if (!newcon) {
@@ -501,28 +499,24 @@ static int accept_from_sock(struct connection *con)
 	}
 	down_write(&newcon->sock_sem);
 	if (newcon->sock) {
-	        struct connection *othercon;
+	        struct connection *othercon = newcon->othercon;
 
-		othercon = kmem_cache_alloc(con_cache, GFP_KERNEL);
 		if (!othercon) {
-		        printk("dlm: failed to allocate incoming socket\n");
-			up_write(&newcon->sock_sem);
-			result = -ENOMEM;
-			goto accept_err;
+			othercon = kmem_cache_alloc(con_cache, GFP_KERNEL);
+			if (!othercon) {
+				printk("dlm: failed to allocate incoming socket\n");
+				up_write(&newcon->sock_sem);
+				result = -ENOMEM;
+				goto accept_err;
+			}
+			memset(othercon, 0, sizeof(*othercon));
+			othercon->nodeid = nodeid;
+			othercon->rx_action = receive_from_sock;
+			init_rwsem(&othercon->sock_sem);
+			set_bit(CF_IS_OTHERCON, &othercon->flags);
+			newcon->othercon = othercon;
 		}
-		memset(othercon, 0, sizeof(*othercon));
-		if (newcon->othersock) {
-			newcon->othersock->othersock = othercon;
-			log_print("newcon for node %d already has an 'othersock'", nodeid);
-		}
-		else {
-			newcon->othersock = othercon;
-		}
-		othercon->nodeid = nodeid;
 		othercon->sock = newsock;
-		othercon->rx_action = receive_from_sock;
-		init_rwsem(&othercon->sock_sem);
-		set_bit(CF_IS_OTHERSOCK, &othercon->flags);
 		newsock->sk->sk_user_data = othercon;
 		add_sock(newsock, othercon);
 	}
@@ -722,7 +716,7 @@ static int listen_for_all(void)
 			init_rwsem(&con->sock_sem);
 			spin_lock_init(&con->writequeue_lock);
 			INIT_LIST_HEAD(&con->writequeue);
-			set_bit(CF_IS_OTHERSOCK, &con->flags);
+			set_bit(CF_IS_OTHERCON, &con->flags);
 		}
 
 		memcpy(local_addr, node_addr->addr, node_addr->addr_len);
@@ -733,7 +727,7 @@ static int listen_for_all(void)
 
 			/* Keep a list of dynamically allocated listening sockets
 			   so we can free them at shutdown */
-			if (test_bit(CF_IS_OTHERSOCK, &con->flags)) {
+			if (test_bit(CF_IS_OTHERCON, &con->flags)) {
 				list_add_tail(&con->listenlist, &listen_sockets);
 			}
 		}
@@ -1206,6 +1200,8 @@ void lowcomms_stop(void)
 	for (i = 0; i < conn_array_size; i++) {
 		if (connections[i]) {
 			close_connection(connections[i], TRUE);
+			if (connections[i]->othercon)
+				kmem_cache_free(con_cache, connections[i]->othercon);
 			kmem_cache_free(con_cache, connections[i]);
 		}
 	}
