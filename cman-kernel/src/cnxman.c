@@ -1676,6 +1676,7 @@ static int cl_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		cnxman_version.major = CNXMAN_MAJOR_VERSION;
 		cnxman_version.minor = CNXMAN_MINOR_VERSION;
 		cnxman_version.patch = CNXMAN_PATCH_VERSION;
+		cnxman_version.config = config_version;
 		if (copy_to_user((void *) arg, &cnxman_version,
 				 sizeof (struct cl_version))) {
 			return -EFAULT;
