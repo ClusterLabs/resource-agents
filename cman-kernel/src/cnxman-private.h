@@ -380,7 +380,7 @@ extern int allocate_nodeid_array(void);
 extern void queue_oob_skb(struct socket *sock, int cmd);
 extern int new_temp_nodeid(char *addr, int addrlen);
 extern int get_addr_from_temp_nodeid(int nodeid, char *addr, int *addrlen);
-extern void remove_temp_nodeid(int nodeid);
+extern void purge_temp_nodeids(void);
 extern inline char *print_addr(unsigned char *addr, int len, char *buf)
 {
 	int i;

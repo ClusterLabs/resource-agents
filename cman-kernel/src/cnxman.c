@@ -2767,7 +2767,7 @@ static void node_cleanup()
 		kfree(tn);
 	}
 	up(&tempnode_lock);
-	
+
 	/* Free the memory allocated to the outgoing sockets */
 	free_cluster_sockets();
 
@@ -3825,26 +3825,48 @@ static int is_valid_temp_nodeid(int nodeid)
 	return err;
 }
 
-/* TODO: This needs to clean the list more fully of
-   nodes that are now full members but we did not master the transition */
-void remove_temp_nodeid(int nodeid)
+/*
+ * Remove any temp nodeIDs that refer to now-valid cluster members.
+ */
+void purge_temp_nodeids()
 {
 	struct temp_node *tn;
 	struct temp_node *tmp;
+	struct cluster_node *node;
+	struct cluster_node_addr *nodeaddr;
+
 
 	down(&tempnode_lock);
+	down(&cluster_members_lock);
 
-	list_for_each_entry_safe(tn, tmp, &tempnode_list, list) {
-		if (nodeid == tn->nodeid) {
-			list_del(&tn->list);
-			kfree(tn);
-			up(&tempnode_lock);
-			return;
+	/*
+	 * The ordering of these nested lists is deliberately
+	 * arranged for the fewest list traversals overall
+	 */
+
+	/* For each node... */
+	list_for_each_entry(node, &cluster_members_list, list) {
+		if (node->state == NODESTATE_MEMBER) {
+			/* ...We check the temp node ID list... */
+			list_for_each_entry_safe(tn, tmp, &tempnode_list, list) {
+
+				/* ...against that node's address */
+				list_for_each_entry(nodeaddr, &node->addr_list, list) {
+
+					if (memcmp(nodeaddr->addr, tn->addr, tn->addrlen) == 0) {
+						list_del(&tn->list);
+						kfree(tn);
+					}
+				}
+			}
 		}
 	}
-
+	up(&cluster_members_lock);
 	up(&tempnode_lock);
 }
+
+
+
 
 /* Quorum device functions */
 int kcl_register_quorum_device(char *name, int votes)

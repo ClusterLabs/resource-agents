@@ -808,8 +808,10 @@ static int end_transition()
 		start_transition(TRANS_RESTART, us);
 		return 0;
 	}
+
 	joining_temp_nodeid = 0;
-	remove_temp_nodeid(joining_temp_nodeid);
+	purge_temp_nodeids();
+
 	set_quorate(total_votes);
 
 	notify_listeners();
@@ -1844,6 +1846,8 @@ static int do_process_endtrans(struct msghdr *msg, int len)
 
 	/* Tell any waiting barriers that we had a transition */
 	check_barrier_returns();
+
+	purge_temp_nodeids();
 
 	/* Clear the master node */
 	master_node = NULL;
