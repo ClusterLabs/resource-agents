@@ -16,6 +16,10 @@
 #     negative, do not check to see that the cluster has been joined
 CMAN_CLUSTER_TIMEOUT=300
 
+# CMAN_SHUTDOWN_TIMEOUT -- amount of time to wait for cman to become a 
+#     cluster member before calling cman_tool leave during shutdown.  
+#     default is 60 seconds
+CMAN_SHUTDOWN_TIMEOUT=60
 
 . /etc/init.d/functions
 [ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
@@ -23,11 +27,10 @@ CMAN_CLUSTER_TIMEOUT=300
 LOCK_FILE="/var/lock/subsys/cman"
 
 [ -n "$CLUSTERNAME" ] && cman_join_opts="-c $CLUSTERNAME"
-nodename=$(hostname -s)
 
 in_cluster()
 {
-	awk -v x=1 "(\$5 == \"$nodename\" ){x=0}END{exit x}" /proc/cluster/nodes
+	grep -q "Cluster Member: Yes" /proc/cluster/status
 }
 
 start()
@@ -98,33 +101,30 @@ start()
 stop()
 {
 	echo -n "Stopping cman:"
-	rtrn=1
-	
-	if [ -r /proc/cluster/status ] 
+	rtrn=0
+	if [ -r /proc/cluster/status ]
 	then
-		do_leave=1
+		rtrn=1
 
-		# make sure that we are in the correct state
-		while in_cluster
+		# Make sure that we are in the cluster first so that we 
+		# can leave.  If we are not a cluster member, our 
+		# request to to leave will be rejected and the cman 
+		# module will fail to be unloaded.  
+		stoptime=$(($SECONDS + $CMAN_SHUTDOWN_TIMEOUT))
+		while [ $CMAN_SHUTDOWN_TIMEOUT -eq 0 -o $SECONDS -lt $stoptime ]
 		do
-			if [ $do_leave -eq 1 ]
-			then
-				# cman_tool leave will fail if the cluster is in
-				# transition (another node is leaving at the same time
-				# we are)
-				cman_tool leave &>/dev/null && do_leave=0
-			fi
+			in_cluster && break
+			[ -r /proc/cluster/status ] || break
 
 			sleep 1
 		done
+
+		cman_tool -w leave &>/dev/null 
 
 		# try to unload dlm module
 		modprobe -r dlm &>/dev/null
  
 		modprobe -r cman && rtrn=0
-	else
-		# cman is not loaded
-		rtrn=0
 	fi
 	
 	if [ $rtrn -eq 0 ]
