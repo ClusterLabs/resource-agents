@@ -13,6 +13,9 @@
 
 #include "lock_dlm.h"
 
+static char junk_lvb[DLM_LVB_SIZE];
+
+
 /*
  * Run in DLM thread
  */
@@ -499,6 +502,28 @@ void lm_dlm_cancel(lm_lock_t *lock)
 	}
 }
 
+int dlm_add_lvb(dlm_lock_t *lp)
+{
+	char *lvb;
+
+	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
+	if (!lvb)
+		return -ENOMEM;
+
+	memset(lvb, 0, DLM_LVB_SIZE);
+
+	lp->lksb.sb_lvbptr = lvb;
+	lp->lvb = lvb;
+	return 0;
+}
+
+void dlm_del_lvb(dlm_lock_t *lp)
+{
+	kfree(lp->lvb);
+	lp->lvb = NULL;
+	lp->lksb.sb_lvbptr = NULL;
+}
+
 /**
  * hold_null_lock - add a NL lock to the resource
  * @lp: represents the resource
@@ -512,7 +537,7 @@ void lm_dlm_cancel(lm_lock_t *lock)
 
 static int hold_null_lock(dlm_lock_t *lp)
 {
-	dlm_lock_t *lpn;
+	dlm_lock_t *lpn = NULL;
 	int error;
 
 	if (lp->hold_null) {
@@ -522,9 +547,13 @@ static int hold_null_lock(dlm_lock_t *lp)
 
 	error = create_lp(lp->dlm, &lp->lockname, &lpn);
 	if (error)
-		return error;
+		goto out;
+
+	lpn->lksb.sb_lvbptr = junk_lvb;
+	lpn->lvb = junk_lvb;
 
 	lpn->req = DLM_LOCK_NL;
+	lpn->lkf = DLM_LKF_VALBLK;
 	set_bit(LFL_NOBAST, &lpn->flags);
 	set_bit(LFL_INLOCK, &lpn->flags);
 
@@ -534,6 +563,7 @@ static int hold_null_lock(dlm_lock_t *lp)
 		lpn = NULL;
 	}
 
+ out:
 	lp->hold_null = lpn;
 	return error;
 }
@@ -553,24 +583,12 @@ static int hold_null_lock(dlm_lock_t *lp)
 static void unhold_null_lock(dlm_lock_t *lp)
 {
 	dlm_lock_t *lpn = lp->hold_null;
+
+	lpn->lksb.sb_lvbptr = NULL;
+	lpn->lvb = NULL;
 	set_bit(LFL_UNLOCK_DELETE, &lpn->flags);
 	do_dlm_unlock(lpn);
 	lp->hold_null = NULL;
-}
-
-int dlm_add_lvb(dlm_lock_t *lp)
-{
-	char *lvb;
-
-	lvb = kmalloc(DLM_LVB_SIZE, GFP_KERNEL);
-	if (!lvb)
-		return -ENOMEM;
-
-	memset(lvb, 0, DLM_LVB_SIZE);
-
-	lp->lksb.sb_lvbptr = lvb;
-	lp->lvb = lvb;
-	return 0;
 }
 
 /**
@@ -597,20 +615,10 @@ int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 	   no locks on the resource. */
       
 	error = hold_null_lock(lp);
-	if (error) {
-		kfree(lp->lvb);
-		lp->lvb = NULL;
-		lp->lksb.sb_lvbptr = NULL;
-	}
+	if (error)
+		dlm_del_lvb(lp);
 
 	return error;
-}
-
-void dlm_del_lvb(dlm_lock_t *lp)
-{
-	kfree(lp->lvb);
-	lp->lvb = NULL;
-	lp->lksb.sb_lvbptr = NULL;
 }
 
 /**
