@@ -455,6 +455,7 @@ static void process_lockqueue_reply(struct dlm_lkb *lkb,
 				lkb->lkb_flags |= GDLM_LKFLG_RETURNLVB;
 				memcpy(lkb->lkb_lvbptr, reply->rl_lvb,
 				       DLM_LVB_LEN);
+				lkb->lkb_lvbseq = reply->rl_lvbseq;
 			}
 
 			lkb->lkb_grmode = lkb->lkb_rqmode;
@@ -569,8 +570,9 @@ void remote_grant(struct dlm_lkb *lkb)
 	    DEMOTED, VALNOTVALID & RETURNLVB flags back to the other node.*/
 
 	req->rr_flags = lkb->lkb_flags;
-
+	req->rr_lvbseq = lkb->lkb_lvbseq;
 	add_request_lvb(lkb, req);
+
 	midcomms_send_buffer(&req->rr_header, e);
 }
 
@@ -598,6 +600,7 @@ void reply_and_grant(struct dlm_lkb *lkb)
 	reply->rl_lockstate = lkb->lkb_status;
 	reply->rl_lkid = lkb->lkb_id;
 	reply->rl_flags = lkb->lkb_flags;
+	reply->rl_lvbseq = lkb->lkb_lvbseq;
 	add_reply_lvb(lkb, reply);
 
 	DLM_ASSERT(!(lkb->lkb_flags & GDLM_LKFLG_DEMOTED),);
@@ -950,6 +953,7 @@ int process_cluster_request(int nodeid, struct dlm_header *req, int recovery)
 			lkb->lkb_flags |= GDLM_LKFLG_VALBLK;
 			allocate_and_copy_lvb(lspace, &lkb->lkb_lvbptr,
 					      freq->rr_lvb);
+			lkb->lkb_lvbseq = freq->rr_lvbseq;
 		}
 
 		if (freq->rr_flags & GDLM_LKFLG_RANGE) {

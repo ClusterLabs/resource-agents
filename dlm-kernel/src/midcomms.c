@@ -77,6 +77,7 @@ static void host_to_network(void *msg)
 	case GDLM_REMCMD_REM_RESDATA:
 		req->rr_flags = cpu_to_le32(req->rr_flags);
 		req->rr_status = cpu_to_le32(req->rr_status);
+		req->rr_lvbseq = cpu_to_le32(req->rr_lvbseq);
 		break;
 
 	case GDLM_REMCMD_LOCKREPLY:
@@ -84,6 +85,7 @@ static void host_to_network(void *msg)
 		rep->rl_nodeid = cpu_to_le32(rep->rl_nodeid);
 		rep->rl_status = cpu_to_le32(rep->rl_status);
 		rep->rl_flags  = cpu_to_le32(rep->rl_flags);
+		rep->rl_lvbseq = cpu_to_le32(rep->rl_lvbseq);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:
@@ -151,6 +153,7 @@ static void network_to_host(void *msg)
 		 * transparent too */
 		req->rr_flags = le32_to_cpu(req->rr_flags);
 		req->rr_status = le32_to_cpu(req->rr_status);
+		req->rr_lvbseq = le32_to_cpu(req->rr_lvbseq);
 		break;
 
 	case GDLM_REMCMD_LOCKREPLY:
@@ -158,6 +161,7 @@ static void network_to_host(void *msg)
 		rep->rl_nodeid = le32_to_cpu(rep->rl_nodeid);
 		rep->rl_status = le32_to_cpu(rep->rl_status);
 		rep->rl_flags  = le32_to_cpu(rep->rl_flags);
+		rep->rl_lvbseq = le32_to_cpu(rep->rl_lvbseq);
 		break;
 
 	case GDLM_REMCMD_RECOVERMESSAGE:

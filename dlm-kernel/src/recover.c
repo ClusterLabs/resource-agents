@@ -614,7 +614,8 @@ int bulk_master_lookup(struct dlm_ls *ls, int nodeid, char *inbuf, int inlen,
 
 void rsb_lvb_recovery(struct dlm_rsb *r)
 {
-	struct dlm_lkb *lkb;
+	struct dlm_lkb *lkb, *high_lkb = NULL;
+	uint32_t high_seq = 0;
 	int lock_lvb_exists = FALSE;
 	int big_lock_exists = FALSE;
 
@@ -633,6 +634,11 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 			big_lock_exists = TRUE;
 			goto setflag;
 		}
+
+		if (((int)lkb->lkb_lvbseq - (int)high_seq) >= 0) {
+			high_lkb = lkb;
+			high_seq = lkb->lkb_lvbseq;
+		}
 	}
 
 	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
@@ -647,6 +653,11 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 		if (lkb->lkb_grmode > DLM_LOCK_CR) {
 			big_lock_exists = TRUE;
 			goto setflag;
+		}
+
+		if (((int)lkb->lkb_lvbseq - (int)high_seq) >= 0) {
+			high_lkb = lkb;
+			high_seq = lkb->lkb_lvbseq;
 		}
 	}
 
@@ -665,18 +676,21 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 		set_bit(RESFL_VALNOTVALID, &r->res_flags);
 
  setlvb:
-	/* don't mess with the lvb unless we're a new master */
+	/* don't mess with the lvb unless we're the new master */
 	if (!test_bit(RESFL_NEW_MASTER2, &r->res_flags))
 		goto out;
 
 	if (!r->res_lvbptr)
 		r->res_lvbptr = allocate_lvb(r->res_ls);
 
-	if (big_lock_exists)
+	if (big_lock_exists) {
+		r->res_lvbseq = lkb->lkb_lvbseq;
 		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
-	else {
-		/* FIXME: here we should take the lkb with largest
-		   lvbseq and copy its lvb to r's */
+	} else if (high_lkb) {
+		r->res_lvbseq = high_lkb->lkb_lvbseq;
+		memcpy(r->res_lvbptr, high_lkb->lkb_lvbptr, DLM_LVB_LEN);
+	} else {
+		r->res_lvbseq = 0;
 		memset(r->res_lvbptr, 0, DLM_LVB_LEN);
 	}
 

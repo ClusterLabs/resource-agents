@@ -1064,10 +1064,13 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 		if (b == 1) {
 			memcpy(lkb->lkb_lvbptr, rsb->res_lvbptr, DLM_LVB_LEN);
 			lkb->lkb_flags |= GDLM_LKFLG_RETURNLVB;
+			lkb->lkb_lvbseq = rsb->res_lvbseq;
 		}
 		if (b == 0) {
 			memcpy(rsb->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
 			clear_bit(RESFL_VALNOTVALID, &rsb->res_flags);
+			rsb->res_lvbseq++;
+			lkb->lkb_lvbseq = rsb->res_lvbseq;
 		}
 	}
 
@@ -1079,9 +1082,9 @@ static void grant_lock(struct dlm_lkb *lkb, int send_remote)
 		lkb->lkb_range[GR_RANGE_END] = lkb->lkb_range[RQ_RANGE_END];
 	}
 
-	log_debug2("g %x %d %x %d,%d %d %s", lkb->lkb_id, lkb->lkb_nodeid,
+	log_debug2("g %x %d %x %d,%d %d %x %s", lkb->lkb_id, lkb->lkb_nodeid,
 	           lkb->lkb_remid, lkb->lkb_grmode, lkb->lkb_rqmode,
-		   lkb->lkb_status, rsb->res_name);
+		   lkb->lkb_status, lkb->lkb_flags, rsb->res_name);
 
 	if (lkb->lkb_grmode != lkb->lkb_rqmode) {
 		lkb->lkb_grmode = lkb->lkb_rqmode;

@@ -229,6 +229,7 @@ static int lkb_length(struct dlm_lkb *lkb)
 	len += sizeof(int);	/* lkb_parent->lkb_id */
 	len += sizeof(int);	/* lkb_bastaddr */
 	len += sizeof(int);     /* lkb_ownpid */
+	len += sizeof(int);     /* lkb_lvbseq */
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		len += sizeof(int);	/* number of lvb bytes */
@@ -283,6 +284,7 @@ static void serialise_lkb(struct dlm_lkb *lkb, char *buf, int *offp)
 	else
 		put_int(0, buf, offp);
 	put_int(lkb->lkb_ownpid, buf, offp);
+	put_int(lkb->lkb_lvbseq, buf, offp);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		DLM_ASSERT(lkb->lkb_lvbptr,);
@@ -998,6 +1000,7 @@ static int deserialise_lkb(struct dlm_ls *ls, int rem_nodeid,
 	parentid = get_int(buf, ptr);
 	lkb->lkb_bastaddr = (void *) (long) get_int(buf, ptr);
 	lkb->lkb_ownpid = get_int(buf, ptr);
+	lkb->lkb_lvbseq = get_int(buf, ptr);
 
 	if (lkb->lkb_flags & GDLM_LKFLG_VALBLK) {
 		lkb->lkb_lvbptr = allocate_lvb(ls);

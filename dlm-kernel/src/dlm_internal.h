@@ -99,6 +99,7 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 
 #define log_error log_all
 
+#define DLM_DEBUG2
 #if defined(DLM_DEBUG2)
 int nibbler_printf(const char *fmt, ...);
 #define log_debug2(fmt, args...) nibbler_printf(fmt"\n", ##args)
@@ -353,6 +354,7 @@ struct dlm_rsb {
 
 	struct rw_semaphore	res_lock;
 
+	uint32_t		res_lvbseq;
 	char *			res_lvbptr;	/* Lock value block */
 
 	uint8_t			res_length;
@@ -440,6 +442,7 @@ struct dlm_lkb {
 
 	struct list_head	lkb_deadlockq;	/* ls_deadlockq list */
 
+	uint32_t		lkb_lvbseq;
 	char *			lkb_lvbptr;	/* points to lksb lvb on local
 						   lock, allocated lvb on
 						   on remote lock */
@@ -487,6 +490,7 @@ struct dlm_request {
 	uint32_t		rr_status;	/* Status to return if this is
 						   an AST request */
         uint32_t                rr_pid;         /* Owner PID of lock */
+	uint32_t		rr_lvbseq;
 	uint8_t			rr_rqmode;	/* Requested lock mode */
 	uint8_t			rr_asts;	/* Whether the LKB has ASTs */
 	char			rr_lvb[DLM_LVB_LEN];
@@ -510,6 +514,7 @@ struct dlm_reply {
 	uint32_t		rl_status;	/* Status to return to caller */
 	uint32_t		rl_lkid;	/* Remote lkid */
 	uint32_t		rl_flags;
+	uint32_t		rl_lvbseq;
 	char			rl_lvb[DLM_LVB_LEN];
 } __attribute__((packed));
 
