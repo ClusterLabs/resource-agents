@@ -271,7 +271,6 @@ struct cl_waiting_listen_request {
 struct cl_socket {
 	struct file *file;	/* The real file */
 	struct socket *socket;	/* The real sock */
-	struct cl_multicast_sock multicast_info;
 	int num_nodes;		/* On this link */
 	int retransmit_count;
 };

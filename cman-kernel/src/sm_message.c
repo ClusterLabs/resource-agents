@@ -763,7 +763,8 @@ static int add_to_recvqueue(char *msg, int len, uint32_t nodeid)
 int sm_cluster_message(char *msg, int len, char *addr, int addr_len,
 		       unsigned int node_id)
 {
-	SM_ASSERT(node_id,);
+        if (!node_id)
+	        return -EINVAL;
         return add_to_recvqueue(msg, len, node_id);
 }
 

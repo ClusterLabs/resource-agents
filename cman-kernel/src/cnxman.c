@@ -33,10 +33,6 @@
 
 #define CMAN_RELEASE_NAME "<CVS>"
 
-static int __cl_setsockopt(struct socket *sock, int level, int optname,
-			   char *optval, int optlen, int flags);
-static int __cl_getsockopt(struct socket *sock, int level, int optname,
-			   char *optval, int *optlen, int flags);
 static void send_to_userport(struct cl_comms_socket *csock, char *data, int len,
 			     char *addr, int addrlen);
 static int cl_sendack(struct cl_comms_socket *sock, unsigned short seq,
@@ -1097,6 +1093,52 @@ void copy_to_usernode(struct cluster_node *node,
 	unode->incarnation = node->incarnation;
 }
 
+static int add_clsock(int broadcast, int number, struct socket *sock,
+		      struct file *file)
+{
+	struct cl_comms_socket *newsock =
+	    kmalloc(sizeof (struct cl_comms_socket), GFP_KERNEL);
+	if (!newsock)
+		return -ENOMEM;
+
+	memset(newsock, 0, sizeof (*newsock));
+	newsock->number = number;
+	newsock->sock = sock;
+	if (broadcast) {
+		newsock->broadcast = 1;
+		newsock->recv_only = 0;
+	}
+	else {
+		newsock->broadcast = 0;
+		newsock->recv_only = 1;
+	}
+
+	newsock->file = file;
+	newsock->addr_len = sizeof(struct sockaddr_in6);
+
+	/* Mark it active until cnxman thread is running and ready to process
+	 * messages */
+	set_bit(1, &newsock->active);
+
+	/* Find out what it's bound to */
+	newsock->sock->ops->getname(newsock->sock,
+				    (struct sockaddr *)&newsock->saddr,
+				    &newsock->addr_len, 0);
+
+	num_interfaces = max(num_interfaces, newsock->number);
+	if (!current_interface && newsock->broadcast)
+		current_interface = newsock;
+
+	/* Hook data_ready */
+	newsock->sock->sk->sk_data_ready = cnxman_data_ready;
+
+	/* Make an attempt to keep them in order */
+	list_add_tail(&newsock->list, &socket_list);
+
+	address_length = newsock->addr_len;
+	return 0;
+}
+
 /* ioctl processing functions */
 
 static int do_ioctl_set_version(unsigned long arg)
@@ -1457,6 +1499,136 @@ static int do_ioctl_set_votes(unsigned long arg)
 	return 0;
 }
 
+static int do_ioctl_pass_socket(unsigned long arg)
+{
+	struct cl_passed_sock sock_info;
+	struct file *file;
+	int error;
+
+	if (!capable(CAP_CLUSTER))
+		return -EPERM;
+
+	if (atomic_read(&cnxman_running))
+		return -EINVAL;
+
+	error = -EBADF;
+
+	if (copy_from_user(&sock_info, (void *)arg, sizeof(sock_info)))
+		return -EFAULT;
+
+	file = fget(sock_info.fd);
+	if (file) {
+		struct inode *inode = file->f_dentry->d_inode;
+
+		error =	add_clsock(sock_info.multicast,
+				   sock_info.number, SOCKET_I(inode),
+				   file);
+		if (error)
+			fput(file);
+	}
+	return error;
+
+}
+
+static int do_ioctl_set_nodename(unsigned long arg)
+{
+	if (!capable(CAP_CLUSTER))
+		return -EPERM;
+	if (atomic_read(&cnxman_running))
+		return -EINVAL;
+	if (strncpy_from_user(nodename, (void *)arg, MAX_CLUSTER_MEMBER_NAME_LEN) < 0)
+		return -EFAULT;
+	return 0;
+}
+
+static int do_ioctl_set_nodeid(unsigned long arg)
+{
+	// TODO
+	return -ENOTSUPP;
+}
+
+static int do_ioctl_join_cluster(unsigned long arg)
+{
+	struct cl_join_cluster_info join_info;
+
+	if (!capable(CAP_CLUSTER))
+		return -EPERM;
+
+	if (atomic_read(&cnxman_running))
+		return -EALREADY;
+
+	if (copy_from_user(&join_info, (void *)arg, sizeof (struct cl_join_cluster_info) ))
+		return -EFAULT;
+
+	if (strlen(join_info.cluster_name) > MAX_CLUSTER_NAME_LEN)
+		return -EINVAL;
+
+	if (list_empty(&socket_list))
+		return -ENOTCONN;
+
+	set_votes(join_info.votes, join_info.expected_votes);
+	cluster_id = generate_cluster_id(join_info.cluster_name);
+	strncpy(cluster_name, join_info.cluster_name, MAX_CLUSTER_NAME_LEN);
+	two_node = join_info.two_node;
+	config_version = join_info.config_version;
+
+	quit_threads = 0;
+	acks_expected = 0;
+	init_completion(&cluster_thread_comp);
+	init_completion(&member_thread_comp);
+	if (allocate_nodeid_array())
+		return -ENOMEM;
+
+	kcluster_pid = kernel_thread(cluster_kthread, NULL, 0);
+	if (kcluster_pid < 0)
+		return kcluster_pid;
+
+	wait_for_completion(&cluster_thread_comp);
+	init_completion(&cluster_thread_comp);
+
+	atomic_set(&cnxman_running, 1);
+
+	/* Make sure we have a node name */
+	if (nodename[0] == '\0')
+		strcpy(nodename, system_utsname.nodename);
+
+	membership_pid = start_membership_services(kcluster_pid);
+	if (membership_pid < 0) {
+		quit_threads = 1;
+		wait_for_completion(&cluster_thread_comp);
+		init_completion(&member_thread_comp);
+		return membership_pid;
+	}
+
+	sm_start();
+	return 0;
+}
+
+static int do_ioctl_leave_cluster(unsigned long leave_flags)
+{
+	if (!capable(CAP_CLUSTER))
+		return -EPERM;
+
+	if (!atomic_read(&cnxman_running))
+		return -ENOTCONN;
+
+	if (in_transition())
+		return -EBUSY;
+
+	/* Ignore the use count if FORCE is set */
+	if (!(leave_flags & CLUSTER_LEAVEFLAG_FORCE)) {
+		if (atomic_read(&use_count))
+			return -ENOTCONN;
+	}
+
+	us->leave_reason = leave_flags;
+	quit_threads = 1;
+	wake_up_interruptible(&cnxman_waitq);
+
+	wait_for_completion(&cluster_thread_comp);
+	return 0;
+}
+
 static int cl_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 {
 	int err = -EOPNOTSUPP;
@@ -1565,6 +1737,38 @@ static int cl_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		err = do_ioctl_barrier(arg);
 		break;
 
+	case SIOCCLUSTER_PASS_SOCKET:
+		if (sock->sk->sk_protocol != CLPROTO_MASTER)
+			err = -EOPNOTSUPP;
+		else
+			err = do_ioctl_pass_socket(arg);
+		break;
+
+	case SIOCCLUSTER_SET_NODENAME:
+		if (sock->sk->sk_protocol != CLPROTO_MASTER)
+			err = -EOPNOTSUPP;
+		else
+			err = do_ioctl_set_nodename(arg);
+		break;
+
+	case SIOCCLUSTER_SET_NODEID:
+		if (sock->sk->sk_protocol != CLPROTO_MASTER)
+			err = -EOPNOTSUPP;
+		else
+			err = do_ioctl_set_nodeid(arg);
+		break;
+
+	case SIOCCLUSTER_JOIN_CLUSTER:
+		if (sock->sk->sk_protocol != CLPROTO_MASTER)
+			err = -EOPNOTSUPP;
+		else
+			err = do_ioctl_join_cluster(arg);
+		break;
+
+	case SIOCCLUSTER_LEAVE_CLUSTER:
+		err = do_ioctl_leave_cluster(arg);
+		break;
+
 	default:
 		err = sm_ioctl(sock, cmd, arg);
 	}
@@ -1602,237 +1806,11 @@ static int cl_shutdown(struct socket *sock, int how)
 static int cl_setsockopt(struct socket *sock, int level, int optname,
 			 char *optval, int optlen)
 {
-	struct sock *sk = sock->sk;
-	int err;
-
-	if (sk != master_sock)
-		return -EPERM;
-
-	lock_sock(sk);
-	err = __cl_setsockopt(sock, level, optname, optval, optlen, 0);
-	release_sock(sk);
-
-	return err;
+	/* TODO Remove this after a short time */
+	printk("An old version of cman_tool attempted to start the cluster\n");
+	return -EINVAL;
 }
 
-static int add_clsock(int broadcast, int number, struct socket *sock,
-		      struct file *file)
-{
-	struct cl_comms_socket *newsock =
-	    kmalloc(sizeof (struct cl_comms_socket), GFP_KERNEL);
-	if (!newsock)
-		return -ENOMEM;
-
-	memset(newsock, 0, sizeof (*newsock));
-	newsock->number = number;
-	newsock->sock = sock;
-	if (broadcast) {
-		newsock->broadcast = 1;
-		newsock->recv_only = 0;
-	}
-	else {
-		newsock->broadcast = 0;
-		newsock->recv_only = 1;
-	}
-
-	newsock->file = file;
-	newsock->addr_len = sizeof(struct sockaddr_in6);
-
-	/* Mark it active until cnxman thread is running and ready to process
-	 * messages */
-	set_bit(1, &newsock->active);
-
-	/* Find out what it's bound to */
-	newsock->sock->ops->getname(newsock->sock,
-				    (struct sockaddr *)&newsock->saddr,
-				    &newsock->addr_len, 0);
-
-	num_interfaces = max(num_interfaces, newsock->number);
-	if (!current_interface && newsock->broadcast)
-		current_interface = newsock;
-
-	/* Hook data_ready */
-	newsock->sock->sk->sk_data_ready = cnxman_data_ready;
-
-	/* Make an attempt to keep them in order */
-	list_add_tail(&newsock->list, &socket_list);
-
-	address_length = newsock->addr_len;
-	return 0;
-}
-
-static int __cl_setsockopt(struct socket *sock, int level, int optname,
-			   char *optval, int optlen, int flags)
-{
-	struct file *file;
-	struct cl_join_cluster_info join_info;
-	int error;
-	int leave_flags;
-	struct cl_multicast_sock multicast_info;
-
-	if (optlen && !optval)
-		return -EINVAL;
-
-	switch (optname) {
-	case CLU_SET_MULTICAST:
-	case CLU_SET_RCVONLY:
-		if (!capable(CAP_CLUSTER))
-			return -EPERM;
-
-		if (optlen != sizeof (struct cl_multicast_sock))
-			return -EINVAL;
-
-		if (atomic_read(&cnxman_running))
-			return -EINVAL;
-
-		error = -EBADF;
-
-		if (copy_from_user(&multicast_info, optval, optlen))
-			return -EFAULT;
-
-		file = fget(multicast_info.fd);
-		if (file) {
-			struct inode *inode = file->f_dentry->d_inode;
-
-			error =
-			    add_clsock(optname == CLU_SET_MULTICAST,
-				       multicast_info.number, SOCKET_I(inode),
-				       file);
-			if (error)
-				fput(file);
-		}
-		return error;
-
-	case CLU_SET_NODENAME:
-		if (!capable(CAP_CLUSTER))
-			return -EPERM;
-
-		if (atomic_read(&cnxman_running))
-			return -EINVAL;
-
-		if (optlen > MAX_CLUSTER_MEMBER_NAME_LEN)
-			return -EINVAL;
-
-		if (copy_from_user(nodename, optval, optlen))
-			return -EFAULT;
-		break;
-
-	case CLU_JOIN_CLUSTER:
-		if (!capable(CAP_CLUSTER))
-			return -EPERM;
-
-		if (atomic_read(&cnxman_running))
-			return -EALREADY;
-
-		if (optlen != sizeof (struct cl_join_cluster_info))
-			return -EINVAL;
-
-		if (copy_from_user(&join_info, optval, optlen))
-			return -EFAULT;
-
-		if (strlen(join_info.cluster_name) > MAX_CLUSTER_NAME_LEN)
-			return -EINVAL;
-
-		if (list_empty(&socket_list))
-			return -ENOTCONN;
-
-		set_votes(join_info.votes, join_info.expected_votes);
-		cluster_id = generate_cluster_id(join_info.cluster_name);
-		strncpy(cluster_name, join_info.cluster_name, MAX_CLUSTER_NAME_LEN);
-		two_node = join_info.two_node;
-		config_version = join_info.config_version;
-
-		quit_threads = 0;
-		acks_expected = 0;
-		init_completion(&cluster_thread_comp);
-		init_completion(&member_thread_comp);
-		if (allocate_nodeid_array())
-			return -ENOMEM;
-
-		kcluster_pid = kernel_thread(cluster_kthread, NULL, 0);
-		if (kcluster_pid < 0)
-			return kcluster_pid;
-
-		wait_for_completion(&cluster_thread_comp);
-		init_completion(&cluster_thread_comp);
-
-		atomic_set(&cnxman_running, 1);
-
-		/* Make sure we have a node name */
-		if (nodename[0] == '\0')
-			strcpy(nodename, system_utsname.nodename);
-
-		membership_pid = start_membership_services(kcluster_pid);
-		if (membership_pid < 0) {
-			quit_threads = 1;
-			wait_for_completion(&cluster_thread_comp);
-			init_completion(&member_thread_comp);
-			return membership_pid;
-		}
-
-		sm_start();
-		break;
-
-	case CLU_LEAVE_CLUSTER:
-		if (!capable(CAP_CLUSTER))
-			return -EPERM;
-
-		if (optlen != sizeof (int))
-			return -EINVAL;
-
-		if (copy_from_user(&leave_flags, optval, optlen))
-			return -EFAULT;
-
-		if (!atomic_read(&cnxman_running))
-			return -ENOTCONN;
-
-		if (in_transition())
-			return -EBUSY;
-
-		/* Ignore the use count if FORCE is set */
-		if (!(leave_flags & CLUSTER_LEAVEFLAG_FORCE)) {
-			if (atomic_read(&use_count))
-				return -ENOTCONN;
-		}
-
-		us->leave_reason = leave_flags;
-		quit_threads = 1;
-		wake_up_interruptible(&cnxman_waitq);
-
-		wait_for_completion(&cluster_thread_comp);
-		break;
-
-	default:
-		return -ENOPROTOOPT;
-	}
-
-	return 0;
-}
-
-static int cl_getsockopt(struct socket *sock, int level, int optname,
-			 char *optval, int *optlen)
-{
-	struct sock *sk = sock->sk;
-	int err;
-
-	lock_sock(sk);
-	err = __cl_getsockopt(sock, level, optname, optval, optlen, 0);
-	release_sock(sk);
-
-	return err;
-}
-
-static int __cl_getsockopt(struct socket *sock, int level, int optname,
-			   char *optval, int *optlen, int flags)
-{
-
-	switch (optname) {
-	default:
-		return -ENOPROTOOPT;
-	}
-
-	return 0;
-}
 
 /* We'll be giving out reward points next... */
 /* Send the packet and save a copy in case someone loses theirs. Should be
@@ -4005,7 +3983,7 @@ static struct proto_ops cl_proto_ops = {
 	.listen      = sock_no_listen,
 	.shutdown    = cl_shutdown,
 	.setsockopt  = cl_setsockopt,
-	.getsockopt  = cl_getsockopt,
+	.getsockopt  = sock_no_getsockopt,
 	.sendmsg     = cl_sendmsg,
 	.recvmsg     = cl_recvmsg,
 	.mmap        = sock_no_mmap,
@@ -4035,9 +4013,8 @@ static int __init cluster_init(void)
 	if (!cluster_sk_cachep) {
 		printk(KERN_CRIT
 		       "cluster_init: Cannot create cluster_sock SLAB cache\n");
-		sock_unregister(AF_CLUSTER);   
+		sock_unregister(AF_CLUSTER);
 		return -1;
-
 	}
 
 #ifdef CONFIG_PROC_FS

@@ -25,18 +25,6 @@
 #define CLPROTO_MASTER 2
 #define CLPROTO_CLIENT 3
 
-/* Setsockopt -- maybe should be ioctls?? */
-#define CLU_SET_MULTICAST  100
-#define CLU_JOIN_CLUSTER   101
-#define CLU_LEAVE_CLUSTER  102
-#define CLU_SET_RCVONLY    103
-#define CLU_SET_UNICAST    104
-#define KCL_SET_MULTICAST  105
-#define KCL_SET_RCVONLY    106
-#define KCL_SET_UNICAST    107
-#define KCL_SET_NODENAME   108
-#define CLU_SET_NODENAME   109
-
 /* ioctls -- should register these properly */
 #define SIOCCLUSTER_NOTIFY            _IOW('x', 0x01, int)
 #define SIOCCLUSTER_REMOVENOTIFY      _IO( 'x', 0x02)
@@ -63,6 +51,14 @@
 #define SIOCCLUSTER_SERVICE_SETLEVEL  _IOR('x', 0x80, int)
 #define SIOCCLUSTER_GETNODE	      _IOWR('x', 0x90, struct cl_cluster_node)
 #define SIOCCLUSTER_BARRIER           _IOW('x', 0x0a0, struct cl_barrier_info)
+
+/* These were setsockopts */
+#define SIOCCLUSTER_PASS_SOCKET       _IOW('x', 0x0b0, struct cl_passed_sock)
+#define SIOCCLUSTER_SET_NODENAME      _IOW('x', 0x0b1, char *)
+#define SIOCCLUSTER_SET_NODEID        _IOW('x', 0x0b2, int)
+#define SIOCCLUSTER_JOIN_CLUSTER      _IOW('x', 0x0b3, struct cl_join_cluster_info)
+#define SIOCCLUSTER_LEAVE_CLUSTER     _IOW('x', 0x0b4, int)
+
 
 /* Maximum size of a cluster message */
 #define MAX_CLUSTER_MESSAGE          1500
@@ -109,7 +105,7 @@
 #define MSG_ALLINT    0x100000	/* Send out of all interfaces */
 
 typedef enum { NODESTATE_REMOTEMEMBER, NODESTATE_JOINING, NODESTATE_MEMBER,
-	    NODESTATE_DEAD } nodestate_t;
+	       NODESTATE_DEAD } nodestate_t;
 
 
 struct sockaddr_cl {
@@ -119,13 +115,14 @@ struct sockaddr_cl {
 	int           scl_nodeid;
 };
 
-/* This is how we pass the multicast socket into kernel space. addr is the
- * multicast address to use in the address family of the socket (eg for UDP it
- * might be 255.255.255.0) */
-struct cl_multicast_sock {
+/*
+ * This is how we pass the multicast & receive sockets into kernel space.
+ */
+struct cl_passed_sock {
 	int fd;			/* FD of master socket to do multicast on */
 	int number;		/* Socket number, to match up recvonly & bcast
 				 * sockets */
+        int multicast;          /* Is it multicast or receive ? */
 };
 
 /* Cluster configuration info passed when we join the cluster */
