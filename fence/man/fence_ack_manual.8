@@ -14,7 +14,7 @@ fence_ack_manual - program run by an operator as a part of manual I/O Fencing
 .in
 \fBSYNOPSIS\fP
 .in +7
-\fBfence_ack_manual -s\fP \fIIPaddress\fP
+\fBfence_ack_manual -n\fP \fInodename\fP
 
 .in
 .sp
@@ -40,9 +40,14 @@ Print out a help message describing available options, then exit.
 Run without prompting for user confirmation.
 .sp
 .in
+\fB-n\fP \fInodename\fP
+.in +7
+Name of node that has been reset or disconnected from storage.
+.sp
+.in
 \fB-s\fP \fIIPaddress\fP
 .in +7
-IP address of the machine which has been reset or disconnected from storage.
+IP address of the machine which has been reset or disconnected from storage.  (Deprecated; use -n instead.)
 .sp
 .in
 \fB-V\fP

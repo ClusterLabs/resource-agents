@@ -14,7 +14,7 @@ fence_manual - program run by fenced as a part of manual I/O Fencing
 .in
 \fBSYNOPSIS\fP
 .in +7
-\fBfence_manual -s\fP \fIIPaddress\fP
+\fBfence_manual -n\fP \fInodename\fP
 
 .in
 .sp
@@ -23,7 +23,9 @@ fence_manual - program run by fenced as a part of manual I/O Fencing
 fence_manual is run by fenced.  It creates a fifo and waits for 
 its counter-part fence_ack_manual(8) to acknowledge that a failed node
 has been reset.  fence_ack_manual(8) should only be run after the operator
-has reset the faulty node.
+has reset the faulty node.  While waiting for the manual acknowledgement,
+fence_manual also watches for the faulty node to rejoin the cluster;
+if it does, it's taken as an acknowledgement and completes.
 .sp
 Note:  fence_manual is provided for use during testing and evaluation
 only.  Sites should not use fence_manual as the primary fencing method
@@ -42,10 +44,9 @@ Print out a help message describing available options, then exit.
 quiet mode, no output.
 .sp
 .in
-\fB-s\fP \fIIPaddress\fP
+\fB-n\fP \fInodename\fP
 .in +7
-IP address or hostname of the machine which needs to be reset or disconnected from storage.
-.sp
+The node name (usually hostname) of the machine that needs to be reset or disconnected from shared storage.
 .in
 \fB-V\fP
 .in +7
@@ -62,10 +63,15 @@ Print out a version message, then exit.
 This option is used by fence_node(8) and is ignored by fence_manual.
 .sp
 
+\fI nodename = < param >\fR
+.sp
+The node name (usually hostname) of the machine that needs to be reset or disconnected from storage.
+.sp
+
 \fI ipaddr = < param >\fR
 .sp
-IP address or hostname of the machine which needs to be reset or disconnected from storage.
-.sp
+IP address or hostname of the machine that needs to be reset or disconnected from storage.  (Deprecated; use nodename instead.)
+
 .in -7
 
 
