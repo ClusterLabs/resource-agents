@@ -124,6 +124,8 @@ install: all
 	install -m644 lib/libgulm.a ${libdir}
 	install -d ${incdir}
 	install -m644 lib/libgulm.h ${incdir}
+	cd init.d && ${MAKE} install
+
 
 uninstall:
 	${UNINSTALL} lock_gulmd gulm_tool ${sbindir}
@@ -131,6 +133,7 @@ uninstall:
 	${UNINSTALL} lock_gulmd.8 gulm_tool.8 ${mandir}/man8
 	${UNINSTALL} libgulm.a ${libdir}
 	${UNINSTALL} libgulm.h ${incdir}
+	cd init.d && ${MAKE} uninstall
 	rm -f /lib/libgulm.*
 
 cscope cscope.out: $(gulmd_src) $(tool_src) $(lib_src)
