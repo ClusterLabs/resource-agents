@@ -167,7 +167,11 @@ int get_ccs_join_info(commandline_t *comline)
 			if (error)
 				vote_sum++;
 			else {
-				vote_sum += atoi(str);
+				/* Don't allow -ve votes to screw us up */
+				if (atoi(str) >= 0)
+					vote_sum += atoi(str);
+				else
+					vote_sum++;
 				free(str);
 			}
 		}
@@ -251,6 +255,8 @@ int get_ccs_join_info(commandline_t *comline)
 		error = ccs_get(cd, path, &str);
 		if (!error) {
 			comline->votes = atoi(str);
+			if (comline->votes < 0 || comline->votes > 255)
+				comline->votes = 1;
 			free(str);
 		}
 	}
