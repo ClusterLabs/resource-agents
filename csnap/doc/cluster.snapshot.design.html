@@ -6,11 +6,10 @@
 <body>
 <div style="text-align: center;"><big><big><big><br>
 Clustered Snapshots<br>
-Detailed Design<br>
-<small>(Draft)<br>
+Detailed Design<small><br>
 </small></big></big></big></div>
 <div style="text-align: center;"><big><big><big><small><br>
-Revised May 8, 2004<br>
+Revised October 6, 2004<br>
 </small></big></big></big><big><big><small><br>
 Daniel
 Phillips, Red Hat Inc.</small></big></big><br>
@@ -890,131 +889,207 @@ Prepare write response:<br>
 <br>
 - Caching in client is most of it, and it's optional<br>
 <h1><a class="mozTocH1" name="mozTocId986766"></a>Integration with
-Cluster Infrastructure<br>
-</h1>
-[This section is depends heavily on the cluster management
-infrastructure CMAN and needs updating as a result of recent
-discussions]<br>
-<h2><a class="mozTocH2" name="mozTocId291552"></a>Server Start</h2>
-Server startup is simple: the server replays the journal if necessary,
-reads the root of the btree, reads one entire level of the bitmap
-directory into memory and waits for connections from clients.<br>
-<h2><a class="mozTocH2" name="mozTocId546783"></a>Server Shutdown<br>
-</h2>
-[coming soon]<br>
-<h2><a class="mozTocH2" name="mozTocId763101"></a>Failure Recognition</h2>
-<h3><a class="mozTocH2" name="mozTocId909827"></a>
-Snapshot Server Failure<br>
-</h3>
-A client's connection to the snapshot server may be interrupted in
-several ways:<br>
+Cluster Infrastructure</h1>
+A snapshot client's entire interface with cluster infrastructure takes
+place over a named socket connection to a user space daemon, the csnap
+"agent".&nbsp; This agent is a fairly lightweight program with a simple
+interface that is intended to be customized to a particular operating
+environment.<br>
+<br>
+At present, the only traffic between the device mapper target and the
+user space agent is a three message sequence:<br>
 <ol>
-  <li>Client receives a message from the cluster manager to suspend
-because the server has failed</li>
-  <ul>
-    <li>The client must suspend writes on the origin and all IO on
-snapshots and wait for further messages</li>
-  </ul>
-  <li>Client detects an inconsistency in a snapshot server message</li>
-  <ul>
-    <li>The client must report the error to the cluster manager,
-suspend writes and wait as for 1.<br>
-    </li>
-  </ul>
-  <li>Client fails to receive a response from the server</li>
-  <ul>
-    <li>Same as 2.</li>
-  </ul>
-  <li>Client receives a connection error from the operating system<br>
-  </li>
-  <ul>
-    <li>Same as 2, but with no detection lag<br>
-    </li>
-  </ul>
+  <li>Client requests a&nbsp; server connection</li>
+  <li>Agent responds by opening and passing a server connection to the
+client</li>
+  <li>Client confirms that it successfully established communication
+with the server. </li>
 </ol>
-In any case, failing IO is a last resort and will not be done until the
-client receives a message from the cluster manager to do so, or failure
-of the cluster manager itself is detected.<br>
+For consistency, these messages are all in the same format as messages
+between the client and server, except for 2. which additionally uses a
+file descriptor passing interface operating over the local socket (see
+below).<br>
 <br>
-Case 3. above involves timeouts.&nbsp; I have always hated long
-timeouts with a passion and will go to considerable lengths to
-eliminate them.&nbsp; Therefore, timeouts should be detected at two
-levels.&nbsp; First, the client periodically sends a simple message to
-the server to which the server immediately replies, a
-'challenge'.&nbsp; If the client does not receive a reply within a few
-hundredths a second then the client will suspect that the server is no
-longer available and send a message to the cluster manager to that
-effect, as for 2. above.&nbsp; The cluster manager may decide that the
-timeout is not out of the ordinary and instruct the client that no
-action should be taken, or it may initiate diagnostic and/or remedial
-action before responding.&nbsp; If the server did in fact fail the
-cluster manager should be able to detect that very quickly and start a
-new server immediately.<br>
+The general scheme for snapshot server failover is:<br>
+<ul>
+  <li>The client loses its connection</li>
+  <li>The client tells the userspace service daemon that it lost its
+connection</li>
+  <li>The service daemon contacts rgmanager, or service manager, or
+some definitive source, and asks, "where is the server?"</li>
+  <li>If there is a server, then the client simply tries to reconnect
+to the existing server.</li>
+  <li>If not, then rgmanager will start one, somewhere.</li>
+  <li>After successfully connecting to a new snapshot server, the
+service daemon passes the connection to the client<br>
+  </li>
+</ul>
+(Thanks for expressing this succinctly, Ben)<br>
 <br>
-The snapshot server might be able to respond to a challenge but still
-be unable to handle client requests, for example, because some physical
-device has timed out.&nbsp; The client will impatiently send an inquiry
-to the cluster manager if the server fails to respond after a few
-tenths of a second, that is, with considerably more lag than
-usual.&nbsp; Normally the cluster manager will indicate nothing is
-wrong and the client will send another inquiry after waiting a
-consderably longer time.&nbsp; Thus advised, it is the responsiblity of
-the cluster manager to determine whether the server has failed or
-whether it is just slow.<br>
+If a newly started server has to recover any global state from a
+client, then it must interface with the connection manager of the
+cluster infrastructure to be sure that all clients possessing global
+state that were connected to the previous server incarnation have
+either reconnected or left the cluster.&nbsp;&nbsp; [This interface is
+under construction]<br>
 <br>
-By introducing the challenge/response mechanism and staging timeouts we
-allow true failures to be detected early while introducing only a small
-amount of additional network traffic.<br>
-<h3><a name="mozTocId909827" class="mozTocH2"></a> Cluster Manager
-Failure<br>
-</h3>
-If a message to the cluster manager itself times out then the client
-has no choice but to start failing IO requests.&nbsp; (I would like
-this to happen quickly rather than after a long timeout, but that might
-be difficult to achieve.)<br>
-<h2><a class="mozTocH2" name="mozTocId711483"></a>Server Restart</h2>
-Nothing special needs to be done to start a new server, that is, there
-is no difference between starting an interrupted snapshot server and
-restarting it on the fly.&nbsp; Simply replaying the journal ensures
-that the server is in an internally consistent state and that that
-state is consistent with any write requests that have been
-acknowledged.&nbsp; Any locking state associated with in-progress
-snapshot reads is lost but that does not matter because the reads will
-have completed by the time the reading client reconnects to the new
-server.<br>
+A pleasant property of this cluster snapshot design is that, by adding
+an additional message to the snapshot client read protocol, the need to
+recover global state is eliminated, and so is the need to devise a
+connection manager interface protocol.&nbsp; However, the connection
+manager interface protocol in itself is an interesting and useful
+design excercise, so the current plan is to implement both options.<br>
+<h2>Server Infrastructure Interface</h2>
+[under construction]<br>
 <br>
-Clients do not have to discard their 'unique' caches because all the
-chunks known to be unique will still be unique when the new server is
-started.&nbsp; Similarly, cached snapshot store chunk addresses will
-not have changed because only addresses of unique chunks are cached and
-these addresses will not change.<br>
-<h2><a class="mozTocH1" name="mozTocId407640"></a>Client-Server
-Connections<br>
+- needs something to start it<br>
+&nbsp;&nbsp; - which tells it<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - local name of origin device<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - local name of snapshot store<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - port to bind to<br>
+- that something needs to know only one is started<br>
+<h2>Client Infrastructure Interface<br>
 </h2>
-<h3><a class="mozTocH2" name="mozTocId423442"></a>Initial connection</h3>
-The cluster communications manager is used to open a socket connection
-between the client and snapshot server. [details]<br>
-<h3><a class="mozTocH2" name="mozTocId755654"></a>Disconnect</h3>
-A origin client does not have to do anything special to disconnect for
-the snapshot server and prepare itself for reconnection.&nbsp; A
-snapshot client just has to ensure that any outstanding locked reads
-complete before the client reconnects, because the new server will not
-know about the those reads.&nbsp; Simply allowing the reads to complete
-is simpler than providing a means for retaking the locks on the new
-server.&nbsp; In truth, it is highly unlikely that a new server could
-be started and acknowledge a new, conflicting origin write before the
-outstanding reads complete, but it is best to be sure.<br>
+<h3>Client Connection to Server <br>
+</h3>
+A snapshot or origin client takes the form of a device mapper target
+module, which is a standard kernel module that registers itself with
+device mapper at the time it is initialized, either when the module is
+inserted, or at kernel bootstrap time if the module is built into the
+kernel.&nbsp; The csnap module registers a set of methods with device
+mapper, one of which is the "ctr" (constructor) method.<br>
 <br>
-So on receiving a message from the cluster manager to disconnect from
-the server and origin client simply suspends write requests, a snapshot
-client suspends both reads and writes, and both wait for further
-instructions from the cluster manager.&nbsp; Note that it is not
-necessary for either kind of client to discard its 'unique' cache.<br>
-<h3><a class="mozTocH2" name="mozTocId840922"></a>Reconnect</h3>
-Nothing special needs to be done by the client to connect to a new
-server.&nbsp; The client simply opens a connection to specified
-connection address as specified in the connect message from the cluster
-manager. <br>
+Device mapper can be directed to instantiate a csnap virtual device
+directly via the device mapper ioctl interface (ioctl on the
+/dev/mapper/control device) or indirectly via libdevmapper, or by
+higher level utilities such as dmsetup, LVM2 or EVMS, which use
+libdevmapper, which in turn uses the ioctl interface.&nbsp; To
+instantiate
+the device, device mapper invokes the csnap constructor, passing it a
+set of ascii parameters in much the same form as a C main
+routine.&nbsp; The csnap target expects the
+following parameters:<br>
+<ul>
+  <li>Snapshot number (-1 = origin)</li>
+  <li>Name of the origin physical device<br>
+  </li>
+  <li>Name of the snapshot store physical device<br>
+  </li>
+  <li>Name of a control socket</li>
+</ul>
+The csnap target opens the two "physical" devices (which may themselves
+be virtual devices) and the control socket.&nbsp; If everything is in
+order, initialization completes by sending a message over the control
+socket to request a snapshot server connection.&nbsp; The contructor
+method returns success and device mapper dutifully enters the name of
+the virtual device into the /dev/mapper directory.<br>
+<br>
+At this point the device exists and may receive IO requests, but any
+request received before a server connection is established will merely
+be queued for later processing.&nbsp; A user space agent
+establishes the server connection and passes it to the csnap target
+over the named control socket.&nbsp; To handle failover,
+the agent monitors the control socket connection for
+further server connection requests from the csnap target.<br>
+<br>
+Eventually, the csnap target will receive a server connection over its
+control socket via a fd-passing interface.&nbsp; It then identifies
+itself to the server, and supplies the number of the snapshot it wishs
+to access.&nbsp; The server responds with an error if that snapshot
+does not exist (do we want to have an option to force snapshot creation
+on device initialization, or do we always want to do
+this?).&nbsp;&nbsp; If the server indicates that it is satisfied with
+its new client, the csnap target sends a success message over its
+control socket and proceeds to process any queued IO requests.
+<h3>Client Reconnect<br>
+</h3>
+The client may lose its server connection for one of several reasons:<br>
+<ol>
+  <li>The server fails</li>
+  <li>The connection fails</li>
+  <li>The client sends an erroneous message and the server closes the
+connection</li>
+  <li>The client detects an erroneous reponse from the server or does
+not receive a response</li>
+</ol>
+All these cases are handled the same way: by sending an error message
+over the control socket, then requesting a new connection as for
+initialization.&nbsp; When (if) the target receives a new connection,
+any outstanding requests will be retried starting from the beginning of
+the relevant protocol.&nbsp; In the case of snapshot reads or writes,
+the original query and the actual IO have to be retried, in case a
+newly instantiated snapshot server has allowed some other client to
+overwrite the target data blocks.<br>
+<br>
+The client cannot know the difference between cases 1 and 2, and in any
+case, it handles the two the same way.&nbsp; The external control
+program will try to determine only the client's connection has failed,
+and reestablish it, or if the server has failed, in which case a new
+one has to be started.&nbsp; It will rely on a higher level service in
+the cluster for these determinations, the end result of which should be
+a new server connection, or an unrecoverable error.&nbsp; In cases 3
+and 4, the external control program may decide not to supply a new
+connection but to place the client into an error state instead, so that
+all pending and future IO requests will be failed.<br>
+<br>
+There are two flavors of snapshot read protocol: the "3 message" and
+the "4 message" protocol.&nbsp; The latter provides a confirmation that
+a client's unlock message has been processed by the server, so the
+client knows that a newly instantiated server has not allowed any other
+client to overwrite the data it was reading.&nbsp; In contract, if the
+3 message protocol is used, there is no confirmation of an unlock and
+the client must upload the list of read locks it thinks it holds to the
+new server before the new server will reply to origin write queries on
+behalf of any client.&nbsp; So with the 4 message protocol there is no
+special recovery work for the client to do on server failover, whereas
+with the 3 message protocol, a list of read locks may have to be
+uploaded.<br>
+<br>
+The 4 message protocol is clearly the more robust of the two, though
+only the 3 message protocol is currently implemented.<br>
+<h3><a class="mozTocH2" name="mozTocId763101"></a>Client-side Error
+Detection</h3>
+Currently, the client only detects errors in server reply message
+syntax, which it reports to its user space agent.&nbsp; Traditionally,
+detection of liveness of a server is handled by a cluster heartbeating
+system.&nbsp; However, there are some errors that such a heartbeating
+system will not detect, such as a stuck request, which the server
+receives but never responds to, or a case where the client's connection
+to the server breaks while the heatbeat system's does not.&nbsp; For
+robustness, it is planned to incorporate additional timing-based error
+detection into the client, including:<br>
+<ul>
+  <li>Stuck request detection</li>
+  <li>Liveness of server connection</li>
+</ul>
+Because the client is designed to fail over transparently, it is
+acceptable to make a pessimistic determination of failure, where a
+response that is simply slow is treated as if it will never
+arrive.&nbsp; In either case, the client will report the error to its
+user space agent&nbsp; and wait for instructions, meanwhile attempting
+to continue processing IO requests.&nbsp; The agent in turn will pass
+the error on to a higher level: to a cluster, to a human operator, or
+both.<br>
+<br>
+A stuck request will typically indicate a client or server
+bug.&nbsp;&nbsp; In such a case, it is highly desirable to provide
+accurate fault-isolation information to a central cluster manager as
+opposed to silently leaving a user application stuck in a kernel
+D-state.<br>
+<h3><a name="mozTocId909827" class="mozTocH2"></a> User Space Agent
+Failure</h3>
+The user space agent is a local process and is considered reliable, so
+no failover action is attempted if fails or if the client's connection
+to the agent breaks.&nbsp; The client will respond by failing all
+outstanding and future IO requests.&nbsp; This situation could only
+arise from a bug, administrator error or similar.&nbsp; To recover, the
+device mapper device needs to be removed and recreated.<br>
+<br>
+One possible exception to this might be a feature to permit live
+upgrade of the agent.&nbsp; The adminstrator kills the agent and starts
+a new, improved agent, while the client attempts to reconnect to the
+agent in a polling loop.&nbsp; Though it is not clear at this point why
+anyone would need such a feature, it would be easy to provide.<br>
 <h1><a class="mozTocH1" name="mozTocId373989"></a>Performance
 Characteristics</h1>
 <h2><a class="mozTocH2" name="mozTocId206505"></a>Effect of chunk size</h2>
