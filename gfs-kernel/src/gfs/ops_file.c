@@ -1213,6 +1213,50 @@ gfs_ioctl(struct inode *inode, struct file *file,
 }
 
 /**
+ * gfs_mmap - We don't support shared writable mappings right now
+ * @file: The file to map
+ * @vma: The VMA which described the mapping
+ *
+ * Returns: 0 or error code
+ */
+
+static int
+gfs_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs_holder i_gh;
+	int error;
+
+	atomic_inc(&ip->i_sbd->sd_ops_file);
+
+	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &i_gh);
+	error = gfs_glock_nq_atime(&i_gh);
+	if (error) {
+		gfs_holder_uninit(&i_gh);
+		return error;
+	}
+
+	if (gfs_is_jdata(ip)) {
+		if (vma->vm_flags & VM_MAYSHARE)
+			error = -ENOSYS;
+		else
+			vma->vm_ops = &gfs_vm_ops_private;
+	} else {
+		/* This is VM_MAYWRITE instead of VM_WRITE because a call
+		   to mprotect() can turn on VM_WRITE later. */
+
+		if ((vma->vm_flags & (VM_MAYSHARE | VM_MAYWRITE)) == (VM_MAYSHARE | VM_MAYWRITE))
+			vma->vm_ops = &gfs_vm_ops_sharewrite;
+		else
+			vma->vm_ops = &gfs_vm_ops_private;
+	}
+
+	gfs_glock_dq_uninit(&i_gh);
+
+	return error;
+}
+
+/**
  * gfs_open - open a file
  * @inode: the inode to open
  * @file: the struct file for this opening
@@ -1353,6 +1397,136 @@ gfs_fsync(struct file *file, struct dentry *dentry, int datasync)
 }
 
 /**
+ * do_plock - acquire/release a posix lock on a file
+ * @file: the file pointer
+ * @cmd: either modify or retrieve lock state, possibly wait
+ * @fl: type and range of lock
+ *
+ * Returns: errno
+ */
+
+static int
+do_plock(struct file *file, int cmd, struct file_lock *fl)
+{
+	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs_sbd *sdp = ip->i_sbd;
+	struct lm_lockname name =
+		{ .ln_number = ip->i_num.no_formal_ino,
+		  .ln_type = LM_TYPE_PLOCK };
+	int error;
+
+	if (sdp->sd_args.ar_localflocks)
+		return LOCK_USE_CLNT;
+
+	if (IS_GETLK(cmd)) {
+		uint64_t start, end;
+		int ex;
+		unsigned long pid;
+
+		error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
+			sdp->sd_lockstruct.ls_lockspace,
+			&name, (unsigned long)fl->fl_owner,
+			&start, &end, &ex, &pid);
+		if (error < 0)
+			return error;
+
+		fl->fl_type = F_UNLCK;
+		if (!error)
+			return error;
+
+		fl->fl_start = start;
+		fl->fl_end = end;
+		fl->fl_pid = pid;
+		fl->fl_type = (ex) ? F_WRLCK : F_RDLCK;
+
+		error = 0;
+
+	} else if (fl->fl_type == F_UNLCK)
+		error = sdp->sd_lockstruct.ls_ops->lm_punlock(
+			sdp->sd_lockstruct.ls_lockspace,
+			&name, (unsigned long)fl->fl_owner,
+			fl->fl_start, fl->fl_end);
+
+	else
+		error = sdp->sd_lockstruct.ls_ops->lm_plock(
+			sdp->sd_lockstruct.ls_lockspace,
+			&name, (unsigned long)fl->fl_owner,
+			IS_SETLKW(cmd), (fl->fl_type == F_WRLCK),
+			fl->fl_start, fl->fl_end);
+
+	return error;
+}
+
+/**
+ * gfs_lock - acquire/release a flock or posix lock on a file
+ * @file: the file pointer
+ * @cmd: either modify or retrieve lock state, possibly wait
+ * @fl: type and range of lock
+ *
+ * Returns: errno
+ */
+
+static int
+gfs_lock(struct file *file, int cmd, struct file_lock *fl)
+{
+	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
+	int error = 0;
+
+	atomic_inc(&ip->i_sbd->sd_ops_file);
+
+	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
+		return -ENOLCK;
+
+	if (fl->fl_flags & FL_POSIX)
+		error = do_plock(file, cmd, fl);
+
+	else
+		error = -ENOLCK;
+
+	return error;
+}
+
+/**
+ * gfs_sendfile - Send bytes to a file or socket
+ * @in_file: The file to read from
+ * @out_file: The file to write to
+ * @count: The amount of data
+ * @offset: The beginning file offset
+ *
+ * Outputs: offset - updated according to number of bytes read
+ *
+ * Returns: The number of bytes sent, -EXXX on failure
+ */
+
+static ssize_t
+gfs_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t actor, void __user *target)
+{
+	struct gfs_inode *ip = vn2ip(in_file->f_mapping->host);
+	struct gfs_holder gh;
+	ssize_t retval;
+
+	atomic_inc(&ip->i_sbd->sd_ops_file);
+
+	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &gh);
+
+	retval = gfs_glock_nq_atime(&gh);
+	if (retval)
+		goto out;
+
+	if (gfs_is_jdata(ip))
+		retval = -ENOSYS;
+	else 
+		retval = generic_file_sendfile(in_file, offset, count, actor, target);
+
+	gfs_glock_dq(&gh);
+
+ out:
+	gfs_holder_uninit(&gh);
+
+	return retval;
+}
+
+/**
  * do_flock - Acquire a flock on a file
  * @file:
  * @cmd:
@@ -1437,7 +1611,7 @@ do_unflock(struct file *file, struct file_lock *fl)
 }
 
 /**
- * do_plock - acquire/release a posix lock on a file
+ * gfs_flock - acquire/release a flock lock on a file
  * @file: the file pointer
  * @cmd: either modify or retrieve lock state, possibly wait
  * @fl: type and range of lock
@@ -1446,68 +1620,7 @@ do_unflock(struct file *file, struct file_lock *fl)
  */
 
 static int
-do_plock(struct file *file, int cmd, struct file_lock *fl)
-{
-	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
-	struct gfs_sbd *sdp = ip->i_sbd;
-	struct lm_lockname name =
-		{ .ln_number = ip->i_num.no_formal_ino,
-		  .ln_type = LM_TYPE_PLOCK };
-	int error;
-
-	if (sdp->sd_args.ar_localflocks)
-		return LOCK_USE_CLNT;
-
-	if (IS_GETLK(cmd)) {
-		uint64_t start, end;
-		int ex;
-		unsigned long pid;
-
-		error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			&start, &end, &ex, &pid);
-		if (error < 0)
-			return error;
-
-		fl->fl_type = F_UNLCK;
-		if (!error)
-			return error;
-
-		fl->fl_start = start;
-		fl->fl_end = end;
-		fl->fl_pid = pid;
-		fl->fl_type = (ex) ? F_WRLCK : F_RDLCK;
-
-		error = 0;
-
-	} else if (fl->fl_type == F_UNLCK)
-		error = sdp->sd_lockstruct.ls_ops->lm_punlock(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			fl->fl_start, fl->fl_end);
-
-	else
-		error = sdp->sd_lockstruct.ls_ops->lm_plock(
-			sdp->sd_lockstruct.ls_lockspace,
-			&name, (unsigned long)fl->fl_owner,
-			IS_SETLKW(cmd), (fl->fl_type == F_WRLCK),
-			fl->fl_start, fl->fl_end);
-
-	return error;
-}
-
-/**
- * gfs_lock - acquire/release a flock or posix lock on a file
- * @file: the file pointer
- * @cmd: either modify or retrieve lock state, possibly wait
- * @fl: type and range of lock
- *
- * Returns: errno
- */
-
-static int
-gfs_lock(struct file *file, int cmd, struct file_lock *fl)
+gfs_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
 	int error = 0;
@@ -1523,95 +1636,8 @@ gfs_lock(struct file *file, int cmd, struct file_lock *fl)
 		else
 			error = do_flock(file, cmd, fl);
 
-	} else if (fl->fl_flags & FL_POSIX)
-		error = do_plock(file, cmd, fl);
-
-	else
+	} else
 		error = -ENOLCK;
-
-	return error;
-}
-
-/**
- * gfs_sendfile - Send bytes to a file or socket
- * @in_file: The file to read from
- * @out_file: The file to write to
- * @count: The amount of data
- * @offset: The beginning file offset
- *
- * Outputs: offset - updated according to number of bytes read
- *
- * Returns: The number of bytes sent, -EXXX on failure
- */
-
-static ssize_t
-gfs_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t actor, void __user *target)
-{
-	struct gfs_inode *ip = vn2ip(in_file->f_mapping->host);
-	struct gfs_holder gh;
-	ssize_t retval;
-
-	atomic_inc(&ip->i_sbd->sd_ops_file);
-
-	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &gh);
-
-	retval = gfs_glock_nq_atime(&gh);
-	if (retval)
-		goto out;
-
-	if (gfs_is_jdata(ip))
-		retval = -ENOSYS;
-	else 
-		retval = generic_file_sendfile(in_file, offset, count, actor, target);
-
-	gfs_glock_dq(&gh);
-
- out:
-	gfs_holder_uninit(&gh);
-
-	return retval;
-}
-
-/**
- * gfs_mmap - We don't support shared writable mappings right now
- * @file: The file to map
- * @vma: The VMA which described the mapping
- *
- * Returns: 0 or error code
- */
-
-static int
-gfs_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct gfs_inode *ip = vn2ip(file->f_mapping->host);
-	struct gfs_holder i_gh;
-	int error;
-
-	atomic_inc(&ip->i_sbd->sd_ops_file);
-
-	gfs_holder_init(ip->i_gl, LM_ST_SHARED, GL_ATIME, &i_gh);
-	error = gfs_glock_nq_atime(&i_gh);
-	if (error) {
-		gfs_holder_uninit(&i_gh);
-		return error;
-	}
-
-	if (gfs_is_jdata(ip)) {
-		if (vma->vm_flags & VM_MAYSHARE)
-			error = -ENOSYS;
-		else
-			vma->vm_ops = &gfs_vm_ops_private;
-	} else {
-		/* This is VM_MAYWRITE instead of VM_WRITE because a call
-		   to mprotect() can turn on VM_WRITE later. */
-
-		if ((vma->vm_flags & (VM_MAYSHARE | VM_MAYWRITE)) == (VM_MAYSHARE | VM_MAYWRITE))
-			vma->vm_ops = &gfs_vm_ops_sharewrite;
-		else
-			vma->vm_ops = &gfs_vm_ops_private;
-	}
-
-	gfs_glock_dq_uninit(&i_gh);
 
 	return error;
 }
@@ -1627,6 +1653,7 @@ struct file_operations gfs_file_fops = {
 	.fsync = gfs_fsync,
 	.lock = gfs_lock,
 	.sendfile = gfs_sendfile,
+	.flock = gfs_flock,
 };
 
 struct file_operations gfs_dir_fops = {
@@ -1636,4 +1663,5 @@ struct file_operations gfs_dir_fops = {
 	.release = gfs_close,
 	.fsync = gfs_fsync,
 	.lock = gfs_lock,
+	.flock = gfs_flock,
 };

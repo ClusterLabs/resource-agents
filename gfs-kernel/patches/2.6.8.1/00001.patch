@@ -1,7 +1,7 @@
 # Make the VFS call down into the FS on flock calls.
 diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
 --- linux-2.6.8.1/fs/locks.c	2004-08-23 09:21:15.000000000 -0500
-+++ linux/fs/locks.c	2004-08-27 11:48:41.761779306 -0500
++++ linux/fs/locks.c	2004-08-31 15:31:18.709980313 -0500
 @@ -718,6 +718,33 @@ out:
  	return error;
  }
@@ -36,28 +36,38 @@ diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
  EXPORT_SYMBOL(posix_lock_file);
  
  static int __posix_lock_file(struct inode *inode, struct file_lock *request)
-@@ -1342,6 +1369,13 @@ asmlinkage long sys_flock(unsigned int f
+@@ -1342,17 +1369,12 @@ asmlinkage long sys_flock(unsigned int f
  	if (error)
  		goto out_free;
  
-+	if (filp->f_op && filp->f_op->lock) {
-+		error = filp->f_op->lock(filp,
-+					(can_sleep) ? F_SETLKW : F_SETLK,
-+					lock);
-+		goto out_free;
-+	}
-+
- 	for (;;) {
- 		error = flock_lock_file(filp, lock);
- 		if ((error != -EAGAIN) || !can_sleep)
-@@ -1707,6 +1741,12 @@ void locks_remove_flock(struct file *fil
+-	for (;;) {
+-		error = flock_lock_file(filp, lock);
+-		if ((error != -EAGAIN) || !can_sleep)
+-			break;
+-		error = wait_event_interruptible(lock->fl_wait, !lock->fl_next);
+-		if (!error)
+-			continue;
+-
+-		locks_delete_block(lock);
+-		break;
+-	}
++	if (filp->f_op && filp->f_op->flock)
++		error = filp->f_op->flock(filp,
++					  (can_sleep) ? F_SETLKW : F_SETLK,
++					  lock);
++	else
++		error = flock_lock_file_wait(filp, lock);
+ 
+  out_free:
+ 	if (list_empty(&lock->fl_link)) {
+@@ -1707,6 +1729,12 @@ void locks_remove_flock(struct file *fil
  	if (!inode->i_flock)
  		return;
  
-+	if (filp->f_op && filp->f_op->lock) {
++	if (filp->f_op && filp->f_op->flock) {
 +		struct file_lock fl = { .fl_flags = FL_FLOCK,
 +					.fl_type = F_UNLCK };
-+		filp->f_op->lock(filp, F_SETLKW, &fl);
++		filp->f_op->flock(filp, F_SETLKW, &fl);
 +	}	
 +
  	lock_kernel();
@@ -65,7 +75,7 @@ diff -urN -p linux-2.6.8.1/fs/locks.c linux/fs/locks.c
  
 diff -urN -p linux-2.6.8.1/include/linux/fs.h linux/include/linux/fs.h
 --- linux-2.6.8.1/include/linux/fs.h	2004-08-23 09:21:21.000000000 -0500
-+++ linux/include/linux/fs.h	2004-08-27 11:47:36.256005757 -0500
++++ linux/include/linux/fs.h	2004-08-31 15:27:29.585833998 -0500
 @@ -687,6 +687,7 @@ extern int posix_lock_file(struct file *
  extern void posix_block_lock(struct file_lock *, struct file_lock *);
  extern void posix_unblock_lock(struct file *, struct file_lock *);
@@ -74,3 +84,11 @@ diff -urN -p linux-2.6.8.1/include/linux/fs.h linux/include/linux/fs.h
  extern int __break_lease(struct inode *inode, unsigned int flags);
  extern void lease_get_mtime(struct inode *, struct timespec *time);
  extern int lock_may_read(struct inode *, loff_t start, unsigned long count);
+@@ -894,6 +895,7 @@ struct file_operations {
+ 	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
+ 	int (*check_flags)(int);
+ 	int (*dir_notify)(struct file *filp, unsigned long arg);
++	int (*flock) (struct file *, int, struct file_lock *);
+ };
+ 
+ struct inode_operations {
