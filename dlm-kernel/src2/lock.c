@@ -10,9 +10,15 @@
 *******************************************************************************
 ******************************************************************************/
 
-/* DLM locking routines to replace locking.c/lockqueue.c
-   This file should be split up. */
-
+#include "dlm_internal.h"
+#include "memory.h"
+#include "lowcomms.h"
+#include "requestqueue.h"
+#include "util.h"
+#include "dir.h"
+#include "member.h"
+#include "lockspace.h"
+#include "astd.h"
 
 /* Central locking logic has four stages:
 
@@ -62,6 +68,10 @@
    L: receive_xxxx_reply()     <-  R: send_xxxx_reply()
 */
 
+struct list_head dlm_waiters;
+struct semaphore dlm_waiters_sem;
+struct list_head ast_queue;
+struct semaphore ast_queue_lock;
 
 /*
  * Threads cannot use the lockspace while it's being recovered
@@ -82,6 +92,16 @@ int lock_recovery_try(struct dlm_ls *ls)
 	return down_read_trylock(&ls->ls_in_recovery);
 }
 
+int dlm_dir_remove(struct dlm_rsb *r)
+{
+	int to_nodeid = dlm_dir_nodeid(r);
+
+	if (to_nodeid != dlm_our_nodeid())
+		send_remove(r);
+	else
+		dlm_dir_remove_entry(r->res_ls, 0, r->res_name, r->res_length);
+	return 0;
+}
 
 /*
  * Basic operations on rsb's and lkb's
@@ -104,13 +124,13 @@ struct dlm_rsb *create_rsb(struct dlm_ls *ls, char *name, int len)
 	INIT_LIST_HEAD(&r->res_grantqueue);
 	INIT_LIST_HEAD(&r->res_convertqueue);
 	INIT_LIST_HEAD(&r->res_waitqueue);
-	INIT_LIST_HEAD(&r->res_rootres);
+	INIT_LIST_HEAD(&r->res_rootlist);
 
 	return r;
 }
 
 int search_rsb_list(struct list_head *head, char *name, int len,
-		    unsigned int flags struct dlm_rsb **r_ret)
+		    unsigned int flags, struct dlm_rsb **r_ret)
 {
 	struct dlm_rsb *r;
 	int error = 0;
@@ -170,11 +190,13 @@ int search_rsb(struct dlm_ls *ls, char *name, int len, int b,
  * excessive master lookups and removals if we don't delay the release.
  */
 
+#if 0
 #define R_MASTER		(1)	/* create/add rsb if not found */
 #define R_CREATE		(2)	/* only return rsb if it's a master */
+#endif
 
 int find_rsb(struct dlm_ls *ls, char *name, int namelen, unsigned int flags,
-	     struct dlm_rsb **r_ret);
+	     struct dlm_rsb **r_ret)
 {
 	struct dlm_rsb *r, *tmp;
 	uint32_t bucket;
@@ -205,7 +227,6 @@ int find_rsb(struct dlm_ls *ls, char *name, int namelen, unsigned int flags,
 		goto out;
 
 	r->res_bucket = bucket;
-	r->res_root = r;
 	r->res_nodeid = -1;
 	kref_init(&r->res_ref);
 
@@ -236,11 +257,12 @@ void hold_rsb(struct dlm_rsb *r)
 void toss_rsb(struct kref *kref)
 {
 	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
+	struct dlm_ls *ls = r->res_ls;
 
 	DLM_ASSERT(list_empty(&r->res_rootlist),);
 	list_del(&r->res_hashchain);
 	kref_init(&r->res_ref);
-	list_add(&r->res_hashchain, &ls->ls_rsbtbl[bucket].toss);
+	list_add(&r->res_hashchain, &ls->ls_rsbtbl[r->res_bucket].toss);
 	r->res_toss_time = jiffies;
 }
 
@@ -249,7 +271,9 @@ void toss_rsb(struct kref *kref)
 
 void put_rsb(struct dlm_rsb *r)
 {
+	struct dlm_ls *ls = r->res_ls;
 	uint32_t bucket = r->res_bucket;
+
 	write_lock(&ls->ls_rsbtbl[bucket].lock);
 	kref_put(&r->res_ref, toss_rsb);
 	write_unlock(&ls->ls_rsbtbl[bucket].lock);
@@ -259,7 +283,8 @@ void put_rsb(struct dlm_rsb *r)
 
 void unhold_rsb(struct dlm_rsb *r)
 {
-	DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),);
+	/* DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),); */
+	kref_put(&r->res_ref, toss_rsb);
 }
 
 void kill_rsb(struct kref *kref)
@@ -273,12 +298,14 @@ void kill_rsb(struct kref *kref)
 
 void shrink_rsb_list(struct dlm_ls *ls, struct list_head *head)
 {
+#if 0
 	struct dlm_rsb *r, *safe;
 
 	list_for_each_entry_safe(r, safe, head, res_hashchain) {
 		if (toss_time_due(ls, r))
 			kref_put(&r->res_ref, kill_rsb);
 	}
+#endif
 }
 
 void shrink_tossed_rsbs(struct dlm_ls *ls)
@@ -339,12 +366,29 @@ void dlm_release_root_list(struct dlm_ls *ls)
 
 void lock_rsb(struct dlm_rsb *r)
 {
-	down(&r->res_sema);
+	down(&r->res_sem);
 }
 
 void unlock_rsb(struct dlm_rsb *r)
 {
-	up(&r->res_sema);
+	up(&r->res_sem);
+}
+
+/* Attaching/detaching lkb's from rsb's is for rsb reference counting.
+   The rsb must exist as long as any lkb's for it do. */
+
+void attach_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
+{
+	hold_rsb(r);
+	lkb->lkb_resource = r;
+}
+
+void detach_lkb(struct dlm_lkb *lkb)
+{
+	if (lkb->lkb_resource) {
+		put_rsb(lkb->lkb_resource);
+		lkb->lkb_resource = NULL;
+	}
 }
 
 void kill_lkb(struct kref *kref)
@@ -424,10 +468,13 @@ int find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
 
 int put_lkb(struct dlm_lkb *lkb)
 {
+	struct dlm_ls *ls = lkb->lkb_resource->res_ls;
 	uint16_t bucket = lkb->lkb_id & 0xFFFF;
-	int rv;
+	int rv = 0;
+
 	write_lock(&ls->ls_lkbtbl[bucket].lock);
-	rv = kref_put(&lkb->lkb_ref, kill_lkb);
+	/* rv = kref_put(&lkb->lkb_ref, kill_lkb); */
+	kref_put(&lkb->lkb_ref, kill_lkb);
 	write_unlock(&ls->ls_lkbtbl[bucket].lock);
 	return rv;
 }
@@ -439,7 +486,8 @@ int put_lkb(struct dlm_lkb *lkb)
 
 void unhold_lkb(struct dlm_lkb *lkb)
 {
-	DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),);
+	/* DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),); */
+	kref_put(&lkb->lkb_ref, kill_lkb);
 }
 
 /* add lkb to rsb's grant/convert/wait queue */
@@ -485,23 +533,6 @@ void del_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	unhold_lkb(lkb);
 }
 
-/* Attaching/detaching lkb's from rsb's is for rsb reference counting.
-   The rsb must exist as long as any lkb's for it do. */
-
-void attach_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
-{
-	hold_rsb(r);
-	lkb->lkb_resource = r;
-}
-
-void detach_lkb(struct dlm_lkb *lkb)
-{
-	if (lkb->lkb_resource) {
-		put_rsb(lkb->lkb_resource);
-		lkb->lkb_resource = NULL;
-	}
-}
-
 void add_to_waiters(struct dlm_lkb *lkb, int mstype)
 {
 	down(&dlm_waiters_sem);
@@ -516,7 +547,7 @@ void add_to_waiters(struct dlm_lkb *lkb, int mstype)
 	up(&dlm_waiters_sem);
 }
 
-int _remove_from_waiters(dlm_lkb *lkb)
+int _remove_from_waiters(struct dlm_lkb *lkb)
 {
 	int error = 0;
 
@@ -532,23 +563,13 @@ int _remove_from_waiters(dlm_lkb *lkb)
 	return error;
 }
 
-int remove_from_waiters(dlm_lkb *lkb)
+int remove_from_waiters(struct dlm_lkb *lkb)
 {
 	int error;
 	down(&dlm_waiters_sem);
 	error = _remove_from_waiters(lkb);
 	up(&dlm_waiters_sem);
 	return error;
-}
-
-int dlm_dir_remove(struct dlm_rsb *r)
-{
-	int to_nodeid = dlm_dir_nodeid(r);
-
-	if (to_nodeid != dlm_our_nodeid())
-		send_remove(r);
-	else
-		dlm_dir_remove_entry(0, r->res_name, r->res_namelen);
 }
 
 
@@ -666,7 +687,7 @@ int set_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, int mode,
 	return rv;
 }
 
-int set_unlock_args(struct dlm_ls *ls, struct dlm_lks *lkb, uint32_t flags,
+int set_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 		    struct dlm_lksb *lksb, void *astarg)	
 {
 	int rv = -EINVAL;
@@ -698,7 +719,7 @@ int set_unlock_args(struct dlm_ls *ls, struct dlm_lks *lkb, uint32_t flags,
  * These are called on the node making the request.
  */
 
-int dlm_lock(void *lockspace,
+int dlm_lock(dlm_lockspace_t *lockspace,
 	     int mode,
 	     struct dlm_lksb *lksb,
 	     uint32_t flags,
@@ -721,7 +742,7 @@ int dlm_lock(void *lockspace,
 	lock_recovery(ls);
 
 	if (flags & DLM_LKF_CONVERT)
-		error = find_lkb(ls, lksb->sb_id, &lkb);
+		error = find_lkb(ls, lksb->sb_lkid, &lkb);
 	else
 		error = create_lkb(ls, &lkb);
 
@@ -750,7 +771,7 @@ int dlm_lock(void *lockspace,
 	return error;
 }
 
-int dlm_unlock(void *lockspace,
+int dlm_unlock(dlm_lockspace_t *lockspace,
 	       uint32_t lkid,
 	       uint32_t flags,
 	       struct dlm_lksb *lksb,
@@ -874,6 +895,8 @@ int dlm_unlock(void *lockspace,
  
 int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
+	int error;
+
 	if (r->res_trial_lkb == lkb) {
 		r->res_nodeid = -1;
 		lkb->lkb_nodeid = -1;
@@ -943,7 +966,7 @@ void confirm_master(struct dlm_rsb *r, int rv)
 {
 	struct dlm_lkb *lkb, *safe;
 
-	if (!test_bit((RESFL_MASTER_UNCERTAIN, &r->res_flags)))
+	if (!test_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags))
 		return;
 
 	if (rv == 0 || rv == -EBUSY) {
@@ -969,7 +992,8 @@ void confirm_master(struct dlm_rsb *r, int rv)
 		/* clearing MASTER_WAIT allows this lkb to become the
 		   trial lkb when _request_lock calls set_master */
 
-		lkb = list_entry(r->res_lookup.next);
+		lkb = list_entry(r->res_lookup.next, struct dlm_lkb,
+				 lkb_rsb_lookup);
 		list_del(&lkb->lkb_rsb_lookup);
 		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
 		_request_lock(r, lkb);
@@ -999,7 +1023,7 @@ int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name, int len)
 	unlock_rsb(r);
 	put_rsb(r);
 
-	lkb->lkb_lksb->sb_id = lkb->lkb_id;
+	lkb->lkb_lksb->sb_lkid = lkb->lkb_id;
 	return error;
 }
 
@@ -1137,13 +1161,24 @@ int _cancel_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
  * (Many routines from locking.c can be used here with minor change.)
  */
 
+void add_ast_list(struct dlm_lkb *lkb, int type)
+{
+	down(&ast_queue_lock);
+	if (!(lkb->lkb_ast_type & (AST_COMP | AST_BAST))) {
+		kref_get(&lkb->lkb_ref);
+		list_add_tail(&lkb->lkb_astqueue, &ast_queue);
+	}
+	lkb->lkb_ast_type |= type;
+	up(&ast_queue_lock);
+}
+
 void queue_cast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 {
 	if (is_master_copy(lkb))
 		return;
 
-	lkb->lkb_lksb.sb_status = rv;
-	lkb->lkb_lksb.sb_flags = lkb->lkb_sbflags;
+	lkb->lkb_lksb->sb_status = rv;
+	lkb->lkb_lksb->sb_flags = lkb->lkb_sbflags;
 
 	add_ast_list(lkb, AST_COMP);
 }
@@ -1158,25 +1193,14 @@ void queue_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rqmode)
 	}
 }
 
-void add_ast_list(struct dlm_lkb *lkb, int type)
-{
-	down(&ast_queue_lock);
-	if (!(lkb->lkb_ast_type & (AST_COMP | AST_BAST))) {
-		kref_get(&lkb->lkb_ref);
-		list_add_tail(&lkb->lkb_astqueue, &ast_queue);
-	}
-	lkb->lkb_ast_type |= type;
-	up(&ast_queue_lock);
-}
-
-void process_asts(void)
+void dlm_process_asts(void)
 {
 	struct dlm_ls *ls = NULL;
 	struct dlm_rsb *r = NULL;
 	struct dlm_lkb *lkb;
 	void (*cast) (long param);
 	void (*bast) (long param, int mode);
-	int type, found;
+	int type, found, bmode;
 
 	for (;;) {
 		found = FALSE;
@@ -1305,7 +1329,7 @@ void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	if (!(lkb->lkb_flags & DLM_IFL_RETURNLVB))
 		return;
 
-	memcpy(lkb->lkb_lvb, ms->m_lvb, DLM_LVB_SIZE);
+	memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
 	lkb->lkb_lvbseq = ms->m_lvbseq;
 }
 
@@ -1472,6 +1496,7 @@ int can_be_granted(struct dlm_rsb *r, struct dlm_lkb *lkb, int now)
 {
 	/* same as current, but DEMOTED set in lkb_sbflags and
 	   check DLM_LKF flags in lkb->lkb_exflags */
+	return 0;
 }
 
 int can_be_queued(struct dlm_lkb *lkb)
@@ -1492,24 +1517,23 @@ int is_demoted(struct dlm_lkb *lkb)
 int is_remote(struct dlm_rsb *r)
 {
 	DLM_ASSERT(r->res_nodeid >= 0, );
-	return (r->res_nodeid ? 1 : 0);
+	return r->res_nodeid;
 }
 
 int is_local_copy(struct dlm_lkb *lkb)
 {
-	return (!lkb->lkb_nodeid && !(lkb->lkb_flags & DLM_LKF_MSTCPY));
+	return (!lkb->lkb_nodeid && !(lkb->lkb_flags & DLM_IFL_MSTCPY));
 }
  
 int is_process_copy(struct dlm_lkb *lkb)
 {
-	return (lkb->lkb_nodeid && !(lkb->lkb_flags & DLM_LKF_MSTCPY));
+	return (lkb->lkb_nodeid && !(lkb->lkb_flags & DLM_IFL_MSTCPY));
 }
 
 int is_master_copy(struct dlm_lkb *lkb)
 {
-	return (lkb->lkb_nodeid && (lkb->lkb_flags & DLM_LKF_MSTCPY));
+	return (lkb->lkb_nodeid && (lkb->lkb_flags & DLM_IFL_MSTCPY));
 }
-
 
 /*
  * Four stage 4 varieties:
@@ -1522,7 +1546,7 @@ int do_request(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	int error = 0;
 
-	if (can_be_granted(r, lkb, TRUE))
+	if (can_be_granted(r, lkb, TRUE)) {
 		grant_lock(r, lkb);
 		queue_cast(r, lkb, 0);
 		goto out;
@@ -1550,7 +1574,7 @@ int do_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	/* changing an existing lock may allow others to be granted */
 
-	if (can_be_granted(r, lkb, TRUE))
+	if (can_be_granted(r, lkb, TRUE)) {
 		grant_lock(r, lkb);
 		queue_cast(r, lkb, 0);
 		grant_pending_locks(r);
@@ -1559,7 +1583,7 @@ int do_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	if (can_be_queued(lkb)) {
 		if (is_demoted(lkb))
-			grant_pending_locks(r, lkb);
+			grant_pending_locks(r);
 		error = -EBUSY;
 		add_lkb(r, lkb, DLM_LKSTS_CONVERT);
 		send_blocking_asts(r, lkb);
@@ -1670,7 +1694,9 @@ int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 
 int send_message(struct dlm_mhandle *mh)
 {
+	/* FIXME: add byte order munging */
 	lowcomms_commit_buffer(mh);
+	return 0;
 }
 
 void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb, struct dlm_message *ms)
@@ -1695,18 +1721,13 @@ void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb, struct dlm_message *ms)
 	if (lkb->lkb_astaddr)
 		ms->m_asts |= AST_COMP;
 
-	if (lkb->lkb_parent) {
-		ms->m_lkid_parent = lkb->lkb_parent->lkb_id;
-		ms->m_remlkid_parent = lkb->lkb_parent->lkb_remid;
-	}
-
 	if (lkb->lkb_range) {
 		ms->m_range[0] = lkb->lkb_range[RQ_RANGE_START];
 		ms->m_range[1] = lkb->lkb_range[RQ_RANGE_END];
 	}
 
 	if (lkb->lkb_lvbptr)
-		memcpy(ms->m_lvb, lkb->lkb_lvbptr, DLM_LVB_SIZE);
+		memcpy(ms->m_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
 	
 	if (ms->m_type == DLM_MSG_REQUEST || ms->m_type == DLM_MSG_LOOKUP)
 		memcpy(ms->m_name, r->res_name, r->res_length);
@@ -1951,8 +1972,7 @@ int receive_namelen(struct dlm_message *ms)
 	return (ms->m_header.h_length - sizeof(struct dlm_message));
 }
 
-int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb,
-		  struct dlm_message *ms)
+int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	if (lkb->lkb_flags & DLM_IFL_RANGE) {
 		lkb->lkb_range = allocate_range(ls);
@@ -1961,10 +1981,10 @@ int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		lkb->lkb_range[RQ_RANGE_START] = ms->m_range[0];
 		lkb->lkb_range[RQ_RANGE_END] = ms->m_range[1];
 	}
+	return 0;
 }
 
-int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb,
-		struct dlm_message *ms)
+int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	if (lkb->lkb_exflags & DLM_LKF_VALBLK) {
 		if (!lkb->lkb_lvbptr) {
@@ -1974,10 +1994,10 @@ int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		}
 		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
 	}
+	return 0;
 }
 
-int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
-			 struct dlm_message *ms)
+int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	lkb->lkb_nodeid = ms->m_header.h_nodeid;
 	lkb->lkb_ownpid = ms->m_pid;
@@ -1986,7 +2006,6 @@ int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	lkb->lkb_rqmode = ms->m_rqmode;
 	lkb->lkb_bastaddr = (void *) (long) (ms->m_asts & AST_BAST);
 	lkb->lkb_astaddr = (void *) (long) (ms->m_asts & AST_COMP);
-	lkb->lkb_parent = ms->m_remlkid_parent;
 
 	if (receive_range(ls, lkb, ms))
 		return -ENOMEM;
@@ -1997,8 +2016,7 @@ int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	return 0;
 }
 
-int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
-			 struct dlm_message *ms)
+int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	lkb->lkb_rqmode = ms->m_rqmode;
 	lkb->lkb_lvbseq = ms->m_lvbseq;
@@ -2015,8 +2033,7 @@ int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	return 0;
 }
 
-int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
-			struct dlm_message *ms)
+int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
@@ -2108,7 +2125,7 @@ void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 		goto fail;
 
 	receive_flags(lkb, ms);
-	error = receive_unlock_args(lkb, ms);
+	error = receive_unlock_args(ls, lkb, ms);
 	if (error) {
 		put_lkb(lkb);
 		goto fail;
@@ -2142,7 +2159,7 @@ void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
 
 	receive_flags(lkb, ms);
 
-	r = lkb->resource;
+	r = lkb->lkb_resource;
 
 	hold_rsb(r);
 	lock_rsb(r);
@@ -2218,7 +2235,7 @@ void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 	len = receive_namelen(ms);
 
-	dir_nodeid = name_to_directory_nodeid(ls, ms->m_name, namelen);
+	dir_nodeid = name_to_directory_nodeid(ls, ms->m_name, len);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		error = -EINVAL;
 		ret_nodeid = -1;
@@ -2232,7 +2249,7 @@ void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
 {
-	int len, error, dir_nodeid, from_nodeid;
+	int len, dir_nodeid, from_nodeid;
 
 	from_nodeid = ms->m_header.h_nodeid;
 
@@ -2245,10 +2262,7 @@ void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
 		return;
 	}
 
-	error = dlm_dir_remove_entry(from_nodeid, ms->m_name, len);
-	if (error)
-		log_error(ls, "remove dir entry error %d from %d",
-			  error, from_nodeid);
+	dlm_dir_remove_entry(ls, from_nodeid, ms->m_name, len);
 }
 
 void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
@@ -2491,7 +2505,7 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	/* now follow pattern of xxx_lock() functions.
 	   this is basically request_lock() again */
 
-	r = lkb->resource;
+	r = lkb->lkb_resource;
 	hold_rsb(r);
 	lock_rsb(r);
 
@@ -2517,7 +2531,6 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 void receive_fail_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
-	struct dlm_rsb *r;
 	int error;
 
 	error = find_lkb(ls, ms->m_lkid, &lkb);
@@ -2536,7 +2549,7 @@ void receive_fail_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	}
 
 	/* not clear what to do here, a completion ast with m_result? */
-
+ out:
 	put_lkb(lkb);
 }
 
@@ -2544,6 +2557,9 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 {
 	struct dlm_message *ms = (struct dlm_message *) hd;
 	struct dlm_ls *ls;
+	int error;
+
+	/* FIXME: do byte swapping here */
 
 	ls = find_lockspace_global(hd->h_lockspace);
 	if (!ls)
@@ -2580,77 +2596,78 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 
 	/* messages sent to a master node */
 
-	DLM_MSG_REQUEST:
+	case DLM_MSG_REQUEST:
 		receive_request(ls, ms);
 		break;
 
-	DLM_MSG_CONVERT:
+	case DLM_MSG_CONVERT:
 		receive_convert(ls, ms);
 		break;
 
-	DLM_MSG_UNLOCK:
+	case DLM_MSG_UNLOCK:
 		receive_unlock(ls, ms);
 		break;
 
-	DLM_MSG_CANCEL:
+	case DLM_MSG_CANCEL:
 		receive_cancel(ls, ms);
 		break;
 
 	/* messages sent from a master node (replies to above) */
 
-	DLM_MSG_REQUEST_REPLY:
+	case DLM_MSG_REQUEST_REPLY:
 		receive_request_reply(ls, ms);
 		break;
 
-	DLM_MSG_CONVERT_REPLY:
+	case DLM_MSG_CONVERT_REPLY:
 		receive_convert_reply(ls, ms);
 		break;
 
-	DLM_MSG_UNLOCK_REPLY:
+	case DLM_MSG_UNLOCK_REPLY:
 		receive_unlock_reply(ls, ms);
 		break;
 
-	DLM_MSG_CANCEL_REPLY:
+	case DLM_MSG_CANCEL_REPLY:
 		receive_cancel_reply(ls, ms);
 		break;
 
-	DLM_MSG_FAIL_REPLY:
+	case DLM_MSG_FAIL_REPLY:
 		receive_fail_reply(ls, ms);
 		break;
 
 	/* messages sent from a master node (only two types of async msg) */
 
-	DLM_MSG_GRANT:
+	case DLM_MSG_GRANT:
 		receive_grant(ls, ms);
 		break;
 
-	DLM_MSG_BAST:
+	case DLM_MSG_BAST:
 		receive_bast(ls, ms);
 		break;
 
 	/* messages sent to a dir node */
 
-	DLM_MSG_LOOKUP:
+	case DLM_MSG_LOOKUP:
 		receive_lookup(ls, ms);
 		break;
 
-	DLM_MSG_REMOVE:
+	case DLM_MSG_REMOVE:
 		receive_remove(ls, ms);
 		break;
 
 	/* messages sent from a dir node */
 
-	DLM_MSG_LOOKUP_REPLY:
+	case DLM_MSG_LOOKUP_REPLY:
 		receive_lookup_reply(ls, ms);
 		break;
 
 	default:
-		log_error("unknown message type %d", ms->m_type);
+		log_error(ls, "unknown message type %d", ms->m_type);
 	}
 
 	unlock_recovery(ls);
+ out:
 	put_lockspace(ls);
-	wake_astd();
+	dlm_astd_wake();
 	return 0;
 }
 
@@ -2670,7 +2687,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 		/* we only need to do pre-recovery if the node the lkb
 		   is waiting on is gone */
 
-		if (!dlm_node_gone(r->res_nodeid))
+		if (!dlm_is_removed(ls, r->res_nodeid))
 			continue;
 
 		log_debug(ls, "pre recover waiter lkid %x type %d flags %x %s",
@@ -2679,11 +2696,11 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 
 		switch (lkb->lkb_wait_type) {
 
-		DLM_MSG_REQUEST:
+		case DLM_MSG_REQUEST:
 			lkb->lkb_flags |= DLM_IFL_RESEND;
 			break;
 
-		DLM_MSG_CONVERT:
+		case DLM_MSG_CONVERT:
 			lkb->lkb_flags |= DLM_IFL_RESEND;
 
 			/* FIXME: don't think this flag is needed any more
@@ -2692,7 +2709,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			lkb->lkb_flags |= DLM_IFL_CONVERTING;
 			break;
 
-		DLM_MSG_UNLOCK:
+		case DLM_MSG_UNLOCK:
 			/* follow receive_unlock_reply() and pretend we
 			   received an unlock reply from the former master */
 
@@ -2719,7 +2736,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			put_lkb(lkb);
 			break;
 
-		DLM_MSG_CANCEL:
+		case DLM_MSG_CANCEL:
 			/* follow receive_cancel_reply() and pretend we
 			   received a cancel reply from the former master */
 
@@ -2741,7 +2758,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			put_lkb(lkb);
 			break;
 
-		DLM_MSG_LOOKUP:
+		case DLM_MSG_LOOKUP:
 			/* all outstanding lookups, regardless of dest.
 			   will be resent after recovery is done */
 			break;
@@ -2848,17 +2865,19 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 	return error;
 }
 
+#if 0
+
 /*
  * Lock block
  *
  * A lock can be one of three types:
  *
  * local copy      lock is mastered locally
- *                 (lkb_nodeid is zero and DLM_LKF_MSTCPY is not set)
+ *                 (lkb_nodeid is zero and DLM_IFL_MSTCPY is not set)
  * process copy    lock is mastered on a remote node
- *                 (lkb_nodeid is non-zero and DLM_LKF_MSTCPY is not set)
+ *                 (lkb_nodeid is non-zero and DLM_IFL_MSTCPY is not set)
  * master copy     master node's copy of a lock owned by remote node
- *                 (lkb_nodeid is non-zero and DLM_LKF_MSTCPY is set)
+ *                 (lkb_nodeid is non-zero and DLM_IFL_MSTCPY is set)
  *
  * lkb_exflags: a copy of the most recent flags arg provided to dlm_lock or
  * dlm_unlock.  The dlm does not modify these or use any private flags in
@@ -3042,6 +3061,9 @@ struct dlm_ls {
 #define DLM_HEADER_MAJOR	(0x00020000)
 #define DLM_HEADER_MINOR	(0x00000001)
 
+#define DLM_MSG			(1)
+#define DLM_RCOM		(2)
+
 struct dlm_header {
 	uint32_t		h_version;
 	uint32_t		h_lockspace;
@@ -3050,6 +3072,21 @@ struct dlm_header {
 	uint8_t			h_cmd;		/* DLM_MSG, DLM_RCOM */
 	uint8_t			h_pad;
 };
+
+#define DLM_MSG_REQUEST		(1)
+#define DLM_MSG_CONVERT		(2)
+#define DLM_MSG_UNLOCK		(3)
+#define DLM_MSG_CANCEL		(4)
+#define DLM_MSG_REQUEST_REPLY	(5)
+#define DLM_MSG_CONVERT_REPLY	(6)
+#define DLM_MSG_UNLOCK_REPLY	(7)
+#define DLM_MSG_CANCEL_REPLY	(8)
+#define DLM_MSG_FAIL_REPLY	(9)
+#define DLM_MSG_GRANT		(10)
+#define DLM_MSG_BAST		(11)
+#define DLM_MSG_LOOKUP		(12)
+#define DLM_MSG_REMOVE		(13)
+#define DLM_MSG_LOOKUP_REPLY	(14)
 
 struct dlm_message {
 	struct dlm_header	m_header;
@@ -3075,13 +3112,22 @@ struct dlm_message {
 	char			m_name[0];
 };
 
-struct dlm_rcom {
-	struct dlm_header	m_header;
+#define DLM_RCOM_STATUS		(1)
+#define DLM_RCOM_NAMES		(2)
+#define DLM_RCOM_LOOKUP		(3)
+#define DLM_RCOM_LOCKS		(4)
+#define DLM_RCOM_STATUS_REPLY	(5)
+#define DLM_RCOM_NAMES_REPLY	(6)
+#define DLM_RCOM_LOOKUP_REPLY	(7)
+#define DLM_RCOM_LOCKS_REPLY	(8)
 
+struct dlm_rcom {
+	struct dlm_header	rc_header;
+	uint32_t		rc_type;	/* DLM_RCOM_ */
+	uint32_t		rc_msgid;
+	uint32_t		rc_datalen;
+	char			rc_buf[1];
 };
 
-struct dlm_query_request {
-	struct dlm_header	m_header;
-
-}
+#endif
 
