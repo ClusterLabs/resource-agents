@@ -63,6 +63,7 @@ static void print_usage(void)
 	printf("\n");
 
 	printf("leave\n");
+	printf("  -w               If cluster is in transition, wait and keep trying\n");
 	printf("  remove           Tell other nodes to ajust quorum downwards if necessary\n");
 	printf("  force            Leave even if cluster subsystems are active\n");
 
@@ -149,9 +150,15 @@ static void leave(commandline_t *comline)
 		flags |= CLUSTER_LEAVEFLAG_FORCE;
 	}
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_LEAVE_CLUSTER,
-			    flags)))
-		die("error leaving cluster");
+	do {
+		result = ioctl(cluster_sock, SIOCCLUSTER_LEAVE_CLUSTER, flags);
+		if (errno == EBUSY && comline->wait_opt)
+			sleep(1);
+
+	} while (errno == EBUSY && comline->wait_opt);
+
+	if (result)
+		die("Error leaving cluster: %s", strerror(errno));
 
 	close(cluster_sock);
 }
