@@ -738,6 +738,7 @@ int dlm_unlock(void *lockspace,
 
 int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags)
 {
+	int remote = lkb->lkb_flags & GDLM_LKFLG_MSTCPY;
 	int old_status;
 
 	down_write(&rsb->res_lock);
@@ -796,15 +797,16 @@ int dlm_unlock_stage2(gd_lkb_t *lkb, gd_res_t *rsb, uint32_t flags)
 	}
 
 	lkb->lkb_retstatus = flags & DLM_LKF_CANCEL ? -DLM_ECANCEL:-DLM_EUNLOCK;
-	queue_ast(lkb, AST_COMP | AST_DEL, 0);
+
+	if (!remote)
+		queue_ast(lkb, AST_COMP | AST_DEL, 0);
 
 	/*
 	 * Only free the LKB if we are the master copy.  Otherwise the AST
-	 * delivery routine will free it after delivery.  queue_ast for MSTCPY
-	 * lkb just sends a message.
+	 * delivery routine will free it after delivery.
 	 */
 
-	if (lkb->lkb_flags & GDLM_LKFLG_MSTCPY) {
+	if (remote) {
 		up_write(&rsb->res_lock);
 		release_lkb(rsb->res_ls, lkb);
 		release_rsb(rsb);
