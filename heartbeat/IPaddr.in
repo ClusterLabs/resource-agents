@@ -13,6 +13,22 @@
 #       OCF parameters are as below
 #               OCF_RESKEY_ipaddr
 #
+#######################################################################
+# Initialization:
+
+. @hb_libdir@/ocf-shellfuncs
+
+IFCONFIG=@IFCONFIG@
+IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
+SENDARP=$HA_BIN/send_arp
+FINDIF=$HA_BIN/findif
+VLDIR=$VARLIB/rsctmp/IPaddr
+SENDARPPIDDIR=$VARLIB/rsctmp/send_arp
+VARLIB=@localstatedir@/lib/@HB_PKG@
+ROUTE=@ROUTE@
+USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
+
+#######################################################################
 export LC_ALL=C
 
 prefix=@prefix@
@@ -21,15 +37,6 @@ HA_D=@sysconfdir@/ha.d
 CONF_D=@sysconfdir@/ha.d/conf
 . ${HA_D}/shellfuncs
 
-IFCONFIG=@IFCONFIG@
-IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
-VARLIB=@localstatedir@/lib/@HB_PKG@
-VLDIR=$VARLIB/rsctmp/IPaddr
-SENDARPPIDDIR=$VARLIB/rsctmp/send_arp
-ROUTE=@ROUTE@
-SENDARP=$HA_BIN/send_arp
-FINDIF=$HA_BIN/findif
-USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
 SYSTYPE="`uname -s`"
 case "$SYSTYPE" in
     SunOS)
@@ -104,6 +111,47 @@ You can specify an additional label for your IP address here.
 <shortdesc lang="en">Interface label</shortdesc>
 <content type="string" default=""/>
 </parameter>
+
+<parameter name="ARP_INTERVAL_MS">
+<longdesc lang="en">
+milliseconds between ARPs
+</longdesc>
+<shortdesc lang="en">milliseconds between ARPs</shortdesc>
+<content type="integer" default="500"/>
+</parameter>
+
+<parameter name="ARP_REPEAT">
+<longdesc lang="en">
+repeat count
+</longdesc>
+<shortdesc lang="en">repeat count</shortdesc>
+<content type="integer" default="10"/>
+</parameter>
+
+<parameter name="ARP_BACKGROUND">
+<longdesc lang="en">
+run in background (no longer any reason to do this)
+</longdesc>
+<shortdesc lang="en">run in background</shortdesc>
+<content type="boolean" default="yes"/>
+</parameter>
+
+<parameter name="ARP_NETMASK">
+<longdesc lang="en">
+netmask for ARP
+</longdesc>
+<shortdesc lang="en">netmask for ARP</shortdesc>
+<content type="string" default="ffffffffffff"/>
+</parameter>
+
+<parameter name="remove_conflicting_loopback">
+<longdesc lang="en">
+netmask for ARP
+</longdesc>
+<shortdesc lang="en">netmask for ARP</shortdesc>
+<content type="string" default="ffffffffffff"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -132,12 +180,17 @@ ip_init() {
         #
         # $FINDIF can deal with the condition of empty intermediate parameters.
         #
-         NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
-         ocf_log "NICINFO=$NICINFO"
-         NIC=`echo "$NICINFO" | cut -f1`
-         NETMASK=`echo "$NICINFO" | cut -f2-`
-         BRDCAST=`echo "$NICINFO" | cut -f3`
+        NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
+        ocf_log "NICINFO=$NICINFO"
+        NIC=`echo "$NICINFO" | cut -f1`
+        NETMASK=`echo "$NICINFO" | cut -f2-`
+        BRDCAST=`echo "$NICINFO" | cut -f3`
 
+	# Set default values (can be overridden as parameters)
+	: ${OCF_RESKEY_ARP_INTERVAL_MS=500}
+	: ${OCF_RESKEY_ARP_REPEAT=10}
+	: ${OCF_RESKEY_ARP_BACKGROUND=yes}
+	: ${OCF_RESKEY_ARP_NETMASK=ffffffffffff}
 
         SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
 
@@ -250,7 +303,7 @@ find_interface() {
        esac
 
   echo $IF
-  return OCF_SUCCESS;
+  return $OCF_SUCCESS;
 }
 
 #
@@ -417,7 +470,6 @@ restore_loopback() {
 #
 ip_stop() {
 #  BASEIP=`echo $1 | sed s'%/.*%%'`
-  ip_init
   SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
   IF=`find_interface $BASEIP`
 
@@ -584,39 +636,40 @@ find_free_interface() {
 #
 
 ip_start() {
-  ip_init
   #
   #	Do we already service this IP address?
   #
-  case `ip_status ` in
-    *unning*)   exit $OCF_SUCCESS;
-  esac
+  CURRENTIF=`ip_status`
+  rc=$?
+
+  # this is dodgy... should be using a return code
+  if [ $rc = $OCF_SUCCESS ]; then
+      exit $OCF_SUCCESS;
+  fi
 
   SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
-
-  case $SYSTYPE in
-    Linux|SunOS)
-		CURRENTIF=`find_interface "$BASEIP"`
-       		case $CURRENTIF in
-         	  lo*)
-            		remove_conflicting_loopback "$BASEIP" "$CURRENTIF"
-            		;;
-            	  *)	;;
-    		esac ;;
-    *)		;;
-  esac
 
   if IFINFO=`find_free_interface `; then
   	: OK got interface [$IFINFO] for $BASEIP 
   else
-  	exit OCF_ERR_GENERIC
+  	exit $OCF_ERR_GENERIC
   fi
+
   IF=`echo "$IFINFO" | cut -f1`
 
-  if
-    [ -x $HA_RCDIR/local_takeip ]
-  then
-    $HA_RCDIR/local_takeip $*
+  if [ $rc = $OCF_SUCCESS_VARIANT ]; then
+      case $SYSTYPE in
+	  Linux|SunOS)
+       	      case $IF in
+         	  lo*) exit $OCF_SUCCESS;; # Its not moving, nothing to do.
+            	  *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
+    	      esac ;;
+	  *)		;;
+      esac
+  fi
+
+  if [ -x $HA_RCDIR/local_takeip ]; then
+      $HA_RCDIR/local_takeip $*
   fi
 
   add_interface "$BASEIP" "$IFINFO" "$IF"
@@ -633,62 +686,41 @@ ip_start() {
 
   ocf_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
 
-  [ -r ${CONF_D}/arp_config ] && . ${CONF_D}/arp_config
-  [ -r "${CONF_D}/arp_config:${TARGET_INTERFACE}" ] && . "${CONF_D}/arp_config:${TARGET_INTERFACE}"
-
-  # Set default values (can be overridden as described above)
-
-  : ${ARP_INTERVAL_MS=500}	# milliseconds between ARPs
-  : ${ARP_REPEAT=10}		# repeat count
-  : ${ARP_BACKGROUND=yes}	# no to run in foreground (no longer any reason to do this)
-  : ${ARP_NETMASK=ffffffffffff}	# netmask for ARP
-  
-
-  ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $TARGET_INTERFACE $BASEIP auto $BASEIP $ARP_NETMASK"
+  ARGS="-i $OCF_RESKEY_ARP_INTERVAL_MS -r $OCF_RESKEY_ARP_REPEAT -p $SENDARPPIDFILE $TARGET_INTERFACE $BASEIP auto $BASEIP $OCF_RESKEY_ARP_NETMASK"
   ocf_log "$SENDARP $ARGS"
-  case $ARP_BACKGROUND in
+  case $OCF_RESKEY_ARP_BACKGROUND in
     yes) ($SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps")&;;
     *)	  $SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps";;
   esac
 }
 
 ip_status() {
-  IF=`find_interface $BASEIP`
 
   case $SYSTYPE in
-    *BSD)
-	if
-		$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
-	then
-		echo "running"
-	else
-		echo "stopped"; return $OCF_ERR_UNIMPLEMENTED
-	fi;;
-
+      *BSD)
+	  if [ $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1 ]; then
+	      return $OCF_SUCCESS
+	  else
+	      return $OCF_NOT_RUNNING
+	  fi;;
+      
     Linux|SunOS)		
-	if
-		[ -z "$IF" ]
-	then
-		echo "stopped"; return $OCF_ERR_UNIMPLEMENTED
-	else
+	  IF=`find_interface "$BASEIP"`
+	  if [ -z "$IF" ]; then
+	      return $OCF_NOT_RUNNING
+	  else
 		case $IF in
-		  lo*)
-			echo "loopback"
-			;;
-		  *)
-			echo "running"
-			;;
+		    lo*)  return $OCF_SUCCESS_VARIANT;;
+		    *)	  return $OCF_SUCCESS;;
 		esac
-	fi;;
-   *)		
-	if
-		[ -z "$IF" ]
-	then
-		echo "stopped"; return $OCF_ERR_UNIMPLEMENTED
-	else
-		echo "running"
-	fi;;
- esac
+	  fi;;
+      *)		
+	  if [ -z "$IF" ]; then
+	      return $OCF_NOT_RUNNING
+	  else
+	      return $OCF_SUCCESS
+	  fi;;
+  esac
 }
 
 #
@@ -696,7 +728,6 @@ ip_status() {
 #	Note that we don't distinguish if *we're* serving it locally...
 #
 ip_monitor() {
-  ip_init
   TIMEOUT=1 # seconds
   case $SYSTYPE in
         Linux)
@@ -715,11 +746,10 @@ ip_monitor() {
     if
       @PING@ $PINGARGS >/dev/null 2>&1
     then
-      echo "Running"
       return $OCF_SUCCESS 
     fi
   done
-  echo "Stopped"
+
   return $OCF_NOT_RUNNING
 }
 
@@ -760,19 +790,11 @@ then
   exit $OCF_ERR_GENERIC
 fi
 
-if 
-  ( [ X$OCF_RA_VERSION_MAJOR != "X" ] && [ $OCF_RA_VERSION_MAJOR -ne 1 ] )  ||
-  ( [ X$OCF_RA_VERSION_MINOR != "X" ] && [ $OCF_RA_VERSION_MINOR -ne 0 ] )
-then
-  echo incompatible API version
-  exit
-fi
-
 case $1 in
-  start)	ip_start ;;
-  stop)		ip_stop ;;
-  status)	ip_status ;;
-  monitor)	ip_monitor ;;
+  start)	ip_init; ip_start ;;
+  stop)		ip_init; ip_stop ;;
+  status)	ip_init; ip_status ;;
+  monitor)	ip_init; ip_monitor ;;
   meta-data)	meta_data;;
   *)		usage
  		exit 1
