@@ -1267,7 +1267,7 @@ int lowcomms_start(void)
 	/* Start listening */
 	error = listen_for_all();
 	if (error)
-		goto fail_free_slab;
+		goto fail_unlisten;
 
 	error = daemons_start();
 	if (error)
@@ -1279,12 +1279,12 @@ int lowcomms_start(void)
 
       fail_unlisten:
 	close_connection(connections[0], 0);
+	kmem_cache_free(con_cache, connections[0]);
 	list_for_each_entry_safe(lcon, temp, &listen_sockets, listenlist) {
 		sock_release(lcon->sock);
 		kmem_cache_free(con_cache, lcon);
 	}
 
-      fail_free_slab:
 	kmem_cache_destroy(con_cache);
 
       fail_free_conn:
