@@ -34,7 +34,7 @@
 
 #define trace trace_off
 #define jtrace trace_off
-#undef BUSHY
+#define BUSHY
 
 /*
 Todo:
@@ -637,6 +637,13 @@ unsigned leaf_freespace(struct eleaf *leaf)
 	return (char *)emap(leaf, 0) - maptop;
 }
 
+unsigned leaf_payload(struct eleaf *leaf)
+{
+	int lower = (char *)(&leaf->map[leaf->count]) - (char *)leaf->map;
+	int upper = (char *)emap(leaf, leaf->count) - (char *)emap(leaf, 0);
+	return lower + upper;
+}
+
 int add_exception_to_leaf(struct eleaf *leaf, u64 chunk, u64 exception, int snapshot, u64 active)
 {
 	unsigned i, j, target = chunk - leaf->base_chunk;
@@ -644,7 +651,9 @@ int add_exception_to_leaf(struct eleaf *leaf, u64 chunk, u64 exception, int snap
 	struct exception *ins, *exceptions = emap(leaf, 0);
 	char *maptop = (char *)(&leaf->map[leaf->count + 1]); // include sentinel
 	int free = (char *)exceptions - maptop
-// - 10
+#ifdef BUSHY
+ - 10
+#endif
 ;
 	trace(warn("chunk %Lx exception %Lx, snapshot = %i", chunk, exception, snapshot);)
 
@@ -771,7 +780,7 @@ void init_leaf(struct eleaf *leaf, int block_size)
 #define SB_DIRTY 1
 #define SB_LOC 8
 
-void mark_sb_dirty(struct superblock *sb)
+void set_sb_dirty(struct superblock *sb)
 {
 	sb->flags |= SB_DIRTY;
 }
@@ -847,7 +856,7 @@ void free_chunk(struct superblock *sb, chunk_t chunk)
 	clear_bitmap_bit(buffer->data, chunk & bitmap_mask);
 	brelse_dirty(buffer);
 	sb->image.freechunks++;
-	mark_sb_dirty(sb); // !!! optimize this away
+	set_sb_dirty(sb); // !!! optimize this away
 }
 
 #if 0
@@ -889,7 +898,7 @@ chunk_t alloc_chunk_range(struct superblock *sb, chunk_t chunk, chunk_t range)
 						set_bitmap_bit(buffer->data, chunk & bitmap_mask);
 						brelse_dirty(buffer);
 						sb->image.freechunks--;
-						mark_sb_dirty(sb); // !!! optimize this away
+						set_sb_dirty(sb); // !!! optimize this away
 						return chunk;
 					}
 			}
@@ -914,7 +923,7 @@ chunk_t alloc_chunk(struct superblock *sb)
 		error("snapshot store full, do something");
 success:
 	sb->image.last_alloc = found;
-	mark_sb_dirty(sb); // !!! optimize this away
+	set_sb_dirty(sb); // !!! optimize this away
 	return (found);
 }
 
@@ -1154,7 +1163,7 @@ void add_exception_to_tree(struct superblock *sb, struct buffer *leafbuf, u64 ta
 	newroot->entries[1].sector = childsector;
 	sb->image.etree_root = newrootbuf->sector;
 	sb->image.etree_levels++;
-	mark_sb_dirty(sb);
+	set_sb_dirty(sb);
 	brelse_dirty(newrootbuf);
 }
 #define chunk_highbit ((sizeof(chunk_t) * 8) - 1)
@@ -1298,7 +1307,7 @@ create:
 	snapshot = sb->image.snaplist + sb->image.snapshots++;
 	*snapshot = (struct snapshot){ .tag = snaptag, .bit = i, .create_time = time(NULL) };
 	sb->snapmask |= (1ULL << i);
-	mark_sb_dirty(sb);
+	set_sb_dirty(sb);
 	return i;
 };
 
@@ -1372,144 +1381,141 @@ void delete_snapshots_from_tree(struct superblock *sb, u64 snapmask)
 	};
 }
 
+/*
+ * Delete algorithm (flesh this out)
+ *
+ * reached the end of an index block:
+ *    try to merge with an index block in hold[]
+ *    if can't merge then maybe can rebalance
+ *    if can't merge then release the block in hold[] and move this block to hold[]
+ *    can't merge if there's no block in hold[] or can't fit two together
+ *    if can merge
+ *       release and free this index block and
+ *       delete from parent:
+ *         if parent count zero, the grantparent key is going to be deleted, updating the pivot
+ *         otherwise parent's deleted key becomes new pivot 
+*/
+
+static inline struct enode *path_node(struct etree_path path[], int level)
+{
+	return buffer2node(path[level].buffer);
+}
+
+static inline int finished_level(struct etree_path path[], int level)
+{
+	struct buffer *nodebuf = path[level].buffer;
+	struct enode *parent = buffer2node(nodebuf);
+	return path[level].pnext == parent->entries + parent->count;
+}
+
+void delete_index(struct etree_path path[], int level)
+{
+	struct enode *node = buffer2node(path[level].buffer);
+	int count = node->count, i;
+	chunk_t pivot = (path[level].pnext)->key; // !!! out of bounds for delete of last from full index
+
+	// stomps the node count (if 0th key holds count)
+	memmove(path[level].pnext - 1, path[level].pnext, (char *)&node->entries[count] - (char *)path[level].pnext);
+	node->count = count - 1;
+	--(path[level].pnext);
+
+	// no pivot for last entry
+	if (path[level].pnext == node->entries + node->count)
+		return;
+
+	// climb up to common parent and set pivot to deleted key
+	// what if index is now empty? (no deleted key)
+	// then some key above is going to be deleted and used to set pivot
+	if (path[level].pnext == node->entries && level) {
+		for (i = level - 1; path[i].pnext - 1 == buffer2node(path[i].buffer)->entries; i--)
+			if (!i)
+				return;
+		(path[i].pnext - 1)->key = pivot;
+		set_buffer_dirty(path[i].buffer);
+	}
+}
+
 void delete_tree_range(struct superblock *sb, u64 snapmask, chunk_t start, unsigned leaves)
 {
 	int levels = sb->image.etree_levels, level = levels - 1;
-	struct etree_path path[levels], left[levels];
-	struct buffer *leafbuf, *nodebuf, *prevleaf = NULL;
-	struct enode *node;
+	struct etree_path path[levels], hold[levels];
+	struct buffer *leafbuf, *prevleaf = NULL;
 	unsigned i;
 
-	for (i = 0; i < levels; i++)
-		left[i] = (struct etree_path){ };
+	for (i = 0; i < levels; i++) // can be initializer if not dynamic array (change it?)
+		hold[i] = (struct etree_path){ };
 
 	leafbuf = probe(sb, start, path);
-	nodebuf = path[level].buffer;
-	node = buffer2node(nodebuf);
 
-int try = 999;
 	while (1) {
-		show_leaf(buffer2leaf(leafbuf));
-		delete_snapshots_from_tree(sb, snapmask);
+		trace_off(show_leaf(buffer2leaf(leafbuf));)
+		delete_snapshots_from_leaf(sb, buffer2leaf(leafbuf), snapmask);
+
 		if (prevleaf) {
-			trace_on(warn("check leaf %p against %p", leafbuf, prevleaf);)
 			struct eleaf *this = buffer2leaf(leafbuf), *prev = buffer2leaf(prevleaf);
-			int fluff = leaf_freespace(this) + sizeof(struct eleaf) + sizeof(struct etree_map);
-			unsigned size = prev->map[prev->count].offset;
-trace_off(warn("free = %i, fluff = %i, blocksize = %i", leaf_freespace(prev), fluff, size);)
-			
-			if (try && leaf_freespace(prev) >= size - fluff) {
-try--;
-				int count = node->count;
-				trace_on(warn(">>> can merge leaf %p into leaf %p", leafbuf, prevleaf);)
+			trace_off(warn("check leaf %p against %p", leafbuf, prevleaf);)
+			trace_off(warn("need = %i, free = %i", leaf_payload(this), leaf_freespace(prev));)
+			if (leaf_payload(this) <= leaf_freespace(prev)) {
+				trace_off(warn(">>> can merge leaf %p into leaf %p", leafbuf, prevleaf);)
 				merge_leaves(prev, this);
-				// delete this from index node
-				// no pivot for last entry
-				chunk_t pivot = (path[level].pnext)->key;
-				memmove(path[level].pnext - 1, path[level].pnext, (char *)&node->entries[count] - (char *)path[level].pnext);
-				node->count = count - 1;
-
-				--(path[level].pnext);
-
-				if (path[level].pnext == node->entries + node->count)
-					goto no_pivot;
-
-				// loop up to common parent and update pivot to deleted key
-				// what if index is now empty? (no deleted key)
-				// then eventually a key above is going to be deleted and used to set pivot
-				if (path[level].pnext == node->entries && level) {
-					for (i = level - 1; path[i].pnext - 1 == buffer2node(path[i].buffer)->entries; i--)
-						if (!i)
-							goto no_pivot;
-					(path[i].pnext - 1)->key = pivot;
-					set_buffer_dirty(path[i].buffer);
-no_pivot:				;
-				}
+				delete_index(path, level);
 				brelse(leafbuf);
-				goto keep_it;
+				goto keep_prev_leaf;
 			}
 			brelse(prevleaf);
 		}
 		prevleaf = leafbuf;
-keep_it:
+keep_prev_leaf:
 		if (!--leaves) {
 			brelse(prevleaf);
 //			brelse_path(path, level + 1);
 			return;
 		}
 
-		if (path[level].pnext == node->entries + node->count) {
-			do {
-				// reached the end of an index block
-				// try to merge with an index block in left[]
-				// if can't merge then maybe can rebalance
-				// if can't merge then release the block in left[] and move this block to left[]
-				// can't merge if there's no block in left[] or can't fit two together
-				// if can merge
-				   // release and free this index block and
-				   // delete from parent:
-				   //   if parent count zero, the grantparent key is going to be deleted, updating the pivot
-				   //   otherwise parent's deleted key becomes new pivot 
-				if (1 && left[level].buffer) {
-					assert(level); // root node can't have any prec
-					warn("check node %p against %p", nodebuf, left[level].buffer);
-					struct enode *this = buffer2node(nodebuf), *prev = buffer2node(left[level].buffer);
-warn("this count = %i prev count = %i max = %i", this->count, prev->count, sb->blocks_per_node);
+		if (finished_level(path, level)) {
+			do { /* merge and pop finished index nodes */
+				if (hold[level].buffer) {
+					assert(level); // root node can't have any prev
+					struct enode *this = path_node(path, level), *prev = path_node(hold, level);
+					trace_off(warn("check node %p against %p", this, prev);)
+					trace_off(warn("this count = %i prev count = %i", this->count, prev->count);)
 					if (this->count <= sb->blocks_per_node - prev->count) {
-						warn(">>> can merge node %p into node %p", nodebuf, left[level].buffer);
+						trace_off(warn(">>> can merge node %p into node %p", this, prev);)
 						merge_nodes(prev, this);
-						node = buffer2node(path[level - 1].buffer);
-						int count = node->count;
-						// delete this from index node
-						// no pivot for last entry
-						chunk_t pivot = (path[level - 1].pnext)->key;
-						memmove(path[level - 1].pnext - 1, path[level - 1].pnext, (char *)&node->entries[count] - (char *)path[level - 1].pnext);
-						node->count = count - 1;
-
-						--(path[level - 1].pnext);
-
-						if (path[level - 1].pnext == node->entries + node->count)
-							goto no_pivot2;
-		
-						// loop up to common parent and update pivot to deleted key
-						// what if index is now empty? (no deleted key)
-						// then eventually a key above is going to be deleted and used to set pivot
-						if (path[level - 1].pnext == node->entries && level - 1) {
-							for (i = level - 2; path[i].pnext - 1 == buffer2node(path[i].buffer)->entries; i--)
-								if (!i)
-									goto no_pivot2;
-							(path[i].pnext - 1)->key = pivot;
-							set_buffer_dirty(path[i].buffer);
-		no_pivot2:				;
-						}
-						brelse(nodebuf);
-						goto keep_it2;
-
+						delete_index(path, level - 1);
+						brelse(path[level].buffer);
+						goto keep_prev_node;
 					}
-					brelse(left[level].buffer);
+					brelse(hold[level].buffer);
 				}
-				left[level].buffer = nodebuf;
-keep_it2:
+				hold[level].buffer = path[level].buffer;
+keep_prev_node:
 				if (!level) {
 					brelse(prevleaf);
-					brelse_path(left, levels);
+					while (levels > 1 && path_node(hold, 0)->count == 1) {
+						trace_off(warn("trim tree");)
+						brelse(hold[0].buffer);
+						levels = --sb->image.etree_levels;
+						memcpy(path_node(hold, 0), path_node(hold, 1), sb->blocksize);
+						memcpy(hold, hold + 1, levels * sizeof(hold[0]));
+						set_sb_dirty(sb);
+					}
+					brelse_path(hold, levels);
 					return;
 				}
 
-				// go up to parent index block
-				nodebuf = path[--level].buffer;
-				node = buffer2node(nodebuf);
-				trace_on(printf("pop to level %i, %i of %i nodes\n", level, path[level].pnext - node->entries, node->count);)
-			} while (path[level].pnext == node->entries + node->count);
+				level--;
+				trace_off(printf("pop to level %i, %i of %i nodes\n", level, path[level].pnext - path_node(path, level)->entries, path_node(path, level)->count);)
+			} while (finished_level(path, level));
 
-			do {
-				nodebuf = snapread(sb, path[level++].pnext++->sector);
-				node = buffer2node(nodebuf);
+			do { /* push new index nodes down to leaf level */
+				struct buffer *nodebuf = snapread(sb, path[level++].pnext++->sector);
 				path[level].buffer = nodebuf;
-				path[level].pnext = node->entries;
-				trace_on(printf("push to level %i, %i nodes\n", level, node->count);)
+				path[level].pnext = buffer2node(nodebuf)->entries;
+				trace_off(printf("push to level %i, %i nodes\n", level, path_node(path, level)->count);)
 			} while (level < levels - 1);
 		}
+
 		leafbuf = snapread(sb, path[level].pnext++->sector);
 	};
 }
@@ -1531,7 +1537,7 @@ delete:
 	memmove(snapshot, snapshot + 1, (char *)(sb->image.snaplist + --sb->image.snapshots) - (char *)snapshot);
 	sb->snapmask &= ~(1ULL << bit);
 	delete_snapshots_from_tree(sb, 1ULL << bit);
-	mark_sb_dirty(sb);
+	set_sb_dirty(sb);
 	return bit;
 };
 
@@ -1903,7 +1909,7 @@ int init_snapstore(struct superblock *sb)
 	sb->image.journal_next = 0;
 	sb->image.sequence = sb->image.journal_size;
 	init_allocation(sb);
-	mark_sb_dirty(sb);
+	set_sb_dirty(sb);
 
 	for (i = 0; i < sb->image.journal_size; i++) {
 		struct buffer *buffer = jgetblk(sb, i);
@@ -2202,7 +2208,7 @@ int incoming(struct superblock *sb, struct client *client)
 				recover_journal(sb);
 			} else {
 				sb->image.flags |= SB_BUSY;
-				mark_sb_dirty(sb);
+				set_sb_dirty(sb);
 				save_sb(sb);
 			}
 			break;
@@ -2247,7 +2253,7 @@ int cleanup(struct superblock *sb)
 {
 	warn("cleaning up");
 	sb->image.flags &= ~SB_BUSY;
-	mark_sb_dirty(sb);
+	set_sb_dirty(sb);
 	save_state(sb);
 	return 0;
 }
@@ -2454,16 +2460,16 @@ int main(int argc, char *argv[])
 	create_snapshot(sb, 0);
 
 	int i;
-	for (i = 0; i < 200; i++) {
+	for (i = 0; i < 1000; i++) {
 		make_unique(sb, i, 0);
 	}
 
 	flush_buffers();
 	evict_buffers();
+	warn("delete...");
 	delete_tree_range(sb, 1, 0, -1);
 //	show_buffers();
 	show_tree(sb);
-//	show_tree(sb);
 	return 0;
 #endif
 	return init_snapstore(sb); 
