@@ -104,8 +104,8 @@ static void empty_super_block(struct fsck_sb *sdp)
 					}
 					free(rgd->rd_bh[x]);
 				}
-				free(rgd->rd_bh);
 			}
+			free(rgd->rd_bh);
 		}
 		free(rgd);
 	}

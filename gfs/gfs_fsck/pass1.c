@@ -182,6 +182,7 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 
 		if(block_check(sdp->bl, block, &q)) {
 			stack;
+			relse_buf(sdp, data_bh);
 			return -1;
 		}
 		if(q.block_type != block_free) {
@@ -189,11 +190,13 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 				  PRIu64"\n", block);
 			block_mark(sdp->bl, block, dup_block);
 			bc->data_count++;
+			relse_buf(sdp, data_bh);
 			return 1;
 		}
 		log_debug("Setting %"PRIu64 " to journal block\n", block);
 		block_set(sdp->bl, block, journal_blk);
 		bc->data_count++;
+		relse_buf(sdp, data_bh);
 	}
 	else {
 		if(block_check(sdp->bl, block, &q)) {
