@@ -1,7 +1,29 @@
-0. cluster_dtr (or disk_dtr?) should write bits to disk if it is
+HIGH PRIORITY  (data integrity related)
+=============
+1. Ensure that the proper blocks are being re-sync'ed upon node failure
+	A) Just regions in use by client machines when they die.
+	B) All regions in use when server dies.
+
+2. Ensure that it is not possible to have a machine (client or server)
+   die and lose important state.  An example might be:
+	1) two machines have marked a region dirty (only marked once
+		in the bitmap, server maintains info on the two machines)
+	2) server dies
+	3) new server designated, mirror region resync'ed
+	4) machines continue to use region without server knowing region
+	   should be in dirty state
+	5) one of the original machines dies
+
+MEDIUM PRIORITY (functionality related, but data not at risk)
+===============
+1. cluster_dtr (or disk_dtr?) should write bits to disk if it is
    in charge of the log.  This must be done in such a way so that
    a new master does not pick up the disk before the leaving node
    has flushed it.
+
+
+LOW PRIORITY (coding practice, extended functionality, etc)
+============
 
 1. Basic code clean-up
 

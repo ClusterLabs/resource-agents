@@ -267,7 +267,6 @@ static int core_ctr(struct dirty_log *log, struct dm_target *ti,
 	}
 
 	region_count = dm_div_up(ti->len, region_size);
-	printk("REGION COUNT :: %u\n", region_count);
 
 	lc = kmalloc(sizeof(*lc), GFP_KERNEL);
 	if (!lc) {
@@ -461,11 +460,6 @@ static int _disk_resume(struct log_c *lc)
 
 static int _core_get_resync_work(struct log_c *lc, region_t *region)
 {
-	/*
-	printk("_core:: sync_search  == %d, ", lc->sync_search);
-	printk("sync_count   == %Lu, ",lc->sync_count);
-	printk("region_count == %u\n", lc->region_count);
-	*/
 	if (lc->sync_search >= lc->region_count){
 		return 0;
 	}
@@ -765,10 +759,6 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 	uint32_t node_count=global_count, *nodeids=global_nodeids;
 
 	if((lr->u.lr_starter == my_id) && (!lr->u.lr_node_count)){
-/*
-		printk("\n-- STARTING ELECTION PHASE\n");
-		printk("E- Setting starter port = %u.\n", saddr->scl_port);
-*/
 		lr->u.lr_starter_port = saddr->sin_port;
 	}
 
@@ -797,17 +787,11 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 	}
 
 	if(!lc){
-/*
-		printk("?- I do not have log context - can't be server.\n");
-*/
 		lr->u.lr_node_count++;
 		return 0;
 	}
 
 	if(lc->server_id == my_id){
-/*
-		printk("?- Hmmm, I am already the server - responding to client directly.\n");
-*/
 		lr->u.lr_coordinator = my_id;
 		saddr->sin_addr.s_addr = nodeid_to_addr(lr->u.lr_starter);
 		saddr->sin_port = lr->u.lr_starter_port;
@@ -816,7 +800,7 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 
 
 	if(lr->lr_type == LRT_MASTER_LEAVING){
-		printk("Master has left - setting server_id to 0xDEAD.\n");
+		DMINFO("Master has left.");
 		lc->server_id = 0xDEAD;
 		lr->u.lr_node_count++;
 		return 0;
@@ -825,15 +809,8 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 	if(lr->lr_type == LRT_ELECTION){
 		if((lr->u.lr_starter == my_id) && (lr->u.lr_node_count)){
 			if(node_count == lr->u.lr_node_count){
-/*
-				printk("\nE- STARTING SELECTION PHASE.\n");
-*/
 				lr->lr_type = LRT_SELECTION;
 			} else {
-/*
-				printk("\nE- RESTARTING ELECTION PHASE (node count mismatch).\n");
-				printk("E- Resetting coordinator\n");
-*/
 				lr->u.lr_coordinator = my_id;
 			}
 			lr->u.lr_node_count = 1;
@@ -843,9 +820,6 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 		lr->u.lr_node_count++;
     
 		if(my_id < lr->u.lr_coordinator){
-/*
-			printk("E- Setting myself as the coordinator.\n");
-*/
 			lr->u.lr_coordinator = my_id;
 		}
 		return 0;
@@ -856,9 +830,6 @@ static int process_election(struct log_request *lr, struct log_c *lc,
 		}
 
 		if(lr->u.lr_node_count != node_count){
-/*
-			printk("\nS RESTARTING ELECTION PHASE (node count mismatch).\n");
-*/
 			lr->lr_type = LRT_ELECTION;
 			lr->u.lr_node_count = 1;
 			lr->u.lr_coordinator = my_id;
@@ -925,6 +896,7 @@ static int process_log_request(struct socket *sock){
 			       (lr.lr_type == LRT_GET_SYNC_COUNT)? "LRT_GET_SYNC_COUNT":
 			       (lr.lr_type == LRT_CLEAR_REGION)? "LRT_CLEAR_REGION":
 			       (lr.lr_type == LRT_COMPLETE_RESYNC_WORK)? "LRT_COMPLETE_RESYNC_WORK":
+			       (lr.lr_type == LRT_MASTER_LEAVING)? "LRT_MASTER_LEAVING":
 			       (lr.lr_type == LRT_ELECTION)? "LRT_ELECTION":
 			       (lr.lr_type == LRT_SELECTION)? "LRT_SELECTION": "UNKNOWN"
 				);
@@ -935,13 +907,8 @@ static int process_log_request(struct socket *sock){
 			   lr.lr_type == LRT_MASTER_LEAVING){
 				uint32_t old = (lc)?lc->server_id: 0xDEAD;
 				process_election(&lr, lc, &saddr_in);
-/*
-			printk("88  old           = %u\n", old);
-			printk("88  lc->server_id = %u\n", lc->server_id);
-			printk("88  my_id         = %u\n", my_id);
-*/
 				if(lc && (old != lc->server_id) && (my_id == lc->server_id)){
-					printk("READING DISK\n");
+					DMINFO("I'm the master, READING DISK");
 					_disk_resume(lc);
 				}
 				goto reply;
@@ -1011,27 +978,6 @@ static int process_log_request(struct socket *sock){
 			msg.msg_name = &saddr_in;
 			msg.msg_namelen = sizeof(saddr_in);
 
-/*
-		printk("Sending response to:\n");
-		printk("s- scl_nodeid = %u\n", saddr.scl_nodeid);
-		printk("s- scl_port   = %u\n", saddr.scl_port);
-		printk("s- sizeof(lr) = %d\n", sizeof(struct log_request));
-		printk("s- msg.msg_iov   = %x\n", msg.msg_iov);
-		printk("s- &iov          = %x\n", &iov);
-		printk("s- iov.base      = %x\n", iov.iov_base);
-		printk("s- &lr           = %x\n", &lr);
-		printk("s- lr.lr_type    = %d\n", lr.lr_type);
-		if(lr.lr_type < LRT_ELECTION){
-			printk("s- lr.u.lr_int_rtn    = %d\n", lr.u.lr_int_rtn);
-		} else {
-			printk("s- lr.u.lr_starter      = %u\n", lr.u.lr_starter);
-			printk("s- lr.u.lr_starter_port = %d\n", lr.u.lr_starter_port);
-			printk("s- lr.u.lr_node_count   = %u\n", lr.u.lr_node_count);
-			printk("s- lr.u.lr_coordinator  = %u\n", lr.u.lr_coordinator);
-		}
-		printk("s- lr.lr_uuid = %s\n", lr.lr_uuid);
-*/
-
 			fs = get_fs();
 			set_fs(get_ds());
 			
@@ -1087,7 +1033,7 @@ static int cluster_log_serverd(void *data){
   
 	for(;;){
 		if(!atomic_read(&server_run)){
-			printk("run is set to zero -- shutting down.\n");
+			DMINFO("Server thread recieved message to shut down.");
 			break;
 		}
 
@@ -1107,7 +1053,7 @@ static int cluster_log_serverd(void *data){
 		schedule();
 	}
 
-	printk("cluster log server is shutting down.\n");
+	DMINFO("Cluster log server thread is shutting down.");
 
 	sock_release(sock);
 	complete(&server_completion);
@@ -1116,7 +1062,7 @@ static int cluster_log_serverd(void *data){
  fail2:
 	sock_release(sock);
  fail1:
-	DMWARN("server failed to start");
+	DMWARN("Server thread failed to start");
 	atomic_set(&server_run, 0);
 	complete(&server_completion);
 	return error;
@@ -1125,9 +1071,7 @@ static int cluster_log_serverd(void *data){
 
 static int start_server(void /* log_devices ? */){
 	int error;
-/*
-	printk("starting server\n");
-*/
+
 	atomic_set(&server_run, 1);
 	init_completion(&server_completion);
 
@@ -1137,27 +1081,19 @@ static int start_server(void /* log_devices ? */){
 		return error;
 	}
 	wait_for_completion(&server_completion);
-/*
-	printk("server started\n");
-*/
+
 	if(!atomic_read(&server_run)){
-		printk("something must me wrong... server_run is zero.\n");
+		DMWARN("Cluster log server thread failed to start");
 		return -1;
 	}
-/*
-	printk("  all seems good with server.\n");
-*/
 	return 0;
 }
 
 
 static void stop_server(void){
-	printk("stop_server -- setting server_run = 0\n");
 	atomic_set(&server_run, 0);
-	printk("stop_server -- waiting for completion\n");
 
 	wait_for_completion(&server_completion);
-	printk("stop_server -- server shutdown complete\n");
 }
 
 
@@ -1227,10 +1163,10 @@ static int run_election(struct log_c *lc){
   
 	if(len > 0){
 		lc->server_id = lr.u.lr_coordinator;
-		printk("Setting server id to %u\n", lc->server_id);
+		DMINFO("New cluster log server (%u) designated", lc->server_id);
 	} else {
 		/* ATTENTION -- what do we do with this ? */
-		DMWARN("Failed to recvmsg election results from server.\n");
+		DMWARN("Failed to recieve election results from server.\n");
 		error = len;
 	}
 
@@ -1287,6 +1223,7 @@ static int _consult_server(struct log_c *lc, region_t region,
 	       (lr.lr_type == LRT_GET_SYNC_COUNT)? "LRT_GET_SYNC_COUNT":
 	       (lr.lr_type == LRT_CLEAR_REGION)? "LRT_CLEAR_REGION":
 	       (lr.lr_type == LRT_COMPLETE_RESYNC_WORK)? "LRT_COMPLETE_RESYNC_WORK":
+	       (lr.lr_type == LRT_MASTER_LEAVING)? "LRT_MASTER_LEAVING":
 	       (lr.lr_type == LRT_ELECTION)? "LRT_ELECTION":
 	       (lr.lr_type == LRT_SELECTION)? "LRT_SELECTION": "UNKNOWN"
 		);
@@ -1353,7 +1290,7 @@ static int _consult_server(struct log_c *lc, region_t region,
 	if(*retry){
 		request_retry_count++;
 		if(!(request_retry_count & 0x1F)){
-			printk("Retried requests :: %Lu of %Lu (%lu%%)\n",
+			DMINFO("Retried requests :: %Lu of %Lu (%lu%%)\n",
 			       request_retry_count,
 			       request_count,
 			       dm_div_up(request_retry_count*100,request_count));
@@ -1461,6 +1398,7 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 	lc->paranoid = paranoid;
 
 	atomic_set(&lc->suspend, 1);
+	DMINFO("lc->in_sync :: UNSET");
 	atomic_set(&lc->in_sync, 0);
 
 	list_add(&lc->log_list, &log_list_head);
@@ -1496,19 +1434,6 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 		goto fail;
 	}
 
-/*  Useful if poll can be used...
-	if((error = sock_map_fd(&lc->client_sock)) < 0){
-		DMWARN("unable to map socket to fd");
-		sock_release(lc->client_sock);
-		goto fail;
-	}
-*/	
-
-/*
-	printk("cluster_ctr:: sync_search  == %d, ", lc->sync_search);
-	printk("sync_count   == %Lu, ",lc->sync_count);
-	printk("region_count == %u\n", lc->region_count);
-*/
 	return 0;
 
  fail:
@@ -1531,21 +1456,18 @@ static void cluster_dtr(struct dirty_log *log)
 static int cluster_suspend(struct dirty_log *log){
 	struct log_c *lc = (struct log_c *) log->context;
 	atomic_set(&(lc->suspend), 1);
-//	printk("-- 0 cluster_suspend\n");
 	return 0;
 }
 
 static int cluster_resume(struct dirty_log *log){
 	struct log_c *lc = (struct log_c *) log->context;
 	atomic_set(&(lc->suspend), 0);
-//	printk("-- 0 cluster_resume\n");
 	return 0;
 }
 
 static sector_t cluster_get_region_size(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-//	printk("-- %lu cluster_get_region_size\n", lc->region_size);
 	return lc->region_size;
 }
 
@@ -1555,7 +1477,6 @@ static int cluster_is_clean(struct dirty_log *log, region_t region)
 	int rtn;
 	struct log_c *lc = (struct log_c *) log->context;
 	rtn = consult_server(lc, region, LRT_IS_CLEAN, NULL);
-//	printk("-- %d cluster_is_clean\n", rtn);
 	return rtn;
 }
 
@@ -1567,17 +1488,14 @@ static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
 	/* check known_regions, return if found */
 
 	if(atomic_read(&lc->in_sync)){
-//		printk("lc->in_sync is set, allowing read.\n");
 		return 1;
 	}
 
 	if(!block){
-//		printk("-- -EWOULDBLOCK cluster_in_sync\n");
 		return -EWOULDBLOCK;
 	}
 
 	rtn = consult_server(lc, region, LRT_IN_SYNC, NULL);
-//	printk("-- %d cluster_in_sync\n", rtn);
 	return rtn;
 }
 
@@ -1585,7 +1503,6 @@ static int cluster_flush(struct dirty_log *log)
 {
 	/* no need to flush, since server writes to disk before **
 	** responding back to a client......................... */
-//	printk("-- 0 cluster_flush (does nothing)\n");
 	return 0;
 }
 
@@ -1597,7 +1514,6 @@ static void cluster_mark_region(struct dirty_log *log, region_t region)
 		DMWARN("unable to get server to mark region");
 	}
 
-//	printk("-- void cluster_mark_region\n");
 	return;
 }
 
@@ -1619,13 +1535,6 @@ static void cluster_clear_region(struct dirty_log *log, region_t region)
 	list_add(&cr->cr_list, &clear_region_list);
 	spin_unlock(&clear_region_lock);
 
-//	printk("++ cluster_clear_region(<log>, %lu)\n", region);
-/*
-	while(consult_server(lc, region, LRT_CLEAR_REGION, NULL)){
-		DMWARN("unable to get server to clear region");
-		printk("++ cluster_clear_region(<log>, %lu)\n", region);
-	}
-*/
 	return;
 }
 
@@ -1636,7 +1545,6 @@ static int cluster_get_resync_work(struct dirty_log *log, region_t *region)
 
 	rtn = consult_server(lc, 0, LRT_GET_RESYNC_WORK, region);
 
-//	printk("-- %d cluster_get_resync_work (region = %lu)\n", rtn, *region);
 
 	return rtn;
 }
@@ -1646,10 +1554,8 @@ static void cluster_complete_resync_work(struct dirty_log *log,
 {
 	struct log_c *lc = (struct log_c *) log->context;
 
-//	printk("++ void cluster_complete_resync_work(<log>, %lu, %d)\n", region, success);
 	while(consult_server(lc, region, LRT_COMPLETE_RESYNC_WORK, NULL)){
 		DMWARN("unable to notify server of completed resync work");
-//		printk("++ void cluster_complete_resync_work(<log>, %lu, %d)\n", region, success);
 	}
 
 	return;
@@ -1660,19 +1566,19 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 	region_t rtn;
 	struct log_c *lc = (struct log_c *) log->context;
 	if(consult_server(lc, 0, LRT_GET_SYNC_COUNT, &rtn)){
-//		printk("-- 0 cluster_get_sync_count (failure)\n");
 		return 0;
 	}
 
-//	printk("-- %lu cluster_get_sync_count\n", rtn);
+	if(rtn > lc->region_count){
+		DMERR("sync_count > region_count - this can not be!");
+	}
+
 	if(rtn >= lc->region_count){
-//		printk("All regions in sync.  _in_sync is SET.\n");
+		if(!(atomic_read(&lc->in_sync))){
+			DMINFO("lc->in_sync :: SET");
+		}
 		atomic_set(&lc->in_sync, 1);
-	}/*
-	else {
-		printk("Not all regions in sync (%Lu/%u).  lc->in_sync is UNSET.\n",
-		       rtn, lc->region_count);
-		       }*/
+	}
 
 	return rtn;
 }
@@ -1696,14 +1602,13 @@ static int clog_stop(void *data){
 	struct log_c *lc;
 	/* stop the server */
 
-//	printk("suspending server.\n");
+	DMINFO("Cluster stop recieved.  Suspending Cluster log server.");
 	down(&server_suspend);
 
-//	printk("server is suspended.\n");
 	/* ATTENTION -- freeze client operations ?*/
 
-	printk("Cluster stopping.  in_sync is UNSET.\n");
 	list_for_each_entry(lc, &log_list_head, log_list){
+		DMINFO("lc->in_sync :: UNSET");
 		atomic_set(&lc->in_sync, 0);
 	}
 	
@@ -1722,15 +1627,15 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 	global_nodeids = nodeids;
 	global_count = count;
 
-	printk("start event received (event_id == %d)\n", event_id);
+	DMINFO("start event received (event_id == %d)", event_id);
 	kcl_get_node_by_nodeid(0, &node);
 	my_id = node.node_id;
 
 	restart_event_id = event_id;
 
-	printk("present nodeids::\n");
+	DMINFO("present nodeids::");
 	for(i=0; i < count; i++){
-		printk("   %u%s\n", nodeids[i], (nodeids[i] == my_id)? " (my_id)":"");
+		DMINFO("   %u%s", nodeids[i], (nodeids[i] == my_id)? " (my_id)":"");
 	}
 
 	switch(type){
@@ -1750,18 +1655,17 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 	case SERVICE_NODE_JOIN:
 		break;
 	default:
-		printk("Invalid service event type received.\n");
+		DMERR("Invalid service event type received.\n");
 		BUG();
 		break;
 	}
-	printk("Unsuspending server.\n");
+	DMINFO("Unsuspending server.");
 	up(&server_suspend);
-	printk("server is unsuspended.\n");
 	return 0;
 }
 
 static void clog_finish(void *data, int event_id){
-	printk("finish event received\n");
+	DMINFO("finish event received.");
 	/* ATTENTION -- restart client operations */
 }
 
@@ -1798,7 +1702,6 @@ static int __init cluster_dirty_log_init(void)
 
 	INIT_LIST_HEAD(&clear_region_list);
 	spin_lock_init(&clear_region_lock);
-	printk("Initial state.  _in_sync is UNSET.\n");
 
 	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
 				 1, NULL, &local_id);
