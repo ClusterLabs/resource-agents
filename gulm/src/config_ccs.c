@@ -57,6 +57,11 @@ int parse_ccs(gulm_config_t *gf)
    uint64_t temp;
    char *tmp;
 
+   if( gf->clusterID == NULL ) {
+      fprintf(stderr, "Warning! You didn't specify a cluster name before "
+            "--use_ccs\n  Letting ccsd choose which cluster we belong to.\n");
+   }
+
    if( (cd=ccs_force_connect(gf->clusterID, 0)) < 0 ) {
       fprintf(stderr, "No ccsd, checking for cmdline config. (%d:%s)\n",
             cd, strerror(abs(cd)));

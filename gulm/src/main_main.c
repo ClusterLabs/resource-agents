@@ -187,6 +187,7 @@ void banner_msg(void)
    log_msg(lgm_Always, "I am running in %s mode.\n",
          gulm_config.fog?"Fail-over":"Standard" );
    log_msg(lgm_Always, "I am (%s) with ip (%s)\n", myName, ip6tostr(&myIP));
+   log_msg(lgm_Always, "This is cluster %s\n", gulm_config.clusterID);
 }
 
 
