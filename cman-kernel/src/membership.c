@@ -2219,11 +2219,11 @@ static int do_process_joinreq(struct msghdr *msg, int len)
 			return 0;
 		}
 
-		if (le16_to_cpu(joinmsg->config_version) != config_version) {
+		if (le32_to_cpu(joinmsg->config_version) != config_version) {
 			printk(KERN_WARNING CMAN_NAME ": Join request from %s "
 			       "rejected, config version local %u remote %u\n",
 			       name, config_version,
-			       le16_to_cpu(joinmsg->config_version));
+			       le32_to_cpu(joinmsg->config_version));
 			send_joinack(msg->msg_name, msg->msg_namelen,
 				      JOINACK_TYPE_NAK);
 			return 0;

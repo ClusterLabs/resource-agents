@@ -644,10 +644,15 @@ static int valid_addr_for_node(struct cluster_node *node, char *addr)
 	struct list_head *addrlist;
 	struct cluster_node_addr *nodeaddr;
 
+	/* We don't compare the first two bytes of the address because it's
+	 * the Address Family and always in native byte order...so it will
+	 * not match if we have mixed big & little-endian machines in the cluster
+	 */
+
 	list_for_each(addrlist, &node->addr_list) {
 		nodeaddr = list_entry(addrlist, struct cluster_node_addr, list);
 
-		if (memcmp(nodeaddr->addr, addr, address_length) == 0)
+		if (memcmp(nodeaddr->addr+2, addr+2, address_length-2) == 0)
 			return 1; /* TRUE */
 	}
 	return 0; /* FALSE */
