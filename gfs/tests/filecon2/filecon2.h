@@ -152,6 +152,7 @@ static __inline__ void request_out(filecon2_request_t *req, char *buf)
 
 
 EXTERN char *prog_name;
+EXTERN pid_t pid;
 
 
 #endif  /*  __FILECON2_DOT_H__  */

@@ -255,8 +255,8 @@ void do_op(unsigned int cli)
     last = req.offset + req.data - 1;
   }
 
-  printf("%.7u: %u/%.8X/%.4X: %s (%"PRIu64" - %"PRIu64")\n",
-	 t,
+  printf("%.7u: %d/%u/%.8X/%.4X: %s (%"PRIu64" - %"PRIu64")\n",
+	 t, pid,
 	 cli, be32_to_cpu(ssin[cli].sin_addr.s_addr), be16_to_cpu(ssin[cli].sin_port),
 	 type2string(req.type),
 	 first, last);
@@ -466,6 +466,7 @@ int main(int argc, char *argv[])
 
 
   prog_name = argv[0];
+  pid = getpid();
 
 
   if (argc < 2)

@@ -640,6 +640,7 @@ int main(int argc, char *argv[])
 
 
   prog_name = argv[0];
+  pid = getpid();
 
 
   if (argc < 3)
