@@ -38,7 +38,9 @@ my $masterswitch = 'masterswitch plus '; # 'Device Manager' option to choose
 my $login_prompt = '/: /';
 my $cmd_prompt = '/> /';
 
-my $max_open_tries = 1;     # How many telnet attempts to make
+my $max_open_tries = 3;      # How many telnet attempts to make.  Because the 
+                             # APC can fail repeated login attempts, this number
+                             # should be more than 1
 my $open_wait = 5;           # Seconds to wait between each telnet attempt
 my $telnet_timeout = 20;     # Seconds to wait for matching telent response
 
@@ -173,7 +175,6 @@ sub login
 }
 
 
-
 # Navigate through menus to the appropriate outlet control menu.
 # Uses multi-line (mostly) case-insensitive matches to recognise menus
 # and works out what option number to select from each menu.
@@ -182,6 +183,7 @@ sub navigate
 {
   # Abort on failure beyond here
   $t->errmode(\&telnet_error);  
+
   while(1)
   {
     # Get the new text from the menu
@@ -220,6 +222,43 @@ sub navigate
 }
 
 
+sub logout 
+{
+    while(1)
+    {
+	# Get the new text from the menu
+	($_) = $t->waitfor($cmd_prompt);
+
+	if ( 
+	     # "Control Console", "4- Logout"	 
+	     /--\s*control console.*(\d+)\s*-\s*Logout/is
+	     ) {
+	    $t->print($1);
+	    last;
+	}
+	else {
+	    # The APC menu uses "<esc>" to go 'up' menues.  We must set
+            # the output_record_separator to "" so that "\n" is not printed
+            # after the "<esc>" character
+	    
+	    # save ors
+	    $ors=$t->output_record_separator;
+	    
+	    # unset ors
+	    $t->output_record_separator("");
+	    
+	    # send escape
+	    $t->print("\x1b");
+	    
+	    # restore ors
+	    $t->output_record_separator("$ors");
+	    
+	    next;
+	}
+    }
+}
+
+
 sub action
 {
   # "Enter 'YES' to continue or <ENTER> to cancel : "
@@ -237,17 +276,22 @@ sub action
   $t->print('');
 
   if (defined $opt_T) {
+    logout(); 
     print "success: test outlet $opt_n $opt_o\n" unless defined $opt_q; 
     $t->close;
+
+    # Allow the APC some time to clean connection
+    # before next login.
+    sleep 1;
+
     exit 0;
   } elsif ( /Success/i ) {
+    logout();
     print "success: outlet $opt_n $opt_o\n" unless defined $opt_q; 
     $t->close;
 
-    # XXX sleeping for 1 second here to give the apc a chance to close the
-    # the connection, otherwise faster machines might be able to connect to 
-    # the APC with logging in!!!  Address bug #1334.  A better solution
-    # would be to logout cleanly.
+    # Allow the APC some time to clean connection
+    # before next login.
     sleep 1;
 
     exit 0;
