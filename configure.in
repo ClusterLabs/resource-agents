@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.80 $) dnl cvs revision
+AC_REVISION($Revision: 1.81 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -104,9 +104,9 @@ dnl Always tries to set the compiler to ANSI C via options (AM)
 dnl Can force other with environment variable "CC".
 AC_PROG_CC
 AM_PROG_CC_STDC
+AM_PROG_LIBTOOL
 AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
 AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
-AM_PROG_LIBTOOL
 AC_CHECK_PROG(MAKE, gmake, gmake, make)
 AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
