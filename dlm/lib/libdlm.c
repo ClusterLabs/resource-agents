@@ -570,7 +570,7 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
     set_version(&params);
     params.cmd = DLM_USER_UNLOCK;
     params.lkid = lkid;
-    params.flags = 0;
+    params.flags = flags;
     params.lksb  = lksb;
     params.castparam = astarg;
 	    /* DLM_USER_UNLOCK will default to existing completion AST */
@@ -606,7 +606,7 @@ int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
     set_version(&params);
     params.cmd = DLM_USER_UNLOCK;
     params.lkid = lkid;
-    params.flags = 0;
+    params.flags = flags;
     params.lksb  = lksb;
     lksb->sb_status = EINPROG;
 
