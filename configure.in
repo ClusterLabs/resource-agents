@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.95 $) dnl cvs revision
+AC_REVISION($Revision: 1.96 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -131,7 +131,13 @@ AC_PATH_PROGS(GLIBCONFIG, glib-config, glib12-config)
 AC_PATH_PROGS(GLIBCONFIG, glib12-config, glib13-config)
 AC_PATH_PROGS(GLIBCONFIG, glib13-config)
 AC_PATH_PROGS(BLOCKDEV, blockdev)
-AC_DEFINE_UNQUOTED(BLOCKDEV, $BLOCKDEV, path to linux blockdev command)
+AC_PATH_PROGS(FUSER, fuser)
+AC_PATH_PROGS(MOUNT, mount)
+AC_PATH_PROGS(UMOUNT, umount)
+AC_PATH_PROGS(FSCK, fsck)
+AC_PATH_PROGS(MODPROBE, modprobe)
+AC_PATH_PROGS(RAIDSTART, raidstart)
+AC_PATH_PROGS(RAIDSTOP, raidstop)
 
 AC_MSG_CHECKING(which glib config exists)
 if test x"${GLIBCONFIG}" = x""; then
