@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.246 $) dnl cvs revision
+AC_REVISION($Revision: 1.247 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1276,6 +1276,23 @@ AC_SUBST(ECHO_C)
 AC_SUBST(ECHO_E)
 AC_SUBST(ECHO_CMD)
 
+#
+#	AIS Event Service
+#
+AC_ARG_ENABLE([eventd],
+    [  --enable-eventd   AIS Event Service daemon.  [default=no]  ])
+
+EVENTD_DIR=""
+if test "${enable_eventd}" = "yes"; then
+	echo "Enabling the AIS Event Service code..."
+	EVENTD_DIR="eventd"
+else 
+    if test -z "${enable_eventd}"; then
+	enable_eventd="no"
+    fi
+fi
+AC_SUBST(EVENTD_DIR)
+
 AC_ARG_ENABLE([crm],
 [  --enable-crm  Compile the new Cluster Resource Manager.
                           This is still in very early developement stage.  [default=no]]) 
@@ -1368,6 +1385,7 @@ if test "${enable_swig}" = "yes"; then
 	echo "$as_me:$LINENO: Install Perl modules as vendor... ${enable_perl_vendor}" >&5
 	echo $ECHO_N "Install Perl modules as vendor... ${enable_perl_vendor}" >&6
 fi
+
 
 dnl **********************************************************************
 dnl	Enable optional, experimental directories here...
@@ -1462,7 +1480,7 @@ membership/Makefile						\
 telecom/Makefile						\
 	telecom/apphbd/Makefile					\
 	telecom/recoverymgrd/Makefile				\
-	telecom/checkpointd/Makefile
+	telecom/checkpointd/Makefile				
 )
 
 dnl testing again makes the eventual output a little easier to read
@@ -1489,6 +1507,13 @@ if test "${enable_swig}" = "yes"; then
 			lib/bindings/perl/Makefile.PL \
 			lib/bindings/perl/cl_raw/Makefile.PL \
 		)
+fi
+
+dnl if eventd is enabled
+if test "${enable_eventd}"  = "yes"; then
+    AC_OUTPUT(telecom/eventd/Makefile				\
+	      lib/eventd/Makefile				\
+	     )
 fi
 
 dnl subpackages configuration - perhaps configure it properly some other time
@@ -1543,3 +1568,5 @@ AC_MSG_RESULT([  Build SWIG bindings  = ${enable_swig}])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
+
+AC_MSG_RESULT([  Build Eventd         = ${enable_eventd}])
