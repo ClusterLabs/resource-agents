@@ -60,7 +60,7 @@ static cluster_member_list_t *
 sm_member_list(cluster_plugin_t *self, char *groupname)
 {
 	cluster_member_list_t *foo = NULL;
-	struct cl_cluster_node *sm_list = NULL;
+	struct cl_cluster_nodelist sm_nl = { 0, NULL };
 	int op = SIOCCLUSTER_SERVICE_GETMEMBERS;
 	sm_priv_t *p;
 	int x;
@@ -90,31 +90,40 @@ sm_member_list(cluster_plugin_t *self, char *groupname)
 			return NULL;
 	}
 
-	p->memb_count = ioctl(p->sockfd, op, NULL);
-	if (p->memb_count <= 0)
-		return NULL;
-	
-	/* BIG malloc here */
-	sz = sizeof(struct cl_cluster_node) * p->memb_count;
-	sm_list = malloc(sz);
-	assert(sm_list != NULL);
+	do {
+		/* Clean up if necessary */
+		if (sm_nl.nodes)
+			free(sm_nl.nodes);
+		if (foo)
+			cml_free(foo);
 
-	/* Another biggie */
-	foo = cml_alloc(p->memb_count);
-	assert(foo != NULL);
-	memset(foo, 0, cml_size(p->memb_count));
-	strncpy(foo->cml_groupname, groupname, sizeof(foo->cml_groupname));
+		x = ioctl(p->sockfd, op, NULL);
+		if (x <= 0)
+			return NULL;
 
-	/* Race condition between the ioctls? */
-	assert(ioctl(p->sockfd, op, sm_list) == p->memb_count);
+		sm_nl.max_members = x;
+
+		/* BIG malloc here */
+		sz = sizeof(struct cl_cluster_node) * sm_nl.max_members;
+		sm_nl.nodes = malloc(sz);
+		assert(sm_nl.nodes != NULL);
+
+		/* Another biggie */
+		foo = cml_alloc(sm_nl.max_members);
+		assert(foo != NULL);
+
+	} while (ioctl(p->sockfd, op, &sm_nl) != sm_nl.max_members);
+
+	/* Store count in our internal structure */
+	p->memb_count = sm_nl.max_members;
 
 	foo->cml_count = p->memb_count;
 	for (x = 0; x < p->memb_count; x++) {
 		/* Copy the data to the lower layer */
 		foo->cml_members[x].cm_addrs = NULL;
-		foo->cml_members[x].cm_id = (uint64_t)sm_list[x].node_id;
+		foo->cml_members[x].cm_id = (uint64_t)sm_nl.nodes[x].node_id;
 
-		switch(sm_list[x].state) {
+		switch(sm_nl.nodes[x].state) {
 		case NODESTATE_REMOTEMEMBER:
 		case NODESTATE_MEMBER:
 			foo->cml_members[x].cm_state = STATE_UP;
@@ -128,11 +137,11 @@ sm_member_list(cluster_plugin_t *self, char *groupname)
 			break;
 		}
 		
-		strncpy(foo->cml_members[x].cm_name, sm_list[x].name,
+		strncpy(foo->cml_members[x].cm_name, sm_nl.nodes[x].name,
 			sizeof(foo->cml_members[x].cm_name));
 	}
 
-	free(sm_list);
+	free(sm_nl.nodes);
 
 	return foo;
 }

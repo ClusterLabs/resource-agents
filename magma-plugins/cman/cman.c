@@ -19,6 +19,7 @@
 /** @file
  * CMAN/DLM Driver - Uses locking to synchronize recovery.
  */
+#include <stdint.h>
 #include <magma.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -63,7 +64,7 @@ cman_member_list(cluster_plugin_t *self,
 		 char __attribute__ ((unused)) *groupname)
 {
 	cluster_member_list_t *foo = NULL;
-	struct cl_cluster_node *cman_list = NULL;
+	struct cl_cluster_nodelist cman_nl = { 0, NULL };
 	cman_priv_t *p;
 	int x;
 	size_t sz;
@@ -75,33 +76,45 @@ cman_member_list(cluster_plugin_t *self,
 	assert(p);
 	assert(p->sockfd >= 0);
 
-	p->memb_count = ioctl(p->sockfd, SIOCCLUSTER_GETMEMBERS, NULL);
-	if (p->memb_count <= 0)
-		return NULL;
-	
-	/* BIG malloc here */
-	sz = sizeof(struct cl_cluster_node) * p->memb_count;
-	cman_list = malloc(sz);
-	assert(cman_list != NULL);
+	do {
+		/* Clean up if necessary */
+		if (cman_nl.nodes)
+			free(cman_nl.nodes);
+		if (foo)
+			cml_free(foo);
 
-	/* Another biggie */
-	foo = cml_alloc(p->memb_count);
-	assert(foo != NULL);
+		x = ioctl(p->sockfd, SIOCCLUSTER_GETMEMBERS, NULL);
+		if (x <= 0)
+			return NULL;
 
-	/* Race condition between the ioctls? */
-	assert(ioctl(p->sockfd, SIOCCLUSTER_GETMEMBERS, cman_list) ==
-	       p->memb_count);
+		cman_nl.max_members = x;
 
+		/* BIG malloc here */
+		sz = sizeof(struct cl_cluster_node) * cman_nl.max_members;
+		cman_nl.nodes = malloc(sz);
+		assert(cman_nl.nodes != NULL);
+
+		/* Another biggie */
+		foo = cml_alloc(cman_nl.max_members);
+		assert(foo != NULL);
+
+	} while (ioctl(p->sockfd, SIOCCLUSTER_GETMEMBERS, &cman_nl) !=
+		 cman_nl.max_members);
+
+	/* Store count in our internal structure */
+	p->memb_count = cman_nl.max_members;
+
+	/* Recalc. member checksum */
 	p->memb_sum = 0;
 	foo->cml_count = p->memb_count;
 	for (x = 0; x < p->memb_count; x++) {
 
 		/* Copy the data to the lower layer */
 		foo->cml_members[x].cm_addrs = NULL;
-		foo->cml_members[x].cm_id = (uint64_t)cman_list[x].node_id;
+		foo->cml_members[x].cm_id = (uint64_t)cman_nl.nodes[x].node_id;
 		p->memb_sum += foo->cml_members[x].cm_id;
 
-		switch(cman_list[x].state) {
+		switch(cman_nl.nodes[x].state) {
 		case NODESTATE_REMOTEMEMBER:
 		case NODESTATE_MEMBER:
 			foo->cml_members[x].cm_state = STATE_UP;
@@ -115,11 +128,11 @@ cman_member_list(cluster_plugin_t *self,
 			break;
 		}
 		
-		strncpy(foo->cml_members[x].cm_name, cman_list[x].name,
+		strncpy(foo->cml_members[x].cm_name, cman_nl.nodes[x].name,
 			sizeof(foo->cml_members[x].cm_name));
 	}
 
-	free(cman_list);
+	free(cman_nl.nodes);
 
 	return foo;
 }

@@ -20,6 +20,7 @@
  * GuLM lock/unlock functions
  */
 #include <magma.h>
+#include <netinet/in.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -49,8 +50,6 @@ static int null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen,
 			      uint8_t *LVB, uint16_t LVBlen);
 static int null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen,
 			       uint8_t action, uint32_t error);
-static int null_lk_cancel_reply(void *misc, uint8_t *key, uint16_t keylen,
-				uint32_t error);
 static int null_lk_drop_lock_req(void *misc, uint8_t *key, uint16_t keylen,
 				 uint8_t state);
 static int null_lk_drop_all(void *misc);
@@ -63,7 +62,6 @@ static lg_lockspace_callbacks_t lock_callbacks_initializer = {
 	null_lk_logout_reply,
 	null_lk_lock_state,
 	null_lk_lock_action,
-	null_lk_cancel_reply,
 	null_lk_drop_lock_req,
 	null_lk_drop_all,
 	null_lk_status,
@@ -103,15 +101,6 @@ null_lk_lock_state(void *misc, uint8_t *key, uint16_t keylen, uint8_t state,
 static int
 null_lk_lock_action(void *misc, uint8_t *key, uint16_t keylen, uint8_t action,
 		    uint32_t error)
-{
-	printf("GuLM Lock: %s called\n", __FUNCTION__);
-	return 0;
-}
-
-
-static int
-null_lk_cancel_reply(void *misc, uint8_t *key, uint16_t keylen,
-		     uint32_t error)
 {
 	printf("GuLM Lock: %s called\n", __FUNCTION__);
 	return 0;

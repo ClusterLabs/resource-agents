@@ -20,6 +20,7 @@
  * GuLM membership/quorum functions & driver load
  */
 #include <magma.h>
+#include <netinet/in.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -55,12 +56,12 @@ IMPORT_PLUGIN_API_VERSION();
 static int null_login_reply(void *misc, uint64_t gen, uint32_t error,
 			    uint32_t rank, uint8_t corestate);
 static int null_logout_reply(void *misc);
-static int null_nodelist(void *misc, lglcb_t type, char *name, uint32_t ip,
-			 uint8_t state);
-static int null_statechange(void *misc, uint8_t corestate, uint32_t masterip,
-			    char *mastername);
-static int null_nodechange(void *misc, char *nodename, uint32_t nodeip,
-			   uint8_t nodestate);
+static int null_nodelist(void *misc, lglcb_t type, char *name,
+			 struct in6_addr *ip, uint8_t state);
+static int null_statechange(void *misc, uint8_t corestate, 
+			    struct in6_addr *masterip, char *mastername);
+static int null_nodechange(void *misc, char *nodename,
+			   struct in6_addr *nodeip, uint8_t nodestate);
 static int null_service_list(void *misc, lglcb_t type, char *service);
 static int null_status(void *misc, lglcb_t type, char *key, char *value);
 static int null_error(void *misc, uint32_t err);
@@ -98,7 +99,7 @@ null_logout_reply(void *misc)
 
 
 static int
-null_nodelist(void *misc, lglcb_t type, char *name, uint32_t ip,
+null_nodelist(void *misc, lglcb_t type, char *name, struct in6_addr *ip,
 	      uint8_t state)
 {
 	printf("GuLM: %s called\n", __FUNCTION__);
@@ -107,7 +108,7 @@ null_nodelist(void *misc, lglcb_t type, char *name, uint32_t ip,
 
 
 static int
-null_statechange(void *misc, uint8_t corestate, uint32_t masterip,
+null_statechange(void *misc, uint8_t corestate, struct in6_addr *masterip,
 		 char *mastername)
 {
 	printf("GuLM: %s called\n", __FUNCTION__);
@@ -116,7 +117,7 @@ null_statechange(void *misc, uint8_t corestate, uint32_t masterip,
 
 
 static int
-null_nodechange(void *misc, char *nodename, uint32_t nodeip,
+null_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 		uint8_t nodestate)
 {
 	printf("GuLM: %s called\n", __FUNCTION__);
@@ -164,7 +165,7 @@ gulm_null(cluster_plugin_t *self)
  * Function called back by lg_core_handle_messages
  */
 int
-gulm_nodelist(void *misc, lglcb_t type, char *name, uint32_t ip,
+gulm_nodelist(void *misc, lglcb_t type, char *name, struct in6_addr *ip,
               uint8_t state)
 {
 	int idx;
@@ -199,7 +200,9 @@ gulm_nodelist(void *misc, lglcb_t type, char *name, uint32_t ip,
 		strncpy(mlp->cml_members[idx].cm_name, name,
 			sizeof(mlp->cml_members[idx].cm_name));
 
-		mlp->cml_members[idx].cm_id = (uint64_t)ip;
+		mlp->cml_members[idx].cm_id =
+			((uint64_t)(ip->s6_addr32[0]) << 32) |
+			(uint64_t)ip->s6_addr32[1];
 		mlp->cml_members[idx].cm_addrs = NULL;
 
 		if (state == lg_core_Logged_in)
@@ -261,7 +264,7 @@ gulm_member_list(cluster_plugin_t *self,
 
 
 static int
-gulm_statechange(void *misc, uint8_t corestate, uint32_t masterip,
+gulm_statechange(void *misc, uint8_t corestate, struct in6_addr *masterip,
 		 char *mastername)
 {
 	int *ret = (int *)misc;
@@ -483,7 +486,7 @@ gulm_fence(cluster_plugin_t *self, cluster_member_t *node)
  * See if we have a membership change event.
  */
 static int
-gulm_nodechange(void *misc, char *nodename, uint32_t nodeip,
+gulm_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 		uint8_t nodestate)
 {
 	int *event = (int *)misc;
