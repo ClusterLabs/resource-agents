@@ -59,18 +59,21 @@ meta_data()
 
     <parameters>
         <parameter name="name" primary="1">
-            <shortdesc lang="en">
-                Name
-            </shortdesc>
             <longdesc lang="en">
                 Descriptive name for this export.  Generally, only
                 one export is ever defined, and it's called "generic
                 nfs export".
             </longdesc>
+            <shortdesc lang="en">
+                Name
+            </shortdesc>
 	    <content type="string"/>
         </parameter>
 
         <parameter name="device" inherit="device">
+            <longdesc lang="en">
+                If you can see this, your GUI is broken.
+            </longdesc>
             <shortdesc lang="en">
                 If you can see this, your GUI is broken.
             </shortdesc>
@@ -78,6 +81,9 @@ meta_data()
         </parameter>
 
         <parameter name="path" inherit="mountpoint">
+            <longdesc lang="en">
+                If you can see this, your GUI is broken.
+            </longdesc>
             <shortdesc lang="en">
                 If you can see this, your GUI is broken.
             </shortdesc>
@@ -95,8 +101,8 @@ meta_data()
 	<action name="status" timeout="5" interval="1h"/>
 	<action name="monitor" timeout="5" interval="1h"/>
 
-	<action name="meta-data"/>
-	<action name="verify-all"/>
+	<action name="meta-data" timeout="5"/>
+	<action name="verify-all" timeout="30"/>
     </actions>
 
     <special tag="rgmanager">

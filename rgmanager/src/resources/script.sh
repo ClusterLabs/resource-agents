@@ -46,15 +46,23 @@ meta_data()
 
     <parameters>
         <parameter name="name" unique="1" primary="1">
+            <longdesc lang="en">
+                Name
+            </longdesc>
             <shortdesc lang="en">
                 Name
             </shortdesc>
+	    <content type="string"/>
         </parameter>
 
         <parameter name="file" unique="1" required="1">
+            <longdesc lang="en">
+                Path to script
+            </longdesc>
             <shortdesc lang="en">
                 Path to script
             </shortdesc>
+	    <content type="string"/>
         </parameter>
     </parameters>
 

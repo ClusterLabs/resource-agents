@@ -47,50 +47,49 @@ meta_data()
 
     <parameters>
         <parameter name="name" unique="1" primary="1">
-            <shortdesc lang="en">
-                Client Name
-            </shortdesc>
             <longdesc lang="en">
                 This is a symbolic name of a client used to reference
                 it in the resource tree.  This is NOT the same thing
                 as the target option.
             </longdesc>
+            <shortdesc lang="en">
+                Client Name
+            </shortdesc>
             <content type="string"/>
         </parameter>
 
         <parameter name="target" required="1">
-            <shortdesc lang="en">
-                Target Hostname, Wildcard, or Netgroup
-            </shortdesc>
             <longdesc lang="en">
                 This is either a hostname, a wildcard (IP address or
                 hostname based), or a netgroup to which defining a
                 host or hosts to export to.
             </longdesc>
+            <shortdesc lang="en">
+                Target Hostname, Wildcard, or Netgroup
+            </shortdesc>
             <content type="string"/>
         </parameter>
 
         <parameter name="path" inherit="path">
-            <shortdesc lang="en">
-                Path to Export
-            </shortdesc>
-
             <longdesc lang="en">
                 This is the path to export to the target.  This
                 field is generally left blank, as it inherits the
                 path from the parent export.
             </longdesc>
+            <shortdesc lang="en">
+                Path to Export
+            </shortdesc>
             <content type="string"/>
         </parameter>
 
         <parameter name="options">
-            <shortdesc lang="en">
-                Export Options
-            </shortdesc>
             <longdesc lang="en">Defines a list of options for this
                 particular client.  See 'man 5 exports' for a list
                 of available options.
             </longdesc>
+            <shortdesc lang="en">
+                Export Options
+            </shortdesc>
             <content type="string"/>
         </parameter>
     </parameters>
@@ -104,8 +103,8 @@ meta_data()
         <action name="status" timeout="5" interval="1m"/>
         <action name="monitor" timeout="5" interval="1m"/>
 
-        <action name="meta-data"/>
-        <action name="verify-all"/>
+        <action name="meta-data" timeout="5"/>
+        <action name="verify-all" timeout="30"/>
     </actions>
 
 </resource-agent>

@@ -48,7 +48,7 @@ logAndPrint()
 meta_data()
 {
 	cat <<EOT
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="ISO-8859-1" ?>
 <resource-agent name="fs" version="rgmanager 2.0">
     <version>1.0</version>
 
@@ -178,8 +178,8 @@ meta_data()
     </actions>
 
     <special tag="rgmanager">
-        <child type="nfsexport"/>
 	<attributes maxinstances="1"/>
+        <child type="nfsexport"/>
     </special>
 </resource-agent>
 EOT
@@ -187,7 +187,11 @@ EOT
 
 verify_name()
 {
-	[ -n "$OCF_RESKEY_name" ] || exit 1
+	if [ -z "$OCF_RESKEY_name" ]; then
+		echo "No file system name specified."
+		return 1
+	fi
+	return 0
 }
 
 
@@ -199,14 +203,14 @@ verify_mountpoint()
 	fi
 
 	if ! [ -e "$OCF_RESKEY_mountpoint" ]; then
-		echo "Mount point $OCF_RESKEY_mountpoint will be created "\
-		     "at mount time."
+		echo -n "Mount point $OCF_RESKEY_mountpoint will be created "
+		echo "at mount time."
 		return 0
 	fi
 
 	[ -d "$OCF_RESKEY_mountpoint" ] && return 0
 
-	echo $OCF_RESKEY_mountpoint is not a directory
+	echo $OCF_RESKEY_mountpoint exists but is not a directory.
 	
 	return 1
 }

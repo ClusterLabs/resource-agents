@@ -18,7 +18,7 @@ include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
 TARGETS=fs.sh resourcegroup.sh ip.sh nfsclient.sh nfsexport.sh \
-	script.sh netfs.sh clusterfs.sh
+	script.sh netfs.sh clusterfs.sh # oracleas
 all:
 
 install: all
@@ -29,4 +29,13 @@ install: all
 
 uninstall:
 	${UNINSTALL} ${TARGETS} ${sharedir}
+
 clean:
+
+check: $(TARGETS) ra-api-1-modified.dtd
+	@echo Validating resource agent meta-data
+	@for f in $(TARGETS); do \
+		echo "   ./$$f "; \
+		./$$f meta-data | xmllint --dtdvalid \
+				  ./ra-api-1-modified.dtd --noout -; \
+	done
