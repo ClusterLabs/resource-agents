@@ -1261,13 +1261,14 @@ void process_remastered_lkb(struct dlm_ls *ls, struct dlm_lkb *lkb, int state)
 	}
 }
 
-static void dump_queue(struct list_head *head)
+static void dump_queue(struct list_head *head, char *qname)
 {
 	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, head, lkb_statequeue) {
-		printk("%08x gr %d rq %d flg %x sts %u node %u remid %x "
+		printk("%s %08x gr %d rq %d flg %x sts %u node %u remid %x "
 		       "lq %d,%x\n",
+		       qname,
 		       lkb->lkb_id,
 		       lkb->lkb_grmode,
 		       lkb->lkb_rqmode,
@@ -1286,20 +1287,14 @@ static void dump_rsb(struct dlm_rsb *rsb)
 	       rsb->res_name, rsb->res_flags, rsb->res_nodeid,
 	       atomic_read(&rsb->res_ref));
 
-	if (!list_empty(&rsb->res_grantqueue)) {
-		printk("grant queue\n");
-		dump_queue(&rsb->res_grantqueue);
-	}
+	if (!list_empty(&rsb->res_grantqueue))
+		dump_queue(&rsb->res_grantqueue, "G");
 
-	if (!list_empty(&rsb->res_convertqueue)) {
-		printk("convert queue\n");
-		dump_queue(&rsb->res_convertqueue);
-	}
+	if (!list_empty(&rsb->res_convertqueue))
+		dump_queue(&rsb->res_convertqueue, "C");
 
-	if (!list_empty(&rsb->res_waitqueue)) {
-		printk("wait queue\n");
-		dump_queue(&rsb->res_waitqueue);
-	}
+	if (!list_empty(&rsb->res_waitqueue))
+		dump_queue(&rsb->res_waitqueue, "W");
 }
 
 void dlm_locks_dump(void)
