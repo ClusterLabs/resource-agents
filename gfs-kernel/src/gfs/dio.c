@@ -927,7 +927,8 @@ void
 gfs_logbh_uninit(struct gfs_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(GFN_LOGBH_UNINIT)
-	gfs_assert_warn(sdp, !buffer_busy(bh));
+	gfs_assert_warn(sdp, test_bit(SDF_SHUTDOWN, &sdp->sd_flags) ||
+			!buffer_busy(bh));
 	gfs_assert_warn(sdp, atomic_read(&bh->b_count) == 1);
 	RET(GFN_LOGBH_UNINIT);
 }
