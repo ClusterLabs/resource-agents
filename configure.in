@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.70 $) dnl cvs revision
+AC_REVISION($Revision: 1.71 $) dnl cvs revision
 AC_INIT(heartbeat.spec.in)
 AC_CONFIG_AUX_DIR(.)
 AC_CANONICAL_HOST
@@ -254,13 +254,27 @@ AC_MSG_RESULT("No"))
 dnl ************************************************************************
 dnl checks for libraries
 dnl
-AC_CHECK_LIB(nsl, t_open)                dnl -lnsl
-AC_CHECK_LIB(socket, socket)             dnl -lsocket
-AC_CHECK_LIB(posix4, sched_getscheduler) dnl -lposix4
-AC_CHECK_LIB(c, dlopen)		 	 dnl -ldl (for Linux)
-AC_CHECK_LIB(dl, dlopen)		 dnl -ldl (for Linux)
-AC_CHECK_LIB(c, gettext)	 	 dnl -lc (for Linux)
-AC_CHECK_LIB(intl, gettext)	 	 dnl -lintl (for BSD, AIX)
+AC_CHECK_LIB(nsl, t_open)			dnl -lnsl
+AC_CHECK_LIB(socket, socket)			dnl -lsocket
+AC_CHECK_LIB(posix4, sched_getscheduler)	dnl -lposix4
+AC_CHECK_LIB(c, dlopen)				dnl -ldl (for Linux)
+AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
+dnl
+dnl Check for location of gettext
+dnl
+dnl On at least Solaris 2.x, where it is in libc, specifying lintl causes
+dnl grief. Ensure minimal result, not the sum of all possibilities.
+dnl And do libc first.
+dnl Known examples:
+dnl    c:      Linux, Solaris 2.6+
+dnl    intl:   BSD, AIX
+for gt_test_lib in c intl
+do
+	AC_CHECK_LIB($gt_test_lib, gettext)
+	if test `eval echo '$ac_cv_lib_'$ac_lib_var` = yes ; then
+		break
+	fi
+done
 #
 #	Where is dlopen?
 #
