@@ -144,7 +144,7 @@ static int make_args(int cd, char *victim, char *method, char *device,
 	sprintf(path, NODE_FENCE_ARGS_PATH, victim, method, device);
 
 	for (;;) {
-		error = ccs_get(cd, path, &str);
+		error = ccs_get_list(cd, path, &str);
 		if (error || !str)
 			break;
 
@@ -164,7 +164,7 @@ static int make_args(int cd, char *victim, char *method, char *device,
 	sprintf(path, FENCE_DEVICE_ARGS_PATH, device);
 
 	for (;;) {
-		error = ccs_get(cd, path, &str);
+		error = ccs_get_list(cd, path, &str);
 		if (error || !str)
 			break;
 

@@ -432,7 +432,7 @@ static int check_ccs(fd_t *fd)
 		goto out;
 	}
 
-	for (i=1;;i++) {
+	for (i = 1; ; i++) {
 		name = NULL;
 	        memset(path, 0, 256);
 	        sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
