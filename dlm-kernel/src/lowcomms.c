@@ -691,7 +691,6 @@ static int listen_for_all(void)
 	struct socket *sock = NULL;
 	struct list_head *addr_list;
 	struct connection *con = nodeid2con(0, GFP_KERNEL);
-	struct connection *temp;
 	struct cluster_node_addr *node_addr;
 	char local_addr[sizeof(struct sockaddr_in6)];
 
@@ -712,7 +711,7 @@ static int listen_for_all(void)
 			if (!con) {
 				printk("dlm: failed to allocate listen socket\n");
 				result = -ENOMEM;
-				goto create_free;
+				goto create_out;
 			}
 			memset(con, 0, sizeof(*con));
 			init_rwsem(&con->sock_sem);
@@ -735,22 +734,15 @@ static int listen_for_all(void)
 		}
 		else {
 			result = -EADDRINUSE;
-			kmem_cache_free(con_cache, con);
-			goto create_free;
+			if (test_bit(CF_IS_OTHERCON, &con->flags))
+				kmem_cache_free(con_cache, con);
+			goto create_out;
 		}
 
 		con = NULL;
 	}
 
       create_out:
-	return result;
-
-      create_free:
-	/* Free up any dynamically allocated listening sockets */
-	list_for_each_entry_safe(con, temp, &listen_sockets, listenlist) {
-		sock_release(con->sock);
-		kmem_cache_free(con_cache, con);
-	}
 	return result;
 }
 
