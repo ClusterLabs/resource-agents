@@ -580,6 +580,7 @@ struct dlm_lkb *remote_stage2(int remote_nodeid, struct dlm_ls *ls,
 
 	DLM_ASSERT(rsb->res_nodeid == 0,
 		   print_lkb(lkb);
+		   print_rsb(rsb);
 		   print_request(freq);
 		   printk("nodeid %u\n", remote_nodeid););
 
