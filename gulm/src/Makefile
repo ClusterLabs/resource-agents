@@ -16,10 +16,10 @@ all: lock_gulmd gulm_tool
 .PHONY: lock_gulmd clean dep depends
 
 lock_gulmd:
-	cd .. && ${MAKE} lock_gulmd
+	cd .. && ${MAKE} src/lock_gulmd
 
 gulm_tool:
-	cd .. && ${MAKE} gulm_tool
+	cd .. && ${MAKE} src/gulm_tool
 
 clean:
 	cd .. && ${MAKE} clean
