@@ -5,7 +5,7 @@ dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
-AC_REVISION($Revision: 1.10 $) dnl cvs revision
+AC_REVISION($Revision: 1.11 $) dnl cvs revision
 AC_INIT(Specfile)
 AC_CONFIG_AUX_DIR(config)
 AC_CANONICAL_HOST
@@ -182,7 +182,7 @@ dnl		code and has memory leaks designed in (sigh...)  Fortunately this
 dnl		doesn't matter to the linux-ha code at this time.
 AC_CHECK_FUNCS(scandir)
 AC_CHECK_FUNCS(strerror)
-AC_REPLACE_FUNCS(setenv)
+AC_REPLACE_FUNCS(setenv scandir)
 
 dnl ************************************************************************
 dnl pre AC_OUTPUT stuff
