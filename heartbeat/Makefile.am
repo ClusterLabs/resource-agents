@@ -35,10 +35,28 @@ IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
                         $(gliblib) @LIBNETLIBS@
 
 
-ocf_SCRIPTS	     = IPaddr \
-		       IPaddr2 \
-		       drbd \
-		       Dummy
+ocf_SCRIPTS	     =  ocf-shellfuncs \
+			Dummy	\
+		        IPaddr	\
+		        IPaddr2	\
+		        drbd	\
+			apache	\
+			AudibleAlarm	\
+			db2	\
+			Delay	\
+			drbd	\
+			Filesystem	\
+			ICP	\
+			IPsrcaddr	\
+			LinuxSCSI	\
+			LVM	\
+			MailTo	\
+			portblock	\
+			Raid1	\
+			ServeRAID	\
+			WAS	\
+			WinPopup	\
+			Xinetd
 
 commondir	     = @hb_libdir@
 common_SCRIPTS	     = ocf-shellfuncs
