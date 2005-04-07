@@ -25,6 +25,9 @@
 #define LOCAL_SUCCESS_REPLY     0
 /* This is so that gnbd_export knows that it can kill gnbd_clusterd */
 #define LOCAL_RM_CLUSTER_REPLY  1024
+
+#define MAX_WWID_SIZE 256 /* got this from scsi_id code */
+
 /* FIXME -- is this used */
 #define REPLY_ERR(x) (-((int)(x)))
 
@@ -36,6 +39,7 @@ struct info_req_s {
   uint8_t flags;
   char name[32];
   char path[1024];
+  char unique_id[MAX_WWID_SIZE];
 };
 typedef struct info_req_s info_req_t;
 

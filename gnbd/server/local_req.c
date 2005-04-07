@@ -90,6 +90,7 @@ void handle_local_request(int sock, uint32_t cmd, void *buf)
       create_req->name[31] = 0;
       create_req->path[255] = 0;
       err = create_device(create_req->name, create_req->path,
+                          create_req->unique_id,
                           (unsigned int)create_req->timeout,
                           (unsigned int)create_req->flags);
       if (err < 0)

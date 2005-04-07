@@ -139,6 +139,8 @@ int check_extern_data_len(uint32_t req, int size)
     return (size >= sizeof(login_req_t) + sizeof(node_req_t));
   case EXTERN_NODENAME_REQ:
     return 1;
+  case EXTERN_UNIQUE_ID_REQ:
+    return (size >= sizeof(device_req_t));
   default:
     log_err("unknown external request: %u. closing connection.\n",
             (unsigned int)req);
@@ -261,6 +263,25 @@ void handle_extern_request(int sock, uint32_t cmd, void *buf)
         close(sock);
       }
       return;
+    }
+  case EXTERN_UNIQUE_ID_REQ:
+    {
+      device_req_t id_req;
+      dev_info_t *dev;
+      uint32_t size;
+
+      memcpy(&id_req, buf, sizeof(id_req));
+      dev = find_device(id_req.name);
+      if (!dev){
+        reply = ENODEV;
+        DO_TRANS(send_u32(sock, reply), exit);
+        break;
+      }
+      size = strlen(dev->unique_id) + 1;
+      DO_TRANS(send_u32(sock, reply), exit);
+      DO_TRANS(send_u32(sock, size), exit);
+      DO_TRANS(retry_write(sock, dev->unique_id, size), exit);
+      break;
     }
   case EXTERN_LOGIN_REQ:
     {

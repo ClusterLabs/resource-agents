@@ -41,6 +41,7 @@ typedef struct import_info_s import_info_t;
 #define EXTERN_KILL_GSERV_REQ   5
 #define EXTERN_LOGIN_REQ        6
 #define EXTERN_NODENAME_REQ     7
+#define EXTERN_UNIQUE_ID_REQ    8
 
 #define EXTERN_SUCCESS_REPLY    0
 /* FIXME -- is this used */

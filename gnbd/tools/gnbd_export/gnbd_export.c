@@ -18,10 +18,13 @@
 #include <getopt.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <arpa/inet.h>
-
+#include <fcntl.h>
+#include <ctype.h>
 #include "global.h"
 #include "gnbd_endian.h"
 #include "gnbd_utils.h"
@@ -66,12 +69,159 @@ void stop_gnbd_clusterd(void)
   }
 }
 
-int servcreate(char *name, char *device, uint32_t timeout, uint8_t readonly){
+int get_unique_scsi_id(char **unique_id, char *dev){
+  char *buf;
+  char partition[3];
+  int fds[2];
+  pid_t pid;
+  char *ptr;
+  char sysfs_path[256];
+  int status, val, count, bytes;
+
+  buf = malloc(MAX_WWID_SIZE);
+  if (!buf){
+    printv("cannot get memory to store unique scsi id : %s\n", strerror(errno));
+    return -1;
+  }
+
+  snprintf(sysfs_path, 256, "/block/%s", dev);
+  sysfs_path[255] = 0;
+
+  ptr = sysfs_path + 9;
+  while(*ptr != 0 && !isdigit(*ptr))
+    ptr++;
+  
+  strncpy(partition, ptr, 2);
+  while (*ptr != 0){
+    if (!isdigit(*ptr)){
+      printv("invalid partition number for %s\n", dev);
+      goto fail;
+    }
+    *ptr = 0;
+    ptr++;
+  }
+
+  if (pipe(fds)){
+    printv("unique scsi id pipe error : %s\n", strerror(errno));
+    goto fail;
+  }
+  pid = fork();
+  if (pid < 0){
+    printv("cannot fork scsi_id process : %s\n", strerror(errno));
+    goto fail;
+  }
+
+  if (!pid){
+    /* child */
+    close(STDOUT_FILENO);
+    dup(fds[1]);
+    close(fds[0]);
+    close(fds[1]);
+    close(STDERR_FILENO);
+    dup(STDOUT_FILENO);
+    execl("/sbin/scsi_id", "/sbin/scsi_id", "-g", "-u", "-s", sysfs_path, NULL);
+    printe("cannot exec '/sbin/scsi_id -g -u -s %s' : %s\n", sysfs_path,
+           strerror(errno));
+    exit(1);
+  }
+  /* parent */
+  close(0);
+  dup(fds[0]);
+  close(fds[0]);
+  close(fds[1]);
+
+  val = fcntl(0, F_GETFL, 0);
+  if (val >= 0){
+    val |= O_NONBLOCK;
+    fcntl(0, F_SETFL, val);
+  }
+  waitpid(pid, &status, 0);
+
+  count = 0;
+  buf[0] = 0;
+  while( (bytes = read(0, buf + count, (MAX_WWID_SIZE - 3) - count)) > 0)
+    count += bytes;
+  if (buf[count - 1] == '\n')
+    count--;
+  buf[count] = 0;
+  if (!WIFEXITED(status)){
+    printv("scsi_id exitted abnormally (%s)'\n", buf);
+    goto fail;
+  }
+  status = WEXITSTATUS(status);
+  if (status != 0){
+    printv("scsi_id failed: %d (%s)\n", status, buf);
+    goto fail;
+  }
+  strcat(buf, partition);
+  *unique_id = buf;
+  return 0;
+
+ fail:
+  free(buf);
+  return -1;
+}
+
+int verify_scsi_dev(int major){
+  char device[LINE_MAX];
+  char buf[LINE_MAX];
+  int major_nr;
+  FILE *fp;
+  fp = fopen("/proc/devices", "r");
+  if (!fp){
+    printv("could not open /proc/devices: %s\n", strerror(errno));
+    return -1;
+  }
+  while(fgets(buf, LINE_MAX, fp) != NULL)
+    if (sscanf(buf, "%d %s", &major_nr, device) == 2 &&
+        strcmp(device, "sd") == 0 && major == major_nr){
+      fclose(fp);
+      return 0;
+    }
+  fclose(fp);
+  return -1;
+}
+
+/* FIXME -- This code is horrid. since scsi_id uses /sys/block/<something>
+   and gnbd_export uses something like /dev/<whatever> (or really any block
+   device node, i.e. <somepath>/<whatever>), this code will only work
+   if <something> == <whatever> for the device you are trying to export.
+   Ideally, this should take the major and minor from <whatever> and find the
+   appropriate <something> and then call scsi_id on that. */
+void get_unique_id(char *name, char *device, char **unique_id){
+  char *ptr;
+  struct stat stats;
+  int major;
+
+  if (stat(device, &stats) < 0){
+    printv("cannot stat %s : %s\n", device, strerror(errno));
+    goto fail;
+  }
+  major = major(stats.st_rdev);
+
+  ptr = strrchr(device, '/');
+  if (!ptr)
+    ptr = device;
+  else
+    ptr++;
+  if (verify_scsi_dev(major) == 0 && strncmp(ptr, "sd", 2) == 0 &&
+      get_unique_scsi_id(unique_id, ptr) == 0)
+    return;
+
+ fail:
+  *unique_id = name;
+}
+
+int servcreate(char *name, char *device, char *unique_id, uint32_t timeout,
+               uint8_t readonly){
   info_req_t create_req;
   int fd;
   
   if (timeout && start_gnbd_clusterd())
     return 1;
+
+  if (!unique_id)
+    get_unique_id(name, device, &unique_id);
 
   strncpy(create_req.name, name, 32);
   create_req.name[31] = 0;
@@ -82,6 +232,8 @@ int servcreate(char *name, char *device, uint32_t timeout, uint8_t readonly){
   }
   strncpy(create_req.path, device, 1024);
   create_req.path[1023] = 0;
+  strncpy(create_req.unique_id, unique_id, MAX_WWID_SIZE);
+  create_req.unique_id[MAX_WWID_SIZE - 1] = 0;
   create_req.timeout = timeout;
   create_req.flags = (((readonly)? GNBD_FLAGS_READONLY : 0) |
                       ((timeout)? GNBD_FLAGS_UNCACHED : 0));
@@ -289,11 +441,12 @@ int list(void){
            "--------------------------\n"
            "      file : %s\n"
            "   sectors : %Lu\n"
+           " unique id : %s\n"
            "  readonly : %s\n"
            "    cached : %s\n",
            i, info->name, (info->flags & GNBD_FLAGS_INVALID)? "(invalid)" : "",
            info->path, (long long unsigned int)info->sectors,
-           (info->flags & GNBD_FLAGS_READONLY)? "yes" : "no",
+           info->unique_id, (info->flags & GNBD_FLAGS_READONLY)? "yes" : "no",
            (info->flags & GNBD_FLAGS_UNCACHED)? "no" : "yes");
     if (info->timeout)
       printf("   timeout : %u\n", info->timeout);
@@ -325,7 +478,8 @@ int usage(void){
 "  -q               quiet mode\n"
 "  -R               unexport all GNBDs\n"
 "  -r [GNBD | list] unexport the specified GNBD(s)\n"
-"  -t <seconds>     set the timeout duration\n"              
+"  -t <seconds>     set the timeout duration\n"
+"  -u <id>          set a unique identifier for this device\n"              
 "  -v               verbose output (useful with -l)\n"
 "  -V               version information\n");
   return 0;
@@ -379,9 +533,11 @@ int main(int argc, char **argv){
   int readonly = 0;
   char *device = NULL;
   char *gnbd_name = NULL;
+  char *unique_id = NULL;
+
 
   program_name = "gnbd_export";
-  while ((c = getopt(argc, argv, "acd:e:hlLOoqrRt:vV")) != -1){
+  while ((c = getopt(argc, argv, "acd:e:hlLOoqrRt:u:vV")) != -1){
     switch(c){
     case ':':
     case '?':
@@ -429,6 +585,8 @@ int main(int argc, char **argv){
         return 1;
       }
       continue;
+    case 'u':
+      unique_id = optarg;
     case 'v':
       verbosity = VERBOSE;
       continue;
@@ -447,8 +605,9 @@ int main(int argc, char **argv){
     printe("the -t option may not be used with the -c option\n" MAN_MSG);
     return 1;
   }
-  if ((cached || timeout || device || readonly) && action != ACTION_EXPORT){
-    printe("the -c, -t, and -d flags may only be used with -e\n" MAN_MSG);
+  if ((cached || timeout || device || readonly || unique_id) &&
+      action != ACTION_EXPORT){
+    printe("the -c, -d, -t and -u flags may only be used with -e\n" MAN_MSG);
     return 1;
   }
   if (force && action != ACTION_REMOVE && action != ACTION_REMOVE_ALL){
@@ -468,7 +627,8 @@ int main(int argc, char **argv){
     }
     if (cached == 0 && timeout == 0)
       timeout = TIMEOUT_DEFAULT;
-    return servcreate(gnbd_name, device, (uint32_t)timeout, (uint8_t)readonly);
+    return servcreate(gnbd_name, device, unique_id, (uint32_t)timeout,
+                      (uint8_t)readonly);
   case ACTION_REMOVE:
     if (optind == argc){
       printe("missing operand for remove action\n");

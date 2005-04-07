@@ -69,7 +69,6 @@ static spinlock_t gnbd_lock = SPIN_LOCK_UNLOCKED;
 
 static void gnbd_class_release(struct class_device *class_dev)
 {
-	printk("releasing gnbd class\n");
 	/* FIXME -- What the hell do I have to free up here */
 }
 
