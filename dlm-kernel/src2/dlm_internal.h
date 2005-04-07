@@ -326,7 +326,6 @@ struct dlm_rsb {
 	struct list_head	res_rootlist;	    /* used for recovery */
 	struct list_head	res_recover_list;   /* used for recovery */
 	int			res_remasterid;     /* used for recovery */
-	int			res_recover_msgid;  /* used for recovery */
 	int			res_newlkid_expect; /* used for recovery */
 
 	char *			res_lvbptr;
@@ -412,7 +411,6 @@ struct dlm_ls {
 	struct semaphore	ls_requestqueue_lock;
 
 	struct dlm_rcom *       ls_rcom;	/* recovery comms */
-	uint32_t		ls_rcom_msgid;
 	struct semaphore	ls_rcom_lock;
 
 	struct list_head	ls_recover_list;
@@ -502,8 +500,8 @@ struct dlm_message {
 struct dlm_rcom {
 	struct dlm_header	rc_header;
 	uint32_t		rc_type;	/* DLM_RCOM_ */
-	uint32_t		rc_msgid;
 	uint32_t		rc_datalen;
+	uint64_t		rc_id;
 	char			rc_buf[1];
 };
 

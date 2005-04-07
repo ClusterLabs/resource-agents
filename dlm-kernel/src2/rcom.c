@@ -62,6 +62,7 @@ static int rcom_response(struct dlm_ls *ls)
 int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
 		  int need_reply)
 {
+	struct dlm_header *hd = (struct dlm_header *) rc;
 	int error = 0;
 
 	log_debug(ls, "dlm_send_rcom to %d type %d", nodeid, type);
@@ -73,12 +74,7 @@ int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
 	rc->rc_header.h_nodeid = dlm_our_nodeid();
 	rc->rc_header.h_length = sizeof(struct dlm_rcom) + rc->rc_datalen - 1;
 	rc->rc_header.h_cmd = DLM_RCOM;
-
-	/* FIXME: set msgid's differently, rsb_master_lookup needs to
-	   set and remember the msgid before calling here. */
-
 	rc->rc_type = type;
-	rc->rc_msgid = ++ls->ls_rcom_msgid;
 
 	/* 
 	 * When a reply is received, the reply data goes back into this buffer.
@@ -94,6 +90,9 @@ int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
 		ls->ls_rcom = rc;
 		DLM_ASSERT(!test_bit(LSFL_RCOM_READY, &ls->ls_flags),);
 	}
+
+	/* FIXME: do byte swapping here */
+	hd->h_length = cpu_to_le16(hd->h_length);
 
 	/*
 	 * Process the message locally.
@@ -148,7 +147,7 @@ void rcom_reply_args(struct dlm_ls *ls, struct dlm_rcom *rc,
 	rc->rc_header.h_nodeid = dlm_our_nodeid();
 	rc->rc_header.h_cmd = DLM_RCOM;
 	rc->rc_type = type;
-	rc->rc_msgid = rc_in->rc_msgid;
+	rc->rc_id = rc_in->rc_id;
 	rc->rc_datalen = len;
 	rc->rc_header.h_length = sizeof(struct dlm_rcom) + len - 1;
 }
@@ -297,10 +296,9 @@ void receive_rcom_sync_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 		return;
 	}
 
-	if (rc_in->rc_msgid != le32_to_cpu(rc_sent->rc_msgid)) {
-		log_error(ls, "unexpected rcom msgid %x/%x nodeid=%u",
-		          rc_in->rc_msgid, le32_to_cpu(rc_sent->rc_msgid),
-			  nodeid);
+	if (rc_in->rc_id != le32_to_cpu(rc_sent->rc_id)) {
+		log_error(ls, "expected rcom id %"PRIx64" got %"PRIx64" %d",
+		          le64_to_cpu(rc_sent->rc_id), rc_in->rc_id, nodeid);
 		return;
 	}
 
@@ -328,9 +326,7 @@ void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-#if 0
 	dlm_recover_master_reply(ls, rc_in);
-#endif
 }
 
 void receive_rcom_locks_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -360,7 +356,7 @@ static int send_ls_not_ready(int nodeid, struct dlm_header *header)
 
 	reply->rc_header.h_lockspace = rc->rc_header.h_lockspace;
 	reply->rc_type = rc->rc_type;
-	reply->rc_msgid = rc->rc_msgid;
+	reply->rc_id = rc->rc_id;
 	reply->rc_buf[0] = 0;
 
 	reply->rc_datalen = 1;
@@ -382,7 +378,7 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 	struct dlm_ls *ls;
 
 	/* FIXME: do byte swapping here */
-
+	hd->h_length = le16_to_cpu(hd->h_length);
 
 	/* If the lockspace doesn't exist then still send a status message
 	   back; it's possible that it just doesn't have its global_id yet. */

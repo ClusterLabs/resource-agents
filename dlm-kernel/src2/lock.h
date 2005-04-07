@@ -19,6 +19,9 @@ int dlm_modes_compat(int mode1, int mode2);
 int dlm_find_rsb(struct dlm_ls *ls, char *name, int namelen,
 	unsigned int flags, struct dlm_rsb **r_ret);
 void dlm_put_rsb(struct dlm_rsb *r);
+void dlm_hold_rsb(struct dlm_rsb *r);
+void dlm_lock_rsb(struct dlm_rsb *r);
+void dlm_unlock_rsb(struct dlm_rsb *r);
 int dlm_put_lkb(struct dlm_lkb *lkb);
 int dlm_remove_from_waiters(struct dlm_lkb *lkb);
 

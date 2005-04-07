@@ -18,7 +18,7 @@ int dlm_recovery_stopped(struct dlm_ls *ls);
 int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls));
 int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status);
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status);
-int dlm_purge_locks(struct dlm_ls *ls);
-int dlm_grant_after_purge(struct dlm_ls *ls);
+int dlm_recover_masters(struct dlm_ls *ls);
+int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc);
 
 #endif				/* __RECOVER_DOT_H__ */

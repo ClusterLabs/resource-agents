@@ -259,6 +259,7 @@ struct dlm_rsb *create_rsb(struct dlm_ls *ls, char *name, int len)
 	INIT_LIST_HEAD(&r->res_convertqueue);
 	INIT_LIST_HEAD(&r->res_waitqueue);
 	INIT_LIST_HEAD(&r->res_rootlist);
+	INIT_LIST_HEAD(&r->res_recover_list);
 
 	return r;
 }
@@ -302,7 +303,7 @@ int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 			clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
 			r->res_trial_lkid = 0;
 		} else if (r->res_nodeid > 0) {
-			set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+			clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
 			set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
 			r->res_trial_lkid = 0;
 		} else {
@@ -402,6 +403,11 @@ void hold_rsb(struct dlm_rsb *r)
 	kref_get(&r->res_ref);
 }
 
+void dlm_hold_rsb(struct dlm_rsb *r)
+{
+	hold_rsb(r);
+}
+
 void toss_rsb(struct kref *kref)
 {
 	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
@@ -486,6 +492,16 @@ void lock_rsb(struct dlm_rsb *r)
 void unlock_rsb(struct dlm_rsb *r)
 {
 	up(&r->res_sem);
+}
+
+void dlm_lock_rsb(struct dlm_rsb *r)
+{
+	lock_rsb(r);
+}
+
+void dlm_unlock_rsb(struct dlm_rsb *r)
+{
+	unlock_rsb(r);
 }
 
 /* Attaching/detaching lkb's from rsb's is for rsb reference counting.
@@ -960,21 +976,14 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
 
 /* set_master(r, lkb) -- set the master nodeid of a resource
 
-   _request_lock calls this:
-   o in the context of an original lock request, or
-   o in the context of dlm_recvd after receiving a master lookup reply
-     (which may be positive or negative), or
-   o in the context of dlm_recoverd if the lkb was on the waiters
-     list when recovery occured
-
    The purpose of this function is to set the nodeid field in the given
    lkb using the nodeid field in the given rsb.  If the rsb's nodeid is
    known, it can just be copied to the lkb and the function will return
    0.  If the rsb's nodeid is _not_ known, it needs to be looked up
    before it can be copied to the lkb.  If the rsb's nodeid is known,
    but is uncertain, then we may wait to copy it to the lkb until we
-   know for certain.  [An rsb's nodeid may change (and is uncertain) after
-   we look it up but before we are granted a lock on it.]
+   know for certain.  [An rsb's nodeid may change (i.e. uncertain) after
+   we look it up if it's remote since we have no granted locks on it.]
    
    When the rsb nodeid is being looked up, the initial lkb causing
    the lookup is kept on the dlm_waiters list waiting for the lookup
@@ -982,11 +991,11 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
    the rsb's res_lookup list until the master is certain.
 
    After the initial lookup reply, the initial lkb gets the resulting
-   nodeid copied from the rsb.  This lkb then "tries out" the nodeid
-   since it's still uncertain.  This lkb is designed the "trial lkb"
-   and is identified by res_trial_lkid until it gets a reply from the
-   master indicating the lkb request was queued.  This confirms that
-   the master nodeid is correct and allows any other lkb's on the
+   nodeid copied from the rsb.  When remote, this lkb then "tries out"
+   the nodeid since it's still uncertain.  This lkb is designated the
+   "trial lkb" and is identified by res_trial_lkid until it gets a reply
+   from the master indicating the lkb request was queued.  This confirms
+   that the master nodeid is correct and allows any other lkb's on the
    res_lookup list to have their nodeid copied from the rsb.
 
    a. res_nodeid == 0   we are master
@@ -1007,12 +1016,6 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
       were told the master is remote) [b,f]
    6. 5 and we have a request outstanding to this uncertain master [b,f,g]
 
-   When set_master is called again on a trial lkb it means the trial failed and
-   the uncertain rsb master was wrong.  The rsb nodeid goes from being
-   uncertain to unknown, and the lkb goes from being a trial to just waiting
-   for the lookup reply.  The lkb will become a trial again when the lookup
-   reply is received and the rsb nodeid is tried again.
-
    Return values:
    0: nodeid is set in rsb/lkb and the caller should go ahead and use it
    1: the rsb master is not available and the lkb has been placed on
@@ -1025,40 +1028,11 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	struct dlm_ls *ls = r->res_ls;
 	int error, dir_nodeid, ret_nodeid, our_nodeid = dlm_our_nodeid();
 
-	if (r->res_trial_lkid == lkb->lkb_id) {
-		r->res_nodeid = -1;
-		lkb->lkb_nodeid = -1;
-		r->res_trial_lkid = 0;
-		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
-		clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
-	}
-
-	if (r->res_nodeid == -1) {
-		dir_nodeid = dlm_dir_nodeid(r);
-
-		if (dir_nodeid == our_nodeid) {
-			error = dlm_dir_lookup(ls, our_nodeid, r->res_name,
-				               r->res_length, &ret_nodeid);
-			/* FIXME: is -EEXIST ever a valid error here? */
-			if (error)
-				log_error(ls, "dir lookup error %d", error);
-
-			if (ret_nodeid == our_nodeid)
-				ret_nodeid = 0;
-
-			r->res_nodeid = ret_nodeid;
-			lkb->lkb_nodeid = ret_nodeid;
-			return 0;
-		}
-
-		if (!test_bit(RESFL_MASTER_WAIT, &r->res_flags)) {
-			error = send_lookup(r, lkb);
-			if (error)
-				return error;
-			set_bit(RESFL_MASTER_WAIT, &r->res_flags);
-		} else
-			list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
-		return 1;
+	if (test_and_clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags)) {
+		set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		r->res_trial_lkid = lkb->lkb_id;
+		lkb->lkb_nodeid = r->res_nodeid;
+		return 0;
 	}
 
 	if (r->res_nodeid == 0) {
@@ -1066,28 +1040,50 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return 0;
 	}
 
-	if (r->res_nodeid > 0) {
-		if (!test_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags)) {
-			lkb->lkb_nodeid = r->res_nodeid;
-			return 0;
-		}
-
-		/* When the rsb nodeid is uncertain we let the first
-		   lkb try it out while any others wait.  If the trial
-		   fails we'll end up back in this function in the first
-		   condition. */
-
-		if (!r->res_trial_lkid) {
-			lkb->lkb_nodeid = r->res_nodeid;
-			r->res_trial_lkid = lkb->lkb_id;
-			return 0;
-		} else {
-			list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
-			return 1;
-		}
+	if (r->res_trial_lkid == lkb->lkb_id) {
+		lkb->lkb_nodeid = r->res_nodeid;
+		return 0;
 	}
 
-	return -1;
+	if (test_bit(RESFL_MASTER_WAIT, &r->res_flags)) {
+		list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
+		return 1;
+	}
+
+	if (r->res_nodeid > 0) {
+		lkb->lkb_nodeid = r->res_nodeid;
+		return 0;
+	}
+
+	/* This is the first lkb requested on this rsb since the rsb
+	   was created.  We need to figure out who the rsb master is. */
+
+	DLM_ASSERT(r->res_nodeid == -1, );
+
+	dir_nodeid = dlm_dir_nodeid(r);
+
+	if (dir_nodeid != our_nodeid) {
+		set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		send_lookup(r, lkb);
+		return 1;
+	}
+
+	error = dlm_dir_lookup(ls, our_nodeid, r->res_name, r->res_length,
+			       &ret_nodeid);
+	/* FIXME: is this assert correct ? */
+	DLM_ASSERT(!error, printk("dir_lookup %d\n", error););
+
+	if (ret_nodeid == our_nodeid) {
+		r->res_nodeid = 0;
+		lkb->lkb_nodeid = 0;
+		return 0;
+	}
+
+	set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+	r->res_trial_lkid = lkb->lkb_id;
+	r->res_nodeid = ret_nodeid;
+	lkb->lkb_nodeid = ret_nodeid;
+	return 0;
 }
 
 /* confirm_master -- confirm an rsb's master nodeid
@@ -1106,15 +1102,19 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
    and can send any lkb requests waiting on res_lookup.
 */
 
-void confirm_master(struct dlm_rsb *r, int rv)
+void confirm_master(struct dlm_rsb *r, int error)
 {
 	struct dlm_lkb *lkb, *safe;
 
-	if (!test_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags))
+	if (!test_bit(RESFL_MASTER_WAIT, &r->res_flags))
 		return;
 
-	if (rv == 0 || rv == -EINPROGRESS) {
-		clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+	switch (error) {
+	case 0:
+	case -EINPROGRESS:
+		/* the remote master queued our request, or
+		   the remote dir node told us we're the master */
+
 		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
 		r->res_trial_lkid = 0;
 
@@ -1124,25 +1124,35 @@ void confirm_master(struct dlm_rsb *r, int rv)
 			_request_lock(r, lkb);
 			schedule();
 		}
-		return;
-	}
+		break;
+	
+	case -EAGAIN:
+		/* the remote master didn't queue our NOQUEUE request;
+		   do another trial with the next waiting lkb */
 
-	if (rv == -EAGAIN) {
-		/* unsure about this case where lookup list is empty */
-		if (list_empty(&r->res_lookup)) {
-			r->res_trial_lkid = 0;
-			printk("confirm_master: lookup list empty\n");
-			return;
+		if (!list_empty(&r->res_lookup)) {
+			lkb = list_entry(r->res_lookup.next, struct dlm_lkb,
+					 lkb_rsb_lookup);
+			list_del(&lkb->lkb_rsb_lookup);
+			r->res_trial_lkid = lkb->lkb_id;
+			_request_lock(r, lkb);
+			break;
 		}
 
-		/* setting trial_lkid to 0 allows this lkb to become the
-		   trial when _request_lock calls set_master */
+		/* fall through so the rsb looks new */
 
-		lkb = list_entry(r->res_lookup.next, struct dlm_lkb,
-				 lkb_rsb_lookup);
-		list_del(&lkb->lkb_rsb_lookup);
+	case -ENOENT:
+	case -ENOTBLK:
+		/* the remote master wasn't really the master, i.e.  our
+		   trial failed; so we start over */
+
+		r->res_nodeid = -1;
 		r->res_trial_lkid = 0;
-		_request_lock(r, lkb);
+		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		break;
+
+	default:
+		log_error(r->res_ls, "confirm_master unknown error %d", error);
 	}
 }
 
@@ -2000,9 +2010,13 @@ int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 	return 0;
 }
 
-int send_message(struct dlm_mhandle *mh)
+int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
-	/* FIXME: add byte swapping */
+	struct dlm_header *hd = (struct dlm_header *) ms;
+
+	/* FIXME: do byte swapping here */
+	hd->h_length = cpu_to_le16(hd->h_length);
+
 	lowcomms_commit_buffer(mh);
 	return 0;
 }
@@ -2057,7 +2071,7 @@ int send_common(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype)
 
 	send_args(r, lkb, ms);
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
 	if (error)
 		goto fail;
 	return 0;
@@ -2103,7 +2117,7 @@ int send_grant(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	ms->m_result = 0;
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
  out:
 	return error;
 }
@@ -2124,7 +2138,7 @@ int send_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int mode)
 
 	ms->m_bastmode = mode;
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
  out:
 	return error;
 }
@@ -2145,7 +2159,7 @@ int send_lookup(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	send_args(r, lkb, ms);
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
 	if (error)
 		goto fail;
 	return 0;
@@ -2169,7 +2183,7 @@ int send_remove(struct dlm_rsb *r)
 
 	memcpy(ms->m_name, r->res_name, r->res_length);
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
  out:
 	return error;
 }
@@ -2190,7 +2204,7 @@ int send_common_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype, int rv
 
 	ms->m_result = rv;
 
-	error = send_message(mh);
+	error = send_message(mh, ms);
  out:
 	return error;
 }
@@ -2218,12 +2232,12 @@ int send_cancel_reply(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
 		      int ret_nodeid, int rv)
 {
-	struct dlm_rsb r = { .res_ls = ls };
+	struct dlm_rsb *r = &ls->ls_stub_rsb;
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
 	int error, to_nodeid = ms_in->m_header.h_nodeid;
 
-	error = create_message(&r, to_nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
+	error = create_message(r, to_nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
 	if (error)
 		goto out;
 
@@ -2231,7 +2245,10 @@ int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
 	ms->m_result = rv;
 	ms->m_nodeid = ret_nodeid;
 
-	error = send_message(mh);
+	log_debug(ls, "send_lookup_reply %d to %d ret_nodeid %d", rv,
+		  to_nodeid, ret_nodeid);
+
+	error = send_message(mh, ms);
  out:
 	return error;
 }
@@ -2314,8 +2331,10 @@ int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	if (receive_range(ls, lkb, ms))
 		return -ENOMEM;
 
-	lkb->lkb_range[GR_RANGE_START] = 0LL;
-	lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
+	if (lkb->lkb_range) {
+		lkb->lkb_range[GR_RANGE_START] = 0LL;
+		lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
+	}
 
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
@@ -2337,16 +2356,13 @@ int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 void setup_stub_lkb(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb = &ls->ls_stub_lkb;
-
-	ls->ls_stub_rsb.res_ls = ls;
-
 	lkb->lkb_nodeid = ms->m_header.h_nodeid;
 	lkb->lkb_remid = ms->m_lkid;
 }
 
 void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 {
-	struct dlm_lkb *lkb = NULL;
+	struct dlm_lkb *lkb;
 	struct dlm_rsb *r;
 	int error, namelen;
 
@@ -2628,6 +2644,7 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOENT:
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
+		confirm_master(r, error);
 		_request_lock(r, lkb);
 		break;
 
@@ -2789,7 +2806,7 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *r;
-	int error;
+	int error, ret_nodeid;
 
 	error = find_lkb(ls, ms->m_lkid, &lkb);
 	if (error) {
@@ -2811,14 +2828,18 @@ void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	hold_rsb(r);
 	lock_rsb(r);
 
-	/* set nodeid as master in r; _request_lock calls
-	   set_master(r, lkb) to propagate the master to lkb */
-
-	r->res_nodeid = ms->m_nodeid;
-	if (r->res_nodeid != 0)
-		set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+	ret_nodeid = ms->m_nodeid;
+	if (ret_nodeid == dlm_our_nodeid())
+		r->res_nodeid = ret_nodeid = 0;
+	else {
+		r->res_nodeid = ret_nodeid;
+		r->res_trial_lkid = lkb->lkb_id;
+	}
 
 	_request_lock(r, lkb);
+
+	if (!ret_nodeid)
+		confirm_master(r, 0);
 
 	unlock_rsb(r);
 	put_rsb(r);
@@ -2833,10 +2854,14 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 	int error;
 
 	/* FIXME: do byte swapping here */
+	hd->h_length = le16_to_cpu(hd->h_length);
 
 	ls = find_lockspace_global(hd->h_lockspace);
-	if (!ls)
+	if (!ls) {
+		log_print("drop message %d from %d for unknown lockspace %d",
+			  ms->m_type, nodeid, hd->h_lockspace);
 		return -EINVAL;
+	}
 
 	/* recovery may have just ended leaving a bunch of backed-up requests
 	   in the requestqueue; wait while dlm_recoverd clears them */

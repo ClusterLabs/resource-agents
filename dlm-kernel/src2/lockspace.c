@@ -288,11 +288,13 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_last_stop = 0;
 	ls->ls_last_start = 0;
 	ls->ls_last_finish = 0;
-	ls->ls_rcom_msgid = 0;
 	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_MUTEX(&ls->ls_rcom_lock);
 	init_rwsem(&ls->ls_root_lock);
 	init_rwsem(&ls->ls_in_recovery);
+
+	memset(&ls->ls_stub_rsb, 0, sizeof(struct dlm_rsb));
+	ls->ls_stub_rsb.res_ls = ls;
 
 	down_write(&ls->ls_in_recovery);
 

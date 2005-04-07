@@ -23,12 +23,9 @@ struct rq_entry {
 
 /*
  * Requests received while the lockspace is in recovery get added to the
- * request queue and processed when recovery is complete.  This happens because
- * the lockspace is suspended on some nodes before it is on others.
- *
- * Dir lookups and lookup replies send before recovery are invalid because the
- * directory is rebuilt during recovery, so don't save any requests of this
- * type.  Don't save any requests from a node that's being removed either.
+ * request queue and processed when recovery is complete.  This happens when
+ * the lockspace is suspended on some nodes before it is on others, or the
+ * lockspace is enabled on some while still suspended on others.
  */
 
 void dlm_add_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
@@ -37,10 +34,7 @@ void dlm_add_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 	struct rq_entry *e;
 	int length = hd->h_length;
 
-	if (ms->m_type == DLM_MSG_REMOVE ||
-	    ms->m_type == DLM_MSG_LOOKUP ||
-	    ms->m_type == DLM_MSG_LOOKUP_REPLY ||
-	    dlm_is_removed(ls, nodeid))
+	if (dlm_is_removed(ls, nodeid))
 		return;
 
 	e = kmalloc(sizeof(struct rq_entry) + length, GFP_KERNEL);
@@ -49,7 +43,7 @@ void dlm_add_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 		return;
 	}
 
-	log_debug(ls, "add_requestqueue cmd %d fr %d", hd->h_cmd, nodeid);
+	log_debug(ls, "add_requestqueue type 0x%x from %d", ms->m_type, nodeid);
 
 	e->nodeid = nodeid;
 	memcpy(e->request, hd, length);
@@ -63,6 +57,7 @@ int dlm_process_requestqueue(struct dlm_ls *ls)
 {
 	struct rq_entry *e;
 	struct dlm_header *hd;
+	struct dlm_message *ms;
 	int error = 0;
 
 	log_debug(ls, "process_requestqueue");
@@ -79,9 +74,10 @@ int dlm_process_requestqueue(struct dlm_ls *ls)
 		up(&ls->ls_requestqueue_lock);
 
 		hd = (struct dlm_header *) e->request;
+		ms = (struct dlm_message *) hd;
 
-		log_debug(ls, "process_requestqueue cmd %d fr %u", hd->h_cmd,
-			  e->nodeid);
+		log_debug(ls, "process_requestqueue type 0x%x from %u",
+			  ms->m_type, e->nodeid);
 
 		error = dlm_receive_message(hd, e->nodeid, TRUE);
 
@@ -130,18 +126,29 @@ void dlm_wait_requestqueue(struct dlm_ls *ls)
 }
 
 /*
- * Remove any requests saved from nodes now gone.
+ * Dir lookups and lookup replies send before recovery are invalid because the
+ * directory is rebuilt during recovery, so don't save any requests of this
+ * type.  Don't save any requests from a node that's being removed either.
  */
 
 void dlm_purge_requestqueue(struct dlm_ls *ls)
 {
+	struct dlm_message *ms;
 	struct rq_entry *e, *safe;
+	uint32_t mstype;
 
 	log_debug(ls, "purge_requestqueue");
 
 	down(&ls->ls_requestqueue_lock);
 	list_for_each_entry_safe(e, safe, &ls->ls_requestqueue, list) {
-		if (dlm_is_removed(ls, e->nodeid)) {
+		ms = (struct dlm_message *) e->request;
+		/* FIXME: will need byte swapping */
+		mstype = ms->m_type;
+
+		if (dlm_is_removed(ls, e->nodeid) ||
+		    mstype == DLM_MSG_REMOVE ||
+	            mstype == DLM_MSG_LOOKUP ||
+	            mstype == DLM_MSG_LOOKUP_REPLY) {
 			list_del(&e->list);
 			kfree(e);
 		}

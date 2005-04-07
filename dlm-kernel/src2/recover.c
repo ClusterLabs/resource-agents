@@ -19,6 +19,7 @@
 #include "ast.h"
 #include "memory.h"
 #include "rcom.h"
+#include "lock.h"
 
 /*
  * Called in recovery routines to check whether the recovery process has been
@@ -130,7 +131,6 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 	return error;
 }
 
-#if 0
 /*
  * Set the lock master for all LKBs in a lock queue
  * If we are the new master of the rsb, we may have received new
@@ -162,7 +162,7 @@ static void set_master_lkbs(struct dlm_rsb *r)
 
 static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
-	lock_rsb(r);
+	dlm_lock_rsb(r);
 
 	if (nodeid == dlm_our_nodeid())
 		r->res_nodeid = 0;
@@ -178,9 +178,11 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 	}
 #endif
 
+#if 0
 	set_bit(RESFL_NEW_MASTER, &r->res_flags);
 	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
-	unlock_rsb(r);
+#endif
+	dlm_unlock_rsb(r);
 }
 
 /*
@@ -190,7 +192,36 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
  *
  * The recover_list is later similarly used for all rsb's for which we've sent
  * new lkb's and need to receive new corresponding lkid's.
+ *
+ * We use the address of the rsb struct as a simple local identifier for the
+ * rsb so we can match an rcom reply with the rsb it was sent for.
  */
+
+static int compare_rc_id(struct dlm_rsb *r, uint64_t id)
+{
+#if BITS_PER_LONG == 32
+	if ((uint32_t) r == (uint32_t) id)
+		return TRUE;
+	return FALSE;
+#elif BITS_PER_LONG == 64
+	if ((uint64_t) r == id)
+		return TRUE;
+	return FALSE;
+#else
+#error BITS_PER_LONG not defined
+#endif
+}
+
+static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
+{
+#if BITS_PER_LONG == 32
+	rc->rc_id = (uint32_t) r;
+#elif BITS_PER_LONG == 64
+	rc->rc_id = (uint64_t) r;
+#else
+#error BITS_PER_LONG not defined
+#endif
+}
 
 int recover_list_empty(struct dlm_ls *ls)
 {
@@ -208,10 +239,10 @@ void recover_list_add(struct dlm_rsb *r)
 	struct dlm_ls *ls = r->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
-	if (!test_and_set_bit(RESFL_RECOVER_LIST, &r->res_flags)) {
+	if (list_empty(&r->res_recover_list)) {
 		list_add_tail(&r->res_recover_list, &ls->ls_recover_list);
 		ls->ls_recover_list_count++;
-		hold_rsb(r);
+		dlm_hold_rsb(r);
 	}
 	spin_unlock(&ls->ls_recover_list_lock);
 }
@@ -221,22 +252,21 @@ void recover_list_del(struct dlm_rsb *r)
 	struct dlm_ls *ls = r->res_ls;
 
 	spin_lock(&ls->ls_recover_list_lock);
-	clear_bit(RESFL_RECOVER_LIST, &r->res_flags);
-	list_del(&r->res_recover_list);
+	list_del_init(&r->res_recover_list);
 	ls->ls_recover_list_count--;
 	spin_unlock(&ls->ls_recover_list_lock);
 
-	put_rsb(r);
+	dlm_put_rsb(r);
 }
 
-static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, int msgid)
+static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, uint64_t id)
 {
 	struct dlm_rsb *r = NULL;
 
 	spin_lock(&ls->ls_recover_list_lock);
 
 	list_for_each_entry(r, &ls->ls_recover_list, res_recover_list) {
-		if (r->res_recover_msgid == msgid)
+		if (compare_rc_id(r, id))
 			goto out;
 	}
 	r = NULL;
@@ -251,9 +281,8 @@ void recover_list_clear(struct dlm_ls *ls)
 
 	spin_lock(&ls->ls_recover_list_lock);
 	list_for_each_entry_safe(r, s, &ls->ls_recover_list, res_recover_list) {
-		list_del(&r->res_recover_list);
-		clear_bit(RESFL_RECOVER_LIST, &r->res_flags);
-		put_rsb(r);
+		list_del_init(&r->res_recover_list);
+		dlm_put_rsb(r);
 		ls->ls_recover_list_count--;
 	}
 
@@ -287,11 +316,8 @@ static int recover_master(struct dlm_rsb *r, struct dlm_rcom *rc)
 
 		set_new_master(r, ret_nodeid);
 	} else {
-		/* FIXME: set msgid's differently (see dlm_send_rcom) */
-		r->res_recover_msgid = ls->ls_rcom_msgid + 1;
-
+		set_rc_id(r, rc);
 		recover_list_add(r);
-
 		memcpy(rc->rc_buf, r->res_name, r->res_length);
 		rc->rc_datalen = r->res_length;
 
@@ -359,10 +385,10 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 	struct dlm_rsb *r;
 	uint32_t be_nodeid;
 
-	r = recover_list_find(ls, rc->rc_msgid);
+	r = recover_list_find(ls, rc->rc_id);
 	if (!r) {
-		log_error(ls, "dlm_recover_master_reply no msgid %d",
-			  rc->rc_msgid);
+		log_error(ls, "dlm_recover_master_reply no id %"PRIx64"",
+			  rc->rc_id);
 		goto out;
 	}
 
@@ -378,6 +404,7 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 	return 0;
 }
 
+#if 0
 /*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery
