@@ -190,6 +190,7 @@ static int disk_ctr(struct dirty_log *log, struct dm_target *ti,
 
 	lc = (struct log_c *) log->context;
 	lc->log_dev = dev;
+	lc->log_dev_failed = 0;
 
 	/* setup the disk header fields */
 	lc->header_location.bdev = lc->log_dev->bdev;
@@ -889,7 +890,7 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 {
 	region_t rtn;
 	struct log_c *lc = (struct log_c *) log->context;
-	if(atomic_read(&lc->in_sync)){
+	if(atomic_read(&lc->in_sync) == 1){
 		return lc->region_count;
 	}
 
@@ -898,7 +899,11 @@ static region_t cluster_get_sync_count(struct dirty_log *log)
 	}
 
 	if(rtn > lc->region_count){
-		DMERR("sync_count (%Lu) > region_count (%Lu) - this can not be!",
+		DMERR("sync_count ("
+		      SECTOR_FORMAT
+		      ") > region_count ("
+		      SECTOR_FORMAT
+		      ") - this can not be!",
 		      rtn, lc->region_count);
 	}
 
@@ -922,7 +927,8 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 			  char *result, unsigned int maxlen)
 {
 	int sz = 0;
-	char buffer[16];
+	int arg_count=2;
+	char buffer[18];
 	struct log_c *lc = (struct log_c *) log->context;
 	struct region_state *rs;
 	int i=0, j=0;
@@ -943,28 +949,60 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 		       "YES" : "NO");
 		DMINFO("  Regions marked   : %d", j);
 		DMINFO("  Regions clearing : %d", i);
+
 		DMINFO("  Mark requests    : %d", mark_req);
-		DMINFO("  Mark req to serv : %d (%d%%)", mark_req2ser,
-		       (mark_req2ser*100)/(mark_req+1));
+		if(mark_req)
+			DMINFO("  Mark req to serv : %d (%d%%)", mark_req2ser,
+			       (mark_req2ser*100)/mark_req);
+
 		DMINFO("  Clear requests   : %d", clear_req);
-		DMINFO("  Clear req to serv: %d (%d%%)", clear_req2ser,
-		       (clear_req2ser*100)/(clear_req+1));
+		if(clear_req)
+			DMINFO("  Clear req to serv: %d (%d%%)", clear_req2ser,
+			       (clear_req2ser*100)/clear_req);
+
 		DMINFO("  Sync  requests   : %d", insync_req);
-		DMINFO("  Sync req to serv : %d (%d%%)", insync_req2ser,
-		       (insync_req2ser*100)/(insync_req+1));
+		if(insync_req)
+			DMINFO("  Sync req to serv : %d (%d%%)", insync_req2ser,
+			       (insync_req2ser*100)/insync_req);
+
 		if(lc->server_id == my_id){
 			print_server_status(lc);
 		}
+
+		if(lc->sync != DEFAULTSYNC)
+			arg_count++;
+		if(lc->paranoid)
+			arg_count++;
+
+		format_dev_t(buffer, lc->log_dev->bdev->bd_dev);
+
+                DMEMIT("%s %u %s%s%s " SECTOR_FORMAT " ",
+		       log->type->name,                   /* NAME */
+                       arg_count,                         /* # OF ARGS */
+		       (lc->paranoid)? "paranoid ": "",   /* paranoid mode */
+		       buffer,                            /* THE LOG DEVICE */
+		       (lc->log_dev_failed)? "/D" : "/A", /* LOG DEVICE LIVENESS */
+		       lc->region_size);                  /* REGION SIZE */
+		if (lc->sync != DEFAULTSYNC)
+			DMEMIT("%ssync ", lc->sync == NOSYNC ? "no" : "");
                 break;
 
         case STATUSTYPE_TABLE:
+		if(lc->sync != DEFAULTSYNC)
+			arg_count++;
+		if(lc->paranoid)
+			arg_count++;
+
 		format_dev_t(buffer, lc->log_dev->bdev->bd_dev);
-                DMEMIT("%s %u %s " SECTOR_FORMAT " ", log->type->name,
-                       lc->sync == DEFAULTSYNC ? 2 : 3, buffer, lc->region_size);
+                DMEMIT("%s %u %s%s " SECTOR_FORMAT " ",
+		       log->type->name,                 /* NAME */
+                       arg_count,                       /* # OF ARGS */
+		       (lc->paranoid)? "paranoid ": "", /* paranoid mode */
+		       buffer,                          /* THE LOG DEVICE */
+		       lc->region_size);                /* REGION SIZE */
 		if (lc->sync != DEFAULTSYNC)
 			DMEMIT("%ssync ", lc->sync == NOSYNC ? "no" : "");
         }
-	
 
 	return sz;
 }

@@ -97,10 +97,19 @@ static int read_header(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
+	if(unlikely(log->log_dev_failed)){
+		return -EIO;
+	}
+
 	r = dm_io_sync_vm(1, &log->header_location, READ,
 			  log->disk_header, &ebits);
-	if (r)
+	if(unlikely(r && !log->log_dev_failed)){
+		DMERR("Failed to read header from disk, error = %d", r);
+		DMERR("  Switching from disk mode to core mode.");
+		log->log_dev_failed = 1;
+		dm_table_event(log->ti->table);
 		return r;
+	}
 
 	header_from_disk(&log->header, log->disk_header);
 
@@ -121,22 +130,46 @@ static int read_header(struct log_c *log)
 
 static inline int write_header(struct log_c *log)
 {
+	int r;
 	unsigned long ebits;
 
+	if(unlikely(log->log_dev_failed)){
+		return -EIO;
+	}
+
 	header_to_disk(&log->header, log->disk_header);
-	return dm_io_sync_vm(1, &log->header_location, WRITE,
+	r = dm_io_sync_vm(1, &log->header_location, WRITE,
 			     log->disk_header, &ebits);
+
+	if(unlikely(r && !log->log_dev_failed)){
+		DMERR("Failed to write header to disk, error = %d", r);
+		DMERR("  Switching from disk mode to core mode.");
+		log->log_dev_failed = 1;
+		dm_table_event(log->ti->table);
+	}
+
+	return r;
 }
 
 /*----------------------------------------------------------------
  * Bits IO
  *--------------------------------------------------------------*/
+static inline void zeros_to_core(uint32_t *core, unsigned count)
+{
+	memset(core, 0, sizeof(uint32_t)*count);
+}
+
 static inline void bits_to_core(uint32_t *core, uint32_t *disk, unsigned count)
 {
 	unsigned i;
 
 	for (i = 0; i < count; i++)
 		core[i] = le32_to_cpu(disk[i]);
+}
+
+static inline void zeros_to_disk(uint32_t *disk, unsigned count)
+{
+	memset(disk, 0, sizeof(uint32_t)*count);
 }
 
 static inline void bits_to_disk(uint32_t *core, uint32_t *disk, unsigned count)
@@ -153,10 +186,18 @@ static int read_bits(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
+	if(log->log_dev_failed){
+		return -EIO;
+	}
 	r = dm_io_sync_vm(1, &log->bits_location, READ,
 			  log->disk_bits, &ebits);
-	if (r)
+	if(unlikely(r && !log->log_dev_failed)){
+		DMERR("Failed to read bits from disk, error = %d", r);
+		DMERR("  Switching from disk mode to core mode.");
+		log->log_dev_failed = 1;
+		dm_table_event(log->ti->table);
 		return r;
+	}
 
 	bits_to_core(log->clean_bits, log->disk_bits,
 		     log->bitset_uint32_count);
@@ -167,18 +208,30 @@ static int write_bits(struct log_c *log)
 {
 	int error;
 	unsigned long ebits;
+	
+	if(unlikely(log->log_dev_failed)){
+		return -EIO;
+	}
+
 	bits_to_disk(log->clean_bits, log->disk_bits,
 		     log->bitset_uint32_count);
-	error = dm_io_sync_vm(1, &log->bits_location, WRITE,
-			      log->disk_bits, &ebits);
 	if(!debug_disk_write){
 		DMERR("WRITING BITS BEFORE THEY'VE BEEN READ!!!");
+		DMERR("Clearing log to avoid corruption.");
+		zeros_to_disk(log->disk_bits, log->bitset_uint32_count);
 	}
-	if(error){
+	error = dm_io_sync_vm(1, &log->bits_location, WRITE,
+			      log->disk_bits, &ebits);
+	if(unlikely(error && !log->log_dev_failed)){
 		DMERR("Failed to write bits to disk, error = %d", error);
+		DMERR("  Switching from disk mode to core mode.");
+		log->log_dev_failed = 1;
+		dm_table_event(log->ti->table);
 	}
+
 	return error;
 }
+
 static int count_bits32(uint32_t *addr, unsigned size)
 {
 	int count = 0, i;
@@ -284,14 +337,19 @@ static int disk_resume(struct log_c *lc)
 	}
 	/* read the disk header */
 	r = read_header(lc);
-	if (r)
-		return r;
-
-	/* read the bits */
-	r = read_bits(lc);
-	if (r)
-		return r;
-
+	if (r){
+		DMERR("Failed to read log device.");
+		DMERR("  Forced to assume all regions are out-of-sync.");
+		zeros_to_core(lc->clean_bits, lc->bitset_uint32_count);
+	} else {
+		/* read the bits */
+		r = read_bits(lc);
+		if (r){
+			DMERR("Failed to read log device.");
+			DMERR("  Forced to assume all regions are out-of-sync.");
+			zeros_to_core(lc->clean_bits, lc->bitset_uint32_count);
+		}
+	}
 	/* set or clear any new bits */
 	if (lc->sync == NOSYNC)
 		for (i = lc->header.nr_regions; i < lc->region_count; i++)
@@ -378,16 +436,16 @@ static int disk_resume(struct log_c *lc)
 	i = print_zero_bits((unsigned char *)lc->sync_bits, 0, lc->header.nr_regions);
 	DMINFO("  Total = %d", i);
 
-	/* write the bits */
-	r = write_bits(lc);
-	if (r)
-		return r;
-
 	/* set the correct number of regions in the header */
 	lc->header.nr_regions = lc->region_count;
 
-	/* write the new header */
-	return write_header(lc);
+	r = write_header(lc);
+
+	if(likely(!r)){
+		write_bits(lc);
+	}
+
+	return 0;
 }
 
 
@@ -486,9 +544,10 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 static int server_get_resync_work(struct log_c *lc, struct log_request *lr, uint32_t who)
 {
 	/* ATTENTION -- for now, if it's not me, do not assign work */
+/*
 	if(my_id != who)
 		return 0;
-
+*/	       
 	lr->u.lr_int_rtn = _core_get_resync_work(lc, &(lr->u.lr_region_rtn));
 
 	return 0;
@@ -497,10 +556,22 @@ static int server_get_resync_work(struct log_c *lc, struct log_request *lr, uint
 
 static int server_complete_resync_work(struct log_c *lc, struct log_request *lr){
 	int success = 1; /* ATTENTION -- need to get this from client */
+	uint32_t info;
+
 	log_clear_bit(lc, lc->recovering_bits, lr->u.lr_region);
 	if (success) {
 		log_set_bit(lc, lc->sync_bits, lr->u.lr_region);
 		lc->sync_count++;
+	}
+
+	info = (uint32_t)(lc->region_count-lc->sync_count);
+
+	if((info < 10001 && !(info%1000)) ||
+	   (info < 1000 && !(info%100)) ||
+	   (info < 200 && !(info%25)) ||
+	   (info < 6)){
+		DMINFO(SECTOR_FORMAT " out-of-sync regions remaining.",
+		       lc->region_count-lc->sync_count);
 	}
 	return 0;
 }
