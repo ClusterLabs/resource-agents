@@ -71,8 +71,11 @@ static int _upgrade_file_archive(int fd){
   }
 
   printf("<cluster name=\"%s\" config_version=\"1\">\n", tmp_cn->v->v.str);
+
+  /* No cman on upgrade
   printf("\n<cman>\n");
   printf("</cman>\n");
+  */
 
   tmp_cn = find_ccs_node(cluster_cn, "cluster/lock_gulm/servers", '/');
   printf("\n<gulm>\n");
