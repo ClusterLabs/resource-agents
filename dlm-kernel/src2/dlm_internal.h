@@ -39,6 +39,9 @@
 #include "dlm.h"
 #include "dlm_member.h"
 
+#define DLM_TOSS_SECS		(10)
+#define DLM_SCAN_SECS		(5)
+
 #ifndef TRUE
 #define TRUE (1)
 #endif

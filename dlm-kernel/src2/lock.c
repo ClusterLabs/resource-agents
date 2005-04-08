@@ -245,7 +245,8 @@ int dir_remove(struct dlm_rsb *r)
 	if (to_nodeid != dlm_our_nodeid())
 		send_remove(r);
 	else
-		dlm_dir_remove_entry(r->res_ls, 0, r->res_name, r->res_length);
+		dlm_dir_remove_entry(r->res_ls, to_nodeid,
+				     r->res_name, r->res_length);
 	return 0;
 }
 
@@ -460,39 +461,72 @@ void unhold_rsb(struct dlm_rsb *r)
 
 void kill_rsb(struct kref *kref)
 {
-	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
-
-	list_del(&r->res_hashchain);
-	dir_remove(r);
-	free_rsb(r);
+	/* All work is done after the return from kref_put() so we
+	   can release the write_lock before the remove and free. */
 }
 
-/* FIXME: create a global dlm thread that periodically calls this
-   for each lockspace */
+/* FIXME: shouldn't this be able to exit as soon as one non-due rsb is
+   found since they are in order of newest to oldest? */
 
-void shrink_rsb_list(struct dlm_ls *ls, struct list_head *head)
+int shrink_bucket(struct dlm_ls *ls, int b)
 {
+	struct dlm_rsb *r;
+	int count = 0, found;
+
+	for (;;) {
+		found = FALSE;
+		write_lock(&ls->ls_rsbtbl[b].lock);
+		list_for_each_entry_reverse(r, &ls->ls_rsbtbl[b].toss,
+					    res_hashchain) {
+			if (!time_after(jiffies, r->res_toss_time +
+					         DLM_TOSS_SECS * HZ))
+				continue;
+			found = TRUE;
+			break;
+		}
+
+		if (!found) {
+			write_unlock(&ls->ls_rsbtbl[b].lock);
+			break;
+		}
+
+		kref_put(&r->res_ref, kill_rsb);
+		list_del(&r->res_hashchain);
+		write_unlock(&ls->ls_rsbtbl[b].lock);
+
+		if (is_master(r))
+			dir_remove(r);
+		free_rsb(r);
+		count++;
 #if 0
-	struct dlm_rsb *r, *safe;
+		if (kref_put(&r->res_ref, kill_rsb)) {
+			list_del(&r->res_hashchain);
+			write_unlock(&ls->ls_rsbtbl[b].lock);
 
-	list_for_each_entry_safe(r, safe, head, res_hashchain) {
-		if (toss_time_due(ls, r))
-			kref_put(&r->res_ref, kill_rsb);
-	}
+			dir_remove(r);
+			free_rsb(r);
+			count++;
+		} else {
+			write_unlock(&ls->ls_rsbtbl[b].lock);
+			log_error(ls, "tossed rsb in use");
+		}
 #endif
+	}
+
+	return count;
 }
 
-/* FIXME: these rsbtbl locks are held for far too long */
-
-void shrink_tossed_rsbs(struct dlm_ls *ls)
+void dlm_scan_rsbs(struct dlm_ls *ls)
 {
-	int i;
+	int i, count = 0;
 
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
-		write_lock(&ls->ls_rsbtbl[i].lock);
-		shrink_rsb_list(ls, &ls->ls_rsbtbl[i].toss);
-		write_unlock(&ls->ls_rsbtbl[i].lock);
+		count += shrink_bucket(ls, i);
+		cond_resched();
 	}
+
+	/* if (count)
+		log_debug(ls, "freed %d rsbs", count); */
 }
 
 /* exclusive access to rsb and all its locks */
@@ -959,8 +993,7 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 	else
 		error = request_lock(ls, lkb, name, namelen);
 
-	/* the lock request is queued */
-	if (error == -EINPROGRESS)
+	if (error == -EINPROGRESS || error == -EAGAIN)
 		error = 0;
  out_put:
 	if (error)
@@ -1104,10 +1137,20 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return 1;
 	}
 
-	error = dlm_dir_lookup(ls, our_nodeid, r->res_name, r->res_length,
-			       &ret_nodeid);
-	/* FIXME: is this assert correct ? */
-	DLM_ASSERT(!error, printk("dir_lookup %d\n", error););
+	for (;;) {
+		/* It's possible for dlm_scand to remove an old rsb for
+		   this same resource from the toss list, us to create
+		   a new one, look up the master locally, and find it
+		   already exists just before dlm_scand does the
+		   dir_remove() on the previous rsb. */
+
+		error = dlm_dir_lookup(ls, our_nodeid, r->res_name,
+				       r->res_length, &ret_nodeid);
+		if (!error)
+			break;
+		log_debug(ls, "dir_lookup error %d %s", error, r->res_name);
+		schedule();
+	}
 
 	if (ret_nodeid == our_nodeid) {
 		r->res_nodeid = 0;
@@ -1175,7 +1218,7 @@ void confirm_master(struct dlm_rsb *r, int error)
 	case -ENOENT:
 	case -ENOTBLK:
 		/* the remote master wasn't really the master, i.e.  our
-		   trial failed; so we start over */
+		   trial failed; so we start over with another lookup */
 
 		r->res_nodeid = -1;
 		r->res_trial_lkid = 0;

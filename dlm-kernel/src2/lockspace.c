@@ -33,6 +33,7 @@ static int dlmcount;
 static struct semaphore dlmstate_lock;
 static struct list_head lslist;
 static spinlock_t lslist_lock;
+static struct task_struct *scand_task;
 
 
 int dlm_lockspace_init(void)
@@ -47,6 +48,37 @@ int dlm_lockspace_init(void)
 
 void dlm_lockspace_exit(void)
 {
+}
+
+int dlm_scand(void *data)
+{
+	struct dlm_ls *ls;
+
+	while (!kthread_should_stop()) {
+		list_for_each_entry(ls, &lslist, ls_list)
+			dlm_scan_rsbs(ls);
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(DLM_SCAN_SECS * HZ);
+	}
+	return 0;
+}
+
+int dlm_scand_start(void)
+{
+	struct task_struct *p;
+	int error = 0;
+
+	p = kthread_run(dlm_scand, NULL, "dlm_scand");
+	if (IS_ERR(p))
+		error = PTR_ERR(p);
+	else
+		scand_task = p;
+	return error;
+}
+
+void dlm_scand_stop(void)
+{
+	kthread_stop(scand_task);
 }
 
 struct dlm_ls *find_lockspace_name(char *name, int namelen)
@@ -134,19 +166,27 @@ static int threads_start(void)
 	/* Thread which process lock requests for all ls's */
 	error = dlm_astd_start();
 	if (error) {
-		log_print("cannot start ast thread %d", error);
+		log_print("cannot start dlm_astd thread %d", error);
 		goto fail;
+	}
+
+	error = dlm_scand_start();
+	if (error) {
+		log_print("cannot start dlm_scand thread %d", error);
+		goto astd_fail;
 	}
 
 	/* Thread for sending/receiving messages for all ls's */
 	error = lowcomms_start();
 	if (error) {
 		log_print("cannot start lowcomms %d", error);
-		goto astd_fail;
+		goto scand_fail;
 	}
 
 	return 0;
 
+ scand_fail:
+	dlm_scand_stop();
  astd_fail:
 	dlm_astd_stop();
  fail:
@@ -155,6 +195,7 @@ static int threads_start(void)
 
 static void threads_stop(void)
 {
+	dlm_scand_stop();
 	lowcomms_stop();
 	dlm_astd_stop();
 }
@@ -551,3 +592,5 @@ int dlm_release_lockspace(void *lockspace, int force)
 	put_lockspace(ls);
 	return release_lockspace(ls, force);
 }
+
+
