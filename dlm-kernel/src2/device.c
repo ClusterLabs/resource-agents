@@ -36,9 +36,10 @@
 #include <asm/ioctls.h>
 
 #include "dlm_internal.h"
+#include "dlm_device.h"
+#include "lock.h"
 #include "device.h"
 
-extern struct dlm_lkb *dlm_get_lkb(struct dlm_ls *, int);
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
 static struct list_head user_ls_list;
@@ -305,11 +306,12 @@ static void ast_routine(void *param)
 	/* If it's an async request then post data to the user's AST queue. */
 	if (li->li_castaddr) {
 		int lvb_updated = 0;
+		int err;
 		struct dlm_lkb *lkb;
 
 		/* See if the lvb has been updated */
-		lkb = dlm_get_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
-		if (lkb && lkb->lkb_flags & GDLM_LKFLG_RETURNLVB)
+		err = dlm_find_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid, &lkb);
+		if (!err && lkb->lkb_flags & DLM_IFL_RETURNLVB)
 			lvb_updated = 1;
 
 		/* Only queue AST if the device is still open */
@@ -324,14 +326,15 @@ static void ast_routine(void *param)
 		if (test_and_clear_bit(LI_FLAG_FIRSTLOCK, &li->li_flags) &&
 		    li->li_lksb.sb_status != 0) {
 			struct dlm_lkb *lkb;
+			int ret;
 
 			/* Wait till dlm_lock() has finished */
 			down(&li->li_firstlock);
 			up(&li->li_firstlock);
 
 			/* If the LKB has been freed then we need to tidy up too */
-			lkb = dlm_get_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid);
-			if (!lkb) {
+			ret = dlm_find_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid, &lkb);
+			if (ret) {
 				spin_lock(&li->li_file->fi_lkb_lock);
 				list_del(&li->li_ownerqueue);
 				spin_unlock(&li->li_file->fi_lkb_lock);
@@ -475,12 +478,12 @@ static int dlm_close(struct inode *inode, struct file *file)
 		int status;
 		int lock_status;
 		int flags = 0;
-		struct dlm_lkb *lkb;
+		struct dlm_lkb *lkb = NULL;
 
-		lkb = dlm_get_lkb(f->fi_ls->ls_lockspace, old_li->li_lksb.sb_lkid);
+		status = dlm_find_lkb(f->fi_ls->ls_lockspace, old_li->li_lksb.sb_lkid, &lkb);
 
 		/* Don't unlock persistent locks */
-		if (lkb && lkb->lkb_flags & GDLM_LKFLG_PERSISTENT) {
+		if (lkb && lkb->lkb_flags & DLM_IFL_PERSISTENT) {
 			list_del(&old_li->li_ownerqueue);
 
 			/* Update master copy */
@@ -494,7 +497,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 				if (status == 0)
 					wait_for_ast(&li);
 			}
-			lkb->lkb_flags |= GDLM_LKFLG_ORPHAN;
+			lkb->lkb_flags |= DLM_IFL_ORPHAN;
 
 			/* But tidy our references in it */
 			kfree(old_li);
@@ -513,7 +516,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 		 */
 		lock_status = lkb->lkb_status;
 
-		if (lock_status != GDLM_LKSTS_GRANTED)
+		if (lock_status != DLM_LKSTS_GRANTED)
 			flags = DLM_LKF_CANCEL;
 
 		if (lkb->lkb_grmode >= DLM_LOCK_PW)
@@ -528,7 +531,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		/* If it was waiting for a conversion, it will
 		   now be granted so we can unlock it properly */
-		if (lock_status == GDLM_LKSTS_CONVERT) {
+		if (lock_status == DLM_LKSTS_CONVERT) {
 			flags &= ~DLM_LKF_CANCEL;
 			clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
 			status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, flags, &li.li_lksb, &li);
@@ -839,12 +842,12 @@ static int do_user_query(struct file_info *fi, uint8_t cmd, struct dlm_query_par
 		if (!li->li_queryinfo->gqi_lockinfo)
 			goto out2;
 	}
-
+#if 0 // TODO query.c
 	return dlm_query(fi->fi_ls->ls_lockspace, &li->li_lksb,
 			  kparams->query,
 			  li->li_queryinfo,
 			  ast_routine, li);
-
+#endif
  out2:
 	kfree(li->li_queryinfo);
 
@@ -897,10 +900,10 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
         /* For conversions, the lock will already have a lock_info
 	   block squirelled away in astparam */
 	if (kparams->flags & DLM_LKF_CONVERT) {
-		struct dlm_lkb *lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
-		if (!lkb) {
+		struct dlm_lkb *lkb;
+
+		if (dlm_find_lkb(fi->fi_ls->ls_lockspace, kparams->lkid, &lkb))
 			return -EINVAL;
-		}
 
 		li = (struct lock_info *)lkb->lkb_astparam;
 
@@ -1005,14 +1008,12 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_par
 	int status;
 	int convert_cancel = 0;
 
-	lkb = dlm_get_lkb(fi->fi_ls->ls_lockspace, kparams->lkid);
-	if (!lkb) {
+	if (dlm_find_lkb(fi->fi_ls->ls_lockspace, kparams->lkid, &lkb))
 		return -EINVAL;
-	}
 
 	/* Cancelling a conversion doesn't remove the lock...*/
 	if (kparams->flags & DLM_LKF_CANCEL &&
-	    lkb->lkb_status == GDLM_LKSTS_CONVERT) {
+	    lkb->lkb_status == DLM_LKSTS_CONVERT) {
 		convert_cancel = 1;
 	}
 

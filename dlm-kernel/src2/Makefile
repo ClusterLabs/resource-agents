@@ -42,6 +42,7 @@ dlm-objs :=	ast.o \
 		recover.o \
 		recoverd.o \
 		requestqueue.o \
+		device.o \
 		util.o \
 
 EXTRA_CFLAGS += -I$(obj)

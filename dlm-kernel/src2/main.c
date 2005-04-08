@@ -23,6 +23,7 @@
 #include "lockspace.h"
 #include "member.h"
 #include "lock.h"
+#include "device.h"
 
 void dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
@@ -33,6 +34,7 @@ int __init init_dlm(void)
 	dlm_lockspace_init();
 	dlm_member_init();
 	dlm_register_debugfs();
+	dlm_device_init();
 
 	printk("DLM %s (built %s %s) installed\n",
 	       DLM_RELEASE_NAME, __DATE__, __TIME__);
@@ -44,6 +46,7 @@ void __exit exit_dlm(void)
 {
 	dlm_member_exit();
 	dlm_lockspace_exit();
+	dlm_device_exit();
 	dlm_unregister_debugfs();
 }
 

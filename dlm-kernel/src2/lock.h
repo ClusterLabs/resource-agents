@@ -24,6 +24,7 @@ void dlm_lock_rsb(struct dlm_rsb *r);
 void dlm_unlock_rsb(struct dlm_rsb *r);
 int dlm_put_lkb(struct dlm_lkb *lkb);
 int dlm_remove_from_waiters(struct dlm_lkb *lkb);
+int dlm_find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret);
 
 int dlm_create_root_list(struct dlm_ls *ls);
 void dlm_release_root_list(struct dlm_ls *ls);

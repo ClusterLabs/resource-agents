@@ -254,6 +254,9 @@ struct dlm_recover {
 #define DLM_IFL_CONVERTING	(0x00040000)
 #define DLM_IFL_RETURNLVB	(0x00000001)
 #define DLM_IFL_RANGE		(0x00000002)
+#define DLM_IFL_PERSISTENT      (0x00000004)
+#define DLM_IFL_ORPHAN          (0x00000008)
+
 
 struct dlm_lkb {
 	struct dlm_rsb *	lkb_resource;	/* the rsb */

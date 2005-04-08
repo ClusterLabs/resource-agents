@@ -613,6 +613,11 @@ int find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
 	return lkb ? 0 : -ENOENT;
 }
 
+int dlm_find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
+{
+	return find_lkb(ls, lkid, lkb_ret);
+}
+
 int put_lkb(struct dlm_lkb *lkb)
 {
 	struct dlm_ls *ls = lkb->lkb_resource->res_ls;
