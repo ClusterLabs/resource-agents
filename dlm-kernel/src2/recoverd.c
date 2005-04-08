@@ -197,15 +197,15 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		 */
 
 		dlm_purge_locks(ls);
-#if 0
+
 		/*
 		 * Get new master id's for rsb's of departed nodes.  This fails
 		 * if we can't communicate with other nodes.
 		 */
 
-		error = restbl_rsb_update(ls);
+		error = dlm_recover_masters(ls);
 		if (error) {
-			log_error(ls, "restbl_rsb_update failed %d", error);
+			log_error(ls, "dlm_recover_masters failed %d", error);
 			goto fail;
 		}
 
@@ -213,7 +213,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		 * Send our lkb info to new masters.  This fails if we can't
 		 * communicate with a node.
 		 */
-
+#if 0
 		error = rebuild_rsbs_send(ls);
 		if (error) {
 			log_error(ls, "rebuild_rsbs_send failed %d", error);

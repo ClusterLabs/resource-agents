@@ -145,6 +145,15 @@ const int __lvb_operations[8][8] = {
         {  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
 
+void print_lkb(struct dlm_lkb *lkb)
+{
+	printk("lkb: nodeid %d id %x remid %x exflags %x flags %x\n"
+	       "     status %d rqmode %d grmode %d wait_type %d ast_type %d\n",
+	       lkb->lkb_nodeid, lkb->lkb_id, lkb->lkb_remid, lkb->lkb_exflags,
+	       lkb->lkb_flags, lkb->lkb_status, lkb->lkb_rqmode,
+	       lkb->lkb_grmode, lkb->lkb_wait_type, lkb->lkb_ast_type);
+}
+
 
 /* Threads cannot use the lockspace while it's being recovered */
 
@@ -201,13 +210,17 @@ int is_process_copy(struct dlm_lkb *lkb)
 
 int is_master_copy(struct dlm_lkb *lkb)
 {
-	return (lkb->lkb_nodeid && (lkb->lkb_flags & DLM_IFL_MSTCPY));
+	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
+		DLM_ASSERT(lkb->lkb_nodeid, print_lkb(lkb););
+	return (lkb->lkb_flags & DLM_IFL_MSTCPY) ? TRUE : FALSE;
 }
 
 void queue_cast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 {
 	if (is_master_copy(lkb))
 		return;
+
+	DLM_ASSERT(lkb->lkb_lksb, print_lkb(lkb););
 
 	lkb->lkb_lksb->sb_status = rv;
 	lkb->lkb_lksb->sb_flags = lkb->lkb_sbflags;
@@ -525,7 +538,7 @@ void kill_lkb(struct kref *kref)
 {
 	struct dlm_lkb *lkb = container_of(kref, struct dlm_lkb, lkb_ref);
 
-	DLM_ASSERT(!lkb->lkb_status,);
+	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
 
 	list_del(&lkb->lkb_idtbl_list);
 
@@ -618,6 +631,14 @@ int dlm_put_lkb(struct dlm_lkb *lkb)
 	return put_lkb(lkb);
 }
 
+/* This is only called to add a reference when the code already holds
+   a valid reference to the lkb, so there's no need for locking. */
+
+void hold_lkb(struct dlm_lkb *lkb)
+{
+	kref_get(&lkb->lkb_ref);
+}
+
 /* This is called when we need to remove a reference and are certain
    it's not the last ref.  e.g. del_lkb is always called between a
    find_lkb/put_lkb and is always the inverse of a previous add_lkb.
@@ -649,7 +670,7 @@ void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 {
 	kref_get(&lkb->lkb_ref);
 
-	DLM_ASSERT(!lkb->lkb_status,);
+	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
 
 	lkb->lkb_status = sts;
 
@@ -681,6 +702,17 @@ void del_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	lkb->lkb_status = 0;
 	list_del(&lkb->lkb_statequeue);
+	unhold_lkb(lkb);
+}
+
+/* The only reference on an lkb may be the one from an add_lkb,
+   so we can't do a del/add without having an extra ref. */
+
+void move_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
+{
+	hold_lkb(lkb);
+	del_lkb(r, lkb);
+	add_lkb(r, lkb, sts);
 	unhold_lkb(lkb);
 }
 
@@ -980,23 +1012,20 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
    lkb using the nodeid field in the given rsb.  If the rsb's nodeid is
    known, it can just be copied to the lkb and the function will return
    0.  If the rsb's nodeid is _not_ known, it needs to be looked up
-   before it can be copied to the lkb.  If the rsb's nodeid is known,
-   but is uncertain, then we may wait to copy it to the lkb until we
-   know for certain.  [An rsb's nodeid may change (i.e. uncertain) after
-   we look it up if it's remote since we have no granted locks on it.]
+   before it can be copied to the lkb.
    
-   When the rsb nodeid is being looked up, the initial lkb causing
-   the lookup is kept on the dlm_waiters list waiting for the lookup
-   reply.  Other lkb's waiting for the same rsb lookup are kept on
-   the rsb's res_lookup list until the master is certain.
+   When the rsb nodeid is being looked up remotely, the initial lkb
+   causing the lookup is kept on the dlm_waiters list waiting for the
+   lookup reply.  Other lkb's waiting for the same rsb lookup are kept
+   on the rsb's res_lookup list until the master is verified.
 
-   After the initial lookup reply, the initial lkb gets the resulting
-   nodeid copied from the rsb.  When remote, this lkb then "tries out"
-   the nodeid since it's still uncertain.  This lkb is designated the
-   "trial lkb" and is identified by res_trial_lkid until it gets a reply
-   from the master indicating the lkb request was queued.  This confirms
-   that the master nodeid is correct and allows any other lkb's on the
-   res_lookup list to have their nodeid copied from the rsb.
+   After a remote lookup or when a tossed rsb is retrived that specifies
+   a remote master, that master value is uncertain -- it may have changed
+   by the time we send it a request.  While it's uncertain, only one lkb
+   is allowed to go ahead and use the master value; that lkb is specified
+   by res_trial_lkid.  Once the trial lkb is queued on the master node
+   we know the rsb master is correct and any other lkbs on res_lookup
+   can get the rsb nodeid and go ahead with their request.
 
    a. res_nodeid == 0   we are master
    b. res_nodeid > 0    remote node is master
@@ -1005,16 +1034,18 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
    e. lkb_nodeid != 0
    f. res_flags MASTER_UNCERTAIN  (b. should be true in this case)
    g. res_flags MASTER_WAIT
+   h. res_trial_lkid != 0
 
    Cases:
    1. we've no idea who master is [c]
    2. we know who master /was/ in the past (r was tossed and remote) [b,f]
-   3. we're certain of who master is (we hold granted locks) [b or a]
+   3. we're certain of who master is because we hold granted locks
+      or are the master ourself [b or a]
    4. we're in the process of looking up master from dir [c,g]
    5. we've been told who the master is (from dir) but it could
       change by the time we send it a lock request (only if we
-      were told the master is remote) [b,f]
-   6. 5 and we have a request outstanding to this uncertain master [b,f,g]
+      were told the master is remote) [b,g]
+   6. 5 and we have a request outstanding to this uncertain master [b,g,h]
 
    Return values:
    0: nodeid is set in rsb/lkb and the caller should go ahead and use it
@@ -1086,20 +1117,15 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	return 0;
 }
 
-/* confirm_master -- confirm an rsb's master nodeid
+/* confirm_master -- confirm (or deny) an rsb's master nodeid
 
-   This is called when a master node sends a non-EINVAL reply to a
-   request.  It means that we have the rsb nodeid correct, which is
-   interesting if we're waiting to confirm an uncertain rsb nodeid.
- 
-   The "rv" return value is the result the master sent back for the
-   request.  It could be -EAGAIN (the lkb would block), -EINPROGRESS
-   (the lkb was put on the wait queue), or 0 (the lkb was granted.)
- 
-   If the rsb nodeid is uncertain and the rv is -EAGAIN, we still
-   can't be certain so we need to do another trial lkb.  If the
-   rsb is uncertain and the rv is -EINPROGRESS or 0, we are now certain
-   and can send any lkb requests waiting on res_lookup.
+   This is called when we get a request reply from a remote node
+   who we believe is the master.  The return value (error) we got
+   back indicates whether it's really the master or not.  If it
+   wasn't we need to start over and do another master lookup.  If
+   it was and our lock was queued we know the master won't change.
+   If it was and our lock wasn't queued, we need to do another
+   trial with the next lkb.
 */
 
 void confirm_master(struct dlm_rsb *r, int error)
@@ -1334,7 +1360,7 @@ void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 		memcpy(lkb->lkb_lvbptr, r->res_lvbptr, DLM_LVB_LEN);
 		lkb->lkb_lvbseq = r->res_lvbseq;
-		lkb->lkb_flags &= DLM_IFL_RETURNLVB;
+		lkb->lkb_flags |= DLM_IFL_RETURNLVB;
 
 	} else if (b == 0) {
 		if (lkb->lkb_exflags & DLM_LKF_IVVALBLK) {
@@ -1435,9 +1461,8 @@ void remove_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 void revert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
-	del_lkb(r, lkb);
 	lkb->lkb_rqmode = DLM_LOCK_IV;
-	add_lkb(r, lkb, DLM_LKSTS_GRANTED);
+	move_lkb(r, lkb, DLM_LKSTS_GRANTED);
 }
 
 void revert_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
@@ -1448,10 +1473,11 @@ void revert_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 void _grant_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	if (lkb->lkb_grmode != lkb->lkb_rqmode) {
-		if (lkb->lkb_status)
-			del_lkb(r, lkb);
 		lkb->lkb_grmode = lkb->lkb_rqmode;
-		add_lkb(r, lkb, DLM_LKSTS_GRANTED);
+		if (lkb->lkb_status)
+			move_lkb(r, lkb, DLM_LKSTS_GRANTED);
+		else
+			add_lkb(r, lkb, DLM_LKSTS_GRANTED);
 	}
 
 	lkb->lkb_rqmode = DLM_LOCK_IV;
@@ -1485,6 +1511,8 @@ void grant_lock_pending(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	grant_lock(r, lkb);
 	if (is_master_copy(lkb))
 		send_grant(r, lkb);
+	else
+		queue_cast(r, lkb, 0);
 }
 
 static inline int first_in_list(struct dlm_lkb *lkb, struct list_head *head)
@@ -1916,6 +1944,7 @@ int do_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		if (is_demoted(lkb))
 			grant_pending_locks(r);
 		error = -EINPROGRESS;
+		del_lkb(r, lkb);
 		add_lkb(r, lkb, DLM_LKSTS_CONVERT);
 		send_blocking_asts(r, lkb);
 		goto out;
@@ -1933,19 +1962,19 @@ int do_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 int do_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	remove_lock(r, lkb);
-	grant_pending_locks(r);
 	queue_cast(r, lkb, -DLM_EUNLOCK);
 	/* this unhold undoes the original ref from create_lkb()
 	   so this leads to the lkb being freed */
 	unhold_lkb(lkb);
+	grant_pending_locks(r);
 	return -DLM_EUNLOCK;
 }
 
 int do_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	revert_lock(r, lkb);
-	grant_pending_locks(r);
 	queue_cast(r, lkb, -DLM_ECANCEL);
+	grant_pending_locks(r);
 	return -DLM_ECANCEL;
 }
 
@@ -2013,6 +2042,8 @@ int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
 	struct dlm_header *hd = (struct dlm_header *) ms;
+
+	/* log_print("send %d lkid %x", ms->m_type, ms->m_lkid); */
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = cpu_to_le16(hd->h_length);
@@ -2245,9 +2276,6 @@ int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
 	ms->m_result = rv;
 	ms->m_nodeid = ret_nodeid;
 
-	log_debug(ls, "send_lookup_reply %d to %d ret_nodeid %d", rv,
-		  to_nodeid, ret_nodeid);
-
 	error = send_message(mh, ms);
  out:
 	return error;
@@ -2313,6 +2341,8 @@ int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	lkb->lkb_bastaddr = (void *) (long) (ms->m_asts & AST_BAST);
 	lkb->lkb_astaddr = (void *) (long) (ms->m_asts & AST_COMP);
 
+	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
+
 	if (receive_range(ls, lkb, ms))
 		return -ENOMEM;
 
@@ -2325,6 +2355,15 @@ int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 			 struct dlm_message *ms)
 {
+	if (lkb->lkb_nodeid != ms->m_header.h_nodeid) {
+		log_error(ls, "convert_args nodeid %d %d lkid %x %x",
+			  lkb->lkb_nodeid, ms->m_header.h_nodeid,
+			  lkb->lkb_id, lkb->lkb_remid);
+		return -EINVAL;
+	}
+
+	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
+
 	lkb->lkb_rqmode = ms->m_rqmode;
 	lkb->lkb_lvbseq = ms->m_lvbseq;
 
@@ -2345,6 +2384,7 @@ int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 			struct dlm_message *ms)
 {
+	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
 	return 0;
@@ -2513,7 +2553,7 @@ void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_grant no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	r = lkb->lkb_resource;
 
@@ -2540,7 +2580,7 @@ void receive_bast(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_bast no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	r = lkb->lkb_resource;
 
@@ -2605,7 +2645,7 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_request_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2669,7 +2709,7 @@ void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_convert_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2724,7 +2764,7 @@ void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_unlock_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2770,7 +2810,7 @@ void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_cancel_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb),);
+	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2855,6 +2895,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = le16_to_cpu(hd->h_length);
+	DLM_ASSERT(hd->h_nodeid,);
 
 	ls = find_lockspace_global(hd->h_lockspace);
 	if (!ls) {
@@ -2888,6 +2929,8 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 			break;
 		schedule();
 	}
+
+	/* log_print("receive %d lkid %x", ms->m_type, ms->m_remlkid); */
 
 	switch (ms->m_type) {
 

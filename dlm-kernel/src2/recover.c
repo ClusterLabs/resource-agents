@@ -164,6 +164,8 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
 	dlm_lock_rsb(r);
 
+	/* FIXME: what if there are lkb's waiting on res_lookup ? */
+
 	if (nodeid == dlm_our_nodeid())
 		r->res_nodeid = 0;
 	else
@@ -179,6 +181,7 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 #endif
 
 #if 0
+	/* FIXME: use better names for these flags */
 	set_bit(RESFL_NEW_MASTER, &r->res_flags);
 	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
 #endif
