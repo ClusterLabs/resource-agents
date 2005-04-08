@@ -112,6 +112,30 @@ You can specify an additional label for your IP address here.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="lvs_support">
+<longdesc lang="en">
+Enable support for LVS.  Allows stopped IPs to exist on the loopback device or something like that"
+</longdesc>
+<shortdesc lang="en">Enable support for LVS</shortdesc>
+<content type="boolean" default="false"/>
+</parameter>
+
+<parameter name="local_stop_script">
+<longdesc lang="en">
+Script called when the IP is released
+</longdesc>
+<shortdesc lang="en">Script called when the IP is released</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="local_start_script">
+<longdesc lang="en">
+Script called when the IP is added
+</longdesc>
+<shortdesc lang="en">Script called when the IP is added</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
 <parameter name="ARP_INTERVAL_MS">
 <longdesc lang="en">
 milliseconds between ARPs
@@ -185,6 +209,16 @@ ip_init() {
         NIC=`echo "$NICINFO" | cut -f1`
         NETMASK=`echo "$NICINFO" | cut -f2-`
         BRDCAST=`echo "$NICINFO" | cut -f3`
+
+	if [ -z ${OCF_RESKEY_lvs_support} ]; then
+	    LVS_SUPPORT=0
+	elif [ ${OCF_RESKEY_lvs_support} = "true"
+		-o ${OCF_RESKEY_lvs_support} = "on"
+		-o ${OCF_RESKEY_lvs_support} = "1" ]; then
+	    LVS_SUPPORT=1
+	else
+	    LVS_SUPPORT=0
+	fi
 
 	# Set default values (can be overridden as parameters)
 	: ${OCF_RESKEY_ARP_INTERVAL_MS=500}
@@ -492,13 +526,14 @@ ip_stop() {
 		if [ -z "$IF" ]; then
     			: Requested interface not in use
     			exit $OCF_SUCCESS
-		else
-			case $IF in
-			  lo*)
-				: Requested interface is on loopback
-				exit $OCF_SUCCESS
-				;;
-			esac
+
+		elif [ ${LVS_SUPPORT} = 1 ]; then 
+		    case $IF in
+			lo*)
+			    : Requested interface is on loopback
+			    exit $OCF_SUCCESS
+			    ;;
+		    esac
   		fi;;
 	*)
 		if [ -z "$IF" ]; then
@@ -507,10 +542,10 @@ ip_stop() {
   		fi;;
   esac
 
-  if
-    [ -x $HA_RCDIR/local_giveip ]
-  then
-    $HA_RCDIR/local_giveip $*
+  if [ ! -z ${OCF_RESKEY_local_stop_script} ]; then
+      if [ -x ${OCF_RESKEY_local_stop_script} ]; then
+	  ${OCF_RESKEY_local_stop_script} $*
+      fi
   fi
 
   delete_route "$BASEIP"
@@ -668,8 +703,10 @@ ip_start() {
       esac
   fi
 
-  if [ -x $HA_RCDIR/local_takeip ]; then
-      $HA_RCDIR/local_takeip $*
+  if [ ! -z ${OCF_RESKEY_local_start_script} ]; then
+      if [ -x ${OCF_RESKEY_local_start_script} ]; then
+	  ${OCF_RESKEY_local_start_script} $*
+      fi
   fi
 
   add_interface "$BASEIP" "$IFINFO" "$IF"
@@ -708,11 +745,13 @@ ip_status() {
 	  IF=`find_interface "$BASEIP"`
 	  if [ -z "$IF" ]; then
 	      return $OCF_NOT_RUNNING
+	  elif [ ${LVS_SUPPORT} = 1 ]; then 
+	      case $IF in
+		  lo*)  return $OCF_SUCCESS_VARIANT;;
+		  *)	  return $OCF_SUCCESS;;
+	      esac
 	  else
-		case $IF in
-		    lo*)  return $OCF_SUCCESS_VARIANT;;
-		    *)	  return $OCF_SUCCESS;;
-		esac
+	      return $OCF_SUCCESS
 	  fi;;
       *)		
 	  if [ -z "$IF" ]; then
@@ -725,7 +764,7 @@ ip_status() {
 
 #
 #	Determine if this IP address is really being served, or not.
-#	Note that we don't distinguish if *we're* serving it locally...
+#	Note that we must distinguish if *we're* serving it locally...
 #
 ip_monitor() {
   TIMEOUT=1 # seconds
@@ -742,11 +781,16 @@ ip_monitor() {
             ;;
   esac
   for j in 1 2 3
-  do
+    do
     if
-      @PING@ $PINGARGS >/dev/null 2>&1
-    then
-      return $OCF_SUCCESS 
+	@PING@ $PINGARGS >/dev/null 2>&1
+	then
+	ip_status
+	rc=$?
+	if [ $rc = $OCF_SUCCESS_VARIANT ]; then
+	    rc=$OCF_SUCCESS
+	fi
+	return $rc
     fi
   done
 
