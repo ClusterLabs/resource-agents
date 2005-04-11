@@ -1027,22 +1027,6 @@ int lowcomms_close(int nodeid)
 	return 0;
 }
 
-/* API send message call, may queue the request */
-/* N.B. This is the old interface - use the new one for new calls */
-int lowcomms_send_message(int nodeid, char *buf, int len, int allocation)
-{
-	struct writequeue_entry *e;
-	char *b;
-
-	e = lowcomms_get_buffer(nodeid, len, allocation, &b);
-	if (e) {
-		memcpy(b, buf, len);
-		lowcomms_commit_buffer(e);
-		return 0;
-	}
-	return -ENOBUFS;
-}
-
 static int write_list_empty(void)
 {
 	int status;

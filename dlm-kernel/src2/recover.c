@@ -64,14 +64,8 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 
 int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
-	struct dlm_rcom rc_stack, *rc;
 	struct dlm_member *memb;
-	int status;
 	int error = 0;
-
-	memset(&rc_stack, 0, sizeof(struct dlm_rcom));
-	rc = &rc_stack;
-	rc->rc_datalen = 0;
 
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
 		for (;;) {
@@ -79,13 +73,11 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 			if (error)
 				goto out;
 
-			error = dlm_send_rcom(ls, memb->node->nodeid,
-					      DLM_RCOM_STATUS, rc, 1);
+			error = dlm_rcom_status(ls, memb->node->nodeid);
 			if (error)
 				goto out;
 
-			status = rc->rc_buf[0];
-			if (status & wait_status)
+			if (ls->ls_rcom->rc_result & wait_status)
 				break;
 			else {
 				set_current_state(TASK_INTERRUPTIBLE);
@@ -100,26 +92,18 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
-	struct dlm_rcom rc_stack, *rc;
-	int nodeid = ls->ls_low_nodeid;
-	int status;
-	int error = 0;
-
-	memset(&rc_stack, 0, sizeof(struct dlm_rcom));
-	rc = &rc_stack;
-	rc->rc_datalen = 0;
+	int error = 0, nodeid = ls->ls_low_nodeid;
 
 	for (;;) {
 		error = dlm_recovery_stopped(ls);
 		if (error)
 			goto out;
 
-		error = dlm_send_rcom(ls, nodeid, DLM_RCOM_STATUS, rc, 1);
+		error = dlm_rcom_status(ls, nodeid);
 		if (error)
 			break;
 
-		status = rc->rc_buf[0];
-		if (status & wait_status)
+		if (ls->ls_rcom->rc_result & wait_status)
 			break;
 		else {
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -215,17 +199,6 @@ static int compare_rc_id(struct dlm_rsb *r, uint64_t id)
 #endif
 }
 
-static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
-{
-#if BITS_PER_LONG == 32
-	rc->rc_id = (uint32_t) r;
-#elif BITS_PER_LONG == 64
-	rc->rc_id = (uint64_t) r;
-#else
-#error BITS_PER_LONG not defined
-#endif
-}
-
 int recover_list_empty(struct dlm_ls *ls)
 {
 	int empty;
@@ -300,7 +273,7 @@ void recover_list_clear(struct dlm_ls *ls)
 /* We do async lookups on rsb's that need new masters.  The rsb's
    waiting for a lookup reply are kept on the recover_list. */
 
-static int recover_master(struct dlm_rsb *r, struct dlm_rcom *rc)
+static int recover_master(struct dlm_rsb *r)
 {
 	struct dlm_ls *ls = r->res_ls;
 	int error, dir_nodeid, ret_nodeid, our_nodeid = dlm_our_nodeid();
@@ -319,16 +292,10 @@ static int recover_master(struct dlm_rsb *r, struct dlm_rcom *rc)
 
 		set_new_master(r, ret_nodeid);
 	} else {
-		set_rc_id(r, rc);
 		recover_list_add(r);
-		memcpy(rc->rc_buf, r->res_name, r->res_length);
-		rc->rc_datalen = r->res_length;
-
-		error = dlm_send_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, rc, 0);
-		if (error)
-			goto out;
+		error = dlm_send_rcom_lookup(r, dir_nodeid);
 	}
- out:
+
 	return error;
 }
 
@@ -345,21 +312,16 @@ static int recover_master(struct dlm_rsb *r, struct dlm_rcom *rc)
 int dlm_recover_masters(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
-	struct dlm_rcom *rc;
-	int error = -ENOMEM;
+	int error;
 
 	log_debug(ls, "dlm_recover_masters");
-
-	rc = allocate_rcom_buffer(ls);
-	if (!rc)
-		goto out;
 
 	down_read(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
 		error = dlm_recovery_stopped(ls);
 		if (error) {
 			up_read(&ls->ls_root_lock);
-			goto out_free;
+			goto out;
 		}
 
 		clear_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
@@ -367,7 +329,7 @@ int dlm_recover_masters(struct dlm_ls *ls)
 			set_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
 
 		if (dlm_is_removed(ls, r->res_nodeid))
-			recover_master(r, rc);
+			recover_master(r);
 
 		schedule();
 	}
@@ -375,18 +337,15 @@ int dlm_recover_masters(struct dlm_ls *ls)
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
- out_free:
+ out:
 	if (error)
 		recover_list_clear(ls);
-	free_rcom_buffer(rc);
- out:
 	return error;
 }
 
 int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 {
 	struct dlm_rsb *r;
-	uint32_t be_nodeid;
 
 	r = recover_list_find(ls, rc->rc_id);
 	if (!r) {
@@ -395,10 +354,7 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 		goto out;
 	}
 
-	memcpy(&be_nodeid, rc->rc_buf, sizeof(uint32_t));
-
-	set_new_master(r, be32_to_cpu(be_nodeid));
-
+	set_new_master(r, rc->rc_result);
 	recover_list_del(r);
 
 	if (recover_list_empty(ls))

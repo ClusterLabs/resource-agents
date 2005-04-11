@@ -14,10 +14,6 @@
 #ifndef __LOWCOMMS_DOT_H__
 #define __LOWCOMMS_DOT_H__
 
-/* The old interface */
-int lowcomms_send_message(int csid, char *buf, int len, int allocation);
-
-/* The new interface */
 extern void *lowcomms_get_buffer(int nodeid, int len,
 				 int allocation, char **ppc);
 extern void lowcomms_commit_buffer(void *mh);

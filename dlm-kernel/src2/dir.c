@@ -22,11 +22,6 @@
 #include "util.h"
 #include "lock.h"
 
-struct resmov {
-	int rm_nodeid;
-	uint16_t rm_length;
-	uint16_t rm_pad;
-};
 
 static void put_free_de(struct dlm_ls *ls, struct dlm_direntry *de)
 {
@@ -199,91 +194,75 @@ void dlm_dir_clear(struct dlm_ls *ls)
 	}
 }
 
-static void resmov_in(struct resmov *rm, char *buf)
-{
-	struct resmov tmp;
-
-	memcpy(&tmp, buf, sizeof(struct resmov));
-
-	rm->rm_nodeid = be32_to_cpu(tmp.rm_nodeid);
-	rm->rm_length = be16_to_cpu(tmp.rm_length);
-}
-
 int dlm_recover_directory(struct dlm_ls *ls)
 {
 	struct dlm_member *memb;
 	struct dlm_direntry *de;
-	struct dlm_rcom *rc;
-	struct resmov mov, last_mov;
 	char *b, *last_name;
-	int error = -ENOMEM, count = 0;
+	int error = -ENOMEM, last_len, count = 0;
+	uint16_t namelen;
 
-	log_debug(ls, "rebuild resource directory");
+	log_debug(ls, "dlm_recover_directory");
 
 	dlm_dir_clear(ls);
 
-	rc = allocate_rcom_buffer(ls);
-	if (!rc)
-		goto out;
-
 	last_name = kmalloc(DLM_RESNAME_MAXLEN, GFP_KERNEL);
 	if (!last_name)
-		goto free_rc;
+		goto out;
 
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
-		last_mov.rm_length = 0;
+		memset(last_name, 0, DLM_RESNAME_MAXLEN);
+		last_len = 0;
+
 		for (;;) {
 			error = dlm_recovery_stopped(ls);
 			if (error)
 				goto free_last;
 
-			memcpy(rc->rc_buf, last_name, last_mov.rm_length);
-			rc->rc_datalen = last_mov.rm_length;
-
-			error = dlm_send_rcom(ls, memb->node->nodeid,
-					      DLM_RCOM_NAMES, rc, 1);
+			error = dlm_rcom_names(ls, memb->node->nodeid,
+					       last_name, last_len);
 			if (error)
 				goto free_last;
 
 			schedule();
 
 			/* 
-			 * pick each res out of buffer
+			 * pick namelen/name pairs out of received buffer
 			 */
 
-			b = rc->rc_buf;
+			b = ls->ls_rcom->rc_buf;
 
 			for (;;) {
-				resmov_in(&mov, b);
-				b += sizeof(struct resmov);
+				memcpy(&namelen, b, sizeof(uint16_t));
+				namelen = be16_to_cpu(namelen);
+				b += sizeof(uint16_t);
 
-				/* Length of 0 with a non-zero nodeid marks the 
-				 * end of the list */
-				if (!mov.rm_length && mov.rm_nodeid)
+				/* namelen of 0xFFFFF marks end of names for
+				   this node; namelen of 0 marks end of the
+				   buffer */
+
+				if (namelen == 0xFFFF)
 					goto done;
-
-				/* This is just the end of the block */
-				if (!mov.rm_length)
+				if (!namelen)
 					break;
 
-				DLM_ASSERT(mov.rm_nodeid == memb->node->nodeid,);
-
 				error = -ENOMEM;
-				de = get_free_de(ls, mov.rm_length);
+				de = get_free_de(ls, namelen);
 				if (!de)
 					goto free_last;
 
-				de->master_nodeid = mov.rm_nodeid;
-				de->length = mov.rm_length;
-				memcpy(de->name, b, mov.rm_length);
-				b += mov.rm_length;
+				de->master_nodeid = memb->node->nodeid;
+				de->length = namelen;
+				last_len = namelen;
+				memcpy(de->name, b, namelen);
+				memcpy(last_name, b, namelen);
+				b += namelen;
 
 				add_entry_to_hash(ls, de);
 				count++;
 
-				last_mov = mov;
-				memset(last_name, 0, DLM_RESNAME_MAXLEN);
-				memcpy(last_name, de->name, de->length);
+				log_debug(ls, "recv name %d \"%s\"",
+					  last_len, last_name);
 			}
 		}
 	      done:
@@ -293,14 +272,10 @@ int dlm_recover_directory(struct dlm_ls *ls)
 	set_bit(LSFL_DIR_VALID, &ls->ls_flags);
 	error = 0;
 
-	log_debug(ls, "rebuilt %d resources", count);
+	log_debug(ls, "dlm_recover_directory %d entries", count);
 
  free_last:
 	kfree(last_name);
-
- free_rc:
-	free_rcom_buffer(rc);
-
  out:
 	dlm_clear_free_entries(ls);
 	return error;
@@ -382,10 +357,10 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	struct dlm_rsb *start_r = NULL, *r = NULL;
 	int offset = 0, start_namelen, error;
 	char *start_name;
-	struct resmov tmp;
+	uint16_t be_namelen;
 	int dir_nodeid;
 
-	/* 
+	/*
 	 * Find the rsb where we left off (or start again)
 	 */
 
@@ -423,24 +398,30 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		dir_nodeid = dlm_dir_nodeid(r);
 		if (dir_nodeid != nodeid)
 			continue;
+		
+		/*
+		 * The block ends when we can't fit the following in the
+		 * remaining buffer space:
+		 * namelen (uint16_t) +
+		 * name (r->res_length) +
+		 * end-of-block record 0x0000 (uint16_t)
+		 */
 
-		if (offset + sizeof(struct resmov)*2 + r->res_length > outlen) {
+		if (offset + sizeof(uint16_t)*2 + r->res_length > outlen) {
 			/* Write end-of-block record */
-			memset(&tmp, 0, sizeof(struct resmov));
-			memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
-			offset += sizeof(struct resmov);
+			be_namelen = 0;
+			memcpy(outbuf + offset, &be_namelen, sizeof(uint16_t));
+			offset += sizeof(uint16_t);
 			goto out;
 		}
 
-		memset(&tmp, 0, sizeof(struct resmov));
-		tmp.rm_nodeid = cpu_to_be32(dlm_our_nodeid());
-		tmp.rm_length = cpu_to_be16(r->res_length);
-
-		memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
-		offset += sizeof(struct resmov);
-
+		be_namelen = cpu_to_be16(r->res_length);
+		memcpy(outbuf + offset, &be_namelen, sizeof(uint16_t));
+		offset += sizeof(uint16_t);
 		memcpy(outbuf + offset, r->res_name, r->res_length);
 		offset += r->res_length;
+
+		log_debug(ls, "send name %d \"%s\"", r->res_length,r->res_name);
 	}
 
 	/* 
@@ -449,20 +430,14 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	 */
 
 	if ((list == &ls->ls_rootres) &&
-	    (offset + sizeof(struct resmov) <= outlen)) {
-
-		memset(&tmp, 0, sizeof(struct resmov));
-		/* This only needs to be non-zero */
-		tmp.rm_nodeid = cpu_to_be32(1);
-		/* and this must be zero */
-		tmp.rm_length = 0;
-		memcpy(outbuf + offset, &tmp, sizeof(struct resmov));
-		offset += sizeof(struct resmov);
+	    (offset + sizeof(uint16_t) <= outlen)) {
+		be_namelen = 0xFFFF;
+		memcpy(outbuf + offset, &be_namelen, sizeof(uint16_t));
+		offset += sizeof(uint16_t);
 	}
 
  out:
 	up_read(&ls->ls_root_lock);
 	return offset;
 }
-
 

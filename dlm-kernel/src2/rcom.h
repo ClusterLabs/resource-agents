@@ -14,8 +14,9 @@
 #ifndef __RCOM_DOT_H__
 #define __RCOM_DOT_H__
 
-int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
-		  int need_reply);
+int dlm_rcom_status(struct dlm_ls *ls, int nodeid);
+int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len);
+int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid);
 void dlm_receive_rcom(struct dlm_header *hd, int nodeid);
 
 #endif

@@ -310,6 +310,11 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 		rwlock_init(&ls->ls_dirtbl[i].lock);
 	}
 
+	ls->ls_rcom = (struct dlm_rcom *) kmalloc(dlm_config.buffer_size,
+						  GFP_KERNEL);
+	if (!ls->ls_rcom)
+		goto out_dirfree;
+
 	init_waitqueue_head(&ls->ls_wait_member);
 	INIT_LIST_HEAD(&ls->ls_nodes);
 	INIT_LIST_HEAD(&ls->ls_nodes_gone);
@@ -326,13 +331,11 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	init_waitqueue_head(&ls->ls_wait_general);
 	INIT_LIST_HEAD(&ls->ls_rootres);
 	INIT_LIST_HEAD(&ls->ls_requestqueue);
-	INIT_LIST_HEAD(&ls->ls_rebuild_rootrsb_list);
 	ls->ls_last_stop = 0;
 	ls->ls_last_start = 0;
 	ls->ls_last_finish = 0;
 	init_MUTEX(&ls->ls_waiters_sem);
 	init_MUTEX(&ls->ls_requestqueue_lock);
-	init_MUTEX(&ls->ls_rcom_lock);
 	init_rwsem(&ls->ls_root_lock);
 	init_rwsem(&ls->ls_in_recovery);
 
@@ -344,7 +347,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	error = dlm_recoverd_start(ls);
 	if (error) {
 		log_error(ls, "can't start dlm_recoverd %d", error);
-		goto out_dirfree;
+		goto out_rcomfree;
 	}
 
 	ls->ls_state = LSST_INIT;
@@ -392,6 +395,8 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	list_del(&ls->ls_list);
 	spin_unlock(&lslist_lock);
 	dlm_recoverd_stop(ls);
+ out_rcomfree:
+	kfree(ls->ls_rcom);
  out_dirfree:
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
@@ -481,6 +486,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	dlm_delete_debug_file(ls);
 
 	dlm_astd_suspend();
+
+	kfree(ls->ls_rcom);
 
 	/*
 	 * Free direntry structs.

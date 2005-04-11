@@ -98,19 +98,3 @@ void free_range(uint64_t *l)
 {
 	kfree(l);
 }
-
-struct dlm_rcom *allocate_rcom_buffer(struct dlm_ls *ls)
-{
-	struct dlm_rcom *rc;
-
-	rc = kmalloc(dlm_config.buffer_size, GFP_KERNEL);
-	if (rc)
-		memset(rc, 0, dlm_config.buffer_size);
-
-	return rc;
-}
-
-void free_rcom_buffer(struct dlm_rcom *rc)
-{
-	kfree(rc);
-}

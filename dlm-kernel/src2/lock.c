@@ -2095,7 +2095,8 @@ int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
 	struct dlm_header *hd = (struct dlm_header *) ms;
 
-	log_print("send %d lkid %x", ms->m_type, ms->m_lkid);
+	log_print("send %d lkid %x remlkid %x", ms->m_type,
+		  ms->m_lkid, ms->m_remlkid);
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = cpu_to_le16(hd->h_length);
@@ -2736,6 +2737,8 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOENT:
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
+		log_debug(ls, "receive_request_reply error %d lkid %x",
+			  error, lkb->lkb_id);
 		confirm_master(r, error);
 		_request_lock(r, lkb);
 		break;
@@ -2992,7 +2995,8 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 		schedule();
 	}
 
-	log_print("receive %d lkid %x", ms->m_type, ms->m_remlkid);
+	log_print("recv %d lkid %x remlkid %x result %d", ms->m_type,
+		  ms->m_lkid, ms->m_remlkid, ms->m_result);
 
 	switch (ms->m_type) {
 

@@ -333,8 +333,6 @@ struct dlm_rsb {
 
 	struct list_head	res_rootlist;	    /* used for recovery */
 	struct list_head	res_recover_list;   /* used for recovery */
-	int			res_remasterid;     /* used for recovery */
-	int			res_newlkid_expect; /* used for recovery */
 
 	char *			res_lvbptr;
 	char			res_name[1];
@@ -414,18 +412,18 @@ struct dlm_message {
 #define DLM_RCOM_STATUS		(1)
 #define DLM_RCOM_NAMES		(2)
 #define DLM_RCOM_LOOKUP		(3)
-#define DLM_RCOM_LOCKS		(4)
+#define DLM_RCOM_LOCK		(4)
 #define DLM_RCOM_STATUS_REPLY	(5)
 #define DLM_RCOM_NAMES_REPLY	(6)
 #define DLM_RCOM_LOOKUP_REPLY	(7)
-#define DLM_RCOM_LOCKS_REPLY	(8)
+#define DLM_RCOM_LOCK_REPLY	(8)
 
 struct dlm_rcom {
 	struct dlm_header	rc_header;
 	uint32_t		rc_type;	/* DLM_RCOM_ */
-	uint32_t		rc_datalen;
-	uint64_t		rc_id;
-	char			rc_buf[1];
+	int			rc_result;	/* multi-purpose */
+	uint64_t		rc_id;		/* match reply with request */
+	char			rc_buf[0];
 };
 
 
@@ -503,7 +501,6 @@ struct dlm_ls {
 	struct semaphore	ls_requestqueue_lock;
 
 	struct dlm_rcom *       ls_rcom;	/* recovery comms */
-	struct semaphore	ls_rcom_lock;
 
 	struct list_head	ls_recover_list;
 	spinlock_t		ls_recover_list_lock;
@@ -513,8 +510,6 @@ struct dlm_ls {
 	struct list_head	ls_rootres;	/* root resources */
 	struct rw_semaphore	ls_root_lock;	/* protect rootres list */
 
-	struct list_head	ls_rebuild_rootrsb_list; /* Root of lock trees
-							  we're deserialising */
 	int			ls_namelen;
 	char			ls_name[1];
 };

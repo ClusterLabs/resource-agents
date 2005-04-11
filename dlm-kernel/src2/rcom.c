@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
 **  
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -23,155 +23,66 @@
 #include "memory.h"
 
 
-/* Running on the basis that only a single synchronous recovery communication
- * will be done at a time per lockspace */
-
+static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
+{
+#if BITS_PER_LONG == 32
+	rc->rc_id = (uint32_t) r;
+#elif BITS_PER_LONG == 64
+	rc->rc_id = (uint64_t) r;
+#else
+#error BITS_PER_LONG not defined
+#endif
+}
 
 static int rcom_response(struct dlm_ls *ls)
 {
 	return test_bit(LSFL_RCOM_READY, &ls->ls_flags);
 }
 
-/**
- * dlm_send_rcom - send or request recovery data
- * @ls: the lockspace
- * @nodeid: node to which the message is sent
- * @type: type of recovery message
- * @rc: the rc buffer to send
- * @need_reply: wait for reply if this is set
- *
- * Using this interface
- * i)   Allocate an rc buffer:  
- *          rc = allocate_rcom_buffer(ls);
- * ii)  Copy data to send beginning at rc->rc_buf:
- *          memcpy(rc->rc_buf, mybuf, mylen);
- * iii) Set rc->rc_datalen to the number of bytes copied in (ii): 
- *          rc->rc_datalen = mylen
- * iv)  Submit the rc to this function:
- *          dlm_send_rcom(rc);
- *
- * The max value of "mylen" is dlm_config.buffer_size - sizeof struct dlm_rcom.
- *
- * Any data returned for the message (when need_reply is set) will saved in
- * rc->rc_buf when this function returns and rc->rc_datalen will be set to the
- * number of bytes copied into rc->rc_buf.
- *
- * Returns: 0 on success, -EXXX on failure
- */
-
-int dlm_send_rcom(struct dlm_ls *ls, int nodeid, int type, struct dlm_rcom *rc,
-		  int need_reply)
+int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
+		struct dlm_rcom **rc_ret, struct dlm_mhandle **mh_ret)
 {
-	struct dlm_header *hd = (struct dlm_header *) rc;
-	int error = 0;
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	char *mb;
+	int mb_len = sizeof(struct dlm_rcom) + len;
 
-	log_debug(ls, "dlm_send_rcom to %d type %d", nodeid, type);
+	mh = lowcomms_get_buffer(to_nodeid, mb_len, GFP_KERNEL, &mb);
+	if (!mh)
+		return -ENOBUFS;
+	memset(mb, 0, mb_len);
 
-	if (!rc->rc_datalen)
-		rc->rc_datalen = 1;
+	rc = (struct dlm_rcom *) mb;
 
+	rc->rc_header.h_version = (DLM_HEADER_MAJOR | DLM_HEADER_MINOR);
 	rc->rc_header.h_lockspace = ls->ls_global_id;
 	rc->rc_header.h_nodeid = dlm_our_nodeid();
-	rc->rc_header.h_length = sizeof(struct dlm_rcom) + rc->rc_datalen - 1;
+	rc->rc_header.h_length = mb_len;
 	rc->rc_header.h_cmd = DLM_RCOM;
+
 	rc->rc_type = type;
 
-	/* 
-	 * When a reply is received, the reply data goes back into this buffer.
-	 * Synchronous rcom requests (need_reply=1) are serialised because of
-	 * the single ls_rcom.  After sending the message we'll wait at the end
-	 * of this function to get a reply.  The READY flag will be set when
-	 * the reply has been received and requested data has been copied into
-	 * ls->ls_rcom->rc_buf;
-	 */
+	*mh_ret = mh;
+	*rc_ret = rc;
+	return 0;
+}
 
-	if (need_reply) {
-		down(&ls->ls_rcom_lock);
-		ls->ls_rcom = rc;
-		DLM_ASSERT(!test_bit(LSFL_RCOM_READY, &ls->ls_flags),);
-	}
+int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh, struct dlm_rcom *rc)
+{
+	struct dlm_header *hd = (struct dlm_header *) rc;
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = cpu_to_le16(hd->h_length);
 
-	/*
-	 * Process the message locally.
-	 */
+	log_print("send_rcom type %d result %d", rc->rc_type, rc->rc_result);
 
-	if (nodeid == dlm_our_nodeid()) {
-		dlm_receive_rcom((struct dlm_header *) rc, nodeid);
-		goto out;
-	}
-
-	/*
-	 * Send the message.
-	 */
-
-	error = lowcomms_send_message(nodeid, (char *) rc,
-				      rc->rc_header.h_length, GFP_KERNEL);
-
-	if (error > 0)
-		error = 0;
-	else if (error < 0) {
-		log_debug(ls, "send message %d to %u failed %d",
-			  type, nodeid, error);
-		goto out;
-	}
-
-	/* 
-	 * Wait for a reply.  Once a reply is processed from midcomms, the
-	 * READY bit will be set and we'll be awoken (dlm_wait_function will
-	 * return 0).
-	 */
-
-	if (need_reply) {
-		error = dlm_wait_function(ls, &rcom_response);
-		if (error)
-			log_debug(ls, "wait message %d to %u failed %d",
-				  type, nodeid, error);
-	}
-
- out:
-	if (need_reply) {
-		clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
-		up(&ls->ls_rcom_lock);
-	}
-
-	return error;
+	lowcomms_commit_buffer(mh);
+	return 0;
 }
 
-void rcom_reply_args(struct dlm_ls *ls, struct dlm_rcom *rc,
-		     struct dlm_rcom *rc_in, int type, int len)
+int make_status(struct dlm_ls *ls)
 {
-	rc->rc_header.h_lockspace = ls->ls_global_id;
-	rc->rc_header.h_nodeid = dlm_our_nodeid();
-	rc->rc_header.h_cmd = DLM_RCOM;
-	rc->rc_type = type;
-	rc->rc_id = rc_in->rc_id;
-	rc->rc_datalen = len;
-	rc->rc_header.h_length = sizeof(struct dlm_rcom) + len - 1;
-}
-
-void send_rcom_reply(struct dlm_ls *ls, int nodeid, struct dlm_rcom *rc)
-{
-	struct dlm_rcom *rc_local = ls->ls_rcom;
-
-	if (nodeid == dlm_our_nodeid()) {
-		memcpy(rc_local->rc_buf, rc->rc_buf, rc->rc_datalen);
-		rc_local->rc_datalen = rc->rc_datalen;
-	} else
-		lowcomms_send_message(nodeid, (char *) rc,
-				      rc->rc_header.h_length, GFP_KERNEL);
-}
-
-void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
-{
-	struct dlm_rcom rc_stack, *rc;
-	int nodeid = rc_in->rc_header.h_nodeid;
-	uint8_t status = 0;
-
-	rc = &rc_stack;
-	memset(rc, 0, sizeof(struct dlm_rcom));
+	int status = 0;
 
 	if (test_bit(LSFL_DIR_VALID, &ls->ls_flags))
 		status |= DIR_VALID;
@@ -185,27 +96,90 @@ void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	if (test_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags))
 		status |= NODES_ALL_VALID;
 
-	rc->rc_buf[0] = status;
-
-	rcom_reply_args(ls, rc, rc_in, DLM_RCOM_STATUS_REPLY, sizeof(status));
-	send_rcom_reply(ls, nodeid, rc);
+	return status;
 }
 
-/*
- * The other node wants a bunch of rsb names.  The name of the rsb to begin
- * with is in rc_in->rc_buf.
- */
+int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	int error;
+
+	memset(ls->ls_rcom, 0, dlm_config.buffer_size);
+
+	if (nodeid == dlm_our_nodeid()) {
+		ls->ls_rcom->rc_result = make_status(ls);
+		return 0;
+	}
+
+	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS, 0, &rc, &mh);
+
+	error = send_rcom(ls, mh, rc);
+
+	error = dlm_wait_function(ls, &rcom_response);
+
+	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
+
+	return error;
+}
+
+void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	int error, nodeid = rc_in->rc_header.h_nodeid;
+
+	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS_REPLY, 0, &rc, &mh);
+	rc->rc_result = make_status(ls);
+
+	error = send_rcom(ls, mh, rc);
+}
+
+void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+{
+	memcpy(ls->ls_rcom, rc_in, rc_in->rc_header.h_length);
+	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
+	wake_up(&ls->ls_wait_general);
+}
+
+int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	int error;
+
+	memset(ls->ls_rcom, 0, dlm_config.buffer_size);
+
+	if (nodeid == dlm_our_nodeid()) {
+		int len = dlm_config.buffer_size - sizeof(struct dlm_rcom);
+		dlm_copy_master_names(ls, last_name, last_len,
+				      ls->ls_rcom->rc_buf, len, nodeid);
+		return 0;
+	}
+
+	error = create_rcom(ls, nodeid, DLM_RCOM_NAMES, last_len, &rc, &mh);
+	memcpy(rc->rc_buf, last_name, last_len);
+
+	error = send_rcom(ls, mh, rc);
+
+	error = dlm_wait_function(ls, &rcom_response);
+
+	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
+
+	return error;
+}
 
 void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	int error, inlen, outlen;
 	int nodeid = rc_in->rc_header.h_nodeid;
-	int datalen, maxlen;
 
 	/*
 	 * We can't run dlm_dir_rebuild_send (which uses ls_nodes) while
 	 * dlm_recoverd is running ls_nodes_reconfig (which changes ls_nodes).
-	 * It could only happen in rare cases where we get a late RECOVERNAMES
+	 * It could only happen in rare cases where we get a late NAMES 
 	 * message from a previous instance of recovery.
 	 */
 
@@ -213,115 +187,56 @@ void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 		log_debug(ls, "ignoring RCOM_NAMES from %u", nodeid);
 		return;
 	}
+		
+	nodeid = rc_in->rc_header.h_nodeid;
+	inlen = rc_in->rc_header.h_length - sizeof(struct dlm_rcom);
+	outlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);
 
-	rc = allocate_rcom_buffer(ls);
-	DLM_ASSERT(rc,);
+	error = create_rcom(ls, nodeid, DLM_RCOM_NAMES_REPLY, outlen, &rc, &mh);
 
-	maxlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);
+	error = dlm_copy_master_names(ls, rc_in->rc_buf, inlen, rc->rc_buf,
+				      outlen, nodeid);
 
-	datalen = dlm_copy_master_names(ls, rc_in->rc_buf, rc_in->rc_datalen,
-				        rc->rc_buf, maxlen, nodeid);
+	error = send_rcom(ls, mh, rc);
+}
 
-	rcom_reply_args(ls, rc, rc_in, DLM_RCOM_NAMES_REPLY, datalen);
-	send_rcom_reply(ls, nodeid, rc);
-	free_rcom_buffer(rc);
+void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+{
+	memcpy(ls->ls_rcom, rc_in, rc_in->rc_header.h_length);
+	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
+	wake_up(&ls->ls_wait_general);
+}
+
+int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	struct dlm_ls *ls = r->res_ls;
+	int error;
+
+	error = create_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, r->res_length,
+			    &rc, &mh);
+	memcpy(rc->rc_buf, r->res_name, r->res_length);
+	set_rc_id(r, rc);
+
+	error = send_rcom(ls, mh, rc);
+	return 0;
 }
 
 void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
-	int error, nodeid = rc_in->rc_header.h_nodeid;
-	uint32_t r_nodeid, be_nodeid;
+	struct dlm_mhandle *mh;
+	int error, ret_nodeid, nodeid = rc_in->rc_header.h_nodeid;
+	int len = rc_in->rc_header.h_length - sizeof(struct dlm_rcom);
 
-	rc = allocate_rcom_buffer(ls);
-	DLM_ASSERT(rc,);
+	error = dlm_dir_lookup(ls, nodeid, rc_in->rc_buf, len, &ret_nodeid);
 
-	error = dlm_dir_lookup(ls, nodeid, rc_in->rc_buf, rc_in->rc_datalen,
-			       &r_nodeid);
-	if (error != 0) {
-		log_error(ls, "rcom lookup error %d", error);
-		free_rcom_buffer(rc);
-		return;
-	}
+	error = create_rcom(ls, nodeid, DLM_RCOM_LOOKUP_REPLY, 0, &rc, &mh);
+	rc->rc_result = ret_nodeid;
+	rc->rc_id = rc_in->rc_id;
 
-	be_nodeid = cpu_to_be32(r_nodeid);
-	memcpy(rc->rc_buf, &be_nodeid, sizeof(uint32_t));
-
-	rcom_reply_args(ls, rc, rc_in, DLM_RCOM_LOOKUP_REPLY, sizeof(uint32_t));
-	send_rcom_reply(ls, nodeid, rc);
-	free_rcom_buffer(rc);
-}
-
-/*
- * The other node has found that we're the new master of an rsb and is sending
- * us the locks they hold on it.  We send back the lkid's we've given to their
- * locks.
- */
-
-void receive_rcom_locks(struct dlm_ls *ls, struct dlm_rcom *rc_in)
-{
-	struct dlm_rcom *rc;
-	int nodeid = rc_in->rc_header.h_nodeid;
-	int datalen = 0;
-
-	/*
-	 * This should prevent us from processing any RCOM_LOCKS messages sent
-	 * during a previous recovery instance.
-	 */
-
-	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
-		log_debug(ls, "ignoring RCOM_LOCKS from %u", nodeid);
-		return;
-	}
-
-	rc = allocate_rcom_buffer(ls);
-	DLM_ASSERT(rc,);
-
-#if 0
-	datalen = rebuild_rsbs_recv(ls, nodeid, rc_in->rc_buf,
-				    rc_in->rc_datalen, rc->rc_buf);
-#endif
-	rcom_reply_args(ls, rc, rc_in, DLM_RCOM_LOCKS_REPLY, datalen);
-	send_rcom_reply(ls, nodeid, rc);
-	free_rcom_buffer(rc);
-}
-
-void receive_rcom_sync_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
-{
-	int nodeid = rc_in->rc_header.h_nodeid;
-	struct dlm_rcom *rc_sent = ls->ls_rcom;
-
-	if (!rc_sent) {
-		log_error(ls, "no rcom awaiting reply nodeid %d", nodeid);
-		return;
-	}
-
-	if (rc_in->rc_id != le32_to_cpu(rc_sent->rc_id)) {
-		log_error(ls, "expected rcom id %"PRIx64" got %"PRIx64" %d",
-		          le64_to_cpu(rc_sent->rc_id), rc_in->rc_id, nodeid);
-		return;
-	}
-
-	memcpy(rc_sent->rc_buf, rc_in->rc_buf, rc_in->rc_datalen);
-	rc_sent->rc_datalen = rc_in->rc_datalen;
-
-	/* 
-	 * Tell the thread waiting for this reply in rcom_send_message() that
-	 * it can go ahead.
-	 */
-
-	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
-	wake_up(&ls->ls_wait_general);
-}
-
-void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
-{
-	receive_rcom_sync_reply(ls, rc_in);
-}
-
-void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
-{
-	receive_rcom_sync_reply(ls, rc_in);
+	error = send_rcom(ls, mh, rc);
 }
 
 void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -329,43 +244,95 @@ void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	dlm_recover_master_reply(ls, rc_in);
 }
 
-void receive_rcom_locks_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+#if 0
+struct rcom_lock {
+	char			name[MAX_RESNAME_LEN];
+	uint16_t		namelen;
+};
+
+void make_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
+		    struct rcom_lock *rl)
+{
+}
+
+int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	struct dlm_ls *ls = r->res_ls;
+
+	error = create_rcom(ls, r->res_nodeid, DLM_RCOM_LOCK,
+			    sizeof(struct rcom_lock), &rc, &mh);
+
+	rl = (struct rcom_lock *) rc->rc_buf;
+	make_rcom_lock(r, lkb, rl);
+	rc->rc_id = r;
+
+	error = send_rcom(ls, mh, rc);
+}
+#endif
+
+void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 #if 0
-	int nodeid = rc_in->rc_header.h_nodeid;
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	int error, nodeid = rc_in->rc_header.h_nodeid;
 
-	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
-		log_debug(ls, "ignoring RCOM_LOCKS_REPLY from %u", nodeid);
-		return;
-	}
+	rl = (struct rcom_lock *) rc_in->rc_buf;
 
-	rebuild_rsbs_lkids_recv(ls, nodeid, rc_in->rc_buf, rc_in->rc_datalen);
+	dlm_recover_lock(ls, nodeid, rl);
+
+	error = create_rcom(ls, nodeid, DLM_RCOM_LOCK_REPLY,
+			    sizeof(struct rcom_lock), &rc, &mh);
+
+	memcpy(rc->rc_buf, rc_in->rc_buf, sizeof(struct rcom_lock));
+	rc->rc_id = rc_in->rc_id;
+
+	error = send_rcom(ls, mh, rc);
 #endif
 }
 
-static int send_ls_not_ready(int nodeid, struct dlm_header *header)
+void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-	struct writequeue_entry *wq;
-	struct dlm_rcom *rc = (struct dlm_rcom *) header;
-	struct dlm_rcom *reply;
+#if 0
+	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
+		log_debug(ls, "ignoring RCOM_LOCK_REPLY from %u", nodeid);
+		return;
+	}
 
-	wq = lowcomms_get_buffer(nodeid, sizeof(struct dlm_rcom), GFP_KERNEL,
-			         (char **)&reply);
-	if (!wq)
-		return -ENOMEM;
+	dlm_recover_lock_reply(ls, rc_in);
+#endif
+}
 
-	reply->rc_header.h_lockspace = rc->rc_header.h_lockspace;
-	reply->rc_type = rc->rc_type;
-	reply->rc_id = rc->rc_id;
-	reply->rc_buf[0] = 0;
+static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)
+{
+	struct dlm_rcom *rc;
+	struct dlm_mhandle *mh;
+	char *mb;
+	int mb_len = sizeof(struct dlm_rcom);
 
-	reply->rc_datalen = 1;
-	reply->rc_header.h_length = sizeof(struct dlm_rcom) +
-				    reply->rc_datalen - 1;
+	mh = lowcomms_get_buffer(nodeid, mb_len, GFP_KERNEL, &mb);
+	if (!mh)
+		return -ENOBUFS;
+	memset(mb, 0, mb_len);
 
-	/* FIXME: do byte swapping */
+	rc = (struct dlm_rcom *) mb;
 
-	lowcomms_commit_buffer(wq);
+	rc->rc_header.h_version = (DLM_HEADER_MAJOR | DLM_HEADER_MINOR);
+	rc->rc_header.h_lockspace = rc_in->rc_header.h_lockspace;
+	rc->rc_header.h_nodeid = dlm_our_nodeid();
+	rc->rc_header.h_length = mb_len;
+	rc->rc_header.h_cmd = DLM_RCOM;
+
+	rc->rc_type = DLM_RCOM_STATUS_REPLY;
+	rc->rc_result = 0;
+
+	/* FIXME: do byte swapping here */
+	rc->rc_header.h_length = cpu_to_le16(rc->rc_header.h_length);
+
+	lowcomms_commit_buffer(mh);
+
 	return 0;
 }
 
@@ -385,8 +352,8 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 
 	ls = find_lockspace_global(hd->h_lockspace);
 	if (!ls) {
-	      send_ls_not_ready(nodeid, hd);
-	      return;
+		send_ls_not_ready(nodeid, rc);
+		return;
 	}
 
 	if (dlm_recovery_stopped(ls) && (rc->rc_type != DLM_RCOM_STATUS)) {
@@ -401,6 +368,9 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 		return;
 	}
 
+	log_print("recv_rcom type %d result %d from %d",
+		  rc->rc_type, rc->rc_result, nodeid);
+
 	switch (rc->rc_type) {
 	case DLM_RCOM_STATUS:
 		receive_rcom_status(ls, rc);
@@ -414,8 +384,8 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 		receive_rcom_lookup(ls, rc);
 		break;
 
-	case DLM_RCOM_LOCKS:
-		receive_rcom_locks(ls, rc);
+	case DLM_RCOM_LOCK:
+		receive_rcom_lock(ls, rc);
 		break;
 
 	case DLM_RCOM_STATUS_REPLY:
@@ -430,8 +400,8 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 		receive_rcom_lookup_reply(ls, rc);
 		break;
 
-	case DLM_RCOM_LOCKS_REPLY:
-		receive_rcom_locks_reply(ls, rc);
+	case DLM_RCOM_LOCK_REPLY:
+		receive_rcom_lock_reply(ls, rc);
 		break;
 
 	default:
