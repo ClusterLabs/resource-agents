@@ -364,6 +364,50 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 }
 
 #if 0
+static int recover_locks(struct dlm_rsb *r)
+{
+	/* for each lkb
+	   	dlm_send_rcom_lock(r, lkb);
+		recover_list_add(r);
+	*/
+}
+
+int dlm_recover_locks(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r;
+	int error;
+
+	log_debug(ls, "dlm_recover_locks");
+
+	down_read(&ls->ls_root_lock);
+	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+		error = dlm_recovery_stopped(ls);
+		if (error) {
+			up_read(&ls->ls_root_lock);
+			goto out;
+		}
+
+		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
+			continue;
+		if (!r->res_nodeid)
+			continue;
+
+		recover_locks(r);
+	}
+	up_read(&ls->ls_root_lock);
+
+	error = dlm_wait_function(ls, &recover_list_empty);
+
+ out:
+	if (error)
+		recover_list_clear(ls);
+	return error;
+}
+
+int dlm_recover_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
+{
+}
+
 /*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery

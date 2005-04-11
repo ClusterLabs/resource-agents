@@ -123,14 +123,6 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	dlm_astd_resume();
 
 	/*
-	 * this list may be left over from a previous aborted recovery
-	 */
-
-#if 0
-	dlm_rebuild_freemem(ls);
-#endif
-
-	/*
 	 * This list of root rsb's will be the basis of most of the recovery
 	 * routines.
 	 */
