@@ -191,6 +191,7 @@ struct dlm_recover {
 	int			event_id;
 };
 
+
 /*
  * Lock block
  *
@@ -302,6 +303,7 @@ struct dlm_lkb {
 #endif
 };
 
+
 /* find_rsb() flags */
 
 #define R_MASTER		(1)     /* create/add rsb if not found */
@@ -347,93 +349,6 @@ struct dlm_rsb {
 };
 
 
-#define LSST_NONE		(0)
-#define LSST_INIT		(1)
-#define LSST_INIT_DONE		(2)
-#define LSST_CLEAR		(3)
-#define LSST_WAIT_START		(4)
-#define LSST_RECONFIG_DONE	(5)
-
-#define LSFL_WORK		(0)
-#define LSFL_LS_RUN		(1)
-#define LSFL_LS_STOP		(2)
-#define LSFL_LS_START		(3)
-#define LSFL_LS_FINISH		(4)
-#define LSFL_RCOM_READY		(5)
-#define LSFL_FINISH_RECOVERY	(6)
-#define LSFL_DIR_VALID		(7)
-#define LSFL_ALL_DIR_VALID	(8)
-#define LSFL_NODES_VALID	(9)
-#define LSFL_ALL_NODES_VALID	(10)
-#define LSFL_LS_TERMINATE	(11)
-#define LSFL_JOIN_DONE		(12)
-#define LSFL_LEAVE_DONE		(13)
-
-struct dlm_ls {
-	struct list_head	ls_list;	/* list of lockspaces */
-	uint32_t		ls_global_id;	/* global unique lockspace ID */
-	int			ls_count;	/* reference count */
-	unsigned long		ls_flags;	/* LSFL_ */
-	struct kobject		ls_kobj;
-
-	struct dlm_rsbtable *	ls_rsbtbl;
-	uint32_t		ls_rsbtbl_size;
-
-	struct dlm_lkbtable *	ls_lkbtbl;
-	uint32_t		ls_lkbtbl_size;
-
-	struct dlm_dirtable *	ls_dirtbl;
-	uint32_t		ls_dirtbl_size;
-
-	struct list_head	ls_nodes;	/* current nodes in ls */
-	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
-	int			ls_num_nodes;	/* number of nodes in ls */
-	int			ls_low_nodeid;
-	int *			ls_node_array;
-	int *			ls_nodeids_next;
-	int			ls_nodeids_next_count;
-
-	struct dlm_rsb		ls_stub_rsb;	/* for returning errors */
-	struct dlm_lkb		ls_stub_lkb;	/* for returning errors */
-
-	struct dentry *		ls_debug_dentry;/* debugfs */
-	struct list_head	ls_debug_list;	/* debugfs */
-
-	/* recovery related */
-
-	wait_queue_head_t	ls_wait_member;
-	struct task_struct *	ls_recoverd_task;
-	struct semaphore	ls_recoverd_active;
-	struct list_head	ls_recover;	/* dlm_recover structs */
-	spinlock_t		ls_recover_lock;
-	int			ls_last_stop;
-	int			ls_last_start;
-	int			ls_last_finish;
-	int			ls_startdone;
-	int			ls_state;	/* recovery states */
-
-	struct rw_semaphore	ls_in_recovery;	/* block local requests */
-	struct list_head	ls_requestqueue;/* queue remote requests */
-	struct semaphore	ls_requestqueue_lock;
-
-	struct dlm_rcom *       ls_rcom;	/* recovery comms */
-	struct semaphore	ls_rcom_lock;
-
-	struct list_head	ls_recover_list;
-	spinlock_t		ls_recover_list_lock;
-	int			ls_recover_list_count;
-	wait_queue_head_t	ls_wait_general;
-
-	struct list_head	ls_rootres;	/* root resources */
-	struct rw_semaphore	ls_root_lock;	/* protect rootres list */
-
-	struct list_head	ls_rebuild_rootrsb_list; /* Root of lock trees
-							  we're deserialising */
-	int			ls_namelen;
-	char			ls_name[1];
-};
-
-
 /* dlm_header is first element of all structs sent between nodes */
 
 #define DLM_HEADER_MAJOR	(0x00020000)
@@ -450,6 +365,7 @@ struct dlm_header {
 	uint8_t			h_cmd;		/* DLM_MSG, DLM_RCOM */
 	uint8_t			h_pad;
 };
+
 
 #define DLM_MSG_REQUEST		(1)
 #define DLM_MSG_CONVERT		(2)
@@ -489,6 +405,7 @@ struct dlm_message {
 	char			m_name[0];
 };
 
+
 #define DIR_VALID		(1)
 #define DIR_ALL_VALID		(2)
 #define NODES_VALID		(4)
@@ -510,5 +427,97 @@ struct dlm_rcom {
 	uint64_t		rc_id;
 	char			rc_buf[1];
 };
+
+
+#define LSST_NONE		(0)
+#define LSST_INIT		(1)
+#define LSST_INIT_DONE		(2)
+#define LSST_CLEAR		(3)
+#define LSST_WAIT_START		(4)
+#define LSST_RECONFIG_DONE	(5)
+
+#define LSFL_WORK		(0)
+#define LSFL_LS_RUN		(1)
+#define LSFL_LS_STOP		(2)
+#define LSFL_LS_START		(3)
+#define LSFL_LS_FINISH		(4)
+#define LSFL_RCOM_READY		(5)
+#define LSFL_FINISH_RECOVERY	(6)
+#define LSFL_DIR_VALID		(7)
+#define LSFL_ALL_DIR_VALID	(8)
+#define LSFL_NODES_VALID	(9)
+#define LSFL_ALL_NODES_VALID	(10)
+#define LSFL_LS_TERMINATE	(11)
+#define LSFL_JOIN_DONE		(12)
+#define LSFL_LEAVE_DONE		(13)
+
+struct dlm_ls {
+	struct list_head	ls_list;	/* list of lockspaces */
+	uint32_t		ls_global_id;	/* global unique lockspace ID */
+	int			ls_count;	/* reference count */
+	unsigned long		ls_flags;	/* LSFL_ */
+	struct kobject		ls_kobj;
+
+	struct dlm_rsbtable *	ls_rsbtbl;
+	uint32_t		ls_rsbtbl_size;
+
+	struct dlm_lkbtable *	ls_lkbtbl;
+	uint32_t		ls_lkbtbl_size;
+
+	struct dlm_dirtable *	ls_dirtbl;
+	uint32_t		ls_dirtbl_size;
+
+	struct semaphore	ls_waiters_sem;
+	struct list_head	ls_waiters;	/* lkbs needing a reply */
+
+	struct list_head	ls_nodes;	/* current nodes in ls */
+	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
+	int			ls_num_nodes;	/* number of nodes in ls */
+	int			ls_low_nodeid;
+	int *			ls_node_array;
+	int *			ls_nodeids_next;
+	int			ls_nodeids_next_count;
+
+	struct dlm_rsb		ls_stub_rsb;	/* for returning errors */
+	struct dlm_lkb		ls_stub_lkb;	/* for returning errors */
+	struct dlm_message	ls_stub_ms;	/* for faking a reply */
+
+	struct dentry *		ls_debug_dentry;/* debugfs */
+	struct list_head	ls_debug_list;	/* debugfs */
+
+	/* recovery related */
+
+	wait_queue_head_t	ls_wait_member;
+	struct task_struct *	ls_recoverd_task;
+	struct semaphore	ls_recoverd_active;
+	struct list_head	ls_recover;	/* dlm_recover structs */
+	spinlock_t		ls_recover_lock;
+	int			ls_last_stop;
+	int			ls_last_start;
+	int			ls_last_finish;
+	int			ls_startdone;
+	int			ls_state;	/* recovery states */
+
+	struct rw_semaphore	ls_in_recovery;	/* block local requests */
+	struct list_head	ls_requestqueue;/* queue remote requests */
+	struct semaphore	ls_requestqueue_lock;
+
+	struct dlm_rcom *       ls_rcom;	/* recovery comms */
+	struct semaphore	ls_rcom_lock;
+
+	struct list_head	ls_recover_list;
+	spinlock_t		ls_recover_list_lock;
+	int			ls_recover_list_count;
+	wait_queue_head_t	ls_wait_general;
+
+	struct list_head	ls_rootres;	/* root resources */
+	struct rw_semaphore	ls_root_lock;	/* protect rootres list */
+
+	struct list_head	ls_rebuild_rootrsb_list; /* Root of lock trees
+							  we're deserialising */
+	int			ls_namelen;
+	char			ls_name[1];
+};
+
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */

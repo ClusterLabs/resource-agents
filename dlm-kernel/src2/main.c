@@ -30,7 +30,6 @@ void dlm_unregister_debugfs(void);
 
 int __init init_dlm(void)
 {
-	dlm_lock_init();
 	dlm_lockspace_init();
 	dlm_member_init();
 	dlm_register_debugfs();

@@ -214,7 +214,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		 * communicate with a node.
 		 */
 #if 0
-		error = rebuild_rsbs_send(ls);
+		error = dlm_recover_locks(ls);
 		if (error) {
 			log_error(ls, "rebuild_rsbs_send failed %d", error);
 			goto fail;

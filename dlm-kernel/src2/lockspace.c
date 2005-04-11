@@ -313,6 +313,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	init_waitqueue_head(&ls->ls_wait_member);
 	INIT_LIST_HEAD(&ls->ls_nodes);
 	INIT_LIST_HEAD(&ls->ls_nodes_gone);
+	INIT_LIST_HEAD(&ls->ls_waiters);
 	ls->ls_num_nodes = 0;
 	ls->ls_node_array = NULL;
 	ls->ls_recoverd_task = NULL;
@@ -329,6 +330,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_last_stop = 0;
 	ls->ls_last_start = 0;
 	ls->ls_last_finish = 0;
+	init_MUTEX(&ls->ls_waiters_sem);
 	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_MUTEX(&ls->ls_rcom_lock);
 	init_rwsem(&ls->ls_root_lock);

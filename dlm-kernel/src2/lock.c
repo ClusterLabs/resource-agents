@@ -69,15 +69,6 @@
    L: receive_xxxx_reply()     <-  R: send_xxxx_reply()
 */
 
-static struct list_head dlm_waiters;
-static struct semaphore dlm_waiters_sem;
-
-void dlm_lock_init(void)
-{
-	INIT_LIST_HEAD(&dlm_waiters);
-	init_MUTEX(&dlm_waiters_sem);
-}
-
 /*
  * Lock compatibilty matrix - thanks Steve
  * UN = Unlocked state. Not really a state, used as a flag
@@ -461,8 +452,17 @@ void unhold_rsb(struct dlm_rsb *r)
 
 void kill_rsb(struct kref *kref)
 {
+	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
+
 	/* All work is done after the return from kref_put() so we
 	   can release the write_lock before the remove and free. */
+
+	DLM_ASSERT(list_empty(&r->res_lookup),);
+	DLM_ASSERT(list_empty(&r->res_grantqueue),);
+	DLM_ASSERT(list_empty(&r->res_convertqueue),);
+	DLM_ASSERT(list_empty(&r->res_waitqueue),);
+	DLM_ASSERT(list_empty(&r->res_rootlist),);
+	DLM_ASSERT(list_empty(&r->res_recover_list),);
 }
 
 /* FIXME: shouldn't this be able to exit as soon as one non-due rsb is
@@ -478,8 +478,8 @@ int shrink_bucket(struct dlm_ls *ls, int b)
 		write_lock(&ls->ls_rsbtbl[b].lock);
 		list_for_each_entry_reverse(r, &ls->ls_rsbtbl[b].toss,
 					    res_hashchain) {
-			if (!time_after(jiffies, r->res_toss_time +
-					         DLM_TOSS_SECS * HZ))
+			if (!time_after_eq(jiffies, r->res_toss_time +
+					            DLM_TOSS_SECS * HZ))
 				continue;
 			found = TRUE;
 			break;
@@ -760,16 +760,18 @@ void move_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 
 void add_to_waiters(struct dlm_lkb *lkb, int mstype)
 {
-	down(&dlm_waiters_sem);
+	struct dlm_ls *ls = lkb->lkb_resource->res_ls;
+
+	down(&ls->ls_waiters_sem);
 	if (lkb->lkb_wait_type) {
 		printk("add_to_waiters error %d", lkb->lkb_wait_type);
 		goto out;
 	}
 	lkb->lkb_wait_type = mstype;
 	kref_get(&lkb->lkb_ref);
-	list_add(&lkb->lkb_wait_reply, &dlm_waiters);
+	list_add(&lkb->lkb_wait_reply, &ls->ls_waiters);
  out:
-	up(&dlm_waiters_sem);
+	up(&ls->ls_waiters_sem);
 }
 
 int _remove_from_waiters(struct dlm_lkb *lkb)
@@ -790,10 +792,12 @@ int _remove_from_waiters(struct dlm_lkb *lkb)
 
 int remove_from_waiters(struct dlm_lkb *lkb)
 {
+	struct dlm_ls *ls = lkb->lkb_resource->res_ls;
 	int error;
-	down(&dlm_waiters_sem);
+
+	down(&ls->ls_waiters_sem);
 	error = _remove_from_waiters(lkb);
-	up(&dlm_waiters_sem);
+	up(&ls->ls_waiters_sem);
 	return error;
 }
 
@@ -1053,7 +1057,7 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
    before it can be copied to the lkb.
    
    When the rsb nodeid is being looked up remotely, the initial lkb
-   causing the lookup is kept on the dlm_waiters list waiting for the
+   causing the lookup is kept on the ls_waiters list waiting for the
    lookup reply.  Other lkb's waiting for the same rsb lookup are kept
    on the rsb's res_lookup list until the master is verified.
 
@@ -2091,7 +2095,7 @@ int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
 	struct dlm_header *hd = (struct dlm_header *) ms;
 
-	/* log_print("send %d lkid %x", ms->m_type, ms->m_lkid); */
+	log_print("send %d lkid %x", ms->m_type, ms->m_lkid);
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = cpu_to_le16(hd->h_length);
@@ -2801,10 +2805,37 @@ void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	put_lkb(lkb);
 }
 
+void _receive_unlock_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			   struct dlm_message *ms)
+{
+	struct dlm_rsb *r = lkb->lkb_resource;
+	int error = ms->m_result;
+
+	hold_rsb(r);
+	lock_rsb(r);
+
+	/* this is the value returned from do_unlock() on the master */
+
+	switch (error) {
+	case -DLM_EUNLOCK:
+		receive_flags_reply(lkb, ms);
+		remove_lock_pc(r, lkb);
+		queue_cast(r, lkb, -DLM_EUNLOCK);
+		/* this unhold undoes the original ref from create_lkb()
+	   	   so this leads to the lkb being freed */
+		unhold_lkb(lkb);
+		break;
+	default:
+		log_error(ls, "receive_unlock_reply unknown error %d", error);
+	}
+
+	unlock_rsb(r);
+	put_rsb(r);
+}
+
 void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
-	struct dlm_rsb *r;
 	int error;
 
 	error = find_lkb(ls, ms->m_remlkid, &lkb);
@@ -2820,37 +2851,39 @@ void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	/* this is the value returned from do_unlock() on the master */
-	error = ms->m_result;
+	_receive_unlock_reply(ls, lkb, ms);
+ out:
+	put_lkb(lkb);
+}
 
-	r = lkb->lkb_resource;
+void _receive_cancel_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			   struct dlm_message *ms)
+{
+	struct dlm_rsb *r = lkb->lkb_resource;
+	int error = ms->m_result;
+
 	hold_rsb(r);
 	lock_rsb(r);
 
-	switch (error) {
-	case -DLM_EUNLOCK:
-		receive_flags_reply(lkb, ms);
-		remove_lock_pc(r, lkb);
-		queue_cast(r, lkb, -DLM_EUNLOCK);
-		/* this unhold undoes the original ref from create_lkb()
-	   	   so this leads to the lkb being freed */
-		unhold_lkb(lkb);
-		break;
+	/* this is the value returned from do_cancel() on the master */
 
+	switch (error) {
+	case -DLM_ECANCEL:
+		receive_flags_reply(lkb, ms);
+		revert_lock_pc(r, lkb);
+		queue_cast(r, lkb, -DLM_ECANCEL);
+		break;
 	default:
-		log_error(ls, "receive_unlock_reply unknown error %d", error);
+		log_error(ls, "receive_cancel_reply unknown error %d", error);
 	}
 
 	unlock_rsb(r);
 	put_rsb(r);
- out:
-	put_lkb(lkb);
 }
 
 void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
-	struct dlm_rsb *r;
 	int error;
 
 	error = find_lkb(ls, ms->m_remlkid, &lkb);
@@ -2866,26 +2899,7 @@ void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	/* this is the value returned from do_cancel() on the master */
-	error = ms->m_result;
-
-	r = lkb->lkb_resource;
-	hold_rsb(r);
-	lock_rsb(r);
-
-	switch (error) {
-	case -DLM_ECANCEL:
-		receive_flags_reply(lkb, ms);
-		revert_lock_pc(r, lkb);
-		queue_cast(r, lkb, -DLM_ECANCEL);
-		break;
-
-	default:
-		log_error(ls, "receive_cancel_reply unknown error %d", error);
-	}
-
-	unlock_rsb(r);
-	put_rsb(r);
+	_receive_cancel_reply(ls, lkb, ms);
  out:
 	put_lkb(lkb);
 }
@@ -2978,7 +2992,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 		schedule();
 	}
 
-	/* log_print("receive %d lkid %x", ms->m_type, ms->m_remlkid); */
+	log_print("receive %d lkid %x", ms->m_type, ms->m_remlkid);
 
 	switch (ms->m_type) {
 
@@ -3099,28 +3113,21 @@ void dlm_release_root_list(struct dlm_ls *ls)
 	up_write(&ls->ls_root_lock);
 }
 
+/* We only need to do recovery for lkb's waiting for replies from nodes
+   who have been removed. */
+
 void dlm_recover_waiters_pre(struct dlm_ls *ls)
 {
 	struct dlm_lkb *lkb, *safe;
-	struct dlm_rsb *r;
 
-	down(&dlm_waiters_sem);
+	down(&ls->ls_waiters_sem);
 
-	list_for_each_entry_safe(lkb, safe, &dlm_waiters, lkb_wait_reply) {
-		if (lkb->lkb_resource->res_ls != ls)
+	list_for_each_entry_safe(lkb, safe, &ls->ls_waiters, lkb_wait_reply) {
+		if (!dlm_is_removed(ls, lkb->lkb_nodeid))
 			continue;
 
-		r = lkb->lkb_resource;
-
-		/* we only need to do pre-recovery if the node the lkb
-		   is waiting on is gone */
-
-		if (!dlm_is_removed(ls, r->res_nodeid))
-			continue;
-
-		log_debug(ls, "pre recover waiter lkid %x type %d flags %x %s",
-			  lkb->lkb_id, lkb->lkb_wait_type, lkb->lkb_flags,
-			  r->res_name);
+		log_debug(ls, "pre recover waiter lkid %x type %d flags %x",
+			  lkb->lkb_id, lkb->lkb_wait_type, lkb->lkb_flags);
 
 		switch (lkb->lkb_wait_type) {
 
@@ -3138,50 +3145,15 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			break;
 
 		case DLM_MSG_UNLOCK:
+			ls->ls_stub_ms.m_result = -DLM_EUNLOCK;
 			_remove_from_waiters(lkb);
-
-			log_debug(ls, "fake unlock reply lkid %x %s",
-				  lkb->lkb_id, r->res_name);
-
-			/* FIXME: fake an ms struct and call
-			   receive_unlock_reply() here ?
-			   pretend we received an unlock reply from the
-			   former master */
-
-			hold_rsb(r);
-			lock_rsb(r);
-
-			remove_lock_pc(r, lkb);
-			queue_cast(r, lkb, -DLM_EUNLOCK);
-
-			/* this unhold undoes the original ref from
-			   create_lkb() so this leads to the lkb being freed */
-			unhold_lkb(lkb);
-
-			unlock_rsb(r);
-			put_rsb(r);
-			put_lkb(lkb);
+			_receive_unlock_reply(ls, lkb, &ls->ls_stub_ms);
 			break;
 
 		case DLM_MSG_CANCEL:
+			ls->ls_stub_ms.m_result = -DLM_ECANCEL;
 			_remove_from_waiters(lkb);
-
-			log_debug(ls, "fake cancel reply lkid %x %s",
-				  lkb->lkb_id, r->res_name);
-
-			/* FIXME: fake an ms struct and call
-			   receive_cancel_reply() here ?
-			   pretend we received a cancel reply from the
-			   former master */
-
-			hold_rsb(r);
-			lock_rsb(r);
-			revert_lock_pc(r, lkb);
-			queue_cast(r, lkb, -DLM_ECANCEL);
-
-			unlock_rsb(r);
-			put_rsb(r);
-			put_lkb(lkb);
+			_receive_cancel_reply(ls, lkb, &ls->ls_stub_ms);
 			break;
 
 		case DLM_MSG_LOOKUP:
@@ -3194,7 +3166,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 				  lkb->lkb_wait_type);
 		}
 	}
-	up(&dlm_waiters_sem);
+	up(&ls->ls_waiters_sem);
 }
 
 struct dlm_lkb *remove_resend_waiter(struct dlm_ls *ls)
@@ -3202,18 +3174,15 @@ struct dlm_lkb *remove_resend_waiter(struct dlm_ls *ls)
 	struct dlm_lkb *lkb;
 	int found = 0;
 
-	down(&dlm_waiters_sem);
-	list_for_each_entry(lkb, &dlm_waiters, lkb_wait_reply) {
-		if (lkb->lkb_resource->res_ls != ls)
-			continue;
-
+	down(&ls->ls_waiters_sem);
+	list_for_each_entry(lkb, &ls->ls_waiters, lkb_wait_reply) {
 		if (lkb->lkb_flags & DLM_IFL_RESEND) {
 			_remove_from_waiters(lkb);
 			found = 1;
 			break;
 		}
 	}
-	up(&dlm_waiters_sem);
+	up(&ls->ls_waiters_sem);
 
 	if (!found)
 		lkb = NULL;

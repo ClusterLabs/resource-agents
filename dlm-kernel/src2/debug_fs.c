@@ -86,6 +86,9 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 			seq_printf(s, " Master:     %08x", lkb->lkb_remid);
 	}
 
+	if (lkb->lkb_wait_type)
+		seq_printf(s, " wait_type: %d", lkb->lkb_wait_type);
+
 	seq_printf(s, "\n");
 }
 
