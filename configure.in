@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.369 $) dnl cvs revision
+AC_REVISION($Revision: 1.370 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -236,6 +236,7 @@ AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
 AC_PATH_PROGS(IPTABLES, iptables)
+AC_PATH_PROGS(XML2CONFIG, xml2-config)
 dnl "whoami", if it exists, may be hidden away on some System-V (e.g. Solaris)
 AC_PATH_PROGS(WHOAMI, whoami, , ${PATH}:/usr/ucb)
 AC_PATH_PROGS(STRINGSCMD, strings)
@@ -673,10 +674,21 @@ AC_CHECK_HEADERS(curl/curl.h)
 AC_CHECK_HEADERS(OpenIPMI/ipmi_auth.h)
 
 
+AC_MSG_CHECKING(for special libxml2 includes)
+if test "x$XML2CONFIG" = "x"; then
+   AC_MSG_RESULT(libxml2 config not found)
+else
+   XML2HEAD=`$XML2CONFIG --cflags`
+   AC_MSG_RESULT($XML2HEAD)
+fi
+
+CPPFLAGS="$CPPFLAGS $XML2HEAD"
+
 dnl ************************************************************************
 dnl * Check for linux/icmpv6.h to make enable the IPv6addr resource agent
 AC_CHECK_HEADERS(linux/icmpv6.h,[],[],[#include <asm/types.h>])
 AM_CONDITIONAL(USE_IPV6ADDR, test "$ac_cv_header_linux_icmpv6_h" = yes -a $new_libnet = yes )
+AC_CHECK_HEADERS(libxml/xpath.h)
 AC_CHECK_HEADERS(openssl/md5.h)
 
 dnl
@@ -685,7 +697,7 @@ dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacmclient_api_h" = yes)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
-AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
+AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
 AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 AC_ARG_ENABLE([snmp-subagent],
