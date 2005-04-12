@@ -446,8 +446,7 @@ void dlm_put_rsb(struct dlm_rsb *r)
 
 void unhold_rsb(struct dlm_rsb *r)
 {
-	/* DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),); */
-	kref_put(&r->res_ref, toss_rsb);
+	DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),);
 }
 
 void kill_rsb(struct kref *kref)
@@ -490,27 +489,18 @@ int shrink_bucket(struct dlm_ls *ls, int b)
 			break;
 		}
 
-		kref_put(&r->res_ref, kill_rsb);
-		list_del(&r->res_hashchain);
-		write_unlock(&ls->ls_rsbtbl[b].lock);
-
-		if (is_master(r))
-			dir_remove(r);
-		free_rsb(r);
-		count++;
-#if 0
 		if (kref_put(&r->res_ref, kill_rsb)) {
 			list_del(&r->res_hashchain);
 			write_unlock(&ls->ls_rsbtbl[b].lock);
 
-			dir_remove(r);
+			if (is_master(r))
+				dir_remove(r);
 			free_rsb(r);
 			count++;
 		} else {
 			write_unlock(&ls->ls_rsbtbl[b].lock);
-			log_error(ls, "tossed rsb in use");
+			log_error(ls, "tossed rsb in use %s", r->res_name);
 		}
-#endif
 	}
 
 	return count;
@@ -524,9 +514,6 @@ void dlm_scan_rsbs(struct dlm_ls *ls)
 		count += shrink_bucket(ls, i);
 		cond_resched();
 	}
-
-	/* if (count)
-		log_debug(ls, "freed %d rsbs", count); */
 }
 
 /* exclusive access to rsb and all its locks */
@@ -566,24 +553,6 @@ void detach_lkb(struct dlm_lkb *lkb)
 		put_rsb(lkb->lkb_resource);
 		lkb->lkb_resource = NULL;
 	}
-}
-
-void kill_lkb(struct kref *kref)
-{
-	struct dlm_lkb *lkb = container_of(kref, struct dlm_lkb, lkb_ref);
-
-	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
-
-	list_del(&lkb->lkb_idtbl_list);
-
-	detach_lkb(lkb);
-
-	/* for local/process lkbs, lvbptr points to the caller's lksb */
-	if (lkb->lkb_lvbptr && is_master_copy(lkb))
-		free_lvb(lkb->lkb_lvbptr);
-	if (lkb->lkb_range)
-		free_range(lkb->lkb_range);
-	free_lkb(lkb);
 }
 
 int create_lkb(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
@@ -652,17 +621,39 @@ int dlm_find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret)
 	return find_lkb(ls, lkid, lkb_ret);
 }
 
+void kill_lkb(struct kref *kref)
+{
+	struct dlm_lkb *lkb = container_of(kref, struct dlm_lkb, lkb_ref);
+
+	/* All work is done after the return from kref_put() so we
+	   can release the write_lock before the detach_lkb */
+
+	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
+}
+
 int put_lkb(struct dlm_lkb *lkb)
 {
 	struct dlm_ls *ls = lkb->lkb_resource->res_ls;
 	uint16_t bucket = lkb->lkb_id & 0xFFFF;
-	int rv = 1;
 
 	write_lock(&ls->ls_lkbtbl[bucket].lock);
-	/* rv = kref_put(&lkb->lkb_ref, kill_lkb); */
-	kref_put(&lkb->lkb_ref, kill_lkb);
-	write_unlock(&ls->ls_lkbtbl[bucket].lock);
-	return rv;
+	if (kref_put(&lkb->lkb_ref, kill_lkb)) {
+		list_del(&lkb->lkb_idtbl_list);
+		write_unlock(&ls->ls_lkbtbl[bucket].lock);
+
+		detach_lkb(lkb);
+
+		/* for local/process lkbs, lvbptr points to caller's lksb */
+		if (lkb->lkb_lvbptr && is_master_copy(lkb))
+			free_lvb(lkb->lkb_lvbptr);
+		if (lkb->lkb_range)
+			free_range(lkb->lkb_range);
+		free_lkb(lkb);
+		return 1;
+	} else {
+		write_unlock(&ls->ls_lkbtbl[bucket].lock);
+		return 0;
+	}
 }
 
 int dlm_put_lkb(struct dlm_lkb *lkb)
@@ -685,8 +676,7 @@ void hold_lkb(struct dlm_lkb *lkb)
 
 void unhold_lkb(struct dlm_lkb *lkb)
 {
-	/* DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),); */
-	kref_put(&lkb->lkb_ref, kill_lkb);
+	DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),);
 }
 
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode)
@@ -743,9 +733,6 @@ void del_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	list_del(&lkb->lkb_statequeue);
 	unhold_lkb(lkb);
 }
-
-/* The only reference on an lkb may be the one from an add_lkb,
-   so we can't do a del/add without having an extra ref. */
 
 void move_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 {
@@ -971,7 +958,7 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 {
 	struct dlm_ls *ls;
 	struct dlm_lkb *lkb;
-	int error;
+	int error, convert = flags & DLM_LKF_CONVERT;
 
 	ls = find_lockspace_local(lockspace);
 	if (!ls)
@@ -979,7 +966,7 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 
 	lock_recovery(ls);
 
-	if (flags & DLM_LKF_CONVERT)
+	if (convert)
 		error = find_lkb(ls, lksb->sb_lkid, &lkb);
 	else
 		error = create_lkb(ls, &lkb);
@@ -992,16 +979,18 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 	if (error)
 		goto out_put;
 
-	if (flags & DLM_LKF_CONVERT)
+	if (convert)
 		error = convert_lock(ls, lkb);
 	else
 		error = request_lock(ls, lkb, name, namelen);
 
-	if (error == -EINPROGRESS || error == -EAGAIN)
+	if (error == -EINPROGRESS)
 		error = 0;
  out_put:
-	if (error)
+	if (convert || error)
 		put_lkb(lkb);
+	if (error == -EAGAIN)
+		error = 0;
  out:
 	unlock_recovery(ls);
 	put_lockspace(ls);
@@ -1114,6 +1103,7 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	}
 
 	if (r->res_trial_lkid == lkb->lkb_id) {
+		DLM_ASSERT(lkb->lkb_id, print_lkb(lkb););
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
 	}
@@ -2022,6 +2012,9 @@ int do_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	return -DLM_EUNLOCK;
 }
 
+/* FIXME: cancel can also remove an lkb from the waitqueue which
+   leads to the lkb being freed */
+
 int do_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	revert_lock(r, lkb);
@@ -2177,6 +2170,7 @@ int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 int send_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
+	log_print("send_unlock %x %s", lkb->lkb_id, r->res_name);
 	return send_common(r, lkb, DLM_MSG_UNLOCK);
 }
 
@@ -2487,7 +2481,11 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 
 	unlock_rsb(r);
 	put_rsb(r);
-	put_lkb(lkb);
+
+	if (error == -EINPROGRESS)
+		error = 0;
+	if (error)
+		DLM_ASSERT(put_lkb(lkb), print_lkb(lkb);); 
 	return;
 
  fail:
@@ -2715,9 +2713,12 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 
 	switch (error) {
 	case -EAGAIN:
-		/* request would block (be queued) on remote master */
+		/* request would block (be queued) on remote master;
+		   the unhold undoes the original ref from create_lkb()
+		   so it leads to the lkb being freed */
 		queue_cast(r, lkb, -EAGAIN);
 		confirm_master(r, -EAGAIN);
+		unhold_lkb(lkb);
 		break;
 
 	case -EINPROGRESS:
@@ -2737,9 +2738,16 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOENT:
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
-		log_debug(ls, "receive_request_reply error %d lkid %x",
-			  error, lkb->lkb_id);
+
+		log_debug(ls, "receive_request_reply error %d", error);
+		print_lkb(lkb);
+		log_print("rsb: flags %lx nodeid %d trial %x name %s",
+			  r->res_flags, r->res_nodeid, r->res_trial_lkid,
+			  r->res_name);
+		DLM_ASSERT(test_bit(RESFL_MASTER_WAIT, &r->res_flags),);
+
 		confirm_master(r, error);
+		lkb->lkb_nodeid = -1;
 		_request_lock(r, lkb);
 		break;
 

@@ -260,9 +260,6 @@ int dlm_recover_directory(struct dlm_ls *ls)
 
 				add_entry_to_hash(ls, de);
 				count++;
-
-				log_debug(ls, "recv name %d \"%s\"",
-					  last_len, last_name);
 			}
 		}
 	      done:
@@ -420,8 +417,6 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		offset += sizeof(uint16_t);
 		memcpy(outbuf + offset, r->res_name, r->res_length);
 		offset += r->res_length;
-
-		log_debug(ls, "send name %d \"%s\"", r->res_length,r->res_name);
 	}
 
 	/* 

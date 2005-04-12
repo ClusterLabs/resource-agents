@@ -246,8 +246,21 @@ void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 #if 0
 struct rcom_lock {
-	char			name[MAX_RESNAME_LEN];
-	uint16_t		namelen;
+	uint32_t		rl_ownpid;
+	uint32_t                rl_id;
+	uint32_t                rl_exflags;
+	uint32_t                rl_flags;
+	uint32_t                rl_lvbseq;
+	int8_t                  rl_rqmode;
+	int8_t                  rl_grmode;
+	int8_t                  rl_status;
+	int8_t                  rl_asts;
+	uint16_t		rl_namelen;
+	uint16_t		rl_pad1;
+	uint32_t		rl_pad2;
+	uint64_t                rl_range[2];
+	char                    rl_lvb[DLM_LVB_LEN];
+	char			rl_name[MAX_RESNAME_LEN];
 };
 
 void make_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,

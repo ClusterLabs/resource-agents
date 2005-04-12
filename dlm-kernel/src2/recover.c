@@ -364,12 +364,45 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 }
 
 #if 0
+
+/* keep a count of the number of lkb's we send to the new master; when
+   we get an equal number of replies then recovery for the rsb is done */
+
+static int recover_locks_queue(struct dlm_rsb *r, struct list_head *head)
+{
+	struct dlm_lkb *lkb;
+	int error;
+
+	list_for_each_entry(lkb, head, lkb_statequeue) {
+	   	error = dlm_send_rcom_lock(r, lkb);
+		if (error)
+			break;
+		r->res_recover_locks_count++;
+	}
+
+	return error;
+}
+
 static int recover_locks(struct dlm_rsb *r)
 {
-	/* for each lkb
-	   	dlm_send_rcom_lock(r, lkb);
+	int error = 0;
+
+	if (!list_empty(&r->res_grantqueue) ||
+	    !list_empty(&r->res_convertqueue) ||
+	    !list_empty(&r->res_waitqueue) ||)
 		recover_list_add(r);
-	*/
+	else
+		goto out;
+
+	error = recover_locks_queue(r, &r->res_grantqueue);
+	if (error)
+		goto out;
+	error = recover_locks_queue(r, &r->res_convertqueue);
+	if (error)
+		goto out;
+	error = recover_locks_queue(r, &r->res_waitqueue);
+ out:
+	return error;
 }
 
 int dlm_recover_locks(struct dlm_ls *ls)
