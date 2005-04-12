@@ -468,7 +468,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	int i, error;
 	int busy = lockspace_busy(ls);
 
-	/* Don't destroy a busy lockspace */
 	if (busy > force)
 		return -EBUSY;
 
@@ -477,7 +476,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		error = wait_event_interruptible(ls->ls_wait_member,
 				test_bit(LSFL_LEAVE_DONE, &ls->ls_flags));
 	}
-
 
 	dlm_recoverd_stop(ls);
 
@@ -505,10 +503,8 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		while (!list_empty(head)) {
 			lkb = list_entry(head->next, struct dlm_lkb,
 					 lkb_idtbl_list);
-			list_del(&lkb->lkb_idtbl_list);
 
-			if (lkb->lkb_wait_type)
-				dlm_remove_from_waiters(lkb);
+			list_del(&lkb->lkb_idtbl_list);
 
 			dlm_del_ast(lkb);
 
@@ -531,6 +527,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 		while (!list_empty(head)) {
 			rsb = list_entry(head->next, struct dlm_rsb,
 					 res_hashchain);
+
 			list_del(&rsb->res_hashchain);
 
 			if (rsb->res_lvbptr)

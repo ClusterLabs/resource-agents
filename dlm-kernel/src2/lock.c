@@ -136,13 +136,19 @@ const int __lvb_operations[8][8] = {
         {  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
 
-void print_lkb(struct dlm_lkb *lkb)
+void dlm_print_lkb(struct dlm_lkb *lkb)
 {
 	printk("lkb: nodeid %d id %x remid %x exflags %x flags %x\n"
 	       "     status %d rqmode %d grmode %d wait_type %d ast_type %d\n",
 	       lkb->lkb_nodeid, lkb->lkb_id, lkb->lkb_remid, lkb->lkb_exflags,
 	       lkb->lkb_flags, lkb->lkb_status, lkb->lkb_rqmode,
 	       lkb->lkb_grmode, lkb->lkb_wait_type, lkb->lkb_ast_type);
+}
+
+void dlm_print_rsb(struct dlm_rsb *r)
+{
+	printk("rsb: nodeid %d flags %lx trial %x name %s\n",
+	       r->res_nodeid, r->res_flags, r->res_trial_lkid, r->res_name);
 }
 
 
@@ -180,13 +186,13 @@ int is_demoted(struct dlm_lkb *lkb)
 
 int is_remote(struct dlm_rsb *r)
 {
-	DLM_ASSERT(r->res_nodeid >= 0, );
+	DLM_ASSERT(r->res_nodeid >= 0, dlm_print_rsb(r););
 	return r->res_nodeid ? TRUE : FALSE;
 }
 
 int is_master(struct dlm_rsb *r)
 {
-	return !is_remote(r);
+	return r->res_nodeid ? FALSE : TRUE;
 }
 
 int is_local_copy(struct dlm_lkb *lkb)
@@ -202,7 +208,7 @@ int is_process_copy(struct dlm_lkb *lkb)
 int is_master_copy(struct dlm_lkb *lkb)
 {
 	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
-		DLM_ASSERT(lkb->lkb_nodeid, print_lkb(lkb););
+		DLM_ASSERT(lkb->lkb_nodeid, dlm_print_lkb(lkb););
 	return (lkb->lkb_flags & DLM_IFL_MSTCPY) ? TRUE : FALSE;
 }
 
@@ -211,7 +217,7 @@ void queue_cast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
 	if (is_master_copy(lkb))
 		return;
 
-	DLM_ASSERT(lkb->lkb_lksb, print_lkb(lkb););
+	DLM_ASSERT(lkb->lkb_lksb, dlm_print_lkb(lkb););
 
 	lkb->lkb_lksb->sb_status = rv;
 	lkb->lkb_lksb->sb_flags = lkb->lkb_sbflags;
@@ -312,9 +318,10 @@ int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 			set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
 			r->res_trial_lkid = 0;
 		} else {
-			DLM_ASSERT(r->res_nodeid == 0, );
-			DLM_ASSERT(!test_bit(RESFL_MASTER_WAIT,
-					     &r->res_flags),);
+			DLM_ASSERT(r->res_nodeid == 0,
+				   dlm_print_rsb(r););
+			DLM_ASSERT(!test_bit(RESFL_MASTER_WAIT, &r->res_flags),
+				   dlm_print_rsb(r););
 			DLM_ASSERT(!test_bit(RESFL_MASTER_UNCERTAIN,
 					     &r->res_flags),);
 		}
@@ -418,7 +425,7 @@ void toss_rsb(struct kref *kref)
 	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
 	struct dlm_ls *ls = r->res_ls;
 
-	DLM_ASSERT(list_empty(&r->res_rootlist),);
+	DLM_ASSERT(list_empty(&r->res_rootlist), dlm_print_rsb(r););
 	kref_init(&r->res_ref);
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[r->res_bucket].toss);
 	r->res_toss_time = jiffies;
@@ -628,7 +635,7 @@ void kill_lkb(struct kref *kref)
 	/* All work is done after the return from kref_put() so we
 	   can release the write_lock before the detach_lkb */
 
-	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
+	DLM_ASSERT(!lkb->lkb_status, dlm_print_lkb(lkb););
 }
 
 int put_lkb(struct dlm_lkb *lkb)
@@ -699,7 +706,7 @@ void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
 {
 	kref_get(&lkb->lkb_ref);
 
-	DLM_ASSERT(!lkb->lkb_status, print_lkb(lkb););
+	DLM_ASSERT(!lkb->lkb_status, dlm_print_lkb(lkb););
 
 	lkb->lkb_status = sts;
 
@@ -1103,7 +1110,7 @@ int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	}
 
 	if (r->res_trial_lkid == lkb->lkb_id) {
-		DLM_ASSERT(lkb->lkb_id, print_lkb(lkb););
+		DLM_ASSERT(lkb->lkb_id, dlm_print_lkb(lkb););
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
 	}
@@ -2168,6 +2175,10 @@ int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	return send_common(r, lkb, DLM_MSG_CONVERT);
 }
 
+/* FIXME: if this lkb is the only lock we hold on the rsb, then set
+   MASTER_UNCERTAIN to force the next request on the rsb to confirm
+   that the master is still correct. */
+   
 int send_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	return send_common(r, lkb, DLM_MSG_UNLOCK);
@@ -2387,7 +2398,7 @@ int receive_request_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	lkb->lkb_bastaddr = (void *) (long) (ms->m_asts & AST_BAST);
 	lkb->lkb_astaddr = (void *) (long) (ms->m_asts & AST_COMP);
 
-	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_master_copy(lkb), dlm_print_lkb(lkb););
 
 	if (receive_range(ls, lkb, ms))
 		return -ENOMEM;
@@ -2408,7 +2419,7 @@ int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		return -EINVAL;
 	}
 
-	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_master_copy(lkb), dlm_print_lkb(lkb););
 
 	lkb->lkb_rqmode = ms->m_rqmode;
 	lkb->lkb_lvbseq = ms->m_lvbseq;
@@ -2430,7 +2441,7 @@ int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 			struct dlm_message *ms)
 {
-	DLM_ASSERT(is_master_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_master_copy(lkb), dlm_print_lkb(lkb););
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
 	return 0;
@@ -2484,7 +2495,7 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 	if (error == -EINPROGRESS)
 		error = 0;
 	if (error)
-		DLM_ASSERT(put_lkb(lkb), print_lkb(lkb);); 
+		DLM_ASSERT(put_lkb(lkb), dlm_print_lkb(lkb);); 
 	return;
 
  fail:
@@ -2603,7 +2614,7 @@ void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_grant no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	r = lkb->lkb_resource;
 
@@ -2630,7 +2641,7 @@ void receive_bast(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_bast no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	r = lkb->lkb_resource;
 
@@ -2695,7 +2706,7 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_request_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2738,12 +2749,10 @@ void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
 
-		log_debug(ls, "receive_request_reply error %d", error);
-		print_lkb(lkb);
-		log_print("rsb: flags %lx nodeid %d trial %x name %s",
-			  r->res_flags, r->res_nodeid, r->res_trial_lkid,
-			  r->res_name);
-		DLM_ASSERT(test_bit(RESFL_MASTER_WAIT, &r->res_flags),);
+		DLM_ASSERT(test_bit(RESFL_MASTER_WAIT, &r->res_flags),
+		           log_print("receive_request_reply error %d", error);
+		           dlm_print_lkb(lkb);
+		           dlm_print_rsb(r););
 
 		confirm_master(r, error);
 		lkb->lkb_nodeid = -1;
@@ -2771,7 +2780,7 @@ void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_convert_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2853,7 +2862,7 @@ void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_unlock_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -2901,7 +2910,7 @@ void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		log_error(ls, "receive_cancel_reply no lkb");
 		return;
 	}
-	DLM_ASSERT(is_process_copy(lkb), print_lkb(lkb););
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
 	error = remove_from_waiters(lkb);
 	if (error) {
@@ -3289,7 +3298,7 @@ int dlm_purge_locks(struct dlm_ls *ls)
 
 	down_write(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
-		DLM_ASSERT(!is_remote(r),);
+		DLM_ASSERT(!is_remote(r), dlm_print_rsb(r););
 
 		hold_rsb(r);
 		lock_rsb(r);
