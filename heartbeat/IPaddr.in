@@ -205,10 +205,15 @@ ip_init() {
         # $FINDIF can deal with the condition of empty intermediate parameters.
         #
         NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
-        ocf_log "NICINFO=$NICINFO"
-        NIC=`echo "$NICINFO" | cut -f1`
-        NETMASK=`echo "$NICINFO" | cut -f2-`
-        BRDCAST=`echo "$NICINFO" | cut -f3`
+	if [ x"$NIC" = "x" ]; then
+            NIC=`echo "$NICINFO" | cut -f1`
+	fi
+	if [ x"$NETMASK" = "x" ]; then
+            NETMASK=`echo "$NICINFO" | cut -f2-`
+	fi
+	if [ x"$BRDCAST" = "x" ]; then
+            BRDCAST=`echo "$NICINFO" | cut -f3`
+	fi
 
 	if [ -z ${OCF_RESKEY_lvs_support} ]; then
 	    LVS_SUPPORT=0
@@ -692,20 +697,21 @@ ip_start() {
   IF=`echo "$IFINFO" | cut -f1`
 
   # This logic is mostly to support LVS (If I understand it correctly)
-  case $SYSTYPE in
-      Linux|SunOS)
-       	  case $IF in
-              lo*) 
-	      if [ x"$if" = x"$CURRENTIF" ]; then
+  if [ ${LVS_SUPPORT} = 1 ]; then
+      case $SYSTYPE in
+	  Linux|SunOS)
+       	      case $IF in
+		  lo*) 
+		      if [ x"$if" = x"$CURRENTIF" ]; then
 		  # Its already "running" and not moving, nothing to do.
-                  ocf_log "ERROR: Could not find a non-loopback device to move $BASEIP to"
-		  exit $OCF_ERR_GENERIC
-	      fi;;
-              *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
-    	  esac ;;
-      *)       ;;
-  esac
-
+			  ocf_log "ERROR: Could not find a non-loopback device to move $BASEIP to"
+			  exit $OCF_ERR_GENERIC
+		      fi;;
+		  *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
+    	      esac ;;
+	  *)       ;;
+      esac
+  fi
   if [ ! -z ${OCF_RESKEY_local_start_script} ]; then
       if [ -x ${OCF_RESKEY_local_start_script} ]; then
 	  ${OCF_RESKEY_local_start_script} $*
@@ -746,6 +752,7 @@ ip_status() {
       
     Linux|SunOS)		
 	  IF=`find_interface "$BASEIP"`
+	  echo $IF
 	  if [ -z "$IF" ]; then
 	      return $OCF_NOT_RUNNING
 	  elif [ ${LVS_SUPPORT} = 1 ]; then 
