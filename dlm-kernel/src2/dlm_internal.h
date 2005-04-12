@@ -481,7 +481,6 @@ struct dlm_ls {
 	struct dlm_message	ls_stub_ms;	/* for faking a reply */
 
 	struct dentry *		ls_debug_dentry;/* debugfs */
-	struct list_head	ls_debug_list;	/* debugfs */
 
 	/* recovery related */
 

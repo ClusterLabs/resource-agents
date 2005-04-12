@@ -14,17 +14,12 @@
 #include <linux/seq_file.h>
 #include <linux/module.h>
 #include <linux/ctype.h>
+#include <linux/debugfs.h>
 
 #include "dlm_internal.h"
 
-enum {
-	DLM_MAGIC = 0x20444C4D /* " DLM" */
-};
 
-static DECLARE_MUTEX(dlm_fs_mutex);
 static struct dentry *dlm_root;
-static struct super_block *dlm_sb;
-static LIST_HEAD(dlm_debug_list);
 
 struct rsb_iter {
 	int entry;
@@ -281,132 +276,29 @@ static struct file_operations dlm_fops = {
 	.release = seq_release
 };
 
-static struct inode *dlm_get_inode(void)
-{
-	struct inode *inode = new_inode(dlm_sb);
-
-	if (inode) {
-		inode->i_mode 	 = S_IFREG | S_IRUGO;
-		inode->i_uid 	 = 0;
-		inode->i_gid 	 = 0;
-		inode->i_blksize = PAGE_CACHE_SIZE;
-		inode->i_blocks  = 0;
-		inode->i_atime 	 = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-		inode->i_fop     = &dlm_fops;
-	}
-
-	return inode;
-}
-
-static int __dlm_create_debug_file(struct dlm_ls *ls)
-{
-	struct dentry *dentry;
-	struct inode *inode;
-
-	dentry = d_alloc_name(dlm_root, ls->ls_name);
-	if (!dentry)
-		return -ENOMEM;
-
-	inode = dlm_get_inode();
-	if (!inode) {
-		dput(dentry);
-		return -ENOMEM;
-	}
-
-	inode->u.generic_ip = ls;
-	ls->ls_debug_dentry = dentry;
-
-	d_add(dentry, inode);
-
-	return 0;
-}
-
 int dlm_create_debug_file(struct dlm_ls *ls)
 {
-	down(&dlm_fs_mutex);
-	list_add_tail(&ls->ls_debug_list, &dlm_debug_list);
-	if (!dlm_sb) {
-		up(&dlm_fs_mutex);
-		return 0;
-	}
-	up(&dlm_fs_mutex);
-
-	return __dlm_create_debug_file(ls);
+	ls->ls_debug_dentry = debugfs_create_file(ls->ls_name,
+						  S_IFREG | S_IRUGO,
+						  dlm_root,
+						  ls,
+						  &dlm_fops);
+	return ls->ls_debug_dentry ? 0 : -ENOMEM;
 }
 
 void dlm_delete_debug_file(struct dlm_ls *ls)
 {
-	down(&dlm_fs_mutex);
-	list_del(&ls->ls_debug_list);
-	if (!dlm_sb) {
-		up(&dlm_fs_mutex);
-		return;
-	}
-	up(&dlm_fs_mutex);
-
-	if (ls->ls_debug_dentry) {
-		d_drop(ls->ls_debug_dentry);
-		simple_unlink(dlm_root->d_inode, ls->ls_debug_dentry);
-	}
+	if (ls->ls_debug_dentry)
+		debugfs_remove(ls->ls_debug_dentry);
 }
-
-static int dlm_fill_super(struct super_block *sb, void *data, int silent)
-{
-	static struct tree_descr dlm_files[] = {
-		{ "" }
-	};
-	struct dlm_ls *ls;
-	int ret;
-
-	ret = simple_fill_super(sb, DLM_MAGIC, dlm_files);
-	if (ret)
-		return ret;
-
-	dlm_root = sb->s_root;
-
-	down(&dlm_fs_mutex);
-
-	dlm_sb = sb;
-
-	list_for_each_entry(ls, &dlm_debug_list, ls_debug_list) {
-		ret = __dlm_create_debug_file(ls);
-		if (ret)
-			break;
-	}
-
-	up(&dlm_fs_mutex);
-
-	return ret;
-}
-
-static struct super_block *dlm_get_sb(struct file_system_type *fs_type,
-	int flags, const char *dev_name, void *data)
-{
-	return get_sb_single(fs_type, flags, data, dlm_fill_super);
-}
-
-static void dlm_kill_sb(struct super_block *sb)
-{
-	down(&dlm_fs_mutex);
-	dlm_sb = NULL;
-	up(&dlm_fs_mutex);
-
-	kill_litter_super(sb);
-}
-
-static struct file_system_type dlm_fs_type = {
-	.owner		= THIS_MODULE,
-	.name		= "dlm_debugfs",
-	.get_sb		= dlm_get_sb,
-	.kill_sb	= dlm_kill_sb,
-};
 
 int dlm_register_debugfs(void)
 {
-	return register_filesystem(&dlm_fs_type);
+	dlm_root = debugfs_create_dir("dlm", NULL);
+	return dlm_root ? 0 : -ENOMEM;
 }
 
 void dlm_unregister_debugfs(void)
 {
-	unregister_filesystem(&dlm_fs_type);
+	debugfs_remove(dlm_root);
 }
