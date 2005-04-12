@@ -2088,8 +2088,8 @@ int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
 	struct dlm_header *hd = (struct dlm_header *) ms;
 
-	log_print("send %d lkid %x remlkid %x", ms->m_type,
-		  ms->m_lkid, ms->m_remlkid);
+	/* log_print("send %d lkid %x remlkid %x", ms->m_type,
+		  ms->m_lkid, ms->m_remlkid); */
 
 	/* FIXME: do byte swapping here */
 	hd->h_length = cpu_to_le16(hd->h_length);
@@ -2170,7 +2170,6 @@ int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 int send_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
-	log_print("send_unlock %x %s", lkb->lkb_id, r->res_name);
 	return send_common(r, lkb, DLM_MSG_UNLOCK);
 }
 
@@ -3003,8 +3002,8 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 		schedule();
 	}
 
-	log_print("recv %d lkid %x remlkid %x result %d", ms->m_type,
-		  ms->m_lkid, ms->m_remlkid, ms->m_result);
+	/* log_print("recv %d lkid %x remlkid %x result %d", ms->m_type,
+		  ms->m_lkid, ms->m_remlkid, ms->m_result); */
 
 	switch (ms->m_type) {
 
