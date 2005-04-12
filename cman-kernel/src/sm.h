@@ -71,7 +71,7 @@ extern struct semaphore sm_sglock;
 #define SM_RETRY(do_this, until_this) \
 for (;;) \
 { \
-  do { do_this; } while (0); \
+  do { do_this; schedule(); } while (0); \
   if (until_this) \
     break; \
   printk("SM:  out of memory:  %s, %u\n", __FILE__, __LINE__); \

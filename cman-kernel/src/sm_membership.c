@@ -651,6 +651,7 @@ void cancel_uevents(int *effected)
 				}
 			}
 		}
+		schedule();
 	}
 
 	 /* Adjust any uevents in sg's effected by the failed node(s) */
@@ -673,6 +674,7 @@ void cancel_uevents(int *effected)
 					cancel_one_uevent(sg, effected);
 			}
 		}
+		schedule();
 	}
 }
 

@@ -177,8 +177,10 @@ static int mark_effected_sgs(void)
 						break;
 					}
 				}
+				schedule();
 			}
 		}
+		schedule();
 	}
 	up(&sm_sglock);
 
@@ -265,6 +267,7 @@ static int new_recovery(void)
 				pre_recover_sg(sg, rev);
 			}
 		}
+		schedule();
 	}
 
 	/*
@@ -287,7 +290,9 @@ static int new_recovery(void)
 						  sgnode->id, sg->memb_count);
 					kfree(sgnode);
 				}
+				schedule();
 			}
+			schedule();
 		}
 	}
 
@@ -415,8 +420,10 @@ static void recover_level(recover_t *rev, int level)
 {
 	sm_group_t *sg, *safe;
 
-	list_for_each_entry_safe(sg, safe, &rev->sgs[level], recover_list)
+	list_for_each_entry_safe(sg, safe, &rev->sgs[level], recover_list) {
 		recover_sg(sg, rev->event_id);
+		schedule();
+	}
 }
 
 static void recover_levels(recover_t *rev)
