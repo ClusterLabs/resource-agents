@@ -677,7 +677,6 @@ ip_start() {
   CURRENTIF=`ip_status`
   rc=$?
 
-  # this is dodgy... should be using a return code
   if [ $rc = $OCF_SUCCESS ]; then
       exit $OCF_SUCCESS;
   fi
@@ -692,16 +691,20 @@ ip_start() {
 
   IF=`echo "$IFINFO" | cut -f1`
 
-  if [ $rc = $OCF_SUCCESS_VARIANT ]; then
-      case $SYSTYPE in
-	  Linux|SunOS)
-       	      case $IF in
-         	  lo*) exit $OCF_SUCCESS;; # Its not moving, nothing to do.
-            	  *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
-    	      esac ;;
-	  *)		;;
-      esac
-  fi
+  # This logic is mostly to support LVS (If I understand it correctly)
+  case $SYSTYPE in
+      Linux|SunOS)
+       	  case $IF in
+              lo*) 
+	      if [ x"$if" = x"$CURRENTIF" ]; then
+		  # Its already "running" and not moving, nothing to do.
+                  ocf_log "ERROR: Could not find a non-loopback device to move $BASEIP to"
+		  exit $OCF_ERR_GENERIC
+	      fi;;
+              *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
+    	  esac ;;
+      *)       ;;
+  esac
 
   if [ ! -z ${OCF_RESKEY_local_start_script} ]; then
       if [ -x ${OCF_RESKEY_local_start_script} ]; then
@@ -747,8 +750,8 @@ ip_status() {
 	      return $OCF_NOT_RUNNING
 	  elif [ ${LVS_SUPPORT} = 1 ]; then 
 	      case $IF in
-		  lo*)  return $OCF_SUCCESS_VARIANT;;
-		  *)	  return $OCF_SUCCESS;;
+		  lo*)  return $OCF_NOT_RUNNING;;
+		  *)	return $OCF_SUCCESS;;
 	      esac
 	  else
 	      return $OCF_SUCCESS
@@ -786,11 +789,7 @@ ip_monitor() {
 	@PING@ $PINGARGS >/dev/null 2>&1
 	then
 	ip_status
-	rc=$?
-	if [ $rc = $OCF_SUCCESS_VARIANT ]; then
-	    rc=$OCF_SUCCESS
-	fi
-	return $rc
+	return $?
     fi
   done
 
