@@ -76,13 +76,13 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	error = dlm_recover_directory(ls);
 	if (error) {
-		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
+		log_error(ls, "recover_directory failed %d", error);
 		goto out;
 	}
 
 	error = dlm_dir_rebuild_wait(ls);
 	if (error) {
-		log_error(ls, "dlm_dir_rebuild_wait failed %d", error);
+		log_error(ls, "dir_rebuild_wait failed %d", error);
 		goto out;
 	}
 
@@ -100,10 +100,8 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
  * If nodes from before are gone, then there will be some lock recovery to do.
  * If there are only nodes which have joined, then there's no lock recovery.
  *
- * note: cman requires an rc to finish starting on an revent (where nodes die)
- * before it allows an sevent (where nodes join) to be processed.  This means
- * that we won't get start1 with nodeA gone, stop/cancel, start2 with nodeA
- * joined.
+ * Lockspace recovery for failed nodes must be completed before any nodes are
+ * allowed to join or leave the lockspace.
  */
 
 static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
@@ -136,44 +134,43 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	error = dlm_recover_members(ls, rv, &neg);
 	if (error) {
-		log_error(ls, "nodes_reconfig failed %d", error);
+		log_error(ls, "recover_members failed %d", error);
 		goto fail;
 	}
 
 	/*
-	 * Rebuild our own share of the resdir by collecting from all other
-	 * nodes rsb name/master pairs for which the name hashes to us.
+	 * Rebuild our own share of the directory by collecting from all other
+	 * nodes their master rsb names that hash to us.
 	 */
 
 	error = dlm_recover_directory(ls);
 	if (error) {
-		log_error(ls, "dlm_dir_rebuild_local failed %d", error);
+		log_error(ls, "recover_directory failed %d", error);
 		goto fail;
 	}
 
 	/*
-	 * Purge resdir-related requests that are being held in requestqueue.
-	 * All resdir requests from before recovery started are invalid now due
-	 * to the resdir rebuild and will be resent by the requesting nodes.
+	 * Purge directory-related requests that are saved in requestqueue.
+	 * All dir requests from before recovery are invalid now due to the dir
+	 * rebuild and will be resent by the requesting nodes.
 	 */
 
 	dlm_purge_requestqueue(ls);
 
 	/*
-	 * Wait for all nodes to complete resdir rebuild.
+	 * Wait for all nodes to complete directory rebuild.
 	 */
 
 	error = dlm_dir_rebuild_wait(ls);
 	if (error) {
-		log_error(ls, "dlm_dir_rebuild_wait failed %d", error);
+		log_error(ls, "dir_rebuild_wait failed %d", error);
 		goto fail;
 	}
 
 	/*
-	 * Mark our own lkb's waiting in the lockqueue for remote replies from
-	 * nodes that are now departed.  These will be resent to the new
-	 * masters in resend_cluster_requests.  Also mark resdir lookup
-	 * requests for resending.
+	 * We may have outstanding operations that are waiting for a reply from
+	 * a failed node.  Mark these to be resent after recovery.  Unlock and
+	 * cancel ops can just be completed.
 	 */
 
 	dlm_recover_waiters_pre(ls);
@@ -184,36 +181,33 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	if (neg) {
 		/*
-		 * Clear lkb's for departed nodes.  This can't fail since it
-		 * doesn't involve communicating with other nodes.
+		 * Clear lkb's for departed nodes.
 		 */
 
 		dlm_purge_locks(ls);
 
 		/*
-		 * Get new master id's for rsb's of departed nodes.  This fails
-		 * if we can't communicate with other nodes.
+		 * Get new master nodeid's for rsb's that were mastered on
+		 * departed nodes.
 		 */
 
 		error = dlm_recover_masters(ls);
 		if (error) {
-			log_error(ls, "dlm_recover_masters failed %d", error);
+			log_error(ls, "recover_masters failed %d", error);
 			goto fail;
 		}
 
 		/*
-		 * Send our lkb info to new masters.  This fails if we can't
-		 * communicate with a node.
+		 * Send our locks on remastered rsb's to the new masters.
 		 */
-#if 0
+
 		error = dlm_recover_locks(ls);
 		if (error) {
-			log_error(ls, "rebuild_rsbs_send failed %d", error);
+			log_error(ls, "recover_locks failed %d", error);
 			goto fail;
 		}
 
-		dlm_lvb_recovery(ls);
-#endif
+		dlm_recover_lvbs(ls);
 	}
 	dlm_release_root_list(ls);
 
@@ -524,10 +518,6 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	if (cur_state == LSST_RECONFIG_DONE) {
 		switch (do_now) {
 		case DO_FINISH:
-#if 0
-			dlm_rebuild_freemem(ls);
-#endif
-
 			dlm_clear_members_finish(ls, finish_event);
 			next_state = LSST_CLEAR;
 

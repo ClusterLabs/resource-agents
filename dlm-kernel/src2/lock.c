@@ -3285,7 +3285,7 @@ int dlm_purge_locks(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
 
-	log_debug(ls, "purge locks of departed nodes");
+	log_debug(ls, "dlm_purge_locks");
 
 	down_write(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {

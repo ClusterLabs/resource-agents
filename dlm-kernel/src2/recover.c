@@ -21,6 +21,8 @@
 #include "rcom.h"
 #include "lock.h"
 
+void recover_rsb_lvb(struct dlm_rsb *r);
+
 
 /*
  * Recovery waiting routines: these functions wait for a particular reply from
@@ -262,7 +264,7 @@ static void set_master_lkbs(struct dlm_rsb *r)
 /*
  * Propogate the new master nodeid to locks, subrsbs, sublocks.
  * The NEW_MASTER flag tells dlm_recover_locks() which rsb's to consider.
- * The NEW_MASTER2 flag tells rsb_lvb_recovery() which rsb's to consider.
+ * The NEW_MASTER2 flag tells dlm_recover_lvbs() which rsb's to consider.
  */
 
 static void set_new_master(struct dlm_rsb *r, int nodeid)
@@ -286,8 +288,7 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 	*/
 
 	set_bit(RESFL_NEW_MASTER, &r->res_flags);
-
-	/* set_bit(RESFL_NEW_MASTER2, &r->res_flags); */
+	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
 	dlm_unlock_rsb(r);
 }
 
@@ -515,10 +516,11 @@ void dlm_recovered_lock(struct dlm_rsb *r)
 
 	if (recover_list_empty(r->res_ls))
 		wake_up(&r->res_ls->ls_wait_general);
+
+	recover_rsb_lvb(r);
 }
 
 
-#if 0
 /*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery
@@ -547,23 +549,18 @@ void dlm_recovered_lock(struct dlm_rsb *r)
  * The LVB contents are only considered for changing when this is a new master
  * of the rsb (NEW_MASTER2).  Then, the rsb's lvb is taken from any lkb with
  * mode > CR.  If no lkb's exist with mode above CR, the lvb contents are taken
- * from the lkb with the largest lvb sequence nubmer.
+ * from the lkb with the largest lvb sequence number.
  */
 
-void rsb_lvb_recovery(struct dlm_rsb *r)
+void recover_rsb_lvb(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb, *high_lkb = NULL;
 	uint32_t high_seq = 0;
 	int lock_lvb_exists = FALSE;
 	int big_lock_exists = FALSE;
 
-	down_write(&r->res_lock);
-
 	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
-		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
-			continue;
-
-		if (lkb->lkb_flags & GDLM_LKFLG_DELETED)
+		if (!(lkb->lkb_exflags & DLM_LKF_VALBLK))
 			continue;
 
 		lock_lvb_exists = TRUE;
@@ -580,10 +577,7 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 	}
 
 	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
-		if (!(lkb->lkb_flags & GDLM_LKFLG_VALBLK))
-			continue;
-
-		if (lkb->lkb_flags & GDLM_LKFLG_DELETED)
+		if (!(lkb->lkb_exflags & DLM_LKF_VALBLK))
 			continue;
 
 		lock_lvb_exists = TRUE;
@@ -631,28 +625,29 @@ void rsb_lvb_recovery(struct dlm_rsb *r)
 		r->res_lvbseq = 0;
 		memset(r->res_lvbptr, 0, DLM_LVB_LEN);
 	}
-
  out:
-	up_write(&r->res_lock);
+	return;
 }
 
-int dlm_lvb_recovery(struct dlm_ls *ls)
+int dlm_recover_lvbs(struct dlm_ls *ls)
 {
-	struct dlm_rsb *root;
-	struct dlm_rsb *subrsb;
+	struct dlm_rsb *r;
 
 	down_read(&ls->ls_root_lock);
-	list_for_each_entry(root, &ls->ls_rootres, res_rootlist) {
-		if (root->res_nodeid)
+	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+		if (r->res_nodeid)
 			continue;
 
-		rsb_lvb_recovery(root);
-		list_for_each_entry(subrsb, &root->res_subreslist, res_subreslist) {
-			rsb_lvb_recovery(subrsb);
-		}
+		dlm_lock_rsb(r);
+		recover_rsb_lvb(r);
+		dlm_unlock_rsb(r);
+
+		/*
+		list_for_each_entry(sr, &r->res_subreslist, res_subreslist)
+			rsb_lvb_recovery(sr);
+		*/
 	}
 	up_read(&ls->ls_root_lock);
 	return 0;
 }
-#endif
 

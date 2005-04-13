@@ -22,5 +22,6 @@ int dlm_recover_masters(struct dlm_ls *ls);
 int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc);
 int dlm_recover_locks(struct dlm_ls *ls);
 void dlm_recovered_lock(struct dlm_rsb *r);
+int dlm_recover_lvbs(struct dlm_ls *ls);
 
 #endif				/* __RECOVER_DOT_H__ */

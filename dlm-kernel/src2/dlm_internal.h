@@ -313,6 +313,7 @@ struct dlm_lkb {
 #define RESFL_VALNOTVALID	(2)
 #define RESFL_VALNOTVALID_PREV	(3)
 #define RESFL_NEW_MASTER	(4)
+#define RESFL_NEW_MASTER2	(5)
 
 struct dlm_rsb {
 	struct dlm_ls *		res_ls;		/* the lockspace */
