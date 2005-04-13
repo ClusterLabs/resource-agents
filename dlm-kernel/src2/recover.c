@@ -72,6 +72,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 
 int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
+	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	struct dlm_member *memb;
 	int error = 0;
 
@@ -85,7 +86,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 			if (error)
 				goto out;
 
-			if (ls->ls_rcom->rc_result & wait_status)
+			if (rc->rc_result & wait_status)
 				break;
 			else {
 				set_current_state(TASK_INTERRUPTIBLE);
@@ -93,13 +94,13 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 			}
 		}
 	}
-
  out:
 	return error;
 }
 
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
+	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	int error = 0, nodeid = ls->ls_low_nodeid;
 
 	for (;;) {
@@ -111,14 +112,13 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 		if (error)
 			break;
 
-		if (ls->ls_rcom->rc_result & wait_status)
+		if (rc->rc_result & wait_status)
 			break;
 		else {
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(HZ >> 1);
 		}
 	}
-
  out:
 	return error;
 }
@@ -339,6 +339,9 @@ int dlm_recover_masters(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+		if (!r->res_nodeid)
+			continue;
+
 		error = dlm_recovery_stopped(ls);
 		if (error) {
 			up_read(&ls->ls_root_lock);
@@ -480,18 +483,17 @@ int dlm_recover_locks(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+		if (!r->res_nodeid)
+			continue;
+
 		error = dlm_recovery_stopped(ls);
 		if (error) {
 			up_read(&ls->ls_root_lock);
 			goto out;
 		}
 
-		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
-			continue;
-		if (!r->res_nodeid)
-			continue;
-
-		recover_locks(r);
+		if (test_bit(RESFL_NEW_MASTER, &r->res_flags))
+			recover_locks(r);
 	}
 	up_read(&ls->ls_root_lock);
 

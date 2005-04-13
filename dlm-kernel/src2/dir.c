@@ -230,7 +230,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 			 * pick namelen/name pairs out of received buffer
 			 */
 
-			b = ls->ls_rcom->rc_buf;
+			b = ls->ls_recover_buf + sizeof(struct dlm_rcom);
 
 			for (;;) {
 				memcpy(&namelen, b, sizeof(uint16_t));
@@ -262,7 +262,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 				count++;
 			}
 		}
-	      done:
+         done:
 		;
 	}
 
@@ -352,10 +352,9 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 {
 	struct list_head *list;
 	struct dlm_rsb *start_r = NULL, *r = NULL;
-	int offset = 0, start_namelen, error;
+	int offset = 0, start_namelen, error, dir_nodeid;
 	char *start_name;
 	uint16_t be_namelen;
-	int dir_nodeid;
 
 	/*
 	 * Find the rsb where we left off (or start again)
@@ -371,8 +370,10 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		 */
 		error = dlm_find_rsb(ls, start_name, start_namelen, R_MASTER,
 				     &start_r);
-		DLM_ASSERT(!error && start_r, printk("error %d\n", error););
-		DLM_ASSERT(!list_empty(&r->res_rootlist),);
+		DLM_ASSERT(!error && start_r,
+			   printk("error %d\n", error););
+		DLM_ASSERT(!list_empty(&start_r->res_rootlist),
+			   dlm_print_rsb(start_r););
 		dlm_put_rsb(start_r);
 	}
 

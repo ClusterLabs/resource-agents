@@ -106,10 +106,11 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 	struct dlm_mhandle *mh;
 	int error;
 
-	memset(ls->ls_rcom, 0, dlm_config.buffer_size);
+	memset(ls->ls_recover_buf, 0, dlm_config.buffer_size);
 
 	if (nodeid == dlm_our_nodeid()) {
-		ls->ls_rcom->rc_result = make_status(ls);
+		rc = (struct dlm_rcom *) ls->ls_recover_buf;
+		rc->rc_result = make_status(ls);
 		return 0;
 	}
 
@@ -118,9 +119,7 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 	error = send_rcom(ls, mh, rc);
 
 	error = dlm_wait_function(ls, &rcom_response);
-
 	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
-
 	return error;
 }
 
@@ -138,7 +137,7 @@ void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-	memcpy(ls->ls_rcom, rc_in, rc_in->rc_header.h_length);
+	memcpy(ls->ls_recover_buf, rc_in, rc_in->rc_header.h_length);
 	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
 	wake_up(&ls->ls_wait_general);
 }
@@ -147,14 +146,14 @@ int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
-	int error;
+	int error, len = sizeof(struct dlm_rcom);
 
-	memset(ls->ls_rcom, 0, dlm_config.buffer_size);
+	memset(ls->ls_recover_buf, 0, dlm_config.buffer_size);
 
 	if (nodeid == dlm_our_nodeid()) {
-		int len = dlm_config.buffer_size - sizeof(struct dlm_rcom);
 		dlm_copy_master_names(ls, last_name, last_len,
-				      ls->ls_rcom->rc_buf, len, nodeid);
+		                      ls->ls_recover_buf + len,
+		                      dlm_config.buffer_size - len, nodeid);
 		return 0;
 	}
 
@@ -164,9 +163,7 @@ int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
 	error = send_rcom(ls, mh, rc);
 
 	error = dlm_wait_function(ls, &rcom_response);
-
 	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
-
 	return error;
 }
 
@@ -203,7 +200,7 @@ void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-	memcpy(ls->ls_rcom, rc_in, rc_in->rc_header.h_length);
+	memcpy(ls->ls_recover_buf, rc_in, rc_in->rc_header.h_length);
 	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
 	wake_up(&ls->ls_wait_general);
 }

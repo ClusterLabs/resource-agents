@@ -3105,7 +3105,7 @@ int dlm_create_root_list(struct dlm_ls *ls)
 
 	down_write(&ls->ls_root_lock);
 	if (!list_empty(&ls->ls_rootres)) {
-		log_error(ls, "rootres list not empty");
+		log_error(ls, "root list not empty");
 		error = -EINVAL;
 		goto out;
 	}
@@ -3183,35 +3183,37 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 	up(&ls->ls_waiters_sem);
 }
 
-struct dlm_lkb *remove_resend_waiter(struct dlm_ls *ls)
+int remove_resend_waiter(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
 {
 	struct dlm_lkb *lkb;
-	int found = 0;
+	int rv = 0;
 
 	down(&ls->ls_waiters_sem);
 	list_for_each_entry(lkb, &ls->ls_waiters, lkb_wait_reply) {
 		if (lkb->lkb_flags & DLM_IFL_RESEND) {
+			rv = lkb->lkb_wait_type;
 			_remove_from_waiters(lkb);
-			found = 1;
+			lkb->lkb_flags &= ~DLM_IFL_RESEND;
 			break;
 		}
 	}
 	up(&ls->ls_waiters_sem);
 
-	if (!found)
+	if (!rv)
 		lkb = NULL;
-	return lkb;
+	*lkb_ret = lkb;
+	return rv;
 }
+
+/* Deal with lookups and lkb's marked RESEND from _pre.  We may now be the
+   master or dir-node for r.  Processing the lkb may result in it being placed
+   back on waiters. */
 
 int dlm_recover_waiters_post(struct dlm_ls *ls)
 {
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *r;
-	int error = 0;
-
-	/* Deal with lookups and lkb's marked RESEND from _pre.
-	   We may now be the master or dir-node for r.  Processing
-	   the lkb may result in it being placed back on waiters. */
+	int error = 0, mstype;
 
 	while (1) {
 		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
@@ -3220,19 +3222,16 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 			break;
 		}
 
-		lkb = remove_resend_waiter(ls);
-		if (!lkb)
+		mstype = remove_resend_waiter(ls, &lkb);
+		if (!mstype)
 			break;
-
-		log_debug(ls, "recover_waiters_post %x type %d flags %x %s",
-			  lkb->lkb_id, lkb->lkb_wait_type, lkb->lkb_flags,
-			  lkb->lkb_resource->res_name);
-
-		lkb->lkb_flags &= ~DLM_IFL_RESEND;
 
 		r = lkb->lkb_resource;
 
-		switch (lkb->lkb_wait_type) {
+		log_debug(ls, "recover_waiters_post %x type %d flags %x %s",
+			  lkb->lkb_id, mstype, lkb->lkb_flags, r->res_name);
+
+		switch (mstype) {
 
 		case DLM_MSG_LOOKUP:
 		case DLM_MSG_REQUEST:
@@ -3252,8 +3251,7 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 			break;
 
 		default:
-			log_error(ls, "recover_waiters_post wait_type %d",
-				  lkb->lkb_wait_type);
+			log_error(ls, "recover_waiters_post type %d", mstype);
 		}
 	}
 
@@ -3291,8 +3289,6 @@ int dlm_purge_locks(struct dlm_ls *ls)
 
 	down_write(&ls->ls_root_lock);
 	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
-		DLM_ASSERT(!is_remote(r), dlm_print_rsb(r););
-
 		hold_rsb(r);
 		lock_rsb(r);
 

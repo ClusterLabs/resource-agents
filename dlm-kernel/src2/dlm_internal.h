@@ -499,9 +499,7 @@ struct dlm_ls {
 	struct rw_semaphore	ls_in_recovery;	/* block local requests */
 	struct list_head	ls_requestqueue;/* queue remote requests */
 	struct semaphore	ls_requestqueue_lock;
-
-	struct dlm_rcom *       ls_rcom;	/* recovery comms */
-
+	char *			ls_recover_buf;
 	struct list_head	ls_recover_list;
 	spinlock_t		ls_recover_list_lock;
 	int			ls_recover_list_count;

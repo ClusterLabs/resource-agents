@@ -310,9 +310,8 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 		rwlock_init(&ls->ls_dirtbl[i].lock);
 	}
 
-	ls->ls_rcom = (struct dlm_rcom *) kmalloc(dlm_config.buffer_size,
-						  GFP_KERNEL);
-	if (!ls->ls_rcom)
+	ls->ls_recover_buf = kmalloc(dlm_config.buffer_size, GFP_KERNEL);
+	if (!ls->ls_recover_buf)
 		goto out_dirfree;
 
 	init_waitqueue_head(&ls->ls_wait_member);
@@ -396,7 +395,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	spin_unlock(&lslist_lock);
 	dlm_recoverd_stop(ls);
  out_rcomfree:
-	kfree(ls->ls_rcom);
+	kfree(ls->ls_recover_buf);
  out_dirfree:
 	kfree(ls->ls_dirtbl);
  out_lkbfree:
@@ -485,7 +484,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 
 	dlm_astd_suspend();
 
-	kfree(ls->ls_rcom);
+	kfree(ls->ls_recover_buf);
 
 	/*
 	 * Free direntry structs.
