@@ -149,6 +149,8 @@ wait_for_master()
 
 start()
 {
+	echo -n "Starting lock_gulmd:"
+
 	# If gulm is using ccs, then make sure that there is a gulm
 	# section in /etc/cluster/cluster.conf, otherwise abort.
 	# FIXME -- Should this be silent?  I think users should get some
@@ -156,16 +158,20 @@ start()
 	#          the boot process.  Oh well... it's only one line :)
 	if echo "$GULM_OPTS" | grep -qE "(--use_ccs|[\t ]-[VhCed]*c)" 
 	then
-		if ! grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" /etc/cluster/cluster.conf 
+		if ! [ -r /etc/cluster/cluster.conf ]
 		then
-			echo "no <gulm> section detected in /etc/cluster/cluster.conf"
+			failure "/etc/cluster/cluster.conf was not detected"
+			echo
 			return 1
+		elif ! grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" /etc/cluster/cluster.conf 
+		then
+			warning "no <gulm> section detected in /etc/cluster/cluster.conf"
+			echo
+			return 0
 		fi
 	fi
 
-
 	sts=1
-	echo -n "Starting lock_gulmd:"
 
 	if gulm_tool getstats localhost &>/dev/null 
 	then
@@ -223,11 +229,11 @@ stop()
 {
 	if [ "$1" = "force" ] ; then force=0 ; else force=1 ; fi
 
+	echo -n "Stopping lock_gulmd:"
+
 	do_shutdown=0
 	if gulm_tool servicelist localhost &> /dev/null
 	then
-		echo "Checking for Gulm Services..."
-
 		# ignore LTPX and LT000-LT999  and Magma services
 		if gulm_tool servicelist localhost | 
 			grep -vE "^(LTPX|LT[0-9][0-9][0-9]|Magma::[0-9]*)\$"
@@ -244,11 +250,17 @@ stop()
 			fi
 		fi
 	else
-		echo "unable to comminucate to lock_gulmd"
-		return 1
+		if pidof lock_gulmd &> /dev/null
+		then
+			failure "unable to comminucate to lock_gulmd"
+			echo
+			return 1
+		else
+			success
+			echo
+			return 0
+		fi
 	fi
-
-	echo -n "Stopping lock_gulmd:"
 
 	rank=$( gulm_tool getstats localhost | grep rank | sed "s/^ *rank = //")
 
@@ -325,12 +337,13 @@ stop()
 	if [ $do_shutdown -eq 1 ] && gulm_shutdown
 	then
 		success
+		echo
 		sts=0
 	else
 		failure
+		echo
 		sts=1
 	fi
-	echo
 	return $sts
 }	
 

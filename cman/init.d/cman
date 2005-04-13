@@ -41,29 +41,38 @@ in_cluster()
 
 start()
 {
+	echo -n "Starting cman:"
+
 	# If gulm is in ccs, don't start cman
 	# FIXME -- Should this be silent?  I think users should get some
 	#          feedback, but others might not want added verbosity to
 	#          the boot process.  Oh well... it's only one line :)
-	if grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" /etc/cluster/cluster.conf
+	if ! [ -r /etc/cluster/cluster.conf ]
 	then
-		echo "<gulm> section detected in /etc/cluster/cluster.conf"
-		return 1
+		# TODO -- cman can start w/out cluster.conf file.  This 
+		#	  should not stop cman from starting up.
+		initlog -n ${0##*/} -s "/etc/cluster/cluster.conf was not detected"
+	elif grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" \
+		/etc/cluster/cluster.conf 
+	then
+		warning "Skipping because of <gulm> section detected in " \
+			"/etc/cluster/cluster.conf"
+		echo
+		exit 0
 	fi
 
-
-	echo -n "Starting cman:"
 	rtrn=1
 
 	for try in block
 	do
-		# load the camn module (modprobe won't error if the modules is already
-		# loaded
-		modprobe cman || break
+		# load the camn module (modprobe won't error if the modules 
+		# is already loaded
+		errmsg=$(modprobe cman 2>&1) || break
 		
 		# TODO -- configure tunable paramters?
 		# [ -n "$CMAN_TRANSITION_RESTARTS" ] && 
-		#	echo $CMAN_TRANSITION_RESTARTS > /proc/cluster/config/cman/transition_restarts
+		#	echo $CMAN_TRANSITION_RESTARTS > \
+		#	/proc/cluster/config/cman/transition_restarts
 
 		if in_cluster
 		then
@@ -73,12 +82,14 @@ start()
 
 		# specify -w to make sure we have joined the cluster
 		# TODO -- should we call cman_tool leave if this times out?
-		cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join $cman_join_opts || break
+		errmsg=$(cman_tool -t $CMAN_CLUSTER_TIMEOUT -w join \
+			$cman_join_opts 2>&1) || break
 
 		# make sure that we are quorate?  
 		if [ $CMAN_QUORUM_TIMEOUT -gt 0 ]
 		then
-			cman_tool -t $CMAN_QUORUM_TIMEOUT -q wait || break
+			errmsg=$( cman_tool -t $CMAN_QUORUM_TIMEOUT \
+				-q wait 2>&1 ) || break
 		fi
 
 		rtrn=0
@@ -89,12 +100,13 @@ start()
 		# try to load the dlm module
 		modprobe dlm &>/dev/null
 		success
+		echo
 	else
-		failure
+		failure "$errmsg"
+		echo
 	fi
 		
 	# need the extra echo to properlly terminate the line
-	echo
 	return $rtrn
 }
 
@@ -106,7 +118,7 @@ stop()
 	then
 		rtrn=1
 
-		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave 
+		cman_tool -t $CMAN_SHUTDOWN_TIMEOUT -w leave &> /dev/null
 
 		# allow cman time to clean up BZ 149282
 		sleep 3
@@ -114,18 +126,19 @@ stop()
 		# try to unload dlm module
 		modprobe -r dlm &>/dev/null
  
-		modprobe -r cman && rtrn=0
+		modprobe -r cman &>/dev/null && rtrn=0
 	fi
 	
 	if [ $rtrn -eq 0 ]
 	then
 		success
+		echo
 	else
-		failure
+		failure "failed to stop cman"
+		echo
 	fi
 		
 	# need the extra echo to properlly terminate the line
-	echo
 	return $rtrn
 }
 

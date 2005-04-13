@@ -18,7 +18,7 @@ start()
 	echo -n "Starting fence domain:"
 	rtrn=1
 
-	fence_tool join > /dev/null 2>&1
+	fence_tool join -w > /dev/null 2>&1
 	rtrn=$?
 	
 	if [ $rtrn -eq 0 ]
@@ -30,12 +30,13 @@ start()
 		#> done
 
 		success
+		echo
 	else
 		failure
+		echo
 	fi
 		
 	# need the extra echo to properlly terminate the line
-	echo
 	return $rtrn
 }
 
@@ -50,12 +51,13 @@ stop()
 	if [ $rtrn -eq 0 ]
 	then
 		success
+		echo
 	else
 		failure
+		echo
 	fi
 		
 	# need the extra echo to properlly terminate the line
-	echo
 	return $rtrn
 }
 
