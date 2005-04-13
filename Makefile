@@ -31,7 +31,7 @@ all:
 	cd gulm && ${MAKE} install ${MAKELINE}
 	cd magma-plugins && ${MAKE} install ${MAKELINE}
 	cd rgmanager && ${MAKE} install ${MAKELINE}
-	cd cmirror && ${MAKE} install ${MAKELINE}
+#	cd cmirror && ${MAKE} install ${MAKELINE}
 
 copytobin:
 	cd cman-kernel && ${MAKE} copytobin
@@ -49,7 +49,7 @@ copytobin:
 	cd gulm && ${MAKE} copytobin
 	cd magma-plugins && ${MAKE} copytobin
 	cd rgmanager && ${MAKE} copytobin
-	cd cmirror && ${MAKE} copytobin
+#	cd cmirror && ${MAKE} copytobin
 
 clean:
 	rm -f *tar.gz
@@ -69,7 +69,7 @@ clean:
 	cd gulm && ${MAKE} clean
 	cd magma-plugins && ${MAKE} clean
 	cd rgmanager && ${MAKE} clean
-	cd cmirror && ${MAKE} clean
+#	cd cmirror && ${MAKE} clean
 
 distclean:
 	cd cman-kernel && ${MAKE} distclean
@@ -87,7 +87,7 @@ distclean:
 	cd gulm && ${MAKE} distclean
 	cd magma-plugins && ${MAKE} distclean
 	cd rgmanager && ${MAKE} distclean
-	cd cmirror && ${MAKE} distclean
+#	cd cmirror && ${MAKE} distclean
 
 install:
 	cd cman-kernel && ${MAKE} install
@@ -105,7 +105,7 @@ install:
 	cd gulm && ${MAKE} install
 	cd magma-plugins && ${MAKE} install
 	cd rgmanager && ${MAKE} install
-	cd cmirror && ${MAKE} install
+#	cd cmirror && ${MAKE} install
 
 uninstall:
 	cd cman-kernel && ${MAKE} uninstall
@@ -123,7 +123,7 @@ uninstall:
 	cd gulm && ${MAKE} uninstall
 	cd magma-plugins && ${MAKE} uninstall
 	cd rgmanager && ${MAKE} uninstall
-	cd cmirror && ${MAKE} uninstall
+#	cd cmirror && ${MAKE} uninstall
 
 latest_tags:
 	${LATEST_TAG} cman-kernel
@@ -141,8 +141,8 @@ latest_tags:
 	${LATEST_TAG} gulm
 	${LATEST_TAG} magma-plugins
 	${LATEST_TAG} rgmanager
-	${LATEST_TAG} cmirror
 	echo "Beware, your directories are now in sync with their last tag." > TAG
+#	${LATEST_TAG} cmirror
 
 setrelease:
 	for i in `ls */make/release.mk.input`; do ${EDITOR} $$i; done
@@ -168,7 +168,7 @@ tarballs: TAG
 	make -s COMPONENT=gulm RELEASE_FILE=gulm/make/release.mk.input tarball
 	make -s COMPONENT=magma-plugins RELEASE_FILE=magma-plugins/make/release.mk.input tarball
 	make -s COMPONENT=rgmanager RELEASE_FILE=rgmanager/make/release.mk.input tarball
-	make -s COMPONENT=cmirror RELEASE_FILE=cmirror/make/release.mk.input tarball
+#	make -s COMPONENT=cmirror RELEASE_FILE=cmirror/make/release.mk.input tarball
 
 ifdef RELEASE_FILE
 include ${RELEASE_FILE}
