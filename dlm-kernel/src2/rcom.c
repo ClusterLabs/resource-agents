@@ -21,6 +21,7 @@
 #include "dir.h"
 #include "config.h"
 #include "memory.h"
+#include "lock.h"
 
 
 static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
@@ -244,78 +245,88 @@ void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	dlm_recover_master_reply(ls, rc_in);
 }
 
-#if 0
-struct rcom_lock {
-	uint32_t		rl_ownpid;
-	uint32_t                rl_id;
-	uint32_t                rl_exflags;
-	uint32_t                rl_flags;
-	uint32_t                rl_lvbseq;
-	int8_t                  rl_rqmode;
-	int8_t                  rl_grmode;
-	int8_t                  rl_status;
-	int8_t                  rl_asts;
-	uint16_t		rl_namelen;
-	uint16_t		rl_pad1;
-	uint32_t		rl_pad2;
-	uint64_t                rl_range[2];
-	char                    rl_lvb[DLM_LVB_LEN];
-	char			rl_name[MAX_RESNAME_LEN];
-};
-
-void make_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
+void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 		    struct rcom_lock *rl)
 {
+	memset(rl, 0, sizeof(*rl));
+
+	rl->rl_ownpid = lkb->lkb_ownpid;
+	rl->rl_id = lkb->lkb_id;
+	rl->rl_exflags = lkb->lkb_exflags;
+	rl->rl_flags = lkb->lkb_flags;
+	rl->rl_lvbseq = lkb->lkb_lvbseq;
+	rl->rl_rqmode = lkb->lkb_rqmode;
+	rl->rl_grmode = lkb->lkb_grmode;
+	rl->rl_status = lkb->lkb_status;
+
+	if (lkb->lkb_range)
+		memcpy(rl->rl_range, lkb->lkb_range, 4*sizeof(uint64_t));
+
+	if (lkb->lkb_lvbptr)
+		memcpy(rl->rl_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
+
+	rl->rl_namelen = r->res_length;
+	memcpy(rl->rl_name, r->res_name, r->res_length);
+
+	/*
+	if (lkb->lkb_parent)
+		rl->rl_parent_lkid = lkb->lkb_parent->lkb_id;
+
+	if (lkb->lkb_parent && r->res_parent)
+		memcpy(rl->rl_subname, r->res_parent->res_name,
+		       r->res_parent->res_length);
+	*/
 }
 
 int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
+	struct dlm_ls *ls = r->res_ls;
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
-	struct dlm_ls *ls = r->res_ls;
+	struct rcom_lock *rl;
+	int error;
 
 	error = create_rcom(ls, r->res_nodeid, DLM_RCOM_LOCK,
 			    sizeof(struct rcom_lock), &rc, &mh);
 
 	rl = (struct rcom_lock *) rc->rc_buf;
-	make_rcom_lock(r, lkb, rl);
-	rc->rc_id = r;
+	pack_rcom_lock(r, lkb, rl);
+	set_rc_id(r, rc);
 
 	error = send_rcom(ls, mh, rc);
+
+	return error;
 }
-#endif
 
 void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-#if 0
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
 	int error, nodeid = rc_in->rc_header.h_nodeid;
 
-	rl = (struct rcom_lock *) rc_in->rc_buf;
-
-	dlm_recover_lock(ls, nodeid, rl);
+	dlm_recover_master_copy(ls, rc_in);
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_LOCK_REPLY,
 			    sizeof(struct rcom_lock), &rc, &mh);
+
+	/* We send back the same rcom_lock struct we received, but
+	   dlm_recover_master_copy() has filled in rl_remid and rl_result */
 
 	memcpy(rc->rc_buf, rc_in->rc_buf, sizeof(struct rcom_lock));
 	rc->rc_id = rc_in->rc_id;
 
 	error = send_rcom(ls, mh, rc);
-#endif
 }
 
 void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-#if 0
 	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
-		log_debug(ls, "ignoring RCOM_LOCK_REPLY from %u", nodeid);
+		log_debug(ls, "ignoring RCOM_LOCK_REPLY from %u",
+			  rc_in->rc_header.h_nodeid);
 		return;
 	}
 
-	dlm_recover_lock_reply(ls, rc_in);
-#endif
+	dlm_recover_process_copy(ls, rc_in);
 }
 
 static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)

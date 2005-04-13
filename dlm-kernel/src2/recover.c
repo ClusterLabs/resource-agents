@@ -21,11 +21,12 @@
 #include "rcom.h"
 #include "lock.h"
 
+
 /*
- * Called in recovery routines to check whether the recovery process has been
- * interrupted/stopped by another transition.  A recovery in-process will abort
- * if the lockspace is "stopped" so that a new recovery process can start from
- * the beginning when the lockspace is "started" again.
+ * Recovery waiting routines: these functions wait for a particular reply from
+ * a remote node, or for the remote node to report a certain status.  They need
+ * to abort if the lockspace is stopped indicating a node has failed (perhaps
+ * the one being waited for).
  */
 
 int dlm_recovery_stopped(struct dlm_ls *ls)
@@ -61,6 +62,13 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 
 	return error;
 }
+
+/*
+ * An efficient way for all nodes to wait for all others to have a certain
+ * status.  The node with the lowest nodeid polls all the others for their
+ * status (dlm_wait_status_all) and all the others poll the node with the low
+ * id for its accumulated result (dlm_wait_status_low).
+ */
 
 int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
@@ -113,63 +121,6 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 
  out:
 	return error;
-}
-
-/*
- * Set the lock master for all LKBs in a lock queue
- * If we are the new master of the rsb, we may have received new
- * MSTCPY locks from other nodes already which we need to ignore
- * when setting the new nodeid.
- */
-
-static void set_lock_master(struct list_head *queue, int nodeid)
-{
-	struct dlm_lkb *lkb;
-
-	list_for_each_entry(lkb, queue, lkb_statequeue)
-		if (!(lkb->lkb_flags & DLM_IFL_MSTCPY))
-			lkb->lkb_nodeid = nodeid;
-}
-
-static void set_master_lkbs(struct dlm_rsb *r)
-{
-	set_lock_master(&r->res_grantqueue, r->res_nodeid);
-	set_lock_master(&r->res_convertqueue, r->res_nodeid);
-	set_lock_master(&r->res_waitqueue, r->res_nodeid);
-}
-
-/*
- * Propogate the new master nodeid to locks, subrsbs, sublocks.
- * The NEW_MASTER flag tells rebuild_rsbs_send() which rsb's to consider.
- * The NEW_MASTER2 flag tells rsb_lvb_recovery() which rsb's to consider.
- */
-
-static void set_new_master(struct dlm_rsb *r, int nodeid)
-{
-	dlm_lock_rsb(r);
-
-	/* FIXME: what if there are lkb's waiting on res_lookup ? */
-
-	if (nodeid == dlm_our_nodeid())
-		r->res_nodeid = 0;
-	else
-		r->res_nodeid = nodeid;
-
-	set_master_lkbs(r);
-
-#if 0
-	list_for_each_entry(subrsb, &r->res_subreslist, res_subreslist) {
-		subrsb->res_nodeid = r->res_nodeid;
-		set_master_lkbs(subrsb);
-	}
-#endif
-
-#if 0
-	/* FIXME: use better names for these flags */
-	set_bit(RESFL_NEW_MASTER, &r->res_flags);
-	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
-#endif
-	dlm_unlock_rsb(r);
 }
 
 /*
@@ -270,15 +221,85 @@ void recover_list_clear(struct dlm_ls *ls)
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-/* We do async lookups on rsb's that need new masters.  The rsb's
-   waiting for a lookup reply are kept on the recover_list. */
+
+/* Master recovery: find new master node for rsb's that were
+   mastered on nodes that have been removed.
+
+   dlm_recover_masters
+   recover_master
+   dlm_send_rcom_lookup            ->  receive_rcom_lookup
+                                       dlm_dir_lookup
+   receive_rcom_lookup_reply       <-
+   dlm_recover_master_reply
+   set_new_master
+   set_master_lkbs
+   set_lock_master
+*/
+
+/*
+ * Set the lock master for all LKBs in a lock queue
+ * If we are the new master of the rsb, we may have received new
+ * MSTCPY locks from other nodes already which we need to ignore
+ * when setting the new nodeid.
+ */
+
+static void set_lock_master(struct list_head *queue, int nodeid)
+{
+	struct dlm_lkb *lkb;
+
+	list_for_each_entry(lkb, queue, lkb_statequeue)
+		if (!(lkb->lkb_flags & DLM_IFL_MSTCPY))
+			lkb->lkb_nodeid = nodeid;
+}
+
+static void set_master_lkbs(struct dlm_rsb *r)
+{
+	set_lock_master(&r->res_grantqueue, r->res_nodeid);
+	set_lock_master(&r->res_convertqueue, r->res_nodeid);
+	set_lock_master(&r->res_waitqueue, r->res_nodeid);
+}
+
+/*
+ * Propogate the new master nodeid to locks, subrsbs, sublocks.
+ * The NEW_MASTER flag tells dlm_recover_locks() which rsb's to consider.
+ * The NEW_MASTER2 flag tells rsb_lvb_recovery() which rsb's to consider.
+ */
+
+static void set_new_master(struct dlm_rsb *r, int nodeid)
+{
+	dlm_lock_rsb(r);
+
+	/* FIXME: what if there are lkb's waiting on res_lookup ? */
+
+	if (nodeid == dlm_our_nodeid())
+		r->res_nodeid = 0;
+	else
+		r->res_nodeid = nodeid;
+
+	set_master_lkbs(r);
+
+	/*
+	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
+		sr->res_nodeid = r->res_nodeid;
+		set_master_lkbs(sr);
+	}
+	*/
+
+	set_bit(RESFL_NEW_MASTER, &r->res_flags);
+
+	/* set_bit(RESFL_NEW_MASTER2, &r->res_flags); */
+	dlm_unlock_rsb(r);
+}
+
+/*
+ * We do async lookups on rsb's that need new masters.  The rsb's
+ * waiting for a lookup reply are kept on the recover_list.
+ */
 
 static int recover_master(struct dlm_rsb *r)
 {
 	struct dlm_ls *ls = r->res_ls;
 	int error, dir_nodeid, ret_nodeid, our_nodeid = dlm_our_nodeid();
-
-	/* very similar to set_master() */
 
 	dir_nodeid = dlm_dir_nodeid(r);
 
@@ -301,12 +322,12 @@ static int recover_master(struct dlm_rsb *r)
 
 /*
  * Go through local root resources and for each rsb which has a master which
- * has departed, get the new master nodeid from the resdir.  The resdir will
+ * has departed, get the new master nodeid from the directory.  The dir will
  * assign mastery to the first node to look up the new master.  That means
  * we'll discover in this lookup if we're the new master of any rsb's.
  *
- * We fire off all the resdir requests individually and asynchronously to the
- * correct resdir node.  The replies are processed in rsb_master_recv().
+ * We fire off all the dir lookup requests individually and asynchronously to
+ * the correct dir node.
  */
 
 int dlm_recover_masters(struct dlm_ls *ls)
@@ -363,15 +384,29 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 	return 0;
 }
 
-#if 0
 
-/* keep a count of the number of lkb's we send to the new master; when
-   we get an equal number of replies then recovery for the rsb is done */
+/* Lock recovery: rebuild the process-copy locks we hold on a
+   remastered rsb on the new rsb master.
+
+   dlm_recover_locks
+   recover_locks
+   recover_locks_queue
+   dlm_send_rcom_lock              ->  receive_rcom_lock
+                                       dlm_recover_master_copy
+   receive_rcom_lock_reply         <-
+   dlm_recover_process_copy
+*/
+
+
+/*
+ * keep a count of the number of lkb's we send to the new master; when we get
+ * an equal number of replies then recovery for the rsb is done
+ */
 
 static int recover_locks_queue(struct dlm_rsb *r, struct list_head *head)
 {
 	struct dlm_lkb *lkb;
-	int error;
+	int error = 0;
 
 	list_for_each_entry(lkb, head, lkb_statequeue) {
 	   	error = dlm_send_rcom_lock(r, lkb);
@@ -383,16 +418,31 @@ static int recover_locks_queue(struct dlm_rsb *r, struct list_head *head)
 	return error;
 }
 
+static int all_queues_empty(struct dlm_rsb *r)
+{
+	if (!list_empty(&r->res_grantqueue) ||
+	    !list_empty(&r->res_convertqueue) ||
+	    !list_empty(&r->res_waitqueue))
+		return FALSE;
+	/*
+	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
+		if (!list_empty(&sr->res_grantqueue) ||
+	    	    !list_empty(&sr->res_convertqueue) ||
+	    	    !list_empty(&sr->res_waitqueue))
+			return FALSE;
+	}
+	*/
+	return TRUE;
+}
+
 static int recover_locks(struct dlm_rsb *r)
 {
 	int error = 0;
 
-	if (!list_empty(&r->res_grantqueue) ||
-	    !list_empty(&r->res_convertqueue) ||
-	    !list_empty(&r->res_waitqueue) ||)
-		recover_list_add(r);
-	else
+	if (all_queues_empty(r))
 		goto out;
+
+	recover_list_add(r);
 
 	error = recover_locks_queue(r, &r->res_grantqueue);
 	if (error)
@@ -401,6 +451,22 @@ static int recover_locks(struct dlm_rsb *r)
 	if (error)
 		goto out;
 	error = recover_locks_queue(r, &r->res_waitqueue);
+	if (error)
+		goto out;
+
+	/*
+	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
+		error = recover_locks_queue(sr, &sr->res_grantqueue);
+		if (error)
+			goto out
+		error = recover_locks_queue(sr, &sr->res_convertqueue);
+		if (error)
+			goto out
+		error = recover_locks_queue(sr, &sr->res_waitqueue);
+		if (error)
+			goto out
+	}
+	*/
  out:
 	return error;
 }
@@ -437,10 +503,20 @@ int dlm_recover_locks(struct dlm_ls *ls)
 	return error;
 }
 
-int dlm_recover_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
+void dlm_recovered_lock(struct dlm_rsb *r)
 {
+	r->res_recover_locks_count--;
+	if (!r->res_recover_locks_count) {
+		clear_bit(RESFL_NEW_MASTER, &r->res_flags);
+		recover_list_del(r);
+	}
+
+	if (recover_list_empty(r->res_ls))
+		wake_up(&r->res_ls->ls_wait_general);
 }
 
+
+#if 0
 /*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery

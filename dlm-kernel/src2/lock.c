@@ -20,6 +20,8 @@
 #include "lockspace.h"
 #include "ast.h"
 #include "lock.h"
+#include "rcom.h"
+#include "recover.h"
 
 /* Central locking logic has four stages:
 
@@ -3152,16 +3154,8 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 		switch (lkb->lkb_wait_type) {
 
 		case DLM_MSG_REQUEST:
-			lkb->lkb_flags |= DLM_IFL_RESEND;
-			break;
-
 		case DLM_MSG_CONVERT:
 			lkb->lkb_flags |= DLM_IFL_RESEND;
-
-			/* FIXME: don't think this flag is needed any more
-			   since the process copy lkb isn't ever placed on
-			   the convert queue. */
-			lkb->lkb_flags |= DLM_IFL_CONVERTING;
 			break;
 
 		case DLM_MSG_UNLOCK:
@@ -3235,7 +3229,6 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 			  lkb->lkb_resource->res_name);
 
 		lkb->lkb_flags &= ~DLM_IFL_RESEND;
-		lkb->lkb_flags &= ~DLM_IFL_CONVERTING;
 
 		r = lkb->lkb_resource;
 
@@ -3333,6 +3326,167 @@ int dlm_grant_after_purge(struct dlm_ls *ls)
 		}
 		read_unlock(&ls->ls_rsbtbl[i].lock);
 	}
+
+	return 0;
+}
+
+struct dlm_lkb *search_remid_list(struct list_head *head, uint32_t remid)
+{
+	struct dlm_lkb *lkb;
+
+	list_for_each_entry(lkb, head, lkb_statequeue) {
+		if (lkb->lkb_remid == remid)
+			return lkb;
+	}
+	return lkb;
+}
+
+struct dlm_lkb *search_remid(struct dlm_rsb *r, uint32_t remid)
+{
+	struct dlm_lkb *lkb;
+
+	lkb = search_remid_list(&r->res_grantqueue, remid);
+	if (lkb)
+		return lkb;
+	lkb = search_remid_list(&r->res_convertqueue, remid);
+	if (lkb)
+		return lkb;
+	lkb = search_remid_list(&r->res_waitqueue, remid);
+	if (lkb)
+		return lkb;
+	return NULL;
+}
+
+int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			   struct dlm_rsb *r, struct dlm_rcom *rc)
+{
+	struct rcom_lock *rl = (struct rcom_lock *) rc->rc_buf;
+
+	lkb->lkb_nodeid = rc->rc_header.h_nodeid;
+	lkb->lkb_ownpid = rl->rl_ownpid;
+	lkb->lkb_remid = rl->rl_id;
+	lkb->lkb_grmode = rl->rl_grmode;
+	lkb->lkb_rqmode = rl->rl_rqmode;
+	lkb->lkb_bastaddr = (void *) (long) (rl->rl_asts & AST_BAST);
+	lkb->lkb_astaddr = (void *) (long) (rl->rl_asts & AST_COMP);
+
+	lkb->lkb_exflags = rl->rl_exflags;
+	lkb->lkb_flags = rl->rl_flags & 0x0000FFFF;
+	lkb->lkb_flags |= DLM_IFL_MSTCPY;
+
+	if (lkb->lkb_flags & DLM_IFL_RANGE) {
+		lkb->lkb_range = allocate_range(ls);
+		if (!lkb->lkb_range)
+			return -ENOMEM;
+		memcpy(lkb->lkb_range, rl->rl_range, 4*sizeof(uint64_t));
+	}
+
+	if (lkb->lkb_exflags & DLM_LKF_VALBLK) {
+		lkb->lkb_lvbptr = allocate_lvb(ls);
+		if (!lkb->lkb_lvbptr)
+			return -ENOMEM;
+		memcpy(lkb->lkb_lvbptr, rl->rl_lvb, DLM_LVB_LEN);
+	}
+
+	return 0;
+}
+
+/* This lkb may have been recovered in a previous aborted recovery so we need
+   to check if the rsb already has an lkb with the given remote nodeid/lkid.
+   If so we just send back a standard reply.  If not, we create a new lkb with
+   the given values and send back our lkid.  We send back our lkid by sending
+   back the rcom_lock struct we got but with the remid field filled in. */
+
+int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
+{
+	struct rcom_lock *rl = (struct rcom_lock *) rc->rc_buf;
+	struct dlm_rsb *r;
+	struct dlm_lkb *lkb;
+	int error;
+
+	if (rl->rl_parent_lkid) {
+		error = -EOPNOTSUPP;
+		goto out;
+	}
+
+	error = find_rsb(ls, rl->rl_name, rl->rl_namelen, R_MASTER, &r);
+	if (error)
+		goto out;
+
+	lock_rsb(r);
+
+	lkb = search_remid(r, rl->rl_id);
+	if (lkb) {
+		error = -EEXIST;
+		goto out_unlock;
+	}
+
+	error = create_lkb(ls, &lkb);
+	if (error)
+		goto out_unlock;
+
+	error = receive_rcom_lock_args(ls, lkb, r, rc);
+	if (error) {
+		put_lkb(lkb);
+		goto out_unlock;
+	}
+
+	attach_lkb(r, lkb);
+	add_lkb(r, lkb, rl->rl_status);
+
+	/* this is the new value returned to the lock holder for
+	   saving in its process-copy lkb */
+	rl->rl_remid = lkb->lkb_id;
+	error = 0;
+
+ out_unlock:
+	unlock_rsb(r);
+	put_rsb(r);
+ out:
+	rl->rl_result = error;
+	return error;
+}
+
+int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
+{
+	struct rcom_lock *rl = (struct rcom_lock *) rc->rc_buf;
+	struct dlm_rsb *r;
+	struct dlm_lkb *lkb;
+	int error;
+
+	error = find_lkb(ls, rl->rl_id, &lkb);
+	if (error) {
+		log_error(ls, "recover_process_copy no lkid %x", rl->rl_id);
+		return error;
+	}
+
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
+
+	error = rl->rl_result;
+
+	r = lkb->lkb_resource;
+	hold_rsb(r);
+	lock_rsb(r);
+
+	switch (error) {
+	case 0:
+		lkb->lkb_remid = rl->rl_remid;
+		break;
+	case -EEXIST:
+		log_debug(ls, "lkb %x previously recovered", lkb->lkb_id);
+		break;
+	default:
+		log_error(ls, "dlm_recover_process_copy unknown error %d %x",
+			  error, lkb->lkb_id);
+	}
+
+	/* an ack for dlm_recover_locks() which waits for replies from
+	   all the locks it sends to new masters */
+	dlm_recovered_lock(r);
+
+	unlock_rsb(r);
+	put_rsb(r);
+	put_lkb(lkb);
 
 	return 0;
 }

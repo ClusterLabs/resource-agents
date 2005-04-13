@@ -255,7 +255,6 @@ struct dlm_recover {
 
 #define DLM_IFL_MSTCPY		(0x00010000)
 #define DLM_IFL_RESEND		(0x00020000)
-#define DLM_IFL_CONVERTING	(0x00040000)
 #define DLM_IFL_RETURNLVB	(0x00000001)
 #define DLM_IFL_RANGE		(0x00000002)
 #define DLM_IFL_PERSISTENT      (0x00000004)
@@ -313,6 +312,7 @@ struct dlm_lkb {
 #define RESFL_MASTER_UNCERTAIN	(1)
 #define RESFL_VALNOTVALID	(2)
 #define RESFL_VALNOTVALID_PREV	(3)
+#define RESFL_NEW_MASTER	(4)
 
 struct dlm_rsb {
 	struct dlm_ls *		res_ls;		/* the lockspace */
@@ -333,6 +333,7 @@ struct dlm_rsb {
 
 	struct list_head	res_rootlist;	    /* used for recovery */
 	struct list_head	res_recover_list;   /* used for recovery */
+	int			res_recover_locks_count;
 
 	char *			res_lvbptr;
 	char			res_name[1];

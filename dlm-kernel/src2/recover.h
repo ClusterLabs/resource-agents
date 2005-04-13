@@ -20,5 +20,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status);
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status);
 int dlm_recover_masters(struct dlm_ls *ls);
 int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc);
+int dlm_recover_locks(struct dlm_ls *ls);
+void dlm_recovered_lock(struct dlm_rsb *r);
 
 #endif				/* __RECOVER_DOT_H__ */
