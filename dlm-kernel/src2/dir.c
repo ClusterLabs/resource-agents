@@ -366,13 +366,13 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	if (start_namelen > 1) {
 		/*
 		 * We could also use a find_rsb_root() function here that
-		 * searched the ls_rootres list.
+		 * searched the ls_root_list.
 		 */
 		error = dlm_find_rsb(ls, start_name, start_namelen, R_MASTER,
 				     &start_r);
 		DLM_ASSERT(!error && start_r,
 			   printk("error %d\n", error););
-		DLM_ASSERT(!list_empty(&start_r->res_rootlist),
+		DLM_ASSERT(!list_empty(&start_r->res_root_list),
 			   dlm_print_rsb(start_r););
 		dlm_put_rsb(start_r);
 	}
@@ -382,14 +382,14 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	 * matches the requesting node.
 	 */
 
-	down_read(&ls->ls_root_lock);
+	down_read(&ls->ls_root_sem);
 	if (start_r)
-		list = start_r->res_rootlist.next;
+		list = start_r->res_root_list.next;
 	else
-		list = ls->ls_rootres.next;
+		list = ls->ls_root_list.next;
 
-	for (offset = 0; list != &ls->ls_rootres; list = list->next) {
-		r = list_entry(list, struct dlm_rsb, res_rootlist);
+	for (offset = 0; list != &ls->ls_root_list; list = list->next) {
+		r = list_entry(list, struct dlm_rsb, res_root_list);
 		if (r->res_nodeid)
 			continue;
 
@@ -425,7 +425,7 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	 * terminating record.
 	 */
 
-	if ((list == &ls->ls_rootres) &&
+	if ((list == &ls->ls_root_list) &&
 	    (offset + sizeof(uint16_t) <= outlen)) {
 		be_namelen = 0xFFFF;
 		memcpy(outbuf + offset, &be_namelen, sizeof(uint16_t));
@@ -433,7 +433,7 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	}
 
  out:
-	up_read(&ls->ls_root_lock);
+	up_read(&ls->ls_root_sem);
 	return offset;
 }
 

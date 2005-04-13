@@ -271,7 +271,7 @@ struct dlm_rsb *create_rsb(struct dlm_ls *ls, char *name, int len)
 	INIT_LIST_HEAD(&r->res_grantqueue);
 	INIT_LIST_HEAD(&r->res_convertqueue);
 	INIT_LIST_HEAD(&r->res_waitqueue);
-	INIT_LIST_HEAD(&r->res_rootlist);
+	INIT_LIST_HEAD(&r->res_root_list);
 	INIT_LIST_HEAD(&r->res_recover_list);
 
 	return r;
@@ -427,7 +427,7 @@ void toss_rsb(struct kref *kref)
 	struct dlm_rsb *r = container_of(kref, struct dlm_rsb, res_ref);
 	struct dlm_ls *ls = r->res_ls;
 
-	DLM_ASSERT(list_empty(&r->res_rootlist), dlm_print_rsb(r););
+	DLM_ASSERT(list_empty(&r->res_root_list), dlm_print_rsb(r););
 	kref_init(&r->res_ref);
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[r->res_bucket].toss);
 	r->res_toss_time = jiffies;
@@ -469,7 +469,7 @@ void kill_rsb(struct kref *kref)
 	DLM_ASSERT(list_empty(&r->res_grantqueue),);
 	DLM_ASSERT(list_empty(&r->res_convertqueue),);
 	DLM_ASSERT(list_empty(&r->res_waitqueue),);
-	DLM_ASSERT(list_empty(&r->res_rootlist),);
+	DLM_ASSERT(list_empty(&r->res_root_list),);
 	DLM_ASSERT(list_empty(&r->res_recover_list),);
 }
 
@@ -3103,8 +3103,8 @@ int dlm_create_root_list(struct dlm_ls *ls)
 	struct dlm_rsb *r;
 	int i, error = 0;
 
-	down_write(&ls->ls_root_lock);
-	if (!list_empty(&ls->ls_rootres)) {
+	down_write(&ls->ls_root_sem);
+	if (!list_empty(&ls->ls_root_list)) {
 		log_error(ls, "root list not empty");
 		error = -EINVAL;
 		goto out;
@@ -3113,13 +3113,13 @@ int dlm_create_root_list(struct dlm_ls *ls)
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 		write_lock(&ls->ls_rsbtbl[i].lock);
 		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
-			list_add(&r->res_rootlist, &ls->ls_rootres);
+			list_add(&r->res_root_list, &ls->ls_root_list);
 			hold_rsb(r);
 		}
 		write_unlock(&ls->ls_rsbtbl[i].lock);
 	}
  out:
-	up_write(&ls->ls_root_lock);
+	up_write(&ls->ls_root_sem);
 	return error;
 }
 
@@ -3127,12 +3127,12 @@ void dlm_release_root_list(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r, *safe;
 
-	down_write(&ls->ls_root_lock);
-	list_for_each_entry_safe(r, safe, &ls->ls_rootres, res_rootlist) {
-		list_del_init(&r->res_rootlist);
+	down_write(&ls->ls_root_sem);
+	list_for_each_entry_safe(r, safe, &ls->ls_root_list, res_root_list) {
+		list_del_init(&r->res_root_list);
 		put_rsb(r);
 	}
-	up_write(&ls->ls_root_lock);
+	up_write(&ls->ls_root_sem);
 }
 
 /* We only need to do recovery for lkb's waiting for replies from nodes
@@ -3287,8 +3287,8 @@ int dlm_purge_locks(struct dlm_ls *ls)
 
 	log_debug(ls, "dlm_purge_locks");
 
-	down_write(&ls->ls_root_lock);
-	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+	down_write(&ls->ls_root_sem);
+	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		hold_rsb(r);
 		lock_rsb(r);
 
@@ -3301,7 +3301,7 @@ int dlm_purge_locks(struct dlm_ls *ls)
 
 		schedule();
 	}
-	up_write(&ls->ls_root_lock);
+	up_write(&ls->ls_root_sem);
 
 	return 0;
 }

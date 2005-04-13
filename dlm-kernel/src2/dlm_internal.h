@@ -332,7 +332,7 @@ struct dlm_rsb {
 	struct list_head	res_convertqueue;
 	struct list_head	res_waitqueue;
 
-	struct list_head	res_rootlist;	    /* used for recovery */
+	struct list_head	res_root_list;	    /* used for recovery */
 	struct list_head	res_recover_list;   /* used for recovery */
 	int			res_recover_locks_count;
 
@@ -506,8 +506,8 @@ struct dlm_ls {
 	int			ls_recover_list_count;
 	wait_queue_head_t	ls_wait_general;
 
-	struct list_head	ls_rootres;	/* root resources */
-	struct rw_semaphore	ls_root_lock;	/* protect rootres list */
+	struct list_head	ls_root_list;	/* root resources */
+	struct rw_semaphore	ls_root_sem;	/* protect root_list */
 
 	int			ls_namelen;
 	char			ls_name[1];

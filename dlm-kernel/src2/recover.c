@@ -338,14 +338,14 @@ int dlm_recover_masters(struct dlm_ls *ls)
 
 	log_debug(ls, "dlm_recover_masters");
 
-	down_read(&ls->ls_root_lock);
-	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+	down_read(&ls->ls_root_sem);
+	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		if (!r->res_nodeid)
 			continue;
 
 		error = dlm_recovery_stopped(ls);
 		if (error) {
-			up_read(&ls->ls_root_lock);
+			up_read(&ls->ls_root_sem);
 			goto out;
 		}
 
@@ -358,7 +358,7 @@ int dlm_recover_masters(struct dlm_ls *ls)
 
 		schedule();
 	}
-	up_read(&ls->ls_root_lock);
+	up_read(&ls->ls_root_sem);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
@@ -482,21 +482,21 @@ int dlm_recover_locks(struct dlm_ls *ls)
 
 	log_debug(ls, "dlm_recover_locks");
 
-	down_read(&ls->ls_root_lock);
-	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+	down_read(&ls->ls_root_sem);
+	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		if (!r->res_nodeid)
 			continue;
 
 		error = dlm_recovery_stopped(ls);
 		if (error) {
-			up_read(&ls->ls_root_lock);
+			up_read(&ls->ls_root_sem);
 			goto out;
 		}
 
 		if (test_bit(RESFL_NEW_MASTER, &r->res_flags))
 			recover_locks(r);
 	}
-	up_read(&ls->ls_root_lock);
+	up_read(&ls->ls_root_sem);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
 
@@ -633,8 +633,8 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
 
-	down_read(&ls->ls_root_lock);
-	list_for_each_entry(r, &ls->ls_rootres, res_rootlist) {
+	down_read(&ls->ls_root_sem);
+	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		if (r->res_nodeid)
 			continue;
 
@@ -647,7 +647,7 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 			rsb_lvb_recovery(sr);
 		*/
 	}
-	up_read(&ls->ls_root_lock);
+	up_read(&ls->ls_root_sem);
 	return 0;
 }
 

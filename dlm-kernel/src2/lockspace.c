@@ -328,14 +328,14 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	ls->ls_recover_list_count = 0;
 	spin_lock_init(&ls->ls_recover_list_lock);
 	init_waitqueue_head(&ls->ls_wait_general);
-	INIT_LIST_HEAD(&ls->ls_rootres);
+	INIT_LIST_HEAD(&ls->ls_root_list);
 	INIT_LIST_HEAD(&ls->ls_requestqueue);
 	ls->ls_last_stop = 0;
 	ls->ls_last_start = 0;
 	ls->ls_last_finish = 0;
 	init_MUTEX(&ls->ls_waiters_sem);
 	init_MUTEX(&ls->ls_requestqueue_lock);
-	init_rwsem(&ls->ls_root_lock);
+	init_rwsem(&ls->ls_root_sem);
 	init_rwsem(&ls->ls_in_recovery);
 
 	memset(&ls->ls_stub_rsb, 0, sizeof(struct dlm_rsb));
