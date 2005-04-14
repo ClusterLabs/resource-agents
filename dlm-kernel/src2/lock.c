@@ -942,6 +942,7 @@ int set_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, uint32_t flags,
 
 	lkb->lkb_exflags = flags;
 	lkb->lkb_sbflags = 0;
+	lkb->lkb_astparam = (long)astarg;
 
 	rv = 0;
  out:
