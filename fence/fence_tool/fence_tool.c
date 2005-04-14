@@ -213,7 +213,7 @@ static int do_wait(void)
 {
 	FILE *file;
 	char line[256];
-	int error, i = 0;
+	int error, i = 0, starting = 0;
 
 	file = fopen("/proc/cluster/services", "r");
 	if (!file)
@@ -227,12 +227,17 @@ static int do_wait(void)
 					error = 0;
 					goto out;
 				}
+				starting = 1;
 			}
 		}
 
 		if (++i > 9 && !(i % 10))
 			printf("%s: waiting for fence domain run state\n",
 			       prog_name);
+		if (i == 10 && !starting) {
+			printf("%s: fenced not starting\n", prog_name);
+			return EXIT_FAILURE;
+		}
 		sleep(1);
 		rewind(file);
 	}
