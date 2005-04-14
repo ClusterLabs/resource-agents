@@ -133,6 +133,8 @@ static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 	dlm->null_count = 0;
 	spin_lock_init(&dlm->null_cache_spin);
 
+	dlm->jid = -1;
+
 	return dlm;
 }
 
@@ -177,11 +179,9 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	if (error)
 		goto out_dlm;
 
-	/* Now we depend on userspace to notice the new mg, join the
-	   appropriate group, and give us a mounted or terminate.
-
-	   Before the start, userspace sets:
-	   dlm->jid, dlm->first */
+	/* Now we depend on userspace to notice the new mount,
+	   join the appropriate group, and give us a mounted or terminate.
+	   Before the start, userspace must set "jid" and "first". */
 
 	error = wait_event_interruptible(dlm->wait_control,
 			test_bit(DFL_JOIN_DONE, &dlm->flags));
@@ -246,7 +246,7 @@ static void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
 
 	error = kobject_uevent(&dlm->kobj, KOBJ_CHANGE, NULL);
 	if (error)
-		printk("lock_dlm: kobject_uevent error %d", error);
+		printk("lock_dlm: kobject_uevent error %d\n", error);
 }
 
 static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)

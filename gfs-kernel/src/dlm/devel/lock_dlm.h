@@ -267,6 +267,7 @@ void lm_dlm_cancel(lm_lock_t *lock);
 int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp);
 void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb);
 void lm_dlm_sync_lvb(lm_lock_t *lock, char *lvb);
+void lm_dlm_submit_delayed(dlm_t *dlm);
 
 /* plock.c */
 

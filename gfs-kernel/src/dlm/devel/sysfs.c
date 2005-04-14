@@ -35,9 +35,10 @@ static ssize_t lm_dlm_block_store(dlm_t *dlm, const char *buf, size_t len)
 
 	if (val == 1)
 		set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
-	else if (val == 0)
+	else if (val == 0) {
 		clear_bit(DFL_BLOCK_LOCKS, &dlm->flags);
-	else
+		lm_dlm_submit_delayed(dlm);
+	} else
 		ret = -EINVAL;
 	return ret;
 }
@@ -75,6 +76,8 @@ static ssize_t lm_dlm_mounted_store(dlm_t *dlm, const char *buf, size_t len)
 		set_bit(DFL_LEAVE_DONE, &dlm->flags);
 	} else
 		ret = -EINVAL;
+
+	wake_up(&dlm->wait_control);
 
 	return ret;
 }
@@ -117,6 +120,13 @@ static ssize_t lm_dlm_recover_done_show(dlm_t *dlm, char *buf)
 {
 	ssize_t ret;
 	ret = sprintf(buf, "%d\n", dlm->recover_done);
+        return ret;
+}
+
+static ssize_t lm_dlm_cluster_show(dlm_t *dlm, char *buf)
+{
+	ssize_t ret;
+	ret = sprintf(buf, "%s\n", dlm->clustername);
         return ret;
 }
 
@@ -163,6 +173,11 @@ static struct lm_dlm_attr lm_dlm_attr_recover_done = {
 	.show  = lm_dlm_recover_done_show,
 };
 
+static struct lm_dlm_attr lm_dlm_attr_cluster = {
+	.attr  = {.name = "cluster", .mode = S_IRUGO | S_IWUSR},
+	.show  = lm_dlm_cluster_show,
+};
+
 static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_block.attr,
 	&lm_dlm_attr_mounted.attr,
@@ -170,6 +185,7 @@ static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_first.attr,
 	&lm_dlm_attr_recover.attr,
 	&lm_dlm_attr_recover_done.attr,
+	&lm_dlm_attr_cluster.attr,
 	NULL,
 };
 

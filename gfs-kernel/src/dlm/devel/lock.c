@@ -719,3 +719,23 @@ void process_submit(dlm_lock_t *lp)
 
 	do_dlm_lock(lp, r);
 }
+
+void lm_dlm_submit_delayed(dlm_t *dlm)
+{
+	dlm_lock_t *lp, *safe;
+
+	spin_lock(&dlm->async_lock);
+
+	list_for_each_entry_safe(lp, safe, &dlm->delayed, dlist) {
+		if (lp->type != QUEUE_LOCKS_BLOCKED)
+			continue;
+
+		lp->type = 0;
+		list_del(&lp->dlist);
+		list_add_tail(&lp->slist, &dlm->submit);
+
+		clear_bit(LFL_DLIST, &lp->flags);
+		set_bit(LFL_SLIST, &lp->flags);
+	}
+	spin_unlock(&dlm->async_lock);
+}
