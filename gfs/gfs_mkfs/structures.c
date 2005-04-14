@@ -61,43 +61,43 @@
 
 
 /**
- * rgrplength2bitblocks - blerg
- * @comline: the command line
- * @length: the number of blocks in a RG
+ * rgblocks2bitblocks - blerg
+ * @bsize: the FS block size
+ * @rgblocks: The total number of the blocks in the RG
+ *            Also, returns the number of allocateable blocks
+ * @bitblocks: Returns the number of bitmap blocks
  *
  * Give a number of blocks in a RG, figure out the number of blocks
  * needed for bitmaps.
  *
- * Returns: the number of bitmap blocks
  */
 
-uint32 rgrplength2bitblocks(commandline_t *comline, uint32 length)
+static void
+rgblocks2bitblocks(unsigned int bsize,
+		   uint32_t *rgblocks,
+		   uint32_t *bitblocks)
 {
-  uint32 bitbytes;
-  uint32 old_blocks = 0, blocks;
-  int tries = 0;
+	unsigned int bitbytes_provided, last = 0;
+	unsigned int bitbytes_needed;
 
-  for (;;)
-  {
-    bitbytes = (length - old_blocks) / GFS_NBBY;
-    blocks = 1;
+	*bitblocks = 1;
+	bitbytes_provided = bsize - sizeof(struct gfs_rgrp);
 
-    if (bitbytes > comline->bsize - sizeof(struct gfs_rgrp))
-    {
-      bitbytes -= comline->bsize - sizeof(struct gfs_rgrp);
-      blocks += DIV_RU(bitbytes, (comline->bsize - sizeof(struct gfs_meta_header)));
-    }
+	for (;;) {
+	        bitbytes_needed = (*rgblocks - *bitblocks) / GFS_NBBY;
 
-    if (blocks == old_blocks)
-      break;
+		if (bitbytes_provided >= bitbytes_needed) {
+			if (last >= bitbytes_needed)
+				(*bitblocks)--;
+			break;
+		}
 
-    old_blocks = blocks;
+		last = bitbytes_provided;
+		(*bitblocks)++;
+		bitbytes_provided += bsize - sizeof(struct gfs_meta_header);
+	}
 
-    if (tries++ > 10)
-      die("confused computing bitblock length\n");
-  }
-
-  return blocks;
+	*rgblocks = bitbytes_needed * GFS_NBBY;
 }
 
 
@@ -111,7 +111,6 @@ uint32 rgrplength2bitblocks(commandline_t *comline, uint32 length)
 void write_sb(commandline_t *comline, osi_list_t *rlist)
 {
   struct gfs_sb *sb;
-  rgrp_list_t *rl;
   uint64 jindex_dinode;
   char buf[comline->bsize];
   int x;
@@ -128,9 +127,15 @@ void write_sb(commandline_t *comline, osi_list_t *rlist)
 
   /*  Figure out the location of the journal index inode  */
 
-  rl = osi_list_entry(rlist->next, rgrp_list_t, list);
+  {
+	  rgrp_list_t *rl = osi_list_entry(rlist->next, rgrp_list_t, list);
+	  uint32_t rgblocks, bitblocks;
 
-  jindex_dinode = rl->rg_offset + rgrplength2bitblocks(comline, rl->rg_length);
+	  rgblocks = rl->rg_length;
+	  rgblocks2bitblocks(comline->bsize, &rgblocks, &bitblocks);
+
+	  jindex_dinode = rl->rg_offset + bitblocks;
+  }
 
 
   /*  Now, fill in the superblock  */
@@ -493,7 +498,7 @@ static char *fill_rindex(commandline_t *comline, osi_list_t *rlist)
   osi_list_t *tmp;
   char *buf;
   unsigned int r = 0;
-  uint32 length, blocks;
+  uint32 rgblocks, bitblocks;
 
 
   type_alloc(buf, char, comline->rgrps * sizeof(struct gfs_rindex));
@@ -503,24 +508,23 @@ static char *fill_rindex(commandline_t *comline, osi_list_t *rlist)
   {
     rl = osi_list_entry(tmp, rgrp_list_t, list);
 
-    length = rgrplength2bitblocks(comline, rl->rg_length);
-
-    blocks = rl->rg_length - length;
-    blocks -= blocks % GFS_NBBY;
-    comline->fssize += blocks;
+    rgblocks = rl->rg_length;
+    rgblocks2bitblocks(comline->bsize, &rgblocks, &bitblocks);
 
     type_zalloc(ri, struct gfs_rindex, 1);
     rl->ri = ri;
 
     ri->ri_addr = rl->rg_offset;
-    ri->ri_length = length;
+    ri->ri_length = bitblocks;
 
-    ri->ri_data1 = rl->rg_offset + length;
-    ri->ri_data = blocks;
+    ri->ri_data1 = rl->rg_offset + bitblocks;
+    ri->ri_data = rgblocks;
 
-    ri->ri_bitbytes = blocks / GFS_NBBY;
+    ri->ri_bitbytes = rgblocks / GFS_NBBY;
 
     gfs_rindex_out(ri, buf + r * sizeof(struct gfs_rindex));
+
+    comline->fssize += rgblocks;
 
     r++;
   }
