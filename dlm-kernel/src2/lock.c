@@ -455,7 +455,9 @@ void dlm_put_rsb(struct dlm_rsb *r)
 
 void unhold_rsb(struct dlm_rsb *r)
 {
-	DLM_ASSERT(!kref_put(&r->res_ref, toss_rsb),);
+	int rv;
+	rv = kref_put(&r->res_ref, toss_rsb);
+	DLM_ASSERT(!rv, dlm_print_rsb(r););
 }
 
 void kill_rsb(struct kref *kref)
@@ -685,7 +687,9 @@ void hold_lkb(struct dlm_lkb *lkb)
 
 void unhold_lkb(struct dlm_lkb *lkb)
 {
-	DLM_ASSERT(!kref_put(&lkb->lkb_ref, kill_lkb),);
+	int rv;
+	rv = kref_put(&lkb->lkb_ref, kill_lkb);
+	DLM_ASSERT(!rv, dlm_print_lkb(lkb););
 }
 
 void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode)
@@ -2498,7 +2502,7 @@ void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 	if (error == -EINPROGRESS)
 		error = 0;
 	if (error)
-		DLM_ASSERT(put_lkb(lkb), dlm_print_lkb(lkb);); 
+		put_lkb(lkb);
 	return;
 
  fail:
