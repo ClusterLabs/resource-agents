@@ -409,6 +409,50 @@ ipv6_find_interface()
 }
 
 
+#
+# Find slaves for a bonded interface
+#
+findSlaves()
+{
+	declare mastif=$1
+	declare line
+	declare intf
+	declare interfaces
+
+	if [ -z "$mastif" ]; then
+		echo "usage: findSlaves <master I/F>"
+		return 1
+	fi
+
+	line=$(/sbin/ip link list dev $mastif | grep "<.*MASTER.*>")
+	if [ $? -ne 0 ]; then
+		echo "Error determining status of $mastif"
+		return 1
+	fi
+
+	if [ -z "`/sbin/ip link list dev $mastif | grep \"<.*MASTER.*>\"`" ]
+	then
+		echo "$mastif is not a master device"
+		return 1
+	fi
+
+	while read line; do
+		set - $line
+		while [ $# -gt 0 ]; do
+			case $1 in
+			eth*:)
+				interfaces="${1/:/} $interfaces"
+				continue 2
+				;;
+			esac
+			shift
+		done
+	done < <( /sbin/ip link list | grep "master $mastif" )
+
+	echo $interfaces
+}
+
+
 ethernet_link_up()
 {
 	declare linkstate=$(ethtool $1 | grep "Link detected:" |\
@@ -428,6 +472,55 @@ ethernet_link_up()
 	return 1
 }
 
+
+#
+# Checks the physical link status of an ethernet or bonded interface.
+#
+network_link_up()
+{
+	declare slaves
+	declare intf_arg=$1
+	declare link_up=1		# Assume link down
+	declare intf_test
+
+	if [ -z "$intf_arg" ]; then
+		echo "usage: network_link_up <intf>"
+		return 1
+	fi
+	
+	#
+	# XXX assumes bond* interfaces are the bonding driver. (Fair
+	# assumption on Linux, I think)
+	#
+	if [ "${intf_arg/bond/}" != "$intf_arg" ]; then
+		
+		#
+		# Bonded driver.  Check link of all slaves for this interface.
+		# If any link is up, the bonding driver is expected to route
+		# traffic through that link.  Thus, the entire bonded link
+		# is declared up.
+		#
+		slaves=$(findSlaves $intf_arg)
+		if [ $? -ne 0 ]; then
+			echo "Error finding slaves of $intf_arg"
+			return 1
+		fi
+		for intf_test in $slaves; do
+			ethernet_link_up $intf_test && link_up=0
+		done
+	else
+		ethernet_link_up $intf_arg
+		link_up=$?
+	fi
+
+	if [ $link_up -eq 0 ]; then
+		echo "Link for $intf_arg: Detected"
+	else
+		echo "Link for $intf_arg: Not detected"
+	fi
+
+	return $link_up
+}
 
 
 ipv4_find_interface()
@@ -474,7 +567,7 @@ ipv6()
 	fi
 
 	if [ "$1" = "add" ]; then
-		ethernet_link_up $dev
+		network_link_up $dev
 		if [ $? -ne 0 ]; then
 			echo "Cannot add $addr to $dev; no link"
 			return 1
@@ -525,7 +618,7 @@ ipv4()
 	#fi
 
 	if [ "$1" = "add" ]; then
-		ethernet_link_up $dev
+		network_link_up $dev
 		if [ $? -ne 0 ]; then
 			echo "Cannot add $addr to $dev; no link"
 			return 1
@@ -600,7 +693,7 @@ ip_op()
 		fi
 
 		[ -n "$4" ] || echo -n "Checking link status of $dev..."
-		if ! ethernet_link_up $dev; then
+		if ! network_link_up $dev; then
 			[ -n "$4" ] || echo "No Link"
 			return 1
 		fi
