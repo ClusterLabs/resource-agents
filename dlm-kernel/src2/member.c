@@ -483,6 +483,7 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 	memset(rv, 0, sizeof(struct dlm_recover));
 
 	spin_lock(&ls->ls_recover_lock);
+
 	if (!ls->ls_nodeids_next) {
 		spin_unlock(&ls->ls_recover_lock);
 		log_error(ls, "existing nodeids_next");
@@ -490,14 +491,19 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 		error = -EINVAL;
 		goto out;
 	}
+
+	if (event_nr <= ls->ls_last_start) {
+		spin_unlock(&ls->ls_recover_lock);
+		log_error(ls, "start event_nr %d not greater than last %d",
+			  event_nr, ls->ls_last_start);
+		kfree(rv);
+		error = -EINVAL;
+		goto out;
+	}
+
 	rv->nodeids = ls->ls_nodeids_next;
 	ls->ls_nodeids_next = NULL;
 	rv->node_count = ls->ls_nodeids_next_count;
-
-	if (ls->ls_last_start == event_nr)
-		log_debug(ls, "repeated start %d stop %d finish %d",
-			  event_nr, ls->ls_last_stop, ls->ls_last_finish);
-
 	rv->event_id = event_nr;
 	ls->ls_last_start = event_nr;
 	list_add_tail(&rv->list, &ls->ls_recover);
@@ -507,8 +513,8 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 	set_bit(LSFL_JOIN_DONE, &ls->ls_flags);
 	wake_up(&ls->ls_wait_member);
 	dlm_recoverd_kick(ls);
-	log_error(ls, "dlm_ls_start %d", event_nr);
  out:
+	log_error(ls, "dlm_ls_start %d", event_nr);
 	return error;
 }
 
