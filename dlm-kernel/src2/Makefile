@@ -24,7 +24,7 @@ TARGET = dlm.patch
 
 PWD := $(shell pwd)
 
-obj-m := dlm.o
+obj-m := dlm.o dlm_device.o
 dlm-objs :=	ast.o \
 		config.o \
 		debug_fs.o \
@@ -42,8 +42,9 @@ dlm-objs :=	ast.o \
 		recover.o \
 		recoverd.o \
 		requestqueue.o \
-		device.o \
-		util.o \
+		util.o 
+
+dlm_device-objs := device.o 
 
 EXTRA_CFLAGS += -I$(obj)
 

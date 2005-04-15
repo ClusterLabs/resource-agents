@@ -33,22 +33,28 @@
 #include <linux/poll.h>
 #include <linux/signal.h>
 #include <linux/spinlock.h>
+#include <linux/idr.h>
 #include <asm/ioctls.h>
 
-#include "dlm_internal.h"
+#include "dlm.h"
 #include "dlm_device.h"
-#include "lock.h"
 #include "device.h"
+
+#include "dlm_internal.h" /* Only for DLM_RELEASE_NAME */
 
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
 static struct list_head user_ls_list;
 static struct semaphore user_ls_lock;
 
-/* Flags in li_flags */
-#define LI_FLAG_COMPLETE  1
-#define LI_FLAG_FIRSTLOCK 2
+/* Lock infos are stored in here indexed by lock ID */
+static DEFINE_IDR(lockinfo_idr);
+static struct rw_semaphore lockinfo_lock;
 
+/* Flags in li_flags */
+#define LI_FLAG_COMPLETE   1
+#define LI_FLAG_FIRSTLOCK  2
+#define LI_FLAG_PERSISTENT 3
 
 /* flags in ls_flags*/
 #define LS_FLAG_DELETED   1
@@ -60,6 +66,8 @@ static struct semaphore user_ls_lock;
 struct lock_info {
 	uint32_t li_magic;
 	uint8_t li_cmd;
+	int8_t	li_grmode;
+	int8_t  li_rqmode;
 	struct dlm_lksb li_lksb;
 	wait_queue_head_t li_waitq;
 	unsigned long li_flags;
@@ -107,8 +115,8 @@ static struct miscdevice ctl_device;
  * locks help by a process when it dies.
  */
 struct file_info {
-	struct list_head    fi_lkb_list;     /* List of active lkbs */
-	spinlock_t          fi_lkb_lock;
+	struct list_head    fi_li_list;      /* List of active lock_infos */
+	spinlock_t          fi_li_lock;
 	struct list_head    fi_ast_list;     /* Queue of ASTs to be delivered */
 	spinlock_t          fi_ast_lock;
 	wait_queue_head_t   fi_wait;
@@ -136,10 +144,63 @@ static void put_file_info(struct file_info *f)
 static void release_lockinfo(struct lock_info *li)
 {
 	put_file_info(li->li_file);
+
+	down_write(&lockinfo_lock);
+	idr_remove(&lockinfo_idr, li->li_lksb.sb_lkid);
+	up_write(&lockinfo_lock);
+
 	if (li->li_lksb.sb_lvbptr)
 		kfree(li->li_lksb.sb_lvbptr);
 	kfree(li);
+
+	module_put(THIS_MODULE);
 }
+
+static struct lock_info *get_lockinfo(uint32_t lockid)
+{
+	struct lock_info *li;
+
+	down_read(&lockinfo_lock);
+	li = idr_find(&lockinfo_idr, lockid);
+	up_read(&lockinfo_lock);
+
+	return li;
+}
+
+static int add_lockinfo(struct lock_info *li)
+{
+	int n;
+	int r;
+	int ret = -EINVAL;
+
+	down_write(&lockinfo_lock);
+
+	if (idr_find(&lockinfo_idr, li->li_lksb.sb_lkid))
+		goto out_up;
+
+	ret = -ENOMEM;
+	r = idr_pre_get(&lockinfo_idr, GFP_KERNEL);
+	if (!r)
+		goto out_up;
+
+	r = idr_get_new_above(&lockinfo_idr, li, li->li_lksb.sb_lkid, &n);
+	if (r) {
+		goto out_up;
+	}
+
+	if (n != li->li_lksb.sb_lkid) {
+		idr_remove(&lockinfo_idr, n);
+		goto out_up;
+	}
+
+	ret = 0;
+
+ out_up:
+	up_write(&lockinfo_lock);
+
+	return ret;
+}
+
 
 static struct user_ls *__find_lockspace(int minor)
 {
@@ -208,7 +269,7 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 
 	status = misc_register(&newls->ls_miscinfo);
 	if (status) {
-		log_print("failed to register misc device for %s", name);
+		printk(KERN_ERR "dlm: failed to register misc device for %s", name);
 		dlm_release_lockspace(newls->ls_lockspace, 0);
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
@@ -306,13 +367,14 @@ static void ast_routine(void *param)
 	/* If it's an async request then post data to the user's AST queue. */
 	if (li->li_castaddr) {
 		int lvb_updated = 0;
-		int err;
-		struct dlm_lkb *lkb;
 
 		/* See if the lvb has been updated */
-		err = dlm_find_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid, &lkb);
-		if (!err && lkb->lkb_flags & DLM_IFL_RETURNLVB)
+		// TODO: locking core does not yet set this...
+		if (li->li_lksb.sb_flags & DLM_SBF_LVBUPDATED)
 			lvb_updated = 1;
+
+		if (li->li_lksb.sb_status == 0)
+			li->li_grmode = li->li_rqmode;
 
 		/* Only queue AST if the device is still open */
 		if (test_bit(1, &li->li_file->fi_flags))
@@ -320,26 +382,19 @@ static void ast_routine(void *param)
 
 		/* If it's a new lock operation that failed, then
 		 * remove it from the owner queue and free the
-		 * lock_info. The DLM will not free the LKB until this
-		 * AST has completed.
+		 * lock_info.
 		 */
 		if (test_and_clear_bit(LI_FLAG_FIRSTLOCK, &li->li_flags) &&
 		    li->li_lksb.sb_status != 0) {
-			struct dlm_lkb *lkb;
-			int ret;
 
 			/* Wait till dlm_lock() has finished */
 			down(&li->li_firstlock);
 			up(&li->li_firstlock);
 
-			/* If the LKB has been freed then we need to tidy up too */
-			ret = dlm_find_lkb(li->li_file->fi_ls->ls_lockspace, li->li_lksb.sb_lkid, &lkb);
-			if (ret) {
-				spin_lock(&li->li_file->fi_lkb_lock);
-				list_del(&li->li_ownerqueue);
-				spin_unlock(&li->li_file->fi_lkb_lock);
-				release_lockinfo(li);
-			}
+			spin_lock(&li->li_file->fi_li_lock);
+			list_del(&li->li_ownerqueue);
+			spin_unlock(&li->li_file->fi_li_lock);
+			release_lockinfo(li);
 			return;
 		}
 		/* Free unlocks & queries */
@@ -399,10 +454,10 @@ static int dlm_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 
 	atomic_inc(&lsinfo->ls_refcnt);
-	INIT_LIST_HEAD(&f->fi_lkb_list);
+	INIT_LIST_HEAD(&f->fi_li_list);
 	INIT_LIST_HEAD(&f->fi_ast_list);
+	spin_lock_init(&f->fi_li_lock);
 	spin_lock_init(&f->fi_ast_lock);
-	spin_lock_init(&f->fi_lkb_lock);
 	init_waitqueue_head(&f->fi_wait);
 	f->fi_ls = lsinfo;
 	atomic_set(&f->fi_refcnt, 1);
@@ -421,7 +476,9 @@ static int check_version(struct dlm_write_request *req)
 	    (req->version[0] == DLM_DEVICE_VERSION_MAJOR &&
 	     req->version[1] > DLM_DEVICE_VERSION_MINOR)) {
 
-		log_print("version mismatch user (%d.%d.%d) kernel (%d.%d.%d)",
+		printk(KERN_DEBUG "dlm: process %s (%d) version mismatch user (%d.%d.%d) kernel (%d.%d.%d),",
+		       current->comm,
+		       current->pid,
 		       req->version[0],
 		       req->version[1],
 		       req->version[2],
@@ -470,40 +527,29 @@ static int dlm_close(struct inode *inode, struct file *file)
 	 * Free any outstanding locks, they are on the
 	 * list in LIFO order so there should be no problems
 	 * about unlocking parents before children.
-	 * Although we don't remove the lkbs from the list here
-	 * (what would be the point?), foreach_safe is needed
-	 * because the lkbs are freed during dlm_unlock operations
 	 */
-	list_for_each_entry_safe(old_li, safe, &f->fi_lkb_list, li_ownerqueue) {
+	list_for_each_entry_safe(old_li, safe, &f->fi_li_list, li_ownerqueue) {
 		int status;
-		int lock_status;
 		int flags = 0;
-		struct dlm_lkb *lkb = NULL;
 
-		status = dlm_find_lkb(f->fi_ls->ls_lockspace, old_li->li_lksb.sb_lkid, &lkb);
-
-		/* Don't unlock persistent locks */
-		if (lkb && lkb->lkb_flags & DLM_IFL_PERSISTENT) {
+		/* Don't unlock persistent locks, just mark them orphaned */
+		if (test_bit(LI_FLAG_PERSISTENT, &old_li->li_flags)) {
 			list_del(&old_li->li_ownerqueue);
 
 			/* Update master copy */
-			if (lkb->lkb_resource->res_nodeid) {
-				li.li_lksb.sb_lkid = lkb->lkb_id;
-				status = dlm_lock(f->fi_ls->ls_lockspace,
-						lkb->lkb_grmode, &li.li_lksb,
-						DLM_LKF_CONVERT|DLM_LKF_ORPHAN,
-						NULL, 0, 0, ast_routine, &li,
-						NULL, NULL);
-				if (status == 0)
-					wait_for_ast(&li);
-			}
-			lkb->lkb_flags |= DLM_IFL_ORPHAN;
+			// TODO: Check locking core updates the local and remote ORPHAN flags
+			li.li_lksb.sb_lkid = old_li->li_lksb.sb_lkid;
+			status = dlm_lock(f->fi_ls->ls_lockspace,
+					  old_li->li_grmode, &li.li_lksb,
+					  DLM_LKF_CONVERT|DLM_LKF_ORPHAN,
+					  NULL, 0, 0, ast_routine, NULL, /* also clear ast param */
+					  NULL, NULL);
+
+			if (status != 0)
+				printk("dlm: Error orphaning lock %x: %d\n", old_li->li_lksb.sb_lkid, status);
 
 			/* But tidy our references in it */
-			kfree(old_li);
-			lkb->lkb_astparam = (long)NULL;
-			put_file_info(f);
-
+			release_lockinfo(old_li);
 			continue;
 		}
 
@@ -514,16 +560,15 @@ static int dlm_close(struct inode *inode, struct file *file)
 		 *    if it was converting then it will be reverted to GRANTED,
 		 *    then we will unlock it.
 		 */
-		lock_status = lkb->lkb_status;
 
-		if (lock_status != DLM_LKSTS_GRANTED)
+		if (old_li->li_grmode != old_li->li_rqmode)
 			flags = DLM_LKF_CANCEL;
 
-		if (lkb->lkb_grmode >= DLM_LOCK_PW)
+		if (old_li->li_grmode >= DLM_LOCK_PW)
 			flags |= DLM_LKF_IVVALBLK;
 
-		status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, flags, &li.li_lksb, &li);
-
+		status = dlm_unlock(f->fi_ls->ls_lockspace,
+				    old_li->li_lksb.sb_lkid, flags, &li.li_lksb, &li);
 		/* Must wait for it to complete as the next lock could be its
 		 * parent */
 		if (status == 0)
@@ -531,18 +576,18 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		/* If it was waiting for a conversion, it will
 		   now be granted so we can unlock it properly */
-		if (lock_status == DLM_LKSTS_CONVERT) {
+		if (flags & DLM_LKF_CANCEL) {
 			flags &= ~DLM_LKF_CANCEL;
 			clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
-			status = dlm_unlock(f->fi_ls->ls_lockspace, lkb->lkb_id, flags, &li.li_lksb, &li);
+			status = dlm_unlock(f->fi_ls->ls_lockspace,
+					    old_li->li_lksb.sb_lkid, flags, &li.li_lksb, &li);
 
 			if (status == 0)
 				wait_for_ast(&li);
 		}
 		/* Unlock suceeded, free the lock_info struct. */
 		if (status == 0) {
-			kfree(old_li);
-			put_file_info(f);
+			release_lockinfo(old_li);
 		}
 	}
 
@@ -558,7 +603,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		if (lsinfo->ls_lockspace) {
 			if (test_bit(LS_FLAG_AUTOFREE, &lsinfo->ls_flags)) {
-				unregister_lockspace(lsinfo, 1);
+//TODO this breaks!				unregister_lockspace(lsinfo, 1);
 			}
 		}
 		else {
@@ -861,6 +906,9 @@ static struct lock_info *allocate_lockinfo(struct file_info *fi, uint8_t cmd,
 {
 	struct lock_info *li;
 
+	if (!try_module_get(THIS_MODULE))
+		return NULL;
+
 	li = kmalloc(sizeof(struct lock_info), GFP_KERNEL);
 	if (li) {
 		li->li_magic     = LOCKINFO_MAGIC;
@@ -868,8 +916,12 @@ static struct lock_info *allocate_lockinfo(struct file_info *fi, uint8_t cmd,
 		li->li_cmd       = cmd;
 		li->li_queryinfo = NULL;
 		li->li_flags     = 0;
+		li->li_grmode    = -1;
+		li->li_rqmode    = -1;
 		li->li_pend_bastparam = NULL;
 		li->li_pend_bastaddr  = NULL;
+		li->li_castaddr   = NULL;
+		li->li_castparam  = NULL;
 		li->li_lksb.sb_lvbptr = NULL;
 		li->li_bastaddr  = kparams->bastaddr;
 		li->li_bastparam = kparams->bastparam;
@@ -897,29 +949,31 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 	if ((kparams->flags & DLM_LKF_PERSISTENT) && kparams->parent)
 		return -EINVAL;
 
-        /* For conversions, the lock will already have a lock_info
-	   block squirelled away in astparam */
+        /* For conversions, there should already be a lockinfo struct,
+	   unless we are adopting an orphaned persistent lock */
 	if (kparams->flags & DLM_LKF_CONVERT) {
-		struct dlm_lkb *lkb;
 
-		if (dlm_find_lkb(fi->fi_ls->ls_lockspace, kparams->lkid, &lkb))
-			return -EINVAL;
+		li = get_lockinfo(kparams->lkid);
 
-		li = (struct lock_info *)lkb->lkb_astparam;
-
-		/* li may be NULL if the lock was persistent and the process went
-		   away, so we need to allocate a new one */
-		if (!li) {
+		/* If this is a persistent lock we will have to create a lockinfo again */
+		if (!li && DLM_LKF_PERSISTENT) {
 			li = allocate_lockinfo(fi, cmd, kparams);
-			if (li) {
-				spin_lock(&fi->fi_lkb_lock);
-				list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
-				spin_unlock(&fi->fi_lkb_lock);
-			}
-			else {
-				return -ENOMEM;
-			}
+
+			li->li_lksb.sb_lkid = kparams->lkid;
+			li->li_castaddr  = kparams->castaddr;
+			li->li_castparam = kparams->castparam;
+
+			/* OK, this isn;t exactly a FIRSTLOCK but it is the first
+			   time we've used this lockinfo, and if things fail we want
+			   rid of it */
+			init_MUTEX_LOCKED(&li->li_firstlock);
+			set_bit(LI_FLAG_FIRSTLOCK, &li->li_flags);
+			add_lockinfo(li);
+
+			/* TODO: do a query to get the current state ?? */
 		}
+		if (!li)
+			return -EINVAL;
 
 		if (li->li_magic != LOCKINFO_MAGIC)
 			return -EINVAL;
@@ -952,6 +1006,9 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 	li->li_castaddr  = kparams->castaddr;
 	li->li_castparam = kparams->castparam;
 	li->li_lksb.sb_lkid = kparams->lkid;
+	li->li_rqmode    = kparams->mode;
+	if (kparams->flags & DLM_LKF_PERSISTENT)
+		set_bit(LI_FLAG_PERSISTENT, &li->li_flags);
 
 	/* Copy in the value block */
 	if (kparams->flags & DLM_LKF_VALBLK) {
@@ -977,14 +1034,18 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 			  (li->li_pend_bastaddr || li->li_bastaddr) ?
 			   bast_routine : NULL,
 			  kparams->range.ra_end ? &kparams->range : NULL);
+	if (status)
+		goto out_err;
 
 	/* If it succeeded (this far) with a new lock then keep track of
-	   it on the file's lkb list */
-	if (!status && !(kparams->flags & DLM_LKF_CONVERT)) {
+	   it on the file's lockinfo list */
+	if (!status && test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags)) {
 
-		spin_lock(&fi->fi_lkb_lock);
-		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
-		spin_unlock(&fi->fi_lkb_lock);
+		spin_lock(&fi->fi_li_lock);
+		list_add(&li->li_ownerqueue, &fi->fi_li_list);
+		spin_unlock(&fi->fi_li_lock);
+		if (add_lockinfo(li))
+			printk(KERN_WARNING "Add lockinfo failed\n");
 
 		up(&li->li_firstlock);
 	}
@@ -994,7 +1055,6 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 
  out_err:
 	if (test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags)) {
-
 		release_lockinfo(li);
 	}
 	return status;
@@ -1004,27 +1064,17 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_params *kparams)
 {
 	struct lock_info *li;
-	struct dlm_lkb *lkb;
 	int status;
 	int convert_cancel = 0;
 
-	if (dlm_find_lkb(fi->fi_ls->ls_lockspace, kparams->lkid, &lkb))
-		return -EINVAL;
-
-	/* Cancelling a conversion doesn't remove the lock...*/
-	if (kparams->flags & DLM_LKF_CANCEL &&
-	    lkb->lkb_status == DLM_LKSTS_CONVERT) {
-		convert_cancel = 1;
-	}
-
-	li = (struct lock_info *)lkb->lkb_astparam;
+	li = get_lockinfo(kparams->lkid);
 	if (!li) {
 		li = allocate_lockinfo(fi, cmd, kparams);
-		spin_lock(&fi->fi_lkb_lock);
-		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
-		spin_unlock(&fi->fi_lkb_lock);
+		spin_lock(&fi->fi_li_lock);
+		list_add(&li->li_ownerqueue, &fi->fi_li_list);
+		spin_unlock(&fi->fi_li_lock);
 	}
-	if (!li)
+ 	if (!li)
 		return -ENOMEM;
 
 	if (li->li_magic != LOCKINFO_MAGIC)
@@ -1034,6 +1084,12 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_par
 	li->li_castparam = kparams->castparam;
 	li->li_cmd       = cmd;
 
+	/* Cancelling a conversion doesn't remove the lock...*/
+	if (kparams->flags & DLM_LKF_CANCEL &&
+	    li->li_grmode != -1) {
+		convert_cancel = 1;
+	}
+
 	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
 	   the existing li_castaddr as that's the completion routine for
 	   unlocks. dlm_unlock_wait() specifies a new AST routine to be
@@ -1041,23 +1097,15 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_par
 	if (kparams->castaddr)
 		li->li_castaddr = kparams->castaddr;
 
-	/* Have to do it here cos the lkb may not exist after
-	 * dlm_unlock() */
-	if (!convert_cancel) {
-		spin_lock(&fi->fi_lkb_lock);
-		list_del(&li->li_ownerqueue);
-		spin_unlock(&fi->fi_lkb_lock);
-	}
-
 	/* Use existing lksb & astparams */
 	status = dlm_unlock(fi->fi_ls->ls_lockspace,
 			     kparams->lkid,
 			     kparams->flags, &li->li_lksb, li);
-	if (status && !convert_cancel) {
-		/* It failed, put it back on the list */
-		spin_lock(&fi->fi_lkb_lock);
-		list_add(&li->li_ownerqueue, &fi->fi_lkb_list);
-		spin_unlock(&fi->fi_lkb_lock);
+
+	if (!status && !convert_cancel) {
+		spin_lock(&fi->fi_li_lock);
+		list_del(&li->li_ownerqueue);
+		spin_unlock(&fi->fi_li_lock);
 	}
 
 	return status;
@@ -1182,12 +1230,13 @@ static struct file_operations _dlm_ctl_fops = {
 /*
  * Create control device
  */
-int dlm_device_init(void)
+int __init dlm_device_init(void)
 {
 	int r;
 
 	INIT_LIST_HEAD(&user_ls_list);
 	init_MUTEX(&user_ls_lock);
+	init_rwsem(&lockinfo_lock);
 
 	ctl_device.name = "dlm-control";
 	ctl_device.fops = &_dlm_ctl_fops;
@@ -1195,17 +1244,24 @@ int dlm_device_init(void)
 
 	r = misc_register(&ctl_device);
 	if (r) {
-		log_print("misc_register failed for DLM control device");
+		printk(KERN_ERR "dlm: misc_register failed for DLM control device");
 		return r;
 	}
 
 	return 0;
 }
 
-void dlm_device_exit(void)
+void __exit dlm_device_exit(void)
 {
 	misc_deregister(&ctl_device);
 }
+
+MODULE_DESCRIPTION("Distributed Lock Manager device interface " DLM_RELEASE_NAME);
+MODULE_AUTHOR("Red Hat, Inc.");
+MODULE_LICENSE("GPL");
+
+module_init(dlm_device_init);
+module_exit(dlm_device_exit);
 
 /*
  * Overrides for Emacs so that we follow Linus's tabbing style.
