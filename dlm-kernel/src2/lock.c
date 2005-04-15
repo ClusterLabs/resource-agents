@@ -3331,28 +3331,29 @@ int dlm_grant_after_purge(struct dlm_ls *ls)
 	return 0;
 }
 
-struct dlm_lkb *search_remid_list(struct list_head *head, uint32_t remid)
+struct dlm_lkb *search_remid_list(struct list_head *head, int nodeid,
+				  uint32_t remid)
 {
 	struct dlm_lkb *lkb;
 
 	list_for_each_entry(lkb, head, lkb_statequeue) {
-		if (lkb->lkb_remid == remid)
+		if (lkb->lkb_nodeid == nodeid && lkb->lkb_remid == remid)
 			return lkb;
 	}
-	return lkb;
+	return NULL;
 }
 
-struct dlm_lkb *search_remid(struct dlm_rsb *r, uint32_t remid)
+struct dlm_lkb *search_remid(struct dlm_rsb *r, int nodeid, uint32_t remid)
 {
 	struct dlm_lkb *lkb;
 
-	lkb = search_remid_list(&r->res_grantqueue, remid);
+	lkb = search_remid_list(&r->res_grantqueue, nodeid, remid);
 	if (lkb)
 		return lkb;
-	lkb = search_remid_list(&r->res_convertqueue, remid);
+	lkb = search_remid_list(&r->res_convertqueue, nodeid, remid);
 	if (lkb)
 		return lkb;
-	lkb = search_remid_list(&r->res_waitqueue, remid);
+	lkb = search_remid_list(&r->res_waitqueue, nodeid, remid);
 	if (lkb)
 		return lkb;
 	return NULL;
@@ -3416,10 +3417,10 @@ int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 
 	lock_rsb(r);
 
-	lkb = search_remid(r, rl->rl_id);
+	lkb = search_remid(r, rc->rc_header.h_nodeid, rl->rl_id);
 	if (lkb) {
 		error = -EEXIST;
-		goto out_unlock;
+		goto out_remid;
 	}
 
 	error = create_lkb(ls, &lkb);
@@ -3434,11 +3435,12 @@ int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 
 	attach_lkb(r, lkb);
 	add_lkb(r, lkb, rl->rl_status);
+	error = 0;
 
+ out_remid:
 	/* this is the new value returned to the lock holder for
 	   saving in its process-copy lkb */
 	rl->rl_remid = lkb->lkb_id;
-	error = 0;
 
  out_unlock:
 	unlock_rsb(r);
@@ -3470,11 +3472,11 @@ int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 	lock_rsb(r);
 
 	switch (error) {
+	case -EEXIST:
+		log_debug(ls, "master copy exists %x", lkb->lkb_id);
+		/* fall through */
 	case 0:
 		lkb->lkb_remid = rl->rl_remid;
-		break;
-	case -EEXIST:
-		log_debug(ls, "lkb %x previously recovered", lkb->lkb_id);
 		break;
 	default:
 		log_error(ls, "dlm_recover_process_copy unknown error %d %x",
