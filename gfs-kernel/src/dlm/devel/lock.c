@@ -738,4 +738,5 @@ void lm_dlm_submit_delayed(dlm_t *dlm)
 		set_bit(LFL_SLIST, &lp->flags);
 	}
 	spin_unlock(&dlm->async_lock);
+	wake_up(&dlm->wait);
 }
