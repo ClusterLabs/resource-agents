@@ -708,15 +708,15 @@ void lkb_add_ordered(struct list_head *new, struct list_head *head, int mode)
 
 /* add/remove lkb to rsb's grant/convert/wait queue */
 
-void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int sts)
+void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int status)
 {
 	kref_get(&lkb->lkb_ref);
 
 	DLM_ASSERT(!lkb->lkb_status, dlm_print_lkb(lkb););
 
-	lkb->lkb_status = sts;
+	lkb->lkb_status = status;
 
-	switch(sts) {
+	switch (status) {
 	case DLM_LKSTS_WAITING:
 		if (lkb->lkb_exflags & DLM_LKF_HEADQUE)
 			list_add(&lkb->lkb_statequeue, &r->res_waitqueue);
@@ -1502,6 +1502,9 @@ void _remove_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	del_lkb(r, lkb);
 	lkb->lkb_grmode = DLM_LOCK_IV;
+	/* this unhold undoes the original ref from create_lkb()
+	   so this leads to the lkb being freed */
+	unhold_lkb(lkb);
 }
 
 void remove_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
@@ -1518,7 +1521,21 @@ void remove_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
 void revert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	lkb->lkb_rqmode = DLM_LOCK_IV;
-	move_lkb(r, lkb, DLM_LKSTS_GRANTED);
+
+	switch (lkb->lkb_status) {
+	case DLM_LKSTS_CONVERT:
+		move_lkb(r, lkb, DLM_LKSTS_GRANTED);
+		break;
+	case DLM_LKSTS_WAITING:
+		del_lkb(r, lkb);
+		lkb->lkb_grmode = DLM_LOCK_IV;
+		/* this unhold undoes the original ref from create_lkb()
+		   so this leads to the lkb being freed */
+		unhold_lkb(lkb);
+		break;
+	default:
+		log_print("invalid status for revert %d", lkb->lkb_status);
+	}
 }
 
 void revert_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb)
@@ -2019,15 +2036,9 @@ int do_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	remove_lock(r, lkb);
 	queue_cast(r, lkb, -DLM_EUNLOCK);
-	/* this unhold undoes the original ref from create_lkb()
-	   so this leads to the lkb being freed */
-	unhold_lkb(lkb);
 	grant_pending_locks(r);
 	return -DLM_EUNLOCK;
 }
-
-/* FIXME: cancel can also remove an lkb from the waitqueue which
-   leads to the lkb being freed */
 
 int do_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
@@ -2847,9 +2858,6 @@ void _receive_unlock_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		receive_flags_reply(lkb, ms);
 		remove_lock_pc(r, lkb);
 		queue_cast(r, lkb, -DLM_EUNLOCK);
-		/* this unhold undoes the original ref from create_lkb()
-	   	   so this leads to the lkb being freed */
-		unhold_lkb(lkb);
 		break;
 	default:
 		log_error(ls, "receive_unlock_reply unknown error %d", error);
