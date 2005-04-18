@@ -2110,14 +2110,10 @@ int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 
 int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
-	struct dlm_header *hd = (struct dlm_header *) ms;
-
 	/* log_print("send %d lkid %x remlkid %x", ms->m_type,
 		  ms->m_lkid, ms->m_remlkid); */
 
-	/* FIXME: do byte swapping here */
-	hd->h_length = cpu_to_le16(hd->h_length);
-
+	dlm_message_out(ms);
 	lowcomms_commit_buffer(mh);
 	return 0;
 }
@@ -2988,9 +2984,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 	struct dlm_ls *ls;
 	int error;
 
-	/* FIXME: do byte swapping here */
-	hd->h_length = le16_to_cpu(hd->h_length);
-	DLM_ASSERT(hd->h_nodeid,);
+	dlm_message_in(ms);
 
 	ls = find_lockspace_global(hd->h_lockspace);
 	if (!ls) {

@@ -22,6 +22,7 @@
 #include "config.h"
 #include "memory.h"
 #include "lock.h"
+#include "util.h"
 
 
 static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
@@ -70,13 +71,9 @@ int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
 
 int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh, struct dlm_rcom *rc)
 {
-	struct dlm_header *hd = (struct dlm_header *) rc;
-
-	/* FIXME: do byte swapping here */
-	hd->h_length = cpu_to_le16(hd->h_length);
-
 	log_print("send_rcom type %d result %d", rc->rc_type, rc->rc_result);
 
+	dlm_rcom_out(rc);
 	lowcomms_commit_buffer(mh);
 	return 0;
 }
@@ -349,9 +346,7 @@ static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)
 	rc->rc_type = DLM_RCOM_STATUS_REPLY;
 	rc->rc_result = 0;
 
-	/* FIXME: do byte swapping here */
-	rc->rc_header.h_length = cpu_to_le16(rc->rc_header.h_length);
-
+	dlm_rcom_out(rc);
 	lowcomms_commit_buffer(mh);
 
 	return 0;
@@ -365,8 +360,7 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 	struct dlm_rcom *rc = (struct dlm_rcom *) hd;
 	struct dlm_ls *ls;
 
-	/* FIXME: do byte swapping here */
-	hd->h_length = le16_to_cpu(hd->h_length);
+	dlm_rcom_in(rc);
 
 	/* If the lockspace doesn't exist then still send a status message
 	   back; it's possible that it just doesn't have its global_id yet. */
