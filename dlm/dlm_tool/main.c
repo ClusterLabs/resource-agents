@@ -46,8 +46,8 @@ static void print_usage(void)
 	printf("stop       <ls_name>\n");
 	printf("terminate  <ls_name>\n");
 	printf("start      <ls_name> <event_nr> <type> <nodeid>...\n");
+	printf("get_done   <ls_name>\n");
 	printf("finish     <ls_name> <event_nr>\n");
-	printf("get_done   <ls_name> <event_nr>\n");
 	printf("poll_done  <ls_name> <event_nr>\n");
 	printf("set_id     <ls_name> <id>\n");
 	printf("\n");

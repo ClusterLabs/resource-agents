@@ -32,12 +32,12 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "dlm_member.h"
+#include "dlm_node.h"
 
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 
 
-int do_command(struct dlm_member_ioctl *mi);
+int do_command(int op, struct dlm_node_ioctl *ni);
 
 /*
 set_local  <nodeid> <ipaddr> [<weight>]
@@ -56,57 +56,52 @@ set_id     <ls_name> <id>
  * with set_local and set_node
  */
 
-static void init_mi(struct dlm_member_ioctl *mi)
+static void init_ni(struct dlm_node_ioctl *ni)
 {
-	memset(mi, 0, sizeof(struct dlm_member_ioctl));
+	memset(ni, 0, sizeof(struct dlm_node_ioctl));
 
-	mi->version[0] = DLM_MEMBER_VERSION_MAJOR;
-	mi->version[1] = DLM_MEMBER_VERSION_MINOR;
-	mi->version[2] = DLM_MEMBER_VERSION_PATCH;
-
-	mi->data_size = sizeof(struct dlm_member_ioctl);
-	mi->data_start = sizeof(struct dlm_member_ioctl);
+	ni->version[0] = DLM_NODE_VERSION_MAJOR;
+	ni->version[1] = DLM_NODE_VERSION_MINOR;
+	ni->version[2] = DLM_NODE_VERSION_PATCH;
 }
 
-static void set_ipaddr(struct dlm_member_ioctl *mi, char *ip)
+static void set_ipaddr(struct dlm_node_ioctl *ni, char *ip)
 {
 	struct sockaddr_in sin;
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	inet_pton(AF_INET, ip, &sin.sin_addr);
-	memcpy(mi->addr, &sin, sizeof(sin));
+	memcpy(ni->addr, &sin, sizeof(sin));
 }
 
 int set_node(int argc, char **argv)
 {
-	struct dlm_member_ioctl mi;
+	struct dlm_node_ioctl ni;
 
 	if (argc < 2 || argc > 3)
 		return -EINVAL;
 
-	init_mi(&mi);
-	strcpy(mi.op, "set_node");
-	mi.nodeid = atoi(argv[0]);
-	set_ipaddr(&mi, argv[1]);
+	init_ni(&ni);
+	ni.nodeid = atoi(argv[0]);
+	set_ipaddr(&ni, argv[1]);
 	if (argc > 2)
-		mi.weight = atoi(argv[2]);
-	return do_command(&mi);
+		ni.weight = atoi(argv[2]);
+	return do_command(DLM_SET_NODE, &ni);
 }
 
 int set_local(int argc, char **argv)
 {
-	struct dlm_member_ioctl mi;
+	struct dlm_node_ioctl ni;
 
 	if (argc < 2 || argc > 3)
 		return -EINVAL;
 
-	init_mi(&mi);
-	strcpy(mi.op, "set_local");
-	mi.nodeid = atoi(argv[0]);
-	set_ipaddr(&mi, argv[1]);
+	init_ni(&ni);
+	ni.nodeid = atoi(argv[0]);
+	set_ipaddr(&ni, argv[1]);
 	if (argc > 2)
-		mi.weight = atoi(argv[2]);
-	return do_command(&mi);
+		ni.weight = atoi(argv[2]);
+	return do_command(DLM_SET_LOCAL, &ni);
 }
 
 /*

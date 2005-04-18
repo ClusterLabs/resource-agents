@@ -32,13 +32,13 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "dlm_member.h"
+#include "dlm_node.h"
 
 #define PROC_MISC               "/proc/misc"
 #define PROC_DEVICES            "/proc/devices"
 #define MISC_NAME               "misc"
-#define DLM_MEMBER_CONTROL_DIR  "/dev/misc"
-#define DLM_MEMBER_CONTROL_NAME "dlm-member"
+#define DLM_NODE_CONTROL_DIR    "/dev/misc"
+#define DLM_NODE_CONTROL_NAME   "dlm-node"
 
 #define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args);
 
@@ -75,7 +75,7 @@ static int get_proc_number(const char *file, const char *name, uint32_t *number)
 static int control_device_number(uint32_t *major, uint32_t *minor)
 {
 	if (!get_proc_number(PROC_DEVICES, MISC_NAME, major) ||
-	    !get_proc_number(PROC_MISC, DLM_MEMBER_MISC_NAME, minor)) {
+	    !get_proc_number(PROC_MISC, DLM_NODE_MISC_NAME, minor)) {
 		*major = 0;
 		return 0;
 	}
@@ -127,10 +127,10 @@ static int create_control(const char *control, uint32_t major, uint32_t minor)
 		return 0;
 
 	old_umask = umask(0022);
-	ret = mkdir(DLM_MEMBER_CONTROL_DIR, 0777);
+	ret = mkdir(DLM_NODE_CONTROL_DIR, 0777);
 	umask(old_umask);
 	if (ret < 0 && errno != EEXIST) {
-		log_error("%s: mkdir failed: %s", DLM_MEMBER_CONTROL_DIR,
+		log_error("%s: mkdir failed: %s", DLM_NODE_CONTROL_DIR,
 			  strerror(errno));
 		return 0;
 	}
@@ -152,7 +152,7 @@ static int open_control(void)
 		return 0;
 
 	snprintf(control, sizeof(control), "%s/%s",
-		 DLM_MEMBER_CONTROL_DIR, DLM_MEMBER_CONTROL_NAME);
+		 DLM_NODE_CONTROL_DIR, DLM_NODE_CONTROL_NAME);
 
 	if (!control_device_number(&major, &minor)) {
 		log_error("Is dlm missing from kernel?");
@@ -175,7 +175,7 @@ static int open_control(void)
 	return 0;
 }
 
-int do_command(struct dlm_member_ioctl *mi)
+int do_command(int op, struct dlm_node_ioctl *mi)
 {
 	int error;
 
@@ -183,9 +183,9 @@ int do_command(struct dlm_member_ioctl *mi)
 	if (error)
 		goto out;
 
-	error = ioctl(control_fd, DLM_MEMBER_OP, mi);
+	error = ioctl(control_fd, op, mi);
 	if (error)
-		log_error("dlm-member ioctl error %d errno %d", error, errno);
+		log_error("dlm-node ioctl error %d errno %d", error, errno);
  out:
 	return error;
 }
