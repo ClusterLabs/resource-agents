@@ -11,7 +11,6 @@
 ******************************************************************************/
 
 #include "dlm_tool.h"
-#include "dlm_member.h"
 #include "copyright.cf"
 
 char *prog_name;
@@ -68,12 +67,6 @@ static void print_version(void)
 {
 	printf("dlm_tool (built %s %s)\n", __DATE__, __TIME__);
 	printf("%s\n", REDHAT_COPYRIGHT);
-	printf("tool ioctl version: %d.%d.%d\n",
-	       DLM_MEMBER_VERSION_MAJOR,
-	       DLM_MEMBER_VERSION_MINOR,
-	       DLM_MEMBER_VERSION_PATCH);
-
-	/* FIXME: get ioctl version from kernel */
 }
 
 static void decode_arguments(int *argc, char **argv)
