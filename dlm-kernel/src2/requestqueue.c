@@ -141,9 +141,9 @@ void dlm_purge_requestqueue(struct dlm_ls *ls)
 
 	down(&ls->ls_requestqueue_lock);
 	list_for_each_entry_safe(e, safe, &ls->ls_requestqueue, list) {
+
 		ms = (struct dlm_message *) e->request;
-		/* FIXME: will need byte swapping */
-		mstype = ms->m_type;
+		mstype = le32_to_cpu(ms->m_type);
 
 		if (dlm_is_removed(ls, e->nodeid) ||
 		    mstype == DLM_MSG_REMOVE ||
