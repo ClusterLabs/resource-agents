@@ -34,10 +34,10 @@ dlm-objs :=	ast.o \
 		lowcomms.o \
 		main.o \
 		member.o \
-		member_ioctl.o \
 		member_sysfs.o \
 		memory.o \
 		midcomms.o \
+		node_ioctl.o \
 		rcom.o \
 		recover.o \
 		recoverd.o \

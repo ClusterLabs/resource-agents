@@ -13,7 +13,6 @@
 #include <linux/socket.h>
 
 #include "dlm_internal.h"
-#include "member_ioctl.h"
 #include "member_sysfs.h"
 #include "lockspace.h"
 #include "member.h"
@@ -136,13 +135,7 @@ int __init dlm_member_init(void)
 	INIT_LIST_HEAD(&nodes);
 	init_MUTEX(&nodes_sem);
 
-	error = dlm_member_ioctl_init();
-	if (error)
-		return error;
-
 	error = dlm_member_sysfs_init();
-	if (error)
-		dlm_member_ioctl_exit();
 
 	return error;
 }
@@ -152,7 +145,6 @@ void dlm_member_exit(void)
 	int i;
 
 	dlm_member_sysfs_exit();
-	dlm_member_ioctl_exit();
 	for (i = 0; i < local_count; i++)
 		kfree(local_addr[i]);
 	local_nodeid = 0;
@@ -379,25 +371,25 @@ int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv)
 }
 
 /*
- * Following called from member_ioctl.c
+ * Following called from node_ioctl.c
  */
 
-int dlm_set_node(struct dlm_member_ioctl *param)
+int dlm_set_node(int nodeid, int weight, char *addr)
 {
 	struct dlm_node *node;
 	int error;
 
 	down(&nodes_sem);
-	error = _get_node(param->nodeid, &node);
+	error = _get_node(nodeid, &node);
 	if (!error) {
-		memcpy(node->addr, param->addr, DLM_ADDR_LEN);
-		node->weight = param->weight;
+		memcpy(node->addr, addr, DLM_ADDR_LEN);
+		node->weight = weight;
 	}
 	up(&nodes_sem);
 	return error;
 }
 
-int dlm_set_local(struct dlm_member_ioctl *param)
+int dlm_set_local(int nodeid, int weight, char *addr)
 {
 	char *p;
 
@@ -405,13 +397,13 @@ int dlm_set_local(struct dlm_member_ioctl *param)
 		log_print("too many local addresses set %d", local_count);
 		return -EINVAL;
 	}
-	local_nodeid = param->nodeid;
-	local_weight = param->weight;
+	local_nodeid = nodeid;
+	local_weight = weight;
 
 	p = kmalloc(DLM_ADDR_LEN, GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
-	memcpy(p, param->addr, DLM_ADDR_LEN);
+	memcpy(p, addr, DLM_ADDR_LEN);
 	local_addr[local_count++] = p;
 	return 0;
 }

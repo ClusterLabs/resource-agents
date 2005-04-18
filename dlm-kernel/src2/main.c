@@ -28,11 +28,14 @@
 
 void dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
+int dlm_node_ioctl_init(void);
+void dlm_node_ioctl_exit(void);
 
 int __init init_dlm(void)
 {
 	dlm_memory_init();
 	dlm_lockspace_init();
+	dlm_node_ioctl_init();
 	dlm_member_init();
 	dlm_register_debugfs();
 
@@ -45,6 +48,7 @@ int __init init_dlm(void)
 void __exit exit_dlm(void)
 {
 	dlm_member_exit();
+	dlm_node_ioctl_exit();
 	dlm_lockspace_exit();
 	dlm_memory_exit();
 	dlm_unregister_debugfs();

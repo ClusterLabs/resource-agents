@@ -37,8 +37,9 @@
 #include <linux/kref.h>
 
 #include "dlm.h"
-#include "dlm_member.h"
+#include "dlm_node.h"
 
+#define DLM_LOCKSPACE_LEN	(64)
 #define DLM_TOSS_SECS		(10)
 #define DLM_SCAN_SECS		(5)
 

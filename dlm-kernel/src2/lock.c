@@ -1220,7 +1220,6 @@ void confirm_master(struct dlm_rsb *r, int error)
 			_request_lock(r, lkb);
 			break;
 		}
-
 		/* fall through so the rsb looks new */
 
 	case -ENOENT:

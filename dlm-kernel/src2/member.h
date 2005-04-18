@@ -16,8 +16,8 @@
 int dlm_member_init(void);
 void dlm_member_exit(void);
 
-int dlm_set_node(struct dlm_member_ioctl *param);
-int dlm_set_local(struct dlm_member_ioctl *param);
+int dlm_set_node(int nodeid, int weight, char *addr);
+int dlm_set_local(int nodeid, int weight, char *addr);
 
 int dlm_ls_terminate(struct dlm_ls *ls);
 int dlm_ls_stop(struct dlm_ls *ls);
