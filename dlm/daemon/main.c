@@ -41,8 +41,8 @@ int ls_finish(int argc, char **argv);
 int ls_set_id(int argc, char **argv);
 int ls_get_done(int argc, char **argv, int *event_nr);
 
-int setup_cman(void);
-int process_cman(void);
+int setup_member(void);
+int process_member(void);
 
 int groupd_fd;
 int uevent_fd;
@@ -183,15 +183,6 @@ int process_uevent(void)
 	return 0;
 }
 
-/* Detect new cluster members and set up their nodeid/addr values in
-   dlm using the dlm-member ioctls.  This requires hooks into the
-   membership manager (cman, ...) */
-
-void process_member(void)
-{
-	process_cman();
-}
-
 int setup_groupd(void)
 {
 	struct sockaddr_un sun;
@@ -251,11 +242,6 @@ int setup_uevent(void)
 	}
 
 	return s;
-}
-
-int setup_member(void)
-{
-	return setup_cman();
 }
 
 int loop(void)

@@ -117,7 +117,7 @@ static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 	member_reason = reason;
 }
 
-int process_cman(void)
+int process_member(void)
 {
 	while (1) {
 		cman_dispatch(ch, CMAN_DISPATCH_ONE);
@@ -131,7 +131,7 @@ int process_cman(void)
 	return 0;
 }
 
-int setup_cman(void)
+int setup_member(void)
 {
 	cman_node_t node;
 	int rv, fd;
