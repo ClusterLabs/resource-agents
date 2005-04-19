@@ -105,6 +105,20 @@ int send_groupd_join(struct mountgroup *mg)
 	return rv;
 }
 
+int send_groupd_leave(struct mountgroup *mg)
+{
+	char obuf[MAXLINE];
+	int rv;
+
+	memset(obuf, 0, sizeof(obuf));
+	sprintf(obuf, "leave %s", mg->name);
+
+	rv = write(groupd_fd, &obuf, strlen(obuf));
+	if (rv < 0)
+		log_error("write error %d errno %d %s", rv, errno, obuf);
+	return rv;
+}
+
 int claim_journal(struct mountgroup *mg)
 {
 	mg->our_jid = our_nodeid - 1;
@@ -393,6 +407,16 @@ int do_recovery_done(char *name)
 
 int do_unmount(char *name)
 {
+	struct mountgroup *mg;
+
+	mg = find_mg(name);
+	if (!mg) {
+		log_error("do_unmount: unknown mount group %s", name);
+		return -1;
+	}
+
+	send_groupd_leave(mg);
+
 	return 0;
 }
 
