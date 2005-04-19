@@ -93,7 +93,7 @@ meta_data()
 
         <parameter name="fstype">
 	    <longdesc lang="en">
-	        File system type.  If not specified, mount(1) will attempt to
+	        File system type.  If not specified, mount(8) will attempt to
 		determine the file system type.
 	    </longdesc>
             <shortdesc lang="en">
@@ -142,10 +142,9 @@ meta_data()
 
         <parameter name="options">
             <longdesc lang="en">
-                If set, the file system will be checked (even if
-                it is a journalled file system).  This option is
-                ignored for non-journalled file systems such as
-                ext2.
+	    	Options used when the file system is mounted.  These
+		are often file-system specific.  See mount(8) for supported
+		mount options.
             </longdesc>
             <shortdesc lang="en">
                 Mount Options
@@ -292,7 +291,7 @@ verify_options()
 	declare -i ret=0
 
 	#
-	# From mount(1)
+	# From mount(8)
 	#
 	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
 		case $o in

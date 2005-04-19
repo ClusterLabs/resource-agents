@@ -92,7 +92,7 @@ meta_data()
 
         <parameter name="fstype">
 	    <longdesc lang="en">
-	        File system type.  If not specified, mount(1) will attempt to
+	        File system type.  If not specified, mount(8) will attempt to
 		determine the file system type.
 	    </longdesc>
             <shortdesc lang="en">
@@ -262,7 +262,7 @@ verify_options()
 	decalre -i ret=0
 
 	#
-	# From mount(1)
+	# From mount(8)
 	#
 	for o in `echo $OCF_RESKEY_options | sed -e s/,/\ /g`; do
 		case $o in
