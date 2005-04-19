@@ -138,7 +138,7 @@ int process_uevent(void)
 {
 	char buf[MAXLINE];
 	char obuf[MAXLINE];
-	char *argv[MAXARGS], *act;
+	char *argv[MAXARGS], *act, *sys;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -153,11 +153,16 @@ int process_uevent(void)
 	if (!strstr(buf, "dlm"))
 		return 0;
 
-	log_debug("I: uevent recv:  %s", buf);
 
 	make_args(buf, &argc, argv, '/');
 
 	act = argv[0];
+	sys = argv[2];
+
+	if ((strlen(sys) != strlen("dlm")) || strcmp(sys, "dlm"))
+		return 0;
+
+	log_debug("I: uevent recv:  %s", buf);
 
 	if (!strcmp(act, "online@"))
 		sprintf(obuf, "join %s", argv[3]);
