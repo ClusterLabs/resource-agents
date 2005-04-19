@@ -123,10 +123,42 @@ void dlm_message_in(struct dlm_message *ms)
 
 void rcom_lock_out(struct rcom_lock *rl)
 {
+	rl->rl_ownpid		= cpu_to_le32(rl->rl_ownpid);
+	rl->rl_id		= cpu_to_le32(rl->rl_id);
+	rl->rl_remid		= cpu_to_le32(rl->rl_remid);
+	rl->rl_parent_lkid	= cpu_to_le32(rl->rl_parent_lkid);
+	rl->rl_exflags		= cpu_to_le32(rl->rl_exflags);
+	rl->rl_flags		= cpu_to_le32(rl->rl_flags);
+	rl->rl_lvbseq		= cpu_to_le32(rl->rl_lvbseq);
+	rl->rl_result		= cpu_to_le32(rl->rl_result);
+
+	rl->rl_namelen		= cpu_to_le16(rl->rl_namelen);
+	rl->rl_subnamelen	= cpu_to_le16(rl->rl_subnamelen);
+
+	rl->rl_range[0]		= cpu_to_le64(rl->rl_range[0]);
+	rl->rl_range[1]		= cpu_to_le64(rl->rl_range[1]);
+	rl->rl_range[2]		= cpu_to_le64(rl->rl_range[2]);
+	rl->rl_range[3]		= cpu_to_le64(rl->rl_range[3]);
 }
 
 void rcom_lock_in(struct rcom_lock *rl)
 {
+	rl->rl_ownpid		= le32_to_cpu(rl->rl_ownpid);
+	rl->rl_id		= le32_to_cpu(rl->rl_id);
+	rl->rl_remid		= le32_to_cpu(rl->rl_remid);
+	rl->rl_parent_lkid	= le32_to_cpu(rl->rl_parent_lkid);
+	rl->rl_exflags		= le32_to_cpu(rl->rl_exflags);
+	rl->rl_flags		= le32_to_cpu(rl->rl_flags);
+	rl->rl_lvbseq		= le32_to_cpu(rl->rl_lvbseq);
+	rl->rl_result		= le32_to_cpu(rl->rl_result);
+
+	rl->rl_namelen		= le16_to_cpu(rl->rl_namelen);
+	rl->rl_subnamelen	= le16_to_cpu(rl->rl_subnamelen);
+
+	rl->rl_range[0]		= le64_to_cpu(rl->rl_range[0]);
+	rl->rl_range[1]		= le64_to_cpu(rl->rl_range[1]);
+	rl->rl_range[2]		= le64_to_cpu(rl->rl_range[2]);
+	rl->rl_range[3]		= le64_to_cpu(rl->rl_range[3]);
 }
 
 void dlm_rcom_out(struct dlm_rcom *rc)
