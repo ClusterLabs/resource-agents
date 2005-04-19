@@ -97,29 +97,20 @@ struct dlm_mhandle;
 #define log_print(fmt, args...) printk("dlm: "fmt"\n", ##args)
 #define log_error(ls, fmt, args...) printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args)
 
-#define DLM_DEBUG
-#if defined(DLM_DEBUG)
-#define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
+#define CONFIG_DLM_DEBUG
+#ifdef CONFIG_DLM_DEBUG
 int dlm_create_debug_file(struct dlm_ls *ls);
 void dlm_delete_debug_file(struct dlm_ls *ls);
 #else
-#define log_debug(ls, fmt, args...)
 static inline int dlm_create_debug_file(struct dlm_ls *ls) { return 0; }
 static inline void dlm_delete_debug_file(struct dlm_ls *ls) { return 0; }
 #endif
 
-#define DLM_DEBUG1
-#if defined(DLM_DEBUG1)
-#define log_debug1(ls, fmt, args...) log_error(ls, fmt, ##args)
+#define DLM_LOG_DEBUG
+#ifdef DLM_LOG_DEBUG
+#define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
 #else
-#define log_debug1(ls, fmt, args...)
-#endif
-
-#define DLM_DEBUG2
-#if defined(DLM_DEBUG2)
-#define log_debug2(fmt, args...) log_print(fmt, ##args)
-#else
-#define log_debug2(fmt, args...)
+#define log_debug(ls, fmt, args...)
 #endif
 
 #define DLM_ASSERT(x, do) \

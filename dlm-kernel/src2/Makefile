@@ -78,11 +78,13 @@ post:
 	( cd ${top_srcdir} ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
 
 add:
-	mkdir -p ${linux_patched}/cluster/dlm
-	mkdir -p ${linux_patched}/include/cluster
-	cp *.[ch] ${linux_patched}/cluster/dlm
-	mv ${linux_patched}/cluster/dlm/dlm.h ${linux_patched}/include/cluster
-	mv ${linux_patched}/cluster/dlm/dlm_device.h ${linux_patched}/include/cluster
+	mkdir -p ${linux_patched}/drivers/dlm
+	cp *.[ch] ${linux_patched}/drivers/dlm
+	cp Makefile.kernel ${linux_patched}/drivers/dlm/Makefile
+	cp Kconfig ${linux_patched}/drivers/dlm/
+	mv ${linux_patched}/drivers/dlm/dlm.h ${linux_patched}/include/linux
+	mv ${linux_patched}/drivers/dlm/dlm_device.h ${linux_patched}/include/linux
+	mv ${linux_patched}/drivers/dlm/dlm_node.h ${linux_patched}/include/linux
 
 clean:
 	rm -rf cluster *.ko *.o *.mod.c *~ .*o.cmd .tmp_versions
