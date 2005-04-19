@@ -54,7 +54,7 @@ int get_recover_done(struct mountgroup *mg)
 	char buf[32];
 	int fd, rv, done;
 
-	sprintf(fname, "%s/%s/done", LOCK_DLM_SYSFS_DIR, mg->name);
+	sprintf(fname, "%s/%s/recover_done", LOCK_DLM_SYSFS_DIR, mg->name);
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
