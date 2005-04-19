@@ -21,11 +21,10 @@
 #include <sys/un.h>
 #include <linux/netlink.h> 
 
+#include "groupd.h"
+
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
-
-/* FIXME: #include "groupd.h" */
-#define GROUPD_SOCK_PATH "groupd_socket"
 
 #define MAXARGS 64
 #define MAXLINE 256
