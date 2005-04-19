@@ -11,8 +11,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <linux/module.h>
-
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
@@ -81,7 +79,7 @@ void dlm_scand_stop(void)
 	kthread_stop(scand_task);
 }
 
-struct dlm_ls *find_lockspace_name(char *name, int namelen)
+static struct dlm_ls *find_lockspace_name(char *name, int namelen)
 {
 	struct dlm_ls *ls;
 
@@ -98,7 +96,7 @@ struct dlm_ls *find_lockspace_name(char *name, int namelen)
 	return ls;
 }
 
-struct dlm_ls *find_lockspace_global(uint32_t id)
+struct dlm_ls *dlm_find_lockspace_global(uint32_t id)
 {
 	struct dlm_ls *ls;
 
@@ -116,7 +114,7 @@ struct dlm_ls *find_lockspace_global(uint32_t id)
 	return ls;
 }
 
-struct dlm_ls *find_lockspace_local(void *id)
+struct dlm_ls *dlm_find_lockspace_local(void *id)
 {
 	struct dlm_ls *ls = id;
 
@@ -127,12 +125,12 @@ struct dlm_ls *find_lockspace_local(void *id)
 }
 
 /* must be called with lslist_lock held */
-void hold_lockspace(struct dlm_ls *ls)
+void dlm_hold_lockspace(struct dlm_ls *ls)
 {
 	ls->ls_count++;
 }
 
-void put_lockspace(struct dlm_ls *ls)
+void dlm_put_lockspace(struct dlm_ls *ls)
 {
 	spin_lock(&lslist_lock);
 	ls->ls_count--;
@@ -177,7 +175,7 @@ static int threads_start(void)
 	}
 
 	/* Thread for sending/receiving messages for all ls's */
-	error = lowcomms_start();
+	error = dlm_lowcomms_start();
 	if (error) {
 		log_print("cannot start lowcomms %d", error);
 		goto scand_fail;
@@ -196,7 +194,7 @@ static int threads_start(void)
 static void threads_stop(void)
 {
 	dlm_scand_stop();
-	lowcomms_stop();
+	dlm_lowcomms_stop();
 	dlm_astd_stop();
 }
 
@@ -591,10 +589,10 @@ int dlm_release_lockspace(void *lockspace, int force)
 {
 	struct dlm_ls *ls;
 
-	ls = find_lockspace_local(lockspace);
+	ls = dlm_find_lockspace_local(lockspace);
 	if (!ls)
 		return -EINVAL;
-	put_lockspace(ls);
+	dlm_put_lockspace(ls);
 	return release_lockspace(ls, force);
 }
 

@@ -25,7 +25,6 @@ void dlm_lock_rsb(struct dlm_rsb *r);
 void dlm_unlock_rsb(struct dlm_rsb *r);
 int dlm_put_lkb(struct dlm_lkb *lkb);
 int dlm_remove_from_waiters(struct dlm_lkb *lkb);
-int dlm_find_lkb(struct dlm_ls *ls, uint32_t lkid, struct dlm_lkb **lkb_ret);
 void dlm_scan_rsbs(struct dlm_ls *ls);
 
 int dlm_create_root_list(struct dlm_ls *ls);
@@ -36,31 +35,5 @@ int dlm_recover_waiters_post(struct dlm_ls *ls);
 void dlm_recover_waiters_pre(struct dlm_ls *ls);
 int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc);
 int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc);
-
-/* FIXME: just forward declarations of routines called within lock.c */
-
-int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name, int len);
-int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
-int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
-int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
-
-int _request_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int _convert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int _unlock_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int _cancel_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-
-int do_request(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int do_convert(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int do_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int do_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb);
-
-int send_request(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_grant(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int mode);
-int send_lookup(struct dlm_rsb *r, struct dlm_lkb *lkb);
-int send_remove(struct dlm_rsb *r);
 
 #endif

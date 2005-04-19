@@ -22,11 +22,6 @@
  *
  * It also takes messages from the locking layer, formats them
  * into packets and sends them to the comms layer.
- *
- * It knows the format of the mid-level messages used and nodeidss
- * but it does not know how to resolve a nodeid into an IP address
- * or any of the comms channel details
- *
  */
 
 #include "dlm_internal.h"

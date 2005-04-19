@@ -43,16 +43,6 @@
 #define DLM_LVB_LEN            (32)
 
 /*
- * Flags to dlm_new_lockspace
- *
- * DLM_LSF_NOTIMERS
- *
- * Do not subject locks in this lockspace to time-outs.
- */
-
-#define DLM_LSF_NOTIMERS       (1)
-
-/*
  * Flags to dlm_lock
  *
  * DLM_LKF_NOQUEUE
@@ -206,97 +196,8 @@ struct dlm_lksb {
 	char *	 sb_lvbptr;
 };
 
-/*
- * These defines are the bits that make up the query code.
- */
-
-/* Bits 0, 1, 2, the lock mode or DLM_LOCK_THIS, see DLM_LOCK_NL etc in
- * dlm.h Ignored for DLM_QUERY_LOCKS_ALL */
-#define DLM_LOCK_THIS            0x0007
-#define DLM_QUERY_MODE_MASK      0x0007
-
-/* Bits 3, 4, 5  bitmap of queue(s) to query */
-#define DLM_QUERY_QUEUE_WAIT     0x0008
-#define DLM_QUERY_QUEUE_CONVERT  0x0010
-#define DLM_QUERY_QUEUE_GRANT    0x0020
-#define DLM_QUERY_QUEUE_GRANTED  0x0030	/* Shorthand */
-#define DLM_QUERY_QUEUE_ALL      0x0038	/* Shorthand */
-
-/* Bit 6, Return only the information that can be established without a network
- * round-trip. The caller must be aware of the implications of this. Useful for
- * just getting the master node id or resource name. */
-#define DLM_QUERY_LOCAL          0x0040
-
-/* Bits 8 up, query type */
-#define DLM_QUERY_LOCKS_HIGHER   0x0100
-#define DLM_QUERY_LOCKS_LOWER    0x0200
-#define DLM_QUERY_LOCKS_EQUAL    0x0300
-#define DLM_QUERY_LOCKS_BLOCKING 0x0400
-#define DLM_QUERY_LOCKS_NOTBLOCK 0x0500
-#define DLM_QUERY_LOCKS_ALL      0x0600
-#define DLM_QUERY_LOCKS_ORPHAN   0x0700
-#define DLM_QUERY_MASK           0x0F00
-
-/* GRMODE is the default for mode comparisons,
-   RQMODE might also be handy */
-#define DLM_QUERY_GRMODE         0x0000
-#define DLM_QUERY_RQMODE         0x1000
-
-/* Structures passed into and out of the query */
-
-struct dlm_lockinfo {
-	int lki_lkid;		/* Lock ID on originating node */
-        int lki_mstlkid;        /* Lock ID on master node */
-	int lki_parent;
-	int lki_node;		/* Originating node (not master) */
-	int lki_ownpid;		/* Owner pid on originating node */
-	uint8_t lki_state;	/* Queue the lock is on */
-	uint8_t lki_grmode;	/* Granted mode */
-	uint8_t lki_rqmode;	/* Requested mode */
-	struct dlm_range lki_grrange;	/* Granted range, if applicable */
-	struct dlm_range lki_rqrange;	/* Requested range, if applicable */
-};
-
-struct dlm_resinfo {
-	int rsi_length;
-	int rsi_grantcount;	/* No. of locks on grant queue */
-	int rsi_convcount;	/* No. of locks on convert queue */
-	int rsi_waitcount;	/* No. of locks on wait queue */
-	int rsi_masternode;	/* Master for this resource */
-	char rsi_name[DLM_RESNAME_MAXLEN];	/* Resource name */
-	char rsi_valblk[DLM_LVB_LEN];	/* Master's LVB contents, if applicable
-					 */
-};
-
-struct dlm_queryinfo {
-	struct dlm_resinfo *gqi_resinfo;
-	struct dlm_lockinfo *gqi_lockinfo;	/* This points to an array
-						 * of structs */
-	int gqi_locksize;	/* input */
-	int gqi_lockcount;	/* output */
-};
 
 #ifdef __KERNEL__
-/*
- * dlm_init
- *
- * Starts and initializes DLM threads and structures.  Creation of the first
- * lockspace will call this if it has not been called already.
- *
- * Returns: 0 if successful, -EXXX on error
- */
-
-int dlm_init(void);
-
-/*
- * dlm_release
- *
- * Stops DLM threads.
- *
- * Returns: 0 if successful, -EXXX on error
- */
-
-int dlm_release(void);
 
 /*
  * dlm_new_lockspace
@@ -390,32 +291,6 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
 	       uint32_t flags,
 	       struct dlm_lksb *lksb,
 	       void *astarg);
-
-/* Query interface
- *
- * Query the other holders of a resource, given a known lock ID
- *
- * lockspace:   context for the request
- * lksb:        LKSB, sb_lkid contains the lock ID of a valid lock
- *              on the resource. sb_status will contain the status
- *	        of the request on completion.
- * query:       query bitmap see DLM_QUERY_* above
- * qinfo:       pointer to dlm_queryinfo structure
- * ast_routine: AST routine to call on completion
- * artarg:      argument to AST routine. It is "traditional"
- *              to put the qinfo pointer into lksb->sb_lvbptr
- *              and pass the lksb in here.
- */
-int dlm_query(dlm_lockspace_t *lockspace,
-	      struct dlm_lksb *lksb,
-	      int query,
-	      struct dlm_queryinfo *qinfo,
-	      void (ast_routine(void *)),
-	      void *astarg);
-
-
-void dlm_debug_dump(void);
-void dlm_locks_dump(void);
 
 #endif				/* __KERNEL__ */
 

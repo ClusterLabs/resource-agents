@@ -14,16 +14,9 @@
 #ifndef __LOWCOMMS_DOT_H__
 #define __LOWCOMMS_DOT_H__
 
-extern void *lowcomms_get_buffer(int nodeid, int len,
-				 int allocation, char **ppc);
-extern void lowcomms_commit_buffer(void *mh);
-
-int lowcomms_start(void);
-void lowcomms_stop(void);
-void lowcomms_stop_accept(void);
-int lowcomms_close(int nodeid);
-int lowcomms_max_buffer_size(void);
-
-int lowcomms_our_nodeid(void);
+void *dlm_lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc);
+void dlm_lowcomms_commit_buffer(void *mh);
+int dlm_lowcomms_start(void);
+void dlm_lowcomms_stop(void);
 
 #endif				/* __LOWCOMMS_DOT_H__ */

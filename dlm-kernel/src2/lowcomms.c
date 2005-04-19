@@ -209,6 +209,19 @@ static struct nodeinfo *assoc2nodeinfo(sctp_assoc_t assoc)
 	return NULL;
 }
 
+int lowcomms_our_nodeid(void)
+{
+	static int our_nodeid = 0;
+
+	if (our_nodeid)
+		return our_nodeid;
+
+	our_nodeid = dlm_our_nodeid();
+
+	/* Fill in the "template" structure */
+	dlm_our_addr(0, (char *)&local_addr);
+	return our_nodeid;
+}
 
 /* Data or notification available on socket */
 static void lowcomms_data_ready(struct sock *sk, int count_unused)
@@ -698,7 +711,7 @@ static struct writequeue_entry *new_writequeue_entry(int allocation)
 	return entry;
 }
 
-void *lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc)
+void *dlm_lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc)
 {
 	struct writequeue_entry *e;
 	int offset = 0;
@@ -746,7 +759,7 @@ void *lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc)
 	return NULL;
 }
 
-void lowcomms_commit_buffer(void *arg)
+void dlm_lowcomms_commit_buffer(void *arg)
 {
 	struct writequeue_entry *e = (struct writequeue_entry *) arg;
 	int users;
@@ -1135,7 +1148,7 @@ int lowcomms_max_buffer_size(void)
 	return PAGE_CACHE_SIZE;
 }
 
-void lowcomms_stop(void)
+void dlm_lowcomms_stop(void)
 {
 	atomic_set(&accepting, 0);
 
@@ -1152,7 +1165,7 @@ void lowcomms_stop(void)
 }
 
 /* This is quite likely to sleep... */
-int lowcomms_start(void)
+int dlm_lowcomms_start(void)
 {
 	int error = 0;
 
@@ -1220,19 +1233,6 @@ static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr)
 	return 0;
 }
 
-int lowcomms_our_nodeid(void)
-{
-	static int our_nodeid = 0;
-
-	if (our_nodeid)
-		return our_nodeid;
-
-	our_nodeid = dlm_our_nodeid();
-
-	/* Fill in the "template" structure */
-	dlm_our_addr(0, (char *)&local_addr);
-	return our_nodeid;
-}
 /*
  * Overrides for Emacs so that we follow Linus's tabbing style.
  * Emacs will notice this stuff at the end of the file and automatically

@@ -16,13 +16,10 @@
 
 struct dlm_config_info {
 	int tcp_port;
-	int lock_timeout;
 	int buffer_size;
 	int rsbtbl_size;
 	int lkbtbl_size;
 	int dirtbl_size;
-	int conn_increment;
-	int deadlocktime;
 	int recover_timer;
 };
 

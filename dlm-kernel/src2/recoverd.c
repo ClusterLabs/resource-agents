@@ -648,7 +648,7 @@ int dlm_recoverd(void *arg)
 {
 	struct dlm_ls *ls = arg;
 
-	hold_lockspace(ls);
+	dlm_hold_lockspace(ls);
 
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -660,7 +660,7 @@ int dlm_recoverd(void *arg)
 			do_ls_recovery(ls);
 	}
 
-	put_lockspace(ls);
+	dlm_put_lockspace(ls);
 	return 0;
 }
 

@@ -10,12 +10,11 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include "dlm_internal.h"
-#include "member.h"
-
-#include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
+
+#include "dlm_internal.h"
+#include "member.h"
 
 
 static int check_version(unsigned int cmd,

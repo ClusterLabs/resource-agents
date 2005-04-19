@@ -47,7 +47,7 @@ uint32_t dlm_hash(const void *data, int len)
 	return h;
 }
 
-void header_out(struct dlm_header *hd)
+static void header_out(struct dlm_header *hd)
 {
 	hd->h_version		= cpu_to_le32(hd->h_version);
 	hd->h_lockspace		= cpu_to_le32(hd->h_lockspace);
@@ -55,7 +55,7 @@ void header_out(struct dlm_header *hd)
 	hd->h_length		= cpu_to_le16(hd->h_length);
 }
 
-void header_in(struct dlm_header *hd)
+static void header_in(struct dlm_header *hd)
 {
 	hd->h_version		= le32_to_cpu(hd->h_version);
 	hd->h_lockspace		= le32_to_cpu(hd->h_lockspace);
@@ -121,7 +121,7 @@ void dlm_message_in(struct dlm_message *ms)
 	ms->m_range[1]		= le64_to_cpu(ms->m_range[1]);
 }
 
-void rcom_lock_out(struct rcom_lock *rl)
+static void rcom_lock_out(struct rcom_lock *rl)
 {
 	rl->rl_ownpid		= cpu_to_le32(rl->rl_ownpid);
 	rl->rl_id		= cpu_to_le32(rl->rl_id);
@@ -141,7 +141,7 @@ void rcom_lock_out(struct rcom_lock *rl)
 	rl->rl_range[3]		= cpu_to_le64(rl->rl_range[3]);
 }
 
-void rcom_lock_in(struct rcom_lock *rl)
+static void rcom_lock_in(struct rcom_lock *rl)
 {
 	rl->rl_ownpid		= le32_to_cpu(rl->rl_ownpid);
 	rl->rl_id		= le32_to_cpu(rl->rl_id);

@@ -21,7 +21,7 @@
 #include "rcom.h"
 #include "lock.h"
 
-void recover_rsb_lvb(struct dlm_rsb *r);
+static void recover_rsb_lvb(struct dlm_rsb *r);
 
 
 /*
@@ -152,7 +152,7 @@ static int compare_rc_id(struct dlm_rsb *r, uint64_t id)
 #endif
 }
 
-int recover_list_empty(struct dlm_ls *ls)
+static int recover_list_empty(struct dlm_ls *ls)
 {
 	int empty;
 
@@ -163,7 +163,7 @@ int recover_list_empty(struct dlm_ls *ls)
 	return empty;
 }
 
-void recover_list_add(struct dlm_rsb *r)
+static void recover_list_add(struct dlm_rsb *r)
 {
 	struct dlm_ls *ls = r->res_ls;
 
@@ -176,7 +176,7 @@ void recover_list_add(struct dlm_rsb *r)
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-void recover_list_del(struct dlm_rsb *r)
+static void recover_list_del(struct dlm_rsb *r)
 {
 	struct dlm_ls *ls = r->res_ls;
 
@@ -552,7 +552,7 @@ void dlm_recovered_lock(struct dlm_rsb *r)
  * from the lkb with the largest lvb sequence number.
  */
 
-void recover_rsb_lvb(struct dlm_rsb *r)
+static void recover_rsb_lvb(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb, *high_lkb = NULL;
 	uint32_t high_seq = 0;

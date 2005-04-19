@@ -10,9 +10,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <linux/ctype.h>
-#include <linux/stat.h>
-
 #include "dlm_internal.h"
 #include "member.h"
 
@@ -21,7 +18,7 @@
 /dlm/lsname/start      RW  write event_nr to start recovery
 /dlm/lsname/finish     RW  write event_nr to finish recovery
 /dlm/lsname/terminate  RW  write event_nr to term recovery
-/dlm/lsname/done       RO  want new value here to cause a uevent
+/dlm/lsname/done       RO  event_nr dlm is done processing
 /dlm/lsname/id         RW  global id of lockspace
 /dlm/lsname/members    RW  read = current members, write = next members
 */

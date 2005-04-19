@@ -20,10 +20,12 @@
 
 #define DLM_RELEASE_NAME "<CVS>"
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <asm/semaphore.h>
 #include <linux/types.h>
+#include <linux/ctype.h>
 #include <linux/spinlock.h>
 #include <linux/vmalloc.h>
 #include <asm/uaccess.h>
@@ -31,7 +33,7 @@
 #include <linux/errno.h>
 #include <linux/random.h>
 #include <linux/delay.h>
-#include <linux/interrupt.h>
+#include <linux/socket.h>
 #include <linux/kthread.h>
 #include <linux/kobject.h>
 #include <linux/kref.h>
@@ -211,12 +213,11 @@ struct dlm_recover {
  * are sent as-is to the remote master when the lock is remote.
  *
  * lkb_flags: internal dlm flags (DLM_IFL_ prefix) from dlm_internal.h.
- * Some internal flags are shared between the master and process nodes
- * (e.g. DLM_IFL_RETURNLVB); these shared flags are kept in the lower
- * two bytes.  One of these flags set on the master copy will be propagated
- * to the process copy and v.v.  Other internal flags are private to
- * the master or process node (e.g. DLM_IFL_MSTCPY).  These are kept in
- * the high two bytes.
+ * Some internal flags are shared between the master and process nodes;
+ * these shared flags are kept in the lower two bytes.  One of these
+ * flags set on the master copy will be propagated to the process copy
+ * and v.v.  Other internal flags are private to the master or process
+ * node (e.g. DLM_IFL_MSTCPY).  These are kept in the high two bytes.
  *
  * lkb_sbflags: status block flags.  These flags are copied directly into
  * the caller's lksb.sb_flags prior to the dlm_lock/dlm_unlock completion
@@ -256,11 +257,7 @@ struct dlm_recover {
 
 #define DLM_IFL_MSTCPY		(0x00010000)
 #define DLM_IFL_RESEND		(0x00020000)
-#define DLM_IFL_RETURNLVB	(0x00000001)
-#define DLM_IFL_RANGE		(0x00000002)
-#define DLM_IFL_PERSISTENT      (0x00000004)
-#define DLM_IFL_ORPHAN          (0x00000008)
-
+#define DLM_IFL_RANGE		(0x00000001)
 
 struct dlm_lkb {
 	struct dlm_rsb *	lkb_resource;	/* the rsb */

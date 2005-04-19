@@ -81,15 +81,19 @@ struct lock_info {
 	struct file_info *li_file;
 	struct dlm_lksb __user *li_user_lksb;
 	struct semaphore li_firstlock;
+#if 0
 	struct dlm_queryinfo *li_queryinfo;
 	struct dlm_queryinfo __user *li_user_queryinfo;
+#endif
 };
 
 /* A queued AST no less */
 struct ast_info {
 	struct dlm_lock_result result;
+#if 0
 	struct dlm_queryinfo *queryinfo;
 	struct dlm_queryinfo __user *user_queryinfo;
+#endif
 	struct list_head list;
 	uint32_t lvb_updated;
 	uint32_t progress;      /* How much has been read */
@@ -320,10 +324,14 @@ static void add_to_astqueue(struct lock_info *li, void *astaddr, void *astparam,
 	ast->result.user_astparam = astparam;
 	ast->result.user_astaddr  = astaddr;
 	ast->result.user_lksb     = li->li_user_lksb;
+#if 0
 	ast->result.user_qinfo    = li->li_user_queryinfo;
+#endif
 	memcpy(&ast->result.lksb, &li->li_lksb, sizeof(struct dlm_lksb));
 
+#if 0
 	ast->queryinfo   = li->li_queryinfo;
+#endif
 	ast->lvb_updated = lvb_updated;
 
 	spin_lock(&li->li_file->fi_ast_lock);
@@ -757,6 +765,7 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 	data_size = sizeof(struct dlm_lock_result);
 	if (ast->lvb_updated && ast->result.lksb.sb_lvbptr)
 		data_size += DLM_LVB_LEN;
+#if 0
 	if (ast->queryinfo) {
 		data_size += sizeof(struct dlm_queryinfo);
 		if (ast->queryinfo->gqi_resinfo)
@@ -764,6 +773,7 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 		if (ast->queryinfo->gqi_lockinfo)
 			data_size += sizeof(struct dlm_lockinfo) * ast->queryinfo->gqi_lockcount;
 	}
+#endif
 
 	offset = sizeof(struct dlm_lock_result);
 
@@ -777,6 +787,7 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 			ast->result.lvb_offset = offset;
 			offset += DLM_LVB_LEN;
 		}
+#if 0
 		if (ast->queryinfo) {
 			if (copy_to_user(buffer+offset, ast->queryinfo, sizeof(struct dlm_queryinfo)))
 				return -EFAULT;
@@ -801,7 +812,8 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 			}
 
 			kfree(ast->queryinfo);
-		}
+		}	
+#endif
 	}
 
 	ast->result.length = data_size;
@@ -837,6 +849,7 @@ static unsigned int dlm_poll(struct file *file, poll_table *wait)
 	return 0;
 }
 
+#if 0
 static int do_user_query(struct file_info *fi, uint8_t cmd, struct dlm_query_params *kparams)
 {
 	struct lock_info *li;
@@ -900,6 +913,7 @@ static int do_user_query(struct file_info *fi, uint8_t cmd, struct dlm_query_par
 	kfree(li);
 	return status;
 }
+#endif
 
 static struct lock_info *allocate_lockinfo(struct file_info *fi, uint8_t cmd,
 					   struct dlm_lock_params *kparams)
@@ -914,7 +928,9 @@ static struct lock_info *allocate_lockinfo(struct file_info *fi, uint8_t cmd,
 		li->li_magic     = LOCKINFO_MAGIC;
 		li->li_file      = fi;
 		li->li_cmd       = cmd;
+#if 0
 		li->li_queryinfo = NULL;
+#endif
 		li->li_flags     = 0;
 		li->li_grmode    = -1;
 		li->li_rqmode    = -1;
@@ -1158,10 +1174,12 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 		status = do_user_unlock(fi, kparams->cmd, &kparams->i.lock);
 		break;
 
+#if 0
 	case DLM_USER_QUERY:
 		if (!fi) goto out_sig;
 		status = do_user_query(fi, kparams->cmd, &kparams->i.query);
 		break;
+#endif
 
 	case DLM_USER_CREATE_LOCKSPACE:
 		if (fi) goto out_sig;

@@ -41,15 +41,15 @@ static int rcom_response(struct dlm_ls *ls)
 	return test_bit(LSFL_RCOM_READY, &ls->ls_flags);
 }
 
-int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
-		struct dlm_rcom **rc_ret, struct dlm_mhandle **mh_ret)
+static int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
+		       struct dlm_rcom **rc_ret, struct dlm_mhandle **mh_ret)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
 	char *mb;
 	int mb_len = sizeof(struct dlm_rcom) + len;
 
-	mh = lowcomms_get_buffer(to_nodeid, mb_len, GFP_KERNEL, &mb);
+	mh = dlm_lowcomms_get_buffer(to_nodeid, mb_len, GFP_KERNEL, &mb);
 	if (!mh)
 		return -ENOBUFS;
 	memset(mb, 0, mb_len);
@@ -69,16 +69,17 @@ int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
 	return 0;
 }
 
-int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh, struct dlm_rcom *rc)
+static int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
+		     struct dlm_rcom *rc)
 {
 	log_print("send_rcom type %d result %d", rc->rc_type, rc->rc_result);
 
 	dlm_rcom_out(rc);
-	lowcomms_commit_buffer(mh);
+	dlm_lowcomms_commit_buffer(mh);
 	return 0;
 }
 
-int make_status(struct dlm_ls *ls)
+static int make_status(struct dlm_ls *ls)
 {
 	int status = 0;
 
@@ -120,7 +121,7 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 	return error;
 }
 
-void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
@@ -132,7 +133,7 @@ void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	error = send_rcom(ls, mh, rc);
 }
 
-void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	memcpy(ls->ls_recover_buf, rc_in, rc_in->rc_header.h_length);
 	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
@@ -164,7 +165,7 @@ int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
 	return error;
 }
 
-void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
@@ -195,7 +196,7 @@ void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	error = send_rcom(ls, mh, rc);
 }
 
-void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	memcpy(ls->ls_recover_buf, rc_in, rc_in->rc_header.h_length);
 	set_bit(LSFL_RCOM_READY, &ls->ls_flags);
@@ -218,7 +219,7 @@ int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid)
 	return 0;
 }
 
-void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
@@ -234,13 +235,13 @@ void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	error = send_rcom(ls, mh, rc);
 }
 
-void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	dlm_recover_master_reply(ls, rc_in);
 }
 
-void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
-		    struct rcom_lock *rl)
+static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
+			   struct rcom_lock *rl)
 {
 	memset(rl, 0, sizeof(*rl));
 
@@ -292,7 +293,7 @@ int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	return error;
 }
 
-void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
@@ -312,7 +313,7 @@ void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	error = send_rcom(ls, mh, rc);
 }
 
-void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
+static void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
 	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
 		log_debug(ls, "ignoring RCOM_LOCK_REPLY from %u",
@@ -330,7 +331,7 @@ static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)
 	char *mb;
 	int mb_len = sizeof(struct dlm_rcom);
 
-	mh = lowcomms_get_buffer(nodeid, mb_len, GFP_KERNEL, &mb);
+	mh = dlm_lowcomms_get_buffer(nodeid, mb_len, GFP_KERNEL, &mb);
 	if (!mh)
 		return -ENOBUFS;
 	memset(mb, 0, mb_len);
@@ -347,7 +348,7 @@ static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)
 	rc->rc_result = 0;
 
 	dlm_rcom_out(rc);
-	lowcomms_commit_buffer(mh);
+	dlm_lowcomms_commit_buffer(mh);
 
 	return 0;
 }
@@ -365,7 +366,7 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 	/* If the lockspace doesn't exist then still send a status message
 	   back; it's possible that it just doesn't have its global_id yet. */
 
-	ls = find_lockspace_global(hd->h_lockspace);
+	ls = dlm_find_lockspace_global(hd->h_lockspace);
 	if (!ls) {
 		send_ls_not_ready(nodeid, rc);
 		return;
@@ -423,6 +424,6 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 		DLM_ASSERT(0, printk("rc_type=%x\n", rc->rc_type););
 	}
 
-	put_lockspace(ls);
+	dlm_put_lockspace(ls);
 }
 
