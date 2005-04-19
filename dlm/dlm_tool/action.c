@@ -126,11 +126,10 @@ int ls_stop(int argc, char **argv)
 	}
 
 	rv = write(fd, "1", strlen("1"));
-	if (rv != 1) {
+	if (rv != 1)
 		printf("write error %d %d\n", rv, errno);
-		return -1;
-	}
 
+	close(fd);
 	return 0;
 }
 
@@ -151,11 +150,10 @@ int ls_terminate(int argc, char **argv)
 	}
 
 	rv = write(fd, "1", strlen("1"));
-	if (rv != 1) {
+	if (rv != 1)
 		printf("write error %d %d\n", rv, errno);
-		return -1;
-	}
 
+	close(fd);
 	return 0;
 }
 
@@ -176,11 +174,10 @@ int ls_finish(int argc, char **argv)
 	}
 
 	rv = write(fd, argv[1], strlen(argv[1]));
-	if (rv != strlen(argv[1])) {
+	if (rv != strlen(argv[1]))
 		printf("write error %d %d\n", rv, errno);
-		return -1;
-	}
 
+	close(fd);
 	return 0;
 }
 
@@ -224,6 +221,7 @@ int ls_start(int argc, char **argv)
 	rv = write(fd, p, len);
 	if (rv != len) {
 		printf("write error %s %d %d\n", fname, rv, errno);
+		close(fd);
 		return -1;
 	}
 
@@ -243,11 +241,10 @@ int ls_start(int argc, char **argv)
 	printf("write to %s: \"%s\"\n", fname, argv[1]);
 	len = strlen(argv[1]);
 	rv = write(fd, argv[1], len);
-	if (rv != len) {
+	if (rv != len)
 		printf("write error %s %d %d\n", fname, rv, errno);
-		return -1;
-	}
 
+	close(fd);
 	return 0;
 }
 
@@ -269,11 +266,10 @@ int ls_set_id(int argc, char **argv)
 
 	len = strlen(argv[1]);
 	rv = write(fd, argv[1], len);
-	if (rv != len) {
+	if (rv != len)
 		printf("write error %d %d\n", rv, errno);
-		return -1;
-	}
 
+	close(fd);
 	return 0;
 }
 
@@ -299,10 +295,12 @@ int ls_get_done(int argc, char **argv, int *event_nr)
 	rv = read(fd, buf, 32);
 	if (rv <= 0) {
 		printf("read error %s %d %d\n", fname, rv, errno);
-		return -1;
+		goto out;
 	}
 
 	*event_nr = atoi(buf);
+ out:
+	close(fd);
 	return 0;
 }
 
