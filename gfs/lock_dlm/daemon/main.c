@@ -52,7 +52,7 @@ void process_groupd(void)
 		return;
 	}
 
-	log_debug("I: groupd read:  %s", buf);
+	log_debug("groupd read:  %s", buf);
 
 	make_args(buf, &argc, argv, ' ');
 	act = argv[0];
@@ -63,27 +63,23 @@ void process_groupd(void)
 
 	   FIXME: many more args than MAXARGS for start with nodeids */
 
-	if (!strcmp(act, "stop")) {
-		log_debug("O: ls_stop %s", argv[1]);
+	if (!strcmp(act, "stop"))
 		rv = do_stop(argc-1, argv+1);
 
-	} else if (!strcmp(act, "start")) {
-		log_debug("O: ls_start %s", argv[1]);
+	else if (!strcmp(act, "start"))
 		rv = do_start(argc-1, argv+1);
 
-	} else if (!strcmp(act, "finish")) {
-		log_debug("O: ls_finish %s", argv[1]);
+	else if (!strcmp(act, "finish"))
 		rv = do_finish(argc-1, argv+1);
 
-	} else if (!strcmp(act, "terminate")) {
-		log_debug("O: ls_terminate %s", argv[1]);
+	else if (!strcmp(act, "terminate"))
 		rv = do_terminate(argc-1, argv+1);
 
-	} else
+	else
 		log_error("unknown lock_dlm control action: %s", act);
 
 	if (rv)
-		log_error("action %s error %d\n", act, rv);
+		log_error("action %s error %d", act, rv);
 }
 
 /* recv "online" (mount), "offline" (unmount) and "change" (recovery_done)
@@ -106,7 +102,7 @@ int process_uevent(void)
 	if (!strstr(buf, "lock_dlm"))
 		return 0;
 
-	log_debug("I: uevent recv:  %s", buf);
+	log_debug("uevent recv:  %s", buf);
 
 	make_args(buf, &argc, argv, '/');
 

@@ -27,7 +27,9 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	char out[16];
 	int rv, fd;
 
-	sprintf(fname, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, field, mg->name);
+	sprintf(fname, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
+
+	log_group(mg, "set %s to %d", fname, val);
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
@@ -105,7 +107,7 @@ int send_groupd_join(struct mountgroup *mg)
 
 int claim_journal(struct mountgroup *mg)
 {
-	mg->our_jid = our_nodeid;
+	mg->our_jid = our_nodeid - 1;
 	return 0;
 }
 
@@ -310,6 +312,9 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->members_gone);
 	mg->first_start = 1;
 
+	strcpy(mg->name, name);
+	mg->namelen = strlen(name);
+
 	return mg;
 }
 
@@ -353,7 +358,7 @@ int do_recovery_done(char *name)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
-	int rv, jid_done, wait;
+	int rv, jid_done, wait, found = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
@@ -368,10 +373,16 @@ int do_recovery_done(char *name)
 
 	list_for_each_entry(memb, &mg->members, list) {
 		if (memb->jid == jid_done) {
-			memb->wait_recover_done = 0;
+			if (memb->wait_recover_done) {
+				memb->wait_recover_done = 0;
+				found = 1;
+			}
 			break;
 		}
 	}
+
+	if (!found)
+		log_debug("jid_recovery_done %d: not waiting", jid_done);
 
 	wait = recover_journals(mg);
 	if (!wait)
