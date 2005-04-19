@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.372 $) dnl cvs revision
+AC_REVISION($Revision: 1.373 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1870,6 +1870,7 @@ lib/Makefile							\
 		lib/plugins/stonith/ribcl.py			\
 		lib/plugins/stonith/external/Makefile		\
 		lib/plugins/stonith/external/ssh		\
+		lib/plugins/stonith/external/riloe		\
 		lib/plugins/AppHBNotification/Makefile		\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
