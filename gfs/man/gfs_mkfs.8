@@ -44,7 +44,7 @@ the filesystem.
 .TP
 \fB-p\fP \fILockProtoName\fR 
 LockProtoName is the name of the  locking  protocol to use.  Acceptable
-locking protocols are \fIlock_gulm\fR or if you are using GFS
+locking protocols are \fIlock_dlm\fR, \fIlock_gulm\fR or if you are using GFS
 as a local filesystem (\fB1 node only\fP), you can specify the
 \fIlock_nolock\fR protocol.
 .TP
@@ -62,19 +62,26 @@ least two and not large enough to produce a segment size greater than
 .TP
 \fB-t\fP \fILockTableName\fR 
 The lock table field appropriate to the lock module you're using.
-For lock_gulm, it is \fIclustername:fsname\fR.
-Clustername is the cluster.ccs:cluster/name string for the cluster which
-will use this filesystem (1 to 16 characters).  Fsname is a unique
-file system name used to distinguish this GFS file system from others
-created (1 to 16 characters).  Lock_nolock doesn't use this field.
+It is \fIclustername:fsname\fR.
+Clustername must match that in cluster.conf; only members of this
+cluster are permitted to use this file system.
+Fsname is a unique file system name used to distinguish this GFS file
+system from others created (1 to 16 characters).  Lock_nolock doesn't
+use this field.
 .TP
 \fB-V\fP
 Print program version information, then exit.
 
 .SH EXAMPLE
 .TP
-gfs_mkfs -t mycluster:mygfs -p lock_gulm -j 2 /dev/pool/mygfs
+gfs_mkfs -t mycluster:mygfs -p lock_dlm -j 2 /dev/vg0/mygfs
 This will make a Global File System on the block device
-"/dev/pool/mygfs".  It will belong to "mycluster" and register itself
+"/dev/vg0/mygfs".  It will belong to "mycluster" and register itself
+as wanting locking for "mygfs".  It will use DLM for locking and make
+two journals.
+.TP
+gfs_mkfs -t mycluster:mygfs -p lock_gulm -j 2 /dev/vg0/mygfs
+This will make a Global File System on the block device
+"/dev/vg0/mygfs".  It will belong to "mycluster" and register itself
 as wanting locking for "mygfs".  It will use GULM for locking and make
 two journals.
