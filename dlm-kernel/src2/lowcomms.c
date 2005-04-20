@@ -240,7 +240,8 @@ static void lowcomms_write_space(struct sock *sk)
 
 
 /* Add the port number to an IP6 or 4 sockaddr and return the address
-   length */
+   length.
+   Also padd out the struct with zeros to make comparisons meaningful */
 static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 			  int *addr_len)
 {
@@ -261,11 +262,13 @@ static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 		struct sockaddr_in *in4_addr = (struct sockaddr_in *)saddr;
 		in4_addr->sin_port = cpu_to_be16(port);
 		memset(&in4_addr->sin_zero, 0, sizeof(in4_addr->sin_zero));
+		memset(in4_addr+1, 0, sizeof(struct sockaddr_storage) - sizeof(struct sockaddr_in));
 		*addr_len = sizeof(struct sockaddr_in);
 	}
 	else {
 		struct sockaddr_in6 *in6_addr = (struct sockaddr_in6 *)saddr;
 		in6_addr->sin6_port = cpu_to_be16(port);
+		memset(in6_addr+1, 0, sizeof(struct sockaddr_storage) - sizeof(struct sockaddr_in6));
 		*addr_len = sizeof(struct sockaddr_in6);
 	}
 }
@@ -373,7 +376,6 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 			memset(&prim, 0, sizeof(struct sctp_prim));
 			prim_len = sizeof(struct sctp_prim);
 			prim.ssp_assoc_id = sn->sn_assoc_change.sac_assoc_id;
-
 
 			fs = get_fs();
 			set_fs(get_ds());
