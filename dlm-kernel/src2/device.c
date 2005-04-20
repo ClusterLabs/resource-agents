@@ -38,6 +38,7 @@
 
 #include "dlm.h"
 #include "dlm_device.h"
+#include "lvb_table.h"
 #include "device.h"
 
 #include "dlm_internal.h" /* Only for DLM_RELEASE_NAME */
@@ -377,8 +378,7 @@ static void ast_routine(void *param)
 		int lvb_updated = 0;
 
 		/* See if the lvb has been updated */
-		// TODO: locking core does not yet set this...
-		if (li->li_lksb.sb_flags & DLM_SBF_LVBUPDATED)
+		if (dlm_lvb_operations[li->li_grmode+1][li->li_rqmode+1] == 1)
 			lvb_updated = 1;
 
 		if (li->li_lksb.sb_status == 0)
