@@ -394,8 +394,13 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 		if (victim_count == 0)
 			break;
 
-		if (victim_count < last_count)
+		if (victim_count < last_count) {
 			gettimeofday(&start, NULL);
+			if (delay > 0 && fd->comline->post_join_delay > delay) {
+				delay = fd->comline->post_join_delay;
+				delay_type = "post_join_delay (modified)";
+			}
+		}
 
 		last_count = victim_count;
 
