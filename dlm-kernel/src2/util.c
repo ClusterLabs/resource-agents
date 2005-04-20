@@ -25,7 +25,7 @@
  * http://www.isthe.com/chongo/tech/comp/fnv/
  */
 
-static __inline__ uint32_t
+static inline uint32_t
 hash_more_internal(const void *data, unsigned int len, uint32_t hash)
 {
 	unsigned char *p = (unsigned char *)data;

@@ -98,7 +98,7 @@ static void process_asts(void)
 	}
 }
 
-static __inline__ int no_asts(void)
+static inline int no_asts(void)
 {
 	int ret;
 
