@@ -18,13 +18,13 @@ Get source
   summary: after cvs login,
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/dm      checkout device-mapper
   cvs -d :pserver:cvs@sources.redhat.com:/cvs/lvm2    checkout LVM2 
-  cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout cluster 
+  cvs -d :pserver:cvs@sources.redhat.com:/cvs/cluster checkout cluster
 
-- or download tarballs
-
-  device-mapper		- ftp://sources.redhat.com/pub/dm/
-  lvm2			- ftp://sources.redhat.com/pub/lvm2/
-  cluster		- http://sources.redhat.com/cluster/
+  Notes:
+  - The 'cluster' cvs head can be unstable, so it's recommended that you
+    checkout from the RHEL4 branch -- 'checkout -r RHEL4 cluster'
+  - Recent RPM's of device-mapper and LVM2 can be used instead of building
+    them from source.
 
 
 Build and install
@@ -35,12 +35,6 @@ Build and install
    ./configure --kernel_src=/path/to/kernel
    make; make install
 
-   - This builds and installs kernel modules, libraries and user programs.
-
-   - Kernel modules can also be built within the original kernel source tree
-     by applying the kernel patches from cman-kernel/patches,
-     dlm-kernel/patches and gfs-kernel/patches.
-
 2. build device mapper user space
    cd device-mapper
    ./configure
@@ -50,7 +44,16 @@ Build and install
    cd LVM2
    ./configure --with-clvmd --with-cluster=shared
    make; make install
-   LVM2/scripts/clvmd_fix_conf.sh /usr/lib
+
+
+Update lvm2.conf
+----------------
+
+Standard lvm commands are "clusterized" (told to talk to the clvm daemon)
+by using the following two lines in /etc/lvm/lvm.conf:
+
+locking_type = 2
+locking_library = "/lib/liblvm2clusterlock.so"
 
 
 Load kernel modules
@@ -71,8 +74,8 @@ Startup procedure
 Run these commands on each cluster node:
 
 > ccsd                             - Starts the CCS daemon
-> cman_tool join                   - Joins the cluster
-> fence_tool join                  - Joins the fence domain (starts fenced)
+> cman_tool join -w                - Joins the cluster
+> fence_tool join -w               - Joins the fence domain (starts fenced)
 > clvmd                            - Starts the CLVM daemon
 > vgchange -aly                    - Activates LVM volumes (locally)
 > mount -t gfs /dev/vg/lvol /mnt   - Mounts a GFS file system
@@ -87,7 +90,7 @@ Run these commands on each cluster node:
 > vgchange -aln                    - Deactivates LVM volumes (locally)
 > killall clvmd                    - Stops the CLVM daemon
 > fence_tool leave                 - Leaves the fence domain (stops fenced)
-> cman_tool leave                  - Leaves the cluster
+> cman_tool leave -w               - Leaves the cluster
 > killall ccsd                     - Stops the CCS daemon
 
 
@@ -129,14 +132,6 @@ system must be running (see previous section.)
 Cluster startup tips
 --------------------
 
-* Avoid a hung cluster by setting panic_on_oops.
-
-A GFS kernel oops on a node can cause the oopsing node to not be recovered for
-and the rest of the cluster to hang.  This problem can be avoided by having
-the node panic in addition to oopsing.  Before mounting, run the command:
-
-> sysctl -w kernel.panic_on_oops=1
-
 * Avoiding unnecessary startup fencing when fence domain is first created.
 
 When the cluster is quorate and the fence domain is first created (by a fence
@@ -145,7 +140,7 @@ default there's a delay of 6 seconds in this case to allow any nodes
 unnecessarily flagged for fencing to join the cluster an avoid being fenced.
 This delay can be increased by setting post_join_delay in cluster.conf:
 
-  <fence_daemon post_join_delay="12">
+  <fence_daemon post_join_delay="20">
   </fence_daemon>
 
 The cluster.conf value can be overriden manually using the -j option to
