@@ -137,21 +137,6 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
  * rsb so we can match an rcom reply with the rsb it was sent for.
  */
 
-static int compare_rc_id(struct dlm_rsb *r, uint64_t id)
-{
-#if BITS_PER_LONG == 32
-	if ((uint32_t) r == (uint32_t) id)
-		return TRUE;
-	return FALSE;
-#elif BITS_PER_LONG == 64
-	if ((uint64_t) r == id)
-		return TRUE;
-	return FALSE;
-#else
-#error BITS_PER_LONG not defined
-#endif
-}
-
 static int recover_list_empty(struct dlm_ls *ls)
 {
 	int empty;
@@ -195,7 +180,7 @@ static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, uint64_t id)
 	spin_lock(&ls->ls_recover_list_lock);
 
 	list_for_each_entry(r, &ls->ls_recover_list, res_recover_list) {
-		if (compare_rc_id(r, id))
+		if (id == (unsigned long) r)
 			goto out;
 	}
 	r = NULL;

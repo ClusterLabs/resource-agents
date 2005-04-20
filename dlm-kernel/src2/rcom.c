@@ -25,17 +25,6 @@
 #include "util.h"
 
 
-static void set_rc_id(struct dlm_rsb *r, struct dlm_rcom *rc)
-{
-#if BITS_PER_LONG == 32
-	rc->rc_id = (uint32_t) r;
-#elif BITS_PER_LONG == 64
-	rc->rc_id = (uint64_t) r;
-#else
-#error BITS_PER_LONG not defined
-#endif
-}
-
 static int rcom_response(struct dlm_ls *ls)
 {
 	return test_bit(LSFL_RCOM_READY, &ls->ls_flags);
@@ -213,7 +202,7 @@ int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid)
 	error = create_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, r->res_length,
 			    &rc, &mh);
 	memcpy(rc->rc_buf, r->res_name, r->res_length);
-	set_rc_id(r, rc);
+	rc->rc_id = (unsigned long) r;
 
 	error = send_rcom(ls, mh, rc);
 	return 0;
@@ -294,7 +283,7 @@ int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	rl = (struct rcom_lock *) rc->rc_buf;
 	pack_rcom_lock(r, lkb, rl);
-	set_rc_id(r, rc);
+	rc->rc_id = (unsigned long) r;
 
 	error = send_rcom(ls, mh, rc);
 
