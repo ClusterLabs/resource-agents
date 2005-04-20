@@ -22,6 +22,7 @@
 #include "lock.h"
 #include "rcom.h"
 #include "recover.h"
+#include "lvb_table.h"
 
 /* Central locking logic has four stages:
 
@@ -141,27 +142,6 @@ const int __quecvt_compat_matrix[8][8] = {
         {0, 0, 0, 0, 0, 0, 1, 0},       /* PW */
         {0, 0, 0, 0, 0, 0, 0, 0},       /* EX */
         {0, 0, 0, 0, 0, 0, 0, 0}        /* PD */
-};
-
-/*
- * This defines the direction of transfer of LVB data.
- * Granted mode is the row; requested mode is the column.
- * Usage: matrix[grmode+1][rqmode+1]
- * 1 = LVB is returned to the caller
- * 0 = LVB is written to the resource
- * -1 = nothing happens to the LVB
- */
-
-const int __lvb_operations[8][8] = {
-        /* UN   NL  CR  CW  PR  PW  EX  PD*/
-        {  -1,  1,  1,  1,  1,  1,  1, -1 }, /* UN */
-        {  -1,  1,  1,  1,  1,  1,  1,  0 }, /* NL */
-        {  -1, -1,  1,  1,  1,  1,  1,  0 }, /* CR */
-        {  -1, -1, -1,  1,  1,  1,  1,  0 }, /* CW */
-        {  -1, -1, -1, -1,  1,  1,  1,  0 }, /* PR */
-        {  -1,  0,  0,  0,  0,  0,  1,  0 }, /* PW */
-        {  -1,  0,  0,  0,  0,  0,  0,  0 }, /* EX */
-        {  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
 
 void dlm_print_lkb(struct dlm_lkb *lkb)
@@ -1396,7 +1376,7 @@ static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	   b=0 lvb written to rsb or invalidated
 	   b=-1 do nothing */
 
-	b =  __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
+	b =  dlm_lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
 
 	if (b == 1) {
 		if (!lkb->lkb_lvbptr)
@@ -1476,7 +1456,7 @@ static void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	if (!(lkb->lkb_exflags & DLM_LKF_VALBLK))
 		return;
 
-	b =  __lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
+	b =  dlm_lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
 	if (b == 1) {
 		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
 		lkb->lkb_lvbseq = ms->m_lvbseq;
