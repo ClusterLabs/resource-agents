@@ -17,8 +17,8 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 endif
 
-linux_orig = ${top_srcdir}/linux-orig
-linux_patched = ${top_srcdir}/linux-patched
+linux_orig = ${top_srcdir}/a
+linux_patched = ${top_srcdir}/b
 
 TARGET = dlm.patch
 
@@ -75,13 +75,14 @@ pre:
 	rsync -a --delete ${linux_orig}/ ${linux_patched}/
 
 post:
-	( cd ${top_srcdir} ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
+	( cd ${top_srcdir} ; diff -uprN a b > ${TARGET} ; cat patches/dlm-build.patch >> ${TARGET} ; exit 0 )
 
 add:
 	mkdir -p ${linux_patched}/drivers/dlm
 	cp *.[ch] ${linux_patched}/drivers/dlm
 	cp Makefile.kernel ${linux_patched}/drivers/dlm/Makefile
 	cp Kconfig ${linux_patched}/drivers/dlm/
+	(cd ${linux_patched}; patch -p1 < ../patches/dlm-include.patch)
 	mv ${linux_patched}/drivers/dlm/dlm.h ${linux_patched}/include/linux
 	mv ${linux_patched}/drivers/dlm/dlm_device.h ${linux_patched}/include/linux
 	mv ${linux_patched}/drivers/dlm/dlm_node.h ${linux_patched}/include/linux
