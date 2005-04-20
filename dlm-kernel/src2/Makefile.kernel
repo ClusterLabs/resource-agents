@@ -1,23 +1,23 @@
 obj-$(CONFIG_DLM) +=		dlm.o
 obj-$(CONFIG_DLM_DEVICE) +=	dlm_device.o
 
-dlm-y :=			ast.c \
-				config.c \
-				dir.c \
-				lock.c \
-				lockspace.c \
-				lowcomms.c \
-				main.c \
-				member.c \
-				member_sysfs.c \
-				memory.c \
-				midcomms.c \
-				node_ioctl.c \
-				rcom.c \
-				recover.c \
-				recoverd.c \
-				requestqueue.c \
-				util.c
-dlm-$(CONFIG_DLM_DEBUG) +=	debug_fs.c
+dlm-y :=			ast.o \
+				config.o \
+				dir.o \
+				lock.o \
+				lockspace.o \
+				lowcomms.o \
+				main.o \
+				member.o \
+				member_sysfs.o \
+				memory.o \
+				midcomms.o \
+				node_ioctl.o \
+				rcom.o \
+				recover.o \
+				recoverd.o \
+				requestqueue.o \
+				util.o
+dlm-$(CONFIG_DLM_DEBUG) +=	debug_fs.o
 
-dlm_device-y :=			device.c
+dlm_device-y :=			device.o

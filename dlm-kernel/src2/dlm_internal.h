@@ -97,13 +97,12 @@ struct dlm_mhandle;
 #define log_print(fmt, args...) printk("dlm: "fmt"\n", ##args)
 #define log_error(ls, fmt, args...) printk("dlm: %s: " fmt "\n", (ls)->ls_name, ##args)
 
-#define CONFIG_DLM_DEBUG
 #ifdef CONFIG_DLM_DEBUG
 int dlm_create_debug_file(struct dlm_ls *ls);
 void dlm_delete_debug_file(struct dlm_ls *ls);
 #else
 static inline int dlm_create_debug_file(struct dlm_ls *ls) { return 0; }
-static inline void dlm_delete_debug_file(struct dlm_ls *ls) { return 0; }
+static inline void dlm_delete_debug_file(struct dlm_ls *ls) { }
 #endif
 
 #define DLM_LOG_DEBUG
