@@ -1,0 +1,28 @@
+diff -urN a/drivers/dlm/dlm_internal.h b/drivers/dlm/dlm_internal.h
+--- a/drivers/dlm/dlm_internal.h	2005-04-20 10:46:57.321295784 +0800
++++ b/drivers/dlm/dlm_internal.h	2005-04-20 10:46:16.770460448 +0800
+@@ -38,8 +38,8 @@
+ #include <linux/kobject.h>
+ #include <linux/kref.h>
+ 
+-#include "dlm.h"
+-#include "dlm_node.h"
++#include <linux/dlm.h>
++#include <linux/dlm_node.h>
+ 
+ #define DLM_LOCKSPACE_LEN	(64)
+ #define DLM_TOSS_SECS		(10)
+diff -urN a/drivers/dlm/device.c b/drivers/dlm/device.c
+--- a/drivers/dlm/device.c	2005-04-19 13:23:44.000000000 +0800
++++ b/drivers/dlm/device.c	2005-04-20 10:32:12.724774896 +0800
+@@ -36,8 +36,8 @@
+ #include <linux/idr.h>
+ #include <asm/ioctls.h>
+ 
+-#include "dlm.h"
+-#include "dlm_device.h"
++#include <linux/dlm.h>
++#include <linux/dlm_device.h>
+ #include "device.h"
+ 
+ #include "dlm_internal.h" /* Only for DLM_RELEASE_NAME */

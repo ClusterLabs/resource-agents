@@ -1,0 +1,18 @@
+diff -ur a/drivers/Kconfig b/drivers/Kconfig
+--- a/drivers/Kconfig	2005-04-19 13:12:01.000000000 +0800
++++ b/drivers/Kconfig	2005-04-19 14:25:22.000000000 +0800
+@@ -60,4 +60,6 @@
+ 
+ source "drivers/infiniband/Kconfig"
+ 
++source "drivers/dlm/Kconfig"
++
+ endmenu
+diff -ur a/drivers/Makefile b/drivers/Makefile
+--- a/drivers/Makefile	2005-04-19 13:12:01.000000000 +0800
++++ b/drivers/Makefile	2005-04-19 13:17:03.000000000 +0800
+@@ -65,3 +65,4 @@
+ obj-$(CONFIG_BLK_DEV_SGIIOC4)	+= sn/
+ obj-y				+= firmware/
+ obj-$(CONFIG_CRYPTO)		+= crypto/
++obj-$(CONFIG_DLM)		+= dlm/
