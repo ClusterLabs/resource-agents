@@ -120,7 +120,7 @@ while (1)
     $ver1 = $1;
     $ver2 = $2;
 
-    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/'); 
+    $t->waitfor('/(TPS|IPS|RPC|NPS|NBB)\>/'); 
     last;
   }
 }
@@ -137,38 +137,42 @@ if (defined $opt_T)
 # for ON status
 if (($opt_o eq "off") || ($opt_o eq "reboot")) {
   $t->print("/off $opt_n");
-  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS)\>/');
+  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS|NBB)\>/');
 
   if ($match =~ /Y\/N/)
   {
     $t->print("y");
-    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+    $t->waitfor('/(TPS|IPS|RPC|NPS|NBB)\>/');
   }
 
   $t->print("/s");
 
   while (1)
   {
-    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS|NBB)\>/');
 
-    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
+    if ($match =~ /(TPS|IPS|RPC|NPS|NBB)\>/)
     {
       print "failed: plug number \"$opt_n\" not found\n"
          unless defined $opt_q;
       exit 1;
     }
     
-    $line =~ /^\s+(\d).*/;
+    $line =~ /^\s+(\d+).*/;
 
     if ($1 == $opt_n)
     {
-      $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/; 
-
-      $state = $2;
+      # For (TPS|IPS|RPC|NPS)
+      if($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      # For NBB
+      } elsif($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      }
 
       if ($state =~ /OFF/)
       {
-        $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+        $t->waitfor('/(TPS|IPS|RPC|NPS|NBB)\>/');
         last;
       }
 
@@ -184,38 +188,42 @@ if (($opt_o eq "off") || ($opt_o eq "reboot")) {
 
 if (($opt_o eq "on") || ($opt_o eq "reboot")) {
   $t->print("/on $opt_n");
-  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS)\>/');
+  ($line, $match) = $t->waitfor('/\(Y\/N\)|(TPS|IPS|RPC|NPS|NBB)\>/');
 
   if ($match =~ /Y\/N/)
   {
     $t->print("y");
-    $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+    $t->waitfor('/(TPS|IPS|RPC|NPS|NBB)\>/');
   }
 
   $t->print("/s");
   
   while (1)
   {
-    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS|NBB)\>/');
 
-    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
+    if ($match =~ /(TPS|IPS|RPC|NPS|NBB)\>/)
     {
       print "success: plug-on warning\n"
          unless defined $opt_q;
       exit 0;
     }
 
-    $line =~ /^\s+(\d).*/;
+    $line =~ /^\s+(\d+).*/;
 
     if ($1 == $opt_n)
     {
-      $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/;
-
-      $state = $2;
+      # For (TPS|IPS|RPC|NPS)
+      if($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      # For NBB
+      } elsif($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      }
 
       if ($state =~ /ON/)
       {
-        $t->waitfor('/(TPS|IPS|RPC|NPS)\>/');
+        $t->waitfor('/(TPS|IPS|RPC|NPS|NBB)\>/');
         last;
       }
 
@@ -241,23 +249,27 @@ sub test
 
   while (1)
   {
-    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS)\>/');
+    ($line, $match) = $t->waitfor('/\n|(TPS|IPS|RPC|NPS|NBB)\>/');
 
-    if ($match =~ /(TPS|IPS|RPC|NPS)\>/)
+    if ($match =~ /(TPS|IPS|RPC|NPS|NBB)\>/)
     {
       print "failed: plug number \"$opt_n\" not found\n"
           unless defined $opt_q;
       exit 1;
     }
 
-    $line =~ /^\s+(\d).*/;
+    $line =~ /^\s+(\d+).*/;
 
     if ($1 == $opt_n)
     {
-      $line =~ /^\s+(\d)\s+\|\s+\S+\s+\|\s+(\w+).*/;
+      # For (TPS|IPS|RPC|NPS)
+      if($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      # For NBB
+      } elsif($line =~ /^\s+(\d+)\s+\|\s+\S+\s+\|\s+\S+\s+\|\s+(\w+).*/){
+        $state = $2;
+      }
 
-      $state = $2;
-      
       if ($state =~ /ON|OFF/)
       {
         print "success: current plug state \"$state\"\n" 
