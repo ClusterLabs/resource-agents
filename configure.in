@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.373 $) dnl cvs revision
+AC_REVISION($Revision: 1.374 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1509,6 +1509,11 @@ fi
 
 if test "$GCC" = yes; then
   CFLAGS="$CFLAGS -ggdb3"
+  if
+    cc_supports_flag -funsigned-char
+  then
+    CFLAGS="$CFLAGS -funsigned-char"
+  fi
 else
   CFLAGS="$CFLAGS -g"
 fi
