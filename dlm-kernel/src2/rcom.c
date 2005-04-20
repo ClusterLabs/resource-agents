@@ -254,8 +254,16 @@ static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	rl->rl_grmode = lkb->lkb_grmode;
 	rl->rl_status = lkb->lkb_status;
 
+	if (lkb->lkb_bastaddr)
+		rl->rl_asts |= AST_BAST;
+	if (lkb->lkb_astaddr)
+		rl->rl_asts |= AST_COMP;
+
 	if (lkb->lkb_range)
 		memcpy(rl->rl_range, lkb->lkb_range, 4*sizeof(uint64_t));
+
+	/* FIXME: might we have an lvb without DLM_LKF_VALBLK set ?
+	   If so, receive_rcom_lock_args() won't take this copy. */
 
 	if (lkb->lkb_lvbptr)
 		memcpy(rl->rl_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);

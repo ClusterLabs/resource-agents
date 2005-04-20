@@ -3368,14 +3368,16 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	lkb->lkb_nodeid = rc->rc_header.h_nodeid;
 	lkb->lkb_ownpid = rl->rl_ownpid;
 	lkb->lkb_remid = rl->rl_id;
-	lkb->lkb_grmode = rl->rl_grmode;
-	lkb->lkb_rqmode = rl->rl_rqmode;
-	lkb->lkb_bastaddr = (void *) (long) (rl->rl_asts & AST_BAST);
-	lkb->lkb_astaddr = (void *) (long) (rl->rl_asts & AST_COMP);
-
 	lkb->lkb_exflags = rl->rl_exflags;
 	lkb->lkb_flags = rl->rl_flags & 0x0000FFFF;
 	lkb->lkb_flags |= DLM_IFL_MSTCPY;
+	lkb->lkb_lvbseq = rl->rl_lvbseq;
+	lkb->lkb_rqmode = rl->rl_rqmode;
+	lkb->lkb_grmode = rl->rl_grmode;
+	lkb->lkb_status = rl->rl_status;
+
+	lkb->lkb_bastaddr = (void *) (long) (rl->rl_asts & AST_BAST);
+	lkb->lkb_astaddr = (void *) (long) (rl->rl_asts & AST_COMP);
 
 	if (lkb->lkb_flags & DLM_IFL_RANGE) {
 		lkb->lkb_range = allocate_range(ls);
