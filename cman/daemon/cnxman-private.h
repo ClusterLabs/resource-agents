@@ -383,7 +383,7 @@ extern void log_msg(int priority, const char *fmt, ...);
 
 // #define DEBUG_MEMB
 // #define DEBUG_COMMS
- #define DEBUG_DAEMON
+// #define DEBUG_DAEMON
 // #define DEBUG_BARRIER
 
 /* Debug macros */
