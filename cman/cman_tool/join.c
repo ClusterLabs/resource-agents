@@ -306,7 +306,7 @@ int join(commandline_t *comline)
     /*
      * Setup the interface/multicast
      */
-    argv[0] = "cman";
+    argv[0] = "cmand";
     for (i = 0; i<comline->num_nodenames; i++)
     {
 	error = setup_interface(comline, i);
