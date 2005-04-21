@@ -86,8 +86,7 @@ src/lock_gulmd: $(gulmd_src:.c=.o)
 	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o $@
 
 lib/libgulm.a: $(lib_src:.c=.o)
-	${LD} ${LDFLAGS} -r $^ -o $@ --retain-symbols-file=lib/exported_symbols.sym
-	#xdr_* functions still `visable'. for relocation i think.
+	${AR} cr $@ $^
 
 lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): lib/libgulm.a
 	${LD} -shared -soname libgulm.so.$(RELEASE_MAJOR) -o $@ $^ -lc
@@ -120,8 +119,8 @@ install: all
 	install man/lock_gulmd.8 man/gulm_tool.8 ${mandir}/man8
 	install -d ${libdir}
 	install -m644 lib/libgulm.a ${libdir}
-	install -m644 lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	install -m644 lib/libgulm.so.$(RELEASE_MAJOR) ${libdir}
+	cd ${libdir}; ln -snf libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libgulm.so.$(RELEASE_MAJOR); cd - 
+	cd ${libdir}; ln -snf libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libgulm.so; cd - 
 	install -m644 lib/libgulm.so ${libdir}
 	install -d ${incdir}
 	install -m644 lib/libgulm.h ${incdir}
