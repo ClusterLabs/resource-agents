@@ -1,7 +1,7 @@
 /******************************************************************************
 *******************************************************************************
 **
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This library is free software; you can redistribute it and/or
 **  modify it under the terms of the GNU Lesser General Public
@@ -21,48 +21,198 @@
 ******************************************************************************/
 
 #include <sys/types.h>
-#include <sys/ioctl.h>
+#include <sys/un.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
-#include <cluster/cnxman-socket.h>
+#include "../daemon/cnxman-socket.h"
 #include "libcman.h"
 
 struct cman_handle
 {
+	int magic;
 	int fd;
 	void *private;
-	cman_callback_t callback;
+	int want_reply;
+	cman_callback_t event_callback;
 	cman_datacallback_t data_callback;
+
+	void *reply_buffer;
+	int reply_buflen;
+	int reply_status;
 };
 
+#define VALIDATE_HANDLE(h) do {if (!(h) || (h)->magic != CMAN_MAGIC) {errno = EINVAL; return -1;}} while (0)
 
-/* TODO: Get the address(s) for the node too */
+/* Wait for an command/request reply. in the meantime we will still process data messages
+   that arrive for us.
+*/
+static int wait_for_reply(struct cman_handle *h, void *msg, int max_len)
+{
+	int ret;
+
+	h->want_reply = 1;
+	h->reply_buffer = msg;
+	h->reply_buflen = max_len;
+
+	do
+	{
+		ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING);
+
+	} while (h->want_reply == 1 && ret >= 0);
+
+	h->reply_buffer = NULL;
+	h->reply_buflen = 0;
+
+	/* Error in local comms */
+	if (ret < 0) {
+		return -1;
+	}
+	/* cnxman daemon returns -ve errno values on error */
+	if (h->reply_status < 0) {
+		errno = -h->reply_status;
+		return -1;
+	}
+	else {
+		return h->reply_status;
+	}
+}
+
+
 static void copy_node(cman_node_t *unode, struct cl_cluster_node *knode)
 {
 	unode->cn_nodeid = knode->node_id;
 	unode->cn_member = knode->state == NODESTATE_MEMBER?1:0;
 	strcpy(unode->cn_name, knode->name);
 	unode->cn_incarnation = knode->incarnation;
-	memset(&unode->cn_address, 0, sizeof(cman_node_address_t));
+	unode->cn_jointime = knode->jointime;
+
+	memcpy(&unode->cn_address.cna_address, knode->addr, sizeof(struct sockaddr_storage));
+	unode->cn_address.cna_addrlen = sizeof(struct sockaddr_storage);
+}
+
+static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
+{
+	/* Data for us */
+	if ((msg->command & CMAN_CMDMASK_CMD) == CMAN_CMD_DATA)
+	{
+		struct sock_data_header *dmsg = (struct sock_data_header *)msg;
+		char *buf = (char *)msg;
+
+		if (h->data_callback)
+			h->data_callback(h, h->private,
+					 buf+sizeof(*dmsg), msg->length-sizeof(*dmsg),
+					 dmsg->port, dmsg->nodeid);
+		return 0;
+	}
+
+	/* Got a reply to a previous information request */
+	if ((msg->command & CMAN_CMDFLAG_REPLY) && h->want_reply)
+	{
+		char *replybuf = (char *)msg;
+		int replylen = msg->length - sizeof(struct sock_reply_header);
+		struct sock_reply_header *reply = (struct sock_reply_header *)msg;
+
+		replybuf += sizeof(struct sock_reply_header);
+		if (replylen <= h->reply_buflen)
+		{
+			memcpy(h->reply_buffer, replybuf, replylen);
+		}
+		h->want_reply = 0;
+		h->reply_status = reply->status;
+		return 1;
+	}
+
+	/* OOB event */
+	if (msg->command == CMAN_CMD_EVENT)
+	{
+		struct sock_event_message *emsg = (struct sock_event_message *)msg;
+		if (h->event_callback)
+			h->event_callback(h, h->private, emsg->reason, emsg->arg);
+	}
+
+	return 0;
+}
+
+static int loopy_writev(int fd, struct iovec *iovptr, size_t iovlen)
+{
+	size_t byte_cnt=0;
+	int len;
+
+	while (iovlen > 0)
+	{
+		len = writev(fd, iovptr, iovlen);
+		if (len <= 0)
+			return len;
+
+		byte_cnt += len;
+		while (len >= iovptr->iov_len)
+		{
+			len -= iovptr->iov_len;
+			iovptr++;
+			iovlen--;
+		}
+
+		if (iovlen <=0 )
+			break;
+
+		iovptr->iov_base += len;
+		iovptr->iov_len -= len;
+	}
+	return byte_cnt;
 }
 
 
-cman_handle_t cman_init(void *private)
+/* Does something similar to the ioctl calls */
+static int info_call(struct cman_handle *h, int msgtype, void *inbuf, int inlen, void *outbuf, int outlen)
+{
+	struct sock_header header;
+	size_t len;
+	struct iovec iov[2];
+	size_t iovlen = 1;
+
+	header.magic = CMAN_MAGIC;
+	header.command = msgtype;
+	header.flags = 0;
+	header.length = sizeof(header) + inlen;
+
+	iov[0].iov_len = sizeof(header);
+	iov[0].iov_base = &header;
+	if (inbuf)
+	{
+		iov[1].iov_len = inlen;
+		iov[1].iov_base = inbuf;
+		iovlen++;
+	}
+
+	len = loopy_writev(h->fd, iov, iovlen);
+	if (len < 0)
+		return len;
+
+	return wait_for_reply(h, outbuf, outlen);
+}
+
+static cman_handle_t open_socket(const char *name, int namelen, void *private)
 {
 	struct cman_handle *h;
+	struct sockaddr_un sockaddr;
 
 	h = malloc(sizeof(struct cman_handle));
 	if (!h)
 		return NULL;
 
+	h->magic = CMAN_MAGIC;
 	h->private = private;
-	h->callback = NULL;
+	h->event_callback = NULL;
+	h->data_callback = NULL;
+	h->want_reply = 0;
 
-	h->fd = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
+	h->fd = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (h->fd == -1)
 	{
 		int saved_errno = errno;
@@ -70,13 +220,40 @@ cman_handle_t cman_init(void *private)
 		errno = saved_errno;
 		return NULL;
 	}
+
+	fcntl(h->fd, F_SETFD, 1); /* Set close-on-exec */
+	memset(&sockaddr, 0, sizeof(sockaddr));
+	memcpy(sockaddr.sun_path, name, namelen);
+	sockaddr.sun_family = AF_UNIX;
+
+	if (connect(h->fd, (struct sockaddr *) &sockaddr, sizeof(sockaddr)) < 0)
+	{
+		int saved_errno = errno;
+		close(h->fd);
+		free(h);
+		h = NULL;
+		errno = saved_errno;
+	}
+
 	return (cman_handle_t)h;
+}
+
+cman_handle_t cman_admin_init(void *private)
+{
+	return open_socket(ADMIN_SOCKNAME, sizeof(ADMIN_SOCKNAME), private);
+}
+
+cman_handle_t cman_init(void *private)
+{
+	return open_socket(CLIENT_SOCKNAME, sizeof(CLIENT_SOCKNAME), private);
 }
 
 int cman_finish(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
+	h->magic = 0;
 	close(h->fd);
 	free(h);
 
@@ -86,6 +263,7 @@ int cman_finish(cman_handle_t handle)
 int cman_start_notification(cman_handle_t handle, cman_callback_t callback)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
 	if (!callback)
 	{
@@ -93,7 +271,7 @@ int cman_start_notification(cman_handle_t handle, cman_callback_t callback)
 		return -1;
 	}
 
-	h->callback = callback;
+	h->event_callback = callback;
 
 	return 0;
 }
@@ -101,8 +279,9 @@ int cman_start_notification(cman_handle_t handle, cman_callback_t callback)
 int cman_stop_notification(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
-	h->callback = NULL;
+	h->event_callback = NULL;
 
 	return 0;
 }
@@ -111,89 +290,82 @@ int cman_stop_notification(cman_handle_t handle)
 int cman_get_fd(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
 	return h->fd;
 }
 
 int cman_dispatch(cman_handle_t handle, int flags)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	struct iovec iov[1];
-	struct msghdr msg;
-	struct sockaddr_cl saddr;
 	int len;
-	int recv_flags = MSG_OOB;
-	char buf[128];
+	int recv_flags = 0;
+	char buf[PIPE_BUF];
+	struct sock_header *header = (struct sock_header *)buf;
+	VALIDATE_HANDLE(h);
 
 	if (!(flags & CMAN_DISPATCH_BLOCKING))
 		recv_flags |= MSG_DONTWAIT;
 
+	do
+	{
+		len = recv(h->fd, buf, sizeof(struct sock_header), recv_flags);
 
-	do {
-		msg.msg_control = NULL;
-		msg.msg_controllen = 0;
-		msg.msg_iovlen = 1;
-		msg.msg_iov = iov;
-		msg.msg_name = &saddr;
-		msg.msg_flags = 0;
-		msg.msg_namelen = sizeof(saddr);
-		iov[0].iov_len = sizeof(buf);
-		iov[0].iov_base = buf;
+		if (len == 0) {
+			errno = EHOSTDOWN;
+			return -1;
+		}
 
-		len = recvmsg(h->fd, &msg, recv_flags);
-		if (len < 0 && errno == EAGAIN)
-			return len;
+		if (len < 0 &&
+		    (errno == EINTR || errno == EAGAIN))
+			return 0;
 
-		/* Send a callback if registered */
-		if (msg.msg_flags & MSG_OOB)
+		if (len < 0)
+			return -1;
+
+		/* Read the rest */
+		if (len != header->length)
 		{
-			int reason;
-			int arg = 0;
-			switch (buf[0])
-			{
-			case CLUSTER_OOB_MSG_PORTCLOSED:
-				reason = CMAN_REASON_PORTCLOSED;
-				arg = saddr.scl_nodeid;
-				break;
-
-			case CLUSTER_OOB_MSG_STATECHANGE:
-				reason = CMAN_REASON_STATECHANGE;
-				break;
-
-			case CLUSTER_OOB_MSG_SERVICEEVENT:
-				reason = CMAN_REASON_SERVICEEVENT;
-				break;
-			default:
-				continue;
+			len = read(h->fd, buf+len, header->length-len);
+			if (len == 0) {
+				errno = EHOSTDOWN;
+				return -1;
 			}
-			if (h->callback)
-				h->callback(h, h->private, reason, arg);
-		}
-		else
-		{
-			if (h->data_callback)
-				h->data_callback(h, h->private, buf, len, saddr.scl_port, saddr.scl_nodeid);
+
+			if (len < 0 &&
+			    (errno == EINTR || errno == EAGAIN))
+				return 0;
+
+			if (len < 0)
+				return -1;
 		}
 
-	}
-	while ( flags & CMAN_DISPATCH_ALL &&
-		(len < 0 && errno == EAGAIN) );
+		if (process_cman_message(h, header))
+			break;
+
+	} while ( flags & CMAN_DISPATCH_ALL &&
+		  (len < 0 && errno == EAGAIN) );
 
 	return len;
 }
 
+/* GET_ALLMEMBERS returns the number of nodes as status */
 int cman_get_node_count(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	return ioctl(h->fd, SIOCCLUSTER_GETALLMEMBERS, 0);
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_GETALLMEMBERS, NULL, 0, NULL, 0);
 }
 
 int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_t *nodes)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_cluster_node *cman_nodes;
-	struct cl_cluster_nodelist cman_req;
 	int status;
+	int buflen;
 	int count = 0;
+	VALIDATE_HANDLE(h);
 
 	if (!retnodes || !nodes || maxnodes < 1)
 	{
@@ -201,13 +373,12 @@ int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_
 		return -1;
 	}
 
-	cman_nodes = malloc(sizeof(struct cl_cluster_node) * maxnodes);
+	buflen = sizeof(struct cl_cluster_node) * maxnodes;
+	cman_nodes = malloc(buflen);
 	if (!cman_nodes)
 		return -1;
 
-	cman_req.max_members = maxnodes;
-	cman_req.nodes = cman_nodes;
-	status = ioctl(h->fd, SIOCCLUSTER_GETALLMEMBERS, &cman_req);
+	status = info_call(h, CMAN_CMD_GETALLMEMBERS, NULL, 0, cman_nodes, buflen);
 	if (status < 0)
 	{
 		int saved_errno = errno;
@@ -215,6 +386,7 @@ int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_
 		errno = saved_errno;
 		return -1;
 	}
+
 	if (cman_nodes[0].size != sizeof(struct cl_cluster_node))
 	{
 		free(cman_nodes);
@@ -222,12 +394,15 @@ int cman_get_nodes(cman_handle_t handle, int maxnodes, int *retnodes, cman_node_
 		return -1;
 	}
 
+	if (status > maxnodes)
+		status = maxnodes;
+
 	for (count = 0; count < status; count++)
 	{
 		copy_node(&nodes[count], &cman_nodes[count]);
 	}
 	free(cman_nodes);
-	*retnodes = count;
+	*retnodes = status;
 	return 0;
 }
 
@@ -236,6 +411,7 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node)
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_cluster_node cman_node;
 	int status;
+	VALIDATE_HANDLE(h);
 
 	if (!node)
 	{
@@ -245,7 +421,8 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node)
 
 	cman_node.node_id = nodeid;
 	cman_node.name[0] = 0;/* Get by id */
-	status = ioctl(h->fd, SIOCCLUSTER_GETNODE, &cman_node);
+	status = info_call(h, CMAN_CMD_GETNODE, &cman_node, sizeof(struct cl_cluster_node),
+			   &cman_node, sizeof(struct cl_cluster_node));
 	if (status < 0)
 		return -1;
 
@@ -254,120 +431,337 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node)
 	return 0;
 }
 
+int cman_get_join_count(cman_handle_t handle)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_GET_JOINCOUNT, NULL,0, NULL, 0);
+}
+
 int cman_is_active(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	return ioctl(h->fd, SIOCCLUSTER_ISACTIVE, 0);
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_ISACTIVE, NULL, 0, NULL, 0);
 }
 
 int cman_is_listening(cman_handle_t handle, int nodeid, uint8_t port)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct cl_listen_request req;
+	VALIDATE_HANDLE(h);
 
 	req.port = port;
 	req.nodeid = nodeid;
-	return ioctl(h->fd, SIOCCLUSTER_ISLISTENING, &req);
-
+	return info_call(h, CMAN_CMD_ISLISTENING, &req, sizeof(struct cl_listen_request), NULL, 0);
 }
+
 int cman_is_quorate(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	return ioctl(h->fd, SIOCCLUSTER_ISQUORATE, 0);
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_ISQUORATE, NULL, 0, NULL, 0);
 }
 
 
 int cman_get_version(cman_handle_t handle, cman_version_t *version)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
 	if (!version)
 	{
 		errno = EINVAL;
 		return -1;
 	}
-	return ioctl(h->fd, SIOCCLUSTER_GET_VERSION, version);
+	return info_call(h, CMAN_CMD_GET_VERSION, NULL, 0, version, sizeof(cman_version_t));
 }
 
 int cman_set_version(cman_handle_t handle, cman_version_t *version)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
 	if (!version)
 	{
 		errno = EINVAL;
 		return -1;
 	}
-	return ioctl(h->fd, SIOCCLUSTER_SET_VERSION, version);
+	return info_call(h, CMAN_CMD_SET_VERSION, version, sizeof(cman_version_t), NULL, 0);
+}
+
+int cman_set_nodename(cman_handle_t handle, char *name)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!name)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_SET_NODENAME, name, strlen(name)+1, NULL, 0);
+}
+
+int cman_set_nodeid(cman_handle_t handle, int nodeid)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!nodeid)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_SET_NODEID, &nodeid, sizeof(nodeid), NULL, 0);
+}
+
+int cman_kill_node(cman_handle_t handle, int nodeid)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!nodeid)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_KILLNODE, &nodeid, sizeof(nodeid), NULL, 0);
+}
+
+int cman_set_votes(cman_handle_t handle, int votes)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!votes)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_SET_VOTES, &votes, sizeof(votes), NULL, 0);
+}
+
+int cman_set_expected_votes(cman_handle_t handle, int evotes)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!evotes)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_SETEXPECTED_VOTES, &evotes, sizeof(evotes), NULL, 0);
+}
+
+int cman_leave_cluster(cman_handle_t handle, int reason)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_LEAVE_CLUSTER, &reason, sizeof(reason), NULL, 0);
+}
+
+int cman_join_cluster(cman_handle_t handle, struct cman_join_info *jinfo)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!jinfo)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_JOIN_CLUSTER, jinfo, sizeof(*jinfo), NULL, 0);
 }
 
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
 	if (!clinfo)
 	{
 		errno = EINVAL;
 		return -1;
 	}
-	return ioctl(h->fd, SIOCCLUSTER_GETCLUSTER, clinfo);
+	return info_call(h, CMAN_CMD_GETCLUSTER, NULL, 0, clinfo, sizeof(cman_cluster_t));
 }
 
-int cman_send_data(cman_handle_t handle, char *buf, int len, int flags, uint8_t port, int nodeid)
+int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxlen)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!info || maxlen < sizeof(cman_extra_info_t))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_GETEXTRAINFO, NULL, 0, info, maxlen);
+}
+
+int cman_send_data(cman_handle_t handle, void *buf, int len, int flags, uint8_t port, int nodeid)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	struct iovec iov[2];
-	struct msghdr msg;
-	struct sockaddr_cl saddr;
+	struct sock_data_header header;
+	VALIDATE_HANDLE(h);
 
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_iovlen = 1;
-	msg.msg_iov = iov;
-	msg.msg_flags = 0;
-	iov[0].iov_len = len;
-	iov[0].iov_base = buf;
+	header.header.magic = CMAN_MAGIC;
+	header.header.command = CMAN_CMD_DATA;
+	header.header.flags = flags;
+	header.header.length = len + sizeof(header);
+	header.nodeid = nodeid;
+	header.port = port;
 
-	saddr.scl_family = AF_CLUSTER;
-	saddr.scl_port = port;
-	if (nodeid) {
-		msg.msg_name = &saddr;
-		msg.msg_namelen = sizeof(saddr);
-		saddr.scl_nodeid = nodeid;
-	} else {		/* Cluster broadcast */
+	iov[0].iov_len = sizeof(header);
+	iov[0].iov_base = &header;
+	iov[1].iov_len = len;
+	iov[1].iov_base = buf;
 
-		msg.msg_name = NULL;
-		msg.msg_namelen = 0;
-	}
-
-	do {
-		len = sendmsg(h->fd, &msg, 0);
-
-	} while (len == -1 && errno == EAGAIN);
-	return len;
+	return loopy_writev(h->fd, iov, 2);
 }
 
 
 int cman_start_recv_data(cman_handle_t handle, cman_datacallback_t callback, uint8_t port)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
-	struct sockaddr_cl saddr;
+	int portparam;
+	int status;
+	VALIDATE_HANDLE(h);
 
-	saddr.scl_family = AF_CLUSTER;
-	saddr.scl_port = port;
+/* Do a "bind" */
+	portparam = port;
+	status = info_call(h, CMAN_CMD_BIND, &portparam, sizeof(portparam), NULL, 0);
 
-	if (bind(h->fd, (struct sockaddr *) &saddr, sizeof(struct sockaddr_cl))) {
-		return -1;
-	}
+	if (status == 0)
+		h->data_callback = callback;
 
-	h->data_callback = callback;
-	return 0;
+	return status;
 }
 
 int cman_end_recv_data(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
 
 	h->data_callback = NULL;
 	return 0;
+}
+
+
+int cman_barrier_register(cman_handle_t handle, char *name, int flags, int nodes)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_barrier_info binfo;
+	VALIDATE_HANDLE(h);
+
+	if (strlen(name) > MAX_BARRIER_NAME_LEN)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	binfo.cmd = BARRIER_CMD_REGISTER;
+	strcpy(binfo.name, name);
+	binfo.arg = nodes;
+	binfo.flags = flags;
+
+	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
+}
+
+
+int cman_barrier_change(cman_handle_t handle, char *name, int flags, int arg)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_barrier_info binfo;
+	VALIDATE_HANDLE(h);
+
+	if (strlen(name) > MAX_BARRIER_NAME_LEN)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	binfo.cmd = BARRIER_CMD_CHANGE;
+	strcpy(binfo.name, name);
+	binfo.arg = arg;
+	binfo.flags = flags;
+
+	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
+
+}
+
+int cman_barrier_wait(cman_handle_t handle, char *name)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_barrier_info binfo;
+	VALIDATE_HANDLE(h);
+
+	if (strlen(name) > MAX_BARRIER_NAME_LEN)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	binfo.cmd = BARRIER_CMD_WAIT;
+	strcpy(binfo.name, name);
+
+	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
+}
+
+int cman_barrier_delete(cman_handle_t handle, char *name)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_barrier_info binfo;
+	VALIDATE_HANDLE(h);
+
+	if (strlen(name) > MAX_BARRIER_NAME_LEN)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	binfo.cmd = BARRIER_CMD_DELETE;
+	strcpy(binfo.name, name);
+
+	return info_call(h, CMAN_CMD_BARRIER, &binfo, sizeof(binfo), NULL, 0);
+}
+
+int cman_register_quorum_device(cman_handle_t handle, char *name, int votes)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	char buf[strlen(name)+1 + sizeof(int)];
+	VALIDATE_HANDLE(h);
+
+	if (strlen(name) > MAX_CLUSTER_NAME_LEN)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	memcpy(buf, &votes, sizeof(int));
+	strcpy(buf+sizeof(int), name);
+	return info_call(h, CMAN_CMD_REG_QUORUMDEV, buf, strlen(name)+sizeof(int), NULL, 0);
+}
+
+int cman_unregister_quorum_device(cman_handle_t handle)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_UNREG_QUORUMDEV, NULL, 0, NULL, 0);
+}
+
+int cman_poll_quorum_device(cman_handle_t handle, int isavailable)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	return info_call(h, CMAN_CMD_POLL_QUORUMDEV, &isavailable, sizeof(int), NULL, 0);
 }

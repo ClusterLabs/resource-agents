@@ -24,17 +24,6 @@ include ${top_srcdir}/make/defines.mk
 
 CFLAGS += -g -O -I. -fPIC
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-CFLAGS += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-CFLAGS += -I${incdir}/cluster
-endif
-
-
 all: $(STATICLIB) $(SHAREDLIB)
 
 $(LIBNAME).a: libcman.o
@@ -46,7 +35,7 @@ $(LIBNAME).so.${RELEASE_MAJOR}.${RELEASE_MINOR}: libcman.o
 	$(CC) -shared -o $@ -Wl,-soname=$(LIBNAME).so.$(RELEASE_MAJOR) $^
 
 libcman.o: libcman.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $< -I../daemon
 
 copytobin: all
 
