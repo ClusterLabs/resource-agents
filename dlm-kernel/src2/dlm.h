@@ -187,7 +187,6 @@ struct dlm_range {
 #define DLM_SBF_DEMOTED        (0x01)
 #define DLM_SBF_VALNOTVALID    (0x02)
 #define DLM_SBF_ALTMODE        (0x04)
-#define DLM_SBF_LVBUPDATED     (0x08)
 
 struct dlm_lksb {
 	int 	 sb_status;
