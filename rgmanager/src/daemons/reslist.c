@@ -346,12 +346,12 @@ xpath_get_one(xmlDocPtr doc, xmlXPathContextPtr ctx, char *query)
 	char *val = NULL, *ret = NULL;
 	xmlXPathObjectPtr obj;
 
-	obj = xmlXPathEvalExpression(query, ctx);
+	obj = xmlXPathEvalExpression((unsigned char *)query, ctx);
 	if (!obj)
 		return NULL;
 
 	if (obj->nodesetval && obj->nodesetval->nodeNr >= 1) {
-		val = obj->nodesetval->nodeTab[0]->children->content;
+		val = (char *)obj->nodesetval->nodeTab[0]->children->content;
 		if (strlen(val) >= 1)
 			ret = strdup(val);
 	}

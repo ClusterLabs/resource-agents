@@ -1172,7 +1172,8 @@ vf_write(cluster_member_list_t *membership, uint32_t flags, char *keyid,
 	int count;
 	key_node_t *key_node;
 	vf_msg_t *join_view;
-	int remain = 0, x, y, rv = 1, totallen;
+	int remain = 0, x, y, rv = 1;
+	uint32_t totallen;
 	struct timeval start, end, dif;
 	void *lockp = NULL;
 	int l;
@@ -1600,7 +1601,8 @@ vf_send_current(int fd, char *keyid)
 {
 	key_node_t *key_node;
 	vf_msg_t *msg;
-	int totallen, ret;
+	int ret;
+	uint32_t totallen;
 
 	if (fd == -1)
 		return VFR_ERROR;

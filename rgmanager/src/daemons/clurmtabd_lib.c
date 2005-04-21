@@ -735,7 +735,7 @@ rmtab_unpack(rmtab_node **head, char *src, size_t srclen)
 {
 	int n = 0;
 	char *hostp, *pathp;
-	int *countp;
+	uint32_t *countp;
 	size_t len;
 	size_t total = 0;
 	rmtab_node *last = NULL;

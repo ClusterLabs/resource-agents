@@ -20,9 +20,9 @@ CFLAGS+= -g -I${incdir}
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 
-CFLAGS+= -L../clulib -L${libdir} -lclulib -DPACKAGE_VERSION=\"${RELEASE}\"
+CFLAGS+= -L${libdir} -DPACKAGE_VERSION=\"${RELEASE}\"
 
-LDFLAGS+= -lmagmamsg -lmagma -lpthread -ldl  -lncurses
+LDFLAGS+= -lmagmamsg -lmagma -lpthread -ldl -lncurses -L../clulib -lclulib
 TARGETS=clubufflush clustat clusvcadm clulog
 
 all: ${TARGETS}

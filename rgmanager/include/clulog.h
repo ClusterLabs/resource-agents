@@ -42,13 +42,6 @@ extern "C" {
 #define MAX_LOGMSG_LEN        512
 
 /*
- *  Log level.  Based on values found in /usr/include/sys/syslog.h.
- *  This has to be set by the process using the logging library.  The
- *  default it LOG_WARNING, as dictated by LOGLEVEL_DFLT.
- */
-extern int loglevel;
-
-/*
  * int clu_set_loglevel(int severity)
  *
  * DESCRIPTION

@@ -23,22 +23,22 @@
 
 int msg_update(cluster_member_list_t *membership);
 void msg_shutdown(void);
-ssize_t msg_receive_timeout(int fd, void *buf, ssize_t count,
-			    unsigned int timeout);
-int msg_receive(int fd, void *buf, ssize_t buflen);
-ssize_t msg_peek(int fd, void *buf, ssize_t buflen);
-ssize_t msg_receive_timeout(int fd, void *buf, ssize_t count,
-			    unsigned int timeout);
+
 int msg_open(uint64_t nodeid, uint16_t baseport, int purpose, int timeout);
 int msg_listen(uint16_t baseport, int purpose, int *ret, int retlen);
 int msg_accept(int fd, int members_only, uint64_t *nodeid);
 int msg_close(int fd);
 int msg_fill_fdset(fd_set *set, int flags, int purpose);
 int msg_next_fd(fd_set *set);
-ssize_t msg_send(int fd, void *buf, ssize_t count);
 int msg_set_purpose(int fd, int purpose);
 int msg_get_purpose(int fd);
 int msg_get_flags(int fd);
+
+ssize_t	msg_send(int fd, void *buf, ssize_t count);
+int	msg_receive(int fd, void *buf, ssize_t buflen);
+ssize_t	msg_peek(int fd, void *buf, ssize_t buflen);
+ssize_t	msg_receive_timeout(int fd, void *buf, ssize_t count,
+			    unsigned int timeout);
 
 #define MSG_OPEN	0x1	/** FD was opened by us somehow. */
 #define MSG_LISTEN	0x2	/** Set up with msg_listen */

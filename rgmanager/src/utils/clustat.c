@@ -344,8 +344,8 @@ main(int argc, char **argv)
 			goto cleanup;
 
 		case 'I':
-			printf("0x%08x%08x\n",(uint32_t)local_node_id>>32,
-			       (uint32_t)local_node_id&0xffffffff); 
+			printf("0x%08x%08x\n",(uint32_t)(local_node_id>>32),
+			       (uint32_t)(local_node_id&0xffffffff)); 
 			goto cleanup;
 
 		case 'i':

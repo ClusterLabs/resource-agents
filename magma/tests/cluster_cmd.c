@@ -47,7 +47,7 @@ static int send_command(char *cmd, int t);
 char *nodes[256];
 
 int main(int argc, char *argv[]){
-  int i,index=0;
+  int i,idx=0;
   int t = 3;
   int pid;
   char cmd[256];
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]){
 	exit(EXIT_FAILURE);
       }
       i++;
-      nodes[index++] = argv[i];
+      nodes[idx++] = argv[i];
       continue;
     }
     if(!strcmp(argv[i], "-t") ||
@@ -104,10 +104,10 @@ int main(int argc, char *argv[]){
   }
 
   memset(cmd, 0, sizeof(cmd));
-  for(index=0; i < argc; i++){
-    strncpy(cmd+index, argv[i], (sizeof(cmd)-index)-1);
-    index = strlen(cmd);
-    cmd[index++] = ' ';
+  for(idx=0; i < argc; i++){
+    strncpy(cmd+idx, argv[i], (sizeof(cmd)-idx)-1);
+    idx = strlen(cmd);
+    cmd[idx++] = ' ';
   }
 
   if(!strlen(cmd)){

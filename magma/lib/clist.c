@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static inline int clist_delete_nt(int fd);
 
 /**
  * Node in connection list.
@@ -45,9 +44,12 @@ typedef struct _conn_node {
 typedef TAILQ_HEAD(_conn_list_head, _conn_node) conn_list_head_t;
 
 static pthread_mutex_t conn_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static conn_list_head_t conn_list_head = { NULL, &(conn_list_head.tqh_first) };
+static conn_list_head_t _conn_list_head = { NULL,
+					    &(_conn_list_head.tqh_first) };
 
-static inline conn_node_t *locate_node(int fd);
+static inline conn_node_t *locate_node(conn_list_head_t *, int fd);
+
+static inline int clist_delete_nt(conn_list_head_t *, int fd);
 
 
 /**
@@ -59,7 +61,7 @@ static inline conn_node_t *locate_node(int fd);
  * @return		0
  */
 int
-clist_insert(int fd, int flags)
+clist_insert_nt(conn_list_head_t *conn_list_head, int fd, int flags)
 {
 	conn_node_t *node;
 
@@ -71,22 +73,31 @@ clist_insert(int fd, int flags)
 	node->cn_flags = flags;
 	node->cn_purpose = 0;
 
-	pthread_mutex_lock(&conn_list_mutex);
-	clist_delete_nt(fd);
-	TAILQ_INSERT_HEAD(&conn_list_head, node, cn_entries);
-	pthread_mutex_unlock(&conn_list_mutex);
+	clist_delete_nt(conn_list_head, fd);
+	TAILQ_INSERT_HEAD(conn_list_head, node, cn_entries);
 
 	return 0;
 }
 
 
+int
+clist_insert(int fd, int flags)
+{
+	int ret;
+	pthread_mutex_lock(&conn_list_mutex);
+	ret = clist_insert_nt(&_conn_list_head, fd, flags);
+	pthread_mutex_unlock(&conn_list_mutex);
+	return ret;
+}
+
+
 static inline int
-clist_delete_nt(int fd)
+clist_delete_nt(conn_list_head_t *conn_list_head, int fd)
 {
 	conn_node_t *curr;
 
-	if ((curr = locate_node(fd))) {
-		TAILQ_REMOVE(&conn_list_head, curr, cn_entries);
+	if ((curr = locate_node(conn_list_head, fd))) {
+		TAILQ_REMOVE(conn_list_head, curr, cn_entries);
 		free(curr);
 		return 0;
 	}
@@ -107,10 +118,22 @@ clist_delete(int fd)
 	int rv;
 
 	pthread_mutex_lock(&conn_list_mutex);
-	rv = clist_delete_nt(fd);
+	rv = clist_delete_nt(&_conn_list_head, fd);
 	pthread_mutex_unlock(&conn_list_mutex);
 
 	return rv;
+}
+
+
+void
+clist_purgeall_nt(conn_list_head_t *conn_list_head)
+{
+	conn_node_t *curr;
+	while ((curr = conn_list_head->tqh_first)) {
+		TAILQ_REMOVE(conn_list_head, curr, cn_entries);
+		close(curr->cn_fd);
+		free(curr);
+	}
 }
 
 
@@ -120,16 +143,8 @@ clist_delete(int fd)
 void
 clist_purgeall(void)
 {
-	conn_node_t *curr;
-
 	pthread_mutex_lock(&conn_list_mutex);
-
-	while ((curr = conn_list_head.tqh_first)) {
-		TAILQ_REMOVE(&conn_list_head, curr, cn_entries);
-		close(curr->cn_fd);
-		free(curr);
-	}
-
+	clist_purgeall_nt(&_conn_list_head);
 	pthread_mutex_unlock(&conn_list_mutex);
 }
 
@@ -145,17 +160,16 @@ clist_purgeall(void)
  * @return		Max file descriptor to pass to select.
  */
 inline int
-clist_fill_fdset(fd_set *set, int flags, int purpose)
+clist_fill_fdset_nt(conn_list_head_t *conn_list_head, fd_set *set, int flags,
+		    int purpose)
 {
 	conn_node_t *curr;
 	fd_set test_fds;
 	struct timeval tv;
 	int max = -1;
 
-	pthread_mutex_lock(&conn_list_mutex);
-
 top:
-	for (curr = conn_list_head.tqh_first; curr;
+	for (curr = conn_list_head->tqh_first; curr;
 	     curr = curr->cn_entries.tqe_next) {
 
 		if (flags && ((curr->cn_flags & flags) != flags))
@@ -171,7 +185,7 @@ top:
 		if (select(curr->cn_fd + 1, &test_fds, &test_fds, NULL,
 			   &tv) == -1) {
 			if (errno == EBADF || errno == EINVAL) {
-				clist_delete_nt(curr->cn_fd);
+				clist_delete_nt(conn_list_head, curr->cn_fd);
 				goto top;
 			}
 		}
@@ -182,11 +196,21 @@ top:
 		FD_SET(curr->cn_fd, set);
 	}
 
-	pthread_mutex_unlock(&conn_list_mutex);
 
 	return max;
 }
 
+
+int
+clist_fill_fdset(fd_set *set, int flags, int purpose)
+{
+	int ret;
+
+	pthread_mutex_lock(&conn_list_mutex);
+	ret = clist_fill_fdset_nt(&_conn_list_head, set, flags, purpose);
+	pthread_mutex_unlock(&conn_list_mutex);
+	return ret;
+}
 
 /**
   Locate a connection node.
@@ -195,18 +219,18 @@ top:
   @return		Connection node correspond to fd or NULL
  */
 static inline conn_node_t *
-locate_node(int fd)
+locate_node(conn_list_head_t *conn_list_head, int fd)
 {
 	conn_node_t *curr;
 
-	for (curr = conn_list_head.tqh_first; curr;
+	for (curr = conn_list_head->tqh_first; curr;
 	     curr = curr->cn_entries.tqe_next) {
 
 		if (curr->cn_fd == fd) {
 			/* Move FD to front of list; lru file descriptors
 			   move to end.  */
-			TAILQ_REMOVE(&conn_list_head, curr, cn_entries);
-			TAILQ_INSERT_HEAD(&conn_list_head, curr, cn_entries);
+			TAILQ_REMOVE(conn_list_head, curr, cn_entries);
+			TAILQ_INSERT_HEAD(conn_list_head, curr, cn_entries);
 			return curr;
 		}
 	}
@@ -224,27 +248,35 @@ locate_node(int fd)
  *			descriptor if successful.
  */
 inline int
-clist_next_set(fd_set *set)
+clist_next_set_nt(conn_list_head_t *conn_list_head, fd_set *set)
 {
 	int rv;
 	conn_node_t *curr;
 
-	pthread_mutex_lock(&conn_list_mutex);
 
-	for (curr = conn_list_head.tqh_first; curr;
+	for (curr = conn_list_head->tqh_first; curr;
 	     curr = curr->cn_entries.tqe_next) {
 
 		if (FD_ISSET(curr->cn_fd, set)) {
 			FD_CLR(curr->cn_fd, set);
 			rv = curr->cn_fd;
-			pthread_mutex_unlock(&conn_list_mutex);
 			return rv;
 		}
 	}
 
-	pthread_mutex_unlock(&conn_list_mutex);
 
 	return -1;
+}
+
+
+int
+clist_next_set(fd_set *set)
+{
+	int ret;
+	pthread_mutex_lock(&conn_list_mutex);
+	ret = clist_next_set_nt(&_conn_list_head, set);
+	pthread_mutex_unlock(&conn_list_mutex);
+	return ret;
 }
 
 
@@ -256,20 +288,27 @@ clist_next_set(fd_set *set)
  * @return		-1 if not found, or 0 on success.
  */
 inline int
-clist_set_purpose(int fd, int purpose)
+clist_set_purpose_nt(conn_list_head_t *conn_list_head, int fd, int purpose)
 {
 	int rv = -1;
 	conn_node_t *curr;
 
-	pthread_mutex_lock(&conn_list_mutex);
-
-	if ((curr = locate_node(fd))) {
+	if ((curr = locate_node(conn_list_head, fd))) {
 		curr->cn_purpose = purpose;
 		rv = 0;
 	}
 
-	pthread_mutex_unlock(&conn_list_mutex);
+	return rv;
+}
 
+
+int
+clist_set_purpose(int fd, int purpose)
+{
+	int rv;
+	pthread_mutex_lock(&conn_list_mutex);
+	rv = clist_set_purpose_nt(&_conn_list_head, fd, purpose);
+	pthread_mutex_unlock(&conn_list_mutex);
 	return rv;
 }
 
@@ -281,18 +320,25 @@ clist_set_purpose(int fd, int purpose)
  * @return		-1 if not found, the purpose id.
  */
 inline int
-clist_get_purpose(int fd)
+clist_get_purpose_nt(conn_list_head_t *conn_list_head, int fd)
 {
 	int rv = -1;
 	conn_node_t *curr;
 
-	pthread_mutex_lock(&conn_list_mutex);
-
-	if ((curr = locate_node(fd)))
+	if ((curr = locate_node(conn_list_head, fd)))
 		rv = curr->cn_purpose;
 
-	pthread_mutex_unlock(&conn_list_mutex);
+	return rv;
+}
 
+
+int
+clist_get_purpose(int fd)
+{
+	int rv;
+	pthread_mutex_lock(&conn_list_mutex);
+	rv = clist_get_purpose_nt(&_conn_list_head, fd);
+	pthread_mutex_unlock(&conn_list_mutex);
 	return rv;
 }
 
@@ -304,18 +350,25 @@ clist_get_purpose(int fd)
  * @return		-1 if not found, the purpose id.
  */
 inline int
-clist_get_flags(int fd)
+clist_get_flags_nt(conn_list_head_t *conn_list_head, int fd)
 {
 	int rv = 0;
 	conn_node_t *curr;
 
-	pthread_mutex_lock(&conn_list_mutex);
-
-	if ((curr = locate_node(fd)))
+	if ((curr = locate_node(conn_list_head, fd)))
 		rv = curr->cn_flags;
 
-	pthread_mutex_unlock(&conn_list_mutex);
+	return rv;
+}
 
+
+int
+clist_get_flags(int fd)
+{
+	int rv;
+	pthread_mutex_lock(&conn_list_mutex);
+	rv = clist_get_flags_nt(&_conn_list_head, fd);
+	pthread_mutex_unlock(&conn_list_mutex);
 	return rv;
 }
 
@@ -326,12 +379,11 @@ clist_get_flags(int fd)
 
 #define printifflag(flag) if (curr->cn_flags & flag) printf(" " #flag)
 void
-clist_dump(void)
+clist_dump_nt(conn_list_head_t *conn_list_head)
 {
 	conn_node_t *curr;
-	pthread_mutex_lock(&conn_list_mutex);
 
-	for (curr = conn_list_head.tqh_first; curr;
+	for (curr = conn_list_head->tqh_first; curr;
 	     curr = curr->cn_entries.tqe_next) {
 
 		printf("File Descriptor %d:\n", curr->cn_fd);
@@ -352,5 +404,13 @@ clist_dump(void)
 		printf("\n");
 	}
 
+}
+
+
+void
+clist_dump(void)
+{
+	pthread_mutex_lock(&conn_list_mutex);
+	clist_dump_nt(&_conn_list_head);
 	pthread_mutex_unlock(&conn_list_mutex);
 }

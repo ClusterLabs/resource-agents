@@ -228,7 +228,8 @@ msg_send(int fd, void *buf, ssize_t count)
 static int
 connect_nb(int fd, struct sockaddr *dest, socklen_t len, int timeout)
 {
-	int ret, flags = 1, err, l;
+	int ret, flags = 1, err;
+	unsigned l;
 	fd_set rfds, wfds;
 	struct timeval tv;
 
@@ -850,4 +851,12 @@ msg_peek(int sockfd, void *buf, ssize_t count)
 	}
 
 	return recv(sockfd, buf, count, MSG_PEEK);
+}
+
+
+int
+msg_init(msg_context_t *ctx)
+{
+	ctx->members = NULL;
+	ctx->clist = NULL;
 }
