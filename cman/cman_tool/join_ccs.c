@@ -19,7 +19,7 @@
 #include <ifaddrs.h>
 
 #include "ccs.h"
-#include "cnxman-socket.h"
+#include "libcman.h"
 #include "cman_tool.h"
 
 

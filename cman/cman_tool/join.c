@@ -12,13 +12,13 @@
 ******************************************************************************/
 
 #include <net/route.h>
-#include "cnxman-socket.h"
+#include "libcman.h"
 #include "cman_tool.h"
 
 /* Size of buffer for gethostbyname2_r */
 #define HE_BUFSIZE 2048
 
-static int cluster_sock;
+static char *argv[128];
 
 /* Lookup the IPv4 broadcast address for a given local address */
 static uint32_t lookup_bcast(uint32_t localaddr)
@@ -62,13 +62,21 @@ static void set_priority(int sock)
 	perror("Error setting socket priority");
 }
 
+static void add_argv_sock(int num, int local_sock, int mcast_sock)
+{
+	char arg[128];
+
+	sprintf(arg, "-s%d,%d", mcast_sock, local_sock);
+
+	argv[num] = strdup(arg);
+}
+
 static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent *he)
 {
     struct hostent realbhe;
     struct hostent *bhe = NULL;
     struct sockaddr_in mcast_sin;
     struct sockaddr_in local_sin;
-    struct cl_passed_sock sock_info;
     char he_buffer[HE_BUFSIZE]; /* scratch area for gethostbyname2_r */
     int mcast_sock;
     int local_sock;
@@ -161,26 +169,10 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    sock_info.number = num + 1;
-    sock_info.multicast = 1;
-
     set_priority(mcast_sock);
     set_priority(local_sock);
 
-    /* Pass the multicast socket to kernel space */
-    sock_info.fd = mcast_sock;
-    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
-        die("passing multicast socket to cluster kernel module");
-
-    /* Pass the recv socket to kernel space */
-    sock_info.fd = local_sock;
-    sock_info.multicast = 0;
-    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
-        die("passing unicast receive socket to cluster kernel module");
-
-    /* These are now owned by the kernel */
-    close(local_sock);
-    close(mcast_sock);
+    add_argv_sock(num+1, local_sock, mcast_sock);
 
     return 0;
 }
@@ -198,7 +190,6 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     int he_errno;
     int mcast_sock;
     int local_sock;
-    struct cl_passed_sock sock_info;
     int param;
 
     memset(&mcast_sin, 0, sizeof(mcast_sin));
@@ -249,26 +240,11 @@ static int setup_ipv6_interface(commandline_t *comline, int num, struct hostent 
     if (bind(local_sock, (struct sockaddr *)&local_sin, sizeof(local_sin)))
 	die("Cannot bind local address: %s", strerror(errno));
 
-    sock_info.number = num + 1;
-
     set_priority(mcast_sock);
     set_priority(local_sock);
 
-    /* Pass the multicast socket to kernel space */
-    sock_info.fd = mcast_sock;
-    sock_info.multicast = 1;
-    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
-        die("passing multicast socket to cluster kernel module");
+    add_argv_sock(num+1, local_sock, mcast_sock);
 
-    /* Pass the recv socket to kernel space */
-    sock_info.fd = local_sock;
-    sock_info.multicast = 0;
-    if (ioctl(cluster_sock, SIOCCLUSTER_PASS_SOCKET, (void *)&sock_info))
-        die("passing unicast receive socket to cluster kernel module");
-
-    /* These are now owned by the kernel */
-    close(local_sock);
-    close(mcast_sock);
     return 0;
 }
 
@@ -295,7 +271,7 @@ static int setup_interface(commandline_t *comline, int num)
 			       &he_errno);
     }
     if (!he)
-	die("can't resolve node name %s: %s\n", comline->nodenames[num], hstrerror(he_errno));
+	die("can't resolve node name %s: %s\n", comline->nodenames[num], hstrerror(errno));
 
     if (he->h_addr_list[1])
 	die("node name %s is ambiguous\n", comline->nodenames[num]);
@@ -314,74 +290,96 @@ static int setup_interface(commandline_t *comline, int num)
 
 int join(commandline_t *comline)
 {
-    struct cl_join_cluster_info join_info;
+    cman_join_info_t join_info;
     int error, i;
+    cman_handle_t h;
     char nodename[256];
+    int argc;
 
     /*
-     * Create the cluster master socket
+     * If we can talk to cman then we're already joined (or joining);
      */
-    cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-    if (cluster_sock == -1)
-    {
-	int e = errno;
-        perror("can't open cluster socket");
-
-	if (e == EAFNOSUPPORT)
-	    die("The cman kernel module may not be loaded");
-	exit(EXIT_FAILURE);
-    }
-
-    /*
-     * If the cluster is active then the interfaces are already set up
-     * and this join should just add to the join_count.
-     */
-    error = ioctl(cluster_sock, SIOCCLUSTER_ISACTIVE);
-    if (error == -1)
-	die("Can't determine cluster state");
-
-    if (error)
+    h = cman_admin_init(NULL);
+    if (h)
         die("Node is already active");
-
-    /* Set the node name - without domain part */
-    strcpy(nodename, comline->nodenames[0]);
-
-    error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODENAME, nodename);
-    if (error)
-	die("Unable to set cluster node name: %s", cman_error(errno));
-
-    /* Optional, set the node ID */
-    if (comline->nodeid) {
-	error = ioctl(cluster_sock, SIOCCLUSTER_SET_NODEID,
-		      comline->nodeid);
-	if (error)
-	    die("Unable to set cluster nodeid: %s", cman_error(errno));
-    }
 
     /*
      * Setup the interface/multicast
      */
+    argv[0] = "cman";
     for (i = 0; i<comline->num_nodenames; i++)
     {
 	error = setup_interface(comline, i);
 	if (error)
 	    die("Unable to setup network interface(s)");
     }
+    argc = comline->num_nodenames;
+
+    if (comline->verbose)
+	    argv[++argc] = "-d";
+
+    /* Terminate args */
+    argv[++argc] = NULL;
+
+    /* Fork/exec cman */
+    switch (fork())
+    {
+    case -1:
+	    die("fork cman daemon failed: %s", strerror(errno));
+
+    case 0: // child
+	    setsid();
+	    execve(SBINDIR "/cmand", argv, NULL);
+	    die("execve of " SBINDIR "/cmand failed: %s", strerror(errno));
+	    break;
+
+    default: //parent
+	    break;
+
+    }
+
+    /* Give the daemon a chance to start up */
+    i = 0;
+    do {
+	    sleep(1);
+	    h = cman_admin_init(NULL);
+	    if (!h) {
+		    fprintf(stderr, "waiting for cman to start\n");
+	    }
+    } while (!h && ++i < 10);
+
+    if (!h)
+	    die("cman daemon didn't start");
+
+
+    /* Set the node name */
+    strcpy(nodename, comline->nodenames[0]);
+
+    error = cman_set_nodename(h, nodename);
+    if (error)
+	die("Unable to set cluster node name: %s", cman_error(errno));
+
+    /* Optional, set the node ID */
+    if (comline->nodeid) {
+	    error = cman_set_nodeid(h, comline->nodeid);
+	if (error)
+	    die("Unable to set cluster nodeid: %s", cman_error(errno));
+    }
 
     /*
      * Join cluster
      */
-    join_info.votes = comline->votes;
-    join_info.expected_votes = comline->expected_votes;
-    strcpy(join_info.cluster_name, comline->clustername);
-    join_info.two_node = comline->two_node;
-    join_info.config_version = comline->config_version;
+    join_info.ji_votes = comline->votes;
+    join_info.ji_expected_votes = comline->expected_votes;
+    strcpy(join_info.ji_cluster_name, comline->clustername);
+    join_info.ji_two_node = comline->two_node;
+    join_info.ji_config_version = comline->config_version;
 
-    if (ioctl(cluster_sock, SIOCCLUSTER_JOIN_CLUSTER, &join_info))
+    if (cman_join_cluster(h, &join_info))
     {
         die("error joining cluster: %s", cman_error(errno));
     }
 
-    close(cluster_sock);
+    cman_finish(h);
     return 0;
 }

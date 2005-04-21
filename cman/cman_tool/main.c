@@ -14,8 +14,9 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 #include "copyright.cf"
-#include "cnxman-socket.h"
+#include "libcman.h"
 #include "cman_tool.h"
 
 #define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:XVwqh?d")
@@ -103,46 +104,189 @@ static void sigalarm_handler(int sig)
 	exit(2);
 }
 
-static void show_file(char *name)
+static cman_handle_t open_cman_handle(int priv)
 {
-	FILE *file;
-	char line[256];
+	cman_handle_t h;
 
-	file = fopen(name, "r");
-	if (!file)
-		die("can't open %s, cman not running", name);
+	if (priv)
+		h = cman_admin_init(NULL);
+	else
+		h = cman_init(NULL);
+	if (!h)
+	{
+		die("Cannot open connection to cman, is it running ?");
+	}
+	return h;
+}
 
-	while (fgets(line, 256, file))
-		printf("%s", line);
+static void print_address(char *addr)
+{
+        struct sockaddr_in6 *saddr = (struct sockaddr_in6 *)addr;
+        if (saddr->sin6_family == AF_INET6) {
+                printf("%x:%x:%x:%x:%x:%x:%x:%x  ",
+		       htons(saddr->sin6_addr.s6_addr16[0]),
+		       htons(saddr->sin6_addr.s6_addr16[1]),
+		       htons(saddr->sin6_addr.s6_addr16[2]),
+		       htons(saddr->sin6_addr.s6_addr16[3]),
+		       htons(saddr->sin6_addr.s6_addr16[4]),
+		       htons(saddr->sin6_addr.s6_addr16[5]),
+		       htons(saddr->sin6_addr.s6_addr16[6]),
+		       htons(saddr->sin6_addr.s6_addr16[7]));
+        }
+        else {
+            struct sockaddr_in *saddr4 = (struct sockaddr_in *)saddr;
+            uint8_t *addr = (uint8_t *)&saddr4->sin_addr;
+            printf("%u.%u.%u.%u  ",
+		   addr[0], addr[1], addr[2], addr[3]);
+	}
+}
 
-	fclose(file);
+static char *membership_state(char *buf, int buflen, int node_state, int master)
+{
+	switch (node_state) {
+	case 0:
+		strncpy(buf, "Starting", buflen);
+		break;
+	case 1:
+		strncpy(buf, "New-Cluster?", buflen);
+		break;
+	case 2:
+		strncpy(buf, "Joining", buflen);
+		break;
+	case 3:
+		strncpy(buf, "Join-Wait", buflen);
+		break;
+	case 4:
+		strncpy(buf, "Join-Ack", buflen);
+		break;
+	case 5:
+		snprintf(buf, buflen, "State-Transition: Master is %d", master);
+		break;
+	case 6:
+		strncpy(buf, "Transition-Complete", buflen);
+		break;
+	case 7:
+		strncpy(buf, "Cluster-Member", buflen);
+		break;
+	case 8:
+		strncpy(buf, "Rejected", buflen);
+		break;
+	case 9:
+		strncpy(buf, "Not-in-Cluster", buflen);
+		break;
+	case 10:
+		strncpy(buf, "Transition-Master", buflen);
+		break;
+	default:
+		sprintf(buf, "Unknown: code=%d", node_state);
+		break;
+	}
+
+	return buf;
 }
 
 static void show_status(void)
 {
-	show_file("/proc/cluster/status");
+	cman_cluster_t info;
+	cman_version_t v;
+	cman_handle_t h;
+	cman_node_t node;
+	char info_buf[PIPE_BUF];
+	char tmpbuf[1024];
+	cman_extra_info_t *einfo = (cman_extra_info_t *)info_buf;
+	int quorate;
+	int nodecount;
+	int i;
+	char *addrptr;
+
+	h = open_cman_handle(0);
+
+	if (cman_get_cluster(h, &info) < 0)
+		die("Error getting cluster info: %s\n", cman_error(errno));
+	if (cman_get_version(h, &v) < 0)
+		die("Error getting cluster version: %s\n", cman_error(errno));
+	if (cman_get_extra_info(h, einfo, sizeof(info_buf)) < 0)
+		die("Error getting extra info: %s\n", cman_error(errno));
+
+	quorate = cman_is_quorate(h);
+
+	printf("Version: %d.%d.%d\n", v.cv_major, v.cv_minor, v.cv_patch);
+	printf("Config Version: %d\n", v.cv_config);
+	printf("Cluster Name: %s\n", info.ci_name);
+	printf("Cluster Id: %d\n", info.ci_number);
+	nodecount = cman_get_node_count(h);
+	if (nodecount < 0) {
+		printf("Cluster Member: No\n");
+		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
+								  einfo->ei_node_state, einfo->ei_master_node));
+	}
+	else {
+		printf("Cluster Member: Yes\n");
+		printf("Cluster Generation: %d\n", info.ci_generation);
+		printf("Membership state: %s\n", membership_state(tmpbuf, sizeof(tmpbuf),
+								  einfo->ei_node_state, einfo->ei_master_node));
+		printf("Nodes: %d\n", einfo->ei_members);
+		printf("Expected votes: %d\n", einfo->ei_expected_votes);
+		printf("Total votes: %d\n", einfo->ei_total_votes);
+		printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
+		printf("Active subsystems: %d\n", cman_get_join_count(h));
+
+		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
+			printf("Node name: %s\n", node.cn_name);
+
+		printf("Node addresses: ");
+		addrptr = einfo->ei_addresses;
+		for (i=0; i < einfo->ei_num_addresses; i++) {
+			print_address(addrptr);
+			addrptr += sizeof(struct sockaddr_storage);
+		}
+		printf("\n");
+	}
 }
 
 static void show_nodes(void)
 {
-	show_file("/proc/cluster/nodes");
+	cman_handle_t h;
+	int count;
+	int i;
+	int numnodes;
+	cman_node_t *nodes;
+	struct tm *jtime;
+	char jstring[1024];
+
+	h = open_cman_handle(0);
+
+	count = cman_get_node_count(h);
+	if (count < 0)
+		die("cman_get_node_count failed: %s", cman_error(errno));
+
+	count += 2; /* Extra space! */
+
+	nodes = malloc(sizeof(cman_node_t) * count);
+	if (!nodes)
+		die("cannot allocate memory for nodes list\n");
+
+	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
+		die("cman_get_nodes failed: %s", cman_error(errno));
+
+	printf("Node  Sts  Inc  Joined               Name\n");
+	for (i=0; i<numnodes; i++) {
+
+		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
+		strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
+
+		printf("%4d   %c  %3d   %s  %s\n",
+		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
+		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
+	}
+	free(nodes);
 }
 
 static void show_services(void)
 {
-	show_file("/proc/cluster/services");
+
 }
 
-static int open_cluster_socket()
-{
-	int cluster_sock;
-
-	cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_MASTER);
-	if (cluster_sock == -1)
-		die("can't open cluster socket, cman kernel module probably not loaded");
-
-	return cluster_sock;
-}
 
 char *cman_error(int err)
 {
@@ -167,28 +311,29 @@ char *cman_error(int err)
 
 static void leave(commandline_t *comline)
 {
-	int cluster_sock;
+	cman_handle_t h;
 	int result;
-	int flags = CLUSTER_LEAVEFLAG_DOWN;
+	int flags = CMAN_LEAVEFLAG_DOWN;
 
-	cluster_sock = open_cluster_socket();
+	h = open_cman_handle(1);
 
 	/* "cman_tool leave remove" adjusts quorum downward */
 
 	if (comline->remove)
-		flags |= CLUSTER_LEAVEFLAG_REMOVED;
+		flags |= CMAN_LEAVEFLAG_REMOVED;
 
 	/* If the join count is != 1 then there are other things using
 	   the cluster and we need to be forced */
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_GET_JOINCOUNT, 0)) != 0) {
+	if ((result = cman_get_join_count(h))) {
 		if (result < 0)
 			die("error getting join count: %s", cman_error(errno));
 
-		if (!comline->force) {
+		/* Two subsustems is OK, membership + us */
+		if (!comline->force && result > 2) {
 	    		die("Can't leave cluster while there are %d active subsystems\n", result);
 		}
-		flags |= CLUSTER_LEAVEFLAG_FORCE;
+		flags |= CMAN_LEAVEFLAG_FORCE;
 	}
 
 	/* Unlikely this will be needed, but no point in leaving it out */
@@ -198,7 +343,7 @@ static void leave(commandline_t *comline)
 	}
 
 	do {
-		result = ioctl(cluster_sock, SIOCCLUSTER_LEAVE_CLUSTER, flags);
+		result = cman_leave_cluster(h, flags & 0xF);
 		if (result < 0 && errno == EBUSY && comline->wait_opt)
 			sleep(1);
 
@@ -208,136 +353,111 @@ static void leave(commandline_t *comline)
 		die("Error leaving cluster: %s", cman_error(errno));
 	}
 
-	close(cluster_sock);
+	cman_finish(h);
 }
 
 static void set_expected(commandline_t *comline)
 {
-	int cluster_sock;
+	cman_handle_t h;
 	int result;
 
-	cluster_sock = open_cluster_socket();
+	h = open_cman_handle(1);
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SETEXPECTED_VOTES,
-			    comline->expected_votes)))
+	if ((result = cman_set_expected_votes(h, comline->expected_votes)))
 		die("can't set expected votes: %s", cman_error(errno));
 
-	close(cluster_sock);
+	cman_finish(h);
 }
 
 static void set_votes(commandline_t *comline)
 {
-	int cluster_sock;
+	cman_handle_t h;
 	int result;
 
-	cluster_sock = open_cluster_socket();
+	h = open_cman_handle(1);
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SET_VOTES,
-			    comline->votes)))
+	if ((result = cman_set_votes(h, comline->votes)))
 		die("can't set votes: %s", cman_error(errno));
 
-	close(cluster_sock);
+	cman_finish(h);
 }
 
 static void version(commandline_t *comline)
 {
-	struct cl_version ver;
-	int cluster_sock;
+	struct cman_version ver;
+	cman_handle_t h;
 	int result;
 
-	cluster_sock = open_cluster_socket();
+	h = open_cman_handle(1);
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_GET_VERSION, &ver)))
+	if ((result = cman_get_version(h, &ver)))
 		die("can't get version: %s", cman_error(errno));
 
 	if (!comline->config_version) {
-		printf("%d.%d.%d config %d\n", ver.major, ver.minor, ver.patch,
-		       ver.config);
+		printf("%d.%d.%d config %d\n", ver.cv_major, ver.cv_minor, ver.cv_patch,
+		       ver.cv_config);
 		goto out;
 	}
 
-	ver.config = comline->config_version;
+	ver.cv_config = comline->config_version;
 
-	if ((result = ioctl(cluster_sock, SIOCCLUSTER_SET_VERSION, &ver)))
+	if ((result = cman_set_version(h, &ver)))
 		die("can't set version: %s", cman_error(errno));
  out:
-	close(cluster_sock);
-}
-
-static int wait_for_sock(int sock)
-{
-	int recvbuf[256]; /* Plenty big enough for an OOB message */
-	int ret;
-
-	ret = recv(sock, recvbuf, sizeof(recvbuf), MSG_OOB);
-	if (ret < 0)
-	{
-		return errno;
-	}
-
-	/* EOF also means we are no longer connected to the cluster */
-	if (ret == 0)
-		return ENOTCONN;
-
-	return 0;
+	cman_finish(h);
 }
 
 static int cluster_wait(commandline_t *comline)
 {
-    int cluster_sock;
-    int ret = 0;
+	cman_handle_t h;
+	int ret = 0;
 
-    cluster_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-    if (cluster_sock == -1)
-	    die("can't open cluster socket, cman kernel module probably not loaded");
+	h = open_cman_handle(0);
 
-    if (comline->wait_quorate_opt) {
-	    while (ioctl(cluster_sock, SIOCCLUSTER_ISQUORATE, 0) <= 0) {
-		    if ((ret = wait_for_sock(cluster_sock)))
-			    goto end_wait;
+	if (comline->wait_quorate_opt) {
+		while (cman_is_quorate(h) <= 0) {
+			sleep(1);
+		}
+	}
+	else {
+		while (cman_get_node_count(h) < 0) {
+			sleep(1);
 	    }
-    }
-    else {
-	    while (ioctl(cluster_sock, SIOCCLUSTER_GETMEMBERS, 0) < 0) {
-		    if ((ret = wait_for_sock(cluster_sock)))
-			    goto end_wait;
-	    }
-    }
+	}
 
- end_wait:
-    close(cluster_sock);
+	cman_finish(h);
 
-    return ret;
+	return ret;
 }
 
 static void kill_node(commandline_t *comline)
 {
-	int cluster_sock;
+	cman_handle_t h;
 	int i;
-	struct cl_cluster_node node;
+	struct cman_node node;
 
 	if (!comline->num_nodenames) {
 	    die("No node name specified\n");
 	}
 
-	cluster_sock = open_cluster_socket();
+	h = open_cman_handle(1);
 
 	for (i=0; i<comline->num_nodenames; i++) {
 
 	    /* Resolve node name into a number */
-	    node.node_id = 0;
-	    strcpy(node.name, comline->nodenames[i]);
-	    if (ioctl(cluster_sock, SIOCCLUSTER_GETNODE, &node)) {
-		fprintf(stderr, "Can't kill node %s : %s\n", node.name, strerror(errno));
+	    node.cn_nodeid = 0;
+	    strcpy(node.cn_name, comline->nodenames[i]);
+	    if (cman_get_node(h, node.cn_nodeid, &node)) {
+		fprintf(stderr, "Can't kill node %s : %s\n", node.cn_name, strerror(errno));
 		continue;
 	    }
 
 
-	    if (ioctl(cluster_sock, SIOCCLUSTER_KILLNODE, node.node_id))
+	    if (cman_kill_node(h, node.cn_nodeid))
 		perror("kill node failed");
 	}
 
-	close(cluster_sock);
+	cman_finish(h);
 }
 
 

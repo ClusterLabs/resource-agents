@@ -16,18 +16,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -g -I${incdir} -I${top_srcdir}/config \
-	-DCMAN_RELEASE_NAME=\"${RELEASE}\"
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-CFLAGS += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-CFLAGS += -I${incdir}/cluster
-endif
-
+	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
 
 TARGET=cman_tool
 
@@ -36,14 +25,14 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cman_tool: main.o join.o join_ccs.o
-	$(CC) $(LDFLAGS) -L$(libdir) -o $@ $^ -lccs
+cman_tool: main.o join.o join_ccs.o ../lib/libcman.a
+	$(CC) $(LDFLAGS) -L$(libdir) -o $@ $^ -L../lib -lccs -lcman
 
 main.o: main.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 join.o: join.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}\"
 
 join_ccs.o: join_ccs.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
