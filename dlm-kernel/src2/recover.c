@@ -247,7 +247,7 @@ static void set_master_lkbs(struct dlm_rsb *r)
 }
 
 /*
- * Propogate the new master nodeid to locks, subrsbs, sublocks.
+ * Propogate the new master nodeid to locks
  * The NEW_MASTER flag tells dlm_recover_locks() which rsb's to consider.
  * The NEW_MASTER2 flag tells dlm_recover_lvbs() which rsb's to consider.
  */
@@ -264,13 +264,6 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 		r->res_nodeid = nodeid;
 
 	set_master_lkbs(r);
-
-	/*
-	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
-		sr->res_nodeid = r->res_nodeid;
-		set_master_lkbs(sr);
-	}
-	*/
 
 	set_bit(RESFL_NEW_MASTER, &r->res_flags);
 	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
@@ -413,14 +406,6 @@ static int all_queues_empty(struct dlm_rsb *r)
 	    !list_empty(&r->res_convertqueue) ||
 	    !list_empty(&r->res_waitqueue))
 		return FALSE;
-	/*
-	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
-		if (!list_empty(&sr->res_grantqueue) ||
-	    	    !list_empty(&sr->res_convertqueue) ||
-	    	    !list_empty(&sr->res_waitqueue))
-			return FALSE;
-	}
-	*/
 	return TRUE;
 }
 
@@ -440,22 +425,6 @@ static int recover_locks(struct dlm_rsb *r)
 	if (error)
 		goto out;
 	error = recover_locks_queue(r, &r->res_waitqueue);
-	if (error)
-		goto out;
-
-	/*
-	list_for_each_entry(sr, &r->res_subreslist, res_subreslist) {
-		error = recover_locks_queue(sr, &sr->res_grantqueue);
-		if (error)
-			goto out
-		error = recover_locks_queue(sr, &sr->res_convertqueue);
-		if (error)
-			goto out
-		error = recover_locks_queue(sr, &sr->res_waitqueue);
-		if (error)
-			goto out
-	}
-	*/
  out:
 	return error;
 }
@@ -626,11 +595,6 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 		dlm_lock_rsb(r);
 		recover_rsb_lvb(r);
 		dlm_unlock_rsb(r);
-
-		/*
-		list_for_each_entry(sr, &r->res_subreslist, res_subreslist)
-			rsb_lvb_recovery(sr);
-		*/
 	}
 	up_read(&ls->ls_root_sem);
 	return 0;

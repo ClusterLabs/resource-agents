@@ -16,9 +16,10 @@
 
 struct rcom_lock {
 	uint32_t		rl_ownpid;
-	uint32_t		rl_id;
+	uint32_t		rl_lkid;
 	uint32_t		rl_remid;
 	uint32_t		rl_parent_lkid;
+	uint32_t		rl_parent_remid;
 	uint32_t		rl_exflags;
 	uint32_t		rl_flags;
 	uint32_t		rl_lvbseq;
@@ -28,11 +29,9 @@ struct rcom_lock {
 	int8_t			rl_status;
 	int8_t			rl_asts;
 	uint16_t		rl_namelen;
-	uint16_t		rl_subnamelen;
 	uint64_t		rl_range[4];
 	char			rl_lvb[DLM_LVB_LEN];
 	char			rl_name[DLM_RESNAME_MAXLEN];
-	char			rl_subname[DLM_RESNAME_MAXLEN];
 };
 
 int dlm_rcom_status(struct dlm_ls *ls, int nodeid);

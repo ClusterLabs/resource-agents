@@ -264,12 +264,6 @@ struct dlm_lkb {
 	void *			lkb_astaddr;	/* caller's ast function */
 	void *			lkb_bastaddr;	/* caller's bast function */
 	long			lkb_astparam;	/* caller's ast arg */
-
-	/* parent/child locks not yet implemented */
-#if 0
-	struct dlm_lkb *	lkb_parent;	/* parent lkid */
-	int			lkb_childcnt;	/* number of children */
-#endif
 };
 
 
@@ -308,14 +302,6 @@ struct dlm_rsb {
 
 	char *			res_lvbptr;
 	char			res_name[1];
-
-	/* parent/child locks not yet implemented */
-#if 0
-	struct list_head	res_subreslist;	/* sub-rsbs for this root */
-	struct dlm_rsb *	res_root;	/* root rsb if a subresource */
-	struct dlm_rsb *	res_parent;	/* parent rsb (if any) */
-	uint8_t			res_depth;	/* depth in resource tree */
-#endif
 };
 
 
@@ -357,9 +343,9 @@ struct dlm_message {
 	uint32_t		m_nodeid;
 	uint32_t		m_pid;
 	uint32_t		m_lkid;		/* lkid on sender */
-	uint32_t		m_remlkid;	/* lkid on receiver */
-	uint32_t		m_lkid_parent;
-	uint32_t		m_remlkid_parent;
+	uint32_t		m_remid;	/* lkid on receiver */
+	uint32_t		m_parent_lkid;
+	uint32_t		m_parent_remid;
 	uint32_t		m_exflags;
 	uint32_t		m_sbflags;
 	uint32_t		m_flags;

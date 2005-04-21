@@ -2086,9 +2086,6 @@ static int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 
 static int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
-	/* log_print("send %d lkid %x remlkid %x", ms->m_type,
-		  ms->m_lkid, ms->m_remlkid); */
-
 	dlm_message_out(ms);
 	dlm_lowcomms_commit_buffer(mh);
 	return 0;
@@ -2100,7 +2097,7 @@ static void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	ms->m_nodeid   = lkb->lkb_nodeid;
 	ms->m_pid      = lkb->lkb_ownpid;
 	ms->m_lkid     = lkb->lkb_id;
-	ms->m_remlkid  = lkb->lkb_remid;
+	ms->m_remid    = lkb->lkb_remid;
 	ms->m_exflags  = lkb->lkb_exflags;
 	ms->m_sbflags  = lkb->lkb_sbflags;
 	ms->m_flags    = lkb->lkb_flags;
@@ -2501,7 +2498,7 @@ static void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error)
 		goto fail;
 
@@ -2536,7 +2533,7 @@ static void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error)
 		goto fail;
 
@@ -2571,7 +2568,7 @@ static void receive_cancel(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error)
 		goto fail;
 
@@ -2601,7 +2598,7 @@ static void receive_grant(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_grant no lkb");
 		return;
@@ -2628,7 +2625,7 @@ static void receive_bast(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_bast no lkb");
 		return;
@@ -2693,7 +2690,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_request_reply no lkb");
 		return;
@@ -2767,7 +2764,7 @@ static void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_rsb *r;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_convert_reply no lkb");
 		return;
@@ -2846,7 +2843,7 @@ static void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_lkb *lkb;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_unlock_reply no lkb");
 		return;
@@ -2894,7 +2891,7 @@ static void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	struct dlm_lkb *lkb;
 	int error;
 
-	error = find_lkb(ls, ms->m_remlkid, &lkb);
+	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
 		log_error(ls, "receive_cancel_reply no lkb");
 		return;
@@ -2997,9 +2994,6 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 			break;
 		schedule();
 	}
-
-	/* log_print("recv %d lkid %x remlkid %x result %d", ms->m_type,
-		  ms->m_lkid, ms->m_remlkid, ms->m_result); */
 
 	switch (ms->m_type) {
 
@@ -3347,7 +3341,7 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 
 	lkb->lkb_nodeid = rc->rc_header.h_nodeid;
 	lkb->lkb_ownpid = rl->rl_ownpid;
-	lkb->lkb_remid = rl->rl_id;
+	lkb->lkb_remid = rl->rl_lkid;
 	lkb->lkb_exflags = rl->rl_exflags;
 	lkb->lkb_flags = rl->rl_flags & 0x0000FFFF;
 	lkb->lkb_flags |= DLM_IFL_MSTCPY;
@@ -3400,7 +3394,7 @@ int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 
 	lock_rsb(r);
 
-	lkb = search_remid(r, rc->rc_header.h_nodeid, rl->rl_id);
+	lkb = search_remid(r, rc->rc_header.h_nodeid, rl->rl_lkid);
 	if (lkb) {
 		error = -EEXIST;
 		goto out_remid;
@@ -3440,9 +3434,9 @@ int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 	struct dlm_lkb *lkb;
 	int error;
 
-	error = find_lkb(ls, rl->rl_id, &lkb);
+	error = find_lkb(ls, rl->rl_lkid, &lkb);
 	if (error) {
-		log_error(ls, "recover_process_copy no lkid %x", rl->rl_id);
+		log_error(ls, "recover_process_copy no lkid %x", rl->rl_lkid);
 		return error;
 	}
 

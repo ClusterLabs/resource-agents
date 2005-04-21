@@ -235,7 +235,7 @@ static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	memset(rl, 0, sizeof(*rl));
 
 	rl->rl_ownpid = lkb->lkb_ownpid;
-	rl->rl_id = lkb->lkb_id;
+	rl->rl_lkid = lkb->lkb_id;
 	rl->rl_exflags = lkb->lkb_exflags;
 	rl->rl_flags = lkb->lkb_flags;
 	rl->rl_lvbseq = lkb->lkb_lvbseq;
@@ -259,15 +259,6 @@ static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 
 	rl->rl_namelen = r->res_length;
 	memcpy(rl->rl_name, r->res_name, r->res_length);
-
-	/*
-	if (lkb->lkb_parent)
-		rl->rl_parent_lkid = lkb->lkb_parent->lkb_id;
-
-	if (lkb->lkb_parent && r->res_parent)
-		memcpy(rl->rl_subname, r->res_parent->res_name,
-		       r->res_parent->res_length);
-	*/
 }
 
 int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
