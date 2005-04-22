@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.376 $) dnl cvs revision
+AC_REVISION($Revision: 1.377 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -225,6 +225,7 @@ AC_PATH_PROGS(MAILCMD, mail, mailx)
 AC_SUBST(MAILCMD)
 AC_DEFINE_UNQUOTED(IFCONFIG, "$IFCONFIG", path to the ifconfig command)
 AC_PATH_PROGS(BLOCKDEV, blockdev)
+AC_PATH_PROGS(BASENAME, basename)
 AC_PATH_PROGS(FUSER, fuser)
 AC_PATH_PROGS(MOUNT, mount)
 AC_PATH_PROGS(UMOUNT, umount)
@@ -1953,6 +1954,7 @@ resources/Makefile						\
 	resources/heartbeat/Delay				\
 	resources/heartbeat/db2					\
 	resources/heartbeat/Filesystem				\
+	resources/heartbeat/hto-mapfuncs			\
 	resources/heartbeat/ICP					\
 	resources/heartbeat/IPaddr				\
 	resources/heartbeat/IPaddr2				\
