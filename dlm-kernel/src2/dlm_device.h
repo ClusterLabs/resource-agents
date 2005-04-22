@@ -41,19 +41,6 @@ struct dlm_lock_params {
 	char name[1];
 };
 
-struct dlm_query_params {
-	uint32_t query;
-	struct dlm_queryinfo __user *qinfo;
-	struct dlm_resinfo   __user *resinfo;
-	struct dlm_lockinfo  __user *lockinfo;
-	void __user *castparam;
-	void __user *castaddr;
-	void __user *lksb;
-	uint32_t lkid;
-	int lockinfo_max;
-};
-
-
 struct dlm_lspace_params {
 	uint32_t flags;
 	uint32_t minor;
@@ -66,7 +53,6 @@ struct dlm_write_request {
 
 	union  {
 		struct dlm_lock_params   lock;
-		struct dlm_query_params  query;
 		struct dlm_lspace_params lspace;
 	} i;
 };
@@ -75,17 +61,13 @@ struct dlm_write_request {
    consists mainly of userspace pointers for the library to use */
 struct dlm_lock_result {
 	uint32_t length;
-	void __user *user_astaddr;
-	void __user *user_astparam;
-	struct dlm_lksb      __user *user_lksb;
-	struct dlm_queryinfo __user *user_qinfo;
-	struct dlm_lksb      lksb;
-	uint8_t  bast_mode;
+	void __user * user_astaddr;
+	void __user * user_astparam;
+	struct dlm_lksb __user * user_lksb;
+	struct dlm_lksb lksb;
+	uint8_t bast_mode;
 	/* Offsets may be zero if no data is present */
 	uint32_t lvb_offset;
-	uint32_t qinfo_offset;
-	uint32_t qresinfo_offset;
-	uint32_t qlockinfo_offset;
 };
 
 /* Commands passed to the device */
