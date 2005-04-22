@@ -11,8 +11,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-#define EXPORT_SYMTAB
-
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
@@ -75,12 +73,12 @@ void __exit exit_dlm(void)
 	dlm_unregister_debugfs();
 }
 
+module_init(init_dlm);
+module_exit(exit_dlm);
+
 MODULE_DESCRIPTION("Distributed Lock Manager " DLM_RELEASE_NAME);
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
-
-module_init(init_dlm);
-module_exit(exit_dlm);
 
 EXPORT_SYMBOL(dlm_new_lockspace);
 EXPORT_SYMBOL(dlm_release_lockspace);
