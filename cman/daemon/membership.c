@@ -38,7 +38,7 @@
 #include "cnxman.h"
 #include "daemon.h"
 #include "config.h"
-#include "../lib/libcman.h"
+#include "libcman.h"
 
 #ifndef TRUE
 #define TRUE 1
@@ -163,7 +163,7 @@ long gettime()
 	return time(NULL);
 }
 
-#ifdef DEBUG_MEMB
+#ifdef DEBUG
 static char *msgname(int msg);
 static int debug_senddata(cman_handle_t handle, void *buf, int len, int flags, uint8_t port, int nodeid)
 {
@@ -3096,7 +3096,7 @@ char *leave_string(int reason)
 	}
 }
 
-#ifdef DEBUG_MEMB
+#ifdef DEBUG
 static char *msgname(int msg)
 {
 	switch (msg) {

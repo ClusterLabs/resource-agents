@@ -372,46 +372,39 @@ extern int new_temp_nodeid(char *addr, int addrlen);
 extern int get_addr_from_temp_nodeid(int nodeid, char *addr, unsigned int *addrlen);
 extern void purge_temp_nodeids(void);
 extern void cman_set_realtime(void);
-extern int init_log(int debug);
+extern int init_log(int use_stderr);
+extern int init_config(void);
+extern void init_debug(int debug);
 extern void wake_daemon(void);
 extern void log_msg(int priority, const char *fmt, ...);
 
 #define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 
-/* Debug enabling macros. Sorry about the C++ comments but they're easier to
- * get rid of than C ones... */
-
-// #define DEBUG_MEMB
-// #define DEBUG_COMMS
-// #define DEBUG_DAEMON
-// #define DEBUG_BARRIER
-
 /* Debug macros */
-#ifdef DEBUG_COMMS
-#define P_COMMS(fmt, args...) fprintf(stderr, "cman comms: " fmt, ## args)
+#ifdef DEBUG
+
+#define CMAN_DEBUG_NONE    1
+#define CMAN_DEBUG_BARRIER 2
+#define CMAN_DEBUG_MEMB    4
+#define CMAN_DEBUG_COMMS   8
+#define CMAN_DEBUG_DAEMON 16
+
+extern void log_debug(int subsys, const char *fmt, ...);
+
+#define P_COMMS(fmt, args...)   log_debug(CMAN_DEBUG_COMMS, fmt, ## args)
+#define P_BARRIER(fmt, args...) log_debug(CMAN_DEBUG_BARRIER, fmt, ## args)
+#define P_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_MEMB, fmt, ## args)
+#define C_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_NONE, fmt, ## args)
+#define P_DAEMON(fmt, args...)  log_debug(CMAN_DEBUG_DAEMON, fmt, ## args)
+
 #else
+
 #define P_COMMS(fmt, args...)
-#endif
-
-#ifdef DEBUG_BARRIER
-#define P_BARRIER(fmt, args...) fprintf(stderr, "cman barrier: " fmt, ## args)
-#else
 #define P_BARRIER(fmt, args...)
-#endif
-
-#ifdef DEBUG_MEMB
-#define P_MEMB(fmt, args...) fprintf(stderr, "cman memb: " fmt, ## args)
-#define C_MEMB(fmt, args...) fprintf(stderr, fmt, ## args)
-#else
 #define P_MEMB(fmt, args...)
 #define C_MEMB(fmt, args...)
-#endif
-
-/* Debug macros */
-#ifdef DEBUG_DAEMON
-#define P_DAEMON(fmt, args...) fprintf(stderr, "cman daemon: " fmt, ## args)
-#else
 #define P_DAEMON(fmt, args...)
+
 #endif
 
 

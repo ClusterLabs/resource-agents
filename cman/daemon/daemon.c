@@ -34,6 +34,7 @@
 #include "cnxman-private.h"
 #include "cnxman.h"
 #include "daemon.h"
+#include "config.h"
 
 struct queued_reply
 {
@@ -742,7 +743,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	init_config();
 	init_log(no_fork);
+	init_debug(cman_config.debug_mask);
 
 	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
 		CMAN_RELEASE_NAME, __DATE__, __TIME__);
