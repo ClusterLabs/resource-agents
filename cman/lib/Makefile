@@ -22,7 +22,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS += -g -O -I. -fPIC
+CFLAGS += -g -O -I. -fPIC -I../daemon
 
 all: $(STATICLIB) $(SHAREDLIB)
 

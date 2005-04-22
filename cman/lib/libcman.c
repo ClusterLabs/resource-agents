@@ -30,7 +30,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <errno.h>
-#include "../daemon/cnxman-socket.h"
+#include "cnxman-socket.h"
 #include "libcman.h"
 
 struct cman_handle
@@ -431,7 +431,7 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node)
 	return 0;
 }
 
-int cman_get_join_count(cman_handle_t handle)
+int cman_get_subsys_count(cman_handle_t handle)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	VALIDATE_HANDLE(h);

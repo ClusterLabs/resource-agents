@@ -229,7 +229,7 @@ static void show_status(void)
 		printf("Expected votes: %d\n", einfo->ei_expected_votes);
 		printf("Total votes: %d\n", einfo->ei_total_votes);
 		printf("Quorum: %d %s\n", einfo->ei_quorum, quorate?" ":"Activity Blocked");
-		printf("Active subsystems: %d\n", cman_get_join_count(h));
+		printf("Active subsystems: %d\n", cman_get_subsys_count(h));
 
 		if (cman_get_node(h, CMAN_NODEID_US, &node) == 0)
 			printf("Node name: %s\n", node.cn_name);
@@ -325,9 +325,9 @@ static void leave(commandline_t *comline)
 	/* If the join count is != 1 then there are other things using
 	   the cluster and we need to be forced */
 
-	if ((result = cman_get_join_count(h))) {
+	if ((result = cman_get_subsys_count(h))) {
 		if (result < 0)
-			die("error getting join count: %s", cman_error(errno));
+			die("error getting subsystem count: %s", cman_error(errno));
 
 		/* Two subsustems is OK, membership + us */
 		if (!comline->force && result > 2) {
