@@ -23,22 +23,17 @@
 #include "memory.h"
 #include "lock.h"
 
-#define GDST_NONE       (0)
-#define GDST_RUNNING    (1)
-
-static int dlmstate;
-static int dlmcount;
-static struct semaphore dlmstate_lock;
-static struct list_head lslist;
-static spinlock_t lslist_lock;
-static struct task_struct *scand_task;
+static int			ls_count;
+static struct semaphore		ls_lock;
+static struct list_head		lslist;
+static spinlock_t		lslist_lock;
+static struct task_struct *	scand_task;
 
 
 int dlm_lockspace_init(void)
 {
-	dlmstate = GDST_NONE;
-	dlmcount = 0;
-	init_MUTEX(&dlmstate_lock);
+	ls_count = 0;
+	init_MUTEX(&ls_lock);
 	INIT_LIST_HEAD(&lslist);
 	spin_lock_init(&lslist_lock);
 	return 0;
@@ -124,12 +119,6 @@ struct dlm_ls *dlm_find_lockspace_local(void *id)
 	return ls;
 }
 
-/* must be called with lslist_lock held */
-void dlm_hold_lockspace(struct dlm_ls *ls)
-{
-	ls->ls_count++;
-}
-
 void dlm_put_lockspace(struct dlm_ls *ls)
 {
 	spin_lock(&lslist_lock);
@@ -152,16 +141,11 @@ static void remove_lockspace(struct dlm_ls *ls)
 	}
 }
 
-/*
- * Called from dlm_init.  These are the general threads which are not
- * lockspace-specific and work for all dlm lockspaces.
- */
-
 static int threads_start(void)
 {
 	int error;
 
-	/* Thread which process lock requests for all ls's */
+	/* Thread which process lock requests for all lockspace's */
 	error = dlm_astd_start();
 	if (error) {
 		log_print("cannot start dlm_astd thread %d", error);
@@ -174,10 +158,10 @@ static int threads_start(void)
 		goto astd_fail;
 	}
 
-	/* Thread for sending/receiving messages for all ls's */
+	/* Thread for sending/receiving messages for all lockspace's */
 	error = dlm_lowcomms_start();
 	if (error) {
-		log_print("cannot start lowcomms %d", error);
+		log_print("cannot start dlm lowcomms %d", error);
 		goto scand_fail;
 	}
 
@@ -196,54 +180,6 @@ static void threads_stop(void)
 	dlm_scand_stop();
 	dlm_lowcomms_stop();
 	dlm_astd_stop();
-}
-
-static int init_internal(void)
-{
-	int error = 0;
-
-	if (dlmstate == GDST_RUNNING)
-		dlmcount++;
-	else {
-		error = threads_start();
-		if (error)
-			goto out;
-
-		dlmstate = GDST_RUNNING;
-		dlmcount = 1;
-	}
-  out:
-	return error;
-}
-
-static int release_internal(void)
-{
-	int error = 0;
-
-	down(&dlmstate_lock);
-
-	if (dlmstate == GDST_NONE)
-		goto out;
-
-	if (dlmcount)
-		dlmcount--;
-
-	if (dlmcount)
-		goto out;
-
-	spin_lock(&lslist_lock);
-	if (!list_empty(&lslist)) {
-		spin_unlock(&lslist_lock);
-		log_print("cannot stop threads, lockspaces still exist");
-		goto out;
-	}
-	spin_unlock(&lslist_lock);
-
-	threads_stop();
-	dlmstate = GDST_NONE;
- out:
-	up(&dlmstate_lock);
-	return error;
 }
 
 static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
@@ -407,22 +343,21 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	return error;
 }
 
-/*
- * Called by a system like GFS which wants independent lock spaces.
- */
-
 int dlm_new_lockspace(char *name, int namelen, void **lockspace, int flags)
 {
-	int error = -ENOSYS;
+	int error = 0;
 
-	down(&dlmstate_lock);
-	error = init_internal();
+	down(&ls_lock);
+	if (!ls_count)
+		error = threads_start();
 	if (error)
 		goto out;
 
 	error = new_lockspace(name, namelen, lockspace, flags);
+	if (!error)
+		ls_count++;
  out:
-	up(&dlmstate_lock);
+	up(&ls_lock);
 	return error;
 }
 
@@ -565,18 +500,23 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	kfree(ls->ls_node_array);
 	kobject_unregister(&ls->ls_kobj);
 	kfree(ls);
-	release_internal();
+
+	down(&ls_lock);
+	ls_count--;
+	if (!ls_count)
+		threads_stop();
+	up(&ls_lock);
+	
 	module_put(THIS_MODULE);
 	return 0;
 }
 
-
 /*
  * Called when a system has released all its locks and is not going to use the
- * lockspace any longer.  We blindly free everything we're managing for this
- * lockspace.  Remaining nodes will go through the recovery process as if we'd
- * died.  The lockspace must continue to function as usual, participating in
- * recoveries, until kcl_leave_service returns.
+ * lockspace any longer.  We free everything we're managing for this lockspace.
+ * Remaining nodes will go through the recovery process as if we'd died.  The
+ * lockspace must continue to function as usual, participating in recoveries,
+ * until this returns.
  *
  * Force has 4 possible values:
  * 0 - don't destroy locksapce if it has any LKBs
@@ -595,5 +535,3 @@ int dlm_release_lockspace(void *lockspace, int force)
 	dlm_put_lockspace(ls);
 	return release_lockspace(ls, force);
 }
-
-
