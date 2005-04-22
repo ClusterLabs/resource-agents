@@ -41,8 +41,6 @@
 #include "lvb_table.h"
 #include "device.h"
 
-#include "dlm_internal.h" /* Only for DLM_RELEASE_NAME */
-
 static struct file_operations _dlm_fops;
 static const char *name_prefix="dlm";
 static struct list_head user_ls_list;
@@ -1147,7 +1145,7 @@ void __exit dlm_device_exit(void)
 	misc_deregister(&ctl_device);
 }
 
-MODULE_DESCRIPTION("Distributed Lock Manager device interface " DLM_RELEASE_NAME);
+MODULE_DESCRIPTION("Distributed Lock Manager device interface");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 

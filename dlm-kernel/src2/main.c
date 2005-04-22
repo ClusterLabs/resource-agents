@@ -47,8 +47,7 @@ int __init init_dlm(void)
 	if (error)
 		goto out_member;
 
-	printk("DLM %s (built %s %s) installed\n",
-	       DLM_RELEASE_NAME, __DATE__, __TIME__);
+	printk("DLM (built %s %s) installed\n", __DATE__, __TIME__);
 
 	return 0;
 
@@ -76,7 +75,7 @@ void __exit exit_dlm(void)
 module_init(init_dlm);
 module_exit(exit_dlm);
 
-MODULE_DESCRIPTION("Distributed Lock Manager " DLM_RELEASE_NAME);
+MODULE_DESCRIPTION("Distributed Lock Manager");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 

@@ -18,17 +18,13 @@
  * This is the main header file to be included in each DLM source file.
  */
 
-#define DLM_RELEASE_NAME "<CVS>"
-
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
-#include <asm/semaphore.h>
 #include <linux/types.h>
 #include <linux/ctype.h>
 #include <linux/spinlock.h>
 #include <linux/vmalloc.h>
-#include <asm/uaccess.h>
 #include <linux/list.h>
 #include <linux/errno.h>
 #include <linux/random.h>
@@ -37,6 +33,8 @@
 #include <linux/kthread.h>
 #include <linux/kobject.h>
 #include <linux/kref.h>
+#include <asm/semaphore.h>
+#include <asm/uaccess.h>
 
 #include "dlm.h"
 #include "dlm_node.h"
