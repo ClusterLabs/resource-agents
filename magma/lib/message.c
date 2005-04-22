@@ -852,11 +852,3 @@ msg_peek(int sockfd, void *buf, ssize_t count)
 
 	return recv(sockfd, buf, count, MSG_PEEK);
 }
-
-
-int
-msg_init(msg_context_t *ctx)
-{
-	ctx->members = NULL;
-	ctx->clist = NULL;
-}
