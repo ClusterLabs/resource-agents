@@ -1,6 +1,5 @@
-#!/bin/sh
 #
-# 	$Id: ocf-shellfuncs.in,v 1.11 2005/04/12 06:49:12 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.12 2005/04/22 21:36:38 alan Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -42,8 +41,11 @@
 # TODO: Move more common functionality for OCF RAs here.
 #
 HA_D=@sysconfdir@/ha.d
-ocf_set_defaults() {
-	ACTION="$1"
+__SCRIPT_NAME=`basename $0`
+. ${HA_D}/shellfuncs
+
+__ocf_set_defaults() {
+	__OCF_ACTION="$1"
 
 	# Return to sanity for the agents...
 	unset LANG
@@ -54,7 +56,6 @@ ocf_set_defaults() {
 	# to match some emerging helper function syntax...? This imports
 	# things which no OCF RA should be using...
 
-	. ${HA_D}/shellfuncs
 
 	OCF_SUCCESS=0
 	OCF_ERR_GENERIC=1
@@ -65,15 +66,28 @@ ocf_set_defaults() {
 	OCF_ERR_CONFIGURED=6
 	OCF_NOT_RUNNING=7
 
-	VARLIB=@localstatedir@/lib/@HB_PKG@
-
+	if [ -z "$OCF_RA_VERSION_MAJOR" ]; then
+		: We are being invoked as an init script.
+		: Fill in some things with reasonable values.
+		: ${OCF_RESOURCE_INSTANCE="default"}
+		: ${OCF_RESOURCE_TYPE=$__SCRIPT_NAME}
+		: ${OCF_ROOT=@libdir@/ocf}
+		return 0
+        fi
 	# TODO: Anything else we should be setting and thus checking?
+        # There is nothing in this script which depends on the version
+	# of the API.  TESTING THIS HERE IS A BUG.  THIS SHOULD BE
+	# tested by the script that's invoked us.  FIXME!!
 	if [ "x$OCF_RA_VERSION_MAJOR" != "x1" ]; then
 		ha_log "ERROR: This script is OCF RA API 1.x compliant only!"
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
 	# TODO: Should the minor level really be a number and not rather
 	# a list of flags...?
+        # AlanR says -- absolutely not -- a list of flags is good for a list
+	# of implemented features, not a version compiliance
+	# perhaps some future version might have such a list of
+	# flags, but that would be _in addition to_ the minor version number
 	if [ -z "$OCF_RA_VERSION_MINOR" ]; then
 		ha_log "ERROR: No OCF RA minor version set."
 		exit $OCF_ERR_UNIMPLEMENTED
@@ -83,8 +97,8 @@ ocf_set_defaults() {
 		exit $OCF_ERR_GENERIC
 	fi
 
-	if [ "x$ACTION" = "xmeta-data" ]; then
-		export OCF_RESOURCE_INSTANCE="undef"
+	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
+		OCF_RESOURCE_INSTANCE="undef"
 	fi
 	
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
@@ -99,22 +113,18 @@ ocf_set_defaults() {
 
 ocf_log() {
 	# TODO: Revisit and implement internally.
-	local prio=shift
-	local msg="$*"
+        __OCF_PRIO="$1"
+        shift
+        __OCF_MSG="$*"
 
-	if [ "$prio" = "err" ]; then
-		msg="ERROR: $msg"
-	elif  [ "$prio" = "warn" ]; then
-		msg="WARN: $msg"
-	elif  [ "$prio" = "info" ]; then
-		msg="INFO: $msg"
-	fi
+        case "${__OCF_PRIO)" in
+          err)	__OCF_PRIO="ERROR";;
+          warn)	__OCF_PRIO="WARNING";;
+          info)	__OCF_PRIO="INFO";;
+          *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr 'a-z' 'A-Z'`;;
+	esac
 
-	msg="$OCF_RESOURCE_INSTANCE $msg"
-
-	ha_log "$msg"
+	ha_log "${__OCF_PRIO}: $msg"
 }
 
-ocf_set_defaults $*
-
-
+__ocf_set_defaults "$@"
