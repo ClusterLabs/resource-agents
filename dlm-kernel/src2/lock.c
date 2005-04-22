@@ -73,10 +73,13 @@
 */
 
 static int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name,
-			int len);
-static int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
-static int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
-static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb);
+			int len, struct dlm_args *args);
+static int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			struct dlm_args *args);
+static int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		       struct dlm_args *args);
+static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		       struct dlm_args *args);
 
 static int _request_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
 static int _convert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
@@ -803,15 +806,10 @@ int dlm_remove_from_waiters(struct dlm_lkb *lkb)
 	return remove_from_waiters(lkb);
 }
 
-/*
- * check and set input args
- * FIXME: is it safe to check lkb fields without a lock_rsb() ?
- */
-
-static int set_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, int mode,
-			 struct dlm_lksb *lksb, uint32_t flags, int namelen,
-			 uint32_t parent_lkid, void *ast, void *astarg,
-			 void *bast, struct dlm_range *range)
+static int set_lock_args(int mode, struct dlm_lksb *lksb, uint32_t flags,
+			 int namelen, uint32_t parent_lkid, void *ast,
+			 void *astarg, void *bast, struct dlm_range *range,
+			 struct dlm_args *args)
 {
 	int rv = -EINVAL;
 
@@ -853,99 +851,37 @@ static int set_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb, int mode,
 	if (flags & DLM_LKF_VALBLK && !lksb->sb_lvbptr)
 		goto out;
 
-	/* FIXME: parent/child locks not yet supported */
+	/* parent/child locks not yet supported */
 	if (parent_lkid)
 		goto out;
 
-	/* checks specific to conversions */
+	if (flags & DLM_LKF_CONVERT && !lksb->sb_lkid)
+		goto out;
 
-	if (flags & DLM_LKF_CONVERT) {
+	/* these args will be copied to the lkb in validate_lock_args,
+	   it cannot be done now because when converting locks, fields in
+	   an active lkb cannot be modified before locking the rsb */
 
-		if (!lksb->sb_lkid)
-			goto out;
-
-		if (lkb->lkb_flags & DLM_IFL_MSTCPY)
-			goto out;
-
-		if (flags & DLM_LKF_QUECVT &&
-		    !__quecvt_compat_matrix[lkb->lkb_grmode + 1][mode + 1])
-			goto out;
-
-		rv = -EBUSY;
-		if (lkb->lkb_status != DLM_LKSTS_GRANTED)
-			goto out;
-	}
-
-	/* copy input values into lkb */
-
-	lkb->lkb_exflags = flags;
-	lkb->lkb_sbflags = 0;
-	lkb->lkb_astaddr = ast;
-	lkb->lkb_astparam = (long) astarg;
-	lkb->lkb_bastaddr = bast;
-	lkb->lkb_rqmode = mode;
-	lkb->lkb_lksb = lksb;
-	lkb->lkb_lvbptr = lksb->sb_lvbptr;
-	lkb->lkb_ownpid = (int) current->pid;
-
-	if (range) {
-		if (!lkb->lkb_range) {
-			rv = -ENOMEM;
-			lkb->lkb_range = allocate_range(ls);
-			if (!lkb->lkb_range)
-				goto out;
-
-			/* This is needed for conversions that contain ranges
-			   where the original lock didn't but it's harmless for
-			   new locks too. */
-
-			lkb->lkb_range[GR_RANGE_START] = 0LL;
-			lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
-		}
-
-		lkb->lkb_range[RQ_RANGE_START] = range->ra_start;
-		lkb->lkb_range[RQ_RANGE_END] = range->ra_end;
-		lkb->lkb_flags |= DLM_IFL_RANGE;
-	}
-
+	args->flags = flags;
+	args->astaddr = ast;
+	args->astparam = (long) astarg;
+	args->bastaddr = bast;
+	args->mode = mode;
+	args->lksb = lksb;
+	args->range = range;
 	rv = 0;
  out:
 	return rv;
 }
 
-static int set_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
-			   uint32_t flags, struct dlm_lksb *lksb, void *astarg)
+static int set_unlock_args(uint32_t flags, void *astarg, struct dlm_args *args)
 {
-	int rv = -EINVAL;
+	if (flags & ~(DLM_LKF_CANCEL | DLM_LKF_VALBLK | DLM_LKF_IVVALBLK))
+		return -EINVAL;
 
-	if (lkb->lkb_flags & DLM_IFL_MSTCPY) {
-		log_error(ls, "can't unlock MSTCPY %x", lkb->lkb_id);
-		goto out;
-	}
-
-	if (flags & DLM_LKF_CANCEL && lkb->lkb_status == DLM_LKSTS_GRANTED) {
-		log_error(ls, "can't cancel granted %x %d", lkb->lkb_id,
-			  lkb->lkb_status);
-		goto out;
-	}
-
-	if (!(flags & DLM_LKF_CANCEL) && lkb->lkb_status != DLM_LKSTS_GRANTED) {
-		log_error(ls, "can't unlock ungranted %x %d", lkb->lkb_id,
-			  lkb->lkb_status);
-		goto out;
-	}
-
-	rv = -EBUSY;
-	if (lkb->lkb_wait_type)
-		goto out;
-
-	lkb->lkb_exflags = flags;
-	lkb->lkb_sbflags = 0;
-	lkb->lkb_astparam = (long)astarg;
-
-	rv = 0;
- out:
-	return rv;
+	args->flags = flags;
+	args->astparam = (long) astarg;
+	return 0;
 }
 
 /*
@@ -966,6 +902,7 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 {
 	struct dlm_ls *ls;
 	struct dlm_lkb *lkb;
+	struct dlm_args args;
 	int error, convert = flags & DLM_LKF_CONVERT;
 
 	ls = dlm_find_lockspace_local(lockspace);
@@ -982,15 +919,15 @@ int dlm_lock(dlm_lockspace_t *lockspace,
 	if (error)
 		goto out;
 
-	error = set_lock_args(ls, lkb, mode, lksb, flags, namelen, parent_lkid,
-			      ast, astarg, bast, range);
+	error = set_lock_args(mode, lksb, flags, namelen, parent_lkid, ast,
+			      astarg, bast, range, &args);
 	if (error)
 		goto out_put;
 
 	if (convert)
-		error = convert_lock(ls, lkb);
+		error = convert_lock(ls, lkb, &args);
 	else
-		error = request_lock(ls, lkb, name, namelen);
+		error = request_lock(ls, lkb, name, namelen, &args);
 
 	if (error == -EINPROGRESS)
 		error = 0;
@@ -1013,6 +950,7 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
 {
 	struct dlm_ls *ls;
 	struct dlm_lkb *lkb;
+	struct dlm_args args;
 	int error;
 
 	ls = dlm_find_lockspace_local(lockspace);
@@ -1025,14 +963,14 @@ int dlm_unlock(dlm_lockspace_t *lockspace,
 	if (error)
 		goto out;
 
-	error = set_unlock_args(ls, lkb, flags, lksb, astarg);
+	error = set_unlock_args(flags, astarg, &args);
 	if (error)
 		goto out_put;
 
 	if (flags & DLM_LKF_CANCEL)
-		error = cancel_lock(ls, lkb);
+		error = cancel_lock(ls, lkb, &args);
 	else
-		error = unlock_lock(ls, lkb);
+		error = unlock_lock(ls, lkb, &args);
 
 	if (error == -DLM_EUNLOCK || error == -DLM_ECANCEL)
 		error = 0;
@@ -1211,21 +1149,103 @@ static void confirm_master(struct dlm_rsb *r, int error)
 	}
 }
 
+int validate_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		       struct dlm_args *args)
+{
+	int rv = -EINVAL;
+
+	if (args->flags & DLM_LKF_CONVERT) {
+		if (lkb->lkb_flags & DLM_IFL_MSTCPY)
+			goto out;
+
+		if (args->flags & DLM_LKF_QUECVT &&
+		    !__quecvt_compat_matrix[lkb->lkb_grmode+1][args->mode+1])
+			goto out;
+
+		rv = -EBUSY;
+		if (lkb->lkb_status != DLM_LKSTS_GRANTED)
+			goto out;
+	}
+
+	lkb->lkb_exflags = args->flags;
+	lkb->lkb_sbflags = 0;
+	lkb->lkb_astaddr = args->astaddr;
+	lkb->lkb_astparam = args->astparam;
+	lkb->lkb_bastaddr = args->bastaddr;
+	lkb->lkb_rqmode = args->mode;
+	lkb->lkb_lksb = args->lksb;
+	lkb->lkb_lvbptr = args->lksb->sb_lvbptr;
+	lkb->lkb_ownpid = (int) current->pid;
+
+	rv = 0;
+	if (!args->range)
+		goto out;
+
+	if (!lkb->lkb_range) {
+		rv = -ENOMEM;
+		lkb->lkb_range = allocate_range(ls);
+		if (!lkb->lkb_range)
+			goto out;
+		/* This is needed for conversions that contain ranges
+		   where the original lock didn't but it's harmless for
+		   new locks too. */
+		lkb->lkb_range[GR_RANGE_START] = 0LL;
+		lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
+	}
+
+	lkb->lkb_range[RQ_RANGE_START] = args->range->ra_start;
+	lkb->lkb_range[RQ_RANGE_END] = args->range->ra_end;
+	lkb->lkb_flags |= DLM_IFL_RANGE;
+	rv = 0;
+ out:
+	return rv;
+}
+
+int validate_unlock_args(struct dlm_lkb *lkb, struct dlm_args *args)
+{
+	int rv = -EINVAL;
+
+	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
+		goto out;
+
+	if (args->flags & DLM_LKF_CANCEL &&
+	    lkb->lkb_status == DLM_LKSTS_GRANTED)
+		goto out;
+
+	if (!(args->flags & DLM_LKF_CANCEL) &&
+	    lkb->lkb_status != DLM_LKSTS_GRANTED)
+		goto out;
+
+	rv = -EBUSY;
+	if (lkb->lkb_wait_type)
+		goto out;
+
+	lkb->lkb_exflags = args->flags;
+	lkb->lkb_sbflags = 0;
+	lkb->lkb_astparam = args->astparam;
+	rv = 0;
+ out:
+	return rv;
+}
+
 /*
  * Four stage 2 varieties:
  * request_lock(), convert_lock(), unlock_lock(), cancel_lock()
- * These are only called on the node making the request.
  */
 
 static int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name,
-			int len)
+			int len, struct dlm_args *args)
 {
 	struct dlm_rsb *r;
 	int error;
 
+	error = validate_lock_args(ls, lkb, args);
+	if (error)
+		goto out;
+
 	error = find_rsb(ls, name, len, R_CREATE, &r);
 	if (error)
-		return error;
+		goto out;
 
 	lock_rsb(r);
 
@@ -1236,10 +1256,12 @@ static int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name,
 	put_rsb(r);
 
 	lkb->lkb_lksb->sb_lkid = lkb->lkb_id;
+ out:
 	return error;
 }
 
-static int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
+static int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			struct dlm_args *args)
 {
 	struct dlm_rsb *r;
 	int error;
@@ -1248,15 +1270,20 @@ static int convert_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 
 	hold_rsb(r);
 	lock_rsb(r);
+
+	error = validate_lock_args(ls, lkb, args);
+	if (error)
+		goto out;
 
 	error = _convert_lock(r, lkb);
-
+ out:
 	unlock_rsb(r);
 	put_rsb(r);
 	return error;
 }
 
-static int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
+static int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		       struct dlm_args *args)
 {
 	struct dlm_rsb *r;
 	int error;
@@ -1265,15 +1292,20 @@ static int unlock_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 
 	hold_rsb(r);
 	lock_rsb(r);
+
+	error = validate_unlock_args(lkb, args);
+	if (error)
+		goto out;
 
 	error = _unlock_lock(r, lkb);
-
+ out:
 	unlock_rsb(r);
 	put_rsb(r);
 	return error;
 }
 
-static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
+static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb,
+		       struct dlm_args *args)
 {
 	struct dlm_rsb *r;
 	int error;
@@ -1283,8 +1315,12 @@ static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 	hold_rsb(r);
 	lock_rsb(r);
 
-	error = _cancel_lock(r, lkb);
+	error = validate_unlock_args(lkb, args);
+	if (error)
+		goto out;
 
+	error = _cancel_lock(r, lkb);
+ out:
 	unlock_rsb(r);
 	put_rsb(r);
 	return error;
@@ -1293,7 +1329,6 @@ static int cancel_lock(struct dlm_ls *ls, struct dlm_lkb *lkb)
 /*
  * Four stage 3 varieties:
  * _request_lock(), _convert_lock(), _unlock_lock(), _cancel_lock()
- * These are called on the node making the request.
  */
 
 /* add a new lkb to a possibly new rsb, called by requesting process */

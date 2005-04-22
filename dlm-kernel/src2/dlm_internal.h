@@ -154,7 +154,7 @@ struct dlm_member {
 };
 
 /*
- * Used to save and manage recovery state for a lockspace.
+ * Save and manage recovery state for a lockspace.
  */
 
 struct dlm_recover {
@@ -162,6 +162,20 @@ struct dlm_recover {
 	int *			nodeids;
 	int			node_count;
 	int			event_id;
+};
+
+/*
+ * Pass input args to second stage locking function.
+ */
+
+struct dlm_args {
+	uint32_t		flags;
+	void *			astaddr;
+	long			astparam;
+	void *			bastaddr;
+	int			mode;
+	struct dlm_lksb *	lksb;
+	struct dlm_range *	range;
 };
 
 
