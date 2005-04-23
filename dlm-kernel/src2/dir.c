@@ -105,7 +105,7 @@ int dlm_dir_name2nodeid(struct dlm_ls *ls, char *name, int length)
 
 	DLM_ASSERT(memb , printk("num_nodes=%u n=%u node=%u\n",
 				 ls->ls_num_nodes, n, node););
-	nodeid = memb->node->nodeid;
+	nodeid = memb->nodeid;
  out:
 	return nodeid;
 }
@@ -219,7 +219,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 			if (error)
 				goto free_last;
 
-			error = dlm_rcom_names(ls, memb->node->nodeid,
+			error = dlm_rcom_names(ls, memb->nodeid,
 					       last_name, last_len);
 			if (error)
 				goto free_last;
@@ -251,7 +251,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 				if (!de)
 					goto free_last;
 
-				de->master_nodeid = memb->node->nodeid;
+				de->master_nodeid = memb->nodeid;
 				de->length = namelen;
 				last_len = namelen;
 				memcpy(de->name, b, namelen);

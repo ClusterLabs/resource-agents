@@ -13,12 +13,6 @@
 #ifndef __MEMBER_DOT_H__
 #define __MEMBER_DOT_H__
 
-int dlm_member_init(void);
-void dlm_member_exit(void);
-
-int dlm_set_node(int nodeid, int weight, char *addr);
-int dlm_set_local(int nodeid, int weight, char *addr);
-
 int dlm_ls_terminate(struct dlm_ls *ls);
 int dlm_ls_stop(struct dlm_ls *ls);
 int dlm_ls_start(struct dlm_ls *ls, int event_nr);
@@ -30,11 +24,6 @@ void dlm_clear_members_finish(struct dlm_ls *ls, int finish_event);
 int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv);
 int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv,int *neg_out);
 int dlm_is_removed(struct dlm_ls *ls, int nodeid);
-
-int dlm_nodeid_addr(int nodeid, char *addr);
-int dlm_addr_nodeid(char *addr, int *nodeid);
-int dlm_our_nodeid(void);
-int dlm_our_addr(int i, char *addr);
 
 #endif                          /* __MEMBER_DOT_H__ */
 

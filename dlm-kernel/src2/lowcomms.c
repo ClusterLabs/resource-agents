@@ -42,7 +42,6 @@
  *
  */
 
-
 #include <asm/ioctls.h>
 #include <net/sock.h>
 #include <net/tcp.h>
@@ -52,58 +51,80 @@
 #include <linux/idr.h>
 
 #include "dlm_internal.h"
+#include "dlm_node.h"
 #include "lowcomms.h"
 #include "config.h"
 #include "member.h"
 #include "midcomms.h"
 
+static struct sockaddr_storage * local_addr[DLM_MAX_ADDR_COUNT];
+static int			local_nodeid;
+static int			local_weight;
+static int			local_count;
+static struct list_head		nodes;
+static struct semaphore		nodes_sem;
+
+/* One of these per configured node */
+
+struct dlm_node {
+	struct list_head	list;
+	int			nodeid;
+	int			weight;
+	struct sockaddr_storage	addr;
+};
+
 /* One of these per connected node */
-struct nodeinfo
-{
-	spinlock_t   lock;
-	sctp_assoc_t assoc_id;
-	unsigned long  flags;
-	struct list_head write_list;    /* on list of nodes with pending writes */
-	struct list_head writequeue;	/* List of outgoing writequeue_entries */
-	spinlock_t   writequeue_lock;
-	int          nodeid;
+
 #define NI_INIT_PENDING 1
 #define NI_WRITE_PENDING 2
+
+struct nodeinfo {
+	spinlock_t		lock;
+	sctp_assoc_t		assoc_id;
+	unsigned long		flags;
+	struct list_head	write_list; /* nodes with pending writes */
+	struct list_head	writequeue; /* outgoing writequeue_entries */
+	spinlock_t		writequeue_lock;
+	int			nodeid;
 };
 
 static DEFINE_IDR(nodeinfo_idr);
-static struct rw_semaphore nodeinfo_lock;
-static int max_nodeid;
+static struct rw_semaphore	nodeinfo_lock;
+static int			max_nodeid;
 
 struct cbuf {
-        unsigned base;
-        unsigned len;
-        unsigned mask;
+	unsigned		base;
+	unsigned		len;
+	unsigned		mask;
 };
 
 /* Just the one of these, now. But this struct keeps
    the connection-specific variables together */
-struct connection {
-	struct socket *sock;
-	unsigned long flags;
+
 #define CF_READ_PENDING 1
-	struct page *rx_page;
-	atomic_t waiting_requests;
-	struct cbuf cb;
+
+struct connection {
+	struct socket *		sock;
+	unsigned long		flags;
+	struct page *		rx_page;
+	atomic_t		waiting_requests;
+	struct cbuf		cb;
 };
 
 /* An entry waiting to be sent */
+
 struct writequeue_entry {
-	struct list_head list;
-	struct page *page;
-	int offset;
-	int len;
-	int end;
-	int users;
-	struct nodeinfo *ni;
+	struct list_head	list;
+	struct page *		page;
+	int			offset;
+	int			len;
+	int			end;
+	int			users;
+	struct nodeinfo *	ni;
 };
 
 #define CBUF_INIT(cb, size) do { (cb)->base = (cb)->len = 0; (cb)->mask = ((size)-1); } while(0)
+
 #define CBUF_ADD(cb, n) do { (cb)->len += n; } while(0)
 #define CBUF_EMPTY(cb) ((cb)->len == 0)
 #define CBUF_MAY_ADD(cb, n) (((cb)->len + (n)) < ((cb)->mask + 1))
@@ -120,15 +141,6 @@ static spinlock_t write_nodes_lock;
  */
 #define MAX_RX_MSG_COUNT 25
 
-/* "Template" structure for IPv4 and IPv6 used to fill
- * in the missing bits when converting between cman (which knows
- * nothing about sockaddr structs) and real life where we actually
- * have to connect to these addresses. Also one of these structs
- * will hold the cached "us" address.
- *
- */
-static struct sockaddr_storage local_addr;
-
 /* Manage daemons */
 static struct task_struct *recv_task;
 static struct task_struct *send_task;
@@ -142,7 +154,137 @@ static wait_queue_head_t lowcomms_recv_waitq;
 /* The SCTP connection */
 static struct connection sctp_con;
 
-static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr);
+
+static struct dlm_node *search_node(int nodeid)
+{
+	struct dlm_node *node;
+
+	list_for_each_entry(node, &nodes, list) {
+		if (node->nodeid == nodeid)
+			goto out;
+	}
+	node = NULL;
+ out:
+	return node;
+}
+
+static struct dlm_node *search_node_addr(struct sockaddr_storage *addr)
+{
+	struct dlm_node *node;
+
+	list_for_each_entry(node, &nodes, list) {
+		if (!memcmp(&node->addr, addr, sizeof(*addr)))
+			goto out;
+	}
+	node = NULL;
+ out:
+	return node;
+}
+
+static int _get_node(int nodeid, struct dlm_node **node_ret)
+{
+	struct dlm_node *node;
+	int error = 0;
+
+	node = search_node(nodeid);
+	if (node)
+		goto out;
+
+	node = kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
+	if (!node) {
+		error = -ENOMEM;
+		goto out;
+	}
+	memset(node, 0, sizeof(struct dlm_node));
+	node->nodeid = nodeid;
+	list_add_tail(&node->list, &nodes);
+ out:
+	*node_ret = node;
+	return error;
+}
+
+static int addr_to_nodeid(struct sockaddr_storage *addr, int *nodeid)
+{
+	struct dlm_node *node;
+
+	down(&nodes_sem);
+	node = search_node_addr(addr);
+	up(&nodes_sem);
+	if (!node)
+		return -1;
+	*nodeid = node->nodeid;
+	return 0;
+}
+
+static int nodeid_to_addr(int nodeid, struct sockaddr *retaddr)
+{
+	struct dlm_node *node;
+	struct sockaddr_storage *addr;
+
+	if (!local_count)
+		return -1;
+
+	down(&nodes_sem);
+	node = search_node(nodeid);
+	up(&nodes_sem);
+	if (!node)
+		return -1;
+
+	addr = &node->addr;
+
+	if (local_addr[0]->ss_family == AF_INET) {
+	        struct sockaddr_in *in4  = (struct sockaddr_in *) addr;
+		struct sockaddr_in *ret4 = (struct sockaddr_in *) retaddr;
+		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
+	} else {
+	        struct sockaddr_in6 *in6  = (struct sockaddr_in6 *) addr;
+		struct sockaddr_in6 *ret6 = (struct sockaddr_in6 *) retaddr;
+		memcpy(&ret6->sin6_addr, &in6->sin6_addr,
+		       sizeof(in6->sin6_addr));
+	}
+
+	return 0;
+}
+
+int dlm_set_node(int nodeid, int weight, char *addr_buf)
+{
+	struct dlm_node *node;
+	int error;
+
+	down(&nodes_sem);
+	error = _get_node(nodeid, &node);
+	if (!error) {
+		memcpy(&node->addr, addr_buf, sizeof(struct sockaddr_storage));
+		node->weight = weight;
+	}
+	up(&nodes_sem);
+	return error;
+}
+
+int dlm_set_local(int nodeid, int weight, char *addr_buf)
+{
+	struct sockaddr_storage *addr;
+
+	if (local_count > DLM_MAX_ADDR_COUNT - 1) {
+		log_print("too many local addresses set %d", local_count);
+		return -EINVAL;
+	}
+	local_nodeid = nodeid;
+	local_weight = weight;
+
+	addr = kmalloc(sizeof(*addr), GFP_KERNEL);
+	if (!addr)
+		return -ENOMEM;
+	memcpy(addr, addr_buf, sizeof(*addr));
+	local_addr[local_count++] = addr;
+	return 0;
+}
+
+int dlm_our_nodeid(void)
+{
+	return local_nodeid;
+}
+
 static struct nodeinfo *nodeid2nodeinfo(int nodeid, int alloc)
 {
 	struct nodeinfo *ni;
@@ -209,20 +351,6 @@ static struct nodeinfo *assoc2nodeinfo(sctp_assoc_t assoc)
 	return NULL;
 }
 
-int lowcomms_our_nodeid(void)
-{
-	static int our_nodeid = 0;
-
-	if (our_nodeid)
-		return our_nodeid;
-
-	our_nodeid = dlm_our_nodeid();
-
-	/* Fill in the "template" structure */
-	dlm_our_addr(0, (char *)&local_addr);
-	return our_nodeid;
-}
-
 /* Data or notification available on socket */
 static void lowcomms_data_ready(struct sock *sk, int count_unused)
 {
@@ -239,36 +367,42 @@ static void lowcomms_write_space(struct sock *sk)
 }
 
 
-/* Add the port number to an IP6 or 4 sockaddr and return the address
-   length.
+/* Add the port number to an IP6 or 4 sockaddr and return the address length.
    Also padd out the struct with zeros to make comparisons meaningful */
+
 static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 			  int *addr_len)
 {
+	struct sockaddr_in *local4_addr;
+	struct sockaddr_in6 *local6_addr;
+
+	if (!local_count)
+		return;
+
 	/* If port is 0 then use the CMAN port */
 	if (!port) {
-		if (local_addr.ss_family == AF_INET) {
-			struct sockaddr_in *local4_addr = (struct sockaddr_in *)&local_addr;
+		if (local_addr[0]->ss_family == AF_INET) {
+			local4_addr = (struct sockaddr_in *)local_addr[0];
 			port = be16_to_cpu(local4_addr->sin_port);
-		}
-		else {
-			struct sockaddr_in6 *local6_addr = (struct sockaddr_in6 *)&local_addr;
+		} else {
+			local6_addr = (struct sockaddr_in6 *)local_addr[0];
 			port = be16_to_cpu(local6_addr->sin6_port);
 		}
 	}
 
-        saddr->ss_family = local_addr.ss_family;
-        if (local_addr.ss_family == AF_INET) {
+	saddr->ss_family = local_addr[0]->ss_family;
+	if (local_addr[0]->ss_family == AF_INET) {
 		struct sockaddr_in *in4_addr = (struct sockaddr_in *)saddr;
 		in4_addr->sin_port = cpu_to_be16(port);
 		memset(&in4_addr->sin_zero, 0, sizeof(in4_addr->sin_zero));
-		memset(in4_addr+1, 0, sizeof(struct sockaddr_storage) - sizeof(struct sockaddr_in));
+		memset(in4_addr+1, 0, sizeof(struct sockaddr_storage) -
+				      sizeof(struct sockaddr_in));
 		*addr_len = sizeof(struct sockaddr_in);
-	}
-	else {
+	} else {
 		struct sockaddr_in6 *in6_addr = (struct sockaddr_in6 *)saddr;
 		in6_addr->sin6_port = cpu_to_be16(port);
-		memset(in6_addr+1, 0, sizeof(struct sockaddr_storage) - sizeof(struct sockaddr_in6));
+		memset(in6_addr+1, 0, sizeof(struct sockaddr_storage) -
+				      sizeof(struct sockaddr_in6));
 		*addr_len = sizeof(struct sockaddr_in6);
 	}
 }
@@ -291,33 +425,32 @@ static void close_connection(void)
 static void send_shutdown(sctp_assoc_t associd)
 {
 	static char outcmsg[CMSG_SPACE(sizeof(struct sctp_sndrcvinfo))];
-        struct msghdr outmessage;
-        struct cmsghdr *cmsg;
-        struct sctp_sndrcvinfo *sinfo;
+	struct msghdr outmessage;
+	struct cmsghdr *cmsg;
+	struct sctp_sndrcvinfo *sinfo;
 	int ret;
 
 	outmessage.msg_name = NULL;
-        outmessage.msg_namelen = 0;
-        outmessage.msg_control = outcmsg;
-        outmessage.msg_controllen = sizeof(outcmsg);
-        outmessage.msg_flags = MSG_EOR;
+	outmessage.msg_namelen = 0;
+	outmessage.msg_control = outcmsg;
+	outmessage.msg_controllen = sizeof(outcmsg);
+	outmessage.msg_flags = MSG_EOR;
 
-        cmsg = CMSG_FIRSTHDR(&outmessage);
-        cmsg->cmsg_level = IPPROTO_SCTP;
-        cmsg->cmsg_type = SCTP_SNDRCV;
-        cmsg->cmsg_len = CMSG_LEN(sizeof(struct sctp_sndrcvinfo));
-        outmessage.msg_controllen = cmsg->cmsg_len;
-        sinfo = (struct sctp_sndrcvinfo *)CMSG_DATA(cmsg);
-        memset(sinfo, 0x00, sizeof(struct sctp_sndrcvinfo));
+	cmsg = CMSG_FIRSTHDR(&outmessage);
+	cmsg->cmsg_level = IPPROTO_SCTP;
+	cmsg->cmsg_type = SCTP_SNDRCV;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(struct sctp_sndrcvinfo));
+	outmessage.msg_controllen = cmsg->cmsg_len;
+	sinfo = (struct sctp_sndrcvinfo *)CMSG_DATA(cmsg);
+	memset(sinfo, 0x00, sizeof(struct sctp_sndrcvinfo));
 
-        sinfo->sinfo_flags |= MSG_EOF;
-        sinfo->sinfo_assoc_id = associd;
+	sinfo->sinfo_flags |= MSG_EOF;
+	sinfo->sinfo_assoc_id = associd;
 
 	ret = kernel_sendmsg(sctp_con.sock, &outmessage, NULL, 0, 0);
 
-	if (ret != 0) {
+	if (ret != 0)
 		printk(KERN_WARNING "dlm: send EOF to node failed: %d\n", ret);
-	}
 }
 
 
@@ -395,7 +528,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 				return;
 			}
 			make_sockaddr(&prim.ssp_addr, 0, &addr_len);
-			if (dlm_addr_nodeid((char *)&prim.ssp_addr, &nodeid)) {
+			if (addr_to_nodeid(&prim.ssp_addr, &nodeid)) {
 
 				printk(KERN_WARNING "dlm: got connection from non-cluster node, rejecting\n");
 				send_shutdown(prim.ssp_assoc_id);
@@ -464,11 +597,13 @@ static int receive_from_sock(void)
 	struct kvec iov[2];
 	unsigned len;
 	int r;
-        struct sctp_sndrcvinfo *sinfo;
+	struct sctp_sndrcvinfo *sinfo;
 	struct cmsghdr *cmsg;
 	struct nodeinfo *ni;
-	/* These two are marginally too big for stack allocation, but this function
-	 * is (currently) only called by dlm_recvd so static should be OK.
+
+	/* These two are marginally too big for stack allocation, but this
+	 * function is (currently) only called by dlm_recvd so static should be
+	 * OK.
 	 */
 	static struct sockaddr_storage msgname;
 	static char incmsg[CMSG_SPACE(sizeof(struct sctp_sndrcvinfo))];
@@ -497,34 +632,36 @@ static int receive_from_sock(void)
 	msg.msg_control = incmsg;
 	msg.msg_controllen = sizeof(incmsg);
 
-	/* I don't see why this circular buffer stuff is necessary for SCTP which
-	 * is a packet-based protocol, but the whole thing breaks under load
-	 * without it! The overhead is minimal (and is in the TCP lowcomms
-	 * anyway, of course) so I'll leave it in until I can figure out
-	 * what's really happening.
+	/* I don't see why this circular buffer stuff is necessary for SCTP
+	 * which is a packet-based protocol, but the whole thing breaks under
+	 * load without it! The overhead is minimal (and is in the TCP lowcomms
+	 * anyway, of course) so I'll leave it in until I can figure out what's
+	 * really happening.
 	 */
 
-        /*
-         * iov[0] is the bit of the circular buffer between the current end
-         * point (cb.base + cb.len) and the end of the buffer.
-         */
-        iov[0].iov_len = sctp_con.cb.base - CBUF_DATA(&sctp_con.cb);
-        iov[0].iov_base = page_address(sctp_con.rx_page) + CBUF_DATA(&sctp_con.cb);
-        iov[1].iov_len = 0;
+	/*
+	 * iov[0] is the bit of the circular buffer between the current end
+	 * point (cb.base + cb.len) and the end of the buffer.
+	 */
+	iov[0].iov_len = sctp_con.cb.base - CBUF_DATA(&sctp_con.cb);
+	iov[0].iov_base = page_address(sctp_con.rx_page) +
+			  CBUF_DATA(&sctp_con.cb);
+	iov[1].iov_len = 0;
 
-        /*
-         * iov[1] is the bit of the circular buffer between the start of the
-         * buffer and the start of the currently used section (cb.base)
-         */
-        if (CBUF_DATA(&sctp_con.cb) >= sctp_con.cb.base) {
-                iov[0].iov_len = PAGE_CACHE_SIZE - CBUF_DATA(&sctp_con.cb);
-                iov[1].iov_len = sctp_con.cb.base;
-                iov[1].iov_base = page_address(sctp_con.rx_page);
-                msg.msg_iovlen = 2;
-        }
-        len = iov[0].iov_len + iov[1].iov_len;
+	/*
+	 * iov[1] is the bit of the circular buffer between the start of the
+	 * buffer and the start of the currently used section (cb.base)
+	 */
+	if (CBUF_DATA(&sctp_con.cb) >= sctp_con.cb.base) {
+		iov[0].iov_len = PAGE_CACHE_SIZE - CBUF_DATA(&sctp_con.cb);
+		iov[1].iov_len = sctp_con.cb.base;
+		iov[1].iov_base = page_address(sctp_con.rx_page);
+		msg.msg_iovlen = 2;
+	}
+	len = iov[0].iov_len + iov[1].iov_len;
 
-	r = ret = kernel_recvmsg(sctp_con.sock, &msg, iov, 1, len, MSG_NOSIGNAL | MSG_DONTWAIT);
+	r = ret = kernel_recvmsg(sctp_con.sock, &msg, iov, 1, len,
+				 MSG_NOSIGNAL | MSG_DONTWAIT);
 	if (ret <= 0)
 		goto out_close;
 
@@ -559,9 +696,9 @@ static int receive_from_sock(void)
 
 	CBUF_ADD(&sctp_con.cb, ret);
 	ret = dlm_process_incoming_buffer(cpu_to_le32(sinfo->sinfo_ppid),
-                                          page_address(sctp_con.rx_page),
-                                          sctp_con.cb.base, sctp_con.cb.len,
-                                          PAGE_CACHE_SIZE);
+					  page_address(sctp_con.rx_page),
+					  sctp_con.cb.base, sctp_con.cb.len,
+					  PAGE_CACHE_SIZE);
 
 	if (ret == -EBADMSG) {
 		printk(KERN_INFO "dlm: lowcomms: addr=%p, len=%u, "
@@ -586,7 +723,8 @@ static int receive_from_sock(void)
       out_close:
 	// TODO: What??
 	if (ret != -EAGAIN) {
-		printk(KERN_INFO "dlm: Error reading from sctp socket: %d\n", ret);
+		printk(KERN_INFO "dlm: Error reading from sctp socket: %d\n",
+		       ret);
 	}
       out_ret:
 	return ret;
@@ -601,37 +739,35 @@ static int add_bind_addr(struct sockaddr_storage *addr, int addr_len, int num)
 	fs = get_fs();
 	set_fs(get_ds());
 	if (num == 1)
-		result = sctp_con.sock->ops->bind(sctp_con.sock, (struct sockaddr *) addr, addr_len);
+		result = sctp_con.sock->ops->bind(sctp_con.sock,
+					(struct sockaddr *) addr, addr_len);
 	else
-		result = sctp_con.sock->ops->setsockopt(sctp_con.sock, SOL_SCTP, SCTP_SOCKOPT_BINDX_ADD,
-							(char *)addr, addr_len);
+		result = sctp_con.sock->ops->setsockopt(sctp_con.sock, SOL_SCTP,
+				SCTP_SOCKOPT_BINDX_ADD, (char *)addr, addr_len);
 	set_fs(fs);
 
 	if (result < 0)
-		printk(KERN_ERR "dlm: Can't bind to port %d, address number %d\n", dlm_config.tcp_port, num);
+		printk(KERN_ERR "dlm: Can't bind to port %d addr number %d\n",
+		       dlm_config.tcp_port, num);
 
 	return result;
 }
 
 
-/* Initialise SCTP socket and bind to all interfaces that cman knows about. */
+/* Initialise SCTP socket and bind to all interfaces */
 static int init_sock(void)
 {
-	int result = 0;
-	int nodeid;
-	int num = 0;
 	mm_segment_t fs;
 	struct socket *sock = NULL;
 	struct sockaddr_storage localaddr;
 	struct sctp_event_subscribe subscribe;
+	int result = 0, num = 0, i, addr_len;
 
-	/* This will also fill in local_addr */
-	nodeid = lowcomms_our_nodeid();
-
-	/* Create a socket to communicate with */
-	result = sock_create_kern(local_addr.ss_family, SOCK_SEQPACKET, IPPROTO_SCTP, &sock);
+	result = sock_create_kern(local_addr[0]->ss_family, SOCK_SEQPACKET,
+				  IPPROTO_SCTP, &sock);
 	if (result < 0) {
-		printk(KERN_ERR "dlm: Can't create comms socket, check SCTP is loaded\n");
+		printk(KERN_ERR "dlm: Can't create comms socket, check SCTP "
+		       "is loaded\n");
 		goto create_out;
 	}
 
@@ -641,38 +777,36 @@ static int init_sock(void)
 	subscribe.sctp_association_event = 1;
 	subscribe.sctp_send_failure_event = 1;
 	subscribe.sctp_shutdown_event = 1;
-        subscribe.sctp_partial_delivery_event = 1;
+	subscribe.sctp_partial_delivery_event = 1;
 
 	fs = get_fs();
 	set_fs(get_ds());
-	result = sock->ops->setsockopt(sock, SOL_SCTP, SCTP_EVENTS, (char *)&subscribe, sizeof(subscribe));
+	result = sock->ops->setsockopt(sock, SOL_SCTP, SCTP_EVENTS,
+				       (char *)&subscribe, sizeof(subscribe));
 	set_fs(fs);
 
 	if (result < 0) {
-		printk(KERN_ERR "dlm: Failed to set SCTP_EVENTS on socket: result=%d\n", result);
+		printk(KERN_ERR "dlm: Failed to set SCTP_EVENTS on socket: "
+		       "result=%d\n", result);
 		goto create_delsock;
 	}
 
-        /* Init con struct */
+	/* Init con struct */
 	sock->sk->sk_user_data = &sctp_con;
 	sctp_con.sock = sock;
 	sctp_con.sock->sk->sk_data_ready = lowcomms_data_ready;
 	sctp_con.sock->sk->sk_write_space = lowcomms_write_space;
 
-        /* Bind to all interfaces. */
-	do {
-		int addr_len;
+	/* Bind to all interfaces. */
+	for (i = 0; i < local_count; i++) {
+		memcpy(&localaddr, local_addr[i], sizeof(localaddr));
+		make_sockaddr(&localaddr, dlm_config.tcp_port, &addr_len);
 
-		result = dlm_our_addr(num, (char *)&localaddr);
-		if (!result) {
-			make_sockaddr(&localaddr, dlm_config.tcp_port, &addr_len);
-
-			result = add_bind_addr(&localaddr, addr_len, num);
-			if (result)
-				goto create_delsock;
-			++num;
-		}
-	} while (!result);
+		result = add_bind_addr(&localaddr, addr_len, num);
+		if (result)
+			goto create_delsock;
+		++num;
+	}
 
 	result = sock->ops->listen(sock, 5);
 	if (result < 0) {
@@ -805,9 +939,9 @@ static void initiate_association(int nodeid)
 {
 	struct sockaddr_storage rem_addr;
 	static char outcmsg[CMSG_SPACE(sizeof(struct sctp_sndrcvinfo))];
-        struct msghdr outmessage;
-        struct cmsghdr *cmsg;
-        struct sctp_sndrcvinfo *sinfo;
+	struct msghdr outmessage;
+	struct cmsghdr *cmsg;
+	struct sctp_sndrcvinfo *sinfo;
 	int ret;
 	int addrlen;
 	char buf[1];
@@ -820,18 +954,18 @@ static void initiate_association(int nodeid)
 	if (!ni)
 		return;
 
-	if (lowcomms_ipaddr_from_nodeid(nodeid, (struct sockaddr *)&rem_addr)) {
-		printk(KERN_WARNING "dlm: CMAN has no node addresses for nodeid %d\n", nodeid);
+	if (nodeid_to_addr(nodeid, (struct sockaddr *)&rem_addr)) {
+		printk(KERN_WARNING "dlm: no address for nodeid %d\n", nodeid);
 		return;
 	}
 
 	make_sockaddr(&rem_addr, dlm_config.tcp_port, &addrlen);
 
 	outmessage.msg_name = &rem_addr;
-        outmessage.msg_namelen = addrlen;
-        outmessage.msg_control = outcmsg;
-        outmessage.msg_controllen = sizeof(outcmsg);
-        outmessage.msg_flags = MSG_EOR;
+	outmessage.msg_namelen = addrlen;
+	outmessage.msg_control = outcmsg;
+	outmessage.msg_controllen = sizeof(outcmsg);
+	outmessage.msg_flags = MSG_EOR;
 
 	iov[0].iov_base = buf;
 	iov[0].iov_len = 1;
@@ -844,13 +978,12 @@ static void initiate_association(int nodeid)
 	cmsg->cmsg_len = CMSG_LEN(sizeof(struct sctp_sndrcvinfo));
 	sinfo = (struct sctp_sndrcvinfo *)CMSG_DATA(cmsg);
 	memset(sinfo, 0x00, sizeof(struct sctp_sndrcvinfo));
-	sinfo->sinfo_ppid = cpu_to_le32(lowcomms_our_nodeid());
+	sinfo->sinfo_ppid = cpu_to_le32(local_nodeid);
 
 	outmessage.msg_controllen = cmsg->cmsg_len;
 	ret = kernel_sendmsg(sctp_con.sock, &outmessage, iov, 1, 1);
 	if (ret < 0) {
 		printk(KERN_WARNING "dlm: send INIT to node failed: %d\n", ret);
-
 		/* Try again later */
 		clear_bit(NI_INIT_PENDING, &ni->flags);
 	}
@@ -864,18 +997,16 @@ static int send_to_sock(struct nodeinfo *ni)
 	int len, offset;
 	struct msghdr outmsg;
 	static char outcmsg[CMSG_SPACE(sizeof(struct sctp_sndrcvinfo))];
-        struct cmsghdr *cmsg;
-        struct sctp_sndrcvinfo *sinfo;
+	struct cmsghdr *cmsg;
+	struct sctp_sndrcvinfo *sinfo;
 	struct kvec iov;
 
 	/* See if we need to init an association before we start
 	   sending precious messages */
 	spin_lock(&ni->lock);
-	if (!ni->assoc_id &&
-	    !test_and_set_bit(NI_INIT_PENDING, &ni->flags)) {
+	if (!ni->assoc_id && !test_and_set_bit(NI_INIT_PENDING, &ni->flags)) {
 		spin_unlock(&ni->lock);
 		initiate_association(ni->nodeid);
-
 		return 0;
 	}
 	spin_unlock(&ni->lock);
@@ -892,9 +1023,9 @@ static int send_to_sock(struct nodeinfo *ni)
 	cmsg->cmsg_len = CMSG_LEN(sizeof(struct sctp_sndrcvinfo));
 	sinfo = (struct sctp_sndrcvinfo *)CMSG_DATA(cmsg);
 	memset(sinfo, 0x00, sizeof(struct sctp_sndrcvinfo));
-	sinfo->sinfo_ppid = cpu_to_le32(lowcomms_our_nodeid());
+	sinfo->sinfo_ppid = cpu_to_le32(local_nodeid);
 	sinfo->sinfo_assoc_id = ni->assoc_id;
-        outmsg.msg_controllen = cmsg->cmsg_len;
+	outmsg.msg_controllen = cmsg->cmsg_len;
 
 	spin_lock(&ni->writequeue_lock);
 	for (;;) {
@@ -920,8 +1051,7 @@ static int send_to_sock(struct nodeinfo *ni)
 				goto out;
 			if (ret <= 0)
 				goto send_error;
-		}
-		else {
+		} else {
 			/* Don't starve people filling buffers */
 			schedule();
 		}
@@ -937,26 +1067,24 @@ static int send_to_sock(struct nodeinfo *ni)
 		}
 	}
 	spin_unlock(&ni->writequeue_lock);
-      out:
+ out:
 	return ret;
 
-      send_error:
-	printk(KERN_INFO "dlm: Error sending to node %d: %d\n", ni->nodeid, ret);
+ send_error:
+	printk(KERN_INFO "dlm: Error sending to node %d %d\n", ni->nodeid, ret);
 	spin_lock(&ni->lock);
 	if (!test_and_set_bit(NI_INIT_PENDING, &ni->flags)) {
 		ni->assoc_id = 0;
 		spin_unlock(&ni->lock);
 		initiate_association(ni->nodeid);
-	}
-	else {
+	} else
 		spin_unlock(&ni->lock);
-	}
 
 	return ret;
 }
 
-/* Try to send any messages that are pending
- */
+/* Try to send any messages that are pending */
+
 static void process_output_queue(void)
 {
 	struct list_head *list;
@@ -1019,9 +1147,8 @@ static void dealloc_nodeinfo(void)
 	}
 }
 
-
-/* Called when a node leaves the service */
-int lowcomms_close(int nodeid)
+#if 0
+static int lowcomms_close(int nodeid)
 {
 	struct nodeinfo *ni;
 
@@ -1041,6 +1168,7 @@ int lowcomms_close(int nodeid)
 	clear_bit(NI_INIT_PENDING, &ni->flags);
 	return 0;
 }
+#endif
 
 static int write_list_empty(void)
 {
@@ -1053,7 +1181,6 @@ static int write_list_empty(void)
 	return status;
 }
 
-/* DLM Transport comms receive daemon */
 static int dlm_recvd(void *data)
 {
 	init_waitqueue_head(&lowcomms_recv_waitq);
@@ -1066,9 +1193,9 @@ static int dlm_recvd(void *data)
 
 		set_current_state(TASK_INTERRUPTIBLE);
 
-		if (!test_bit(CF_READ_PENDING, &sctp_con.flags)) {
+		if (!test_bit(CF_READ_PENDING, &sctp_con.flags))
 			schedule();
-		}
+
 		set_current_state(TASK_RUNNING);
 
 		if (test_and_clear_bit(CF_READ_PENDING, &sctp_con.flags)) {
@@ -1092,7 +1219,6 @@ static int dlm_recvd(void *data)
 	return 0;
 }
 
-/* DLM Transport send daemon */
 static int dlm_sendd(void *data)
 {
 	init_waitqueue_head(&lowcomms_send_waitq);
@@ -1143,49 +1269,21 @@ static int daemons_start(void)
 }
 
 /*
- * Return the largest buffer size we can cope with.
+ * This is quite likely to sleep...
+ * Temporarily initialise the waitq head so that lowcomms_send_message
+ * doesn't crash if it gets called before the thread is fully
+ * initialised
  */
-int lowcomms_max_buffer_size(void)
-{
-	return PAGE_CACHE_SIZE;
-}
 
-void dlm_lowcomms_stop(void)
-{
-	atomic_set(&accepting, 0);
-
-	/* Set all the activity flags to prevent any
-	   socket activity.
-	*/
-	sctp_con.flags = 0x7;
-	daemons_stop();
-	clean_writequeues();
-	close_connection();
-	dealloc_nodeinfo();
-	max_nodeid = 0;
-
-}
-
-/* This is quite likely to sleep... */
 int dlm_lowcomms_start(void)
 {
-	int error = 0;
+	int error;
 
-	error = -ENOTCONN;
-
-	/*
-	 * Temporarily initialise the waitq head so that lowcomms_send_message
-	 * doesn't crash if it gets called before the thread is fully
-	 * initialised
-	 */
 	init_waitqueue_head(&lowcomms_send_waitq);
 	spin_lock_init(&write_nodes_lock);
 	INIT_LIST_HEAD(&write_nodes);
 	init_rwsem(&nodeinfo_lock);
 
-	error = -ENOMEM;
-
-	/* Start socket */
 	error = init_sock();
 	if (error)
 		goto fail_sock;
@@ -1193,55 +1291,46 @@ int dlm_lowcomms_start(void)
 	if (error)
 		goto fail_sock;
 	atomic_set(&accepting, 1);
-
 	return 0;
 
-      fail_sock:
+ fail_sock:
 	close_connection();
-
 	return error;
 }
 
-/* Don't accept any more outgoing work */
-void lowcomms_stop_accept(void)
+/* Set all the activity flags to prevent any socket activity. */
+
+void dlm_lowcomms_stop(void)
 {
-        atomic_set(&accepting, 0);
+	atomic_set(&accepting, 0);
+	sctp_con.flags = 0x7;
+	daemons_stop();
+	clean_writequeues();
+	close_connection();
+	dealloc_nodeinfo();
+	max_nodeid = 0;
 }
 
-/* Cluster Manager interface functions for looking up
-   nodeids and IP addresses by each other
-*/
-
-/* Return the IP address of a node given its NODEID */
-static int lowcomms_ipaddr_from_nodeid(int nodeid, struct sockaddr *retaddr)
+int dlm_lowcomms_init(void)
 {
-	struct sockaddr_storage saddr;
-
-	if (dlm_nodeid_addr(nodeid, (char *)&saddr))
-		return -1;
-
-	/* Extract the IP address */
-	if (local_addr.ss_family == AF_INET) {
-	        struct sockaddr_in *in4  = (struct sockaddr_in *)&saddr;
-		struct sockaddr_in *ret4 = (struct sockaddr_in *)retaddr;
-		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
-	}
-	else {
-	        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&saddr;
-		struct sockaddr_in6 *ret6 = (struct sockaddr_in6 *)retaddr;
-		memcpy(&ret6->sin6_addr, &in6->sin6_addr, sizeof(in6->sin6_addr));
-	}
-
+	INIT_LIST_HEAD(&nodes);
+	init_MUTEX(&nodes_sem);
 	return 0;
 }
 
-/*
- * Overrides for Emacs so that we follow Linus's tabbing style.
- * Emacs will notice this stuff at the end of the file and automatically
- * adjust the settings for this buffer only.  This must remain at the end
- * of the file.
- * ---------------------------------------------------------------------------
- * Local variables:
- * c-file-style: "linux"
- * End:
- */
+void dlm_lowcomms_exit(void)
+{
+	struct dlm_node *node, *safe;
+	int i;
+
+	for (i = 0; i < local_count; i++)
+		kfree(local_addr[i]);
+	local_nodeid = 0;
+	local_weight = 0;
+	local_count = 0;
+
+	list_for_each_entry_safe(node, safe, &nodes, list) {
+		list_del(&node->list);
+		kfree(node);
+	}
+}

@@ -37,7 +37,6 @@
 #include <asm/uaccess.h>
 
 #include "dlm.h"
-#include "dlm_node.h"
 
 #define DLM_LOCKSPACE_LEN	(64)
 #define DLM_TOSS_SECS		(10)
@@ -62,7 +61,6 @@
 struct dlm_ls;
 struct dlm_lkb;
 struct dlm_rsb;
-struct dlm_node;
 struct dlm_member;
 struct dlm_lkbtable;
 struct dlm_rsbtable;
@@ -133,23 +131,12 @@ struct dlm_lkbtable {
 };
 
 /*
- * Cluster node (per node in cluster)
- */
-
-struct dlm_node {
-	struct list_head	list;
-	int			nodeid;
-	int			weight;
-	char			addr[DLM_ADDR_LEN];
-};
-
-/*
  * Lockspace member (per node in a ls)
  */
 
 struct dlm_member {
 	struct list_head	list;
-	struct dlm_node *	node;
+	int			nodeid;
 	int			gone_event;
 };
 

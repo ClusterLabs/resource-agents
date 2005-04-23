@@ -13,10 +13,11 @@
 
 #include "dlm_internal.h"
 #include "lockspace.h"
-#include "member.h"
+#include "member_sysfs.h"
 #include "lock.h"
 #include "device.h"
 #include "memory.h"
+#include "lowcomms.h"
 
 int dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
@@ -39,7 +40,7 @@ int __init init_dlm(void)
 	if (error)
 		goto out_ls;
 
-	error = dlm_member_init();
+	error = dlm_member_sysfs_init();
 	if (error)
 		goto out_node;
 
@@ -47,12 +48,18 @@ int __init init_dlm(void)
 	if (error)
 		goto out_member;
 
+	error = dlm_lowcomms_init();
+	if (error)
+		goto out_debug;
+
 	printk("DLM (built %s %s) installed\n", __DATE__, __TIME__);
 
 	return 0;
 
+ out_debug:
+	dlm_unregister_debugfs();
  out_member:
-	dlm_member_exit();
+	dlm_member_sysfs_exit();
  out_node:
 	dlm_node_ioctl_exit();
  out_ls:
@@ -65,7 +72,8 @@ int __init init_dlm(void)
 
 void __exit exit_dlm(void)
 {
-	dlm_member_exit();
+	dlm_lowcomms_exit();
+	dlm_member_sysfs_exit();
 	dlm_node_ioctl_exit();
 	dlm_lockspace_exit();
 	dlm_memory_exit();

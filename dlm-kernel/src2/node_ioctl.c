@@ -14,7 +14,8 @@
 #include <linux/fs.h>
 
 #include "dlm_internal.h"
-#include "member.h"
+#include "dlm_node.h"
+#include "lowcomms.h"
 
 
 static int check_version(unsigned int cmd,

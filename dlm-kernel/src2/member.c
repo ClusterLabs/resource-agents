@@ -16,139 +16,7 @@
 #include "member.h"
 #include "recoverd.h"
 #include "recover.h"
-
-/* Local values must be set before the dlm is started and then
-   not modified, otherwise a lock is needed. */
-
-static char *           local_addr[DLM_MAX_ADDR_COUNT];
-static int              local_nodeid;
-static int              local_weight;
-static int              local_count;
-static struct list_head nodes;
-static struct semaphore nodes_sem;
-
-
-int dlm_our_addr(int i, char *addr)
-{
-	if (!local_count)
-		return -ENOENT;
-	if (i > local_count - 1)
-		return -EINVAL;
-	memcpy(addr, local_addr[i], sizeof(struct sockaddr_storage));
-	return 0;
-}
-
-int dlm_our_nodeid(void)
-{
-	return local_nodeid;
-}
-
-static struct dlm_node *search_node(int nodeid)
-{
-	struct dlm_node *node;
-
-	list_for_each_entry(node, &nodes, list) {
-		if (node->nodeid == nodeid)
-			goto out;
-	}
-	node = NULL;
- out:
-	return node;
-}
-
-static struct dlm_node *search_node_addr(char *addr)
-{
-	struct dlm_node *node;
-
-	list_for_each_entry(node, &nodes, list) {
-		if (!memcmp(node->addr, addr, sizeof(struct sockaddr_storage)))
-			goto out;
-	}
-	node = NULL;
- out:
-	return node;
-}
-
-static int _get_node(int nodeid, struct dlm_node **node_ret)
-{
-	struct dlm_node *node;
-	int error = 0;
-
-	node = search_node(nodeid);
-	if (node)
-		goto out;
-
-	node = kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
-	if (!node) {
-		error = -ENOMEM;
-		goto out;
-	}
-	memset(node, 0, sizeof(struct dlm_node));
-	node->nodeid = nodeid;
-	list_add_tail(&node->list, &nodes);
- out:
-	*node_ret = node;
-	return error;
-}
-
-static int get_node(int nodeid, struct dlm_node **node_ret)
-{
-	int error;
-	down(&nodes_sem);
-	error = _get_node(nodeid, node_ret);
-	up(&nodes_sem);
-	return error;
-}
-
-int dlm_nodeid_addr(int nodeid, char *addr)
-{
-	struct dlm_node *node;
-
-	down(&nodes_sem);
-	node = search_node(nodeid);
-	up(&nodes_sem);
-	if (!node)
-		return -1;
-	memcpy(addr, node->addr, sizeof(struct sockaddr_storage));
-	return 0;
-}
-
-int dlm_addr_nodeid(char *addr, int *nodeid)
-{
-	struct dlm_node *node;
-
-	down(&nodes_sem);
-	node = search_node_addr(addr);
-	up(&nodes_sem);
-	if (!node)
-		return -1;
-	*nodeid = node->nodeid;
-	return 0;
-}
-
-int __init dlm_member_init(void)
-{
-	int error;
-
-	INIT_LIST_HEAD(&nodes);
-	init_MUTEX(&nodes_sem);
-
-	error = dlm_member_sysfs_init();
-
-	return error;
-}
-
-void dlm_member_exit(void)
-{
-	int i;
-
-	dlm_member_sysfs_exit();
-	for (i = 0; i < local_count; i++)
-		kfree(local_addr[i]);
-	local_nodeid = 0;
-	local_weight = 0;
-	local_count = 0;
-}
+#include "lowcomms.h"
 
 /*
  * Following called by dlm_recoverd thread
@@ -163,7 +31,7 @@ static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
 
 	list_for_each(tmp, head) {
 		memb = list_entry(tmp, struct dlm_member, list);
-		if (new->node->nodeid < memb->node->nodeid)
+		if (new->nodeid < memb->nodeid)
 			break;
 	}
 
@@ -180,19 +48,13 @@ static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
 
 int dlm_add_member(struct dlm_ls *ls, int nodeid)
 {
-	struct dlm_node *node;
 	struct dlm_member *memb;
-	int error;
-
-	error = get_node(nodeid, &node);
-	if (error)
-		return error;
 
 	memb = kmalloc(sizeof(struct dlm_member), GFP_KERNEL);
 	if (!memb)
 		return -ENOMEM;
 
-	memb->node = node;
+	memb->nodeid = nodeid;
 	add_ordered_member(ls, memb);
 	ls->ls_num_nodes++;
 	return 0;
@@ -209,7 +71,7 @@ int dlm_is_member(struct dlm_ls *ls, int nodeid)
 	struct dlm_member *memb;
 
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
-		if (memb->node->nodeid == nodeid)
+		if (memb->nodeid == nodeid)
 			return TRUE;
 	}
 	return FALSE;
@@ -220,7 +82,7 @@ int dlm_is_removed(struct dlm_ls *ls, int nodeid)
 	struct dlm_member *memb;
 
 	list_for_each_entry(memb, &ls->ls_nodes_gone, list) {
-		if (memb->node->nodeid == nodeid)
+		if (memb->nodeid == nodeid)
 			return TRUE;
 	}
 	return FALSE;
@@ -275,7 +137,7 @@ static void make_member_array(struct dlm_ls *ls)
 		return;
 
 	list_for_each_entry(memb, &ls->ls_nodes, list)
-		array[i++] = memb->node->nodeid;
+		array[i++] = memb->nodeid;
 
 	ls->ls_node_array = array;
 }
@@ -284,7 +146,7 @@ int dlm_recover_members_wait(struct dlm_ls *ls)
 {
 	int error;
 
-	if (ls->ls_low_nodeid == local_nodeid) {
+	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
 		error = dlm_wait_status_all(ls, NODES_VALID);
 		if (!error)
 			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
@@ -304,7 +166,7 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	list_for_each_entry_safe(memb, safe, &ls->ls_nodes, list) {
 		found = FALSE;
 		for (i = 0; i < rv->node_count; i++) {
-			if (memb->node->nodeid == rv->nodeids[i]) {
+			if (memb->nodeid == rv->nodeids[i]) {
 				found = TRUE;
 				break;
 			}
@@ -314,7 +176,7 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 			neg++;
 			memb->gone_event = rv->event_id;
 			dlm_remove_member(ls, memb);
-			log_debug(ls, "remove member %d", memb->node->nodeid);
+			log_debug(ls, "remove member %d", memb->nodeid);
 		}
 	}
 
@@ -329,8 +191,8 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	}
 
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
-		if (low == -1 || memb->node->nodeid < low)
-			low = memb->node->nodeid;
+		if (low == -1 || memb->nodeid < low)
+			low = memb->nodeid;
 	}
 	ls->ls_low_nodeid = low;
 
@@ -366,44 +228,6 @@ int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv)
 	error = dlm_recover_members_wait(ls);
 	log_debug(ls, "total members %d", ls->ls_num_nodes);
 	return error;
-}
-
-/*
- * Following called from node_ioctl.c
- */
-
-int dlm_set_node(int nodeid, int weight, char *addr)
-{
-	struct dlm_node *node;
-	int error;
-
-	down(&nodes_sem);
-	error = _get_node(nodeid, &node);
-	if (!error) {
-		memcpy(node->addr, addr, DLM_ADDR_LEN);
-		node->weight = weight;
-	}
-	up(&nodes_sem);
-	return error;
-}
-
-int dlm_set_local(int nodeid, int weight, char *addr)
-{
-	char *p;
-
-	if (local_count > DLM_MAX_ADDR_COUNT - 1) {
-		log_print("too many local addresses set %d", local_count);
-		return -EINVAL;
-	}
-	local_nodeid = nodeid;
-	local_weight = weight;
-
-	p = kmalloc(DLM_ADDR_LEN, GFP_KERNEL);
-	if (!p)
-		return -ENOMEM;
-	memcpy(p, addr, DLM_ADDR_LEN);
-	local_addr[local_count++] = p;
-	return 0;
 }
 
 /*
@@ -518,4 +342,3 @@ int dlm_ls_finish(struct dlm_ls *ls, int event_nr)
 	log_error(ls, "dlm_ls_finish %d", event_nr);
 	return 0;
 }
-

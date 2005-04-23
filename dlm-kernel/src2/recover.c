@@ -13,13 +13,14 @@
 
 #include "dlm_internal.h"
 #include "lockspace.h"
-#include "member.h"
 #include "dir.h"
 #include "config.h"
 #include "ast.h"
 #include "memory.h"
 #include "rcom.h"
 #include "lock.h"
+#include "lowcomms.h"
+#include "member.h"
 
 static void recover_rsb_lvb(struct dlm_rsb *r);
 
@@ -84,7 +85,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 			if (error)
 				goto out;
 
-			error = dlm_rcom_status(ls, memb->node->nodeid);
+			error = dlm_rcom_status(ls, memb->nodeid);
 			if (error)
 				goto out;
 

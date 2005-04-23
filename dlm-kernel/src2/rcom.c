@@ -61,8 +61,6 @@ static int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
 static int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
 		     struct dlm_rcom *rc)
 {
-	log_print("send_rcom type %d result %d", rc->rc_type, rc->rc_result);
-
 	dlm_rcom_out(rc);
 	dlm_lowcomms_commit_buffer(mh);
 	return 0;
@@ -371,9 +369,6 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 			  rc->rc_header.h_nodeid, nodeid);
 		return;
 	}
-
-	log_print("recv_rcom type %d result %d from %d",
-		  rc->rc_type, rc->rc_result, nodeid);
 
 	switch (rc->rc_type) {
 	case DLM_RCOM_STATUS:
