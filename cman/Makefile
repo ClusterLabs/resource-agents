@@ -31,9 +31,9 @@ distclean: clean
 	rm -f make/defines.mk
 
 install:
+	cd lib && ${MAKE} install
 	cd cman_tool && ${MAKE} install
 	cd man && ${MAKE} install
-	cd lib && ${MAKE} install
 	cd daemon && ${MAKE} clean
 	cd init.d && ${MAKE} install
 
