@@ -19,7 +19,8 @@ SOURCE= gnbd_export.c $(top_srcdir)/utils/gnbd_utils.c \
 	$(top_srcdir)/utils/trans.c
 
 INCLUDE= -I$(top_srcdir)/include -I$(top_srcdir)/server \
-	-I$(top_srcdir)/utils -I${top_srcdir}/config
+	-I$(top_srcdir)/utils -I${top_srcdir}/config \
+	-I${incdir}
 
 LDLIBS+= -L${libdir} -lmagma -ldl -lpthread
 
