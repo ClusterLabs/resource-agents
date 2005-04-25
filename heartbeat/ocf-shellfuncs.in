@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.12 2005/04/22 21:36:38 alan Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.13 2005/04/25 12:40:17 andrew Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -66,14 +66,25 @@ __ocf_set_defaults() {
 	OCF_ERR_CONFIGURED=6
 	OCF_NOT_RUNNING=7
 
+	if [ -z "$OCF_ROOT" ]; then
+		: ${OCF_ROOT=@libdir@/ocf}
+	fi
+	if [ ! -d "$OCF_ROOT" ]; then
+		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
+		exit $OCF_ERR_GENERIC
+	fi
+
+	if [ -z "$OCF_RESOURCE_TYPE" ]; then
+		: ${OCF_RESOURCE_TYPE=$__SCRIPT_NAME}
+	fi
+
 	if [ -z "$OCF_RA_VERSION_MAJOR" ]; then
 		: We are being invoked as an init script.
 		: Fill in some things with reasonable values.
 		: ${OCF_RESOURCE_INSTANCE="default"}
-		: ${OCF_RESOURCE_TYPE=$__SCRIPT_NAME}
-		: ${OCF_ROOT=@libdir@/ocf}
 		return 0
         fi
+
 	# TODO: Anything else we should be setting and thus checking?
         # There is nothing in this script which depends on the version
 	# of the API.  TESTING THIS HERE IS A BUG.  THIS SHOULD BE
@@ -92,21 +103,13 @@ __ocf_set_defaults() {
 		ha_log "ERROR: No OCF RA minor version set."
 		exit $OCF_ERR_UNIMPLEMENTED
 	fi
-	if [ ! -d "$OCF_ROOT" ]; then
-		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
-		exit $OCF_ERR_GENERIC
-	fi
 
 	if [ "x$__OCF_ACTION" = "xmeta-data" ]; then
 		OCF_RESOURCE_INSTANCE="undef"
-	fi
-	
+	fi	
+
 	if [ -z "$OCF_RESOURCE_INSTANCE" ]; then
 		ha_log "ERROR: Need to tell us our resource instance name."
-		exit $OCF_ERR_ARGS
-	fi
-	if [ -z "$OCF_RESOURCE_TYPE" ]; then
-		ha_log "ERROR: Need to tell us our resource type."
 		exit $OCF_ERR_ARGS
 	fi
 }
@@ -117,7 +120,7 @@ ocf_log() {
         shift
         __OCF_MSG="$*"
 
-        case "${__OCF_PRIO)" in
+        case "${__OCF_PRIO}" in
           err)	__OCF_PRIO="ERROR";;
           warn)	__OCF_PRIO="WARNING";;
           info)	__OCF_PRIO="INFO";;
