@@ -33,15 +33,11 @@
 
 static void set_start_done(struct dlm_ls *ls, int event_id)
 {
-	int error;
-
 	spin_lock(&ls->ls_recover_lock);
 	ls->ls_startdone = event_id;
 	spin_unlock(&ls->ls_recover_lock);
 
-	error = kobject_uevent(&ls->ls_kobj, KOBJ_CHANGE, NULL);
-	if (error)
-		log_error(ls, "set_start_done kobject_uevent %d", error);
+	kobject_uevent(&ls->ls_kobj, KOBJ_CHANGE, NULL);
 }
 
 static int enable_locking(struct dlm_ls *ls, int event_id)

@@ -156,8 +156,6 @@ static ssize_t dlm_members_store(struct dlm_ls *ls, const char *buf, size_t len)
 		if (isspace(buf[i]))
 			count++;
 
-	log_error(ls, "dlm_members_store: %d nodeids", count);
-
 	nodeids = kmalloc(sizeof(int) * count, GFP_KERNEL);
 	if (!nodeids)
 		return -ENOMEM;

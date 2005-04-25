@@ -83,7 +83,6 @@ static inline int dlm_create_debug_file(struct dlm_ls *ls) { return 0; }
 static inline void dlm_delete_debug_file(struct dlm_ls *ls) { }
 #endif
 
-#define DLM_LOG_DEBUG
 #ifdef DLM_LOG_DEBUG
 #define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
 #else

@@ -299,9 +299,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags)
 	if (error)
 		goto out_del;
 
-	error = kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
-	if (error)
-		log_error(ls, "kobject_uevent error %d", error);
+	kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
 
 	/* Now we depend on userspace to notice the new ls, join it and
 	   give us a start or terminate.  The ls isn't actually running

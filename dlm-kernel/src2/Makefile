@@ -46,7 +46,7 @@ dlm-objs :=	ast.o \
 
 dlm_device-objs := device.o 
 
-EXTRA_CFLAGS += -I$(obj) -DCONFIG_DLM_DEBUG
+EXTRA_CFLAGS += -I$(obj) -DCONFIG_DLM_DEBUG -DDLM_LOG_DEBUG
 
 all:
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes

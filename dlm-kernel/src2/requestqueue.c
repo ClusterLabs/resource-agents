@@ -29,7 +29,6 @@ struct rq_entry {
 
 void dlm_add_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 {
-	struct dlm_message *ms = (struct dlm_message *) hd;
 	struct rq_entry *e;
 	int length = hd->h_length;
 
@@ -41,8 +40,6 @@ void dlm_add_requestqueue(struct dlm_ls *ls, int nodeid, struct dlm_header *hd)
 		printk("dlm_add_requestqueue: out of memory\n");
 		return;
 	}
-
-	log_debug(ls, "add_requestqueue type 0x%x from %d", ms->m_type, nodeid);
 
 	e->nodeid = nodeid;
 	memcpy(e->request, hd, length);
@@ -56,10 +53,7 @@ int dlm_process_requestqueue(struct dlm_ls *ls)
 {
 	struct rq_entry *e;
 	struct dlm_header *hd;
-	struct dlm_message *ms;
 	int error = 0;
-
-	log_debug(ls, "process_requestqueue");
 
 	down(&ls->ls_requestqueue_lock);
 
@@ -73,11 +67,6 @@ int dlm_process_requestqueue(struct dlm_ls *ls)
 		up(&ls->ls_requestqueue_lock);
 
 		hd = (struct dlm_header *) e->request;
-		ms = (struct dlm_message *) hd;
-
-		log_debug(ls, "process_requestqueue type 0x%x from %u",
-			  ms->m_type, e->nodeid);
-
 		error = dlm_receive_message(hd, e->nodeid, TRUE);
 
 		if (error == -EINTR) {
@@ -135,8 +124,6 @@ void dlm_purge_requestqueue(struct dlm_ls *ls)
 	struct dlm_message *ms;
 	struct rq_entry *e, *safe;
 	uint32_t mstype;
-
-	log_debug(ls, "purge_requestqueue");
 
 	down(&ls->ls_requestqueue_lock);
 	list_for_each_entry_safe(e, safe, &ls->ls_requestqueue, list) {
