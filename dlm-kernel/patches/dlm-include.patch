@@ -1,6 +1,21 @@
+diff -urN a/drivers/dlm/device.c b/drivers/dlm/device.c
+--- a/drivers/dlm/device.c      2005-04-25 16:51:27.325084752 +0800
++++ b/drivers/dlm/device.c      2005-04-22 13:52:48.000000000 +0800
+@@ -36,8 +36,9 @@
+ #include <linux/idr.h>
+ #include <asm/ioctls.h>
+ 
+-#include "dlm.h"
+-#include "dlm_device.h"
++#include <linux/dlm.h>
++#include <linux/dlm_device.h>
++
+ #include "lvb_table.h"
+ #include "device.h"
+ 
 diff -urN a/drivers/dlm/dlm_internal.h b/drivers/dlm/dlm_internal.h
---- a/drivers/dlm/dlm_internal.h        2005-04-20 10:46:57.321295784 +0800
-+++ b/drivers/dlm/dlm_internal.h        2005-04-20 10:46:16.770460448 +0800
+--- a/drivers/dlm/dlm_internal.h        2005-04-25 16:49:11.899672544 +0800
++++ b/drivers/dlm//dlm_internal.h       2005-04-25 14:42:11.000000000 +0800
 @@ -36,7 +36,7 @@
  #include <asm/semaphore.h>
  #include <asm/uaccess.h>
@@ -10,16 +25,32 @@ diff -urN a/drivers/dlm/dlm_internal.h b/drivers/dlm/dlm_internal.h
  
  #define DLM_LOCKSPACE_LEN	(64)
  #define DLM_TOSS_SECS		(10)
-diff -urN a/drivers/dlm/device.c b/drivers/dlm/device.c
---- a/drivers/dlm/device.c      2005-04-19 13:23:44.000000000 +0800
-+++ b/drivers/dlm/device.c      2005-04-20 10:32:12.724774896 +0800
-@@ -36,8 +36,8 @@
+diff -urN a/drivers/dlm/lowcomms.c b/drivers/dlm/lowcomms.c
+--- a/drivers/dlm/lowcomms.c    2005-04-25 16:49:38.634608216 +0800
++++ b/drivers/dlm/lowcomms.c    2005-04-25 12:30:59.000000000 +0800
+@@ -50,8 +50,9 @@
+ #include <linux/socket.h>
  #include <linux/idr.h>
- #include <asm/ioctls.h>
  
--#include "dlm.h"
--#include "dlm_device.h"
-+#include <linux/dlm.h>
-+#include <linux/dlm_device.h>
- #include "lvb_table.h"
- #include "device.h"
++#include <linux/dlm_node.h>
++
+ #include "dlm_internal.h"
+-#include "dlm_node.h"
+ #include "lowcomms.h"
+ #include "config.h"
+ #include "member.h"
+diff -ur a/drivers/dlm/node_ioctl.c b/drivers/dlm/node_ioctl.c
+--- a/drivers/dlm/node_ioctl.c     2005-04-23 11:49:57.000000000 +0800
++++ b/drivers/dlm/node_ioctl.c    2005-04-25 17:00:19.877124536 +0800
+@@ -13,8 +13,9 @@
+ #include <linux/miscdevice.h>
+ #include <linux/fs.h>
+
++#include <linux/dlm_node.h>
++
+ #include "dlm_internal.h"
+-#include "dlm_node.h"
+ #include "lowcomms.h"
+
+
+
