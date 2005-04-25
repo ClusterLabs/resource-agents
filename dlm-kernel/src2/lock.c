@@ -1943,9 +1943,9 @@ static int grant_pending_locks(struct dlm_rsb *r)
 
 	/*
 	 * If there are locks left on the wait/convert queue then send blocking
-	 * ASTs to granted locks that are blocking
-	 * FIXME: This might generate spurious blocking ASTs for range locks.
-	 * FIXME: the highbast < high comparison is not always valid.
+	 * ASTs to granted locks based on the largest requested mode (high)
+	 * found above.  This can generate spurious blocking ASTs for range
+	 * locks. FIXME: highbast < high comparison not valid for PR/CW.
 	 */
 
 	list_for_each_entry_safe(lkb, s, &r->res_grantqueue, lkb_statequeue) {
@@ -2803,31 +2803,16 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	put_lkb(lkb);
 }
 
-static void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
+static void _receive_convert_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
+				   struct dlm_message *ms)
 {
-	struct dlm_lkb *lkb;
-	struct dlm_rsb *r;
-	int error;
+	struct dlm_rsb *r = lkb->lkb_resource;
+	int error = ms->m_result;
 
-	error = find_lkb(ls, ms->m_remid, &lkb);
-	if (error) {
-		log_error(ls, "receive_convert_reply no lkb");
-		return;
-	}
-	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
-
-	error = remove_from_waiters(lkb);
-	if (error) {
-		log_error(ls, "receive_convert_reply not on waiters");
-		goto out;
-	}
-
-	/* this is the value returned from do_convert() on the master */
-	error = ms->m_result;
-
-	r = lkb->lkb_resource;
 	hold_rsb(r);
 	lock_rsb(r);
+
+	/* this is the value returned from do_convert() on the master */
 
 	switch (error) {
 	case -EAGAIN:
@@ -2854,6 +2839,27 @@ static void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 
 	unlock_rsb(r);
 	put_rsb(r);
+}
+
+static void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
+{
+	struct dlm_lkb *lkb;
+	int error;
+
+	error = find_lkb(ls, ms->m_remid, &lkb);
+	if (error) {
+		log_error(ls, "receive_convert_reply no lkb");
+		return;
+	}
+	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
+
+	error = remove_from_waiters(lkb);
+	if (error) {
+		log_error(ls, "receive_convert_reply not on waiters");
+		goto out;
+	}
+
+	_receive_convert_reply(ls, lkb, ms);
  out:
 	put_lkb(lkb);
 }
@@ -3176,9 +3182,32 @@ void dlm_clear_toss_list(struct dlm_ls *ls)
 	}
 }
 
-/* We only need to do recovery for lkb's waiting for replies from nodes
-   who have been removed. */
+static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
+{
+	if ((lkb->lkb_rqmode==DLM_LOCK_PR && lkb->lkb_grmode==DLM_LOCK_CW) ||
+	    (lkb->lkb_grmode==DLM_LOCK_PR && lkb->lkb_rqmode==DLM_LOCK_CW)) {
+		/* FIXME: we need work here */
+		lkb->lkb_flags |= DLM_IFL_RESEND;
 
+	} else if (lkb->lkb_rqmode >= lkb->lkb_grmode) {
+		lkb->lkb_flags |= DLM_IFL_RESEND;
+
+	} else if (lkb->lkb_rqmode < lkb->lkb_grmode) {
+		hold_lkb(lkb);
+		ls->ls_stub_ms.m_result = 0;
+		_remove_from_waiters(lkb);
+		_receive_convert_reply(ls, lkb, &ls->ls_stub_ms);
+		unhold_lkb(lkb);
+	}
+}
+
+/* Recovery for locks that are waiting for replies from nodes that are
+   now gone.  We can just complete unlocks and cancels by faking a
+   reply from the dead node.  Requests and up-conversions we just
+   flag to be resent after recovery.  Down-conversions can just be
+   completed with a fake reply like unlocks.  Conversions between
+   PR and CW are a pain and need special handling. */
+ 
 void dlm_recover_waiters_pre(struct dlm_ls *ls)
 {
 	struct dlm_lkb *lkb, *safe;
@@ -3199,11 +3228,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			break;
 
 		case DLM_MSG_CONVERT:
-			/* FIXME: if this is a down conversion, just take
-			   it as being done (grant_lock_pc, queue_cast).
-			   The lock will be recovered as granted in the
-			   new mode. */
-			lkb->lkb_flags |= DLM_IFL_RESEND;
+			recover_convert_waiter(ls, lkb);
 			break;
 
 		case DLM_MSG_UNLOCK:
