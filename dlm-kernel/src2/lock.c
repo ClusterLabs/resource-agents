@@ -162,7 +162,6 @@ void dlm_print_rsb(struct dlm_rsb *r)
 	       r->res_nodeid, r->res_flags, r->res_trial_lkid, r->res_name);
 }
 
-
 /* Threads cannot use the lockspace while it's being recovered */
 
 static void lock_recovery(struct dlm_ls *ls)
@@ -525,6 +524,9 @@ void dlm_scan_rsbs(struct dlm_ls *ls)
 {
 	int i, count = 0;
 
+	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+		return;
+
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 		count += shrink_bucket(ls, i);
 		cond_resched();
@@ -736,7 +738,7 @@ static void add_lkb(struct dlm_rsb *r, struct dlm_lkb *lkb, int status)
 				      &r->res_convertqueue);
 		break;
 	default:
-		DLM_ASSERT(0,);
+		DLM_ASSERT(0, dlm_print_lkb(lkb); printk("sts=%d\n", status););
 	}
 }
 
@@ -1927,6 +1929,8 @@ static int grant_pending_locks(struct dlm_rsb *r)
 	struct dlm_lkb *lkb, *s;
 	int high = DLM_LOCK_IV;
 
+	DLM_ASSERT(is_master(r), dlm_print_rsb(r););
+
 	high = grant_pending_convert(r, high);
 	high = grant_pending_wait(r, high);
 
@@ -2388,7 +2392,8 @@ static int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb,
 			 struct dlm_message *ms)
 {
 	if (lkb->lkb_flags & DLM_IFL_RANGE) {
-		lkb->lkb_range = allocate_range(ls);
+		if (!lkb->lkb_range)
+			lkb->lkb_range = allocate_range(ls);
 		if (!lkb->lkb_range)
 			return -ENOMEM;
 		lkb->lkb_range[RQ_RANGE_START] = ms->m_range[0];
@@ -2401,11 +2406,10 @@ static int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		       struct dlm_message *ms)
 {
 	if (lkb->lkb_exflags & DLM_LKF_VALBLK) {
-		if (!lkb->lkb_lvbptr) {
+		if (!lkb->lkb_lvbptr)
 			lkb->lkb_lvbptr = allocate_lvb(ls);
-			if (!lkb->lkb_lvbptr)
-				return -ENOMEM;
-		}
+		if (!lkb->lkb_lvbptr)
+			return -ENOMEM;
 		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
 	}
 	return 0;
@@ -2443,14 +2447,14 @@ static int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		return -EINVAL;
 	}
 
-	DLM_ASSERT(is_master_copy(lkb), dlm_print_lkb(lkb););
+	if (!is_master_copy(lkb))
+		return -EINVAL;
 
-	lkb->lkb_rqmode = ms->m_rqmode;
-	lkb->lkb_lvbseq = ms->m_lvbseq;
+	if (lkb->lkb_status != DLM_LKSTS_GRANTED)
+		return -EBUSY;
 
 	if (receive_range(ls, lkb, ms))
 		return -ENOMEM;
-
 	if (lkb->lkb_range) {
 		lkb->lkb_range[GR_RANGE_START] = 0LL;
 		lkb->lkb_range[GR_RANGE_END] = 0xffffffffffffffffULL;
@@ -2459,13 +2463,17 @@ static int receive_convert_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
 
+	lkb->lkb_rqmode = ms->m_rqmode;
+	lkb->lkb_lvbseq = ms->m_lvbseq;
+
 	return 0;
 }
 
 static int receive_unlock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 			       struct dlm_message *ms)
 {
-	DLM_ASSERT(is_master_copy(lkb), dlm_print_lkb(lkb););
+	if (!is_master_copy(lkb))
+		return -EINVAL;
 	if (receive_lvb(ls, lkb, ms))
 		return -ENOMEM;
 	return 0;
@@ -2537,19 +2545,18 @@ static void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 	if (error)
 		goto fail;
 
-	receive_flags(lkb, ms);
-	error = receive_convert_args(ls, lkb, ms);
-	if (error) {
-		put_lkb(lkb);
-		goto fail;
-	}
-
 	r = lkb->lkb_resource;
 
 	hold_rsb(r);
 	lock_rsb(r);
 
+	receive_flags(lkb, ms);
+	error = receive_convert_args(ls, lkb, ms);
+	if (error)
+		goto out;
+
 	error = do_convert(r, lkb);
+ out:
 	send_convert_reply(r, lkb, error);
 
 	unlock_rsb(r);
@@ -2572,19 +2579,18 @@ static void receive_unlock(struct dlm_ls *ls, struct dlm_message *ms)
 	if (error)
 		goto fail;
 
-	receive_flags(lkb, ms);
-	error = receive_unlock_args(ls, lkb, ms);
-	if (error) {
-		put_lkb(lkb);
-		goto fail;
-	}
-
 	r = lkb->lkb_resource;
 
 	hold_rsb(r);
 	lock_rsb(r);
 
+	receive_flags(lkb, ms);
+	error = receive_unlock_args(ls, lkb, ms);
+	if (error)
+		goto out;
+
 	error = do_unlock(r, lkb);
+ out:
 	send_unlock_reply(r, lkb, error);
 
 	unlock_rsb(r);
@@ -2995,7 +3001,8 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 	struct dlm_ls *ls;
 	int error;
 
-	dlm_message_in(ms);
+	if (!recovery)
+		dlm_message_in(ms);
 
 	ls = dlm_find_lockspace_global(hd->h_lockspace);
 	if (!ls) {
@@ -3168,20 +3175,31 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 		switch (lkb->lkb_wait_type) {
 
 		case DLM_MSG_REQUEST:
+			lkb->lkb_flags |= DLM_IFL_RESEND;
+			break;
+
 		case DLM_MSG_CONVERT:
+			/* FIXME: if this is a down conversion, just take
+			   it as being done (grant_lock_pc, queue_cast).
+			   The lock will be recovered as granted in the
+			   new mode. */
 			lkb->lkb_flags |= DLM_IFL_RESEND;
 			break;
 
 		case DLM_MSG_UNLOCK:
+			hold_lkb(lkb);
 			ls->ls_stub_ms.m_result = -DLM_EUNLOCK;
 			_remove_from_waiters(lkb);
 			_receive_unlock_reply(ls, lkb, &ls->ls_stub_ms);
+			put_lkb(lkb);
 			break;
 
 		case DLM_MSG_CANCEL:
+			hold_lkb(lkb);
 			ls->ls_stub_ms.m_result = -DLM_ECANCEL;
 			_remove_from_waiters(lkb);
 			_receive_cancel_reply(ls, lkb, &ls->ls_stub_ms);
+			put_lkb(lkb);
 			break;
 
 		case DLM_MSG_LOOKUP:
@@ -3330,7 +3348,8 @@ int dlm_grant_after_purge(struct dlm_ls *ls)
 		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
 			hold_rsb(r);
 			lock_rsb(r);
-			grant_pending_locks(r);
+			if (is_master(r))
+				grant_pending_locks(r);
 			unlock_rsb(r);
 			put_rsb(r);
 		}
@@ -3383,7 +3402,7 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	lkb->lkb_lvbseq = rl->rl_lvbseq;
 	lkb->lkb_rqmode = rl->rl_rqmode;
 	lkb->lkb_grmode = rl->rl_grmode;
-	lkb->lkb_status = rl->rl_status;
+	/* don't set lkb_status because add_lkb wants to itself */
 
 	lkb->lkb_bastaddr = (void *) (long) (rl->rl_asts & AST_BAST);
 	lkb->lkb_astaddr = (void *) (long) (rl->rl_asts & AST_COMP);

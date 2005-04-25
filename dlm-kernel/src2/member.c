@@ -282,7 +282,6 @@ int dlm_ls_stop(struct dlm_ls *ls)
 	clear_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
 	dlm_recoverd_resume(ls);
 	dlm_recoverd_kick(ls);
-	log_error(ls, "dlm_ls_stop");
 	return 0;
 }
 
@@ -328,17 +327,21 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 	wake_up(&ls->ls_wait_member);
 	dlm_recoverd_kick(ls);
  out:
-	log_error(ls, "dlm_ls_start %d", event_nr);
 	return error;
 }
 
 int dlm_ls_finish(struct dlm_ls *ls, int event_nr)
 {
 	spin_lock(&ls->ls_recover_lock);
+	if (event_nr != ls->ls_last_start) {
+		spin_unlock(&ls->ls_recover_lock);
+		log_error(ls, "finish event_nr %d doesn't match start %d",
+			  event_nr, ls->ls_last_start);
+		return -EINVAL;
+	}
 	ls->ls_last_finish = event_nr;
 	set_bit(LSFL_LS_FINISH, &ls->ls_flags);
 	spin_unlock(&ls->ls_recover_lock);
 	dlm_recoverd_kick(ls);
-	log_error(ls, "dlm_ls_finish %d", event_nr);
 	return 0;
 }
