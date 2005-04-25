@@ -761,14 +761,19 @@ static int init_sock(void)
 	struct socket *sock = NULL;
 	struct sockaddr_storage localaddr;
 	struct sctp_event_subscribe subscribe;
-	int result = 0, num = 0, i, addr_len;
+	int result = -EINVAL, num = 0, i, addr_len;
+
+	if (!local_count) {
+		printk(KERN_ERR "dlm: no local IP address has been set\n");
+		goto out;
+	}
 
 	result = sock_create_kern(local_addr[0]->ss_family, SOCK_SEQPACKET,
 				  IPPROTO_SCTP, &sock);
 	if (result < 0) {
 		printk(KERN_ERR "dlm: Can't create comms socket, check SCTP "
 		       "is loaded\n");
-		goto create_out;
+		goto out;
 	}
 
 	/* Listen for events */
@@ -819,8 +824,7 @@ static int init_sock(void)
  create_delsock:
 	sock_release(sock);
 	sctp_con.sock = NULL;
-
- create_out:
+ out:
 	return result;
 }
 
