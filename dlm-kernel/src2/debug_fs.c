@@ -60,7 +60,7 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 		seq_printf(s, " (%s)", print_lockmode(lkb->lkb_rqmode));
 
 	if (lkb->lkb_range) {
-		/* This warns on Alpha. Tough. Only I see it */
+		/* FIXME: this warns on Alpha */
 		if (lkb->lkb_status == DLM_LKSTS_CONVERT
 		    || lkb->lkb_status == DLM_LKSTS_GRANTED)
 			seq_printf(s, " %" PRIx64 "-%" PRIx64,
