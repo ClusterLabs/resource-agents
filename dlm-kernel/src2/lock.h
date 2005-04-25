@@ -29,6 +29,7 @@ void dlm_scan_rsbs(struct dlm_ls *ls);
 
 int dlm_create_root_list(struct dlm_ls *ls);
 void dlm_release_root_list(struct dlm_ls *ls);
+void dlm_clear_toss_list(struct dlm_ls *ls);
 int dlm_purge_locks(struct dlm_ls *ls);
 int dlm_grant_after_purge(struct dlm_ls *ls);
 int dlm_recover_waiters_post(struct dlm_ls *ls);

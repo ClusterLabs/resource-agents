@@ -434,6 +434,10 @@ static void toss_rsb(struct kref *kref)
 	kref_init(&r->res_ref);
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[r->res_bucket].toss);
 	r->res_toss_time = jiffies;
+	if (r->res_lvbptr) {
+		free_lvb(r->res_lvbptr);
+		r->res_lvbptr = NULL;
+	}
 }
 
 /* When all references to the rsb are gone it's transfered to
@@ -3154,6 +3158,22 @@ void dlm_release_root_list(struct dlm_ls *ls)
 		put_rsb(r);
 	}
 	up_write(&ls->ls_root_sem);
+}
+
+void dlm_clear_toss_list(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r, *safe;
+	int i;
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		write_lock(&ls->ls_rsbtbl[i].lock);
+		list_for_each_entry_safe(r, safe, &ls->ls_rsbtbl[i].toss,
+					 res_hashchain) {
+			list_del(&r->res_hashchain);
+			free_rsb(r);
+		}
+		write_unlock(&ls->ls_rsbtbl[i].lock);
+	}
 }
 
 /* We only need to do recovery for lkb's waiting for replies from nodes

@@ -47,6 +47,38 @@ void dlm_memory_exit(void)
 	kmem_cache_destroy(lvb_cache);
 }
 
+char *allocate_lvb(struct dlm_ls *ls)
+{
+	char *l;
+
+	l = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
+	if (l)
+		memset(l, 0, DLM_LVB_LEN);
+	return l;
+}
+
+void free_lvb(char *l)
+{
+	kmem_cache_free(lvb_cache, l);
+}
+
+/* use lvb cache since they are the same size */
+
+uint64_t *allocate_range(struct dlm_ls *ls)
+{
+	uint64_t *p;
+
+	p = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
+	if (p)
+		memset(p, 0, 4*sizeof(uint64_t));
+	return p;
+}
+
+void free_range(uint64_t *l)
+{
+	kmem_cache_free(lvb_cache, l);
+}
+
 /* FIXME: have some minimal space built-in to rsb for the name and
    kmalloc a separate name if needed, like dentries are done */
 
@@ -64,6 +96,8 @@ struct dlm_rsb *allocate_rsb(struct dlm_ls *ls, int namelen)
 
 void free_rsb(struct dlm_rsb *r)
 {
+	if (r->res_lvbptr)
+		free_lvb(r->res_lvbptr);
 	kfree(r);
 }
 
@@ -99,34 +133,3 @@ void free_direntry(struct dlm_direntry *de)
 	kfree(de);
 }
 
-char *allocate_lvb(struct dlm_ls *ls)
-{
-	char *l;
-
-	l = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
-	if (l)
-		memset(l, 0, DLM_LVB_LEN);
-	return l;
-}
-
-void free_lvb(char *l)
-{
-	kmem_cache_free(lvb_cache, l);
-}
-
-/* use lvb cache since they are the same size */
-
-uint64_t *allocate_range(struct dlm_ls *ls)
-{
-	uint64_t *p;
-
-	p = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
-	if (p)
-		memset(p, 0, 4*sizeof(uint64_t));
-	return p;
-}
-
-void free_range(uint64_t *l)
-{
-	kmem_cache_free(lvb_cache, l);
-}

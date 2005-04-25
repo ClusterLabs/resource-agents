@@ -128,6 +128,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	dlm_create_root_list(ls);
 
 	/*
+	 * Free all the tossed rsb's so we don't have to recover them.
+	 */
+
+	dlm_clear_toss_list(ls);
+
+	/*
 	 * Add or remove nodes from the lockspace's ls_nodes list.
 	 * Also waits for all nodes to complete dlm_recover_members.
 	 */
