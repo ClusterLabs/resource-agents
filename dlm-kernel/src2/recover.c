@@ -475,7 +475,6 @@ void dlm_recovered_lock(struct dlm_rsb *r)
 	recover_rsb_lvb(r);
 }
 
-
 /*
  * This routine is called on all master rsb's by dlm_recoverd.  It is also
  * called on an rsb when a new lkb is received during the rebuild recovery
@@ -599,5 +598,109 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 	}
 	up_read(&ls->ls_root_sem);
 	return 0;
+}
+
+/* Create a single list of all root rsb's to be used during recovery */
+
+int dlm_create_root_list(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r;
+	int i, error = 0;
+
+	down_write(&ls->ls_root_sem);
+	if (!list_empty(&ls->ls_root_list)) {
+		log_error(ls, "root list not empty");
+		error = -EINVAL;
+		goto out;
+	}
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		write_lock(&ls->ls_rsbtbl[i].lock);
+		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
+			list_add(&r->res_root_list, &ls->ls_root_list);
+			dlm_hold_rsb(r);
+		}
+		write_unlock(&ls->ls_rsbtbl[i].lock);
+	}
+ out:
+	up_write(&ls->ls_root_sem);
+	return error;
+}
+
+void dlm_release_root_list(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r, *safe;
+
+	down_write(&ls->ls_root_sem);
+	list_for_each_entry_safe(r, safe, &ls->ls_root_list, res_root_list) {
+		list_del_init(&r->res_root_list);
+		dlm_put_rsb(r);
+	}
+	up_write(&ls->ls_root_sem);
+}
+
+void dlm_clear_toss_list(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r, *safe;
+	int i;
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		write_lock(&ls->ls_rsbtbl[i].lock);
+		list_for_each_entry_safe(r, safe, &ls->ls_rsbtbl[i].toss,
+					 res_hashchain) {
+			list_del(&r->res_hashchain);
+			free_rsb(r);
+		}
+		write_unlock(&ls->ls_rsbtbl[i].lock);
+	}
+}
+
+static void recover_conversion(struct dlm_rsb *r)
+{
+	struct dlm_lkb *lkb;
+	int grmode = -1;
+
+	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode == DLM_LOCK_PR ||
+		    lkb->lkb_grmode == DLM_LOCK_CW) {
+			grmode = lkb->lkb_grmode;
+			break;
+		}
+	}
+
+	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode != DLM_LOCK_IV)
+			continue;
+		if (grmode == -1)
+			lkb->lkb_grmode = lkb->lkb_rqmode;
+		else
+			lkb->lkb_grmode = grmode;
+	}
+}
+
+/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
+   converting PR->CW or CW->PR need to have their lkb_grmode set. */
+
+void dlm_recover_conversions(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r;
+	int i;
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		read_lock(&ls->ls_rsbtbl[i].lock);
+		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
+			if (!test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
+				continue;
+			clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+
+			dlm_hold_rsb(r);
+			dlm_lock_rsb(r);
+			if (dlm_is_master(r))
+				recover_conversion(r);
+			dlm_unlock_rsb(r);
+			dlm_put_rsb(r);
+		}
+		read_unlock(&ls->ls_rsbtbl[i].lock);
+	}
 }
 
