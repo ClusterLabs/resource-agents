@@ -211,6 +211,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 		dlm_recover_lvbs(ls);
 	}
+
 	dlm_release_root_list(ls);
 
 	log_debug(ls, "recover event %u done", rv->event_id);
@@ -522,6 +523,8 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		case DO_FINISH:
 			dlm_clear_members_finish(ls, finish_event);
 			next_state = LSST_CLEAR;
+
+			dlm_recover_conversions(ls);
 
 			error = enable_locking(ls, finish_event);
 			if (error)

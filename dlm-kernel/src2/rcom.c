@@ -240,6 +240,7 @@ static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	rl->rl_rqmode = lkb->lkb_rqmode;
 	rl->rl_grmode = lkb->lkb_grmode;
 	rl->rl_status = lkb->lkb_status;
+	rl->rl_wait_type = lkb->lkb_wait_type;
 
 	if (lkb->lkb_bastaddr)
 		rl->rl_asts |= AST_BAST;

@@ -132,6 +132,7 @@ static void rcom_lock_out(struct rcom_lock *rl)
 	rl->rl_flags		= cpu_to_le32(rl->rl_flags);
 	rl->rl_lvbseq		= cpu_to_le32(rl->rl_lvbseq);
 	rl->rl_result		= cpu_to_le32(rl->rl_result);
+	rl->rl_wait_type	= cpu_to_le16(rl->rl_wait_type);
 	rl->rl_namelen		= cpu_to_le16(rl->rl_namelen);
 	rl->rl_range[0]		= cpu_to_le64(rl->rl_range[0]);
 	rl->rl_range[1]		= cpu_to_le64(rl->rl_range[1]);
@@ -150,6 +151,7 @@ static void rcom_lock_in(struct rcom_lock *rl)
 	rl->rl_flags		= le32_to_cpu(rl->rl_flags);
 	rl->rl_lvbseq		= le32_to_cpu(rl->rl_lvbseq);
 	rl->rl_result		= le32_to_cpu(rl->rl_result);
+	rl->rl_wait_type	= le16_to_cpu(rl->rl_wait_type);
 	rl->rl_namelen		= le16_to_cpu(rl->rl_namelen);
 	rl->rl_range[0]		= le64_to_cpu(rl->rl_range[0]);
 	rl->rl_range[1]		= le64_to_cpu(rl->rl_range[1]);

@@ -28,6 +28,7 @@ struct rcom_lock {
 	int8_t			rl_grmode;
 	int8_t			rl_status;
 	int8_t			rl_asts;
+	uint16_t		rl_wait_type;
 	uint16_t		rl_namelen;
 	uint64_t		rl_range[4];
 	char			rl_lvb[DLM_LVB_LEN];
@@ -35,7 +36,7 @@ struct rcom_lock {
 };
 
 int dlm_rcom_status(struct dlm_ls *ls, int nodeid);
-int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len);
+int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name,int last_len);
 int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid);
 int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
 void dlm_receive_rcom(struct dlm_header *hd, int nodeid);

@@ -3182,12 +3182,26 @@ void dlm_clear_toss_list(struct dlm_ls *ls)
 	}
 }
 
+static int middle_conversion(struct dlm_lkb *lkb)
+{
+	if ((lkb->lkb_grmode==DLM_LOCK_PR && lkb->lkb_rqmode==DLM_LOCK_CW) ||
+	    (lkb->lkb_rqmode==DLM_LOCK_PR && lkb->lkb_grmode==DLM_LOCK_CW))
+		return TRUE;
+	return FALSE;
+}
+
 static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 {
-	if ((lkb->lkb_rqmode==DLM_LOCK_PR && lkb->lkb_grmode==DLM_LOCK_CW) ||
-	    (lkb->lkb_grmode==DLM_LOCK_PR && lkb->lkb_rqmode==DLM_LOCK_CW)) {
-		/* FIXME: we need work here */
-		lkb->lkb_flags |= DLM_IFL_RESEND;
+	if (middle_conversion(lkb)) {
+		hold_lkb(lkb);
+		ls->ls_stub_ms.m_result = -EINPROGRESS;
+		_remove_from_waiters(lkb);
+		_receive_convert_reply(ls, lkb, &ls->ls_stub_ms);
+
+		/* Same special case as in receive_rcom_lock_args() */
+		lkb->lkb_grmode = DLM_LOCK_IV;
+		set_bit(RESFL_RECOVER_CONVERT, &lkb->lkb_resource->res_flags);
+		unhold_lkb(lkb);
 
 	} else if (lkb->lkb_rqmode >= lkb->lkb_grmode) {
 		lkb->lkb_flags |= DLM_IFL_RESEND;
@@ -3201,12 +3215,11 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 	}
 }
 
-/* Recovery for locks that are waiting for replies from nodes that are
-   now gone.  We can just complete unlocks and cancels by faking a
-   reply from the dead node.  Requests and up-conversions we just
-   flag to be resent after recovery.  Down-conversions can just be
-   completed with a fake reply like unlocks.  Conversions between
-   PR and CW are a pain and need special handling. */
+/* Recovery for locks that are waiting for replies from nodes that are now
+   gone.  We can just complete unlocks and cancels by faking a reply from the
+   dead node.  Requests and up-conversions we just flag to be resent after
+   recovery.  Down-conversions can just be completed with a fake reply like
+   unlocks.  Conversions between PR and CW need special attention. */
  
 void dlm_recover_waiters_pre(struct dlm_ls *ls)
 {
@@ -3466,6 +3479,16 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		memcpy(lkb->lkb_lvbptr, rl->rl_lvb, DLM_LVB_LEN);
 	}
 
+	/* Conversions between PR and CW (middle modes) need special handling.
+	   The real granted mode of these converting locks cannot be determined
+	   until all locks have been rebuilt on the rsb (recover_conversion) */
+
+	if (rl->rl_wait_type == DLM_MSG_CONVERT && middle_conversion(lkb)) {
+		rl->rl_status = DLM_LKSTS_CONVERT;
+		lkb->lkb_grmode = DLM_LOCK_IV;
+		set_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+	}
+
 	return 0;
 }
 
@@ -3568,5 +3591,54 @@ int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 	put_lkb(lkb);
 
 	return 0;
+}
+
+static void recover_conversion(struct dlm_rsb *r)
+{
+	struct dlm_lkb *lkb;
+	int grmode = -1;
+
+	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode == DLM_LOCK_PR ||
+		    lkb->lkb_grmode == DLM_LOCK_CW) {
+			grmode = lkb->lkb_grmode;
+			break;
+		}
+	}
+
+	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode != DLM_LOCK_IV)
+			continue;
+		if (grmode == -1)
+			lkb->lkb_grmode = lkb->lkb_rqmode;
+		else
+			lkb->lkb_grmode = grmode;
+	}
+}
+
+/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
+   converting PR->CW or CW->PR need to have their lkb_grmode set. */
+
+void dlm_recover_conversions(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r;
+	int i;
+
+	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
+		read_lock(&ls->ls_rsbtbl[i].lock);
+		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
+			if (!test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
+				continue;
+			clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+
+			hold_rsb(r);
+			lock_rsb(r);
+			if (is_master(r))
+				recover_conversion(r);
+			unlock_rsb(r);
+			unhold_rsb(r);
+		}
+		read_unlock(&ls->ls_rsbtbl[i].lock);
+	}
 }
 
