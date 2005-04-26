@@ -140,8 +140,8 @@ static int rsb_iter_next(struct rsb_iter *ri)
 	struct dlm_ls *ls = ri->ls;
 	int i;
 
- top:
 	if (!ri->next) {
+ top:
 		/* Find the next non-empty hash bucket */
 		for (i = ri->entry; i < ls->ls_rsbtbl_size; i++) {
 			read_lock(&ls->ls_rsbtbl[i].lock);
