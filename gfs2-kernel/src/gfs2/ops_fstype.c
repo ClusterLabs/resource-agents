@@ -838,15 +838,6 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	gfs2_glock_dq_uninit(&mount_gh);
 
-	{
-		void *x;
-
-		x = kmalloc(1, GFP_KERNEL);
-		if (!x)
-			printk("Failed\n");
-		kmalloc_nofail(1, GFP_KERNEL);
-	}
-
 	RETURN(G2FN_FILL_SUPER, 0);
 
  fail_proc:
