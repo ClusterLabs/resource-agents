@@ -1,7 +1,9 @@
 menu "Distributed Lock Manager"
+	depends on INET && EXPERIMENTAL
 
 config DLM 
 	tristate "Distributed Lock Manager (DLM)"
+	select IP_SCTP
 	help
 	A general purpose distributed lock manager for kernel or userspace
 	applications.
