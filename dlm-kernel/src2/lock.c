@@ -23,6 +23,7 @@
 #include "rcom.h"
 #include "recover.h"
 #include "lvb_table.h"
+#include "config.h"
 
 /* Central locking logic has four stages:
 
@@ -498,7 +499,7 @@ static int shrink_bucket(struct dlm_ls *ls, int b)
 		list_for_each_entry_reverse(r, &ls->ls_rsbtbl[b].toss,
 					    res_hashchain) {
 			if (!time_after_eq(jiffies, r->res_toss_time +
-					            DLM_TOSS_SECS * HZ))
+					   dlm_config.toss_secs * HZ))
 				continue;
 			found = TRUE;
 			break;

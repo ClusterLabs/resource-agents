@@ -38,7 +38,7 @@ int __init init_dlm(void)
 
 	error = dlm_node_ioctl_init();
 	if (error)
-		goto out_ls;
+		goto out_mem;
 
 	error = dlm_member_sysfs_init();
 	if (error)
@@ -62,8 +62,6 @@ int __init init_dlm(void)
 	dlm_member_sysfs_exit();
  out_node:
 	dlm_node_ioctl_exit();
- out_ls:
-	dlm_lockspace_exit();
  out_mem:
 	dlm_memory_exit();
  out:
@@ -75,7 +73,6 @@ void __exit exit_dlm(void)
 	dlm_lowcomms_exit();
 	dlm_member_sysfs_exit();
 	dlm_node_ioctl_exit();
-	dlm_lockspace_exit();
 	dlm_memory_exit();
 	dlm_unregister_debugfs();
 }

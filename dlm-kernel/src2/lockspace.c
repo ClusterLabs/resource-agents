@@ -39,10 +39,6 @@ int dlm_lockspace_init(void)
 	return 0;
 }
 
-void dlm_lockspace_exit(void)
-{
-}
-
 int dlm_scand(void *data)
 {
 	struct dlm_ls *ls;
@@ -50,7 +46,7 @@ int dlm_scand(void *data)
 	while (!kthread_should_stop()) {
 		list_for_each_entry(ls, &lslist, ls_list)
 			dlm_scan_rsbs(ls);
-		ssleep(DLM_SCAN_SECS);
+		ssleep(dlm_config.scan_secs);
 	}
 	return 0;
 }

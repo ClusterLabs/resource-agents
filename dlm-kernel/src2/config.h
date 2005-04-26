@@ -21,6 +21,8 @@ struct dlm_config_info {
 	int lkbtbl_size;
 	int dirtbl_size;
 	int recover_timer;
+	int toss_secs;
+	int scan_secs;
 };
 
 extern struct dlm_config_info dlm_config;

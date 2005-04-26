@@ -40,8 +40,6 @@
 #include "dlm.h"
 
 #define DLM_LOCKSPACE_LEN	64
-#define DLM_TOSS_SECS		10
-#define DLM_SCAN_SECS		5
 
 #ifndef TRUE
 #define TRUE 1

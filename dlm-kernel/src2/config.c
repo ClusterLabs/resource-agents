@@ -21,6 +21,8 @@
 #define DEFAULT_LKBTBL_SIZE     1024
 #define DEFAULT_DIRTBL_SIZE      512
 #define DEFAULT_RECOVER_TIMER      5
+#define DEFAULT_TOSS_SECS         10
+#define DEFAULT_SCAN_SECS          5
 
 struct dlm_config_info dlm_config = {
 	.tcp_port = DEFAULT_TCP_PORT,
@@ -28,7 +30,9 @@ struct dlm_config_info dlm_config = {
 	.rsbtbl_size = DEFAULT_RSBTBL_SIZE,
 	.lkbtbl_size = DEFAULT_LKBTBL_SIZE,
 	.dirtbl_size = DEFAULT_DIRTBL_SIZE,
-	.recover_timer = DEFAULT_RECOVER_TIMER
+	.recover_timer = DEFAULT_RECOVER_TIMER,
+	.toss_secs = DEFAULT_TOSS_SECS,
+	.scan_secs = DEFAULT_SCAN_SECS 
 };
 
 int dlm_config_init(void)
