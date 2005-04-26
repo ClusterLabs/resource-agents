@@ -1903,7 +1903,7 @@ static int grant_pending_convert(struct dlm_rsb *r, int high)
 			grant_lock_pending(r, lkb);
 			grant_restart = 1;
 		} else {
-			hi = MAX(lkb->lkb_rqmode, hi);
+			hi = max_t(int, lkb->lkb_rqmode, hi);
 			if (!demoted && is_demoted(lkb))
 				demote_restart = 1;
 		}
@@ -1916,7 +1916,7 @@ static int grant_pending_convert(struct dlm_rsb *r, int high)
 		goto restart;
 	}
 
-	return MAX(high, hi);
+	return max_t(int, high, hi);
 }
 
 static int grant_pending_wait(struct dlm_rsb *r, int high)
@@ -1927,7 +1927,7 @@ static int grant_pending_wait(struct dlm_rsb *r, int high)
 		if (can_be_granted(r, lkb, FALSE))
 			grant_lock_pending(r, lkb);
                 else
-			high = MAX(lkb->lkb_rqmode, high);
+			high = max_t(int, lkb->lkb_rqmode, high);
 	}
 
 	return high;

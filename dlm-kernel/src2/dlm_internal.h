@@ -33,24 +33,23 @@
 #include <linux/kthread.h>
 #include <linux/kobject.h>
 #include <linux/kref.h>
+#include <linux/kernel.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
 #include "dlm.h"
 
-#define DLM_LOCKSPACE_LEN	(64)
-#define DLM_TOSS_SECS		(10)
-#define DLM_SCAN_SECS		(5)
+#define DLM_LOCKSPACE_LEN	64
+#define DLM_TOSS_SECS		10
+#define DLM_SCAN_SECS		5
 
 #ifndef TRUE
-#define TRUE (1)
+#define TRUE 1
 #endif
 
 #ifndef FALSE
-#define FALSE (0)
+#define FALSE 0
 #endif
-
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #if (BITS_PER_LONG == 64)
 #define PRIx64 "lx"
@@ -207,27 +206,27 @@ struct dlm_args {
 
 /* lkb_ast_type */
 
-#define AST_COMP		(1)
-#define AST_BAST		(2)
+#define AST_COMP		1
+#define AST_BAST		2
 
 /* lkb_range[] */
 
-#define GR_RANGE_START		(0)
-#define GR_RANGE_END		(1)
-#define RQ_RANGE_START		(2)
-#define RQ_RANGE_END		(3)
+#define GR_RANGE_START		0
+#define GR_RANGE_END		1
+#define RQ_RANGE_START		2
+#define RQ_RANGE_END		3
 
 /* lkb_status */
 
-#define DLM_LKSTS_WAITING	(1)
-#define DLM_LKSTS_GRANTED	(2)
-#define DLM_LKSTS_CONVERT	(3)
+#define DLM_LKSTS_WAITING	1
+#define DLM_LKSTS_GRANTED	2
+#define DLM_LKSTS_CONVERT	3
 
 /* lkb_flags */
 
-#define DLM_IFL_MSTCPY		(0x00010000)
-#define DLM_IFL_RESEND		(0x00020000)
-#define DLM_IFL_RANGE		(0x00000001)
+#define DLM_IFL_MSTCPY		0x00010000
+#define DLM_IFL_RESEND		0x00020000
+#define DLM_IFL_RANGE		0x00000001
 
 struct dlm_lkb {
 	struct dlm_rsb *	lkb_resource;	/* the rsb */
@@ -267,16 +266,16 @@ struct dlm_lkb {
 
 /* find_rsb() flags */
 
-#define R_MASTER		(1)     /* create/add rsb if not found */
-#define R_CREATE		(2)     /* only return rsb if it's a master */
+#define R_MASTER		1     /* create/add rsb if not found */
+#define R_CREATE		2     /* only return rsb if it's a master */
 
-#define RESFL_MASTER_WAIT	(0)
-#define RESFL_MASTER_UNCERTAIN	(1)
-#define RESFL_VALNOTVALID	(2)
-#define RESFL_VALNOTVALID_PREV	(3)
-#define RESFL_NEW_MASTER	(4)
-#define RESFL_NEW_MASTER2	(5)
-#define RESFL_RECOVER_CONVERT	(6)
+#define RESFL_MASTER_WAIT	0
+#define RESFL_MASTER_UNCERTAIN	1
+#define RESFL_VALNOTVALID	2
+#define RESFL_VALNOTVALID_PREV	3
+#define RESFL_NEW_MASTER	4
+#define RESFL_NEW_MASTER2	5
+#define RESFL_RECOVER_CONVERT	6
 
 struct dlm_rsb {
 	struct dlm_ls *		res_ls;		/* the lockspace */
@@ -306,11 +305,11 @@ struct dlm_rsb {
 
 /* dlm_header is first element of all structs sent between nodes */
 
-#define DLM_HEADER_MAJOR	(0x00020000)
-#define DLM_HEADER_MINOR	(0x00000001)
+#define DLM_HEADER_MAJOR	0x00020000
+#define DLM_HEADER_MINOR	0x00000001
 
-#define DLM_MSG			(1)
-#define DLM_RCOM		(2)
+#define DLM_MSG			1
+#define DLM_RCOM		2
 
 struct dlm_header {
 	uint32_t		h_version;
@@ -322,19 +321,19 @@ struct dlm_header {
 };
 
 
-#define DLM_MSG_REQUEST		(1)
-#define DLM_MSG_CONVERT		(2)
-#define DLM_MSG_UNLOCK		(3)
-#define DLM_MSG_CANCEL		(4)
-#define DLM_MSG_REQUEST_REPLY	(5)
-#define DLM_MSG_CONVERT_REPLY	(6)
-#define DLM_MSG_UNLOCK_REPLY	(7)
-#define DLM_MSG_CANCEL_REPLY	(8)
-#define DLM_MSG_GRANT		(9)
-#define DLM_MSG_BAST		(10)
-#define DLM_MSG_LOOKUP		(11)
-#define DLM_MSG_REMOVE		(12)
-#define DLM_MSG_LOOKUP_REPLY	(13)
+#define DLM_MSG_REQUEST		1
+#define DLM_MSG_CONVERT		2
+#define DLM_MSG_UNLOCK		3
+#define DLM_MSG_CANCEL		4
+#define DLM_MSG_REQUEST_REPLY	5
+#define DLM_MSG_CONVERT_REPLY	6
+#define DLM_MSG_UNLOCK_REPLY	7
+#define DLM_MSG_CANCEL_REPLY	8
+#define DLM_MSG_GRANT		9
+#define DLM_MSG_BAST		10
+#define DLM_MSG_LOOKUP		11
+#define DLM_MSG_REMOVE		12
+#define DLM_MSG_LOOKUP_REPLY	13
 
 struct dlm_message {
 	struct dlm_header	m_header;
@@ -361,19 +360,19 @@ struct dlm_message {
 };
 
 
-#define DIR_VALID		(1)
-#define DIR_ALL_VALID		(2)
-#define NODES_VALID		(4)
-#define NODES_ALL_VALID		(8)
+#define DIR_VALID		1
+#define DIR_ALL_VALID		2
+#define NODES_VALID		4
+#define NODES_ALL_VALID		8
 
-#define DLM_RCOM_STATUS		(1)
-#define DLM_RCOM_NAMES		(2)
-#define DLM_RCOM_LOOKUP		(3)
-#define DLM_RCOM_LOCK		(4)
-#define DLM_RCOM_STATUS_REPLY	(5)
-#define DLM_RCOM_NAMES_REPLY	(6)
-#define DLM_RCOM_LOOKUP_REPLY	(7)
-#define DLM_RCOM_LOCK_REPLY	(8)
+#define DLM_RCOM_STATUS		1
+#define DLM_RCOM_NAMES		2
+#define DLM_RCOM_LOOKUP		3
+#define DLM_RCOM_LOCK		4
+#define DLM_RCOM_STATUS_REPLY	5
+#define DLM_RCOM_NAMES_REPLY	6
+#define DLM_RCOM_LOOKUP_REPLY	7
+#define DLM_RCOM_LOCK_REPLY	8
 
 struct dlm_rcom {
 	struct dlm_header	rc_header;
@@ -384,27 +383,27 @@ struct dlm_rcom {
 };
 
 
-#define LSST_NONE		(0)
-#define LSST_INIT		(1)
-#define LSST_INIT_DONE		(2)
-#define LSST_CLEAR		(3)
-#define LSST_WAIT_START		(4)
-#define LSST_RECONFIG_DONE	(5)
+#define LSST_NONE		0
+#define LSST_INIT		1
+#define LSST_INIT_DONE		2
+#define LSST_CLEAR		3
+#define LSST_WAIT_START		4
+#define LSST_RECONFIG_DONE	5
 
-#define LSFL_WORK		(0)
-#define LSFL_LS_RUN		(1)
-#define LSFL_LS_STOP		(2)
-#define LSFL_LS_START		(3)
-#define LSFL_LS_FINISH		(4)
-#define LSFL_RCOM_READY		(5)
-#define LSFL_FINISH_RECOVERY	(6)
-#define LSFL_DIR_VALID		(7)
-#define LSFL_ALL_DIR_VALID	(8)
-#define LSFL_NODES_VALID	(9)
-#define LSFL_ALL_NODES_VALID	(10)
-#define LSFL_LS_TERMINATE	(11)
-#define LSFL_JOIN_DONE		(12)
-#define LSFL_LEAVE_DONE		(13)
+#define LSFL_WORK		0
+#define LSFL_LS_RUN		1
+#define LSFL_LS_STOP		2
+#define LSFL_LS_START		3
+#define LSFL_LS_FINISH		4
+#define LSFL_RCOM_READY		5
+#define LSFL_FINISH_RECOVERY	6
+#define LSFL_DIR_VALID		7
+#define LSFL_ALL_DIR_VALID	8
+#define LSFL_NODES_VALID	9
+#define LSFL_ALL_NODES_VALID	10
+#define LSFL_LS_TERMINATE	11
+#define LSFL_JOIN_DONE		12
+#define LSFL_LEAVE_DONE		13
 
 struct dlm_ls {
 	struct list_head	ls_list;	/* list of lockspaces */
