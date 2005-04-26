@@ -10,7 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. -I../include/ -I../../../IDEAS/patrick/userland-cman/lib/
+CFLAGS+= -g -I. -I../include/ -I../../cman/lib/
 
 TARGET=groupd
 
@@ -23,7 +23,7 @@ groupd: main.o \
 	update.o \
 	done.o \
 	recover.o \
-	../../../IDEAS/patrick/userland-cman/lib/libcman.a
+	../../cman/lib/libcman.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c gd_internal.h
