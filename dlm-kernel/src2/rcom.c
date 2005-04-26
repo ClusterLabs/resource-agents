@@ -58,12 +58,11 @@ static int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
 	return 0;
 }
 
-static int send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
-		     struct dlm_rcom *rc)
+static void send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
+		      struct dlm_rcom *rc)
 {
 	dlm_rcom_out(rc);
 	dlm_lowcomms_commit_buffer(mh);
-	return 0;
 }
 
 static int make_status(struct dlm_ls *ls)
@@ -89,22 +88,25 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
-	int error;
+	int error = 0;
 
 	memset(ls->ls_recover_buf, 0, dlm_config.buffer_size);
 
 	if (nodeid == dlm_our_nodeid()) {
 		rc = (struct dlm_rcom *) ls->ls_recover_buf;
 		rc->rc_result = make_status(ls);
-		return 0;
+		goto out;
 	}
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS, 0, &rc, &mh);
+	if (error)
+		goto out;
 
-	error = send_rcom(ls, mh, rc);
+	send_rcom(ls, mh, rc);
 
 	error = dlm_wait_function(ls, &rcom_response);
 	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
+ out:
 	return error;
 }
 
@@ -115,9 +117,11 @@ static void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	int error, nodeid = rc_in->rc_header.h_nodeid;
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS_REPLY, 0, &rc, &mh);
+	if (error)
+		return;
 	rc->rc_result = make_status(ls);
 
-	error = send_rcom(ls, mh, rc);
+	send_rcom(ls, mh, rc);
 }
 
 static void receive_rcom_status_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -131,7 +135,7 @@ int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
 {
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
-	int error, len = sizeof(struct dlm_rcom);
+	int error = 0, len = sizeof(struct dlm_rcom);
 
 	memset(ls->ls_recover_buf, 0, dlm_config.buffer_size);
 
@@ -139,16 +143,19 @@ int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name, int last_len)
 		dlm_copy_master_names(ls, last_name, last_len,
 		                      ls->ls_recover_buf + len,
 		                      dlm_config.buffer_size - len, nodeid);
-		return 0;
+		goto out;
 	}
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_NAMES, last_len, &rc, &mh);
+	if (error)
+		goto out;
 	memcpy(rc->rc_buf, last_name, last_len);
 
-	error = send_rcom(ls, mh, rc);
+	send_rcom(ls, mh, rc);
 
 	error = dlm_wait_function(ls, &rcom_response);
 	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
+ out:
 	return error;
 }
 
@@ -176,11 +183,12 @@ static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	outlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_NAMES_REPLY, outlen, &rc, &mh);
+	if (error)
+		return;
 
-	error = dlm_copy_master_names(ls, rc_in->rc_buf, inlen, rc->rc_buf,
-				      outlen, nodeid);
-
-	error = send_rcom(ls, mh, rc);
+	dlm_copy_master_names(ls, rc_in->rc_buf, inlen, rc->rc_buf, outlen,
+			      nodeid);
+	send_rcom(ls, mh, rc);
 }
 
 static void receive_rcom_names_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -199,11 +207,14 @@ int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid)
 
 	error = create_rcom(ls, dir_nodeid, DLM_RCOM_LOOKUP, r->res_length,
 			    &rc, &mh);
+	if (error)
+		goto out;
 	memcpy(rc->rc_buf, r->res_name, r->res_length);
 	rc->rc_id = (unsigned long) r;
 
-	error = send_rcom(ls, mh, rc);
-	return 0;
+	send_rcom(ls, mh, rc);
+ out:
+	return error;
 }
 
 static void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -213,13 +224,17 @@ static void receive_rcom_lookup(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	int error, ret_nodeid, nodeid = rc_in->rc_header.h_nodeid;
 	int len = rc_in->rc_header.h_length - sizeof(struct dlm_rcom);
 
-	error = dlm_dir_lookup(ls, nodeid, rc_in->rc_buf, len, &ret_nodeid);
-
 	error = create_rcom(ls, nodeid, DLM_RCOM_LOOKUP_REPLY, 0, &rc, &mh);
+	if (error)
+		return;
+
+	error = dlm_dir_lookup(ls, nodeid, rc_in->rc_buf, len, &ret_nodeid);
+	if (error)
+		ret_nodeid = error;
 	rc->rc_result = ret_nodeid;
 	rc->rc_id = rc_in->rc_id;
 
-	error = send_rcom(ls, mh, rc);
+	send_rcom(ls, mh, rc);
 }
 
 static void receive_rcom_lookup_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -270,13 +285,15 @@ int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	error = create_rcom(ls, r->res_nodeid, DLM_RCOM_LOCK,
 			    sizeof(struct rcom_lock), &rc, &mh);
+	if (error)
+		goto out;
 
 	rl = (struct rcom_lock *) rc->rc_buf;
 	pack_rcom_lock(r, lkb, rl);
 	rc->rc_id = (unsigned long) r;
 
-	error = send_rcom(ls, mh, rc);
-
+	send_rcom(ls, mh, rc);
+ out:
 	return error;
 }
 
@@ -290,6 +307,8 @@ static void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 	error = create_rcom(ls, nodeid, DLM_RCOM_LOCK_REPLY,
 			    sizeof(struct rcom_lock), &rc, &mh);
+	if (error)
+		return;
 
 	/* We send back the same rcom_lock struct we received, but
 	   dlm_recover_master_copy() has filled in rl_remid and rl_result */
@@ -297,7 +316,7 @@ static void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	memcpy(rc->rc_buf, rc_in->rc_buf, sizeof(struct rcom_lock));
 	rc->rc_id = rc_in->rc_id;
 
-	error = send_rcom(ls, mh, rc);
+	send_rcom(ls, mh, rc);
 }
 
 static void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
@@ -362,13 +381,13 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 	if (dlm_recovery_stopped(ls) && (rc->rc_type != DLM_RCOM_STATUS)) {
 		log_error(ls, "ignoring recovery message %x from %d",
 			  rc->rc_type, nodeid);
-		return;
+		goto out;
 	}
 
 	if (nodeid != rc->rc_header.h_nodeid) {
 		log_error(ls, "bad rcom nodeid %d from %d",
 			  rc->rc_header.h_nodeid, nodeid);
-		return;
+		goto out;
 	}
 
 	switch (rc->rc_type) {
@@ -407,7 +426,7 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 	default:
 		DLM_ASSERT(0, printk("rc_type=%x\n", rc->rc_type););
 	}
-
+ out:
 	dlm_put_lockspace(ls);
 }
 

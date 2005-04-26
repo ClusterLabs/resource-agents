@@ -347,8 +347,8 @@ int dlm_dir_rebuild_wait(struct dlm_ls *ls)
 /* Copy the names of master rsb's into the buffer provided.
    Only select names whose dir node is the given nodeid. */
 
-int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
-			  char *outbuf, int outlen, int nodeid)
+void dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
+ 			   char *outbuf, int outlen, int nodeid)
 {
 	struct list_head *list;
 	struct dlm_rsb *start_r = NULL, *r = NULL;
@@ -434,6 +434,5 @@ int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 
  out:
 	up_read(&ls->ls_root_sem);
-	return offset;
 }
 

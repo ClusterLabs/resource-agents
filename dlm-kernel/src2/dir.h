@@ -23,7 +23,7 @@ void dlm_clear_free_entries(struct dlm_ls *ls);
 int dlm_recover_directory(struct dlm_ls *ls);
 int dlm_dir_lookup(struct dlm_ls *ls, int nodeid, char *name, int namelen,
 	int *r_nodeid);
-int dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
+void dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 	char *outbuf, int outlen, int nodeid);
 int dlm_dir_rebuild_wait(struct dlm_ls *ls);
 
