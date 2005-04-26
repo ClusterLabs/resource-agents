@@ -67,7 +67,7 @@ init_sbd(struct super_block *sb)
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 
-	vfs2sdp(sb) = sdp;
+	set_v2sdp(sb, sdp);
 	sdp->sd_vfs = sb;
 
 	gfs2_tune_init(&sdp->sd_tune);
@@ -867,7 +867,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 
  fail:
 	vfree(sdp);
-	vfs2sdp(sb) = NULL;
+	set_v2sdp(sb, NULL);
 
 	RETURN(G2FN_FILL_SUPER, error);
 }

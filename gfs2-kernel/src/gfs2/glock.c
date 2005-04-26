@@ -2385,7 +2385,7 @@ gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
 	if (!queue_empty(gl, &gl->gl_holders))
 		goto out_unlock;
 
-	ip = gl2ip(gl);
+	ip = get_gl2ip(gl);
 	if (!ip)
 		goto out_unlock;
 
@@ -2421,7 +2421,7 @@ gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
 		RET(G2FN_IOPEN_GO_CALLBACK);
 
 	spin_lock(&io_gl->gl_spin);
-	i_gl = gl2gl(io_gl);
+	i_gl = get_gl2gl(io_gl);
 	if (i_gl) {
 		glock_hold(i_gl);
 		spin_unlock(&io_gl->gl_spin);
@@ -2432,7 +2432,7 @@ gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
 
 	if (trylock_on_glock(i_gl)) {
 		if (queue_empty(i_gl, &i_gl->gl_holders)) {
-			ip = gl2ip(i_gl);
+			ip = get_gl2ip(i_gl);
 			if (ip) {
 				gfs2_try_toss_vnode(ip);
 				unlock_on_glock(i_gl);
@@ -2564,7 +2564,7 @@ gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 			/* Inode glock-type-specific; free unused gfs2 inode,
 			   and release hold on iopen glock */
 			if (gl->gl_ops == &gfs2_inode_glops) {
-				struct gfs2_inode *ip = gl2ip(gl);
+				struct gfs2_inode *ip = get_gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count))
 					gfs2_inode_destroy(ip);
 			}
@@ -2680,7 +2680,7 @@ scan_glock(struct gfs2_glock *gl)
 			/* Inode glock-type-specific; reclaim glock if gfs2 inode
 			   no longer in use. */
 			if (gl->gl_ops == &gfs2_inode_glops) {
-				struct gfs2_inode *ip = gl2ip(gl);
+				struct gfs2_inode *ip = get_gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count)) {
 					unlock_on_glock(gl);
 					gfs2_glock_schedule_for_reclaim(gl);
@@ -2767,7 +2767,7 @@ clear_glock(struct gfs2_glock *gl)
 			/* Inode glock-type-specific; free unused gfs2 inode,
 			   and release hold on iopen glock */
 			if (gl->gl_ops == &gfs2_inode_glops) {
-				struct gfs2_inode *ip = gl2ip(gl);
+				struct gfs2_inode *ip = get_gl2ip(gl);
 				if (ip && !atomic_read(&ip->i_count))
 					gfs2_inode_destroy(ip);
 			}
@@ -3001,10 +3001,10 @@ dump_glock(struct gfs2_glock *gl,
 		if (error)
 			goto out;
 	}
-	if (gl->gl_ops == &gfs2_inode_glops && gl2ip(gl)) {
+	if (gl->gl_ops == &gfs2_inode_glops && get_gl2ip(gl)) {
 		if (!test_bit(GLF_LOCK, &gl->gl_flags) &&
 		    list_empty(&gl->gl_holders)) {
-			error = dump_inode(gl2ip(gl), buf, size, count);
+			error = dump_inode(get_gl2ip(gl), buf, size, count);
 			if (error)
 				goto out;
 		} else {

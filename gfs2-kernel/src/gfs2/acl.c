@@ -206,7 +206,7 @@ gfs2_check_acl(struct inode *inode, int mask)
 	struct posix_acl *acl = NULL;
 	int error;
 
-	error = acl_get(vn2ip(inode), ACL_ACCESS, &acl, NULL, NULL, NULL);
+	error = acl_get(get_v2ip(inode), ACL_ACCESS, &acl, NULL, NULL, NULL);
 	if (error)
 		RETURN(G2FN_CHECK_ACL, error);
 

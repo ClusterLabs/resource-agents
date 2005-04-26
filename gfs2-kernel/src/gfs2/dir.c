@@ -2147,7 +2147,7 @@ leaf_free(struct gfs2_inode *dip,
 
 	for (x = 0; x < rlist.rl_rgrps; x++) {
 		struct gfs2_rgrpd *rgd;
-		rgd = gl2rgd(rlist.rl_ghs[x].gh_gl);
+		rgd = get_gl2rgd(rlist.rl_ghs[x].gh_gl);
 		rg_blocks += rgd->rd_ri.ri_length;
 	}
 

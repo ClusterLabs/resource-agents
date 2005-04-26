@@ -315,7 +315,7 @@ inode_go_demote_ok(struct gfs2_glock *gl)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	int demote = FALSE;
 
-	if (!gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
+	if (!get_gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
 		demote = TRUE;
 	else if (!sdp->sd_args.ar_localcaching &&
 		 time_after_eq(jiffies, gl->gl_stamp + gfs2_tune_get(sdp, gt_demote_secs) * HZ))
@@ -337,7 +337,7 @@ static int
 inode_go_lock(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_INODE_GO_LOCK)
-	struct gfs2_inode *ip = gl2ip(gl);
+	struct gfs2_inode *ip = get_gl2ip(gl);
 	int error = 0;
 
 	if (ip && ip->i_vn != gl->gl_vn) {
@@ -361,7 +361,7 @@ static void
 inode_go_unlock(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_INODE_GO_UNLOCK)
-	struct gfs2_inode *ip = gl2ip(gl);
+	struct gfs2_inode *ip = get_gl2ip(gl);
 
 	if (ip && test_bit(GLF_DIRTY, &gl->gl_flags))
 		gfs2_inode_attr_in(ip);
@@ -383,7 +383,7 @@ inode_greedy(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GREEDY)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct gfs2_inode *ip = gl2ip(gl);
+	struct gfs2_inode *ip = get_gl2ip(gl);
 	unsigned int quantum = gfs2_tune_get(sdp, gt_greedy_quantum);
 	unsigned int max = gfs2_tune_get(sdp, gt_greedy_max);
 	unsigned int new_time;
@@ -444,7 +444,7 @@ rgrp_go_lock(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_RGRP_GO_LOCK)
 	RETURN(G2FN_RGRP_GO_LOCK,
-	       gfs2_rgrp_bh_get(gl2rgd(gl)));
+	       gfs2_rgrp_bh_get(get_gl2rgd(gl)));
 }
 
 /**
@@ -462,7 +462,7 @@ static void
 rgrp_go_unlock(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_RGRP_GO_UNLOCK)
-	gfs2_rgrp_bh_put(gl2rgd(gl));
+	gfs2_rgrp_bh_put(get_gl2rgd(gl));
 	RET(G2FN_RGRP_GO_UNLOCK);
 }
 

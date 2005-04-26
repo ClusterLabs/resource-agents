@@ -34,7 +34,7 @@ glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	ENTER(G2FN_GLOCK_LO_ADD)
 	struct gfs2_glock *gl;
 
-	current_transaction->tr_touched = TRUE;
+	get_transaction->tr_touched = TRUE;
 
 	if (!list_empty(&le->le_list))
 		RET(G2FN_GLOCK_LO_ADD);
@@ -90,7 +90,7 @@ buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	if (!list_empty(&bd->bd_list_tr))
 		RET(G2FN_BUF_LO_ADD);
 
-	tr = current_transaction;
+	tr = get_transaction;
 	tr->tr_touched = TRUE;
 	tr->tr_num_buf++;
 	list_add(&bd->bd_list_tr, &tr->tr_list_buf);
@@ -293,7 +293,7 @@ revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	ENTER(G2FN_REVOKE_LO_ADD)
 	struct gfs2_trans *tr;
 
-	tr = current_transaction;
+	tr = get_transaction;
 	tr->tr_touched = TRUE;
 	tr->tr_num_revoke++;
 
@@ -456,7 +456,7 @@ rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	ENTER(G2FN_RG_LO_ADD)
 	struct gfs2_rgrpd *rgd;
 
-	current_transaction->tr_touched = TRUE;
+	get_transaction->tr_touched = TRUE;
 
 	if (!list_empty(&le->le_list))
 		RET(G2FN_RG_LO_ADD);
@@ -503,6 +503,8 @@ static void
 databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_DATABUF_LO_ADD)
+
+	get_transaction->tr_touched = TRUE;
 
 	gfs2_log_lock(sdp);
 	sdp->sd_log_num_databuf++;

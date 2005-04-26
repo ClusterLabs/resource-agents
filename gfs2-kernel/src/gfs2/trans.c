@@ -53,7 +53,7 @@ gfs2_trans_begin_i(struct gfs2_sbd *sdp,
 	struct gfs2_trans *tr;
 	int error;
 
-	if (gfs2_assert_warn(sdp, !current_transaction) ||
+	if (gfs2_assert_warn(sdp, !get_transaction) ||
 	    gfs2_assert_warn(sdp, blocks || revokes)) {
 		printk("GFS2: fsid=%s: (%s, %u)\n",
 		       sdp->sd_fsname, file, line);
@@ -95,7 +95,7 @@ gfs2_trans_begin_i(struct gfs2_sbd *sdp,
 	if (error)
 		goto fail_gunlock;
 
-	current_transaction = tr;
+	set_transaction(tr);
 
 	RETURN(G2FN_TRANS_BEGIN_I, 0);
 
@@ -127,8 +127,8 @@ gfs2_trans_end(struct gfs2_sbd *sdp)
 	struct gfs2_trans *tr;
 	struct gfs2_holder *t_gh;
 
-	tr = current_transaction;
-	current_transaction = NULL;
+	tr = get_transaction;
+	set_transaction(NULL);
 
 	if (gfs2_assert_warn(sdp, tr))
 		RET(G2FN_TRANS_END);
@@ -183,12 +183,12 @@ gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 	struct gfs2_bufdata *bd;
 
 	/* Make sure GFS2 private info struct is attached to buffer head */
-	bd = bh2bd(bh);
+	bd = get_v2bd(bh);
 	if (bd)
 		gfs2_assert(sdp, bd->bd_gl == gl,);
 	else {
 		gfs2_attach_bufdata(gl, bh);
-		bd = bh2bd(bh);
+		bd = get_v2bd(bh);
 	}
 
 	LO_ADD(sdp, &bd->bd_le);
@@ -240,7 +240,7 @@ gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 
 	if (tmp != head) {
 		kfree(rv);
-		current_transaction->tr_num_revoke_rm++;
+		get_transaction->tr_num_revoke_rm++;
 	}
 
 	RET(G2FN_TRANS_ADD_UNREVOKE);

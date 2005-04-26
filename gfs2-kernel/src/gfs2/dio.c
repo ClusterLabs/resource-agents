@@ -52,7 +52,7 @@ aspace_get_block(struct inode *inode, sector_t lblock,
 		 struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_ASPACE_GET_BLOCK)
-	gfs2_assert_warn(vfs2sdp(inode->i_sb), FALSE);
+	gfs2_assert_warn(get_v2sdp(inode->i_sb), FALSE);
 	RETURN(G2FN_ASPACE_GET_BLOCK, -ENOSYS);
 }
 
@@ -82,8 +82,8 @@ static void
 stuck_releasepage(struct buffer_head *bh)
 {
 	ENTER(G2FN_STUCK_RELEASEPAGE)
-	struct gfs2_sbd *sdp = vfs2sdp(bh->b_page->mapping->host->i_sb);
-	struct gfs2_bufdata *bd = bh2bd(bh);
+	struct gfs2_sbd *sdp = get_v2sdp(bh->b_page->mapping->host->i_sb);
+	struct gfs2_bufdata *bd = get_v2bd(bh);
 
 	printk("GFS2: fsid=%s: stuck in gfs2_releasepage()...\n", sdp->sd_fsname);
 	printk("GFS2: fsid=%s: blkno = %"PRIu64", bh->b_count = %d\n",
@@ -92,7 +92,7 @@ stuck_releasepage(struct buffer_head *bh)
 	       atomic_read(&bh->b_count));
 	printk("GFS2: fsid=%s: pinned = %u\n",
 	       sdp->sd_fsname, buffer_pinned(bh));
-	printk("GFS2: fsid=%s: bh2bd(bh) = %s\n",
+	printk("GFS2: fsid=%s: get_v2bd(bh) = %s\n",
 	       sdp->sd_fsname,
 	       (bd) ? "!NULL" : "NULL");
 
@@ -109,7 +109,7 @@ stuck_releasepage(struct buffer_head *bh)
 		       (list_empty(&bd->bd_le.le_list)) ? "no" : "yes");
 
 		if (gl->gl_ops == &gfs2_inode_glops) {
-			struct gfs2_inode *ip = gl2ip(gl);
+			struct gfs2_inode *ip = get_gl2ip(gl);
 
 			if (ip) {
 				unsigned int x;
@@ -149,7 +149,7 @@ gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 {
 	ENTER(G2FN_ASPACE_RELEASEPAGE)
 	struct inode *aspace = page->mapping->host;
-	struct gfs2_sbd *sdp = vfs2sdp(aspace->i_sb);
+	struct gfs2_sbd *sdp = get_v2sdp(aspace->i_sb);
 	struct buffer_head *bh, *head;
 	struct gfs2_bufdata *bd;
 	unsigned long t;
@@ -179,7 +179,7 @@ gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 
 		gfs2_assert_warn(sdp, !buffer_pinned(bh));
 
-		bd = bh2bd(bh);
+		bd = get_v2bd(bh);
 		if (bd) {
 			gfs2_assert_warn(sdp, bd->bd_bh == bh);
 		        gfs2_assert_warn(sdp, list_empty(&bd->bd_list_tr));
@@ -188,7 +188,7 @@ gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 			gfs2_memory_rm(bd);
 			kmem_cache_free(gfs2_bufdata_cachep, bd);
 			atomic_dec(&sdp->sd_bufdata_count);
-			bh2bd(bh) = NULL;
+			set_v2bd(bh, NULL);
 		}
 
 		bh = bh->b_this_page;
@@ -228,7 +228,7 @@ gfs2_aspace_get(struct gfs2_sbd *sdp)
 		mapping_set_gfp_mask(aspace->i_mapping, GFP_KERNEL);
 		aspace->i_mapping->a_ops = &aspace_aops;
 		aspace->i_size = ~0ULL;
-		vn2ip(aspace) = NULL;
+		get_v2ip(aspace) = NULL;
 		insert_inode_hash(aspace);
 	}
 
@@ -613,7 +613,7 @@ gfs2_dreread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
 		wait_on_buffer(bh);
 
 		if (!buffer_uptodate(bh)) {
-			if (current_transaction)
+			if (get_transaction)
 				gfs2_io_error_bh(sdp, bh);
 			RETURN(G2FN_DREREAD, -EIO);
 		}
@@ -690,7 +690,7 @@ gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 	lock_page(bh->b_page);
 
 	/* If there's one attached already, we're done */
-	if (bh2bd(bh)) {
+	if (get_v2bd(bh)) {
 		unlock_page(bh->b_page);
 		RET(G2FN_ATTACH_BUFDATA);
 	}
@@ -707,7 +707,7 @@ gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 	INIT_LIST_HEAD(&bd->bd_list_tr);
 	INIT_LE(&bd->bd_le, &gfs2_buf_lops);
 
-	bh2bd(bh) = bd;
+	set_v2bd(bh, bd);
 
 	unlock_page(bh->b_page);
 
@@ -735,7 +735,7 @@ void
 gfs2_dpin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(G2FN_DPIN)
-	struct gfs2_bufdata *bd = bh2bd(bh);
+	struct gfs2_bufdata *bd = get_v2bd(bh);
 
 	gfs2_assert_withdraw(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags));
 
@@ -794,7 +794,7 @@ gfs2_dunpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 	   struct gfs2_ail *ai)
 {
 	ENTER(G2FN_DUNPIN)
-	struct gfs2_bufdata *bd = bh2bd(bh);
+	struct gfs2_bufdata *bd = get_v2bd(bh);
 
 	gfs2_assert_withdraw(sdp, buffer_uptodate(bh));
 
@@ -947,7 +947,7 @@ gfs2_buf_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 	while (blen) {
 		bh = getbuf(sdp, aspace, bstart, NO_CREATE);
 		if (bh) {
-			struct gfs2_bufdata *bd = bh2bd(bh);
+			struct gfs2_bufdata *bd = get_v2bd(bh);
 
 			if (test_clear_buffer_pinned(bh)) {
 				gfs2_log_lock(sdp);
@@ -955,7 +955,7 @@ gfs2_buf_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 				gfs2_assert_warn(sdp, sdp->sd_log_num_buf);
 				sdp->sd_log_num_buf--;
 				gfs2_log_unlock(sdp);
-				current_transaction->tr_num_buf_rm++;
+				get_transaction->tr_num_buf_rm++;
 				brelse(bh);
 			}
 			if (bd) {

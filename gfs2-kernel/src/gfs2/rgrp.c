@@ -205,7 +205,7 @@ clear_rgrpdi(struct gfs2_sbd *sdp)
 		list_del(&rgd->rd_list_mru);
 
 		if (gl) {
-			gl2rgd(gl) = NULL;
+			set_gl2rgd(gl, NULL);
 			gfs2_glock_put(gl);
 		}
 
@@ -371,7 +371,7 @@ gfs2_ri_update(struct gfs2_inode *ip)
 		if (error)
 			goto fail;
 
-		gl2rgd(rgd->rd_gl) = rgd;
+		set_gl2rgd(rgd->rd_gl, rgd);
 		rgd->rd_rg_vn = rgd->rd_gl->gl_vn - 1;
 	}
 

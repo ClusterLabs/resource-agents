@@ -341,7 +341,7 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 			break;
 		}
 
-		jd->jd_inode = gl2ip(ghs[1].gh_gl);
+		jd->jd_inode = get_gl2ip(ghs[1].gh_gl);
 
 		gfs2_glock_dq_m(2, ghs);
 
@@ -682,7 +682,7 @@ statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
 					error = err;
 				} else {
 					if (!error)
-						error = statfs_fill(gl2rgd(gh->gh_gl), sg);
+						error = statfs_fill(get_gl2rgd(gh->gh_gl), sg);
 					gfs2_glock_dq_uninit(gh);
 				}
 			}

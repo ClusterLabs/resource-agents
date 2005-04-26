@@ -94,7 +94,7 @@ static loff_t
 gfs2_llseek(struct file *file, loff_t offset, int origin)
 {
 	ENTER(G2FN_LLSEEK)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	loff_t error;
 
@@ -169,7 +169,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 			if (vma->vm_file) {
 				struct inode *inode = vma->vm_file->f_dentry->d_inode;
 				if (inode->i_sb == sb)
-					gfs2_holder_init(vn2ip(inode)->i_gl,
+					gfs2_holder_init(get_v2ip(inode)->i_gl,
 							vma2state(vma),
 							0, &ghs[x++]);
 			}
@@ -178,7 +178,7 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 		if (!dumping)
 			up_read(&mm->mmap_sem);
 
-		gfs2_assert(vfs2sdp(sb), x == num_gh,);
+		gfs2_assert(get_v2sdp(sb), x == num_gh,);
 	}
 
 	count = operation(file, buf, size, offset, num_gh, ghs);
@@ -260,7 +260,7 @@ static ssize_t
 do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
 {
 	ENTER(G2FN_DO_READ_READI)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
 
 	if (*offset < 0)
@@ -303,7 +303,7 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 {
 	ENTER(G2FN_DO_READ_DIRECT)
 	struct inode *inode = file->f_mapping->host;
-	struct gfs2_inode *ip = vn2ip(inode);
+	struct gfs2_inode *ip = get_v2ip(inode);
 	unsigned int state = LM_ST_DEFERRED;
 	int flags = 0;
 	unsigned int x;
@@ -368,7 +368,7 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 	    unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_READ_BUF)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
 	int error;
 
@@ -408,7 +408,7 @@ static ssize_t
 gfs2_read(struct file *file, char *buf, size_t size, loff_t *offset)
 {
 	ENTER(G2FN_READ)
-	atomic_inc(&vfs2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
+	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
 
 	if (file->f_flags & O_DIRECT)
 		RETURN(G2FN_READ,
@@ -466,7 +466,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 {
 	ENTER(G2FN_DO_WRITE_DIRECT_ALLOC)
 	struct inode *inode = file->f_mapping->host;
-	struct gfs2_inode *ip = vn2ip(inode);
+	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = NULL;
 	struct iovec local_iov = { .iov_base = buf, .iov_len = size };
@@ -582,9 +582,9 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_WRITE_DIRECT)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct gfs2_file *fp = vf2fp(file);
+	struct gfs2_file *fp = get_v2fp(file);
 	unsigned int state = LM_ST_DEFERRED;
 	int alloc_required;
 	unsigned int x;
@@ -707,7 +707,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 {
 	ENTER(G2FN_DO_DO_WRITE_BUF)
 	struct inode *inode = file->f_mapping->host;
-	struct gfs2_inode *ip = vn2ip(inode);
+	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = NULL;
 	struct buffer_head *dibh;
@@ -853,7 +853,7 @@ do_write_buf(struct file *file,
 	     unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_WRITE_BUF)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	size_t s;
 	ssize_t count = 0;
@@ -927,7 +927,7 @@ gfs2_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 	struct inode *inode = file->f_mapping->host;
 	ssize_t count;
 
-	atomic_inc(&vfs2sdp(inode->i_sb)->sd_ops_file);
+	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_file);
 
 	if (*offset < 0)
 		RETURN(G2FN_WRITE, -EINVAL);
@@ -998,7 +998,7 @@ static int
 readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 {
 	ENTER(G2FN_READDIR_REG)
-	struct gfs2_inode *dip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
 	struct filldir_reg fdr;
 	struct gfs2_holder d_gh;
 	uint64_t offset = file->f_pos;
@@ -1093,7 +1093,7 @@ static int
 readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 {
 	ENTER(G2FN_READDIR_BAD)
-	struct gfs2_inode *dip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct filldir_reg fdr;
 	unsigned int entries, size;
@@ -1173,7 +1173,7 @@ gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 	ENTER(G2FN_READDIR)
 	int error;
 
-	atomic_inc(&vfs2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
+	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
 
 	/* Use "bad" one if we're called from NFS daemon */
 	if (strcmp(current->comm, "nfsd") != 0)
@@ -1199,7 +1199,7 @@ gfs2_ioctl(struct inode *inode, struct file *file,
 	  unsigned int cmd, unsigned long arg)
 {
 	ENTER(G2FN_IOCTL)
-	struct gfs2_inode *ip = vn2ip(inode);
+	struct gfs2_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
@@ -1231,7 +1231,7 @@ static int
 gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	ENTER(G2FN_MMAP)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	int error;
 
@@ -1276,7 +1276,7 @@ static int
 gfs2_open(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_OPEN)
-	struct gfs2_inode *ip = vn2ip(inode);
+	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_holder i_gh;
 	struct gfs2_file *fp;
 	int error;
@@ -1293,8 +1293,8 @@ gfs2_open(struct inode *inode, struct file *file)
 	fp->f_inode = ip;
 	fp->f_vfile = file;
 
-	gfs2_assert_warn(ip->i_sbd, !vf2fp(file));
-	vf2fp(file) = fp;
+	gfs2_assert_warn(ip->i_sbd, !get_v2fp(file));
+	set_v2fp(file, fp);
 
 	if (S_ISREG(ip->i_di.di_mode)) {
 		error = gfs2_glock_nq_init(ip->i_gl,
@@ -1330,7 +1330,7 @@ gfs2_open(struct inode *inode, struct file *file)
 	gfs2_glock_dq_uninit(&i_gh);
 
  fail:
-	vf2fp(file) = NULL;
+	set_v2fp(file, NULL);
 	kfree(fp);
 
 	RETURN(G2FN_OPEN, error);
@@ -1348,13 +1348,13 @@ static int
 gfs2_close(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_CLOSE)
-	struct gfs2_sbd *sdp = vfs2sdp(inode->i_sb);
+	struct gfs2_sbd *sdp = get_v2sdp(inode->i_sb);
 	struct gfs2_file *fp;
 
 	atomic_inc(&sdp->sd_ops_file);
 
-	fp = vf2fp(file);
-	vf2fp(file) = NULL;
+	fp = get_v2fp(file);
+	set_v2fp(file, NULL);
 
 	if (!gfs2_assert_warn(sdp, fp))
 		kfree(fp);
@@ -1377,7 +1377,7 @@ static int
 gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
 	ENTER(G2FN_FSYNC)
-	struct gfs2_inode *ip = vn2ip(dentry->d_inode);
+	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 	struct gfs2_holder i_gh;
 	int error;
 
@@ -1410,7 +1410,7 @@ static int
 gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_LOCK)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct lm_lockname name =
 		{ .ln_number = ip->i_num.no_addr,
@@ -1469,7 +1469,7 @@ static ssize_t
 gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t actor, void __user *target)
 {
 	ENTER(G2FN_SENDFILE)
-	struct gfs2_inode *ip = vn2ip(in_file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(in_file->f_mapping->host);
 	struct gfs2_holder gh;
 	ssize_t retval;
 
@@ -1507,7 +1507,7 @@ static int
 do_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_DO_FLOCK)
-	struct gfs2_file *fp = vf2fp(file);
+	struct gfs2_file *fp = get_v2fp(file);
 	struct gfs2_holder *fl_gh = &fp->f_fl_gh;
 	struct gfs2_inode *ip = fp->f_inode;
 	struct gfs2_glock *gl;
@@ -1566,7 +1566,7 @@ static void
 do_unflock(struct file *file, struct file_lock *fl)
 {
 	ENTER(G2FN_DO_UNFLOCK)
-	struct gfs2_file *fp = vf2fp(file);
+	struct gfs2_file *fp = get_v2fp(file);
 	struct gfs2_holder *fl_gh = &fp->f_fl_gh;
 
 	down(&fp->f_fl_lock);
@@ -1591,7 +1591,7 @@ static int
 gfs2_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_FLOCK)
-	struct gfs2_inode *ip = vn2ip(file->f_mapping->host);
+	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
