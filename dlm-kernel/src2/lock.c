@@ -149,7 +149,7 @@ const int __quecvt_compat_matrix[8][8] = {
 
 void dlm_print_lkb(struct dlm_lkb *lkb)
 {
-	printk("lkb: nodeid %d id %x remid %x exflags %x flags %x\n"
+	printk(KERN_ERR "lkb: nodeid %d id %x remid %x exflags %x flags %x\n"
 	       "     status %d rqmode %d grmode %d wait_type %d ast_type %d\n",
 	       lkb->lkb_nodeid, lkb->lkb_id, lkb->lkb_remid, lkb->lkb_exflags,
 	       lkb->lkb_flags, lkb->lkb_status, lkb->lkb_rqmode,
@@ -158,7 +158,7 @@ void dlm_print_lkb(struct dlm_lkb *lkb)
 
 void dlm_print_rsb(struct dlm_rsb *r)
 {
-	printk("rsb: nodeid %d flags %lx trial %x name %s\n",
+	printk(KERN_ERR "rsb: nodeid %d flags %lx trial %x name %s\n",
 	       r->res_nodeid, r->res_flags, r->res_trial_lkid, r->res_name);
 }
 
@@ -181,7 +181,7 @@ static int lock_recovery_try(struct dlm_ls *ls)
 
 static int can_be_queued(struct dlm_lkb *lkb)
 {
-	return (!(lkb->lkb_exflags & DLM_LKF_NOQUEUE));
+	return !(lkb->lkb_exflags & DLM_LKF_NOQUEUE);
 }
 
 static int force_blocking_asts(struct dlm_lkb *lkb)
@@ -197,17 +197,17 @@ static int is_demoted(struct dlm_lkb *lkb)
 static int is_remote(struct dlm_rsb *r)
 {
 	DLM_ASSERT(r->res_nodeid >= 0, dlm_print_rsb(r););
-	return r->res_nodeid ? TRUE : FALSE;
+	return !!r->res_nodeid;
 }
 
 static int is_master(struct dlm_rsb *r)
 {
-	return r->res_nodeid ? FALSE : TRUE;
+	return !r->res_nodeid;
 }
 
 int dlm_is_master(struct dlm_rsb *r)
 {
-	return r->res_nodeid ? FALSE : TRUE;
+	return is_master(r);
 }
 
 static int is_process_copy(struct dlm_lkb *lkb)
@@ -245,7 +245,7 @@ static void queue_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rqmode)
 	}
 }
 
-static int dir_remove(struct dlm_rsb *r)
+static void dir_remove(struct dlm_rsb *r)
 {
 	int to_nodeid = dlm_dir_nodeid(r);
 
@@ -254,9 +254,7 @@ static int dir_remove(struct dlm_rsb *r)
 	else
 		dlm_dir_remove_entry(r->res_ls, to_nodeid,
 				     r->res_name, r->res_length);
-	return 0;
 }
-
 
 /*
  * Basic operations on rsb's and lkb's
@@ -316,25 +314,24 @@ static int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 		goto out;
 	}
 	error = search_rsb_list(&ls->ls_rsbtbl[b].toss, name, len, flags, &r);
-	if (!error) {
-		list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
+	if (error)
+		goto out;
 
-		if (r->res_nodeid == -1) {
-			clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
-			clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
-			r->res_trial_lkid = 0;
-		} else if (r->res_nodeid > 0) {
-			clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
-			set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
-			r->res_trial_lkid = 0;
-		} else {
-			DLM_ASSERT(r->res_nodeid == 0,
-				   dlm_print_rsb(r););
-			DLM_ASSERT(!test_bit(RESFL_MASTER_WAIT, &r->res_flags),
-				   dlm_print_rsb(r););
-			DLM_ASSERT(!test_bit(RESFL_MASTER_UNCERTAIN,
-					     &r->res_flags),);
-		}
+	list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
+
+	if (r->res_nodeid == -1) {
+		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+		r->res_trial_lkid = 0;
+	} else if (r->res_nodeid > 0) {
+		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+		r->res_trial_lkid = 0;
+	} else {
+		DLM_ASSERT(r->res_nodeid == 0, dlm_print_rsb(r););
+		DLM_ASSERT(!test_bit(RESFL_MASTER_WAIT, &r->res_flags),
+			   dlm_print_rsb(r););
+		DLM_ASSERT(!test_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags),);
 	}
  out:
 	*r_ret = r;
@@ -531,13 +528,13 @@ static int shrink_bucket(struct dlm_ls *ls, int b)
 
 void dlm_scan_rsbs(struct dlm_ls *ls)
 {
-	int i, count = 0;
+	int i;
 
 	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
 		return;
 
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
-		count += shrink_bucket(ls, i);
+		shrink_bucket(ls, i);
 		cond_resched();
 	}
 }
@@ -602,7 +599,7 @@ static int create_lkb(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
 	lkid = bucket | (ls->ls_lkbtbl[bucket].counter++ << 16);
 	/* FIXME: do a find to verify lkid not in use */
 
-	DLM_ASSERT(lkid, );
+	DLM_ASSERT(lkid,);
 
 	lkb->lkb_id = lkid;
 	list_add(&lkb->lkb_idtbl_list, &ls->ls_lkbtbl[bucket].list);
@@ -1389,7 +1386,7 @@ static int _unlock_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	int error;
 
 	if (is_remote(r))
-		/* receive_unlock() calls call do_unlock() on remote node */
+		/* receive_unlock() calls do_unlock() on remote node */
 		error = send_unlock(r, lkb);
 	else
 		error = do_unlock(r, lkb);
@@ -1933,7 +1930,7 @@ static int grant_pending_wait(struct dlm_rsb *r, int high)
 	return high;
 }
 
-static int grant_pending_locks(struct dlm_rsb *r)
+static void grant_pending_locks(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb, *s;
 	int high = DLM_LOCK_IV;
@@ -1944,7 +1941,7 @@ static int grant_pending_locks(struct dlm_rsb *r)
 	high = grant_pending_wait(r, high);
 
 	if (high == DLM_LOCK_IV)
-		return 0;
+		return;
 
 	/*
 	 * If there are locks left on the wait/convert queue then send blocking
@@ -1960,8 +1957,6 @@ static int grant_pending_locks(struct dlm_rsb *r)
 			lkb->lkb_highbast = high;
 		}
 	}
-
-	return 0;
 }
 
 static void send_bast_queue(struct dlm_rsb *r, struct list_head *head,
@@ -2131,6 +2126,9 @@ static int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
 	*ms_ret = ms;
 	return 0;
 }
+
+/* further lowcomms enhancements or alternate implementations may make
+   the return value from this function useful at some point */
 
 static int send_message(struct dlm_mhandle *mh, struct dlm_message *ms)
 {
@@ -3298,7 +3296,7 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 	return error;
 }
 
-static int purge_queue(struct dlm_rsb *r, struct list_head *queue)
+static void purge_queue(struct dlm_rsb *r, struct list_head *queue)
 {
 	struct dlm_ls *ls = r->res_ls;
 	struct dlm_lkb *lkb, *safe;
@@ -3314,7 +3312,6 @@ static int purge_queue(struct dlm_rsb *r, struct list_head *queue)
 				log_error(ls, "purged lkb not released");
 		}
 	}
-	return 0;
 }
 
 /*
