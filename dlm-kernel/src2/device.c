@@ -34,7 +34,6 @@
 #include <linux/signal.h>
 #include <linux/spinlock.h>
 #include <linux/idr.h>
-#include <asm/ioctls.h>
 
 #include "dlm.h"
 #include "dlm_device.h"
@@ -611,40 +610,6 @@ static int dlm_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
-/*
- * ioctls to create/remove lockspaces, and check how many
- * outstanding ASTs there are against a particular LS.
- */
-static int dlm_ioctl(struct inode *inode, struct file *file,
-		     uint command, ulong u)
-{
-	struct file_info *fi = file->private_data;
-	int status = -EINVAL;
-	int count;
-	struct list_head *tmp_list;
-
-	switch (command) {
-
-		/* Are there any ASTs for us to read?
-		 * Warning, this returns the number of messages (ASTs)
-		 * in the queue, NOT the number of bytes to read
-		 */
-	case FIONREAD:
-		count = 0;
-		spin_lock(&fi->fi_ast_lock);
-		list_for_each(tmp_list, &fi->fi_ast_list)
-			count++;
-		spin_unlock(&fi->fi_ast_lock);
-		status = put_user(count, (int *)u);
-		break;
-
-	default:
-		return -ENOTTY;
-	}
-
-	return status;
-}
-
 static int do_user_create_lockspace(struct file_info *fi, uint8_t cmd,
 				    struct dlm_lspace_params *kparams)
 {
@@ -1102,7 +1067,6 @@ void dlm_device_free_devices()
 static struct file_operations _dlm_fops = {
       .open    = dlm_open,
       .release = dlm_close,
-      .ioctl   = dlm_ioctl,
       .read    = dlm_read,
       .write   = dlm_write,
       .poll    = dlm_poll,
