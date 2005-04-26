@@ -24,7 +24,8 @@
 #include <errno.h>
 
 #define HELPER_PROGRAM
-#include <linux/gfs_debug_const.h>
+#include "gfs_debug_const.h"
+#include "gfs2_debug_const.h"
 
 #include "kdbl.h"
 
@@ -44,10 +45,10 @@ trace_print(int argc, char *argv[])
 	if (argc != 3)
 		die("Usage: kdbl_tool trprint <program>\n");
 
-	if (FALSE) {
-		/* Do nothing */
-	} else if (strcmp(argv[2], "gfs") == 0)
+	if (strcmp(argv[2], "gfs") == 0)
 		df = gfs_debug_flags;
+	else if (strcmp(argv[2], "gfs2") == 0)
+		df = gfs2_debug_flags;
 	else
 		die("unknown program %s\n", argv[2]);
 
@@ -87,6 +88,9 @@ trace_change(int argc, char *argv[])
 	if (strcmp(argv[2], "gfs") == 0) {
 		df = gfs_debug_flags;
 		version = GFS_DEBUG_VERSION;
+	} else if (strcmp(argv[2], "gfs2") == 0) {
+		df = gfs2_debug_flags;
+		version = GFS2_DEBUG_VERSION;
 	} else
 		die("unknown program %s\n", argv[2]);
 
@@ -240,6 +244,10 @@ profile_dump(int argc, char *argv[])
 		df = gfs_debug_flags;
 		version = GFS_DEBUG_VERSION;
 		flags = GFS_DEBUG_FLAGS;
+	} else if (strcmp(argv[2], "gfs2") == 0) {
+		df = gfs2_debug_flags;
+		version = GFS2_DEBUG_VERSION;
+		flags = GFS2_DEBUG_FLAGS;
 	} else
 		die("unknown program %s\n", argv[2]);
 

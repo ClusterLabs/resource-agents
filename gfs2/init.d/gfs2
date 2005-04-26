@@ -1,0 +1,98 @@
+#!/bin/bash
+#
+# 
+#
+# chkconfig: 345 26 74
+# description: mount/unmount gfs2 filesystems configured in /etc/fstab
+#
+#	       
+### BEGIN INIT INFO
+# Provides: 
+### END INIT INFO
+
+. /etc/init.d/functions
+[ -f /etc/sysconfig/cluster ] && . /etc/sysconfig/cluster
+
+#
+# This script's behavior is modeled closely after the netfs script.  
+#
+GFS2FSTAB=$(LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $4 !~ /noauto/ { print $2 }' /etc/fstab)
+GFS2MTAB=$(LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" { print $2 }' /proc/mounts)
+
+# See how we were called.
+case "$1" in
+  start)
+        if [ -n "$GFS2FSTAB" ] 
+	then
+		#load_module lock_harness MODULE_LOCK_HARNESS
+		#load_module crc32        MODULE_CRC32
+		#load_module lock_gulm    MODULE_LOCK_GULM
+		#load_module gfs2          MODULE_GFS2
+
+		action $"Mounting GFS2 filesystems: " mount -a -t gfs2
+	fi
+	touch /var/lock/subsys/gfs2
+	;;
+
+  stop)
+  	if [ -n "$GFS2MTAB" ] 
+	then
+		sig=
+		retry=6
+		remaining=`LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" {print $2}' /proc/mounts`
+		while [ -n "$remaining" -a "$retry" -gt 0 ]
+		do
+			action $"Unmounting GFS2 filesystems: " umount -a -t gfs2
+			
+			if [ $retry -eq 0 ] 
+			then
+				action $"Unmounting GFS2 filesystems (lazy): " umount -l -a -t gfs2
+				break
+			fi
+
+			sleep 2
+			remaining=`LC_ALL=C awk '!/^#/ && $3 ~ /^gfs2/ && $2 != "/" {print $2}' /proc/mounts`
+			[ -z "$remaining" ] && break
+			/sbin/fuser -k -m $sig $remaining >/dev/null
+			sleep 10
+			retry=$(($retry - 1))
+			sig=-9
+		done
+	fi
+
+	modprobe -r gfs2
+	modprobe -r lock_gulm
+	modprobe -r lock_dlm
+	rm -f /var/lock/subsys/gfs2
+	;;
+
+  status)
+	if [ -f /proc/mounts ]
+	then
+	        [ -n "$GFS2FSTAB" ] && {
+		     echo $"Configured GFS2 mountpoints: "
+		     for fs in $GFS2FSTAB; do echo $fs ; done
+		}
+		[ -n "$GFS2MTAB" ] && {
+                      echo $"Active GFS2 mountpoints: "
+		      for fs in $GFS2MTAB; do echo $fs ; done
+		}
+	else
+		echo "/proc filesystem unavailable"
+	fi
+	;;
+
+  restart)
+	$0 stop
+	$0 start
+	;;
+
+  reload)
+        $0 start
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|restart|reload|status}"
+	exit 1
+esac
+
+exit 0

@@ -1,0 +1,369 @@
+/******************************************************************************
+*******************************************************************************
+**
+**  Copyright (C) Sistina Software, Inc.  2003  All rights reserved.
+**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**
+**  This copyrighted material is made available to anyone wishing to use,
+**  modify, copy, or redistribute it subject to the terms and conditions
+**  of the GNU General Public License v.2.
+**
+*******************************************************************************
+******************************************************************************/
+
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/smp_lock.h>
+#include <linux/spinlock.h>
+#include <asm/semaphore.h>
+#include <linux/completion.h>
+#include <linux/buffer_head.h>
+#include <linux/posix_acl.h>
+#include <linux/posix_acl_xattr.h>
+#include <linux/xattr_acl.h>
+
+#include "gfs2.h"
+#include "acl.h"
+#include "dio.h"
+#include "eaops.h"
+#include "eattr.h"
+#include "inode.h"
+#include "trans.h"
+
+#define ACL_ACCESS (1)
+#define ACL_DEFAULT (0)
+
+/**
+ * gfs2_acl_validate_set -
+ * @ip:
+ * @access:
+ * @er:
+ * @mode:
+ * @remove:
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
+		     struct gfs2_ea_request *er,
+		     mode_t *mode, int *remove)
+{
+	ENTER(G2FN_ACL_VALIDATE_SET)
+	struct posix_acl *acl;
+	int error;
+
+	error = gfs2_acl_validate_remove(ip, access);
+	if (error)
+		RETURN(G2FN_ACL_VALIDATE_SET, error);
+
+	if (!er->er_data)
+		RETURN(G2FN_ACL_VALIDATE_SET, -EINVAL);
+
+	acl = posix_acl_from_xattr(er->er_data, er->er_data_len);
+	if (IS_ERR(acl))
+		RETURN(G2FN_ACL_VALIDATE_SET, PTR_ERR(acl));
+	gfs2_memory_add(acl);
+
+	error = posix_acl_valid(acl);
+	if (error)
+		goto out;
+
+	if (access) {
+		error = posix_acl_equiv_mode(acl, mode);
+		if (error < 0)
+			goto out;
+		if (!error)
+			*remove = TRUE;
+		else
+			error = 0;
+	}
+
+ out:
+	gfs2_memory_rm(acl);
+	posix_acl_release(acl);
+
+	RETURN(G2FN_ACL_VALIDATE_SET, error);
+}
+
+/**
+ * gfs2_acl_validate_remove -
+ * @ip:
+ * @access:
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
+{
+	ENTER(G2FN_ACL_VALIDATE_REMOVE)
+
+	if (!ip->i_sbd->sd_args.ar_posix_acl)
+		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+	if (current->fsuid != ip->i_di.di_uid && !capable(CAP_FOWNER))
+		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EPERM);
+	if (S_ISLNK(ip->i_di.di_mode))
+		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+	if (!access && !S_ISDIR(ip->i_di.di_mode))
+		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EACCES);
+
+	RETURN(G2FN_ACL_VALIDATE_REMOVE, 0);
+}
+
+/**
+ * acl_get -
+ * @ip:
+ * @access:
+ * @acl:
+ * @el:
+ * @data:
+ * @len:
+ *
+ * Returns: errno
+ */
+
+int
+acl_get(struct gfs2_inode *ip, int access,
+	struct posix_acl **acl,
+	struct gfs2_ea_location *el,
+	char **data, unsigned int *len)
+{
+	ENTER(G2FN_ACL_GET)
+	struct gfs2_ea_request er;
+	struct gfs2_ea_location el_this;
+	int error;
+
+	if (!ip->i_di.di_eattr)
+		RETURN(G2FN_ACL_GET, 0);
+
+	memset(&er, 0, sizeof(struct gfs2_ea_request));
+	if (access) {
+		er.er_name = GFS2_POSIX_ACL_ACCESS;
+		er.er_name_len = GFS2_POSIX_ACL_ACCESS_LEN;
+	} else {
+		er.er_name = GFS2_POSIX_ACL_DEFAULT;
+		er.er_name_len = GFS2_POSIX_ACL_DEFAULT_LEN;
+	}
+	er.er_type = GFS2_EATYPE_SYS;
+
+	if (!el)
+		el = &el_this;
+
+	error = gfs2_ea_find(ip, &er, el);
+	if (error)
+		RETURN(G2FN_ACL_GET, error);
+	if (!el->el_ea)
+		RETURN(G2FN_ACL_GET, 0);
+	if (!GFS2_EA_DATA_LEN(el->el_ea))
+		goto out;
+
+	er.er_data_len = GFS2_EA_DATA_LEN(el->el_ea);
+	er.er_data = kmalloc(er.er_data_len, GFP_KERNEL);
+	error = -ENOMEM;
+	if (!er.er_data)
+		goto out;
+
+	error = gfs2_ea_get_copy(ip, el, er.er_data);
+	if (error)
+		goto out_kfree;
+
+	if (acl) {
+		*acl = posix_acl_from_xattr(er.er_data, er.er_data_len);
+		if (IS_ERR(*acl))
+			error = PTR_ERR(*acl);
+		else
+			gfs2_memory_add(*acl);
+	}
+
+ out_kfree:
+	if (error || !data)
+		kfree(er.er_data);
+	else {
+		*data = er.er_data;
+		*len = er.er_data_len;
+	}
+
+ out:
+	if (error || el == &el_this)
+		brelse(el->el_bh);
+
+	RETURN(G2FN_ACL_GET, error);
+}
+
+/**
+ * gfs2_check_acl - Check an ACL for to see if we're allowed to do something
+ * @inode: the file we want to do something to
+ * @mask: what we want to do
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_check_acl(struct inode *inode, int mask)
+{
+	ENTER(G2FN_CHECK_ACL)
+	struct posix_acl *acl = NULL;
+	int error;
+
+	error = acl_get(vn2ip(inode), ACL_ACCESS, &acl, NULL, NULL, NULL);
+	if (error)
+		RETURN(G2FN_CHECK_ACL, error);
+
+	if (acl) {
+		error = posix_acl_permission(inode, acl, mask);
+		gfs2_memory_rm(acl);
+		posix_acl_release(acl);
+		RETURN(G2FN_CHECK_ACL, error);
+	}
+      
+	RETURN(G2FN_CHECK_ACL, -EAGAIN);
+}
+
+static int
+munge_mode(struct gfs2_inode *ip, mode_t mode)
+{
+	ENTER(G2FN_MUNGE_MODE)
+       	struct gfs2_sbd *sdp = ip->i_sbd;
+       	struct buffer_head *dibh;
+	int error;
+
+	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
+	if (error)
+		RETURN(G2FN_MUNGE_MODE, error);
+
+	error = gfs2_get_inode_buffer(ip, &dibh);
+	if (!error) {
+		gfs2_assert_withdraw(sdp, (ip->i_di.di_mode & S_IFMT) == (mode & S_IFMT));
+		ip->i_di.di_mode = mode;
+		gfs2_trans_add_bh(ip->i_gl, dibh);
+		gfs2_dinode_out(&ip->i_di, dibh->b_data);
+		brelse(dibh);
+	}
+
+	gfs2_trans_end(sdp);
+
+	RETURN(G2FN_MUNGE_MODE, 0);
+}
+
+int 
+gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
+{
+	ENTER(G2FN_ACL_CREATE)
+       	struct gfs2_sbd *sdp = dip->i_sbd;
+	struct posix_acl *acl = NULL;
+	struct gfs2_ea_request er;
+	mode_t mode = ip->i_di.di_mode;
+	int error;
+
+	if (!sdp->sd_args.ar_posix_acl)
+		RETURN(G2FN_ACL_CREATE, 0);
+	if (S_ISLNK(ip->i_di.di_mode))
+		RETURN(G2FN_ACL_CREATE, 0);
+
+	memset(&er, 0, sizeof(struct gfs2_ea_request));
+	er.er_type = GFS2_EATYPE_SYS;
+
+	error = acl_get(dip, ACL_DEFAULT, &acl, NULL,
+			&er.er_data, &er.er_data_len);
+	if (error)
+		RETURN(G2FN_ACL_CREATE, error);
+	if (!acl) {
+		mode &= ~current->fs->umask;
+		if (mode != ip->i_di.di_mode)
+			error = munge_mode(ip, mode);
+		RETURN(G2FN_ACL_CREATE, error);
+	}
+
+	{
+		struct posix_acl *clone = posix_acl_clone(acl, GFP_KERNEL);
+		error = -ENOMEM;
+		if (!clone)
+			goto out;
+		gfs2_memory_add(clone);
+		gfs2_memory_rm(acl);
+		posix_acl_release(acl);
+		acl = clone;
+	}
+
+	if (S_ISDIR(ip->i_di.di_mode)) {
+		er.er_name = GFS2_POSIX_ACL_DEFAULT;
+		er.er_name_len = GFS2_POSIX_ACL_DEFAULT_LEN;
+		error = gfs2_system_eaops.eo_set(ip, &er);
+		if (error)
+			goto out;
+	}
+
+	error = posix_acl_create_masq(acl, &mode);
+	if (error < 0)
+		goto out;
+	if (error > 0) {
+		er.er_name = GFS2_POSIX_ACL_ACCESS;
+		er.er_name_len = GFS2_POSIX_ACL_ACCESS_LEN;
+		posix_acl_to_xattr(acl, er.er_data, er.er_data_len);
+		er.er_mode = mode;
+		er.er_flags = GFS2_ERF_MODE;
+		error = gfs2_system_eaops.eo_set(ip, &er);
+		if (error)
+			goto out;
+	} else
+		munge_mode(ip, mode);
+
+ out:
+	gfs2_memory_rm(acl);
+	posix_acl_release(acl);
+	kfree(er.er_data);
+
+       	RETURN(G2FN_ACL_CREATE, error);
+}
+
+/**
+ * gfs2_acl_chmod -
+ * @ip:
+ * @attr:
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
+{
+	ENTER(G2FN_ACL_CHMOD)
+	struct posix_acl *acl = NULL;
+	struct gfs2_ea_location el;
+	char *data;
+	unsigned int len;
+	int error;
+
+	error = acl_get(ip, ACL_ACCESS, &acl, &el, &data, &len);
+	if (error)
+		RETURN(G2FN_ACL_CHMOD, error);
+	if (!acl)
+		RETURN(G2FN_ACL_CHMOD,
+		       gfs2_setattr_simple(ip, attr));
+
+	{
+		struct posix_acl *clone = posix_acl_clone(acl, GFP_KERNEL);
+		error = -ENOMEM;
+		if (!clone)
+			goto out;
+		gfs2_memory_add(clone);
+		gfs2_memory_rm(acl);
+		posix_acl_release(acl);
+		acl = clone;
+	}
+
+	error = posix_acl_chmod_masq(acl, attr->ia_mode);
+	if (!error) {
+		posix_acl_to_xattr(acl, data, len);
+		error = gfs2_ea_acl_chmod(ip, &el, attr, data);
+	}
+
+ out:
+	gfs2_memory_rm(acl);
+	posix_acl_release(acl);
+	brelse(el.el_bh);
+	kfree(data);
+
+	RETURN(G2FN_ACL_CHMOD, error);
+}

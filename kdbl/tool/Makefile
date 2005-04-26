@@ -18,12 +18,16 @@ SOURCE= main.c \
 
 CFLAGS= -Wall -O2 -D_FILE_OFFSET_BITS=64 -I/usr/src/linux/include
 
-all: ${TARGET}
+all: include ${TARGET}
 
 kdbl_tool: ${SOURCE:.c=.o}
 	gcc -o $@ ${SOURCE:.c=.o}
 
+include:
+	ln -s ../../gfs-kernel/src/gfs/gfs_debug_const.h
+	ln -s ../../gfs2-kernel/src/gfs2/gfs2_debug_const.h
+
 clean:
-	rm -f *.o ${TARGET} ondisk.c
+	rm -f *.o ${TARGET} gfs_debug_const.h gfs2_debug_const.h
 
 

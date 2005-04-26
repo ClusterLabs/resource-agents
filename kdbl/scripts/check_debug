@@ -1,0 +1,129 @@
+#!/usr/bin/perl
+
+###############################################################################
+###############################################################################
+##
+##  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
+##
+##  This copyrighted material is made available to anyone wishing to use,
+##  modify, copy, or redistribute it subject to the terms and conditions
+##  of the GNU General Public License v.2.
+##
+###############################################################################
+###############################################################################
+
+die "$0 <filenames>\n" unless (@ARGV > 1);
+
+
+foreach $file (@ARGV) {
+    open(DATAFILE, "< $file") || die;
+
+    while ($line = <DATAFILE>) {
+	if ($line =~ /^\s*DBFLAG\((\S+)\)/) {
+	    push(@func_dbflag, $1);
+	    push(@func_all, $1);
+	}
+	if ($line =~ /^\s*DO_PROF\((\S+),/ ||
+	    $line =~ /^\s*DO_PROF2\((\S+),/) {
+	    push(@func_prof, $1);
+	    push(@func_all, $1);
+	}
+	if ($line =~ /^\s*ENTER\((\S+)\)/ ||
+	    $line =~ /^\s*ENTER2\((\S+)\)/) {
+	    push(@func_enter, $1);
+	    push(@func_all, $1);
+	}
+	if ($line =~ /^\s*EXIT\((\S+)\)/ ||
+	    $line =~ /^\s*RET\((\S+)\)/ ||
+	    $line =~ /^\s*RETURN\((\S+),/) {
+	    push(@func_exit, $1);
+	    push(@func_all, $1);
+	}
+    }
+
+    close(DATAFILE);
+}
+
+exit unless (@func_all > 0);
+
+
+for ($case = 0; $case < 2; $case++) {
+    foreach $x (@func_dbtag) {
+	print "duplicate: $x\n" if (&search($x, @func_dbtag) > 1);
+	print "duplicate: $x\n" if (&search($x, @func_prof));
+	print "duplicate: $x\n" if (&search($x, @func_enter));
+    }
+    foreach $x (@func_prof) {
+	print "duplicate: $x\n" if (&search($x, @func_prof) > 1);
+	print "duplicate: $x\n" if (&search($x, @func_enter));
+	print "duplicate: $x\n" if (&search($x, @func_exit));
+    }
+    foreach $x (@func_enter) {
+	print "duplicate: $x\n" if (&search($x, @func_enter) > 1);
+	print "no exit: $x\n" unless (&search($x, @func_exit));
+    }
+    foreach $x (@func_exit) {
+	print "no enter: $x\n" unless (&search($x, @func_enter));
+    }
+}
+$case = 0;
+
+
+@x = &uniq(@func_all);
+#print join(' ', @x), "\n";
+foreach $x (@x) {
+    print "reorder: $x\n" if (&search($x, @x) > 1);
+}
+
+
+exit 0;
+
+
+sub search
+{
+    my($needle, @haystack) = @_;
+    my($x);
+    my($count);
+
+    $count = 0;
+
+    if ($case) {
+	foreach $x (@haystack) {
+	    $count++ if ($x eq $needle);
+	}
+    } else {
+	$needle =~ tr/A-Z/a-z/;
+ 	foreach $x (@haystack) {
+	    $x =~ tr/A-Z/a-z/;
+	    $count++ if ($x eq $needle);
+	}
+    }
+
+    return $count;
+}
+
+sub uniq
+{
+    my(@list) = @_;
+    my($cont);
+    my(@l, $t, $l);
+
+    for (;;) {
+	$cont = 0;
+	@l = ();
+
+	while ($t = shift(@list)) {
+	    if (!defined($l) || $l ne $t) {
+		push(@l, $t);
+	    } else {
+		$cont = 1;
+	    }
+	    $l = $t;
+	}
+
+	@list = @l;
+	last unless ($cont);
+    }
+
+    return @list;
+}

@@ -25,7 +25,8 @@ TARGET = gfs.patch
 PWD := $(shell pwd)
 
 obj-m := gfs.o
-gfs-objs := acl.o \
+gfs-objs := \
+	acl.o \
 	bits.o \
 	bmap.o \
 	daemon.o \
@@ -67,7 +68,11 @@ gfs-objs := acl.o \
 
 EXTRA_CFLAGS += -I$(obj)
 
+#EXTRA_CFLAGS += -DGFS_TRACE
+#EXTRA_CFLAGS += -DGFS_PROFILE
+
 all:
+	${top_srcdir}/../kdbl/scripts/build_debug gfs *.[ch] > gfs_debug_const.h
 	rm -f linux lm_interface.h
 	ln -s . linux
 	ln -s ${top_srcdir}/src/harness/lm_interface.h .
@@ -85,7 +90,7 @@ uninstall:
 
 clean:
 	rm -rf linux *.o .*.o.cmd .gfs.ko.cmd lm_interface.h \
-		gfs.ko gfs.mod.c .tmp_versions *~
+		gfs.ko gfs.mod.c .tmp_versions *~ gfs_debug_const.h
 
 
 patches: pre add post

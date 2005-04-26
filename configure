@@ -9,6 +9,9 @@ echo "configure dlm-kernel"
 echo "configure gfs-kernel"
 (cd gfs-kernel; ./configure $@)
 
+echo "configure gfs2-kernel"
+(cd gfs2-kernel; ./configure $@)
+
 echo "configure gnbd-kernel"
 (cd gnbd-kernel; ./configure $@)
 
@@ -32,6 +35,9 @@ echo "configure iddev"
 
 echo "configure gfs"
 (cd gfs; ./configure $@)
+
+echo "configure gfs2"
+(cd gfs2; ./configure $@)
 
 echo "configure gnbd"
 (cd gnbd; ./configure $@)

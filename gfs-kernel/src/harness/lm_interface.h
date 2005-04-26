@@ -77,6 +77,7 @@ typedef void (*lm_callback_t) (lm_fsdata_t *fsdata, unsigned int type,
 #define LM_TYPE_FLOCK          (0x06)  /* Linux file lock */
 #define LM_TYPE_PLOCK          (0x07)  /* POSIX file lock */
 #define LM_TYPE_QUOTA          (0x08)  /* User or group block usage quota */
+#define LM_TYPE_JOURNAL        (0x09)
 
 /* States passed to lock() */
 
