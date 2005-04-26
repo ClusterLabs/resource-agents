@@ -57,7 +57,7 @@
 #include "member.h"
 #include "midcomms.h"
 
-static struct sockaddr_storage * local_addr[DLM_MAX_ADDR_COUNT];
+static struct sockaddr_storage *local_addr[DLM_MAX_ADDR_COUNT];
 static int			local_nodeid;
 static int			local_weight;
 static int			local_count;
@@ -104,9 +104,9 @@ struct cbuf {
 #define CF_READ_PENDING 1
 
 struct connection {
-	struct socket *		sock;
+	struct socket          *sock;
 	unsigned long		flags;
-	struct page *		rx_page;
+	struct page            *rx_page;
 	atomic_t		waiting_requests;
 	struct cbuf		cb;
 };
@@ -115,12 +115,12 @@ struct connection {
 
 struct writequeue_entry {
 	struct list_head	list;
-	struct page *		page;
+	struct page            *page;
 	int			offset;
 	int			len;
 	int			end;
 	int			users;
-	struct nodeinfo *	ni;
+	struct nodeinfo        *ni;
 };
 
 #define CBUF_INIT(cb, size) do { (cb)->base = (cb)->len = 0; (cb)->mask = ((size)-1); } while(0)
@@ -721,7 +721,6 @@ static int receive_from_sock(void)
 	goto out_ret;
 
       out_close:
-	// TODO: What??
 	if (ret != -EAGAIN) {
 		printk(KERN_INFO "dlm: Error reading from sctp socket: %d\n",
 		       ret);
@@ -1214,8 +1213,7 @@ static int dlm_recvd(void *data)
 					count = 0;
 				}
 
-			} while (/*!atomic_dec_and_test(&sctp_con.waiting_requests) && */
-				 !kthread_should_stop() && ret >=0);
+			} while (!kthread_should_stop() && ret >=0);
 		}
 		schedule();
 	}
