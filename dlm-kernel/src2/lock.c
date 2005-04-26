@@ -3543,4 +3543,3 @@ int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 	return 0;
 }
 
-
