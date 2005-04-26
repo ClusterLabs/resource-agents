@@ -580,8 +580,8 @@ static void detach_lkb(struct dlm_lkb *lkb)
 
 static int create_lkb(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
 {
-	struct dlm_lkb *lkb;
-	uint32_t lkid;
+	struct dlm_lkb *lkb, *tmp;
+	uint32_t lkid = 0;
 	uint16_t bucket;
 
 	lkb = allocate_lkb(ls);
@@ -596,10 +596,20 @@ static int create_lkb(struct dlm_ls *ls, struct dlm_lkb **lkb_ret)
 	bucket &= (ls->ls_lkbtbl_size - 1);
 
 	write_lock(&ls->ls_lkbtbl[bucket].lock);
-	lkid = bucket | (ls->ls_lkbtbl[bucket].counter++ << 16);
-	/* FIXME: do a find to verify lkid not in use */
 
-	DLM_ASSERT(lkid,);
+	/* counter can roll over so we must verify lkid is not in use */
+
+	while (lkid == 0) {
+		lkid = bucket | (ls->ls_lkbtbl[bucket].counter++ << 16);
+
+		list_for_each_entry(tmp, &ls->ls_lkbtbl[bucket].list,
+				    lkb_idtbl_list) {
+			if (tmp->lkb_id != lkid)
+				continue;
+			lkid = 0;
+			break;
+		}
+	}
 
 	lkb->lkb_id = lkid;
 	list_add(&lkb->lkb_idtbl_list, &ls->ls_lkbtbl[bucket].list);
