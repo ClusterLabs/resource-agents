@@ -47,7 +47,7 @@ static struct semaphore user_ls_lock;
 
 /* Lock infos are stored in here indexed by lock ID */
 static DEFINE_IDR(lockinfo_idr);
-static struct rw_semaphore lockinfo_lock;
+static rwlock_t lockinfo_lock;
 
 /* Flags in li_flags */
 #define LI_FLAG_COMPLETE   1
@@ -139,9 +139,9 @@ static void release_lockinfo(struct lock_info *li)
 {
 	put_file_info(li->li_file);
 
-	down_write(&lockinfo_lock);
+	write_lock(&lockinfo_lock);
 	idr_remove(&lockinfo_idr, li->li_lksb.sb_lkid);
-	up_write(&lockinfo_lock);
+	write_unlock(&lockinfo_lock);
 
 	if (li->li_lksb.sb_lvbptr)
 		kfree(li->li_lksb.sb_lvbptr);
@@ -154,9 +154,9 @@ static struct lock_info *get_lockinfo(uint32_t lockid)
 {
 	struct lock_info *li;
 
-	down_read(&lockinfo_lock);
+	read_lock(&lockinfo_lock);
 	li = idr_find(&lockinfo_idr, lockid);
-	up_read(&lockinfo_lock);
+	read_lock(&lockinfo_lock);
 
 	return li;
 }
@@ -167,7 +167,7 @@ static int add_lockinfo(struct lock_info *li)
 	int r;
 	int ret = -EINVAL;
 
-	down_write(&lockinfo_lock);
+	write_lock(&lockinfo_lock);
 
 	if (idr_find(&lockinfo_idr, li->li_lksb.sb_lkid))
 		goto out_up;
@@ -190,7 +190,7 @@ static int add_lockinfo(struct lock_info *li)
 	ret = 0;
 
  out_up:
-	up_write(&lockinfo_lock);
+	write_unlock(&lockinfo_lock);
 
 	return ret;
 }
@@ -1089,7 +1089,7 @@ int __init dlm_device_init(void)
 
 	INIT_LIST_HEAD(&user_ls_list);
 	init_MUTEX(&user_ls_lock);
-	init_rwsem(&lockinfo_lock);
+	rwlock_init(&lockinfo_lock);
 
 	ctl_device.name = "dlm-control";
 	ctl_device.fops = &_dlm_ctl_fops;
