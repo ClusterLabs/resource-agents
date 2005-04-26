@@ -29,12 +29,12 @@ static int check_version(unsigned int cmd,
 
 	if ((DLM_NODE_VERSION_MAJOR != version[0]) ||
 	    (DLM_NODE_VERSION_MINOR < version[1])) {
-		printk("dlm node_ioctl: interface mismatch: "
-		       "kernel(%u.%u.%u), user(%u.%u.%u), cmd(%d)\n",
-		       DLM_NODE_VERSION_MAJOR,
-		       DLM_NODE_VERSION_MINOR,
-		       DLM_NODE_VERSION_PATCH,
-		       version[0], version[1], version[2], cmd);
+		log_print("node_ioctl: interface mismatch: "
+		          "kernel(%u.%u.%u), user(%u.%u.%u), cmd(%d)",
+		          DLM_NODE_VERSION_MAJOR,
+		          DLM_NODE_VERSION_MINOR,
+		          DLM_NODE_VERSION_PATCH,
+		          version[0], version[1], version[2], cmd);
 		error = -EINVAL;
 	}
 
@@ -64,8 +64,8 @@ static int node_ioctl(struct inode *inode, struct file *file,
 	cmd = _IOC_NR(command);
 
 	if (type != DLM_IOCTL) {
-		printk("dlm node_ioctl: bad ioctl 0x%x 0x%x 0x%x\n",
-		       command, type, cmd);
+		log_print("node_ioctl: bad ioctl 0x%x 0x%x 0x%x",
+		          command, type, cmd);
 		return -ENOTTY;
 	}
 
@@ -113,13 +113,13 @@ int dlm_node_ioctl_init(void)
 
 	error = misc_register(&node_misc);
 	if (error)
-		printk("dlm node_ioctl: misc_register failed %d\n", error);
+		log_print("node_ioctl: misc_register failed %d", error);
 	return error;
 }
 
 void dlm_node_ioctl_exit(void)
 {
 	if (misc_deregister(&node_misc) < 0)
-		printk("dlm node_ioctl: misc_deregister failed\n");
+		log_print("node_ioctl: misc_deregister failed");
 }
 

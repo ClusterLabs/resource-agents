@@ -25,8 +25,8 @@
  * http://www.isthe.com/chongo/tech/comp/fnv/
  */
 
-static inline uint32_t
-hash_more_internal(const void *data, unsigned int len, uint32_t hash)
+static inline uint32_t hash_more_internal(const void *data, unsigned int len,
+					  uint32_t hash)
 {
 	unsigned char *p = (unsigned char *)data;
 	unsigned char *e = p + len;
@@ -80,14 +80,12 @@ void dlm_message_out(struct dlm_message *ms)
 	ms->m_sbflags		= cpu_to_le32(ms->m_sbflags);
 	ms->m_flags		= cpu_to_le32(ms->m_flags);
 	ms->m_lvbseq		= cpu_to_le32(ms->m_lvbseq);
-
 	ms->m_status		= cpu_to_le32(ms->m_status);
 	ms->m_grmode		= cpu_to_le32(ms->m_grmode);
 	ms->m_rqmode		= cpu_to_le32(ms->m_rqmode);
 	ms->m_bastmode		= cpu_to_le32(ms->m_bastmode);
 	ms->m_asts		= cpu_to_le32(ms->m_asts);
 	ms->m_result		= cpu_to_le32(ms->m_result);
-
 	ms->m_range[0]		= cpu_to_le64(ms->m_range[0]);
 	ms->m_range[1]		= cpu_to_le64(ms->m_range[1]);
 }
@@ -109,14 +107,12 @@ void dlm_message_in(struct dlm_message *ms)
 	ms->m_sbflags		= le32_to_cpu(ms->m_sbflags);
 	ms->m_flags		= le32_to_cpu(ms->m_flags);
 	ms->m_lvbseq		= le32_to_cpu(ms->m_lvbseq);
-
 	ms->m_status		= le32_to_cpu(ms->m_status);
 	ms->m_grmode		= le32_to_cpu(ms->m_grmode);
 	ms->m_rqmode		= le32_to_cpu(ms->m_rqmode);
 	ms->m_bastmode		= le32_to_cpu(ms->m_bastmode);
 	ms->m_asts		= le32_to_cpu(ms->m_asts);
 	ms->m_result		= le32_to_cpu(ms->m_result);
-
 	ms->m_range[0]		= le64_to_cpu(ms->m_range[0]);
 	ms->m_range[1]		= le64_to_cpu(ms->m_range[1]);
 }

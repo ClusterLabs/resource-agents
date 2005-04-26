@@ -775,7 +775,7 @@ static void add_to_waiters(struct dlm_lkb *lkb, int mstype)
 
 	down(&ls->ls_waiters_sem);
 	if (lkb->lkb_wait_type) {
-		printk("add_to_waiters error %d", lkb->lkb_wait_type);
+		log_print("add_to_waiters error %d", lkb->lkb_wait_type);
 		goto out;
 	}
 	lkb->lkb_wait_type = mstype;
@@ -790,7 +790,7 @@ static int _remove_from_waiters(struct dlm_lkb *lkb)
 	int error = 0;
 
 	if (!lkb->lkb_wait_type) {
-		printk("remove_from_waiters error");
+		log_print("remove_from_waiters error");
 		error = -EINVAL;
 		goto out;
 	}
