@@ -50,8 +50,7 @@ int dlm_scand(void *data)
 	while (!kthread_should_stop()) {
 		list_for_each_entry(ls, &lslist, ls_list)
 			dlm_scan_rsbs(ls);
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(DLM_SCAN_SECS * HZ);
+		ssleep(DLM_SCAN_SECS);
 	}
 	return 0;
 }
@@ -136,8 +135,7 @@ static void remove_lockspace(struct dlm_ls *ls)
 			return;
 		}
 		spin_unlock(&lslist_lock);
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(HZ);
+		ssleep(1);
 	}
 }
 

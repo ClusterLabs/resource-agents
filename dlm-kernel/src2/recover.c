@@ -52,8 +52,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 
 	for (;;) {
 		wait_event_interruptible_timeout(ls->ls_wait_general,
-					testfn(ls) ||
-					test_bit(LSFL_LS_STOP, &ls->ls_flags),
+					testfn(ls) || dlm_recovery_stopped(ls),
 					(dlm_config.recover_timer * HZ));
 		if (testfn(ls))
 			break;
@@ -91,10 +90,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 
 			if (rc->rc_result & wait_status)
 				break;
-			else {
-				set_current_state(TASK_INTERRUPTIBLE);
-				schedule_timeout(HZ >> 1);
-			}
+			msleep(500);
 		}
 	}
  out:
@@ -117,10 +113,7 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 
 		if (rc->rc_result & wait_status)
 			break;
-		else {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(HZ >> 1);
-		}
+		msleep(500);
 	}
  out:
 	return error;
