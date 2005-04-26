@@ -283,6 +283,15 @@ display_gfs2(int extended)
 
 			break;
 
+		case GFS2_METATYPE_IN:
+			printf("Indirect Block:\n\n");
+			gfs2_meta_header_print(&mh);
+
+			if (extended)
+				printf("\nNo Extended data\n");
+
+			break;
+
 		case GFS2_METATYPE_LF:
 			printf("Leaf:\n\n");
 			gfs2_leaf_in(&lf, buf);
@@ -290,15 +299,6 @@ display_gfs2(int extended)
 
 			if (extended)
 				do_leaf_extended(buf);
-
-			break;
-
-		case GFS2_METATYPE_IN:
-			printf("Indirect Block:\n\n");
-			gfs2_meta_header_print(&mh);
-
-			if (extended)
-				do_indirect_extended(buf);
 
 			break;
 
@@ -331,6 +331,15 @@ display_gfs2(int extended)
 
 			break;
 
+		case GFS2_METATYPE_LB:
+			printf("Generic Log Block:\n\n");
+			gfs2_meta_header_print(&mh);
+
+			if (extended)
+				printf("\nNo Extended data\n");
+
+			break;
+
 		case GFS2_METATYPE_EA:
 			printf("Eattr Block:\n\n");
 			gfs2_meta_header_print(&mh);
@@ -342,6 +351,24 @@ display_gfs2(int extended)
 
 		case GFS2_METATYPE_ED:
 			printf("Eattr Data Block:\n\n");
+			gfs2_meta_header_print(&mh);
+
+			if (extended)
+				printf("\nNo Extended data\n");
+
+			break;
+
+		case GFS2_METATYPE_UL:
+			printf("Unlinked Tags:\n\n");
+			gfs2_meta_header_print(&mh);
+
+			if (extended)
+				printf("\nNo Extended data\n");
+
+			break;
+
+		case GFS2_METATYPE_QC:
+			printf("Quota Changes:\n\n");
 			gfs2_meta_header_print(&mh);
 
 			if (extended)

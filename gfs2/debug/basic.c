@@ -429,8 +429,32 @@ identify_block(void)
 		}
 		break;
 
+	case GFS2_METATYPE_LB:
+		printf("Generic Log Block\n");
+		if (verbose)
+			gfs2_meta_header_print(&mh);
+		break;
+
 	case GFS2_METATYPE_EA:
 		printf("Extended Attribute\n");
+		if (verbose)
+			gfs2_meta_header_print(&mh);
+		break;
+
+	case GFS2_METATYPE_ED:
+		printf("Extended Attribute Data\n");
+		if (verbose)
+			gfs2_meta_header_print(&mh);
+		break;
+
+	case GFS2_METATYPE_UL:
+		printf("Unlinked Tags\n");
+		if (verbose)
+			gfs2_meta_header_print(&mh);
+		break;
+
+	case GFS2_METATYPE_QC:
+		printf("Quota Changes\n");
 		if (verbose)
 			gfs2_meta_header_print(&mh);
 		break;
