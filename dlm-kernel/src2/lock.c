@@ -162,8 +162,9 @@ void dlm_print_lkb(struct dlm_lkb *lkb)
 
 void dlm_print_rsb(struct dlm_rsb *r)
 {
-	printk(KERN_ERR "rsb: nodeid %d flags %lx trial %x name %s\n",
-	       r->res_nodeid, r->res_flags, r->res_trial_lkid, r->res_name);
+	printk(KERN_ERR "rsb: nodeid %d flags %lx trial %x rlc %d name %s\n",
+	       r->res_nodeid, r->res_flags, r->res_trial_lkid,
+	       r->res_recover_locks_count, r->res_name);
 }
 
 /* Threads cannot use the lockspace while it's being recovered */

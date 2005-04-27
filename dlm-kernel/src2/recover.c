@@ -427,10 +427,11 @@ static int recover_locks(struct dlm_rsb *r)
 {
 	int error = 0;
 
+	dlm_lock_rsb(r);
 	if (all_queues_empty(r))
 		goto out;
 
-	recover_list_add(r);
+	DLM_ASSERT(!r->res_recover_locks_count, dlm_print_rsb(r););
 
 	error = recover_locks_queue(r, &r->res_grantqueue);
 	if (error)
@@ -439,7 +440,13 @@ static int recover_locks(struct dlm_rsb *r)
 	if (error)
 		goto out;
 	error = recover_locks_queue(r, &r->res_waitqueue);
+	if (error)
+		goto out;
+
+	if (r->res_recover_locks_count)
+		recover_list_add(r);
  out:
+	dlm_unlock_rsb(r);
 	return error;
 }
 
@@ -461,8 +468,14 @@ int dlm_recover_locks(struct dlm_ls *ls)
 			goto out;
 		}
 
-		if (test_bit(RESFL_NEW_MASTER, &r->res_flags))
-			recover_locks(r);
+		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
+			continue;
+
+		error = recover_locks(r);
+		if (error) {
+			up_read(&ls->ls_root_sem);
+			goto out;
+		}
 	}
 	up_read(&ls->ls_root_sem);
 
