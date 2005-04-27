@@ -68,6 +68,7 @@ struct commandline
 	char *multicast_names[MAX_INTERFACES];
 	char *nodenames[MAX_INTERFACES];
         char *interfaces[MAX_INTERFACES];
+	char *override_nodename;
 	int votes;
 	int expected_votes;
 	int two_node;

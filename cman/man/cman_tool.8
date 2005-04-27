@@ -183,6 +183,15 @@ Overrides the node ID for this node. Normally, nodes are assigned a
 node id by the cluster join mechanism. If you want to ensure that
 your nodes always have the same number regardless of the order in 
 which they join the cluster then you can hard-code these IDs. 
+.TP
+.I -o <nodename>
+Override the name this node will have in the cluster. This will
+normally be the hostname or the first name specified by -n.
+Note how this differs from -n: -n tells cman_tool how to find
+the broadcast address and/or the entry in CCS. -o simply
+changes the name the node will have in the cluster and has no
+bearing on the actual name of the machine. Use this option
+will extreme caution.
 .BR
 Setting node IDs in CCS is a far better way to do this though.
 .BR

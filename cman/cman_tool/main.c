@@ -19,7 +19,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:XVwqh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:XVwqh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -54,6 +54,7 @@ static void print_usage(void)
 	printf("  -2               This is a two node cluster (-e must be 1)\n");
 	printf("  -p <port>        UDP port number for cman communications (default %d)\n", DEFAULT_PORT);
 	printf("  -n <nodename>  * The name of this node (defaults to hostname)\n");
+	printf("  -o <nodename>  * Override node name\n");
 	printf("  -N <id>          Node id (defaults to automatic)\n");
 	printf("  -X               Do not use cluster.conf values from CCS\n");
 	printf("  -w               Wait until node has joined a cluster\n");
@@ -520,6 +521,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 				    MAX_NODE_NAME_LEN);
 			comline->nodenames[i] = strdup(optarg);
 			comline->num_nodenames++;
+			break;
+
+		case 'o':
+			comline->override_nodename = strdup(optarg);
 			break;
 
 		case 'r':

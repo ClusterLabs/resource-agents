@@ -355,7 +355,10 @@ int join(commandline_t *comline)
     /* Set the node name */
     strcpy(nodename, comline->nodenames[0]);
 
-    error = cman_set_nodename(h, nodename);
+    if (comline->override_nodename)
+	    error = cman_set_nodename(h, comline->override_nodename);
+    else
+	    error = cman_set_nodename(h, nodename);
     if (error)
 	die("Unable to set cluster node name: %s", cman_error(errno));
 
