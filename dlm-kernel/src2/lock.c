@@ -1184,6 +1184,9 @@ int validate_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		rv = -EBUSY;
 		if (lkb->lkb_status != DLM_LKSTS_GRANTED)
 			goto out;
+
+		if (lkb->lkb_wait_type)
+			goto out;
 	}
 
 	lkb->lkb_exflags = args->flags;
