@@ -22,6 +22,8 @@
 #include "lowcomms.h"
 #include "member.h"
 
+static struct timer_list dlm_timer;
+
 static void recover_rsb_lvb(struct dlm_rsb *r);
 
 
@@ -43,24 +45,34 @@ int dlm_recovery_stopped(struct dlm_ls *ls)
  * could have completed the waited-on task, they should wake up ls_wait_general
  * to get an immediate response rather than waiting for the timer to detect the
  * result.  A timer wakes us up periodically while waiting to see if we should
- * abort due to a node failure.
+ * abort due to a node failure.  This should only be called by the dlm_recoverd
+ * thread.
  */
+
+static void dlm_wait_timer_fn(unsigned long data)
+{
+	struct dlm_ls *ls = (struct dlm_ls *) data;
+	mod_timer(&dlm_timer, jiffies + (dlm_config.recover_timer * HZ));
+	wake_up(&ls->ls_wait_general);
+}
 
 int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
 	int error = 0;
 
-	for (;;) {
-		wait_event_interruptible_timeout(ls->ls_wait_general,
-					testfn(ls) || dlm_recovery_stopped(ls),
-					(dlm_config.recover_timer * HZ));
-		if (testfn(ls))
-			break;
-		if (dlm_recovery_stopped(ls)) {
-			error = -1;
-			break;
-		}
-	}
+	init_timer(&dlm_timer);
+	dlm_timer.function = dlm_wait_timer_fn;
+	dlm_timer.data = (long) ls;
+	dlm_timer.expires = jiffies + (dlm_config.recover_timer * HZ);
+	add_timer(&dlm_timer);
+
+	wait_event(ls->ls_wait_general, testfn(ls) || dlm_recovery_stopped(ls));
+
+	if (timer_pending(&dlm_timer))
+		del_timer(&dlm_timer);
+
+	if (dlm_recovery_stopped(ls))
+		error = -1;
 
 	return error;
 }
