@@ -218,6 +218,19 @@ gfs2_quotad(void *data)
 	complete(&sdp->sd_thread_completion);
 
 	for (;;) {
+		/* Update the master statfs file */
+		if (time_after_eq(jiffies,
+				  sdp->sd_statfs_sync_time +
+				  gfs2_tune_get(sdp, gt_statfs_quantum) * HZ)) {
+			error = gfs2_statfs_sync(sdp);
+			if (error &&
+			    error != -EROFS &&
+			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
+				printk("GFS2: fsid=%s: quotad: (1) error = %d\n",
+				       sdp->sd_fsname, error);
+			sdp->sd_statfs_sync_time = jiffies;
+		}
+
 		/* Update quota file */
 		if (time_after_eq(jiffies,
 				  sdp->sd_quota_sync_time +
@@ -226,7 +239,7 @@ gfs2_quotad(void *data)
 			if (error &&
 			    error != -EROFS &&
 			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-				printk("GFS2: fsid=%s: quotad: error = %d\n",
+				printk("GFS2: fsid=%s: quotad: (2) error = %d\n",
 				       sdp->sd_fsname, error);
 			sdp->sd_quota_sync_time = jiffies;
 		}

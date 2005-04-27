@@ -44,14 +44,12 @@ int gfs2_lookup_in_master_dir(struct gfs2_sbd *sdp, char *filename,
 int gfs2_make_fs_rw(struct gfs2_sbd *sdp);
 int gfs2_make_fs_ro(struct gfs2_sbd *sdp);
 
-struct gfs2_statfs {
-	uint64_t sg_total;
-	uint64_t sg_free;
-	uint64_t sg_dinodes;
-};
-
-int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
-		  int interruptible);
+int gfs2_statfs_init(struct gfs2_sbd *sdp);
+void gfs2_statfs_change(struct gfs2_sbd *sdp,
+			int64_t total, int64_t free, int64_t dinodes);
+int gfs2_statfs_sync(struct gfs2_sbd *sdp);
+int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc);
+int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc);
 
 int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh);
 int gfs2_freeze_fs(struct gfs2_sbd *sdp);

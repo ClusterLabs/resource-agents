@@ -33,6 +33,7 @@
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
+#include "trans.h"
 #include "unlinked.h"
 
 /**
@@ -80,6 +81,8 @@ gfs2_tune_init(struct gfs2_tune *gt)
 	gt->gt_greedy_default = HZ / 10;
 	gt->gt_greedy_quantum = HZ / 40;
 	gt->gt_greedy_max = HZ / 4;
+	gt->gt_statfs_quantum = 30;
+	gt->gt_statfs_slow = 0;
 
 	RET(G2FN_TUNE_INIT);
 }
@@ -616,31 +619,200 @@ gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	RETURN(G2FN_MAKE_FS_RO, error);
 }
 
+int
+gfs2_statfs_init(struct gfs2_sbd *sdp)
+{
+	ENTER(G2FN_STATFS_INIT)
+	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
+	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
+	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
+	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
+	struct buffer_head *m_bh, *l_bh;
+	struct gfs2_holder gh;
+	int error;
+
+	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
+	if (error)
+		RETURN(G2FN_STATFS_INIT, error);
+	error = gfs2_get_inode_buffer(m_ip, &m_bh);
+	if (error)
+		goto out;
+	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	if (error)
+		goto out_m_bh;
+
+	spin_lock(&sdp->sd_statfs_spin);
+	gfs2_statfs_change_in(m_sc, m_bh->b_data +
+			      sizeof(struct gfs2_dinode));	
+	gfs2_statfs_change_in(l_sc, l_bh->b_data +
+			       sizeof(struct gfs2_dinode));	
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	brelse(l_bh);
+ out_m_bh:
+	brelse(m_bh);
+ out:
+	gfs2_glock_dq_uninit(&gh);
+
+	RETURN(G2FN_STATFS_INIT, 0);
+}
+
+void
+gfs2_statfs_change(struct gfs2_sbd *sdp,
+		   int64_t total, int64_t free, int64_t dinodes)
+{
+	ENTER(G2FN_STATFS_CHANGE)
+       	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
+	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
+	struct buffer_head *l_bh;
+	int error;
+
+	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	if (error)
+		RET(G2FN_STATFS_CHANGE);
+
+	down(&sdp->sd_statfs_mutex);
+	gfs2_trans_add_bh(l_ip->i_gl, l_bh);
+	up(&sdp->sd_statfs_mutex);
+
+	spin_lock(&sdp->sd_statfs_spin);
+	l_sc->sc_total += total;
+	l_sc->sc_free += free;
+	l_sc->sc_dinodes += dinodes;
+	gfs2_statfs_change_out(l_sc, l_bh->b_data +
+			       sizeof(struct gfs2_dinode));	
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	brelse(l_bh);
+
+	RET(G2FN_STATFS_CHANGE);
+}
+
+int
+gfs2_statfs_sync(struct gfs2_sbd *sdp)
+{
+	ENTER(G2FN_STATFS_SYNC)
+	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
+       	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
+	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
+	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
+	struct gfs2_holder gh;
+	struct buffer_head *m_bh, *l_bh;
+	int error;
+
+	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
+	if (error)
+		RETURN(G2FN_STATFS_SYNC, error);
+
+	error = gfs2_get_inode_buffer(m_ip, &m_bh);
+	if (error)
+		goto out;
+
+	spin_lock(&sdp->sd_statfs_spin);
+	gfs2_statfs_change_in(m_sc, m_bh->b_data +
+			      sizeof(struct gfs2_dinode));	
+	if (!l_sc->sc_total && !l_sc->sc_free && !l_sc->sc_dinodes) {
+		spin_unlock(&sdp->sd_statfs_spin);
+		goto out_bh;
+	}
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	if (error)
+		goto out_bh;
+
+	error = gfs2_trans_begin(sdp, 2 * RES_DINODE, 0);
+	if (error)
+		goto out_bh2;
+
+	down(&sdp->sd_statfs_mutex);
+	gfs2_trans_add_bh(l_ip->i_gl, l_bh);
+	up(&sdp->sd_statfs_mutex);
+
+	spin_lock(&sdp->sd_statfs_spin);
+	m_sc->sc_total += l_sc->sc_total;
+	m_sc->sc_free += l_sc->sc_free;
+	m_sc->sc_dinodes += l_sc->sc_dinodes;
+	memset(l_sc, 0, sizeof(struct gfs2_statfs_change));
+	memset(l_bh->b_data + sizeof(struct gfs2_dinode),
+	       0, sizeof(struct gfs2_statfs_change));
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	gfs2_trans_add_bh(m_ip->i_gl, m_bh);
+	gfs2_statfs_change_out(m_sc, m_bh->b_data +
+			       sizeof(struct gfs2_dinode));
+
+	gfs2_trans_end(sdp);
+
+ out_bh2:
+	brelse(l_bh);
+
+ out_bh:
+	brelse(m_bh);
+
+ out:
+	gfs2_glock_dq_uninit(&gh);
+
+	RETURN(G2FN_STATFS_SYNC, error);
+}
+
+/**
+ * gfs2_statfs_i - Do a statfs
+ * @sdp: the filesystem
+ * @sg: the sg structure
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
+{
+	ENTER(G2FN_STATFS_I)
+	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
+       	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
+
+	spin_lock(&sdp->sd_statfs_spin);
+
+	*sc = *m_sc;
+	sc->sc_total += l_sc->sc_total;
+	sc->sc_free += l_sc->sc_free;
+	sc->sc_dinodes += l_sc->sc_dinodes;
+
+	spin_unlock(&sdp->sd_statfs_spin);
+
+	if (sc->sc_free < 0)
+		sc->sc_free = 0;
+	if (sc->sc_free > sc->sc_total)
+		sc->sc_free = sc->sc_total;
+	if (sc->sc_dinodes < 0)
+		sc->sc_dinodes = 0;
+
+	RETURN(G2FN_STATFS_I, 0);
+}
+
 /**
  * statfs_fill - fill in the sg for a given RG
  * @rgd: the RG
- * @sg: the sg structure
+ * @sc: the sc structure
  *
  * Returns: 0 on success, -ESTALE if the LVB is invalid
  */
 
 static int
-statfs_fill(struct gfs2_rgrpd *rgd, struct gfs2_statfs *sg)
+statfs_slow_fill(struct gfs2_rgrpd *rgd, struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_FILL)
-
-	sg->sg_total += rgd->rd_ri.ri_data;
-	sg->sg_free += rgd->rd_rg.rg_free;
-	sg->sg_dinodes += rgd->rd_rg.rg_dinodes;
-
-	RETURN(G2FN_STATFS_FILL, 0);
+	ENTER(G2FN_STATFS_SLOW_FILL)
+       	gfs2_rgrp_verify(rgd);
+	sc->sc_total += rgd->rd_ri.ri_data;
+	sc->sc_free += rgd->rd_rg.rg_free;
+	sc->sc_dinodes += rgd->rd_rg.rg_dinodes;
+	RETURN(G2FN_STATFS_SLOW_FILL, 0);
 }
 
 /**
- * statfs_i - Stat a filesystem using asynchronous locking
+ * gfs2_statfs_slow - Stat a filesystem using asynchronous locking
  * @sdp: the filesystem
- * @sg: the sg info that will be returned
- * @interruptible: TRUE if we should look for signals.
+ * @sc: the sc info that will be returned
  *
  * Any error (other than a signal) will cause this routine to fall back
  * to the synchronous version.
@@ -650,24 +822,29 @@ statfs_fill(struct gfs2_rgrpd *rgd, struct gfs2_statfs *sg)
  * Returns: errno
  */
 
-static int
-statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
-	   int interruptible)
+int
+gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_II)
-	struct gfs2_rgrpd *rgd_next = gfs2_rgrpd_get_first(sdp);
+	ENTER(G2FN_STATFS_SLOW)
+	struct gfs2_holder ri_gh;
+	struct gfs2_rgrpd *rgd_next;
 	struct gfs2_holder *gha, *gh;
 	unsigned int slots = 64;
 	unsigned int x;
 	int done;
 	int error = 0, err;
 
-	memset(sg, 0, sizeof(struct gfs2_statfs));
-
+	memset(sc, 0, sizeof(struct gfs2_statfs_change));
 	gha = kmalloc(slots * sizeof(struct gfs2_holder), GFP_KERNEL);
 	if (!gha)
-		RETURN(G2FN_STATFS_II, -ENOMEM);
+		RETURN(G2FN_STATFS_SLOW, -ENOMEM);
 	memset(gha, 0, slots * sizeof(struct gfs2_holder));
+
+	error = gfs2_rindex_hold(sdp, &ri_gh);
+	if (error)
+		goto out;
+
+	rgd_next = gfs2_rgrpd_get_first(sdp);
 
 	for (;;) {
 		done = TRUE;
@@ -682,7 +859,7 @@ statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
 					error = err;
 				} else {
 					if (!error)
-						error = statfs_fill(get_gl2rgd(gh->gh_gl), sg);
+						error = statfs_slow_fill(get_gl2rgd(gh->gh_gl), sc);
 					gfs2_glock_dq_uninit(gh);
 				}
 			}
@@ -697,7 +874,7 @@ statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
 				done = FALSE;
 			}
 
-			if (interruptible && signal_pending(current))
+			if (signal_pending(current))
 				error = -ERESTARTSYS;
 		}
 
@@ -707,36 +884,12 @@ statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg,
 		yield();
 	}
 
-	kfree(gha);
-
-	RETURN(G2FN_STATFS_II, error);
-}
-
-/**
- * gfs2_statfs_i - Do a statfs
- * @sdp: the filesystem
- * @sg: the sg structure
- * @interruptible:  Stop if there is a signal pending
- *
- * Returns: errno
- */
-
-int
-gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs *sg, int interruptible)
-{
-	ENTER(G2FN_STATFS_I)
-	struct gfs2_holder ri_gh;
-	int error;
-
-	error = gfs2_rindex_hold(sdp, &ri_gh);
-	if (error)
-		RETURN(G2FN_STATFS_I, error);
-
-	error = statfs_i(sdp, sg, interruptible);
-
 	gfs2_glock_dq_uninit(&ri_gh);
 
-	RETURN(G2FN_STATFS_I, error);
+ out:
+	kfree(gha);
+
+	RETURN(G2FN_STATFS_SLOW, error);
 }
 
 /**

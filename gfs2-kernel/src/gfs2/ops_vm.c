@@ -133,8 +133,9 @@ alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 		goto out_gunlock_q;
 
 	error = gfs2_trans_begin(sdp,
-				al->al_rgd->rd_ri.ri_length +
-				ind_blocks + RES_DINODE + RES_QUOTA, 0);
+				 al->al_rgd->rd_ri.ri_length +
+				 ind_blocks + RES_DINODE +
+				 RES_STATFS + RES_QUOTA, 0);
 	if (error)
 		goto out_ipres;
 

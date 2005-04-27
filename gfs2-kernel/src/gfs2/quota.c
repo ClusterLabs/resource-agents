@@ -621,8 +621,8 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 	gfs2_sort(qda, num_qd, sizeof(struct gfs2_quota_data *), sort_qd);
 	for (qx = 0; qx < num_qd; qx++) {
 		error = gfs2_glock_nq_init(qda[qx]->qd_gl,
-					  LM_ST_EXCLUSIVE,
-					  GL_NOCACHE, &ghs[qx]);
+					   LM_ST_EXCLUSIVE,
+					   GL_NOCACHE, &ghs[qx]);
 		if (error)
 			goto out;
 	}
@@ -636,8 +636,8 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 
 		offset = qd2offset(qda[x]);
 		error = gfs2_write_alloc_required(ip, offset,
-						 sizeof(struct gfs2_quota),
-						 &alloc_required);
+						  sizeof(struct gfs2_quota),
+						  &alloc_required);
 		if (error)
 			goto out_gunlock;
 		if (alloc_required)
@@ -654,16 +654,17 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 			goto out_alloc;
 
 		error = gfs2_trans_begin(sdp,
-					al->al_rgd->rd_ri.ri_length +
-					num_qd * data_blocks +
-					nalloc * ind_blocks +
-					RES_DINODE + num_qd, 0);
+					 al->al_rgd->rd_ri.ri_length +
+					 num_qd * data_blocks +
+					 nalloc * ind_blocks +
+					 RES_DINODE + num_qd +
+					 RES_STATFS, 0);
 		if (error)
 			goto out_ipres;
 	} else {
 		error = gfs2_trans_begin(sdp,
-					num_qd * data_blocks +
-					RES_DINODE + num_qd, 0);
+					 num_qd * data_blocks +
+					 RES_DINODE + num_qd, 0);
 		if (error)
 			goto out_gunlock;
 	}
@@ -680,7 +681,7 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 		memset(buf, 0, sizeof(struct gfs2_quota));
 
 		error = gfs2_internal_read(ip, buf, offset,
-					  sizeof(struct gfs2_quota));
+					   sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto out_end_trans;
 
@@ -689,7 +690,7 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 		gfs2_quota_out(&q, buf);
 
 		error = gfs2_internal_write(ip, buf, offset,
-					   sizeof(struct gfs2_quota));
+					    sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto out_end_trans;
 		else if (error != sizeof(struct gfs2_quota)) {

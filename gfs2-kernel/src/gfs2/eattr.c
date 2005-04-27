@@ -343,7 +343,8 @@ ea_dealloc_unstuffed(struct gfs2_inode *ip,
 		RETURN(G2FN_EA_DEALLOC_UNSTUFFED, error);
 
 	error = gfs2_trans_begin(sdp, rgd->rd_ri.ri_length +
-				RES_DINODE + RES_EATTR + RES_QUOTA, blks);
+				 RES_DINODE + RES_EATTR + RES_STATFS +
+				 RES_QUOTA, blks);
 	if (error)
 		goto out_gunlock;
 
@@ -906,8 +907,8 @@ ea_alloc_skeleton(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 		goto out_gunlock_q;
 
 	error = gfs2_trans_begin(ip->i_sbd,
-				blks + al->al_rgd->rd_ri.ri_length +
-				RES_DINODE + RES_QUOTA, 0);
+				 blks + al->al_rgd->rd_ri.ri_length +
+				 RES_DINODE + RES_STATFS + RES_QUOTA, 0);
 	if (error)
 		goto out_ipres;
 
@@ -1771,7 +1772,8 @@ ea_dealloc_indirect(struct gfs2_inode *ip)
 		goto out_rlist_free;
 
 	error = gfs2_trans_begin(sdp, rg_blocks + RES_DINODE +
-				RES_INDIRECT + RES_QUOTA, blks);
+				 RES_INDIRECT + RES_STATFS +
+				 RES_QUOTA, blks);
 	if (error)
 		goto out_gunlock;
 
@@ -1855,7 +1857,8 @@ ea_dealloc_block(struct gfs2_inode *ip)
 	if (error)
 		RETURN(G2FN_EA_DEALLOC_BLOCK, error);
 
-	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_DINODE + RES_QUOTA, 1);
+	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_DINODE +
+				 RES_STATFS + RES_QUOTA, 1);
 	if (error)
 		goto out_gunlock;
 

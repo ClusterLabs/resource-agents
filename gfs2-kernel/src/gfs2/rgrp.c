@@ -31,16 +31,15 @@
 #include "super.h"
 #include "trans.h"
 
-#if 0
 /**
- * rgrp_verify - Verify that a resource group is consistent
+ * gfs2_rgrp_verify - Verify that a resource group is consistent
  * @sdp: the filesystem
  * @rgd: the rgrp
  *
  */
 
-static void
-rgrp_verify(struct gfs2_rgrpd *rgd)
+void
+gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_VERIFY)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -94,7 +93,6 @@ rgrp_verify(struct gfs2_rgrpd *rgd)
 
 	RET(G2FN_RGRP_VERIFY);
 }
-#endif
 
 static __inline__ int
 rgrp_contains_block(struct gfs2_rindex *ri, uint64_t block)
@@ -1237,6 +1235,7 @@ gfs2_alloc_data(struct gfs2_inode *ip)
 
 	al->al_alloced++;
 
+	gfs2_statfs_change(sdp, 0, -1, 0);
 	gfs2_quota_change(ip, +1, ip->i_di.di_uid, ip->i_di.di_gid);
 
 	spin_lock(&sdp->sd_rindex_spin);
@@ -1283,6 +1282,7 @@ gfs2_alloc_meta(struct gfs2_inode *ip)
 
 	al->al_alloced++;
 
+	gfs2_statfs_change(sdp, 0, -1, 0);
 	gfs2_quota_change(ip, +1, ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs2_trans_add_unrevoke(sdp, block);
 
@@ -1331,6 +1331,7 @@ gfs2_alloc_di(struct gfs2_inode *dip)
 	/* Update stats in in-place reservation struct */
 	al->al_alloced++;
 
+	gfs2_statfs_change(sdp, 0, -1, +1);
 	gfs2_trans_add_unrevoke(sdp, block);
 
 	spin_lock(&sdp->sd_rindex_spin);
@@ -1369,6 +1370,7 @@ gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 
 	gfs2_trans_add_rg(rgd);
 
+	gfs2_statfs_change(sdp, 0, +blen, 0);
 	gfs2_quota_change(ip, -(int64_t)blen,
 			 ip->i_di.di_uid, ip->i_di.di_gid);
 
@@ -1404,6 +1406,7 @@ gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 
 	gfs2_trans_add_rg(rgd);
 
+	gfs2_statfs_change(sdp, 0, +blen, 0);
 	gfs2_quota_change(ip, -(int64_t)blen,
 			 ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs2_buf_wipe(ip, bstart, blen);
@@ -1431,6 +1434,7 @@ gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 	gfs2_trans_add_bh(rgd->rd_gl, rgd->rd_bits[0].bi_bh);
 	gfs2_rgrp_out(&rgd->rd_rg, rgd->rd_bits[0].bi_bh->b_data);
 
+	gfs2_statfs_change(sdp, 0, +1, -1);
 	gfs2_trans_add_rg(rgd);
 
 	RET(G2FN_FREE_UNINIT_DI);

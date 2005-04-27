@@ -597,8 +597,8 @@ do_grow(struct gfs2_inode *ip, uint64_t size)
 		goto out_gunlock_q;
 
 	error = gfs2_trans_begin(sdp,
-				sdp->sd_max_height + al->al_rgd->rd_ri.ri_length +
-				RES_JDATA + RES_DINODE + RES_QUOTA, 0);
+				 sdp->sd_max_height + al->al_rgd->rd_ri.ri_length +
+				 RES_JDATA + RES_DINODE + RES_STATFS + RES_QUOTA, 0);
 	if (error)
 		goto out_ipres;
 
@@ -811,7 +811,8 @@ do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 		goto out_rlist;
 
 	error = gfs2_trans_begin(sdp, rg_blocks + RES_DINODE +
-				RES_INDIRECT + RES_QUOTA, revokes);
+				 RES_INDIRECT + RES_STATFS + RES_QUOTA,
+				 revokes);
 	if (error)
 		goto out_rg_gunlock;
 

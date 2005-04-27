@@ -26,3 +26,7 @@
 #define WANT_GFS2_CONVERSION_FUNCTIONS
 #include <linux/gfs2_ondisk.h>
 
+#ifdef GFS2_ENDIAN_BIG
+#warning Big endian is set.
+#endif
+

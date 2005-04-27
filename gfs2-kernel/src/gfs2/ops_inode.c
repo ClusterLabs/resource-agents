@@ -394,9 +394,10 @@ gfs2_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 			goto out_gunlock_q;
 
 		error = gfs2_trans_begin(sdp,
-					sdp->sd_max_dirres +
-					al->al_rgd->rd_ri.ri_length +
-					2 * RES_DINODE + RES_QUOTA, 0);
+					 sdp->sd_max_dirres +
+					 al->al_rgd->rd_ri.ri_length +
+					 2 * RES_DINODE + RES_STATFS +
+					 RES_QUOTA, 0);
 		if (error)
 			goto out_ipres;
 	} else {
@@ -963,16 +964,17 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 			goto out_gunlock_q;
 
 		error = gfs2_trans_begin(sdp,
-					sdp->sd_max_dirres +
-					al->al_rgd->rd_ri.ri_length +
-					4 * RES_DINODE + 4 * RES_LEAF +
-					RES_UNLINKED + RES_QUOTA,
-					0);
+					 sdp->sd_max_dirres +
+					 al->al_rgd->rd_ri.ri_length +
+					 4 * RES_DINODE + 4 * RES_LEAF +
+					 RES_UNLINKED + RES_STATFS +
+					 RES_QUOTA, 0);
 		if (error)
 			goto out_ipreserv;
 	} else {
-		error = gfs2_trans_begin(sdp, 4 * RES_DINODE + 5 * RES_LEAF +
-					RES_UNLINKED, 0);
+		error = gfs2_trans_begin(sdp, 4 * RES_DINODE +
+					 5 * RES_LEAF +
+					 RES_UNLINKED, 0);
 		if (error)
 			goto out_gunlock;
 	}

@@ -115,6 +115,8 @@ blk_alloc_i(struct gfs2_sbd *sdp, unsigned int type)
 	gfs2_rgrp_out(rg, bh->b_data);
 	brelse(bh);
 
+	sdp->blks_alloced++;
+
 	return ri->ri_data0 + bn;
 }
 
@@ -139,6 +141,7 @@ meta_alloc(struct gfs2_inode *ip)
 uint64_t
 dinode_alloc(struct gfs2_sbd *sdp)
 {
+	sdp->dinodes_alloced++;
 	return blk_alloc_i(sdp, DINODE);
 }
 

@@ -120,7 +120,7 @@
 #define GFS2_FORMAT_DE           (1600) /* Directory Entry */
 #define GFS2_FORMAT_QU           (1700) /* Quota */
 /* These version #s are embedded in the superblock */
-#define GFS2_FORMAT_FS           (1800) /* Filesystem (all-encompassing) */
+#define GFS2_FORMAT_FS           (1801) /* Filesystem (all-encompassing) */
 #define GFS2_FORMAT_MULTI        (1900) /* Multi-Host */
 
 /*
@@ -508,6 +508,18 @@ struct gfs2_inum_range {
 };
 
 /*
+ * Statfs change
+ * Describes an change to the pool of free and allocated
+ * blocks.
+ */
+
+struct gfs2_statfs_change {
+	int64_t sc_total;
+	int64_t sc_free;
+	int64_t sc_dinodes;
+};
+
+/*
  * Unlinked Tag
  * Describes an allocated inode that isn't linked into
  * the directory tree and might need to be deallocated.
@@ -589,6 +601,8 @@ void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf);
 void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf);
 void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf);
 void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf);
+void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf);
+void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf);
 void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf);
 void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf);
 void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf);
@@ -609,6 +623,7 @@ void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name);
 void gfs2_log_header_print(struct gfs2_log_header *lh);
 void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld);
 void gfs2_inum_range_print(struct gfs2_inum_range *ir);
+void gfs2_statfs_change_print(struct gfs2_statfs_change *sc);
 void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut);
 void gfs2_quota_change_print(struct gfs2_quota_change *qc);
 
@@ -1592,6 +1607,64 @@ gfs2_inum_range_print(struct gfs2_inum_range *ir)
 	RET(G2FN_INUM_RANGE_PRINT);
 }
 
+/**
+ * gfs2_statfs_change_in - Read in a statfs change
+ * @sc: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
+void
+gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
+{
+	ENTER(G2FN_STATFS_CHANGE_IN)
+	struct gfs2_statfs_change *str = (struct gfs2_statfs_change *)buf;
+
+	CPIN_64(sc, str, sc_total);
+	CPIN_64(sc, str, sc_free);
+	CPIN_64(sc, str, sc_dinodes);
+
+	RET(G2FN_STATFS_CHANGE_IN);
+}
+
+/**
+ * gfs2_statfs_change_out - Write out a statfs change
+ * @sc: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
+void
+gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
+{
+	ENTER(G2FN_STATFS_CHANGE_OUT)
+	struct gfs2_statfs_change *str = (struct gfs2_statfs_change *)buf;
+
+	CPOUT_64(sc, str, sc_total);
+	CPOUT_64(sc, str, sc_free);
+	CPOUT_64(sc, str, sc_dinodes);
+
+	RET(G2FN_STATFS_CHANGE_OUT);
+}
+
+/**
+ * gfs2_statfs_change_print - Print out a quota change
+ * @sc: the cpu-order buffer
+ *
+ */
+
+void
+gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
+{
+	ENTER(G2FN_STATFS_CHANGE_PRINT)
+
+	pv(sc, sc_total, "%"PRId64);
+	pv(sc, sc_free, "%"PRId64);
+	pv(sc, sc_dinodes, "%"PRId64);
+
+	RET(G2FN_STATFS_CHANGE_PRINT);
+}
+
 void
 gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 {
@@ -1631,7 +1704,7 @@ gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
 }
 
 /**
- * gfs2_quota_change_in - Read in a qu qc
+ * gfs2_quota_change_in - Read in a quota change
  * @qc: the cpu-order structure
  * @buf: the disk-order buffer
  *
@@ -1651,7 +1724,7 @@ gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
 }
 
 /**
- * gfs2_quota_change_out - Write out a qu qc
+ * gfs2_quota_change_out - Write out a quota change
  * @qc: the cpu-order structure
  * @buf: the disk-order buffer
  *
@@ -1671,7 +1744,7 @@ gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 }
 
 /**
- * gfs2_quota_change_print - Print out a qu qc
+ * gfs2_quota_change_print - Print out a quota change
  * @qc: the cpu-order buffer
  *
  */

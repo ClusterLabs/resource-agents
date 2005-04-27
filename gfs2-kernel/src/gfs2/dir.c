@@ -2156,8 +2156,8 @@ leaf_free(struct gfs2_inode *dip,
 		goto out_rlist;
 
 	error = gfs2_trans_begin(sdp,
-				rg_blocks + (DIV_RU(size, sdp->sd_jbsize) + 1) +
-				RES_DINODE + RES_QUOTA, l_blocks);
+				 rg_blocks + (DIV_RU(size, sdp->sd_jbsize) + 1) +
+				 RES_DINODE + RES_STATFS + RES_QUOTA, l_blocks);
 	if (error)
 		goto out_rg_gunlock;
 

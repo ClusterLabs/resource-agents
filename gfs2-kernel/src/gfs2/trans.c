@@ -146,8 +146,16 @@ gfs2_trans_end(struct gfs2_sbd *sdp)
 		RET(G2FN_TRANS_END);
 	}
 
-	gfs2_assert_withdraw(sdp, tr->tr_num_buf <= tr->tr_blocks);
-	gfs2_assert_withdraw(sdp, tr->tr_num_revoke <= tr->tr_revokes);
+	if (gfs2_assert_withdraw(sdp, tr->tr_num_buf <= tr->tr_blocks))
+		printk("GFS2: fsid=%s: tr_num_buf = %u, tr_blocks = %u\n"
+		       "GFS2: fsid=%s: tr_file = %s, tr_line = %u\n",
+		       sdp->sd_fsname, tr->tr_num_buf, tr->tr_blocks,
+		       sdp->sd_fsname, tr->tr_file, tr->tr_line);
+	if (gfs2_assert_withdraw(sdp, tr->tr_num_revoke <= tr->tr_revokes))
+		printk("GFS2: fsid=%s: tr_num_revoke = %u, tr_revokes = %u\n"
+		       "GFS2: fsid=%s: tr_file = %s, tr_line = %u\n",
+		       sdp->sd_fsname, tr->tr_num_revoke, tr->tr_revokes,
+		       sdp->sd_fsname, tr->tr_file, tr->tr_line);
 
 	gfs2_log_commit(sdp, tr);
 

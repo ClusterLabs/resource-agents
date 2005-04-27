@@ -14,6 +14,8 @@
 #ifndef __RGRP_DOT_H__
 #define __RGRP_DOT_H__
 
+void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd);
+
 struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk);
 struct gfs2_rgrpd *gfs2_rgrpd_get_first(struct gfs2_sbd *sdp);
 struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd);

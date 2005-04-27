@@ -494,7 +494,8 @@ dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 	if (error)
 		goto out_rindex_relse;
 
-	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED + RES_QUOTA, 1);
+	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED +
+				 RES_STATFS + RES_QUOTA, 1);
 	if (error)
 		goto out_rg_gunlock;
 
@@ -701,7 +702,8 @@ inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	if (error)
 		goto out;
 
-	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED, 0);
+	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED +
+				 RES_STATFS, 0);
 	if (error)
 		goto out_gunlock;
 
@@ -1172,7 +1174,8 @@ alloc_dinode(struct gfs2_inode *dip, struct gfs2_unlinked *ul)
 	if (error)
 		goto out;
 
-	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED, 0);
+	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED +
+				 RES_STATFS, 0);
 	if (error)
 		goto out_ipreserv;
 
@@ -1269,8 +1272,8 @@ make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
 	if (error)
 		goto out_quota;
 
-	error = gfs2_trans_begin(sdp, RES_DINODE +
-				RES_UNLINKED + RES_QUOTA, 0);
+	error = gfs2_trans_begin(sdp, RES_DINODE + RES_UNLINKED +
+				 RES_QUOTA, 0);
 	if (error)
 		goto out_quota;
 
@@ -1323,8 +1326,10 @@ link_dinode(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
 			goto fail_quota_locks;
 
 		error = gfs2_trans_begin(sdp,
-					sdp->sd_max_dirres + al->al_rgd->rd_ri.ri_length +
-					2 * RES_DINODE + RES_UNLINKED + RES_QUOTA, 0);
+					 sdp->sd_max_dirres +
+					 al->al_rgd->rd_ri.ri_length +
+					 2 * RES_DINODE + RES_UNLINKED +
+					 RES_STATFS + RES_QUOTA, 0);
 		if (error)
 			goto fail_ipreserv;
 	} else {

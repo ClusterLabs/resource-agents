@@ -276,23 +276,28 @@ gi_get_statfs(struct gfs2_inode *ip,
 		unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_STATFS)
-	struct gfs2_statfs sg;
+       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_statfs_change sc;
         int error;
 
 	if (gi->gi_argc != 1)
 		RETURN(G2FN_GI_GET_STATFS, -EINVAL);
 
-	error = gfs2_statfs_i(ip->i_sbd, &sg, TRUE);
+	if (gfs2_tune_get(sdp, gt_statfs_slow))
+		error = gfs2_statfs_slow(sdp, &sc);
+	else
+		error = gfs2_statfs_i(sdp, &sc);
+
 	if (error)
 		RETURN(G2FN_GI_GET_STATFS, error);
 
 	error = -ENOBUFS;
 
 	gfs2_printf("version 0\n");
-	gfs2_printf("bsize %u\n", ip->i_sbd->sd_sb.sb_bsize);
-        gfs2_printf("total %"PRIu64"\n", sg.sg_total);
-        gfs2_printf("free %"PRIu64"\n", sg.sg_free);
-        gfs2_printf("dinodes %"PRIu64"\n", sg.sg_dinodes);
+	gfs2_printf("bsize %u\n", sdp->sd_sb.sb_bsize);
+        gfs2_printf("total %"PRIu64"\n", sc.sc_total);
+        gfs2_printf("free %"PRIu64"\n", sc.sc_free);
+        gfs2_printf("dinodes %"PRIu64"\n", sc.sc_dinodes);
 
 	error = 0;
 
@@ -484,6 +489,8 @@ gi_get_tune(struct gfs2_inode *ip,
         gfs2_printf("greedy_default %u\n", gt->gt_greedy_default);
         gfs2_printf("greedy_quantum %u\n", gt->gt_greedy_quantum);
         gfs2_printf("greedy_max %u\n", gt->gt_greedy_max);
+        gfs2_printf("statfs_quantum %u\n", gt->gt_statfs_quantum);
+        gfs2_printf("statfs_slow %u\n", gt->gt_statfs_slow);
 
         error = 0;
 
@@ -694,6 +701,16 @@ gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 		if (sscanf(value, "%u", &x) != 1 || !x)
 			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
 		tune_set(gt_greedy_max, x);
+
+	} else if (strcmp(param, "statfs_quantum") == 0) {
+		if (sscanf(value, "%u", &x) != 1 || !x)
+			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+		tune_set(gt_statfs_quantum, x);
+
+	} else if (strcmp(param, "statfs_slow") == 0) {
+		if (sscanf(value, "%u", &x) != 1)
+			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+		tune_set(gt_statfs_slow, x);
 
 	} else
 		RETURN(G2FN_GI_SET_TUNE, -EINVAL);
@@ -1111,7 +1128,7 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
         }
 
 	error = gfs2_write_alloc_required(ip, gi->gi_offset, gi->gi_size,
-					 &alloc_required);
+					  &alloc_required);
 	if (error)
 		goto out;
 
@@ -1125,9 +1142,9 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 			goto out_alloc;
 
 		error = gfs2_trans_begin(sdp,
-					al->al_rgd->rd_ri.ri_length +
-					data_blocks + ind_blocks +
-					RES_DINODE + RES_QUOTA, 0);
+					 al->al_rgd->rd_ri.ri_length +
+					 data_blocks + ind_blocks +
+					 RES_DINODE + RES_STATFS, 0);
 		if (error)
 			goto out_relse;
 	} else {
@@ -1137,7 +1154,7 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	}
 
 	error = gfs2_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
-			   gfs2_copy_from_user);
+			    gfs2_copy_from_user);
 
 	gfs2_trans_end(sdp);
 

@@ -426,6 +426,7 @@ main(int argc, char *argv[])
 	build_jindex(&sbd);
 	build_per_node(&sbd);
 	build_inum(&sbd);
+	build_statfs(&sbd);
 	build_rindex(&sbd);
 	build_quota(&sbd);
 	build_root(&sbd);
@@ -434,8 +435,9 @@ main(int argc, char *argv[])
 
 	/* Cleanup */
 
-	inode_put(sbd.inum_inode);
 	inode_put(sbd.master_dir);
+	inode_put(sbd.inum_inode);
+	inode_put(sbd.statfs_inode);
 	bsync(&sbd);
 	fsync(sbd.fd);
 	close(sbd.fd);

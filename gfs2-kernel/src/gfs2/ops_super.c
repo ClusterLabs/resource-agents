@@ -156,6 +156,7 @@ gfs2_put_super(struct super_block *sb)
 
 	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
 		gfs2_quota_sync(sdp);
+		gfs2_statfs_sync(sdp);
 
 		error = gfs2_make_fs_ro(sdp);
 		if (error)
@@ -169,6 +170,7 @@ gfs2_put_super(struct super_block *sb)
 	gfs2_inode_put(sdp->sd_master_dir);
 	gfs2_inode_put(sdp->sd_jindex);
 	gfs2_inode_put(sdp->sd_inum_inode);
+	gfs2_inode_put(sdp->sd_statfs_inode);
 	gfs2_inode_put(sdp->sd_rindex);
 	gfs2_inode_put(sdp->sd_quota_inode);
 	gfs2_inode_put(sdp->sd_root_inode);
@@ -180,9 +182,11 @@ gfs2_put_super(struct super_block *sb)
 		gfs2_glock_dq_uninit(&sdp->sd_journal_gh);
 		gfs2_glock_dq_uninit(&sdp->sd_jinode_gh);
 		gfs2_glock_dq_uninit(&sdp->sd_ir_gh);
+		gfs2_glock_dq_uninit(&sdp->sd_sc_gh);
 		gfs2_glock_dq_uninit(&sdp->sd_ut_gh);
 		gfs2_glock_dq_uninit(&sdp->sd_qc_gh);
 		gfs2_inode_put(sdp->sd_ir_inode);
+		gfs2_inode_put(sdp->sd_sc_inode);
 		gfs2_inode_put(sdp->sd_ut_inode);
 		gfs2_inode_put(sdp->sd_qc_inode);
 	}
@@ -301,12 +305,16 @@ gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 {
 	ENTER(G2FN_STATFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
-	struct gfs2_statfs sg;
+	struct gfs2_statfs_change sc;
 	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	error = gfs2_statfs_i(sdp, &sg, TRUE);
+	if (gfs2_tune_get(sdp, gt_statfs_slow))
+		error = gfs2_statfs_slow(sdp, &sc);
+	else
+		error = gfs2_statfs_i(sdp, &sc);
+
 	if (error)
 		RETURN(G2FN_STATFS, error);
 
@@ -314,11 +322,11 @@ gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 
 	buf->f_type = GFS2_MAGIC;
 	buf->f_bsize = sdp->sd_sb.sb_bsize;
-	buf->f_blocks = sg.sg_total;
-	buf->f_bfree = sg.sg_free;
-	buf->f_bavail = sg.sg_free;
-	buf->f_files = sg.sg_dinodes + sg.sg_free;
-	buf->f_ffree = sg.sg_free;
+	buf->f_blocks = sc.sc_total;
+	buf->f_bfree = sc.sc_free;
+	buf->f_bavail = sc.sc_free;
+	buf->f_files = sc.sc_dinodes + sc.sc_free;
+	buf->f_ffree = sc.sc_free;
 	buf->f_namelen = GFS2_FNAMESIZE;
 
 	RETURN(G2FN_STATFS, 0);

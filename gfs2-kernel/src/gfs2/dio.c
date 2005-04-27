@@ -392,7 +392,8 @@ gfs2_ail_empty_gl(struct gfs2_glock *gl)
 		RET(G2FN_AIL_EMPTY_GL);
 
 	error = gfs2_trans_begin(sdp, 0, blocks);
-	gfs2_assert_withdraw(sdp, !error);  /* Hmmm... */
+	if (gfs2_assert_withdraw(sdp, !error))
+		RET(G2FN_AIL_EMPTY_GL);
 
 	gfs2_log_lock(sdp);
 	while (!list_empty(head)) {

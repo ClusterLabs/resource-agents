@@ -96,7 +96,8 @@ build_journal(struct gfs2_inode *jindex, unsigned int j)
 	uint32_t hash;
 
 	sprintf(name, "journal%u", j);
-	ip = createi(jindex, name, S_IFREG | 0600, GFS2_DIF_SYSTEM);
+	ip = createi(jindex, name, S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM);
 
 	memset(&lh, 0, sizeof(struct gfs2_log_header));
 	lh.lh_header.mh_magic = GFS2_MAGIC;
@@ -136,7 +137,8 @@ build_jindex(struct gfs2_sbd *sdp)
 	struct gfs2_inode *jindex;
 	unsigned int j;
 
-	jindex = createi(sdp->master_dir, "jindex", S_IFDIR | 0700, GFS2_DIF_SYSTEM);
+	jindex = createi(sdp->master_dir, "jindex", S_IFDIR | 0700,
+			 GFS2_DIF_SYSTEM);
 
 	for (j = 0; j < sdp->journals; j++)
 		build_journal(jindex, j);
@@ -157,11 +159,32 @@ build_inum_range(struct gfs2_inode *per_node, unsigned int j)
 	struct gfs2_inode *ip;
 
 	sprintf(name, "inum_range%u", j);
-	ip = createi(per_node, name, S_IFREG | 0600, GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+	ip = createi(per_node, name, S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
 	ip->i_di.di_size = sizeof(struct gfs2_inum_range);
 
 	if (sdp->debug) {
 		printf("\nInum Range %u:\n", j);
+		gfs2_dinode_print(&ip->i_di);
+	}
+
+	inode_put(ip);
+}
+
+static void
+build_statfs_change(struct gfs2_inode *per_node, unsigned int j)
+{
+	struct gfs2_sbd *sdp = per_node->i_sbd;
+	char name[256];
+	struct gfs2_inode *ip;
+
+	sprintf(name, "statfs_change%u", j);
+	ip = createi(per_node, name, S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+	ip->i_di.di_size = sizeof(struct gfs2_statfs_change);
+
+	if (sdp->debug) {
+		printf("\nStatFS Change %u:\n", j);
 		gfs2_dinode_print(&ip->i_di);
 	}
 
@@ -184,7 +207,8 @@ build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
 	mh.mh_format = GFS2_FORMAT_UL;
 
 	sprintf(name, "unlinked_tag%u", j);
-	ip = createi(per_node, name, S_IFREG | 0600, GFS2_DIF_SYSTEM);
+	ip = createi(per_node, name, S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM);
 
 	for (x = 0; x < blocks; x++) {
 		struct buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift);
@@ -221,7 +245,8 @@ build_quota_change(struct gfs2_inode *per_node, unsigned int j)
 	mh.mh_format = GFS2_FORMAT_QC;
 
 	sprintf(name, "quota_change%u", j);
-	ip = createi(per_node, name, S_IFREG | 0600, GFS2_DIF_SYSTEM);
+	ip = createi(per_node, name, S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM);
 
 	for (x = 0; x < blocks; x++) {
 		struct buffer_head *bh = get_file_buf(ip, ip->i_di.di_size >> sdp->bsize_shift);
@@ -248,10 +273,12 @@ build_per_node(struct gfs2_sbd *sdp)
 	struct gfs2_inode *per_node;
 	unsigned int j;
 
-	per_node = createi(sdp->master_dir, "per_node", S_IFDIR | 0700, GFS2_DIF_SYSTEM);
+	per_node = createi(sdp->master_dir, "per_node", S_IFDIR | 0700,
+			   GFS2_DIF_SYSTEM);
 
 	for (j = 0; j < sdp->journals; j++) {
 		build_inum_range(per_node, j);
+		build_statfs_change(per_node, j);
 		build_unlinked_tag(per_node, j);
 		build_quota_change(per_node, j);
 	}
@@ -269,14 +296,31 @@ build_inum(struct gfs2_sbd *sdp)
 {
 	struct gfs2_inode *ip;
 
-	ip = createi(sdp->master_dir, "inum", S_IFREG | 0600, GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+	ip = createi(sdp->master_dir, "inum", S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
 
 	if (sdp->debug) {
-		printf("\nPer Node Inum Inode:\n");
+		printf("\nInum Inode:\n");
 		gfs2_dinode_print(&ip->i_di);
 	}
 
 	sdp->inum_inode = ip;
+}
+
+void
+build_statfs(struct gfs2_sbd *sdp)
+{
+	struct gfs2_inode *ip;
+
+	ip = createi(sdp->master_dir, "statfs", S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+
+	if (sdp->debug) {
+		printf("\nStatFS Inode:\n");
+		gfs2_dinode_print(&ip->i_di);
+	}
+
+	sdp->statfs_inode = ip;
 }
 
 void
@@ -288,7 +332,8 @@ build_rindex(struct gfs2_sbd *sdp)
 	char buf[sizeof(struct gfs2_rindex)];
 	int count;
 
-	ip = createi(sdp->master_dir, "rindex", S_IFREG | 0600, GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+	ip = createi(sdp->master_dir, "rindex", S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
 	ip->i_di.di_payload_format = GFS2_FORMAT_RI;
 
 	for (head = &sdp->rglist, tmp = head->next;
@@ -319,7 +364,8 @@ build_quota(struct gfs2_sbd *sdp)
 	char buf[sizeof(struct gfs2_quota)];
 	int count;
 
-	ip = createi(sdp->master_dir, "quota", S_IFREG | 0600, GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
+	ip = createi(sdp->master_dir, "quota", S_IFREG | 0600,
+		     GFS2_DIF_SYSTEM | GFS2_DIF_JDATA);
 	ip->i_di.di_payload_format = GFS2_FORMAT_QU;
 
 	memset(&qu, 0, sizeof(struct gfs2_quota));
@@ -359,18 +405,41 @@ build_root(struct gfs2_sbd *sdp)
 void
 do_init(struct gfs2_sbd *sdp)
 {
-	struct gfs2_inode *ip = sdp->inum_inode;
-	uint64_t buf;
-	int count;
+	{
+		struct gfs2_inode *ip = sdp->inum_inode;
+		uint64_t buf;
+		int count;
 
-	buf = cpu_to_gfs2_64(sdp->next_inum);
-	count = writei(ip, &buf, 0, sizeof(uint64_t));
-	if (count != sizeof(uint64_t))
-		die("do_init (1)\n");
+		buf = cpu_to_gfs2_64(sdp->next_inum);
+		count = writei(ip, &buf, 0, sizeof(uint64_t));
+		if (count != sizeof(uint64_t))
+			die("do_init (1)\n");
 
-	if (sdp->debug)
-		printf("\nNext Inum: %"PRIu64"\n",
-		       sdp->next_inum);
+		if (sdp->debug)
+			printf("\nNext Inum: %"PRIu64"\n",
+			       sdp->next_inum);
+	}
+
+	{
+		struct gfs2_inode *ip = sdp->statfs_inode;
+		struct gfs2_statfs_change sc;
+		char buf[sizeof(struct gfs2_statfs_change)];
+		int count;
+
+		sc.sc_total = sdp->fssize;
+		sc.sc_free = sdp->fssize - sdp->blks_alloced;
+		sc.sc_dinodes = sdp->dinodes_alloced;
+
+		gfs2_statfs_change_out(&sc, buf);
+		count = writei(ip, buf, 0, sizeof(struct gfs2_statfs_change));
+		if (count != sizeof(struct gfs2_statfs_change))
+			die("do_init (2)\n");
+
+		if (sdp->debug) {
+			printf("\nStatfs:\n");
+			gfs2_statfs_change_print(&sc);
+		}
+	}
 }
 
 

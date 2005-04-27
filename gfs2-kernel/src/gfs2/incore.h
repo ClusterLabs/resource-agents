@@ -736,6 +736,8 @@ struct gfs2_tune {
 	unsigned int gt_greedy_default;
 	unsigned int gt_greedy_quantum;
 	unsigned int gt_greedy_max;
+	unsigned int gt_statfs_quantum;
+	unsigned int gt_statfs_slow;
 };
 
 /*
@@ -847,16 +849,26 @@ struct gfs2_sbd {
 	struct gfs2_inode *sd_master_dir;
 	struct gfs2_inode *sd_jindex;
 	struct gfs2_inode *sd_inum_inode;
+	struct gfs2_inode *sd_statfs_inode;
 	struct gfs2_inode *sd_ir_inode;
+	struct gfs2_inode *sd_sc_inode;
 	struct gfs2_inode *sd_ut_inode;
 	struct gfs2_inode *sd_qc_inode;
 	struct gfs2_inode *sd_rindex;	    /* Resource Index (rindex) inode */
 	struct gfs2_inode *sd_quota_inode;   /* Special on-disk quota file */
 	struct gfs2_inode *sd_root_inode;
 
-	/* Inum Stuff */
+	/* Inum stuff */
 
 	struct semaphore sd_inum_mutex;
+
+	/* StatFS stuff */
+
+	spinlock_t sd_statfs_spin;
+	struct semaphore sd_statfs_mutex;
+	struct gfs2_statfs_change sd_statfs_master;
+	struct gfs2_statfs_change sd_statfs_local;
+	unsigned long sd_statfs_sync_time;
 
 	/* Resource group stuff */
 
@@ -888,6 +900,7 @@ struct gfs2_sbd {
 	struct gfs2_holder sd_jinode_gh;
 
 	struct gfs2_holder sd_ir_gh;
+	struct gfs2_holder sd_sc_gh;
 	struct gfs2_holder sd_ut_gh;
 	struct gfs2_holder sd_qc_gh;
 

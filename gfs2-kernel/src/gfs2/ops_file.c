@@ -494,9 +494,8 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 		goto fail_gunlock_q;
 
 	error = gfs2_trans_begin(sdp,
-				al->al_rgd->rd_ri.ri_length + ind_blocks +
-				RES_DINODE + RES_QUOTA,
-				0);
+				 al->al_rgd->rd_ri.ri_length + ind_blocks +
+				 RES_DINODE + RES_STATFS + RES_QUOTA, 0);
 	if (error)
 		goto fail_ipres;
 
@@ -742,9 +741,9 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 			goto fail_gunlock_q;
 
 		error = gfs2_trans_begin(sdp,
-					al->al_rgd->rd_ri.ri_length + ind_blocks +
-					((journaled) ? data_blocks : 0) +
-					RES_DINODE + RES_QUOTA, 0);
+					 al->al_rgd->rd_ri.ri_length + ind_blocks +
+					 ((journaled) ? data_blocks : 0) +
+					 RES_DINODE + RES_STATFS + RES_QUOTA, 0);
 		if (error)
 			goto fail_ipres;
 	} else {

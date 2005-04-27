@@ -81,6 +81,8 @@ init_sbd(struct super_block *sb)
 	init_waitqueue_head(&sdp->sd_reclaim_wq);
 
 	init_MUTEX(&sdp->sd_inum_mutex);
+	spin_lock_init(&sdp->sd_statfs_spin);
+	init_MUTEX(&sdp->sd_statfs_mutex);
 
 	spin_lock_init(&sdp->sd_rindex_spin);
 	init_MUTEX(&sdp->sd_rindex_mutex);
@@ -500,6 +502,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	if (undo)
 		goto fail_dput;
 
+	/* Read in the master inode number inode */
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "inum", &sdp->sd_inum_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in inum inode: %d\n",
@@ -507,19 +510,25 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 		RETURN(G2FN_INIT_INODES, error);
 	}
 
-	/* Read in the resource index inode */
+	/* Read in the master statfs inode */
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "statfs", &sdp->sd_statfs_inode);
+	if (error) {
+		printk("GFS2: fsid=%s: can't read in statfs inode: %d\n",
+		       sdp->sd_fsname, error);
+		goto fail;
+	}
 
+	/* Read in the resource index inode */
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "rindex", &sdp->sd_rindex);
 	if (error) {
 		printk("GFS2: fsid=%s: can't get resource index inode: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail;
+		goto fail_statfs;
 	}
 	set_bit(GLF_STICKY, &sdp->sd_rindex->i_gl->gl_flags);
 	sdp->sd_rindex_vn = sdp->sd_rindex->i_gl->gl_vn - 1;
 
 	/* Read in the quota inode */
-
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "quota", &sdp->sd_quota_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't get quota file inode: %d\n",
@@ -528,7 +537,6 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode */
-
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "root", &sdp->sd_root_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in root inode: %d\n",
@@ -537,7 +545,6 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode/dentry */
-
 	inode = gfs2_iget(sdp->sd_root_inode, CREATE);
 	if (!inode) {
 		printk("GFS2: fsid=%s: can't get root inode\n", sdp->sd_fsname);
@@ -568,6 +575,9 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
  fail_rindex:
 	gfs2_clear_rgrpd(sdp);
 	gfs2_inode_put(sdp->sd_rindex);
+
+ fail_statfs:
+	gfs2_inode_put(sdp->sd_statfs_inode);
 
  fail:
 	gfs2_inode_put(sdp->sd_inum_inode);
@@ -604,12 +614,20 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 		goto fail;
 	}
 
+	sprintf(buf, "statfs_change%u", sdp->sd_jdesc->jd_jid);
+	error = gfs2_lookup_simple(pn, buf, &sdp->sd_sc_inode);
+	if (error) {
+		printk("GFS2: fsid=%s: can't find local \"sc\" file: %d\n",
+		       sdp->sd_fsname, error);
+		goto fail_ir_i;
+	}
+
 	sprintf(buf, "unlinked_tag%u", sdp->sd_jdesc->jd_jid);
 	error = gfs2_lookup_simple(pn, buf, &sdp->sd_ut_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't find local \"ut\" file: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_inum_i;
+		goto fail_sc_i;
 	}
 
 	sprintf(buf, "quota_change%u", sdp->sd_jdesc->jd_jid);
@@ -617,7 +635,7 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't find local \"qc\" file: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_unlinked_i;
+		goto fail_ut_i;
 	}
 
 	gfs2_inode_put(pn);
@@ -627,19 +645,36 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 				  LM_ST_EXCLUSIVE, 0,
 				  &sdp->sd_ir_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"inum\" file: %d\n",
+		printk("GFS2: fsid=%s: can't lock local \"ir\" file: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_qc_i;
 	}
 	sdp->sd_ir_gh.gh_owner = NULL;
 
+	error = gfs2_glock_nq_init(sdp->sd_sc_inode->i_gl,
+				  LM_ST_EXCLUSIVE, 0,
+				  &sdp->sd_sc_gh);
+	if (error) {
+		printk("GFS2: fsid=%s: can't lock local \"sc\" file: %d\n",
+		       sdp->sd_fsname, error);
+		goto fail_ir_gh;
+	}
+	sdp->sd_ir_gh.gh_owner = NULL;
+
+	error = gfs2_statfs_init(sdp);
+	if (error) {
+		printk("GFS2: fsid=%s: can't init local \"sc\" file: %d\n",
+		       sdp->sd_fsname, error);
+		goto fail_sc_gh;
+	}
+
 	error = gfs2_glock_nq_init(sdp->sd_ut_inode->i_gl,
 				  LM_ST_EXCLUSIVE, 0,
 				  &sdp->sd_ut_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"unlinked\" file: %d\n",
+		printk("GFS2: fsid=%s: can't lock local \"ut\" file: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_inum_gh;
+		goto fail_sc_gh;
 	}
 	sdp->sd_ut_gh.gh_owner = NULL;
 
@@ -649,7 +684,7 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't lock local \"qc\" file: %d\n",
 		       sdp->sd_fsname, error);
-		goto fail_unlinked_gh;
+		goto fail_ut_gh;
 	}
 	sdp->sd_qc_gh.gh_owner = NULL;
 
@@ -658,19 +693,25 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
  fail_qc_gh:
 	gfs2_glock_dq_uninit(&sdp->sd_qc_gh);
 
- fail_unlinked_gh:
+ fail_ut_gh:
 	gfs2_glock_dq_uninit(&sdp->sd_ut_gh);
 
- fail_inum_gh:
+ fail_sc_gh:
+	gfs2_glock_dq_uninit(&sdp->sd_sc_gh);
+
+ fail_ir_gh:
 	gfs2_glock_dq_uninit(&sdp->sd_ir_gh);
 
  fail_qc_i:
 	gfs2_inode_put(sdp->sd_qc_inode);
 
- fail_unlinked_i:
+ fail_ut_i:
 	gfs2_inode_put(sdp->sd_ut_inode);
 
- fail_inum_i:
+ fail_sc_i:
+	gfs2_inode_put(sdp->sd_sc_inode);
+
+ fail_ir_i:
 	gfs2_inode_put(sdp->sd_ir_inode);
 
  fail:
@@ -688,10 +729,10 @@ init_threads(struct gfs2_sbd *sdp, int undo)
 	if (undo)
 		goto fail_inoded;
 
-	/* Start up the logd thread */
-
+	sdp->sd_log_flush_time = jiffies;
 	sdp->sd_jindex_refresh_time = jiffies;
 
+	/* Start up the logd thread */
 	error = do_thread(sdp, gfs2_logd);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start logd thread: %d\n",
@@ -699,8 +740,10 @@ init_threads(struct gfs2_sbd *sdp, int undo)
 		RETURN(G2FN_INIT_THREADS, error);
 	}
 
-	/* Start up the quotad thread */
+	sdp->sd_statfs_sync_time = jiffies;
+	sdp->sd_quota_sync_time = jiffies;
 
+	/* Start up the quotad thread */
 	error = do_thread(sdp, gfs2_quotad);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start quotad thread: %d\n",
@@ -709,7 +752,6 @@ init_threads(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Start up the inoded thread */
-
 	error = do_thread(sdp, gfs2_inoded);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start inoded thread: %d\n",

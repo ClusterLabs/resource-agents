@@ -152,8 +152,11 @@ struct gfs2_sbd {
 	uint64_t next_inum;
 	uint64_t sb_addr;
 
-	uint64_t rgrps;
 	uint64_t fssize;
+	uint64_t blks_alloced;
+	uint64_t dinodes_alloced;
+
+	uint64_t rgrps;
 	osi_list_t rglist;
 
 	unsigned int num_bufs;
@@ -162,6 +165,7 @@ struct gfs2_sbd {
 
 	struct gfs2_inode *master_dir;
 	struct gfs2_inode *inum_inode;
+	struct gfs2_inode *statfs_inode;
 
 	unsigned int spills;
 };
@@ -219,6 +223,7 @@ void build_sb(struct gfs2_sbd *sdp);
 void build_jindex(struct gfs2_sbd *sdp);
 void build_per_node(struct gfs2_sbd *sdp);
 void build_inum(struct gfs2_sbd *sdp);
+void build_statfs(struct gfs2_sbd *sdp);
 void build_rindex(struct gfs2_sbd *sdp);
 void build_quota(struct gfs2_sbd *sdp);
 void build_root(struct gfs2_sbd *sdp);
