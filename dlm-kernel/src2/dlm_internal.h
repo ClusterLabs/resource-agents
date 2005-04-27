@@ -144,7 +144,7 @@ struct dlm_member {
 
 struct dlm_recover {
 	struct list_head	list;
-	int *			nodeids;
+	int			*nodeids;
 	int			node_count;
 	int			event_id;
 };
@@ -155,12 +155,12 @@ struct dlm_recover {
 
 struct dlm_args {
 	uint32_t		flags;
-	void *			astaddr;
+	void			*astaddr;
 	long			astparam;
-	void *			bastaddr;
+	void			*bastaddr;
 	int			mode;
-	struct dlm_lksb *	lksb;
-	struct dlm_range *	range;
+	struct dlm_lksb		*lksb;
+	struct dlm_range	*range;
 };
 
 
@@ -229,7 +229,7 @@ struct dlm_args {
 #define DLM_IFL_RANGE		0x00000001
 
 struct dlm_lkb {
-	struct dlm_rsb *	lkb_resource;	/* the rsb */
+	struct dlm_rsb		*lkb_resource;	/* the rsb */
 	struct kref		lkb_ref;
 	int			lkb_nodeid;	/* copied from rsb */
 	int			lkb_ownpid;	/* pid of lock owner */
@@ -255,11 +255,11 @@ struct dlm_lkb {
 	struct list_head	lkb_wait_reply;	/* waiting for remote reply */
 	struct list_head	lkb_astqueue;	/* need ast to be sent */
 
-	uint64_t *		lkb_range;	/* array of gr/rq ranges */
-	char *			lkb_lvbptr;
-	struct dlm_lksb *       lkb_lksb;       /* caller's status block */
-	void *			lkb_astaddr;	/* caller's ast function */
-	void *			lkb_bastaddr;	/* caller's bast function */
+	uint64_t		*lkb_range;	/* array of gr/rq ranges */
+	char			*lkb_lvbptr;
+	struct dlm_lksb		*lkb_lksb;      /* caller's status block */
+	void			*lkb_astaddr;	/* caller's ast function */
+	void			*lkb_bastaddr;	/* caller's bast function */
 	long			lkb_astparam;	/* caller's ast arg */
 };
 
@@ -278,7 +278,7 @@ struct dlm_lkb {
 #define RESFL_RECOVER_CONVERT	6
 
 struct dlm_rsb {
-	struct dlm_ls *		res_ls;		/* the lockspace */
+	struct dlm_ls		*res_ls;	/* the lockspace */
 	struct kref		res_ref;
 	struct semaphore	res_sem;
 	unsigned long		res_flags;	/* RESFL_ */
@@ -298,7 +298,7 @@ struct dlm_rsb {
 	struct list_head	res_recover_list;   /* used for recovery */
 	int			res_recover_locks_count;
 
-	char *			res_lvbptr;
+	char			*res_lvbptr;
 	char			res_name[1];
 };
 
@@ -412,13 +412,13 @@ struct dlm_ls {
 	unsigned long		ls_flags;	/* LSFL_ */
 	struct kobject		ls_kobj;
 
-	struct dlm_rsbtable *	ls_rsbtbl;
+	struct dlm_rsbtable	*ls_rsbtbl;
 	uint32_t		ls_rsbtbl_size;
 
-	struct dlm_lkbtable *	ls_lkbtbl;
+	struct dlm_lkbtable	*ls_lkbtbl;
 	uint32_t		ls_lkbtbl_size;
 
-	struct dlm_dirtable *	ls_dirtbl;
+	struct dlm_dirtable	*ls_dirtbl;
 	uint32_t		ls_dirtbl_size;
 
 	struct semaphore	ls_waiters_sem;
@@ -428,20 +428,20 @@ struct dlm_ls {
 	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
 	int			ls_num_nodes;	/* number of nodes in ls */
 	int			ls_low_nodeid;
-	int *			ls_node_array;
-	int *			ls_nodeids_next;
+	int			*ls_node_array;
+	int			*ls_nodeids_next;
 	int			ls_nodeids_next_count;
 
 	struct dlm_rsb		ls_stub_rsb;	/* for returning errors */
 	struct dlm_lkb		ls_stub_lkb;	/* for returning errors */
 	struct dlm_message	ls_stub_ms;	/* for faking a reply */
 
-	struct dentry *		ls_debug_dentry;/* debugfs */
+	struct dentry		*ls_debug_dentry; /* debugfs */
 
 	/* recovery related */
 
 	wait_queue_head_t	ls_wait_member;
-	struct task_struct *	ls_recoverd_task;
+	struct task_struct	*ls_recoverd_task;
 	struct semaphore	ls_recoverd_active;
 	struct list_head	ls_recover;	/* dlm_recover structs */
 	spinlock_t		ls_recover_lock;
@@ -454,7 +454,7 @@ struct dlm_ls {
 	struct rw_semaphore	ls_in_recovery;	/* block local requests */
 	struct list_head	ls_requestqueue;/* queue remote requests */
 	struct semaphore	ls_requestqueue_lock;
-	char *			ls_recover_buf;
+	char			*ls_recover_buf;
 	struct list_head	ls_recover_list;
 	spinlock_t		ls_recover_list_lock;
 	int			ls_recover_list_count;
@@ -466,6 +466,5 @@ struct dlm_ls {
 	int			ls_namelen;
 	char			ls_name[1];
 };
-
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */
