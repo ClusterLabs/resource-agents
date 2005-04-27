@@ -1401,17 +1401,10 @@ static int _convert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	int error;
 
-	if (is_remote(r)) {
+	if (is_remote(r))
 		/* receive_convert() calls do_convert() on remote node */
 		error = send_convert(r, lkb);
-
-		/* down conversions go without a reply from the master */
-		if (!error && down_conversion(lkb)) {
-			remove_from_waiters(lkb);
-			r->res_ls->ls_stub_ms.m_result = 0;
-			__receive_convert_reply(r, lkb, &r->res_ls->ls_stub_ms);
-		}
-	} else
+	else
 		error = do_convert(r, lkb);
 
 	return error;
@@ -1518,6 +1511,9 @@ static void set_lvb_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	if (!r->res_lvbptr)
 		r->res_lvbptr = allocate_lvb(r->res_ls);
+
+	if (!r->res_lvbptr)
+		return;
 
 	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
 	r->res_lvbseq++;
@@ -2243,7 +2239,18 @@ static int send_request(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 static int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
-	return send_common(r, lkb, DLM_MSG_CONVERT);
+	int error;
+
+	error = send_common(r, lkb, DLM_MSG_CONVERT);
+
+	/* down conversions go without a reply from the master */
+	if (!error && down_conversion(lkb)) {
+		remove_from_waiters(lkb);
+		r->res_ls->ls_stub_ms.m_result = 0;
+		__receive_convert_reply(r, lkb, &r->res_ls->ls_stub_ms);
+	}
+
+	return error;
 }
 
 /* FIXME: if this lkb is the only lock we hold on the rsb, then set

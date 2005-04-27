@@ -58,7 +58,7 @@ static void dlm_wait_timer_fn(unsigned long data)
 
 int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
-	int error = 0;
+	int error = 0, timeout;
 
 	init_timer(&dlm_timer);
 	dlm_timer.function = dlm_wait_timer_fn;
@@ -66,12 +66,15 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 	dlm_timer.expires = jiffies + (dlm_config.recover_timer * HZ);
 	add_timer(&dlm_timer);
 
-	wait_event(ls->ls_wait_general, testfn(ls) || dlm_recovery_stopped(ls));
-
+	timeout = wait_event_timeout(ls->ls_wait_general,
+				     testfn(ls) || dlm_recovery_stopped(ls),
+				     20 * HZ);
 	if (timer_pending(&dlm_timer))
 		del_timer(&dlm_timer);
 
-	if (dlm_recovery_stopped(ls))
+	if (!timeout)
+		error = -ETIMEDOUT;
+	else if (dlm_recovery_stopped(ls))
 		error = -1;
 
 	return error;
@@ -207,6 +210,7 @@ void recover_list_clear(struct dlm_ls *ls)
 	spin_lock(&ls->ls_recover_list_lock);
 	list_for_each_entry_safe(r, s, &ls->ls_recover_list, res_recover_list) {
 		list_del_init(&r->res_recover_list);
+		dlm_print_rsb(r);
 		dlm_put_rsb(r);
 		ls->ls_recover_list_count--;
 	}
@@ -350,7 +354,6 @@ int dlm_recover_masters(struct dlm_ls *ls)
 	up_read(&ls->ls_root_sem);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
-
  out:
 	if (error)
 		recover_list_clear(ls);
@@ -464,7 +467,6 @@ int dlm_recover_locks(struct dlm_ls *ls)
 	up_read(&ls->ls_root_sem);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
-
  out:
 	if (error)
 		recover_list_clear(ls);
