@@ -15,7 +15,8 @@
 #define __DLM_DOT_H__
 
 /*
- * Interface to DLM - routines and structures to use DLM lockspaces.
+ * Interface to Distributed Lock Manager (DLM)
+ * routines and structures to use DLM lockspaces
  */
 
 /*
