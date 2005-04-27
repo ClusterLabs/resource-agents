@@ -618,22 +618,16 @@ int find_and_cache_idx_for_holder(Holders_t *h)
 
    GULMD_ASSERT( h != NULL, );
    if( h->idx < 0 || h->idx > open_max() ) h->idx = 0;
-   if( poller.ipn[h->idx].name != NULL &&
+   if( poller.type[h->idx] == poll_Client &&
+       poller.ipn[h->idx].name != NULL &&
        strcmp(h->name, poller.ipn[h->idx].name) == 0 ) {
       /* valid cached idx. */
       return h->idx;
    }else{
       for(i=0; i < open_max(); i++) {
-         if( poller.ipn[i].name != NULL &&
+         if( poller.type[i] == poll_Client &&
+             poller.ipn[i].name != NULL &&
              strcmp(h->name, poller.ipn[i].name) == 0) {
-            /* is this poller idx a slave?  (note it is not the name, but
-             * the idx we are asking about here. Since the client could
-             * have two sockets open to us, once for slave and once for
-             * client)
-             * If it is, that's not what we want. we are after clients, not
-             * slaves.
-             */
-            if( poller.type[i] == poll_Slave ) continue;
             return ( h->idx = i );
          }
       }
@@ -645,6 +639,7 @@ int find_and_cache_idx_for_holder(Holders_t *h)
  * find_idx_for_name - 
  * @name: 
  * 
+ * Only finds Clients.
  * 
  * Returns: int
  */
@@ -653,6 +648,7 @@ int find_idx_for_name(char *name)
    int i;
 
    for(i=0; i < open_max(); i ++ ) {
+      if( poller.type[i] != poll_Client ) continue;
       if( poller.ipn[i].name != NULL &&
           strcmp(name, poller.ipn[i].name) == 0 ) {
          if( i == get_slave_idx(name) ) continue;

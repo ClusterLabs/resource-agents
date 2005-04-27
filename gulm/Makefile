@@ -73,14 +73,14 @@ LDFLAGS+= -L${libdir}
 
 CFLAGS+=$(INCLUDE)
 # this is mostly for the lib.  Does it hurt any having it for everyone?
-CFLAGS+=-D_REENTRANT -fpic
+CFLAGS+=-D_REENTRANT -fPIC
 CFLAGS+=-g -O
 CFLAGS+=-DRELEASE=\"$(RELEASE)\"
 
 #######################################
 # build rules
 
-all: src/lock_gulmd src/gulm_tool lib/libgulm.so lib/libgulm.so.$(RELEASE_MAJOR)
+all: src/lock_gulmd src/gulm_tool lib/libgulm.a lib/libgulm.so lib/libgulm.so.$(RELEASE_MAJOR)
 
 src/lock_gulmd: $(gulmd_src:.c=.o) 
 	${CC} ${CFLAGS} ${LDFLAGS} $^ ${LDLIBS} -lccs -o $@
@@ -88,7 +88,7 @@ src/lock_gulmd: $(gulmd_src:.c=.o)
 lib/libgulm.a: $(lib_src:.c=.o)
 	${AR} cr $@ $^
 
-lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): lib/libgulm.a
+lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): $(lib_src:.c=.o)
 	${LD} -shared -soname libgulm.so.$(RELEASE_MAJOR) -o $@ $^ -lc
 
 lib/libgulm.so.$(RELEASE_MAJOR): lib/libgulm.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
