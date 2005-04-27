@@ -101,6 +101,9 @@ static int send_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int mode);
 static int send_lookup(struct dlm_rsb *r, struct dlm_lkb *lkb);
 static int send_remove(struct dlm_rsb *r);
 
+static void __receive_convert_reply(struct dlm_rsb *r, struct dlm_lkb *lkb,
+				    struct dlm_message *ms);
+
 
 /*
  * Lock compatibilty matrix - thanks Steve
@@ -221,6 +224,19 @@ static int is_master_copy(struct dlm_lkb *lkb)
 	if (lkb->lkb_flags & DLM_IFL_MSTCPY)
 		DLM_ASSERT(lkb->lkb_nodeid, dlm_print_lkb(lkb););
 	return (lkb->lkb_flags & DLM_IFL_MSTCPY) ? TRUE : FALSE;
+}
+
+static int middle_conversion(struct dlm_lkb *lkb)
+{
+	if ((lkb->lkb_grmode==DLM_LOCK_PR && lkb->lkb_rqmode==DLM_LOCK_CW) ||
+	    (lkb->lkb_rqmode==DLM_LOCK_PR && lkb->lkb_grmode==DLM_LOCK_CW))
+		return TRUE;
+	return FALSE;
+}
+
+static int down_conversion(struct dlm_lkb *lkb)
+{
+	return (!middle_conversion(lkb) && lkb->lkb_rqmode < lkb->lkb_grmode);
 }
 
 static void queue_cast(struct dlm_rsb *r, struct dlm_lkb *lkb, int rv)
@@ -1272,12 +1288,13 @@ static int request_lock(struct dlm_ls *ls, struct dlm_lkb *lkb, char *name,
 	lock_rsb(r);
 
 	attach_lkb(r, lkb);
+	lkb->lkb_lksb->sb_lkid = lkb->lkb_id;
+
 	error = _request_lock(r, lkb);
 
 	unlock_rsb(r);
 	put_rsb(r);
 
-	lkb->lkb_lksb->sb_lkid = lkb->lkb_id;
  out:
 	return error;
 }
@@ -1384,10 +1401,17 @@ static int _convert_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	int error;
 
-	if (is_remote(r))
+	if (is_remote(r)) {
 		/* receive_convert() calls do_convert() on remote node */
 		error = send_convert(r, lkb);
-	else
+
+		/* down conversions go without a reply from the master */
+		if (!error && down_conversion(lkb)) {
+			remove_from_waiters(lkb);
+			r->res_ls->ls_stub_ms.m_result = 0;
+			__receive_convert_reply(r, lkb, &r->res_ls->ls_stub_ms);
+		}
+	} else
 		error = do_convert(r, lkb);
 
 	return error;
@@ -2560,7 +2584,7 @@ static void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *r;
-	int error;
+	int error, reply = TRUE;
 
 	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error)
@@ -2575,10 +2599,12 @@ static void receive_convert(struct dlm_ls *ls, struct dlm_message *ms)
 	error = receive_convert_args(ls, lkb, ms);
 	if (error)
 		goto out;
+	reply = !down_conversion(lkb);
 
 	error = do_convert(r, lkb);
  out:
-	send_convert_reply(r, lkb, error);
+	if (reply)
+		send_convert_reply(r, lkb, error);
 
 	unlock_rsb(r);
 	put_rsb(r);
@@ -2820,14 +2846,10 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	put_lkb(lkb);
 }
 
-static void _receive_convert_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
-				   struct dlm_message *ms)
+static void __receive_convert_reply(struct dlm_rsb *r, struct dlm_lkb *lkb,
+				    struct dlm_message *ms)
 {
-	struct dlm_rsb *r = lkb->lkb_resource;
 	int error = ms->m_result;
-
-	hold_rsb(r);
-	lock_rsb(r);
 
 	/* this is the value returned from do_convert() on the master */
 
@@ -2851,8 +2873,18 @@ static void _receive_convert_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		break;
 
 	default:
-		log_error(ls, "receive_convert_reply unknown error %d", error);
+		log_error(r->res_ls, "receive_convert_reply error %d", error);
 	}
+}
+
+static void _receive_convert_reply(struct dlm_lkb *lkb, struct dlm_message *ms)
+{
+	struct dlm_rsb *r = lkb->lkb_resource;
+
+	hold_rsb(r);
+	lock_rsb(r);
+
+	__receive_convert_reply(r, lkb, ms);
 
 	unlock_rsb(r);
 	put_rsb(r);
@@ -2876,13 +2908,12 @@ static void receive_convert_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	_receive_convert_reply(ls, lkb, ms);
+	_receive_convert_reply(lkb, ms);
  out:
 	put_lkb(lkb);
 }
 
-static void _receive_unlock_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
-				  struct dlm_message *ms)
+static void _receive_unlock_reply(struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	struct dlm_rsb *r = lkb->lkb_resource;
 	int error = ms->m_result;
@@ -2899,7 +2930,7 @@ static void _receive_unlock_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		queue_cast(r, lkb, -DLM_EUNLOCK);
 		break;
 	default:
-		log_error(ls, "receive_unlock_reply unknown error %d", error);
+		log_error(r->res_ls, "receive_unlock_reply error %d", error);
 	}
 
 	unlock_rsb(r);
@@ -2924,13 +2955,12 @@ static void receive_unlock_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	_receive_unlock_reply(ls, lkb, ms);
+	_receive_unlock_reply(lkb, ms);
  out:
 	put_lkb(lkb);
 }
 
-static void _receive_cancel_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
-				  struct dlm_message *ms)
+static void _receive_cancel_reply(struct dlm_lkb *lkb, struct dlm_message *ms)
 {
 	struct dlm_rsb *r = lkb->lkb_resource;
 	int error = ms->m_result;
@@ -2947,7 +2977,7 @@ static void _receive_cancel_reply(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		queue_cast(r, lkb, -DLM_ECANCEL);
 		break;
 	default:
-		log_error(ls, "receive_cancel_reply unknown error %d", error);
+		log_error(r->res_ls, "receive_cancel_reply error %d", error);
 	}
 
 	unlock_rsb(r);
@@ -2972,7 +3002,7 @@ static void receive_cancel_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	_receive_cancel_reply(ls, lkb, ms);
+	_receive_cancel_reply(lkb, ms);
  out:
 	put_lkb(lkb);
 }
@@ -3144,21 +3174,13 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
  * Recovery related
  */
 
-static int middle_conversion(struct dlm_lkb *lkb)
-{
-	if ((lkb->lkb_grmode==DLM_LOCK_PR && lkb->lkb_rqmode==DLM_LOCK_CW) ||
-	    (lkb->lkb_rqmode==DLM_LOCK_PR && lkb->lkb_grmode==DLM_LOCK_CW))
-		return TRUE;
-	return FALSE;
-}
-
 static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 {
 	if (middle_conversion(lkb)) {
 		hold_lkb(lkb);
 		ls->ls_stub_ms.m_result = -EINPROGRESS;
 		_remove_from_waiters(lkb);
-		_receive_convert_reply(ls, lkb, &ls->ls_stub_ms);
+		_receive_convert_reply(lkb, &ls->ls_stub_ms);
 
 		/* Same special case as in receive_rcom_lock_args() */
 		lkb->lkb_grmode = DLM_LOCK_IV;
@@ -3169,11 +3191,8 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 		lkb->lkb_flags |= DLM_IFL_RESEND;
 
 	} else if (lkb->lkb_rqmode < lkb->lkb_grmode) {
-		hold_lkb(lkb);
-		ls->ls_stub_ms.m_result = 0;
-		_remove_from_waiters(lkb);
-		_receive_convert_reply(ls, lkb, &ls->ls_stub_ms);
-		unhold_lkb(lkb);
+		/* this shouldn't happen since down conversions are
+		   async; there's no reply from the remote master */
 	}
 }
 
@@ -3210,7 +3229,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			hold_lkb(lkb);
 			ls->ls_stub_ms.m_result = -DLM_EUNLOCK;
 			_remove_from_waiters(lkb);
-			_receive_unlock_reply(ls, lkb, &ls->ls_stub_ms);
+			_receive_unlock_reply(lkb, &ls->ls_stub_ms);
 			put_lkb(lkb);
 			break;
 
@@ -3218,7 +3237,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			hold_lkb(lkb);
 			ls->ls_stub_ms.m_result = -DLM_ECANCEL;
 			_remove_from_waiters(lkb);
-			_receive_cancel_reply(ls, lkb, &ls->ls_stub_ms);
+			_receive_cancel_reply(lkb, &ls->ls_stub_ms);
 			put_lkb(lkb);
 			break;
 
