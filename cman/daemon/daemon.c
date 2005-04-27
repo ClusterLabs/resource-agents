@@ -499,7 +499,7 @@ void notify_listeners(struct connection *con, int event, int arg)
 	struct connection *thiscon;
 
 	msg.header.magic = CMAN_MAGIC;
-	msg.header.command = CMAN_CMD_EVENT | CMAN_CMDFLAG_REPLY;
+	msg.header.command = CMAN_CMD_EVENT;
 	msg.header.length = sizeof(msg);
 	msg.header.flags = 0;
 	msg.reason = event;
