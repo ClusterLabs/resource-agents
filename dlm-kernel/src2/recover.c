@@ -88,9 +88,10 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	struct dlm_member *memb;
-	int error = 0;
+	int error = 0, delay;
 
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
+		delay = 0;
 		for (;;) {
 			error = dlm_recovery_stopped(ls);
 			if (error)
@@ -102,7 +103,9 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 
 			if (rc->rc_result & wait_status)
 				break;
-			msleep(500);
+			if (delay < 1000)
+				delay += 20;
+			msleep(delay);
 		}
 	}
  out:
@@ -112,7 +115,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
-	int error = 0, nodeid = ls->ls_low_nodeid;
+	int error = 0, delay = 0, nodeid = ls->ls_low_nodeid;
 
 	for (;;) {
 		error = dlm_recovery_stopped(ls);
@@ -125,7 +128,9 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 
 		if (rc->rc_result & wait_status)
 			break;
-		msleep(500);
+		if (delay < 1000)
+			delay += 20;
+		msleep(delay);
 	}
  out:
 	return error;

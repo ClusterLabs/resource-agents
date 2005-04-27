@@ -102,6 +102,7 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 
 static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 {
+	unsigned long all_start, our_start = jiffies;
 	int error, neg = 0;
 
 	log_debug(ls, "recover event %u", rv->event_id);
@@ -139,6 +140,7 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 		log_error(ls, "recover_members failed %d", error);
 		goto fail;
 	}
+	all_start = jiffies;
 
 	/*
 	 * Rebuild our own share of the directory by collecting from all other
@@ -214,10 +216,12 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	dlm_release_root_list(ls);
 
-	log_debug(ls, "recover event %u done", rv->event_id);
-
+	log_debug(ls, "recover event %u done: %u ms (with user skew %d ms)",
+		  rv->event_id, jiffies_to_msecs(jiffies - all_start),
+		  jiffies_to_msecs(jiffies - our_start));
 	set_start_done(ls, rv->event_id);
 	up(&ls->ls_recoverd_active);
+
 	return 0;
 
  fail:
