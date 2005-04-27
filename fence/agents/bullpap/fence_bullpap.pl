@@ -286,7 +286,8 @@ $success=0;
 $_ = $action;
 if (/(on|off)/)
 {
-	my $timeout = 60;
+	my $timeout = 120; # 120 = max of (60, 120).  Max timeout for "on"
+			   # on 32-way bull machines
 
 	set_power_state $host,$domain,$action,$login,$passwd;
 	do {
@@ -299,7 +300,7 @@ if (/(on|off)/)
 }
 elsif (/reboot/)
 {
-	my $timeout = 60;
+	my $timeout = 60; # 60 seconds for "off" for 32-way bull machines
 
 	set_power_state $host,$domain,"off",$login,$passwd;
 	do {
@@ -311,7 +312,7 @@ elsif (/reboot/)
 	if ($timeout <= 0) {
 		$success = 0;
 	} else  {
-		$timeout = 60;
+		$timeout = 120; # 120 seconds for on, for 32-way bull machines
 		set_power_state $host,$domain,"on",$login,$passwd;
 		do {
 			sleep 5;
