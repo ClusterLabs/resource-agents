@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${incdir} -I../../../group/daemon/ -I${top_srcdir}/config -I../../../../IDEAS/patrick/userland-cman/lib/ -I../../include/
+CFLAGS+= -g -I${incdir} -I../../../group/daemon/ -I${top_srcdir}/config -I../../../cman/lib/ -I../../include/
 
 
 TARGET=lock_dlmd
@@ -25,7 +25,7 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-lock_dlmd: main.o member_cman.o recover.o ../../../../IDEAS/patrick/userland-cman/lib/libcman.a
+lock_dlmd: main.o member_cman.o recover.o ../../../cman/lib/libcman.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c
