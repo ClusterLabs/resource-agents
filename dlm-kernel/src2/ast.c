@@ -17,7 +17,7 @@
 #define WAKE_ASTS  0
 
 static struct list_head		ast_queue;
-static struct semaphore		ast_queue_lock;
+static spinlock_t		ast_queue_lock;
 static struct task_struct *	astd_task;
 static unsigned long		astd_wakeflags;
 static struct semaphore		astd_running;
@@ -25,21 +25,21 @@ static struct semaphore		astd_running;
 
 void dlm_del_ast(struct dlm_lkb *lkb)
 {
-	down(&ast_queue_lock);
+	spin_lock(&ast_queue_lock);
 	if (lkb->lkb_ast_type & (AST_COMP | AST_BAST))
 		list_del(&lkb->lkb_astqueue);
-	up(&ast_queue_lock);
+	spin_unlock(&ast_queue_lock);
 }
 
 void dlm_add_ast(struct dlm_lkb *lkb, int type)
 {
-	down(&ast_queue_lock);
+	spin_lock(&ast_queue_lock);
 	if (!(lkb->lkb_ast_type & (AST_COMP | AST_BAST))) {
 		kref_get(&lkb->lkb_ref);
 		list_add_tail(&lkb->lkb_astqueue, &ast_queue);
 	}
 	lkb->lkb_ast_type |= type;
-	up(&ast_queue_lock);
+	spin_unlock(&ast_queue_lock);
 
 	set_bit(WAKE_ASTS, &astd_wakeflags);
 	wake_up_process(astd_task);
@@ -56,7 +56,7 @@ static void process_asts(void)
 
 	for (;;) {
 		found = FALSE;
-		down(&ast_queue_lock);
+		spin_lock(&ast_queue_lock);
 		list_for_each_entry(lkb, &ast_queue, lkb_astqueue) {
 			r = lkb->lkb_resource;
 			ls = r->res_ls;
@@ -70,7 +70,7 @@ static void process_asts(void)
 			found = TRUE;
 			break;
 		}
-		up(&ast_queue_lock);
+		spin_unlock(&ast_queue_lock);
 
 		if (!found)
 			break;
@@ -102,9 +102,9 @@ static inline int no_asts(void)
 {
 	int ret;
 
-	down(&ast_queue_lock);
+	spin_lock(&ast_queue_lock);
 	ret = list_empty(&ast_queue);
-	up(&ast_queue_lock);
+	spin_unlock(&ast_queue_lock);
 	return ret;
 }
 
@@ -138,7 +138,7 @@ int dlm_astd_start(void)
 	int error = 0;
 
 	INIT_LIST_HEAD(&ast_queue);
-	init_MUTEX(&ast_queue_lock);
+	spin_lock_init(&ast_queue_lock);
 	init_MUTEX(&astd_running);
 
 	p = kthread_run(dlm_astd, NULL, "dlm_astd");
