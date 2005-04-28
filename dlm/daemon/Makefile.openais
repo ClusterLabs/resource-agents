@@ -17,7 +17,7 @@ include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
 
-CFLAGS+= -I../../dlm-kernel/src2/ -I../../../openais/include/
+CFLAGS+= -I../../group/daemon -I../../dlm-kernel/src2/ -I../../../openais/include/
 
 
 TARGET=dlm_controld
@@ -31,14 +31,10 @@ dlm_controld:	main.o \
 		member_openais.o \
 		ioctl.o \
 		action.o \
-		../../../openais/lib/libevs.a \
-		../../../openais/lib/libSaClm.a
+		../../../openais/lib/libevs.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-member_cman.o: member_cman.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 member_openais.o: member_openais.c

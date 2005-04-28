@@ -10,7 +10,7 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. -I../../../openais/include/
+CFLAGS+= -g -I../include -I../../../openais/include/
 
 TARGET=groupd
 
@@ -23,8 +23,7 @@ groupd: main.o \
 	update.o \
 	done.o \
 	recover.o \
-	../../../openais/lib/libevs.a \
-	../../../openais/lib/libSaClm.a
+	../../../openais/lib/libevs.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c gd_internal.h

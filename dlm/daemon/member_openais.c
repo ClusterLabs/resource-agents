@@ -20,8 +20,6 @@
 #include <arpa/inet.h>
 
 #include "evs.h"
-#include "ais_types.h"
-#include "saClm.h"
 
 #define MAX_NODES	(256)
 
@@ -120,48 +118,16 @@ int process_member(void)
         return 0;
 }
 
-/* All this SaClm stuff just to get the local nodeid which isn't
-   available through the evs api. */
-
-void foo(SaInvocationT i, const SaClmClusterNodeT *node, SaAisErrorT error)
-{
-}
-
-void bar (const SaClmClusterNotificationBufferT *b, SaUint32T n, SaAisErrorT e)
-{
-}
-
-SaClmCallbacksT clm_callbacks = {
-        .saClmClusterNodeGetCallback = foo,
-        .saClmClusterTrackCallback = bar
-};
-
 int set_our_nodeid(void)
 {
-        SaVersionT version = { 'B', 1, 1 };
-        SaClmHandleT handle;
-        SaClmClusterNodeT node;
-	struct in_addr a;
-        int rv;
+	struct in_addr addr;
+	int member_list_entries = 0;
 
-        rv = saClmInitialize(&handle, &clm_callbacks, &version);
-        if (rv != SA_OK) {
-                log_error("saClmInitialize error %d %d", rv, errno);
-                return rv;
-        }
+	evs_membership_get(eh, &addr, NULL, &member_list_entries);
 
-        rv = saClmClusterNodeGet(handle, SA_CLM_LOCAL_NODE_ID, 0, &node);
-        if (rv != SA_OK) {
-                log_error("saClmClusterNodeGet error %d %d", rv, errno);
-                return rv;
-        }
+	do_set_local((int) addr.s_addr, &addr);
 
-        saClmFinalize(handle);
-
-	a.s_addr = node.nodeId;
-	do_set_local((int) node.nodeId, &a);
-
-        return 0;
+	return 0;
 }
 
 static void dummy(struct in_addr source_addr, void *msg, int len)

@@ -38,8 +38,6 @@
 
 #include "gd_internal.h"
 #include "evs.h"
-#include "ais_types.h"
-#include "saClm.h"
 
 extern struct list_head gd_nodes;
 extern int              gd_node_count;
@@ -231,42 +229,14 @@ int process_member_message(void)
 	return 0;
 }
 
-/* All this SaClm stuff just to get the local nodeid which isn't
-   available through the evs api. */
-
-void foo(SaInvocationT i, const SaClmClusterNodeT *node, SaAisErrorT error)
-{
-}
-
-void bar (const SaClmClusterNotificationBufferT *b, SaUint32T n, SaAisErrorT e)
-{
-}
-
-SaClmCallbacksT clm_callbacks = {
-	.saClmClusterNodeGetCallback = foo,
-	.saClmClusterTrackCallback = bar
-};
-
 int set_our_nodeid(void)
 {
-	SaVersionT version = { 'B', 1, 1 };
-	SaClmHandleT handle;
-	SaClmClusterNodeT node;
-	int rv;
+	struct in_addr addr;
+	int member_list_entries = 0;
 
-	rv = saClmInitialize(&handle, &clm_callbacks, &version);
-	if (rv != SA_OK) {
-		log_print("saClmInitialize error %d %d", rv, errno);
-		return rv;
-	}
+	evs_membership_get(eh, &addr, NULL, &member_list_entries);
 
-	rv = saClmClusterNodeGet(handle, SA_CLM_LOCAL_NODE_ID, 0, &node);
-
-	gd_nodeid = (int) node.nodeId;
-
-	saClmFinalize(handle);
-
-	log_in("member our nodeid %d rv %d", gd_nodeid, rv);
+	gd_nodeid = addr.s_addr;
 
 	return 0;
 }
