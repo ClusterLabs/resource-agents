@@ -100,7 +100,7 @@ gfs2_inode_attr_in(struct gfs2_inode *ip)
 	ENTER(G2FN_INODE_ATTR_IN)
 	struct inode *inode;
 
-	inode = gfs2_iget(ip, NO_CREATE);
+	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
 		inode_attr_in(ip, inode);
 		iput(inode);
@@ -136,7 +136,7 @@ gfs2_inode_attr_out(struct gfs2_inode *ip)
 }
 
 /**
- * gfs2_iget - Get/Create a struct inode for a struct gfs2_inode
+ * gfs2_ip2v - Get/Create a struct inode for a struct gfs2_inode
  * @ip: the struct gfs2_inode to get the struct inode for
  * @create: CREATE -- create a new struct inode if one does not already exist
  *          NO_CREATE -- return NULL if inode doesn't exist
@@ -151,9 +151,9 @@ gfs2_inode_attr_out(struct gfs2_inode *ip)
  */
 
 struct inode *
-gfs2_iget(struct gfs2_inode *ip, int create)
+gfs2_ip2v(struct gfs2_inode *ip, int create)
 {
-	ENTER(G2FN_IGET)
+	ENTER(G2FN_IP2V)
 	struct inode *inode = NULL, *tmp;
 
 	spin_lock(&ip->i_lock);
@@ -162,11 +162,11 @@ gfs2_iget(struct gfs2_inode *ip, int create)
 	spin_unlock(&ip->i_lock);
 
 	if (inode || !create)
-		RETURN(G2FN_IGET, inode);
+		RETURN(G2FN_IP2V, inode);
 
 	tmp = new_inode(ip->i_sbd->sd_vfs);
 	if (!tmp)
-		RETURN(G2FN_IGET, NULL);
+		RETURN(G2FN_IP2V, NULL);
 
 	inode_attr_in(ip, tmp);
 
@@ -202,7 +202,7 @@ gfs2_iget(struct gfs2_inode *ip, int create)
 
 		if (inode) {
 			iput(tmp);
-			RETURN(G2FN_IGET, inode);
+			RETURN(G2FN_IP2V, inode);
 		}
 		yield();
 	}
@@ -217,7 +217,29 @@ gfs2_iget(struct gfs2_inode *ip, int create)
 
 	insert_inode_hash(inode);
 
-	RETURN(G2FN_IGET, inode);
+	RETURN(G2FN_IP2V, inode);
+}
+
+static int
+iget_test(struct inode *inode, void *opaque)
+{
+	ENTER(G2FN_IGET_TEST)
+	struct gfs2_inode *ip = get_v2ip(inode);
+	struct gfs2_inum *inum = (struct gfs2_inum *)opaque;
+
+	if (ip && ip->i_num.no_addr == inum->no_addr)
+		RETURN(G2FN_IGET_TEST, 1);
+
+	RETURN(G2FN_IGET_TEST, 0);
+}
+
+struct inode *
+gfs2_iget(struct super_block *sb, struct gfs2_inum *inum)
+{
+	ENTER(G2FN_IGET)
+	RETURN(G2FN_IGET,
+	       ilookup5(sb, (unsigned long)inum->no_formal_ino,
+			iget_test, inum));
 }
 
 /**
@@ -246,11 +268,13 @@ gfs2_copyin_dinode(struct gfs2_inode *ip)
 	gfs2_dinode_in(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	if (!gfs2_inum_equal(&ip->i_num, &ip->i_di.di_num)) {
+	if (ip->i_num.no_addr != ip->i_di.di_num.no_addr) {
 		if (gfs2_consist_inode(ip))
 			gfs2_dinode_print(&ip->i_di);
 		RETURN(G2FN_COPYIN_DINODE, -EIO);
 	}
+	if (ip->i_num.no_formal_ino != ip->i_di.di_num.no_formal_ino)
+		RETURN(G2FN_COPYIN_DINODE, -ESTALE);
 
 	ip->i_vn = ip->i_gl->gl_vn;
 
@@ -354,7 +378,7 @@ inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 
 int
 gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
-	      struct gfs2_inode **ipp)
+	       struct gfs2_inode **ipp)
 {
 	ENTER(G2FN_INODE_GET)
 	struct gfs2_glock *io_gl;
@@ -362,9 +386,12 @@ gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 
 	*ipp = get_gl2ip(i_gl);
 	if (*ipp) {
+		if (gfs2_assert_withdraw(i_gl->gl_sbd,
+					 (*ipp)->i_num.no_addr == inum->no_addr))
+			RETURN(G2FN_INODE_GET, -EIO);
+		if ((*ipp)->i_num.no_formal_ino != inum->no_formal_ino)
+			RETURN(G2FN_INODE_GET, -ESTALE);		
 		atomic_inc(&(*ipp)->i_count);
-		gfs2_assert_warn(i_gl->gl_sbd, 
-				gfs2_inum_equal(&(*ipp)->i_num, inum));
 	} else if (create) {
 		error = gfs2_glock_get(i_gl->gl_sbd,
 				      inum->no_addr, &gfs2_iopen_glops,
@@ -1981,7 +2008,7 @@ gfs2_try_toss_vnode(struct gfs2_inode *ip)
 	ENTER(G2FN_TRY_TOSS_VNODE)
 	struct inode *inode;
 
-	inode = gfs2_iget(ip, NO_CREATE);
+	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (!inode)
 		RET(G2FN_TRY_TOSS_VNODE);
 

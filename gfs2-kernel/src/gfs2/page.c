@@ -47,7 +47,7 @@ gfs2_inval_pte(struct gfs2_glock *gl)
 	if (!test_bit(GIF_PAGED, &ip->i_flags))
 		RET(G2FN_INVAL_PTE);
 
-	inode = gfs2_iget(ip, NO_CREATE);
+	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
 		unmap_shared_mapping_range(inode->i_mapping, 0, 0);
 		iput(inode);
@@ -78,7 +78,7 @@ gfs2_inval_page(struct gfs2_glock *gl)
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
 		RET(G2FN_INVAL_PAGE);
 
-	inode = gfs2_iget(ip, NO_CREATE);
+	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
 		struct address_space *mapping = inode->i_mapping;
 
@@ -139,7 +139,7 @@ gfs2_sync_page(struct gfs2_glock *gl, int flags)
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
 		RET(G2FN_SYNC_PAGE);
 
-	inode = gfs2_iget(ip, NO_CREATE);
+	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
 		gfs2_sync_page_i(inode, flags);
 		iput(inode);

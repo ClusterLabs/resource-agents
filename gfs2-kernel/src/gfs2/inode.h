@@ -16,7 +16,8 @@
 
 void gfs2_inode_attr_in(struct gfs2_inode *ip);
 void gfs2_inode_attr_out(struct gfs2_inode *ip);
-struct inode *gfs2_iget(struct gfs2_inode *ip, int create);
+struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create);
+struct inode *gfs2_iget(struct super_block *sb, struct gfs2_inum *inum);
 
 int gfs2_copyin_dinode(struct gfs2_inode *ip);
 

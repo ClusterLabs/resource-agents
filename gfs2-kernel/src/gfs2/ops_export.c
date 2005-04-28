@@ -20,7 +20,13 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
+#include "dio.h"
+#include "dir.h"
+#include "glock.h"
+#include "glops.h"
+#include "inode.h"
 #include "ops_export.h"
+#include "rgrp.h"
 
 /**
  * gfs2_decode_fh -
@@ -33,13 +39,40 @@
  * Returns: what is returned
  */
 
-static struct dentry *
+struct dentry *
 gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
-	      int (*acceptable)(void *context, struct dentry *dentry),
-	      void *context)
+	       int (*acceptable)(void *context, struct dentry *dentry),
+	       void *context)
 {
 	ENTER(G2FN_DECODE_FH)
-	RETURN(G2FN_DECODE_FH, ERR_PTR(-ENOSYS));
+	struct gfs2_inum this, parent;
+
+	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
+
+	if (fh_type != fh_len)
+		RETURN(G2FN_DECODE_FH, NULL);
+
+	memset(&parent, 0, sizeof(struct gfs2_inum));
+
+	switch (fh_type) {
+	case 8:
+		parent.no_formal_ino = ((uint64_t)gfs2_32_to_cpu(fh[4])) << 32;
+		parent.no_formal_ino |= gfs2_32_to_cpu(fh[5]);
+		parent.no_addr = ((uint64_t)gfs2_32_to_cpu(fh[6])) << 32;
+		parent.no_addr |= gfs2_32_to_cpu(fh[7]);
+	case 4:
+		this.no_formal_ino = ((uint64_t)gfs2_32_to_cpu(fh[0])) << 32;
+		this.no_formal_ino |= gfs2_32_to_cpu(fh[1]);
+		this.no_addr = ((uint64_t)gfs2_32_to_cpu(fh[2])) << 32;
+		this.no_addr |= gfs2_32_to_cpu(fh[3]);
+		break;
+	default:
+		RETURN(G2FN_DECODE_FH, NULL);
+	}
+
+	RETURN(G2FN_DECODE_FH,
+	       gfs2_export_ops.find_exported_dentry(sb, &this, &parent,
+						    acceptable, context));
 }
 
 /**
@@ -53,12 +86,86 @@ gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
  * Returns: what is returned
  */
 
-static int
+int 
 gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
-	      int connectable)
+	       int connectable)
 {
 	ENTER(G2FN_ENCODE_FH)
-	RETURN(G2FN_ENCODE_FH, 255);
+	struct inode *inode = dentry->d_inode;
+	struct gfs2_inode *ip = get_v2ip(inode);
+	struct gfs2_sbd *sdp = ip->i_sbd;
+
+	atomic_inc(&sdp->sd_ops_export);
+
+	if (*len < 4 || (connectable && *len < 8))
+		RETURN(G2FN_ENCODE_FH, 255);
+
+	fh[0] = ip->i_num.no_formal_ino >> 32;
+	fh[0] = cpu_to_gfs2_32(fh[0]);
+	fh[1] = ip->i_num.no_formal_ino & 0xFFFFFFFF;
+	fh[1] = cpu_to_gfs2_32(fh[1]);
+	fh[2] = ip->i_num.no_addr >> 32;
+	fh[2] = cpu_to_gfs2_32(fh[2]);
+	fh[3] = ip->i_num.no_addr & 0xFFFFFFFF;
+	fh[3] = cpu_to_gfs2_32(fh[3]);
+	*len = 4;
+
+	if (!connectable || ip == sdp->sd_root_inode)
+		RETURN(G2FN_ENCODE_FH, *len);
+
+	spin_lock(&dentry->d_lock);
+	inode = dentry->d_parent->d_inode;
+	ip = get_v2ip(inode);
+	gfs2_inode_hold(ip);
+	spin_unlock(&dentry->d_lock);
+
+	fh[4] = ip->i_num.no_formal_ino >> 32;
+	fh[4] = cpu_to_gfs2_32(fh[4]);
+	fh[5] = ip->i_num.no_formal_ino & 0xFFFFFFFF;
+	fh[5] = cpu_to_gfs2_32(fh[5]);
+	fh[6] = ip->i_num.no_addr >> 32;
+	fh[6] = cpu_to_gfs2_32(fh[6]);
+	fh[7] = ip->i_num.no_addr & 0xFFFFFFFF;
+	fh[7] = cpu_to_gfs2_32(fh[7]);
+	*len = 8;
+
+	gfs2_inode_put(ip);
+
+	RETURN(G2FN_ENCODE_FH, *len);
+}
+
+struct get_name_filldir {
+	struct gfs2_inum inum;
+	char *name;
+};
+
+/**
+ * get_name_filldir - 
+ * @param1: description
+ * @param2: description
+ * @param3: description
+ *
+ * Function description
+ *
+ * Returns: what is returned
+ */
+
+static int
+get_name_filldir(void *opaque,
+		 const char *name, unsigned int length,
+		 uint64_t offset,
+		 struct gfs2_inum *inum, unsigned int type)
+{
+	ENTER(G2FN_GET_NAME_FILLDIR)
+	struct get_name_filldir *gnfd = (struct get_name_filldir *)opaque;
+
+	if (!gfs2_inum_equal(inum, &gnfd->inum))
+		RETURN(G2FN_GET_NAME_FILLDIR, 0);
+
+	memcpy(gnfd->name, name, length);
+	gnfd->name[length] = 0;
+
+	RETURN(G2FN_GET_NAME_FILLDIR, 1);
 }
 
 /**
@@ -72,12 +179,45 @@ gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
  * Returns: what is returned
  */
 
-static int
-gfs2_get_name(struct dentry *parent, char *name,
-	     struct dentry *child)
+int gfs2_get_name(struct dentry *parent, char *name,
+		  struct dentry *child)
 {
 	ENTER(G2FN_GET_NAME)
-	RETURN(G2FN_GET_NAME, -ENOSYS);
+	struct inode *dir = parent->d_inode;
+	struct inode *inode = child->d_inode;
+	struct gfs2_inode *dip, *ip;
+	struct get_name_filldir gnfd;
+	struct gfs2_holder gh;
+	uint64_t offset = 0;
+	int error;
+
+	if (!dir)
+		RETURN(G2FN_GET_NAME, -EINVAL);
+
+	atomic_inc(&get_v2sdp(dir->i_sb)->sd_ops_export);
+
+	if (!S_ISDIR(dir->i_mode) || !inode)
+		RETURN(G2FN_GET_NAME, -EINVAL);
+
+	dip = get_v2ip(dir);
+	ip = get_v2ip(inode);
+
+	*name = 0;
+	gnfd.inum = ip->i_num;
+	gnfd.name = name;
+
+	error = gfs2_glock_nq_init(dip->i_gl, LM_ST_SHARED, 0, &gh);
+	if (error)
+		RETURN(G2FN_GET_NAME, error);
+
+	error = gfs2_dir_read(dip, &offset, &gnfd, get_name_filldir);
+
+	gfs2_glock_dq_uninit(&gh);
+
+	if (!error && !*name)
+		error = -ENOENT;
+
+	RETURN(G2FN_GET_NAME, error);
 }
 
 /**
@@ -91,11 +231,52 @@ gfs2_get_name(struct dentry *parent, char *name,
  * Returns: what is returned
  */
 
-static struct dentry *
+struct dentry *
 gfs2_get_parent(struct dentry *child)
 {
 	ENTER(G2FN_GET_PARENT)
-	RETURN(G2FN_GET_PARENT, ERR_PTR(-ENOSYS));
+	struct gfs2_inode *dip = get_v2ip(child->d_inode);
+	struct gfs2_holder ghs[2];
+	struct qstr dotdot = { .name = "..", .len = 2 };
+	struct gfs2_inode *ip;
+	struct inode *inode;
+	struct dentry *dentry;
+	int error;
+
+	atomic_inc(&dip->i_sbd->sd_ops_export);
+
+	gfs2_holder_init(dip->i_gl, 0, 0, ghs);
+	error = gfs2_lookupi(ghs, &dotdot, TRUE);
+	if (error)
+		goto fail;
+
+	error = -ENOENT;
+	if (!ghs[1].gh_gl)
+		goto fail;
+
+	ip = get_gl2ip(ghs[1].gh_gl);
+
+	gfs2_glock_dq_m(2, ghs);
+	gfs2_holder_uninit(ghs);
+	gfs2_holder_uninit(ghs + 1);
+
+	inode = gfs2_ip2v(ip, CREATE);
+	gfs2_inode_put(ip);
+
+	if (!inode)
+		RETURN(G2FN_GET_PARENT, ERR_PTR(-ENOMEM));
+
+	dentry = d_alloc_anon(inode);
+	if (!dentry) {
+		iput(inode);
+		RETURN(G2FN_GET_PARENT, ERR_PTR(-ENOMEM));
+	}
+
+	RETURN(G2FN_GET_PARENT, dentry);
+
+ fail:
+	gfs2_holder_uninit(ghs);
+	RETURN(G2FN_GET_PARENT, ERR_PTR(error));
 }
 
 /**
@@ -109,11 +290,105 @@ gfs2_get_parent(struct dentry *child)
  * Returns: what is returned
  */
 
-static struct dentry *
-gfs2_get_dentry(struct super_block *sb, void *inump)
+struct dentry *
+gfs2_get_dentry(struct super_block *sb, void *inum_p)
 {
 	ENTER(G2FN_GET_DENTRY)
-	RETURN(G2FN_GET_DENTRY, ERR_PTR(-ENOSYS));
+	struct gfs2_sbd *sdp = get_v2sdp(sb);
+	struct gfs2_inum *inum = (struct gfs2_inum *)inum_p;
+	struct gfs2_holder i_gh, ri_gh, rgd_gh;
+	struct gfs2_rgrpd *rgd;
+	struct gfs2_inode *ip;
+	struct inode *inode;
+	struct dentry *dentry;
+	int error;
+
+	atomic_inc(&sdp->sd_ops_export);
+
+	/* System files? */
+
+	inode = gfs2_iget(sb, inum);
+	if (inode) {
+		ip = get_v2ip(inode);
+		if (ip->i_num.no_formal_ino != inum->no_formal_ino) {
+			iput(inode);
+			RETURN(G2FN_GET_DENTRY, ERR_PTR(-ESTALE));
+		}
+		goto out_inode;
+	}
+
+	error = gfs2_glock_nq_num(sdp,
+				  inum->no_addr, &gfs2_inode_glops,
+				  LM_ST_SHARED, LM_FLAG_ANY | GL_LOCAL_EXCL,
+				  &i_gh);
+	if (error)
+		RETURN(G2FN_GET_DENTRY, ERR_PTR(error));
+
+	error = gfs2_inode_get(i_gh.gh_gl, inum, NO_CREATE, &ip);
+	if (error)
+		goto fail;
+	if (ip)
+		goto out_ip;
+
+	error = gfs2_rindex_hold(sdp, &ri_gh);
+	if (error)
+		goto fail;
+
+	error = -EINVAL;
+	rgd = gfs2_blk2rgrpd(sdp, inum->no_addr);
+	if (!rgd)
+		goto fail_rindex;
+
+	error = gfs2_glock_nq_init(rgd->rd_gl, LM_ST_SHARED, 0, &rgd_gh);
+	if (error)
+		goto fail_rindex;
+
+	error = -ESTALE;
+	if (gfs2_get_block_type(rgd, inum->no_addr) != GFS2_BLKST_DINODE)
+		goto fail_rgd;
+
+	gfs2_glock_dq_uninit(&rgd_gh);
+	gfs2_glock_dq_uninit(&ri_gh);
+
+	error = gfs2_inode_get(i_gh.gh_gl, inum, CREATE, &ip);
+	if (error)
+		goto fail;
+
+	atomic_inc(&sdp->sd_fh2dentry_misses);
+
+ out_ip:
+	error = -EIO;
+	if (ip->i_di.di_flags & GFS2_DIF_SYSTEM) {
+		gfs2_inode_put(ip);
+		goto fail;
+	}
+
+	gfs2_glock_dq_uninit(&i_gh);
+
+	inode = gfs2_ip2v(ip, CREATE);
+	gfs2_inode_put(ip);
+
+	if (!inode)
+		RETURN(G2FN_GET_DENTRY, ERR_PTR(-ENOMEM));
+
+ out_inode:
+	dentry = d_alloc_anon(inode);
+	if (!dentry) {
+		iput(inode);
+		RETURN(G2FN_GET_DENTRY, ERR_PTR(-ENOMEM));
+	}
+
+	RETURN(G2FN_GET_DENTRY, dentry);
+
+ fail_rgd:
+	gfs2_glock_dq_uninit(&rgd_gh);
+
+ fail_rindex:
+	gfs2_glock_dq_uninit(&ri_gh);
+
+ fail:
+	gfs2_glock_dq_uninit(&i_gh);
+	RETURN(G2FN_GET_DENTRY, ERR_PTR(error));
 }
 
 struct export_operations gfs2_export_ops = {

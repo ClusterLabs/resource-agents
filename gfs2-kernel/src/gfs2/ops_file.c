@@ -1377,23 +1377,11 @@ gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
 	ENTER(G2FN_FSYNC)
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
-	struct gfs2_holder i_gh;
-	int error;
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
+	gfs2_log_flush_glock(ip->i_gl);
 
-	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
-	if (error)
-		RETURN(G2FN_FSYNC, error);
-
-	if (gfs2_is_jdata(ip))
-		gfs2_log_flush_glock(ip->i_gl);
-	else
-		i_gh.gh_flags |= GL_SYNC;
-
-	gfs2_glock_dq_uninit(&i_gh);
-
-	RETURN(G2FN_FSYNC, error);
+	RETURN(G2FN_FSYNC, 0);
 }
 
 /**

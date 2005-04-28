@@ -104,7 +104,7 @@ gfs2_create(struct inode *dir, struct dentry *dentry,
 	gfs2_holder_uninit(ghs);
 	gfs2_holder_uninit(ghs + 1);
 
-	inode = gfs2_iget(ip, CREATE);
+	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -291,7 +291,7 @@ gfs2_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 		gfs2_holder_uninit(ghs);
 		gfs2_holder_uninit(ghs + 1);
 
-		inode = gfs2_iget(ip, CREATE);
+		inode = gfs2_ip2v(ip, CREATE);
 		gfs2_inode_put(ip);
 
 		if (!inode)
@@ -561,7 +561,7 @@ gfs2_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	gfs2_holder_uninit(ghs);
 	gfs2_holder_uninit(ghs + 1);
 
-	inode = gfs2_iget(ip, CREATE);
+	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -653,7 +653,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	gfs2_holder_uninit(ghs);
 	gfs2_holder_uninit(ghs + 1);
 
-	inode = gfs2_iget(ip, CREATE);
+	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -802,7 +802,7 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	gfs2_holder_uninit(ghs);
 	gfs2_holder_uninit(ghs + 1);
 
-	inode = gfs2_iget(ip, CREATE);
+	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
 
 	if (!inode)

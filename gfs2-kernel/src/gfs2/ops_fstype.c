@@ -545,7 +545,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode/dentry */
-	inode = gfs2_iget(sdp->sd_root_inode, CREATE);
+	inode = gfs2_ip2v(sdp->sd_root_inode, CREATE);
 	if (!inode) {
 		printk("GFS2: fsid=%s: can't get root inode\n", sdp->sd_fsname);
 		error = -ENOMEM;
