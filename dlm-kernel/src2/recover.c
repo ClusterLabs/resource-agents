@@ -69,8 +69,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 	timeout = wait_event_timeout(ls->ls_wait_general,
 				     testfn(ls) || dlm_recovery_stopped(ls),
 				     20 * HZ);
-	if (timer_pending(&dlm_timer))
-		del_timer(&dlm_timer);
+	del_timer_sync(&dlm_timer);
 
 	if (!timeout)
 		error = -ETIMEDOUT;
