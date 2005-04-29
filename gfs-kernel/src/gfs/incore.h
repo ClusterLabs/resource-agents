@@ -751,6 +751,7 @@ struct gfs_log_buf {
  */
 
 #define TRF_LOG_DUMP            (0x00000001)
+#define TRF_DUMMY               (0x00000002)
 
 struct gfs_trans {
 
@@ -1094,6 +1095,7 @@ struct gfs_sbd {
 
 	spinlock_t sd_log_seg_lock;
 	unsigned int sd_log_seg_free;	/* # of free segments in the log */
+	unsigned int sd_log_seg_ail2; /* # of freeable segments in the log */
 	struct list_head sd_log_seg_list;
 	wait_queue_head_t sd_log_seg_wait;
 

@@ -256,10 +256,9 @@ gfs_ail_empty(struct gfs_sbd *sdp)
 		segments = dist / sdp->sd_sb.sb_seg_size;
 		gfs_assert(sdp, segments * sdp->sd_sb.sb_seg_size == dist,);
 
-		spin_lock(&sdp->sd_log_seg_lock);
-		sdp->sd_log_seg_free += segments;
-		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
-		spin_unlock(&sdp->sd_log_seg_lock);
+		sdp->sd_log_seg_ail2 += segments;
+		gfs_assert(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 <=
+			   sdp->sd_jdesc.ji_nsegment,); 
 	}
 
 	ret = list_empty(head);
@@ -314,7 +313,7 @@ gfs_log_reserve(struct gfs_sbd *sdp, unsigned int segments, int jump_queue)
 			}
 		}
 
-		if (sdp->sd_log_seg_free >= segments) {
+		if (sdp->sd_log_seg_free > segments) {
 			sdp->sd_log_seg_free -= segments;
 			list_del(&list);
 			spin_unlock(&sdp->sd_log_seg_lock);
@@ -351,7 +350,8 @@ gfs_log_release(struct gfs_sbd *sdp, unsigned int segments)
 	ENTER(GFN_LOG_RELEASE)
 	spin_lock(&sdp->sd_log_seg_lock);
 	sdp->sd_log_seg_free += segments;
-	gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
+	gfs_assert(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 <=
+		   sdp->sd_jdesc.ji_nsegment,);
 	spin_unlock(&sdp->sd_log_seg_lock);
 	RET(GFN_LOG_RELEASE);
 }
@@ -731,7 +731,15 @@ commit_trans(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	gfs_logbh_start(sdp, &lb->lb_bh);
 	error = gfs_logbh_wait(sdp, &lb->lb_bh);
-
+	if (!error) {
+		spin_lock(&sdp->sd_log_seg_lock);
+		if (!(tr->tr_flags & TRF_DUMMY))
+			sdp->sd_log_seg_free += sdp->sd_log_seg_ail2;
+		else
+			sdp->sd_log_seg_free += (sdp->sd_log_seg_ail2 - 1);
+		sdp->sd_log_seg_ail2 = 0;
+		spin_unlock(&sdp->sd_log_seg_lock);
+	}
 	log_free_buf(sdp, lb);
 
 	RETURN(GFN_COMMIT_TRANS, error);
@@ -759,7 +767,8 @@ disk_commit(struct gfs_sbd *sdp, struct gfs_trans *tr)
 
 	LO_BUILD_BHLIST(sdp, tr);
 
-	gfs_assert(sdp, !list_empty(&tr->tr_bufs),);
+	if (!(tr->tr_flags & TRF_DUMMY))
+		gfs_assert(sdp, !list_empty(&tr->tr_bufs),);
 
 	error = sync_trans(sdp, tr);
 	if (error) {
@@ -862,7 +871,8 @@ log_refund(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	if (tr->tr_seg_reserved > segments) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr->tr_seg_reserved - segments;
-		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
+		gfs_assert(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 <=
+			   sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 
 		tr->tr_seg_reserved = segments;
@@ -950,6 +960,35 @@ trans_combine(struct gfs_sbd *sdp, struct gfs_trans *tr,
 	RET(GFN_TRANS_COMBINE);
 }
 
+static void
+make_dummy_transaction(struct gfs_sbd *sdp, struct gfs_trans *tr)
+{
+	struct gfs_log_buf *lb;
+	struct list_head *bmem;
+
+	memset(tr, 0, sizeof(struct gfs_trans));
+	INIT_LIST_HEAD(&tr->tr_elements);
+	INIT_LIST_HEAD(&tr->tr_free_bufs);
+	INIT_LIST_HEAD(&tr->tr_free_bmem);
+	INIT_LIST_HEAD(&tr->tr_bufs);
+	tr->tr_flags = TRF_DUMMY;
+	tr->tr_file = __FILE__;
+	tr->tr_line = __LINE__;
+	tr->tr_seg_reserved = 1;
+	while (tr->tr_num_free_bufs < 2) {
+		lb = gmalloc(sizeof(struct gfs_log_buf));
+		memset(lb, 0, sizeof(struct gfs_log_buf));
+		list_add(&lb->lb_list, &tr->tr_free_bufs);
+		tr->tr_num_free_bufs++;
+	}
+	while (tr->tr_num_free_bmem < 2) {
+		bmem = gmalloc(sdp->sd_sb.sb_bsize);
+		list_add(bmem, &tr->tr_free_bmem);
+		tr->tr_num_free_bmem++;
+	}
+}
+
+
 /**
  * log_flush_internal - flush incore transaction(s)
  * @sdp: the filesystem
@@ -966,13 +1005,19 @@ static void
 log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 {
 	ENTER(GFN_LOG_FLUSH_INTERNAL)
-	struct gfs_trans *trans = NULL, *tr;
+	struct gfs_trans dummy, *trans = NULL, *tr;
 	int error;
 
 	gfs_log_lock(sdp);
 
-	if (list_empty(&sdp->sd_log_incore))
-		goto out;
+	if (!gl && list_empty(&sdp->sd_log_incore)) {
+		if (sdp->sd_log_seg_ail2){
+			make_dummy_transaction(sdp, &dummy);
+			trans = &dummy;
+		}
+		else
+			goto out;
+	}
 
 	if (gl) {
 		if (!gl->gl_incore_le.le_trans)
@@ -1290,7 +1335,8 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 	if (tr.tr_seg_reserved > segments) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr.tr_seg_reserved - segments;
-		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
+		gfs_assert(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 <=
+			   sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 		tr.tr_seg_reserved = segments;
 	}
@@ -1326,7 +1372,8 @@ gfs_log_dump(struct gfs_sbd *sdp, int force)
 	if (list_empty(&sdp->sd_log_ail)) {
 		spin_lock(&sdp->sd_log_seg_lock);
 		sdp->sd_log_seg_free += tr.tr_seg_reserved;
-		gfs_assert(sdp, sdp->sd_log_seg_free < sdp->sd_jdesc.ji_nsegment,);
+		gfs_assert(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 <=
+			   sdp->sd_jdesc.ji_nsegment,);
 		spin_unlock(&sdp->sd_log_seg_lock);
 	}
 
@@ -1363,8 +1410,8 @@ gfs_log_shutdown(struct gfs_sbd *sdp)
 	gfs_log_lock(sdp);
 
 	gfs_assert_withdraw(sdp, list_empty(&sdp->sd_log_ail));
-	gfs_assert_withdraw(sdp, sdp->sd_log_seg_free ==
-			    sdp->sd_jdesc.ji_nsegment - 1);
+	gfs_assert_withdraw(sdp, sdp->sd_log_seg_free + sdp->sd_log_seg_ail2 ==
+			    sdp->sd_jdesc.ji_nsegment);
 	gfs_assert_withdraw(sdp, !sdp->sd_log_buffers);
 	gfs_assert_withdraw(sdp, gfs_log_is_header(sdp, sdp->sd_log_head - 1));
 	if (test_bit(SDF_SHUTDOWN, &sdp->sd_flags))

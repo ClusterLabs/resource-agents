@@ -340,7 +340,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 
 	if (sdp->sd_args.ar_spectator) {
 		sdp->sd_jdesc = sdp->sd_jindex[0];
-		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
+		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment;
+		sdp->sd_log_seg_ail2 = 0;
 	} else {
 		/*  Discover this node's journal number (lock module tells us
 		    which one to use), and lock it */
@@ -353,7 +354,8 @@ fill_super(struct super_block *sb, void *data, int silent)
 			goto fail_gunlock_ji;
 		}
 		sdp->sd_jdesc = sdp->sd_jindex[sdp->sd_lockstruct.ls_jid];
-		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment - 1;
+		sdp->sd_log_seg_free = sdp->sd_jdesc.ji_nsegment;
+		sdp->sd_log_seg_ail2 = 0;
 
 		error = gfs_glock_nq_num(sdp,
 					 sdp->sd_jdesc.ji_addr, &gfs_meta_glops,
