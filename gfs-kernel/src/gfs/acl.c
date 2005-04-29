@@ -59,21 +59,21 @@ gfs_acl_validate_set(struct gfs_inode *ip, int access,
 		RETURN(GFN_ACL_VALIDATE_SET, PTR_ERR(acl));
 
 	error = posix_acl_valid(acl);
-	if (error) {
-		posix_acl_release(acl);
-		RETURN(GFN_ACL_VALIDATE_SET, error);
-	}
+	if (error)
+		goto out;
 
 	if (access) {
 		error = posix_acl_equiv_mode(acl, mode);
-		posix_acl_release(acl);
-		if (error < 0)
-			RETURN(GFN_ACL_VALIDATE_SET, error);
 		if (!error)
 			*remove = TRUE;
+		else if (error > 0)
+			error = 0;
 	}
 
-	RETURN(GFN_ACL_VALIDATE_SET, 0);
+ out:
+	posix_acl_release(acl);
+
+	RETURN(GFN_ACL_VALIDATE_SET, error);
 }
 
 /**
