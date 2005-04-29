@@ -71,11 +71,9 @@ gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 
 	if (access) {
 		error = posix_acl_equiv_mode(acl, mode);
-		if (error < 0)
-			goto out;
 		if (!error)
 			*remove = TRUE;
-		else
+		else if (error > 0)
 			error = 0;
 	}
 
