@@ -53,6 +53,8 @@ gfs2_write_inode(struct inode *inode, int sync)
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
 
+	if (current->flags & PF_MEMALLOC)
+		RETURN(G2FN_WRITE_INODE, 0);
 	if (ip && sync)
 		gfs2_log_flush_glock(ip->i_gl);
 
@@ -421,18 +423,12 @@ gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	if (args->ar_lockproto[0]) {
-		seq_printf(s, ",lockproto=");
-		seq_puts(s, args->ar_lockproto);
-	}
-	if (args->ar_locktable[0]) {
-		seq_printf(s, ",locktable=");
-		seq_puts(s, args->ar_locktable);
-	}
-	if (args->ar_hostdata[0]) {
-		seq_printf(s, ",hostdata=");
-		seq_puts(s, args->ar_hostdata);
-	}
+	if (args->ar_lockproto[0])
+		seq_printf(s, ",lockproto=%s", args->ar_lockproto);
+	if (args->ar_locktable[0])
+		seq_printf(s, ",locktable=%s", args->ar_locktable);
+	if (args->ar_hostdata[0])
+		seq_printf(s, ",hostdata=%s", args->ar_hostdata);
 	if (args->ar_spectator)
 		seq_printf(s, ",spectator");
 	if (args->ar_ignore_local_fs)
