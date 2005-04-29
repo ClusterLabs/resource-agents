@@ -229,7 +229,13 @@ status|monitor)
 		export OCF_RESKEY_target="\<world\>"
 	fi
 
-	exportfs | grep -q "^${OCF_RESKEY_path}\ .*${OCF_RESKEY_target}"
+	#
+	# Status check fix from Birger Wathne:
+	# * Exports longer than 14 chars have line breaks inserted, which
+	#   broke the way the status check worked.
+	#
+	exportfs -v | tr -d "\n" | sed -e 's/([^)]*)/\n/g' | grep -q \
+		"^${OCF_RESKEY_path}[\t ]*.*${OCF_RESKEY_target}"
 	rv=$?
 	;;
 
