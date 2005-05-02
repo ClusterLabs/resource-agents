@@ -1005,15 +1005,15 @@ static void
 log_flush_internal(struct gfs_sbd *sdp, struct gfs_glock *gl)
 {
 	ENTER(GFN_LOG_FLUSH_INTERNAL)
-	struct gfs_trans dummy, *trans = NULL, *tr;
+	struct gfs_trans *trans = NULL, *tr;
 	int error;
 
 	gfs_log_lock(sdp);
 
 	if (!gl && list_empty(&sdp->sd_log_incore)) {
-		if (sdp->sd_log_seg_ail2){
-			make_dummy_transaction(sdp, &dummy);
-			trans = &dummy;
+		if (sdp->sd_log_seg_ail2) {
+			trans = gmalloc(sizeof(struct gfs_trans));
+			make_dummy_transaction(sdp, trans);
 		}
 		else
 			goto out;
