@@ -410,8 +410,9 @@ int send_broadcast_message_ev(char *buf, int len, event_t *ev)
 int do_barrier(group_t *g, char *name, int count, int type)
 {
 	struct barrier_wait *bw;
-	int error;
+	int error = 0;
 
+#if 0
 	error = cman_barrier_register(ch, name, 0, count);
 	if (error < 0)
 		return error;
@@ -441,7 +442,7 @@ int do_barrier(group_t *g, char *name, int count, int type)
 		log_error(g, "cman_barrier_wait errno %d", errno);
 		cman_barrier_delete(ch, name);
 	}
-
+#endif
 	return error;
 }
 
