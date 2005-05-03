@@ -29,7 +29,7 @@ LOADLIBES+= -lccs -lmagma -lmagmamsg -ldl
 
 all: ccs_tool
 
-ccs_tool: ccs_tool.c update.c upgrade.c old_parser.c
+ccs_tool: ccs_tool.c update.c upgrade.c old_parser.c editconf.c
 	${CC} ${CFLAGS} ${INCLUDE} -o $@ $^ ${LDFLAGS} ${LOADLIBES}
 
 clean:

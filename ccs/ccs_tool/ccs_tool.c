@@ -6,30 +6,25 @@
 #include "copyright.cf"
 #include "update.h"
 #include "upgrade.h"
+#include "editconf.h"
 
 static void print_usage(FILE *stream);
 
-int main(int argc, char *argv[]){
-  int c;
+int main(int argc, char *argv[])
+{
+  optind = 1;
 
-  while((c = getopt(argc, argv, "hV")) != -1){
-    switch(c){
-    case 'h':
+  if (argc < 2 || !strcmp(argv[optind], "-h")) {
       print_usage(stdout);
       exit(EXIT_SUCCESS);
-      break;
-    case 'V':
+  }
+  if (!strcmp(argv[optind], "-V")) {
       printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME,
 	     __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);
-      break;      
-    default:
-      print_usage(stderr);
-      exit(EXIT_FAILURE);
-      break;
-    }
   }
+
   if(optind < argc){
     if(!strcmp(argv[optind], "help")){
       print_usage(stdout);
@@ -58,6 +53,36 @@ int main(int argc, char *argv[]){
 	exit(EXIT_FAILURE);
       }
     }
+
+    else if(!strcmp(argv[optind], "addnode")){
+	    add_node(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "delnode")){
+	    del_node(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "addfence")){
+	    add_fence(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "delfence")){
+	    del_fence(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "lsnode")){
+	    list_nodes(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "lsfence")){
+	    list_fences(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+    else if(!strcmp(argv[optind], "create")){
+	    create_skeleton(argc-1, argv+1);
+	    exit(EXIT_FAILURE);
+    }
+
     else {
       fprintf(stderr, "Unknown command, %s.\n"
 	      "Try 'ccs_tool help' for help.\n", argv[optind]);
@@ -84,6 +109,12 @@ static void print_usage(FILE *stream){
 	  "  help                Print this usage and exit.\n"
 	  "  update <xml file>   Tells ccsd to upgrade to new config file.\n"
 	  "  upgrade <location>  Upgrade old CCS format to new xml format.\n"
-	  "\n"
-	  );
+	  "  addnode <node>      Add a node\n"
+          "  delnode <node>      Delete a node\n"
+          "  lsnodes             List nodes\n"
+          "  lsfence             List fence devices\n"
+	  "  addfence <fencedev> Add a new fence device\n"
+	  "  delfence <fencedev> Delete a fence device\n"
+	  "  create              Create a skeleton config file\n"
+	  "\n");
 }

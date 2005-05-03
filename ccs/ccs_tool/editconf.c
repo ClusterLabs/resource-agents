@@ -22,8 +22,10 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 
+#include "update.h"
+
 #define DEFAULT_CONFIG_FILE "/etc/cluster/cluster.conf"
-char *prog_name;
+char *prog_name = "ccs_tool";
 
 #define die(fmt, args...) \
 do { \
@@ -47,34 +49,6 @@ struct option_info
 	int  tell_ccsd;
 	int  force_ccsd;
 };
-
-static void usage(const char *name)
-{
-	fprintf(stderr, "Usage: <command> [options]\n");
-	fprintf(stderr, "Commands:\n");
-	fprintf(stderr, " add            Add a node\n");
-	fprintf(stderr, " del            Delete a node\n");
-	fprintf(stderr, " ls             List nodes\n");
-	fprintf(stderr, " lsfence        List fence devices\n");
-	fprintf(stderr, " addfence       Add a new fence device\n");
-	fprintf(stderr, " delfence       Delete a fence device\n");
-	fprintf(stderr, " create         Create a skeleton config file\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "Note that \"create\" on its own will not create a valid configuration file.\n");
-	fprintf(stderr, "Fence agents and nodes will need to be added to it before handing it over\n");
-	fprintf(stderr, "to ccsd.\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "eg:\n");
-	fprintf(stderr, "  %s create MyCluster\n", name);
-	fprintf(stderr, "  %s addfence apc fence_apc ipaddr=apc.domain.net user=apc password=apc\n", name);
-	fprintf(stderr, "  %s add node1 -v 1 -f apc port=1\n", name);
-	fprintf(stderr, "  %s add node2 -v 1 -f apc port=2\n", name);
-	fprintf(stderr, "  %s add node3 -v 1 -f apc port=3\n", name);
-	fprintf(stderr, "  %s add node4 -v 1 -f apc port=4\n", name);
-	fprintf(stderr, "\n");
-
-	exit(0);
-}
 
 static void config_usage(int rw)
 {
@@ -108,6 +82,19 @@ static void create_usage(const char *name)
 	fprintf(stderr, "Usage: %s %s [options] <clustername>\n", prog_name, name);
 	config_usage(0);
 	help_usage();
+	fprintf(stderr, "\n"
+	  "Note that \"create\" on its own will not create a valid configuration file.\n"
+	  "Fence agents and nodes will need to be added to it before handing it over\n"
+	  "to ccsd.\n"
+	  "\n"
+	  "eg:\n"
+	  "  ccs_tool create MyCluster\n"
+	  "  ccs_tool addfence apc fence_apc ipaddr=apc.domain.net user=apc password=apc\n"
+	  "  ccs_tool add node1 -v 1 -f apc port=1\n"
+	  "  ccs_tool add node2 -v 1 -f apc port=2\n"
+	  "  ccs_tool add node3 -v 1 -f apc port=3\n"
+	  "  ccs_tool add node4 -v 1 -f apc port=4\n"
+          "\n");
 
 	exit(0);
 }
@@ -214,12 +201,8 @@ static void save_file(xmlDoc *doc, struct option_info *ninfo)
 	if ((strcmp(ninfo->configfile, ninfo->outputfile) == 0 && ninfo->tell_ccsd) ||
 	    ninfo->force_ccsd)
 	{
-		char cmd[strlen(ninfo->outputfile) + 20];
-
 		printf("running ccs_tool update...\n");
-		snprintf(cmd, sizeof(cmd), "/sbin/ccs_tool update %s\n", ninfo->outputfile);
-		if (system(cmd))
-			perror("ccs_tool update failed\n");
+		update(ninfo->outputfile);
 	}
 
 	/* free the document */
@@ -536,6 +519,10 @@ static xmlDoc *open_configfile(struct option_info *ninfo)
 {
 	xmlDoc *doc;
 
+	/* Init libxml */
+	xmlInitParser();
+	LIBXML_TEST_VERSION;
+
 	if (!ninfo->configfile)
 		ninfo->configfile = DEFAULT_CONFIG_FILE;
 	if (!ninfo->outputfile)
@@ -612,7 +599,7 @@ struct option list_options[] =
 };
 
 
-static void add_node(int argc, char **argv)
+void add_node(int argc, char **argv)
 {
 	struct option_info ninfo;
 	int opt;
@@ -690,8 +677,12 @@ static void add_node(int argc, char **argv)
 
 	/* Write it out */
 	save_file(doc, &ninfo);
+	/* Shutdown libxml */
+	xmlCleanupParser();
+
 }
-static void del_node(int argc, char **argv)
+
+void del_node(int argc, char **argv)
 {
 	struct option_info ninfo;
 	int opt;
@@ -745,7 +736,7 @@ static void del_node(int argc, char **argv)
 	save_file(doc, &ninfo);
 }
 
-static void list_nodes(int argc, char **argv)
+void list_nodes(int argc, char **argv)
 {
 	xmlNode *cur_node;
 	xmlNode *root_element;
@@ -815,7 +806,7 @@ static void list_nodes(int argc, char **argv)
 	}
 }
 
-static void create_skeleton(int argc, char **argv)
+void create_skeleton(int argc, char **argv)
 {
 	xmlNode *root_element;
 	xmlNode *fencedevices;
@@ -849,7 +840,7 @@ static void create_skeleton(int argc, char **argv)
 	ninfo.configfile = "-";
 
 	if (argc - optind < 1)
-		delfence_usage(argv[0]);
+		create_usage(argv[0]);
 
 	clustername = argv[optind];
 
@@ -881,7 +872,7 @@ static void create_skeleton(int argc, char **argv)
 
 }
 
-static void add_fence(int argc, char **argv)
+void add_fence(int argc, char **argv)
 {
 	xmlNode *root_element;
 	xmlNode *fencedevices;
@@ -953,7 +944,7 @@ static void add_fence(int argc, char **argv)
 	save_file(doc, &ninfo);
 }
 
-static void del_fence(int argc, char **argv)
+void del_fence(int argc, char **argv)
 {
 	xmlNode *root_element;
 	xmlNode *fencedevices;
@@ -1013,7 +1004,7 @@ static void del_fence(int argc, char **argv)
 	save_file(doc, &ninfo);
 }
 
-static void list_fences(int argc, char **argv)
+void list_fences(int argc, char **argv)
 {
 	xmlNode *cur_node;
 	xmlNode *root_element;
@@ -1061,66 +1052,5 @@ static void list_fences(int argc, char **argv)
 				print_properties(cur_node, "  Properties: ", "agent");
 		}
 	}
-}
-
-int main(int argc, char **argv)
-{
-	int done = 0;
-	prog_name = argv[0];
-
-	if (argc <= 1)
-		usage(prog_name);
-
-	/* Init libxml */
-	xmlInitParser();
-	LIBXML_TEST_VERSION;
-
-	if (!strcasecmp(argv[1], "add") || !strcasecmp(argv[1], "addnode"))
-	{
-		add_node(argc-1, argv+1);
-		done = 1;
-	}
-	if (!strcasecmp(argv[1], "del") || !strcasecmp(argv[1], "delnode"))
-	{
-		del_node(argc-1, argv+1);
-		done = 1;
-	}
-	if (!strcasecmp(argv[1], "ls") || !strcasecmp(argv[1], "lsnodes"))
-	{
-		list_nodes(argc-1, argv+1);
-		done = 1;
-	}
-
-	if (!strcasecmp(argv[1], "addfence"))
-	{
-		add_fence(argc-1, argv+1);
-		done = 1;
-	}
-
-	if (!strcasecmp(argv[1], "delfence"))
-	{
-		del_fence(argc-1, argv+1);
-		done = 1;
-	}
-
-	if (!strcasecmp(argv[1], "lsfence"))
-	{
-		list_fences(argc-1, argv+1);
-		done = 1;
-	}
-
-	if (!strcasecmp(argv[1], "create"))
-	{
-		create_skeleton(argc-1, argv+1);
-		done = 1;
-	}
-
-	if (!done)
-		usage(prog_name);
-
-	/* Shutdown libxml */
-	xmlCleanupParser();
-
-	return 0;
 }
 
