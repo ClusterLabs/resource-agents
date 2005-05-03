@@ -160,12 +160,13 @@ static ssize_t dlm_members_store(struct dlm_ls *ls, const char *buf, size_t len)
 	if (!nodeids)
 		return -ENOMEM;
 
-	p = kmalloc(len, GFP_KERNEL);
+	p = kmalloc(len+1, GFP_KERNEL);
 	if (!p) {
 		kfree(nodeids);
 		return -ENOMEM;
 	}
 	memcpy(p, buf, len);
+	p[len+1] = '\0';
 
 	for (i = 0; i < count; i++) {
 		if ((t = strsep(&p, " ")) == NULL)

@@ -3533,6 +3533,8 @@ int dlm_recover_master_copy(struct dlm_ls *ls, struct dlm_rcom *rc)
 	unlock_rsb(r);
 	put_rsb(r);
  out:
+	if (error)
+		log_print("recover_master_copy %d %x", error, rl->rl_lkid);
 	rl->rl_result = error;
 	return error;
 }

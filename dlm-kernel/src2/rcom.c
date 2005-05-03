@@ -39,8 +39,11 @@ static int create_rcom(struct dlm_ls *ls, int to_nodeid, int type, int len,
 	int mb_len = sizeof(struct dlm_rcom) + len;
 
 	mh = dlm_lowcomms_get_buffer(to_nodeid, mb_len, GFP_KERNEL, &mb);
-	if (!mh)
+	if (!mh) {
+		log_print("create_rcom to %d type %d len %d ENOBUFS",
+			  to_nodeid, type, len);
 		return -ENOBUFS;
+	}
 	memset(mb, 0, mb_len);
 
 	rc = (struct dlm_rcom *) mb;

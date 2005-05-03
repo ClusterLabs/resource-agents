@@ -68,7 +68,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 
 	timeout = wait_event_timeout(ls->ls_wait_general,
 				     testfn(ls) || dlm_recovery_stopped(ls),
-				     20 * HZ);
+				     120 * HZ);
 	del_timer_sync(&dlm_timer);
 
 	if (!timeout)
@@ -326,7 +326,7 @@ static int recover_master(struct dlm_rsb *r)
 int dlm_recover_masters(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
-	int error;
+	int error, count = 0;
 
 	log_debug(ls, "dlm_recover_masters");
 
@@ -345,12 +345,16 @@ int dlm_recover_masters(struct dlm_ls *ls)
 		if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
 			set_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
 
-		if (dlm_is_removed(ls, r->res_nodeid))
+		if (dlm_is_removed(ls, r->res_nodeid)) {
 			recover_master(r);
+			count++;
+		}
 
 		schedule();
 	}
 	up_read(&ls->ls_root_sem);
+
+	log_debug(ls, "dlm_recover_masters %d resources", count);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
  out:
@@ -452,7 +456,7 @@ static int recover_locks(struct dlm_rsb *r)
 int dlm_recover_locks(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
-	int error;
+	int error, count = 0;
 
 	log_debug(ls, "dlm_recover_locks");
 
@@ -475,8 +479,12 @@ int dlm_recover_locks(struct dlm_ls *ls)
 			up_read(&ls->ls_root_sem);
 			goto out;
 		}
+
+		count += r->res_recover_locks_count;
 	}
 	up_read(&ls->ls_root_sem);
+
+	log_debug(ls, "dlm_recover_locks %d locks", count);
 
 	error = dlm_wait_function(ls, &recover_list_empty);
  out:
