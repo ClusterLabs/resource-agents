@@ -211,8 +211,9 @@ static int next_event_state(int msg_type, int cur_state)
 
 static void process_reply(msg_t *msg, int nodeid)
 {
+	group_t *g;
 	event_t *ev;
-	int i, expected, type = msg->ms_type;
+	int i, expected, type = msg->ms_type, found = 0;
 
 	ev = find_event(msg->ms_event_id);
 	if (!ev) {
@@ -220,10 +221,12 @@ static void process_reply(msg_t *msg, int nodeid)
 			  msg->ms_event_id, nodeid);
 		goto out;
 	}
+	g = ev->group;
 
 	/*
 	if (!test_allowed_msgtype(ev, type)) {
-		log_debug(ev->group, "process_reply ignored type=%u nodeid=%u "			  "id=%u", type, nodeid, ev->id);
+		log_debug(g, "process_reply ignored type %u from %u id %u",
+			  type, nodeid, ev->id);
 		goto out;
 	}
 	*/
@@ -243,37 +246,41 @@ static void process_reply(msg_t *msg, int nodeid)
 			 ev->node_count, ev->memb_count););
 
 	for (i = 0; i < expected; i++) {
-		if (ev->node_ids[i] == nodeid) {
-			/*
-			 * Save the status from the replying node
-			 */
+		if (ev->node_ids[i] != nodeid)
+			continue;
 
-			if (!ev->node_status[i])
-				ev->node_status[i] = msg->ms_status;
-			else {
-				log_error(ev->group, "process_reply duplicate"
-					  "id=%u nodeid=%u %u/%u",
-					  ev->id, nodeid,
-					  ev->node_status[i],
-					  msg->ms_status);
-				goto out;
-			}
+		/*
+		 * Save the status from the replying node
+		 */
 
-			if (type == SMSG_JOIN_REP) {
-				save_lastid(msg);
-
-				if (msg->ms_status == STATUS_POS)
-					save_global_id(ev, msg);
-			}
-
-			if (++ev->reply_count == expected) {
-				/* clear_allowed_msgtype(ev, type); */
-				ev->state = next_event_state(type, ev->state);
-			}
-
-			break;
+		if (!ev->node_status[i])
+			ev->node_status[i] = msg->ms_status;
+		else {
+			log_error(g, "process_reply dup id %u from %u %u/%u",
+				  ev->id, nodeid, ev->node_status[i],
+				  msg->ms_status);
+			goto out;
 		}
+
+		if (type == SMSG_JOIN_REP) {
+			save_lastid(msg);
+			if (msg->ms_status == STATUS_POS)
+				save_global_id(ev, msg);
+		}
+
+		if (++ev->reply_count == expected) {
+			/* clear_allowed_msgtype(ev, type); */
+			ev->state = next_event_state(type, ev->state);
+		}
+
+		log_group(g, "reply type %d from %d is %d of %d state %d",
+			  type, nodeid, ev->reply_count, expected, ev->state);
+		found = 1;
+		break;
 	}
+
+	if (!found)
+		log_group(g, "reply %d not expected from %d", type, nodeid);
  out:
 	return;
 }
