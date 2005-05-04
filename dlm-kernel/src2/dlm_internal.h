@@ -55,6 +55,12 @@
 #define PRIx64 "Lx"
 #endif
 
+/* Size of the temp buffer midcomms allocates on the stack.
+   We try to make this large enough so most messages fit.
+   FIXME: should sctp make this unnecessary? */
+
+#define DLM_INBUF_LEN		148
+
 struct dlm_ls;
 struct dlm_lkb;
 struct dlm_rsb;
@@ -354,9 +360,8 @@ struct dlm_message {
 	int			m_bastmode;
 	int			m_asts;
 	int			m_result;	/* 0 or -EXXX */
-	char			m_lvb[DLM_LVB_LEN];
 	uint64_t		m_range[2];
-	char			m_name[0];
+	char			m_extra[0];	/* name or lvb */
 };
 
 
@@ -408,6 +413,7 @@ struct dlm_rcom {
 struct dlm_ls {
 	struct list_head	ls_list;	/* list of lockspaces */
 	uint32_t		ls_global_id;	/* global unique lockspace ID */
+	int			ls_lvblen;
 	int			ls_count;	/* reference count */
 	unsigned long		ls_flags;	/* LSFL_ */
 	struct kobject		ls_kobj;

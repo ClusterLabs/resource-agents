@@ -58,7 +58,7 @@ static void copy_from_cb(void *dst, const void *base, unsigned offset,
 int dlm_process_incoming_buffer(int nodeid, const void *base,
 				unsigned offset, unsigned len, unsigned limit)
 {
-	unsigned char __tmp[sizeof(struct dlm_rcom) + sizeof(struct rcom_lock)];
+	unsigned char __tmp[DLM_INBUF_LEN];
 	struct dlm_header *msg = (struct dlm_header *) __tmp;
 	int ret = 0;
 	int err = 0;

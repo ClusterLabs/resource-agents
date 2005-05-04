@@ -15,6 +15,8 @@
  * interface.
  */
 
+#define DLM_USER_LVB_LEN	32
+
 /* Version of the device interface */
 #define DLM_DEVICE_VERSION_MAJOR 3
 #define DLM_DEVICE_VERSION_MINOR 0
@@ -33,7 +35,7 @@ struct dlm_lock_params {
 	void __user *bastparam;
         void __user *bastaddr;
 	struct dlm_lksb __user *lksb;
-	char lvb[DLM_LVB_LEN];
+	char lvb[DLM_USER_LVB_LEN];
 	char name[1];
 };
 

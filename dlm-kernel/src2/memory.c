@@ -15,68 +15,54 @@
 #include "config.h"
 
 static kmem_cache_t *lkb_cache;
-static kmem_cache_t *lvb_cache;
 
 
 int dlm_memory_init(void)
 {
-	int ret = -ENOMEM;
+	int ret = 0;
 
 	lkb_cache = kmem_cache_create("dlm_lkb", sizeof(struct dlm_lkb),
 				__alignof__(struct dlm_lkb), 0, NULL, NULL);
 	if (!lkb_cache)
-		goto out;
-
-	lvb_cache = kmem_cache_create("dlm_lvb", DLM_LVB_LEN,
-				__alignof__(uint64_t), 0, NULL, NULL);
-
-	if (!lvb_cache)
-		goto out_lkb;
-
-	return 0;
-
- out_lkb:
-	kmem_cache_destroy(lkb_cache);
- out:
+		ret = -ENOMEM;
 	return ret;
 }
 
 void dlm_memory_exit(void)
 {
-	kmem_cache_destroy(lkb_cache);
-	kmem_cache_destroy(lvb_cache);
+	if (lkb_cache)
+		kmem_cache_destroy(lkb_cache);
 }
 
 char *allocate_lvb(struct dlm_ls *ls)
 {
-	char *l;
+	char *p;
 
-	l = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
-	if (l)
-		memset(l, 0, DLM_LVB_LEN);
-	return l;
-}
-
-void free_lvb(char *l)
-{
-	kmem_cache_free(lvb_cache, l);
-}
-
-/* use lvb cache since they are the same size */
-
-uint64_t *allocate_range(struct dlm_ls *ls)
-{
-	uint64_t *p;
-
-	p = kmem_cache_alloc(lvb_cache, GFP_KERNEL);
+	p = kmalloc(ls->ls_lvblen, GFP_KERNEL);
 	if (p)
-		memset(p, 0, 4*sizeof(uint64_t));
+		memset(p, 0, ls->ls_lvblen);
 	return p;
 }
 
-void free_range(uint64_t *l)
+void free_lvb(char *p)
 {
-	kmem_cache_free(lvb_cache, l);
+	kfree(p);
+}
+
+uint64_t *allocate_range(struct dlm_ls *ls)
+{
+	int ralen = 4*sizeof(uint64_t);
+	uint64_t *p;
+
+	p = kmalloc(ralen, GFP_KERNEL);
+	if (p)
+		memset(p, 0, ralen);
+	return p;
+}
+
+void free_range(uint64_t *p)
+{
+	kfree(p);
 }
 
 /* FIXME: have some minimal space built-in to rsb for the name and

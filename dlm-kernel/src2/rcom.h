@@ -31,8 +31,8 @@ struct rcom_lock {
 	uint16_t		rl_wait_type;
 	uint16_t		rl_namelen;
 	uint64_t		rl_range[4];
-	char			rl_lvb[DLM_LVB_LEN];
 	char			rl_name[DLM_RESNAME_MAXLEN];
+	char			rl_lvb[0];
 };
 
 int dlm_rcom_status(struct dlm_ls *ls, int nodeid);

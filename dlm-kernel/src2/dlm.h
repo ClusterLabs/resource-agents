@@ -38,12 +38,6 @@
 #define DLM_RESNAME_MAXLEN	64
 
 /*
- * Size in bytes of Lock Value Block
- */
-
-#define DLM_LVB_LEN		32
-
-/*
  * Flags to dlm_lock
  *
  * DLM_LKF_NOQUEUE
@@ -218,7 +212,7 @@ struct dlm_lksb {
  */
 
 int dlm_new_lockspace(char *name, int namelen, dlm_lockspace_t **lockspace,
-		      int flags);
+		      int flags, int lvblen);
 
 /*
  * dlm_release_lockspace

@@ -246,7 +246,8 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 		return -ENOMEM;
 	}
 
-	status = dlm_new_lockspace(name, strlen(name), &newls->ls_lockspace, 0);
+	status = dlm_new_lockspace(name, strlen(name), &newls->ls_lockspace, 0,
+				   DLM_USER_LVB_LEN);
 	if (status != 0) {
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
@@ -712,7 +713,7 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count,
 	/* Work out the size of the returned data */
 	data_size = sizeof(struct dlm_lock_result);
 	if (ast->lvb_updated && ast->result.lksb.sb_lvbptr)
-		data_size += DLM_LVB_LEN;
+		data_size += DLM_USER_LVB_LEN;
 
 	offset = sizeof(struct dlm_lock_result);
 
@@ -722,10 +723,10 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count,
 		if (ast->lvb_updated && ast->result.lksb.sb_lvbptr) {
 			if (copy_to_user(buffer+offset,
 					 ast->result.lksb.sb_lvbptr,
-					 DLM_LVB_LEN))
+					 DLM_USER_LVB_LEN))
 				return -EFAULT;
 			ast->result.lvb_offset = offset;
-			offset += DLM_LVB_LEN;
+			offset += DLM_USER_LVB_LEN;
 		}
 	}
 
@@ -873,7 +874,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 	/* Copy in the value block */
 	if (kparams->flags & DLM_LKF_VALBLK) {
 		if (!li->li_lksb.sb_lvbptr) {
-			li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN,
+			li->li_lksb.sb_lvbptr = kmalloc(DLM_USER_LVB_LEN,
 							GFP_KERNEL);
 			if (!li->li_lksb.sb_lvbptr) {
 				status = -ENOMEM;
@@ -881,7 +882,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd,
 			}
 		}
 
-		memcpy(li->li_lksb.sb_lvbptr, kparams->lvb, DLM_LVB_LEN);
+		memcpy(li->li_lksb.sb_lvbptr, kparams->lvb, DLM_USER_LVB_LEN);
 	}
 
 	/* Lock it ... */

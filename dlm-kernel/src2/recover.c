@@ -544,6 +544,7 @@ static void recover_rsb_lvb(struct dlm_rsb *r)
 	uint32_t high_seq = 0;
 	int lock_lvb_exists = FALSE;
 	int big_lock_exists = FALSE;
+	int lvblen = r->res_ls->ls_lvblen;
 
 	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
 		if (!(lkb->lkb_exflags & DLM_LKF_VALBLK))
@@ -603,13 +604,13 @@ static void recover_rsb_lvb(struct dlm_rsb *r)
 
 	if (big_lock_exists) {
 		r->res_lvbseq = lkb->lkb_lvbseq;
-		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, lvblen);
 	} else if (high_lkb) {
 		r->res_lvbseq = high_lkb->lkb_lvbseq;
-		memcpy(r->res_lvbptr, high_lkb->lkb_lvbptr, DLM_LVB_LEN);
+		memcpy(r->res_lvbptr, high_lkb->lkb_lvbptr, lvblen);
 	} else {
 		r->res_lvbseq = 0;
-		memset(r->res_lvbptr, 0, DLM_LVB_LEN);
+		memset(r->res_lvbptr, 0, lvblen);
 	}
  out:
 	return;

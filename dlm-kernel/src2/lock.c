@@ -103,6 +103,7 @@ static int send_remove(struct dlm_rsb *r);
 
 static void __receive_convert_reply(struct dlm_rsb *r, struct dlm_lkb *lkb,
 				    struct dlm_message *ms);
+static int receive_extralen(struct dlm_message *ms);
 
 
 /*
@@ -1445,7 +1446,7 @@ static int _cancel_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
-	int b;
+	int b, len = r->res_ls->ls_lvblen;
 
 	/* b=1 lvb returned to caller
 	   b=0 lvb written to rsb or invalidated
@@ -1463,7 +1464,7 @@ static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		if (!r->res_lvbptr)
 			return;
 
-		memcpy(lkb->lkb_lvbptr, r->res_lvbptr, DLM_LVB_LEN);
+		memcpy(lkb->lkb_lvbptr, r->res_lvbptr, len);
 		lkb->lkb_lvbseq = r->res_lvbseq;
 
 	} else if (b == 0) {
@@ -1484,7 +1485,7 @@ static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		if (!r->res_lvbptr)
 			return;
 
-		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, len);
 		r->res_lvbseq++;
 		lkb->lkb_lvbseq = r->res_lvbseq;
 		clear_bit(RESFL_VALNOTVALID, &r->res_flags);
@@ -1516,7 +1517,7 @@ static void set_lvb_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	if (!r->res_lvbptr)
 		return;
 
-	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, DLM_LVB_LEN);
+	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, r->res_ls->ls_lvblen);
 	r->res_lvbseq++;
 	clear_bit(RESFL_VALNOTVALID, &r->res_flags);
 }
@@ -1536,7 +1537,8 @@ static void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
 
 	b =  dlm_lvb_operations[lkb->lkb_grmode + 1][lkb->lkb_rqmode + 1];
 	if (b == 1) {
-		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
+		int len = receive_extralen(ms);
+		memcpy(lkb->lkb_lvbptr, ms->m_extra, len);
 		lkb->lkb_lvbseq = ms->m_lvbseq;
 	}
 }
@@ -2124,18 +2126,31 @@ static int do_cancel(struct dlm_rsb *r, struct dlm_lkb *lkb)
  * receive_lookup_reply		send_lookup_reply
  */
 
-static int create_message(struct dlm_rsb *r, int to_nodeid, int mstype,
-		struct dlm_message **ms_ret, struct dlm_mhandle **mh_ret)
+static int create_message(struct dlm_rsb *r, struct dlm_lkb *lkb,
+			  int to_nodeid, int mstype,
+			  struct dlm_message **ms_ret,
+			  struct dlm_mhandle **mh_ret)
 {
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
 	char *mb;
 	int mb_len = sizeof(struct dlm_message);
 
-	if (mstype == DLM_MSG_REQUEST ||
-	    mstype == DLM_MSG_LOOKUP ||
-	    mstype == DLM_MSG_REMOVE)
+	switch (mstype) {
+	case DLM_MSG_REQUEST:
+	case DLM_MSG_LOOKUP:
+	case DLM_MSG_REMOVE:
 		mb_len += r->res_length;
+		break;
+	case DLM_MSG_CONVERT:
+	case DLM_MSG_UNLOCK:
+	case DLM_MSG_REQUEST_REPLY:
+	case DLM_MSG_CONVERT_REPLY:
+	case DLM_MSG_GRANT:
+		if (lkb && lkb->lkb_lvbptr)
+			mb_len += r->res_ls->ls_lvblen;
+		break;
+	}
 
 	/* get_buffer gives us a message handle (mh) that we need to
 	   pass into lowcomms_commit and a message buffer (mb) that we
@@ -2200,11 +2215,12 @@ static void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb,
 		ms->m_range[1] = lkb->lkb_range[RQ_RANGE_END];
 	}
 
-	if (lkb->lkb_lvbptr)
-		memcpy(ms->m_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
-	
 	if (ms->m_type == DLM_MSG_REQUEST || ms->m_type == DLM_MSG_LOOKUP)
-		memcpy(ms->m_name, r->res_name, r->res_length);
+		memcpy(ms->m_extra, r->res_name, r->res_length);
+
+	else if (lkb->lkb_lvbptr)
+		memcpy(ms->m_extra, lkb->lkb_lvbptr, r->res_ls->ls_lvblen);
+	
 }
 
 static int send_common(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype)
@@ -2217,7 +2233,7 @@ static int send_common(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype)
 
 	to_nodeid = r->res_nodeid;
 
-	error = create_message(r, to_nodeid, mstype, &ms, &mh);
+	error = create_message(r, lkb, to_nodeid, mstype, &ms, &mh);
 	if (error)
 		goto fail;
 
@@ -2276,7 +2292,7 @@ static int send_grant(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	to_nodeid = lkb->lkb_nodeid;
 
-	error = create_message(r, to_nodeid, DLM_MSG_GRANT, &ms, &mh);
+	error = create_message(r, lkb, to_nodeid, DLM_MSG_GRANT, &ms, &mh);
 	if (error)
 		goto out;
 
@@ -2297,7 +2313,7 @@ static int send_bast(struct dlm_rsb *r, struct dlm_lkb *lkb, int mode)
 
 	to_nodeid = lkb->lkb_nodeid;
 
-	error = create_message(r, to_nodeid, DLM_MSG_BAST, &ms, &mh);
+	error = create_message(r, NULL, to_nodeid, DLM_MSG_BAST, &ms, &mh);
 	if (error)
 		goto out;
 
@@ -2320,7 +2336,7 @@ static int send_lookup(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	to_nodeid = dlm_dir_nodeid(r);
 
-	error = create_message(r, to_nodeid, DLM_MSG_LOOKUP, &ms, &mh);
+	error = create_message(r, NULL, to_nodeid, DLM_MSG_LOOKUP, &ms, &mh);
 	if (error)
 		goto fail;
 
@@ -2344,11 +2360,11 @@ static int send_remove(struct dlm_rsb *r)
 
 	to_nodeid = dlm_dir_nodeid(r);
 
-	error = create_message(r, to_nodeid, DLM_MSG_REMOVE, &ms, &mh);
+	error = create_message(r, NULL, to_nodeid, DLM_MSG_REMOVE, &ms, &mh);
 	if (error)
 		goto out;
 
-	memcpy(ms->m_name, r->res_name, r->res_length);
+	memcpy(ms->m_extra, r->res_name, r->res_length);
 
 	error = send_message(mh, ms);
  out:
@@ -2364,7 +2380,7 @@ static int send_common_reply(struct dlm_rsb *r, struct dlm_lkb *lkb,
 
 	to_nodeid = lkb->lkb_nodeid;
 
-	error = create_message(r, to_nodeid, mstype, &ms, &mh);
+	error = create_message(r, lkb, to_nodeid, mstype, &ms, &mh);
 	if (error)
 		goto out;
 
@@ -2403,9 +2419,9 @@ static int send_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms_in,
 	struct dlm_rsb *r = &ls->ls_stub_rsb;
 	struct dlm_message *ms;
 	struct dlm_mhandle *mh;
-	int error, to_nodeid = ms_in->m_header.h_nodeid;
+	int error, nodeid = ms_in->m_header.h_nodeid;
 
-	error = create_message(r, to_nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
+	error = create_message(r, NULL, nodeid, DLM_MSG_LOOKUP_REPLY, &ms, &mh);
 	if (error)
 		goto out;
 
@@ -2436,7 +2452,7 @@ static void receive_flags_reply(struct dlm_lkb *lkb, struct dlm_message *ms)
 		         (ms->m_flags & 0x0000FFFF);
 }
 
-static int receive_namelen(struct dlm_message *ms)
+static int receive_extralen(struct dlm_message *ms)
 {
 	return (ms->m_header.h_length - sizeof(struct dlm_message));
 }
@@ -2458,12 +2474,15 @@ static int receive_range(struct dlm_ls *ls, struct dlm_lkb *lkb,
 static int receive_lvb(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		       struct dlm_message *ms)
 {
+	int len;
+
 	if (lkb->lkb_exflags & DLM_LKF_VALBLK) {
 		if (!lkb->lkb_lvbptr)
 			lkb->lkb_lvbptr = allocate_lvb(ls);
 		if (!lkb->lkb_lvbptr)
 			return -ENOMEM;
-		memcpy(lkb->lkb_lvbptr, ms->m_lvb, DLM_LVB_LEN);
+		len = receive_extralen(ms);
+		memcpy(lkb->lkb_lvbptr, ms->m_extra, len);
 	}
 	return 0;
 }
@@ -2560,9 +2579,9 @@ static void receive_request(struct dlm_ls *ls, struct dlm_message *ms)
 		goto fail;
 	}
 
-	namelen = receive_namelen(ms);
+	namelen = receive_extralen(ms);
 
-	error = find_rsb(ls, ms->m_name, namelen, R_MASTER, &r);
+	error = find_rsb(ls, ms->m_extra, namelen, R_MASTER, &r);
 	if (error) {
 		put_lkb(lkb);
 		goto fail;
@@ -2746,9 +2765,9 @@ static void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 	from_nodeid = ms->m_header.h_nodeid;
 
-	len = receive_namelen(ms);
+	len = receive_extralen(ms);
 
-	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_name, len);
+	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_extra, len);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		log_error(ls, "lookup dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
@@ -2757,7 +2776,7 @@ static void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 		goto out;
 	}
 
-	error = dlm_dir_lookup(ls, from_nodeid, ms->m_name, len, &ret_nodeid);
+	error = dlm_dir_lookup(ls, from_nodeid, ms->m_extra, len, &ret_nodeid);
  out:
 	send_lookup_reply(ls, ms, ret_nodeid, error);
 }
@@ -2768,16 +2787,16 @@ static void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
 
 	from_nodeid = ms->m_header.h_nodeid;
 
-	len = receive_namelen(ms);
+	len = receive_extralen(ms);
 
-	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_name, len);
+	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_extra, len);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		log_error(ls, "remove dir entry dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
 		return;
 	}
 
-	dlm_dir_remove_entry(ls, from_nodeid, ms->m_name, len);
+	dlm_dir_remove_entry(ls, from_nodeid, ms->m_extra, len);
 }
 
 static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
@@ -3438,6 +3457,7 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 				  struct dlm_rsb *r, struct dlm_rcom *rc)
 {
 	struct rcom_lock *rl = (struct rcom_lock *) rc->rc_buf;
+	int lvblen;
 
 	lkb->lkb_nodeid = rc->rc_header.h_nodeid;
 	lkb->lkb_ownpid = rl->rl_ownpid;
@@ -3464,7 +3484,9 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 		lkb->lkb_lvbptr = allocate_lvb(ls);
 		if (!lkb->lkb_lvbptr)
 			return -ENOMEM;
-		memcpy(lkb->lkb_lvbptr, rl->rl_lvb, DLM_LVB_LEN);
+		lvblen = rc->rc_header.h_length - sizeof(struct dlm_rcom) -
+			 sizeof(struct rcom_lock);
+		memcpy(lkb->lkb_lvbptr, rl->rl_lvb, lvblen);
 	}
 
 	/* Conversions between PR and CW (middle modes) need special handling.

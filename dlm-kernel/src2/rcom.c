@@ -268,14 +268,14 @@ static void pack_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	if (lkb->lkb_range)
 		memcpy(rl->rl_range, lkb->lkb_range, 4*sizeof(uint64_t));
 
+	rl->rl_namelen = r->res_length;
+	memcpy(rl->rl_name, r->res_name, r->res_length);
+
 	/* FIXME: might we have an lvb without DLM_LKF_VALBLK set ?
 	   If so, receive_rcom_lock_args() won't take this copy. */
 
 	if (lkb->lkb_lvbptr)
-		memcpy(rl->rl_lvb, lkb->lkb_lvbptr, DLM_LVB_LEN);
-
-	rl->rl_namelen = r->res_length;
-	memcpy(rl->rl_name, r->res_name, r->res_length);
+		memcpy(rl->rl_lvb, lkb->lkb_lvbptr, r->res_ls->ls_lvblen);
 }
 
 int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
@@ -284,10 +284,12 @@ int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	struct dlm_rcom *rc;
 	struct dlm_mhandle *mh;
 	struct rcom_lock *rl;
-	int error;
+	int error, len = sizeof(struct rcom_lock);
 
-	error = create_rcom(ls, r->res_nodeid, DLM_RCOM_LOCK,
-			    sizeof(struct rcom_lock), &rc, &mh);
+	if (lkb->lkb_lvbptr)
+		len += ls->ls_lvblen;
+
+	error = create_rcom(ls, r->res_nodeid, DLM_RCOM_LOCK, len, &rc, &mh);
 	if (error)
 		goto out;
 

@@ -90,7 +90,7 @@ static void print_lock(struct seq_file *s, struct dlm_lkb *lkb,
 static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 {
 	struct dlm_lkb *lkb;
-	int i;
+	int i, lvblen = res->res_ls->ls_lvblen;
 
 	seq_printf(s, "\nResource %p Name (len=%d) \"", res, res->res_length);
 	for (i = 0; i < res->res_length; i++) {
@@ -108,8 +108,8 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 	/* Print the LVB: */
 	if (res->res_lvbptr) {
 		seq_printf(s, "LVB: ");
-		for (i = 0; i < DLM_LVB_LEN; i++) {
-			if (i == DLM_LVB_LEN / 2)
+		for (i = 0; i < lvblen; i++) {
+			if (i == lvblen / 2)
 				seq_printf(s, "\n     ");
 			seq_printf(s, "%02x ",
 				   (unsigned char) res->res_lvbptr[i]);
