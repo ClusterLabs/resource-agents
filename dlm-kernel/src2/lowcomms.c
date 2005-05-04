@@ -1043,19 +1043,16 @@ static int send_to_sock(struct nodeinfo *ni)
 		if (len) {
 			iov.iov_base = page_address(e->page)+offset;
 			iov.iov_len = len;
- /* retry: */
+ retry:
 			ret = kernel_sendmsg(sctp_con.sock, &outmsg, &iov, 1,
 					     len);
 
 			if (ret == -EAGAIN) {
 				printk("lowcomms: sendmsg %d len %d off %d\n",
 					ret, len, offset);
-				goto out;
-				/*
 				set_current_state(TASK_INTERRUPTIBLE);
 				schedule_timeout(HZ/2);
 				goto retry;
-				*/
 			} else if (ret < 0)
 				goto send_error;
 		} else {
@@ -1074,7 +1071,6 @@ static int send_to_sock(struct nodeinfo *ni)
 		}
 	}
 	spin_unlock(&ni->writequeue_lock);
- out:
 	return ret;
 
  send_error:
