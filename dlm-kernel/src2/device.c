@@ -178,9 +178,8 @@ static int add_lockinfo(struct lock_info *li)
 		goto out_up;
 
 	r = idr_get_new_above(&lockinfo_idr, li, li->li_lksb.sb_lkid, &n);
-	if (r) {
+	if (r)
 		goto out_up;
-	}
 
 	if (n != li->li_lksb.sb_lkid) {
 		idr_remove(&lockinfo_idr, n);
@@ -201,7 +200,6 @@ static struct user_ls *__find_lockspace(int minor)
 	struct user_ls *lsinfo;
 
 	list_for_each_entry(lsinfo, &user_ls_list, ls_list) {
-
 		if (lsinfo->ls_miscinfo.minor == minor)
 			return lsinfo;
 	}
@@ -247,23 +245,23 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 		kfree(newls);
 		return -ENOMEM;
 	}
-	status = dlm_new_lockspace(name, strlen(name),
-				   &newls->ls_lockspace, 0);
 
+	status = dlm_new_lockspace(name, strlen(name), &newls->ls_lockspace, 0);
 	if (status != 0) {
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
 		return status;
 	}
 
-	snprintf((char*)newls->ls_miscinfo.name, namelen, "%s_%s", name_prefix, name);
+	snprintf((char*)newls->ls_miscinfo.name, namelen, "%s_%s",
+		 name_prefix, name);
 
 	newls->ls_miscinfo.fops = &_dlm_fops;
 	newls->ls_miscinfo.minor = MISC_DYNAMIC_MINOR;
 
 	status = misc_register(&newls->ls_miscinfo);
 	if (status) {
-		printk(KERN_ERR "dlm: failed to register misc device for %s", name);
+		printk(KERN_ERR "dlm: misc register failed for %s", name);
 		dlm_release_lockspace(newls->ls_lockspace, 0);
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
@@ -327,9 +325,8 @@ static void bast_routine(void *param, int mode)
 {
 	struct lock_info *li = param;
 
-	if (li && li->li_bastaddr) {
+	if (li && li->li_bastaddr)
 		add_to_astqueue(li, li->li_bastaddr, li->li_bastparam, 0);
-	}
 }
 
 /*
@@ -368,7 +365,8 @@ static void ast_routine(void *param)
 
 		/* Only queue AST if the device is still open */
 		if (test_bit(1, &li->li_file->fi_flags))
-			add_to_astqueue(li, li->li_castaddr, li->li_castparam, lvb_updated);
+			add_to_astqueue(li, li->li_castaddr, li->li_castparam,
+					lvb_updated);
 
 		/* If it's a new lock operation that failed, then
 		 * remove it from the owner queue and free the
@@ -392,8 +390,7 @@ static void ast_routine(void *param)
 		    li->li_cmd == DLM_USER_QUERY) {
 			release_lockinfo(li);
 		}
-	}
-	else {
+	} else {
 		/* Synchronous request, just wake up the caller */
 		set_bit(LI_FLAG_COMPLETE, &li->li_flags);
 		wake_up_interruptible(&li->li_waitq);
@@ -466,7 +463,8 @@ static int check_version(struct dlm_write_request *req)
 	    (req->version[0] == DLM_DEVICE_VERSION_MAJOR &&
 	     req->version[1] > DLM_DEVICE_VERSION_MINOR)) {
 
-		printk(KERN_DEBUG "dlm: process %s (%d) version mismatch user (%d.%d.%d) kernel (%d.%d.%d),",
+		printk(KERN_DEBUG "dlm: process %s (%d) version mismatch "
+		       "user (%d.%d.%d) kernel (%d.%d.%d),",
 		       current->comm,
 		       current->pid,
 		       req->version[0],
@@ -536,7 +534,8 @@ static int dlm_close(struct inode *inode, struct file *file)
 					  NULL, NULL);
 
 			if (status != 0)
-				printk("dlm: Error orphaning lock %x: %d\n", old_li->li_lksb.sb_lkid, status);
+				printk("dlm: Error orphaning lock %x: %d\n",
+				       old_li->li_lksb.sb_lkid, status);
 
 			/* But tidy our references in it */
 			release_lockinfo(old_li);
@@ -558,7 +557,8 @@ static int dlm_close(struct inode *inode, struct file *file)
 			flags |= DLM_LKF_IVVALBLK;
 
 		status = dlm_unlock(f->fi_ls->ls_lockspace,
-				    old_li->li_lksb.sb_lkid, flags, &li.li_lksb, &li);
+				    old_li->li_lksb.sb_lkid, flags,
+				    &li.li_lksb, &li);
 		/* Must wait for it to complete as the next lock could be its
 		 * parent */
 		if (status == 0)
@@ -570,15 +570,15 @@ static int dlm_close(struct inode *inode, struct file *file)
 			flags &= ~DLM_LKF_CANCEL;
 			clear_bit(LI_FLAG_COMPLETE, &li.li_flags);
 			status = dlm_unlock(f->fi_ls->ls_lockspace,
-					    old_li->li_lksb.sb_lkid, flags, &li.li_lksb, &li);
+					    old_li->li_lksb.sb_lkid, flags,
+					    &li.li_lksb, &li);
 
 			if (status == 0)
 				wait_for_ast(&li);
 		}
 		/* Unlock suceeded, free the lock_info struct. */
-		if (status == 0) {
+		if (status == 0)
 			release_lockinfo(old_li);
-		}
 	}
 
 	remove_wait_queue(&li.li_waitq, &wq);
@@ -593,10 +593,9 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		if (lsinfo->ls_lockspace) {
 			if (test_bit(LS_FLAG_AUTOFREE, &lsinfo->ls_flags)) {
-//TODO this breaks!				unregister_lockspace(lsinfo, 1);
+//TODO this breaks!		unregister_lockspace(lsinfo, 1);
 			}
-		}
-		else {
+		} else {
 			kfree(lsinfo->ls_miscinfo.name);
 			kfree(lsinfo);
 		}
@@ -658,7 +657,8 @@ static int do_user_remove_lockspace(struct file_info *fi, uint8_t cmd,
  * It will only ever return one message at a time, regardless
  * of how many are pending.
  */
-static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, loff_t *ppos)
+static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count,
+			loff_t *ppos)
 {
 	struct file_info *fi = file->private_data;
 	struct ast_info *ast;
@@ -720,9 +720,10 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 	if (count >= data_size) {
 
 		if (ast->lvb_updated && ast->result.lksb.sb_lvbptr) {
-		    if (copy_to_user(buffer+offset, ast->result.lksb.sb_lvbptr, DLM_LVB_LEN))
-			return -EFAULT;
-
+			if (copy_to_user(buffer+offset,
+					 ast->result.lksb.sb_lvbptr,
+					 DLM_LVB_LEN))
+				return -EFAULT;
 			ast->result.lvb_offset = offset;
 			offset += DLM_LVB_LEN;
 		}
@@ -733,15 +734,14 @@ static ssize_t dlm_read(struct file *file, char __user *buffer, size_t count, lo
 	if (copy_to_user(buffer, &ast->result, sizeof(struct dlm_lock_result)))
 		offset = -EFAULT;
 
-	/* If we only returned a header and there's more to come then put it back on the list */
+	/* If we only returned a header and there's more to come then put it
+	   back on the list */
 	if (count < data_size) {
 		spin_lock(&fi->fi_ast_lock);
 		list_add(&ast->list, &fi->fi_ast_list);
 		spin_unlock(&fi->fi_ast_lock);
-	}
-	else {
+	} else
 		kfree(ast);
-	}
 	return offset;
 }
 
@@ -790,7 +790,8 @@ static struct lock_info *allocate_lockinfo(struct file_info *fi, uint8_t cmd,
 	return li;
 }
 
-static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_params *kparams)
+static int do_user_lock(struct file_info *fi, uint8_t cmd,
+			struct dlm_lock_params *kparams)
 {
 	struct lock_info *li;
 	int status;
@@ -814,7 +815,8 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 
 		li = get_lockinfo(kparams->lkid);
 
-		/* If this is a persistent lock we will have to create a lockinfo again */
+		/* If this is a persistent lock we will have to create a
+		   lockinfo again */
 		if (!li && DLM_LKF_PERSISTENT) {
 			li = allocate_lockinfo(fi, cmd, kparams);
 
@@ -822,9 +824,9 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 			li->li_castaddr  = kparams->castaddr;
 			li->li_castparam = kparams->castparam;
 
-			/* OK, this isn;t exactly a FIRSTLOCK but it is the first
-			   time we've used this lockinfo, and if things fail we want
-			   rid of it */
+			/* OK, this isn;t exactly a FIRSTLOCK but it is the
+			   first time we've used this lockinfo, and if things
+			   fail we want rid of it */
 			init_MUTEX_LOCKED(&li->li_firstlock);
 			set_bit(LI_FLAG_FIRSTLOCK, &li->li_flags);
 			add_lockinfo(li);
@@ -848,8 +850,7 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 		*/
 		li->li_pend_bastaddr  = kparams->bastaddr;
 		li->li_pend_bastparam = kparams->bastparam;
-	}
-	else {
+	} else {
 		li = allocate_lockinfo(fi, cmd, kparams);
 		if (!li)
 			return -ENOMEM;
@@ -872,7 +873,8 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 	/* Copy in the value block */
 	if (kparams->flags & DLM_LKF_VALBLK) {
 		if (!li->li_lksb.sb_lvbptr) {
-			li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN, GFP_KERNEL);
+			li->li_lksb.sb_lvbptr = kmalloc(DLM_LVB_LEN,
+							GFP_KERNEL);
 			if (!li->li_lksb.sb_lvbptr) {
 				status = -ENOMEM;
 				goto out_err;
@@ -913,14 +915,14 @@ static int do_user_lock(struct file_info *fi, uint8_t cmd, struct dlm_lock_param
 	return li->li_lksb.sb_lkid;
 
  out_err:
-	if (test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags)) {
+	if (test_bit(LI_FLAG_FIRSTLOCK, &li->li_flags))
 		release_lockinfo(li);
-	}
 	return status;
 
 }
 
-static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_params *kparams)
+static int do_user_unlock(struct file_info *fi, uint8_t cmd,
+			  struct dlm_lock_params *kparams)
 {
 	struct lock_info *li;
 	int status;
@@ -944,10 +946,8 @@ static int do_user_unlock(struct file_info *fi, uint8_t cmd, struct dlm_lock_par
 	li->li_cmd       = cmd;
 
 	/* Cancelling a conversion doesn't remove the lock...*/
-	if (kparams->flags & DLM_LKF_CANCEL &&
-	    li->li_grmode != -1) {
+	if (kparams->flags & DLM_LKF_CANCEL && li->li_grmode != -1)
 		convert_cancel = 1;
-	}
 
 	/* dlm_unlock() passes a 0 for castaddr which means don't overwrite
 	   the existing li_castaddr as that's the completion routine for
@@ -980,7 +980,8 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 	sigset_t allsigs;
 	int status;
 
-	if (count < sizeof(struct dlm_write_request)-1)	/* -1 because lock name is optional */
+	/* -1 because lock name is optional */
+	if (count < sizeof(struct dlm_write_request)-1)
 		return -EINVAL;
 
 	/* Has the lockspace been deleted */
@@ -1019,15 +1020,18 @@ static ssize_t dlm_write(struct file *file, const char __user *buffer,
 
 	case DLM_USER_CREATE_LOCKSPACE:
 		if (fi) goto out_sig;
-		status = do_user_create_lockspace(fi, kparams->cmd, &kparams->i.lspace);
+		status = do_user_create_lockspace(fi, kparams->cmd,
+						  &kparams->i.lspace);
 		break;
 
 	case DLM_USER_REMOVE_LOCKSPACE:
 		if (fi) goto out_sig;
-		status = do_user_remove_lockspace(fi, kparams->cmd, &kparams->i.lspace);
+		status = do_user_remove_lockspace(fi, kparams->cmd,
+						  &kparams->i.lspace);
 		break;
 	default:
-		printk("Unknown command passed to DLM device : %d\n", kparams->cmd);
+		printk("Unknown command passed to DLM device : %d\n",
+			kparams->cmd);
 		break;
 	}
 
@@ -1097,7 +1101,7 @@ int __init dlm_device_init(void)
 
 	r = misc_register(&ctl_device);
 	if (r) {
-		printk(KERN_ERR "dlm: misc_register failed for DLM control device");
+		printk(KERN_ERR "dlm: misc_register failed for control device");
 		return r;
 	}
 
