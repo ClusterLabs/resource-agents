@@ -162,8 +162,8 @@ void dlm_rcom_out(struct dlm_rcom *rc)
 
 	header_out(hd);
 
-	rc->rc_type		= cpu_to_le16(rc->rc_type);
-	rc->rc_result		= cpu_to_le16(rc->rc_result);
+	rc->rc_type		= cpu_to_le32(rc->rc_type);
+	rc->rc_result		= cpu_to_le32(rc->rc_result);
 	rc->rc_id		= cpu_to_le64(rc->rc_id);
 
 	if (type == DLM_RCOM_LOCK)
@@ -176,8 +176,8 @@ void dlm_rcom_in(struct dlm_rcom *rc)
 
 	header_in(hd);
 
-	rc->rc_type		= le16_to_cpu(rc->rc_type);
-	rc->rc_result		= le16_to_cpu(rc->rc_result);
+	rc->rc_type		= le32_to_cpu(rc->rc_type);
+	rc->rc_result		= le32_to_cpu(rc->rc_result);
 	rc->rc_id		= le64_to_cpu(rc->rc_id);
 
 	if (rc->rc_type == DLM_RCOM_LOCK)
