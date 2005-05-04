@@ -967,10 +967,12 @@ make_dummy_transaction(struct gfs_sbd *sdp, struct gfs_trans *tr)
 	struct list_head *bmem;
 
 	memset(tr, 0, sizeof(struct gfs_trans));
+	INIT_LIST_HEAD(&tr->tr_list);
 	INIT_LIST_HEAD(&tr->tr_elements);
 	INIT_LIST_HEAD(&tr->tr_free_bufs);
 	INIT_LIST_HEAD(&tr->tr_free_bmem);
 	INIT_LIST_HEAD(&tr->tr_bufs);
+	INIT_LIST_HEAD(&tr->tr_ail_bufs);
 	tr->tr_flags = TRF_DUMMY;
 	tr->tr_file = __FILE__;
 	tr->tr_line = __LINE__;
