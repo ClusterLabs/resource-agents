@@ -144,12 +144,9 @@ static spinlock_t write_nodes_lock;
 /* Manage daemons */
 static struct task_struct *recv_task;
 static struct task_struct *send_task;
+static wait_queue_head_t lowcomms_send_wait;
+static wait_queue_head_t lowcomms_recv_wait;
 static atomic_t accepting;
-
-static wait_queue_t lowcomms_send_waitq_head;
-static wait_queue_head_t lowcomms_send_waitq;
-static wait_queue_t lowcomms_recv_waitq_head;
-static wait_queue_head_t lowcomms_recv_waitq;
 
 /* The SCTP connection */
 static struct connection sctp_con;
@@ -358,12 +355,12 @@ static void lowcomms_data_ready(struct sock *sk, int count_unused)
 	if (test_and_set_bit(CF_READ_PENDING, &sctp_con.flags))
 		return;
 
-	wake_up_interruptible(&lowcomms_recv_waitq);
+	wake_up_interruptible(&lowcomms_recv_wait);
 }
 
 static void lowcomms_write_space(struct sock *sk)
 {
-	wake_up_interruptible(&lowcomms_send_waitq);
+	wake_up_interruptible(&lowcomms_send_wait);
 }
 
 
@@ -475,7 +472,7 @@ static void init_failed(void)
 			}
 		}
 	}
-	wake_up_interruptible(&lowcomms_send_waitq);
+	wake_up_interruptible(&lowcomms_send_wait);
 }
 
 /* Something happened to an association */
@@ -554,7 +551,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 				list_add_tail(&ni->write_list, &write_nodes);
 				spin_unlock_bh(&write_nodes_lock);
 			}
-			wake_up_interruptible(&lowcomms_send_waitq);
+			wake_up_interruptible(&lowcomms_send_wait);
 		}
 		break;
 
@@ -686,7 +683,7 @@ static int receive_from_sock(void)
 				list_add_tail(&ni->write_list, &write_nodes);
 				spin_unlock_bh(&write_nodes_lock);
 			}
-			wake_up_interruptible(&lowcomms_send_waitq);
+			wake_up_interruptible(&lowcomms_send_wait);
 		}
 	}
 
@@ -919,7 +916,7 @@ void dlm_lowcomms_commit_buffer(void *arg)
 		spin_lock_bh(&write_nodes_lock);
 		list_add_tail(&ni->write_list, &write_nodes);
 		spin_unlock_bh(&write_nodes_lock);
-		wake_up_interruptible(&lowcomms_send_waitq);
+		wake_up_interruptible(&lowcomms_send_wait);
 	}
 	return;
 
@@ -1032,11 +1029,10 @@ static int send_to_sock(struct nodeinfo *ni)
 
 	spin_lock(&ni->writequeue_lock);
 	for (;;) {
+		if (list_empty(&ni->writequeue))
+			break;
 		e = list_entry(ni->writequeue.next, struct writequeue_entry,
 			       list);
-		if ((struct list_head *) e == &ni->writequeue)
-			break;
-
 		kmap(e->page);
 		len = e->len;
 		offset = e->offset;
@@ -1047,12 +1043,20 @@ static int send_to_sock(struct nodeinfo *ni)
 		if (len) {
 			iov.iov_base = page_address(e->page)+offset;
 			iov.iov_len = len;
+ /* retry: */
+			ret = kernel_sendmsg(sctp_con.sock, &outmsg, &iov, 1,
+					     len);
 
-			ret = kernel_sendmsg(sctp_con.sock, &outmsg, &iov, 1, len);
-
-			if (ret == -EAGAIN || ret == 0)
+			if (ret == -EAGAIN) {
+				printk("lowcomms: sendmsg %d len %d off %d\n",
+					ret, len, offset);
 				goto out;
-			if (ret <= 0)
+				/*
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule_timeout(HZ/2);
+				goto retry;
+				*/
+			} else if (ret < 0)
 				goto send_error;
 		} else {
 			/* Don't starve people filling buffers */
@@ -1186,19 +1190,16 @@ static int write_list_empty(void)
 
 static int dlm_recvd(void *data)
 {
-	init_waitqueue_head(&lowcomms_recv_waitq);
-	init_waitqueue_entry(&lowcomms_recv_waitq_head, current);
-	add_wait_queue(&lowcomms_recv_waitq, &lowcomms_recv_waitq_head);
+	DECLARE_WAITQUEUE(wait, current);
 
-	/* Just keep waiting for data */
 	while (!kthread_should_stop()) {
 		int count = 0;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-
+		add_wait_queue(&lowcomms_recv_wait, &wait);
 		if (!test_bit(CF_READ_PENDING, &sctp_con.flags))
 			schedule();
-
+		remove_wait_queue(&lowcomms_recv_wait, &wait);
 		set_current_state(TASK_RUNNING);
 
 		if (test_and_clear_bit(CF_READ_PENDING, &sctp_con.flags)) {
@@ -1212,7 +1213,6 @@ static int dlm_recvd(void *data)
 					schedule();
 					count = 0;
 				}
-
 			} while (!kthread_should_stop() && ret >=0);
 		}
 		schedule();
@@ -1223,14 +1223,14 @@ static int dlm_recvd(void *data)
 
 static int dlm_sendd(void *data)
 {
-	init_waitqueue_head(&lowcomms_send_waitq);
-	init_waitqueue_entry(&lowcomms_send_waitq_head, current);
-	add_wait_queue(&lowcomms_send_waitq, &lowcomms_send_waitq_head);
+	DECLARE_WAITQUEUE(wait, current);
 
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
+		add_wait_queue(&lowcomms_send_wait, &wait);
 		if (write_list_empty())
 			schedule();
+		remove_wait_queue(&lowcomms_send_wait, &wait);
 		set_current_state(TASK_RUNNING);
 
 		process_output_queue();
@@ -1281,7 +1281,6 @@ int dlm_lowcomms_start(void)
 {
 	int error;
 
-	init_waitqueue_head(&lowcomms_send_waitq);
 	spin_lock_init(&write_nodes_lock);
 	INIT_LIST_HEAD(&write_nodes);
 	init_rwsem(&nodeinfo_lock);
@@ -1315,6 +1314,8 @@ void dlm_lowcomms_stop(void)
 
 int dlm_lowcomms_init(void)
 {
+	init_waitqueue_head(&lowcomms_send_wait);
+	init_waitqueue_head(&lowcomms_recv_wait);
 	INIT_LIST_HEAD(&nodes);
 	init_MUTEX(&nodes_sem);
 	return 0;
