@@ -82,7 +82,8 @@ static int init_dlm(dlm_t *dlm)
 {
 	int error;
 
-	error = dlm_new_lockspace(dlm->fsname, dlm->fnlen, &dlm->gdlm_lsp, 0);
+	error = dlm_new_lockspace(dlm->fsname, dlm->fnlen, &dlm->gdlm_lsp, 0,
+				  DLM_LVB_SIZE);
 	if (error)
 		printk("lock_dlm: new lockspace error %d\n", error);
 

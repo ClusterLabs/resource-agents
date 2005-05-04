@@ -37,7 +37,7 @@ EXTRA_CFLAGS += -I$(obj)
 all:
 	if [ ! -e linux ]; then ln -s . linux; fi
 	if [ ! -e lm_interface.h ]; then ln -s ${top_srcdir}/src/harness/lm_interface.h .; fi
-	if [ ! -e dlm.h ]; then cp ${incdir}/cluster/dlm.h .; fi
+	if [ ! -e dlm.h ]; then cp ../../../../dlm-kernel/src2/dlm.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all

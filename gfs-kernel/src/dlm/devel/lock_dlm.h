@@ -37,7 +37,7 @@
 
 #define LM_TYPE_PLOCK_UPDATE	(0x11)
 
-#define DLM_LVB_SIZE		(DLM_LVB_LEN)
+#define DLM_LVB_SIZE		(32)
 
 /* GFS uses 12 bytes to identify a resource (32 bit type + 64 bit number).
    We sprintf these numbers into a 24 byte string of hex values to make them
