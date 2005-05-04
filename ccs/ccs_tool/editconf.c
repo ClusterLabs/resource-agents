@@ -18,9 +18,6 @@
 #include <errno.h>
 
 #include <libxml/tree.h>
-#include <libxml/parser.h>
-#include <libxml/xpath.h>
-#include <libxml/xpathInternals.h>
 
 #include "update.h"
 
@@ -846,6 +843,10 @@ void create_skeleton(int argc, char **argv)
 
 	if (stat(ninfo.outputfile, &st) == 0)
 		die("%s already exists", ninfo.outputfile);
+
+	/* Init libxml */
+	xmlInitParser();
+	LIBXML_TEST_VERSION;
 
 	doc = xmlNewDoc(BAD_CAST "1.0");
 	root_element = xmlNewNode(NULL, BAD_CAST "cluster");
