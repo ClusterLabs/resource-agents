@@ -191,13 +191,14 @@ netmask for ARP
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
+<action name="monitor" depth="0"  timeout="20" interval="5" start-delay="1" />
 <action name="meta-data"  timeout="5" />
 <action name="verify-all"  timeout="30" />
 </actions>
 </resource-agent>
 END
-
+#	FIXME!  I'm pretty sure the default depth above is wrong.
+#	IIRC, level 0 is equivalent to status.
         exit $OCF_SUCCESS
 }
 
