@@ -32,6 +32,9 @@
 #include <clulog.h>
 #include <assert.h>
 
+/* XXX from resrules.c */
+int store_childtype(resource_child_t **childp, char *name, int start,
+		    int stop, int forbid);
 int _res_op(resource_node_t **tree, resource_t *first, char *type,
 	    void * __attribute__((unused))ret, int op);
 void print_env(char **env);
@@ -394,6 +397,8 @@ res_exec(resource_node_t *node, int op, int depth)
    @param base		Base CCS path.
    @see			destroy_resource_tree
  */
+#define RFL_FOUND 0x1
+#define RFL_FORBID 0x2
 static int
 build_tree(int ccsfd, resource_node_t **tree,
 	   resource_node_t *parent,
@@ -406,7 +411,8 @@ build_tree(int ccsfd, resource_node_t **tree,
 	resource_node_t *node;
 	resource_t *curres;
 	char *ref;
-	int x, y;
+	char *newchild;
+	int x, y, flags;
 
 	for (x = 1; ; x++) {
 
@@ -439,6 +445,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 		 	}
 
 			curres->r_flags = RF_INLINE;
+
 
 		} else {
 
@@ -484,25 +491,32 @@ build_tree(int ccsfd, resource_node_t **tree,
 
 		list_insert(tree, node);
 
-		/* TODO: Search for children with new-fangled CCS stuff */
-		for (y = 0; rule->rr_childtypes &&
-		     rule->rr_childtypes[y].rc_name; y++) {
+		list_do(rulelist, childrule) {
 
-			/* Don't even bother looking for resources which
-			   aren't valid children */
-			if (rule->rr_childtypes[y].rc_forbid)
+			flags = 0;
+			for (y = 0; rule->rr_childtypes &&
+		     	     rule->rr_childtypes[y].rc_name; y++) {
+
+				if (strcmp(rule->rr_childtypes[y].rc_name,
+					   childrule->rr_type))
+					continue;
+
+				flags |= RFL_FOUND;
+
+				if (rule->rr_childtypes[y].rc_forbid)
+					flags |= RFL_FORBID;
+			}
+
+			if (flags & RFL_FORBID)
+				/* Allow all *but* forbidden */
 				continue;
 
-			childrule = find_rule_by_type(rulelist,
-					rule->rr_childtypes[y].rc_name);
-			if (!childrule) {
-				/*
-				printf("Error: Reference to nonexistent "
-				       "rule type %s in type %s\n",
-				       rule->rr_childtypes[y].rc_name,
-				       rule->rr_type);
-				 */
-				continue;
+			/* XXX Store new child type with start/stop level 0*/
+			/*     This is really ugly to do it here */
+			if (!(flags & RFL_FOUND)) {
+				newchild = strdup(childrule->rr_type);
+				store_childtype(&rule->rr_childtypes,
+						newchild, 0, 0, 0);
 			}
 
 			snprintf(tok, sizeof(tok), "%s/%s[%d]", base,
@@ -511,7 +525,8 @@ build_tree(int ccsfd, resource_node_t **tree,
 			/* Kaboom */
 			build_tree(ccsfd, &node->rn_child, node, childrule,
 				   rulelist, reslist, tok);
-		}
+
+		} while (!list_done(rulelist, childrule));
 	}
 
 	return 0;
