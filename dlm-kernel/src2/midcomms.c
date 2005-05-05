@@ -62,33 +62,43 @@ int dlm_process_incoming_buffer(int nodeid, const void *base,
 	struct dlm_header *msg = (struct dlm_header *) __tmp;
 	int ret = 0;
 	int err = 0;
-	unsigned msglen;
-	__u32 space;
+	uint16_t msglen;
+	uint32_t lockspace;
 
 	while (len > sizeof(struct dlm_header)) {
-		/* Get message header and check it over */
+
+		/* Copy just the header to check the total length */
+
 		copy_from_cb(msg, base, offset, sizeof(struct dlm_header),
 			     limit);
 
 		msglen = le16_to_cpu(msg->h_length);
-		space = msg->h_lockspace;
+		lockspace = msg->h_lockspace;
 
-		/* Check message size */
 		err = -EINVAL;
 		if (msglen < sizeof(struct dlm_header))
 			break;
 		err = -E2BIG;
 		if (msglen > dlm_config.buffer_size) {
-			printk("dlm: message size from %d too big %d(pkt len=%d)\n", nodeid, msglen, len);
+			log_print("message size %d from %d too big, buf len %d",
+				  msglen, nodeid, len);
 			break;
 		}
 		err = 0;
 
-		/* Not enough in buffer yet? wait for some more */
-		if (msglen > len)
-			break;
+		/* If only part of the full message is contained in this
+		   buffer, then do nothing and wait for lowcomms to call
+		   us again later with more data. */
 
-		/* Make sure our temp buffer is large enough */
+		if (msglen > len) {
+			log_print("partial msglen %d buflen %d off %d from %d",
+				  msglen, len, offset, nodeid);
+			break;
+		}
+
+		/* Allocate a larger temp buffer if the full message won't fit
+		   in the buffer on the stack. */
+
 		if (msglen > sizeof(__tmp) &&
 		    msg == (struct dlm_header *) __tmp) {
 			msg = kmalloc(dlm_config.buffer_size, GFP_KERNEL);
@@ -97,7 +107,9 @@ int dlm_process_incoming_buffer(int nodeid, const void *base,
 		}
 
 		copy_from_cb(msg, base, offset, msglen, limit);
-		BUG_ON(space != msg->h_lockspace);
+
+		BUG_ON(lockspace != msg->h_lockspace);
+
 		ret += msglen;
 		offset += msglen;
 		offset &= (limit - 1);
@@ -113,13 +125,8 @@ int dlm_process_incoming_buffer(int nodeid, const void *base,
 			break;
 
 		default:
-			printk("dlm: msg error cmd %u len %u\n",
-			       msg->h_cmd, msglen);
-
-			printk("dlm: comms: base=%p, offset=%u, len=%u, "
-			       "ret=%u, limit=%08x newbuf=%d\n",
-			       base, offset, len, ret, limit,
-			       ((struct dlm_header *) __tmp == msg));
+			log_print("unknown msg type %x from %u: %u %u %u %u",
+				  msg->h_cmd, nodeid, msglen, len, offset, ret);
 		}
 	}
 

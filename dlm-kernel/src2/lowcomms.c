@@ -696,13 +696,6 @@ static int receive_from_sock(void)
 					  page_address(sctp_con.rx_page),
 					  sctp_con.cb.base, sctp_con.cb.len,
 					  PAGE_CACHE_SIZE);
-
-	if (ret == -EBADMSG) {
-		printk(KERN_INFO "dlm: lowcomms: addr=%p, len=%u, "
-		       "iov_len=%u, iov_base[0]=%p, read=%d\n",
-		       page_address(sctp_con.rx_page), r,
-		       len, iov[0].iov_base, r);
-	}
 	if (ret < 0)
 		goto out_close;
 	CBUF_EAT(&sctp_con.cb, ret);
@@ -718,10 +711,8 @@ static int receive_from_sock(void)
 	goto out_ret;
 
       out_close:
-	if (ret != -EAGAIN) {
-		printk(KERN_INFO "dlm: Error reading from sctp socket: %d\n",
-		       ret);
-	}
+	if (ret != -EAGAIN)
+		log_print("error reading from sctp socket: %d", ret);
       out_ret:
 	return ret;
 }
