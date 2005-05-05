@@ -141,7 +141,7 @@ gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 
 			error = gfs2_get_data_buffer(ip, block, TRUE, &bh);
 			if (error)
-				goto fail;
+				goto out;
 
 			gfs2_buffer_copy_tail(bh, sizeof(struct gfs2_meta_header),
 					     dibh, sizeof(struct gfs2_dinode));
@@ -152,7 +152,7 @@ gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 
 			error = unstuffer(ip, dibh, block, private);
 			if (error)
-				goto fail;
+				goto out;
 		}
 	}
 
@@ -170,11 +170,8 @@ gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 	ip->i_di.di_height = 1;
 
 	gfs2_dinode_out(&ip->i_di, dibh->b_data);
-	brelse(dibh);
 
-	RETURN(G2FN_UNSTUFF_DINODE, 0);
-
- fail:
+ out:
 	brelse(dibh);
 
 	RETURN(G2FN_UNSTUFF_DINODE, error);
