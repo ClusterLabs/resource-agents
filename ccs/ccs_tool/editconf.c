@@ -143,7 +143,7 @@ static void addnode_usage(const char *name)
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Add a new node to default configuration file:\n");
-	fprintf(stderr, "  %s %s -v 1 -f manual -A newnode.temp.net ipaddr=newnode\n", prog_name, name);
+	fprintf(stderr, "  %s %s -v 1 -f manual ipaddr=newnode\n", prog_name, name);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Add a new node and dump config file to stdout rather than save it\n");
 	fprintf(stderr, "  %s %s -v 1 -f apc -i eth0 -o - newnode.temp.net port=1\n", prog_name, name);
