@@ -67,7 +67,9 @@ int dlm_process_incoming_buffer(int nodeid, const void *base,
 
 	while (len > sizeof(struct dlm_header)) {
 
-		/* Copy just the header to check the total length */
+		/* Copy just the header to check the total length.  The
+		   message may wrap around the end of the buffer back to the
+		   start, so we need to use a temp buffer and copy_from_cb. */
 
 		copy_from_cb(msg, base, offset, sizeof(struct dlm_header),
 			     limit);
@@ -88,16 +90,15 @@ int dlm_process_incoming_buffer(int nodeid, const void *base,
 
 		/* If only part of the full message is contained in this
 		   buffer, then do nothing and wait for lowcomms to call
-		   us again later with more data. */
+		   us again later with more data.  We return 0 meaning
+		   we've consumed none of the input buffer. */
 
-		if (msglen > len) {
-			log_print("partial msglen %d buflen %d off %d from %d",
-				  msglen, len, offset, nodeid);
+		if (msglen > len)
 			break;
-		}
 
 		/* Allocate a larger temp buffer if the full message won't fit
-		   in the buffer on the stack. */
+		   in the buffer on the stack (which should work for most
+		   ordinary messages). */
 
 		if (msglen > sizeof(__tmp) &&
 		    msg == (struct dlm_header *) __tmp) {
