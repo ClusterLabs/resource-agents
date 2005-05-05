@@ -55,8 +55,8 @@ gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 		struct buffer_head *bh = sb_getblk(sdp->sd_vfs,
 						   GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
 		lock_buffer(bh);
-		clear_buffer_dirty(bh);
 		clear_buffer_uptodate(bh);
+		clear_buffer_dirty(bh);
 		unlock_buffer(bh);
 		ll_rw_block(READ, 1, &bh);
 		wait_on_buffer(bh);

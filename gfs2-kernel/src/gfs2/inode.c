@@ -622,7 +622,7 @@ inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 	/* Free all on-disk directory leaves (if any) */
 	if (S_ISDIR(ip->i_di.di_mode) &&
 	    (ip->i_di.di_flags & GFS2_DIF_EXHASH)) {
-		error = gfs2_dir_exhash_free(ip);
+		error = gfs2_dir_exhash_dealloc(ip);
 		if (error)
 			goto fail_iput;
 	}
@@ -635,9 +635,11 @@ inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 	}
 
 	/* Free all data and meta blocks */
-	error = gfs2_shrink(ip, 0, NULL);
-	if (error)
-		goto fail_iput;
+	if (!gfs2_is_stuffed(ip)) {
+		error = gfs2_file_dealloc(ip);
+		if (error)
+			goto fail_iput;
+	}
 
 	/* De-alloc the dinode block */
 	error = dinode_dealloc(ip, ul);
@@ -856,7 +858,7 @@ gfs2_lookupi(struct gfs2_holder *ghs, struct qstr *name, int is_root)
 		RETURN(G2FN_LOOKUPI, error);
 
 	if (!is_root) {
-		error = permission(dip->i_vnode, MAY_EXEC, NULL);
+		error = gfs2_repermission(dip->i_vnode, MAY_EXEC, NULL);
 		if (error) {
 			gfs2_glock_dq(ghs);
 			RETURN(G2FN_LOOKUPI, error);
@@ -898,7 +900,7 @@ gfs2_lookupi(struct gfs2_holder *ghs, struct qstr *name, int is_root)
 		}
 
 		if (!is_root) {
-			error = permission(dip->i_vnode, MAY_EXEC, NULL);
+			error = gfs2_repermission(dip->i_vnode, MAY_EXEC, NULL);
 			if (error) {
 				gfs2_glock_dq(ghs);
 				gfs2_glock_dq_uninit(ghs + 1);
@@ -1132,7 +1134,7 @@ create_ok(struct gfs2_inode *dip, struct qstr *name, unsigned int mode)
 	ENTER(G2FN_CREATE_OK)
 	int error;
 
-	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	error = gfs2_repermission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
 	if (error)
 		RETURN(G2FN_CREATE_OK, error);
 
@@ -1650,7 +1652,7 @@ gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip)
 	if (IS_APPEND(dip->i_vnode))
 		RETURN(G2FN_UNLINK_OK, -EPERM);
 
-	error = permission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
+	error = gfs2_repermission(dip->i_vnode, MAY_WRITE | MAY_EXEC, NULL);
 	if (error)
 		RETURN(G2FN_UNLINK_OK, error);
 
@@ -2076,5 +2078,13 @@ gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 	gfs2_trans_end(ip->i_sbd);
 
 	RETURN(G2FN_SETATTR_SIMPLE, error);
+}
+
+int
+gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd)
+{
+	ENTER(G2FN_REPERMISSION)
+	RETURN(G2FN_REPERMISSION,
+	       permission(inode, mask, nd));
 }
 

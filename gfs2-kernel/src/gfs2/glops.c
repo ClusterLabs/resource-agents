@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
+#include "bmap.h"
 #include "dio.h"
 #include "glock.h"
 #include "glops.h"
@@ -334,17 +335,27 @@ inode_go_demote_ok(struct gfs2_glock *gl)
  */
 
 static int
-inode_go_lock(struct gfs2_glock *gl, int flags)
+inode_go_lock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_INODE_GO_LOCK)
+	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_inode *ip = get_gl2ip(gl);
 	int error = 0;
 
-	if (ip && ip->i_vn != gl->gl_vn) {
+	if (!ip)
+		RETURN(G2FN_INODE_GO_LOCK, 0);
+
+	if (ip->i_vn != gl->gl_vn) {
 		error = gfs2_copyin_dinode(ip);
-		if (!error)
-			gfs2_inode_attr_in(ip);
+		if (error)
+			RETURN(G2FN_INODE_GO_LOCK, error);
+		gfs2_inode_attr_in(ip);
 	}
+
+	if ((ip->i_di.di_flags & GFS2_DIF_TRUNC_IN_PROG) &&
+	    (gl->gl_state == LM_ST_EXCLUSIVE) &&
+	    (gh->gh_flags & GL_LOCAL_EXCL))
+		error = gfs2_truncatei_resume(ip);
 
 	RETURN(G2FN_INODE_GO_LOCK, error);
 }
@@ -358,9 +369,10 @@ inode_go_lock(struct gfs2_glock *gl, int flags)
  */
 
 static void
-inode_go_unlock(struct gfs2_glock *gl, int flags)
+inode_go_unlock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_INODE_GO_UNLOCK)
+	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_inode *ip = get_gl2ip(gl);
 
 	if (ip && test_bit(GLF_DIRTY, &gl->gl_flags))
@@ -440,11 +452,11 @@ rgrp_go_demote_ok(struct gfs2_glock *gl)
  */
 
 static int
-rgrp_go_lock(struct gfs2_glock *gl, int flags)
+rgrp_go_lock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RGRP_GO_LOCK)
 	RETURN(G2FN_RGRP_GO_LOCK,
-	       gfs2_rgrp_bh_get(get_gl2rgd(gl)));
+	       gfs2_rgrp_bh_get(get_gl2rgd(gh->gh_gl)));
 }
 
 /**
@@ -459,10 +471,10 @@ rgrp_go_lock(struct gfs2_glock *gl, int flags)
  */
 
 static void
-rgrp_go_unlock(struct gfs2_glock *gl, int flags)
+rgrp_go_unlock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RGRP_GO_UNLOCK)
-	gfs2_rgrp_bh_put(get_gl2rgd(gl));
+	gfs2_rgrp_bh_put(get_gl2rgd(gh->gh_gl));
 	RET(G2FN_RGRP_GO_UNLOCK);
 }
 

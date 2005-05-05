@@ -2087,7 +2087,7 @@ foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 }
 
 /**
- * leaf_free - Deallocate a directory leaf
+ * leaf_dealloc - Deallocate a directory leaf
  * @dip: the directory
  * @index: the hash table offset in the directory
  * @len: the number of pointers to this leaf
@@ -2098,11 +2098,11 @@ foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
  */
 
 static int
-leaf_free(struct gfs2_inode *dip,
-	  uint32_t index, uint32_t len,
-	  uint64_t leaf_no, void *data)
+leaf_dealloc(struct gfs2_inode *dip,
+	     uint32_t index, uint32_t len,
+	     uint64_t leaf_no, void *data)
 {
-	ENTER(G2FN_LEAF_FREE)
+	ENTER(G2FN_LEAF_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_leaf tmp_leaf;
 	struct gfs2_rgrp_list rlist;
@@ -2117,7 +2117,7 @@ leaf_free(struct gfs2_inode *dip,
 
 	ht = kmalloc(size, GFP_KERNEL);
 	if (!ht)
-		RETURN(G2FN_LEAF_FREE, -ENOMEM);
+		RETURN(G2FN_LEAF_DEALLOC, -ENOMEM);
 	memset(ht, 0, size);
 
 	gfs2_alloc_get(dip);
@@ -2207,11 +2207,11 @@ leaf_free(struct gfs2_inode *dip,
 	gfs2_alloc_put(dip);
 	kfree(ht);
 
-	RETURN(G2FN_LEAF_FREE, error);
+	RETURN(G2FN_LEAF_DEALLOC, error);
 }
 
 /**
- * gfs2_dir_exhash_free - free all the leaf blocks in a directory
+ * gfs2_dir_exhash_dealloc - free all the leaf blocks in a directory
  * @dip: the directory
  *
  * Dealloc all on-disk directory leaves to FREEMETA state
@@ -2221,24 +2221,24 @@ leaf_free(struct gfs2_inode *dip,
  */
 
 int
-gfs2_dir_exhash_free(struct gfs2_inode *dip)
+gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 {
-	ENTER(G2FN_DIR_EXHASH_FREE)
+	ENTER(G2FN_DIR_EXHASH_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct buffer_head *bh;
 	int error;
 
 	/* Dealloc on-disk leaves to FREEMETA state */
-	error = foreach_leaf(dip, leaf_free, NULL);
+	error = foreach_leaf(dip, leaf_dealloc, NULL);
 	if (error)
-		RETURN(G2FN_DIR_EXHASH_FREE, error);
+		RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
 
 	/*  Make this a regular file in case we crash.
 	   (We don't want to free these blocks a second time.)  */
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
 	if (error)
-		RETURN(G2FN_DIR_EXHASH_FREE, error);
+		RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
 
 	error = gfs2_get_inode_buffer(dip, &bh);
 	if (!error) {
@@ -2249,7 +2249,7 @@ gfs2_dir_exhash_free(struct gfs2_inode *dip)
 
 	gfs2_trans_end(sdp);
 
-	RETURN(G2FN_DIR_EXHASH_FREE, error);
+	RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
 }
 
 /**

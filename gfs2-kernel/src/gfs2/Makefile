@@ -72,6 +72,7 @@ EXTRA_CFLAGS += -I$(obj)
 #EXTRA_CFLAGS += -DGFS2_PROFILE
 #EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
 #EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
+#EXTRA_CFLAGS += -DGFS2_KDBL
 
 all:
 	${top_srcdir}/../kdbl/scripts/build_debug gfs2 *.[ch] > gfs2_debug_const.h

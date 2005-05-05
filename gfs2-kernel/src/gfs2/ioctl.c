@@ -353,75 +353,77 @@ gi_get_counters(struct gfs2_inode *ip,
 
 	gfs2_printf("version 0\n");
 	gfs2_printf("sd_glock_count:locks::%d\n",
-		   atomic_read(&sdp->sd_glock_count));
+		    atomic_read(&sdp->sd_glock_count));
 	gfs2_printf("sd_glock_held_count:locks held::%d\n",
-		   atomic_read(&sdp->sd_glock_held_count));
+		    atomic_read(&sdp->sd_glock_held_count));
 	gfs2_printf("sd_inode_count:incore inodes::%d\n",
-		   atomic_read(&sdp->sd_inode_count));
+		    atomic_read(&sdp->sd_inode_count));
 	gfs2_printf("sd_bufdata_count:metadata buffers::%d\n",
-		   atomic_read(&sdp->sd_bufdata_count));
+		    atomic_read(&sdp->sd_bufdata_count));
 	gfs2_printf("sd_unlinked_count:unlinked inodes::%d\n",
-		   atomic_read(&sdp->sd_unlinked_count));
+		    atomic_read(&sdp->sd_unlinked_count));
 	gfs2_printf("sd_quota_count:quota IDs::%d\n",
-		   atomic_read(&sdp->sd_quota_count));
+		    atomic_read(&sdp->sd_quota_count));
 	gfs2_printf("sd_log_num_gl:Glocks in current transaction::%u\n",
-		   sdp->sd_log_num_gl);
+		    sdp->sd_log_num_gl);
 	gfs2_printf("sd_log_num_buf:Blocks in current transaction::%u\n",
-		   sdp->sd_log_num_buf);
+		    sdp->sd_log_num_buf);
 	gfs2_printf("sd_log_num_revoke:Revokes in current transaction::%u\n",
-		   sdp->sd_log_num_revoke);
+		    sdp->sd_log_num_revoke);
 	gfs2_printf("sd_log_num_rg:RGs in current transaction::%u\n",
-		   sdp->sd_log_num_rg);
+		    sdp->sd_log_num_rg);
 	gfs2_printf("sd_log_num_databuf:Databufs in current transaction::%u\n",
-		   sdp->sd_log_num_databuf);
+		    sdp->sd_log_num_databuf);
 	gfs2_printf("sd_log_blks_free:log blks free::%u\n",
-		   sdp->sd_log_blks_free);
+		    sdp->sd_log_blks_free);
 	gfs2_printf("jd_blocks:log blocks total::%u\n",
-		   sdp->sd_jdesc->jd_blocks);
+		    sdp->sd_jdesc->jd_blocks);
 	gfs2_printf("sd_reclaim_count:glocks on reclaim list::%d\n",
-		   atomic_read(&sdp->sd_reclaim_count));
+		    atomic_read(&sdp->sd_reclaim_count));
 	gfs2_printf("sd_log_wraps:log wraps::%"PRIu64"\n",
-		   sdp->sd_log_wraps);
+		    sdp->sd_log_wraps);
 	gfs2_printf("sd_bio_outstanding:outstanding BIO calls::%u\n",
-		   atomic_read(&sdp->sd_bio_outstanding));
+		    atomic_read(&sdp->sd_bio_outstanding));
 	gfs2_printf("sd_fh2dentry_misses:fh2dentry misses:diff:%u\n",
-		   handle_roll(&sdp->sd_fh2dentry_misses));
+		    handle_roll(&sdp->sd_fh2dentry_misses));
 	gfs2_printf("sd_reclaimed:glocks reclaimed:diff:%u\n",
-		   handle_roll(&sdp->sd_reclaimed));
+		    handle_roll(&sdp->sd_reclaimed));
 	gfs2_printf("sd_log_flush_incore:log incore flushes:diff:%u\n",
-		   handle_roll(&sdp->sd_log_flush_incore));
+		    handle_roll(&sdp->sd_log_flush_incore));
 	gfs2_printf("sd_log_flush_ondisk:log ondisk flushes:diff:%u\n",
-		   handle_roll(&sdp->sd_log_flush_ondisk));
+		    handle_roll(&sdp->sd_log_flush_ondisk));
 	gfs2_printf("sd_glock_nq_calls:glock nq calls:diff:%u\n",
-		   handle_roll(&sdp->sd_glock_nq_calls));
+		    handle_roll(&sdp->sd_glock_nq_calls));
 	gfs2_printf("sd_glock_dq_calls:glock dq calls:diff:%u\n",
-		   handle_roll(&sdp->sd_glock_dq_calls));
+		    handle_roll(&sdp->sd_glock_dq_calls));
 	gfs2_printf("sd_glock_prefetch_calls:glock prefetch calls:diff:%u\n",
-		   handle_roll(&sdp->sd_glock_prefetch_calls));
+		    handle_roll(&sdp->sd_glock_prefetch_calls));
 	gfs2_printf("sd_lm_lock_calls:lm_lock calls:diff:%u\n",
-		   handle_roll(&sdp->sd_lm_lock_calls));
+		    handle_roll(&sdp->sd_lm_lock_calls));
 	gfs2_printf("sd_lm_unlock_calls:lm_unlock calls:diff:%u\n",
-		   handle_roll(&sdp->sd_lm_unlock_calls));
+		    handle_roll(&sdp->sd_lm_unlock_calls));
 	gfs2_printf("sd_lm_callbacks:lm callbacks:diff:%u\n",
-		   handle_roll(&sdp->sd_lm_callbacks));
+		    handle_roll(&sdp->sd_lm_callbacks));
 	gfs2_printf("sd_ops_address:address operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_address));
+		    handle_roll(&sdp->sd_ops_address));
 	gfs2_printf("sd_ops_dentry:dentry operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_dentry));
+		    handle_roll(&sdp->sd_ops_dentry));
 	gfs2_printf("sd_ops_export:export operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_export));
+		    handle_roll(&sdp->sd_ops_export));
 	gfs2_printf("sd_ops_file:file operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_file));
+		    handle_roll(&sdp->sd_ops_file));
 	gfs2_printf("sd_ops_inode:inode operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_inode));
+		    handle_roll(&sdp->sd_ops_inode));
 	gfs2_printf("sd_ops_super:super operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_super));
+		    handle_roll(&sdp->sd_ops_super));
 	gfs2_printf("sd_ops_vm:vm operations:diff:%u\n",
-		   handle_roll(&sdp->sd_ops_vm));
+		    handle_roll(&sdp->sd_ops_vm));
 	gfs2_printf("sd_bio_reads:block I/O reads:diff:%u\n",
-		   handle_roll(&sdp->sd_bio_reads));
+		    handle_roll(&sdp->sd_bio_reads) >>
+		    (sdp->sd_sb.sb_bsize_shift - 9));
 	gfs2_printf("sd_bio_writes:block I/O writes:diff:%u\n",
-		   handle_roll(&sdp->sd_bio_writes));
+		    handle_roll(&sdp->sd_bio_writes) >>
+		    (sdp->sd_sb.sb_bsize_shift - 9));
 
         error = 0;
 

@@ -1413,7 +1413,7 @@ glock_wait_internal(struct gfs2_holder *gh)
 		gfs2_assert_warn(sdp, test_bit(GLF_LOCK, &gl->gl_flags));
 
 		if (glops->go_lock) {
-			error = glops->go_lock(gl, gh->gh_flags);
+			error = glops->go_lock(gh);
 			if (error) {
 				spin_lock(&gl->gl_spin);
 				list_del_init(&gh->gh_list);
@@ -1707,7 +1707,7 @@ gfs2_glock_dq(struct gfs2_holder *gh)
 		spin_unlock(&gl->gl_spin);
 
 		if (glops->go_unlock)
-			glops->go_unlock(gl, gh->gh_flags);
+			glops->go_unlock(gh);
 
 		/* Do "early" sync, if requested by holder */
 		if (test_bit(GLF_SYNC, &gl->gl_flags)) {

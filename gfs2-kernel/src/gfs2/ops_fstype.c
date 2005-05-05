@@ -41,6 +41,8 @@
 #define DO FALSE
 #define UNDO TRUE
 
+#undef NO_DIAPER
+
 static __inline__ int
 do_thread(struct gfs2_sbd *sdp,
 	  int (*fn)(void *))
@@ -323,7 +325,9 @@ init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 	sb_gh.gh_gl->gl_aspace->i_blkbits = sdp->sd_sb.sb_bsize_shift;
 
 	sb_set_blocksize(sb, sdp->sd_sb.sb_bsize);
+#ifndef NO_DIAPER
 	set_blocksize(gfs2_diaper_2real(sb->s_bdev), sdp->sd_sb.sb_bsize);
+#endif
 
 	error = gfs2_lookup_master_dir(sdp);
 	if (error)
@@ -827,7 +831,9 @@ fill_super(struct super_block *sb, void *data, int silent)
 		RETURN(G2FN_FILL_SUPER, -ENOMEM);
 	}
 
+#ifndef NO_DIAPER
 	gfs2_diaper_register_sbd(sb->s_bdev, sdp);
+#endif
 
 	error = gfs2_make_args((char *)data, &sdp->sd_args);
 	if (error) {
@@ -945,6 +951,14 @@ gfs2_set_bdev_super(struct super_block *sb, void *data)
 	RETURN(G2FN_SET_BDEV_SUPER, 0);
 }
 
+#ifdef NO_DIAPER
+struct super_block *
+gfs2_get_sb(struct file_system_type *fs_type, int flags,
+	    const char *dev_name, void *data)
+{
+	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
+}
+#else
 /**
  * gfs2_get_sb - 
  * @fs_type:
@@ -959,7 +973,7 @@ gfs2_set_bdev_super(struct super_block *sb, void *data)
 
 struct super_block *
 gfs2_get_sb(struct file_system_type *fs_type, int flags,
-	   const char *dev_name, void *data)
+	    const char *dev_name, void *data)
 {
 	ENTER(G2FN_GET_SB)
 	struct block_device *real, *diaper;
@@ -1038,11 +1052,16 @@ gfs2_kill_sb(struct super_block *sb)
 
 	RET(G2FN_KILL_SB);
 }
+#endif
 
 struct file_system_type gfs2_fs_type = {
 	.name = "gfs2",
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = gfs2_get_sb,
+#ifdef NO_DIAPER
+	.kill_sb = kill_block_super,
+#else
 	.kill_sb = gfs2_kill_sb,
+#endif
 	.owner = THIS_MODULE,
 };

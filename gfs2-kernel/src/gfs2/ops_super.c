@@ -62,33 +62,6 @@ gfs2_write_inode(struct inode *inode, int sync)
 }
 
 /**
- * gfs2_put_inode - put an inode
- * @inode: The inode
- *
- * If i_nlink is zero, any dirty data for the inode is thrown away.
- * If a process on another machine has the file open, it may need that
- * data.  So, sync it out.
- */
-
-static void
-gfs2_put_inode(struct inode *inode)
-{
-	ENTER(G2FN_PUT_INODE)
-	struct gfs2_sbd *sdp = get_v2sdp(inode->i_sb);
-	struct gfs2_inode *ip = get_v2ip(inode);
-
-	atomic_inc(&sdp->sd_ops_super);
-
-	if (ip &&
-	    !inode->i_nlink &&
-	    S_ISREG(inode->i_mode) &&
-	    !sdp->sd_args.ar_localcaching)
-		gfs2_sync_page_i(inode, DIO_START | DIO_WAIT);
-
-	RET(G2FN_PUT_INODE);
-}
-
-/**
  * gfs2_put_super - Unmount the filesystem
  * @sb: The VFS superblock
  *
@@ -488,7 +461,6 @@ gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 
 struct super_operations gfs2_super_ops = {
 	.write_inode = gfs2_write_inode,
-	.put_inode = gfs2_put_inode,
 	.put_super = gfs2_put_super,
 	.write_super = gfs2_write_super,
 	.write_super_lockfs = gfs2_write_super_lockfs,

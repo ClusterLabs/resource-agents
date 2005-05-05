@@ -14,6 +14,18 @@
 #ifndef __INODE_DOT_H__
 #define __INODE_DOT_H__
 
+static __inline__ int
+gfs2_is_stuffed(struct gfs2_inode *ip)
+{
+	return !ip->i_di.di_height;
+}
+
+static __inline__ int
+gfs2_is_jdata(struct gfs2_inode *ip)
+{
+	return ip->i_di.di_flags & GFS2_DIF_JDATA;
+}
+
 void gfs2_inode_attr_in(struct gfs2_inode *ip);
 void gfs2_inode_attr_out(struct gfs2_inode *ip);
 struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create);
@@ -50,18 +62,6 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip);
 
 int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr);
 
-/*  Inlines  */
-
-static __inline__ int
-gfs2_is_stuffed(struct gfs2_inode *ip)
-{
-	return !ip->i_di.di_height;
-}
-
-static __inline__ int
-gfs2_is_jdata(struct gfs2_inode *ip)
-{
-	return ip->i_di.di_flags & GFS2_DIF_JDATA;
-}
+int gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd);
 
 #endif /* __INODE_DOT_H__ */

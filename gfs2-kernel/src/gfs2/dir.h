@@ -45,7 +45,7 @@ int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
 int gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		  struct gfs2_inum *new_inum, unsigned int new_type);
 
-int gfs2_dir_exhash_free(struct gfs2_inode *dip);
+int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip);
 
 int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 			      int *alloc_required);

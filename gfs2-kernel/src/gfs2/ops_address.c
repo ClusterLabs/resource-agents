@@ -26,6 +26,7 @@
 #include "file.h"
 #include "glock.h"
 #include "inode.h"
+#include "log.h"
 #include "ops_address.h"
 #include "page.h"
 #include "quota.h"
@@ -320,7 +321,7 @@ gfs2_readpage(struct file *file, struct page *page)
 
 static int
 gfs2_prepare_write(struct file *file, struct page *page,
-		  unsigned from, unsigned to)
+		   unsigned from, unsigned to)
 {
 	ENTER(G2FN_PREPARE_WRITE)
 	struct gfs2_inode *ip = get_v2ip(page->mapping->host);
@@ -359,7 +360,7 @@ gfs2_prepare_write(struct file *file, struct page *page,
 
 static int
 gfs2_commit_write(struct file *file, struct page *page,
-		 unsigned from, unsigned to)
+		  unsigned from, unsigned to)
 {
 	ENTER(G2FN_COMMIT_WRITE)
 	struct inode *inode = page->mapping->host;
@@ -439,6 +440,65 @@ gfs2_bmap(struct address_space *mapping, sector_t lblock)
 	RETURN(G2FN_BMAP, dblock);
 }
 
+static void
+discard_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
+{
+	ENTER(G2FN_DISCARD_BUFFER)
+	struct gfs2_databuf *db;
+
+	gfs2_log_lock(sdp);
+	db = get_v2db(bh);
+	if (db) {
+		db->db_bh = NULL;
+		set_v2db(bh, NULL);
+		gfs2_log_unlock(sdp);
+		brelse(bh);
+	} else
+		gfs2_log_unlock(sdp);
+
+	lock_buffer(bh);
+	clear_buffer_dirty(bh);
+	bh->b_bdev = NULL;
+	clear_buffer_mapped(bh);
+	clear_buffer_req(bh);
+	clear_buffer_new(bh);
+	clear_buffer_delay(bh);
+	unlock_buffer(bh);
+
+	RET(G2FN_DISCARD_BUFFER);
+}
+
+int
+gfs2_invalidatepage(struct page *page, unsigned long offset)
+{
+	ENTER(G2FN_INVALIDATEPAGE)
+       	struct gfs2_sbd *sdp = get_v2sdp(page->mapping->host->i_sb);
+	struct buffer_head *head, *bh, *next;
+	unsigned int curr_off = 0;
+	int ret = 1;
+
+	BUG_ON(!PageLocked(page));
+	if (!page_has_buffers(page))
+		RETURN(G2FN_INVALIDATEPAGE, 1);
+
+	bh = head = page_buffers(page);
+	do {
+		unsigned int next_off = curr_off + bh->b_size;
+		next = bh->b_this_page;
+
+		if (offset <= curr_off)
+			discard_buffer(sdp, bh);
+
+		curr_off = next_off;
+		bh = next;
+	} while (bh != head);
+
+	if (!offset)
+		ret = try_to_release_page(page, 0);
+
+	RETURN(G2FN_INVALIDATEPAGE, ret);
+}
+
 /**
  * gfs2_direct_IO - 
  * @rw:
@@ -452,7 +512,7 @@ gfs2_bmap(struct address_space *mapping, sector_t lblock)
 
 static int
 gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
-	      loff_t offset, unsigned long nr_segs)
+	       loff_t offset, unsigned long nr_segs)
 {
 	ENTER(G2FN_DIRECT_IO)
 	struct file *file = iocb->ki_filp;
@@ -483,5 +543,6 @@ struct address_space_operations gfs2_file_aops = {
 	.prepare_write = gfs2_prepare_write,
 	.commit_write = gfs2_commit_write,
 	.bmap = gfs2_bmap,
+	.invalidatepage = gfs2_invalidatepage,
 	.direct_IO = gfs2_direct_IO,
 };

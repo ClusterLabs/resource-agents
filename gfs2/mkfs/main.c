@@ -364,7 +364,7 @@ print_results(struct gfs2_sbd *sdp)
 	printf("\n");
 	printf("WARNING: The GFS2 ondisk format is not yet set in stone.\n");
 	printf("         At some point in the future, it will change and\n");
-	printf("         you will have to remake your filesystems\n");
+	printf("         you will have to remake your filesystems.\n");
 }
 
 /**

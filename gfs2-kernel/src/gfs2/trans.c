@@ -266,12 +266,19 @@ void
 gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(G2FN_TRANS_ADD_DATABUF)
-	struct gfs2_databuf *db = kmalloc_nofail(sizeof(struct gfs2_databuf),
-						 GFP_KERNEL);
-	INIT_LE(&db->db_le, &gfs2_databuf_lops);
-	get_bh(bh);
-	db->db_bh = bh;
-	LO_ADD(sdp, &db->db_le);
+	struct gfs2_databuf *db;
+
+	db = get_v2db(bh);
+	if (!db) {
+		db = kmalloc_nofail(sizeof(struct gfs2_databuf),
+				    GFP_KERNEL);
+		INIT_LE(&db->db_le, &gfs2_databuf_lops);
+		get_bh(bh);
+		db->db_bh = bh;
+		set_v2db(bh, db);
+		LO_ADD(sdp, &db->db_le);
+	}
+
 	RET(G2FN_TRANS_ADD_DATABUF);
 }
 

@@ -334,4 +334,13 @@ void gfs2_icbit_munge(struct gfs2_sbd *sdp,
 		     int new_value);
 
 
+static __inline__ uint64_t
+get_time(void)
+{
+	struct timeval tv;
+	do_gettimeofday(&tv);
+	return ((uint64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
+}
+
+
 #endif /* __UTIL_DOT_H__ */

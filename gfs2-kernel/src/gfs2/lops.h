@@ -50,14 +50,6 @@ do { \
 			gfs2_log_ops[__lops_x]->lo_before_commit((sdp)); \
 } while (0)
 
-#define LO_BUILD_ENTRY(sdp) \
-do { \
-	int __lops_x; \
-	for (__lops_x = 0; gfs2_log_ops[__lops_x]; __lops_x++) \
-		if (gfs2_log_ops[__lops_x]->lo_build_entry) \
-			gfs2_log_ops[__lops_x]->lo_build_entry((sdp)); \
-} while (0)
-
 #define LO_AFTER_COMMIT(sdp, ai) \
 do { \
 	int __lops_x; \

@@ -83,7 +83,6 @@ struct gfs2_log_operations {
 	void (*lo_incore_commit) (struct gfs2_sbd * sdp, struct gfs2_trans * tr);
 
 	void (*lo_before_commit) (struct gfs2_sbd *sdp);
-	void (*lo_build_entry) (struct gfs2_sbd * sdp);
 	void (*lo_after_commit) (struct gfs2_sbd * sdp, struct gfs2_ail * ai);
 
 	void (*lo_before_scan) (struct gfs2_jdesc * jd, struct gfs2_log_header * head,
@@ -272,11 +271,11 @@ struct gfs2_glock_operations {
 	int (*go_demote_ok) (struct gfs2_glock * gl);
 
 	/* After getting lock for first holder (within this node) */
-	int (*go_lock) (struct gfs2_glock * gl, int flags);
+	int (*go_lock) (struct gfs2_holder * gh);
 
 	/* After last holder (within this node) gives up lock (glock may
 	   remain in glock cache, though) */
-	void (*go_unlock) (struct gfs2_glock * gl, int flags);
+	void (*go_unlock) (struct gfs2_holder * gh);
 
 	/* After receiving a callback: another node needs the lock */
 	void (*go_callback) (struct gfs2_glock * gl, unsigned int state);
@@ -602,7 +601,7 @@ struct gfs2_quota_data {
  */
 struct gfs2_log_buf {
 	struct list_head lb_list;      /* Link to tr_free_bufs or tr_list */
-	struct buffer_head lb_bh;      /* "Fake" bh; for the log block */
+	struct buffer_head *lb_bh;      /* "Fake" bh; for the log block */
 	struct buffer_head *lb_real;
 };
 

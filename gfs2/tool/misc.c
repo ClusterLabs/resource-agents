@@ -247,6 +247,8 @@ print_flags(struct gfs2_dinode *di)
 			printf("  inherit_directio\n");
 		if (di->di_flags & GFS2_DIF_INHERIT_JDATA)
 			printf("  inherit_jdata\n");
+		if (di->di_flags & GFS2_DIF_TRUNC_IN_PROG)
+			printf("  trunc_in_prog\n");
 	}
 }
 

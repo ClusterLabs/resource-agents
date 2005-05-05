@@ -342,7 +342,7 @@ gfs2_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	if (error)
 		goto out;
 
-	error = permission(dir, MAY_WRITE | MAY_EXEC, NULL);
+	error = gfs2_repermission(dir, MAY_WRITE | MAY_EXEC, NULL);
 	if (error)
 		goto out_gunlock;
 
@@ -910,7 +910,7 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 			}
 		}
 	} else {
-		error = permission(ndir, MAY_WRITE | MAY_EXEC, NULL);
+		error = gfs2_repermission(ndir, MAY_WRITE | MAY_EXEC, NULL);
 		if (error)
 			goto out_gunlock;
 
@@ -1159,7 +1159,7 @@ setattr_size(struct inode *inode, struct iattr *attr)
 	struct gfs2_inode *ip = get_v2ip(inode);
 	int error;
 
-	error = permission(inode, MAY_WRITE, NULL);
+	error = gfs2_repermission(inode, MAY_WRITE, NULL);
 	if (error)
 		RETURN(G2FN_SETATTR_SIZE, error);
 

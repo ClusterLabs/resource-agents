@@ -340,11 +340,12 @@ struct gfs2_quota {
 #define GFS2_DIF_IMMUTABLE         (0x00000020) /* Can't change file */
 #define GFS2_DIF_APPENDONLY        (0x00000040) /* Can only add to end of file */
 #define GFS2_DIF_NOATIME           (0x00000080) /* Don't update access time
-						  (currently unused/ignored) */
+						   (currently unused/ignored) */
 #define GFS2_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache
-						  (currently unused/ignored) */
+						   (currently unused/ignored) */
 #define GFS2_DIF_INHERIT_DIRECTIO  (0x00000200) /* new files get DIRECTIO flag */
 #define GFS2_DIF_INHERIT_JDATA     (0x00000400) /* new files get JDATA flag */
+#define GFS2_DIF_TRUNC_IN_PROG     (0x00000800)
 
 struct gfs2_dinode {
 	struct gfs2_meta_header di_header;

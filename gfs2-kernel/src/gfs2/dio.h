@@ -34,12 +34,6 @@ void gfs2_dpin(struct gfs2_sbd *sdp, struct buffer_head *bh);
 void gfs2_dunpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		struct gfs2_ail *ai);
 
-void gfs2_logbh_init(struct gfs2_sbd *sdp, struct buffer_head *bh, uint64_t blkno,
-		    char *data);
-void gfs2_logbh_uninit(struct gfs2_sbd *sdp, struct buffer_head *bh);
-void gfs2_logbh_start(struct gfs2_sbd *sdp, struct buffer_head *bh);
-int gfs2_logbh_wait(struct gfs2_sbd *sdp, struct buffer_head *bh);
-
 void gfs2_buf_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen);
 
 void gfs2_sync_meta(struct gfs2_sbd *sdp);

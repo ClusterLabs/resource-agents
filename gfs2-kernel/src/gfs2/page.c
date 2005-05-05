@@ -228,6 +228,7 @@ int
 gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_TRUNCATOR_PAGE)
+       	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *inode = ip->i_vnode;
 	struct page *page;
 	struct buffer_head *bh;
@@ -241,8 +242,8 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 
 	lbn = size >> inode->i_blkbits;
 	error = gfs2_block_map(ip,
-			      lbn, &not_new,
-			      &dbn, NULL);
+			       lbn, &not_new,
+			       &dbn, NULL);
 	if (error || !dbn)
 		RETURN(G2FN_TRUNCATOR_PAGE, error);
 
@@ -278,12 +279,14 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 
 	if (!buffer_mapped(bh))
 		map_bh(bh, inode->i_sb, dbn);
-	else if (gfs2_assert_warn(ip->i_sbd,
-				 bh->b_bdev == inode->i_sb->s_bdev &&
-				 bh->b_blocknr == dbn))
+	else if (gfs2_assert_warn(sdp,
+				  bh->b_bdev == inode->i_sb->s_bdev &&
+				  bh->b_blocknr == dbn))
 		map_bh(bh, inode->i_sb, dbn);
 
 	set_buffer_uptodate(bh);
+	if (sdp->sd_args.ar_data == GFS2_DATA_ORDERED)
+		gfs2_trans_add_databuf(sdp, bh);
 	mark_buffer_dirty(bh);
 
  out:

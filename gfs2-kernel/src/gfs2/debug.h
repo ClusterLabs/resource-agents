@@ -119,4 +119,9 @@ gmalloc_nofail_real((size), (flags), __FILE__, __LINE__)
 #endif
 
 
+#ifdef GFS2_KDBL
+#include <linux/kdbl.h>
+#endif
+
+
 #endif /* __DEBUG_DOT_H__ */

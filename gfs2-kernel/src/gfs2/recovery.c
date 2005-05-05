@@ -380,9 +380,8 @@ clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	int new = FALSE;
 	uint64_t dblock;
 	struct gfs2_log_header lh;
-	char *bmem;
 	uint32_t hash;
-	struct buffer_head bh;
+	struct buffer_head *bh;
 	int error;
 	
 	lblock = head->lh_blkno;
@@ -395,10 +394,12 @@ clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 		RETURN(G2FN_CLEAN_JOURNAL, -EIO);
 	}
 
-	bmem = kmalloc(sdp->sd_sb.sb_bsize, GFP_KERNEL);
-	if (!bmem)
-		RETURN(G2FN_CLEAN_JOURNAL, -ENOMEM);
-	memset(bmem, 0, sdp->sd_sb.sb_bsize);
+	bh = sb_getblk(sdp->sd_vfs, dblock);
+	lock_buffer(bh);
+	memset(bh->b_data, 0, bh->b_size);
+	set_buffer_uptodate(bh);
+	clear_buffer_dirty(bh);
+	unlock_buffer(bh);
 
 	memset(&lh, 0, sizeof(struct gfs2_log_header));
 	lh.lh_header.mh_magic = GFS2_MAGIC;
@@ -408,16 +409,14 @@ clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	lh.lh_sequence = head->lh_sequence + 1;
 	lh.lh_flags = GFS2_LOG_HEAD_UNMOUNT;
 	lh.lh_blkno = lblock;
-	gfs2_log_header_out(&lh, bmem);
-	hash = gfs2_disk_hash(bmem, sizeof(struct gfs2_log_header));
-	((struct gfs2_log_header *)bmem)->lh_hash = cpu_to_gfs2_32(hash);
+	gfs2_log_header_out(&lh, bh->b_data);
+	hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
+	((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_gfs2_32(hash);
 
-	gfs2_logbh_init(sdp, &bh, dblock, bmem);
-	gfs2_logbh_start(sdp, &bh);
-	error = gfs2_logbh_wait(sdp, &bh);
-	gfs2_logbh_uninit(sdp, &bh);
-
-	kfree(bmem);
+	set_buffer_dirty(bh);
+	if (sync_dirty_buffer(bh))
+		gfs2_io_error_bh(sdp, bh);
+	brelse(bh);
 
 	RETURN(G2FN_CLEAN_JOURNAL, error);
 }

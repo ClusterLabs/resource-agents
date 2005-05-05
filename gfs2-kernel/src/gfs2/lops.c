@@ -60,22 +60,15 @@ glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	struct list_head *head = &sdp->sd_log_le_gl;
 	struct gfs2_glock *gl;
 
-	gfs2_log_lock(sdp);
-
 	while (!list_empty(head)) {
 		gl = list_entry(head->next, struct gfs2_glock, gl_le.le_list);
-		list_del_init(head->next);
+		list_del_init(&gl->gl_le.le_list);
 		sdp->sd_log_num_gl--;
-		gfs2_log_unlock(sdp);
 
 		gfs2_assert_withdraw(sdp, gfs2_glock_is_held_excl(gl));
 		gfs2_glock_put(gl);
-
-		gfs2_log_lock(sdp);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_gl);
-
-	gfs2_log_unlock(sdp);
 
 	RET(G2FN_GLOCK_LO_AFTER_COMMIT);
 }
@@ -118,9 +111,11 @@ buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
 	ENTER(G2FN_BUF_LO_INCORE_COMMIT)
 	struct list_head *head = &tr->tr_list_buf;
+	struct gfs2_bufdata *bd;
 
 	while (!list_empty(head)) {
-		list_del_init(head->next);
+		bd = list_entry(head->next, struct gfs2_bufdata, bd_list_tr);
+		list_del_init(&bd->bd_list_tr);
 		tr->tr_num_buf--;
 	}
 	gfs2_assert_warn(sdp, !tr->tr_num_buf);
@@ -129,44 +124,43 @@ buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 }
 
 static void
-buf_lo_build_entry(struct gfs2_sbd *sdp)
+buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_BUF_LO_BUILD_ENTRY)
+	ENTER(G2FN_BUF_LO_BEFORE_COMMIT)
+	struct buffer_head *bh;
 	struct gfs2_log_descriptor ld;
-	struct gfs2_log_buf *lb;
 	struct list_head *tmp, *head;
-        struct gfs2_bufdata *bd;
 
 	if (!sdp->sd_log_num_buf)
-		RET(G2FN_BUF_LO_BUILD_ENTRY);
+		RET(G2FN_BUF_LO_BEFORE_COMMIT);
 
-	lb = gfs2_log_get_buf(sdp);
+	bh = gfs2_log_get_buf(sdp);
 	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
 	ld.ld_header.mh_magic = GFS2_MAGIC;
 	ld.ld_header.mh_type = GFS2_METATYPE_LD;
-	ld.ld_header.mh_blkno = lb->lb_bh.b_blocknr;
+	ld.ld_header.mh_blkno = bh->b_blocknr;
 	ld.ld_header.mh_format = GFS2_FORMAT_LD;
 	ld.ld_type = GFS2_LOG_DESC_METADATA;
 	ld.ld_length = sdp->sd_log_num_buf + 1;
 	ld.ld_data1 = sdp->sd_log_num_buf;
-	gfs2_log_descriptor_out(&ld, lb->lb_bh.b_data);
+	gfs2_log_descriptor_out(&ld, bh->b_data);
 
-	gfs2_log_lock(sdp);
+	set_buffer_dirty(bh);
+	ll_rw_block(WRITE, 1, &bh);
 
 	for (head = &sdp->sd_log_le_buf, tmp = head->next;
 	     tmp != head;
 	     tmp = tmp->next) {
+		struct gfs2_bufdata *bd;
 		bd = list_entry(tmp, struct gfs2_bufdata, bd_le.le_list);
-		gfs2_log_unlock(sdp);
 
-		gfs2_log_fake_buf(sdp, bd->bd_bh);
+		bh = gfs2_log_fake_buf(sdp, bd->bd_bh);
 
-		gfs2_log_lock(sdp);
+		set_buffer_dirty(bh);
+		ll_rw_block(WRITE, 1, &bh);
 	}
 
-	gfs2_log_unlock(sdp);
-
-	RET(G2FN_BUF_LO_BUILD_ENTRY);
+	RET(G2FN_BUF_LO_BEFORE_COMMIT);
 }
 
 static void
@@ -176,21 +170,14 @@ buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	struct list_head *head = &sdp->sd_log_le_buf;
 	struct gfs2_bufdata *bd;
 
-	gfs2_log_lock(sdp);
-
 	while (!list_empty(head)) {
 		bd = list_entry(head->next, struct gfs2_bufdata, bd_le.le_list);
-		list_del_init(head->next);
+		list_del_init(&bd->bd_le.le_list);
 		sdp->sd_log_num_buf--;
-		gfs2_log_unlock(sdp);
 
 		gfs2_dunpin(sdp, bd->bd_bh, ai);
-
-		gfs2_log_lock(sdp);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_buf);
-
-	gfs2_log_unlock(sdp);
 
 	RET(G2FN_BUF_LO_AFTER_COMMIT);
 }
@@ -306,60 +293,59 @@ revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 }
 
 static void
-revoke_lo_build_entry(struct gfs2_sbd *sdp)
+revoke_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_REVOKE_LO_BUILD_ENTRY)
+	ENTER(G2FN_REVOKE_LO_BEFORE_COMMIT)
 	struct gfs2_log_descriptor ld;
 	struct gfs2_meta_header *mh = &ld.ld_header;
-	struct gfs2_log_buf *lb;
+	struct buffer_head *bh;
 	unsigned int offset;
 	struct list_head *head = &sdp->sd_log_le_revoke;
         struct gfs2_revoke *rv;
 
 	if (!sdp->sd_log_num_revoke)
-		RET(G2FN_REVOKE_LO_BUILD_ENTRY);
+		RET(G2FN_REVOKE_LO_BEFORE_COMMIT);
 
-	lb = gfs2_log_get_buf(sdp);
+	bh = gfs2_log_get_buf(sdp);
 	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
 	ld.ld_header.mh_magic = GFS2_MAGIC;
 	ld.ld_header.mh_type = GFS2_METATYPE_LD;
-	ld.ld_header.mh_blkno = lb->lb_bh.b_blocknr;
+	ld.ld_header.mh_blkno = bh->b_blocknr;
 	ld.ld_header.mh_format = GFS2_FORMAT_LD;
 	ld.ld_type = GFS2_LOG_DESC_REVOKE;
 	ld.ld_length = gfs2_struct2blk(sdp, sdp->sd_log_num_revoke, sizeof(uint64_t));
 	ld.ld_data1 = sdp->sd_log_num_revoke;
-	gfs2_log_descriptor_out(&ld, lb->lb_bh.b_data);
+	gfs2_log_descriptor_out(&ld, bh->b_data);
 	offset = sizeof(struct gfs2_log_descriptor);
-
-	gfs2_log_lock(sdp);
 
 	while (!list_empty(head)) {
 		rv = list_entry(head->next, struct gfs2_revoke, rv_le.le_list);
 		list_del(&rv->rv_le.le_list);
 		sdp->sd_log_num_revoke--;
-		gfs2_log_unlock(sdp);
 
 		if (offset + sizeof(uint64_t) > sdp->sd_sb.sb_bsize) {
-			lb = gfs2_log_get_buf(sdp);
+			set_buffer_dirty(bh);
+			ll_rw_block(WRITE, 1, &bh);
+
+			bh = gfs2_log_get_buf(sdp);
 			mh->mh_type = GFS2_METATYPE_LB;
-			mh->mh_blkno = lb->lb_bh.b_blocknr;
+			mh->mh_blkno = bh->b_blocknr;
 			mh->mh_format = GFS2_FORMAT_LB;
-			gfs2_meta_header_out(mh, lb->lb_bh.b_data);
+			gfs2_meta_header_out(mh, bh->b_data);
 			offset = sizeof(struct gfs2_meta_header);
 		}
 
-		*(uint64_t *)(lb->lb_bh.b_data + offset) = cpu_to_gfs2_64(rv->rv_blkno);
+		*(uint64_t *)(bh->b_data + offset) = cpu_to_gfs2_64(rv->rv_blkno);
 		kfree(rv);
 
 		offset += sizeof(uint64_t);
-
-		gfs2_log_lock(sdp);
 	}
 	gfs2_assert_withdraw(sdp, !sdp->sd_log_num_revoke);
 
-	gfs2_log_unlock(sdp);
+	set_buffer_dirty(bh);
+	ll_rw_block(WRITE, 1, &bh);
 
-       	RET(G2FN_REVOKE_LO_BUILD_ENTRY);
+       	RET(G2FN_REVOKE_LO_BEFORE_COMMIT);
 }
 
 static void
@@ -479,22 +465,15 @@ rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	struct list_head *head = &sdp->sd_log_le_rg;
 	struct gfs2_rgrpd *rgd;
 
-	gfs2_log_lock(sdp);
-
 	while (!list_empty(head)) {
 		rgd = list_entry(head->next, struct gfs2_rgrpd, rd_le.le_list);
-		list_del_init(head->next);
+		list_del_init(&rgd->rd_le.le_list);
 		sdp->sd_log_num_rg--;
-		gfs2_log_unlock(sdp);
 
 		gfs2_rgrp_repolish_clones(rgd);
 		gfs2_rgrp_bh_put(rgd);
-
-		gfs2_log_lock(sdp);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_rg);
-
-	gfs2_log_unlock(sdp);
 
 	RET(G2FN_RG_LO_AFTER_COMMIT);
 }
@@ -521,31 +500,45 @@ databuf_lo_before_commit(struct gfs2_sbd *sdp)
 	struct list_head *head = &sdp->sd_log_le_databuf;
 	LIST_HEAD(started);
 	struct gfs2_databuf *db;
-
-	gfs2_log_lock(sdp);
+	struct buffer_head *bh;
 
 	while (!list_empty(head)) {
 		db = list_entry(head->prev, struct gfs2_databuf, db_le.le_list);
-		list_del_init(head->prev);
-		sdp->sd_log_num_databuf--;
-		gfs2_log_unlock(sdp);
-
-		gfs2_dwrite(sdp, db->db_bh, DIO_START);
-		list_add(&db->db_le.le_list, &started);
+		list_move(&db->db_le.le_list, &started);
 
 		gfs2_log_lock(sdp);
+		bh = db->db_bh;
+		if (bh) {
+			get_bh(bh);
+			gfs2_log_unlock(sdp);
+			if (buffer_dirty(bh)) {
+				wait_on_buffer(bh);
+				ll_rw_block(WRITE, 1, &bh);
+			}
+			brelse(bh);
+		} else
+			gfs2_log_unlock(sdp);
 	}
-	gfs2_assert_warn(sdp, !sdp->sd_log_num_databuf);
-
-	gfs2_log_unlock(sdp);
 
 	while (!list_empty(&started)) {
 		db = list_entry(started.next, struct gfs2_databuf, db_le.le_list);
-		list_del(started.next);
-		gfs2_dwrite(sdp, db->db_bh, DIO_WAIT);
-		brelse(db->db_bh);
+		list_del(&db->db_le.le_list);
+		sdp->sd_log_num_databuf--;
+
+		gfs2_log_lock(sdp);
+		bh = db->db_bh;
+		if (bh) {
+			set_v2db(bh, NULL);
+			gfs2_log_unlock(sdp);
+			wait_on_buffer(bh);
+			brelse(bh);
+		} else
+			gfs2_log_unlock(sdp);
+
 		kfree(db);
 	}
+
+	gfs2_assert_warn(sdp, !sdp->sd_log_num_databuf);
 
 	RET(G2FN_DATABUF_LO_BEFORE_COMMIT);
 }
@@ -559,7 +552,7 @@ struct gfs2_log_operations gfs2_glock_lops = {
 struct gfs2_log_operations gfs2_buf_lops = {
 	.lo_add = buf_lo_add,
 	.lo_incore_commit = buf_lo_incore_commit,
-	.lo_build_entry = buf_lo_build_entry,
+	.lo_before_commit = buf_lo_before_commit,
 	.lo_after_commit = buf_lo_after_commit,
 	.lo_before_scan = buf_lo_before_scan,
 	.lo_scan_elements = buf_lo_scan_elements,
@@ -569,7 +562,7 @@ struct gfs2_log_operations gfs2_buf_lops = {
 
 struct gfs2_log_operations gfs2_revoke_lops = {
 	.lo_add = revoke_lo_add,
-	.lo_build_entry = revoke_lo_build_entry,
+	.lo_before_commit = revoke_lo_before_commit,
 	.lo_before_scan = revoke_lo_before_scan,
 	.lo_scan_elements = revoke_lo_scan_elements,
 	.lo_after_scan = revoke_lo_after_scan,
