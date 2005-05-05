@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.5 2005/04/06 14:10:38 andrew Exp $
+#	$Id: IPaddr2.in,v 1.6 2005/05/05 14:19:52 alan Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -200,9 +200,9 @@ You really shouldn't be touching this.
 <actions>
 <action name="start"   timeout="90" />
 <action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
-<action name="meta-data"  timeout="5" />
-<action name="verify-all"  timeout="30" />
+<action name="monitor" depth="10"  timeout="20s" interval="10s" start-delay="5s" />
+<action name="meta-data"  timeout="5s" />
+<action name="verify-all"  timeout="20s" />
 </actions>
 </resource-agent>
 END
