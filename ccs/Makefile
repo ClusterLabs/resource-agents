@@ -15,14 +15,12 @@ all:
 	cd lib && ${MAKE} all
 	cd ccs_test && ${MAKE} all
 	cd ccs_tool && ${MAKE} all
-	cd cluster_conf && ${MAKE} all
 
 copytobin:
 	cd daemon && ${MAKE} copytobin
 	cd lib && ${MAKE} copytobin
 	cd ccs_test && ${MAKE} copytobin
 	cd ccs_tool && ${MAKE} copytobin
-	cd cluster_conf && ${MAKE} copytobin
 
 clean:
 	cd bin && ${MAKE} clean
@@ -30,7 +28,6 @@ clean:
 	cd lib && ${MAKE} clean
 	cd ccs_test && ${MAKE} clean
 	cd ccs_tool && ${MAKE} clean
-	cd cluster_conf && ${MAKE} clean
 	rm -f *~
 
 distclean: clean
@@ -41,7 +38,6 @@ install:
 	cd lib && ${MAKE} install
 	cd ccs_test && ${MAKE} install
 	cd ccs_tool && ${MAKE} install
-	cd cluster_conf && ${MAKE} install
 	cd man && ${MAKE} install
 	cd init.d && ${MAKE} install
 
