@@ -185,8 +185,10 @@ gfs_writepage(struct page *page, struct writeback_control *wbc)
 	atomic_inc(&sdp->sd_ops_address);
 
 	if (gfs_assert_withdraw(sdp, gfs_glock_is_held_excl(ip->i_gl)) ||
-	    gfs_assert_withdraw(sdp, !gfs_is_stuffed(ip)))
+	    gfs_assert_withdraw(sdp, !gfs_is_stuffed(ip))) {
+		unlock_page(page);
 		RETURN(GFN_WRITEPAGE, -EIO);
+	}
 
 	error = block_write_full_page(page, get_block_noalloc, wbc);
 
