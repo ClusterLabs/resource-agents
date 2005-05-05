@@ -410,9 +410,11 @@ gi_get_counters(struct gfs_inode *ip,
 	gfs_printf("sd_ops_vm:vm operations:diff:%u\n",
 		   handle_roll(&sdp->sd_ops_vm));
 	gfs_printf("sd_bio_reads:block I/O reads:diff:%u\n",
-		   handle_roll(&sdp->sd_bio_reads));
+		   handle_roll(&sdp->sd_bio_reads) >>
+		   (sdp->sd_sb.sb_bsize_shift - 9));
 	gfs_printf("sd_bio_writes:block I/O writes:diff:%u\n",
-		   handle_roll(&sdp->sd_bio_writes));
+		   handle_roll(&sdp->sd_bio_writes) >>
+		   (sdp->sd_sb.sb_bsize_shift - 9));
 
         error = 0;
 

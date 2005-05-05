@@ -42,7 +42,6 @@ struct diaper_holder {
 };
 
 struct bio_wrapper {
-	struct bio bw_bio;
 	struct bio *bw_orig;
 	struct diaper_holder *bw_dh;
 };
@@ -91,7 +90,7 @@ static struct block_device_operations diaper_fops = {
 static int
 diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 {
-	struct bio_wrapper *bw = container_of(bio, struct bio_wrapper, bw_bio);
+	struct bio_wrapper *bw = (struct bio_wrapper *)bio->bi_private;
 	struct diaper_holder *dh = bw->bw_dh;
 	struct gfs_sbd *sdp = dh->dh_sbd;
 
@@ -100,6 +99,7 @@ diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 		return 1;
 
 	atomic_dec(&sdp->sd_bio_outstanding);
+	bio_put(bio);
 	mempool_free(bw, dh->dh_mempool);
 
 	return 0;
@@ -120,6 +120,7 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
 	struct gfs_sbd *sdp = dh->dh_sbd;
 	struct bio_wrapper *bw;
+	struct bio *bi;
 
 	atomic_inc(&sdp->sd_bio_outstanding);
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags))) {
@@ -128,19 +129,20 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
 		RETURN(GFN_DIAPER_MAKE_REQUEST, 0);
 	}
 	if (bio_rw(bio) == WRITE)
-		atomic_inc(&sdp->sd_bio_writes);
+		atomic_add(bio->bi_size >> 9, &sdp->sd_bio_writes);
 	else
-		atomic_inc(&sdp->sd_bio_reads);
+		atomic_add(bio->bi_size >> 9, &sdp->sd_bio_reads);
 
 	bw = mempool_alloc(dh->dh_mempool, GFP_NOIO);
-
-	bw->bw_bio = *bio;
-	bw->bw_bio.bi_bdev = dh->dh_real;
-	bw->bw_bio.bi_end_io = diaper_end_io;
 	bw->bw_orig = bio;
 	bw->bw_dh = dh;
 
-	generic_make_request(&bw->bw_bio);
+	bi = bio_clone(bio, GFP_NOIO);
+	bi->bi_bdev = dh->dh_real;
+	bi->bi_end_io = diaper_end_io;
+	bi->bi_private = bw;
+
+	generic_make_request(bi);
 
 	RETURN(GFN_DIAPER_MAKE_REQUEST, 0);
 }
@@ -278,6 +280,44 @@ get_dummy_sb(struct diaper_holder *dh)
 	RETURN(GFN_GET_DUMMY_SB, error);
 }
 
+static int
+diaper_congested(void *congested_data, int bdi_bits)
+{
+	ENTER(GFN_DIAPER_CONGESTED)
+	struct diaper_holder *dh = (struct diaper_holder *)congested_data;
+	request_queue_t *q = bdev_get_queue(dh->dh_real);
+	RETURN(GFN_DIAPER_CONGESTED,
+	       bdi_congested(&q->backing_dev_info, bdi_bits));
+}
+
+static void
+diaper_unplug(request_queue_t *q)
+{
+	ENTER(GFN_DIAPER_UNPLUG)
+	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
+	request_queue_t *rq = bdev_get_queue(dh->dh_real);
+
+	if (rq->unplug_fn)
+		rq->unplug_fn(rq);
+
+	RET(GFN_DIAPER_UNPLUG);
+}
+
+static int
+diaper_flush(request_queue_t *q, struct gendisk *disk,
+	     sector_t *error_sector)
+{
+	ENTER(GFN_DIAPER_FLUSH)
+	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
+	request_queue_t *rq = bdev_get_queue(dh->dh_real);
+	int error = -EOPNOTSUPP;
+
+	if (rq->issue_flush_fn)
+		error = rq->issue_flush_fn(rq, dh->dh_real->bd_disk, NULL);
+
+	RETURN(GFN_DIAPER_FLUSH, error);
+}
+
 /**
  * diaper_get - Do the work of creating a diaper device
  * @real:
@@ -313,9 +353,17 @@ diaper_get(struct block_device *real, int flags)
 	if (!gd->queue)
 		goto fail_gd;
 
-	blk_queue_hardsect_size(gd->queue, bdev_hardsect_size(real));
-	blk_queue_make_request(gd->queue, diaper_make_request);
 	gd->queue->queuedata = dh;
+	gd->queue->backing_dev_info.congested_fn = diaper_congested;
+	gd->queue->backing_dev_info.congested_data = dh;
+	gd->queue->unplug_fn = diaper_unplug;
+	gd->queue->issue_flush_fn = diaper_flush;
+	blk_queue_make_request(gd->queue, diaper_make_request);
+	blk_queue_stack_limits(gd->queue, bdev_get_queue(real));
+	if (bdev_get_queue(real)->merge_bvec_fn &&
+	    gd->queue->max_sectors > (PAGE_SIZE >> 9))
+		blk_queue_max_sectors(gd->queue, PAGE_SIZE >> 9);
+	blk_queue_hardsect_size(gd->queue, bdev_hardsect_size(real));
 
 	gd->major = diaper_major;
 	gd->first_minor = minor;
@@ -333,18 +381,18 @@ diaper_get(struct block_device *real, int flags)
 	diaper = bdget_disk(gd, 0);
 	if (!diaper)
 		goto fail_remove;
+
 	down(&diaper->bd_sem);
 	if (!diaper->bd_openers) {
 		diaper->bd_disk = gd;
 		diaper->bd_contains = diaper;
 		bd_set_size(diaper, 0x7FFFFFFFFFFFFFFFULL);
-		diaper->bd_inode->i_data.backing_dev_info = &default_backing_dev_info;
+		diaper->bd_inode->i_data.backing_dev_info = &gd->queue->backing_dev_info;
 	} else
 		printk("GFS: diaper: reopening\n");
 	diaper->bd_openers++;
 	up(&diaper->bd_sem);
 
-	error = -ENOMEM;
 	dh->dh_mempool = mempool_create(512,
 					mempool_alloc_slab, mempool_free_slab,
 					diaper_slab);
@@ -585,11 +633,15 @@ gfs_diaper_init(void)
 
 	diaper_slab = kmem_cache_create("gfs_bio_wrapper", sizeof(struct bio_wrapper),
 					0, 0,
-					NULL, NULL);	
+					NULL, NULL);
+	if (!diaper_slab)
+		RETURN(GFN_DIAPER_INIT, -ENOMEM);
 
 	diaper_major = register_blkdev(0, "gfs_diaper");
-	if (diaper_major < 0)
+	if (diaper_major < 0) {
+		kmem_cache_destroy(diaper_slab);
 		RETURN(GFN_DIAPER_INIT, diaper_major);
+	}
 	
 	RETURN(GFN_DIAPER_INIT, 0);
 }
@@ -603,8 +655,8 @@ void
 gfs_diaper_uninit(void)
 {
 	ENTER(GFN_DIAPER_UNINIT)
-	unregister_blkdev(diaper_major, "gfs_diaper");
 	kmem_cache_destroy(diaper_slab);
+	unregister_blkdev(diaper_major, "gfs_diaper");
 	RET(GFN_DIAPER_UNINIT);
 }
 
