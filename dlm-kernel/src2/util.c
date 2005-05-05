@@ -155,6 +155,18 @@ static void rcom_lock_in(struct rcom_lock *rl)
 	rl->rl_range[3]		= le64_to_cpu(rl->rl_range[3]);
 }
 
+static void rcom_config_out(struct rcom_config *rf)
+{
+	rf->rf_lvblen		= cpu_to_le32(rf->rf_lvblen);
+	rf->rf_lsflags		= cpu_to_le32(rf->rf_lsflags);
+}
+
+static void rcom_config_in(struct rcom_config *rf)
+{
+	rf->rf_lvblen		= le32_to_cpu(rf->rf_lvblen);
+	rf->rf_lsflags		= le32_to_cpu(rf->rf_lsflags);
+}
+
 void dlm_rcom_out(struct dlm_rcom *rc)
 {
 	struct dlm_header *hd = (struct dlm_header *) rc;
@@ -168,6 +180,9 @@ void dlm_rcom_out(struct dlm_rcom *rc)
 
 	if (type == DLM_RCOM_LOCK)
 		rcom_lock_out((struct rcom_lock *) rc->rc_buf);
+
+	else if (type == DLM_RCOM_STATUS_REPLY)
+		rcom_config_out((struct rcom_config *) rc->rc_buf);
 }
 
 void dlm_rcom_in(struct dlm_rcom *rc)
@@ -182,5 +197,8 @@ void dlm_rcom_in(struct dlm_rcom *rc)
 
 	if (rc->rc_type == DLM_RCOM_LOCK)
 		rcom_lock_in((struct rcom_lock *) rc->rc_buf);
+
+	else if (rc->rc_type == DLM_RCOM_STATUS_REPLY)
+		rcom_config_in((struct rcom_config *) rc->rc_buf);
 }
 

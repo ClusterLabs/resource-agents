@@ -272,8 +272,8 @@ struct dlm_lkb {
 
 /* find_rsb() flags */
 
-#define R_MASTER		1     /* create/add rsb if not found */
-#define R_CREATE		2     /* only return rsb if it's a master */
+#define R_MASTER		1	/* only return rsb if it's a master */
+#define R_CREATE		2	/* create/add rsb if not found */
 
 #define RESFL_MASTER_WAIT	0
 #define RESFL_MASTER_UNCERTAIN	1
@@ -365,10 +365,10 @@ struct dlm_message {
 };
 
 
-#define DIR_VALID		1
-#define DIR_ALL_VALID		2
-#define NODES_VALID		4
-#define NODES_ALL_VALID		8
+#define DIR_VALID		0x00000001
+#define DIR_ALL_VALID		0x00000002
+#define NODES_VALID		0x00000004
+#define NODES_ALL_VALID		0x00000008
 
 #define DLM_RCOM_STATUS		1
 #define DLM_RCOM_NAMES		2
@@ -385,6 +385,33 @@ struct dlm_rcom {
 	int			rc_result;	/* multi-purpose */
 	uint64_t		rc_id;		/* match reply with request */
 	char			rc_buf[0];
+};
+
+struct rcom_config {
+	uint32_t		rf_lvblen;
+	uint32_t		rf_lsflags;
+	uint64_t		rf_unused;
+};
+
+struct rcom_lock {
+	uint32_t		rl_ownpid;
+	uint32_t		rl_lkid;
+	uint32_t		rl_remid;
+	uint32_t		rl_parent_lkid;
+	uint32_t		rl_parent_remid;
+	uint32_t		rl_exflags;
+	uint32_t		rl_flags;
+	uint32_t		rl_lvbseq;
+	int			rl_result;
+	int8_t			rl_rqmode;
+	int8_t			rl_grmode;
+	int8_t			rl_status;
+	int8_t			rl_asts;
+	uint16_t		rl_wait_type;
+	uint16_t		rl_namelen;
+	uint64_t		rl_range[4];
+	char			rl_name[DLM_RESNAME_MAXLEN];
+	char			rl_lvb[0];
 };
 
 

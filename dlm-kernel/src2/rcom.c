@@ -68,6 +68,22 @@ static void send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
 	dlm_lowcomms_commit_buffer(mh);
 }
 
+/* When replying to a status request, a node also sends back its
+   configuration values.  The requesting node then checks that the remote
+   node is configured the same way as itself. */
+
+static void make_config(struct dlm_ls *ls, struct rcom_config *rf)
+{
+	rf->rf_lvblen = ls->ls_lvblen;
+}
+
+static int check_config(struct dlm_ls *ls, struct rcom_config *rf)
+{
+	if (rf->rf_lvblen != ls->ls_lvblen)
+		return -EINVAL;
+	return 0;
+}
+
 static int make_status(struct dlm_ls *ls)
 {
 	int status = 0;
@@ -109,6 +125,11 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 
 	error = dlm_wait_function(ls, &rcom_response);
 	clear_bit(LSFL_RCOM_READY, &ls->ls_flags);
+	if (error)
+		goto out;
+
+	rc = (struct dlm_rcom *) ls->ls_recover_buf;
+	error = check_config(ls, (struct rcom_config *) rc->rc_buf);
  out:
 	return error;
 }
@@ -119,10 +140,12 @@ static void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	struct dlm_mhandle *mh;
 	int error, nodeid = rc_in->rc_header.h_nodeid;
 
-	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS_REPLY, 0, &rc, &mh);
+	error = create_rcom(ls, nodeid, DLM_RCOM_STATUS_REPLY,
+			    sizeof(struct rcom_config), &rc, &mh);
 	if (error)
 		return;
 	rc->rc_result = make_status(ls);
+	make_config(ls, (struct rcom_config *) rc->rc_buf);
 
 	send_rcom(ls, mh, rc);
 }

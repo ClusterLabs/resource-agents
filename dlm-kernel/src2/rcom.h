@@ -14,27 +14,6 @@
 #ifndef __RCOM_DOT_H__
 #define __RCOM_DOT_H__
 
-struct rcom_lock {
-	uint32_t		rl_ownpid;
-	uint32_t		rl_lkid;
-	uint32_t		rl_remid;
-	uint32_t		rl_parent_lkid;
-	uint32_t		rl_parent_remid;
-	uint32_t		rl_exflags;
-	uint32_t		rl_flags;
-	uint32_t		rl_lvbseq;
-	int			rl_result;
-	int8_t			rl_rqmode;
-	int8_t			rl_grmode;
-	int8_t			rl_status;
-	int8_t			rl_asts;
-	uint16_t		rl_wait_type;
-	uint16_t		rl_namelen;
-	uint64_t		rl_range[4];
-	char			rl_name[DLM_RESNAME_MAXLEN];
-	char			rl_lvb[0];
-};
-
 int dlm_rcom_status(struct dlm_ls *ls, int nodeid);
 int dlm_rcom_names(struct dlm_ls *ls, int nodeid, char *last_name,int last_len);
 int dlm_send_rcom_lookup(struct dlm_rsb *r, int dir_nodeid);
