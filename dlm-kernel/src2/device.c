@@ -109,14 +109,14 @@ static struct miscdevice ctl_device;
  * locks help by a process when it dies.
  */
 struct file_info {
-	struct list_head    fi_li_list;      /* List of active lock_infos */
+	struct list_head    fi_li_list;  /* List of active lock_infos */
 	spinlock_t          fi_li_lock;
-	struct list_head    fi_ast_list;     /* Queue of ASTs to be delivered */
+	struct list_head    fi_ast_list; /* Queue of ASTs to be delivered */
 	spinlock_t          fi_ast_lock;
 	wait_queue_head_t   fi_wait;
 	struct user_ls     *fi_ls;
-	atomic_t            fi_refcnt;       /* Number of users */
-	unsigned long       fi_flags;        /* Bit 1 means the device is open */
+	atomic_t            fi_refcnt;   /* Number of users */
+	unsigned long       fi_flags;    /* Bit 1 means the device is open */
 };
 
 
@@ -526,14 +526,14 @@ static int dlm_close(struct inode *inode, struct file *file)
 			list_del(&old_li->li_ownerqueue);
 
 			/* Update master copy */
-			// TODO: Check locking core updates the local and remote ORPHAN flags
+			/* TODO: Check locking core updates the local and
+			   remote ORPHAN flags */
 			li.li_lksb.sb_lkid = old_li->li_lksb.sb_lkid;
 			status = dlm_lock(f->fi_ls->ls_lockspace,
 					  old_li->li_grmode, &li.li_lksb,
 					  DLM_LKF_CONVERT|DLM_LKF_ORPHAN,
-					  NULL, 0, 0, ast_routine, NULL, /* also clear ast param */
+					  NULL, 0, 0, ast_routine, NULL,
 					  NULL, NULL);
-
 			if (status != 0)
 				printk("dlm: Error orphaning lock %x: %d\n",
 				       old_li->li_lksb.sb_lkid, status);
@@ -573,7 +573,6 @@ static int dlm_close(struct inode *inode, struct file *file)
 			status = dlm_unlock(f->fi_ls->ls_lockspace,
 					    old_li->li_lksb.sb_lkid, flags,
 					    &li.li_lksb, &li);
-
 			if (status == 0)
 				wait_for_ast(&li);
 		}
@@ -594,7 +593,8 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		if (lsinfo->ls_lockspace) {
 			if (test_bit(LS_FLAG_AUTOFREE, &lsinfo->ls_flags)) {
-//TODO this breaks!		unregister_lockspace(lsinfo, 1);
+				/* TODO this breaks!
+				unregister_lockspace(lsinfo, 1); */
 			}
 		} else {
 			kfree(lsinfo->ls_miscinfo.name);
