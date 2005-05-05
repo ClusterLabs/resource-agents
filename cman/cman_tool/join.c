@@ -21,13 +21,15 @@
 static char *argv[128];
 
 /* Lookup the IPv4 broadcast address for a given local address */
-static uint32_t lookup_bcast(uint32_t localaddr)
+static uint32_t lookup_bcast(uint32_t localaddr, char *ifname)
 {
     struct ifreq ifr;
     uint32_t addr, brdaddr;
     int iindex;
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     struct sockaddr_in *saddr = (struct sockaddr_in *)&ifr.ifr_ifru.ifru_addr;
+
+    ifname[0] = '\0';
 
     for (iindex = 0; iindex < 16; iindex++) {
 	ifr.ifr_ifindex = iindex;
@@ -42,6 +44,7 @@ static uint32_t lookup_bcast(uint32_t localaddr)
 		brdaddr = saddr->sin_addr.s_addr;
 
 		close(sock);
+		strcpy(ifname, ifr.ifr_name);
 		return brdaddr;
 	    }
 	}
@@ -98,11 +101,16 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 
     if (!comline->multicast_names[num]) {
 	uint32_t ipaddr;
+	char ifname[256];
 
 	memcpy(&ipaddr, he->h_addr, sizeof(uint32_t));
-	bcast = lookup_bcast(ipaddr);
-	if (!bcast)
-	    die("Can't find broadcast address for node %s\n", comline->nodenames[num]);
+	bcast = lookup_bcast(ipaddr, ifname);
+	if (!bcast) {
+	    fprintf(stderr, "%s: Can't find broadcast address for node %s\n", prog_name, comline->nodenames[num]);
+	    if (ifname[0])
+		    fprintf(stderr, "%s: Interface \"%s\" was bound to that hostname\n", prog_name, ifname);
+	    exit(EXIT_FAILURE);
+	}
 
 	if (comline->verbose) {
 	    printf("Broadcast address for %x is %x\n", ipaddr, bcast);
