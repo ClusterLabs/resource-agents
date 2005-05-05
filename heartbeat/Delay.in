@@ -1,15 +1,21 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+#	$Id: Delay.in,v 1.2 2005/05/05 13:40:10 alan Exp $
 #
 #	This script is a test resource for introducing delay.
 #
 #	usage: $0  {start|stop|status|monitor|meta-data}
 #
 #	  OCF parameters are as below:
-#		OCF_RESKEY_delay
 #		OCF_RESKEY_startdelay
 #		OCF_RESKEY_stopdelay
+#		OCF_RESKEY_mondelay
+#
+#	
+#		OCF_RESKEY_startdelay defaults to 30 (seconds)
+#		OCF_RESKEY_stopdelay defaults to $OCF_RESKEY_startdelay
+#		OCF_RESKEY_mondelay defaults to $OCF_RESKEY_startdelay
+#
 #
 #	This is really a test resource script.
 #
@@ -22,12 +28,12 @@
 #######################################################################
 
 VARLIB=@localstatedir@/lib/@HB_PKG@
-VLFILE=$VARLIB/rsctmp/Delay
+VLFILE="$VARLIB/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor}
-  	$Id: Delay.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+  	$Id: Delay.in,v 1.2 2005/05/05 13:40:10 alan Exp $
 	!
 }
 
@@ -44,17 +50,10 @@ This script is a test resource for introducing delay.
 <shortdesc lang="en">Delay resource agent</shortdesc>
 
 <parameters>
-<parameter name="delay" unique="0">
-<longdesc lang="en">
-How long to delay on start and stop.
-</longdesc>
-<shortdesc lang="en">Delay</shortdesc>
-<content type="integer" default="30" />
-</parameter>
 
 <parameter name="startdelay" unique="0">
 <longdesc lang="en">
-How long to delay on start.
+How long in seconds to delay on start operation.
 </longdesc>
 <shortdesc lang="en">Start delay</shortdesc>
 <content type="integer" default="30" />
@@ -62,9 +61,19 @@ How long to delay on start.
 
 <parameter name="stopdelay" unique="0">
 <longdesc lang="en">
-How long to delay on stop.
+How long in seconds to delay on stop operation.
+Defaults to "startdelay" if unspecified.
 </longdesc>
 <shortdesc lang="en">Stop delay</shortdesc>
+<content type="integer" default="30" />
+</parameter>
+
+<parameter name="mondelay" unique="0">
+<longdesc lang="en">
+How long in seconds to delay on monitor operation.
+Defaults to "startdelay" if unspecified.
+</longdesc>
+<shortdesc lang="en">Monitor delay</shortdesc>
 <content type="integer" default="30" />
 </parameter>
 </parameters>
@@ -81,8 +90,7 @@ END
 }
 
 Delay_stat() {
-    test -f $VLFILE
-
+    test -f "$VLFILE"
 }
 
 Delay_Status() {
@@ -93,21 +101,31 @@ Delay_Status() {
     return 0
   else
     echo "Delay is not operational"
-    return 1
+    return $OCF_ERR_GENERIC
   fi
+}
+
+Delay_Monitor() {
+  sleep $OCF_RESKEY_mondelay
+  Delay_Status
 }
 
 Delay_Start() {
   if
     Delay_stat
   then
-    echo "Delay already running"
-    return 0
+    echo "Delay already running."
+    return $OCF_SUCCESS
   else
-    touch $VLFILE
+    touch "$VLFILE"
     rc=$?
-    sleep $StartDelay
-    return $rc
+    sleep $OCF_RESKEY_startdelay
+    if
+      [ $rc -ne 0 ]
+    then
+      return $OCF_ERR_PERM
+    fi
+    return $OCF_SUCCESS
   fi
 }
 
@@ -115,13 +133,18 @@ Delay_Stop() {
   if
     Delay_stat
   then
-    unlink $VLFILE
+    unlink "$VLFILE"
     rc=$?
-    sleep $StopDelay
-    return $rc
+    sleep $OCF_RESKEY_stopdelay
+    if
+      [ $rc -ne 0 ]
+    then
+      return $OCF_ERR_PERM
+    fi
+    return $OCF_SUCCESS
   else
-    echo "Delay already stopped"
-    return 0
+    echo "Delay already stopped."
+    return $OCF_SUCCESS
   fi
 }
 
@@ -129,33 +152,12 @@ if
   ( [ $# -eq 0 ] || [ $# -gt 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
-Delay=$OCF_RESKEY_delay
-if 
-  [ -z "$Delay" ]
-then
-  StartDelay=30
-  StopDelay=30
-else
-  StartDelay=$OCF_RESKEY_delay
-  StopDelay=$OCF_RESKEY_delay
-fi
-
-Delay=$OCF_RESKEY_startdelay
-if 
-  [ -z "$Delay" ]
-then
-  StartDelay=30
-fi
-
-Delay=$OCF_RESKEY_stopdelay
-if 
-  [ -z "$Delay" ] 
-then
-  StopDelay=30
-fi
+: ${OCF_RESKEY_startdelay=30}
+: ${OCF_RESKEY_stopdelay=$OCF_RESKEY_startdelay}
+: ${OCF_RESKEY_mondelay=$OCF_RESKEY_startdelay}
 
 case $1 in
   meta-data)		meta_data
@@ -165,7 +167,9 @@ case $1 in
 			;;
   stop)			Delay_Stop
 			;;
-  status|monitor)	Delay_Status
+  monitor)		Delay_Monitor
+			;;
+  status)		Delay_Status
 			;;
   usage)		usage
 			exit $OCF_SUCCESS
