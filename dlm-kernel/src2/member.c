@@ -297,9 +297,17 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 
 	spin_lock(&ls->ls_recover_lock);
 
+	if (test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
+		spin_unlock(&ls->ls_recover_lock);
+		log_error(ls, "start ignored: lockspace running");
+		kfree(rv);
+		error = -EINVAL;
+		goto out;
+	}
+
 	if (!ls->ls_nodeids_next) {
 		spin_unlock(&ls->ls_recover_lock);
-		log_error(ls, "existing nodeids_next");
+		log_error(ls, "start ignored: existing nodeids_next");
 		kfree(rv);
 		error = -EINVAL;
 		goto out;
