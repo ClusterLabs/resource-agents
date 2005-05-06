@@ -462,7 +462,12 @@ int dlm_recover_locks(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (is_master(r))
+		if (is_master(r)) {
+			clear_bit(RESFL_NEW_MASTER, &r->res_flags);
+			continue;
+		}
+
+		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
 			continue;
 
 		error = dlm_recovery_stopped(ls);
@@ -470,9 +475,6 @@ int dlm_recover_locks(struct dlm_ls *ls)
 			up_read(&ls->ls_root_sem);
 			goto out;
 		}
-
-		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
-			continue;
 
 		error = recover_locks(r);
 		if (error) {
