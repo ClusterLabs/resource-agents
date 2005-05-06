@@ -206,16 +206,6 @@ static int is_remote(struct dlm_rsb *r)
 	return !!r->res_nodeid;
 }
 
-static int is_master(struct dlm_rsb *r)
-{
-	return !r->res_nodeid;
-}
-
-int dlm_is_master(struct dlm_rsb *r)
-{
-	return is_master(r);
-}
-
 static int is_process_copy(struct dlm_lkb *lkb)
 {
 	return (lkb->lkb_nodeid && !(lkb->lkb_flags & DLM_IFL_MSTCPY));

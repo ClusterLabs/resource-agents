@@ -332,7 +332,7 @@ int dlm_recover_masters(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (!r->res_nodeid)
+		if (is_master(r))
 			continue;
 
 		error = dlm_recovery_stopped(ls);
@@ -462,7 +462,7 @@ int dlm_recover_locks(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (!r->res_nodeid)
+		if (is_master(r))
 			continue;
 
 		error = dlm_recovery_stopped(ls);
@@ -622,7 +622,7 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (r->res_nodeid)
+		if (!is_master(r))
 			continue;
 
 		dlm_lock_rsb(r);
@@ -728,7 +728,7 @@ void dlm_recover_conversions(struct dlm_ls *ls)
 
 			dlm_hold_rsb(r);
 			dlm_lock_rsb(r);
-			if (dlm_is_master(r))
+			if (is_master(r))
 				recover_conversion(r);
 			dlm_unlock_rsb(r);
 			dlm_put_rsb(r);
