@@ -21,12 +21,12 @@
 #include <asm/uaccess.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "lm.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "super.h"
 

@@ -22,11 +22,11 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
-#include "file.h"
 #include "glock.h"
 #include "inode.h"
+#include "jdata.h"
 #include "log.h"
+#include "meta_io.h"
 #include "ops_address.h"
 #include "page.h"
 #include "quota.h"
@@ -81,17 +81,21 @@ get_block_noalloc(struct inode *inode, sector_t lblock,
 		  struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_GET_BLOCK_NOALLOC)
+	struct gfs2_inode *ip = get_v2ip(inode);
+	int new = FALSE;
+	uint64_t dblock;
 	int error;
 
-	error = get_block(inode, lblock, bh_result, FALSE);
+	error = gfs2_block_map(ip, lblock, &new, &dblock, NULL);
 	if (error)
 		RETURN(G2FN_GET_BLOCK_NOALLOC, error);
 
-	if (gfs2_assert_withdraw(get_v2sdp(inode->i_sb),
-				!create || buffer_mapped(bh_result)))
-		RETURN(G2FN_GET_BLOCK_NOALLOC, -EIO);
+	if (dblock)
+		map_bh(bh_result, inode->i_sb, dblock);
+	else if (gfs2_assert_withdraw(ip->i_sbd, !create))
+		error = -EIO;
 
-	RETURN(G2FN_GET_BLOCK_NOALLOC, 0);
+	RETURN(G2FN_GET_BLOCK_NOALLOC, error);
 }
 
 /**
@@ -152,17 +156,25 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
 		   struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_GET_BLOCKS_NOALLOC)
+	struct gfs2_inode *ip = get_v2ip(inode);
+	int new = FALSE;
+	uint64_t dblock;
+	uint32_t extlen;
 	int error;
 
-	error = get_blocks(inode, lblock, max_blocks, bh_result, FALSE);
+	error = gfs2_block_map(ip, lblock, &new, &dblock, &extlen);
 	if (error)
 		RETURN(G2FN_GET_BLOCKS_NOALLOC, error);
 
-	if (gfs2_assert_withdraw(get_v2sdp(inode->i_sb),
-				!create || buffer_mapped(bh_result)))
-		RETURN(G2FN_GET_BLOCKS_NOALLOC, -EIO);
+	if (dblock) {
+		map_bh(bh_result, inode->i_sb, dblock);
+		if (extlen > max_blocks)
+			extlen = max_blocks;
+		bh_result->b_size = extlen << inode->i_blkbits;
+	} else if (gfs2_assert_withdraw(ip->i_sbd, !create))
+		error = -EIO;
 
-	RETURN(G2FN_GET_BLOCKS_NOALLOC, 0);
+	RETURN(G2FN_GET_BLOCKS_NOALLOC, error);
 }
 
 /**
@@ -185,15 +197,19 @@ gfs2_writepage(struct page *page, struct writeback_control *wbc)
 
 	atomic_inc(&sdp->sd_ops_address);
 
-	if (gfs2_assert_withdraw(sdp, gfs2_glock_is_held_excl(ip->i_gl)) ||
-	    gfs2_assert_withdraw(sdp, !gfs2_is_stuffed(ip))) {
+	if (gfs2_assert_withdraw(sdp, gfs2_glock_is_held_excl(ip->i_gl))) {
 		unlock_page(page);
 		RETURN(G2FN_WRITEPAGE, -EIO);
+	}
+	if (get_transaction) {
+		redirty_page_for_writepage(wbc, page);
+		unlock_page(page);
+		RETURN(G2FN_WRITEPAGE, 0);
 	}
 
 	error = block_write_full_page(page, get_block_noalloc, wbc);
 
-	gfs2_flush_meta_cache(ip);
+	gfs2_meta_cache_flush(ip);
 
 	RETURN(G2FN_WRITEPAGE, error);
 }
@@ -214,45 +230,62 @@ stuffed_readpage(struct gfs2_inode *ip, struct page *page)
 	void *kaddr;
 	int error;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
-	if (!error) {
-		kaddr = kmap(page);
-		memcpy((char *)kaddr,
-		       dibh->b_data + sizeof(struct gfs2_dinode),
-		       ip->i_di.di_size);
-		memset((char *)kaddr + ip->i_di.di_size,
-		       0,
-		       PAGE_CACHE_SIZE - ip->i_di.di_size);
-		kunmap(page);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
+	if (error)
+		RETURN(G2FN_STUFFED_READPAGE, error);
 
-		brelse(dibh);
+	kaddr = kmap(page);
+	memcpy((char *)kaddr,
+	       dibh->b_data + sizeof(struct gfs2_dinode),
+	       ip->i_di.di_size);
+	memset((char *)kaddr + ip->i_di.di_size,
+	       0,
+	       PAGE_CACHE_SIZE - ip->i_di.di_size);
+	kunmap(page);
 
-		SetPageUptodate(page);
-	}
+	brelse(dibh);
 
-	RETURN(G2FN_STUFFED_READPAGE, error);
+	SetPageUptodate(page);
+
+	RETURN(G2FN_STUFFED_READPAGE, 0);
+}
+
+static int
+zero_readpage(struct page *page)
+{
+	ENTER(G2FN_ZERO_READPAGE)
+	void *kaddr;
+
+	kaddr = kmap(page);
+	memset(kaddr, 0, PAGE_CACHE_SIZE);
+	kunmap(page);
+
+	SetPageUptodate(page);
+	unlock_page(page);
+
+	RETURN(G2FN_ZERO_READPAGE, 0);
 }
 
 /**
- * readi_readpage - readpage that goes through gfs2_internal_read()
+ * jdata_readpage - readpage that goes through gfs2_jdata_read_mem()
+ * @ip:
  * @page: The page to read
  *
  * Returns: errno
  */
 
 static int
-readi_readpage(struct page *page)
+jdata_readpage(struct gfs2_inode *ip, struct page *page)
 {
-	ENTER(G2FN_READI_READPAGE)
-	struct gfs2_inode *ip = get_v2ip(page->mapping->host);
+	ENTER(G2FN_JDATA_READPAGE)
 	void *kaddr;
 	int ret;
 
 	kaddr = kmap(page);
 
-	ret = gfs2_internal_read(ip, kaddr,
-				(uint64_t)page->index << PAGE_CACHE_SHIFT,
-				PAGE_CACHE_SIZE);
+	ret = gfs2_jdata_read_mem(ip, kaddr,
+				  (uint64_t)page->index << PAGE_CACHE_SHIFT,
+				  PAGE_CACHE_SIZE);
 	if (ret >= 0) {
 		if (ret < PAGE_CACHE_SIZE)
 			memset(kaddr + ret, 0, PAGE_CACHE_SIZE - ret);
@@ -264,7 +297,7 @@ readi_readpage(struct page *page)
 
 	unlock_page(page);
 
-	RETURN(G2FN_READI_READPAGE, ret);
+	RETURN(G2FN_JDATA_READPAGE, ret);
 }
 
 /**
@@ -291,13 +324,16 @@ gfs2_readpage(struct file *file, struct page *page)
 	}
 
 	if (!gfs2_is_jdata(ip)) {
-		if (gfs2_is_stuffed(ip) && !page->index) {
-			error = stuffed_readpage(ip, page);
-			unlock_page(page);
+		if (gfs2_is_stuffed(ip)) {
+			if (!page->index) {
+				error = stuffed_readpage(ip, page);
+				unlock_page(page);
+			} else
+				error = zero_readpage(page);
 		} else
 			error = block_read_full_page(page, get_block);
 	} else
-		error = readi_readpage(page);
+		error = jdata_readpage(ip, page);
 
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
@@ -377,7 +413,7 @@ gfs2_commit_write(struct file *file, struct page *page,
 		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
 		void *kaddr;
 
-		error = gfs2_get_inode_buffer(ip, &dibh);
+		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
 			goto fail;
 
@@ -425,7 +461,7 @@ gfs2_bmap(struct address_space *mapping, sector_t lblock)
 	ENTER(G2FN_BMAP)
 	struct gfs2_inode *ip = get_v2ip(mapping->host);
 	struct gfs2_holder i_gh;
-	int dblock = 0;
+	sector_t dblock = 0;
 	int error;
 
 	atomic_inc(&ip->i_sbd->sd_ops_address);

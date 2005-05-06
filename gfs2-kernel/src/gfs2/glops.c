@@ -21,11 +21,11 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "log.h"
+#include "meta_io.h"
 #include "page.h"
 #include "recovery.h"
 #include "rgrp.h"
@@ -56,7 +56,7 @@ meta_go_sync(struct gfs2_glock *gl, int flags)
 
 	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
 		gfs2_log_flush_glock(gl);
-		gfs2_sync_buf(gl, flags | DIO_START | DIO_WAIT);
+		gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
 		if (flags & DIO_RELEASE) {
 			gfs2_ail_empty_gl(gl);
 			clear_bit(GLF_DIRTY, &gl->gl_flags);
@@ -83,7 +83,7 @@ meta_go_inval(struct gfs2_glock *gl, int flags)
 	if (!(flags & DIO_METADATA))
 		RET(G2FN_META_GO_INVAL);
 
-	gfs2_inval_buf(gl);
+	gfs2_meta_inval(gl);
 	gl->gl_vn++;
 
 	RET(G2FN_META_GO_INVAL);
@@ -155,7 +155,7 @@ inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 {
 	ENTER(G2FN_INODE_GO_XMOTE_TH)
 	if (gl->gl_state != LM_ST_UNLOCKED)
-		gfs2_inval_pte(gl);
+		gfs2_pte_inval(gl);
 	gfs2_glock_xmote_th(gl, state, flags);
 	RET(G2FN_INODE_GO_XMOTE_TH);
 }
@@ -182,7 +182,7 @@ inode_go_xmote_bh(struct gfs2_glock *gl)
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    (!gh || !(gh->gh_flags & GL_SKIP))) {
-		error = gfs2_dread(gl, gl->gl_name.ln_number, DIO_START, &bh);
+		error = gfs2_meta_read(gl, gl->gl_name.ln_number, DIO_START, &bh);
 		if (!error)
 			brelse(bh);
 	}
@@ -203,7 +203,7 @@ static void
 inode_go_drop_th(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GO_DROP_TH)
-	gfs2_inval_pte(gl);
+	gfs2_pte_inval(gl);
 	gfs2_glock_drop_th(gl);
 	RET(G2FN_INODE_GO_DROP_TH);
 }
@@ -251,15 +251,15 @@ inode_go_sync(struct gfs2_glock *gl, int flags)
 
 	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
 		if (meta && data) {
-			gfs2_sync_page(gl, flags | DIO_START);
+			gfs2_page_sync(gl, flags | DIO_START);
 			gfs2_log_flush_glock(gl);
-			gfs2_sync_buf(gl, flags | DIO_START | DIO_WAIT);
-			gfs2_sync_page(gl, flags | DIO_WAIT);
+			gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
+			gfs2_page_sync(gl, flags | DIO_WAIT);
 		} else if (meta) {
 			gfs2_log_flush_glock(gl);
-			gfs2_sync_buf(gl, flags | DIO_START | DIO_WAIT);
+			gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
 		} else if (data)
-			gfs2_sync_page(gl, flags | DIO_START | DIO_WAIT);
+			gfs2_page_sync(gl, flags | DIO_START | DIO_WAIT);
 		if (flags & DIO_RELEASE) {
 			gfs2_ail_empty_gl(gl);
 			clear_bit(GLF_DIRTY, &gl->gl_flags);
@@ -286,11 +286,11 @@ inode_go_inval(struct gfs2_glock *gl, int flags)
 	int data = (flags & DIO_DATA);
 
 	if (meta) {
-		gfs2_inval_buf(gl);
+		gfs2_meta_inval(gl);
 		gl->gl_vn++;
 	}
 	if (data)
-		gfs2_inval_page(gl);
+		gfs2_page_inval(gl);
 
 	RET(G2FN_INODE_GO_INVAL);
 }
@@ -379,7 +379,7 @@ inode_go_unlock(struct gfs2_holder *gh)
 		gfs2_inode_attr_in(ip);
 
 	if (ip)
-		gfs2_flush_meta_cache(ip);
+		gfs2_meta_cache_flush(ip);
 
 	RET(G2FN_INODE_GO_UNLOCK);
 }
@@ -496,7 +496,7 @@ trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
-		gfs2_sync_meta(sdp);
+		gfs2_meta_syncfs(sdp);
 		gfs2_log_shutdown(sdp);
 	}
 
@@ -523,7 +523,7 @@ trans_go_xmote_bh(struct gfs2_glock *gl)
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
-		gfs2_flush_meta_cache(sdp->sd_jdesc->jd_inode);
+		gfs2_meta_cache_flush(sdp->sd_jdesc->jd_inode);
 		j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
 
 		error = gfs2_find_jhead(sdp->sd_jdesc, &head);
@@ -561,7 +561,7 @@ trans_go_drop_th(struct gfs2_glock *gl)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 
 	if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
-		gfs2_sync_meta(sdp);
+		gfs2_meta_syncfs(sdp);
 		gfs2_log_shutdown(sdp);
 	}
 

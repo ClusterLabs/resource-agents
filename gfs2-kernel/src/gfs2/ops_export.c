@@ -20,7 +20,6 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "dir.h"
 #include "glock.h"
 #include "glops.h"

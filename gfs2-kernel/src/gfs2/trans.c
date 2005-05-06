@@ -20,10 +20,10 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "glock.h"
 #include "log.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "trans.h"
 
 /**
@@ -195,7 +195,7 @@ gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 	if (bd)
 		gfs2_assert(sdp, bd->bd_gl == gl,);
 	else {
-		gfs2_attach_bufdata(gl, bh);
+		gfs2_meta_attach_bufdata(gl, bh);
 		bd = get_v2bd(bh);
 	}
 

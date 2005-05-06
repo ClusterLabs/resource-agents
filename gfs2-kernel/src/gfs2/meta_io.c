@@ -23,12 +23,12 @@
 #include <linux/writeback.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "log.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "rgrp.h"
 #include "trans.h"
 
@@ -423,15 +423,15 @@ gfs2_ail_empty_gl(struct gfs2_glock *gl)
 }
 
 /**
- * gfs2_inval_buf - Invalidate all buffers associated with a glock
+ * gfs2_meta_inval - Invalidate all buffers associated with a glock
  * @gl: the glock
  *
  */
 
 void
-gfs2_inval_buf(struct gfs2_glock *gl)
+gfs2_meta_inval(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INVAL_BUF)
+	ENTER(G2FN_META_INVAL)
        	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
@@ -444,32 +444,32 @@ gfs2_inval_buf(struct gfs2_glock *gl)
 
 	gfs2_assert_withdraw(sdp, !mapping->nrpages);
 
-	RET(G2FN_INVAL_BUF);
+	RET(G2FN_META_INVAL);
 }
 
 /**
- * gfs2_sync_buf - Sync all buffers associated with a glock
+ * gfs2_meta_sync - Sync all buffers associated with a glock
  * @gl: The glock
  * @flags: DIO_START | DIO_WAIT
  *
  */
 
 void
-gfs2_sync_buf(struct gfs2_glock *gl, int flags)
+gfs2_meta_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_SYNC_BUF)
+	ENTER(G2FN_META_SYNC)
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
 	int error = 0;
 
 	if (flags & DIO_START)
-		error = filemap_fdatawrite(mapping);
+		filemap_fdatawrite(mapping);
 	if (!error && (flags & DIO_WAIT))
 		error = filemap_fdatawait(mapping);
 
 	if (error)
 		gfs2_io_error(gl->gl_sbd);
 
-	RET(G2FN_SYNC_BUF);
+	RET(G2FN_META_SYNC);
 }
 
 /**
@@ -524,56 +524,10 @@ getbuf(struct gfs2_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	RETURN(G2FN_GETBUF, bh);
 }
 
-/**
- * gfs2_dgetblk - Get a block
- * @gl: The glock associated with this block
- * @blkno: The block number
- *
- * Returns: The buffer
- */
-
-struct buffer_head *
-gfs2_dgetblk(struct gfs2_glock *gl, uint64_t blkno)
-{
-	ENTER(G2FN_DGETBLK)
-	RETURN(G2FN_DGETBLK, getbuf(gl->gl_sbd, gl->gl_aspace, blkno, CREATE));
-}
-
-/**
- * gfs2_dread - Read a block from disk
- * @gl: The glock covering the block
- * @blkno: The block number
- * @flags: flags to gfs2_dreread()
- * @bhp: the place where the buffer is returned (NULL on failure)
- *
- * Returns: errno
- */
-
-int
-gfs2_dread(struct gfs2_glock *gl, uint64_t blkno,
-	  int flags, struct buffer_head **bhp)
-{
-	ENTER(G2FN_DREAD)
-	int error;
-
-	*bhp = gfs2_dgetblk(gl, blkno);
-	error = gfs2_dreread(gl->gl_sbd, *bhp, flags);
-	if (error)
-		brelse(*bhp);
-
-	RETURN(G2FN_DREAD, error);
-}
-
-/**
- * gfs2_prep_new_buffer - Mark a new buffer we just gfs2_dgetblk()ed uptodate
- * @bh: the buffer
- *
- */
-
 void
-gfs2_prep_new_buffer(struct buffer_head *bh)
+meta_prep_new(struct buffer_head *bh)
 {
-	ENTER(G2FN_PREP_NEW_BUFFER)
+	ENTER(G2FN_META_PREP_NEW)
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 
 	lock_buffer(bh);
@@ -584,11 +538,54 @@ gfs2_prep_new_buffer(struct buffer_head *bh)
 	mh->mh_magic = cpu_to_gfs2_32(GFS2_MAGIC);
 	mh->mh_blkno = cpu_to_gfs2_64(bh->b_blocknr);
 	
-	RET(G2FN_PREP_NEW_BUFFER);
+	RET(G2FN_META_PREP_NEW);
 }
 
 /**
- * gfs2_dreread - Reread a block from disk
+ * gfs2_meta_new - Get a block
+ * @gl: The glock associated with this block
+ * @blkno: The block number
+ *
+ * Returns: The buffer
+ */
+
+struct buffer_head *
+gfs2_meta_new(struct gfs2_glock *gl, uint64_t blkno)
+{
+	ENTER(G2FN_META_NEW)
+	struct buffer_head *bh;
+	bh = getbuf(gl->gl_sbd, gl->gl_aspace, blkno, CREATE);
+	meta_prep_new(bh);
+	RETURN(G2FN_META_NEW, bh);
+}
+
+/**
+ * gfs2_meta_read - Read a block from disk
+ * @gl: The glock covering the block
+ * @blkno: The block number
+ * @flags: flags to gfs2_dreread()
+ * @bhp: the place where the buffer is returned (NULL on failure)
+ *
+ * Returns: errno
+ */
+
+int
+gfs2_meta_read(struct gfs2_glock *gl, uint64_t blkno,
+	       int flags, struct buffer_head **bhp)
+{
+	ENTER(G2FN_META_READ)
+	int error;
+
+	*bhp = getbuf(gl->gl_sbd, gl->gl_aspace, blkno, CREATE);
+	error = gfs2_meta_reread(gl->gl_sbd, *bhp, flags);
+	if (error)
+		brelse(*bhp);
+
+	RETURN(G2FN_META_READ, error);
+}
+
+/**
+ * gfs2_meta_reread - Reread a block from disk
  * @sdp: the filesystem
  * @bh: The block to read
  * @flags: Flags that control the read
@@ -597,12 +594,12 @@ gfs2_prep_new_buffer(struct buffer_head *bh)
  */
 
 int
-gfs2_dreread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
+gfs2_meta_reread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
 {
-	ENTER(G2FN_DREREAD)
+	ENTER(G2FN_META_REREAD)
 
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		RETURN(G2FN_DREREAD, -EIO);
+		RETURN(G2FN_META_REREAD, -EIO);
 
 	if (flags & DIO_FORCE)
 		clear_buffer_uptodate(bh);
@@ -614,78 +611,29 @@ gfs2_dreread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
 		wait_on_buffer(bh);
 
 		if (!buffer_uptodate(bh)) {
-			if (get_transaction)
+			struct gfs2_trans *tr = get_transaction;
+			if (tr && tr->tr_touched)
 				gfs2_io_error_bh(sdp, bh);
-			RETURN(G2FN_DREREAD, -EIO);
+			RETURN(G2FN_META_REREAD, -EIO);
 		}
 		if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-			RETURN(G2FN_DREREAD, -EIO);
+			RETURN(G2FN_META_REREAD, -EIO);
 	}
 
-	RETURN(G2FN_DREREAD, 0);
+	RETURN(G2FN_META_REREAD, 0);
 }
 
 /**
- * gfs2_dwrite - Write a buffer to disk (and/or wait for write to complete)
- * @sdp: the filesystem
- * @bh: The buffer to write
- * @flags:  DIO_XXX The type of write/wait operation to do
- *
- * Returns: errno
- */
-
-int
-gfs2_dwrite(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
-{
-	ENTER(G2FN_DWRITE)
-
-	if (gfs2_assert_warn(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags)))
-		RETURN(G2FN_DWRITE, -EIO);
-	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		RETURN(G2FN_DWRITE, -EIO);
-
-	if (flags & DIO_CLEAN) {
-		lock_buffer(bh);
-		clear_buffer_dirty(bh);
-		unlock_buffer(bh);
-	}
-
-	if (flags & DIO_DIRTY) {
-		if (gfs2_assert_warn(sdp, buffer_uptodate(bh)))
-			RETURN(G2FN_DWRITE, -EIO);
-		mark_buffer_dirty(bh);
-	}
-
-	if ((flags & DIO_START) && buffer_dirty(bh)) {
-		wait_on_buffer(bh);
-		ll_rw_block(WRITE, 1, &bh);
-	}
-
-	if (flags & DIO_WAIT) {
-		wait_on_buffer(bh);
-
-		if (!buffer_uptodate(bh) || buffer_dirty(bh)) {
-			gfs2_io_error_bh(sdp, bh);
-			RETURN(G2FN_DWRITE, -EIO);
-		}
-		if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-			RETURN(G2FN_DWRITE, -EIO);
-	}
-
-	RETURN(G2FN_DWRITE, 0);
-}
-
-/**
- * gfs2_attach_bufdata - attach a struct gfs2_bufdata structure to a buffer
+ * gfs2_meta_attach_bufdata - attach a struct gfs2_bufdata structure to a buffer
  * @gl: the glock the buffer belongs to
  * @bh: The buffer to be attached to
  *
  */
 
 void
-gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
+gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 {
-	ENTER(G2FN_ATTACH_BUFDATA)
+	ENTER(G2FN_META_ATTACH_BUFDATA)
 	struct gfs2_bufdata *bd;
 
 	lock_page(bh->b_page);
@@ -693,7 +641,7 @@ gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 	/* If there's one attached already, we're done */
 	if (get_v2bd(bh)) {
 		unlock_page(bh->b_page);
-		RET(G2FN_ATTACH_BUFDATA);
+		RET(G2FN_META_ATTACH_BUFDATA);
 	}
 
 	RETRY_MALLOC(bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL), bd);
@@ -712,11 +660,11 @@ gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 
 	unlock_page(bh->b_page);
 
-	RET(G2FN_ATTACH_BUFDATA);
+	RET(G2FN_META_ATTACH_BUFDATA);
 }
 
 /**
- * gfs2_dpin - Pin a metadata buffer in memory
+ * gfs2_meta_pin - Pin a metadata buffer in memory
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to be pinned
  *
@@ -733,9 +681,9 @@ gfs2_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
  */
 
 void
-gfs2_dpin(struct gfs2_sbd *sdp, struct buffer_head *bh)
+gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
-	ENTER(G2FN_DPIN)
+	ENTER(G2FN_META_PIN)
 	struct gfs2_bufdata *bd = get_v2bd(bh);
 
 	gfs2_assert_withdraw(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags));
@@ -761,11 +709,11 @@ gfs2_dpin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 
 	get_bh(bh);
 
-	RET(G2FN_DPIN);
+	RET(G2FN_META_PIN);
 }
 
 /**
- * gfs2_dunpin - Unpin a buffer
+ * gfs2_meta_unpin - Unpin a buffer
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to unpin
  * @tr: The transaction in the AIL that contains this buffer
@@ -791,10 +739,10 @@ gfs2_dpin(struct gfs2_sbd *sdp, struct buffer_head *bh)
  */
 
 void
-gfs2_dunpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
-	   struct gfs2_ail *ai)
+gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
+		struct gfs2_ail *ai)
 {
-	ENTER(G2FN_DUNPIN)
+	ENTER(G2FN_META_UNPIN)
 	struct gfs2_bufdata *bd = get_v2bd(bh);
 
 	gfs2_assert_withdraw(sdp, buffer_uptodate(bh));
@@ -818,11 +766,11 @@ gfs2_dunpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 	list_add(&bd->bd_ail_st_list, &ai->ai_ail1_list);
 	gfs2_log_unlock(sdp);
 
-	RET(G2FN_DUNPIN);
+	RET(G2FN_META_UNPIN);
 }
 
 /**
- * gfs2_buf_wipe - make inode's buffers so they aren't dirty/AILed anymore
+ * gfs2_meta_wipe - make inode's buffers so they aren't dirty/AILed anymore
  * @ip: the inode who owns the buffers
  * @bstart: the first buffer in the run
  * @blen: the number of buffers in the run
@@ -831,9 +779,9 @@ gfs2_dunpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
  */
 
 void
-gfs2_buf_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
+gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
-	ENTER(G2FN_BUF_WIPE)
+	ENTER(G2FN_META_WIPE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *aspace = ip->i_gl->gl_aspace;
 	struct buffer_head *bh;
@@ -879,37 +827,11 @@ gfs2_buf_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 		blen--;
 	}
 
-	RET(G2FN_BUF_WIPE);
+	RET(G2FN_META_WIPE);
 }
 
 /**
- * gfs2_sync_meta - sync all the buffers in a filesystem
- * @sdp: the filesystem
- *
- * Flush metadata blocks to on-disk journal, then
- * Flush metadata blocks (now in AIL) to on-disk in-place locations
- * Periodically keep checking until done (AIL empty)
- */
-
-void
-gfs2_sync_meta(struct gfs2_sbd *sdp)
-{
-	ENTER(G2FN_SYNC_META)
-
-	gfs2_log_flush(sdp);
-	for (;;) {
-		gfs2_ail1_start(sdp, DIO_ALL);
-		if (gfs2_ail1_empty(sdp, DIO_ALL))
-			break;
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ / 10);
-	}
-
-	RET(G2FN_SYNC_META);
-}
-
-/**
- * gfs2_flush_meta_cache - get rid of any references on buffers for this inode
+ * gfs2_meta_cache_flush - get rid of any references on buffers for this inode
  * @ip: The GFS2 inode
  *
  * This releases buffers that are in the most-recently-used array of
@@ -918,9 +840,9 @@ gfs2_sync_meta(struct gfs2_sbd *sdp)
  */
 
 void
-gfs2_flush_meta_cache(struct gfs2_inode *ip)
+gfs2_meta_cache_flush(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_FLUSH_META_CACHE)
+	ENTER(G2FN_META_CACHE_FLUSH)
 	struct buffer_head **bh_slot;
 	unsigned int x;
 
@@ -936,29 +858,30 @@ gfs2_flush_meta_cache(struct gfs2_inode *ip)
 
 	spin_unlock(&ip->i_lock);
 
-	RET(G2FN_FLUSH_META_CACHE);
+	RET(G2FN_META_CACHE_FLUSH);
 }
 
 /**
- * gfs2_get_meta_buffer - Get a metadata buffer
+ * gfs2_meta_indirect_buffer - Get a metadata buffer
  * @ip: The GFS2 inode
  * @height: The level of this buf in the metadata (indir addr) tree (if any)
  * @num: The block number (device relative) of the buffer
  * @new: Non-zero if we may create a new buffer
  * @bhp: the buffer is returned here
  *
+ * Try to use the gfs2_inode's MRU metadata tree cache.
+ *
  * Returns: errno
  */
 
 int
-gfs2_get_meta_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
-		    struct buffer_head **bhp)
+gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
+		     struct buffer_head **bhp)
 {
-	ENTER(G2FN_GET_META_BUFFER)
-	struct buffer_head *bh, **bh_slot = &ip->i_cache[height];
+	ENTER(G2FN_META_INDIRECT_BUFFER)
+	struct buffer_head *bh, **bh_slot = ip->i_cache + height;
 	int error;
 
-	/* Try to use the gfs2_inode's MRU metadata tree cache */
 	spin_lock(&ip->i_lock);
 	bh = *bh_slot;
 	if (bh) {
@@ -971,22 +894,21 @@ gfs2_get_meta_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
 
 	if (bh) {
 		if (new)
-			gfs2_prep_new_buffer(bh);
+			meta_prep_new(bh);
 		else {
-			error = gfs2_dreread(ip->i_sbd, bh, DIO_START | DIO_WAIT);
+			error = gfs2_meta_reread(ip->i_sbd, bh, DIO_START | DIO_WAIT);
 			if (error) {
 				brelse(bh);
-				RETURN(G2FN_GET_META_BUFFER, error);
+				RETURN(G2FN_META_INDIRECT_BUFFER, error);
 			}
 		}
 	} else {
-		if (new) {
-			bh = gfs2_dgetblk(ip->i_gl, num);
-			gfs2_prep_new_buffer(bh);
-		} else {
-			error = gfs2_dread(ip->i_gl, num, DIO_START | DIO_WAIT, &bh);
+		if (new)
+			bh = gfs2_meta_new(ip->i_gl, num);
+		else {
+			error = gfs2_meta_read(ip->i_gl, num, DIO_START | DIO_WAIT, &bh);
 			if (error)
-				RETURN(G2FN_GET_META_BUFFER, error);
+				RETURN(G2FN_META_INDIRECT_BUFFER, error);
 		}
 
 		spin_lock(&ip->i_lock);
@@ -1002,86 +924,25 @@ gfs2_get_meta_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
 	if (new) {
 		if (gfs2_assert_warn(ip->i_sbd, height)) {
 			brelse(bh);
-			RETURN(G2FN_GET_META_BUFFER, -EIO);
+			RETURN(G2FN_META_INDIRECT_BUFFER, -EIO);
 		}
 		gfs2_trans_add_bh(ip->i_gl, bh);
 		gfs2_metatype_set(bh, GFS2_METATYPE_IN, GFS2_FORMAT_IN);
 		gfs2_buffer_clear_tail(bh, sizeof(struct gfs2_meta_header));
+
 	} else if (gfs2_metatype_check(ip->i_sbd, bh,
-				      (height) ? GFS2_METATYPE_IN : GFS2_METATYPE_DI)) {
+				       (height) ? GFS2_METATYPE_IN : GFS2_METATYPE_DI)) {
 		brelse(bh);
-		RETURN(G2FN_GET_META_BUFFER, -EIO);
+		RETURN(G2FN_META_INDIRECT_BUFFER, -EIO);
 	}
 
 	*bhp = bh;
 
-	RETURN(G2FN_GET_META_BUFFER, 0);
+	RETURN(G2FN_META_INDIRECT_BUFFER, 0);
 }
 
 /**
- * gfs2_get_data_buffer - Get a data buffer
- * @ip: The GFS2 inode
- * @num: The block number (device relative) of the data block
- * @new: Non-zero if this is a new allocation
- * @bhp: the buffer is returned here
- *
- * Returns: errno
- */
-
-int
-gfs2_get_data_buffer(struct gfs2_inode *ip, uint64_t block, int new,
-		    struct buffer_head **bhp)
-{
-	ENTER(G2FN_GET_DATA_BUFFER)
-	struct buffer_head *bh;
-	int error = 0;
-
-	if (block == ip->i_num.no_addr) {
-		if (gfs2_assert_warn(ip->i_sbd, !new))
-			RETURN(G2FN_GET_DATA_BUFFER, -EIO);
-		error = gfs2_dread(ip->i_gl, block, DIO_START | DIO_WAIT, &bh);
-		if (error)
-			RETURN(G2FN_GET_DATA_BUFFER, error);
-		if (gfs2_metatype_check(ip->i_sbd, bh, GFS2_METATYPE_DI)) {
-			brelse(bh);
-			RETURN(G2FN_GET_DATA_BUFFER, -EIO);
-		}
-	} else if (gfs2_is_jdata(ip)) {
-		if (new) {
-			bh = gfs2_dgetblk(ip->i_gl, block);
-			gfs2_prep_new_buffer(bh);
-			gfs2_trans_add_bh(ip->i_gl, bh);
-			gfs2_metatype_set(bh, GFS2_METATYPE_JD, GFS2_FORMAT_JD);
-			gfs2_buffer_clear_tail(bh, sizeof(struct gfs2_meta_header));
-		} else {
-			error = gfs2_dread(ip->i_gl, block,
-					  DIO_START | DIO_WAIT, &bh);
-			if (error)
-				RETURN(G2FN_GET_DATA_BUFFER, error);
-			if (gfs2_metatype_check(ip->i_sbd, bh, GFS2_METATYPE_JD)) {
-				brelse(bh);
-				RETURN(G2FN_GET_DATA_BUFFER, -EIO);
-			}
-		}
-	} else {
-		if (new) {
-			bh = gfs2_dgetblk(ip->i_gl, block);
-			gfs2_prep_new_buffer(bh);
-		} else {
-			error = gfs2_dread(ip->i_gl, block,
-					  DIO_START | DIO_WAIT, &bh);
-			if (error)
-				RETURN(G2FN_GET_DATA_BUFFER, error);
-		}
-	}
-
-	*bhp = bh;
-
-	RETURN(G2FN_GET_DATA_BUFFER, 0);
-}
-
-/**
- * gfs2_start_ra - start readahead on an extent of a file
+ * gfs2_meta_ra - start readahead on an extent of a file
  * @gl: the glock the blocks belong to
  * @dblock: the starting disk block
  * @extlen: the number of blocks in the extent
@@ -1089,9 +950,9 @@ gfs2_get_data_buffer(struct gfs2_inode *ip, uint64_t block, int new,
  */
 
 void
-gfs2_start_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
+gfs2_meta_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
 {
-	ENTER(G2FN_START_RA)
+	ENTER(G2FN_META_RA)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 	struct buffer_head *first_bh, *bh;
@@ -1099,7 +960,7 @@ gfs2_start_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
 	int error;
 
 	if (!extlen || !max_ra)
-		RET(G2FN_START_RA);
+		RET(G2FN_META_RA);
 	if (extlen > max_ra)
 		extlen = max_ra;
 
@@ -1108,7 +969,7 @@ gfs2_start_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
 	if (buffer_uptodate(first_bh))
 		goto out;
 	if (!buffer_locked(first_bh)) {
-		error = gfs2_dreread(sdp, first_bh, DIO_START);
+		error = gfs2_meta_reread(sdp, first_bh, DIO_START);
 		if (error)
 			goto out;
 	}
@@ -1120,7 +981,7 @@ gfs2_start_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
 		bh = getbuf(sdp, aspace, dblock, CREATE);
 
 		if (!buffer_uptodate(bh) && !buffer_locked(bh)) {
-			error = gfs2_dreread(sdp, bh, DIO_START);
+			error = gfs2_meta_reread(sdp, bh, DIO_START);
 			brelse(bh);
 			if (error)
 				goto out;
@@ -1137,6 +998,33 @@ gfs2_start_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
  out:
 	brelse(first_bh);
 
-	RET(G2FN_START_RA);
+	RET(G2FN_META_RA);
 }
+
+/**
+ * gfs2_meta_syncfs - sync all the buffers in a filesystem
+ * @sdp: the filesystem
+ *
+ * Flush metadata blocks to on-disk journal, then
+ * Flush metadata blocks (now in AIL) to on-disk in-place locations
+ * Periodically keep checking until done (AIL empty)
+ */
+
+void
+gfs2_meta_syncfs(struct gfs2_sbd *sdp)
+{
+	ENTER(G2FN_META_SYNCFS)
+
+	gfs2_log_flush(sdp);
+	for (;;) {
+		gfs2_ail1_start(sdp, DIO_ALL);
+		if (gfs2_ail1_empty(sdp, DIO_ALL))
+			break;
+		set_current_state(TASK_UNINTERRUPTIBLE);
+		schedule_timeout(HZ / 10);
+	}
+
+	RET(G2FN_META_SYNCFS);
+}
+
 

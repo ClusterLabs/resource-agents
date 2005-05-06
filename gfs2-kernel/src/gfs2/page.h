@@ -14,10 +14,9 @@
 #ifndef __PAGE_DOT_H__
 #define __PAGE_DOT_H__
 
-void gfs2_inval_pte(struct gfs2_glock *gl);
-void gfs2_inval_page(struct gfs2_glock *gl);
-void gfs2_sync_page_i(struct inode *inode, int flags);
-void gfs2_sync_page(struct gfs2_glock *gl, int flags);
+void gfs2_pte_inval(struct gfs2_glock *gl);
+void gfs2_page_inval(struct gfs2_glock *gl);
+void gfs2_page_sync(struct gfs2_glock *gl, int flags);
 
 int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 			uint64_t block, void *private);

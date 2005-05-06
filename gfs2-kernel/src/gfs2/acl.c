@@ -24,10 +24,10 @@
 
 #include "gfs2.h"
 #include "acl.h"
-#include "dio.h"
 #include "eaops.h"
 #include "eattr.h"
 #include "inode.h"
+#include "meta_io.h"
 #include "trans.h"
 
 #define ACL_ACCESS (1)
@@ -46,8 +46,8 @@
 
 int
 gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
-		     struct gfs2_ea_request *er,
-		     mode_t *mode, int *remove)
+		      struct gfs2_ea_request *er,
+		      mode_t *mode, int *remove)
 {
 	ENTER(G2FN_ACL_VALIDATE_SET)
 	struct posix_acl *acl;
@@ -230,7 +230,7 @@ munge_mode(struct gfs2_inode *ip, mode_t mode)
 	if (error)
 		RETURN(G2FN_MUNGE_MODE, error);
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {
 		gfs2_assert_withdraw(sdp, (ip->i_di.di_mode & S_IFMT) == (mode & S_IFMT));
 		ip->i_di.di_mode = mode;

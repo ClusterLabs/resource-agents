@@ -66,11 +66,11 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "dir.h"
-#include "file.h"
 #include "glock.h"
 #include "inode.h"
+#include "jdata.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "rgrp.h"
 #include "trans.h"
@@ -443,7 +443,7 @@ get_leaf(struct gfs2_inode *dip, uint64_t leaf_no, struct buffer_head **bhp)
 	ENTER(G2FN_GET_LEAF)
 	int error;
 
-	error = gfs2_dread(dip->i_gl, leaf_no, DIO_START | DIO_WAIT, bhp);
+	error = gfs2_meta_read(dip->i_gl, leaf_no, DIO_START | DIO_WAIT, bhp);
 	if (!error && gfs2_metatype_check(dip->i_sbd, *bhp, GFS2_METATYPE_LF))
 		error = -EIO;
 
@@ -466,9 +466,9 @@ get_leaf_nr(struct gfs2_inode *dip, uint32_t index, uint64_t *leaf_out)
 	uint64_t leaf_no;
 	int error;
 
-	error = gfs2_internal_read(dip, (char *)&leaf_no,
-				  index * sizeof(uint64_t),
-				  sizeof(uint64_t));
+	error = gfs2_jdata_read_mem(dip, (char *)&leaf_no,
+				    index * sizeof(uint64_t),
+				    sizeof(uint64_t));
 	if (error != sizeof(uint64_t))
 		RETURN(G2FN_LEAF_NR, (error < 0) ? error : -EIO);
 
@@ -616,7 +616,7 @@ dir_make_exhash(struct gfs2_inode *dip)
 	uint64_t *lp, bn;
 	int error;
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_MAKE_EXHASH, error);
 
@@ -626,8 +626,7 @@ dir_make_exhash(struct gfs2_inode *dip)
 
 	/*  Turn over a new leaf  */
 
-	bh = gfs2_dgetblk(dip->i_gl, bn);
-	gfs2_prep_new_buffer(bh);
+	bh = gfs2_meta_new(dip->i_gl, bn);
 	gfs2_trans_add_bh(dip->i_gl, bh);
 	gfs2_metatype_set(bh, GFS2_METATYPE_LF, GFS2_FORMAT_LF);
 	gfs2_buffer_clear_tail(bh, sizeof(struct gfs2_meta_header));
@@ -723,8 +722,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 
 	/*  Get the new leaf block  */
 
-	nbh = gfs2_dgetblk(dip->i_gl, bn);
-	gfs2_prep_new_buffer(nbh);
+	nbh = gfs2_meta_new(dip->i_gl, bn);
 	gfs2_trans_add_bh(dip->i_gl, nbh);
 	gfs2_metatype_set(nbh, GFS2_METATYPE_LF, GFS2_FORMAT_LF);
 	gfs2_buffer_clear_tail(nbh, sizeof(struct gfs2_meta_header));
@@ -761,8 +759,8 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 
 	lp = kmalloc_nofail(half_len * sizeof(uint64_t), GFP_KERNEL);
 
-	error = gfs2_internal_read(dip, (char *)lp, start * sizeof(uint64_t),
-				  half_len * sizeof(uint64_t));
+	error = gfs2_jdata_read_mem(dip, (char *)lp, start * sizeof(uint64_t),
+				    half_len * sizeof(uint64_t));
 	if (error != half_len * sizeof(uint64_t)) {
 		if (error >= 0)
 			error = -EIO;
@@ -774,8 +772,8 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 	for (x = 0; x < half_len; x++)
 		lp[x] = cpu_to_gfs2_64(bn);
 
-	error = gfs2_internal_write(dip, (char *)lp, start * sizeof(uint64_t),
-				   half_len * sizeof(uint64_t));
+	error = gfs2_jdata_write_mem(dip, (char *)lp, start * sizeof(uint64_t),
+				     half_len * sizeof(uint64_t));
 	if (error != half_len * sizeof(uint64_t)) {
 		if (error >= 0)
 			error = -EIO;
@@ -842,7 +840,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 	oleaf->lf_depth = cpu_to_gfs2_16(oleaf->lf_depth);
 	nleaf->lf_depth = oleaf->lf_depth;
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (!gfs2_assert_withdraw(dip->i_sbd, !error)) {
 		dip->i_di.di_blocks++;
 		gfs2_dinode_out(&dip->i_di, dibh->b_data);
@@ -896,9 +894,9 @@ dir_double_exhash(struct gfs2_inode *dip)
 	buf = kmalloc_nofail(3 * sdp->sd_hash_bsize, GFP_KERNEL);
 
 	for (block = dip->i_di.di_size >> sdp->sd_hash_bsize_shift; block--;) {
-		error = gfs2_internal_read(dip, (char *)buf,
-					  block * sdp->sd_hash_bsize,
-					  sdp->sd_hash_bsize);
+		error = gfs2_jdata_read_mem(dip, (char *)buf,
+					    block * sdp->sd_hash_bsize,
+					    sdp->sd_hash_bsize);
 		if (error != sdp->sd_hash_bsize) {
 			if (error >= 0)
 				error = -EIO;
@@ -913,9 +911,9 @@ dir_double_exhash(struct gfs2_inode *dip)
 			*to++ = *from;
 		}
 
-		error = gfs2_internal_write(dip, (char *)buf + sdp->sd_hash_bsize,
-					   block * sdp->sd_sb.sb_bsize,
-					   sdp->sd_sb.sb_bsize);
+		error = gfs2_jdata_write_mem(dip, (char *)buf + sdp->sd_hash_bsize,
+					     block * sdp->sd_sb.sb_bsize,
+					     sdp->sd_sb.sb_bsize);
 		if (error != sdp->sd_sb.sb_bsize) {
 			if (error >= 0)
 				error = -EIO;
@@ -925,7 +923,7 @@ dir_double_exhash(struct gfs2_inode *dip)
 
 	kfree(buf);
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (!gfs2_assert_withdraw(sdp, !error)) {
 		dip->i_di.di_depth++;
 		gfs2_dinode_out(&dip->i_di, dibh->b_data);
@@ -1395,8 +1393,7 @@ dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 				bn = gfs2_alloc_meta(dip);
 
-				nbh = gfs2_dgetblk(dip->i_gl, bn);
-				gfs2_prep_new_buffer(nbh);
+				nbh = gfs2_meta_new(dip->i_gl, bn);
 				gfs2_trans_add_bh(dip->i_gl, nbh);
 				gfs2_metatype_set(nbh,
 						 GFS2_METATYPE_LF,
@@ -1434,7 +1431,7 @@ dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 		brelse(bh);
 
-		error = gfs2_get_inode_buffer(dip, &dibh);
+		error = gfs2_meta_inode_buffer(dip, &dibh);
 		if (error)
 			RETURN(G2FN_DIR_E_ADD, error);
 
@@ -1488,7 +1485,7 @@ dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 
 	brelse(bh);
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_E_DEL, error);
 
@@ -1547,9 +1544,9 @@ dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		ht_offset = index - lp_offset;
 
 		if (ht_offset_cur != ht_offset) {
-			error = gfs2_internal_read(dip, (char *)lp,
-						  ht_offset * sizeof(uint64_t),
-						  sdp->sd_hash_bsize);
+			error = gfs2_jdata_read_mem(dip, (char *)lp,
+						    ht_offset * sizeof(uint64_t),
+						    sdp->sd_hash_bsize);
 			if (error != sdp->sd_hash_bsize) {
 				if (error >= 0)
 					error = -EIO;
@@ -1625,7 +1622,7 @@ dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 
 	brelse(bh);
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_E_MVINO, error);
 
@@ -1662,7 +1659,7 @@ dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 		RETURN(G2FN_DIR_L_SEARCH, -EIO);
 	}
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_L_SEARCH, error);
 
@@ -1703,7 +1700,7 @@ dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 		RETURN(G2FN_DIR_L_ADD, -EIO);
 	}
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_L_ADD, error);
 
@@ -1755,7 +1752,7 @@ dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 		RETURN(G2FN_DIR_L_DEL, -EIO);
 	}
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_L_DEL, error);
 
@@ -1813,7 +1810,7 @@ dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 	if (!dip->i_di.di_entries)
 		RETURN(G2FN_DIR_L_READ, 0);
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_L_READ, error);
 
@@ -1852,7 +1849,7 @@ dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		RETURN(G2FN_DIR_L_MVINO, -EIO);
 	}
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		RETURN(G2FN_DIR_L_MVINO, error);
 
@@ -2045,9 +2042,9 @@ foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 		ht_offset = index - lp_offset;
 
 		if (ht_offset_cur != ht_offset) {
-			error = gfs2_internal_read(dip, (char *)lp,
-						  ht_offset * sizeof(uint64_t),
-						  sdp->sd_hash_bsize);
+			error = gfs2_jdata_read_mem(dip, (char *)lp,
+						    ht_offset * sizeof(uint64_t),
+						    sdp->sd_hash_bsize);
 			if (error != sdp->sd_hash_bsize) {
 				if (error >= 0)
 					error = -EIO;
@@ -2175,14 +2172,14 @@ leaf_dealloc(struct gfs2_inode *dip,
 		dip->i_di.di_blocks--;
 	}
 
-	error = gfs2_internal_write(dip, ht, index * sizeof(uint64_t), size);
+	error = gfs2_jdata_write_mem(dip, ht, index * sizeof(uint64_t), size);
 	if (error != size) {
 		if (error >= 0)
 			error = -EIO;
 		goto out_end_trans;
 	}
 
-	error = gfs2_get_inode_buffer(dip, &dibh);
+	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
 		goto out_end_trans;
 
@@ -2240,7 +2237,7 @@ gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 	if (error)
 		RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
 
-	error = gfs2_get_inode_buffer(dip, &bh);
+	error = gfs2_meta_inode_buffer(dip, &bh);
 	if (!error) {
 		gfs2_trans_add_bh(dip->i_gl, bh);
 		((struct gfs2_dinode *)bh->b_data)->di_mode = cpu_to_gfs2_32(S_IFREG);
@@ -2306,7 +2303,7 @@ gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 
 		brelse(bh);
 	} else {
-		error = gfs2_get_inode_buffer(dip, &bh);
+		error = gfs2_meta_inode_buffer(dip, &bh);
 		if (error)
 			RETURN(G2FN_DIRADD_ALLOC_REQUIRED, error);
 

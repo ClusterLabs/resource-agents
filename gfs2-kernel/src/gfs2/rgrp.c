@@ -21,11 +21,11 @@
 
 #include "gfs2.h"
 #include "bits.h"
-#include "dio.h"
-#include "file.h"
 #include "glock.h"
 #include "glops.h"
+#include "jdata.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "rgrp.h"
 #include "super.h"
@@ -333,10 +333,10 @@ gfs2_ri_update(struct gfs2_inode *ip)
 	clear_rgrpdi(sdp);
 
 	for (sdp->sd_rgrps = 0;; sdp->sd_rgrps++) {
-		error = gfs2_internal_read(ip, buf,
-					  sdp->sd_rgrps *
-					  sizeof(struct gfs2_rindex),
-					  sizeof(struct gfs2_rindex));
+		error = gfs2_jdata_read_mem(ip, buf,
+					    sdp->sd_rgrps *
+					    sizeof(struct gfs2_rindex),
+					    sizeof(struct gfs2_rindex));
 		if (!error)
 			break;
 		if (error != sizeof(struct gfs2_rindex)) {
@@ -365,7 +365,7 @@ gfs2_ri_update(struct gfs2_inode *ip)
 			goto fail;
 
 		error = gfs2_glock_get(sdp, rgd->rd_ri.ri_addr, &gfs2_rgrp_glops,
-				      CREATE, &rgd->rd_gl);
+				       CREATE, &rgd->rd_gl);
 		if (error)
 			goto fail;
 
@@ -445,7 +445,7 @@ gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 	struct gfs2_glock *gl = rgd->rd_gl;
 	unsigned int length = rgd->rd_ri.ri_length;
 	struct gfs2_bitmap *bi;
-	unsigned int x;
+	unsigned int x, y;
 	int error;
 
 	down(&rgd->rd_mutex);
@@ -461,23 +461,18 @@ gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 
 	for (x = 0; x < length; x++) {
 		bi = rgd->rd_bits + x;
-		bi->bi_bh = gfs2_dgetblk(gl, rgd->rd_ri.ri_addr + x);
-	}
-
-	for (x = 0; x < length; x++) {
-		bi = rgd->rd_bits + x;
-		error = gfs2_dreread(sdp, bi->bi_bh, DIO_START);
+		error = gfs2_meta_read(gl, rgd->rd_ri.ri_addr + x, DIO_START, &bi->bi_bh);
 		if (error)
 			goto fail;
 	}
 
-	for (x = length; x--;) {
-		bi = rgd->rd_bits + x;
-		error = gfs2_dreread(sdp, bi->bi_bh, DIO_WAIT);
+	for (y = length; y--;) {
+		bi = rgd->rd_bits + y;
+		error = gfs2_meta_reread(sdp, bi->bi_bh, DIO_WAIT);
 		if (error)
 			goto fail;
 		if (gfs2_metatype_check(sdp, bi->bi_bh,
-				       (x) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG)) {
+					(y) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG)) {
 			error = -EIO;
 			goto fail;
 		}
@@ -498,7 +493,7 @@ gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 	RETURN(G2FN_RGRP_BH_GET, 0);
 
  fail:
-	for (x = 0; x < length; x++) {
+	while (x--) {
 		bi = rgd->rd_bits + x;
 		brelse(bi->bi_bh);
 		bi->bi_bh = NULL;
@@ -1409,7 +1404,7 @@ gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 	gfs2_statfs_change(sdp, 0, +blen, 0);
 	gfs2_quota_change(ip, -(int64_t)blen,
 			 ip->i_di.di_uid, ip->i_di.di_gid);
-	gfs2_buf_wipe(ip, bstart, blen);
+	gfs2_meta_wipe(ip, bstart, blen);
 
 	RET(G2FN_FREE_META);
 }
@@ -1456,7 +1451,7 @@ gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
 	ENTER(G2FN_FREE_DI)
        	gfs2_free_uninit_di(rgd, ip->i_num.no_addr);
 	gfs2_quota_change(ip, -1, ip->i_di.di_uid, ip->i_di.di_gid);
-	gfs2_buf_wipe(ip, ip->i_num.no_addr, 1);
+	gfs2_meta_wipe(ip, ip->i_num.no_addr, 1);
 	RET(G2FN_FREE_DI);
 }
 

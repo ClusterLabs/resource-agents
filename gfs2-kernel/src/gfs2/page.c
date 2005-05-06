@@ -28,24 +28,24 @@
 #include "trans.h"
 
 /**
- * gfs2_inval_pte - Sync and invalidate all PTEs associated with a glock
+ * gfs2_pte_inval - Sync and invalidate all PTEs associated with a glock
  * @gl: the glock
  *
  */
 
 void
-gfs2_inval_pte(struct gfs2_glock *gl)
+gfs2_pte_inval(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INVAL_PTE)
+	ENTER(G2FN_PTE_INVAL)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_INVAL_PTE);
+		RET(G2FN_PTE_INVAL);
 
 	if (!test_bit(GIF_PAGED, &ip->i_flags))
-		RET(G2FN_INVAL_PTE);
+		RET(G2FN_PTE_INVAL);
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
@@ -58,25 +58,25 @@ gfs2_inval_pte(struct gfs2_glock *gl)
 
 	clear_bit(GIF_SW_PAGED, &ip->i_flags);
 
-	RET(G2FN_INVAL_PTE);
+	RET(G2FN_PTE_INVAL);
 }
 
 /**
- * gfs2_inval_page - Invalidate all pages associated with a glock
+ * gfs2_page_inval - Invalidate all pages associated with a glock
  * @gl: the glock
  *
  */
 
 void
-gfs2_inval_page(struct gfs2_glock *gl)
+gfs2_page_inval(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INVAL_PAGE)
+	ENTER(G2FN_PAGE_INVAL)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_INVAL_PAGE);
+		RET(G2FN_PAGE_INVAL);
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
@@ -90,37 +90,11 @@ gfs2_inval_page(struct gfs2_glock *gl)
 
 	clear_bit(GIF_PAGED, &ip->i_flags);
 
-	RET(G2FN_INVAL_PAGE);
+	RET(G2FN_PAGE_INVAL);
 }
 
 /**
- * gfs2_sync_page_i - Sync the data pages (not metadata) for a struct inode
- * @inode: the inode
- * @flags: DIO_START | DIO_WAIT
- *
- */
-
-void
-gfs2_sync_page_i(struct inode *inode, int flags)
-{
-	ENTER(G2FN_SYNC_PAGE_I)
-	struct address_space *mapping = inode->i_mapping;
-	int error = 0;
-
-	if (flags & DIO_START)
-		error = filemap_fdatawrite(mapping);
-	if (!error && (flags & DIO_WAIT))
-		error = filemap_fdatawait(mapping);
-
-	/* Find a better way to report this to the user. */
-	if (error)
-		gfs2_io_error_inode(get_v2ip(inode));
-
-	RET(G2FN_SYNC_PAGE_I);
-}
-
-/**
- * gfs2_sync_page - Sync the data pages (not metadata) associated with a glock
+ * gfs2_page_sync - Sync the data pages (not metadata) associated with a glock
  * @gl: the glock
  * @flags: DIO_START | DIO_WAIT
  *
@@ -129,23 +103,39 @@ gfs2_sync_page_i(struct inode *inode, int flags)
  */
 
 void
-gfs2_sync_page(struct gfs2_glock *gl, int flags)
+gfs2_page_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_SYNC_PAGE)
+	ENTER(G2FN_PAGE_SYNC)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_SYNC_PAGE);
+		RET(G2FN_PAGE_SYNC);
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
-		gfs2_sync_page_i(inode, flags);
+		struct address_space *mapping = inode->i_mapping;
+		int error = 0;
+
+		if (flags & DIO_START)
+			filemap_fdatawrite(mapping);
+		if (!error && (flags & DIO_WAIT))
+			error = filemap_fdatawait(mapping);
+
+		/* Put back any errors cleared by filemap_fdatawait()
+		   so they can be caught by someone who can pass them
+		   up to user space. */
+
+		if (error == -ENOSPC)
+			set_bit(AS_ENOSPC, &mapping->flags);
+		else if (error)
+			set_bit(AS_EIO, &mapping->flags);
+
 		iput(inode);
 	}
 
-	RET(G2FN_SYNC_PAGE);
+	RET(G2FN_PAGE_SYNC);
 }
 
 /**
@@ -237,13 +227,11 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	unsigned long index;
 	unsigned int offset;
 	unsigned int bufnum;
-	int not_new = 0;
+	int new = FALSE;
 	int error;
 
 	lbn = size >> inode->i_blkbits;
-	error = gfs2_block_map(ip,
-			       lbn, &not_new,
-			       &dbn, NULL);
+	error = gfs2_block_map(ip, lbn, &new, &dbn, NULL);
 	if (error || !dbn)
 		RETURN(G2FN_TRUNCATOR_PAGE, error);
 

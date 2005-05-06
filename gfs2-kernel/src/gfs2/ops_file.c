@@ -28,15 +28,15 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
 #include "dir.h"
-#include "file.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "ioctl.h"
+#include "jdata.h"
 #include "lm.h"
 #include "log.h"
+#include "meta_io.h"
 #include "ops_file.h"
 #include "ops_vm.h"
 #include "quota.h"
@@ -257,30 +257,30 @@ walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
  */
 
 static ssize_t
-do_read_readi(struct file *file, char *buf, size_t size, loff_t *offset)
+do_jdata_read(struct file *file, char *buf, size_t size, loff_t *offset)
 {
-	ENTER(G2FN_DO_READ_READI)
+	ENTER(G2FN_DO_JDATA_READ)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
 
 	if (*offset < 0)
-		RETURN(G2FN_DO_READ_READI, -EINVAL);
+		RETURN(G2FN_DO_JDATA_READ, -EINVAL);
 	if (!access_ok(VERIFY_WRITE, buf, size))
-		RETURN(G2FN_DO_READ_READI, -EFAULT);
+		RETURN(G2FN_DO_JDATA_READ, -EFAULT);
 
 	if (!(file->f_flags & O_LARGEFILE)) {
 		if (*offset >= 0x7FFFFFFFull)
-			RETURN(G2FN_DO_READ_READI, -EFBIG);
+			RETURN(G2FN_DO_JDATA_READ, -EFBIG);
 		if (*offset + size > 0x7FFFFFFFull)
 			size = 0x7FFFFFFFull - *offset;
 	}
 
-	count = gfs2_readi(ip, buf, *offset, size, gfs2_copy2user);
+	count = gfs2_jdata_read(ip, buf, *offset, size, gfs2_copy2user);
 
 	if (count > 0)
 		*offset += count;
 
-	RETURN(G2FN_DO_READ_READI, count);
+	RETURN(G2FN_DO_JDATA_READ, count);
 }
 
 /**
@@ -333,9 +333,8 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 		if (((*offset) & mask) || (((unsigned long)buf) & mask))
 			goto out_gunlock;
 
-		count = do_read_readi(file, buf, size & ~mask, offset);
-	}
-	else
+		count = do_jdata_read(file, buf, size & ~mask, offset);
+	} else
 		count = generic_file_read(file, buf, size, offset);
 
 	error = 0;
@@ -380,7 +379,7 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
 
 	if (gfs2_is_jdata(ip) ||
 	    (gfs2_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags)))
-		count = do_read_readi(file, buf, size, offset);
+		count = do_jdata_read(file, buf, size, offset);
 	else
 		count = generic_file_read(file, buf, size, offset);
 
@@ -500,7 +499,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 		goto fail_ipres;
 
 	if ((ip->i_di.di_mode & (S_ISUID | S_ISGID)) && !capable(CAP_FSETID)) {
-		error = gfs2_get_inode_buffer(ip, &dibh);
+		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
 			goto fail_end_trans;
 
@@ -524,7 +523,7 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
 		goto fail_end_trans;
 	}
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		goto fail_end_trans;
 
@@ -755,7 +754,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 	}
 
 	if ((ip->i_di.di_mode & (S_ISUID | S_ISGID)) && !capable(CAP_FSETID)) {
-		error = gfs2_get_inode_buffer(ip, &dibh);
+		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
 			goto fail_end_trans;
 
@@ -770,7 +769,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 	    (gfs2_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags) &&
 	     *offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))) {
 
-		count = gfs2_writei(ip, buf, *offset, size, gfs2_copy_from_user);
+		count = gfs2_jdata_write(ip, buf, *offset, size, gfs2_copy_from_user);
 		if (count < 0) {
 			error = count;
 			goto fail_end_trans;
@@ -786,7 +785,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 			goto fail_end_trans;
 		}
 
-		error = gfs2_get_inode_buffer(ip, &dibh);
+		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
 			goto fail_end_trans;
 

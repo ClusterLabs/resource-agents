@@ -23,15 +23,15 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
 #include "dir.h"
 #include "eattr.h"
-#include "file.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "ioctl.h"
+#include "jdata.h"
 #include "log.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "rgrp.h"
 #include "super.h"
@@ -152,8 +152,8 @@ gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (error)
 		goto out;
 
-	error = gfs2_dread(sb_gh.gh_gl, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
-			  DIO_START | DIO_WAIT, &bh);
+	error = gfs2_meta_read(sb_gh.gh_gl, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
+			       DIO_START | DIO_WAIT, &bh);
 	if (error) {
 		gfs2_glock_dq_uninit(&sb_gh);
 		goto out;
@@ -867,7 +867,7 @@ gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	if (error)
 		goto out;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		goto out_trans_end;
 
@@ -1076,8 +1076,8 @@ gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (error)
 		RETURN(G2FN_GI_DO_HFILE_READ, error);
 
-	error = gfs2_readi(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
-			  gfs2_copy2user);
+	error = gfs2_jdata_read(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
+				gfs2_copy2user);
 
 	gfs2_glock_dq_uninit(&i_gh);
 
@@ -1119,7 +1119,7 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	gfs2_write_calc_reserv(ip, gi->gi_size, &data_blocks, &ind_blocks);
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
-				  LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
+				   LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
 	if (error)
 		RETURN(G2FN_GI_DO_HFILE_WRITE, error);
 
@@ -1155,8 +1155,8 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 			goto out;
 	}
 
-	error = gfs2_writei(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
-			    gfs2_copy_from_user);
+	error = gfs2_jdata_write(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
+				 gfs2_copy_from_user);
 
 	gfs2_trans_end(sdp);
 

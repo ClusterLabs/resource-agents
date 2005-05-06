@@ -21,9 +21,8 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
-#include "file.h"
 #include "inode.h"
+#include "meta_io.h"
 #include "trans.h"
 #include "unlinked.h"
 
@@ -45,7 +44,7 @@ munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 	error = gfs2_block_map(ip, block, &new, &dblock, NULL);
 	if (error)
 		RETURN(G2FN_MUNGE_ONDISK, error);
-	error = gfs2_dread(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+	error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 	if (error)
 		RETURN(G2FN_MUNGE_ONDISK, error);
 	if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UL)) {
@@ -353,11 +352,9 @@ gfs2_unlinked_init(struct gfs2_sbd *sdp)
 	uint32_t extlen = 0;
 	int error;
 
-	if (!ip->i_di.di_size || ip->i_di.di_size > (64 << 20)) {
-		gfs2_consist_inode(ip);
-		RETURN(G2FN_UNLINKED_INIT, -EIO);		
-	}
-	if (ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1)) {
+	if (!ip->i_di.di_size ||
+	    ip->i_di.di_size > (64 << 20) ||
+	    ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1)) {
 		gfs2_consist_inode(ip);
 		RETURN(G2FN_UNLINKED_INIT, -EIO);		
 	}
@@ -391,8 +388,8 @@ gfs2_unlinked_init(struct gfs2_sbd *sdp)
 			if (error)
 				goto fail;
 		}
-		gfs2_start_ra(ip->i_gl, dblock, extlen);
-		error = gfs2_dread(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+		gfs2_meta_ra(ip->i_gl, dblock, extlen);
+		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 		if (error)
 			goto fail;
 		error = -EIO;

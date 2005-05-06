@@ -41,10 +41,10 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
 #include "glock.h"
 #include "log.h"
 #include "lops.h"
+#include "meta_io.h"
 
 #define PULL (1)
 

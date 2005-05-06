@@ -28,12 +28,12 @@
 #include "gfs2.h"
 #include "acl.h"
 #include "bmap.h"
-#include "dio.h"
 #include "dir.h"
 #include "eaops.h"
 #include "eattr.h"
 #include "glock.h"
 #include "inode.h"
+#include "meta_io.h"
 #include "ops_dentry.h"
 #include "ops_inode.h"
 #include "page.h"
@@ -542,7 +542,7 @@ gfs2_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 
 	ip->i_di.di_size = size;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 
 	if (!gfs2_assert_withdraw(sdp, !error)) {
 		gfs2_dinode_out(&ip->i_di, dibh->b_data);
@@ -611,7 +611,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	ip->i_di.di_payload_format = GFS2_FORMAT_DE;
 	ip->i_di.di_entries = 2;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 
 	if (!gfs2_assert_withdraw(sdp, !error)) {
 		struct gfs2_dinode *di = (struct gfs2_dinode *)dibh->b_data;
@@ -784,7 +784,7 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	ip->i_di.di_major = major;
 	ip->i_di.di_minor = minor;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 
 	if (!gfs2_assert_withdraw(sdp, !error)) {
 		gfs2_dinode_out(&ip->i_di, dibh->b_data);
@@ -1212,7 +1212,7 @@ setattr_chown(struct inode *inode, struct iattr *attr)
 	if (error)
 		goto out_gunlock_q;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		goto out_end_trans;
 

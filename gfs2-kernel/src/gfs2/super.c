@@ -21,14 +21,13 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
 #include "dir.h"
-#include "file.h"
 #include "format.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "log.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
@@ -56,7 +55,7 @@ gfs2_tune_init(struct gfs2_tune *gt)
 	gt->gt_incore_log_blocks = 1024;
 	gt->gt_log_flush_secs = 60;
 	gt->gt_jindex_refresh_secs = 60;
-	gt->gt_scand_secs = 5;
+	gt->gt_scand_secs = 15;
 	gt->gt_recoverd_secs = 60;
 	gt->gt_logd_secs = 1;
 	gt->gt_quotad_secs = 5;
@@ -175,8 +174,8 @@ gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 	unsigned int x;
 	int error;
 
-	error = gfs2_dread(gl, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
-			  DIO_FORCE | DIO_START | DIO_WAIT, &bh);
+	error = gfs2_meta_read(gl, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
+			       DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 	if (error) {
 		if (!silent)
 			printk("GFS2: fsid=%s: can't read superblock\n",
@@ -474,7 +473,8 @@ gfs2_jdesc_check(struct gfs2_jdesc *jd)
 	int ar;
 	int error;
 
-	if (ip->i_di.di_size > (1 << 30) ||
+	if (ip->i_di.di_size < (1 << 20) ||
+	    ip->i_di.di_size > (1 << 30) ||
 	    (ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1))) {
 		gfs2_consist_inode(ip);
 		RETURN(G2FN_JDESC_CHECK, -EIO);
@@ -482,8 +482,8 @@ gfs2_jdesc_check(struct gfs2_jdesc *jd)
 	jd->jd_blocks = ip->i_di.di_size >> sdp->sd_sb.sb_bsize_shift;
 
 	error = gfs2_write_alloc_required(ip,
-					 0, ip->i_di.di_size,
-					 &ar);
+					  0, ip->i_di.di_size,
+					  &ar);
 	if (!error && ar) {
 		gfs2_consist_inode(ip);
 		error = -EIO;
@@ -541,7 +541,7 @@ gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 	if (error)
 		RETURN(G2FN_MAKE_FS_RW, error);
 
-	gfs2_flush_meta_cache(sdp->sd_jdesc->jd_inode);
+	gfs2_meta_cache_flush(sdp->sd_jdesc->jd_inode);
 	j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
 
 	error = gfs2_find_jhead(sdp->sd_jdesc, &head);
@@ -604,7 +604,7 @@ gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	if (error && !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		RETURN(G2FN_MAKE_FS_RO, error);
 
-	gfs2_sync_meta(sdp);
+	gfs2_meta_syncfs(sdp);
 	gfs2_log_shutdown(sdp);
 
 	set_bit(SDF_ROFS, &sdp->sd_flags);
@@ -634,10 +634,10 @@ gfs2_statfs_init(struct gfs2_sbd *sdp)
 	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
 	if (error)
 		RETURN(G2FN_STATFS_INIT, error);
-	error = gfs2_get_inode_buffer(m_ip, &m_bh);
+	error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 	if (error)
 		goto out;
-	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	error = gfs2_meta_inode_buffer(l_ip, &l_bh);
 	if (error)
 		goto out_m_bh;
 
@@ -667,7 +667,7 @@ gfs2_statfs_change(struct gfs2_sbd *sdp,
 	struct buffer_head *l_bh;
 	int error;
 
-	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	error = gfs2_meta_inode_buffer(l_ip, &l_bh);
 	if (error)
 		RET(G2FN_STATFS_CHANGE);
 
@@ -704,7 +704,7 @@ gfs2_statfs_sync(struct gfs2_sbd *sdp)
 	if (error)
 		RETURN(G2FN_STATFS_SYNC, error);
 
-	error = gfs2_get_inode_buffer(m_ip, &m_bh);
+	error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 	if (error)
 		goto out;
 
@@ -717,7 +717,7 @@ gfs2_statfs_sync(struct gfs2_sbd *sdp)
 	}
 	spin_unlock(&sdp->sd_statfs_spin);
 
-	error = gfs2_get_inode_buffer(l_ip, &l_bh);
+	error = gfs2_meta_inode_buffer(l_ip, &l_bh);
 	if (error)
 		goto out_bh;
 

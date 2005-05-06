@@ -22,11 +22,11 @@
 
 #include "gfs2.h"
 #include "bmap.h"
-#include "dio.h"
-#include "file.h"
 #include "glock.h"
 #include "glops.h"
+#include "jdata.h"
 #include "log.h"
+#include "meta_io.h"
 #include "quota.h"
 #include "rgrp.h"
 #include "super.h"
@@ -266,7 +266,7 @@ bh_get(struct gfs2_quota_data *qd)
 	error = gfs2_block_map(ip, block, &new, &dblock, NULL);
 	if (error)
 		goto fail;
-	error = gfs2_dread(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+	error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 	if (error)
 		goto fail;
 	error = -EIO;
@@ -680,8 +680,8 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 		   sizeof(struct gfs2_quota) bytes. */
 		memset(buf, 0, sizeof(struct gfs2_quota));
 
-		error = gfs2_internal_read(ip, buf, offset,
-					   sizeof(struct gfs2_quota));
+		error = gfs2_jdata_read_mem(ip, buf, offset,
+					    sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto out_end_trans;
 
@@ -689,8 +689,8 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 		q.qu_value += qda[x]->qd_change_sync;
 		gfs2_quota_out(&q, buf);
 
-		error = gfs2_internal_write(ip, buf, offset,
-					    sizeof(struct gfs2_quota));
+		error = gfs2_jdata_write_mem(ip, buf, offset,
+					     sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto out_end_trans;
 		else if (error != sizeof(struct gfs2_quota)) {
@@ -768,8 +768,8 @@ do_glock(struct gfs2_quota_data *qd,
 
 		memset(buf, 0, sizeof(struct gfs2_quota));
 
-		error = gfs2_internal_read(sdp->sd_quota_inode, buf,
-					  qd2offset(qd), sizeof(struct gfs2_quota));
+		error = gfs2_jdata_read_mem(sdp->sd_quota_inode, buf,
+					    qd2offset(qd), sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto fail_gunlock;
 
@@ -1128,11 +1128,9 @@ gfs2_quota_init(struct gfs2_sbd *sdp)
 	uint32_t extlen = 0;
 	int error;
 
-	if (!ip->i_di.di_size || ip->i_di.di_size > (64 << 20)) {
-		gfs2_consist_inode(ip);
-		RETURN(G2FN_QUOTA_INIT, -EIO);		
-	}
-	if (ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1)) {
+	if (!ip->i_di.di_size ||
+	    ip->i_di.di_size > (64 << 20) ||
+	    ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1)) {
 		gfs2_consist_inode(ip);
 		RETURN(G2FN_QUOTA_INIT, -EIO);		
 	}
@@ -1166,8 +1164,8 @@ gfs2_quota_init(struct gfs2_sbd *sdp)
 			if (error)
 				goto fail;
 		}
-		gfs2_start_ra(ip->i_gl,  dblock, extlen);
-		error = gfs2_dread(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+		gfs2_meta_ra(ip->i_gl,  dblock, extlen);
+		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 		if (error)
 			goto fail;
 		error = -EIO;

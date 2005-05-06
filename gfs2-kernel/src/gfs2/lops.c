@@ -20,10 +20,10 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "glock.h"
 #include "log.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "trans.h"
@@ -94,7 +94,7 @@ buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	gfs2_trans_add_gl(bd->bd_gl);
 
 	gfs2_meta_check(sdp, bd->bd_bh);
-	gfs2_dpin(sdp, bd->bd_bh);
+	gfs2_meta_pin(sdp, bd->bd_bh);
 
 	gfs2_log_lock(sdp);
 	sdp->sd_log_num_buf++;
@@ -175,7 +175,7 @@ buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 		list_del_init(&bd->bd_le.le_list);
 		sdp->sd_log_num_buf--;
 
-		gfs2_dunpin(sdp, bd->bd_bh, ai);
+		gfs2_meta_unpin(sdp, bd->bd_bh, ai);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_buf);
 
@@ -230,14 +230,13 @@ buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 			continue;
 		}
 
-		bh_ip = gfs2_dgetblk(gl, blkno);
+		bh_ip = gfs2_meta_new(gl, blkno);
 		memcpy(bh_ip->b_data, bh_log->b_data, bh_log->b_size);
-		set_buffer_uptodate(bh_ip);
 
 		if (gfs2_meta_check(sdp, bh_ip))
 			error = -EIO;
 		else
-			error = gfs2_dwrite(sdp, bh_ip, DIO_DIRTY);
+			mark_buffer_dirty(bh_ip);
 
 		brelse(bh_log);
 		brelse(bh_ip);
@@ -258,13 +257,13 @@ buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (error) {
-		gfs2_sync_buf(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
+		gfs2_meta_sync(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
 		RET(G2FN_BUF_LO_AFTER_SCAN);
 	}
 	if (pass != 1)
 		RET(G2FN_BUF_LO_AFTER_SCAN);
 
-	gfs2_sync_buf(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
+	gfs2_meta_sync(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
 
 	printk("GFS2: fsid=%s: jid=%u: Replayed %u of %u blocks\n",
 	       sdp->sd_fsname, jd->jd_jid,

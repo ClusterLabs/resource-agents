@@ -24,7 +24,6 @@
 #include <linux/mount.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "glock.h"
 #include "inode.h"
 #include "lm.h"

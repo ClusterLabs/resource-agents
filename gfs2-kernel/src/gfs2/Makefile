@@ -32,20 +32,20 @@ gfs2-objs := \
 	daemon.o \
 	debug.o \
 	diaper.o \
-	dio.o \
 	dir.o \
 	eaops.o \
 	eattr.o \
-	file.o \
 	glock.o \
 	glops.o \
 	inode.o \
 	ioctl.o \
+	jdata.o \
 	lm.o \
 	log.o \
 	lops.o \
 	lvb.o \
 	main.o \
+	meta_io.o \
 	mount.o \
 	ondisk.o \
 	ops_address.o \

@@ -23,13 +23,13 @@
 #include "gfs2.h"
 #include "acl.h"
 #include "bmap.h"
-#include "dio.h"
 #include "dir.h"
 #include "eattr.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
 #include "log.h"
+#include "meta_io.h"
 #include "ops_address.h"
 #include "ops_file.h"
 #include "ops_inode.h"
@@ -256,7 +256,7 @@ gfs2_copyin_dinode(struct gfs2_inode *ip)
 	struct buffer_head *dibh;
 	int error;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		RETURN(G2FN_COPYIN_DINODE, error);
 
@@ -356,7 +356,7 @@ inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 	gfs2_glock_dq_uninit(&ip->i_iopen_gh);
 
  fail:
-	gfs2_flush_meta_cache(ip);
+	gfs2_meta_cache_flush(ip);
 	gfs2_memory_rm(ip);
 	kmem_cache_free(gfs2_inode_cachep, ip);
 	*ipp = NULL;
@@ -466,7 +466,7 @@ gfs2_inode_destroy(struct gfs2_inode *ip)
 	gfs2_glock_dq_uninit(&ip->i_iopen_gh);
 
 	/* Release indirect addressing buffers, destroy the GFS2 inode struct */
-	gfs2_flush_meta_cache(ip);
+	gfs2_meta_cache_flush(ip);
 	gfs2_memory_rm(ip);
 	kmem_cache_free(gfs2_inode_cachep, ip);
 
@@ -788,7 +788,7 @@ gfs2_change_nlink(struct gfs2_inode *ip, int diff)
 		RETURN(G2FN_CHANGE_NLINK, -EIO);
 	}
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		RETURN(G2FN_CHANGE_NLINK, error);
 
@@ -1009,7 +1009,7 @@ pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 		RETURN(G2FN_PICK_FORMAL_INO_1, error);
 	down(&sdp->sd_inum_mutex);
 
-	error = gfs2_get_inode_buffer(ip, &bh);
+	error = gfs2_meta_inode_buffer(ip, &bh);
 	if (error) {
 		up(&sdp->sd_inum_mutex);
 		gfs2_trans_end(sdp);
@@ -1057,7 +1057,7 @@ pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 		goto out;
 	down(&sdp->sd_inum_mutex);
 
-	error = gfs2_get_inode_buffer(ip, &bh);
+	error = gfs2_meta_inode_buffer(ip, &bh);
 	if (error)
 		goto out_end_trans;
 	
@@ -1067,7 +1067,7 @@ pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 		struct buffer_head *m_bh;
 		uint64_t x, y;
 
-		error = gfs2_get_inode_buffer(m_ip, &m_bh);
+		error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 		if (error)
 			goto out_brelse;
 
@@ -1246,8 +1246,7 @@ init_dinode(struct gfs2_inode *dip,
 	struct gfs2_dinode di;
 	struct buffer_head *dibh;
 
-	dibh = gfs2_dgetblk(gl, inum->no_addr);
-	gfs2_prep_new_buffer(dibh);
+	dibh = gfs2_meta_new(gl, inum->no_addr);
 	gfs2_trans_add_bh(gl, dibh);
 	gfs2_metatype_set(dibh, GFS2_METATYPE_DI, GFS2_FORMAT_DI);
 	gfs2_buffer_clear_tail(dibh, sizeof(struct gfs2_dinode));
@@ -1371,7 +1370,7 @@ link_dinode(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
 	if (error)
 		goto fail_end_trans;
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		goto fail_end_trans;
 	ip->i_di.di_nlink = 1;
@@ -1771,7 +1770,7 @@ gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
 		goto out;
 	}
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
 		goto out;
 
@@ -1864,7 +1863,7 @@ gfs2_glock_nq_atime(struct gfs2_holder *gh)
 			if (error)
 				goto fail;
 
-			error = gfs2_get_inode_buffer(ip, &dibh);
+			error = gfs2_meta_inode_buffer(ip, &dibh);
 			if (error)
 				goto fail_end_trans;
 
@@ -2065,7 +2064,7 @@ gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 	if (error)
 		RETURN(G2FN_SETATTR_SIMPLE, error);
 
-	error = gfs2_get_inode_buffer(ip, &dibh);
+	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {
 		inode_setattr(ip->i_vnode, attr);
 		gfs2_inode_attr_out(ip);

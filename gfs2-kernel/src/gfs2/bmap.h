@@ -17,12 +17,8 @@
 typedef int (*gfs2_unstuffer_t) (struct gfs2_inode * ip,
 				 struct buffer_head * dibh, uint64_t block,
 				 void *private);
-
 int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
 			uint64_t block, void *private);
-int gfs2_unstuffer_async(struct gfs2_inode *ip, struct buffer_head *dibh,
-			 uint64_t block, void *private);
-
 int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 			void *private);
 
@@ -31,7 +27,6 @@ int gfs2_block_map(struct gfs2_inode *ip,
 		   uint64_t *dblock, uint32_t *extlen);
 
 typedef int (*gfs2_truncator_t) (struct gfs2_inode * ip, uint64_t size);
-
 int gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
 		   gfs2_truncator_t truncator);
 int gfs2_truncatei_resume(struct gfs2_inode *ip);

@@ -20,12 +20,12 @@
 #include <linux/buffer_head.h>
 
 #include "gfs2.h"
-#include "dio.h"
 #include "bmap.h"
 #include "glock.h"
 #include "glops.h"
 #include "lm.h"
 #include "lops.h"
+#include "meta_io.h"
 #include "recovery.h"
 #include "super.h"
 
@@ -47,8 +47,8 @@ gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk, struct buffer_he
 		RETURN(G2FN_REPLAY_READ_BLOCK, -EIO);
 	}
 
-	gfs2_start_ra(gl, dblock, extlen);
-	error = gfs2_dread(gl, dblock, DIO_START | DIO_WAIT, bh);
+	gfs2_meta_ra(gl, dblock, extlen);
+	error = gfs2_meta_read(gl, dblock, DIO_START | DIO_WAIT, bh);
 
 	RETURN(G2FN_REPLAY_READ_BLOCK, error);
 }
