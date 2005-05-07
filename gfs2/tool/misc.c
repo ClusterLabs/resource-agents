@@ -384,6 +384,46 @@ print_sb(int argc, char **argv)
 }
 
 /**
+ * print_args -
+ * @argc:
+ * @argv:
+ *
+ */
+
+void
+print_args(int argc, char **argv)
+{
+	int fd;
+	char *gi_argv[] = { "get_args" };
+	struct gfs2_ioctl gi;
+	char buf[65536];
+	int error;
+
+	if (optind == argc)
+		die("Usage: gfs2_tool getargs <mountpoint>\n");
+
+	fd = open(argv[optind], O_RDONLY);
+	if (fd < 0)
+		die("can't open %s: %s\n", argv[optind], strerror(errno));
+	
+	check_for_gfs2(fd, argv[optind]);
+
+	gi.gi_argc = 1;
+	gi.gi_argv = gi_argv;
+	gi.gi_data = buf;
+	gi.gi_size = sizeof(buf);
+
+	error = ioctl(fd, GFS2_IOCTL_SUPER, &gi);
+	if (error < 0)
+		die("error doing get_super (%d): %s\n",
+		    error, strerror(errno));
+
+	close(fd);
+
+	printf("%s", buf);
+}
+
+/**
  * print_jindex - print out the journal index
  * @argc:
  * @argv:

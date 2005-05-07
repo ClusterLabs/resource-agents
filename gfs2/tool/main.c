@@ -55,6 +55,9 @@ static const char *usage[] = {
 	"Print the superblock of a mounted filesystem:\n",
 	"  gfs2_tool getsb <mountpoint>\n",
 	"\n",
+	"Print the current mount arguments of a mounted filesystem:\n",
+	"  gfs2_tool getargs <mountpoint>\n",
+	"\n",
 	"Get tuneable parameters for a filesystem\n",
 	"  gfs2_tool gettune <mountpoint>\n",
 	"\n",
@@ -232,6 +235,8 @@ main(int argc, char *argv[])
 		do_freeze(argc, argv);
 	else if (strcmp(action, "getsb") == 0)
 		print_sb(argc, argv);
+	else if (strcmp(action, "getargs") == 0)
+		print_args(argc, argv);
 	else if (strcmp(action, "gettune") == 0)
 		get_tune(argc, argv);
 	else if (strcmp(action, "jindex") == 0)
