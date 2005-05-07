@@ -449,11 +449,11 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	/* Aquire the journal lock so we can do recovery */
 
 	error = gfs2_glock_nq_num(sdp,
-				 jd->jd_jid, &gfs2_journal_glops,
-				 LM_ST_EXCLUSIVE,
-				 LM_FLAG_NOEXP |
-				 ((wait) ? 0 : LM_FLAG_TRY) |
-				 GL_NOCACHE, &j_gh);
+				  jd->jd_jid, &gfs2_journal_glops,
+				  LM_ST_EXCLUSIVE,
+				  LM_FLAG_NOEXP |
+				  ((wait) ? 0 : LM_FLAG_TRY) |
+				  GL_NOCACHE, &j_gh);
 	switch (error) {
 	case 0:
 		break;
@@ -468,7 +468,7 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	};
 
 	error = gfs2_glock_nq_init(jd->jd_inode->i_gl, LM_ST_SHARED,
-				  LM_FLAG_NOEXP, &ji_gh);
+				   LM_FLAG_NOEXP, &ji_gh);
 	if (error)
 		goto fail_gunlock_j;
 
@@ -492,12 +492,13 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		/* Acquire a shared hold on the transaction lock */
 
 		error = gfs2_glock_nq_init(sdp->sd_trans_gl,
-					  LM_ST_SHARED,
-					  LM_FLAG_NOEXP |
-					  LM_FLAG_PRIORITY |
-					  GL_NOCANCEL |
-					  GL_NOCACHE,
-					  &t_gh);
+					   LM_ST_SHARED,
+					   LM_FLAG_NOEXP |
+					   LM_FLAG_PRIORITY |
+					   GL_NEVER_RECURSE |
+					   GL_NOCANCEL |
+					   GL_NOCACHE,
+					   &t_gh);
 		if (error)
 			goto fail_gunlock_ji;
 

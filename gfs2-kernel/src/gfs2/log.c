@@ -555,6 +555,7 @@ log_flush_commit(struct gfs2_sbd *sdp)
 	ENTER(G2FN_LOG_FLUSH_COMMIT)
 	struct list_head *head = &sdp->sd_log_flush_list;
 	struct gfs2_log_buf *lb;
+	struct buffer_head *bh;
 
 	gfs2_assert_withdraw(sdp, log_distance(sdp, sdp->sd_log_flush_head,
 					       sdp->sd_log_head) + 1 == 
@@ -563,16 +564,18 @@ log_flush_commit(struct gfs2_sbd *sdp)
 	while (!list_empty(head)) {
 		lb = list_entry(head->next, struct gfs2_log_buf, lb_list);
 		list_del(&lb->lb_list);
+		bh = lb->lb_bh;
 
-		wait_on_buffer(lb->lb_bh);
-		if (!buffer_uptodate(lb->lb_bh))
-			gfs2_io_error_bh(sdp, lb->lb_bh);
+		wait_on_buffer(bh);
+		if (!buffer_uptodate(bh))
+			gfs2_io_error_bh(sdp, bh);
 		if (lb->lb_real) {
-			gfs2_assert_warn(sdp, atomic_read(&lb->lb_bh->b_count) == 1);
-			gfs2_memory_rm(lb->lb_bh);
-			free_buffer_head(lb->lb_bh);
+			while (atomic_read(&bh->b_count) != 1)  /* Grrrr... */
+				schedule();
+			gfs2_memory_rm(bh);
+			free_buffer_head(bh);
 		} else
-			brelse(lb->lb_bh);
+			brelse(bh);
 		kfree(lb);
 	}
 

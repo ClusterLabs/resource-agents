@@ -203,9 +203,9 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 
 	/* Only one node may mount at a time */
 	error = gfs2_glock_nq_num(sdp,
-				 GFS2_MOUNT_LOCK, &gfs2_nondisk_glops,
-				 LM_ST_EXCLUSIVE, LM_FLAG_NOEXP | GL_NOCACHE,
-				 mount_gh);
+				  GFS2_MOUNT_LOCK, &gfs2_nondisk_glops,
+				  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP | GL_NOCACHE,
+				  mount_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't acquire mount glock: %d\n",
 		       sdp->sd_fsname, error);
@@ -214,19 +214,18 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 
 	/* Show that cluster is alive */
 	error = gfs2_glock_nq_num(sdp,
-				 GFS2_LIVE_LOCK, &gfs2_nondisk_glops,
-				 LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT,
-				 &sdp->sd_live_gh);
+				  GFS2_LIVE_LOCK, &gfs2_nondisk_glops,
+				  LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT | GL_NEVER_RECURSE,
+				  &sdp->sd_live_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't acquire live glock: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_mount;
 	}
-	sdp->sd_live_gh.gh_owner = NULL;
 
 	/* Get a handle on the rename lock */
 	error = gfs2_glock_get(sdp, GFS2_RENAME_LOCK, &gfs2_nondisk_glops,
-			      CREATE, &sdp->sd_rename_gl);
+			       CREATE, &sdp->sd_rename_gl);
 	if (error) {
 		printk("GFS2: fsid=%s: can't create rename glock: %d\n",
 		       sdp->sd_fsname, error);
@@ -236,7 +235,7 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 	/* Get a handle on the transaction glock; we need this for disk format
 	    upgrade and journal replays, as well as normal operation. */
 	error = gfs2_glock_get(sdp, GFS2_TRANS_LOCK, &gfs2_trans_glops,
-			      CREATE, &sdp->sd_trans_gl);
+			       CREATE, &sdp->sd_trans_gl);
 	if (error) {
 		printk("GFS2: fsid=%s: can't create transaction glock: %d\n",
 		       sdp->sd_fsname, error);
@@ -394,9 +393,9 @@ init_journal(struct gfs2_sbd *sdp, int undo)
 		sdp->sd_jdesc = gfs2_jdesc_find(sdp, sdp->sd_lockstruct.ls_jid);
 
 		error = gfs2_glock_nq_num(sdp,
-					 sdp->sd_lockstruct.ls_jid, &gfs2_journal_glops,
-					 LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
-					 &sdp->sd_journal_gh);
+					  sdp->sd_lockstruct.ls_jid, &gfs2_journal_glops,
+					  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
+					  &sdp->sd_journal_gh);
 		if (error) {
 			printk("GFS2: fsid=%s: can't acquire the journal glock: %d\n",
 			       sdp->sd_fsname, error);
@@ -404,8 +403,8 @@ init_journal(struct gfs2_sbd *sdp, int undo)
 		}
 
 		error = gfs2_glock_nq_init(sdp->sd_jdesc->jd_inode->i_gl,
-					  LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT,
-					  &sdp->sd_jinode_gh);
+					   LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT,
+					   &sdp->sd_jinode_gh);
 		if (error) {
 			printk("gfs2: fsid=%s: can't acquire out journal inode glock: %d\n",
 			       sdp->sd_fsname, error);
@@ -646,24 +645,22 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 	pn = NULL;
 
 	error = gfs2_glock_nq_init(sdp->sd_ir_inode->i_gl,
-				  LM_ST_EXCLUSIVE, 0,
-				  &sdp->sd_ir_gh);
+				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
+				   &sdp->sd_ir_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't lock local \"ir\" file: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_qc_i;
 	}
-	sdp->sd_ir_gh.gh_owner = NULL;
 
 	error = gfs2_glock_nq_init(sdp->sd_sc_inode->i_gl,
-				  LM_ST_EXCLUSIVE, 0,
-				  &sdp->sd_sc_gh);
+				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
+				   &sdp->sd_sc_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't lock local \"sc\" file: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_ir_gh;
 	}
-	sdp->sd_ir_gh.gh_owner = NULL;
 
 	error = gfs2_statfs_init(sdp);
 	if (error) {
@@ -673,24 +670,22 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 	}
 
 	error = gfs2_glock_nq_init(sdp->sd_ut_inode->i_gl,
-				  LM_ST_EXCLUSIVE, 0,
-				  &sdp->sd_ut_gh);
+				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
+				   &sdp->sd_ut_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't lock local \"ut\" file: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_sc_gh;
 	}
-	sdp->sd_ut_gh.gh_owner = NULL;
 
 	error = gfs2_glock_nq_init(sdp->sd_qc_inode->i_gl,
-				  LM_ST_EXCLUSIVE, 0,
-				  &sdp->sd_qc_gh);
+				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
+				   &sdp->sd_qc_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't lock local \"qc\" file: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_ut_gh;
 	}
-	sdp->sd_qc_gh.gh_owner = NULL;
 
 	RETURN(G2FN_INIT_PER_NODE, 0);
 

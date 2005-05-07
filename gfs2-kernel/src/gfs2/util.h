@@ -24,7 +24,7 @@ uint32_t gfs2_hash(const void *data, unsigned int len);
 uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash);
 
 void gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
-	      int (*compar) (const void *, const void *));
+	       int (*compar) (const void *, const void *));
 
 
 /* Error handling */
@@ -47,7 +47,7 @@ do { \
 	if (unlikely(!(assertion))) { \
 		{todo} \
 		gfs2_assert_i((sdp), #assertion, \
-			     __FUNCTION__, __FILE__, __LINE__); \
+			      __FUNCTION__, __FILE__, __LINE__); \
 	} \
 } while (0)
 
@@ -62,13 +62,13 @@ do { \
  */
 
 int gfs2_assert_withdraw_i(struct gfs2_sbd *sdp,
-			  char *assertion,
-			  const char *function,
-			  char *file, unsigned int line);
+			   char *assertion,
+			   const char *function,
+			   char *file, unsigned int line);
 #define gfs2_assert_withdraw(sdp, assertion) \
 ((likely(assertion)) ? 0 : \
  gfs2_assert_withdraw_i((sdp), #assertion, \
-		       __FUNCTION__, __FILE__, __LINE__))
+			__FUNCTION__, __FILE__, __LINE__))
 
 /**
  * gfs2_assert_warn - Print a message to the console if @assertion is false
@@ -81,9 +81,9 @@ int gfs2_assert_withdraw_i(struct gfs2_sbd *sdp,
  */
 
 int gfs2_assert_warn_i(struct gfs2_sbd *sdp,
-		      char *assertion,
-		      const char *function,
-		      char *file, unsigned int line);
+		       char *assertion,
+		       const char *function,
+		       char *file, unsigned int line);
 #define gfs2_assert_warn(sdp, assertion) \
 ((likely(assertion)) ? 0 : \
  gfs2_assert_warn_i((sdp), #assertion, \
@@ -99,8 +99,8 @@ int gfs2_assert_warn_i(struct gfs2_sbd *sdp,
  */
 
 int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide,
-		  const char *function,
-		  char *file, unsigned int line);
+		   const char *function,
+		   char *file, unsigned int line);
 #define gfs2_consist(sdp)\
 gfs2_consist_i((sdp), FALSE, __FUNCTION__, __FILE__, __LINE__)
 #define gfs2_cconsist(sdp)\
@@ -116,8 +116,8 @@ gfs2_consist_i((sdp), TRUE, __FUNCTION__, __FILE__, __LINE__)
  */
 
 int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
-			const char *function,
-			char *file, unsigned int line);
+			 const char *function,
+			 char *file, unsigned int line);
 #define gfs2_consist_inode(ip) \
 gfs2_consist_inode_i((ip), FALSE, __FUNCTION__, __FILE__, __LINE__)
 #define gfs2_cconsist_inode(ip) \
@@ -133,8 +133,8 @@ gfs2_consist_inode_i((ip), TRUE, __FUNCTION__, __FILE__, __LINE__)
  */
 
 int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
-			const char *function,
-			char *file, unsigned int line);
+			 const char *function,
+			 char *file, unsigned int line);
 #define gfs2_consist_rgrpd(rgd) \
 gfs2_consist_rgrpd_i((rgd), FALSE, __FUNCTION__, __FILE__, __LINE__)
 #define gfs2_cconsist_rgrpd(rgd) \
@@ -151,13 +151,13 @@ gfs2_consist_rgrpd_i((rgd), TRUE, __FUNCTION__, __FILE__, __LINE__)
  */
 
 int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      const char *type,
-		      const char *function,
-		      char *file, unsigned int line);
+		       const char *type,
+		       const char *function,
+		       char *file, unsigned int line);
 static __inline__ int
 gfs2_meta_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		 const char *function,
-		 char *file, unsigned int line)
+		  const char *function,
+		  char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
@@ -186,14 +186,14 @@ gfs2_meta_check_i((sdp), (bh), \
  */
 
 int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-			  uint32_t type, uint32_t t,
-			  const char *function,
-			  char *file, unsigned int line);
+			   uint32_t type, uint32_t t,
+			   const char *function,
+			   char *file, unsigned int line);
 static __inline__ int
 gfs2_metatype_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		     uint32_t type,
-		     const char *function,
-		     char *file, unsigned int line)
+		      uint32_t type,
+		      const char *function,
+		      char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
         uint32_t magic = mh->mh_magic, t = mh->mh_type;
@@ -240,8 +240,8 @@ gfs2_metatype_set(struct buffer_head *bh, uint32_t type, uint32_t format)
  */
 
 int gfs2_io_error_i(struct gfs2_sbd *sdp,
-		   const char *function,
-		   char *file, unsigned int line);
+		    const char *function,
+		    char *file, unsigned int line);
 #define gfs2_io_error(sdp) \
 gfs2_io_error_i((sdp), __FUNCTION__, __FILE__, __LINE__);
 
@@ -254,8 +254,8 @@ gfs2_io_error_i((sdp), __FUNCTION__, __FILE__, __LINE__);
  */
 
 int gfs2_io_error_inode_i(struct gfs2_inode *ip,
-			 const char *function,
-			 char *file, unsigned int line);
+			  const char *function,
+			  char *file, unsigned int line);
 #define gfs2_io_error_inode(ip) \
 gfs2_io_error_inode_i((ip), __FUNCTION__, __FILE__, __LINE__);
 
@@ -269,8 +269,8 @@ gfs2_io_error_inode_i((ip), __FUNCTION__, __FILE__, __LINE__);
  */
 
 int gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      const char *function,
-		      char *file, unsigned int line);
+		       const char *function,
+		       char *file, unsigned int line);
 #define gfs2_io_error_bh(sdp, bh) \
 gfs2_io_error_bh_i((sdp), (bh), __FUNCTION__, __FILE__, __LINE__);
 
@@ -319,7 +319,7 @@ gfs2_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
 
 int
 gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
-	     char *fmt, ...)
+	      char *fmt, ...)
 __attribute__ ((format(printf, 4, 5)));
 
 #define gfs2_printf(fmt, args...) \
@@ -330,8 +330,8 @@ do { \
 
 
 void gfs2_icbit_munge(struct gfs2_sbd *sdp,
-		     unsigned char **bitmap, unsigned int bit,
-		     int new_value);
+		      unsigned char **bitmap, unsigned int bit,
+		      int new_value);
 
 
 static __inline__ uint64_t

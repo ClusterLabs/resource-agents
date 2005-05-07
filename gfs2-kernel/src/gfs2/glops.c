@@ -400,7 +400,7 @@ inode_greedy(struct gfs2_glock *gl)
 	unsigned int max = gfs2_tune_get(sdp, gt_greedy_max);
 	unsigned int new_time;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 
 	if (time_after(ip->i_last_pfault + quantum, jiffies)) {
 		new_time = ip->i_greedy + quantum;
@@ -414,7 +414,7 @@ inode_greedy(struct gfs2_glock *gl)
 
 	ip->i_greedy = new_time;
 
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	gfs2_inode_put(ip);
 

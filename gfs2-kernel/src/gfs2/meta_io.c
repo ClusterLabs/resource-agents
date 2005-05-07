@@ -846,7 +846,7 @@ gfs2_meta_cache_flush(struct gfs2_inode *ip)
 	struct buffer_head **bh_slot;
 	unsigned int x;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 
 	for (x = 0; x < GFS2_MAX_META_HEIGHT; x++) {
 		bh_slot = &ip->i_cache[x];
@@ -856,7 +856,7 @@ gfs2_meta_cache_flush(struct gfs2_inode *ip)
 		}
 	}
 
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	RET(G2FN_META_CACHE_FLUSH);
 }
@@ -882,7 +882,7 @@ gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int n
 	struct buffer_head *bh, **bh_slot = ip->i_cache + height;
 	int error;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 	bh = *bh_slot;
 	if (bh) {
 		if (bh->b_blocknr == num)
@@ -890,7 +890,7 @@ gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int n
 		else
 			bh = NULL;
 	}
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	if (bh) {
 		if (new)
@@ -911,14 +911,14 @@ gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int n
 				RETURN(G2FN_META_INDIRECT_BUFFER, error);
 		}
 
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		if (*bh_slot != bh) {
 			if (*bh_slot)
 				brelse(*bh_slot);
 			*bh_slot = bh;
 			get_bh(bh);
 		}
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 	}
 
 	if (new) {

@@ -537,7 +537,7 @@ gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 	int error;
 
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED,
-				  GL_LOCAL_EXCL, &t_gh);
+				   GL_LOCAL_EXCL | GL_NEVER_RECURSE, &t_gh);
 	if (error)
 		RETURN(G2FN_MAKE_FS_RW, error);
 
@@ -598,9 +598,13 @@ gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	struct gfs2_holder t_gh;
 	int error;
 
+	gfs2_unlinked_dealloc(sdp);
+	gfs2_quota_sync(sdp);
+	gfs2_statfs_sync(sdp);
+
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED,
-				  GL_LOCAL_EXCL | GL_NOCACHE,
-				  &t_gh);
+				   GL_LOCAL_EXCL | GL_NEVER_RECURSE | GL_NOCACHE,
+				   &t_gh);
 	if (error && !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		RETURN(G2FN_MAKE_FS_RO, error);
 
@@ -908,8 +912,8 @@ gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 	int error;
 
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_DEFERRED,
-				  LM_FLAG_PRIORITY | GL_NOCACHE,
-				  t_gh);
+				   LM_FLAG_PRIORITY | GL_NEVER_RECURSE | GL_NOCACHE,
+				   t_gh);
 
 	/* FixMe!!!  We need to check for dirty journals. */
 
@@ -939,8 +943,6 @@ gfs2_freeze_fs(struct gfs2_sbd *sdp)
 		error = gfs2_lock_fs_check_clean(sdp, &sdp->sd_freeze_gh);
 		if (error)
 			sdp->sd_freeze_count--;
-		else
-			sdp->sd_freeze_gh.gh_owner = NULL;
 	}
 
 	up(&sdp->sd_freeze_lock);

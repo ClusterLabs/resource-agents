@@ -411,9 +411,11 @@ gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
 
 	INIT_LIST_HEAD(&gh->gh_list);
 	gh->gh_gl = gl;
-	gh->gh_owner = current;
 	gh->gh_state = state;
 	gh->gh_flags = flags;
+
+	if (!(flags & GL_NEVER_RECURSE))
+		gh->gh_owner = current;
 
 	if (gh->gh_state == LM_ST_EXCLUSIVE)
 		gh->gh_flags |= GL_LOCAL_EXCL;
@@ -1003,11 +1005,12 @@ handle_callback(struct gfs2_glock *gl, unsigned int state)
 	} else {
 		spin_unlock(&gl->gl_spin);
 
-		RETRY_MALLOC(new_gh = gfs2_holder_get(gl, state, LM_FLAG_TRY),
+		RETRY_MALLOC(new_gh = gfs2_holder_get(gl, state,
+						      LM_FLAG_TRY |
+						      GL_NEVER_RECURSE),
 			     new_gh);
 		set_bit(HIF_DEMOTE, &new_gh->gh_iflags);
 		set_bit(HIF_DEALLOC, &new_gh->gh_iflags);
-		new_gh->gh_owner = NULL;
 
 		goto restart;
 	}
@@ -1437,6 +1440,52 @@ glock_wait_internal(struct gfs2_holder *gh)
 	RETURN(G2FN_GLOCK_WAIT_INTERNAL, error);
 }
 
+static __inline__ struct gfs2_holder *
+find_holder_by_owner(struct list_head *head, struct task_struct *owner)
+{
+	ENTER(G2FN_FIND_HOLDER_BY_OWNER)
+	struct list_head *tmp;
+	struct gfs2_holder *gh;
+
+	for (tmp = head->next; tmp != head; tmp = tmp->next) {
+		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+		if (gh->gh_owner == owner)
+			RETURN(G2FN_FIND_HOLDER_BY_OWNER, gh);
+	}
+
+	RETURN(G2FN_FIND_HOLDER_BY_OWNER, NULL);
+}
+
+/**
+ * recurse_check -
+ *
+ * Make sure the new holder is compatible
+ * with the pre-existing one.
+ *
+ */
+
+static int
+recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
+	      unsigned int state)
+{
+	ENTER(RECURSE_CHECK)
+	struct gfs2_sbd *sdp = existing->gh_gl->gl_sbd;
+	int error = 0;
+
+	if (gfs2_assert_warn(sdp, (new->gh_flags & LM_FLAG_ANY) ||
+			     !(existing->gh_flags & LM_FLAG_ANY)) ||
+	    gfs2_assert_warn(sdp, (existing->gh_flags & GL_LOCAL_EXCL) ||
+			     !(new->gh_flags & GL_LOCAL_EXCL)) ||
+	    gfs2_assert_warn(sdp, relaxed_state_ok(state,
+						   new->gh_state,
+						   new->gh_flags))) {
+		set_bit(HIF_ABORTED, &new->gh_iflags);
+		error = -EINVAL;
+	}
+
+	RETURN(RECURSE_CHECK, error);
+}
+
 /**
  * add_to_queue - Add a holder to the wait-for-promotion queue or holder list
  *       (according to recursion)
@@ -1461,82 +1510,50 @@ add_to_queue(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_ADD_TO_QUEUE)
 	struct gfs2_glock *gl = gh->gh_gl;
-	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct list_head *tmp, *head;
-	struct gfs2_holder *tmp_gh;
+	struct gfs2_holder *existing;
 
-	if (gh->gh_owner) {
-		/* Search through glock's holders list to see if this process
-		     already holds a granted lock. */
-		for (head = &gl->gl_holders, tmp = head->next;
-		     tmp != head;
-		     tmp = tmp->next) {
-			tmp_gh = list_entry(tmp, struct gfs2_holder, gh_list);
-			if (tmp_gh->gh_owner == gh->gh_owner) {
-				/* Make sure pre-existing holder is compatible
-				   with this new one. */
-				if (gfs2_assert_warn(sdp, (gh->gh_flags & LM_FLAG_ANY) ||
-						    !(tmp_gh->gh_flags & LM_FLAG_ANY)) ||
-				    gfs2_assert_warn(sdp, (tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
-						    !(gh->gh_flags & GL_LOCAL_EXCL)) ||
-				    gfs2_assert_warn(sdp, relaxed_state_ok(gl->gl_state,
-									  gh->gh_state,
-									  gh->gh_flags)))
-					goto fail;
+	if (!gh->gh_owner)
+		goto out;
 
-				/* We're good!  Grant the hold. */
-				list_add_tail(&gh->gh_list, &gl->gl_holders);
-				set_bit(HIF_HOLDER, &gh->gh_iflags);
+	/* Search through glock's holders list to see if this process
+	   already holds a granted lock. */
+	existing = find_holder_by_owner(&gl->gl_holders, gh->gh_owner);
+	if (existing) {
+		if (recurse_check(existing, gh, gl->gl_state))
+			RET(G2FN_ADD_TO_QUEUE);
 
-				gh->gh_error = 0;
-				complete(&gh->gh_wait);
+		/* Grant the hold. */
+		list_add_tail(&gh->gh_list, &gl->gl_holders);
+		set_bit(HIF_HOLDER, &gh->gh_iflags);
 
-				RET(G2FN_ADD_TO_QUEUE);
-			}
-		}
+		gh->gh_error = 0;
+		complete(&gh->gh_wait);
 
-		/* If not, Search through glock's wait-for-promotion list to
-		   see if this process already is waiting for a grant. */
-		for (head = &gl->gl_waiters3, tmp = head->next;
-		     tmp != head;
-		     tmp = tmp->next) {
-			tmp_gh = list_entry(tmp, struct gfs2_holder, gh_list);
-			if (tmp_gh->gh_owner == gh->gh_owner) {
-				/* Yes, make sure it is compatible with new */
-				if (gfs2_assert_warn(sdp, test_bit(HIF_PROMOTE,
-								  &tmp_gh->gh_iflags)) ||
-				    gfs2_assert_warn(sdp, (gh->gh_flags & LM_FLAG_ANY) ||
-						    !(tmp_gh->gh_flags & LM_FLAG_ANY)) ||
-				    gfs2_assert_warn(sdp, (tmp_gh->gh_flags & GL_LOCAL_EXCL) ||
-						    !(gh->gh_flags & GL_LOCAL_EXCL)) ||
-				    gfs2_assert_warn(sdp, relaxed_state_ok(tmp_gh->gh_state,
-									  gh->gh_state,
-									  gh->gh_flags)))
-					goto fail;
-
-				/* OK, make sure they're marked, so
-				 * when one gets granted, the other will too. */
-				set_bit(HIF_RECURSE, &gh->gh_iflags);
-				set_bit(HIF_RECURSE, &tmp_gh->gh_iflags);
-
-				list_add_tail(&gh->gh_list, &gl->gl_waiters3);
-
-				RET(G2FN_ADD_TO_QUEUE);
-			}
-		}
+		RET(G2FN_ADD_TO_QUEUE);
 	}
 
-	/* Else, no recursion ...
-	   If high priority request, add to head of promote queue, else tail */
+	/* Search through glock's wait-for-promotion list to
+	   see if this process already is waiting for a grant. */
+	existing = find_holder_by_owner(&gl->gl_waiters3, gh->gh_owner);
+	if (existing) {
+		if (recurse_check(existing, gh, existing->gh_state))
+			RET(G2FN_ADD_TO_QUEUE);
+
+		/* Make sure they're marked, so when one gets granted,
+		   the other will too. */
+		set_bit(HIF_RECURSE, &gh->gh_iflags);
+		set_bit(HIF_RECURSE, &existing->gh_iflags);
+
+		list_add_tail(&gh->gh_list, &gl->gl_waiters3);
+
+		RET(G2FN_ADD_TO_QUEUE);
+	}
+
+ out:
 	if (gh->gh_flags & LM_FLAG_PRIORITY)
 		list_add(&gh->gh_list, &gl->gl_waiters3);
 	else
-		list_add_tail(&gh->gh_list, &gl->gl_waiters3);
-
-	RET(G2FN_ADD_TO_QUEUE);
-
- fail:
-	set_bit(HIF_ABORTED, &gh->gh_iflags);
+		list_add_tail(&gh->gh_list, &gl->gl_waiters3);	
 
 	RET(G2FN_ADD_TO_QUEUE);
 }
@@ -1800,9 +1817,8 @@ gfs2_glock_force_drop(struct gfs2_glock *gl)
 	ENTER(G2FN_GLOCK_FORCE_DROP)
 	struct gfs2_holder gh;
 
-	gfs2_holder_init(gl, LM_ST_UNLOCKED, 0, &gh);
+	gfs2_holder_init(gl, LM_ST_UNLOCKED, GL_NEVER_RECURSE, &gh);
 	set_bit(HIF_DEMOTE, &gh.gh_iflags);
-	gh.gh_owner = NULL;
 
 	spin_lock(&gl->gl_spin);
 	list_add_tail(&gh.gh_list, &gl->gl_waiters2);
@@ -1880,9 +1896,8 @@ gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time)
 	}
 	gh = &gr->gr_gh;
 
-	gfs2_holder_init(gl, 0, 0, gh);
+	gfs2_holder_init(gl, 0, GL_NEVER_RECURSE, gh);
 	set_bit(HIF_GREEDY, &gh->gh_iflags);
-	gh->gh_owner = NULL;
 	INIT_WORK(&gr->gr_work, greedy_work, gr);
 
 	set_bit(GLF_SKIP_WAITERS2, &gl->gl_flags);

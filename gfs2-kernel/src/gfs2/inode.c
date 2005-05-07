@@ -156,10 +156,10 @@ gfs2_ip2v(struct gfs2_inode *ip, int create)
 	ENTER(G2FN_IP2V)
 	struct inode *inode = NULL, *tmp;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 	if (ip->i_vnode)
 		inode = igrab(ip->i_vnode);
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	if (inode || !create)
 		RETURN(G2FN_IP2V, inode);
@@ -194,11 +194,11 @@ gfs2_ip2v(struct gfs2_inode *ip, int create)
 	   VFS hash table.  If so, we need to wait until it is done, then
 	   we can use it.  */
 	for (;;) {
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		if (!ip->i_vnode)
 			break;
 		inode = igrab(ip->i_vnode);
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 
 		if (inode) {
 			iput(tmp);
@@ -213,7 +213,7 @@ gfs2_ip2v(struct gfs2_inode *ip, int create)
 	ip->i_vnode = inode;
 	set_v2ip(inode, ip);
 
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	insert_inode_hash(inode);
 
@@ -314,17 +314,17 @@ inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 	ip->i_gl = i_gl;
 	ip->i_sbd = sdp;
 
-	spin_lock_init(&ip->i_lock);
+	spin_lock_init(&ip->i_spin);
+	init_rwsem(&ip->i_rw_mutex);
 
 	ip->i_greedy = gfs2_tune_get(sdp, gt_greedy_default);
 
 	/* Lock the iopen glock (may be recursive) */
 	error = gfs2_glock_nq_init(io_gl,
-				  io_state, GL_LOCAL_EXCL | GL_EXACT,
-				  &ip->i_iopen_gh);
+				   io_state, GL_LOCAL_EXCL | GL_EXACT,
+				   &ip->i_iopen_gh);
 	if (error)
 		goto fail;
-
 	ip->i_iopen_gh.gh_owner = NULL;
 
 	/* Assign the inode's glock as this iopen glock's protected object */
@@ -394,8 +394,8 @@ gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 		atomic_inc(&(*ipp)->i_count);
 	} else if (create) {
 		error = gfs2_glock_get(i_gl->gl_sbd,
-				      inum->no_addr, &gfs2_iopen_glops,
-				      CREATE, &io_gl);
+				       inum->no_addr, &gfs2_iopen_glops,
+				       CREATE, &io_gl);
 		if (!error) {
 			error = inode_create(i_gl, inum, io_gl,
 					     LM_ST_SHARED, ipp);

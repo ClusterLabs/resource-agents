@@ -129,9 +129,6 @@ gfs2_put_super(struct super_block *sb)
 	wait_for_completion(&sdp->sd_thread_completion);
 
 	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
-		gfs2_quota_sync(sdp);
-		gfs2_statfs_sync(sdp);
-
 		error = gfs2_make_fs_ro(sdp);
 		if (error)
 			gfs2_io_error(sdp);
@@ -366,10 +363,10 @@ gfs2_clear_inode(struct inode *inode)
 	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_super);
 
 	if (ip) {
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		ip->i_vnode = NULL;
 		set_v2ip(inode, NULL);
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 
 		gfs2_glock_schedule_for_reclaim(ip->i_gl);
 		gfs2_inode_put(ip);

@@ -194,7 +194,8 @@ gi_get_args(struct gfs2_inode *ip,
 	    unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_ARGS)
-	struct gfs2_args *args = &ip->i_sbd->sd_args;
+       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_args *args = &sdp->sd_args;
 	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
@@ -204,15 +205,20 @@ gi_get_args(struct gfs2_inode *ip,
 	gfs2_printf("lockproto %s\n", args->ar_lockproto);
 	gfs2_printf("locktable %s\n", args->ar_locktable);
 	gfs2_printf("hostdata %s\n", args->ar_hostdata);
+	gfs2_printf("spectator %d\n", args->ar_spectator);
 	gfs2_printf("ignore_local_fs %d\n", args->ar_ignore_local_fs);
 	gfs2_printf("localcaching %d\n", args->ar_localcaching);
         gfs2_printf("localflocks %d\n", args->ar_localflocks);
         gfs2_printf("oopses_ok %d\n", args->ar_oopses_ok);
+	gfs2_printf("debug %d\n", args->ar_debug);
         gfs2_printf("upgrade %d\n", args->ar_upgrade);
 	gfs2_printf("num_glockd %u\n", args->ar_num_glockd);
         gfs2_printf("posix_acl %d\n", args->ar_posix_acl);
 	gfs2_printf("quota %u\n", args->ar_quota);
         gfs2_printf("suiddir %d\n", args->ar_suiddir);
+	gfs2_printf("data %d\n", args->ar_data);
+	gfs2_printf("noatime %d\n", !!test_bit(SDF_NOATIME, &sdp->sd_flags));
+	gfs2_printf("rofs %d\n", !!test_bit(SDF_ROFS, &sdp->sd_flags));
 
 	error = 0;
 	

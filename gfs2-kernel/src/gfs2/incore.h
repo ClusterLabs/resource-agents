@@ -508,7 +508,8 @@ struct gfs2_inode {
 	struct gfs2_alloc *i_alloc; /* In-place block reservation structure */
 	uint64_t i_last_rg_alloc;  /* Most recent blk alloc was fm this rgrp */
 
-	spinlock_t i_lock;                /* Protects this structure */
+	spinlock_t i_spin;
+	struct rw_semaphore i_rw_mutex;
 
 	/* Cache of most-recently used buffers in indirect addressing chain */
 	struct buffer_head *i_cache[GFS2_MAX_META_HEIGHT];

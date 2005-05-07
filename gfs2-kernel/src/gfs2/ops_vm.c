@@ -43,10 +43,10 @@ pfault_be_greedy(struct gfs2_inode *ip)
 	ENTER(G2FN_PFAULT_BE_GREEDY)
 	unsigned int time;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 	time = ip->i_greedy;
 	ip->i_last_pfault = jiffies;
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	gfs2_inode_hold(ip);
 	if (gfs2_glock_be_greedy(ip->i_gl, time))

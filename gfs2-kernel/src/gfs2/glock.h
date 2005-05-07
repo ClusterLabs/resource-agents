@@ -33,6 +33,7 @@
 #define GL_NOCACHE        (0x00000400) /* Release glock when done, don't cache */
 #define GL_SYNC           (0x00000800) /* Sync to disk when no more holders */
 #define GL_NOCANCEL       (0x00001000) /* Don't ever cancel this request */
+#define GL_NEVER_RECURSE  (0x00002000) /* We'll never recursively acquire */
 
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)

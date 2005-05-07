@@ -668,7 +668,7 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
 
 		clear_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
 
-		error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED, 0, &t_gh);
+		error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED, GL_NEVER_RECURSE, &t_gh);
 		if (error)
 			goto out_gunlock;
 

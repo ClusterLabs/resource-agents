@@ -77,7 +77,7 @@ gfs2_trans_begin_i(struct gfs2_sbd *sdp,
 	INIT_LIST_HEAD(&tr->tr_list_buf);
 
 	error = -ENOMEM;
-	tr->tr_t_gh = gfs2_holder_get(sdp->sd_trans_gl, LM_ST_SHARED, 0);
+	tr->tr_t_gh = gfs2_holder_get(sdp->sd_trans_gl, LM_ST_SHARED, GL_NEVER_RECURSE);
 	if (!tr->tr_t_gh)
 		goto fail;
 
