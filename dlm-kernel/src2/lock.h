@@ -21,8 +21,6 @@ int dlm_find_rsb(struct dlm_ls *ls, char *name, int namelen,
 	unsigned int flags, struct dlm_rsb **r_ret);
 void dlm_put_rsb(struct dlm_rsb *r);
 void dlm_hold_rsb(struct dlm_rsb *r);
-void dlm_lock_rsb(struct dlm_rsb *r);
-void dlm_unlock_rsb(struct dlm_rsb *r);
 int dlm_put_lkb(struct dlm_lkb *lkb);
 int dlm_remove_from_waiters(struct dlm_lkb *lkb);
 void dlm_scan_rsbs(struct dlm_ls *ls);
@@ -37,6 +35,16 @@ int dlm_recover_process_copy(struct dlm_ls *ls, struct dlm_rcom *rc);
 static inline int is_master(struct dlm_rsb *r)
 {
 	return !r->res_nodeid;
+}
+
+static inline void lock_rsb(struct dlm_rsb *r)
+{
+	down(&r->res_sem);
+}
+
+static inline void unlock_rsb(struct dlm_rsb *r)
+{
+	up(&r->res_sem);
 }
 
 #endif

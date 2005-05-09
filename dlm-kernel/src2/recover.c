@@ -268,7 +268,7 @@ static void set_master_lkbs(struct dlm_rsb *r)
 
 static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
-	dlm_lock_rsb(r);
+	lock_rsb(r);
 
 	/* FIXME: what if there are lkb's waiting on res_lookup ? */
 
@@ -281,7 +281,7 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 
 	set_bit(RESFL_NEW_MASTER, &r->res_flags);
 	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
-	dlm_unlock_rsb(r);
+	unlock_rsb(r);
 }
 
 /*
@@ -430,7 +430,7 @@ static int recover_locks(struct dlm_rsb *r)
 {
 	int error = 0;
 
-	dlm_lock_rsb(r);
+	lock_rsb(r);
 	if (all_queues_empty(r))
 		goto out;
 
@@ -449,7 +449,7 @@ static int recover_locks(struct dlm_rsb *r)
 	if (r->res_recover_locks_count)
 		recover_list_add(r);
  out:
-	dlm_unlock_rsb(r);
+	unlock_rsb(r);
 	return error;
 }
 
@@ -627,9 +627,9 @@ int dlm_recover_lvbs(struct dlm_ls *ls)
 		if (!is_master(r))
 			continue;
 
-		dlm_lock_rsb(r);
+		lock_rsb(r);
 		recover_rsb_lvb(r);
-		dlm_unlock_rsb(r);
+		unlock_rsb(r);
 	}
 	up_read(&ls->ls_root_sem);
 	return 0;
@@ -729,10 +729,10 @@ void dlm_recover_conversions(struct dlm_ls *ls)
 			clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
 
 			dlm_hold_rsb(r);
-			dlm_lock_rsb(r);
+			lock_rsb(r);
 			if (is_master(r))
 				recover_conversion(r);
-			dlm_unlock_rsb(r);
+			unlock_rsb(r);
 			dlm_put_rsb(r);
 		}
 		read_unlock(&ls->ls_rsbtbl[i].lock);
