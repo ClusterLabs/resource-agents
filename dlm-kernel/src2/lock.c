@@ -2701,14 +2701,15 @@ static void receive_bast(struct dlm_ls *ls, struct dlm_message *ms)
 
 static void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 {
-	int len, error, ret_nodeid, dir_nodeid, from_nodeid;
+	int len, error, ret_nodeid, dir_nodeid, from_nodeid, our_nodeid;
 
 	from_nodeid = ms->m_header.h_nodeid;
+	our_nodeid = dlm_our_nodeid();
 
 	len = receive_extralen(ms);
 
 	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_extra, len);
-	if (dir_nodeid != dlm_our_nodeid()) {
+	if (dir_nodeid != our_nodeid) {
 		log_error(ls, "lookup dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
 		error = -EINVAL;
@@ -2717,6 +2718,12 @@ static void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 	}
 
 	error = dlm_dir_lookup(ls, from_nodeid, ms->m_extra, len, &ret_nodeid);
+
+	/* Optimization: we're master so treat lookup as a request */
+	if (!error && ret_nodeid == our_nodeid) {
+		receive_request(ls, ms);
+		return;
+	}
  out:
 	send_lookup_reply(ls, ms, ret_nodeid, error);
 }
@@ -2743,7 +2750,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 {
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *r;
-	int error;
+	int error, mstype;
 
 	error = find_lkb(ls, ms->m_remid, &lkb);
 	if (error) {
@@ -2752,6 +2759,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	}
 	DLM_ASSERT(is_process_copy(lkb), dlm_print_lkb(lkb););
 
+	mstype = lkb->lkb_wait_type;
 	error = remove_from_waiters(lkb);
 	if (error) {
 		log_error(ls, "receive_request_reply not on waiters");
@@ -2764,6 +2772,14 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	r = lkb->lkb_resource;
 	hold_rsb(r);
 	lock_rsb(r);
+
+	/* Optimization: the dir node was also the master, so it took our
+	   lookup as a request and sent request reply instead of lookup reply */
+	if (mstype == DLM_MSG_LOOKUP) {
+		r->res_nodeid = ms->m_header.h_nodeid;
+		lkb->lkb_nodeid = r->res_nodeid;
+		r->res_trial_lkid = lkb->lkb_id;
+	}
 
 	switch (error) {
 	case -EAGAIN:
@@ -2804,7 +2820,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 		break;
 
 	default:
-		log_error(ls, "receive_request_reply unknown error %d", error);
+		log_error(ls, "receive_request_reply error %d", error);
 	}
 
 	unlock_rsb(r);
