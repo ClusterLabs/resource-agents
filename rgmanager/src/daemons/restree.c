@@ -675,7 +675,11 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 		for (x = 0; rule->rr_childtypes &&
 		     rule->rr_childtypes[x].rc_name; x++) {
 
-			lev = rule->rr_childtypes[x].rc_startlevel;
+			if(op == RS_STOP)
+				lev = rule->rr_childtypes[x].rc_stoplevel;
+			else
+				lev = rule->rr_childtypes[x].rc_startlevel;
+
 			if (!lev || lev != l)
 				continue;
 
@@ -700,7 +704,11 @@ _res_op_by_level(resource_node_t **tree, resource_t *first, void *ret,
 
 	for (x = 0; rule->rr_childtypes &&
 	     rule->rr_childtypes[x].rc_name; x++) {
-		lev = rule->rr_childtypes[x].rc_startlevel;
+
+		if(op == RS_STOP)
+			lev = rule->rr_childtypes[x].rc_stoplevel;
+		else
+			lev = rule->rr_childtypes[x].rc_startlevel;
 
 		if (lev)
 			continue;
