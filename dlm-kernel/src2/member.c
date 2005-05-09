@@ -17,6 +17,7 @@
 #include "recoverd.h"
 #include "recover.h"
 #include "lowcomms.h"
+#include "rcom.h"
 
 /*
  * Following called by dlm_recoverd thread
@@ -142,6 +143,15 @@ static void make_member_array(struct dlm_ls *ls)
 	ls->ls_node_array = array;
 }
 
+/* send a status request to all members just to establish comms connections */
+
+static void ping_members(struct dlm_ls *ls)
+{
+	struct dlm_member *memb;
+	list_for_each_entry(memb, &ls->ls_nodes, list)
+		dlm_rcom_status(ls, memb->nodeid);
+}
+
 int dlm_recover_members_wait(struct dlm_ls *ls)
 {
 	int error;
@@ -200,6 +210,8 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 	*neg_out = neg;
 
+	ping_members(ls);
+
 	error = dlm_recover_members_wait(ls);
 	log_debug(ls, "total members %d", ls->ls_num_nodes);
 	return error;
@@ -224,6 +236,8 @@ int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv)
 
 	make_member_array(ls);
 	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
+
+	ping_members(ls);
 
 	error = dlm_recover_members_wait(ls);
 	log_debug(ls, "total members %d", ls->ls_num_nodes);
