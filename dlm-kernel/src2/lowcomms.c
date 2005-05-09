@@ -748,7 +748,7 @@ static int init_sock(void)
 	struct socket *sock = NULL;
 	struct sockaddr_storage localaddr;
 	struct sctp_event_subscribe subscribe;
-	int result = -EINVAL, num = 0, i, addr_len;
+	int result = -EINVAL, num = 1, i, addr_len;
 
 	if (!local_count) {
 		printk(KERN_ERR "dlm: no local IP address has been set\n");
