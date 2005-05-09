@@ -61,9 +61,14 @@ typedef enum {CMAN_REASON_PORTCLOSED,
  * CMAN_DISPATCH_ALL dispatches all outstanding messages (ie till EAGAIN) then returns,
  * CMAN_DISPATCH_BLOCKING forces it to wait for a message (cleans MSG_DONTWAIT in recvmsg)
  */
-#define CMAN_DISPATCH_ONE 0
-#define CMAN_DISPATCH_ALL 1
-#define CMAN_DISPATCH_BLOCKING 2
+#define CMAN_DISPATCH_ONE           0
+#define CMAN_DISPATCH_ALL           1
+#define CMAN_DISPATCH_BLOCKING      2
+#define CMAN_DISPATCH_IGNORE_REPLY  4
+#define CMAN_DISPATCH_IGNORE_DATA   8
+#define CMAN_DISPATCH_IGNORE_EVENT 16
+#define CMAN_DISPATCH_TYPE_MASK     3
+#define CMAN_DISPATCH_IGNORE_MASK  46
 
 /*
  * A node address. this is a complete sockaddr_in[6]

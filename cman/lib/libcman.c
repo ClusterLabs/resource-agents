@@ -33,6 +33,13 @@
 #include "cnxman-socket.h"
 #include "libcman.h"
 
+/* List of saved messages */
+struct saved_message
+{
+	struct sock_header *msg;
+	struct saved_message *next;
+};
+
 struct cman_handle
 {
 	int magic;
@@ -45,13 +52,19 @@ struct cman_handle
 	void *reply_buffer;
 	int reply_buflen;
 	int reply_status;
+
+	struct saved_message *saved_data_msg;
+	struct saved_message *saved_event_msg;
+	struct saved_message *saved_reply_msg;
 };
 
 #define VALIDATE_HANDLE(h) do {if (!(h) || (h)->magic != CMAN_MAGIC) {errno = EINVAL; return -1;}} while (0)
 
-/* Wait for an command/request reply. in the meantime we will still process data messages
-   that arrive for us.
-*/
+/*
+ * Wait for an command/request reply.
+ * Data/event messages will be queued.
+ *
+ */
 static int wait_for_reply(struct cman_handle *h, void *msg, int max_len)
 {
 	int ret;
@@ -62,7 +75,7 @@ static int wait_for_reply(struct cman_handle *h, void *msg, int max_len)
 
 	do
 	{
-		ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING);
+		ret = cman_dispatch(h, CMAN_DISPATCH_BLOCKING | CMAN_DISPATCH_IGNORE_EVENT | CMAN_DISPATCH_IGNORE_DATA);
 
 	} while (h->want_reply == 1 && ret >= 0);
 
@@ -96,7 +109,41 @@ static void copy_node(cman_node_t *unode, struct cl_cluster_node *knode)
 	unode->cn_address.cna_addrlen = sizeof(struct sockaddr_storage);
 }
 
-static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
+/* Add to a list. saved_message *m is the head of the list in the cman_handle */
+static void add_to_waitlist(struct saved_message **m, struct sock_header *msg)
+{
+	struct saved_message *next = *m;
+	struct saved_message *last = *m;
+	struct saved_message *this;
+
+	this = malloc(sizeof(struct saved_message));
+	if (!this)
+		return;
+
+	this->msg = malloc(msg->length);
+	if (!this->msg)
+	{
+		free(this);
+		return;
+	}
+
+	memcpy(this->msg, msg, msg->length);
+	this->next = NULL;
+
+	if (!next)
+	{
+		*m = this;
+		return;
+	}
+
+	for (; next; next = next->next)
+	{
+		last = next;
+	}
+	last->next = this;
+}
+
+static int process_cman_message(struct cman_handle *h, int flags, struct sock_header *msg)
 {
 	/* Data for us */
 	if ((msg->command & CMAN_CMDMASK_CMD) == CMAN_CMD_DATA)
@@ -104,10 +151,17 @@ static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
 		struct sock_data_header *dmsg = (struct sock_data_header *)msg;
 		char *buf = (char *)msg;
 
-		if (h->data_callback)
-			h->data_callback(h, h->private,
-					 buf+sizeof(*dmsg), msg->length-sizeof(*dmsg),
-					 dmsg->port, dmsg->nodeid);
+		if (flags & CMAN_DISPATCH_IGNORE_DATA)
+		{
+			add_to_waitlist(&h->saved_data_msg, msg);
+		}
+		else
+		{
+			if (h->data_callback)
+				h->data_callback(h, h->private,
+						 buf+sizeof(*dmsg), msg->length-sizeof(*dmsg),
+						 dmsg->port, dmsg->nodeid);
+		}
 		return 0;
 	}
 
@@ -118,6 +172,12 @@ static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
 		int replylen = msg->length - sizeof(struct sock_reply_header);
 		struct sock_reply_header *reply = (struct sock_reply_header *)msg;
 
+		if (flags & CMAN_DISPATCH_IGNORE_REPLY)
+		{
+			add_to_waitlist(&h->saved_data_msg, msg);
+			return 0;
+		}
+
 		replybuf += sizeof(struct sock_reply_header);
 		if (replylen <= h->reply_buflen)
 		{
@@ -125,6 +185,7 @@ static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
 		}
 		h->want_reply = 0;
 		h->reply_status = reply->status;
+
 		return 1;
 	}
 
@@ -132,8 +193,16 @@ static int process_cman_message(struct cman_handle *h, struct sock_header *msg)
 	if (msg->command == CMAN_CMD_EVENT)
 	{
 		struct sock_event_message *emsg = (struct sock_event_message *)msg;
-		if (h->event_callback)
-			h->event_callback(h, h->private, emsg->reason, emsg->arg);
+
+		if (flags & CMAN_DISPATCH_IGNORE_EVENT)
+		{
+			add_to_waitlist(&h->saved_data_msg, msg);
+		}
+		else
+		{
+			if (h->event_callback)
+				h->event_callback(h, h->private, emsg->reason, emsg->arg);
+		}
 	}
 
 	return 0;
@@ -211,6 +280,9 @@ static cman_handle_t open_socket(const char *name, int namelen, void *private)
 	h->event_callback = NULL;
 	h->data_callback = NULL;
 	h->want_reply = 0;
+	h->saved_data_msg = NULL;
+	h->saved_event_msg = NULL;
+	h->saved_reply_msg = NULL;
 
 	h->fd = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (h->fd == -1)
@@ -309,6 +381,39 @@ int cman_dispatch(cman_handle_t handle, int flags)
 
 	do
 	{
+		/* First, drain any waiting queues */
+		if (h->saved_reply_msg && !(flags & CMAN_DISPATCH_IGNORE_REPLY))
+		{
+			struct saved_message *smsg = h->saved_reply_msg;
+
+			process_cman_message(h, flags, smsg->msg);
+			h->saved_reply_msg = smsg->next;
+			len = smsg->msg->length;
+			free(smsg);
+			continue;
+		}
+		if (h->saved_data_msg && !(flags & CMAN_DISPATCH_IGNORE_DATA))
+		{
+			struct saved_message *smsg = h->saved_data_msg;
+
+			process_cman_message(h, flags, smsg->msg);
+			h->saved_data_msg = smsg->next;
+			len = smsg->msg->length;
+			free(smsg);
+			continue;
+		}
+		if (h->saved_event_msg && !(flags & CMAN_DISPATCH_IGNORE_EVENT))
+		{
+			struct saved_message *smsg = h->saved_event_msg;
+
+			process_cman_message(h, flags, smsg->msg);
+			h->saved_event_msg = smsg->next;
+			len = smsg->msg->length;
+			free(smsg);
+			continue;
+		}
+
+		/* Now look for new messages */
 		len = recv(h->fd, buf, sizeof(struct sock_header), recv_flags);
 
 		if (len == 0) {
@@ -340,7 +445,7 @@ int cman_dispatch(cman_handle_t handle, int flags)
 				return -1;
 		}
 
-		if (process_cman_message(h, header))
+		if (process_cman_message(h, flags, header))
 			break;
 
 	} while ( flags & CMAN_DISPATCH_ALL &&
