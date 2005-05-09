@@ -3311,22 +3311,32 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 	return error;
 }
 
-static void purge_queue(struct dlm_rsb *r, struct list_head *queue)
+static void purge_queue(struct dlm_rsb *r, struct list_head *queue,
+			int (*test)(struct dlm_ls *ls, struct dlm_lkb *lkb))
 {
 	struct dlm_ls *ls = r->res_ls;
 	struct dlm_lkb *lkb, *safe;
 
 	list_for_each_entry_safe(lkb, safe, queue, lkb_statequeue) {
-		if (!is_master_copy(lkb))
-			continue;
-
-		if (dlm_is_removed(ls, lkb->lkb_nodeid)) {
+		if (test(ls, lkb)) {
 			del_lkb(r, lkb);
 			/* this put should free the lkb */
 			if (!put_lkb(lkb))
 				log_error(ls, "purged lkb not released");
 		}
 	}
+}
+
+static int purge_dead_test(struct dlm_ls *ls, struct dlm_lkb *lkb)
+{
+	return (is_master_copy(lkb) && dlm_is_removed(ls, lkb->lkb_nodeid));
+}
+
+static void purge_dead_locks(struct dlm_rsb *r)
+{
+	purge_queue(r, &r->res_grantqueue, &purge_dead_test);
+	purge_queue(r, &r->res_convertqueue, &purge_dead_test);
+	purge_queue(r, &r->res_waitqueue, &purge_dead_test);
 }
 
 /* Get rid of locks held by nodes that are gone. */
@@ -3341,11 +3351,8 @@ int dlm_purge_locks(struct dlm_ls *ls)
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		hold_rsb(r);
 		lock_rsb(r);
-
-		purge_queue(r, &r->res_grantqueue);
-		purge_queue(r, &r->res_convertqueue);
-		purge_queue(r, &r->res_waitqueue);
-
+		if (is_master(r))
+			purge_dead_locks(r);
 		unlock_rsb(r);
 		unhold_rsb(r);
 
