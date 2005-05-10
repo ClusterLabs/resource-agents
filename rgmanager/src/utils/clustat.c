@@ -66,6 +66,7 @@ rg_state_list(uint64_t local_node_id)
 		}
 
 		if (n < sizeof(*rsmp)) {
+			msg_close(fd);
 			return NULL;
 		}
 
@@ -88,6 +89,8 @@ rg_state_list(uint64_t local_node_id)
 		free(msgp);
 		msgp = NULL;
 	}
+
+	msg_close(fd);
 
 	if (!rsl->rgl_count) {
 		free(rsl);
@@ -140,10 +143,10 @@ txt_rg_states(rg_state_list_t *rgl, cluster_member_list_t *members)
 	if (!rgl || !members)
 		return;
 
-	printf("  %-20.20s %-30.30s %-10.10s\n",
-	       "Resource Group", "Owner (Last)", "State");
-	printf("  %-20.20s %-30.30s %-10.10s\n",
-	       "-------- -----", "----- ------", "-----");
+	printf("  %-20.20s %-30.30s %-14.14s\n",
+	       "Service Name", "Owner (Last)", "State");
+	printf("  %-20.20s %-30.30s %-14.14s\n",
+	       "------- ----", "----- ------", "-----");
 
 	for (x = 0; x < rgl->rgl_count; x++)
 		txt_rg_state(&rgl->rgl_states[x], members);
