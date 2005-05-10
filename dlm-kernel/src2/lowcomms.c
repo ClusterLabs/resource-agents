@@ -109,6 +109,7 @@ struct connection {
 	struct page            *rx_page;
 	atomic_t		waiting_requests;
 	struct cbuf		cb;
+	int                     eagain_flag;
 };
 
 /* An entry waiting to be sent */
@@ -144,7 +145,6 @@ static spinlock_t write_nodes_lock;
 /* Manage daemons */
 static struct task_struct *recv_task;
 static struct task_struct *send_task;
-static wait_queue_head_t lowcomms_send_wait;
 static wait_queue_head_t lowcomms_recv_wait;
 static atomic_t accepting;
 
@@ -358,11 +358,6 @@ static void lowcomms_data_ready(struct sock *sk, int count_unused)
 	wake_up_interruptible(&lowcomms_recv_wait);
 }
 
-static void lowcomms_write_space(struct sock *sk)
-{
-	wake_up_interruptible(&lowcomms_send_wait);
-}
-
 
 /* Add the port number to an IP6 or 4 sockaddr and return the address length.
    Also padd out the struct with zeros to make comparisons meaningful */
@@ -472,7 +467,7 @@ static void init_failed(void)
 			}
 		}
 	}
-	wake_up_interruptible(&lowcomms_send_wait);
+	wake_up_process(send_task);
 }
 
 /* Something happened to an association */
@@ -551,7 +546,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 				list_add_tail(&ni->write_list, &write_nodes);
 				spin_unlock_bh(&write_nodes_lock);
 			}
-			wake_up_interruptible(&lowcomms_send_wait);
+			wake_up_process(send_task);
 		}
 		break;
 
@@ -683,7 +678,7 @@ static int receive_from_sock(void)
 				list_add_tail(&ni->write_list, &write_nodes);
 				spin_unlock_bh(&write_nodes_lock);
 			}
-			wake_up_interruptible(&lowcomms_send_wait);
+			wake_up_process(send_task);
 		}
 	}
 
@@ -787,7 +782,6 @@ static int init_sock(void)
 	sock->sk->sk_user_data = &sctp_con;
 	sctp_con.sock = sock;
 	sctp_con.sock->sk->sk_data_ready = lowcomms_data_ready;
-	sctp_con.sock->sk->sk_write_space = lowcomms_write_space;
 
 	/* Bind to all interfaces. */
 	for (i = 0; i < local_count; i++) {
@@ -907,7 +901,7 @@ void dlm_lowcomms_commit_buffer(void *arg)
 		spin_lock_bh(&write_nodes_lock);
 		list_add_tail(&ni->write_list, &write_nodes);
 		spin_unlock_bh(&write_nodes_lock);
-		wake_up_interruptible(&lowcomms_send_wait);
+		wake_up_process(send_task);
 	}
 	return;
 
@@ -992,7 +986,7 @@ static int send_to_sock(struct nodeinfo *ni)
 	struct sctp_sndrcvinfo *sinfo;
 	struct kvec iov;
 
-	/* See if we need to init an association before we start
+        /* See if we need to init an association before we start
 	   sending precious messages */
 	spin_lock(&ni->lock);
 	if (!ni->assoc_id && !test_and_set_bit(NI_INIT_PENDING, &ni->flags)) {
@@ -1034,16 +1028,15 @@ static int send_to_sock(struct nodeinfo *ni)
 		if (len) {
 			iov.iov_base = page_address(e->page)+offset;
 			iov.iov_len = len;
- retry:
+
 			ret = kernel_sendmsg(sctp_con.sock, &outmsg, &iov, 1,
 					     len);
-
 			if (ret == -EAGAIN) {
 				printk("lowcomms: sendmsg %d len %d off %d\n",
 					ret, len, offset);
-				set_current_state(TASK_INTERRUPTIBLE);
-				schedule_timeout(HZ/2);
-				goto retry;
+
+				sctp_con.eagain_flag = 1;
+				goto out;
 			} else if (ret < 0)
 				goto send_error;
 		} else {
@@ -1062,6 +1055,7 @@ static int send_to_sock(struct nodeinfo *ni)
 		}
 	}
 	spin_unlock(&ni->writequeue_lock);
+ out:
 	return ret;
 
  send_error:
@@ -1078,12 +1072,10 @@ static int send_to_sock(struct nodeinfo *ni)
 }
 
 /* Try to send any messages that are pending */
-
 static void process_output_queue(void)
 {
 	struct list_head *list;
 	struct list_head *temp;
-	int ret;
 
 	spin_lock_bh(&write_nodes_lock);
 	list_for_each_safe(list, temp, &write_nodes) {
@@ -1094,10 +1086,26 @@ static void process_output_queue(void)
 
 		spin_unlock_bh(&write_nodes_lock);
 
-		ret = send_to_sock(ni);
-		if (ret < 0) {
-		}
+		send_to_sock(ni);
 		spin_lock_bh(&write_nodes_lock);
+	}
+	spin_unlock_bh(&write_nodes_lock);
+}
+
+/* Called after we've had -EAGAIN and been woken up */
+static void refill_write_queue(void)
+{
+	int i;
+
+	spin_lock_bh(&write_nodes_lock);
+	for (i=1; i<=max_nodeid; i++) {
+		struct nodeinfo *ni = nodeid2nodeinfo(i, 0);
+
+		if (ni) {
+			if (!test_and_set_bit(NI_WRITE_PENDING, &ni->flags)) {
+				list_add_tail(&ni->write_list, &write_nodes);
+			}
+		}
 	}
 	spin_unlock_bh(&write_nodes_lock);
 }
@@ -1127,6 +1135,7 @@ static void clean_writequeues(void)
 			clean_one_writequeue(ni);
 	}
 }
+
 
 static void dealloc_nodeinfo(void)
 {
@@ -1212,16 +1221,22 @@ static int dlm_sendd(void *data)
 {
 	DECLARE_WAITQUEUE(wait, current);
 
+	add_wait_queue(sctp_con.sock->sk->sk_sleep, &wait);
+
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		add_wait_queue(&lowcomms_send_wait, &wait);
 		if (write_list_empty())
 			schedule();
-		remove_wait_queue(&lowcomms_send_wait, &wait);
 		set_current_state(TASK_RUNNING);
 
+		if (sctp_con.eagain_flag) {
+			sctp_con.eagain_flag = 0;
+			refill_write_queue();
+		}
 		process_output_queue();
 	}
+
+	remove_wait_queue(sctp_con.sock->sk->sk_sleep, &wait);
 
 	return 0;
 }
@@ -1301,7 +1316,6 @@ void dlm_lowcomms_stop(void)
 
 int dlm_lowcomms_init(void)
 {
-	init_waitqueue_head(&lowcomms_send_wait);
 	init_waitqueue_head(&lowcomms_recv_wait);
 	INIT_LIST_HEAD(&nodes);
 	init_MUTEX(&nodes_sem);
