@@ -570,25 +570,20 @@ trans_go_drop_th(struct gfs2_glock *gl)
 	RET(G2FN_TRANS_GO_DROP_TH);
 }
 
-/**
- * nondisk_go_demote_ok - Check to see if it's ok to unlock a non-disk glock
- * @gl: the glock
- *
- * See comments for meta_go_demote_ok().
- *
- * We never give up a non-disk glock (unless another node needs it).
- * Non-disk type used for GFS2_MOUNT_LOCK, GFS2_LIVE_LOCK, GFS2_RENAME_LOCK.
- * GFS2_MOUNT_LOCK is always requested GL_NOCACHE, however, so it never uses
- *   this function.
- *
- * Returns: TRUE if it's ok
- */
-
-static int
-nondisk_go_demote_ok(struct gfs2_glock *gl)
+static void
+rename_go_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_NONDISK_GO_DEMOTE_OK)
-	RETURN(G2FN_NONDISK_GO_DEMOTE_OK, FALSE);
+	ENTER(G2FN_RENAME_GO_SYNC);
+
+	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
+		gfs2_log_flush_glock(gl);
+		if (flags & DIO_RELEASE)
+			clear_bit(GLF_DIRTY, &gl->gl_flags);
+	}
+
+	clear_bit(GLF_SYNC, &gl->gl_flags);
+
+	RET(G2FN_RENAME_GO_SYNC);
 }
 
 /**
@@ -648,6 +643,13 @@ struct gfs2_glock_operations gfs2_trans_glops = {
 	.go_type = LM_TYPE_NONDISK
 };
 
+struct gfs2_glock_operations gfs2_rename_glops = {
+	.go_xmote_th = gfs2_glock_xmote_th,
+	.go_drop_th = gfs2_glock_drop_th,
+	.go_sync = rename_go_sync,
+	.go_type = LM_TYPE_NONDISK
+};
+
 struct gfs2_glock_operations gfs2_iopen_glops = {
 	.go_xmote_th = gfs2_glock_xmote_th,
 	.go_drop_th = gfs2_glock_drop_th,
@@ -664,7 +666,6 @@ struct gfs2_glock_operations gfs2_flock_glops = {
 struct gfs2_glock_operations gfs2_nondisk_glops = {
 	.go_xmote_th = gfs2_glock_xmote_th,
 	.go_drop_th = gfs2_glock_drop_th,
-	.go_demote_ok = nondisk_go_demote_ok,
 	.go_type = LM_TYPE_NONDISK
 };
 

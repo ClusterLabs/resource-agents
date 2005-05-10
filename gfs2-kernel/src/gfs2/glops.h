@@ -18,6 +18,7 @@ extern struct gfs2_glock_operations gfs2_meta_glops;
 extern struct gfs2_glock_operations gfs2_inode_glops;
 extern struct gfs2_glock_operations gfs2_rgrp_glops;
 extern struct gfs2_glock_operations gfs2_trans_glops;
+extern struct gfs2_glock_operations gfs2_rename_glops;
 extern struct gfs2_glock_operations gfs2_iopen_glops;
 extern struct gfs2_glock_operations gfs2_flock_glops;
 extern struct gfs2_glock_operations gfs2_nondisk_glops;

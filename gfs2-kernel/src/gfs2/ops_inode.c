@@ -845,8 +845,8 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 		dir_rename = TRUE;
 
 		error = gfs2_glock_nq_init(sdp->sd_rename_gl,
-					  LM_ST_EXCLUSIVE, 0,
-					  &r_gh);
+					   LM_ST_EXCLUSIVE, 0,
+					   &r_gh);
 		if (error)
 			goto out;
 
@@ -857,13 +857,11 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 
 	gfs2_holder_init(odip->i_gl, LM_ST_EXCLUSIVE, 0, ghs);
 	gfs2_holder_init(ndip->i_gl, LM_ST_EXCLUSIVE, 0, ghs + 1);
-	num_gh = 2;
+	gfs2_holder_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, ghs + 2);
+	num_gh = 3;
 
 	if (nip)
 		gfs2_holder_init(nip->i_gl, LM_ST_EXCLUSIVE, 0, ghs + num_gh++);
-
-	if (dir_rename)
-		gfs2_holder_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, ghs + num_gh++);
 
 	error = gfs2_glock_nq_m(num_gh, ghs);
 	if (error)
