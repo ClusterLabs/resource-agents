@@ -26,21 +26,21 @@
 
 #define do_lseek(sdp, off) \
 do { \
-	if (lseek((sdp)->fd, (off), SEEK_SET) != (off)) \
+	if (lseek((sdp)->device_fd, (off), SEEK_SET) != (off)) \
 		die("bad seek: %s on line %d of file %s\n", \
 		    strerror(errno), __LINE__, __FILE__); \
 } while (0)
 
 #define do_read(sdp, buf, len) \
 do { \
-	if (read((sdp)->fd, (buf), (len)) != (len)) \
+	if (read((sdp)->device_fd, (buf), (len)) != (len)) \
 		die("bad read: %s on line %d of file %s\n", \
 		    strerror(errno), __LINE__, __FILE__); \
 } while (0)
 
 #define do_write(sdp, buf, len) \
 do { \
-	if (write((sdp)->fd, (buf), (len)) != (len)) \
+	if (write((sdp)->device_fd, (buf), (len)) != (len)) \
 		die("bad write: %s on line %d of file %s\n", \
 		    strerror(errno), __LINE__, __FILE__); \
 } while (0)
@@ -72,6 +72,8 @@ write_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	do_write(sdp, bh->b_data, sdp->bsize);
 
 	free(bh);
+
+	sdp->writes++;
 }
 
 static void

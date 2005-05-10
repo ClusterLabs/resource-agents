@@ -21,13 +21,19 @@ SOURCE=	\
 	device_geometry.c \
 	fs_geometry.c \
 	fs_ops.c \
+	live.c \
 	locking.c \
 	main.c \
+	main_grow.c \
+	main_jadd.c \
+	main_mkfs.c \
+	main_shrink.c \
+	misc.c \
 	ondisk.c \
 	structures.c
 
 CFLAGS+= -O2 -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
-	-DGFS2_RELEASE_NAME=\"${RELEASE}\"
+	-DGFS2_RELEASE_NAME=\"${RELEASE}\" -D_GNU_SOURCE
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
 	-I${incdir}

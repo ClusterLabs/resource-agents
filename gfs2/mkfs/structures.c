@@ -198,13 +198,13 @@ build_unlinked_tag(struct gfs2_inode *per_node, unsigned int j)
 	struct gfs2_meta_header mh;
 	char name[256];
 	struct gfs2_inode *ip;
-	unsigned int blocks = sdp->ulsize << (20 - sdp->bsize_shift);
+	unsigned int blocks = sdp->utsize << (20 - sdp->bsize_shift);
 	unsigned int x;
 
 	memset(&mh, 0, sizeof(struct gfs2_meta_header));
 	mh.mh_magic = GFS2_MAGIC;
-	mh.mh_type = GFS2_METATYPE_UL;
-	mh.mh_format = GFS2_FORMAT_UL;
+	mh.mh_type = GFS2_METATYPE_UT;
+	mh.mh_format = GFS2_FORMAT_UT;
 
 	sprintf(name, "unlinked_tag%u", j);
 	ip = createi(per_node, name, S_IFREG | 0600,
@@ -426,8 +426,8 @@ do_init(struct gfs2_sbd *sdp)
 		char buf[sizeof(struct gfs2_statfs_change)];
 		int count;
 
-		sc.sc_total = sdp->fssize;
-		sc.sc_free = sdp->fssize - sdp->blks_alloced;
+		sc.sc_total = sdp->blks_total;
+		sc.sc_free = sdp->blks_total - sdp->blks_alloced;
 		sc.sc_dinodes = sdp->dinodes_alloced;
 
 		gfs2_statfs_change_out(&sc, buf);

@@ -38,9 +38,12 @@ install: all
 	done
 	# Make the hardlink to mkfs_gfs2 instead of copying a separate version
 	(cd ${sbindir}; ln -f gfs2_mkfs mkfs.gfs2)
+	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_grow)
+	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_jadd)
+#	(cd ${sbindir}; ln -f gfs2_mkfs gfs2_shrink)
 
 uninstall:
 	#uninstall the hardlinked program as well
-	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 ${sbindir}
+	${UNINSTALL} ${SBINPROGS} mkfs.gfs2 gfs2_grow gfs2_jadd gfs2_shrink ${sbindir}
 
 

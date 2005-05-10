@@ -37,7 +37,7 @@ device_geometry(struct gfs2_sbd *sdp)
 	uint64_t bytes;
 	int error;
 
-	error = device_size(sdp->fd, &bytes);
+	error = device_size(sdp->device_fd, &bytes);
 	if (error)
 		die("can't determine size of %s: %s\n",
 		    sdp->device_name, strerror(errno));
@@ -94,8 +94,12 @@ fix_device_geometry(struct gfs2_sbd *sdp)
 			start += bbsize - remainder;
 		}
 
-		device->subdev[x].start = start / bbsize;
-		device->subdev[x].length = length / bbsize;
+		start /= bbsize;
+		length /= bbsize;
+
+		device->subdev[x].start = start;
+		device->subdev[x].length = length;
+		sdp->device_size = start + length;
 	}
 
 	if (sdp->debug) {
@@ -107,7 +111,61 @@ fix_device_geometry(struct gfs2_sbd *sdp)
 			       device->subdev[x].length,
 			       device->subdev[x].rgf_flags);
 
-		printf("\njournals = %u\n", sdp->journals);
+		printf("\nDevice Size: %"PRIu64"\n", sdp->device_size);
 	}
 }
+
+void
+munge_device_geometry_for_grow(struct gfs2_sbd *sdp)
+{
+	struct device *device = &sdp->device;
+	struct device new_dev;
+	struct subdevice *new_sdev;
+	uint64_t start, length;
+	unsigned int x;
+
+	memset(&new_dev, 0, sizeof(struct device));
+
+	for (x = 0; x < device->nsubdev; x++) {
+		struct subdevice *sdev = device->subdev + x;
+
+		if (sdev->start + sdev->length < sdp->orig_fssize)
+			continue;
+		else if (sdev->start < sdp->orig_fssize) {
+			start = sdp->orig_fssize;
+			length = sdev->start + sdev->length - sdp->orig_fssize;
+			if (length < MKFS_MIN_GROW_SIZE << (20 - sdp->bsize_shift))
+				continue;
+		} else {
+			start = sdev->start;
+			length = sdev->length;
+		}
+
+		new_dev.subdev = realloc(new_dev.subdev, (new_dev.nsubdev + 1) * sizeof(struct subdevice));
+		if (!new_dev.subdev)
+			die("out of memory\n");
+		new_sdev = new_dev.subdev + new_dev.nsubdev;
+		new_sdev->start = start;
+		new_sdev->length = length;
+		new_sdev->rgf_flags = sdev->rgf_flags;
+		new_dev.nsubdev++;
+	}
+
+	free(device->subdev);
+	*device = new_dev;
+
+	if (!device->nsubdev)
+		die("The device didn't grow enough to warrant growing the FS.\n");
+
+	if (sdp->debug) {
+		printf("\nMunged Device Geometry:  (in FS blocks)\n");
+		for (x = 0; x < device->nsubdev; x++)
+			printf("  SubDevice #%u: start = %"PRIu64", length = %"PRIu64", rgf_flags = 0x%.8X\n",
+			       x,
+			       device->subdev[x].start,
+			       device->subdev[x].length,
+			       device->subdev[x].rgf_flags);
+	}
+}
+
 

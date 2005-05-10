@@ -358,7 +358,7 @@ display_gfs2(int extended)
 
 			break;
 
-		case GFS2_METATYPE_UL:
+		case GFS2_METATYPE_UT:
 			printf("Unlinked Tags:\n\n");
 			gfs2_meta_header_print(&mh);
 

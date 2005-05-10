@@ -35,14 +35,8 @@
 static uint64_t
 how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev)
 {
-	uint64_t nrgrp;
-	unsigned int min = (sdp->expert) ? 1 : 4;
-
-	nrgrp = DIV_RU(sdev->length,
-		       (sdp->rgsize << 20) / sdp->bsize);
-
-	if (nrgrp < min)
-		nrgrp = min;
+	uint64_t nrgrp = DIV_RU(sdev->length,
+				(sdp->rgsize << 20) / sdp->bsize);
 
 	if (sdp->debug)
 		printf("  nrgrp = %"PRIu64"\n", nrgrp);
@@ -58,22 +52,22 @@ how_many_rgrps(struct gfs2_sbd *sdp, struct subdevice *sdev)
  */
 
 void
-compute_rgrp_layout(struct gfs2_sbd *sdp)
+compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs)
 {
 	struct subdevice *sdev;
 	struct rgrp_list *rl, *rlast = NULL;
 	osi_list_t *tmp, *head = &sdp->rglist;
 	uint64_t rgrp, nrgrp;
 	unsigned int x;
-	int first_sdev = TRUE;
 
 	for (x = 0; x < sdp->device.nsubdev; x++) {
 		sdev = sdp->device.subdev + x;
 
 		/* If this is the first subdevice reserve space for the superblock */
-		if (first_sdev) {
+		if (new_fs) {
 			sdev->start += sdp->sb_addr + 1;
 			sdev->length -= sdp->sb_addr + 1;
+			new_fs = FALSE;
 		}
 
 		if (sdp->debug)
@@ -101,9 +95,8 @@ compute_rgrp_layout(struct gfs2_sbd *sdp)
 			rlast = rl;
 		}
 
-		first_sdev = FALSE;
-
 		sdp->rgrps += nrgrp;
+		sdp->new_rgrps += nrgrp;
 	}
 
 	if (sdp->debug) {
@@ -193,26 +186,28 @@ build_rgrps(struct gfs2_sbd *sdp)
 		rg->rg_header.mh_magic = GFS2_MAGIC;
 		rg->rg_header.mh_type = GFS2_METATYPE_RG;
 		rg->rg_header.mh_blkno = rl->start;
-		rg->rg_header.mh_format = GFS2_FORMAT_RB;
+		rg->rg_header.mh_format = GFS2_FORMAT_RG;
 		rg->rg_flags = rl->rgf_flags;
 		rg->rg_free = rgblocks;
 
-		for (x = 0; x < bitblocks; x++) {
-			bh = bget(sdp, rl->start + x);
-			if (x) {
-				mh.mh_blkno = rl->start + x;
-				gfs2_meta_header_out(&mh, bh->b_data);
-			} else
-				gfs2_rgrp_out(rg, bh->b_data);
-			brelse(bh);
-		}
+		if (!sdp->test)
+			for (x = 0; x < bitblocks; x++) {
+				bh = bget(sdp, rl->start + x);
+				if (x) {
+					mh.mh_blkno = rl->start + x;
+					gfs2_meta_header_out(&mh, bh->b_data);
+				} else
+					gfs2_rgrp_out(rg, bh->b_data);
+				brelse(bh);
+			}
 
 		if (sdp->debug) {
 			printf("\n");
 			gfs2_rindex_print(ri);
 		}
 
-		sdp->fssize += rgblocks;
+		sdp->blks_total += rgblocks;
+		sdp->fssize = ri->ri_data0 + ri->ri_data;
 	}
 }
 

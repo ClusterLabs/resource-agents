@@ -447,7 +447,7 @@ identify_block(void)
 			gfs2_meta_header_print(&mh);
 		break;
 
-	case GFS2_METATYPE_UL:
+	case GFS2_METATYPE_UT:
 		printf("Unlinked Tags\n");
 		if (verbose)
 			gfs2_meta_header_print(&mh);

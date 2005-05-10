@@ -22,43 +22,18 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
-#include <libgen.h>
 
 #include "gfs2_mkfs.h"
 
-char *prog_name;
-
 /**
- * main - do everything
+ * main_shrink - do everything
  * @argc:
  * @argv:
  *
- * Returns: 0 on success, non-0 on failure
  */
 
-int
-main(int argc, char *argv[])
+void
+main_shrink(int argc, char *argv[])
 {
-	char *p, *whoami;
-
-	prog_name = argv[0];
-	SRANDOM;
-
-	p = strdup(prog_name);
-	whoami = basename(p);
-
-	if (!strcmp(whoami, "gfs2_grow"))
-		main_grow(argc, argv);
-	else if (!strcmp(whoami, "gfs2_jadd"))
-		main_jadd(argc, argv);
-	else if (!strcmp(whoami, "gfs2_mkfs") || !strcmp(whoami, "mkfs.gfs2"))
-		main_mkfs(argc, argv);
-	else if (!strcmp(whoami, "gfs2_shrink"))
-		main_shrink(argc, argv);
-	else
-		die("I don't know who I am!\n");
-
-	free(p);
-
-	return EXIT_SUCCESS;
+	die("gfs2_shrink not implemented yet\n");
 }

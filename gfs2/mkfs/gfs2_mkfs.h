@@ -111,19 +111,21 @@ struct gfs2_sbd {
 	char lockproto[GFS2_LOCKNAME_LEN];
 	char locktable[GFS2_LOCKNAME_LEN];
 
-	uint32_t bsize;		/* The block size of the FS */
-	uint32_t journals;	/* Number of journals */
-	uint32_t jsize;		/* Size of journals */
-	uint32_t rgsize;	/* The Resource Group size */
-	unsigned int ulsize;
-	unsigned int qcsize;
+	unsigned int bsize;	 /* The block size of the FS (in bytes) */
+	unsigned int journals;
+	unsigned int jsize;	 /* Size of journals (in MB) */
+        unsigned int rgsize;     /* Size of resource groups (in MB) */
+	unsigned int utsize;     /* Size of unlinked tag files (in MB) */
+	unsigned int qcsize;     /* Size of quota change files (in MB) */
 
-	int debug;		/* Print out debugging information? */
-	int quiet;		/* No messages */
+	int debug;
+	int quiet;
+	int test;
 	int expert;
 	int override;
 
-	char *device_name;	/* device */
+	char *device_name;
+	char *path_name;
 
 	/* Constants */
 
@@ -147,17 +149,26 @@ struct gfs2_sbd {
 	int64_t time;
 
 	struct device device;
-	int fd;
+	uint64_t device_size;
+
+	int device_fd;
+	int path_fd;
 
 	uint64_t next_inum;
 	uint64_t sb_addr;
 
+	uint64_t orig_fssize;
 	uint64_t fssize;
+	uint64_t blks_total;
 	uint64_t blks_alloced;
 	uint64_t dinodes_alloced;
 
+	uint64_t orig_rgrps;
 	uint64_t rgrps;
+	uint64_t new_rgrps;
 	osi_list_t rglist;
+
+	unsigned int orig_journals;
 
 	unsigned int num_bufs;
 	osi_list_t buf_list;
@@ -168,15 +179,17 @@ struct gfs2_sbd {
 	struct gfs2_inode *statfs_inode;
 
 	unsigned int spills;
+	unsigned int writes;
 };
 
 extern char *prog_name;
 
 #define MKFS_DEFAULT_BSIZE          (4096)
 #define MKFS_DEFAULT_JSIZE          (32)
-#define MKFS_DEFAULT_RGSIZE         (1024)
-#define MKFS_DEFAULT_ULSIZE         (1)
+#define MKFS_DEFAULT_RGSIZE         (256)
+#define MKFS_DEFAULT_UTSIZE         (1)
 #define MKFS_DEFAULT_QCSIZE         (1)
+#define MKFS_MIN_GROW_SIZE          (10)
 
 #define DATA (1)
 #define META (2)
@@ -192,9 +205,10 @@ void bsync(struct gfs2_sbd *sdp);
 /* device_geometry.c */
 void device_geometry(struct gfs2_sbd *sdp);
 void fix_device_geometry(struct gfs2_sbd *sdp);
+void munge_device_geometry_for_grow(struct gfs2_sbd *sdp);
 
 /* fs_geometry.c */
-void compute_rgrp_layout(struct gfs2_sbd *sdp);
+void compute_rgrp_layout(struct gfs2_sbd *sdp, int new_fs);
 void build_rgrps(struct gfs2_sbd *sdp);
 
 /* fs_ops.c */
@@ -214,8 +228,36 @@ struct buffer_head *init_dinode(struct gfs2_sbd *sdp, struct gfs2_inum *inum,
 struct gfs2_inode *createi(struct gfs2_inode *dip, char *filename,
 			  unsigned int mode, uint32_t flags);
 
+/* live.c */
+void check_for_gfs2(struct gfs2_sbd *sdp);
+void lock_for_admin(struct gfs2_sbd *sdp);
+void path2device(struct gfs2_sbd *sdp);
+void find_block_size(struct gfs2_sbd *sdp);
+void find_current_fssize(struct gfs2_sbd *sdp);
+void add_to_rindex(struct gfs2_sbd *sdp);
+void statfs_sync(struct gfs2_sbd *sdp);
+void find_current_journals(struct gfs2_sbd *sdp);
+int rename2system(struct gfs2_sbd *sdp, char *new_dir, char *new_name);
+void make_jdata(int fd, char *value);
+uint64_t bmap(int fd, uint64_t lblock);
+
 /* locking.c */
 void test_locking(char *lockproto, char *locktable);
+
+/* main_grow */
+void main_grow(int argc, char *argv[]);
+
+/* main_jadd */
+void main_jadd(int argc, char *argv[]);
+
+/* main_mkfs */
+void main_mkfs(int argc, char *argv[]);
+
+/* main_shrink */
+void main_shrink(int argc, char *argv[]);
+
+/* misc.c */
+void compute_constants(struct gfs2_sbd *sdp);
 
 /* structures.c */
 void build_master(struct gfs2_sbd *sdp);
