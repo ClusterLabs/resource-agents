@@ -252,20 +252,24 @@ static void message_callback(cman_handle_t h, void *private, char *buf,
 
 int process_member_message(void)
 {
+	int rv = 0;
+
 	while (1) {
 		cman_dispatch(ch, CMAN_DISPATCH_ONE);
 
 		if (member_cb) {
 			member_cb = 0;
 			process_member();
+			rv = 1;
 		} else if (message_cb) {
 			message_cb = 0;
 			process_message(message_buf, message_len,
 					message_nodeid);
+			rv = 1;
 		} else
 			break;
 	}
-	return 0;
+	return rv;
 }
 
 int setup_member_message(void)
@@ -412,7 +416,6 @@ int do_barrier(group_t *g, char *name, int count, int type)
 	struct barrier_wait *bw;
 	int error = 0;
 
-#if 0
 	error = cman_barrier_register(ch, name, 0, count);
 	if (error < 0)
 		return error;
@@ -442,7 +445,7 @@ int do_barrier(group_t *g, char *name, int count, int type)
 		log_error(g, "cman_barrier_wait errno %d", errno);
 		cman_barrier_delete(ch, name);
 	}
-#endif
+
 	return error;
 }
 

@@ -361,6 +361,7 @@ static int loop(void)
 			rv += process_joinleave();
 			rv += process_updates();
 			rv += process_barriers();
+			rv += process_member_message();
 		} while (rv);
 
 
