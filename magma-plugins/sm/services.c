@@ -159,10 +159,13 @@ _read_services(char **buffer)
 			free(*buffer);
 			*buffer = NULL;
 		}
+
+		close(fd);
 		return 0;
 	}
 
 	ret += n;
+	close(fd);
 	return ret;
 }
 
