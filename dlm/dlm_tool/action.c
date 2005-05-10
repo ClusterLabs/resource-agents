@@ -194,7 +194,6 @@ int ls_start(int argc, char **argv)
 
 	for (i = 3; i < argc; i++)
 		len += strlen(argv[i]) + 1;
-	len -= 1;
 
 	p = malloc(len);
 	if (!p) {
@@ -217,7 +216,6 @@ int ls_start(int argc, char **argv)
 		return -1;
 	}
 
-	printf("write to %s %d: \"%s\"\n", fname, len, p);
 	rv = write(fd, p, len);
 	if (rv != len) {
 		printf("write error %s %d %d\n", fname, rv, errno);
@@ -238,7 +236,6 @@ int ls_start(int argc, char **argv)
 		return -1;
 	}
 
-	printf("write to %s: \"%s\"\n", fname, argv[1]);
 	len = strlen(argv[1]);
 	rv = write(fd, argv[1], len);
 	if (rv != len)
