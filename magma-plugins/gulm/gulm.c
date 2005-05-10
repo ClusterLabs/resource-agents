@@ -485,6 +485,7 @@ gulm_nodechange(void *misc, char *nodename, struct in6_addr *nodeip,
 	switch(nodestate) {
 	case lg_core_Logged_in:
 	case lg_core_Logged_out:
+	case lg_core_Fenced:
 		*event = CE_MEMB_CHANGE;
 		break;
 	default:
