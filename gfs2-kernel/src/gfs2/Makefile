@@ -59,6 +59,7 @@ gfs2-objs := \
 	page.o \
 	proc.o \
 	quota.o \
+	resize.o \
 	recovery.o \
 	rgrp.o \
 	super.o \

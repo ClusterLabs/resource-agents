@@ -144,10 +144,10 @@ gfs2_put_super(struct super_block *sb)
 	gfs2_inode_put(sdp->sd_statfs_inode);
 	gfs2_inode_put(sdp->sd_rindex);
 	gfs2_inode_put(sdp->sd_quota_inode);
-	gfs2_inode_put(sdp->sd_root_inode);
+	gfs2_inode_put(sdp->sd_root_dir);
 
-	gfs2_glock_put(sdp->sd_trans_gl);
 	gfs2_glock_put(sdp->sd_rename_gl);
+	gfs2_glock_put(sdp->sd_trans_gl);
 
 	if (!sdp->sd_args.ar_spectator) {
 		gfs2_glock_dq_uninit(&sdp->sd_journal_gh);

@@ -47,7 +47,7 @@ munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 	error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 	if (error)
 		RETURN(G2FN_MUNGE_ONDISK, error);
-	if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UL)) {
+	if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UT)) {
 		error = -EIO;
 		goto out;
 	}
@@ -393,7 +393,7 @@ gfs2_unlinked_init(struct gfs2_sbd *sdp)
 		if (error)
 			goto fail;
 		error = -EIO;
-		if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UL)) {
+		if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UT)) {
 			brelse(bh);
 			goto fail;
 		}

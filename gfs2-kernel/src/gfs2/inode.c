@@ -833,7 +833,7 @@ gfs2_lookupi(struct gfs2_holder *ghs, struct qstr *name, int is_root)
 		RETURN(G2FN_LOOKUPI, -ENAMETOOLONG);
 
 	if (gfs2_filecmp(name, ".", 1) ||
-	    (gfs2_filecmp(name, "..", 2) && dip == sdp->sd_root_inode)) {
+	    (gfs2_filecmp(name, "..", 2) && dip == sdp->sd_root_dir)) {
 		gfs2_holder_reinit(LM_ST_SHARED, 0, ghs);
 		error = gfs2_glock_nq(ghs);
 		if (!error) {
@@ -987,10 +987,7 @@ gfs2_lookup_simple(struct gfs2_inode *dip, char *filename,
 
 	*ipp = get_gl2ip(ghs[1].gh_gl);
 
-	gfs2_glock_dq_m(2, ghs);
-
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	RETURN(G2FN_LOOKUP_SIMPLE, error);
 }
@@ -1702,7 +1699,7 @@ gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
 			error = -EINVAL;
 			break;
 		}
-		if (to == sdp->sd_root_inode) {
+		if (to == sdp->sd_root_dir) {
 			error = 0;
 			break;
 		}
@@ -1722,10 +1719,7 @@ gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
 
 		tmp = get_gl2ip(ghs[1].gh_gl);
 
-		gfs2_glock_dq_m(2, ghs);
-
-		gfs2_holder_uninit(ghs);
-		gfs2_holder_uninit(ghs + 1);
+		gfs2_glock_dq_uninit_m(2, ghs);
 
 		gfs2_inode_put(to);
 		to = tmp;

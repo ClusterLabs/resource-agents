@@ -113,7 +113,7 @@
 #define GFS2_FORMAT_LB           (1000) /* Log Block */
 #define GFS2_FORMAT_EA           (1100) /* Extended Attribute */
 #define GFS2_FORMAT_ED           (1200) /* Extended Attribute data */
-#define GFS2_FORMAT_UL           (1300) /* Unlinked inode block */
+#define GFS2_FORMAT_UT           (1300) /* Unlinked Tag inode block */
 #define GFS2_FORMAT_QC           (1400) /* Quota Change inode block */
 /* These are format number for entities contained in files */
 #define GFS2_FORMAT_RI           (1500) /* Resource Group Index */
@@ -191,8 +191,18 @@ struct gfs2_inum {
 #define GFS2_METATYPE_LB         (10)   /* Log Block */
 #define GFS2_METATYPE_EA         (11)   /* Extended Attribute */
 #define GFS2_METATYPE_ED         (12)   /* Extended Attribute data */
-#define GFS2_METATYPE_UL         (13)   /* Unlinked inode block */
+#define GFS2_METATYPE_UT         (13)   /* Unlinked inode block */
 #define GFS2_METATYPE_QC         (14)   /* Quota Change inode block */
+
+/*
+*********************************************************************************************
+*********************************************************************************************
+*********************************************************************************************
+make mh_type and mh_format into uint16_t
+*********************************************************************************************
+*********************************************************************************************
+*********************************************************************************************
+*/
 
 struct gfs2_meta_header {
 	uint32_t mh_magic;      /* GFS2_MAGIC sanity check magic number */
@@ -216,7 +226,6 @@ struct gfs2_meta_header {
 
 /*  The lock number for the superblock (must be zero)  */
 #define GFS2_SB_LOCK             (0)
-#define GFS2_CRAP_LOCK           (1)
 
 /*  Requirement:  GFS2_LOCKNAME_LEN % 8 == 0
     Includes: the fencing zero at the end  */

@@ -99,10 +99,7 @@ gfs2_create(struct inode *dir, struct dentry *dentry,
 		gfs2_alloc_put(dip);
 	}
 
-	gfs2_glock_dq_m(2, ghs);
-
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
@@ -286,10 +283,7 @@ gfs2_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	if (ghs[1].gh_gl) {
 		ip = get_gl2ip(ghs[1].gh_gl);
 
-		gfs2_glock_dq_m(2, ghs);
-
-		gfs2_holder_uninit(ghs);
-		gfs2_holder_uninit(ghs + 1);
+		gfs2_glock_dq_uninit_m(2, ghs);
 
 		inode = gfs2_ip2v(ip, CREATE);
 		gfs2_inode_put(ip);
@@ -556,10 +550,7 @@ gfs2_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
 	gfs2_quota_unlock(dip);
 	gfs2_alloc_put(dip);
 
-	gfs2_glock_dq_m(2, ghs);
-
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
@@ -648,10 +639,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	gfs2_quota_unlock(dip);
 	gfs2_alloc_put(dip);
 
-	gfs2_glock_dq_m(2, ghs);
-
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
@@ -797,10 +785,7 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	gfs2_quota_unlock(dip);
 	gfs2_alloc_put(dip);
 
-	gfs2_glock_dq_m(2, ghs);
-
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
@@ -826,7 +811,7 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 
 static int
 gfs2_rename(struct inode *odir, struct dentry *odentry,
-	   struct inode *ndir, struct dentry *ndentry)
+	    struct inode *ndir, struct dentry *ndentry)
 {
 	ENTER(G2FN_RENAME)
 	struct gfs2_inode *odip = get_v2ip(odir);
@@ -942,6 +927,14 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 		}
 	}
 
+	/* Check out the file to be renamed */
+
+	if (dir_rename) {
+		error = gfs2_repermission(odentry->d_inode, MAY_WRITE, NULL);
+		if (error)
+			goto out_gunlock;
+	}
+
 	error = gfs2_diradd_alloc_required(ndip, &ndentry->d_name, &alloc_required);
 	if (error)
 		goto out_gunlock;
@@ -1005,6 +998,15 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 		error = gfs2_dir_mvino(ip, &name, &ndip->i_num, DT_DIR);
 		if (error)
 			goto out_end_trans;
+	} else {
+		struct buffer_head *dibh;
+		error = gfs2_meta_inode_buffer(ip, &dibh);
+		if (error)
+			goto out_end_trans;
+		ip->i_di.di_ctime = get_seconds();
+		gfs2_trans_add_bh(ip->i_gl, dibh);
+		gfs2_dinode_out(&ip->i_di, dibh->b_data);
+		brelse(dibh);
 	}
 
 	error = gfs2_dir_del(odip, &odentry->d_name);

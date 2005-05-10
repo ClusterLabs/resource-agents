@@ -2150,6 +2150,25 @@ gfs2_glock_dq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 }
 
 /**
+ * gfs2_glock_dq_uninit_m - release multiple glocks
+ * @num_gh: the number of structures
+ * @ghs: an array of struct gfs2_holder structures
+ *
+ */
+
+void
+gfs2_glock_dq_uninit_m(unsigned int num_gh, struct gfs2_holder *ghs)
+{
+	ENTER(G2FN_GLOCK_DQ_UNINIT_M)
+	unsigned int x;
+
+	for (x = 0; x < num_gh; x++)
+		gfs2_glock_dq_uninit(&ghs[x]);
+
+	RET(G2FN_GLOCK_DQ_UNINIT_M);
+}
+
+/**
  * gfs2_glock_prefetch_num - prefetch a glock based on lock number
  * @sdp: the filesystem
  * @number: the lock number

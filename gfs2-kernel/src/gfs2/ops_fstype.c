@@ -233,7 +233,7 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 	}
 
 	/* Get a handle on the transaction glock; we need this for disk format
-	    upgrade and journal replays, as well as normal operation. */
+	   upgrade and journal replays, as well as normal operation. */
 	error = gfs2_glock_get(sdp, GFS2_TRANS_LOCK, &gfs2_trans_glops,
 			       CREATE, &sdp->sd_trans_gl);
 	if (error) {
@@ -540,7 +540,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "root", &sdp->sd_root_inode);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "root", &sdp->sd_root_dir);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in root inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -548,7 +548,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode/dentry */
-	inode = gfs2_ip2v(sdp->sd_root_inode, CREATE);
+	inode = gfs2_ip2v(sdp->sd_root_dir, CREATE);
 	if (!inode) {
 		printk("GFS2: fsid=%s: can't get root inode\n", sdp->sd_fsname);
 		error = -ENOMEM;
@@ -570,7 +570,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	*dentry = NULL;
 
  fail_rooti:
-	gfs2_inode_put(sdp->sd_root_inode);
+	gfs2_inode_put(sdp->sd_root_dir);
 
  fail_qinode:
 	gfs2_inode_put(sdp->sd_quota_inode);

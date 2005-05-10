@@ -33,6 +33,7 @@
 #include "log.h"
 #include "meta_io.h"
 #include "quota.h"
+#include "resize.h"
 #include "rgrp.h"
 #include "super.h"
 #include "trans.h"
@@ -897,6 +898,46 @@ gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 }
 
+static int
+gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+{
+	ENTER(G2FN_GI_GET_BMAP)
+	struct gfs2_holder gh;
+	uint64_t lblock, dblock = 0;
+	int new = FALSE;
+	int error;
+
+	if (gi->gi_argc != 1)
+		RETURN(G2FN_GI_GET_BMAP, -EINVAL);
+	if (gi->gi_size != sizeof(uint64_t))
+		RETURN(G2FN_GI_GET_BMAP, -EINVAL);
+
+	error = copy_from_user(&lblock, gi->gi_data, sizeof(uint64_t));
+	if (error)
+		RETURN(G2FN_GI_GET_BMAP, -EFAULT);
+
+	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &gh);
+	if (error)
+		RETURN(G2FN_GI_GET_BMAP, error);
+
+        error = -EACCES;
+        if (ip->i_di.di_uid == current->fsuid || capable(CAP_FOWNER)) {
+		error = 0;
+		if (!gfs2_is_stuffed(ip))
+			error = gfs2_block_map(ip, lblock, &new, &dblock, NULL);
+	}
+
+	gfs2_glock_dq_uninit(&gh);
+
+	if (!error) {
+		error = copy_to_user(gi->gi_data, &dblock, sizeof(uint64_t));
+		if (error)
+			error = -EFAULT;
+	}
+
+	RETURN(G2FN_GI_GET_BMAP, error);
+}
+
 /**
  * gi_get_file_meta - Return all the metadata for a file
  * @ip:
@@ -1125,7 +1166,7 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	gfs2_write_calc_reserv(ip, gi->gi_size, &data_blocks, &ind_blocks);
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
-				   LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
+				   LM_FLAG_PRIORITY, &i_gh);
 	if (error)
 		RETURN(G2FN_GI_DO_HFILE_WRITE, error);
 
@@ -1175,7 +1216,6 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 		gfs2_alloc_put(ip);
 
  out:
-	ip->i_gl->gl_vn++;
 	gfs2_glock_dq_uninit(&i_gh);
 
 	RETURN(G2FN_GI_DO_HFILE_WRITE, error);
@@ -1207,13 +1247,12 @@ gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (!S_ISREG(ip->i_di.di_mode))
 		RETURN(G2FN_GI_DO_HFILE_TRUNC, -EINVAL);
 
-	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, GL_SYNC, &i_gh);
+	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
 		RETURN(G2FN_GI_DO_HFILE_TRUNC, error);
 
 	error = gfs2_truncatei(ip, gi->gi_offset, NULL);
 
-	ip->i_gl->gl_vn++;
 	gfs2_glock_dq_uninit(&i_gh);
 
 	RETURN(G2FN_GI_DO_HFILE_TRUNC, error);
@@ -1339,6 +1378,100 @@ gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 }
 
 /**
+ * gi_do_statfs_sync - sync the outstanding statfs changes for a FS
+ * @sdp:
+ * @gi:
+ *
+ * Returns: errno
+ */
+
+static int
+gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+{
+	ENTER(G2FN_GI_DO_STATFS_SYNC)
+	if (!capable(CAP_SYS_ADMIN))
+		RETURN(G2FN_GI_DO_STATFS_SYNC, -EACCES);
+	if (gi->gi_argc != 1)
+		RETURN(G2FN_GI_DO_STATFS_SYNC, -EINVAL);
+	RETURN(G2FN_GI_DO_STATFS_SYNC, gfs2_statfs_sync(sdp));
+}
+
+static int
+gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+{
+	ENTER(G2FN_GI_RESIZE_ADD_RGRPS)
+
+	if (!capable(CAP_SYS_ADMIN))
+		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EACCES);
+	if (gi->gi_argc != 1)
+		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EINVAL);
+	if (gi->gi_size % sizeof(struct gfs2_rindex))
+		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EINVAL);
+
+	RETURN(G2FN_GI_RESIZE_ADD_RGRPS,
+	       gfs2_resize_add_rgrps(sdp, gi->gi_data, gi->gi_size));
+}
+
+static int
+gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+{
+	ENTER(G2FN_GI_RENAME2SYSTEM)
+	char new_dir[ARG_SIZE], new_name[ARG_SIZE];
+	struct gfs2_inode *old_dip, *ip, *new_dip;
+	int put_new_dip = FALSE;
+	int error;
+
+	if (!capable(CAP_SYS_ADMIN))
+		RETURN(G2FN_GI_RENAME2SYSTEM, -EACCES);
+	if (gi->gi_argc != 3)
+		RETURN(G2FN_GI_RENAME2SYSTEM, -EINVAL);
+
+        if (strncpy_from_user(new_dir, gi->gi_argv[1], ARG_SIZE) < 0)
+                RETURN(G2FN_GI_RENAME2SYSTEM, -EFAULT);
+        new_dir[ARG_SIZE - 1] = 0;
+        if (strncpy_from_user(new_name, gi->gi_argv[2], ARG_SIZE) < 0)
+                RETURN(G2FN_GI_RENAME2SYSTEM, -EFAULT);
+        new_name[ARG_SIZE - 1] = 0;
+
+	error = gfs2_lookup_simple(sdp->sd_root_dir, ".gfs2_admin", &old_dip);
+	if (error)
+		RETURN(G2FN_GI_RENAME2SYSTEM, error);
+
+	error = -ENOTDIR;
+	if (!S_ISDIR(old_dip->i_di.di_mode))
+		goto out;
+
+	error = gfs2_lookup_simple(old_dip, "new_inode", &ip);
+	if (error)
+		goto out;
+
+	if (!strcmp(new_dir, "per_node")) {
+		error = gfs2_lookup_simple(sdp->sd_master_dir, "per_node", &new_dip);
+		if (error)
+			goto out2;
+		put_new_dip = TRUE;
+	} else if (!strcmp(new_dir, "jindex"))
+		new_dip = sdp->sd_jindex;
+	else {
+		error = -EINVAL;
+		goto out2;
+	}
+
+	error = gfs2_rename2system(ip, old_dip, "new_inode", new_dip, new_name);
+
+	if (put_new_dip)
+		gfs2_inode_put(new_dip);
+
+ out2:
+	gfs2_inode_put(ip);
+	
+ out:
+	gfs2_inode_put(old_dip);
+
+	RETURN(G2FN_GI_RENAME2SYSTEM, error);
+}
+
+/**
  * gfs2_ioctl_i -
  * @ip:
  * @arg:
@@ -1394,6 +1527,8 @@ gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		error = gi_get_file_stat(ip, &gi);
 	else if (strcmp(arg0, "set_file_flag") == 0)
 		error = gi_set_file_flag(ip, &gi);
+	else if (strcmp(arg0, "get_bmap") == 0)
+		error = gi_get_bmap(ip, &gi);
 	else if (strcmp(arg0, "get_file_meta") == 0)
 		error = gi_get_file_meta(ip, &gi);
 	else if (strcmp(arg0, "do_file_flush") == 0)
@@ -1412,6 +1547,12 @@ gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		error = gi_do_quota_refresh(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_quota_read") == 0)
 		error = gi_do_quota_read(ip->i_sbd, &gi);
+	else if (strcmp(arg0, "do_statfs_sync") == 0)
+		error = gi_do_statfs_sync(ip->i_sbd, &gi);
+	else if (strcmp(arg0, "resize_add_rgrps") == 0)
+		error = gi_resize_add_rgrps(ip->i_sbd, &gi);
+	else if (strcmp(arg0, "rename2system") == 0)
+		error = gi_rename2system(ip->i_sbd, &gi);
 	else
 		error = -ENOTTY;
 

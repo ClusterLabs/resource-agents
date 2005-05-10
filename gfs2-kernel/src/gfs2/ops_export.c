@@ -109,7 +109,7 @@ gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	fh[3] = cpu_to_gfs2_32(fh[3]);
 	*len = 4;
 
-	if (!connectable || ip == sdp->sd_root_inode)
+	if (!connectable || ip == sdp->sd_root_dir)
 		RETURN(G2FN_ENCODE_FH, *len);
 
 	spin_lock(&dentry->d_lock);
@@ -255,9 +255,7 @@ gfs2_get_parent(struct dentry *child)
 
 	ip = get_gl2ip(ghs[1].gh_gl);
 
-	gfs2_glock_dq_m(2, ghs);
-	gfs2_holder_uninit(ghs);
-	gfs2_holder_uninit(ghs + 1);
+	gfs2_glock_dq_uninit_m(2, ghs);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);

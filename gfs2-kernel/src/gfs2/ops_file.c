@@ -1286,7 +1286,7 @@ gfs2_open(struct inode *inode, struct file *file)
 		RETURN(G2FN_OPEN, -ENOMEM);
 	memset(fp, 0, sizeof(struct gfs2_file));
 
-	init_MUTEX(&fp->f_fl_lock);
+	init_MUTEX(&fp->f_fl_mutex);
 
 	fp->f_inode = ip;
 	fp->f_vfile = file;
@@ -1354,8 +1354,10 @@ gfs2_close(struct inode *inode, struct file *file)
 	fp = get_v2fp(file);
 	set_v2fp(file, NULL);
 
-	if (!gfs2_assert_warn(sdp, fp))
-		kfree(fp);
+	if (gfs2_assert_warn(sdp, fp))
+		RETURN(G2FN_CLOSE, -EIO);
+
+	kfree(fp);
 
 	RETURN(G2FN_CLOSE, 0);
 }
@@ -1504,7 +1506,7 @@ do_flock(struct file *file, int cmd, struct file_lock *fl)
 	state = (fl->fl_type == F_WRLCK) ? LM_ST_EXCLUSIVE : LM_ST_SHARED;
 	flags = ((IS_SETLKW(cmd)) ? 0 : LM_FLAG_TRY) | GL_EXACT | GL_NOCACHE;
 
-	down(&fp->f_fl_lock);
+	down(&fp->f_fl_mutex);
 
 	gl = fl_gh->gh_gl;
 	if (gl) {
@@ -1536,7 +1538,7 @@ do_flock(struct file *file, int cmd, struct file_lock *fl)
 	}
 
  out:
-	up(&fp->f_fl_lock);
+	up(&fp->f_fl_mutex);
 
 	RETURN(G2FN_DO_FLOCK, error);
 }
@@ -1555,11 +1557,11 @@ do_unflock(struct file *file, struct file_lock *fl)
 	struct gfs2_file *fp = get_v2fp(file);
 	struct gfs2_holder *fl_gh = &fp->f_fl_gh;
 
-	down(&fp->f_fl_lock);
+	down(&fp->f_fl_mutex);
 	flock_lock_file_wait(file, fl);
 	if (fl_gh->gh_gl)
 		gfs2_glock_dq_uninit(fl_gh);
-	up(&fp->f_fl_lock);
+	up(&fp->f_fl_mutex);
 
 	RET(G2FN_DO_UNFLOCK);
 }

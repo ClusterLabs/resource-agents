@@ -527,10 +527,10 @@ struct gfs2_inode {
 struct gfs2_file {
 	unsigned long f_flags; /* GFF_...  see above */
 
-	struct semaphore f_fl_lock; /* Lock to protect flock operations */
+	struct semaphore f_fl_mutex; /* Lock to protect flock operations */
 	struct gfs2_holder f_fl_gh; /* Holder for this f_vfile's flock */
 
-	struct gfs2_inode *f_inode;        /* Incore GFS2 inode */
+	struct gfs2_inode *f_inode;       /* Incore GFS2 inode */
 	struct file *f_vfile;             /* Linux file struct */
 };
 
@@ -856,7 +856,7 @@ struct gfs2_sbd {
 	struct gfs2_inode *sd_qc_inode;
 	struct gfs2_inode *sd_rindex;	    /* Resource Index (rindex) inode */
 	struct gfs2_inode *sd_quota_inode;   /* Special on-disk quota file */
-	struct gfs2_inode *sd_root_inode;
+	struct gfs2_inode *sd_root_dir;
 
 	/* Inum stuff */
 

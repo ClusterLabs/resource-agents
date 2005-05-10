@@ -305,7 +305,7 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 
 	for (;;) {
 		error = gfs2_glock_nq_init(sdp->sd_jindex->i_gl, LM_ST_SHARED,
-					  GL_LOCAL_EXCL, ji_gh);
+					   GL_LOCAL_EXCL, ji_gh);
 		if (error)
 			break;
 
@@ -345,10 +345,7 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 
 		jd->jd_inode = get_gl2ip(ghs[1].gh_gl);
 
-		gfs2_glock_dq_m(2, ghs);
-
-		gfs2_holder_uninit(ghs);
-		gfs2_holder_uninit(ghs + 1);
+		gfs2_glock_dq_uninit_m(2, ghs);
 
 		spin_lock(&sdp->sd_jindex_spin);
 		jd->jd_jid = sdp->sd_journals++;
@@ -473,7 +470,7 @@ gfs2_jdesc_check(struct gfs2_jdesc *jd)
 	int ar;
 	int error;
 
-	if (ip->i_di.di_size < (1 << 20) ||
+	if (ip->i_di.di_size < (8 << 20) ||
 	    ip->i_di.di_size > (1 << 30) ||
 	    (ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1))) {
 		gfs2_consist_inode(ip);
@@ -896,6 +893,11 @@ gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 	RETURN(G2FN_STATFS_SLOW, error);
 }
 
+struct lfcc {
+	struct list_head list;
+	struct gfs2_holder gh;
+};
+
 /**
  * gfs2_lock_fs_check_clean - Stop all writes to the FS and check that all journals are clean
  * @sdp: the file system
@@ -909,13 +911,64 @@ int
 gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 {
 	ENTER(G2FN_LOCK_FS_CHECK_CLEAN)
+       	struct gfs2_holder ji_gh;
+	struct list_head *head, *tmp;
+	struct gfs2_jdesc *jd;
+	struct lfcc *lfcc;
+	LIST_HEAD(list);
+	struct gfs2_log_header lh;
 	int error;
+
+	error = gfs2_jindex_hold(sdp, &ji_gh);
+	if (error)
+		RETURN(G2FN_LOCK_FS_CHECK_CLEAN, error);
+
+	for (head = &sdp->sd_jindex_list, tmp = head->next;
+	     tmp != head;
+	     tmp = tmp->next) {
+		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
+		lfcc = kmalloc(sizeof(struct lfcc), GFP_KERNEL);
+		if (!lfcc) {
+			error = -ENOMEM;
+			goto out;
+		}
+		error = gfs2_glock_nq_init(jd->jd_inode->i_gl, LM_ST_SHARED, 0, &lfcc->gh);
+		if (error) {
+			kfree(lfcc);
+			goto out;
+		}
+		list_add(&lfcc->list, &list);
+	}
 
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_DEFERRED,
 				   LM_FLAG_PRIORITY | GL_NEVER_RECURSE | GL_NOCACHE,
 				   t_gh);
 
-	/* FixMe!!!  We need to check for dirty journals. */
+	for (tmp = head->next; tmp != head; tmp = tmp->next) {
+		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
+		error = gfs2_jdesc_check(jd);
+		if (error)
+			break;
+		error = gfs2_find_jhead(jd, &lh);
+		if (error)
+			break;
+		if (!(lh.lh_flags & GFS2_LOG_HEAD_UNMOUNT)) {
+			error = -EBUSY;
+			break;
+		}
+	}
+
+	if (error)
+		gfs2_glock_dq_uninit(t_gh);
+
+ out:
+	while (!list_empty(&list)) {
+		lfcc = list_entry(list.next, struct lfcc, list);
+		list_del(&lfcc->list);
+		gfs2_glock_dq_uninit(&lfcc->gh);
+		kfree(lfcc);
+	}
+	gfs2_glock_dq_uninit(&ji_gh);
 
 	RETURN(G2FN_LOCK_FS_CHECK_CLEAN, error);
 }

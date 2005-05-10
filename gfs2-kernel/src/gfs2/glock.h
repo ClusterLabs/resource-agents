@@ -87,19 +87,19 @@ gfs2_glock_is_blocking(struct gfs2_glock *gl)
 }
 
 struct gfs2_glock *gfs2_glock_find(struct gfs2_sbd *sdp,
-				 struct lm_lockname *name);
+				   struct lm_lockname *name);
 int gfs2_glock_get(struct gfs2_sbd *sdp,
-		  uint64_t number, struct gfs2_glock_operations *glops,
-		  int create, struct gfs2_glock **glp);
+		   uint64_t number, struct gfs2_glock_operations *glops,
+		   int create, struct gfs2_glock **glp);
 void gfs2_glock_hold(struct gfs2_glock *gl);
 void gfs2_glock_put(struct gfs2_glock *gl);
 
 void gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
-		     struct gfs2_holder *gh);
+		      struct gfs2_holder *gh);
 void gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh);
 void gfs2_holder_uninit(struct gfs2_holder *gh);
 struct gfs2_holder *gfs2_holder_get(struct gfs2_glock *gl, unsigned int state,
-				  int flags);
+				    int flags);
 void gfs2_holder_put(struct gfs2_holder *gh);
 
 void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags);
@@ -116,18 +116,19 @@ void gfs2_glock_force_drop(struct gfs2_glock *gl);
 int gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time);
 
 int gfs2_glock_nq_init(struct gfs2_glock *gl, unsigned int state, int flags,
-		      struct gfs2_holder *gh);
+		       struct gfs2_holder *gh);
 void gfs2_glock_dq_uninit(struct gfs2_holder *gh);
 int gfs2_glock_nq_num(struct gfs2_sbd *sdp,
-		     uint64_t number, struct gfs2_glock_operations *glops,
-		     unsigned int state, int flags, struct gfs2_holder *gh);
+		      uint64_t number, struct gfs2_glock_operations *glops,
+		      unsigned int state, int flags, struct gfs2_holder *gh);
 
 int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs);
 void gfs2_glock_dq_m(unsigned int num_gh, struct gfs2_holder *ghs);
+void gfs2_glock_dq_uninit_m(unsigned int num_gh, struct gfs2_holder *ghs);
 
 void gfs2_glock_prefetch_num(struct gfs2_sbd *sdp,
-			    uint64_t number, struct gfs2_glock_operations *glops,
-			    unsigned int state, int flags);
+			     uint64_t number, struct gfs2_glock_operations *glops,
+			     unsigned int state, int flags);
 
 /*  Lock Value Block functions  */
 
