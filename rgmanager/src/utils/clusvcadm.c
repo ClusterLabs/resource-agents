@@ -79,9 +79,9 @@ main(int argc, char **argv)
 	int opt;
 	int msgfd = -1, fd;
 	SmMessageSt msg;
-	int action = RG_STATUS, svctarget = -1;
+	int action = RG_STATUS;
 	int node_specified = 0;
-       	uint64_t msgtarget, me;
+       	uint64_t msgtarget, me, svctarget = NODE_ID_NONE;
 	char *actionstr = NULL;
 	cluster_member_list_t *membership;
 
