@@ -753,7 +753,8 @@ ip_status() {
 
   case $SYSTYPE in
       *BSD)
-	  if [ $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1 ]; then
+	  $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+	  if [ $? = 0 ]; then
 	      return $OCF_SUCCESS
 	  else
 	      return $OCF_NOT_RUNNING
