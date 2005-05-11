@@ -570,22 +570,6 @@ trans_go_drop_th(struct gfs2_glock *gl)
 	RET(G2FN_TRANS_GO_DROP_TH);
 }
 
-static void
-rename_go_sync(struct gfs2_glock *gl, int flags)
-{
-	ENTER(G2FN_RENAME_GO_SYNC);
-
-	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
-		gfs2_log_flush_glock(gl);
-		if (flags & DIO_RELEASE)
-			clear_bit(GLF_DIRTY, &gl->gl_flags);
-	}
-
-	clear_bit(GLF_SYNC, &gl->gl_flags);
-
-	RET(G2FN_RENAME_GO_SYNC);
-}
-
 /**
  * quota_go_demote_ok - Check to see if it's ok to unlock a quota glock
  * @gl: the glock
@@ -640,13 +624,6 @@ struct gfs2_glock_operations gfs2_trans_glops = {
 	.go_xmote_th = trans_go_xmote_th,
 	.go_xmote_bh = trans_go_xmote_bh,
 	.go_drop_th = trans_go_drop_th,
-	.go_type = LM_TYPE_NONDISK
-};
-
-struct gfs2_glock_operations gfs2_rename_glops = {
-	.go_xmote_th = gfs2_glock_xmote_th,
-	.go_drop_th = gfs2_glock_drop_th,
-	.go_sync = rename_go_sync,
 	.go_type = LM_TYPE_NONDISK
 };
 

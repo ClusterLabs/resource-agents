@@ -224,7 +224,7 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 	}
 
 	/* Get a handle on the rename lock */
-	error = gfs2_glock_get(sdp, GFS2_RENAME_LOCK, &gfs2_rename_glops,
+	error = gfs2_glock_get(sdp, GFS2_RENAME_LOCK, &gfs2_nondisk_glops,
 			       CREATE, &sdp->sd_rename_gl);
 	if (error) {
 		printk("GFS2: fsid=%s: can't create rename glock: %d\n",

@@ -925,7 +925,7 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 		}
 	}
 
-	/* Check out the file to be renamed */
+	/* Check out the dir to be renamed */
 
 	if (dir_rename) {
 		error = gfs2_repermission(odentry->d_inode, MAY_WRITE, NULL);
@@ -1014,9 +1014,6 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
 	error = gfs2_dir_add(ndip, &ndentry->d_name, &ip->i_num, IF2DT(ip->i_di.di_mode));
 	if (error)
 		goto out_end_trans;
-
-	if (dir_rename)
-		gfs2_trans_add_gl(sdp->sd_rename_gl);
 
  out_end_trans:
 	gfs2_trans_end(sdp);
