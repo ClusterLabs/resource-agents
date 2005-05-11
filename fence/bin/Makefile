@@ -28,6 +28,8 @@ SBINPROGS= \
 	fence_tool \
 	fence_vixel \
 	fence_wti \
+	fence_bullpap \
+	fence_ipmilan \
 	fenced
 
 

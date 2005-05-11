@@ -1,4 +1,4 @@
-###############################################################################
+##############################################################################
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
@@ -25,7 +25,7 @@ all:
 	cd manual && ${MAKE} all
 	cd mcdata && ${MAKE} all
 	# cd rackswitch && ${MAKE} all
-	# cd rps10 && ${MAKE} all
+	cd rps10 && ${MAKE} all
 	cd sanbox2 && ${MAKE} all
 	cd vixel && ${MAKE} all
 	cd wti && ${MAKE} all
@@ -45,7 +45,7 @@ copytobin:
 	cd manual && ${MAKE} copytobin
 	cd mcdata && ${MAKE} copytobin
 	# cd rackswitch && ${MAKE} copytobin
-	# cd rps10 && ${MAKE} copytobin
+	cd rps10 && ${MAKE} copytobin
 	cd sanbox2 && ${MAKE} copytobin
 	cd vixel && ${MAKE} copytobin
 	cd wti && ${MAKE} copytobin
@@ -65,7 +65,7 @@ clean:
 	cd manual && ${MAKE} clean
 	cd mcdata && ${MAKE} clean
 	# cd rackswitch && ${MAKE} clean
-	# cd rps10 && ${MAKE} clean
+	cd rps10 && ${MAKE} clean
 	cd sanbox2 && ${MAKE} clean
 	cd vixel && ${MAKE} clean
 	cd wti && ${MAKE} clean
