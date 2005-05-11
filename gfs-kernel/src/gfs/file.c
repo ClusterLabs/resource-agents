@@ -146,10 +146,16 @@ gfs_readi(struct gfs_inode *ip, void *buf,
 			amount = sdp->sd_sb.sb_bsize - o;
 
 		if (!extlen) {
-			error = gfs_block_map(ip, lblock, &not_new,
-					      &dblock, &extlen);
-			if (error)
-				goto fail;
+			if (!gfs_is_stuffed(ip)) {
+				error = gfs_block_map(ip, lblock, &not_new,
+						      &dblock, &extlen);
+				if (error)
+					goto fail;
+			} else if (!lblock) {
+				dblock = ip->i_num.no_addr;
+				extlen = 1;
+			} else
+				dblock = 0;
 		}
 
 		if (extlen > 1)
@@ -349,10 +355,16 @@ gfs_writei(struct gfs_inode *ip, void *buf,
 			amount = sdp->sd_sb.sb_bsize - o;
 
 		if (!extlen) {
-			new = TRUE;
-			error = gfs_block_map(ip, lblock, &new, &dblock, &extlen);
-			if (error)
-				goto fail;
+			if (!gfs_is_stuffed(ip)) {
+				new = TRUE;
+				error = gfs_block_map(ip, lblock, &new, &dblock, &extlen);
+				if (error)
+					goto fail;
+			} else {
+				new = FALSE;
+				dblock = ip->i_num.no_addr;
+				extlen = 1;
+			}
 		}
 
 		if (journaled && extlen > 1)

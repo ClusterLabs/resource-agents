@@ -128,9 +128,11 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 	int journaled = gfs_is_jdata(ip);
 	int error;
 
+	down_write(&ip->i_rw_mutex);
+
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
-		RETURN(GFN_UNSTUFF_DINODE, error);
+		goto out;
 		
 	if (ip->i_di.di_size) {
 		/* Get a free block, fill it with the stuffed data,
@@ -139,11 +141,11 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 		if (journaled) {
 			error = gfs_metaalloc(ip, &block);
 			if (error)
-				goto fail;
+				goto out_brelse;
 
 			error = gfs_get_data_buffer(ip, block, TRUE, &bh);
 			if (error)
-				goto fail;
+				goto out_brelse;
 
 			gfs_buffer_copy_tail(bh, sizeof(struct gfs_meta_header),
 					     dibh, sizeof(struct gfs_dinode));
@@ -154,7 +156,7 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 
 			error = unstuffer(ip, dibh, block, private);
 			if (error)
-				goto fail;
+				goto out_brelse;
 		}
 	}
 
@@ -172,12 +174,12 @@ gfs_unstuff_dinode(struct gfs_inode *ip, gfs_unstuffer_t unstuffer,
 	ip->i_di.di_height = 1;
 
 	gfs_dinode_out(&ip->i_di, dibh->b_data);
+
+ out_brelse:
 	brelse(dibh);
 
-	RETURN(GFN_UNSTUFF_DINODE, 0);
-
- fail:
-	brelse(dibh);
+ out:
+	up_write(&ip->i_rw_mutex);
 
 	RETURN(GFN_UNSTUFF_DINODE, error);
 }
@@ -535,32 +537,31 @@ gfs_block_map(struct gfs_inode *ip,
 	unsigned int height;
 	unsigned int end_of_metadata;
 	unsigned int x;
-	int error;
+	int error = 0;
 
 	*new = 0;
 	*dblock = 0;
 	if (extlen)
 		*extlen = 0;
 
-	if (gfs_is_stuffed(ip)) {
-		if (!lblock) {
-			*dblock = ip->i_num.no_addr;
-			if (extlen)
-				*extlen = 1;
-		}
-		RETURN(GFN_BLOCK_MAP, 0);
-	}
+	if (create)
+		down_write(&ip->i_rw_mutex);
+	else
+		down_read(&ip->i_rw_mutex);
+
+	if (gfs_assert_warn(sdp, !gfs_is_stuffed(ip)))
+		goto out;
 
 	bsize = (gfs_is_jdata(ip)) ? sdp->sd_jbsize : sdp->sd_sb.sb_bsize;
 
 	height = calc_tree_height(ip, (lblock + 1) * bsize);
 	if (ip->i_di.di_height < height) {
 		if (!create)
-			RETURN(GFN_BLOCK_MAP, 0);
+			goto out;
 
 		error = build_height(ip, height);
 		if (error)
-			RETURN(GFN_BLOCK_MAP, error);
+			goto out;
 	}
 
 	mp = find_metapath(ip, lblock);
@@ -568,23 +569,23 @@ gfs_block_map(struct gfs_inode *ip,
 
 	error = gfs_get_inode_buffer(ip, &bh);
 	if (error)
-		goto out;
+		goto out_kfree;
 
 	for (x = 0; x < end_of_metadata; x++) {
 		error = get_metablock(ip, bh, x, mp, create, new, dblock);
 		brelse(bh);
 		if (error || !*dblock)
-			goto out;
+			goto out_kfree;
 
 		error = gfs_get_meta_buffer(ip, x + 1, *dblock, *new, &bh);
 		if (error)
-			goto out;
+			goto out_kfree;
 	}
 
 	error = get_datablock(ip, bh, mp, create, new, dblock);
 	if (error) {
 		brelse(bh);
-		goto out;
+		goto out_kfree;
 	}
 
 	if (extlen && *dblock) {
@@ -621,8 +622,14 @@ gfs_block_map(struct gfs_inode *ip,
 		}
 	}
 
- out:
+ out_kfree:
 	kfree(mp);
+
+ out:
+	if (create)
+		up_write(&ip->i_rw_mutex);
+	else
+		up_read(&ip->i_rw_mutex);
 
 	RETURN(GFN_BLOCK_MAP, error);
 }
@@ -689,7 +696,9 @@ do_grow(struct gfs_inode *ip, uint64_t size)
 
 		h = calc_tree_height(ip, size);
 		if (ip->i_di.di_height < h) {
+			down_write(&ip->i_rw_mutex);
 			error = build_height(ip, h);
+			up_write(&ip->i_rw_mutex);
 			if (error)
 				goto out_end_trans;
 		}
@@ -895,6 +904,8 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 	if (error)
 		goto out_rg_gunlock;
 
+	down_write(&ip->i_rw_mutex);
+
 	gfs_trans_add_bh(ip->i_gl, dibh);
 	gfs_trans_add_bh(ip->i_gl, bh);
 
@@ -936,6 +947,8 @@ do_strip(struct gfs_inode *ip, struct buffer_head *dibh,
 	ip->i_di.di_mtime = ip->i_di.di_ctime = get_seconds();
 
 	gfs_dinode_out(&ip->i_di, dibh->b_data);
+
+	up_write(&ip->i_rw_mutex);
 
 	gfs_trans_end(sdp);
 
@@ -1131,6 +1144,8 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 	if (error)
 		goto out;
 
+	down_write(&ip->i_rw_mutex);
+
 	error = gfs_get_inode_buffer(ip, &dibh);
 	if (error)
 		goto out_end_trans;
@@ -1164,6 +1179,8 @@ gfs_shrink(struct gfs_inode *ip, uint64_t size, gfs_truncator_t truncator)
 	brelse(dibh);
 
  out_end_trans:
+	up_write(&ip->i_rw_mutex);
+
 	gfs_trans_end(sdp);
 
  out:

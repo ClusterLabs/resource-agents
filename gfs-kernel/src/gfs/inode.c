@@ -182,10 +182,10 @@ gfs_iget(struct gfs_inode *ip, int create)
 	ENTER(GFN_IGET)
 	struct inode *inode = NULL, *tmp;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 	if (ip->i_vnode)
 		inode = igrab(ip->i_vnode);
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	if (inode || !create)
 		RETURN(GFN_IGET, inode);
@@ -220,11 +220,11 @@ gfs_iget(struct gfs_inode *ip, int create)
 	   VFS hash table.  If so, we need to wait until it is done, then
 	   we can use it.  */
 	for (;;) {
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		if (!ip->i_vnode)
 			break;
 		inode = igrab(ip->i_vnode);
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 
 		if (inode) {
 			iput(tmp);
@@ -239,7 +239,7 @@ gfs_iget(struct gfs_inode *ip, int create)
 	ip->i_vnode = inode;
 	vn2ip(inode) = ip;
 
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	insert_inode_hash(inode);
 
@@ -322,7 +322,8 @@ inode_create(struct gfs_glock *i_gl, struct gfs_inum *inum,
 	ip->i_gl = i_gl;
 	ip->i_sbd = sdp;
 
-	spin_lock_init(&ip->i_lock);
+	spin_lock_init(&ip->i_spin);
+	init_rwsem(&ip->i_rw_mutex);
 
 	ip->i_greedy = gfs_tune_get(sdp, gt_greedy_default);
 

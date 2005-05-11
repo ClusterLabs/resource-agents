@@ -381,10 +381,10 @@ gfs_clear_inode(struct inode *inode)
 	atomic_inc(&vfs2sdp(inode->i_sb)->sd_ops_super);
 
 	if (ip) {
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		ip->i_vnode = NULL;
 		vn2ip(inode) = NULL;
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 
 		gfs_glock_schedule_for_reclaim(ip->i_gl);
 		gfs_inode_put(ip);

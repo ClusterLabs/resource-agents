@@ -1215,7 +1215,7 @@ gfs_flush_meta_cache(struct gfs_inode *ip)
 	struct buffer_head **bh_slot;
 	unsigned int x;
 
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 
 	for (x = 0; x < GFS_MAX_META_HEIGHT; x++) {
 		bh_slot = &ip->i_cache[x];
@@ -1225,7 +1225,7 @@ gfs_flush_meta_cache(struct gfs_inode *ip)
 		}
 	}
 
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	RET(GFN_FLUSH_META_CACHE);
 }
@@ -1251,7 +1251,7 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 	int error;
 
 	/* Try to use the gfs_inode's MRU metadata tree cache */
-	spin_lock(&ip->i_lock);
+	spin_lock(&ip->i_spin);
 	bh = *bh_slot;
 	if (bh) {
 		if (bh->b_blocknr == num)
@@ -1259,7 +1259,7 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 		else
 			bh = NULL;
 	}
-	spin_unlock(&ip->i_lock);
+	spin_unlock(&ip->i_spin);
 
 	if (bh) {
 		error = gfs_dreread(ip->i_sbd, bh, flags);
@@ -1272,14 +1272,14 @@ gfs_get_meta_buffer(struct gfs_inode *ip, int height, uint64_t num, int new,
 		if (error)
 			RETURN(GFN_GET_META_BUFFER, error);
 
-		spin_lock(&ip->i_lock);
+		spin_lock(&ip->i_spin);
 		if (*bh_slot != bh) {
 			if (*bh_slot)
 				brelse(*bh_slot);
 			*bh_slot = bh;
 			get_bh(bh);
 		}
-		spin_unlock(&ip->i_lock);
+		spin_unlock(&ip->i_spin);
 	}
 
 	if (new) {
