@@ -1097,17 +1097,17 @@ static void refill_write_queue(void)
 {
 	int i;
 
-	spin_lock_bh(&write_nodes_lock);
 	for (i=1; i<=max_nodeid; i++) {
 		struct nodeinfo *ni = nodeid2nodeinfo(i, 0);
 
 		if (ni) {
 			if (!test_and_set_bit(NI_WRITE_PENDING, &ni->flags)) {
+				spin_lock_bh(&write_nodes_lock);
 				list_add_tail(&ni->write_list, &write_nodes);
+				spin_unlock_bh(&write_nodes_lock);
 			}
 		}
 	}
-	spin_unlock_bh(&write_nodes_lock);
 }
 
 static void clean_one_writequeue(struct nodeinfo *ni)
