@@ -244,11 +244,11 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 
 /*
  * Between calls to this routine for a ls, there can be multiple stop/start
- * events from cman where every start but the latest is cancelled by stops.
- * There can only be a single finish from cman because every finish requires us
- * to call start_done.  A single finish event could be followed by multiple
- * stop/start events.  This routine takes any combination of events from cman
- * and boils them down to one course of action.
+ * events where every start but the latest is cancelled by stops.  There can
+ * only be a single finish because every finish requires us to call start_done.
+ * A single finish event could be followed by multiple stop/start events.  This
+ * routine takes any combination of events and boils them down to one course of
+ * action.
  */
 
 static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
@@ -258,10 +258,6 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	unsigned int cmd = 0, stop, start, finish;
 	unsigned int last_stop, last_start, last_finish;
 	struct dlm_recover *rv = NULL, *start_rv = NULL;
-
-	/*
-	 * Grab the current state of cman/sm events.
-	 */
 
 	spin_lock(&ls->ls_recover_lock);
 
@@ -295,7 +291,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	 * indication that this is the "first" start, i.e. we've not yet
 	 * finished a start; if we had, last_finish would be non-zero.
 	 * Part of the problem arises from the fact that when we initially
-	 * get start/stop/start, SM uses the same event id for both starts
+	 * get start/stop/start, we may get the same event id for both starts
 	 * (since the first was cancelled).
 	 *
 	 * In both cases, last_start and last_stop will be equal.

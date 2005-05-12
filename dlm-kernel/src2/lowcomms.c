@@ -381,7 +381,6 @@ static void make_sockaddr(struct sockaddr_storage *saddr, uint16_t port,
 	if (!local_count)
 		return;
 
-	/* If port is 0 then use the CMAN port */
 	if (!port) {
 		if (local_addr[0]->ss_family == AF_INET) {
 			local4_addr = (struct sockaddr_in *)local_addr[0];
