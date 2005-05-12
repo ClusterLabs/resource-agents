@@ -141,7 +141,7 @@ sub get_options_stdin
 		} 
 		elsif ($name eq "domain" ) 
 		{
-			$bladenum = $val;
+			$domain = $val;
 		} 
 		elsif ($name eq "debuglog" ) 
 		{

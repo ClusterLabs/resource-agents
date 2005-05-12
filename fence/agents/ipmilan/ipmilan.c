@@ -776,7 +776,8 @@ get_options_stdin(char *ip, size_t iplen,
 			else
 				passwd[0] = 0;
 
-		} else if (!strcasecmp(name, "user")) {
+		} else if (!strcasecmp(name, "user") ||
+			   !strcasecmp(name, "login")) {
 			/* username */
 			if (val)
 				strncpy(user, val, userlen);
