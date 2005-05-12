@@ -56,7 +56,7 @@ static void dlm_wait_timer_fn(unsigned long data)
 
 int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
-	int error = 0, timeout;
+	int error = 0;
 
 	init_timer(&dlm_timer);
 	dlm_timer.function = dlm_wait_timer_fn;
@@ -64,16 +64,11 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 	dlm_timer.expires = jiffies + (dlm_config.recover_timer * HZ);
 	add_timer(&dlm_timer);
 
-	timeout = wait_event_timeout(ls->ls_wait_general,
-				     testfn(ls) || dlm_recovery_stopped(ls),
-				     120 * HZ);
+	wait_event(ls->ls_wait_general, testfn(ls) || dlm_recovery_stopped(ls));
 	del_timer_sync(&dlm_timer);
 
-	if (!timeout)
-		error = -ETIMEDOUT;
-	else if (dlm_recovery_stopped(ls))
-		error = -1;
-
+	if (dlm_recovery_stopped(ls))
+		error = -EINTR;
 	return error;
 }
 
@@ -136,20 +131,6 @@ static int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 	return error;
 }
 
-int dlm_recover_directory_wait(struct dlm_ls *ls)
-{
-	int error;
-
-	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, DIR_VALID);
-		if (!error)
-			set_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
-	} else
-		error = dlm_wait_status_low(ls, DIR_ALL_VALID);
-
-	return error;
-}
-
 int dlm_recover_members_wait(struct dlm_ls *ls)
 {
 	int error;
@@ -160,6 +141,20 @@ int dlm_recover_members_wait(struct dlm_ls *ls)
 			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
 	} else
 		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
+
+	return error;
+}
+
+int dlm_recover_directory_wait(struct dlm_ls *ls)
+{
+	int error;
+
+	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
+		error = dlm_wait_status_all(ls, DIR_VALID);
+		if (!error)
+			set_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
+	} else
+		error = dlm_wait_status_low(ls, DIR_ALL_VALID);
 
 	return error;
 }
@@ -249,7 +244,6 @@ void recover_list_clear(struct dlm_ls *ls)
 	spin_lock(&ls->ls_recover_list_lock);
 	list_for_each_entry_safe(r, s, &ls->ls_recover_list, res_recover_list) {
 		list_del_init(&r->res_recover_list);
-		dlm_print_rsb(r);
 		dlm_put_rsb(r);
 		ls->ls_recover_list_count--;
 	}
