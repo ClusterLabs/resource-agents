@@ -392,7 +392,7 @@ int dlm_find_rsb(struct dlm_ls *ls, char *name, int namelen,
 
 /* This is only called to add a reference when the code already holds
    a valid reference to the rsb, so there's no need for locking. */
-   
+
 static inline void hold_rsb(struct dlm_rsb *r)
 {
 	kref_get(&r->res_ref);
@@ -895,7 +895,7 @@ static void set_lvb_lock_pc(struct dlm_rsb *r, struct dlm_lkb *lkb,
    revert_lock -- used for cancel, moves lkb from convert to granted
    grant_lock  -- used for request and convert, adds lkb to granted or
                   moves lkb from convert or waiting to granted
- 
+
    Each of these is used for master or local copy lkb's.  There is
    also a _pc() variation used to make the corresponding change on
    a process copy (pc) lkb. */
@@ -1392,7 +1392,7 @@ static void send_blocking_asts_all(struct dlm_rsb *r, struct dlm_lkb *lkb)
       a wait queue
    -EXXX: there was some error in processing
 */
- 
+
 static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	struct dlm_ls *ls = r->res_ls;
@@ -1784,9 +1784,9 @@ static int _request_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	int error;
 
 	/* set_master: sets lkb nodeid from r */
-	   
+
 	error = set_master(r, lkb);
-	if (error < 0) 
+	if (error < 0)
 		goto out;
 	if (error) {
 		error = 0;
@@ -2213,7 +2213,7 @@ static int send_convert(struct dlm_rsb *r, struct dlm_lkb *lkb)
 /* FIXME: if this lkb is the only lock we hold on the rsb, then set
    MASTER_UNCERTAIN to force the next request on the rsb to confirm
    that the master is still correct. */
-   
+
 static int send_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 {
 	return send_common(r, lkb, DLM_MSG_UNLOCK);
@@ -3172,7 +3172,7 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 
 	} else if (lkb->lkb_rqmode >= lkb->lkb_grmode) {
 		lkb->lkb_flags |= DLM_IFL_RESEND;
-	} 
+	}
 	
 	/* lkb->lkb_rqmode < lkb->lkb_grmode shouldn't happen since down
 	   conversions are async; there's no reply from the remote master */
@@ -3183,7 +3183,7 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
    dead node.  Requests and up-conversions we flag to be resent after
    recovery.  Down-conversions can just be completed with a fake reply like
    unlocks.  Conversions between PR and CW need special attention. */
- 
+
 void dlm_recover_waiters_pre(struct dlm_ls *ls)
 {
 	struct dlm_lkb *lkb, *safe;

@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2005 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -201,7 +201,7 @@ static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	/*
 	 * We can't run dlm_dir_rebuild_send (which uses ls_nodes) while
 	 * dlm_recoverd is running ls_nodes_reconfig (which changes ls_nodes).
-	 * It could only happen in rare cases where we get a late NAMES 
+	 * It could only happen in rare cases where we get a late NAMES
 	 * message from a previous instance of recovery.
 	 */
 

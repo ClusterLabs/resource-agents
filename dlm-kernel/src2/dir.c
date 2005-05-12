@@ -3,7 +3,7 @@
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
 **  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
-**  
+**
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
 **  of the GNU General Public License v.2.
@@ -66,7 +66,7 @@ void dlm_clear_free_entries(struct dlm_ls *ls)
 	spin_unlock(&ls->ls_recover_list_lock);
 }
 
-/* 
+/*
  * We use the upper 16 bits of the hash value to select the directory node.
  * Low bits are used for distribution of rsb's among hash buckets on each node.
  *
@@ -226,7 +226,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 
 			schedule();
 
-			/* 
+			/*
 			 * pick namelen/name pairs out of received buffer
 			 */
 
@@ -358,7 +358,7 @@ void dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		dlm_put_rsb(start_r);
 	}
 
-	/* 
+	/*
 	 * Send rsb names for rsb's we're master of and whose directory node
 	 * matches the requesting node.
 	 */
@@ -401,7 +401,7 @@ void dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		offset += r->res_length;
 	}
 
-	/* 
+	/*
 	 * If we've reached the end of the list (and there's room) write a
 	 * terminating record.
 	 */

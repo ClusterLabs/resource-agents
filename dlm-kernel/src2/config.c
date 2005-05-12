@@ -32,7 +32,7 @@ struct dlm_config_info dlm_config = {
 	.dirtbl_size = DEFAULT_DIRTBL_SIZE,
 	.recover_timer = DEFAULT_RECOVER_TIMER,
 	.toss_secs = DEFAULT_TOSS_SECS,
-	.scan_secs = DEFAULT_SCAN_SECS 
+	.scan_secs = DEFAULT_SCAN_SECS
 };
 
 int dlm_config_init(void)

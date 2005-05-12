@@ -280,7 +280,7 @@ static int next_move(struct dlm_ls *ls, struct dlm_recover **rv_out,
 	 * 1. - we get a first start
 	 *    - we get a stop
 	 *    - we process the start + stop here and notice this special case
-	 * 
+	 *
 	 * 2. - we get a first start
 	 *    - we process the start
 	 *    - we get a stop
