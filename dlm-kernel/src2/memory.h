@@ -28,3 +28,4 @@ uint64_t *allocate_range(struct dlm_ls *ls);
 void free_range(uint64_t *l);
 
 #endif		/* __MEMORY_DOT_H__ */
+

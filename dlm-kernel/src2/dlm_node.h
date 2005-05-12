@@ -41,3 +41,4 @@ enum {
 #define DLM_SET_LOCAL    _IOWR(DLM_IOCTL, DLM_SET_LOCAL_CMD, struct dlm_node_ioctl)
 
 #endif
+

@@ -31,3 +31,4 @@ extern int dlm_config_init(void);
 extern void dlm_config_exit(void);
 
 #endif				/* __CONFIG_DOT_H__ */
+

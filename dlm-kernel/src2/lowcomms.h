@@ -25,3 +25,4 @@ int dlm_set_local(int nodeid, int weight, char *addr_buf);
 int dlm_our_nodeid(void);
 
 #endif				/* __LOWCOMMS_DOT_H__ */
+

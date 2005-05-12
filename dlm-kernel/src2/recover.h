@@ -29,3 +29,4 @@ int dlm_recover_directory_wait(struct dlm_ls *ls);
 int dlm_recover_locks_wait(struct dlm_ls *ls);
 
 #endif				/* __RECOVER_DOT_H__ */
+

@@ -534,3 +534,4 @@ int dlm_release_lockspace(void *lockspace, int force)
 	dlm_put_lockspace(ls);
 	return release_lockspace(ls, force);
 }
+

@@ -18,3 +18,4 @@ extern void dlm_device_free_devices(void);
 extern int dlm_device_init(void);
 extern void dlm_device_exit(void);
 #endif				/* __DEVICE_DOT_H__ */
+

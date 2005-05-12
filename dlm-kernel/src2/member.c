@@ -353,3 +353,4 @@ int dlm_ls_finish(struct dlm_ls *ls, int event_nr)
 	dlm_recoverd_kick(ls);
 	return 0;
 }
+

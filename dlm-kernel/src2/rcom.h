@@ -21,3 +21,4 @@ int dlm_send_rcom_lock(struct dlm_rsb *r, struct dlm_lkb *lkb);
 void dlm_receive_rcom(struct dlm_header *hd, int nodeid);
 
 #endif
+

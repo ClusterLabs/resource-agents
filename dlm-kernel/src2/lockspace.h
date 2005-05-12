@@ -21,3 +21,4 @@ struct dlm_ls *dlm_find_lockspace_name(char *name, int namelen);
 void dlm_put_lockspace(struct dlm_ls *ls);
 
 #endif				/* __LOCKSPACE_DOT_H__ */
+

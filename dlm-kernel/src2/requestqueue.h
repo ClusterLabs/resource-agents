@@ -19,3 +19,4 @@ void dlm_wait_requestqueue(struct dlm_ls *ls);
 void dlm_purge_requestqueue(struct dlm_ls *ls);
 
 #endif
+
