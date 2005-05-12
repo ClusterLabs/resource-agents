@@ -124,14 +124,24 @@ struct writequeue_entry {
 	struct nodeinfo        *ni;
 };
 
-#define CBUF_INIT(cb, size) do { (cb)->base = (cb)->len = 0; (cb)->mask = ((size)-1); } while(0)
-
 #define CBUF_ADD(cb, n) do { (cb)->len += n; } while(0)
 #define CBUF_EMPTY(cb) ((cb)->len == 0)
 #define CBUF_MAY_ADD(cb, n) (((cb)->len + (n)) < ((cb)->mask + 1))
-#define CBUF_EAT(cb, n) do { (cb)->len  -= (n); \
-                             (cb)->base += (n); (cb)->base &= (cb)->mask; } while(0)
 #define CBUF_DATA(cb) (((cb)->base + (cb)->len) & (cb)->mask)
+
+#define CBUF_INIT(cb, size) \
+do { \
+	(cb)->base = (cb)->len = 0; \
+	(cb)->mask = ((size)-1); \
+} while(0)
+
+#define CBUF_EAT(cb, n) \
+do { \
+	(cb)->len  -= (n); \
+	(cb)->base += (n); \
+	(cb)->base &= (cb)->mask; \
+} while(0)
+
 
 /* List of nodes which have writes pending */
 static struct list_head write_nodes;
@@ -442,7 +452,7 @@ static void send_shutdown(sctp_assoc_t associd)
 	ret = kernel_sendmsg(sctp_con.sock, &outmessage, NULL, 0, 0);
 
 	if (ret != 0)
-		printk(KERN_WARNING "dlm: send EOF to node failed: %d\n", ret);
+		log_print("send EOF to node failed: %d", ret);
 }
 
 
@@ -481,7 +491,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 		case SCTP_COMM_UP:
 		case SCTP_RESTART:
 		{
-			/* Check that the new node is in the same cluster as us */
+			/* Check that the new node is in the lockspace */
 			struct sctp_prim prim;
 			mm_segment_t fs;
 			int nodeid;
@@ -489,12 +499,14 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 			int addr_len;
 			struct nodeinfo *ni;
 
-			/* This seems to happen when we received a connection too early... or something...
-			   anyway, it happens but we always seem to get a real message too, see receive_from_sock
-			*/
+			/* This seems to happen when we received a connection
+			 * too early... or something...  anyway, it happens but
+			 * we always seem to get a real message too, see
+			 * receive_from_sock */
+
 			if ((int)sn->sn_assoc_change.sac_assoc_id <= 0) {
-				printk(KERN_WARNING "dlm: got COMM_UP for invalid assoc ID %d\n",
-				       (int)sn->sn_assoc_change.sac_assoc_id);
+				log_print("COMM_UP for invalid assoc ID %d",
+					 (int)sn->sn_assoc_change.sac_assoc_id);
 				init_failed();
 				return;
 			}
@@ -504,14 +516,16 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 
 			fs = get_fs();
 			set_fs(get_ds());
-			ret = sctp_con.sock->ops->getsockopt(sctp_con.sock, IPPROTO_SCTP, SCTP_PRIMARY_ADDR,
-							     (char*)&prim, &prim_len);
+			ret = sctp_con.sock->ops->getsockopt(sctp_con.sock,
+						IPPROTO_SCTP, SCTP_PRIMARY_ADDR,
+						(char*)&prim, &prim_len);
 			set_fs(fs);
 			if (ret < 0) {
 				struct nodeinfo *ni;
 
-				printk(KERN_ERR "dlm: getsockopt/sctp_primary_addr on new assoc %d failed : %d\n",
-				       (int)sn->sn_assoc_change.sac_assoc_id, ret);
+				log_print("getsockopt/sctp_primary_addr on "
+					  "new assoc %d failed : %d",
+				    (int)sn->sn_assoc_change.sac_assoc_id, ret);
 
 				/* Retry INIT later */
 				ni = assoc2nodeinfo(sn->sn_assoc_change.sac_assoc_id);
@@ -521,8 +535,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 			}
 			make_sockaddr(&prim.ssp_addr, 0, &addr_len);
 			if (addr_to_nodeid(&prim.ssp_addr, &nodeid)) {
-
-				printk(KERN_WARNING "dlm: got connection from non-cluster node, rejecting\n");
+				log_print("reject connect from unknown addr");
 				send_shutdown(prim.ssp_assoc_id);
 				return;
 			}
@@ -536,7 +549,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 			ni->assoc_id = sn->sn_assoc_change.sac_assoc_id;
 			spin_unlock(&ni->lock);
 
-			printk(KERN_DEBUG "dlm: got new/restarted association %d for nodeid %d\n",
+			log_print("got new/restarted association %d nodeid %d",
 			       (int)sn->sn_assoc_change.sac_assoc_id, nodeid);
 
 			/* Send any pending writes */
@@ -564,19 +577,21 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 		}
 		break;
 
-		/* We don't know which INIT failed, so clear the PENDING flags on them all.
-		   if assoc_id is zero then it will then try again */
+		/* We don't know which INIT failed, so clear the PENDING flags
+		 * on them all.  if assoc_id is zero then it will then try
+		 * again */
+
 		case SCTP_CANT_STR_ASSOC:
 		{
-			printk(KERN_WARNING "dlm: Can't start SCTP association - retrying\n");
+			log_print("Can't start SCTP association - retrying");
 			init_failed();
 		}
 		break;
 
 		default:
-			printk(KERN_DEBUG "dlm: got unexpected SCTP assoc change, id=%d, state=%d\n",
-			       (int)sn->sn_assoc_change.sac_assoc_id, sn->sn_assoc_change.sac_state);
-
+			log_print("unexpected SCTP assoc change id=%d state=%d",
+				  (int)sn->sn_assoc_change.sac_assoc_id,
+				  sn->sn_assoc_change.sac_state);
 		}
 	}
 }
@@ -729,8 +744,8 @@ static int add_bind_addr(struct sockaddr_storage *addr, int addr_len, int num)
 	set_fs(fs);
 
 	if (result < 0)
-		printk(KERN_ERR "dlm: Can't bind to port %d addr number %d\n",
-		       dlm_config.tcp_port, num);
+		log_print("Can't bind to port %d addr number %d",
+			  dlm_config.tcp_port, num);
 
 	return result;
 }
@@ -746,15 +761,14 @@ static int init_sock(void)
 	int result = -EINVAL, num = 1, i, addr_len;
 
 	if (!local_count) {
-		printk(KERN_ERR "dlm: no local IP address has been set\n");
+		log_print("no local IP address has been set");
 		goto out;
 	}
 
 	result = sock_create_kern(local_addr[0]->ss_family, SOCK_SEQPACKET,
 				  IPPROTO_SCTP, &sock);
 	if (result < 0) {
-		printk(KERN_ERR "dlm: Can't create comms socket, check SCTP "
-		       "is loaded\n");
+		log_print("Can't create comms socket, check SCTP is loaded");
 		goto out;
 	}
 
@@ -773,8 +787,8 @@ static int init_sock(void)
 	set_fs(fs);
 
 	if (result < 0) {
-		printk(KERN_ERR "dlm: Failed to set SCTP_EVENTS on socket: "
-		       "result=%d\n", result);
+		log_print("Failed to set SCTP_EVENTS on socket: result=%d",
+			  result);
 		goto create_delsock;
 	}
 
@@ -796,7 +810,7 @@ static int init_sock(void)
 
 	result = sock->ops->listen(sock, 5);
 	if (result < 0) {
-		printk(KERN_ERR "dlm: Can't set socket listening\n");
+		log_print("Can't set socket listening");
 		goto create_delsock;
 	}
 
@@ -933,14 +947,14 @@ static void initiate_association(int nodeid)
 	struct kvec iov[1];
 	struct nodeinfo *ni;
 
-	printk(KERN_DEBUG "dlm: Initiating association with node %d\n", nodeid);
+	log_print("Initiating association with node %d", nodeid);
 
 	ni = nodeid2nodeinfo(nodeid, GFP_KERNEL);
 	if (!ni)
 		return;
 
 	if (nodeid_to_addr(nodeid, (struct sockaddr *)&rem_addr)) {
-		printk(KERN_WARNING "dlm: no address for nodeid %d\n", nodeid);
+		log_print("no address for nodeid %d", nodeid);
 		return;
 	}
 
@@ -968,7 +982,7 @@ static void initiate_association(int nodeid)
 	outmessage.msg_controllen = cmsg->cmsg_len;
 	ret = kernel_sendmsg(sctp_con.sock, &outmessage, iov, 1, 1);
 	if (ret < 0) {
-		printk(KERN_WARNING "dlm: send INIT to node failed: %d\n", ret);
+		log_print("send INIT to node failed: %d", ret);
 		/* Try again later */
 		clear_bit(NI_INIT_PENDING, &ni->flags);
 	}
@@ -1032,9 +1046,6 @@ static int send_to_sock(struct nodeinfo *ni)
 			ret = kernel_sendmsg(sctp_con.sock, &outmsg, &iov, 1,
 					     len);
 			if (ret == -EAGAIN) {
-				printk("lowcomms: sendmsg %d len %d off %d\n",
-					ret, len, offset);
-
 				sctp_con.eagain_flag = 1;
 				goto out;
 			} else if (ret < 0)
@@ -1059,7 +1070,7 @@ static int send_to_sock(struct nodeinfo *ni)
 	return ret;
 
  send_error:
-	printk(KERN_INFO "dlm: Error sending to node %d %d\n", ni->nodeid, ret);
+	log_print("Error sending to node %d %d", ni->nodeid, ret);
 	spin_lock(&ni->lock);
 	if (!test_and_set_bit(NI_INIT_PENDING, &ni->flags)) {
 		ni->assoc_id = 0;
@@ -1149,29 +1160,6 @@ static void dealloc_nodeinfo(void)
 		}
 	}
 }
-
-#if 0
-static int lowcomms_close(int nodeid)
-{
-	struct nodeinfo *ni;
-
-	ni = nodeid2nodeinfo(nodeid, 0);
-	if (!ni)
-		return -1;
-
-	spin_lock(&ni->lock);
-	if (ni->assoc_id) {
-		ni->assoc_id = 0;
-		/* Don't send shutdown here, sctp will just queue it
-		   till the node comes back up! */
-	}
-	spin_unlock(&ni->lock);
-
-	clean_one_writequeue(ni);
-	clear_bit(NI_INIT_PENDING, &ni->flags);
-	return 0;
-}
-#endif
 
 static int write_list_empty(void)
 {
