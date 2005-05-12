@@ -76,9 +76,9 @@ static int ls_first_start(struct dlm_ls *ls, struct dlm_recover *rv)
 		goto out;
 	}
 
-	error = dlm_dir_rebuild_wait(ls);
+	error = dlm_recover_directory_wait(ls);
 	if (error) {
-		log_error(ls, "dir_rebuild_wait failed %d", error);
+		log_error(ls, "recover_directory_wait failed %d", error);
 		goto out;
 	}
 
@@ -165,9 +165,9 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 	 * Wait for all nodes to complete directory rebuild.
 	 */
 
-	error = dlm_dir_rebuild_wait(ls);
+	error = dlm_recover_directory_wait(ls);
 	if (error) {
-		log_error(ls, "dir_rebuild_wait failed %d", error);
+		log_error(ls, "recover_directory_wait failed %d", error);
 		goto fail;
 	}
 

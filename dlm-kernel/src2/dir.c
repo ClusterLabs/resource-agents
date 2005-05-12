@@ -325,25 +325,6 @@ int dlm_dir_lookup(struct dlm_ls *ls, int nodeid, char *name, int namelen,
 	return get_entry(ls, nodeid, name, namelen, r_nodeid);
 }
 
-/* 
- * The node with lowest id queries all nodes to determine when all are done.
- * All other nodes query the low nodeid for this.
- */
-
-int dlm_dir_rebuild_wait(struct dlm_ls *ls)
-{
-	int error;
-
-	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, DIR_VALID);
-		if (!error)
-			set_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
-	} else
-		error = dlm_wait_status_low(ls, DIR_ALL_VALID);
-
-	return error;
-}
-
 /* Copy the names of master rsb's into the buffer provided.
    Only select names whose dir node is the given nodeid. */
 

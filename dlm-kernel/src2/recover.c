@@ -84,7 +84,7 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
  * id for its accumulated result (dlm_wait_status_low).
  */
 
-int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
+static int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	struct dlm_member *memb;
@@ -112,7 +112,7 @@ int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 	return error;
 }
 
-int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
+static int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	int error = 0, delay = 0, nodeid = ls->ls_low_nodeid;
@@ -133,6 +133,34 @@ int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 		msleep(delay);
 	}
  out:
+	return error;
+}
+
+int dlm_recover_directory_wait(struct dlm_ls *ls)
+{
+	int error;
+
+	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
+		error = dlm_wait_status_all(ls, DIR_VALID);
+		if (!error)
+			set_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
+	} else
+		error = dlm_wait_status_low(ls, DIR_ALL_VALID);
+
+	return error;
+}
+
+int dlm_recover_members_wait(struct dlm_ls *ls)
+{
+	int error;
+
+	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
+		error = dlm_wait_status_all(ls, NODES_VALID);
+		if (!error)
+			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
+	} else
+		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
+
 	return error;
 }
 

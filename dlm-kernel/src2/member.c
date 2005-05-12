@@ -152,20 +152,6 @@ static void ping_members(struct dlm_ls *ls)
 		dlm_rcom_status(ls, memb->nodeid);
 }
 
-int dlm_recover_members_wait(struct dlm_ls *ls)
-{
-	int error;
-
-	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, NODES_VALID);
-		if (!error)
-			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
-	} else
-		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
-
-	return error;
-}
-
 int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 {
 	struct dlm_member *memb, *safe;
