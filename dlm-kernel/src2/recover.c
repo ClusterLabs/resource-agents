@@ -24,8 +24,6 @@
 
 static struct timer_list dlm_timer;
 
-static void recover_rsb_lvb(struct dlm_rsb *r);
-
 
 /*
  * Recovery waiting routines: these functions wait for a particular reply from
@@ -263,7 +261,7 @@ static void set_master_lkbs(struct dlm_rsb *r)
 /*
  * Propogate the new master nodeid to locks
  * The NEW_MASTER flag tells dlm_recover_locks() which rsb's to consider.
- * The NEW_MASTER2 flag tells dlm_recover_lvbs() which rsb's to consider.
+ * The NEW_MASTER2 flag tells recover_lvb() which rsb's to consider.
  */
 
 static void set_new_master(struct dlm_rsb *r, int nodeid)
@@ -340,10 +338,6 @@ int dlm_recover_masters(struct dlm_ls *ls)
 			up_read(&ls->ls_root_sem);
 			goto out;
 		}
-
-		clear_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
-		if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
-			set_bit(RESFL_VALNOTVALID_PREV, &r->res_flags);
 
 		if (dlm_is_removed(ls, r->res_nodeid)) {
 			recover_master(r);
@@ -505,34 +499,15 @@ void dlm_recovered_lock(struct dlm_rsb *r)
 
 	if (recover_list_empty(r->res_ls))
 		wake_up(&r->res_ls->ls_wait_general);
-
-	recover_rsb_lvb(r);
 }
 
 /*
- * This routine is called on all master rsb's by dlm_recoverd.  It is also
- * called on an rsb when a new lkb is received during the rebuild recovery
- * stage (implying we are the new master for it.)  So, a newly mastered rsb
- * will often have this function called on it by dlm_recoverd and by dlm_recvd
- * when a new lkb is received.
+ * The lvb needs to be recovered on all master rsb's.  This includes setting
+ * the VALNOTVALID flag if necessary, and determining the correct lvb contents
+ * based on the lvb's of the locks held on the rsb.
  *
- * This function is in charge of making sure the rsb's VALNOTVALID flag is
- * set correctly and that the lvb contents are set correctly.
- *
- * RESFL_VALNOTVALID is set if:
- * - it was set prior to recovery, OR
- * - there are only NL/CR locks on the rsb
- *
- * RESFL_VALNOTVALID is cleared if:
- * - it was not set prior to recovery, AND
- * - there are locks > CR on the rsb
- *
- * (We'll only be clearing VALNOTVALID in this function if it
- *  was set in a prior call to this function when there were
- *  only NL/CR locks.)
- *
- * Whether this node is a new or old master of the rsb is not a factor
- * in the decision to set/clear VALNOTVALID.
+ * RESFL_VALNOTVALID is set if there are only NL/CR locks on the rsb.  If it
+ * was already set prior to recovery, it's not cleared, regardless of locks.
  *
  * The LVB contents are only considered for changing when this is a new master
  * of the rsb (NEW_MASTER2).  Then, the rsb's lvb is taken from any lkb with
@@ -540,7 +515,7 @@ void dlm_recovered_lock(struct dlm_rsb *r)
  * from the lkb with the largest lvb sequence number.
  */
 
-static void recover_rsb_lvb(struct dlm_rsb *r)
+static void recover_lvb(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb, *high_lkb = NULL;
 	uint32_t high_seq = 0;
@@ -583,26 +558,21 @@ static void recover_rsb_lvb(struct dlm_rsb *r)
 	}
 
  setflag:
-	/* there are no locks with lvb's */
 	if (!lock_lvb_exists)
 		goto out;
 
-	/* don't clear valnotvalid if it was already set */
-	if (test_bit(RESFL_VALNOTVALID_PREV, &r->res_flags))
-		goto setlvb;
-
-	if (big_lock_exists)
-		clear_bit(RESFL_VALNOTVALID, &r->res_flags);
-	else
+	if (!big_lock_exists)
 		set_bit(RESFL_VALNOTVALID, &r->res_flags);
 
- setlvb:
 	/* don't mess with the lvb unless we're the new master */
 	if (!test_bit(RESFL_NEW_MASTER2, &r->res_flags))
 		goto out;
 
-	if (!r->res_lvbptr)
+	if (!r->res_lvbptr) {
 		r->res_lvbptr = allocate_lvb(r->res_ls);
+		if (!r->res_lvbptr)
+			goto out;
+	}
 
 	if (big_lock_exists) {
 		r->res_lvbseq = lkb->lkb_lvbseq;
@@ -616,23 +586,6 @@ static void recover_rsb_lvb(struct dlm_rsb *r)
 	}
  out:
 	return;
-}
-
-int dlm_recover_lvbs(struct dlm_ls *ls)
-{
-	struct dlm_rsb *r;
-
-	down_read(&ls->ls_root_sem);
-	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (!is_master(r))
-			continue;
-
-		lock_rsb(r);
-		recover_rsb_lvb(r);
-		unlock_rsb(r);
-	}
-	up_read(&ls->ls_root_sem);
-	return 0;
 }
 
 /* Create a single list of all root rsb's to be used during recovery */
@@ -690,6 +643,9 @@ void dlm_clear_toss_list(struct dlm_ls *ls)
 	}
 }
 
+/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
+   converting PR->CW or CW->PR need to have their lkb_grmode set. */
+
 static void recover_conversion(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb;
@@ -713,28 +669,32 @@ static void recover_conversion(struct dlm_rsb *r)
 	}
 }
 
-/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
-   converting PR->CW or CW->PR need to have their lkb_grmode set. */
+static void recover_rsb(struct dlm_rsb *r)
+{
+	dlm_hold_rsb(r);
+	lock_rsb(r);
 
-void dlm_recover_conversions(struct dlm_ls *ls)
+	if (is_master(r)) {
+		if (test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
+			recover_conversion(r);
+		recover_lvb(r);
+	}
+	clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+	unlock_rsb(r);
+	dlm_put_rsb(r);
+}
+
+void dlm_recover_rsbs(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
 	int i;
 
+	log_debug(ls, "dlm_recover_rsbs");
+
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
 		read_lock(&ls->ls_rsbtbl[i].lock);
-		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
-			if (!test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
-				continue;
-			clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
-
-			dlm_hold_rsb(r);
-			lock_rsb(r);
-			if (is_master(r))
-				recover_conversion(r);
-			unlock_rsb(r);
-			dlm_put_rsb(r);
-		}
+		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain)
+			recover_rsb(r);
 		read_unlock(&ls->ls_rsbtbl[i].lock);
 	}
 }
