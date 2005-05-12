@@ -82,7 +82,7 @@ add:
 	cp *.[ch] ${linux_patched}/drivers/dlm
 	cp Makefile.kernel ${linux_patched}/drivers/dlm/Makefile
 	cp Kconfig ${linux_patched}/drivers/dlm/
-	(cd ${linux_patched}; patch -p1 < ../patches/dlm-include.patch)
+	(cd ${linux_patched}; patch -p1 --no-backup-if-mismatch < ../patches/dlm-include.patch)
 	mv ${linux_patched}/drivers/dlm/dlm.h ${linux_patched}/include/linux
 	mv ${linux_patched}/drivers/dlm/dlm_device.h ${linux_patched}/include/linux
 	mv ${linux_patched}/drivers/dlm/dlm_node.h ${linux_patched}/include/linux
