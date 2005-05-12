@@ -897,8 +897,8 @@ main(int argc, char **argv)
 		   No command line args?  Get stuff from stdin
 		 */
 		if (get_options_stdin(ip, sizeof(ip),
-				      user, sizeof(user),
 				      passwd, sizeof(passwd),
+				      user, sizeof(user),
 				      op, sizeof(op), &verbose) != 0)
 			return 1;
 	}
