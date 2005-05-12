@@ -304,8 +304,6 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
 	lock_rsb(r);
 
-	/* FIXME: what if there are lkb's waiting on res_lookup ? */
-
 	if (nodeid == dlm_our_nodeid())
 		r->res_nodeid = 0;
 	else
@@ -333,8 +331,6 @@ static int recover_master(struct dlm_rsb *r)
 	if (dir_nodeid == our_nodeid) {
 		error = dlm_dir_lookup(ls, our_nodeid, r->res_name,
 				       r->res_length, &ret_nodeid);
-
-		/* FIXME: is -EEXIST ever a valid error here? */
 		if (error)
 			log_error(ls, "recover dir lookup error %d", error);
 

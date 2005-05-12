@@ -3373,8 +3373,10 @@ int dlm_grant_after_purge(struct dlm_ls *ls)
 		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain) {
 			hold_rsb(r);
 			lock_rsb(r);
-			if (is_master(r))
+			if (is_master(r)) {
 				grant_pending_locks(r);
+				confirm_master(r, 0);
+			}
 			unlock_rsb(r);
 			put_rsb(r);
 		}
