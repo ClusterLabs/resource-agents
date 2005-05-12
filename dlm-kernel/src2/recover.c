@@ -164,6 +164,20 @@ int dlm_recover_members_wait(struct dlm_ls *ls)
 	return error;
 }
 
+int dlm_recover_locks_wait(struct dlm_ls *ls)
+{
+	int error;
+
+	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
+		error = dlm_wait_status_all(ls, LOCKS_VALID);
+		if (!error)
+			set_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags);
+	} else
+		error = dlm_wait_status_low(ls, LOCKS_ALL_VALID);
+
+	return error;
+}
+
 /*
  * The recover_list contains all the rsb's for which we've requested the new
  * master nodeid.  As replies are returned from the resource directories the
@@ -514,6 +528,8 @@ int dlm_recover_locks(struct dlm_ls *ls)
  out:
 	if (error)
 		recover_list_clear(ls);
+	else
+		set_bit(LSFL_LOCKS_VALID, &ls->ls_flags);
 	return error;
 }
 
@@ -616,6 +632,56 @@ static void recover_lvb(struct dlm_rsb *r)
 	return;
 }
 
+/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
+   converting PR->CW or CW->PR need to have their lkb_grmode set. */
+
+static void recover_conversion(struct dlm_rsb *r)
+{
+	struct dlm_lkb *lkb;
+	int grmode = -1;
+
+	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode == DLM_LOCK_PR ||
+		    lkb->lkb_grmode == DLM_LOCK_CW) {
+			grmode = lkb->lkb_grmode;
+			break;
+		}
+	}
+
+	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
+		if (lkb->lkb_grmode != DLM_LOCK_IV)
+			continue;
+		if (grmode == -1)
+			lkb->lkb_grmode = lkb->lkb_rqmode;
+		else
+			lkb->lkb_grmode = grmode;
+	}
+}
+
+void dlm_recover_rsbs(struct dlm_ls *ls)
+{
+	struct dlm_rsb *r;
+	int count = 0;
+
+	log_debug(ls, "dlm_recover_rsbs");
+
+	down_read(&ls->ls_root_sem);
+	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
+		lock_rsb(r);
+		if (is_master(r)) {
+			if (test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
+				recover_conversion(r);
+			recover_lvb(r);
+			count++;
+		}
+		clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+		unlock_rsb(r);
+	}
+	up_read(&ls->ls_root_sem);
+
+	log_debug(ls, "dlm_recover_rsbs %d rsbs", count);
+}
+
 /* Create a single list of all root rsb's to be used during recovery */
 
 int dlm_create_root_list(struct dlm_ls *ls)
@@ -668,62 +734,6 @@ void dlm_clear_toss_list(struct dlm_ls *ls)
 			free_rsb(r);
 		}
 		write_unlock(&ls->ls_rsbtbl[i].lock);
-	}
-}
-
-/* All master rsb's flagged RECOVER_CONVERT need to be looked at.  The locks
-   converting PR->CW or CW->PR need to have their lkb_grmode set. */
-
-static void recover_conversion(struct dlm_rsb *r)
-{
-	struct dlm_lkb *lkb;
-	int grmode = -1;
-
-	list_for_each_entry(lkb, &r->res_grantqueue, lkb_statequeue) {
-		if (lkb->lkb_grmode == DLM_LOCK_PR ||
-		    lkb->lkb_grmode == DLM_LOCK_CW) {
-			grmode = lkb->lkb_grmode;
-			break;
-		}
-	}
-
-	list_for_each_entry(lkb, &r->res_convertqueue, lkb_statequeue) {
-		if (lkb->lkb_grmode != DLM_LOCK_IV)
-			continue;
-		if (grmode == -1)
-			lkb->lkb_grmode = lkb->lkb_rqmode;
-		else
-			lkb->lkb_grmode = grmode;
-	}
-}
-
-static void recover_rsb(struct dlm_rsb *r)
-{
-	dlm_hold_rsb(r);
-	lock_rsb(r);
-
-	if (is_master(r)) {
-		if (test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
-			recover_conversion(r);
-		recover_lvb(r);
-	}
-	clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
-	unlock_rsb(r);
-	dlm_put_rsb(r);
-}
-
-void dlm_recover_rsbs(struct dlm_ls *ls)
-{
-	struct dlm_rsb *r;
-	int i;
-
-	log_debug(ls, "dlm_recover_rsbs");
-
-	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
-		read_lock(&ls->ls_rsbtbl[i].lock);
-		list_for_each_entry(r, &ls->ls_rsbtbl[i].list, res_hashchain)
-			recover_rsb(r);
-		read_unlock(&ls->ls_rsbtbl[i].lock);
 	}
 }
 

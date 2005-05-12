@@ -369,6 +369,8 @@ struct dlm_message {
 #define DIR_ALL_VALID		0x00000002
 #define NODES_VALID		0x00000004
 #define NODES_ALL_VALID		0x00000008
+#define LOCKS_VALID		0x00000010
+#define LOCKS_ALL_VALID		0x00000020
 
 #define DLM_RCOM_STATUS		1
 #define DLM_RCOM_NAMES		2
@@ -436,6 +438,8 @@ struct rcom_lock {
 #define LSFL_LS_TERMINATE	11
 #define LSFL_JOIN_DONE		12
 #define LSFL_LEAVE_DONE		13
+#define LSFL_LOCKS_VALID	14
+#define LSFL_ALL_LOCKS_VALID	15
 
 struct dlm_ls {
 	struct list_head	ls_list;	/* list of lockspaces */

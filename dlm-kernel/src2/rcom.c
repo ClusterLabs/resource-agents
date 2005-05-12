@@ -88,17 +88,23 @@ static int make_status(struct dlm_ls *ls)
 {
 	int status = 0;
 
+	if (test_bit(LSFL_NODES_VALID, &ls->ls_flags))
+		status |= NODES_VALID;
+
+	if (test_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags))
+		status |= NODES_ALL_VALID;
+
 	if (test_bit(LSFL_DIR_VALID, &ls->ls_flags))
 		status |= DIR_VALID;
 
 	if (test_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags))
 		status |= DIR_ALL_VALID;
 
-	if (test_bit(LSFL_NODES_VALID, &ls->ls_flags))
-		status |= NODES_VALID;
+	if (test_bit(LSFL_LOCKS_VALID, &ls->ls_flags))
+		status |= LOCKS_VALID;
 
-	if (test_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags))
-		status |= NODES_ALL_VALID;
+	if (test_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags))
+		status |= LOCKS_ALL_VALID;
 
 	return status;
 }

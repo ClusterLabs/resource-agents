@@ -210,6 +210,20 @@ static int ls_reconfig(struct dlm_ls *ls, struct dlm_recover *rv)
 			log_error(ls, "recover_locks failed %d", error);
 			goto fail;
 		}
+
+		error = dlm_recover_locks_wait(ls);
+		if (error) {
+			log_error(ls, "recover_locks_wait failed %d", error);
+			goto fail;
+		}
+
+		/*
+		 * Finalize state in master rsb's now that all locks can be
+		 * checked.  This includes conversion resolution and lvb
+		 * settings.
+		 */
+
+		dlm_recover_rsbs(ls);
 	}
 
 	dlm_release_root_list(ls);
@@ -525,13 +539,6 @@ static void do_ls_recovery(struct dlm_ls *ls)
 		case DO_FINISH:
 			dlm_clear_members_finish(ls, finish_event);
 			next_state = LSST_CLEAR;
-
-			/*
-			 * Finalize rsb state on master rsb's now that locks
-			 * have been recovered.  Involves no communication.
-			 */
-
-			dlm_recover_rsbs(ls);
 
 			error = enable_locking(ls, finish_event);
 			if (error)
