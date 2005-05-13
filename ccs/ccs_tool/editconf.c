@@ -432,8 +432,15 @@ static void add_fence_args(xmlNode *fencenode, int argc, char **argv, int optind
 		equals = strchr(prop, '=');
 		if (!equals)
 			die("option '%s' is not opt=value pair\n", prop);
+
 		value = equals+1;
 		*equals = '\0';
+
+		/* "name" is used for the fence type itself, so this is just
+		 *  to protect the user from their own stupidity
+		 */
+		if (strcmp(prop, "name") == 0)
+			die("Can't use \"name\" as a fence argument name\n");
 
 		xmlSetProp(fencenode, BAD_CAST prop, BAD_CAST value);
 		free(prop);
