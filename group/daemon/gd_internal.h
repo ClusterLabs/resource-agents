@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <fcntl.h>
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
@@ -28,6 +29,8 @@
 #include <sys/errno.h>
 #include <sys/poll.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+
 
 #include "list.h"
 #include "groupd.h"

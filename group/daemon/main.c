@@ -12,6 +12,15 @@
 
 #include "gd_internal.h"
 
+#define OPTION_STRING			"DhV"
+#define LOCKFILE_NAME			"/var/run/groupd.pid"
+
+static int client_size;
+static struct client *client;
+static struct pollfd *pollfd;
+static char *prog_name;
+static int debug;
+
 /*
  * gd_nodes
  * List of all nodes who have been in cluster.
@@ -43,12 +52,6 @@ struct client {
 	int level;
 	char type[32];
 };
-
-static int client_size;
-static struct client *client;
-static struct pollfd *pollfd;
-static int use_cman = 0;
-
 
 
 static void group_action(int ci, char *buf)
@@ -378,18 +381,142 @@ static int loop(void)
 	return 0;
 }
 
+static void lockfile(void)
+{
+	int fd, error;
+	struct flock lock;
+	char buf[33];
+
+	memset(buf, 0, 33);
+
+	fd = open(LOCKFILE_NAME, O_CREAT|O_WRONLY,
+		  S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+	if (fd < 0) {
+		fprintf(stderr, "cannot open/create lock file %s\n",
+			LOCKFILE_NAME);
+		exit(EXIT_FAILURE);
+	}
+
+	lock.l_type = F_WRLCK;
+	lock.l_start = 0;
+	lock.l_whence = SEEK_SET;
+	lock.l_len = 0;
+
+	error = fcntl(fd, F_SETLK, &lock);
+	if (error) {
+		fprintf(stderr, "groupd is already running\n");
+		exit(EXIT_FAILURE);
+	}
+
+	error = ftruncate(fd, 0);
+	if (error) {
+		fprintf(stderr, "cannot clear lock file %s\n", LOCKFILE_NAME);
+		exit(EXIT_FAILURE);
+	}
+
+	sprintf(buf, "%d\n", getpid());
+
+	error = write(fd, buf, strlen(buf));
+	if (error <= 0) {
+		fprintf(stderr, "cannot write lock file %s\n", LOCKFILE_NAME);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void daemonize(void)
+{
+	pid_t pid = fork();
+	if (pid < 0) {
+		perror("main: cannot fork");
+		exit(EXIT_FAILURE);
+	}
+	if (pid)
+		exit(EXIT_SUCCESS);
+	setsid();
+	chdir("/");
+	umask(0);
+	close(0);
+	close(1);
+	close(2);
+
+	lockfile();
+}
+
+static void print_usage(void)
+{
+	printf("Usage:\n");
+	printf("\n");
+	printf("%s [options]\n", prog_name);
+	printf("\n");
+	printf("Options:\n");
+	printf("\n");
+	printf("  -D               Enable debugging code and don't fork\n");
+	printf("  -h               Print this help, then exit\n");
+	printf("  -V               Print program version information, then exit\n");
+}
+
+static void decode_arguments(int argc, char **argv)
+{
+	int cont = TRUE;
+	int optchar;
+
+	while (cont) {
+		optchar = getopt(argc, argv, OPTION_STRING);
+
+		switch (optchar) {
+
+		case 'D':
+			debug = 1;
+			break;
+
+		case 'h':
+			print_usage();
+			exit(EXIT_SUCCESS);
+			break;
+
+		case 'V':
+			printf("groupd (built %s %s)\n", __DATE__, __TIME__);
+			/* printf("%s\n", REDHAT_COPYRIGHT); */
+			exit(EXIT_SUCCESS);
+			break;
+
+		case ':':
+		case '?':
+			fprintf(stderr, "Please use '-h' for usage.\n");
+			exit(EXIT_FAILURE);
+			break;
+
+		case EOF:
+			cont = FALSE;
+			break;
+
+		default:
+			fprintf(stderr, "unknown option: %c\n", optchar);
+			exit(EXIT_FAILURE);
+			break;
+		};
+	}
+}
+
+/*
+  Input:
+  - local client messages (dlm_controld, fenced, ...)
+  - remote groupd messages
+  - membership events and messages from membership manager
+
+  Output:
+  - start/stop/finish over a client connection
+  - messages to remote groupd's
+*/
+
 int main(int argc, char *argv[])
 {
-	/*
-	   Input:
-	   - local client messages (dlm_controld, fenced, ...)
-	   - remote groupd messages
-	   - membership events and messages from membership manager
+	prog_name = argv[0];
 
-	   Output:
-	   - start/stop/finish over a client connection
-	   - messages to remote groupd's
-	 */
+	decode_arguments(argc, argv);
+
+	if (!debug)
+		daemonize();
 
 	pollfd = malloc(MAXCON * sizeof(struct pollfd));
 	if (!pollfd)
@@ -398,8 +525,6 @@ int main(int argc, char *argv[])
 	init_recovery();
 	init_joinleave();
 
-	loop();
-
-	return 0;
+	return loop();
 }
 
