@@ -8,7 +8,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.377 $) dnl cvs revision
+AC_REVISION($Revision: 1.378 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -189,10 +189,12 @@ AC_PROG_CC
 AM_PROG_CC_STDC
 AC_LIBTOOL_DLOPEN               dnl Enable dlopen support...
 AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
-AM_PROG_LIBTOOL
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
+dnl Replacing AC_PROG_LIBTOOL with AC_CHECK_PROG because LIBTOOL
+dnl was NOT being expanded all the time thus causing things to fail.
+AC_CHECK_PROG(LIBTOOL, libtool, libtool)
 AC_CHECK_PROG(MAKE, gmake, gmake, make)
 AC_MSG_CHECKING(for gmake or make)
 if test x"${MAKE}" = x""; then
