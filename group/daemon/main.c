@@ -339,7 +339,8 @@ static int loop(void)
 			fd = accept(client[0].fd, NULL, NULL);
 			if (fd < 0)
 				log_print("accept error %d %d", fd, errno);
-			client_add(fd, &maxi);
+			else
+				client_add(fd, &maxi);
 		}
 
 		for (i = 1; i <= maxi; i++) {
