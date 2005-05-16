@@ -23,31 +23,47 @@ static char *argv[128];
 /* Lookup the IPv4 broadcast address for a given local address */
 static uint32_t lookup_bcast(uint32_t localaddr, char *ifname)
 {
-    struct ifreq ifr;
+    struct ifreq *ifr;
+    struct ifconf ifc;
     uint32_t addr, brdaddr;
-    int iindex;
+    int n;
+    int numreqs = 30;
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    struct sockaddr_in *saddr = (struct sockaddr_in *)&ifr.ifr_ifru.ifru_addr;
+    struct sockaddr_in *saddr;
 
-    ifname[0] = '\0';
+    ifc.ifc_buf = NULL;
+    for (;;) {
+        ifc.ifc_len = sizeof(struct ifreq) * numreqs;
+        ifc.ifc_buf = realloc(ifc.ifc_buf, ifc.ifc_len);
 
-    for (iindex = 0; iindex < 16; iindex++) {
-	ifr.ifr_ifindex = iindex;
-	if (ioctl(sock, SIOCGIFNAME, &ifr) == 0) {
-	    ifr.ifr_ifindex = iindex;
+        if (ioctl(sock, SIOCGIFCONF, &ifc) < 0) {
+            die("SIOCGIFCONF failed: %s", strerror(errno));
+        }
+        if (ifc.ifc_len == sizeof(struct ifreq) * numreqs) {
+            /* assume it overflowed and try again */
+            numreqs += 10;
+            continue;
+        }
+        break;
+    }
 
-	    ioctl(sock, SIOCGIFADDR, &ifr);
+    ifr = ifc.ifc_req;
+    for (n = 0; n < ifc.ifc_len; n += sizeof(struct ifreq)) {
+
+	    strcpy(ifname, ifr->ifr_name);
+
+	    ioctl(sock, SIOCGIFADDR, ifr);
+	    saddr = (struct sockaddr_in *)&ifr->ifr_ifru.ifru_addr;
 	    addr = saddr->sin_addr.s_addr;
 
 	    if (addr == localaddr) {
-		ioctl(sock, SIOCGIFBRDADDR, &ifr);
-		brdaddr = saddr->sin_addr.s_addr;
+		    ioctl(sock, SIOCGIFBRDADDR, ifr);
+		    brdaddr = saddr->sin_addr.s_addr;
 
-		close(sock);
-		strcpy(ifname, ifr.ifr_name);
-		return brdaddr;
+		    close(sock);
+		    return brdaddr;
 	    }
-	}
+	    ifr++;
     }
 
     /* Didn't find it */
@@ -106,7 +122,7 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct hostent 
 	memcpy(&ipaddr, he->h_addr, sizeof(uint32_t));
 	bcast = lookup_bcast(ipaddr, ifname);
 	if (!bcast) {
-	    fprintf(stderr, "%s: Can't find broadcast address for node %s\n", prog_name, comline->nodenames[num]);
+	    fprintf(stderr, "%s: Can't find broadcast address for node name \"%s\"\n", prog_name, comline->nodenames[num]);
 	    if (ifname[0])
 		    fprintf(stderr, "%s: Interface \"%s\" was bound to that hostname\n", prog_name, ifname);
 	    exit(EXIT_FAILURE);
