@@ -115,7 +115,10 @@ static cman_handle_t open_cman_handle(int priv)
 		h = cman_init(NULL);
 	if (!h)
 	{
-		die("Cannot open connection to cman, is it running ?");
+		if (errno == EACCES)
+			die("Cannot open connection to cman, permission denied.");
+		else
+			die("Cannot open connection to cman, is it running ?");
 	}
 	return h;
 }
