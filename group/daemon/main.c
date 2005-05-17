@@ -287,21 +287,6 @@ static int setup_listener(void)
 	return s;
 }
 
-void setup_single_node(void)
-{
-	node_t *node;
-
-	log_print("running single node mode");
-	gd_quorate = 1;
-	gd_node_count = 1;
-	gd_member_count = 1;
-	gd_nodeid = 1;
-
-	node = new_node(1);
-	set_bit(NFL_CLUSTER_MEMBER, &node->flags);
-	list_add(&node->list, &gd_nodes);
-}
-
 static int loop(void)
 {
 	int rv, fd, i, maxi = 0, timeout = -1;
