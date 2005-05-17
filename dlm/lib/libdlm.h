@@ -30,9 +30,10 @@ typedef void * dlm_lshandle_t;
  * but replicated here so that users only need the libdlm include file.
  * libdlm itself needs the full kernel file so shouldn't use these.
  */
-#ifndef BUILDING_LIBDLM
-#define DLM_RESNAME_MAXLEN     (64)
 #define DLM_LVB_LEN            (32)
+#ifndef BUILDING_LIBDLM
+
+#define DLM_RESNAME_MAXLEN     (64)
 
 struct dlm_lksb {
 	int sb_status;
@@ -46,6 +47,11 @@ struct dlm_range {
 	uint64_t ra_end;
 };
 
+/* lksb flags */
+#define DLM_SBF_VALNOTVALID    (0x02)
+
+#endif
+#ifdef QUERY
 
 /*
  * These defines are the bits that make up the
@@ -140,12 +146,6 @@ extern int dlm_lock(uint32_t mode,
 extern int dlm_unlock(uint32_t lkid,
 		      uint32_t flags, struct dlm_lksb *lksb, void *astarg);
 
-extern int dlm_query(struct dlm_lksb *lksb,
-		     int query,
-		     struct dlm_queryinfo *qinfo,
-		     void (*astaddr) (void *astarg),
-		     void *astarg);
-
 
 extern int dlm_lock_wait(uint32_t mode,
 			 struct dlm_lksb *lksb,
@@ -161,9 +161,19 @@ extern int dlm_lock_wait(uint32_t mode,
 extern int dlm_unlock_wait(uint32_t lkid,
 			   uint32_t flags, struct dlm_lksb *lksb);
 
+#ifdef QUERY
+extern int dlm_query(struct dlm_lksb *lksb,
+		     int query,
+		     struct dlm_queryinfo *qinfo,
+		     void (*astaddr) (void *astarg),
+		     void *astarg);
+
+
 extern int dlm_query_wait(struct dlm_lksb *lksb,
 			  int query,
 			  struct dlm_queryinfo *qinfo);
+
+#endif
 
 /* These two are for users that want to do their
  * own FD handling
@@ -216,14 +226,16 @@ extern int dlm_ls_unlock_wait(dlm_lshandle_t lockspace,
 			      uint32_t lkid,
 			      uint32_t flags, struct dlm_lksb *lksb);
 
+extern int dlm_ls_unlock(dlm_lshandle_t lockspace,
+			 uint32_t lkid,
+			 uint32_t flags, struct dlm_lksb *lksb, void *astarg);
+
+#ifdef QUERY
 extern int dlm_ls_query_wait(dlm_lshandle_t lockspace,
 			     struct dlm_lksb *lksb,
 			     int query,
 			     struct dlm_queryinfo *qinfo);
 
-extern int dlm_ls_unlock(dlm_lshandle_t lockspace,
-			 uint32_t lkid,
-			 uint32_t flags, struct dlm_lksb *lksb, void *astarg);
 
 extern int dlm_ls_query(dlm_lshandle_t lockspace,
 			struct dlm_lksb *lksb,
@@ -231,7 +243,7 @@ extern int dlm_ls_query(dlm_lshandle_t lockspace,
 			struct dlm_queryinfo *qinfo,
 			void (*astaddr) (void *astarg),
 			void *astarg);
-
+#endif
 
 /* This is for threaded applications. call this
  * before any locking operations and the ASTs will
@@ -286,6 +298,4 @@ extern int dlm_pthread_cleanup();
 #define EUNLOCK            (0x10002)
 #define	EINPROG		   (0x10003)	/* lock operation is in progress */
 
-/* lksb flags */
-#define DLM_SBF_VALNOTVALID    (0x02)
 #endif

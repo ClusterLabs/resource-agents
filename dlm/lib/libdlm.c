@@ -42,7 +42,7 @@
 #include <selinux/selinux.h>
 #endif
 #include "dlm.h"
-#define BUILDING_LIBDLM
+#include "libdlm_internal.h"
 #include "libdlm.h"
 #include "dlm_device.h"
 
@@ -433,7 +433,7 @@ static int do_dlm_dispatch(int fd)
     /* Copy optional items */
     if (result->lvb_offset)
 	memcpy(result->user_lksb->sb_lvbptr, fullresult+result->lvb_offset, DLM_LVB_LEN);
-
+#ifdef QUERY
     if (result->qinfo_offset)
     {
 	/* Just need the lockcount written out here */
@@ -448,6 +448,7 @@ static int do_dlm_dispatch(int fd)
     if (result->qlockinfo_offset)
 	memcpy(result->user_qinfo->gqi_lockinfo, fullresult+result->qlockinfo_offset,
 	       sizeof(struct dlm_lockinfo) * result->user_qinfo->gqi_lockcount);
+#endif
 
     /* Call AST */
     if (result->user_astaddr)
@@ -674,7 +675,7 @@ int dlm_ls_unlock_wait(dlm_lshandle_t ls, uint32_t lkid,
 	return dlm_ls_unlock(ls, lkid, flags | LKF_WAIT,
 			     lksb, NULL);
 }
-
+#ifdef QUERY
 int dlm_ls_query_wait(dlm_lshandle_t lockspace,
 		      struct dlm_lksb *lksb,
 		      int query,
@@ -716,20 +717,21 @@ int dlm_ls_query_wait(dlm_lshandle_t lockspace,
     status = sync_write(lsinfo, &req, sizeof(req));
     return (status >= 0);
 }
+#endif
 
 int dlm_unlock_wait(uint32_t lkid,
 		    uint32_t flags, struct dlm_lksb *lksb)
 {
     return dlm_ls_unlock_wait(default_ls, lkid, flags | LKF_WAIT, lksb);
 }
-
+#ifdef QUERY
 int dlm_query_wait(struct dlm_lksb *lksb,
 		   int query,
 		   struct dlm_queryinfo *qinfo)
 {
     return dlm_ls_query_wait(default_ls, lksb, query, qinfo);
 }
-
+#endif
 
 /* Unlock on default lockspace*/
 int dlm_unlock(uint32_t lkid,
@@ -779,7 +781,7 @@ int dlm_ls_unlock(dlm_lshandle_t ls, uint32_t lkid,
 	return 0;
 }
 
-
+#ifdef QUERY
 int dlm_ls_query(dlm_lshandle_t lockspace,
 		 struct dlm_lksb *lksb,
 		 int query,
@@ -828,7 +830,6 @@ int dlm_ls_query(dlm_lshandle_t lockspace,
     else
 	return 0;
 }
-
 int dlm_query(struct dlm_lksb *lksb,
 	      int query,
 	      struct dlm_queryinfo *qinfo,
@@ -837,6 +838,17 @@ int dlm_query(struct dlm_lksb *lksb,
 {
     return dlm_ls_query(default_ls, lksb, query, qinfo, astaddr, astarg);
 }
+#else
+int dlm_query(struct dlm_lksb *lksb,
+              int query,
+              struct dlm_queryinfo *qinfo,
+              void (*astaddr) (void *astarg),
+              void *astarg)
+{
+    return 0;
+}
+
+#endif
 
 
 /* These two routines for for users that want to

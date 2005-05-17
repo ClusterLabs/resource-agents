@@ -25,15 +25,7 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS += -g -I. -O2
 LDFLAGS +=  
 
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-CFLAGS += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-CFLAGS += -I${incdir}/cluster
-endif
+CFLAGS += -I${top_srcdir}/../dlm-kernel/src2
 
 
 all: $(STATICLIB) $(SHAREDLIB)

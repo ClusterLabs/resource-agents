@@ -29,6 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "dlm.h"
+#include "libdlm_internal.h"
 #include "dlm_device.h"
 
 #include <stdio.h>
