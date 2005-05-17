@@ -84,8 +84,8 @@ MODULE_DESCRIPTION("Distributed Lock Manager");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 
-EXPORT_SYMBOL(dlm_new_lockspace);
-EXPORT_SYMBOL(dlm_release_lockspace);
-EXPORT_SYMBOL(dlm_lock);
-EXPORT_SYMBOL(dlm_unlock);
+EXPORT_SYMBOL_GPL(dlm_new_lockspace);
+EXPORT_SYMBOL_GPL(dlm_release_lockspace);
+EXPORT_SYMBOL_GPL(dlm_lock);
+EXPORT_SYMBOL_GPL(dlm_unlock);
 
