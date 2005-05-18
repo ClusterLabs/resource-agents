@@ -16,7 +16,7 @@
 
 extern char *clustername;
 extern int our_nodeid;
-extern int groupd_fd;
+extern group_handle_t gh;
 
 struct list_head mounts;
 
@@ -75,48 +75,6 @@ int get_recover_done(struct mountgroup *mg)
  out:
 	close(fd);
 	return done;
-}
-
-int send_groupd_done(struct mountgroup *mg)
-{
-	char obuf[MAXLINE];
-	int rv;
-
-	memset(obuf, 0, sizeof(obuf));
-	sprintf(obuf, "done %s %d", mg->name, mg->start_event_nr);
-
-	rv = write(groupd_fd, &obuf, strlen(obuf));
-	if (rv < 0)
-		log_error("write error %d errno %d %s", rv, errno, obuf);
-	return rv;
-}
-
-int send_groupd_join(struct mountgroup *mg)
-{
-	char obuf[MAXLINE];
-	int rv;
-
-	memset(obuf, 0, sizeof(obuf));
-	sprintf(obuf, "join %s", mg->name);
-
-	rv = write(groupd_fd, &obuf, strlen(obuf));
-	if (rv < 0)
-		log_error("write error %d errno %d %s", rv, errno, obuf);
-	return rv;
-}
-
-int send_groupd_leave(struct mountgroup *mg)
-{
-	char obuf[MAXLINE];
-	int rv;
-
-	memset(obuf, 0, sizeof(obuf));
-	sprintf(obuf, "leave %s", mg->name);
-
-	rv = write(groupd_fd, &obuf, strlen(obuf));
-	if (rv < 0)
-		log_error("write error %d errno %d %s", rv, errno, obuf);
-	return rv;
 }
 
 int claim_journal(struct mountgroup *mg)
@@ -263,7 +221,7 @@ void mount_finished(struct mountgroup *mg)
 }
 
 int recover_members(struct mountgroup *mg, int num_nodes,
-		    char **nodeids, int *pos_out, int *neg_out)
+		    int *nodeids, int *pos_out, int *neg_out)
 {
 	struct mg_member *memb, *safe;
 	int i, error, found, id, pos = 0, neg = 0, low = -1;
@@ -273,7 +231,7 @@ int recover_members(struct mountgroup *mg, int num_nodes,
 	list_for_each_entry_safe(memb, safe, &mg->members, list) {
 		found = FALSE;
 		for (i = 0; i < num_nodes; i++) {
-			if (memb->nodeid == atoi(nodeids[i])) {
+			if (memb->nodeid == nodeids[i]) {
 				found = TRUE;
 				break;
 			}
@@ -284,7 +242,7 @@ int recover_members(struct mountgroup *mg, int num_nodes,
 			remove_member(mg, memb);
 			log_group(mg, "remove member %d", memb->nodeid);
 
-			if (mg->start_type == NODE_FAILED &&
+			if (mg->start_type == GROUP_NODE_FAILED &&
 			    memb->mount_finished &&
 			    !memb->wait_recover_done)
 				memb->recover_journal = 1;
@@ -294,7 +252,7 @@ int recover_members(struct mountgroup *mg, int num_nodes,
 	/* add new nodes to members list */
 
 	for (i = 0; i < num_nodes; i++) {
-		id = atoi(nodeids[i]);
+		id = nodeids[i];
 		if (is_member(mg, id))
 			continue;
 		add_member(mg, id);
@@ -363,7 +321,7 @@ int do_mount(char *name)
 
 	list_add(&mg->list, &mounts);
 
-	send_groupd_join(mg);
+	group_join(gh, name, NULL);
 
 	return 0;
 }
@@ -400,7 +358,7 @@ int do_recovery_done(char *name)
 
 	wait = recover_journals(mg);
 	if (!wait)
-		send_groupd_done(mg);
+		group_done(gh, name, mg->start_event_nr);
 
 	return 0;
 }
@@ -415,19 +373,19 @@ int do_unmount(char *name)
 		return -1;
 	}
 
-	send_groupd_leave(mg);
+	group_leave(gh, name, NULL);
 
 	return 0;
 }
 
-int do_stop(int argc, char **argv)
+int do_stop(char *name)
 {
 	struct mountgroup *mg;
 	int rv;
 
-	mg = find_mg(argv[0]);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("stop: unknown mount group %s", argv[0]);
+		log_error("stop: unknown mount group %s", name);
 		return -1;
 	}
 
@@ -436,18 +394,18 @@ int do_stop(int argc, char **argv)
 	return rv;
 }
 
-int do_finish(int argc, char **argv)
+int do_finish(char *name, int event_nr)
 {
 	struct mountgroup *mg;
 	int rv;
 
-	mg = find_mg(argv[0]);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("finish: unknown mount group %s", argv[0]);
+		log_error("finish: unknown mount group %s", name);
 		return -1;
 	}
 
-	mg->finish_event_nr = atol(argv[1]);
+	mg->finish_event_nr = event_nr;
 
 	mount_finished(mg);
 	clear_members_finish(mg, mg->finish_event_nr);
@@ -460,31 +418,27 @@ int do_finish(int argc, char **argv)
 	return rv;
 }
 
-int do_start(int argc, char **argv)
+int do_start(char *name, int event_nr, int type, int member_count, int *nodeids)
 {
 	struct mountgroup *mg;
-	int rv, wait = 0, num_nodes, pos = 0, neg = 0;
-	char **nodeids;
+	int rv, wait = 0, pos = 0, neg = 0;
 
-	mg = find_mg(argv[0]);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("start: unknown mount group %s", argv[0]);
+		log_error("start: unknown mount group %s", name);
 		return -1;
 	}
 
-	mg->start_event_nr = atol(argv[1]);
-	mg->start_type = atoi(argv[2]);
+	mg->start_event_nr = event_nr;
+	mg->start_type = type;
 
-	num_nodes = argc - 3;
-	nodeids = argv + 3;
-
-	rv = recover_members(mg, num_nodes, nodeids, &pos, &neg);
+	rv = recover_members(mg, member_count, nodeids, &pos, &neg);
 
 	if (mg->first_start) {
 		mg->first_start = 0;
 		claim_journal(mg);
 		set_sysfs(mg, "jid", mg->our_jid);
-		if (num_nodes == 1)
+		if (member_count == 1)
 			set_sysfs(mg, "first", 1);
 	}
 
@@ -495,18 +449,18 @@ int do_start(int argc, char **argv)
 		wait = recover_journals(mg);
 
 	if (!wait)
-		send_groupd_done(mg);
+		group_done(gh, name, event_nr);
 
 	return 0;
 }
 
-int do_terminate(int argc, char **argv)
+int do_terminate(char *name)
 {
 	struct mountgroup *mg;
 
-	mg = find_mg(argv[0]);
+	mg = find_mg(name);
 	if (!mg) {
-		log_error("terminate: unknown mount group %s", argv[0]);
+		log_error("terminate: unknown mount group %s", name);
 		return -1;
 	}
 

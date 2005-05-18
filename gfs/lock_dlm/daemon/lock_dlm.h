@@ -30,7 +30,7 @@
 #include <linux/netlink.h>
 
 #include "list.h"
-#include "groupd.h"
+#include "libgroup.h"
 
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
@@ -52,13 +52,6 @@
 #define log_group(g, fmt, args...) \
 	fprintf(stderr, "%s " fmt "\n", (g)->name, ##args)
 
-int do_mount(char *name);
-int do_unmount(char *name);
-int do_recovery_done(char *name);
-int do_stop(int argc, char **argv);
-int do_terminate(int argc, char **argv);
-int do_start(int argc, char **argv);
-int do_finish(int argc, char **argv);
 int setup_member(void);
 
 struct mountgroup {

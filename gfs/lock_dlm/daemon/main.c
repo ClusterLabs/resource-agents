@@ -18,10 +18,16 @@
 static char *prog_name;
 static int debug;
 
+static int groupd_fd;
+static int uevent_fd;
+
 extern struct list_head mounts;
 
-int groupd_fd;
-int uevent_fd;
+int setup_groupd(void);
+int process_groupd(void);
+int do_mount(char *name);
+int do_unmount(char *name);
+int do_recovery_done(char *name);
 
 
 void make_args(char *buf, int *argc, char **argv, char sep)
@@ -40,52 +46,6 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 		buf = p + 1;
 	}
 	*argc = i;
-}
-
-/* read start/stop/finish messages from groupd */
-
-void process_groupd(void)
-{
-	char buf[MAXLINE];
-	char *argv[MAXARGS], *act;
-	int rv, argc = 0;
-
-	memset(buf, 0, sizeof(buf));
-
-	rv = read(groupd_fd, &buf, sizeof(buf));
-	if (rv < 0) {
-		log_error("read error %d errno %d", rv, errno);
-		return;
-	}
-
-	log_debug("groupd read:  %s", buf);
-
-	make_args(buf, &argc, argv, ' ');
-	act = argv[0];
-
-	/* Input from groupd (buf) should be the same string
-	   as dlm_tool takes as input.  The do_act() functions
-	   don't want the first action arg so we have argc-1, argv+1.
-
-	   FIXME: many more args than MAXARGS for start with nodeids */
-
-	if (!strcmp(act, "stop"))
-		rv = do_stop(argc-1, argv+1);
-
-	else if (!strcmp(act, "start"))
-		rv = do_start(argc-1, argv+1);
-
-	else if (!strcmp(act, "finish"))
-		rv = do_finish(argc-1, argv+1);
-
-	else if (!strcmp(act, "terminate"))
-		rv = do_terminate(argc-1, argv+1);
-
-	else
-		log_error("unknown lock_dlm control action: %s", act);
-
-	if (rv)
-		log_error("action %s error %d", act, rv);
 }
 
 /* recv "online" (mount), "offline" (unmount) and "change" (recovery_done)
@@ -124,41 +84,6 @@ int process_uevent(void)
 		do_recovery_done(argv[3]);
 
 	return 0;
-}
-
-int setup_groupd(void)
-{
-	struct sockaddr_un sun;
-	socklen_t addrlen;
-	char buf[] = "setup lock_dlm 2";
-	int s, rv;
-
-	s = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (s < 0) {
-		log_error("local socket");
-		return s;
-	}
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_LOCAL;
-	strcpy(&sun.sun_path[1], GROUPD_SOCK_PATH);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(s, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0) {
-		log_error("groupd connect error %d errno %d", rv, errno);
-		close(s);
-		return rv;
-	}
-
-	rv = write(s, &buf, strlen(buf));
-	if (rv < 0) {
-		log_error("groupd write error %d errno %d %s", rv, errno, buf);
-		close(s);
-		return rv;
-	}
-
-	return s;
 }
 
 int setup_uevent(void)
