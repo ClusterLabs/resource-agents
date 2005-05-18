@@ -71,7 +71,7 @@ int group_join(group_handle_t handle, char *name, char *info)
 	return rv;
 }
 
-int group_leave(group_handle_t handle, char *name)
+int group_leave(group_handle_t handle, char *name, char *info)
 {
 	char buf[MAXLINE];
 	int rv;

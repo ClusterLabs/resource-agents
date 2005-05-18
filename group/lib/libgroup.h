@@ -25,7 +25,7 @@
 
 #define MAX_GROUP_MEMBERS	256
 #define MAX_GROUP_NAME_LEN	16
-#define MAX_JOIN_INFO_LEN	16
+#define GROUP_INFO_LEN		32
 
 /* these need to match what's in groupd.h */
 #define GROUP_NODE_FAILED	1
@@ -57,12 +57,15 @@ group_handle_t group_init(void *private, char *prog_name, int level, group_callb
 int group_exit(group_handle_t handle);
 
 int group_join(group_handle_t handle, char *name, char *info);
-int group_leave(group_handle_t handle, char *name);
+int group_leave(group_handle_t handle, char *name, char *info);
 int group_done(group_handle_t handle, char *name, int event_nr);
 int group_get_fd(group_handle_t handle);
 int group_dispatch(group_handle_t handle);
 
-/* int group_join_info(group_handle_t handle, char *name, int event_nr); */
+/*
+int group_join_info(group_handle_t handle, char *name, int nodeid, char *info);
+int group_leave_info(group_handle_t handle, char *name, int nodeid, char *info);
+*/
 
 /*
 int group_send();
