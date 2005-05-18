@@ -271,6 +271,7 @@ int dlm_set_node(int nodeid, int weight, char *addr_buf)
 int dlm_set_local(int nodeid, int weight, char *addr_buf)
 {
 	struct sockaddr_storage *addr;
+	int i;
 
 	if (local_count > DLM_MAX_ADDR_COUNT - 1) {
 		log_print("too many local addresses set %d", local_count);
@@ -283,7 +284,15 @@ int dlm_set_local(int nodeid, int weight, char *addr_buf)
 	if (!addr)
 		return -ENOMEM;
 	memcpy(addr, addr_buf, sizeof(*addr));
+
+	for (i = 0; i < local_count; i++) {
+		if (!memcmp(local_addr[i], addr, sizeof(*addr))) {
+			kfree(addr);
+			goto out;
+		}
+	}
 	local_addr[local_count++] = addr;
+ out:
 	return 0;
 }
 
