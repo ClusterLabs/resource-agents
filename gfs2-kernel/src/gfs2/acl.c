@@ -63,6 +63,11 @@ gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	acl = posix_acl_from_xattr(er->er_data, er->er_data_len);
 	if (IS_ERR(acl))
 		RETURN(G2FN_ACL_VALIDATE_SET, PTR_ERR(acl));
+	if (!acl) {
+		if (remove)
+			*remove = TRUE;
+		RETURN(G2FN_ACL_VALIDATE_SET, 0);
+	}
 	gfs2_memory_add(acl);
 
 	error = posix_acl_valid(acl);
@@ -170,7 +175,7 @@ acl_get(struct gfs2_inode *ip, int access,
 		*acl = posix_acl_from_xattr(er.er_data, er.er_data_len);
 		if (IS_ERR(*acl))
 			error = PTR_ERR(*acl);
-		else
+		else if (*acl)
 			gfs2_memory_add(*acl);
 	}
 
