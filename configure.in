@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.379 $) dnl cvs revision
+AC_REVISION($Revision: 1.380 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -294,6 +294,7 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
+
 dnl -- USE a Unique lib check so -luuid is used only once ( to eliminate -luuid -luuid
 dnl - Checking for a unique function of ex2fs vs ossd
 AC_CHECK_LIB(uuid, uuid_parse) 			dnl - In e2fsprog only.
@@ -306,9 +307,6 @@ if test "$ac_cv_lib_uuid_uuid_parse" != yes; then
 fi
 
 AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
-
-
-
 
 EXTRAGLIBMSG="-"
 if test "X${PKGCONFIG}" = "X"; then
@@ -1636,14 +1634,22 @@ AC_SUBST(CRM_ENABLED)
 CRM_DIR=crm
 AC_SUBST(CRM_DIR)
 
+
+AC_ARG_ENABLE([crm-dmalloc],
+[  --enable-crm-dmalloc  Use the dmalloc libraries for the CRM.  [default=no]],
+                     [], [enable_crm_dmalloc=no])
+
+
 CRM_DEBUG_LIBS=""
 CRM_DEBUG_OPTS=""
-dnl CRM_DEBUG_FLAGS=-DDMALLOC_FUNC_CHECK
-dnl CRM_DEBUG_LIBS=-ldmalloc
+if test "x${enable_crm_dmalloc}" = "xyes"; then
+   AC_DEFINE_UNQUOTED(CRM_DEBUG_DMALLOC, 1, Use the dmalloc libraries)
+   CRM_DEBUG_OPTS=-DDMALLOC_FUNC_CHECK
+   CRM_DEBUG_LIBS=-ldmalloc
+fi
 dnl CRM_DEBUG_LIBS=-lefence
 AC_SUBST(CRM_DEBUG_LIBS)
 AC_SUBST(CRM_DEBUG_FLAGS)
-dnl AC_DEFINE_UNQUOTED(CRM_DEBUG_DMALLOC, 1, Use the dmalloc libraries)
 
 dnl lrm configuration
 AC_ARG_ENABLE([lrm],
@@ -1780,7 +1786,10 @@ dnl
 XPERIMENTALDIRS=""
 AC_SUBST(XPERIMENTALDIRS)
 
-AC_CONFIG_SUBDIRS(libltdl)
+AC_CHECK_LIB(dl, lt_dlmutex_register)
+if test "$ac_cv_lib_dl_lt_dlmutex_register" != yes; then
+   AC_CONFIG_SUBDIRS(libltdl)
+fi
 
 CheckMissingThings
 
