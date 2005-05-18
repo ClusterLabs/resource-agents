@@ -31,7 +31,7 @@ struct gfs_ea_request;
 
 int gfs_acl_validate_set(struct gfs_inode *ip, int access,
 			 struct gfs_ea_request *er,
-			 mode_t *mode, int *remove);
+			 int *remove, mode_t *mode);
 int gfs_acl_validate_remove(struct gfs_inode *ip, int access);
 int gfs_check_acl(struct inode *inode, int mask);
 int gfs_acl_new_prep(struct gfs_inode *dip,

@@ -84,12 +84,12 @@ int gfs2_get_eattr_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub);
 /* Exported to acl.c */
 
 int gfs2_ea_find(struct gfs2_inode *ip,
-		struct gfs2_ea_request *er,
-		struct gfs2_ea_location *el);
+		 struct gfs2_ea_request *er,
+		 struct gfs2_ea_location *el);
 int gfs2_ea_get_copy(struct gfs2_inode *ip,
-		    struct gfs2_ea_location *el,
-		    char *data);
+		     struct gfs2_ea_location *el,
+		     char *data);
 int gfs2_ea_acl_chmod(struct gfs2_inode *ip, struct gfs2_ea_location *el,
-		     struct iattr *attr, char *data);
+		      struct iattr *attr, char *data);
 
 #endif /* __EATTR_DOT_H__ */

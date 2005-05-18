@@ -41,7 +41,7 @@
 int
 gfs_acl_validate_set(struct gfs_inode *ip, int access,
 		     struct gfs_ea_request *er,
-		     mode_t *mode, int *remove)
+		     int *remove, mode_t *mode)
 {
 	ENTER(GFN_ACL_VALIDATE_SET)
 	struct posix_acl *acl;
@@ -57,6 +57,10 @@ gfs_acl_validate_set(struct gfs_inode *ip, int access,
 	acl = posix_acl_from_xattr(er->er_data, er->er_data_len);
 	if (IS_ERR(acl))
 		RETURN(GFN_ACL_VALIDATE_SET, PTR_ERR(acl));
+	if (!acl) {
+		*remove = TRUE;
+		RETURN(GFN_ACL_VALIDATE_SET, 0);
+	}
 
 	error = posix_acl_valid(acl);
 	if (error)
@@ -385,6 +389,10 @@ gfs_acl_chmod(struct gfs_inode *ip, struct iattr *attr)
 	if (IS_ERR(acl)) {
 		error = PTR_ERR(acl);
 		goto out_kfree;
+	} else if (!acl) {
+		kfree(er.er_data);
+		brelse(el.el_bh);
+		goto simple;
 	}
 
 	error = posix_acl_chmod_masq(acl, attr->ia_mode);

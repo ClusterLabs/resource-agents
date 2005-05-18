@@ -167,14 +167,13 @@ static int
 system_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 {
 	ENTER(GFN_SYSTEM_EO_SET)
+	int remove = FALSE;
+	int error;
 
 	if (GFS_ACL_IS_ACCESS(er->er_name, er->er_name_len)) {
-		int remove = FALSE;
-		int error;
-
 		er->er_mode = ip->i_vnode->i_mode;
 		error = gfs_acl_validate_set(ip, TRUE, er,
-					     &er->er_mode, &remove);
+					     &remove, &er->er_mode);
 		if (error)
 			RETURN(GFN_SYSTEM_EO_SET, error);
 		error = gfs_ea_set_i(ip, er);
@@ -186,11 +185,17 @@ system_eo_set(struct gfs_inode *ip, struct gfs_ea_request *er)
 
 	} else if (GFS_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
 		int error = gfs_acl_validate_set(ip, FALSE, er,
-						 NULL, NULL);
+						 &remove, NULL);
 		if (error)
 			RETURN(GFN_SYSTEM_EO_SET, error);
-		RETURN(GFN_SYSTEM_EO_SET, gfs_ea_set_i(ip, er));
-
+		if (!remove)
+			error = gfs_ea_set_i(ip, er);
+		else {
+			error = gfs_ea_remove_i(ip, er);
+			if (error == -ENODATA)
+				error = 0;
+		}
+		RETURN(GFN_SYSTEM_EO_SET, error);
 	}
 
 	RETURN(GFN_SYSTEM_EO_SET, -EPERM);
