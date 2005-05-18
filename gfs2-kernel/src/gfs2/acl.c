@@ -47,7 +47,7 @@
 int
 gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 		      struct gfs2_ea_request *er,
-		      mode_t *mode, int *remove)
+		      int *remove, mode_t *mode)
 {
 	ENTER(G2FN_ACL_VALIDATE_SET)
 	struct posix_acl *acl;
@@ -64,8 +64,7 @@ gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	if (IS_ERR(acl))
 		RETURN(G2FN_ACL_VALIDATE_SET, PTR_ERR(acl));
 	if (!acl) {
-		if (remove)
-			*remove = TRUE;
+		*remove = TRUE;
 		RETURN(G2FN_ACL_VALIDATE_SET, 0);
 	}
 	gfs2_memory_add(acl);

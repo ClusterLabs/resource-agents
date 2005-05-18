@@ -176,7 +176,7 @@ system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 			er->er_flags |= GFS2_ERF_MODE;
 		}
 		error = gfs2_acl_validate_set(ip, TRUE, er,
-					      &er->er_mode, &remove);
+					      &remove, &er->er_mode);
 		if (error)
 			RETURN(G2FN_SYSTEM_EO_SET, error);
 		error = gfs2_ea_set_i(ip, er);
@@ -188,7 +188,7 @@ system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	} else if (GFS2_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
 		error = gfs2_acl_validate_set(ip, FALSE, er,
-					      NULL, &remove);
+					      &remove, NULL);
 		if (error)
 			RETURN(G2FN_SYSTEM_EO_SET, error);
 		if (!remove)
