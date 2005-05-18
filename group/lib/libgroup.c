@@ -64,7 +64,7 @@ int group_join(group_handle_t handle, char *name, char *info)
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	sprintf("join %s", name);
+	snprintf(buf, sizeof(buf), "join %s", name);
 
 	rv = write(h->fd, buf, strlen(buf));
 
@@ -79,7 +79,7 @@ int group_leave(group_handle_t handle, char *name, char *info)
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	sprintf("leave %s", name);
+	snprintf(buf, sizeof(buf), "leave %s", name);
 
 	rv = write(h->fd, buf, strlen(buf));
 
@@ -94,7 +94,7 @@ int group_done(group_handle_t handle, char *name, int event_nr)
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	sprintf("done %s %d", name, event_nr);
+	snprintf(buf, sizeof(buf), "done %s %d", name, event_nr);
 
 	rv = write(h->fd, buf, strlen(buf));
 
@@ -134,7 +134,7 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 		goto fail;
 
 	memset(buf, 0, sizeof(buf));
-	sprintf(buf, "setup %s %d", prog_name, level);
+	snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
 
 	rv = write(h->fd, &buf, strlen(buf));
 	if (rv < 0)
