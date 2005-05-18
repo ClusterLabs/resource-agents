@@ -123,6 +123,10 @@ struct dlm_queryinfo {
 	int gqi_locksize;	/* input */
 	int gqi_lockcount;	/* output */
 };
+#else
+
+/* Dummy definition to keep linkages */
+struct dlm_queryinfo;
 
 #endif
 
