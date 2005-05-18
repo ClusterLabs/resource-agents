@@ -156,7 +156,7 @@ static struct lock_info *get_lockinfo(uint32_t lockid)
 
 	read_lock(&lockinfo_lock);
 	li = idr_find(&lockinfo_idr, lockid);
-	read_lock(&lockinfo_lock);
+	read_unlock(&lockinfo_lock);
 
 	return li;
 }
