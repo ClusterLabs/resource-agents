@@ -262,7 +262,7 @@ static int register_lockspace(char *name, struct user_ls **ls, int flags)
 
 	status = misc_register(&newls->ls_miscinfo);
 	if (status) {
-		printk(KERN_ERR "dlm: misc register failed for %s", name);
+		printk(KERN_ERR "dlm: misc register failed for %s\n", name);
 		dlm_release_lockspace(newls->ls_lockspace, 0);
 		kfree(newls->ls_miscinfo.name);
 		kfree(newls);
@@ -465,7 +465,7 @@ static int check_version(struct dlm_write_request *req)
 	     req->version[1] > DLM_DEVICE_VERSION_MINOR)) {
 
 		printk(KERN_DEBUG "dlm: process %s (%d) version mismatch "
-		       "user (%d.%d.%d) kernel (%d.%d.%d),",
+		       "user (%d.%d.%d) kernel (%d.%d.%d)\n",
 		       current->comm,
 		       current->pid,
 		       req->version[0],
@@ -1102,7 +1102,7 @@ int __init dlm_device_init(void)
 
 	r = misc_register(&ctl_device);
 	if (r) {
-		printk(KERN_ERR "dlm: misc_register failed for control device");
+		printk(KERN_ERR "dlm: misc_register failed for control dev\n");
 		return r;
 	}
 
