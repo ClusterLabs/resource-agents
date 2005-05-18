@@ -10,21 +10,8 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-
+#include "dlm_daemon.h"
 #include "libcman.h"
-
-#define MAX_NODES	(256)
-
-#define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 
 static cman_handle_t	ch;
 static cman_node_t	cluster_nodes[MAX_NODES];
@@ -34,9 +21,6 @@ static char		id[256];
 static char		ip[256];
 static int		member_cb;
 static int		member_reason;
-
-int set_local(int argc, char **argv);
-int set_node(int argc, char **argv);
 
 
 static void set_idip(int nodeid, char *addr)

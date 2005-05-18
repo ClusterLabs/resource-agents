@@ -10,30 +10,14 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-
+#include "dlm_daemon.h"
 #include "evs.h"
-
-#define MAX_NODES	(256)
-
-#define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 
 static evs_handle_t	eh;
 static int		cluster_nodes[MAX_NODES];
 static int		cluster_count;
 static char		id[256];
 static char		ip[256];
-
-int set_local(int argc, char **argv);
-int set_node(int argc, char **argv);
 
 
 static void set_idip(int nodeid, struct in_addr *a)
