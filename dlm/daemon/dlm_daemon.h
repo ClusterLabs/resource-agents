@@ -41,6 +41,8 @@
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
 
+#include "libgroup.h"
+
 #define MAXARGS		64
 #define MAXLINE		256
 #define MAX_NODES	256 /* should be same as MAX_GROUP_MEMBERS */

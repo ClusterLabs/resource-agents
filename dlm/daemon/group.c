@@ -11,7 +11,6 @@
 ******************************************************************************/
 
 #include "dlm_daemon.h"
-#include "libgroup.h"
 
 #define DO_STOP 1
 #define DO_START 2
@@ -22,7 +21,7 @@
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
-static group_handle_t gh;
+group_handle_t gh;
 static int cb_action;
 static char cb_name[MAX_GROUP_NAME_LEN+1];
 static int cb_event_nr;

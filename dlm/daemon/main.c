@@ -23,6 +23,7 @@ static int uevent_fd;
 static int groupd_fd;
 static int member_fd;
 
+extern group_handle_t gh;
 
 void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -58,12 +59,10 @@ void get_done_event(char *name, int *event_nr)
 int process_uevent(void)
 {
 	char buf[MAXLINE];
-	char obuf[MAXLINE];
 	char *argv[MAXARGS], *act, *sys;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
-	memset(obuf, 0, sizeof(obuf));
 
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
 	if (rv < 0) {
@@ -73,7 +72,6 @@ int process_uevent(void)
 
 	if (!strstr(buf, "dlm"))
 		return 0;
-
 
 	make_args(buf, &argc, argv, '/');
 
@@ -86,24 +84,21 @@ int process_uevent(void)
 	log_debug("I: uevent recv:  %s", buf);
 
 	if (!strcmp(act, "online@"))
-		sprintf(obuf, "join %s", argv[3]);
+		rv = group_join(gh, argv[3], NULL);
 
 	else if (!strcmp(act, "offline@"))
-		sprintf(obuf, "leave %s", argv[3]);
+		rv = group_leave(gh, argv[3], NULL);
 
 	else if (!strcmp(act, "change@")) {
 		int event_nr = 0;
 		get_done_event(argv[3], &event_nr);
-		sprintf(obuf, "done %s %d", argv[3], event_nr);
+		rv = group_done(gh, argv[3], event_nr);
 
 	} else
 		goto out;
 
-	log_debug("O: groupd write: %s", obuf);
-
-	rv = write(groupd_fd, &obuf, strlen(obuf));
 	if (rv < 0)
-		log_error("write error %d errno %d %s", rv, errno, obuf);
+		log_error("libgroup %s error %d errno %d", act, rv, errno);
  out:
 	return 0;
 }
