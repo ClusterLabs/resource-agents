@@ -16,37 +16,41 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/make/uninstall.pl
 
-ifeq ($(DEBUG),y)
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DDEBUG -g -DFENCE_RELEASE_NAME=\"${RELEASE}\"
-else
-CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
-endif
-
-INCLUDE = -I. -I.. -I${top_srcdir}/include -I${incdir} \
-	-I${top_srcdir}/config
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-INCLUDE += -I${incdir}/cluster
-endif
-
-LDFLAGS+= -L${libdir}
-LOADLIBES+= -lccs
-
-FENCED_SRC = \
-	main.c \
-	recover.c \
-	agent.c
+CFLAGS+= -g -DFENCE_RELEASE_NAME=\"${RELEASE}\" \
+	-I. \
+	-I${top_srcdir}/include \
+	-I${incdir} \
+	-I${top_srcdir}/config \
+	-I${top_srcdir}/../group/lib \
+	-I${top_srcdir}/../cman/lib
 
 all: ${TARGET}
 
-fenced: ${FENCED_SRC:.c=.o}
-	${CC} ${CFLAGS} ${INCLUDE} ${FENCED_SRC:.c=.o} ${LDFLAGS} ${LOADLIBES} ${LDLIBS} -o $@ -lpthread
+${TARGET}: \
+	main.o \
+	recover.o \
+	group.o \
+	member_cman.o \
+	agent.o \
+	../../ccs/lib/libccs.a \
+	../../cman/lib/libcman.a \
+	../../group/lib/libgroup.a
+	$(CC) -o $@ $^
+
+main.o: main.c fd.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+recover.o: recover.c fd.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+group.o: group.c fd.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+member_cman.o: member_cman.c fd.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+agent.o: agent.c fd.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 copytobin: all
 	strip ${TARGET}

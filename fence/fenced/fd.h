@@ -37,28 +37,27 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/poll.h>
 
-
-#include "cnxman-socket.h"
 #include "list.h"
+#include "libgroup.h"
 
+extern char			*prog_name;
+extern int			fenced_debug_opt;
+extern char			fenced_debug_buf[256];
 
-extern char *             prog_name;
-extern int                fenced_debug;
-extern int                debug_sock;
-extern char               debug_buf[256];
-extern struct sockaddr_un debug_addr;
-extern socklen_t          debug_addrlen;
+#define MAX_NODENAME_LEN	255   /* should match libcman.h */
+#define MAX_GROUPNAME_LEN	32    /* should match libgroup.h */
+#define MAX_NODES		256
+#define MAXARGS                 100  /* FIXME */
+#define MAXLINE                 256
+#define MAX_CLIENTS		5
 
+#define DEFAULT_POST_JOIN_DELAY	6
+#define DEFAULT_POST_FAIL_DELAY	0
+#define DEFAULT_CLEAN_START	0
+#define FENCED_SOCK_PATH	"fenced_socket"
 
-#define FENCED_SOCK_PATH "fenced_socket"
-
-#define DEFAULT_POST_JOIN_DELAY   6
-#define DEFAULT_POST_FAIL_DELAY   0
-#define DEFAULT_CLEAN_START       0
-
-/* should match service.h MAX_SERVICE_NAME_LEN */
-#define MAX_NAME_LEN	33
 
 /* use this one before we fork into the background */
 #define die1(fmt, args...) \
@@ -101,19 +100,24 @@ for (;;) \
   sleep(1); \
 }
 
-/* log_debug messages only appear when -D is used and then they go to stdout */
-/* #define log_debug(fmt, args...) printf("fenced: " fmt "\n", ##args) */
+#define log_print(fmt, args...) \
+do { \
+	snprintf(fenced_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	fprintf(stderr, "fenced: %s", fenced_debug_buf); \
+} while (0)
 
+/* FIXME: send down debug client connection */
 #define log_debug(fmt, args...) \
-do \
-{ \
-	snprintf(debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	if (fenced_debug) printf("fenced: %s", debug_buf); \
-	sendto(debug_sock, debug_buf, strlen(debug_buf), 0, \
-	       (struct sockaddr *)&debug_addr, debug_addrlen); \
-} \
-while (0)
-	
+do { \
+	log_print(fmt, ##args); \
+} while (0)
+
+#define log_error(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
+} while (0)
+
 
 struct fd;
 struct fd_node;
@@ -125,7 +129,7 @@ typedef struct commandline commandline_t;
 
 struct commandline
 {
-	char name[MAX_NAME_LEN];
+	char name[MAX_GROUPNAME_LEN+1];
 	int debug;
 	int post_join_delay;
 	int post_fail_delay;
@@ -157,22 +161,38 @@ struct fd {
 	struct list_head 	leaving;
 	struct list_head	complete;
 
-	int 			namelen;
-	char 			name[1];
+	int			leave;
+	int			leave_done;
+
+	char 			name[MAX_GROUPNAME_LEN+1];
 };
 
 struct fd_node {
 	struct list_head 	list;
-	uint32_t 		nodeid;
-	int 			namelen;
-	char 			name[1];
+	int			nodeid;
+	char 			name[MAX_NODENAME_LEN+1];
 };
 
 
-void add_complete_node(fd_t *fd, uint32_t nodeid, uint32_t len, char *name);
-void do_recovery(fd_t *fd, struct cl_service_event *ev,
-		 struct cl_cluster_node *cl_nodes);
+/* recover.c */
+void add_complete_node(fd_t *fd, int nodeid, char *name);
+void do_recovery(fd_t *fd, int start_type, int member_count, int *nodeids);
 void do_recovery_done(fd_t *fd);
+
+/* agent.c */
 int dispatch_fence_agent(int cd, char *victim);
+
+/* group.c */
+int setup_groupd(void);
+void exit_groupd(void);
+int process_groupd(fd_t *fd);
+
+/* member_xxx.c */
+int setup_member(void);
+void exit_member(void);
+int update_cluster_members(void);
+int in_cluster_members(char *name, int nodeid);
+int can_avert_fence(fd_t *fd, fd_node_t *victim);
+fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name);
 
 #endif				/*  __FD_DOT_H__  */

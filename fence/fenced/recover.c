@@ -14,6 +14,8 @@
 #include "fd.h"
 #include "ccs.h"
 
+extern int our_nodeid;
+
 /* Fencing recovery algorithm
 
    do_recovery (service event start)
@@ -41,141 +43,6 @@
    not fenced.
 */
 
-static fd_node_t *new_fd_node(fd_t *fd, uint32_t nodeid, int namelen, char *name)
-{
-	struct cl_cluster_node cl_node;
-	fd_node_t *node = NULL;
-	int error;
-
-	memset(&cl_node, 0, sizeof(struct cl_cluster_node));
-
-	if (!namelen) {
-		cl_node.node_id = nodeid;
-		error = ioctl(fd->cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
-
-		FENCE_ASSERT(!error, printf("unknown nodeid %u\n", nodeid););
-
-		namelen = strlen(cl_node.name);
-		name = cl_node.name;
-	}
-
-	FENCE_RETRY(node = malloc(sizeof(fd_node_t) + namelen), node);
-	memset(node, 0, sizeof(fd_node_t) + namelen);
-
-	node->nodeid = nodeid;
-	node->namelen = namelen;
-	memcpy(node->name, name, namelen);
-
-	return node;
-}
-
-static int name_equal(fd_node_t *node1, struct cl_cluster_node *node2)
-{
-	char name1[64], name2[64];
-	int i, len1, len2;
-
-	if ((node1->namelen == strlen(node2->name) &&
-	     !strncmp(node1->name, node2->name, node1->namelen)))
-		return TRUE;
-
-	memset(name1, 0, 64);
-	memset(name2, 0, 64);
-
-	len1 = node1->namelen;
-	for (i = 0; i < 63 && i < len1; i++) {
-		if (node1->name[i] != '.')
-			name1[i] = node1->name[i];
-		else
-			break;
-	}
-
-	len2 = strlen(node2->name);
-	for (i = 0; i < 63 && i < len2; i++) {
-		if (node2->name[i] != '.')
-			name1[i] = node2->name[i];
-		else
-			break;
-	}
-
-	if (!strncmp(name1, name2, strlen(name1)))
-		return TRUE;
-
-	return FALSE;
-}
-
-static uint32_t next_complete_nodeid(fd_t *fd, uint32_t gt)
-{
-	fd_node_t *node;
-	uint32_t low = 0xFFFFFFFF;
-
-	/* find lowest node id in fd_complete greater than gt */
-
-	list_for_each_entry(node, &fd->complete, list) {
-		if ((node->nodeid > gt) && (node->nodeid < low))
-			low = node->nodeid;
-	}
-	return low;
-}
-
-static uint32_t find_master_nodeid(fd_t *fd, char **master_name)
-{
-	fd_node_t *node;
-	uint32_t low = 0;
-
-	/* Find the lowest nodeid common to fd->fd_prev (newest member list)
-	 * and fd->fd_complete (last complete member list). */
-
-	for (;;) {
-		low = next_complete_nodeid(fd, low);
-
-		if (low == 0xFFFFFFFF)
-			break;
-
-		list_for_each_entry(node, &fd->prev, list) {
-			if (low != node->nodeid)
-				continue;
-			*master_name = node->name;
-			goto out;
-		}
-	}
-
-	/* Special case: we're the first and only FD member */
-
-	if (fd->prev_count == 1)
-		low = fd->our_nodeid;
-
-	/* We end up returning -1 when we're not the only node and we've just
-	   joined.  Because we've just joined we weren't in the last complete
-	   domain group and won't be chosen as master.  We defer to someone who
-	   _was_ in the last complete group.  All we know is it isn't us. */
-
-	*master_name = "prior member";
-	   
-      out:
-	return low;
-}
-
-static int can_avert_fence(fd_t *fd, fd_node_t *victim)
-{
-	struct cl_cluster_node cl_node;
-	int error;
-
-	memset(&cl_node, 0, sizeof(cl_node));
-
-	strcpy(cl_node.name, victim->name);
-
-	error = ioctl(fd->cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
-	if (error < 0)
-		return FALSE;
-
-	log_debug("state of node %s is %d", victim->name, cl_node.state);
-
-	if (cl_node.state == NODESTATE_MEMBER ||
-	    cl_node.state == NODESTATE_JOINING)
-		return TRUE;
-
-        return FALSE;
-}
 
 static void free_node_list(struct list_head *head)
 {
@@ -207,119 +74,95 @@ static inline void free_complete(fd_t *fd)
 	free_node_list(&fd->complete);
 }
 
-void add_complete_node(fd_t *fd, uint32_t nodeid, uint32_t len, char *name)
+static int next_complete_nodeid(fd_t *fd, int gt)
 {
 	fd_node_t *node;
-	node = new_fd_node(fd, nodeid, len, name);
+	int low = 0xFFFFFFFF;
+
+	/* find lowest node id in fd_complete greater than gt */
+
+	list_for_each_entry(node, &fd->complete, list) {
+		if ((node->nodeid > gt) && (node->nodeid < low))
+			low = node->nodeid;
+	}
+	return low;
+}
+
+static int find_master_nodeid(fd_t *fd, char **master_name)
+{
+	fd_node_t *node;
+	int low = 0;
+
+	/* Find the lowest nodeid common to fd->fd_prev (newest member list)
+	 * and fd->fd_complete (last complete member list). */
+
+	for (;;) {
+		low = next_complete_nodeid(fd, low);
+
+		if (low == 0xFFFFFFFF)
+			break;
+
+		list_for_each_entry(node, &fd->prev, list) {
+			if (low != node->nodeid)
+				continue;
+			*master_name = node->name;
+			goto out;
+		}
+	}
+
+	/* Special case: we're the first and only FD member */
+
+	if (fd->prev_count == 1)
+		low = our_nodeid;
+
+	/* We end up returning -1 when we're not the only node and we've just
+	   joined.  Because we've just joined we weren't in the last complete
+	   domain group and won't be chosen as master.  We defer to someone who
+	   _was_ in the last complete group.  All we know is it isn't us. */
+
+	*master_name = "prior member";
+ out:
+	return low;
+}
+
+void add_complete_node(fd_t *fd, int nodeid, char *name)
+{
+	fd_node_t *node;
+	node = get_new_node(fd, nodeid, name);
 	list_add(&node->list, &fd->complete);
 }
 
-static void new_prev_nodes(fd_t *fd, struct cl_service_event *ev,
-			  struct cl_cluster_node *cl_nodes)
+static void new_prev_nodes(fd_t *fd, int member_count, int *nodeids)
 {
-	struct cl_cluster_node *cl_node = cl_nodes;
 	fd_node_t *node;
 	int i;
 
-	for (i = 0; i < ev->node_count; i++) {
-		node = new_fd_node(fd, cl_node->node_id, 0, NULL);
+	for (i = 0; i < member_count; i++) {
+		node = get_new_node(fd, nodeids[i], NULL);
 		list_add(&node->list, &fd->prev);
-		cl_node++;
 	}
 
-	fd->prev_count = ev->node_count;
-}
-
-static int in_cl_nodes(struct cl_cluster_node *cl_nodes, fd_node_t *node,
-		       int num_nodes)
-{
-	struct cl_cluster_node *cl_node = cl_nodes;
-	int i;
-
-	for (i = 0; i < num_nodes; i++) {
-		if (name_equal(node, cl_node))
-			return TRUE;
-		cl_node++;
-	}
-	return FALSE;
-}
-
-static int get_members(fd_t *fd, struct cl_cluster_node **cl_nodes)
-{
-	struct cl_cluster_nodelist nodelist;
-	struct cl_cluster_node *nodes;
-	int n = 0;
-
-	for (;;) {
-		n = ioctl(fd->cl_sock, SIOCCLUSTER_GETMEMBERS, 0);
-
-		FENCE_ASSERT(n > 0, );
-
-		FENCE_RETRY(nodes = malloc(n * sizeof(struct cl_cluster_node)),
-			    nodes);
-		memset(nodes, 0, n * sizeof(struct cl_cluster_node));
-
-		nodelist.max_members = n;
-		nodelist.nodes = nodes;
-
-		n = ioctl(fd->cl_sock, SIOCCLUSTER_GETMEMBERS, &nodelist);
-		if (n < 0) {
-			free(nodes);
-			continue;
-		}
-		break;
-	}
-
-	*cl_nodes = nodes;
-	return n;
+	fd->prev_count = member_count;
 }
 
 static void add_first_victims(fd_t *fd)
 {
 	fd_node_t *prev_node, *safe;
-	struct cl_cluster_node *cl_nodes, *cl_node;
-	int num_nodes, i;
+	int error;
 
-	num_nodes = get_members(fd, &cl_nodes);
-	cl_node = cl_nodes;
-
-	for (i = 0; i < num_nodes; i++) {
-		if (cl_node->us) {
-			fd->our_nodeid = cl_node->node_id;
-			log_debug("our nodeid %u", fd->our_nodeid);
-			break;
-		}
-		cl_node++;
-	}
-	FENCE_ASSERT(fd->our_nodeid, printf("num_nodes %d\n", num_nodes););
+	error = update_cluster_members();
 
 	/* complete list initialised in init_nodes() to all nodes from ccs */
 	if (list_empty(&fd->complete))
 		log_debug("first complete list empty warning");
 
 	list_for_each_entry_safe(prev_node, safe, &fd->complete, list) {
-		if (!in_cl_nodes(cl_nodes, prev_node, num_nodes)) {
+		if (!in_cluster_members(prev_node->name, 0)) {
 			list_del(&prev_node->list);
 			list_add(&prev_node->list, &fd->victims);
 			log_debug("add first victim %s", prev_node->name);
 		}
 	}
-
-	free(cl_nodes);
-}
-
-static int id_in_cl_nodes(struct cl_cluster_node *cl_nodes, uint32_t nodeid,
-			  int num_nodes)
-{
-	struct cl_cluster_node *cl_node = cl_nodes;
-	int i;
-
-	for (i = 0; i < num_nodes; i++) {
-		if (nodeid == cl_node->node_id)
-			return TRUE;
-		cl_node++;
-	}
-	return FALSE;
 }
 
 static int list_count(struct list_head *head)
@@ -332,6 +175,17 @@ static int list_count(struct list_head *head)
 	return count;
 }
 
+static int id_in_nodeids(int nodeid, int count, int *nodeids)
+{
+	int i;
+
+	for (i = 0; i < count; i++) {
+		if (nodeid == nodeids[i])
+			return TRUE;
+	}
+	return FALSE;
+}
+
 /* This routine should probe other indicators to check if victims
    can be reduced.  Right now we just check if the victim has rejoined the
    cluster. */
@@ -339,15 +193,14 @@ static int list_count(struct list_head *head)
 static int reduce_victims(fd_t *fd)
 {
 	fd_node_t *node, *safe;
-	struct cl_cluster_node *cl_nodes;
-	int num_nodes, num_victims;
+	int num_victims;
 
 	num_victims = list_count(&fd->victims);
 
-	num_nodes = get_members(fd, &cl_nodes);
+	update_cluster_members();
 
 	list_for_each_entry_safe(node, safe, &fd->victims, list) {
-		if (in_cl_nodes(cl_nodes, node, num_nodes)) {
+		if (in_cluster_members(NULL, node->nodeid)) {
 			list_del(&node->list);
 			log_debug("reduce victim %s", node->name);
 			free(node);
@@ -355,7 +208,6 @@ static int reduce_victims(fd_t *fd)
 		}
 	}
 
-	free(cl_nodes);
 	return num_victims;
 }
 
@@ -365,14 +217,14 @@ static int reduce_victims(fd_t *fd)
    when the fencing method reboots the victims.  Otherwise, the nodes should
    unfence themselves when they start up. */
 
-static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
+static void delay_fencing(fd_t *fd, int start_type)
 {
 	struct timeval first, last, start, now;
 	int victim_count, last_count = 0, delay = 0;
 	fd_node_t *node;
 	char *delay_type;
 
-	if (ev->start_type == SERVICE_START_JOIN) {
+	if (start_type == GROUP_NODE_JOIN) {
 		delay = fd->comline->post_join_delay;
 		delay_type = "post_join_delay";
 	} else {
@@ -424,7 +276,7 @@ static void delay_fencing(fd_t *fd, struct cl_service_event *ev)
 	}
 }
 
-static void fence_victims(fd_t *fd, struct cl_service_event *ev)
+static void fence_victims(fd_t *fd, int start_type)
 {
 	fd_node_t *node;
 	char *master_name;
@@ -439,7 +291,7 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 		return;
 	}
 
-	delay_fencing(fd, ev);
+	delay_fencing(fd, start_type);
 
 	while ((cd = ccs_connect()) < 0)
 		sleep(1);
@@ -472,19 +324,18 @@ static void fence_victims(fd_t *fd, struct cl_service_event *ev)
 	ccs_disconnect(cd);
 }
 
-static void add_victims(fd_t *fd, struct cl_service_event *ev,
-			struct cl_cluster_node *cl_nodes)
+static void add_victims(fd_t *fd, int start_type, int member_count,
+			int *nodeids)
 {
 	fd_node_t *node, *safe;
-	int count = ev->node_count;
 
 	/* nodes which haven't completed leaving when a failure restart happens
 	 * are dead (and need fencing) or are still members */
 
-	if (ev->start_type == SERVICE_START_FAILED) {
+	if (start_type == GROUP_NODE_FAILED) {
 		list_for_each_entry_safe(node, safe, &fd->leaving, list) {
 			list_del(&node->list);
-			if (id_in_cl_nodes(cl_nodes, node->nodeid, count))
+			if (id_in_nodeids(node->nodeid, member_count, nodeids))
 				list_add(&node->list, &fd->complete);
 			else {
 				list_add(&node->list, &fd->victims);
@@ -494,31 +345,28 @@ static void add_victims(fd_t *fd, struct cl_service_event *ev,
 		}
 	}
 
-	/* nodes in last completed SG but missing from fr_nodeids are added to
-	 * victims list or leaving list, depending on the type of start. */
+	/* nodes in last completed group but missing from fr_nodeids are added
+	 * to victims list or leaving list, depending on the type of start. */
 
 	if (list_empty(&fd->complete))
 		log_debug("complete list empty warning");
 
 	list_for_each_entry_safe(node, safe, &fd->complete, list) {
-		if (!id_in_cl_nodes(cl_nodes, node->nodeid, count)) {
+		if (!id_in_nodeids(node->nodeid, member_count, nodeids)) {
 			list_del(&node->list);
 
-			if (ev->start_type == SERVICE_START_FAILED)
+			if (start_type == GROUP_NODE_FAILED)
 				list_add(&node->list, &fd->victims);
 			else
 				list_add(&node->list, &fd->leaving);
 
 			log_debug("add node %u to list %u", node->nodeid,
-				  ev->start_type);
+				  start_type);
 		}
 	}
 }
 
-/* cl_nodes is the set of sg members from the last service start */
-
-void do_recovery(fd_t *fd, struct cl_service_event *ev,
-		 struct cl_cluster_node *cl_nodes)
+void do_recovery(fd_t *fd, int start_type, int member_count, int *nodeids)
 {
 	/* Reset things when the last stop aborted our first
 	 * start, i.e. there was no finish; we got a
@@ -540,13 +388,13 @@ void do_recovery(fd_t *fd, struct cl_service_event *ev,
 		fd->first_recovery = TRUE;
 		add_first_victims(fd);
 	} else
-		add_victims(fd, ev, cl_nodes);
+		add_victims(fd, start_type, member_count, nodeids);
 
 	free_prev(fd);
-	new_prev_nodes(fd, ev, cl_nodes);
+	new_prev_nodes(fd, member_count, nodeids);
 
 	if (!list_empty(&fd->victims))
-		fence_victims(fd, ev);
+		fence_victims(fd, start_type);
 }
 
 void do_recovery_done(fd_t *fd)
@@ -559,7 +407,7 @@ void do_recovery_done(fd_t *fd)
 	}
 
 	/* Save a copy of this set of nodes which constitutes the latest
-	 * complete SG.  Any of these nodes missing in the next start will
+	 * complete group.  Any of these nodes missing in the next start will
 	 * either be leaving or victims.  For the next recovery, the lowest
 	 * remaining nodeid in this group will be the master. */
 
@@ -569,3 +417,4 @@ void do_recovery_done(fd_t *fd)
 		list_add(&node->list, &fd->complete);
 	}
 }
+
