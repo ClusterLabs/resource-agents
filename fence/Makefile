@@ -15,14 +15,14 @@ all: copytobin
 copytobin:
 	cd agents && ${MAKE} copytobin
 	cd fence_node && ${MAKE} copytobin
-	cd fence_tool && ${MAKE} copytobin
+#	cd fence_tool && ${MAKE} copytobin
 	cd fenced && ${MAKE} copytobin
 
 clean:
 	cd agents && ${MAKE} clean
 	cd bin && ${MAKE} clean
 	cd fence_node && ${MAKE} clean
-	cd fence_tool && ${MAKE} clean
+#	cd fence_tool && ${MAKE} clean
 	cd fenced && ${MAKE} clean
 
 distclean: clean
