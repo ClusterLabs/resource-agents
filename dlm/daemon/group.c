@@ -118,6 +118,18 @@ static void build_args(int action, int *argc, char **argv)
 	}
 }
 
+char *str_members(void)
+{
+	static char str_members_buf[MAXLINE];
+	int i, len = 0;
+
+	memset(str_members_buf, 0, MAXLINE);
+
+	for (i = 0; i < cb_member_count; i++)
+		len += sprintf(str_members_buf+len, "%d ", cb_members[i]);
+	return str_members_buf;
+}
+
 int process_groupd(void)
 {
 	char *argv[MAXARGS];
@@ -131,19 +143,21 @@ int process_groupd(void)
 	memset(buf, 0, sizeof(buf));
 	build_args(cb_action, &argc, argv);
 
-	log_debug("ls action %d name %s", cb_action, argv[1]);
-
 	switch (cb_action) {
 	case DO_STOP:
+		log_debug("stop %s", cb_name);
 		ls_stop(argc, argv);
 		break;
 	case DO_START:
+		log_debug("start %s %s", cb_name, str_members());
 		ls_start(argc, argv);
 		break;
 	case DO_FINISH:
+		log_debug("finish %s", cb_name);
 		ls_finish(argc, argv);
 		break;
 	case DO_TERMINATE:
+		log_debug("terminate %s", cb_name);
 		ls_terminate(argc, argv);
 		break;
 	case DO_SETID:
@@ -169,9 +183,8 @@ int setup_groupd(void)
 	}
 
 	rv = group_get_fd(gh);
-	if (rv < 0) {
+	if (rv < 0)
 		log_error("group_get_fd error %d %d", rv, errno);
-	}
 
 	return rv;
 }

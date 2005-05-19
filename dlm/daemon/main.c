@@ -81,7 +81,7 @@ int process_uevent(void)
 	if ((strlen(sys) != strlen("dlm")) || strcmp(sys, "dlm"))
 		return 0;
 
-	log_debug("I: uevent recv:  %s", buf);
+	log_debug("kernel: %s %s", act, argv[3]);
 
 	if (!strcmp(act, "online@"))
 		rv = group_join(gh, argv[3], NULL);
@@ -92,6 +92,7 @@ int process_uevent(void)
 	else if (!strcmp(act, "change@")) {
 		int event_nr = 0;
 		get_done_event(argv[3], &event_nr);
+		log_debug("done event_nr %d", event_nr);
 		rv = group_done(gh, argv[3], event_nr);
 
 	} else
@@ -157,9 +158,6 @@ int loop(void)
 	pollfd[2].events = POLLIN;
 
 	maxi = 2;
-
-	log_debug("groupd_fd %d uevent_fd %d member_fd %d",
-		   groupd_fd, uevent_fd, member_fd);
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);

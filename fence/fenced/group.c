@@ -81,6 +81,18 @@ group_callbacks_t callbacks = {
 	setid_cbfn
 };
 
+char *str_members(void)
+{
+	static char buf[MAXLINE];
+	int i, len = 0;
+
+	memset(buf, 0, MAXLINE);
+
+	for (i = 0; i < cb_member_count; i++)
+		len += sprintf(buf+len, "%d ", cb_members[i]);
+	return buf;
+}
+
 int process_groupd(fd_t *fd)
 {
 	int error = 0;
@@ -92,17 +104,21 @@ int process_groupd(fd_t *fd)
 
 	switch (cb_action) {
 	case DO_STOP:
+		log_debug("stop %s", cb_name);
 		fd->last_stop = fd->last_start;
 		break;
 	case DO_START:
+		log_debug("start %s %s", cb_name, str_members());
 		fd->last_start = cb_event_nr;
 		do_recovery(fd, cb_type, cb_member_count, cb_members);
 		break;
 	case DO_FINISH:
+		log_debug("finish %s", cb_name);
 		fd->last_finish = cb_event_nr;
 		do_recovery_done(fd);
 		break;
 	case DO_TERMINATE:
+		log_debug("terminate %s", cb_name);
 		/* if leaving */
 		fd->leave_done = 1;
 		break;

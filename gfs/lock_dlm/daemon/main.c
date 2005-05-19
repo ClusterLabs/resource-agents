@@ -68,11 +68,10 @@ int process_uevent(void)
 	if (!strstr(buf, "lock_dlm"))
 		return 0;
 
-	log_debug("uevent recv:  %s", buf);
-
 	make_args(buf, &argc, argv, '/');
-
 	act = argv[0];
+
+	log_debug("kernel: %s %s", act, argv[3]);
 
 	if (!strcmp(act, "online@"))
 		do_mount(argv[3]);
@@ -141,8 +140,6 @@ int loop(void)
 	pollfd[1].events = POLLIN;
 
 	maxi = 1;
-
-	log_debug("groupd_fd %d uevent_fd %d", groupd_fd, uevent_fd);
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
