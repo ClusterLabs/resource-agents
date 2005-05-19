@@ -54,13 +54,11 @@ meta_go_sync(struct gfs2_glock *gl, int flags)
 	if (!(flags & DIO_METADATA))
 		RET(G2FN_META_GO_SYNC);
 
-	if (test_bit(GLF_DIRTY, &gl->gl_flags)) {
+	if (test_and_clear_bit(GLF_DIRTY, &gl->gl_flags)) {
 		gfs2_log_flush_glock(gl);
 		gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
-		if (flags & DIO_RELEASE) {
+		if (flags & DIO_RELEASE)
 			gfs2_ail_empty_gl(gl);
-			clear_bit(GLF_DIRTY, &gl->gl_flags);
-		}
 	}
 
 	clear_bit(GLF_SYNC, &gl->gl_flags);
@@ -255,15 +253,14 @@ inode_go_sync(struct gfs2_glock *gl, int flags)
 			gfs2_log_flush_glock(gl);
 			gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
 			gfs2_page_sync(gl, flags | DIO_WAIT);
+			clear_bit(GLF_DIRTY, &gl->gl_flags);
 		} else if (meta) {
 			gfs2_log_flush_glock(gl);
 			gfs2_meta_sync(gl, flags | DIO_START | DIO_WAIT);
 		} else if (data)
 			gfs2_page_sync(gl, flags | DIO_START | DIO_WAIT);
-		if (flags & DIO_RELEASE) {
+		if (flags & DIO_RELEASE)
 			gfs2_ail_empty_gl(gl);
-			clear_bit(GLF_DIRTY, &gl->gl_flags);
-		}
 	}
 
 	clear_bit(GLF_SYNC, &gl->gl_flags);
@@ -346,7 +343,7 @@ inode_go_lock(struct gfs2_holder *gh)
 		RETURN(G2FN_INODE_GO_LOCK, 0);
 
 	if (ip->i_vn != gl->gl_vn) {
-		error = gfs2_copyin_dinode(ip);
+		error = gfs2_inode_refresh(ip);
 		if (error)
 			RETURN(G2FN_INODE_GO_LOCK, error);
 		gfs2_inode_attr_in(ip);

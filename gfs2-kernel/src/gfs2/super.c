@@ -293,10 +293,10 @@ int
 gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 {
 	ENTER(G2FN_JINDEX_HOLD)
+	struct gfs2_inode *dip = sdp->sd_jindex;
 	struct qstr name;
 	char buf[20];
 	struct gfs2_jdesc *jd;
-	struct gfs2_holder ghs[2];
 	int error;
 
 	name.name = buf;
@@ -304,7 +304,7 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 	down(&sdp->sd_jindex_mutex);
 
 	for (;;) {
-		error = gfs2_glock_nq_init(sdp->sd_jindex->i_gl, LM_ST_SHARED,
+		error = gfs2_glock_nq_init(dip->i_gl, LM_ST_SHARED,
 					   GL_LOCAL_EXCL, ji_gh);
 		if (error)
 			break;
@@ -328,24 +328,11 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 			break;
 		memset(jd, 0, sizeof(struct gfs2_jdesc));
 
-		gfs2_holder_init(sdp->sd_jindex->i_gl, 0, 0, ghs);
-
-		error = gfs2_lookupi(ghs, &name, TRUE);
+		error = gfs2_lookupi(dip, &name, TRUE, &jd->jd_inode);
 		if (error) {
-			gfs2_holder_uninit(ghs);
 			kfree(jd);
 			break;
 		}
-		if (gfs2_assert_warn(sdp, ghs[1].gh_gl)) {
-			gfs2_holder_uninit(ghs);
-			kfree(jd);
-			error = -EIO;
-			break;
-		}
-
-		jd->jd_inode = get_gl2ip(ghs[1].gh_gl);
-
-		gfs2_glock_dq_uninit_m(2, ghs);
 
 		spin_lock(&sdp->sd_jindex_spin);
 		jd->jd_jid = sdp->sd_journals++;
@@ -500,18 +487,16 @@ int
 gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_LOOKUP_MASTER_DIR)
-	struct gfs2_holder gh;
+	struct gfs2_glock *gl;
 	int error;
 
-	error = gfs2_glock_nq_num(sdp,
-				 sdp->sd_sb.sb_master_dir.no_addr,
-				 &gfs2_inode_glops,
-				 LM_ST_SHARED, GL_LOCAL_EXCL,
-				 &gh);
+	error = gfs2_glock_get(sdp,
+			       sdp->sd_sb.sb_master_dir.no_addr,
+			       &gfs2_inode_glops, CREATE, &gl);
 	if (!error) {
-		error = gfs2_inode_get(gh.gh_gl, &sdp->sd_sb.sb_master_dir,
-				      CREATE, &sdp->sd_master_dir);
-		gfs2_glock_dq_uninit(&gh);
+		error = gfs2_inode_get(gl, &sdp->sd_sb.sb_master_dir, CREATE,
+				       &sdp->sd_master_dir);
+		gfs2_glock_put(gl);
 	}
 
 	RETURN(G2FN_LOOKUP_MASTER_DIR, error);
@@ -564,8 +549,6 @@ gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 
 	set_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
 	clear_bit(SDF_ROFS, &sdp->sd_flags);
-
-	set_bit(GLF_DIRTY, &j_gl->gl_flags);
 
 	gfs2_glock_dq_uninit(&t_gh);
 
@@ -646,7 +629,7 @@ gfs2_statfs_init(struct gfs2_sbd *sdp)
 	gfs2_statfs_change_in(m_sc, m_bh->b_data +
 			      sizeof(struct gfs2_dinode));	
 	gfs2_statfs_change_in(l_sc, l_bh->b_data +
-			       sizeof(struct gfs2_dinode));	
+			      sizeof(struct gfs2_dinode));	
 	spin_unlock(&sdp->sd_statfs_spin);
 
 	brelse(l_bh);
@@ -869,8 +852,8 @@ gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 				done = FALSE;
 			else if (rgd_next && !error) {
 				error = gfs2_glock_nq_init(rgd_next->rd_gl,
-							  LM_ST_SHARED, GL_ASYNC,
-							  gh);
+							   LM_ST_SHARED, GL_ASYNC,
+							   gh);
 				rgd_next = gfs2_rgrpd_get_next(rgd_next);
 				done = FALSE;
 			}

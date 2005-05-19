@@ -170,8 +170,8 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
 				struct inode *inode = vma->vm_file->f_dentry->d_inode;
 				if (inode->i_sb == sb)
 					gfs2_holder_init(get_v2ip(inode)->i_gl,
-							vma2state(vma),
-							0, &ghs[x++]);
+							 vma2state(vma),
+							 0, &ghs[x++]);
 			}
 		}
 

@@ -53,9 +53,6 @@ gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
 
 	atomic_inc(&sdp->sd_ops_dentry);
 
-	if (sdp->sd_args.ar_localcaching)
-		goto valid;
-
 	inode = dentry->d_inode;
 	if (inode && is_bad_inode(inode))
 		goto invalid;

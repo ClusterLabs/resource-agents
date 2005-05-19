@@ -484,9 +484,10 @@ struct gfs2_alloc {
  *  Incore inode structure
  */
 
-#define GIF_QD_LOCKED           (0)
-#define GIF_PAGED               (1)
-#define GIF_SW_PAGED            (2)
+#define GIF_MIN_INIT            (0)
+#define GIF_QD_LOCKED           (1)
+#define GIF_PAGED               (2)
+#define GIF_SW_PAGED            (3)
 
 struct gfs2_inode {
 	struct gfs2_inum i_num;   /* Formal inode # and block address */
@@ -511,11 +512,11 @@ struct gfs2_inode {
 	spinlock_t i_spin;
 	struct rw_semaphore i_rw_mutex;
 
-	/* Cache of most-recently used buffers in indirect addressing chain */
-	struct buffer_head *i_cache[GFS2_MAX_META_HEIGHT];
-
 	unsigned int i_greedy; /* The amount of time to be greedy */
 	unsigned long i_last_pfault; /* The time of the last page fault */
+
+	/* Cache of most-recently used buffers in indirect addressing chain */
+	struct buffer_head *i_cache[GFS2_MAX_META_HEIGHT];
 };
 
 /*

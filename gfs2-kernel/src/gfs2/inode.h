@@ -31,10 +31,12 @@ void gfs2_inode_attr_out(struct gfs2_inode *ip);
 struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create);
 struct inode *gfs2_iget(struct super_block *sb, struct gfs2_inum *inum);
 
-int gfs2_copyin_dinode(struct gfs2_inode *ip);
+void gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type);
+int gfs2_inode_refresh(struct gfs2_inode *ip);
 
-int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
-		    struct gfs2_inode **ipp);
+int gfs2_inode_get(struct gfs2_glock *i_gl,
+		   struct gfs2_inum *inum, int create,
+		   struct gfs2_inode **ipp);
 void gfs2_inode_hold(struct gfs2_inode *ip);
 void gfs2_inode_put(struct gfs2_inode *ip);
 void gfs2_inode_destroy(struct gfs2_inode *ip);
@@ -42,16 +44,15 @@ void gfs2_inode_destroy(struct gfs2_inode *ip);
 int gfs2_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul);
 
 int gfs2_change_nlink(struct gfs2_inode *ip, int diff);
-int gfs2_lookupi(struct gfs2_holder *ghs, struct qstr *name, int is_root);
-int gfs2_lookup_simple(struct gfs2_inode *dip, char *filename,
-		      struct gfs2_inode **ipp);
+int gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root,
+		 struct gfs2_inode **ipp);
 int gfs2_createi(struct gfs2_holder *ghs, struct qstr *name, unsigned int mode);
 int gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-		struct gfs2_unlinked *ul);
+		 struct gfs2_unlinked *ul);
 int gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-	       struct gfs2_unlinked *ul);
+		struct gfs2_unlinked *ul);
 int gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name,
-		  struct gfs2_inode *ip);
+		   struct gfs2_inode *ip);
 int gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to);
 int gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len);
 
@@ -63,5 +64,15 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip);
 int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr);
 
 int gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd);
+
+static __inline__ int
+gfs2_lookup_simple(struct gfs2_inode *dip, char *name, struct gfs2_inode **ipp)
+{
+	struct qstr qstr;
+	memset(&qstr, 0, sizeof(struct qstr));
+	qstr.name = name;
+	qstr.len = strlen(name);
+	return gfs2_lookupi(dip, &qstr, TRUE, ipp);
+}
 
 #endif /* __INODE_DOT_H__ */

@@ -850,10 +850,10 @@ gfs2_meta_cache_flush(struct gfs2_inode *ip)
 
 	for (x = 0; x < GFS2_MAX_META_HEIGHT; x++) {
 		bh_slot = &ip->i_cache[x];
-		if (*bh_slot) {
-			brelse(*bh_slot);
-			*bh_slot = NULL;
-		}
+		if (!*bh_slot)
+			break;
+		brelse(*bh_slot);
+		*bh_slot = NULL;
 	}
 
 	spin_unlock(&ip->i_spin);
@@ -876,7 +876,7 @@ gfs2_meta_cache_flush(struct gfs2_inode *ip)
 
 int
 gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
-		     struct buffer_head **bhp)
+			  struct buffer_head **bhp)
 {
 	ENTER(G2FN_META_INDIRECT_BUFFER)
 	struct buffer_head *bh, **bh_slot = ip->i_cache + height;

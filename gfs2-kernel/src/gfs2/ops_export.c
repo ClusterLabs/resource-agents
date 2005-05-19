@@ -235,7 +235,6 @@ gfs2_get_parent(struct dentry *child)
 {
 	ENTER(G2FN_GET_PARENT)
 	struct gfs2_inode *dip = get_v2ip(child->d_inode);
-	struct gfs2_holder ghs[2];
 	struct qstr dotdot = { .name = "..", .len = 2 };
 	struct gfs2_inode *ip;
 	struct inode *inode;
@@ -244,18 +243,9 @@ gfs2_get_parent(struct dentry *child)
 
 	atomic_inc(&dip->i_sbd->sd_ops_export);
 
-	gfs2_holder_init(dip->i_gl, 0, 0, ghs);
-	error = gfs2_lookupi(ghs, &dotdot, TRUE);
+	error = gfs2_lookupi(dip, &dotdot, TRUE, &ip);
 	if (error)
-		goto fail;
-
-	error = -ENOENT;
-	if (!ghs[1].gh_gl)
-		goto fail;
-
-	ip = get_gl2ip(ghs[1].gh_gl);
-
-	gfs2_glock_dq_uninit_m(2, ghs);
+		RETURN(G2FN_GET_PARENT, ERR_PTR(error));
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
@@ -270,10 +260,6 @@ gfs2_get_parent(struct dentry *child)
 	}
 
 	RETURN(G2FN_GET_PARENT, dentry);
-
- fail:
-	gfs2_holder_uninit(ghs);
-	RETURN(G2FN_GET_PARENT, ERR_PTR(error));
 }
 
 /**
@@ -350,6 +336,12 @@ gfs2_get_dentry(struct super_block *sb, void *inum_p)
 	error = gfs2_inode_get(i_gh.gh_gl, inum, CREATE, &ip);
 	if (error)
 		goto fail;
+
+	error = gfs2_inode_refresh(ip);
+	if (error) {
+		gfs2_inode_put(ip);
+		goto fail;
+	}
 
 	atomic_inc(&sdp->sd_fh2dentry_misses);
 

@@ -105,6 +105,10 @@ void gfs2_holder_put(struct gfs2_holder *gh);
 void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags);
 void gfs2_glock_drop_th(struct gfs2_glock *gl);
 
+void gfs2_glmutex_lock(struct gfs2_glock *gl);
+int gfs2_glmutex_trylock(struct gfs2_glock *gl);
+void gfs2_glmutex_unlock(struct gfs2_glock *gl);
+
 int gfs2_glock_nq(struct gfs2_holder *gh);
 int gfs2_glock_poll(struct gfs2_holder *gh);
 int gfs2_glock_wait(struct gfs2_holder *gh);

@@ -512,8 +512,6 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		printk("GFS2: fsid=%s: jid=%u: Replaying journal...\n",
 		       sdp->sd_fsname, jd->jd_jid);
 
-		set_bit(GLF_DIRTY, &ji_gh.gh_gl->gl_flags);
-
 		for (pass = 0; pass < 2; pass++) {
 			LO_BEFORE_SCAN(jd, &head, pass);
 			error = foreach_descriptor(jd, head.lh_tail, head.lh_blkno, pass);
