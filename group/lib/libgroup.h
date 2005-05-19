@@ -24,7 +24,7 @@
 #define _LIBGROUP_H_
 
 #define MAX_GROUP_MEMBERS	256
-#define MAX_GROUP_NAME_LEN	16
+#define MAX_GROUP_NAME_LEN	32
 #define GROUP_INFO_LEN		32
 
 /* these need to match what's in groupd.h */

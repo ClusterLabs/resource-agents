@@ -46,6 +46,25 @@ do { \
 	} \
 } while (0)
 
+
+static void make_args(char *buf, int *argc, char **argv, char sep)
+{
+	char *p = buf;
+	int i;
+
+	argv[0] = p;
+
+	for (i = 1; i < MAXARGS; i++) {
+		p = strchr(buf, sep);
+		if (!p)
+			break;
+		*p = '\0';
+		argv[i] = p + 1;
+		buf = p + 1;
+	}
+	*argc = i;
+}
+
 struct group_handle
 {
 	int magic;
