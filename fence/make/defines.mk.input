@@ -15,7 +15,10 @@
 sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
+ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
+cmankincdir ?= ${DESTDIR}@CMANKINCDIR@
+ccsincdir ?= ${DESTDIR}@CCSINCDIR@
 
 # Where's the kernel?
 KERNEL_SRC = @KERNEL_SRC@

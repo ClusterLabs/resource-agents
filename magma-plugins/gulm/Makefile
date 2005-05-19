@@ -13,8 +13,8 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-INCLUDES+= -I. -I${incdir}
-LIBS    += ${libdir}/libgulm.a
+INCLUDES+= -I. -I${gulmincdir} -I${magmaincdir} -I${cmankincdir} -I${incdir}
+LIBS    += ${gulmlibdir}/libgulm.a
 CFLAGS  += -D_CLUSTER_ -D_REENTRANT
 OBJS     = gulm.o gulm-lock.o
 TARGETS  = magma_gulm.so

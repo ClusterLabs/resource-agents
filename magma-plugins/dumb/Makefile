@@ -12,7 +12,7 @@
 top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 
-INCLUDES+= -I. -I${incdir}
+INCLUDES+= -I. -I${magmaincdir} -I${cmankincdir} -I${incdir}
 LIBS     = -L${libdir}
 CFLAGS  += -D_CLUSTER_
 OBJS     = dumb.o

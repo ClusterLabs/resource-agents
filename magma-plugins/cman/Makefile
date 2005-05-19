@@ -13,7 +13,7 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-INCLUDES+= -I. -I${incdir}
+INCLUDES+= -I. -I${magmaincdir} -I${cmankincdir} -I${incdir}
 LIBS    += -L${libdir} -ldlm_lt
 CFLAGS  += -D_CLUSTER_
 OBJS     = cman.o

@@ -16,6 +16,7 @@ sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
+cmanincdir ?= ${DESTDIR}/@CMANINCDIR@
 module_dir ?= ${DESTDIR}/@MODULE_DIR@
 
 # Where's the kernel?

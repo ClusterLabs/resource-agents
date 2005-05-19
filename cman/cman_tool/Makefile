@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${incdir} -I${top_srcdir}/config \
+CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
 
 TARGET=cman_tool

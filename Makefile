@@ -16,24 +16,25 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 
 all:
-	cd cman-kernel && ${MAKE} install ${MAKELINE} 
-	cd dlm-kernel && ${MAKE} install ${MAKELINE}
-	cd gfs-kernel && ${MAKE} install ${MAKELINE}
-	cd gfs2-kernel && ${MAKE} install ${MAKELINE}
-	cd gnbd-kernel && ${MAKE} install ${MAKELINE}
-	cd magma && ${MAKE} install ${MAKELINE}
-	cd ccs && ${MAKE} install ${MAKELINE}
-	cd cman && ${MAKE} install ${MAKELINE}
-	cd dlm && ${MAKE} install ${MAKELINE}
-	cd fence && ${MAKE} install ${MAKELINE}
-	cd iddev && ${MAKE} install ${MAKELINE}
-	cd gfs && ${MAKE} install ${MAKELINE}
-	cd gfs2 && ${MAKE} install ${MAKELINE}
-	cd gnbd && ${MAKE} install ${MAKELINE}
-	cd gulm && ${MAKE} install ${MAKELINE}
-	cd magma-plugins && ${MAKE} install ${MAKELINE}
-	cd rgmanager && ${MAKE} install ${MAKELINE}
-#	cd cmirror && ${MAKE} install ${MAKELINE}
+	cd cman-kernel && ${MAKE}
+	cd dlm-kernel && ${MAKE}
+	cd gnbd-kernel && ${MAKE}
+	cd magma && ${MAKE}
+	cd ccs && ${MAKE}
+	cd cman && ${MAKE}
+	cd group && ${MAKE}
+	cd dlm && ${MAKE}
+	cd fence && ${MAKE}
+	cd iddev && ${MAKE}
+	cd gulm && ${MAKE}
+	cd gfs-kernel && ${MAKE}
+	cd gfs2-kernel && ${MAKE}
+	cd gfs && ${MAKE}
+	cd gfs2 && ${MAKE}
+	cd gnbd && ${MAKE}
+	cd magma-plugins && ${MAKE}
+	cd rgmanager && ${MAKE}
+#	cd cmirror && ${MAKE}
 
 copytobin:
 	cd cman-kernel && ${MAKE} copytobin

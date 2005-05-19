@@ -25,8 +25,11 @@ $ret = 0;
 %options = (
 	help => \$help,
         incdir => \$incdir,
+        gnbdkincdir => \$gnbdkincdir,
+        magmaincdir => \$magmaincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
+	magmalibdir => \$magmalibdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
@@ -36,8 +39,11 @@ $ret = 0;
 $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
+		    'gnbdkincdir=s',
+		    'magmaincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
+		    'magmalibdir=s',
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
@@ -57,8 +63,11 @@ if ($help || !$err) {
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
+  print "--gnbdkincdir=\tthe base directory for gnbd kernel include files.  (Default: {incdir}/cluster)\n";
+  print "--magmaincdir=\tthe base directory for magma include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
+  print "--magmalibdir=\tthe base directory for magma libraries.  (Default: {libdir})\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
@@ -75,8 +84,17 @@ chomp($pwd);
 if (!$incdir) {
   $incdir="${prefix}/usr/include";
 }
+if (!$gnbdkincdir) {
+  $gnbdkincdir="${incdir}/cluster";
+}
+if (!$magmaincdir) {
+  $magmaincdir="${incdir}/cluster";
+}
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
+}
+if (!$magmalibdir) {
+  $magmalibdir="${libdir}";
 }
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
@@ -98,8 +116,11 @@ while (<IFILE>) {
   chomp;
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
+  $_ =~ s/\@GNBDKINCDIR\@/$gnbdkincdir/;
+  $_ =~ s/\@MAGMAINCDIR\@/$magmaincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
+  $_ =~ s/\@MAGMALIBDIR\@/$magmalibdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;

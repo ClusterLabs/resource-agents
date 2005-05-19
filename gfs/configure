@@ -25,8 +25,11 @@ $ret = 0;
 %options = (
 	help => \$help,
         incdir => \$incdir,
+        gfskincdir => \$gfskincdir,
+        iddevincdir => \$iddevincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
+	iddevlibdir => \$iddevlibdir,
 	mandir  => \$mandir,
 	prefix => \$prefix,
 	sbindir => \$sbindir,
@@ -36,8 +39,11 @@ $ret = 0;
 $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
+		    'gfskincdir=s',
+		    'iddevincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
+		    'iddevlibdir=s',
 		    'mandir=s',
 		    'prefix=s',
 		    'sbindir=s',
@@ -57,8 +63,11 @@ if ($help || !$err) {
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
+  print "--gfskincdir=\tthe base directory for GFS kernel include files.  (Default: {incdir}/cluster)\n";
+  print "--iddevincdir=\tthe base directory for iddev include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
+  print "--iddevlibdir=\tthe base directory for libraries.  (Default: {libdir})\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
   print "--prefix=\tthe base directory to install into.  (Default: /)\n";
   print "--sbindir=\tthe base directory for system binaries.  (Default: /sbin)\n";
@@ -75,8 +84,17 @@ chomp($pwd);
 if (!$incdir) {
   $incdir="${prefix}/usr/include";
 }
+if (!$gfskincdir) {
+  $gfskincdir="${incdir}/cluster";
+}
+if (!$iddevincdir) {
+  $iddevincdir="${incdir}/cluster";
+}
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
+}
+if (!$iddevlibdir) {
+  $iddevlibdir="${libdir}";
 }
 if (!$mandir) {
   $mandir="${prefix}/usr/share/man";
@@ -98,8 +116,11 @@ while (<IFILE>) {
   chomp;
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
+  $_ =~ s/\@GFSKINCDIR\@/$gfskincdir/;
+  $_ =~ s/\@IDDEVINCDIR\@/$iddevincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;
+  $_ =~ s/\@IDDEVLIBDIR\@/$iddevlibdir/;
   $_ =~ s/\@MANDIR\@/$mandir/;
   $_ =~ s/\@SBINDIR\@/$sbindir/;
   $_ =~ s/\@SHAREDIR\@/$sharedir/;

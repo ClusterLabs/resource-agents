@@ -15,9 +15,13 @@
 sbindir ?= ${DESTDIR}@SBINDIR@
 mandir ?= ${DESTDIR}@MANDIR@
 libdir ?= ${DESTDIR}@LIBDIR@
+gulmlibdir ?= ${DESTDIR}@GULMLIBDIR@
 slibdir ?= ${DESTDIR}@SLIBDIR@
 plugindir ?= ${DESTDIR}@PLUGINDIR@
 incdir ?= ${DESTDIR}@INCDIR@
+magmaincdir ?= ${DESTDIR}@MAGMAINCDIR@
+cmankincdir ?= ${DESTDIR}@CMANKINCDIR@
+gulmincdir ?= ${DESTDIR}@GULMINCDIR@
 
 # Where's the kernel?
 KERNEL_SRC = @KERNEL_SRC@

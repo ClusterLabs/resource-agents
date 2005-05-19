@@ -23,9 +23,9 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${incdir} -I${top_srcdir}/config
+INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
 
-LDFLAGS+= -L${libdir}
+LDFLAGS+= -L${ccslibdir} -L${libdir}
 LOADLIBES+= -lccs
 
 FENCE_NODE_SRC = \

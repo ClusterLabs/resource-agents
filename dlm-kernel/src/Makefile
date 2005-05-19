@@ -33,9 +33,9 @@ EXTRA_CFLAGS += -I$(obj) -DCONFIG_CLUSTER_DLM_PROCLOCKS -DCONFIG_DLM_STATS
 
 all:
 	if [ ! -e cluster ]; then ln -s . cluster; fi
-	if [ ! -e service.h ]; then cp ${incdir}/cluster/service.h .; fi
-	if [ ! -e cnxman.h ]; then cp ${incdir}/cluster/cnxman.h .; fi
-	if [ ! -e cnxman-socket.h ]; then cp ${incdir}/cluster/cnxman-socket.h .; fi
+	if [ ! -e service.h ]; then cp ${cmanincdir}/service.h .; fi
+	if [ ! -e cnxman.h ]; then cp ${cmanincdir}/cnxman.h .; fi
+	if [ ! -e cnxman-socket.h ]; then cp ${cmanincdir}/cnxman-socket.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all

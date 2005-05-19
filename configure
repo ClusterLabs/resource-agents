@@ -4,13 +4,7 @@ echo "configure cman-kernel"
 (cd cman-kernel; ./configure $@)
 
 echo "configure dlm-kernel"
-(cd dlm-kernel; ./configure $@)
-
-echo "configure gfs-kernel"
-(cd gfs-kernel; ./configure $@)
-
-echo "configure gfs2-kernel"
-(cd gfs2-kernel; ./configure $@)
+(cd dlm-kernel; ./configure $@ --cmanincdir=`pwd`/../cman-kernel/src)
 
 echo "configure gnbd-kernel"
 (cd gnbd-kernel; ./configure $@)
@@ -19,37 +13,47 @@ echo "configure magma"
 (cd magma; ./configure $@)
 
 echo "configure ccs"
-(cd ccs; ./configure $@)
+(cd ccs; ./configure $@ --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib)
 
 echo "configure cman"
-(cd cman; ./configure $@)
+(cd cman; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
+
+# No config for group yet.
+#echo "configure group"
+#(cd group; ./configure $@)
 
 echo "configure dlm"
 (cd dlm; ./configure $@)
 
 echo "configure fence"
-(cd fence; ./configure $@)
+(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib --cmankincdir=`pwd`/../cman-kernel/src)
 
 echo "configure iddev"
 (cd iddev; ./configure $@)
 
+echo "configure gulm"
+(cd gulm; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
+
+echo "configure gfs-kernel"
+(cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src --cmankincdir=`pwd`/../cman-kernel/src)
+
+echo "configure gfs2-kernel"
+(cd gfs2-kernel; ./configure $@)
+
 echo "configure gfs"
-(cd gfs; ./configure $@)
+(cd gfs; ./configure $@ --gfskincdir=`pwd`/../gfs-kernel/src/gfs --iddevlibdir=`pwd`/../iddev/lib --iddevincdir=`pwd`/../iddev/lib)
 
 echo "configure gfs2"
-(cd gfs2; ./configure $@)
+(cd gfs2; ./configure $@ --gfs2kincdir=`pwd`/../gfs2-kernel/src/gfs2 --iddevlibdir=`pwd`/../iddev/lib --iddevincdir=`pwd`/../iddev/lib)
 
 echo "configure gnbd"
-(cd gnbd; ./configure $@)
-
-echo "configure gulm"
-(cd gulm; ./configure $@)
+(cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib)
 
 echo "configure magma-plugins"
-(cd magma-plugins; ./configure $@)
+(cd magma-plugins; ./configure $@ --magmaincdir=`pwd`/../magma/lib --cmankincdir=`pwd`/../cman-kernel/src --gulmincdir=`pwd`/../gulm/lib --gulmlibdir=`pwd`/../gulm/lib)
 
 echo "configure rgmanager"
-(cd rgmanager; ./configure $@)
+(cd rgmanager; ./configure $@ --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
 
 echo "configure cmirror"
 (cd cmirror; ./configure $@)

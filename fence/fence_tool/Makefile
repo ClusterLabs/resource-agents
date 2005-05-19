@@ -23,7 +23,7 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${incdir} -I${top_srcdir}/config
+INCLUDE = -I${top_srcdir}/include -I${cmankincdir} -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -35,7 +35,7 @@ else
 INCLUDE += -I${incdir}/cluster
 endif
 
-LDFLAGS+= -L${libdir}
+LDFLAGS+= -L${ccslibdir} -L${libdir} 
 LOADLIBES+= -lccs
 
 FENCE_TOOL_SRC = \

@@ -15,7 +15,11 @@
 sbindir ?= ${DESTDIR}/@SBINDIR@
 mandir ?= ${DESTDIR}/@MANDIR@
 libdir ?= ${DESTDIR}/@LIBDIR@
+magmalibdir ?= ${DESTDIR}/@MAGMALIBDIR@
+ccslibdir ?= ${DESTDIR}/@CCSLIBDIR@
 incdir ?= ${DESTDIR}/@INCDIR@
+magmaincdir ?= ${DESTDIR}/@MAGMAINCDIR@
+ccsincdir ?= ${DESTDIR}/@CCSINCDIR@
 sharedir ?= ${DESTDIR}/@SHAREDIR@
 
 # Where's the kernel?

@@ -25,6 +25,8 @@ $ret = 0;
 %options = (
 	help => \$help,
         incdir => \$incdir,
+        cmankincdir => \$cmankincdir,
+        dlmkincdir => \$dlmkincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
 	mandir  => \$mandir,
@@ -36,6 +38,8 @@ $ret = 0;
 $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
+		    'cmankincdir=s',
+		    'dlmkincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
 		    'mandir=s',
@@ -56,6 +60,8 @@ if ($help || !$err) {
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
+  print "--cmankincdir=\tthe base directory for cman-kernel include files.  (Default: {incdir}/cluster)\n";
+  print "--dlmkincdir=\tthe base directory for dlm kernel include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
@@ -75,6 +81,12 @@ if (!$kernel_src) {
 }
 if (!$incdir) {
   $incdir="${prefix}/usr/include";
+}
+if (!$cmankincdir) {
+  $cmankincdir="${incdir}/cluster";
+}
+if (!$dlmkincdir) {
+  $dlmkincdir="${incdir}/cluster";
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
@@ -105,6 +117,8 @@ while (<IFILE>) {
   chomp;
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
+  $_ =~ s/\@CMANKINCDIR\@/$cmankincdir/;
+  $_ =~ s/\@DLMKINCDIR\@/$dlmkincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@KERNEL_VERSION\@/$kernel_version/;
   $_ =~ s/\@LIBDIR\@/$libdir/;

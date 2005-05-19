@@ -23,7 +23,7 @@ CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
 INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config \
-	-I${incdir}
+	-I${gfskincdir} -I${iddevincdir} -I${incdir}
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -35,7 +35,7 @@ else
 INCLUDE += -I${incdir}
 endif
 
-LDFLAGS+= -L${libdir}
+LDFLAGS+= -L${iddevlibdir} -L${libdir}
 LOADLIBES+= -liddev
 
 all: ${TARGET}

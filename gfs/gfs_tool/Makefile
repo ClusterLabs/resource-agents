@@ -28,7 +28,7 @@ SOURCE=	counters.c \
 CFLAGS+= -O2 -Wall -D_FILE_OFFSET_BITS=64 \
 	-DGFS_RELEASE_NAME=\"${RELEASE}\"
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfskincdir}
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers

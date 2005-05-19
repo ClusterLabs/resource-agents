@@ -25,6 +25,7 @@ $ret = 0;
 %options = (
 	help => \$help,
         incdir => \$incdir,
+	cmanincdir => \$cmanincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
 	mandir  => \$mandir,
@@ -36,6 +37,7 @@ $ret = 0;
 $err = &GetOptions (\%options,
 		    'help',
 		    'incdir=s',
+		    'cmanincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
 		    'mandir=s',
@@ -56,6 +58,7 @@ if ($help || !$err) {
   print "--help\t\tPrints this usage information\n\n";
   print "install flags:\n";
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
+  print "--cmanincdir=\tthe base directory for cman include files.  (Default: {incdir}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
   print "--mandir=\tthe base directory for man pages.  (Default: /usr/share/man)\n";
@@ -75,6 +78,9 @@ if (!$kernel_src) {
 }
 if (!$incdir) {
   $incdir="${prefix}/usr/include";
+}
+if (!$cmanincdir) {
+  $incdir="$incdir/cluster";
 }
 if (!$libdir) {
   $libdir="${prefix}/usr/lib";
@@ -105,6 +111,7 @@ while (<IFILE>) {
   chomp;
   $_ =~ s/\@CC\@/${CC}/;
   $_ =~ s/\@INCDIR\@/$incdir/;
+  $_ =~ s/\@CMANINCDIR\@/$cmanincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@KERNEL_VERSION\@/$kernel_version/;
   $_ =~ s/\@LIBDIR\@/$libdir/;

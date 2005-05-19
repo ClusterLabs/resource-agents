@@ -16,7 +16,8 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${incdir} -I/usr/include/libxml2 -L${libdir}
+CFLAGS+= -g -I${magmaincdir} -I${ccsincdir} -I${incdir} -I/usr/include/libxml2 -L${magmalibdir} \
+	-L${ccslibdir} -L${libdir} 
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 

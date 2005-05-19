@@ -15,7 +15,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${incdir} -I${top_srcdir}/config  \
+CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib -DDEBUG
 
 TARGET=cmand
@@ -26,7 +26,7 @@ copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
 cmand:	daemon.o cnxman.o membership.o config.o logging.o ../lib/libcman.a
-	$(CC) $(CFLAGS) -o $@ $^ -L../lib -lccs -lcman -lpthread
+	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread
 
 
 daemon.o: daemon.c cnxman-private.h cnxman-socket.h cnxman.h list.h config.h

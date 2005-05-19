@@ -24,7 +24,7 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS+= -DHELPER_PROGRAM -D_FILE_OFFSET_BITS=64 \
 	 -DGFS2_RELEASE_NAME=\"${RELEASE}\"
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${gfs2kincdir}
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers

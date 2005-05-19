@@ -16,7 +16,7 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 include ${top_srcdir}/make/defines.mk
 INCLUDE += -I $(top_srcdir)/include
 
-CFLAGS+= -g -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
+CFLAGS+= -g -I${magmaincdir} -I${incdir} -DCMAN_RELEASE_NAME=\"${RELEASE}\"
 
 CFLAGS+= -g -Wstrict-prototypes -Wshadow -fPIC -D_GNU_SOURCE
 

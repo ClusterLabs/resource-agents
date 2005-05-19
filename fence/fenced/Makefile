@@ -19,6 +19,7 @@ UNINSTALL=${top_srcdir}/make/uninstall.pl
 CFLAGS+= -g -DFENCE_RELEASE_NAME=\"${RELEASE}\" \
 	-I. \
 	-I${top_srcdir}/include \
+	-I${ccsincdir} \
 	-I${incdir} \
 	-I${top_srcdir}/config \
 	-I${top_srcdir}/../group/lib \

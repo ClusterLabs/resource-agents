@@ -33,16 +33,16 @@ lock_dlm-objs := group.o \
 	plock.o \
 	thread.o
 
-EXTRA_CFLAGS += -I$(obj)
+EXTRA_CFLAGS += -I$(obj) -I$(dlmkincdir) -I$(cmankincdir)
 
 all:
 	if [ ! -e linux ]; then ln -s . linux; fi
 	if [ ! -e cluster ]; then ln -s . cluster; fi
 	if [ ! -e lm_interface.h ]; then ln -s ${top_srcdir}/src/harness/lm_interface.h .; fi
-	if [ ! -e dlm.h ]; then cp ${incdir}/cluster/dlm.h .; fi
-	if [ ! -e cnxman.h ]; then cp ${incdir}/cluster/cnxman.h .; fi
-	if [ ! -e cnxman-socket.h ]; then cp ${incdir}/cluster/cnxman-socket.h .; fi
-	if [ ! -e service.h ]; then cp ${incdir}/cluster/service.h .; fi
+	if [ ! -e dlm.h ]; then cp ${dlmkincdir}/dlm.h .; fi
+	if [ ! -e cnxman.h ]; then cp ${cmankincdir}/cnxman.h .; fi
+	if [ ! -e cnxman-socket.h ]; then cp ${cmankincdir}/cnxman-socket.h .; fi
+	if [ ! -e service.h ]; then cp ${cmankincdir}/service.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
