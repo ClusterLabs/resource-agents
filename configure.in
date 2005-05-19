@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.380 $) dnl cvs revision
+AC_REVISION($Revision: 1.381 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1634,11 +1634,18 @@ AC_SUBST(CRM_ENABLED)
 CRM_DIR=crm
 AC_SUBST(CRM_DIR)
 
+AC_ARG_ENABLE([crm-force-malloc],
+[  --enable-crm-force-malloc  Force the CRM to use the regular malloc/free functions so we can check for leaks.  [default=no]],
+                     [], [enable_crm_force_malloc=no])
 
+if test "x${enable_crm_force_malloc}" = "xyes"; then
+   AC_DEFINE_UNQUOTED(CRM_USE_MALLOC, 1, Use regular malloc so we can check for leaks)
+fi
+
+dnl Removal Pending...
 AC_ARG_ENABLE([crm-dmalloc],
 [  --enable-crm-dmalloc  Use the dmalloc libraries for the CRM.  [default=no]],
                      [], [enable_crm_dmalloc=no])
-
 
 CRM_DEBUG_LIBS=""
 CRM_DEBUG_OPTS=""
@@ -1650,6 +1657,7 @@ fi
 dnl CRM_DEBUG_LIBS=-lefence
 AC_SUBST(CRM_DEBUG_LIBS)
 AC_SUBST(CRM_DEBUG_FLAGS)
+
 
 dnl lrm configuration
 AC_ARG_ENABLE([lrm],
