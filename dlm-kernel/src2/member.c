@@ -276,6 +276,8 @@ int dlm_ls_stop(struct dlm_ls *ls)
 	 */
 
 	dlm_recoverd_suspend(ls);
+	clear_bit(LSFL_LOCKS_VALID, &ls->ls_flags);
+	clear_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags);
 	clear_bit(LSFL_DIR_VALID, &ls->ls_flags);
 	clear_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
 	clear_bit(LSFL_NODES_VALID, &ls->ls_flags);
