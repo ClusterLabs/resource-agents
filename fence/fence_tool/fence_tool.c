@@ -136,7 +136,7 @@ static int do_join(int argc, char *argv[])
 static int do_leave(void)
 {
 	int fd, rv;
-	char *buf;
+	char buf[MAXLINE];
 
 	fd = fenced_connect();
 	if (!fd)
@@ -144,7 +144,9 @@ static int do_leave(void)
 
 	check_mounted();
 
-	buf = "leave default";
+
+	memset(buf, 0, sizeof(buf));
+	sprintf(buf, "leave default");
 
 	rv = write(fd, buf, sizeof(buf));
 	if (rv < 0)
