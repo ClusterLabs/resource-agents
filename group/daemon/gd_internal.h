@@ -37,7 +37,7 @@
 
 #define GROUPD_PORT		(2)
 #define MAX_BARRIERLEN		(33)
-#define MAX_NAMELEN		(32)
+#define MAX_NAMELEN		(32)	/* should match libgroup.h */
 #define MAX_MSGLEN		(512)
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
