@@ -10,43 +10,19 @@
 ###############################################################################
 ###############################################################################
 
-CFLAGS+= -g -I. -I../include/ -I../../cman/lib/ -I../lib/
+CFLAGS+= -g -I. -I../lib/
 
-TARGET=groupd
+TARGET=group_tool
 
 all: ${TARGET}
 
-groupd: main.o \
-	cman.o \
-	joinleave.o \
-	message.o \
-	update.o \
-	done.o \
-	recover.o \
-	../../cman/lib/libcman.a
+group_tool: main.o \
+	../lib/libgroup.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
-main.o: main.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-joinleave.o: joinleave.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-cman.o: cman.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-message.o: message.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-update.o: update.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-recover.o: recover.c gd_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-done.o: done.c gd_internal.h
+main.o: main.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o groupd
+	rm -f *.o group_tool
 

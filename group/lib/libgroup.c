@@ -239,3 +239,31 @@ int group_dispatch(group_handle_t handle)
 	return 0;
 }
 
+int group_get_groups(int max, int *count, group_data_t *groups)
+{
+	char buf[MAXLINE];
+	int fd, rv, len;
+
+	fd = connect_groupd();
+	if (fd < 0)
+		return fd;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "get_groups %d", max);
+
+	rv = write(fd, &buf, strlen(buf));
+	if (rv < 0)
+		goto out;
+
+	len = max * sizeof(group_data_t);
+
+	rv = read(fd, groups, len);
+	if (rv > 0) {
+		*count = rv / sizeof(group_data_t);
+		rv = 0;
+	}
+ out:
+	close(fd);
+	return rv;
+}
+

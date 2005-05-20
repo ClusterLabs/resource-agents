@@ -65,26 +65,22 @@ int group_dispatch(group_handle_t handle);
 /*
 int group_join_info(group_handle_t handle, char *name, int nodeid, char *info);
 int group_leave_info(group_handle_t handle, char *name, int nodeid, char *info);
-*/
-
-/*
 int group_send();
 int group_receive();
+int group_count_groups(void);
+int group_get_group(char *name, int level, group_t *g);
 */
 
-/*
-int group_count_groups(void);
-int group_get_groups(int max, int *count, group_t *groups);
-int group_get_group(char *name, int level, group_t *g);
-
-typedef struct group {
+typedef struct group_data {
+	char client_name[32+1];
 	char name[MAX_GROUP_NAME_LEN+1];
-	int joinleave_state;
-	int update_state;
+	int level;
+	int flags;
 	int recover_state;
 	int member_count;
 	int members[MAX_GROUP_MEMBERS];
-} group_t;
-*/
+} group_data_t;
+
+int group_get_groups(int max, int *count, group_data_t *groups);
 
 #endif

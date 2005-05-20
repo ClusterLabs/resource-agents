@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "gd_internal.h"
+#include "libgroup.h"
 
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/groupd.pid"
@@ -34,6 +35,8 @@ static int debug;
  * gd_member_count
  * number of nodes in gd_nodes list that are members
  */
+
+extern struct list_head	gd_groups;
 
 struct list_head        gd_nodes;
 int                     gd_node_count;
@@ -214,6 +217,47 @@ static int client_process_done(int ci, int argc, char **argv)
 	return 0;
 }
 
+static int client_process_get_groups(int ci, int argc, char **argv)
+{
+	group_t *g;
+	group_data_t *data;
+	node_t *node;
+	int i, j, rv, len, count = 0, max = atoi(argv[1]);
+
+	list_for_each_entry(g, &gd_groups, list)
+		count++;
+	if (count > max)
+		count = max;
+
+	len = count * sizeof(group_data_t);
+	data = malloc(len);
+	memset(data, 0, len);
+
+	i = 0;
+	list_for_each_entry(g, &gd_groups, list) {
+		strncpy(data[i].client_name, client[g->client].type, 32);
+		strncpy(data[i].name, g->name, MAX_GROUP_NAME_LEN);
+		data[i].level = g->level;
+		data[i].flags = (int) g->flags;
+		data[i].recover_state = g->recover_state;
+		data[i].member_count = g->memb_count;
+
+		j = 0;
+		list_for_each_entry(node, &g->memb, list) {
+			data[i].members[j] = node->id;
+			j++;
+		}
+		i++;
+	}
+
+	rv = write(client[ci].fd, data, len);
+	if (rv != len)
+		log_print("write error %d errno %d", rv, errno);
+
+	free(data);
+	return 0;
+}
+
 static int client_process(int ci)
 {
 	char buf[MAXLINE], *argv[MAXARGS], *cmd;
@@ -245,6 +289,8 @@ static int client_process(int ci)
 		client_process_leave(ci, argc, argv);
 	else if (!strcmp(cmd, "done"))
 		client_process_done(ci, argc, argv);
+	else if (!strcmp(cmd, "get_groups"))
+		client_process_get_groups(ci, argc, argv);
 	else
 		log_print("unknown cmd %s client %d", cmd, ci);
 
