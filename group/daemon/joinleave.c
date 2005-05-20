@@ -791,6 +791,7 @@ static int send_leave_start(event_t *ev)
 
 static int process_leave_event(event_t *ev)
 {
+	group_t *g;
 	int rv = 1, error = 0;
 
 	/*
@@ -864,8 +865,10 @@ static int process_leave_event(event_t *ev)
 		 */
 
 	case EST_LSTART_REMOTEDONE:
-		group_terminate(ev->group);
+		g = ev->group;
+		group_terminate(g);
 		event_done(ev);
+		remove_group(g);
 		break;
 
 	default:
@@ -1279,11 +1282,12 @@ int process_joinleave(void)
 			rv += process_join_event(ev);
 		else
 			rv += process_leave_event(ev);
+	}
 
+	list_for_each_entry(ev, &joinleave_events, list) {
 		if (ev->state == EST_BARRIER_WAIT)
 			barrier_wait++;
 	}
-
 	gd_event_barriers = barrier_wait;
 
 	return rv;
@@ -1369,6 +1373,14 @@ int create_group(char *name, int level, group_t **g_out)
 
 	*g_out = g;
 	return 0;
+}
+
+void remove_group(group_t *g)
+{
+	list_del(&g->list);
+	list_del(&g->level_list);
+	free_group_memb(g);
+	free(g);
 }
 
 int do_join(char *name, int level, int ci)

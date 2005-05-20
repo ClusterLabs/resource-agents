@@ -329,6 +329,7 @@ event_t *find_event(unsigned int id);
 group_t *find_group(char *name);
 group_t *find_group_id(int id);
 group_t *find_group_level(char *name, int level);
+void remove_group(group_t *g);
 node_t *new_node(int nodeid);
 void backout_events(void);
 
