@@ -129,8 +129,6 @@ typedef struct commandline commandline_t;
 
 struct commandline
 {
-	char name[MAX_GROUPNAME_LEN+1];
-	int debug;
 	int post_join_delay;
 	int post_fail_delay;
 	int8_t clean_start;
@@ -144,11 +142,9 @@ struct commandline
 #define FDFL_FINISH     (2)
 
 struct fd {
-	struct commandline	*comline;
-	int			cl_sock;
-	uint32_t 		our_nodeid;
-	uint32_t 		local_id;	/* local unique fd ID */
-	uint32_t 		global_id;	/* global unique fd ID */
+	struct list_head	list;
+	int			our_nodeid;
+	int			global_id;	/* global unique fd ID */
 
 	int 			last_stop;
 	int 			last_start;
@@ -161,9 +157,6 @@ struct fd {
 	struct list_head 	leaving;
 	struct list_head	complete;
 
-	int			leave;
-	int			leave_done;
-
 	char 			name[MAX_GROUPNAME_LEN+1];
 };
 
@@ -173,6 +166,9 @@ struct fd_node {
 	char 			name[MAX_NODENAME_LEN+1];
 };
 
+
+/* main.c */
+fd_t *find_domain(char *name);
 
 /* recover.c */
 void add_complete_node(fd_t *fd, int nodeid, char *name);
@@ -185,7 +181,7 @@ int dispatch_fence_agent(int cd, char *victim);
 /* group.c */
 int setup_groupd(void);
 void exit_groupd(void);
-int process_groupd(fd_t *fd);
+int process_groupd(void);
 
 /* member_xxx.c */
 int setup_member(void);

@@ -15,6 +15,7 @@
 #include "ccs.h"
 
 extern int our_nodeid;
+extern commandline_t comline;
 
 /* Fencing recovery algorithm
 
@@ -225,10 +226,10 @@ static void delay_fencing(fd_t *fd, int start_type)
 	char *delay_type;
 
 	if (start_type == GROUP_NODE_JOIN) {
-		delay = fd->comline->post_join_delay;
+		delay = comline.post_join_delay;
 		delay_type = "post_join_delay";
 	} else {
-		delay = fd->comline->post_fail_delay;
+		delay = comline.post_fail_delay;
 		delay_type = "post_fail_delay";
 	}
 
@@ -248,8 +249,8 @@ static void delay_fencing(fd_t *fd, int start_type)
 
 		if (victim_count < last_count) {
 			gettimeofday(&start, NULL);
-			if (delay > 0 && fd->comline->post_join_delay > delay) {
-				delay = fd->comline->post_join_delay;
+			if (delay > 0 && comline.post_join_delay > delay) {
+				delay = comline.post_join_delay;
 				delay_type = "post_join_delay (modified)";
 			}
 		}

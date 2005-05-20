@@ -15,20 +15,210 @@
 #include "ccs.h"
 #include "copyright.cf"
 
-#define OPTION_STRING			("cj:f:Dn:hVSwQ")
+#define OPTION_STRING			("cj:f:Dn:hVSw")
 #define LOCKFILE_NAME			"/var/run/fenced.pid"
-
-extern group_handle_t gh;
-extern char *our_name;
 
 struct client {
 	int fd;
 	char type[32];
 };
 
+extern group_handle_t gh;
+extern char *our_name;
+
 static int client_size = MAX_CLIENTS;
 static struct client client[MAX_CLIENTS];
 static struct pollfd pollfd[MAX_CLIENTS];
+static struct list_head domains;
+static int fenced_exit;
+commandline_t comline;
+
+
+static int setup_ccs(fd_t *fd)
+{
+	char path[256];
+	char *name = NULL, *str = NULL;
+	int error, cd, i = 0, count = 0;
+
+
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check ccsd or cluster status", cd);
+	}
+
+
+	/* Our own nodename must be in cluster.conf before we're allowed to
+	   join the fence domain and then mount gfs; other nodes need this to
+	   fence us. */
+
+	memset(path, 0, 256);
+	snprintf(path, 256, "/cluster/clusternodes/clusternode[@name=\"%s\"]",
+		 our_name);
+
+	error = ccs_get(cd, path, &str);
+	if (error)
+		die1("local cman node name \"%s\" not found in cluster.conf",
+		     our_name);
+
+
+	/* If an option was set on the command line, don't set it from ccs. */
+
+	if (comline.clean_start_opt == FALSE) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/fence_daemon/@clean_start");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			comline.clean_start = atoi(str);
+		else
+			comline.clean_start = DEFAULT_CLEAN_START;
+		if (str)
+			free(str);
+	}
+
+	if (comline.post_join_delay_opt == FALSE) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/fence_daemon/@post_join_delay");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			comline.post_join_delay = atoi(str);
+		else
+			comline.post_join_delay = DEFAULT_POST_JOIN_DELAY;
+		if (str)
+			free(str);
+	}
+
+	if (comline.post_fail_delay_opt == FALSE) {
+		str = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/fence_daemon/@post_fail_delay");
+
+		error = ccs_get(cd, path, &str);
+		if (!error)
+			comline.post_fail_delay = atoi(str);
+		else
+			comline.post_fail_delay = DEFAULT_POST_FAIL_DELAY;
+		if (str)
+			free(str);
+	}
+
+	log_debug("delay post_join %ds post_fail %ds",
+		  comline.post_join_delay, comline.post_fail_delay);
+
+	if (comline.clean_start) {
+		log_debug("clean start, skipping initial nodes");
+		goto out;
+	}
+
+	for (i = 1; ; i++) {
+		name = NULL;
+		memset(path, 0, 256);
+		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
+
+		error = ccs_get(cd, path, &name);
+		if (error || !name)
+			break;
+
+		add_complete_node(fd, 0, name);
+		free(name);
+		count++;
+	}
+
+	log_debug("added %d nodes from ccs", count);
+ out:
+	ccs_disconnect(cd);
+	return 0;
+}
+
+fd_t *find_domain(char *name)
+{
+	fd_t *fd;
+
+	list_for_each_entry(fd, &domains, list) {
+		if (strlen(name) == strlen(fd->name) &&
+		    !strncmp(fd->name, name, strlen(name)))
+                        return fd;
+	}
+	return NULL;
+}
+
+static fd_t *create_domain(char *name)
+{
+	fd_t *fd;
+
+	if (strlen(name) > MAX_GROUPNAME_LEN)
+		return NULL;
+
+	fd = malloc(sizeof(fd_t));
+	if (!fd)
+		return NULL;
+
+	memset(fd, 0, sizeof(fd_t));
+	strcpy(fd->name, name);
+
+	fd->first_recovery = FALSE;
+	fd->last_stop = 0;
+	fd->last_start = 0;
+	fd->last_finish = 0;
+	fd->prev_count = 0;
+	INIT_LIST_HEAD(&fd->prev);
+	INIT_LIST_HEAD(&fd->victims);
+	INIT_LIST_HEAD(&fd->leaving);
+	INIT_LIST_HEAD(&fd->complete);
+
+	return fd;
+}
+
+int do_join(char *name)
+{
+	fd_t *fd;
+	int rv;
+
+	fd = find_domain(name);
+	if (fd) {
+		rv = -EEXIST;
+		goto out;
+	}
+
+	fd = create_domain(name);
+	if (!fd) {
+		rv = -ENOMEM;
+		goto out;
+	}
+
+	rv = setup_ccs(fd);
+	if (rv) {
+		free(fd);
+		goto out;
+	}
+
+	list_add(&fd->list, &domains);
+
+	rv = group_join(gh, name, NULL);
+	if (rv)
+		free(fd);
+ out:
+	return rv;
+}
+
+int do_leave(char *name)
+{
+	fd_t *fd;
+	int rv;
+
+	fd = find_domain(name);
+	if (!fd)
+		return -EINVAL;
+
+	rv = group_leave(gh, name, NULL);
+
+	return rv;
+}
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -59,9 +249,11 @@ static int client_add(int fd, int *maxi)
 			pollfd[i].events = POLLIN;
 			if (i > *maxi)
 				*maxi = i;
+			log_debug("client %d fd %d added", i, fd);
 			return i;
 		}
 	}
+	log_debug("client add failed");
 	return -1;
 }
 
@@ -73,24 +265,21 @@ static void client_dead(int ci)
 	pollfd[ci].fd = -1;
 }
 
-static int client_process_join(int ci, int argc, char **argv)
+static void client_init(void)
 {
-	/* do group_join */
-	return 0;
-}
+	int i;
 
-static int client_process_leave(int ci, int argc, char **argv)
-{
-	/* do group_leave */
-	return 0;
+	for (i = 0; i < client_size; i++)
+		client[i].fd = -1;
 }
 
 static int client_process(int ci)
 {
-	char buf[MAXLINE], *argv[MAXARGS], *cmd;
+	char buf[MAXLINE], *argv[MAXARGS], *cmd, *name, out[MAXLINE];
 	int argc = 0, rv;
 
 	memset(buf, 0, MAXLINE);
+	memset(out, 0, MAXLINE);
 
 	rv = read(client[ci].fd, buf, MAXLINE);
 	if (!rv) {
@@ -103,17 +292,27 @@ static int client_process(int ci)
 		return rv;
 	}
 
-	/* printf("client %d rv %d: %s\n", ci, rv, buf); */
+	log_debug("client %d: %s", ci, buf);
 
 	make_args(buf, &argc, argv, ' ');
 	cmd = argv[0];
+	name = argv[1];
 
 	if (!strcmp(cmd, "join"))
-		client_process_join(ci, argc, argv);
+		rv = do_join(name);
 	else if (!strcmp(cmd, "leave"))
-		client_process_leave(ci, argc, argv);
+		rv = do_leave(name);
+	else
+		rv = -EINVAL;
 
-	return 0;
+	sprintf(out, "%d", rv);
+	rv = write(client[ci].fd, out, MAXLINE);
+
+	/* monitor: set var to cause log_debug messages to be
+	   sent down client socket
+           exit: cause fenced loop to exit */
+
+	return rv;
 }
 
 static int setup_listen(void)
@@ -152,7 +351,7 @@ static int setup_listen(void)
 	return s;
 }
 
-static int loop(fd_t *fd)
+static int loop(void)
 {
 	int rv, i, f, maxi = 0, listen_fd, groupd_fd;
 
@@ -165,10 +364,6 @@ static int loop(fd_t *fd)
 	if (rv < 0)
 		goto out;
 	client_add(groupd_fd, &maxi);
-
-	rv = group_join(gh, fd->name, NULL);
-	if (rv < 0)
-		goto out;
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -192,152 +387,19 @@ static int loop(fd_t *fd)
 				client_dead(i);
 			else if (pollfd[i].revents & POLLIN) {
 				if (pollfd[i].fd == groupd_fd)
-					process_groupd(fd);
+					process_groupd();
 				else
 					client_process(i);
 			}
 		}
 
-		if (fd->leave)
-			group_leave(gh, fd->name, NULL);
-
-		if (fd->leave_done)
+		if (fenced_exit)
 			break;
 	}
 
 	group_exit(gh);
  out:
 	return rv;
-}
-
-static int setup_ccs(fd_t *fd)
-{
-	char path[256];
-	char *name = NULL, *str = NULL;
-	int error, cd, i = 0, count = 0;
-
-
-	while ((cd = ccs_connect()) < 0) {
-		sleep(1);
-		if (++i > 9 && !(i % 10))
-			log_error("connect to ccs error %d, "
-				  "check ccsd or cluster status", cd);
-	}
-
-
-	/* Our own nodename must be in cluster.conf before we're allowed to
-	   join the fence domain and then mount gfs; other nodes need this to
-	   fence us. */
-
-	memset(path, 0, 256);
-	snprintf(path, 256, "/cluster/clusternodes/clusternode[@name=\"%s\"]",
-		 our_name);
-
-	error = ccs_get(cd, path, &str);
-	if (error)
-		die1("local cman node name \"%s\" not found in cluster.conf",
-		     our_name);
-
-
-	/* If an option was set on the command line, don't set it from ccs. */
-
-	if (fd->comline->clean_start_opt == FALSE) {
-		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, "/cluster/fence_daemon/@clean_start");
-
-		error = ccs_get(cd, path, &str);
-		if (!error)
-			fd->comline->clean_start = atoi(str);
-		else
-			fd->comline->clean_start = DEFAULT_CLEAN_START;
-		if (str)
-			free(str);
-	}
-
-	if (fd->comline->post_join_delay_opt == FALSE) {
-		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, "/cluster/fence_daemon/@post_join_delay");
-
-		error = ccs_get(cd, path, &str);
-		if (!error)
-			fd->comline->post_join_delay = atoi(str);
-		else
-			fd->comline->post_join_delay = DEFAULT_POST_JOIN_DELAY;
-		if (str)
-			free(str);
-	}
-
-	if (fd->comline->post_fail_delay_opt == FALSE) {
-		str = NULL;
-		memset(path, 0, 256);
-		sprintf(path, "/cluster/fence_daemon/@post_fail_delay");
-
-		error = ccs_get(cd, path, &str);
-		if (!error)
-			fd->comline->post_fail_delay = atoi(str);
-		else
-			fd->comline->post_fail_delay = DEFAULT_POST_FAIL_DELAY;
-		if (str)
-			free(str);
-	}
-
-	log_debug("delay post_join %ds post_fail %ds",
-		  fd->comline->post_join_delay, fd->comline->post_fail_delay);
-
-	if (fd->comline->clean_start) {
-		log_debug("clean start, skipping initial nodes");
-		goto out;
-	}
-
-	for (i = 1; ; i++) {
-		name = NULL;
-		memset(path, 0, 256);
-		sprintf(path, "/cluster/clusternodes/clusternode[%d]/@name", i);
-
-		error = ccs_get(cd, path, &name);
-		if (error || !name)
-			break;
-
-		add_complete_node(fd, 0, name);
-		free(name);
-		count++;
-	}
-
-	log_debug("added %d nodes from ccs", count);
- out:
-	ccs_disconnect(cd);
-	return 0;
-}
-
-static fd_t *new_fd(commandline_t *comline)
-{
-	int namelen = strlen(comline->name);
-	fd_t *fd;
-
-	if (namelen > MAX_GROUPNAME_LEN)
-		die1("group name too long, max %d", MAX_GROUPNAME_LEN);
-
-	fd = malloc(sizeof(fd_t));
-	if (!fd)
-		die1("malloc error");
-
-	memset(fd, 0, sizeof(fd_t));
-	strncpy(fd->name, comline->name, namelen);
-
-	fd->comline = comline;
-	fd->first_recovery = FALSE;
-	fd->last_stop = 0;
-	fd->last_start = 0;
-	fd->last_finish = 0;
-	fd->prev_count = 0;
-	INIT_LIST_HEAD(&fd->prev);
-	INIT_LIST_HEAD(&fd->victims);
-	INIT_LIST_HEAD(&fd->leaving);
-	INIT_LIST_HEAD(&fd->complete);
-
-	return fd;
 }
 
 static void print_usage(void)
@@ -355,7 +417,6 @@ static void print_usage(void)
 				   DEFAULT_POST_FAIL_DELAY);
 	printf("  -D	       Enable debugging code and don't fork\n");
 	printf("  -h	       Print this help, then exit\n");
-	printf("  -n <name>	Name of the fence domain, \"default\" if none\n");
 	printf("  -V	       Print program version information, then exit\n");
 	printf("\n");
 	printf("Command line values override those in cluster.conf.\n");
@@ -426,12 +487,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 
 		case 'D':
-			comline->debug = TRUE;
 			fenced_debug_opt = TRUE;
-			break;
-
-		case 'n':
-			strncpy(comline->name, optarg, MAX_GROUPNAME_LEN);
 			break;
 
 		case 'h':
@@ -446,9 +502,7 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			exit(EXIT_SUCCESS);
 			break;
 
-		case 'S':
 		case 'w':
-		case 'Q':
 			/* do nothing, this is a fence_tool option that
 			   we ignore when fence_tool starts us */
 			break;
@@ -468,30 +522,21 @@ static void decode_arguments(int argc, char **argv, commandline_t *comline)
 			break;
 		};
 	}
-
-	if (!strcmp(comline->name, ""))
-		strcpy(comline->name, "default");
 }
 
 int main(int argc, char **argv)
 {
-	commandline_t comline;
-	fd_t *fd;
 	int error;
 
 	prog_name = argv[0];
 	memset(&comline, 0, sizeof(commandline_t));
 	decode_arguments(argc, argv, &comline);
-
-	fd = new_fd(&comline);
+	INIT_LIST_HEAD(&domains);
+	client_init();
 
 	error = setup_member();
 	if (error)
 		die1("setup_member error %d", error);
-
-	error = setup_ccs(fd);
-	if (error)
-		die1("setup_ccs error %d", error);
 
 	if (!fenced_debug_opt) {
 		pid_t pid = fork();
@@ -512,10 +557,8 @@ int main(int argc, char **argv)
 
 	lockfile();
 
-	error = loop(fd);
+	error = loop();
 
-	free(fd);
-	free(pollfd);
 	exit_groupd();
 	exit_member();
 	return error;

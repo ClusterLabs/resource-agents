@@ -93,13 +93,18 @@ char *str_members(void)
 	return buf;
 }
 
-int process_groupd(fd_t *fd)
+int process_groupd(void)
 {
-	int error = 0;
+	fd_t *fd;
+	int error = -EINVAL;
 
 	group_dispatch(gh);
 
 	if (!cb_action)
+		goto out;
+
+	fd = find_domain(cb_name);
+	if (!fd)
 		goto out;
 
 	switch (cb_action) {
@@ -120,7 +125,8 @@ int process_groupd(fd_t *fd)
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
 		/* if leaving */
-		fd->leave_done = 1;
+		list_del(&fd->list);
+		free(fd);
 		break;
 	case DO_SETID:
 		break;

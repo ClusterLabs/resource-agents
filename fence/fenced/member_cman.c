@@ -127,6 +127,9 @@ int update_cluster_members(void)
 	count = 0;
 	memset(&new_nodes, 0, sizeof(new_nodes));
 
+	rv = cman_get_node_count(ch);
+	log_debug("cman node count %d cluster_count %d", rv, cluster_count);
+
 	rv = cman_get_nodes(ch, MAX_NODES, &count, new_nodes);
 	if (rv < 0) {
 		log_error("cman_get_nodes error %d %d", rv, errno);
