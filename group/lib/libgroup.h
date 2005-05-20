@@ -73,10 +73,9 @@ int group_receive();
 */
 
 /*
-int group_get_group_count(group_handle_t handle);
-int group_get_groups(group_handle_t handle, int max, int *count,
-		     group_t *groups);
-int group_get_group(group_handle_t handle, char *name, int level, group_t *g);
+int group_count_groups(void);
+int group_get_groups(int max, int *count, group_t *groups);
+int group_get_group(char *name, int level, group_t *g);
 
 typedef struct group {
 	char name[MAX_GROUP_NAME_LEN+1];

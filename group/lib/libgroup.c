@@ -120,12 +120,34 @@ int group_done(group_handle_t handle, char *name, int event_nr)
 	return rv;
 }
 
+int connect_groupd(void)
+{
+	struct sockaddr_un sun;
+	socklen_t addrlen;
+	int rv, fd;
+
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		goto out;
+
+	memset(&sun, 0, sizeof(sun));
+	sun.sun_family = AF_UNIX;
+	strcpy(&sun.sun_path[1], GROUPD_SOCK_PATH);
+	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
+
+	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
+	if (rv < 0) {
+		close(fd);
+		fd = rv;
+	}
+ out:
+	return fd;
+}
+
 group_handle_t group_init(void *private, char *prog_name, int level,
 			  group_callbacks_t *cbs)
 {
 	struct group_handle *h;
-	struct sockaddr_un sun;
-	socklen_t addrlen;
 	char buf[MAXLINE];
 	int rv, saved_errno;
 
@@ -139,17 +161,8 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 	h->level = level;
 	strncpy(h->prog_name, prog_name, 32);
 
-	h->fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	h->fd = connect_groupd();
 	if (h->fd < 0)
-		goto fail;
-
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strcpy(&sun.sun_path[1], GROUPD_SOCK_PATH);
-	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
-
-	rv = connect(h->fd, (struct sockaddr *) &sun, addrlen);
-	if (rv < 0)
 		goto fail;
 
 	memset(buf, 0, sizeof(buf));
