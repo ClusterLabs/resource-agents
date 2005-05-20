@@ -23,17 +23,7 @@ else
 CFLAGS+= -O2 -D_FILE_OFFSET_BITS=64 -DFENCE_RELEASE_NAME=\"${RELEASE}\"
 endif
 
-INCLUDE = -I${top_srcdir}/include -I${cmankincdir} -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
-
-ifneq (${KERNEL_SRC}, )
-# Use the kernel tree if patched, otherwise, look where cluster headers
-#  should be installed
-INCLUDE += $(shell if [ -d ${KERNEL_SRC}/include/cluster ]; then \
-		echo '-I${KERNEL_SRC}/include/cluster'; else \
-		echo '-I${incdir}/cluster'; fi)
-else
-INCLUDE += -I${incdir}/cluster
-endif
+INCLUDE = -I${top_srcdir}/include -I${ccsincdir} -I${incdir} -I${top_srcdir}/config
 
 LDFLAGS+= -L${ccslibdir} -L${libdir} 
 LOADLIBES+= -lccs
