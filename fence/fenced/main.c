@@ -200,8 +200,10 @@ int do_join(char *name)
 	list_add(&fd->list, &domains);
 
 	rv = group_join(gh, name, NULL);
-	if (rv)
+	if (rv) {
+		log_error("group_join error %d", rv);
 		free(fd);
+	}
  out:
 	return rv;
 }

@@ -125,7 +125,7 @@ int update_cluster_members(void)
 	int rv, count;
 
 	count = 0;
-	memset(&new_nodes, 0, sizeof(new_nodes));
+	memset(new_nodes, 0, sizeof(new_nodes));
 
 	rv = cman_get_node_count(ch);
 	log_debug("cman node count %d cluster_count %d", rv, cluster_count);
@@ -162,16 +162,14 @@ int in_cluster_members(char *name, int nodeid)
 
 int can_avert_fence(fd_t *fd, fd_node_t *victim)
 {
-	cman_node_t cn;
 	int rv;
 
-	rv = cman_get_node(ch, victim->nodeid, &cn);
+	update_cluster_members();
+	rv = in_cluster_members(victim->name, 0);
 
-	log_debug("state of node %s is %d", victim->name, cn.cn_member);
+	log_debug("can_avert_fence %d %s", rv, victim->name);
 
-	if (cn.cn_member)
-		return TRUE;
-	return FALSE;
+	return rv;
 }
 
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)

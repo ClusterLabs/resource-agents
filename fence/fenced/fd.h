@@ -143,20 +143,16 @@ struct commandline
 
 struct fd {
 	struct list_head	list;
-	int			our_nodeid;
 	int			global_id;	/* global unique fd ID */
-
 	int 			last_stop;
 	int 			last_start;
 	int 			last_finish;
-
 	int			first_recovery;
 	int 			prev_count;
 	struct list_head 	prev;
 	struct list_head 	victims;
 	struct list_head 	leaving;
 	struct list_head	complete;
-
 	char 			name[MAX_GROUPNAME_LEN+1];
 };
 

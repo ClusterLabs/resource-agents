@@ -83,14 +83,14 @@ group_callbacks_t callbacks = {
 
 char *str_members(void)
 {
-	static char buf[MAXLINE];
+	static char mbuf[MAXLINE];
 	int i, len = 0;
 
-	memset(buf, 0, MAXLINE);
+	memset(mbuf, 0, MAXLINE);
 
 	for (i = 0; i < cb_member_count; i++)
-		len += sprintf(buf+len, "%d ", cb_members[i]);
-	return buf;
+		len += sprintf(mbuf+len, "%d ", cb_members[i]);
+	return mbuf;
 }
 
 int process_groupd(void)
@@ -107,15 +107,24 @@ int process_groupd(void)
 	if (!fd)
 		goto out;
 
+	/*
+	log_debug("process %s global_id %d cb_action %d last_stop %d "
+		  "last_start %d last_finish %d first %d prev_count %d",
+		  fd->name, fd->global_id, cb_action,
+		  fd->last_stop, fd->last_start, fd->last_finish,
+		  fd->first_recovery, fd->prev_count);
+	*/
+
 	switch (cb_action) {
 	case DO_STOP:
 		log_debug("stop %s", cb_name);
 		fd->last_stop = fd->last_start;
 		break;
 	case DO_START:
-		log_debug("start %s %s", cb_name, str_members());
+		log_debug("start %s members %s", cb_name, str_members());
 		fd->last_start = cb_event_nr;
 		do_recovery(fd, cb_type, cb_member_count, cb_members);
+		group_done(gh, cb_name, cb_event_nr);
 		break;
 	case DO_FINISH:
 		log_debug("finish %s", cb_name);
@@ -129,6 +138,8 @@ int process_groupd(void)
 		free(fd);
 		break;
 	case DO_SETID:
+		log_debug("setid %s %d", cb_name, cb_id);
+		fd->global_id = cb_id;
 		break;
 	default:
 		error = -EINVAL;
