@@ -96,32 +96,27 @@ static void save_lastid(msg_t *msg)
 		global_last_id = gid;
 }
 
+static void msg_copy_in(msg_t *m)
+{
+	m->ms_event_id	= le16_to_cpu(m->ms_event_id);
+	m->ms_group_id	= le32_to_cpu(m->ms_group_id);
+	m->ms_last_id	= le32_to_cpu(m->ms_last_id);
+	m->ms_to_nodeid	= le32_to_cpu(m->ms_to_nodeid);
+	m->ms_level	= le16_to_cpu(m->ms_level);
+	m->ms_length	= le16_to_cpu(m->ms_length);
+}
+
+static void msg_copy_out(msg_t *m)
+{
+	m->ms_event_id	= cpu_to_le16(m->ms_event_id);
+	m->ms_group_id	= cpu_to_le32(m->ms_group_id);
+	m->ms_last_id	= cpu_to_le32(m->ms_last_id);
+	m->ms_to_nodeid	= cpu_to_le32(m->ms_to_nodeid);
+	m->ms_level	= cpu_to_le16(m->ms_level);
+	m->ms_length	= cpu_to_le16(m->ms_length);
+}
+
 #if 0
-static void msg_copy_in(char *msg, msg_t *msg)
-{
-	msg_t *in = (msg_t *) msg;
-
-	msg->ms_type = in->ms_type;
-	msg->ms_status = in->ms_status;
-	msg->ms_event_id = le16_to_cpu(in->ms_event_id);
-	msg->ms_group_id = le32_to_cpu(in->ms_group_id);
-	msg->ms_last_id = le32_to_cpu(in->ms_last_id);
-	msg->ms_level = le16_to_cpu(in->ms_level);
-	msg->ms_length = le16_to_cpu(in->ms_length);
-}
-
-/* swapping bytes in place is an easy source of errors - be careful not to
- * access the fields after calling this */
-
-void msg_bswap_out(msg_t *msg)
-{
-	msg->ms_event_id = cpu_to_le16(msg->ms_event_id);
-	msg->ms_group_id = cpu_to_le32(msg->ms_group_id);
-	msg->ms_last_id = cpu_to_le32(msg->ms_last_id);
-	msg->ms_level = cpu_to_le16(msg->ms_level);
-	msg->ms_length = cpu_to_le16(msg->ms_length);
-}
-
 static unsigned int msgtype_to_flag(int type)
 {
 	unsigned int flag;
@@ -601,7 +596,7 @@ void process_message(char *buf, int len, int nodeid)
 {
 	msg_t *msg = (msg_t *) buf;
 
-	/* msg_copy_in(); */
+	msg_copy_in(msg);
 
 	log_in("message from %d type %d to_nodeid %d", nodeid, msg->ms_type,
 		msg->ms_to_nodeid);
@@ -675,7 +670,8 @@ char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev)
 	msg->ms_length = datalen;
 	msg->ms_event_id = ev ? ev->id : 0;
 
-	/* msg_bswap_out(msg); */
+	msg_copy_out(msg);
+
 	*msglen = fulllen;
 	return (char *) msg;
 }

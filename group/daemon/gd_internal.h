@@ -33,6 +33,7 @@
 
 
 #include "list.h"
+#include "linux_endian.h"
 #include "groupd.h"
 
 #define GROUPD_PORT		(2)
