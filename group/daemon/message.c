@@ -647,9 +647,7 @@ void process_message(char *buf, int len, int nodeid)
 		break;
 
 	case SMSG_RECOVER:
-		/*
 		process_recover_msg(msg, nodeid);
-		*/
 		break;
 
 	default:
