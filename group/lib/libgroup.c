@@ -87,7 +87,7 @@ int group_join(group_handle_t handle, char *name, char *info)
 
 	rv = write(h->fd, buf, strlen(buf));
 
-	return rv;
+	return 0;
 }
 
 int group_leave(group_handle_t handle, char *name, char *info)
@@ -102,7 +102,7 @@ int group_leave(group_handle_t handle, char *name, char *info)
 
 	rv = write(h->fd, buf, strlen(buf));
 
-	return rv;
+	return 0;
 }
 
 int group_done(group_handle_t handle, char *name, int event_nr)
