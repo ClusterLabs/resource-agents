@@ -227,6 +227,9 @@ struct group {
 	event_t *		event;
 	update_t *		update;
 
+	char			join_info[GROUP_INFO_LEN];
+	char			leave_info[GROUP_INFO_LEN];
+
 	int			recover_state;
 	int			recover_stop;
 	struct list_head 	recover_list;	/* recovery event list */
@@ -266,6 +269,7 @@ struct msg {
 	uint32_t 		ms_group_id;
 	uint32_t 		ms_last_id;
 	int			ms_to_nodeid;
+	char			ms_info[GROUP_INFO_LEN];
 };
 
 /*
@@ -327,8 +331,8 @@ void set_event_id(uint32_t *id);
 void init_joinleave(void);
 void add_joinleave_event(event_t *ev);
 int process_joinleave(void);
-int do_join(char *name, int level, int ci);
-int do_leave(char *name, int level, int nowait);
+int do_join(char *name, int level, int ci, char *info);
+int do_leave(char *name, int level, int nowait, char *info);
 int in_event(group_t *g);
 int in_update(group_t *g);
 event_t *find_event(unsigned int id);
@@ -338,6 +342,7 @@ group_t *find_group_level(char *name, int level);
 void remove_group(group_t *g);
 node_t *new_node(int nodeid);
 void backout_events(void);
+node_t *find_member(group_t *g, int nodeid);
 
 /* update.c */
 int process_updates(void);

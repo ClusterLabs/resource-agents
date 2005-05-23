@@ -186,10 +186,14 @@ static int client_process_setup(int ci, int argc, char **argv)
 static int client_process_join(int ci, int argc, char **argv)
 {
 	char buf[MAXLINE];
+	char *info = NULL;
 
-	log_in("local %s join %s", client[ci].type, argv[1]);
+	if (argc > 2)
+		info = argv[2];
 
-	do_join(argv[1], client[ci].level, ci);
+	log_in("local %s join %s info %s", client[ci].type, argv[1], info);
+
+	do_join(argv[1], client[ci].level, ci, info);
 
 	return 0;
 }
@@ -197,10 +201,14 @@ static int client_process_join(int ci, int argc, char **argv)
 static int client_process_leave(int ci, int argc, char **argv)
 {
 	char buf[MAXLINE];
+	char *info = NULL;
 
-	log_in("local %s leave %s", client[ci].type, argv[1]);
+	if (argc > 2)
+		info = argv[2];
 
-	do_leave(argv[1], client[ci].level, 0);
+	log_in("local %s leave %s info %s", client[ci].type, argv[1], info);
+
+	do_leave(argv[1], client[ci].level, 0, info);
 
 	return 0;
 }
@@ -213,6 +221,48 @@ static int client_process_done(int ci, int argc, char **argv)
 
 	do_done(argv[1], client[ci].level, atoi(argv[2]));
 
+	return 0;
+}
+
+static int do_info(int ci, int argc, char **argv, int join)
+{
+	group_t *g;
+	node_t *node;
+	char *name, *buf = "error";
+	int rv, level, nodeid, len = strlen(buf);
+
+	level = atoi(argv[1]);
+	name = argv[2];
+	nodeid = atoi(argv[3]);
+
+	g = find_group_level(name, level);
+	if (!g)
+		goto out;
+
+	if (nodeid == gd_nodeid) {
+		if (join)
+			buf = g->join_info;
+		else
+			buf = g->leave_info;
+		len = GROUP_INFO_LEN;
+		goto out;
+	}
+
+	node = find_member(g, nodeid);
+	if (!node)
+		goto out;
+
+	if (join)
+		buf = node->join_info;
+	else
+		buf = node->leave_info;
+	len = GROUP_INFO_LEN;
+ out:
+	log_debug("info %d:%s nodeid %d \"%s\"", level, name, nodeid, buf);
+
+	rv = write(client[ci].fd, buf, len);
+	if (rv != len)
+		log_print("write error %d errno %d", rv, errno);
 	return 0;
 }
 
@@ -289,6 +339,10 @@ static int client_process(int ci)
 		client_process_leave(ci, argc, argv);
 	else if (!strcmp(cmd, "done"))
 		client_process_done(ci, argc, argv);
+	else if (!strcmp(cmd, "join_info"))
+		do_info(ci, argc, argv, 1);
+	else if (!strcmp(cmd, "leave_info"))
+		do_info(ci, argc, argv, 0);
 	else if (!strcmp(cmd, "get_groups"))
 		client_process_get_groups(ci, argc, argv);
 	else

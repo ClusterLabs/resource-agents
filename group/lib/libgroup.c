@@ -75,34 +75,38 @@ struct group_handle
 	char prog_name[32];
 };
 
-int group_join(group_handle_t handle, char *name, char *info)
+static int _joinleave(group_handle_t handle, char *name, char *info, char *cmd)
 {
 	char buf[MAXLINE];
+	char ibuf[GROUP_INFO_LEN];
 	int rv;
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "join %s", name);
+	memset(ibuf, 0, sizeof(ibuf));
+
+	if (info) {
+		snprintf(ibuf, GROUP_INFO_LEN, "%s", info);
+		ibuf[GROUP_INFO_LEN-1] = '\0';
+		snprintf(buf, sizeof(buf), "%s %s %s", cmd, name, ibuf);
+	} else
+		snprintf(buf, sizeof(buf), "%s %s", cmd, name);
 
 	rv = write(h->fd, buf, strlen(buf));
-
+	if (rv != strlen(buf))
+		return -1;
 	return 0;
+}
+
+int group_join(group_handle_t handle, char *name, char *info)
+{
+	return _joinleave(handle, name, info, "join");
 }
 
 int group_leave(group_handle_t handle, char *name, char *info)
 {
-	char buf[MAXLINE];
-	int rv;
-	struct group_handle *h = (struct group_handle *) handle;
-	VALIDATE_HANDLE(h);
-
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "leave %s", name);
-
-	rv = write(h->fd, buf, strlen(buf));
-
-	return 0;
+	return _joinleave(handle, name, info, "leave");
 }
 
 int group_done(group_handle_t handle, char *name, int event_nr)
@@ -116,11 +120,12 @@ int group_done(group_handle_t handle, char *name, int event_nr)
 	snprintf(buf, sizeof(buf), "done %s %d", name, event_nr);
 
 	rv = write(h->fd, buf, strlen(buf));
-
-	return rv;
+	if (rv != strlen(buf))
+		return -1;
+	return 0;
 }
 
-int connect_groupd(void)
+static int connect_groupd(void)
 {
 	struct sockaddr_un sun;
 	socklen_t addrlen;
@@ -265,5 +270,48 @@ int group_get_groups(int max, int *count, group_data_t *groups)
  out:
 	close(fd);
 	return rv;
+}
+
+static int _info(int level, char *name, int nodeid, char *info, char *cmd)
+{
+	char buf[MAXLINE];
+	int fd, rv, len;
+
+	fd = connect_groupd();
+	if (fd < 0)
+		return fd;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%s %d %s %d", cmd, level, name, nodeid);
+
+	rv = write(fd, buf, strlen(buf));
+	if (rv != strlen(buf)) {
+		rv = -1;
+		goto out;
+	}
+
+	memset(buf, 0, sizeof(buf));
+
+	rv = read(fd, buf, sizeof(buf));
+	if (rv != GROUP_INFO_LEN) {
+		rv = -1;
+		goto out;
+	}
+
+	rv = 0;
+	memcpy(info, buf, GROUP_INFO_LEN);
+ out:
+	close(fd);
+	return rv;
+}
+
+int group_join_info(int level, char *name, int nodeid, char *info)
+{
+	return _info(level, name, nodeid, info, "join_info");
+}
+
+int group_leave_info(int level, char *name, int nodeid, char *info)
+{
+	return _info(level, name, nodeid, info, "leave_info");
 }
 

@@ -158,7 +158,8 @@ static int send_join_notice(event_t *ev)
 {
 	group_t *g = ev->group;
 	node_t *node;
-	char *msg;
+	char *mbuf;
+	msg_t *msg;
 	int i = 0, error, namelen, len = 0;
 
 	/*
@@ -183,10 +184,12 @@ static int send_join_notice(event_t *ev)
 	 */
 
 	namelen = g->namelen;
-	msg = create_msg(g, SMSG_JOIN_REQ, namelen, &len, ev);
-	memcpy(msg + sizeof(msg_t), g->name, namelen);
+	mbuf = create_msg(g, SMSG_JOIN_REQ, namelen, &len, ev);
+	msg = (msg_t *) mbuf;
+	strcpy(msg->ms_info, g->join_info);
+	memcpy(mbuf + sizeof(msg_t), g->name, namelen);
 
-	error = send_broadcast_message_ev(msg, len, ev);
+	error = send_broadcast_message_ev(mbuf, len, ev);
  out:
 	return error;
 }
@@ -253,7 +256,7 @@ static int send_join_stop(event_t *ev)
 {
 	group_t *g = ev->group;
 	node_t *node;
-	char *msg;
+	char *mbuf;
 	uint32_t count;
 	int i, len = 0, error = 0;
 
@@ -294,11 +297,11 @@ static int send_join_stop(event_t *ev)
 	 * check_join_stop.
 	 */
 
-	msg = create_msg(g, SMSG_JSTOP_REQ, sizeof(uint32_t), &len, ev);
+	mbuf = create_msg(g, SMSG_JSTOP_REQ, sizeof(uint32_t), &len, ev);
 	count = htonl(g->memb_count);
-	memcpy(msg + sizeof(msg_t), &count, sizeof(uint32_t));
+	memcpy(mbuf + sizeof(msg_t), &count, sizeof(uint32_t));
 
-	error = send_members_message_ev(g, msg, len, ev);
+	error = send_members_message_ev(g, mbuf, len, ev);
 	if (error < 0)
 		goto fail;
 
@@ -366,16 +369,16 @@ static int send_join_start(event_t *ev)
 	group_t *g = ev->group;
 	node_t *node;
 	int *memb;
-	char *msg;
+	char *mbuf;
 	int error, count = 0, len = 0;
 
 	/*
 	 * Create a start message and send it.
 	 */
 
-	msg = create_msg(g, SMSG_JSTART_CMD, 0, &len, ev);
+	mbuf = create_msg(g, SMSG_JSTART_CMD, 0, &len, ev);
 
-	error = send_members_message(g, msg, len);
+	error = send_members_message(g, mbuf, len);
 	if (error < 0)
 		goto fail;
 
@@ -619,7 +622,8 @@ static int send_leave_notice(event_t *ev)
 {
 	group_t *g = ev->group;
 	node_t *node;
-	char *msg;
+	char *mbuf;
+	msg_t *msg;
 	int i = 0, error = -1, len = 0;
 
 	/*
@@ -637,9 +641,11 @@ static int send_leave_notice(event_t *ev)
 	 * Create and send a leave request message.
 	 */
 
-	msg = create_msg(g, SMSG_LEAVE_REQ, 0, &len, ev);
+	mbuf = create_msg(g, SMSG_LEAVE_REQ, 0, &len, ev);
+	msg = (msg_t *) mbuf;
+	strcpy(msg->ms_info, g->leave_info);
 
-	error = send_members_message_ev(g, msg, len, ev);
+	error = send_members_message_ev(g, mbuf, len, ev);
  out:
 	return error;
 }
@@ -691,7 +697,7 @@ static int check_leave_notice(event_t *ev)
 static int send_leave_stop(event_t *ev)
 {
 	group_t *g = ev->group;
-	char *msg;
+	char *mbuf;
 	int error, len = 0;
 
 	/*
@@ -704,9 +710,9 @@ static int send_leave_stop(event_t *ev)
 	 * Create and send a stop message.
 	 */
 
-	msg = create_msg(g, SMSG_LSTOP_REQ, 0, &len, ev);
+	mbuf = create_msg(g, SMSG_LSTOP_REQ, 0, &len, ev);
 
-	error = send_members_message_ev(g, msg, len, ev);
+	error = send_members_message_ev(g, mbuf, len, ev);
 	if (error < 0)
 		goto out;
 
@@ -765,14 +771,14 @@ static int check_leave_stop(event_t *ev)
 static int send_leave_start(event_t *ev)
 {
 	group_t *g = ev->group;
-	char *msg;
+	char *mbuf;
 	int error = 0, len = 0;
 
 	if (g->memb_count == 1)
 		ev->state = EST_LSTART_REMOTEDONE;
 	else {
-		msg = create_msg(g, SMSG_LSTART_CMD, 0, &len, ev);
-		error = send_members_message(g, msg, len);
+		mbuf = create_msg(g, SMSG_LSTART_CMD, 0, &len, ev);
+		error = send_members_message(g, mbuf, len);
 	}
 	return error;
 }
@@ -1383,7 +1389,7 @@ void remove_group(group_t *g)
 	free(g);
 }
 
-int do_join(char *name, int level, int ci)
+int do_join(char *name, int level, int ci, char *info)
 {
 	group_t *g;
 	int error;
@@ -1393,12 +1399,15 @@ int do_join(char *name, int level, int ci)
 		return error;
 	g->client = ci;
 
+	if (info)
+		strcpy(g->join_info, info);
+
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
 	return 0;
 }
 
-int do_leave(char *name, int level, int nowait)
+int do_leave(char *name, int level, int nowait, char *info)
 {
 	group_t *g;
 	int error;
@@ -1410,6 +1419,9 @@ int do_leave(char *name, int level, int nowait)
 		return -EBUSY;
 	if (nowait && in_update(g))
 		return -EAGAIN;
+
+	if (info)
+		strcpy(g->leave_info, info);
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
@@ -1425,3 +1437,15 @@ node_t *new_node(int nodeid)
 	node->id = nodeid;
 	return node;
 }
+
+node_t *find_member(group_t *g, int nodeid)
+{
+	node_t *node;
+
+	list_for_each_entry(node, &g->memb, list) {
+		if (node->id == nodeid)
+			return node;
+	}
+	return NULL;
+}
+

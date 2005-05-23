@@ -53,8 +53,14 @@ typedef struct {
 } group_callbacks_t;
 
 group_handle_t group_init(void *private, char *prog_name, int level, group_callbacks_t *cbs);
-
 int group_exit(group_handle_t handle);
+
+/* When joining or leaving a group, the program can provide an info string
+   that other members can access via group_join_info() and group_leave_info().
+   The string can be at most GROUP_INFO_LEN bytes, including the terminating
+   '\0' character.  These strings are analagous to mount options and can
+   allow some simple applications to get by without any explicit send/receive
+   communication. */
 
 int group_join(group_handle_t handle, char *name, char *info);
 int group_leave(group_handle_t handle, char *name, char *info);
@@ -63,8 +69,6 @@ int group_get_fd(group_handle_t handle);
 int group_dispatch(group_handle_t handle);
 
 /*
-int group_join_info(group_handle_t handle, char *name, int nodeid, char *info);
-int group_leave_info(group_handle_t handle, char *name, int nodeid, char *info);
 int group_send();
 int group_receive();
 int group_count_groups(void);
@@ -82,6 +86,17 @@ typedef struct group_data {
 	int members[MAX_GROUP_MEMBERS];
 } group_data_t;
 
+/* These routines create their own temporary connection to groupd so they
+   don't interfere with dispatchable callback messages. */
+
 int group_get_groups(int max, int *count, group_data_t *groups);
 
+/* The join_info() and leave_info() routines copy into the caller's buffer
+   the info string that the given nodeid provided when joining or leaving the
+   group.  The caller's buffer should be GROUP_INFO_LEN bytes. */
+
+int group_join_info(int level, char *name, int nodeid, char *info);
+int group_leave_info(int level, char *name, int nodeid, char *info);
+
 #endif
+

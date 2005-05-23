@@ -45,6 +45,7 @@ void add_joiner(group_t *g, int nodeid, msg_t *msg)
 	node = find_joiner(g, nodeid);
 	if (!node) {
 		node = new_node(nodeid);
+		memcpy(node->join_info, msg->ms_info, GROUP_INFO_LEN);
 		list_add_tail(&node->list, &g->joining);
 	}
 }
@@ -94,6 +95,19 @@ static void save_lastid(msg_t *msg)
 
 	if (gid > global_last_id)
 		global_last_id = gid;
+}
+
+static void save_join_info(group_t *g, int nodeid, msg_t *msg)
+{
+	node_t *node;
+
+	node = find_member(g, nodeid);
+	if (!node) {
+		log_error(g, "save_join_info: no member %d", nodeid);
+		return;
+	}
+
+	memcpy(node->join_info, msg->ms_info, GROUP_INFO_LEN);
 }
 
 static void msg_copy_in(msg_t *m)
@@ -256,6 +270,9 @@ static void process_reply(msg_t *msg, int nodeid)
 			if (msg->ms_status == STATUS_POS)
 				save_global_id(ev, msg);
 		}
+
+		if (type == SMSG_JSTOP_REP)
+			save_join_info(g, nodeid, msg);
 
 		if (++ev->reply_count == expected) {
 			clear_allowed_msgtype(ev, type);
@@ -561,6 +578,9 @@ static void process_leave_request(msg_t *msg, int nodeid)
 		}
 
 	}
+
+	if (reply.ms_status == STATUS_POS && node)
+		memcpy(node->leave_info, msg->ms_info, GROUP_INFO_LEN);
 
 	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);

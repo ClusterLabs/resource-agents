@@ -74,6 +74,8 @@ static int process_join_stop(group_t *g)
 	reply.ms_type = SMSG_JSTOP_REP;
 	reply.ms_status = STATUS_POS;
 	reply.ms_event_id = up->remote_seid;
+	strcpy(reply.ms_info, g->join_info);
+
 	msg_copy_out(&reply);
 
 	error = send_nodeid_message((char *) &reply, sizeof(reply), up->nodeid);
