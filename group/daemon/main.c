@@ -266,12 +266,30 @@ static int do_info(int ci, int argc, char **argv, int join)
 	return 0;
 }
 
+static void copy_group_data(group_t *g, group_data_t *data)
+{
+	node_t *node;
+	int i = 0;
+
+	strncpy(data->client_name, client[g->client].type, 32);
+	strncpy(data->name, g->name, MAX_GROUP_NAME_LEN);
+	data->level = g->level;
+	data->id = g->global_id;
+	data->flags = (int) g->flags;
+	data->recover_state = g->recover_state;
+	data->member_count = g->memb_count;
+
+	list_for_each_entry(node, &g->memb, list) {
+		data->members[i] = node->id;
+		i++;
+	}
+}
+
 static int client_process_get_groups(int ci, int argc, char **argv)
 {
 	group_t *g;
 	group_data_t *data;
-	node_t *node;
-	int i, j, rv, len, count = 0, max = atoi(argv[1]);
+	int i, rv, len, count = 0, max = atoi(argv[1]);
 
 	list_for_each_entry(g, &gd_groups, list)
 		count++;
@@ -284,19 +302,7 @@ static int client_process_get_groups(int ci, int argc, char **argv)
 
 	i = 0;
 	list_for_each_entry(g, &gd_groups, list) {
-		strncpy(data[i].client_name, client[g->client].type, 32);
-		strncpy(data[i].name, g->name, MAX_GROUP_NAME_LEN);
-		data[i].level = g->level;
-		data[i].id = g->global_id;
-		data[i].flags = (int) g->flags;
-		data[i].recover_state = g->recover_state;
-		data[i].member_count = g->memb_count;
-
-		j = 0;
-		list_for_each_entry(node, &g->memb, list) {
-			data[i].members[j] = node->id;
-			j++;
-		}
+		copy_group_data(g, &data[i]);
 		i++;
 	}
 
@@ -305,6 +311,27 @@ static int client_process_get_groups(int ci, int argc, char **argv)
 		log_print("write error %d errno %d", rv, errno);
 
 	free(data);
+	return 0;
+}
+
+static int client_process_get_group(int ci, int argc, char **argv)
+{
+	group_t *g;
+	group_data_t data;
+	int rv;
+
+	memset(&data, 0, sizeof(data));
+
+	g = find_group_level(argv[2], atoi(argv[1]));
+	if (!g)
+		goto out;
+
+	copy_group_data(g, &data);
+ out:
+	rv = write(client[ci].fd, &data, sizeof(data));
+	if (rv != sizeof(data))
+		log_print("write error %d errno %d", rv, errno);
+
 	return 0;
 }
 

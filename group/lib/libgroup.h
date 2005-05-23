@@ -72,7 +72,6 @@ int group_dispatch(group_handle_t handle);
 int group_send();
 int group_receive();
 int group_count_groups(void);
-int group_get_group(char *name, int level, group_t *g);
 */
 
 typedef struct group_data {
@@ -89,7 +88,8 @@ typedef struct group_data {
 /* These routines create their own temporary connection to groupd so they
    don't interfere with dispatchable callback messages. */
 
-int group_get_groups(int max, int *count, group_data_t *groups);
+int group_get_groups(int max, int *count, group_data_t *data);
+int group_get_group(int level, char *name, group_data_t *data);
 
 /* The join_info() and leave_info() routines copy into the caller's buffer
    the info string that the given nodeid provided when joining or leaving the

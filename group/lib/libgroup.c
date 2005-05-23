@@ -244,7 +244,7 @@ int group_dispatch(group_handle_t handle)
 	return 0;
 }
 
-int group_get_groups(int max, int *count, group_data_t *groups)
+int group_get_groups(int max, int *count, group_data_t *data)
 {
 	char buf[MAXLINE];
 	int fd, rv, len;
@@ -262,11 +262,34 @@ int group_get_groups(int max, int *count, group_data_t *groups)
 
 	len = max * sizeof(group_data_t);
 
-	rv = read(fd, groups, len);
+	rv = read(fd, data, len);
 	if (rv > 0) {
 		*count = rv / sizeof(group_data_t);
 		rv = 0;
 	}
+ out:
+	close(fd);
+	return rv;
+}
+
+int group_get_group(int level, char *name, group_data_t *data)
+{
+	char buf[MAXLINE];
+	int fd, rv, len;
+
+	fd = connect_groupd();
+	if (fd < 0)
+		return fd;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
+
+	rv = write(fd, &buf, strlen(buf));
+	if (rv < 0)
+		goto out;
+
+	rv = read(fd, data, sizeof(group_data_t));
+	rv = 0;
  out:
 	close(fd);
 	return rv;
