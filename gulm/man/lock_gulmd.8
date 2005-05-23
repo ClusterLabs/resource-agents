@@ -42,14 +42,13 @@ via the \fIlt_partitions\fR option in the configuration.
 .in -7
 
 \fBOPTIONS\fP
-
+.in +7
 You can completely configure gulm from the command line.  If you do this, you
 need to use the same options on every node in the cluster.  You should
 always specify the \fB--cluster_name\fP option, and then either the
 \fB--use_ccs\fP or the \fB--servers\fP options.  Then other options should
 follow.
 
-.in +7
 \fB-h --help\fP
 .in +7
 Print usage information, then exit.
@@ -123,14 +122,6 @@ All	T{
 same as -v "ReallyAll,-Network3,-JIDUpdates,-LockUpdates"
 T}
 .TE
-
-Since Network3, JIDUpdates, and LockUpdates are extremely verbose and rarely
-needed, they are excluded from the 'All' flag (which is why there is a
-ReallyAll flag.)
-
-Do not use ReallyAll unless you are willing to deal with 100M and larger
-log files.  A loaded system can produce up to a megabyte a minute with the
-ReallyAll flag.
 
 The verbose flags can be changed while \fBlock_gulmd\fP is running with
 \fBgulm_tool\fP.
@@ -246,9 +237,7 @@ Default is /var/run/sistina/
 .in +7
 Number of Lock Tables to run.  If more than one there will be
 multiple LTs, and the LTPXes will stripe the locks across the LTs.  This is for
-preformance on servers with multiple CPUs.  Generally, you don't need it.  (very
-few work loads on GFS acutally generate enough lock traffic for this to make a
-difference.)
+preformance on servers with multiple CPUs.
 Default is 1. 
 
 .sp
