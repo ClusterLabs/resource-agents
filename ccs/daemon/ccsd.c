@@ -1,5 +1,5 @@
 /******************************************************************************
-*******************************************************************************
+******************************************************************************i
 **
 **  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
 **
@@ -319,12 +319,12 @@ static char *parse_cli_args(int argc, char *argv[]){
 			     "  IP Protocol:: IPv6 only\n");
       break;
     case 'c':
-      fprintf(stderr, "The '-c' option is depricated.\n"
+      fprintf(stderr, "The '-c' option is deprecated.\n"
 	      "Try '-h' for help.\n");
       error = -EINVAL;
       goto fail;
     case 'd':  /* might be usable for upgrade */
-      fprintf(stderr, "The '-d' option is depricated.\n"
+      fprintf(stderr, "The '-d' option is deprecated.\n"
 	      "Try '-h' for help.\n");
       error = -EINVAL;
       goto fail;
@@ -338,7 +338,7 @@ static char *parse_cli_args(int argc, char *argv[]){
       print_usage(stdout);
       exit(EXIT_SUCCESS);
     case 'l':
-      fprintf(stderr, "The '-l' option is depricated.\n"
+      fprintf(stderr, "The '-l' option is deprecated.\n"
 	      "Try '-h' for help.\n");
       error = -EINVAL;
       goto fail;
@@ -425,7 +425,7 @@ static char *parse_cli_args(int argc, char *argv[]){
       }
       break;
     case 's':
-      fprintf(stderr, "The '-s' option is depricated.\n"
+      fprintf(stderr, "The '-s' option is deprecated.\n"
 	      "Try '-h' for help.\n");
       error = -EINVAL;
       goto fail;
