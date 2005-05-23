@@ -367,7 +367,7 @@ int join(commandline_t *comline)
     do {
 	    sleep(1);
 	    h = cman_admin_init(NULL);
-	    if (!h) {
+	    if (!h &&comline->verbose) {
 		    fprintf(stderr, "waiting for cman to start\n");
 	    }
     } while (!h && ++i < 10);
