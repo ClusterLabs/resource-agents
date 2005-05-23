@@ -11,7 +11,6 @@
 ******************************************************************************/
 
 #include "gd_internal.h"
-#include "libgroup.h"
 
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/groupd.pid"

@@ -38,7 +38,7 @@ node_t *find_joiner(group_t *g, int nodeid)
 	return NULL;
 }
 
-void add_joiner(group_t *g, int nodeid)
+void add_joiner(group_t *g, int nodeid, msg_t *msg)
 {
 	node_t *node;
 
@@ -98,22 +98,20 @@ static void save_lastid(msg_t *msg)
 
 static void msg_copy_in(msg_t *m)
 {
-	m->ms_event_id	= le16_to_cpu(m->ms_event_id);
+	m->ms_level	= le16_to_cpu(m->ms_level);
+	m->ms_event_id	= le32_to_cpu(m->ms_event_id);
 	m->ms_group_id	= le32_to_cpu(m->ms_group_id);
 	m->ms_last_id	= le32_to_cpu(m->ms_last_id);
 	m->ms_to_nodeid	= le32_to_cpu(m->ms_to_nodeid);
-	m->ms_level	= le16_to_cpu(m->ms_level);
-	m->ms_length	= le16_to_cpu(m->ms_length);
 }
 
-static void msg_copy_out(msg_t *m)
+void msg_copy_out(msg_t *m)
 {
-	m->ms_event_id	= cpu_to_le16(m->ms_event_id);
+	m->ms_level	= cpu_to_le16(m->ms_level);
+	m->ms_event_id	= cpu_to_le32(m->ms_event_id);
 	m->ms_group_id	= cpu_to_le32(m->ms_group_id);
 	m->ms_last_id	= cpu_to_le32(m->ms_last_id);
 	m->ms_to_nodeid	= cpu_to_le32(m->ms_to_nodeid);
-	m->ms_level	= cpu_to_le16(m->ms_level);
-	m->ms_length	= cpu_to_le16(m->ms_length);
 }
 
 static unsigned int msgtype_to_flag(int type)
@@ -394,9 +392,9 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
  send:
 
 	if (reply.ms_status == STATUS_POS)
-		add_joiner(g, nodeid);
+		add_joiner(g, nodeid, msg);
 
-	/* msg_bswap_out(&reply); */
+	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
 
@@ -457,7 +455,7 @@ static void process_stop_request(msg_t *msg, int nodeid, uint32_t *msgbuf)
 	reply.ms_status = STATUS_POS;
 	reply.ms_type = (type == SMSG_JSTOP_REQ) ? SMSG_JSTOP_REP : SMSG_LSTOP_REP;
 	reply.ms_event_id = msg->ms_event_id;
-	/* msg_bswap_out(&reply); */
+	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
 
@@ -564,7 +562,7 @@ static void process_leave_request(msg_t *msg, int nodeid)
 
 	}
 
-	/* msg_bswap_out(&reply); */
+	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
 
@@ -663,7 +661,6 @@ char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev)
 	msg->ms_type = type;
 	msg->ms_group_id = g->global_id;
 	msg->ms_level = g->level;
-	msg->ms_length = datalen;
 	msg->ms_event_id = ev ? ev->id : 0;
 
 	msg_copy_out(msg);

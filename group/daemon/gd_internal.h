@@ -35,6 +35,7 @@
 #include "list.h"
 #include "linux_endian.h"
 #include "groupd.h"
+#include "libgroup.h"
 
 #define GROUPD_PORT		(2)
 #define MAX_BARRIERLEN		(33)
@@ -260,13 +261,11 @@ struct group {
 struct msg {
 	uint8_t 		ms_type;
 	uint8_t 		ms_status;
-	uint16_t 		ms_event_id;
+	uint16_t 		ms_level;
+	uint32_t 		ms_event_id;
 	uint32_t 		ms_group_id;
 	uint32_t 		ms_last_id;
 	int			ms_to_nodeid;
-	uint16_t 		ms_level;
-	uint16_t 		ms_length;
-	/* buf of ms_length bytes follows */
 };
 
 /*
@@ -282,6 +281,8 @@ struct node {
 	int			id;
 	unsigned long 		flags;
 	int 			incarnation;
+	char			join_info[GROUP_INFO_LEN];
+	char			leave_info[GROUP_INFO_LEN];
 };
 
 
@@ -319,6 +320,7 @@ node_t *find_joiner(group_t *g, int nodeid);
 int test_allowed_msgtype(event_t *ev, int type);
 void clear_allowed_msgtype(event_t *ev, int type);
 void set_allowed_msgtype(event_t *ev, int type);
+void msg_copy_out(msg_t *m);
 
 /* joinleave.c */
 void set_event_id(uint32_t *id);
