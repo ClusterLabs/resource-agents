@@ -27,6 +27,7 @@ $ret = 0;
         incdir => \$incdir,
         magmaincdir => \$magmaincdir,
         cmankincdir => \$cmankincdir,
+        cmanuincdir => \$cmanuincdir,
         gulmincdir => \$gulmincdir,
 	kernel_src => \$kernel_src,
 	libdir => \$libdir,
@@ -44,6 +45,7 @@ $err = &GetOptions (\%options,
 		    'incdir=s',
 		    'magmaincdir=s',
 		    'cmankincdir=s',
+		    'cmanuincdir=s',
 		    'gulmincdir=s',
 		    'kernel_src=s',
 		    'libdir=s',
@@ -71,6 +73,7 @@ if ($help || !$err) {
   print "--incdir=\tthe base directory for include files.  (Default: /usr/include)\n";
   print "--magmaincdir=\tthe base directory for magma include files.  (Default: {include}/cluster)\n";
   print "--cmankincdir=\tthe base directory for cman-kernel include files.  (Default: {include}/cluster)\n";
+  print "--cmanuincdir=\tthe base directory for libcman include files.  (Default: {include}/cluster)\n";
   print "--gulmincdir=\tthe base directory for gulm include files.  (Default: {include}/cluster)\n";
   print "--kernel_src=\tthe directory containing the kernel source you wish to\n\t\tcompile against. (Default: system dependant)\n";
   print "--libdir=\tthe base directory for libraries.  (Default: /usr/lib)\n";
@@ -98,6 +101,9 @@ if (!$magmaincdir) {
 }
 if (!$cmankincdir) {
   $cmankincdir="${incdir}/cluster";
+}
+if (!$cmanuincdir) {
+  $cmanuincdir="${incdir}/cluster";
 }
 if (!$gulmincdir) {
   $gulmincdir="${incdir}/cluster";
@@ -136,6 +142,7 @@ while (<IFILE>) {
   $_ =~ s/\@INCDIR\@/$incdir/;
   $_ =~ s/\@MAGMAINCDIR\@/$magmaincdir/;
   $_ =~ s/\@CMANKINCDIR\@/$cmankincdir/;
+  $_ =~ s/\@CMANUINCDIR\@/$cmanuincdir/;
   $_ =~ s/\@GULMINCDIR\@/$gulmincdir/;
   $_ =~ s/\@KERNEL_SRC\@/$kernel_src/;
   $_ =~ s/\@LIBDIR\@/$libdir/;

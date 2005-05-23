@@ -11,24 +11,28 @@
 ###############################################################################
 all:
 	cd cman && ${MAKE} all
+	cd ucman && ${MAKE} all
 	cd dumb && ${MAKE} all
 	cd gulm && ${MAKE} all
 	cd sm && ${MAKE} all
 
 clean:
 	cd cman && ${MAKE} clean
+	cd ucman && ${MAKE} clean
 	cd dumb && ${MAKE} clean
 	cd gulm && ${MAKE} clean
 	cd sm && ${MAKE} clean
 
 install:
 	cd cman && ${MAKE} install
+	cd ucman && ${MAKE} install
 	cd dumb && ${MAKE} install
 	cd gulm && ${MAKE} install
 	cd sm && ${MAKE} install
 
 uninstall:
 	cd cman && ${MAKE} uninstall
+	cd ucman && ${MAKE} uninstall
 	cd dumb && ${MAKE} uninstall
 	cd gulm && ${MAKE} uninstall
 	cd sm && ${MAKE} uninstall

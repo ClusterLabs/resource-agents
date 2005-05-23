@@ -50,7 +50,7 @@ echo "configure gnbd"
 (cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib)
 
 echo "configure magma-plugins"
-(cd magma-plugins; ./configure $@ --magmaincdir=`pwd`/../magma/lib --cmankincdir=`pwd`/../cman-kernel/src --gulmincdir=`pwd`/../gulm/lib --gulmlibdir=`pwd`/../gulm/lib)
+(cd magma-plugins; ./configure $@ --magmaincdir=`pwd`/../magma/lib --cmankincdir=`pwd`/../cman-kernel/src --gulmincdir=`pwd`/../gulm/lib --gulmlibdir=`pwd`/../gulm/lib --cmanuincdir=`pwd`/../cman/lib)
 
 echo "configure rgmanager"
 (cd rgmanager; ./configure $@ --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)

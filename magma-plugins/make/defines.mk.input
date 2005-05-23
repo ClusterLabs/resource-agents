@@ -21,6 +21,7 @@ plugindir ?= ${DESTDIR}@PLUGINDIR@
 incdir ?= ${DESTDIR}@INCDIR@
 magmaincdir ?= ${DESTDIR}@MAGMAINCDIR@
 cmankincdir ?= ${DESTDIR}@CMANKINCDIR@
+cmanuincdir ?= ${DESTDIR}@CMANUINCDIR@
 gulmincdir ?= ${DESTDIR}@GULMINCDIR@
 
 # Where's the kernel?
