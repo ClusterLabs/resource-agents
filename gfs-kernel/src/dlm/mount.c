@@ -11,71 +11,20 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <linux/socket.h>
-#include <net/sock.h>
-#include <linux/delay.h>
-
 #include "lock_dlm.h"
-#include <cluster/cnxman.h>
-#include <cluster/service.h>
 
-extern int lock_dlm_max_nodes;
 extern int lock_dlm_drop_count;
 extern int lock_dlm_drop_period;
 
+/*  
+ * Parse superblock lock table <clustername>:<fsname>  
+ * FIXME: simplify this
+ */
 
-static int init_cman(dlm_t *dlm)
-{
-	int error = -1;
-	char *name = NULL;
-
-	if (!dlm->clustername)
-		goto fail;
-
-	error = kcl_addref_cluster();
-	if (error) {
-		printk("lock_dlm: cannot get cman reference %d\n", error);
-		goto fail;
-	}
-
-	error = kcl_cluster_name(&name);
-	if (error) {
-		printk("lock_dlm: cannot get cman cluster name %d\n", error);
-		goto fail_ref;
-	}
-
-	if (strcmp(name, dlm->clustername)) {
-		error = -1;
-		printk("lock_dlm: cman cluster name \"%s\" does not match "
-		       "file system cluster name \"%s\"\n",
-		       name, dlm->clustername);
-		goto fail_ref;
-	}
-
-	kfree(name);
-	return 0;
-
- fail_ref:
-	kcl_releaseref_cluster();
- fail:
-	if (name)
-		kfree(name);
-	return error;
-}
-
-static int release_cman(dlm_t *dlm)
-{
-	return kcl_releaseref_cluster();
-}
-
-static int init_cluster(dlm_t *dlm, char *table_name)
+static int init_names(dlm_t *dlm, char *table_name)
 {
 	char *buf, *c, *clname, *fsname;
 	int len, error = -1;
-
-	/*  
-	 * Parse superblock lock table <clustername>:<fsname>  
-	 */
 
 	len = strlen(table_name) + 1;
 	buf = kmalloc(len, GFP_KERNEL);
@@ -91,8 +40,6 @@ static int init_cluster(dlm_t *dlm, char *table_name)
 	*c = '\0';
 	clname = buf;
 	fsname = ++c;
-
-	dlm->max_nodes = lock_dlm_max_nodes;
 
 	len = strlen(clname) + 1;
 	c = kmalloc(len, GFP_KERNEL);
@@ -112,82 +59,44 @@ static int init_cluster(dlm_t *dlm, char *table_name)
 	dlm->fnlen = len-1;
 	dlm->fsname = c;
 
-	error = init_cman(dlm);
-	if (error)
-		goto out_fn;
-
 	kfree(buf);
 	return 0;
 
- out_fn:
-	kfree(dlm->fsname);
  out_cn:
 	kfree(dlm->clustername);
  out_buf:
 	kfree(buf);
  out:
-	printk("lock_dlm: init_cluster error %d\n", error);
+	printk("lock_dlm: init_names error %d\n", error);
 	return error;
 }
 
-static int release_cluster(dlm_t *dlm)
+static int release_names(dlm_t *dlm)
 {
-	release_cman(dlm);
 	kfree(dlm->clustername);
 	kfree(dlm->fsname);
 	return 0;
 }
 
-static int init_fence(dlm_t *dlm)
-{
-	LIST_HEAD(head);
-	struct kcl_service *s, *safe;
-	int error, found = FALSE;
-
-	error = kcl_get_services(&head, SERVICE_LEVEL_FENCE);
-	if (error < 0)
-		goto out;
-
-	list_for_each_entry_safe(s, safe, &head, list) {
-		list_del(&s->list);
-		if (!found && !strcmp(s->name, "default"))
-			found = TRUE;
-		kfree(s);
-	}
-
-	if (found)
-		return 0;
-
-	error = -1;
- out:
-	printk("lock_dlm: fence domain not found; check fenced\n");
-	return error;
-}
-
-static int release_fence(dlm_t *dlm)
-{
-	return 0;
-}
-
-static int init_gdlm(dlm_t *dlm)
+static int init_dlm(dlm_t *dlm)
 {
 	int error;
 
-	error = dlm_new_lockspace(dlm->fsname, dlm->fnlen, &dlm->gdlm_lsp,
-				   DLM_LSF_NOTIMERS);
+	error = dlm_new_lockspace(dlm->fsname, dlm->fnlen, &dlm->gdlm_lsp, 0,
+				  DLM_LVB_SIZE);
 	if (error)
 		printk("lock_dlm: new lockspace error %d\n", error);
 
 	return error;
 }
 
-static int release_gdlm(dlm_t *dlm)
+static int release_dlm(dlm_t *dlm)
 {
 	dlm_release_lockspace(dlm->gdlm_lsp, 2);
 	return 0;
 }
 
-static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
+static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 {
 	dlm_t *dlm;
 
@@ -209,24 +118,23 @@ static dlm_t *init_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 	INIT_LIST_HEAD(&dlm->blocking);
 	INIT_LIST_HEAD(&dlm->delayed);
 	INIT_LIST_HEAD(&dlm->submit);
-	INIT_LIST_HEAD(&dlm->starts);
 	INIT_LIST_HEAD(&dlm->resources);
 	INIT_LIST_HEAD(&dlm->null_cache);
 
 	init_waitqueue_head(&dlm->wait);
+	init_waitqueue_head(&dlm->wait_control);
 	dlm->thread1 = NULL;
 	dlm->thread2 = NULL;
 	atomic_set(&dlm->lock_count, 0);
 	dlm->drop_time = jiffies;
 	dlm->shrink_time = jiffies;
 
-	INIT_LIST_HEAD(&dlm->mg_nodes);
-	init_MUTEX(&dlm->mg_nodes_lock);
-	init_MUTEX(&dlm->unmount_lock);
 	init_MUTEX(&dlm->res_lock);
 
 	dlm->null_count = 0;
 	spin_lock_init(&dlm->null_cache_spin);
+
+	dlm->jid = -1;
 
 	return dlm;
 }
@@ -252,291 +160,122 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	if (min_lvb_size > DLM_LVB_SIZE)
 		goto out;
 
-	dlm = init_dlm(cb, fsdata);
+	dlm = init_lock_dlm(cb, fsdata);
 	if (!dlm)
 		goto out;
 
-	error = init_cluster(dlm, table_name);
+	error = init_names(dlm, table_name);
 	if (error)
 		goto out_free;
 
-	error = init_fence(dlm);
-	if (error)
-		goto out_cluster;
-
-	error = init_gdlm(dlm);
-	if (error)
-		goto out_fence;
-
 	error = init_async_thread(dlm);
 	if (error)
-		goto out_gdlm;
+		goto out_names;
 
-	error = init_mountgroup(dlm);
+	error = init_dlm(dlm);
 	if (error)
 		goto out_thread;
 
+	error = lm_dlm_kobject_setup(dlm);
+	if (error)
+		goto out_dlm;
+
+	/* Now we depend on userspace to notice the new mount,
+	   join the appropriate group, and give us a mounted or terminate.
+	   Before the start, userspace must set "jid" and "first". */
+
+	error = wait_event_interruptible(dlm->wait_control,
+			test_bit(DFL_JOIN_DONE, &dlm->flags));
+
+	if (error)
+		goto out_sysfs;
+
+	if (test_bit(DFL_TERMINATE, &dlm->flags)) {
+		error = -ERESTARTSYS;
+		goto out_sysfs;
+	}
+
 	lockstruct->ls_jid = dlm->jid;
-	lockstruct->ls_first = test_bit(DFL_FIRST_MOUNT, &dlm->flags);
+	lockstruct->ls_first = dlm->first;
 	lockstruct->ls_lockspace = dlm;
 	lockstruct->ls_ops = &lock_dlm_ops;
 	lockstruct->ls_flags = 0;
 	lockstruct->ls_lvb_size = DLM_LVB_SIZE;
 	return 0;
 
+ out_sysfs:
+	lm_dlm_kobject_release(dlm);
+ out_dlm:
+	release_dlm(dlm);
  out_thread:
 	release_async_thread(dlm);
- out_gdlm:
-	release_gdlm(dlm);
- out_fence:
-	release_fence(dlm);
- out_cluster:
-	release_cluster(dlm);
+ out_names:
+	release_names(dlm);
  out_free:
 	kfree(dlm);
  out:
 	return error;
 }
 
-/**
- * dlm_others_may_mount
- * @lockspace: the lockspace to unmount
- *
- */
-
-static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
-{
-	/* Do nothing.  The first node to join the Mount Group will complete
-	 * before Service Manager allows another node to join. */
-}
-
-/**
- * dlm_unmount - unmount a lock space
- * @lockspace: the lockspace to unmount
- *
- */
-
 static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
+	int error;
 
 	log_debug("unmount flags %lx", dlm->flags);
-	if (test_bit(DFL_WITHDRAW, &dlm->flags))
-		goto out;
-	release_mountgroup(dlm);
+
+	error = kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
+
+	error = wait_event_interruptible(dlm->wait_control,
+			test_bit(DFL_LEAVE_DONE, &dlm->flags));
+
+	lm_dlm_kobject_release(dlm);
+	release_dlm(dlm);
 	release_async_thread(dlm);
-	release_gdlm(dlm);
-	release_fence(dlm);
-	release_cluster(dlm);
-	clear_null_cache(dlm);
- out:
+	release_names(dlm);
+	/* clear_null_cache(dlm); */
 	kfree(dlm);
 }
 
-static void wd_ast(void *arg)
+static void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
+                                 unsigned int message)
 {
-	dlm_lock_t *lp = (dlm_lock_t *) arg;
-	complete(&lp->uast_wait);
-}
-
-static void wd_bast(void *arg, int mode)
-{
-	dlm_lock_t *lp = (dlm_lock_t *) arg;
-	dlm_t *dlm = lp->dlm;
-	dlm_node_t *node;
+	dlm_t *dlm = (dlm_t *) lockspace;
 	int error;
 
-	if (lp->cur == DLM_LOCK_NL) {
-		log_all("withdraw bast cur NL arg %d", mode);
-		return;
-	}
+	dlm->recover_done = jid;
 
-	if (lp->cur != DLM_LOCK_PR) {
-		log_all("withdraw bast cur %d arg %d", lp->cur, mode);
-		return;
-	}
-
-	if (mode != DLM_LOCK_EX) {
-		log_all("withdraw bast cur %d arg %d", lp->cur, mode);
-		return;
-	}
-
-	set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
-
-	down(&dlm->mg_nodes_lock);
-	list_for_each_entry(node, &dlm->mg_nodes, list) {
-		if (node->withdraw_lp == lp) {
-			log_debug("wd_bast node %d withdraw", node->nodeid);
-			set_bit(NFL_WITHDRAW, &node->flags);
-			break;
-		}
-	}
-	up(&dlm->mg_nodes_lock);
-
-	set_bit(LFL_UNLOCK_DELETE, &lp->flags);
-
-	error = dlm_unlock(dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, NULL, lp);
-
-	DLM_ASSERT(!error, printk("error %d\n", error););
-
-	node->withdraw_lp = NULL;
+	error = kobject_uevent(&dlm->kobj, KOBJ_CHANGE, NULL);
+	if (error)
+		printk("lock_dlm: kobject_uevent error %d\n", error);
 }
 
-void lm_dlm_hold_withdraw(dlm_t *dlm)
+static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
 {
-	char name[16];
-	dlm_node_t *node;
-	dlm_lock_t *lp;
-	int error;
-
-	down(&dlm->mg_nodes_lock);
-	list_for_each_entry(node, &dlm->mg_nodes, list) {
-		if (test_bit(NFL_WITHDRAW, &node->flags))
-			continue;
-
-		lp = node->withdraw_lp;
-
-		/* if we have the lp it should always be in PR */
-		if (lp) {
-			if (lp->cur != DLM_LOCK_PR)
-				log_all("hold_withdraw cur %d", lp->cur);
-			continue;
-		}
-
-		lp = kmalloc(sizeof(dlm_lock_t), GFP_KERNEL);
-		if (!lp)
-			continue;
-		memset(lp, 0, sizeof(dlm_lock_t));
-		init_completion(&lp->uast_wait);
-		lp->dlm = dlm;
-		node->withdraw_lp = lp;
-
-		memset(name, 0, sizeof(name));
-		snprintf(name, sizeof(name), "withdraw %u", node->nodeid);
-
-		error = dlm_lock(dlm->gdlm_lsp, DLM_LOCK_PR, &lp->lksb,
-				 DLM_LKF_NOQUEUE, name, sizeof(name), 0,
-				 wd_ast, (void *) lp, wd_bast, NULL);
-
-		DLM_ASSERT(!error, printk("error %d\n", error););
-
-		wait_for_completion(&lp->uast_wait);
-
-		DLM_ASSERT(lp->lksb.sb_status == 0,
-			   printk("status %d\n", lp->lksb.sb_status););
-
-		lp->cur = DLM_LOCK_PR;
-	}
-	up(&dlm->mg_nodes_lock);
+	/* Do nothing.  Nodes are added to the mount group one
+	   at a time and complete their mount before others are added */
 }
-
-static void do_withdraw(dlm_t *dlm)
-{
-	char name[16];
-	dlm_node_t *node;
-	dlm_lock_t *lp;
-	int error;
-
-	down(&dlm->mg_nodes_lock);
-	list_for_each_entry(node, &dlm->mg_nodes, list) {
-		if (node->nodeid == dlm->our_nodeid)
-			break;
-	}
-	up(&dlm->mg_nodes_lock);
-
-	if (!node) {
-		log_all("node not found for %d", dlm->our_nodeid);
-		return;
-	}
-
-	lp = node->withdraw_lp;
-	if (!lp) {
-		log_all("no withdraw lock for self");
-		return;
-	}
-
-	if (lp->cur != DLM_LOCK_PR) {
-		log_all("our withdraw lock in mode %d", lp->cur);
-		return;
-	}
-
-	log_debug("do_withdraw");
-	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "withdraw %u", dlm->our_nodeid);
-
-	error = dlm_lock(dlm->gdlm_lsp, DLM_LOCK_EX, &lp->lksb,
-			 DLM_LKF_CONVERT, name, sizeof(name), 0, wd_ast,
-			 (void *) lp, wd_bast, NULL);
-
-	DLM_ASSERT(!error, printk("error %d\n", error););
-
-	wait_for_completion(&lp->uast_wait);
-
-	DLM_ASSERT(lp->lksb.sb_status == 0,
-		   printk("status %d\n", lp->lksb.sb_status););
-
-	lp->cur = DLM_LOCK_EX;
-}
-
-/* Release the withdraw lock for this node.  If the node was removed because it
-   withdrew, then we already released the lock (in wd_bast).  If the node has
-   failed or unmounted, then we still hold its withdraw lock and need to unlock
-   it.  If _we're_ withdrawing, then we've already left the lockspace so we
-   don't unlock, just free. */
-
-void lm_dlm_release_withdraw(dlm_t *dlm, dlm_node_t *node)
-{
-	dlm_lock_t *lp;
-	int error;
-
-	lp = node->withdraw_lp;
-	if (!lp)
-		return;
-
-	if (test_bit(DFL_WITHDRAW, &dlm->flags)) {
-		kfree(lp);
-		goto out;
-	}
-
-	/* the lp is freed by the async thread when it gets the comp ast */
-	set_bit(LFL_UNLOCK_DELETE, &lp->flags);
-
-	error = dlm_unlock(dlm->gdlm_lsp, lp->lksb.sb_lkid, 0, NULL, lp);
-
-	DLM_ASSERT(!error, printk("error %d\n", error););
-
- out:
-	node->withdraw_lp = NULL;
-}
-
-/**
- * dlm_withdraw - withdraw from a lock space
- * @lockspace: the lockspace to withdraw from
- *
- * Holding the withdraw lock in EX means all gfs locks are blocked on other
- * nodes and we can safely leave the lockspace.
- *
- */
 
 static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 {
-	dlm_t *dlm = (dlm_t *) lockspace;
+}
 
-	log_debug("withdraw flags %lx", dlm->flags);
-	set_bit(DFL_WITHDRAW, &dlm->flags);
+int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		                     struct file *file, struct file_lock *fl)
+{
+	return 0;
+}
 
-	/* process_start uses the dlm so leaving the ls while it's running
-	   can hang it; this waits for it to complete. */
-	down(&dlm->unmount_lock);
-	up(&dlm->unmount_lock);
+int lm_dlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+		                   struct file *file, struct file_lock *fl)
+{
+	return 0;
+}
 
-	do_withdraw(dlm);
-	release_gdlm(dlm);
-	release_mountgroup(dlm);
-	release_cluster(dlm);
-
-	/* FIXME: free all outstanding memory */
-	log_all("withdraw abandoned memory");
+int lm_dlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+	struct file *file, int cmd, struct file_lock *fl)
+{
+	return 0;
 }
 
 struct lm_lockops lock_dlm_ops = {

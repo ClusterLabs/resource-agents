@@ -115,7 +115,7 @@ static void process_complete(dlm_lock_t *lp)
 	}
 
 	if (lp->lksb.sb_flags & DLM_SBF_VALNOTVALID)
-		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_LEN);
+		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_SIZE);
 
 	if (lp->lksb.sb_flags & DLM_SBF_ALTMODE) {
 		if (lp->req == DLM_LOCK_PR)
@@ -277,8 +277,7 @@ static __inline__ int no_work(dlm_t *dlm)
 
 	ret = list_empty(&dlm->complete) &&
 	    list_empty(&dlm->blocking) &&
-	    list_empty(&dlm->submit) &&
-	    list_empty(&dlm->starts) && !test_bit(DFL_MG_FINISH, &dlm->flags);
+	    list_empty(&dlm->submit);
 
 	spin_unlock(&dlm->async_lock);
 
@@ -318,7 +317,6 @@ static int dlm_async(void *data)
 {
 	dlm_t *dlm = (dlm_t *) data;
 	dlm_lock_t *lp = NULL;
-	dlm_start_t *ds = NULL;
 	uint8_t complete, blocking, submit, start, finish, drop, shrink;
 	DECLARE_WAITQUEUE(wait, current);
 
@@ -351,26 +349,11 @@ static int dlm_async(void *data)
 			list_del(&lp->slist);
 			clear_bit(LFL_SLIST, &lp->flags);
 			submit = 1;
-		} else if (!test_bit(DFL_RECOVER, &dlm->flags) &&
-			   !list_empty(&dlm->starts)) {
-			ds = list_entry(dlm->starts.next, dlm_start_t, list);
-			list_del(&ds->list);
-			set_bit(DFL_RECOVER, &dlm->flags);
-			start = 1;
-		} else if (test_and_clear_bit(DFL_MG_FINISH, &dlm->flags)) {
-			finish = 1;
-		}
+		} 
 
-		/* Don't get busy doing this stuff during recovery. */
-		if (!test_bit(DFL_RECOVER, &dlm->flags)) {
-			drop = check_drop(dlm);
-			shrink = check_shrink(dlm);
-		}
+		drop = check_drop(dlm);
+		shrink = check_shrink(dlm);
 		spin_unlock(&dlm->async_lock);
-
-		/* once withdrawn don't call into gfs for anything */
-		if (test_bit(DFL_WITHDRAW, &dlm->flags))
-			complete = blocking = drop = shrink = 0;
 
 		if (complete)
 			process_complete(lp);
@@ -381,17 +364,12 @@ static int dlm_async(void *data)
 		else if (submit)
 			process_submit(lp);
 
-		else if (start)
-			process_start(dlm, ds);
-
-		else if (finish)
-			process_finish(dlm);
-
 		if (drop)
 			dlm->fscb(dlm->fsdata, LM_CB_DROPLOCKS, NULL);
+#if 0
 		if (shrink)
 			shrink_null_cache(dlm);
-
+#endif
 		schedule();
 	}
 

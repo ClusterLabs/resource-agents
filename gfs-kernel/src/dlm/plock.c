@@ -63,8 +63,7 @@ void shrink_null_cache(dlm_t *dlm)
 
 	while (1) {
 		spin_lock(&dlm->null_cache_spin);
-		if (dlm->null_count <= SHRINK_CACHE_COUNT ||
-		    test_bit(DFL_RECOVER, &dlm->flags)) {
+		if (dlm->null_count <= SHRINK_CACHE_COUNT) {
 			spin_unlock(&dlm->null_cache_spin);
 			break;
 		}
@@ -1065,7 +1064,7 @@ static int get_global_conflict(dlm_t *dlm, struct lm_lockname *name,
 	query = DLM_LOCK_THIS | DLM_QUERY_QUEUE_GRANTED |
 		DLM_QUERY_LOCKS_HIGHER;
 
-	for (s = 16; s < dlm->max_nodes + 1; s += 16) {
+	for (s = 16; s < 512; s += 16) {
 
 		lki = kmalloc(s * sizeof(struct dlm_lockinfo), GFP_KERNEL);
 		if (!lki) {
@@ -1106,7 +1105,10 @@ static int get_global_conflict(dlm_t *dlm, struct lm_lockname *name,
 				    lki->lki_grrange.ra_end))
 			continue;
 
-		if (lki->lki_node == dlm->our_nodeid)
+		/* FIXME: have the dlm set lki_node to 0 if it's the
+		   local nodeid */
+
+		if (!lki->lki_node)
 			continue;
 
 		if (lki->lki_grmode == DLM_LOCK_EX || *ex) {

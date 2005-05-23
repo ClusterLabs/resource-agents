@@ -22,29 +22,28 @@
 #include <linux/string.h>
 #include <linux/list.h>
 #include <linux/socket.h>
+#include <linux/delay.h>
 #include <linux/kthread.h>
+#include <linux/kobject.h>
 #include <net/sock.h>
 #include <linux/lm_interface.h>
-#include <cluster/cnxman.h>
-#include <cluster/service.h>
-#include <cluster/dlm.h>
+
+#include "dlm.h"
+
 
 /* We take a shortcut and use lm_lockname structs for internal locks.  This
    means we must be careful to keep these types different from those used in
    lm_interface.h. */
 
-#define LM_TYPE_JID		(0x10)
 #define LM_TYPE_PLOCK_UPDATE	(0x11)
 
-#define DLM_LVB_SIZE		(DLM_LVB_LEN)
+#define DLM_LVB_SIZE		(32)
 
 /* GFS uses 12 bytes to identify a resource (32 bit type + 64 bit number).
    We sprintf these numbers into a 24 byte string of hex values to make them
    human-readable (to make debugging simpler.) */
 
 #define LOCK_DLM_STRNAME_BYTES	(24)
-
-#define LOCK_DLM_MAX_NODES	(128)
 
 #define DROP_LOCKS_COUNT	(50000)
 #define DROP_LOCKS_PERIOD	(60)
@@ -54,53 +53,44 @@
 
 struct dlm;
 struct dlm_lock;
-struct dlm_node;
-struct dlm_start;
 struct strname;
 
 typedef struct dlm dlm_t;
 typedef struct dlm_lock dlm_lock_t;
-typedef struct dlm_node dlm_node_t;
-typedef struct dlm_start dlm_start_t;
 typedef struct strname strname_t;
 
-#define DFL_FIRST_MOUNT         0
-#define DFL_GOT_NODEID          1
-#define DFL_MG_FINISH           2
-#define DFL_HAVE_JID            3
-#define DFL_BLOCK_LOCKS         4
-#define DFL_START_ERROR         5
-#define DFL_MOUNT		6
-#define DFL_UMOUNT		7
-#define DFL_NEED_STARTDONE	8
-#define DFL_RECOVER		9
-#define DFL_WITHDRAW		10
+#define DFL_BLOCK_LOCKS         1
+#define DFL_JOIN_DONE		2
+#define DFL_LEAVE_DONE		3
+#define DFL_TERMINATE		4
 
 struct dlm {
 	uint32_t		jid;
-	uint32_t		our_nodeid;
+	int			first;
 	unsigned long		flags;
+	struct kobject		kobj;
 
 	int			cnlen;
 	char *			clustername;
 	int			fnlen;
 	char *			fsname;
-	int			max_nodes;
 
 	dlm_lockspace_t *	gdlm_lsp;
 
 	lm_callback_t		fscb;
 	lm_fsdata_t *		fsdata;
-	dlm_lock_t *		jid_lp;
+
+	unsigned int		recover_jid;
+	unsigned int		recover_done;
 
 	spinlock_t		async_lock;
 	struct list_head	complete;
 	struct list_head	blocking;
 	struct list_head	delayed;
 	struct list_head	submit;
-	struct list_head	starts;
 
 	wait_queue_head_t	wait;
+	wait_queue_head_t	wait_control;
 	struct task_struct *	thread1;
 	struct task_struct *	thread2;
 	atomic_t		lock_count;
@@ -110,13 +100,6 @@ struct dlm {
 	int			drop_locks_count;
 	int			drop_locks_period;
 
-	int			mg_local_id;
-	int			mg_last_start;
-	int			mg_last_stop;
-	int			mg_last_finish;
-	struct list_head	mg_nodes;
-	struct semaphore	mg_nodes_lock;
-	struct semaphore	unmount_lock;
 
 	struct list_head	resources;
 	struct semaphore	res_lock;
@@ -196,21 +179,6 @@ struct dlm_lock {
 	struct list_head	null_list;	/* NL lock cache for plocks */
 };
 
-#define NFL_SENT_CB             0
-#define NFL_NOT_MEMBER          1
-#define NFL_RECOVERY_DONE       2
-#define NFL_LAST_FINISH         3
-#define NFL_HAVE_JID            4
-#define NFL_WITHDRAW            5
-
-struct dlm_node {
-	uint32_t		nodeid;
-	uint32_t		jid;
-	unsigned long		flags;
-	dlm_lock_t *		withdraw_lp;
-	struct list_head	list;
-};
-
 #define QUEUE_LOCKS_BLOCKED     1
 #define QUEUE_ERROR_UNLOCK      2
 #define QUEUE_ERROR_LOCK        3
@@ -221,13 +189,6 @@ struct strname {
 	unsigned short		namelen;
 };
 
-struct dlm_start {
-	uint32_t *		nodeids;
-	int			count;
-	int			type;
-	int			event_id;
-	struct list_head	list;
-};
 
 #ifndef TRUE
 #define TRUE (1)
@@ -263,18 +224,13 @@ struct dlm_start {
 
 extern struct lm_lockops lock_dlm_ops;
 
-/* group.c */
 
-int init_mountgroup(dlm_t *dlm);
-void release_mountgroup(dlm_t *dlm);
-void process_start(dlm_t *dlm, dlm_start_t *ds);
-void process_finish(dlm_t *dlm);
-void jid_recovery_done(dlm_t *dlm, unsigned int jid, unsigned int message);
+/* sysfs.c */
 
-/* mount.c */
-
-void lm_dlm_hold_withdraw(dlm_t *dlm);
-void lm_dlm_release_withdraw(dlm_t *dlm, dlm_node_t *node);
+int lm_dlm_sysfs_init(void);
+void lm_dlm_sysfs_exit(void);
+int lm_dlm_kobject_setup(dlm_t *dlm);
+void lm_dlm_kobject_release(dlm_t *dlm);
 
 /* thread.c */
 
@@ -311,8 +267,7 @@ void lm_dlm_cancel(lm_lock_t *lock);
 int lm_dlm_hold_lvb(lm_lock_t *lock, char **lvbp);
 void lm_dlm_unhold_lvb(lm_lock_t *lock, char *lvb);
 void lm_dlm_sync_lvb(lm_lock_t *lock, char *lvb);
-void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
-		          unsigned int message);
+void lm_dlm_submit_delayed(dlm_t *dlm);
 
 /* plock.c */
 
@@ -357,7 +312,6 @@ static inline int check_timeout(unsigned long stamp, unsigned int seconds)
 { \
   if (!(x)) \
   { \
-    dlm_debug_dump(); \
     lock_dlm_debug_dump(); \
     printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
            "lock_dlm:  assertion:  \"%s\"\n" \

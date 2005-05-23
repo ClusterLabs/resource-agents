@@ -26,23 +26,18 @@ TARGET = lock_dlm.patch
 PWD := $(shell pwd)
  
 obj-m := lock_dlm.o
-lock_dlm-objs := group.o \
-	lock.o \
+lock_dlm-objs := lock.o \
 	main.o \
 	mount.o \
-	plock.o \
-	thread.o
+	thread.o \
+	sysfs.o
 
-EXTRA_CFLAGS += -I$(obj) -I$(dlmkincdir) -I$(cmankincdir)
+EXTRA_CFLAGS += -I$(obj)
 
 all:
 	if [ ! -e linux ]; then ln -s . linux; fi
-	if [ ! -e cluster ]; then ln -s . cluster; fi
 	if [ ! -e lm_interface.h ]; then ln -s ${top_srcdir}/src/harness/lm_interface.h .; fi
-	if [ ! -e dlm.h ]; then cp ${dlmkincdir}/dlm.h .; fi
-	if [ ! -e cnxman.h ]; then cp ${cmankincdir}/cnxman.h .; fi
-	if [ ! -e cnxman-socket.h ]; then cp ${cmankincdir}/cnxman-socket.h .; fi
-	if [ ! -e service.h ]; then cp ${cmankincdir}/service.h .; fi
+	if [ ! -e dlm.h ]; then cp ../../../dlm-kernel/src2/dlm.h .; fi
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all

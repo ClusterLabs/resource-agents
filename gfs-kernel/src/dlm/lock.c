@@ -25,9 +25,10 @@ static void queue_complete(dlm_lock_t *lp)
 	dlm_t *dlm = lp->dlm;
 
 	if (!test_bit(LFL_WAIT_COMPLETE, &lp->flags)) {
-		log_all("extra completion %x,%"PRIx64" %d,%d id %x flags %lx",
+		log_all("extra completion %x,%"PRIx64" %d %d,%d id %x flags %lx",
 		        lp->lockname.ln_type, lp->lockname.ln_number,
-		        lp->cur, lp->req, lp->lksb.sb_lkid, lp->flags);
+		        lp->lksb.sb_status, lp->cur, lp->req, lp->lksb.sb_lkid, lp->flags);
+		dump_stack();
 		return;
 	}
 
@@ -350,7 +351,7 @@ void do_dlm_unlock(dlm_lock_t *lp)
 	DLM_ASSERT(!error,
 		   printk("%s: error=%d num=%x,%"PRIx64" lkf=%x flags=%lx\n",
 			  lp->dlm->fsname, error, lp->lockname.ln_type,
-			  lp->lockname.ln_number, lp->lkf, lp->flags););
+			  lp->lockname.ln_number, lkf, lp->flags););
 }
 
 void do_dlm_unlock_sync(dlm_lock_t *lp)
@@ -701,23 +702,6 @@ void lm_dlm_sync_lvb(lm_lock_t *lock, char *lvb)
 }
 
 /**
- * dlm_recovery_done - reset the expired locks for a given jid
- * @lockspace: the lockspace
- * @jid: the jid
- *
- */
-
-void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
-			  unsigned int message)
-{
-	jid_recovery_done((dlm_t *) lockspace, jid, message);
-}
-
-/*
- * Run in dlm_async
- */
-
-/**
  * process_submit - make DLM lock requests from dlm_async thread
  * @lp: DLM Lock
  *
@@ -734,4 +718,25 @@ void process_submit(dlm_lock_t *lp)
 	}
 
 	do_dlm_lock(lp, r);
+}
+
+void lm_dlm_submit_delayed(dlm_t *dlm)
+{
+	dlm_lock_t *lp, *safe;
+
+	spin_lock(&dlm->async_lock);
+
+	list_for_each_entry_safe(lp, safe, &dlm->delayed, dlist) {
+		if (lp->type != QUEUE_LOCKS_BLOCKED)
+			continue;
+
+		lp->type = 0;
+		list_del(&lp->dlist);
+		list_add_tail(&lp->slist, &dlm->submit);
+
+		clear_bit(LFL_DLIST, &lp->flags);
+		set_bit(LFL_SLIST, &lp->flags);
+	}
+	spin_unlock(&dlm->async_lock);
+	wake_up(&dlm->wait);
 }

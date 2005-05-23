@@ -295,7 +295,12 @@ int __init init_lock_dlm(void)
 		return error;
 	}
 
-	lock_dlm_max_nodes = LOCK_DLM_MAX_NODES;
+	error = lm_dlm_sysfs_init();
+	if (error) {
+		lm_unregister_proto(&lock_dlm_ops);
+		return error;
+	}
+
 	lock_dlm_drop_count = DROP_LOCKS_COUNT;
 	lock_dlm_drop_period = DROP_LOCKS_PERIOD;
 
@@ -320,6 +325,7 @@ void __exit exit_lock_dlm(void)
 	remove_proc_entries();
 #endif
 	debug_setup(0);
+	lm_dlm_sysfs_exit();
 }
 
 module_init(init_lock_dlm);
