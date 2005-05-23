@@ -130,7 +130,18 @@ static ssize_t lm_dlm_cluster_show(dlm_t *dlm, char *buf)
         return ret;
 }
 
+static ssize_t lm_dlm_options_show(dlm_t *dlm, char *buf)
+{
+	ssize_t ret = 0;
 
+	if (dlm->fsflags & LM_MFLAG_SPECTATOR)
+		ret += sprintf(buf, "spectator ");
+
+	if (test_bit(DFL_WITHDRAW, &dlm->flags))
+		ret += sprintf(buf+ret, "withdraw ");
+
+	return ret;
+}
 
 struct lm_dlm_attr {
 	struct attribute attr;
@@ -178,6 +189,11 @@ static struct lm_dlm_attr lm_dlm_attr_cluster = {
 	.show  = lm_dlm_cluster_show,
 };
 
+static struct lm_dlm_attr lm_dlm_attr_options = {
+	.attr  = {.name = "options", .mode = S_IRUGO | S_IWUSR},
+	.show  = lm_dlm_options_show,
+};
+
 static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_block.attr,
 	&lm_dlm_attr_mounted.attr,
@@ -186,6 +202,7 @@ static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_recover.attr,
 	&lm_dlm_attr_recover_done.attr,
 	&lm_dlm_attr_cluster.attr,
+	&lm_dlm_attr_options.attr,
 	NULL,
 };
 

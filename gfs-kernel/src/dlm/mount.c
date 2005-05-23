@@ -96,7 +96,7 @@ static int release_dlm(dlm_t *dlm)
 	return 0;
 }
 
-static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
+static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags)
 {
 	dlm_t *dlm;
 
@@ -111,6 +111,7 @@ static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata)
 
 	dlm->fscb = cb;
 	dlm->fsdata = fsdata;
+	dlm->fsflags = flags;
 
 	spin_lock_init(&dlm->async_lock);
 
@@ -160,7 +161,7 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	if (min_lvb_size > DLM_LVB_SIZE)
 		goto out;
 
-	dlm = init_lock_dlm(cb, fsdata);
+	dlm = init_lock_dlm(cb, fsdata, flags);
 	if (!dlm)
 		goto out;
 
@@ -220,14 +221,13 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
-	int error;
 
 	log_debug("unmount flags %lx", dlm->flags);
 
-	error = kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
+	kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
 
-	error = wait_event_interruptible(dlm->wait_control,
-			test_bit(DFL_LEAVE_DONE, &dlm->flags));
+	wait_event_interruptible(dlm->wait_control,
+				 test_bit(DFL_LEAVE_DONE, &dlm->flags));
 
 	lm_dlm_kobject_release(dlm);
 	release_dlm(dlm);
@@ -241,13 +241,8 @@ static void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
                                  unsigned int message)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
-	int error;
-
 	dlm->recover_done = jid;
-
-	error = kobject_uevent(&dlm->kobj, KOBJ_CHANGE, NULL);
-	if (error)
-		printk("lock_dlm: kobject_uevent error %d\n", error);
+	kobject_uevent(&dlm->kobj, KOBJ_CHANGE, NULL);
 }
 
 static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
@@ -258,6 +253,9 @@ static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
 
 static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 {
+	dlm_t *dlm = (dlm_t *) lockspace;
+	set_bit(DFL_WITHDRAW, &dlm->flags);
+	kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
 }
 
 int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,

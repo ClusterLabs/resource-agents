@@ -63,6 +63,8 @@ typedef struct strname strname_t;
 #define DFL_JOIN_DONE		2
 #define DFL_LEAVE_DONE		3
 #define DFL_TERMINATE		4
+#define DFL_SPECTATOR		5
+#define DFL_WITHDRAW		6
 
 struct dlm {
 	uint32_t		jid;
@@ -74,6 +76,7 @@ struct dlm {
 	char *			clustername;
 	int			fnlen;
 	char *			fsname;
+	int			fsflags;
 
 	dlm_lockspace_t *	gdlm_lsp;
 
