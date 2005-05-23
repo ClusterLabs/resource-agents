@@ -316,6 +316,9 @@ char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev);
 void process_message(char *buf, int len, int nodeid);
 uint32_t new_global_id(int level);
 node_t *find_joiner(group_t *g, int nodeid);
+int test_allowed_msgtype(event_t *ev, int type);
+void clear_allowed_msgtype(event_t *ev, int type);
+void set_allowed_msgtype(event_t *ev, int type);
 
 /* joinleave.c */
 void set_event_id(uint32_t *id);

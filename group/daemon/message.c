@@ -116,7 +116,6 @@ static void msg_copy_out(msg_t *m)
 	m->ms_length	= cpu_to_le16(m->ms_length);
 }
 
-#if 0
 static unsigned int msgtype_to_flag(int type)
 {
 	unsigned int flag;
@@ -148,27 +147,26 @@ static unsigned int msgtype_to_flag(int type)
 	return flag;
 }
 
-static int test_allowed_msgtype(event_t *sev, int type)
+int test_allowed_msgtype(event_t *ev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
-	return test_bit(flag, &sev->se_flags);
+	return test_bit(flag, &ev->flags);
 }
 
-static void clear_allowed_msgtype(event_t *sev, int type)
+void clear_allowed_msgtype(event_t *ev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
-	clear_bit(flag, &sev->se_flags);
+	clear_bit(flag, &ev->flags);
 }
 
-static void set_allowed_msgtype(event_t *sev, int type)
+void set_allowed_msgtype(event_t *ev, int type)
 {
 	unsigned int flag = msgtype_to_flag(type);
 
-	set_bit(flag, &sev->se_flags);
+	set_bit(flag, &ev->flags);
 }
-#endif
 
 static int next_event_state(int msg_type, int cur_state)
 {
@@ -218,13 +216,11 @@ static void process_reply(msg_t *msg, int nodeid)
 	}
 	g = ev->group;
 
-	/*
 	if (!test_allowed_msgtype(ev, type)) {
-		log_debug(g, "process_reply ignored type %u from %u id %u",
+		log_group(g, "process_reply ignored type %u from %u id %u",
 			  type, nodeid, ev->id);
 		goto out;
 	}
-	*/
 
 	expected = (type == SMSG_JOIN_REP) ? ev->node_count : ev->memb_count;
 
@@ -264,7 +260,7 @@ static void process_reply(msg_t *msg, int nodeid)
 		}
 
 		if (++ev->reply_count == expected) {
-			/* clear_allowed_msgtype(ev, type); */
+			clear_allowed_msgtype(ev, type);
 			ev->state = next_event_state(type, ev->state);
 		}
 

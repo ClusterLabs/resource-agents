@@ -80,7 +80,12 @@ static void decode_arguments(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
-	int i, rv, count = 0;
+	int i, j, rv, count = 0;
+	int program_width = 16;
+	int level_width = 5;
+	int name_width = 32;
+	int id_width = 8;
+	int state_width = 8;
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
@@ -89,13 +94,29 @@ int main(int argc, char **argv)
 
 	rv = group_get_groups(MAX_GROUPS, &count, data);
 
-	printf("group count %d\n", count);
+	printf("%-*s %-*s %-*s %-*s %-*s\n",
+		program_width, "program",
+		level_width, "level",
+		name_width, "name",
+		id_width, "id",
+		state_width, "state");
 
 	for (i = 0; i < count; i++) {
-		printf("client name %s\n", data[i].client_name);
-		printf("group name  %s\n", data[i].name);
-		printf("level       %d\n", data[i].level);
-		printf("members     %d\n", data[i].member_count);
+
+		printf("%-*s %-*d %-*s %-*d %-*s\n",
+			program_width, data[i].client_name,
+			level_width, data[i].level,
+			name_width, data[i].name,
+			id_width, data[i].id,
+			state_width, "fixme");
+
+		printf("[");
+		for (j = 0; j < data[i].member_count; j++) {
+			if (j != 0)
+				printf(" ");
+			printf("%d", data[i].members[j]);
+		}
+		printf("]\n");
 	}
 
 	return 0;

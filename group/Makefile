@@ -13,15 +13,18 @@
 all:
 	cd lib && ${MAKE} all
 	cd daemon && ${MAKE} all
+	cd tool && ${MAKE} all
 
 clean:
 	cd lib && ${MAKE} clean
 	cd daemon && ${MAKE} clean
+	cd tool && ${MAKE} clean
 
 distclean: clean
 	rm -f make/defines.mk
 
 install:
-	cd lib && ${MAKE} install
-	cd daemon && ${MAKE} clean
+#	cd lib && ${MAKE} install
+#	cd daemon && ${MAKE} install
+#	cd tool && ${MAKE} install
 

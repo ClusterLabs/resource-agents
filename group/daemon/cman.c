@@ -382,14 +382,12 @@ int send_members_message_ev(group_t *g, char *buf, int len, event_t *ev)
 	int error;
 	msg_t *msg = (msg_t *) buf;
 
-	/* set_allowed_msgtype(sev, msg->ms_type); */
+	set_allowed_msgtype(ev, msg->ms_type);
 	ev->reply_count = 0;
 
 	error = send_members_message(g, buf, len);
-	/*
 	if (error < 0)
-		clear_allowed_msgtype(sev, msg->ms_type);
-	*/
+		clear_allowed_msgtype(ev, msg->ms_type);
 
 	return error;
 }
@@ -399,14 +397,12 @@ int send_broadcast_message_ev(char *buf, int len, event_t *ev)
 	int error;
 	msg_t *msg = (msg_t *) buf;
 
-	/* set_allowed_msgtype(sev, msg->ms_type); */
+	set_allowed_msgtype(ev, msg->ms_type);
 	ev->reply_count = 0;
 
 	error = send_broadcast_message(buf, len);
-	/*
 	if (error < 0)
-		clear_allowed_msgtype(sev, msg->ms_type);
-	*/
+		clear_allowed_msgtype(ev, msg->ms_type);
 
 	return error;
 }

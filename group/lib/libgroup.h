@@ -75,6 +75,7 @@ typedef struct group_data {
 	char client_name[32+1];
 	char name[MAX_GROUP_NAME_LEN+1];
 	int level;
+	int id;
 	int flags;
 	int recover_state;
 	int member_count;

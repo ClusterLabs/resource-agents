@@ -238,6 +238,7 @@ static int client_process_get_groups(int ci, int argc, char **argv)
 		strncpy(data[i].client_name, client[g->client].type, 32);
 		strncpy(data[i].name, g->name, MAX_GROUP_NAME_LEN);
 		data[i].level = g->level;
+		data[i].id = g->global_id;
 		data[i].flags = (int) g->flags;
 		data[i].recover_state = g->recover_state;
 		data[i].member_count = g->memb_count;
