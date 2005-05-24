@@ -247,12 +247,14 @@ int group_dispatch(group_handle_t handle)
 int group_get_groups(int max, int *count, group_data_t *data)
 {
 	char buf[MAXLINE];
-	int fd, rv, len;
+	group_data_t empty;
+	int fd, rv, maxlen;
 
 	fd = connect_groupd();
 	if (fd < 0)
 		return fd;
 
+	memset(&empty, 0, sizeof(empty));
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "get_groups %d", max);
 
@@ -260,11 +262,15 @@ int group_get_groups(int max, int *count, group_data_t *data)
 	if (rv < 0)
 		goto out;
 
-	len = max * sizeof(group_data_t);
+	maxlen = max * sizeof(group_data_t);
 
-	rv = read(fd, data, len);
+	rv = read(fd, data, maxlen);
 	if (rv > 0) {
-		*count = rv / sizeof(group_data_t);
+		/* a blank data struct is returned when there are none */
+		if (rv == sizeof(empty) && !memcmp(data, &empty, rv))
+			*count = 0;
+		else
+			*count = rv / sizeof(group_data_t);
 		rv = 0;
 	}
  out:

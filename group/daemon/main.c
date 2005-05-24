@@ -304,6 +304,9 @@ static int client_process_get_groups(int ci, int argc, char **argv)
 		count++;
 	if (count > max)
 		count = max;
+	/* if no groups, send back one empty data struct */
+	if (!count)
+		count = 1;
 
 	len = count * sizeof(group_data_t);
 	data = malloc(len);

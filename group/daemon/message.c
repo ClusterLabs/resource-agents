@@ -508,7 +508,7 @@ static void process_start_request(msg_t *msg, int nodeid)
 static void process_leave_request(msg_t *msg, int nodeid)
 {
 	group_t *g;
-	node_t *node;
+	node_t *node = NULL;
 	msg_t reply;
 	event_t *ev;
 	int found = FALSE;
