@@ -16,89 +16,12 @@
 extern int lock_dlm_drop_count;
 extern int lock_dlm_drop_period;
 
-/*  
- * Parse superblock lock table <clustername>:<fsname>  
- * FIXME: simplify this
- */
 
-static int init_names(dlm_t *dlm, char *table_name)
-{
-	char *buf, *c, *clname, *fsname;
-	int len, error = -1;
-
-	len = strlen(table_name) + 1;
-	buf = kmalloc(len, GFP_KERNEL);
-	if (!buf)
-		goto out;
-	memset(buf, 0, len);
-	memcpy(buf, table_name, strlen(table_name));
-
-	c = strstr(buf, ":");
-	if (!c)
-		goto out_buf;
-
-	*c = '\0';
-	clname = buf;
-	fsname = ++c;
-
-	len = strlen(clname) + 1;
-	c = kmalloc(len, GFP_KERNEL);
-	if (!c)
-		goto out_buf;
-	memset(c, 0, len);
-	memcpy(c, clname, len-1);
-	dlm->cnlen = len-1;
-	dlm->clustername = c;
-
-	len = strlen(fsname) + 1;
-	c = kmalloc(len, GFP_KERNEL);
-	if (!c)
-		goto out_cn;
-	memset(c, 0, len);
-	memcpy(c, fsname, len-1);
-	dlm->fnlen = len-1;
-	dlm->fsname = c;
-
-	kfree(buf);
-	return 0;
-
- out_cn:
-	kfree(dlm->clustername);
- out_buf:
-	kfree(buf);
- out:
-	printk("lock_dlm: init_names error %d\n", error);
-	return error;
-}
-
-static int release_names(dlm_t *dlm)
-{
-	kfree(dlm->clustername);
-	kfree(dlm->fsname);
-	return 0;
-}
-
-static int init_dlm(dlm_t *dlm)
-{
-	int error;
-
-	error = dlm_new_lockspace(dlm->fsname, dlm->fnlen, &dlm->gdlm_lsp, 0,
-				  DLM_LVB_SIZE);
-	if (error)
-		printk("lock_dlm: new lockspace error %d\n", error);
-
-	return error;
-}
-
-static int release_dlm(dlm_t *dlm)
-{
-	dlm_release_lockspace(dlm->gdlm_lsp, 2);
-	return 0;
-}
-
-static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags)
+static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags,
+			    char *table_name)
 {
 	dlm_t *dlm;
+	char buf[256], *p;
 
 	dlm = kmalloc(sizeof(dlm_t), GFP_KERNEL);
 	if (!dlm)
@@ -137,6 +60,21 @@ static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags)
 
 	dlm->jid = -1;
 
+	strncpy(buf, table_name, 256);
+	buf[255] = '\0';
+
+	p = strstr(buf, ":");
+	if (!p) {
+		printk("lock_dlm: invalid table_name \"%s\"\n", table_name);
+		kfree(dlm);
+		return NULL;
+	}
+	*p = '\0';
+	p++;
+
+	strncpy(dlm->clustername, buf, 128);
+	strncpy(dlm->fsname, p, 128);
+
 	return dlm;
 }
 
@@ -161,33 +99,33 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	if (min_lvb_size > DLM_LVB_SIZE)
 		goto out;
 
-	dlm = init_lock_dlm(cb, fsdata, flags);
+	dlm = init_lock_dlm(cb, fsdata, flags, table_name);
 	if (!dlm)
 		goto out;
 
-	error = init_names(dlm, table_name);
+	error = init_async_thread(dlm);
 	if (error)
 		goto out_free;
 
-	error = init_async_thread(dlm);
-	if (error)
-		goto out_names;
-
-	error = init_dlm(dlm);
-	if (error)
+	error = dlm_new_lockspace(dlm->fsname, strlen(dlm->fsname),
+				  &dlm->gdlm_lsp, 0, DLM_LVB_SIZE);
+	if (error) {
+		printk("lock_dlm: dlm_new_lockspace error %d\n", error);
 		goto out_thread;
+	}
 
 	error = lm_dlm_kobject_setup(dlm);
 	if (error)
 		goto out_dlm;
+	kobject_uevent(&dlm->kobj, KOBJ_MOUNT, NULL);
 
 	/* Now we depend on userspace to notice the new mount,
-	   join the appropriate group, and give us a mounted or terminate.
-	   Before the start, userspace must set "jid" and "first". */
+	   join the appropriate group, and do a write to our sysfs
+	   "mounted" or "terminate" file.  Before the start, userspace
+	   must set "jid" and "first". */
 
 	error = wait_event_interruptible(dlm->wait_control,
 			test_bit(DFL_JOIN_DONE, &dlm->flags));
-
 	if (error)
 		goto out_sysfs;
 
@@ -207,11 +145,9 @@ static int lm_dlm_mount(char *table_name, char *host_data,
  out_sysfs:
 	lm_dlm_kobject_release(dlm);
  out_dlm:
-	release_dlm(dlm);
+	dlm_release_lockspace(dlm->gdlm_lsp, 2);
  out_thread:
 	release_async_thread(dlm);
- out_names:
-	release_names(dlm);
  out_free:
 	kfree(dlm);
  out:
@@ -224,15 +160,14 @@ static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 
 	log_debug("unmount flags %lx", dlm->flags);
 
-	kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
+	kobject_uevent(&dlm->kobj, KOBJ_UMOUNT, NULL);
 
 	wait_event_interruptible(dlm->wait_control,
 				 test_bit(DFL_LEAVE_DONE, &dlm->flags));
 
 	lm_dlm_kobject_release(dlm);
-	release_dlm(dlm);
+	dlm_release_lockspace(dlm->gdlm_lsp, 2);
 	release_async_thread(dlm);
-	release_names(dlm);
 	/* clear_null_cache(dlm); */
 	kfree(dlm);
 }
@@ -296,3 +231,4 @@ struct lm_lockops lock_dlm_ops = {
 	lm_recovery_done:lm_dlm_recovery_done,
 	lm_owner:THIS_MODULE,
 };
+

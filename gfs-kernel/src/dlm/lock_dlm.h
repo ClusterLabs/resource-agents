@@ -72,10 +72,8 @@ struct dlm {
 	unsigned long		flags;
 	struct kobject		kobj;
 
-	int			cnlen;
-	char *			clustername;
-	int			fnlen;
-	char *			fsname;
+	char			clustername[128];
+	char			fsname[128];
 	int			fsflags;
 
 	dlm_lockspace_t *	gdlm_lsp;

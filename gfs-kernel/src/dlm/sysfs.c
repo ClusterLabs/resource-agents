@@ -251,8 +251,6 @@ int lm_dlm_kobject_setup(dlm_t *dlm)
 
 	error = kobject_register(&dlm->kobj);
 
-	error = kobject_uevent(&dlm->kobj, KOBJ_ONLINE, NULL);
-
 	return 0;
 }
 
