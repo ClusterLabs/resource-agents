@@ -116,7 +116,7 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < count; i++) {
 
-		printf("%-*s %-*d %-*s %-*x %-*s\n",
+		printf("%-*s %-*d %-*s %0*x %-*s\n",
 			program_width, data[i].client_name,
 			level_width, data[i].level,
 			name_width, data[i].name,
