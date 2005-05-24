@@ -655,7 +655,7 @@ static int process_disconnect(comm_header_t *ch){
     goto fail;
   }
 
-  if(!ocs[desc]){
+  if(!ocs || !ocs[desc]){
     /* send failure to requestor ? */
     log_err("Attempt to close an unopened CCS descriptor (%d).\n", desc);
 
@@ -734,7 +734,7 @@ static int _process_get(comm_header_t *ch, char **payload){
     goto fail;
   }
 
-  if(!ocs[ch->comm_desc]){
+  if(!ocs || !ocs[ch->comm_desc]){
     log_err("process_get: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
@@ -878,7 +878,8 @@ static int process_get_list(comm_header_t *ch, char **payload){
   error = _process_get(ch, payload);
   if(error){
     ch->comm_payload_size = 0;
-    ocs[ch->comm_desc]->oc_index = -1;
+    if(ocs && ocs[ch->comm_desc])
+      ocs[ch->comm_desc]->oc_index = -1;
   }
 
   EXIT("process_get_list");
@@ -902,7 +903,7 @@ static int process_set(comm_header_t *ch, char *payload){
     goto fail;
   }
 
-  if(!ocs[ch->comm_desc]){
+  if(!ocs || !ocs[ch->comm_desc]){
     log_err("process_set: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
@@ -939,7 +940,7 @@ static int process_get_state(comm_header_t *ch, char **payload){
     goto fail;
   }
 
-  if(!ocs[ch->comm_desc]){
+  if(!ocs || !ocs[ch->comm_desc]){
     log_err("process_get_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
@@ -1008,7 +1009,7 @@ static int process_set_state(comm_header_t *ch, char *payload){
     goto fail;
   }
 
-  if(!ocs[ch->comm_desc]){
+  if(!ocs || !ocs[ch->comm_desc]){
     log_err("process_set_state: Invalid connection descriptor received.\n");
     error = -EBADR;
     goto fail;
