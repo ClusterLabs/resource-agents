@@ -28,6 +28,7 @@
 #include "inode.h"
 #include "lm.h"
 #include "log.h"
+#include "mount.h"
 #include "ops_super.h"
 #include "page.h"
 #include "proc.h"
@@ -128,7 +129,7 @@ gfs2_put_super(struct super_block *sb)
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
+	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_ro(sdp);
 		if (error)
 			gfs2_io_error(sdp);
@@ -317,28 +318,32 @@ gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 {
 	ENTER(G2FN_REMOUNT_FS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
-	int error = 0;
+	int error;
 
 	atomic_inc(&sdp->sd_ops_super);
+
+	error = gfs2_mount_args(sdp, data, TRUE);
+	if (error)
+		RETURN(G2FN_REMOUNT_FS, error);
+
+	if (sdp->sd_args.ar_spectator)
+		*flags |= MS_RDONLY;
+	else {
+		if (*flags & MS_RDONLY) {
+			if (!(sb->s_flags & MS_RDONLY))
+				error = gfs2_make_fs_ro(sdp);
+		} else if (!(*flags & MS_RDONLY) &&
+			   (sb->s_flags & MS_RDONLY)) {
+			error = gfs2_make_fs_rw(sdp);
+		}
+	}
 
 	if (*flags & (MS_NOATIME | MS_NODIRATIME))
 		set_bit(SDF_NOATIME, &sdp->sd_flags);
 	else
 		clear_bit(SDF_NOATIME, &sdp->sd_flags);
 
-	if (sdp->sd_args.ar_spectator)
-		*flags |= MS_RDONLY;
-	else {
-		if (*flags & MS_RDONLY) {
-			if (!test_bit(SDF_ROFS, &sdp->sd_flags))
-				error = gfs2_make_fs_ro(sdp);
-		} else if (!(*flags & MS_RDONLY) &&
-			   test_bit(SDF_ROFS, &sdp->sd_flags)) {
-			error = gfs2_make_fs_rw(sdp);
-		}
-	}
-
-	/*  Don't let the VFS update atimes.  GFS2 handles this itself. */
+	/* Don't let the VFS update atimes.  GFS2 handles this itself. */
 	*flags |= MS_NOATIME | MS_NODIRATIME;
 
 	RETURN(G2FN_REMOUNT_FS, error);

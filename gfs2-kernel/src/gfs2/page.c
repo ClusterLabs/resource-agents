@@ -239,8 +239,6 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	offset = size & (PAGE_CACHE_SIZE - 1);
 	bufnum = lbn - (index << (PAGE_CACHE_SHIFT - inode->i_blkbits));
 
-	/* Not in a transaction here -- a non-disk-I/O error is ok. */
-
 	page = read_cache_page(inode->i_mapping, index,
 			       (filler_t *)inode->i_mapping->a_ops->readpage,
 			       NULL);

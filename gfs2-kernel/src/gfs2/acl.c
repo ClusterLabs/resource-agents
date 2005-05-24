@@ -26,6 +26,7 @@
 #include "acl.h"
 #include "eaops.h"
 #include "eattr.h"
+#include "glock.h"
 #include "inode.h"
 #include "meta_io.h"
 #include "trans.h"
@@ -194,7 +195,7 @@ acl_get(struct gfs2_inode *ip, int access,
 }
 
 /**
- * gfs2_check_acl - Check an ACL for to see if we're allowed to do something
+ * gfs2_check_acl_locked - Check an ACL for to see if we're allowed to do something
  * @inode: the file we want to do something to
  * @mask: what we want to do
  *
@@ -202,24 +203,43 @@ acl_get(struct gfs2_inode *ip, int access,
  */
 
 int
-gfs2_check_acl(struct inode *inode, int mask)
+gfs2_check_acl_locked(struct inode *inode, int mask)
 {
-	ENTER(G2FN_CHECK_ACL)
+	ENTER(G2FN_CHECK_ACL_LOCKED)
 	struct posix_acl *acl = NULL;
 	int error;
 
 	error = acl_get(get_v2ip(inode), ACL_ACCESS, &acl, NULL, NULL, NULL);
 	if (error)
-		RETURN(G2FN_CHECK_ACL, error);
+		RETURN(G2FN_CHECK_ACL_LOCKED, error);
 
 	if (acl) {
 		error = posix_acl_permission(inode, acl, mask);
 		gfs2_memory_rm(acl);
 		posix_acl_release(acl);
-		RETURN(G2FN_CHECK_ACL, error);
+		RETURN(G2FN_CHECK_ACL_LOCKED, error);
 	}
       
-	RETURN(G2FN_CHECK_ACL, -EAGAIN);
+	RETURN(G2FN_CHECK_ACL_LOCKED, -EAGAIN);
+}
+
+int
+gfs2_check_acl(struct inode *inode, int mask)
+{
+	ENTER(G2FN_CHECK_ACL)
+	struct gfs2_inode *ip = get_v2ip(inode);
+	struct gfs2_holder i_gh;
+	int error;
+
+	error = gfs2_glock_nq_init(ip->i_gl,
+				   LM_ST_SHARED, LM_FLAG_ANY,
+				   &i_gh);
+	if (!error) {
+		error = gfs2_check_acl_locked(inode, mask);
+		gfs2_glock_dq_uninit(&i_gh);
+	}
+	
+	RETURN(G2FN_CHECK_ACL, error);
 }
 
 static int

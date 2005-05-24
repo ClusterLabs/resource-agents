@@ -763,42 +763,6 @@ do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 }
 
 /**
- * do_same - truncate to same size (update time stamps)
- * @ip: 
- *
- * Returns: errno
- */
-
-static int
-do_same(struct gfs2_inode *ip)
-{
-	ENTER(G2FN_DO_SAME)
-	struct gfs2_sbd *sdp = ip->i_sbd;
-	struct buffer_head *dibh;
-	int error;
-
-	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
-	if (error)
-		RETURN(G2FN_DO_SAME, error);
-
-	error = gfs2_meta_inode_buffer(ip, &dibh);
-	if (error)
-		goto out;
-
-	ip->i_di.di_mtime = ip->i_di.di_ctime = get_seconds();
-
-	gfs2_trans_add_bh(ip->i_gl, dibh);
-	gfs2_dinode_out(&ip->i_di, dibh->b_data);
-
-	brelse(dibh);
-
- out:
-	gfs2_trans_end(sdp);
-
-	RETURN(G2FN_DO_SAME, error);
-}
-
-/**
  * do_grow - Make a file look bigger than it is
  * @ip: the inode
  * @size: the size to set the file to
@@ -921,7 +885,7 @@ trunc_start(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh;
 	int journaled = gfs2_is_jdata(ip);
-	int error = 0;
+	int error;
 
 	error = gfs2_trans_begin(sdp, RES_DINODE + ((journaled) ? RES_JDATA : 0), 0);
 	if (error)
@@ -931,24 +895,30 @@ trunc_start(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
 	if (error)
 		goto out;
 
-	ip->i_di.di_size = size;
-	ip->i_di.di_flags |= GFS2_DIF_TRUNC_IN_PROG;
-
 	if (gfs2_is_stuffed(ip)) {
+		ip->i_di.di_size = size;
 		ip->i_di.di_mtime = ip->i_di.di_ctime = get_seconds();
-		ip->i_di.di_flags &= ~GFS2_DIF_TRUNC_IN_PROG;
 		gfs2_trans_add_bh(ip->i_gl, dibh);
+		gfs2_dinode_out(&ip->i_di, dibh->b_data);
 		gfs2_buffer_clear_tail(dibh, sizeof(struct gfs2_dinode) + size);
 		error = 1;
 
-	} else if (journaled)
-		error = truncator_journaled(ip, size);
+	} else {
+		if (journaled) {
+			if (do_mod(size, sdp->sd_jbsize))
+				error = truncator_journaled(ip, size);
+		} else if (size & (uint64_t)(sdp->sd_sb.sb_bsize - 1))
+			error = truncator(ip, size);
 
-	else if (size & (uint64_t)(sdp->sd_sb.sb_bsize - 1))
-		error = truncator(ip, size);
+		if (!error) {
+			ip->i_di.di_size = size;
+			ip->i_di.di_mtime = ip->i_di.di_ctime = get_seconds();
+			ip->i_di.di_flags |= GFS2_DIF_TRUNC_IN_PROG;
+			gfs2_trans_add_bh(ip->i_gl, dibh);
+			gfs2_dinode_out(&ip->i_di, dibh->b_data);
+		}
+	}
 
-	gfs2_trans_add_bh(ip->i_gl, dibh);
-	gfs2_dinode_out(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
  out:
@@ -1092,9 +1062,7 @@ gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
        	if (gfs2_assert_warn(ip->i_sbd, S_ISREG(ip->i_di.di_mode)))
 		RETURN(G2FN_TRUNCATEI, -EINVAL);
 
-	if (size == ip->i_di.di_size)
-		error = do_same(ip);
-	else if (size > ip->i_di.di_size)
+	if (size > ip->i_di.di_size)
 		error = do_grow(ip, size);
 	else
 		error = do_shrink(ip, size, truncator);

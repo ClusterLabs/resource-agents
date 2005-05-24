@@ -53,7 +53,7 @@ aspace_get_block(struct inode *inode, sector_t lblock,
 {
 	ENTER(G2FN_ASPACE_GET_BLOCK)
 	gfs2_assert_warn(get_v2sdp(inode->i_sb), FALSE);
-	RETURN(G2FN_ASPACE_GET_BLOCK, -ENOSYS);
+	RETURN(G2FN_ASPACE_GET_BLOCK, -EOPNOTSUPP);
 }
 
 /**
@@ -686,7 +686,7 @@ gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	ENTER(G2FN_META_PIN)
 	struct gfs2_bufdata *bd = get_v2bd(bh);
 
-	gfs2_assert_withdraw(sdp, !test_bit(SDF_ROFS, &sdp->sd_flags));
+	gfs2_assert_withdraw(sdp, test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags));
 
 	if (test_set_buffer_pinned(bh))
 		gfs2_assert_withdraw(sdp, FALSE);

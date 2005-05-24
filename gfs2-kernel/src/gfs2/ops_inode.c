@@ -740,7 +740,7 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 	case S_IFSOCK:
 		break;
 	default:
-		RETURN(G2FN_MKNOD, -ENOSYS);		
+		RETURN(G2FN_MKNOD, -EOPNOTSUPP);		
 	};
 
 	gfs2_holder_init(dip->i_gl, 0, 0, ghs);
@@ -1120,11 +1120,15 @@ gfs2_permission(struct inode *inode, int mask, struct nameidata *nd)
 
 	atomic_inc(&ip->i_sbd->sd_ops_inode);
 
+	if (ip->i_vn == ip->i_gl->gl_vn)
+		RETURN(G2FN_PERMISSION,
+		       generic_permission(inode, mask, gfs2_check_acl));
+
 	error = gfs2_glock_nq_init(ip->i_gl,
 				   LM_ST_SHARED, LM_FLAG_ANY,
 				   &i_gh);
 	if (!error) {
-		error = generic_permission(inode, mask, gfs2_check_acl);
+		error = generic_permission(inode, mask, gfs2_check_acl_locked);
 		gfs2_glock_dq_uninit(&i_gh);
 	}
 

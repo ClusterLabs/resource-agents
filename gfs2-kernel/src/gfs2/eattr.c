@@ -462,7 +462,7 @@ int
 gfs2_ea_repack_i(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_EA_REPACK_I)
-	RETURN(G2FN_EA_REPACK_I, -ENOSYS);
+	RETURN(G2FN_EA_REPACK_I, -EOPNOTSUPP);
 }
 
 /**

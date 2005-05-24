@@ -130,11 +130,6 @@ init_sbd(struct super_block *sb)
 
 	init_MUTEX(&sdp->sd_freeze_lock);
 
-	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
-		set_bit(SDF_NOATIME, &sdp->sd_flags);
-	if (sb->s_flags & MS_RDONLY)
-		set_bit(SDF_ROFS, &sdp->sd_flags);
-
 	RETURN(G2FN_INIT_SBD, sdp);
 }
 
@@ -147,20 +142,13 @@ init_vfs(struct gfs2_sbd *sdp)
 	sb->s_magic = GFS2_MAGIC;
 	sb->s_op = &gfs2_super_ops;
 	sb->s_export_op = &gfs2_export_ops;
+	sb->s_maxbytes = MAX_LFS_FILESIZE;
+
+	if (sb->s_flags & (MS_NOATIME | MS_NODIRATIME))
+		set_bit(SDF_NOATIME, &sdp->sd_flags);
 
 	/* Don't let the VFS update atimes.  GFS2 handles this itself. */
 	sb->s_flags |= MS_NOATIME | MS_NODIRATIME;
-	sb->s_maxbytes = MAX_LFS_FILESIZE;
-
-	if (sdp->sd_args.ar_spectator) {
-		sb->s_flags |= MS_RDONLY;
-		set_bit(SDF_ROFS, &sdp->sd_flags);
-	}
-
-	/* If we were mounted with -o acl (to support POSIX access control
-	   lists), tell VFS */
-	if (sdp->sd_args.ar_posix_acl)
-		sb->s_flags |= MS_POSIXACL;
 
 	/* Set up the buffer cache and fill in some fake block size values
 	   to allow us to read-in the on-disk superblock. */
@@ -662,13 +650,6 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 		goto fail_ir_gh;
 	}
 
-	error = gfs2_statfs_init(sdp);
-	if (error) {
-		printk("GFS2: fsid=%s: can't init local \"sc\" file: %d\n",
-		       sdp->sd_fsname, error);
-		goto fail_sc_gh;
-	}
-
 	error = gfs2_glock_nq_init(sdp->sd_ut_inode->i_gl,
 				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
 				   &sdp->sd_ut_gh);
@@ -830,7 +811,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	gfs2_diaper_register_sbd(sb->s_bdev, sdp);
 #endif
 
-	error = gfs2_make_args((char *)data, &sdp->sd_args);
+	error = gfs2_mount_args(sdp, (char *)data, FALSE);
 	if (error) {
 		printk("GFS2: can't parse mount arguments\n");
 		goto fail;
@@ -863,6 +844,13 @@ fill_super(struct super_block *sb, void *data, int silent)
 	if (error)
 		goto fail_inodes;
 
+	error = gfs2_statfs_init(sdp);
+	if (error) {
+		printk("GFS2: fsid=%s: can't initialize statfs subsystem: %d\n",
+		       sdp->sd_fsname, error);
+		goto fail_per_node;
+	}
+
 	error = init_threads(sdp, DO);
 	if (error)
 		goto fail_per_node;
@@ -870,7 +858,7 @@ fill_super(struct super_block *sb, void *data, int silent)
 	gfs2_proc_fs_add(sdp);
 
 	/* Make the FS read/write */
-	if (!test_bit(SDF_ROFS, &sdp->sd_flags)) {
+	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_rw(sdp);
 		if (error) {
 			printk("GFS2: fsid=%s: can't make FS RW: %d\n",

@@ -26,8 +26,14 @@ to run printing out the stats once a second.
 Print out a space usage summary of a given filesystem.  The information
 printed is more detailed than a standard "df".
 .TP
+\fBflush\fP \fIFile\fR
+Sync out any dirty data for a file and drop its lock.
+.TP
 \fBfreeze\fP \fIMountPoint\fR
 Freeze (quiesce) a GFS2 cluster.
+.TP
+\fBgetargs\fP \fIMountPoint\fR
+Get the GFS-specific mount arguments used to mount a filesystem.
 .TP
 \fBgetsb\fP \fIMountPoint\fR
 Print out the superblock of a mounted filesystem.
@@ -64,15 +70,12 @@ bytes.
 This loads arguments into the module what will override the mount
 options passed with the -o field on the next mount.  See gfs2_mount(8).
 .TP
-\fBreclaim\fP \fIFile\fR
-Returns unused on-disk metadata blocks to free blocks.
-.TP
-\fBrindex\fP \fIMountPoint\fR
-Print out the resource group index of a mounted filesystem.
-.TP
 \fBquota\fP \fIMountPoint\fR
 Print out the quota file of a mounted filesystem.  Also see
 the "gfs2_quota list" command.
+.TP
+\fBrindex\fP \fIMountPoint\fR
+Print out the resource group index of a mounted filesystem.
 .TP
 \fBsb\fP \fIdevice\fR \fBproto\fP \fI[newvalue]\fR
 View (and possibly replace) the name of the locking protocol in the
@@ -124,7 +127,7 @@ Set the value of tuning parameter.  Use \fBgettune\fP for a listing of
 tunable parameters.
 .TP
 \fBshrink\fP \fIMountPoint\fR
-Causes any unused inodes to be thrown out of memory.
+Causes any unused locks to be thrown out of memory.
 .TP
 \fBstat\fP \fIFile\fR
 Print out extended stat information about a file.

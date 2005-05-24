@@ -502,7 +502,7 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		if (error)
 			goto fail_gunlock_ji;
 
-		if (test_bit(SDF_ROFS, &sdp->sd_flags)) {
+		if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
 			printk("GFS2: fsid=%s: jid=%u: Can't replay: read-only FS\n",
 			       sdp->sd_fsname, jd->jd_jid);
 			error = -EROFS;

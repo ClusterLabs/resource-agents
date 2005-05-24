@@ -219,7 +219,6 @@ gi_get_args(struct gfs2_inode *ip,
         gfs2_printf("suiddir %d\n", args->ar_suiddir);
 	gfs2_printf("data %d\n", args->ar_data);
 	gfs2_printf("noatime %d\n", !!test_bit(SDF_NOATIME, &sdp->sd_flags));
-	gfs2_printf("rofs %d\n", !!test_bit(SDF_ROFS, &sdp->sd_flags));
 
 	error = 0;
 	

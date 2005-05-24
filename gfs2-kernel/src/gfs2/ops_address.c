@@ -320,7 +320,7 @@ gfs2_readpage(struct file *file, struct page *page)
 
 	if (gfs2_assert_warn(sdp, gfs2_glock_is_locked_by_me(ip->i_gl))) {
 		unlock_page(page);
-		RETURN(G2FN_READPAGE, -ENOSYS);
+		RETURN(G2FN_READPAGE, -EOPNOTSUPP);
 	}
 
 	if (!gfs2_is_jdata(ip)) {
@@ -369,7 +369,7 @@ gfs2_prepare_write(struct file *file, struct page *page,
 	atomic_inc(&sdp->sd_ops_address);
 
 	if (gfs2_assert_warn(sdp, gfs2_glock_is_locked_by_me(ip->i_gl)))
-		RETURN(G2FN_PREPARE_WRITE, -ENOSYS);
+		RETURN(G2FN_PREPARE_WRITE, -EOPNOTSUPP);
 
 	if (gfs2_is_stuffed(ip)) {
 		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;

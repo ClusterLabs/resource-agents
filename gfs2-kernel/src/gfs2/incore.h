@@ -689,14 +689,12 @@ struct gfs2_args {
 
 	int ar_debug; /* Oops on errors instead of trying to be graceful */
 	int ar_upgrade; /* Upgrade ondisk/multihost format */
-
 	unsigned int ar_num_glockd; /* # of glock cleanup daemons to run
 				       (more daemons => faster cleanup) */
 	int ar_posix_acl; /* Enable posix acls */
-	int ar_quota;
+	int ar_quota; /* off/account/on */
 	int ar_suiddir; /* suiddir support */
-
-	int ar_data;
+	int ar_data; /* ordered/writeback */
 };
 
 struct gfs2_tune {
@@ -776,7 +774,6 @@ struct gfs2_gl_hash_bucket {
 
 /* (Re)mount options from Linux VFS */
 #define SDF_NOATIME             (8)  /* Don't change access time */
-#define SDF_ROFS                (9)  /* Read-only mode */
 
 /* Glock cache */
 #define GFS2_GL_HASH_SHIFT       (13)    /* # hash buckets = 8K */

@@ -319,7 +319,7 @@ qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 
 	*qdp = NULL;
 
-	if (test_bit(SDF_ROFS, &sdp->sd_flags))
+	if (sdp->sd_vfs->s_flags & MS_RDONLY)
 		RETURN(G2FN_QD_FISH, 0);
 
 	spin_lock(&sdp->sd_quota_spin);
@@ -373,7 +373,7 @@ qd_trylock(struct gfs2_quota_data *qd)
 	ENTER(G2FN_QD_TRYLOCK)
        	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
-	if (test_bit(SDF_ROFS, &sdp->sd_flags))
+	if (sdp->sd_vfs->s_flags & MS_RDONLY)
 		RETURN(G2FN_QD_TRYLOCK, FALSE);
 
 	spin_lock(&sdp->sd_quota_spin);

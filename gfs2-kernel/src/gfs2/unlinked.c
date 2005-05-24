@@ -98,6 +98,9 @@ ul_fish(struct gfs2_sbd *sdp)
 	struct list_head *tmp, *head;
 	struct gfs2_unlinked *ul = NULL;
 
+	if (sdp->sd_vfs->s_flags & MS_RDONLY)
+		RETURN(G2FN_UL_FISH, NULL);
+
 	spin_lock(&sdp->sd_unlinked_spin);
 
 	for (head = &sdp->sd_unlinked_list, tmp = head->next;

@@ -1710,7 +1710,7 @@ gfs2_glock_nq_atime(struct gfs2_holder *gh)
 		RETURN(G2FN_GLOCK_NQ_ATIME, error);
 
 	if (test_bit(SDF_NOATIME, &sdp->sd_flags) ||
-	    test_bit(SDF_ROFS, &sdp->sd_flags))
+	    (sdp->sd_vfs->s_flags & MS_RDONLY))
 		RETURN(G2FN_GLOCK_NQ_ATIME, 0);
 
 	curtime = get_seconds();

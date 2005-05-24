@@ -440,7 +440,7 @@ gfs2_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
 	else if (strncmp(p, "lockdump", 8) == 0)
 		error = do_lockdump(p, buf, size);
 	else
-		error = -ENOSYS;
+		error = -EOPNOTSUPP;
 
 	kfree(p);
 

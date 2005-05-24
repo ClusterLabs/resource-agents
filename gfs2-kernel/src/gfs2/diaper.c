@@ -61,14 +61,14 @@ kmem_cache_t *diaper_slab;
  * or from other kernel routines.  They should only be opened
  * from this file.
  *
- * Returns: -ENOSYS
+ * Returns: -EOPNOTSUPP
  */
 
 static int
 diaper_open(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_DIAPER_OPEN)
-	RETURN(G2FN_DIAPER_OPEN, -ENOSYS);
+	RETURN(G2FN_DIAPER_OPEN, -EOPNOTSUPP);
 }
 
 static struct block_device_operations diaper_fops = {

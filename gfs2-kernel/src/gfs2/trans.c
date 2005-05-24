@@ -85,7 +85,7 @@ gfs2_trans_begin_i(struct gfs2_sbd *sdp,
 	if (error)
 		goto fail_holder_put;
 
-	if (test_bit(SDF_ROFS, &sdp->sd_flags)) {
+	if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
 		tr->tr_t_gh->gh_flags |= GL_NOCACHE;
 		error = -EROFS;
 		goto fail_gunlock;

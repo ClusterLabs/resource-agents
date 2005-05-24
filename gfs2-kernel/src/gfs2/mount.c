@@ -24,157 +24,173 @@
 #include "proc.h"
 
 /**
- * gfs2_make_args - Parse mount arguments
+ * gfs2_mount_args - Parse mount options
+ * @sdp:
  * @data:
- * @args:
  *
  * Return: errno
  */
 
 int
-gfs2_make_args(char *data_arg, struct gfs2_args *args)
+gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 {
-	ENTER(G2FN_MAKE_ARGS)
+	ENTER(G2FN_MOUNT_ARGS)
+       	struct gfs2_args *args = &sdp->sd_args;
 	char *data = data_arg;
-	char *options, *x, *y;
+	char *options, *o, *v;
 	int error = 0;
 
-	/*  If someone preloaded options, use those instead  */
+	if (!remount) {
+		/*  If someone preloaded options, use those instead  */
+		spin_lock(&gfs2_proc_margs_lock);
+		if (gfs2_proc_margs) {
+			data = gfs2_proc_margs;
+			gfs2_proc_margs = NULL;
+		}
+		spin_unlock(&gfs2_proc_margs_lock);
 
-	spin_lock(&gfs2_proc_margs_lock);
-	if (gfs2_proc_margs) {
-		data = gfs2_proc_margs;
-		gfs2_proc_margs = NULL;
+		/*  Set some defaults  */
+		args->ar_num_glockd = GFS2_GLOCKD_DEFAULT;
+		args->ar_quota = GFS2_QUOTA_DEFAULT;
+		args->ar_data = GFS2_DATA_DEFAULT;
 	}
-	spin_unlock(&gfs2_proc_margs_lock);
 
-	/*  Set some defaults  */
+	/* Split the options into tokens with the "," character and
+	   process them */
 
-	memset(args, 0, sizeof(struct gfs2_args));
-	args->ar_num_glockd = GFS2_GLOCKD_DEFAULT;
-	args->ar_quota = GFS2_QUOTA_DEFAULT;
-	args->ar_data = GFS2_DATA_DEFAULT;
-
-	/*  Split the options into tokens with the "," character and
-	    process them  */
-
-	for (options = data; (x = strsep(&options, ",")); ) {
-		if (!*x)
+	for (options = data; (o = strsep(&options, ",")); ) {
+		if (!*o)
 			continue;
 
-		y = strchr(x, '=');
-		if (y)
-			*y++ = 0;
+		v = strchr(o, '=');
+		if (v)
+			*v++ = 0;
 
-		if (!strcmp(x, "lockproto")) {
-			if (!y) {
-				printk("GFS2: need argument to lockproto\n");
-				error = -EINVAL;
-				break;
-			}
-			strncpy(args->ar_lockproto, y, GFS2_LOCKNAME_LEN);
+		if (!strcmp(o, "lockproto")) {
+			if (!v)
+				goto need_value;
+			if (remount && strcmp(v, args->ar_lockproto))
+				goto cant_remount;
+			strncpy(args->ar_lockproto, v, GFS2_LOCKNAME_LEN);
 			args->ar_lockproto[GFS2_LOCKNAME_LEN - 1] = 0;
 		}
 
-		else if (!strcmp(x, "locktable")) {
-			if (!y) {
-				printk("GFS2: need argument to locktable\n");
-				error = -EINVAL;
-				break;
-			}
-			strncpy(args->ar_locktable, y, GFS2_LOCKNAME_LEN);
+		else if (!strcmp(o, "locktable")) {
+			if (!v)
+				goto need_value;
+			if (remount && strcmp(v, args->ar_locktable))
+				goto cant_remount;
+			strncpy(args->ar_locktable, v, GFS2_LOCKNAME_LEN);
 			args->ar_locktable[GFS2_LOCKNAME_LEN - 1] = 0;
 		}
 
-		else if (!strcmp(x, "hostdata")) {
-			if (!y) {
-				printk("GFS2: need argument to hostdata\n");
-				error = -EINVAL;
-				break;
-			}
-			strncpy(args->ar_hostdata, y, GFS2_LOCKNAME_LEN);
+		else if (!strcmp(o, "hostdata")) {
+			if (!v)
+				goto need_value;
+			if (remount && strcmp(v, args->ar_hostdata))
+				goto cant_remount;
+			strncpy(args->ar_hostdata, v, GFS2_LOCKNAME_LEN);
 			args->ar_hostdata[GFS2_LOCKNAME_LEN - 1] = 0;
 		}
 
-		else if (!strcmp(x, "spectator"))
+		else if (!strcmp(o, "spectator")) {
+			if (remount && !args->ar_spectator)
+				goto cant_remount;
 			args->ar_spectator = TRUE;
+			sdp->sd_vfs->s_flags |= MS_RDONLY;
 
-		else if (!strcmp(x, "ignore_local_fs"))
+		} else if (!strcmp(o, "ignore_local_fs")) {
+			if (remount && !args->ar_ignore_local_fs)
+				goto cant_remount;
 			args->ar_ignore_local_fs = TRUE;
 
-		else if (!strcmp(x, "localflocks"))
+		} else if (!strcmp(o, "localflocks")) {
+			if (remount && !args->ar_localflocks)
+				goto cant_remount;
 			args->ar_localflocks = TRUE;
 
-		else if (!strcmp(x, "localcaching"))
+		} else if (!strcmp(o, "localcaching")) {
+			if (remount && !args->ar_localcaching)
+				goto cant_remount;
 			args->ar_localcaching = TRUE;
 
-		else if (!strcmp(x, "oopses_ok"))
+		} else if (!strcmp(o, "oopses_ok"))
 			args->ar_oopses_ok = TRUE;
 
-		else if (!strcmp(x, "debug")) {
-			args->ar_oopses_ok = TRUE;
+		else if (!strcmp(o, "nooopses_ok"))
+			args->ar_oopses_ok = FALSE;
+
+		else if (!strcmp(o, "debug")) {
 			args->ar_debug = TRUE;
 
-		} else if (!strcmp(x, "upgrade"))
+		} else if (!strcmp(o, "nodebug"))
+			args->ar_debug = FALSE;
+
+		else if (!strcmp(o, "upgrade")) {
+			if (remount && !args->ar_upgrade)
+				goto cant_remount;
 			args->ar_upgrade = TRUE;
 
-		else if (!strcmp(x, "num_glockd")) {
-			if (!y) {
-				printk("GFS2: need argument to num_glockd\n");
-				error = -EINVAL;
-				break;
-			}
-			sscanf(y, "%u", &args->ar_num_glockd);
-			if (!args->ar_num_glockd || args->ar_num_glockd > GFS2_GLOCKD_MAX) {
+		} else if (!strcmp(o, "num_glockd")) {
+			unsigned int x;
+			if (!v)
+				goto need_value;
+			sscanf(v, "%u", &x);
+			if (remount && x != args->ar_num_glockd)
+				goto cant_remount;
+			if (!x || x > GFS2_GLOCKD_MAX) {
 				printk("GFS2: 0 < num_glockd <= %u  (not %u)\n",
-				       GFS2_GLOCKD_MAX, args->ar_num_glockd);
+				       GFS2_GLOCKD_MAX, x);
 				error = -EINVAL;
 				break;
 			}
+			args->ar_num_glockd = x;
 		}
 
-		else if (!strcmp(x, "acl"))
+		else if (!strcmp(o, "acl")) {
 			args->ar_posix_acl = TRUE;
+			sdp->sd_vfs->s_flags |= MS_POSIXACL;
 
-		else if (!strcmp(x, "quota")) {
-			if (!y) {
-				printk("GFS2: need argument to quota\n");
-				error = -EINVAL;
-				break;
-			}
-			if (!strcmp(y, "off"))
+		} else if (!strcmp(o, "noacl")) {
+			args->ar_posix_acl = FALSE;
+			sdp->sd_vfs->s_flags &= ~MS_POSIXACL;
+
+		} else if (!strcmp(o, "quota")) {
+			if (!v)
+				goto need_value;
+			if (!strcmp(v, "off"))
 				args->ar_quota = GFS2_QUOTA_OFF;
-			else if (!strcmp(y, "account"))
+			else if (!strcmp(v, "account"))
 				args->ar_quota = GFS2_QUOTA_ACCOUNT;
-			else if (!strcmp(y, "on"))
+			else if (!strcmp(v, "on"))
 				args->ar_quota = GFS2_QUOTA_ON;
 			else {
-				printk("GFS2: invalid argument to quota\n");
+				printk("GFS2: invalid value for quota\n");
 				error = -EINVAL;
 				break;
 			}
 
-		} else if (!strcmp(x, "suiddir"))
+		} else if (!strcmp(o, "suiddir"))
 			args->ar_suiddir = TRUE;
 
-		else if (!strcmp(x, "data")) {
-			if (!y) {
-				printk("GFS2: need argument to data\n");
-				error = -EINVAL;
-				break;
-			}
-			if (!strcmp(y, "writeback"))
+		else if (!strcmp(o, "nosuiddir"))
+			args->ar_suiddir = FALSE;
+
+		else if (!strcmp(o, "data")) {
+			if (!v)
+				goto need_value;
+			if (!strcmp(v, "writeback"))
 				args->ar_data = GFS2_DATA_WRITEBACK;
-			else if (!strcmp(y, "ordered"))
+			else if (!strcmp(v, "ordered"))
 				args->ar_data = GFS2_DATA_ORDERED;
 			else {
-				printk("GFS2: invalid argument to data\n");
+				printk("GFS2: invalid value for data\n");
 				error = -EINVAL;
 				break;
 			}
 
 		} else {
-			printk("GFS2: unknown option: %s\n", x);
+			printk("GFS2: unknown option: %s\n", o);
 			error = -EINVAL;
 			break;
 		}
@@ -186,6 +202,15 @@ gfs2_make_args(char *data_arg, struct gfs2_args *args)
 	if (data != data_arg)
 		kfree(data);
 
-	RETURN(G2FN_MAKE_ARGS, error);
+	RETURN(G2FN_MOUNT_ARGS, error);
+
+ need_value:
+	printk("GFS2: need value for option %s\n", o);
+	RETURN(G2FN_MOUNT_ARGS, -EINVAL);
+
+ cant_remount:
+	printk("GFS2: can't remount with option %s\n", o);
+	RETURN(G2FN_MOUNT_ARGS, -EINVAL);
 }
+
 

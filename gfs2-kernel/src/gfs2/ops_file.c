@@ -1244,7 +1244,7 @@ gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if (gfs2_is_jdata(ip)) {
 		if (vma->vm_flags & VM_MAYSHARE)
-			error = -ENOSYS;
+			error = -EOPNOTSUPP;
 		else
 			vma->vm_ops = &gfs2_vm_ops_private;
 	} else {
@@ -1470,7 +1470,7 @@ gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t a
 		goto out;
 
 	if (gfs2_is_jdata(ip))
-		retval = -ENOSYS;
+		retval = -EOPNOTSUPP;
 	else 
 		retval = generic_file_sendfile(in_file, offset, count, actor, target);
 

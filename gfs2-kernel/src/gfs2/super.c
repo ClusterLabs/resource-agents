@@ -548,7 +548,6 @@ gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 		goto fail_unlinked;
 
 	set_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
-	clear_bit(SDF_ROFS, &sdp->sd_flags);
 
 	gfs2_glock_dq_uninit(&t_gh);
 
@@ -591,7 +590,6 @@ gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	gfs2_meta_syncfs(sdp);
 	gfs2_log_shutdown(sdp);
 
-	set_bit(SDF_ROFS, &sdp->sd_flags);
 	clear_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags);
 
 	if (t_gh.gh_gl)
@@ -618,23 +616,34 @@ gfs2_statfs_init(struct gfs2_sbd *sdp)
 	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
 	if (error)
 		RETURN(G2FN_STATFS_INIT, error);
+
 	error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 	if (error)
 		goto out;
-	error = gfs2_meta_inode_buffer(l_ip, &l_bh);
-	if (error)
-		goto out_m_bh;
 
-	spin_lock(&sdp->sd_statfs_spin);
-	gfs2_statfs_change_in(m_sc, m_bh->b_data +
-			      sizeof(struct gfs2_dinode));	
-	gfs2_statfs_change_in(l_sc, l_bh->b_data +
-			      sizeof(struct gfs2_dinode));	
-	spin_unlock(&sdp->sd_statfs_spin);
+	if (sdp->sd_args.ar_spectator) {
+		spin_lock(&sdp->sd_statfs_spin);
+		gfs2_statfs_change_in(m_sc, m_bh->b_data +
+				      sizeof(struct gfs2_dinode));
+		spin_unlock(&sdp->sd_statfs_spin);
+	} else {
+		error = gfs2_meta_inode_buffer(l_ip, &l_bh);
+		if (error)
+			goto out_m_bh;
 
-	brelse(l_bh);
+		spin_lock(&sdp->sd_statfs_spin);
+		gfs2_statfs_change_in(m_sc, m_bh->b_data +
+				      sizeof(struct gfs2_dinode));
+		gfs2_statfs_change_in(l_sc, l_bh->b_data +
+				      sizeof(struct gfs2_dinode));
+		spin_unlock(&sdp->sd_statfs_spin);
+
+		brelse(l_bh);
+	}
+
  out_m_bh:
 	brelse(m_bh);
+
  out:
 	gfs2_glock_dq_uninit(&gh);
 
