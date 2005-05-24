@@ -98,7 +98,7 @@ int main(int argc, char **argv)
 	int level_width = 5;
 	int name_width = 32;
 	int id_width = 8;
-	int state_width = 16;
+	int state_width = 12;
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < count; i++) {
 
-		printf("%-*s %-*d %-*s 0x%-*x %-*s\n",
+		printf("%-*s %-*d %-*s %-*x %-*s\n",
 			program_width, data[i].client_name,
 			level_width, data[i].level,
 			name_width, data[i].name,
