@@ -79,10 +79,13 @@ typedef struct group_data {
 	char name[MAX_GROUP_NAME_LEN+1];
 	int level;
 	int id;
-	int flags;
-	int recover_state;
+	int member;
 	int member_count;
 	int members[MAX_GROUP_MEMBERS];
+	int event_state;	/* debugging */
+	int update_state;	/* debugging */
+	int recover_state;	/* debugging */
+	int flags;		/* debugging */
 } group_data_t;
 
 /* These routines create their own temporary connection to groupd so they

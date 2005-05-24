@@ -275,14 +275,21 @@ static void copy_group_data(group_t *g, group_data_t *data)
 	strncpy(data->name, g->name, MAX_GROUP_NAME_LEN);
 	data->level = g->level;
 	data->id = g->global_id;
-	data->flags = (int) g->flags;
-	data->recover_state = g->recover_state;
+	data->member = test_bit(GFL_MEMBER, &g->flags) ? 1 : 0;
 	data->member_count = g->memb_count;
 
 	list_for_each_entry(node, &g->memb, list) {
 		data->members[i] = node->id;
 		i++;
 	}
+
+	/* debugging info */
+	data->flags = (int) g->flags;
+	data->recover_state = g->recover_state;
+	if (g->update)
+		data->update_state = g->update->state;
+	if (g->event)
+		data->event_state = g->event->state;
 }
 
 static int client_process_get_groups(int ci, int argc, char **argv)
