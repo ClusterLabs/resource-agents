@@ -460,10 +460,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 					 res_hashchain);
 
 			list_del(&rsb->res_hashchain);
-
-			if (rsb->res_lvbptr)
-				free_lvb(rsb->res_lvbptr);
-
 			free_rsb(rsb);
 		}
 
@@ -472,10 +468,6 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 			rsb = list_entry(head->next, struct dlm_rsb,
 					 res_hashchain);
 			list_del(&rsb->res_hashchain);
-
-			if (rsb->res_lvbptr)
-				free_lvb(rsb->res_lvbptr);
-
 			free_rsb(rsb);
 		}
 	}
