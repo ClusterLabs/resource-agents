@@ -77,6 +77,19 @@ static void decode_arguments(int argc, char **argv)
 	}
 }
 
+char *state_str(group_data_t *data)
+{
+	static char buf[32];
+	
+	memset(buf, 0, sizeof(buf));
+
+	sprintf(buf, "E%d U%d R%d F%x",
+		data->event_state, data->update_state, data->recover_state,
+		data->flags);
+
+	return buf;
+}
+
 int main(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
@@ -85,7 +98,7 @@ int main(int argc, char **argv)
 	int level_width = 5;
 	int name_width = 32;
 	int id_width = 8;
-	int state_width = 8;
+	int state_width = 16;
 
 	prog_name = argv[0];
 	decode_arguments(argc, argv);
@@ -103,12 +116,12 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < count; i++) {
 
-		printf("%-*s %-*d %-*s %-*d %-*s\n",
+		printf("%-*s %-*d %-*s 0x%-*x %-*s\n",
 			program_width, data[i].client_name,
 			level_width, data[i].level,
 			name_width, data[i].name,
 			id_width, data[i].id,
-			state_width, "fixme");
+			state_width, state_str(&data[i]));
 
 		printf("[");
 		for (j = 0; j < data[i].member_count; j++) {

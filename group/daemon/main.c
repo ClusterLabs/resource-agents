@@ -191,7 +191,8 @@ static int client_process_join(int ci, int argc, char **argv)
 	if (argc > 2)
 		info = argv[2];
 
-	log_in("local %s join %s info %s", client[ci].type, argv[1], info);
+	log_in("local %s join %s info %s", client[ci].type, argv[1],
+		info ? info : "");
 
 	do_join(argv[1], client[ci].level, ci, info);
 
@@ -206,7 +207,8 @@ static int client_process_leave(int ci, int argc, char **argv)
 	if (argc > 2)
 		info = argv[2];
 
-	log_in("local %s leave %s info %s", client[ci].type, argv[1], info);
+	log_in("local %s leave %s info %s", client[ci].type, argv[1],
+		info ? info : "");
 
 	do_leave(argv[1], client[ci].level, 0, info);
 
@@ -379,6 +381,8 @@ static int client_process(int ci)
 		do_info(ci, argc, argv, 0);
 	else if (!strcmp(cmd, "get_groups"))
 		client_process_get_groups(ci, argc, argv);
+	else if (!strcmp(cmd, "get_group"))
+		client_process_get_group(ci, argc, argv);
 	else
 		log_print("unknown cmd %s client %d", cmd, ci);
 

@@ -186,7 +186,7 @@ static int send_join_notice(event_t *ev)
 	namelen = g->namelen;
 	mbuf = create_msg(g, SMSG_JOIN_REQ, namelen, &len, ev);
 	msg = (msg_t *) mbuf;
-	strcpy(msg->ms_info, g->join_info);
+	memcpy(msg->ms_info, g->join_info, GROUP_INFO_LEN);
 	memcpy(mbuf + sizeof(msg_t), g->name, namelen);
 
 	error = send_broadcast_message_ev(mbuf, len, ev);
@@ -643,7 +643,7 @@ static int send_leave_notice(event_t *ev)
 
 	mbuf = create_msg(g, SMSG_LEAVE_REQ, 0, &len, ev);
 	msg = (msg_t *) mbuf;
-	strcpy(msg->ms_info, g->leave_info);
+	memcpy(msg->ms_info, g->leave_info, GROUP_INFO_LEN);
 
 	error = send_members_message_ev(g, mbuf, len, ev);
  out:
@@ -1400,7 +1400,7 @@ int do_join(char *name, int level, int ci, char *info)
 	g->client = ci;
 
 	if (info)
-		strcpy(g->join_info, info);
+		strncpy(g->join_info, info, GROUP_INFO_LEN);
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
@@ -1421,7 +1421,7 @@ int do_leave(char *name, int level, int nowait, char *info)
 		return -EAGAIN;
 
 	if (info)
-		strcpy(g->leave_info, info);
+		strncpy(g->leave_info, info, GROUP_INFO_LEN);
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
