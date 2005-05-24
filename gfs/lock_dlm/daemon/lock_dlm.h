@@ -38,8 +38,10 @@
 #define MAXARGS 64
 #define MAXLINE 256
 #define MAXCON  4
-#define MAXNAME 256
+#define MAXNAME 255
+#define MAX_MSGLEN 1024
 
+#define LOCK_DLM_PORT 3
 #define GFS_GROUP_NAME "gfs_dlm"
 #define GFS_GROUP_LEVEL 2
 
@@ -55,21 +57,21 @@
 #define log_group(g, fmt, args...) \
 	fprintf(stderr, "%s " fmt "\n", (g)->name, ##args)
 
-int setup_member(void);
-
 struct mountgroup {
 	struct list_head	list;
 	char			name[MAXNAME+1];
-	int			namelen;
 	struct list_head	members;
 	struct list_head	members_gone;
-	int			num_memb;
+	int			memb_count;
+	int			last_stop;
+	int			last_start;
+	int			last_finish;
 	int			start_event_nr;
 	int			finish_event_nr;
 	int			start_type;
 	int			our_jid;
 	int			first_start;
-	int			low_nodeid;
+	int			low_finished_nodeid;
 	int			spectator;
 };
 

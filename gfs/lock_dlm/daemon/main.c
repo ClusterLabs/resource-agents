@@ -20,9 +20,12 @@ static int debug;
 
 static int groupd_fd;
 static int uevent_fd;
+static int member_fd;
 
 extern struct list_head mounts;
 
+int setup_member(void);
+int process_member(void);
 int setup_groupd(void);
 int process_groupd(void);
 int do_mount(char *name);
@@ -125,25 +128,25 @@ int loop(void)
 	if (!pollfd)
 		return -1;
 
-	rv = setup_member();
-	if (rv < 0) {
-		log_error("setup_member error %d", rv);
+	rv = member_fd = setup_member();
+	if (rv < 0)
 		goto out;
-	}
+	pollfd[0].fd = member_fd;
+	pollfd[0].events = POLLIN;
 
 	rv = groupd_fd = setup_groupd();
 	if (rv < 0)
 		goto out;
-	pollfd[0].fd = groupd_fd;
-	pollfd[0].events = POLLIN;
+	pollfd[1].fd = groupd_fd;
+	pollfd[1].events = POLLIN;
 
 	rv = uevent_fd = setup_uevent();
 	if (rv < 0)
 		goto out;
-	pollfd[1].fd = uevent_fd;
-	pollfd[1].events = POLLIN;
+	pollfd[2].fd = uevent_fd;
+	pollfd[2].events = POLLIN;
 
-	maxi = 1;
+	maxi = 2;
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -156,6 +159,8 @@ int loop(void)
 					process_groupd();
 				else if (pollfd[i].fd == uevent_fd)
 					process_uevent();
+				else if (pollfd[i].fd == member_fd)
+					process_member();
 			}
 
 			if (pollfd[i].revents & POLLHUP) {

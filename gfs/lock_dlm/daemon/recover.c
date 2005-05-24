@@ -20,6 +20,8 @@ extern group_handle_t gh;
 
 struct list_head mounts;
 
+int send_journals_message(int nodeid, char *buf, int len);
+struct mountgroup *find_mg(char *name);
 
 int set_sysfs(struct mountgroup *mg, char *field, int val)
 {
@@ -75,18 +77,151 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 	return rv;
 }
 
-int claim_journal(struct mountgroup *mg)
-{
-	mg->our_jid = our_nodeid - 1;
-	return 0;
-}
-
-int discover_journals(struct mountgroup *mg)
+struct mg_member *find_memb_nodeid(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
 
-	list_for_each_entry(memb, &mg->members, list)
-		memb->jid = memb->nodeid - 1;
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->nodeid == nodeid)
+			return memb;
+	}
+	return NULL;
+}
+
+struct mg_member *find_memb_jid(struct mountgroup *mg, int jid)
+{
+	struct mg_member *memb;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->jid == jid)
+			return memb;
+	}
+	return NULL;
+}
+
+/* send nodeid/jid pairs for every member to nodeid */
+
+void send_journals(struct mountgroup *mg, int nodeid)
+{
+	struct mg_member *memb;
+	int i, len = MAXNAME + 1 + (mg->memb_count * 2 * sizeof(int));
+	char *buf;
+	int *ids;
+
+	buf = malloc(len);
+	if (!buf)
+		return;
+	memset(buf, 0, len);
+
+	strncpy(buf, mg->name, MAXNAME);
+	ids = (int *) (buf + MAXNAME + 1);
+
+	/* FIXME: do byte swapping */
+
+	i = 0;
+	list_for_each_entry(memb, &mg->members, list) {
+		ids[i] = memb->nodeid;
+		i++;
+		ids[i] = memb->jid;
+		i++;
+	}
+
+	log_group(mg, "send_journals len %d to %d", len, nodeid);
+
+	send_journals_message(nodeid, buf, len);
+
+	free(buf);
+}
+
+void receive_journals(char *buf, int len, int from)
+{
+	struct mg_member *memb, *memb2;
+	struct mountgroup *mg;
+	int *ids, count, i, nodeid, jid;
+
+	count = (len - MAXNAME - 1) / (2 * sizeof(int));
+
+	mg = find_mg(buf);
+	if (!mg) {
+		log_error("receive_journals from %d no mountgroup %s",
+			  from, buf);
+		return;
+	}
+
+	log_group(mg, "receive_journals from %d count %d", from, count);
+
+	if (count != mg->memb_count) {
+		log_error("invalid journals message len %d counts %d %d",
+			  len, count, mg->memb_count);
+		return;
+	}
+
+	ids = (int *) (buf + MAXNAME + 1);
+
+	/* FIXME: byte swap nodeid/jid */
+
+	for (i = 0; i < count; i++) {
+		nodeid = ids[i * 2];
+		jid = ids[i * 2 + 1];
+
+		log_debug("receive nodeid %d jid %d", nodeid, jid);
+
+		memb = find_memb_nodeid(mg, nodeid);
+		memb2 = find_memb_jid(mg, jid);
+
+		if (!memb || memb2) {
+			log_error("invalid journals message nodeid %d jid %d",
+				  nodeid, jid);
+			return;
+		}
+
+		memb->jid = jid;
+
+		if (nodeid == our_nodeid)
+			mg->our_jid = jid;
+	}
+
+	set_sysfs(mg, "jid", mg->our_jid);
+	group_done(gh, mg->name, mg->start_event_nr);
+}
+
+/* We set the new member's jid to the lowest unused jid.
+   If we're the lowest existing member (by nodeid), then
+   send jid info to the new node. */
+
+int discover_journals(struct mountgroup *mg)
+{
+	struct mg_member *memb, *new_memb = NULL;
+	int i;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->spectator)
+			continue;
+		if (memb->jid == -1) {
+			if (new_memb) {
+				log_error("more than one new member %d %d",
+					  new_memb->nodeid, memb->nodeid);
+				return -1;
+			}
+			new_memb = memb;
+
+			/* don't break so we can check that there is only
+			   one new member */
+		}
+	}
+
+	for (i = 0; i < 1024; i++) {
+		memb = find_memb_jid(mg, i);
+		if (!memb) {
+			log_group(mg, "new member %d got jid %d",
+				  new_memb->nodeid, i);
+			new_memb->jid = i;
+			break;
+		}
+	}
+
+	if (mg->low_finished_nodeid == our_nodeid)
+		send_journals(mg, new_memb->nodeid);
 	return 0;
 }
 
@@ -151,8 +286,9 @@ int add_member(struct mountgroup *mg, int nodeid)
 		memb->spectator = 1;
 
 	memb->nodeid = nodeid;
+	memb->jid = -1;
 	add_ordered_member(mg, memb);
-	mg->num_memb++;
+	mg->memb_count++;
 	return 0;
 }
 
@@ -160,7 +296,7 @@ void remove_member(struct mountgroup *mg, struct mg_member *memb)
 {
 	list_move(&memb->list, &mg->members_gone);
 	memb->gone_event = mg->start_event_nr;
-	mg->num_memb--;
+	mg->memb_count--;
 }
 
 int is_member(struct mountgroup *mg, int nodeid)
@@ -199,7 +335,7 @@ static void clear_memb_list(struct list_head *head)
 void clear_members(struct mountgroup *mg)
 {
 	clear_memb_list(&mg->members);
-	mg->num_memb = 0;
+	mg->memb_count = 0;
 }
 
 void clear_members_gone(struct mountgroup *mg)
@@ -277,16 +413,19 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 		log_group(mg, "add member %d", id);
 	}
 
+
 	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->spectator || !memb->mount_finished)
+			continue;
 		if (low == -1 || memb->nodeid < low)
 			low = memb->nodeid;
 	}
-	mg->low_nodeid = low;
+	mg->low_finished_nodeid = low;
 
 	*pos_out = pos;
 	*neg_out = neg;
 
-	log_group(mg, "total members %d", mg->num_memb);
+	log_group(mg, "total members %d", mg->memb_count);
 }
 
 struct mountgroup *create_mg(char *name)
@@ -300,8 +439,7 @@ struct mountgroup *create_mg(char *name)
 	INIT_LIST_HEAD(&mg->members_gone);
 	mg->first_start = 1;
 
-	strcpy(mg->name, name);
-	mg->namelen = strlen(name);
+	strncpy(mg->name, name, MAXNAME);
 
 	return mg;
 }
@@ -311,8 +449,8 @@ struct mountgroup *find_mg(char *name)
 	struct mountgroup *mg;
 
 	list_for_each_entry(mg, &mounts, list) {
-		if ((mg->namelen == strlen(name)) &&
-		    !strncmp(mg->name, name, mg->namelen))
+		if ((strlen(mg->name) == strlen(name)) &&
+		    !strncmp(mg->name, name, strlen(name)))
 			return mg;
 	}
 	return NULL;
@@ -324,6 +462,11 @@ int do_mount(char *name)
 	char buf[MAXLINE], *info = NULL;
 	group_data_t data;
 	int rv;
+
+	if (strlen(name) > MAXNAME) {
+		rv = -ENAMETOOLONG;
+		goto fail;
+	}
 
 	mg = find_mg(name);
 	if (mg) {
@@ -350,14 +493,14 @@ int do_mount(char *name)
 			  buf, clustername);
 		goto fail;
 	} else
-		log_debug("cluster name matches: %s", clustername);
+		log_group(mg, "cluster name matches: %s", clustername);
 
 	memset(buf, 0, sizeof(buf));
 
 	rv = get_sysfs(mg, "options", buf, sizeof(buf));
 
 	if (strstr(buf, "spectator")) {
-		log_debug("spectator mount");
+		log_group(mg, "spectator mount");
 		mg->spectator = 1;
 		info = "spectator";
 	} else {
@@ -412,7 +555,7 @@ int do_recovery_done(char *name)
 	}
 
 	if (!found)
-		log_debug("jid_recovery_done %d: not waiting", jid_done);
+		log_group(mg, "jid_recovery_done %d: not waiting", jid_done);
 
 	wait = recover_journals(mg);
 	if (!wait)
@@ -436,34 +579,16 @@ int do_unmount(char *name)
 	return 0;
 }
 
-int do_stop(char *name)
+int do_stop(struct mountgroup *mg)
 {
-	struct mountgroup *mg;
-	int rv;
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("stop: unknown mount group %s", name);
-		return -1;
-	}
-
-	rv = set_sysfs(mg, "block", 1);
-
-	return rv;
+	return set_sysfs(mg, "block", 1);
 }
 
-int do_finish(char *name, int event_nr)
+int do_finish(struct mountgroup *mg)
 {
-	struct mountgroup *mg;
 	int rv;
 
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("finish: unknown mount group %s", name);
-		return -1;
-	}
-
-	mg->finish_event_nr = event_nr;
+	mg->finish_event_nr = mg->last_finish;
 
 	mount_finished(mg);
 	clear_members_finish(mg, mg->finish_event_nr);
@@ -492,61 +617,76 @@ int first_participant(struct mountgroup *mg, int member_count)
 			return 0;
 	}
 
-	log_debug("first participant of %d members", member_count);
+	log_group(mg, "first participant of %d members", member_count);
 	return 1;
 }
 
-int do_start(char *name, int event_nr, int type, int member_count, int *nodeids)
+int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 {
-	struct mountgroup *mg;
+	struct mg_member *memb;
 	int wait = 0, pos = 0, neg = 0;
 
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("start: unknown mount group %s", name);
-		return -1;
+	/* Reset things when the last stop aborted our first start,
+	   i.e. there was no finish; we got a start/stop/start immediately
+	   upon joining.  There should be no reseting necessary when we're
+	   already a member and get a start/stop/start sequence. */
+
+	if (!mg->last_finish && mg->last_stop) {
+		log_debug("revert aborted first start");
+		mg->first_start = 1;
+		mg->last_stop = 0;
+		mg->our_jid = -1;
+		clear_members(mg);
 	}
 
-	mg->start_event_nr = event_nr;
+	mg->start_event_nr = mg->last_start;
 	mg->start_type = type;
 
 	recover_members(mg, member_count, nodeids, &pos, &neg);
 
-	/* NB "first_start" doesn't mean the first group member */
-	if (mg->first_start) {
-		mg->first_start = 0;
-
-		if (!mg->spectator) {
-			claim_journal(mg);
-			set_sysfs(mg, "jid", mg->our_jid);
-
-			if (first_participant(mg, member_count))
-				set_sysfs(mg, "first", 1);
-		}
+	if (mg->spectator) {
+		group_done(gh, mg->name, mg->last_start);
+		goto out;
 	}
+		
+	/* NB "first_start" doesn't mean the first group member,
+	   it's set the first time we run do_start() and means we're
+	   the new node being added to the mount group. */
 
-	if (pos)
-		discover_journals(mg);
+	if (mg->first_start) {
+		if (!pos || neg)
+			log_error("invalid member change %d %d", pos, neg);
 
-	if (neg)
-		wait = recover_journals(mg);
+		if (first_participant(mg, member_count)) {
+			memb = find_memb_nodeid(mg, our_nodeid);
+			memb->jid = 0;
+			mg->our_jid = 0;
+			set_sysfs(mg, "jid", mg->our_jid);
+			set_sysfs(mg, "first", 1);
+			group_done(gh, mg->name, mg->last_start);
+		}
+		
+		/* else we wait for a message from an existing member
+		   telling us what jid to use and what jids others
+		   are using; when we get that our mount can complete */
 
-	if (!wait)
-		group_done(gh, name, event_nr);
+	} else {
+		if (pos)
+			discover_journals(mg);
 
+		if (neg)
+			wait = recover_journals(mg);
+
+		if (!wait)
+			group_done(gh, mg->name, mg->last_start);
+	}
+ out:
+	mg->first_start = 0;
 	return 0;
 }
 
-int do_terminate(char *name)
+int do_terminate(struct mountgroup *mg)
 {
-	struct mountgroup *mg;
-
-	mg = find_mg(name);
-	if (!mg) {
-		log_error("terminate: unknown mount group %s", name);
-		return -1;
-	}
-
 	return set_sysfs(mg, "mounted", -1);
 }
 

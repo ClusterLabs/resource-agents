@@ -30,10 +30,11 @@ static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
 
-int do_stop(char *name);
-int do_finish(char *name, int event_nr);
-int do_start(char *name, int event_nr, int type, int count, int *nodeids);
-int do_terminate(char *name);
+int do_stop(struct mountgroup *mg);
+int do_finish(struct mountgroup *mg);
+int do_terminate(struct mountgroup *mg);
+int do_start(struct mountgroup *mg, int type, int count, int *nodeids);
+struct mountgroup *find_mg(char *name);
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -100,6 +101,7 @@ char *str_members(void)
 
 int process_groupd(void)
 {
+	struct mountgroup *mg;
 	int error = 0;
 
 	group_dispatch(gh);
@@ -107,23 +109,32 @@ int process_groupd(void)
 	if (!cb_action)
 		goto out;
 
+	mg = find_mg(cb_name);
+	if (!mg) {
+		log_error("callback %d group %s not found", cb_action, cb_name);
+		error = -1;
+		goto out;
+	}
+
 	switch (cb_action) {
 	case DO_STOP:
 		log_debug("stop %s", cb_name);
-		do_stop(cb_name);
+		mg->last_stop = mg->last_start;
+		do_stop(mg);
 		break;
 	case DO_START:
 		log_debug("start %s %s", cb_name, str_members());
-		do_start(cb_name, cb_event_nr, cb_type, cb_member_count,
-			 cb_members);
+		mg->last_start = cb_event_nr;
+		do_start(mg, cb_type, cb_member_count, cb_members);
 		break;
 	case DO_FINISH:
 		log_debug("finish %s", cb_name);
-		do_finish(cb_name, cb_event_nr);
+		mg->last_finish = cb_event_nr;
+		do_finish(mg);
 		break;
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
-		do_terminate(cb_name);
+		do_terminate(mg);
 		break;
 	case DO_SETID:
 		break;
@@ -131,8 +142,8 @@ int process_groupd(void)
 		error = -EINVAL;
 	}
 
-	cb_action = 0;
  out:
+	cb_action = 0;
 	return error;
 }
 
