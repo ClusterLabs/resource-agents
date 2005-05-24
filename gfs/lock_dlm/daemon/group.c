@@ -140,7 +140,7 @@ int setup_groupd(void)
 {
 	int rv;
 
-	gh = group_init(NULL, "gfs_dlm", 2, &callbacks);
+	gh = group_init(NULL, GFS_GROUP_NAME, GFS_GROUP_LEVEL, &callbacks);
 	if (!gh) {
 		log_error("group_init error %d %d", (int) gh, errno);
 		return -ENOTCONN;

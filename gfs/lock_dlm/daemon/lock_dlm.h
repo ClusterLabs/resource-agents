@@ -40,6 +40,9 @@
 #define MAXCON  4
 #define MAXNAME 256
 
+#define GFS_GROUP_NAME "gfs_dlm"
+#define GFS_GROUP_LEVEL 2
+
 #ifndef TRUE
 #define TRUE (1)
 #endif
@@ -67,6 +70,7 @@ struct mountgroup {
 	int			our_jid;
 	int			first_start;
 	int			low_nodeid;
+	int			spectator;
 };
 
 struct mg_member {
@@ -77,6 +81,7 @@ struct mg_member {
 	int			wait_recover_done;
 	int			gone_event;
 	int			mount_finished;
+	int			spectator;
 };
 
 #endif

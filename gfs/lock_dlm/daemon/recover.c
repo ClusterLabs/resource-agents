@@ -27,7 +27,7 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	char out[16];
 	int rv, fd;
 
-	sprintf(fname, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
+	snprintf(fname, 512, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
 
 	log_group(mg, "set %s to %d", fname, val);
 
@@ -48,13 +48,12 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	return 0;
 }
 
-int get_recover_done(struct mountgroup *mg)
+int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 {
-	char fname[512];
-	char buf[32];
-	int fd, rv, done;
+	char fname[512], *p;
+	int fd, rv;
 
-	sprintf(fname, "%s/%s/recover_done", LOCK_DLM_SYSFS_DIR, mg->name);
+	snprintf(fname, 512, "%s/%s/%s", LOCK_DLM_SYSFS_DIR, mg->name, field);
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
@@ -62,19 +61,18 @@ int get_recover_done(struct mountgroup *mg)
 		return -1;
 	}
 
-	memset(buf, 0, 32);
-
-	rv = read(fd, buf, 32);
-	if (rv <= 0) {
+	rv = read(fd, buf, len);
+	if (rv < 0)
 		log_error("read error %s %d %d", fname, rv, errno);
-		done = rv;
-		goto out;
+	else {
+		rv = 0;
+		p = strchr(buf, '\n');
+		if (p)
+			*p = '\0';
 	}
 
-	done = atoi(buf);
- out:
 	close(fd);
-	return done;
+	return rv;
 }
 
 int claim_journal(struct mountgroup *mg)
@@ -138,10 +136,19 @@ static void add_ordered_member(struct mountgroup *mg, struct mg_member *new)
 int add_member(struct mountgroup *mg, int nodeid)
 {
 	struct mg_member *memb;
+	char buf[MAXLINE];
+	int rv;
 
 	memb = malloc(sizeof(struct mg_member));
 	if (!memb)
 		return -ENOMEM;
+
+	memset(memb, 0, sizeof(*memb));
+	memset(buf, 0, sizeof(buf));
+
+	rv = group_join_info(GFS_GROUP_LEVEL, mg->name, nodeid, buf);
+	if (!rv && strstr(buf, "spectator"))
+		memb->spectator = 1;
 
 	memb->nodeid = nodeid;
 	add_ordered_member(mg, memb);
@@ -220,11 +227,11 @@ void mount_finished(struct mountgroup *mg)
 		memb->mount_finished = 1;
 }
 
-int recover_members(struct mountgroup *mg, int num_nodes,
-		    int *nodeids, int *pos_out, int *neg_out)
+void recover_members(struct mountgroup *mg, int num_nodes,
+ 		     int *nodeids, int *pos_out, int *neg_out)
 {
 	struct mg_member *memb, *safe;
-	int i, error, found, id, pos = 0, neg = 0, low = -1;
+	int i, found, id, pos = 0, neg = 0, low = -1;
 
 	/* move departed nodes from members list to members_gone */
 
@@ -240,12 +247,22 @@ int recover_members(struct mountgroup *mg, int num_nodes,
 		if (!found) {
 			neg++;
 			remove_member(mg, memb);
-			log_group(mg, "remove member %d", memb->nodeid);
 
-			if (mg->start_type == GROUP_NODE_FAILED &&
+			/* - spectators don't do journal callbacks
+			   - journal cb only for failed (not leaving) nodes
+			   - journal cb only if failed node finished joining
+			   - no journal cb if failed node was spectator
+			   - no journal cb if we've already done a journl cb */
+
+			if (!mg->spectator &&
+			    mg->start_type == GROUP_NODE_FAILED &&
 			    memb->mount_finished &&
+			    !memb->spectator &&
 			    !memb->wait_recover_done)
 				memb->recover_journal = 1;
+
+			log_group(mg, "remove member %d recover_journal %d",
+				  memb->nodeid, memb->recover_journal);
 		}
 	}	
 
@@ -270,7 +287,6 @@ int recover_members(struct mountgroup *mg, int num_nodes,
 	*neg_out = neg;
 
 	log_group(mg, "total members %d", mg->num_memb);
-	return error;
 }
 
 struct mountgroup *create_mg(char *name)
@@ -305,31 +321,71 @@ struct mountgroup *find_mg(char *name)
 int do_mount(char *name)
 {
 	struct mountgroup *mg;
+	char buf[MAXLINE], *info = NULL;
+	group_data_t data;
+	int rv;
 
 	mg = find_mg(name);
-	if (mg)
-		return -EEXIST;
+	if (mg) {
+		rv = -EEXIST;
+		goto fail;
+	}
 
 	mg = create_mg(name);
-	if (!mg)
-		return -ENOMEM;
+	if (!mg) {
+		rv = -ENOMEM;
+		goto fail;
+	}
 
-	/* FIXME: check that /sys/clustername matches clustername
-	   FIXME: check that our_nodeid is in the fence domain
-	   If either of these fail, then set /sys/mounted to -1 to
-	   terminate/fail the mount */
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "cluster", buf, sizeof(buf));
+	if (rv < 0)
+		goto fail;
+
+	if (strlen(buf) != strlen(clustername) ||
+	    strlen(buf) == 0 || strcmp(buf, clustername)) {
+		rv = -1;
+		log_error("do_mount: different cluster names: fs=%s cman=%s",
+			  buf, clustername);
+		goto fail;
+	} else
+		log_debug("cluster name matches: %s", clustername);
+
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "options", buf, sizeof(buf));
+
+	if (strstr(buf, "spectator")) {
+		log_debug("spectator mount");
+		mg->spectator = 1;
+		info = "spectator";
+	} else {
+		/* check that we're in fence domain */
+		memset(&data, 0, sizeof(data));
+		rv = group_get_group(0, "default", &data);
+		if (rv || strcmp(data.client_name, "fence") || !data.member) {
+			log_error("do_mount: not in default fence domain");
+			goto fail;
+		}
+	}
 
 	list_add(&mg->list, &mounts);
 
-	group_join(gh, name, NULL);
-
+	group_join(gh, name, info);
 	return 0;
+
+ fail:
+	/* terminate the mount */
+	set_sysfs(mg, "mounted", -1);
+	return rv;
 }
 
 int do_recovery_done(char *name)
 {
 	struct mountgroup *mg;
 	struct mg_member *memb;
+	char buf[MAXLINE];
 	int rv, jid_done, wait, found = 0;
 
 	mg = find_mg(name);
@@ -338,10 +394,12 @@ int do_recovery_done(char *name)
 		return -1;
 	}
 
-	rv = get_recover_done(mg);
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "recover_done", buf, sizeof(buf));
 	if (rv < 0)
 		return rv;
-	jid_done = rv;
+	jid_done = atoi(buf);
 
 	list_for_each_entry(memb, &mg->members, list) {
 		if (memb->jid == jid_done) {
@@ -418,10 +476,30 @@ int do_finish(char *name, int event_nr)
 	return rv;
 }
 
+/* first mounter is the first non-spectator to join the group */
+
+int first_participant(struct mountgroup *mg, int member_count)
+{
+	struct mg_member *memb;
+
+	if (member_count == 1)
+		return 1;
+
+	list_for_each_entry(memb, &mg->members, list) {
+		if (memb->nodeid == our_nodeid)
+			continue;
+		if (memb->spectator == 0)
+			return 0;
+	}
+
+	log_debug("first participant of %d members", member_count);
+	return 1;
+}
+
 int do_start(char *name, int event_nr, int type, int member_count, int *nodeids)
 {
 	struct mountgroup *mg;
-	int rv, wait = 0, pos = 0, neg = 0;
+	int wait = 0, pos = 0, neg = 0;
 
 	mg = find_mg(name);
 	if (!mg) {
@@ -432,14 +510,19 @@ int do_start(char *name, int event_nr, int type, int member_count, int *nodeids)
 	mg->start_event_nr = event_nr;
 	mg->start_type = type;
 
-	rv = recover_members(mg, member_count, nodeids, &pos, &neg);
+	recover_members(mg, member_count, nodeids, &pos, &neg);
 
+	/* NB "first_start" doesn't mean the first group member */
 	if (mg->first_start) {
 		mg->first_start = 0;
-		claim_journal(mg);
-		set_sysfs(mg, "jid", mg->our_jid);
-		if (member_count == 1)
-			set_sysfs(mg, "first", 1);
+
+		if (!mg->spectator) {
+			claim_journal(mg);
+			set_sysfs(mg, "jid", mg->our_jid);
+
+			if (first_participant(mg, member_count))
+				set_sysfs(mg, "first", 1);
+		}
 	}
 
 	if (pos)

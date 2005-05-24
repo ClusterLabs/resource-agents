@@ -73,14 +73,18 @@ int process_uevent(void)
 
 	log_debug("kernel: %s %s", act, argv[3]);
 
-	if (!strcmp(act, "online@"))
+	if (!strcmp(act, "mount@"))
 		do_mount(argv[3]);
 
-	else if (!strcmp(act, "offline@"))
+	else if (!strcmp(act, "umount@"))
 		do_unmount(argv[3]);
 
 	else if (!strcmp(act, "change@"))
 		do_recovery_done(argv[3]);
+#if 0
+	else if (!strcmp(act, "offline@"))
+		do_withdraw(argv[3]);
+#endif
 
 	return 0;
 }
