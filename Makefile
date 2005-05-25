@@ -16,7 +16,7 @@ MAKELINE =  sbindir=${BUILDDIR}/sbin libdir=${BUILDDIR}/lib mandir=${BUILDDIR}/m
 
 
 all:
-	cd cman-kernel && ${MAKE}
+#	cd cman-kernel && ${MAKE}
 	cd dlm-kernel && ${MAKE}
 	cd gnbd-kernel && ${MAKE}
 	cd magma && ${MAKE}
@@ -37,7 +37,7 @@ all:
 #	cd cmirror && ${MAKE}
 
 copytobin:
-	cd cman-kernel && ${MAKE} copytobin
+#	cd cman-kernel && ${MAKE} copytobin
 	cd dlm-kernel && ${MAKE} copytobin
 	cd gfs-kernel && ${MAKE} copytobin
 	cd gfs2-kernel && ${MAKE} copytobin
@@ -59,7 +59,7 @@ copytobin:
 clean:
 	rm -f *tar.gz
 	rm -rf build
-	cd cman-kernel && ${MAKE} clean
+#	cd cman-kernel && ${MAKE} clean
 	cd dlm-kernel && ${MAKE} clean
 	cd gfs-kernel && ${MAKE} clean
 	cd gfs2-kernel && ${MAKE} clean
@@ -79,7 +79,7 @@ clean:
 #	cd cmirror && ${MAKE} clean
 
 distclean:
-	cd cman-kernel && ${MAKE} distclean
+#	cd cman-kernel && ${MAKE} distclean
 	cd dlm-kernel && ${MAKE} distclean
 	cd gfs-kernel && ${MAKE} distclean
 	cd gfs2-kernel && ${MAKE} distclean
@@ -99,7 +99,7 @@ distclean:
 #	cd cmirror && ${MAKE} distclean
 
 install:
-	cd cman-kernel && ${MAKE} install
+#	cd cman-kernel && ${MAKE} install
 	cd dlm-kernel && ${MAKE} install
 	cd gfs-kernel && ${MAKE} install
 	cd gfs2-kernel && ${MAKE} install
@@ -119,7 +119,7 @@ install:
 #	cd cmirror && ${MAKE} install
 
 uninstall:
-	cd cman-kernel && ${MAKE} uninstall
+#	cd cman-kernel && ${MAKE} uninstall
 	cd dlm-kernel && ${MAKE} uninstall
 	cd gfs-kernel && ${MAKE} uninstall
 	cd gfs2-kernel && ${MAKE} uninstall
@@ -139,7 +139,7 @@ uninstall:
 #	cd cmirror && ${MAKE} uninstall
 
 latest_tags:
-	${LATEST_TAG} cman-kernel
+#	${LATEST_TAG} cman-kernel
 	${LATEST_TAG} dlm-kernel
 	${LATEST_TAG} gfs-kernel
 	${LATEST_TAG} gfs2-kernel
@@ -168,7 +168,7 @@ srpms:
 	$(BUILD_SRPMS)
 
 tarballs: TAG
-	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball
+#	make -s COMPONENT=cman-kernel RELEASE_FILE=cman-kernel/make/release.mk.input tarball
 	make -s COMPONENT=dlm-kernel RELEASE_FILE=dlm-kernel/make/release.mk.input tarball
 	make -s COMPONENT=gfs-kernel RELEASE_FILE=gfs-kernel/make/release.mk.input tarball
 	make -s COMPONENT=gfs2-kernel RELEASE_FILE=gfs2-kernel/make/release.mk.input tarball

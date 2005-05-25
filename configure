@@ -1,10 +1,7 @@
 #!/bin/sh
 
-echo "configure cman-kernel"
-(cd cman-kernel; ./configure $@)
-
 echo "configure dlm-kernel"
-(cd dlm-kernel; ./configure $@ --cmanincdir=`pwd`/../cman-kernel/src)
+(cd dlm-kernel; ./configure $@)
 
 echo "configure gnbd-kernel"
 (cd gnbd-kernel; ./configure $@)
@@ -26,7 +23,7 @@ echo "configure dlm"
 (cd dlm; ./configure $@)
 
 echo "configure fence"
-(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib --cmankincdir=`pwd`/../cman-kernel/src)
+(cd fence; ./configure $@ -ccslibdir=`pwd`/../ccs/lib --ccsincdir=`pwd`/../ccs/lib)
 
 echo "configure iddev"
 (cd iddev; ./configure $@)
@@ -35,7 +32,7 @@ echo "configure gulm"
 (cd gulm; ./configure $@ --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
 
 echo "configure gfs-kernel"
-(cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src --cmankincdir=`pwd`/../cman-kernel/src)
+(cd gfs-kernel; ./configure $@ --dlmkincdir=`pwd`/../dlm-kernel/src2)
 
 echo "configure gfs2-kernel"
 (cd gfs2-kernel; ./configure $@)
@@ -50,7 +47,7 @@ echo "configure gnbd"
 (cd gnbd; ./configure $@ --gnbdkincdir=`pwd`/../gnbd-kernel/src --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib)
 
 echo "configure magma-plugins"
-(cd magma-plugins; ./configure $@ --magmaincdir=`pwd`/../magma/lib --cmankincdir=`pwd`/../cman-kernel/src --gulmincdir=`pwd`/../gulm/lib --gulmlibdir=`pwd`/../gulm/lib --cmanuincdir=`pwd`/../cman/lib)
+(cd magma-plugins; ./configure $@ --magmaincdir=`pwd`/../magma/lib --gulmincdir=`pwd`/../gulm/lib --gulmlibdir=`pwd`/../gulm/lib --cmanuincdir=`pwd`/../cman/lib)
 
 echo "configure rgmanager"
 (cd rgmanager; ./configure $@ --magmaincdir=`pwd`/../magma/lib --magmalibdir=`pwd`/../magma/lib --ccsincdir=`pwd`/../ccs/lib --ccslibdir=`pwd`/../ccs/lib)
