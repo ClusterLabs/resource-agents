@@ -4,6 +4,14 @@ How to install and run clvm and gfs.
 Refer to the cluster project page for the latest information.
 http://sources.redhat.com/cluster/
 
+Notes:
+- These instructions relate to the code on the cvs HEAD, not to
+  the other stable branches.
+- The code on cvs HEAD is new and undergoing large changes.  It is
+  not yet suitable for general use, only for development.
+- CLVM does not yet work with cvs head, so skip the clvm steps for now.
+- The names of some of the new daemons may change.
+
 
 Get source
 ----------
@@ -64,7 +72,7 @@ modprobe dm-mod
 modprobe gfs
 modprobe lock_dlm
 
-Modules that should be loaded: lock_dlm, dlm, cman, gfs, lock_harness
+Modules that should be loaded: lock_dlm, dlm, dlm_device, gfs, lock_harness
 and dm-mod if device-mapper was built as a module
 
 
@@ -73,10 +81,14 @@ Startup procedure
 
 Run these commands on each cluster node:
 
-> ccsd                             - Starts the CCS daemon
-> cman_tool join -w                - Joins the cluster
-> fence_tool join -w               - Joins the fence domain (starts fenced)
-> clvmd                            - Starts the CLVM daemon
+> ccsd                             - Starts ccs daemon
+> cman_tool join -w                - Starts cman daemon and joins the cluster
+> groupd                           - Starts group daemon
+> fenced                           - Starts fence daemon
+> clvmd                            - Starts clvm daemon
+> dlm_controld                     - Starts dlm daemon
+> lock_dlmd                        - Starts lock_dlm daemon
+> fence_tool join                  - Joins the fence domain
 > vgchange -aly                    - Activates LVM volumes (locally)
 > mount -t gfs /dev/vg/lvol /mnt   - Mounts a GFS file system
 
@@ -91,7 +103,6 @@ Run these commands on each cluster node:
 > killall clvmd                    - Stops the CLVM daemon
 > fence_tool leave                 - Leaves the fence domain (stops fenced)
 > cman_tool leave -w               - Leaves the cluster
-> killall ccsd                     - Stops the CCS daemon
 
 
 Creating cluster.conf
