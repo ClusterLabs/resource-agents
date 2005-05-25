@@ -27,8 +27,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
-#include <libcman.h>
-#include <libdlm.h>
+#include "libcman.h"
+#include "libdlm.h"
 #include "ucman-plugin.h"
 
 #define MODULE_DESCRIPTION "UCMAN/DLM Plugin v1.0"

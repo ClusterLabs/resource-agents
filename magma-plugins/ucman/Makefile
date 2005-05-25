@@ -13,11 +13,13 @@ top_srcdir=..
 include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
-INCLUDES+= -I. -I${magmaincdir} -I${cmanuincdir} -I${incdir}
+INCLUDES+= -I. -I${magmaincdir} -I${cmanuincdir} -I${incdir} -I../../dlm/lib/ -I../../cman/lib/
 LIBS    += -L${libdir} -ldlm_lt -L${cmanuincdir} -lcman
 CFLAGS  += -D_CLUSTER_
 OBJS     = ucman.o
 TARGETS  = magma_ucman.so
+
+LDFLAGS+= -L../../dlm/lib
 
 ifneq (${KERNEL_SRC}, )
 # Use the kernel tree if patched, otherwise, look where cluster headers
@@ -39,12 +41,12 @@ uninstall:
 	${UNINSTALL} ${TARGETS} ${libdir}/magma
 
 magma_ucman.so: buildtest $(OBJS)
-	$(CC) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) -shared $(CFLAGS) $(LIBS)
 
 buildtest: $(OBJS)
 	echo "int main(void) { return 0; }" > _buildtest.c
 	$(CC) -c _buildtest.c
-	$(CC) -o $@ _buildtest.o $(OBJS) $(LIBS) 
+	$(CC) -o $@ _buildtest.o $(OBJS) $(LIBS) $(LDFLAGS)
 	rm -f _buildtest*
 
 %.o: %.c
