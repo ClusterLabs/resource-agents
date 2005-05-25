@@ -122,13 +122,10 @@ void exit_member(void)
 
 int update_cluster_members(void)
 {
-	int rv, count;
+	int rv, count, i;
 
 	count = 0;
 	memset(new_nodes, 0, sizeof(new_nodes));
-
-	rv = cman_get_node_count(ch);
-	log_debug("cman node count %d cluster_count %d", rv, cluster_count);
 
 	rv = cman_get_nodes(ch, MAX_NODES, &count, new_nodes);
 	if (rv < 0) {
@@ -141,7 +138,18 @@ int update_cluster_members(void)
 			  count, cluster_count);
 
 	cluster_count = count;
-	memcpy(cluster_nodes, new_nodes, MAX_NODES);
+	memcpy(cluster_nodes, new_nodes, sizeof(cluster_nodes));
+
+	log_debug("node count %d total count %d", count, cluster_count);
+	if (count < 5) {
+		for (i = 0; i < count; i++) {
+			log_debug("nodeid %d member %d name \"%s\"",
+				  cluster_nodes[i].cn_nodeid,
+				  cluster_nodes[i].cn_member,
+				  cluster_nodes[i].cn_name);
+		}
+	}
+
 	return 0;
 }
 
@@ -154,6 +162,7 @@ int is_member(char *name)
 	cn = find_cluster_node_name(name);
 	if (cn && cn->cn_member)
 		return TRUE;
+	log_debug("node \"%s\" not a member, cn %d", name, cn ? 1 : 0);
 	return FALSE;
 }
 
