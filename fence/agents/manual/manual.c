@@ -26,7 +26,6 @@
 #include <sys/socket.h>
 #include <syslog.h>
 
-#include <cluster/cnxman-socket.h>
 #include "copyright.cf"
 
 /* FIFO_DIR needs to agree with the same in manual/ack.c */
@@ -216,9 +215,11 @@ void setup_fifo(void)
 
 void setup_sock(void)
 {
+#if 0
 	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
 	if (cl_sock < 0)
 		cl_sock = 0;
+#endif
 }
 
 int check_ack(void)
@@ -245,6 +246,7 @@ int check_ack(void)
 
 int check_cluster(void)
 {
+#if 0
 	struct cl_cluster_node cl_node;
 	int error;
 
@@ -262,7 +264,7 @@ int check_cluster(void)
 	if (cl_node.state == NODESTATE_MEMBER ||
 	    cl_node.state == NODESTATE_JOINING)
 		return 1;
-
+#endif
 	return 0;
 }
 
