@@ -50,3 +50,6 @@ done.o: done.c gd_internal.h
 clean:
 	rm -f *.o groupd
 
+install: groupd
+	install groupd /sbin
+

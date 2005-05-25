@@ -20,11 +20,7 @@ clean:
 	cd daemon && ${MAKE} clean
 	cd tool && ${MAKE} clean
 
-distclean: clean
-	rm -f make/defines.mk
-
 install:
-#	cd lib && ${MAKE} install
-#	cd daemon && ${MAKE} install
-#	cd tool && ${MAKE} install
+	cd daemon && ${MAKE} install
+	cd tool && ${MAKE} install
 
