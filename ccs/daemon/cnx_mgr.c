@@ -33,6 +33,7 @@
 #include "misc.h"
 #include "globals.h"
 
+extern int no_manager_opt;
 
 typedef struct open_connection_s {
   char *oc_cwp;
@@ -522,7 +523,8 @@ static int process_connect(comm_header_t *ch, char *cluster_name){
 	      tmp_name, error);
       /* We must check with the others to make sure this is valid. */
     }
-    bcast_needed = 1;
+    if (!no_manager_opt)
+      bcast_needed = 1;
     error = 0;
   } else {
     tmp_name = get_cluster_name(master_doc->od_doc);

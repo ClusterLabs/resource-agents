@@ -32,6 +32,8 @@
 
 #include "copyright.cf"
 
+extern int quorate;
+int no_manager_opt=0;
 static int exit_now=0;
 static unsigned int flags=0;
 #define FLAG_NODAEMON	1
@@ -68,9 +70,11 @@ int main(int argc, char *argv[]){
     free(msg);
   }
 
-  if(start_cluster_monitor_thread()){
-    log_err("Unable to create thread.\n");
-    exit(EXIT_FAILURE);
+  if (!no_manager_opt){
+    if(start_cluster_monitor_thread()){
+      log_err("Unable to create thread.\n");
+      exit(EXIT_FAILURE);
+    }
   }
 
   memset(&addr, 0, sizeof(struct sockaddr_storage));
@@ -238,6 +242,7 @@ static void print_usage(FILE *stream){
 	  " -t <ttl>      Multicast threshold (aka Time to Live) value.\n"
 	  " -P [bcf]:#    Specify various port numbers.\n"
 	  " -V            Print version information.\n"
+	  " -X            No cluster manager, just read local cluster.conf.\n"
 	  );
   EXIT("print_usage");
 }
@@ -296,7 +301,7 @@ static char *parse_cli_args(int argc, char *argv[]){
 
   memset(buff, 0, buff_size);
 
-  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sV")) != -1){
+  while((c = getopt(argc, argv, "46cdf:hlm:nP:t:sVX")) != -1){
     switch(c){
     case '4':
       if(IPv6 == 1){
@@ -436,6 +441,10 @@ static char *parse_cli_args(int argc, char *argv[]){
       printf("%s %s (built %s %s)\n", argv[0], CCS_RELEASE_NAME, __DATE__, __TIME__);
       printf("%s\n", REDHAT_COPYRIGHT);
       exit(EXIT_SUCCESS);
+    case 'X':
+      no_manager_opt = 1;
+      quorate = 1;
+      break;
     default:
       print_usage(stderr);
       error = -EINVAL;
@@ -482,6 +491,10 @@ static int check_cluster_conf(void){
     xmlFreeDoc(doc);
   } else {
     /* no cluster.conf file.  This is fine, just need to get it from the network */
+    if(no_manager_opt){
+      log_err("\nNo local cluster.conf found: %s\n", config_file_location);
+      return -1;
+    }
   }
 
   return 0;
@@ -697,6 +710,10 @@ static void daemonize(void){
     /* hold off on shutting down parent.  Let cluster_communicator do it **
     ** after if figures out if it can use magma or not.................. **
     **    kill(getppid(), SIGTERM); */
+    /* shut down parent now when using no cluster -- there's no communicator */
+    if (no_manager_opt)
+      kill(getppid(), SIGTERM);
+
     signal(SIGINT, &sig_handler);
     signal(SIGQUIT, &sig_handler);
     signal(SIGTERM, &sig_handler);
