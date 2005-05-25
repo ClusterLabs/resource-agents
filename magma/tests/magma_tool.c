@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 
 void
@@ -421,6 +422,8 @@ main(int argc, char **argv)
 {
 	int fd, login=0;
 	char *arg0 = basename(argv[0]);
+
+	signal(SIGPIPE, SIG_IGN);
 
 	if (argc < 2 || (strcmp(argv[1], "-h") == 0)) {
 		usage(arg0);

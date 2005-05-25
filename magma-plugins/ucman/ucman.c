@@ -253,7 +253,12 @@ cman_get_event(cluster_plugin_t *self, int fd)
 	assert(p);
 	assert(fd == cman_get_fd(p->handle));
 
-	cman_dispatch(p->handle, CMAN_DISPATCH_ONE | CMAN_DISPATCH_BLOCKING);
+	if (cman_dispatch(p->handle,
+	    CMAN_DISPATCH_ONE | CMAN_DISPATCH_BLOCKING) && errno == EHOSTDOWN) {
+		/* XXX could be a CMAN crash, too */
+		return CE_SHUTDOWN;
+	}
+
 	/*
 	 * Check for Quorum transition.
  	 */
