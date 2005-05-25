@@ -19,12 +19,15 @@ fence_ack_manual_SOURCE= ack.c
 top_srcdir=../..
 
 
-INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${incdir}
+INCLUDE= -I${top_srcdir}/include -I${top_srcdir}/config -I${incdir} -I../../../cman/lib
 
 
 include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -DFENCE_RELEASE_NAME=\"${RELEASE}\"
+
+LDFLAGS+= -L../../../cman/lib
+LDLIBS+= -lcman
 
 all: ${TARGET}
 

@@ -27,12 +27,15 @@
 #include <syslog.h>
 
 #include "copyright.cf"
+#include "libcman.h"
 
 /* FIFO_DIR needs to agree with the same in manual/ack.c */
 
 #define OPTION_STRING                   "hn:s:p:qV"
 #define LOCK_DIR			"/var/lock"
 #define FIFO_DIR			"/tmp"
+
+#define MAX_NODES			256
 
 char path[256];
 char lockdir[256];
@@ -43,11 +46,12 @@ char args[256];
 char agent[256];
 char victim[256];
 
+cman_node_t nodes[MAX_NODES];
+
 char *prog_name;
 
 int quiet_flag;
 int fifo_fd;
-int cl_sock;
 
 
 void print_usage(void)
@@ -213,15 +217,6 @@ void setup_fifo(void)
 	fifo_fd = fd;
 }
 
-void setup_sock(void)
-{
-#if 0
-	cl_sock = socket(AF_CLUSTER, SOCK_DGRAM, CLPROTO_CLIENT);
-	if (cl_sock < 0)
-		cl_sock = 0;
-#endif
-}
-
 int check_ack(void)
 {
 	int error;
@@ -246,26 +241,31 @@ int check_ack(void)
 
 int check_cluster(void)
 {
-#if 0
-	struct cl_cluster_node cl_node;
-	int error;
+	cman_handle_t ch;
+	int i, error, rv = 0, count = 0;
 
-	if (!cl_sock)
+	ch = cman_init(NULL);
+	if (!ch)
 		return 0;
 
-	memset(&cl_node, 0, sizeof(cl_node));
+	memset(&nodes, 0, sizeof(nodes));
 
-	strcpy(cl_node.name, victim);
-
-	error = ioctl(cl_sock, SIOCCLUSTER_GETNODE, &cl_node);
+	error = cman_get_nodes(ch, MAX_NODES, &count, nodes);
 	if (error < 0)
-		return 0;
+		goto out;
 
-	if (cl_node.state == NODESTATE_MEMBER ||
-	    cl_node.state == NODESTATE_JOINING)
-		return 1;
-#endif
-	return 0;
+	for (i = 0; i < count; i++) {
+		if (strlen(nodes[i].cn_name) == strlen(victim) &&
+		    !strncmp(nodes[i].cn_name, victim, strlen(victim))) {
+
+			if (nodes[i].cn_member)
+				rv = 1;
+			break;
+		}
+	}
+ out:
+	cman_finish(ch);
+	return rv;
 }
 
 void cleanup(void)
@@ -300,7 +300,6 @@ int main(int argc, char **argv)
 			 victim, victim, victim);
 
 	setup_fifo();
-	setup_sock();
 
 	for (;;) {
 		rv = check_ack();
