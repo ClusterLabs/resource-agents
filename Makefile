@@ -67,6 +67,7 @@ clean:
 	cd magma && ${MAKE} clean
 	cd ccs && ${MAKE} clean
 	cd cman && ${MAKE} clean
+	cd group && ${MAKE} clean
 	cd dlm && ${MAKE} clean
 	cd fence && ${MAKE} clean
 	cd iddev && ${MAKE} clean
@@ -107,6 +108,7 @@ install:
 	cd magma && ${MAKE} install
 	cd ccs && ${MAKE} install
 	cd cman && ${MAKE} install
+	cd group && ${MAKE} install
 	cd dlm && ${MAKE} install
 	cd fence && ${MAKE} install
 	cd iddev && ${MAKE} install
