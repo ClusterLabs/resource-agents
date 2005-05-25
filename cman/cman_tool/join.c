@@ -125,9 +125,9 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct sockaddr
 	mcast_sin.sin_port = htons(comline->port);
 
 	memset(&local_sin, 0, sizeof(local_sin));
+	memcpy(&local_sin, sa, sizeof(local_sin));
 	local_sin.sin_family = AF_INET;
 	local_sin.sin_port = htons(comline->port);
-	memcpy(&local_sin, sa, sizeof(local_sin));
 
 	if (comline->verbose)
 		printf("setup up interface for address: %s\n", comline->nodenames[num]);
