@@ -92,7 +92,7 @@ static void process_member_cb(void)
 	}
 
 	cluster_count = count;
-	memcpy(cluster_nodes, new_nodes, MAX_NODES);
+	memcpy(cluster_nodes, new_nodes, sizeof(new_nodes));
 }
 
 static void member_callback(cman_handle_t h, void *private, int reason, int arg)
