@@ -147,29 +147,14 @@ int update_cluster_members(void)
 
 /* update_cluster_members() is usually called prior to calling this */
 
-int in_cluster_members(char *name, int nodeid)
+int is_member(char *name)
 {
 	cman_node_t *cn;
 
-	if (!name)
-		cn = find_cluster_node(nodeid);
-	else
-		cn = find_cluster_node_name(name);
-	if (cn)
+	cn = find_cluster_node_name(name);
+	if (cn && cn->cn_member)
 		return TRUE;
 	return FALSE;
-}
-
-int can_avert_fence(fd_t *fd, fd_node_t *victim)
-{
-	int rv;
-
-	update_cluster_members();
-	rv = in_cluster_members(victim->name, 0);
-
-	log_debug("can_avert_fence %d %s", rv, victim->name);
-
-	return rv;
 }
 
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)

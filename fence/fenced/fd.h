@@ -183,8 +183,7 @@ int process_groupd(void);
 int setup_member(void);
 void exit_member(void);
 int update_cluster_members(void);
-int in_cluster_members(char *name, int nodeid);
-int can_avert_fence(fd_t *fd, fd_node_t *victim);
+int is_member(char *name);
 fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name);
 
 #endif				/*  __FD_DOT_H__  */

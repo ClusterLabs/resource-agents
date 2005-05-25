@@ -133,7 +133,11 @@ int process_groupd(void)
 		break;
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
-		/* if leaving */
+
+		/*
+		FIXME: if leaving
+		*/
+
 		list_del(&fd->list);
 		free(fd);
 		break;
