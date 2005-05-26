@@ -54,7 +54,8 @@ static int setup_ccs(fd_t *fd)
 	   fence us. */
 
 	memset(path, 0, 256);
-	snprintf(path, 256, "/cluster/clusternodes/clusternode[@name=\"%s\"]",
+	snprintf(path, 256,
+		 "/cluster/clusternodes/clusternode[@name=\"%s\"]/@name",
 		 our_name);
 
 	error = ccs_get(cd, path, &str);
