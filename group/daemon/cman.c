@@ -520,6 +520,9 @@ int process_barriers(void)
 
 		log_group(bw->group, "barrier_wait: %s", bw->name);
 
+		cman_barrier_change(ch, bw->name, BARRIER_SETATTR_TIMEOUT,
+				    gd_barrier_time);
+
 		error = cman_barrier_wait(ch, bw->name);
 
 		log_group(bw->group, "barrier_wait error %d errno %d",

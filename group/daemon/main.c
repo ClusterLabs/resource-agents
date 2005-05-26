@@ -45,6 +45,11 @@ int                     gd_nodeid;
 int                     gd_barrier_time = 2;
 struct list_head        gd_barriers;
 
+/* positive values for any of these result in a timeout
+   being used in the main poll loop so an event can be
+   restarted or a barrier can be checked for completion */
+
+int			gd_event_delays;
 int			gd_event_barriers;
 int			gd_update_barriers;
 int			gd_recover_barriers;
@@ -495,11 +500,8 @@ static int loop(void)
 		} while (rv);
 
 
-		if (gd_event_barriers || gd_update_barriers ||
-		    gd_recover_barriers) {
-			log_debug("barriers pending ev %d up %d rev %d",
-				  gd_event_barriers, gd_update_barriers,
-				  gd_recover_barriers);
+		if (gd_event_delays || gd_event_barriers ||
+		    gd_update_barriers || gd_recover_barriers) {
 			timeout = 2;
 		} else
 			timeout = -1;

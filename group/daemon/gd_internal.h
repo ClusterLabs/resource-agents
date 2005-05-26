@@ -87,10 +87,10 @@ extern int			gd_member_count;
 extern int			gd_quorate;
 extern int			gd_nodeid;
 extern int			gd_generation;
+extern int			gd_event_delays;
 extern int			gd_event_barriers;
 extern int			gd_update_barriers;
 extern int			gd_recover_barriers;
-extern int			ignore_cman_errors;
 
 struct group;
 struct event;

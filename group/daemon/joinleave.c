@@ -131,6 +131,7 @@ static void event_restart(event_t *ev)
 
 static void schedule_event_restart(event_t *ev)
 {
+	set_bit(EFL_DELAY, &ev->flags);
 	ev->restart_time = time() + RETRY_DELAY;
 }
 
@@ -605,7 +606,6 @@ static int process_join_event(event_t *ev)
 			  ev->flags);
 		ev->state = EST_JOIN_BEGIN;
 		ev->group->global_id = 0;
-		set_bit(EFL_DELAY, &ev->flags);
 		schedule_event_restart(ev);
 	}
 
@@ -889,7 +889,6 @@ static int process_leave_event(event_t *ev)
 			  ev->flags);
 		/* restart the event from the beginning */
 		ev->state = EST_LEAVE_BEGIN;
-		set_bit(EFL_DELAY, &ev->flags);
 		schedule_event_restart(ev);
 	}
 
@@ -1264,18 +1263,29 @@ void backout_events(void)
 
 int needs_work(event_t *ev)
 {
-	if (test_bit(EFL_DELAY, &ev->flags) ||
-	    test_bit(EFL_DELAY_RECOVERY, &ev->flags)) {
-		log_group(ev->group, "event delay %x", ev->flags);
+	if (test_bit(EFL_DELAY, &ev->flags)) {
+		if (time() >= ev->restart_time) {
+			log_group(ev->group, "restart delayed event from %d",
+				  ev->state);
+			clear_bit(EFL_DELAY, &ev->flags);
+			return 1;
+		}
 		return 0;
-	} else
-		return 1;
+	}
+
+	/* DELAY_RECOVERY is cleared by the recovery code when
+	   recovery is complete */
+
+	if (test_bit(EFL_DELAY_RECOVERY, &ev->flags))
+		return 0;
+
+	return 1;
 }
 
 int process_joinleave(void)
 {
 	event_t *ev, *safe;
-	int rv = 0, barrier_wait = 0;
+	int rv = 0, barrier_pending = 0, delay_pending = 0;
 
 	list_for_each_entry_safe(ev, safe, &joinleave_events, list) {
 		if (!needs_work(ev))
@@ -1290,11 +1300,17 @@ int process_joinleave(void)
 			rv += process_leave_event(ev);
 	}
 
+	/* positive values for these pending things results in
+	   a timeout being set for the main poll loop */
+
 	list_for_each_entry(ev, &joinleave_events, list) {
 		if (ev->state == EST_BARRIER_WAIT)
-			barrier_wait++;
+			barrier_pending++;
+		if (test_bit(EFL_DELAY, &ev->flags))
+			delay_pending++;
 	}
-	gd_event_barriers = barrier_wait;
+	gd_event_barriers = barrier_pending;
+	gd_event_delays = delay_pending;
 
 	return rv;
 }
@@ -1395,8 +1411,10 @@ int do_join(char *name, int level, int ci, char *info)
 	int error;
 
 	error = create_group(name, level, &g);
-	if (error)
+	if (error) {
+		log_print("do_join group exists");
 		return error;
+	}
 	g->client = ci;
 
 	if (info)
@@ -1413,10 +1431,14 @@ int do_leave(char *name, int level, int nowait, char *info)
 	int error;
 
 	g = find_group_level(name, level);
-	if (!g)
+	if (!g) {
+		log_print("do_leave no group");
 		return -ENOENT;
-	if (in_event(g))
+	}
+	if (in_event(g)) {
+		log_print("do_leave group busy %x", g->flags);
 		return -EBUSY;
+	}
 	if (nowait && in_update(g))
 		return -EAGAIN;
 
