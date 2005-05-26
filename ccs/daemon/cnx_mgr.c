@@ -798,7 +798,8 @@ static int _process_get(comm_header_t *ch, char **payload){
 	      (node->type == 1)? "XML_ELEMENT_NODE":
 	      (node->type == 2)? "XML_ATTRIBUTE_NODE":"");
 
-      if(!node->children->content || !strlen(node->children->content)){
+      if(!node || !node->children ||
+         !node->children->content || !strlen(node->children->content)){
 	log_dbg("No content found.\n");
 	error = -ENODATA;
 	goto fail;
