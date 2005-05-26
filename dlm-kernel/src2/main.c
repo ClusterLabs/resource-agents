@@ -19,8 +19,20 @@
 #include "memory.h"
 #include "lowcomms.h"
 
+#ifdef CONFIG_DLM_DEBUG
 int dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
+#else
+int dlm_register_debugfs(void)
+{
+	return 0;
+}
+
+void dlm_unregister_debugfs(void)
+{
+}
+#endif
+
 int dlm_node_ioctl_init(void);
 void dlm_node_ioctl_exit(void);
 
