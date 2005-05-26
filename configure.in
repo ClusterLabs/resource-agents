@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.383 $) dnl cvs revision
+AC_REVISION($Revision: 1.384 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -53,6 +53,7 @@ AC_SUBST(USE_MODULES)
 
 
 MISSINGTHINGS=""
+MISSINGOPTIONALS=""
 
 FatalMissingThing() {
   if test X"$MISSINGTHINGS" = X; then
@@ -70,7 +71,32 @@ FatalMissingThing() {
     fi
   done
 }
+
+WarnMissingThing() {
+  if test X"$MISSINGOPTIONALS" = X; then
+    MISSINGOPTIONALS="$MISSINGOPTIONALS $1"
+  else
+    MISSINGOPTIONALS="$MISSINGOPTIONALS, $1"
+  fi
+  shift
+  AC_MSG_RESULT(configure: WARNING: $1 ====================)
+  shift
+  for j in "$@"
+  do
+    if test "X$j" != X-; then
+       AC_MSG_RESULT(configure:        $j ==)
+    fi
+  done
+}
+
 CheckMissingThings() {
+  if
+    test "X$MISSINGOPTIONALS" != "X"
+  then
+    AC_MSG_WARN(The following recommended components noted earlier are missing:
+    $MISSINGOPTIONALS
+    We will continue but you may have lost some non-critical functionality.)
+  fi
   if
     test "X$MISSINGTHINGS" != "X"
   then
@@ -1733,18 +1759,23 @@ if test -z "${enable_swig}"; then
 fi
 
 AC_MSG_CHECKING(which swig/perl version)
-if test "${enable_swig}" = "yes"; then
+if test "${enable_swig}" != "no"; then
+	if test "${enable_swig}" = "try"; then
+		MISSING_FN="WarnMissingThing"
+	else
+		MISSING_FN="FatalMissingThing"
+	fi
 	if test -z "$SWIG"; then
 		enable_swig="no (swig not found)"
 		AC_MSG_RESULT($enable_swig)
-		FatalMissingThing "swig" "SWIG was requested, but not installed" \
+		$MISSING_FN "swig" "SWIG was requested, but not installed" \
 		"You can get it from http://swig.org/"
 	else
 		SWIG_VERSION="`$SWIG -version 2>&1 | sed -ne 's/SWIG Version 1.3.//p'`"
 		if test "0$SWIG_VERSION" -lt "19" 2>&1 ; then
 			enable_swig="no (version 1.3.x, x>=19 required)"
 			AC_MSG_RESULT($enable_swig)
-			FatalMissingThing "swig" "SWIG version must be > 1.3.19" \
+			$MISSING_FN "swig" "SWIG version must be > 1.3.19" \
 			"You can get it from http://swig.org/"
 		else
 			if $PERL -e "use 5.008001;" >& /dev/null; then
@@ -1754,7 +1785,7 @@ if test "${enable_swig}" = "yes"; then
 			else
 				enable_swig="no (invalid perl version)"
 				AC_MSG_RESULT($enable_swig)
-				FatalMissingThing "swig-perl" "SWIG-enabled Perl" 
+				$MISSING_FN "swig-perl" "SWIG-enabled Perl" 
 			fi
 		fi
 	fi
