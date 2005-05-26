@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.384 $) dnl cvs revision
+AC_REVISION($Revision: 1.385 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -289,11 +289,26 @@ AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
 
-WHOAMI=whoami
+dnl ************************************************************************
+dnl Check whether non-root user can chown.
+dnl ************************************************************************
+AC_PATH_PROGS(MKTEMP, mktemp)
+
+if test -n "$WHOAMI"; then
+  IAM=`$WHOAMI`
+fi
 AC_MSG_CHECKING(if chown works for non-root)
-F=`mktemp "./.chown-testXXXXX"`
+
+dnl Prefer "mktemp" command.  But some OSes lack it; they can "touch".
+if test -n "$MKTEMP"; then
+  F=`$MKTEMP "./.chown-testXXXXX"`
+else
+  F="./.chown-test.$$"
+  touch $F
+fi
+
 if
-  case `$WHOAMI` in
+  case "$IAM" in
     root)	chown nobody $F;
        		su nobody -c "chown root $F";;
     *)	chown root $F
