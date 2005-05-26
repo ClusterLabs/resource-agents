@@ -23,14 +23,8 @@
 int dlm_register_debugfs(void);
 void dlm_unregister_debugfs(void);
 #else
-int dlm_register_debugfs(void)
-{
-	return 0;
-}
-
-void dlm_unregister_debugfs(void)
-{
-}
+static inline int dlm_register_debugfs(void) { return 0; }
+static inline void dlm_unregister_debugfs(void) { }
 #endif
 
 int dlm_node_ioctl_init(void);
