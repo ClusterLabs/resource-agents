@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.385 $) dnl cvs revision
+AC_REVISION($Revision: 1.386 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -755,7 +755,7 @@ AM_CONDITIONAL(USE_OPENIPMI, test "$ac_cv_header_OpenIPMI_ipmi_auth_h" = yes)
 
 AC_ARG_ENABLE([snmp-subagent],
 [  --enable-snmp-subagent  Enable SNMP subagent],
-                     [], [enable_snmp_subagent=yes])
+                     [], [enable_snmp_subagent=try])
 
 SNMPLIB=""
 SNMPCONFIG=""
@@ -1017,10 +1017,6 @@ AC_ARG_ENABLE([traditional-warnings],
                           enable traditional warnings gcc (-Wtraditional)
                           [default=no]])
 
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent  Compile the snmp-subagent. This is still in early 
-                          development stage.  [default=no]]) 
-
 AC_ARG_ENABLE([dmalloc],
 [  --enable-dmalloc
                           enable use of dmalloc instead of malloc in selected code
@@ -1045,8 +1041,8 @@ dnl - If requested, enable ALL subsystems.
 	  enable_crm=yes;
 	  enable_fatal_warnings=yes;
 	  enable_lrm=yes;
-	  enable_snmp_subagent=yes;
-	  enable_swig=yes;
+	  enable_snmp_subagent=try;
+	  enable_swig=try;
 	fi
 
 if test "$GCC" = yes; then
@@ -1164,7 +1160,10 @@ dnl Add any system specific options here.
 	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 fi
 
-if test "x${enable_snmp_subagent}"  = "xyes"; then
+AC_MSG_CHECKING(SNMP Subagent info)
+AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
+
+if test "x${enable_snmp_subagent}" = "xyes" -o "x${enable_snmp_subagent}" = "xtry"; then
 	echo "Enabling SNMP Sub Agent"
 	sinclude([config/snmp_subagent.m4]) 
 	LIB_SNMP
@@ -1192,7 +1191,7 @@ do
   fi
 done
 AC_ARG_WITH(initdir,
-    [  --with-initdir=DIR      directroy for init (rc) scripts [${INITDIR}]],
+    [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
     [ if test x"$withval" = xprefix; then INITDIR=${prefix}; else
 	 INITDIR="$withval"; fi ])
 if
@@ -1765,7 +1764,7 @@ dnl **********************************************************************
 dnl Scripting language bindings
 AC_ARG_ENABLE([swig],
 [  --enable-swig  Provide language bindings via SWIG [default=yes]],
-[], [enable_swig=yes]) 
+[], [enable_swig=try]) 
 
 SWIG_OPTIONS="$GLIBHEAD"
 SWIG_ENABLED=0
