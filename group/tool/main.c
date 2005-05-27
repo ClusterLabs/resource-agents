@@ -23,7 +23,13 @@
 #define MAX_GROUPS			64
 #define OPTION_STRING			"hV"
 
+#define OP_LS				1
+#define OP_CLIENT			2
+
 static char *prog_name;
+static int operation;
+static int opt_ind;
+static char *ls_name;
 
 static void print_usage(void)
 {
@@ -75,6 +81,23 @@ static void decode_arguments(int argc, char **argv)
 			break;
 		};
 	}
+
+	while (optind < argc) {
+		if (strcmp(argv[optind], "client") == 0) {
+			operation = OP_CLIENT;
+			opt_ind = optind + 1;
+			break;
+		} else if (strcmp(argv[optind], "ls") == 0 ||
+		           strcmp(argv[optind], "list") == 0) {
+			operation = OP_LS;
+			opt_ind = optind + 1;
+			break;
+		}
+		optind++;
+	}
+
+	if (!operation)
+		operation = OP_LS;
 }
 
 char *state_str(group_data_t *data)
@@ -90,22 +113,27 @@ char *state_str(group_data_t *data)
 	return buf;
 }
 
-int main(int argc, char **argv)
+int do_ls(int argc, char **argv)
 {
 	group_data_t data[MAX_GROUPS];
-	int i, j, rv, count = 0;
+	int i, j, rv, count = 0, level;
+	char *name;
 	int program_width = 16;
 	int level_width = 5;
 	int name_width = 32;
 	int id_width = 8;
 	int state_width = 12;
 
-	prog_name = argv[0];
-	decode_arguments(argc, argv);
-
 	memset(&data, 0, sizeof(data));
 
-	rv = group_get_groups(MAX_GROUPS, &count, data);
+	if (opt_ind && opt_ind < argc) {
+		level = atoi(argv[opt_ind++]);
+		name = argv[opt_ind];
+
+		rv = group_get_group(level, name, data);
+		count = 1;
+	} else
+		rv = group_get_groups(MAX_GROUPS, &count, data);
 
 	printf("%-*s %-*s %-*s %-*s %-*s\n",
 		program_width, "program",
@@ -130,6 +158,50 @@ int main(int argc, char **argv)
 			printf("%d", data[i].members[j]);
 		}
 		printf("]\n");
+	}
+
+}
+
+group_callbacks_t cbs = {
+};
+
+int do_client(int argc, char **argv)
+{
+	group_handle_t gh;
+	int level;
+	char *cmd, *name;
+
+	level = atoi(argv[opt_ind++]);
+	cmd = argv[opt_ind++];
+	name = argv[opt_ind];
+
+	if (opt_ind >= argc) {
+		printf("invalid args %d %d\n", opt_ind, argc);
+		return -1;
+	}
+
+	gh = group_init(NULL, "group_tool", level, &cbs);
+
+	if (!strcmp(cmd, "leave"))
+		group_leave(gh, name, NULL);
+	else if (!strcmp(cmd, "join"))
+		group_join(gh, name, NULL);
+	else
+		printf("unknown cmd %s", cmd);
+
+	return 0;
+}
+
+int main(int argc, char **argv)
+{
+	prog_name = argv[0];
+	decode_arguments(argc, argv);
+
+	switch (operation) {
+	case OP_LS:
+		return do_ls(argc, argv);
+	case OP_CLIENT:
+		return do_client(argc, argv);
 	}
 
 	return 0;
