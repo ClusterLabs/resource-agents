@@ -645,6 +645,11 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	recover_members(mg, member_count, nodeids, &pos, &neg);
 
 	if (mg->spectator) {
+		/* If we're the first mounter, we set ls_first so gfs
+		   will bail out if there are dirty journals.  We set
+		   ls_first again later for the first participant. */
+		if (member_count == 1)
+			set_sysfs(mg, "first", 1);
 		group_done(gh, mg->name, mg->last_start);
 		goto out;
 	}
