@@ -147,7 +147,7 @@ static void reset_hello_time(void);
 static int add_us(void);
 static int send_joinconf(void);
 static int init_membership_services(void);
-static int elect_master(struct cluster_node **, int disallow_node);
+static int elect_master(struct cluster_node **);
 static void join_or_form_cluster(void);
 static int do_timer_wakeup(void);
 static int start_transition(unsigned char reason, struct cluster_node *node);
@@ -588,7 +588,7 @@ static int do_timer_wakeup()
 			struct cluster_node *node;
 
 			P_MEMB("Master node is dead...Election!\n");
-			if (elect_master(&node, 0)) {
+			if (elect_master(&node)) {
 
 				/* We are master now, all kneel */
 				master_node->leave_reason = CLUSTER_LEAVEFLAG_NORESPONSE;
@@ -1353,7 +1353,7 @@ void a_node_just_died(struct cluster_node *node, int in_cman_main)
 	 * new one */
 	if (node_state == TRANSITION) {
 		if (master_node == node) {
-			if (elect_master(&node, 0)) {
+			if (elect_master(&node)) {
 				set_transition_timer(0);
 				node_state = MASTER;
 
@@ -2091,19 +2091,8 @@ static int do_process_starttrans(struct msghdr *msg, char *buf, int len)
 	/* If we are also a master then decide between us */
 	if (node_state == MASTER) {
 
-		int not_master = 0;
-
-		/* If one node is doing a CHECK and another a "real" transition then prevent
-		   the CHECK from being master as it's a waste of time */
-		if (transitionreason != startmsg->reason) {
-			if (transitionreason == TRANS_CHECK)
-				not_master = us->node_id;
-			if (startmsg->reason == TRANS_CHECK)
-				not_master = saddr->scl_nodeid;
-		}
-
 		/* See if we really want the responsibility of being master */
-		if (elect_master(&node, not_master)) {
+		if (elect_master(&node)) {
 
 			/* I reluctantly accept this position of responsibility
 			 */
@@ -3002,14 +2991,13 @@ unsigned int get_highest_nodeid()
 /* Elect a new master if there is a clash. Returns 1 if we are the new master,
  * the master's struct will also be returned. This, rather primitively, uses
  * the lowest node ID */
-static int elect_master(struct cluster_node **master_node, int disallow_node)
+static int elect_master(struct cluster_node **master_node)
 {
 	int i;
 
 	for (i = 1; i < sizeof_members_array; i++) {
 		if (members_by_nodeid[i] &&
-		    members_by_nodeid[i]->state == NODESTATE_MEMBER &&
-		    i != disallow_node) {
+		    members_by_nodeid[i]->state == NODESTATE_MEMBER) {
 			*master_node = members_by_nodeid[i];
 			P_MEMB("Elected master is %s\n", (*master_node)->name);
 			return (*master_node)->us;
@@ -3017,6 +3005,23 @@ static int elect_master(struct cluster_node **master_node, int disallow_node)
 	}
 	log_msg(LOG_CRIT, "Can't find a node to be transition master");
 	exit(2);
+}
+
+int next_nodeid(void)
+{
+	int i;
+
+	i = us->node_id+1;
+	while (1) {
+		if (i >= sizeof_members_array)
+			i=1;
+
+		assert(i != us->node_id);
+
+		if (members_by_nodeid[i] &&
+		    members_by_nodeid[i]->state == NODESTATE_MEMBER)
+			return i;
+	}
 }
 
 /* Called by node_cleanup in cnxman when we have left the cluster */

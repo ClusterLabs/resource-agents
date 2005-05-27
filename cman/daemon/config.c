@@ -37,7 +37,7 @@
 #define DEFAULT_SM_DEBUG_SIZE	256	/* Size in bytes of SM debug buffer */
 
 #define DEFAULT_NEWCLUSTER_TIMEOUT 16   /* Time to send NEWCLUSTER messages */
-#define DEFAULT_MAX_RETRIES 3		/* Number of times we resend a message */
+#define DEFAULT_MAX_RETRIES 5		/* Number of times we resend a message */
 
 #define DEFAULT_DEBUG_MASK 0            /* No debugging */
 
