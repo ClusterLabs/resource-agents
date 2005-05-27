@@ -34,7 +34,7 @@ install:
 	cd lib && ${MAKE} install
 	cd cman_tool && ${MAKE} install
 	cd man && ${MAKE} install
-	cd daemon && ${MAKE} clean
+	cd daemon && ${MAKE} install
 	cd init.d && ${MAKE} install
 
 uninstall:
