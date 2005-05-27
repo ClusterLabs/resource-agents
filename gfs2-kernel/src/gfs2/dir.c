@@ -568,8 +568,7 @@ linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 	/*  Find the entry  */
 
 	do {
-		if (bh)
-			brelse(bh);
+		brelse(bh);
 
 		bh = bh_next;
 
@@ -1180,7 +1179,6 @@ do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 	}
 
 	/*  Bail out if there's nothing to do  */
-
 	if (!entries)
 		RETURN(G2FN_DO_FILLDIR_MULTI, 0);
 
@@ -1194,8 +1192,7 @@ do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 
 	darr = kmalloc(entries * sizeof(struct gfs2_dirent *), GFP_KERNEL);
 	if (!darr) {
-		if (larr)
-			kfree(larr);
+		kfree(larr);
 		RETURN(G2FN_DO_FILLDIR_MULTI, -ENOMEM);
 	}
 
@@ -1268,12 +1265,9 @@ do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 
  out:
 	kfree(darr);
-
 	for (x = 0; x < l; x++)
 		brelse(larr[x]);
-
-	if (leaves)
-		kfree(larr);
+	kfree(larr);
 
 	RETURN(G2FN_DO_FILLDIR_MULTI, error);
 }
@@ -2284,8 +2278,7 @@ gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 			RETURN(G2FN_DIRADD_ALLOC_REQUIRED, error);
 
 		do {
-			if (bh)
-				brelse(bh);
+			brelse(bh);
 
 			bh = bh_next;
 

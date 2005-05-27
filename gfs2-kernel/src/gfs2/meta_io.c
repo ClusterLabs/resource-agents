@@ -21,6 +21,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/writeback.h>
+#include <linux/swap.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -514,11 +515,9 @@ getbuf(struct gfs2_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 
 	if (!buffer_mapped(bh))
 		map_bh(bh, sdp->sd_vfs, blkno);
-	else if (gfs2_assert_warn(sdp, bh->b_bdev == sdp->sd_vfs->s_bdev &&
-				 bh->b_blocknr == blkno))
-		map_bh(bh, sdp->sd_vfs, blkno);
 
 	unlock_page(page);
+	mark_page_accessed(page);
 	page_cache_release(page);
 
 	RETURN(G2FN_GETBUF, bh);
@@ -913,8 +912,7 @@ gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int n
 
 		spin_lock(&ip->i_spin);
 		if (*bh_slot != bh) {
-			if (*bh_slot)
-				brelse(*bh_slot);
+			brelse(*bh_slot);
 			*bh_slot = bh;
 			get_bh(bh);
 		}

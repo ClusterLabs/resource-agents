@@ -805,7 +805,7 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
 
 	if (alloc_required) {
 		gfs2_assert_warn(sdp, count != size ||
-				al->al_alloced);
+				 al->al_alloced);
 		gfs2_inplace_release(ip);
 		gfs2_quota_unlock(ip);
 		gfs2_alloc_put(ip);

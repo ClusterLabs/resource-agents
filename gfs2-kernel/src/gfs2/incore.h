@@ -761,19 +761,20 @@ struct gfs2_gl_hash_bucket {
  *    contains arrays of hash buckets for various in-core caches.
  */
 
-#define SDF_JOURNAL_LIVE        (0)  /* Journaling is active (journal is writeable)*/
-#define SDF_SHUTDOWN            (1)  /* FS abnormaly shutdown */
+#define SDF_JOURNAL_CHECKED     (0)
+#define SDF_JOURNAL_LIVE        (1)  /* Journaling is active (journal is writeable)*/
+#define SDF_SHUTDOWN            (2)  /* FS abnormaly shutdown */
 
 /* Run (1) / stop (0) flags for various daemons */
-#define SDF_SCAND_RUN           (2)  /* Put unused glocks on reclaim queue */
-#define SDF_GLOCKD_RUN          (3)  /* Reclaim (dealloc) unused glocks */
-#define SDF_RECOVERD_RUN        (4)  /* Recover journal of a crashed node */
-#define SDF_LOGD_RUN            (5)  /* Update log tail after AIL flushed */
-#define SDF_QUOTAD_RUN          (6)  /* Sync quota changes to file, cleanup */
-#define SDF_INODED_RUN          (7)  /* Deallocate unlinked inodes */
+#define SDF_SCAND_RUN           (3)  /* Put unused glocks on reclaim queue */
+#define SDF_GLOCKD_RUN          (4)  /* Reclaim (dealloc) unused glocks */
+#define SDF_RECOVERD_RUN        (5)  /* Recover journal of a crashed node */
+#define SDF_LOGD_RUN            (6)  /* Update log tail after AIL flushed */
+#define SDF_QUOTAD_RUN          (7)  /* Sync quota changes to file, cleanup */
+#define SDF_INODED_RUN          (8)  /* Deallocate unlinked inodes */
 
 /* (Re)mount options from Linux VFS */
-#define SDF_NOATIME             (8)  /* Don't change access time */
+#define SDF_NOATIME             (9)  /* Don't change access time */
 
 /* Glock cache */
 #define GFS2_GL_HASH_SHIFT       (13)    /* # hash buckets = 8K */

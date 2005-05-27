@@ -1304,8 +1304,7 @@ gfs2_quota_cleanup(struct gfs2_sbd *sdp)
 
  	if (sdp->sd_quota_bitmap) {
 		for (x = 0; x < sdp->sd_quota_chunks; x++)
-			if (sdp->sd_quota_bitmap[x])
-				kfree(sdp->sd_quota_bitmap[x]);
+			kfree(sdp->sd_quota_bitmap[x]);
 		kfree(sdp->sd_quota_bitmap);
 	}
 

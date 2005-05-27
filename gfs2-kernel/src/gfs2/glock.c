@@ -2070,6 +2070,7 @@ gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 	}
 
 	kfree(e);
+
 	RETURN(G2FN_GLOCK_NQ_M, error);
 }
 
@@ -3040,8 +3041,7 @@ gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 		}
 	}
 
-	if (ub)
-		kfree(buf);
+	kfree(buf);
 
 	RETURN(G2FN_DUMP_LOCKSTATE, error);
 }

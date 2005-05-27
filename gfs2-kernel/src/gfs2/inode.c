@@ -597,8 +597,8 @@ inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 
 	/* Lock the inode as we blow it away */
 	error = gfs2_glock_nq_num(sdp,
-				 ul->ul_ut.ut_inum.no_addr, &gfs2_inode_glops,
-				 LM_ST_EXCLUSIVE, 0, &i_gh);
+				  ul->ul_ut.ut_inum.no_addr, &gfs2_inode_glops,
+				  LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
 		RETURN(G2FN_INODE_DEALLOC2, error);
 
@@ -670,8 +670,10 @@ inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 		goto out_iput;
 
  out_iput:
+	gfs2_glmutex_lock(i_gh.gh_gl);
 	gfs2_inode_put(ip);
 	gfs2_inode_destroy(ip);
+	gfs2_glmutex_unlock(i_gh.gh_gl);
 
  out:
 	gfs2_glock_dq_uninit(&i_gh);

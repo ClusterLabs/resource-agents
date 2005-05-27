@@ -188,10 +188,6 @@ gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 	if (!buffer_mapped(bh))
 		map_bh(bh, inode->i_sb, block);
-	else if (gfs2_assert_warn(sdp,
-				  bh->b_bdev == inode->i_sb->s_bdev &&
-				  bh->b_blocknr == block))
-                map_bh(bh, inode->i_sb, block);
 
 	set_buffer_uptodate(bh);
 	if (sdp->sd_args.ar_data == GFS2_DATA_ORDERED)
@@ -264,10 +260,6 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 		/* Do nothing */;
 
 	if (!buffer_mapped(bh))
-		map_bh(bh, inode->i_sb, dbn);
-	else if (gfs2_assert_warn(sdp,
-				  bh->b_bdev == inode->i_sb->s_bdev &&
-				  bh->b_blocknr == dbn))
 		map_bh(bh, inode->i_sb, dbn);
 
 	set_buffer_uptodate(bh);

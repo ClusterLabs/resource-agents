@@ -178,8 +178,7 @@ gfs2_logd(void *data)
 		if (time_after_eq(jiffies,
 				  sdp->sd_jindex_refresh_time +
 				  gfs2_tune_get(sdp, gt_jindex_refresh_secs) * HZ)) {
-			if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags) &&
-			    !gfs2_jindex_hold(sdp, &ji_gh))
+			if (!gfs2_jindex_hold(sdp, &ji_gh))
 				gfs2_glock_dq_uninit(&ji_gh);
 			sdp->sd_jindex_refresh_time = jiffies;
 		}

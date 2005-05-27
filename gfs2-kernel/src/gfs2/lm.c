@@ -128,8 +128,7 @@ gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 	}
 
  out:
-	if (sb)
-		kfree(sb);
+	kfree(sb);
 
 	RETURN(G2FN_LM_MOUNT, error);
 }

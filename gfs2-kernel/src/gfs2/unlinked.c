@@ -486,8 +486,7 @@ gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
 
 	if (sdp->sd_unlinked_bitmap) {
 		for (x = 0; x < sdp->sd_unlinked_chunks; x++)
-			if (sdp->sd_unlinked_bitmap[x])
-				kfree(sdp->sd_unlinked_bitmap[x]);
+			kfree(sdp->sd_unlinked_bitmap[x]);
 		kfree(sdp->sd_unlinked_bitmap);
 	}
 

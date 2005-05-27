@@ -146,7 +146,8 @@ gfs2_memory_add_i(void *data, char *file, unsigned int line)
 void
 gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 {
-	atomic_dec(&gfs2_memory_count);
+	if (data)
+		atomic_dec(&gfs2_memory_count);
 }
 
 void *
@@ -170,8 +171,10 @@ gmalloc_nofail(unsigned int size, int flags,
 void
 gfree(void *data, char *file, unsigned int line)
 {
-	kfree(data);
-        atomic_dec(&gfs2_memory_count);
+	if (data) {
+		atomic_dec(&gfs2_memory_count);
+		kfree(data);
+	}
 }
 
 void
@@ -233,6 +236,9 @@ gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 	struct list_head *tmp;
 	struct gfs2_memory *gm = NULL;
 
+	if (!data)
+		return;
+
 	spin_lock(&memory_lock);
 	for (tmp = head->next; tmp != head; tmp = tmp->next) {
 		gm = list_entry(tmp, struct gfs2_memory, gm_list);
@@ -272,8 +278,10 @@ gmalloc_nofail(unsigned int size, int flags,
 void
 gfree(void *data, char *file, unsigned int line)
 {
-	gfs2_memory_rm_i(data, file, line);
-	kfree(data);
+	if (data) {
+		gfs2_memory_rm_i(data, file, line);
+		kfree(data);
+	}
 }
 
 void

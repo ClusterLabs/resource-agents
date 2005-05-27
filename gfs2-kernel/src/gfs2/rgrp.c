@@ -207,9 +207,7 @@ clear_rgrpdi(struct gfs2_sbd *sdp)
 			gfs2_glock_put(gl);
 		}
 
-		if (rgd->rd_bits)
-			kfree(rgd->rd_bits);
-
+		kfree(rgd->rd_bits);
 		kfree(rgd);
 	}
 
@@ -540,10 +538,8 @@ gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 
 	for (x = 0; x < length; x++) {
 		struct gfs2_bitmap *bi = rgd->rd_bits + x;
-		if (bi->bi_clone) {
-			kfree(bi->bi_clone);
-			bi->bi_clone = NULL;
-		}
+		kfree(bi->bi_clone);
+		bi->bi_clone = NULL;
 		brelse(bi->bi_bh);
 		bi->bi_bh = NULL;
 	}
@@ -1552,8 +1548,7 @@ gfs2_rlist_free(struct gfs2_rgrp_list *rlist)
 	ENTER(G2FN_RLIST_FREE)
 	unsigned int x;
 
-	if (rlist->rl_rgd)
-		kfree(rlist->rl_rgd);
+	kfree(rlist->rl_rgd);
 
 	if (rlist->rl_ghs) {
 		for (x = 0; x < rlist->rl_rgrps; x++)

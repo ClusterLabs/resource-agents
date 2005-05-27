@@ -651,8 +651,7 @@ gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 	sdp->sd_vfs->s_dirt = FALSE;
 	gfs2_unlock_from_flush(sdp);
 
-	if (ai)
-		kfree(ai);
+	kfree(ai);
 
 	RET(G2FN_LOG_FLUSH_I);
 }

@@ -257,8 +257,7 @@ do_margs(char *p)
 	gfs2_proc_margs = new_buf;
 	spin_unlock(&gfs2_proc_margs_lock);
 
-	if (old_buf)
-		kfree(old_buf);
+	kfree(old_buf);
 
 	RETURN(G2FN_DO_MARGS, 0);
 }
@@ -374,8 +373,7 @@ gfs2_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
 	file->private_data = NULL;
 	spin_unlock(&req_lock);
 
-	if (p)
-		kfree(p);
+	kfree(p);
 
 	if (!size)
 		RETURN(G2FN_PROC_WRITE, -EINVAL);
@@ -459,8 +457,7 @@ static int
 gfs2_proc_close(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_PROC_CLOSE)
-	if (file->private_data)
-		kfree(file->private_data);
+	kfree(file->private_data);
 	RETURN(G2FN_PROC_CLOSE, 0);
 }
 
@@ -508,8 +505,7 @@ void
 gfs2_proc_uninit(void)
 {
 	ENTER(G2FN_PROC_UNINIT)
-	if (gfs2_proc_margs)
-		kfree(gfs2_proc_margs);
+	kfree(gfs2_proc_margs);
 	remove_proc_entry("fs/gfs2", NULL);
 	RET(G2FN_PROC_UNINIT);
 }

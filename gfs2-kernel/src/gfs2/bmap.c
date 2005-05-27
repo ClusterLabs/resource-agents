@@ -561,7 +561,7 @@ recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 	if (!height) {
 		error = gfs2_meta_inode_buffer(ip, &bh);
 		if (error)
-			goto fail;
+			RETURN(G2FN_RECURSIVE_SCAN, error);
 		dibh = bh;
 
 		top = (uint64_t *)(bh->b_data + sizeof(struct gfs2_dinode)) +
@@ -571,7 +571,7 @@ recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 	} else {
 		error = gfs2_meta_indirect_buffer(ip, height, block, FALSE, &bh);
 		if (error)
-			goto fail;
+			RETURN(G2FN_RECURSIVE_SCAN, error);
 
 		top = (uint64_t *)(bh->b_data + sizeof(struct gfs2_meta_header)) +
 			((first) ? mp->mp_list[height] : 0);
@@ -581,7 +581,7 @@ recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 	error = bc(ip, dibh, bh, top, bottom, height, data);
 	if (error)
-		goto fail;
+		goto out;
 
 	if (height < ip->i_di.di_height - 1)
 		for (; top < bottom; top++, first = FALSE) {
@@ -594,16 +594,11 @@ recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 					       height + 1, bn, first,
 					       bc, data);
 			if (error)
-				goto fail;
+				break;
 		}
 
+ out:
 	brelse(bh);
-
-	RETURN(G2FN_RECURSIVE_SCAN, 0);
-
- fail:
-	if (bh)
-		brelse(bh);
 
 	RETURN(G2FN_RECURSIVE_SCAN, error);
 }

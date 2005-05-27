@@ -433,6 +433,7 @@ init_journal(struct gfs2_sbd *sdp, int undo)
 		}
 	}
 
+	set_bit(SDF_JOURNAL_CHECKED, &sdp->sd_flags);
 	gfs2_glock_dq_uninit(&ji_gh);
 	jindex = FALSE;
 

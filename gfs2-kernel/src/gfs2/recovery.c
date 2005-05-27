@@ -440,6 +440,7 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	struct gfs2_log_header head;
 	struct gfs2_holder j_gh, ji_gh, t_gh;
 	unsigned long t;
+	int ro = FALSE;
 	unsigned int pass;
 	int error;
 
@@ -502,7 +503,15 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		if (error)
 			goto fail_gunlock_ji;
 
-		if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
+		if (test_bit(SDF_JOURNAL_CHECKED, &sdp->sd_flags)) {
+			if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags))
+				ro = TRUE;
+		} else {
+			if (sdp->sd_vfs->s_flags & MS_RDONLY)
+				ro = TRUE;
+		}
+
+		if (ro) {
 			printk("GFS2: fsid=%s: jid=%u: Can't replay: read-only FS\n",
 			       sdp->sd_fsname, jd->jd_jid);
 			error = -EROFS;

@@ -209,8 +209,7 @@ gfs2_jdata_read(struct gfs2_inode *ip, char *buf,
 			bh = NULL;
 
 		error = copy_fn(bh, &buf, o, amount);
-		if (bh)
-			brelse(bh);
+		brelse(bh);
 		if (error)
 			goto fail;
 
