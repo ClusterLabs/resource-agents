@@ -183,6 +183,7 @@ static int client_process_join(int ci, int argc, char **argv)
 {
 	char buf[MAXLINE];
 	char *info = NULL;
+	int rv;
 
 	if (argc > 2)
 		info = argv[2];
@@ -192,7 +193,7 @@ static int client_process_join(int ci, int argc, char **argv)
 		info ? info : "");
 	*/
 
-	do_join(argv[1], client[ci].level, ci, info);
+	rv = do_join(argv[1], client[ci].level, ci, info);
 
 	return 0;
 }
@@ -201,6 +202,7 @@ static int client_process_leave(int ci, int argc, char **argv)
 {
 	char buf[MAXLINE];
 	char *info = NULL;
+	int rv;
 
 	if (argc > 2)
 		info = argv[2];
@@ -210,7 +212,7 @@ static int client_process_leave(int ci, int argc, char **argv)
 		info ? info : "");
 	*/
 
-	do_leave(argv[1], client[ci].level, 0, info);
+	rv = do_leave(argv[1], client[ci].level, 0, info);
 
 	return 0;
 }

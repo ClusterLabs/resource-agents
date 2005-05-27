@@ -1419,10 +1419,9 @@ int do_join(char *name, int level, int ci, char *info)
 	int error;
 
 	error = create_group(name, level, &g);
-	if (error) {
-		log_print("do_join group exists");
-		return error;
-	}
+	if (error)
+		goto out;
+
 	g->client = ci;
 
 	if (info)
@@ -1430,7 +1429,11 @@ int do_join(char *name, int level, int ci, char *info)
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
-	return 0;
+	error = 0;
+ out:
+	log_print("%d:%s got join %d flags %x", level, name, error,
+		  g ? g->flags : 0);
+	return error;
 }
 
 int do_leave(char *name, int level, int nowait, char *info)
@@ -1440,15 +1443,19 @@ int do_leave(char *name, int level, int nowait, char *info)
 
 	g = find_group_level(name, level);
 	if (!g) {
-		log_print("do_leave no group");
-		return -ENOENT;
+		error = -ENOENT;
+		goto out;
 	}
+
 	if (in_event(g)) {
-		log_print("do_leave group busy %x", g->flags);
-		return -EBUSY;
+		error = -EBUSY;
+		goto out;
 	}
-	if (nowait && in_update(g))
-		return -EAGAIN;
+
+	if (nowait && in_update(g)) {
+		error = -EAGAIN;
+		goto out;
+	}
 
 	if (info)
 		strncpy(g->leave_info, info, GROUP_INFO_LEN);
@@ -1457,7 +1464,11 @@ int do_leave(char *name, int level, int nowait, char *info)
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);
-	return 0;
+	error = 0;
+ out:
+	log_print("%d:%s got leave %d flags %x", level, name, error,
+		  g ? g->flags : 0);
+	return error;
 }
 
 node_t *new_node(int nodeid)
