@@ -60,8 +60,6 @@ static int process_join_stop(group_t *g)
 		return -1;
 	}
 
-	set_event_id(&up->id);
-
 	node = find_joiner(g, up->nodeid);
 	if (!node) {
 		log_error(g, "process_join_stop: no node %d", up->nodeid);
@@ -140,14 +138,10 @@ static int startdone_barrier(group_t *g)
 		 g->memb_count);
 
 	error = do_barrier(g, bname, g->memb_count, GD_BARRIER_STARTDONE);
-	if (!error)
-		goto done;
-
 	if (error < 0) {
 		log_error(g, "startdone_barrier error %d", error);
 		clear_bit(UFL_ALLOW_BARRIER, &up->flags);
-	} else if (error > 0)
-		error = 0;
+	}
 
 	return error;
 
@@ -213,8 +207,6 @@ static int process_leave_stop(group_t *g)
 	msg_t reply;
 	int error;
 
-	set_event_id(&up->id);
-
 	g->state = GST_UPDATE;
 	group_stop(g);
 
@@ -269,8 +261,6 @@ static int process_one_update(group_t *g)
 	update_t *up = g->update;
 	int rv = 1, error = 0;
 
-	log_group(g, "update state %u node %u", up->state, up->nodeid);
-
 	switch (up->state) {
 
 		/*
@@ -315,6 +305,7 @@ static int process_one_update(group_t *g)
 
 		do_finish(g);
 		update_done(g);
+		up = NULL;
 		break;
 
 		/*
@@ -348,9 +339,15 @@ static int process_one_update(group_t *g)
 		break;
 
 	default:
+		/*
 		log_error(g, "no update processing for state %u", up->state);
+		*/
+		up = NULL;
 		rv = 0;
 	}
+
+	if (up)
+		log_group(g, "update state %u node %u", up->state, up->nodeid);
 
 	/* If we encounter an error during these routines, we do nothing, 
 	   expecting that a node failure related to this sg will cause a
@@ -674,18 +671,12 @@ void cancel_updates(int *effected)
 int process_updates(void)
 {
 	group_t *g;
-	int rv = 0, barrier_wait = 0;
+	int rv = 0;
 
 	list_for_each_entry(g, &gd_groups, list) {
-		if (test_bit(GFL_UPDATE, &g->flags)) {
+		if (test_bit(GFL_UPDATE, &g->flags))
 			rv += process_one_update(g);
-
-			if (g->update && g->update->state == UST_BARRIER_WAIT)
-				barrier_wait++;
-		}
 	}
-
-	gd_update_barriers = barrier_wait;
 
 	return rv;
 }

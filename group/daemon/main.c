@@ -42,17 +42,8 @@ int                     gd_node_count;
 int                     gd_member_count;
 int                     gd_quorate;
 int                     gd_nodeid;
-int                     gd_barrier_time = 2;
 struct list_head        gd_barriers;
-
-/* positive values for any of these result in a timeout
-   being used in the main poll loop so an event can be
-   restarted or a barrier can be checked for completion */
-
 int			gd_event_delays;
-int			gd_event_barriers;
-int			gd_update_barriers;
-int			gd_recover_barriers;
 
 struct client {
 	int fd;
@@ -61,13 +52,13 @@ struct client {
 };
 
 
-static void group_action(int ci, char *buf)
+static void group_action(group_t *g, char *buf)
 {
 	int rv;
 
-	log_out("%s", buf);
+	log_group(g, "%s", buf);
 
-	rv = write(client[ci].fd, buf, MAXLINE);
+	rv = write(client[g->client].fd, buf, MAXLINE);
 	if (rv != MAXLINE)
 		log_print("write error %d errno %d", rv, errno);
 }
@@ -76,21 +67,21 @@ void group_terminate(group_t *g)
 {
 	char buf[MAXLINE];
 	snprintf(buf, sizeof(buf), "terminate %s", g->name);
-	group_action(g->client, buf);
+	group_action(g, buf);
 }
 
 void group_stop(group_t *g)
 {
 	char buf[MAXLINE];
 	snprintf(buf, sizeof(buf), "stop %s", g->name);
-	group_action(g->client, buf);
+	group_action(g, buf);
 }
 
 void group_setid(group_t *g)
 {
 	char buf[MAXLINE];
 	snprintf(buf, sizeof(buf), "set_id %s %u", g->name, g->global_id);
-	group_action(g->client, buf);
+	group_action(g, buf);
 }
 
 void group_start(group_t *g, int *memb, int count, int event_nr, int type)
@@ -101,14 +92,14 @@ void group_start(group_t *g, int *memb, int count, int event_nr, int type)
 	len = snprintf(buf, sizeof(buf), "start %s %d %d", g->name, event_nr, type);
 	for (i = 0; i < count; i++)
 		len += sprintf(buf+len, " %d", memb[i]);
-	group_action(g->client, buf);
+	group_action(g, buf);
 }
 
 void group_finish(group_t *g, int event_nr)
 {
 	char buf[MAXLINE];
 	snprintf(buf, sizeof(buf), "finish %s %d", g->name, event_nr);
-	group_action(g->client, buf);
+	group_action(g, buf);
 }
 
 static void make_args(char *buf, int *argc, char **argv, char sep)
@@ -196,8 +187,10 @@ static int client_process_join(int ci, int argc, char **argv)
 	if (argc > 2)
 		info = argv[2];
 
+	/*
 	log_in("local %s join %s info %s", client[ci].type, argv[1],
 		info ? info : "");
+	*/
 
 	do_join(argv[1], client[ci].level, ci, info);
 
@@ -212,8 +205,10 @@ static int client_process_leave(int ci, int argc, char **argv)
 	if (argc > 2)
 		info = argv[2];
 
+	/*
 	log_in("local %s leave %s info %s", client[ci].type, argv[1],
 		info ? info : "");
+	*/
 
 	do_leave(argv[1], client[ci].level, 0, info);
 
@@ -224,7 +219,9 @@ static int client_process_done(int ci, int argc, char **argv)
 {
 	char buf[MAXLINE];
 
+	/*
 	log_in("local %s done %s %s", client[ci].type, argv[1], argv[2]);
+	*/
 
 	do_done(argv[1], client[ci].level, atoi(argv[2]));
 
@@ -500,10 +497,9 @@ static int loop(void)
 		} while (rv);
 
 
-		if (gd_event_delays || gd_event_barriers ||
-		    gd_update_barriers || gd_recover_barriers) {
-			timeout = 2;
-		} else
+		if (gd_event_delays)
+			timeout = 2000;
+		else
 			timeout = -1;
 	}
 
@@ -650,6 +646,8 @@ int main(int argc, char *argv[])
 	pollfd = malloc(MAXCON * sizeof(struct pollfd));
 	if (!pollfd)
 		return -1;
+
+	INIT_LIST_HEAD(&gd_barriers);
 
 	init_recovery();
 	init_joinleave();

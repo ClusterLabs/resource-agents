@@ -326,15 +326,10 @@ int process_recoveries(void)
 {
 	group_t *g;
 	recover_t *rev, *safe;
-	int rv = 0, barrier_wait = 0;
+	int rv = 0;
 
 	list_for_each_entry_safe(rev, safe, &recoveries, list)
 		rv += recover_levels(rev);
-
-	list_for_each_entry(g, &gd_groups, list)
-		if (g->recover_state == RECOVER_BARRIERWAIT)
-			barrier_wait++;
-	gd_recover_barriers = barrier_wait;
 
 	return rv;
 }

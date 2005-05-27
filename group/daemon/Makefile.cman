@@ -18,6 +18,7 @@ all: ${TARGET}
 
 groupd: main.o \
 	cman.o \
+	barrier.o \
 	joinleave.o \
 	message.o \
 	update.o \
@@ -33,6 +34,9 @@ joinleave.o: joinleave.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cman.o: cman.c gd_internal.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+barrier.o: barrier.c gd_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 message.o: message.c gd_internal.h

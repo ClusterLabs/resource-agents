@@ -13,16 +13,11 @@
 #include "gd_internal.h"
 #include "libcman.h"
 
-/* FIXME: should be in libcman.h */
-#define BARRIER_SETATTR_TIMEOUT 6
-
 extern struct list_head	gd_nodes;
 extern int		gd_node_count;
 extern int		gd_member_count;
 extern int		gd_quorate;
 extern int		gd_nodeid;
-extern int		gd_barrier_time;
-extern struct list_head	gd_barriers;
 
 static cman_handle_t	ch;
 static cman_node_t	cluster_nodes[MAX_NODES];
@@ -35,13 +30,6 @@ static int		message_cb;
 static int		message_nodeid;
 static int		message_len;
 static char		message_buf[MAX_MSGLEN];
-
-struct barrier_wait {
-	struct list_head list;
-	group_t *group;
-	char name[MAX_BARRIERLEN];
-	int type;
-};
 
 
 node_t *find_node(int nodeid)
@@ -242,7 +230,9 @@ static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 static void message_callback(cman_handle_t h, void *private, char *buf,
 			     int len, uint8_t port, int nodeid)
 {
+	/*
 	log_in("message callback nodeid %d len %d", nodeid, len);
+	*/
 
 	message_cb = 1;
 	memcpy(message_buf, buf, len);
@@ -277,7 +267,6 @@ int setup_member_message(void)
 	cman_node_t node;
 	int rv, fd;
 
-	INIT_LIST_HEAD(&gd_barriers);
 	INIT_LIST_HEAD(&gd_nodes);
 	gd_node_count = 0;
 	gd_member_count = 0;
@@ -405,153 +394,5 @@ int send_broadcast_message_ev(char *buf, int len, event_t *ev)
 		clear_allowed_msgtype(ev, msg->ms_type);
 
 	return error;
-}
-
-int do_barrier(group_t *g, char *name, int count, int type)
-{
-	struct barrier_wait *bw;
-	int error = 0;
-
-	error = cman_barrier_register(ch, name, 0, count);
-	if (error < 0)
-		return error;
-
-	cman_barrier_change(ch, name, BARRIER_SETATTR_TIMEOUT, gd_barrier_time);
-
-	log_group(g, "do_barrier count %d type %d: %s", count, type, name);
-
-	error = cman_barrier_wait(ch, name);
-
-	log_group(g, "do_barrier error %d errno %d", error, errno);
-
-	if (!error)
-		cman_barrier_delete(ch, name);
-	else if (error == -1 && (errno == ETIMEDOUT || errno == ESRCH)) {
-		error = 1;
-		bw = malloc(sizeof(struct barrier_wait));
-		if (!bw) {
-			cman_barrier_delete(ch, name);
-			return -ENOMEM;
-		}
-		bw->group = g;
-		memcpy(bw->name, name, MAX_BARRIERLEN);
-		bw->type = type;
-		list_add(&bw->list, &gd_barriers);
-	} else {
-		log_error(g, "cman_barrier_wait errno %d", errno);
-		cman_barrier_delete(ch, name);
-	}
-
-	return error;
-}
-
-void cancel_recover_barrier(group_t *g)
-{
-	cman_barrier_delete(ch, g->recover_barrier);
-}
-
-void cancel_update_barrier(group_t *g)
-{
-	update_t *up = g->update;
-	char bname[MAX_BARRIERLEN];
-
-	clear_bit(UFL_ALLOW_BARRIER, &up->flags);
-
-	memset(bname, 0, MAX_BARRIERLEN);
-	snprintf(bname, MAX_BARRIERLEN, "sm.%u.%u.%u.%u",
-		 g->global_id, up->nodeid, up->remote_seid, g->memb_count);
-
-	cman_barrier_delete(ch, bname);
-}
-
-static void complete_startdone_barrier_new(group_t *g, int status)
-{
-	event_t *ev = g->event;
-
-	if (!test_bit(EFL_ALLOW_BARRIER, &ev->flags)) {
-		log_group(g, "ignore barrier complete status %d", status);
-		return;
-	}
-	clear_bit(EFL_ALLOW_BARRIER, &ev->flags);
-
-	ev->barrier_status = status;
-	ev->state = EST_BARRIER_DONE;
-}
-
-static void complete_startdone_barrier(group_t *g, int status)
-{
-	update_t *up = g->update;
-
-	if (!test_bit(UFL_ALLOW_BARRIER, &up->flags)) {
-		log_group(g, "ignore barrier complete status %d", status);
-		return;
-	}
-	clear_bit(UFL_ALLOW_BARRIER, &up->flags);
-
-	up->barrier_status = status;
-	up->state = UST_BARRIER_DONE;
-}
-
-static void complete_recovery_barrier(group_t *g, int status)
-{
-	if (status) {
-		log_error(g, "complete_recovery_barrier status=%d", status);
-		return;
-	}
-
-	if (g->state != GST_RECOVER || g->recover_state != RECOVER_BARRIERWAIT){
-		log_error(g, "complete_recovery_barrier state %d recover %d",
-			  g->state, g->recover_state);
-		return;
-	}
-
-	if (!g->recover_stop)
-		g->recover_state = RECOVER_STOP;
-	else
-		g->recover_state = RECOVER_BARRIERDONE;
-}
-
-int process_barriers(void)
-{
-	struct barrier_wait *bw, *safe;
-	int error, rv = 0;
-
-	list_for_each_entry_safe(bw, safe, &gd_barriers, list) {
-
-		log_group(bw->group, "barrier_wait: %s", bw->name);
-
-		cman_barrier_change(ch, bw->name, BARRIER_SETATTR_TIMEOUT,
-				    gd_barrier_time);
-
-		error = cman_barrier_wait(ch, bw->name);
-
-		log_group(bw->group, "barrier_wait error %d errno %d",
-			  error, errno);
-
-		if (!error) {
-			list_del(&bw->list);
-
-			switch (bw->type) {
-			case GD_BARRIER_STARTDONE:
-				complete_startdone_barrier(bw->group, 0);
-				break;
-			case GD_BARRIER_STARTDONE_NEW:
-				complete_startdone_barrier_new(bw->group, 0);
-				break;
-			case GD_BARRIER_RECOVERY:
-				complete_recovery_barrier(bw->group, 0);
-				break;
-			}
-
-			cman_barrier_delete(ch, bw->name);
-			free(bw);
-			rv++;
-		} else {
-			if (errno != ETIMEDOUT && errno != ESRCH)
-				log_error(bw->group, "barrier errno %d", errno);
-		}
-	}
-
-	return rv;
 }
 

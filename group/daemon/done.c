@@ -13,6 +13,8 @@
 
 #include "gd_internal.h"
 
+extern uint32_t event_id;
+
 int do_done(char *name, int level, int event_nr)
 {
 	group_t *g;
@@ -20,6 +22,8 @@ int do_done(char *name, int level, int event_nr)
 	g = find_group_level(name, level);
 	if (!g)
 		return -ENOENT;
+
+	log_group(g, "got done event_nr %d", event_nr);
 
 	if (g->state == GST_RECOVER) {
 		if (!check_recovery(g, event_nr)) {
@@ -36,36 +40,60 @@ int do_done(char *name, int level, int event_nr)
 				  g->recover_state);
 	}
 
-	else if (in_event(g)) {
-		event_t *ev = g->event;
-
-		if (!ev || ev->id != event_nr) {
-			log_error(g, "do_done event inval nr %d %d",
-				  event_nr, ev ? ev->id : -1);
-			return -EINVAL;
-		}
-
-		/* if (test_and_clear_bit(EFL_ALLOW_STARTDONE, &ev->flags) */
-		if (ev->state == EST_JSTART_SERVICEWAIT)
-			ev->state = EST_JSTART_SERVICEDONE;
-	}
+	/* We need to check for in_update() before in_event() because
+	   there may be both, in which case the callback should always
+	   be for the update. */
 
 	else if (in_update(g)) {
 		update_t *up = g->update;
 
-		if (!up || up->id != event_nr) {
-			log_error(g, "do_done update inval nr %d", event_nr);
+		if (!up) {
+			log_error(g, "do_done event_nr %d no update", event_nr);
 			return -EINVAL;
 		}
 
-		/* if (test_and_clear_bit(UFL_ALLOW_STARTDONE, &up->flags)) */
-		if (up->state == UST_JSTART_SERVICEWAIT)
-			up->state = UST_JSTART_SERVICEDONE;
-		else if (up->state == UST_LSTART_SERVICEWAIT)
-			up->state = UST_LSTART_SERVICEDONE;
+		if (up->id != event_nr) {
+			log_error(g, "do_done update %d invalid %d %d",
+				  event_nr, up->id, event_id);
+			ASSERT(0,);
+			return -EINVAL;
+		}
+
+		if (test_bit(UFL_ALLOW_STARTDONE, &up->flags)) {
+			clear_bit(UFL_ALLOW_STARTDONE, &up->flags);
+			if (up->state == UST_JSTART_SERVICEWAIT)
+				up->state = UST_JSTART_SERVICEDONE;
+			else if (up->state == UST_LSTART_SERVICEWAIT)
+				up->state = UST_LSTART_SERVICEDONE;
+		} else
+			log_error(g, "do_done ignored %d in_update", event_nr);
+	}
+
+	else if (in_event(g)) {
+		event_t *ev = g->event;
+
+		if (!ev) {
+			log_error(g, "do_done event_nr %d no event", event_nr);
+			return -EINVAL;
+		}
+
+		if (ev->id != event_nr) {
+			log_error(g, "do_done event %d invalid %d %d",
+				  event_nr, ev->id, event_id);
+			ASSERT(0,);
+			return -EINVAL;
+		}
+
+		if (test_bit(EFL_ALLOW_STARTDONE, &ev->flags)) {
+			clear_bit(EFL_ALLOW_STARTDONE, &ev->flags);
+			if (ev->state == EST_JSTART_SERVICEWAIT)
+				ev->state = EST_JSTART_SERVICEDONE;
+		} else
+			log_error(g, "do_done ignored %d in_event", event_nr);
+
 	}
 
 	else
-		log_error(g, "ignoring done callback event_nr %u", event_nr);
+		log_error(g, "do_done ignored %u state %d", event_nr, g->state);
 }
 

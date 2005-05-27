@@ -18,6 +18,7 @@
 static uint32_t 	global_last_id;
 static char		msg_buf[SMSG_BUF_SIZE];
 
+char *msg_str(int type);
 
 void print_bytes(char *buf, int len)
 {
@@ -279,7 +280,7 @@ static void process_reply(msg_t *msg, int nodeid)
 			ev->state = next_event_state(type, ev->state);
 		}
 
-		log_group(g, "reply type %d from %d is %d of %d state %d",
+		log_group(g, "reply %d from %d %d/%d state %d",
 			  type, nodeid, ev->reply_count, expected, ev->state);
 		found = 1;
 		break;
@@ -415,6 +416,31 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
 
+update_t *create_update(group_t *g, int type)
+{
+	update_t *up;
+
+	up = malloc(sizeof(*up));
+
+	ASSERT(up,);
+	ASSERT(!in_update(g),);
+	ASSERT(!g->update,);
+	ASSERT(test_bit(GFL_MEMBER, &g->flags),);
+	ASSERT(!test_bit(GFL_JOINING, &g->flags),);
+
+	memset(up, 0, sizeof(*up));
+
+	set_bit(GFL_UPDATE, &g->flags);
+
+	if (type == SMSG_JSTOP_REQ)
+		up->state = UST_JSTOP;
+	else
+		up->state = UST_LSTOP;
+
+	set_event_id(&up->id);
+	return up;
+}
+
 /*
  * Another node wants us to stop a service so it can join or leave the SG.  We
  * do this by saving the request info in a uevent and having the sm thread do
@@ -438,23 +464,10 @@ static void process_stop_request(msg_t *msg, int nodeid, uint32_t *msgbuf)
 		return;
 	}
 
-	/*
-	 * We shouldn't get here with uevent already set.
-	 */
-
-	if (in_update(g)) {
-		log_error(g, "process_stop_request: update already set");
-		return;
-	}
-
-	up = malloc(sizeof(*up));
-	memset(up, 0, sizeof(*up));
+	up = create_update(g, type);
+	g->update = up;
 	up->nodeid = nodeid;
 	up->remote_seid = msg->ms_event_id;
-	up->state = (type == SMSG_JSTOP_REQ) ? UST_JSTOP : UST_LSTOP;
-
-	g->update = up;
-	set_bit(GFL_UPDATE, &g->flags);
 
 	if (type == SMSG_JSTOP_REQ) {
 		up->num_nodes = ntohl(*msgbuf);
@@ -612,8 +625,8 @@ void process_message(char *buf, int len, int nodeid)
 
 	msg_copy_in(msg);
 
-	log_in("message from %d type %d to_nodeid %d", nodeid, msg->ms_type,
-		msg->ms_to_nodeid);
+	log_in("message from %d type %d %s", nodeid, msg->ms_type,
+	       msg_str(msg->ms_type));
 
 	if (msg->ms_to_nodeid && msg->ms_to_nodeid != gd_nodeid) {
 		printf("ignore message to %d gd_nodeid %d\n",
@@ -659,6 +672,10 @@ void process_message(char *buf, int len, int nodeid)
 		process_recover_msg(msg, nodeid);
 		break;
 
+	case SMSG_BARRIER:
+		process_barrier_msg(msg, nodeid);
+		break;
+
 	default:
 		log_print("process_message: unknown type %u nodeid %u",
 			  msg->ms_type, nodeid);
@@ -687,5 +704,39 @@ char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev)
 
 	*msglen = fulllen;
 	return (char *) msg;
+}
+
+char *msg_str(int type)
+{
+	switch (type) {
+	case SMSG_JOIN_REQ:
+		return "join request";
+	case SMSG_JOIN_REP:
+		return "join reply";
+	case SMSG_JSTOP_REQ:
+		return "stop request J";
+	case SMSG_JSTOP_REP:
+		return "stop reply J";
+	case SMSG_JSTART_CMD:
+		return "start J";
+	case SMSG_LEAVE_REQ:
+		return "leave request";
+	case SMSG_LEAVE_REP:
+		return "leave reply";
+	case SMSG_LSTOP_REQ:
+		return "stop request L";
+	case SMSG_LSTOP_REP:
+		return "stop reply L";
+	case SMSG_LSTART_CMD:
+		return "start L";
+	case SMSG_LSTART_DONE:
+		return "lstart_done";
+	case SMSG_RECOVER:
+		return "recover";
+	case SMSG_BARRIER:
+		return "barrier";
+	default:
+		return "UNKNOWN";
+	}
 }
 

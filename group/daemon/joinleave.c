@@ -23,7 +23,7 @@ struct list_head	gd_groups;
 struct list_head	gd_levels[MAX_LEVELS];
 
 static struct list_head joinleave_events;
-static uint32_t		event_id = 1;
+uint32_t		event_id = 1;
 
 void set_event_id(uint32_t *id)
 {
@@ -429,16 +429,12 @@ static int startdone_barrier_new(event_t *ev)
 		 g->global_id, gd_nodeid, ev->id, g->memb_count);
 
 	error = do_barrier(g, bname, g->memb_count, GD_BARRIER_STARTDONE_NEW);
-	if (!error)
-		goto done;
-
 	if (error < 0) {
 		log_error(g, "startdone_barrier_new error %d", error);
 		clear_bit(EFL_ALLOW_BARRIER, &ev->flags);
 		group_stop(g);
 		free_group_memb(g);
-	} else if (error > 0)
-		error = 0;
+	}
 
 	return error;
 
@@ -495,6 +491,7 @@ static void event_done(event_t *ev)
 	list_del(&ev->list);
 	release_event(ev);
 	free(ev);
+	g->event = NULL;
 }
 
 /*
@@ -526,8 +523,6 @@ static int process_join_event(event_t *ev)
 		error = 1;
 		goto cancel;
 	}
-
-	log_group(ev->group, "event state %u", ev->state);
 
 	switch (ev->state) {
 
@@ -591,22 +586,30 @@ static int process_join_event(event_t *ev)
 
 		do_finish_new(ev);
 		event_done(ev);
+		ev = NULL;
 		break;
 
 	default:
+		/*
 		log_error(ev->group, "no join processing for state %u",
 			  ev->state);
+		*/
+		ev = NULL;
 		rv = 0;
 	}
 
+	if (ev)
+		log_group(ev->group, "join state %u", ev->state);
+
  cancel:
 	if (error) {
-		/* restart the sevent from the beginning */
+		/* restart the event from the beginning */
 		log_group(ev->group, "process_join error %d %lx", error,
 			  ev->flags);
 		ev->state = EST_JOIN_BEGIN;
 		ev->group->global_id = 0;
 		schedule_event_restart(ev);
+		rv = 0;
 	}
 
 	return rv;
@@ -823,8 +826,6 @@ static int process_leave_event(event_t *ev)
 		goto cancel;
 	}
 
-	log_group(ev->group, "event state %u", ev->state);
-
 	switch (ev->state) {
 
 		/*
@@ -875,21 +876,29 @@ static int process_leave_event(event_t *ev)
 		group_terminate(g);
 		event_done(ev);
 		remove_group(g);
+		ev = NULL;
 		break;
 
 	default:
+		/*
 		log_error(ev->group, "no leave processing for state %u",
 			  ev->state);
+		*/
+		ev = NULL;
 		rv = 0;
 	}
 
+	if (ev)
+		log_group(ev->group, "leave state %u", ev->state);
+
  cancel:
 	if (error) {
+		/* restart the event from the beginning */
 		log_group(ev->group, "process_leave error %d %lx", error,
 			  ev->flags);
-		/* restart the event from the beginning */
 		ev->state = EST_LEAVE_BEGIN;
 		schedule_event_restart(ev);
+		rv = 0;
 	}
 
 	return rv;
@@ -1265,8 +1274,10 @@ int needs_work(event_t *ev)
 {
 	if (test_bit(EFL_DELAY, &ev->flags)) {
 		if (time() >= ev->restart_time) {
+			/*
 			log_group(ev->group, "restart delayed event from %d",
 				  ev->state);
+			*/
 			clear_bit(EFL_DELAY, &ev->flags);
 			return 1;
 		}
@@ -1285,7 +1296,7 @@ int needs_work(event_t *ev)
 int process_joinleave(void)
 {
 	event_t *ev, *safe;
-	int rv = 0, barrier_pending = 0, delay_pending = 0;
+	int rv = 0, delay_pending = 0;
 
 	list_for_each_entry_safe(ev, safe, &joinleave_events, list) {
 		if (!needs_work(ev))
@@ -1300,16 +1311,10 @@ int process_joinleave(void)
 			rv += process_leave_event(ev);
 	}
 
-	/* positive values for these pending things results in
-	   a timeout being set for the main poll loop */
-
 	list_for_each_entry(ev, &joinleave_events, list) {
-		if (ev->state == EST_BARRIER_WAIT)
-			barrier_pending++;
 		if (test_bit(EFL_DELAY, &ev->flags))
 			delay_pending++;
 	}
-	gd_event_barriers = barrier_pending;
 	gd_event_delays = delay_pending;
 
 	return rv;
@@ -1357,6 +1362,9 @@ event_t *create_event(group_t *g)
 	event_t *ev;
 
 	ev = malloc(sizeof(event_t));
+
+	ASSERT(ev,);
+
 	memset(ev, 0, sizeof(*ev));
 
 	ev->group = g;
@@ -1444,6 +1452,8 @@ int do_leave(char *name, int level, int nowait, char *info)
 
 	if (info)
 		strncpy(g->leave_info, info, GROUP_INFO_LEN);
+
+	ASSERT(!g->event,);
 
 	g->event = create_event(g);
 	add_joinleave_event(g->event);

@@ -38,8 +38,8 @@
 #include "libgroup.h"
 
 #define GROUPD_PORT		(2)
-#define MAX_BARRIERLEN		(33)
 #define MAX_NAMELEN		(32)	/* should match libgroup.h */
+#define MAX_BARRIERLEN		(32)	/* no more than GROUP_INFO_LEN */
 #define MAX_MSGLEN		(512)
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
@@ -49,14 +49,14 @@
 #define NALLOC			(16)
 #define RETRY_DELAY		(2)
 
-#define log_in(fmt, args...)    fprintf(stderr, "I: " fmt "\n", ##args)
-#define log_out(fmt, args...)   fprintf(stderr, "O: " fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, "D: " fmt "\n", ##args)
-#define log_print(fmt, args...) fprintf(stderr, "E: " fmt "\n", ##args)
+#define log_in(fmt, args...)    fprintf(stderr, fmt "\n", ##args)
+#define log_out(fmt, args...)   fprintf(stderr, fmt "\n", ##args)
+#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+#define log_print(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 #define log_group(g, fmt, args...) \
-	fprintf(stderr, "D: %d:%s " fmt "\n", (g)->level, (g)->name, ##args)
+	fprintf(stderr, "%d:%s " fmt "\n", (g)->level, (g)->name, ##args)
 #define log_error(g, fmt, args...) \
-	fprintf(stderr, "E: %d:%s " fmt "\n", (g)->level, (g)->name, ##args)
+	fprintf(stderr, "%d:%s " fmt "\n", (g)->level, (g)->name, ##args)
 
 #define ASSERT(x, do) \
 { \
@@ -88,9 +88,6 @@ extern int			gd_quorate;
 extern int			gd_nodeid;
 extern int			gd_generation;
 extern int			gd_event_delays;
-extern int			gd_event_barriers;
-extern int			gd_update_barriers;
-extern int			gd_recover_barriers;
 
 struct group;
 struct event;
@@ -219,7 +216,6 @@ struct group {
 	unsigned long 		flags;
 	int 			state;
 	int			client;
-	int 			refcount;	/* references from reg/unreg */
 
 	struct list_head 	memb;		/* Membership List for RC */
 	int 			memb_count;	/* number of nodes in memb */
@@ -234,7 +230,7 @@ struct group {
 	int			recover_stop;
 	struct list_head 	recover_list;	/* recovery event list */
 	void *			recover_data;
-	char			recover_barrier[MAX_BARRIERLEN];
+	char			recover_barrier[MAX_BARRIERLEN+1];
 
 	int 			namelen;
 	char 			name[1];	/* must be last field */
@@ -255,7 +251,8 @@ struct group {
 #define SMSG_LSTOP_REP          (9)
 #define SMSG_LSTART_CMD         (10)
 #define SMSG_LSTART_DONE        (11)
-#define SMSG_RECOVER		(12)
+#define SMSG_RECOVER            (12)
+#define SMSG_BARRIER            (13)
 
 #define STATUS_POS              (1)
 #define STATUS_NEG              (2)
@@ -311,10 +308,6 @@ int send_members_message(group_t *g, char *buf, int len);
 int send_members_message_ev(group_t *g, char *buf, int len, event_t *ev);
 int send_broadcast_message_ev(char *buf, int len, event_t *ev);
 node_t *find_node(int nodeid);
-int do_barrier(group_t *g, char *name, int count, int type);
-int process_barriers(void);
-void cancel_recover_barrier(group_t *g);
-void cancel_update_barrier(group_t *g);
 
 /* message.c */
 char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev);
@@ -356,5 +349,12 @@ int process_recoveries(void);
 /* done.c */
 int do_done(char *name, int level, int event_nr);
 
+/* barrier.c */
+int process_barriers(void);
+void process_barrier_msg(msg_t *msg, int nodeid);
+int do_barrier(group_t *g, char *name, int count, int type);
+void cancel_recover_barrier(group_t *g);
+void cancel_update_barrier(group_t *g);
 
 #endif				/* __GD_INTERNAL_DOT_H__ */
+
