@@ -62,17 +62,6 @@ static int name_equal(char *name1, char *name2)
 	return FALSE;
 }
 
-static cman_node_t *find_cluster_node(int nodeid)
-{
-	int i;
-
-	for (i = 0; i < cluster_count; i++) {
-		if (cluster_nodes[i].cn_nodeid == nodeid)
-			return &cluster_nodes[i];
-	}
-	return NULL;
-}
-
 static cman_node_t *find_cluster_node_name(char *name)
 {
 	int i;
@@ -140,16 +129,7 @@ int update_cluster_members(void)
 	cluster_count = count;
 	memcpy(cluster_nodes, new_nodes, sizeof(cluster_nodes));
 
-	log_debug("node count %d total count %d", count, cluster_count);
-	if (count < 5) {
-		for (i = 0; i < count; i++) {
-			log_debug("nodeid %d member %d name \"%s\"",
-				  cluster_nodes[i].cn_nodeid,
-				  cluster_nodes[i].cn_member,
-				  cluster_nodes[i].cn_name);
-		}
-	}
-
+	log_debug("node count %d", count);
 	return 0;
 }
 

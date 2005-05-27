@@ -79,7 +79,7 @@ do \
 } \
 while (0)
 
-#define FENCE_ASSERT(x, todo) \
+#define ASSERT(x, todo) \
 do \
 { \
   if (!(x)) \
@@ -149,6 +149,7 @@ struct fd {
 	int 			last_finish;
 	int			first_recovery;
 	int 			prev_count;
+	int			leave;
 	struct list_head 	prev;
 	struct list_head 	victims;
 	struct list_head 	leaving;

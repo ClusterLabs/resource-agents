@@ -182,6 +182,7 @@ int do_join(char *name)
 
 	fd = find_domain(name);
 	if (fd) {
+		log_debug("join error: domain exists");
 		rv = -EEXIST;
 		goto out;
 	}
@@ -218,8 +219,15 @@ int do_leave(char *name)
 	if (!fd)
 		return -EINVAL;
 
-	rv = group_leave(gh, name, NULL);
+	if (fd->leave) {
+		log_debug("leave error: already leaving");
+		rv = -EBUSY;
+		goto out;
+	}
+	fd->leave = 1;
 
+	rv = group_leave(gh, name, NULL);
+ out:
 	return rv;
 }
 
@@ -252,7 +260,7 @@ static int client_add(int fd, int *maxi)
 			pollfd[i].events = POLLIN;
 			if (i > *maxi)
 				*maxi = i;
-			log_debug("client %d fd %d added", i, fd);
+			/* log_debug("client %d fd %d added", i, fd); */
 			return i;
 		}
 	}
@@ -262,7 +270,7 @@ static int client_add(int fd, int *maxi)
 
 static void client_dead(int ci)
 {
-	log_debug("client %d fd %d dead", ci, client[ci].fd);
+	/* log_debug("client %d fd %d dead", ci, client[ci].fd); */
 	close(client[ci].fd);
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;

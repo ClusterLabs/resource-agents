@@ -121,23 +121,20 @@ int process_groupd(void)
 		fd->last_stop = fd->last_start;
 		break;
 	case DO_START:
-		log_debug("start %s members %s", cb_name, str_members());
+		log_debug("start %s %d members %s", cb_name, cb_event_nr,
+			  str_members());
 		fd->last_start = cb_event_nr;
 		do_recovery(fd, cb_type, cb_member_count, cb_members);
 		group_done(gh, cb_name, cb_event_nr);
 		break;
 	case DO_FINISH:
-		log_debug("finish %s", cb_name);
+		log_debug("finish %s %d", cb_name, cb_event_nr);
 		fd->last_finish = cb_event_nr;
 		do_recovery_done(fd);
 		break;
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
-
-		/*
-		FIXME: if leaving
-		*/
-
+		ASSERT(fd->leave,);
 		list_del(&fd->list);
 		free(fd);
 		break;
