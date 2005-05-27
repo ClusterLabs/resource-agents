@@ -111,7 +111,7 @@ void exit_member(void)
 
 int update_cluster_members(void)
 {
-	int rv, count, i;
+	int rv, count;
 
 	count = 0;
 	memset(new_nodes, 0, sizeof(new_nodes));

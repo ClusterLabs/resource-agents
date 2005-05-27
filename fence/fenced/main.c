@@ -219,14 +219,13 @@ int do_leave(char *name)
 	if (!fd)
 		return -EINVAL;
 
-	if (fd->leave) {
-		log_debug("leave error: already leaving");
-		rv = -EBUSY;
-		goto out;
-	}
 	fd->leave = 1;
 
 	rv = group_leave(gh, name, NULL);
+	if (rv) {
+		log_error("group_leave error %d", rv);
+		fd->leave = 0;
+	}
  out:
 	return rv;
 }
