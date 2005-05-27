@@ -24,8 +24,8 @@ kdbl_tool: ${SOURCE:.c=.o}
 	gcc -o $@ ${SOURCE:.c=.o}
 
 include:
-	ln -s ../../gfs-kernel/src/gfs/gfs_debug_const.h
-	ln -s ../../gfs2-kernel/src/gfs2/gfs2_debug_const.h
+	ln -sf ../../gfs-kernel/src/gfs/gfs_debug_const.h
+	ln -sf ../../gfs2-kernel/src/gfs2/gfs2_debug_const.h
 
 clean:
 	rm -f *.o ${TARGET} gfs_debug_const.h gfs2_debug_const.h
