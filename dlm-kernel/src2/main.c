@@ -18,6 +18,7 @@
 #include "device.h"
 #include "memory.h"
 #include "lowcomms.h"
+#include "lvb_table.h"
 
 #ifdef CONFIG_DLM_DEBUG
 int dlm_register_debugfs(void);
@@ -94,4 +95,5 @@ EXPORT_SYMBOL_GPL(dlm_new_lockspace);
 EXPORT_SYMBOL_GPL(dlm_release_lockspace);
 EXPORT_SYMBOL_GPL(dlm_lock);
 EXPORT_SYMBOL_GPL(dlm_unlock);
+EXPORT_SYMBOL_GPL(dlm_lvb_operations);
 
