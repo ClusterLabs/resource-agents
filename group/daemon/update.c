@@ -632,15 +632,13 @@ void cancel_updates(int *effected)
 		 * begins.
 		 */
 
-		for (i = 0; i < MAX_LEVELS; i++) {
-			list_for_each_entry(g, &gd_levels[i], list) {
-				gnode = find_joiner(g, node->id);
-				if (gnode) {
-					log_group(g, "clear joining node %u",
-						  gnode->id);
-					list_del(&gnode->list);
-					free(gnode);
-				}
+		list_for_each_entry(g, &gd_groups, list) {
+			gnode = find_joiner(g, node->id);
+			if (gnode) {
+				log_group(g, "clear joining node %u",
+					  gnode->id);
+				list_del(&gnode->list);
+				free(gnode);
 			}
 		}
 	}
@@ -648,7 +646,7 @@ void cancel_updates(int *effected)
 	 /* Adjust any updates in sg's effected by the failed node(s) */
 
 	for (i = 0; i < MAX_LEVELS; i++) {
-		list_for_each_entry(g, &gd_levels[i], list) {
+		list_for_each_entry(g, &gd_levels[i], level_list) {
 			if (!test_bit(GFL_UPDATE, &g->flags))
 				continue;
 
