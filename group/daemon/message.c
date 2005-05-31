@@ -280,8 +280,9 @@ static void process_reply(msg_t *msg, int nodeid)
 			ev->state = next_event_state(type, ev->state);
 		}
 
-		log_group(g, "reply %d from %d %d/%d state %d",
-			  type, nodeid, ev->reply_count, expected, ev->state);
+		log_group(g, "reply %d from %d %d/%d state %d status %d",
+			  type, nodeid, ev->reply_count, expected, ev->state,
+			  msg->ms_status);
 		found = 1;
 		break;
 	}
@@ -325,6 +326,7 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
       next:
 
 	if (!g) {
+		log_print("not found level %d name \"%s\"", level, name);
 		reply.ms_type = SMSG_JOIN_REP;
 		reply.ms_status = STATUS_NEG;
 		reply.ms_last_id = global_last_id;
@@ -355,6 +357,8 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
 		 */
 
 		if (in_update(g)) {
+			log_group(g, "join request %d during update %d st %d",
+				  nodeid, g->update->nodeid, g->update->state);
 			if (g->update->nodeid != nodeid)
 				reply.ms_status = STATUS_WAIT;
 			goto send;
@@ -404,7 +408,7 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
 			goto send;
 		}
 
-		/* no r,u,s event, stick with STATUS_POS */
+		/* no event, update or recovery, stick with STATUS_POS */
 	}
 
  send:
@@ -622,11 +626,12 @@ static void process_lstart_done(msg_t *msg, int nodeid)
 void process_message(char *buf, int len, int nodeid)
 {
 	msg_t *msg = (msg_t *) buf;
+	char name[MAX_NAMELEN+1];
 
 	msg_copy_in(msg);
 
-	log_in("message from %d type %d %s", nodeid, msg->ms_type,
-	       msg_str(msg->ms_type));
+	log_debug("message from %d type %d %s", nodeid, msg->ms_type,
+	          msg_str(msg->ms_type));
 
 	if (msg->ms_to_nodeid && msg->ms_to_nodeid != gd_nodeid) {
 		printf("ignore message to %d gd_nodeid %d\n",
@@ -636,7 +641,9 @@ void process_message(char *buf, int len, int nodeid)
 
 	switch (msg->ms_type) {
 	case SMSG_JOIN_REQ:
-		process_join_request(msg, nodeid, buf + sizeof(msg_t));
+		memset(name, 0, sizeof(name));
+		memcpy(name, buf + sizeof(msg_t), len - sizeof(msg_t));
+		process_join_request(msg, nodeid, name);
 		break;
 
 	case SMSG_JSTOP_REQ:

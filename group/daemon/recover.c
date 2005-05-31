@@ -106,7 +106,7 @@ static void pre_recover_group(group_t *g, recover_t *rev)
 	g->state = GST_RECOVER;
 	g->recover_state = RECOVER_NONE;
 	g->recover_data = rev;
-	list_add(&g->recover_list, &rev->groups[g->level]); 
+	list_add(&g->recover_list, &(rev->groups[g->level])); 
 }
 
 /*
@@ -121,7 +121,7 @@ static int new_recovery(void)
 	group_t *g;
 	recover_t *rev;
 	node_t *node, *gd_node, *safe;
-	int i;
+	int i = 0;
 
 	rev = alloc_recover();
 	list_add_tail(&rev->list, &recoveries);
@@ -136,8 +136,11 @@ static int new_recovery(void)
 			if (g->state == GST_JOIN)
 				continue;
 			pre_recover_group(g, rev);
+			i++;
 		}
 	}
+
+	log_print("%d groups need recovery", i);
 
 	/*
 	 * For an SG needing recovery, remove dead nodes from sg->memb list

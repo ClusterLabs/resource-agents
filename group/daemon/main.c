@@ -18,8 +18,6 @@
 static int client_size;
 static struct client *client;
 static struct pollfd *pollfd;
-static char *prog_name;
-static int debug;
 
 /*
  * gd_nodes
@@ -164,14 +162,16 @@ static int client_add(int fd, int *maxi)
 
 static void client_dead(int ci)
 {
-	close(client[ci].fd);
+	log_print("client %d fd %d dead", ci, client[ci].fd);
+	/* FIXME: can't leak fd's */
+	/* close(client[ci].fd); */
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
 }
 
 static int client_process_setup(int ci, int argc, char **argv)
 {
-	log_in("setup %s %s", argv[1], argv[2]);
+	log_debug("setup %s %s", argv[1], argv[2]);
 
 	strcpy(client[ci].type, argv[1]);
 	client[ci].level = atoi(argv[2]);
@@ -189,8 +189,8 @@ static int client_process_join(int ci, int argc, char **argv)
 		info = argv[2];
 
 	/*
-	log_in("local %s join %s info %s", client[ci].type, argv[1],
-		info ? info : "");
+	log_debug("local %s join %s info %s", client[ci].type, argv[1],
+		  info ? info : "");
 	*/
 
 	rv = do_join(argv[1], client[ci].level, ci, info);
@@ -208,8 +208,8 @@ static int client_process_leave(int ci, int argc, char **argv)
 		info = argv[2];
 
 	/*
-	log_in("local %s leave %s info %s", client[ci].type, argv[1],
-		info ? info : "");
+	log_debug("local %s leave %s info %s", client[ci].type, argv[1],
+		  info ? info : "");
 	*/
 
 	rv = do_leave(argv[1], client[ci].level, 0, info);
@@ -222,7 +222,7 @@ static int client_process_done(int ci, int argc, char **argv)
 	char buf[MAXLINE];
 
 	/*
-	log_in("local %s done %s %s", client[ci].type, argv[1], argv[2]);
+	log_debug("local %s done %s %s", client[ci].type, argv[1], argv[2]);
 	*/
 
 	do_done(argv[1], client[ci].level, atoi(argv[2]));
@@ -351,6 +351,24 @@ static int client_process_get_group(int ci, int argc, char **argv)
 	return 0;
 }
 
+static int client_process_dump(int ci, int argc, char **argv)
+{
+	int rv, len = DUMP_SIZE;
+
+	if (dump_wrap) {
+		len = DUMP_SIZE - dump_point;
+		rv = write(client[ci].fd, dump_buf + dump_point, len);
+		if (rv != len)
+			log_print("write error %d errno %d", rv, errno);
+		len = dump_point;
+	}
+
+	rv = write(client[ci].fd, dump_buf, len);
+	if (rv != len)
+		log_print("write error %d errno %d", rv, errno);
+	return 0;
+}
+
 static int client_process(int ci)
 {
 	char buf[MAXLINE], *argv[MAXARGS], *cmd;
@@ -368,8 +386,6 @@ static int client_process(int ci)
 			  client[ci].fd, rv, errno);
 		return 0;
 	}
-
-	/* printf("client %d rv %d: %s\n", ci, rv, buf); */
 
 	make_args(buf, &argc, argv, ' ');
 	cmd = argv[0];
@@ -390,6 +406,8 @@ static int client_process(int ci)
 		client_process_get_groups(ci, argc, argv);
 	else if (!strcmp(cmd, "get_group"))
 		client_process_get_group(ci, argc, argv);
+	else if (!strcmp(cmd, "dump"))
+		client_process_dump(ci, argc, argv);
 	else
 		log_print("unknown cmd %s client %d", cmd, ci);
 
@@ -498,7 +516,6 @@ static int loop(void)
 			rv += process_member_message();
 		} while (rv);
 
-
 		if (gd_event_delays)
 			timeout = 2000;
 		else
@@ -593,7 +610,7 @@ static void decode_arguments(int argc, char **argv)
 		switch (optchar) {
 
 		case 'D':
-			debug = 1;
+			groupd_debug_opt = 1;
 			break;
 
 		case 'h':
@@ -642,7 +659,7 @@ int main(int argc, char *argv[])
 
 	decode_arguments(argc, argv);
 
-	if (!debug)
+	if (!groupd_debug_opt)
 		daemonize();
 
 	pollfd = malloc(MAXCON * sizeof(struct pollfd));
@@ -656,4 +673,27 @@ int main(int argc, char *argv[])
 
 	return loop();
 }
+
+void groupd_dump_save(void)
+{
+	int len, i;
+
+	len = strlen(groupd_debug_buf);
+
+	for (i = 0; i < len; i++) {
+		dump_buf[dump_point++] = groupd_debug_buf[i];
+
+		if (dump_point == DUMP_SIZE) {
+			dump_point = 0;
+			dump_wrap = 1;
+		}
+	}
+}
+
+char *prog_name;
+int groupd_debug_opt;
+char groupd_debug_buf[256];
+char dump_buf[DUMP_SIZE];
+int dump_point;
+int dump_wrap;
 

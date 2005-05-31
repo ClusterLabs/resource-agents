@@ -221,7 +221,7 @@ static void process_member(void)
 
 static void member_callback(cman_handle_t h, void *private, int reason, int arg)
 {
-	log_in("member callback reason %d", reason);
+	log_debug("member callback reason %d", reason);
 
 	member_cb = 1;
 	member_reason = reason;
@@ -231,7 +231,7 @@ static void message_callback(cman_handle_t h, void *private, char *buf,
 			     int len, uint8_t port, int nodeid)
 {
 	/*
-	log_in("message callback nodeid %d len %d", nodeid, len);
+	log_debug("message callback nodeid %d len %d", nodeid, len);
 	*/
 
 	message_cb = 1;
@@ -307,7 +307,7 @@ int setup_member_message(void)
 	}
 
 	gd_nodeid = node.cn_nodeid;
-	log_in("member our nodeid %d", gd_nodeid);
+	log_debug("member our nodeid %d", gd_nodeid);
 
 	/* this will just initialize gd_nodes, etc */
 	member_reason = CMAN_REASON_STATECHANGE;

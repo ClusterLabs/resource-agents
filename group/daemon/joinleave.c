@@ -241,8 +241,11 @@ static int check_join_notice(event_t *ev)
 	} else if (!pos && !wait && !restart && neg) {
 		/* we're the first in the cluster to join this sg */
 		ev->group->global_id = new_global_id(ev->group->level);
-	} else
+	} else {
+		log_group(ev->group, "join attempt failed P%d N%d W%d R%d",
+			  pos, neg, wait, restart);
 		error = -1;
+	}
 
 	return error;
 }
@@ -689,6 +692,8 @@ static int check_leave_notice(event_t *ev)
 	if (pos && !wait && !restart)
 		return 0;
 
+	log_group(ev->group, "leave attempt failed P%d N%d W%d R%d",
+		  pos, neg, wait, restart);
 	return -1;
 }
 

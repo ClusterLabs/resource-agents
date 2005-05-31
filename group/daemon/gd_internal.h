@@ -48,15 +48,38 @@
 #define MAXCON			(16)
 #define NALLOC			(16)
 #define RETRY_DELAY		(2)
+#define DUMP_SIZE		(1024 * 1024)
 
-#define log_in(fmt, args...)    fprintf(stderr, fmt "\n", ##args)
-#define log_out(fmt, args...)   fprintf(stderr, fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
-#define log_print(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+extern char *prog_name;
+extern int groupd_debug_opt;
+extern char groupd_debug_buf[256];
+extern char dump_buf[DUMP_SIZE];
+extern int dump_point;
+extern int dump_wrap;
+
+extern void groupd_dump_save(void);
+
+#define log_debug(fmt, args...) \
+do { \
+	snprintf(groupd_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (groupd_debug_opt) fprintf(stderr, "%s", groupd_debug_buf); \
+	groupd_dump_save(); \
+} while (0)
+
 #define log_group(g, fmt, args...) \
-	fprintf(stderr, "%d:%s " fmt "\n", (g)->level, (g)->name, ##args)
-#define log_error(g, fmt, args...) \
-	fprintf(stderr, "%d:%s " fmt "\n", (g)->level, (g)->name, ##args)
+do { \
+	snprintf(groupd_debug_buf, 255, "%ld %d:%s " fmt "\n", time(NULL), \
+		 (g)->level, (g)->name, ##args); \
+	if (groupd_debug_opt) fprintf(stderr, "%s", groupd_debug_buf); \
+	groupd_dump_save(); \
+} while (0)
+
+
+/* FIXME: these should do log_debug/log_group plus syslog */
+
+#define log_print log_debug
+#define log_error log_group
+
 
 #define ASSERT(x, do) \
 { \
