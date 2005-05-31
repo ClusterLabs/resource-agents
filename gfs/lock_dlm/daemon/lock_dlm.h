@@ -31,6 +31,7 @@
 
 #include "list.h"
 #include "libgroup.h"
+#include "libdlm.h"
 
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
@@ -67,12 +68,12 @@ struct mountgroup {
 	int			last_start;
 	int			last_finish;
 	int			start_event_nr;
-	int			finish_event_nr;
 	int			start_type;
 	int			our_jid;
 	int			first_start;
 	int			low_finished_nodeid;
 	int			spectator;
+	int			withdraw;
 };
 
 struct mg_member {
@@ -84,6 +85,8 @@ struct mg_member {
 	int			gone_event;
 	int			mount_finished;
 	int			spectator;
+	int			withdraw;
+	struct dlm_lksb		wd_lksb;
 };
 
 #endif

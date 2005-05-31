@@ -89,6 +89,7 @@ struct dlm {
 	struct list_head	blocking;
 	struct list_head	delayed;
 	struct list_head	submit;
+	struct list_head	all_locks;
 
 	wait_queue_head_t	wait;
 	wait_queue_head_t	wait_control;
@@ -174,6 +175,7 @@ struct dlm_lock {
 	struct list_head	blist;		/* blocking */
 	struct list_head	dlist;		/* delayed */
 	struct list_head	slist;		/* submit */
+	struct list_head	all_list;	/* all locks for the fs */
 
 	struct dlm_lock *	hold_null;	/* NL lock for hold_lvb */
 	struct posix_lock *	posix;

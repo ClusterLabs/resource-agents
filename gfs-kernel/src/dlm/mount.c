@@ -42,6 +42,7 @@ static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags,
 	INIT_LIST_HEAD(&dlm->blocking);
 	INIT_LIST_HEAD(&dlm->delayed);
 	INIT_LIST_HEAD(&dlm->submit);
+	INIT_LIST_HEAD(&dlm->all_locks);
 	INIT_LIST_HEAD(&dlm->resources);
 	INIT_LIST_HEAD(&dlm->null_cache);
 
@@ -77,16 +78,6 @@ static dlm_t *init_lock_dlm(lm_callback_t cb, lm_fsdata_t *fsdata, int flags,
 
 	return dlm;
 }
-
-/**
- * dlm_mount - mount a dlm lockspace
- * @table_name: the name of the space to mount
- * @host_data: host specific data
- * @cb: the callback
- * @lockstruct: the structure of crap to fill in
- *
- * Returns: 0 on success, -EXXX on failure
- */
 
 static int lm_dlm_mount(char *table_name, char *host_data,
 			lm_callback_t cb, lm_fsdata_t *fsdata,
@@ -154,11 +145,33 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	return error;
 }
 
+static int release_all_locks(dlm_t *dlm)
+{
+	dlm_lock_t *lp, *safe;
+	int count = 0;
+
+	spin_lock(&dlm->async_lock);
+	list_for_each_entry_safe(lp, safe, &dlm->all_locks, all_list) {
+		list_del(&lp->all_list);
+		if (lp->lvb)
+			kfree(lp->lvb);
+		kfree(lp);
+		count++;
+	}
+	spin_unlock(&dlm->async_lock);
+
+	return count;
+}
+
 static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
+	int rv;
 
 	log_debug("unmount flags %lx", dlm->flags);
+
+	if (test_bit(DFL_WITHDRAW, &dlm->flags))
+		goto out;
 
 	kobject_uevent(&dlm->kobj, KOBJ_UMOUNT, NULL);
 
@@ -168,7 +181,10 @@ static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 	lm_dlm_kobject_release(dlm);
 	dlm_release_lockspace(dlm->gdlm_lsp, 2);
 	release_async_thread(dlm);
-	/* clear_null_cache(dlm); */
+	rv = release_all_locks(dlm);
+	if (rv)
+		log_all("lm_dlm_unmount: %d stray locks freed", rv);
+ out:
 	kfree(dlm);
 }
 
@@ -189,8 +205,23 @@ static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
 static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
-	set_bit(DFL_WITHDRAW, &dlm->flags);
+
+	/* userspace suspends locking on all other members */
+
 	kobject_uevent(&dlm->kobj, KOBJ_OFFLINE, NULL);
+
+	wait_event_interruptible(dlm->wait_control,
+				 test_bit(DFL_WITHDRAW, &dlm->flags));
+
+	lm_dlm_kobject_release(dlm);
+	dlm_release_lockspace(dlm->gdlm_lsp, 2);
+	release_async_thread(dlm);
+	release_all_locks(dlm);
+
+	kobject_uevent(&dlm->kobj, KOBJ_UMOUNT, NULL);
+
+	/* userspace leaves the mount group, we don't need to wait for
+	   that to complete */
 }
 
 int lm_dlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,

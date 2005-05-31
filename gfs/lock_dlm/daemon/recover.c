@@ -22,6 +22,10 @@ struct list_head mounts;
 
 int send_journals_message(int nodeid, char *buf, int len);
 struct mountgroup *find_mg(char *name);
+int hold_withdraw_locks(struct mountgroup *mg);
+void release_withdraw_lock(struct mountgroup *mg, struct mg_member *memb);
+void release_withdraw_locks(struct mountgroup *mg);
+
 
 int set_sysfs(struct mountgroup *mg, char *field, int val)
 {
@@ -59,7 +63,7 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
-		log_error("open error %s %d %d\n", fname, fd, errno);
+		log_error("open error %s %d %d", fname, fd, errno);
 		return -1;
 	}
 
@@ -343,26 +347,6 @@ void clear_members_gone(struct mountgroup *mg)
 	clear_memb_list(&mg->members_gone);
 }
 
-void clear_members_finish(struct mountgroup *mg, int finish_event)
-{
-	struct mg_member *memb, *safe;
-
-	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
-		if (memb->gone_event <= finish_event) {
-			list_del(&memb->list);
-			free(memb);
-		}
-	}
-}
-
-void mount_finished(struct mountgroup *mg)
-{
-	struct mg_member *memb;
-
-	list_for_each_entry(memb, &mg->members, list)
-		memb->mount_finished = 1;
-}
-
 void recover_members(struct mountgroup *mg, int num_nodes,
  		     int *nodeids, int *pos_out, int *neg_out)
 {
@@ -385,13 +369,14 @@ void recover_members(struct mountgroup *mg, int num_nodes,
 			remove_member(mg, memb);
 
 			/* - spectators don't do journal callbacks
-			   - journal cb only for failed (not leaving) nodes
+			   - journal cb for failed or withdrawing nodes
 			   - journal cb only if failed node finished joining
 			   - no journal cb if failed node was spectator
 			   - no journal cb if we've already done a journl cb */
 
 			if (!mg->spectator &&
-			    mg->start_type == GROUP_NODE_FAILED &&
+			    (mg->start_type == GROUP_NODE_FAILED ||
+			     memb->withdraw) &&
 			    memb->mount_finished &&
 			    !memb->spectator &&
 			    !memb->wait_recover_done)
@@ -521,6 +506,8 @@ int do_mount(char *name)
  fail:
 	/* terminate the mount */
 	set_sysfs(mg, "mounted", -1);
+
+	log_error("do_mount: %d", rv);
 	return rv;
 }
 
@@ -574,6 +561,8 @@ int do_unmount(char *name)
 		return -1;
 	}
 
+	release_withdraw_locks(mg);
+
 	group_leave(gh, name, NULL);
 
 	return 0;
@@ -586,19 +575,43 @@ int do_stop(struct mountgroup *mg)
 
 int do_finish(struct mountgroup *mg)
 {
-	int rv;
+	struct mg_member *memb, *safe;
+	int leave_blocked = 0;
 
-	mg->finish_event_nr = mg->last_finish;
+	list_for_each_entry_safe(memb, safe, &mg->members_gone, list) {
+		if (memb->gone_event <= mg->last_finish) {
+			list_del(&memb->list);
+			if (!memb->withdraw)
+				release_withdraw_lock(mg, memb);
+			free(memb);
+		} else {
+			/* not sure if/when this would happen... */
+			log_group(mg, "finish member not cleared %d %d %d",
+				  memb->nodeid, memb->gone_event,
+				  mg->last_finish);
+		}
+	}
 
-	mount_finished(mg);
-	clear_members_finish(mg, mg->finish_event_nr);
+	list_for_each_entry(memb, &mg->members, list) {
+		memb->mount_finished = 1;
 
-	set_sysfs(mg, "block", 0);
+		/* If there are still withdrawing nodes that haven't left
+		   the group, we need to keep lock requests blocked */
+
+		if (memb->withdraw) {
+			log_group(mg, "finish: leave locks blocked for %d",
+				  memb->nodeid);
+			leave_blocked = 1;
+		}
+	}
+
+	if (!leave_blocked)
+		set_sysfs(mg, "block", 0);
 
 	/* only needed if joining */
-	rv = set_sysfs(mg, "mounted", 1);
+	set_sysfs(mg, "mounted", 1);
 
-	return rv;
+	return 0;
 }
 
 /* first mounter is the first non-spectator to join the group */
@@ -636,6 +649,7 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		mg->first_start = 1;
 		mg->last_stop = 0;
 		mg->our_jid = -1;
+		release_withdraw_locks(mg);
 		clear_members(mg);
 	}
 
@@ -643,6 +657,8 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 	mg->start_type = type;
 
 	recover_members(mg, member_count, nodeids, &pos, &neg);
+
+	hold_withdraw_locks(mg);
 
 	if (mg->spectator) {
 		/* If we're the first mounter, we set ls_first so gfs

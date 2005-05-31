@@ -21,6 +21,7 @@ static int debug;
 static int groupd_fd;
 static int uevent_fd;
 static int member_fd;
+static int libdlm_fd;
 
 extern struct list_head mounts;
 
@@ -28,9 +29,13 @@ int setup_member(void);
 int process_member(void);
 int setup_groupd(void);
 int process_groupd(void);
+int setup_libdlm(void);
+int process_libdlm(void);
+
 int do_mount(char *name);
 int do_unmount(char *name);
 int do_recovery_done(char *name);
+int do_withdraw(char *name);
 
 
 void make_args(char *buf, int *argc, char **argv, char sep)
@@ -51,13 +56,10 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 	*argc = i;
 }
 
-/* recv "online" (mount), "offline" (unmount) and "change" (recovery_done)
-   messages from lock_dlm via uevents */
-
 int process_uevent(void)
 {
 	char buf[MAXLINE];
-	char *argv[MAXARGS], *act;
+	char *argv[MAXARGS], *act, *sys;
 	int rv, argc = 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -73,6 +75,10 @@ int process_uevent(void)
 
 	make_args(buf, &argc, argv, '/');
 	act = argv[0];
+	sys = argv[2];
+
+	if ((strlen(sys) != strlen("lock_dlm")) || strcmp(sys, "lock_dlm"))
+		return 0;
 
 	log_debug("kernel: %s %s", act, argv[3]);
 
@@ -84,10 +90,9 @@ int process_uevent(void)
 
 	else if (!strcmp(act, "change@"))
 		do_recovery_done(argv[3]);
-#if 0
+
 	else if (!strcmp(act, "offline@"))
 		do_withdraw(argv[3]);
-#endif
 
 	return 0;
 }
@@ -146,12 +151,18 @@ int loop(void)
 	pollfd[2].fd = uevent_fd;
 	pollfd[2].events = POLLIN;
 
-	maxi = 2;
+	rv = libdlm_fd = setup_libdlm();
+	if (rv < 0)
+		goto out;
+	pollfd[3].fd = libdlm_fd;
+	pollfd[3].events = POLLIN;
+
+	maxi = 3;
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
 		if (rv < 0)
-			log_error("poll");
+			log_error("poll error %d errno %d", rv, errno);
 
 		for (i = 0; i <= maxi; i++) {
 			if (pollfd[i].revents & POLLIN) {
@@ -161,6 +172,8 @@ int loop(void)
 					process_uevent();
 				else if (pollfd[i].fd == member_fd)
 					process_member();
+				else if (pollfd[i].fd == libdlm_fd)
+					process_libdlm();
 			}
 
 			if (pollfd[i].revents & POLLHUP) {

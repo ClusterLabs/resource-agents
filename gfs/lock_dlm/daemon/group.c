@@ -135,6 +135,8 @@ int process_groupd(void)
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
 		do_terminate(mg);
+		list_del(&mg->list);
+		free(mg);
 		break;
 	case DO_SETID:
 		break;
@@ -160,6 +162,8 @@ int setup_groupd(void)
 	rv = group_get_fd(gh);
 	if (rv < 0)
 		log_error("group_get_fd error %d %d", rv, errno);
+
+	log_debug("groupd %d", rv);
 
 	return rv;
 }

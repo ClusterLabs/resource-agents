@@ -262,6 +262,10 @@ int create_lp(dlm_t *dlm, struct lm_lockname *name, dlm_lock_t **lpp)
 	lp->hold_null = NULL;
 	init_completion(&lp->uast_wait);
 
+	spin_lock(&dlm->async_lock);
+	list_add(&lp->all_list, &dlm->all_locks);
+	spin_unlock(&dlm->async_lock);
+
 	*lpp = lp;
 	return 0;
 }
@@ -293,6 +297,8 @@ void delete_lp(dlm_lock_t *lp)
 		       lp->lockname.ln_type, lp->lockname.ln_number);
 		list_del(&lp->slist);
 	}
+
+	list_del(&lp->all_list);
 	spin_unlock(&dlm->async_lock);
 
 	kfree(lp);

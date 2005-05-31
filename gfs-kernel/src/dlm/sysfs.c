@@ -54,7 +54,6 @@ static ssize_t lm_dlm_mounted_show(dlm_t *dlm, char *buf)
 		val = 0;
 	else if (test_bit(DFL_JOIN_DONE, &dlm->flags))
 		val = 1;
-
 	ret = sprintf(buf, "%d\n", val);
 	return ret;
 }
@@ -76,9 +75,33 @@ static ssize_t lm_dlm_mounted_store(dlm_t *dlm, const char *buf, size_t len)
 		set_bit(DFL_LEAVE_DONE, &dlm->flags);
 	} else
 		ret = -EINVAL;
-
 	wake_up(&dlm->wait_control);
+	return ret;
+}
 
+static ssize_t lm_dlm_withdraw_show(dlm_t *dlm, char *buf)
+{
+	ssize_t ret;
+	int val = 0;
+
+	if (test_bit(DFL_WITHDRAW, &dlm->flags))
+		val = 1;
+	ret = sprintf(buf, "%d\n", val);
+	return ret;
+}
+
+static ssize_t lm_dlm_withdraw_store(dlm_t *dlm, const char *buf, size_t len)
+{
+	ssize_t ret = len;
+	int val;
+
+	val = simple_strtol(buf, NULL, 0);
+
+	if (val == 1)
+		set_bit(DFL_WITHDRAW, &dlm->flags);
+	else
+		ret = -EINVAL;
+	wake_up(&dlm->wait_control);
 	return ret;
 }
 
@@ -137,9 +160,6 @@ static ssize_t lm_dlm_options_show(dlm_t *dlm, char *buf)
 	if (dlm->fsflags & LM_MFLAG_SPECTATOR)
 		ret += sprintf(buf, "spectator ");
 
-	if (test_bit(DFL_WITHDRAW, &dlm->flags))
-		ret += sprintf(buf+ret, "withdraw ");
-
 	return ret;
 }
 
@@ -159,6 +179,12 @@ static struct lm_dlm_attr lm_dlm_attr_mounted = {
 	.attr  = {.name = "mounted", .mode = S_IRUGO | S_IWUSR},
 	.show  = lm_dlm_mounted_show,
 	.store = lm_dlm_mounted_store 
+};
+
+static struct lm_dlm_attr lm_dlm_attr_withdraw = {
+	.attr  = {.name = "withdraw", .mode = S_IRUGO | S_IWUSR},
+	.show  = lm_dlm_withdraw_show,
+	.store = lm_dlm_withdraw_store 
 };
 
 static struct lm_dlm_attr lm_dlm_attr_jid = {
@@ -197,6 +223,7 @@ static struct lm_dlm_attr lm_dlm_attr_options = {
 static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_block.attr,
 	&lm_dlm_attr_mounted.attr,
+	&lm_dlm_attr_withdraw.attr,
 	&lm_dlm_attr_jid.attr,
 	&lm_dlm_attr_first.attr,
 	&lm_dlm_attr_recover.attr,

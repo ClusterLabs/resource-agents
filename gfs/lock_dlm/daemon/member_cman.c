@@ -104,6 +104,8 @@ int setup_member(void)
 
 	fd = cman_get_fd(ch);
 
+	log_debug("member %d", fd);
+
 	return fd;
 }
 

@@ -15,8 +15,13 @@ UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 
 include ${top_srcdir}/make/defines.mk
 
-CFLAGS+= -g -I${incdir} -I../../../group/lib/ -I${top_srcdir}/config -I../../../cman/lib/ -I../../include/
-
+CFLAGS+= -g \
+	-I${incdir} \
+	-I${top_srcdir}/config \
+	-I../../include/ \
+	-I../../../group/lib/ \
+	-I../../../cman/lib/ \
+	-I../../../dlm/lib
 
 TARGET=lock_dlmd
 
@@ -29,8 +34,10 @@ lock_dlmd: 	main.o \
 		member_cman.o \
 		group.o \
 		recover.o \
+		withdraw.o \
 		../../../cman/lib/libcman.a \
-		../../../group/lib/libgroup.a
+		../../../group/lib/libgroup.a \
+		../../../dlm/lib/libdlm_lt.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c
@@ -40,6 +47,9 @@ member_cman.o: member_cman.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 recover.o: recover.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+withdraw.o: withdraw.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 group.o: group.c
