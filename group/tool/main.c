@@ -10,6 +10,9 @@
 *******************************************************************************
 ******************************************************************************/
 
+#include <sys/types.h>
+#include <sys/un.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,14 +20,17 @@
 #include <stddef.h>
 #include <fcntl.h>
 #include <string.h>
+#include <netinet/in.h>
 
 #include "libgroup.h"
+#include "groupd.h"
 
 #define MAX_GROUPS			64
 #define OPTION_STRING			"hV"
+#define DUMP_SIZE			(1024 * 1024)
 
 #define OP_LS				1
-#define OP_CLIENT			2
+#define OP_DUMP				2
 
 static char *prog_name;
 static int operation;
@@ -83,8 +89,8 @@ static void decode_arguments(int argc, char **argv)
 	}
 
 	while (optind < argc) {
-		if (strcmp(argv[optind], "client") == 0) {
-			operation = OP_CLIENT;
+		if (strcmp(argv[optind], "dump") == 0) {
+			operation = OP_DUMP;
 			opt_ind = optind + 1;
 			break;
 		} else if (strcmp(argv[optind], "ls") == 0 ||
@@ -162,33 +168,48 @@ int do_ls(int argc, char **argv)
 
 }
 
-group_callbacks_t cbs = {
-};
-
-int do_client(int argc, char **argv)
+static int connect_groupd(void)
 {
-	group_handle_t gh;
-	int level;
-	char *cmd, *name;
+	struct sockaddr_un sun;
+	socklen_t addrlen;
+	int i, rv, fd;
 
-	level = atoi(argv[opt_ind++]);
-	cmd = argv[opt_ind++];
-	name = argv[opt_ind];
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		goto out;
 
-	if (opt_ind >= argc) {
-		printf("invalid args %d %d\n", opt_ind, argc);
-		return -1;
+	memset(&sun, 0, sizeof(sun));
+	sun.sun_family = AF_UNIX;
+	strcpy(&sun.sun_path[1], GROUPD_SOCK_PATH);
+	addrlen = sizeof(sa_family_t) + strlen(sun.sun_path+1) + 1;
+
+	rv = connect(fd, (struct sockaddr *) &sun, addrlen);
+	if (rv < 0) {
+		close(fd);
+		fd = rv;
 	}
+ out:
+	return fd;
+}
 
-	gh = group_init(NULL, "group_tool", level, &cbs);
+int do_dump(int argc, char **argv)
+{
+	char buf[DUMP_SIZE];
+	int i, rv, fd = connect_groupd();
 
-	if (!strcmp(cmd, "leave"))
-		group_leave(gh, name, NULL);
-	else if (!strcmp(cmd, "join"))
-		group_join(gh, name, NULL);
-	else
-		printf("unknown cmd %s", cmd);
+	rv = write(fd, "dump", 4);
+	if (rv != 4)
+		return -1;
 
+	memset(buf, 0, sizeof(buf));
+
+	rv = read(fd, buf, sizeof(buf));
+	if (rv <= 0)
+		return rv;
+
+	write(STDOUT_FILENO, buf, rv);
+
+	close(fd);
 	return 0;
 }
 
@@ -200,8 +221,8 @@ int main(int argc, char **argv)
 	switch (operation) {
 	case OP_LS:
 		return do_ls(argc, argv);
-	case OP_CLIENT:
-		return do_client(argc, argv);
+	case OP_DUMP:
+		return do_dump(argc, argv);
 	}
 
 	return 0;
