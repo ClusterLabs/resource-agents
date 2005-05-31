@@ -21,12 +21,15 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>
+#include <syslog.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/poll.h>
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/errno.h>
 #include <linux/netlink.h>
 
 #include "list.h"
@@ -53,10 +56,29 @@
 #define FALSE (0)
 #endif
 
-#define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
-#define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+extern char *prog_name;
+extern int daemon_debug_opt;
+extern char daemon_debug_buf[256];
+
+#define log_debug(fmt, args...) \
+do { \
+	snprintf(daemon_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+} while (0)
+
 #define log_group(g, fmt, args...) \
-	fprintf(stderr, "%s " fmt "\n", (g)->name, ##args)
+do { \
+	snprintf(daemon_debug_buf, 255, "%ld %s " fmt "\n", time(NULL), \
+		 (g)->name, ##args); \
+	if (daemon_debug_opt) fprintf(stderr, "%s", daemon_debug_buf); \
+} while (0)
+
+#define log_error(fmt, args...) \
+do { \
+	log_debug(fmt, ##args); \
+	syslog(LOG_ERR, fmt, ##args); \
+} while (0)
+
 
 struct mountgroup {
 	struct list_head	list;
