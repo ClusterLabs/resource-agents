@@ -145,6 +145,14 @@ static int setup_ipv4_interface(commandline_t *comline, int num, struct sockaddr
 			exit(EXIT_FAILURE);
 		}
 
+		if (strcmp(ifname, "lo") == 0) {
+			fprintf(stderr, "\nYour host name maps to the loopback device rather than a real network interface.\n");
+			fprintf(stderr, "Please change your /etc/hosts file so that your host name has a proper IP\n");
+			fprintf(stderr, "address, as a cluster cannot function over the loopback interface.\n");
+			exit(EXIT_FAILURE);
+		}
+
+
 		if (comline->verbose) {
 			printf("Broadcast address for %x is %x\n", ipaddr, bcast);
 		}
