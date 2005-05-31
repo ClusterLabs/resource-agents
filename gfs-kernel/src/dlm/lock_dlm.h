@@ -90,6 +90,7 @@ struct dlm {
 	struct list_head	delayed;
 	struct list_head	submit;
 	struct list_head	all_locks;
+	uint32_t		all_locks_count;
 
 	wait_queue_head_t	wait;
 	wait_queue_head_t	wait_control;

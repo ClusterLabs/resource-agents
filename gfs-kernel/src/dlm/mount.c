@@ -153,6 +153,7 @@ static int release_all_locks(dlm_t *dlm)
 	spin_lock(&dlm->async_lock);
 	list_for_each_entry_safe(lp, safe, &dlm->all_locks, all_list) {
 		list_del(&lp->all_list);
+
 		if (lp->lvb)
 			kfree(lp->lvb);
 		kfree(lp);
@@ -170,8 +171,10 @@ static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 
 	log_debug("unmount flags %lx", dlm->flags);
 
-	if (test_bit(DFL_WITHDRAW, &dlm->flags))
+	if (test_bit(DFL_WITHDRAW, &dlm->flags)) {
+		lm_dlm_kobject_release(dlm);
 		goto out;
+	}
 
 	kobject_uevent(&dlm->kobj, KOBJ_UMOUNT, NULL);
 
@@ -213,7 +216,6 @@ static void lm_dlm_withdraw(lm_lockspace_t *lockspace)
 	wait_event_interruptible(dlm->wait_control,
 				 test_bit(DFL_WITHDRAW, &dlm->flags));
 
-	lm_dlm_kobject_release(dlm);
 	dlm_release_lockspace(dlm->gdlm_lsp, 2);
 	release_async_thread(dlm);
 	release_all_locks(dlm);
