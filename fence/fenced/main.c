@@ -226,7 +226,7 @@ int do_leave(char *name)
 		log_error("group_leave error %d", rv);
 		fd->leave = 0;
 	}
- out:
+
 	return rv;
 }
 

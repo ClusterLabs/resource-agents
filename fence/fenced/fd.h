@@ -103,7 +103,7 @@ for (;;) \
 #define log_print(fmt, args...) \
 do { \
 	snprintf(fenced_debug_buf, 255, "%ld " fmt "\n", time(NULL), ##args); \
-	fprintf(stderr, "fenced: %s", fenced_debug_buf); \
+	if (fenced_debug_opt) fprintf(stderr, "%s", fenced_debug_buf); \
 } while (0)
 
 /* FIXME: send down debug client connection */
