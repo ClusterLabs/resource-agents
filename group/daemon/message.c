@@ -326,7 +326,6 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
       next:
 
 	if (!g) {
-		log_print("not found level %d name \"%s\"", level, name);
 		reply.ms_type = SMSG_JOIN_REP;
 		reply.ms_status = STATUS_NEG;
 		reply.ms_last_id = global_last_id;
