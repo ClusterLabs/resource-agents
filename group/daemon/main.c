@@ -163,8 +163,7 @@ static int client_add(int fd, int *maxi)
 static void client_dead(int ci)
 {
 	log_print("client %d fd %d dead", ci, client[ci].fd);
-	/* FIXME: can't leak fd's */
-	/* close(client[ci].fd); */
+	close(client[ci].fd);
 	client[ci].fd = -1;
 	pollfd[ci].fd = -1;
 }
