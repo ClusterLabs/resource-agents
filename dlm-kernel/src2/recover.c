@@ -22,8 +22,6 @@
 #include "lowcomms.h"
 #include "member.h"
 
-static struct timer_list dlm_timer;
-
 
 /*
  * Recovery waiting routines: these functions wait for a particular reply from
@@ -50,7 +48,7 @@ int dlm_recovery_stopped(struct dlm_ls *ls)
 static void dlm_wait_timer_fn(unsigned long data)
 {
 	struct dlm_ls *ls = (struct dlm_ls *) data;
-	mod_timer(&dlm_timer, jiffies + (dlm_config.recover_timer * HZ));
+	mod_timer(&ls->ls_timer, jiffies + (dlm_config.recover_timer * HZ));
 	wake_up(&ls->ls_wait_general);
 }
 
@@ -58,14 +56,14 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 {
 	int error = 0;
 
-	init_timer(&dlm_timer);
-	dlm_timer.function = dlm_wait_timer_fn;
-	dlm_timer.data = (long) ls;
-	dlm_timer.expires = jiffies + (dlm_config.recover_timer * HZ);
-	add_timer(&dlm_timer);
+	init_timer(&ls->ls_timer);
+	ls->ls_timer.function = dlm_wait_timer_fn;
+	ls->ls_timer.data = (long) ls;
+	ls->ls_timer.expires = jiffies + (dlm_config.recover_timer * HZ);
+	add_timer(&ls->ls_timer);
 
 	wait_event(ls->ls_wait_general, testfn(ls) || dlm_recovery_stopped(ls));
-	del_timer_sync(&dlm_timer);
+	del_timer_sync(&ls->ls_timer);
 
 	if (dlm_recovery_stopped(ls))
 		error = -EINTR;

@@ -469,6 +469,7 @@ struct dlm_ls {
 
 	/* recovery related */
 
+	struct timer_list	ls_timer;
 	wait_queue_head_t	ls_wait_member;
 	struct task_struct	*ls_recoverd_task;
 	struct semaphore	ls_recoverd_active;
