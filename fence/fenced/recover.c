@@ -78,12 +78,18 @@ static inline void free_complete(fd_t *fd)
 static int next_complete_nodeid(fd_t *fd, int gt)
 {
 	fd_node_t *node;
-	int low = 0xFFFFFFFF;
+	int low = -1;
 
-	/* find lowest node id in fd_complete greater than gt */
+	/* find lowest node id in fd_complete greater than gt,
+	   if none, return -1 */
 
 	list_for_each_entry(node, &fd->complete, list) {
-		if ((node->nodeid > gt) && (node->nodeid < low))
+		if (node->nodeid <= gt)
+			continue;
+
+		if (low == -1)
+			low = node->nodeid;
+		else if (node->nodeid < low)
 			low = node->nodeid;
 	}
 	return low;
@@ -92,15 +98,14 @@ static int next_complete_nodeid(fd_t *fd, int gt)
 static int find_master_nodeid(fd_t *fd, char **master_name)
 {
 	fd_node_t *node;
-	int low = 0;
+	int low = -1;
 
 	/* Find the lowest nodeid common to fd->fd_prev (newest member list)
 	 * and fd->fd_complete (last complete member list). */
 
 	for (;;) {
 		low = next_complete_nodeid(fd, low);
-
-		if (low == 0xFFFFFFFF)
+		if (low == -1)
 			break;
 
 		list_for_each_entry(node, &fd->prev, list) {
@@ -280,13 +285,12 @@ static void fence_victims(fd_t *fd, int start_type)
 {
 	fd_node_t *node;
 	char *master_name;
-	uint32_t master;
-	int error, cd;
+	int master, error, cd;
 
 	master = find_master_nodeid(fd, &master_name);
 
 	if (master != our_nodeid) {
-		log_debug("defer fencing to %u %s", master, master_name);
+		log_debug("defer fencing to %d %s", master, master_name);
 		syslog(LOG_INFO, "fencing deferred to %s", master_name);
 		return;
 	}
