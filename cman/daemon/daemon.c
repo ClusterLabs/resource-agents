@@ -511,7 +511,7 @@ void notify_listeners(struct connection *con, int event, int arg)
 		return;
 	}
 
-	/* If it's a broadcast event thenwe need to walk the connections list.
+	/* If it's a broadcast event then we need to walk the connections list.
 	 * As this must only be done in the daemon thread, if we are in another thread
 	 * then just queue the event and wake the daemon thread up.
 	 * This is much more efficient than locking the sockets list because events

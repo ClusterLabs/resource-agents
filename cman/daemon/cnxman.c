@@ -185,7 +185,7 @@ static struct cl_comms_socket *current_interface = NULL;
 struct temp_node
 {
 	int nodeid;
-	char addr[sizeof(struct sockaddr_in6)];
+	char addr[sizeof(struct sockaddr_storage)];
 	int addrlen;
 	struct list list;
 };
@@ -205,7 +205,7 @@ int comms_receive_message(struct cl_comms_socket *csock)
 {
 	struct msghdr msg;
 	struct iovec vec;
-	struct sockaddr_in6 sin;
+	struct sockaddr_storage sin;
 	char iobuf[MAX_CLUSTER_MESSAGE];
 	int len;
 
@@ -738,7 +738,7 @@ struct cl_comms_socket *add_clsock(int broadcast, int number, int fd)
 		newsock->recv_only = 1;
 	}
 
-	newsock->addr_len = sizeof(struct sockaddr_in6);
+	newsock->addr_len = sizeof(struct sockaddr_storage);
 
 	/* Find out what it's bound to */
 	memset(&newsock->saddr, 0, sizeof(newsock->saddr));
@@ -1513,7 +1513,7 @@ static void resend_last_message()
 static int send_to_all_ints(int nodeid, struct msghdr *our_msg,
 			    struct iovec *vec, int veclen, int size, int flags)
 {
-	struct sockaddr_in6 daddr;
+	struct sockaddr_storage daddr;
 	struct cl_comms_socket *clsock;
 	struct list *tmp;
 	int result = 0;
@@ -1863,7 +1863,7 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 	struct iovec vec;
 	struct cl_ackmsg ackmsg;
 	struct msghdr msg;
-	struct sockaddr_in6 daddr;
+	struct sockaddr_storage daddr;
 	int result;
 
 	P_COMMS("Sending ACK seq=%d\n", le16_to_cpu(seq));

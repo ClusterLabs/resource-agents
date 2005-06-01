@@ -39,7 +39,7 @@ struct cl_comms_socket {
 	int broadcast;		/* This is a broadcast socket */
 	int recv_only;		/* This is the unicast receive end of a
 				 * multicast socket */
-	struct sockaddr_in6 saddr; /* Socket address, contains the sockaddr for
+	struct sockaddr_storage saddr; /* Socket address, contains the sockaddr for
 				 * the remote end(s) */
 	unsigned int addr_len;		/* Length of above */
 	int number;		/* Internal socket number, used to cycle around
@@ -50,7 +50,7 @@ struct cl_comms_socket {
 
 struct cluster_node_addr {
 	struct list list;
-	unsigned char addr[sizeof(struct sockaddr_in6)];/* A large sockaddr */
+	unsigned char addr[sizeof(struct sockaddr_storage)];/* A large sockaddr */
 	int addr_len;
 };
 
