@@ -56,8 +56,6 @@
    L: receive_xxxx_reply()     <-  R: send_xxxx_reply()
 */
 
-#include <linux/module.h>
-
 #include "dlm_internal.h"
 #include "memory.h"
 #include "lowcomms.h"
