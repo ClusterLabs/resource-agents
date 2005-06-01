@@ -161,7 +161,7 @@ static int send_join_notice(event_t *ev)
 	node_t *node;
 	char *mbuf;
 	msg_t *msg;
-	int i = 0, error, namelen, len = 0;
+	int i = 0, error, len = 0;
 
 	/*
 	 * Create node array from member list in which to collect responses.
@@ -184,11 +184,10 @@ static int send_join_notice(event_t *ev)
 	 * check_join_notice.
 	 */
 
-	namelen = g->namelen;
-	mbuf = create_msg(g, SMSG_JOIN_REQ, namelen, &len, ev);
+	mbuf = create_msg(g, SMSG_JOIN_REQ, 0, &len, ev);
 	msg = (msg_t *) mbuf;
 	memcpy(msg->ms_info, g->join_info, GROUP_INFO_LEN);
-	memcpy(mbuf + sizeof(msg_t), g->name, namelen);
+	memcpy(msg->ms_name, g->name, MAX_NAMELEN);
 
 	error = send_broadcast_message_ev(mbuf, len, ev);
  out:
@@ -301,9 +300,7 @@ static int send_join_stop(event_t *ev)
 	 * check_join_stop.
 	 */
 
-	mbuf = create_msg(g, SMSG_JSTOP_REQ, sizeof(uint32_t), &len, ev);
-	count = htonl(g->memb_count);
-	memcpy(mbuf + sizeof(msg_t), &count, sizeof(uint32_t));
+	mbuf = create_msg(g, SMSG_JSTOP_REQ, 0, &len, ev);
 
 	error = send_members_message_ev(g, mbuf, len, ev);
 	if (error < 0)
@@ -1393,8 +1390,11 @@ int create_group(char *name, int level, group_t **g_out)
 	if (g)
 		return -EEXIST;
 
-	g = malloc(sizeof(group_t) + strlen(name));
-	memset(g, 0, sizeof(group_t) + strlen(name));
+	g = malloc(sizeof(*g));
+	if (!g)
+		return -ENOMEM;
+
+	memset(g, 0, sizeof(*g));
 
 	strcpy(g->name, name);
 	g->namelen = strlen(name);

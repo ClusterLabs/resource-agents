@@ -287,11 +287,8 @@ int setup_member_message(void)
 
 int send_nodeid_message(char *buf, int len, int nodeid)
 {
-	msg_t *msg = (msg_t *) buf;
 	struct iovec iov = { buf, len };
 	int error = 0;
-
-	msg->ms_to_nodeid = nodeid;
 
 	if (nodeid == gd_nodeid) {
 		process_message(buf, len, nodeid);
@@ -309,11 +306,8 @@ int send_nodeid_message(char *buf, int len, int nodeid)
 
 int send_broadcast_message(char *buf, int len)
 {
-	msg_t *msg = (msg_t *) buf;
 	struct iovec iov = { buf, len };
 	int error;
-
-	msg->ms_to_nodeid = 0;
 
 	do {
 		error = evs_mcast_groups(eh, EVS_TYPE_AGREED, &egroup, 1,

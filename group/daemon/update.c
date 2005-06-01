@@ -73,7 +73,7 @@ static int process_join_stop(group_t *g)
 	reply.ms_status = STATUS_POS;
 	reply.ms_event_id = up->remote_seid;
 	strcpy(reply.ms_info, g->join_info);
-
+	reply.ms_to_nodeid = up->nodeid;
 	msg_copy_out(&reply);
 
 	error = send_nodeid_message((char *) &reply, sizeof(reply), up->nodeid);
@@ -190,6 +190,7 @@ static void update_done(group_t *g)
 		reply.ms_type = SMSG_LSTART_DONE;
 		reply.ms_status = STATUS_POS;
 		reply.ms_event_id = up->remote_seid;
+		reply.ms_to_nodeid = up->nodeid;
 		msg_copy_out(&reply);
 		send_nodeid_message((char *) &reply, sizeof(reply), up->nodeid);
 	}
@@ -213,6 +214,7 @@ static int process_leave_stop(group_t *g)
 	reply.ms_type = SMSG_LSTOP_REP;
 	reply.ms_status = STATUS_POS;
 	reply.ms_event_id = up->remote_seid;
+	reply.ms_to_nodeid = up->nodeid;
 	msg_copy_out(&reply);
 
 	error = send_nodeid_message((char *) &reply, sizeof(reply), up->nodeid);
@@ -380,6 +382,7 @@ static void send_recover_msg(group_t *g)
 {
 	char *buf;
 	int len = 0;
+
 	buf = create_msg(g, SMSG_RECOVER, 0, &len, NULL);
 	send_members_message(g, buf, len);
 }

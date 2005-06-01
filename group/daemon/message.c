@@ -13,7 +13,7 @@
 
 #include "gd_internal.h"
 
-#define SMSG_BUF_SIZE (sizeof(msg_t) + MAX_NAMELEN + 1)
+#define SMSG_BUF_SIZE sizeof(msg_t)
 
 static uint32_t 	global_last_id;
 static char		msg_buf[SMSG_BUF_SIZE];
@@ -114,19 +114,21 @@ static void save_join_info(group_t *g, int nodeid, msg_t *msg)
 static void msg_copy_in(msg_t *m)
 {
 	m->ms_level	= le16_to_cpu(m->ms_level);
+	m->ms_to_nodeid	= le32_to_cpu(m->ms_to_nodeid);
 	m->ms_event_id	= le32_to_cpu(m->ms_event_id);
 	m->ms_group_id	= le32_to_cpu(m->ms_group_id);
 	m->ms_last_id	= le32_to_cpu(m->ms_last_id);
-	m->ms_to_nodeid	= le32_to_cpu(m->ms_to_nodeid);
+	m->ms_count	= le32_to_cpu(m->ms_count);
 }
 
 void msg_copy_out(msg_t *m)
 {
 	m->ms_level	= cpu_to_le16(m->ms_level);
+	m->ms_to_nodeid	= cpu_to_le32(m->ms_to_nodeid);
 	m->ms_event_id	= cpu_to_le32(m->ms_event_id);
 	m->ms_group_id	= cpu_to_le32(m->ms_group_id);
 	m->ms_last_id	= cpu_to_le32(m->ms_last_id);
-	m->ms_to_nodeid	= cpu_to_le32(m->ms_to_nodeid);
+	m->ms_count	= cpu_to_le32(m->ms_count);
 }
 
 static unsigned int msgtype_to_flag(int type)
@@ -303,14 +305,18 @@ static void process_reply(msg_t *msg, int nodeid)
  * requested join for a bit.
  */
 
-static void process_join_request(msg_t *msg, int nodeid, char *name)
+static void process_join_request(msg_t *msg, int nodeid)
 {
+	char name[MAX_NAMELEN+1];
 	group_t *g = NULL;
 	event_t *ev = NULL;
 	node_t *node;
 	int found = FALSE;
 	int level = msg->ms_level;
 	msg_t reply;
+
+	memset(name, 0, sizeof(name));
+	memcpy(name, msg->ms_name, MAX_NAMELEN);
 
 	memset(&reply, 0, sizeof(reply));
 
@@ -415,6 +421,7 @@ static void process_join_request(msg_t *msg, int nodeid, char *name)
 	if (reply.ms_status == STATUS_POS)
 		add_joiner(g, nodeid, msg);
 
+	reply.ms_to_nodeid = nodeid;
 	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
@@ -450,7 +457,7 @@ update_t *create_update(group_t *g, int type)
  * the processing and then replying.
  */
 
-static void process_stop_request(msg_t *msg, int nodeid, uint32_t *msgbuf)
+static void process_stop_request(msg_t *msg, int nodeid)
 {
 	group_t *g;
 	update_t *up;
@@ -473,7 +480,7 @@ static void process_stop_request(msg_t *msg, int nodeid, uint32_t *msgbuf)
 	up->remote_seid = msg->ms_event_id;
 
 	if (type == SMSG_JSTOP_REQ) {
-		up->num_nodes = ntohl(*msgbuf);
+		up->num_nodes = msg->ms_count;
 		ASSERT(up->num_nodes, );
 	} else
 		set_bit(UFL_LEAVE, &up->flags);
@@ -488,6 +495,7 @@ static void process_stop_request(msg_t *msg, int nodeid, uint32_t *msgbuf)
 	reply.ms_status = STATUS_POS;
 	reply.ms_type = (type == SMSG_JSTOP_REQ) ? SMSG_JSTOP_REP : SMSG_LSTOP_REP;
 	reply.ms_event_id = msg->ms_event_id;
+	reply.ms_to_nodeid = nodeid;
 	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
@@ -598,6 +606,7 @@ static void process_leave_request(msg_t *msg, int nodeid)
 	if (reply.ms_status == STATUS_POS && node)
 		memcpy(node->leave_info, msg->ms_info, GROUP_INFO_LEN);
 
+	reply.ms_to_nodeid = nodeid;
 	msg_copy_out(&reply);
 	send_nodeid_message((char *) &reply, sizeof(reply), nodeid);
 }
@@ -625,7 +634,6 @@ static void process_lstart_done(msg_t *msg, int nodeid)
 void process_message(char *buf, int len, int nodeid)
 {
 	msg_t *msg = (msg_t *) buf;
-	char name[MAX_NAMELEN+1];
 
 	msg_copy_in(msg);
 
@@ -633,21 +641,18 @@ void process_message(char *buf, int len, int nodeid)
 	          msg_str(msg->ms_type));
 
 	if (msg->ms_to_nodeid && msg->ms_to_nodeid != gd_nodeid) {
-		printf("ignore message to %d gd_nodeid %d\n",
-			msg->ms_to_nodeid, gd_nodeid);
+		log_print("ignore message from %d to %d", nodeid,
+			  msg->ms_to_nodeid);
 		return;
 	}
 
 	switch (msg->ms_type) {
 	case SMSG_JOIN_REQ:
-		memset(name, 0, sizeof(name));
-		memcpy(name, buf + sizeof(msg_t), len - sizeof(msg_t));
-		process_join_request(msg, nodeid, name);
+		process_join_request(msg, nodeid);
 		break;
 
 	case SMSG_JSTOP_REQ:
-		process_stop_request(msg, nodeid,
-				     (uint32_t *) (buf + sizeof(msg_t)));
+		process_stop_request(msg, nodeid);
 		break;
 
 	case SMSG_LEAVE_REQ:
@@ -655,7 +660,7 @@ void process_message(char *buf, int len, int nodeid)
 		break;
 
 	case SMSG_LSTOP_REQ:
-		process_stop_request(msg, nodeid, NULL);
+		process_stop_request(msg, nodeid);
 		break;
 
 	case SMSG_JSTART_CMD:
@@ -688,6 +693,9 @@ void process_message(char *buf, int len, int nodeid)
 	}
 }
 
+/* Note: several times a msg_t is just allocated on the stack and this
+   function isn't used. */
+
 char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev)
 {
 	msg_t *msg = (msg_t *) msg_buf;
@@ -702,9 +710,10 @@ char *create_msg(group_t *g, int type, int datalen, int *msglen, event_t *ev)
 
 	msg = (msg_t *) msg_buf;
 	msg->ms_type = type;
-	msg->ms_group_id = g->global_id;
 	msg->ms_level = g->level;
 	msg->ms_event_id = ev ? ev->id : 0;
+	msg->ms_group_id = g->global_id;
+	msg->ms_count = g->memb_count;
 
 	msg_copy_out(msg);
 

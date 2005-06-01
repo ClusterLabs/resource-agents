@@ -319,10 +319,7 @@ int setup_member_message(void)
 
 int send_nodeid_message(char *buf, int len, int nodeid)
 {
-	msg_t *msg = (msg_t *) buf;
 	int error = 0;
-
-	msg->ms_to_nodeid = nodeid;
 
 	if (nodeid == gd_nodeid) {
 		process_message(buf, len, nodeid);

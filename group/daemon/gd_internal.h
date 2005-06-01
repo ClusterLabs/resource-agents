@@ -256,7 +256,7 @@ struct group {
 	char			recover_barrier[MAX_BARRIERLEN+1];
 
 	int 			namelen;
-	char 			name[1];	/* must be last field */
+	char 			name[MAX_NAMELEN+1];
 };
 
 /*
@@ -285,11 +285,13 @@ struct msg {
 	uint8_t 		ms_type;
 	uint8_t 		ms_status;
 	uint16_t 		ms_level;
+	int			ms_to_nodeid;
 	uint32_t 		ms_event_id;
 	uint32_t 		ms_group_id;
 	uint32_t 		ms_last_id;
-	int			ms_to_nodeid;
+	uint32_t 		ms_count;
 	char			ms_info[GROUP_INFO_LEN];
+	char			ms_name[MAX_NAMELEN];
 };
 
 /*
