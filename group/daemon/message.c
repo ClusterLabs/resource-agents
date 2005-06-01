@@ -15,7 +15,7 @@
 
 #define SMSG_BUF_SIZE sizeof(msg_t)
 
-static uint32_t 	global_last_id;
+static uint32_t 	global_last_id = 1;
 static char		msg_buf[SMSG_BUF_SIZE];
 
 char *msg_str(int type);
