@@ -29,10 +29,10 @@ start()
 		#> 	sleep 1;
 		#> done
 
-		success
+		success "fence_tool join"
 		echo
 	else
-		failure
+		failure "fence_tool join"
 		echo
 	fi
 		
@@ -50,10 +50,10 @@ stop()
 	
 	if [ $rtrn -eq 0 ]
 	then
-		success
+		success "fence_tool leave"
 		echo
 	else
-		failure
+		failure "fence_tool leave"
 		echo
 	fi
 		
