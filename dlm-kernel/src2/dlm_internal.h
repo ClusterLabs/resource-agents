@@ -76,9 +76,9 @@ struct dlm_rcom;
 struct dlm_mhandle;
 
 #define log_print(fmt, args...) \
-	printk(KERN_ERR "dlm: "fmt"\n", ##args)
+	printk(KERN_ERR "dlm: "fmt"\n" , ##args)
 #define log_error(ls, fmt, args...) \
-	printk(KERN_ERR "dlm: %s: " fmt "\n", (ls)->ls_name, ##args)
+	printk(KERN_ERR "dlm: %s: " fmt "\n", (ls)->ls_name , ##args)
 
 #ifdef DLM_LOG_DEBUG
 #define log_debug(ls, fmt, args...) log_error(ls, fmt, ##args)
