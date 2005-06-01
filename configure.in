@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.386 $) dnl cvs revision
+AC_REVISION($Revision: 1.387 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -163,11 +163,13 @@ AC_DEFINE_UNQUOTED(HA_VARLIBDIR,"$HA_VARLIBDIR", var lib directory)
 
 HA_COREDIR="${HA_VARLIBDIR}/${HB_PKG}/cores"
 AC_SUBST(HA_COREDIR)
-AC_DEFINE_UNQUOTED(HA_COREDIR,"$HA_COREDIR", root directory to drop core files in)
+AC_DEFINE_UNQUOTED(HA_COREDIR,"$HA_COREDIR", top directory of area to drop core files in)
 
 HA_LOGDAEMON_IPC="${HA_VARLIBDIR}/log_daemon"
 AC_SUBST(HA_LOGDAEMON_IPC)
-AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC)
+AC_DEFINE_UNQUOTED(HA_LOGDAEMON_IPC, "$HA_LOGDAEMON_IPC", Logging Daemon IPC socket name)
+
+
 
 STONITHPKG=stonith
 AC_SUBST(STONITHPKG)
@@ -1510,9 +1512,18 @@ AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short)
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(long long)
 
 dnl if not known on this system, #define size_t unsigned
 AC_TYPE_SIZE_T
+
+AC_MSG_CHECKING(if clock_t is long enough)
+if test $ac_cv_sizeof_long -ge 8; then
+  AC_MSG_RESULT(yes)
+  AC_DEFINE(CLOCK_T_IS_LONG_ENOUGH, 1, [Set if CLOCK_T is adequate by itself for the "indefinite future" (>= 100 years)])
+else
+  AC_MSG_RESULT(no)
+fi
 
 dnl
 dnl Lex and yacc can't be trusted to produce code that won't produce
@@ -1520,7 +1531,6 @@ dnl warnings
 dnl
 NON_FATAL_CFLAGS="$CFLAGS $NON_FATAL_CC_WARNINGS"
 AC_SUBST(NON_FATAL_CFLAGS)
-AC_CHECK_SIZEOF(long long)
 
 dnl
 dnl We reset CFLAGS to include our warnings *after* all function
