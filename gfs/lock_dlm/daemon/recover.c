@@ -234,7 +234,7 @@ int recover_journals(struct mountgroup *mg)
 	struct mg_member *memb;
 	int rv, found = 0;
 
-	list_for_each_entry(memb, &mg->members, list) {
+	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->recover_journal) {
 			rv = set_sysfs(mg, "recover", memb->jid);
 			if (rv < 0)
