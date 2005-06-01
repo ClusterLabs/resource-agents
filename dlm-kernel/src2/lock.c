@@ -56,6 +56,8 @@
    L: receive_xxxx_reply()     <-  R: send_xxxx_reply()
 */
 
+#include <linux/module.h>
+
 #include "dlm_internal.h"
 #include "memory.h"
 #include "lowcomms.h"
@@ -113,7 +115,6 @@ const int __dlm_compat_matrix[8][8] = {
  * -1 = nothing happens to the LVB
  */
 
-
 const int dlm_lvb_operations[8][8] = {
         /* UN   NL  CR  CW  PR  PW  EX  PD*/
         {  -1,  1,  1,  1,  1,  1,  1, -1 }, /* UN */
@@ -125,7 +126,7 @@ const int dlm_lvb_operations[8][8] = {
         {  -1,  0,  0,  0,  0,  0,  0,  0 }, /* EX */
         {  -1,  0,  0,  0,  0,  0,  0,  0 }  /* PD */
 };
-
+EXPORT_SYMBOL_GPL(dlm_lvb_operations);
 
 #define modes_compat(gr, rq) \
 	__dlm_compat_matrix[(gr)->lkb_grmode + 1][(rq)->lkb_rqmode + 1]
