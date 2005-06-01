@@ -76,7 +76,8 @@ static void list_usage(const char *name)
 
 static void create_usage(const char *name)
 {
-	fprintf(stderr, "Usage: %s %s [options] <clustername>\n", prog_name, name);
+	fprintf(stderr, "Usage: %s %s [-2] <clustername>\n", prog_name, name);
+	fprintf(stderr, " -2                 Create a 2-node cman cluster config file\n");
 	config_usage(0);
 	help_usage();
 	fprintf(stderr, "\n"
@@ -87,10 +88,10 @@ static void create_usage(const char *name)
 	  "eg:\n"
 	  "  ccs_tool create MyCluster\n"
 	  "  ccs_tool addfence apc fence_apc ipaddr=apc.domain.net user=apc password=apc\n"
-	  "  ccs_tool add node1 -v 1 -f apc port=1\n"
-	  "  ccs_tool add node2 -v 1 -f apc port=2\n"
-	  "  ccs_tool add node3 -v 1 -f apc port=3\n"
-	  "  ccs_tool add node4 -v 1 -f apc port=4\n"
+	  "  ccs_tool addnode node1 -v 1 -f apc port=1\n"
+	  "  ccs_tool addnode node2 -v 1 -f apc port=2\n"
+	  "  ccs_tool addnode node3 -v 1 -f apc port=3\n"
+	  "  ccs_tool addnode node4 -v 1 -f apc port=4\n"
           "\n");
 
 	exit(0);
@@ -153,8 +154,8 @@ static void addnode_usage(const char *name)
 
 static void save_file(xmlDoc *doc, struct option_info *ninfo)
 {
-	char tmpfile[strlen(ninfo->configfile)+5];
-	char oldfile[strlen(ninfo->configfile)+5];
+	char tmpfile[strlen(ninfo->outputfile)+5];
+	char oldfile[strlen(ninfo->outputfile)+5];
 	int using_stdout = 0;
 	int ret;
 
@@ -162,7 +163,7 @@ static void save_file(xmlDoc *doc, struct option_info *ninfo)
 		using_stdout = 1;
 
 	/*
-	 * Save it to a temp file before movign the old one out of the way
+	 * Save it to a temp file before moving the old one out of the way
 	 */
 	if (!using_stdout)
 	{
@@ -822,16 +823,21 @@ void create_skeleton(int argc, char **argv)
 	char *clustername;
 	struct option_info ninfo;
 	struct stat st;
+	int twonode = 0;
 	int opt;
 
 	memset(&ninfo, 0, sizeof(ninfo));
 
-	while ( (opt = getopt_long(argc, argv, "c:h?", list_options, NULL)) != EOF)
+	while ( (opt = getopt_long(argc, argv, "c:2h?", list_options, NULL)) != EOF)
 	{
 		switch(opt)
 		{
 		case 'c':
 			ninfo.outputfile = strdup(optarg);
+			break;
+
+		case '2':
+			twonode = 1;
 			break;
 
 		case '?':
@@ -861,6 +867,15 @@ void create_skeleton(int argc, char **argv)
 
 	xmlSetProp(root_element, BAD_CAST "name", BAD_CAST clustername);
 	xmlSetProp(root_element, BAD_CAST "config_version", BAD_CAST "1");
+
+	/* Generate extra bits for a 2node cman cluster */
+	if (twonode) {
+
+		xmlNode *cman = xmlNewNode(NULL, BAD_CAST "cman");
+		xmlSetProp(cman, BAD_CAST "two_node", BAD_CAST "1");
+		xmlSetProp(cman, BAD_CAST "expected_votes", BAD_CAST "1");
+		xmlAddChild(root_element, cman);
+	}
 
 	clusternodes = xmlNewNode(NULL, BAD_CAST "clusternodes");
 	fencedevices = xmlNewNode(NULL, BAD_CAST "fencedevices");
