@@ -226,6 +226,10 @@ struct cl_mem_nodedown_msg {
 typedef enum {CON_COMMS, CON_CLIENT_RENDEZVOUS, CON_ADMIN_RENDEZVOUS,
 	      CON_CLIENT, CON_ADMIN} con_type_t;
 
+typedef enum { STARTING, NEWCLUSTER, JOINING, JOINWAIT, JOINACK, TRANSITION,
+	       TRANSITION_COMPLETE, MEMBER, REJECTED, LEFT_CLUSTER, MASTER
+} node_state_t;
+
 /* One of these for every connection we have open
    and need to select() on */
 struct connection
@@ -343,40 +347,6 @@ struct cl_barrier {
 #define CLUSTER_CMD_LISTENRESP 3
 #define CLUSTER_CMD_PORTCLOSED 4
 #define CLUSTER_CMD_BARRIER    5
-
-extern struct cluster_node *find_node_by_addr(char *addr,
-					      int addr_len);
-extern struct cluster_node *find_node_by_nodeid(unsigned int id);
-extern struct cluster_node *find_node_by_name(char *name);
-extern void set_quorate(int);
-extern void free_nodeid_array(void);
-extern int send_reconfigure(int param, unsigned int value);
-extern int calculate_quorum(int, int, unsigned int *);
-extern void recalculate_quorum(int);
-extern int send_leave(unsigned char);
-extern int get_quorum(void);
-extern void set_votes(int, int);
-extern void kcl_wait_for_all_acks(void);
-extern void stop_membership_thread(void);
-extern char *leave_string(int reason);
-extern void a_node_just_died(struct cluster_node *node, int in_cman_main);
-extern void check_barrier_returns(void);
-extern int in_transition(void);
-extern void get_local_addresses(struct cluster_node *node);
-extern int add_node_address(struct cluster_node *node, unsigned char *addr, int len);
-extern void create_proc_entries(void);
-extern void cleanup_proc_entries(void);
-extern unsigned int get_highest_nodeid(void);
-extern int allocate_nodeid_array(void);
-extern int new_temp_nodeid(char *addr, int addrlen);
-extern int get_addr_from_temp_nodeid(int nodeid, char *addr, unsigned int *addrlen);
-extern void purge_temp_nodeids(void);
-extern void cman_set_realtime(void);
-extern int init_log(int use_stderr);
-extern int init_config(void);
-extern void init_debug(int debug);
-extern void wake_daemon(void);
-extern void log_msg(int priority, const char *fmt, ...);
 
 #define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 

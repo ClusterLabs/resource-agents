@@ -34,6 +34,9 @@
 #include "cnxman-private.h"
 #include "cnxman.h"
 #include "daemon.h"
+#include "logging.h"
+#include "commands.h"
+#include "barrier.h"
 #include "config.h"
 
 struct queued_reply
@@ -155,7 +158,21 @@ void del_timer(struct cman_timer *t)
 	list_del(&t->list);
 }
 
-void process_comms(struct connection *con)
+/* None of our threads is CPU intensive, but if they don't run when they are supposed
+   to, the node can get kicked out of the cluster.
+*/
+void cman_set_realtime()
+{
+#if 0 // Until debugged!
+	struct sched_param s;
+
+	s.sched_priority = 1;
+	if (sched_setscheduler(0, SCHED_FIFO, &s))
+		log_msg(LOG_WARNING, "Cannot set priority: %s\n", strerror(errno));
+#endif
+}
+
+static void process_comms(struct connection *con)
 {
 	comms_receive_message(con->clsock);
 }
@@ -293,6 +310,28 @@ static void process_rendezvous(struct connection *con, con_type_t newtype, struc
 
 		num_connections++;
 	}
+}
+
+/* Send it, or queue it for later if the socket is busy */
+static int send_reply_message(struct connection *con, struct sock_header *msg)
+{
+	int ret;
+
+	P_DAEMON("sending reply %x to fd %d\n", msg->command, con->fd);
+	ret = send(con->fd, (char *)msg, msg->length, MSG_DONTWAIT);
+	if (ret == -1 && errno == EAGAIN) {
+		/* Queue it */
+		struct queued_reply *qm = malloc(sizeof(struct queued_reply) + msg->length);
+		if (!qm)
+		{
+			perror("Error allocating queued message");
+			return -1;
+		}
+		memcpy(qm->buf, msg, msg->length);
+		list_add(&con->write_msgs, &qm->list);
+		P_DAEMON("queued last message\n");
+	}
+	return 0;
 }
 
 /* Dispatch a request from a CLIENT or ADMIN socket */
@@ -439,27 +478,6 @@ static int process_socket(struct connection *con, struct connection **newcon)
 	return ret;
 }
 
-/* Send it, or queue it for later if the socket is busy */
-int send_reply_message(struct connection *con, struct sock_header *msg)
-{
-	int ret;
-
-	P_DAEMON("sending reply %x to fd %d\n", msg->command, con->fd);
-	ret = send(con->fd, (char *)msg, msg->length, MSG_DONTWAIT);
-	if (ret == -1 && errno == EAGAIN) {
-		/* Queue it */
-		struct queued_reply *qm = malloc(sizeof(struct queued_reply) + msg->length);
-		if (!qm)
-		{
-			perror("Error allocating queued message");
-			return -1;
-		}
-		memcpy(qm->buf, msg, msg->length);
-		list_add(&con->write_msgs, &qm->list);
-		P_DAEMON("queued last message\n");
-	}
-	return 0;
-}
 
 /* Send a simple return - usually just a failure status */
 int send_status_return(struct connection *con, uint32_t cmd, int status)
@@ -723,7 +741,9 @@ int main(int argc, char *argv[])
 	sigset_t ss;
 	struct sigaction sa;
 
-	cluster_init();
+	cluster_init();	
+	barrier_init();
+	commands_init();
 
 	while ((opt=getopt(argc,argv,"dh?s:")) != EOF) {
 		switch (opt) {

@@ -14,22 +14,41 @@
 #ifndef __CNXMAN_H
 #define __CNXMAN_H
 
-/* In-kernel API */
+extern int cl_sendmsg(struct connection *con,
+		      int port, int nodeid, int flags,
+		      char *msg, size_t size);
+extern int comms_receive_message(struct cl_comms_socket *csock);
+extern struct cl_comms_socket *add_clsock(int broadcast, int number, int fd);
+extern int cluster_init(void);
+extern void check_mainloop_flags();
 
 
-/* Reasons for a kernel membership callback */
-typedef enum { CLUSTER_RECONFIG, DIED, LEAVING, NEWNODE } kcl_callback_reason;
+extern void set_quorate(int);
+extern int current_interface_num(void);
+extern void get_local_addresses(struct cluster_node *node);
+extern int add_node_address(struct cluster_node *node, unsigned char *addr, int len);
+extern unsigned int get_highest_nodeid(void);
+extern int allocate_nodeid_array(void);
+extern int new_temp_nodeid(char *addr, int addrlen);
+extern int get_addr_from_temp_nodeid(int nodeid, char *addr, unsigned int *addrlen);
+extern void purge_temp_nodeids(void);
+extern int send_or_queue_message(void *buf, int len,
+			  struct sockaddr_cl *caddr,
+			  unsigned int flags);
+extern int queue_message(struct connection *con, void *buf, int len,
+			 struct sockaddr_cl *caddr,
+			 unsigned char port, int flags);
+extern char *get_interface_addresses(char *ptr);
 
-int cl_sendmsg(struct connection *con,
-	       int port, int nodeid, int flags,
-	       char *msg, size_t size);
-int process_command(struct connection *con, int cmd, char *cmdbuf,
-		    char **retbuf, int *retlen, int retsize, int offset);
-int comms_receive_message(struct cl_comms_socket *csock);
-struct cl_comms_socket *add_clsock(int broadcast, int number, int fd);
-void unbind_con(struct connection *con);
-int cluster_init(void);
-void check_mainloop_flags();
+extern struct cluster_node *quorum_device;
+extern uint16_t cluster_id;
+extern char cluster_name[MAX_CLUSTER_NAME_LEN+1];
+extern unsigned short two_node;
+extern int use_count;
+extern unsigned int address_length;
+extern int cnxman_running;
+extern int num_interfaces;
+
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #define max(a,b) (((a) > (b)) ? (a) : (b))

@@ -31,4 +31,5 @@ struct config_info {
 
 extern struct config_info cman_config;
 
+extern void init_config(void);
 #endif				/* __CONFIG_DOT_H__ */

@@ -38,6 +38,11 @@
 #include "cnxman.h"
 #include "daemon.h"
 #include "config.h"
+#include "cnxman.h"
+#include "logging.h"
+#include "membership.h"
+#include "barrier.h"
+#include "commands.h"
 #include "libcman.h"
 
 #ifndef TRUE
@@ -55,25 +60,12 @@ int cluster_members;		/* Number of ACTIVE members, not a count of
 				 * nodes in the list */
 int we_are_a_cluster_member;
 int cluster_is_quorate;
-int quit_threads;
-pthread_t membership_pthread;
-pthread_mutex_t membership_task_lock;
+static pthread_t membership_pthread;
+static pthread_mutex_t membership_task_lock;
 struct cluster_node *us;
-
 static pthread_t hello_pthread;
 static pthread_mutex_t hello_task_lock;
-
 static cman_handle_t cman_handle;
-
-
-/* Variables that belong to the connection manager */
-//extern struct completion member_thread_comp;
-extern struct cluster_node *quorum_device;
-extern unsigned short two_node;
-extern char cluster_name[];
-extern unsigned int config_version;
-extern unsigned int address_length;
-
 static char scratchbuf[MAX_CLUSTER_MESSAGE + 100];
 
 /* Our node name, usually system_utsname.nodename, but can be overridden */
@@ -112,10 +104,9 @@ static unsigned long wake_flags;/* Reason we were woken */
 static unsigned long transition_end_time;
 
 /* A list of nodes that cnxman tells us are dead. I hope this never has more
- * than one element in it but I can't take that chance. only non-static so it
- * can be initialised in module_load. */
-struct list new_dead_node_list;
-pthread_mutex_t new_dead_node_lock;
+ * than one element in it but I can't take that chance. */
+static struct list new_dead_node_list;
+static pthread_mutex_t new_dead_node_lock;
 
 static int do_membership_packet(struct msghdr *msg, char *buf, int len);
 static int do_process_joinreq(struct msghdr *msg, char *buf, int len);
@@ -154,8 +145,8 @@ static int start_transition(unsigned char reason, struct cluster_node *node);
 static uint32_t low32_of_ip(void);
 static void remove_joiner(int tell_wait);
 static int do_timer_wakeup();
-int send_leave(unsigned char);
-int send_reconfigure(int, unsigned int);
+static int send_leave(unsigned char flags);
+static char *leave_string(int reason);
 
 /* May put more granularity into this sometime */
 long gettime()
@@ -175,13 +166,11 @@ static int debug_senddata(cman_handle_t handle, void *buf, int len, int flags, u
 #endif
 
 /* State of the node */
-enum { STARTING, NEWCLUSTER, JOINING, JOINWAIT, JOINACK, TRANSITION,
-	    TRANSITION_COMPLETE, MEMBER, REJECTED, LEFT_CLUSTER, MASTER
-} node_state = LEFT_CLUSTER;
+node_state_t node_state = LEFT_CLUSTER;
 
 /* Sub-state when we are MASTER */
 static enum { MASTER_START, MASTER_COLLECT, MASTER_CONFIRM,
-	    MASTER_COMPLETE } master_state;
+	      MASTER_COMPLETE } master_state;
 
 /* Number of responses collected while a master controlling a state transition */
 static int responses_collected;
@@ -199,13 +188,13 @@ static struct cluster_node *joining_node = NULL;
 static int joining_temp_nodeid;
 
 /* Last time a HELLO message was sent */
-unsigned long last_hello;
+static unsigned long last_hello;
 
 /* When we got our JOINWAIT or NEWCLUSTER */
-unsigned long joinwait_time;
+static unsigned long joinwait_time;
 
 /* Number of times a transition has restarted when we were master */
-int transition_restarts;
+static int transition_restarts;
 
 /* Variables used by the master to collect cluster status during a transition */
 static int agreeing_nodes;
@@ -219,20 +208,6 @@ static void set_transition_timer(int secs)
 {
 	transition_timer.tv_sec = secs;
 	transition_timer.tv_usec = 0;
-}
-
-/* None of our threads is CPU intensive, but if they don't run when they are supposed
-   to, the node can get kicked out of the cluster.
-*/
-void cman_set_realtime()
-{
-#if 0 // Until debugged!
-	struct sched_param s;
-
-	s.sched_priority = 1;
-	if (sched_setscheduler(0, SCHED_FIFO, &s))
-		log_msg(LOG_WARNING, "Cannot set priority: %s\n", strerror(errno));
-#endif
 }
 
 /* Called when the transition timer has expired, meaning we sent a transition
@@ -739,6 +714,9 @@ static void cman_datacallback(cman_handle_t handle, void *private,
 static int init_membership_services()
 {
 	pthread_mutex_init(&hello_task_lock, NULL);
+	pthread_mutex_init(&new_dead_node_lock, NULL);
+	pthread_mutex_init(&membership_task_lock, NULL);
+	list_init(&new_dead_node_list);
 
 	cman_handle = cman_init(NULL);
 	if (!cman_handle) {
@@ -948,6 +926,7 @@ static int end_transition()
 
 	/* Tell any waiting barriers that we had a transition */
 	check_barrier_returns();
+	clean_dead_listeners();
 
 	leavereason = 0;
 	node_state = MEMBER;
@@ -985,7 +964,7 @@ static int send_joinack(struct sockaddr_cl *addr, int addr_len, unsigned char ac
 /* Only send a leave message to one node in the cluster so that it can master
  * the state transition, otherwise we get a "thundering herd" of potential
  * masters fighting it out */
-int send_leave(unsigned char flags)
+static int send_leave(unsigned char flags)
 {
 	char msg[2];
 	struct cluster_node *node = NULL;
@@ -3024,14 +3003,6 @@ int next_nodeid(void)
 	}
 }
 
-/* Called by node_cleanup in cnxman when we have left the cluster */
-void free_nodeid_array()
-{
-	free(members_by_nodeid);
-	members_by_nodeid = NULL;
-	sizeof_members_array = 0;
-}
-
 int allocate_nodeid_array()
 {
 	/* Allocate space for the nodeid lookup array */
@@ -3074,7 +3045,7 @@ int in_transition()
 	    node_state == TRANSITION_COMPLETE || node_state == MASTER;
 }
 
-char *leave_string(int reason)
+static char *leave_string(int reason)
 {
 	static char msg[32];
 	switch (reason & 0xF)

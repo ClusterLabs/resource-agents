@@ -10,13 +10,8 @@
 *******************************************************************************
 ******************************************************************************/
 
-extern void add_timer(struct cman_timer *timer, time_t sec, int usec);
-extern void del_timer(struct cman_timer *timer);
-extern int send_status_return(struct connection *con, uint32_t cmd, int status);
-extern int send_data_reply(struct connection *con, int nodeid, int port, char *data, int len);
-extern void set_cman_timeout(int secs);
-extern void notify_listeners(struct connection *con, int reason, int arg);
-extern void cman_set_realtime(void);
-
-extern volatile sig_atomic_t quit_threads;
-extern int num_connections;
+void process_barrier_msg(struct cl_barriermsg *msg,
+			 struct cluster_node *node);
+int do_cmd_barrier(struct connection *con, char *cmdbuf, int *retlen);
+void barrier_init(void);
+void check_barrier_returns(void);
