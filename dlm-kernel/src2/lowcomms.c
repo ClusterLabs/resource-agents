@@ -1100,8 +1100,8 @@ static void process_output_queue(void)
 	list_for_each_safe(list, temp, &write_nodes) {
 		struct nodeinfo *ni =
 		    list_entry(list, struct nodeinfo, write_list);
-		list_del(&ni->write_list);
 		clear_bit(NI_WRITE_PENDING, &ni->flags);
+		list_del(&ni->write_list);
 
 		spin_unlock_bh(&write_nodes_lock);
 
@@ -1270,11 +1270,7 @@ static int daemons_start(void)
 
 /*
  * This is quite likely to sleep...
- * Temporarily initialise the waitq head so that lowcomms_send_message
- * doesn't crash if it gets called before the thread is fully
- * initialised
  */
-
 int dlm_lowcomms_start(void)
 {
 	int error;
