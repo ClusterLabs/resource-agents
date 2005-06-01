@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.387 $) dnl cvs revision
+AC_REVISION($Revision: 1.388 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -221,6 +221,7 @@ AC_LIBLTDL_CONVENIENCE          dnl make libltdl a convenience lib
 AC_PROG_YACC
 AC_DECL_YYTEXT
 AM_PROG_LEX
+AC_PROG_LIBTOOL
 dnl Replacing AC_PROG_LIBTOOL with AC_CHECK_PROG because LIBTOOL
 dnl was NOT being expanded all the time thus causing things to fail.
 AC_CHECK_PROGS(LIBTOOL, glibtool libtool)
@@ -287,6 +288,10 @@ AC_PATH_PROGS(PERL, perl)
 AC_SUBST(PERL)
 AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
+AC_PATH_PROGS(EGREP, egrep)
+AC_SUBST(EGREP)
+AC_PATH_PROGS(LS, ls)
+AC_SUBST(LS)
 AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
@@ -353,7 +358,7 @@ AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
 
 EXTRAGLIBMSG="-"
 if test "X${PKGCONFIG}" = "X"; then
-	AC_MSG_RESULT("not found")
+	AC_MSG_RESULT(not found)
 	FatalMissingThing "pkgconfig" "Package pkgconfig is required" 	\
 	"See http://pkgconfig.sourceforge.net/"	
 	EXTRALIBMSG="(this message might be bogus because pkgconfig is missing)"
@@ -423,16 +428,16 @@ AC_MSG_CHECKING(where is python installed)
 if test "x${PYTHON}" = x; then
   PYTHON="/usr/bin/env python";
 fi
-AC_MSG_RESULT("using $PYTHON");
+AC_MSG_RESULT(using $PYTHON);
 
 AC_MSG_CHECKING(if netstat supports -f inet flag)
 $NETSTAT -rn -f inet > /dev/null 2>&1
 if test x"$?" = x"0"; then
 	AC_DEFINE(NETSTATPARM, "-rn -f inet ", parameters to netstat to retrieve route information)
-	AC_MSG_RESULT("yes")
+	AC_MSG_RESULT(yes)
 else
 	AC_DEFINE(NETSTATPARM, "-rn ", parameters to netstat to retrieve route information)
-	AC_MSG_RESULT("no")
+	AC_MSG_RESULT(no)
 fi
 
 if test X${PING} = X
@@ -964,7 +969,7 @@ AC_EGREP_CPP(FoundAlign,
 #endif
 ], [
         ALIGN="ALIGN"
-        AC_MSG_RESULT("Yes")
+        AC_MSG_RESULT(Yes)
 ],
 AC_MSG_RESULT("No"))
 
@@ -976,9 +981,9 @@ AC_EGREP_CPP(FoundAlign,
 #endif
 ], [
         ALIGN="T_ALIGN"
-        AC_MSG_RESULT("Yes")
+        AC_MSG_RESULT(Yes)
 ],
-AC_MSG_RESULT("No"))
+AC_MSG_RESULT(No))
 
 AC_SUBST(IPCSOCKET_C)
 AC_SUBST(IPCSOCKET_LO)
@@ -1087,8 +1092,8 @@ dnl
           rc=$?
 	  rm -f ${Cfile}.c ${Cfile}.o
           case $rc in
-            0) AC_MSG_RESULT("yes");;
-            *) AC_MSG_RESULT("no");;
+            0) AC_MSG_RESULT(yes);;
+            *) AC_MSG_RESULT(no);;
           esac
           return $rc
 	}
@@ -1801,18 +1806,34 @@ if test "${enable_swig}" != "no"; then
 			AC_MSG_RESULT($enable_swig)
 			$MISSING_FN "swig" "SWIG version must be > 1.3.19" \
 			"You can get it from http://swig.org/"
+		elif $PERL -e "use 5.008001;" > /dev/null 2>&1; then
+			SWIG_ENABLED=1
+			AC_DEFINE_UNQUOTED(WITH_SWIG, 1, 
+				SWIG bindings enabled)
+			AC_MSG_RESULT(yes)
 		else
-			if $PERL -e "use 5.008001;" >& /dev/null; then
-				SWIG_ENABLED=1
-				AC_DEFINE_UNQUOTED(WITH_SWIG, 1, 
-						SWIG bindings enabled)
-			else
-				enable_swig="no (invalid perl version)"
-				AC_MSG_RESULT($enable_swig)
-				$MISSING_FN "swig-perl" "SWIG-enabled Perl" 
-			fi
+			enable_swig="no (invalid perl version)"
+			AC_MSG_RESULT($enable_swig)
+			$MISSING_FN "swig-perl" "SWIG-enabled Perl" 
 		fi
 	fi
+fi
+
+dnl If TCL.H isn't found, then we must search for it.
+dnl On FreeBSD they are in sub directories of /usr/local/include/
+
+AC_MSG_CHECKING(location of tcl.h)
+for name in $([$LS /usr/local/include/ | $EGREP '^(i?tcl[0-9]+\.[0-9]+(\_r)?([a-z][a-z])?)'])
+do
+	echo "Checking for $name/tcl.h"
+	AC_CHECK_HEADERS($name/tcl.h)
+	CPPFLAGS="$CPPFLAGS -I/usr/local/include/$name"
+	SWIG_OPTIONS="$SWIG_OPTIONS -I/usr/local/include/$name"
+done
+	
+if test "x$SWIG_ENABLED" = "x1" && test "x$ac_cv_header_tcl_h" = "xno"; then
+	AC_MSG_RESULT(no - tcl.h not found)
+	FatalMissingThing "tcl.h" "TCL Header File" "Install tcl"
 fi
 
 echo "$as_me:$LINENO: Enabling SWIG language bindings... ${enable_swig}" >&5
@@ -1945,6 +1966,7 @@ lib/Makefile							\
 	lib/bindings/Makefile					\
 		lib/bindings/perl/Makefile			\
 		lib/bindings/perl/Makefile.PL			\
+			lib/bindings/perl/cl_raw/Makefile   	\
 			lib/bindings/perl/cl_raw/Makefile.PL	\
 	lib/clplumbing/Makefile					\
 	lib/hbclient/Makefile					\
