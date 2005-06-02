@@ -211,13 +211,10 @@ static int recovery_barrier(group_t *g)
 	memcpy(g->recover_barrier, bname, len);
 
 	error = do_barrier(g, bname, g->memb_count, GD_BARRIER_RECOVERY);
-	if (!error)
-		goto done;
-
-	if (error < 0)
-		log_error(g, "recovery_barrier error %d: %s", error, bname);
-	else if (error > 0)
-		error = 0;
+	if (error < 0) {
+		log_error(g, "recovery_barrier error %d", error);
+		return error;
+	}
 
 	return error;
 
@@ -277,8 +274,10 @@ static int recover_group(group_t *g, int event_id)
 		break;
 
 	default:
+		/*
 		log_error(g, "no recovery processing for state %u",
 			  g->recover_state);
+		*/
 		rv = 0;
 	}
 
