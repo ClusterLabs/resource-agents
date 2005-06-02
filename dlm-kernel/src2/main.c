@@ -18,7 +18,6 @@
 #include "device.h"
 #include "memory.h"
 #include "lowcomms.h"
-#include "lvb_table.h"
 
 #ifdef CONFIG_DLM_DEBUG
 int dlm_register_debugfs(void);
