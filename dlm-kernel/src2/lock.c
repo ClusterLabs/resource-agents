@@ -3213,11 +3213,19 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 	down(&ls->ls_waiters_sem);
 
 	list_for_each_entry_safe(lkb, safe, &ls->ls_waiters, lkb_wait_reply) {
-		if (!dlm_is_removed(ls, lkb->lkb_nodeid))
-			continue;
-
 		log_debug(ls, "pre recover waiter lkid %x type %d flags %x",
 			  lkb->lkb_id, lkb->lkb_wait_type, lkb->lkb_flags);
+
+		/* all outstanding lookups, regardless of destination  will be
+		   resent after recovery is done */
+
+		if (lkb->lkb_wait_type == DLM_MSG_LOOKUP) {
+			lkb->lkb_flags |= DLM_IFL_RESEND;
+			continue;
+		}
+
+		if (!dlm_is_removed(ls, lkb->lkb_nodeid))
+			continue;
 
 		switch (lkb->lkb_wait_type) {
 
@@ -3243,11 +3251,6 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			_remove_from_waiters(lkb);
 			_receive_cancel_reply(lkb, &ls->ls_stub_ms);
 			put_lkb(lkb);
-			break;
-
-		case DLM_MSG_LOOKUP:
-			/* all outstanding lookups, regardless of dest.
-			   will be resent after recovery is done */
 			break;
 
 		default:
