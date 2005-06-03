@@ -531,7 +531,7 @@ int do_recovery_done(char *name)
 		return rv;
 	jid_done = atoi(buf);
 
-	list_for_each_entry(memb, &mg->members, list) {
+	list_for_each_entry(memb, &mg->members_gone, list) {
 		if (memb->jid == jid_done) {
 			if (memb->wait_recover_done) {
 				memb->wait_recover_done = 0;
@@ -541,8 +541,7 @@ int do_recovery_done(char *name)
 		}
 	}
 
-	if (!found)
-		log_group(mg, "jid_recovery_done %d: not waiting", jid_done);
+	log_group(mg, "jid_recovery_done %d waiting %d", jid_done, found);
 
 	wait = recover_journals(mg);
 	if (!wait)
