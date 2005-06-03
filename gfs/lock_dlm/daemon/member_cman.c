@@ -71,7 +71,7 @@ int setup_member(void)
 
 	ch = cman_init(NULL);
 	if (!ch) {
-		log_error("cman_init error %d %d", rv, errno);
+		log_error("cman_init error %d", errno);
 		return -ENOTCONN;
 	}
 

@@ -39,7 +39,7 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 
 	fd = open(fname, O_RDWR);
 	if (fd < 0) {
-		log_error("open error %s %d %d", fname, fd, errno);
+		log_error("open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
 
@@ -48,7 +48,7 @@ int set_sysfs(struct mountgroup *mg, char *field, int val)
 	rv = write(fd, out, strlen(out));
 
 	if (rv != strlen(out))
-		log_error("write error %s %d %d", fname, fd, errno);
+		log_error("write %s error %d %d", fname, fd, errno);
 
 	close(fd);
 	return 0;
@@ -63,13 +63,13 @@ int get_sysfs(struct mountgroup *mg, char *field, char *buf, int len)
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0) {
-		log_error("open error %s %d %d", fname, fd, errno);
+		log_error("open %s error %d %d", fname, fd, errno);
 		return -1;
 	}
 
 	rv = read(fd, buf, len);
 	if (rv < 0)
-		log_error("read error %s %d %d", fname, rv, errno);
+		log_error("read %s error %d %d", fname, rv, errno);
 	else {
 		rv = 0;
 		p = strchr(buf, '\n');

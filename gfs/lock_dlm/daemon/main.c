@@ -63,7 +63,7 @@ int process_uevent(void)
 
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
 	if (rv < 0) {
-		log_error("recv error %d errno %d", rv, errno);
+		log_error("uevent recv error %d errno %d", rv, errno);
 		return -1;
 	}
 
@@ -101,7 +101,7 @@ int setup_uevent(void)
 
 	s = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
 	if (s < 0) {
-		log_error("netlink socket");
+		log_error("netlink socket error %d errno %d", s, errno);
 		return s;
 	}
 
@@ -174,7 +174,7 @@ int loop(void)
 			}
 
 			if (pollfd[i].revents & POLLHUP) {
-				log_error("closing fd %d", pollfd[i].fd);
+				log_debug("closing fd %d", pollfd[i].fd);
 				close(pollfd[i].fd);
 			}
 		}
@@ -242,6 +242,7 @@ void daemonize(void)
 	close(0);
 	close(1);
 	close(2);
+	openlog("lock_dlmd", LOG_PID, LOG_DAEMON);
 
 	lockfile();
 }
