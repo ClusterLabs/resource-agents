@@ -30,7 +30,7 @@ static inline void dlm_unregister_debugfs(void) { }
 int dlm_node_ioctl_init(void);
 void dlm_node_ioctl_exit(void);
 
-int __init init_dlm(void)
+static int __init init_dlm(void)
 {
 	int error;
 
@@ -74,7 +74,7 @@ int __init init_dlm(void)
 	return error;
 }
 
-void __exit exit_dlm(void)
+static void __exit exit_dlm(void)
 {
 	dlm_lowcomms_exit();
 	dlm_member_sysfs_exit();

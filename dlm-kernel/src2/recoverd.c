@@ -658,7 +658,7 @@ static void do_ls_recovery(struct dlm_ls *ls)
 	}
 }
 
-int dlm_recoverd(void *arg)
+static int dlm_recoverd(void *arg)
 {
 	struct dlm_ls *ls;
 

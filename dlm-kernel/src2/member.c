@@ -47,7 +47,7 @@ static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
 	}
 }
 
-int dlm_add_member(struct dlm_ls *ls, int nodeid)
+static int dlm_add_member(struct dlm_ls *ls, int nodeid)
 {
 	struct dlm_member *memb;
 
@@ -61,13 +61,13 @@ int dlm_add_member(struct dlm_ls *ls, int nodeid)
 	return 0;
 }
 
-void dlm_remove_member(struct dlm_ls *ls, struct dlm_member *memb)
+static void dlm_remove_member(struct dlm_ls *ls, struct dlm_member *memb)
 {
 	list_move(&memb->list, &ls->ls_nodes_gone);
 	ls->ls_num_nodes--;
 }
 
-int dlm_is_member(struct dlm_ls *ls, int nodeid)
+static int dlm_is_member(struct dlm_ls *ls, int nodeid)
 {
 	struct dlm_member *memb;
 

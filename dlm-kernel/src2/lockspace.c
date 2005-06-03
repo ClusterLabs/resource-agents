@@ -47,7 +47,7 @@ int dlm_lockspace_init(void)
 	return 0;
 }
 
-int dlm_scand(void *data)
+static int dlm_scand(void *data)
 {
 	struct dlm_ls *ls;
 
@@ -60,7 +60,7 @@ int dlm_scand(void *data)
 	return 0;
 }
 
-int dlm_scand_start(void)
+static int dlm_scand_start(void)
 {
 	struct task_struct *p;
 	int error = 0;
@@ -73,7 +73,7 @@ int dlm_scand_start(void)
 	return error;
 }
 
-void dlm_scand_stop(void)
+static void dlm_scand_stop(void)
 {
 	kthread_stop(scand_task);
 }

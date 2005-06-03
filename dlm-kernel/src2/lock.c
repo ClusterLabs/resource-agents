@@ -92,7 +92,7 @@ static int receive_extralen(struct dlm_message *ms);
  * Usage: matrix[grmode+1][rqmode+1]  (although m[rq+1][gr+1] is the same)
  */
 
-const int __dlm_compat_matrix[8][8] = {
+static const int __dlm_compat_matrix[8][8] = {
       /* UN NL CR CW PR PW EX PD */
         {1, 1, 1, 1, 1, 1, 1, 0},       /* UN */
         {1, 1, 1, 1, 1, 1, 1, 0},       /* NL */
@@ -140,7 +140,7 @@ int dlm_modes_compat(int mode1, int mode2)
  * Usage: matrix[grmode+1][rqmode+1]
  */
 
-const int __quecvt_compat_matrix[8][8] = {
+static const int __quecvt_compat_matrix[8][8] = {
       /* UN NL CR CW PR PW EX PD */
         {0, 0, 0, 0, 0, 0, 0, 0},       /* UN */
         {0, 0, 1, 1, 1, 1, 1, 0},       /* NL */
@@ -1641,8 +1641,8 @@ static int set_unlock_args(uint32_t flags, void *astarg, struct dlm_args *args)
 	return 0;
 }
 
-int validate_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
-		       struct dlm_args *args)
+static int validate_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
+			      struct dlm_args *args)
 {
 	int rv = -EINVAL;
 
@@ -1696,7 +1696,7 @@ int validate_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	return rv;
 }
 
-int validate_unlock_args(struct dlm_lkb *lkb, struct dlm_args *args)
+static int validate_unlock_args(struct dlm_lkb *lkb, struct dlm_args *args)
 {
 	int rv = -EINVAL;
 

@@ -235,7 +235,7 @@ static struct dlm_rsb *recover_list_find(struct dlm_ls *ls, uint64_t id)
 	return r;
 }
 
-void recover_list_clear(struct dlm_ls *ls)
+static void recover_list_clear(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r, *s;
 
