@@ -28,6 +28,7 @@ extern void wake_daemon(void);
 extern long gettime(void);
 extern int send_kill(int nodeid, int needack);
 extern int start_membership_services();
+extern unsigned int get_highest_nodeid(void);
 extern int next_nodeid(void);
 
 extern struct list cluster_members_list;

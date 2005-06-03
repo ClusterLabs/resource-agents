@@ -145,6 +145,7 @@ static int start_transition(unsigned char reason, struct cluster_node *node);
 static uint32_t low32_of_ip(void);
 static void remove_joiner(int tell_wait);
 static int do_timer_wakeup();
+static int allocate_nodeid_array(void);
 static int send_leave(unsigned char flags);
 static char *leave_string(int reason);
 
@@ -717,6 +718,9 @@ static int init_membership_services()
 	pthread_mutex_init(&new_dead_node_lock, NULL);
 	pthread_mutex_init(&membership_task_lock, NULL);
 	list_init(&new_dead_node_list);
+
+	if (allocate_nodeid_array())
+		return -ENOMEM;
 
 	cman_handle = cman_init(NULL);
 	if (!cman_handle) {
@@ -3003,7 +3007,7 @@ int next_nodeid(void)
 	}
 }
 
-int allocate_nodeid_array()
+static int allocate_nodeid_array(void)
 {
 	/* Allocate space for the nodeid lookup array */
 	if (!members_by_nodeid) {

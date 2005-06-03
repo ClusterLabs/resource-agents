@@ -27,8 +27,6 @@ extern void set_quorate(int);
 extern int current_interface_num(void);
 extern void get_local_addresses(struct cluster_node *node);
 extern int add_node_address(struct cluster_node *node, unsigned char *addr, int len);
-extern unsigned int get_highest_nodeid(void);
-extern int allocate_nodeid_array(void);
 extern int new_temp_nodeid(char *addr, int addrlen);
 extern int get_addr_from_temp_nodeid(int nodeid, char *addr, unsigned int *addrlen);
 extern void purge_temp_nodeids(void);

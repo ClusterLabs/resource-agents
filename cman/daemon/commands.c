@@ -543,9 +543,6 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 	config_version = join_info->config_version;
 
 	quit_threads = 0;
-	if (allocate_nodeid_array())
-		return -ENOMEM;
-
 	cnxman_running = 1;
 
 	/* Make sure we have a node name */
@@ -553,7 +550,6 @@ static int do_cmd_join_cluster(char *cmdbuf, int *retlen)
 		uname(&un);
 		strcpy(nodename, un.nodename);
 	}
-
 
 	if (start_membership_services()) {
 		return -ENOMEM;
