@@ -3312,6 +3312,26 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 		switch (mstype) {
 
 		case DLM_MSG_LOOKUP:
+
+			/* We need to clear the MASTER_WAIT flag so set_master
+			   will redo the lookup for this lkb instead of making
+			   it wait on the res_lookup list.
+
+			   FIXME: it's possible that other lkb's have queued
+			   up on res_lookup waiting for a master confirmation
+			   from this lkb.  If the post-recovery lookup is
+			   local and the lookup says we're the master, then
+			   confirm_master() won't be called to process the
+			   lkb's on res_lookup. */
+
+			hold_rsb(r);
+			lock_rsb(r);
+			clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+			_request_lock(r, lkb);
+			unlock_rsb(r);
+			put_rsb(r);
+			break;
+
 		case DLM_MSG_REQUEST:
 			hold_rsb(r);
 			lock_rsb(r);
