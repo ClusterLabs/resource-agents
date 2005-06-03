@@ -43,7 +43,7 @@
 typedef void *cman_handle_t;
 
 /*
- * Reasons we get an ent callback
+ * Reasons we get an event callback
  */
 typedef enum {CMAN_REASON_PORTCLOSED,
 	      CMAN_REASON_STATECHANGE} cman_call_reason_t;
@@ -60,6 +60,7 @@ typedef enum {CMAN_REASON_PORTCLOSED,
  * CMAN_DISPATCH_ONE dispatches a single message then returns,
  * CMAN_DISPATCH_ALL dispatches all outstanding messages (ie till EAGAIN) then returns,
  * CMAN_DISPATCH_BLOCKING forces it to wait for a message (cleans MSG_DONTWAIT in recvmsg)
+ * CMAN_DISPATCH_IGNORE_* allows the caller to select which messages to process.
  */
 #define CMAN_DISPATCH_ONE           0
 #define CMAN_DISPATCH_ALL           1
@@ -71,7 +72,7 @@ typedef enum {CMAN_REASON_PORTCLOSED,
 #define CMAN_DISPATCH_IGNORE_MASK  46
 
 /*
- * A node address. this is a complete sockaddr_in[6]
+ * A node address. This is a complete sockaddr_in[6]
  */
 typedef struct cman_node_address
 {
@@ -163,6 +164,9 @@ typedef void (*cman_datacallback_t)(cman_handle_t handle, void *private,
  * cman_init        returns the handle you need to pass to the other API calls.
  * cman_admin_init  opens admin socket for privileged operations.
  * cman_finish      destroys that handle.
+ *
+ * Note that admin sockets can't send data messages.
+ *
  */
 cman_handle_t cman_init(void *private);
 cman_handle_t cman_admin_init(void *private);
