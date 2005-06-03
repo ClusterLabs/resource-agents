@@ -419,3 +419,4 @@ void release_async_thread(dlm_t *dlm)
 	kthread_stop(dlm->thread1);
 	kthread_stop(dlm->thread2);
 }
+

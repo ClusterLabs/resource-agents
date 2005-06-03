@@ -748,3 +748,23 @@ void lm_dlm_submit_delayed(dlm_t *dlm)
 	spin_unlock(&dlm->async_lock);
 	wake_up(&dlm->wait);
 }
+
+int release_all_locks(dlm_t *dlm)
+{
+	dlm_lock_t *lp, *safe;
+	int count = 0;
+
+	spin_lock(&dlm->async_lock);
+	list_for_each_entry_safe(lp, safe, &dlm->all_locks, all_list) {
+		list_del(&lp->all_list);
+
+		if (lp->lvb && lp->lvb != junk_lvb)
+			kfree(lp->lvb);
+		kfree(lp);
+		count++;
+	}
+	spin_unlock(&dlm->async_lock);
+
+	return count;
+}
+

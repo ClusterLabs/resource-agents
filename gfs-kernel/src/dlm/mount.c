@@ -145,25 +145,6 @@ static int lm_dlm_mount(char *table_name, char *host_data,
 	return error;
 }
 
-static int release_all_locks(dlm_t *dlm)
-{
-	dlm_lock_t *lp, *safe;
-	int count = 0;
-
-	spin_lock(&dlm->async_lock);
-	list_for_each_entry_safe(lp, safe, &dlm->all_locks, all_list) {
-		list_del(&lp->all_list);
-
-		if (lp->lvb)
-			kfree(lp->lvb);
-		kfree(lp);
-		count++;
-	}
-	spin_unlock(&dlm->async_lock);
-
-	return count;
-}
-
 static void lm_dlm_unmount(lm_lockspace_t *lockspace)
 {
 	dlm_t *dlm = (dlm_t *) lockspace;
