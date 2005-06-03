@@ -1432,11 +1432,21 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return 0;
 	}
 
+	/* An lkb becomes the trial_lkid for an rsb in one of three places:
+	   . when we get a local lookup result at the end of this function
+	   . when we get a remote lookup result in receive_lookup_reply()
+	   . when we try to reuse an old (uncertain) lookup value above */
+
 	if (r->res_trial_lkid == lkb->lkb_id) {
 		DLM_ASSERT(lkb->lkb_id, dlm_print_lkb(lkb););
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
 	}
+
+	/* The MASTER_WAIT flag means that another lkb is the middle of
+	   looking up or trying out the rsb master value.  When the master
+	   is confirmed, then subsequent lkb's can go ahead and use it, but
+	   until then the other lkb's wait on the res_lookup list. */
 
 	if (test_bit(RESFL_MASTER_WAIT, &r->res_flags)) {
 		list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
