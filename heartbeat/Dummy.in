@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Dummy.in,v 1.1 2004/08/27 14:12:25 lars Exp $
+#	$Id: Dummy.in,v 1.2 2005/06/03 03:27:31 sunjd Exp $
 #
 #	Dummy OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -97,7 +97,7 @@ END
 }
 
 dummy_exit() {
-	if [ -e /tmp/Dummy.$ACTION ]; then
+	if [ -e /tmp/Dummy.$__OCF_ACTION ]; then
 		exit $OCF_ERR_GENERIC
 	else
 		exit $OCF_SUCCESS
@@ -120,7 +120,7 @@ dummy_validate() {
 	exit $OC_ERR_UNIMPLEMENTED
 }
 
-case $ACTION in
+case $__OCF_ACTION in
 meta-data)	meta_data
 		exit $OCF_SUCCESS
 		;;

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.4 2005/03/15 07:48:06 zhaokai Exp $
+#	$Id: drbd.in,v 1.5 2005/06/03 03:27:31 sunjd Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
@@ -272,12 +272,12 @@ END
 	return $OCF_SUCCESS
 }
 
-case $ACTION in
+case $__OCF_ACTION in
 meta-data)	meta_data
 		;;
 start|stop|monitor|xstatus|validate-all|promote|demote|notify)
 		drbd_init
-		drbd_$ACTION
+		drbd_$__OCF_ACTION
 		exit $?
 		;;
 usage|help)	drbd_usage

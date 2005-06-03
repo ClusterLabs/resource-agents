@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.6 2005/05/05 14:19:52 alan Exp $
+#	$Id: IPaddr2.in,v 1.7 2005/06/03 03:27:31 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -621,7 +621,7 @@ ip_validate() {
 	exit $OCF_SUCCESS
 }
 
-case $ACTION in
+case $__OCF_ACTION in
 meta-data)	meta_data
 		;;
 start)		ip_start
