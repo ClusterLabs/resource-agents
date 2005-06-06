@@ -1838,6 +1838,9 @@ static void do_login(int idx)
          if(xdr_enc_uint8(enc, I_am_the) != 0) break;
          if(xdr_enc_flush(enc) != 0) break;
       }while(0);
+      log_msg(lgm_Network2, "Telling %s that they are Not Allowed to talk "
+            "to us because core said so.\n",
+            print_ipname(&poller.ipn[idx]));
       close_by_idx(idx);
    }else
    if( gio_lck_st_Slave == x_ama ) {
@@ -1909,6 +1912,9 @@ static void do_login(int idx)
             if(xdr_enc_uint8(enc, gio_Mbr_ama_Slave) != 0) break;
             if(xdr_enc_flush(enc) != 0) break;
          }while(0);
+         log_msg(lgm_Network2, "Telling %s Not Allowed because they are "
+               "a Slave but we're not Master or Arbitrator.\n",
+               print_ipname(&poller.ipn[idx]));
          close_by_idx(idx);
       }
    }else
@@ -1950,6 +1956,9 @@ static void do_login(int idx)
             if(xdr_enc_uint8(enc, I_am_the) != 0) break;
             if(xdr_enc_flush(enc) != 0) break;
          }while(0);
+         log_msg(lgm_Network2, "Telling %s Not Allowed because they are a "
+               "Client but we're not Master.\n",
+               print_ipname(&poller.ipn[idx]));
          close_by_idx(idx);
       }
    }else
