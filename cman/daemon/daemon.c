@@ -372,9 +372,9 @@ static void process_client(struct connection *con, struct sock_header *msg)
 			 msg->length - sizeof(struct sock_data_header), dmsg->nodeid, dmsg->port);
 
 		buf += sizeof(struct sock_data_header);
-		ret = cl_sendmsg(con, dmsg->port, dmsg->nodeid, msg->flags,
-				 buf, msg->length - sizeof(struct sock_data_header));
-		if (ret) 	{
+		ret = send_data_msg(con, dmsg->port, dmsg->nodeid, msg->flags,
+				    buf, msg->length - sizeof(struct sock_data_header));
+		if (ret) {
 			send_status_return(con, msg->command, ret);
 		}
 	}

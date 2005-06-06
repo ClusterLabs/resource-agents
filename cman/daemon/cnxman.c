@@ -61,13 +61,6 @@ struct cluster_node *quorum_device = NULL;
 uint16_t cluster_id;
 char cluster_name[MAX_CLUSTER_NAME_LEN+1];
 
-/* Two-node mode: causes cluster to remain quorate if one of two nodes fails.
- * No more than two nodes are permitted to join the cluster. */
-unsigned short two_node;
-
-/* Reference counting for cluster applications */
-int use_count;
-
 /* Length of sockaddr address for our comms protocol */
 unsigned int address_length;
 
@@ -135,15 +128,6 @@ struct temp_node
 };
 static struct list tempnode_list;
 static pthread_mutex_t tempnode_lock;
-
-
-/* Wake up any processes that are waiting to send. This is usually called when
- * all the ACKs have been gathered up or when a node has left the cluster
- * unexpectedly and we reckon there are no more acks to collect */
-static void unjam(void)
-{
-	wake_daemon();
-}
 
 int comms_receive_message(struct cl_comms_socket *csock)
 {
@@ -219,7 +203,7 @@ static void check_for_unacked_nodes()
 	}
 	pthread_mutex_unlock(&cluster_members_lock);
 	acks_expected = ack_count = 0;
-	unjam();
+	wake_daemon();
 	return;
 }
 
@@ -324,7 +308,7 @@ static void process_ack(struct cluster_node *rem_node, unsigned short seq)
 				/* Cancel the timer */
 				del_timer(&ack_timer);
 				acks_expected = 0;
-				unjam();
+				wake_daemon();
 			}
 		}
 	}
@@ -848,7 +832,7 @@ static int __sendmsg(struct connection *con,
 	return result;
 }
 
-int queue_message(struct connection *con, void *buf, int len,
+static int queue_message(struct connection *con, void *buf, int len,
 		  struct sockaddr_cl *caddr,
 		  unsigned char port, int flags)
 {
@@ -875,13 +859,18 @@ int queue_message(struct connection *con, void *buf, int len,
 	pthread_mutex_lock(&messages_list_lock);
 	list_add(&messages_list, &qmsg->list);
 	pthread_mutex_unlock(&messages_list_lock);
-	unjam();
+	wake_daemon();
 	return 0;
 }
 
-int cl_sendmsg(struct connection *con,
-	       int port, int nodeid, int flags,
-	       char *msg, size_t size)
+
+/* This is called (mainly from daemon.c) to send data messages for clients.
+ * if the cluster is inquorate or in transition then the message will
+ * be queued and only sent when ready
+ */
+int send_data_msg(struct connection *con,
+		     int port, int nodeid, int flags,
+		     char *msg, size_t size)
 {
 	int status;
 
@@ -920,9 +909,7 @@ static int send_queued_message(struct queued_message *qmsg)
 }
 
 
-/* Used where we are in kclusterd context and we can't allow the task to wait
- * as we are also responsible to processing the ACKs that do the wake up. Try
- * to send the message immediately and queue it if that's not possible */
+/* Try to send the message immediately and queue it if that's not possible */
 int send_or_queue_message(void *buf, int len,
 			  struct sockaddr_cl *caddr,
 			  unsigned int flags)
@@ -986,33 +973,6 @@ static int cl_sendack(struct cl_comms_socket *csock, unsigned short seq,
 		log_msg(LOG_ERR, "error sending ACK: %d\n", result);
 
 	return result;
-
-}
-
-/* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
- * blocked. */
-void set_quorate(int total_votes)
-{
-	int quorate;
-
-	if (get_quorum() > total_votes) {
-		quorate = 0;
-	}
-	else {
-		quorate = 1;
-	}
-
-	if (cluster_is_quorate && !quorate)
-		log_msg(LOG_INFO, "quorum lost, blocking activity\n");
-	if (!cluster_is_quorate && quorate)
-		log_msg(LOG_INFO, "quorum regained, resuming activity\n");
-
-	cluster_is_quorate = quorate;
-
-	/* Wake up any sleeping processes */
-	if (cluster_is_quorate) {
-		unjam();
-	}
 
 }
 

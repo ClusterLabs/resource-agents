@@ -29,19 +29,31 @@ cmand:	daemon.o cnxman.o membership.o config.o logging.o barrier.o commands.c ..
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread
 
 
-daemon.o: daemon.c cnxman-private.h cnxman-socket.h cnxman.h list.h config.h
+daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+  cnxman.h daemon.h logging.h commands.h barrier.h config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-cnxman.o: cnxman.c cnxman-private.h cnxman-socket.h cnxman.h list.h config.h
+cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+  cnxman.h daemon.h barrier.h commands.h config.h membership.h logging.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-membership.o: membership.c cnxman-private.h cnxman-socket.h cnxman.h list.h config.h
+membership.o: membership.c list.h cnxman-socket.h cnxman-private.h \
+  xlate.h cnxman.h daemon.h config.h logging.h membership.h barrier.h \
+  commands.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-config.o: config.c config.h
+config.o: config.c ccs.h config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-logging.o: logging.c
+barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+  cnxman.h daemon.h logging.h membership.h config.h barrier.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+commands.o: commands.c list.h cnxman-socket.h cnxman-private.h xlate.h \
+  cnxman.h daemon.h barrier.h membership.h logging.h config.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+logging.o: logging.c list.h cnxman-socket.h cnxman-private.h xlate.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: cmand
@@ -53,4 +65,6 @@ uninstall:
 
 clean:
 	rm -f *.o cmand
+
+
 

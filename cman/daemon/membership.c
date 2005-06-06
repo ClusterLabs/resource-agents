@@ -76,6 +76,10 @@ char nodename[MAX_CLUSTER_MEMBER_NAME_LEN + 1];
  */
 int wanted_nodeid;
 
+/* Two-node mode: causes cluster to remain quorate if one of two nodes fails.
+ * No more than two nodes are permitted to join the cluster. */
+unsigned short two_node;
+
 static pthread_mutex_t members_by_nodeid_lock;
 static int sizeof_members_array;	/* Can dynamically increase (malloc
 					 * permitting) */
@@ -146,6 +150,7 @@ static uint32_t low32_of_ip(void);
 static void remove_joiner(int tell_wait);
 static int do_timer_wakeup();
 static int allocate_nodeid_array(void);
+static void set_quorate(int total_votes);
 static int send_leave(unsigned char flags);
 static char *leave_string(int reason);
 
@@ -1001,8 +1006,8 @@ static int send_leave(unsigned char flags)
 		msg[1] = flags;
 
 		/* Direct call into cman because the daemon is probably shutting down */
-		status = cl_sendmsg(NULL, 1, node->node_id,
-				    MSG_NOACK, msg, 2);
+		status = send_data_msg(NULL, 1, node->node_id,
+				       MSG_NOACK, msg, 2);
 		if (status < 0) {
 			P_MEMB("Send leave status = %d\n", status);
 			return status;
@@ -1294,8 +1299,9 @@ static int start_transition(unsigned char reason, struct cluster_node *node)
 /* A node has died - decide what to do */
 void a_node_just_died(struct cluster_node *node, int in_cman_main)
 {
-	/* If we are not in the context of kmembershipd then stick it on the
-	 * list and wake it */
+	/* If we are not in the context of the membership thread then stick
+	 * it on the list and wake the main daemon.
+	 */
 	if (in_cman_main) {
 		struct cl_new_dead_node *newnode =
 		    malloc(sizeof (struct cl_new_dead_node));
@@ -1313,7 +1319,7 @@ void a_node_just_died(struct cluster_node *node, int in_cman_main)
 	}
 
 	log_msg(LOG_INFO, "removing node %s from the cluster : %s\n",
-	       node->name, leave_string(node->leave_reason));
+		node->name, leave_string(node->leave_reason));
 
 	/* Remove it */
 	pthread_mutex_lock(&cluster_members_lock);
@@ -3040,6 +3046,34 @@ int get_quorum()
 {
 	return quorum;
 }
+
+/* If "cluster_is_quorate" is 0 then all activity apart from protected ports is
+ * blocked. */
+static void set_quorate(int total_votes)
+{
+	int quorate;
+
+	if (quorum > total_votes) {
+		quorate = 0;
+	}
+	else {
+		quorate = 1;
+	}
+
+	if (cluster_is_quorate && !quorate)
+		log_msg(LOG_INFO, "quorum lost, blocking activity\n");
+	if (!cluster_is_quorate && quorate)
+		log_msg(LOG_INFO, "quorum regained, resuming activity\n");
+
+	cluster_is_quorate = quorate;
+
+	/* Wake up any sleeping processes */
+	if (cluster_is_quorate) {
+		wake_daemon();
+	}
+
+}
+
 
 /* Called by cnxman to see if activity should be blocked because we are in a
  * state transition */

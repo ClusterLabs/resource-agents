@@ -92,7 +92,7 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 		strcpy(bmsg.name, barrier->name);
 
 		P_BARRIER("Sending COMPLETE for %s\n", barrier->name);
-		queue_message(NULL, (char *) &bmsg, sizeof (bmsg), NULL, 0, 0);
+		send_or_queue_message((char *) &bmsg, sizeof (bmsg), NULL, 0);
 	}
 }
 
@@ -313,7 +313,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		 * before WAIT if its in the queue
 		 */
 		P_BARRIER("Sending WAIT for %s\n", barrier->name);
-		status = queue_message(NULL, &bmsg, sizeof (bmsg), NULL, 0, 0);
+		status = send_or_queue_message(&bmsg, sizeof (bmsg), NULL, 0);
 		if (status < 0) {
 			pthread_mutex_unlock(&barrier->lock);
 			return status;

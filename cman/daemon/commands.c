@@ -44,6 +44,9 @@
 /* Cluster configuration version that must be the same among members. */
 unsigned int config_version;
 
+/* Reference counting for cluster applications */
+static int use_count;
+
 /* Array of "ports" allocated. This is just a list of pointers to the sock that
  * has this port bound. Speed is a major issue here so 1-2K of allocated
  * storage is worth sacrificing. Port 0 is reserved for protocol messages */

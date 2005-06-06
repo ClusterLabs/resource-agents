@@ -43,3 +43,4 @@ extern long gettime(void);
 extern node_state_t node_state;
 extern int cluster_generation;
 extern struct cluster_node *master_node;
+extern unsigned short two_node;
