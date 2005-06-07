@@ -594,7 +594,11 @@ ipv6()
 	#
 
 	# Not sure if this is necessary for ipv6 either.
-	killall -HUP rdisc || rdisc -fs
+	file=$(which rdisc 2>/dev/null)
+	if [ -f "$file" ]; then
+		killall -HUP rdisc || rdisc -fs
+	fi
+
 	return 0
 }
 
@@ -646,7 +650,11 @@ ipv4()
  		arping -q -c 2 -U -I $dev $addr
 	fi
 
-	killall -HUP rdisc || rdisc -fs
+	file=$(which rdisc 2>/dev/null)
+	if [ -f "$file" ]; then
+		killall -HUP rdisc || rdisc -fs
+	fi
+
 	return 0
 }
 
