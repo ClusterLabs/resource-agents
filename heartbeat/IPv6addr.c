@@ -396,8 +396,8 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 
 	libnet_seed_prand(l);
 	/* 0x2000: RSO */
-	libnet_build_icmpv4_echo(136,0,0,0x2000,0,payload,sizeof(payload),
-				 l,LIBNET_PTAG_INITIALIZER);
+	libnet_build_icmpv4_echo(136,0,0,0x2000,0,(u_int8_t *)payload
+			,sizeof(payload), l, LIBNET_PTAG_INITIALIZER);
 	libnet_build_ipv6(0,0,LIBNET_ICMPV6_H + sizeof(payload),IPPROTO_ICMP6,
 				255,*(struct libnet_in6_addr*)src_ip,
 				dst_ip,NULL,0,l,0);
