@@ -42,7 +42,7 @@ membership.o: membership.c list.h cnxman-socket.h cnxman-private.h \
   commands.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-config.o: config.c ccs.h config.h
+config.o: config.c config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h xlate.h \
