@@ -253,6 +253,19 @@ static int nodeid_to_addr(int nodeid, struct sockaddr *retaddr)
 	return 0;
 }
 
+int dlm_node_weight(int nodeid)
+{
+	struct dlm_node *node;
+	int weight = -1;
+
+	down(&nodes_sem);
+	node = search_node(nodeid);
+	if (node)
+		weight = node->weight;
+	up(&nodes_sem);
+	return weight;
+}
+
 int dlm_set_node(int nodeid, int weight, char *addr_buf)
 {
 	struct dlm_node *node;

@@ -89,12 +89,16 @@ int dlm_dir_name2nodeid(struct dlm_ls *ls, char *name, int length)
 	}
 
 	hash = dlm_hash(name, length);
-	node = (hash >> 16) % ls->ls_num_nodes;
 
 	if (ls->ls_node_array) {
+		node = (hash >> 16) % ls->ls_total_weight;
 		nodeid = ls->ls_node_array[node];
 		goto out;
 	}
+
+	/* make_member_array() failed to kmalloc ls_node_array... */
+
+	node = (hash >> 16) % ls->ls_num_nodes;
 
 	list_for_each(tmp, &ls->ls_nodes) {
 		if (n++ != node)

@@ -56,6 +56,7 @@ static int dlm_add_member(struct dlm_ls *ls, int nodeid)
 		return -ENOMEM;
 
 	memb->nodeid = nodeid;
+	memb->weight = dlm_node_weight(nodeid);
 	add_ordered_member(ls, memb);
 	ls->ls_num_nodes++;
 	return 0;
@@ -126,19 +127,43 @@ void dlm_clear_members_finish(struct dlm_ls *ls, int finish_event)
 static void make_member_array(struct dlm_ls *ls)
 {
 	struct dlm_member *memb;
-	int i = 0, *array;
+	int i, w, x = 0, total = 0, all_zero = 0, *array;
 
-	if (ls->ls_node_array) {
-		kfree(ls->ls_node_array);
-		ls->ls_node_array = NULL;
+	kfree(ls->ls_node_array);
+	ls->ls_node_array = NULL;
+
+	list_for_each_entry(memb, &ls->ls_nodes, list) {
+		if (memb->weight)
+			total += memb->weight;
 	}
 
-	array = kmalloc(sizeof(int) * ls->ls_num_nodes, GFP_KERNEL);
+	/* all nodes revert to weight of 1 if all have weight 0 */
+
+	if (!total) {
+		total = ls->ls_num_nodes;
+		all_zero = 1;
+	}
+
+	ls->ls_total_weight = total;
+
+	array = kmalloc(sizeof(int) * total, GFP_KERNEL);
 	if (!array)
 		return;
 
-	list_for_each_entry(memb, &ls->ls_nodes, list)
-		array[i++] = memb->nodeid;
+	list_for_each_entry(memb, &ls->ls_nodes, list) {
+		if (!all_zero && !memb->weight)
+			continue;
+
+		if (all_zero)
+			w = 1;
+		else
+			w = memb->weight;
+
+		DLM_ASSERT(x < total, printk("total %d x %d\n", total, x););
+
+		for (i = 0; i < w; i++)
+			array[x++] = memb->nodeid;
+	}
 
 	ls->ls_node_array = array;
 }

@@ -134,6 +134,7 @@ struct dlm_member {
 	struct list_head	list;
 	int			nodeid;
 	int			gone_event;
+	int			weight;
 };
 
 /*
@@ -457,6 +458,7 @@ struct dlm_ls {
 	struct list_head	ls_nodes_gone;	/* dead node list, recovery */
 	int			ls_num_nodes;	/* number of nodes in ls */
 	int			ls_low_nodeid;
+	int			ls_total_weight;
 	int			*ls_node_array;
 	int			*ls_nodeids_next;
 	int			ls_nodeids_next_count;
