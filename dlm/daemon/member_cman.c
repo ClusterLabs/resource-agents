@@ -12,6 +12,7 @@
 
 #include "dlm_daemon.h"
 #include "libcman.h"
+#include "ccs.h"
 
 static cman_handle_t	ch;
 static cman_node_t	cluster_nodes[MAX_NODES];
@@ -43,13 +44,17 @@ static int do_set_local(int nodeid, char *addr)
 	return set_local(2, argv);
 }
 
-static int do_set_node(int nodeid, char *addr)
+static int do_set_node(int nodeid, char *addr, int weight)
 {
-	char *argv[] = { id, ip };
+	char weight_str[8];
+	char *argv[] = { id, ip, weight_str };
+
+	memset(weight_str, 0, sizeof(weight_str));
+	snprintf(weight_str, 8, "%d", weight);
 
 	set_idip(nodeid, addr);
-	log_debug("set_node %s %s", argv[0], argv[1]);
-	return set_node(2, argv);
+	log_debug("set_node %s %s %s", argv[0], argv[1], argv[2]);
+	return set_node(3, argv);
 }
 
 static cman_node_t *find_cluster_node(int nodeid)
@@ -63,10 +68,37 @@ static cman_node_t *find_cluster_node(int nodeid)
 	return NULL;
 }
 
+#define WEIGHT_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@weight"
+
+static int get_weight(int cd, char *name)
+{
+	char path[256], *str;
+	int error, w;
+
+	memset(path, 0, 256);
+	sprintf(path, WEIGHT_PATH, name);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return 1;
+
+	w = atoi(str);
+	free(str);
+	return w;
+}
+
 static void process_member_cb(void)
 {
-	int i, rv, count;
+	int i, rv, cd, count, weight;
 	cman_node_t *cn;
+
+
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check ccsd or cluster status", cd);
+	}
 
 	count = 0;
 	memset(&new_nodes, 0, sizeof(new_nodes));
@@ -87,12 +119,17 @@ static void process_member_cb(void)
 		cn = find_cluster_node(new_nodes[i].cn_nodeid);
 		if (cn)
 			continue;
+
+		weight = get_weight(cd, new_nodes[i].cn_name);
+
 		do_set_node(new_nodes[i].cn_nodeid,
-			    new_nodes[i].cn_address.cna_address);
+			    new_nodes[i].cn_address.cna_address, weight);
 	}
 
 	cluster_count = count;
 	memcpy(cluster_nodes, new_nodes, sizeof(new_nodes));
+
+	ccs_disconnect(cd);
 }
 
 static void member_callback(cman_handle_t h, void *private, int reason, int arg)

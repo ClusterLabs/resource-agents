@@ -17,7 +17,10 @@ include ${top_srcdir}/make/defines.mk
 
 CFLAGS+= -g -I${incdir} -I${top_srcdir}/config
 
-CFLAGS+= -I../../dlm-kernel/src2/ -I../../cman/lib/ -I../../group/lib/
+CFLAGS+= -I../../dlm-kernel/src2/ \
+	-I../../cman/lib/ \
+	-I../../group/lib/ \
+	-I../../ccs/lib/
 
 
 TARGET=dlm_controld
@@ -33,7 +36,8 @@ dlm_controld:	main.o \
 		ioctl.o \
 		action.o \
 		../../cman/lib/libcman.a \
-		../../group/lib/libgroup.a
+		../../group/lib/libgroup.a \
+		../../ccs/lib/libccs.a
 	$(CC) $(LDFLAGS) -o $@ $^
 
 main.o: main.c
