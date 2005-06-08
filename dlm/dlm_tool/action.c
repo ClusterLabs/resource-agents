@@ -86,6 +86,8 @@ int set_node(int argc, char **argv)
 	set_ipaddr(&ni, argv[1]);
 	if (argc > 2)
 		ni.weight = atoi(argv[2]);
+	else
+		ni.weight = 1;
 	return do_command(DLM_SET_NODE, &ni);
 }
 
