@@ -914,13 +914,21 @@ int send_or_queue_message(void *buf, int len,
 			  struct sockaddr_cl *caddr,
 			  unsigned int flags)
 {
-	/* Are we busy ? */
-	if (!(flags & MSG_NOACK) && acks_expected)
-		return queue_message(NULL, buf, len, caddr, 0, flags);
+	struct sockaddr_cl tmpaddr;
 
-	else
+	/* Are we busy ? */
+	if (!(flags & MSG_NOACK) && acks_expected) {
+		return queue_message(NULL, buf, len, caddr, 0, flags);
+	}
+	else {
+		if (!caddr) {
+			caddr = &tmpaddr;
+			tmpaddr.scl_nodeid = 0;
+			tmpaddr.scl_port = 0;
+		}
 		return __sendmsg(NULL, buf, len, MSG_DONTWAIT | flags,
 				caddr->scl_nodeid, caddr->scl_port);
+	}
 }
 
 
