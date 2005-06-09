@@ -19,6 +19,8 @@
 #
 MAINTAINERCLEANFILES = Makefile.in
 
+INCLUDES		= -I$(top_srcdir)/include
+
 ocfdir		     = @OCF_RA_DIR@/heartbeat
 
 gliblib                 = @GLIBLIB@
