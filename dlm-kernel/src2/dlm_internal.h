@@ -262,25 +262,11 @@ struct dlm_lkb {
 	long			lkb_astparam;	/* caller's ast arg */
 };
 
-
-/* find_rsb() flags */
-
-#define R_MASTER		1	/* only return rsb if it's a master */
-#define R_CREATE		2	/* create/add rsb if not found */
-
-#define RESFL_MASTER_WAIT	0
-#define RESFL_MASTER_UNCERTAIN	1
-#define RESFL_VALNOTVALID	2
-#define RESFL_VALNOTVALID_PREV	3
-#define RESFL_NEW_MASTER	4
-#define RESFL_NEW_MASTER2	5
-#define RESFL_RECOVER_CONVERT	6
-
 struct dlm_rsb {
 	struct dlm_ls		*res_ls;	/* the lockspace */
 	struct kref		res_ref;
 	struct semaphore	res_sem;
-	unsigned long		res_flags;	/* RESFL_ */
+	unsigned long		res_flags;
 	int			res_length;	/* length of rsb name */
 	int			res_nodeid;
 	uint32_t                res_lvbseq;
@@ -300,6 +286,38 @@ struct dlm_rsb {
 	char			*res_lvbptr;
 	char			res_name[1];
 };
+
+/* find_rsb() flags */
+
+#define R_MASTER		1	/* only return rsb if it's a master */
+#define R_CREATE		2	/* create/add rsb if not found */
+
+/* rsb_flags */
+
+enum rsb_flags {
+	RSB_MASTER_WAIT,
+	RSB_MASTER_UNCERTAIN,
+	RSB_VALNOTVALID,
+	RSB_VALNOTVALID_PREV,
+	RSB_NEW_MASTER,
+	RSB_NEW_MASTER2,
+	RSB_RECOVER_CONVERT,
+};
+
+static inline void rsb_set_flag(struct dlm_rsb *r, enum rsb_flags flag)
+{
+	__set_bit(flag, &r->res_flags);
+}
+
+static inline void rsb_clear_flag(struct dlm_rsb *r, enum rsb_flags flag)
+{
+	__clear_bit(flag, &r->res_flags);
+}
+
+static inline int rsb_flag(struct dlm_rsb *r, enum rsb_flags flag)
+{
+	return test_bit(flag, &r->res_flags);
+}
 
 
 /* dlm_header is first element of all structs sent between nodes */

@@ -309,8 +309,8 @@ static void set_new_master(struct dlm_rsb *r, int nodeid)
 
 	set_master_lkbs(r);
 
-	set_bit(RESFL_NEW_MASTER, &r->res_flags);
-	set_bit(RESFL_NEW_MASTER2, &r->res_flags);
+	rsb_set_flag(r, RSB_NEW_MASTER);
+	rsb_set_flag(r, RSB_NEW_MASTER2);
 	unlock_rsb(r);
 }
 
@@ -487,11 +487,11 @@ int dlm_recover_locks(struct dlm_ls *ls)
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		if (is_master(r)) {
-			clear_bit(RESFL_NEW_MASTER, &r->res_flags);
+			rsb_clear_flag(r, RSB_NEW_MASTER);
 			continue;
 		}
 
-		if (!test_bit(RESFL_NEW_MASTER, &r->res_flags))
+		if (!rsb_flag(r, RSB_NEW_MASTER))
 			continue;
 
 		error = dlm_recovery_stopped(ls);
@@ -525,7 +525,7 @@ void dlm_recovered_lock(struct dlm_rsb *r)
 {
 	r->res_recover_locks_count--;
 	if (!r->res_recover_locks_count) {
-		clear_bit(RESFL_NEW_MASTER, &r->res_flags);
+		rsb_clear_flag(r, RSB_NEW_MASTER);
 		recover_list_del(r);
 	}
 
@@ -538,7 +538,7 @@ void dlm_recovered_lock(struct dlm_rsb *r)
  * the VALNOTVALID flag if necessary, and determining the correct lvb contents
  * based on the lvb's of the locks held on the rsb.
  *
- * RESFL_VALNOTVALID is set if there are only NL/CR locks on the rsb.  If it
+ * RSB_VALNOTVALID is set if there are only NL/CR locks on the rsb.  If it
  * was already set prior to recovery, it's not cleared, regardless of locks.
  *
  * The LVB contents are only considered for changing when this is a new master
@@ -594,10 +594,10 @@ static void recover_lvb(struct dlm_rsb *r)
 		goto out;
 
 	if (!big_lock_exists)
-		set_bit(RESFL_VALNOTVALID, &r->res_flags);
+		rsb_set_flag(r, RSB_VALNOTVALID);
 
 	/* don't mess with the lvb unless we're the new master */
-	if (!test_bit(RESFL_NEW_MASTER2, &r->res_flags))
+	if (!rsb_flag(r, RSB_NEW_MASTER2))
 		goto out;
 
 	if (!r->res_lvbptr) {
@@ -657,12 +657,12 @@ void dlm_recover_rsbs(struct dlm_ls *ls)
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
 		lock_rsb(r);
 		if (is_master(r)) {
-			if (test_bit(RESFL_RECOVER_CONVERT, &r->res_flags))
+			if (rsb_flag(r, RSB_RECOVER_CONVERT))
 				recover_conversion(r);
 			recover_lvb(r);
 			count++;
 		}
-		clear_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+		rsb_clear_flag(r, RSB_RECOVER_CONVERT);
 		unlock_rsb(r);
 	}
 	up_read(&ls->ls_root_sem);

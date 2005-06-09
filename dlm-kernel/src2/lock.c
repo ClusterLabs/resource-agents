@@ -318,18 +318,17 @@ static int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
 
 	if (r->res_nodeid == -1) {
-		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
-		clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+		rsb_clear_flag(r, RSB_MASTER_WAIT);
+		rsb_clear_flag(r, RSB_MASTER_UNCERTAIN);
 		r->res_trial_lkid = 0;
 	} else if (r->res_nodeid > 0) {
-		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
-		set_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags);
+		rsb_clear_flag(r, RSB_MASTER_WAIT);
+		rsb_set_flag(r, RSB_MASTER_UNCERTAIN);
 		r->res_trial_lkid = 0;
 	} else {
 		DLM_ASSERT(r->res_nodeid == 0, dlm_print_rsb(r););
-		DLM_ASSERT(!test_bit(RESFL_MASTER_WAIT, &r->res_flags),
-			   dlm_print_rsb(r););
-		DLM_ASSERT(!test_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags),);
+		DLM_ASSERT(!rsb_flag(r, RSB_MASTER_WAIT), dlm_print_rsb(r););
+		DLM_ASSERT(!rsb_flag(r, RSB_MASTER_UNCERTAIN),);
 	}
  out:
 	*r_ret = r;
@@ -838,7 +837,7 @@ static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	} else if (b == 0) {
 		if (lkb->lkb_exflags & DLM_LKF_IVVALBLK) {
-			set_bit(RESFL_VALNOTVALID, &r->res_flags);
+			rsb_set_flag(r, RSB_VALNOTVALID);
 			return;
 		}
 
@@ -857,10 +856,10 @@ static void set_lvb_lock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		memcpy(r->res_lvbptr, lkb->lkb_lvbptr, len);
 		r->res_lvbseq++;
 		lkb->lkb_lvbseq = r->res_lvbseq;
-		clear_bit(RESFL_VALNOTVALID, &r->res_flags);
+		rsb_clear_flag(r, RSB_VALNOTVALID);
 	}
 
-	if (test_bit(RESFL_VALNOTVALID, &r->res_flags))
+	if (rsb_flag(r, RSB_VALNOTVALID))
 		lkb->lkb_sbflags |= DLM_SBF_VALNOTVALID;
 }
 
@@ -870,7 +869,7 @@ static void set_lvb_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return;
 
 	if (lkb->lkb_exflags & DLM_LKF_IVVALBLK) {
-		set_bit(RESFL_VALNOTVALID, &r->res_flags);
+		rsb_set_flag(r, RSB_VALNOTVALID);
 		return;
 	}
 
@@ -888,7 +887,7 @@ static void set_lvb_unlock(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	memcpy(r->res_lvbptr, lkb->lkb_lvbptr, r->res_ls->ls_lvblen);
 	r->res_lvbseq++;
-	clear_bit(RESFL_VALNOTVALID, &r->res_flags);
+	rsb_clear_flag(r, RSB_VALNOTVALID);
 }
 
 /* lkb is process copy (pc) */
@@ -1420,8 +1419,9 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	struct dlm_ls *ls = r->res_ls;
 	int error, dir_nodeid, ret_nodeid, our_nodeid = dlm_our_nodeid();
 
-	if (test_and_clear_bit(RESFL_MASTER_UNCERTAIN, &r->res_flags)) {
-		set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+	if (rsb_flag(r, RSB_MASTER_UNCERTAIN)) {
+		rsb_clear_flag(r, RSB_MASTER_UNCERTAIN);
+		rsb_set_flag(r, RSB_MASTER_WAIT);
 		r->res_trial_lkid = lkb->lkb_id;
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
@@ -1448,7 +1448,7 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	   is confirmed, then subsequent lkb's can go ahead and use it, but
 	   until then the other lkb's wait on the res_lookup list. */
 
-	if (test_bit(RESFL_MASTER_WAIT, &r->res_flags)) {
+	if (rsb_flag(r, RSB_MASTER_WAIT)) {
 		list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
 		return 1;
 	}
@@ -1466,7 +1466,7 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	dir_nodeid = dlm_dir_nodeid(r);
 
 	if (dir_nodeid != our_nodeid) {
-		set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		rsb_set_flag(r, RSB_MASTER_WAIT);
 		send_lookup(r, lkb);
 		return 1;
 	}
@@ -1492,7 +1492,7 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return 0;
 	}
 
-	set_bit(RESFL_MASTER_WAIT, &r->res_flags);
+	rsb_set_flag(r, RSB_MASTER_WAIT);
 	r->res_trial_lkid = lkb->lkb_id;
 	r->res_nodeid = ret_nodeid;
 	lkb->lkb_nodeid = ret_nodeid;
@@ -1514,7 +1514,7 @@ static void confirm_master(struct dlm_rsb *r, int error)
 {
 	struct dlm_lkb *lkb, *safe;
 
-	if (!test_bit(RESFL_MASTER_WAIT, &r->res_flags))
+	if (!rsb_flag(r, RSB_MASTER_WAIT))
 		return;
 
 	switch (error) {
@@ -1523,7 +1523,7 @@ static void confirm_master(struct dlm_rsb *r, int error)
 		/* the remote master queued our request, or
 		   the remote dir node told us we're the master */
 
-		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		rsb_clear_flag(r, RSB_MASTER_WAIT);
 		r->res_trial_lkid = 0;
 
 		list_for_each_entry_safe(lkb, safe, &r->res_lookup,
@@ -1555,7 +1555,7 @@ static void confirm_master(struct dlm_rsb *r, int error)
 
 		r->res_nodeid = -1;
 		r->res_trial_lkid = 0;
-		clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+		rsb_clear_flag(r, RSB_MASTER_WAIT);
 		break;
 
 	default:
@@ -2841,7 +2841,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
 
-		DLM_ASSERT(test_bit(RESFL_MASTER_WAIT, &r->res_flags),
+		DLM_ASSERT(rsb_flag(r, RSB_MASTER_WAIT),
 		           log_print("receive_request_reply error %d", error);
 		           dlm_print_lkb(lkb);
 		           dlm_print_rsb(r););
@@ -3199,7 +3199,7 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 
 		/* Same special case as in receive_rcom_lock_args() */
 		lkb->lkb_grmode = DLM_LOCK_IV;
-		set_bit(RESFL_RECOVER_CONVERT, &lkb->lkb_resource->res_flags);
+		rsb_set_flag(lkb->lkb_resource, RSB_RECOVER_CONVERT);
 		unhold_lkb(lkb);
 
 	} else if (lkb->lkb_rqmode >= lkb->lkb_grmode) {
@@ -3336,7 +3336,7 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 
 			hold_rsb(r);
 			lock_rsb(r);
-			clear_bit(RESFL_MASTER_WAIT, &r->res_flags);
+			rsb_clear_flag(r, RSB_MASTER_WAIT);
 			_request_lock(r, lkb);
 			unlock_rsb(r);
 			put_rsb(r);
@@ -3513,7 +3513,7 @@ static int receive_rcom_lock_args(struct dlm_ls *ls, struct dlm_lkb *lkb,
 	if (rl->rl_wait_type == DLM_MSG_CONVERT && middle_conversion(lkb)) {
 		rl->rl_status = DLM_LKSTS_CONVERT;
 		lkb->lkb_grmode = DLM_LOCK_IV;
-		set_bit(RESFL_RECOVER_CONVERT, &r->res_flags);
+		rsb_set_flag(r, RSB_RECOVER_CONVERT);
 	}
 
 	return 0;
