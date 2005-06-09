@@ -25,7 +25,7 @@ all: ${TARGET}
 copytobin: all
 	cp ${TARGET} ${top_srcdir}/bin
 
-cmand:	daemon.o cnxman.o membership.o config.o logging.o barrier.o commands.c ../lib/libcman.a
+cmand:	daemon.o cnxman.o membership.o config.o logging.o barrier.o commands.o ../lib/libcman.a
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread
 
 
