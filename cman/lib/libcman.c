@@ -174,7 +174,7 @@ static int process_cman_message(struct cman_handle *h, int flags, struct sock_he
 
 		if (flags & CMAN_DISPATCH_IGNORE_REPLY)
 		{
-			add_to_waitlist(&h->saved_data_msg, msg);
+			add_to_waitlist(&h->saved_reply_msg, msg);
 			return 0;
 		}
 
@@ -196,7 +196,7 @@ static int process_cman_message(struct cman_handle *h, int flags, struct sock_he
 
 		if (flags & CMAN_DISPATCH_IGNORE_EVENT)
 		{
-			add_to_waitlist(&h->saved_data_msg, msg);
+			add_to_waitlist(&h->saved_event_msg, msg);
 		}
 		else
 		{
