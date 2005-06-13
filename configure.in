@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.390 $) dnl cvs revision
+AC_REVISION($Revision: 1.391 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -21,6 +21,10 @@ RPMREL=1
 AC_SUBST(RPMREL)
 HB_PKG=heartbeat
 AC_SUBST(HB_PKG)
+DISTDIR=$HB_PKG-$VERSION
+TARFILE=$DISTDIR.tar.gz
+AC_SUBST(DISTDIR)
+AC_SUBST(TARFILE)
 CC_IN_CONFIGURE=yes
 export CC_IN_CONFIGURE
 
@@ -290,8 +294,20 @@ AC_PATH_PROGS(SWIG, swig)
 AC_SUBST(SWIG)
 AC_PATH_PROGS(EGREP, egrep)
 AC_SUBST(EGREP)
+
+AC_PATH_PROGS(GZIP, gzip)
+AC_PATH_PROGS(TAR, tar)
+AC_PATH_PROGS(CP, cp)
 AC_PATH_PROGS(LS, ls)
+AC_PATH_PROGS(LN, ln)
+AC_PATH_PROGS(MD5, md5)
+AC_SUBST(GZIP)
+AC_SUBST(TAR)
+AC_SUBST(CP)
 AC_SUBST(LS)
+AC_SUBST(LN)
+AC_SUBST(MD5)
+
 AC_PATH_PROGS(DRBDADM, drbdadm)
 AC_PATH_PROGS(DRBDSETUP, drbdsetup)
 AC_PATH_PROGS(PKGCONFIG, pkg-config)
@@ -357,13 +373,12 @@ fi
 AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
 
 EXTRAGLIBMSG="-"
+
 if test "X${PKGCONFIG}" = "X"; then
 	AC_MSG_RESULT(not found)
 	FatalMissingThing "pkgconfig" "Package pkgconfig is required" 	\
 	"See http://pkgconfig.sourceforge.net/"	
 	EXTRALIBMSG="(this message might be bogus because pkgconfig is missing)"
-else
-	AC_MSG_RESULT($PKGCONFIG)
 fi
 
 
@@ -2021,6 +2036,12 @@ pkg/Makefile							\
 	pkg/InfoFiles/pkginfo					\
 	pkg/InfoFiles/preinstall 				\
 	pkg/InfoFiles/postinstall				\
+port/Makefile							\
+	port/portMakefile					\
+		port/port/pkg-deinstall				\
+		port/port/pkg-descr				\
+		port/port/pkg-install				\
+		port/port/pkg-plist				\
 snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 telecom/Makefile						\
