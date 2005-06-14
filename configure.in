@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.391 $) dnl cvs revision
+AC_REVISION($Revision: 1.392 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -359,18 +359,54 @@ AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 
-dnl -- USE a Unique lib check so -luuid is used only once ( to eliminate -luuid -luuid
-dnl - Checking for a unique function of ex2fs vs ossd
-AC_CHECK_LIB(uuid, uuid_parse) 			dnl - In e2fsprog only.
+dnl ************ uuid **********************
+AC_ARG_WITH(uuid,
+    [  --with-uuid=UUID      mechanism for uuid {e2fsprogs|ossp|any|no}
+			"e2fsprogs": e2fsprogs, typically Linux
+			"ossp": not yet implemented
+			"any": (default) any of the above, fallback to inbuilt
+			"no": use inbuilt ],
+    [ uuidimpl="$withval" ],
+    [ uuidimpl="any" ],
+  )
+case $uuidimpl in
+e2fsprogs)
+  AC_CHECK_LIB(uuid, uuid_parse,,
+    AC_MSG_ERROR([e2fsprogs uuid library was explicitly requested but not found])
+  )
+  ;;
+ossp)
+  AC_CHECK_LIB(uuid, uuid_create,,
+    AC_MSG_ERROR([ossp uuid library was explicitly requested but not found])
+  )
+  ;;
+no)	# Do not define anything; so use inbuilt (replace) implementation.
+  ;;
+any)	# Default: use any implementation.
+  AC_CHECK_LIB(uuid, uuid_parse)	dnl e2fsprogs
+  AC_CHECK_LIB(uuid, uuid_create)	dnl ossp
+  ;;
+*)
+  AC_MSG_ERROR([An invalid uuid library was explicitly requested])
+  ;;
+esac
 
-if test "$ac_cv_lib_uuid_uuid_parse" != yes; then
-	FatalMissingThing "e2fsprogs uuid library"	\
-	"e2fsprogs uuid library is required"		\
-	"On Linux this is the e2fsprogs-devel package"	\
-	"See also http://sourceforge.net/projects/e2fsprogs/"
+AC_MSG_CHECKING(uuid implementation:)
+if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
+  AC_MSG_RESULT(e2fsprogs)
+elif test "$ac_cv_lib_uuid_uuid_create" = yes; then
+  AC_MSG_RESULT(ossp)
+  AC_MSG_ERROR([heartbeat does not yet support ossp implementation of uuid])
+else
+  AC_MSG_RESULT(inbuilt)
+  if test x"$uuidimpl" != x"no"; then
+    WarnMissingThing "uuid library"      \
+    "e2fsprogs uuid library is recommended"        \
+    "On Linux this is the e2fsprogs-devel package" \
+    "See also http://sourceforge.net/projects/e2fsprogs/"
+  fi
 fi
-
-AC_CHECK_LIB(uuid, uuid_create)			dnl - In ossp version.
+dnl ************ uuid **********************
 
 EXTRAGLIBMSG="-"
 
@@ -421,15 +457,6 @@ else
         *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
         *)	libnet=$LIBNETLIBS;;
       esac
-fi
-
-AC_MSG_CHECKING(checking which uuid is used:)
-if test "$ac_cv_lib_uuid_uuid_parse" = yes; then
-	AC_MSG_RESULT(using ex2fs uuid)
-elif test "$ac_cv_lib_uuid_uuid_create" = yes; then
-	AC_MSG_RESULT(using ossp uuid functionality)
-else
-	FatalMissingThing "uuid capability" "Required UUID capability"
 fi
 
 AC_SUBST(LIBNETDEFINES)
@@ -674,7 +701,7 @@ AC_CHECK_HEADERS(stdarg.h)
 AC_CHECK_HEADERS(tcpd.h)
 
 AC_CHECK_HEADERS(uuid.h)
-AC_CHECK_HEADERS(uuid/uuid.h, [],[FatalMissingThing "uuid/uuid.h" "uuid/uuid.h not found"])
+AC_CHECK_HEADERS(uuid/uuid.h)
 
 AC_CHECK_HEADERS(sys/param.h)
 AC_CHECK_HEADERS(netinet/in.h)
@@ -1390,7 +1417,7 @@ dnl
 dnl	getopt: If this is valid, define HAVE_DECL_GETOPT to make the getopt.h header compile cleanly.
 dnl
 
-AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon)
+AC_REPLACE_FUNCS(alphasort inet_pton NoSuchFunctionName scandir setenv strerror unsetenv strnlen strndup daemon uuid_parse)
 AC_CHECK_FUNCS(alphasort, 
 	AC_DEFINE(HA_HAVE_ALPHASORT, 1, [Have alphasort function]))
 AC_CHECK_FUNCS(inet_pton, 
@@ -1410,6 +1437,8 @@ AC_CHECK_FUNCS(strndup,
 	AC_DEFINE(HA_HAVE_STRNDUP,   1, [Have strndup function]))
 AC_CHECK_FUNCS(daemon, 
 	AC_DEFINE(HA_HAVE_DAEMON,    1, [Have daemon function]))
+AC_CHECK_FUNCS(uuid_parse, 
+	AC_DEFINE(HA_HAVE_UUID_PARSE, 1, [Have uuid_parse function]))
 AC_CHECK_FUNCS(getopt, 
 	AC_DEFINE(HAVE_DECL_GETOPT,  1, [Have getopt function]))
 
@@ -1423,6 +1452,7 @@ AC_SUBST(HA_HAVE_UNSETENV)
 AC_SUBST(HA_HAVE_STRNLEN)
 AC_SUBST(HA_HAVE_STRNDUP)
 AC_SUBST(HA_HAVE_DAEMON)
+AC_SUBST(HA_HAVE_UUID_PARSE)
 AC_SUBST(HAVE_DECL_GETOPT)
 
 AC_CHECK_FUNCS(fcntl)
