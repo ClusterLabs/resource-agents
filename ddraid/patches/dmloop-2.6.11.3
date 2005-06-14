@@ -1,0 +1,346 @@
+--- 2.6.11.3.clean/drivers/md/Kconfig	2005-03-13 01:44:06.000000000 -0500
++++ 2.6.11.3/drivers/md/Kconfig	2005-04-10 03:07:29.000000000 -0400
+@@ -227,5 +227,13 @@ config DM_ZERO
+ 	  A target that discards writes, and returns all zeroes for
+ 	  reads.  Useful in some recovery situations.
+ 
++config DM_LOOP
++	tristate "Distributed Data RAID target (EXPERIMENTAL)"
++	depends on BLK_DEV_DM && EXPERIMENTAL
++	---help---
++	  This device-mapper target allows you to stack a block
++	  device on top of another block device or a file.
++
++	  If unsure, say N.
+ endmenu
+ 
+diff -up --recursive 2.6.11.3.clean/drivers/md/Makefile 2.6.11.3/drivers/md/Makefile
+--- 2.6.11.3.clean/drivers/md/Makefile	2005-03-13 01:44:27.000000000 -0500
++++ 2.6.11.3/drivers/md/Makefile	2005-04-10 03:08:48.000000000 -0400
+@@ -33,6 +33,8 @@ obj-$(CONFIG_DM_CRYPT)		+= dm-crypt.o
+ obj-$(CONFIG_DM_SNAPSHOT)	+= dm-snapshot.o
+ obj-$(CONFIG_DM_MIRROR)		+= dm-mirror.o
+ obj-$(CONFIG_DM_ZERO)		+= dm-zero.o
++obj-$(CONFIG_DM_DDRAID)		+= dm-loop.o
++
+ 
+ quiet_cmd_unroll = UNROLL  $@
+       cmd_unroll = $(PERL) $(srctree)/$(src)/unroll.pl $(UNROLL) \
+--- 2.6.11.3.clean/drivers/md/dm-loop.c	2005-04-10 16:32:47.000000000 -0400
++++ 2.6.11.3/drivers/md/dm-loop.c	2005-04-10 23:20:14.000000000 -0400
+@@ -0,0 +1,315 @@
++#include <linux/fs.h>
++#include <linux/slab.h>
++#include <linux/mm.h>
++#include <linux/module.h>
++#include <linux/pagemap.h>
++#include <linux/syscalls.h> // sys_close
++#include <linux/file.h>
++#include <linux/bio.h>
++#include "dm.h"
++
++#define BREAK BUG()
++#define warn(string, args...) do { printk("%s: " string "\n", __func__, ##args); } while (0)
++#define error(string, args...) do { warn(string, ##args); BREAK; } while (0)
++#define assert(expr) do { if (!(expr)) error("Assertion " #expr " failed!\n"); } while (0)
++#define trace_on(args) args
++#define trace_off(args)
++
++#define SECTOR_SHIFT 9
++#define MAX_MEMBERS 1
++#define FINISH_FLAG 4
++
++#define trace trace_off
++
++static int transfer(struct file *file, void *buffer, unsigned count, loff_t pos,
++	ssize_t (*op)(struct kiocb *, char *, size_t, loff_t), int mode)
++{
++	mm_segment_t oldseg = get_fs();
++	struct kiocb iocb;
++	int err = 0;
++
++	trace_off(warn("%s %i bytes", mode == FMODE_READ? "read": "write", count);)
++	if (!(file->f_mode & mode))
++		return -EBADF;
++
++	if (!op)
++		return -EINVAL;
++
++	init_sync_kiocb(&iocb, file);
++	iocb.ki_pos = pos;
++	set_fs(get_ds());
++	while (count) {
++		int part = (*op)(&iocb, buffer, count, iocb.ki_pos);
++		if (part <= 0) {
++			err = part? part: -EPIPE;
++			break;
++		}
++		BUG_ON(part > count);
++		count -= part;
++		buffer += part;
++	}
++	set_fs(oldseg);
++	return err;
++}
++
++static int pread(struct file *file, void *buffer, unsigned count, loff_t pos)
++{
++	return transfer(file, buffer, count, pos, file->f_op->aio_read, FMODE_READ);
++}
++
++static int pwrite(struct file *file, void *buffer, unsigned count, loff_t pos)
++{
++	return transfer(file, buffer, count, pos, (void *)file->f_op->aio_write, FMODE_WRITE);
++}
++
++struct devinfo {
++	unsigned flags;
++	struct dm_dev *member[MAX_MEMBERS];
++	unsigned members;
++	struct file *file;
++	struct semaphore more_work_sem;
++	struct semaphore destroy_sem;
++	struct semaphore exit1_sem;
++	struct semaphore exit2_sem;
++	struct semaphore exit3_sem;
++	struct list_head requests;
++	struct list_head xfers;
++	spinlock_t xfer_lock;
++	spinlock_t endio_lock;
++	atomic_t destroy_hold;
++	char bounce[PAGE_CACHE_SIZE];
++};
++
++struct xfer { struct list_head list; struct bio *bio; };
++union gizmo { struct xfer xfer; };
++static kmem_cache_t *gizmo_cache;
++
++static void *alloc_gizmo(void)
++{
++	return kmem_cache_alloc(gizmo_cache, GFP_NOIO|__GFP_NOFAIL);
++}
++
++static inline int running(struct devinfo *info)
++{
++	return !(info->flags & FINISH_FLAG);
++}
++
++static int worker(struct dm_target *target)
++{
++	struct devinfo *info = target->private;
++	struct task_struct *task = current;
++
++	trace(warn("Worker task starting, pid=%i", current->pid);)
++	daemonize("dmloop-worker");
++	down(&info->exit1_sem);
++	while (1) {
++		down(&info->more_work_sem);
++
++		if (!running(info)) {
++			up(&info->exit1_sem); /* !!! crashes if module unloaded before ret executes */
++			warn("%s exiting", task->comm);
++			return 0;
++		}
++
++		spin_lock(&info->xfer_lock);
++		while (!list_empty(&info->xfers)) {
++			struct list_head *entry = info->xfers.next;
++			struct xfer *xfer = list_entry(entry, struct xfer, list);
++			struct bio *bio = xfer->bio;
++			struct bio_vec *vec = bio->bi_io_vec;
++			loff_t start = bio->bi_sector << SECTOR_SHIFT, pos = start;
++			int i, err = 0;
++
++			for (i = 0; i < bio->bi_vcnt; i++, vec++) {
++				char *buf = info->bounce;
++				struct page *page = vec->bv_page;
++				unsigned off = vec->bv_offset, len = vec->bv_len;
++				void *ppage;
++
++				trace(warn("%s %Lx/%x", mode == FMODE_READ? "read": "write", (long long)pos, len);)
++				if (bio_data_dir(bio) == READ) {
++					if ((err = pread(info->file, buf, len, pos)))
++						break;
++					ppage = kmap_atomic(page, KM_USER0);
++					memcpy(ppage + off, buf, len);
++					kunmap_atomic(ppage, KM_USER0);
++				} else {
++					ppage = kmap_atomic(page, KM_USER0);
++					memcpy(buf, ppage + off, len);
++					kunmap_atomic(ppage, KM_USER0);
++					if ((err = pwrite(info->file, buf, len, pos)))
++						break;
++				}
++				pos += len;
++			}
++			if (err) warn("R/W error %i", err);
++			bio_endio(bio, pos - start, err);
++			list_del(entry);
++		}
++		spin_unlock(&info->xfer_lock);
++
++		trace(warn("Yowza! More work?");)
++	}
++}
++
++static int dev_map(struct dm_target *target, struct bio *bio, union map_info *context)
++{
++	struct devinfo *info = target->private;
++	struct xfer *xfer = alloc_gizmo();
++
++	trace(warn("map %Lx/%x", (long long)bio->bi_sector, bio->bi_size);)
++	*xfer = (struct xfer){ .bio = bio };
++	spin_lock(&info->xfer_lock);
++	list_add_tail(&xfer->list, &info->xfers);
++	spin_unlock(&info->xfer_lock);
++	up(&info->more_work_sem);
++
++	return 0;
++}
++
++static int dev_status(struct dm_target *target, status_type_t type, char *result, unsigned maxlen)
++{
++	return result[0] = '\0';
++}
++
++#if 0
++static inline long IS_ERR(const void *ptr)
++{
++	return unlikely((unsigned long)ptr > (unsigned long)-1000L);
++}
++#endif
++
++static void dev_destroy(struct dm_target *target)
++{
++	struct devinfo *info = target->private;
++	int i;
++
++	trace(warn("");)
++	if (!info)
++		return;
++
++	down(&info->destroy_sem);
++
++	/* Unblock helper threads */
++	info->flags |= FINISH_FLAG;
++	up(&info->more_work_sem);
++
++	// !!! wrong! the thread might be just starting, think about this some more
++	// ah, don't let dev_destroy run while dev_create is spawning threads
++	down(&info->exit1_sem);
++	warn("thread 1 exited");
++	down(&info->exit2_sem);
++	warn("thread 2 exited");
++	down(&info->exit3_sem);
++	warn("thread 3 exited");
++
++	for (i = 0; i < info->members; i++)
++		if (info->member[i])
++			dm_put_device(target, info->member[i]);
++
++	if (info->file)
++		fput(info->file);
++
++//	if (info->bounce)
++//		kfree(info->bounce);
++
++	kfree(info);
++}
++
++static int dev_create(struct dm_target *target, unsigned argc, char **argv)
++{
++	struct devinfo *info;
++	char *error;
++	int err;
++
++	err = -EINVAL;
++	error = "loop usage: device file";
++	if (argc > 1)
++		goto eek;
++
++	err = -ENOMEM;
++	error = "Can't get kernel memory";
++	if (!(info = kmalloc(sizeof(struct devinfo), GFP_KERNEL)))
++		goto eek;
++	*info = (struct devinfo){ .members = 1 };
++//	if (!(info->bounce = kmalloc(PAGE_CACHE_SIZE, GFP_KERNEL)))
++//		goto eek;
++
++	target->private = info;
++	sema_init(&info->destroy_sem, 1);
++	sema_init(&info->exit1_sem, 1);
++	sema_init(&info->exit2_sem, 1);
++	sema_init(&info->exit3_sem, 1);
++	sema_init(&info->more_work_sem, 0);
++	spin_lock_init(&info->xfer_lock);
++	spin_lock_init(&info->endio_lock);
++	INIT_LIST_HEAD(&info->requests);
++	INIT_LIST_HEAD(&info->xfers);
++
++	error = "Can't open loop file";
++	if (IS_ERR(info->file = filp_open(argv[0], O_RDWR /*| O_DIRECT*/, 0))) {
++		err = PTR_ERR(info->file);
++		goto eek;
++	}
++
++	err = -EPERM;
++	if (!info->file)
++		goto eek;
++
++	err = -ESRCH;
++	error = "Can't start daemon";
++	if ((err = kernel_thread((void *)worker, target, CLONE_KERNEL)) < 0)
++		goto eek;
++
++	warn("Created loop device to fd %s", argv[0]);
++	return 0;
++eek:
++	warn("Error %i creating device, %s!", err, error);
++	dev_destroy(target);
++	target->error = error;
++	return err;
++}
++
++static struct target_type loop = {
++	.name = "loop",
++	.version = {0, 0, 0},
++	.module = THIS_MODULE,
++	.ctr = dev_create,
++	.dtr = dev_destroy,
++	.map = dev_map,
++	.status = dev_status,
++};
++
++int __init dm_loop_init(void)
++{
++	int err;
++	char *what = "Mirror register";
++
++	if ((err = dm_register_target(&loop)))
++		goto bad1;
++
++	err = -ENOMEM;
++	what = "Cache create";
++	if (!(gizmo_cache = kmem_cache_create("loop-gizmos",
++		sizeof(union gizmo), __alignof__(union gizmo), 0, NULL, NULL)))
++		goto bad2;
++
++	return 0;
++bad2:
++	dm_unregister_target(&loop);
++bad1:
++	DMERR("%s failed\n", what);
++	return err;
++}
++
++void dm_loop_exit(void)
++{
++	int err;
++	if ((err = dm_unregister_target(&loop)))
++		DMERR("Unregister failed %d", err);
++	if (gizmo_cache)
++		kmem_cache_destroy(gizmo_cache);
++}
++
++module_init(dm_loop_init);
++module_exit(dm_loop_exit);
