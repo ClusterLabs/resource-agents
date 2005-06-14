@@ -403,7 +403,7 @@ ipv6_find_interface()
 			echo $dev ${ifaddr/*\//}
 			return 0
 		fi
-	done < <(ip -o -f inet6 addr | awk '{print $1,$2,$4}')
+	done < <(/sbin/ip -o -f inet6 addr | awk '{print $1,$2,$4}')
 
 	return 1
 }
@@ -542,7 +542,7 @@ ipv4_find_interface()
 			echo $dev ${ifaddr/*\//}
 			return 0
 		fi
-	done < <(ip -o -f inet addr | awk '{print $1,$2,$4}')
+	done < <(/sbin/ip -o -f inet addr | awk '{print $1,$2,$4}')
 
 	return 1
 }
@@ -689,7 +689,7 @@ ip_op()
 
 		echo Checking $3, Level $OCF_CHECK_LEVEL
 	
-		dev=$(ip -f $1 -o addr | grep $3 | awk '{print $2}')
+		dev=$(/sbin/ip -f $1 -o addr | grep " $3/" | awk '{print $2}')
 		if [ -z "$dev" ]; then
 			[ -n "$4" ] || echo "$3 is not configured"
 			return 1
