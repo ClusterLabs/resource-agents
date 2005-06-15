@@ -157,7 +157,10 @@ static void save_file(xmlDoc *doc, struct option_info *ninfo)
 	char tmpfile[strlen(ninfo->outputfile)+5];
 	char oldfile[strlen(ninfo->outputfile)+5];
 	int using_stdout = 0;
+	mode_t old_mode;
 	int ret;
+
+	old_mode = umask(026);
 
 	if (strcmp(ninfo->outputfile, "-") == 0)
 		using_stdout = 1;
@@ -205,6 +208,8 @@ static void save_file(xmlDoc *doc, struct option_info *ninfo)
 
 	/* free the document */
 	xmlFreeDoc(doc);
+
+	umask(old_mode);
 }
 
 static void validate_int_arg(char argopt, char *arg)
