@@ -18,6 +18,7 @@
 
 static char *prog_name;
 static int debug;
+int joining;
 
 static int uevent_fd;
 static int groupd_fd;
@@ -43,17 +44,7 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 	*argc = i;
 }
 
-void get_done_event(char *name, int *event_nr)
-{
-	char *argv[] = { name };
-	int rv;
-
-	rv = ls_get_done(1, argv, event_nr);
-	if (rv)
-		log_error("ls get_done error %d", rv);
-}
-
-/* recv "online" (join), "offline" (leave) and "change" (startdone)
+/* recv "online" (join) and "offline" (leave) 
    messages from dlm via uevents and pass them on to groupd */
 
 int process_uevent(void)
@@ -83,19 +74,12 @@ int process_uevent(void)
 
 	log_debug("kernel: %s %s", act, argv[3]);
 
-	if (!strcmp(act, "online@"))
+	if (!strcmp(act, "online@")) {
+		joining = 1;
 		rv = group_join(gh, argv[3], NULL);
-
-	else if (!strcmp(act, "offline@"))
+	} else if (!strcmp(act, "offline@"))
 		rv = group_leave(gh, argv[3], NULL);
-
-	else if (!strcmp(act, "change@")) {
-		int event_nr = 0;
-		get_done_event(argv[3], &event_nr);
-		log_debug("done event_nr %d", event_nr);
-		rv = group_done(gh, argv[3], event_nr);
-
-	} else
+	else
 		goto out;
 
 	if (rv < 0)

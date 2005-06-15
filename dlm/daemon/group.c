@@ -18,6 +18,8 @@
 #define DO_TERMINATE 4
 #define DO_SETID 5
 
+extern int joining;
+
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
@@ -29,7 +31,6 @@ static int cb_id;
 static int cb_type;
 static int cb_member_count;
 static int cb_members[MAX_GROUP_MEMBERS];
-static char buf[MAXLINE];
 
 
 static void stop_cbfn(group_handle_t h, void *private, char *name)
@@ -82,42 +83,6 @@ group_callbacks_t callbacks = {
 	setid_cbfn
 };
 
-static void build_args(int action, int *argc, char **argv)
-{
-	int len, i;
-
-	switch (action) {
-	case DO_STOP:
-	case DO_TERMINATE:
-		*argc = 1;
-		argv[0] = cb_name;
-		break;
-
-	case DO_FINISH:
-		sprintf(buf, "%d", cb_event_nr);
-		*argc = 2;
-		argv[0] = cb_name;
-		argv[1] = buf;
-		break;
-
-	case DO_SETID:
-		sprintf(buf, "%d", cb_id);
-		*argc = 2;
-		argv[0] = cb_name;
-		argv[1] = buf;
-		break;
-
-	case DO_START:
-		/* first build one string with all args, then make
-		   argv pointers using make_args */
-		len = snprintf(buf, sizeof(buf), "%s %d %d",
-			       cb_name, cb_event_nr, cb_type);
-		for (i = 0; i < cb_member_count; i++)
-			len += sprintf(buf+len, " %d", cb_members[i]);
-		make_args(buf, argc, argv, ' ');
-	}
-}
-
 char *str_members(void)
 {
 	static char str_members_buf[MAXLINE];
@@ -125,48 +90,87 @@ char *str_members(void)
 
 	memset(str_members_buf, 0, MAXLINE);
 
-	for (i = 0; i < cb_member_count; i++)
-		len += sprintf(str_members_buf+len, "%d ", cb_members[i]);
+	for (i = 0; i < cb_member_count; i++) {
+		if (i != 0)
+			len += sprintf(str_members_buf+len, " ");
+		len += sprintf(str_members_buf+len, "%d", cb_members[i]);
+	}
 	return str_members_buf;
 }
 
 int process_groupd(void)
 {
-	char *argv[MAXARGS];
-	int argc = 0, error = 0;
+	char str_id[32], *str_memb;
+	char *argv[2];
+	int error = 0;
 
 	group_dispatch(gh);
 
 	if (!cb_action)
 		goto out;
 
-	memset(buf, 0, sizeof(buf));
-	build_args(cb_action, &argc, argv);
-
 	switch (cb_action) {
+
 	case DO_STOP:
 		log_debug("stop %s", cb_name);
-		ls_stop(argc, argv);
+
+		argv[0] = cb_name;
+		argv[1] = "0";
+		ls_control(2, argv);
+
 		break;
+
 	case DO_START:
-		log_debug("start %s %s", cb_name, str_members());
-		ls_start(argc, argv);
+		str_memb = str_members();
+		log_debug("start %s \"%s\"", cb_name, str_memb);
+
+		argv[0] = cb_name;
+		argv[1] = str_memb;
+		ls_members(2, argv);
+
+		argv[0] = cb_name;
+		argv[1] = "1";
+		ls_control(2, argv);
+
+		group_done(gh, cb_name, cb_event_nr);
+
+		if (joining)
+			break;
+
+		argv[0] = cb_name;
+		argv[1] = "0";
+		ls_event_done(2, argv);
+
 		break;
-	case DO_FINISH:
-		log_debug("finish %s", cb_name);
-		ls_finish(argc, argv);
+
+	case DO_SETID:
+		memset(str_id, 0, sizeof(str_id));
+		sprintf(str_id, "%d", cb_id);
+
+		argv[0] = cb_name;
+		argv[1] = str_id;
+		ls_set_id(2, argv);
+
 		break;
+
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
-		ls_terminate(argc, argv);
+
+		argv[0] = cb_name;
+		argv[1] = joining ? "-1" : "0";
+		ls_event_done(2, argv);
+
 		break;
-	case DO_SETID:
-		ls_set_id(argc, argv);
+
+	case DO_FINISH:
+		log_debug("finish %s ignored", cb_name);
 		break;
+
 	default:
 		error = -EINVAL;
 	}
 
+	joining = 0;
 	cb_action = 0;
  out:
 	return error;

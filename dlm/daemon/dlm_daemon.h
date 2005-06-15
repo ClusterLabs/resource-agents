@@ -51,14 +51,12 @@
 #define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 
 /* action.c */
-int ls_stop(int argc, char **argv);
-int ls_terminate(int argc, char **argv);
-int ls_start(int argc, char **argv);
-int ls_finish(int argc, char **argv);
-int ls_set_id(int argc, char **argv);
-int ls_get_done(int argc, char **argv, int *event_nr);
 int set_local(int argc, char **argv);
 int set_node(int argc, char **argv);
+int ls_control(int argc, char **argv);
+int ls_event_done(int argc, char **argv);
+int ls_members(int argc, char **argv);
+int ls_set_id(int argc, char **argv);
 
 /* member_xxx.c */
 int setup_member(void);
