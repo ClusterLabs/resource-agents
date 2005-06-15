@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.392 $) dnl cvs revision
+AC_REVISION($Revision: 1.393 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -997,6 +997,20 @@ else
     MSGHDR_TYPE="nmsghdr"
     IPCSOCKET_C=""
     IPCSOCKET_LO=""
+fi
+
+dnl Check syslog.h for 'facilitynames' table
+dnl
+AC_CACHE_CHECK([for facilitynames in syslog.h],ac_cv_HAVE_SYSLOG_FACILITYNAMES,[
+AC_TRY_COMPILE([
+#define SYSLOG_NAMES
+#include <stdlib.h>
+#include <syslog.h>
+],
+[ void *fnames; fnames = facilitynames; ],
+ac_cv_HAVE_SYSLOG_FACILITYNAMES=yes,ac_cv_HAVE_SYSLOG_FACILITYNAMES=no,ac_cv_HAVE_SYSLOG_FACILITYNAMES=cross)])
+if test x"$ac_cv_HAVE_SYSLOG_FACILITYNAMES" = x"yes"; then
+    AC_DEFINE(HAVE_SYSLOG_FACILITYNAMES,1,[ ])
 fi
 
 dnl
