@@ -133,7 +133,6 @@ struct dlm_lkbtable {
 struct dlm_member {
 	struct list_head	list;
 	int			nodeid;
-	int			gone_event;
 	int			weight;
 };
 
@@ -145,7 +144,7 @@ struct dlm_recover {
 	struct list_head	list;
 	int			*nodeids;
 	int			node_count;
-	int			event_id;
+	uint64_t		seq;
 };
 
 /*
@@ -262,6 +261,7 @@ struct dlm_lkb {
 	long			lkb_astparam;	/* caller's ast arg */
 };
 
+
 struct dlm_rsb {
 	struct dlm_ls		*res_ls;	/* the lockspace */
 	struct kref		res_ref;
@@ -376,12 +376,14 @@ struct dlm_message {
 };
 
 
-#define DIR_VALID		0x00000001
-#define DIR_ALL_VALID		0x00000002
-#define NODES_VALID		0x00000004
-#define NODES_ALL_VALID		0x00000008
-#define LOCKS_VALID		0x00000010
-#define LOCKS_ALL_VALID		0x00000020
+#define DLM_RS_NODES		0x00000001
+#define DLM_RS_NODES_ALL	0x00000002
+#define DLM_RS_DIR		0x00000004
+#define DLM_RS_DIR_ALL		0x00000008
+#define DLM_RS_LOCKS		0x00000010
+#define DLM_RS_LOCKS_ALL	0x00000020
+#define DLM_RS_DONE		0x00000040
+#define DLM_RS_DONE_ALL		0x00000080
 
 #define DLM_RCOM_STATUS		1
 #define DLM_RCOM_NAMES		2
@@ -427,31 +429,6 @@ struct rcom_lock {
 	char			rl_lvb[0];
 };
 
-
-#define LSST_NONE		0
-#define LSST_INIT		1
-#define LSST_INIT_DONE		2
-#define LSST_CLEAR		3
-#define LSST_WAIT_START		4
-#define LSST_RECONFIG_DONE	5
-
-#define LSFL_WORK		0
-#define LSFL_LS_RUN		1
-#define LSFL_LS_STOP		2
-#define LSFL_LS_START		3
-#define LSFL_LS_FINISH		4
-#define LSFL_RCOM_READY		5
-#define LSFL_FINISH_RECOVERY	6
-#define LSFL_DIR_VALID		7
-#define LSFL_ALL_DIR_VALID	8
-#define LSFL_NODES_VALID	9
-#define LSFL_ALL_NODES_VALID	10
-#define LSFL_LS_TERMINATE	11
-#define LSFL_JOIN_DONE		12
-#define LSFL_LEAVE_DONE		13
-#define LSFL_LOCKS_VALID	14
-#define LSFL_ALL_LOCKS_VALID	15
-
 struct dlm_ls {
 	struct list_head	ls_list;	/* list of lockspaces */
 	uint32_t		ls_global_id;	/* global unique lockspace ID */
@@ -487,20 +464,18 @@ struct dlm_ls {
 
 	struct dentry		*ls_debug_dentry; /* debugfs */
 
+	wait_queue_head_t	ls_uevent_wait;	/* user part of join/leave */
+	int			ls_uevent_result;
+
 	/* recovery related */
 
 	struct timer_list	ls_timer;
-	wait_queue_head_t	ls_wait_member;
 	struct task_struct	*ls_recoverd_task;
 	struct semaphore	ls_recoverd_active;
-	struct list_head	ls_recover;	/* dlm_recover structs */
 	spinlock_t		ls_recover_lock;
-	int			ls_last_stop;
-	int			ls_last_start;
-	int			ls_last_finish;
-	int			ls_startdone;
-	int			ls_state;	/* recovery states */
-
+	uint32_t		ls_recover_status; /* DLM_RS_ */
+	uint64_t		ls_recover_seq;
+	struct dlm_recover	*ls_recover_args;
 	struct rw_semaphore	ls_in_recovery;	/* block local requests */
 	struct list_head	ls_requestqueue;/* queue remote requests */
 	struct semaphore	ls_requestqueue_lock;
@@ -516,6 +491,22 @@ struct dlm_ls {
 	int			ls_namelen;
 	char			ls_name[1];
 };
+
+#define LSFL_WORK		0
+#define LSFL_RUNNING		1
+#define LSFL_RECOVERY_STOP	2
+#define LSFL_RCOM_READY		3
+#define LSFL_UEVENT_WAIT	4
+
+static inline int dlm_locking_stopped(struct dlm_ls *ls)
+{
+	return !test_bit(LSFL_RUNNING, &ls->ls_flags);
+}
+
+static inline int dlm_recovery_stopped(struct dlm_ls *ls)
+{
+	return test_bit(LSFL_RECOVERY_STOP, &ls->ls_flags);
+}
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */
 

@@ -79,8 +79,8 @@ int dlm_process_requestqueue(struct dlm_ls *ls)
 		list_del(&e->list);
 		kfree(e);
 
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
-			log_debug(ls, "process_requestqueue abort ls_run");
+		if (dlm_locking_stopped(ls)) {
+			log_debug(ls, "process_requestqueue abort running");
 			up(&ls->ls_requestqueue_lock);
 			error = -EINTR;
 			break;
@@ -105,7 +105,7 @@ void dlm_wait_requestqueue(struct dlm_ls *ls)
 		down(&ls->ls_requestqueue_lock);
 		if (list_empty(&ls->ls_requestqueue))
 			break;
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+		if (dlm_locking_stopped(ls))
 			break;
 		up(&ls->ls_requestqueue_lock);
 		schedule();

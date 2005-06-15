@@ -16,6 +16,7 @@
 int dlm_member_sysfs_init(void);
 void dlm_member_sysfs_exit(void);
 int dlm_kobject_setup(struct dlm_ls *ls);
+int dlm_uevent(struct dlm_ls *ls, int in);
 
 #endif                          /* __MEMBER_SYSFS_DOT_H__ */
 

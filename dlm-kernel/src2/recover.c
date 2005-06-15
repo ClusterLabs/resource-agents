@@ -30,19 +30,14 @@
  * the one being waited for).
  */
 
-int dlm_recovery_stopped(struct dlm_ls *ls)
-{
-	return test_bit(LSFL_LS_STOP, &ls->ls_flags);
-}
-
 /*
- * Wait until given function returns non-zero or lockspace is stopped (LS_STOP
- * set due to failure of a node in ls_nodes).  When another function thinks it
- * could have completed the waited-on task, they should wake up ls_wait_general
- * to get an immediate response rather than waiting for the timer to detect the
- * result.  A timer wakes us up periodically while waiting to see if we should
- * abort due to a node failure.  This should only be called by the dlm_recoverd
- * thread.
+ * Wait until given function returns non-zero or lockspace is stopped
+ * (LS_RECOVERY_STOP set due to failure of a node in ls_nodes).  When another
+ * function thinks it could have completed the waited-on task, they should wake
+ * up ls_wait_general to get an immediate response rather than waiting for the
+ * timer to detect the result.  A timer wakes us up periodically while waiting
+ * to see if we should abort due to a node failure.  This should only be called
+ * by the dlm_recoverd thread.
  */
 
 static void dlm_wait_timer_fn(unsigned long data)
@@ -73,11 +68,28 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 /*
  * An efficient way for all nodes to wait for all others to have a certain
  * status.  The node with the lowest nodeid polls all the others for their
- * status (dlm_wait_status_all) and all the others poll the node with the low
- * id for its accumulated result (dlm_wait_status_low).
+ * status (wait_status_all) and all the others poll the node with the low id
+ * for its accumulated result (wait_status_low).  When all nodes have set
+ * status flag X, then status flag X_ALL will be set on the low nodeid.
  */
 
-static int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
+uint32_t dlm_recover_status(struct dlm_ls *ls)
+{
+	uint32_t status;
+	spin_lock(&ls->ls_recover_lock);
+	status = ls->ls_recover_status;
+	spin_unlock(&ls->ls_recover_lock);
+	return status;
+}
+
+void dlm_set_recover_status(struct dlm_ls *ls, uint32_t status)
+{
+	spin_lock(&ls->ls_recover_lock);
+	ls->ls_recover_status |= status;
+	spin_unlock(&ls->ls_recover_lock);
+}
+
+static int wait_status_all(struct dlm_ls *ls, uint32_t wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	struct dlm_member *memb;
@@ -105,7 +117,7 @@ static int dlm_wait_status_all(struct dlm_ls *ls, unsigned int wait_status)
 	return error;
 }
 
-static int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
+static int wait_status_low(struct dlm_ls *ls, uint32_t wait_status)
 {
 	struct dlm_rcom *rc = (struct dlm_rcom *) ls->ls_recover_buf;
 	int error = 0, delay = 0, nodeid = ls->ls_low_nodeid;
@@ -129,46 +141,39 @@ static int dlm_wait_status_low(struct dlm_ls *ls, unsigned int wait_status)
 	return error;
 }
 
-int dlm_recover_members_wait(struct dlm_ls *ls)
+static int wait_status(struct dlm_ls *ls, uint32_t status)
 {
+	uint32_t status_all = status << 1;
 	int error;
 
 	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, NODES_VALID);
+		error = wait_status_all(ls, status);
 		if (!error)
-			set_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
+			dlm_set_recover_status(ls, status_all);
 	} else
-		error = dlm_wait_status_low(ls, NODES_ALL_VALID);
+		error = wait_status_low(ls, status_all);
 
 	return error;
+}
+
+int dlm_recover_members_wait(struct dlm_ls *ls)
+{
+	return wait_status(ls, DLM_RS_NODES);
 }
 
 int dlm_recover_directory_wait(struct dlm_ls *ls)
 {
-	int error;
-
-	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, DIR_VALID);
-		if (!error)
-			set_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
-	} else
-		error = dlm_wait_status_low(ls, DIR_ALL_VALID);
-
-	return error;
+	return wait_status(ls, DLM_RS_DIR);
 }
 
 int dlm_recover_locks_wait(struct dlm_ls *ls)
 {
-	int error;
+	return wait_status(ls, DLM_RS_LOCKS);
+}
 
-	if (ls->ls_low_nodeid == dlm_our_nodeid()) {
-		error = dlm_wait_status_all(ls, LOCKS_VALID);
-		if (!error)
-			set_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags);
-	} else
-		error = dlm_wait_status_low(ls, LOCKS_ALL_VALID);
-
-	return error;
+int dlm_recover_done_wait(struct dlm_ls *ls)
+{
+	return wait_status(ls, DLM_RS_DONE);
 }
 
 /*
@@ -517,7 +522,7 @@ int dlm_recover_locks(struct dlm_ls *ls)
 	if (error)
 		recover_list_clear(ls);
 	else
-		set_bit(LSFL_LOCKS_VALID, &ls->ls_flags);
+		dlm_set_recover_status(ls, DLM_RS_LOCKS);
 	return error;
 }
 

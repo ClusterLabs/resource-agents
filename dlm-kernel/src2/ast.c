@@ -61,7 +61,7 @@ static void process_asts(void)
 			r = lkb->lkb_resource;
 			ls = r->res_ls;
 
-			if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+			if (dlm_locking_stopped(ls))
 				continue;
 
 			list_del(&lkb->lkb_astqueue);

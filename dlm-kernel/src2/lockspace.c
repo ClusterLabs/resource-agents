@@ -252,36 +252,46 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
 		rwlock_init(&ls->ls_dirtbl[i].lock);
 	}
 
+	INIT_LIST_HEAD(&ls->ls_waiters);
+	init_MUTEX(&ls->ls_waiters_sem);
+
+	INIT_LIST_HEAD(&ls->ls_nodes);
+	INIT_LIST_HEAD(&ls->ls_nodes_gone);
+	ls->ls_num_nodes = 0;
+	ls->ls_low_nodeid = 0;
+	ls->ls_total_weight = 0;
+	ls->ls_node_array = NULL;
+	ls->ls_nodeids_next = NULL;
+	ls->ls_nodeids_next_count = 0;
+
+	memset(&ls->ls_stub_rsb, 0, sizeof(struct dlm_rsb));
+	ls->ls_stub_rsb.res_ls = ls;
+
+	ls->ls_debug_dentry = NULL;
+
+	init_waitqueue_head(&ls->ls_uevent_wait);
+	ls->ls_uevent_result = 0;
+
+	ls->ls_recoverd_task = NULL;
+	init_MUTEX(&ls->ls_recoverd_active);
+	spin_lock_init(&ls->ls_recover_lock);
+	ls->ls_recover_status = 0;
+	ls->ls_recover_seq = 0;
+	ls->ls_recover_args = NULL;
+	init_rwsem(&ls->ls_in_recovery);
+	INIT_LIST_HEAD(&ls->ls_requestqueue);
+	init_MUTEX(&ls->ls_requestqueue_lock);
+
 	ls->ls_recover_buf = kmalloc(dlm_config.buffer_size, GFP_KERNEL);
 	if (!ls->ls_recover_buf)
 		goto out_dirfree;
 
-	init_waitqueue_head(&ls->ls_wait_member);
-	INIT_LIST_HEAD(&ls->ls_nodes);
-	INIT_LIST_HEAD(&ls->ls_nodes_gone);
-	INIT_LIST_HEAD(&ls->ls_waiters);
-	ls->ls_num_nodes = 0;
-	ls->ls_node_array = NULL;
-	ls->ls_recoverd_task = NULL;
-	init_MUTEX(&ls->ls_recoverd_active);
-	INIT_LIST_HEAD(&ls->ls_recover);
-	spin_lock_init(&ls->ls_recover_lock);
 	INIT_LIST_HEAD(&ls->ls_recover_list);
-	ls->ls_recover_list_count = 0;
 	spin_lock_init(&ls->ls_recover_list_lock);
+	ls->ls_recover_list_count = 0;
 	init_waitqueue_head(&ls->ls_wait_general);
 	INIT_LIST_HEAD(&ls->ls_root_list);
-	INIT_LIST_HEAD(&ls->ls_requestqueue);
-	ls->ls_last_stop = 0;
-	ls->ls_last_start = 0;
-	ls->ls_last_finish = 0;
-	init_MUTEX(&ls->ls_waiters_sem);
-	init_MUTEX(&ls->ls_requestqueue_lock);
 	init_rwsem(&ls->ls_root_sem);
-	init_rwsem(&ls->ls_in_recovery);
-
-	memset(&ls->ls_stub_rsb, 0, sizeof(struct dlm_rsb));
-	ls->ls_stub_rsb.res_ls = ls;
 
 	down_write(&ls->ls_in_recovery);
 
@@ -290,8 +300,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
 		log_error(ls, "can't start dlm_recoverd %d", error);
 		goto out_rcomfree;
 	}
-
-	ls->ls_state = LSST_INIT;
 
 	spin_lock(&lslist_lock);
 	list_add(&ls->ls_list, &lslist);
@@ -307,21 +315,9 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
 	if (error)
 		goto out_del;
 
-	kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
-
-	/* Now we depend on userspace to notice the new ls, join it and
-	   give us a start or terminate.  The ls isn't actually running
-	   until it receives a start. */
-
-	error = wait_event_interruptible(ls->ls_wait_member,
-				test_bit(LSFL_JOIN_DONE, &ls->ls_flags));
+	error = dlm_uevent(ls, 1);
 	if (error)
 		goto out_unreg;
-
-	if (test_bit(LSFL_LS_TERMINATE, &ls->ls_flags)) {
-		error = -ERESTARTSYS;
-		goto out_unreg;
-	}
 
 	*lockspace = ls;
 	return 0;
@@ -402,19 +398,15 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 {
 	struct dlm_lkb *lkb;
 	struct dlm_rsb *rsb;
-	struct dlm_recover *rv;
 	struct list_head *head;
-	int i, error;
+	int i;
 	int busy = lockspace_busy(ls);
 
 	if (busy > force)
 		return -EBUSY;
 
-	if (force < 3) {
-		error = kobject_uevent(&ls->ls_kobj, KOBJ_OFFLINE, NULL);
-		error = wait_event_interruptible(ls->ls_wait_member,
-				test_bit(LSFL_LEAVE_DONE, &ls->ls_flags));
-	}
+	if (force < 3)
+		dlm_uevent(ls, 0);
 
 	dlm_recoverd_stop(ls);
 
@@ -486,13 +478,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	 * Free structures on any other lists
 	 */
 
-	head = &ls->ls_recover;
-	while (!list_empty(head)) {
-		rv = list_entry(head->next, struct dlm_recover, list);
-		list_del(&rv->list);
-		kfree(rv);
-	}
-
+	kfree(ls->ls_recover_args);
 	dlm_clear_free_entries(ls);
 	dlm_clear_members(ls);
 	dlm_clear_members_gone(ls);

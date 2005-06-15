@@ -270,7 +270,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 		;
 	}
 
-	set_bit(LSFL_DIR_VALID, &ls->ls_flags);
+	dlm_set_recover_status(ls, DLM_RS_DIR);
 	error = 0;
 
 	log_debug(ls, "dlm_recover_directory %d entries", count);

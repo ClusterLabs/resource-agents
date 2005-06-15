@@ -112,18 +112,6 @@ void dlm_clear_members_gone(struct dlm_ls *ls)
 	clear_memb_list(&ls->ls_nodes_gone);
 }
 
-void dlm_clear_members_finish(struct dlm_ls *ls, int finish_event)
-{
-	struct dlm_member *memb, *safe;
-
-	list_for_each_entry_safe(memb, safe, &ls->ls_nodes_gone, list) {
-		if (memb->gone_event <= finish_event) {
-			list_del(&memb->list);
-			kfree(memb);
-		}
-	}
-}
-
 static void make_member_array(struct dlm_ls *ls)
 {
 	struct dlm_member *memb;
@@ -195,7 +183,6 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 
 		if (!found) {
 			neg++;
-			memb->gone_event = rv->event_id;
 			dlm_remove_member(ls, memb);
 			log_debug(ls, "remove member %d", memb->nodeid);
 		}
@@ -218,35 +205,8 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 	ls->ls_low_nodeid = low;
 
 	make_member_array(ls);
-	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
+	dlm_set_recover_status(ls, DLM_RS_NODES);
 	*neg_out = neg;
-
-	ping_members(ls);
-
-	error = dlm_recover_members_wait(ls);
-	log_debug(ls, "total members %d", ls->ls_num_nodes);
-	return error;
-}
-
-int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv)
-{
-	int i, error, nodeid, low = -1;
-
-	dlm_clear_members(ls);
-
-	log_debug(ls, "add members");
-
-	for (i = 0; i < rv->node_count; i++) {
-		nodeid = rv->nodeids[i];
-		dlm_add_member(ls, nodeid);
-
-		if (low == -1 || nodeid < low)
-			low = nodeid;
-	}
-	ls->ls_low_nodeid = low;
-
-	make_member_array(ls);
-	set_bit(LSFL_NODES_VALID, &ls->ls_flags);
 
 	ping_members(ls);
 
@@ -259,26 +219,20 @@ int dlm_recover_members_first(struct dlm_ls *ls, struct dlm_recover *rv)
  * Following called from member_sysfs.c
  */
 
-int dlm_ls_terminate(struct dlm_ls *ls)
-{
-	spin_lock(&ls->ls_recover_lock);
-	set_bit(LSFL_LS_TERMINATE, &ls->ls_flags);
-	set_bit(LSFL_JOIN_DONE, &ls->ls_flags);
-	set_bit(LSFL_LEAVE_DONE, &ls->ls_flags);
-	spin_unlock(&ls->ls_recover_lock);
-	wake_up(&ls->ls_wait_member);
-	log_error(ls, "dlm_ls_terminate");
-	return 0;
-}
-
 int dlm_ls_stop(struct dlm_ls *ls)
 {
 	int new;
 
+	/*
+	 * A stop cancels any recovery that's in progress (see RECOVERY_STOP,
+	 * dlm_recovery_stopped()) and prevents any new locks from being
+	 * processed (see RUNNING, dlm_locking_stopped()).
+	 */
+
 	spin_lock(&ls->ls_recover_lock);
-	ls->ls_last_stop = ls->ls_last_start;
-	set_bit(LSFL_LS_STOP, &ls->ls_flags);
-	new = test_and_clear_bit(LSFL_LS_RUN, &ls->ls_flags);
+	set_bit(LSFL_RECOVERY_STOP, &ls->ls_flags);
+	new = test_and_clear_bit(LSFL_RUNNING, &ls->ls_flags);
+	ls->ls_recover_seq++;
 	spin_unlock(&ls->ls_recover_lock);
 
 	/*
@@ -295,26 +249,20 @@ int dlm_ls_stop(struct dlm_ls *ls)
 
 	/*
 	 * The recoverd suspend/resume makes sure that dlm_recoverd (if
-	 * running) has noticed the clearing of LS_RUN above and quit
+	 * running) has noticed the clearing of RUNNING above and quit
 	 * processing the previous recovery.  This will be true for all nodes
-	 * before any nodes get the start.
+	 * before any nodes start the new recovery.
 	 */
 
 	dlm_recoverd_suspend(ls);
-	clear_bit(LSFL_LOCKS_VALID, &ls->ls_flags);
-	clear_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags);
-	clear_bit(LSFL_DIR_VALID, &ls->ls_flags);
-	clear_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags);
-	clear_bit(LSFL_NODES_VALID, &ls->ls_flags);
-	clear_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags);
+	ls->ls_recover_status = 0;
 	dlm_recoverd_resume(ls);
-	dlm_recoverd_kick(ls);
 	return 0;
 }
 
-int dlm_ls_start(struct dlm_ls *ls, int event_nr)
+int dlm_ls_start(struct dlm_ls *ls)
 {
-	struct dlm_recover *rv;
+	struct dlm_recover *rv, *rv_old;
 	int error = 0;
 
 	rv = kmalloc(sizeof(struct dlm_recover), GFP_KERNEL);
@@ -324,7 +272,9 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 
 	spin_lock(&ls->ls_recover_lock);
 
-	if (test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
+	/* the lockspace needs to be stopped before it can be started */
+
+	if (!dlm_locking_stopped(ls)) {
 		spin_unlock(&ls->ls_recover_lock);
 		log_error(ls, "start ignored: lockspace running");
 		kfree(rv);
@@ -340,44 +290,21 @@ int dlm_ls_start(struct dlm_ls *ls, int event_nr)
 		goto out;
 	}
 
-	if (event_nr <= ls->ls_last_start) {
-		spin_unlock(&ls->ls_recover_lock);
-		log_error(ls, "start event_nr %d not greater than last %d",
-			  event_nr, ls->ls_last_start);
-		kfree(rv);
-		error = -EINVAL;
-		goto out;
-	}
-
 	rv->nodeids = ls->ls_nodeids_next;
 	ls->ls_nodeids_next = NULL;
 	rv->node_count = ls->ls_nodeids_next_count;
-	rv->event_id = event_nr;
-	ls->ls_last_start = event_nr;
-	list_add_tail(&rv->list, &ls->ls_recover);
-	set_bit(LSFL_LS_START, &ls->ls_flags);
+	rv->seq = ++ls->ls_recover_seq;
+	rv_old = ls->ls_recover_args;
+	ls->ls_recover_args = rv;
 	spin_unlock(&ls->ls_recover_lock);
 
-	set_bit(LSFL_JOIN_DONE, &ls->ls_flags);
-	wake_up(&ls->ls_wait_member);
+	if (rv_old) {
+		kfree(rv_old->nodeids);
+		kfree(rv_old);
+	}
+
 	dlm_recoverd_kick(ls);
  out:
 	return error;
-}
-
-int dlm_ls_finish(struct dlm_ls *ls, int event_nr)
-{
-	spin_lock(&ls->ls_recover_lock);
-	if (event_nr != ls->ls_last_start) {
-		spin_unlock(&ls->ls_recover_lock);
-		log_error(ls, "finish event_nr %d doesn't match start %d",
-			  event_nr, ls->ls_last_start);
-		return -EINVAL;
-	}
-	ls->ls_last_finish = event_nr;
-	set_bit(LSFL_LS_FINISH, &ls->ls_flags);
-	spin_unlock(&ls->ls_recover_lock);
-	dlm_recoverd_kick(ls);
-	return 0;
 }
 

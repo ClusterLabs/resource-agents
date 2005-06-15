@@ -13,111 +13,31 @@
 #include "dlm_internal.h"
 #include "member.h"
 
-/*
-/dlm/lsname/stop       RW  write 1 to suspend operation
-/dlm/lsname/start      RW  write event_nr to start recovery
-/dlm/lsname/finish     RW  write event_nr to finish recovery
-/dlm/lsname/terminate  RW  write event_nr to term recovery
-/dlm/lsname/done       RO  event_nr dlm is done processing
-/dlm/lsname/id         RW  global id of lockspace
-/dlm/lsname/members    RW  read = current members, write = next members
-*/
 
-
-static ssize_t dlm_stop_show(struct dlm_ls *ls, char *buf)
+static ssize_t dlm_control_store(struct dlm_ls *ls, const char *buf, size_t len)
 {
-	ssize_t ret;
-	int val;
+	ssize_t ret = len;
+	int n = simple_strtol(buf, NULL, 0);
 
-	spin_lock(&ls->ls_recover_lock);
-	val = ls->ls_last_stop;
-	spin_unlock(&ls->ls_recover_lock);
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
-}
-
-static ssize_t dlm_stop_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	ssize_t ret = -EINVAL;
-
-	if (simple_strtol(buf, NULL, 0) == 1) {
+	switch (n) {
+	case 0:
 		dlm_ls_stop(ls);
-		ret = len;
+		break;
+	case 1:
+		dlm_ls_start(ls);
+		break;
+	default:
+		ret = -EINVAL;
 	}
 	return ret;
 }
 
-static ssize_t dlm_start_show(struct dlm_ls *ls, char *buf)
+static ssize_t dlm_event_store(struct dlm_ls *ls, const char *buf, size_t len)
 {
-	ssize_t ret;
-	int val;
-
-	spin_lock(&ls->ls_recover_lock);
-	val = ls->ls_last_start;
-	spin_unlock(&ls->ls_recover_lock);
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
-}
-
-static ssize_t dlm_start_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	ssize_t ret;
-	ret = dlm_ls_start(ls, simple_strtol(buf, NULL, 0));
-	return ret ? ret : len;
-}
-
-static ssize_t dlm_finish_show(struct dlm_ls *ls, char *buf)
-{
-	ssize_t ret;
-	int val;
-
-	spin_lock(&ls->ls_recover_lock);
-	val = ls->ls_last_finish;
-	spin_unlock(&ls->ls_recover_lock);
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
-}
-
-static ssize_t dlm_finish_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	dlm_ls_finish(ls, simple_strtol(buf, NULL, 0));
+	ls->ls_uevent_result = simple_strtol(buf, NULL, 0);
+	set_bit(LSFL_UEVENT_WAIT, &ls->ls_flags);
+	wake_up(&ls->ls_uevent_wait);
 	return len;
-}
-
-static ssize_t dlm_terminate_show(struct dlm_ls *ls, char *buf)
-{
-	ssize_t ret;
-	int val = 0;
-
-	spin_lock(&ls->ls_recover_lock);
-	if (test_bit(LSFL_LS_TERMINATE, &ls->ls_flags))
-		val = 1;
-	spin_unlock(&ls->ls_recover_lock);
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
-}
-
-static ssize_t dlm_terminate_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	ssize_t ret = -EINVAL;
-
-	if (simple_strtol(buf, NULL, 0) == 1) {
-		dlm_ls_terminate(ls);
-		ret = len;
-	}
-	return ret;
-}
-
-static ssize_t dlm_done_show(struct dlm_ls *ls, char *buf)
-{
-	ssize_t ret;
-	int val;
-
-	spin_lock(&ls->ls_recover_lock);
-	val = ls->ls_startdone;
-	spin_unlock(&ls->ls_recover_lock);
-	ret = sprintf(buf, "%d\n", val);
-	return ret;
 }
 
 static ssize_t dlm_id_show(struct dlm_ls *ls, char *buf)
@@ -204,33 +124,14 @@ struct dlm_attr {
 	ssize_t (*store)(struct dlm_ls *, const char *, size_t);
 };
 
-static struct dlm_attr dlm_attr_stop = {
-	.attr  = {.name = "stop", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_stop_show,
-	.store = dlm_stop_store
+static struct dlm_attr dlm_attr_control = {
+	.attr  = {.name = "control", .mode = S_IWUSR},
+	.store = dlm_control_store
 };
 
-static struct dlm_attr dlm_attr_start = {
-	.attr  = {.name = "start", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_start_show,
-	.store = dlm_start_store
-};
-
-static struct dlm_attr dlm_attr_finish = {
-	.attr  = {.name = "finish", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_finish_show,
-	.store = dlm_finish_store
-};
-
-static struct dlm_attr dlm_attr_terminate = {
-	.attr  = {.name = "terminate", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_terminate_show,
-	.store = dlm_terminate_store
-};
-
-static struct dlm_attr dlm_attr_done = {
-	.attr  = {.name = "done", .mode = S_IRUGO},
-	.show  = dlm_done_show,
+static struct dlm_attr dlm_attr_event = {
+	.attr  = {.name = "event_done", .mode = S_IWUSR},
+	.store = dlm_event_store
 };
 
 static struct dlm_attr dlm_attr_id = {
@@ -246,11 +147,8 @@ static struct dlm_attr dlm_attr_members = {
 };
 
 static struct attribute *dlm_attrs[] = {
-	&dlm_attr_stop.attr,
-	&dlm_attr_start.attr,
-	&dlm_attr_finish.attr,
-	&dlm_attr_terminate.attr,
-	&dlm_attr_done.attr,
+	&dlm_attr_control.attr,
+	&dlm_attr_event.attr,
 	&dlm_attr_id.attr,
 	&dlm_attr_members.attr,
 	NULL,
@@ -318,5 +216,24 @@ int dlm_kobject_setup(struct dlm_ls *ls)
 	ls->ls_kobj.kset = &dlm_kset;
 	ls->ls_kobj.ktype = &dlm_ktype;
 	return 0;
+}
+
+int dlm_uevent(struct dlm_ls *ls, int in)
+{
+	int error;
+
+	if (in)
+		kobject_uevent(&ls->ls_kobj, KOBJ_ONLINE, NULL);
+	else
+		kobject_uevent(&ls->ls_kobj, KOBJ_OFFLINE, NULL);
+
+	error = wait_event_interruptible(ls->ls_uevent_wait,
+			test_and_clear_bit(LSFL_UEVENT_WAIT, &ls->ls_flags));
+	if (error)
+		goto out;
+
+	error = ls->ls_uevent_result;
+ out:
+	return error;
 }
 

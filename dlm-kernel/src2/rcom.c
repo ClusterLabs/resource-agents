@@ -84,31 +84,6 @@ static int check_config(struct dlm_ls *ls, struct rcom_config *rf)
 	return 0;
 }
 
-static int make_status(struct dlm_ls *ls)
-{
-	int status = 0;
-
-	if (test_bit(LSFL_NODES_VALID, &ls->ls_flags))
-		status |= NODES_VALID;
-
-	if (test_bit(LSFL_ALL_NODES_VALID, &ls->ls_flags))
-		status |= NODES_ALL_VALID;
-
-	if (test_bit(LSFL_DIR_VALID, &ls->ls_flags))
-		status |= DIR_VALID;
-
-	if (test_bit(LSFL_ALL_DIR_VALID, &ls->ls_flags))
-		status |= DIR_ALL_VALID;
-
-	if (test_bit(LSFL_LOCKS_VALID, &ls->ls_flags))
-		status |= LOCKS_VALID;
-
-	if (test_bit(LSFL_ALL_LOCKS_VALID, &ls->ls_flags))
-		status |= LOCKS_ALL_VALID;
-
-	return status;
-}
-
 int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 {
 	struct dlm_rcom *rc;
@@ -119,7 +94,7 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 
 	if (nodeid == dlm_our_nodeid()) {
 		rc = (struct dlm_rcom *) ls->ls_recover_buf;
-		rc->rc_result = make_status(ls);
+		rc->rc_result = dlm_recover_status(ls);
 		goto out;
 	}
 
@@ -150,7 +125,7 @@ static void receive_rcom_status(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 			    sizeof(struct rcom_config), &rc, &mh);
 	if (error)
 		return;
-	rc->rc_result = make_status(ls);
+	rc->rc_result = dlm_recover_status(ls);
 	make_config(ls, (struct rcom_config *) rc->rc_buf);
 
 	send_rcom(ls, mh, rc);
@@ -197,6 +172,7 @@ static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	struct dlm_mhandle *mh;
 	int error, inlen, outlen;
 	int nodeid = rc_in->rc_header.h_nodeid;
+	uint32_t status = dlm_recover_status(ls);
 
 	/*
 	 * We can't run dlm_dir_rebuild_send (which uses ls_nodes) while
@@ -205,7 +181,7 @@ static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 	 * message from a previous instance of recovery.
 	 */
 
-	if (!test_bit(LSFL_NODES_VALID, &ls->ls_flags)) {
+	if (!(status & DLM_RS_NODES)) {
 		log_debug(ls, "ignoring RCOM_NAMES from %u", nodeid);
 		return;
 	}
@@ -355,7 +331,9 @@ static void receive_rcom_lock(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 
 static void receive_rcom_lock_reply(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 {
-	if (!test_bit(LSFL_DIR_VALID, &ls->ls_flags)) {
+	uint32_t status = dlm_recover_status(ls);
+
+	if (!(status & DLM_RS_DIR)) {
 		log_debug(ls, "ignoring RCOM_LOCK_REPLY from %u",
 			  rc_in->rc_header.h_nodeid);
 		return;

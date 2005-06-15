@@ -801,7 +801,7 @@ void dlm_scan_rsbs(struct dlm_ls *ls)
 {
 	int i;
 
-	if (!test_bit(LSFL_LS_RUN, &ls->ls_flags))
+	if (dlm_locking_stopped(ls))
 		return;
 
 	for (i = 0; i < ls->ls_rsbtbl_size; i++) {
@@ -3097,7 +3097,7 @@ int dlm_receive_message(struct dlm_header *hd, int nodeid, int recovery)
 	   recovery operation is starting. */
 
 	while (1) {
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
+		if (dlm_locking_stopped(ls)) {
 			if (!recovery)
 				dlm_add_requestqueue(ls, nodeid, hd);
 			error = -EINTR;
@@ -3304,7 +3304,7 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 	int error = 0, mstype;
 
 	while (1) {
-		if (!test_bit(LSFL_LS_RUN, &ls->ls_flags)) {
+		if (dlm_locking_stopped(ls)) {
 			log_debug(ls, "recover_waiters_post aborted");
 			error = -EINTR;
 			break;
