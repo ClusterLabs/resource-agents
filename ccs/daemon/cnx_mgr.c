@@ -140,6 +140,7 @@ static int update_config(void){
 static int broadcast_for_doc(char *cluster_name, int blocking){
   int opt;
   int error = 0;
+  int retry = 5;
   int sfd = -1;
   int trueint;
   int v1, v2;
@@ -158,6 +159,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 
   ENTER("broadcast_for_doc");
 
+ try_again:
   if(!master_doc){
     log_err("No master_doc!!!\n");
     exit(EXIT_FAILURE);
@@ -273,8 +275,16 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
     if(sendto(sfd, (char *)ch, sizeof(comm_header_t), 0,
 	      (struct sockaddr *)&addr, addr_size) < 0){
       log_sys_err("Unable to perform sendto");
-      error = -errno;
-      goto fail;
+      if(retry > 0){
+	retry--;
+	close(sfd);
+	free(ch);
+	sleep(2);
+	goto try_again;
+      } else {
+	error = -errno;
+	goto fail;
+      }
     }
 
     srandom(getpid());
