@@ -19,13 +19,12 @@ int debug = FALSE;
 
 int set_local(int argc, char **argv);
 int set_node(int argc, char **argv);
-int ls_stop(int argc, char **argv);
-int ls_terminate(int argc, char **argv);
-int ls_start(int argc, char **argv);
-int ls_finish(int argc, char **argv);
+
+int ls_control(int argc, char **argv);
+int ls_event_done(int argc, char **argv);
+int ls_members(int argc, char **argv);
 int ls_set_id(int argc, char **argv);
-int ls_get_done(int argc, char **argv, int *event_nr);
-int ls_poll_done(int argc, char **argv);
+
 int ls_create(int argc, char **argv);
 int ls_release(int argc, char **argv);
 int ls_lock(int argc, char **argv);
@@ -42,12 +41,9 @@ static void print_usage(void)
 	printf("set_local  <nodeid> <ipaddr> [<weight>]\n");
 	printf("set_node   <nodeid> <ipaddr> [<weight>]\n");
 	printf("\n");
-	printf("stop       <ls_name>\n");
-	printf("terminate  <ls_name>\n");
-	printf("start      <ls_name> <event_nr> <type> <nodeid>...\n");
-	printf("get_done   <ls_name>\n");
-	printf("finish     <ls_name> <event_nr>\n");
-	printf("poll_done  <ls_name> <event_nr>\n");
+	printf("control    <ls_name> <val>\n");
+	printf("event_done <ls_name> <val>\n");
+	printf("members    <ls_name> <nodeid>...\n");
 	printf("set_id     <ls_name> <id>\n");
 	printf("\n");
 	printf("create     <ls_name>\n");
@@ -109,9 +105,25 @@ static void decode_arguments(int *argc, char **argv)
 	*argc -= optind;
 }
 
+char *flatten_members(int argc, char **argv)
+{
+	static char str_members_buf[1024];
+	int i;
+
+	memset(str_members_buf, 0, 1024);
+
+	for (i = 1; i < argc; i++) {
+		if (i != 1)
+			strcat(str_members_buf, " ");
+		strcat(str_members_buf, argv[i]);
+	}
+
+	return str_members_buf;
+}
+
 int main(int argc, char **argv)
 {
-	int rv, x = argc, event_nr = 0;
+	int rv, x = argc;
 
 	prog_name = argv[0];
 
@@ -127,21 +139,18 @@ int main(int argc, char **argv)
 		rv = set_local(argc, argv);
 	else if (strcmp(action, "set_node") == 0)
 		rv = set_node(argc, argv);
-	else if (strcmp(action, "stop") == 0)
-		rv = ls_stop(argc, argv);
-	else if (strcmp(action, "terminate") == 0)
-		rv = ls_terminate(argc, argv);
-	else if (strcmp(action, "start") == 0)
-		rv = ls_start(argc, argv);
-	else if (strcmp(action, "finish") == 0)
-		rv = ls_finish(argc, argv);
+
+	else if (strcmp(action, "control") == 0)
+		rv = ls_control(argc, argv);
+	else if (strcmp(action, "event_done") == 0)
+		rv = ls_event_done(argc, argv);
 	else if (strcmp(action, "set_id") == 0)
 		rv = ls_set_id(argc, argv);
-	else if (strcmp(action, "get_done") == 0) {
-		rv = ls_get_done(argc, argv, &event_nr);
-		printf("done event_nr %d\n", event_nr);
-	} else if (strcmp(action, "poll_done") == 0)
-		rv = ls_poll_done(argc, argv);
+	else if (strcmp(action, "members") == 0) {
+		argv[1] = flatten_members(argc, argv);
+		rv = ls_members(2, argv);
+	}
+
 	else if (strcmp(action, "create") == 0)
 		rv = ls_create(argc, argv);
 	else if (strcmp(action, "release") == 0)
@@ -160,3 +169,4 @@ int main(int argc, char **argv)
 
 	exit(EXIT_SUCCESS);
 }
+

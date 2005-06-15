@@ -42,11 +42,9 @@ int do_command(int op, struct dlm_node_ioctl *ni);
 /*
 set_local  <nodeid> <ipaddr> [<weight>]
 set_node   <nodeid> <ipaddr> [<weight>]
-stop       <ls_name>
-terminate  <ls_name>
-start      <ls_name> <event_nr> <type> <nodeid>...
-finish     <ls_name> <event_nr>
-poll_done  <ls_name> <event_nr>
+members    <ls_name> <nodeid>...
+control    <ls_name> <num>
+event_done <ls_name> <num>
 set_id     <ls_name> <id>
 */
 
@@ -106,208 +104,50 @@ int set_local(int argc, char **argv)
 	return do_command(DLM_SET_LOCAL, &ni);
 }
 
-/*
- * sysfs interface used for lockspace control (stop/start/finish/terminate),
- * for setting lockspace id, lockspace members
- */
-
-int ls_stop(int argc, char **argv)
+static int ls_general(char *name, char *file, char *val)
 {
 	char fname[512];
-	int rv, fd;
+	int rv, fd, len;
 
-	if (argc != 1)
-		return -EINVAL;
+	sprintf(fname, "%s/%s/%s", DLM_SYSFS_DIR, name, file);
 
-	sprintf(fname, "%s/%s/stop", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
+	fd = open(fname, O_WRONLY);
 	if (fd < 0) {
-		printf("open error %d %d\n", fd, errno);
+		printf("open \"%s\" error %d %d\n", fname, fd, errno);
 		return -1;
 	}
 
-	rv = write(fd, "1", strlen("1"));
-	if (rv != 1)
-		printf("write error %d %d\n", rv, errno);
+	/* printf("write \"%s\" to \"%s\"\n", val, fname); */
 
-	close(fd);
-	return 0;
-}
-
-int ls_terminate(int argc, char **argv)
-{
-	char fname[512];
-	int rv, fd;
-
-	if (argc != 1)
-		return -EINVAL;
-
-	sprintf(fname, "%s/%s/terminate", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		printf("open error %d %d\n", fd, errno);
-		return -1;
-	}
-
-	rv = write(fd, "1", strlen("1"));
-	if (rv != 1)
-		printf("write error %d %d\n", rv, errno);
-
-	close(fd);
-	return 0;
-}
-
-int ls_finish(int argc, char **argv)
-{
-	char fname[512];
-	int rv, fd;
-
-	if (argc != 2)
-		return -EINVAL;
-
-	sprintf(fname, "%s/%s/finish", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		printf("open error %d %d\n", fd, errno);
-		return -1;
-	}
-
-	rv = write(fd, argv[1], strlen(argv[1]));
-	if (rv != strlen(argv[1]))
-		printf("write error %d %d\n", rv, errno);
-
-	close(fd);
-	return 0;
-}
-
-int ls_start(int argc, char **argv)
-{
-	char fname[512];
-	int i, rv, fd, len = 0;
-	char *p;
-
-	if (argc < 4)
-		return -EINVAL;
-
-	/* first set up new members */
-
-	for (i = 3; i < argc; i++)
-		len += strlen(argv[i]) + 1;
-
-	p = malloc(len);
-	if (!p) {
-		printf("malloc error\n");
-		return -ENOMEM;
-	}
-	memset(p, 0, len);
-
-	for (i = 3; i < argc; i++) {
-		if (i != 3)
-			strcat(p, " ");
-		strcat(p, argv[i]);
-	}
-
-	sprintf(fname, "%s/%s/members", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		printf("open error %s %d %d\n", fname, fd, errno);
-		return -1;
-	}
-
-	rv = write(fd, p, len);
+	len = strlen(val) + 1;
+	rv = write(fd, val, len);
 	if (rv != len) {
-		printf("write error %s %d %d\n", fname, rv, errno);
-		close(fd);
-		return -1;
-	}
-
-	free(p);
-	close(fd);
-
-	/* second do the start */
-
-	sprintf(fname, "%s/%s/start", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		printf("open error %s %d %d\n", fname, fd, errno);
-		return -1;
-	}
-
-	len = strlen(argv[1]);
-	rv = write(fd, argv[1], len);
-	if (rv != len)
-		printf("write error %s %d %d\n", fname, rv, errno);
+		printf("write %d error %d %d\n", len, rv, errno);
+		rv = -1;
+	} else
+		rv = 0;
 
 	close(fd);
-	return 0;
+	return rv;
+}
+
+int ls_control(int argc, char **argv)
+{
+	return ls_general(argv[0], "control", argv[1]);
+}
+
+int ls_event_done(int argc, char **argv)
+{
+	return ls_general(argv[0], "event_done", argv[1]);
+}
+
+int ls_members(int argc, char **argv)
+{
+	return ls_general(argv[0], "members", argv[1]);
 }
 
 int ls_set_id(int argc, char **argv)
 {
-	char fname[512];
-	int len, fd, rv;
-
-	if (argc != 2)
-		return -EINVAL;
-
-	sprintf(fname, "%s/%s/id", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDWR);
-	if (fd < 0) {
-		printf("open error %d %d\n", fd, errno);
-		return -1;
-	}
-
-	len = strlen(argv[1]);
-	rv = write(fd, argv[1], len);
-	if (rv != len)
-		printf("write error %d %d\n", rv, errno);
-
-	close(fd);
-	return 0;
-}
-
-int ls_get_done(int argc, char **argv, int *event_nr)
-{
-	char fname[512];
-	char buf[32];
-	int fd, rv;
-
-	if (argc != 1)
-		return -EINVAL;
-
-	sprintf(fname, "%s/%s/done", DLM_SYSFS_DIR, argv[0]);
-
-	fd = open(fname, O_RDONLY);
-	if (fd < 0) {
-		printf("open error %d %d\n", fd, errno);
-		return -1;
-	}
-
-	memset(buf, 0, 32);
-
-	rv = read(fd, buf, 32);
-	if (rv <= 0) {
-		printf("read error %s %d %d\n", fname, rv, errno);
-		goto out;
-	}
-
-	*event_nr = atoi(buf);
- out:
-	close(fd);
-	return 0;
-}
-
-int ls_poll_done(int argc, char **argv)
-{
-	/* FIXME: loop reading /sys/kernel/dlm/<ls>/done until it
-	   equals the given event_nr */
-	printf("not yet implemented\n");
-	return -1;
+	return ls_general(argv[0], "id", argv[1]);
 }
 
