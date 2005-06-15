@@ -86,6 +86,7 @@ static int check_update_doc(xmlDocPtr tmp_doc){
 static int handle_cluster_message(int fd){
   int error = 0;
   int afd= -1;
+  mode_t old_mode;
   FILE *fp = NULL;
   int unlock=0;
   char *buffer = NULL;
@@ -154,7 +155,9 @@ static int handle_cluster_message(int fd){
       goto fail;
     }
 
+    old_mode = umask(026);
     fp = fopen("/etc/cluster/cluster.conf-update", "w");
+    umask(old_mode);
     if(!fp){
       log_sys_err("Unable to open /etc/cluster/cluster.conf-update");
       error = -errno;
@@ -204,7 +207,10 @@ static int handle_cluster_message(int fd){
       goto fail;
     }
     
+    old_mode = umask(026);
     fp = fopen("/etc/cluster/.cluster.conf", "w");
+    umask(old_mode);
+
     if(!fp){
       log_sys_err("Unable to open /etc/cluster/.cluster.conf");
       error = -errno;

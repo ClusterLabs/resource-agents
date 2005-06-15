@@ -422,6 +422,7 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
 
   if(write_to_disk){
     struct stat stat_buf;
+    mode_t old_mode;
     FILE *f;
     /* We did not have a copy available or we found a newer one, so write it out */
 
@@ -438,7 +439,10 @@ static int broadcast_for_doc(char *cluster_name, int blocking){
       error = -ENOTDIR;
       goto fail;
     }
+
+    old_mode = umask(026);
     f = fopen("/etc/cluster/cluster.conf", "w");
+    umask(old_mode);
     if(!f){
       log_sys_err("Unable to open /etc/cluster/cluster.conf");
       error = -errno;
