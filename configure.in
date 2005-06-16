@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.394 $) dnl cvs revision
+AC_REVISION($Revision: 1.395 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1226,15 +1226,24 @@ fi
 AC_MSG_CHECKING(SNMP Subagent info)
 AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
 
-if test "x${enable_snmp_subagent}" = "xyes" -o "x${enable_snmp_subagent}" = "xtry"; then
-	echo "Enabling SNMP Sub Agent"
+if test "x${enable_snmp_subagent}" != "xno" ;  then
+	if test "x${enable_snmp_subagent}" = "xyes" ;  then
+	  echo "Enabling SNMP Sub Agent"
+	else
+	  echo "Trying to enable SNMP Sub Agent"
+	fi
 	LIB_SNMP
-	SNMP_SUBAGENT_ENABLED=1
-else
-        enable_snmp_subagent="no"
-	SNMP_SUBAGENT_ENABLED=0
+	dnl Will have set: enable_snmp_subagent={yes|no}
+
+	AC_MSG_CHECKING(SNMP Subagent result)
+	AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
 fi
 
+if test "x${enable_snmp_subagent}" != "xno" ;  then
+	SNMP_SUBAGENT_ENABLED=1
+else
+	SNMP_SUBAGENT_ENABLED=0
+fi
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 AC_SUBST(SNMP_SUBAGENT_ENABLED)
 AC_SUBST(SNMP_LIBS)
