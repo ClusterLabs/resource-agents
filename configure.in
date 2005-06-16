@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.393 $) dnl cvs revision
+AC_REVISION($Revision: 1.394 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1228,7 +1228,6 @@ AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
 
 if test "x${enable_snmp_subagent}" = "xyes" -o "x${enable_snmp_subagent}" = "xtry"; then
 	echo "Enabling SNMP Sub Agent"
-	sinclude([config/snmp_subagent.m4]) 
 	LIB_SNMP
 	SNMP_SUBAGENT_ENABLED=1
 else
