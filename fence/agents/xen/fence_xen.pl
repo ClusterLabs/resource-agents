@@ -21,6 +21,13 @@ my $pname = $_;
 
 
 # Default is to use ssh for connection to the host
+# for this to be effective you'll need to have an ssh key on the VMs
+# that can log in to the host without a passphrase.
+# If you device to use rsh then you'll need to edit /root/.rhosts
+#
+# Also note that you'll need to set /proc/sys/kernel/sysrq to "1" in 
+# the VMs for this to work at all.
+#
 $opt_c = "ssh";
 $opt_u = "root";
 
