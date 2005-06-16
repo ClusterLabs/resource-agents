@@ -163,8 +163,8 @@ void dlm_print_lkb(struct dlm_lkb *lkb)
 
 void dlm_print_rsb(struct dlm_rsb *r)
 {
-	printk(KERN_ERR "rsb: nodeid %d flags %lx trial %x rlc %d name %s\n",
-	       r->res_nodeid, r->res_flags, r->res_trial_lkid,
+	printk(KERN_ERR "rsb: nodeid %d flags %lx first %x rlc %d name %s\n",
+	       r->res_nodeid, r->res_flags, r->res_first_lkid,
 	       r->res_recover_locks_count, r->res_name);
 }
 
@@ -318,16 +318,13 @@ static int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
 
 	if (r->res_nodeid == -1) {
-		rsb_clear_flag(r, RSB_MASTER_WAIT);
 		rsb_clear_flag(r, RSB_MASTER_UNCERTAIN);
-		r->res_trial_lkid = 0;
+		r->res_first_lkid = 0;
 	} else if (r->res_nodeid > 0) {
-		rsb_clear_flag(r, RSB_MASTER_WAIT);
 		rsb_set_flag(r, RSB_MASTER_UNCERTAIN);
-		r->res_trial_lkid = 0;
+		r->res_first_lkid = 0;
 	} else {
 		DLM_ASSERT(r->res_nodeid == 0, dlm_print_rsb(r););
-		DLM_ASSERT(!rsb_flag(r, RSB_MASTER_WAIT), dlm_print_rsb(r););
 		DLM_ASSERT(!rsb_flag(r, RSB_MASTER_UNCERTAIN),);
 	}
  out:
@@ -1399,19 +1396,10 @@ static void send_blocking_asts_all(struct dlm_rsb *r, struct dlm_lkb *lkb)
    lookup reply.  Other lkb's waiting for the same rsb lookup are kept
    on the rsb's res_lookup list until the master is verified.
 
-   After a remote lookup or when a tossed rsb is retrived that specifies
-   a remote master, that master value is uncertain -- it may have changed
-   by the time we send it a request.  While it's uncertain, only one lkb
-   is allowed to go ahead and use the master value; that lkb is specified
-   by res_trial_lkid.  Once the trial lkb is queued on the master node
-   we know the rsb master is correct and any other lkbs on res_lookup
-   can get the rsb nodeid and go ahead with their request.
-
    Return values:
    0: nodeid is set in rsb/lkb and the caller should go ahead and use it
    1: the rsb master is not available and the lkb has been placed on
       a wait queue
-   -EXXX: there was some error in processing
 */
 
 static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
@@ -1421,10 +1409,14 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 
 	if (rsb_flag(r, RSB_MASTER_UNCERTAIN)) {
 		rsb_clear_flag(r, RSB_MASTER_UNCERTAIN);
-		rsb_set_flag(r, RSB_MASTER_WAIT);
-		r->res_trial_lkid = lkb->lkb_id;
+		r->res_first_lkid = lkb->lkb_id;
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
+	}
+
+	if (r->res_first_lkid && r->res_first_lkid != lkb->lkb_id) {
+		list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
+		return 1;
 	}
 
 	if (r->res_nodeid == 0) {
@@ -1432,41 +1424,17 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 		return 0;
 	}
 
-	/* An lkb becomes the trial_lkid for an rsb in one of three places:
-	   . when we get a local lookup result at the end of this function
-	   . when we get a remote lookup result in receive_lookup_reply()
-	   . when we try to reuse an old (uncertain) lookup value above */
-
-	if (r->res_trial_lkid == lkb->lkb_id) {
-		DLM_ASSERT(lkb->lkb_id, dlm_print_lkb(lkb););
-		lkb->lkb_nodeid = r->res_nodeid;
-		return 0;
-	}
-
-	/* The MASTER_WAIT flag means that another lkb is the middle of
-	   looking up or trying out the rsb master value.  When the master
-	   is confirmed, then subsequent lkb's can go ahead and use it, but
-	   until then the other lkb's wait on the res_lookup list. */
-
-	if (rsb_flag(r, RSB_MASTER_WAIT)) {
-		list_add_tail(&lkb->lkb_rsb_lookup, &r->res_lookup);
-		return 1;
-	}
-
 	if (r->res_nodeid > 0) {
 		lkb->lkb_nodeid = r->res_nodeid;
 		return 0;
 	}
 
-	/* This is the first lkb requested on this rsb since the rsb
-	   was created.  We need to figure out who the rsb master is. */
-
-	DLM_ASSERT(r->res_nodeid == -1, );
+	DLM_ASSERT(r->res_nodeid == -1, dlm_print_rsb(r););
 
 	dir_nodeid = dlm_dir_nodeid(r);
 
 	if (dir_nodeid != our_nodeid) {
-		rsb_set_flag(r, RSB_MASTER_WAIT);
+		r->res_first_lkid = lkb->lkb_id;
 		send_lookup(r, lkb);
 		return 1;
 	}
@@ -1487,75 +1455,58 @@ static int set_master(struct dlm_rsb *r, struct dlm_lkb *lkb)
 	}
 
 	if (ret_nodeid == our_nodeid) {
+		r->res_first_lkid = 0;
 		r->res_nodeid = 0;
 		lkb->lkb_nodeid = 0;
-		return 0;
+	} else {
+		r->res_first_lkid = lkb->lkb_id;
+		r->res_nodeid = ret_nodeid;
+		lkb->lkb_nodeid = ret_nodeid;
 	}
-
-	rsb_set_flag(r, RSB_MASTER_WAIT);
-	r->res_trial_lkid = lkb->lkb_id;
-	r->res_nodeid = ret_nodeid;
-	lkb->lkb_nodeid = ret_nodeid;
 	return 0;
 }
 
-/* confirm_master -- confirm (or deny) an rsb's master nodeid
-
-   This is called when we get a request reply from a remote node
-   who we believe is the master.  The return value (error) we got
-   back indicates whether it's really the master or not.  If it
-   wasn't, we need to start over and do another master lookup.  If
-   it was and our lock was queued, then we know the master won't
-   change.  If it was and our lock wasn't queued, we need to do
-   another trial with the next lkb.
-*/
-
-static void confirm_master(struct dlm_rsb *r, int error)
+static void process_lookup_list(struct dlm_rsb *r)
 {
 	struct dlm_lkb *lkb, *safe;
 
-	if (!rsb_flag(r, RSB_MASTER_WAIT))
+	list_for_each_entry_safe(lkb, safe, &r->res_lookup, lkb_rsb_lookup) {
+		list_del(&lkb->lkb_rsb_lookup);
+		_request_lock(r, lkb);
+		schedule();
+	}
+}
+
+/* confirm_master -- confirm (or deny) an rsb's master nodeid */
+
+static void confirm_master(struct dlm_rsb *r, int error)
+{
+	struct dlm_lkb *lkb;
+
+	if (!r->res_first_lkid)
 		return;
 
 	switch (error) {
 	case 0:
 	case -EINPROGRESS:
-		/* the remote master queued our request, or
-		   the remote dir node told us we're the master */
-
-		rsb_clear_flag(r, RSB_MASTER_WAIT);
-		r->res_trial_lkid = 0;
-
-		list_for_each_entry_safe(lkb, safe, &r->res_lookup,
-					 lkb_rsb_lookup) {
-			list_del(&lkb->lkb_rsb_lookup);
-			_request_lock(r, lkb);
-			schedule();
-		}
+		r->res_first_lkid = 0;
+		process_lookup_list(r);
 		break;
 	
 	case -EAGAIN:
 		/* the remote master didn't queue our NOQUEUE request;
-		   do another trial with the next waiting lkb */
+		   make a waiting lkb the first_lkid */
+
+		r->res_first_lkid = 0;
 
 		if (!list_empty(&r->res_lookup)) {
 			lkb = list_entry(r->res_lookup.next, struct dlm_lkb,
 					 lkb_rsb_lookup);
 			list_del(&lkb->lkb_rsb_lookup);
-			r->res_trial_lkid = lkb->lkb_id;
+			r->res_first_lkid = lkb->lkb_id;
 			_request_lock(r, lkb);
-			break;
-		}
-		/* fall through so the rsb looks new */
-
-	case -ENOENT:
-	case -ENOTBLK:
-		/* the remote master wasn't really the master, i.e.  our
-		   trial failed; so we start over with another lookup */
-
-		r->res_nodeid = -1;
-		r->res_trial_lkid = 0;
-		rsb_clear_flag(r, RSB_MASTER_WAIT);
+		} else
+			r->res_nodeid = -1;
 		break;
 
 	default:
@@ -2810,7 +2761,6 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	if (mstype == DLM_MSG_LOOKUP) {
 		r->res_nodeid = ms->m_header.h_nodeid;
 		lkb->lkb_nodeid = r->res_nodeid;
-		r->res_trial_lkid = lkb->lkb_id;
 	}
 
 	switch (error) {
@@ -2840,13 +2790,7 @@ static void receive_request_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	case -ENOENT:
 	case -ENOTBLK:
 		/* find_rsb failed to find rsb or rsb wasn't master */
-
-		DLM_ASSERT(rsb_flag(r, RSB_MASTER_WAIT),
-		           log_print("receive_request_reply error %d", error);
-		           dlm_print_lkb(lkb);
-		           dlm_print_rsb(r););
-
-		confirm_master(r, error);
+		r->res_nodeid = -1;
 		lkb->lkb_nodeid = -1;
 		_request_lock(r, lkb);
 		break;
@@ -3049,17 +2993,19 @@ static void receive_lookup_reply(struct dlm_ls *ls, struct dlm_message *ms)
 	lock_rsb(r);
 
 	ret_nodeid = ms->m_nodeid;
-	if (ret_nodeid == dlm_our_nodeid())
-		r->res_nodeid = ret_nodeid = 0;
-	else {
+	if (ret_nodeid == dlm_our_nodeid()) {
+		r->res_nodeid = 0;
+		ret_nodeid = 0;
+		r->res_first_lkid = 0;
+	} else {
+		/* set_master() will copy res_nodeid to lkb_nodeid */
 		r->res_nodeid = ret_nodeid;
-		r->res_trial_lkid = lkb->lkb_id;
 	}
 
 	_request_lock(r, lkb);
 
 	if (!ret_nodeid)
-		confirm_master(r, 0);
+		process_lookup_list(r);
 
 	unlock_rsb(r);
 	put_rsb(r);
@@ -3322,22 +3268,11 @@ int dlm_recover_waiters_post(struct dlm_ls *ls)
 		switch (mstype) {
 
 		case DLM_MSG_LOOKUP:
-
-			/* We need to clear the MASTER_WAIT flag so set_master
-			   will redo the lookup for this lkb instead of making
-			   it wait on the res_lookup list.
-
-			   FIXME: it's possible that other lkb's have queued
-			   up on res_lookup waiting for a master confirmation
-			   from this lkb.  If the post-recovery lookup is
-			   local and the lookup says we're the master, then
-			   confirm_master() won't be called to process the
-			   lkb's on res_lookup. */
-
 			hold_rsb(r);
 			lock_rsb(r);
-			rsb_clear_flag(r, RSB_MASTER_WAIT);
 			_request_lock(r, lkb);
+			if (is_master(r))
+				confirm_master(r, 0);
 			unlock_rsb(r);
 			put_rsb(r);
 			break;

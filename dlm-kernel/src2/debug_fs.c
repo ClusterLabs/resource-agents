@@ -99,11 +99,16 @@ static int print_resource(struct dlm_rsb *res, struct seq_file *s)
 		else
 			seq_printf(s, "%c", '.');
 	}
-	if (res->res_nodeid)
+	if (res->res_nodeid > 0)
 		seq_printf(s, "\"  \nLocal Copy, Master is node %d\n",
 			   res->res_nodeid);
-	else
+	else if (res->res_nodeid == 0)
 		seq_printf(s, "\"  \nMaster Copy\n");
+	else if (res->res_nodeid == -1)
+		seq_printf(s, "\"  \nLooking up master (lkid %x)\n",
+			   res->res_first_lkid);
+	else
+		seq_printf(s, "\"  \nInvalid master %d\n", res->res_nodeid);
 
 	/* Print the LVB: */
 	if (res->res_lvbptr) {

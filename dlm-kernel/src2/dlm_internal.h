@@ -272,8 +272,8 @@ struct dlm_rsb {
 	uint32_t                res_lvbseq;
 	uint32_t		res_bucket;	/* rsbtbl */
 	unsigned long		res_toss_time;
-	uint32_t		res_trial_lkid;	/* lkb trying lookup result */
-	struct list_head	res_lookup;	/* lkbs waiting lookup confirm*/
+	uint32_t		res_first_lkid;
+	struct list_head	res_lookup;	/* lkbs waiting on first */
 	struct list_head	res_hashchain;	/* rsbtbl */
 	struct list_head	res_grantqueue;
 	struct list_head	res_convertqueue;
@@ -295,7 +295,6 @@ struct dlm_rsb {
 /* rsb_flags */
 
 enum rsb_flags {
-	RSB_MASTER_WAIT,
 	RSB_MASTER_UNCERTAIN,
 	RSB_VALNOTVALID,
 	RSB_VALNOTVALID_PREV,
