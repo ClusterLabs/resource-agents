@@ -34,10 +34,7 @@
 #include <sys/types.h>
 #include <linux/unistd.h>
 
-static _syscall0(pid_t, gettid)
-static pid_t gettid(void);
-
-#define MODULE_DESCRIPTION "GuLM Plugin v1.0"
+#define MODULE_DESCRIPTION "GuLM Plugin v1.0.1"
 #define MODULE_AUTHOR      "Lon Hohberger"
 
 
@@ -70,6 +67,26 @@ static lg_core_callbacks_t gulm_callbacks_initializer = {
 	null_service_list,
 	null_error
 };
+
+
+/*
+ * Patch from Adam Conrad / Ubuntu: Don't use _syscall macro
+ */
+#ifdef __NR_gettid
+pid_t gettid (void)
+{
+	        return syscall(__NR_gettid);
+}
+#else
+
+#warn "gettid not available -- substituting with pthread_self()"
+
+#include <pthread.h>
+pid_t gettid (void)
+{
+	        return (pid_t)pthread_self();
+}
+#endif
 
 
 /**
