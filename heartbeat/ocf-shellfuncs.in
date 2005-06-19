@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.14 2005/05/02 10:58:38 andrew Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.15 2005/06/19 02:37:50 alan Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -122,14 +122,21 @@ __ocf_set_defaults() {
 
 ocf_log() {
 	# TODO: Revisit and implement internally.
+	if
+          [ $# -lt 2 ]
+        then
+          ocf_log err "Not enough arguments [$#] to ocf_log."
+        fi
         __OCF_PRIO="$1"
         shift
         __OCF_MSG="$*"
 
         case "${__OCF_PRIO}" in
+          crit)	__OCF_PRIO="CRIT";;
           err)	__OCF_PRIO="ERROR";;
           warn)	__OCF_PRIO="WARNING";;
           info)	__OCF_PRIO="INFO";;
+          debug)__OCF_PRIO="DEBUG";;
           *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr 'a-z' 'A-Z'`;;
 	esac
 
