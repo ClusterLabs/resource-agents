@@ -202,7 +202,7 @@ END
 
 ip_init() {
         if [ $UID -ne 0 ]; then
-                ocf_log "ERROR: You must be root."
+                ocf_log err "You must be root."
                 exit $OCF_ERR_PERM
         fi
 
@@ -377,7 +377,7 @@ delete_route () {
 		;;
   esac
 
-  ocf_log "info: $CMD"
+  ocf_log info "$CMD"
   $CMD
 
   return $?
@@ -403,7 +403,7 @@ delete_interface () {
 		;;
   esac
 
-  ocf_log "info: $CMD"
+  ocf_log info "$CMD"
   $CMD
 
   return $?
@@ -450,7 +450,7 @@ add_interface () {
 		;;
   esac
 
-  ocf_log "info: $CMD"
+  ocf_log info "$CMD"
   $CMD
   rc=$?
 
@@ -475,13 +475,13 @@ remove_conflicting_loopback() {
 	ipaddr="$1"
 	ifname="$2"
 
-	ocf_log "info: Removing conflicting loopback $ifname."
+	ocf_log info "Removing conflicting loopback $ifname."
 	if
 	  [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
 	then
 	  : Directory $VLDIR now exists
 	else
-	  ocf_log "ERROR: Could not create \"$VLDIR/\" conflicting" \
+	  ocf_log err "Could not create \"$VLDIR/\" conflicting" \
 	  " loopback $ifname cannot be restored."
 	fi
 	if 
@@ -489,7 +489,7 @@ remove_conflicting_loopback() {
 	then
 	  : Saved loopback information in $VLDIR/$ipaddr
 	else
-	  ocf_log "ERROR: Could not save conflicting loopback $ifname." \
+	  ocf_log err "Could not save conflicting loopback $ifname." \
 	  "it will not be restored."
 	fi
 	delete_interface "$ifname"
@@ -506,7 +506,7 @@ restore_loopback() {
 
 	if [ -s "$VLDIR/$ipaddr" ]; then
 		ifname=`cat "$VLDIR/$ipaddr"`
-		ocf_log "info: Restoring loopback IP Address " \
+		ocf_log info "Restoring loopback IP Address " \
 			"$ipaddr on $ifname."
 		add_interface "$ipaddr" "netmask 255.255.255.255" "$ifname"
 		rm -f "$VLDIR/$ipaddr"
@@ -579,10 +579,10 @@ ip_stop() {
 
   case $rc in
     	0) 
-		ocf_log "info: IP Address $BASEIP released"
+		ocf_log info "IP Address $BASEIP released"
 		;;
     	*) 	
-		ocf_log "WARN: IP Address $BASEIP NOT released"
+		ocf_log warn "IP Address $BASEIP NOT released"
 		;;
   esac
   return $rc
@@ -607,14 +607,14 @@ find_free_interface() {
     : OK
   else
     lrc=$?
-    ocf_log "ERROR: unable to find an interface for $BASEIP"
+    ocf_log err "Unable to find an interface for $BASEIP"
     return $lrc
   fi
 
   if
     [ "X$NIC" = "X" ]
   then
-    ocf_log "ERROR: no interface found for $BASEIP"
+    ocf_log err "No interface found for $BASEIP"
     return $OCF_ERR_GENERIC;
   fi
 
@@ -713,7 +713,7 @@ ip_start() {
 		  lo*) 
 		      if [ x"$if" = x"$CURRENTIF" ]; then
 		  # Its already "running" and not moving, nothing to do.
-			  ocf_log "ERROR: Could not find a non-loopback device to move $BASEIP to"
+			  ocf_log err "Could not find a non-loopback device to move $BASEIP to"
 			  exit $OCF_ERR_GENERIC
 		      fi;;
 		  *)   remove_conflicting_loopback "$BASEIP" "$CURRENTIF";;
@@ -739,13 +739,13 @@ ip_start() {
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
 
-  ocf_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
+  ocf_log info "Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
 
   ARGS="-i $OCF_RESKEY_ARP_INTERVAL_MS -r $OCF_RESKEY_ARP_REPEAT -p $SENDARPPIDFILE $TARGET_INTERFACE $BASEIP auto $BASEIP $OCF_RESKEY_ARP_NETMASK"
-  ocf_log "$SENDARP $ARGS"
+  ocf_log info "$SENDARP $ARGS"
   case $OCF_RESKEY_ARP_BACKGROUND in
-    yes) ($SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps. rc=$?")&;;
-    *)	  $SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps. rc=$?";;
+    yes) ($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?")&;;
+    *)	  $SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?";;
   esac
 }
 
