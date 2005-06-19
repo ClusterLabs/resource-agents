@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.15 2005/06/19 02:37:50 alan Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.16 2005/06/19 05:02:12 alan Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -69,7 +69,7 @@ __ocf_set_defaults() {
 	OCF_CHECK_LEVEL=0
 	# Strip the OCF_RESKEY_ prefix from this particular parameter
 	if [ -z "$OCF_RESKEY_OCF_CHECK_LEVEL" ]; then
-		: ${OCF_CHECK_LEVEL=$OCF_RESKEY_OCF_CHECK_LEVEL}
+		: ${OCF_CHECK_LEVEL:=$OCF_RESKEY_OCF_CHECK_LEVEL}
 	fi
 
 	if [ -z "$OCF_ROOT" ]; then
@@ -81,13 +81,13 @@ __ocf_set_defaults() {
 	fi
 
 	if [ -z "$OCF_RESOURCE_TYPE" ]; then
-		: ${OCF_RESOURCE_TYPE=$__SCRIPT_NAME}
+		: ${OCF_RESOURCE_TYPE:=$__SCRIPT_NAME}
 	fi
 
 	if [ -z "$OCF_RA_VERSION_MAJOR" ]; then
 		: We are being invoked as an init script.
 		: Fill in some things with reasonable values.
-		: ${OCF_RESOURCE_INSTANCE="default"}
+		: ${OCF_RESOURCE_INSTANCE:="default"}
 		return 0
         fi
 
@@ -140,7 +140,7 @@ ocf_log() {
           *)	__OCF_PRIO=`echo ${__OCF_PRIO}| tr 'a-z' 'A-Z'`;;
 	esac
 
-	ha_log "${__OCF_PRIO}: $msg"
+	ha_log "${__OCF_PRIO}: $__OCF_MSG"
 }
 
 __ocf_set_defaults "$@"
