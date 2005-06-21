@@ -735,6 +735,10 @@ static int gnbd_ctl_ioctl(struct inode *inode, struct file *file,
 		if (!file)
 			return error;
 		inode = file->f_dentry->d_inode;
+		if (!S_ISSOCK(inode->i_mode)) {
+			fput(file);
+			return error;
+		}
 		if (down_trylock(&dev->do_it_lock)){
 			fput(file);
 			return -EBUSY;
