@@ -317,6 +317,9 @@ static int _search_rsb(struct dlm_ls *ls, char *name, int len, int b,
 
 	list_move(&r->res_hashchain, &ls->ls_rsbtbl[b].list);
 
+	if (dlm_no_directory(ls))
+		goto out;
+
 	if (r->res_nodeid == -1) {
 		rsb_clear_flag(r, RSB_MASTER_UNCERTAIN);
 		r->res_first_lkid = 0;
@@ -360,11 +363,14 @@ static int find_rsb(struct dlm_ls *ls, char *name, int namelen,
 		    unsigned int flags, struct dlm_rsb **r_ret)
 {
 	struct dlm_rsb *r, *tmp;
-	uint32_t bucket;
+	uint32_t hash, bucket;
 	int error = 0;
 
-	bucket = dlm_hash(name, namelen);
-	bucket &= (ls->ls_rsbtbl_size - 1);
+	if (dlm_no_directory(ls))
+		flags |= R_CREATE;
+
+	hash = dlm_hash(name, namelen);
+	bucket = hash & (ls->ls_rsbtbl_size - 1);
 
 	error = search_rsb(ls, name, namelen, bucket, flags, &r);
 	if (!error)
@@ -382,9 +388,18 @@ static int find_rsb(struct dlm_ls *ls, char *name, int namelen,
 	if (!r)
 		goto out;
 
+	r->res_hash = hash;
 	r->res_bucket = bucket;
 	r->res_nodeid = -1;
 	kref_init(&r->res_ref);
+
+	/* With no directory, the master can be set immediately */
+	if (dlm_no_directory(ls)) {
+		int nodeid = dlm_dir_nodeid(r);
+		if (nodeid == dlm_our_nodeid())
+			nodeid = 0;
+		r->res_nodeid = nodeid;
+	}
 
 	write_lock(&ls->ls_rsbtbl[bucket].lock);
 	error = _search_rsb(ls, name, namelen, bucket, 0, &tmp);
@@ -743,8 +758,12 @@ int dlm_remove_from_waiters(struct dlm_lkb *lkb)
 
 static void dir_remove(struct dlm_rsb *r)
 {
-	int to_nodeid = dlm_dir_nodeid(r);
+	int to_nodeid;
 
+	if (dlm_no_directory(r->res_ls))
+		return;
+
+	to_nodeid = dlm_dir_nodeid(r);
 	if (to_nodeid != dlm_our_nodeid())
 		send_remove(r);
 	else
@@ -2124,6 +2143,7 @@ static void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb,
 	ms->m_status   = lkb->lkb_status;
 	ms->m_grmode   = lkb->lkb_grmode;
 	ms->m_rqmode   = lkb->lkb_rqmode;
+	ms->m_hash     = r->res_hash;
 
 	/* m_result and m_bastmode are set from function args,
 	   not from lkb fields */
@@ -2691,7 +2711,7 @@ static void receive_lookup(struct dlm_ls *ls, struct dlm_message *ms)
 
 	len = receive_extralen(ms);
 
-	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_extra, len);
+	dir_nodeid = dlm_hash2nodeid(ls, ms->m_hash);
 	if (dir_nodeid != our_nodeid) {
 		log_error(ls, "lookup dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
@@ -2719,7 +2739,7 @@ static void receive_remove(struct dlm_ls *ls, struct dlm_message *ms)
 
 	len = receive_extralen(ms);
 
-	dir_nodeid = dlm_dir_name2nodeid(ls, ms->m_extra, len);
+	dir_nodeid = dlm_hash2nodeid(ls, ms->m_hash);
 	if (dir_nodeid != dlm_our_nodeid()) {
 		log_error(ls, "remove dir entry dir_nodeid %d from %d",
 			  dir_nodeid, from_nodeid);
@@ -3156,6 +3176,23 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 	   conversions are async; there's no reply from the remote master */
 }
 
+/* A waiting lkb needs recovery if the master node has failed, or
+   the master node is changing (only when no directory is used) */
+
+static int waiter_needs_recovery(struct dlm_ls *ls, struct dlm_lkb *lkb)
+{
+	if (dlm_is_removed(ls, lkb->lkb_nodeid))
+		return 1;
+
+	if (!dlm_no_directory(ls))
+		return 0;
+
+	if (dlm_dir_nodeid(lkb->lkb_resource) != lkb->lkb_nodeid)
+		return 1;
+
+	return 0;
+}
+
 /* Recovery for locks that are waiting for replies from nodes that are now
    gone.  We can just complete unlocks and cancels by faking a reply from the
    dead node.  Requests and up-conversions we flag to be resent after
@@ -3180,7 +3217,7 @@ void dlm_recover_waiters_pre(struct dlm_ls *ls)
 			continue;
 		}
 
-		if (!dlm_is_removed(ls, lkb->lkb_nodeid))
+		if (!waiter_needs_recovery(ls, lkb))
 			continue;
 
 		switch (lkb->lkb_wait_type) {
@@ -3322,11 +3359,23 @@ static int purge_dead_test(struct dlm_ls *ls, struct dlm_lkb *lkb)
 	return (is_master_copy(lkb) && dlm_is_removed(ls, lkb->lkb_nodeid));
 }
 
+static int purge_mstcpy_test(struct dlm_ls *ls, struct dlm_lkb *lkb)
+{
+	return is_master_copy(lkb);
+}
+
 static void purge_dead_locks(struct dlm_rsb *r)
 {
 	purge_queue(r, &r->res_grantqueue, &purge_dead_test);
 	purge_queue(r, &r->res_convertqueue, &purge_dead_test);
 	purge_queue(r, &r->res_waitqueue, &purge_dead_test);
+}
+
+void dlm_purge_mstcpy_locks(struct dlm_rsb *r)
+{
+	purge_queue(r, &r->res_grantqueue, &purge_mstcpy_test);
+	purge_queue(r, &r->res_convertqueue, &purge_mstcpy_test);
+	purge_queue(r, &r->res_waitqueue, &purge_mstcpy_test);
 }
 
 /* Get rid of locks held by nodes that are gone. */

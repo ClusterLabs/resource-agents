@@ -13,6 +13,8 @@
 #include "dlm_internal.h"
 #include "member.h"
 #include "lock.h"
+#include "dir.h"
+#include "lowcomms.h"
 
 struct rq_entry {
 	struct list_head list;
@@ -113,28 +115,65 @@ void dlm_wait_requestqueue(struct dlm_ls *ls)
 	up(&ls->ls_requestqueue_lock);
 }
 
-/*
- * Dir lookups and lookup replies send before recovery are invalid because the
- * directory is rebuilt during recovery, so don't save any requests of this
- * type.  Don't save any requests from a node that's being removed either.
- */
+static int purge_request(struct dlm_ls *ls, struct dlm_message *ms, int nodeid)
+{
+	uint32_t type = ms->m_type;
+
+	if (dlm_is_removed(ls, nodeid))
+		return 1;
+
+	/* directory operations are always purged because the directory is
+	   always rebuilt during recovery and the lookups resent */
+
+	if (type == DLM_MSG_REMOVE ||
+	    type == DLM_MSG_LOOKUP ||
+	    type == DLM_MSG_LOOKUP_REPLY)
+		return 1;
+
+	if (!dlm_no_directory(ls))
+		return 0;
+
+	/* with no directory, the master is likely to change as a part of
+	   recovery; requests to/from the defunct master need to be purged */
+
+	switch (type) {
+	case DLM_MSG_REQUEST:
+	case DLM_MSG_CONVERT:
+	case DLM_MSG_UNLOCK:
+	case DLM_MSG_CANCEL:
+		/* we're no longer the master of this resource, the sender
+		   will resend to the new master (see waiter_needs_recovery) */
+
+		if (dlm_hash2nodeid(ls, ms->m_hash) != dlm_our_nodeid())
+			return 1;
+		break;
+
+	case DLM_MSG_REQUEST_REPLY:
+	case DLM_MSG_CONVERT_REPLY:
+	case DLM_MSG_UNLOCK_REPLY:
+	case DLM_MSG_CANCEL_REPLY:
+	case DLM_MSG_GRANT:
+		/* this reply is from the former master of the resource,
+		   we'll resend to the new master if needed */
+
+		if (dlm_hash2nodeid(ls, ms->m_hash) != nodeid)
+			return 1;
+		break;
+	}
+
+	return 0;
+}
 
 void dlm_purge_requestqueue(struct dlm_ls *ls)
 {
 	struct dlm_message *ms;
 	struct rq_entry *e, *safe;
-	uint32_t mstype;
 
 	down(&ls->ls_requestqueue_lock);
 	list_for_each_entry_safe(e, safe, &ls->ls_requestqueue, list) {
-
 		ms = (struct dlm_message *) e->request;
-		mstype = ms->m_type;
 
-		if (dlm_is_removed(ls, e->nodeid) ||
-		    mstype == DLM_MSG_REMOVE ||
-	            mstype == DLM_MSG_LOOKUP ||
-	            mstype == DLM_MSG_LOOKUP_REPLY) {
+		if (purge_request(ls, ms, e->nodeid)) {
 			list_del(&e->list);
 			kfree(e);
 		}

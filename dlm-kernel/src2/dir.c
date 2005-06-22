@@ -72,23 +72,20 @@ void dlm_clear_free_entries(struct dlm_ls *ls)
  *
  * To give the exact range wanted (0 to num_nodes-1), we apply a modulus of
  * num_nodes to the hash value.  This value in the desired range is used as an
- * offset into the sorted list of nodeid's to give the particular nodeid of the
- * directory node.
+ * offset into the sorted list of nodeid's to give the particular nodeid.
  */
 
-int dlm_dir_name2nodeid(struct dlm_ls *ls, char *name, int length)
+int dlm_hash2nodeid(struct dlm_ls *ls, uint32_t hash)
 {
 	struct list_head *tmp;
 	struct dlm_member *memb = NULL;
-	uint32_t hash, node, n = 0;
+	uint32_t node, n = 0;
 	int nodeid;
 
 	if (ls->ls_num_nodes == 1) {
 		nodeid = dlm_our_nodeid();
 		goto out;
 	}
-
-	hash = dlm_hash(name, length);
 
 	if (ls->ls_node_array) {
 		node = (hash >> 16) % ls->ls_total_weight;
@@ -114,9 +111,9 @@ int dlm_dir_name2nodeid(struct dlm_ls *ls, char *name, int length)
 	return nodeid;
 }
 
-int dlm_dir_nodeid(struct dlm_rsb *rsb)
+int dlm_dir_nodeid(struct dlm_rsb *r)
 {
-	return dlm_dir_name2nodeid(rsb->res_ls, rsb->res_name, rsb->res_length);
+	return dlm_hash2nodeid(r->res_ls, r->res_hash);
 }
 
 static inline uint32_t dir_hash(struct dlm_ls *ls, char *name, int len)
@@ -202,11 +199,14 @@ int dlm_recover_directory(struct dlm_ls *ls)
 {
 	struct dlm_member *memb;
 	struct dlm_direntry *de;
-	char *b, *last_name;
+	char *b, *last_name = NULL;
 	int error = -ENOMEM, last_len, count = 0;
 	uint16_t namelen;
 
 	log_debug(ls, "dlm_recover_directory");
+
+	if (dlm_no_directory(ls))
+		goto out_status;
 
 	dlm_dir_clear(ls);
 
@@ -221,12 +221,12 @@ int dlm_recover_directory(struct dlm_ls *ls)
 		for (;;) {
 			error = dlm_recovery_stopped(ls);
 			if (error)
-				goto free_last;
+				goto out_free;
 
 			error = dlm_rcom_names(ls, memb->nodeid,
 					       last_name, last_len);
 			if (error)
-				goto free_last;
+				goto out_free;
 
 			schedule();
 
@@ -253,7 +253,7 @@ int dlm_recover_directory(struct dlm_ls *ls)
 				error = -ENOMEM;
 				de = get_free_de(ls, namelen);
 				if (!de)
-					goto free_last;
+					goto out_free;
 
 				de->master_nodeid = memb->nodeid;
 				de->length = namelen;
@@ -270,12 +270,11 @@ int dlm_recover_directory(struct dlm_ls *ls)
 		;
 	}
 
-	dlm_set_recover_status(ls, DLM_RS_DIR);
+ out_status:
 	error = 0;
-
+	dlm_set_recover_status(ls, DLM_RS_DIR);
 	log_debug(ls, "dlm_recover_directory %d entries", count);
-
- free_last:
+ out_free:
 	kfree(last_name);
  out:
 	dlm_clear_free_entries(ls);

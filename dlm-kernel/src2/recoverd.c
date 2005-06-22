@@ -122,7 +122,7 @@ static int ls_recover(struct dlm_ls *ls, struct dlm_recover *rv)
 	if (error)
 		goto fail;
 
-	if (neg) {
+	if (neg || dlm_no_directory(ls)) {
 		/*
 		 * Clear lkb's for departed nodes.
 		 */

@@ -270,6 +270,7 @@ struct dlm_rsb {
 	int			res_length;	/* length of rsb name */
 	int			res_nodeid;
 	uint32_t                res_lvbseq;
+	uint32_t		res_hash;
 	uint32_t		res_bucket;	/* rsbtbl */
 	unsigned long		res_toss_time;
 	uint32_t		res_first_lkid;
@@ -364,6 +365,7 @@ struct dlm_message {
 	uint32_t		m_sbflags;
 	uint32_t		m_flags;
 	uint32_t		m_lvbseq;
+	uint32_t		m_hash;
 	int			m_status;
 	int			m_grmode;
 	int			m_rqmode;
@@ -431,6 +433,7 @@ struct rcom_lock {
 struct dlm_ls {
 	struct list_head	ls_list;	/* list of lockspaces */
 	uint32_t		ls_global_id;	/* global unique lockspace ID */
+	uint32_t		ls_exflags;
 	int			ls_lvblen;
 	int			ls_count;	/* reference count */
 	unsigned long		ls_flags;	/* LSFL_ */
@@ -505,6 +508,11 @@ static inline int dlm_locking_stopped(struct dlm_ls *ls)
 static inline int dlm_recovery_stopped(struct dlm_ls *ls)
 {
 	return test_bit(LSFL_RECOVERY_STOP, &ls->ls_flags);
+}
+
+static inline int dlm_no_directory(struct dlm_ls *ls)
+{
+	return (ls->ls_exflags & DLM_LSFL_NODIR) ? 1 : 0;
 }
 
 #endif				/* __DLM_INTERNAL_DOT_H__ */

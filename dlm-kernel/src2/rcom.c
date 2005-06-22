@@ -75,12 +75,18 @@ static void send_rcom(struct dlm_ls *ls, struct dlm_mhandle *mh,
 static void make_config(struct dlm_ls *ls, struct rcom_config *rf)
 {
 	rf->rf_lvblen = ls->ls_lvblen;
+	rf->rf_lsflags = ls->ls_exflags;
 }
 
 static int check_config(struct dlm_ls *ls, struct rcom_config *rf)
 {
-	if (rf->rf_lvblen != ls->ls_lvblen)
+	if (rf->rf_lvblen != ls->ls_lvblen ||
+	    rf->rf_lsflags != ls->ls_exflags) {
+		log_error(ls, "config mismatch %d,%d %x,%x",
+			  rf->rf_lvblen, ls->ls_lvblen,
+			  rf->rf_lsflags, ls->ls_exflags);
 		return -EINVAL;
+	}
 	return 0;
 }
 

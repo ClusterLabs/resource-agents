@@ -26,6 +26,7 @@ int dlm_remove_from_waiters(struct dlm_lkb *lkb);
 void dlm_scan_rsbs(struct dlm_ls *ls);
 
 int dlm_purge_locks(struct dlm_ls *ls);
+void dlm_purge_mstcpy_locks(struct dlm_rsb *r);
 int dlm_grant_after_purge(struct dlm_ls *ls);
 int dlm_recover_waiters_post(struct dlm_ls *ls);
 void dlm_recover_waiters_pre(struct dlm_ls *ls);

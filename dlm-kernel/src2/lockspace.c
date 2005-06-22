@@ -185,8 +185,8 @@ static void threads_stop(void)
 	dlm_astd_stop();
 }
 
-static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
-			 int lvblen)
+static int new_lockspace(char *name, int namelen, void **lockspace,
+			 uint32_t flags, int lvblen)
 {
 	struct dlm_ls *ls;
 	int i, size, error = -ENOMEM;
@@ -213,6 +213,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
 	memset(ls, 0, sizeof(struct dlm_ls) + namelen);
 	memcpy(ls->ls_name, name, namelen);
 	ls->ls_namelen = namelen;
+	ls->ls_exflags = flags;
 	ls->ls_lvblen = lvblen;
 	ls->ls_count = 0;
 	ls->ls_flags = 0;
@@ -345,8 +346,8 @@ static int new_lockspace(char *name, int namelen, void **lockspace, int flags,
 	return error;
 }
 
-int dlm_new_lockspace(char *name, int namelen, void **lockspace, int flags,
-		      int lvblen)
+int dlm_new_lockspace(char *name, int namelen, void **lockspace,
+		      uint32_t flags, int lvblen)
 {
 	int error = 0;
 

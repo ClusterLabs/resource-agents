@@ -80,6 +80,7 @@ void dlm_message_out(struct dlm_message *ms)
 	ms->m_sbflags		= cpu_to_le32(ms->m_sbflags);
 	ms->m_flags		= cpu_to_le32(ms->m_flags);
 	ms->m_lvbseq		= cpu_to_le32(ms->m_lvbseq);
+	ms->m_hash		= cpu_to_le32(ms->m_hash);
 	ms->m_status		= cpu_to_le32(ms->m_status);
 	ms->m_grmode		= cpu_to_le32(ms->m_grmode);
 	ms->m_rqmode		= cpu_to_le32(ms->m_rqmode);
@@ -107,6 +108,7 @@ void dlm_message_in(struct dlm_message *ms)
 	ms->m_sbflags		= le32_to_cpu(ms->m_sbflags);
 	ms->m_flags		= le32_to_cpu(ms->m_flags);
 	ms->m_lvbseq		= le32_to_cpu(ms->m_lvbseq);
+	ms->m_hash		= le32_to_cpu(ms->m_hash);
 	ms->m_status		= le32_to_cpu(ms->m_status);
 	ms->m_grmode		= le32_to_cpu(ms->m_grmode);
 	ms->m_rqmode		= le32_to_cpu(ms->m_rqmode);

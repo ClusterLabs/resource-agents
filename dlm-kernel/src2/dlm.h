@@ -204,6 +204,8 @@ struct dlm_lksb {
 
 #ifdef __KERNEL__
 
+#define DLM_LSFL_NODIR		0x00000001
+
 /*
  * dlm_new_lockspace
  *
@@ -212,7 +214,7 @@ struct dlm_lksb {
  */
 
 int dlm_new_lockspace(char *name, int namelen, dlm_lockspace_t **lockspace,
-		      int flags, int lvblen);
+		      uint32_t flags, int lvblen);
 
 /*
  * dlm_release_lockspace

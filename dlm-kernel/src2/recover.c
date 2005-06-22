@@ -60,8 +60,10 @@ int dlm_wait_function(struct dlm_ls *ls, int (*testfn) (struct dlm_ls *ls))
 	wait_event(ls->ls_wait_general, testfn(ls) || dlm_recovery_stopped(ls));
 	del_timer_sync(&ls->ls_timer);
 
-	if (dlm_recovery_stopped(ls))
+	if (dlm_recovery_stopped(ls)) {
+		log_debug(ls, "dlm_wait_function aborted");
 		error = -EINTR;
+	}
 	return error;
 }
 
@@ -98,9 +100,10 @@ static int wait_status_all(struct dlm_ls *ls, uint32_t wait_status)
 	list_for_each_entry(memb, &ls->ls_nodes, list) {
 		delay = 0;
 		for (;;) {
-			error = dlm_recovery_stopped(ls);
-			if (error)
+			if (dlm_recovery_stopped(ls)) {
+				error = -EINTR;
 				goto out;
+			}
 
 			error = dlm_rcom_status(ls, memb->nodeid);
 			if (error)
@@ -123,9 +126,10 @@ static int wait_status_low(struct dlm_ls *ls, uint32_t wait_status)
 	int error = 0, delay = 0, nodeid = ls->ls_low_nodeid;
 
 	for (;;) {
-		error = dlm_recovery_stopped(ls);
-		if (error)
+		if (dlm_recovery_stopped(ls)) {
+			error = -EINTR;
 			goto out;
+		}
 
 		error = dlm_rcom_status(ls, nodeid);
 		if (error)
@@ -306,14 +310,8 @@ static void set_master_lkbs(struct dlm_rsb *r)
 static void set_new_master(struct dlm_rsb *r, int nodeid)
 {
 	lock_rsb(r);
-
-	if (nodeid == dlm_our_nodeid())
-		r->res_nodeid = 0;
-	else
-		r->res_nodeid = nodeid;
-
+	r->res_nodeid = nodeid;
 	set_master_lkbs(r);
-
 	rsb_set_flag(r, RSB_NEW_MASTER);
 	rsb_set_flag(r, RSB_NEW_MASTER2);
 	unlock_rsb(r);
@@ -337,6 +335,8 @@ static int recover_master(struct dlm_rsb *r)
 		if (error)
 			log_error(ls, "recover dir lookup error %d", error);
 
+		if (ret_nodeid == our_nodeid)
+			ret_nodeid = 0;
 		set_new_master(r, ret_nodeid);
 	} else {
 		recover_list_add(r);
@@ -344,6 +344,27 @@ static int recover_master(struct dlm_rsb *r)
 	}
 
 	return error;
+}
+
+/*
+ * When not using a directory, most resource names will hash to a new static
+ * master nodeid and the resource will need to be remastered.
+ */
+
+static int recover_master_static(struct dlm_rsb *r)
+{
+	int master = dlm_dir_nodeid(r);
+
+	if (master == dlm_our_nodeid())
+		master = 0;
+
+	if (r->res_nodeid != master) {
+		if (is_master(r))
+			dlm_purge_mstcpy_locks(r);
+		set_new_master(r, master);
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -359,22 +380,21 @@ static int recover_master(struct dlm_rsb *r)
 int dlm_recover_masters(struct dlm_ls *ls)
 {
 	struct dlm_rsb *r;
-	int error, count = 0;
+	int error = 0, count = 0;
 
 	log_debug(ls, "dlm_recover_masters");
 
 	down_read(&ls->ls_root_sem);
 	list_for_each_entry(r, &ls->ls_root_list, res_root_list) {
-		if (is_master(r))
-			continue;
-
-		error = dlm_recovery_stopped(ls);
-		if (error) {
+		if (dlm_recovery_stopped(ls)) {
 			up_read(&ls->ls_root_sem);
+			error = -EINTR;
 			goto out;
 		}
 
-		if (dlm_is_removed(ls, r->res_nodeid)) {
+		if (dlm_no_directory(ls))
+			count += recover_master_static(r);
+		else if (!is_master(r) && dlm_is_removed(ls, r->res_nodeid)) {
 			recover_master(r);
 			count++;
 		}
@@ -395,6 +415,7 @@ int dlm_recover_masters(struct dlm_ls *ls)
 int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 {
 	struct dlm_rsb *r;
+	int nodeid;
 
 	r = recover_list_find(ls, rc->rc_id);
 	if (!r) {
@@ -403,7 +424,11 @@ int dlm_recover_master_reply(struct dlm_ls *ls, struct dlm_rcom *rc)
 		goto out;
 	}
 
-	set_new_master(r, rc->rc_result);
+	nodeid = rc->rc_result;
+	if (nodeid == dlm_our_nodeid())
+		nodeid = 0;
+
+	set_new_master(r, nodeid);
 	recover_list_del(r);
 
 	if (recover_list_empty(ls))
@@ -499,8 +524,8 @@ int dlm_recover_locks(struct dlm_ls *ls)
 		if (!rsb_flag(r, RSB_NEW_MASTER))
 			continue;
 
-		error = dlm_recovery_stopped(ls);
-		if (error) {
+		if (dlm_recovery_stopped(ls)) {
+			error = -EINTR;
 			up_read(&ls->ls_root_sem);
 			goto out;
 		}
