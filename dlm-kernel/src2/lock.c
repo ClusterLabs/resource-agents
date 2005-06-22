@@ -2308,6 +2308,7 @@ static int send_remove(struct dlm_rsb *r)
 		goto out;
 
 	memcpy(ms->m_extra, r->res_name, r->res_length);
+	ms->m_hash = r->res_hash;
 
 	error = send_message(mh, ms);
  out:
