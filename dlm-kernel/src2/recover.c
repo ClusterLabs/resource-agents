@@ -502,6 +502,8 @@ static int recover_locks(struct dlm_rsb *r)
 
 	if (r->res_recover_locks_count)
 		recover_list_add(r);
+	else
+		rsb_clear_flag(r, RSB_NEW_MASTER);
  out:
 	unlock_rsb(r);
 	return error;
@@ -553,6 +555,8 @@ int dlm_recover_locks(struct dlm_ls *ls)
 
 void dlm_recovered_lock(struct dlm_rsb *r)
 {
+	DLM_ASSERT(rsb_flag(r, RSB_NEW_MASTER), dlm_print_rsb(r););
+
 	r->res_recover_locks_count--;
 	if (!r->res_recover_locks_count) {
 		rsb_clear_flag(r, RSB_NEW_MASTER);
