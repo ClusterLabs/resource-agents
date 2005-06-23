@@ -205,6 +205,7 @@ static int ls_recover(struct dlm_ls *ls, struct dlm_recover *rv)
 	return 0;
 
  fail:
+	dlm_release_root_list(ls);
 	log_debug(ls, "recover %"PRIx64" error %d", rv->seq, error);
 	up(&ls->ls_recoverd_active);
 	return error;
