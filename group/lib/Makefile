@@ -34,22 +34,8 @@ libgroup.o: libgroup.c
 copytobin: all
 
 install: all
-	install -d ${incdir}
-	install libgroup.h ${incdir}
-	install -d ${libdir}
-	install $(LIBNAME).a ${libdir}
-	install $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so
-	ln -sf $(LIBNAME).so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir}/$(LIBNAME).so.$(RELEASE_MAJOR)
 
 uninstall:
-	${UNINSTALL} libgroup.h ${incdir}
-	${UNINSTALL} \
-		${LIBNAME}.a \
-		$(LIBNAME).so \
-		$(LIBNAME).so.$(RELEASE_MAJOR) \
-		${LIBNAME}.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) ${libdir} \
-	rm -f /lib/${LIBNAME}.*
 
 clean:
 	rm -f *.o *.a *.so *.so.*

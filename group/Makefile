@@ -21,6 +21,7 @@ clean:
 	cd tool && ${MAKE} clean
 
 install:
+	cd lib && ${MAKE} install
 	cd daemon && ${MAKE} install
 	cd tool && ${MAKE} install
 
