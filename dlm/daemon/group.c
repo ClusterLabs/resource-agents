@@ -134,9 +134,10 @@ int process_groupd(void)
 
 		group_done(gh, cb_name, cb_event_nr);
 
-		if (joining)
+		if (!joining)
 			break;
-
+		joining = 0;
+		log_debug("join event done %s", cb_name);
 		argv[0] = cb_name;
 		argv[1] = "0";
 		ls_event_done(2, argv);
@@ -144,6 +145,7 @@ int process_groupd(void)
 		break;
 
 	case DO_SETID:
+		log_debug("set id %s %d", cb_name, cb_id);
 		memset(str_id, 0, sizeof(str_id));
 		sprintf(str_id, "%d", cb_id);
 
@@ -157,7 +159,15 @@ int process_groupd(void)
 		log_debug("terminate %s", cb_name);
 
 		argv[0] = cb_name;
-		argv[1] = joining ? "-1" : "0";
+
+		if (joining) {
+			argv[1] = "-1";
+			joining = 0;
+			log_debug("join event failed %s", cb_name);
+		} else {
+			argv[1] = "0";
+			log_debug("leave event done %s", cb_name);
+		}
 		ls_event_done(2, argv);
 
 		break;
@@ -170,7 +180,6 @@ int process_groupd(void)
 		error = -EINVAL;
 	}
 
-	joining = 0;
 	cb_action = 0;
  out:
 	return error;
