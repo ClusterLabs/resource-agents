@@ -78,13 +78,13 @@ static void make_config(struct dlm_ls *ls, struct rcom_config *rf)
 	rf->rf_lsflags = ls->ls_exflags;
 }
 
-static int check_config(struct dlm_ls *ls, struct rcom_config *rf)
+static int check_config(struct dlm_ls *ls, struct rcom_config *rf, int nodeid)
 {
 	if (rf->rf_lvblen != ls->ls_lvblen ||
 	    rf->rf_lsflags != ls->ls_exflags) {
-		log_error(ls, "config mismatch %d,%d %x,%x",
-			  rf->rf_lvblen, ls->ls_lvblen,
-			  rf->rf_lsflags, ls->ls_exflags);
+		log_error(ls, "config mismatch: %d,%x nodeid %d: %d,%x",
+			  ls->ls_lvblen, ls->ls_exflags,
+			  nodeid, rf->rf_lvblen, rf->rf_lsflags);
 		return -EINVAL;
 	}
 	return 0;
@@ -116,7 +116,15 @@ int dlm_rcom_status(struct dlm_ls *ls, int nodeid)
 		goto out;
 
 	rc = (struct dlm_rcom *) ls->ls_recover_buf;
-	error = check_config(ls, (struct rcom_config *) rc->rc_buf);
+
+	if (rc->rc_result == -ESRCH) {
+		/* we pretend the remote lockspace exists with 0 status */
+		log_debug(ls, "remote node %d not ready", nodeid);
+		rc->rc_result = 0;
+	} else
+		error = check_config(ls, (struct rcom_config *) rc->rc_buf,
+				     nodeid);
+	/* the caller looks at rc_result for the remote recovery status */
  out:
 	return error;
 }
@@ -369,7 +377,7 @@ static int send_ls_not_ready(int nodeid, struct dlm_rcom *rc_in)
 	rc->rc_header.h_cmd = DLM_RCOM;
 
 	rc->rc_type = DLM_RCOM_STATUS_REPLY;
-	rc->rc_result = 0;
+	rc->rc_result = -ESRCH;
 
 	dlm_rcom_out(rc);
 	dlm_lowcomms_commit_buffer(mh);
@@ -392,6 +400,8 @@ void dlm_receive_rcom(struct dlm_header *hd, int nodeid)
 
 	ls = dlm_find_lockspace_global(hd->h_lockspace);
 	if (!ls) {
+		log_print("lockspace %x from %d not found",
+			  hd->h_lockspace, nodeid);
 		send_ls_not_ready(nodeid, rc);
 		return;
 	}
