@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.396 $) dnl cvs revision
+AC_REVISION($Revision: 1.397 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -2091,10 +2091,10 @@ pkg/Makefile							\
 	pkg/InfoFiles/postinstall				\
 port/Makefile							\
 	port/portMakefile					\
-		port/port/pkg-deinstall				\
-		port/port/pkg-descr				\
-		port/port/pkg-install				\
-		port/port/pkg-plist				\
+		port/heartbeat/pkg-deinstall			\
+		port/heartbeat/pkg-descr			\
+		port/heartbeat/pkg-install			\
+		port/heartbeat/pkg-plist			\
 snmp_subagent/Makefile						\
 	snmp_subagent/SNMPAgentSanityCheck			\
 telecom/Makefile						\
