@@ -372,11 +372,13 @@ int __inline__ xdr_enc_ipv6(xdr_enc_t *xdr, struct in6_addr *ip)
 int xdr_enc_raw(xdr_enc_t *xdr, void *p, uint16_t len)
 {
    int e;
+   uint16_t temp;
    if( xdr == NULL ) return -EINVAL;
    if((e=grow_stream(xdr, len + 3)) != 0) return e;
    *(xdr->stream + xdr->curloc) = XDR_RAW;
    xdr->curloc +=1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = osi_cpu_to_be16(len);
+   temp = osi_cpu_to_be16(len);
+   xdr_memcpy((xdr->stream + xdr->curloc), &temp, 2);
    xdr->curloc += 2;
    xdr_memcpy((xdr->stream + xdr->curloc), p, len);
    xdr->curloc += len;
@@ -387,6 +389,7 @@ int xdr_enc_raw_iov(xdr_enc_t *xdr, int count, struct iovec *iov)
 {
    size_t total=0;
    int i,err;
+   uint16_t temp;
    if( xdr == NULL || count < 1 || iov == NULL ) return -EINVAL;
    for(i=0; i<count; i++) total += iov[i].iov_len;
    /* make sure it fits in a uint16_t */
@@ -396,7 +399,8 @@ int xdr_enc_raw_iov(xdr_enc_t *xdr, int count, struct iovec *iov)
    /* copy in header and size */
    *(xdr->stream + xdr->curloc) = XDR_RAW;
    xdr->curloc +=1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = osi_cpu_to_be16(total);
+   temp = osi_cpu_to_be16(total);
+   xdr_memcpy((xdr->stream + xdr->curloc), &temp, 2);
    xdr->curloc += 2;
    /* copy in all iovbufs */
    for(i=0; i < count; i++) {
@@ -410,13 +414,15 @@ int xdr_enc_raw_iov(xdr_enc_t *xdr, int count, struct iovec *iov)
 int xdr_enc_string(xdr_enc_t *xdr, uint8_t *s)
 {
    int len,e;
+   uint16_t temp;
    if( xdr == NULL ) return -EINVAL;
    if(s == NULL ) len = 0;
    else len = strlen(s);
    if((e=grow_stream(xdr, len + 3)) != 0) return e;
    *(xdr->stream + xdr->curloc) = XDR_STRING;
    xdr->curloc +=1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = osi_cpu_to_be16(len);
+   temp = osi_cpu_to_be16(len);
+   xdr_memcpy((xdr->stream + xdr->curloc), &temp, 2);
    xdr->curloc += 2;
    if( len > 0 ) {
       xdr_memcpy((xdr->stream + xdr->curloc), s, len);
