@@ -118,6 +118,8 @@ int process_groupd(void)
 		argv[1] = "0";
 		ls_control(2, argv);
 
+		group_stop_done(gh, cb_name);
+
 		break;
 
 	case DO_START:
@@ -132,7 +134,7 @@ int process_groupd(void)
 		argv[1] = "1";
 		ls_control(2, argv);
 
-		group_done(gh, cb_name, cb_event_nr);
+		group_start_done(gh, cb_name, cb_event_nr);
 
 		if (!joining)
 			break;

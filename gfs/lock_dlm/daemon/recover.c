@@ -186,7 +186,7 @@ void receive_journals(char *buf, int len, int from)
 	}
 
 	set_sysfs(mg, "jid", mg->our_jid);
-	group_done(gh, mg->name, mg->start_event_nr);
+	group_start_done(gh, mg->name, mg->start_event_nr);
 }
 
 /* We set the new member's jid to the lowest unused jid.
@@ -545,7 +545,7 @@ int do_recovery_done(char *name)
 
 	wait = recover_journals(mg);
 	if (!wait)
-		group_done(gh, name, mg->start_event_nr);
+		group_start_done(gh, name, mg->start_event_nr);
 
 	return 0;
 }
@@ -569,7 +569,9 @@ int do_unmount(char *name)
 
 int do_stop(struct mountgroup *mg)
 {
-	return set_sysfs(mg, "block", 1);
+	set_sysfs(mg, "block", 1);
+	group_stop_done(gh, mg->name);
+	return 0;
 }
 
 int do_finish(struct mountgroup *mg)
@@ -665,7 +667,7 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		   ls_first again later for the first participant. */
 		if (member_count == 1)
 			set_sysfs(mg, "first", 1);
-		group_done(gh, mg->name, mg->last_start);
+		group_start_done(gh, mg->name, mg->last_start);
 		goto out;
 	}
 		
@@ -683,7 +685,7 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 			mg->our_jid = 0;
 			set_sysfs(mg, "jid", mg->our_jid);
 			set_sysfs(mg, "first", 1);
-			group_done(gh, mg->name, mg->last_start);
+			group_start_done(gh, mg->name, mg->last_start);
 		}
 		
 		/* else we wait for a message from an existing member
@@ -698,7 +700,7 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 			wait = recover_journals(mg);
 
 		if (!wait)
-			group_done(gh, mg->name, mg->last_start);
+			group_start_done(gh, mg->name, mg->last_start);
 	}
  out:
 	mg->first_start = 0;
