@@ -189,6 +189,7 @@ static int send_join_notice(event_t *ev)
 	memcpy(msg->ms_info, g->join_info, GROUP_INFO_LEN);
 	memcpy(msg->ms_name, g->name, MAX_NAMELEN);
 
+	clear_bit(EFL_ACKED, &ev->flags);
 	error = send_broadcast_message_ev(mbuf, len, ev);
  out:
 	return error;
@@ -302,6 +303,7 @@ static int send_join_stop(event_t *ev)
 
 	mbuf = create_msg(g, SMSG_JSTOP_REQ, 0, &len, ev);
 
+	clear_bit(EFL_ACKED, &ev->flags);
 	error = send_members_message_ev(g, mbuf, len, ev);
 	if (error < 0)
 		goto fail;
@@ -648,6 +650,7 @@ static int send_leave_notice(event_t *ev)
 	msg = (msg_t *) mbuf;
 	memcpy(msg->ms_info, g->leave_info, GROUP_INFO_LEN);
 
+	clear_bit(EFL_ACKED, &ev->flags);
 	error = send_members_message_ev(g, mbuf, len, ev);
  out:
 	return error;
@@ -717,6 +720,7 @@ static int send_leave_stop(event_t *ev)
 
 	mbuf = create_msg(g, SMSG_LSTOP_REQ, 0, &len, ev);
 
+	clear_bit(EFL_ACKED, &ev->flags);
 	error = send_members_message_ev(g, mbuf, len, ev);
 	if (error < 0)
 		goto out;
@@ -856,7 +860,7 @@ static int process_leave_event(event_t *ev)
 
 		/*
 		 * se_state is changed from LSTOP_ACKWAIT to LSTOP_ACKED in
-		 * process_reply
+		 * process_reply or do_stopdone
 		 */
 
 	case EST_LSTOP_ACKED:

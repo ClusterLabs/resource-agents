@@ -183,7 +183,7 @@ void set_allowed_msgtype(event_t *ev, int type)
 	set_bit(flag, &ev->flags);
 }
 
-static int next_event_state(int msg_type, int cur_state)
+static int next_event_state(group_t *g, int msg_type, int cur_state)
 {
 	int next = 0;
 
@@ -205,7 +205,8 @@ static int next_event_state(int msg_type, int cur_state)
 
 	case SMSG_LSTOP_REP:
 		ASSERT(cur_state == EST_LSTOP_ACKWAIT,);
-		next = EST_LSTOP_ACKED;
+		if (test_bit(GFL_STOPPED, &g->flags))
+			next = EST_LSTOP_ACKED;
 		break;
 	}
 	return next;
@@ -279,7 +280,8 @@ static void process_reply(msg_t *msg, int nodeid)
 
 		if (++ev->reply_count == expected) {
 			clear_allowed_msgtype(ev, type);
-			ev->state = next_event_state(type, ev->state);
+			set_bit(EFL_ACKED, &ev->flags);
+			ev->state = next_event_state(g, type, ev->state);
 		}
 
 		log_group(g, "reply %d from %d %d/%d state %d status %d",

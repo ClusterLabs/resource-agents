@@ -109,7 +109,7 @@ int group_leave(group_handle_t handle, char *name, char *info)
 	return _joinleave(handle, name, info, "leave");
 }
 
-int group_done(group_handle_t handle, char *name, int event_nr)
+int group_stop_done(group_handle_t handle, char *name)
 {
 	char buf[MAXLINE];
 	int rv;
@@ -117,7 +117,23 @@ int group_done(group_handle_t handle, char *name, int event_nr)
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "done %s %d", name, event_nr);
+	snprintf(buf, sizeof(buf), "stop_done %s", name);
+
+	rv = write(h->fd, buf, strlen(buf));
+	if (rv != strlen(buf))
+		return -1;
+	return 0;
+}
+
+int group_start_done(group_handle_t handle, char *name, int event_nr)
+{
+	char buf[MAXLINE];
+	int rv;
+	struct group_handle *h = (struct group_handle *) handle;
+	VALIDATE_HANDLE(h);
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "start_done %s %d", name, event_nr);
 
 	rv = write(h->fd, buf, strlen(buf));
 	if (rv != strlen(buf))

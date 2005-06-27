@@ -64,7 +64,8 @@ int group_exit(group_handle_t handle);
 
 int group_join(group_handle_t handle, char *name, char *info);
 int group_leave(group_handle_t handle, char *name, char *info);
-int group_done(group_handle_t handle, char *name, int event_nr);
+int group_stop_done(group_handle_t handle, char *name);
+int group_start_done(group_handle_t handle, char *name, int event_nr);
 int group_get_fd(group_handle_t handle);
 int group_dispatch(group_handle_t handle);
 

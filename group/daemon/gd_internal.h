@@ -137,6 +137,7 @@ typedef struct msg msg_t;
 #define EFL_DELAY              (6)
 #define EFL_DELAY_RECOVERY     (7)
 #define EFL_CANCEL             (8)
+#define EFL_ACKED              (9)
 
 #define EST_JOIN_BEGIN         (1)
 #define EST_JOIN_ACKWAIT       (2)
@@ -186,17 +187,21 @@ struct event {
 #define UFL_CHECK              (4)
 
 #define UST_JSTOP              (1)
-#define UST_JSTART_WAITCMD     (2)
-#define UST_JSTART             (3)
-#define UST_JSTART_SERVICEWAIT (4)
-#define UST_JSTART_SERVICEDONE (5)
-#define UST_BARRIER_WAIT       (6)
-#define UST_BARRIER_DONE       (7)
-#define UST_LSTOP              (8)
-#define UST_LSTART_WAITCMD     (9)
-#define UST_LSTART             (10)
-#define UST_LSTART_SERVICEWAIT (11)
-#define UST_LSTART_SERVICEDONE (12)
+#define UST_JSTOP_SERVICEWAIT  (2)
+#define UST_JSTOP_SERVICEDONE  (3)
+#define UST_JSTART_WAITCMD     (4)
+#define UST_JSTART             (5)
+#define UST_JSTART_SERVICEWAIT (6)
+#define UST_JSTART_SERVICEDONE (7)
+#define UST_BARRIER_WAIT       (8)
+#define UST_BARRIER_DONE       (9)
+#define UST_LSTOP              (10)
+#define UST_LSTOP_SERVICEWAIT  (11)
+#define UST_LSTOP_SERVICEDONE  (12)
+#define UST_LSTART_WAITCMD     (13)
+#define UST_LSTART             (14)
+#define UST_LSTART_SERVICEWAIT (15)
+#define UST_LSTART_SERVICEDONE (16)
 
 struct update {
 	unsigned int 		state;
@@ -212,18 +217,20 @@ struct update {
  * Group
  */
 
-#define RECOVER_NONE		(0)
-#define RECOVER_STOP		(1)
-#define RECOVER_START		(2)
-#define RECOVER_STARTDONE	(3)
-#define RECOVER_BARRIERWAIT	(4)
-#define RECOVER_BARRIERDONE	(5)
+#define RECOVER_LOCAL_STOPWAIT  (1)
+#define RECOVER_LOCAL_STOPPED   (2)
+#define RECOVER_STOP		(3)
+#define RECOVER_START		(4)
+#define RECOVER_STARTDONE	(5)
+#define RECOVER_BARRIERWAIT	(6)
+#define RECOVER_BARRIERDONE	(7)
 
 #define GFL_JOINING		(0)
 #define GFL_LEAVING		(1)
 #define GFL_MEMBER		(2)
 #define GFL_UPDATE		(3)
 #define GFL_NEED_RECOVERY	(4)
+#define GFL_STOPPED		(5)
 
 #define GST_NONE		(0)
 #define GST_JOIN		(1)
@@ -372,7 +379,8 @@ void process_nodechange(void);
 int process_recoveries(void);
 
 /* done.c */
-int do_done(char *name, int level, int event_nr);
+int do_stopdone(char *name, int level);
+int do_startdone(char *name, int level, int event_nr);
 
 /* barrier.c */
 int process_barriers(void);

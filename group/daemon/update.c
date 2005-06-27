@@ -51,8 +51,6 @@ static int process_join_stop(group_t *g)
 {
 	update_t *up = g->update;
 	node_t *node;
-	msg_t reply;
-	int error;
 
 	if (up->num_nodes != g->memb_count + 1) {
 		log_error(g, "process_join_stop: bad num nodes %u %u",
@@ -68,6 +66,14 @@ static int process_join_stop(group_t *g)
 
 	g->state = GST_UPDATE;
 	group_stop(g);
+	return 0;
+}
+
+static int process_join_stopdone(group_t *g)
+{
+	update_t *up = g->update;
+	msg_t reply;
+	int error;
 
 	reply.ms_type = SMSG_JSTOP_REP;
 	reply.ms_status = STATUS_POS;
@@ -205,11 +211,17 @@ static void update_done(group_t *g)
 static int process_leave_stop(group_t *g)
 {
 	update_t *up = g->update;
-	msg_t reply;
-	int error;
 
 	g->state = GST_UPDATE;
 	group_stop(g);
+	return 0;
+}
+
+static int process_leave_stopdone(group_t *g)
+{
+	update_t *up = g->update;
+	msg_t reply;
+	int error;
 
 	reply.ms_type = SMSG_LSTOP_REP;
 	reply.ms_status = STATUS_POS;
@@ -271,8 +283,18 @@ static int process_one_update(group_t *g)
 		 */
 
 	case UST_JSTOP:
-		up->state = UST_JSTART_WAITCMD;
+		up->state = UST_JSTOP_SERVICEWAIT;
 		error = process_join_stop(g);
+		break;
+
+		/*
+		 * state is changed from JSTOP_SERVICEWAIT to
+		 * JSTOP_SERVICEDONE in do_stopdone
+		 */
+
+	case UST_JSTOP_SERVICEDONE:
+		up->state = UST_JSTART_WAITCMD;
+		error = process_join_stopdone(g);
 		break;
 
 		/*
@@ -316,8 +338,18 @@ static int process_one_update(group_t *g)
 		 */
 
 	case UST_LSTOP:
-		up->state = UST_LSTART_WAITCMD;
+		up->state = UST_LSTOP_SERVICEWAIT;
 		error = process_leave_stop(g);
+		break;
+
+		/*
+		 * state is changed from LSTOP_SERVICEWAIT to
+		 * LSTOP_SERVICEDONE in do_stopdone
+		 */
+
+	case UST_LSTOP_SERVICEDONE:
+		up->state = UST_LSTART_WAITCMD;
+		error = process_leave_stopdone(g);
 		break;
 
 		/*

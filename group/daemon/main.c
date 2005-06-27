@@ -87,6 +87,8 @@ void group_start(group_t *g, int *memb, int count, int event_nr, int type)
 	char buf[MAXLINE];
 	int i, len;
 
+	clear_bit(GFL_STOPPED, &g->flags);
+
 	len = snprintf(buf, sizeof(buf), "start %s %d %d", g->name, event_nr, type);
 	for (i = 0; i < count; i++)
 		len += sprintf(buf+len, " %d", memb[i]);
@@ -174,57 +176,6 @@ static int client_process_setup(int ci, int argc, char **argv)
 
 	strcpy(client[ci].type, argv[1]);
 	client[ci].level = atoi(argv[2]);
-
-	return 0;
-}
-
-static int client_process_join(int ci, int argc, char **argv)
-{
-	char buf[MAXLINE];
-	char *info = NULL;
-	int rv;
-
-	if (argc > 2)
-		info = argv[2];
-
-	/*
-	log_debug("local %s join %s info %s", client[ci].type, argv[1],
-		  info ? info : "");
-	*/
-
-	rv = do_join(argv[1], client[ci].level, ci, info);
-
-	return 0;
-}
-
-static int client_process_leave(int ci, int argc, char **argv)
-{
-	char buf[MAXLINE];
-	char *info = NULL;
-	int rv;
-
-	if (argc > 2)
-		info = argv[2];
-
-	/*
-	log_debug("local %s leave %s info %s", client[ci].type, argv[1],
-		  info ? info : "");
-	*/
-
-	rv = do_leave(argv[1], client[ci].level, 0, info);
-
-	return 0;
-}
-
-static int client_process_done(int ci, int argc, char **argv)
-{
-	char buf[MAXLINE];
-
-	/*
-	log_debug("local %s done %s %s", client[ci].type, argv[1], argv[2]);
-	*/
-
-	do_done(argv[1], client[ci].level, atoi(argv[2]));
 
 	return 0;
 }
@@ -391,22 +342,36 @@ static int client_process(int ci)
 
 	if (!strcmp(cmd, "setup"))
 		client_process_setup(ci, argc, argv);
+
 	else if (!strcmp(cmd, "join"))
-		client_process_join(ci, argc, argv);
+		do_join(argv[1], client[ci].level, ci,
+			(argc > 2) ? argv[2] : NULL);
+
 	else if (!strcmp(cmd, "leave"))
-		client_process_leave(ci, argc, argv);
-	else if (!strcmp(cmd, "done"))
-		client_process_done(ci, argc, argv);
+	        do_leave(argv[1], client[ci].level, 0,
+			 (argc > 2) ? argv[2] : NULL);
+
+	else if (!strcmp(cmd, "stop_done"))
+		do_stopdone(argv[1], client[ci].level);
+
+	else if (!strcmp(cmd, "start_done"))
+		do_startdone(argv[1], client[ci].level, atoi(argv[2]));
+
 	else if (!strcmp(cmd, "join_info"))
 		do_info(ci, argc, argv, 1);
+
 	else if (!strcmp(cmd, "leave_info"))
 		do_info(ci, argc, argv, 0);
+
 	else if (!strcmp(cmd, "get_groups"))
 		client_process_get_groups(ci, argc, argv);
+
 	else if (!strcmp(cmd, "get_group"))
 		client_process_get_group(ci, argc, argv);
+
 	else if (!strcmp(cmd, "dump"))
 		client_process_dump(ci, argc, argv);
+
 	else
 		log_print("unknown cmd %s client %d", cmd, ci);
 

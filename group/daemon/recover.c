@@ -102,11 +102,11 @@ static void pre_recover_group(group_t *g, recover_t *rev)
 		list_del(&g->recover_list);
 	}
 
-	group_stop(g);
 	g->state = GST_RECOVER;
-	g->recover_state = RECOVER_NONE;
+	g->recover_state = RECOVER_LOCAL_STOPWAIT;
 	g->recover_data = rev;
 	list_add(&g->recover_list, &(rev->groups[g->level])); 
+	group_stop(g);
 }
 
 /*
@@ -234,7 +234,10 @@ static int recover_group(group_t *g, int event_id)
 
 	switch (g->recover_state) {
 
-	case RECOVER_NONE:
+	/* RECOVER_LOCAL_STOPWAIT - default - nothing to do */
+
+	case RECOVER_LOCAL_STOPPED:
+		/* local stop-done sets state LOCAL_STOPPED */
 		/* must wait for recovery to stop sg on all nodes */
 		g->recover_state = RECOVER_BARRIERWAIT;
 		g->recover_stop = 0;
@@ -262,7 +265,7 @@ static int recover_group(group_t *g, int event_id)
 		/* barrier callback sets state BARRIERDONE */
 		group_finish(g, event_id);
 		list_del(&g->recover_list);
-		g->recover_state = RECOVER_NONE;
+		g->recover_state = 0;
 		g->state = GST_RUN;
 
 		/* Continue a previous, interrupted attempt to leave the sg */
