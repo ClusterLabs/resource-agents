@@ -32,6 +32,7 @@ my $power_timeout = 20;      # time to wait in seconds for power state changes
 $action = 'reboot';          # Default fence action.  
 
 my $logged_in = 0;
+my $quiet = 0;
 
 my $t = new Net::Telnet;
 
@@ -53,23 +54,35 @@ sub usage
 	print "$pname [options]\n";
 	print "\n";
 	print "Options:\n";
-	print "  -a <ip>          IP address or hostname of MasterSwitch\n";
+	print "  -a <ip>          IP address or hostname of DRAC\n";
 	print "  -D <debugfile>   debugging output file\n";
 	print "  -h               usage\n";
 	print "  -l <name>        Login name\n";
-	print "  -n <num>         Outlet number to change: [<switch>:]<outlet> \n";
-	print "  -o <string>      Action: Reboot (default), Off or On\n";
+	print "  -o <string>      Action: reboot (default), off or on\n";
 	print "  -p <string>      Login password\n";
 	print "  -q               quiet mode\n";
 	print "  -V               version\n";
-	
+	print "\n";
+	print "CCS Options:\n";
+        print "  action = \"string\"      Action: reboot (default), off or on\n";
+        print "  debug  = \"debugfile\"   debugging output file\n";
+	print "  ipaddr = \"ip\"          IP address or hostname of DRAC\n";
+	print "  login  = \"name\"        Login name\n";
+        print "  passwd = \"string\"      Login password\n";
+
 	exit 0;
+}
+
+sub msg
+{
+	($msg)=@_;
+	print $msg."\n" unless $quiet;
 }
 
 sub fail
 {
 	($msg)=@_;
-	print $msg."\n" unless defined $opt_q;
+	print $msg."\n" unless $quiet;
 
 	if (defined $t)
 	{
@@ -230,7 +243,7 @@ sub do_action
 	{
 		if ($status =~ /^on$/i)
 		{
-			print "success: already on\n";
+			msg "success: already on";
 			return;
 		}
 			
@@ -239,7 +252,7 @@ sub do_action
 
 		if ($status =~ /^on$/i)
 		{
-			print "success: powered on\n";
+			msg "success: powered on";
 		}
 		else
 		{
@@ -250,7 +263,7 @@ sub do_action
 	{
 		if ($status =~ /^off$/i)
 		{
-			print "success: already off\n";
+			msg "success: already off";
 			return;
 		}
 
@@ -259,7 +272,7 @@ sub do_action
 	
 		if ($status =~ /^off$/i)
 		{
-			print "success: powered off\n";
+			msg "success: powered off";
 		}
 		else
 		{
@@ -279,7 +292,7 @@ sub do_action
 
 		if ($status =~ /^on$/i)
 		{
-			print "success: rebooted\n";
+			msg "success: rebooted";
 		}
 		else
 		{
@@ -288,7 +301,7 @@ sub do_action
 	}
 	elsif ($action =~ /^status$/i)
 	{
-		print "status: $status\n";
+		msg "status: $status";
 		return;
 	}
 	else 
@@ -371,6 +384,7 @@ if (@ARGV > 0) {
 	usage if defined $opt_h;
 	version if defined $opt_V;
 	
+	$quiet = 1 if defined $opt_q;
 	$debug = $opt_D; 
 
 	fail_usage "Unknown parameter." if (@ARGV > 0);
