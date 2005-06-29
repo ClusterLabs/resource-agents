@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.397 $) dnl cvs revision
+AC_REVISION($Revision: 1.398 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -358,6 +358,7 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
+AC_CHECK_LIB(ncurses, printw)			dnl -lncurses (if available)
 
 dnl ************ uuid **********************
 AC_ARG_WITH(uuid,
