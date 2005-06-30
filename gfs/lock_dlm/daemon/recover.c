@@ -511,6 +511,34 @@ int do_mount(char *name)
 	return rv;
 }
 
+/* When we're the first mounter, gfs does recovery on all the journals
+   and does "recovery_done" callbacks when it finishes each.  We ignore
+   these and wait for gfs to be finished with all at which point it calls
+   others_may_mount() and first_done is set. */
+
+int first_recovery_done(struct mountgroup *mg)
+{
+	char buf[MAXLINE];
+	int rv, first_done;
+
+	memset(buf, 0, sizeof(buf));
+
+	rv = get_sysfs(mg, "first_done", buf, sizeof(buf));
+	if (rv < 0)
+		return rv;
+
+	first_done = atoi(buf);
+
+	log_group(mg, "recovery_done first_done %d", first_done);
+
+	if (first_done) {
+		mg->first_mount_done = 1;
+		group_start_done(gh, mg->name, mg->start_event_nr);
+	}
+
+	return 0;
+}
+
 int do_recovery_done(char *name)
 {
 	struct mountgroup *mg;
@@ -523,6 +551,9 @@ int do_recovery_done(char *name)
 		log_error("recovery_done: unknown mount group %s", name);
 		return -1;
 	}
+
+	if (mg->first_mount && !mg->first_mount_done)
+		return first_recovery_done(mg);
 
 	memset(buf, 0, sizeof(buf));
 
@@ -541,7 +572,7 @@ int do_recovery_done(char *name)
 		}
 	}
 
-	log_group(mg, "jid_recovery_done %d waiting %d", jid_done, found);
+	log_group(mg, "recovery_done jid %d waiting %d", jid_done, found);
 
 	wait = recover_journals(mg);
 	if (!wait)
@@ -665,8 +696,11 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		/* If we're the first mounter, we set ls_first so gfs
 		   will bail out if there are dirty journals.  We set
 		   ls_first again later for the first participant. */
-		if (member_count == 1)
+		if (member_count == 1) {
+			mg->first_mount = 1;
+			mg->first_mount_done = 0;
 			set_sysfs(mg, "first", 1);
+		}
 		group_start_done(gh, mg->name, mg->last_start);
 		goto out;
 	}
@@ -683,6 +717,8 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 			memb = find_memb_nodeid(mg, our_nodeid);
 			memb->jid = 0;
 			mg->our_jid = 0;
+			mg->first_mount = 1;
+			mg->first_mount_done = 0;
 			set_sysfs(mg, "jid", mg->our_jid);
 			set_sysfs(mg, "first", 1);
 			group_start_done(gh, mg->name, mg->last_start);

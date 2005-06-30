@@ -92,6 +92,8 @@ struct mountgroup {
 	int			start_event_nr;
 	int			start_type;
 	int			our_jid;
+	int			first_mount;
+	int			first_mount_done;
 	int			first_start;
 	int			low_finished_nodeid;
 	int			spectator;
