@@ -94,6 +94,7 @@ struct mountgroup {
 	int			our_jid;
 	int			first_mount;
 	int			first_mount_done;
+	int			wait_first_done;
 	int			first_start;
 	int			low_finished_nodeid;
 	int			spectator;

@@ -529,13 +529,18 @@ int first_recovery_done(struct mountgroup *mg)
 
 	first_done = atoi(buf);
 
-	log_group(mg, "recovery_done first_done %d", first_done);
+	log_group(mg, "recovery_done first_done %d wait_first_done %d",
+		  first_done, mg->wait_first_done);
 
 	if (first_done) {
 		mg->first_mount_done = 1;
-		group_start_done(gh, mg->name, mg->start_event_nr);
-	}
 
+		/* If a second node was added before we got first_done,
+		   we delayed calling group_start_done() (to complete adding
+		   the second node) until here. */
+		if (mg->wait_first_done)
+			group_start_done(gh, mg->name, mg->last_start);
+	}
 	return 0;
 }
 
@@ -573,6 +578,17 @@ int do_recovery_done(char *name)
 	}
 
 	log_group(mg, "recovery_done jid %d waiting %d", jid_done, found);
+
+	/* We need to ignore recovery_done callbacks in the case where there
+	   are a bunch of recovery_done callbacks for the first mounter, but
+	   we detect "first_done" before we've processed all the
+	   recovery_done's. */
+
+	if (!found) {
+		log_group(mg, "recovery_done jid %d ignored, first %d,%d",
+			  jid_done, mg->first_mount, mg->first_mount_done);
+		return 0;
+	}
 
 	wait = recover_journals(mg);
 	if (!wait)
@@ -734,6 +750,15 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 
 		if (neg)
 			wait = recover_journals(mg);
+
+		/* FIXME: if we're the first mounter, and we're adding a second
+		   node here, but haven't gotten first_done (others_may_mount)
+		   from gfs yet, then don't do the group_start_done() to
+		   complete adding the second node.  Set wait_first_done=1 to
+		   have first_recovery_done() call group_start_done().
+		 
+		   This also requires that we not block locking on the first
+		   mounter if gfs hasn't done others_may_mount yet. */
 
 		if (!wait)
 			group_start_done(gh, mg->name, mg->last_start);
