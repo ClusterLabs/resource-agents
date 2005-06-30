@@ -69,6 +69,7 @@ typedef struct strname strname_t;
 struct dlm {
 	uint32_t		jid;
 	int			first;
+	int			first_done;
 	unsigned long		flags;
 	struct kobject		kobj;
 
@@ -102,7 +103,6 @@ struct dlm {
 
 	int			drop_locks_count;
 	int			drop_locks_period;
-
 
 	struct list_head	resources;
 	struct semaphore	res_lock;

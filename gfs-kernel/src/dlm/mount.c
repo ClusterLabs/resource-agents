@@ -182,8 +182,9 @@ static void lm_dlm_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
 
 static void lm_dlm_others_may_mount(lm_lockspace_t *lockspace)
 {
-	/* Do nothing.  Nodes are added to the mount group one
-	   at a time and complete their mount before others are added */
+	dlm_t *dlm = (dlm_t *) lockspace;
+	dlm->first_done = 1;
+	kobject_uevent(&dlm->kobj, KOBJ_CHANGE, NULL);
 }
 
 static void lm_dlm_withdraw(lm_lockspace_t *lockspace)

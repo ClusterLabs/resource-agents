@@ -127,6 +127,11 @@ static ssize_t lm_dlm_first_store(dlm_t *dlm, const char *buf, size_t len)
 	return len;
 }
 
+static ssize_t lm_dlm_first_done_show(dlm_t *dlm, char *buf)
+{
+	return sprintf(buf, "%d\n", dlm->first_done);
+}
+
 static ssize_t lm_dlm_recover_show(dlm_t *dlm, char *buf)
 {
 	return sprintf(buf, "%u\n", dlm->recover_jid);
@@ -199,6 +204,11 @@ static struct lm_dlm_attr lm_dlm_attr_first = {
 	.store = lm_dlm_first_store 
 };
 
+static struct lm_dlm_attr lm_dlm_attr_first_done = {
+	.attr  = {.name = "first_done", .mode = S_IRUGO},
+	.show  = lm_dlm_first_done_show,
+};
+
 static struct lm_dlm_attr lm_dlm_attr_recover = {
 	.attr  = {.name = "recover", .mode = S_IRUGO | S_IWUSR},
 	.show  = lm_dlm_recover_show,
@@ -226,6 +236,7 @@ static struct attribute *lm_dlm_attrs[] = {
 	&lm_dlm_attr_withdraw.attr,
 	&lm_dlm_attr_jid.attr,
 	&lm_dlm_attr_first.attr,
+	&lm_dlm_attr_first_done.attr,
 	&lm_dlm_attr_recover.attr,
 	&lm_dlm_attr_recover_done.attr,
 	&lm_dlm_attr_cluster.attr,
