@@ -378,13 +378,15 @@ int
 xdr_enc_raw (xdr_enc_t * xdr, void *p, uint16_t len)
 {
 	int e;
+   uint16_t temp;
 	if (xdr == NULL)
 		return -EINVAL;
 	if ((e = grow_stream (xdr, len + 3)) != 0)
 		return e;
 	*(xdr->stream + xdr->curloc) = XDR_RAW;
 	xdr->curloc += 1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = cpu_to_be16(len);
+   temp = cpu_to_be16(len);
+   memcpy((xdr->stream + xdr->curloc), &temp, 2);
 	xdr->curloc += 2;
 	memcpy ((xdr->stream + xdr->curloc), p, len);
 	xdr->curloc += len;
@@ -396,6 +398,7 @@ xdr_enc_raw_iov (xdr_enc_t * xdr, int count, struct iovec *iov)
 {
 	size_t total = 0;
 	int i, err;
+   uint16_t temp;
 	if (xdr == NULL || count < 1 || iov == NULL)
 		return -EINVAL;
 	for (i = 0; i < count; i++)
@@ -409,7 +412,8 @@ xdr_enc_raw_iov (xdr_enc_t * xdr, int count, struct iovec *iov)
 	/* copy in header and size */
 	*(xdr->stream + xdr->curloc) = XDR_RAW;
 	xdr->curloc += 1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = cpu_to_be16(total);
+   temp = cpu_to_be16(total);
+   memcpy((xdr->stream + xdr->curloc), &temp, 2);
 	xdr->curloc += 2;
 	/* copy in all iovbufs */
 	for (i = 0; i < count; i++) {
@@ -426,6 +430,7 @@ int
 xdr_enc_string (xdr_enc_t * xdr, uint8_t * s)
 {
 	int len, e;
+   uint16_t temp;
 	if (xdr == NULL)
 		return -EINVAL;
 	if (s == NULL)
@@ -436,7 +441,8 @@ xdr_enc_string (xdr_enc_t * xdr, uint8_t * s)
 		return e;
 	*(xdr->stream + xdr->curloc) = XDR_STRING;
 	xdr->curloc += 1;
-   *((uint16_t*)xdr->stream + xdr->curloc) = cpu_to_be16(len);
+   temp = cpu_to_be16(len);
+   memcpy((xdr->stream + xdr->curloc), &temp, 2);
 	xdr->curloc += 2;
 	if (len > 0) {
 		memcpy ((xdr->stream + xdr->curloc), s, len);
