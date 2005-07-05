@@ -26,8 +26,6 @@ is transferred over TCP/IP.
 \fBlock_gulmd\fP supports failover so that your gfs cluster can keep
 running if the lockserver machine dies (or if one machine of a lockserver 
 cluster dies).  
-You can also run \fBlock_gulmd\fP
-on the same nodes that mount your gfs filesystem(s).
 
 \fBlock_gulmd\fP is really three servers in one: It contains the core,
 locktable interface, 
@@ -363,6 +361,17 @@ These are the pid lock files to keep more than one instance of the servers
 running per node.  They can be put elsewhere via a configuration option.
 
 .in -7
+.in -7
+
+\fBBUGS\fP
+.in +7
+While gulm will not stop you from running the lock servers on the same
+nodes that mount gfs, and even seems to work, there is a recovery bug.
+This is a rather non-trivial one, that will require a fair amount of
+rewriting to various bits of gulm to fix.  Don't run the lockservers on the
+same nodes that you mount gfs, its bad for you and your data.
+
+
 .in -7
 
 \fBSEE ALSO\fP
