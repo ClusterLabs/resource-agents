@@ -19,6 +19,7 @@ SBINPROGS= \
 	fence_ack_manual \
 	fence_apc \
 	fence_brocade \
+	fence_drac \
 	fence_egenera \
 	fence_ilo \
 	fence_manual \

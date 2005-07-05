@@ -18,6 +18,7 @@ all:
 	cd brocade && ${MAKE} all
 	# cd bullpap && ${MAKE} all
 	# cd cpint && ${MAKE} all
+	cd drac && ${MAKE} all
 	cd egenera && ${MAKE} all
 	# cd ibmblade && ${MAKE} all
 	cd ilo && ${MAKE} all
@@ -38,6 +39,7 @@ copytobin:
 	cd brocade && ${MAKE} copytobin
 	# cd bullpap && ${MAKE} copytobin
 	# cd cpint && ${MAKE} copytobin
+	cd drac && ${MAKE} copytobin
 	cd egenera && ${MAKE} copytobin
 	# cd ibmblade && ${MAKE} copytobin
 	cd ilo && ${MAKE} copytobin
@@ -58,6 +60,7 @@ clean:
 	cd brocade && ${MAKE} clean
 	# cd bullpap && ${MAKE} clean
 	#cd cpint && ${MAKE} clean
+	cd drac && ${MAKE} clean
 	cd egenera && ${MAKE} clean
 	# cd ibmblade && ${MAKE} clean
 	cd ilo && ${MAKE} clean
