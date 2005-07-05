@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.399 $) dnl cvs revision
+AC_REVISION($Revision: 1.400 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -358,7 +358,41 @@ AC_CHECK_LIB(c, dlopen)				dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
-AC_CHECK_LIB(ncurses, printw)			dnl -lncurses (if available)
+
+dnl ************ curses **********************
+dnl A few OSes (e.g. Linux) deliver a default "ncurses" alongside "curses".
+dnl Many non-Linux deliver "curses"; sites may add "ncurses".
+dnl
+dnl However, the source-code recommendation for both is to #include "curses.h"
+dnl (i.e. "ncurses" still wants the include to be simple, no-'n', "curses.h").
+dnl
+dnl Andrew Beekhof (author of heartbeat code that uses this functionality)
+dnl wishes "ncurses" to take precedence.  So the following ordering has
+dnl been devised to implement this.
+dnl
+dnl Look first for the headers, then set the libraries accordingly.
+dnl (Normally autoconf suggests looking for libraries first.)
+dnl
+AC_CHECK_HEADERS(curses.h)
+AC_CHECK_HEADERS(ncurses.h)
+
+dnl Although n-library is preferred, only look for it if the n-header was found.
+CURSESLIBS=''
+if test "$ac_cv_header_ncurses_h" = "yes"; then
+  AC_CHECK_LIB(ncurses, printw,
+    [CURSESLIBS='-lncurses'; AC_DEFINE(HAVE_LIBNCURSES,1, have ncurses library)]
+  )
+fi
+
+dnl Only look for non-n-library if there was no n-library.
+if test X"$CURSESLIBS" = X"" -a "$ac_cv_header_curses_h" = "yes"; then
+  AC_CHECK_LIB(curses, printw,
+    [CURSESLIBS='-lcurses'; AC_DEFINE(HAVE_LIBCURSES,1, have curses library)]
+  )
+fi
+
+AC_SUBST(CURSESLIBS)
+dnl ************ curses **********************
 
 dnl ************ uuid **********************
 AC_ARG_WITH(uuid,
