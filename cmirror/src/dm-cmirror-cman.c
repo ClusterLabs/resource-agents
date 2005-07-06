@@ -12,12 +12,15 @@
 #include <linux/in.h>
 #include <linux/socket.h>
 #include <linux/signal.h>
+#include <linux/bio.h>
+#include <linux/blkdev.h>
+#include <linux/device-mapper.h>
 #include <cluster/service.h>
 #include <cluster/cnxman.h>
 #include <cluster/cnxman-socket.h>
 
 #include "dm-log.h"
-#include "dm-io.h"
+#include "dm-cmirror-common.h"
 
 uint32_t local_id;
 uint32_t my_id=0;

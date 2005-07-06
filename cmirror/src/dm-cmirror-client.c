@@ -13,12 +13,15 @@
 #include <linux/in.h>
 #include <linux/socket.h>
 #include <linux/signal.h>
+#include <linux/mempool.h>
+#include <linux/bio.h>
+#include <linux/blkdev.h>
+#include <linux/device-mapper.h>
 #include <cluster/service.h>
 #include <cluster/cnxman.h>
 #include <cluster/cnxman-socket.h>
 
 #include "dm-log.h"
-#include "dm-io.h"
 #include "dm-cmirror-xfr.h"
 #include "dm-cmirror-common.h"
 #include "dm-cmirror-server.h"
@@ -1097,6 +1100,7 @@ static struct kcl_service_ops clog_ops = {
 static struct dirty_log_type _cluster_type = {
 	.name = "cluster",
 	.module = THIS_MODULE,
+	.multi_node = 1,
 	.ctr = cluster_ctr,
 	.dtr = cluster_dtr,
 	.suspend = cluster_suspend,

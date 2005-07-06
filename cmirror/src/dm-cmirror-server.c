@@ -13,15 +13,21 @@
 #include <linux/in.h>
 #include <linux/socket.h>
 #include <linux/signal.h>
+#include <linux/bio.h>
+#include <linux/blkdev.h>
+#include <linux/device-mapper.h>
 #include <cluster/service.h>
 #include <cluster/cnxman.h>
 #include <cluster/cnxman-socket.h>
 
 #include "dm-log.h"
-#include "dm-io.h"
 #include "dm-cmirror-common.h"
 #include "dm-cmirror-xfr.h"
 #include "dm-cmirror-cman.h"
+
+#define RU_READ    0
+#define RU_WRITE   1
+#define RU_RECOVER 2
 
 struct region_user {
 	struct list_head ru_list;
@@ -41,16 +47,13 @@ static atomic_t _suspend;
 static int debug_disk_write = 0;
 extern struct list_head log_list_head;
 
-
 static void *region_user_alloc(int gfp_mask, void *pool_data){
 	return kmalloc(sizeof(struct region_user), gfp_mask);
 }
 
-
 static void region_user_free(void *element, void *pool_data){
 	kfree(element);
 }
-
 
 /*
  * The touched member needs to be updated every time we access
@@ -264,58 +267,58 @@ static int _core_get_resync_work(struct log_c *lc, region_t *region)
 
 
 static int print_zero_bits(unsigned char *str, int offset, int bit_count){
-  int i,j;
-  int count=0;
-  int len = bit_count/8 + ((bit_count%8)?1:0);
-  int region = offset;
-  int range_count=0;
+	int i,j;
+	int count=0;
+	int len = bit_count/8 + ((bit_count%8)?1:0);
+	int region = offset;
+	int range_count=0;
 
-  for(i = 0; i < len; i++){
-    if(str[i] == 0x0){
-      region+=(bit_count < 8)? bit_count: 8;
-      range_count+= (bit_count < 8)? bit_count: 8;
-      count+=(bit_count < 8)? bit_count: 8;
+	for(i = 0; i < len; i++){
+		if(str[i] == 0x0){
+			region+=(bit_count < 8)? bit_count: 8;
+			range_count+= (bit_count < 8)? bit_count: 8;
+			count+=(bit_count < 8)? bit_count: 8;
 
-      bit_count -= (bit_count < 8)? bit_count: 8;
-      continue;
-    } else if(str[i] == 0xFF){
-      if(range_count==1){
-	DMINFO("  %d", region - 1);
-      } else if(range_count){
-	DMINFO("  %d - %d", region-range_count, region-1);
-      }
-      range_count = 0;
-      region+=(bit_count < 8)? bit_count: 8;      
+			bit_count -= (bit_count < 8)? bit_count: 8;
+			continue;
+		} else if(str[i] == 0xFF){
+			if(range_count==1){
+				DMINFO("  %d", region - 1);
+			} else if(range_count){
+				DMINFO("  %d - %d", region-range_count, region-1);
+			}
+			range_count = 0;
+			region+=(bit_count < 8)? bit_count: 8;      
 
-      bit_count -= (bit_count < 8)? bit_count: 8;
-      continue;
-    }
-    for(j=0; j<8; j++){
-      if(!bit_count--){
-	break;
-      }
-      if(!(str[i] & 1<<j)){
-	range_count++;
-	region++;
-	count++;
-      } else {
-	if(range_count==1){
-	  DMINFO("  %d", region - 1);
-	} else if(range_count){
-	  DMINFO("  %d - %d", region-range_count, region-1);
+			bit_count -= (bit_count < 8)? bit_count: 8;
+			continue;
+		}
+		for(j=0; j<8; j++){
+			if(!bit_count--){
+				break;
+			}
+			if(!(str[i] & 1<<j)){
+				range_count++;
+				region++;
+				count++;
+			} else {
+				if(range_count==1){
+					DMINFO("  %d", region - 1);
+				} else if(range_count){
+					DMINFO("  %d - %d", region-range_count, region-1);
+				}
+				range_count = 0;
+				region++;
+			}
+		}
 	}
-	range_count = 0;
-	region++;
-      }
-    }
-  }
 
-  if(range_count==1){
-    DMINFO("  %d", region - 1);
-  } else if(range_count){
-    DMINFO("  %d - %d", region-range_count, region);
-  }
-  return count;
+	if(range_count==1){
+		DMINFO("  %d", region - 1);
+	} else if(range_count){
+		DMINFO("  %d - %d", region-range_count, region);
+	}
+	return count;
 }
 
 static int disk_resume(struct log_c *lc)
@@ -381,6 +384,9 @@ static int disk_resume(struct log_c *lc)
 		if(!(live_nodes[ru->ru_nodeid/8] & 1 << (ru->ru_nodeid%8))){
 			bad_count++;
 			log_clear_bit(lc, lc->sync_bits, ru->ru_region);
+			if (ru->ru_rw == RU_RECOVER) {
+				log_clear_bit(lc, lc->recovering_bits, ru->ru_region);
+			}
 			list_del(&ru->ru_list);
 			mempool_free(ru, region_user_pool);
 		}
@@ -471,13 +477,26 @@ struct region_user *find_ru_by_region(struct log_c *lc, region_t region){
 
 
 static int server_is_clean(struct log_c *lc, struct log_request *lr){
-	lr->u.lr_int_rtn = log_test_bit(lc->clean_bits, lr->u.lr_region);
+	lr->u.lr_int_rtn = log_test_bit(lc->clean_bits, lr->u.lr_region)?
+		LOG_CLEAN: LOG_DIRTY;
 	return 0;
 }
 
 
 static int server_in_sync(struct log_c *lc, struct log_request *lr){
-	lr->u.lr_int_rtn = log_test_bit(lc->sync_bits, lr->u.lr_region);
+	struct region_user *ru;
+
+	if(likely(log_test_bit(lc->sync_bits, lr->u.lr_region))){
+		/* in-sync */
+		lr->u.lr_int_rtn = LOG_CLEAN;
+	} else if ((ru = find_ru_by_region(lr->u.lr_region)) && 
+		   (ru->ru_rw == RU_RECOVER)){
+		DMERR("LOG_REMOTE_RECOVERING = server_in_sync");
+		lr->u.lr_int_rtn = LOG_REMOTE_RECOVERING;
+	} else {
+		lr->u.lr_int_rtn = LOG_NOSYNC;
+	}
+
 	return 0;
 }
 
@@ -493,12 +512,19 @@ static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t
 	new->ru_nodeid = who;
 	new->ru_region = lr->u.lr_region;
     
-	if(!(ru = find_ru_by_region(lc, lr->u.lr_region))){
+	if (!(ru = find_ru_by_region(lc, lr->u.lr_region))) {
 		log_clear_bit(lc, lc->clean_bits, lr->u.lr_region);
 		write_bits(lc);
 
 		list_add(&new->ru_list, &lc->region_users);
-	} else if(!find_ru(lc, who, lr->u.lr_region)){
+	} else if (ru->ru_rw == RU_RECOVERING) {
+		DMERR("Attempt to mark a region " SECTOR_FORMAT "which is being recovered.",
+		      lr->u.lr_region);
+		DMERR("Current recoverer: %u", ru->ru_nodeid);
+		DMERR("Mark requester   : %u", who);
+		mempool_free(new, region_user_pool);
+		return -EBUSY;
+	} else if (!find_ru(lc, who, lr->u.lr_region)) {
 		list_add(&new->ru_list, &ru->ru_list);
 	} else {
 		DMWARN("Attempt to mark a already marked region (%u,"
@@ -517,20 +543,18 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 
 	ru = find_ru(lc, who, lr->u.lr_region);
 	if(!ru){
-		/*
-		if(!(log_test_bit(lc->recovering_bits, lr->u.lr_region))){
-			DMWARN("request to remove unrecorded region user (%u/%Lu)",
-			       who, lr->u.lr_region);
-		}
-		*/
+		DMWARN("request to remove unrecorded region user (%u/%Lu)",
+		       who, lr->u.lr_region);
 		/*
 		** ATTENTION -- may not be there because it is trying to clear **
 		** a region it is resyncing, not because it marked it.  Need   **
 		** more care ? */
 		/*return -EINVAL;*/
-	} else {
+	} else if (ru->ru_rw != RU_RECOVER) {
 		list_del(&ru->ru_list);
 		mempool_free(ru, region_user_pool);
+	} else {
+		DMWARN("Clearing recovering region...");
 	}
 
 	if(!find_ru_by_region(lc, lr->u.lr_region)){
@@ -543,35 +567,52 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 
 static int server_get_resync_work(struct log_c *lc, struct log_request *lr, uint32_t who)
 {
-	/* ATTENTION -- for now, if it's not me, do not assign work */
-/*
-	if(my_id != who)
-		return 0;
-*/	       
-	lr->u.lr_int_rtn = _core_get_resync_work(lc, &(lr->u.lr_region_rtn));
+	struct region_user *new;
+
+	new = mempool_alloc(region_user_pool, GFP_KERNEL);
+	if(!new){
+		return -ENOMEM;
+	}
+	
+	if ((lr->u.lr_int_rtn = _core_get_resync_work(lc, &(lr->u.lr_region_rtn)))){
+		new->ru_nodeid = who;
+		new->ru_region = lr->u.lr_region;
+		new->ru_rw = RU_RECOVER;
+		list_add(&new->ru_list, &lc->region_users);
+	} else {
+		mempool_free(new, region_user_pool);
+	}
 
 	return 0;
 }
 
 
 static int server_complete_resync_work(struct log_c *lc, struct log_request *lr){
-	int success = 1; /* ATTENTION -- need to get this from client */
+	struct region_user *ru;
 	uint32_t info;
 
 	log_clear_bit(lc, lc->recovering_bits, lr->u.lr_region);
-	if (success) {
-		log_set_bit(lc, lc->sync_bits, lr->u.lr_region);
-		lc->sync_count++;
-	}
+	log_set_bit(lc, lc->sync_bits, lr->u.lr_region);
+	lc->sync_count++;
 
-	info = (uint32_t)(lc->region_count-lc->sync_count);
+	info = (uint32_t)(lc->region_count - lc->sync_count);
 
 	if((info < 10001 && !(info%1000)) ||
 	   (info < 1000 && !(info%100)) ||
 	   (info < 200 && !(info%25)) ||
 	   (info < 6)){
 		DMINFO(SECTOR_FORMAT " out-of-sync regions remaining.",
-		       lc->region_count-lc->sync_count);
+		       lc->region_count - lc->sync_count);
+	}
+
+	ru = find_ru_by_region(lr->u.lr_region);
+	if (!ru) {
+		DMERR("complete_resync_work attempt on unrecorded region.");
+	} else if (ru->rw != RU_RECOVER){
+		DMERR("complete_resync_work attempt on non-recovering region.");
+	} else {
+		list_del(&ru->ru_list);
+		mempool_free(ru,region_user_pool);
 	}
 	return 0;
 }

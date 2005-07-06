@@ -7,6 +7,58 @@
 #ifndef __DM_CMIRROR_COMMON_H__
 #define __DM_CMIRROR_COMMON_H__
 
+/* from dm-io.h */
+struct io_region {
+	struct block_device *bdev;
+	sector_t sector;
+	sector_t count;
+};
+int dm_io_sync_vm(unsigned int num_regions, struct io_region *where, int rw,
+                  void *data, unsigned long *error_bits);
+/* from dm.h */
+#define DM_NAME "device-mapper"
+#define DMWARN(f, x...) printk(KERN_WARNING DM_NAME ": " f "\n" , ## x)
+#define DMERR(f, x...) printk(KERN_ERR DM_NAME ": " f "\n" , ## x)
+#define DMINFO(f, x...) printk(KERN_INFO DM_NAME ": " f "\n" , ## x)
+#define DMEMIT(x...) sz += ((sz >= maxlen) ? \
+	  0 : scnprintf(result + sz, maxlen - sz, x))
+
+#ifdef CONFIG_LBD
+#define SECTOR_FORMAT "%Lu"
+#else
+#define SECTOR_FORMAT "%lu"
+#endif
+
+#define SECTOR_SHIFT 9
+/*
+ * Ceiling(n / sz)
+ */
+#define dm_div_up(n, sz) (((n) + (sz) - 1) / (sz))
+
+#define dm_sector_div_up(n, sz) ( \
+{ \
+	sector_t _r = ((n) + (sz) - 1); \
+	sector_div(_r, (sz)); \
+	_r; \
+} \
+)
+
+/*
+ * ceiling(n / size) * size
+ */
+#define dm_round_up(n, sz) (dm_div_up((n), (sz)) * (sz))
+
+struct dm_dev {
+	struct list_head list;
+	
+	atomic_t count;
+	int mode;
+	struct block_device *bdev;
+};
+
+void dm_table_event(struct dm_table *t);
+/* end of dm.h */
+
 /*
  * Magic for persistent mirrors: "MiRr"
  */
