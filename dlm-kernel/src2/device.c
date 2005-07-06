@@ -448,8 +448,8 @@ static int dlm_open(struct inode *inode, struct file *file)
 	spin_lock_init(&f->fi_ast_lock);
 	init_waitqueue_head(&f->fi_wait);
 	f->fi_ls = lsinfo;
-	atomic_set(&f->fi_refcnt, 1);
 	f->fi_flags = 0;
+	get_file_info(&f);
 	set_bit(1, &f->fi_flags);
 
 	file->private_data = f;
@@ -601,6 +601,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 		}
 	}
 	up(&user_ls_lock);
+	put_file_info(f);
 
 	/* Restore signals */
 	sigprocmask(SIG_SETMASK, &tmpsig, NULL);
