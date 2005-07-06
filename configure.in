@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.401 $) dnl cvs revision
+AC_REVISION($Revision: 1.402 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -32,11 +32,6 @@ INIT_EXT=""
 USE_MODULES=0
 echo Our Host OS: $host_os/$host
 case "$host_os" in
-solaris*)	LIBS="-L/usr/local/lib $LIBS"
-		CPPFLAGS="$CPPFLAGS -I/usr/local/include -I/opt/sfw/include"
-		INIT_EXT=".sh"
-		;;
-
 *bsd*)		LIBS="-L/usr/local/lib"
 		CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 		INIT_EXT=".sh"
