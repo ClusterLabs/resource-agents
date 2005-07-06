@@ -37,26 +37,27 @@ IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
                         $(gliblib) @LIBNETLIBS@
 
 
-ocf_SCRIPTS	     =  ocf-shellfuncs \
-			Dummy	\
-		        IPaddr	\
-		        IPaddr2	\
-		        drbd	\
-			apache	\
+ocf_SCRIPTS	     =  ocf-shellfuncs 	\
+			ClusterMon 	\
+			Dummy		\
+		        IPaddr		\
+		        IPaddr2		\
+		        drbd		\
+			apache		\
 			AudibleAlarm	\
-			db2	\
-			Delay	\
-			drbd	\
+			db2		\
+			Delay		\
+			drbd		\
 			Filesystem	\
-			ICP	\
+			ICP		\
 			IPsrcaddr	\
 			LinuxSCSI	\
-			LVM	\
-			MailTo	\
+			LVM		\
+			MailTo		\
 			portblock	\
-			Raid1	\
+			Raid1		\
 			ServeRAID	\
-			WAS	\
+			WAS		\
 			WinPopup	\
 			Xinetd
 
