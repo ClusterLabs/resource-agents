@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.2 2005/07/07 06:38:44 andrew Exp $
+#	$Id: ClusterMon.in,v 1.3 2005/07/07 19:15:14 andrew Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -49,7 +49,7 @@ This is a ClusterMon Resource Agent.
 
 <parameters>
 
-<parameter name="interval" unique="0">
+<parameter name="update" unique="0">
 <longdesc lang="en">
 How frequently should we update the cluster status
 </longdesc>
@@ -115,7 +115,13 @@ ClusterMon_exit() {
 }
 
 ClusterMon_start() {
-    @hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_interval $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
+    cmd_prefix=""
+    cmd_suffix=""
+    if [ ! -z $OCF_RESKEY_user ]; then
+	su - $OCF_RESKEY_user -c "@hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile"
+    else
+	@hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_update $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
+    fi
     ClusterMon_exit $?
 }
 
@@ -149,7 +155,7 @@ ClusterMon_validate() {
 	exit $OC_ERR_UNIMPLEMENTED
 }
 
-: ${OCF_RESKEY_interval:="15"}
+: ${OCF_RESKEY_update:="15"}
 : ${OCF_RESKEY_pidfile:="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.pid"}
 : ${OCF_RESKEY_htmlfile:="/tmp/ClusterMon_${OCF_RESOURCE_INSTANCE}.html"}
 
