@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.1 2005/07/06 09:43:03 andrew Exp $
+#	$Id: ClusterMon.in,v 1.2 2005/07/07 06:38:44 andrew Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -116,23 +116,33 @@ ClusterMon_exit() {
 
 ClusterMon_start() {
     @hb_libdir@/crm_mon -p $OCF_RESKEY_pidfile -d -i $OCF_RESKEY_interval $OCF_RESKEY_extra_options -h $OCF_RESKEY_htmlfile
-    ClusterMon_exit($?)
+    ClusterMon_exit $?
 }
 
 ClusterMon_stop() {
-    pid=`cat $OCF_RESKEY_pidfile`
+    if [ -f $OCF_RESKEY_pidfile ]; then
+	pid=`cat $OCF_RESKEY_pidfile`
+    fi
     if [ ! -z $pid ]; then
 	kill -9 $pid
-	ClusterMon_exit($?)
+	rc=$?
+	if [ $rc = 0 ]; then
+	    rm $OCF_RESKEY_pidfile
+	fi
+	ClusterMon_exit $rc
     fi
+    ClusterMon_exit 0
 }
 
 ClusterMon_monitor() {
-    pid=`cat $OCF_RESKEY_pidfile`
+    if [ -f $OCF_RESKEY_pidfile ]; then
+	pid=`cat $OCF_RESKEY_pidfile`
+    fi
     if [ ! -z $pid ]; then
 	kill -0 $pid
-	ClusterMon_exit($?)
+	ClusterMon_exit $?
     fi
+    ClusterMon_exit 1
 }
 
 ClusterMon_validate() {
@@ -153,7 +163,7 @@ stop)		ClusterMon_stop
 		;;
 monitor)	ClusterMon_monitor
 		;;
-validate-all)	ClusterMon_exit(0)
+validate-all)	ClusterMon_exit 0
 		;;
 usage|help)	ClusterMon_usage
 		exit $OCF_SUCCESS
@@ -163,3 +173,4 @@ usage|help)	ClusterMon_usage
 		;;
 esac
 
+exit $OCF_SUCCESS
