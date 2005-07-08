@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.404 $) dnl cvs revision
+AC_REVISION($Revision: 1.405 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1856,7 +1856,16 @@ HB_RA_DIR="${sysconfdir}/ha.d/resource.d/"
 AC_SUBST(HB_RA_DIR)
 AC_DEFINE_UNQUOTED(HB_RA_DIR,"$HB_RA_DIR", heartbeat ra dir)
 
+dnl ************ OCF (Open Cluster Framework) **********************
+dnl Must be consistent with remainder of platform (analogy with "initdir").
 OCF_ROOT_DIR="/usr/lib/ocf"
+AC_ARG_WITH(ocf-root,
+    [  --with-ocf-root=DIR      directory for OCF scripts [${OCF_ROOT_DIR}]],
+    [ if test x"$withval" = xprefix; then OCF_ROOT_DIR=${prefix}; else
+	 OCF_ROOT_DIR="$withval"; fi ])
+if test "X$OCF_ROOT_DIR" = X; then
+  FatalMissingThing "OCF directory" "Could not locate OCF directory"
+fi
 AC_SUBST(OCF_ROOT_DIR)
 AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", ocf root dir)
 
