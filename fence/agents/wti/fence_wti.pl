@@ -75,6 +75,7 @@ sub version
   exit 0;
 }
 
+$opt_o = "reboot";
 if (@ARGV > 0) {
    getopts("a:hn:p:qTVo:") || fail_usage ;
 
@@ -86,7 +87,6 @@ if (@ARGV > 0) {
    fail_usage "No '-a' flag specified." unless defined $opt_a;
    fail_usage "No '-n' flag specified." unless defined $opt_n;
    fail_usage "No '-p' flag specified." unless defined $opt_p;
-   fail_usage "No '-o' flag specified." unless defined $opt_o;
 
 } else {
    get_options_stdin();
@@ -94,7 +94,6 @@ if (@ARGV > 0) {
    fail "failed: no IP address" unless defined $opt_a;
    fail "failed: no plug number" unless defined $opt_n;
    fail "failed: no password" unless defined $opt_p;
-   fail "failed: no operation specified" unless defined $opt_o;
 }
 
 $t = new Net::Telnet;
