@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.406 $) dnl cvs revision
+AC_REVISION($Revision: 1.407 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1138,6 +1138,37 @@ dnl - If requested, enable ALL subsystems.
 	  enable_swig=try;
 	fi
 
+AC_ARG_ENABLE([local-ltdl],
+[  --enable-local-ltdl  Configure, build and install the standalone ltdl library [default=no]]) 
+LTDL_LIBS=""
+
+dnl Check before we enable -Wstrict-prototypes as it causes the test to fail
+AC_CHECK_LIB(ltdl, lt_dlopen, [LTDL_foo=1])
+if test "x${enable_local_ltdl}" = "xyes"; then
+   if test $ac_cv_lib_ltdl_lt_dlopen = yes; then
+      AC_MSG_RESULT(Disabling usage of installed ltdl)      
+   fi
+   ac_cv_lib_ltdl_lt_dlopen=no
+fi
+
+LIBLTDL_DIR=""
+if test $ac_cv_lib_ltdl_lt_dlopen != yes ; then
+   AC_MSG_RESULT(Installing local ltdl)
+   LIBLTDL_DIR=libltdl
+   tar -zxvf libltdl.tar.gz
+   AC_CONFIG_SUBDIRS(libltdl)
+else
+   LIBS="$LIBS -lltdl"
+   AC_MSG_RESULT(Using installed ltdl)
+   INCLTDL=""
+   LIBLTDL=""
+fi
+
+dnl libltdl additions
+AC_SUBST(INCLTDL)
+AC_SUBST(LIBLTDL)
+AC_SUBST(LIBLTDL_DIR)
+
 if test "$GCC" = yes; then
 dnl
 dnl We make sure warnings are carefully scrubbed out of the output if
@@ -1719,11 +1750,6 @@ HB_RC_DIR=$sysconfdir/ha.d/rc.d
 AC_SUBST(HB_RC_DIR)
 AC_DEFINE_UNQUOTED(HB_RC_DIR,"$HB_RC_DIR", rc directory)
 
-
-dnl libltdl additions
-AC_SUBST(INCLTDL)
-AC_SUBST(LIBLTDL)
-
 dnl Some scripts require options to "echo"
 dnl This configure is already determining and using "ac_n" and "ac_c"
 dnl for internal use, so make available externally.
@@ -1976,11 +2002,6 @@ dnl
 XPERIMENTALDIRS=""
 AC_SUBST(XPERIMENTALDIRS)
 
-AC_CHECK_LIB(dl, lt_dlmutex_register)
-if test "$ac_cv_lib_dl_lt_dlmutex_register" != yes; then
-   AC_CONFIG_SUBDIRS(libltdl)
-fi
-
 CheckMissingThings
 
 
@@ -2227,6 +2248,8 @@ AC_MSG_RESULT([  State information    = "$my_localstatedir"])
 AC_MSG_RESULT([  System configuration = "$my_sysconfdir"])
 AC_MSG_RESULT([  Init (rc) scripts    = "$my_initdir"])
 
+AC_MSG_RESULT([  Use system LTDL      = "${ac_cv_lib_ltdl_lt_dlopen}"])
+
 AC_MSG_RESULT([  HA group name        = "${HA_APIGROUP}"])
 AC_MSG_RESULT([  HA group id          = "${HA_APIGID}"])
 AC_MSG_RESULT([  HA user name         = "${HA_CCMUSER}"])
@@ -2245,3 +2268,4 @@ dnl AC_MSG_RESULT([  Build SWIG bindings  = "${enable_swig}"])
 
 AC_MSG_RESULT([  CC_WARNINGS          = "${CC_WARNINGS}"])
 AC_MSG_RESULT([  Mangled CFLAGS       = "${CFLAGS}"])
+
