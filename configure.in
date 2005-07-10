@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.407 $) dnl cvs revision
+AC_REVISION($Revision: 1.408 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -40,9 +40,7 @@ case "$host_os" in
 *linux*)	USE_MODULES=1
  		;;
 dnl anything?
-darwin*)	LIBS="-L/usr/lib -L/sw/lib"
-		CPPFLAGS="$CPPFLAGS -I/usr/include -I/sw/usr/include -I/sw/include"
-		DARWIN=1
+darwin*)	
 		AC_DEFINE_UNQUOTED(ON_DARWIN, 1, Compiling for Darwin platform)
 		;;
 esac
