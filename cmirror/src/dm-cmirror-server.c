@@ -47,7 +47,7 @@ static atomic_t _suspend;
 static int debug_disk_write = 0;
 extern struct list_head log_list_head;
 
-static void *region_user_alloc(int gfp_mask, void *pool_data){
+static void *region_user_alloc(unsigned int gfp_mask, void *pool_data){
 	return kmalloc(sizeof(struct region_user), gfp_mask);
 }
 
@@ -100,19 +100,10 @@ static int read_header(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
-	if(unlikely(log->log_dev_failed)){
-		return -EIO;
-	}
-
 	r = dm_io_sync_vm(1, &log->header_location, READ,
 			  log->disk_header, &ebits);
-	if(unlikely(r && !log->log_dev_failed)){
-		DMERR("Failed to read header from disk, error = %d", r);
-		DMERR("  Switching from disk mode to core mode.");
-		log->log_dev_failed = 1;
-		dm_table_event(log->ti->table);
+	if (unlikely(r))
 		return r;
-	}
 
 	header_from_disk(&log->header, log->disk_header);
 
@@ -133,25 +124,11 @@ static int read_header(struct log_c *log)
 
 static inline int write_header(struct log_c *log)
 {
-	int r;
 	unsigned long ebits;
 
-	if(unlikely(log->log_dev_failed)){
-		return -EIO;
-	}
-
 	header_to_disk(&log->header, log->disk_header);
-	r = dm_io_sync_vm(1, &log->header_location, WRITE,
+	return dm_io_sync_vm(1, &log->header_location, WRITE,
 			     log->disk_header, &ebits);
-
-	if(unlikely(r && !log->log_dev_failed)){
-		DMERR("Failed to write header to disk, error = %d", r);
-		DMERR("  Switching from disk mode to core mode.");
-		log->log_dev_failed = 1;
-		dm_table_event(log->ti->table);
-	}
-
-	return r;
 }
 
 /*----------------------------------------------------------------
@@ -189,18 +166,11 @@ static int read_bits(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
-	if(log->log_dev_failed){
-		return -EIO;
-	}
 	r = dm_io_sync_vm(1, &log->bits_location, READ,
 			  log->disk_bits, &ebits);
-	if(unlikely(r && !log->log_dev_failed)){
-		DMERR("Failed to read bits from disk, error = %d", r);
-		DMERR("  Switching from disk mode to core mode.");
-		log->log_dev_failed = 1;
-		dm_table_event(log->ti->table);
+
+	if (unlikely(r))
 		return r;
-	}
 
 	bits_to_core(log->clean_bits, log->disk_bits,
 		     log->bitset_uint32_count);
@@ -209,30 +179,13 @@ static int read_bits(struct log_c *log)
 
 static int write_bits(struct log_c *log)
 {
-	int error;
 	unsigned long ebits;
 	
-	if(unlikely(log->log_dev_failed)){
-		return -EIO;
-	}
-
 	bits_to_disk(log->clean_bits, log->disk_bits,
 		     log->bitset_uint32_count);
-	if(!debug_disk_write){
-		DMERR("WRITING BITS BEFORE THEY'VE BEEN READ!!!");
-		DMERR("Clearing log to avoid corruption.");
-		zeros_to_disk(log->disk_bits, log->bitset_uint32_count);
-	}
-	error = dm_io_sync_vm(1, &log->bits_location, WRITE,
+	
+	return dm_io_sync_vm(1, &log->bits_location, WRITE,
 			      log->disk_bits, &ebits);
-	if(unlikely(error && !log->log_dev_failed)){
-		DMERR("Failed to write bits to disk, error = %d", error);
-		DMERR("  Switching from disk mode to core mode.");
-		log->log_dev_failed = 1;
-		dm_table_event(log->ti->table);
-	}
-
-	return error;
 }
 
 static int count_bits32(uint32_t *addr, unsigned size)
@@ -321,6 +274,17 @@ static int print_zero_bits(unsigned char *str, int offset, int bit_count){
 	return count;
 }
 
+static void fail_log_device(struct log_c *lc)
+{
+	lc->log_dev_failed = 1;
+	dm_table_event(lc->ti->table);
+}
+
+static void restore_log_device(struct log_c *lc)
+{
+	lc->log_dev_failed = 0;
+}
+
 static int disk_resume(struct log_c *lc)
 {
 	int r;
@@ -338,21 +302,19 @@ static int disk_resume(struct log_c *lc)
 	for(i = 0; i < global_count; i++){
 		live_nodes[global_nodeids[i]/8] |= 1 << (global_nodeids[i]%8);
 	}
+
 	/* read the disk header */
-	r = read_header(lc);
-	if (r){
-		DMERR("Failed to read log device.");
-		DMERR("  Forced to assume all regions are out-of-sync.");
-		zeros_to_core(lc->clean_bits, lc->bitset_uint32_count);
-	} else {
-		/* read the bits */
-		r = read_bits(lc);
-		if (r){
-			DMERR("Failed to read log device.");
-			DMERR("  Forced to assume all regions are out-of-sync.");
-			zeros_to_core(lc->clean_bits, lc->bitset_uint32_count);
-		}
+	i = 1;
+	if ((r = read_header(lc)) || (i = 0) || (r = read_bits(lc))) {
+		if (r == -EINVAL)
+			return r;
+
+		DMWARN("Read %s failed on mirror log device, %s",
+		       i ? "header" : "bits", lc->log_dev->name);
+		fail_log_device(lc);
+		lc->header.nr_regions = 0;
 	}
+
 	/* set or clear any new bits */
 	if (lc->sync == NOSYNC)
 		for (i = lc->header.nr_regions; i < lc->region_count; i++)
@@ -445,13 +407,17 @@ static int disk_resume(struct log_c *lc)
 	/* set the correct number of regions in the header */
 	lc->header.nr_regions = lc->region_count;
 
-	r = write_header(lc);
-
-	if(likely(!r)){
-		write_bits(lc);
-	}
-
-	return 0;
+	i = 1;
+	if ((r = write_bits(lc)) || (i = 0) || (r = write_header(lc))) {
+		DMWARN("Write %s failed on mirror log device, %s.",
+		       i ? "bits" : "header", lc->log_dev->name);
+		fail_log_device(lc);
+	} else 
+		restore_log_device(lc);
+/* ATTENTION -- fixme 
+	atomic_set(&lc->suspended, 0);
+*/
+	return r;
 }
 
 
@@ -476,32 +442,41 @@ struct region_user *find_ru_by_region(struct log_c *lc, region_t region){
 }
 
 
-static int server_is_clean(struct log_c *lc, struct log_request *lr){
-	lr->u.lr_int_rtn = log_test_bit(lc->clean_bits, lr->u.lr_region)?
-		LOG_CLEAN: LOG_DIRTY;
+static int server_is_clean(struct log_c *lc, struct log_request *lr)
+{
+	lr->u.lr_int_rtn = log_test_bit(lc->clean_bits, lr->u.lr_region);
+
 	return 0;
 }
 
-
-static int server_in_sync(struct log_c *lc, struct log_request *lr){
+static int server_is_remote_recovering(struct log_c *lc, struct log_request *lr)
+{
 	struct region_user *ru;
 
-	if(likely(log_test_bit(lc->sync_bits, lr->u.lr_region))){
+	if ((ru = find_ru_by_region(lc, lr->u.lr_region)) && 
+	    (ru->ru_rw == RU_RECOVER))
+		lr->u.lr_int_rtn = 1;
+	else
+		lr->u.lr_int_rtn = 0;
+
+	return 0;
+}
+
+static int server_in_sync(struct log_c *lc, struct log_request *lr)
+{
+	if(likely(log_test_bit(lc->sync_bits, lr->u.lr_region)))
 		/* in-sync */
-		lr->u.lr_int_rtn = LOG_CLEAN;
-	} else if ((ru = find_ru_by_region(lr->u.lr_region)) && 
-		   (ru->ru_rw == RU_RECOVER)){
-		DMERR("LOG_REMOTE_RECOVERING = server_in_sync");
-		lr->u.lr_int_rtn = LOG_REMOTE_RECOVERING;
-	} else {
-		lr->u.lr_int_rtn = LOG_NOSYNC;
-	}
+		lr->u.lr_int_rtn = 1;
+	else
+		lr->u.lr_int_rtn = 0;
 
 	return 0;
 }
 
 
-static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t who){
+static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t who)
+{
+	int r = 0;
 	struct region_user *ru, *new;
 
 	new = mempool_alloc(region_user_pool, GFP_KERNEL);
@@ -514,10 +489,21 @@ static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t
     
 	if (!(ru = find_ru_by_region(lc, lr->u.lr_region))) {
 		log_clear_bit(lc, lc->clean_bits, lr->u.lr_region);
-		write_bits(lc);
+		r = write_bits(lc);
 
 		list_add(&new->ru_list, &lc->region_users);
-	} else if (ru->ru_rw == RU_RECOVERING) {
+		if (!r) {
+			lc->touched = 0;
+			restore_log_device(lc);
+		} else {
+			DMERR("Write bits failed on mirror log device, %s",
+			      lc->log_dev->name);
+			/* ATTENTION -- need to halt here 
+			if (!atomic_read(&lc->suspended))
+				wait_for_completion(&lc->failure_completion);
+			*/
+		}
+	} else if (ru->ru_rw == RU_RECOVER) {
 		DMERR("Attempt to mark a region " SECTOR_FORMAT "which is being recovered.",
 		      lr->u.lr_region);
 		DMERR("Current recoverer: %u", ru->ru_nodeid);
@@ -538,7 +524,8 @@ static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t
 }
 
 
-static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_t who){
+static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_t who)
+{
 	struct region_user *ru;
 
 	ru = find_ru(lc, who, lr->u.lr_region);
@@ -559,7 +546,10 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 
 	if(!find_ru_by_region(lc, lr->u.lr_region)){
 		log_set_bit(lc, lc->clean_bits, lr->u.lr_region);
-		write_bits(lc);
+		if (!write_bits(lc)) {
+			DMERR("Write bits failed on mirror log device, %s",
+			      lc->log_dev->name);
+		}
 	}
 	return 0;
 }
@@ -605,10 +595,10 @@ static int server_complete_resync_work(struct log_c *lc, struct log_request *lr)
 		       lc->region_count - lc->sync_count);
 	}
 
-	ru = find_ru_by_region(lr->u.lr_region);
+	ru = find_ru_by_region(lc, lr->u.lr_region);
 	if (!ru) {
 		DMERR("complete_resync_work attempt on unrecorded region.");
-	} else if (ru->rw != RU_RECOVER){
+	} else if (ru->ru_rw != RU_RECOVER){
 		DMERR("complete_resync_work attempt on non-recovering region.");
 	} else {
 		list_del(&ru->ru_list);
@@ -830,6 +820,9 @@ static int process_log_request(struct socket *sock){
 		switch(lr.lr_type){
 		case LRT_IS_CLEAN:
 			error = server_is_clean(lc, &lr);
+			break;
+		case LRT_IS_REMOTE_RECOVERING:
+			error = server_is_remote_recovering(lc, &lr);
 			break;
 		case LRT_IN_SYNC:
 			error = server_in_sync(lc, &lr);

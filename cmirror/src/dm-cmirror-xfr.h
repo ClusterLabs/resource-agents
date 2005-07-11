@@ -9,18 +9,19 @@
 
 #define MAX_NAME_LEN 128
 
-#define LRT_IS_CLEAN			0x1
-#define LRT_IN_SYNC             	0x2
-#define LRT_MARK_REGION         	0x4
-#define LRT_GET_RESYNC_WORK     	0x8
-#define LRT_GET_SYNC_COUNT      	0x10
-#define LRT_CLEAR_REGION        	0x20
-#define LRT_COMPLETE_RESYNC_WORK        0x40
+#define LRT_IS_CLEAN			1
+#define LRT_IS_REMOTE_RECOVERING	2
+#define LRT_IN_SYNC             	3
+#define LRT_MARK_REGION         	4
+#define LRT_CLEAR_REGION        	5
+#define LRT_GET_RESYNC_WORK     	6
+#define LRT_COMPLETE_RESYNC_WORK        7
+#define LRT_GET_SYNC_COUNT      	8
 
-#define LRT_ELECTION			0x80
-#define LRT_SELECTION			0x100
-#define LRT_MASTER_ASSIGN		0x200
-#define LRT_MASTER_LEAVING		0x400
+#define LRT_ELECTION			9
+#define LRT_SELECTION			10
+#define LRT_MASTER_ASSIGN		11
+#define LRT_MASTER_LEAVING		12
 
 #define CLUSTER_LOG_PORT 51005
 

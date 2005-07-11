@@ -54,6 +54,7 @@ struct dm_dev {
 	atomic_t count;
 	int mode;
 	struct block_device *bdev;
+	char name[16];
 };
 
 void dm_table_event(struct dm_table *t);

@@ -57,7 +57,7 @@ static int mark_req2ser=0;
 static int insync_req2ser=0;
 
 
-static void *region_state_alloc(int gfp_mask, void *pool_data){
+static void *region_state_alloc(unsigned int gfp_mask, void *pool_data){
 	return kmalloc(sizeof(struct region_state), gfp_mask);
 }
 
@@ -721,6 +721,19 @@ static int cluster_is_clean(struct dirty_log *log, region_t region)
 	return rtn;
 }
 
+static int cluster_is_remote_recovering(struct dirty_log *log, region_t region)
+{
+	int rtn;
+	struct log_c *lc = (struct log_c *) log->context;
+
+	if(atomic_read(&lc->in_sync) == 1){
+		return 0;
+	}
+
+	rtn = consult_server(lc, region, LRT_IS_REMOTE_RECOVERING, NULL);
+	return rtn;
+}
+
 static int cluster_in_sync(struct dirty_log *log, region_t region, int block)
 {
 	int rtn;
@@ -1100,13 +1113,13 @@ static struct kcl_service_ops clog_ops = {
 static struct dirty_log_type _cluster_type = {
 	.name = "cluster",
 	.module = THIS_MODULE,
-	.multi_node = 1,
 	.ctr = cluster_ctr,
 	.dtr = cluster_dtr,
-	.suspend = cluster_suspend,
+	.postsuspend = cluster_suspend,
 	.resume = cluster_resume,
 	.get_region_size = cluster_get_region_size,
 	.is_clean = cluster_is_clean,
+	.is_remote_recovering = cluster_is_remote_recovering,
 	.in_sync = cluster_in_sync,
 	.flush = cluster_flush,
 	.mark_region = cluster_mark_region,
