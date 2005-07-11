@@ -5,7 +5,7 @@
 # author: Kirk Lawson <lklawson@heapy.com> 
 #         Horms <horms@vergenet.net>
 #
-# description: sets an audiable alarm running by beeping at a set interval
+# description: sets an audible alarm running by beeping at a set interval
 # processname: alarm
 # config: /etc/AudibleAlarm/AudibleAlarm.conf - not yet implemented
 #
@@ -31,21 +31,21 @@ PIDFILE=@localstatedir@/run/heartbeat-bell
 us=`uname -n`
 
 usage() {
-	echo "Usage: $0 {start|stop|restart|status|monitor}"
+	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.2 2005/07/11 08:57:16 sunjd Exp $";
 }
 
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="AudibleAlarm" version="0.9">
+<resource-agent name="AudibleAlarm">
 <version>1.0</version>
 
 <longdesc lang="en">
-Resource script for AudibleAlarm. It sets an audiable alarm running by beeping 
+Resource script for AudibleAlarm. It sets an audible alarm running by beeping 
 at a set interval. 
 </longdesc>
 <shortdesc lang="en">AudibleAlarm resource agent</shortdesc>
@@ -67,12 +67,13 @@ The node list that should never sound the alarm.
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END
 }
 
-audiablealarm_start () {
+audiblealarm_start () {
 	ocf_log "info" "$0: Starting"
     	if [ -f $PIDFILE ]; then
         	PID=`head -n 1 $PIDFILE`
@@ -89,47 +90,52 @@ audiablealarm_start () {
 	if ! echo $! >  $PIDFILE; then
 		ocf_log "info" "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
-		return 1
+		return $OCF_ERR_GENERIC
 	fi
 
 	return $?
 }
 
-audiablealarm_stop () {
+audiblealarm_stop () {
 	ocf_log "info" "$0: Shutting down"
   	if [ -f $PIDFILE ]; then
 		PID=`head -n 1 $PIDFILE`
 		# ocf_log "info" "$0: Appears to already be running, killing [$PID]"
 		# commented by Phost, since the confusion in the log.
-		kill $PID > /dev/null
-		rm -f $PIDFILE
+
+		# Donnot remove PIDFILE in case the `kill` fails.
+		kill $PID > /dev/null && rm -f $PIDFILE
+		
 	fi
 
 	return $?
 }
 
-audiablealarm_restart () {
-	audiablealarm_stop 
-	audiablealarm_start 
+audiblealarm_restart () {
+	audiblealarm_stop 
+	audiblealarm_start 
 
 	return $?
 }
 
-audiablealarm_status () {
+audiblealarm_status () {
   	if [ -f $PIDFILE ]; then
 		echo running
 	else
 		echo stopped
 	fi
 
-	return 0
+	return $OCF_SUCCESS
 }
 
-if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
-then
+audiblealarm_validate_all () {
+# Is there anything to check?
+	echo "Validate OK"
+	return $OCF_SUCCESS
+}
+if [ $# -ne 1 ]; then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
 case "$1" in
@@ -143,19 +149,22 @@ case "$1" in
 	    if [ "$us" = "$arg" ]; then
 	      # We should not start because we are on a host
 	      # listed in our argument list.
-              exit 0
+              exit $OCF_SUCCESS
 	    fi
 	  done
-	audiablealarm_start
+	audiblealarm_start
 	;;
   stop)
-	audiablealarm_stop
+	audiblealarm_stop
 	;;
   restart)
-	audiablealarm_restart 
+	audiblealarm_restart 
 	;;
   status|monitor)
-	audiablealarm_status 
+	audiblealarm_status 
+	;;
+  validate-all)
+	audiblealarm_validate_all
 	;;
   usage)
 	usage 
@@ -164,7 +173,7 @@ case "$1" in
 
   *)
 	usage
-	exit $OCF_ERR_UNIMPLEMENTED
+	exit $OCF_ERR_ARGS
 	;;
 esac
 

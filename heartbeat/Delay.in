@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.2 2005/05/05 13:40:10 alan Exp $
+#	$Id: Delay.in,v 1.3 2005/07/11 09:00:24 sunjd Exp $
 #
 #	This script is a test resource for introducing delay.
 #
@@ -32,8 +32,8 @@ VLFILE="$VARLIB/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 
 usage() {
   cat <<-!
-	usage: $0 {start|stop|status|monitor}
-  	$Id: Delay.in,v 1.2 2005/05/05 13:40:10 alan Exp $
+	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
+  	$Id: Delay.in,v 1.3 2005/07/11 09:00:24 sunjd Exp $
 	!
 }
 
@@ -41,7 +41,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="Delay" version="0.9">
+<resource-agent name="Delay">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -84,6 +84,7 @@ Defaults to "startdelay" if unspecified.
 <action name="status" depth="0" timeout="30" interval="10" start-delay="30" />
 <action name="monitor" depth="0" timeout="30" interval="10" start-delay="30" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END
@@ -106,6 +107,7 @@ Delay_Status() {
 }
 
 Delay_Monitor() {
+  Delay_Validate_All -q
   sleep $OCF_RESKEY_mondelay
   Delay_Status
 }
@@ -117,6 +119,7 @@ Delay_Start() {
     echo "Delay already running."
     return $OCF_SUCCESS
   else
+    Delay_Validate_All -q
     touch "$VLFILE"
     rc=$?
     sleep $OCF_RESKEY_startdelay
@@ -133,6 +136,7 @@ Delay_Stop() {
   if
     Delay_stat
   then
+    Delay_Validate_All -q
     unlink "$VLFILE"
     rc=$?
     sleep $OCF_RESKEY_stopdelay
@@ -148,9 +152,46 @@ Delay_Stop() {
   fi
 }
 
-if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
-then
+# Check if all the arguments are valid numbers, a string is considered valid if:
+# 1. It does not contain any character but digits and period ".";
+# 2. The period "." does not occur more than once
+
+Are_Valid_Numbers() {
+  for i in "$@"; do
+	echo $i |grep -v [^0-9.] |grep -q -v [.].*[.]
+	if test $? -ne 0; then
+	  return $OCF_ERR_ARGS
+	fi
+  done
+  return $OCF_SUCCESS
+}
+
+Delay_Validate_All() {
+# Be quiet when specified -q option _and_ validation succeded
+  getopts "q" option
+
+  if test $option = "q"; then
+	quiet=yes
+  else
+	quiet=no
+  fi
+  shift $(($OPTIND -1))
+
+  if Are_Valid_Numbers $OCF_RESKEY_startdelay $OCF_RESKEY_stopdelay \
+	$OCF_RESKEY_mondelay; then
+    if test $quiet = "no"; then
+	echo "Validate OK"
+    fi
+# _Return_ on validation success
+	return $OCF_SUCCESS
+  else
+	echo "Some of the instance parameters are invalid"
+# _Exit_ on validation failure
+	exit $OCF_ERR_ARGS
+  fi
+}
+
+if [ $# -ne 1 ]; then
   usage
   exit $OCF_ERR_ARGS
 fi
@@ -171,11 +212,13 @@ case $1 in
 			;;
   status)		Delay_Status
 			;;
+  validate-all)		Delay_Validate_All
+			;;
   usage)		usage
 			exit $OCF_SUCCESS
 			;;
   *)			usage
-			exit $OCF_ERR_UNIMPLEMENTED
+			exit $OCF_ERR_ARGS
 			;;
 esac
 exit $?
