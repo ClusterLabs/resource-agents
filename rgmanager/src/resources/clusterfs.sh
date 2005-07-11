@@ -259,7 +259,7 @@ verify_fstype()
 
 verify_options()
 {
-	decalre -i ret=0
+	declare -i ret=0
 
 	#
 	# From mount(8)
