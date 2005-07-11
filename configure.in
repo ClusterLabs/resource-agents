@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.408 $) dnl cvs revision
+AC_REVISION($Revision: 1.409 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1136,13 +1136,13 @@ dnl - If requested, enable ALL subsystems.
 	  enable_swig=try;
 	fi
 
-AC_ARG_ENABLE([local-ltdl],
-[  --enable-local-ltdl  Configure, build and install the standalone ltdl library [default=no]]) 
+AC_ARG_ENABLE([bundled-ltdl],
+[  --enable-bundled-ltdl  Configure, build and install the standalone ltdl library bundled with Heartbeat [default=no]]) 
 LTDL_LIBS=""
 
 dnl Check before we enable -Wstrict-prototypes as it causes the test to fail
 AC_CHECK_LIB(ltdl, lt_dlopen, [LTDL_foo=1])
-if test "x${enable_local_ltdl}" = "xyes"; then
+if test "x${enable_bundled_ltdl}" = "xyes"; then
    if test $ac_cv_lib_ltdl_lt_dlopen = yes; then
       AC_MSG_RESULT(Disabling usage of installed ltdl)      
    fi
@@ -1153,7 +1153,7 @@ LIBLTDL_DIR=""
 if test $ac_cv_lib_ltdl_lt_dlopen != yes ; then
    AC_MSG_RESULT(Installing local ltdl)
    LIBLTDL_DIR=libltdl
-   tar -zxvf libltdl.tar.gz
+   $(TAR) -xvf libltdl.tar
    AC_CONFIG_SUBDIRS(libltdl)
 else
    LIBS="$LIBS -lltdl"
