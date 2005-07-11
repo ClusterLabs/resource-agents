@@ -9,7 +9,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.409 $) dnl cvs revision
+AC_REVISION($Revision: 1.410 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1153,7 +1153,7 @@ LIBLTDL_DIR=""
 if test $ac_cv_lib_ltdl_lt_dlopen != yes ; then
    AC_MSG_RESULT(Installing local ltdl)
    LIBLTDL_DIR=libltdl
-   $(TAR) -xvf libltdl.tar
+   $TAR -xvf libltdl.tar
    AC_CONFIG_SUBDIRS(libltdl)
 else
    LIBS="$LIBS -lltdl"
