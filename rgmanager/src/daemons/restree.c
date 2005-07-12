@@ -39,6 +39,18 @@ int _res_op(resource_node_t **tree, resource_t *first, char *type,
 	    void * __attribute__((unused))ret, int op);
 void print_env(char **env);
 
+/* XXX from reslist.c */
+void * act_dup(resource_act_t *acts);
+
+
+/* XXX from reslist.c */
+void * act_dup(resource_act_t *acts);
+
+
+/* XXX from reslist.c */
+void * act_dup(resource_act_t *acts);
+
+
 const char *res_ops[] = {
 	"start",
 	"stop",
@@ -232,6 +244,8 @@ build_env(resource_node_t *node, int op, int depth)
 	for (x = 0; res->r_attrs && res->r_attrs[x].ra_name; x++) {
 
 		val = attr_value(node, res->r_attrs[x].ra_name);
+		if (!val)
+			continue;
 
 		/* Strlen of both + '=' + 'OCF_RESKEY' + '\0' terminator' */
 		n = strlen(res->r_attrs[x].ra_name) + strlen(val) + 2 +
@@ -487,6 +501,7 @@ build_tree(int ccsfd, resource_node_t **tree,
 		node->rn_parent = parent;
 		node->rn_resource = curres;
 		node->rn_state = RES_STOPPED;
+               node->rn_actions = (resource_act_t *)act_dup(curres->r_actions);
 		curres->r_refs++;
 
 		list_insert(tree, node);
@@ -587,6 +602,9 @@ destroy_resource_tree(resource_node_t **tree)
 			destroy_resource_tree(&(*tree)->rn_child);
 
 		list_remove(tree, node);
+               if(node->rn_actions){
+                       free(node->rn_actions);
+               }
 		free(node);
 	}
 }
@@ -742,29 +760,28 @@ do_status(resource_node_t *node)
 	int x = 0, idx = -1;
 	int has_recover = 0;
 	time_t delta = 0, now = 0;
-	resource_t *res = node->rn_resource;
 
 	now = time(NULL);
 
-	for (; res->r_actions[x].ra_name; x++) {
+       for (; node->rn_actions[x].ra_name; x++) {
 		if (!has_recover &&
-		    !strcmp(res->r_actions[x].ra_name, "recover")) {
+                   !strcmp(node->rn_actions[x].ra_name, "recover")) {
 			has_recover = 1;
 			continue;
 		}
 
-		if (strcmp(res->r_actions[x].ra_name, "status"))
+               if (strcmp(node->rn_actions[x].ra_name, "status"))
 			continue;
 
-		delta = now - res->r_actions[x].ra_last;
+               delta = now - node->rn_actions[x].ra_last;
 
 		/* Ok, it's a 'monitor' action. See if enough time has
 		   elapsed for a given type of monitoring action */
-		if (delta < res->r_actions[x].ra_interval)
+               if (delta < node->rn_actions[x].ra_interval)
 			continue;
 
 		if (idx == -1 ||
-		    res->r_actions[x].ra_depth > res->r_actions[idx].ra_depth)
+                   node->rn_actions[x].ra_depth > node->rn_actions[idx].ra_depth)
 			idx = x;
 	}
 
@@ -772,9 +789,9 @@ do_status(resource_node_t *node)
 	if (idx == -1)
 		return 0;
 
-	res->r_actions[idx].ra_last = now;
+       node->rn_actions[idx].ra_last = now;
 	if ((x = res_exec(node, RS_STATUS,
-			  res->r_actions[idx].ra_depth)) == 0)
+                         node->rn_actions[idx].ra_depth)) == 0)
 		return 0;
 
 	if (!has_recover)
@@ -797,13 +814,13 @@ clear_checks(resource_node_t *node)
 
 	now = res->r_started;
 
-	for (; res->r_actions[x].ra_name; x++) {
+       for (; node->rn_actions[x].ra_name; x++) {
 
-		if (strcmp(res->r_actions[x].ra_name, "monitor") &&
-		    strcmp(res->r_actions[x].ra_name, "status"))
+               if (strcmp(node->rn_actions[x].ra_name, "monitor") &&
+                   strcmp(node->rn_actions[x].ra_name, "status"))
 			continue;
 
-		res->r_actions[x].ra_last = now;
+               node->rn_actions[x].ra_last = now;
 	}
 }
 
