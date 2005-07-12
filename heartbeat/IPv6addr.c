@@ -85,12 +85,12 @@
  *
  */
 
-#include <asm/types.h>
+#include <sys/types.h>
+#include <netinet/icmp6.h>
 #include <libgen.h>
 #include <syslog.h>
 #include <clplumbing/cl_log.h>
 #include <libnet.h>
-#include <linux/icmpv6.h>
 
 
 #define PIDDIR "/var/run/"
@@ -138,9 +138,9 @@ const int	UA_REPEAT_COUNT	= 5;
 const int	QUERY_COUNT	= 5;
 
 struct in6_ifreq {
-    struct in6_addr ifr6_addr;
-    __u32 ifr6_prefixlen;
-    unsigned int ifr6_ifindex;
+	struct in6_addr ifr6_addr;
+	uint32_t ifr6_prefixlen;
+	unsigned int ifr6_ifindex;
 };
 
 static int start_addr6(struct in6_addr* addr6, int prefix_len);
@@ -606,22 +606,22 @@ unassign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name)
 int
 is_addr6_available(struct in6_addr* addr6)
 {
-	struct sockaddr_in6	addr;
-	struct icmp6hdr		icmph;
-	u_char			outpack[64];
-	int			icmp_sock;
-	int			ret;
-	struct iovec		iov;
-	u_char			packet[64];
-	struct msghdr		msg;
-	struct in6_addr		local;
+	struct sockaddr_in6		addr;
+	struct libnet_icmpv6_hdr	icmph;
+	u_char				outpack[64];
+	int				icmp_sock;
+	int				ret;
+	struct iovec			iov;
+	u_char				packet[64];
+	struct msghdr			msg;
+	struct in6_addr			local;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
-	icmph.icmp6_type = ICMPV6_ECHO_REQUEST;
-	icmph.icmp6_code = 0;
-	icmph.icmp6_cksum = 0;
-	icmph.icmp6_sequence = htons(0);
-	icmph.icmp6_identifier = 0;
+	icmph.icmp_type = ICMP6_ECHO;
+	icmph.icmp_code = 0;
+	icmph.icmp_sum = 0;
+	icmph.seq = htons(0);
+	icmph.id = 0;
 
 	memcpy(&outpack, &icmph, sizeof(icmph));
 
