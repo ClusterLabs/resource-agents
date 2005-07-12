@@ -603,26 +603,30 @@ unassign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name)
 	close (fd);
 	return 0;
 }
+
+#define	MINPACKSIZE	64
 int
 is_addr6_available(struct in6_addr* addr6)
 {
 	struct sockaddr_in6		addr;
 	struct libnet_icmpv6_hdr	icmph;
-	u_char				outpack[64];
+	u_char				outpack[MINPACKSIZE];
 	int				icmp_sock;
 	int				ret;
 	struct iovec			iov;
-	u_char				packet[64];
+	u_char				packet[MINPACKSIZE];
 	struct msghdr			msg;
 	struct in6_addr			local;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	memset(&icmph, 0, sizeof(icmph));
 	icmph.icmp_type = ICMP6_ECHO;
 	icmph.icmp_code = 0;
 	icmph.icmp_sum = 0;
 	icmph.seq = htons(0);
 	icmph.id = 0;
 
+	memset(&outpack, 0, sizeof(outpack));
 	memcpy(&outpack, &icmph, sizeof(icmph));
 
 	memset(&addr, 0, sizeof(struct sockaddr_in6));
@@ -630,7 +634,8 @@ is_addr6_available(struct in6_addr* addr6)
 	addr.sin6_port = htons(IPPROTO_ICMPV6);
 	memcpy(&addr.sin6_addr,addr6,sizeof(struct in6_addr));
 
-	ret = sendto(icmp_sock, (char *)outpack, 64, 0,
+	/* Only the first 8 bytes of outpack are meaningful... */
+	ret = sendto(icmp_sock, (char *)outpack, sizeof(outpack), 0,
 			   (struct sockaddr *) &addr,
 			   sizeof(struct sockaddr_in6));
 	if (0 >= ret) {
@@ -638,7 +643,7 @@ is_addr6_available(struct in6_addr* addr6)
 	}
 
 	iov.iov_base = (char *)packet;
-	iov.iov_len = 64; /* This should be a system #define */
+	iov.iov_len = sizeof(packet); 
 
 	msg.msg_name = &addr;
 	msg.msg_namelen = sizeof(addr);
