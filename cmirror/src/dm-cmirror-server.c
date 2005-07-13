@@ -100,6 +100,9 @@ static int read_header(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
+	if (!log->disk_bits)
+		return 0;
+
 	r = dm_io_sync_vm(1, &log->header_location, READ,
 			  log->disk_header, &ebits);
 	if (unlikely(r))
@@ -125,6 +128,9 @@ static int read_header(struct log_c *log)
 static inline int write_header(struct log_c *log)
 {
 	unsigned long ebits;
+
+	if (!log->disk_bits)
+		return 0;
 
 	header_to_disk(&log->header, log->disk_header);
 	return dm_io_sync_vm(1, &log->header_location, WRITE,
@@ -166,6 +172,9 @@ static int read_bits(struct log_c *log)
 	int r;
 	unsigned long ebits;
 
+	if (!log->disk_bits)
+		return 0;
+
 	r = dm_io_sync_vm(1, &log->bits_location, READ,
 			  log->disk_bits, &ebits);
 
@@ -181,6 +190,9 @@ static int write_bits(struct log_c *log)
 {
 	unsigned long ebits;
 	
+	if (!log->disk_bits)
+		return 0;
+
 	bits_to_disk(log->clean_bits, log->disk_bits,
 		     log->bitset_uint32_count);
 	

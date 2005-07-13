@@ -105,9 +105,9 @@ static int core_ctr(struct dirty_log *log, struct dm_target *ti,
 		DMWARN("Couldn't allocate core log");
 		return -ENOMEM;
 	}
+	memset(lc, 0, sizeof(*lc));
 
 	lc->ti = ti;
-	lc->touched = 0;
 	lc->region_size = region_size;
 	lc->region_count = region_count;
 	lc->sync = sync;
@@ -603,18 +603,13 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 		return -EINVAL;
 	}
 
-/*
-	for(error = 0; error < argc; error++){
-		printk("argv[%d] = %s\n", error, argv[error]);
-	}
-	error = 0;
-*/
 	paranoid = strcmp(argv[0], "paranoid") ? 0 : 1;
 
 	if(!strcmp(argv[paranoid], "none")){
-		/* ATTENTION -- set type to core */
-		return -EINVAL;
-		core_ctr(log, ti, (argc - 1)-paranoid, (argv + 1) + paranoid);
+		if ((error = core_ctr(log, ti, (argc - 1)-paranoid, (argv + 1) + paranoid))) {
+			DMWARN("Cluster mirror:: core_ctr failed");
+			return error;
+		}
 	} else {
 		/* ATTENTION -- set type to disk */
 		/* NOTE -- we take advantage of the fact that disk_ctr does **
@@ -691,7 +686,10 @@ static void cluster_dtr(struct dirty_log *log)
 	if(lc->server_id == my_id)
 		consult_server(lc, 0, LRT_MASTER_LEAVING, NULL);
 	sock_release(lc->client_sock);
-	disk_dtr(log);
+	if (lc->disk_bits) 
+		disk_dtr(log);
+	else
+		core_dtr(log);
 }
 
 static int cluster_presuspend(struct dirty_log *log)
@@ -1013,14 +1011,14 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 		if(lc->paranoid)
 			arg_count++;
 
-                DMEMIT("%s %u %s%s%s ",
-		       log->type->name,                    /* NAME */
-                       arg_count,                          /* # OF ARGS */
-		       (lc->paranoid)? "paranoid ": "",    /* paranoid mode */
-		       lc->log_dev->name,                  /* THE LOG DEVICE */
-		       (lc->log_dev_failed)? " D" : " A"); /* LOG DEVICE LIVENESS */
-		if (lc->sync != DEFAULTSYNC)
-			DMEMIT("%ssync ", lc->sync == NOSYNC ? "no" : "");
+		if (lc->disk_bits)
+			DMEMIT("3 %s %s %c",
+			       log->type->name,                  /* NAME */
+			       lc->log_dev->name,                /* THE LOG DEVICE */
+			       (lc->log_dev_failed)? 'D' : 'A'); /* LOG DEVICE LIVENESS */
+		else
+			DMEMIT("1 cluster");
+
                 break;
 
         case STATUSTYPE_TABLE:
