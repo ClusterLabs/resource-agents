@@ -108,6 +108,8 @@ struct log_c {
 	 * Disk log fields
 	 */
 	int log_dev_failed;
+	atomic_t suspended;
+	struct completion failure_completion;
 	struct dm_dev *log_dev;
 	struct log_header header;
 

@@ -194,6 +194,7 @@ static int disk_ctr(struct dirty_log *log, struct dm_target *ti,
 	lc = (struct log_c *) log->context;
 	lc->log_dev = dev;
 	lc->log_dev_failed = 0;
+	init_completion(&lc->failure_completion);
 
 	/* setup the disk header fields */
 	lc->header_location.bdev = lc->log_dev->bdev;
@@ -693,16 +694,31 @@ static void cluster_dtr(struct dirty_log *log)
 	disk_dtr(log);
 }
 
-
-static int cluster_suspend(struct dirty_log *log){
+static int cluster_presuspend(struct dirty_log *log)
+{
 	struct log_c *lc = (struct log_c *) log->context;
-	atomic_set(&(lc->suspend), 1);
+
+	atomic_set(&lc->suspended, 1);
+	complete(&lc->failure_completion);
+
+	return 0;
+}
+
+static int cluster_postsuspend(struct dirty_log *log){
+	struct log_c *lc = (struct log_c *) log->context;
+
+	/* FLUSH ALL OUTSTANDING REQUESTS */
+	atomic_set(&lc->suspend, 1);
+
 	return 0;
 }
 
 static int cluster_resume(struct dirty_log *log){
 	struct log_c *lc = (struct log_c *) log->context;
+
+	atomic_set(&lc->suspended, 0);
 	atomic_set(&(lc->suspend), 0);
+
 	return 0;
 }
 
@@ -822,6 +838,14 @@ static void cluster_mark_region(struct dirty_log *log, region_t region)
 		DMWARN("unable to get server (%u) to mark region (%Lu)",
 		       lc->server_id, region);
 		DMWARN("Reason :: %d", error);
+	}
+
+	if (lc->log_dev_failed) {
+		DMERR("Write failed on mirror log device, %s",
+		      lc->log_dev->name);
+		dm_table_event(lc->ti->table);
+		if (!atomic_read(&lc->suspended))
+			wait_for_completion(&lc->failure_completion);
 	}
 	return;
 }
@@ -944,7 +968,6 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 {
 	int sz = 0;
 	int arg_count=2;
-	char buffer[18];
 	struct log_c *lc = (struct log_c *) log->context;
 	struct region_state *rs;
 	int i=0, j=0;
@@ -990,15 +1013,12 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 		if(lc->paranoid)
 			arg_count++;
 
-		format_dev_t(buffer, lc->log_dev->bdev->bd_dev);
-
-                DMEMIT("%s %u %s%s%s " SECTOR_FORMAT " ",
-		       log->type->name,                   /* NAME */
-                       arg_count,                         /* # OF ARGS */
-		       (lc->paranoid)? "paranoid ": "",   /* paranoid mode */
-		       buffer,                            /* THE LOG DEVICE */
-		       (lc->log_dev_failed)? "/D" : "/A", /* LOG DEVICE LIVENESS */
-		       lc->region_size);                  /* REGION SIZE */
+                DMEMIT("%s %u %s%s%s ",
+		       log->type->name,                    /* NAME */
+                       arg_count,                          /* # OF ARGS */
+		       (lc->paranoid)? "paranoid ": "",    /* paranoid mode */
+		       lc->log_dev->name,                  /* THE LOG DEVICE */
+		       (lc->log_dev_failed)? " D" : " A"); /* LOG DEVICE LIVENESS */
 		if (lc->sync != DEFAULTSYNC)
 			DMEMIT("%ssync ", lc->sync == NOSYNC ? "no" : "");
                 break;
@@ -1009,12 +1029,11 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 		if(lc->paranoid)
 			arg_count++;
 
-		format_dev_t(buffer, lc->log_dev->bdev->bd_dev);
                 DMEMIT("%s %u %s%s " SECTOR_FORMAT " ",
 		       log->type->name,                 /* NAME */
                        arg_count,                       /* # OF ARGS */
 		       (lc->paranoid)? "paranoid ": "", /* paranoid mode */
-		       buffer,                          /* THE LOG DEVICE */
+		       lc->log_dev->name,               /* THE LOG DEVICE */
 		       lc->region_size);                /* REGION SIZE */
 		if (lc->sync != DEFAULTSYNC)
 			DMEMIT("%ssync ", lc->sync == NOSYNC ? "no" : "");
@@ -1115,7 +1134,8 @@ static struct dirty_log_type _cluster_type = {
 	.module = THIS_MODULE,
 	.ctr = cluster_ctr,
 	.dtr = cluster_dtr,
-	.postsuspend = cluster_suspend,
+	.presuspend = cluster_presuspend,
+	.postsuspend = cluster_postsuspend,
 	.resume = cluster_resume,
 	.get_region_size = cluster_get_region_size,
 	.is_clean = cluster_is_clean,

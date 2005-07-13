@@ -274,17 +274,6 @@ static int print_zero_bits(unsigned char *str, int offset, int bit_count){
 	return count;
 }
 
-static void fail_log_device(struct log_c *lc)
-{
-	lc->log_dev_failed = 1;
-	dm_table_event(lc->ti->table);
-}
-
-static void restore_log_device(struct log_c *lc)
-{
-	lc->log_dev_failed = 0;
-}
-
 static int disk_resume(struct log_c *lc)
 {
 	int r;
@@ -305,13 +294,14 @@ static int disk_resume(struct log_c *lc)
 
 	/* read the disk header */
 	i = 1;
-	if ((r = read_header(lc)) || (i = 0) || (r = read_bits(lc))) {
+	if (!lc->log_dev_failed &&
+	    ((r = read_header(lc)) || (i = 0) || (r = read_bits(lc)))) {
 		if (r == -EINVAL)
 			return r;
 
 		DMWARN("Read %s failed on mirror log device, %s",
 		       i ? "header" : "bits", lc->log_dev->name);
-		fail_log_device(lc);
+		lc->log_dev_failed = 1;
 		lc->header.nr_regions = 0;
 	}
 
@@ -411,12 +401,10 @@ static int disk_resume(struct log_c *lc)
 	if ((r = write_bits(lc)) || (i = 0) || (r = write_header(lc))) {
 		DMWARN("Write %s failed on mirror log device, %s.",
 		       i ? "bits" : "header", lc->log_dev->name);
-		fail_log_device(lc);
+		lc->log_dev_failed = 1;
 	} else 
-		restore_log_device(lc);
-/* ATTENTION -- fixme 
-	atomic_set(&lc->suspended, 0);
-*/
+		lc->log_dev_failed = 0;
+
 	return r;
 }
 
@@ -494,14 +482,11 @@ static int server_mark_region(struct log_c *lc, struct log_request *lr, uint32_t
 		list_add(&new->ru_list, &lc->region_users);
 		if (!r) {
 			lc->touched = 0;
-			restore_log_device(lc);
+			lc->log_dev_failed = 0;
 		} else {
-			DMERR("Write bits failed on mirror log device, %s",
-			      lc->log_dev->name);
-			/* ATTENTION -- need to halt here 
-			if (!atomic_read(&lc->suspended))
-				wait_for_completion(&lc->failure_completion);
-			*/
+			DMERR("Mark region failed (%d) on mirror log device, %s",
+			      r, lc->log_dev->name);
+			lc->log_dev_failed = 1;
 		}
 	} else if (ru->ru_rw == RU_RECOVER) {
 		DMERR("Attempt to mark a region " SECTOR_FORMAT "which is being recovered.",
@@ -530,26 +515,19 @@ static int server_clear_region(struct log_c *lc, struct log_request *lr, uint32_
 
 	ru = find_ru(lc, who, lr->u.lr_region);
 	if(!ru){
-		DMWARN("request to remove unrecorded region user (%u/%Lu)",
+		DMERR("Request to remove unrecorded region user (%u/%Lu)",
 		       who, lr->u.lr_region);
-		/*
-		** ATTENTION -- may not be there because it is trying to clear **
-		** a region it is resyncing, not because it marked it.  Need   **
-		** more care ? */
-		/*return -EINVAL;*/
+		return -EINVAL;
 	} else if (ru->ru_rw != RU_RECOVER) {
 		list_del(&ru->ru_list);
 		mempool_free(ru, region_user_pool);
-	} else {
-		DMWARN("Clearing recovering region...");
 	}
 
 	if(!find_ru_by_region(lc, lr->u.lr_region)){
 		log_set_bit(lc, lc->clean_bits, lr->u.lr_region);
-		if (!write_bits(lc)) {
+		if (write_bits(lc))
 			DMERR("Write bits failed on mirror log device, %s",
 			      lc->log_dev->name);
-		}
 	}
 	return 0;
 }
@@ -566,7 +544,7 @@ static int server_get_resync_work(struct log_c *lc, struct log_request *lr, uint
 	
 	if ((lr->u.lr_int_rtn = _core_get_resync_work(lc, &(lr->u.lr_region_rtn)))){
 		new->ru_nodeid = who;
-		new->ru_region = lr->u.lr_region;
+		new->ru_region = lr->u.lr_region_rtn;
 		new->ru_rw = RU_RECOVER;
 		list_add(&new->ru_list, &lc->region_users);
 	} else {
@@ -966,7 +944,7 @@ static int cluster_log_serverd(void *data){
 			kcl_start_done(local_id, restart_event_id);
 			restart_event_id = restart_event_type = 0;
 		}
-		
+
 		if(process_log_request(sock)){
 			DMINFO("process_log_request:: failed");
 			/* ATTENTION -- what to do with error ? */
