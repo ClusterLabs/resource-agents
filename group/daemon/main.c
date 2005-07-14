@@ -56,35 +56,35 @@ static void group_action(group_t *g, char *buf)
 
 	log_group(g, "%s", buf);
 
-	rv = write(client[g->client].fd, buf, MAXLINE);
-	if (rv != MAXLINE)
+	rv = write(client[g->client].fd, buf, GROUPD_MSGLEN);
+	if (rv != GROUPD_MSGLEN)
 		log_print("write error %d errno %d", rv, errno);
 }
 
 void group_terminate(group_t *g)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	snprintf(buf, sizeof(buf), "terminate %s", g->name);
 	group_action(g, buf);
 }
 
 void group_stop(group_t *g)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	snprintf(buf, sizeof(buf), "stop %s", g->name);
 	group_action(g, buf);
 }
 
 void group_setid(group_t *g)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	snprintf(buf, sizeof(buf), "set_id %s %u", g->name, g->global_id);
 	group_action(g, buf);
 }
 
 void group_start(group_t *g, int *memb, int count, int event_nr, int type)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	int i, len;
 
 	clear_bit(GFL_STOPPED, &g->flags);
@@ -97,7 +97,7 @@ void group_start(group_t *g, int *memb, int count, int event_nr, int type)
 
 void group_finish(group_t *g, int event_nr)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	snprintf(buf, sizeof(buf), "finish %s %d", g->name, event_nr);
 	group_action(g, buf);
 }
@@ -321,21 +321,23 @@ static int client_process_dump(int ci, int argc, char **argv)
 
 static int client_process(int ci)
 {
-	char buf[MAXLINE], *argv[MAXARGS], *cmd;
+	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *cmd;
 	int argc = 0, rv;
 
-	memset(buf, 0, MAXLINE);
+	memset(buf, 0, sizeof(buf));
 
-	rv = read(client[ci].fd, buf, MAXLINE);
+	rv = read(client[ci].fd, buf, GROUPD_MSGLEN);
 	if (!rv) {
 		client_dead(ci);
 		return 0;
 	}
-	if (rv < 0) {
+	if (rv != GROUPD_MSGLEN) {
 		log_print("client %d fd %d read error %d %d", ci,
 			  client[ci].fd, rv, errno);
 		return 0;
 	}
+
+	/* log_debug("got %d bytes from client %d \"%s\"", rv, ci, buf); */
 
 	make_args(buf, &argc, argv, ' ');
 	cmd = argv[0];
@@ -373,7 +375,7 @@ static int client_process(int ci)
 		client_process_dump(ci, argc, argv);
 
 	else
-		log_print("unknown cmd %s client %d", cmd, ci);
+		log_print("unknown cmd \"%s\" client %d bytes %d", cmd, ci, rv);
 
 	return 0;
 }

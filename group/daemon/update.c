@@ -706,11 +706,16 @@ int process_updates(void)
 	group_t *g;
 	int rv = 0;
 
+	/*
+	if (recoveries_exist())
+		goto out;
+	*/
+
 	list_for_each_entry(g, &gd_groups, list) {
 		if (test_bit(GFL_UPDATE, &g->flags))
 			rv += process_one_update(g);
 	}
-
+ out:
 	return rv;
 }
 

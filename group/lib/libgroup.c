@@ -36,7 +36,6 @@
 
 #define LIBGROUP_MAGIC	0x67727570
 #define MAXARGS		100  /* FIXME */
-#define MAXLINE		256
 
 #define VALIDATE_HANDLE(h) \
 do { \
@@ -65,6 +64,23 @@ static void make_args(char *buf, int *argc, char **argv, char sep)
 	*argc = i;
 }
 
+static int do_write(int fd, void *buf, size_t count)
+{
+	int rv, off = 0;
+
+ again:
+	rv = write(fd, buf + off, count);
+	if (rv < 0)
+		return rv;
+
+	if (rv != count) {
+		count -= rv;
+		off += rv;
+		goto again;
+	}
+	return 0;
+}
+
 struct group_handle
 {
 	int magic;
@@ -77,9 +93,8 @@ struct group_handle
 
 static int _joinleave(group_handle_t handle, char *name, char *info, char *cmd)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	char ibuf[GROUP_INFO_LEN];
-	int rv;
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
@@ -93,10 +108,7 @@ static int _joinleave(group_handle_t handle, char *name, char *info, char *cmd)
 	} else
 		snprintf(buf, sizeof(buf), "%s %s", cmd, name);
 
-	rv = write(h->fd, buf, strlen(buf));
-	if (rv != strlen(buf))
-		return -1;
-	return 0;
+	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
 int group_join(group_handle_t handle, char *name, char *info)
@@ -111,34 +123,26 @@ int group_leave(group_handle_t handle, char *name, char *info)
 
 int group_stop_done(group_handle_t handle, char *name)
 {
-	char buf[MAXLINE];
-	int rv;
+	char buf[GROUPD_MSGLEN];
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "stop_done %s", name);
 
-	rv = write(h->fd, buf, strlen(buf));
-	if (rv != strlen(buf))
-		return -1;
-	return 0;
+	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
 int group_start_done(group_handle_t handle, char *name, int event_nr)
 {
-	char buf[MAXLINE];
-	int rv;
+	char buf[GROUPD_MSGLEN];
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "start_done %s %d", name, event_nr);
 
-	rv = write(h->fd, buf, strlen(buf));
-	if (rv != strlen(buf))
-		return -1;
-	return 0;
+	return do_write(h->fd, buf, GROUPD_MSGLEN);
 }
 
 static int connect_groupd(void)
@@ -169,7 +173,7 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 			  group_callbacks_t *cbs)
 {
 	struct group_handle *h;
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	int rv, saved_errno;
 
 	h = malloc(sizeof(struct group_handle));
@@ -189,7 +193,7 @@ group_handle_t group_init(void *private, char *prog_name, int level,
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "setup %s %d", prog_name, level);
 
-	rv = write(h->fd, &buf, strlen(buf));
+	rv = do_write(h->fd, &buf, GROUPD_MSGLEN);
 	if (rv < 0)
 		goto fail;
 
@@ -223,14 +227,16 @@ int group_get_fd(group_handle_t handle)
 
 int group_dispatch(group_handle_t handle)
 {
-	char buf[MAXLINE], *argv[MAXARGS], *act;
+	char buf[GROUPD_MSGLEN], *argv[MAXARGS], *act;
 	int argc, rv, i, count, *nodeids;
 	struct group_handle *h = (struct group_handle *) handle;
 	VALIDATE_HANDLE(h);
 
 	memset(buf, 0, sizeof(buf));
 
-	rv = read(h->fd, &buf, sizeof(buf));
+	rv = read(h->fd, &buf, GROUPD_MSGLEN);
+
+	/* FIXME: check rv */
 
 	make_args(buf, &argc, argv, ' ');
 	act = argv[0];
@@ -262,7 +268,7 @@ int group_dispatch(group_handle_t handle)
 
 int group_get_groups(int max, int *count, group_data_t *data)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
 	group_data_t empty;
 	int fd, rv, maxlen;
 
@@ -274,7 +280,7 @@ int group_get_groups(int max, int *count, group_data_t *data)
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "get_groups %d", max);
 
-	rv = write(fd, &buf, strlen(buf));
+	rv = do_write(fd, &buf, GROUPD_MSGLEN);
 	if (rv < 0)
 		goto out;
 
@@ -296,7 +302,8 @@ int group_get_groups(int max, int *count, group_data_t *data)
 
 int group_get_group(int level, char *name, group_data_t *data)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
+	char data_buf[sizeof(group_data_t)];
 	int fd, rv, len;
 
 	fd = connect_groupd();
@@ -306,11 +313,15 @@ int group_get_group(int level, char *name, group_data_t *data)
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "get_group %d %s", level, name);
 
-	rv = write(fd, &buf, strlen(buf));
+	rv = do_write(fd, &buf, GROUPD_MSGLEN);
 	if (rv < 0)
 		goto out;
 
-	rv = read(fd, data, sizeof(group_data_t));
+	rv = read(fd, &data_buf, sizeof(data_buf));
+
+	/* FIXME: check rv */
+
+	memcpy(data, data_buf, sizeof(group_data_t));
 	rv = 0;
  out:
 	close(fd);
@@ -319,7 +330,8 @@ int group_get_group(int level, char *name, group_data_t *data)
 
 static int _info(int level, char *name, int nodeid, char *info, char *cmd)
 {
-	char buf[MAXLINE];
+	char buf[GROUPD_MSGLEN];
+	char info_buf[GROUP_INFO_LEN];
 	int fd, rv, len;
 
 	fd = connect_groupd();
@@ -329,22 +341,20 @@ static int _info(int level, char *name, int nodeid, char *info, char *cmd)
 	memset(buf, 0, sizeof(buf));
 	snprintf(buf, sizeof(buf), "%s %d %s %d", cmd, level, name, nodeid);
 
-	rv = write(fd, buf, strlen(buf));
-	if (rv != strlen(buf)) {
-		rv = -1;
+	rv = do_write(fd, buf, GROUPD_MSGLEN);
+	if (rv < 0)
 		goto out;
-	}
 
-	memset(buf, 0, sizeof(buf));
+	memset(info_buf, 0, GROUP_INFO_LEN);
 
-	rv = read(fd, buf, sizeof(buf));
+	rv = read(fd, info_buf, GROUP_INFO_LEN);
 	if (rv != GROUP_INFO_LEN) {
 		rv = -1;
 		goto out;
 	}
 
+	memcpy(info, info_buf, GROUP_INFO_LEN);
 	rv = 0;
-	memcpy(info, buf, GROUP_INFO_LEN);
  out:
 	close(fd);
 	return rv;

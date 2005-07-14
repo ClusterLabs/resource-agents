@@ -1304,6 +1304,11 @@ int process_joinleave(void)
 	event_t *ev, *safe;
 	int rv = 0, delay_pending = 0;
 
+	/*
+	if (recoveries_exist())
+		goto out;
+	*/
+
 	list_for_each_entry_safe(ev, safe, &joinleave_events, list) {
 		if (!needs_work(ev))
 			continue;
@@ -1322,7 +1327,7 @@ int process_joinleave(void)
 			delay_pending++;
 	}
 	gd_event_delays = delay_pending;
-
+ out:
 	return rv;
 }
 

@@ -35,6 +35,11 @@ void init_recovery(void)
 	INIT_LIST_HEAD(&recoveries);
 }
 
+int recoveries_exist(void)
+{
+	return !list_empty(&recoveries);
+}
+
 /*
  * Given some number of dead nodes, flag SG's the dead nodes were part of.
  * This requires a number of loops because each node structure does not keep a
@@ -400,3 +405,4 @@ void process_recover_msg(msg_t *msg, int nodeid)
 	list_add_tail(&rev->list, &recoveries);
 	pre_recover_group(g, rev);
 }
+

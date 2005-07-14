@@ -44,7 +44,6 @@
 #define MAX_LEVELS		(4)
 #define MAX_NODES		(256)
 #define MAXARGS			(100)  /* FIXME */
-#define MAXLINE			(256)
 #define MAXCON			(16)
 #define NALLOC			(16)
 #define RETRY_DELAY		(2)
@@ -377,6 +376,7 @@ void cancel_updates(int *effected);
 void process_recover_msg(msg_t *msg, int nodeid);
 void process_nodechange(void);
 int process_recoveries(void);
+int recoveries_exist(void);
 
 /* done.c */
 int do_stopdone(char *name, int level);

@@ -15,6 +15,7 @@
 #define __GROUPD_DOT_H__
 
 #define GROUPD_SOCK_PATH        ("groupd_socket")
+#define GROUPD_MSGLEN		(256)
 #define NODE_FAILED		(1)
 #define NODE_JOIN		(2)
 #define NODE_LEAVE		(3)
