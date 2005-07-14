@@ -449,7 +449,7 @@ static int dlm_open(struct inode *inode, struct file *file)
 	init_waitqueue_head(&f->fi_wait);
 	f->fi_ls = lsinfo;
 	f->fi_flags = 0;
-	get_file_info(&f);
+	get_file_info(f);
 	set_bit(1, &f->fi_flags);
 
 	file->private_data = f;
