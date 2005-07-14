@@ -87,10 +87,10 @@ node2 and node3> modprobe lock_dlm
 
 - run the following commands
 
-node1> gnbd_serv
+node1> gnbd_serv -n
 node1> gnbd_export -c -d /dev/sda1 -e global_disk
 
-node2 and node3> gnbd_import -i node1
+node2 and node3> gnbd_import -n -i node1
 node2 and node3> ccsd
 node2 and node3> cman_tool join
 node2 and node3> fence_tool join
