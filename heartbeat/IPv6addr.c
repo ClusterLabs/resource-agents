@@ -184,7 +184,8 @@ main(int argc, char* argv[])
 	signal(SIGTERM, byebye);
 
 	/* open system log */
-	openlog(APP_NAME, LOG_CONS | LOG_PID, LOG_USER);
+	cl_log_set_entity(APP_NAME);
+	cl_log_set_facility(LOG_DAEMON);
 
 	/* the meta-data dont need any parameter */
 	if (0 == strncmp(META_DATA_CMD, argv[1], strlen(META_DATA_CMD))) {
@@ -194,6 +195,10 @@ main(int argc, char* argv[])
 
 	/* check the OCF_RESKEY_ipv6addr parameter, should be a IPv6 address */
 	ipv6addr = getenv("OCF_RESKEY_ipv6addr");
+	if (ipv6addr == NULL) {
+		usage(argv[0]);
+		return OCF_ERR_ARGS;
+	}
 	if ((cp = strchr(ipv6addr, '/'))) {
 		prefix_len = atol(cp + 1);
 		if ((prefix_len < 0) || (prefix_len > 128)) {
@@ -616,7 +621,6 @@ is_addr6_available(struct in6_addr* addr6)
 	struct iovec			iov;
 	u_char				packet[MINPACKSIZE];
 	struct msghdr			msg;
-	struct in6_addr			local;
 
 	icmp_sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	memset(&icmph, 0, sizeof(icmph));
@@ -654,10 +658,6 @@ is_addr6_available(struct in6_addr* addr6)
 
 	ret = recvmsg(icmp_sock, &msg, MSG_DONTWAIT);
 	if (0 >= ret) {
-		return -1;
-	}
-	inet_pton(AF_INET6, "::1", &local);
-	if (0 != memcmp(&local, &addr.sin6_addr,sizeof(local))) {
 		return -1;
 	}
 	
