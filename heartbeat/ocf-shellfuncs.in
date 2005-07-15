@@ -1,5 +1,5 @@
 #
-# 	$Id: ocf-shellfuncs.in,v 1.16 2005/06/19 05:02:12 alan Exp $
+# 	$Id: ocf-shellfuncs.in,v 1.17 2005/07/15 16:36:14 alan Exp $
 #
 # 	Common helper functions for the OCF Resource Agents supplied by
 # 	heartbeat.
@@ -73,7 +73,7 @@ __ocf_set_defaults() {
 	fi
 
 	if [ -z "$OCF_ROOT" ]; then
-		: ${OCF_ROOT=@libdir@/ocf}
+		: ${OCF_ROOT=@OCF_ROOT_DIR@}
 	fi
 	if [ ! -d "$OCF_ROOT" ]; then
 		ha_log "ERROR: OCF_ROOT points to non-directory $OCF_ROOT."
