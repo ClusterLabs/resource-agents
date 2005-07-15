@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: LinuxSCSI.in,v 1.2 2005/07/15 08:54:08 sunjd Exp $
 # 
 # LinuxSCSI
 #
@@ -9,9 +9,9 @@
 #
 #
 # Author:	Alan Robertson
-#		Support: linux-ha-dev@lists.tummy.com
-# License:	GNU Lesser General Public License (LGPL)
-# Copyright:	(C) 2002 IBM
+#		Support: linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2002 - 2005 IBM
 #
 # CAVEATS:	See the usage message for some important warnings
 #
@@ -101,7 +101,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: LinuxSCSI.in,v 1.2 2005/07/15 08:54:08 sunjd Exp $
 	!
 }
 
@@ -166,6 +166,7 @@ parseinst() {
 	target=error
 	lun=error
 	echo "Invalid SCSI instance $1" >&2
+	ocf_log err "Invalid SCSI instance $1"
   esac
   host=`echo "$1" | cut -d: -f1`
   channel=`echo "$1" | cut -d: -f2`
@@ -182,10 +183,11 @@ scsi_start() {
   if
     scsi_status "$1"
   then
-    return 0
+    return $OCF_SUCCESS
   else
     echo "ERROR: SCSI device $1 not active!"
-    return 1
+    ocf_log err "SCSI device $1 not active!"
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -201,9 +203,10 @@ scsi_stop() {
     scsi_status "$1"
   then
     echo "ERROR: SCSI device $1 still active!"
-    return 1
+    ocf_log err "SCSI device $1 still active!"
+    return $OCF_ERR_GENERIC
   else
-    return 0
+    return $OCF_SUCCESS
   fi
 }
 
@@ -225,8 +228,9 @@ scsi_status() {
 if
   ( [ $# -eq 0 ] || [ $# -gt 1 ] )
 then
+  ocf_log err "Parameter number error."
   usage
-  exit 1
+  exit $OCF_ERR_GENERIC
 fi
 
 if
@@ -240,8 +244,9 @@ if
   [ -z "$OCF_RESKEY_scsi" ]
 then
   echo "You have to set a valid scsi id at least!"
+  ocf_log err "You have to set a valid scsi id at least!"
   usage
-  exit 1
+  exit $OCF_ERR_GENERIC
 fi
 
 instance=$OCF_RESKEY_scsi
@@ -258,11 +263,13 @@ case $1 in
 	 		if
 			  scsi_status $instance
 			then
-			  echo SCSI device $instance is running
-			  exit 0
+			  echo "SCSI device $instance is running"
+			  ocf_log info "SCSI device $instance is running"
+			  exit $OCF_SUCCESS
 			else
-			  echo SCSI device $instance is stopped
-			  exit 1
+			  echo "SCSI device $instance is stopped"
+			  ocf_log info "SCSI device $instance is stopped"
+			  exit $OCF_NOT_RUNNING
 			fi
 			;;
 #
