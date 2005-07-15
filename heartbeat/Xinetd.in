@@ -10,8 +10,8 @@
 # Description:	given parameters of a service name and start|stop|status,
 #		will enable, disable or report on a specified xinetd service
 # Config:	all services must have a descriptor file in /etc/xinetd.d
-# Support:	Linux-HA mailing list -- http://linux-ha.org/contact/
-# License:	GPL
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_service
@@ -71,13 +71,13 @@ END
 hup_inetd () {
     if [ -s $XPIDFILE ]; then
       if ! kill -HUP `cat $XPIDFILE`; then
-          ocf_log "err" "Could not SigHUP xinetd superdaemon!"
-          ocf_log "perhaps we are booting after a system crash"
+          ocf_log err "Could not SigHUP xinetd superdaemon!"
+          ocf_log err "perhaps we are booting after a system crash"
           exit 2
       fi
     else
-       ocf_log "info" "xinetd superdaemon PID file $XPIDFILE not found!"
-       ocf_log "perhaps we are currently booting the system."
+       ocf_log info "xinetd superdaemon PID file $XPIDFILE not found!"
+       ocf_log info "perhaps we are currently booting the system."
 fi
 }
 
@@ -123,10 +123,11 @@ xup_usage () {
 xup_status () {
   	if [ -f $PIDFILE ]; then
 		echo running
+		return $OCF_SUCCESS
 	else
 		echo stopped
+		return $OCF_NOT_RUNNING
 	fi
-	return 0
 }
 
 if
