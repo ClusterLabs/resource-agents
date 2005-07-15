@@ -11,7 +11,7 @@
 #
 # Support:	linux-ha@lists.linux-ha.org
 #
-# License:	GNU Lesser General Public License (LGPL)
+# License:	GNU General Public License (GPL)
 #
 # Copyright:	(C) 2002-2005 International Business Machines
 #
@@ -75,22 +75,24 @@ usage() {
 usage: $0 action
 
 action:
-	start    start the web server
+	start	start the web server
 
-	stop     stop the web server
+	stop	stop the web server
 
-	status   return the status of web server, run or down
+	status	return the status of web server, run or down
 
 	methods	return the set of commands we support
 
-	monitor  return TRUE if the web server appears to be working.
-                For this to be supported you must configure mod_status
-		 and give it a server-status URL.  You have to have 
-		installed $WGETNAME for this to work.
-                We won't return monitor in the methods call if we don't
-                know think that the monitor call will actually work ;-)
+	monitor	return TRUE if the web server appears to be working.
+	        For this to be supported you must configure mod_status
+	        and give it a server-status URL.  You have to have 
+	        installed $WGETNAME for this to work.
+	        We won't return monitor in the methods call if we don't
+	        know that the monitor call will actually work ;-)
 
-	meta-data show meta data message
+	meta-data	show meta data message
+
+	validate-all	validate the instance parameters
 	!
   exit $OCF_ERR_ARGS
 }
@@ -101,6 +103,8 @@ methods_apache() {
 	stop
 	status
 	methods
+	meta-data
+	validate-all
 	!
   case $HasStatus in
     yes)	echo "monitor";;
@@ -135,10 +139,10 @@ run() {
   fi
 }
 #
-# Strip comments, and initial blanks. Compress other blanks
+# Strip comments, and initial blanks. Compress other blanks. Delete lines of blanks only.
 #
 apachecat() {
-    sed -e 's%#.*%%' -e 's%^[ 	]*%%' -e 's%[ 	]+% %g' $1
+    sed -e 's%#.*%%' -e '/^[ 	]*$/d' -e 's%^[ 	]*%%' -e 's%[ 	]+% %g' $1
 }
 
 #
@@ -183,6 +187,22 @@ FindLocationForHandler() {
   apachecat $1 | perl -e "$PerlScript"
 }
 
+#
+#	Check if the port is valid, this function code is not decent, but works
+#
+CheckPort() {
+#	Examples of valid port: "1080", "1", "0080"
+#	Examples of invalid port: "1080bad", "0", "0000", ""
+  case "$1" in
+    *[^0-9]*) #got invalid char
+	false;;
+    *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
+	true;;
+    *) #empty string, or string of 0's 
+	false;;
+  esac
+}
+
 
 #
 #	Get all the parameters we need from the Apache config file
@@ -195,14 +215,26 @@ GetParams() {
     /*)	;;
     *)	PidFile=$ServerRoot/$PidFile;;
   esac
-  case "$PORT" in
-    [0-9]*)	;;
-    *)	PORT=`apache_param $ConfigFile Port`
-        case "$PORT" in
-          [0-9]*)	;;
-	  *)		PORT=80;;
-        esac;;
-  esac
+#  case "$PORT" in
+#    [0-9]*)	;;
+#    *)	PORT=`apache_param $ConfigFile Port`
+#        case "$PORT" in
+#          [0-9]*)	;;
+#	  *)		PORT=80;;
+#        esac;;
+#    *)
+#  esac
+  if CheckPort "$PORT"; then
+	:
+  else
+	PORT=`apache_param $ConfigFile Port`
+	if CheckPort "$PORT"; then
+	    :
+	else
+	# Final resort
+	    PORT=80
+	fi
+  fi
   if
     WGET=`which $WGETNAME 2>/dev/null`
   then
@@ -330,7 +362,7 @@ stop_apache() {
       echo "$CMD stopped."
     fi
   else
-    echo "$CMD not running."
+    echo "$CMD is not running."
     ocf_log info "$CMD is not running."
   fi
 }
@@ -368,7 +400,7 @@ metadata_apache(){
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="apache" version="1.0">
+<resource-agent name="apache">
 <version>1.0</version>
 
 <parameters>
@@ -419,11 +451,47 @@ Also can get from file.
 <action name="status"  timeout="30" />
 <action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
 <action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="5" />
 </actions>
 </resource-agent>
 END
 
 	exit $OCF_SUCCESS
+}
+
+validate_all_apache() {
+  if [ ! -f $CONFIGFILE ]; then
+# We are sure to succeed here, since we have parsed $CONFIGFILE before getting here
+	ocf_log err "Configuration file $CONFIGFILE not found!"
+	exit $OCF_ERR_ARGS
+  fi
+
+  if [ ! -x $HTTPD ]; then
+	ocf_log err "HTTPD $HTTPD not found or is not an executable!"
+	exit $OCF_ERR_ARGS
+  fi
+
+  if CheckPort $PORT; then
+# We are sure to succeed here, since we forced $PORT to be valid in GetParams()
+	: OK
+  else
+	ocf_log err "Port number $PORT is invalid!"
+	exit $OCF_ERR_ARGS
+  fi
+
+  if [ -z $STATUSURL ]; then
+	: OK to be empty
+  else
+	case $STATUSURL in
+	    http://*/*.*) ;;
+	    *) 
+	    ocf_log err "Invalid STATUSURL $STATUSURL"
+	    exit $OCF_ERR_ARGS ;;
+	esac
+  fi
+
+  echo "Validate OK"
+  return $OCF_SUCCESS
 }
 
 if
@@ -436,7 +504,7 @@ then
   CONFIGFILE="$OCF_RESKEY_configfile"
 else
   echo "Parameter error."
-  exit $OCF_ERR_ARGS
+  usage
 fi
 
 if
@@ -445,7 +513,9 @@ then
   case $0 in
     *IBM*)	HTTPD=$IBMHTTPD
 		DefaultConfig=$DEFAULT_IBMCONFIG;;
-    *)	for h in $HTTPDLIST
+    *)	
+	HTTPD=
+	for h in $HTTPDLIST
 	do
 	  if
 	    [ -f $h -a -x $h ]
@@ -454,6 +524,14 @@ then
 	    break
 	  fi
 	done
+# It is possible that we still do not have a valid httpd at this stage
+	if [ -z $HTTPD ]; then
+	  ocf_log err "No valid httpd found! Please revise your <HTTPDLIST> item"
+	  exit $OCF_ERR_ARGS
+	fi	
+# Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
+	ocf_log info "Using $HTTPD as HTTPD"
+
 	DefaultConfig=$DEFAULT_NORMCONFIG;;
   esac
 fi
@@ -486,5 +564,6 @@ case $COMMAND in
   methods)	methods_apache;;
   monitor)	monitor_apache;;
   meta-data)	metadata_apache;;
+  validate-all)	validate_all_apache;;
   *)		usage;;
 esac
