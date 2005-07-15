@@ -14,7 +14,7 @@
 #	where "hostfile" is a file containing the IPs/Workstation names
 #	one by line to be sent WinPopups
 #
-# License: GPL
+# License:  GNU General Public License (GPL)
 
 #######################################################################
 # Initialization:
@@ -30,7 +30,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor}"
-  echo "$Id: WinPopup.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $"
+  echo "$Id: WinPopup.in,v 1.2 2005/07/15 09:51:56 sunjd Exp $"
 }
 
 meta_data() {
@@ -77,7 +77,7 @@ sendWinPopup() {
       echo "$subject $*" | smbclient -M $i >/dev/null 2>&1
     done
   else
-    logger -is -t HA-WinPopup "ERROR: Workstation file $hostfile missing or corrupt!"
+    ocf_log err "Workstation file $hostfile missing or corrupt!"
     return 2
   fi
 
