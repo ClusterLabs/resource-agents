@@ -742,23 +742,30 @@ int do_start(struct mountgroup *mg, int type, int member_count, int *nodeids)
 		
 		/* else we wait for a message from an existing member
 		   telling us what jid to use and what jids others
-		   are using; when we get that our mount can complete */
+		   are using; when we get that our mount can complete,
+		   see receive_journals() */
 
 	} else {
 		if (pos)
 			discover_journals(mg);
 
-		if (neg)
-			wait = recover_journals(mg);
-
-		/* FIXME: if we're the first mounter, and we're adding a second
+		/* If we're the first mounter, and we're adding a second
 		   node here, but haven't gotten first_done (others_may_mount)
 		   from gfs yet, then don't do the group_start_done() to
 		   complete adding the second node.  Set wait_first_done=1 to
 		   have first_recovery_done() call group_start_done().
 		 
-		   This also requires that we not block locking on the first
+		   This also requires that we unblock locking on the first
 		   mounter if gfs hasn't done others_may_mount yet. */
+
+		if (pos && mg->first_mount && !mg->first_mount_done) {
+			mg->wait_first_done = 1;
+			set_sysfs(mg, "block", 0);
+			goto out;
+		}
+
+		if (neg)
+			wait = recover_journals(mg);
 
 		if (!wait)
 			group_start_done(gh, mg->name, mg->last_start);
