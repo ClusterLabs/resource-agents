@@ -34,6 +34,7 @@
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
+VARRUN=@localstatedir@/run
 
 . @hb_libdir@/ocf-shellfuncs
 
@@ -44,7 +45,7 @@ exec_prefix=@exec_prefix@
 #######################################################################
 #
 IBMHTTPD=/opt/IBMHTTPServer/bin/httpd
-HTTPDLIST="/sbin/httpd /usr/sbin/httpd"
+HTTPDLIST="/sbin/httpd2 /usr/sbin/httpd2 /sbin/httpd /usr/sbin/httpd $IBMHTTPD"
 WGETNAME=wget
 WGETOPTS="-O- -nv"
 LOCALHOST="http://localhost"
@@ -81,34 +82,16 @@ action:
 
 	status	return the status of web server, run or down
 
-	methods	return the set of commands we support
-
-	monitor	return TRUE if the web server appears to be working.
-	        For this to be supported you must configure mod_status
-	        and give it a server-status URL.  You have to have 
-	        installed $WGETNAME for this to work.
-	        We won't return monitor in the methods call if we don't
-	        know that the monitor call will actually work ;-)
+	monitor  return TRUE if the web server appears to be working.
+                For this to be supported you must configure mod_status
+		 and give it a server-status URL.  You have to have 
+		installed $WGETNAME for this to work.
 
 	meta-data	show meta data message
 
 	validate-all	validate the instance parameters
 	!
   exit $OCF_ERR_ARGS
-}
-
-methods_apache() {
-  cat <<-!
-	start
-	stop
-	status
-	methods
-	meta-data
-	validate-all
-	!
-  case $HasStatus in
-    yes)	echo "monitor";;
-  esac
 }
 
 #
@@ -213,7 +196,7 @@ GetParams() {
   PidFile=`apache_param $ConfigFile PidFile`
   case $PidFile in
     /*)	;;
-    *)	PidFile=$ServerRoot/$PidFile;;
+    *)	PidFile=$VARRUN/${httpd_basename}.pid;;
   esac
 #  case "$PORT" in
 #    [0-9]*)	;;
@@ -533,6 +516,7 @@ then
 	DefaultConfig=$DEFAULT_NORMCONFIG;;
   esac
 fi
+httpd_basename=`basename $HTTPD`
 
 case "$CONFIGFILE" in
   "") CONFIGFILE=$DefaultConfig;;
@@ -559,7 +543,6 @@ case $COMMAND in
   start)	start_apache;;
   stop)		stop_apache;;
   status)	status_apache;;
-  methods)	methods_apache;;
   monitor)	monitor_apache;;
   meta-data)	metadata_apache;;
   validate-all)	validate_all_apache;;
