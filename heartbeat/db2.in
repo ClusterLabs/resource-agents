@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: db2.in,v 1.2 2005/07/15 07:28:08 sunjd Exp $
 # 
 # db2
 #
@@ -9,9 +9,9 @@
 #
 #
 # Author:	Alan Robertson
-#		Support: linux-ha-dev@lists.tummy.com
-# License:	GNU Lesser General Public License (LGPL)
-# Copyright:	(C) 2002 International Business Machines, Inc.
+#		Support: linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
 #
 #		This code inspired by the FailSafe db2 resource script
 #		written by Joachim Gleissner <jg@suse.de>
@@ -48,7 +48,7 @@ usage() {
 	The 'monitor' operation reports whether the database seems to be working
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: db2.in,v 1.2 2005/07/15 07:28:08 sunjd Exp $
 	!
 }
 
@@ -130,7 +130,7 @@ db2info() {
 	if
 	  [ $rc -ne 0 ]
 	then
-	  ocf_log "err" "DB2 instance [$instance] not available"
+	  ocf_log err "DB2 instance [$instance] not available"
 	fi
 	return $rc
 }
@@ -157,9 +157,9 @@ logasdb2() {
 	if
 	  [ $rc -eq 0 ]
 	then
-	  ocf_log "info" "$output"
+	  ocf_log info "$output"
 	else
-	  ocf_log "err" "$output"
+	  ocf_log err "$output"
 	fi
 	return $rc
 }
@@ -173,13 +173,13 @@ db2_start() {
     output=`runasdb2 $db2adm/db2start`
   then
     : Hurray! DB2 started OK
-    ocf_log "info" "DB2 UDB instance $1 started: $output"
+    ocf_log info "DB2 UDB instance $1 started: $output"
   else
     case $output in
       SQL1026N*|*"is already active"*)
-    		ocf_log "info" "DB2 UDB instance $1 already running: $output";;
+    		ocf_log info "DB2 UDB instance $1 already running: $output";;
 
-      *)	ocf_log "err" "$output"; return 1;;
+      *)	ocf_log err "$output"; return 1;;
     esac
   fi
   if
@@ -210,14 +210,14 @@ db2_stop() {
     output=`runasdb2 $db2adm/db2stop force`
   then
     : DB2 stopped OK
-    ocf_log "info" "DB2 UDB instance $1 stopped: $output"
+    ocf_log info "DB2 UDB instance $1 stopped: $output"
   else
     case $output in
 
       SQL1032N*|*"No start database manager command"*)
-		ocf_log "info" "$output";;
+		ocf_log info "$output";;
 
-      *)	ocf_log "err" "DB2 UDB instance $1 stop failed: $output"
+      *)	ocf_log err "DB2 UDB instance $1 stop failed: $output"
 		rc=1;;
     esac
   fi
@@ -275,12 +275,12 @@ db2_monitor() {
     then
       : Command succeeded!
     else
-      ocf_log "err" "DB2 UDB instance $1 DB $DB is not working"
-      ocf_log "err" "DB2 UDB message: $output"
+      ocf_log err "DB2 UDB instance $1 DB $DB is not working"
+      ocf_log err "DB2 UDB message: $output"
       return 1
     fi
   done
-  : ocf_log "info" "All DBs in DB2 UDB instance $1 appear to be working"
+  : ocf_log info "All DBs in DB2 UDB instance $1 appear to be working"
 }
 
 #
@@ -308,7 +308,7 @@ US=`echo $US`
 if
   [ $US != root -a $US != $instance ]
 then
-  ocf_log "err" "$0 must be run as root or $instance"
+  ocf_log err "$0 must be run as root or $instance"
   exit 1
 fi
 
