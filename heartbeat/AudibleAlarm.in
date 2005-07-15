@@ -12,7 +12,7 @@
 #	  OCF parameters are as below:
 #		OCF_RESKEY_nodelist
 #		
-# Licence: GPL
+# License: GNU General Public License (GPL)
 
 #######################################################################
 # Initialization:
@@ -34,7 +34,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.2 2005/07/11 08:57:16 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.3 2005/07/15 07:19:41 sunjd Exp $";
 }
 
 meta_data() {
@@ -74,10 +74,10 @@ END
 }
 
 audiblealarm_start () {
-	ocf_log "info" "$0: Starting"
+	ocf_log info "$0: Starting"
     	if [ -f $PIDFILE ]; then
         	PID=`head -n 1 $PIDFILE`
-		ocf_log "info" "$0: Appears to already be running, killing [$PID]"
+		ocf_log info "$0: Appears to already be running, killing [$PID]"
 		kill $PID > /dev/null
 	fi
 	while [ 1 ]; do 
@@ -88,7 +88,7 @@ audiblealarm_start () {
 		# /usr/bin/floppycontrol --pollstate > /dev/null
 	done&
 	if ! echo $! >  $PIDFILE; then
-		ocf_log "info" "$0: Could not write to pid file \"$PIDFILE\", bailing"
+		ocf_log info "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
 		return $OCF_ERR_GENERIC
 	fi
@@ -97,10 +97,10 @@ audiblealarm_start () {
 }
 
 audiblealarm_stop () {
-	ocf_log "info" "$0: Shutting down"
+	ocf_log info "$0: Shutting down"
   	if [ -f $PIDFILE ]; then
 		PID=`head -n 1 $PIDFILE`
-		# ocf_log "info" "$0: Appears to already be running, killing [$PID]"
+		# ocf_log info "$0: Appears to already be running, killing [$PID]"
 		# commented by Phost, since the confusion in the log.
 
 		# Donnot remove PIDFILE in case the `kill` fails.
