@@ -13,12 +13,6 @@
 
 #include "gd_internal.h"
 
-/*
- * Routines used by nodes that are joining or leaving a SG.  These "sevent"
- * routines initiate membership changes to a SG.  Existing SG members respond
- * using the "uevent" membership update routines.
- */
-
 struct list_head	gd_groups;
 struct list_head	gd_levels[MAX_LEVELS];
 
@@ -57,71 +51,18 @@ event_t *find_event(unsigned int id)
 	return NULL;
 }
 
-static void release_event(event_t *ev)
+static void init_event(event_t *ev)
 {
-	if (ev->len_ids) {
-		free(ev->node_ids);
-		ev->node_ids = NULL;
-	}
-
-	if (ev->len_status) {
-		free(ev->node_status);
-		ev->node_status = NULL;
-	}
-
-	ev->node_count = 0;
-	ev->memb_count = 0;
-	ev->reply_count = 0;
-}
-
-static int init_event(event_t *ev)
-{
-	node_t *node;
-	int len1, len2, count;
-
-	/* clear state from any previous attempt */
-	release_event(ev);
+	int i;
 
 	ev->node_count = gd_member_count;
 	ev->memb_count = ev->group->memb_count;
+	ev->reply_count = 0;
 
-	/*
-	 * When joining, we need a node array the size of the entire cluster
-	 * member list because we get responses from all nodes.  When leaving,
-	 * we only get responses from SG members, so the node array need only
-	 * be that large.
-	 */
-
-	if (ev->state < EST_LEAVE_BEGIN)
-		count = ev->node_count;
-	else
-		count = ev->memb_count;
-
-	len1 = count * sizeof(int);
-	ev->len_ids = len1;
-
-	ev->node_ids = malloc(len1);
-	if (!ev->node_ids)
-		goto fail;
-
-	len2 = count * sizeof(char);
-	ev->len_status = len2;
-
-	ev->node_status = malloc(len2);
-	if (!ev->node_status)
-		goto fail_free;
-
-	memset(ev->node_status, 0, len2);
-	memset(ev->node_ids, 0, len1);
-
-	return 0;
-
- fail_free:
-	free(ev->node_ids);
-	ev->node_ids = NULL;
-	ev->len_ids = 0;
- fail:
-	return -ENOMEM;
+	for (i = 0; i < MAX_NODES; i++) {
+		ev->node_ids[i] = 0;
+		ev->node_status[i] = 0;
+	}
 }
 
 static void event_restart(event_t *ev)
@@ -132,7 +73,7 @@ static void event_restart(event_t *ev)
 static void schedule_event_restart(event_t *ev)
 {
 	set_bit(EFL_DELAY, &ev->flags);
-	ev->restart_time = time() + RETRY_DELAY;
+	ev->restart_time = time(NULL) + RETRY_DELAY;
 }
 
 void free_group_memb(group_t *g)
@@ -161,16 +102,9 @@ static int send_join_notice(event_t *ev)
 	node_t *node;
 	char *mbuf;
 	msg_t *msg;
-	int i = 0, error, len = 0;
+	int i = 0, len = 0;
 
-	/*
-	 * Create node array from member list in which to collect responses.
-	 */
-
-	error = init_event(ev);
-	if (error)
-		goto out;
-
+	init_event(ev);
 	list_for_each_entry(node, &gd_nodes, list) {
 		if (test_bit(NFL_CLUSTER_MEMBER, &node->flags))
 			ev->node_ids[i++] = node->id;
@@ -190,9 +124,7 @@ static int send_join_notice(event_t *ev)
 	memcpy(msg->ms_name, g->name, MAX_NAMELEN);
 
 	clear_bit(EFL_ACKED, &ev->flags);
-	error = send_broadcast_message_ev(mbuf, len, ev);
- out:
-	return error;
+	return send_broadcast_message_ev(mbuf, len, ev);
 }
 
 /*
@@ -279,16 +211,8 @@ static int send_join_stop(event_t *ev)
 			  node->id, ev->node_status[i], g->memb_count);
 	}
 
-	/*
-	 * Re-init the node vector in which to collect responses again.
-	 */
-
-	ev->memb_count = g->memb_count;
-
-	memset(ev->node_status, 0, ev->len_status);
-	memset(ev->node_ids, 0, ev->len_ids);
 	i = 0;
-
+	init_event(ev);
 	list_for_each_entry(node, &g->memb, list)
 		ev->node_ids[i++] = node->id;
 
@@ -371,8 +295,8 @@ static int send_join_start(event_t *ev)
 {
 	group_t *g = ev->group;
 	node_t *node;
-	int *memb;
 	char *mbuf;
+	int memb[MAX_NODES];
 	int error, count = 0, len = 0;
 
 	/*
@@ -386,11 +310,10 @@ static int send_join_start(event_t *ev)
 		goto fail;
 
 	/*
-	 * Start the service ourself.  The chunk of memory with the member ids
-	 * must be freed by the service when it is done with it.
+	 * Start the service ourself.
 	 */
 
-	memb = malloc(g->memb_count * sizeof(int));
+	memset(memb, 0, sizeof(memb));
 
 	list_for_each_entry(node, &g->memb, list)
 		memb[count++] = node->id;
@@ -491,7 +414,6 @@ static void event_done(event_t *ev)
 	group_t *g = ev->group;
 
 	list_del(&ev->list);
-	release_event(ev);
 	free(ev);
 	g->event = NULL;
 }
@@ -629,16 +551,9 @@ static int send_leave_notice(event_t *ev)
 	node_t *node;
 	char *mbuf;
 	msg_t *msg;
-	int i = 0, error = -1, len = 0;
+	int i = 0, len = 0;
 
-	/*
-	 * Create a node array from member list in which to collect responses.
-	 */
-
-	error = init_event(ev);
-	if (error)
-		goto out;
-
+	init_event(ev);
 	list_for_each_entry(node, &g->memb, list)
 		ev->node_ids[i++] = node->id;
 
@@ -651,9 +566,7 @@ static int send_leave_notice(event_t *ev)
 	memcpy(msg->ms_info, g->leave_info, GROUP_INFO_LEN);
 
 	clear_bit(EFL_ACKED, &ev->flags);
-	error = send_members_message_ev(g, mbuf, len, ev);
- out:
-	return error;
+	return send_members_message_ev(g, mbuf, len, ev);
 }
 
 /*
@@ -705,14 +618,13 @@ static int check_leave_notice(event_t *ev)
 static int send_leave_stop(event_t *ev)
 {
 	group_t *g = ev->group;
+	node_t *node;
 	char *mbuf;
-	int error, len = 0;
+	int error, i = 0, len = 0;
 
-	/*
-	 * Re-init the status vector in which to collect responses.
-	 */
-
-	memset(ev->node_status, 0, ev->len_status);
+	init_event(ev);
+	list_for_each_entry(node, &g->memb, list)
+		ev->node_ids[i++] = node->id;
 
 	/*
 	 * Create and send a stop message.
@@ -1023,6 +935,8 @@ static int backout_barrier_wait(event_t *ev)
 	snprintf(bname, MAX_BARRIERLEN, "sm.%u.%u.%u.%u",
 		 g->global_id, gd_nodeid, ev->id, g->memb_count);
 
+	/* FIXME: cancel barrier */
+
 	/* kcl_barrier_cancel(bname); */
 
 	free_group_memb(g);
@@ -1279,11 +1193,7 @@ void backout_events(void)
 int needs_work(event_t *ev)
 {
 	if (test_bit(EFL_DELAY, &ev->flags)) {
-		if (time() >= ev->restart_time) {
-			/*
-			log_group(ev->group, "restart delayed event from %d",
-				  ev->state);
-			*/
+		if (time(NULL) >= ev->restart_time) {
 			clear_bit(EFL_DELAY, &ev->flags);
 			return 1;
 		}
@@ -1304,10 +1214,10 @@ int process_joinleave(void)
 	event_t *ev, *safe;
 	int rv = 0, delay_pending = 0;
 
-	/*
-	if (recoveries_exist())
+	if (recoveries_exist()) {
+		log_debug("skip joinleave for recovery");
 		goto out;
-	*/
+	}
 
 	list_for_each_entry_safe(ev, safe, &joinleave_events, list) {
 		if (!needs_work(ev))
@@ -1326,8 +1236,8 @@ int process_joinleave(void)
 		if (test_bit(EFL_DELAY, &ev->flags))
 			delay_pending++;
 	}
-	gd_event_delays = delay_pending;
  out:
+	gd_event_delays = delay_pending;
 	return rv;
 }
 

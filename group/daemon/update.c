@@ -97,10 +97,8 @@ static int process_join_start(group_t *g)
 {
 	update_t *up = g->update;
 	node_t *node;
-	int *memb;
+	int memb[MAX_NODES];
 	int count = 0;
-
-	memb = malloc((g->memb_count + 1) * sizeof(int));
 
 	/* transfer joining node from joining list to member list */
 	node = find_joiner(g, up->nodeid);
@@ -109,6 +107,7 @@ static int process_join_start(group_t *g)
 	add_memb_node(g, node);
 
 	/* the new member list for the service */
+	memset(memb, 0, sizeof(memb));
 	list_for_each_entry(node, &g->memb, list)
 		memb[count++] = node->id;
 
@@ -244,18 +243,17 @@ static int process_leave_start(group_t *g)
 {
 	update_t *up = g->update;
 	node_t *node;
-	int *memb;
+	int memb[MAX_NODES];
 	int count = 0;
 
 	ASSERT(g->memb_count > 1,
 	       log_error(g, "memb_count=%u", g->memb_count););
 
-	memb = malloc((g->memb_count - 1) * sizeof(int));
-
 	/* remove departed member from sg member list */
 	del_memb_node(g, up->nodeid);
 
 	/* build member list to pass to service */
+	memset(memb, 0, sizeof(memb));
 	list_for_each_entry(node, &g->memb, list)
 		memb[count++] = node->id;
 
@@ -706,10 +704,10 @@ int process_updates(void)
 	group_t *g;
 	int rv = 0;
 
-	/*
-	if (recoveries_exist())
+	if (recoveries_exist()) {
+		log_debug("skip updates for recoveries");
 		goto out;
-	*/
+	}
 
 	list_for_each_entry(g, &gd_groups, list) {
 		if (test_bit(GFL_UPDATE, &g->flags))

@@ -239,18 +239,7 @@ static void process_reply(msg_t *msg, int nodeid)
 	}
 
 	expected = (type == SMSG_JOIN_REP) ? ev->node_count : ev->memb_count;
-
 	ASSERT(expected > 0, );
-
-	ASSERT(expected * sizeof(uint32_t) <= ev->len_ids,
-	       log_print("type=%d expected=%d len_ids=%d node_count=%d "
-			 "memb_count=%d", type, expected, ev->len_ids,
-			 ev->node_count, ev->memb_count););
-
-	ASSERT(expected * sizeof(char) <= ev->len_status,
-	       log_print("type=%d expected=%d len_status=%d node_count=%d "
-			 "memb_count=%d\n", type, expected, ev->len_status,
-			 ev->node_count, ev->memb_count););
 
 	for (i = 0; i < expected; i++) {
 		if (ev->node_ids[i] != nodeid)

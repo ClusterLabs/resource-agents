@@ -166,10 +166,8 @@ struct event {
 	int 			memb_count;
 	int 			reply_count;
 
-	int *			node_ids;
-	char *			node_status;
-	int 			len_ids;	/* length of node_ids */
-	int 			len_status;	/* length of node_status */
+	int			node_ids[MAX_NODES];
+	char			node_status[MAX_NODES];
 
 	int 			barrier_status;
 	unsigned long		restart_time;

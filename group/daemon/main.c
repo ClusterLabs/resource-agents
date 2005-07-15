@@ -337,7 +337,7 @@ static int client_process(int ci)
 		return 0;
 	}
 
-	/* log_debug("got %d bytes from client %d \"%s\"", rv, ci, buf); */
+	log_debug("got %d bytes from client %d \"%s\"", rv, ci, buf);
 
 	make_args(buf, &argc, argv, ' ');
 	cmd = argv[0];
