@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: ServeRAID.in,v 1.2 2005/07/15 09:43:25 sunjd Exp $
 # 
 # ServeRAID
 #
@@ -8,9 +8,9 @@
 #
 # Author:	Alan Robertson, Renzo Alejandro Granados
 #
-# Support:	linux-ha-dev@lists.tummy.com
+# Support:	linux-ha@lists.linux-ha.org
 #
-# License:	GNU Lesser General Public License (LGPL)
+# License:	GNU General Public License (GPL)
 #
 # Copyright:	(C) 2002 International Business Machines
 #		(C) 2002 Renzo Alejandro Granados
@@ -112,7 +112,7 @@ usage() {
 	version becomes available.
 
 
-	$Id: ServeRAID.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: ServeRAID.in,v 1.2 2005/07/15 09:43:25 sunjd Exp $
 	!
 }
 
@@ -187,7 +187,7 @@ parseinst() {
   if
     [ $# -ne 2 ]
   then
-    echo "Invalid ServeRAID instance: $*" >&2
+    ocf_log err "Invalid ServeRAID instance: $*"
     return 1
   fi
   PerlScript='next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/'
@@ -198,14 +198,14 @@ parseinst() {
   if
     [ ! -f "$ServeRAIDSCSI/$hostid" ]
   then
-    echo "No such ServeRAID adapter: $1" >&2
+    ocf_log err "No such ServeRAID adapter: $1"
     hostid=error
     return 2
   fi
     
   case $2 in
     [1-8]);;
-    *)	echo "Invalid Shared Merge Group Number: $2" >&2
+    *)	ocf_log err "Invalid Shared Merge Group Number: $2"
         hostid=error
 	return 3;;
   esac
@@ -282,8 +282,8 @@ CheckRaidLevel() {
   RAIDlevel=`MergeGroupRaidLevel`
   case $RAIDlevel in
     *5*)
-      echo "ERROR: ServeRAID device $sr_adapter $sr_mergegroup is RAID level $RAIDlevel"
-      echo "	This level of ServeRAID RAID is not supported for failover by the firmware."
+      ocf_log err "ServeRAID device $sr_adapter $sr_mergegroup is RAID level $RAIDlevel"
+      ocf_log err "This level of ServeRAID RAID is not supported for failover by the firmware."
       return 1;;
   esac
   return 0
@@ -319,7 +319,7 @@ ServeRAID_start() {
       if
         [ $? -eq $srsuccess ]
       then
-	echo "info: $out"
+	ocf_log info "$out"
       else
         run $IPS MERGE $sr_adapter $sr_mergegroup OWN
       fi
@@ -343,7 +343,7 @@ ServeRAID_start() {
   then
     return 0
   else
-    echo "ERROR: ServeRAID device $1 not active!"
+    ocf_log err "ServeRAID device $1 not active!"
     return 1
   fi
 }
@@ -363,7 +363,7 @@ ServeRAID_stop() {
   if
     ServeRAID_status "$@"
   then
-    echo "ERROR: ServeRAID device $@ is still active!"
+    ocf_log err "ServeRAID device $@ is still active!"
     return 1
   else
     return 0
@@ -394,10 +394,10 @@ fi
 if 
   ( [ -z "$OCF_RESKEY_serveraid" ] || [ -z "$OCF_RESKEY_mergegroup" ] )
 then
-  echo "You have to set the OCF_RESKEY_serveraid and OCF_RESKEY_mergegroup\n 
+  ocf_log err "You have to set the OCF_RESKEY_serveraid and OCF_RESKEY_mergegroup\n 
         enviroment virables before running $0 !"
   usage
-  exit 1
+  exit $OCF_ERR_GENERIC
 fi
 
 : Right Number of arguments..
@@ -419,11 +419,11 @@ case "$1" in
 	if
 	  ServeRAID_status $serveraid $mergegroup
 	then
-	  echo ServeRAID merge group $serveraid $mergegroup is running.
-	  exit 0
+	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is running."
+	  exit $OCF_SUCCESS
 	else
-	  echo ServeRAID merge group $serveraid $mergegroup is stopped.
-	  exit 1
+	  ocf_log debug "ServeRAID merge group $serveraid $mergegroup is stopped."
+	  exit $OCF_NOT_RUNNING
 	fi
 	exit $?;;
 
