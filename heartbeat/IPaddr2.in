@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.7 2005/06/03 03:27:31 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.8 2005/07/15 07:58:59 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -212,12 +212,12 @@ END
 
 ip_init() {
 	if [ $UID -ne 0 ]; then
-		ocf_log "ERROR: You must be root."
+		ocf_log err "You must be root."
 		exit $OCF_ERR_PERM
 	fi
 	
 	if [ ! -x "$IP2UTIL" ]; then
-		ocf_log "ERROR: iputils not installed."
+		ocf_log err "iputils not installed."
 		exit $OCF_ERR_INSTALLED
 	fi
 	
@@ -266,7 +266,7 @@ ip_init() {
 
 	if [ "$IP_INC_GLOBAL" -gt 1 ]; then
 		if [ ! -x "$IPTABLES" ]; then
-			ocf_log "ERROR: Cluster Alias IP mode selected, but iptables not configured"
+			ocf_log err "Cluster Alias IP mode selected, but iptables not configured"
 			exit $OCF_ERR_INSTALLED
 		fi
 		IP_CIP="yes"
@@ -302,7 +302,7 @@ delete_interface () {
 
 	CMD="$IP2UTIL -f inet addr delete $ipaddr dev $iface"
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	$CMD
 
 	if [ $? -ne 0 ]; then
@@ -311,7 +311,7 @@ delete_interface () {
 
 	CMD="$IP2UTIL -o -f inet addr show $iface"
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	ADDR=`$CMD`
 
 	if [ $? -ne 0 -o ! -z "$ADDR" ]; then
@@ -320,7 +320,7 @@ delete_interface () {
 
 	CMD="$IP2UTIL link set $iface down"
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	$CMD
 	return $?
 }
@@ -341,7 +341,7 @@ add_interface () {
 		CMD="$CMD label $label"
 	fi
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	$CMD
 
 	if [ $? -ne 0 ]; then
@@ -350,7 +350,7 @@ add_interface () {
 
 	CMD="$IP2UTIL link set $iface up"
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	$CMD
 
 	return $?
@@ -365,7 +365,7 @@ delete_route () {
 
 	CMD="$IP2UTIL route delete $prefix dev $iface"
 
-	ocf_log "info: $CMD"
+	ocf_log info "$CMD"
 	$CMD
 
 	return $?
@@ -387,11 +387,11 @@ remove_conflicting_loopback() {
 	broadcast="$3"
 	ifname="$4"
 
-	ocf_log "info: Removing conflicting loopback $ifname."
+	ocf_log info "Removing conflicting loopback $ifname."
 	if [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"; then
 		: Directory $VLDIR now exists
 	else
-		ocf_log "ERROR: Could not create \"$VLDIR/\" conflicting" \
+		ocf_log err "Could not create \"$VLDIR/\" conflicting" \
 		       " loopback $ifname cannot be restored."
 	fi
 	if
@@ -399,7 +399,7 @@ remove_conflicting_loopback() {
 	then
 		: Saved loopback information in $VLDIR/$ipaddr
 	else
-		ocf_log "ERROR: Could not save conflicting loopback $ifname." \
+		ocf_log err "Could not save conflicting loopback $ifname." \
 		       "it will not be restored."
 	fi
 	delete_interface "$ipaddr" "$ifname"
@@ -417,7 +417,7 @@ restore_loopback() {
 
 	if [ -s "$VLDIR/$ipaddr" ]; then
 		ifinfo=`cat "$VLDIR/$ipaddr"`
-		ocf_log "info: Restoring loopback IP Address " \
+		ocf_log info "Restoring loopback IP Address " \
 		    "$ifinfo."
 		add_interface $ifinfo
 		rm -f "$VLDIR/$ipaddr"
@@ -429,13 +429,13 @@ restore_loopback() {
 #
 run_send_arp() {
 	ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT -p $SENDARPPIDFILE $NIC $BASEIP auto $BASEIP $ARP_NETMASK"
-	ocf_log "$SENDARP $ARGS"
+	ocf_log info "$SENDARP $ARGS"
 	case $ARP_BACKGROUND in
 	yes) 
-		($SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps") &
+		($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps") &
 		;;
 	*)
-		$SENDARP $ARGS || ocf_log "ERROR: Could not send gratuitous arps"
+		$SENDARP $ARGS || ocf_log err "Could not send gratuitous arps"
 		;;
 	esac
 }
@@ -499,7 +499,7 @@ ip_start() {
 				-m state --state NEW \
 				-j CONNMARK --set-mark $LOCALNODE
 		if [ $? -ne 0 ]; then
-			ocf_log "ERROR: iptables failed"
+			ocf_log err "iptables failed"
 			exit $OCF_ERR_GENERIC
 		fi
 		$IPTABLES -I INPUT -d $BASEIP -i $NIC -j CLUSTERIP \
@@ -509,7 +509,7 @@ ip_start() {
 				--local-node $IP_INC_NO \
 				--hashmode $IP_CIP_HASH
 		if [ $? -ne 0 ]; then
-			ocf_log "ERROR: iptables failed"
+			ocf_log err "iptables failed"
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
@@ -529,7 +529,7 @@ ip_start() {
 		add_interface $BASEIP $NETMASK $BRDCAST $NIC $IFLABEL
 		
 		if [ $? -ne 0 ]; then
-			ocf_log "ERROR: $CMD failed."
+			ocf_log err "$CMD failed."
 			exit $OCF_ERR_GENERIC
 		fi
 	fi
@@ -552,9 +552,9 @@ ip_stop() {
 	if [ -f "$SENDARPPIDFILE" ] ; then
 		kill `cat "$SENDARPPIDFILE"`
 		if [ $? -ne 0 ]; then
-			ocf_log "WARN: Could not kill previously running send_arp for $BASEIP"
+			ocf_log warn "Could not kill previously running send_arp for $BASEIP"
 		else
-			ocf_log "info: killed previously running send_arp for $BASEIP"
+			ocf_log info "killed previously running send_arp for $BASEIP"
 			rm -f "$SENDARPPIDFILE"
 		fi
 	fi
