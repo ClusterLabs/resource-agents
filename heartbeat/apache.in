@@ -51,7 +51,7 @@ WGETOPTS="-O- -nv"
 LOCALHOST="http://localhost"
 HTTPDOPTS="-DSTATUS"
 DEFAULT_IBMCONFIG=/opt/IBMHTTPServer/conf/httpd.conf
-DEFAULT_NORMCONFIG="/etc/httpd/httpd.conf"
+DEFAULT_NORMCONFIG="/etc/apache2/httpd.conf"
 #
 # You can also set
 #	HTTPD
