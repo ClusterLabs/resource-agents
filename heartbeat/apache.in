@@ -355,14 +355,12 @@ stop_apache() {
     if
       ProcessRunning $ApachePID
     then
-      echo "$CMD still running ($ApachePID)."
       ocf_log info "$CMD still running ($ApachePID)."
       false
     else
       echo "$CMD stopped."
     fi
   else
-    echo "$CMD is not running."
     ocf_log info "$CMD is not running."
   fi
 }

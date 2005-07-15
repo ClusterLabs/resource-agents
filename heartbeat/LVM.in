@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.3 2005/07/15 09:04:03 sunjd Exp $
+# $Id: LVM.in,v 1.4 2005/07/15 09:28:21 sunjd Exp $
 # 
 # LVM
 #
@@ -49,7 +49,7 @@ usage() {
 	The 'monitor' operation reports whether the volume seems present
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.3 2005/07/15 09:04:03 sunjd Exp $
+	$Id: LVM.in,v 1.4 2005/07/15 09:28:21 sunjd Exp $
 	!
   exit $OCF_ERR_GENERIC 
 
@@ -154,17 +154,14 @@ LVM_report_status() {
   then
     : Volume $1 is available
   else
-    echo "LVM Volume $1 is not available (stopped)"
     ocf_log debug "LVM Volume $1 is not available (stopped)"
     return $OCF_NOT_RUNNING
   fi
   if
     echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
   then
-    echo "Volume $1 is available read/write (running)"
     ocf_log debug "Volume $1 is available read/write (running)"
   else
-    echo "Volume $1 is available read-only (running)"
     ocf_log debug "Volume $1 is available read-only (running)"
   fi
   

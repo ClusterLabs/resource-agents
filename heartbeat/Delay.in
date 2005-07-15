@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.4 2005/07/15 07:38:53 sunjd Exp $
+#	$Id: Delay.in,v 1.5 2005/07/15 09:28:21 sunjd Exp $
 #
 #	This script is a test resource for introducing delay.
 #
@@ -33,7 +33,7 @@ VLFILE="$VARLIB/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.4 2005/07/15 07:38:53 sunjd Exp $
+  	$Id: Delay.in,v 1.5 2005/07/15 09:28:21 sunjd Exp $
 	!
 }
 
@@ -98,11 +98,9 @@ Delay_Status() {
   if
     Delay_stat
   then
-    echo "Delay is running OK"
     ocf_log info "Delay is running OK"
     return $OCF_SUCCESS
   else
-    echo "Delay is not operational"
     ocf_log err "Delay is not operational"
     return $OCF_ERR_GENERIC
   fi
@@ -118,7 +116,6 @@ Delay_Start() {
   if
     Delay_stat
   then
-    echo "Delay already running."
     ocf_log info "Delay already running."
     return $OCF_SUCCESS
   else
@@ -150,7 +147,6 @@ Delay_Stop() {
     fi
     return $OCF_SUCCESS
   else
-    echo "Delay already stopped."
     ocf_log info "Delay already stopped."
     return $OCF_SUCCESS
   fi

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.2 2005/07/15 08:54:08 sunjd Exp $
+# $Id: LinuxSCSI.in,v 1.3 2005/07/15 09:28:21 sunjd Exp $
 # 
 # LinuxSCSI
 #
@@ -101,7 +101,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.2 2005/07/15 08:54:08 sunjd Exp $
+	$Id: LinuxSCSI.in,v 1.3 2005/07/15 09:28:21 sunjd Exp $
 	!
 }
 
@@ -165,7 +165,6 @@ parseinst() {
 	channel=error
 	target=error
 	lun=error
-	echo "Invalid SCSI instance $1" >&2
 	ocf_log err "Invalid SCSI instance $1"
   esac
   host=`echo "$1" | cut -d: -f1`
@@ -185,7 +184,6 @@ scsi_start() {
   then
     return $OCF_SUCCESS
   else
-    echo "ERROR: SCSI device $1 not active!"
     ocf_log err "SCSI device $1 not active!"
     return $OCF_ERR_GENERIC
   fi
@@ -202,7 +200,6 @@ scsi_stop() {
   if
     scsi_status "$1"
   then
-    echo "ERROR: SCSI device $1 still active!"
     ocf_log err "SCSI device $1 still active!"
     return $OCF_ERR_GENERIC
   else
@@ -243,7 +240,6 @@ fi
 if 
   [ -z "$OCF_RESKEY_scsi" ]
 then
-  echo "You have to set a valid scsi id at least!"
   ocf_log err "You have to set a valid scsi id at least!"
   usage
   exit $OCF_ERR_GENERIC
@@ -263,11 +259,9 @@ case $1 in
 	 		if
 			  scsi_status $instance
 			then
-			  echo "SCSI device $instance is running"
 			  ocf_log info "SCSI device $instance is running"
 			  exit $OCF_SUCCESS
 			else
-			  echo "SCSI device $instance is stopped"
 			  ocf_log info "SCSI device $instance is stopped"
 			  exit $OCF_NOT_RUNNING
 			fi
