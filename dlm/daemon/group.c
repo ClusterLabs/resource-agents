@@ -18,8 +18,6 @@
 #define DO_TERMINATE 4
 #define DO_SETID 5
 
-extern int joining;
-
 /* save all the params from callback functions here because we can't
    do the processing within the callback function itself */
 
@@ -100,6 +98,7 @@ char *str_members(void)
 
 int process_groupd(void)
 {
+	struct lockspace *ls;
 	char str_id[32], *str_memb;
 	char *argv[2];
 	int error = 0;
@@ -109,8 +108,14 @@ int process_groupd(void)
 	if (!cb_action)
 		goto out;
 
-	switch (cb_action) {
+	ls = find_ls(cb_name);
+	if (!ls) {
+		log_error("callback %d group %s not found", cb_action, cb_name);
+		error = -1;
+		goto out;
+	}
 
+	switch (cb_action) {
 	case DO_STOP:
 		log_debug("stop %s", cb_name);
 
@@ -119,7 +124,6 @@ int process_groupd(void)
 		ls_control(2, argv);
 
 		group_stop_done(gh, cb_name);
-
 		break;
 
 	case DO_START:
@@ -136,14 +140,13 @@ int process_groupd(void)
 
 		group_start_done(gh, cb_name, cb_event_nr);
 
-		if (!joining)
+		if (!ls->joining)
 			break;
-		joining = 0;
+		ls->joining = 0;
 		log_debug("join event done %s", cb_name);
 		argv[0] = cb_name;
 		argv[1] = "0";
 		ls_event_done(2, argv);
-
 		break;
 
 	case DO_SETID:
@@ -154,7 +157,6 @@ int process_groupd(void)
 		argv[0] = cb_name;
 		argv[1] = str_id;
 		ls_set_id(2, argv);
-
 		break;
 
 	case DO_TERMINATE:
@@ -162,16 +164,17 @@ int process_groupd(void)
 
 		argv[0] = cb_name;
 
-		if (joining) {
+		if (ls->joining) {
 			argv[1] = "-1";
-			joining = 0;
+			ls->joining = 0;
 			log_debug("join event failed %s", cb_name);
 		} else {
 			argv[1] = "0";
 			log_debug("leave event done %s", cb_name);
 		}
 		ls_event_done(2, argv);
-
+		list_del(&ls->list);
+		free(ls);
 		break;
 
 	case DO_FINISH:

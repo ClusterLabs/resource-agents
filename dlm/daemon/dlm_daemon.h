@@ -41,14 +41,23 @@
 /* FIXME: linux-2.6.11/include/linux/netlink.h (use header) */
 #define NETLINK_KOBJECT_UEVENT  15
 
+#include "list.h"
 #include "libgroup.h"
 
 #define MAXARGS		64
 #define MAXLINE		256
+#define MAXCON		4
+#define MAXNAME		255
 #define MAX_NODES	256 /* should be same as MAX_GROUP_MEMBERS */
 
 #define log_error(fmt, args...) fprintf(stderr, fmt "\n", ##args)
 #define log_debug(fmt, args...) fprintf(stderr, fmt "\n", ##args)
+
+struct lockspace {
+	struct list_head	list;
+	char			name[MAXNAME+1];
+	int			joining;
+};
 
 /* action.c */
 int set_local(int argc, char **argv);
@@ -67,6 +76,8 @@ int setup_groupd(void);
 int process_groupd(void);
 
 /* main.c */
+struct lockspace *create_ls(char *name);
+struct lockspace *find_ls(char *name);
 void make_args(char *buf, int *argc, char **argv, char sep);
 
 #endif

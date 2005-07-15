@@ -14,17 +14,42 @@
 
 #define OPTION_STRING			"DhV"
 #define LOCKFILE_NAME			"/var/run/dlm_controld.pid"
-#define MAXCON				4
 
 static char *prog_name;
 static int debug;
-int joining;
 
 static int uevent_fd;
 static int groupd_fd;
 static int member_fd;
 
+struct list_head lockspaces;
+
 extern group_handle_t gh;
+
+
+struct lockspace *create_ls(char *name)
+{
+	struct lockspace *ls;
+
+	ls = malloc(sizeof(*ls));
+	memset(ls, 0, sizeof(*ls));
+
+	strncpy(ls->name, name, MAXNAME);
+
+	return ls;
+}
+
+struct lockspace *find_ls(char *name)
+{
+	struct lockspace *ls;
+
+	list_for_each_entry(ls, &lockspaces, list) {
+		if ((strlen(ls->name) == strlen(name)) &&
+		    !strncmp(ls->name, name, strlen(name)))
+			return ls;
+	}
+	return NULL;
+}
 
 void make_args(char *buf, int *argc, char **argv, char sep)
 {
@@ -49,6 +74,7 @@ void make_args(char *buf, int *argc, char **argv, char sep)
 
 int process_uevent(void)
 {
+	struct lockspace *ls;
 	char buf[MAXLINE];
 	char *argv[MAXARGS], *act, *sys;
 	int rv, argc = 0;
@@ -57,15 +83,14 @@ int process_uevent(void)
 
 	rv = recv(uevent_fd, &buf, sizeof(buf), 0);
 	if (rv < 0) {
-		log_error("recv error %d errno %d", rv, errno);
-		return -1;
+		log_error("uevent recv error %d errno %d", rv, errno);
+		goto out;
 	}
 
 	if (!strstr(buf, "dlm"))
 		return 0;
 
 	make_args(buf, &argc, argv, '/');
-
 	act = argv[0];
 	sys = argv[2];
 
@@ -75,17 +100,38 @@ int process_uevent(void)
 	log_debug("kernel: %s %s", act, argv[3]);
 
 	if (!strcmp(act, "online@")) {
-		joining = 1;
-		rv = group_join(gh, argv[3], NULL);
-	} else if (!strcmp(act, "offline@"))
-		rv = group_leave(gh, argv[3], NULL);
-	else
-		goto out;
+		ls = find_ls(argv[3]);
+		if (ls) {
+			rv = -EEXIST;
+			goto out;
+		}
 
-	if (rv < 0)
-		log_error("libgroup %s error %d errno %d", act, rv, errno);
+		ls = create_ls(argv[3]);
+		if (!ls) {
+			rv = -ENOMEM;
+			goto out;
+		}
+
+		ls->joining = 1;
+		list_add(&ls->list, &lockspaces);
+
+		rv = group_join(gh, argv[3], NULL);
+
+	} else if (!strcmp(act, "offline@")) {
+		ls = find_ls(argv[3]);
+		if (!ls) {
+			rv = -ENOENT;
+			goto out;
+		}
+
+		rv = group_leave(gh, argv[3], NULL);
+	} else
+		rv = 0;
  out:
-	return 0;
+	if (rv < 0)
+		log_error("process_uevent %s error %d errno %d",
+			  act, rv, errno);
+	return rv;
 }
 
 int setup_uevent(void)
@@ -292,6 +338,8 @@ static void decode_arguments(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	prog_name = argv[0];
+
+	INIT_LIST_HEAD(&lockspaces);
 
 	decode_arguments(argc, argv);
 
