@@ -46,6 +46,13 @@ VARRUN=@localstatedir@/run
 #
 IBMHTTPD=/opt/IBMHTTPServer/bin/httpd
 HTTPDLIST="/sbin/httpd2 /usr/sbin/httpd2 /sbin/httpd /usr/sbin/httpd $IBMHTTPD"
+MPM=/usr/share/apache2/find_mpm
+if
+  [ -x $MPM ]
+then
+  HTTPDLIST="$HTTPDLIST `$MPM 2>/dev/null`"
+fi
+
 WGETNAME=wget
 WGETOPTS="-O- -nv"
 LOCALHOST="http://localhost"
@@ -94,6 +101,32 @@ action:
   exit $OCF_ERR_ARGS
 }
 
+
+IncludeLine() {
+  file=`echo "$1" | sed -e 's%Include  *%%' -e 's%[	 ]*$%%'`
+  ExpandMe $file
+}
+
+
+ExpandMe() {
+  out=/tmp/$$.out
+  for file in "$@"
+  do
+    if
+      [ ! -f $file ]
+    then
+      continue
+    fi
+    while read line
+    do
+      case $line in
+        "Include "*)	IncludeLine "$line";;
+        *)		echo "$line";;
+      esac
+    done < "$file"
+  done
+}
+
 #
 #	Run:  Run a script, and log its output.
 #
@@ -125,7 +158,8 @@ run() {
 # Strip comments, and initial blanks. Compress other blanks. Delete lines of blanks only.
 #
 apachecat() {
-    sed -e 's%#.*%%' -e '/^[ 	]*$/d' -e 's%^[ 	]*%%' -e 's%[ 	]+% %g' $1
+    ExpandMe "$@" | 
+    sed -e 's%#.*%%' -e '/^[ 	]*$/d' -e 's%^[ 	]*%%' -e 's%[ 	]+% %g'
 }
 
 #
@@ -253,8 +287,8 @@ GetParams() {
   #
   HasStatus=no
   if
+    # &&	Module_loaded $ConfigFile status
     [ ! -z "$WGET" -a -x "$WGET" ]	\
-    &&	Module_loaded $ConfigFile status	\
     &&	SupportsHandler $ConfigFile server-status
   then
     StatusURL=`FindLocationForHandler $1 server-status | tail -1`
@@ -309,7 +343,7 @@ start_apache() {
   if
     silent_status
   then
-    echo "$CMD already running (pid $ApachePID)"
+    ocf_log info "$CMD already running (pid $ApachePID)"
     return $OCF_SUCCESS
   fi
   run $HTTPD $HTTPDOPTS -f $CONFIGFILE
@@ -341,7 +375,7 @@ stop_apache() {
       ocf_log info "$CMD still running ($ApachePID)."
       false
     else
-      echo "$CMD stopped."
+      ocf_log "$CMD stopped."
     fi
   else
     ocf_log info "$CMD is not running."
@@ -354,9 +388,9 @@ status_apache() {
   if
     [ $rc -eq 0 ]
   then
-    echo "$CMD is running (pid $ApachePID)."
+    ocf_log info "$CMD is running (pid $ApachePID)."
   else
-    echo "$CMD is stopped."
+    ocf_log info "$CMD is stopped."
   fi
   return $rc
 }
@@ -364,7 +398,7 @@ status_apache() {
 
 monitor_apache() {
   case $HasStatus in
-    no)	echo "Monitoring not supported by $CONFIGFILE"
+    no)	ocf_log err "Monitoring not supported by $CONFIGFILE"
 	return $OCF_ERR_CONFIGURED;;
   esac
   if
@@ -372,7 +406,7 @@ monitor_apache() {
   then
     run sh -c "$WGET $WGETOPTS $STATUSURL | grep -i '</ *body *></ *html *>' >/dev/null"
   else
-    echo "$CMD not running"
+    ocf_log err "$CMD not running"
     return $OCF_ERR_GENERIC;
   fi
 }
@@ -471,7 +505,6 @@ validate_all_apache() {
 	esac
   fi
 
-  echo "Validate OK"
   return $OCF_SUCCESS
 }
 
@@ -484,7 +517,6 @@ then
   STATUSURL="$OCF_RESKEY_statusurl"
   CONFIGFILE="$OCF_RESKEY_configfile"
 else
-  echo "Parameter error."
   usage
 fi
 
@@ -511,12 +543,19 @@ then
 	  exit $OCF_ERR_ARGS
 	fi	
 # Let the user know that the $HTTPD used is not the one (s)he specified via $OCF_RESKEY_httpd
-	ocf_log info "Using $HTTPD as HTTPD"
+        if
+          [ "X$OCF_RESKEY_httpd" != X ]
+        then
+	  ocf_log info "Using $HTTPD as HTTPD"
+        fi
 
 	DefaultConfig=$DEFAULT_NORMCONFIG;;
   esac
 fi
 httpd_basename=`basename $HTTPD`
+case $httpd_basename in
+  *-*)	httpd_basename=`echo "$httpd_basename" | sed -e 's%\-.*%%'`;;
+esac
 
 case "$CONFIGFILE" in
   "") CONFIGFILE=$DefaultConfig;;
@@ -526,7 +565,7 @@ esac
 if
   [ ! -f "$CONFIGFILE" -a "X$COMMAND" = Xstop ]
 then
-  echo "$CONFIGFILE not found - apache considered stopped"
+  ocf_log warn "$CONFIGFILE not found - apache considered stopped"
   exit $OCF_SUCCESS
 fi
 
@@ -535,7 +574,7 @@ if
 then
   : OK
 else
-  echo "Cannot parse config file [$CONFIGFILE]"
+  ocf_log err "Cannot parse config file [$CONFIGFILE]"
   exit $OCF_ERR_ARGS
 fi
 
