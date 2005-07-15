@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-#	$Id: drbd.in,v 1.6 2005/07/11 09:16:35 sunjd Exp $
+#	$Id: drbd.in,v 1.7 2005/07/15 07:45:58 sunjd Exp $
 #
 #       OCF Resource Agent compliant drbd resource script.
 #
 # WARNING: This is proof of concept code and likely doesn't work at all!
 #
-# Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
+# Copyright (c) 2004 - 2005 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -129,7 +129,7 @@ END
 drbd_init() {
 	DRBDADM=`which drbdadm 2>/dev/null`
 	if [ -z "$DRBDADM" -o ! -x "$DRBDADM" ]; then
-		ocf_log "ERROR: drbdadm not installed."
+		ocf_log err "drbdadm not installed."
 		exit $OCF_ERR_INSTALLED
 	fi
 	
@@ -138,7 +138,7 @@ drbd_init() {
 	DRBDCONF="${OCF_RESKEY_drbdconf:=/etc/drbd.conf}"
 	
 	if [ ! -f "$DRBDCONF" ]; then
-		ocf_log "ERROR: drbd.conf not installed."
+		ocf_log err "drbd.conf not installed."
 		exit $OCF_ERR_CONFIGURED
 	fi
 
@@ -177,7 +177,7 @@ is_drbd_enabled () {
 	    fi
 	fi
 	# Drbd is not enabled
-	ocf_log "drbd not loaded"
+	ocf_log err "drbd not loaded"
 	return $OCF_ERR_UNIMPLEMENTED
 }
 
@@ -188,7 +188,7 @@ drbd_start() {
 	    : OK
 	else
 	    modprobe -s drbd `$DRBDADM sh-mod-parms` || { 
-	    ocf_log "Can not load the drbd module."$'\n'; exit $OCF_ERR_GENERIC 
+	    ocf_log err "Can not load the drbd module."$'\n'; exit $OCF_ERR_GENERIC 
 	    }
 	fi
 
@@ -196,7 +196,7 @@ drbd_start() {
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
 	else
-		ocf_log "Failed to start up resource $RESOURCE."
+		ocf_log err "Failed to start up resource $RESOURCE."
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -211,7 +211,7 @@ drbd_stop() {
 		if [ $? -eq 0 ]; then
 			return $OCF_SUCCESS
 		else
-			ocf_log "Failed to bring down resource $RESOURCE, resource busy?"
+			ocf_log err "Failed to bring down resource $RESOURCE, resource busy?"
 			return $OCF_ERR_GENERIC
 		fi
 	fi
@@ -225,7 +225,7 @@ drbd_monitor() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    ocf_log "Drbd is not enabled, nothing to monitor"
+	    ocf_log err "Drbd is not enabled, nothing to monitor"
 	    return $OCF_ERR_GENERIC
 	fi
 	return $OCF_SUCCESS
@@ -235,7 +235,7 @@ drbd_promote() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    ocf_log "Drbd is not enabled"
+	    ocf_log err "Drbd is not enabled"
 	    return $OCF_ERR_GENERIC
 	fi
 
@@ -248,7 +248,7 @@ drbd_promote() {
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
 	else
-		ocf_log "Failed to promote resource $RESOURCE"
+		ocf_log err "Failed to promote resource $RESOURCE"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -271,7 +271,7 @@ drbd_demote() {
 	if [ $? -eq 0 ]; then
 		return $OCF_SUCCESS
 	else
-		ocf_log "Failed to demote resource $RESOURCE"
+		ocf_log err "Failed to demote resource $RESOURCE"
 		return $OCF_ERR_GENERIC
 	fi
 }
@@ -314,7 +314,7 @@ drbd_xstatus() {
 	if is_drbd_enabled; then
 	    : OK
 	else
-	    ocf_log "Drbd is not enabled"
+	    ocf_log err "Drbd is not enabled"
 	    return $OCF_ERR_GENERIC
 	fi
 	drbd_get_status
@@ -355,30 +355,30 @@ drbd_validate_all () {
 # First check the configuration file
 	echo here
 	if [ -z $DRBDCONF ]; then
-	    ocf_log "No configuration file specified!"
+	    ocf_log err "No configuration file specified!"
 	    return $OCF_ERR_CONFIGURED
 	fi
 
 	if [ ! -f $DRBDCONF ]; then
-	    ocf_log "No such file $DRBDCONF!"
+	    ocf_log err "No such file $DRBDCONF!"
 	    return $OCF_ERR_CONFIGURED
 	fi
 
 	dumped_content=`$DRBDADM -c $DRBDCONF dump 2>/dev/null`
 	if [ $? -ne 0 ] || [ -z '$dumped_content' ]; then
-	    ocf_log "Invalid configuration file $DRBDCONF"
+	    ocf_log err "Invalid configuration file $DRBDCONF"
 	    return $OCF_ERR_CONFIGURED
 	fi
 	
 # Check the resource name, it should appear in DRBDCONF
 	if [ -z $RESOURCE ]; then
-	    ocf_log "No resource name specified!"
+	    ocf_log err "No resource name specified!"
 	    return $OCF_ERR_ARGS
 	fi
 	
 	echo $dumped_content |grep -q "^resource $RESOURCE {"
 	if [ $? -ne 0 ]; then
-	    ocf_log "No such resource \"$RESOURCE\" in drbd configuration file $DRBDCONF"
+	    ocf_log err "No such resource \"$RESOURCE\" in drbd configuration file $DRBDCONF"
 	    return $OCF_ERR_ARGS
 	fi
 	
@@ -389,13 +389,13 @@ drbd_validate_all () {
 	    expr $INC_NO + 0 >/dev/null 2>&1
 	    if [ $? -ne 0 -o $INC_NO -le 0 ]; then
 	    # INC_NO is not a valid integer, or not positive
-		ocf_log "Invalid incarnation number $INC_NO."
+		ocf_log err "Invalid incarnation number $INC_NO."
 		return $OCF_ERR_ARGS
 	    fi
 	fi 
 # Check notify_type
 	if [ ! -z $notify_type ] && [ "$notity_type" != "post" ]; then
-	    ocf_log "Invalid notity type $notify_type"
+	    ocf_log err "Invalid notity type $notify_type"
 	    return $OCF_ERR_ARGS
 	fi
 
@@ -403,7 +403,7 @@ drbd_validate_all () {
 	case $target_action in
 	""|stop|fence|monitor)
 	    ;;
-	*) ocf_log "Invalid target action $target_action"
+	*) ocf_log err "Invalid target action $target_action"
 	   return $OCF_ERR_ARGS
 	   ;;
 	esac
@@ -429,7 +429,7 @@ validate-all)	drbd_init
 		;;
 start|stop|monitor|xstatus|promote|demote|notify)
 		if [ $UID -ne 0 ]; then
-			ocf_log "ERROR: You must be root."
+			ocf_log err "You must be root."
 			exit $OCF_ERR_PERM
 		fi
 	
