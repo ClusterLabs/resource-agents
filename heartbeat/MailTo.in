@@ -20,7 +20,7 @@
 #		OCF_RESKEY_email
 #		OCF_RESKEY_subject
 #
-# License: GPL
+# License:  GNU General Public License (GPL)
 #
 #set -x
 
@@ -41,7 +41,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|meta-data}"
-  echo "$Id: MailTo.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $"
+  echo "$Id: MailTo.in,v 1.2 2005/07/15 09:19:46 sunjd Exp $"
 }
 
 meta_data() {
@@ -122,7 +122,7 @@ MailToStop () {
 MailToStatus () {
 	echo "stopped"
 
-	return 0
+	return $OCF_NOT_RUNNING
 }
 
 # 
@@ -136,15 +136,15 @@ if
   ( [ $# -eq 0 ] || [ $# -gt 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_GENERIC
 fi
 
 if 
   [ -z "$OCF_RESKEY_email" ]
 then
-  echo "At least 1 Email address has to be given!"
+  ocf_log err "At least 1 Email address has to be given!"
   usage
-  exit 1
+  exit $OCF_ERR_GENERIC
 fi
 
 email=$OCF_RESKEY_email
