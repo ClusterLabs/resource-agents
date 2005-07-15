@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.2 2005/03/15 06:52:58 zhaokai Exp $
+# $Id: LVM.in,v 1.3 2005/07/15 09:04:03 sunjd Exp $
 # 
 # LVM
 #
@@ -8,9 +8,9 @@
 #
 #
 # Author:	Alan Robertson
-# Support:	linux-ha-dev@lists.tummy.com
-# License:	GNU Lesser General Public License (LGPL)
-# Copyright:	(C) 2002 International Business Machines, Inc.
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
 #
 #	This code significantly inspired by the LVM resource
 #	in FailSafe by Lars Marowsky-Bree
@@ -49,9 +49,9 @@ usage() {
 	The 'monitor' operation reports whether the volume seems present
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.2 2005/03/15 06:52:58 zhaokai Exp $
+	$Id: LVM.in,v 1.3 2005/07/15 09:04:03 sunjd Exp $
 	!
-  exit OCF_ERR_GENERIC 
+  exit $OCF_ERR_GENERIC 
 
 }
 
@@ -103,16 +103,16 @@ run() {
     if
       [ ! -z "$output" ]
     then
-      ocf_log "info" "$output"
+      ocf_log info "$output"
     fi
-    return OCF_SUCCESS 
+    return $OCF_SUCCESS 
   else
     if
       [ ! -z "$output" ]
     then
-      ocf_log "ERROR: $output"
+      ocf_log err "$output"
     else
-      ocf_log "ERROR: command failed: $*"
+      ocf_log err "command failed: $*"
     fi
     return $rc
   fi
@@ -155,17 +155,20 @@ LVM_report_status() {
     : Volume $1 is available
   else
     echo "LVM Volume $1 is not available (stopped)"
-    return OCF_NOT_RUNNING
+    ocf_log debug "LVM Volume $1 is not available (stopped)"
+    return $OCF_NOT_RUNNING
   fi
   if
     echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
   then
     echo "Volume $1 is available read/write (running)"
+    ocf_log debug "Volume $1 is available read/write (running)"
   else
     echo "Volume $1 is available read-only (running)"
+    ocf_log debug "Volume $1 is available read-only (running)"
   fi
   
-  return $? 
+  return $OCF_SUCCESS
 }
 
 #
@@ -179,8 +182,8 @@ LVM_monitor() {
   then
     : OK
   else
-    ocf_log "ERROR: LVM Volume $1 is offline"
-    return OCF_NOT_RUNNING
+    ocf_log err "LVM Volume $1 is offline"
+    return $OCF_NOT_RUNNING
   fi
 
   run vgck $1
@@ -193,7 +196,7 @@ LVM_monitor() {
 #
 LVM_start() {
 
-  ocf_log "Activating volume group $1"
+  ocf_log info "Activating volume group $1"
   run vgscan $1
   run vgchange -a y $1 || return 1
 
@@ -201,10 +204,10 @@ LVM_start() {
     LVM_status $1
   then
     : OK Volume $1 activated just fine!
-    return OCF_SUCCESS 
+    return $OCF_SUCCESS 
   else
-    ocf_log "ERROR: LVM: $1 did not activate correctly"
-    return OCF_ERR_GENERIC
+    ocf_log err "LVM: $1 did not activate correctly"
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -213,16 +216,16 @@ LVM_start() {
 #
 LVM_stop() {
 
-  ocf_log "Deactivating volume group $1"
+  ocf_log info "Deactivating volume group $1"
   run vgchange -a n $1 || return 1
 
   if
     LVM_status $1
   then
-    ocf_log "ERROR: LVM: $1 did not stop correctly"
-    return OCF_ERR_GENERIC 
+    ocf_log err "LVM: $1 did not stop correctly"
+    return $OCF_ERR_GENERIC 
   fi
-  return OCF_SUCCESS
+  return $OCF_SUCCESS
 }
 
 
@@ -234,15 +237,16 @@ if
   ( [ $# -eq 0 ] || [ $# -gt 1 ] )
 then
   usage
-  exit OCF_ERR_GENERIC 
+  exit $OCF_ERR_GENERIC 
 fi
 
 if 
   [ -z "$OCF_RESKEY_volgrpname" ]
 then
   echo "You must identify the volume group name!"
+  ocf_log err "You must identify the volume group name!"
   usage
-  exit OCF_ERR_ARGS 
+  exit $OCF_ERR_ARGS 
 fi
 
 VOLUME=$OCF_RESKEY_volgrpname
