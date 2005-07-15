@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: WAS.in,v 1.2 2005/07/15 09:44:32 sunjd Exp $
 # 
 # WAS
 #
@@ -8,9 +8,9 @@
 #
 #
 # Author:	Alan Robertson
-# Support:	linux-ha-dev@lists.tummy.com
-# License:	GNU Lesser General Public License (LGPL)
-# Copyright:	(C) 2002 International Business Machines, Inc.
+# Support:	linux-ha@lists.linux-ha.org
+# License:	GNU General Public License (GPL)
+# Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
 #
 #
 # An example usage in /etc/ha.d/haresources: 
@@ -102,7 +102,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: WAS.in,v 1.2 2005/07/15 09:44:32 sunjd Exp $
 	!
 }
 
@@ -162,7 +162,7 @@ run() {
     if
       [ ! -z "$output" ]
     then
-      ocf_log "info" "$output"
+      ocf_log info "$output"
     fi
     return 0
   else
@@ -336,15 +336,15 @@ WAS_report_status() {
   PortCount=`echo $PortCount`
   PortsInUse=`CheckWASPortsInUse $WASPorts`
   case $PortsInUse in
-    0)	echo "WAS: server $1 is stopped."; false;;
+    0)	ocf_log debug "WAS: server $1 is stopped."; false;;
     *)
 	pids=`WASPIDs $WASPorts`
 	if
 	  [ $PortsInUse -ge $PortCount ]
 	then
-    	  echo "WAS: server $1 is running (pid" $pids "et al)."
+    	  ocf_log debug "WAS: server $1 is running (pid" $pids "et al)."
 	else
-    	  echo "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
+    	  ocf_log debug "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
         fi
 	true;;
   esac
