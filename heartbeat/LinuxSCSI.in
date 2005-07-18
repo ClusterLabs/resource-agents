@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.3 2005/07/15 09:28:21 sunjd Exp $
+# $Id: LinuxSCSI.in,v 1.4 2005/07/18 15:07:16 sunjd Exp $
 # 
 # LinuxSCSI
 #
@@ -15,7 +15,7 @@
 #
 # CAVEATS:	See the usage message for some important warnings
 #
-# usage: ./LinuxSCSI (start|stop|status|monitor|meta-data|methods)
+# usage: ./LinuxSCSI (start|stop|status|monitor|meta-data|validate-all|methods)
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_scsi
@@ -40,7 +40,7 @@ PROCSCSI=/proc/scsi/scsi
 
 usage() {
   cat <<-! >&1
-	usage: $0 (start|stop|status|monitor|meta-data|methods)
+	usage: $0 (start|stop|status|monitor|meta-data|validate-all|methods)
 
 	$0 manages the availability of a SCSI device from the point
 	of view of the linux kernel.  It make Linux believe the
@@ -101,7 +101,7 @@ usage() {
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.3 2005/07/15 09:28:21 sunjd Exp $
+	$Id: LinuxSCSI.in,v 1.4 2005/07/18 15:07:16 sunjd Exp $
 	!
 }
 
@@ -109,7 +109,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="MailTo" version="0.9">
+<resource-agent name="LinuxSCSI">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -136,6 +136,7 @@ The SCSI instance to be managed.
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END
@@ -147,6 +148,7 @@ scsi_methods() {
 	stop
 	status
 	monitor
+	validate-all
 	methods
 	!
 }
@@ -161,11 +163,12 @@ parseinst() {
     [0-9]*:[0-9]*:[0-9]*:[0-9]*)
 	lun=`echo "$1" | cut -d: -f4`;;
 
-    *)	host=error
-	channel=error
-	target=error
-	lun=error
+    *)	#host=error
+	#channel=error
+	#target=error
+	#lun=error
 	ocf_log err "Invalid SCSI instance $1"
+	exit $OCF_ERR_ARGS
   esac
   host=`echo "$1" | cut -d: -f1`
   channel=`echo "$1" | cut -d: -f2`
@@ -177,8 +180,9 @@ parseinst() {
 #
 scsi_start() {
   parseinst "$1"
-  [ $target = error ] && exit 1
-  echo "scsi-add-single-device $host $channel $target $lun" >>$PROCSCSI
+#  [ $target = error ] && exit 1
+#  echo "scsi-add-single-device $host $channel $target $lun" >>$PROCSCSI
+  echo "scsi add-single-device $host $channel $target $lun" >>$PROCSCSI
   if
     scsi_status "$1"
   then
@@ -195,8 +199,8 @@ scsi_start() {
 #
 scsi_stop() {
   parseinst "$1"
-  [ $target = error ] && exit 1
-  echo "scsi-remove-single-device $host $channel $target $lun" >>$PROCSCSI
+#  [ $target = error ] && exit 1
+  echo "scsi remove-single-device $host $channel $target $lun" >>$PROCSCSI
   if
     scsi_status "$1"
   then
@@ -213,44 +217,65 @@ scsi_stop() {
 #
 scsi_status() {
   parseinst "$1"
-  [ $target = error ] && exit 1
+#  [ $target = error ] && exit 1
   [ $channel -eq 0 ]	&& channel=$zeropat
   [ $target -eq 0 ]	&& target=$zeropat
   [ $lun -eq 0 ]	&& lun=$zeropat
   greppat="Host: *scsi$host *Channel: *$channel *Id: *$target *Lun: *$lun"
   grep -i "$greppat" $PROCSCSI >/dev/null
+  if [ $? -eq 0 ]; then
+	return $OCF_SUCCESS
+  else
+	return $OCF_NOT_RUNNING
+  fi
 }
 
+#
+# validate_all: Check the OCF instance parameters
+#
+scsi_validate_all() {
+  parseinst $instance
+  return $OCF_SUCCESS 
+} 
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   ocf_log err "Parameter number error."
   usage
   exit $OCF_ERR_GENERIC
 fi
 
-if
-  [ -z "$OCF_RESKEY_scsi" ] && [ "X$1" = "Xmethods" ]
-then
-  scsi_methods
-  exit #?
-fi
+#if
+#  [ -z "$OCF_RESKEY_scsi" ] && [ "X$1" = "Xmethods" ]
+#then
+#  scsi_methods
+#  exit #?
+#fi
+case $1 in
+  methods)		scsi_methods
+			exit $OCF_SUCCESS
+			;;
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			;;
+esac
 
 if 
   [ -z "$OCF_RESKEY_scsi" ]
 then
   ocf_log err "You have to set a valid scsi id at least!"
-  usage
+#  usage
   exit $OCF_ERR_GENERIC
 fi
 
 instance=$OCF_RESKEY_scsi
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
   start)		scsi_start $instance
 			;;
   stop)			scsi_stop $instance
@@ -266,19 +291,10 @@ case $1 in
 			  exit $OCF_NOT_RUNNING
 			fi
 			;;
-#
-# methods: What methods do we support?
-#
-  methods)
-			scsi_methods
-			;;
-
-  usage)		usage
-			exit $OCF_SUCCESS
+  validate-all)		scsi_validate_all
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
 			;;
 esac
 exit $?
-
