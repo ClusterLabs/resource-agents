@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -21,8 +21,6 @@
 #include <linux/fs.h>
 #include <linux/lm_interface.h>
 
-#define RELEASE_NAME "<CVS>"
-
 struct lmh_wrapper {
 	struct list_head lw_list;
 	struct lm_lockops *lw_ops;
@@ -38,18 +36,14 @@ static struct list_head lmh_list;
  * Returns: 0 on success, -EXXX on failure
  */
 
-int
-lm_register_proto(struct lm_lockops *proto)
+int lm_register_proto(struct lm_lockops *proto)
 {
-	struct list_head *tmp, *head;
 	struct lmh_wrapper *lw;
 
 	down(&lmh_lock);
 
-	for (head = &lmh_list, tmp = head->next; tmp != head; tmp = tmp->next) {
-		lw = list_entry(tmp, struct lmh_wrapper, lw_list);
-
-		if (strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name) == 0) {
+	list_for_each_entry(lw, &lmh_list, lw_list) {
+		if (!strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name)) {
 			up(&lmh_lock);
 			printk("lock_harness:  protocol %s already exists\n",
 			       proto->lm_proto_name);
@@ -57,12 +51,12 @@ lm_register_proto(struct lm_lockops *proto)
 		}
 	}
 
-	lw = kmalloc(sizeof (struct lmh_wrapper), GFP_KERNEL);
+	lw = kmalloc(sizeof(struct lmh_wrapper), GFP_KERNEL);
 	if (!lw) {
 		up(&lmh_lock);
 		return -ENOMEM;
 	}
-	memset(lw, 0, sizeof (struct lmh_wrapper));
+	memset(lw, 0, sizeof(struct lmh_wrapper));
 
 	lw->lw_ops = proto;
 	list_add(&lw->lw_list, &lmh_list);
@@ -78,18 +72,14 @@ lm_register_proto(struct lm_lockops *proto)
  *
  */
 
-void
-lm_unregister_proto(struct lm_lockops *proto)
+void lm_unregister_proto(struct lm_lockops *proto)
 {
-	struct list_head *tmp, *head;
-	struct lmh_wrapper *lw = NULL;
+	struct lmh_wrapper *lw;
 
 	down(&lmh_lock);
 
-	for (head = &lmh_list, tmp = head->next; tmp != head; tmp = tmp->next) {
-		lw = list_entry(tmp, struct lmh_wrapper, lw_list);
-
-		if (strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name) == 0) {
+	list_for_each_entry(lw, &lmh_list, lw_list) {
+		if (!strcmp(lw->lw_ops->lm_proto_name, proto->lm_proto_name)) {
 			list_del(&lw->lw_list);
 			up(&lmh_lock);
 			kfree(lw);
@@ -117,24 +107,20 @@ lm_unregister_proto(struct lm_lockops *proto)
  * Returns: 0 on success, -EXXX on failure
  */
 
-int
-lm_mount(char *proto_name, char *table_name, char *host_data,
+int lm_mount(char *proto_name, char *table_name, char *host_data,
 	 lm_callback_t cb, lm_fsdata_t * fsdata,
 	 unsigned int min_lvb_size, int flags,
 	 struct lm_lockstruct *lockstruct)
 {
-	struct list_head *tmp;
 	struct lmh_wrapper *lw = NULL;
 	int try = 0;
 	int error;
 
-      retry:
+ retry:
 	down(&lmh_lock);
 
-	for (tmp = lmh_list.next; tmp != &lmh_list; tmp = tmp->next) {
-		lw = list_entry(tmp, struct lmh_wrapper, lw_list);
-
-		if (strcmp(lw->lw_ops->lm_proto_name, proto_name) == 0)
+	list_for_each_entry(lw, &lmh_list, lw_list) {
+		if (!strcmp(lw->lw_ops->lm_proto_name, proto_name))
 			break;
 		else
 			lw = NULL;
@@ -166,10 +152,8 @@ lm_mount(char *proto_name, char *table_name, char *host_data,
 				     lockstruct);
 	if (error)
 		module_put(lw->lw_ops->lm_owner);
-
-      out:
+ out:
 	up(&lmh_lock);
-
 	return error;
 }
 
@@ -179,8 +163,7 @@ lm_mount(char *proto_name, char *table_name, char *host_data,
  *
  */
 
-void
-lm_unmount(struct lm_lockstruct *lockstruct)
+void lm_unmount(struct lm_lockstruct *lockstruct)
 {
 	down(&lmh_lock);
 	lockstruct->ls_ops->lm_unmount(lockstruct->ls_lockspace);
@@ -195,8 +178,7 @@ lm_unmount(struct lm_lockstruct *lockstruct)
  *
  */
 
-void
-lm_withdraw(struct lm_lockstruct *lockstruct)
+void lm_withdraw(struct lm_lockstruct *lockstruct)
 {
 	down(&lmh_lock);
 	lockstruct->ls_ops->lm_withdraw(lockstruct->ls_lockspace);
@@ -211,15 +193,11 @@ lm_withdraw(struct lm_lockstruct *lockstruct)
  * Returns: 0 on success, -EXXX on failure
  */
 
-int __init
-init_lmh(void)
+int __init init_lmh(void)
 {
 	init_MUTEX(&lmh_lock);
 	INIT_LIST_HEAD(&lmh_list);
-
-	printk("Lock_Harness %s (built %s %s) installed\n",
-	       RELEASE_NAME, __DATE__, __TIME__);
-
+	printk("Lock_Harness (built %s %s) installed\n", __DATE__, __TIME__);
 	return 0;
 }
 
@@ -229,15 +207,14 @@ init_lmh(void)
  * Returns: 0 on success, -EXXX on failure
  */
 
-void __exit
-exit_lmh(void)
+void __exit exit_lmh(void)
 {
 }
 
 module_init(init_lmh);
 module_exit(exit_lmh);
 
-MODULE_DESCRIPTION("GFS Lock Module Harness " RELEASE_NAME);
+MODULE_DESCRIPTION("GFS Lock Module Harness");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 
@@ -246,3 +223,4 @@ EXPORT_SYMBOL_GPL(lm_unregister_proto);
 EXPORT_SYMBOL_GPL(lm_mount);
 EXPORT_SYMBOL_GPL(lm_unmount);
 EXPORT_SYMBOL_GPL(lm_withdraw);
+
