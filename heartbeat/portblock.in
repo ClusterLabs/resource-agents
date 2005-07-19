@@ -1,6 +1,12 @@
 #!/bin/sh
 #
-#	portblock: iptables temporary portblocking control 
+# portblock: iptables temporary portblocking control 
+#
+# Author:	Sun Jiang Dong
+#
+# License:	GNU General Public License (GPL)
+#
+# Copyright:	(C) 2005 International Business Machines
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_protocol
@@ -17,13 +23,12 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 CMD=`basename $0`
 
-iptables=/usr/sbin/iptables
-BlockOrUnblock=block
+iptables=`which iptables`
 
 usage()
 {
 	cat <<-!USAGE >&2
-	usage: $CMD {start|stop|status|monitor|meta-data}
+	usage: $CMD {start|stop|status|monitor|meta-data|validate-all}
 
 	$CMD is used to temporarily block ports using iptables.
 
@@ -59,7 +64,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="portblock" version="0.9">
+<resource-agent name="portblock">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -100,6 +105,7 @@ The action (block/unblock) to be done on the protocol::portno.
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END
@@ -252,19 +258,83 @@ IptablesStop()
   return $?
 }
 
+#
+#	Check if the port is valid, this function code is not decent, but works
+#
+CheckPort() {
+#	Examples of valid port: "1080", "1", "0080"
+#	Examples of invalid port: "1080bad", "0", "0000", ""
+  case "$1" in
+    *[^0-9]*) #got invalid char
+	false;;
+    *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
+	true;;
+    *) #empty string, or string of 0's 
+	false;;
+  esac
+}
+
+IptablesValidateAll()
+{
+  case $protocol in
+    tcp|udp)
+	;;
+    *)
+	ocf_log err "Invalid protocol $protocol!"
+	exit $OCF_ERR_ARGS
+	;;
+  esac
+
+  if CheckPort "$portno"; then
+	:
+  else
+	ocf_log err "Invalid port number $portno!"
+	exit $OCF_ERR_ARGS
+  fi
+
+  case $action in
+    block|unblock)	
+	;;
+    *)		
+	ocf_log err "Invalid action $action!"
+	exit $OCF_ERR_ARGS
+	;; 
+  esac
+  return $OCF_SUCCESS
+}
+
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
-if 
-  ( [ -z "$OCF_RESKEY_protocol" ] ||  [ -z "$OCF_RESKEY_portno" ] || [ -z "$OCF_RESKEY_action" ] )
-then
-  usage
-  exit 1
-fi
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			;;
+esac
+
+if [ -z "$OCF_RESKEY_protocol" ]; then
+  ocf_log err "Please set OCF_RESKEY_protocol"
+  exit $OCF_ERR_ARGS
+fi 
+
+if [ -z "$OCF_RESKEY_portno" ]; then
+  ocf_log err "Please set OCF_RESKEY_portno"
+  exit $OCF_ERR_ARGS
+fi 
+
+if [ -z "$OCF_RESKEY_action" ]; then
+  ocf_log err "Please set OCF_RESKEY_action"
+  exit $OCF_ERR_ARGS
+fi 
 
 protocol=$OCF_RESKEY_protocol
 portno=$OCF_RESKEY_portno
@@ -273,9 +343,6 @@ action=$OCF_RESKEY_action
 RSCNAME=${CMD}_${protocol}_${portno}_${action}
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
   start)	
 			IptablesStart $protocol $portno $action 
 			;;
@@ -288,8 +355,8 @@ case $1 in
 			IptablesStatus $protocol $portno $action
 			;;
 
-  usage)		usage
-			exit $OCF_SUCCESS
+  validate-all)
+			IptablesValidateAll
 			;;
 
   *)			usage
