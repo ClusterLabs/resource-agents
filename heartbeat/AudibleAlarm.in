@@ -34,7 +34,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.3 2005/07/15 07:19:41 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.4 2005/07/19 07:39:16 sunjd Exp $";
 }
 
 meta_data() {
@@ -86,7 +86,9 @@ audiblealarm_start () {
 		# Uncomment this line to cause floppy drive light
 		# to flash (requires fdutils package).
 		# /usr/bin/floppycontrol --pollstate > /dev/null
-	done&
+		#
+		# To avoid issues when called by lrmd, redirect stdout->stderr.
+	done >&2 &
 	if ! echo $! >  $PIDFILE; then
 		ocf_log info "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!

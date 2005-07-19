@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.2 2005/07/15 09:43:25 sunjd Exp $
+# $Id: ServeRAID.in,v 1.3 2005/07/19 07:39:16 sunjd Exp $
 # 
 # ServeRAID
 #
@@ -112,7 +112,7 @@ usage() {
 	version becomes available.
 
 
-	$Id: ServeRAID.in,v 1.2 2005/07/15 09:43:25 sunjd Exp $
+	$Id: ServeRAID.in,v 1.3 2005/07/19 07:39:16 sunjd Exp $
 	!
 }
 
@@ -330,7 +330,8 @@ ServeRAID_start() {
       #run $IPS SYNCH $sr_adapter $sr_logicaldrivenumber &
       # This version of the SYNCH command requires the 6.10 or later
       # ServeRAID support CD.
-      run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup &
+      # To avoid issues when called by lrmd, redirect stdout->stderr.
+      run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup >&2 &
       AddSCSI
     else
       return $?
