@@ -15,18 +15,18 @@
 
 #include "lock_dlm.h"
 
-static ssize_t lm_dlm_block_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_block_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	int val = 0;
 
-	if (test_bit(DFL_BLOCK_LOCKS, &dlm->flags))
+	if (test_bit(DFL_BLOCK_LOCKS, &ls->flags))
 		val = 1;
 	ret = sprintf(buf, "%d\n", val);
 	return ret;
 }
 
-static ssize_t lm_dlm_block_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_block_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int val;
@@ -34,31 +34,31 @@ static ssize_t lm_dlm_block_store(dlm_t *dlm, const char *buf, size_t len)
 	val = simple_strtol(buf, NULL, 0);
 
 	if (val == 1)
-		set_bit(DFL_BLOCK_LOCKS, &dlm->flags);
+		set_bit(DFL_BLOCK_LOCKS, &ls->flags);
 	else if (val == 0) {
-		clear_bit(DFL_BLOCK_LOCKS, &dlm->flags);
-		lm_dlm_submit_delayed(dlm);
+		clear_bit(DFL_BLOCK_LOCKS, &ls->flags);
+		gdlm_submit_delayed(ls);
 	} else
 		ret = -EINVAL;
 	return ret;
 }
 
-static ssize_t lm_dlm_mounted_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_mounted_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	int val = -2;
 
-	if (test_bit(DFL_TERMINATE, &dlm->flags))
+	if (test_bit(DFL_TERMINATE, &ls->flags))
 		val = -1;
-	else if (test_bit(DFL_LEAVE_DONE, &dlm->flags))
+	else if (test_bit(DFL_LEAVE_DONE, &ls->flags))
 		val = 0;
-	else if (test_bit(DFL_JOIN_DONE, &dlm->flags))
+	else if (test_bit(DFL_JOIN_DONE, &ls->flags))
 		val = 1;
 	ret = sprintf(buf, "%d\n", val);
 	return ret;
 }
 
-static ssize_t lm_dlm_mounted_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_mounted_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int val;
@@ -66,31 +66,31 @@ static ssize_t lm_dlm_mounted_store(dlm_t *dlm, const char *buf, size_t len)
 	val = simple_strtol(buf, NULL, 0);
 
 	if (val == 1)
-		set_bit(DFL_JOIN_DONE, &dlm->flags);
+		set_bit(DFL_JOIN_DONE, &ls->flags);
 	else if (val == 0)
-		set_bit(DFL_LEAVE_DONE, &dlm->flags);
+		set_bit(DFL_LEAVE_DONE, &ls->flags);
 	else if (val == -1) {
-		set_bit(DFL_TERMINATE, &dlm->flags);
-		set_bit(DFL_JOIN_DONE, &dlm->flags);
-		set_bit(DFL_LEAVE_DONE, &dlm->flags);
+		set_bit(DFL_TERMINATE, &ls->flags);
+		set_bit(DFL_JOIN_DONE, &ls->flags);
+		set_bit(DFL_LEAVE_DONE, &ls->flags);
 	} else
 		ret = -EINVAL;
-	wake_up(&dlm->wait_control);
+	wake_up(&ls->wait_control);
 	return ret;
 }
 
-static ssize_t lm_dlm_withdraw_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_withdraw_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	int val = 0;
 
-	if (test_bit(DFL_WITHDRAW, &dlm->flags))
+	if (test_bit(DFL_WITHDRAW, &ls->flags))
 		val = 1;
 	ret = sprintf(buf, "%d\n", val);
 	return ret;
 }
 
-static ssize_t lm_dlm_withdraw_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_withdraw_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
 	int val;
@@ -98,218 +98,218 @@ static ssize_t lm_dlm_withdraw_store(dlm_t *dlm, const char *buf, size_t len)
 	val = simple_strtol(buf, NULL, 0);
 
 	if (val == 1)
-		set_bit(DFL_WITHDRAW, &dlm->flags);
+		set_bit(DFL_WITHDRAW, &ls->flags);
 	else
 		ret = -EINVAL;
-	wake_up(&dlm->wait_control);
+	wake_up(&ls->wait_control);
 	return ret;
 }
 
-static ssize_t lm_dlm_jid_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_jid_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", dlm->jid);
+	return sprintf(buf, "%u\n", ls->jid);
 }
 
-static ssize_t lm_dlm_jid_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_jid_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
-	dlm->jid = simple_strtol(buf, NULL, 0);
+	ls->jid = simple_strtol(buf, NULL, 0);
 	return len;
 }
 
-static ssize_t lm_dlm_first_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_first_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", dlm->first);
+	return sprintf(buf, "%u\n", ls->first);
 }
 
-static ssize_t lm_dlm_first_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_first_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
-	dlm->first = simple_strtol(buf, NULL, 0);
+	ls->first = simple_strtol(buf, NULL, 0);
 	return len;
 }
 
-static ssize_t lm_dlm_first_done_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_first_done_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%d\n", dlm->first_done);
+	return sprintf(buf, "%d\n", ls->first_done);
 }
 
-static ssize_t lm_dlm_recover_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_recover_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", dlm->recover_jid);
+	return sprintf(buf, "%u\n", ls->recover_jid);
 }
 
-static ssize_t lm_dlm_recover_store(dlm_t *dlm, const char *buf, size_t len)
+static ssize_t gdlm_recover_store(struct gdlm_ls *ls, const char *buf, size_t len)
 {
-	dlm->recover_jid = simple_strtol(buf, NULL, 0);
-	dlm->fscb(dlm->fsdata, LM_CB_NEED_RECOVERY, &dlm->recover_jid);
+	ls->recover_jid = simple_strtol(buf, NULL, 0);
+	ls->fscb(ls->fsdata, LM_CB_NEED_RECOVERY, &ls->recover_jid);
 	return len;
 }
 
-static ssize_t lm_dlm_recover_done_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_recover_done_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
-	ret = sprintf(buf, "%d\n", dlm->recover_done);
+	ret = sprintf(buf, "%d\n", ls->recover_done);
         return ret;
 }
 
-static ssize_t lm_dlm_cluster_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_cluster_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
-	ret = sprintf(buf, "%s\n", dlm->clustername);
+	ret = sprintf(buf, "%s\n", ls->clustername);
         return ret;
 }
 
-static ssize_t lm_dlm_options_show(dlm_t *dlm, char *buf)
+static ssize_t gdlm_options_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret = 0;
 
-	if (dlm->fsflags & LM_MFLAG_SPECTATOR)
+	if (ls->fsflags & LM_MFLAG_SPECTATOR)
 		ret += sprintf(buf, "spectator ");
 
 	return ret;
 }
 
-struct lm_dlm_attr {
+struct gdlm_attr {
 	struct attribute attr;
-	ssize_t (*show)(dlm_t *dlm, char *);
-	ssize_t (*store)(dlm_t *dlm, const char *, size_t);
+	ssize_t (*show)(struct gdlm_ls *, char *);
+	ssize_t (*store)(struct gdlm_ls *, const char *, size_t);
 };
 
-static struct lm_dlm_attr lm_dlm_attr_block = {
+static struct gdlm_attr gdlm_attr_block = {
 	.attr  = {.name = "block", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_block_show,
-	.store = lm_dlm_block_store 
+	.show  = gdlm_block_show,
+	.store = gdlm_block_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_mounted = {
+static struct gdlm_attr gdlm_attr_mounted = {
 	.attr  = {.name = "mounted", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_mounted_show,
-	.store = lm_dlm_mounted_store 
+	.show  = gdlm_mounted_show,
+	.store = gdlm_mounted_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_withdraw = {
+static struct gdlm_attr gdlm_attr_withdraw = {
 	.attr  = {.name = "withdraw", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_withdraw_show,
-	.store = lm_dlm_withdraw_store 
+	.show  = gdlm_withdraw_show,
+	.store = gdlm_withdraw_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_jid = {
+static struct gdlm_attr gdlm_attr_jid = {
 	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_jid_show,
-	.store = lm_dlm_jid_store 
+	.show  = gdlm_jid_show,
+	.store = gdlm_jid_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_first = {
+static struct gdlm_attr gdlm_attr_first = {
 	.attr  = {.name = "first", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_first_show,
-	.store = lm_dlm_first_store 
+	.show  = gdlm_first_show,
+	.store = gdlm_first_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_first_done = {
+static struct gdlm_attr gdlm_attr_first_done = {
 	.attr  = {.name = "first_done", .mode = S_IRUGO},
-	.show  = lm_dlm_first_done_show,
+	.show  = gdlm_first_done_show,
 };
 
-static struct lm_dlm_attr lm_dlm_attr_recover = {
+static struct gdlm_attr gdlm_attr_recover = {
 	.attr  = {.name = "recover", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_recover_show,
-	.store = lm_dlm_recover_store 
+	.show  = gdlm_recover_show,
+	.store = gdlm_recover_store 
 };
 
-static struct lm_dlm_attr lm_dlm_attr_recover_done = {
+static struct gdlm_attr gdlm_attr_recover_done = {
 	.attr  = {.name = "recover_done", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_recover_done_show,
+	.show  = gdlm_recover_done_show,
 };
 
-static struct lm_dlm_attr lm_dlm_attr_cluster = {
+static struct gdlm_attr gdlm_attr_cluster = {
 	.attr  = {.name = "cluster", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_cluster_show,
+	.show  = gdlm_cluster_show,
 };
 
-static struct lm_dlm_attr lm_dlm_attr_options = {
+static struct gdlm_attr gdlm_attr_options = {
 	.attr  = {.name = "options", .mode = S_IRUGO | S_IWUSR},
-	.show  = lm_dlm_options_show,
+	.show  = gdlm_options_show,
 };
 
-static struct attribute *lm_dlm_attrs[] = {
-	&lm_dlm_attr_block.attr,
-	&lm_dlm_attr_mounted.attr,
-	&lm_dlm_attr_withdraw.attr,
-	&lm_dlm_attr_jid.attr,
-	&lm_dlm_attr_first.attr,
-	&lm_dlm_attr_first_done.attr,
-	&lm_dlm_attr_recover.attr,
-	&lm_dlm_attr_recover_done.attr,
-	&lm_dlm_attr_cluster.attr,
-	&lm_dlm_attr_options.attr,
+static struct attribute *gdlm_attrs[] = {
+	&gdlm_attr_block.attr,
+	&gdlm_attr_mounted.attr,
+	&gdlm_attr_withdraw.attr,
+	&gdlm_attr_jid.attr,
+	&gdlm_attr_first.attr,
+	&gdlm_attr_first_done.attr,
+	&gdlm_attr_recover.attr,
+	&gdlm_attr_recover_done.attr,
+	&gdlm_attr_cluster.attr,
+	&gdlm_attr_options.attr,
 	NULL,
 };
 
-static ssize_t lm_dlm_attr_show(struct kobject *kobj, struct attribute *attr,
+static ssize_t gdlm_attr_show(struct kobject *kobj, struct attribute *attr,
 			        char *buf)
 {
-	dlm_t *dlm = container_of(kobj, dlm_t, kobj);
-	struct lm_dlm_attr *a = container_of(attr, struct lm_dlm_attr, attr);
-	return a->show ? a->show(dlm, buf) : 0;
+	struct gdlm_ls *ls = container_of(kobj, struct gdlm_ls, kobj);
+	struct gdlm_attr *a = container_of(attr, struct gdlm_attr, attr);
+	return a->show ? a->show(ls, buf) : 0;
 }
 
-static ssize_t lm_dlm_attr_store(struct kobject *kobj, struct attribute *attr,
+static ssize_t gdlm_attr_store(struct kobject *kobj, struct attribute *attr,
 			         const char *buf, size_t len)
 {
-	dlm_t *dlm = container_of(kobj, dlm_t, kobj);
-	struct lm_dlm_attr *a = container_of(attr, struct lm_dlm_attr, attr);
-	return a->store ? a->store(dlm, buf, len) : len;
+	struct gdlm_ls *ls = container_of(kobj, struct gdlm_ls, kobj);
+	struct gdlm_attr *a = container_of(attr, struct gdlm_attr, attr);
+	return a->store ? a->store(ls, buf, len) : len;
 }
 
-static struct sysfs_ops lm_dlm_attr_ops = {
-	.show  = lm_dlm_attr_show,
-	.store = lm_dlm_attr_store,
+static struct sysfs_ops gdlm_attr_ops = {
+	.show  = gdlm_attr_show,
+	.store = gdlm_attr_store,
 };
 
-static struct kobj_type lm_dlm_ktype = {
-	.default_attrs = lm_dlm_attrs,
-	.sysfs_ops     = &lm_dlm_attr_ops,
+static struct kobj_type gdlm_ktype = {
+	.default_attrs = gdlm_attrs,
+	.sysfs_ops     = &gdlm_attr_ops,
 };
 
-static struct kset lm_dlm_kset = {
+static struct kset gdlm_kset = {
 	.subsys = &kernel_subsys,
 	.kobj   = {.name = "lock_dlm",},
-	.ktype  = &lm_dlm_ktype,
+	.ktype  = &gdlm_ktype,
 };
 
-int lm_dlm_kobject_setup(dlm_t *dlm)
+int gdlm_kobject_setup(struct gdlm_ls *ls)
 {
 	int error;
 
-	error = kobject_set_name(&dlm->kobj, "%s", dlm->fsname);
+	error = kobject_set_name(&ls->kobj, "%s", ls->fsname);
 	if (error)
 		return error;
 
-	dlm->kobj.kset = &lm_dlm_kset;
-	dlm->kobj.ktype = &lm_dlm_ktype;
+	ls->kobj.kset = &gdlm_kset;
+	ls->kobj.ktype = &gdlm_ktype;
 
-	error = kobject_register(&dlm->kobj);
+	error = kobject_register(&ls->kobj);
 
 	return 0;
 }
 
-void lm_dlm_kobject_release(dlm_t *dlm)
+void gdlm_kobject_release(struct gdlm_ls *ls)
 {
-	kobject_unregister(&dlm->kobj);
+	kobject_unregister(&ls->kobj);
 }
 
-int lm_dlm_sysfs_init(void)
+int gdlm_sysfs_init(void)
 {
 	int error;
 
-	error = kset_register(&lm_dlm_kset);
+	error = kset_register(&gdlm_kset);
 	if (error)
 		printk("lock_dlm: cannot register kset %d\n", error);
 
 	return error;
 }
 
-void lm_dlm_sysfs_exit(void)
+void gdlm_sysfs_exit(void)
 {
-	kset_unregister(&lm_dlm_kset);
+	kset_unregister(&gdlm_kset);
 }
 

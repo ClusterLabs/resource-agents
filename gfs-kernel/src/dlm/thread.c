@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -13,41 +13,30 @@
 
 #include "lock_dlm.h"
 
-/* 
- * Run in dlm_async thread 
- */
+/* A lock placed on this queue is re-submitted to DLM as soon as the lock_dlm
+   thread gets to it. */
 
-/**
- * queue_submit - add lock request to queue for dlm_async thread
- * @lp: DLM lock
- *
- * A lock placed on this queue is re-submitted to DLM as soon as
- * dlm_async thread gets to it.  
- */
-
-static void queue_submit(dlm_lock_t *lp)
+static void queue_submit(struct gdlm_lock *lp)
 {
-	dlm_t *dlm = lp->dlm;
+	struct gdlm_ls *ls = lp->ls;
 
-	spin_lock(&dlm->async_lock);
-	list_add_tail(&lp->slist, &dlm->submit);
-	set_bit(LFL_SLIST, &lp->flags);
-	spin_unlock(&dlm->async_lock);
-	wake_up(&dlm->wait);
+	spin_lock(&ls->async_lock);
+	list_add_tail(&lp->delay_list, &ls->submit);
+	spin_unlock(&ls->async_lock);
+	wake_up(&ls->thread_wait);
 }
 
-/**
- * process_blocking - processing of blocking callback
- * @lp: DLM lock
- *
- */
-
-static void process_blocking(dlm_lock_t *lp, int bast_mode)
+static void process_submit(struct gdlm_lock *lp)
 {
-	dlm_t *dlm = lp->dlm;
+	gdlm_do_lock(lp, NULL);
+}
+
+static void process_blocking(struct gdlm_lock *lp, int bast_mode)
+{
+	struct gdlm_ls *ls = lp->ls;
 	unsigned int cb;
 
-	switch (make_lmstate(bast_mode)) {
+	switch (gdlm_make_lmstate(bast_mode)) {
 	case LM_ST_EXCLUSIVE:
 		cb = LM_CB_NEED_E;
 		break;
@@ -58,21 +47,15 @@ static void process_blocking(dlm_lock_t *lp, int bast_mode)
 		cb = LM_CB_NEED_S;
 		break;
 	default:
-		DLM_ASSERT(0, printk("unknown bast mode %u\n", lp->bast_mode););
+		GDLM_ASSERT(0, printk("unknown bast mode %u\n",lp->bast_mode););
 	}
 
-	dlm->fscb(dlm->fsdata, cb, &lp->lockname);
+	ls->fscb(ls->fsdata, cb, &lp->lockname);
 }
 
-/**
- * process_complete - processing of completion callback for a lock request
- * @lp: DLM lock
- *
- */
-
-static void process_complete(dlm_lock_t *lp)
+static void process_complete(struct gdlm_lock *lp)
 {
-	dlm_t *dlm = lp->dlm;
+	struct gdlm_ls *ls = lp->ls;
 	struct lm_async_cb acb;
 	int16_t prev_mode = lp->cur;
 
@@ -101,21 +84,16 @@ static void process_complete(dlm_lock_t *lp)
 		lp->cur = DLM_LOCK_IV;
 		lp->req = DLM_LOCK_IV;
 		lp->lksb.sb_lkid = 0;
-		atomic_dec(&dlm->lock_count);
 
-		if (test_and_clear_bit(LFL_UNLOCK_SYNC, &lp->flags)) {
-			complete(&lp->uast_wait);
-			return;
-		}
 		if (test_and_clear_bit(LFL_UNLOCK_DELETE, &lp->flags)) {
-			delete_lp(lp);
+			gdlm_delete_lp(lp);
 			return;
 		}
 		goto out;
 	}
 
 	if (lp->lksb.sb_flags & DLM_SBF_VALNOTVALID)
-		memset(lp->lksb.sb_lvbptr, 0, DLM_LVB_SIZE);
+		memset(lp->lksb.sb_lvbptr, 0, GDLM_LVB_SIZE);
 
 	if (lp->lksb.sb_flags & DLM_SBF_ALTMODE) {
 		if (lp->req == DLM_LOCK_PR)
@@ -163,7 +141,7 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_SYNC_LVB, &lp->flags)) {
-		complete(&lp->uast_wait);
+		complete(&lp->ast_wait);
 		return;
 	}
 
@@ -174,9 +152,8 @@ static void process_complete(dlm_lock_t *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_REREQUEST, &lp->flags)) {
-
-		DLM_ASSERT(lp->req == DLM_LOCK_NL,);
-		DLM_ASSERT(lp->prev_req > DLM_LOCK_NL,);
+		GDLM_ASSERT(lp->req == DLM_LOCK_NL,);
+		GDLM_ASSERT(lp->prev_req > DLM_LOCK_NL,);
 
 		lp->cur = DLM_LOCK_NL;
 		lp->req = lp->prev_req;
@@ -185,9 +162,9 @@ static void process_complete(dlm_lock_t *lp)
 
 		set_bit(LFL_NOCACHE, &lp->flags);
 
-		if (test_bit(DFL_BLOCK_LOCKS, &dlm->flags) &&
+		if (test_bit(DFL_BLOCK_LOCKS, &ls->flags) &&
 		    !test_bit(LFL_NOBLOCK, &lp->flags))
-			queue_delayed(lp, QUEUE_LOCKS_BLOCKED);
+			gdlm_queue_delayed(lp);
 		else
 			queue_submit(lp);
 		return;
@@ -202,7 +179,7 @@ static void process_complete(dlm_lock_t *lp)
 	 * granted state.
 	 */
 
-	if (test_bit(DFL_BLOCK_LOCKS, &dlm->flags) &&
+	if (test_bit(DFL_BLOCK_LOCKS, &ls->flags) &&
 	    !test_bit(LFL_NOBLOCK, &lp->flags) &&
 	    lp->req != DLM_LOCK_NL) {
 
@@ -229,16 +206,15 @@ static void process_complete(dlm_lock_t *lp)
 	if (lp->lksb.sb_flags & DLM_SBF_DEMOTED)
 		set_bit(LFL_NOCACHE, &lp->flags);
 
-      out:
-
+ out:
 	/*
-	 * This is an internal lock_dlm lock (for jid's or plock's)
+	 * This is an internal lock_dlm lock
 	 */
 
 	if (test_bit(LFL_INLOCK, &lp->flags)) {
 		clear_bit(LFL_NOBLOCK, &lp->flags);
 		lp->cur = lp->req;
-		complete(&lp->uast_wait);
+		complete(&lp->ast_wait);
 		return;
 	}
 
@@ -250,110 +226,80 @@ static void process_complete(dlm_lock_t *lp)
 	lp->cur = lp->req;
 
 	acb.lc_name = lp->lockname;
-	acb.lc_ret |= make_lmstate(lp->cur);
+	acb.lc_ret |= gdlm_make_lmstate(lp->cur);
 
 	if (!test_and_clear_bit(LFL_NOCACHE, &lp->flags) &&
 	    (lp->cur > DLM_LOCK_NL) && (prev_mode > DLM_LOCK_NL))
 		acb.lc_ret |= LM_OUT_CACHEABLE;
 
-	if (prev_mode == DLM_LOCK_IV && lp->cur > DLM_LOCK_IV)
-		atomic_inc(&dlm->lock_count);
-
-	dlm->fscb(dlm->fsdata, LM_CB_ASYNC, &acb);
+	ls->fscb(ls->fsdata, LM_CB_ASYNC, &acb);
 }
 
-/**
- * no_work - determine if there's work for the dlm_async thread
- * @dlm:
- *
- * Returns: 1 if no work, 0 otherwise
- */
-
-static __inline__ int no_work(dlm_t *dlm)
+static __inline__ int no_work(struct gdlm_ls *ls)
 {
 	int ret;
 
-	spin_lock(&dlm->async_lock);
-
-	ret = list_empty(&dlm->complete) &&
-	    list_empty(&dlm->blocking) &&
-	    list_empty(&dlm->submit);
-
-	spin_unlock(&dlm->async_lock);
+	spin_lock(&ls->async_lock);
+	ret = list_empty(&ls->complete) &&
+	      list_empty(&ls->blocking) &&
+	      list_empty(&ls->submit);
+	spin_unlock(&ls->async_lock);
 
 	return ret;
 }
 
-static __inline__ int check_drop(dlm_t *dlm)
+static __inline__ int check_drop(struct gdlm_ls *ls)
 {
-	if (!dlm->drop_locks_count)
-		return FALSE;
+	if (!ls->drop_locks_count)
+		return 0;
 
-	if (check_timeout(dlm->drop_time, dlm->drop_locks_period)) {
-		dlm->drop_time = jiffies;
-		if (atomic_read(&dlm->lock_count) >= dlm->drop_locks_count)
-			return TRUE;
+	if (time_after(jiffies, ls->drop_time + ls->drop_locks_period * HZ)) {
+		ls->drop_time = jiffies;
+		if (ls->all_locks_count >= ls->drop_locks_count)
+			return 1;
 	}
-	return FALSE;
+	return 0;
 }
 
-static __inline__ int check_shrink(dlm_t *dlm)
+static int gdlm_thread(void *data)
 {
-	if (check_timeout(dlm->shrink_time, SHRINK_CACHE_TIME)){
-		dlm->shrink_time = jiffies;
-		return TRUE;
-	}
-	return FALSE;
-}
-
-/**
- * dlm_async - thread for a variety of asynchronous processing
- * @data:
- *
- * Returns: 0 on success, -EXXX on failure
- */
-
-static int dlm_async(void *data)
-{
-	dlm_t *dlm = (dlm_t *) data;
-	dlm_lock_t *lp = NULL;
-	uint8_t complete, blocking, submit, start, finish, drop, shrink;
+	struct gdlm_ls *ls = (struct gdlm_ls *) data;
+	struct gdlm_lock *lp = NULL;
+	uint8_t complete, blocking, submit, drop;
 	DECLARE_WAITQUEUE(wait, current);
 
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		add_wait_queue(&dlm->wait, &wait);
-		if (no_work(dlm))
+		add_wait_queue(&ls->thread_wait, &wait);
+		if (no_work(ls))
 			schedule();
-		remove_wait_queue(&dlm->wait, &wait);
+		remove_wait_queue(&ls->thread_wait, &wait);
 		set_current_state(TASK_RUNNING);
 
-		complete = blocking = submit = start = finish = 0;
-		drop = shrink = 0;
+		complete = blocking = submit = drop = 0;
 
-		spin_lock(&dlm->async_lock);
+		spin_lock(&ls->async_lock);
 
-		if (!list_empty(&dlm->complete)) {
-			lp = list_entry(dlm->complete.next, dlm_lock_t, clist);
-			list_del(&lp->clist);
-			clear_bit(LFL_CLIST, &lp->flags);
+		if (!list_empty(&ls->complete)) {
+			lp = list_entry(ls->complete.next, struct gdlm_lock,
+					clist);
+			list_del_init(&lp->clist);
 			complete = 1;
-		} else if (!list_empty(&dlm->blocking)) {
-			lp = list_entry(dlm->blocking.next, dlm_lock_t, blist);
-			list_del(&lp->blist);
-			clear_bit(LFL_BLIST, &lp->flags);
+		} else if (!list_empty(&ls->blocking)) {
+			lp = list_entry(ls->blocking.next, struct gdlm_lock,
+					blist);
+			list_del_init(&lp->blist);
 			blocking = lp->bast_mode;
 			lp->bast_mode = 0;
-		} else if (!list_empty(&dlm->submit)) {
-			lp = list_entry(dlm->submit.next, dlm_lock_t, slist);
-			list_del(&lp->slist);
-			clear_bit(LFL_SLIST, &lp->flags);
+		} else if (!list_empty(&ls->submit)) {
+			lp = list_entry(ls->submit.next, struct gdlm_lock,
+					delay_list);
+			list_del_init(&lp->delay_list);
 			submit = 1;
 		} 
 
-		drop = check_drop(dlm);
-		shrink = check_shrink(dlm);
-		spin_unlock(&dlm->async_lock);
+		drop = check_drop(ls);
+		spin_unlock(&ls->async_lock);
 
 		if (complete)
 			process_complete(lp);
@@ -365,58 +311,42 @@ static int dlm_async(void *data)
 			process_submit(lp);
 
 		if (drop)
-			dlm->fscb(dlm->fsdata, LM_CB_DROPLOCKS, NULL);
-#if 0
-		if (shrink)
-			shrink_null_cache(dlm);
-#endif
+			ls->fscb(ls->fsdata, LM_CB_DROPLOCKS, NULL);
+
 		schedule();
 	}
 
 	return 0;
 }
 
-/**
- * init_async_thread
- * @dlm:
- *
- * Returns: 0 on success, -EXXX on failure
- */
-
-int init_async_thread(dlm_t *dlm)
+int gdlm_init_threads(struct gdlm_ls *ls)
 {
 	struct task_struct *p;
 	int error;
 
-	p = kthread_run(dlm_async, dlm, "lock_dlm1");
+	p = kthread_run(gdlm_thread, ls, "lock_dlm1");
 	error = IS_ERR(p);
 	if (error) {
-		log_all("can't start lock_dlm1 daemon %d", error);
+		log_all("can't start lock_dlm1 thread %d", error);
 		return error;
 	}
-	dlm->thread1 = p;
+	ls->thread1 = p;
 
-	p = kthread_run(dlm_async, dlm, "lock_dlm2");
+	p = kthread_run(gdlm_thread, ls, "lock_dlm2");
 	error = IS_ERR(p);
 	if (error) {
-		log_all("can't start lock_dlm2 daemon %d", error);
-		kthread_stop(dlm->thread1);
+		log_all("can't start lock_dlm2 thread %d", error);
+		kthread_stop(ls->thread1);
 		return error;
 	}
-	dlm->thread2 = p;
+	ls->thread2 = p;
 
 	return 0;
 }
 
-/**
- * release_async_thread
- * @dlm:
- *
- */
-
-void release_async_thread(dlm_t *dlm)
+void gdlm_release_threads(struct gdlm_ls *ls)
 {
-	kthread_stop(dlm->thread1);
-	kthread_stop(dlm->thread2);
+	kthread_stop(ls->thread1);
+	kthread_stop(ls->thread2);
 }
 
