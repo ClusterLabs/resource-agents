@@ -744,7 +744,7 @@ ip_start() {
   ARGS="-i $OCF_RESKEY_ARP_INTERVAL_MS -r $OCF_RESKEY_ARP_REPEAT -p $SENDARPPIDFILE $TARGET_INTERFACE $BASEIP auto $BASEIP $OCF_RESKEY_ARP_NETMASK"
   ocf_log info "$SENDARP $ARGS"
   case $OCF_RESKEY_ARP_BACKGROUND in
-    yes) ($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?")&;;
+    yes) ($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?") >&2 &;;
     *)	  $SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?";;
   esac
 }
