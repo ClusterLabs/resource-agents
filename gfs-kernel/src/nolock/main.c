@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -19,8 +19,6 @@
 #include <linux/fs.h>
 #include <linux/smp_lock.h>
 #include <linux/lm_interface.h>
-
-#define RELEASE_NAME "<CVS>"
 
 struct nolock_lockspace {
 	unsigned int nl_lvb_size;
@@ -41,11 +39,10 @@ struct lm_lockops nolock_ops;
  * Returns: 0 on success, -EXXX on failure
  */
 
-static int
-nolock_mount(char *table_name, char *host_data,
-	     lm_callback_t cb, lm_fsdata_t *fsdata,
-	     unsigned int min_lvb_size, int flags,
-	     struct lm_lockstruct *lockstruct)
+static int nolock_mount(char *table_name, char *host_data,
+			lm_callback_t cb, lm_fsdata_t *fsdata,
+			unsigned int min_lvb_size, int flags,
+			struct lm_lockstruct *lockstruct)
 {
 	char *c;
 	unsigned int jid;
@@ -85,8 +82,7 @@ nolock_mount(char *table_name, char *host_data,
  *
  */
 
-static void
-nolock_others_may_mount(lm_lockspace_t *lockspace)
+static void nolock_others_may_mount(lm_lockspace_t *lockspace)
 {
 }
 
@@ -96,8 +92,7 @@ nolock_others_may_mount(lm_lockspace_t *lockspace)
  *
  */
 
-static void
-nolock_unmount(lm_lockspace_t *lockspace)
+static void nolock_unmount(lm_lockspace_t *lockspace)
 {
 	struct nolock_lockspace *nl = (struct nolock_lockspace *)lockspace;
 	kfree(nl);
@@ -109,8 +104,7 @@ nolock_unmount(lm_lockspace_t *lockspace)
  *
  */
 
-static void
-nolock_withdraw(lm_lockspace_t *lockspace)
+static void nolock_withdraw(lm_lockspace_t *lockspace)
 {
 }
 
@@ -123,9 +117,8 @@ nolock_withdraw(lm_lockspace_t *lockspace)
  * Returns: 0 on success, -EXXX on failure
  */
 
-static int
-nolock_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-		lm_lock_t ** lockp)
+static int nolock_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+			   lm_lock_t **lockp)
 {
 	*lockp = (lm_lock_t *)lockspace;
 	return 0;
@@ -137,8 +130,7 @@ nolock_get_lock(lm_lockspace_t *lockspace, struct lm_lockname *name,
  *
  */
 
-static void
-nolock_put_lock(lm_lock_t *lock)
+static void nolock_put_lock(lm_lock_t *lock)
 {
 }
 
@@ -152,9 +144,8 @@ nolock_put_lock(lm_lock_t *lock)
  * Returns: A bitmap of LM_OUT_*
  */
 
-static unsigned int
-nolock_lock(lm_lock_t *lock, unsigned int cur_state, unsigned int req_state,
-	    unsigned int flags)
+static unsigned int nolock_lock(lm_lock_t *lock, unsigned int cur_state,
+				unsigned int req_state, unsigned int flags)
 {
 	return req_state | LM_OUT_CACHEABLE;
 }
@@ -167,8 +158,7 @@ nolock_lock(lm_lock_t *lock, unsigned int cur_state, unsigned int req_state,
  * Returns: 0
  */
 
-static unsigned int
-nolock_unlock(lm_lock_t *lock, unsigned int cur_state)
+static unsigned int nolock_unlock(lm_lock_t *lock, unsigned int cur_state)
 {
 	return 0;
 }
@@ -179,8 +169,7 @@ nolock_unlock(lm_lock_t *lock, unsigned int cur_state)
  *
  */
 
-static void
-nolock_cancel(lm_lock_t *lock)
+static void nolock_cancel(lm_lock_t *lock)
 {
 }
 
@@ -192,8 +181,7 @@ nolock_cancel(lm_lock_t *lock)
  * Returns: 0 on success, -EXXX on failure
  */
 
-static int
-nolock_hold_lvb(lm_lock_t *lock, char **lvbp)
+static int nolock_hold_lvb(lm_lock_t *lock, char **lvbp)
 {
 	struct nolock_lockspace *nl = (struct nolock_lockspace *)lock;
 	int error = 0;
@@ -214,8 +202,7 @@ nolock_hold_lvb(lm_lock_t *lock, char **lvbp)
  *
  */
 
-static void
-nolock_unhold_lvb(lm_lock_t *lock, char *lvb)
+static void nolock_unhold_lvb(lm_lock_t *lock, char *lvb)
 {
 	kfree(lvb);
 }
@@ -227,8 +214,7 @@ nolock_unhold_lvb(lm_lock_t *lock, char *lvb)
  *
  */
 
-static void
-nolock_sync_lvb(lm_lock_t *lock, char *lvb)
+static void nolock_sync_lvb(lm_lock_t *lock, char *lvb)
 {
 }
 
@@ -242,10 +228,8 @@ nolock_sync_lvb(lm_lock_t *lock, char *lvb)
  * Returns: errno
  */
 
-static int
-nolock_plock_get(lm_lockspace_t *lockspace,
-		 struct lm_lockname *name,
-		 struct file *file, struct file_lock *fl)
+static int nolock_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
+			    struct file *file, struct file_lock *fl)
 {
 	struct file_lock *tmp;
 
@@ -270,10 +254,8 @@ nolock_plock_get(lm_lockspace_t *lockspace,
  * Returns: errno
  */
 
-static int
-nolock_plock(lm_lockspace_t *lockspace,
-	     struct lm_lockname *name,
-	     struct file *file, int cmd, struct file_lock *fl)
+static int nolock_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+			struct file *file, int cmd, struct file_lock *fl)
 {
 	int error;
 	lock_kernel();
@@ -292,10 +274,8 @@ nolock_plock(lm_lockspace_t *lockspace,
  * Returns: errno
  */
 
-static int
-nolock_punlock(lm_lockspace_t *lockspace,
-	       struct lm_lockname *name,
-	       struct file *file, struct file_lock *fl)
+static int nolock_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
+			  struct file *file, struct file_lock *fl)
 {
 	int error;
 	lock_kernel();
@@ -311,9 +291,8 @@ nolock_punlock(lm_lockspace_t *lockspace,
  *
  */
 
-static void
-nolock_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
-		     unsigned int message)
+static void nolock_recovery_done(lm_lockspace_t *lockspace, unsigned int jid,
+				 unsigned int message)
 {
 }
 
@@ -344,8 +323,7 @@ struct lm_lockops nolock_ops = {
  * Returns: 0 on success, -EXXX on failure
  */
 
-int __init
-init_nolock(void)
+int __init init_nolock(void)
 {
 	int error;
 
@@ -355,9 +333,7 @@ init_nolock(void)
 		return error;
 	}
 
-	printk("Lock_Nolock %s (built %s %s) installed\n",
-	       RELEASE_NAME, __DATE__, __TIME__);
-
+	printk("Lock_Nolock (built %s %s) installed\n", __DATE__, __TIME__);
 	return 0;
 }
 
@@ -366,8 +342,7 @@ init_nolock(void)
  *
  */
 
-void __exit
-exit_nolock(void)
+void __exit exit_nolock(void)
 {
 	lm_unregister_proto(&nolock_ops);
 }
@@ -375,6 +350,7 @@ exit_nolock(void)
 module_init(init_nolock);
 module_exit(exit_nolock);
 
-MODULE_DESCRIPTION("GFS Nolock Locking Module " RELEASE_NAME);
+MODULE_DESCRIPTION("GFS Nolock Locking Module");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
+
