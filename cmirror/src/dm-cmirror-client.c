@@ -695,9 +695,10 @@ static void cluster_dtr(struct dirty_log *log)
 static int cluster_presuspend(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
-
 	atomic_set(&lc->suspended, 1);
-	complete(&lc->failure_completion);
+
+	if (lc->disk_bits)
+		complete(&lc->failure_completion);
 
 	return 0;
 }
