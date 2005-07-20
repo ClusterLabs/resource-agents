@@ -380,7 +380,6 @@ sm_open(cluster_plugin_t *self)
 static int
 sm_logout(cluster_plugin_t *self, int fd)
 {
-	int ret;
 	sm_priv_t *p;
 
 	assert(self);
@@ -409,7 +408,7 @@ sm_logout(cluster_plugin_t *self, int fd)
 		p->groupname = NULL;
 	}
 
-	return ret;
+	return 0;
 }
 
 
