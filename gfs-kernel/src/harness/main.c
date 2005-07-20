@@ -114,19 +114,20 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 {
 	struct lmh_wrapper *lw = NULL;
 	int try = 0;
-	int error;
+	int error, found;
 
  retry:
 	down(&lmh_lock);
 
+	found = 0;
 	list_for_each_entry(lw, &lmh_list, lw_list) {
-		if (!strcmp(lw->lw_ops->lm_proto_name, proto_name))
+		if (!strcmp(lw->lw_ops->lm_proto_name, proto_name)) {
+			found = 1;
 			break;
-		else
-			lw = NULL;
+		}
 	}
 
-	if (!lw) {
+	if (!found) {
 		if (!try && capable(CAP_SYS_MODULE)) {
 			try = 1;
 			up(&lmh_lock);
