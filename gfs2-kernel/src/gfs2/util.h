@@ -40,8 +40,8 @@ void gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
 void gfs2_assert_i(struct gfs2_sbd *sdp,
                   char *assertion,
                   const char *function,
-                  char *file, unsigned int line)
-__attribute__ ((noreturn));
+                  char *file, unsigned int line) __attribute__ ((noreturn));
+
 #define gfs2_assert(sdp, assertion, todo) \
 do { \
 	if (unlikely(!(assertion))) { \
@@ -65,6 +65,7 @@ int gfs2_assert_withdraw_i(struct gfs2_sbd *sdp,
 			   char *assertion,
 			   const char *function,
 			   char *file, unsigned int line);
+
 #define gfs2_assert_withdraw(sdp, assertion) \
 ((likely(assertion)) ? 0 : \
  gfs2_assert_withdraw_i((sdp), #assertion, \
@@ -84,6 +85,7 @@ int gfs2_assert_warn_i(struct gfs2_sbd *sdp,
 		       char *assertion,
 		       const char *function,
 		       char *file, unsigned int line);
+
 #define gfs2_assert_warn(sdp, assertion) \
 ((likely(assertion)) ? 0 : \
  gfs2_assert_warn_i((sdp), #assertion, \
@@ -101,8 +103,10 @@ int gfs2_assert_warn_i(struct gfs2_sbd *sdp,
 int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide,
 		   const char *function,
 		   char *file, unsigned int line);
+
 #define gfs2_consist(sdp)\
 gfs2_consist_i((sdp), FALSE, __FUNCTION__, __FILE__, __LINE__)
+
 #define gfs2_cconsist(sdp)\
 gfs2_consist_i((sdp), TRUE, __FUNCTION__, __FILE__, __LINE__)
 
@@ -118,8 +122,10 @@ gfs2_consist_i((sdp), TRUE, __FUNCTION__, __FILE__, __LINE__)
 int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 			 const char *function,
 			 char *file, unsigned int line);
+
 #define gfs2_consist_inode(ip) \
 gfs2_consist_inode_i((ip), FALSE, __FUNCTION__, __FILE__, __LINE__)
+
 #define gfs2_cconsist_inode(ip) \
 gfs2_consist_inode_i((ip), TRUE, __FUNCTION__, __FILE__, __LINE__)
 
@@ -135,8 +141,10 @@ gfs2_consist_inode_i((ip), TRUE, __FUNCTION__, __FILE__, __LINE__)
 int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 			 const char *function,
 			 char *file, unsigned int line);
+
 #define gfs2_consist_rgrpd(rgd) \
 gfs2_consist_rgrpd_i((rgd), FALSE, __FUNCTION__, __FILE__, __LINE__)
+
 #define gfs2_cconsist_rgrpd(rgd) \
 gfs2_consist_rgrpd_i((rgd), TRUE, __FUNCTION__, __FILE__, __LINE__)
 
@@ -154,10 +162,11 @@ int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		       const char *type,
 		       const char *function,
 		       char *file, unsigned int line);
-static __inline__ int
-gfs2_meta_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		  const char *function,
-		  char *file, unsigned int line)
+
+static __inline__ int gfs2_meta_check_i(struct gfs2_sbd *sdp,
+					struct buffer_head *bh,
+					const char *function,
+					char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
@@ -170,6 +179,7 @@ gfs2_meta_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		return gfs2_meta_check_ii(sdp, bh, "block number", function, file, line);
 	return 0;
 }
+
 #define gfs2_meta_check(sdp, bh) \
 gfs2_meta_check_i((sdp), (bh), \
 		 __FUNCTION__, __FILE__, __LINE__)
@@ -189,11 +199,12 @@ int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 			   uint16_t type, uint16_t t,
 			   const char *function,
 			   char *file, unsigned int line);
-static __inline__ int
-gfs2_metatype_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      uint16_t type,
-		      const char *function,
-		      char *file, unsigned int line)
+
+static __inline__ int gfs2_metatype_check_i(struct gfs2_sbd *sdp,
+					    struct buffer_head *bh,
+					    uint16_t type,
+					    const char *function,
+					    char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
@@ -210,6 +221,7 @@ gfs2_metatype_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		return gfs2_metatype_check_ii(sdp, bh, type, t, function, file, line);
 	return 0;
 }
+
 #define gfs2_metatype_check(sdp, bh, type) \
 gfs2_metatype_check_i((sdp), (bh), (type), \
 		     __FUNCTION__, __FILE__, __LINE__)
@@ -222,8 +234,8 @@ gfs2_metatype_check_i((sdp), (bh), (type), \
  *
  */
 
-static __inline__ void
-gfs2_metatype_set(struct buffer_head *bh, uint16_t type, uint16_t format)
+static __inline__ void gfs2_metatype_set(struct buffer_head *bh, uint16_t type,
+					 uint16_t format)
 {
 	struct gfs2_meta_header *mh;
 	mh = (struct gfs2_meta_header *)bh->b_data;
@@ -242,6 +254,7 @@ gfs2_metatype_set(struct buffer_head *bh, uint16_t type, uint16_t format)
 int gfs2_io_error_i(struct gfs2_sbd *sdp,
 		    const char *function,
 		    char *file, unsigned int line);
+
 #define gfs2_io_error(sdp) \
 gfs2_io_error_i((sdp), __FUNCTION__, __FILE__, __LINE__);
 
@@ -256,6 +269,7 @@ gfs2_io_error_i((sdp), __FUNCTION__, __FILE__, __LINE__);
 int gfs2_io_error_inode_i(struct gfs2_inode *ip,
 			  const char *function,
 			  char *file, unsigned int line);
+
 #define gfs2_io_error_inode(ip) \
 gfs2_io_error_inode_i((ip), __FUNCTION__, __FILE__, __LINE__);
 
@@ -271,6 +285,7 @@ gfs2_io_error_inode_i((ip), __FUNCTION__, __FILE__, __LINE__);
 int gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		       const char *function,
 		       char *file, unsigned int line);
+
 #define gfs2_io_error_bh(sdp, bh) \
 gfs2_io_error_bh_i((sdp), (bh), __FUNCTION__, __FILE__, __LINE__);
 
@@ -304,8 +319,8 @@ struct gfs2_user_buffer {
 int gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh);
 
 
-static __inline__ unsigned int
-gfs2_tune_get_i(struct gfs2_tune *gt, unsigned int *p)
+static __inline__ unsigned int gfs2_tune_get_i(struct gfs2_tune *gt,
+					       unsigned int *p)
 {
 	unsigned int x;
 	spin_lock(&gt->gt_spin);
@@ -313,14 +328,13 @@ gfs2_tune_get_i(struct gfs2_tune *gt, unsigned int *p)
 	spin_unlock(&gt->gt_spin);
 	return x;
 }
+
 #define gfs2_tune_get(sdp, field) \
 gfs2_tune_get_i(&(sdp)->sd_tune, &(sdp)->sd_tune.field)
 
 
-int
-gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
-	      char *fmt, ...)
-__attribute__ ((format(printf, 4, 5)));
+int gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
+		  char *fmt, ...) __attribute__ ((format(printf, 4, 5)));
 
 #define gfs2_printf(fmt, args...) \
 do { \
@@ -333,14 +347,11 @@ void gfs2_icbit_munge(struct gfs2_sbd *sdp,
 		      unsigned char **bitmap, unsigned int bit,
 		      int new_value);
 
-
-static __inline__ uint64_t
-get_time(void)
+static __inline__ uint64_t get_time(void)
 {
 	struct timeval tv;
 	do_gettimeofday(&tv);
 	return ((uint64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
 }
-
 
 #endif /* __UTIL_DOT_H__ */

@@ -43,8 +43,7 @@ kmem_cache_t *gfs2_bufdata_cachep = NULL;
  * Returns: a 32-bit random number
  */
 
-uint32_t
-gfs2_random(void)
+uint32_t gfs2_random(void)
 {
 	ENTER(G2FN_RANDOM)
 	gfs2_random_number = 0x0019660D * gfs2_random_number + 0x3C6EF35F;
@@ -67,8 +66,8 @@ gfs2_random(void)
  * Returns: the hash
  */
 
-static __inline__ uint32_t
-hash_more_internal(const void *data, unsigned int len, uint32_t hash)
+static __inline__ uint32_t hash_more_internal(const void *data,
+					      unsigned int len, uint32_t hash)
 {
 	ENTER(G2FN_HASH_MORE_INTERNAL)
 	unsigned char *p = (unsigned char *)data;
@@ -96,8 +95,7 @@ hash_more_internal(const void *data, unsigned int len, uint32_t hash)
  * Returns: the hash
  */
 
-uint32_t
-gfs2_hash(const void *data, unsigned int len)
+uint32_t gfs2_hash(const void *data, unsigned int len)
 {
 	ENTER(G2FN_HASH)
 	uint32_t h = 0x811C9DC5;
@@ -127,8 +125,7 @@ gfs2_hash(const void *data, unsigned int len)
  * Returns: the hash
  */
 
-uint32_t
-gfs2_hash_more(const void *data, unsigned int len, uint32_t hash)
+uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash)
 {
 	ENTER(G2FN_HASH_MORE)
 	RETURN(G2FN_HASH_MORE,
@@ -160,9 +157,8 @@ do { \
  * the shell sort algorithm
  */
 
-void
-gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
-	 int (*compar) (const void *, const void *))
+void gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
+	       int (*compar) (const void *, const void *))
 {
 	ENTER(G2FN_SORT)
 	register char *pbase = (char *)base;
@@ -200,11 +196,8 @@ gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
  *
  */
 
-void
-gfs2_assert_i(struct gfs2_sbd *sdp,
-	     char *assertion,
-	     const char *function,
-	     char *file, unsigned int line)
+void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
+		   char *file, unsigned int line)
 {
 	if (sdp->sd_args.ar_oopses_ok) {
 		printk("GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
@@ -240,11 +233,8 @@ gfs2_assert_i(struct gfs2_sbd *sdp,
  *          -2 if it was already withdrawn
  */
 
-int
-gfs2_assert_withdraw_i(struct gfs2_sbd *sdp,
-		      char *assertion,
-		      const char *function,
-		      char *file, unsigned int line)
+int gfs2_assert_withdraw_i(struct gfs2_sbd *sdp, char *assertion,
+			   const char *function, char *file, unsigned int line)
 {
 	ENTER(G2FN_ASSERT_WITHDRAW_I)
 	int me;
@@ -272,11 +262,8 @@ gfs2_assert_withdraw_i(struct gfs2_sbd *sdp,
  *          -2 if we didn't
  */
 
-int
-gfs2_assert_warn_i(struct gfs2_sbd *sdp,
-		  char *assertion,
-		  const char *function,
-		  char *file, unsigned int line)
+int gfs2_assert_warn_i(struct gfs2_sbd *sdp, char *assertion,
+		       const char *function, char *file, unsigned int line)
 {
 	ENTER(G2FN_ASSERT_WARN_I)
 
@@ -314,10 +301,8 @@ gfs2_assert_warn_i(struct gfs2_sbd *sdp,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide,
-	      const char *function,
-	      char *file, unsigned int line)
+int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide, const char *function,
+		   char *file, unsigned int line)
 {
 	ENTER(G2FN_CONSIST_I)
 	RETURN(G2FN_CONSIST_I,
@@ -344,10 +329,8 @@ gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
-		    const char *function,
-		    char *file, unsigned int line)
+int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
+			 const char *function, char *file, unsigned int line)
 {
 	ENTER(G2FN_CONSIST_INODE_I)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -377,10 +360,8 @@ gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
-		    const char *function,
-		    char *file, unsigned int line)
+int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
+			 const char *function, char *file, unsigned int line)
 {
 	ENTER(G2FN_CONSIST_RGRPD_I)
         struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -410,11 +391,9 @@ gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
  *          -2 if it was already withdrawn
  */
 
-int
-gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		  const char *type,
-                  const char *function,
-                  char *file, unsigned int line)
+int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
+		       const char *type, const char *function, char *file,
+		       unsigned int line)
 {
 	ENTER(G2FN_META_CHECK_II)
 	int me;
@@ -446,11 +425,9 @@ gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
  *          -2 if it was already withdrawn
  */
 
-int
-gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      uint16_t type, uint16_t t,
-		      const char *function,
-		      char *file, unsigned int line)
+int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
+			   uint16_t type, uint16_t t, const char *function,
+			   char *file, unsigned int line)
 {
 	ENTER(G2FN_METATYPE_CHECK_II)
 	int me;
@@ -479,10 +456,8 @@ gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_io_error_i(struct gfs2_sbd *sdp,
-	       const char *function,
-	       char *file, unsigned int line)
+int gfs2_io_error_i(struct gfs2_sbd *sdp, const char *function, char *file,
+		    unsigned int line)
 {
 	ENTER(G2FN_IO_ERROR_i)
         RETURN(G2FN_IO_ERROR_i,
@@ -508,10 +483,8 @@ gfs2_io_error_i(struct gfs2_sbd *sdp,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_io_error_inode_i(struct gfs2_inode *ip,
-		     const char *function,
-		     char *file, unsigned int line)
+int gfs2_io_error_inode_i(struct gfs2_inode *ip, const char *function,
+			  char *file, unsigned int line)
 {
 	ENTER(G2FN_IO_ERROR_INODE_I)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -541,10 +514,8 @@ gfs2_io_error_inode_i(struct gfs2_inode *ip,
  *          0 if it was already withdrawn
  */
 
-int
-gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		  const char *function,
-		  char *file, unsigned int line)
+int gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
+		       const char *function, char *file, unsigned int line)
 {
 	ENTER(G2FN_IO_ERROR_BH_I)
         RETURN(G2FN_IO_ERROR_BH_I,
@@ -569,8 +540,7 @@ gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
  * Returns: errno
  */
 
-int
-gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh)
+int gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh)
 {
 	ENTER(G2FN_ADD_BH_TO_UB)
 
@@ -604,9 +574,8 @@ gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh)
  * Returns: 0 on success, 1 on out of space
  */
 
-int
-gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
-	     char *fmt, ...)
+int gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
+		  char *fmt, ...)
 {
 	ENTER(G2FN_PRINTF_I)
 	va_list args;
@@ -635,10 +604,8 @@ gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
 	RETURN(G2FN_PRINTF_I, 0);
 }
 
-void
-gfs2_icbit_munge(struct gfs2_sbd *sdp,
-		unsigned char **bitmap, unsigned int bit,
-		int new_value)
+void gfs2_icbit_munge(struct gfs2_sbd *sdp, unsigned char **bitmap,
+		      unsigned int bit, int new_value)
 {
 	ENTER(G2FN_ICBIT_MUNGE)
 	unsigned int c, o, b = bit;

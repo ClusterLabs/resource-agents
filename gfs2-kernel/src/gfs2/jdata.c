@@ -27,9 +27,8 @@
 #include "meta_io.h"
 #include "trans.h"
 
-int
-gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
-		      struct buffer_head **bhp)
+int gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
+			  struct buffer_head **bhp)
 {
 	ENTER(G2FN_JDATA_GET_BUFFER)
 	struct buffer_head *bh;
@@ -66,9 +65,8 @@ gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
  * Returns: errno
  */
 
-int
-gfs2_copy2mem(struct buffer_head *bh, char **buf,
-	      unsigned int offset, unsigned int size)
+int gfs2_copy2mem(struct buffer_head *bh, char **buf, unsigned int offset,
+		  unsigned int size)
 {
 	ENTER(G2FN_COPY2MEM)
 	if (bh)
@@ -89,9 +87,8 @@ gfs2_copy2mem(struct buffer_head *bh, char **buf,
  * Returns: errno
  */
 
-int
-gfs2_copy2user(struct buffer_head *bh, char **buf,
-	       unsigned int offset, unsigned int size)
+int gfs2_copy2user(struct buffer_head *bh, char **buf, unsigned int offset,
+		   unsigned int size)
 {
 	ENTER(G2FN_COPY2USER)
 	int error;
@@ -109,10 +106,9 @@ gfs2_copy2user(struct buffer_head *bh, char **buf,
 	RETURN(G2FN_COPY2USER, error);
 }
 
-static int
-jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
-		   unsigned int offset, unsigned int size,
-		   read_copy_fn_t copy_fn)
+static int jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
+			      unsigned int offset, unsigned int size,
+			      read_copy_fn_t copy_fn)
 {
 	ENTER(G2FN_JDATA_READ_STUFFED)
 	struct buffer_head *dibh;
@@ -144,10 +140,8 @@ jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
  * Returns: The amount of data actually copied or the error
  */
 
-int
-gfs2_jdata_read(struct gfs2_inode *ip, char *buf,
-		uint64_t offset, unsigned int size,
-		read_copy_fn_t copy_fn)
+int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
+		    unsigned int size, read_copy_fn_t copy_fn)
 {
 	ENTER(G2FN_JDATA_READ)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -235,10 +229,8 @@ gfs2_jdata_read(struct gfs2_inode *ip, char *buf,
  * Returns: errno
  */
 
-int
-gfs2_copy_from_mem(struct gfs2_inode *ip,
-		   struct buffer_head *bh, char **buf,
-		   unsigned int offset, unsigned int size)
+int gfs2_copy_from_mem(struct gfs2_inode *ip, struct buffer_head *bh,
+		       char **buf, unsigned int offset, unsigned int size)
 {
 	ENTER(G2FN_COPY_FROM_MEM)
 
@@ -260,10 +252,8 @@ gfs2_copy_from_mem(struct gfs2_inode *ip,
  * Returns: errno
  */
 
-int
-gfs2_copy_from_user(struct gfs2_inode *ip,
-		    struct buffer_head *bh, char **buf,
-		    unsigned int offset, unsigned int size)
+int gfs2_copy_from_user(struct gfs2_inode *ip, struct buffer_head *bh,
+			char **buf, unsigned int offset, unsigned int size)
 {
 	ENTER(G2FN_COPY_FROM_USER)
 	int error = 0;
@@ -277,10 +267,9 @@ gfs2_copy_from_user(struct gfs2_inode *ip,
 	RETURN(G2FN_COPY_FROM_USER, error);
 }
 
-static int
-jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
-		    unsigned int offset, unsigned int size,
-		    write_copy_fn_t copy_fn)
+static int jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
+			       unsigned int offset, unsigned int size,
+			       write_copy_fn_t copy_fn)
 {
 	ENTER(G2FN_JDATA_WRITE_STUFFED)
 	struct buffer_head *dibh;
@@ -316,10 +305,8 @@ jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
  * Returns: The number of bytes correctly written or error code
  */
 
-int
-gfs2_jdata_write(struct gfs2_inode *ip, char *buf,
-		 uint64_t offset, unsigned int size,
-		 write_copy_fn_t copy_fn)
+int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
+		     unsigned int size, write_copy_fn_t copy_fn)
 {
 	ENTER(G2FN_JDATA_WRITE)
 	struct gfs2_sbd *sdp = ip->i_sbd;

@@ -34,8 +34,7 @@
  * Returns: GFS2_EATYPE_XXX
  */
 
-unsigned int
-gfs2_ea_name2type(const char *name, char **truncated_name)
+unsigned int gfs2_ea_name2type(const char *name, char **truncated_name)
 {
 	ENTER(G2FN_EA_NAME2TYPE)
 	unsigned int type;
@@ -65,8 +64,7 @@ gfs2_ea_name2type(const char *name, char **truncated_name)
  * Returns: errno
  */
 
-static int
-user_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int user_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_USER_EO_GET)
 
@@ -88,8 +86,7 @@ user_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
  * Returns: errno
  */
 
-static int
-user_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int user_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_USER_EO_SET)
 
@@ -115,8 +112,7 @@ user_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
  * Returns: errno
  */
 
-static int
-user_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int user_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_USER_EO_REMOVE)
 
@@ -142,8 +138,7 @@ user_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
  * Returns: errno
  */
 
-static int
-system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_SYSTEM_EO_GET)
 
@@ -163,8 +158,7 @@ system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
  * Returns: errno
  */
 
-static int
-system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_SYSTEM_EO_SET)
 	int remove = FALSE;
@@ -212,8 +206,7 @@ system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
  * Returns: errno
  */
 
-static int
-system_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
+static int system_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	ENTER(G2FN_SYSTEM_EO_REMOVE)
 

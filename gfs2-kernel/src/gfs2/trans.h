@@ -27,6 +27,7 @@
 
 #define gfs2_trans_begin(sdp, blocks, revokes) \
 gfs2_trans_begin_i((sdp), (blocks), (revokes), __FILE__, __LINE__)
+
 int gfs2_trans_begin_i(struct gfs2_sbd *sdp,
 		      unsigned int blocks, unsigned int revokes,
 		      char *file, unsigned int line);

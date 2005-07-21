@@ -32,8 +32,8 @@
 #include "super.h"
 #include "trans.h"
 
-int
-gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf, unsigned int size)
+int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
+			  unsigned int size)
 {
 	ENTER(G2FN_RESIZE_ADD_RGRPS)
        	unsigned int num = size / sizeof(struct gfs2_rindex);
@@ -126,8 +126,7 @@ gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf, unsigned int size)
 	RETURN(G2FN_RESIZE_ADD_RGRPS, error);
 }
 
-static void
-drop_dentries(struct gfs2_inode *ip)
+static void drop_dentries(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_DROP_DENTRIES)
 	struct inode *inode;
@@ -158,10 +157,9 @@ drop_dentries(struct gfs2_inode *ip)
 	RET(G2FN_DROP_DENTRIES);
 }
 
-int 
-gfs2_rename2system(struct gfs2_inode *ip,
-		   struct gfs2_inode *old_dip, char *old_name,
-		   struct gfs2_inode *new_dip, char *new_name)
+int gfs2_rename2system(struct gfs2_inode *ip,
+		       struct gfs2_inode *old_dip, char *old_name,
+		       struct gfs2_inode *new_dip, char *new_name)
 {
 	ENTER(G2FN_RENAME2SYSTEM)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -294,6 +292,4 @@ gfs2_rename2system(struct gfs2_inode *ip,
 
 	RETURN(G2FN_RENAME2SYSTEM, error);
 }
-
-
 

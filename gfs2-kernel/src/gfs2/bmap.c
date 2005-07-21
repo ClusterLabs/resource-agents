@@ -56,9 +56,8 @@ struct strip_mine {
  * Returns: errno
  */
 
-int
-gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
-		    uint64_t block, void *private)
+int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
+			uint64_t block, void *private)
 {
 	ENTER(G2FN_UNSTUFFER_SYNC)
 	struct buffer_head *bh;
@@ -88,9 +87,8 @@ gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
  * Returns: errno
  */
 
-int
-gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
-		    void *private)
+int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
+			void *private)
 {
 	ENTER(G2FN_UNSTUFF_DINODE)
 	struct buffer_head *bh, *dibh;
@@ -163,8 +161,7 @@ gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
  * Returns: the height the tree should be
  */
 
-static unsigned int
-calc_tree_height(struct gfs2_inode *ip, uint64_t size)
+static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_CALC_TREE_HEIGHT)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -200,8 +197,7 @@ calc_tree_height(struct gfs2_inode *ip, uint64_t size)
  * Returns: errno
  */
 
-static int
-build_height(struct gfs2_inode *ip, int height)
+static int build_height(struct gfs2_inode *ip, int height)
 {
 	ENTER(G2FN_BUILD_HEIGHT)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -320,8 +316,7 @@ build_height(struct gfs2_inode *ip, int height)
  *
  */
 
-static struct metapath *
-find_metapath(struct gfs2_inode *ip, uint64_t block)
+static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 {
 	ENTER(G2FN_FIND_METAPATH)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -349,8 +344,9 @@ find_metapath(struct gfs2_inode *ip, uint64_t block)
  * metadata tree.
  */
 
-static __inline__ uint64_t *
-metapointer(struct buffer_head *bh, unsigned int height, struct metapath *mp)
+static __inline__ uint64_t *metapointer(struct buffer_head *bh,
+					unsigned int height,
+					struct metapath *mp)
 {
 	unsigned int head_size = (height > 0) ?
 		sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_dinode);
@@ -374,10 +370,9 @@ metapointer(struct buffer_head *bh, unsigned int height, struct metapath *mp)
  *
  */
 
-static void
-lookup_block(struct gfs2_inode *ip,
-	     struct buffer_head *bh, unsigned int height, struct metapath *mp,
-	     int create, int *new, uint64_t *block)
+static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
+			 unsigned int height, struct metapath *mp, int create,
+			 int *new, uint64_t *block)
 {
 	ENTER(G2FN_LOOKUP_BLOCK)
 	uint64_t *ptr = metapointer(bh, height, mp);
@@ -422,10 +417,8 @@ lookup_block(struct gfs2_inode *ip,
  * Returns: errno
  */
 
-int
-gfs2_block_map(struct gfs2_inode *ip,
-	       uint64_t lblock, int *new,
-	       uint64_t *dblock, uint32_t *extlen)
+int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
+		   uint64_t *dblock, uint32_t *extlen)
 {
 	ENTER(G2FN_BLOCK_MAP)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -546,10 +539,10 @@ gfs2_block_map(struct gfs2_inode *ip,
  * Returns: errno
  */
 
-static int
-recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
-	       struct metapath *mp, unsigned int height, uint64_t block,
-	       int first, block_call_t bc, void *data)
+static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
+			  struct metapath *mp, unsigned int height,
+			  uint64_t block, int first, block_call_t bc,
+			  void *data)
 {
 	ENTER(G2FN_RECURSIVE_SCAN)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -616,10 +609,9 @@ recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
  * Returns: errno
  */
 
-static int
-do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
-	 struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
-	 unsigned int height, void *data)
+static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
+		    struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
+		    unsigned int height, void *data)
 {
 	ENTER(G2FN_DO_STRIP)
 	struct strip_mine *sm = (struct strip_mine *)data;
@@ -767,8 +759,7 @@ do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
  * Returns: errno
  */
 
-static int
-do_grow(struct gfs2_inode *ip, uint64_t size)
+static int do_grow(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_DO_GROW)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -842,8 +833,7 @@ do_grow(struct gfs2_inode *ip, uint64_t size)
 	RETURN(G2FN_DO_GROW, error);
 }
 
-static int
-truncator_journaled(struct gfs2_inode *ip, uint64_t size)
+static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_TRUNCATOR_JOURNALED)
 	uint64_t lbn, dbn;
@@ -873,8 +863,8 @@ truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 	RETURN(G2FN_TRUNCATOR_JOURNALED, 0);
 }
 
-static int
-trunc_start(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
+static int trunc_start(struct gfs2_inode *ip, uint64_t size,
+		       gfs2_truncator_t truncator)
 {
 	ENTER(G2FN_TRUNC_START)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -922,8 +912,7 @@ trunc_start(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
 	RETURN(G2FN_TRUNC_START, error);
 }
 
-static int
-trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
+static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_TRUNC_DEALLOC)
 	unsigned int height = ip->i_di.di_height;
@@ -966,8 +955,7 @@ trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 	RETURN(G2FN_TRUNC_DEALLOC, error);
 }
 
-static int
-trunc_end(struct gfs2_inode *ip)
+static int trunc_end(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_TRUNC_END)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1017,8 +1005,8 @@ trunc_end(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-static int
-do_shrink(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
+static int do_shrink(struct gfs2_inode *ip, uint64_t size,
+		     gfs2_truncator_t truncator)
 {
 	ENTER(G2FN_DO_SHRINK)
 	int error;
@@ -1047,9 +1035,8 @@ do_shrink(struct gfs2_inode *ip, uint64_t size, gfs2_truncator_t truncator)
  * Returns: errno
  */
 
-int
-gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
-	       gfs2_truncator_t truncator)
+int gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
+		   gfs2_truncator_t truncator)
 {
 	ENTER(G2FN_TRUNCATEI)
 	int error;
@@ -1065,8 +1052,7 @@ gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
 	RETURN(G2FN_TRUNCATEI, error);
 }
 
-int
-gfs2_truncatei_resume(struct gfs2_inode *ip)
+int gfs2_truncatei_resume(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_TRUNCATEI_RESUME)
 	int error;
@@ -1076,8 +1062,7 @@ gfs2_truncatei_resume(struct gfs2_inode *ip)
 	RETURN(G2FN_TRUNCATEI_RESUME, error);
 }
 
-int
-gfs2_file_dealloc(struct gfs2_inode *ip)
+int gfs2_file_dealloc(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_FILE_DEALLOC)
 	RETURN(G2FN_FILE_DEALLOC,
@@ -1093,9 +1078,8 @@ gfs2_file_dealloc(struct gfs2_inode *ip)
  *
  */
 
-void
-gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
-		       unsigned int *data_blocks, unsigned int *ind_blocks)
+void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
+			    unsigned int *data_blocks, unsigned int *ind_blocks)
 {
 	ENTER(G2FN_WRITE_CALC_RESERV)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1127,10 +1111,8 @@ gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
  * Returns: errno
  */
 
-int
-gfs2_write_alloc_required(struct gfs2_inode *ip,
-			  uint64_t offset, unsigned int len,
-			  int *alloc_required)
+int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
+			      unsigned int len, int *alloc_required)
 {
 	ENTER(G2FN_WRITE_ALLOC_REQUIRED)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1191,10 +1173,9 @@ gfs2_write_alloc_required(struct gfs2_inode *ip,
  * Returns: errno
  */
 
-static int
-do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
-       struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
-       unsigned int height, void *data)
+static int do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
+		  struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
+		  unsigned int height, void *data)
 {
 	ENTER(G2FN_DO_GFM)
 	struct gfs2_user_buffer *ub = (struct gfs2_user_buffer *)data;
@@ -1237,8 +1218,7 @@ do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
  * Returns: errno
  */
 
-int
-gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
+int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 {
 	ENTER(G2FN_GET_FILE_META)
 	int error;

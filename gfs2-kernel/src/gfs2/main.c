@@ -33,8 +33,7 @@
  * Returns: 0 on success, error code on failure
  */
 
-int __init
-init_gfs2_fs(void)
+int __init init_gfs2_fs(void)
 {
 	int error;
 
@@ -115,8 +114,7 @@ init_gfs2_fs(void)
  *
  */
 
-void __exit
-exit_gfs2_fs(void)
+void __exit exit_gfs2_fs(void)
 {
 	unregister_filesystem(&gfs2_fs_type);
 

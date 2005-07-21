@@ -64,8 +64,7 @@ kmem_cache_t *diaper_slab;
  * Returns: -EOPNOTSUPP
  */
 
-static int
-diaper_open(struct inode *inode, struct file *file)
+static int diaper_open(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_DIAPER_OPEN)
 	RETURN(G2FN_DIAPER_OPEN, -EOPNOTSUPP);
@@ -87,8 +86,7 @@ static struct block_device_operations diaper_fops = {
  * Returns: an integer thats usually discarded
  */
 
-static int
-diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
+static int diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 {
 	struct bio_wrapper *bw = (struct bio_wrapper *)bio->bi_private;
 	struct diaper_holder *dh = bw->bw_dh;
@@ -113,8 +111,7 @@ diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
  * Returns: 0
  */
 
-static int
-diaper_make_request(request_queue_t *q, struct bio *bio)
+static int diaper_make_request(request_queue_t *q, struct bio *bio)
 {
 	ENTER(G2FN_DIAPER_MAKE_REQUEST)
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
@@ -153,8 +150,7 @@ diaper_make_request(request_queue_t *q, struct bio *bio)
  * Returns: a unused minor number
  */
 
-static int
-minor_get(void)
+static int minor_get(void)
 {
 	ENTER(G2FN_MINOR_GET)
 	int minor;
@@ -183,8 +179,7 @@ minor_get(void)
  *
  */
 
-static void
-minor_put(int minor)
+static void minor_put(int minor)
 {
 	ENTER(G2FN_MINOR_PUT)
 	spin_lock(&diaper_lock);
@@ -199,8 +194,7 @@ minor_put(int minor)
  *
  */
 
-static void
-gfs2_dummy_write_super_lockfs(struct super_block *sb)
+static void gfs2_dummy_write_super_lockfs(struct super_block *sb)
 {
 	ENTER(G2FN_DUMMY_WRITE_SUPER_LOCKFS)
 	struct diaper_holder *dh = (struct diaper_holder *)sb->s_fs_info;
@@ -214,8 +208,7 @@ gfs2_dummy_write_super_lockfs(struct super_block *sb)
  *
  */
 
-static void
-gfs2_dummy_unlockfs(struct super_block *sb)
+static void gfs2_dummy_unlockfs(struct super_block *sb)
 {
 	ENTER(G2FN_DUMMY_UNLOCKFS)
 	struct diaper_holder *dh = (struct diaper_holder *)sb->s_fs_info;
@@ -235,8 +228,7 @@ struct super_operations gfs2_dummy_sops = {
  * Returns: errno
  */
 
-static int
-get_dummy_sb(struct diaper_holder *dh)
+static int get_dummy_sb(struct diaper_holder *dh)
 {
 	ENTER(G2FN_GET_DUMMY_SB)
 	struct block_device *real = dh->dh_real;
@@ -280,8 +272,7 @@ get_dummy_sb(struct diaper_holder *dh)
 	RETURN(G2FN_GET_DUMMY_SB, error);
 }
 
-static int
-diaper_congested(void *congested_data, int bdi_bits)
+static int diaper_congested(void *congested_data, int bdi_bits)
 {
 	ENTER(G2FN_DIAPER_CONGESTED)
 	struct diaper_holder *dh = (struct diaper_holder *)congested_data;
@@ -290,8 +281,7 @@ diaper_congested(void *congested_data, int bdi_bits)
 	       bdi_congested(&q->backing_dev_info, bdi_bits));
 }
 
-static void
-diaper_unplug(request_queue_t *q)
+static void diaper_unplug(request_queue_t *q)
 {
 	ENTER(G2FN_DIAPER_UNPLUG)
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
@@ -303,9 +293,8 @@ diaper_unplug(request_queue_t *q)
 	RET(G2FN_DIAPER_UNPLUG);
 }
 
-static int
-diaper_flush(request_queue_t *q, struct gendisk *disk,
-	     sector_t *error_sector)
+static int diaper_flush(request_queue_t *q, struct gendisk *disk,
+			sector_t *error_sector)
 {
 	ENTER(G2FN_DIAPER_FLUSH)
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
@@ -326,8 +315,7 @@ diaper_flush(request_queue_t *q, struct gendisk *disk,
  * Returns: the diaper device or ERR_PTR()
  */
 
-static struct diaper_holder *
-diaper_get(struct block_device *real, int flags)
+static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 {
 	ENTER(G2FN_DIAPER_GET2)
 	struct diaper_holder *dh;
@@ -445,8 +433,7 @@ diaper_get(struct block_device *real, int flags)
  *
  */
 
-static void
-diaper_put(struct diaper_holder *dh)
+static void diaper_put(struct diaper_holder *dh)
 {
 	ENTER(G2FN_DIAPER_PUT2)
 	struct block_device *diaper = dh->dh_diaper;
@@ -484,8 +471,7 @@ diaper_put(struct diaper_holder *dh)
  * Returns: the diaper device or ERR_PTR()
  */
 
-struct block_device *
-gfs2_diaper_get(struct block_device *real, int flags)
+struct block_device *gfs2_diaper_get(struct block_device *real, int flags)
 {
 	ENTER(G2FN_DIAPER_GET)
 	struct list_head *tmp;
@@ -529,8 +515,7 @@ gfs2_diaper_get(struct block_device *real, int flags)
  *
  */
 
-void
-gfs2_diaper_put(struct block_device *diaper)
+void gfs2_diaper_put(struct block_device *diaper)
 {
 	ENTER(G2FN_DIAPER_PUT)
 	struct list_head *tmp;
@@ -564,8 +549,7 @@ gfs2_diaper_put(struct block_device *diaper)
  *
  */
 
-void
-gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
+void gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_DIAPER_REGISTER_SBD)
 	struct list_head *tmp;
@@ -595,8 +579,7 @@ gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
  * Returns: the real device cooresponding to the diaper
  */
 
-struct block_device *
-gfs2_diaper_2real(struct block_device *diaper)
+struct block_device *gfs2_diaper_2real(struct block_device *diaper)
 {
 	ENTER(G2FN_DIAPER_2REAL)
         struct list_head *tmp;
@@ -624,8 +607,7 @@ gfs2_diaper_2real(struct block_device *diaper)
  * Returns: errno
  */
 
-int
-gfs2_diaper_init(void)
+int gfs2_diaper_init(void)
 {
 	ENTER(G2FN_DIAPER_INIT)
 
@@ -651,8 +633,7 @@ gfs2_diaper_init(void)
  *
  */
 
-void
-gfs2_diaper_uninit(void)
+void gfs2_diaper_uninit(void)
 {
 	ENTER(G2FN_DIAPER_UNINIT)
 	kmem_cache_destroy(diaper_slab);

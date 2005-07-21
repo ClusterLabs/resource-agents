@@ -45,8 +45,7 @@
  * Returns: errno
  */
 
-static int
-gfs2_write_inode(struct inode *inode, int sync)
+static int gfs2_write_inode(struct inode *inode, int sync)
 {
 	ENTER(G2FN_WRITE_INODE)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -67,8 +66,7 @@ gfs2_write_inode(struct inode *inode, int sync)
  *
  */
 
-static void
-gfs2_put_super(struct super_block *sb)
+static void gfs2_put_super(struct super_block *sb)
 {
 	ENTER(G2FN_PUT_SUPER)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -195,8 +193,7 @@ gfs2_put_super(struct super_block *sb)
  * After this exits, all dirty buffers and synced.
  */
 
-static void
-gfs2_write_super(struct super_block *sb)
+static void gfs2_write_super(struct super_block *sb)
 {
 	ENTER(G2FN_WRITE_SUPER)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -211,8 +208,7 @@ gfs2_write_super(struct super_block *sb)
  *
  */
 
-static void
-gfs2_write_super_lockfs(struct super_block *sb)
+static void gfs2_write_super_lockfs(struct super_block *sb)
 {
 	ENTER(G2FN_WRITE_SUPER_LOCKFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -252,8 +248,7 @@ gfs2_write_super_lockfs(struct super_block *sb)
  *
  */
 
-static void
-gfs2_unlockfs(struct super_block *sb)
+static void gfs2_unlockfs(struct super_block *sb)
 {
 	ENTER(G2FN_UNLOCKFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -272,8 +267,7 @@ gfs2_unlockfs(struct super_block *sb)
  * Returns: 0 on success or error code
  */
 
-static int
-gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
+static int gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 {
 	ENTER(G2FN_STATFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -313,8 +307,7 @@ gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
  * Returns: errno
  */
 
-static int
-gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
+static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 {
 	ENTER(G2FN_REMOUNT_FS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
@@ -359,8 +352,7 @@ gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
  *     the associated iopen glock.
  */
 
-static void
-gfs2_clear_inode(struct inode *inode)
+static void gfs2_clear_inode(struct inode *inode)
 {
 	ENTER(G2FN_CLEAR_INODE)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -388,8 +380,7 @@ gfs2_clear_inode(struct inode *inode)
  * Returns: 0 on success or error code
  */
 
-static int
-gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
+static int gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 {
 	ENTER(G2FN_SHOW_OPTIONS)
 	struct gfs2_sbd *sdp = get_v2sdp(mnt->mnt_sb);

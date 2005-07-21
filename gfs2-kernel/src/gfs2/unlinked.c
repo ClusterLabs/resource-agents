@@ -26,9 +26,8 @@
 #include "trans.h"
 #include "unlinked.h"
 
-static int
-munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
-		      struct gfs2_unlinked_tag *ut)
+static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
+			struct gfs2_unlinked_tag *ut)
 {
 	ENTER(G2FN_MUNGE_ONDISK)
 	struct gfs2_inode *ip = sdp->sd_ut_inode;
@@ -64,8 +63,7 @@ munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 	RETURN(G2FN_MUNGE_ONDISK, error);
 }
 
-static void
-ul_hash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+static void ul_hash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UL_HASH);
 	spin_lock(&sdp->sd_unlinked_spin);
@@ -77,8 +75,7 @@ ul_hash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RET(G2FN_UL_HASH);
 }
 
-static void
-ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UL_UNHASH);
 	spin_lock(&sdp->sd_unlinked_spin);
@@ -91,8 +88,7 @@ ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RET(G2FN_UL_UNHASH);
 }
 
-struct gfs2_unlinked *
-ul_fish(struct gfs2_sbd *sdp)
+struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UL_FISH)
 	struct list_head *tmp, *head;
@@ -133,8 +129,7 @@ ul_fish(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-void
-enforce_limit(struct gfs2_sbd *sdp)
+void enforce_limit(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_ENFORCE_LIMIT)
 	unsigned int tries = 0, min = 0;
@@ -162,8 +157,7 @@ enforce_limit(struct gfs2_sbd *sdp)
 	RET(G2FN_ENFORCE_LIMIT);
 }
 
-struct gfs2_unlinked *
-ul_alloc(struct gfs2_sbd *sdp)
+struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UL_ALLOC)
 	struct gfs2_unlinked *ul;
@@ -179,8 +173,7 @@ ul_alloc(struct gfs2_sbd *sdp)
 	RETURN(G2FN_UL_ALLOC, ul);
 }
 
-int
-gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
+int gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 {
 	ENTER(G2FN_UNLINKED_GET)
 	unsigned int c, o = 0, b;
@@ -224,8 +217,7 @@ gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 	RETURN(G2FN_UNLINKED_GET, -ENOSPC);
 }
 
-void
-gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+void gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UNLINKED_PUT)
 
@@ -244,8 +236,7 @@ gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RET(G2FN_UNLINKED_PUT);
 }
 
-int
-gfs2_unlinked_ondisk_add(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int gfs2_unlinked_ondisk_add(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UNLINKED_ONDISK_ADD)
 	int error;
@@ -260,8 +251,7 @@ gfs2_unlinked_ondisk_add(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RETURN(G2FN_UNLINKED_ONDISK_ADD, error);
 }
 
-int
-gfs2_unlinked_ondisk_munge(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int gfs2_unlinked_ondisk_munge(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UNLINKED_ONDISK_MUNGE)
 	int error;
@@ -274,8 +264,7 @@ gfs2_unlinked_ondisk_munge(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RETURN(G2FN_UNLINKED_ONDISK_MUNGE, error);
 }
 
-int
-gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UNLINKED_ONDISK_RM)
 	struct gfs2_unlinked_tag ut;
@@ -302,8 +291,7 @@ gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
  * Returns: errno
  */
 
-int
-gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
+int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UNLINKED_DEALLOC)
 	unsigned int hits, strikes;
@@ -343,8 +331,7 @@ gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 	RETURN(G2FN_UNLINKED_DEALLOC, 0);
 }
 
-int
-gfs2_unlinked_init(struct gfs2_sbd *sdp)
+int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UNLINKED_INIT)
 	struct gfs2_inode *ip = sdp->sd_ut_inode;
@@ -453,8 +440,7 @@ gfs2_unlinked_init(struct gfs2_sbd *sdp)
  *
  */
 
-void
-gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
+void gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UNLINKED_CLEANUP)
        	struct list_head *head = &sdp->sd_unlinked_list;

@@ -41,8 +41,7 @@
  *
  */
 
-void
-gfs2_tune_init(struct gfs2_tune *gt)
+void gfs2_tune_init(struct gfs2_tune *gt)
 {
 	ENTER(G2FN_TUNE_INIT)
 
@@ -97,8 +96,7 @@ gfs2_tune_init(struct gfs2_tune *gt)
  * changed.
  */
 
-int
-gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
+int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 {
 	ENTER(G2FN_CHECK_SB)
 	unsigned int x;
@@ -164,8 +162,7 @@ gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
  *
  */
 
-int
-gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
+int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 {
 	ENTER(G2FN_READ_SB)
 	struct buffer_head *bh;
@@ -265,8 +262,7 @@ gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
  *
  */
 
-int
-gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
+int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
 {
 	ENTER(G2FN_DO_UPGRADE)
 	RETURN(G2FN_DO_UPGRADE, 0);
@@ -289,8 +285,7 @@ gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
  * Returns: errno
  */
 
-int
-gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
+int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 {
 	ENTER(G2FN_JINDEX_HOLD)
 	struct gfs2_inode *dip = sdp->sd_jindex;
@@ -351,8 +346,7 @@ gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
  *
  */
 
-void
-gfs2_jindex_free(struct gfs2_sbd *sdp)
+void gfs2_jindex_free(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_JINDEX_FREE)
 	struct list_head list;
@@ -374,8 +368,7 @@ gfs2_jindex_free(struct gfs2_sbd *sdp)
 	RET(G2FN_JINDEX_FREE);
 }
 
-static struct gfs2_jdesc *
-jdesc_find_i(struct list_head *head, unsigned int jid)
+static struct gfs2_jdesc *jdesc_find_i(struct list_head *head, unsigned int jid)
 {
 	ENTER(G2FN_JDESC_FIND_I)
 	struct list_head *tmp;
@@ -395,8 +388,7 @@ jdesc_find_i(struct list_head *head, unsigned int jid)
 	RETURN(G2FN_JDESC_FIND_I, jd);
 }
 
-struct gfs2_jdesc *
-gfs2_jdesc_find(struct gfs2_sbd *sdp, unsigned int jid)
+struct gfs2_jdesc *gfs2_jdesc_find(struct gfs2_sbd *sdp, unsigned int jid)
 {
 	ENTER(G2FN_JDESC_FIND)
 	struct gfs2_jdesc *jd;
@@ -408,8 +400,7 @@ gfs2_jdesc_find(struct gfs2_sbd *sdp, unsigned int jid)
 	RETURN(G2FN_JDESC_FIND, jd);
 }
 
-void
-gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
+void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 {
 	ENTER(G2FN_JINDEX_MAKE_DIRTY)
         struct gfs2_jdesc *jd;
@@ -423,8 +414,7 @@ gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 	RET(G2FN_JINDEX_MAKE_DIRTY);
 }
 
-struct gfs2_jdesc *
-gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
+struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_JDESC_FIND_DIRTY)
 	struct list_head *tmp, *head;
@@ -448,8 +438,7 @@ gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 	RETURN(G2FN_JDESC_FIND_DIRTY, jd);
 }
 
-int
-gfs2_jdesc_check(struct gfs2_jdesc *jd)
+int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 {
 	ENTER(G2FN_JDESC_CHECK)
         struct gfs2_inode *ip = jd->jd_inode;
@@ -483,8 +472,7 @@ gfs2_jdesc_check(struct gfs2_jdesc *jd)
  * Returns: errno
  */
 
-int
-gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
+int gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_LOOKUP_MASTER_DIR)
 	struct gfs2_glock *gl;
@@ -509,8 +497,7 @@ gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-int
-gfs2_make_fs_rw(struct gfs2_sbd *sdp)
+int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_MAKE_FS_RW)
 	struct gfs2_glock *j_gl = sdp->sd_jdesc->jd_inode->i_gl;
@@ -570,8 +557,7 @@ gfs2_make_fs_rw(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-int
-gfs2_make_fs_ro(struct gfs2_sbd *sdp)
+int gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_MAKE_FS_RO)
 	struct gfs2_holder t_gh;
@@ -601,8 +587,7 @@ gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	RETURN(G2FN_MAKE_FS_RO, error);
 }
 
-int
-gfs2_statfs_init(struct gfs2_sbd *sdp)
+int gfs2_statfs_init(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_STATFS_INIT)
 	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
@@ -650,9 +635,8 @@ gfs2_statfs_init(struct gfs2_sbd *sdp)
 	RETURN(G2FN_STATFS_INIT, 0);
 }
 
-void
-gfs2_statfs_change(struct gfs2_sbd *sdp,
-		   int64_t total, int64_t free, int64_t dinodes)
+void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
+			int64_t dinodes)
 {
 	ENTER(G2FN_STATFS_CHANGE)
        	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
@@ -681,8 +665,7 @@ gfs2_statfs_change(struct gfs2_sbd *sdp,
 	RET(G2FN_STATFS_CHANGE);
 }
 
-int
-gfs2_statfs_sync(struct gfs2_sbd *sdp)
+int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_STATFS_SYNC)
 	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
@@ -757,8 +740,7 @@ gfs2_statfs_sync(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-int
-gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
+int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
 	ENTER(G2FN_STATFS_I)
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
@@ -791,8 +773,8 @@ gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
  * Returns: 0 on success, -ESTALE if the LVB is invalid
  */
 
-static int
-statfs_slow_fill(struct gfs2_rgrpd *rgd, struct gfs2_statfs_change *sc)
+static int statfs_slow_fill(struct gfs2_rgrpd *rgd,
+			    struct gfs2_statfs_change *sc)
 {
 	ENTER(G2FN_STATFS_SLOW_FILL)
        	gfs2_rgrp_verify(rgd);
@@ -815,8 +797,7 @@ statfs_slow_fill(struct gfs2_rgrpd *rgd, struct gfs2_statfs_change *sc)
  * Returns: errno
  */
 
-int
-gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
+int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
 	ENTER(G2FN_STATFS_SLOW)
 	struct gfs2_holder ri_gh;
@@ -899,8 +880,7 @@ struct lfcc {
  * Returns: errno
  */
 
-int
-gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
+int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 {
 	ENTER(G2FN_LOCK_FS_CHECK_CLEAN)
        	struct gfs2_holder ji_gh;
@@ -976,8 +956,7 @@ gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
  * Returns: errno
  */
 
-int
-gfs2_freeze_fs(struct gfs2_sbd *sdp)
+int gfs2_freeze_fs(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_FREEZE_FS)
 	int error = 0;
@@ -1005,8 +984,7 @@ gfs2_freeze_fs(struct gfs2_sbd *sdp)
  *
  */
 
-void
-gfs2_unfreeze_fs(struct gfs2_sbd *sdp)
+void gfs2_unfreeze_fs(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_UNFREEZE_FS)
 

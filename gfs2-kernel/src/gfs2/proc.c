@@ -40,8 +40,7 @@ spinlock_t req_lock;
  *
  */
 
-void
-gfs2_proc_fs_add(struct gfs2_sbd *sdp)
+void gfs2_proc_fs_add(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_PROC_FS_ADD)
 	down(&gfs2_fs_lock);
@@ -56,8 +55,7 @@ gfs2_proc_fs_add(struct gfs2_sbd *sdp)
  *
  */
 
-void
-gfs2_proc_fs_del(struct gfs2_sbd *sdp)
+void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_PROC_FS_DEL)
 	down(&gfs2_fs_lock);
@@ -74,8 +72,7 @@ gfs2_proc_fs_del(struct gfs2_sbd *sdp)
  * @Returns: -errno, or the number of bytes copied to userspace
  */
 
-static ssize_t
-do_list(char *user_buf, size_t size)
+static ssize_t do_list(char *user_buf, size_t size)
 {
 	ENTER(G2FN_DO_LIST)
 	struct list_head *tmp;
@@ -134,8 +131,7 @@ do_list(char *user_buf, size_t size)
  * Returns:
  */
 
-static char *
-find_argument(char *p)
+static char *find_argument(char *p)
 {
 	ENTER(G2FN_FIND_ARGUMENT)
 	char *p2;
@@ -159,8 +155,7 @@ find_argument(char *p)
  * Returns: errno
  */
 
-static int
-do_freeze(char *p)
+static int do_freeze(char *p)
 {
 	ENTER(G2FN_DO_FREEZE)
 	struct list_head *tmp;
@@ -198,8 +193,7 @@ do_freeze(char *p)
  * Returns: errno
  */
 
-static int
-do_unfreeze(char *p)
+static int do_unfreeze(char *p)
 {
 	ENTER(G2FN_DO_UNFREEZE)
 	struct list_head *tmp;
@@ -237,8 +231,7 @@ do_unfreeze(char *p)
  * Returns: errno
  */
 
-static int
-do_margs(char *p)
+static int do_margs(char *p)
 {
 	ENTER(G2FN_DO_MARGS)
 	char *new_buf, *old_buf;
@@ -269,8 +262,7 @@ do_margs(char *p)
  * Returns: errno
  */
 
-static int
-do_withdraw(char *p)
+static int do_withdraw(char *p)
 {
 	ENTER(G2FN_DO_WITHDRAW)
 	struct list_head *tmp;
@@ -312,8 +304,7 @@ do_withdraw(char *p)
  * Returns: errno
  */
 
-static int
-do_lockdump(char *p, char *buf, size_t size)
+static int do_lockdump(char *p, char *buf, size_t size)
 {
 	ENTER(G2FN_DO_LOCKDUMP)
 	struct list_head *tmp;
@@ -362,8 +353,8 @@ do_lockdump(char *p, char *buf, size_t size)
  * Returns: -errno or the number of bytes taken
  */
 
-static ssize_t
-gfs2_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
+static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
+			       loff_t *offset)
 {
 	ENTER(G2FN_PROC_WRITE)
 	char *p;
@@ -405,8 +396,8 @@ gfs2_proc_write(struct file *file, const char *buf, size_t size, loff_t *offset)
  * Returns: -errno or the number of bytes returned
  */
 
-static ssize_t
-gfs2_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
+static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
+			      loff_t *offset)
 {
 	ENTER(G2FN_PROC_READ)
 	char *p;
@@ -453,8 +444,7 @@ gfs2_proc_read(struct file *file, char *buf, size_t size, loff_t *offset)
  * Returns: 0
  */
 
-static int
-gfs2_proc_close(struct inode *inode, struct file *file)
+static int gfs2_proc_close(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_PROC_CLOSE)
 	kfree(file->private_data);
@@ -474,8 +464,7 @@ static struct file_operations gfs2_proc_fops =
  *
  */
 
-int
-gfs2_proc_init(void)
+int gfs2_proc_init(void)
 {
 	ENTER(G2FN_PROC_INIT)
 	struct proc_dir_entry *pde;
@@ -501,8 +490,7 @@ gfs2_proc_init(void)
  *
  */
 
-void
-gfs2_proc_uninit(void)
+void gfs2_proc_uninit(void)
 {
 	ENTER(G2FN_PROC_UNINIT)
 	kfree(gfs2_proc_margs);

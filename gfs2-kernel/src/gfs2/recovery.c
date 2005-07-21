@@ -29,8 +29,8 @@
 #include "recovery.h"
 #include "super.h"
 
-int
-gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk, struct buffer_head **bh)
+int gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk,
+			   struct buffer_head **bh)
 {
 	ENTER(G2FN_REPLAY_READ_BLOCK)
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
@@ -53,8 +53,7 @@ gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk, struct buffer_he
 	RETURN(G2FN_REPLAY_READ_BLOCK, error);
 }
 
-int
-gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
+int gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
 	ENTER(G2FN_REVOKE_ADD)
 	struct list_head *head, *tmp;
@@ -84,8 +83,7 @@ gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 	RETURN(G2FN_REVOKE_ADD, 1);
 }
 
-int
-gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
+int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
 	ENTER(G2FN_REVOKE_CHECK)
 	struct list_head *head, *tmp;
@@ -111,8 +109,7 @@ gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 	RETURN(G2FN_REVOKE_CHECK, revoke);
 }
 
-void
-gfs2_revoke_clean(struct gfs2_sbd *sdp)
+void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_REVOKE_CLEAN)
        	struct list_head *head = &sdp->sd_revoke_list;
@@ -139,8 +136,8 @@ gfs2_revoke_clean(struct gfs2_sbd *sdp)
  * Returns: 0 on success, 1 if the header was invalid or incomplete and, errno on error
  */
 
-static int
-get_log_header(struct gfs2_jdesc *jd, unsigned int blk, struct gfs2_log_header *head)
+static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
+			  struct gfs2_log_header *head)
 {
 	ENTER(G2FN_GET_LOG_HEADER)
 	struct buffer_head *bh;
@@ -184,9 +181,8 @@ get_log_header(struct gfs2_jdesc *jd, unsigned int blk, struct gfs2_log_header *
  * Returns: errno
  */
 
-static int
-find_good_lh(struct gfs2_jdesc *jd, unsigned int *blk,
-	     struct gfs2_log_header *head)
+static int find_good_lh(struct gfs2_jdesc *jd, unsigned int *blk,
+			struct gfs2_log_header *head)
 {
 	ENTER(G2FN_FIND_GOOD_LH)
 	unsigned int orig_blk = *blk;
@@ -218,8 +214,7 @@ find_good_lh(struct gfs2_jdesc *jd, unsigned int *blk,
  * Returns: errno
  */
 
-static int
-jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
+static int jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
 	ENTER(G2FN_JHEAD_SCAN)
 	unsigned int blk = head->lh_blkno;
@@ -260,8 +255,7 @@ jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
  * Returns: errno
  */
 
-int
-gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
+int gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
 	ENTER(G2FN_FIND_JHEAD)
 	struct gfs2_log_header lh_1, lh_m;
@@ -312,10 +306,8 @@ gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
  * Returns: errno
  */
 
-static int
-foreach_descriptor(struct gfs2_jdesc *jd,
-		   unsigned int start, unsigned int end,
-		   int pass)
+static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
+			      unsigned int end, int pass)
 {
 	ENTER(G2FN_FOREACH_DESCRIPTOR)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -370,8 +362,7 @@ foreach_descriptor(struct gfs2_jdesc *jd,
  * Returns: errno
  */
 
-static int
-clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
+static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
 	ENTER(G2FN_CLEAN_JOURNAL)
 	struct gfs2_inode *ip = jd->jd_inode;
@@ -432,8 +423,7 @@ clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
  * Returns: errno
  */
 
-int
-gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
+int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 {
 	ENTER(G2FN_RECOVER_JOURNAL)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -576,8 +566,7 @@ gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
  *
  */
 
-void
-gfs2_check_journals(struct gfs2_sbd *sdp)
+void gfs2_check_journals(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_CHECK_JOURNALS)
 	struct gfs2_jdesc *jd;

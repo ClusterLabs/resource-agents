@@ -101,8 +101,7 @@ typedef int (*leaf_call_t) (struct gfs2_inode *dip,
  * Returns: TRUE (!=0) if the files are the same, otherwise FALSE (0).
  */
 
-int
-gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
+int gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
 {
 	ENTER(G2FN_FILECMP)
 	if (file1->len != len_of_file2)
@@ -123,9 +122,8 @@ gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
  * Returns: IS_LEAF, IS_DINODE, or -errno
  */
 
-static int
-dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
-	     struct gfs2_dirent **dent)
+static int dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
+			struct gfs2_dirent **dent)
 {
 	ENTER(G2FN_DIRENT_FIRST)
 	struct gfs2_meta_header *h = (struct gfs2_meta_header *)bh->b_data;
@@ -152,9 +150,8 @@ dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
-	    struct gfs2_dirent **dent)
+static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
+		       struct gfs2_dirent **dent)
 {
 	ENTER(G2FN_DIRENT_NEXT)
 	struct gfs2_dirent *tmp, *cur;
@@ -199,9 +196,8 @@ dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
  *
  */
 
-static void
-dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
-	   struct gfs2_dirent *prev, struct gfs2_dirent *cur)
+static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
+		       struct gfs2_dirent *prev, struct gfs2_dirent *cur)
 {
 	ENTER(G2FN_DIRENT_DEL)
 	uint32_t cur_rec_len, prev_rec_len;
@@ -248,9 +244,8 @@ dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
  * Returns: 0 on success, error code otherwise
  */
 
-int
-gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
-		 struct gfs2_dirent **dent_out)
+int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
+		      int name_len, struct gfs2_dirent **dent_out)
 {
 	ENTER(G2FN_DIRENT_ALLOC)
 	struct gfs2_dirent *dent, *new;
@@ -333,8 +328,8 @@ gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
  * Returns: TRUE if it can fit, FALSE otherwise
  */
 
-static int
-dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh, int name_len)
+static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
+		       int name_len)
 {
 	ENTER(G2FN_DIRENT_FITS)
 	struct gfs2_dirent *dent;
@@ -381,10 +376,9 @@ dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh, int name_len)
  * Returns:
  */
 
-static int
-leaf_search(struct gfs2_inode *dip,
-	    struct buffer_head *bh, struct qstr *filename,
-	    struct gfs2_dirent **dent_out, struct gfs2_dirent **dent_prev)
+static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
+		       struct qstr *filename, struct gfs2_dirent **dent_out,
+		       struct gfs2_dirent **dent_prev)
 {
 	ENTER(G2FN_LEAF_SEARCH)
 	uint32_t hash;
@@ -437,8 +431,8 @@ leaf_search(struct gfs2_inode *dip,
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-get_leaf(struct gfs2_inode *dip, uint64_t leaf_no, struct buffer_head **bhp)
+static int get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
+		    struct buffer_head **bhp)
 {
 	ENTER(G2FN_GET_LEAF)
 	int error;
@@ -459,8 +453,8 @@ get_leaf(struct gfs2_inode *dip, uint64_t leaf_no, struct buffer_head **bhp)
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-get_leaf_nr(struct gfs2_inode *dip, uint32_t index, uint64_t *leaf_out)
+static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
+		       uint64_t *leaf_out)
 {
 	ENTER(G2FN_LEAF_NR)
 	uint64_t leaf_no;
@@ -486,9 +480,8 @@ get_leaf_nr(struct gfs2_inode *dip, uint32_t index, uint64_t *leaf_out)
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-get_first_leaf(struct gfs2_inode *dip, uint32_t index,
-	       struct buffer_head **bh_out)
+static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
+			  struct buffer_head **bh_out)
 {
 	ENTER(G2FN_GET_FIRST_LEAF)
 	uint64_t leaf_no;
@@ -510,9 +503,8 @@ get_first_leaf(struct gfs2_inode *dip, uint32_t index,
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
-	      struct buffer_head **bh_out)
+static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
+			 struct buffer_head **bh_out)
 {
 	ENTER(G2FN_GET_NEXT_LEAF)
 	struct gfs2_leaf *leaf;
@@ -539,10 +531,10 @@ get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
  * Returns: 0 on sucess, error code otherwise
  */
 
-static int
-linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
-		   struct gfs2_dirent **dent_out, struct gfs2_dirent **dent_prev,
-		   struct buffer_head **bh_out)
+static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
+			      struct gfs2_dirent **dent_out,
+			      struct gfs2_dirent **dent_prev,
+			      struct buffer_head **bh_out)
 {
 	ENTER(G2FN_LINKED_LEAF_SEARCH)
 	struct buffer_head *bh = NULL, *bh_next;
@@ -602,8 +594,7 @@ linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: 0 on success, error code otherwise
  */
 
-static int
-dir_make_exhash(struct gfs2_inode *dip)
+static int dir_make_exhash(struct gfs2_inode *dip)
 {
 	ENTER(G2FN_DIR_MAKE_EXHASH)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -702,8 +693,8 @@ dir_make_exhash(struct gfs2_inode *dip)
  * Returns: 0 on success, error code on failure
  */
 
-static int
-dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
+static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
+			  uint64_t leaf_no)
 {
 	ENTER(G2FN_DIR_SPLIT_LEAF)
 	struct buffer_head *nbh, *obh, *dibh;
@@ -869,8 +860,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
  * Returns: 0 on success, error code on failure
  */
 
-static int
-dir_double_exhash(struct gfs2_inode *dip)
+static int dir_double_exhash(struct gfs2_inode *dip)
 {
 	ENTER(G2FN_DIR_DOUBLE_EXHASH)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -948,8 +938,7 @@ dir_double_exhash(struct gfs2_inode *dip)
  *   eq: returns 0
  */
 
-static int
-compare_dents(const void *a, const void *b)
+static int compare_dents(const void *a, const void *b)
 {
 	ENTER(G2FN_COMPARE_DENTS)
 	struct gfs2_dirent *dent_a, *dent_b;
@@ -1003,10 +992,10 @@ compare_dents(const void *a, const void *b)
  * Returns: errno, >0 on exception from filldir
  */
 
-static int
-do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
-		void *opaque, gfs2_filldir_t filldir,
-		struct gfs2_dirent **darr, uint32_t entries, int *copied)
+static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
+			   void *opaque, gfs2_filldir_t filldir,
+			   struct gfs2_dirent **darr, uint32_t entries,
+			   int *copied)
 {
 	ENTER(G2FN_DO_FILLDIR_MAIN)
 	struct gfs2_dirent *dent, *dent_next;
@@ -1080,10 +1069,10 @@ do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
  * Returns: errno, >0 on exception from filldir
  */
 
-static int
-do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
-		  void *opaque, gfs2_filldir_t filldir,
-		  struct buffer_head *bh, uint32_t entries, int *copied)
+static int do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
+			     void *opaque, gfs2_filldir_t filldir,
+			     struct buffer_head *bh, uint32_t entries,
+			     int *copied)
 {
 	ENTER(G2FN_DO_FILLDIR_SINGLE)
 	struct gfs2_dirent **darr;
@@ -1138,10 +1127,9 @@ do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
  * Returns: errno, >0 on exception from filldir
  */
 
-static int
-do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
-		 void *opaque, gfs2_filldir_t filldir,
-		 struct buffer_head *bh, int *copied)
+static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
+			    void *opaque, gfs2_filldir_t filldir,
+			    struct buffer_head *bh, int *copied)
 {
 	ENTER(G2FN_DO_FILLDIR_MULTI)
 	struct buffer_head **larr = NULL;
@@ -1282,9 +1270,8 @@ do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
  * Returns:
  */
 
-static int
-dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
-	     struct gfs2_inum *inum, unsigned int *type)
+static int dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
+			struct gfs2_inum *inum, unsigned int *type)
 {
 	ENTER(G2FN_DIR_E_SEARCH)
 	struct buffer_head *bh;
@@ -1314,9 +1301,8 @@ dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
  *
  */
 
-static int
-dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
-	  struct gfs2_inum *inum, unsigned int type)
+static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
+		     struct gfs2_inum *inum, unsigned int type)
 {
 	ENTER(G2FN_DIR_E_ADD)
 	struct buffer_head *bh, *nbh, *dibh;
@@ -1450,8 +1436,7 @@ dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
  * Returns:
  */
 
-static int
-dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
+static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 {
 	ENTER(G2FN_DIR_E_DEL)
 	struct buffer_head *bh, *dibh;
@@ -1505,9 +1490,8 @@ dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
  * Returns: errno
  */
 
-static int
-dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
-	   gfs2_filldir_t filldir)
+static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
+		      gfs2_filldir_t filldir)
 {
 	ENTER(G2FN_DIR_E_READ)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1592,9 +1576,8 @@ dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
  * Returns:
  */
 
-static int
-dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
-	    struct gfs2_inum *inum, unsigned int new_type)
+static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
+		       struct gfs2_inum *inum, unsigned int new_type)
 {
 	ENTER(G2FN_DIR_E_MVINO)
 	struct buffer_head *bh, *dibh;
@@ -1639,9 +1622,8 @@ dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
  * Returns:
  */
 
-static int
-dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
-	     struct gfs2_inum *inum, unsigned int *type)
+static int dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
+			struct gfs2_inum *inum, unsigned int *type)
 {
 	ENTER(G2FN_DIR_L_SEARCH)
 	struct buffer_head *dibh;
@@ -1680,9 +1662,8 @@ dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
  * Returns:
  */
 
-static int
-dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
-	  struct gfs2_inum *inum, unsigned int type)
+static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
+		     struct gfs2_inum *inum, unsigned int type)
 {
 	ENTER(G2FN_DIR_L_ADD)
 	struct buffer_head *dibh;
@@ -1733,8 +1714,7 @@ dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
  * Returns:
  */
 
-static int
-dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
+static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 {
 	ENTER(G2FN_DIR_L_DEL)
 	struct buffer_head *dibh;
@@ -1787,9 +1767,8 @@ dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
  * Returns:
  */
 
-static int
-dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
-	   gfs2_filldir_t filldir)
+static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
+		      gfs2_filldir_t filldir)
 {
 	ENTER(G2FN_DIR_L_READ)
 	struct buffer_head *dibh;
@@ -1829,9 +1808,8 @@ dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
  * Returns:
  */
 
-static int
-dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
-	    struct gfs2_inum *inum, unsigned int new_type)
+static int dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
+		       struct gfs2_inum *inum, unsigned int new_type)
 {
 	ENTER(G2FN_DIR_L_MVINO)
 	struct buffer_head *dibh;
@@ -1883,9 +1861,8 @@ dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: errno
  */
 
-int
-gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
-	       struct gfs2_inum *inum, unsigned int *type)
+int gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
+		    struct gfs2_inum *inum, unsigned int *type)
 {
 	ENTER(G2FN_DIR_SEARCH)
 	int error;
@@ -1908,9 +1885,8 @@ gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: 0 on success, error code on failure
  */
 
-int
-gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
-	    struct gfs2_inum *inum, unsigned int type)
+int gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
+		 struct gfs2_inum *inum, unsigned int type)
 {
 	ENTER(G2FN_DIR_ADD)
 	int error;
@@ -1931,8 +1907,7 @@ gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: 0 on success, error code on failure
  */
 
-int
-gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
+int gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
 {
 	ENTER(G2FN_DIR_DEL)
 	int error;
@@ -1955,9 +1930,8 @@ gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
  * Returns: 0 on success, error code otherwise
  */
 
-int
-gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
-	     gfs2_filldir_t filldir)
+int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
+		  gfs2_filldir_t filldir)
 {
 	ENTER(G2FN_DIR_READ)
 	int error;
@@ -1983,9 +1957,8 @@ gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
  * Returns: errno
  */
 
-int
-gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
-	      struct gfs2_inum *inum, unsigned int new_type)
+int gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
+		   struct gfs2_inum *inum, unsigned int new_type)
 {
 	ENTER(G2FN_DIR_MVINO)
 	int error;
@@ -2007,8 +1980,7 @@ gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: errno
  */
 
-static int
-foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
+static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 {
 	ENTER(G2FN_FOREACH_LEAF)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -2088,10 +2060,8 @@ foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
  * Returns: errno
  */
 
-static int
-leaf_dealloc(struct gfs2_inode *dip,
-	     uint32_t index, uint32_t len,
-	     uint64_t leaf_no, void *data)
+static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
+			uint64_t leaf_no, void *data)
 {
 	ENTER(G2FN_LEAF_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -2211,8 +2181,7 @@ leaf_dealloc(struct gfs2_inode *dip,
  * Returns: errno
  */
 
-int
-gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
+int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 {
 	ENTER(G2FN_DIR_EXHASH_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -2252,9 +2221,8 @@ gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
  * Returns: errno
  */
 
-int
-gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
-			  int *alloc_required)
+int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
+			       int *alloc_required)
 {
 	ENTER(G2FN_DIRADD_ALLOC_REQUIRED)
 	struct buffer_head *bh = NULL, *bh_next;
@@ -2320,10 +2288,8 @@ gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
  * Returns: errno
  */
 
-static int
-do_gdm(struct gfs2_inode *dip,
-       uint32_t index, uint32_t len, uint64_t leaf_no,
-       void *data)
+static int do_gdm(struct gfs2_inode *dip, uint32_t index, uint32_t len,
+		  uint64_t leaf_no, void *data)
 {
 	ENTER(G2FN_DO_GDM)
 	struct gfs2_user_buffer *ub = (struct gfs2_user_buffer *)data;
@@ -2358,8 +2324,7 @@ do_gdm(struct gfs2_inode *dip,
  * Returns: errno
  */
 
-int
-gfs2_get_dir_meta(struct gfs2_inode *dip, struct gfs2_user_buffer *ub)
+int gfs2_get_dir_meta(struct gfs2_inode *dip, struct gfs2_user_buffer *ub)
 {
 	ENTER(G2FN_GET_DIR_META)
 	RETURN(G2FN_GET_DIR_META, foreach_leaf(dip, do_gdm, ub));

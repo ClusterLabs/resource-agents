@@ -35,8 +35,7 @@
 #define QUOTA_USER (1)
 #define QUOTA_GROUP (0)
 
-static uint64_t
-qd2offset(struct gfs2_quota_data *qd)
+static uint64_t qd2offset(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QD2OFFSET)
 	uint64_t offset;
@@ -47,9 +46,8 @@ qd2offset(struct gfs2_quota_data *qd)
 	RETURN(G2FN_QD2OFFSET, offset);
 }
 
-static int
-qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
-	 struct gfs2_quota_data **qdp)
+static int qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
+		    struct gfs2_quota_data **qdp)
 {
 	ENTER(G2FN_QD_ALLOC)
        	struct gfs2_quota_data *qd;
@@ -86,9 +84,8 @@ qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
 	RETURN(G2FN_QD_ALLOC, error);
 }
 
-static int
-qd_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
-       struct gfs2_quota_data **qdp)
+static int qd_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
+		  struct gfs2_quota_data **qdp)
 {
 	ENTER(G2FN_QD_GET)
 	struct gfs2_quota_data *qd = NULL, *new_qd = NULL;
@@ -138,8 +135,7 @@ qd_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
 	}
 }
 
-static void
-qd_hold(struct gfs2_quota_data *qd)
+static void qd_hold(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QD_HOLD)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -152,8 +148,7 @@ qd_hold(struct gfs2_quota_data *qd)
 	RET(G2FN_QD_HOLD);
 }
 
-static void
-qd_put(struct gfs2_quota_data *qd)
+static void qd_put(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QD_PUT)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -165,8 +160,7 @@ qd_put(struct gfs2_quota_data *qd)
 	RET(G2FN_QD_PUT);
 }
 
-static int
-slot_get(struct gfs2_quota_data *qd)
+static int slot_get(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_SLOT_GET)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -210,8 +204,7 @@ slot_get(struct gfs2_quota_data *qd)
 	RETURN(G2FN_SLOT_GET, -ENOSPC);
 }
 
-static void
-slot_hold(struct gfs2_quota_data *qd)
+static void slot_hold(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_SLOT_HOLD)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -224,8 +217,7 @@ slot_hold(struct gfs2_quota_data *qd)
 	RET(G2FN_SLOT_HOLD);
 }
 
-static void
-slot_put(struct gfs2_quota_data *qd)
+static void slot_put(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_SLOT_PUT)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -241,8 +233,7 @@ slot_put(struct gfs2_quota_data *qd)
 	RET(G2FN_SLOT_PUT);
 }
 
-static int
-bh_get(struct gfs2_quota_data *qd)
+static int bh_get(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_BH_GET)
        	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -291,8 +282,7 @@ bh_get(struct gfs2_quota_data *qd)
 	RETURN(G2FN_BH_GET, error);
 }
 
-static void
-bh_put(struct gfs2_quota_data *qd)
+static void bh_put(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_BH_PUT)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -309,8 +299,7 @@ bh_put(struct gfs2_quota_data *qd)
 	RET(G2FN_BH_PUT);
 }
 
-static int
-qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
+static int qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 {
 	ENTER(G2FN_QD_FISH)
 	struct list_head *tmp, *head;
@@ -367,8 +356,7 @@ qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 	RETURN(G2FN_QD_FISH, 0);
 }
 
-static int
-qd_trylock(struct gfs2_quota_data *qd)
+static int qd_trylock(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QD_TRYLOCK)
        	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -406,8 +394,7 @@ qd_trylock(struct gfs2_quota_data *qd)
 	RETURN(G2FN_QD_TRYLOCK, TRUE);
 }
 
-static void
-qd_unlock(struct gfs2_quota_data *qd)
+static void qd_unlock(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QD_UNLOCK)
 	gfs2_assert_warn(qd->qd_gl->gl_sbd, test_bit(QDF_LOCKED, &qd->qd_flags));
@@ -418,9 +405,8 @@ qd_unlock(struct gfs2_quota_data *qd)
        	RET(G2FN_QD_UNLOCK);
 }
 
-static int
-qdsb_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
-	struct gfs2_quota_data **qdp)
+static int qdsb_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
+		    struct gfs2_quota_data **qdp)
 {
 	ENTER(G2FN_QDSB_GET)
 	int error;
@@ -447,8 +433,7 @@ qdsb_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
 	RETURN(G2FN_QDSB_GET, error);
 }
 
-static void
-qdsb_put(struct gfs2_quota_data *qd)
+static void qdsb_put(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_QDSB_PUT);
 	bh_put(qd);
@@ -457,8 +442,7 @@ qdsb_put(struct gfs2_quota_data *qd)
 	RET(G2FN_QDSB_PUT);
 }
 
-int
-gfs2_quota_hold(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
+int gfs2_quota_hold(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	ENTER(G2FN_QUOTA_HOLD)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -508,8 +492,7 @@ gfs2_quota_hold(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 	RETURN(G2FN_QUOTA_HOLD, error);
 }
 
-void
-gfs2_quota_unhold(struct gfs2_inode *ip)
+void gfs2_quota_unhold(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_QUOTA_UNHOLD)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -527,8 +510,7 @@ gfs2_quota_unhold(struct gfs2_inode *ip)
        	RET(G2FN_QUOTA_UNHOLD);
 }
 
-static int
-sort_qd(const void *a, const void *b)
+static int sort_qd(const void *a, const void *b)
 {
 	ENTER(G2FN_SORT_QD)
 	struct gfs2_quota_data *qd_a = *(struct gfs2_quota_data **)a;
@@ -551,8 +533,7 @@ sort_qd(const void *a, const void *b)
 	RETURN(G2FN_SORT_QD, ret);
 }
 
-static void
-do_qc(struct gfs2_quota_data *qd, int64_t change)
+static void do_qc(struct gfs2_quota_data *qd, int64_t change)
 {
 	ENTER(G2FN_DO_QC)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -596,8 +577,7 @@ do_qc(struct gfs2_quota_data *qd, int64_t change)
 	RET(G2FN_DO_QC);
 }
 
-static int
-do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
+static int do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 {
 	ENTER(G2FN_DO_SYNC)
 	struct gfs2_sbd *sdp = (*qda)->qd_gl->gl_sbd;
@@ -734,9 +714,8 @@ do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 	RETURN(G2FN_DO_SYNC, error);
 }
 
-static int
-do_glock(struct gfs2_quota_data *qd,
-	    int force_refresh, struct gfs2_holder *q_gh)
+static int do_glock(struct gfs2_quota_data *qd, int force_refresh,
+		    struct gfs2_holder *q_gh)
 {
 	ENTER(G2FN_DO_GLOCK)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -803,8 +782,7 @@ do_glock(struct gfs2_quota_data *qd,
 	RETURN(G2FN_DO_GLOCK, error);
 }
 
-int
-gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
+int gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	ENTER(G2FN_QUOTA_LOCK)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -838,8 +816,7 @@ gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
        	RETURN(G2FN_QUOTA_LOCK, error);
 }
 
-static int
-need_sync(struct gfs2_quota_data *qd)
+static int need_sync(struct gfs2_quota_data *qd)
 {
 	ENTER(G2FN_NEED_SYNC)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -874,8 +851,8 @@ need_sync(struct gfs2_quota_data *qd)
 
 	RETURN(G2FN_NEED_SYNC, do_sync);
 }
-void
-gfs2_quota_unlock(struct gfs2_inode *ip)
+
+void gfs2_quota_unlock(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_QUOTA_UNLOCK)
 	struct gfs2_alloc *al = ip->i_alloc;
@@ -911,8 +888,7 @@ gfs2_quota_unlock(struct gfs2_inode *ip)
        	RET(G2FN_QUOTA_UNLOCK);
 }
 
-static int
-print_message(struct gfs2_quota_data *qd, char *type)
+static int print_message(struct gfs2_quota_data *qd, char *type)
 {
 	ENTER(G2FN_PRINT_MESSAGE)
        	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
@@ -940,8 +916,7 @@ print_message(struct gfs2_quota_data *qd, char *type)
 	RETURN(G2FN_PRINT_MESSAGE, 0);
 }
 
-int
-gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
+int gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 {
 	ENTER(G2FN_QUOTA_CHECK)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -982,9 +957,8 @@ gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
        	RETURN(G2FN_QUOTA_CHECK, error);
 }
 
-void
-gfs2_quota_change(struct gfs2_inode *ip, int64_t change,
-		 uint32_t uid, uint32_t gid)
+void gfs2_quota_change(struct gfs2_inode *ip, int64_t change,
+		       uint32_t uid, uint32_t gid)
 {
 	ENTER(G2FN_QUOTA_CHANGE)
 	struct gfs2_alloc *al = ip->i_alloc;
@@ -1010,8 +984,7 @@ gfs2_quota_change(struct gfs2_inode *ip, int64_t change,
        	RET(G2FN_QUOTA_CHANGE);
 }
 
-int
-gfs2_quota_sync(struct gfs2_sbd *sdp)
+int gfs2_quota_sync(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_QUOTA_SYNC)
 	struct gfs2_quota_data **qda;
@@ -1057,8 +1030,7 @@ gfs2_quota_sync(struct gfs2_sbd *sdp)
        	RETURN(G2FN_QUOTA_SYNC, error);
 }
 
-int
-gfs2_quota_refresh(struct gfs2_sbd *sdp, int user, uint32_t id)
+int gfs2_quota_refresh(struct gfs2_sbd *sdp, int user, uint32_t id)
 {
 	ENTER(G2FN_QUOTA_REFRESH)
 	struct gfs2_quota_data *qd;
@@ -1078,9 +1050,8 @@ gfs2_quota_refresh(struct gfs2_sbd *sdp, int user, uint32_t id)
 	RETURN(G2FN_QUOTA_REFRESH, error);
 }
 
-int
-gfs2_quota_read(struct gfs2_sbd *sdp, int user, uint32_t id,
-	       struct gfs2_quota *q)
+int gfs2_quota_read(struct gfs2_sbd *sdp, int user, uint32_t id,
+		    struct gfs2_quota *q)
 {
 	ENTER(G2FN_QUOTA_READ)
 	struct gfs2_quota_data *qd;
@@ -1116,8 +1087,7 @@ gfs2_quota_read(struct gfs2_sbd *sdp, int user, uint32_t id,
 	RETURN(G2FN_QUOTA_READ, error);
 }
 
-int
-gfs2_quota_init(struct gfs2_sbd *sdp)
+int gfs2_quota_init(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_QUOTA_INIT)
 	struct gfs2_inode *ip = sdp->sd_qc_inode;
@@ -1223,8 +1193,7 @@ gfs2_quota_init(struct gfs2_sbd *sdp)
 	RETURN(G2FN_QUOTA_INIT, error);
 }
 
-void
-gfs2_quota_scan(struct gfs2_sbd *sdp)
+void gfs2_quota_scan(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_QUOTA_SCAN)
 	struct list_head *head, *tmp, *next;
@@ -1261,8 +1230,7 @@ gfs2_quota_scan(struct gfs2_sbd *sdp)
        	RET(G2FN_QUOTA_SCAN);
 }
 
-void
-gfs2_quota_cleanup(struct gfs2_sbd *sdp)
+void gfs2_quota_cleanup(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_QUOTA_CLEANUP)
        	struct list_head *head = &sdp->sd_quota_list;

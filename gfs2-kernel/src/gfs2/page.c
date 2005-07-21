@@ -33,8 +33,7 @@
  *
  */
 
-void
-gfs2_pte_inval(struct gfs2_glock *gl)
+void gfs2_pte_inval(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_PTE_INVAL)
 	struct gfs2_inode *ip;
@@ -67,8 +66,7 @@ gfs2_pte_inval(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_page_inval(struct gfs2_glock *gl)
+void gfs2_page_inval(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_PAGE_INVAL)
 	struct gfs2_inode *ip;
@@ -102,8 +100,7 @@ gfs2_page_inval(struct gfs2_glock *gl)
  * No-op for all other types.
  */
 
-void
-gfs2_page_sync(struct gfs2_glock *gl, int flags)
+void gfs2_page_sync(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_PAGE_SYNC)
 	struct gfs2_inode *ip;
@@ -148,9 +145,8 @@ gfs2_page_sync(struct gfs2_glock *gl, int flags)
  * Returns: errno
  */
 
-int
-gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
-		    uint64_t block, void *private)
+int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
+			uint64_t block, void *private)
 {
 	ENTER(G2FN_UNSTUFFER_PAGE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -210,8 +206,7 @@ gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
  * Returns: errno
  */
 
-int
-gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
+int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 {
 	ENTER(G2FN_TRUNCATOR_PAGE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -274,9 +269,8 @@ gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	RETURN(G2FN_TRUNCATOR_PAGE, error);
 }
 
-void
-gfs2_page_add_databufs(struct gfs2_sbd *sdp, struct page *page,
-		       unsigned int from, unsigned int to)
+void gfs2_page_add_databufs(struct gfs2_sbd *sdp, struct page *page,
+			    unsigned int from, unsigned int to)
 {
 	ENTER(G2FN_PAGE_ADD_DATABUFS)
        	struct buffer_head *head = page_buffers(page);

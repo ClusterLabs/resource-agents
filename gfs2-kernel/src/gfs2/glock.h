@@ -38,8 +38,7 @@
 #define GLR_TRYFAILED     (13)
 #define GLR_CANCELED      (14)
 
-static __inline__ int
-gfs2_glock_is_locked_by_me(struct gfs2_glock *gl)
+static __inline__ int gfs2_glock_is_locked_by_me(struct gfs2_glock *gl)
 {
 	struct list_head *tmp, *head;
 	struct gfs2_holder *gh;
@@ -60,24 +59,23 @@ gfs2_glock_is_locked_by_me(struct gfs2_glock *gl)
 
 	return locked;
 }
-static __inline__ int
-gfs2_glock_is_held_excl(struct gfs2_glock *gl)
+
+static __inline__ int gfs2_glock_is_held_excl(struct gfs2_glock *gl)
 {
 	return (gl->gl_state == LM_ST_EXCLUSIVE);
 }
-static __inline__ int
-gfs2_glock_is_held_dfrd(struct gfs2_glock *gl)
+
+static __inline__ int gfs2_glock_is_held_dfrd(struct gfs2_glock *gl)
 {
 	return (gl->gl_state == LM_ST_DEFERRED);
 }
-static __inline__ int
-gfs2_glock_is_held_shrd(struct gfs2_glock *gl)
+
+static __inline__ int gfs2_glock_is_held_shrd(struct gfs2_glock *gl)
 {
 	return (gl->gl_state == LM_ST_SHARED);
 }
 
-static __inline__ int
-gfs2_glock_is_blocking(struct gfs2_glock *gl)
+static __inline__ int gfs2_glock_is_blocking(struct gfs2_glock *gl)
 {
 	int ret;
 	spin_lock(&gl->gl_spin);

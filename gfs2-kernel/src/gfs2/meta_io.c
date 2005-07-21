@@ -48,9 +48,8 @@
  * Returns: errno
  */
 
-static int
-aspace_get_block(struct inode *inode, sector_t lblock,
-		 struct buffer_head *bh_result, int create)
+static int aspace_get_block(struct inode *inode, sector_t lblock,
+			    struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_ASPACE_GET_BLOCK)
 	gfs2_assert_warn(get_v2sdp(inode->i_sb), FALSE);
@@ -65,8 +64,8 @@ aspace_get_block(struct inode *inode, sector_t lblock,
  * Returns: errno
  */
 
-static int 
-gfs2_aspace_writepage(struct page *page, struct writeback_control *wbc)
+static int gfs2_aspace_writepage(struct page *page,
+				 struct writeback_control *wbc)
 {
 	ENTER(G2FN_ASPACE_WRITEPAGE)
 	RETURN(G2FN_ASPACE_WRITEPAGE,
@@ -79,8 +78,7 @@ gfs2_aspace_writepage(struct page *page, struct writeback_control *wbc)
  *
  */
 
-static void
-stuck_releasepage(struct buffer_head *bh)
+static void stuck_releasepage(struct buffer_head *bh)
 {
 	ENTER(G2FN_STUCK_RELEASEPAGE)
 	struct gfs2_sbd *sdp = get_v2sdp(bh->b_page->mapping->host->i_sb);
@@ -145,8 +143,7 @@ stuck_releasepage(struct buffer_head *bh)
  * Returns: 0
  */
 
-static int
-gfs2_aspace_releasepage(struct page *page, int gfp_mask)
+static int gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 {
 	ENTER(G2FN_ASPACE_RELEASEPAGE)
 	struct inode *aspace = page->mapping->host;
@@ -218,8 +215,7 @@ static struct address_space_operations aspace_aops = {
  * Returns: the aspace
  */
 
-struct inode *
-gfs2_aspace_get(struct gfs2_sbd *sdp)
+struct inode *gfs2_aspace_get(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_ASPACE_GET)
 	struct inode *aspace;
@@ -242,8 +238,7 @@ gfs2_aspace_get(struct gfs2_sbd *sdp)
  *
  */
 
-void
-gfs2_aspace_put(struct inode *aspace)
+void gfs2_aspace_put(struct inode *aspace)
 {
 	ENTER(G2FN_ASPACE_PUT)
 	remove_inode_hash(aspace);
@@ -258,8 +253,7 @@ gfs2_aspace_put(struct inode *aspace)
  *
  */
 
-void
-gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
+void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
 	ENTER(G2FN_AIL1_START_ONE)
 	struct list_head *head, *tmp, *prev;
@@ -310,8 +304,7 @@ gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
  *
  */
 
-int
-gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
+int gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
 {
 	ENTER(G2FN_AIL1_EMPTY_ONE)
 	struct list_head *head, *tmp, *prev;
@@ -349,8 +342,7 @@ gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
  *
  */
 
-void
-gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
+void gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
 	ENTER(G2FN_AIL2_EMPTY_ONE)
        	struct list_head *head = &ai->ai_ail2_list;
@@ -376,8 +368,7 @@ gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
  * None of the buffers should be dirty, locked, or pinned.
  */
 
-void
-gfs2_ail_empty_gl(struct gfs2_glock *gl)
+void gfs2_ail_empty_gl(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_AIL_EMPTY_GL)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -429,8 +420,7 @@ gfs2_ail_empty_gl(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_meta_inval(struct gfs2_glock *gl)
+void gfs2_meta_inval(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_META_INVAL)
        	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -455,8 +445,7 @@ gfs2_meta_inval(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_meta_sync(struct gfs2_glock *gl, int flags)
+void gfs2_meta_sync(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_META_SYNC)
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
@@ -483,8 +472,8 @@ gfs2_meta_sync(struct gfs2_glock *gl, int flags)
  * Returns: the buffer
  */
 
-static struct buffer_head *
-getbuf(struct gfs2_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
+static struct buffer_head *getbuf(struct gfs2_sbd *sdp, struct inode *aspace,
+				  uint64_t blkno, int create)
 {
 	ENTER(G2FN_GETBUF)
 	struct page *page;
@@ -523,8 +512,7 @@ getbuf(struct gfs2_sbd *sdp, struct inode *aspace, uint64_t blkno, int create)
 	RETURN(G2FN_GETBUF, bh);
 }
 
-void
-meta_prep_new(struct buffer_head *bh)
+void meta_prep_new(struct buffer_head *bh)
 {
 	ENTER(G2FN_META_PREP_NEW)
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
@@ -548,8 +536,7 @@ meta_prep_new(struct buffer_head *bh)
  * Returns: The buffer
  */
 
-struct buffer_head *
-gfs2_meta_new(struct gfs2_glock *gl, uint64_t blkno)
+struct buffer_head *gfs2_meta_new(struct gfs2_glock *gl, uint64_t blkno)
 {
 	ENTER(G2FN_META_NEW)
 	struct buffer_head *bh;
@@ -568,9 +555,8 @@ gfs2_meta_new(struct gfs2_glock *gl, uint64_t blkno)
  * Returns: errno
  */
 
-int
-gfs2_meta_read(struct gfs2_glock *gl, uint64_t blkno,
-	       int flags, struct buffer_head **bhp)
+int gfs2_meta_read(struct gfs2_glock *gl, uint64_t blkno, int flags,
+		   struct buffer_head **bhp)
 {
 	ENTER(G2FN_META_READ)
 	int error;
@@ -592,8 +578,7 @@ gfs2_meta_read(struct gfs2_glock *gl, uint64_t blkno,
  * Returns: errno
  */
 
-int
-gfs2_meta_reread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
+int gfs2_meta_reread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
 {
 	ENTER(G2FN_META_REREAD)
 
@@ -629,8 +614,7 @@ gfs2_meta_reread(struct gfs2_sbd *sdp, struct buffer_head *bh, int flags)
  *
  */
 
-void
-gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
+void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 {
 	ENTER(G2FN_META_ATTACH_BUFDATA)
 	struct gfs2_bufdata *bd;
@@ -679,8 +663,7 @@ gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
  *
  */
 
-void
-gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
+void gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(G2FN_META_PIN)
 	struct gfs2_bufdata *bd = get_v2bd(bh);
@@ -737,9 +720,8 @@ gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
  * 
  */
 
-void
-gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		struct gfs2_ail *ai)
+void gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
+		     struct gfs2_ail *ai)
 {
 	ENTER(G2FN_META_UNPIN)
 	struct gfs2_bufdata *bd = get_v2bd(bh);
@@ -777,8 +759,7 @@ gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
  * Called when de-allocating a contiguous run of meta blocks within an rgrp.
  */
 
-void
-gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
+void gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
 	ENTER(G2FN_META_WIPE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -838,8 +819,7 @@ gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
  * Don't confuse this with the meta-HEADER cache (mhc)!
  */
 
-void
-gfs2_meta_cache_flush(struct gfs2_inode *ip)
+void gfs2_meta_cache_flush(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_META_CACHE_FLUSH)
 	struct buffer_head **bh_slot;
@@ -873,9 +853,8 @@ gfs2_meta_cache_flush(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-int
-gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
-			  struct buffer_head **bhp)
+int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num,
+			      int new, struct buffer_head **bhp)
 {
 	ENTER(G2FN_META_INDIRECT_BUFFER)
 	struct buffer_head *bh, **bh_slot = ip->i_cache + height;
@@ -947,8 +926,7 @@ gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int n
  *
  */
 
-void
-gfs2_meta_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
+void gfs2_meta_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
 {
 	ENTER(G2FN_META_RA)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1008,8 +986,7 @@ gfs2_meta_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
  * Periodically keep checking until done (AIL empty)
  */
 
-void
-gfs2_meta_syncfs(struct gfs2_sbd *sdp)
+void gfs2_meta_syncfs(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_META_SYNCFS)
 
@@ -1024,5 +1001,4 @@ gfs2_meta_syncfs(struct gfs2_sbd *sdp)
 
 	RET(G2FN_META_SYNCFS);
 }
-
 

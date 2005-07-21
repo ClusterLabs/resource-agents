@@ -31,8 +31,7 @@
  * Return: errno
  */
 
-int
-gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
+int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 {
 	ENTER(G2FN_MOUNT_ARGS)
        	struct gfs2_args *args = &sdp->sd_args;
@@ -212,5 +211,4 @@ gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 	printk("GFS2: can't remount with option %s\n", o);
 	RETURN(G2FN_MOUNT_ARGS, -EINVAL);
 }
-
 

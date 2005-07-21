@@ -51,9 +51,8 @@
  * Returns: errno
  */
 
-static int
-gfs2_create(struct inode *dir, struct dentry *dentry,
-	    int mode, struct nameidata *nd)
+static int gfs2_create(struct inode *dir, struct dentry *dentry,
+		       int mode, struct nameidata *nd)
 {
 	ENTER(G2FN_CREATE)
 	struct gfs2_inode *dip = get_v2ip(dir), *ip;
@@ -117,8 +116,8 @@ gfs2_create(struct inode *dir, struct dentry *dentry,
  * Returns: the new dentry, a ERR_PTR, or NULL
  */
 
-static struct dentry *
-lookup_cdpn_sub_at(struct gfs2_sbd *sdp, struct dentry *dentry)
+static struct dentry *lookup_cdpn_sub_at(struct gfs2_sbd *sdp,
+					 struct dentry *dentry)
 {
 	ENTER(G2FN_LOOKUP_CDPN_SUB_AT)
 	struct dentry *parent, *new = NULL;
@@ -177,8 +176,8 @@ lookup_cdpn_sub_at(struct gfs2_sbd *sdp, struct dentry *dentry)
  * Returns: the new dentry, a ERR_PTR, or NULL
  */
 
-static struct dentry *
-lookup_cdpn_sub_brace(struct gfs2_sbd *sdp, struct dentry *dentry)
+static struct dentry *lookup_cdpn_sub_brace(struct gfs2_sbd *sdp,
+					    struct dentry *dentry)
 {
 	ENTER(G2FN_LOOKUP_CDPN_SUB_BRACE)
 	struct dentry *parent, *new = NULL;
@@ -239,8 +238,8 @@ lookup_cdpn_sub_brace(struct gfs2_sbd *sdp, struct dentry *dentry)
  * Returns: errno
  */
 
-static struct dentry *
-gfs2_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
+static struct dentry *gfs2_lookup(struct inode *dir, struct dentry *dentry,
+				  struct nameidata *nd)
 {
 	ENTER(G2FN_LOOKUP)
 	struct gfs2_inode *dip = get_v2ip(dir), *ip;
@@ -296,8 +295,8 @@ gfs2_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
  * Returns: errno
  */
 
-static int
-gfs2_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
+static int gfs2_link(struct dentry *old_dentry, struct inode *dir,
+		     struct dentry *dentry)
 {
 	ENTER(G2FN_LINK)
 	struct gfs2_inode *dip = get_v2ip(dir);
@@ -431,8 +430,7 @@ gfs2_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
  * Returns: errno
  */
 
-static int
-gfs2_unlink(struct inode *dir, struct dentry *dentry)
+static int gfs2_unlink(struct inode *dir, struct dentry *dentry)
 {
 	ENTER(G2FN_UNLINK)
 	struct gfs2_inode *dip = get_v2ip(dir);
@@ -489,8 +487,8 @@ gfs2_unlink(struct inode *dir, struct dentry *dentry)
  * Returns: errno
  */
 
-static int
-gfs2_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
+static int gfs2_symlink(struct inode *dir, struct dentry *dentry,
+			const char *symname)
 {
 	ENTER(G2FN_SYMLINK)
 	struct gfs2_inode *dip = get_v2ip(dir), *ip;
@@ -557,8 +555,7 @@ gfs2_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
  * Returns: errno
  */
 
-static int
-gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+static int gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 {
 	ENTER(G2FN_MKDIR)
 	struct gfs2_inode *dip = get_v2ip(dir), *ip;
@@ -647,8 +644,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
  * Returns: errno
  */
 
-static int
-gfs2_rmdir(struct inode *dir, struct dentry *dentry)
+static int gfs2_rmdir(struct inode *dir, struct dentry *dentry)
 {
 	ENTER(G2FN_RMDIR)
 	struct gfs2_inode *dip = get_v2ip(dir);
@@ -716,8 +712,8 @@ gfs2_rmdir(struct inode *dir, struct dentry *dentry)
  *
  */
 
-static int
-gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
+static int gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode,
+		      dev_t dev)
 {
 	ENTER(G2FN_MKNOD)
 	struct gfs2_inode *dip = get_v2ip(dir), *ip;
@@ -793,9 +789,8 @@ gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
  * Returns: errno
  */
 
-static int
-gfs2_rename(struct inode *odir, struct dentry *odentry,
-	    struct inode *ndir, struct dentry *ndentry)
+static int gfs2_rename(struct inode *odir, struct dentry *odentry,
+		       struct inode *ndir, struct dentry *ndentry)
 {
 	ENTER(G2FN_RENAME)
 	struct gfs2_inode *odip = get_v2ip(odir);
@@ -1040,8 +1035,7 @@ gfs2_rename(struct inode *odir, struct dentry *odentry,
  * Returns: errno
  */
 
-static int
-gfs2_readlink(struct dentry *dentry, char *user_buf, int user_size)
+static int gfs2_readlink(struct dentry *dentry, char *user_buf, int user_size)
 {
 	ENTER(G2FN_READLINK)
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
@@ -1080,8 +1074,7 @@ gfs2_readlink(struct dentry *dentry, char *user_buf, int user_size)
  * Returns: 0 on success or error code
  */
 
-static int
-gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
+static int gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	ENTER(G2FN_FOLLOW_LINK)
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
@@ -1110,8 +1103,7 @@ gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
  * Returns: errno
  */
 
-static int
-gfs2_permission(struct inode *inode, int mask, struct nameidata *nd)
+static int gfs2_permission(struct inode *inode, int mask, struct nameidata *nd)
 {
 	ENTER(G2FN_PERMISSION)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -1135,8 +1127,7 @@ gfs2_permission(struct inode *inode, int mask, struct nameidata *nd)
 	RETURN(G2FN_PERMISSION, error);
 }
 
-static int
-setattr_size(struct inode *inode, struct iattr *attr)
+static int setattr_size(struct inode *inode, struct iattr *attr)
 {
 	ENTER(G2FN_SETATTR_SIZE)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -1159,8 +1150,7 @@ setattr_size(struct inode *inode, struct iattr *attr)
 	RETURN(G2FN_SETATTR_SIZE, error);
 }
 
-static int
-setattr_chown(struct inode *inode, struct iattr *attr)
+static int setattr_chown(struct inode *inode, struct iattr *attr)
 {
 	ENTER(G2FN_SETATTR_CHOWN)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -1236,8 +1226,7 @@ setattr_chown(struct inode *inode, struct iattr *attr)
  * Returns: errno
  */
 
-static int
-gfs2_setattr(struct dentry *dentry, struct iattr *attr)
+static int gfs2_setattr(struct dentry *dentry, struct iattr *attr)
 {
 	ENTER(G2FN_SETATTR)
 	struct inode *inode = dentry->d_inode;
@@ -1286,8 +1275,8 @@ gfs2_setattr(struct dentry *dentry, struct iattr *attr)
  * Returns: errno
  */
 
-static int
-gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
+static int gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry,
+			struct kstat *stat)
 {
 	ENTER(G2FN_GETATTR)
 	struct inode *inode = dentry->d_inode;
@@ -1317,10 +1306,8 @@ gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
  * Returns: errno
  */
 
-int
-gfs2_setxattr(struct dentry *dentry, const char *name,
-	     const void *data, size_t size,
-	     int flags)
+int gfs2_setxattr(struct dentry *dentry, const char *name,
+		  const void *data, size_t size, int flags)
 {
 	ENTER(G2FN_SETXATTR)
        	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
@@ -1353,9 +1340,8 @@ gfs2_setxattr(struct dentry *dentry, const char *name,
  * Returns: The number of bytes put into data, or -errno
  */
 
-ssize_t
-gfs2_getxattr(struct dentry *dentry, const char *name,
-	     void *data, size_t size)
+ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
+		      void *data, size_t size)
 {
 	ENTER(G2FN_GETXATTR)
 	struct gfs2_ea_request er;
@@ -1383,8 +1369,7 @@ gfs2_getxattr(struct dentry *dentry, const char *name,
  * Returns: The number of bytes put into data, or -errno
  */
 
-ssize_t
-gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
+ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
 	ENTER(G2FN_LISTXATTR)
 	struct gfs2_ea_request er;
@@ -1407,8 +1392,7 @@ gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
  * Returns: errno
  */
 
-int
-gfs2_removexattr(struct dentry *dentry, const char *name)
+int gfs2_removexattr(struct dentry *dentry, const char *name)
 {
 	ENTER(G2FN_REMOVEXATTR)
 	struct gfs2_ea_request er;

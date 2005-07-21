@@ -39,8 +39,7 @@
  *
  */
 
-void
-gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
+void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 {
 	ENTER(G2FN_QUOTA_LVB_IN)
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
@@ -61,8 +60,7 @@ gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
  *
  */
 
-void
-gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
+void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 {
 	ENTER(G2FN_QUOTA_LVB_OUT)
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
@@ -84,8 +82,7 @@ gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
  *            buffer
  */
 
-void
-gfs2_quota_lvb_print(struct gfs2_quota_lvb *qb)
+void gfs2_quota_lvb_print(struct gfs2_quota_lvb *qb)
 {
 	ENTER(G2FN_QUOTA_LVB_PRINT)
 

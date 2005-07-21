@@ -42,9 +42,8 @@
  * Returns: errno
  */
 
-static int
-get_block(struct inode *inode, sector_t lblock, 
-	  struct buffer_head *bh_result, int create)
+static int get_block(struct inode *inode, sector_t lblock,
+		     struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_GET_BLOCK)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -76,9 +75,8 @@ get_block(struct inode *inode, sector_t lblock,
  * Returns: errno
  */
 
-static int
-get_block_noalloc(struct inode *inode, sector_t lblock,
-		  struct buffer_head *bh_result, int create)
+static int get_block_noalloc(struct inode *inode, sector_t lblock,
+			     struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_GET_BLOCK_NOALLOC)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -109,10 +107,9 @@ get_block_noalloc(struct inode *inode, sector_t lblock,
  * Returns: errno
  */
 
-static int
-get_blocks(struct inode *inode, sector_t lblock,
-	   unsigned long max_blocks,
-	   struct buffer_head *bh_result, int create)
+static int get_blocks(struct inode *inode, sector_t lblock,
+		      unsigned long max_blocks, struct buffer_head *bh_result,
+		      int create)
 {
 	ENTER(G2FN_GET_BLOCKS)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -150,10 +147,9 @@ get_blocks(struct inode *inode, sector_t lblock,
  * Returns: errno
  */
 
-static int
-get_blocks_noalloc(struct inode *inode, sector_t lblock,
-		   unsigned long max_blocks,
-		   struct buffer_head *bh_result, int create)
+static int get_blocks_noalloc(struct inode *inode, sector_t lblock,
+			      unsigned long max_blocks,
+			      struct buffer_head *bh_result, int create)
 {
 	ENTER(G2FN_GET_BLOCKS_NOALLOC)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -187,8 +183,7 @@ get_blocks_noalloc(struct inode *inode, sector_t lblock,
  *   using GFS2's get_block_noalloc to find which blocks to write.
  */
 
-static int
-gfs2_writepage(struct page *page, struct writeback_control *wbc)
+static int gfs2_writepage(struct page *page, struct writeback_control *wbc)
 {
 	ENTER(G2FN_WRITEPAGE)
 	struct gfs2_inode *ip = get_v2ip(page->mapping->host);
@@ -222,8 +217,7 @@ gfs2_writepage(struct page *page, struct writeback_control *wbc)
  * Returns: errno
  */
 
-static int
-stuffed_readpage(struct gfs2_inode *ip, struct page *page)
+static int stuffed_readpage(struct gfs2_inode *ip, struct page *page)
 {
 	ENTER(G2FN_STUFFED_READPAGE)
 	struct buffer_head *dibh;
@@ -250,8 +244,7 @@ stuffed_readpage(struct gfs2_inode *ip, struct page *page)
 	RETURN(G2FN_STUFFED_READPAGE, 0);
 }
 
-static int
-zero_readpage(struct page *page)
+static int zero_readpage(struct page *page)
 {
 	ENTER(G2FN_ZERO_READPAGE)
 	void *kaddr;
@@ -274,8 +267,7 @@ zero_readpage(struct page *page)
  * Returns: errno
  */
 
-static int
-jdata_readpage(struct gfs2_inode *ip, struct page *page)
+static int jdata_readpage(struct gfs2_inode *ip, struct page *page)
 {
 	ENTER(G2FN_JDATA_READPAGE)
 	void *kaddr;
@@ -308,8 +300,7 @@ jdata_readpage(struct gfs2_inode *ip, struct page *page)
  * Returns: errno
  */
 
-static int
-gfs2_readpage(struct file *file, struct page *page)
+static int gfs2_readpage(struct file *file, struct page *page)
 {
 	ENTER(G2FN_READPAGE)
 	struct gfs2_inode *ip = get_v2ip(page->mapping->host);
@@ -357,9 +348,8 @@ gfs2_readpage(struct file *file, struct page *page)
  *   to find which blocks to write.
  */
 
-static int
-gfs2_prepare_write(struct file *file, struct page *page,
-		   unsigned from, unsigned to)
+static int gfs2_prepare_write(struct file *file, struct page *page,
+			      unsigned from, unsigned to)
 {
 	ENTER(G2FN_PREPARE_WRITE)
 	struct gfs2_inode *ip = get_v2ip(page->mapping->host);
@@ -396,9 +386,8 @@ gfs2_prepare_write(struct file *file, struct page *page,
  * Returns: errno
  */
 
-static int
-gfs2_commit_write(struct file *file, struct page *page,
-		  unsigned from, unsigned to)
+static int gfs2_commit_write(struct file *file, struct page *page,
+			     unsigned from, unsigned to)
 {
 	ENTER(G2FN_COMMIT_WRITE)
 	struct inode *inode = page->mapping->host;
@@ -455,8 +444,7 @@ gfs2_commit_write(struct file *file, struct page *page,
  * Returns: The disk address for the block or 0 on hole or error
  */
 
-static sector_t
-gfs2_bmap(struct address_space *mapping, sector_t lblock)
+static sector_t gfs2_bmap(struct address_space *mapping, sector_t lblock)
 {
 	ENTER(G2FN_BMAP)
 	struct gfs2_inode *ip = get_v2ip(mapping->host);
@@ -478,8 +466,7 @@ gfs2_bmap(struct address_space *mapping, sector_t lblock)
 	RETURN(G2FN_BMAP, dblock);
 }
 
-static void
-discard_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
+static void discard_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(G2FN_DISCARD_BUFFER)
 	struct gfs2_databuf *db;
@@ -506,8 +493,7 @@ discard_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	RET(G2FN_DISCARD_BUFFER);
 }
 
-int
-gfs2_invalidatepage(struct page *page, unsigned long offset)
+int gfs2_invalidatepage(struct page *page, unsigned long offset)
 {
 	ENTER(G2FN_INVALIDATEPAGE)
        	struct gfs2_sbd *sdp = get_v2sdp(page->mapping->host->i_sb);
@@ -548,9 +534,8 @@ gfs2_invalidatepage(struct page *page, unsigned long offset)
  * Returns: errno
  */
 
-static int
-gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
-	       loff_t offset, unsigned long nr_segs)
+static int gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
+			  loff_t offset, unsigned long nr_segs)
 {
 	ENTER(G2FN_DIRECT_IO)
 	struct file *file = iocb->ki_filp;

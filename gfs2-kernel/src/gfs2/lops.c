@@ -28,8 +28,7 @@
 #include "rgrp.h"
 #include "trans.h"
 
-static void
-glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
+static void glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_GLOCK_LO_ADD)
 	struct gfs2_glock *gl;
@@ -53,8 +52,7 @@ glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	RET(G2FN_GLOCK_LO_ADD);
 }
 
-static void
-glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
+static void glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
 	ENTER(G2FN_GLOCK_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_gl;
@@ -73,8 +71,7 @@ glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	RET(G2FN_GLOCK_LO_AFTER_COMMIT);
 }
 
-static void
-buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
+static void buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_BUF_LO_ADD)
 	struct gfs2_bufdata *bd = container_of(le, struct gfs2_bufdata, bd_le);
@@ -106,8 +103,7 @@ buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	RET(G2FN_BUF_LO_ADD);
 }
 
-static void
-buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
+static void buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
 	ENTER(G2FN_BUF_LO_INCORE_COMMIT)
 	struct list_head *head = &tr->tr_list_buf;
@@ -123,8 +119,7 @@ buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 	RET(G2FN_BUF_LO_INCORE_COMMIT);
 }
 
-static void
-buf_lo_before_commit(struct gfs2_sbd *sdp)
+static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_BUF_LO_BEFORE_COMMIT)
 	struct buffer_head *bh;
@@ -163,8 +158,7 @@ buf_lo_before_commit(struct gfs2_sbd *sdp)
 	RET(G2FN_BUF_LO_BEFORE_COMMIT);
 }
 
-static void
-buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
+static void buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
 	ENTER(G2FN_BUF_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_buf;
@@ -182,9 +176,8 @@ buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	RET(G2FN_BUF_LO_AFTER_COMMIT);
 }
 
-static void
-buf_lo_before_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head,
-		   int pass)
+static void buf_lo_before_scan(struct gfs2_jdesc *jd,
+			       struct gfs2_log_header *head, int pass)
 {
 	ENTER(G2FN_BUF_LO_BEFORE_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -198,9 +191,8 @@ buf_lo_before_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head,
 	RET(G2FN_BUF_LO_BEFORE_SCAN);
 }
 
-static int
-buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
-		     struct gfs2_log_descriptor *ld, int pass)
+static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
+				struct gfs2_log_descriptor *ld, int pass)
 {
 	ENTER(G2FN_BUF_LO_SCAN_ELEMENTS)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -250,8 +242,7 @@ buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 	RETURN(G2FN_BUF_LO_SCAN_ELEMENTS, error);
 }
 
-static void
-buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
+static void buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 {
 	ENTER(G2FN_BUF_LO_AFTER_SCAN)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -273,8 +264,7 @@ buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 	RET(G2FN_BUF_LO_AFTER_SCAN);
 }
 
-static void
-revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
+static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_REVOKE_LO_ADD)
 	struct gfs2_trans *tr;
@@ -291,8 +281,7 @@ revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	RET(G2FN_REVOKE_LO_ADD);
 }
 
-static void
-revoke_lo_before_commit(struct gfs2_sbd *sdp)
+static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_REVOKE_LO_BEFORE_COMMIT)
 	struct gfs2_log_descriptor ld;
@@ -347,9 +336,8 @@ revoke_lo_before_commit(struct gfs2_sbd *sdp)
        	RET(G2FN_REVOKE_LO_BEFORE_COMMIT);
 }
 
-static void
-revoke_lo_before_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head,
-		      int pass)
+static void revoke_lo_before_scan(struct gfs2_jdesc *jd,
+				  struct gfs2_log_header *head, int pass)
 {
 	ENTER(G2FN_REVOKE_LO_BEFORE_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -363,9 +351,8 @@ revoke_lo_before_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head,
        	RET(G2FN_REVOKE_LO_BEFORE_SCAN);
 }
 
-static int
-revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
-			struct gfs2_log_descriptor *ld, int pass)
+static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
+				   struct gfs2_log_descriptor *ld, int pass)
 {
 	ENTER(G2FN_REVOKE_LO_SCAN_ELEMENTS)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -413,8 +400,7 @@ revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
        	RETURN(G2FN_REVOKE_LO_SCAN_ELEMENTS, 0);
 }
 
-static void
-revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
+static void revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 {
 	ENTER(G2FN_REVOKE_LO_AFTER_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
@@ -435,8 +421,7 @@ revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
        	RET(G2FN_REVOKE_LO_AFTER_SCAN);
 }
 
-static void
-rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
+static void rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_RG_LO_ADD)
 	struct gfs2_rgrpd *rgd;
@@ -457,8 +442,7 @@ rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	RET(G2FN_RG_LO_ADD);
 }
 
-static void
-rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
+static void rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
 	ENTER(G2FN_RG_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_rg;
@@ -477,8 +461,7 @@ rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	RET(G2FN_RG_LO_AFTER_COMMIT);
 }
 
-static void
-databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
+static void databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	ENTER(G2FN_DATABUF_LO_ADD)
 
@@ -492,8 +475,7 @@ databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	RET(G2FN_DATABUF_LO_ADD);
 }
 
-static void
-databuf_lo_before_commit(struct gfs2_sbd *sdp)
+static void databuf_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_DATABUF_LO_BEFORE_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_databuf;

@@ -45,8 +45,7 @@
  * Returns: errno
  */
 
-int
-gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
+int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 		      struct gfs2_ea_request *er,
 		      int *remove, mode_t *mode)
 {
@@ -97,8 +96,7 @@ gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
  * Returns: errno
  */
 
-int
-gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
+int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
 {
 	ENTER(G2FN_ACL_VALIDATE_REMOVE)
 
@@ -126,11 +124,8 @@ gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
  * Returns: errno
  */
 
-int
-acl_get(struct gfs2_inode *ip, int access,
-	struct posix_acl **acl,
-	struct gfs2_ea_location *el,
-	char **data, unsigned int *len)
+int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
+	    struct gfs2_ea_location *el, char **data, unsigned int *len)
 {
 	ENTER(G2FN_ACL_GET)
 	struct gfs2_ea_request er;
@@ -202,8 +197,7 @@ acl_get(struct gfs2_inode *ip, int access,
  * Returns: errno
  */
 
-int
-gfs2_check_acl_locked(struct inode *inode, int mask)
+int gfs2_check_acl_locked(struct inode *inode, int mask)
 {
 	ENTER(G2FN_CHECK_ACL_LOCKED)
 	struct posix_acl *acl = NULL;
@@ -223,8 +217,7 @@ gfs2_check_acl_locked(struct inode *inode, int mask)
 	RETURN(G2FN_CHECK_ACL_LOCKED, -EAGAIN);
 }
 
-int
-gfs2_check_acl(struct inode *inode, int mask)
+int gfs2_check_acl(struct inode *inode, int mask)
 {
 	ENTER(G2FN_CHECK_ACL)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -242,8 +235,7 @@ gfs2_check_acl(struct inode *inode, int mask)
 	RETURN(G2FN_CHECK_ACL, error);
 }
 
-static int
-munge_mode(struct gfs2_inode *ip, mode_t mode)
+static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 {
 	ENTER(G2FN_MUNGE_MODE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -268,8 +260,7 @@ munge_mode(struct gfs2_inode *ip, mode_t mode)
 	RETURN(G2FN_MUNGE_MODE, 0);
 }
 
-int 
-gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
+int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 {
 	ENTER(G2FN_ACL_CREATE)
        	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -347,8 +338,7 @@ gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
  * Returns: errno
  */
 
-int
-gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
+int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 {
 	ENTER(G2FN_ACL_CHMOD)
 	struct posix_acl *acl = NULL;

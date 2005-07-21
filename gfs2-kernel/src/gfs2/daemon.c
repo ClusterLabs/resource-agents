@@ -36,8 +36,7 @@
  * See gfs2_glockd()
  */
 
-int
-gfs2_scand(void *data)
+int gfs2_scand(void *data)
 {
 	ENTER(G2FN_SCAND)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
@@ -75,8 +74,7 @@ gfs2_scand(void *data)
  * See gfs2_scand()
  */
 
-int
-gfs2_glockd(void *data)
+int gfs2_glockd(void *data)
 {
 	ENTER(G2FN_GLOCKD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
@@ -115,8 +113,7 @@ gfs2_glockd(void *data)
  *
  */
 
-int
-gfs2_recoverd(void *data)
+int gfs2_recoverd(void *data)
 {
 	ENTER(G2FN_RECOVERD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
@@ -152,8 +149,7 @@ gfs2_recoverd(void *data)
  * journal index.
  */
 
-int
-gfs2_logd(void *data)
+int gfs2_logd(void *data)
 {
 	ENTER(G2FN_LOGD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
@@ -204,8 +200,7 @@ gfs2_logd(void *data)
  *
  */
 
-int
-gfs2_quotad(void *data)
+int gfs2_quotad(void *data)
 {
 	ENTER(G2FN_QUOTAD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
@@ -267,8 +262,7 @@ gfs2_quotad(void *data)
  *
  */
 
-int
-gfs2_inoded(void *data)
+int gfs2_inoded(void *data)
 {
 	ENTER(G2FN_INODED)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;

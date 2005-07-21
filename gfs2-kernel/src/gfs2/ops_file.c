@@ -90,8 +90,7 @@ typedef ssize_t(*do_rw_t) (struct file * file,
  * Returns: The new offset, or errno
  */
 
-static loff_t
-gfs2_llseek(struct file *file, loff_t offset, int origin)
+static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 {
 	ENTER(G2FN_LLSEEK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -128,9 +127,8 @@ gfs2_llseek(struct file *file, loff_t offset, int origin)
  * Returns: what is returned
  */
 
-static ssize_t
-walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
-	     do_rw_t operation)
+static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
+			    loff_t *offset, do_rw_t operation)
 {
 	ENTER(G2FN_WALK_VM_HARD)
 	struct gfs2_holder *ghs;
@@ -205,9 +203,8 @@ walk_vm_hard(struct file *file, char *buf, size_t size, loff_t *offset,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
-	do_rw_t operation)
+static ssize_t walk_vm(struct file *file, char *buf, size_t size,
+		       loff_t *offset, do_rw_t operation)
 {
 	ENTER(G2FN_WALK_VM)
 
@@ -256,8 +253,8 @@ walk_vm(struct file *file, char *buf, size_t size, loff_t *offset,
  * Returns: what is returned
  */
 
-static ssize_t
-do_jdata_read(struct file *file, char *buf, size_t size, loff_t *offset)
+static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
+			     loff_t *offset)
 {
 	ENTER(G2FN_DO_JDATA_READ)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -297,9 +294,9 @@ do_jdata_read(struct file *file, char *buf, size_t size, loff_t *offset)
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t
-do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
-	       unsigned int num_gh, struct gfs2_holder *ghs)
+static ssize_t do_read_direct(struct file *file, char *buf, size_t size,
+			      loff_t *offset, unsigned int num_gh,
+			      struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_READ_DIRECT)
 	struct inode *inode = file->f_mapping->host;
@@ -362,9 +359,9 @@ do_read_direct(struct file *file, char *buf, size_t size, loff_t *offset,
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t
-do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
-	    unsigned int num_gh, struct gfs2_holder *ghs)
+static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
+			   loff_t *offset, unsigned int num_gh,
+			   struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_READ_BUF)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -403,8 +400,8 @@ do_read_buf(struct file *file, char *buf, size_t size, loff_t *offset,
  * Returns: The number of bytes read, errno on failure
  */
 
-static ssize_t
-gfs2_read(struct file *file, char *buf, size_t size, loff_t *offset)
+static ssize_t gfs2_read(struct file *file, char *buf, size_t size,
+			 loff_t *offset)
 {
 	ENTER(G2FN_READ)
 	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
@@ -430,8 +427,7 @@ gfs2_read(struct file *file, char *buf, size_t size, loff_t *offset)
  * Returns: errno
  */
 
-static int
-grope_mapping(char *buf, size_t size)
+static int grope_mapping(char *buf, size_t size)
 {
 	ENTER(G2FN_GROPE_MAPPING)
 	unsigned long start = (unsigned long)buf;
@@ -460,8 +456,8 @@ grope_mapping(char *buf, size_t size)
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
+static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
+				     loff_t *offset)
 {
 	ENTER(G2FN_DO_WRITE_DIRECT_ALLOC)
 	struct inode *inode = file->f_mapping->host;
@@ -575,9 +571,9 @@ do_write_direct_alloc(struct file *file, char *buf, size_t size, loff_t *offset)
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
-		unsigned int num_gh, struct gfs2_holder *ghs)
+static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
+			       loff_t *offset, unsigned int num_gh,
+			       struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_WRITE_DIRECT)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -700,8 +696,8 @@ do_write_direct(struct file *file, char *buf, size_t size, loff_t *offset,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
+static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
+			       loff_t *offset)
 {
 	ENTER(G2FN_DO_DO_WRITE_BUF)
 	struct inode *inode = file->f_mapping->host;
@@ -845,10 +841,9 @@ do_do_write_buf(struct file *file, char *buf, size_t size, loff_t *offset)
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-do_write_buf(struct file *file,
-	     char *buf, size_t size, loff_t *offset,
-	     unsigned int num_gh, struct gfs2_holder *ghs)
+static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
+			    loff_t *offset, unsigned int num_gh,
+			    struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_DO_WRITE_BUF)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -918,8 +913,8 @@ do_write_buf(struct file *file,
  * Returns: The number of bytes written, errno on failure
  */
 
-static ssize_t
-gfs2_write(struct file *file, const char *buf, size_t size, loff_t *offset)
+static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
+			  loff_t *offset)
 {
 	ENTER(G2FN_WRITE)
 	struct inode *inode = file->f_mapping->host;
@@ -954,11 +949,9 @@ gfs2_write(struct file *file, const char *buf, size_t size, loff_t *offset)
  * Returns: 0 on success, 1 if buffer full
  */
 
-static int
-filldir_reg_func(void *opaque,
-		 const char *name, unsigned int length,
-		 uint64_t offset,
-		 struct gfs2_inum *inum, unsigned int type)
+static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
+			    uint64_t offset, struct gfs2_inum *inum,
+			    unsigned int type)
 {
 	ENTER(G2FN_FILLDIR_REG_FUNC)
 	struct filldir_reg *fdr = (struct filldir_reg *)opaque;
@@ -992,8 +985,7 @@ filldir_reg_func(void *opaque,
  * Returns: errno
  */
 
-static int
-readdir_reg(struct file *file, void *dirent, filldir_t filldir)
+static int readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 {
 	ENTER(G2FN_READDIR_REG)
 	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
@@ -1037,11 +1029,9 @@ readdir_reg(struct file *file, void *dirent, filldir_t filldir)
  * Returns: 0 on success, 1 if buffer full
  */
 
-static int
-filldir_bad_func(void *opaque,
-		 const char *name, unsigned int length,
-		 uint64_t offset,
-		 struct gfs2_inum *inum, unsigned int type)
+static int filldir_bad_func(void *opaque, const char *name, unsigned int length,
+			    uint64_t offset, struct gfs2_inum *inum,
+			    unsigned int type)
 {
 	ENTER(G2FN_FILLDIR_BAD_FUNC)
 	struct filldir_bad *fdb = (struct filldir_bad *)opaque;
@@ -1087,8 +1077,7 @@ filldir_bad_func(void *opaque,
  * Returns: errno
  */
 
-static int
-readdir_bad(struct file *file, void *dirent, filldir_t filldir)
+static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 {
 	ENTER(G2FN_READDIR_BAD)
 	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
@@ -1165,8 +1154,7 @@ readdir_bad(struct file *file, void *dirent, filldir_t filldir)
  * Returns: errno
  */
 
-static int
-gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
+static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 {
 	ENTER(G2FN_READDIR)
 	int error;
@@ -1192,9 +1180,8 @@ gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
  * Returns: errno
  */
 
-static int
-gfs2_ioctl(struct inode *inode, struct file *file,
-	  unsigned int cmd, unsigned long arg)
+static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
+		      unsigned long arg)
 {
 	ENTER(G2FN_IOCTL)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -1225,8 +1212,7 @@ gfs2_ioctl(struct inode *inode, struct file *file,
  * Returns: 0 or error code
  */
 
-static int
-gfs2_mmap(struct file *file, struct vm_area_struct *vma)
+static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	ENTER(G2FN_MMAP)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -1270,8 +1256,7 @@ gfs2_mmap(struct file *file, struct vm_area_struct *vma)
  * Returns: errno
  */
 
-static int
-gfs2_open(struct inode *inode, struct file *file)
+static int gfs2_open(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_OPEN)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -1342,8 +1327,7 @@ gfs2_open(struct inode *inode, struct file *file)
  * Returns: errno
  */
 
-static int
-gfs2_close(struct inode *inode, struct file *file)
+static int gfs2_close(struct inode *inode, struct file *file)
 {
 	ENTER(G2FN_CLOSE)
 	struct gfs2_sbd *sdp = get_v2sdp(inode->i_sb);
@@ -1373,8 +1357,7 @@ gfs2_close(struct inode *inode, struct file *file)
  *   to sync file's dirty data to disk, as it releases the EXCLUSIVE lock.
  */
 
-static int
-gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
+static int gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
 	ENTER(G2FN_FSYNC)
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
@@ -1394,8 +1377,7 @@ gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
  * Returns: errno
  */
 
-static int
-gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
+static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_LOCK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
@@ -1453,8 +1435,8 @@ gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
  * Returns: The number of bytes sent, errno on failure
  */
 
-static ssize_t
-gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t actor, void __user *target)
+static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
+			     read_actor_t actor, void __user *target)
 {
 	ENTER(G2FN_SENDFILE)
 	struct gfs2_inode *ip = get_v2ip(in_file->f_mapping->host);
@@ -1491,8 +1473,7 @@ gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count, read_actor_t a
  * Returns: errno
  */
 
-static int
-do_flock(struct file *file, int cmd, struct file_lock *fl)
+static int do_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_DO_FLOCK)
 	struct gfs2_file *fp = get_v2fp(file);
@@ -1550,8 +1531,7 @@ do_flock(struct file *file, int cmd, struct file_lock *fl)
  *
  */
 
-static void
-do_unflock(struct file *file, struct file_lock *fl)
+static void do_unflock(struct file *file, struct file_lock *fl)
 {
 	ENTER(G2FN_DO_UNFLOCK)
 	struct gfs2_file *fp = get_v2fp(file);
@@ -1575,8 +1555,7 @@ do_unflock(struct file *file, struct file_lock *fl)
  * Returns: errno
  */
 
-static int
-gfs2_flock(struct file *file, int cmd, struct file_lock *fl)
+static int gfs2_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	ENTER(G2FN_FLOCK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);

@@ -20,8 +20,7 @@
  *
  */
 
-static __inline__ void
-gfs2_log_lock(struct gfs2_sbd *sdp)
+static __inline__ void gfs2_log_lock(struct gfs2_sbd *sdp)
 {
 	spin_lock(&sdp->sd_log_lock);
 }
@@ -32,20 +31,13 @@ gfs2_log_lock(struct gfs2_sbd *sdp)
  *
  */
 
-static __inline__ void
-gfs2_log_unlock(struct gfs2_sbd *sdp)
+static __inline__ void gfs2_log_unlock(struct gfs2_sbd *sdp)
 {
 	spin_unlock(&sdp->sd_log_lock);
 }
 
-/**
- * log_incr_head - Increment journal head (next block to fill in journal)
- * @sdp: The GFS2 superblock
- *
- */
-
-static __inline__ void
-gfs2_log_pointers_init(struct gfs2_sbd *sdp, unsigned int value)
+static __inline__ void gfs2_log_pointers_init(struct gfs2_sbd *sdp,
+					      unsigned int value)
 {
 	if (++value == sdp->sd_jdesc->jd_blocks) {
 		value = 0;

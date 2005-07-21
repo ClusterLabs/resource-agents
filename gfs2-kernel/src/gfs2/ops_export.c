@@ -38,10 +38,9 @@
  * Returns: what is returned
  */
 
-struct dentry *
-gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
-	       int (*acceptable)(void *context, struct dentry *dentry),
-	       void *context)
+struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
+	int fh_type, int (*acceptable)(void *context, struct dentry *dentry),
+	void *context)
 {
 	ENTER(G2FN_DECODE_FH)
 	struct gfs2_inum this, parent;
@@ -85,9 +84,7 @@ gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len, int fh_type,
  * Returns: what is returned
  */
 
-int 
-gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
-	       int connectable)
+int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 {
 	ENTER(G2FN_ENCODE_FH)
 	struct inode *inode = dentry->d_inode;
@@ -149,11 +146,9 @@ struct get_name_filldir {
  * Returns: what is returned
  */
 
-static int
-get_name_filldir(void *opaque,
-		 const char *name, unsigned int length,
-		 uint64_t offset,
-		 struct gfs2_inum *inum, unsigned int type)
+static int get_name_filldir(void *opaque, const char *name, unsigned int length,
+			    uint64_t offset, struct gfs2_inum *inum,
+			    unsigned int type)
 {
 	ENTER(G2FN_GET_NAME_FILLDIR)
 	struct get_name_filldir *gnfd = (struct get_name_filldir *)opaque;
@@ -178,8 +173,7 @@ get_name_filldir(void *opaque,
  * Returns: what is returned
  */
 
-int gfs2_get_name(struct dentry *parent, char *name,
-		  struct dentry *child)
+int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 {
 	ENTER(G2FN_GET_NAME)
 	struct inode *dir = parent->d_inode;
@@ -230,8 +224,7 @@ int gfs2_get_name(struct dentry *parent, char *name,
  * Returns: what is returned
  */
 
-struct dentry *
-gfs2_get_parent(struct dentry *child)
+struct dentry *gfs2_get_parent(struct dentry *child)
 {
 	ENTER(G2FN_GET_PARENT)
 	struct gfs2_inode *dip = get_v2ip(child->d_inode);
@@ -273,8 +266,7 @@ gfs2_get_parent(struct dentry *child)
  * Returns: what is returned
  */
 
-struct dentry *
-gfs2_get_dentry(struct super_block *sb, void *inum_p)
+struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 {
 	ENTER(G2FN_GET_DENTRY)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);

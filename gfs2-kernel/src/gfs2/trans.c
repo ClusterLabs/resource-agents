@@ -44,10 +44,8 @@
  * Returns: errno
  */
 
-int
-gfs2_trans_begin_i(struct gfs2_sbd *sdp,
-		  unsigned int blocks, unsigned int revokes,
-		  char *file, unsigned int line)
+int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
+		       unsigned int revokes, char *file, unsigned int line)
 {
 	ENTER(G2FN_TRANS_BEGIN_I)
 	struct gfs2_trans *tr;
@@ -120,8 +118,7 @@ gfs2_trans_begin_i(struct gfs2_sbd *sdp,
  *
  */
 
-void
-gfs2_trans_end(struct gfs2_sbd *sdp)
+void gfs2_trans_end(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_TRANS_END)
 	struct gfs2_trans *tr;
@@ -168,8 +165,7 @@ gfs2_trans_end(struct gfs2_sbd *sdp)
 	RET(G2FN_TRANS_END);
 }
 
-void
-gfs2_trans_add_gl(struct gfs2_glock *gl)
+void gfs2_trans_add_gl(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_TRANS_ADD_GL)
 	LO_ADD(gl->gl_sbd, &gl->gl_le);
@@ -183,8 +179,7 @@ gfs2_trans_add_gl(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
+void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 {
 	ENTER(G2FN_TRANS_ADD_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -211,8 +206,7 @@ gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
  *
  */
 
-void
-gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
+void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
 	ENTER(G2FN_TRANS_ADD_REVOKE)
 	struct gfs2_revoke *rv = kmalloc_nofail(sizeof(struct gfs2_revoke),
@@ -223,8 +217,7 @@ gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 	RET(G2FN_TRANS_ADD_REVOKE);
 }
 
-void
-gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
+void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
 	ENTER(G2FN_TRANS_ADD_UNREVOKE)
 	struct list_head *head, *tmp;
@@ -254,16 +247,14 @@ gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 	RET(G2FN_TRANS_ADD_UNREVOKE);
 }
 
-void
-gfs2_trans_add_rg(struct gfs2_rgrpd *rgd)
+void gfs2_trans_add_rg(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_TRANS_ADD_RG)
 	LO_ADD(rgd->rd_sbd, &rgd->rd_le);
 	RET(G2FN_TRANS_ADD_RG);
 }
 
-void
-gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
+void gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
 	ENTER(G2FN_TRANS_ADD_DATABUF)
 	struct gfs2_databuf *db;

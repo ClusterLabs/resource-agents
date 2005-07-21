@@ -14,21 +14,19 @@
 #ifndef __DIO_DOT_H__
 #define __DIO_DOT_H__
 
-static __inline__ void
-gfs2_buffer_clear(struct buffer_head *bh)
+static __inline__ void gfs2_buffer_clear(struct buffer_head *bh)
 {
 	memset(bh->b_data, 0, bh->b_size);
 }
 
-static __inline__ void
-gfs2_buffer_clear_tail(struct buffer_head *bh, int head)
+static __inline__ void gfs2_buffer_clear_tail(struct buffer_head *bh, int head)
 {
 	memset(bh->b_data + head, 0, bh->b_size - head);
 }
 
-static __inline__ void
-gfs2_buffer_clear_ends(struct buffer_head *bh, int offset, int amount,
-		       int journaled)
+static __inline__ void gfs2_buffer_clear_ends(struct buffer_head *bh,
+					      int offset, int amount,
+					      int journaled)
 {
 	int z_off1 = (journaled) ? sizeof(struct gfs2_meta_header) : 0;
 	int z_len1 = offset - z_off1;
@@ -42,9 +40,10 @@ gfs2_buffer_clear_ends(struct buffer_head *bh, int offset, int amount,
 		memset(bh->b_data + z_off2, 0, z_len2);
 }
 
-static __inline__ void
-gfs2_buffer_copy_tail(struct buffer_head *to_bh, int to_head,
-		      struct buffer_head *from_bh, int from_head)
+static __inline__ void gfs2_buffer_copy_tail(struct buffer_head *to_bh,
+					     int to_head,
+					     struct buffer_head *from_bh,
+					     int from_head)
 {
 	memcpy(to_bh->b_data + to_head,
 	       from_bh->b_data + from_head,
@@ -78,10 +77,11 @@ void gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 void gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen);
 
 void gfs2_meta_cache_flush(struct gfs2_inode *ip);
-int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num, int new,
-			      struct buffer_head **bhp);
-static __inline__ int
-gfs2_meta_inode_buffer(struct gfs2_inode *ip, struct buffer_head **bhp)
+int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num,
+			      int new, struct buffer_head **bhp);
+
+static __inline__ int gfs2_meta_inode_buffer(struct gfs2_inode *ip,
+					     struct buffer_head **bhp)
 {
 	return gfs2_meta_indirect_buffer(ip, 0, ip->i_num.no_addr, FALSE, bhp);
 }

@@ -48,10 +48,8 @@ static const char valid_change[16] = {
  *
  */
 
-void
-gfs2_setbit(struct gfs2_rgrpd *rgd,
-	   unsigned char *buffer, unsigned int buflen,
-	   uint32_t block, unsigned char new_state)
+void gfs2_setbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
+		 unsigned int buflen, uint32_t block, unsigned char new_state)
 {
 	ENTER(G2FN_SETBIT)
 	unsigned char *byte, *end, cur_state;
@@ -82,9 +80,8 @@ gfs2_setbit(struct gfs2_rgrpd *rgd,
  *
  */
 
-unsigned char
-gfs2_testbit(struct gfs2_rgrpd *rgd,
-	    unsigned char *buffer, unsigned int buflen, uint32_t block)
+unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
+			   unsigned int buflen, uint32_t block)
 {
 	ENTER(G2FN_TESTBIT)
 	unsigned char *byte, *end, cur_state;
@@ -118,10 +115,9 @@ gfs2_testbit(struct gfs2_rgrpd *rgd,
  * Return: the block number (bitmap buffer scope) that was found
  */
 
-uint32_t
-gfs2_bitfit(struct gfs2_rgrpd *rgd,
-	   unsigned char *buffer, unsigned int buflen,
-	   uint32_t goal, unsigned char old_state)
+uint32_t gfs2_bitfit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
+		     unsigned int buflen, uint32_t goal,
+		     unsigned char old_state)
 {
 	ENTER(G2FN_BITFIT)
 	unsigned char *byte, *end, alloc;
@@ -167,10 +163,8 @@ gfs2_bitfit(struct gfs2_rgrpd *rgd,
  * Returns: The number of bits
  */
 
-uint32_t
-gfs2_bitcount(struct gfs2_rgrpd *rgd,
-	     unsigned char *buffer, unsigned int buflen,
-	     unsigned char state)
+uint32_t gfs2_bitcount(struct gfs2_rgrpd *rgd, unsigned char *buffer,
+		       unsigned int buflen, unsigned char state)
 {
 	ENTER(G2FN_BITCOUNT)
 	unsigned char *byte = buffer;

@@ -35,8 +35,7 @@
  * Returns: 1 if the dentry is ok, 0 if it isn't
  */
 
-static int
-gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
+static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
 {
 	ENTER(G2FN_DREVALIDATE)
 	struct dentry *parent = dget_parent(dentry);

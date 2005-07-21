@@ -55,9 +55,8 @@ typedef int (*gi_filler_t) (struct gfs2_inode *ip,
  * Returns: -errno or count of bytes copied to userspace
  */
 
-static int
-gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
-	    gi_filler_t filler)
+static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+		       gi_filler_t filler)
 {
 	ENTER(G2FN_GI_SKELETON)
 	unsigned int size = gfs2_tune_get(ip->i_sbd, gt_lockdump_size);
@@ -99,12 +98,8 @@ gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  * Returns: errno
  */ 
 
-static int
-gi_get_cookie(struct gfs2_inode *ip,
-	      struct gfs2_ioctl *gi,
-	      char *buf,
-	      unsigned int size,
-	      unsigned int *count)
+static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+			 char *buf, unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_COOKIE)
         int error = -ENOBUFS;
@@ -129,8 +124,7 @@ gi_get_cookie(struct gfs2_inode *ip,
  * Returns: errno
  */
 
-static int
-gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_GET_SUPER)
 	struct gfs2_holder sb_gh;
@@ -187,12 +181,8 @@ gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: errno
  */ 
 
-static int
-gi_get_args(struct gfs2_inode *ip,
-	    struct gfs2_ioctl *gi,
-	    char *buf,
-	    unsigned int size,
-	    unsigned int *count)
+static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+		       char *buf, unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_ARGS)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -237,12 +227,8 @@ gi_get_args(struct gfs2_inode *ip,
  * Returns: errno
  */ 
 
-static int
-gi_get_lockstruct(struct gfs2_inode *ip,
-		  struct gfs2_ioctl *gi,
-		  char *buf,
-		  unsigned int size,
-		  unsigned int *count)
+static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+			     char *buf, unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_LOCKSTRUCT)
 	struct lm_lockstruct *ls = &ip->i_sbd->sd_lockstruct;
@@ -274,12 +260,8 @@ gi_get_lockstruct(struct gfs2_inode *ip,
  * Returns: errno
  */ 
 
-static int
-gi_get_statfs(struct gfs2_inode *ip,
-		struct gfs2_ioctl *gi,
-		char *buf,
-		unsigned int size,
-		unsigned int *count)
+static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+			 char *buf, unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_STATFS)
        	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -320,8 +302,7 @@ gi_get_statfs(struct gfs2_inode *ip,
  * Returns: the value of the counter
  */
 
-static unsigned int
-handle_roll(atomic_t *a)
+static unsigned int handle_roll(atomic_t *a)
 {
 	ENTER(G2FN_HANDLE_ROLL)
 	int x = atomic_read(a);
@@ -343,12 +324,8 @@ handle_roll(atomic_t *a)
  * Returns: errno
  */ 
 
-static int
-gi_get_counters(struct gfs2_inode *ip,
-		struct gfs2_ioctl *gi,
-		char *buf,
-		unsigned int size,
-		unsigned int *count)
+static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+			   char *buf, unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_GI_GET_COUNTERS)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -448,12 +425,8 @@ gi_get_counters(struct gfs2_inode *ip,
  * Returns: errno
  */ 
 
-static int
-gi_get_tune(struct gfs2_inode *ip,
-	    struct gfs2_ioctl *gi,
-	    char *buf,
-	    unsigned int size,
-	    unsigned int *count)
+static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
+		       char *buf, unsigned int size, unsigned int *count)
 {
  	ENTER(G2FN_GI_GET_TUNE)
 	struct gfs2_tune *gt = &ip->i_sbd->sd_tune;
@@ -523,8 +496,7 @@ do { \
  * Returns: errno
  */
 
-static int
-gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_SET_TUNE)
 	struct gfs2_tune *gt = &sdp->sd_tune;
@@ -734,8 +706,7 @@ gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: 0
  */
 
-static int
-gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_SHRINK)
 	if (!capable(CAP_SYS_ADMIN))
@@ -754,8 +725,7 @@ gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: the number of bytes copied, or -errno
  */
 
-static int
-gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_GET_FILE_STAT)
 	struct gfs2_holder i_gh;
@@ -797,8 +767,7 @@ gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_SET_FILE_FLAG)
 	char buf[ARG_SIZE];
@@ -897,8 +866,7 @@ gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 }
 
-static int
-gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_GET_BMAP)
 	struct gfs2_holder gh;
@@ -945,8 +913,7 @@ gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  * Returns: the number of bytes copied, or -errno
  */
 
-static int
-gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_GET_FILE_META)
 	struct gfs2_holder i_gh;
@@ -1002,8 +969,7 @@ gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_do_file_flush(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
+static int gi_do_file_flush(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_FILE_FLUSH)
 	if (gi->gi_argc != 1)
@@ -1020,8 +986,7 @@ gi_do_file_flush(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  * Returns: the "struct gfs2_inode"
  */
 
-static struct gfs2_inode *
-gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static struct gfs2_inode *gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI2HIP)
 	char buf[ARG_SIZE];
@@ -1051,8 +1016,7 @@ gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: the number of bytes copied, or -errno
  */
 
-static int
-gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_GET_HFILE_STAT)
 	struct gfs2_inode *ip;
@@ -1097,8 +1061,7 @@ gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: the number of bytes read, or -errno
  */
 
-static int
-gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_HFILE_READ)
 	struct gfs2_inode *ip;
@@ -1138,8 +1101,7 @@ gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: the number of bytes written, or -errno
  */
 
-static int
-gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_HFILE_WRITE)
 	struct gfs2_inode *ip;
@@ -1228,8 +1190,7 @@ gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: the number of bytes copied, or -errno
  */
 
-static int
-gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_HFILE_TRUNC)
 	struct gfs2_inode *ip;
@@ -1265,8 +1226,7 @@ gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_QUOTA_SYNC)
 	if (!capable(CAP_SYS_ADMIN))
@@ -1284,8 +1244,7 @@ gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_QUOTA_REFRESH)
 	char buf[ARG_SIZE];
@@ -1330,8 +1289,7 @@ gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_QUOTA_READ)
 	char buf[ARG_SIZE];
@@ -1384,8 +1342,7 @@ gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: errno
  */
 
-static int
-gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_DO_STATFS_SYNC)
 	if (!capable(CAP_SYS_ADMIN))
@@ -1395,8 +1352,7 @@ gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	RETURN(G2FN_GI_DO_STATFS_SYNC, gfs2_statfs_sync(sdp));
 }
 
-static int
-gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_RESIZE_ADD_RGRPS)
 
@@ -1411,8 +1367,7 @@ gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	       gfs2_resize_add_rgrps(sdp, gi->gi_data, gi->gi_size));
 }
 
-static int
-gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
+static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	ENTER(G2FN_GI_RENAME2SYSTEM)
 	char new_dir[ARG_SIZE], new_name[ARG_SIZE];
@@ -1478,8 +1433,7 @@ gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * Returns: -errno or positive byte count
  */
 
-int
-gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
+int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 {
 	ENTER(G2FN_IOCTL_I)
 	struct gfs2_ioctl *gi_user = (struct gfs2_ioctl *)arg;
@@ -1560,5 +1514,4 @@ gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 
 	RETURN(G2FN_IOCTL_I, error);
 }
-
 

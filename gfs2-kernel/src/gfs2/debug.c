@@ -33,8 +33,7 @@ static unsigned char *debug_flags = NULL;
  * Returns: 0
  */
 
-int
-gfs2_trace_enter(unsigned int flag)
+int gfs2_trace_enter(unsigned int flag)
 {
 	if (KDBL_TRACE_TEST(debug_flags, flag))
 		kdbl_printf("En %s %ld\n",
@@ -49,8 +48,7 @@ gfs2_trace_enter(unsigned int flag)
  *
  */
 
-void
-gfs2_trace_exit(unsigned int flag, int dummy)
+void gfs2_trace_exit(unsigned int flag, int dummy)
 {
 	if (KDBL_TRACE_TEST(debug_flags, flag))
 		kdbl_printf("Ex %s %ld\n",
@@ -63,8 +61,7 @@ gfs2_trace_exit(unsigned int flag, int dummy)
  * Returns: errno
  */
 
-int
-gfs2_trace_init(void)
+int gfs2_trace_init(void)
 {
 	return kdbl_trace_create_array("gfs2",
 				       GFS2_DEBUG_VERSION, GFS2_DEBUG_FLAGS,
@@ -76,8 +73,7 @@ gfs2_trace_init(void)
  *
  */
 
-void
-gfs2_trace_uninit(void)
+void gfs2_trace_uninit(void)
 {
 	kdbl_trace_destroy_array(debug_flags);
 }
@@ -93,8 +89,7 @@ void *gfs2_profile_cookie = NULL;
  *
  */
 
-int
-gfs2_profile_init(void)
+int gfs2_profile_init(void)
 {
 	return kdbl_profile_create_array("gfs2",
 					 GFS2_DEBUG_VERSION, GFS2_DEBUG_FLAGS,
@@ -106,8 +101,7 @@ gfs2_profile_init(void)
  *
  */
 
-void
-gfs2_profile_uninit(void)
+void gfs2_profile_uninit(void)
 {
 	kdbl_profile_destroy_array(gfs2_profile_cookie);
 }
@@ -117,8 +111,8 @@ gfs2_profile_uninit(void)
 #undef kmalloc
 #undef kfree
 
-void *
-gmalloc_nofail_real(unsigned int size, int flags, char *file, unsigned int line)
+void * gmalloc_nofail_real(unsigned int size, int flags, char *file,
+			   unsigned int line)
 {
 	void *x;
 	for (;;) {
@@ -137,22 +131,18 @@ gmalloc_nofail_real(unsigned int size, int flags, char *file, unsigned int line)
 
 atomic_t gfs2_memory_count;
 
-void
-gfs2_memory_add_i(void *data, char *file, unsigned int line)
+void gfs2_memory_add_i(void *data, char *file, unsigned int line)
 {
 	atomic_inc(&gfs2_memory_count);
 }
 
-void
-gfs2_memory_rm_i(void *data, char *file, unsigned int line)
+void gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 {
 	if (data)
 		atomic_dec(&gfs2_memory_count);
 }
 
-void *
-gmalloc(unsigned int size, int flags,
-	char *file, unsigned int line)
+void *gmalloc(unsigned int size, int flags, char *file, unsigned int line)
 {
 	void *data = kmalloc(size, flags);
 	if (data)
@@ -160,16 +150,14 @@ gmalloc(unsigned int size, int flags,
 	return data;
 }
 
-void *
-gmalloc_nofail(unsigned int size, int flags,
-	       char *file, unsigned int line)
+void *gmalloc_nofail(unsigned int size, int flags, char *file,
+		     unsigned int line)
 {
 	atomic_inc(&gfs2_memory_count);
 	return gmalloc_nofail_real(size, flags, file, line);
 }
 
-void
-gfree(void *data, char *file, unsigned int line)
+void gfree(void *data, char *file, unsigned int line)
 {
 	if (data) {
 		atomic_dec(&gfs2_memory_count);
@@ -177,8 +165,7 @@ gfree(void *data, char *file, unsigned int line)
 	}
 }
 
-void
-gfs2_memory_init(void)
+void gfs2_memory_init(void)
 {
 	atomic_set(&gfs2_memory_count, 0);
 }
@@ -206,16 +193,14 @@ struct gfs2_memory {
 static spinlock_t memory_lock;
 static struct list_head memory_list[GFS2_MEMORY_HASH_SIZE];
 
-static __inline__ struct list_head *
-memory_bucket(void *data)
+static __inline__ struct list_head *memory_bucket(void *data)
 {
 	return memory_list +
 		(gfs2_hash(&data, sizeof(void *)) &
 		 GFS2_MEMORY_HASH_MASK);
 }
 
-void
-gfs2_memory_add_i(void *data, char *file, unsigned int line)
+void gfs2_memory_add_i(void *data, char *file, unsigned int line)
 {
 	struct gfs2_memory *gm;
 
@@ -229,8 +214,7 @@ gfs2_memory_add_i(void *data, char *file, unsigned int line)
 	spin_unlock(&memory_lock);
 }
 
-void
-gfs2_memory_rm_i(void *data, char *file, unsigned int line)
+void gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 {
 	struct list_head *head = memory_bucket(data);
 	struct list_head *tmp;
@@ -256,9 +240,7 @@ gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 		kfree(gm);
 }
 
-void *
-gmalloc(unsigned int size, int flags,
-	char *file, unsigned int line)
+void *gmalloc(unsigned int size, int flags, char *file, unsigned int line)
 {
 	void *data = kmalloc(size, flags);
 	if (data)
@@ -266,17 +248,15 @@ gmalloc(unsigned int size, int flags,
 	return data;
 }
 
-void *
-gmalloc_nofail(unsigned int size, int flags,
-	       char *file, unsigned int line)
+void *gmalloc_nofail(unsigned int size, int flags, char *file,
+		     unsigned int line)
 {
 	void *data = gmalloc_nofail_real(size, flags, file, line);
 	gfs2_memory_add_i(data, file, line);
 	return data;
 }
 
-void
-gfree(void *data, char *file, unsigned int line)
+void gfree(void *data, char *file, unsigned int line)
 {
 	if (data) {
 		gfs2_memory_rm_i(data, file, line);
@@ -284,8 +264,7 @@ gfree(void *data, char *file, unsigned int line)
 	}
 }
 
-void
-gfs2_memory_init(void)
+void gfs2_memory_init(void)
 {
 	unsigned int x;
 
@@ -294,8 +273,7 @@ gfs2_memory_init(void)
 		INIT_LIST_HEAD(memory_list + x);
 }
 
-void
-gfs2_memory_uninit(void)
+void gfs2_memory_uninit(void)
 {
 	unsigned int x;
 	struct list_head *head;

@@ -46,8 +46,7 @@
  * currently used for anything but inode glocks.
  */
 
-static void
-meta_go_sync(struct gfs2_glock *gl, int flags)
+static void meta_go_sync(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_META_GO_SYNC)
 
@@ -73,8 +72,7 @@ meta_go_sync(struct gfs2_glock *gl, int flags)
  *
  */
 
-static void
-meta_go_inval(struct gfs2_glock *gl, int flags)
+static void meta_go_inval(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_META_GO_INVAL)
 
@@ -130,8 +128,7 @@ meta_go_inval(struct gfs2_glock *gl, int flags)
  *   glock), we trim the glock cache as well, by releasing this lock.
  */
 
-static int
-meta_go_demote_ok(struct gfs2_glock *gl)
+static int meta_go_demote_ok(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_META_GO_DEMOTE_OK)
 	RETURN(G2FN_META_GO_DEMOTE_OK,
@@ -148,8 +145,8 @@ meta_go_demote_ok(struct gfs2_glock *gl)
  *   more/less restrictive state (other than LM_ST_UNLOCKED).
  */
 
-static void
-inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
+static void inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
+			      int flags)
 {
 	ENTER(G2FN_INODE_GO_XMOTE_TH)
 	if (gl->gl_state != LM_ST_UNLOCKED)
@@ -170,8 +167,7 @@ inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
  *    Glock's requesting holder's GL_SKIP flag is set.
  */
 
-static void
-inode_go_xmote_bh(struct gfs2_glock *gl)
+static void inode_go_xmote_bh(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GO_XMOTE_BH)
 	struct gfs2_holder *gh = gl->gl_req_gh;
@@ -197,8 +193,7 @@ inode_go_xmote_bh(struct gfs2_glock *gl)
  *   is being purged from our node's glock cache; we're dropping lock.
  */
 
-static void
-inode_go_drop_th(struct gfs2_glock *gl)
+static void inode_go_drop_th(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GO_DROP_TH)
 	gfs2_pte_inval(gl);
@@ -240,8 +235,7 @@ inode_go_drop_th(struct gfs2_glock *gl)
  * 
  */
 
-static void
-inode_go_sync(struct gfs2_glock *gl, int flags)
+static void inode_go_sync(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_INODE_GO_SYNC)
 	int meta = (flags & DIO_METADATA);
@@ -275,8 +269,7 @@ inode_go_sync(struct gfs2_glock *gl, int flags)
  *
  */
 
-static void
-inode_go_inval(struct gfs2_glock *gl, int flags)
+static void inode_go_inval(struct gfs2_glock *gl, int flags)
 {
 	ENTER(G2FN_INODE_GO_INVAL)
 	int meta = (flags & DIO_METADATA);
@@ -306,8 +299,7 @@ inode_go_inval(struct gfs2_glock *gl, int flags)
  * Returns: TRUE if it's ok
  */
 
-static int
-inode_go_demote_ok(struct gfs2_glock *gl)
+static int inode_go_demote_ok(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GO_DEMOTE_OK)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -331,8 +323,7 @@ inode_go_demote_ok(struct gfs2_glock *gl)
  * Returns: errno
  */
 
-static int
-inode_go_lock(struct gfs2_holder *gh)
+static int inode_go_lock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_INODE_GO_LOCK)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -365,8 +356,7 @@ inode_go_lock(struct gfs2_holder *gh)
  *
  */
 
-static void
-inode_go_unlock(struct gfs2_holder *gh)
+static void inode_go_unlock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_INODE_GO_UNLOCK)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -387,8 +377,7 @@ inode_go_unlock(struct gfs2_holder *gh)
  *
  */
 
-static void
-inode_greedy(struct gfs2_glock *gl)
+static void inode_greedy(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_INODE_GREEDY)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -429,8 +418,7 @@ inode_greedy(struct gfs2_glock *gl)
  * Returns: TRUE if it's ok
  */
 
-static int
-rgrp_go_demote_ok(struct gfs2_glock *gl)
+static int rgrp_go_demote_ok(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_RGRP_GO_DEMOTE_OK)
 	RETURN(G2FN_RGRP_GO_DEMOTE_OK,
@@ -448,8 +436,7 @@ rgrp_go_demote_ok(struct gfs2_glock *gl)
  * Read rgrp's header and block allocation bitmaps from disk.
  */
 
-static int
-rgrp_go_lock(struct gfs2_holder *gh)
+static int rgrp_go_lock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RGRP_GO_LOCK)
 	RETURN(G2FN_RGRP_GO_LOCK,
@@ -467,8 +454,7 @@ rgrp_go_lock(struct gfs2_holder *gh)
  *   so other nodes can see them.
  */
 
-static void
-rgrp_go_unlock(struct gfs2_holder *gh)
+static void rgrp_go_unlock(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RGRP_GO_UNLOCK)
 	gfs2_rgrp_bh_put(get_gl2rgd(gh->gh_gl));
@@ -485,8 +471,8 @@ rgrp_go_unlock(struct gfs2_holder *gh)
  *   more/less restrictive state (other than LM_ST_UNLOCKED).
  */
 
-static void
-trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
+static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
+			      int flags)
 {
 	ENTER(G2FN_TRANS_GO_XMOTE_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -509,8 +495,7 @@ trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
  *
  */
 
-static void
-trans_go_xmote_bh(struct gfs2_glock *gl)
+static void trans_go_xmote_bh(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_TRANS_GO_XMOTE_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -551,8 +536,7 @@ trans_go_xmote_bh(struct gfs2_glock *gl)
  * that localcaching journal replay only marks buffers dirty.
  */
 
-static void
-trans_go_drop_th(struct gfs2_glock *gl)
+static void trans_go_drop_th(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_TRANS_GO_DROP_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -576,8 +560,7 @@ trans_go_drop_th(struct gfs2_glock *gl)
  * Returns: TRUE if it's ok
  */
 
-static int
-quota_go_demote_ok(struct gfs2_glock *gl)
+static int quota_go_demote_ok(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_QUOTA_GO_DEMOTE_OK)
 	RETURN(G2FN_QUOTA_GO_DEMOTE_OK,

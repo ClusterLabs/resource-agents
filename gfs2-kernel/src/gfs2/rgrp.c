@@ -38,8 +38,7 @@
  *
  */
 
-void
-gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
+void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_VERIFY)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -94,8 +93,8 @@ gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 	RET(G2FN_RGRP_VERIFY);
 }
 
-static __inline__ int
-rgrp_contains_block(struct gfs2_rindex *ri, uint64_t block)
+static __inline__ int rgrp_contains_block(struct gfs2_rindex *ri,
+					  uint64_t block)
 {
 	uint64_t first = ri->ri_data0;
 	uint64_t last = first + ri->ri_data;
@@ -113,8 +112,7 @@ rgrp_contains_block(struct gfs2_rindex *ri, uint64_t block)
  *   or bitmap blocks); it's for allocatable (data/meta) blocks only.
  */
 
-struct gfs2_rgrpd *
-gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
+struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 {
 	ENTER(G2FN_BLK2RGPRD)
 	struct list_head *tmp, *head;
@@ -145,8 +143,7 @@ gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
  * Returns: The first rgrp in the filesystem
  */
 
-struct gfs2_rgrpd *
-gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
+struct gfs2_rgrpd *gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_RGRPD_GET_FIRST)
 	gfs2_assert(sdp, !list_empty(&sdp->sd_rindex_list),);
@@ -161,8 +158,7 @@ gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
  * Returns: The next rgrp
  */
 
-struct gfs2_rgrpd *
-gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
+struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRPD_GET_NEXT)
 	if (rgd->rd_list.next == &rgd->rd_sbd->sd_rindex_list)
@@ -177,8 +173,7 @@ gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
  *
  */
 
-void
-clear_rgrpdi(struct gfs2_sbd *sdp)
+void clear_rgrpdi(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_CLEAR_RGRPDI)
        	struct list_head *head;
@@ -220,8 +215,7 @@ clear_rgrpdi(struct gfs2_sbd *sdp)
  *
  */
 
-void
-gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
+void gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_CLEAR_RGRPD)
 	down(&sdp->sd_rindex_mutex);
@@ -239,8 +233,7 @@ gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-static int
-compute_bitstructs(struct gfs2_rgrpd *rgd)
+static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_COMPUTE_BITSTRUCTS)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -314,8 +307,7 @@ compute_bitstructs(struct gfs2_rgrpd *rgd)
  * Returns: 0 on successful update, error code otherwise
  */
 
-static int
-gfs2_ri_update(struct gfs2_inode *ip)
+static int gfs2_ri_update(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_RI_UPDATE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -399,8 +391,7 @@ gfs2_ri_update(struct gfs2_inode *ip)
  * Returns: 0 on success, error code otherwise
  */
 
-int
-gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
+int gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
 {
 	ENTER(G2FN_RINDEX_HOLD)
 	struct gfs2_inode *ip = sdp->sd_rindex;
@@ -435,8 +426,7 @@ gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
  * Returns: errno
  */
 
-int
-gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
+int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_BH_GET)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -502,8 +492,7 @@ gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 	RETURN(G2FN_RGRP_BH_GET, error);
 }
 
-void
-gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
+void gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_BH_HOLD)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -522,8 +511,7 @@ gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
  *
  */
 
-void
-gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
+void gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_BH_PUT)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -549,8 +537,7 @@ gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 	RET(G2FN_RGRP_BH_PUT);
 }
 
-void
-gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
+void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_RGRP_REPOLISH_CLONES)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -585,8 +572,7 @@ gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
  * Returns: the struct gfs2_alloc
  */
 
-struct gfs2_alloc *
-gfs2_alloc_get(struct gfs2_inode *ip)
+struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_ALLOC_GET)
 	struct gfs2_alloc *al = ip->i_alloc;
@@ -607,8 +593,7 @@ gfs2_alloc_get(struct gfs2_inode *ip)
  *
  */
 
-void
-gfs2_alloc_put(struct gfs2_inode *ip)
+void gfs2_alloc_put(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_ALLOC_PUT)
 	struct gfs2_alloc *al = ip->i_alloc;
@@ -635,8 +620,7 @@ gfs2_alloc_put(struct gfs2_inode *ip)
  * Returns: 1 on success (it fits), 0 on failure (it doesn't fit)
  */
 
-static int
-try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
+static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 {
 	ENTER(G2FN_TRY_RGRP_FIT)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -660,8 +644,8 @@ try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
  * Returns: The first rgrp in the recent list
  */
 
-static struct gfs2_rgrpd *
-recent_rgrp_first(struct gfs2_sbd *sdp, uint64_t rglast)
+static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
+					    uint64_t rglast)
 {
 	ENTER(G2FN_RECENT_RGRP_FIRST)
 	struct list_head *tmp, *head;
@@ -700,8 +684,8 @@ recent_rgrp_first(struct gfs2_sbd *sdp, uint64_t rglast)
  * Returns: The next rgrp in the recent list
  */
 
-static struct gfs2_rgrpd *
-recent_rgrp_next(struct gfs2_rgrpd *cur_rgd, int remove)
+static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
+					   int remove)
 {
 	ENTER(G2FN_RECENT_RGRP_NEXT)
 	struct gfs2_sbd *sdp = cur_rgd->rd_sbd;
@@ -749,8 +733,7 @@ recent_rgrp_next(struct gfs2_rgrpd *cur_rgd, int remove)
  *   of rgrps within a cluster, i.e. (total # rgrps) / (# nodes (journals))
  */
 
-static void
-recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
+static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
 {
 	ENTER(G2FN_RECENT_RGRP_ADD)
 	struct gfs2_sbd *sdp = new_rgd->rd_sbd;
@@ -786,8 +769,7 @@ recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
  * Returns: The rgrp to try next
  */
 
-static struct gfs2_rgrpd *
-forward_rgrp_get(struct gfs2_sbd *sdp)
+static struct gfs2_rgrpd *forward_rgrp_get(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_FORWARD_RGRP_GET)
 	struct gfs2_rgrpd *rgd;
@@ -823,8 +805,7 @@ forward_rgrp_get(struct gfs2_sbd *sdp)
  *
  */
 
-static void
-forward_rgrp_set(struct gfs2_sbd *sdp, struct gfs2_rgrpd *rgd)
+static void forward_rgrp_set(struct gfs2_sbd *sdp, struct gfs2_rgrpd *rgd)
 {
 	ENTER(G2FN_FORWARD_RGRP_SET)
 	spin_lock(&sdp->sd_rindex_spin);
@@ -843,8 +824,7 @@ forward_rgrp_set(struct gfs2_sbd *sdp, struct gfs2_rgrpd *rgd)
  * Returns: errno
  */
 
-static int
-get_local_rgrp(struct gfs2_inode *ip)
+static int get_local_rgrp(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_GET_LOCAL_RGRP)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -941,9 +921,7 @@ get_local_rgrp(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-int
-gfs2_inplace_reserve_i(struct gfs2_inode *ip,
-		     char *file, unsigned int line)
+int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 {
 	ENTER(G2FN_INPLACE_RESERVE_I)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -976,8 +954,7 @@ gfs2_inplace_reserve_i(struct gfs2_inode *ip,
  * Release a reservation made by gfs2_inplace_reserve().
  */
 
-void
-gfs2_inplace_release(struct gfs2_inode *ip)
+void gfs2_inplace_release(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INPLACE_RELEASE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1004,8 +981,7 @@ gfs2_inplace_release(struct gfs2_inode *ip)
  * Returns: The block type (GFS2_BLKST_*)
  */
 
-unsigned char
-gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
+unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
 {
 	ENTER(G2FN_GET_BLOCK_TYPE)
 	struct gfs2_bitmap *bi = NULL;
@@ -1053,10 +1029,8 @@ gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
  * Returns:  the block # allocated (32-bit rgrp scope)
  */
 
-static uint32_t
-rgblk_search(struct gfs2_rgrpd *rgd,
-	     uint32_t goal,
-	     unsigned char old_state, unsigned char new_state)
+static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
+			     unsigned char old_state, unsigned char new_state)
 {
 	ENTER(G2FN_RGBLK_SEARCH)
 	struct gfs2_bitmap *bi = NULL;
@@ -1135,9 +1109,8 @@ rgblk_search(struct gfs2_rgrpd *rgd,
  * 
  */
 
-static struct gfs2_rgrpd *
-rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart, uint32_t blen,
-	   unsigned char new_state)
+static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
+				     uint32_t blen, unsigned char new_state)
 {
 	ENTER(G2FN_RGBLK_FREE)
 	struct gfs2_rgrpd *rgd;
@@ -1196,8 +1169,7 @@ rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart, uint32_t blen,
  * Returns: the allocated block
  */
 
-uint64_t
-gfs2_alloc_data(struct gfs2_inode *ip)
+uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_ALLOC_DATA)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1243,8 +1215,7 @@ gfs2_alloc_data(struct gfs2_inode *ip)
  * Returns: the allocated block
  */
 
-uint64_t
-gfs2_alloc_meta(struct gfs2_inode *ip)
+uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_ALLOC_META)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1291,8 +1262,7 @@ gfs2_alloc_meta(struct gfs2_inode *ip)
  * Returns: the block allocated
  */
 
-uint64_t
-gfs2_alloc_di(struct gfs2_inode *dip)
+uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 {
 	ENTER(G2FN_ALLOC_DI)
        	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1343,8 +1313,7 @@ gfs2_alloc_di(struct gfs2_inode *dip)
  * Update quotas, add to trans.
  */
 
-void
-gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
+void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
 	ENTER(G2FN_FREE_DATA)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1379,8 +1348,7 @@ gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
  * Update quotas, add to trans.
  */
 
-void
-gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
+void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
 	ENTER(G2FN_FREE_META)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -1405,8 +1373,7 @@ gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 	RET(G2FN_FREE_META);
 }
 
-void
-gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
+void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 {
 	ENTER(G2FN_FREE_UNINIT_DI)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
@@ -1441,8 +1408,7 @@ gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
  * Add rgrp header to transaction.
  */
 
-void
-gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
+void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
 {
 	ENTER(G2FN_FREE_DI)
        	gfs2_free_uninit_di(rgd, ip->i_num.no_addr);
@@ -1463,8 +1429,8 @@ gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
  *
  */
 
-void
-gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist, uint64_t block)
+void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
+		    uint64_t block)
 {
 	ENTER(G2FN_RLIST_ADD)
 	struct gfs2_rgrpd *rgd;
@@ -1519,8 +1485,8 @@ gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist, uint64_t bloc
  *
  */
 
-void
-gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state, int flags)
+void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
+		      int flags)
 {
 	ENTER(G2FN_RLIST_ALLOC)
 	unsigned int x;
@@ -1542,8 +1508,7 @@ gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state, int flags)
  *
  */
 
-void
-gfs2_rlist_free(struct gfs2_rgrp_list *rlist)
+void gfs2_rlist_free(struct gfs2_rgrp_list *rlist)
 {
 	ENTER(G2FN_RLIST_FREE)
 	unsigned int x;

@@ -43,9 +43,7 @@
 
 #undef NO_DIAPER
 
-static __inline__ int
-do_thread(struct gfs2_sbd *sdp,
-	  int (*fn)(void *))
+static __inline__ int do_thread(struct gfs2_sbd *sdp, int (*fn)(void *))
 {
 	ENTER(G2FN_DO_THREAD)
 	int error = kernel_thread(fn, sdp, 0);
@@ -56,8 +54,7 @@ do_thread(struct gfs2_sbd *sdp,
 	RETURN(G2FN_DO_THREAD, error);
 }
 
-static struct gfs2_sbd *
-init_sbd(struct super_block *sb)
+static struct gfs2_sbd *init_sbd(struct super_block *sb)
 {
 	ENTER(G2FN_INIT_SBD)
 	struct gfs2_sbd *sdp;
@@ -133,8 +130,7 @@ init_sbd(struct super_block *sb)
 	RETURN(G2FN_INIT_SBD, sdp);
 }
 
-static void
-init_vfs(struct gfs2_sbd *sdp)
+static void init_vfs(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_INIT_VFS)
 	struct super_block *sb = sdp->sd_vfs;
@@ -160,8 +156,8 @@ init_vfs(struct gfs2_sbd *sdp)
 	RET(G2FN_INIT_VFS);
 }
 
-static int
-init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
+static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
+			int undo)
 {
 	ENTER(G2FN_INIT_LOCKING)
 	int error = 0;
@@ -260,8 +256,7 @@ init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh, int undo)
 	RETURN(G2FN_INIT_LOCKING, error);
 }
 
-static int
-init_sb(struct gfs2_sbd *sdp, int silent, int undo)
+static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 {
 	ENTER(G2FN_INIT_SB)
 	struct super_block *sb = sdp->sd_vfs;
@@ -327,8 +322,7 @@ init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 	RETURN(G2FN_INIT_SB, error);
 }
 
-static int
-init_journal(struct gfs2_sbd *sdp, int undo)
+static int init_journal(struct gfs2_sbd *sdp, int undo)
 {
 	ENTER(G2FN_INIT_JOURNAL)
 	struct gfs2_holder ji_gh;
@@ -483,8 +477,7 @@ init_journal(struct gfs2_sbd *sdp, int undo)
 	RETURN(G2FN_INIT_JOURNAL, error);
 }
 
-static int
-init_inodes(struct gfs2_sbd *sdp, int undo)
+static int init_inodes(struct gfs2_sbd *sdp, int undo)
 {
 	ENTER(G2FN_INIT_INODES)
 	struct inode *inode;
@@ -577,8 +570,7 @@ init_inodes(struct gfs2_sbd *sdp, int undo)
 	RETURN(G2FN_INIT_INODES, error);
 }
 
-static int
-init_per_node(struct gfs2_sbd *sdp, int undo)
+static int init_per_node(struct gfs2_sbd *sdp, int undo)
 {
 	ENTER(G2FN_INIT_PER_NODE)
        	struct gfs2_inode *pn = NULL;
@@ -701,8 +693,7 @@ init_per_node(struct gfs2_sbd *sdp, int undo)
 	RETURN(G2FN_INIT_PER_NODE, error);
 }
 
-static int
-init_threads(struct gfs2_sbd *sdp, int undo)
+static int init_threads(struct gfs2_sbd *sdp, int undo)
 {
 	ENTER(G2FN_INIT_THREADS)
 	int error = 0;
@@ -794,8 +785,7 @@ init_threads(struct gfs2_sbd *sdp, int undo)
  * 
  */
 
-static int
-fill_super(struct super_block *sb, void *data, int silent)
+static int fill_super(struct super_block *sb, void *data, int silent)
 {
 	ENTER(G2FN_FILL_SUPER)
 	struct gfs2_sbd *sdp;
@@ -911,8 +901,7 @@ fill_super(struct super_block *sb, void *data, int silent)
  *
  */
 
-int
-gfs2_test_bdev_super(struct super_block *sb, void *data)
+int gfs2_test_bdev_super(struct super_block *sb, void *data)
 {
 	ENTER(G2FN_TEST_BDEV_SUPER)
 	RETURN(G2FN_TEST_BDEV_SUPER,
@@ -926,8 +915,7 @@ gfs2_test_bdev_super(struct super_block *sb, void *data)
  *
  */
 
-int
-gfs2_set_bdev_super(struct super_block *sb, void *data)
+int gfs2_set_bdev_super(struct super_block *sb, void *data)
 {
 	ENTER(G2FN_SET_BDEV_SUPER)
 	sb->s_bdev = data;
@@ -936,9 +924,8 @@ gfs2_set_bdev_super(struct super_block *sb, void *data)
 }
 
 #ifdef NO_DIAPER
-struct super_block *
-gfs2_get_sb(struct file_system_type *fs_type, int flags,
-	    const char *dev_name, void *data)
+struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
+				const char *dev_name, void *data)
 {
 	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
 }
@@ -955,9 +942,8 @@ gfs2_get_sb(struct file_system_type *fs_type, int flags,
  * Returns: the new superblock
  */
 
-struct super_block *
-gfs2_get_sb(struct file_system_type *fs_type, int flags,
-	    const char *dev_name, void *data)
+struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
+				const char *dev_name, void *data)
 {
 	ENTER(G2FN_GET_SB)
 	struct block_device *real, *diaper;
@@ -1020,8 +1006,7 @@ gfs2_get_sb(struct file_system_type *fs_type, int flags,
  *
  */
 
-void
-gfs2_kill_sb(struct super_block *sb)
+void gfs2_kill_sb(struct super_block *sb)
 {
 	ENTER(G2FN_KILL_SB)
 	struct block_device *diaper = sb->s_bdev;

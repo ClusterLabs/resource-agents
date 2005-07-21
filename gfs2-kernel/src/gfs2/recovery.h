@@ -14,8 +14,8 @@
 #ifndef __RECOVERY_DOT_H__
 #define __RECOVERY_DOT_H__
 
-static __inline__ void
-gfs2_replay_incr_blk(struct gfs2_sbd *sdp, unsigned int *blk)
+static __inline__ void gfs2_replay_incr_blk(struct gfs2_sbd *sdp,
+					    unsigned int *blk)
 {
 	if (++*blk == sdp->sd_jdesc->jd_blocks)
 	        *blk = 0;

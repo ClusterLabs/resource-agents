@@ -37,8 +37,7 @@
  *
  */
 
-static void
-pfault_be_greedy(struct gfs2_inode *ip)
+static void pfault_be_greedy(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_PFAULT_BE_GREEDY)
 	unsigned int time;
@@ -64,9 +63,8 @@ pfault_be_greedy(struct gfs2_inode *ip)
  * Returns: the page
  */
 
-static struct page *
-gfs2_private_nopage(struct vm_area_struct *area,
-		   unsigned long address, int *type)
+static struct page *gfs2_private_nopage(struct vm_area_struct *area,
+					unsigned long address, int *type)
 {
 	ENTER(G2FN_PRIVATE_NOPAGE)
 	struct gfs2_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
@@ -100,8 +98,7 @@ gfs2_private_nopage(struct vm_area_struct *area,
  * Returns: errno
  */
 
-static int
-alloc_page_backing(struct gfs2_inode *ip, struct page *page)
+static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 {
 	ENTER(G2FN_ALLOC_PAGE_BACKING)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -184,9 +181,8 @@ alloc_page_backing(struct gfs2_inode *ip, struct page *page)
  * Returns: the page
  */
 
-static struct page *
-gfs2_sharewrite_nopage(struct vm_area_struct *area,
-		      unsigned long address, int *type)
+static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
+					   unsigned long address, int *type)
 {
 	ENTER(G2FN_SHAREWRITE_NOPAGE)
 	struct gfs2_inode *ip = get_v2ip(area->vm_file->f_mapping->host);

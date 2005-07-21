@@ -45,8 +45,7 @@
  *
  */
 
-static void
-inode_attr_in(struct gfs2_inode *ip, struct inode *inode)
+static void inode_attr_in(struct gfs2_inode *ip, struct inode *inode)
 {
 	ENTER(G2FN_INODE_ATTR_IN2)
 
@@ -94,8 +93,7 @@ inode_attr_in(struct gfs2_inode *ip, struct inode *inode)
  *
  */
 
-void
-gfs2_inode_attr_in(struct gfs2_inode *ip)
+void gfs2_inode_attr_in(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_ATTR_IN)
 	struct inode *inode;
@@ -117,8 +115,7 @@ gfs2_inode_attr_in(struct gfs2_inode *ip)
  * to be able to modify.
  */
 
-void
-gfs2_inode_attr_out(struct gfs2_inode *ip)
+void gfs2_inode_attr_out(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_ATTR_OUT)
 	struct inode *inode = ip->i_vnode;
@@ -150,8 +147,7 @@ gfs2_inode_attr_out(struct gfs2_inode *ip)
  *   Inserts the new inode in the VFS inode hash, while avoiding races
  */
 
-struct inode *
-gfs2_ip2v(struct gfs2_inode *ip, int create)
+struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
 {
 	ENTER(G2FN_IP2V)
 	struct inode *inode = NULL, *tmp;
@@ -223,8 +219,7 @@ gfs2_ip2v(struct gfs2_inode *ip, int create)
 	RETURN(G2FN_IP2V, inode);
 }
 
-static int
-iget_test(struct inode *inode, void *opaque)
+static int iget_test(struct inode *inode, void *opaque)
 {
 	ENTER(G2FN_IGET_TEST)
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -236,8 +231,7 @@ iget_test(struct inode *inode, void *opaque)
 	RETURN(G2FN_IGET_TEST, 0);
 }
 
-struct inode *
-gfs2_iget(struct super_block *sb, struct gfs2_inum *inum)
+struct inode *gfs2_iget(struct super_block *sb, struct gfs2_inum *inum)
 {
 	ENTER(G2FN_IGET)
 	RETURN(G2FN_IGET,
@@ -245,8 +239,7 @@ gfs2_iget(struct super_block *sb, struct gfs2_inum *inum)
 			iget_test, inum));
 }
 
-void
-gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type)
+void gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type)
 {
 	ENTER(G2FN_INODE_MIN_INIT);
 
@@ -267,8 +260,7 @@ gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type)
  * Returns: errno
  */
 
-int
-gfs2_inode_refresh(struct gfs2_inode *ip)
+int gfs2_inode_refresh(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_REFRESH)
 	struct buffer_head *dibh;
@@ -315,10 +307,9 @@ gfs2_inode_refresh(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-static int
-inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
-	     struct gfs2_glock *io_gl, unsigned int io_state,
-	     struct gfs2_inode **ipp)
+static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
+			struct gfs2_glock *io_gl, unsigned int io_state,
+			struct gfs2_inode **ipp)
 {
 	ENTER(G2FN_INODE_CREATE)
 	struct gfs2_sbd *sdp = i_gl->gl_sbd;
@@ -387,10 +378,8 @@ inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
  * Returns: errno
  */
 
-int
-gfs2_inode_get(struct gfs2_glock *i_gl,
-	       struct gfs2_inum *inum, int create,
-	       struct gfs2_inode **ipp)
+int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
+		   struct gfs2_inode **ipp)
 {
 	ENTER(G2FN_INODE_GET)
        	struct gfs2_sbd *sdp = i_gl->gl_sbd;
@@ -433,8 +422,7 @@ gfs2_inode_get(struct gfs2_glock *i_gl,
  *
  */
 
-void
-gfs2_inode_hold(struct gfs2_inode *ip)
+void gfs2_inode_hold(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_HOLD)
 	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
@@ -448,8 +436,7 @@ gfs2_inode_hold(struct gfs2_inode *ip)
  *
  */
 
-void
-gfs2_inode_put(struct gfs2_inode *ip)
+void gfs2_inode_put(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_PUT)
 	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
@@ -467,8 +454,7 @@ gfs2_inode_put(struct gfs2_inode *ip)
  *
  */
 
-void
-gfs2_inode_destroy(struct gfs2_inode *ip)
+void gfs2_inode_destroy(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_INODE_DESTROY)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -506,8 +492,7 @@ gfs2_inode_destroy(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-static int
-dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
+static int dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_DINODE_DEALLOC)
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -586,9 +571,8 @@ dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
  * Returns: errno
  */
 
-static int
-inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
-	      struct gfs2_holder *io_gh)
+static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
+			 struct gfs2_holder *io_gh)
 {
 	ENTER(G2FN_INODE_DEALLOC2)
 	struct gfs2_inode *ip;
@@ -689,8 +673,7 @@ inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
  * Returns: 0 on success, -errno on error, 1 on busy (inode open)
  */
 
-int
-try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_TRY_INODE_DEALLOC)
 	struct gfs2_holder io_gh;
@@ -725,8 +708,7 @@ try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RETURN(G2FN_TRY_INODE_DEALLOC, error);
 }
 
-int
-inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_INODE_DEALLOC_UNINIT)
 	struct gfs2_rgrpd *rgd;
@@ -766,8 +748,7 @@ inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	RETURN(G2FN_INODE_DEALLOC_UNINIT, error);
 }
 
-int
-gfs2_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+int gfs2_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_INODE_DEALLOC)
 	if (ul->ul_ut.ut_flags & GFS2_UTF_UNINIT)
@@ -786,8 +767,7 @@ gfs2_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
  * Returns: errno
  */
 
-int
-gfs2_change_nlink(struct gfs2_inode *ip, int diff)
+int gfs2_change_nlink(struct gfs2_inode *ip, int diff)
 {
 	ENTER(G2FN_CHANGE_NLINK)
 	struct buffer_head *dibh;
@@ -832,8 +812,8 @@ gfs2_change_nlink(struct gfs2_inode *ip, int diff)
  * Returns: errno
  */
 
-int
-gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root, struct gfs2_inode **ipp)
+int gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root,
+		 struct gfs2_inode **ipp)
 {
 	ENTER(G2FN_LOOKUPI)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -884,8 +864,7 @@ gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root, struct gfs2
 	RETURN(G2FN_LOOKUPI, error);
 }
 
-static int
-pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
+static int pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 {
 	ENTER(G2FN_PICK_FORMAL_INO_1)
        	struct gfs2_inode *ip = sdp->sd_ir_inode;
@@ -926,8 +905,7 @@ pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 	RETURN(G2FN_PICK_FORMAL_INO_1, 1);
 }
 
-static int
-pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
+static int pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 {
 	ENTER(G2FN_PICK_FORMAL_INO_2)
        	struct gfs2_inode *ip = sdp->sd_ir_inode;
@@ -993,8 +971,7 @@ pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 	RETURN(G2FN_PICK_FORMAL_INO_2, error);
 }
 
-static int
-pick_formal_ino(struct gfs2_sbd *sdp, uint64_t *inum)
+static int pick_formal_ino(struct gfs2_sbd *sdp, uint64_t *inum)
 {
 	ENTER(G2FN_PICK_FORMAL_INO)
        	int error;
@@ -1017,8 +994,8 @@ pick_formal_ino(struct gfs2_sbd *sdp, uint64_t *inum)
  * Returns: errno
  */
 
-static int
-create_ok(struct gfs2_inode *dip, struct qstr *name, unsigned int mode)
+static int create_ok(struct gfs2_inode *dip, struct qstr *name,
+		     unsigned int mode)
 {
 	ENTER(G2FN_CREATE_OK)
 	int error;
@@ -1050,10 +1027,8 @@ create_ok(struct gfs2_inode *dip, struct qstr *name, unsigned int mode)
 	RETURN(G2FN_CREATE_OK, 0);
 }
 
-static void
-munge_mode_uid_gid(struct gfs2_inode *dip,
-		   unsigned int *mode,
-		   unsigned int *uid, unsigned int *gid)
+static void munge_mode_uid_gid(struct gfs2_inode *dip, unsigned int *mode,
+			       unsigned int *uid, unsigned int *gid)
 {
 	ENTER(G2FN_MUNGE_MODE_UID_GID)
 
@@ -1078,8 +1053,7 @@ munge_mode_uid_gid(struct gfs2_inode *dip,
 	RET(G2FN_MUNGE_MODE_UID_GID);
 }
 
-static int
-alloc_dinode(struct gfs2_inode *dip, struct gfs2_unlinked *ul)
+static int alloc_dinode(struct gfs2_inode *dip, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_ALLOC_DINODE)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1124,11 +1098,9 @@ alloc_dinode(struct gfs2_inode *dip, struct gfs2_unlinked *ul)
  *
  */
 
-static void
-init_dinode(struct gfs2_inode *dip,
-	    struct gfs2_glock *gl, struct gfs2_inum *inum,
-	    unsigned int mode,
-	    unsigned int uid, unsigned int gid)
+static void init_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
+			struct gfs2_inum *inum, unsigned int mode,
+			unsigned int uid, unsigned int gid)
 {
 	ENTER(G2FN_INIT_DINODE)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1168,9 +1140,8 @@ init_dinode(struct gfs2_inode *dip,
 	RET(G2FN_INIT_DINODE);
 }
 
-static int
-make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
-	    unsigned int mode, struct gfs2_unlinked *ul)
+static int make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
+		       unsigned int mode, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_MAKE_DINODE)
        	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1213,9 +1184,8 @@ make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
 	RETURN(G2FN_MAKE_DINODE, error);
 }
 
-static int
-link_dinode(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-	    struct gfs2_unlinked *ul)
+static int link_dinode(struct gfs2_inode *dip, struct qstr *name,
+		       struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_LINK_DINODE)
        	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1305,8 +1275,7 @@ link_dinode(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
  * Returns: errno
  */
 
-int
-gfs2_createi(struct gfs2_holder *ghs, struct qstr *name, unsigned int mode)
+int gfs2_createi(struct gfs2_holder *ghs, struct qstr *name, unsigned int mode)
 {
 	ENTER(G2FN_CREATEI)
 	struct gfs2_inode *dip = get_gl2ip(ghs->gh_gl);
@@ -1421,9 +1390,8 @@ gfs2_createi(struct gfs2_holder *ghs, struct qstr *name, unsigned int mode)
  * Returns: errno
  */
 
-int
-gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-	    struct gfs2_unlinked *ul)
+int gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name,
+		 struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_UNLINKI)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1462,9 +1430,8 @@ gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
  * Returns: errno
  */
 
-int
-gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-	   struct gfs2_unlinked *ul)
+int gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name,
+		struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {
 	ENTER(G2FN_RMDIRI)
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -1524,8 +1491,8 @@ gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
  * Returns: 0 if the parent/child relationship is correct, errno if it isn't
  */
 
-int
-gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip)
+int gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name,
+		   struct gfs2_inode *ip)
 {
 	ENTER(G2FN_UNLINK_OK)
 	struct gfs2_inum inum;
@@ -1574,8 +1541,7 @@ gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip)
  * Returns: errno
  */
 
-int
-gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
+int gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
 {
 	ENTER(G2FN_OK_TO_MOVE)
 	struct gfs2_sbd *sdp = this->i_sbd;
@@ -1624,8 +1590,7 @@ gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
  * Returns: errno
  */
 
-int
-gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
+int gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
 {
 	ENTER(G2FN_READLINKI)
 	struct gfs2_holder i_gh;
@@ -1686,8 +1651,7 @@ gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
  * Returns: errno
  */
 
-int
-gfs2_glock_nq_atime(struct gfs2_holder *gh)
+int gfs2_glock_nq_atime(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_NQ_ATIME)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1787,8 +1751,7 @@ gfs2_glock_nq_atime(struct gfs2_holder *gh)
  *          0 if A = B
  */
 
-static int
-glock_compare_atime(const void *arg_a, const void *arg_b)
+static int glock_compare_atime(const void *arg_a, const void *arg_b)
 {
 	ENTER(G2FN_GLOCK_COMPARE_ATIME)
 	struct gfs2_holder *gh_a = *(struct gfs2_holder **)arg_a;
@@ -1823,8 +1786,7 @@ glock_compare_atime(const void *arg_a, const void *arg_b)
  *          errno on failure (no glocks acquired)
  */
 
-int
-gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
+int gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_GLOCK_NQ_M_ATIME)
 	struct gfs2_holder **p;
@@ -1879,8 +1841,7 @@ gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
  * Returns:  TRUE if the vnode was tossed
  */
 
-void
-gfs2_try_toss_vnode(struct gfs2_inode *ip)
+void gfs2_try_toss_vnode(struct gfs2_inode *ip)
 {
 	ENTER(G2FN_TRY_TOSS_VNODE)
 	struct inode *inode;
@@ -1929,8 +1890,7 @@ gfs2_try_toss_vnode(struct gfs2_inode *ip)
  * Returns: errno
  */
 
-int
-gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
+int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 {
 	ENTER(G2FN_SETATTR_SIMPLE)
 	struct buffer_head *dibh;
@@ -1955,8 +1915,7 @@ gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 	RETURN(G2FN_SETATTR_SIMPLE, error);
 }
 
-int
-gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd)
+int gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd)
 {
 	ENTER(G2FN_REPERMISSION)
 	RETURN(G2FN_REPERMISSION,

@@ -65,8 +65,8 @@ typedef void (*glock_examiner) (struct gfs2_glock * gl);
  * whatever the requested state is, as long as the lock is locked in any mode.
  */
 
-static __inline__ int
-relaxed_state_ok(unsigned int actual, unsigned requested, int flags)
+static __inline__ int relaxed_state_ok(unsigned int actual, unsigned requested,
+				       int flags)
 {
 	if (actual == requested)
 		return TRUE;
@@ -90,8 +90,7 @@ relaxed_state_ok(unsigned int actual, unsigned requested, int flags)
  * Returns: The number of the corresponding hash bucket
  */
 
-static unsigned int
-gl_hash(struct lm_lockname *name)
+static unsigned int gl_hash(struct lm_lockname *name)
 {
 	ENTER(G2FN_GL_HASH)
 	unsigned int h;
@@ -109,8 +108,7 @@ gl_hash(struct lm_lockname *name)
  *
  */
 
-static __inline__ void
-glock_hold(struct gfs2_glock *gl)
+static __inline__ void glock_hold(struct gfs2_glock *gl)
 {
 	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
 	atomic_inc(&gl->gl_count);
@@ -122,8 +120,7 @@ glock_hold(struct gfs2_glock *gl)
  *
  */
 
-static __inline__ void
-glock_put(struct gfs2_glock *gl)
+static __inline__ void glock_put(struct gfs2_glock *gl)
 {
 	if (atomic_read(&gl->gl_count) == 1)
 		gfs2_glock_schedule_for_reclaim(gl);
@@ -139,8 +136,7 @@ glock_put(struct gfs2_glock *gl)
  * Returns: TRUE if the queue is empty
  */
 
-static __inline__ int
-queue_empty(struct gfs2_glock *gl, struct list_head *head)
+static __inline__ int queue_empty(struct gfs2_glock *gl, struct list_head *head)
 {
 	int empty;
 	spin_lock(&gl->gl_spin);
@@ -157,8 +153,8 @@ queue_empty(struct gfs2_glock *gl, struct list_head *head)
  * Returns: NULL, or the struct gfs2_glock with the requested number
  */
 
-static struct gfs2_glock *
-search_bucket(struct gfs2_gl_hash_bucket *bucket, struct lm_lockname *name)
+static struct gfs2_glock *search_bucket(struct gfs2_gl_hash_bucket *bucket,
+					struct lm_lockname *name)
 {
 	ENTER(G2FN_SEARCH_BUCKET)
 	struct list_head *tmp, *head;
@@ -193,8 +189,8 @@ search_bucket(struct gfs2_gl_hash_bucket *bucket, struct lm_lockname *name)
  * Returns: NULL, or the struct gfs2_glock with the requested number
  */
 
-struct gfs2_glock *
-gfs2_glock_find(struct gfs2_sbd *sdp, struct lm_lockname *name)
+struct gfs2_glock *gfs2_glock_find(struct gfs2_sbd *sdp,
+				   struct lm_lockname *name)
 {
 	ENTER(G2FN_GLOCK_FIND)
 	struct gfs2_gl_hash_bucket *bucket = &sdp->sd_gl_hash[gl_hash(name)];
@@ -215,8 +211,7 @@ gfs2_glock_find(struct gfs2_sbd *sdp, struct lm_lockname *name)
  *
  */
 
-static void
-glock_free(struct gfs2_glock *gl)
+static void glock_free(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_FREE)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -248,10 +243,9 @@ glock_free(struct gfs2_glock *gl)
  * Returns: errno
  */
 
-int
-gfs2_glock_get(struct gfs2_sbd *sdp,
-	      uint64_t number, struct gfs2_glock_operations *glops,
-	      int create, struct gfs2_glock **glp)
+int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
+		   struct gfs2_glock_operations *glops, int create,
+		   struct gfs2_glock **glp)
 {
 	ENTER(G2FN_GLOCK_GET)
 	struct lm_lockname name;
@@ -359,8 +353,7 @@ gfs2_glock_get(struct gfs2_sbd *sdp,
  *
  */
 
-void
-gfs2_glock_hold(struct gfs2_glock *gl)
+void gfs2_glock_hold(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_HOLD)
 	glock_hold(gl);
@@ -373,8 +366,7 @@ gfs2_glock_hold(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_glock_put(struct gfs2_glock *gl)
+void gfs2_glock_put(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_PUT)
 	glock_put(gl);
@@ -390,9 +382,8 @@ gfs2_glock_put(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
-		struct gfs2_holder *gh)
+void gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
+		      struct gfs2_holder *gh)
 {
 	ENTER(G2FN_HOLDER_INIT)
 
@@ -430,8 +421,7 @@ gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
  *   Holder must *not* be in glock's holder list or wait queues now
  */
 
-void
-gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh)
+void gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh)
 {
 	ENTER(G2FN_HOLDER_REINIT)
 
@@ -451,8 +441,7 @@ gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh)
  *
  */
 
-void
-gfs2_holder_uninit(struct gfs2_holder *gh)
+void gfs2_holder_uninit(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_HOLDER_UNINIT)
 	glock_put(gh->gh_gl);
@@ -473,8 +462,8 @@ gfs2_holder_uninit(struct gfs2_holder *gh)
  * Returns: the holder structure, NULL on ENOMEM
  */
 
-struct gfs2_holder *
-gfs2_holder_get(struct gfs2_glock *gl, unsigned int state, int flags)
+struct gfs2_holder *gfs2_holder_get(struct gfs2_glock *gl, unsigned int state,
+				    int flags)
 {
 	ENTER(G2FN_HOLDER_GET)
 	struct gfs2_holder *gh;
@@ -495,8 +484,7 @@ gfs2_holder_get(struct gfs2_glock *gl, unsigned int state, int flags)
  *
  */
 
-void
-gfs2_holder_put(struct gfs2_holder *gh)
+void gfs2_holder_put(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_HOLDER_PUT)
 	gfs2_holder_uninit(gh);
@@ -510,8 +498,7 @@ gfs2_holder_put(struct gfs2_holder *gh)
  *
  */
 
-static void
-handle_recurse(struct gfs2_holder *gh)
+static void handle_recurse(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_HANDLE_RECURSE)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -556,8 +543,7 @@ handle_recurse(struct gfs2_holder *gh)
  *
  */
 
-static void
-do_unrecurse(struct gfs2_holder *gh)
+static void do_unrecurse(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_DO_UNRECURSE)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -603,8 +589,7 @@ do_unrecurse(struct gfs2_holder *gh)
  * See lock_on_glock()
  */
 
-static int
-rq_mutex(struct gfs2_holder *gh)
+static int rq_mutex(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RQ_MUTEX)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -626,8 +611,7 @@ rq_mutex(struct gfs2_holder *gh)
  * Returns: TRUE if the queue is blocked
  */
 
-static int
-rq_promote(struct gfs2_holder *gh)
+static int rq_promote(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RQ_PROMOTE)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -705,8 +689,7 @@ rq_promote(struct gfs2_holder *gh)
  * Must be called with glock's gl->gl_spin locked.
  */
 
-static int
-rq_demote(struct gfs2_holder *gh)
+static int rq_demote(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RQ_DEMOTE)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -750,8 +733,7 @@ rq_demote(struct gfs2_holder *gh)
  * Returns: TRUE if the queue is blocked
  */
 
-static int
-rq_greedy(struct gfs2_holder *gh)
+static int rq_greedy(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_RQ_GREEDY)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -777,8 +759,7 @@ rq_greedy(struct gfs2_holder *gh)
  *   Caller must hold gl->gl_spin.
  */
 
-static void
-run_queue(struct gfs2_glock *gl)
+static void run_queue(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_RUN_QUEUE)
 	struct gfs2_holder *gh;
@@ -844,8 +825,7 @@ run_queue(struct gfs2_glock *gl)
  * wait-for-exclusive-access queue, and blocks until exclusive access granted.
  */
 
-void
-gfs2_glmutex_lock(struct gfs2_glock *gl)
+void gfs2_glmutex_lock(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLMUTEX_LOCK)
 	struct gfs2_holder gh;
@@ -878,8 +858,7 @@ gfs2_glmutex_lock(struct gfs2_glock *gl)
  * If structure already locked, does not block to wait; returns FALSE.
  */
 
-int
-gfs2_glmutex_trylock(struct gfs2_glock *gl)
+int gfs2_glmutex_trylock(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLMUTEX_TRYLOCK)
 	int acquired = TRUE;
@@ -900,8 +879,7 @@ gfs2_glmutex_trylock(struct gfs2_glock *gl)
  * Service any others waiting for exclusive access.
  */
 
-void
-gfs2_glmutex_unlock(struct gfs2_glock *gl)
+void gfs2_glmutex_unlock(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLMUTEX_UNLOCK)
 
@@ -935,8 +913,7 @@ gfs2_glmutex_unlock(struct gfs2_glock *gl)
  * Otherwise, queue a demote request to the requested state.
  */
 
-static void
-handle_callback(struct gfs2_glock *gl, unsigned int state)
+static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 {
 	ENTER(G2FN_HANDLE_CALLBACK)
 	struct list_head *tmp, *head;
@@ -996,8 +973,7 @@ handle_callback(struct gfs2_glock *gl, unsigned int state)
  *
  */
 
-static void
-state_change(struct gfs2_glock *gl, unsigned int new_state)
+static void state_change(struct gfs2_glock *gl, unsigned int new_state)
 {
 	ENTER(G2FN_STATE_CHANGE)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1028,8 +1004,7 @@ state_change(struct gfs2_glock *gl, unsigned int new_state)
  *
  */
 
-static void
-xmote_bh(struct gfs2_glock *gl, unsigned int ret)
+static void xmote_bh(struct gfs2_glock *gl, unsigned int ret)
 {
 	ENTER(G2FN_XMOTE_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1154,8 +1129,7 @@ xmote_bh(struct gfs2_glock *gl, unsigned int ret)
  * *Not* used to unlock a glock; use gfs2_glock_drop_th() for that.
  */
 
-void
-gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
+void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 {
 	ENTER(G2FN_GLOCK_XMOTE_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1203,8 +1177,7 @@ gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
  *
  */
 
-static void
-drop_bh(struct gfs2_glock *gl, unsigned int ret)
+static void drop_bh(struct gfs2_glock *gl, unsigned int ret)
 {
 	ENTER(G2FN_DROP_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1257,8 +1230,7 @@ drop_bh(struct gfs2_glock *gl, unsigned int ret)
  *
  */
 
-void
-gfs2_glock_drop_th(struct gfs2_glock *gl)
+void gfs2_glock_drop_th(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_DROP_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -1297,8 +1269,7 @@ gfs2_glock_drop_th(struct gfs2_glock *gl)
  * Don't cancel GL_NOCANCEL requests.
  */
 
-static void
-do_cancels(struct gfs2_holder *gh)
+static void do_cancels(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_DO_CANCELS)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1336,8 +1307,7 @@ do_cancels(struct gfs2_holder *gh)
  * Returns: 0 on success
  */
 
-static int
-glock_wait_internal(struct gfs2_holder *gh)
+static int glock_wait_internal(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_WAIT_INTERNAL)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1405,8 +1375,7 @@ glock_wait_internal(struct gfs2_holder *gh)
 	RETURN(G2FN_GLOCK_WAIT_INTERNAL, error);
 }
 
-static __inline__ struct gfs2_holder *
-find_holder_by_owner(struct list_head *head, struct task_struct *owner)
+static __inline__ struct gfs2_holder *find_holder_by_owner(struct list_head *head, struct task_struct *owner)
 {
 	ENTER(G2FN_FIND_HOLDER_BY_OWNER)
 	struct list_head *tmp;
@@ -1429,9 +1398,8 @@ find_holder_by_owner(struct list_head *head, struct task_struct *owner)
  *
  */
 
-static int
-recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
-	      unsigned int state)
+static int recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
+			 unsigned int state)
 {
 	ENTER(RECURSE_CHECK)
 	struct gfs2_sbd *sdp = existing->gh_gl->gl_sbd;
@@ -1470,8 +1438,7 @@ recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
  *   for-promotion queue), simply add new holder to wait-for-promotion queue.
  */
 
-static void
-add_to_queue(struct gfs2_holder *gh)
+static void add_to_queue(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_ADD_TO_QUEUE)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1537,8 +1504,7 @@ add_to_queue(struct gfs2_holder *gh)
  *   LM_FLAG_ANY (liberal) and GL_EXACT (restrictive) are mutually exclusive.
  */
 
-int
-gfs2_glock_nq(struct gfs2_holder *gh)
+int gfs2_glock_nq(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_NQ)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1581,8 +1547,7 @@ gfs2_glock_nq(struct gfs2_holder *gh)
  * Returns: TRUE if the request is ready to be gfs2_glock_wait()ed on
  */
 
-int
-gfs2_glock_poll(struct gfs2_holder *gh)
+int gfs2_glock_poll(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_POLL)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1616,8 +1581,7 @@ gfs2_glock_poll(struct gfs2_holder *gh)
  * Returns: 0, GLR_TRYFAILED, or errno on failure
  */
 
-int
-gfs2_glock_wait(struct gfs2_holder *gh)
+int gfs2_glock_wait(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_WAIT)
 	int error;
@@ -1650,8 +1614,7 @@ gfs2_glock_wait(struct gfs2_holder *gh)
  *         daemons (gfs2_scand and gfs2_glockd) reclaim it.
  */
 
-void
-gfs2_glock_dq(struct gfs2_holder *gh)
+void gfs2_glock_dq(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_DQ)
 	struct gfs2_glock *gl = gh->gh_gl;
@@ -1718,8 +1681,7 @@ gfs2_glock_dq(struct gfs2_holder *gh)
  *   LM_FLAG_ANY (liberal) and GL_EXACT (restrictive) are mutually exclusive.
  */
 
-void
-gfs2_glock_prefetch(struct gfs2_glock *gl, unsigned int state, int flags)
+void gfs2_glock_prefetch(struct gfs2_glock *gl, unsigned int state, int flags)
 {
 	ENTER(G2FN_GLOCK_PREFETCH)
 	struct gfs2_glock_operations *glops = gl->gl_ops;
@@ -1754,8 +1716,7 @@ gfs2_glock_prefetch(struct gfs2_glock *gl, unsigned int state, int flags)
  *
  */
 
-void
-gfs2_glock_force_drop(struct gfs2_glock *gl)
+void gfs2_glock_force_drop(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_FORCE_DROP)
 	struct gfs2_holder gh;
@@ -1780,8 +1741,7 @@ gfs2_glock_force_drop(struct gfs2_glock *gl)
  *
  */
 
-static void
-greedy_work(void *data)
+static void greedy_work(void *data)
 {
 	ENTER(G2FN_GREEDY_WORK)
 	struct greedy *gr = (struct greedy *)data;
@@ -1820,8 +1780,7 @@ greedy_work(void *data)
  * Returns: 0 if go_greedy will be called, 1 otherwise
  */
 
-int
-gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time)
+int gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time)
 {
 	ENTER(G2FN_GLOCK_BE_GREEDY)
 	struct greedy *gr;
@@ -1859,9 +1818,8 @@ gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time)
  * Returns: 0, GLR_*, or errno
  */
 
-int
-gfs2_glock_nq_init(struct gfs2_glock *gl, unsigned int state, int flags,
-		  struct gfs2_holder *gh)
+int gfs2_glock_nq_init(struct gfs2_glock *gl, unsigned int state, int flags,
+		       struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_NQ_INIT)
 	int error;
@@ -1881,8 +1839,7 @@ gfs2_glock_nq_init(struct gfs2_glock *gl, unsigned int state, int flags,
  *
  */
 
-void
-gfs2_glock_dq_uninit(struct gfs2_holder *gh)
+void gfs2_glock_dq_uninit(struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_DQ_UNINIT)
 
@@ -1904,10 +1861,9 @@ gfs2_glock_dq_uninit(struct gfs2_holder *gh)
  * Returns: errno
  */
 
-int
-gfs2_glock_nq_num(struct gfs2_sbd *sdp,
-		 uint64_t number, struct gfs2_glock_operations *glops,
-		 unsigned int state, int flags, struct gfs2_holder *gh)
+int gfs2_glock_nq_num(struct gfs2_sbd *sdp, uint64_t number,
+		      struct gfs2_glock_operations *glops, unsigned int state,
+		      int flags, struct gfs2_holder *gh)
 {
 	ENTER(G2FN_GLOCK_NQ_NUM)
 	struct gfs2_glock *gl;
@@ -1929,8 +1885,7 @@ gfs2_glock_nq_num(struct gfs2_sbd *sdp,
  *
  */
 
-static int
-glock_compare(const void *arg_a, const void *arg_b)
+static int glock_compare(const void *arg_a, const void *arg_b)
 {
 	ENTER(G2FN_GLOCK_COMPARE)
 	struct gfs2_holder *gh_a = *(struct gfs2_holder **)arg_a;
@@ -1963,8 +1918,8 @@ glock_compare(const void *arg_a, const void *arg_b)
  * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
  */
 
-static int
-nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs, struct gfs2_holder **p)
+static int nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs,
+		     struct gfs2_holder **p)
 {
 	ENTER(G2FN_NQ_M_SYNC)
 	unsigned int x;
@@ -2002,8 +1957,7 @@ nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs, struct gfs2_holder **p)
  * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
  */
 
-int
-gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
+int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_GLOCK_NQ_M)
 	int *e;
@@ -2081,8 +2035,7 @@ gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
  *
  */
 
-void
-gfs2_glock_dq_m(unsigned int num_gh, struct gfs2_holder *ghs)
+void gfs2_glock_dq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_GLOCK_DQ_M)
 	unsigned int x;
@@ -2100,8 +2053,7 @@ gfs2_glock_dq_m(unsigned int num_gh, struct gfs2_holder *ghs)
  *
  */
 
-void
-gfs2_glock_dq_uninit_m(unsigned int num_gh, struct gfs2_holder *ghs)
+void gfs2_glock_dq_uninit_m(unsigned int num_gh, struct gfs2_holder *ghs)
 {
 	ENTER(G2FN_GLOCK_DQ_UNINIT_M)
 	unsigned int x;
@@ -2123,10 +2075,9 @@ gfs2_glock_dq_uninit_m(unsigned int num_gh, struct gfs2_holder *ghs)
  * Returns: errno
  */
 
-void
-gfs2_glock_prefetch_num(struct gfs2_sbd *sdp,
-		       uint64_t number, struct gfs2_glock_operations *glops,
-		       unsigned int state, int flags)
+void gfs2_glock_prefetch_num(struct gfs2_sbd *sdp, uint64_t number,
+			     struct gfs2_glock_operations *glops,
+			     unsigned int state, int flags)
 {
 	ENTER(G2FN_GLOCK_PREFETCH_NUM)
 	struct gfs2_glock *gl;
@@ -2149,8 +2100,7 @@ gfs2_glock_prefetch_num(struct gfs2_sbd *sdp,
  *
  */
 
-int
-gfs2_lvb_hold(struct gfs2_glock *gl)
+int gfs2_lvb_hold(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_LVB_HOLD)
 	int error;
@@ -2178,8 +2128,7 @@ gfs2_lvb_hold(struct gfs2_glock *gl)
  * 
  */
 
-void
-gfs2_lvb_unhold(struct gfs2_glock *gl)
+void gfs2_lvb_unhold(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_LVB_UNHOLD)
 
@@ -2205,8 +2154,7 @@ gfs2_lvb_unhold(struct gfs2_glock *gl)
  * 
  */
 
-void
-gfs2_lvb_sync(struct gfs2_glock *gl)
+void gfs2_lvb_sync(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_LVB_SYNC)
 
@@ -2229,8 +2177,8 @@ gfs2_lvb_sync(struct gfs2_glock *gl)
  *
  */
 
-void
-blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name, unsigned int state)
+void blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name,
+		 unsigned int state)
 {
 	ENTER(G2FN_BLOCKING_CB)
 	struct gfs2_glock *gl;
@@ -2271,8 +2219,7 @@ blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name, unsigned int state)
  *   our lock to a compatible state, allowing the other node to grab the lock.
  */
 
-void
-gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
+void gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 {
 	ENTER(G2FN_GLOCK_CB)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)fsdata;
@@ -2337,8 +2284,7 @@ gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
  *   indirect addressing buffers, and destroy the gfs2_inode.
  */
 
-void
-gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
+void gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
 {
 	ENTER(G2FN_TRY_TOSS_INODE)
 	struct gfs2_glock *gl;
@@ -2379,8 +2325,7 @@ gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
  *
  */
 
-void
-gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
+void gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
 {
 	ENTER(G2FN_IOPEN_GO_CALLBACK)
 	struct gfs2_glock *i_gl;
@@ -2431,8 +2376,7 @@ gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
  * --  glock-type-specific test says "no"
  */
 
-static int
-demote_ok(struct gfs2_glock *gl)
+static int demote_ok(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_DEMOTE_OK)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -2457,8 +2401,7 @@ demote_ok(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_glock_schedule_for_reclaim(struct gfs2_glock *gl)
+void gfs2_glock_schedule_for_reclaim(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_GLOCK_SCHEDULE_FOR_RECLAIM)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -2503,8 +2446,7 @@ gfs2_glock_schedule_for_reclaim(struct gfs2_glock *gl)
  *
  */
 
-void
-gfs2_reclaim_glock(struct gfs2_sbd *sdp)
+void gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_RECLAIM_GLOCK)
 	struct gfs2_glock *gl;
@@ -2565,9 +2507,8 @@ gfs2_reclaim_glock(struct gfs2_sbd *sdp)
  * Returns: TRUE if the bucket has entries
  */
 
-static int
-examine_bucket(glock_examiner examiner,
-	       struct gfs2_sbd *sdp, struct gfs2_gl_hash_bucket *bucket)
+static int examine_bucket(glock_examiner examiner, struct gfs2_sbd *sdp,
+			  struct gfs2_gl_hash_bucket *bucket)
 {
 	ENTER(G2FN_EXAMINE_BUCKET)
 	struct glock_plug plug;
@@ -2635,8 +2576,7 @@ examine_bucket(glock_examiner examiner,
  *
  */
 
-static void
-scan_glock(struct gfs2_glock *gl)
+static void scan_glock(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_SCAN_GLOCK)
 
@@ -2679,8 +2619,7 @@ scan_glock(struct gfs2_glock *gl)
  * --  gfs2_reclaim_lock() cleans up glock structure.
  */
 
-void
-gfs2_scand_internal(struct gfs2_sbd *sdp)
+void gfs2_scand_internal(struct gfs2_sbd *sdp)
 {
 	ENTER(G2FN_SCAND_INTERNAL)
 	unsigned int x;
@@ -2709,8 +2648,7 @@ gfs2_scand_internal(struct gfs2_sbd *sdp)
  *
  */
 
-static void
-clear_glock(struct gfs2_glock *gl)
+static void clear_glock(struct gfs2_glock *gl)
 {
 	ENTER(G2FN_CLEAR_GLOCK)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
@@ -2759,8 +2697,7 @@ clear_glock(struct gfs2_glock *gl)
  *   requests DROPLOCKS because it is running out of capacity.
  */
 
-void
-gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
+void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
 {
 	ENTER(G2FN_GL_HASH_CLEAR)
 	unsigned long t;
@@ -2808,9 +2745,8 @@ gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int
-dump_holder(char *str, struct gfs2_holder *gh,
-	    char *buf, unsigned int size, unsigned int *count)
+static int dump_holder(char *str, struct gfs2_holder *gh, char *buf,
+		       unsigned int size, unsigned int *count)
 {
 	ENTER(G2FN_DUMP_HOLDER)
 	unsigned int x;
@@ -2848,9 +2784,8 @@ dump_holder(char *str, struct gfs2_holder *gh,
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int
-dump_inode(struct gfs2_inode *ip,
-	   char *buf, unsigned int size, unsigned int *count)
+static int dump_inode(struct gfs2_inode *ip, char *buf, unsigned int size,
+		      unsigned int *count)
 {
 	ENTER(G2FN_DUMP_INODE)
 	unsigned int x;
@@ -2884,9 +2819,8 @@ dump_inode(struct gfs2_inode *ip,
  * Returns: 0 on success, -ENOBUFS when we run out of space
  */
 
-static int
-dump_glock(struct gfs2_glock *gl,
-	   char *buf, unsigned int size, unsigned int *count)
+static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
+		      unsigned int *count)
 {
 	ENTER(G2FN_DUMP_GLOCK)
 	struct list_head *head, *tmp;
@@ -2986,8 +2920,7 @@ dump_glock(struct gfs2_glock *gl,
  *
  */
 
-int
-gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
+int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 {
 	ENTER(G2FN_DUMP_LOCKSTATE)
 	struct gfs2_gl_hash_bucket *bucket;
