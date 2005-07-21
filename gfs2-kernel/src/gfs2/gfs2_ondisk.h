@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -11,298 +11,168 @@
 *******************************************************************************
 ******************************************************************************/
 
-/*
- * On-disk structures.
- *
- * THE BIG PICTURE of on-disk layout:
- *
- * GFS2 filesystem code views the entire filesystem, including journals, as
- * one contiguous group of blocks on one (perhaps virtual) storage device.
- * The filesystem space is shared, not distributed; each node in the cluster
- * must see the entire filesystem space.
- *
- * If the filesystem is spread across multiple physical storage devices,
- * volume management (device mapping) must be used to present the fileystem
- * space to GFS2 as one (virtual) device, with contiguous blocks.
- *
- * The superblock contains basic information about the filesytem, and appears
- * at a location 64 KBytes into the filesystem.  The first 64 KBytes of the
- * filesystem are empty, providing a safety buffer against wayward volume
- * management software (that sometimes write data into the first few bytes of
- * a device) or administrators.
- *
- * After the superblock, the rest of the filesystem is divided into multiple
- * Resource Groups and several journals.
- *
- * The Resource Groups (RGs or rgrps) contain the allocatable blocks that are
- * used for storing files, directories, etc., and all of the associated
- * metadata.  Each RG has its own set of block allocation statistics (within
- * the RG header), a number of blocks containing the block allocation bitmap,
- * and a large number of allocatable blocks for file data and metadata.
- * Multiple RGs allow multiple nodes to simultaneously allocate blocks from the 
- * filesystem (using different RGs), enhancing parallel access.  RG size and
- * number of RGs are determined by gfs2_mkfs when creating the filesystem.
- * An administrator can specify RG size (see man gfs2_mkfs).
- *
- * The journals contain temporary copies of metadata blocks, along with
- * other data, that allow GFS2 to recover the filesystem to a consistent state
- * (at least as far as metadata is concerned) if a node fails in the midst
- * of performing a write transaction.  There must be one journal for each node
- * in the cluster.  Since access to the entire filesystem space is shared,
- * if a node crashes, another node will be able to read the crashed node's
- * journal, and perform recovery.
- *
- * Currently, gfs2_mkfs places the journals right in the middle of a freshly
- * created filesystem space, between 2 large groups of RGs.  From a filesystem
- * layout perspective, this placement is not a requirement; the journals
- * could be placed anywhere within the filesystem space.
- *
- * New Resource Groups and Journals may be added to the filesystem after the
- * filesystem has been created, if the filesystem's (virtual) device is made
- * larger.  See man gfs2_grow and gfs2_jadd.
- *
- * A few special hidden inodes are contained in a GFS2 filesystem.  They do
- * not appear in any directories; instead, the superblock points to them
- * using block numbers for their location.  The special inodes are:
- *
- *   Root inode:  Root directory of the filesystem
- *   Resource Group Index:  A file containing block numbers and sizes of all RGs
- *   Journal Index:  A file containing block numbers and sizes of all journals
- *   Quota:  A file containing all quota information for the filesystem
- *   License:  A file containing license information
- *
- * Note that there is NOTHING RELATED TO INTER-NODE LOCK MANAGEMENT ON-DISK.
- * Locking is handled completely off-disk, typically via LAN.
- *
- * NOTE:
- * If you add 8 byte fields to these structures, they must be 8 byte
- * aligned.  4 byte field must be 4 byte aligned, etc...
- *
- * All structures must be a multiple of 8 bytes long.
- */
-
 #ifndef __GFS2_ONDISK_DOT_H__
 #define __GFS2_ONDISK_DOT_H__
 
-#define GFS2_MAGIC               (0x07131974) /* for all on-disk headers */
-#define GFS2_BASIC_BLOCK         (512)  /* "basic block" = "sector" = 512B */
-#define GFS2_BASIC_BLOCK_SHIFT   (9)
+#define GFS2_MAGIC		0x07131974
+#define GFS2_BASIC_BLOCK	512
+#define GFS2_BASIC_BLOCK_SHIFT	9
 
-/*  Lock numbers of the LM_TYPE_NONDISK type.  These protect certain
- *  cluster-wide operations (rather than on-disk entities).
- *  Currently, the LIVE lock is not used for any real purpose.  */
+/* Lock numbers of the LM_TYPE_NONDISK type */
 
-#define GFS2_MOUNT_LOCK          (0)    /* only one node can Mount at a time */
-#define GFS2_LIVE_LOCK           (1)    /* shared by all mounted nodes */
-#define GFS2_TRANS_LOCK          (2)    /* Transaction, protects jrnl recovery */
-#define GFS2_RENAME_LOCK         (3)    /* only one node can Rename at a time */
+#define GFS2_MOUNT_LOCK		0
+#define GFS2_LIVE_LOCK		1
+#define GFS2_TRANS_LOCK		2
+#define GFS2_RENAME_LOCK	3
 
-/*  On-disk format (version) numbers for various metadata types,
- *  used in gfs2_meta_header  */
+/* Format (version) numbers for various metadata types */
 
-#define GFS2_FORMAT_NONE         (0)
-#define GFS2_FORMAT_SB           (100)  /* Super-Block */
-#define GFS2_FORMAT_RG           (200)  /* Resource Group Header */
-#define GFS2_FORMAT_RB           (300)  /* Resource Group Block Alloc BitBlock */
-#define GFS2_FORMAT_DI           (400)  /* "Disk" inode (dinode) */
-#define GFS2_FORMAT_IN           (500)  /* Indirect dinode block list */
-#define GFS2_FORMAT_LF           (600)  /* Leaf dinode block list */
-#define GFS2_FORMAT_JD           (700)  /* Journal Data */
-#define GFS2_FORMAT_LH           (800)  /* Log Header */
-#define GFS2_FORMAT_LD           (900)  /* Log Descriptor */
-#define GFS2_FORMAT_LB           (1000) /* Log Block */
-#define GFS2_FORMAT_EA           (1100) /* Extended Attribute */
-#define GFS2_FORMAT_ED           (1200) /* Extended Attribute data */
-#define GFS2_FORMAT_UT           (1300) /* Unlinked Tag inode block */
-#define GFS2_FORMAT_QC           (1400) /* Quota Change inode block */
+#define GFS2_FORMAT_NONE	0
+#define GFS2_FORMAT_SB		100
+#define GFS2_FORMAT_RG		200
+#define GFS2_FORMAT_RB		300
+#define GFS2_FORMAT_DI		400
+#define GFS2_FORMAT_IN		500
+#define GFS2_FORMAT_LF		600
+#define GFS2_FORMAT_JD		700
+#define GFS2_FORMAT_LH		800
+#define GFS2_FORMAT_LD		900
+#define GFS2_FORMAT_LB		1000
+#define GFS2_FORMAT_EA		1100
+#define GFS2_FORMAT_ED		1200
+#define GFS2_FORMAT_UT		1300
+#define GFS2_FORMAT_QC		1400
 /* These are format number for entities contained in files */
-#define GFS2_FORMAT_RI           (1500) /* Resource Group Index */
-#define GFS2_FORMAT_DE           (1600) /* Directory Entry */
-#define GFS2_FORMAT_QU           (1700) /* Quota */
-/* These version #s are embedded in the superblock */
-#define GFS2_FORMAT_FS           (1801) /* Filesystem (all-encompassing) */
-#define GFS2_FORMAT_MULTI        (1900) /* Multi-Host */
+#define GFS2_FORMAT_RI		1500
+#define GFS2_FORMAT_DE		1600
+#define GFS2_FORMAT_QU		1700
+/* These are part of the superblock */
+#define GFS2_FORMAT_FS		1801
+#define GFS2_FORMAT_MULTI	1900
 
 /*
- *  An on-disk inode number
- *  Initially, the on-disk block address of the inode block is assigned as the
- *  formal (permanent) ID as well.  Block address can change (to move inode
- *  on-disk), but formal ID must stay unchanged once assigned.
+ * An on-disk inode number
  */
 
 #define gfs2_inum_equal(ino1, ino2) \
-(((ino1)->no_formal_ino == (ino2)->no_formal_ino) && \
- ((ino1)->no_addr == (ino2)->no_addr))
+	(((ino1)->no_formal_ino == (ino2)->no_formal_ino) && \
+	((ino1)->no_addr == (ino2)->no_addr))
 
 struct gfs2_inum {
-	uint64_t no_formal_ino;        /* inode identifier */
-	uint64_t no_addr;              /* block # of dinode block */
+	uint64_t no_formal_ino;
+	uint64_t no_addr;
 };
 
 /*
- *  Generic metadata head structure
- *
- *  Every inplace buffer logged in the journal must start
- *  with a struct gfs2_meta_header.
- *
- *  In addition to telling what kind of metadata is in the block,
- *  the metaheader contains the important generation and incarnation
- *  numbers.
- *
- *  The generation number is used during journal recovery to determine
- *  whether an in-place block on-disk is older than an on-disk journaled copy
- *  of the block.  If so, GFS2 overwrites the in-place block with the journaled
- *  version of the block.
- *
- *  A meta block's generation number must increment monotonically across the
- *  cluster, each time new contents are committed to the block.  This means
- *  that whenever GFS2 allocates a pre-existing metadata block, GFS2 must read
- *  that block from disk (in case another node has incremented it).  It also
- *  means that GFS2 must sync the block (with incremented generation number)
- *  to disk (both log and in-place blocks), not only after changing contents
- *  of the block, but also after de-allocating the block (GFS2 can't just throw
- *  away incore metadata for a file that it's just erased).
- *
- *  The incarnation number is used only for on-disk (d)inodes.  GFS2 increments
- *  it each time it de-allocates a dinode block (i.e. each time the dinode
- *  loses its identity with a particular file, directory, etc.).  When the
- *  dinode is later allocated (i.e. to be identified with a new file, etc.),
- *  GFS2 copies the incarnation number into the VFS inode's i_generation member.
- *  If GFS2 is used as the backing store for an NFS server, GFS2 uses this
- *  i_generation number as part of the NFS filehandle, which differentiates
- *  it from the previous identity of the dinode, and helps protect against
- *  filesystem corruption that could happen with the use of outdated,
- *  invalid, or malicious filehandles.  See ops_export.c.
- *
- *  GFS2 caches de-allocated meta-headers, to minimize disk reads.
- *  See struct gfs2_meta_header_cache.
+ * Generic metadata head structure
+ * Every inplace buffer logged in the journal must start with this.
  */
 
-#define GFS2_METATYPE_NONE       (0)
-#define GFS2_METATYPE_SB         (1)    /* Super-Block */
-#define GFS2_METATYPE_RG         (2)    /* Resource Group Header */
-#define GFS2_METATYPE_RB         (3)    /* Resource Group Block Alloc BitBlock */
-#define GFS2_METATYPE_DI         (4)    /* "Disk" inode (dinode) */
-#define GFS2_METATYPE_IN         (5)    /* Indirect dinode block list */
-#define GFS2_METATYPE_LF         (6)    /* Leaf dinode block list */
-#define GFS2_METATYPE_JD         (7)    /* Journal Data */
-#define GFS2_METATYPE_LH         (8)    /* Log Header (gfs2_log_header) */
-#define GFS2_METATYPE_LD         (9)    /* Log Descriptor (gfs2_log_descriptor) */
-#define GFS2_METATYPE_LB         (10)   /* Log Block */
-#define GFS2_METATYPE_EA         (11)   /* Extended Attribute */
-#define GFS2_METATYPE_ED         (12)   /* Extended Attribute data */
-#define GFS2_METATYPE_UT         (13)   /* Unlinked inode block */
-#define GFS2_METATYPE_QC         (14)   /* Quota Change inode block */
+#define GFS2_METATYPE_NONE	0
+#define GFS2_METATYPE_SB	1
+#define GFS2_METATYPE_RG	2
+#define GFS2_METATYPE_RB	3
+#define GFS2_METATYPE_DI	4
+#define GFS2_METATYPE_IN	5
+#define GFS2_METATYPE_LF	6
+#define GFS2_METATYPE_JD	7
+#define GFS2_METATYPE_LH	8
+#define GFS2_METATYPE_LD	9
+#define GFS2_METATYPE_LB	10
+#define GFS2_METATYPE_EA	11
+#define GFS2_METATYPE_ED	12
+#define GFS2_METATYPE_UT	13
+#define GFS2_METATYPE_QC	14
 
 struct gfs2_meta_header {
-	uint32_t mh_magic;      /* GFS2_MAGIC sanity check magic number */
-	uint16_t mh_type;       /* GFS2_METATYPE_XX type of metadata block */
-	uint16_t mh_format;     /* GFS2_FORMAT_XX (version # for this type) */
+	uint32_t mh_magic;
+	uint16_t mh_type;
+	uint16_t mh_format;
 	uint64_t mh_blkno;
 };
 
 /*
- *  super-block structure
+ * super-block structure
  *
- *  One of these is at beginning of filesystem.
- *  It's probably good if SIZEOF_SB <= GFS2_BASIC_BLOCK (512 bytes)
+ * It's probably good if SIZEOF_SB <= GFS2_BASIC_BLOCK (512 bytes)
+ *
+ * Order is important, need to be able to read old superblocks to do on-disk
+ * version upgrades.
  */
 
-/*  Address of SuperBlock in GFS2 basic blocks.  1st 64K of filesystem is empty
-    for safety against getting clobbered by wayward volume managers, etc.
-    64k was chosen because it's the largest GFS2-supported fs block size.  */
-#define GFS2_SB_ADDR             (128)
+/* Address of superblock in GFS2 basic blocks */
+#define GFS2_SB_ADDR		128
 
-/*  The lock number for the superblock (must be zero)  */
-#define GFS2_SB_LOCK             (0)
+/* The lock number for the superblock (must be zero) */
+#define GFS2_SB_LOCK		0
 
-/*  Requirement:  GFS2_LOCKNAME_LEN % 8 == 0
-    Includes: the fencing zero at the end  */
-#define GFS2_LOCKNAME_LEN        (64)
+/* Requirement:  GFS2_LOCKNAME_LEN % 8 == 0
+   Includes: the fencing zero at the end */
+#define GFS2_LOCKNAME_LEN	64
 
 struct gfs2_sb {
-	/*  Order is important; need to be able to read old superblocks
-	    in order to support on-disk version upgrades */
 	struct gfs2_meta_header sb_header;
 
-	uint32_t sb_fs_format;         /* GFS2_FORMAT_FS (on-disk version) */
-	uint32_t sb_multihost_format;  /* GFS2_FORMAT_MULTI */
+	uint32_t sb_fs_format;
+	uint32_t sb_multihost_format;
 
-	uint32_t sb_bsize;             /* fundamental FS block size in bytes */
-	uint32_t sb_bsize_shift;       /* log2(sb_bsize) */
+	uint32_t sb_bsize;
+	uint32_t sb_bsize_shift;
 
-	struct gfs2_inum sb_master_dir; /* master directory inode */
+	struct gfs2_inum sb_master_dir;
 
-	/* Default inter-node locking protocol (lock module) and namespace */
-	char sb_lockproto[GFS2_LOCKNAME_LEN]; /* lock protocol name */
-	char sb_locktable[GFS2_LOCKNAME_LEN]; /* unique name for this FS */
+	char sb_lockproto[GFS2_LOCKNAME_LEN];
+	char sb_locktable[GFS2_LOCKNAME_LEN];
 };
 
 /*
- *  resource index structure 
- *
- *  One of these for each resource group in the filesystem.
- *  These descriptors are packed contiguously within the rindex inode (file).
- *  Also see struct gfs2_rgrp.
+ * resource index structure
  */
 
 struct gfs2_rindex {
-	uint64_t ri_addr;     /* block # of 1st block (header) in rgrp */
-	uint32_t ri_length;   /* # fs blocks containing rgrp header & bitmap */
+	uint64_t ri_addr;	/* grp block disk address */
+	uint32_t ri_length;	/* length of rgrp header in fs blocks */
 	uint32_t ri_pad;
 
-	uint64_t ri_data0;    /* block # of first data/meta block in rgrp */
-	uint32_t ri_data;     /* number (qty) of data/meta blocks in rgrp */
+	uint64_t ri_data0;	/* first data location */
+	uint32_t ri_data;	/* num of data blocks in rgrp */
 
-	uint32_t ri_bitbytes; /* total # bytes used by block alloc bitmap */
+	uint32_t ri_bitbytes;	/* number of bytes in data bitmaps */
 
 	char ri_reserved[32];
 };
 
 /*
- *  resource group header structure
- *
- *  One of these at beginning of the first block of an rgrp,
- *     followed by block alloc bitmap data in remainder of first block.
- *  Each resource group contains:
- *    Header block, including block allocation statistics (struct gfs2_rgrp)
- *       and first part of block alloc bitmap.
- *    Bitmap block(s), continuing block alloc bitmap started in header block.
- *    Data/meta blocks, allocatable blocks containing file data and metadata.
+ * resource group header structure
  */
 
-/* Each data block within rgrp is represented by 2 bits in the alloc bitmap */
-#define GFS2_NBBY                (4)  /* # blocks represented by 1 bitmap byte */
-#define GFS2_BIT_SIZE            (2)
-#define GFS2_BIT_MASK            (0x00000003)
+/* Number of blocks per byte in rgrp */
+#define GFS2_NBBY		4
+#define GFS2_BIT_SIZE		2
+#define GFS2_BIT_MASK		0x00000003
 
-/*
- * 4 possible block allocation states:
- *   bit 0 = alloc(1)/free(0)
- *   bit 1 = dinode(1)/not-dinode(0)
- */
-#define GFS2_BLKST_FREE          (0)
-#define GFS2_BLKST_USED          (1)
-#define GFS2_BLKST_INVALID       (2)
-#define GFS2_BLKST_DINODE        (3)
+#define GFS2_BLKST_FREE		0
+#define GFS2_BLKST_USED		1
+#define GFS2_BLKST_INVALID	2
+#define GFS2_BLKST_DINODE	3
 
-#define GFS2_RGF_JOURNAL      (0x00000001)
-#define GFS2_RGF_METAONLY     (0x00000002)
-#define GFS2_RGF_DATAONLY     (0x00000004)
-#define GFS2_RGF_NOALLOC      (0x00000008)
+#define GFS2_RGF_JOURNAL	0x00000001
+#define GFS2_RGF_METAONLY	0x00000002
+#define GFS2_RGF_DATAONLY	0x00000004
+#define GFS2_RGF_NOALLOC	0x00000008
 
 struct gfs2_rgrp {
 	struct gfs2_meta_header rg_header;
 
-	uint32_t rg_flags;      /* GFS2_RGF_... */
-	uint32_t rg_free;       /* Number (qty) of free data blocks */
-	uint32_t rg_dinodes;    /* Number (qty) of dinodes */
+	uint32_t rg_flags;
+	uint32_t rg_free;
+	uint32_t rg_dinodes;
 
 	char rg_reserved[36];
 };
 
 /*
- *  quota structure
+ * quota structure
  */
 
 struct gfs2_quota {
@@ -312,68 +182,56 @@ struct gfs2_quota {
 };
 
 /*
- *  dinode (disk inode) structure
- *  The ondisk representation of inodes
- *  One for each file, directory, etc.
- *  GFS2 does not put more than one inode in a single block.
- *  The inode may be "stuffed", carrying file data along with metadata,
- *    if the file data is small enough.
- *  Otherwise, the inode block contains pointers to other blocks that contain
- *    either file data or other pointers to other blocks (indirect addressing
- *    via a metadata tree).
+ * dinode structure
  */
 
-#define GFS2_MAX_META_HEIGHT     (10)
-#define GFS2_DIR_MAX_DEPTH       (17)
+#define GFS2_MAX_META_HEIGHT	10
+#define GFS2_DIR_MAX_DEPTH	17
 
 #define DT2IF(dt) (((dt) << 12) & S_IFMT)
 #define IF2DT(sif) (((sif) & S_IFMT) >> 12)
 
-/*  Dinode flags  */
-#define GFS2_DIF_SYSTEM            (0x00000001) /* A system/hidden inode */
-#define GFS2_DIF_JDATA             (0x00000002) /* jrnl all data for this file */
-#define GFS2_DIF_EXHASH            (0x00000004) /* hashed directory (leaves) */
-#define GFS2_DIF_EA_INDIRECT       (0x00000008) /* extended attribute, indirect*/
-#define GFS2_DIF_DIRECTIO          (0x00000010)
-#define GFS2_DIF_IMMUTABLE         (0x00000020) /* Can't change file */
-#define GFS2_DIF_APPENDONLY        (0x00000040) /* Can only add to end of file */
-#define GFS2_DIF_NOATIME           (0x00000080) /* Don't update access time
-						   (currently unused/ignored) */
-#define GFS2_DIF_SYNC              (0x00000100) /* Flush to disk, don't cache
-						   (currently unused/ignored) */
-#define GFS2_DIF_INHERIT_DIRECTIO  (0x00000200) /* new files get DIRECTIO flag */
-#define GFS2_DIF_INHERIT_JDATA     (0x00000400) /* new files get JDATA flag */
-#define GFS2_DIF_TRUNC_IN_PROG     (0x00000800)
+/* Dinode flags */
+#define GFS2_DIF_SYSTEM			0x00000001
+#define GFS2_DIF_JDATA			0x00000002
+#define GFS2_DIF_EXHASH			0x00000004
+#define GFS2_DIF_EA_INDIRECT		0x00000008
+#define GFS2_DIF_DIRECTIO		0x00000010
+#define GFS2_DIF_IMMUTABLE		0x00000020
+#define GFS2_DIF_APPENDONLY		0x00000040
+#define GFS2_DIF_NOATIME		0x00000080
+#define GFS2_DIF_SYNC			0x00000100
+#define GFS2_DIF_INHERIT_DIRECTIO	0x00000200
+#define GFS2_DIF_INHERIT_JDATA		0x00000400
+#define GFS2_DIF_TRUNC_IN_PROG		0x00000800
 
 struct gfs2_dinode {
 	struct gfs2_meta_header di_header;
 
-	struct gfs2_inum di_num; /* formal inode # and block address */
+	struct gfs2_inum di_num;
 
 	uint32_t di_mode;	/* mode of file */
 	uint32_t di_uid;	/* owner's user id */
 	uint32_t di_gid;	/* owner's group id */
-	uint32_t di_nlink;	/* number (qty) of links to this file */
-	uint64_t di_size;	/* number (qty) of bytes in file */
-	uint64_t di_blocks;	/* number (qty) of blocks in file */
+	uint32_t di_nlink;	/* number of links to this file */
+	uint64_t di_size;	/* number of bytes in file */
+	uint64_t di_blocks;	/* number of blocks in file */
 	int64_t di_atime;	/* time last accessed */
 	int64_t di_mtime;	/* time last modified */
 	int64_t di_ctime;	/* time last changed */
-	/* Non-zero only for character or block device nodes  */
 	uint32_t di_major;	/* device major number */
 	uint32_t di_minor;	/* device minor number */
 
-	/*  Block allocation strategy  */
 	uint64_t di_goal_meta;	/* rgrp to alloc from next */
 	uint64_t di_goal_data;	/* data block goal */
 
 	uint32_t di_flags;	/* GFS2_DIF_... */
 	uint32_t di_payload_format;  /* GFS2_FORMAT_... */
-	uint16_t di_height;	/* height of metadata (0 == stuffed) */
+	uint16_t di_height;	/* height of metadata */
 
 	/* These only apply to directories  */
 	uint16_t di_depth;	/* Number of bits in the table */
-	uint32_t di_entries;	/* The # (qty) of entries in the directory */
+	uint32_t di_entries;	/* The number of entries in the directory */
 
 	uint64_t di_eattr;	/* extended attribute block number */
 
@@ -381,73 +239,68 @@ struct gfs2_dinode {
 };
 
 /*
- *  directory structure - many of these per directory file
- *
- * See comments at beginning of dir.c
+ * directory structure - many of these per directory file
  */
 
-#define GFS2_FNAMESIZE               (255)
+#define GFS2_FNAMESIZE		255
 #define GFS2_DIRENT_SIZE(name_len) ((sizeof(struct gfs2_dirent) + (name_len) + 7) & ~7)
 
 struct gfs2_dirent {
-	struct gfs2_inum de_inum;    /* formal inode number and block address */
-	uint32_t de_hash;           /* hash of the filename */
-	uint32_t de_rec_len;        /* the length of the dirent */
-	uint8_t de_name_len;       /* the length of the name */
-	uint8_t de_type;           /* DT_... type of dinode this points to */
+	struct gfs2_inum de_inum;
+	uint32_t de_hash;
+	uint32_t de_rec_len;
+	uint8_t de_name_len;
+	uint8_t de_type;
 	uint16_t de_pad1;
 	uint32_t de_pad2;
 };
 
 /*
- *  Header of leaf directory nodes
- *
- * See comments at beginning of dir.c
+ * Header of leaf directory nodes
  */
 
 struct gfs2_leaf {
 	struct gfs2_meta_header lf_header;
 
-	uint16_t lf_depth;          /* Depth of leaf */
-	uint16_t lf_entries;        /* Number of dirents in leaf */
-	uint32_t lf_dirent_format;  /* GFS2_FORMAT_DE (version #) */
-	uint64_t lf_next;           /* Next leaf, if overflow */
+	uint16_t lf_depth;		/* Depth of leaf */
+	uint16_t lf_entries;		/* Number of dirents in leaf */
+	uint32_t lf_dirent_format;	/* Format of the dirents */
+	uint64_t lf_next;		/* Next leaf, if overflow */
 
 	char lf_reserved[32];
 };
 
 /*
- *  Extended attribute header format
+ * Extended attribute header format
  */
 
-#define GFS2_EA_MAX_NAME_LEN     (255)
-#define GFS2_EA_MAX_DATA_LEN     (65536)
+#define GFS2_EA_MAX_NAME_LEN	255
+#define GFS2_EA_MAX_DATA_LEN	65536
 
-#define GFS2_EATYPE_UNUSED       (0)
-#define GFS2_EATYPE_USR          (1)     /* user attribute */
-#define GFS2_EATYPE_SYS          (2)     /* system attribute */
+#define GFS2_EATYPE_UNUSED	0
+#define GFS2_EATYPE_USR		1
+#define GFS2_EATYPE_SYS		2
 
-#define GFS2_EATYPE_LAST         (2)
-#define GFS2_EATYPE_VALID(x)     ((x) <= GFS2_EATYPE_LAST)
+#define GFS2_EATYPE_LAST	2
+#define GFS2_EATYPE_VALID(x)	((x) <= GFS2_EATYPE_LAST)
 
-#define GFS2_EAFLAG_LAST         (0x01)	/* last ea in block */
+#define GFS2_EAFLAG_LAST	0x01	/* last ea in block */
 
 struct gfs2_ea_header {
-	uint32_t ea_rec_len;    /* total record length: hdr + name + data */
-	uint32_t ea_data_len;   /* data length, in bytes */
-	uint8_t ea_name_len;    /* no NULL pointer after the string */
-	uint8_t ea_type;        /* GFS2_EATYPE_... */
-	uint8_t ea_flags;       /* GFS2_EAFLAG_... */
-	uint8_t ea_num_ptrs;    /* # fs blocks needed for EA */
+	uint32_t ea_rec_len;
+	uint32_t ea_data_len;
+	uint8_t ea_name_len;	/* no NULL pointer after the string */
+	uint8_t ea_type;	/* GFS2_EATYPE_... */
+	uint8_t ea_flags;	/* GFS2_EAFLAG_... */
+	uint8_t ea_num_ptrs;
 	uint32_t ea_pad;
 };
 
 /*
- *  Log header structure
- *
+ * Log header structure
  */
 
-#define GFS2_LOG_HEAD_UNMOUNT    (0x00000001)  /* log is clean */
+#define GFS2_LOG_HEAD_UNMOUNT	0x00000001	/* log is clean */
 
 struct gfs2_log_header {
 	struct gfs2_meta_header lh_header;
@@ -460,23 +313,21 @@ struct gfs2_log_header {
 };
 
 /*
- *  Log type descriptor
- *
- *  One of these for each chunk in a transaction
+ * Log type descriptor
  */
 
-#define GFS2_LOG_DESC_METADATA   (300)
-/* ld_data1 is the number (quantity) of metadata blocks in the descriptor.
+#define GFS2_LOG_DESC_METADATA	300
+/* ld_data1 is the number of metadata blocks in the descriptor.
    ld_data2 is unused. */
 
-#define GFS2_LOG_DESC_REVOKE     (301)
-/* ld_data1 is the number (quantity) of revoke blocks in the descriptor.
+#define GFS2_LOG_DESC_REVOKE	301
+/* ld_data1 is the number of revoke blocks in the descriptor.
    ld_data2 is unused. */
 
 struct gfs2_log_descriptor {
 	struct gfs2_meta_header ld_header;
 
-	uint32_t ld_type;	/* GFS2_LOG_DESC_... Type of this log chunk */
+	uint32_t ld_type;	/* GFS2_LOG_DESC_... */
 	uint32_t ld_length;	/* Number of buffers in this chunk */
 	uint32_t ld_data1;	/* descriptor-specific field */
 	uint32_t ld_data2;	/* descriptor-specific field */
@@ -490,7 +341,7 @@ struct gfs2_log_descriptor {
  * one machine to assign to inodes.
  */
 
-#define GFS2_INUM_QUANTUM (1048576)
+#define GFS2_INUM_QUANTUM	1048576
 
 struct gfs2_inum_range {
 	uint64_t ir_start;
@@ -515,11 +366,11 @@ struct gfs2_statfs_change {
  * the directory tree and might need to be deallocated.
  */
 
-#define GFS2_UTF_UNINIT (0x00000001)
+#define GFS2_UTF_UNINIT		0x00000001
 
 struct gfs2_unlinked_tag {
 	struct gfs2_inum ut_inum;
-	uint32_t ut_flags;     /* GFS2_UTF_... */
+	uint32_t ut_flags;	/* GFS2_UTF_... */
 	uint32_t ut_pad;
 };
 
@@ -529,15 +380,15 @@ struct gfs2_unlinked_tag {
  * user or group.
  */
 
-#define GFS2_QCF_USER            (0x00000001)
+#define GFS2_QCF_USER		0x00000001
 
 struct gfs2_quota_change {
 	int64_t qc_change;
-	uint32_t qc_flags;      /* GFS2_QCF_... */
+	uint32_t qc_flags;	/* GFS2_QCF_... */
 	uint32_t qc_id;
 };
 
-/*  Endian functions  */
+/* Endian functions */
 
 #undef GFS2_ENDIAN_BIG
 
@@ -1399,7 +1250,7 @@ gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
 }
 
 /**
- * gfs2_ea_header_printt - Print out a Extended Attribute header
+ * gfs2_ea_header_print - Print out a Extended Attribute header
  * @ea: the cpu-order buffer
  *
  */
@@ -1562,6 +1413,13 @@ gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 	RET(G2FN_LOG_DESCRIPTOR_PRINT);
 }
 
+/**
+ * gfs2_inum_range_in - Read in an inum range
+ * @ir: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
 void
 gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
 {
@@ -1574,6 +1432,13 @@ gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
 	RET(G2FN_INUM_RANGE_IN);
 }
 
+/**
+ * gfs2_inum_range_out - Write out an inum range
+ * @ir: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
 void
 gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 {
@@ -1585,6 +1450,12 @@ gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 
 	RET(G2FN_INUM_RANGE_OUT);
 }
+
+/**
+ * gfs2_inum_range_print - Print out an inum range
+ * @ir: the cpu-order structure
+ *
+ */
 
 void
 gfs2_inum_range_print(struct gfs2_inum_range *ir)
@@ -1655,6 +1526,13 @@ gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 	RET(G2FN_STATFS_CHANGE_PRINT);
 }
 
+/**
+ * gfs2_unlinked_tag_in - Read in an unlinked tag
+ * @ut: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
 void
 gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 {
@@ -1668,6 +1546,13 @@ gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 	RET(G2FN_UNLINKED_TAG_IN);
 }
 
+/**
+ * gfs2_unlinked_tag_out - Write out an unlinked tag
+ * @ut: the cpu-order structure
+ * @buf: the disk-order buffer
+ *
+ */
+
 void
 gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 {
@@ -1680,6 +1565,12 @@ gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 
 	RET(G2FN_UNLINKED_TAG_OUT);
 }
+
+/**
+ * gfs2_unlinked_tag_print - Print out an unlinked tag
+ * @ut: the cpu-order structure
+ *
+ */
 
 void
 gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)

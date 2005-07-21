@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -26,21 +26,21 @@
 #include "debug.h"
 
 #ifndef TRUE
-#define TRUE (1)
+#define TRUE 1
 #endif
 
 #ifndef FALSE
-#define FALSE (0)
+#define FALSE 0
 #endif
 
-#define NO_CREATE (0)
-#define CREATE (1)
+#define NO_CREATE 0
+#define CREATE 1
 
-#define NO_WAIT (0)
-#define WAIT (1)
+#define NO_WAIT 0
+#define WAIT 1
 
-#define NO_FORCE (0)
-#define FORCE (1)
+#define NO_FORCE 0
+#define FORCE 1
 
 #if (BITS_PER_LONG == 64)
 #define PRIu64 "lu"
