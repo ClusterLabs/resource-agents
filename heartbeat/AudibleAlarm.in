@@ -34,7 +34,7 @@ usage() {
 	echo "Usage: $0 {start|stop|restart|status|monitor|meta-data|validate-all}"
 	echo "  The node list is an optional space delimited"
 	echo "  list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.4 2005/07/19 07:39:16 sunjd Exp $";
+	echo "$Id: AudibleAlarm.in,v 1.5 2005/07/21 07:50:08 sunjd Exp $";
 }
 
 meta_data() {
@@ -80,7 +80,8 @@ audiblealarm_start () {
 		ocf_log info "$0: Appears to already be running, killing [$PID]"
 		kill $PID > /dev/null
 	fi
-	while [ 1 ]; do 
+	# Use () to create a subshell to make the redirection be synchronized.
+	( while [ 1 ]; do 
 		sleep 1  #Sleep first, incase we bail out
 		echo -ne "\a" > /dev/console 
 		# Uncomment this line to cause floppy drive light
@@ -88,7 +89,7 @@ audiblealarm_start () {
 		# /usr/bin/floppycontrol --pollstate > /dev/null
 		#
 		# To avoid issues when called by lrmd, redirect stdout->stderr.
-	done >&2 &
+	done & ) >&2
 	if ! echo $! >  $PIDFILE; then
 		ocf_log info "$0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
