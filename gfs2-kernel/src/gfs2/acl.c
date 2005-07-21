@@ -31,8 +31,8 @@
 #include "meta_io.h"
 #include "trans.h"
 
-#define ACL_ACCESS (1)
-#define ACL_DEFAULT (0)
+#define ACL_ACCESS 1
+#define ACL_DEFAULT 0
 
 /**
  * gfs2_acl_validate_set -

@@ -14,8 +14,6 @@
 #ifndef __GFS2_DOT_H__
 #define __GFS2_DOT_H__
 
-#define GFS2_RELEASE_NAME "<CVS>"
-
 #include <linux/lm_interface.h>
 #include <linux/gfs2_ondisk.h>
 
@@ -70,7 +68,7 @@
 #define DIV_RU(num, den) (((num) + (den) - 1) / (den))
 #define MAKE_MULT8(x) (((x) + 7) & ~7)
 
-#define GFS2_FAST_NAME_SIZE (8)
+#define GFS2_FAST_NAME_SIZE 8
 
 #define get_v2sdp(sb) ((struct gfs2_sbd *)(sb)->s_fs_info)
 #define set_v2sdp(sb, sdp) (sb)->s_fs_info = (sdp)

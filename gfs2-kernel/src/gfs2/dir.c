@@ -75,8 +75,8 @@
 #include "rgrp.h"
 #include "trans.h"
 
-#define IS_LEAF     (1) /* Hashed (leaf) directory */
-#define IS_DINODE   (2) /* Linear (stuffed dinode block) directory */
+#define IS_LEAF     1 /* Hashed (leaf) directory */
+#define IS_DINODE   2 /* Linear (stuffed dinode block) directory */
 
 #if 1
 #define gfs2_disk_hash2offset(h) (((uint64_t)(h)) >> 1)

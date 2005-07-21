@@ -81,8 +81,7 @@ int __init init_gfs2_fs(void)
 	if (error)
 		goto fail_diaper;
 
-	printk("GFS2 %s (built %s %s) installed\n",
-	       GFS2_RELEASE_NAME, __DATE__, __TIME__);
+	printk("GFS2 (built %s %s) installed\n", __DATE__, __TIME__);
 
 	return 0;
 
@@ -130,7 +129,7 @@ void __exit exit_gfs2_fs(void)
 	gfs2_trace_uninit();
 }
 
-MODULE_DESCRIPTION("Global File System " GFS2_RELEASE_NAME);
+MODULE_DESCRIPTION("Global File System");
 MODULE_AUTHOR("Red Hat, Inc.");
 MODULE_LICENSE("GPL");
 

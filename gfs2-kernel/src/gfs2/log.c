@@ -46,7 +46,7 @@
 #include "lops.h"
 #include "meta_io.h"
 
-#define PULL (1)
+#define PULL 1
 
 static void do_lock_wait(struct gfs2_sbd *sdp, wait_queue_head_t *wq,
 			 atomic_t *a)

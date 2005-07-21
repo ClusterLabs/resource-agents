@@ -179,7 +179,7 @@ void gfs2_memory_uninit(void)
 
 #elif defined(GFS2_MEMORY_BRUTE)
 
-#define GFS2_MEMORY_HASH_SHIFT       (13)
+#define GFS2_MEMORY_HASH_SHIFT       13
 #define GFS2_MEMORY_HASH_SIZE        (1 << GFS2_MEMORY_HASH_SHIFT)
 #define GFS2_MEMORY_HASH_MASK        (GFS2_MEMORY_HASH_SIZE - 1)
 
