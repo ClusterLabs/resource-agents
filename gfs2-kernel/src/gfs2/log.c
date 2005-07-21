@@ -523,8 +523,8 @@ log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 	memset(&lh, 0, sizeof(struct gfs2_log_header));
 	lh.lh_header.mh_magic = GFS2_MAGIC;
 	lh.lh_header.mh_type = GFS2_METATYPE_LH;
-	lh.lh_header.mh_blkno = blkno;
 	lh.lh_header.mh_format = GFS2_FORMAT_LH;
+	lh.lh_header.mh_blkno = blkno;
 	lh.lh_sequence = sdp->sd_log_sequence++;
 	lh.lh_flags = flags;
 	lh.lh_tail = tail;

@@ -194,22 +194,11 @@ struct gfs2_inum {
 #define GFS2_METATYPE_UT         (13)   /* Unlinked inode block */
 #define GFS2_METATYPE_QC         (14)   /* Quota Change inode block */
 
-/*
-*********************************************************************************************
-*********************************************************************************************
-*********************************************************************************************
-make mh_type and mh_format into uint16_t
-*********************************************************************************************
-*********************************************************************************************
-*********************************************************************************************
-*/
-
 struct gfs2_meta_header {
 	uint32_t mh_magic;      /* GFS2_MAGIC sanity check magic number */
-	uint32_t mh_type;       /* GFS2_METATYPE_XX type of metadata block */
+	uint16_t mh_type;       /* GFS2_METATYPE_XX type of metadata block */
+	uint16_t mh_format;     /* GFS2_FORMAT_XX (version # for this type) */
 	uint64_t mh_blkno;
-	uint32_t mh_format;     /* GFS2_FORMAT_XX (version # for this type) */
-	uint32_t mh_pad;
 };
 
 /*
@@ -400,23 +389,14 @@ struct gfs2_dinode {
 #define GFS2_FNAMESIZE               (255)
 #define GFS2_DIRENT_SIZE(name_len) ((sizeof(struct gfs2_dirent) + (name_len) + 7) & ~7)
 
-/*
-*********************************************************************************************
-*********************************************************************************************
-*********************************************************************************************
-make de_name_len and de_type into uint8_t
-*********************************************************************************************
-*********************************************************************************************
-*********************************************************************************************
-*/
-
 struct gfs2_dirent {
 	struct gfs2_inum de_inum;    /* formal inode number and block address */
 	uint32_t de_hash;           /* hash of the filename */
 	uint32_t de_rec_len;        /* the length of the dirent */
-	uint16_t de_name_len;       /* the length of the name */
-	uint16_t de_type;           /* DT_... type of dinode this points to */
-	uint32_t de_pad;
+	uint8_t de_name_len;       /* the length of the name */
+	uint8_t de_type;           /* DT_... type of dinode this points to */
+	uint16_t de_pad1;
+	uint32_t de_pad2;
 };
 
 /*
@@ -753,10 +733,9 @@ gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
 
 	CPIN_32(mh, str, mh_magic);
-	CPIN_32(mh, str, mh_type);
+	CPIN_16(mh, str, mh_type);
+	CPIN_16(mh, str, mh_format);
 	CPIN_64(mh, str, mh_blkno);
-	CPIN_32(mh, str, mh_format);
-	CPIN_32(mh, str, mh_pad);
 
 	RET(G2FN_META_HEADER_IN);
 }
@@ -777,10 +756,9 @@ gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
 
 	CPOUT_32(mh, str, mh_magic);
-	CPOUT_32(mh, str, mh_type);
+	CPOUT_16(mh, str, mh_type);
+	CPOUT_16(mh, str, mh_format);
 	CPOUT_64(mh, str, mh_blkno);
-	CPOUT_32(mh, str, mh_format);
-	CPOUT_32(mh, str, mh_pad);
 
 	RET(G2FN_META_HEADER_OUT);
 }
@@ -798,9 +776,8 @@ gfs2_meta_header_print(struct gfs2_meta_header *mh)
 
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
-	pv(mh, mh_blkno, "%"PRIu64);
 	pv(mh, mh_format, "%u");
-	pv(mh, mh_pad, "%u");
+	pv(mh, mh_blkno, "%"PRIu64);
 
 	RET(G2FN_META_HEADER_PRINT);
 }
@@ -1243,9 +1220,10 @@ gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 	gfs2_inum_in(&de->de_inum, buf);
 	CPIN_32(de, str, de_hash);
 	CPIN_32(de, str, de_rec_len);
-	CPIN_16(de, str, de_name_len);
-	CPIN_16(de, str, de_type);
-	CPIN_32(de, str, de_pad);
+	de->de_name_len = str->de_name_len;
+	de->de_type = str->de_type;
+	CPIN_16(de, str, de_pad1);
+	CPIN_32(de, str, de_pad2);
 
 	RET(G2FN_DIRENT_IN);
 }
@@ -1266,9 +1244,10 @@ gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 	gfs2_inum_out(&de->de_inum, buf);
 	CPOUT_32(de, str, de_hash);
 	CPOUT_32(de, str, de_rec_len);
-	CPOUT_16(de, str, de_name_len);
-	CPOUT_16(de, str, de_type);
-	CPOUT_32(de, str, de_pad);
+	str->de_name_len = de->de_name_len;
+	str->de_type = de->de_type;
+	CPOUT_16(de, str, de_pad1);
+	CPOUT_32(de, str, de_pad2);
 
 	RET(G2FN_DIRENT_OUT);
 }
@@ -1291,7 +1270,8 @@ gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 	pv(de, de_rec_len, "%u");
 	pv(de, de_name_len, "%u");
 	pv(de, de_type, "%u");
-	pv(de, de_pad, "%u");
+	pv(de, de_pad1, "%u");
+	pv(de, de_pad2, "%u");
 
 	memset(buf, 0, GFS2_FNAMESIZE + 1);
 	memcpy(buf, name, de->de_name_len);

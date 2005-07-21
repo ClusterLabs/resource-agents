@@ -181,7 +181,6 @@ unstuff_dinode(struct gfs2_inode *ip)
 				mh.mh_type = GFS2_METATYPE_JD;
 				mh.mh_blkno = block;
 				mh.mh_format = GFS2_FORMAT_JD;
-				mh.mh_pad = 0;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
 
@@ -262,7 +261,6 @@ build_height(struct gfs2_inode *ip, int height)
 				mh.mh_type = GFS2_METATYPE_IN;
 				mh.mh_blkno = block;
 				mh.mh_format = GFS2_FORMAT_IN;
-				mh.mh_pad = 0;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
 			buffer_copy_tail(bh, sizeof(struct gfs2_meta_header),
@@ -396,7 +394,6 @@ block_map(struct gfs2_inode *ip,
 			mh.mh_type = GFS2_METATYPE_IN;
 			mh.mh_blkno = *dblock;
 			mh.mh_format = GFS2_FORMAT_IN;
-			mh.mh_pad = 0;
 			gfs2_meta_header_out(&mh, bh->b_data);
 		} else
 			bh = bread(sdp, *dblock);
@@ -575,7 +572,6 @@ writei(struct gfs2_inode *ip, void *buf,
 				mh.mh_type = GFS2_METATYPE_JD;
 				mh.mh_blkno = dblock;
 				mh.mh_format = GFS2_FORMAT_JD;
-				mh.mh_pad = 0;
 				gfs2_meta_header_out(&mh, bh->b_data);
 			}
 		} else
@@ -681,7 +677,7 @@ dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 	if (!entries) {
 		dent->de_rec_len = bh->b_size - offset;
 		dent->de_rec_len = cpu_to_gfs2_32(dent->de_rec_len);
-		dent->de_name_len = cpu_to_gfs2_16(name_len);
+		dent->de_name_len = name_len;
 
 		*dent_out = dent;
 		return 0;
@@ -691,7 +687,7 @@ dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 		uint32_t cur_rec_len, cur_name_len;
 
 		cur_rec_len = gfs2_32_to_cpu(dent->de_rec_len);
-		cur_name_len = gfs2_16_to_cpu(dent->de_name_len);
+		cur_name_len = dent->de_name_len;
 
 		if ((!dent->de_inum.no_formal_ino && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS2_DIRENT_SIZE(cur_name_len) + rec_len)) {
@@ -703,7 +699,7 @@ dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 
 				new->de_rec_len = cur_rec_len - GFS2_DIRENT_SIZE(cur_name_len);
 				new->de_rec_len = cpu_to_gfs2_32(new->de_rec_len);
-				new->de_name_len = cpu_to_gfs2_16(name_len);
+				new->de_name_len = name_len;
 
 				dent->de_rec_len = cur_rec_len - gfs2_32_to_cpu(new->de_rec_len);
 				dent->de_rec_len = cpu_to_gfs2_32(dent->de_rec_len);
@@ -712,7 +708,7 @@ dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 				return 0;
 			}
 
-			dent->de_name_len = cpu_to_gfs2_16(name_len);
+			dent->de_name_len = name_len;
 
 			*dent_out = dent;
 			return 0;
@@ -775,7 +771,6 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 		mh.mh_type = GFS2_METATYPE_LF;
 		mh.mh_blkno = bn;
 		mh.mh_format = GFS2_FORMAT_LF;
-		mh.mh_pad = 0;
 		gfs2_meta_header_out(&mh, nbh->b_data);
 	}
 
@@ -818,7 +813,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 
 		if (dent->de_inum.no_formal_ino &&
 		    gfs2_32_to_cpu(dent->de_hash) < divider) {
-			name_len = gfs2_16_to_cpu(dent->de_name_len);
+			name_len = dent->de_name_len;
 
 			dirent_alloc(dip, nbh, name_len, &new);
 
@@ -948,7 +943,6 @@ dir_e_add(struct gfs2_inode *dip,
 					mh.mh_type = GFS2_METATYPE_LF;
 					mh.mh_blkno = bn;
 					mh.mh_format = GFS2_FORMAT_LF;
-					mh.mh_pad = 0;
 					gfs2_meta_header_out(&mh, nbh->b_data);
 				}
 
@@ -971,7 +965,7 @@ dir_e_add(struct gfs2_inode *dip,
 
 		gfs2_inum_out(inum, (char *)&dent->de_inum);
 		dent->de_hash = cpu_to_gfs2_32(hash);
-		dent->de_type = cpu_to_gfs2_16(type);
+		dent->de_type = type;
 		memcpy((char *)(dent + 1), filename, strlen(filename));
 
 		leaf->lf_entries = gfs2_16_to_cpu(leaf->lf_entries) + 1;
@@ -1004,7 +998,6 @@ dir_make_exhash(struct gfs2_inode *dip)
 		mh.mh_type = GFS2_METATYPE_LF;
 		mh.mh_blkno = bn;
 		mh.mh_format = GFS2_FORMAT_LF;
-		mh.mh_pad = 0;
 		gfs2_meta_header_out(&mh, bh->b_data);
 	}
 
@@ -1063,7 +1056,7 @@ dir_l_add(struct gfs2_inode *dip,
 	gfs2_inum_out(inum, (char *)&dent->de_inum);
 	dent->de_hash = gfs2_disk_hash(filename, strlen(filename));
 	dent->de_hash = cpu_to_gfs2_32(dent->de_hash);
-	dent->de_type = cpu_to_gfs2_16(type);
+	dent->de_type = type;
 	memcpy((char *)(dent + 1), filename, strlen(filename));
 
 	dip->i_di.di_entries++;

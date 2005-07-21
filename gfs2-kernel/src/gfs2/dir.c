@@ -130,7 +130,7 @@ dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
 	ENTER(G2FN_DIRENT_FIRST)
 	struct gfs2_meta_header *h = (struct gfs2_meta_header *)bh->b_data;
 
-	if (gfs2_32_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
+	if (gfs2_16_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
 		if (gfs2_meta_check(dip->i_sbd, bh))
 			RETURN(G2FN_DIRENT_FIRST, -EIO);
 		*dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_leaf));
@@ -282,7 +282,7 @@ gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 
 		dent->de_rec_len = bh->b_size - offset;
 		dent->de_rec_len = cpu_to_gfs2_32(dent->de_rec_len);
-		dent->de_name_len = cpu_to_gfs2_16(name_len);
+		dent->de_name_len = name_len;
 
 		*dent_out = dent;
 		RETURN(G2FN_DIRENT_ALLOC, 0);
@@ -292,7 +292,7 @@ gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 		uint32_t cur_rec_len, cur_name_len;
 
 		cur_rec_len = gfs2_32_to_cpu(dent->de_rec_len);
-		cur_name_len = gfs2_16_to_cpu(dent->de_name_len);
+		cur_name_len = dent->de_name_len;
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS2_DIRENT_SIZE(cur_name_len) + rec_len)) {
@@ -305,7 +305,7 @@ gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 
 				new->de_rec_len = cur_rec_len - GFS2_DIRENT_SIZE(cur_name_len);
 				new->de_rec_len = cpu_to_gfs2_32(new->de_rec_len);
-				new->de_name_len = cpu_to_gfs2_16(name_len);
+				new->de_name_len = name_len;
 
 				dent->de_rec_len = cur_rec_len - gfs2_32_to_cpu(new->de_rec_len);
 				dent->de_rec_len = cpu_to_gfs2_32(dent->de_rec_len);
@@ -314,7 +314,7 @@ gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh, int name_len,
 				RETURN(G2FN_DIRENT_ALLOC, 0);
 			}
 
-			dent->de_name_len = cpu_to_gfs2_16(name_len);
+			dent->de_name_len = name_len;
 
 			*dent_out = dent;
 			RETURN(G2FN_DIRENT_ALLOC, 0);
@@ -361,7 +361,7 @@ dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh, int name_len)
 		uint32_t cur_rec_len, cur_name_len;
 
 		cur_rec_len = gfs2_32_to_cpu(dent->de_rec_len);
-		cur_name_len = gfs2_16_to_cpu(dent->de_name_len);
+		cur_name_len = dent->de_name_len;
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS2_DIRENT_SIZE(cur_name_len) + rec_len))
@@ -414,7 +414,7 @@ leaf_search(struct gfs2_inode *dip,
 
 		if (gfs2_32_to_cpu(dent->de_hash) == hash &&
 		    gfs2_filecmp(filename, (char *)(dent + 1),
-				gfs2_16_to_cpu(dent->de_name_len))) {
+				 dent->de_name_len)) {
 			*dent_out = dent;
 			if (dent_prev)
 				*dent_prev = prev;
@@ -796,7 +796,7 @@ dir_split_leaf(struct gfs2_inode *dip, uint32_t index, uint64_t leaf_no)
 
 		if (dent->de_inum.no_addr &&
 		    gfs2_32_to_cpu(dent->de_hash) < divider) {
-			name_len = gfs2_16_to_cpu(dent->de_name_len);
+			name_len = dent->de_name_len;
 
 			gfs2_dirent_alloc(dip, nbh, name_len, &new);
 
@@ -969,8 +969,8 @@ compare_dents(const void *a, const void *b)
 	else if (hash_a < hash_b)
 		ret = -1;
 	else {
-		unsigned int len_a = gfs2_16_to_cpu(dent_a->de_name_len);
-		unsigned int len_b = gfs2_16_to_cpu(dent_b->de_name_len);
+		unsigned int len_a = dent_a->de_name_len;
+		unsigned int len_b = dent_b->de_name_len;
 
 		if (len_a > len_b)
 			ret = 1;
@@ -1050,9 +1050,9 @@ do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 		gfs2_inum_in(&inum, (char *)&dent->de_inum);
 
 		error = filldir(opaque, (char *)(dent + 1),
-				gfs2_16_to_cpu(dent->de_name_len),
+				dent->de_name_len,
 				off, &inum,
-				gfs2_16_to_cpu(dent->de_type));
+				dent->de_type);
 		if (error)
 			RETURN(G2FN_DO_FILLDIR_MAIN, 1);
 
@@ -1298,7 +1298,7 @@ dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
 	if (inum)
 		gfs2_inum_in(inum, (char *)&dent->de_inum);
 	if (type)
-		*type = gfs2_16_to_cpu(dent->de_type);
+		*type = dent->de_type;
 
 	brelse(bh);
 
@@ -1417,7 +1417,7 @@ dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 		gfs2_inum_out(inum, (char *)&dent->de_inum);
 		dent->de_hash = cpu_to_gfs2_32(hash);
-		dent->de_type = cpu_to_gfs2_16(type);
+		dent->de_type = type;
 		memcpy((char *)(dent + 1), filename->name, filename->len);
 
 		leaf->lf_entries = gfs2_16_to_cpu(leaf->lf_entries) + 1;
@@ -1612,7 +1612,7 @@ dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 	gfs2_trans_add_bh(dip->i_gl, bh);
 
 	gfs2_inum_out(inum, (char *)&dent->de_inum);
-	dent->de_type = cpu_to_gfs2_16(new_type);
+	dent->de_type = new_type;
 
 	brelse(bh);
 
@@ -1662,7 +1662,7 @@ dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 		if (inum)
 			gfs2_inum_in(inum, (char *)&dent->de_inum);
 		if (type)
-			*type = gfs2_16_to_cpu(dent->de_type);
+			*type = dent->de_type;
 	}
 
 	brelse(dibh);
@@ -1713,7 +1713,7 @@ dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 	gfs2_inum_out(inum, (char *)&dent->de_inum);
 	dent->de_hash = gfs2_disk_hash(filename->name, filename->len);
 	dent->de_hash = cpu_to_gfs2_32(dent->de_hash);
-	dent->de_type = cpu_to_gfs2_16(type);
+	dent->de_type = type;
 	memcpy((char *)(dent + 1), filename->name, filename->len);
 
 	dip->i_di.di_entries++;
@@ -1859,7 +1859,7 @@ dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
 	gfs2_trans_add_bh(dip->i_gl, dibh);
 
 	gfs2_inum_out(inum, (char *)&dent->de_inum);
-	dent->de_type = cpu_to_gfs2_16(new_type);
+	dent->de_type = new_type;
 
 	dip->i_di.di_mtime = dip->i_di.di_ctime = get_seconds();
 

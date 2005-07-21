@@ -165,7 +165,6 @@ build_rgrps(struct gfs2_sbd *sdp)
 	mh.mh_magic = GFS2_MAGIC;
 	mh.mh_type = GFS2_METATYPE_RB;
 	mh.mh_format = GFS2_FORMAT_RB;
-	mh.mh_pad = 0;
 
 	for (head = &sdp->rglist, tmp = head->next;
 	     tmp != head;

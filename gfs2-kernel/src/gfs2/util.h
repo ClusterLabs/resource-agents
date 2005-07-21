@@ -186,25 +186,26 @@ gfs2_meta_check_i((sdp), (bh), \
  */
 
 int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-			   uint32_t type, uint32_t t,
+			   uint16_t type, uint16_t t,
 			   const char *function,
 			   char *file, unsigned int line);
 static __inline__ int
 gfs2_metatype_check_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      uint32_t type,
+		      uint16_t type,
 		      const char *function,
 		      char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
-        uint32_t magic = mh->mh_magic, t = mh->mh_type;
+	uint32_t magic = mh->mh_magic;
+	uint16_t t = mh->mh_type;
 	uint64_t blkno = mh->mh_blkno;
-        magic = gfs2_32_to_cpu(magic);
+	magic = gfs2_32_to_cpu(magic);
 	blkno = gfs2_64_to_cpu(blkno);
 	if (unlikely(magic != GFS2_MAGIC))
 		return gfs2_meta_check_ii(sdp, bh, "magic number", function, file, line);
 	if (unlikely(blkno != bh->b_blocknr))
 		return gfs2_meta_check_ii(sdp, bh, "block number", function, file, line);
-	t = gfs2_32_to_cpu(t);
+	t = gfs2_16_to_cpu(t);
         if (unlikely(t != type))
 		return gfs2_metatype_check_ii(sdp, bh, type, t, function, file, line);
 	return 0;
@@ -222,13 +223,12 @@ gfs2_metatype_check_i((sdp), (bh), (type), \
  */
 
 static __inline__ void
-gfs2_metatype_set(struct buffer_head *bh, uint32_t type, uint32_t format)
+gfs2_metatype_set(struct buffer_head *bh, uint16_t type, uint16_t format)
 {
 	struct gfs2_meta_header *mh;
 	mh = (struct gfs2_meta_header *)bh->b_data;
-	mh->mh_type = cpu_to_gfs2_32(type);
-	mh->mh_format = cpu_to_gfs2_32(format);
-	mh->mh_pad = 0;
+	mh->mh_type = cpu_to_gfs2_16(type);
+	mh->mh_format = cpu_to_gfs2_16(format);
 }
 
 /**

@@ -597,7 +597,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		dent->de_inum = di->di_num; /* already GFS2 endian */
 		dent->de_hash = gfs2_disk_hash(".", 1);
 		dent->de_hash = cpu_to_gfs2_32(dent->de_hash);
-		dent->de_type = cpu_to_gfs2_16(DT_DIR);
+		dent->de_type = DT_DIR;
 		memcpy((char *) (dent + 1), ".", 1);
 		di->di_entries = cpu_to_gfs2_32(1);
 
@@ -606,7 +606,7 @@ gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 		gfs2_inum_out(&dip->i_num, (char *) &dent->de_inum);
 		dent->de_hash = gfs2_disk_hash("..", 2);
 		dent->de_hash = cpu_to_gfs2_32(dent->de_hash);
-		dent->de_type = cpu_to_gfs2_16(DT_DIR);
+		dent->de_type = DT_DIR;
 		memcpy((char *) (dent + 1), "..", 2);
 
 		gfs2_dinode_out(&ip->i_di, (char *)di);

@@ -404,8 +404,8 @@ clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	memset(&lh, 0, sizeof(struct gfs2_log_header));
 	lh.lh_header.mh_magic = GFS2_MAGIC;
 	lh.lh_header.mh_type = GFS2_METATYPE_LH;
-	lh.lh_header.mh_blkno = dblock;
 	lh.lh_header.mh_format = GFS2_FORMAT_LH;
+	lh.lh_header.mh_blkno = dblock;
 	lh.lh_sequence = head->lh_sequence + 1;
 	lh.lh_flags = GFS2_LOG_HEAD_UNMOUNT;
 	lh.lh_blkno = lblock;

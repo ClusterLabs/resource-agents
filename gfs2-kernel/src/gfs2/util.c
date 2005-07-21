@@ -448,7 +448,7 @@ gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 
 int
 gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
-		      uint32_t type, uint32_t t,
+		      uint16_t type, uint16_t t,
 		      const char *function,
 		      char *file, unsigned int line)
 {
