@@ -14,7 +14,8 @@
 #ifndef __RESIZE_DOT_H__
 #define __RESIZE_DOT_H__
 
-int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf, unsigned int size);
+int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
+			  unsigned int size);
 int gfs2_rename2system(struct gfs2_inode *ip,
 		       struct gfs2_inode *old_dip, char *old_name,
 		       struct gfs2_inode *new_dip, char *new_name);

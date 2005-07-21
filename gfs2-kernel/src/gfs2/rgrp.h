@@ -50,23 +50,17 @@ void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen);
 void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno);
 void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip);
 
-/*
- * gfs2_rgrp_list
- *
- * Used to collect a list of all resource groups spanned by a given
- *   inode/file/directory
- */
 struct gfs2_rgrp_list {
-	unsigned int rl_rgrps;      /* # (qty) of rgrps in list (array) */
-	unsigned int rl_space;      /* Current capacity in list for rgrps */
-	struct gfs2_rgrpd **rl_rgd;  /* Array of ptrs to rgrp descriptors */
-	struct gfs2_holder *rl_ghs;  /* Array of glock holders for rgrps */
+	unsigned int rl_rgrps;
+	unsigned int rl_space;
+	struct gfs2_rgrpd **rl_rgd;
+	struct gfs2_holder *rl_ghs;
 };
 
 void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
-		   uint64_t block);
+		    uint64_t block);
 void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
-		     int flags);
+		      int flags);
 void gfs2_rlist_free(struct gfs2_rgrp_list *rlist);
 
 #endif /* __RGRP_DOT_H__ */

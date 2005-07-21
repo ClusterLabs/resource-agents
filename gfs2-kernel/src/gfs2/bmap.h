@@ -33,7 +33,8 @@ int gfs2_truncatei_resume(struct gfs2_inode *ip);
 int gfs2_file_dealloc(struct gfs2_inode *ip);
 
 void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
-			    unsigned int *data_blocks, unsigned int *ind_blocks);
+			    unsigned int *data_blocks,
+			    unsigned int *ind_blocks);
 int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 			      unsigned int len, int *alloc_required);
 

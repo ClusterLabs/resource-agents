@@ -14,10 +14,10 @@
 #ifndef __ACL_DOT_H__
 #define __ACL_DOT_H__
 
-#define GFS2_POSIX_ACL_ACCESS  "posix_acl_access"
-#define GFS2_POSIX_ACL_ACCESS_LEN (16)
-#define GFS2_POSIX_ACL_DEFAULT "posix_acl_default"
-#define GFS2_POSIX_ACL_DEFAULT_LEN (17)
+#define GFS2_POSIX_ACL_ACCESS		"posix_acl_access"
+#define GFS2_POSIX_ACL_ACCESS_LEN	16
+#define GFS2_POSIX_ACL_DEFAULT		"posix_acl_default"
+#define GFS2_POSIX_ACL_DEFAULT_LEN	17
 
 #define GFS2_ACL_IS_ACCESS(name, len) \
          ((len) == GFS2_POSIX_ACL_ACCESS_LEN && \

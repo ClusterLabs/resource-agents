@@ -48,7 +48,7 @@ MAKE_MULT8(sizeof(struct gfs2_ea_header) + \
 ((struct gfs2_ea_header *)((bh)->b_data + \
 			  sizeof(struct gfs2_meta_header)))
 
-#define GFS2_ERF_MODE (0x80000000)
+#define GFS2_ERF_MODE 0x80000000
 
 struct gfs2_ea_request {
 	char *er_name;

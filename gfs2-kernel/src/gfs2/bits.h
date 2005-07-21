@@ -14,7 +14,7 @@
 #ifndef __BITS_DOT_H__
 #define __BITS_DOT_H__
 
-#define BFITNOENT (0xFFFFFFFF)
+#define BFITNOENT 0xFFFFFFFF
 
 void gfs2_setbit(struct gfs2_rgrpd *rgd,
 		unsigned char *buffer, unsigned int buflen,

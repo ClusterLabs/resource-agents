@@ -59,7 +59,8 @@ int gfs2_log_reserve(struct gfs2_sbd *sdp, unsigned int blks);
 void gfs2_log_release(struct gfs2_sbd *sdp, unsigned int blks);
 
 struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp);
-struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp, struct buffer_head *real);
+struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp,
+				      struct buffer_head *real);
 
 #define gfs2_log_flush(sdp) gfs2_log_flush_i((sdp), NULL)
 #define gfs2_log_flush_glock(gl) gfs2_log_flush_i((gl)->gl_sbd, (gl))

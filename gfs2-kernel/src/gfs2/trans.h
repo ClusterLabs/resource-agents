@@ -14,16 +14,16 @@
 #ifndef __TRANS_DOT_H__
 #define __TRANS_DOT_H__
 
-#define RES_DINODE (1)
-#define RES_INDIRECT (1)
-#define RES_JDATA (1)
-#define RES_DATA (1)
-#define RES_LEAF (1)
-#define RES_RG_BIT (2)
-#define RES_EATTR (1)
-#define RES_UNLINKED (1)
-#define RES_STATFS (1)
-#define RES_QUOTA (2)
+#define RES_DINODE	1
+#define RES_INDIRECT	1
+#define RES_JDATA	1
+#define RES_DATA	1
+#define RES_LEAF	1
+#define RES_RG_BIT	2
+#define RES_EATTR	1
+#define RES_UNLINKED	1
+#define RES_STATFS	1
+#define RES_QUOTA	2
 
 #define gfs2_trans_begin(sdp, blocks, revokes) \
 gfs2_trans_begin_i((sdp), (blocks), (revokes), __FILE__, __LINE__)

@@ -45,10 +45,10 @@ int gfs2_change_nlink(struct gfs2_inode *ip, int diff);
 int gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root,
 		 struct gfs2_inode **ipp);
 int gfs2_createi(struct gfs2_holder *ghs, struct qstr *name, unsigned int mode);
-int gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-		 struct gfs2_unlinked *ul);
-int gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name, struct gfs2_inode *ip,
-		struct gfs2_unlinked *ul);
+int gfs2_unlinki(struct gfs2_inode *dip, struct qstr *name,
+		 struct gfs2_inode *ip, struct gfs2_unlinked *ul);
+int gfs2_rmdiri(struct gfs2_inode *dip, struct qstr *name,
+		struct gfs2_inode *ip, struct gfs2_unlinked *ul);
 int gfs2_unlink_ok(struct gfs2_inode *dip, struct qstr *name,
 		   struct gfs2_inode *ip);
 int gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to);

@@ -17,7 +17,8 @@
 struct block_device *gfs2_diaper_get(struct block_device *real, int flags);
 void gfs2_diaper_put(struct block_device *diaper);
 
-void gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp);
+void gfs2_diaper_register_sbd(struct block_device *diaper,
+			      struct gfs2_sbd *sdp);
 struct block_device *gfs2_diaper_2real(struct block_device *diaper);
 
 int gfs2_diaper_init(void);
