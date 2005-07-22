@@ -47,7 +47,6 @@
 int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 		       unsigned int revokes, char *file, unsigned int line)
 {
-	ENTER(G2FN_TRANS_BEGIN_I)
 	struct gfs2_trans *tr;
 	int error;
 
@@ -55,12 +54,12 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 	    gfs2_assert_warn(sdp, blocks || revokes)) {
 		printk("GFS2: fsid=%s: (%s, %u)\n",
 		       sdp->sd_fsname, file, line);
-		RETURN(G2FN_TRANS_BEGIN_I, -EINVAL);
+		return -EINVAL;
 	}
 
 	tr = kmalloc(sizeof(struct gfs2_trans), GFP_KERNEL);
 	if (!tr)
-		RETURN(G2FN_TRANS_BEGIN_I, -ENOMEM);
+		return -ENOMEM;
 
 	memset(tr, 0, sizeof(struct gfs2_trans));
 	tr->tr_file = file;
@@ -95,7 +94,7 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 
 	set_transaction(tr);
 
-	RETURN(G2FN_TRANS_BEGIN_I, 0);
+	return 0;
 
  fail_gunlock:
 	gfs2_glock_dq(tr->tr_t_gh);
@@ -106,7 +105,7 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
  fail:
 	kfree(tr);
 
-	RETURN(G2FN_TRANS_BEGIN_I, error);
+	return error;
 }
 
 /**
@@ -120,7 +119,6 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 
 void gfs2_trans_end(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_TRANS_END)
 	struct gfs2_trans *tr;
 	struct gfs2_holder *t_gh;
 
@@ -128,7 +126,7 @@ void gfs2_trans_end(struct gfs2_sbd *sdp)
 	set_transaction(NULL);
 
 	if (gfs2_assert_warn(sdp, tr))
-		RET(G2FN_TRANS_END);
+		return;
 
 	t_gh = tr->tr_t_gh;
 	tr->tr_t_gh = NULL;
@@ -140,7 +138,7 @@ void gfs2_trans_end(struct gfs2_sbd *sdp)
 		gfs2_glock_dq(t_gh);
 		gfs2_holder_put(t_gh);
 
-		RET(G2FN_TRANS_END);
+		return;
 	}
 
 	if (gfs2_assert_withdraw(sdp, tr->tr_num_buf <= tr->tr_blocks))
@@ -161,15 +159,11 @@ void gfs2_trans_end(struct gfs2_sbd *sdp)
 
 	if (sdp->sd_vfs->s_flags & MS_SYNCHRONOUS)
 		gfs2_log_flush(sdp);
-
-	RET(G2FN_TRANS_END);
 }
 
 void gfs2_trans_add_gl(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_TRANS_ADD_GL)
 	LO_ADD(gl->gl_sbd, &gl->gl_le);
-	RET(G2FN_TRANS_ADD_GL);
 }
 
 /**
@@ -181,7 +175,6 @@ void gfs2_trans_add_gl(struct gfs2_glock *gl)
 
 void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 {
-	ENTER(G2FN_TRANS_ADD_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_bufdata *bd;
 
@@ -195,8 +188,6 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 	}
 
 	LO_ADD(sdp, &bd->bd_le);
-
-	RET(G2FN_TRANS_ADD_BH);
 }
 
 /**
@@ -208,18 +199,15 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 
 void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
-	ENTER(G2FN_TRANS_ADD_REVOKE)
 	struct gfs2_revoke *rv = kmalloc_nofail(sizeof(struct gfs2_revoke),
 						GFP_KERNEL);
 	INIT_LE(&rv->rv_le, &gfs2_revoke_lops);
 	rv->rv_blkno = blkno;
 	LO_ADD(sdp, &rv->rv_le);
-	RET(G2FN_TRANS_ADD_REVOKE);
 }
 
 void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
-	ENTER(G2FN_TRANS_ADD_UNREVOKE)
 	struct list_head *head, *tmp;
 	struct gfs2_revoke *rv = NULL;
 
@@ -243,20 +231,15 @@ void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 		kfree(rv);
 		get_transaction->tr_num_revoke_rm++;
 	}
-
-	RET(G2FN_TRANS_ADD_UNREVOKE);
 }
 
 void gfs2_trans_add_rg(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_TRANS_ADD_RG)
 	LO_ADD(rgd->rd_sbd, &rgd->rd_le);
-	RET(G2FN_TRANS_ADD_RG);
 }
 
 void gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
 {
-	ENTER(G2FN_TRANS_ADD_DATABUF)
 	struct gfs2_databuf *db;
 
 	db = get_v2db(bh);
@@ -269,7 +252,5 @@ void gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
 		set_v2db(bh, db);
 		LO_ADD(sdp, &db->db_le);
 	}
-
-	RET(G2FN_TRANS_ADD_DATABUF);
 }
 

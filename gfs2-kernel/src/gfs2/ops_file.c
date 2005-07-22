@@ -92,7 +92,6 @@ typedef ssize_t(*do_rw_t) (struct file * file,
 
 static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 {
-	ENTER(G2FN_LLSEEK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	loff_t error;
@@ -108,7 +107,7 @@ static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 	} else
 		error = remote_llseek(file, offset, origin);
 
-	RETURN(G2FN_LLSEEK, error);
+	return error;
 }
 
 #define vma2state(vma) \
@@ -130,7 +129,6 @@ static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 			    loff_t *offset, do_rw_t operation)
 {
-	ENTER(G2FN_WALK_VM_HARD)
 	struct gfs2_holder *ghs;
 	unsigned int num_gh = 0;
 	ssize_t count;
@@ -158,7 +156,7 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 		if (!ghs) {
 			if (!dumping)
 				up_read(&mm->mmap_sem);
-			RETURN(G2FN_WALK_VM_HARD, -ENOMEM);
+			return -ENOMEM;
 		}
 
 		for (vma = find_vma(mm, start); vma; vma = vma->vm_next) {
@@ -185,7 +183,7 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 		gfs2_holder_uninit(&ghs[num_gh]);
 	kfree(ghs);
 
-	RETURN(G2FN_WALK_VM_HARD, count);
+	return count;
 }
 
 /**
@@ -206,8 +204,6 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 		       loff_t *offset, do_rw_t operation)
 {
-	ENTER(G2FN_WALK_VM)
-
 	if (current->mm) {
 		struct super_block *sb = file->f_dentry->d_inode->i_sb;
 		struct mm_struct *mm = current->mm;
@@ -233,13 +229,11 @@ static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 
 	{
 		struct gfs2_holder gh;
-		RETURN(G2FN_WALK_VM,
-		       operation(file, buf, size, offset, 0, &gh));
+		return operation(file, buf, size, offset, 0, &gh);
 	}
 
  do_locks:
-	RETURN(G2FN_WALK_VM,
-	       walk_vm_hard(file, buf, size, offset, operation));
+	return walk_vm_hard(file, buf, size, offset, operation);
 }
 
 /**
@@ -256,18 +250,17 @@ static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
 			     loff_t *offset)
 {
-	ENTER(G2FN_DO_JDATA_READ)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
 
 	if (*offset < 0)
-		RETURN(G2FN_DO_JDATA_READ, -EINVAL);
+		return -EINVAL;
 	if (!access_ok(VERIFY_WRITE, buf, size))
-		RETURN(G2FN_DO_JDATA_READ, -EFAULT);
+		return -EFAULT;
 
 	if (!(file->f_flags & O_LARGEFILE)) {
 		if (*offset >= 0x7FFFFFFFull)
-			RETURN(G2FN_DO_JDATA_READ, -EFBIG);
+			return -EFBIG;
 		if (*offset + size > 0x7FFFFFFFull)
 			size = 0x7FFFFFFFull - *offset;
 	}
@@ -277,7 +270,7 @@ static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
 	if (count > 0)
 		*offset += count;
 
-	RETURN(G2FN_DO_JDATA_READ, count);
+	return count;
 }
 
 /**
@@ -298,7 +291,6 @@ static ssize_t do_read_direct(struct file *file, char *buf, size_t size,
 			      loff_t *offset, unsigned int num_gh,
 			      struct gfs2_holder *ghs)
 {
-	ENTER(G2FN_DO_READ_DIRECT)
 	struct inode *inode = file->f_mapping->host;
 	struct gfs2_inode *ip = get_v2ip(inode);
 	unsigned int state = LM_ST_DEFERRED;
@@ -342,7 +334,7 @@ static ssize_t do_read_direct(struct file *file, char *buf, size_t size,
  out:
 	gfs2_holder_uninit(&ghs[num_gh]);
 
-	RETURN(G2FN_DO_READ_DIRECT, (count) ? count : error);
+	return (count) ? count : error;
 }
 
 /**
@@ -363,7 +355,6 @@ static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
 			   loff_t *offset, unsigned int num_gh,
 			   struct gfs2_holder *ghs)
 {
-	ENTER(G2FN_DO_READ_BUF)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	ssize_t count = 0;
 	int error;
@@ -385,7 +376,7 @@ static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
  out:
 	gfs2_holder_uninit(&ghs[num_gh]);
 
-	RETURN(G2FN_DO_READ_BUF, (count) ? count : error);
+	return (count) ? count : error;
 }
 
 /**
@@ -403,15 +394,12 @@ static ssize_t do_read_buf(struct file *file, char *buf, size_t size,
 static ssize_t gfs2_read(struct file *file, char *buf, size_t size,
 			 loff_t *offset)
 {
-	ENTER(G2FN_READ)
 	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
 
 	if (file->f_flags & O_DIRECT)
-		RETURN(G2FN_READ,
-		       walk_vm(file, buf, size, offset, do_read_direct));
+		return walk_vm(file, buf, size, offset, do_read_direct);
 	else
-		RETURN(G2FN_READ,
-		       walk_vm(file, buf, size, offset, do_read_buf));
+		return walk_vm(file, buf, size, offset, do_read_buf);
 }
 
 /**
@@ -429,19 +417,18 @@ static ssize_t gfs2_read(struct file *file, char *buf, size_t size,
 
 static int grope_mapping(char *buf, size_t size)
 {
-	ENTER(G2FN_GROPE_MAPPING)
 	unsigned long start = (unsigned long)buf;
 	unsigned long stop = start + size;
 	char c;
 
 	while (start < stop) {
 		if (copy_from_user(&c, (char *)start, 1))
-			RETURN(G2FN_GROPE_MAPPING, -EFAULT);
+			return -EFAULT;
 		start += PAGE_CACHE_SIZE;
 		start &= PAGE_CACHE_MASK;
 	}
 
-	RETURN(G2FN_GROPE_MAPPING, 0);
+	return 0;
 }
 
 /**
@@ -459,7 +446,6 @@ static int grope_mapping(char *buf, size_t size)
 static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
 				     loff_t *offset)
 {
-	ENTER(G2FN_DO_WRITE_DIRECT_ALLOC)
 	struct inode *inode = file->f_mapping->host;
 	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -540,7 +526,7 @@ static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
 	gfs2_quota_unlock(ip);
 	gfs2_alloc_put(ip);
 
-	RETURN(G2FN_DO_WRITE_DIRECT_ALLOC, count);
+	return count;
 
  fail_end_trans:
 	gfs2_trans_end(sdp);
@@ -554,7 +540,7 @@ static ssize_t do_write_direct_alloc(struct file *file, char *buf, size_t size,
  fail:
 	gfs2_alloc_put(ip);
 
-	RETURN(G2FN_DO_WRITE_DIRECT_ALLOC, error);
+	return error;
 }
 
 /**
@@ -575,7 +561,6 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
 			       loff_t *offset, unsigned int num_gh,
 			       struct gfs2_holder *ghs)
 {
-	ENTER(G2FN_DO_WRITE_DIRECT)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_file *fp = get_v2fp(file);
@@ -681,7 +666,7 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
  out:
 	gfs2_holder_uninit(&ghs[num_gh]);
 
-	RETURN(G2FN_DO_WRITE_DIRECT, (count) ? count : error);
+	return (count) ? count : error;
 }
 
 /**
@@ -699,7 +684,6 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
 static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 			       loff_t *offset)
 {
-	ENTER(G2FN_DO_DO_WRITE_BUF)
 	struct inode *inode = file->f_mapping->host;
 	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -716,7 +700,7 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 
 	error = gfs2_write_alloc_required(ip, *offset, size, &alloc_required);
 	if (error)
-		RETURN(G2FN_DO_DO_WRITE_BUF, error);
+		return error;
 
 	if (alloc_required) {
 		al = gfs2_alloc_get(ip);
@@ -807,7 +791,7 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 		gfs2_alloc_put(ip);
 	}
 
-	RETURN(G2FN_DO_DO_WRITE_BUF, count);
+	return count;
 
  fail_end_trans:
 	gfs2_trans_end(sdp);
@@ -824,7 +808,7 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 	if (alloc_required)
 		gfs2_alloc_put(ip);
 
-	RETURN(G2FN_DO_DO_WRITE_BUF, error);
+	return error;
 }
 
 /**
@@ -845,7 +829,6 @@ static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
 			    loff_t *offset, unsigned int num_gh,
 			    struct gfs2_holder *ghs)
 {
-	ENTER(G2FN_DO_WRITE_BUF)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	size_t s;
@@ -898,7 +881,7 @@ static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
  out:
 	gfs2_holder_uninit(&ghs[num_gh]);
 
-	RETURN(G2FN_DO_WRITE_BUF, (count) ? count : error);
+	return (count) ? count : error;
 }
 
 /**
@@ -916,16 +899,15 @@ static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
 static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
 			  loff_t *offset)
 {
-	ENTER(G2FN_WRITE)
 	struct inode *inode = file->f_mapping->host;
 	ssize_t count;
 
 	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_file);
 
 	if (*offset < 0)
-		RETURN(G2FN_WRITE, -EINVAL);
+		return -EINVAL;
 	if (!access_ok(VERIFY_READ, buf, size))
-		RETURN(G2FN_WRITE, -EFAULT);
+		return -EFAULT;
 
 	down(&inode->i_sem);
 	if (file->f_flags & O_DIRECT)
@@ -934,7 +916,7 @@ static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
 		count = walk_vm(file, (char *)buf, size, offset, do_write_buf);
 	up(&inode->i_sem);
 
-	RETURN(G2FN_WRITE, count);
+	return count;
 }
 
 /**
@@ -953,7 +935,6 @@ static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
 			    uint64_t offset, struct gfs2_inum *inum,
 			    unsigned int type)
 {
-	ENTER(G2FN_FILLDIR_REG_FUNC)
 	struct filldir_reg *fdr = (struct filldir_reg *)opaque;
 	struct gfs2_sbd *sdp = fdr->fdr_sbd;
 	int error;
@@ -961,7 +942,7 @@ static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
 	error = fdr->fdr_filldir(fdr->fdr_opaque, name, length, offset,
 				 inum->no_formal_ino, type);
 	if (error)
-		RETURN(G2FN_FILLDIR_REG_FUNC, 1);
+		return 1;
 
 	/* Prefetch locks */
 	if (fdr->fdr_prefetch && !(length == 1 && *name == '.')) {
@@ -973,7 +954,7 @@ static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
 				       LM_ST_SHARED, LM_FLAG_TRY);
 	}
 
-	RETURN(G2FN_FILLDIR_REG_FUNC, 0);
+	return 0;
 }
 
 /**
@@ -987,7 +968,6 @@ static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
 
 static int readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 {
-	ENTER(G2FN_READDIR_REG)
 	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
 	struct filldir_reg fdr;
 	struct gfs2_holder d_gh;
@@ -1003,7 +983,7 @@ static int readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 	error = gfs2_glock_nq_atime(&d_gh);
 	if (error) {
 		gfs2_holder_uninit(&d_gh);
-		RETURN(G2FN_READDIR_REG, error);
+		return error;
 	}
 
 	error = gfs2_dir_read(dip, &offset, &fdr, filldir_reg_func);
@@ -1012,7 +992,7 @@ static int readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 
 	file->f_pos = offset;
 
-	RETURN(G2FN_READDIR_REG, error);
+	return error;
 }
 
 /**
@@ -1033,14 +1013,13 @@ static int filldir_bad_func(void *opaque, const char *name, unsigned int length,
 			    uint64_t offset, struct gfs2_inum *inum,
 			    unsigned int type)
 {
-	ENTER(G2FN_FILLDIR_BAD_FUNC)
 	struct filldir_bad *fdb = (struct filldir_bad *)opaque;
 	struct gfs2_sbd *sdp = fdb->fdb_sbd;
 	struct filldir_bad_entry *fbe;
 
 	if (fdb->fdb_entry_off == fdb->fdb_entry_num ||
 	    fdb->fdb_name_off + length > fdb->fdb_name_size)
-		RETURN(G2FN_FILLDIR_BAD_FUNC, 1);
+		return 1;
 
 	fbe = &fdb->fdb_entry[fdb->fdb_entry_off];
 	fbe->fbe_name = fdb->fdb_name + fdb->fdb_name_off;
@@ -1063,7 +1042,7 @@ static int filldir_bad_func(void *opaque, const char *name, unsigned int length,
 				       LM_ST_SHARED, LM_FLAG_TRY);
 	}
 
-	RETURN(G2FN_FILLDIR_BAD_FUNC, 0);
+	return 0;
 }
 
 /**
@@ -1079,7 +1058,6 @@ static int filldir_bad_func(void *opaque, const char *name, unsigned int length,
 
 static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 {
-	ENTER(G2FN_READDIR_BAD)
 	struct gfs2_inode *dip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct filldir_reg fdr;
@@ -1097,7 +1075,7 @@ static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 
 	fdb = kmalloc(size, GFP_KERNEL);
 	if (!fdb)
-		RETURN(G2FN_READDIR_BAD, -ENOMEM);
+		return -ENOMEM;
 	memset(fdb, 0, size);
 
 	fdb->fdb_sbd = sdp;
@@ -1142,7 +1120,7 @@ static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
  out:
 	kfree(fdb);
 
-	RETURN(G2FN_READDIR_BAD, error);
+	return error;
 }
 
 /**
@@ -1156,7 +1134,6 @@ static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 
 static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 {
-	ENTER(G2FN_READDIR)
 	int error;
 
 	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
@@ -1167,7 +1144,7 @@ static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 	else
 		error = readdir_bad(file, dirent, filldir);
 
-	RETURN(G2FN_READDIR, error);
+	return error;
 }
 
 /**
@@ -1183,7 +1160,6 @@ static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		      unsigned long arg)
 {
-	ENTER(G2FN_IOCTL)
 	struct gfs2_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
@@ -1192,15 +1168,15 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	case GFS2_IOCTL_IDENTIFY: {
                 unsigned int x = GFS2_MAGIC;
                 if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
-                        RETURN(G2FN_IOCTL, -EFAULT);
-		RETURN(G2FN_IOCTL, 0);
+                        return -EFAULT;
+		return 0;
         }
 
 	case GFS2_IOCTL_SUPER:
-		RETURN(G2FN_IOCTL, gfs2_ioctl_i(ip, (void *)arg));
+		return gfs2_ioctl_i(ip, (void *)arg);
 
 	default:
-		RETURN(G2FN_IOCTL, -ENOTTY);
+		return -ENOTTY;
 	}
 }
 
@@ -1214,7 +1190,6 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	ENTER(G2FN_MMAP)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	int error;
@@ -1225,7 +1200,7 @@ static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 	error = gfs2_glock_nq_atime(&i_gh);
 	if (error) {
 		gfs2_holder_uninit(&i_gh);
-		RETURN(G2FN_MMAP, error);
+		return error;
 	}
 
 	if (gfs2_is_jdata(ip)) {
@@ -1245,7 +1220,7 @@ static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_MMAP, error);
+	return error;
 }
 
 /**
@@ -1258,7 +1233,6 @@ static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int gfs2_open(struct inode *inode, struct file *file)
 {
-	ENTER(G2FN_OPEN)
 	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_holder i_gh;
 	struct gfs2_file *fp;
@@ -1268,7 +1242,7 @@ static int gfs2_open(struct inode *inode, struct file *file)
 
 	fp = kmalloc(sizeof(struct gfs2_file), GFP_KERNEL);
 	if (!fp)
-		RETURN(G2FN_OPEN, -ENOMEM);
+		return -ENOMEM;
 	memset(fp, 0, sizeof(struct gfs2_file));
 
 	init_MUTEX(&fp->f_fl_mutex);
@@ -1307,7 +1281,7 @@ static int gfs2_open(struct inode *inode, struct file *file)
 		gfs2_glock_dq_uninit(&i_gh);
 	}
 
-	RETURN(G2FN_OPEN, 0);
+	return 0;
 
  fail_gunlock:
 	gfs2_glock_dq_uninit(&i_gh);
@@ -1316,7 +1290,7 @@ static int gfs2_open(struct inode *inode, struct file *file)
 	set_v2fp(file, NULL);
 	kfree(fp);
 
-	RETURN(G2FN_OPEN, error);
+	return error;
 }
 
 /**
@@ -1329,7 +1303,6 @@ static int gfs2_open(struct inode *inode, struct file *file)
 
 static int gfs2_close(struct inode *inode, struct file *file)
 {
-	ENTER(G2FN_CLOSE)
 	struct gfs2_sbd *sdp = get_v2sdp(inode->i_sb);
 	struct gfs2_file *fp;
 
@@ -1339,11 +1312,11 @@ static int gfs2_close(struct inode *inode, struct file *file)
 	set_v2fp(file, NULL);
 
 	if (gfs2_assert_warn(sdp, fp))
-		RETURN(G2FN_CLOSE, -EIO);
+		return -EIO;
 
 	kfree(fp);
 
-	RETURN(G2FN_CLOSE, 0);
+	return 0;
 }
 
 /**
@@ -1359,13 +1332,12 @@ static int gfs2_close(struct inode *inode, struct file *file)
 
 static int gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
-	ENTER(G2FN_FSYNC)
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 	gfs2_log_flush_glock(ip->i_gl);
 
-	RETURN(G2FN_FSYNC, 0);
+	return 0;
 }
 
 /**
@@ -1379,7 +1351,6 @@ static int gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
 
 static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 {
-	ENTER(G2FN_LOCK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct lm_lockname name =
@@ -1389,9 +1360,9 @@ static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 	atomic_inc(&sdp->sd_ops_file);
 
 	if (!(fl->fl_flags & FL_POSIX))
-		RETURN(G2FN_LOCK, -ENOLCK);
+		return -ENOLCK;
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		RETURN(G2FN_LOCK, -ENOLCK);
+		return -ENOLCK;
 
 	if (sdp->sd_args.ar_localflocks) {
 		if (IS_GETLK(cmd)) {
@@ -1402,25 +1373,22 @@ static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 			if (tmp)
 				memcpy(fl, tmp, sizeof(struct file_lock));
 			unlock_kernel();
-			RETURN(G2FN_LOCK, 0);
+			return 0;
 		} else {
 			int error;
 			lock_kernel();
 			error = posix_lock_file_wait(file, fl);
 			unlock_kernel();
-			RETURN(G2FN_LOCK, error);
+			return error;
 		}
 	}
 
 	if (IS_GETLK(cmd))
-		RETURN(G2FN_LOCK,
-		       gfs2_lm_plock_get(sdp, &name, file, fl));
+		return gfs2_lm_plock_get(sdp, &name, file, fl);
 	else if (fl->fl_type == F_UNLCK)
-		RETURN(G2FN_LOCK,
-		       gfs2_lm_punlock(sdp, &name, file, fl));
+		return gfs2_lm_punlock(sdp, &name, file, fl);
 	else
-		RETURN(G2FN_LOCK,
-		       gfs2_lm_plock(sdp, &name, file, cmd, fl));
+		return gfs2_lm_plock(sdp, &name, file, cmd, fl);
 }
 
 /**
@@ -1438,7 +1406,6 @@ static int gfs2_lock(struct file *file, int cmd, struct file_lock *fl)
 static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
 			     read_actor_t actor, void __user *target)
 {
-	ENTER(G2FN_SENDFILE)
 	struct gfs2_inode *ip = get_v2ip(in_file->f_mapping->host);
 	struct gfs2_holder gh;
 	ssize_t retval;
@@ -1461,7 +1428,7 @@ static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
  out:
 	gfs2_holder_uninit(&gh);
 
-	RETURN(G2FN_SENDFILE, retval);
+	return retval;
 }
 
 /**
@@ -1475,7 +1442,6 @@ static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
 
 static int do_flock(struct file *file, int cmd, struct file_lock *fl)
 {
-	ENTER(G2FN_DO_FLOCK)
 	struct gfs2_file *fp = get_v2fp(file);
 	struct gfs2_holder *fl_gh = &fp->f_fl_gh;
 	struct gfs2_inode *ip = fp->f_inode;
@@ -1521,7 +1487,7 @@ static int do_flock(struct file *file, int cmd, struct file_lock *fl)
  out:
 	up(&fp->f_fl_mutex);
 
-	RETURN(G2FN_DO_FLOCK, error);
+	return error;
 }
 
 /**
@@ -1533,7 +1499,6 @@ static int do_flock(struct file *file, int cmd, struct file_lock *fl)
 
 static void do_unflock(struct file *file, struct file_lock *fl)
 {
-	ENTER(G2FN_DO_UNFLOCK)
 	struct gfs2_file *fp = get_v2fp(file);
 	struct gfs2_holder *fl_gh = &fp->f_fl_gh;
 
@@ -1542,8 +1507,6 @@ static void do_unflock(struct file *file, struct file_lock *fl)
 	if (fl_gh->gh_gl)
 		gfs2_glock_dq_uninit(fl_gh);
 	up(&fp->f_fl_mutex);
-
-	RET(G2FN_DO_UNFLOCK);
 }
 
 /**
@@ -1557,25 +1520,24 @@ static void do_unflock(struct file *file, struct file_lock *fl)
 
 static int gfs2_flock(struct file *file, int cmd, struct file_lock *fl)
 {
-	ENTER(G2FN_FLOCK)
 	struct gfs2_inode *ip = get_v2ip(file->f_mapping->host);
 	struct gfs2_sbd *sdp = ip->i_sbd;
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
 	if (!(fl->fl_flags & FL_FLOCK))
-		RETURN(G2FN_FLOCK, -ENOLCK);
+		return -ENOLCK;
 	if ((ip->i_di.di_mode & (S_ISGID | S_IXGRP)) == S_ISGID)
-		RETURN(G2FN_FLOCK, -ENOLCK);
+		return -ENOLCK;
 
 	if (sdp->sd_args.ar_localflocks)
-		RETURN(G2FN_FLOCK, flock_lock_file_wait(file, fl));
+		return flock_lock_file_wait(file, fl);
 
 	if (fl->fl_type == F_UNLCK) {
 		do_unflock(file, fl);
-		RETURN(G2FN_FLOCK, 0);
+		return 0;
 	} else
-		RETURN(G2FN_FLOCK, do_flock(file, cmd, fl));
+		return do_flock(file, cmd, fl);
 }
 
 struct file_operations gfs2_file_fops = {

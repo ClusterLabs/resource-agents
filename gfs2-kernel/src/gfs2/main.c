@@ -39,14 +39,6 @@ int __init init_gfs2_fs(void)
 
 	gfs2_random_number = xtime.tv_nsec;
 
-	error = gfs2_trace_init();
-	if (error)
-		return error;
-
-	error = gfs2_profile_init();
-	if (error)
-		goto fail_debug;
-
 	gfs2_memory_init();
 
 	error = gfs2_proc_init();
@@ -102,8 +94,6 @@ int __init init_gfs2_fs(void)
 
  fail_debug:
 	gfs2_memory_uninit();
-	gfs2_profile_uninit();
-	gfs2_trace_uninit();
 
 	return error;
 }
@@ -125,8 +115,6 @@ void __exit exit_gfs2_fs(void)
 	gfs2_proc_uninit();
 
 	gfs2_memory_uninit();
-	gfs2_profile_uninit();
-	gfs2_trace_uninit();
 }
 
 MODULE_DESCRIPTION("Global File System");

@@ -45,24 +45,22 @@
 
 static __inline__ int do_thread(struct gfs2_sbd *sdp, int (*fn)(void *))
 {
-	ENTER(G2FN_DO_THREAD)
 	int error = kernel_thread(fn, sdp, 0);
 	if (error >= 0) {
 		wait_for_completion(&sdp->sd_thread_completion);
 		error = 0;
 	}
-	RETURN(G2FN_DO_THREAD, error);
+	return error;
 }
 
 static struct gfs2_sbd *init_sbd(struct super_block *sb)
 {
-	ENTER(G2FN_INIT_SBD)
 	struct gfs2_sbd *sdp;
 	unsigned int x;
 
 	sdp = vmalloc(sizeof(struct gfs2_sbd));
 	if (!sdp)
-		RETURN(G2FN_INIT_SBD, NULL);
+		return NULL;
 
 	memset(sdp, 0, sizeof(struct gfs2_sbd));
 
@@ -127,12 +125,11 @@ static struct gfs2_sbd *init_sbd(struct super_block *sb)
 
 	init_MUTEX(&sdp->sd_freeze_lock);
 
-	RETURN(G2FN_INIT_SBD, sdp);
+	return sdp;
 }
 
 static void init_vfs(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_INIT_VFS)
 	struct super_block *sb = sdp->sd_vfs;
 
 	sb->s_magic = GFS2_MAGIC;
@@ -152,14 +149,11 @@ static void init_vfs(struct gfs2_sbd *sdp)
 	sdp->sd_sb.sb_bsize_shift = sb->s_blocksize_bits;
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift - GFS2_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
-
-	RET(G2FN_INIT_VFS);
 }
 
 static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 			int undo)
 {
-	ENTER(G2FN_INIT_LOCKING)
 	int error = 0;
 
 	if (undo)
@@ -170,7 +164,7 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	if (error) {
 		printk("GFS2: fsid=%s: can't start scand thread: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_LOCKING, error);
+		return error;
 	}
 
 	/* Start up the glockd thread */
@@ -227,7 +221,7 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	}
 	set_bit(GLF_STICKY, &sdp->sd_trans_gl->gl_flags);
 
-	RETURN(G2FN_INIT_LOCKING, 0);
+	return 0;
 
  fail_trans:
 	gfs2_glock_put(sdp->sd_trans_gl);
@@ -253,19 +247,18 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_INIT_LOCKING, error);
+	return error;
 }
 
 static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 {
-	ENTER(G2FN_INIT_SB)
 	struct super_block *sb = sdp->sd_vfs;
 	struct gfs2_holder sb_gh;
 	int error = 0;
 
 	if (undo) {
 		gfs2_inode_put(sdp->sd_master_dir);
-		RETURN(G2FN_INIT_SB, 0);
+		return 0;
 	}
 	
 	/* Read the SuperBlock from disk, get enough info to enable us
@@ -276,7 +269,7 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't acquire superblock glock: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_SB, error);
+		return error;
 	}
 
 	error = gfs2_read_sb(sdp, sb_gh.gh_gl, silent);
@@ -319,12 +312,11 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
  out:
 	gfs2_glock_dq_uninit(&sb_gh);
 
-	RETURN(G2FN_INIT_SB, error);
+	return error;
 }
 
 static int init_journal(struct gfs2_sbd *sdp, int undo)
 {
-	ENTER(G2FN_INIT_JOURNAL)
 	struct gfs2_holder ji_gh;
 	int jindex = TRUE;
 	int error = 0;
@@ -338,7 +330,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't lookup journal index: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_JOURNAL, error);
+		return error;
 	}
 	set_bit(GLF_STICKY, &sdp->sd_jindex->i_gl->gl_flags);
 
@@ -449,7 +441,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 
 	/* Do stuff */
 
-	RETURN(G2FN_INIT_JOURNAL, 0);
+	return 0;
 
  fail_recoverd:
 	down(&sdp->sd_thread_lock);
@@ -474,12 +466,11 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
  fail:
 	gfs2_inode_put(sdp->sd_jindex);
 
-	RETURN(G2FN_INIT_JOURNAL, error);
+	return error;
 }
 
 static int init_inodes(struct gfs2_sbd *sdp, int undo)
 {
-	ENTER(G2FN_INIT_INODES)
 	struct inode *inode;
 	struct dentry **dentry = &sdp->sd_vfs->s_root;
 	int error = 0;
@@ -492,7 +483,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in inum inode: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_INODES, error);
+		return error;
 	}
 
 	/* Read in the master statfs inode */
@@ -545,7 +536,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 		goto fail_rooti;
 	}
 
-	RETURN(G2FN_INIT_INODES, 0);
+	return 0;
 
  fail_dput:
 	dput(*dentry);
@@ -567,18 +558,17 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
  fail:
 	gfs2_inode_put(sdp->sd_inum_inode);
 
-	RETURN(G2FN_INIT_INODES, error);
+	return error;
 }
 
 static int init_per_node(struct gfs2_sbd *sdp, int undo)
 {
-	ENTER(G2FN_INIT_PER_NODE)
        	struct gfs2_inode *pn = NULL;
 	char buf[30];
 	int error = 0;
 
 	if (sdp->sd_args.ar_spectator)
-		RETURN(G2FN_INIT_PER_NODE, 0);
+		return 0;
 
 	if (undo)
 		goto fail_qc_gh;
@@ -587,7 +577,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't find per_node directory: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_PER_NODE, error);
+		return error;
 	}
 
 	sprintf(buf, "inum_range%u", sdp->sd_jdesc->jd_jid);
@@ -661,7 +651,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 		goto fail_ut_gh;
 	}
 
-	RETURN(G2FN_INIT_PER_NODE, 0);
+	return 0;
 
  fail_qc_gh:
 	gfs2_glock_dq_uninit(&sdp->sd_qc_gh);
@@ -690,12 +680,11 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
  fail:
 	if (pn)
 		gfs2_inode_put(pn);
-	RETURN(G2FN_INIT_PER_NODE, error);
+	return error;
 }
 
 static int init_threads(struct gfs2_sbd *sdp, int undo)
 {
-	ENTER(G2FN_INIT_THREADS)
 	int error = 0;
 
 	if (undo)
@@ -709,7 +698,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	if (error) {
 		printk("GFS2: fsid=%s: can't start logd thread: %d\n",
 		       sdp->sd_fsname, error);
-		RETURN(G2FN_INIT_THREADS, error);
+		return error;
 	}
 
 	sdp->sd_statfs_sync_time = jiffies;
@@ -731,7 +720,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 		goto fail_quotad;
 	}
 
-	RETURN(G2FN_INIT_THREADS, 0);
+	return 0;
 
  fail_inoded:
 	down(&sdp->sd_thread_lock);
@@ -754,7 +743,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	up(&sdp->sd_thread_lock);
 	wait_for_completion(&sdp->sd_thread_completion);
 	
-	RETURN(G2FN_INIT_THREADS, error);
+	return error;
 }
 
 /**
@@ -787,7 +776,6 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 
 static int fill_super(struct super_block *sb, void *data, int silent)
 {
-	ENTER(G2FN_FILL_SUPER)
 	struct gfs2_sbd *sdp;
 	struct gfs2_holder mount_gh;
 	int error;
@@ -795,7 +783,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	sdp = init_sbd(sb);
 	if (!sdp) {
 		printk("GFS2: can't alloc struct gfs2_sbd\n");
-		RETURN(G2FN_FILL_SUPER, -ENOMEM);
+		return -ENOMEM;
 	}
 
 #ifndef NO_DIAPER
@@ -860,7 +848,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	gfs2_glock_dq_uninit(&mount_gh);
 
-	RETURN(G2FN_FILL_SUPER, 0);
+	return 0;
 
  fail_proc:
 	gfs2_proc_fs_del(sdp);
@@ -891,7 +879,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	vfree(sdp);
 	set_v2sdp(sb, NULL);
 
-	RETURN(G2FN_FILL_SUPER, error);
+	return error;
 }
 
 /**
@@ -903,9 +891,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 int gfs2_test_bdev_super(struct super_block *sb, void *data)
 {
-	ENTER(G2FN_TEST_BDEV_SUPER)
-	RETURN(G2FN_TEST_BDEV_SUPER,
-	       (void *)sb->s_bdev == data);
+	return (void *)sb->s_bdev == data;
 }
 
 /**
@@ -917,10 +903,9 @@ int gfs2_test_bdev_super(struct super_block *sb, void *data)
 
 int gfs2_set_bdev_super(struct super_block *sb, void *data)
 {
-	ENTER(G2FN_SET_BDEV_SUPER)
 	sb->s_bdev = data;
 	sb->s_dev = sb->s_bdev->bd_dev;
-	RETURN(G2FN_SET_BDEV_SUPER, 0);
+	return 0;
 }
 
 #ifdef NO_DIAPER
@@ -945,19 +930,18 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 				const char *dev_name, void *data)
 {
-	ENTER(G2FN_GET_SB)
 	struct block_device *real, *diaper;
 	struct super_block *sb;
 	int error = 0;
 
 	real = open_bdev_excl(dev_name, flags, fs_type);
 	if (IS_ERR(real))
-		RETURN(G2FN_GET_SB, (struct super_block *)real);
+		return (struct super_block *)real;
 
 	diaper = gfs2_diaper_get(real, flags);
 	if (IS_ERR(diaper)) {
 		close_bdev_excl(real);
-		RETURN(G2FN_GET_SB, (struct super_block *)diaper);
+		return (struct super_block *)diaper;
 	}
 
 	down(&diaper->bd_mount_sem);
@@ -990,12 +974,12 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 			sb->s_flags |= MS_ACTIVE;
 	}
 
-	RETURN(G2FN_GET_SB, sb);
+	return sb;
 
  out:
 	gfs2_diaper_put(diaper);
 	close_bdev_excl(real);
-	RETURN(G2FN_GET_SB, sb);
+	return sb;
 }
 
 /**
@@ -1008,7 +992,6 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 
 void gfs2_kill_sb(struct super_block *sb)
 {
-	ENTER(G2FN_KILL_SB)
 	struct block_device *diaper = sb->s_bdev;
 	struct block_device *real = gfs2_diaper_2real(diaper);
 	unsigned long bsize = sb->s_old_blocksize;
@@ -1018,8 +1001,6 @@ void gfs2_kill_sb(struct super_block *sb)
 	set_blocksize(real, bsize);
 	gfs2_diaper_put(diaper);
 	close_bdev_excl(real);
-
-	RET(G2FN_KILL_SB);
 }
 #endif
 

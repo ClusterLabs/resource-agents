@@ -48,10 +48,8 @@
 
 static void meta_go_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_META_GO_SYNC)
-
 	if (!(flags & DIO_METADATA))
-		RET(G2FN_META_GO_SYNC);
+		return;
 
 	if (test_and_clear_bit(GLF_DIRTY, &gl->gl_flags)) {
 		gfs2_log_flush_glock(gl);
@@ -61,8 +59,6 @@ static void meta_go_sync(struct gfs2_glock *gl, int flags)
 	}
 
 	clear_bit(GLF_SYNC, &gl->gl_flags);
-
-	RET(G2FN_META_GO_SYNC);
 }
 
 /**
@@ -74,15 +70,11 @@ static void meta_go_sync(struct gfs2_glock *gl, int flags)
 
 static void meta_go_inval(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_META_GO_INVAL)
-
 	if (!(flags & DIO_METADATA))
-		RET(G2FN_META_GO_INVAL);
+		return;
 
 	gfs2_meta_inval(gl);
 	gl->gl_vn++;
-
-	RET(G2FN_META_GO_INVAL);
 }
 
 /**
@@ -130,9 +122,7 @@ static void meta_go_inval(struct gfs2_glock *gl, int flags)
 
 static int meta_go_demote_ok(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_META_GO_DEMOTE_OK)
-	RETURN(G2FN_META_GO_DEMOTE_OK,
-	       !gl->gl_aspace->i_mapping->nrpages);
+	return !gl->gl_aspace->i_mapping->nrpages;
 }
 
 /**
@@ -148,11 +138,9 @@ static int meta_go_demote_ok(struct gfs2_glock *gl)
 static void inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 			      int flags)
 {
-	ENTER(G2FN_INODE_GO_XMOTE_TH)
 	if (gl->gl_state != LM_ST_UNLOCKED)
 		gfs2_pte_inval(gl);
 	gfs2_glock_xmote_th(gl, state, flags);
-	RET(G2FN_INODE_GO_XMOTE_TH);
 }
 
 /**
@@ -169,7 +157,6 @@ static void inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 
 static void inode_go_xmote_bh(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INODE_GO_XMOTE_BH)
 	struct gfs2_holder *gh = gl->gl_req_gh;
 	struct buffer_head *bh;
 	int error;
@@ -180,8 +167,6 @@ static void inode_go_xmote_bh(struct gfs2_glock *gl)
 		if (!error)
 			brelse(bh);
 	}
-
-	RET(G2FN_INODE_GO_XMOTE_BH);
 }
 
 /**
@@ -195,10 +180,8 @@ static void inode_go_xmote_bh(struct gfs2_glock *gl)
 
 static void inode_go_drop_th(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INODE_GO_DROP_TH)
 	gfs2_pte_inval(gl);
 	gfs2_glock_drop_th(gl);
-	RET(G2FN_INODE_GO_DROP_TH);
 }
 
 /**
@@ -237,7 +220,6 @@ static void inode_go_drop_th(struct gfs2_glock *gl)
 
 static void inode_go_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_INODE_GO_SYNC)
 	int meta = (flags & DIO_METADATA);
 	int data = (flags & DIO_DATA);
 
@@ -258,8 +240,6 @@ static void inode_go_sync(struct gfs2_glock *gl, int flags)
 	}
 
 	clear_bit(GLF_SYNC, &gl->gl_flags);
-
-	RET(G2FN_INODE_GO_SYNC);
 }
 
 /**
@@ -271,7 +251,6 @@ static void inode_go_sync(struct gfs2_glock *gl, int flags)
 
 static void inode_go_inval(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_INODE_GO_INVAL)
 	int meta = (flags & DIO_METADATA);
 	int data = (flags & DIO_DATA);
 
@@ -281,8 +260,6 @@ static void inode_go_inval(struct gfs2_glock *gl, int flags)
 	}
 	if (data)
 		gfs2_page_inval(gl);
-
-	RET(G2FN_INODE_GO_INVAL);
 }
 
 /**
@@ -301,7 +278,6 @@ static void inode_go_inval(struct gfs2_glock *gl, int flags)
 
 static int inode_go_demote_ok(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INODE_GO_DEMOTE_OK)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	int demote = FALSE;
 
@@ -311,7 +287,7 @@ static int inode_go_demote_ok(struct gfs2_glock *gl)
 		 time_after_eq(jiffies, gl->gl_stamp + gfs2_tune_get(sdp, gt_demote_secs) * HZ))
 		demote = TRUE;
 
-	RETURN(G2FN_INODE_GO_DEMOTE_OK, demote);
+	return demote;
 }
 
 /**
@@ -325,18 +301,17 @@ static int inode_go_demote_ok(struct gfs2_glock *gl)
 
 static int inode_go_lock(struct gfs2_holder *gh)
 {
-	ENTER(G2FN_INODE_GO_LOCK)
 	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_inode *ip = get_gl2ip(gl);
 	int error = 0;
 
 	if (!ip)
-		RETURN(G2FN_INODE_GO_LOCK, 0);
+		return 0;
 
 	if (ip->i_vn != gl->gl_vn) {
 		error = gfs2_inode_refresh(ip);
 		if (error)
-			RETURN(G2FN_INODE_GO_LOCK, error);
+			return error;
 		gfs2_inode_attr_in(ip);
 	}
 
@@ -345,7 +320,7 @@ static int inode_go_lock(struct gfs2_holder *gh)
 	    (gh->gh_flags & GL_LOCAL_EXCL))
 		error = gfs2_truncatei_resume(ip);
 
-	RETURN(G2FN_INODE_GO_LOCK, error);
+	return error;
 }
 
 /**
@@ -358,7 +333,6 @@ static int inode_go_lock(struct gfs2_holder *gh)
 
 static void inode_go_unlock(struct gfs2_holder *gh)
 {
-	ENTER(G2FN_INODE_GO_UNLOCK)
 	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_inode *ip = get_gl2ip(gl);
 
@@ -367,8 +341,6 @@ static void inode_go_unlock(struct gfs2_holder *gh)
 
 	if (ip)
 		gfs2_meta_cache_flush(ip);
-
-	RET(G2FN_INODE_GO_UNLOCK);
 }
 
 /**
@@ -379,7 +351,6 @@ static void inode_go_unlock(struct gfs2_holder *gh)
 
 static void inode_greedy(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_INODE_GREEDY)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_inode *ip = get_gl2ip(gl);
 	unsigned int quantum = gfs2_tune_get(sdp, gt_greedy_quantum);
@@ -403,8 +374,6 @@ static void inode_greedy(struct gfs2_glock *gl)
 	spin_unlock(&ip->i_spin);
 
 	gfs2_inode_put(ip);
-
-	RET(G2FN_INODE_GREEDY);
 }
 
 /**
@@ -420,9 +389,7 @@ static void inode_greedy(struct gfs2_glock *gl)
 
 static int rgrp_go_demote_ok(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_RGRP_GO_DEMOTE_OK)
-	RETURN(G2FN_RGRP_GO_DEMOTE_OK,
-	       !gl->gl_aspace->i_mapping->nrpages);
+	return !gl->gl_aspace->i_mapping->nrpages;
 }
 
 /**
@@ -438,9 +405,7 @@ static int rgrp_go_demote_ok(struct gfs2_glock *gl)
 
 static int rgrp_go_lock(struct gfs2_holder *gh)
 {
-	ENTER(G2FN_RGRP_GO_LOCK)
-	RETURN(G2FN_RGRP_GO_LOCK,
-	       gfs2_rgrp_bh_get(get_gl2rgd(gh->gh_gl)));
+	return gfs2_rgrp_bh_get(get_gl2rgd(gh->gh_gl));
 }
 
 /**
@@ -456,9 +421,7 @@ static int rgrp_go_lock(struct gfs2_holder *gh)
 
 static void rgrp_go_unlock(struct gfs2_holder *gh)
 {
-	ENTER(G2FN_RGRP_GO_UNLOCK)
 	gfs2_rgrp_bh_put(get_gl2rgd(gh->gh_gl));
-	RET(G2FN_RGRP_GO_UNLOCK);
 }
 
 /**
@@ -474,7 +437,6 @@ static void rgrp_go_unlock(struct gfs2_holder *gh)
 static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 			      int flags)
 {
-	ENTER(G2FN_TRANS_GO_XMOTE_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
@@ -484,8 +446,6 @@ static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 	}
 
 	gfs2_glock_xmote_th(gl, state, flags);
-
-	RET(G2FN_TRANS_GO_XMOTE_TH);
 }
 
 /**
@@ -497,7 +457,6 @@ static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 
 static void trans_go_xmote_bh(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_TRANS_GO_XMOTE_BH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_glock *j_gl = sdp->sd_jdesc->jd_inode->i_gl;
 	struct gfs2_log_header head;
@@ -520,8 +479,6 @@ static void trans_go_xmote_bh(struct gfs2_glock *gl)
 			gfs2_log_pointers_init(sdp, head.lh_blkno);
 		}
 	}
-
-	RET(G2FN_TRANS_GO_XMOTE_BH);
 }
 
 /**
@@ -538,7 +495,6 @@ static void trans_go_xmote_bh(struct gfs2_glock *gl)
 
 static void trans_go_drop_th(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_TRANS_GO_DROP_TH)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 
 	if (test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
@@ -547,8 +503,6 @@ static void trans_go_drop_th(struct gfs2_glock *gl)
 	}
 
 	gfs2_glock_drop_th(gl);
-
-	RET(G2FN_TRANS_GO_DROP_TH);
 }
 
 /**
@@ -562,9 +516,7 @@ static void trans_go_drop_th(struct gfs2_glock *gl)
 
 static int quota_go_demote_ok(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_QUOTA_GO_DEMOTE_OK)
-	RETURN(G2FN_QUOTA_GO_DEMOTE_OK,
-	       !atomic_read(&gl->gl_lvb_count));
+	return !atomic_read(&gl->gl_lvb_count);
 }
 
 struct gfs2_glock_operations gfs2_meta_glops = {

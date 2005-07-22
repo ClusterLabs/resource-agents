@@ -103,12 +103,11 @@ typedef int (*leaf_call_t) (struct gfs2_inode *dip,
 
 int gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
 {
-	ENTER(G2FN_FILECMP)
 	if (file1->len != len_of_file2)
-		RETURN(G2FN_FILECMP, FALSE);
+		return FALSE;
 	if (memcmp(file1->name, file2, file1->len))
-		RETURN(G2FN_FILECMP, FALSE);
-	RETURN(G2FN_FILECMP, TRUE);
+		return FALSE;
+	return TRUE;
 }
 
 /**
@@ -125,19 +124,18 @@ int gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
 static int dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
 			struct gfs2_dirent **dent)
 {
-	ENTER(G2FN_DIRENT_FIRST)
 	struct gfs2_meta_header *h = (struct gfs2_meta_header *)bh->b_data;
 
 	if (gfs2_16_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
 		if (gfs2_meta_check(dip->i_sbd, bh))
-			RETURN(G2FN_DIRENT_FIRST, -EIO);
+			return -EIO;
 		*dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_leaf));
-		RETURN(G2FN_DIRENT_FIRST, IS_LEAF);
+		return IS_LEAF;
 	} else {
 		if (gfs2_metatype_check(dip->i_sbd, bh, GFS2_METATYPE_DI))
-			RETURN(G2FN_DIRENT_FIRST, -EIO);
+			return -EIO;
 		*dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_dinode));
-		RETURN(G2FN_DIRENT_FIRST, IS_DINODE);
+		return IS_DINODE;
 	}
 }
 
@@ -153,7 +151,6 @@ static int dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
 static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
 		       struct gfs2_dirent **dent)
 {
-	ENTER(G2FN_DIRENT_NEXT)
 	struct gfs2_dirent *tmp, *cur;
 	char *bh_end;
 	uint32_t cur_rec_len;
@@ -165,26 +162,26 @@ static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
 	if ((char *)cur + cur_rec_len >= bh_end) {
 		if ((char *)cur + cur_rec_len > bh_end) {
 			gfs2_consist_inode(dip);
-			RETURN(G2FN_DIRENT_NEXT, -EIO);
+			return -EIO;
 		}
-		RETURN(G2FN_DIRENT_NEXT, -ENOENT);
+		return -ENOENT;
 	}
 
 	tmp = (struct gfs2_dirent *)((char *)cur + cur_rec_len);
 
 	if ((char *)tmp + gfs2_32_to_cpu(tmp->de_rec_len) > bh_end) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIRENT_NEXT, -EIO);
+		return -EIO;
 	}
         /* Only the first dent could ever have de_inum.no_addr == 0 */
 	if (!tmp->de_inum.no_addr) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIRENT_NEXT, -EIO);
+		return -EIO;
 	}
 
 	*dent = tmp;
 
-	RETURN(G2FN_DIRENT_NEXT, 0);
+	return 0;
 }
 
 /**
@@ -199,12 +196,11 @@ static int dirent_next(struct gfs2_inode *dip, struct buffer_head *bh,
 static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 		       struct gfs2_dirent *prev, struct gfs2_dirent *cur)
 {
-	ENTER(G2FN_DIRENT_DEL)
 	uint32_t cur_rec_len, prev_rec_len;
 
 	if (!cur->de_inum.no_addr) {
 		gfs2_consist_inode(dip);
-		RET(G2FN_DIRENT_DEL);
+		return;
 	}
 
 	gfs2_trans_add_bh(dip->i_gl, bh);
@@ -215,7 +211,7 @@ static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	if (!prev) {
 		cur->de_inum.no_addr = 0;	/* No endianess worries */
-		RET(G2FN_DIRENT_DEL);
+		return;
 	}
 
 	/*  Combine this dentry with the previous one.  */
@@ -230,8 +226,6 @@ static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	prev_rec_len += cur_rec_len;
 	prev->de_rec_len = cpu_to_gfs2_32(prev_rec_len);
-
-	RET(G2FN_DIRENT_DEL);
 }
 
 /**
@@ -247,7 +241,6 @@ static void dirent_del(struct gfs2_inode *dip, struct buffer_head *bh,
 int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 		      int name_len, struct gfs2_dirent **dent_out)
 {
-	ENTER(G2FN_DIRENT_ALLOC)
 	struct gfs2_dirent *dent, *new;
 	unsigned int rec_len = GFS2_DIRENT_SIZE(name_len);
 	unsigned int entries = 0, offset = 0;
@@ -255,7 +248,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	type = dirent_first(dip, bh, &dent);
 	if (type < 0)
-		RETURN(G2FN_DIRENT_ALLOC, type);
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
@@ -270,7 +263,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 	if (!entries) {
 		if (dent->de_inum.no_addr) {
 			gfs2_consist_inode(dip);
-			RETURN(G2FN_DIRENT_ALLOC, -EIO);
+			return -EIO;
 		}
 
 		gfs2_trans_add_bh(dip->i_gl, bh);
@@ -280,7 +273,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 		dent->de_name_len = name_len;
 
 		*dent_out = dent;
-		RETURN(G2FN_DIRENT_ALLOC, 0);
+		return 0;
 	}
 
 	do {
@@ -306,17 +299,17 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 				dent->de_rec_len = cpu_to_gfs2_32(dent->de_rec_len);
 
 				*dent_out = new;
-				RETURN(G2FN_DIRENT_ALLOC, 0);
+				return 0;
 			}
 
 			dent->de_name_len = name_len;
 
 			*dent_out = dent;
-			RETURN(G2FN_DIRENT_ALLOC, 0);
+			return 0;
 		}
 	} while (dirent_next(dip, bh, &dent) == 0);
 
-	RETURN(G2FN_DIRENT_ALLOC, -ENOSPC);
+	return -ENOSPC;
 }
 
 /**
@@ -331,7 +324,6 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
 static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 		       int name_len)
 {
-	ENTER(G2FN_DIRENT_FITS)
 	struct gfs2_dirent *dent;
 	unsigned int rec_len = GFS2_DIRENT_SIZE(name_len);
 	unsigned int entries = 0;
@@ -339,7 +331,7 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	type = dirent_first(dip, bh, &dent);
 	if (type < 0)
-		RETURN(G2FN_DIRENT_FITS, type);
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
@@ -350,7 +342,7 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 	}
 
 	if (!entries)
-		RETURN(G2FN_DIRENT_FITS, TRUE);
+		return TRUE;
 
 	do {
 		uint32_t cur_rec_len, cur_name_len;
@@ -360,10 +352,10 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS2_DIRENT_SIZE(cur_name_len) + rec_len))
-			RETURN(G2FN_DIRENT_FITS, TRUE);
+			return TRUE;
 	} while (dirent_next(dip, bh, &dent) == 0);
 
-	RETURN(G2FN_DIRENT_FITS, FALSE);
+	return FALSE;
 }
 
 /**
@@ -380,7 +372,6 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 		       struct qstr *filename, struct gfs2_dirent **dent_out,
 		       struct gfs2_dirent **dent_prev)
 {
-	ENTER(G2FN_LEAF_SEARCH)
 	uint32_t hash;
 	struct gfs2_dirent *dent, *prev = NULL;
 	unsigned int entries = 0;
@@ -388,7 +379,7 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 
 	type = dirent_first(dip, bh, &dent);
 	if (type < 0)
-		RETURN(G2FN_LEAF_SEARCH, type);
+		return type;
 
 	if (type == IS_LEAF) {
 		struct gfs2_leaf *leaf = (struct gfs2_leaf *)bh->b_data;
@@ -413,13 +404,13 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 			if (dent_prev)
 				*dent_prev = prev;
 
-			RETURN(G2FN_LEAF_SEARCH, 0);
+			return 0;
 		}
 
 		prev = dent;
 	} while (dirent_next(dip, bh, &dent) == 0);
 
-	RETURN(G2FN_LEAF_SEARCH, -ENOENT);
+	return -ENOENT;
 }
 
 /**
@@ -434,14 +425,13 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 static int get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
 		    struct buffer_head **bhp)
 {
-	ENTER(G2FN_GET_LEAF)
 	int error;
 
 	error = gfs2_meta_read(dip->i_gl, leaf_no, DIO_START | DIO_WAIT, bhp);
 	if (!error && gfs2_metatype_check(dip->i_sbd, *bhp, GFS2_METATYPE_LF))
 		error = -EIO;
 
-	RETURN(G2FN_GET_LEAF, error);
+	return error;
 }
 
 /**
@@ -456,7 +446,6 @@ static int get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
 static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 		       uint64_t *leaf_out)
 {
-	ENTER(G2FN_LEAF_NR)
 	uint64_t leaf_no;
 	int error;
 
@@ -464,11 +453,11 @@ static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 				    index * sizeof(uint64_t),
 				    sizeof(uint64_t));
 	if (error != sizeof(uint64_t))
-		RETURN(G2FN_LEAF_NR, (error < 0) ? error : -EIO);
+		return (error < 0) ? error : -EIO;
 
 	*leaf_out = gfs2_64_to_cpu(leaf_no);
 
-	RETURN(G2FN_LEAF_NR, 0);
+	return 0;
 }
 
 /**
@@ -483,7 +472,6 @@ static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 			  struct buffer_head **bh_out)
 {
-	ENTER(G2FN_GET_FIRST_LEAF)
 	uint64_t leaf_no;
 	int error;
 
@@ -491,7 +479,7 @@ static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 	if (!error)
 		error = get_leaf(dip, leaf_no, bh_out);
 
-	RETURN(G2FN_GET_FIRST_LEAF, error);
+	return error;
 }
 
 /**
@@ -506,7 +494,6 @@ static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
 			 struct buffer_head **bh_out)
 {
-	ENTER(G2FN_GET_NEXT_LEAF)
 	struct gfs2_leaf *leaf;
 	int error;
 
@@ -517,7 +504,7 @@ static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
 	else
 		error = get_leaf(dip, gfs2_64_to_cpu(leaf->lf_next), bh_out);
 
-	RETURN(G2FN_GET_NEXT_LEAF, error);
+	return error;
 }
 
 /**
@@ -536,7 +523,6 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 			      struct gfs2_dirent **dent_prev,
 			      struct buffer_head **bh_out)
 {
-	ENTER(G2FN_LINKED_LEAF_SEARCH)
 	struct buffer_head *bh = NULL, *bh_next;
 	uint32_t hsize, index;
 	uint32_t hash;
@@ -545,7 +531,7 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 	hsize = 1 << dip->i_di.di_depth;
 	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_LINKED_LEAF_SEARCH, -EIO);
+		return -EIO;
 	}
 
 	/*  Figure out the address of the leaf node.  */
@@ -555,7 +541,7 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 
 	error = get_first_leaf(dip, index, &bh_next);
 	if (error)
-		RETURN(G2FN_LINKED_LEAF_SEARCH, error);
+		return error;
 
 	/*  Find the entry  */
 
@@ -568,14 +554,14 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 		switch (error) {
 		case 0:
 			*bh_out = bh;
-			RETURN(G2FN_LINKED_LEAF_SEARCH, 0);
+			return 0;
 
 		case -ENOENT:
 			break;
 
 		default:
 			brelse(bh);
-			RETURN(G2FN_LINKED_LEAF_SEARCH, error);
+			return error;
 		}
 
 		error = get_next_leaf(dip, bh, &bh_next);
@@ -584,7 +570,7 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 
 	brelse(bh);
 
-	RETURN(G2FN_LINKED_LEAF_SEARCH, error);
+	return error;
 }
 
 /**
@@ -596,7 +582,6 @@ static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 
 static int dir_make_exhash(struct gfs2_inode *dip)
 {
-	ENTER(G2FN_DIR_MAKE_EXHASH)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_dirent *dent;
 	struct buffer_head *bh, *dibh;
@@ -608,7 +593,7 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_MAKE_EXHASH, error);
+		return error;
 
 	/*  Allocate a new block for the first leaf node  */
 
@@ -681,7 +666,7 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_MAKE_EXHASH, 0);
+	return 0;
 }
 
 /**
@@ -696,7 +681,6 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 			  uint64_t leaf_no)
 {
-	ENTER(G2FN_DIR_SPLIT_LEAF)
 	struct buffer_head *nbh, *obh, *dibh;
 	struct gfs2_leaf *nleaf, *oleaf;
 	struct gfs2_dirent *dent, *prev = NULL, *next = NULL, *new;
@@ -840,7 +824,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 	brelse(obh);
 	brelse(nbh);
 
-	RETURN(G2FN_DIR_SPLIT_LEAF, error);
+	return error;
 
  fail_lpfree:
 	kfree(lp);
@@ -850,7 +834,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 
  fail:
 	brelse(nbh);
-	RETURN(G2FN_DIR_SPLIT_LEAF, error);
+	return error;
 }
 
 /**
@@ -862,7 +846,6 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 
 static int dir_double_exhash(struct gfs2_inode *dip)
 {
-	ENTER(G2FN_DIR_DOUBLE_EXHASH)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct buffer_head *dibh;
 	uint32_t hsize;
@@ -875,7 +858,7 @@ static int dir_double_exhash(struct gfs2_inode *dip)
 	hsize = 1 << dip->i_di.di_depth;
 	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_DOUBLE_EXHASH, -EIO);
+		return -EIO;
 	}
 
 	/*  Allocate both the "from" and "to" buffers in one big chunk  */
@@ -919,12 +902,12 @@ static int dir_double_exhash(struct gfs2_inode *dip)
 		brelse(dibh);
 	}
 
-	RETURN(G2FN_DIR_DOUBLE_EXHASH, error);
+	return error;
 
  fail:
 	kfree(buf);
 
-	RETURN(G2FN_DIR_DOUBLE_EXHASH, error);
+	return error;
 }
 
 /**
@@ -940,7 +923,6 @@ static int dir_double_exhash(struct gfs2_inode *dip)
 
 static int compare_dents(const void *a, const void *b)
 {
-	ENTER(G2FN_COMPARE_DENTS)
 	struct gfs2_dirent *dent_a, *dent_b;
 	uint32_t hash_a, hash_b;
 	int ret = 0;
@@ -971,7 +953,7 @@ static int compare_dents(const void *a, const void *b)
 				     len_a);
 	}
 
-	RETURN(G2FN_COMPARE_DENTS, ret);
+	return ret;
 }
 
 /**
@@ -997,7 +979,6 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 			   struct gfs2_dirent **darr, uint32_t entries,
 			   int *copied)
 {
-	ENTER(G2FN_DO_FILLDIR_MAIN)
 	struct gfs2_dirent *dent, *dent_next;
 	struct gfs2_inum inum;
 	uint64_t off, off_next;
@@ -1026,7 +1007,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 
 			if (off_next == off) {
 				if (*copied && !run)
-					RETURN(G2FN_DO_FILLDIR_MAIN, 1);
+					return 1;
 				run = TRUE;
 			} else
 				run = FALSE;
@@ -1043,7 +1024,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 				off, &inum,
 				dent->de_type);
 		if (error)
-			RETURN(G2FN_DO_FILLDIR_MAIN, 1);
+			return 1;
 
 		*copied = TRUE;
 	}
@@ -1053,7 +1034,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 
 	(*offset)++;
 
-	RETURN(G2FN_DO_FILLDIR_MAIN, 0);
+	return 0;
 }
 
 /**
@@ -1074,18 +1055,17 @@ static int do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
 			     struct buffer_head *bh, uint32_t entries,
 			     int *copied)
 {
-	ENTER(G2FN_DO_FILLDIR_SINGLE)
 	struct gfs2_dirent **darr;
 	struct gfs2_dirent *de;
 	unsigned int e = 0;
 	int error;
 
 	if (!entries)
-		RETURN(G2FN_DO_FILLDIR_SINGLE, 0);
+		return 0;
 
 	darr = kmalloc(entries * sizeof(struct gfs2_dirent *), GFP_KERNEL);
 	if (!darr)
-		RETURN(G2FN_DO_FILLDIR_SINGLE, -ENOMEM);
+		return -ENOMEM;
 
 	dirent_first(dip, bh, &de);
 	do {
@@ -1112,7 +1092,7 @@ static int do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
  out:
 	kfree(darr);
 
-	RETURN(G2FN_DO_FILLDIR_SINGLE, error);
+	return error;
 }
 
 /**
@@ -1131,7 +1111,6 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 			    void *opaque, gfs2_filldir_t filldir,
 			    struct buffer_head *bh, int *copied)
 {
-	ENTER(G2FN_DO_FILLDIR_MULTI)
 	struct buffer_head **larr = NULL;
 	struct gfs2_dirent **darr;
 	struct gfs2_leaf *leaf;
@@ -1154,7 +1133,7 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 
 		error = get_leaf(dip, ln, &tmp_bh);
 		if (error)
-			RETURN(G2FN_DO_FILLDIR_MULTI, error);
+			return error;
 
 		leaf = (struct gfs2_leaf *)tmp_bh->b_data;
 		if (leaf->lf_entries) {
@@ -1168,20 +1147,20 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 
 	/*  Bail out if there's nothing to do  */
 	if (!entries)
-		RETURN(G2FN_DO_FILLDIR_MULTI, 0);
+		return 0;
 
 	/*  Alloc arrays  */
 
 	if (leaves) {
 		larr = kmalloc(leaves * sizeof(struct buffer_head *), GFP_KERNEL);
 		if (!larr)
-			RETURN(G2FN_DO_FILLDIR_MULTI, -ENOMEM);
+			return -ENOMEM;
 	}
 
 	darr = kmalloc(entries * sizeof(struct gfs2_dirent *), GFP_KERNEL);
 	if (!darr) {
 		kfree(larr);
-		RETURN(G2FN_DO_FILLDIR_MULTI, -ENOMEM);
+		return -ENOMEM;
 	}
 
 	/*  Fill in arrays  */
@@ -1257,7 +1236,7 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 		brelse(larr[x]);
 	kfree(larr);
 
-	RETURN(G2FN_DO_FILLDIR_MULTI, error);
+	return error;
 }
 
 /**
@@ -1273,14 +1252,13 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 static int dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
 			struct gfs2_inum *inum, unsigned int *type)
 {
-	ENTER(G2FN_DIR_E_SEARCH)
 	struct buffer_head *bh;
 	struct gfs2_dirent *dent;
 	int error;
 
 	error = linked_leaf_search(dip, filename, &dent, NULL, &bh);
 	if (error)
-		RETURN(G2FN_DIR_E_SEARCH, error);
+		return error;
 
 	if (inum)
 		gfs2_inum_in(inum, (char *)&dent->de_inum);
@@ -1289,7 +1267,7 @@ static int dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
 
 	brelse(bh);
 
-	RETURN(G2FN_DIR_E_SEARCH, 0);
+	return 0;
 }
 
 /**
@@ -1304,7 +1282,6 @@ static int dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
 static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 		     struct gfs2_inum *inum, unsigned int type)
 {
-	ENTER(G2FN_DIR_E_ADD)
 	struct buffer_head *bh, *nbh, *dibh;
 	struct gfs2_leaf *leaf, *nleaf;
 	struct gfs2_dirent *dent;
@@ -1317,7 +1294,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 	hsize = 1 << dip->i_di.di_depth;
 	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_E_ADD, -EIO);
+		return -EIO;
 	}
 
 	/*  Figure out the address of the leaf node.  */
@@ -1327,14 +1304,14 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 	error = get_leaf_nr(dip, index, &leaf_no);
 	if (error)
-		RETURN(G2FN_DIR_E_ADD, error);
+		return error;
 
 	/*  Add entry to the leaf  */
 
 	for (;;) {
 		error = get_leaf(dip, leaf_no, &bh);
 		if (error)
-			RETURN(G2FN_DIR_E_ADD, error);
+			return error;
 
 		leaf = (struct gfs2_leaf *)bh->b_data;
 
@@ -1347,7 +1324,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 				error = dir_split_leaf(dip, index, leaf_no);
 				if (error)
-					RETURN(G2FN_DIR_E_ADD, error);
+					return error;
 
 				goto restart;
 
@@ -1358,7 +1335,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 				error = dir_double_exhash(dip);
 				if (error)
-					RETURN(G2FN_DIR_E_ADD, error);
+					return error;
 
 				goto restart;
 
@@ -1413,7 +1390,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 		error = gfs2_meta_inode_buffer(dip, &dibh);
 		if (error)
-			RETURN(G2FN_DIR_E_ADD, error);
+			return error;
 
 		dip->i_di.di_entries++;
 		dip->i_di.di_mtime = dip->i_di.di_ctime = get_seconds();
@@ -1422,10 +1399,10 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 		gfs2_dinode_out(&dip->i_di, dibh->b_data);
 		brelse(dibh);
 
-		RETURN(G2FN_DIR_E_ADD, 0);
+		return 0;
 	}
 
-	RETURN(G2FN_DIR_E_ADD, -ENOENT);
+	return -ENOENT;
 }
 
 /**
@@ -1438,7 +1415,6 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 
 static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 {
-	ENTER(G2FN_DIR_E_DEL)
 	struct buffer_head *bh, *dibh;
 	struct gfs2_dirent *dent, *prev;
 	struct gfs2_leaf *leaf;
@@ -1448,10 +1424,10 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 	error = linked_leaf_search(dip, filename, &dent, &prev, &bh);
 	if (error == -ENOENT) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_E_DEL, -EIO);
+		return -EIO;
 	}
 	if (error)
-		RETURN(G2FN_DIR_E_DEL, error);
+		return error;
 
 	dirent_del(dip, bh, prev, dent); /* Pins bh */
 
@@ -1466,7 +1442,7 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_E_DEL, error);
+		return error;
 
 	if (!dip->i_di.di_entries)
 		gfs2_consist_inode(dip);
@@ -1477,7 +1453,7 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 	gfs2_dinode_out(&dip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_E_DEL, 0);
+	return 0;
 }
 
 /**
@@ -1493,7 +1469,6 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		      gfs2_filldir_t filldir)
 {
-	ENTER(G2FN_DIR_E_READ)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct buffer_head *bh;
 	struct gfs2_leaf leaf;
@@ -1507,7 +1482,7 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 	hsize = 1 << dip->i_di.di_depth;
 	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_E_READ, -EIO);
+		return -EIO;
 	}
 
 	hash = gfs2_dir_offset2hash(*offset);
@@ -1515,7 +1490,7 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 
 	lp = kmalloc(sdp->sd_hash_bsize, GFP_KERNEL);
 	if (!lp)
-		RETURN(G2FN_DIR_E_READ, -ENOMEM);
+		return -ENOMEM;
 
 	while (index < hsize) {
 		lp_offset = index & (sdp->sd_hash_ptrs - 1);
@@ -1564,7 +1539,7 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
  out:
 	kfree(lp);
 
-	RETURN(G2FN_DIR_E_READ, error);
+	return error;
 }
 
 /**
@@ -1579,7 +1554,6 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		       struct gfs2_inum *inum, unsigned int new_type)
 {
-	ENTER(G2FN_DIR_E_MVINO)
 	struct buffer_head *bh, *dibh;
 	struct gfs2_dirent *dent;
 	int error;
@@ -1587,10 +1561,10 @@ static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 	error = linked_leaf_search(dip, filename, &dent, NULL, &bh);
 	if (error == -ENOENT) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_E_MVINO, -EIO);
+		return -EIO;
 	}
 	if (error)
-		RETURN(G2FN_DIR_E_MVINO, error);
+		return error;
 
 	gfs2_trans_add_bh(dip->i_gl, bh);
 
@@ -1601,7 +1575,7 @@ static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_E_MVINO, error);
+		return error;
 
 	dip->i_di.di_mtime = dip->i_di.di_ctime = get_seconds();
 
@@ -1609,7 +1583,7 @@ static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 	gfs2_dinode_out(&dip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_E_MVINO, 0);
+	return 0;
 }
 
 /**
@@ -1625,19 +1599,18 @@ static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 static int dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 			struct gfs2_inum *inum, unsigned int *type)
 {
-	ENTER(G2FN_DIR_L_SEARCH)
 	struct buffer_head *dibh;
 	struct gfs2_dirent *dent;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_L_SEARCH, -EIO);
+		return -EIO;
 	}
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_L_SEARCH, error);
+		return error;
 
 	error = leaf_search(dip, dibh, filename, &dent, NULL);
 	if (!error) {
@@ -1649,7 +1622,7 @@ static int dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_L_SEARCH, error);
+	return error;
 }
 
 /**
@@ -1665,19 +1638,18 @@ static int dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 		     struct gfs2_inum *inum, unsigned int type)
 {
-	ENTER(G2FN_DIR_L_ADD)
 	struct buffer_head *dibh;
 	struct gfs2_dirent *dent;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_L_ADD, -EIO);
+		return -EIO;
 	}
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_L_ADD, error);
+		return error;
 
 	if (gfs2_dirent_alloc(dip, dibh, filename->len, &dent)) {
 		brelse(dibh);
@@ -1686,7 +1658,7 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 		if (!error)
 			error = dir_e_add(dip, filename, inum, type);
 
-		RETURN(G2FN_DIR_L_ADD, error);
+		return error;
 	}
 
 	/*  gfs2_dirent_alloc() pins  */
@@ -1703,7 +1675,7 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 	gfs2_dinode_out(&dip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_L_ADD, 0);
+	return 0;
 }
 
 /**
@@ -1716,19 +1688,18 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 
 static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 {
-	ENTER(G2FN_DIR_L_DEL)
 	struct buffer_head *dibh;
 	struct gfs2_dirent *dent, *prev;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_L_DEL, -EIO);
+		return -EIO;
 	}
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_L_DEL, error);
+		return error;
 
 	error = leaf_search(dip, dibh, filename, &dent, &prev);
 	if (error == -ENOENT) {
@@ -1754,7 +1725,7 @@ static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
  out:
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_L_DEL, error);
+	return error;
 }
 
 /**
@@ -1770,22 +1741,21 @@ static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		      gfs2_filldir_t filldir)
 {
-	ENTER(G2FN_DIR_L_READ)
 	struct buffer_head *dibh;
 	int copied = FALSE;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_L_READ, -EIO);
+		return -EIO;
 	}
 
 	if (!dip->i_di.di_entries)
-		RETURN(G2FN_DIR_L_READ, 0);
+		return 0;
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_L_READ, error);
+		return error;
 
 	error = do_filldir_single(dip, offset,
 				  opaque, filldir,
@@ -1796,7 +1766,7 @@ static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_L_READ, error);
+	return error;
 }
 
 /**
@@ -1811,19 +1781,18 @@ static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 static int dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		       struct gfs2_inum *inum, unsigned int new_type)
 {
-	ENTER(G2FN_DIR_L_MVINO)
 	struct buffer_head *dibh;
 	struct gfs2_dirent *dent;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_DIR_L_MVINO, -EIO);
+		return -EIO;
 	}
 
 	error = gfs2_meta_inode_buffer(dip, &dibh);
 	if (error)
-		RETURN(G2FN_DIR_L_MVINO, error);
+		return error;
 
 	error = leaf_search(dip, dibh, filename, &dent, NULL);
 	if (error == -ENOENT) {
@@ -1846,7 +1815,7 @@ static int dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
  out:
 	brelse(dibh);
 
-	RETURN(G2FN_DIR_L_MVINO, error);
+	return error;
 }
 
 /**
@@ -1864,7 +1833,6 @@ static int dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
 int gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
 		    struct gfs2_inum *inum, unsigned int *type)
 {
-	ENTER(G2FN_DIR_SEARCH)
 	int error;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH)
@@ -1872,7 +1840,7 @@ int gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
 	else
 		error = dir_l_search(dip, filename, inum, type);
 
-	RETURN(G2FN_DIR_SEARCH, error);
+	return error;
 }
 
 /**
@@ -1888,7 +1856,6 @@ int gfs2_dir_search(struct gfs2_inode *dip, struct qstr *filename,
 int gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
 		 struct gfs2_inum *inum, unsigned int type)
 {
-	ENTER(G2FN_DIR_ADD)
 	int error;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH)
@@ -1896,7 +1863,7 @@ int gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
 	else
 		error = dir_l_add(dip, filename, inum, type);
 
-	RETURN(G2FN_DIR_ADD, error);
+	return error;
 }
 
 /**
@@ -1909,7 +1876,6 @@ int gfs2_dir_add(struct gfs2_inode *dip, struct qstr *filename,
 
 int gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
 {
-	ENTER(G2FN_DIR_DEL)
 	int error;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH)
@@ -1917,7 +1883,7 @@ int gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
 	else
 		error = dir_l_del(dip, filename);
 
-	RETURN(G2FN_DIR_DEL, error);
+	return error;
 }
 
 /**
@@ -1933,7 +1899,6 @@ int gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
 int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
 		  gfs2_filldir_t filldir)
 {
-	ENTER(G2FN_DIR_READ)
 	int error;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH)
@@ -1941,7 +1906,7 @@ int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
 	else
 		error = dir_l_read(dip, offset, opaque, filldir);
 
-	RETURN(G2FN_DIR_READ, error);
+	return error;
 }
 
 /**
@@ -1960,7 +1925,6 @@ int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
 int gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		   struct gfs2_inum *inum, unsigned int new_type)
 {
-	ENTER(G2FN_DIR_MVINO)
 	int error;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH)
@@ -1968,7 +1932,7 @@ int gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
 	else
 		error = dir_l_mvino(dip, filename, inum, new_type);
 
-	RETURN(G2FN_DIR_MVINO, error);
+	return error;
 }
 
 /**
@@ -1982,7 +1946,6 @@ int gfs2_dir_mvino(struct gfs2_inode *dip, struct qstr *filename,
 
 static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 {
-	ENTER(G2FN_FOREACH_LEAF)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct buffer_head *bh;
 	struct gfs2_leaf leaf;
@@ -1996,12 +1959,12 @@ static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 	hsize = 1 << dip->i_di.di_depth;
 	if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 		gfs2_consist_inode(dip);
-		RETURN(G2FN_FOREACH_LEAF, -EIO);
+		return -EIO;
 	}
 
 	lp = kmalloc(sdp->sd_hash_bsize, GFP_KERNEL);
 	if (!lp)
-		RETURN(G2FN_FOREACH_LEAF, -ENOMEM);
+		return -ENOMEM;
 
 	while (index < hsize) {
 		lp_offset = index & (sdp->sd_hash_ptrs - 1);
@@ -2046,7 +2009,7 @@ static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
  out:
 	kfree(lp);
 
-	RETURN(G2FN_FOREACH_LEAF, error);
+	return error;
 }
 
 /**
@@ -2063,7 +2026,6 @@ static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 			uint64_t leaf_no, void *data)
 {
-	ENTER(G2FN_LEAF_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_leaf tmp_leaf;
 	struct gfs2_rgrp_list rlist;
@@ -2078,7 +2040,7 @@ static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 
 	ht = kmalloc(size, GFP_KERNEL);
 	if (!ht)
-		RETURN(G2FN_LEAF_DEALLOC, -ENOMEM);
+		return -ENOMEM;
 	memset(ht, 0, size);
 
 	gfs2_alloc_get(dip);
@@ -2168,7 +2130,7 @@ static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 	gfs2_alloc_put(dip);
 	kfree(ht);
 
-	RETURN(G2FN_LEAF_DEALLOC, error);
+	return error;
 }
 
 /**
@@ -2183,7 +2145,6 @@ static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 
 int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 {
-	ENTER(G2FN_DIR_EXHASH_DEALLOC)
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct buffer_head *bh;
 	int error;
@@ -2191,14 +2152,14 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 	/* Dealloc on-disk leaves to FREEMETA state */
 	error = foreach_leaf(dip, leaf_dealloc, NULL);
 	if (error)
-		RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
+		return error;
 
 	/*  Make this a regular file in case we crash.
 	   (We don't want to free these blocks a second time.)  */
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
 	if (error)
-		RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
+		return error;
 
 	error = gfs2_meta_inode_buffer(dip, &bh);
 	if (!error) {
@@ -2209,7 +2170,7 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 
 	gfs2_trans_end(sdp);
 
-	RETURN(G2FN_DIR_EXHASH_DEALLOC, error);
+	return error;
 }
 
 /**
@@ -2224,7 +2185,6 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 			       int *alloc_required)
 {
-	ENTER(G2FN_DIRADD_ALLOC_REQUIRED)
 	struct buffer_head *bh = NULL, *bh_next;
 	uint32_t hsize, hash, index;
 	int error = 0;
@@ -2235,7 +2195,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 		hsize = 1 << dip->i_di.di_depth;
 		if (hsize * sizeof(uint64_t) != dip->i_di.di_size) {
 			gfs2_consist_inode(dip);
-			RETURN(G2FN_DIRADD_ALLOC_REQUIRED, -EIO);
+			return -EIO;
 		}
 
 		hash = gfs2_disk_hash(filename->name, filename->len);
@@ -2243,7 +2203,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 
 		error = get_first_leaf(dip, index, &bh_next);
 		if (error)
-			RETURN(G2FN_DIRADD_ALLOC_REQUIRED, error);
+			return error;
 
 		do {
 			brelse(bh);
@@ -2266,7 +2226,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 	} else {
 		error = gfs2_meta_inode_buffer(dip, &bh);
 		if (error)
-			RETURN(G2FN_DIRADD_ALLOC_REQUIRED, error);
+			return error;
 
 		if (!dirent_fits(dip, bh, filename->len))
 			*alloc_required = TRUE;
@@ -2274,7 +2234,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 		brelse(bh);
 	}
 
-	RETURN(G2FN_DIRADD_ALLOC_REQUIRED, error);
+	return error;
 }
 
 /**
@@ -2291,7 +2251,6 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 static int do_gdm(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 		  uint64_t leaf_no, void *data)
 {
-	ENTER(G2FN_DO_GDM)
 	struct gfs2_user_buffer *ub = (struct gfs2_user_buffer *)data;
 	struct gfs2_leaf leaf;
 	struct buffer_head *bh;
@@ -2313,7 +2272,7 @@ static int do_gdm(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 			break;
 	}
 
-	RETURN(G2FN_DO_GDM, error);
+	return error;
 }
 
 /**
@@ -2326,6 +2285,5 @@ static int do_gdm(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 
 int gfs2_get_dir_meta(struct gfs2_inode *dip, struct gfs2_user_buffer *ub)
 {
-	ENTER(G2FN_GET_DIR_META)
-	RETURN(G2FN_GET_DIR_META, foreach_leaf(dip, do_gdm, ub));
+	return foreach_leaf(dip, do_gdm, ub);
 }

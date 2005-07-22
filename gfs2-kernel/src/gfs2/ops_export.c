@@ -42,13 +42,12 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 	int fh_type, int (*acceptable)(void *context, struct dentry *dentry),
 	void *context)
 {
-	ENTER(G2FN_DECODE_FH)
 	struct gfs2_inum this, parent;
 
 	atomic_inc(&get_v2sdp(sb)->sd_ops_export);
 
 	if (fh_type != fh_len)
-		RETURN(G2FN_DECODE_FH, NULL);
+		return NULL;
 
 	memset(&parent, 0, sizeof(struct gfs2_inum));
 
@@ -65,12 +64,10 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 		this.no_addr |= gfs2_32_to_cpu(fh[3]);
 		break;
 	default:
-		RETURN(G2FN_DECODE_FH, NULL);
+		return NULL;
 	}
 
-	RETURN(G2FN_DECODE_FH,
-	       gfs2_export_ops.find_exported_dentry(sb, &this, &parent,
-						    acceptable, context));
+	return gfs2_export_ops.find_exported_dentry(sb, &this, &parent, acceptable, context);
 }
 
 /**
@@ -86,7 +83,6 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 
 int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 {
-	ENTER(G2FN_ENCODE_FH)
 	struct inode *inode = dentry->d_inode;
 	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_sbd *sdp = ip->i_sbd;
@@ -94,7 +90,7 @@ int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 	atomic_inc(&sdp->sd_ops_export);
 
 	if (*len < 4 || (connectable && *len < 8))
-		RETURN(G2FN_ENCODE_FH, 255);
+		return 255;
 
 	fh[0] = ip->i_num.no_formal_ino >> 32;
 	fh[0] = cpu_to_gfs2_32(fh[0]);
@@ -107,7 +103,7 @@ int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 	*len = 4;
 
 	if (!connectable || ip == sdp->sd_root_dir)
-		RETURN(G2FN_ENCODE_FH, *len);
+		return *len;
 
 	spin_lock(&dentry->d_lock);
 	inode = dentry->d_parent->d_inode;
@@ -127,7 +123,7 @@ int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 
 	gfs2_inode_put(ip);
 
-	RETURN(G2FN_ENCODE_FH, *len);
+	return *len;
 }
 
 struct get_name_filldir {
@@ -150,16 +146,15 @@ static int get_name_filldir(void *opaque, const char *name, unsigned int length,
 			    uint64_t offset, struct gfs2_inum *inum,
 			    unsigned int type)
 {
-	ENTER(G2FN_GET_NAME_FILLDIR)
 	struct get_name_filldir *gnfd = (struct get_name_filldir *)opaque;
 
 	if (!gfs2_inum_equal(inum, &gnfd->inum))
-		RETURN(G2FN_GET_NAME_FILLDIR, 0);
+		return 0;
 
 	memcpy(gnfd->name, name, length);
 	gnfd->name[length] = 0;
 
-	RETURN(G2FN_GET_NAME_FILLDIR, 1);
+	return 1;
 }
 
 /**
@@ -175,7 +170,6 @@ static int get_name_filldir(void *opaque, const char *name, unsigned int length,
 
 int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 {
-	ENTER(G2FN_GET_NAME)
 	struct inode *dir = parent->d_inode;
 	struct inode *inode = child->d_inode;
 	struct gfs2_inode *dip, *ip;
@@ -185,12 +179,12 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 	int error;
 
 	if (!dir)
-		RETURN(G2FN_GET_NAME, -EINVAL);
+		return -EINVAL;
 
 	atomic_inc(&get_v2sdp(dir->i_sb)->sd_ops_export);
 
 	if (!S_ISDIR(dir->i_mode) || !inode)
-		RETURN(G2FN_GET_NAME, -EINVAL);
+		return -EINVAL;
 
 	dip = get_v2ip(dir);
 	ip = get_v2ip(inode);
@@ -201,7 +195,7 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 
 	error = gfs2_glock_nq_init(dip->i_gl, LM_ST_SHARED, 0, &gh);
 	if (error)
-		RETURN(G2FN_GET_NAME, error);
+		return error;
 
 	error = gfs2_dir_read(dip, &offset, &gnfd, get_name_filldir);
 
@@ -210,7 +204,7 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 	if (!error && !*name)
 		error = -ENOENT;
 
-	RETURN(G2FN_GET_NAME, error);
+	return error;
 }
 
 /**
@@ -226,7 +220,6 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 
 struct dentry *gfs2_get_parent(struct dentry *child)
 {
-	ENTER(G2FN_GET_PARENT)
 	struct gfs2_inode *dip = get_v2ip(child->d_inode);
 	struct qstr dotdot = { .name = "..", .len = 2 };
 	struct gfs2_inode *ip;
@@ -238,21 +231,21 @@ struct dentry *gfs2_get_parent(struct dentry *child)
 
 	error = gfs2_lookupi(dip, &dotdot, TRUE, &ip);
 	if (error)
-		RETURN(G2FN_GET_PARENT, ERR_PTR(error));
+		return ERR_PTR(error);
 
 	inode = gfs2_ip2v(ip, CREATE);
 	gfs2_inode_put(ip);
 
 	if (!inode)
-		RETURN(G2FN_GET_PARENT, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 
 	dentry = d_alloc_anon(inode);
 	if (!dentry) {
 		iput(inode);
-		RETURN(G2FN_GET_PARENT, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 	}
 
-	RETURN(G2FN_GET_PARENT, dentry);
+	return dentry;
 }
 
 /**
@@ -268,7 +261,6 @@ struct dentry *gfs2_get_parent(struct dentry *child)
 
 struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 {
-	ENTER(G2FN_GET_DENTRY)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	struct gfs2_inum *inum = (struct gfs2_inum *)inum_p;
 	struct gfs2_holder i_gh, ri_gh, rgd_gh;
@@ -287,7 +279,7 @@ struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 		ip = get_v2ip(inode);
 		if (ip->i_num.no_formal_ino != inum->no_formal_ino) {
 			iput(inode);
-			RETURN(G2FN_GET_DENTRY, ERR_PTR(-ESTALE));
+			return ERR_PTR(-ESTALE);
 		}
 		goto out_inode;
 	}
@@ -297,7 +289,7 @@ struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 				  LM_ST_SHARED, LM_FLAG_ANY | GL_LOCAL_EXCL,
 				  &i_gh);
 	if (error)
-		RETURN(G2FN_GET_DENTRY, ERR_PTR(error));
+		return ERR_PTR(error);
 
 	error = gfs2_inode_get(i_gh.gh_gl, inum, NO_CREATE, &ip);
 	if (error)
@@ -350,16 +342,16 @@ struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 	gfs2_inode_put(ip);
 
 	if (!inode)
-		RETURN(G2FN_GET_DENTRY, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 
  out_inode:
 	dentry = d_alloc_anon(inode);
 	if (!dentry) {
 		iput(inode);
-		RETURN(G2FN_GET_DENTRY, ERR_PTR(-ENOMEM));
+		return ERR_PTR(-ENOMEM);
 	}
 
-	RETURN(G2FN_GET_DENTRY, dentry);
+	return dentry;
 
  fail_rgd:
 	gfs2_glock_dq_uninit(&rgd_gh);
@@ -369,7 +361,7 @@ struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 
  fail:
 	gfs2_glock_dq_uninit(&i_gh);
-	RETURN(G2FN_GET_DENTRY, ERR_PTR(error));
+	return ERR_PTR(error);
 }
 
 struct export_operations gfs2_export_ops = {

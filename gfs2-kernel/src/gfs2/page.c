@@ -35,16 +35,15 @@
 
 void gfs2_pte_inval(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_PTE_INVAL)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_PTE_INVAL);
+		return;
 
 	if (!test_bit(GIF_PAGED, &ip->i_flags))
-		RET(G2FN_PTE_INVAL);
+		return;
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
@@ -56,8 +55,6 @@ void gfs2_pte_inval(struct gfs2_glock *gl)
 	}
 
 	clear_bit(GIF_SW_PAGED, &ip->i_flags);
-
-	RET(G2FN_PTE_INVAL);
 }
 
 /**
@@ -68,13 +65,12 @@ void gfs2_pte_inval(struct gfs2_glock *gl)
 
 void gfs2_page_inval(struct gfs2_glock *gl)
 {
-	ENTER(G2FN_PAGE_INVAL)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_PAGE_INVAL);
+		return;
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
@@ -87,8 +83,6 @@ void gfs2_page_inval(struct gfs2_glock *gl)
 	}
 
 	clear_bit(GIF_PAGED, &ip->i_flags);
-
-	RET(G2FN_PAGE_INVAL);
 }
 
 /**
@@ -102,13 +96,12 @@ void gfs2_page_inval(struct gfs2_glock *gl)
 
 void gfs2_page_sync(struct gfs2_glock *gl, int flags)
 {
-	ENTER(G2FN_PAGE_SYNC)
 	struct gfs2_inode *ip;
 	struct inode *inode;
 
 	ip = get_gl2ip(gl);
 	if (!ip || !S_ISREG(ip->i_di.di_mode))
-		RET(G2FN_PAGE_SYNC);
+		return;
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (inode) {
@@ -131,8 +124,6 @@ void gfs2_page_sync(struct gfs2_glock *gl, int flags)
 
 		iput(inode);
 	}
-
-	RET(G2FN_PAGE_SYNC);
 }
 
 /**
@@ -148,7 +139,6 @@ void gfs2_page_sync(struct gfs2_glock *gl, int flags)
 int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 			uint64_t block, void *private)
 {
-	ENTER(G2FN_UNSTUFFER_PAGE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *inode = ip->i_vnode;
 	struct page *page = (struct page *)private;
@@ -158,7 +148,7 @@ int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 	if (!page || page->index) {
 		page = grab_cache_page(inode->i_mapping, 0);
 		if (!page)
-			RETURN(G2FN_UNSTUFFER_PAGE, -ENOMEM);
+			return -ENOMEM;
 		release = TRUE;
 	}
 
@@ -195,7 +185,7 @@ int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 		page_cache_release(page);
 	}
 
-	RETURN(G2FN_UNSTUFFER_PAGE, 0);
+	return 0;
 }
 
 /**
@@ -208,7 +198,6 @@ int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 {
-	ENTER(G2FN_TRUNCATOR_PAGE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *inode = ip->i_vnode;
 	struct page *page;
@@ -224,7 +213,7 @@ int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	lbn = size >> inode->i_blkbits;
 	error = gfs2_block_map(ip, lbn, &new, &dbn, NULL);
 	if (error || !dbn)
-		RETURN(G2FN_TRUNCATOR_PAGE, error);
+		return error;
 
 	index = size >> PAGE_CACHE_SHIFT;
 	offset = size & (PAGE_CACHE_SIZE - 1);
@@ -234,7 +223,7 @@ int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 			       (filler_t *)inode->i_mapping->a_ops->readpage,
 			       NULL);
 	if (IS_ERR(page))
-		RETURN(G2FN_TRUNCATOR_PAGE, PTR_ERR(page));
+		return PTR_ERR(page);
 
 	lock_page(page);
 
@@ -266,13 +255,12 @@ int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	unlock_page(page);
 	page_cache_release(page);
 
-	RETURN(G2FN_TRUNCATOR_PAGE, error);
+	return error;
 }
 
 void gfs2_page_add_databufs(struct gfs2_sbd *sdp, struct page *page,
 			    unsigned int from, unsigned int to)
 {
-	ENTER(G2FN_PAGE_ADD_DATABUFS)
        	struct buffer_head *head = page_buffers(page);
 	unsigned int bsize = head->b_size;
 	struct buffer_head *bh;
@@ -286,7 +274,5 @@ void gfs2_page_add_databufs(struct gfs2_sbd *sdp, struct page *page,
 			continue;
 		gfs2_trans_add_databuf(sdp, bh);
 	}
-
-	RET(G2FN_PAGE_ADD_DATABUFS);
 }
 

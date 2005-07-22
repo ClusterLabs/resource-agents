@@ -35,7 +35,6 @@
 
 int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 {
-	ENTER(G2FN_LM_MOUNT)
 	struct gfs2_sb *sb = NULL;
 	char *proto, *table;
 	int flags = 0;
@@ -61,13 +60,13 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 
 		if (!buffer_uptodate(bh)) {
 			brelse(bh);
-			RETURN(G2FN_LM_MOUNT, -EIO);
+			return -EIO;
 		}
 
 		sb = kmalloc(sizeof(struct gfs2_sb), GFP_KERNEL);
 		if (!sb) {
 			brelse(bh);
-			RETURN(G2FN_LM_MOUNT, -ENOMEM);
+			return -ENOMEM;
 		}
 		gfs2_sb_in(sb, bh->b_data);
 		brelse(bh);
@@ -129,7 +128,7 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
  out:
 	kfree(sb);
 
-	RETURN(G2FN_LM_MOUNT, error);
+	return error;
 }
 
 /**
@@ -140,10 +139,8 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 
 void gfs2_lm_others_may_mount(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LM_OTHERS_MAY_MOUNT)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_others_may_mount(sdp->sd_lockstruct.ls_lockspace);
-	RET(G2FN_LM_OTHERS_MAY_MOUNT);
 }
 
 /**
@@ -154,10 +151,8 @@ void gfs2_lm_others_may_mount(struct gfs2_sbd *sdp)
 
 void gfs2_lm_unmount(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LM_UNMOUNT)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		lm_unmount(&sdp->sd_lockstruct);
-	RET(G2FN_LM_UNMOUNT);
 }
 
 /**
@@ -170,11 +165,10 @@ void gfs2_lm_unmount(struct gfs2_sbd *sdp)
 
 int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 {
-	ENTER(G2FN_LM_WITHDRAW)
 	va_list args;
 
 	if (test_and_set_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-		RETURN(G2FN_LM_WITHDRAW, 0);
+		return 0;
 
 	va_start(args, fmt);
 	vprintk(fmt, args);
@@ -198,7 +192,7 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 	printk("GFS2: fsid=%s: withdrawn\n",
 	       sdp->sd_fsname);
 
-	RETURN(G2FN_LM_WITHDRAW, -1);
+	return -1;
 }
 
 /**
@@ -213,14 +207,13 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 int gfs2_lm_get_lock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		     lm_lock_t **lockp)
 {
-	ENTER(G2FN_LM_GET_LOCK)
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
 	else
 		error = sdp->sd_lockstruct.ls_ops->lm_get_lock(sdp->sd_lockstruct.ls_lockspace,
 							       name, lockp);
-	RETURN(G2FN_LM_GET_LOCK, error);
+	return error;
 }
 
 /**
@@ -232,10 +225,8 @@ int gfs2_lm_get_lock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 
 void gfs2_lm_put_lock(struct gfs2_sbd *sdp, lm_lock_t *lock)
 {
-	ENTER(G2FN_LM_PUT_LOCK)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_put_lock(lock);
-	RET(G2FN_LM_PUT_LOCK);
 }
 
 /**
@@ -253,7 +244,6 @@ unsigned int gfs2_lm_lock(struct gfs2_sbd *sdp, lm_lock_t *lock,
 			  unsigned int cur_state, unsigned int req_state,
 			  unsigned int flags)
 {
-	ENTER(G2FN_LM_LOCK)
 	int ret;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		ret = 0;
@@ -261,7 +251,7 @@ unsigned int gfs2_lm_lock(struct gfs2_sbd *sdp, lm_lock_t *lock,
 		ret = sdp->sd_lockstruct.ls_ops->lm_lock(lock,
 							 cur_state,
 							 req_state, flags);
-	RETURN(G2FN_LM_LOCK, ret);
+	return ret;
 }
 
 /**
@@ -276,13 +266,12 @@ unsigned int gfs2_lm_lock(struct gfs2_sbd *sdp, lm_lock_t *lock,
 unsigned int gfs2_lm_unlock(struct gfs2_sbd *sdp, lm_lock_t *lock,
 	      unsigned int cur_state)
 {
-	ENTER(G2FN_LM_UNLOCK)
 	int ret;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		ret = 0;
 	else
 		ret =  sdp->sd_lockstruct.ls_ops->lm_unlock(lock, cur_state);
-	RETURN(G2FN_LM_UNLOCK, ret);
+	return ret;
 }
 
 /**
@@ -294,10 +283,8 @@ unsigned int gfs2_lm_unlock(struct gfs2_sbd *sdp, lm_lock_t *lock,
 
 void gfs2_lm_cancel(struct gfs2_sbd *sdp, lm_lock_t *lock)
 {
-	ENTER(G2FN_LM_CANCEL)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_cancel(lock);
-	RET(G2FN_LM_CANCEL);
 }
 
 /**
@@ -311,13 +298,12 @@ void gfs2_lm_cancel(struct gfs2_sbd *sdp, lm_lock_t *lock)
 
 int gfs2_lm_hold_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char **lvbp)
 {
-	ENTER(G2FN_LM_HOLD_LVB)
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
 	else
 		error = sdp->sd_lockstruct.ls_ops->lm_hold_lvb(lock, lvbp);
-	RETURN(G2FN_LM_HOLD_LVB, error);
+	return error;
 }
 
 /**
@@ -330,10 +316,8 @@ int gfs2_lm_hold_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char **lvbp)
 
 void gfs2_lm_unhold_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char *lvb)
 {
-	ENTER(G2FN_LM_UNHOLD_LVB)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_unhold_lvb(lock, lvb);
-	RET(G2FN_LM_UNHOLD_LVB);
 }
 
 /**
@@ -346,10 +330,8 @@ void gfs2_lm_unhold_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char *lvb)
 
 void gfs2_lm_sync_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char *lvb)
 {
-	ENTER(G2FN_LM_SYNC_LVB)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		sdp->sd_lockstruct.ls_ops->lm_sync_lvb(lock, lvb);
-	RET(G2FN_LM_SYNC_LVB);
 }
 
 /**
@@ -365,7 +347,6 @@ void gfs2_lm_sync_lvb(struct gfs2_sbd *sdp, lm_lock_t *lock, char *lvb)
 int gfs2_lm_plock_get(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		      struct file *file, struct file_lock *fl)
 {
-	ENTER(G2FN_LM_PLOCK_GET)
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
@@ -373,7 +354,7 @@ int gfs2_lm_plock_get(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		error = sdp->sd_lockstruct.ls_ops->lm_plock_get(
 			sdp->sd_lockstruct.ls_lockspace,
 			name, file, fl);
-	RETURN(G2FN_LM_PLOCK_GET, error);
+	return error;
 }
 
 /**
@@ -390,7 +371,6 @@ int gfs2_lm_plock_get(struct gfs2_sbd *sdp, struct lm_lockname *name,
 int gfs2_lm_plock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		  struct file *file, int cmd, struct file_lock *fl)
 {
-	ENTER(G2FN_LM_PLOCK)
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
@@ -398,7 +378,7 @@ int gfs2_lm_plock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		error = sdp->sd_lockstruct.ls_ops->lm_plock(
 			sdp->sd_lockstruct.ls_lockspace,
 			name, file, cmd, fl);
-	RETURN(G2FN_LM_PLOCK, error);
+	return error;
 }
 
 /**
@@ -414,7 +394,6 @@ int gfs2_lm_plock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 int gfs2_lm_punlock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		    struct file *file, struct file_lock *fl)
 {
-	ENTER(G2FN_LM_PUNLOCK)
 	int error;
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
@@ -422,7 +401,7 @@ int gfs2_lm_punlock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 		error = sdp->sd_lockstruct.ls_ops->lm_punlock(
 			sdp->sd_lockstruct.ls_lockspace,
 			name, file, fl);
-	RETURN(G2FN_LM_PUNLOCK, error);
+	return error;
 }
 
 /**
@@ -436,11 +415,7 @@ int gfs2_lm_punlock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 void gfs2_lm_recovery_done(struct gfs2_sbd *sdp, unsigned int jid,
 			   unsigned int message)
 {
-	ENTER(G2FN_LM_RECOVERY_DONE)
 	if (likely(!test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
-		sdp->sd_lockstruct.ls_ops->lm_recovery_done(sdp->sd_lockstruct.ls_lockspace,
-							    jid,
-							    message);
-	RET(G2FN_LM_RECOVERY_DONE);
+		sdp->sd_lockstruct.ls_ops->lm_recovery_done(sdp->sd_lockstruct.ls_lockspace, jid, message);
 }
 

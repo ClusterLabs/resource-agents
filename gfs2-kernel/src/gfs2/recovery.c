@@ -32,7 +32,6 @@
 int gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk,
 			   struct buffer_head **bh)
 {
-	ENTER(G2FN_REPLAY_READ_BLOCK)
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
 	int new = FALSE;
         uint64_t dblock;
@@ -41,21 +40,20 @@ int gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk,
 
 	error = gfs2_block_map(jd->jd_inode, blk, &new, &dblock, &extlen);
 	if (error)
-		RETURN(G2FN_REPLAY_READ_BLOCK, error);
+		return error;
 	if (!dblock) {
 		gfs2_consist_inode(jd->jd_inode);
-		RETURN(G2FN_REPLAY_READ_BLOCK, -EIO);
+		return -EIO;
 	}
 
 	gfs2_meta_ra(gl, dblock, extlen);
 	error = gfs2_meta_read(gl, dblock, DIO_START | DIO_WAIT, bh);
 
-	RETURN(G2FN_REPLAY_READ_BLOCK, error);
+	return error;
 }
 
 int gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
-	ENTER(G2FN_REVOKE_ADD)
 	struct list_head *head, *tmp;
 	struct gfs2_revoke_replay *rr = NULL;
 
@@ -69,23 +67,22 @@ int gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 
 	if (tmp != head) {
 		rr->rr_where = where;
-		RETURN(G2FN_REVOKE_ADD, 0);
+		return 0;
 	}
 
 	rr = kmalloc(sizeof(struct gfs2_revoke_replay), GFP_KERNEL);
 	if (!rr)
-		RETURN(G2FN_REVOKE_ADD, -ENOMEM);
+		return -ENOMEM;
 
 	rr->rr_blkno = blkno;
 	rr->rr_where = where;
 	list_add(&rr->rr_list, head);
 
-	RETURN(G2FN_REVOKE_ADD, 1);
+	return 1;
 }
 
 int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
-	ENTER(G2FN_REVOKE_CHECK)
 	struct list_head *head, *tmp;
 	struct gfs2_revoke_replay *rr = NULL;
 	int wrap, a, b, revoke;
@@ -99,19 +96,18 @@ int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 	}
 
 	if (tmp == head)
-		RETURN(G2FN_REVOKE_CHECK, 0);
+		return 0;
 
 	wrap = (rr->rr_where < sdp->sd_replay_tail);
 	a = (sdp->sd_replay_tail < where);
 	b = (where < rr->rr_where);
 	revoke = (wrap) ? (a || b) : (a && b);
 
-	RETURN(G2FN_REVOKE_CHECK, revoke);
+	return revoke;
 }
 
 void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_REVOKE_CLEAN)
        	struct list_head *head = &sdp->sd_revoke_list;
 	struct gfs2_revoke_replay *rr;
 
@@ -120,8 +116,6 @@ void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 		list_del(&rr->rr_list);
 		kfree(rr);
 	}
-
-	RET(G2FN_REVOKE_CLEAN);
 }
 
 /**
@@ -139,7 +133,6 @@ void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 			  struct gfs2_log_header *head)
 {
-	ENTER(G2FN_GET_LOG_HEADER)
 	struct buffer_head *bh;
 	struct gfs2_log_header lh;
 	uint32_t hash;
@@ -147,7 +140,7 @@ static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 
 	error = gfs2_replay_read_block(jd, blk, &bh);
 	if (error)
-		RETURN(G2FN_GET_LOG_HEADER, error);
+		return error;
 
 	memcpy(&lh, bh->b_data, sizeof(struct gfs2_log_header));
 	lh.lh_hash = 0;
@@ -161,11 +154,11 @@ static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 	    lh.lh_header.mh_blkno != bh->b_blocknr ||
 	    lh.lh_blkno != blk ||
 	    lh.lh_hash != hash)
-		RETURN(G2FN_GET_LOG_HEADER, 1);
+		return 1;
 
 	*head = lh;
 
-	RETURN(G2FN_GET_LOG_HEADER, 0);
+	return 0;
 }
 
 /**
@@ -184,21 +177,20 @@ static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 static int find_good_lh(struct gfs2_jdesc *jd, unsigned int *blk,
 			struct gfs2_log_header *head)
 {
-	ENTER(G2FN_FIND_GOOD_LH)
 	unsigned int orig_blk = *blk;
 	int error;
 
 	for (;;) {
 		error = get_log_header(jd, *blk, head);
 		if (error <= 0)
-			RETURN(G2FN_FIND_GOOD_LH, error);
+			return error;
 
 		if (++*blk == jd->jd_blocks)
 			*blk = 0;
 
 		if (*blk == orig_blk) {
 			gfs2_consist_inode(jd->jd_inode);
-			RETURN(G2FN_FIND_GOOD_LH, -EIO);
+			return -EIO;
 		}
 	}
 }
@@ -216,7 +208,6 @@ static int find_good_lh(struct gfs2_jdesc *jd, unsigned int *blk,
 
 static int jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
-	ENTER(G2FN_JHEAD_SCAN)
 	unsigned int blk = head->lh_blkno;
 	struct gfs2_log_header lh;
 	int error;
@@ -227,13 +218,13 @@ static int jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 
 		error = get_log_header(jd, blk, &lh);
 		if (error < 0)
-			RETURN(G2FN_JHEAD_SCAN, error);
+			return error;
 		if (error == 1)
 			continue;
 
 		if (lh.lh_sequence == head->lh_sequence) {
 			gfs2_consist_inode(jd->jd_inode);
-			RETURN(G2FN_JHEAD_SCAN, -EIO);
+			return -EIO;
 		}
 		if (lh.lh_sequence < head->lh_sequence)
 			break;
@@ -241,7 +232,7 @@ static int jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 		*head = lh;
 	}
 
-	RETURN(G2FN_JHEAD_SCAN, 0);
+	return 0;
 }
 
 /**
@@ -257,7 +248,6 @@ static int jhead_scan(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 
 int gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
-	ENTER(G2FN_FIND_JHEAD)
 	struct gfs2_log_header lh_1, lh_m;
 	uint32_t blk_1, blk_2, blk_m;
 	int error;
@@ -270,11 +260,11 @@ int gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 
 		error = find_good_lh(jd, &blk_1, &lh_1);
 		if (error)
-			RETURN(G2FN_FIND_JHEAD, error);
+			return error;
 
 		error = find_good_lh(jd, &blk_m, &lh_m);
 		if (error)
-			RETURN(G2FN_FIND_JHEAD, error);
+			return error;
 
 		if (blk_1 == blk_m || blk_m == blk_2)
 			break;
@@ -287,11 +277,11 @@ int gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 
 	error = jhead_scan(jd, &lh_1);
 	if (error)
-		RETURN(G2FN_FIND_JHEAD, error);
+		return error;
 
 	*head = lh_1;
 
-	RETURN(G2FN_FIND_JHEAD, error);
+	return error;
 }
 
 /**
@@ -309,7 +299,6 @@ int gfs2_find_jhead(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 			      unsigned int end, int pass)
 {
-	ENTER(G2FN_FOREACH_DESCRIPTOR)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct buffer_head *bh;
 	struct gfs2_log_descriptor ld;
@@ -318,10 +307,10 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 	while (start != end) {
 		error = gfs2_replay_read_block(jd, start, &bh);
 		if (error)
-			RETURN(G2FN_FOREACH_DESCRIPTOR, error);
+			return error;
 		if (gfs2_meta_check(sdp, bh)) {
 			brelse(bh);
-			RETURN(G2FN_FOREACH_DESCRIPTOR, -EIO);
+			return -EIO;
 		}
 		gfs2_log_descriptor_in(&ld, bh->b_data);
 		brelse(bh);
@@ -337,19 +326,19 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 				gfs2_consist_inode(jd->jd_inode);
 				error = -EIO;
 			}
-			RETURN(G2FN_FOREACH_DESCRIPTOR, error);
+			return error;
 		} else if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LD))
-			RETURN(G2FN_FOREACH_DESCRIPTOR, -EIO);
+			return -EIO;
 
 		error = LO_SCAN_ELEMENTS(jd, start, &ld, pass);
 		if (error)
-			RETURN(G2FN_FOREACH_DESCRIPTOR, error);
+			return error;
 
 		while (ld.ld_length--)
 			gfs2_replay_incr_blk(sdp, &start);
 	}
 
-	RETURN(G2FN_FOREACH_DESCRIPTOR, 0);
+	return 0;
 }
 
 /**
@@ -364,7 +353,6 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 
 static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 {
-	ENTER(G2FN_CLEAN_JOURNAL)
 	struct gfs2_inode *ip = jd->jd_inode;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	unsigned int lblock;
@@ -379,10 +367,10 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	gfs2_replay_incr_blk(sdp, &lblock);
 	error = gfs2_block_map(ip, lblock, &new, &dblock, NULL);
 	if (error)
-		RETURN(G2FN_CLEAN_JOURNAL, error);
+		return error;
 	if (!dblock) {
 		gfs2_consist_inode(ip);
-		RETURN(G2FN_CLEAN_JOURNAL, -EIO);
+		return -EIO;
 	}
 
 	bh = sb_getblk(sdp->sd_vfs, dblock);
@@ -409,7 +397,7 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 		gfs2_io_error_bh(sdp, bh);
 	brelse(bh);
 
-	RETURN(G2FN_CLEAN_JOURNAL, error);
+	return error;
 }
 
 /**
@@ -425,7 +413,6 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 
 int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 {
-	ENTER(G2FN_RECOVER_JOURNAL)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct gfs2_log_header head;
 	struct gfs2_holder j_gh, ji_gh, t_gh;
@@ -540,7 +527,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	printk("GFS2: fsid=%s: jid=%u: Done\n",
 	       sdp->sd_fsname, jd->jd_jid);
 
-	RETURN(G2FN_RECOVER_JOURNAL, 0);
+	return 0;
 
  fail_gunlock_tr:
 	gfs2_glock_dq_uninit(&t_gh);
@@ -557,7 +544,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
  fail:
 	gfs2_lm_recovery_done(sdp, jd->jd_jid, LM_RD_GAVEUP);
 
-	RETURN(G2FN_RECOVER_JOURNAL, error);
+	return error;
 }
 
 /**
@@ -568,7 +555,6 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 
 void gfs2_check_journals(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_CHECK_JOURNALS)
 	struct gfs2_jdesc *jd;
 
 	for (;;) {
@@ -579,7 +565,5 @@ void gfs2_check_journals(struct gfs2_sbd *sdp)
 		if (jd != sdp->sd_jdesc)
 			gfs2_recover_journal(jd, NO_WAIT);
 	}
-
-	RET(G2FN_CHECK_JOURNALS);
 }
 

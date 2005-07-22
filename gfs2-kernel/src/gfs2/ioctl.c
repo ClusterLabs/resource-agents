@@ -58,7 +58,6 @@ typedef int (*gi_filler_t) (struct gfs2_inode *ip,
 static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       gi_filler_t filler)
 {
-	ENTER(G2FN_GI_SKELETON)
 	unsigned int size = gfs2_tune_get(ip->i_sbd, gt_lockdump_size);
         char *buf;
 	unsigned int count = 0;
@@ -69,7 +68,7 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
         buf = kmalloc(size, GFP_KERNEL);
         if (!buf)
-                RETURN(G2FN_GI_SKELETON, -ENOMEM);
+                return -ENOMEM;
 
         error = filler(ip, gi, buf, size, &count);
 	if (error)
@@ -83,7 +82,7 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  out:
 	kfree(buf);
 
-	RETURN(G2FN_GI_SKELETON, error);
+	return error;
 }
 
 /**
@@ -101,11 +100,10 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
 {
-	ENTER(G2FN_GI_GET_COOKIE)
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_COOKIE, -EINVAL);
+		return -EINVAL;
 
 	gfs2_printf("version 0\n");
         gfs2_printf("%lu", (unsigned long)ip->i_sbd);
@@ -113,7 +111,7 @@ static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
         error = 0;
 
  out:
-        RETURN(G2FN_GI_GET_COOKIE, error);
+        return error;
 }
 
 /**
@@ -126,20 +124,19 @@ static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_GET_SUPER)
 	struct gfs2_holder sb_gh;
 	struct buffer_head *bh;
 	struct gfs2_sb *sb;
 	int error;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_SUPER, -EINVAL);
+		return -EINVAL;
 	if (gi->gi_size != sizeof(struct gfs2_sb))
-		RETURN(G2FN_GI_GET_SUPER, -EINVAL);
+		return -EINVAL;
 
 	sb = kmalloc(sizeof(struct gfs2_sb), GFP_KERNEL);
 	if (!sb)
-		RETURN(G2FN_GI_GET_SUPER, -ENOMEM);
+		return -ENOMEM;
 
 	error = gfs2_glock_nq_num(sdp,
 				 GFS2_SB_LOCK, &gfs2_meta_glops,
@@ -167,7 +164,7 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  out:
 	kfree(sb);
 
-	RETURN(G2FN_GI_GET_SUPER, error);
+	return error;
 }
 
 /**
@@ -184,13 +181,12 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)
 {
-	ENTER(G2FN_GI_GET_ARGS)
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_args *args = &sdp->sd_args;
 	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_ARGS, -EINVAL);
+		return -EINVAL;
 
 	gfs2_printf("version 0\n");
 	gfs2_printf("lockproto %s\n", args->ar_lockproto);
@@ -213,7 +209,7 @@ static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	error = 0;
 	
  out:
-	RETURN(G2FN_GI_GET_ARGS, error);
+	return error;
 }
 
 /**
@@ -230,12 +226,11 @@ static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			     char *buf, unsigned int size, unsigned int *count)
 {
-	ENTER(G2FN_GI_GET_LOCKSTRUCT)
 	struct lm_lockstruct *ls = &ip->i_sbd->sd_lockstruct;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_LOCKSTRUCT, -EINVAL);
+		return -EINVAL;
 
 	gfs2_printf("version 0\n");
         gfs2_printf("jid %u\n", ls->ls_jid);
@@ -246,7 +241,7 @@ static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	error = 0;
 
  out:
-        RETURN(G2FN_GI_GET_LOCKSTRUCT, error);
+        return error;
 }
 
 /**
@@ -263,13 +258,12 @@ static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
 {
-	ENTER(G2FN_GI_GET_STATFS)
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_statfs_change sc;
         int error;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_STATFS, -EINVAL);
+		return -EINVAL;
 
 	if (gfs2_tune_get(sdp, gt_statfs_slow))
 		error = gfs2_statfs_slow(sdp, &sc);
@@ -277,7 +271,7 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		error = gfs2_statfs_i(sdp, &sc);
 
 	if (error)
-		RETURN(G2FN_GI_GET_STATFS, error);
+		return error;
 
 	error = -ENOBUFS;
 
@@ -290,7 +284,7 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	error = 0;
 
  out:
-        RETURN(G2FN_GI_GET_STATFS, error);
+        return error;
 }
 
 /**
@@ -304,13 +298,12 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 static unsigned int handle_roll(atomic_t *a)
 {
-	ENTER(G2FN_HANDLE_ROLL)
 	int x = atomic_read(a);
 	if (x < 0) {
 		atomic_set(a, 0);
-		RETURN(G2FN_HANDLE_ROLL, 0);
+		return 0;
 	}
-	RETURN(G2FN_HANDLE_ROLL, (unsigned int)x);
+	return (unsigned int)x;
 }
 
 /**
@@ -327,12 +320,11 @@ static unsigned int handle_roll(atomic_t *a)
 static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			   char *buf, unsigned int size, unsigned int *count)
 {
-	ENTER(G2FN_GI_GET_COUNTERS)
 	struct gfs2_sbd *sdp = ip->i_sbd;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_COUNTERS, -EINVAL);
+		return -EINVAL;
 
 	gfs2_printf("version 0\n");
 	gfs2_printf("sd_glock_count:locks::%d\n",
@@ -411,7 +403,7 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
         error = 0;
 
  out:
-        RETURN(G2FN_GI_GET_COUNTERS, error);
+        return error;
 }
 
 /**
@@ -428,12 +420,11 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)
 {
- 	ENTER(G2FN_GI_GET_TUNE)
 	struct gfs2_tune *gt = &ip->i_sbd->sd_tune;
         int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_TUNE, -EINVAL);
+		return -EINVAL;
 
 	spin_lock(&gt->gt_spin);
 
@@ -478,7 +469,7 @@ static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  out:
 	spin_unlock(&gt->gt_spin);
 
-        RETURN(G2FN_GI_GET_TUNE, error);
+        return error;
 }
 
 #define tune_set(f, v) \
@@ -498,103 +489,102 @@ do { \
 
 static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_SET_TUNE)
 	struct gfs2_tune *gt = &sdp->sd_tune;
  	char param[ARG_SIZE], value[ARG_SIZE];
 	unsigned int x;
 
 	if (!capable(CAP_SYS_ADMIN))
-                RETURN(G2FN_GI_SET_TUNE, -EACCES);
+                return -EACCES;
 	if (gi->gi_argc != 3)
-		RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+		return -EINVAL;
 
 	if (strncpy_from_user(param, gi->gi_argv[1], ARG_SIZE) < 0)
-		RETURN(G2FN_GI_SET_TUNE, -EFAULT);
+		return -EFAULT;
 	param[ARG_SIZE - 1] = 0;
 
 	if (strncpy_from_user(value, gi->gi_argv[2], ARG_SIZE) < 0)
-		RETURN(G2FN_GI_SET_TUNE, -EFAULT);
+		return -EFAULT;
 	value[ARG_SIZE - 1] = 0;
 
 	if (strcmp(param, "ilimit") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_ilimit, x);
 
 	} else if (strcmp(param, "ilimit_tries") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_ilimit_tries, x);
 
 	} else if (strcmp(param, "ilimit_min") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_ilimit_min, x);
 
 	} else if (strcmp(param, "demote_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_demote_secs, x);
 
 	} else if (strcmp(param, "incore_log_blocks") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_incore_log_blocks, x);
 
 	} else if (strcmp(param, "log_flush_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_log_flush_secs, x);
 
 	} else if (strcmp(param, "jindex_refresh_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_jindex_refresh_secs, x);
 
 	} else if (strcmp(param, "scand_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_scand_secs, x);
 		wake_up_process(sdp->sd_scand_process);
 
 	} else if (strcmp(param, "recoverd_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_recoverd_secs, x);
 		wake_up_process(sdp->sd_recoverd_process);
 
 	} else if (strcmp(param, "logd_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_logd_secs, x);
 		wake_up_process(sdp->sd_logd_process);
 
 	} else if (strcmp(param, "quotad_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_quotad_secs, x);
 		wake_up_process(sdp->sd_quotad_process);
 
 	} else if (strcmp(param, "inoded_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_inoded_secs, x);
 		wake_up_process(sdp->sd_inoded_process);
 
 	} else if (strcmp(param, "quota_simul_sync") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_quota_simul_sync, x);
 
 	} else if (strcmp(param, "quota_warn_period") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_quota_warn_period, x);
 
 	} else if (strcmp(param, "quota_scale") == 0) {
 		unsigned int y;
 		if (sscanf(value, "%u %u", &x, &y) != 2 || !y)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		spin_lock(&gt->gt_spin);
 		gt->gt_quota_scale_num = x;
 		gt->gt_quota_scale_den = y;
@@ -602,100 +592,100 @@ static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	} else if (strcmp(param, "quota_cache_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_quota_cache_secs, x);
 
 	} else if (strcmp(param, "quota_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_quota_quantum, x);
 
 	} else if (strcmp(param, "atime_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_atime_quantum, x);
 
 	} else if (strcmp(param, "new_files_jdata") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		x = !!x;
 		tune_set(gt_new_files_jdata, x);
 
 	} else if (strcmp(param, "new_files_directio") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		x = !!x;
 		tune_set(gt_new_files_directio, x);
 
 	} else if (strcmp(param, "max_atomic_write") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_max_atomic_write, x);
 
 	} else if (strcmp(param, "max_readahead") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_max_readahead, x);
 
 	} else if (strcmp(param, "lockdump_size") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_lockdump_size, x);
 
 	} else if (strcmp(param, "stall_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_stall_secs, x);
 
 	} else if (strcmp(param, "complain_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_complain_secs, x);
 
 	} else if (strcmp(param, "reclaim_limit") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_reclaim_limit, x);
 
 	} else if (strcmp(param, "entries_per_readdir") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_entries_per_readdir, x);
 
 	} else if (strcmp(param, "prefetch_secs") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_prefetch_secs, x);
 
 	} else if (strcmp(param, "greedy_default") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_greedy_default, x);
 
 	} else if (strcmp(param, "greedy_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_greedy_quantum, x);
 
 	} else if (strcmp(param, "greedy_max") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_greedy_max, x);
 
 	} else if (strcmp(param, "statfs_quantum") == 0) {
 		if (sscanf(value, "%u", &x) != 1 || !x)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_statfs_quantum, x);
 
 	} else if (strcmp(param, "statfs_slow") == 0) {
 		if (sscanf(value, "%u", &x) != 1)
-			RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+			return -EINVAL;
 		tune_set(gt_statfs_slow, x);
 
 	} else
-		RETURN(G2FN_GI_SET_TUNE, -EINVAL);
+		return -EINVAL;
 
-	RETURN(G2FN_GI_SET_TUNE, 0);
+	return 0;
 }
 
 /**
@@ -708,13 +698,12 @@ static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_SHRINK)
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_DO_SHRINK, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_DO_SHRINK, -EINVAL);
+		return -EINVAL;
 	gfs2_gl_hash_clear(sdp, NO_WAIT);
-	RETURN(G2FN_GI_DO_SHRINK, 0);
+	return 0;
 }
 
 /**
@@ -727,19 +716,18 @@ static int gi_do_shrink(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_GET_FILE_STAT)
 	struct gfs2_holder i_gh;
 	struct gfs2_dinode *di;
 	int error;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_FILE_STAT, -EINVAL);
+		return -EINVAL;
 	if (gi->gi_size != sizeof(struct gfs2_dinode))
-		RETURN(G2FN_GI_GET_FILE_STAT, -EINVAL);
+		return -EINVAL;
 
 	di = kmalloc(sizeof(struct gfs2_dinode), GFP_KERNEL);
 	if (!di)
-		RETURN(G2FN_GI_GET_FILE_STAT, -ENOMEM);
+		return -ENOMEM;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
@@ -756,7 +744,7 @@ static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  out:
 	kfree(di);
 
-	RETURN(G2FN_GI_GET_FILE_STAT, error);
+	return error;
 }
 
 /**
@@ -769,7 +757,6 @@ static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_SET_FILE_FLAG)
 	char buf[ARG_SIZE];
 	int set;
 	uint32_t flag;
@@ -778,10 +765,10 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	int error;
 
 	if (gi->gi_argc != 3)
-		RETURN(G2FN_GI_SET_FILE_FLAG, -EINVAL);
+		return -EINVAL;
 
 	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-		RETURN(G2FN_GI_SET_FILE_FLAG, -EFAULT);
+		return -EFAULT;
 	buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "set") == 0)
@@ -789,15 +776,15 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	else if (strcmp(buf, "clear") == 0)
 		set = FALSE;
 	else
-		RETURN(G2FN_GI_SET_FILE_FLAG, -EINVAL);
+		return -EINVAL;
 
         if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
-                RETURN(G2FN_GI_SET_FILE_FLAG, -EFAULT);
+                return -EFAULT;
         buf[ARG_SIZE - 1] = 0;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(G2FN_GI_SET_FILE_FLAG, error);
+		return error;
 
 	error = -EACCES;
 	if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
@@ -862,30 +849,29 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  out:
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_GI_SET_FILE_FLAG, error);
+	return error;
 
 }
 
 static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_GET_BMAP)
 	struct gfs2_holder gh;
 	uint64_t lblock, dblock = 0;
 	int new = FALSE;
 	int error;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_BMAP, -EINVAL);
+		return -EINVAL;
 	if (gi->gi_size != sizeof(uint64_t))
-		RETURN(G2FN_GI_GET_BMAP, -EINVAL);
+		return -EINVAL;
 
 	error = copy_from_user(&lblock, gi->gi_data, sizeof(uint64_t));
 	if (error)
-		RETURN(G2FN_GI_GET_BMAP, -EFAULT);
+		return -EFAULT;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &gh);
 	if (error)
-		RETURN(G2FN_GI_GET_BMAP, error);
+		return error;
 
         error = -EACCES;
         if (ip->i_di.di_uid == current->fsuid || capable(CAP_FOWNER)) {
@@ -902,7 +888,7 @@ static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 			error = -EFAULT;
 	}
 
-	RETURN(G2FN_GI_GET_BMAP, error);
+	return error;
 }
 
 /**
@@ -915,13 +901,12 @@ static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_GET_FILE_META)
 	struct gfs2_holder i_gh;
 	struct gfs2_user_buffer ub;
 	int error;
 
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_GET_FILE_META, -EINVAL);
+		return -EINVAL;
 
 	ub.ub_data = gi->gi_data;
 	ub.ub_size = gi->gi_size;
@@ -929,7 +914,7 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
-		RETURN(G2FN_GI_GET_FILE_META, error);
+		return error;
 
         error = -EACCES;
         if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
@@ -957,7 +942,7 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
  out:
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_GI_GET_FILE_META, error);
+	return error;
 }
 
 /**
@@ -971,11 +956,10 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 static int gi_do_file_flush(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_FILE_FLUSH)
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_DO_FILE_FLUSH, -EINVAL);
+		return -EINVAL;
 	gfs2_glock_force_drop(ip->i_gl);
-	RETURN(G2FN_GI_DO_FILE_FLUSH, 0);
+	return 0;
 }
 
 /**
@@ -988,24 +972,23 @@ static int gi_do_file_flush(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 static struct gfs2_inode *gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI2HIP)
 	char buf[ARG_SIZE];
 
 	if (gi->gi_argc != 2)
-		RETURN(G2FN_GI2HIP, ERR_PTR(-EINVAL));
+		return ERR_PTR(-EINVAL);
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                RETURN(G2FN_GI2HIP, ERR_PTR(-EFAULT));
+                return ERR_PTR(-EFAULT);
         buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "jindex") == 0)
-		RETURN(G2FN_GI2HIP, sdp->sd_jindex);
+		return sdp->sd_jindex;
 	if (strcmp(buf, "rindex") == 0)
-		RETURN(G2FN_GI2HIP, sdp->sd_rindex);
+		return sdp->sd_rindex;
 	if (strcmp(buf, "quota") == 0)
-		RETURN(G2FN_GI2HIP, sdp->sd_quota_inode);
+		return sdp->sd_quota_inode;
 
-	RETURN(G2FN_GI2HIP, ERR_PTR(-EINVAL));
+	return ERR_PTR(-EINVAL);
 }
 
 /**
@@ -1018,7 +1001,6 @@ static struct gfs2_inode *gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_GET_HFILE_STAT)
 	struct gfs2_inode *ip;
 	struct gfs2_dinode *di;
 	struct gfs2_holder i_gh;
@@ -1026,14 +1008,14 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		RETURN(G2FN_GI_GET_HFILE_STAT, PTR_ERR(ip));
+		return PTR_ERR(ip);
 
 	if (gi->gi_size != sizeof(struct gfs2_dinode))
-		RETURN(G2FN_GI_GET_HFILE_STAT, -EINVAL);
+		return -EINVAL;
 
         di = kmalloc(sizeof(struct gfs2_dinode), GFP_KERNEL);
         if (!di)
-                RETURN(G2FN_GI_GET_HFILE_STAT, -ENOMEM);
+                return -ENOMEM;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
@@ -1050,7 +1032,7 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  out:
 	kfree(di);
 
-	RETURN(G2FN_GI_GET_HFILE_STAT, error);
+	return error;
 }
 
 /**
@@ -1063,34 +1045,33 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_HFILE_READ)
 	struct gfs2_inode *ip;
 	struct gfs2_holder i_gh;
 	int error;
 
         if (!capable(CAP_SYS_ADMIN))
-                RETURN(G2FN_GI_DO_HFILE_READ, -EACCES);
+                return -EACCES;
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		RETURN(G2FN_GI_DO_HFILE_READ, PTR_ERR(ip));
+		return PTR_ERR(ip);
 
 	if (!S_ISREG(ip->i_di.di_mode))
-		RETURN(G2FN_GI_DO_HFILE_READ, -EINVAL);
+		return -EINVAL;
 
 	if (!access_ok(VERIFY_WRITE, gi->gi_data, gi->gi_size))
-		RETURN(G2FN_GI_DO_HFILE_READ, -EFAULT);
+		return -EFAULT;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
 	if (error)
-		RETURN(G2FN_GI_DO_HFILE_READ, error);
+		return error;
 
 	error = gfs2_jdata_read(ip, gi->gi_data, gi->gi_offset, gi->gi_size,
 				gfs2_copy2user);
 
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_GI_DO_HFILE_READ, error);
+	return error;
 }
 
 /**
@@ -1103,7 +1084,6 @@ static int gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_HFILE_WRITE)
 	struct gfs2_inode *ip;
 	struct gfs2_alloc *al = NULL;
 	struct gfs2_holder i_gh;
@@ -1112,24 +1092,24 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	int error;
 
         if (!capable(CAP_SYS_ADMIN))
-                RETURN(G2FN_GI_DO_HFILE_WRITE, -EACCES);
+                return -EACCES;
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		RETURN(G2FN_GI_DO_HFILE_WRITE, PTR_ERR(ip));
+		return PTR_ERR(ip);
 
 	if (!S_ISREG(ip->i_di.di_mode))
-		RETURN(G2FN_GI_DO_HFILE_WRITE, -EINVAL);
+		return -EINVAL;
 
 	if (!access_ok(VERIFY_READ, gi->gi_data, gi->gi_size))
-		RETURN(G2FN_GI_DO_HFILE_WRITE, -EFAULT);
+		return -EFAULT;
 
 	gfs2_write_calc_reserv(ip, gi->gi_size, &data_blocks, &ind_blocks);
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
 				   LM_FLAG_PRIORITY, &i_gh);
 	if (error)
-		RETURN(G2FN_GI_DO_HFILE_WRITE, error);
+		return error;
 
         if (!gfs2_is_jdata(ip)) {
                 gfs2_consist_inode(ip);
@@ -1179,7 +1159,7 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  out:
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_GI_DO_HFILE_WRITE, error);
+	return error;
 }
 
 /**
@@ -1192,30 +1172,29 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_HFILE_TRUNC)
 	struct gfs2_inode *ip;
 	struct gfs2_holder i_gh;
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_DO_HFILE_TRUNC, -EACCES);
+		return -EACCES;
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
-		RETURN(G2FN_GI_DO_HFILE_TRUNC, PTR_ERR(ip));
+		return PTR_ERR(ip);
 
 	if (!S_ISREG(ip->i_di.di_mode))
-		RETURN(G2FN_GI_DO_HFILE_TRUNC, -EINVAL);
+		return -EINVAL;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(G2FN_GI_DO_HFILE_TRUNC, error);
+		return error;
 
 	error = gfs2_truncatei(ip, gi->gi_offset, NULL);
 
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_GI_DO_HFILE_TRUNC, error);
+	return error;
 }
 
 /**
@@ -1228,12 +1207,11 @@ static int gi_do_hfile_trunc(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_QUOTA_SYNC)
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_DO_QUOTA_SYNC, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_DO_QUOTA_SYNC, -EINVAL);
-	RETURN(G2FN_GI_DO_QUOTA_SYNC, gfs2_quota_sync(sdp));
+		return -EINVAL;
+	return gfs2_quota_sync(sdp);
 }
 
 /**
@@ -1246,18 +1224,17 @@ static int gi_do_quota_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_QUOTA_REFRESH)
 	char buf[ARG_SIZE];
 	int user;
 	uint32_t id;
 
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 2)
-		RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EINVAL);
+		return -EINVAL;
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EFAULT);
+                return -EFAULT;
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1268,17 +1245,16 @@ static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 		user = FALSE;
 		break;
 	default:
-		RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EINVAL);
+		return -EINVAL;
 	}
 
 	if (buf[1] != ':')
-		RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EINVAL);
+		return -EINVAL;
 
 	if (sscanf(buf + 2, "%u", &id) != 1)
-		RETURN(G2FN_GI_DO_QUOTA_REFRESH, -EINVAL);
+		return -EINVAL;
 
-	RETURN(G2FN_GI_DO_QUOTA_REFRESH,
-	       gfs2_quota_refresh(sdp, user, id));
+	return gfs2_quota_refresh(sdp, user, id);
 }
 
 /**
@@ -1291,7 +1267,6 @@ static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_QUOTA_READ)
 	char buf[ARG_SIZE];
 	int user;
 	uint32_t id;
@@ -1299,12 +1274,12 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	int error;
 
 	if (gi->gi_argc != 2)
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EINVAL);
+		return -EINVAL;
 	if (gi->gi_size != sizeof(struct gfs2_quota))
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EINVAL);
+		return -EINVAL;
 
         if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                RETURN(G2FN_GI_DO_QUOTA_READ, -EFAULT);
+                return -EFAULT;
         buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
@@ -1315,23 +1290,23 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 		user = FALSE;
 		break;
 	default:
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EINVAL);
+		return -EINVAL;
 	}
 
 	if (buf[1] != ':')
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EINVAL);
+		return -EINVAL;
 
 	if (sscanf(buf + 2, "%u", &id) != 1)
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EINVAL);
+		return -EINVAL;
 
 	error = gfs2_quota_read(sdp, user, id, &q);
 	if (error)
-		RETURN(G2FN_GI_DO_QUOTA_READ, error);
+		return error;
 
 	if (copy_to_user(gi->gi_data, &q, sizeof(struct gfs2_quota)))
-		RETURN(G2FN_GI_DO_QUOTA_READ, -EFAULT);
+		return -EFAULT;
 
-	RETURN(G2FN_GI_DO_QUOTA_READ, 0);
+	return 0;
 }
 
 /**
@@ -1344,52 +1319,47 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 static int gi_do_statfs_sync(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_DO_STATFS_SYNC)
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_DO_STATFS_SYNC, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_DO_STATFS_SYNC, -EINVAL);
-	RETURN(G2FN_GI_DO_STATFS_SYNC, gfs2_statfs_sync(sdp));
+		return -EINVAL;
+	return gfs2_statfs_sync(sdp);
 }
 
 static int gi_resize_add_rgrps(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_RESIZE_ADD_RGRPS)
-
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 1)
-		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EINVAL);
+		return -EINVAL;
 	if (gi->gi_size % sizeof(struct gfs2_rindex))
-		RETURN(G2FN_GI_RESIZE_ADD_RGRPS, -EINVAL);
+		return -EINVAL;
 
-	RETURN(G2FN_GI_RESIZE_ADD_RGRPS,
-	       gfs2_resize_add_rgrps(sdp, gi->gi_data, gi->gi_size));
+	return gfs2_resize_add_rgrps(sdp, gi->gi_data, gi->gi_size);
 }
 
 static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
-	ENTER(G2FN_GI_RENAME2SYSTEM)
 	char new_dir[ARG_SIZE], new_name[ARG_SIZE];
 	struct gfs2_inode *old_dip, *ip, *new_dip;
 	int put_new_dip = FALSE;
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
-		RETURN(G2FN_GI_RENAME2SYSTEM, -EACCES);
+		return -EACCES;
 	if (gi->gi_argc != 3)
-		RETURN(G2FN_GI_RENAME2SYSTEM, -EINVAL);
+		return -EINVAL;
 
         if (strncpy_from_user(new_dir, gi->gi_argv[1], ARG_SIZE) < 0)
-                RETURN(G2FN_GI_RENAME2SYSTEM, -EFAULT);
+                return -EFAULT;
         new_dir[ARG_SIZE - 1] = 0;
         if (strncpy_from_user(new_name, gi->gi_argv[2], ARG_SIZE) < 0)
-                RETURN(G2FN_GI_RENAME2SYSTEM, -EFAULT);
+                return -EFAULT;
         new_name[ARG_SIZE - 1] = 0;
 
 	error = gfs2_lookup_simple(sdp->sd_root_dir, ".gfs2_admin", &old_dip);
 	if (error)
-		RETURN(G2FN_GI_RENAME2SYSTEM, error);
+		return error;
 
 	error = -ENOTDIR;
 	if (!S_ISDIR(old_dip->i_di.di_mode))
@@ -1422,7 +1392,7 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  out:
 	gfs2_inode_put(old_dip);
 
-	RETURN(G2FN_GI_RENAME2SYSTEM, error);
+	return error;
 }
 
 /**
@@ -1435,7 +1405,6 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 {
-	ENTER(G2FN_IOCTL_I)
 	struct gfs2_ioctl *gi_user = (struct gfs2_ioctl *)arg;
 	struct gfs2_ioctl gi;
 	char **argv;
@@ -1443,12 +1412,12 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 	int error = -EFAULT;
 
 	if (copy_from_user(&gi, gi_user, sizeof(struct gfs2_ioctl)))
-		RETURN(G2FN_IOCTL_I, -EFAULT);
+		return -EFAULT;
 	if (!gi.gi_argc)
-		RETURN(G2FN_IOCTL_I, -EINVAL);
+		return -EINVAL;
 	argv = kmalloc(gi.gi_argc * sizeof(char *), GFP_KERNEL);
 	if (!argv)
-		RETURN(G2FN_IOCTL_I, -ENOMEM);
+		return -ENOMEM;
 	if (copy_from_user(argv, gi.gi_argv,
 			   gi.gi_argc * sizeof(char *)))
 		goto out;
@@ -1512,6 +1481,6 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
  out:
 	kfree(argv);
 
-	RETURN(G2FN_IOCTL_I, error);
+	return error;
 }
 

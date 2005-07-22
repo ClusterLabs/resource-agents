@@ -38,7 +38,6 @@
 
 int gfs2_scand(void *data)
 {
-	ENTER(G2FN_SCAND)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 
 	daemonize("gfs2_scand");
@@ -61,7 +60,7 @@ int gfs2_scand(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_SCAND, 0);
+	return 0;
 }
 
 /**
@@ -76,7 +75,6 @@ int gfs2_scand(void *data)
 
 int gfs2_glockd(void *data)
 {
-	ENTER(G2FN_GLOCKD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 
 	daemonize("gfs2_glockd");
@@ -104,7 +102,7 @@ int gfs2_glockd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_GLOCKD, 0);
+	return 0;
 }
 
 /**
@@ -115,7 +113,6 @@ int gfs2_glockd(void *data)
 
 int gfs2_recoverd(void *data)
 {
-	ENTER(G2FN_RECOVERD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 
 	daemonize("gfs2_recoverd");
@@ -138,7 +135,7 @@ int gfs2_recoverd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_RECOVERD, 0);
+	return 0;
 }
 
 /**
@@ -151,7 +148,6 @@ int gfs2_recoverd(void *data)
 
 int gfs2_logd(void *data)
 {
-	ENTER(G2FN_LOGD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 	struct gfs2_holder ji_gh;
 
@@ -191,7 +187,7 @@ int gfs2_logd(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_LOGD, 0);
+	return 0;
 }
 
 /**
@@ -202,7 +198,6 @@ int gfs2_logd(void *data)
 
 int gfs2_quotad(void *data)
 {
-	ENTER(G2FN_QUOTAD)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 	int error;
 
@@ -253,7 +248,7 @@ int gfs2_quotad(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_QUOTAD, 0);
+	return 0;
 }
 
 /**
@@ -264,7 +259,6 @@ int gfs2_quotad(void *data)
 
 int gfs2_inoded(void *data)
 {
-	ENTER(G2FN_INODED)
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 	int error;
 
@@ -293,5 +287,5 @@ int gfs2_inoded(void *data)
 
 	complete(&sdp->sd_thread_completion);
 
-	RETURN(G2FN_INODED, 0);
+	return 0;
 }

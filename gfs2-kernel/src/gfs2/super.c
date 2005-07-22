@@ -43,8 +43,6 @@
 
 void gfs2_tune_init(struct gfs2_tune *gt)
 {
-	ENTER(G2FN_TUNE_INIT)
-
 	spin_lock_init(&gt->gt_spin);
 
 	gt->gt_ilimit = 100;
@@ -81,8 +79,6 @@ void gfs2_tune_init(struct gfs2_tune *gt)
 	gt->gt_greedy_max = HZ / 4;
 	gt->gt_statfs_quantum = 30;
 	gt->gt_statfs_slow = 0;
-
-	RET(G2FN_TUNE_INIT);
 }
 
 /**
@@ -98,21 +94,20 @@ void gfs2_tune_init(struct gfs2_tune *gt)
 
 int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 {
-	ENTER(G2FN_CHECK_SB)
 	unsigned int x;
 
 	if (sb->sb_header.mh_magic != GFS2_MAGIC ||
 	    sb->sb_header.mh_type != GFS2_METATYPE_SB) {
 		if (!silent)
 			printk("GFS2: not a GFS2 filesystem\n");
-		RETURN(G2FN_CHECK_SB, -EINVAL);
+		return -EINVAL;
 	}
 
 	/*  If format numbers match exactly, we're done.  */
 
 	if (sb->sb_fs_format == GFS2_FORMAT_FS &&
 	    sb->sb_multihost_format == GFS2_FORMAT_MULTI)
-		RETURN(G2FN_CHECK_SB, 0);
+		return 0;
 
 	if (sb->sb_fs_format != GFS2_FORMAT_FS) {
 		for (x = 0; gfs2_old_fs_formats[x]; x++)
@@ -124,7 +119,7 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 			       GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS2: I don't know how to upgrade this FS\n");
-			RETURN(G2FN_CHECK_SB, -EINVAL);
+			return -EINVAL;
 		}
 	}
 
@@ -138,7 +133,7 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 			     GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS2: I don't know how to upgrade this FS\n");
-			RETURN(G2FN_CHECK_SB, -EINVAL);
+			return -EINVAL;
 		}
 	}
 
@@ -148,10 +143,10 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 		       sb->sb_fs_format, sb->sb_multihost_format);
 		printk("GFS2: Use the \"upgrade\" mount option to upgrade the FS\n");
 		printk("GFS2: See the manual for more details\n");
-		RETURN(G2FN_CHECK_SB, -EINVAL);
+		return -EINVAL;
 	}
 
-	RETURN(G2FN_CHECK_SB, 0);
+	return 0;
 }
 
 /**
@@ -164,7 +159,6 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 
 int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 {
-	ENTER(G2FN_READ_SB)
 	struct buffer_head *bh;
 	uint32_t hash_blocks, ind_blocks, leaf_blocks;
 	uint32_t tmp_blocks;
@@ -177,7 +171,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		if (!silent)
 			printk("GFS2: fsid=%s: can't read superblock\n",
 			       sdp->sd_fsname);
-		RETURN(G2FN_READ_SB, error);
+		return error;
 	}
 
 	gfs2_assert(sdp, sizeof(struct gfs2_sb) <= bh->b_size,);
@@ -186,7 +180,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 
 	error = gfs2_check_sb(sdp, &sdp->sd_sb, silent);
 	if (error)
-		RETURN(G2FN_READ_SB, error);
+		return error;
 
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift -
 		GFS2_BASIC_BLOCK_SHIFT;
@@ -253,7 +247,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 	sdp->sd_max_jheight = x;
 	gfs2_assert(sdp, sdp->sd_max_jheight <= GFS2_MAX_META_HEIGHT,);
 
-	RETURN(G2FN_READ_SB, 0);
+	return 0;
 }
 
 /**
@@ -264,8 +258,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 
 int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
 {
-	ENTER(G2FN_DO_UPGRADE)
-	RETURN(G2FN_DO_UPGRADE, 0);
+	return 0;
 }
 
 /**
@@ -287,7 +280,6 @@ int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
 
 int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 {
-	ENTER(G2FN_JINDEX_HOLD)
 	struct gfs2_inode *dip = sdp->sd_jindex;
 	struct qstr name;
 	char buf[20];
@@ -337,7 +329,7 @@ int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 
 	up(&sdp->sd_jindex_mutex);
 
-	RETURN(G2FN_JINDEX_HOLD, error);
+	return error;
 }
 
 /**
@@ -348,7 +340,6 @@ int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 
 void gfs2_jindex_free(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_JINDEX_FREE)
 	struct list_head list;
 	struct gfs2_jdesc *jd;
 
@@ -364,13 +355,10 @@ void gfs2_jindex_free(struct gfs2_sbd *sdp)
 		gfs2_inode_put(jd->jd_inode);
 		kfree(jd);
 	}
-
-	RET(G2FN_JINDEX_FREE);
 }
 
 static struct gfs2_jdesc *jdesc_find_i(struct list_head *head, unsigned int jid)
 {
-	ENTER(G2FN_JDESC_FIND_I)
 	struct list_head *tmp;
 	struct gfs2_jdesc *jd;
 
@@ -385,24 +373,22 @@ static struct gfs2_jdesc *jdesc_find_i(struct list_head *head, unsigned int jid)
 	if (tmp == head)
 		jd = NULL;
 
-	RETURN(G2FN_JDESC_FIND_I, jd);
+	return jd;
 }
 
 struct gfs2_jdesc *gfs2_jdesc_find(struct gfs2_sbd *sdp, unsigned int jid)
 {
-	ENTER(G2FN_JDESC_FIND)
 	struct gfs2_jdesc *jd;
 
 	spin_lock(&sdp->sd_jindex_spin);
 	jd = jdesc_find_i(&sdp->sd_jindex_list, jid);
 	spin_unlock(&sdp->sd_jindex_spin);
 
-	RETURN(G2FN_JDESC_FIND, jd);
+	return jd;
 }
 
 void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 {
-	ENTER(G2FN_JINDEX_MAKE_DIRTY)
         struct gfs2_jdesc *jd;
 
 	spin_lock(&sdp->sd_jindex_spin);
@@ -410,13 +396,10 @@ void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 	if (jd)
 		jd->jd_dirty = TRUE;
 	spin_unlock(&sdp->sd_jindex_spin);
-
-	RET(G2FN_JINDEX_MAKE_DIRTY);
 }
 
 struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_JDESC_FIND_DIRTY)
 	struct list_head *tmp, *head;
 	struct gfs2_jdesc *jd = NULL;
 
@@ -435,12 +418,11 @@ struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 	if (tmp == head)
 		jd = NULL;
 
-	RETURN(G2FN_JDESC_FIND_DIRTY, jd);
+	return jd;
 }
 
 int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 {
-	ENTER(G2FN_JDESC_CHECK)
         struct gfs2_inode *ip = jd->jd_inode;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	int ar;
@@ -450,7 +432,7 @@ int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 	    ip->i_di.di_size > (1 << 30) ||
 	    (ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1))) {
 		gfs2_consist_inode(ip);
-		RETURN(G2FN_JDESC_CHECK, -EIO);
+		return -EIO;
 	}
 	jd->jd_blocks = ip->i_di.di_size >> sdp->sd_sb.sb_bsize_shift;
 
@@ -462,7 +444,7 @@ int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 		error = -EIO;
 	}
 
-	RETURN(G2FN_JDESC_CHECK, error);
+	return error;
 }
 
 /**
@@ -474,7 +456,6 @@ int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 
 int gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOOKUP_MASTER_DIR)
 	struct gfs2_glock *gl;
 	int error;
 
@@ -487,7 +468,7 @@ int gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 		gfs2_glock_put(gl);
 	}
 
-	RETURN(G2FN_LOOKUP_MASTER_DIR, error);
+	return error;
 }
 
 /**
@@ -499,7 +480,6 @@ int gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 
 int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_MAKE_FS_RW)
 	struct gfs2_glock *j_gl = sdp->sd_jdesc->jd_inode->i_gl;
 	struct gfs2_holder t_gh;
 	struct gfs2_log_header head;
@@ -508,7 +488,7 @@ int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED,
 				   GL_LOCAL_EXCL | GL_NEVER_RECURSE, &t_gh);
 	if (error)
-		RETURN(G2FN_MAKE_FS_RW, error);
+		return error;
 
 	gfs2_meta_cache_flush(sdp->sd_jdesc->jd_inode);
 	j_gl->gl_ops->go_inval(j_gl, DIO_METADATA | DIO_DATA);
@@ -538,7 +518,7 @@ int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 
 	gfs2_glock_dq_uninit(&t_gh);
 
-	RETURN(G2FN_MAKE_FS_RW, 0);
+	return 0;
 
  fail_unlinked:
 	gfs2_unlinked_cleanup(sdp);
@@ -547,7 +527,7 @@ int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 	t_gh.gh_flags |= GL_NOCACHE;
 	gfs2_glock_dq_uninit(&t_gh);
 
-	RETURN(G2FN_MAKE_FS_RW, error);
+	return error;
 }
 
 /**
@@ -559,7 +539,6 @@ int gfs2_make_fs_rw(struct gfs2_sbd *sdp)
 
 int gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_MAKE_FS_RO)
 	struct gfs2_holder t_gh;
 	int error;
 
@@ -571,7 +550,7 @@ int gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 				   GL_LOCAL_EXCL | GL_NEVER_RECURSE | GL_NOCACHE,
 				   &t_gh);
 	if (error && !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-		RETURN(G2FN_MAKE_FS_RO, error);
+		return error;
 
 	gfs2_meta_syncfs(sdp);
 	gfs2_log_shutdown(sdp);
@@ -584,12 +563,11 @@ int gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	gfs2_unlinked_cleanup(sdp);
 	gfs2_quota_cleanup(sdp);
 
-	RETURN(G2FN_MAKE_FS_RO, error);
+	return error;
 }
 
 int gfs2_statfs_init(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_STATFS_INIT)
 	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
 	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
@@ -600,7 +578,7 @@ int gfs2_statfs_init(struct gfs2_sbd *sdp)
 
 	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
 	if (error)
-		RETURN(G2FN_STATFS_INIT, error);
+		return error;
 
 	error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 	if (error)
@@ -632,13 +610,12 @@ int gfs2_statfs_init(struct gfs2_sbd *sdp)
  out:
 	gfs2_glock_dq_uninit(&gh);
 
-	RETURN(G2FN_STATFS_INIT, 0);
+	return 0;
 }
 
 void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
 			int64_t dinodes)
 {
-	ENTER(G2FN_STATFS_CHANGE)
        	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
 	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
 	struct buffer_head *l_bh;
@@ -646,7 +623,7 @@ void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
 
 	error = gfs2_meta_inode_buffer(l_ip, &l_bh);
 	if (error)
-		RET(G2FN_STATFS_CHANGE);
+		return;
 
 	down(&sdp->sd_statfs_mutex);
 	gfs2_trans_add_bh(l_ip->i_gl, l_bh);
@@ -661,13 +638,10 @@ void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
 	spin_unlock(&sdp->sd_statfs_spin);
 
 	brelse(l_bh);
-
-	RET(G2FN_STATFS_CHANGE);
 }
 
 int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_STATFS_SYNC)
 	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
        	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
@@ -678,7 +652,7 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 
 	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
 	if (error)
-		RETURN(G2FN_STATFS_SYNC, error);
+		return error;
 
 	error = gfs2_meta_inode_buffer(m_ip, &m_bh);
 	if (error)
@@ -729,7 +703,7 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
  out:
 	gfs2_glock_dq_uninit(&gh);
 
-	RETURN(G2FN_STATFS_SYNC, error);
+	return error;
 }
 
 /**
@@ -742,7 +716,6 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 
 int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_I)
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
        	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
 
@@ -762,7 +735,7 @@ int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 	if (sc->sc_dinodes < 0)
 		sc->sc_dinodes = 0;
 
-	RETURN(G2FN_STATFS_I, 0);
+	return 0;
 }
 
 /**
@@ -776,12 +749,11 @@ int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 static int statfs_slow_fill(struct gfs2_rgrpd *rgd,
 			    struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_SLOW_FILL)
        	gfs2_rgrp_verify(rgd);
 	sc->sc_total += rgd->rd_ri.ri_data;
 	sc->sc_free += rgd->rd_rg.rg_free;
 	sc->sc_dinodes += rgd->rd_rg.rg_dinodes;
-	RETURN(G2FN_STATFS_SLOW_FILL, 0);
+	return 0;
 }
 
 /**
@@ -799,7 +771,6 @@ static int statfs_slow_fill(struct gfs2_rgrpd *rgd,
 
 int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_SLOW)
 	struct gfs2_holder ri_gh;
 	struct gfs2_rgrpd *rgd_next;
 	struct gfs2_holder *gha, *gh;
@@ -811,7 +782,7 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 	memset(sc, 0, sizeof(struct gfs2_statfs_change));
 	gha = kmalloc(slots * sizeof(struct gfs2_holder), GFP_KERNEL);
 	if (!gha)
-		RETURN(G2FN_STATFS_SLOW, -ENOMEM);
+		return -ENOMEM;
 	memset(gha, 0, slots * sizeof(struct gfs2_holder));
 
 	error = gfs2_rindex_hold(sdp, &ri_gh);
@@ -863,7 +834,7 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
  out:
 	kfree(gha);
 
-	RETURN(G2FN_STATFS_SLOW, error);
+	return error;
 }
 
 struct lfcc {
@@ -882,7 +853,6 @@ struct lfcc {
 
 int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 {
-	ENTER(G2FN_LOCK_FS_CHECK_CLEAN)
        	struct gfs2_holder ji_gh;
 	struct list_head *head, *tmp;
 	struct gfs2_jdesc *jd;
@@ -893,7 +863,7 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 
 	error = gfs2_jindex_hold(sdp, &ji_gh);
 	if (error)
-		RETURN(G2FN_LOCK_FS_CHECK_CLEAN, error);
+		return error;
 
 	for (head = &sdp->sd_jindex_list, tmp = head->next;
 	     tmp != head;
@@ -942,7 +912,7 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 	}
 	gfs2_glock_dq_uninit(&ji_gh);
 
-	RETURN(G2FN_LOCK_FS_CHECK_CLEAN, error);
+	return error;
 }
 
 /**
@@ -958,7 +928,6 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 
 int gfs2_freeze_fs(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_FREEZE_FS)
 	int error = 0;
 
 	down(&sdp->sd_freeze_lock);
@@ -971,7 +940,7 @@ int gfs2_freeze_fs(struct gfs2_sbd *sdp)
 
 	up(&sdp->sd_freeze_lock);
 
-	RETURN(G2FN_FREEZE_FS, error);
+	return error;
 }
 
 /**
@@ -986,14 +955,10 @@ int gfs2_freeze_fs(struct gfs2_sbd *sdp)
 
 void gfs2_unfreeze_fs(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNFREEZE_FS)
-
 	down(&sdp->sd_freeze_lock);
 
 	if (sdp->sd_freeze_count && !--sdp->sd_freeze_count)
 		gfs2_glock_dq_uninit(&sdp->sd_freeze_gh);
 
 	up(&sdp->sd_freeze_lock);
-
-	RET(G2FN_UNFREEZE_FS);
 }

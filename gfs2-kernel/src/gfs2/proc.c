@@ -42,11 +42,9 @@ spinlock_t req_lock;
 
 void gfs2_proc_fs_add(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_PROC_FS_ADD)
 	down(&gfs2_fs_lock);
 	list_add(&sdp->sd_list, &gfs2_fs_list);
 	up(&gfs2_fs_lock);
-	RET(G2FN_PROC_FS_ADD);
 }
 
 /**
@@ -57,11 +55,9 @@ void gfs2_proc_fs_add(struct gfs2_sbd *sdp)
 
 void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_PROC_FS_DEL)
 	down(&gfs2_fs_lock);
 	list_del(&sdp->sd_list);
 	up(&gfs2_fs_lock);
-	RET(G2FN_PROC_FS_DEL);
 }
 
 /**
@@ -74,7 +70,6 @@ void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
 
 static ssize_t do_list(char *user_buf, size_t size)
 {
-	ENTER(G2FN_DO_LIST)
 	struct list_head *tmp;
 	struct gfs2_sbd *sdp = NULL;
 	unsigned int x;
@@ -121,7 +116,7 @@ static ssize_t do_list(char *user_buf, size_t size)
  out:
 	up(&gfs2_fs_lock);
 
-	RETURN(G2FN_DO_LIST, error);
+	return error;
 }
 
 /**
@@ -133,19 +128,18 @@ static ssize_t do_list(char *user_buf, size_t size)
 
 static char *find_argument(char *p)
 {
-	ENTER(G2FN_FIND_ARGUMENT)
 	char *p2;
 
 	while (*p == ' ' || *p == '\n')
 		p++;
 	if (!*p)
-		RETURN(G2FN_FIND_ARGUMENT, NULL);
+		return NULL;
 	for (p2 = p; *p2; p2++) /* do nothing */;
 	p2--;
 	while (*p2 == ' ' || *p2 == '\n')
 		*p2-- = 0;
 
-	RETURN(G2FN_FIND_ARGUMENT, p);
+	return p;
 }
 
 /**
@@ -157,7 +151,6 @@ static char *find_argument(char *p)
 
 static int do_freeze(char *p)
 {
-	ENTER(G2FN_DO_FREEZE)
 	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
 	char num[21];
@@ -165,7 +158,7 @@ static int do_freeze(char *p)
 
 	p = find_argument(p + 6);
 	if (!p)
-		RETURN(G2FN_DO_FREEZE, -ENOENT);
+		return -ENOENT;
 
 	down(&gfs2_fs_lock);
 
@@ -183,7 +176,7 @@ static int do_freeze(char *p)
 
 	up(&gfs2_fs_lock);
 
-	RETURN(G2FN_DO_FREEZE, error);
+	return error;
 }
 
 /**
@@ -195,7 +188,6 @@ static int do_freeze(char *p)
 
 static int do_unfreeze(char *p)
 {
-	ENTER(G2FN_DO_UNFREEZE)
 	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
 	char num[21];
@@ -203,7 +195,7 @@ static int do_unfreeze(char *p)
 
 	p = find_argument(p + 8);
 	if (!p)
-		RETURN(G2FN_DO_UNFREEZE, -ENOENT);
+		return -ENOENT;
 
 	down(&gfs2_fs_lock);
 
@@ -221,7 +213,7 @@ static int do_unfreeze(char *p)
 
 	up(&gfs2_fs_lock);
 
-	RETURN(G2FN_DO_UNFREEZE, error);
+	return error;
 }
 
 /**
@@ -233,16 +225,15 @@ static int do_unfreeze(char *p)
 
 static int do_margs(char *p)
 {
-	ENTER(G2FN_DO_MARGS)
 	char *new_buf, *old_buf;
 
 	p = find_argument(p + 5);
 	if (!p)
-		RETURN(G2FN_DO_MARGS, -ENOENT);
+		return -ENOENT;
 
 	new_buf = kmalloc(strlen(p) + 1, GFP_KERNEL);
 	if (!new_buf)
-		RETURN(G2FN_DO_MARGS, -ENOMEM);
+		return -ENOMEM;
 	strcpy(new_buf, p);
 
 	spin_lock(&gfs2_proc_margs_lock);
@@ -252,7 +243,7 @@ static int do_margs(char *p)
 
 	kfree(old_buf);
 
-	RETURN(G2FN_DO_MARGS, 0);
+	return 0;
 }
 
 /**
@@ -264,7 +255,6 @@ static int do_margs(char *p)
 
 static int do_withdraw(char *p)
 {
-	ENTER(G2FN_DO_WITHDRAW)
 	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
 	char num[21];
@@ -272,7 +262,7 @@ static int do_withdraw(char *p)
 
 	p = find_argument(p + 8);
 	if (!p)
-		RETURN(G2FN_DO_WITHDRAW, -ENOENT);
+		return -ENOENT;
 
 	down(&gfs2_fs_lock);
 
@@ -292,7 +282,7 @@ static int do_withdraw(char *p)
 
 	up(&gfs2_fs_lock);
 
-	RETURN(G2FN_DO_WITHDRAW, error);
+	return error;
 }
 
 /**
@@ -306,7 +296,6 @@ static int do_withdraw(char *p)
 
 static int do_lockdump(char *p, char *buf, size_t size)
 {
-	ENTER(G2FN_DO_LOCKDUMP)
 	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
 	char num[21];
@@ -315,7 +304,7 @@ static int do_lockdump(char *p, char *buf, size_t size)
 
 	p = find_argument(p + 8);
 	if (!p)
-		RETURN(G2FN_DO_LOCKDUMP, -ENOENT);
+		return -ENOENT;
 
 	down(&gfs2_fs_lock);
 
@@ -340,7 +329,7 @@ static int do_lockdump(char *p, char *buf, size_t size)
 
 	up(&gfs2_fs_lock);
 
-	RETURN(G2FN_DO_LOCKDUMP, error);
+	return error;
 }
 
 /**
@@ -356,7 +345,6 @@ static int do_lockdump(char *p, char *buf, size_t size)
 static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
 			       loff_t *offset)
 {
-	ENTER(G2FN_PROC_WRITE)
 	char *p;
 
 	spin_lock(&req_lock);
@@ -367,23 +355,23 @@ static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
 	kfree(p);
 
 	if (!size)
-		RETURN(G2FN_PROC_WRITE, -EINVAL);
+		return -EINVAL;
 
 	p = kmalloc(size + 1, GFP_KERNEL);
 	if (!p)
-		RETURN(G2FN_PROC_WRITE, -ENOMEM);
+		return -ENOMEM;
 	p[size] = 0;
 
 	if (copy_from_user(p, buf, size)) {
 		kfree(p);
-		RETURN(G2FN_PROC_WRITE, -EFAULT);
+		return -EFAULT;
 	}
 
 	spin_lock(&req_lock);
 	file->private_data = p;
 	spin_unlock(&req_lock);
 
-	RETURN(G2FN_PROC_WRITE, size);
+	return size;
 }
 
 /**
@@ -399,7 +387,6 @@ static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
 static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
 			      loff_t *offset)
 {
-	ENTER(G2FN_PROC_READ)
 	char *p;
 	int error;
 
@@ -409,11 +396,11 @@ static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
 	spin_unlock(&req_lock);
 
 	if (!p)
-		RETURN(G2FN_PROC_READ, -ENOENT);
+		return -ENOENT;
 
 	if (!size) {
 		kfree(p);
-		RETURN(G2FN_PROC_READ, -EINVAL);
+		return -EINVAL;
 	}
 
 	if (strncmp(p, "list", 4) == 0)
@@ -433,7 +420,7 @@ static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
 
 	kfree(p);
 
-	RETURN(G2FN_PROC_READ, error);
+	return error;
 }
 
 /**
@@ -446,9 +433,8 @@ static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
 
 static int gfs2_proc_close(struct inode *inode, struct file *file)
 {
-	ENTER(G2FN_PROC_CLOSE)
 	kfree(file->private_data);
-	RETURN(G2FN_PROC_CLOSE, 0);
+	return 0;
 }
 
 static struct file_operations gfs2_proc_fops =
@@ -466,7 +452,6 @@ static struct file_operations gfs2_proc_fops =
 
 int gfs2_proc_init(void)
 {
-	ENTER(G2FN_PROC_INIT)
 	struct proc_dir_entry *pde;
 
 	INIT_LIST_HEAD(&gfs2_fs_list);
@@ -477,12 +462,12 @@ int gfs2_proc_init(void)
 
 	pde = create_proc_entry("fs/gfs2", S_IFREG | 0600, NULL);
 	if (!pde)
-		RETURN(G2FN_PROC_INIT, -ENOMEM);
+		return -ENOMEM;
 
 	pde->owner = THIS_MODULE;
 	pde->proc_fops = &gfs2_proc_fops;
 
-	RETURN(G2FN_PROC_INIT, 0);
+	return 0;
 }
 
 /**
@@ -492,9 +477,7 @@ int gfs2_proc_init(void)
 
 void gfs2_proc_uninit(void)
 {
-	ENTER(G2FN_PROC_UNINIT)
 	kfree(gfs2_proc_margs);
 	remove_proc_entry("fs/gfs2", NULL);
-	RET(G2FN_PROC_UNINIT);
 }
 

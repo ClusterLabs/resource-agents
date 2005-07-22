@@ -37,7 +37,6 @@
 
 static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
 {
-	ENTER(G2FN_DREVALIDATE)
 	struct dentry *parent = dget_parent(dentry);
 	struct gfs2_inode *dip = get_v2ip(parent->d_inode);
 	struct gfs2_sbd *sdp = dip->i_sbd;
@@ -90,7 +89,7 @@ static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
  valid:
 	unlock_kernel();
 	dput(parent);
-	RETURN(G2FN_DREVALIDATE, 1);
+	return 1;
 
  invalid_gunlock:
 	gfs2_glock_dq_uninit(&d_gh);
@@ -105,7 +104,7 @@ static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
 
 	unlock_kernel();
 	dput(parent);
-	RETURN(G2FN_DREVALIDATE, 0);
+	return 0;
 
  fail_gunlock:
 	gfs2_glock_dq_uninit(&d_gh);
@@ -113,7 +112,7 @@ static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
  fail:
 	unlock_kernel();
 	dput(parent);
-	RETURN(G2FN_DREVALIDATE, 0);
+	return 0;
 }
 
 struct dentry_operations gfs2_dops = {

@@ -30,7 +30,6 @@
 int gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
 			  struct buffer_head **bhp)
 {
-	ENTER(G2FN_JDATA_GET_BUFFER)
 	struct buffer_head *bh;
 	int error = 0;
 
@@ -43,16 +42,16 @@ int gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
 		error = gfs2_meta_read(ip->i_gl, block,
 				       DIO_START | DIO_WAIT, &bh);
 		if (error)
-			RETURN(G2FN_JDATA_GET_BUFFER, error);
+			return error;
 		if (gfs2_metatype_check(ip->i_sbd, bh, GFS2_METATYPE_JD)) {
 			brelse(bh);
-			RETURN(G2FN_JDATA_GET_BUFFER, -EIO);
+			return -EIO;
 		}
 	}
 
 	*bhp = bh;
 
-	RETURN(G2FN_JDATA_GET_BUFFER, 0);
+	return 0;
 }
 
 /**
@@ -68,13 +67,12 @@ int gfs2_jdata_get_buffer(struct gfs2_inode *ip, uint64_t block, int new,
 int gfs2_copy2mem(struct buffer_head *bh, char **buf, unsigned int offset,
 		  unsigned int size)
 {
-	ENTER(G2FN_COPY2MEM)
 	if (bh)
 		memcpy(*buf, bh->b_data + offset, size);
 	else
 		memset(*buf, 0, size);
 	*buf += size;
-	RETURN(G2FN_COPY2MEM, 0);
+	return 0;
 }
 
 /**
@@ -90,7 +88,6 @@ int gfs2_copy2mem(struct buffer_head *bh, char **buf, unsigned int offset,
 int gfs2_copy2user(struct buffer_head *bh, char **buf, unsigned int offset,
 		   unsigned int size)
 {
-	ENTER(G2FN_COPY2USER)
 	int error;
 
 	if (bh)
@@ -103,14 +100,13 @@ int gfs2_copy2user(struct buffer_head *bh, char **buf, unsigned int offset,
 	else
 		*buf += size;
 
-	RETURN(G2FN_COPY2USER, error);
+	return error;
 }
 
 static int jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
 			      unsigned int offset, unsigned int size,
 			      read_copy_fn_t copy_fn)
 {
-	ENTER(G2FN_JDATA_READ_STUFFED)
 	struct buffer_head *dibh;
 	int error;
 
@@ -121,7 +117,7 @@ static int jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
 		brelse(dibh);
 	}
 
-	RETURN(G2FN_JDATA_READ_STUFFED, (error) ? error : size);
+	return (error) ? error : size;
 }
 
 /**
@@ -143,7 +139,6 @@ static int jdata_read_stuffed(struct gfs2_inode *ip, char *buf,
 int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		    unsigned int size, read_copy_fn_t copy_fn)
 {
-	ENTER(G2FN_JDATA_READ)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t lblock, dblock;
 	uint32_t extlen = 0;
@@ -152,22 +147,19 @@ int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 	int error = 0;
 
 	if (offset >= ip->i_di.di_size)
-		RETURN(G2FN_JDATA_READ, 0);
+		return 0;
 
 	if ((offset + size) > ip->i_di.di_size)
 		size = ip->i_di.di_size - offset;
 
 	if (!size)
-		RETURN(G2FN_JDATA_READ, 0);
+		return 0;
 
 	if (gfs2_is_stuffed(ip))
-		RETURN(G2FN_JDATA_READ,
-		       jdata_read_stuffed(ip, buf,
-					  (unsigned int)offset, size,
-					  copy_fn));
+		return jdata_read_stuffed(ip, buf, (unsigned int)offset, size, copy_fn);
 
 	if (gfs2_assert_warn(sdp, gfs2_is_jdata(ip)))
-		RETURN(G2FN_JDATA_READ, -EINVAL);
+		return -EINVAL;
 
 	lblock = offset;
 	o = do_div(lblock, sdp->sd_jbsize) +
@@ -213,10 +205,10 @@ int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		o = sizeof(struct gfs2_meta_header);
 	}
 
-	RETURN(G2FN_JDATA_READ, copied);
+	return copied;
 
  fail:
-	RETURN(G2FN_JDATA_READ, (copied) ? copied : error);
+	return (copied) ? copied : error;
 }
 
 /**
@@ -232,14 +224,12 @@ int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 int gfs2_copy_from_mem(struct gfs2_inode *ip, struct buffer_head *bh,
 		       char **buf, unsigned int offset, unsigned int size)
 {
-	ENTER(G2FN_COPY_FROM_MEM)
-
 	gfs2_trans_add_bh(ip->i_gl, bh);
 	memcpy(bh->b_data + offset, *buf, size);
 
 	*buf += size;
 
-	RETURN(G2FN_COPY_FROM_MEM, 0);
+	return 0;
 }
 
 /**
@@ -255,7 +245,6 @@ int gfs2_copy_from_mem(struct gfs2_inode *ip, struct buffer_head *bh,
 int gfs2_copy_from_user(struct gfs2_inode *ip, struct buffer_head *bh,
 			char **buf, unsigned int offset, unsigned int size)
 {
-	ENTER(G2FN_COPY_FROM_USER)
 	int error = 0;
 
 	gfs2_trans_add_bh(ip->i_gl, bh);
@@ -264,20 +253,19 @@ int gfs2_copy_from_user(struct gfs2_inode *ip, struct buffer_head *bh,
 	else
 		*buf += size;
 
-	RETURN(G2FN_COPY_FROM_USER, error);
+	return error;
 }
 
 static int jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
 			       unsigned int offset, unsigned int size,
 			       write_copy_fn_t copy_fn)
 {
-	ENTER(G2FN_JDATA_WRITE_STUFFED)
 	struct buffer_head *dibh;
 	int error;
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
-		RETURN(G2FN_JDATA_WRITE_STUFFED, error);
+		return error;
 
 	error = copy_fn(ip,
 			dibh, &buf,
@@ -291,7 +279,7 @@ static int jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
 
 	brelse(dibh);
 
-	RETURN(G2FN_JDATA_WRITE_STUFFED, (error) ? error : size);
+	return (error) ? error : size;
 }
 
 /**
@@ -308,7 +296,6 @@ static int jdata_write_stuffed(struct gfs2_inode *ip, char *buf,
 int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		     unsigned int size, write_copy_fn_t copy_fn)
 {
-	ENTER(G2FN_JDATA_WRITE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh;
 	uint64_t lblock, dblock;
@@ -318,22 +305,19 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 	int error = 0;
 
 	if (!size)
-		RETURN(G2FN_JDATA_WRITE, 0);
+		return 0;
 
 	if (gfs2_is_stuffed(ip) &&
 	    offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
-		RETURN(G2FN_JDATA_WRITE,
-		       jdata_write_stuffed(ip, buf,
-					   (unsigned int)offset, size,
-					   copy_fn));
+		return jdata_write_stuffed(ip, buf, (unsigned int)offset, size, copy_fn);
 
 	if (gfs2_assert_warn(sdp, gfs2_is_jdata(ip)))
-		RETURN(G2FN_JDATA_WRITE, -EINVAL);
+		return -EINVAL;
 
 	if (gfs2_is_stuffed(ip)) {
 		error = gfs2_unstuff_dinode(ip, NULL, NULL);
 		if (error)
-			RETURN(G2FN_JDATA_WRITE, error);
+			return error;
 	}
 
 	lblock = offset;
@@ -382,7 +366,7 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
  out:
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
-		RETURN(G2FN_JDATA_WRITE, error);
+		return error;
 
 	if (ip->i_di.di_size < offset + copied)
 		ip->i_di.di_size = offset + copied;
@@ -392,10 +376,10 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 	gfs2_dinode_out(&ip->i_di, dibh->b_data);
 	brelse(dibh);
 
-	RETURN(G2FN_JDATA_WRITE, copied);
+	return copied;
 
  fail:
 	if (copied)
 		goto out;
-	RETURN(G2FN_JDATA_WRITE, error);
+	return error;
 }

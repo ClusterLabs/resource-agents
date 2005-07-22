@@ -30,17 +30,16 @@
 
 static void glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	ENTER(G2FN_GLOCK_LO_ADD)
 	struct gfs2_glock *gl;
 
 	get_transaction->tr_touched = TRUE;
 
 	if (!list_empty(&le->le_list))
-		RET(G2FN_GLOCK_LO_ADD);
+		return;
 
 	gl = container_of(le, struct gfs2_glock, gl_le);
 	if (gfs2_assert_withdraw(sdp, gfs2_glock_is_held_excl(gl)))
-		RET(G2FN_GLOCK_LO_ADD);
+		return;
 	gfs2_glock_hold(gl);
 	set_bit(GLF_DIRTY, &gl->gl_flags);
 
@@ -48,13 +47,10 @@ static void glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	sdp->sd_log_num_gl++;
 	list_add(&le->le_list, &sdp->sd_log_le_gl);
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_GLOCK_LO_ADD);
 }
 
 static void glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
-	ENTER(G2FN_GLOCK_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_gl;
 	struct gfs2_glock *gl;
 
@@ -67,18 +63,15 @@ static void glock_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 		gfs2_glock_put(gl);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_gl);
-
-	RET(G2FN_GLOCK_LO_AFTER_COMMIT);
 }
 
 static void buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	ENTER(G2FN_BUF_LO_ADD)
 	struct gfs2_bufdata *bd = container_of(le, struct gfs2_bufdata, bd_le);
 	struct gfs2_trans *tr;
 
 	if (!list_empty(&bd->bd_list_tr))
-		RET(G2FN_BUF_LO_ADD);
+		return;
 
 	tr = get_transaction;
 	tr->tr_touched = TRUE;
@@ -86,7 +79,7 @@ static void buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	list_add(&bd->bd_list_tr, &tr->tr_list_buf);
 
 	if (!list_empty(&le->le_list))
-		RET(G2FN_BUF_LO_ADD);
+		return;
 
 	gfs2_trans_add_gl(bd->bd_gl);
 
@@ -99,13 +92,10 @@ static void buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	gfs2_log_unlock(sdp);
 
 	tr->tr_num_buf_new++;
-
-	RET(G2FN_BUF_LO_ADD);
 }
 
 static void buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
-	ENTER(G2FN_BUF_LO_INCORE_COMMIT)
 	struct list_head *head = &tr->tr_list_buf;
 	struct gfs2_bufdata *bd;
 
@@ -115,19 +105,16 @@ static void buf_lo_incore_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 		tr->tr_num_buf--;
 	}
 	gfs2_assert_warn(sdp, !tr->tr_num_buf);
-
-	RET(G2FN_BUF_LO_INCORE_COMMIT);
 }
 
 static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_BUF_LO_BEFORE_COMMIT)
 	struct buffer_head *bh;
 	struct gfs2_log_descriptor ld;
 	struct list_head *tmp, *head;
 
 	if (!sdp->sd_log_num_buf)
-		RET(G2FN_BUF_LO_BEFORE_COMMIT);
+		return;
 
 	bh = gfs2_log_get_buf(sdp);
 	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
@@ -154,13 +141,10 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 		set_buffer_dirty(bh);
 		ll_rw_block(WRITE, 1, &bh);
 	}
-
-	RET(G2FN_BUF_LO_BEFORE_COMMIT);
 }
 
 static void buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
-	ENTER(G2FN_BUF_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_buf;
 	struct gfs2_bufdata *bd;
 
@@ -172,29 +156,23 @@ static void buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 		gfs2_meta_unpin(sdp, bd->bd_bh, ai);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_buf);
-
-	RET(G2FN_BUF_LO_AFTER_COMMIT);
 }
 
 static void buf_lo_before_scan(struct gfs2_jdesc *jd,
 			       struct gfs2_log_header *head, int pass)
 {
-	ENTER(G2FN_BUF_LO_BEFORE_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (pass != 0)
-		RET(G2FN_BUF_LO_BEFORE_SCAN);
+		return;
 
 	sdp->sd_found_blocks = 0;
 	sdp->sd_replayed_blocks = 0;
-
-	RET(G2FN_BUF_LO_BEFORE_SCAN);
 }
 
 static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 				struct gfs2_log_descriptor *ld, int pass)
 {
-	ENTER(G2FN_BUF_LO_SCAN_ELEMENTS)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
 	unsigned int blks = ld->ld_data1;
@@ -203,14 +181,14 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 	int error = 0;
 
 	if (pass != 1 || ld->ld_type != GFS2_LOG_DESC_METADATA)
-		RETURN(G2FN_BUF_LO_SCAN_ELEMENTS, 0);
+		return 0;
 
 	gfs2_replay_incr_blk(sdp, &start);
 
 	for (; blks; gfs2_replay_incr_blk(sdp, &start), blks--) {
 		error = gfs2_replay_read_block(jd, start, &bh_log);
 		if (error)
-			RETURN(G2FN_BUF_LO_SCAN_ELEMENTS, error);
+			return error;
 
 		blkno = ((struct gfs2_meta_header *)bh_log->b_data)->mh_blkno;
 		blkno = gfs2_64_to_cpu(blkno);
@@ -239,20 +217,19 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 		sdp->sd_replayed_blocks++;
 	}
 
-	RETURN(G2FN_BUF_LO_SCAN_ELEMENTS, error);
+	return error;
 }
 
 static void buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 {
-	ENTER(G2FN_BUF_LO_AFTER_SCAN)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (error) {
 		gfs2_meta_sync(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
-		RET(G2FN_BUF_LO_AFTER_SCAN);
+		return;
 	}
 	if (pass != 1)
-		RET(G2FN_BUF_LO_AFTER_SCAN);
+		return;
 
 	gfs2_meta_sync(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
 
@@ -260,13 +237,10 @@ static void buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 	       sdp->sd_fsname, jd->jd_jid,
 	       sdp->sd_replayed_blocks,
 	       sdp->sd_found_blocks);
-
-	RET(G2FN_BUF_LO_AFTER_SCAN);
 }
 
 static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	ENTER(G2FN_REVOKE_LO_ADD)
 	struct gfs2_trans *tr;
 
 	tr = get_transaction;
@@ -277,13 +251,10 @@ static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	sdp->sd_log_num_revoke++;
 	list_add(&le->le_list, &sdp->sd_log_le_revoke);
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_REVOKE_LO_ADD);
 }
 
 static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_REVOKE_LO_BEFORE_COMMIT)
 	struct gfs2_log_descriptor ld;
 	struct gfs2_meta_header *mh = &ld.ld_header;
 	struct buffer_head *bh;
@@ -292,7 +263,7 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
         struct gfs2_revoke *rv;
 
 	if (!sdp->sd_log_num_revoke)
-		RET(G2FN_REVOKE_LO_BEFORE_COMMIT);
+		return;
 
 	bh = gfs2_log_get_buf(sdp);
 	memset(&ld, 0, sizeof(struct gfs2_log_descriptor));
@@ -332,29 +303,23 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 
 	set_buffer_dirty(bh);
 	ll_rw_block(WRITE, 1, &bh);
-
-       	RET(G2FN_REVOKE_LO_BEFORE_COMMIT);
 }
 
 static void revoke_lo_before_scan(struct gfs2_jdesc *jd,
 				  struct gfs2_log_header *head, int pass)
 {
-	ENTER(G2FN_REVOKE_LO_BEFORE_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
        	if (pass != 0)
-		RET(G2FN_REVOKE_LO_BEFORE_SCAN);
+		return;
 
 	sdp->sd_found_revokes = 0;
 	sdp->sd_replay_tail = head->lh_tail;
-
-       	RET(G2FN_REVOKE_LO_BEFORE_SCAN);
 }
 
 static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 				   struct gfs2_log_descriptor *ld, int pass)
 {
-	ENTER(G2FN_REVOKE_LO_SCAN_ELEMENTS)
 	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 	unsigned int blks = ld->ld_length;
 	unsigned int revokes = ld->ld_data1;
@@ -365,14 +330,14 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 	int error;
 
 	if (pass != 0 || ld->ld_type != GFS2_LOG_DESC_REVOKE)
-		RETURN(G2FN_REVOKE_LO_SCAN_ELEMENTS, 0);
+		return 0;
 
 	offset = sizeof(struct gfs2_log_descriptor);
 
 	for (; blks; gfs2_replay_incr_blk(sdp, &start), blks--) {
 		error = gfs2_replay_read_block(jd, start, &bh);
 		if (error)
-			RETURN(G2FN_REVOKE_LO_SCAN_ELEMENTS, error);
+			return error;
 
 		if (!first)
 			gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LB);
@@ -383,7 +348,7 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 
 			error = gfs2_revoke_add(sdp, blkno, start);
 			if (error < 0)
-				RETURN(G2FN_REVOKE_LO_SCAN_ELEMENTS, error);
+				return error;
 			else if (error)
 				sdp->sd_found_revokes++;
 
@@ -397,39 +362,35 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 		first = FALSE;
 	}
 
-       	RETURN(G2FN_REVOKE_LO_SCAN_ELEMENTS, 0);
+       	return 0;
 }
 
 static void revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 {
-	ENTER(G2FN_REVOKE_LO_AFTER_SCAN)
        	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (error) {
 		gfs2_revoke_clean(sdp);
-		RET(G2FN_REVOKE_LO_AFTER_SCAN);
+		return;
 	}
        	if (pass != 1)
-		RET(G2FN_REVOKE_LO_AFTER_SCAN);
+		return;
 
 	printk("GFS2: fsid=%s: jid=%u: Found %u revoke tags\n",
 	       sdp->sd_fsname, jd->jd_jid,
 	       sdp->sd_found_revokes);
 
 	gfs2_revoke_clean(sdp);
-
-       	RET(G2FN_REVOKE_LO_AFTER_SCAN);
 }
 
 static void rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	ENTER(G2FN_RG_LO_ADD)
 	struct gfs2_rgrpd *rgd;
 
 	get_transaction->tr_touched = TRUE;
 
 	if (!list_empty(&le->le_list))
-		RET(G2FN_RG_LO_ADD);
+		return;
 
 	rgd = container_of(le, struct gfs2_rgrpd, rd_le);
 	gfs2_rgrp_bh_hold(rgd);
@@ -438,13 +399,10 @@ static void rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	sdp->sd_log_num_rg++;
 	list_add(&le->le_list, &sdp->sd_log_le_rg);
 	gfs2_log_unlock(sdp);	
-
-	RET(G2FN_RG_LO_ADD);
 }
 
 static void rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
-	ENTER(G2FN_RG_LO_AFTER_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_rg;
 	struct gfs2_rgrpd *rgd;
 
@@ -457,27 +415,20 @@ static void rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 		gfs2_rgrp_bh_put(rgd);
 	}
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_rg);
-
-	RET(G2FN_RG_LO_AFTER_COMMIT);
 }
 
 static void databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	ENTER(G2FN_DATABUF_LO_ADD)
-
 	get_transaction->tr_touched = TRUE;
 
 	gfs2_log_lock(sdp);
 	sdp->sd_log_num_databuf++;
 	list_add(&le->le_list, &sdp->sd_log_le_databuf);
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_DATABUF_LO_ADD);
 }
 
 static void databuf_lo_before_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_DATABUF_LO_BEFORE_COMMIT)
 	struct list_head *head = &sdp->sd_log_le_databuf;
 	LIST_HEAD(started);
 	struct gfs2_databuf *db;
@@ -520,8 +471,6 @@ static void databuf_lo_before_commit(struct gfs2_sbd *sdp)
 	}
 
 	gfs2_assert_warn(sdp, !sdp->sd_log_num_databuf);
-
-	RET(G2FN_DATABUF_LO_BEFORE_COMMIT);
 }
 
 struct gfs2_log_operations gfs2_glock_lops = {

@@ -33,7 +33,6 @@
 
 int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 {
-	ENTER(G2FN_MOUNT_ARGS)
        	struct gfs2_args *args = &sdp->sd_args;
 	char *data = data_arg;
 	char *options, *o, *v;
@@ -201,14 +200,14 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 	if (data != data_arg)
 		kfree(data);
 
-	RETURN(G2FN_MOUNT_ARGS, error);
+	return error;
 
  need_value:
 	printk("GFS2: need value for option %s\n", o);
-	RETURN(G2FN_MOUNT_ARGS, -EINVAL);
+	return -EINVAL;
 
  cant_remount:
 	printk("GFS2: can't remount with option %s\n", o);
-	RETURN(G2FN_MOUNT_ARGS, -EINVAL);
+	return -EINVAL;
 }
 

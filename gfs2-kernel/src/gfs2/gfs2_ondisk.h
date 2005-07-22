@@ -499,10 +499,8 @@ uint32_t gfs2_disk_hash(const char *data, int len);
  *
  */
 
-static void
-print_array(char *title, char *buf, int count)
+static void print_array(char *title, char *buf, int count)
 {
-	ENTER(G2FN_PRINT_ARRAY)
 	int x;
 
 	printk("  %s =\n", title);
@@ -513,8 +511,6 @@ print_array(char *title, char *buf, int count)
 	}
 	if (x % 16)
 		printk("\n");
-
-	RET(G2FN_PRINT_ARRAY);
 }
 
 /**
@@ -524,16 +520,12 @@ print_array(char *title, char *buf, int count)
  *
  */
 
-void
-gfs2_inum_in(struct gfs2_inum *no, char *buf)
+void gfs2_inum_in(struct gfs2_inum *no, char *buf)
 {
-	ENTER(G2FN_INUM_IN)
 	struct gfs2_inum *str = (struct gfs2_inum *)buf;
 
 	CPIN_64(no, str, no_formal_ino);
 	CPIN_64(no, str, no_addr);
-
-	RET(G2FN_INUM_IN);
 }
 
 /**
@@ -543,16 +535,12 @@ gfs2_inum_in(struct gfs2_inum *no, char *buf)
  *
  */
 
-void
-gfs2_inum_out(struct gfs2_inum *no, char *buf)
+void gfs2_inum_out(struct gfs2_inum *no, char *buf)
 {
-	ENTER(G2FN_INUM_OUT)
 	struct gfs2_inum *str = (struct gfs2_inum *)buf;
 
 	CPOUT_64(no, str, no_formal_ino);
 	CPOUT_64(no, str, no_addr);
-
-	RET(G2FN_INUM_OUT);
 }
 
 /**
@@ -561,13 +549,10 @@ gfs2_inum_out(struct gfs2_inum *no, char *buf)
  *
  */
 
-void
-gfs2_inum_print(struct gfs2_inum *no)
+void gfs2_inum_print(struct gfs2_inum *no)
 {
-	ENTER(G2FN_INUM_PRINT)
 	pv(no, no_formal_ino, "%"PRIu64);
 	pv(no, no_addr, "%"PRIu64);
-	RET(G2FN_INUM_PRINT);
 }
 
 /**
@@ -577,18 +562,14 @@ gfs2_inum_print(struct gfs2_inum *no)
  *
  */
 
-void
-gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
+void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 {
-	ENTER(G2FN_META_HEADER_IN)
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
 
 	CPIN_32(mh, str, mh_magic);
 	CPIN_16(mh, str, mh_type);
 	CPIN_16(mh, str, mh_format);
 	CPIN_64(mh, str, mh_blkno);
-
-	RET(G2FN_META_HEADER_IN);
 }
 
 /**
@@ -600,18 +581,14 @@ gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
  * It's done manually in increment_generation().
  */
 
-void
-gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
+void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 {
-	ENTER(G2FN_META_HEADER_OUT)
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
 
 	CPOUT_32(mh, str, mh_magic);
 	CPOUT_16(mh, str, mh_type);
 	CPOUT_16(mh, str, mh_format);
 	CPOUT_64(mh, str, mh_blkno);
-
-	RET(G2FN_META_HEADER_OUT);
 }
 
 /**
@@ -620,17 +597,12 @@ gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
  *
  */
 
-void
-gfs2_meta_header_print(struct gfs2_meta_header *mh)
+void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 {
-	ENTER(G2FN_META_HEADER_PRINT)
-
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
 	pv(mh, mh_format, "%u");
 	pv(mh, mh_blkno, "%"PRIu64);
-
-	RET(G2FN_META_HEADER_PRINT);
 }
 
 /**
@@ -640,10 +612,8 @@ gfs2_meta_header_print(struct gfs2_meta_header *mh)
  *
  */
 
-void
-gfs2_sb_in(struct gfs2_sb *sb, char *buf)
+void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 {
-	ENTER(G2FN_SB_IN)
 	struct gfs2_sb *str = (struct gfs2_sb *)buf;
 
 	gfs2_meta_header_in(&sb->sb_header, buf);
@@ -658,8 +628,6 @@ gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 
 	CPIN_08(sb, str, sb_lockproto, GFS2_LOCKNAME_LEN);
 	CPIN_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
-
-	RET(G2FN_SB_IN);
 }
 
 /**
@@ -669,10 +637,8 @@ gfs2_sb_in(struct gfs2_sb *sb, char *buf)
  *
  */
 
-void
-gfs2_sb_out(struct gfs2_sb *sb, char *buf)
+void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 {
-	ENTER(G2FN_SB_OUT)
 	struct gfs2_sb *str = (struct gfs2_sb *)buf;
 
 	gfs2_meta_header_out(&sb->sb_header, buf);
@@ -687,8 +653,6 @@ gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 
 	CPOUT_08(sb, str, sb_lockproto, GFS2_LOCKNAME_LEN);
 	CPOUT_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
-
-	RET(G2FN_SB_OUT);
 }
 
 /**
@@ -697,11 +661,8 @@ gfs2_sb_out(struct gfs2_sb *sb, char *buf)
  *
  */
 
-void
-gfs2_sb_print(struct gfs2_sb *sb)
+void gfs2_sb_print(struct gfs2_sb *sb)
 {
-	ENTER(G2FN_SB_PRINT)
-
 	gfs2_meta_header_print(&sb->sb_header);
 
 	pv(sb, sb_fs_format, "%u");
@@ -714,8 +675,6 @@ gfs2_sb_print(struct gfs2_sb *sb)
 
 	pv(sb, sb_lockproto, "%s");
 	pv(sb, sb_locktable, "%s");
-
-	RET(G2FN_SB_PRINT);
 }
 
 /**
@@ -725,10 +684,8 @@ gfs2_sb_print(struct gfs2_sb *sb)
  *
  */
 
-void
-gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
+void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
 {
-	ENTER(G2FN_RINDEX_IN)
 	struct gfs2_rindex *str = (struct gfs2_rindex *)buf;
 
 	CPIN_64(ri, str, ri_addr);
@@ -741,8 +698,6 @@ gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
 	CPIN_32(ri, str, ri_bitbytes);
 
 	CPIN_08(ri, str, ri_reserved, 32);
-
-	RET(G2FN_RINDEX_IN);
 }
 
 /**
@@ -752,10 +707,8 @@ gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
  *
  */
 
-void
-gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
+void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 {
-	ENTER(G2FN_RINDEX_OUT)
 	struct gfs2_rindex *str = (struct gfs2_rindex *)buf;
 
 	CPOUT_64(ri, str, ri_addr);
@@ -768,8 +721,6 @@ gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 	CPOUT_32(ri, str, ri_bitbytes);
 
 	CPOUT_08(ri, str, ri_reserved, 32);
-
-	RET(G2FN_RINDEX_OUT);
 }
 
 /**
@@ -778,11 +729,8 @@ gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
  *
  */
 
-void
-gfs2_rindex_print(struct gfs2_rindex *ri)
+void gfs2_rindex_print(struct gfs2_rindex *ri)
 {
-	ENTER(G2FN_RINDEX_PRINT)
-
 	pv(ri, ri_addr, "%"PRIu64);
 	pv(ri, ri_length, "%u");
 	pv(ri, ri_pad, "%u");
@@ -793,8 +741,6 @@ gfs2_rindex_print(struct gfs2_rindex *ri)
 	pv(ri, ri_bitbytes, "%u");
 
 	pa(ri, ri_reserved, 32);
-
-	RET(G2FN_RINDEX_PRINT);
 }
 
 /**
@@ -804,10 +750,8 @@ gfs2_rindex_print(struct gfs2_rindex *ri)
  *
  */
 
-void
-gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
+void gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
 {
-	ENTER(G2FN_RGRP_IN)
 	struct gfs2_rgrp *str = (struct gfs2_rgrp *)buf;
 
 	gfs2_meta_header_in(&rg->rg_header, buf);
@@ -816,8 +760,6 @@ gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
 	CPIN_32(rg, str, rg_dinodes);
 
 	CPIN_08(rg, str, rg_reserved, 36);
-
-	RET(G2FN_RGRP_IN);
 }
 
 /**
@@ -827,10 +769,8 @@ gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
  *
  */
 
-void
-gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
+void gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
 {
-	ENTER(G2FN_RGRP_OUT)
 	struct gfs2_rgrp *str = (struct gfs2_rgrp *)buf;
 
 	gfs2_meta_header_out(&rg->rg_header, buf);
@@ -839,8 +779,6 @@ gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
 	CPOUT_32(rg, str, rg_dinodes);
 
 	CPOUT_08(rg, str, rg_reserved, 36);
-
-	RET(G2FN_RGRP_OUT);
 }
 
 /**
@@ -849,19 +787,14 @@ gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
  *
  */
 
-void
-gfs2_rgrp_print(struct gfs2_rgrp *rg)
+void gfs2_rgrp_print(struct gfs2_rgrp *rg)
 {
-	ENTER(G2FN_RGRP_PRINT)
-
 	gfs2_meta_header_print(&rg->rg_header);
 	pv(rg, rg_flags, "%u");
 	pv(rg, rg_free, "%u");
 	pv(rg, rg_dinodes, "%u");
 
 	pa(rg, rg_reserved, 36);
-
-	RET(G2FN_RGRP_PRINT);
 }
 
 /**
@@ -871,17 +804,13 @@ gfs2_rgrp_print(struct gfs2_rgrp *rg)
  *
  */
 
-void
-gfs2_quota_in(struct gfs2_quota *qu, char *buf)
+void gfs2_quota_in(struct gfs2_quota *qu, char *buf)
 {
-	ENTER(G2FN_QUOTA_IN)
 	struct gfs2_quota *str = (struct gfs2_quota *)buf;
 
 	CPIN_64(qu, str, qu_limit);
 	CPIN_64(qu, str, qu_warn);
 	CPIN_64(qu, str, qu_value);
-
-	RET(G2FN_QUOTA_IN);
 }
 
 /**
@@ -891,17 +820,13 @@ gfs2_quota_in(struct gfs2_quota *qu, char *buf)
  *
  */
 
-void
-gfs2_quota_out(struct gfs2_quota *qu, char *buf)
+void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 {
-	ENTER(G2FN_QUOTA_OUT)
 	struct gfs2_quota *str = (struct gfs2_quota *)buf;
 
 	CPOUT_64(qu, str, qu_limit);
 	CPOUT_64(qu, str, qu_warn);
 	CPOUT_64(qu, str, qu_value);
-
-	RET(G2FN_QUOTA_OUT);
 }
 
 /**
@@ -910,16 +835,11 @@ gfs2_quota_out(struct gfs2_quota *qu, char *buf)
  *
  */
 
-void
-gfs2_quota_print(struct gfs2_quota *qu)
+void gfs2_quota_print(struct gfs2_quota *qu)
 {
-	ENTER(G2FN_QUOTA_PRINT)
-
 	pv(qu, qu_limit, "%"PRIu64);
 	pv(qu, qu_warn, "%"PRIu64);
 	pv(qu, qu_value, "%"PRId64);
-
-	RET(G2FN_QUOTA_PRINT);
 }
 
 /**
@@ -929,10 +849,8 @@ gfs2_quota_print(struct gfs2_quota *qu)
  *
  */
 
-void
-gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
+void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
 {
-	ENTER(G2FN_DINODE_IN)
 	struct gfs2_dinode *str = (struct gfs2_dinode *)buf;
 
 	gfs2_meta_header_in(&di->di_header, buf);
@@ -963,8 +881,6 @@ gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
 	CPIN_64(di, str, di_eattr);
 
 	CPIN_08(di, str, di_reserved, 32);
-
-	RET(G2FN_DINODE_IN);
 }
 
 /**
@@ -974,10 +890,8 @@ gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
  *
  */
 
-void
-gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
+void gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
 {
-	ENTER(G2FN_DINODE_OUT)
 	struct gfs2_dinode *str = (struct gfs2_dinode *)buf;
 
 	gfs2_meta_header_out(&di->di_header, buf);
@@ -1008,8 +922,6 @@ gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
 	CPOUT_64(di, str, di_eattr);
 
 	CPOUT_08(di, str, di_reserved, 32);
-
-	RET(G2FN_DINODE_OUT);
 }
 
 /**
@@ -1018,11 +930,8 @@ gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
  *
  */
 
-void
-gfs2_dinode_print(struct gfs2_dinode *di)
+void gfs2_dinode_print(struct gfs2_dinode *di)
 {
-	ENTER(G2FN_DINODE_PRINT)
-
 	gfs2_meta_header_print(&di->di_header);
 	gfs2_inum_print(&di->di_num);
 
@@ -1051,8 +960,6 @@ gfs2_dinode_print(struct gfs2_dinode *di)
 	pv(di, di_eattr, "%"PRIu64);
 
 	pa(di, di_reserved, 32);
-
-	RET(G2FN_DINODE_PRINT);
 }
 
 /**
@@ -1062,10 +969,8 @@ gfs2_dinode_print(struct gfs2_dinode *di)
  *
  */
 
-void
-gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
+void gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 {
-	ENTER(G2FN_DIRENT_IN)
 	struct gfs2_dirent *str = (struct gfs2_dirent *)buf;
 
 	gfs2_inum_in(&de->de_inum, buf);
@@ -1075,8 +980,6 @@ gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 	de->de_type = str->de_type;
 	CPIN_16(de, str, de_pad1);
 	CPIN_32(de, str, de_pad2);
-
-	RET(G2FN_DIRENT_IN);
 }
 
 /**
@@ -1086,10 +989,8 @@ gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
  *
  */
 
-void
-gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
+void gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 {
-	ENTER(G2FN_DIRENT_OUT)
 	struct gfs2_dirent *str = (struct gfs2_dirent *)buf;
 
 	gfs2_inum_out(&de->de_inum, buf);
@@ -1099,8 +1000,6 @@ gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 	str->de_type = de->de_type;
 	CPOUT_16(de, str, de_pad1);
 	CPOUT_32(de, str, de_pad2);
-
-	RET(G2FN_DIRENT_OUT);
 }
 
 /**
@@ -1110,10 +1009,8 @@ gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
  *
  */
 
-void
-gfs2_dirent_print(struct gfs2_dirent *de, char *name)
+void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 {
-	ENTER(G2FN_DIRENT_PRINT)
 	char buf[GFS2_FNAMESIZE + 1];
 
 	gfs2_inum_print(&de->de_inum);
@@ -1127,8 +1024,6 @@ gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 	memset(buf, 0, GFS2_FNAMESIZE + 1);
 	memcpy(buf, name, de->de_name_len);
 	printk("  name = %s\n", buf);
-
-	RET(G2FN_DIRENT_PRINT);
 }
 
 /**
@@ -1138,10 +1033,8 @@ gfs2_dirent_print(struct gfs2_dirent *de, char *name)
  *
  */
 
-void
-gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
+void gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
 {
-	ENTER(GFS2_LEAF_IN)
 	struct gfs2_leaf *str = (struct gfs2_leaf *)buf;
 
 	gfs2_meta_header_in(&lf->lf_header, buf);
@@ -1151,8 +1044,6 @@ gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
 	CPIN_64(lf, str, lf_next);
 
 	CPIN_08(lf, str, lf_reserved, 32);
-
-	RET(GFS2_LEAF_IN);
 }
 
 /**
@@ -1162,10 +1053,8 @@ gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
  *
  */
 
-void
-gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
+void gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
 {
-	ENTER(GFS2_LEAF_OUT)
 	struct gfs2_leaf *str = (struct gfs2_leaf *)buf;
 
 	gfs2_meta_header_out(&lf->lf_header, buf);
@@ -1175,8 +1064,6 @@ gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
 	CPOUT_64(lf, str, lf_next);
 
 	CPOUT_08(lf, str, lf_reserved, 32);
-
-	RET(GFS2_LEAF_OUT);
 }
 
 /**
@@ -1185,11 +1072,8 @@ gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
  *
  */
 
-void
-gfs2_leaf_print(struct gfs2_leaf *lf)
+void gfs2_leaf_print(struct gfs2_leaf *lf)
 {
-	ENTER(GFS2_LEAF_PRINT)
-
 	gfs2_meta_header_print(&lf->lf_header);
 	pv(lf, lf_depth, "%u");
 	pv(lf, lf_entries, "%u");
@@ -1197,8 +1081,6 @@ gfs2_leaf_print(struct gfs2_leaf *lf)
 	pv(lf, lf_next, "%"PRIu64);
 
 	pa(lf, lf_reserved, 32);
-
-	RET(GFS2_LEAF_PRINT);
 }
 
 /**
@@ -1208,10 +1090,8 @@ gfs2_leaf_print(struct gfs2_leaf *lf)
  *
  */
 
-void
-gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
+void gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
 {
-	ENTER(G2FN_EA_HEADER_IN)
 	struct gfs2_ea_header *str = (struct gfs2_ea_header *)buf;
 
 	CPIN_32(ea, str, ea_rec_len);
@@ -1221,8 +1101,6 @@ gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
 	ea->ea_flags = str->ea_flags;
 	ea->ea_num_ptrs = str->ea_num_ptrs;
 	CPIN_32(ea, str, ea_pad);
-
-	RET(G2FN_EA_HEADER_IN);
 }
 
 /**
@@ -1232,10 +1110,8 @@ gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
  *
  */
 
-void
-gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
+void gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
 {
-	ENTER(G2FN_EA_HEADER_OUT)
 	struct gfs2_ea_header *str = (struct gfs2_ea_header *)buf;
 
 	CPOUT_32(ea, str, ea_rec_len);
@@ -1245,8 +1121,6 @@ gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
 	str->ea_flags = ea->ea_flags;
 	str->ea_num_ptrs = ea->ea_num_ptrs;
 	CPOUT_32(ea, str, ea_pad);
-
-	RET(G2FN_EA_HEADER_OUT);
 }
 
 /**
@@ -1255,10 +1129,8 @@ gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
  *
  */
 
-void
-gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
+void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 {
-	ENTER(G2FN_EA_HEADER_PRINT)
 	char buf[GFS2_EA_MAX_NAME_LEN + 1];
 
 	pv(ea, ea_rec_len, "%u");
@@ -1272,8 +1144,6 @@ gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 	memset(buf, 0, GFS2_EA_MAX_NAME_LEN + 1);
 	memcpy(buf, name, ea->ea_name_len);
 	printk("  name = %s\n", buf);
-
-	RET(G2FN_EA_HEADER_PRINT);
 }
 
 /**
@@ -1283,10 +1153,8 @@ gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
  *
  */
 
-void
-gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
+void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
 {
-	ENTER(G2FN_LOG_HEADER_IN)
 	struct gfs2_log_header *str = (struct gfs2_log_header *)buf;
 
 	gfs2_meta_header_in(&lh->lh_header, buf);
@@ -1295,8 +1163,6 @@ gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
 	CPIN_32(lh, str, lh_tail);
 	CPIN_32(lh, str, lh_blkno);
 	CPIN_32(lh, str, lh_hash);
-
-	RET(G2FN_LOG_HEADER_IN);
 }
 
 /**
@@ -1306,10 +1172,8 @@ gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
  *
  */
 
-void
-gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
+void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 {
-	ENTER(G2FN_LOG_HEADER_OUT)
 	struct gfs2_log_header *str = (struct gfs2_log_header *)buf;
 
 	gfs2_meta_header_out(&lh->lh_header, buf);
@@ -1318,8 +1182,6 @@ gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 	CPOUT_32(lh, str, lh_tail);
 	CPOUT_32(lh, str, lh_blkno);
 	CPOUT_32(lh, str, lh_hash);
-
-	RET(G2FN_LOG_HEADER_OUT);
 }
 
 /**
@@ -1328,19 +1190,14 @@ gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
  *
  */
 
-void
-gfs2_log_header_print(struct gfs2_log_header *lh)
+void gfs2_log_header_print(struct gfs2_log_header *lh)
 {
-	ENTER(G2FN_LOG_HEADER_PRINT)
-
 	gfs2_meta_header_print(&lh->lh_header);
 	pv(lh, lh_sequence, "%"PRIu64);
 	pv(lh, lh_flags, "0x%.8X");
 	pv(lh, lh_tail, "%u");
 	pv(lh, lh_blkno, "%u");
 	pv(lh, lh_hash, "0x%.8X");
-
-	RET(G2FN_LOG_HEADER_PRINT);
 }
 
 /**
@@ -1350,10 +1207,8 @@ gfs2_log_header_print(struct gfs2_log_header *lh)
  *
  */
 
-void
-gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
+void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
 {
-	ENTER(G2FN_LOG_DESCRIPTOR_IN)
 	struct gfs2_log_descriptor *str = (struct gfs2_log_descriptor *)buf;
 
 	gfs2_meta_header_in(&ld->ld_header, buf);
@@ -1363,8 +1218,6 @@ gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
 	CPIN_32(ld, str, ld_data2);
 
 	CPIN_08(ld, str, ld_reserved, 32);
-
-	RET(G2FN_LOG_DESCRIPTOR_IN);
 }
 
 /**
@@ -1374,10 +1227,8 @@ gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
  *
  */
 
-void
-gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
+void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
 {
-	ENTER(G2FN_LOG_DESCRIPTOR_OUT)
 	struct gfs2_log_descriptor *str = (struct gfs2_log_descriptor *)buf;
 
 	gfs2_meta_header_out(&ld->ld_header, buf);
@@ -1387,8 +1238,6 @@ gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
 	CPOUT_32(ld, str, ld_data2);
 
 	CPOUT_08(ld, str, ld_reserved, 32);
-
-	RET(G2FN_LOG_DESCRIPTOR_OUT);
 }
 
 /**
@@ -1397,11 +1246,8 @@ gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
  *
  */
 
-void
-gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
+void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 {
-	ENTER(G2FN_LOG_DESCRIPTOR_PRINT)
-
 	gfs2_meta_header_print(&ld->ld_header);
 	pv(ld, ld_type, "%u");
 	pv(ld, ld_length, "%u");
@@ -1409,8 +1255,6 @@ gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 	pv(ld, ld_data2, "%u");
 
 	pa(ld, ld_reserved, 32);
-
-	RET(G2FN_LOG_DESCRIPTOR_PRINT);
 }
 
 /**
@@ -1420,16 +1264,12 @@ gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
  *
  */
 
-void
-gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
+void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
 {
-	ENTER(G2FN_INUM_RANGE_IN)
 	struct gfs2_inum_range *str = (struct gfs2_inum_range *)buf;
 
 	CPIN_64(ir, str, ir_start);
 	CPIN_64(ir, str, ir_length);
-
-	RET(G2FN_INUM_RANGE_IN);
 }
 
 /**
@@ -1439,16 +1279,12 @@ gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
  *
  */
 
-void
-gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
+void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 {
-	ENTER(G2FN_INUM_RANGE_OUT)
 	struct gfs2_inum_range *str = (struct gfs2_inum_range *)buf;
 
 	CPOUT_64(ir, str, ir_start);
 	CPOUT_64(ir, str, ir_length);
-
-	RET(G2FN_INUM_RANGE_OUT);
 }
 
 /**
@@ -1457,15 +1293,10 @@ gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
  *
  */
 
-void
-gfs2_inum_range_print(struct gfs2_inum_range *ir)
+void gfs2_inum_range_print(struct gfs2_inum_range *ir)
 {
-	ENTER(G2FN_INUM_RANGE_PRINT)
-
 	pv(ir, ir_start, "%"PRIu64);
 	pv(ir, ir_length, "%"PRIu64);
-
-	RET(G2FN_INUM_RANGE_PRINT);
 }
 
 /**
@@ -1475,17 +1306,13 @@ gfs2_inum_range_print(struct gfs2_inum_range *ir)
  *
  */
 
-void
-gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
+void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
 {
-	ENTER(G2FN_STATFS_CHANGE_IN)
 	struct gfs2_statfs_change *str = (struct gfs2_statfs_change *)buf;
 
 	CPIN_64(sc, str, sc_total);
 	CPIN_64(sc, str, sc_free);
 	CPIN_64(sc, str, sc_dinodes);
-
-	RET(G2FN_STATFS_CHANGE_IN);
 }
 
 /**
@@ -1495,17 +1322,13 @@ gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
  *
  */
 
-void
-gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
+void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
 {
-	ENTER(G2FN_STATFS_CHANGE_OUT)
 	struct gfs2_statfs_change *str = (struct gfs2_statfs_change *)buf;
 
 	CPOUT_64(sc, str, sc_total);
 	CPOUT_64(sc, str, sc_free);
 	CPOUT_64(sc, str, sc_dinodes);
-
-	RET(G2FN_STATFS_CHANGE_OUT);
 }
 
 /**
@@ -1514,16 +1337,11 @@ gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
  *
  */
 
-void
-gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
+void gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 {
-	ENTER(G2FN_STATFS_CHANGE_PRINT)
-
 	pv(sc, sc_total, "%"PRId64);
 	pv(sc, sc_free, "%"PRId64);
 	pv(sc, sc_dinodes, "%"PRId64);
-
-	RET(G2FN_STATFS_CHANGE_PRINT);
 }
 
 /**
@@ -1533,17 +1351,13 @@ gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
  *
  */
 
-void
-gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
+void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 {
-	ENTER(G2FN_UNLINKED_TAG_IN)
 	struct gfs2_unlinked_tag *str = (struct gfs2_unlinked_tag *)buf;
 
 	gfs2_inum_in(&ut->ut_inum, buf);
 	CPIN_32(ut, str, ut_flags);
 	CPIN_32(ut, str, ut_pad);
-
-	RET(G2FN_UNLINKED_TAG_IN);
 }
 
 /**
@@ -1553,17 +1367,13 @@ gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
  *
  */
 
-void
-gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
+void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 {
-	ENTER(G2FN_UNLINKED_TAG_OUT)
 	struct gfs2_unlinked_tag *str = (struct gfs2_unlinked_tag *)buf;
 
 	gfs2_inum_out(&ut->ut_inum, buf);
 	CPOUT_32(ut, str, ut_flags);
 	CPOUT_32(ut, str, ut_pad);
-
-	RET(G2FN_UNLINKED_TAG_OUT);
 }
 
 /**
@@ -1572,16 +1382,11 @@ gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
  *
  */
 
-void
-gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
+void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
 {
-	ENTER(G2FN_UNLINKED_TAG_PRINT)
-
 	gfs2_inum_print(&ut->ut_inum);
 	pv(ut, ut_flags, "%u");
 	pv(ut, ut_pad, "%u");
-
-	RET(G2FN_UNLINKED_TAG_PRINT);
 }
 
 /**
@@ -1591,17 +1396,13 @@ gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
  *
  */
 
-void
-gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
+void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
 {
-	ENTER(G2FN_QUOTA_CHANGE_IN)
 	struct gfs2_quota_change *str = (struct gfs2_quota_change *)buf;
 
 	CPIN_64(qc, str, qc_change);
 	CPIN_32(qc, str, qc_flags);
 	CPIN_32(qc, str, qc_id);
-
-	RET(G2FN_QUOTA_CHANGE_IN);
 }
 
 /**
@@ -1611,17 +1412,13 @@ gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
  *
  */
 
-void
-gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
+void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 {
-	ENTER(G2FN_QUOTA_CHANGE_OUT)
 	struct gfs2_quota_change *str = (struct gfs2_quota_change *)buf;
 
 	CPOUT_64(qc, str, qc_change);
 	CPOUT_32(qc, str, qc_flags);
 	CPOUT_32(qc, str, qc_id);
-
-	RET(G2FN_QUOTA_CHANGE_OUT);
 }
 
 /**
@@ -1630,16 +1427,11 @@ gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
  *
  */
 
-void
-gfs2_quota_change_print(struct gfs2_quota_change *qc)
+void gfs2_quota_change_print(struct gfs2_quota_change *qc)
 {
-	ENTER(G2FN_QUOTA_CHANGE_PRINT)
-
 	pv(qc, qc_change, "%"PRId64);
 	pv(qc, qc_flags, "0x%.8X");
 	pv(qc, qc_id, "%u");
-
-	RET(G2FN_QUOTA_CHANGE_PRINT);
 }
 
 static const uint32_t crc_32_tab[] =
@@ -1698,7 +1490,6 @@ static const uint32_t crc_32_tab[] =
 uint32_t
 gfs2_disk_hash(const char *data, int len)
 {
-	ENTER(G2FN_DISK_HASH)
 	uint32_t hash = 0xFFFFFFFF;
 
 	for (; len--; data++)
@@ -1706,7 +1497,7 @@ gfs2_disk_hash(const char *data, int len)
 
 	hash = ~hash;
 
-	RETURN(G2FN_DISK_HASH, hash);
+	return hash;
 }
 
 #endif /* WANT_GFS2_CONVERSION_FUNCTIONS */

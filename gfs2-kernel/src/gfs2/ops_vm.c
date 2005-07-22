@@ -39,7 +39,6 @@
 
 static void pfault_be_greedy(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_PFAULT_BE_GREEDY)
 	unsigned int time;
 
 	spin_lock(&ip->i_spin);
@@ -50,8 +49,6 @@ static void pfault_be_greedy(struct gfs2_inode *ip)
 	gfs2_inode_hold(ip);
 	if (gfs2_glock_be_greedy(ip->i_gl, time))
 		gfs2_inode_put(ip);
-
-	RET(G2FN_PFAULT_BE_GREEDY);
 }
 
 /**
@@ -66,7 +63,6 @@ static void pfault_be_greedy(struct gfs2_inode *ip)
 static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 					unsigned long address, int *type)
 {
-	ENTER(G2FN_PRIVATE_NOPAGE)
 	struct gfs2_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	struct page *result;
@@ -76,7 +72,7 @@ static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, 0, &i_gh);
 	if (error)
-		RETURN(G2FN_PRIVATE_NOPAGE, NULL);
+		return NULL;
 
 	set_bit(GIF_PAGED, &ip->i_flags);
 
@@ -87,7 +83,7 @@ static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_PRIVATE_NOPAGE, result);
+	return result;
 }
 
 /**
@@ -100,7 +96,6 @@ static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 
 static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 {
-	ENTER(G2FN_ALLOC_PAGE_BACKING)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	unsigned long index = page->index;
 	uint64_t lblock = index << (PAGE_CACHE_SHIFT - sdp->sd_sb.sb_bsize_shift);
@@ -169,7 +164,7 @@ static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
  out:
 	gfs2_alloc_put(ip);
 
-	RETURN(G2FN_ALLOC_PAGE_BACKING, error);
+	return error;
 }
 
 /**
@@ -184,7 +179,6 @@ static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
 					   unsigned long address, int *type)
 {
-	ENTER(G2FN_SHAREWRITE_NOPAGE)
 	struct gfs2_inode *ip = get_v2ip(area->vm_file->f_mapping->host);
 	struct gfs2_holder i_gh;
 	struct page *result = NULL;
@@ -196,7 +190,7 @@ static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
-		RETURN(G2FN_SHAREWRITE_NOPAGE, NULL);
+		return NULL;
 
 	if (gfs2_is_jdata(ip))
 		goto out;
@@ -228,7 +222,7 @@ static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
  out:
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_SHAREWRITE_NOPAGE, result);
+	return result;
 }
 
 struct vm_operations_struct gfs2_vm_ops_private = {

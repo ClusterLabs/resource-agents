@@ -59,7 +59,6 @@ struct strip_mine {
 int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
 			uint64_t block, void *private)
 {
-	ENTER(G2FN_UNSTUFFER_SYNC)
 	struct buffer_head *bh;
 	int error;
 
@@ -72,7 +71,7 @@ int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 	brelse(bh);
 
-	RETURN(G2FN_UNSTUFFER_SYNC, error);
+	return error;
 }
 
 /**
@@ -90,7 +89,6 @@ int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
 int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 			void *private)
 {
-	ENTER(G2FN_UNSTUFF_DINODE)
 	struct buffer_head *bh, *dibh;
 	uint64_t block = 0;
 	int journaled = gfs2_is_jdata(ip);
@@ -145,7 +143,7 @@ int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
  out:
 	up_write(&ip->i_rw_mutex);
 
-	RETURN(G2FN_UNSTUFF_DINODE, error);
+	return error;
 }
 
 /**
@@ -163,7 +161,6 @@ int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 
 static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 {
-	ENTER(G2FN_CALC_TREE_HEIGHT)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t *arr;
 	unsigned int max, height;
@@ -183,7 +180,7 @@ static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 		if (arr[height] >= size)
 			break;
 
-	RETURN(G2FN_CALC_TREE_HEIGHT, height);
+	return height;
 }
 
 /**
@@ -199,7 +196,6 @@ static unsigned int calc_tree_height(struct gfs2_inode *ip, uint64_t size)
 
 static int build_height(struct gfs2_inode *ip, int height)
 {
-	ENTER(G2FN_BUILD_HEIGHT)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh, *dibh;
 	uint64_t block = 0, *bp;
@@ -210,7 +206,7 @@ static int build_height(struct gfs2_inode *ip, int height)
 	while (ip->i_di.di_height < height) {
 		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
-			RETURN(G2FN_BUILD_HEIGHT, error);
+			return error;
 
 		new_block = FALSE;
 		bp = (uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode));
@@ -254,7 +250,7 @@ static int build_height(struct gfs2_inode *ip, int height)
 		brelse(dibh);
 	}
 
-	RETURN(G2FN_BUILD_HEIGHT, 0);
+	return 0;
 }
 
 /**
@@ -318,7 +314,6 @@ static int build_height(struct gfs2_inode *ip, int height)
 
 static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 {
-	ENTER(G2FN_FIND_METAPATH)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct metapath *mp;
 	uint64_t b = block;
@@ -330,7 +325,7 @@ static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 	for (i = ip->i_di.di_height; i--;)
 		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);
 
-	RETURN(G2FN_FIND_METAPATH, mp);
+	return mp;
 }
 
 /**
@@ -374,18 +369,17 @@ static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
 			 unsigned int height, struct metapath *mp, int create,
 			 int *new, uint64_t *block)
 {
-	ENTER(G2FN_LOOKUP_BLOCK)
 	uint64_t *ptr = metapointer(bh, height, mp);
 
 	if (*ptr) {
 		*block = gfs2_64_to_cpu(*ptr);
-		RET(G2FN_LOOKUP_BLOCK);
+		return;
 	}
 
 	*block = 0;
 
 	if (!create)
-		RET(G2FN_LOOKUP_BLOCK);
+		return;
 
 	if (height == ip->i_di.di_height - 1 &&
 	    !gfs2_is_jdata(ip))
@@ -399,8 +393,6 @@ static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
 	ip->i_di.di_blocks++;
 
 	*new = 1;
-
-	RET(G2FN_LOOKUP_BLOCK);
 }
 
 /**
@@ -420,7 +412,6 @@ static void lookup_block(struct gfs2_inode *ip, struct buffer_head *bh,
 int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 		   uint64_t *dblock, uint32_t *extlen)
 {
-	ENTER(G2FN_BLOCK_MAP)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh;
 	struct metapath *mp;
@@ -519,7 +510,7 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 	else
 		up_read(&ip->i_rw_mutex);
 
-	RETURN(G2FN_BLOCK_MAP, error);
+	return error;
 }
 
 /**
@@ -544,7 +535,6 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 			  uint64_t block, int first, block_call_t bc,
 			  void *data)
 {
-	ENTER(G2FN_RECURSIVE_SCAN)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *bh = NULL;
 	uint64_t *top, *bottom;
@@ -554,7 +544,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 	if (!height) {
 		error = gfs2_meta_inode_buffer(ip, &bh);
 		if (error)
-			RETURN(G2FN_RECURSIVE_SCAN, error);
+			return error;
 		dibh = bh;
 
 		top = (uint64_t *)(bh->b_data + sizeof(struct gfs2_dinode)) +
@@ -564,7 +554,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 	} else {
 		error = gfs2_meta_indirect_buffer(ip, height, block, FALSE, &bh);
 		if (error)
-			RETURN(G2FN_RECURSIVE_SCAN, error);
+			return error;
 
 		top = (uint64_t *)(bh->b_data + sizeof(struct gfs2_meta_header)) +
 			((first) ? mp->mp_list[height] : 0);
@@ -593,7 +583,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
  out:
 	brelse(bh);
 
-	RETURN(G2FN_RECURSIVE_SCAN, error);
+	return error;
 }
 
 /**
@@ -613,7 +603,6 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 		    struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
 		    unsigned int height, void *data)
 {
-	ENTER(G2FN_DO_STRIP)
 	struct strip_mine *sm = (struct strip_mine *)data;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrp_list rlist;
@@ -630,7 +619,7 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 		sm->sm_first = FALSE;
 
 	if (height != sm->sm_height)
-		RETURN(G2FN_DO_STRIP, 0);
+		return 0;
 
 	if (sm->sm_first) {
 		top++;
@@ -643,7 +632,7 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 	error = gfs2_rindex_hold(sdp, &ip->i_alloc->al_ri_gh);
 	if (error)
-		RETURN(G2FN_DO_STRIP, error);
+		return error;
 
 	memset(&rlist, 0, sizeof(struct gfs2_rgrp_list));
 	bstart = 0;
@@ -746,7 +735,7 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
  out:
 	gfs2_glock_dq_uninit(&ip->i_alloc->al_ri_gh);
 
-	RETURN(G2FN_DO_STRIP, error);
+	return error;
 }
 
 /**
@@ -761,7 +750,6 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 static int do_grow(struct gfs2_inode *ip, uint64_t size)
 {
-	ENTER(G2FN_DO_GROW)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al;
 	struct buffer_head *dibh;
@@ -830,12 +818,11 @@ static int do_grow(struct gfs2_inode *ip, uint64_t size)
  out:
 	gfs2_alloc_put(ip);
 
-	RETURN(G2FN_DO_GROW, error);
+	return error;
 }
 
 static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 {
-	ENTER(G2FN_TRUNCATOR_JOURNALED)
 	uint64_t lbn, dbn;
 	uint32_t off;
 	struct buffer_head *bh;
@@ -847,11 +834,11 @@ static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 
 	error = gfs2_block_map(ip, lbn, &new, &dbn, NULL);
 	if (error || !dbn)
-		RETURN(G2FN_TRUNCATOR_JOURNALED, error);
+		return error;
 
 	error = gfs2_jdata_get_buffer(ip, dbn, FALSE, &bh);
 	if (error)
-		RETURN(G2FN_TRUNCATOR_JOURNALED, error);
+		return error;
 
 	gfs2_trans_add_bh(ip->i_gl, bh);
 	gfs2_buffer_clear_tail(bh,
@@ -860,13 +847,12 @@ static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 
 	brelse(bh);
 
-	RETURN(G2FN_TRUNCATOR_JOURNALED, 0);
+	return 0;
 }
 
 static int trunc_start(struct gfs2_inode *ip, uint64_t size,
 		       gfs2_truncator_t truncator)
 {
-	ENTER(G2FN_TRUNC_START)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh;
 	int journaled = gfs2_is_jdata(ip);
@@ -874,7 +860,7 @@ static int trunc_start(struct gfs2_inode *ip, uint64_t size,
 
 	error = gfs2_trans_begin(sdp, RES_DINODE + ((journaled) ? RES_JDATA : 0), 0);
 	if (error)
-		RETURN(G2FN_TRUNC_START, error);
+		return error;
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)
@@ -909,12 +895,11 @@ static int trunc_start(struct gfs2_inode *ip, uint64_t size,
  out:
 	gfs2_trans_end(sdp);
 
-	RETURN(G2FN_TRUNC_START, error);
+	return error;
 }
 
 static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 {
-	ENTER(G2FN_TRUNC_DEALLOC)
 	unsigned int height = ip->i_di.di_height;
  	uint64_t lblock;
 	struct metapath *mp;
@@ -952,19 +937,18 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 	gfs2_alloc_put(ip);
 	kfree(mp);
 
-	RETURN(G2FN_TRUNC_DEALLOC, error);
+	return error;
 }
 
 static int trunc_end(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_TRUNC_END)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct buffer_head *dibh;
 	int error;
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
 	if (error)
-		RETURN(G2FN_TRUNC_END, error);
+		return error;
 
 	down_write(&ip->i_rw_mutex);
 
@@ -991,7 +975,7 @@ static int trunc_end(struct gfs2_inode *ip)
 
 	gfs2_trans_end(sdp);
 
-	RETURN(G2FN_TRUNC_END, error);
+	return error;
 }
 
 /**
@@ -1008,20 +992,19 @@ static int trunc_end(struct gfs2_inode *ip)
 static int do_shrink(struct gfs2_inode *ip, uint64_t size,
 		     gfs2_truncator_t truncator)
 {
-	ENTER(G2FN_DO_SHRINK)
 	int error;
 
 	error = trunc_start(ip, size, truncator);
 	if (error < 0)
-		RETURN(G2FN_DO_SHRINK, error);
+		return error;
 	if (error > 0)
-		RETURN(G2FN_DO_SHRINK, 0);
+		return 0;
 
 	error = trunc_dealloc(ip, size);
 	if (!error)
 		error = trunc_end(ip);
 
-	RETURN(G2FN_DO_SHRINK, error);
+	return error;
 }
 
 /**
@@ -1038,35 +1021,31 @@ static int do_shrink(struct gfs2_inode *ip, uint64_t size,
 int gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
 		   gfs2_truncator_t truncator)
 {
-	ENTER(G2FN_TRUNCATEI)
 	int error;
 
        	if (gfs2_assert_warn(ip->i_sbd, S_ISREG(ip->i_di.di_mode)))
-		RETURN(G2FN_TRUNCATEI, -EINVAL);
+		return -EINVAL;
 
 	if (size > ip->i_di.di_size)
 		error = do_grow(ip, size);
 	else
 		error = do_shrink(ip, size, truncator);
 
-	RETURN(G2FN_TRUNCATEI, error);
+	return error;
 }
 
 int gfs2_truncatei_resume(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_TRUNCATEI_RESUME)
 	int error;
 	error = trunc_dealloc(ip, ip->i_di.di_size);
 	if (!error)
 		error = trunc_end(ip);
-	RETURN(G2FN_TRUNCATEI_RESUME, error);
+	return error;
 }
 
 int gfs2_file_dealloc(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_FILE_DEALLOC)
-	RETURN(G2FN_FILE_DEALLOC,
-	       trunc_dealloc(ip, 0));
+	return trunc_dealloc(ip, 0);
 }
 
 /**
@@ -1081,7 +1060,6 @@ int gfs2_file_dealloc(struct gfs2_inode *ip)
 void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
 			    unsigned int *data_blocks, unsigned int *ind_blocks)
 {
-	ENTER(G2FN_WRITE_CALC_RESERV)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	unsigned int tmp;
 
@@ -1097,8 +1075,6 @@ void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
 		tmp = DIV_RU(tmp, sdp->sd_inptrs);
 		*ind_blocks += tmp;
 	}
-
-	RET(G2FN_WRITE_CALC_RESERV);
 }
 
 /**
@@ -1114,7 +1090,6 @@ void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
 int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 			      unsigned int len, int *alloc_required)
 {
-	ENTER(G2FN_WRITE_ALLOC_REQUIRED)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t lblock, lblock_stop, dblock;
 	uint32_t extlen;
@@ -1124,12 +1099,12 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 	*alloc_required = FALSE;
 
 	if (!len)
-		RETURN(G2FN_WRITE_ALLOC_REQUIRED, 0);
+		return 0;
 
 	if (gfs2_is_stuffed(ip)) {
 		if (offset + len > sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
 			*alloc_required = TRUE;
-		RETURN(G2FN_WRITE_ALLOC_REQUIRED, 0);
+		return 0;
 	}
 
 	if (gfs2_is_jdata(ip)) {
@@ -1147,15 +1122,15 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 	for (; lblock < lblock_stop; lblock += extlen) {
 		error = gfs2_block_map(ip, lblock, &new, &dblock, &extlen);
 		if (error)
-			RETURN(G2FN_WRITE_ALLOC_REQUIRED, error);
+			return error;
 
 		if (!dblock) {
 			*alloc_required = TRUE;
-			RETURN(G2FN_WRITE_ALLOC_REQUIRED, 0);
+			return 0;
 		}
 	}
 
-	RETURN(G2FN_WRITE_ALLOC_REQUIRED, 0);
+	return 0;
 }
 
 /**
@@ -1177,17 +1152,16 @@ static int do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
 		  struct buffer_head *bh, uint64_t *top, uint64_t *bottom,
 		  unsigned int height, void *data)
 {
-	ENTER(G2FN_DO_GFM)
 	struct gfs2_user_buffer *ub = (struct gfs2_user_buffer *)data;
 	int error;
 
 	error = gfs2_add_bh_to_ub(ub, bh);
 	if (error)
-		RETURN(G2FN_DO_GFM, error);
+		return error;
 
 	if (!S_ISDIR(ip->i_di.di_mode) ||
 	    height + 1 != ip->i_di.di_height)
-		RETURN(G2FN_DO_GFM, 0);
+		return 0;
 
 	for (; top < bottom; top++)
 		if (*top) {
@@ -1197,17 +1171,17 @@ static int do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
 					       DIO_START | DIO_WAIT,
 					       &data_bh);
 			if (error)
-				RETURN(G2FN_DO_GFM, error);
+				return error;
 
 			error = gfs2_add_bh_to_ub(ub, data_bh);
 
 			brelse(data_bh);
 
 			if (error)
-				RETURN(G2FN_DO_GFM, error);
+				return error;
 		}
 
-	RETURN(G2FN_DO_GFM, 0);
+	return 0;
 }
 
 /**
@@ -1220,7 +1194,6 @@ static int do_gfm(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 {
-	ENTER(G2FN_GET_FILE_META)
 	int error;
 
 	if (gfs2_is_stuffed(ip)) {
@@ -1236,5 +1209,5 @@ int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 		kfree(mp);
 	}
 
-	RETURN(G2FN_GET_FILE_META, error);
+	return error;
 }

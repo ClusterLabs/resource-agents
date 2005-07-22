@@ -51,7 +51,6 @@
 static void do_lock_wait(struct gfs2_sbd *sdp, wait_queue_head_t *wq,
 			 atomic_t *a)
 {
-	ENTER(G2FN_DO_LOCK_WAIT)
 	DECLARE_WAITQUEUE(x, current);
 
 	while (atomic_read(a)) {
@@ -64,46 +63,36 @@ static void do_lock_wait(struct gfs2_sbd *sdp, wait_queue_head_t *wq,
 		set_current_state(TASK_RUNNING);
 		gfs2_log_lock(sdp);
 	}
-
-	RET(G2FN_DO_LOCK_WAIT);
 }
 
 static void lock_for_trans(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOCK_FOR_TRANS)
 	gfs2_log_lock(sdp);
 	do_lock_wait(sdp, &sdp->sd_log_trans_wq, &sdp->sd_log_flush_count);
 	atomic_inc(&sdp->sd_log_trans_count);
 	gfs2_log_unlock(sdp);
-	RET(G2FN_LOCK_FOR_TRANS);
 }
 
 static void unlock_from_trans(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNLOCK_FROM_TRANS)
 	gfs2_assert_warn(sdp, atomic_read(&sdp->sd_log_trans_count));
 	if (atomic_dec_and_test(&sdp->sd_log_trans_count))
 		wake_up(&sdp->sd_log_flush_wq);
-	RET(G2FN_UNLOCK_FROM_TRANS);
 }
 
 void gfs2_lock_for_flush(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOCK_FOR_FLUSH)
 	gfs2_log_lock(sdp);
 	atomic_inc(&sdp->sd_log_flush_count);
 	do_lock_wait(sdp, &sdp->sd_log_flush_wq, &sdp->sd_log_trans_count);
 	gfs2_log_unlock(sdp);
-	RET(G2FN_LOCK_FOR_FLUSH);
 }
 
 void gfs2_unlock_from_flush(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNLOCK_FROM_FLUSH)
 	gfs2_assert_warn(sdp, atomic_read(&sdp->sd_log_flush_count));
 	if (atomic_dec_and_test(&sdp->sd_log_flush_count))
 		wake_up(&sdp->sd_log_trans_wq);
-	RET(G2FN_UNLOCK_FROM_FLUSH);
 }
 
 /**
@@ -121,7 +110,6 @@ void gfs2_unlock_from_flush(struct gfs2_sbd *sdp)
 unsigned int gfs2_struct2blk(struct gfs2_sbd *sdp, unsigned int nstruct,
 			     unsigned int ssize)
 {
-	ENTER(G2FN_STRUCT2BLK)
 	unsigned int blks;
 	unsigned int first, second;
 
@@ -133,12 +121,11 @@ unsigned int gfs2_struct2blk(struct gfs2_sbd *sdp, unsigned int nstruct,
 		blks += DIV_RU(nstruct - first, second);
 	}
 
-	RETURN(G2FN_STRUCT2BLK, blks);
+	return blks;
 }
 
 void gfs2_ail1_start(struct gfs2_sbd *sdp, int flags)
 {
-	ENTER(G2FN_AIL1_START)
 	struct list_head *head = &sdp->sd_ail1_list;
 	uint64_t sync_gen;
 	struct list_head *first, *tmp;
@@ -147,7 +134,7 @@ void gfs2_ail1_start(struct gfs2_sbd *sdp, int flags)
 	gfs2_log_lock(sdp);
 	if (list_empty(head)) {
 		gfs2_log_unlock(sdp);
-		RET(G2FN_AIL1_START);
+		return;
 	}
 	sync_gen = sdp->sd_ail_sync_gen++;
 
@@ -179,13 +166,10 @@ void gfs2_ail1_start(struct gfs2_sbd *sdp, int flags)
 	}
 
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_AIL1_START);
 }
 
 int gfs2_ail1_empty(struct gfs2_sbd *sdp, int flags)
 {
-	ENTER(G2FN_AIL1_EMPTY)
 	struct list_head *head, *tmp, *prev;
 	struct gfs2_ail *ai;
 	int ret;
@@ -206,12 +190,11 @@ int gfs2_ail1_empty(struct gfs2_sbd *sdp, int flags)
 
 	gfs2_log_unlock(sdp);
 
-	RETURN(G2FN_AIL1_EMPTY, ret);
+	return ret;
 }
 
 static void ail2_empty(struct gfs2_sbd *sdp, unsigned int new_tail)
 {
-	ENTER(G2FN_AIL2_EMPTY)
 	struct list_head *head, *tmp, *next;
 	struct gfs2_ail *ai;
 	unsigned int old_tail = sdp->sd_log_tail;
@@ -239,8 +222,6 @@ static void ail2_empty(struct gfs2_sbd *sdp, unsigned int new_tail)
 	}
 
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_AIL2_EMPTY);
 }
 
 /**
@@ -253,13 +234,12 @@ static void ail2_empty(struct gfs2_sbd *sdp, unsigned int new_tail)
 
 int gfs2_log_reserve(struct gfs2_sbd *sdp, unsigned int blks)
 {
-	ENTER(G2FN_LOG_RESERVE)
 	LIST_HEAD(list);
 	unsigned int try = 0;
 
 	if (gfs2_assert_warn(sdp, blks) ||
 	    gfs2_assert_warn(sdp, blks <= sdp->sd_jdesc->jd_blocks))
-		RETURN(G2FN_LOG_RESERVE, -EINVAL);
+		return -EINVAL;
 
 	for (;;) {
 		gfs2_log_lock(sdp);
@@ -301,7 +281,7 @@ int gfs2_log_reserve(struct gfs2_sbd *sdp, unsigned int blks)
 
 	lock_for_trans(sdp);
 
-	RETURN(G2FN_LOG_RESERVE, 0);
+	return 0;
 }
 
 /**
@@ -313,21 +293,16 @@ int gfs2_log_reserve(struct gfs2_sbd *sdp, unsigned int blks)
 
 void gfs2_log_release(struct gfs2_sbd *sdp, unsigned int blks)
 {
-	ENTER(G2FN_LOG_RELEASE)
-
 	unlock_from_trans(sdp);
 
 	gfs2_log_lock(sdp);
 	sdp->sd_log_blks_free += blks;
 	gfs2_assert_withdraw(sdp, sdp->sd_log_blks_free <= sdp->sd_jdesc->jd_blocks);
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_LOG_RELEASE);
 }
 
 static uint64_t log_bmap(struct gfs2_sbd *sdp, unsigned int lbn)
 {
-	ENTER(G2FN_LOG_BMAP)
 	int new = FALSE;
 	uint64_t dbn;
 	int error;
@@ -335,7 +310,7 @@ static uint64_t log_bmap(struct gfs2_sbd *sdp, unsigned int lbn)
 	error = gfs2_block_map(sdp->sd_jdesc->jd_inode, lbn, &new, &dbn, NULL);
 	gfs2_assert_withdraw(sdp, !error && dbn);
 
-	RETURN(G2FN_LOG_BMAP, dbn);
+	return dbn;
 }
 
 /**
@@ -365,7 +340,6 @@ static __inline__ unsigned int log_distance(struct gfs2_sbd *sdp,
 
 static unsigned int current_tail(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_CURRENT_TAIL)
 	struct gfs2_ail *ai;
 	unsigned int tail;
 
@@ -381,7 +355,7 @@ static unsigned int current_tail(struct gfs2_sbd *sdp)
 
 	gfs2_log_unlock(sdp);
 
-	RETURN(G2FN_CURRENT_TAIL, tail);
+	return tail;
 }
 
 static __inline__ void log_incr_head(struct gfs2_sbd *sdp)
@@ -404,7 +378,6 @@ static __inline__ void log_incr_head(struct gfs2_sbd *sdp)
 
 struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOG_GET_BUF)
 	uint64_t blkno = log_bmap(sdp, sdp->sd_log_flush_head);
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
@@ -422,7 +395,7 @@ struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
 
 	log_incr_head(sdp);
 
-	RETURN(G2FN_LOG_GET_BUF, bh);
+	return bh;
 }
 
 /**
@@ -436,7 +409,6 @@ struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
 struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp,
 				      struct buffer_head *real)
 {
-	ENTER(G2FN_LOG_FAKE_BUF)
 	uint64_t blkno = log_bmap(sdp, sdp->sd_log_flush_head);
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
@@ -458,12 +430,11 @@ struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp,
 
 	log_incr_head(sdp);
 
-	RETURN(G2FN_LOG_FAKE_BUF, bh);
+	return bh;
 }
 
 static void log_pull_tail(struct gfs2_sbd *sdp, unsigned int new_tail, int pull)
 {
-	ENTER(G2FN_LOG_PULL_TAIL)
 	unsigned int dist = log_distance(sdp, new_tail, sdp->sd_log_tail);
 
 	ail2_empty(sdp, new_tail);
@@ -474,8 +445,6 @@ static void log_pull_tail(struct gfs2_sbd *sdp, unsigned int new_tail, int pull)
 	gfs2_log_unlock(sdp);
 
 	sdp->sd_log_tail = new_tail;
-
-        RET(G2FN_LOG_PULL_TAIL);
 }
 
 /**
@@ -487,7 +456,6 @@ static void log_pull_tail(struct gfs2_sbd *sdp, unsigned int new_tail, int pull)
 
 static void log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 {
-	ENTER(G2FN_LOG_WRITE_HEADER)
 	uint64_t blkno = log_bmap(sdp, sdp->sd_log_flush_head);
 	struct buffer_head *bh;
 	struct gfs2_log_header lh;
@@ -531,13 +499,10 @@ static void log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 
 	sdp->sd_log_idle = (tail == sdp->sd_log_flush_head);
 	log_incr_head(sdp);
-
-	RET(G2FN_LOG_WRITE_HEADER);
 }
 
 static void log_flush_commit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOG_FLUSH_COMMIT)
 	struct list_head *head = &sdp->sd_log_flush_list;
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
@@ -565,8 +530,6 @@ static void log_flush_commit(struct gfs2_sbd *sdp)
 	}
 
 	log_write_header(sdp, 0, 0);
-
-	RET(G2FN_LOG_FLUSH_COMMIT);
 }
 
 /**
@@ -583,7 +546,6 @@ static void log_flush_commit(struct gfs2_sbd *sdp)
 
 void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 {
-	ENTER(G2FN_LOG_FLUSH_I)
 	struct gfs2_ail *ai;
 
 	atomic_inc(&sdp->sd_log_flush_incore);
@@ -602,7 +564,7 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 		up(&sdp->sd_log_flush_lock);
 		gfs2_unlock_from_flush(sdp);
 		kfree(ai);
-		RET(G2FN_LOG_FLUSH_I);
+		return;
 	}
 
 	sdp->sd_log_flush_head = sdp->sd_log_head;
@@ -636,13 +598,10 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 	gfs2_unlock_from_flush(sdp);
 
 	kfree(ai);
-
-	RET(G2FN_LOG_FLUSH_I);
 }
 
 static void log_refund(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
-	ENTER(G2FN_LOG_REFUND)
 	unsigned int reserved = 1;
 	unsigned int old;
 
@@ -667,8 +626,6 @@ static void log_refund(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 	sdp->sd_log_blks_reserved = reserved;
 
 	gfs2_log_unlock(sdp);
-
-	RET(G2FN_LOG_REFUND);
 }
 
 /**
@@ -681,8 +638,6 @@ static void log_refund(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 
 void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
-	ENTER(G2FN_LOG_COMMIT)
-
 	log_refund(sdp, tr);
 	LO_INCORE_COMMIT(sdp, tr);
 
@@ -697,8 +652,6 @@ void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 		gfs2_log_flush(sdp);
 	} else
 		gfs2_log_unlock(sdp);
-
-	RET(G2FN_LOG_COMMIT);
 }
 
 /**
@@ -709,8 +662,6 @@ void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 
 void gfs2_log_shutdown(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_LOG_SHUTDOWN)
-
         down(&sdp->sd_log_flush_lock);
 
 	gfs2_assert_withdraw(sdp, !atomic_read(&sdp->sd_log_trans_count));
@@ -738,6 +689,4 @@ void gfs2_log_shutdown(struct gfs2_sbd *sdp)
 	sdp->sd_log_tail = sdp->sd_log_head;
 
 	up(&sdp->sd_log_flush_lock);
-
-	RET(G2FN_LOG_SHUTDOWN);
 }

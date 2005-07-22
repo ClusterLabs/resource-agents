@@ -51,7 +51,6 @@ static const char valid_change[16] = {
 void gfs2_setbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		 unsigned int buflen, uint32_t block, unsigned char new_state)
 {
-	ENTER(G2FN_SETBIT)
 	unsigned char *byte, *end, cur_state;
 	unsigned int bit;
 
@@ -68,8 +67,6 @@ void gfs2_setbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		*byte |= new_state << bit;
 	} else
 		gfs2_consist_rgrpd(rgd);
-
-	RET(G2FN_SETBIT);
 }
 
 /**
@@ -83,7 +80,6 @@ void gfs2_setbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 			   unsigned int buflen, uint32_t block)
 {
-	ENTER(G2FN_TESTBIT)
 	unsigned char *byte, *end, cur_state;
 	unsigned int bit;
 
@@ -95,7 +91,7 @@ unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 
 	cur_state = (*byte >> bit) & GFS2_BIT_MASK;
 
-	RETURN(G2FN_TESTBIT, cur_state);
+	return cur_state;
 }
 
 /**
@@ -119,7 +115,6 @@ uint32_t gfs2_bitfit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		     unsigned int buflen, uint32_t goal,
 		     unsigned char old_state)
 {
-	ENTER(G2FN_BITFIT)
 	unsigned char *byte, *end, alloc;
 	uint32_t blk = goal;
 	unsigned int bit;
@@ -140,7 +135,7 @@ uint32_t gfs2_bitfit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		}
 
 		if (((*byte >> bit) & GFS2_BIT_MASK) == old_state)
-			RETURN(G2FN_BITFIT, blk);
+			return blk;
 
 		bit += GFS2_BIT_SIZE;
 		if (bit >= 8) {
@@ -151,7 +146,7 @@ uint32_t gfs2_bitfit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		blk++;
 	}
 
-	RETURN(G2FN_BITFIT, BFITNOENT);
+	return BFITNOENT;
 }
 
 /**
@@ -166,7 +161,6 @@ uint32_t gfs2_bitfit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 uint32_t gfs2_bitcount(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 		       unsigned int buflen, unsigned char state)
 {
-	ENTER(G2FN_BITCOUNT)
 	unsigned char *byte = buffer;
 	unsigned char *end = buffer + buflen;
 	unsigned char state1 = state << 2;
@@ -185,5 +179,5 @@ uint32_t gfs2_bitcount(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 			count++;
 	}
 
-	RETURN(G2FN_BITCOUNT, count);
+	return count;
 }

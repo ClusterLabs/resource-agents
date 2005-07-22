@@ -29,7 +29,6 @@
 static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 			struct gfs2_unlinked_tag *ut)
 {
-	ENTER(G2FN_MUNGE_ONDISK)
 	struct gfs2_inode *ip = sdp->sd_ut_inode;
 	unsigned int block, offset;
 	uint64_t dblock;
@@ -42,10 +41,10 @@ static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 
 	error = gfs2_block_map(ip, block, &new, &dblock, NULL);
 	if (error)
-		RETURN(G2FN_MUNGE_ONDISK, error);
+		return error;
 	error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
 	if (error)
-		RETURN(G2FN_MUNGE_ONDISK, error);
+		return error;
 	if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_UT)) {
 		error = -EIO;
 		goto out;
@@ -60,24 +59,21 @@ static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
  out:
 	brelse(bh);
 
-	RETURN(G2FN_MUNGE_ONDISK, error);
+	return error;
 }
 
 static void ul_hash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UL_HASH);
 	spin_lock(&sdp->sd_unlinked_spin);
 	list_add(&ul->ul_list, &sdp->sd_unlinked_list);
 	gfs2_assert(sdp, ul->ul_count,);
 	ul->ul_count++;
 	atomic_inc(&sdp->sd_unlinked_count);
 	spin_unlock(&sdp->sd_unlinked_spin);
-	RET(G2FN_UL_HASH);
 }
 
 static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UL_UNHASH);
 	spin_lock(&sdp->sd_unlinked_spin);
 	list_del_init(&ul->ul_list);
 	gfs2_assert(sdp, ul->ul_count > 1,);
@@ -85,17 +81,15 @@ static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	gfs2_assert_warn(sdp, atomic_read(&sdp->sd_unlinked_count) > 0);
 	atomic_dec(&sdp->sd_unlinked_count);
 	spin_unlock(&sdp->sd_unlinked_spin);
-	RET(G2FN_UL_UNHASH);
 }
 
 struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UL_FISH)
 	struct list_head *tmp, *head;
 	struct gfs2_unlinked *ul = NULL;
 
 	if (sdp->sd_vfs->s_flags & MS_RDONLY)
-		RETURN(G2FN_UL_FISH, NULL);
+		return NULL;
 
 	spin_lock(&sdp->sd_unlinked_spin);
 
@@ -119,7 +113,7 @@ struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 
 	spin_unlock(&sdp->sd_unlinked_spin);
 
-	RETURN(G2FN_UL_FISH, ul);
+	return ul;
 }
 
 /**
@@ -131,7 +125,6 @@ struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 
 void enforce_limit(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_ENFORCE_LIMIT)
 	unsigned int tries = 0, min = 0;
 	int error;
 
@@ -153,13 +146,10 @@ void enforce_limit(struct gfs2_sbd *sdp)
 		} else if (error != 1)
 			break;
 	}
-
-	RET(G2FN_ENFORCE_LIMIT);
 }
 
 struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UL_ALLOC)
 	struct gfs2_unlinked *ul;
 
 	ul = kmalloc(sizeof(struct gfs2_unlinked), GFP_KERNEL);
@@ -170,12 +160,11 @@ struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
 		set_bit(ULF_LOCKED, &ul->ul_flags);
 	}
 
-	RETURN(G2FN_UL_ALLOC, ul);
+	return ul;
 }
 
 int gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 {
-	ENTER(G2FN_UNLINKED_GET)
 	unsigned int c, o = 0, b;
 	unsigned char byte = 0;
 
@@ -183,7 +172,7 @@ int gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 
 	*ul = ul_alloc(sdp);
 	if (!*ul)
-		RETURN(G2FN_UNLINKED_GET, -ENOMEM);
+		return -ENOMEM;
 
 	spin_lock(&sdp->sd_unlinked_spin);
 
@@ -209,18 +198,16 @@ int gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 
 	spin_unlock(&sdp->sd_unlinked_spin);
 
-	RETURN(G2FN_UNLINKED_GET, 0);
+	return 0;
 
  fail:
 	spin_unlock(&sdp->sd_unlinked_spin);
 	kfree(*ul);
-	RETURN(G2FN_UNLINKED_GET, -ENOSPC);
+	return -ENOSPC;
 }
 
 void gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UNLINKED_PUT)
-
         gfs2_assert_warn(sdp, test_and_clear_bit(ULF_LOCKED, &ul->ul_flags));
 
 	spin_lock(&sdp->sd_unlinked_spin);
@@ -232,13 +219,10 @@ void gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 		kfree(ul);
 	} else
 		spin_unlock(&sdp->sd_unlinked_spin);
-		
-	RET(G2FN_UNLINKED_PUT);
 }
 
 int gfs2_unlinked_ondisk_add(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UNLINKED_ONDISK_ADD)
 	int error;
 
 	gfs2_assert_warn(sdp, test_bit(ULF_LOCKED, &ul->ul_flags));
@@ -248,12 +232,11 @@ int gfs2_unlinked_ondisk_add(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	if (!error)
 		ul_hash(sdp, ul);
 
-	RETURN(G2FN_UNLINKED_ONDISK_ADD, error);
+	return error;
 }
 
 int gfs2_unlinked_ondisk_munge(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UNLINKED_ONDISK_MUNGE)
 	int error;
 
 	gfs2_assert_warn(sdp, test_bit(ULF_LOCKED, &ul->ul_flags));
@@ -261,12 +244,11 @@ int gfs2_unlinked_ondisk_munge(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 
 	error = munge_ondisk(sdp, ul->ul_slot, &ul->ul_ut);
 
-	RETURN(G2FN_UNLINKED_ONDISK_MUNGE, error);
+	return error;
 }
 
 int gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-	ENTER(G2FN_UNLINKED_ONDISK_RM)
 	struct gfs2_unlinked_tag ut;
 	int error;
 
@@ -277,11 +259,11 @@ int gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 
 	error = munge_ondisk(sdp, ul->ul_slot, &ut);
 	if (error)
-		RETURN(G2FN_UNLINKED_ONDISK_RM, error);
+		return error;
 
 	ul_unhash(sdp, ul);
 
-	RETURN(G2FN_UNLINKED_ONDISK_RM, 0);
+	return 0;
 }
 
 /**
@@ -293,7 +275,6 @@ int gfs2_unlinked_ondisk_rm(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 
 int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNLINKED_DEALLOC)
 	unsigned int hits, strikes;
 	int error;
 
@@ -304,7 +285,7 @@ int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 		for (;;) {
 			struct gfs2_unlinked *ul = ul_fish(sdp);
 			if (!ul)
-				RETURN(G2FN_UNLINKED_DEALLOC, 0);
+				return 0;
 			error = gfs2_inode_dealloc(sdp, ul);
 			gfs2_unlinked_put(sdp, ul);
 
@@ -319,7 +300,7 @@ int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 					break;
 				}
 			} else
-				RETURN(G2FN_UNLINKED_DEALLOC, error);
+				return error;
 		}
 
 		if (!hits || !test_bit(SDF_INODED_RUN, &sdp->sd_flags))
@@ -328,12 +309,11 @@ int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 		cond_resched();
 	}
 
-	RETURN(G2FN_UNLINKED_DEALLOC, 0);
+	return 0;
 }
 
 int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNLINKED_INIT)
 	struct gfs2_inode *ip = sdp->sd_ut_inode;
 	unsigned int blocks = ip->i_di.di_size >> sdp->sd_sb.sb_bsize_shift;
 	unsigned int x, slot = 0;
@@ -346,7 +326,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 	    ip->i_di.di_size > (64 << 20) ||
 	    ip->i_di.di_size & (sdp->sd_sb.sb_bsize - 1)) {
 		gfs2_consist_inode(ip);
-		RETURN(G2FN_UNLINKED_INIT, -EIO);		
+		return -EIO;		
 	}
 	sdp->sd_unlinked_slots = blocks * sdp->sd_ut_per_block;
 	sdp->sd_unlinked_chunks = DIV_RU(sdp->sd_unlinked_slots, 8 * PAGE_SIZE);
@@ -357,7 +337,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 					  sizeof(unsigned char *),
 					  GFP_KERNEL);
 	if (!sdp->sd_unlinked_bitmap)
-		RETURN(G2FN_UNLINKED_INIT, error);
+		return error;
 	memset(sdp->sd_unlinked_bitmap, 0,
 	       sdp->sd_unlinked_chunks * sizeof(unsigned char *));
 
@@ -427,11 +407,11 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 		printk("GFS2: fsid=%s: found %u unlinked inodes\n",
 		       sdp->sd_fsname, found);
 
-	RETURN(G2FN_UNLINKED_INIT, 0);
+	return 0;
 
  fail:
 	gfs2_unlinked_cleanup(sdp);
-	RETURN(G2FN_UNLINKED_INIT, error);
+	return error;
 }
 
 /**
@@ -442,7 +422,6 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 
 void gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_UNLINKED_CLEANUP)
        	struct list_head *head = &sdp->sd_unlinked_list;
 	struct gfs2_unlinked *ul;
 	unsigned int x;
@@ -475,7 +454,5 @@ void gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
 			kfree(sdp->sd_unlinked_bitmap[x]);
 		kfree(sdp->sd_unlinked_bitmap);
 	}
-
-	RET(G2FN_UNLINKED_CLEANUP);
 }
 

@@ -47,17 +47,16 @@
 
 static int gfs2_write_inode(struct inode *inode, int sync)
 {
-	ENTER(G2FN_WRITE_INODE)
 	struct gfs2_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&ip->i_sbd->sd_ops_super);
 
 	if (current->flags & PF_MEMALLOC)
-		RETURN(G2FN_WRITE_INODE, 0);
+		return 0;
 	if (ip && sync)
 		gfs2_log_flush_glock(ip->i_gl);
 
-	RETURN(G2FN_WRITE_INODE, 0);
+	return 0;
 }
 
 /**
@@ -68,12 +67,11 @@ static int gfs2_write_inode(struct inode *inode, int sync)
 
 static void gfs2_put_super(struct super_block *sb)
 {
-	ENTER(G2FN_PUT_SUPER)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	int error;
 
         if (!sdp)
-                RET(G2FN_PUT_SUPER);
+                return;
 
 	atomic_inc(&sdp->sd_ops_super);
 
@@ -181,8 +179,6 @@ static void gfs2_put_super(struct super_block *sb)
 	vfree(sdp);
 
 	set_v2sdp(sb, NULL);
-
-	RET(G2FN_PUT_SUPER);
 }
 
 /**
@@ -195,11 +191,9 @@ static void gfs2_put_super(struct super_block *sb)
 
 static void gfs2_write_super(struct super_block *sb)
 {
-	ENTER(G2FN_WRITE_SUPER)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	atomic_inc(&sdp->sd_ops_super);
 	gfs2_log_flush(sdp);
-	RET(G2FN_WRITE_SUPER);
 }
 
 /**
@@ -210,7 +204,6 @@ static void gfs2_write_super(struct super_block *sb)
 
 static void gfs2_write_super_lockfs(struct super_block *sb)
 {
-	ENTER(G2FN_WRITE_SUPER_LOCKFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	int error;
 
@@ -238,8 +231,6 @@ static void gfs2_write_super_lockfs(struct super_block *sb)
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule_timeout(HZ);
 	}
-
-	RET(G2FN_WRITE_SUPER_LOCKFS);
 }
 
 /**
@@ -250,13 +241,10 @@ static void gfs2_write_super_lockfs(struct super_block *sb)
 
 static void gfs2_unlockfs(struct super_block *sb)
 {
-	ENTER(G2FN_UNLOCKFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 
 	atomic_inc(&sdp->sd_ops_super);
 	gfs2_unfreeze_fs(sdp);
-
-	RET(G2FN_UNLOCKFS);
 }
 
 /**
@@ -269,7 +257,6 @@ static void gfs2_unlockfs(struct super_block *sb)
 
 static int gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 {
-	ENTER(G2FN_STATFS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	struct gfs2_statfs_change sc;
 	int error;
@@ -282,7 +269,7 @@ static int gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 		error = gfs2_statfs_i(sdp, &sc);
 
 	if (error)
-		RETURN(G2FN_STATFS, error);
+		return error;
 
 	memset(buf, 0, sizeof(struct kstatfs));
 
@@ -295,7 +282,7 @@ static int gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 	buf->f_ffree = sc.sc_free;
 	buf->f_namelen = GFS2_FNAMESIZE;
 
-	RETURN(G2FN_STATFS, 0);
+	return 0;
 }
 
 /**
@@ -309,7 +296,6 @@ static int gfs2_statfs(struct super_block *sb, struct kstatfs *buf)
 
 static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 {
-	ENTER(G2FN_REMOUNT_FS)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	int error;
 
@@ -317,7 +303,7 @@ static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 
 	error = gfs2_mount_args(sdp, data, TRUE);
 	if (error)
-		RETURN(G2FN_REMOUNT_FS, error);
+		return error;
 
 	if (sdp->sd_args.ar_spectator)
 		*flags |= MS_RDONLY;
@@ -339,7 +325,7 @@ static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 	/* Don't let the VFS update atimes.  GFS2 handles this itself. */
 	*flags |= MS_NOATIME | MS_NODIRATIME;
 
-	RETURN(G2FN_REMOUNT_FS, error);
+	return error;
 }
 
 /**
@@ -354,7 +340,6 @@ static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 
 static void gfs2_clear_inode(struct inode *inode)
 {
-	ENTER(G2FN_CLEAR_INODE)
 	struct gfs2_inode *ip = get_v2ip(inode);
 
 	atomic_inc(&get_v2sdp(inode->i_sb)->sd_ops_super);
@@ -368,8 +353,6 @@ static void gfs2_clear_inode(struct inode *inode)
 		gfs2_glock_schedule_for_reclaim(ip->i_gl);
 		gfs2_inode_put(ip);
 	}
-
-	RET(G2FN_CLEAR_INODE);
 }
 
 /**
@@ -382,7 +365,6 @@ static void gfs2_clear_inode(struct inode *inode)
 
 static int gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 {
-	ENTER(G2FN_SHOW_OPTIONS)
 	struct gfs2_sbd *sdp = get_v2sdp(mnt->mnt_sb);
 	struct gfs2_args *args = &sdp->sd_args;
 
@@ -448,7 +430,7 @@ static int gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",data=%s", state);
 	}
 
-	RETURN(G2FN_SHOW_OPTIONS, 0);
+	return 0;
 }
 
 struct super_operations gfs2_super_ops = {

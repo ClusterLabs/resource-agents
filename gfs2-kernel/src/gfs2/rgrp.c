@@ -40,7 +40,6 @@
 
 void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRP_VERIFY)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	struct gfs2_bitmap *bi = NULL;
 	uint32_t length = rgd->rd_ri.ri_length;
@@ -63,7 +62,7 @@ void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 		if (gfs2_consist_rgrpd(rgd))
 			printk("GFS2: fsid=%s: free data mismatch:  %u != %u\n",
 			       sdp->sd_fsname, count[0], rgd->rd_rg.rg_free);
-		RET(G2FN_RGRP_VERIFY);
+		return;
 	}
 
 	tmp = rgd->rd_ri.ri_data -
@@ -73,24 +72,22 @@ void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 		if (gfs2_consist_rgrpd(rgd))
 			printk("GFS2: fsid=%s: used data mismatch:  %u != %u\n",
 			       sdp->sd_fsname, count[1], tmp);
-		RET(G2FN_RGRP_VERIFY);
+		return;
 	}
 
 	if (count[2]) {
 		if (gfs2_consist_rgrpd(rgd))
 			printk("GFS2: fsid=%s: free metadata mismatch:  %u != 0\n",
 			       sdp->sd_fsname, count[2]);
-		RET(G2FN_RGRP_VERIFY);
+		return;
 	}
 
 	if (count[3] != rgd->rd_rg.rg_dinodes) {
 		if (gfs2_consist_rgrpd(rgd))
 			printk("GFS2: fsid=%s: used metadata mismatch:  %u != %u\n",
 			       sdp->sd_fsname, count[3], rgd->rd_rg.rg_dinodes);
-		RET(G2FN_RGRP_VERIFY);
+		return;
 	}
-
-	RET(G2FN_RGRP_VERIFY);
 }
 
 static __inline__ int rgrp_contains_block(struct gfs2_rindex *ri,
@@ -114,7 +111,6 @@ static __inline__ int rgrp_contains_block(struct gfs2_rindex *ri,
 
 struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 {
-	ENTER(G2FN_BLK2RGPRD)
 	struct list_head *tmp, *head;
 	struct gfs2_rgrpd *rgd = NULL;
 
@@ -127,13 +123,13 @@ struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 		if (rgrp_contains_block(&rgd->rd_ri, blk)) {
 			list_move(&rgd->rd_list_mru, &sdp->sd_rindex_mru_list);
 			spin_unlock(&sdp->sd_rindex_spin);
-			RETURN(G2FN_BLK2RGPRD, rgd);
+			return rgd;
 		}
 	}
 
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_BLK2RGPRD, NULL);
+	return NULL;
 }
 
 /**
@@ -145,10 +141,8 @@ struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 
 struct gfs2_rgrpd *gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_RGRPD_GET_FIRST)
 	gfs2_assert(sdp, !list_empty(&sdp->sd_rindex_list),);
-	RETURN(G2FN_RGRPD_GET_FIRST,
-	       list_entry(sdp->sd_rindex_list.next, struct gfs2_rgrpd, rd_list));
+	return list_entry(sdp->sd_rindex_list.next, struct gfs2_rgrpd, rd_list);
 }
 
 /**
@@ -160,11 +154,9 @@ struct gfs2_rgrpd *gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
 
 struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRPD_GET_NEXT)
 	if (rgd->rd_list.next == &rgd->rd_sbd->sd_rindex_list)
-		RETURN(G2FN_RGRPD_GET_NEXT, NULL);
-	RETURN(G2FN_RGRPD_GET_NEXT,
-	       list_entry(rgd->rd_list.next, struct gfs2_rgrpd, rd_list));
+		return NULL;
+	return list_entry(rgd->rd_list.next, struct gfs2_rgrpd, rd_list);
 }
 
 /**
@@ -175,7 +167,6 @@ struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
 
 void clear_rgrpdi(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_CLEAR_RGRPDI)
        	struct list_head *head;
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_glock *gl;
@@ -205,8 +196,6 @@ void clear_rgrpdi(struct gfs2_sbd *sdp)
 		kfree(rgd->rd_bits);
 		kfree(rgd);
 	}
-
-	RET(G2FN_CLEAR_RGRPDI);
 }
 
 /**
@@ -217,11 +206,9 @@ void clear_rgrpdi(struct gfs2_sbd *sdp)
 
 void gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_CLEAR_RGRPD)
 	down(&sdp->sd_rindex_mutex);
 	clear_rgrpdi(sdp);
 	up(&sdp->sd_rindex_mutex);
-	RET(G2FN_CLEAR_RGRPD);
 }
 
 /**
@@ -235,7 +222,6 @@ void gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
 
 static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_COMPUTE_BITSTRUCTS)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	struct gfs2_bitmap *bi;
 	uint32_t length = rgd->rd_ri.ri_length; /* # blocks in hdr & bitmap */
@@ -245,7 +231,7 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 	rgd->rd_bits = kmalloc(length * sizeof(struct gfs2_bitmap),
 			       GFP_KERNEL);
 	if (!rgd->rd_bits)
-		RETURN(G2FN_COMPUTE_BITSTRUCTS, -ENOMEM);
+		return -ENOMEM;
 	memset(rgd->rd_bits, 0, length * sizeof(struct gfs2_bitmap));
 
 	bytes_left = rgd->rd_ri.ri_bitbytes;
@@ -284,7 +270,7 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 
 	if (bytes_left) {
 		gfs2_consist_rgrpd(rgd);
-		RETURN(G2FN_COMPUTE_BITSTRUCTS, -EIO);
+		return -EIO;
 	}
 	bi = rgd->rd_bits + (length - 1);
         if ((bi->bi_start + bi->bi_len) * GFS2_NBBY != rgd->rd_ri.ri_data) {
@@ -294,10 +280,10 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 			       sdp->sd_fsname,
 			       bi->bi_start, bi->bi_len, bi->bi_offset);
 		}
-		RETURN(G2FN_COMPUTE_BITSTRUCTS, -EIO);
+		return -EIO;
 	}
 
-	RETURN(G2FN_COMPUTE_BITSTRUCTS, 0);
+	return 0;
 }
 
 /**
@@ -309,7 +295,6 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 
 static int gfs2_ri_update(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_RI_UPDATE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd;
 	char buf[sizeof(struct gfs2_rindex)];
@@ -317,7 +302,7 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 
 	if (do_mod(ip->i_di.di_size, sizeof(struct gfs2_rindex))) {
 		gfs2_consist_inode(ip);
-		RETURN(G2FN_RI_UPDATE, -EIO);
+		return -EIO;
 	}
 
 	clear_rgrpdi(sdp);
@@ -365,12 +350,12 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 
 	sdp->sd_rindex_vn = ip->i_gl->gl_vn;
 
-	RETURN(G2FN_RI_UPDATE, 0);
+	return 0;
 
  fail:
 	clear_rgrpdi(sdp);
 
-	RETURN(G2FN_RI_UPDATE, error);
+	return error;
 }
 
 /**
@@ -393,14 +378,13 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 
 int gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
 {
-	ENTER(G2FN_RINDEX_HOLD)
 	struct gfs2_inode *ip = sdp->sd_rindex;
 	struct gfs2_glock *gl = ip->i_gl;
 	int error;
 
 	error = gfs2_glock_nq_init(gl, LM_ST_SHARED, 0, ri_gh);
 	if (error)
-		RETURN(G2FN_RINDEX_HOLD, error);
+		return error;
 
 	/* Read new copy from disk if we don't have the latest */
 	if (sdp->sd_rindex_vn != gl->gl_vn) {
@@ -413,7 +397,7 @@ int gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
 		up(&sdp->sd_rindex_mutex);
 	}
 
-	RETURN(G2FN_RINDEX_HOLD, error);
+	return error;
 }
 
 /**
@@ -428,7 +412,6 @@ int gfs2_rindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ri_gh)
 
 int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRP_BH_GET)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	struct gfs2_glock *gl = rgd->rd_gl;
 	unsigned int length = rgd->rd_ri.ri_length;
@@ -443,7 +426,7 @@ int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 		rgd->rd_bh_count++;
 		spin_unlock(&sdp->sd_rindex_spin);
 		up(&rgd->rd_mutex);
-		RETURN(G2FN_RGRP_BH_GET, 0);
+		return 0;
 	}
 	spin_unlock(&sdp->sd_rindex_spin);
 
@@ -478,7 +461,7 @@ int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 
 	up(&rgd->rd_mutex);
 
-	RETURN(G2FN_RGRP_BH_GET, 0);
+	return 0;
 
  fail:
 	while (x--) {
@@ -489,20 +472,17 @@ int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 	}
 	up(&rgd->rd_mutex);
 
-	RETURN(G2FN_RGRP_BH_GET, error);
+	return error;
 }
 
 void gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRP_BH_HOLD)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 
 	spin_lock(&sdp->sd_rindex_spin);
 	gfs2_assert_warn(rgd->rd_sbd, rgd->rd_bh_count);
 	rgd->rd_bh_count++;
 	spin_unlock(&sdp->sd_rindex_spin);
-		
-	RET(G2FN_RGRP_BH_HOLD);
 }
 
 /**
@@ -513,7 +493,6 @@ void gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
 
 void gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRP_BH_PUT)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	int x, length = rgd->rd_ri.ri_length;
 
@@ -521,7 +500,7 @@ void gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 	gfs2_assert_warn(rgd->rd_sbd, rgd->rd_bh_count);
 	if (--rgd->rd_bh_count) {
 		spin_unlock(&sdp->sd_rindex_spin);
-		RET(G2FN_RGRP_BH_PUT);
+		return;
 	}
 
 	for (x = 0; x < length; x++) {
@@ -533,13 +512,10 @@ void gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 	}
 
 	spin_unlock(&sdp->sd_rindex_spin);
-
-	RET(G2FN_RGRP_BH_PUT);
 }
 
 void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_RGRP_REPOLISH_CLONES)
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	unsigned int length = rgd->rd_ri.ri_length;
 	unsigned int x;
@@ -556,8 +532,6 @@ void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
 	spin_lock(&sdp->sd_rindex_spin);
 	rgd->rd_free_clone = rgd->rd_rg.rg_free;
 	spin_unlock(&sdp->sd_rindex_spin);
-
-	RET(G2FN_RGRP_REPOLISH_CLONES);
 }
 
 /**
@@ -574,7 +548,6 @@ void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
 
 struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_ALLOC_GET)
 	struct gfs2_alloc *al = ip->i_alloc;
 
 	gfs2_assert_warn(ip->i_sbd, !al);
@@ -584,7 +557,7 @@ struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 
 	ip->i_alloc = al;
 
-	RETURN(G2FN_ALLOC_GET, al);
+	return al;
 }
 
 /**
@@ -595,16 +568,13 @@ struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 
 void gfs2_alloc_put(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_ALLOC_PUT)
 	struct gfs2_alloc *al = ip->i_alloc;
 
 	if (gfs2_assert_warn(ip->i_sbd, al))
-		RET(G2FN_ALLOC_PUT);
+		return;
 
 	ip->i_alloc = NULL;
 	kfree(al);
-
-	RET(G2FN_ALLOC_PUT);
 }
 
 /**
@@ -622,7 +592,6 @@ void gfs2_alloc_put(struct gfs2_inode *ip)
 
 static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 {
-	ENTER(G2FN_TRY_RGRP_FIT)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	int ret = 0;
 
@@ -633,7 +602,7 @@ static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 	}
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_TRY_RGRP_FIT, ret);
+	return ret;
 }
 
 /**
@@ -647,7 +616,6 @@ static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
 					    uint64_t rglast)
 {
-	ENTER(G2FN_RECENT_RGRP_FIRST)
 	struct list_head *tmp, *head;
 	struct gfs2_rgrpd *rgd = NULL;
 
@@ -673,7 +641,7 @@ static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
  out:
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_RECENT_RGRP_FIRST, rgd);
+	return rgd;
 }
 
 /**
@@ -687,7 +655,6 @@ static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
 static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
 					   int remove)
 {
-	ENTER(G2FN_RECENT_RGRP_NEXT)
 	struct gfs2_sbd *sdp = cur_rgd->rd_sbd;
 	struct list_head *tmp, *head;
 	struct gfs2_rgrpd *rgd;
@@ -719,7 +686,7 @@ static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
  out:
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_RECENT_RGRP_NEXT, rgd);
+	return rgd;
 }
 
 /**
@@ -735,7 +702,6 @@ static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
 
 static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
 {
-	ENTER(G2FN_RECENT_RGRP_ADD)
 	struct gfs2_sbd *sdp = new_rgd->rd_sbd;
 	struct list_head *tmp, *head;
 	struct gfs2_rgrpd *rgd = NULL;
@@ -758,8 +724,6 @@ static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
 
  out:
 	spin_unlock(&sdp->sd_rindex_spin);
-
-	RET(G2FN_RECENT_RGRP_ADD);
 }
 
 /**
@@ -771,7 +735,6 @@ static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
 
 static struct gfs2_rgrpd *forward_rgrp_get(struct gfs2_sbd *sdp)
 {
-	ENTER(G2FN_FORWARD_RGRP_GET)
 	struct gfs2_rgrpd *rgd;
 	unsigned int journals = gfs2_jindex_size(sdp);
 	unsigned int rg = 0, x;
@@ -795,7 +758,7 @@ static struct gfs2_rgrpd *forward_rgrp_get(struct gfs2_sbd *sdp)
 
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_FORWARD_RGRP_GET, rgd);
+	return rgd;
 }
 
 /**
@@ -807,11 +770,9 @@ static struct gfs2_rgrpd *forward_rgrp_get(struct gfs2_sbd *sdp)
 
 static void forward_rgrp_set(struct gfs2_sbd *sdp, struct gfs2_rgrpd *rgd)
 {
-	ENTER(G2FN_FORWARD_RGRP_SET)
 	spin_lock(&sdp->sd_rindex_spin);
 	sdp->sd_rindex_forward = rgd;
 	spin_unlock(&sdp->sd_rindex_spin);
-	RET(G2FN_FORWARD_RGRP_SET);
 }
 
 /**
@@ -826,7 +787,6 @@ static void forward_rgrp_set(struct gfs2_sbd *sdp, struct gfs2_rgrpd *rgd)
 
 static int get_local_rgrp(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_GET_LOCAL_RGRP)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd, *begin = NULL;
 	struct gfs2_alloc *al = ip->i_alloc;
@@ -856,7 +816,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 			break;
 
 		default:
-			RETURN(G2FN_GET_LOCAL_RGRP, error);
+			return error;
 		}
 	}
 
@@ -880,7 +840,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 			break;
 
 		default:
-			RETURN(G2FN_GET_LOCAL_RGRP, error);
+			return error;
 		}
 
 		rgd = gfs2_rgrpd_get_next(rgd);
@@ -889,7 +849,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 
 		if (rgd == begin) {
 			if (++loops >= 2 || !skipped)
-				RETURN(G2FN_GET_LOCAL_RGRP, -ENOSPC);
+				return -ENOSPC;
 			flags = 0;
 		}
 	}
@@ -905,7 +865,7 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 		forward_rgrp_set(sdp, rgd);
 	}
 
-	RETURN(G2FN_GET_LOCAL_RGRP, 0);
+	return 0;
 }
 
 /**
@@ -923,28 +883,27 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 
 int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 {
-	ENTER(G2FN_INPLACE_RESERVE_I)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = ip->i_alloc;
 	int error;
 
         if (gfs2_assert_warn(sdp, al->al_requested))
-		RETURN(G2FN_INPLACE_RESERVE_I, -EINVAL);
+		return -EINVAL;
 
 	error = gfs2_rindex_hold(sdp, &al->al_ri_gh);
 	if (error)
-		RETURN(G2FN_INPLACE_RESERVE_I, error);
+		return error;
 
 	error = get_local_rgrp(ip);
 	if (error) {
 		gfs2_glock_dq_uninit(&al->al_ri_gh);
-		RETURN(G2FN_INPLACE_RESERVE_I, error);
+		return error;
 	}
 
 	al->al_file = file;
 	al->al_line = line;
 
-	RETURN(G2FN_INPLACE_RESERVE_I, 0);
+	return 0;
 }
 
 /**
@@ -956,7 +915,6 @@ int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 
 void gfs2_inplace_release(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_INPLACE_RELEASE)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = ip->i_alloc;
 
@@ -969,8 +927,6 @@ void gfs2_inplace_release(struct gfs2_inode *ip)
 	al->al_rgd = NULL;
 	gfs2_glock_dq_uninit(&al->al_rgd_gh);
 	gfs2_glock_dq_uninit(&al->al_ri_gh);
-
-	RET(G2FN_INPLACE_RELEASE);
 }
 
 /**
@@ -983,7 +939,6 @@ void gfs2_inplace_release(struct gfs2_inode *ip)
 
 unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
 {
-	ENTER(G2FN_GET_BLOCK_TYPE)
 	struct gfs2_bitmap *bi = NULL;
 	uint32_t length, rgrp_block, buf_block;
 	unsigned int buf;
@@ -1005,7 +960,7 @@ unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
 			   bi->bi_bh->b_data + bi->bi_offset,
 			   bi->bi_len, buf_block);
 
-	RETURN(G2FN_GET_BLOCK_TYPE, type);
+	return type;
 }
 
 /**
@@ -1032,7 +987,6 @@ unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
 static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 			     unsigned char old_state, unsigned char new_state)
 {
-	ENTER(G2FN_RGBLK_SEARCH)
 	struct gfs2_bitmap *bi = NULL;
 	uint32_t length = rgd->rd_ri.ri_length;
 	uint32_t blk = 0;
@@ -1087,7 +1041,7 @@ static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 			    bi->bi_len, blk, new_state);
 
 	/* Return allocated block #, rgrp scope (32-bit) */
-	RETURN(G2FN_RGBLK_SEARCH, bi->bi_start * GFS2_NBBY + blk);
+	return bi->bi_start * GFS2_NBBY + blk;
 }
 
 /**
@@ -1112,7 +1066,6 @@ static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 				     uint32_t blen, unsigned char new_state)
 {
-	ENTER(G2FN_RGBLK_FREE)
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_bitmap *bi = NULL;
 	uint32_t length, rgrp_blk, buf_blk;
@@ -1124,7 +1077,7 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 		if (gfs2_consist(sdp))
 			printk("GFS2: fsid=%s: block = %"PRIu64"\n",
 			       sdp->sd_fsname, bstart);
-		RETURN(G2FN_RGBLK_FREE, NULL);
+		return NULL;
 	}
 
 	length = rgd->rd_ri.ri_length;
@@ -1159,7 +1112,7 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 			    bi->bi_len, buf_blk, new_state);
 	}
 
-	RETURN(G2FN_RGBLK_FREE, rgd);
+	return rgd;
 }
 
 /**
@@ -1171,7 +1124,6 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 
 uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_ALLOC_DATA)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = ip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
@@ -1205,7 +1157,7 @@ uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 	rgd->rd_free_clone--;
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_ALLOC_DATA, block);
+	return block;
 }
 
 /**
@@ -1217,7 +1169,6 @@ uint64_t gfs2_alloc_data(struct gfs2_inode *ip)
 
 uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_ALLOC_META)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_alloc *al = ip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
@@ -1252,7 +1203,7 @@ uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 	rgd->rd_free_clone--;
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_ALLOC_META, block);
+	return block;
 }
 
 /**
@@ -1264,7 +1215,6 @@ uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 
 uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 {
-	ENTER(G2FN_ALLOC_DI)
        	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_alloc *al = dip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
@@ -1299,7 +1249,7 @@ uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 	rgd->rd_free_clone--;
 	spin_unlock(&sdp->sd_rindex_spin);
 
-	RETURN(G2FN_ALLOC_DI, block);
+	return block;
 }
 
 /**
@@ -1315,13 +1265,12 @@ uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 
 void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
-	ENTER(G2FN_FREE_DATA)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd;
 
 	rgd = rgblk_free(sdp, bstart, blen, GFS2_BLKST_FREE);
 	if (!rgd)
-		RET(G2FN_FREE_DATA);
+		return;
 
 	rgd->rd_rg.rg_free += blen;
 
@@ -1333,8 +1282,6 @@ void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 	gfs2_statfs_change(sdp, 0, +blen, 0);
 	gfs2_quota_change(ip, -(int64_t)blen,
 			 ip->i_di.di_uid, ip->i_di.di_gid);
-
-	RET(G2FN_FREE_DATA);
 }
 
 /**
@@ -1350,13 +1297,12 @@ void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 
 void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 {
-	ENTER(G2FN_FREE_META)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd;
 
 	rgd = rgblk_free(sdp, bstart, blen, GFS2_BLKST_FREE);
 	if (!rgd)
-		RET(G2FN_FREE_META);
+		return;
 
 	rgd->rd_rg.rg_free += blen;
 
@@ -1369,19 +1315,16 @@ void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 	gfs2_quota_change(ip, -(int64_t)blen,
 			 ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs2_meta_wipe(ip, bstart, blen);
-
-	RET(G2FN_FREE_META);
 }
 
 void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 {
-	ENTER(G2FN_FREE_UNINIT_DI)
        	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	struct gfs2_rgrpd *tmp_rgd;
 
 	tmp_rgd = rgblk_free(sdp, blkno, 1, GFS2_BLKST_FREE);
 	if (!tmp_rgd)
-		RET(G2FN_FREE_UNINIT_DI);
+		return;
 	gfs2_assert_withdraw(sdp, rgd == tmp_rgd);
 
 	if (!rgd->rd_rg.rg_dinodes)
@@ -1394,8 +1337,6 @@ void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 
 	gfs2_statfs_change(sdp, 0, +1, -1);
 	gfs2_trans_add_rg(rgd);
-
-	RET(G2FN_FREE_UNINIT_DI);
 }
 
 /**
@@ -1410,11 +1351,9 @@ void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 
 void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
 {
-	ENTER(G2FN_FREE_DI)
        	gfs2_free_uninit_di(rgd, ip->i_num.no_addr);
 	gfs2_quota_change(ip, -1, ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs2_meta_wipe(ip, ip->i_num.no_addr, 1);
-	RET(G2FN_FREE_DI);
 }
 
 /**
@@ -1432,26 +1371,25 @@ void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
 void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
 		    uint64_t block)
 {
-	ENTER(G2FN_RLIST_ADD)
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_rgrpd **tmp;
 	unsigned int new_space;
 	unsigned int x;
 
 	if (gfs2_assert_warn(sdp, !rlist->rl_ghs))
-		RET(G2FN_RLIST_ADD);
+		return;
 
 	rgd = gfs2_blk2rgrpd(sdp, block);
 	if (!rgd) {
 		if (gfs2_consist(sdp))
 			printk("GFS2: fsid=%s: block = %"PRIu64"\n",
 			       sdp->sd_fsname, block);
-		RET(G2FN_RLIST_ADD);
+		return;
 	}
 
 	for (x = 0; x < rlist->rl_rgrps; x++)
 		if (rlist->rl_rgd[x] == rgd)
-			RET(G2FN_RLIST_ADD);
+			return;
 
 	if (rlist->rl_rgrps == rlist->rl_space) {
 		new_space = rlist->rl_space + 10;
@@ -1470,8 +1408,6 @@ void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
 	}
 
 	rlist->rl_rgd[rlist->rl_rgrps++] = rgd;
-
-	RET(G2FN_RLIST_ADD);
 }
 
 /**
@@ -1488,7 +1424,6 @@ void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
 void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
 		      int flags)
 {
-	ENTER(G2FN_RLIST_ALLOC)
 	unsigned int x;
 
 	rlist->rl_ghs = kmalloc_nofail(rlist->rl_rgrps *
@@ -1498,8 +1433,6 @@ void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
 		gfs2_holder_init(rlist->rl_rgd[x]->rd_gl,
 				state, flags,
 				&rlist->rl_ghs[x]);
-
-	RET(G2FN_RLIST_ALLOC);
 }
 
 /**
@@ -1510,7 +1443,6 @@ void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
 
 void gfs2_rlist_free(struct gfs2_rgrp_list *rlist)
 {
-	ENTER(G2FN_RLIST_FREE)
 	unsigned int x;
 
 	kfree(rlist->rl_rgd);
@@ -1520,7 +1452,5 @@ void gfs2_rlist_free(struct gfs2_rgrp_list *rlist)
 			gfs2_holder_uninit(&rlist->rl_ghs[x]);
 		kfree(rlist->rl_ghs);
 	}
-
-	RET(G2FN_RLIST_FREE);
 }
 

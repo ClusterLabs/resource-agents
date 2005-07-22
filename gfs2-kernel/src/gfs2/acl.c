@@ -49,23 +49,22 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 		      struct gfs2_ea_request *er,
 		      int *remove, mode_t *mode)
 {
-	ENTER(G2FN_ACL_VALIDATE_SET)
 	struct posix_acl *acl;
 	int error;
 
 	error = gfs2_acl_validate_remove(ip, access);
 	if (error)
-		RETURN(G2FN_ACL_VALIDATE_SET, error);
+		return error;
 
 	if (!er->er_data)
-		RETURN(G2FN_ACL_VALIDATE_SET, -EINVAL);
+		return -EINVAL;
 
 	acl = posix_acl_from_xattr(er->er_data, er->er_data_len);
 	if (IS_ERR(acl))
-		RETURN(G2FN_ACL_VALIDATE_SET, PTR_ERR(acl));
+		return PTR_ERR(acl);
 	if (!acl) {
 		*remove = TRUE;
-		RETURN(G2FN_ACL_VALIDATE_SET, 0);
+		return 0;
 	}
 	gfs2_memory_add(acl);
 
@@ -85,7 +84,7 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	gfs2_memory_rm(acl);
 	posix_acl_release(acl);
 
-	RETURN(G2FN_ACL_VALIDATE_SET, error);
+	return error;
 }
 
 /**
@@ -98,18 +97,16 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 
 int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
 {
-	ENTER(G2FN_ACL_VALIDATE_REMOVE)
-
 	if (!ip->i_sbd->sd_args.ar_posix_acl)
-		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+		return -EOPNOTSUPP;
 	if (current->fsuid != ip->i_di.di_uid && !capable(CAP_FOWNER))
-		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EPERM);
+		return -EPERM;
 	if (S_ISLNK(ip->i_di.di_mode))
-		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EOPNOTSUPP);
+		return -EOPNOTSUPP;
 	if (!access && !S_ISDIR(ip->i_di.di_mode))
-		RETURN(G2FN_ACL_VALIDATE_REMOVE, -EACCES);
+		return -EACCES;
 
-	RETURN(G2FN_ACL_VALIDATE_REMOVE, 0);
+	return 0;
 }
 
 /**
@@ -127,13 +124,12 @@ int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
 int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 	    struct gfs2_ea_location *el, char **data, unsigned int *len)
 {
-	ENTER(G2FN_ACL_GET)
 	struct gfs2_ea_request er;
 	struct gfs2_ea_location el_this;
 	int error;
 
 	if (!ip->i_di.di_eattr)
-		RETURN(G2FN_ACL_GET, 0);
+		return 0;
 
 	memset(&er, 0, sizeof(struct gfs2_ea_request));
 	if (access) {
@@ -150,9 +146,9 @@ int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 
 	error = gfs2_ea_find(ip, &er, el);
 	if (error)
-		RETURN(G2FN_ACL_GET, error);
+		return error;
 	if (!el->el_ea)
-		RETURN(G2FN_ACL_GET, 0);
+		return 0;
 	if (!GFS2_EA_DATA_LEN(el->el_ea))
 		goto out;
 
@@ -186,7 +182,7 @@ int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 	if (error || el == &el_this)
 		brelse(el->el_bh);
 
-	RETURN(G2FN_ACL_GET, error);
+	return error;
 }
 
 /**
@@ -199,27 +195,25 @@ int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 
 int gfs2_check_acl_locked(struct inode *inode, int mask)
 {
-	ENTER(G2FN_CHECK_ACL_LOCKED)
 	struct posix_acl *acl = NULL;
 	int error;
 
 	error = acl_get(get_v2ip(inode), ACL_ACCESS, &acl, NULL, NULL, NULL);
 	if (error)
-		RETURN(G2FN_CHECK_ACL_LOCKED, error);
+		return error;
 
 	if (acl) {
 		error = posix_acl_permission(inode, acl, mask);
 		gfs2_memory_rm(acl);
 		posix_acl_release(acl);
-		RETURN(G2FN_CHECK_ACL_LOCKED, error);
+		return error;
 	}
       
-	RETURN(G2FN_CHECK_ACL_LOCKED, -EAGAIN);
+	return -EAGAIN;
 }
 
 int gfs2_check_acl(struct inode *inode, int mask)
 {
-	ENTER(G2FN_CHECK_ACL)
 	struct gfs2_inode *ip = get_v2ip(inode);
 	struct gfs2_holder i_gh;
 	int error;
@@ -232,19 +226,18 @@ int gfs2_check_acl(struct inode *inode, int mask)
 		gfs2_glock_dq_uninit(&i_gh);
 	}
 	
-	RETURN(G2FN_CHECK_ACL, error);
+	return error;
 }
 
 static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 {
-	ENTER(G2FN_MUNGE_MODE)
        	struct gfs2_sbd *sdp = ip->i_sbd;
        	struct buffer_head *dibh;
 	int error;
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
 	if (error)
-		RETURN(G2FN_MUNGE_MODE, error);
+		return error;
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {
@@ -257,12 +250,11 @@ static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 
 	gfs2_trans_end(sdp);
 
-	RETURN(G2FN_MUNGE_MODE, 0);
+	return 0;
 }
 
 int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 {
-	ENTER(G2FN_ACL_CREATE)
        	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct posix_acl *acl = NULL;
 	struct gfs2_ea_request er;
@@ -270,9 +262,9 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 	int error;
 
 	if (!sdp->sd_args.ar_posix_acl)
-		RETURN(G2FN_ACL_CREATE, 0);
+		return 0;
 	if (S_ISLNK(ip->i_di.di_mode))
-		RETURN(G2FN_ACL_CREATE, 0);
+		return 0;
 
 	memset(&er, 0, sizeof(struct gfs2_ea_request));
 	er.er_type = GFS2_EATYPE_SYS;
@@ -280,12 +272,12 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 	error = acl_get(dip, ACL_DEFAULT, &acl, NULL,
 			&er.er_data, &er.er_data_len);
 	if (error)
-		RETURN(G2FN_ACL_CREATE, error);
+		return error;
 	if (!acl) {
 		mode &= ~current->fs->umask;
 		if (mode != ip->i_di.di_mode)
 			error = munge_mode(ip, mode);
-		RETURN(G2FN_ACL_CREATE, error);
+		return error;
 	}
 
 	{
@@ -327,7 +319,7 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 	posix_acl_release(acl);
 	kfree(er.er_data);
 
-       	RETURN(G2FN_ACL_CREATE, error);
+       	return error;
 }
 
 /**
@@ -340,7 +332,6 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 
 int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 {
-	ENTER(G2FN_ACL_CHMOD)
 	struct posix_acl *acl = NULL;
 	struct gfs2_ea_location el;
 	char *data;
@@ -349,10 +340,9 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 
 	error = acl_get(ip, ACL_ACCESS, &acl, &el, &data, &len);
 	if (error)
-		RETURN(G2FN_ACL_CHMOD, error);
+		return error;
 	if (!acl)
-		RETURN(G2FN_ACL_CHMOD,
-		       gfs2_setattr_simple(ip, attr));
+		return gfs2_setattr_simple(ip, attr);
 
 	{
 		struct posix_acl *clone = posix_acl_clone(acl, GFP_KERNEL);
@@ -377,5 +367,5 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 	brelse(el.el_bh);
 	kfree(data);
 
-	RETURN(G2FN_ACL_CHMOD, error);
+	return error;
 }

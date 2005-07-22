@@ -41,7 +41,6 @@
 
 void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 {
-	ENTER(G2FN_QUOTA_LVB_IN)
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
 
 	CPIN_32(qb, str, qb_magic);
@@ -49,8 +48,6 @@ void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 	CPIN_64(qb, str, qb_limit);
 	CPIN_64(qb, str, qb_warn);
 	CPIN_64(qb, str, qb_value);
-
-	RET(G2FN_QUOTA_LVB_IN);
 }
 
 /**
@@ -62,7 +59,6 @@ void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 
 void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 {
-	ENTER(G2FN_QUOTA_LVB_OUT)
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
 
 	CPOUT_32(qb, str, qb_magic);
@@ -70,8 +66,6 @@ void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 	CPOUT_64(qb, str, qb_limit);
 	CPOUT_64(qb, str, qb_warn);
 	CPOUT_64(qb, str, qb_value);
-
-	RET(G2FN_QUOTA_LVB_OUT);
 }
 
 /**
@@ -84,13 +78,9 @@ void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 
 void gfs2_quota_lvb_print(struct gfs2_quota_lvb *qb)
 {
-	ENTER(G2FN_QUOTA_LVB_PRINT)
-
 	pv(qb, qb_magic, "%u");
 	pv(qb, qb_pad, "%u");
 	pv(qb, qb_limit, "%"PRIu64);
 	pv(qb, qb_warn, "%"PRIu64);
 	pv(qb, qb_value, "%"PRId64);
-
-	RET(G2FN_QUOTA_LVB_PRINT);
 }

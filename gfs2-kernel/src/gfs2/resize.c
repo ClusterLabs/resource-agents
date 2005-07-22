@@ -35,7 +35,6 @@
 int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 			  unsigned int size)
 {
-	ENTER(G2FN_RESIZE_ADD_RGRPS)
        	unsigned int num = size / sizeof(struct gfs2_rindex);
 	struct gfs2_inode *ip = sdp->sd_rindex;
 	struct gfs2_alloc *al = NULL;
@@ -50,7 +49,7 @@ int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE,
 				   LM_FLAG_PRIORITY | GL_SYNC, &i_gh);
 	if (error)
-		RETURN(G2FN_RESIZE_ADD_RGRPS, error);
+		return error;
 
         if (!gfs2_is_jdata(ip)) {
                 gfs2_consist_inode(ip);
@@ -123,18 +122,17 @@ int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 	ip->i_gl->gl_vn++;
 	gfs2_glock_dq_uninit(&i_gh);
 
-	RETURN(G2FN_RESIZE_ADD_RGRPS, error);
+	return error;
 }
 
 static void drop_dentries(struct gfs2_inode *ip)
 {
-	ENTER(G2FN_DROP_DENTRIES)
 	struct inode *inode;
 	struct list_head *head, *tmp;
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (!inode)
-		RET(G2FN_DROP_DENTRIES);
+		return;
 
 	head = &inode->i_dentry;
 
@@ -153,15 +151,12 @@ static void drop_dentries(struct gfs2_inode *ip)
 	spin_unlock(&dcache_lock);
 
 	iput(inode);
-
-	RET(G2FN_DROP_DENTRIES);
 }
 
 int gfs2_rename2system(struct gfs2_inode *ip,
 		       struct gfs2_inode *old_dip, char *old_name,
 		       struct gfs2_inode *new_dip, char *new_name)
 {
-	ENTER(G2FN_RENAME2SYSTEM)
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_holder ghs[3];
 	struct qstr old_qstr, new_qstr;
@@ -290,6 +285,6 @@ int gfs2_rename2system(struct gfs2_inode *ip,
 	gfs2_holder_uninit(ghs + 1);
 	gfs2_holder_uninit(ghs + 2);
 
-	RETURN(G2FN_RENAME2SYSTEM, error);
+	return error;
 }
 
