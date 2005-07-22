@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.4 2005/07/21 07:50:08 sunjd Exp $
+# $Id: ServeRAID.in,v 1.5 2005/07/22 07:45:37 sunjd Exp $
 # 
 # ServeRAID
 #
@@ -12,10 +12,10 @@
 #
 # License:	GNU General Public License (GPL)
 #
-# Copyright:	(C) 2002 International Business Machines
+# Copyright:	(C) 2002-2005 International Business Machines
 #		(C) 2002 Renzo Alejandro Granados
 #
-# usage: ./ServeRAID (start|stop|status|monitor|meta-data)
+# usage: ./ServeRAID (start|stop|status|monitor|validate-all|meta-data)
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_serveraid
@@ -77,7 +77,7 @@ SCSI="scsi "
 
 usage() {
   cat <<-! >&1
-	usage: $0 (start|stop|status|monitor|meta-data)
+	usage: $0 (start|stop|status|monitor|validate-all|meta-data)
 
 	You have to set the following environment virables before running $0 :
 		OCF_RESKEY_serveraid
@@ -104,15 +104,7 @@ usage() {
 	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	For the time being, you will need to grab a "correct" version of
-	the ipssend command here:
-	        http://linux-ha.org/download/ipssend.gz
-
-	NOTE: This a temporary URL which will go away once the official
-	version becomes available.
-
-
-	$Id: ServeRAID.in,v 1.4 2005/07/21 07:50:08 sunjd Exp $
+	$Id: ServeRAID.in,v 1.5 2005/07/22 07:45:37 sunjd Exp $
 	!
 }
 
@@ -120,7 +112,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ServeRAID" version="0.9">
+<resource-agent name="ServeRAID">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -151,6 +143,7 @@ The logical drive under consideration.
 <action name="stop" timeout="40" />
 <action name="status" depth="0" timeout="20" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="20" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />
 </actions>
@@ -166,6 +159,7 @@ ServeRAID_methods() {
 	start
 	stop
 	status
+	validate-all
 	methods
 	usage
 	meta-data
@@ -188,7 +182,7 @@ parseinst() {
     [ $# -ne 2 ]
   then
     ocf_log err "Invalid ServeRAID instance: $*"
-    return 1
+    exit $OCF_ERR_ARGS
   fi
   PerlScript='next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/'
   # Get the list of host ids of the ServeRAID host adapters
@@ -199,15 +193,13 @@ parseinst() {
     [ ! -f "$ServeRAIDSCSI/$hostid" ]
   then
     ocf_log err "No such ServeRAID adapter: $1"
-    hostid=error
-    return 2
+    exit $OCF_ERR_ARGS
   fi
     
   case $2 in
     [1-8]);;
     *)	ocf_log err "Invalid Shared Merge Group Number: $2"
-        hostid=error
-	return 3;;
+	exit $OCF_ERR_ARGS;;
   esac
   sr_adapter=$1
   sr_mergegroup=$2
@@ -284,9 +276,9 @@ CheckRaidLevel() {
     *5*)
       ocf_log err "ServeRAID device $sr_adapter $sr_mergegroup is RAID level $RAIDlevel"
       ocf_log err "This level of ServeRAID RAID is not supported for failover by the firmware."
-      return 1;;
+      exit $OCF_ERR_GENERIC;;
   esac
-  return 0
+  return $OCF_SUCCESS
 }
 
     
@@ -306,7 +298,7 @@ AddSCSI() {
 # start: Enable the given ServeRAID device
 #
 ServeRAID_start() {
-  parseinst "$@" || return $?
+  parseinst "$@"
   if
     run $IPS UNMERGE $sr_adapter $sr_mergegroup
   then
@@ -343,10 +335,10 @@ ServeRAID_start() {
   if
     ServeRAID_status "$@"
   then
-    return 0
+    return $OCF_SUCCESS
   else
     ocf_log err "ServeRAID device $1 not active!"
-    return 1
+    exit $OCF_ERR_GENERIC
   fi
 }
 
@@ -355,7 +347,7 @@ ServeRAID_start() {
 # stop: Disable the given ServeRAID device
 #
 ServeRAID_stop() {
-  parseinst "$@" || return $?
+  parseinst "$@"
   ReleaseSCSI
   if
     run $IPS UNMERGE $sr_adapter $sr_mergegroup
@@ -366,9 +358,9 @@ ServeRAID_stop() {
     ServeRAID_status "$@"
   then
     ocf_log err "ServeRAID device $@ is still active!"
-    return 1
+    return $OCF_ERR_GENERIC
   else
-    return 0
+    return $OCF_SUCCESS
   fi
 }
 
@@ -377,7 +369,7 @@ ServeRAID_stop() {
 # status: is the given device now available?
 #
 ServeRAID_status() {
-  parseinst "$@" || return $?
+  parseinst "$@"
   #
   # The output we're looking for
   #	Part of merge group            : 2   
@@ -386,19 +378,46 @@ ServeRAID_status() {
   |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *\$" >/dev/null
 }
 
+#
+# validate_all: are the OCF instance parameters valid?
+#
+ServeRAID_validate_all() {
+# parseinst() will do all the work...
+  parseinst "$@"
+  return $?
+}
+
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS;;
+#
+# methods: What methods do we support?
+#
+  methods) 
+	ServeRAID_methods
+	exit $?;;
+  usage)
+	usage
+	exit $OCF_SUCCESS;;
+  *)
+	;;
+esac
 
 if 
   ( [ -z "$OCF_RESKEY_serveraid" ] || [ -z "$OCF_RESKEY_mergegroup" ] )
 then
   ocf_log err "You have to set the OCF_RESKEY_serveraid and OCF_RESKEY_mergegroup\n 
         enviroment virables before running $0 !"
-  usage
+#  usage
   exit $OCF_ERR_GENERIC
 fi
 
@@ -408,9 +427,6 @@ mergegroup=$OCF_RESKEY_mergegroup
 
 # Look for the start, stop, status, or methods calls...
 case "$1" in
-  meta-data)
-	meta_data
-	exit $OCF_SUCCESS;;
   stop)
 	ServeRAID_stop $serveraid $mergegroup
 	exit $?;;
@@ -428,21 +444,11 @@ case "$1" in
 	  exit $OCF_NOT_RUNNING
 	fi
 	exit $?;;
-
-#
-# methods: What methods do we support?
-#
-  methods) 
-	ServeRAID_methods
+  validate-all)
+	ServeRAID_validate_all $serveraid $mergegroup
 	exit $?;;
-
-  usage)
-    usage
-    exit $OCF_SUCCESS;;
   *)
     usage
     exit $OCF_ERR_UNIMPLEMENTED;;
 
 esac
-
-exit 1
