@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ClusterMon.in,v 1.4 2005/07/18 15:13:28 sunjd Exp $
+#	$Id: ClusterMon.in,v 1.5 2005/07/22 07:40:52 sunjd Exp $
 #
 #	ClusterMon OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
@@ -164,9 +164,14 @@ ClusterMon_monitor() {
 
 CheckInterval() {
 # We know $1 is non-empty beforehand
+
+# This test is basically same as 
+#
+# if [ "$1" -gt 0 ]
+#
+# However this is safer if user accidently set OCF_RESKEY_update="1 2"...
     case $1 in
-	*[^0-9.]*) false;; #got invalid char
-	*[.]*[.]*) false;; #2 decimal points "."
+	*[^0-9]*) false;; #got invalid char
 	*[1-9]*) true;; #no invalid char, at most one decimal point, contains non-zero digit <=> valid
 	*) false;; #"0" string
     esac
@@ -219,7 +224,7 @@ ClusterMon_validate() {
     if CheckInterval "$OCF_RESKEY_update"; then
 	:
     else
-	ocf_log err "Invalid update interval $OCF_RESKEY_update!"
+	ocf_log err "Invalid update interval $OCF_RESKEY_update. It should be positive integer!"
 	exit $OCF_ERR_ARGS
     fi
 
