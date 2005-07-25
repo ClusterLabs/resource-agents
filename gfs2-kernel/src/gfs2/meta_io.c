@@ -80,7 +80,7 @@ static void stuck_releasepage(struct buffer_head *bh)
 	struct gfs2_sbd *sdp = get_v2sdp(bh->b_page->mapping->host->i_sb);
 	struct gfs2_bufdata *bd = get_v2bd(bh);
 
-	printk("GFS2: fsid=%s: stuck in gfs2_releasepage()...\n", sdp->sd_fsname);
+	printk("GFS2: fsid=%s: stuck in gfs2_releasepage()\n", sdp->sd_fsname);
 	printk("GFS2: fsid=%s: blkno = %"PRIu64", bh->b_count = %d\n",
 	       sdp->sd_fsname,
 	       (uint64_t)bh->b_blocknr,
@@ -109,18 +109,23 @@ static void stuck_releasepage(struct buffer_head *bh)
 			if (ip) {
 				unsigned int x;
 
-				printk("GFS2: fsid=%s: ip = %"PRIu64"/%"PRIu64"\n",
+				printk("GFS2: fsid=%s: "
+				       "ip = %"PRIu64"/%"PRIu64"\n",
 				       sdp->sd_fsname,
 				       ip->i_num.no_formal_ino,
 				       ip->i_num.no_addr);
-				printk("GFS2: fsid=%s: ip->i_count = %d, ip->i_vnode = %s\n",
-				     sdp->sd_fsname,
-				     atomic_read(&ip->i_count),
-				     (ip->i_vnode) ? "!NULL" : "NULL");
+				printk("GFS2: fsid=%s: "
+				       "ip->i_count = %d, ip->i_vnode = %s\n",
+				       sdp->sd_fsname,
+				       atomic_read(&ip->i_count),
+				       (ip->i_vnode) ? "!NULL" : "NULL");
+
 				for (x = 0; x < GFS2_MAX_META_HEIGHT; x++)
-					printk("GFS2: fsid=%s: ip->i_cache[%u] = %s\n",
+					printk("GFS2: fsid=%s: "
+					       "ip->i_cache[%u] = %s\n",
 					       sdp->sd_fsname, x,
-					       (ip->i_cache[x]) ? "!NULL" : "NULL");
+					       (ip->i_cache[x]) ? "!NULL" :
+					                          "NULL");
 			}
 		}
 	}
@@ -264,7 +269,8 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 			if (!buffer_busy(bh)) {
 				if (!buffer_uptodate(bh))
 					gfs2_io_error_bh(sdp, bh);
-				list_move(&bd->bd_ail_st_list, &ai->ai_ail2_list);
+				list_move(&bd->bd_ail_st_list,
+					  &ai->ai_ail2_list);
 				continue;
 			}
 
@@ -334,7 +340,8 @@ void gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	struct gfs2_bufdata *bd;
 
 	while (!list_empty(head)) {
-		bd = list_entry(head->prev, struct gfs2_bufdata, bd_ail_st_list);
+		bd = list_entry(head->prev, struct gfs2_bufdata,
+				bd_ail_st_list);
 		gfs2_assert(sdp, bd->bd_ail == ai,);
 		bd->bd_ail = NULL;
 		list_del(&bd->bd_ail_st_list);
@@ -371,7 +378,8 @@ void gfs2_ail_empty_gl(struct gfs2_glock *gl)
 
 	gfs2_log_lock(sdp);
 	while (!list_empty(head)) {
-		bd = list_entry(head->next, struct gfs2_bufdata, bd_ail_gl_list);
+		bd = list_entry(head->next, struct gfs2_bufdata,
+				bd_ail_gl_list);
 		bh = bd->bd_bh;
 		blkno = bh->b_blocknr;
 		gfs2_assert_withdraw(sdp, !buffer_busy(bh));
@@ -460,7 +468,8 @@ static struct buffer_head *getbuf(struct gfs2_sbd *sdp, struct inode *aspace,
 	bufnum = blkno - (index << shift);  /* block buf index within page */
 
 	if (create) {
-		RETRY_MALLOC(page = grab_cache_page(aspace->i_mapping, index), page);
+		RETRY_MALLOC(page = grab_cache_page(aspace->i_mapping, index),
+			     page);
 	} else {
 		page = find_lock_page(aspace->i_mapping, index);
 		if (!page)
@@ -592,7 +601,8 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 		return;
 	}
 
-	RETRY_MALLOC(bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL), bd);
+	RETRY_MALLOC(bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL),
+		     bd);
 	gfs2_memory_add(bd);
 	atomic_inc(&gl->gl_sbd->sd_bufdata_count);
 
@@ -824,7 +834,8 @@ int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num,
 		if (new)
 			meta_prep_new(bh);
 		else {
-			error = gfs2_meta_reread(ip->i_sbd, bh, DIO_START | DIO_WAIT);
+			error = gfs2_meta_reread(ip->i_sbd, bh,
+						 DIO_START | DIO_WAIT);
 			if (error) {
 				brelse(bh);
 				return error;
@@ -834,7 +845,8 @@ int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num,
 		if (new)
 			bh = gfs2_meta_new(ip->i_gl, num);
 		else {
-			error = gfs2_meta_read(ip->i_gl, num, DIO_START | DIO_WAIT, &bh);
+			error = gfs2_meta_read(ip->i_gl, num,
+					       DIO_START | DIO_WAIT, &bh);
 			if (error)
 				return error;
 		}
@@ -858,7 +870,7 @@ int gfs2_meta_indirect_buffer(struct gfs2_inode *ip, int height, uint64_t num,
 		gfs2_buffer_clear_tail(bh, sizeof(struct gfs2_meta_header));
 
 	} else if (gfs2_metatype_check(ip->i_sbd, bh,
-				       (height) ? GFS2_METATYPE_IN : GFS2_METATYPE_DI)) {
+			     (height) ? GFS2_METATYPE_IN : GFS2_METATYPE_DI)) {
 		brelse(bh);
 		return -EIO;
 	}

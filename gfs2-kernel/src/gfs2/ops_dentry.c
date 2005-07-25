@@ -118,3 +118,4 @@ static int gfs2_drevalidate(struct dentry *dentry, struct nameidata *nd)
 struct dentry_operations gfs2_dops = {
 	.d_revalidate = gfs2_drevalidate,
 };
+

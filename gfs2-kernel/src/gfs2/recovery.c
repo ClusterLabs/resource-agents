@@ -119,7 +119,7 @@ void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 }
 
 /**
- * gfs2_log_header - read the log header for a given segment
+ * get_log_header - read the log header for a given segment
  * @jd: the journal
  * @blk: the block to look at
  * @lh: the log header to return
@@ -127,7 +127,9 @@ void gfs2_revoke_clean(struct gfs2_sbd *sdp)
  * Read the log header for a given segement in a given journal.  Do a few
  * sanity checks on it.
  *
- * Returns: 0 on success, 1 if the header was invalid or incomplete and, errno on error
+ * Returns: 0 on success,
+ *          1 if the header was invalid or incomplete,
+ *          errno on error
  */
 
 static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
@@ -164,7 +166,7 @@ static int get_log_header(struct gfs2_jdesc *jd, unsigned int blk,
 /**
  * find_good_lh - find a good log header
  * @jd: the journal
- * @blk: the segment to start searching from (it's also filled in with a new value.) 
+ * @blk: the segment to start searching from
  * @lh: the log header to fill in
  * @forward: if true search forward in the log, else search backward
  *
@@ -462,7 +464,8 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		goto fail_gunlock_ji;
 
 	if (!(head.lh_flags & GFS2_LOG_HEAD_UNMOUNT)) {
-		printk("GFS2: fsid=%s: jid=%u: Acquiring the transaction lock...\n",
+		printk("GFS2: fsid=%s: jid=%u: "
+		       "Acquiring the transaction lock...\n",
 		       sdp->sd_fsname, jd->jd_jid);
 
 		t = jiffies;
@@ -489,7 +492,8 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		}
 
 		if (ro) {
-			printk("GFS2: fsid=%s: jid=%u: Can't replay: read-only FS\n",
+			printk("GFS2: fsid=%s: jid=%u: "
+			       "Can't replay: read-only FS\n",
 			       sdp->sd_fsname, jd->jd_jid);
 			error = -EROFS;
 			goto fail_gunlock_tr;
@@ -500,7 +504,8 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 
 		for (pass = 0; pass < 2; pass++) {
 			LO_BEFORE_SCAN(jd, &head, pass);
-			error = foreach_descriptor(jd, head.lh_tail, head.lh_blkno, pass);
+			error = foreach_descriptor(jd, head.lh_tail,
+						   head.lh_blkno, pass);
 			LO_AFTER_SCAN(jd, error, pass);
 			if (error)
 				goto fail_gunlock_tr;

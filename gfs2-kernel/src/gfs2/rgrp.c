@@ -77,14 +77,16 @@ void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 
 	if (count[2]) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: free metadata mismatch:  %u != 0\n",
+			printk("GFS2: fsid=%s: "
+			       "free metadata mismatch:  %u != 0\n",
 			       sdp->sd_fsname, count[2]);
 		return;
 	}
 
 	if (count[3] != rgd->rd_rg.rg_dinodes) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: used metadata mismatch:  %u != %u\n",
+			printk("GFS2: fsid=%s: "
+			       "used metadata mismatch:  %u != %u\n",
 			       sdp->sd_fsname, count[3], rgd->rd_rg.rg_dinodes);
 		return;
 	}
@@ -339,8 +341,8 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 		if (error)
 			goto fail;
 
-		error = gfs2_glock_get(sdp, rgd->rd_ri.ri_addr, &gfs2_rgrp_glops,
-				       CREATE, &rgd->rd_gl);
+		error = gfs2_glock_get(sdp, rgd->rd_ri.ri_addr,
+				       &gfs2_rgrp_glops, CREATE, &rgd->rd_gl);
 		if (error)
 			goto fail;
 
@@ -432,7 +434,8 @@ int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 
 	for (x = 0; x < length; x++) {
 		bi = rgd->rd_bits + x;
-		error = gfs2_meta_read(gl, rgd->rd_ri.ri_addr + x, DIO_START, &bi->bi_bh);
+		error = gfs2_meta_read(gl, rgd->rd_ri.ri_addr + x, DIO_START,
+				       &bi->bi_bh);
 		if (error)
 			goto fail;
 	}
@@ -443,7 +446,8 @@ int gfs2_rgrp_bh_get(struct gfs2_rgrpd *rgd)
 		if (error)
 			goto fail;
 		if (gfs2_metatype_check(sdp, bi->bi_bh,
-					(y) ? GFS2_METATYPE_RB : GFS2_METATYPE_RG)) {
+					(y) ? GFS2_METATYPE_RB :
+					      GFS2_METATYPE_RG)) {
 			error = -EIO;
 			goto fail;
 		}
@@ -636,7 +640,8 @@ static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
 	}
 
  first:
-	rgd = list_entry(sdp->sd_rindex_recent_list.next, struct gfs2_rgrpd, rd_recent);
+	rgd = list_entry(sdp->sd_rindex_recent_list.next, struct gfs2_rgrpd,
+			 rd_recent);
 
  out:
 	spin_unlock(&sdp->sd_rindex_spin);
@@ -744,9 +749,7 @@ static struct gfs2_rgrpd *forward_rgrp_get(struct gfs2_sbd *sdp)
 	rgd = sdp->sd_rindex_forward;
 	if (!rgd) {
 		if (sdp->sd_rgrps >= journals)
-			rg = sdp->sd_rgrps *
-				sdp->sd_jdesc->jd_jid /
-				journals;
+			rg = sdp->sd_rgrps * sdp->sd_jdesc->jd_jid / journals;
 
 		for (x = 0, rgd = gfs2_rgrpd_get_first(sdp);
 		     x < rg;

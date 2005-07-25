@@ -156,7 +156,8 @@ int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		return 0;
 
 	if (gfs2_is_stuffed(ip))
-		return jdata_read_stuffed(ip, buf, (unsigned int)offset, size, copy_fn);
+		return jdata_read_stuffed(ip, buf, (unsigned int)offset, size,
+					  copy_fn);
 
 	if (gfs2_assert_warn(sdp, gfs2_is_jdata(ip)))
 		return -EINVAL;
@@ -309,7 +310,8 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 
 	if (gfs2_is_stuffed(ip) &&
 	    offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
-		return jdata_write_stuffed(ip, buf, (unsigned int)offset, size, copy_fn);
+		return jdata_write_stuffed(ip, buf, (unsigned int)offset, size,
+					   copy_fn);
 
 	if (gfs2_assert_warn(sdp, gfs2_is_jdata(ip)))
 		return -EINVAL;
@@ -321,8 +323,7 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 	}
 
 	lblock = offset;
-	o = do_div(lblock, sdp->sd_jbsize) +
-		sizeof(struct gfs2_meta_header);
+	o = do_div(lblock, sdp->sd_jbsize) + sizeof(struct gfs2_meta_header);
 
 	while (copied < size) {
 		unsigned int amount;
@@ -345,8 +346,8 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		}
 
 		error = gfs2_jdata_get_buffer(ip, dblock,
-					      (amount == sdp->sd_jbsize) ? TRUE : new,
-					      &bh);
+				(amount == sdp->sd_jbsize) ? TRUE : new,
+				&bh);
 		if (error)
 			goto fail;
 
@@ -383,3 +384,4 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		goto out;
 	return error;
 }
+

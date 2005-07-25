@@ -417,7 +417,7 @@ void gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh)
 }
 
 /**
- * gfs2_holder_uninit - uninitialize a holder structure (drop reference on glock)
+ * gfs2_holder_uninit - uninitialize a holder structure (drop glock reference)
  * @gh: the holder structure
  *
  */
@@ -469,7 +469,8 @@ void gfs2_holder_put(struct gfs2_holder *gh)
 }
 
 /**
- * handle_recurse - put other holder structures (marked recursive) into the holders list
+ * handle_recurse - put other holder structures (marked recursive)
+  *                 into the holders list
  * @gh: the holder structure
  *
  */
@@ -492,7 +493,8 @@ static void handle_recurse(struct gfs2_holder *gh)
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
-		gfs2_assert_warn(sdp, test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
+		gfs2_assert_warn(sdp,
+				 test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
 
 		list_move_tail(&tmp_gh->gh_list, &gl->gl_holders);
 		tmp_gh->gh_error = 0;
@@ -534,7 +536,8 @@ static void do_unrecurse(struct gfs2_holder *gh)
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
-		gfs2_assert_warn(sdp, test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
+		gfs2_assert_warn(sdp,
+				 test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
 
 		/* found more than one */
 		if (found)
@@ -1092,7 +1095,8 @@ void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 	/* Current state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
-			glops->go_sync(gl, DIO_METADATA | DIO_DATA | DIO_RELEASE);
+			glops->go_sync(gl,
+				       DIO_METADATA | DIO_DATA | DIO_RELEASE);
 	}
 
 	glock_hold(gl);
@@ -1183,7 +1187,8 @@ void gfs2_glock_drop_th(struct gfs2_glock *gl)
 	/* Leaving state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
-			glops->go_sync(gl, DIO_METADATA | DIO_DATA | DIO_RELEASE);
+			glops->go_sync(gl,
+				       DIO_METADATA | DIO_DATA | DIO_RELEASE);
 	}
 
 	glock_hold(gl);
@@ -1289,7 +1294,8 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 				spin_lock(&gl->gl_spin);
 				list_del_init(&gh->gh_list);
 				gh->gh_error = error;
-				if (test_and_clear_bit(HIF_RECURSE, &gh->gh_iflags))
+				if (test_and_clear_bit(HIF_RECURSE,
+						       &gh->gh_iflags))
 					do_unrecurse(gh);
 				spin_unlock(&gl->gl_spin);
 			}
@@ -1820,7 +1826,8 @@ static int glock_compare(const void *arg_a, const void *arg_b)
  * @num_gh: the number of structures
  * @ghs: an array of struct gfs2_holder structures
  *
- * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired),
+ *          errno on failure (no glocks acquired)
  */
 
 static int nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs,
@@ -1858,7 +1865,8 @@ static int nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs,
  * 2) Forget async stuff and just call nq_m_sync()
  * 3) Leave it like it is
  *
- * Returns: 0 on success (all glocks acquired), errno on failure (no glocks acquired)
+ * Returns: 0 on success (all glocks acquired),
+ *          errno on failure (no glocks acquired)
  */
 
 int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
@@ -2195,7 +2203,8 @@ void gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
 }
 
 /**
- * gfs2_iopen_go_callback - Try to kick the inode/vnode associated with an iopen glock from memory
+ * gfs2_iopen_go_callback - Try to kick the inode/vnode associated with an 
+ *                          iopen glock from memory
  * @io_gl: the iopen glock
  * @state: the state into which the glock should be put
  *
@@ -2565,13 +2574,15 @@ void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
 		cont = FALSE;
 
 		for (x = 0; x < GFS2_GL_HASH_SIZE; x++)
-			if (examine_bucket(clear_glock, sdp, &sdp->sd_gl_hash[x]))
+			if (examine_bucket(clear_glock, sdp,
+					   &sdp->sd_gl_hash[x]))
 				cont = TRUE;
 
 		if (!wait || !cont)
 			break;
 
-		if (time_after_eq(jiffies, t + gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
+		if (time_after_eq(jiffies,
+				  t + gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
 			printk("GFS2: fsid=%s: Unmount seems to be stalled. Dumping lock state...\n",
 			       sdp->sd_fsname);
 			gfs2_dump_lockstate(sdp, NULL);
@@ -2815,7 +2826,8 @@ int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 				error = -ENOMEM;
 				break;
 			}
-			if (copy_to_user(ub->ub_data + ub->ub_count, buf, count)) {
+			if (copy_to_user(ub->ub_data + ub->ub_count, buf,
+					 count)) {
 				error = -EFAULT;
 				break;
 			}
@@ -2827,3 +2839,4 @@ int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 
 	return error;
 }
+

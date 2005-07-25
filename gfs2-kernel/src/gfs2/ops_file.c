@@ -73,10 +73,10 @@ struct filldir_reg {
 	void *fdr_opaque;
 };
 
-typedef ssize_t(*do_rw_t) (struct file * file,
+typedef ssize_t(*do_rw_t) (struct file *file,
 			   char *buf,
-			   size_t size, loff_t * offset,
-			   unsigned int num_gh, struct gfs2_holder * ghs);
+			   size_t size, loff_t *offset,
+			   unsigned int num_gh, struct gfs2_holder *ghs);
 
 /**
  * gfs2_llseek - seek to a location in a file
@@ -99,7 +99,8 @@ static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
 	if (origin == 2) {
-		error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
+		error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY,
+					   &i_gh);
 		if (!error) {
 			error = remote_llseek(file, offset, origin);
 			gfs2_glock_dq_uninit(&i_gh);
@@ -163,7 +164,8 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 			if (end <= vma->vm_start)
 				break;
 			if (vma->vm_file) {
-				struct inode *inode = vma->vm_file->f_dentry->d_inode;
+				struct inode *inode;
+				inode = vma->vm_file->f_dentry->d_inode;
 				if (inode->i_sb == sb)
 					gfs2_holder_init(get_v2ip(inode)->i_gl,
 							 vma2state(vma),
@@ -649,7 +651,8 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
 
 		clear_bit(GFF_DID_DIRECT_ALLOC, &fp->f_flags);
 
-		error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED, GL_NEVER_RECURSE, &t_gh);
+		error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED,
+					   GL_NEVER_RECURSE, &t_gh);
 		if (error)
 			goto out_gunlock;
 
@@ -720,15 +723,18 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 			goto fail_gunlock_q;
 
 		error = gfs2_trans_begin(sdp,
-					 al->al_rgd->rd_ri.ri_length + ind_blocks +
+					 al->al_rgd->rd_ri.ri_length +
+					 ind_blocks +
 					 ((journaled) ? data_blocks : 0) +
-					 RES_DINODE + RES_STATFS + RES_QUOTA, 0);
+					 RES_DINODE + RES_STATFS + RES_QUOTA,
+					 0);
 		if (error)
 			goto fail_ipres;
 	} else {
 		error = gfs2_trans_begin(sdp,
 					((journaled) ? data_blocks : 0) +
-					RES_DINODE, 0);
+					RES_DINODE,
+					0);
 		if (error)
 			goto fail_ipres;
 	}
@@ -738,7 +744,8 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 		if (error)
 			goto fail_end_trans;
 
-		ip->i_di.di_mode &= (ip->i_di.di_mode & S_IXGRP) ? (~(S_ISUID | S_ISGID)) : (~S_ISUID);
+		ip->i_di.di_mode &= (ip->i_di.di_mode & S_IXGRP) ?
+					  (~(S_ISUID | S_ISGID)) : (~S_ISUID);
 
 		gfs2_trans_add_bh(ip->i_gl, dibh);
 		gfs2_dinode_out(&ip->i_di, dibh->b_data);
@@ -749,7 +756,8 @@ static ssize_t do_do_write_buf(struct file *file, char *buf, size_t size,
 	    (gfs2_is_stuffed(ip) && !test_bit(GIF_PAGED, &ip->i_flags) &&
 	     *offset + size <= sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))) {
 
-		count = gfs2_jdata_write(ip, buf, *offset, size, gfs2_copy_from_user);
+		count = gfs2_jdata_write(ip, buf, *offset, size,
+					 gfs2_copy_from_user);
 		if (count < 0) {
 			error = count;
 			goto fail_end_trans;
@@ -911,7 +919,8 @@ static ssize_t gfs2_write(struct file *file, const char *buf, size_t size,
 
 	down(&inode->i_sem);
 	if (file->f_flags & O_DIRECT)
-		count = walk_vm(file, (char *)buf, size, offset, do_write_direct);
+		count = walk_vm(file, (char *)buf, size, offset,
+				do_write_direct);
 	else
 		count = walk_vm(file, (char *)buf, size, offset, do_write_buf);
 	up(&inode->i_sem);
@@ -1181,7 +1190,7 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 }
 
 /**
- * gfs2_mmap - We don't support shared writable mappings right now
+ * gfs2_mmap -
  * @file: The file to map
  * @vma: The VMA which described the mapping
  *
@@ -1212,7 +1221,8 @@ static int gfs2_mmap(struct file *file, struct vm_area_struct *vma)
 		/* This is VM_MAYWRITE instead of VM_WRITE because a call
 		   to mprotect() can turn on VM_WRITE later. */
 
-		if ((vma->vm_flags & (VM_MAYSHARE | VM_MAYWRITE)) == (VM_MAYSHARE | VM_MAYWRITE))
+		if ((vma->vm_flags & (VM_MAYSHARE | VM_MAYWRITE)) ==
+		    (VM_MAYSHARE | VM_MAYWRITE))
 			vma->vm_ops = &gfs2_vm_ops_sharewrite;
 		else
 			vma->vm_ops = &gfs2_vm_ops_private;
@@ -1421,7 +1431,8 @@ static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
 	if (gfs2_is_jdata(ip))
 		retval = -EOPNOTSUPP;
 	else 
-		retval = generic_file_sendfile(in_file, offset, count, actor, target);
+		retval = generic_file_sendfile(in_file, offset, count, actor,
+					       target);
 
 	gfs2_glock_dq(&gh);
 
@@ -1563,3 +1574,4 @@ struct file_operations gfs2_dir_fops = {
 	.lock = gfs2_lock,
 	.flock = gfs2_flock,
 };
+

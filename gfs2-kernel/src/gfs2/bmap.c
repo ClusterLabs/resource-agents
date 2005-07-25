@@ -110,7 +110,8 @@ int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 			error = gfs2_jdata_get_buffer(ip, block, TRUE, &bh);
 			if (error)
 				goto out_brelse;
-			gfs2_buffer_copy_tail(bh, sizeof(struct gfs2_meta_header),
+			gfs2_buffer_copy_tail(bh,
+					      sizeof(struct gfs2_meta_header),
 					      dibh, sizeof(struct gfs2_dinode));
 			brelse(bh);
 		} else {
@@ -217,8 +218,8 @@ static int build_height(struct gfs2_inode *ip, int height)
 			}
 
 		if (new_block) {
-			/* Get a new block, fill it with the old direct pointers,
-			   and write it out */
+			/* Get a new block, fill it with the old direct
+			   pointers, and write it out */
 
 			block = gfs2_alloc_meta(ip);
 
@@ -227,7 +228,8 @@ static int build_height(struct gfs2_inode *ip, int height)
 			gfs2_metatype_set(bh,
 					  GFS2_METATYPE_IN,
 					  GFS2_FORMAT_IN);
-			gfs2_buffer_copy_tail(bh, sizeof(struct gfs2_meta_header),
+			gfs2_buffer_copy_tail(bh,
+					      sizeof(struct gfs2_meta_header),
 					      dibh, sizeof(struct gfs2_dinode));
 
 			brelse(bh);
@@ -259,8 +261,8 @@ static int build_height(struct gfs2_inode *ip, int height)
  * @mp: The metapath to return the result in
  * @block: The disk block to look up
  *
- *   This routine returns a struct metapath structure that defines a path through
- *   the metadata of inode "ip" to get to block "block".
+ *   This routine returns a struct metapath structure that defines a path
+ *   through the metadata of inode "ip" to get to block "block".
  *
  *   Example:
  *   Given:  "ip" is a height 3 file, "offset" is 101342453, and this is a
@@ -460,7 +462,7 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 		if (!*dblock)
 			goto out_kfree;
 
-		error = gfs2_meta_indirect_buffer(ip, x + 1, *dblock, *new, &bh);
+		error = gfs2_meta_indirect_buffer(ip, x+1, *dblock, *new, &bh);
 		if (error)
 			goto out_kfree;
 	}
@@ -475,12 +477,12 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 			int tmp_new;
 			unsigned int nptrs;
 
-			nptrs = (end_of_metadata) ? sdp->sd_inptrs : sdp->sd_diptrs;
+			nptrs = (end_of_metadata) ? sdp->sd_inptrs :
+						    sdp->sd_diptrs;
 
 			while (++mp->mp_list[end_of_metadata] < nptrs) {
 				lookup_block(ip, bh, end_of_metadata, mp,
-					     FALSE, &tmp_new,
-					     &tmp_dblock);
+					     FALSE, &tmp_new, &tmp_dblock);
 
 				if (*dblock + *extlen != tmp_dblock)
 					break;
@@ -540,6 +542,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 	uint64_t *top, *bottom;
 	uint64_t bn;
 	int error;
+	int mh_size = sizeof(struct gfs2_meta_header);
 
 	if (!height) {
 		error = gfs2_meta_inode_buffer(ip, &bh);
@@ -556,10 +559,10 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 		if (error)
 			return error;
 
-		top = (uint64_t *)(bh->b_data + sizeof(struct gfs2_meta_header)) +
-			((first) ? mp->mp_list[height] : 0);
-		bottom = (uint64_t *)(bh->b_data + sizeof(struct gfs2_meta_header)) +
-			sdp->sd_inptrs;
+		top = (uint64_t *)(bh->b_data + mh_size) +
+				  ((first) ? mp->mp_list[height] : 0);
+
+		bottom = (uint64_t *)(bh->b_data + mh_size) + sdp->sd_inptrs;
 	}
 
 	error = bc(ip, dibh, bh, top, bottom, height, data);
@@ -573,9 +576,8 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 			bn = gfs2_64_to_cpu(*top);
 
-			error = recursive_scan(ip, dibh, mp,
-					       height + 1, bn, first,
-					       bc, data);
+			error = recursive_scan(ip, dibh, mp, height + 1, bn,
+					       first, bc, data);
 			if (error)
 				break;
 		}
@@ -773,14 +775,15 @@ static int do_grow(struct gfs2_inode *ip, uint64_t size)
 		goto out_gunlock_q;
 
 	error = gfs2_trans_begin(sdp,
-				 sdp->sd_max_height + al->al_rgd->rd_ri.ri_length +
-				 RES_JDATA + RES_DINODE + RES_STATFS + RES_QUOTA, 0);
+			sdp->sd_max_height + al->al_rgd->rd_ri.ri_length +
+			RES_JDATA + RES_DINODE + RES_STATFS + RES_QUOTA, 0);
 	if (error)
 		goto out_ipres;
 
 	if (size > sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode)) {
 		if (gfs2_is_stuffed(ip)) {
-			error = gfs2_unstuff_dinode(ip, gfs2_unstuffer_page, NULL);
+			error = gfs2_unstuff_dinode(ip, gfs2_unstuffer_page,
+						    NULL);
 			if (error)
 				goto out_end_trans;
 		}
@@ -841,9 +844,7 @@ static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 		return error;
 
 	gfs2_trans_add_bh(ip->i_gl, bh);
-	gfs2_buffer_clear_tail(bh,
-			       sizeof(struct gfs2_meta_header) +
-			       off);
+	gfs2_buffer_clear_tail(bh, sizeof(struct gfs2_meta_header) + off);
 
 	brelse(bh);
 
@@ -858,7 +859,8 @@ static int trunc_start(struct gfs2_inode *ip, uint64_t size,
 	int journaled = gfs2_is_jdata(ip);
 	int error;
 
-	error = gfs2_trans_begin(sdp, RES_DINODE + ((journaled) ? RES_JDATA : 0), 0);
+	error = gfs2_trans_begin(sdp,
+				 RES_DINODE + ((journaled) ? RES_JDATA : 0), 0);
 	if (error)
 		return error;
 
@@ -925,8 +927,7 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 		sm.sm_first = !!size;
 		sm.sm_height = height;
 
-		error = recursive_scan(ip, NULL, mp, 0, 0, TRUE,
-				       do_strip, &sm);
+		error = recursive_scan(ip, NULL, mp, 0, 0, TRUE, do_strip, &sm);
 		if (error)
 			break;
 	}
@@ -1049,7 +1050,7 @@ int gfs2_file_dealloc(struct gfs2_inode *ip)
 }
 
 /**
- * gfs2_write_calc_reserv - calculate the number of blocks needed to write to a file
+ * gfs2_write_calc_reserv - calculate number of blocks needed to write to a file
  * @ip: the file
  * @len: the number of bytes to be written to the file
  * @data_blocks: returns the number of data blocks required
@@ -1078,11 +1079,11 @@ void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
 }
 
 /**
- * gfs2_write_alloc_required - figure out if a write is going to require an allocation
+ * gfs2_write_alloc_required - figure out if a write will require an allocation
  * @ip: the file being written to
  * @offset: the offset to write to
  * @len: the number of bytes being written
- * @alloc_required: the int is set to TRUE if an alloc is required, FALSE otherwise
+ * @alloc_required: set to TRUE if an alloc is required, FALSE otherwise
  *
  * Returns: errno
  */
@@ -1102,7 +1103,8 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 		return 0;
 
 	if (gfs2_is_stuffed(ip)) {
-		if (offset + len > sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
+		if (offset + len >
+		    sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
 			*alloc_required = TRUE;
 		return 0;
 	}
@@ -1211,3 +1213,4 @@ int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 
 	return error;
 }
+

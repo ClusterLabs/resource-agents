@@ -244,11 +244,13 @@ int gfs2_rename2system(struct gfs2_inode *ip,
 	if (error)
 		goto out_trans;
 
-	error = gfs2_dir_add(new_dip, &new_qstr, &ip->i_num, IF2DT(ip->i_di.di_mode));
+	error = gfs2_dir_add(new_dip, &new_qstr, &ip->i_num,
+			     IF2DT(ip->i_di.di_mode));
 	if (error)
 		goto out_trans;
 
-	gfs2_quota_change(ip, -ip->i_di.di_blocks, ip->i_di.di_uid, ip->i_di.di_gid);
+	gfs2_quota_change(ip, -ip->i_di.di_blocks, ip->i_di.di_uid,
+			  ip->i_di.di_gid);
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (error)

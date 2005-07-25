@@ -359,7 +359,8 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 				goto fail;
 		}
 		gfs2_meta_ra(ip->i_gl, dblock, extlen);
-		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT,
+				       &bh);
 		if (error)
 			goto fail;
 		error = -EIO;
@@ -375,8 +376,8 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 			struct gfs2_unlinked *ul;
 
 			gfs2_unlinked_tag_in(&ut, bh->b_data +
-					    sizeof(struct gfs2_meta_header) +
-					    y * sizeof(struct gfs2_unlinked_tag));
+					  sizeof(struct gfs2_meta_header) +
+					  y * sizeof(struct gfs2_unlinked_tag));
 			if (!ut.ut_inum.no_addr)
 				continue;
 

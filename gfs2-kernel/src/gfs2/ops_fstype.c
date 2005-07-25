@@ -193,7 +193,8 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	/* Show that cluster is alive */
 	error = gfs2_glock_nq_num(sdp,
 				  GFS2_LIVE_LOCK, &gfs2_nondisk_glops,
-				  LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT | GL_NEVER_RECURSE,
+				  LM_ST_SHARED,
+				  LM_FLAG_NOEXP | GL_EXACT | GL_NEVER_RECURSE,
 				  &sdp->sd_live_gh);
 	if (error) {
 		printk("GFS2: fsid=%s: can't acquire live glock: %d\n",
@@ -283,13 +284,15 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 	   sizes, version #s, locations of important on-disk inodes, etc. */
 	error = -EINVAL;
 	if (sdp->sd_sb.sb_bsize < bdev_hardsect_size(sb->s_bdev)) {
-		printk("GFS2: fsid=%s: FS block size (%u) is too small for device block size (%u)\n",
+		printk("GFS2: fsid=%s: FS block size (%u) is too small "
+		       "for device block size (%u)\n",
 		       sdp->sd_fsname,
 		       sdp->sd_sb.sb_bsize, bdev_hardsect_size(sb->s_bdev));
 		goto out;
 	}
 	if (sdp->sd_sb.sb_bsize > PAGE_SIZE) {
-		printk("GFS2: fsid=%s: FS block size (%u) is too big for machine page size (%u)\n",
+		printk("GFS2: fsid=%s: FS block size (%u) is too big "
+		       "for machine page size (%u)\n",
 		       sdp->sd_fsname,
 		       sdp->sd_sb.sb_bsize, (unsigned int)PAGE_SIZE);
 		goto out;
@@ -326,7 +329,8 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		goto fail_recoverd;
 	}
 
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "jindex", &sdp->sd_jindex);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "jindex",
+				   &sdp->sd_jindex);
 	if (error) {
 		printk("GFS2: fsid=%s: can't lookup journal index: %d\n",
 		       sdp->sd_fsname, error);
@@ -359,28 +363,34 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		if (sdp->sd_lockstruct.ls_jid >= gfs2_jindex_size(sdp)) {
 			printk("GFS2: fsid=%s: can't mount journal #%u\n",
 			       sdp->sd_fsname, sdp->sd_lockstruct.ls_jid);
-			printk("GFS2: fsid=%s: there are only %u journals (0 - %u)\n",
+			printk("GFS2: fsid=%s: "
+			       "there are only %u journals (0 - %u)\n",
 			       sdp->sd_fsname,
-			       gfs2_jindex_size(sdp), gfs2_jindex_size(sdp) - 1);
+			       gfs2_jindex_size(sdp),
+			       gfs2_jindex_size(sdp) - 1);
 			goto fail_jindex;
 		}
 		sdp->sd_jdesc = gfs2_jdesc_find(sdp, sdp->sd_lockstruct.ls_jid);
 
 		error = gfs2_glock_nq_num(sdp,
-					  sdp->sd_lockstruct.ls_jid, &gfs2_journal_glops,
+					  sdp->sd_lockstruct.ls_jid,
+					  &gfs2_journal_glops,
 					  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
 					  &sdp->sd_journal_gh);
 		if (error) {
-			printk("GFS2: fsid=%s: can't acquire the journal glock: %d\n",
+			printk("GFS2: fsid=%s: "
+			       "can't acquire the journal glock: %d\n",
 			       sdp->sd_fsname, error);
 			goto fail_jindex;
 		}
 
 		error = gfs2_glock_nq_init(sdp->sd_jdesc->jd_inode->i_gl,
-					   LM_ST_SHARED, LM_FLAG_NOEXP | GL_EXACT,
+					   LM_ST_SHARED,
+					   LM_FLAG_NOEXP | GL_EXACT,
 					   &sdp->sd_jinode_gh);
 		if (error) {
-			printk("gfs2: fsid=%s: can't acquire out journal inode glock: %d\n",
+			printk("gfs2: fsid=%s: "
+			       "can't acquire out journal inode glock: %d\n",
 			       sdp->sd_fsname, error);
 			goto fail_journal_gh;
 		}
@@ -400,9 +410,11 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		   that we're done. */
 		unsigned int x;
 		for (x = 0; x < sdp->sd_journals; x++) {
-			error = gfs2_recover_journal(gfs2_jdesc_find(sdp, x), WAIT);
+			error = gfs2_recover_journal(gfs2_jdesc_find(sdp, x),
+						     WAIT);
 			if (error) {
-				printk("GFS2: fsid=%s: error recovering journal %u: %d\n",
+				printk("GFS2: fsid=%s: "
+				       "error recovering journal %u: %d\n",
 				       sdp->sd_fsname, x, error);
 				goto fail_jinode_gh;
 			}
@@ -413,7 +425,8 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		/* We're not the first; replay only our own journal. */
 		error = gfs2_recover_journal(sdp->sd_jdesc, WAIT);
 		if (error) {
-			printk("GFS2: fsid=%s: error recovering my journal: %d\n",
+			printk("GFS2: fsid=%s: "
+			       "error recovering my journal: %d\n",
 			       sdp->sd_fsname, error);
 			goto fail_jinode_gh;
 		}
@@ -479,7 +492,8 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 		goto fail_dput;
 
 	/* Read in the master inode number inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "inum", &sdp->sd_inum_inode);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "inum",
+				   &sdp->sd_inum_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in inum inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -487,7 +501,8 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Read in the master statfs inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "statfs", &sdp->sd_statfs_inode);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "statfs",
+				   &sdp->sd_statfs_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in statfs inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -495,7 +510,8 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Read in the resource index inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "rindex", &sdp->sd_rindex);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "rindex",
+				   &sdp->sd_rindex);
 	if (error) {
 		printk("GFS2: fsid=%s: can't get resource index inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -505,7 +521,8 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	sdp->sd_rindex_vn = sdp->sd_rindex->i_gl->gl_vn - 1;
 
 	/* Read in the quota inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "quota", &sdp->sd_quota_inode);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "quota",
+				   &sdp->sd_quota_inode);
 	if (error) {
 		printk("GFS2: fsid=%s: can't get quota file inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -513,7 +530,8 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	}
 
 	/* Get the root inode */
-	error = gfs2_lookup_simple(sdp->sd_master_dir, "root", &sdp->sd_root_dir);
+	error = gfs2_lookup_simple(sdp->sd_master_dir, "root",
+				   &sdp->sd_root_dir);
 	if (error) {
 		printk("GFS2: fsid=%s: can't read in root inode: %d\n",
 		       sdp->sd_fsname, error);
@@ -1015,3 +1033,4 @@ struct file_system_type gfs2_fs_type = {
 #endif
 	.owner = THIS_MODULE,
 };
+

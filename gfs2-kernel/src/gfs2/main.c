@@ -51,21 +51,21 @@ int __init init_gfs2_fs(void)
 
 	error = -ENOMEM;
 
-	gfs2_glock_cachep = kmem_cache_create("gfs2_glock", sizeof(struct gfs2_glock),
-					     0, 0,
-					     NULL, NULL);
+	gfs2_glock_cachep = kmem_cache_create("gfs2_glock",
+					      sizeof(struct gfs2_glock),
+					      0, 0, NULL, NULL);
 	if (!gfs2_glock_cachep)
 		goto fail_diaper;
 
-	gfs2_inode_cachep = kmem_cache_create("gfs2_inode", sizeof(struct gfs2_inode),
-					     0, 0,
-					     NULL, NULL);
+	gfs2_inode_cachep = kmem_cache_create("gfs2_inode",
+					      sizeof(struct gfs2_inode),
+					      0, 0, NULL, NULL);
 	if (!gfs2_inode_cachep)
 		goto fail_diaper;
 
-	gfs2_bufdata_cachep = kmem_cache_create("gfs2_bufdata", sizeof(struct gfs2_bufdata),
-					       0, 0,
-					       NULL, NULL);
+	gfs2_bufdata_cachep = kmem_cache_create("gfs2_bufdata",
+						sizeof(struct gfs2_bufdata),
+					        0, 0, NULL, NULL);
 	if (!gfs2_bufdata_cachep)
 		goto fail_diaper;
 

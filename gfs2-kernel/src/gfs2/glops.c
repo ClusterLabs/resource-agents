@@ -163,7 +163,8 @@ static void inode_go_xmote_bh(struct gfs2_glock *gl)
 
 	if (gl->gl_state != LM_ST_UNLOCKED &&
 	    (!gh || !(gh->gh_flags & GL_SKIP))) {
-		error = gfs2_meta_read(gl, gl->gl_name.ln_number, DIO_START, &bh);
+		error = gfs2_meta_read(gl, gl->gl_name.ln_number, DIO_START,
+				       &bh);
 		if (!error)
 			brelse(bh);
 	}

@@ -344,7 +344,8 @@ static int gfs2_link(struct dentry *old_dentry, struct inode *dir,
 	if (ip->i_di.di_nlink == (uint32_t)-1)
 		goto out_gunlock;
 
-	error = gfs2_diradd_alloc_required(dip, &dentry->d_name, &alloc_required);
+	error = gfs2_diradd_alloc_required(dip, &dentry->d_name,
+					   &alloc_required);
 	if (error)
 		goto out_gunlock;
 
@@ -355,7 +356,8 @@ static int gfs2_link(struct dentry *old_dentry, struct inode *dir,
 		if (error)
 			goto out_alloc;
 
-		error = gfs2_quota_check(dip, dip->i_di.di_uid, dip->i_di.di_gid);
+		error = gfs2_quota_check(dip, dip->i_di.di_uid,
+					 dip->i_di.di_gid);
 		if (error)
 			goto out_gunlock_q;
 
@@ -378,7 +380,8 @@ static int gfs2_link(struct dentry *old_dentry, struct inode *dir,
 			goto out_ipres;
 	}
 
-	error = gfs2_dir_add(dip, &dentry->d_name, &ip->i_num, IF2DT(ip->i_di.di_mode));
+	error = gfs2_dir_add(dip, &dentry->d_name, &ip->i_num,
+			     IF2DT(ip->i_di.di_mode));
 	if (error)
 		goto out_end_trans;
 
@@ -515,7 +518,8 @@ static int gfs2_symlink(struct inode *dir, struct dentry *dentry,
 
 	if (!gfs2_assert_withdraw(sdp, !error)) {
 		gfs2_dinode_out(&ip->i_di, dibh->b_data);
-		memcpy(dibh->b_data + sizeof(struct gfs2_dinode), symname, size);
+		memcpy(dibh->b_data + sizeof(struct gfs2_dinode), symname,
+		       size);
 		brelse(dibh);
 	}
 
@@ -901,7 +905,8 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
 			goto out_gunlock;
 	}
 
-	error = gfs2_diradd_alloc_required(ndip, &ndentry->d_name, &alloc_required);
+	error = gfs2_diradd_alloc_required(ndip, &ndentry->d_name,
+					   &alloc_required);
 	if (error)
 		goto out_gunlock;
 
@@ -912,7 +917,8 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
 		if (error)
 			goto out_alloc;
 
-		error = gfs2_quota_check(ndip, ndip->i_di.di_uid, ndip->i_di.di_gid);
+		error = gfs2_quota_check(ndip, ndip->i_di.di_uid,
+					 ndip->i_di.di_gid);
 		if (error)
 			goto out_gunlock_q;
 
@@ -979,7 +985,8 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
 	if (error)
 		goto out_end_trans;
 
-	error = gfs2_dir_add(ndip, &ndentry->d_name, &ip->i_num, IF2DT(ip->i_di.di_mode));
+	error = gfs2_dir_add(ndip, &ndentry->d_name, &ip->i_num,
+			     IF2DT(ip->i_di.di_mode));
 	if (error)
 		goto out_end_trans;
 

@@ -49,8 +49,9 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 	/*  Try to autodetect  */
 
 	if (!proto[0] || !table[0]) {
-		struct buffer_head *bh = sb_getblk(sdp->sd_vfs,
-						   GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
+		struct buffer_head *bh;
+		bh = sb_getblk(sdp->sd_vfs,
+			       GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift);
 		lock_buffer(bh);
 		clear_buffer_uptodate(bh);
 		clear_buffer_dirty(bh);
@@ -211,8 +212,7 @@ int gfs2_lm_get_lock(struct gfs2_sbd *sdp, struct lm_lockname *name,
 	if (unlikely(test_bit(SDF_SHUTDOWN, &sdp->sd_flags)))
 		error = -EIO;
 	else
-		error = sdp->sd_lockstruct.ls_ops->lm_get_lock(sdp->sd_lockstruct.ls_lockspace,
-							       name, lockp);
+		error = sdp->sd_lockstruct.ls_ops->lm_get_lock(sdp->sd_lockstruct.ls_lockspace, name, lockp);
 	return error;
 }
 

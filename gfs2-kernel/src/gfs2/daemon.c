@@ -215,7 +215,7 @@ int gfs2_quotad(void *data)
 			if (error &&
 			    error != -EROFS &&
 			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-				printk("GFS2: fsid=%s: quotad: (1) error = %d\n",
+				printk("GFS2: fsid=%s: quotad: (1) error=%d\n",
 				       sdp->sd_fsname, error);
 			sdp->sd_statfs_sync_time = jiffies;
 		}
@@ -228,7 +228,7 @@ int gfs2_quotad(void *data)
 			if (error &&
 			    error != -EROFS &&
 			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-				printk("GFS2: fsid=%s: quotad: (2) error = %d\n",
+				printk("GFS2: fsid=%s: quotad: (2) error=%d\n",
 				       sdp->sd_fsname, error);
 			sdp->sd_quota_sync_time = jiffies;
 		}
@@ -289,3 +289,4 @@ int gfs2_inoded(void *data)
 
 	return 0;
 }
+

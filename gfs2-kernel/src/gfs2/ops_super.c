@@ -216,7 +216,8 @@ static void gfs2_write_super_lockfs(struct super_block *sb)
 
 		switch (error) {
 		case -EBUSY:
-			printk("GFS2: fsid=%s: waiting for recovery before freeze\n",
+			printk("GFS2: fsid=%s: "
+			       "waiting for recovery before freeze\n",
 			       sdp->sd_fsname);
 			break;
 
@@ -444,3 +445,4 @@ struct super_operations gfs2_super_ops = {
 	.clear_inode = gfs2_clear_inode,
 	.show_options = gfs2_show_options,
 };
+

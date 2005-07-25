@@ -186,7 +186,7 @@ int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 }
 
 /**
- * gfs2_check_acl_locked - Check an ACL for to see if we're allowed to do something
+ * gfs2_check_acl_locked - Check an ACL to see if we're allowed to do something
  * @inode: the file we want to do something to
  * @mask: what we want to do
  *
@@ -369,3 +369,4 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 
 	return error;
 }
+

@@ -453,7 +453,8 @@ static void databuf_lo_before_commit(struct gfs2_sbd *sdp)
 	}
 
 	while (!list_empty(&started)) {
-		db = list_entry(started.next, struct gfs2_databuf, db_le.le_list);
+		db = list_entry(started.next, struct gfs2_databuf,
+				db_le.le_list);
 		list_del(&db->db_le.le_list);
 		sdp->sd_log_num_databuf--;
 
@@ -519,3 +520,4 @@ struct gfs2_log_operations *gfs2_log_ops[] = {
 	&gfs2_databuf_lops,
 	NULL
 };
+

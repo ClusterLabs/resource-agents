@@ -28,7 +28,7 @@
 #include "eattr.h"
 
 /**
- * gfs2_ea_name2type - get the type of the ea, and trucate the type from the name
+ * gfs2_ea_name2type - get the type of the ea, and truncate type from the name
  * @namep: ea name, possibly with type appended
  *
  * Returns: GFS2_EATYPE_XXX
@@ -233,5 +233,4 @@ struct gfs2_eattr_operations *gfs2_ea_ops[] = {
 	&gfs2_user_eaops,
 	&gfs2_system_eaops,
 };
-
 

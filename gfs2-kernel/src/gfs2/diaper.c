@@ -184,7 +184,7 @@ static void minor_put(int minor)
 }
 
 /**
- * gfs2_dummy_write_super_lockfs - pass a freeze from the real device to the diaper
+ * gfs2_dummy_write_super_lockfs - pass a freeze from real device to the diaper
  * @sb: the real device's dummy sb
  *
  */
@@ -227,7 +227,8 @@ static int get_dummy_sb(struct diaper_holder *dh)
 	int error;
 
 	down(&real->bd_mount_sem);
-	sb = sget(&gfs2_fs_type, gfs2_test_bdev_super, gfs2_set_bdev_super, real);
+	sb = sget(&gfs2_fs_type, gfs2_test_bdev_super, gfs2_set_bdev_super,
+		  real);
 	up(&real->bd_mount_sem);
 	if (IS_ERR(sb))
 		return PTR_ERR(sb);
@@ -341,7 +342,8 @@ static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 	{
 		char buf[BDEVNAME_SIZE];
 		bdevname(real, buf);
-		snprintf(gd->disk_name, sizeof(gd->disk_name), "diapered_%s", buf);
+		snprintf(gd->disk_name, sizeof(gd->disk_name),
+			 "diapered_%s", buf);
 	}
 	gd->fops = &diaper_fops;
 	gd->private_data = dh;

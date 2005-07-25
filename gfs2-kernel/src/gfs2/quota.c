@@ -32,8 +32,8 @@
 #include "super.h"
 #include "trans.h"
 
-#define QUOTA_USER (1)
-#define QUOTA_GROUP (0)
+#define QUOTA_USER 1
+#define QUOTA_GROUP 0
 
 static uint64_t qd2offset(struct gfs2_quota_data *qd)
 {
@@ -712,7 +712,8 @@ static int do_glock(struct gfs2_quota_data *qd, int force_refresh,
 		memset(buf, 0, sizeof(struct gfs2_quota));
 
 		error = gfs2_jdata_read_mem(sdp->sd_quota_inode, buf,
-					    qd2offset(qd), sizeof(struct gfs2_quota));
+					    qd2offset(qd),
+					    sizeof(struct gfs2_quota));
 		if (error < 0)
 			goto fail_gunlock;
 
@@ -1085,7 +1086,8 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 				goto fail;
 		}
 		gfs2_meta_ra(ip->i_gl,  dblock, extlen);
-		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT, &bh);
+		error = gfs2_meta_read(ip->i_gl, dblock, DIO_START | DIO_WAIT,
+				       &bh);
 		if (error)
 			goto fail;
 		error = -EIO;
@@ -1101,12 +1103,13 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 			struct gfs2_quota_data *qd;
 
 			gfs2_quota_change_in(&qc, bh->b_data +
-					    sizeof(struct gfs2_meta_header) +
-					    y * sizeof(struct gfs2_quota_change));
+					  sizeof(struct gfs2_meta_header) +
+					  y * sizeof(struct gfs2_quota_change));
 			if (!qc.qc_change)
 				continue;
 
-			error = qd_alloc(sdp, (qc.qc_flags & GFS2_QCF_USER), qc.qc_id, &qd);
+			error = qd_alloc(sdp, (qc.qc_flags & GFS2_QCF_USER),
+					 qc.qc_id, &qd);
 			if (error) {
 				brelse(bh);
 				goto fail;

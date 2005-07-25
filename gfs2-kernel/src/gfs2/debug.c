@@ -34,7 +34,8 @@ void * gmalloc_nofail_real(unsigned int size, int flags, char *file,
 		if (x)
 			return x;
 		if (time_after_eq(jiffies, gfs2_malloc_warning + 5 * HZ)) {
-			printk("GFS2: out of memory: %s, %u\n", __FILE__, __LINE__);
+			printk("GFS2: out of memory: %s, %u\n",
+			       __FILE__, __LINE__);
 			gfs2_malloc_warning = jiffies;
 		}
 		yield();

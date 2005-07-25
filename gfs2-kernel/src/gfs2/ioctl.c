@@ -144,8 +144,10 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (error)
 		goto out;
 
-	error = gfs2_meta_read(sb_gh.gh_gl, GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
-			       DIO_START | DIO_WAIT, &bh);
+	error = gfs2_meta_read(sb_gh.gh_gl,
+			       GFS2_SB_ADDR >> sdp->sd_fsb2bb_shift,
+			       DIO_START | DIO_WAIT,
+			       &bh);
 	if (error) {
 		gfs2_glock_dq_uninit(&sb_gh);
 		goto out;
@@ -1370,7 +1372,8 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 		goto out;
 
 	if (!strcmp(new_dir, "per_node")) {
-		error = gfs2_lookup_simple(sdp->sd_master_dir, "per_node", &new_dip);
+		error = gfs2_lookup_simple(sdp->sd_master_dir, "per_node",
+					   &new_dip);
 		if (error)
 			goto out2;
 		put_new_dip = TRUE;

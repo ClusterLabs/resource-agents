@@ -115,7 +115,8 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 				break;
 
 		if (!gfs2_old_fs_formats[x]) {
-			printk("GFS2: code version (%u, %u) is incompatible with ondisk format (%u, %u)\n",
+			printk("GFS2: code version (%u, %u) is incompatible "
+			       "with ondisk format (%u, %u)\n",
 			       GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS2: I don't know how to upgrade this FS\n");
@@ -129,8 +130,9 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 				break;
 
 		if (!gfs2_old_multihost_formats[x]) {
-			printk("GFS2: code version (%u, %u) is incompatible with ondisk format (%u, %u)\n",
-			     GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
+			printk("GFS2: code version (%u, %u) is incompatible "
+			       "with ondisk format (%u, %u)\n",
+			       GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
 			       sb->sb_fs_format, sb->sb_multihost_format);
 			printk("GFS2: I don't know how to upgrade this FS\n");
 			return -EINVAL;
@@ -138,10 +140,12 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent)
 	}
 
 	if (!sdp->sd_args.ar_upgrade) {
-		printk("GFS2: code version (%u, %u) is incompatible with ondisk format (%u, %u)\n",
+		printk("GFS2: code version (%u, %u) is incompatible "
+		       "with ondisk format (%u, %u)\n",
 		       GFS2_FORMAT_FS, GFS2_FORMAT_MULTI,
 		       sb->sb_fs_format, sb->sb_multihost_format);
-		printk("GFS2: Use the \"upgrade\" mount option to upgrade the FS\n");
+		printk("GFS2: Use the \"upgrade\" mount option to upgrade "
+		       "the FS\n");
 		printk("GFS2: See the manual for more details\n");
 		return -EINVAL;
 	}
@@ -183,22 +187,24 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		return error;
 
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift -
-		GFS2_BASIC_BLOCK_SHIFT;
+		               GFS2_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
-	sdp->sd_diptrs = (sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode)) /
-		sizeof(uint64_t);
-	sdp->sd_inptrs = (sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header)) /
-		sizeof(uint64_t);
+	sdp->sd_diptrs = (sdp->sd_sb.sb_bsize - 
+			  sizeof(struct gfs2_dinode)) / sizeof(uint64_t);
+	sdp->sd_inptrs = (sdp->sd_sb.sb_bsize -
+			  sizeof(struct gfs2_meta_header)) / sizeof(uint64_t);
 	sdp->sd_jbsize = sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header);
 	sdp->sd_hash_bsize = sdp->sd_sb.sb_bsize / 2;
 	sdp->sd_hash_bsize_shift = sdp->sd_sb.sb_bsize_shift - 1;
 	sdp->sd_hash_ptrs = sdp->sd_hash_bsize / sizeof(uint64_t);
-	sdp->sd_ut_per_block = (sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header)) /
-		sizeof(struct gfs2_unlinked_tag);
-	sdp->sd_qc_per_block = (sdp->sd_sb.sb_bsize - sizeof(struct gfs2_meta_header)) /
-		sizeof(struct gfs2_quota_change);
+	sdp->sd_ut_per_block = (sdp->sd_sb.sb_bsize -
+				sizeof(struct gfs2_meta_header)) /
+			       sizeof(struct gfs2_unlinked_tag);
+	sdp->sd_qc_per_block = (sdp->sd_sb.sb_bsize -
+				sizeof(struct gfs2_meta_header)) /
+			       sizeof(struct gfs2_quota_change);
 
-	/*  Compute maximum reservation required to add a entry to a directory  */
+	/* Compute maximum reservation required to add a entry to a directory */
 
 	hash_blocks = DIV_RU(sizeof(uint64_t) * (1 << GFS2_DIR_MAX_DEPTH),
 			     sdp->sd_jbsize);
@@ -213,7 +219,8 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 
 	sdp->sd_max_dirres = hash_blocks + ind_blocks + leaf_blocks;
 
-	sdp->sd_heightsize[0] = sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode);
+	sdp->sd_heightsize[0] = sdp->sd_sb.sb_bsize -
+				sizeof(struct gfs2_dinode);
 	sdp->sd_heightsize[1] = sdp->sd_sb.sb_bsize * sdp->sd_diptrs;
 	for (x = 2;; x++) {
 		uint64_t space, d;
@@ -230,7 +237,8 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 	sdp->sd_max_height = x;
 	gfs2_assert(sdp, sdp->sd_max_height <= GFS2_MAX_META_HEIGHT,);
 
-	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode);
+	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize -
+				 sizeof(struct gfs2_dinode);
 	sdp->sd_jheightsize[1] = sdp->sd_jbsize * sdp->sd_diptrs;
 	for (x = 2;; x++) {
 		uint64_t space, d;
@@ -547,8 +555,8 @@ int gfs2_make_fs_ro(struct gfs2_sbd *sdp)
 	gfs2_statfs_sync(sdp);
 
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_SHARED,
-				   GL_LOCAL_EXCL | GL_NEVER_RECURSE | GL_NOCACHE,
-				   &t_gh);
+				GL_LOCAL_EXCL | GL_NEVER_RECURSE | GL_NOCACHE,
+				&t_gh);
 	if (error && !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		return error;
 
@@ -576,7 +584,8 @@ int gfs2_statfs_init(struct gfs2_sbd *sdp)
 	struct gfs2_holder gh;
 	int error;
 
-	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
+	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE,
+				   &gh);
 	if (error)
 		return error;
 
@@ -650,7 +659,8 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 	struct buffer_head *m_bh, *l_bh;
 	int error;
 
-	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE, &gh);
+	error = gfs2_glock_nq_init(m_ip->i_gl, LM_ST_EXCLUSIVE, GL_NOCACHE,
+				   &gh);
 	if (error)
 		return error;
 
@@ -689,8 +699,7 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 	spin_unlock(&sdp->sd_statfs_spin);
 
 	gfs2_trans_add_bh(m_ip->i_gl, m_bh);
-	gfs2_statfs_change_out(m_sc, m_bh->b_data +
-			       sizeof(struct gfs2_dinode));
+	gfs2_statfs_change_out(m_sc, m_bh->b_data + sizeof(struct gfs2_dinode));
 
 	gfs2_trans_end(sdp);
 
@@ -813,7 +822,8 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 				done = FALSE;
 			else if (rgd_next && !error) {
 				error = gfs2_glock_nq_init(rgd_next->rd_gl,
-							   LM_ST_SHARED, GL_ASYNC,
+							   LM_ST_SHARED,
+							   GL_ASYNC,
 							   gh);
 				rgd_next = gfs2_rgrpd_get_next(rgd_next);
 				done = FALSE;
@@ -843,7 +853,8 @@ struct lfcc {
 };
 
 /**
- * gfs2_lock_fs_check_clean - Stop all writes to the FS and check that all journals are clean
+ * gfs2_lock_fs_check_clean - Stop all writes to the FS and check that all
+ *                            journals are clean
  * @sdp: the file system
  * @state: the state to put the transaction lock into
  * @t_gh: the hold on the transaction lock
@@ -874,7 +885,8 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 			error = -ENOMEM;
 			goto out;
 		}
-		error = gfs2_glock_nq_init(jd->jd_inode->i_gl, LM_ST_SHARED, 0, &lfcc->gh);
+		error = gfs2_glock_nq_init(jd->jd_inode->i_gl, LM_ST_SHARED, 0,
+					   &lfcc->gh);
 		if (error) {
 			kfree(lfcc);
 			goto out;
@@ -883,8 +895,8 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 	}
 
 	error = gfs2_glock_nq_init(sdp->sd_trans_gl, LM_ST_DEFERRED,
-				   LM_FLAG_PRIORITY | GL_NEVER_RECURSE | GL_NOCACHE,
-				   t_gh);
+			       LM_FLAG_PRIORITY | GL_NEVER_RECURSE | GL_NOCACHE,
+			       t_gh);
 
 	for (tmp = head->next; tmp != head; tmp = tmp->next) {
 		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
@@ -962,3 +974,4 @@ void gfs2_unfreeze_fs(struct gfs2_sbd *sdp)
 
 	up(&sdp->sd_freeze_lock);
 }
+

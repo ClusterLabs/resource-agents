@@ -129,12 +129,14 @@ static int dirent_first(struct gfs2_inode *dip, struct buffer_head *bh,
 	if (gfs2_16_to_cpu(h->mh_type) == GFS2_METATYPE_LF) {
 		if (gfs2_meta_check(dip->i_sbd, bh))
 			return -EIO;
-		*dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_leaf));
+		*dent = (struct gfs2_dirent *)(bh->b_data +
+					       sizeof(struct gfs2_leaf));
 		return IS_LEAF;
 	} else {
 		if (gfs2_metatype_check(dip->i_sbd, bh, GFS2_METATYPE_DI))
 			return -EIO;
-		*dent = (struct gfs2_dirent *)(bh->b_data + sizeof(struct gfs2_dinode));
+		*dent = (struct gfs2_dirent *)(bh->b_data +
+					       sizeof(struct gfs2_dinode));
 		return IS_DINODE;
 	}
 }
@@ -775,20 +777,20 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 
 			gfs2_dirent_alloc(dip, nbh, name_len, &new);
 
-			new->de_inum = dent->de_inum; /* No endianness worries */
-			new->de_hash = dent->de_hash; /* No endianness worries */
-			new->de_type = dent->de_type; /* No endianness worries */
+			new->de_inum = dent->de_inum; /* No endian worries */
+			new->de_hash = dent->de_hash; /* No endian worries */
+			new->de_type = dent->de_type; /* No endian worries */
 			memcpy((char *)(new + 1), (char *)(dent + 1),
 			       name_len);
 
-			nleaf->lf_entries = gfs2_16_to_cpu(nleaf->lf_entries) + 1;
+			nleaf->lf_entries = gfs2_16_to_cpu(nleaf->lf_entries)+1;
 			nleaf->lf_entries = cpu_to_gfs2_16(nleaf->lf_entries);
 
 			dirent_del(dip, obh, prev, dent);
 
 			if (!oleaf->lf_entries)
 				gfs2_consist_inode(dip);
-			oleaf->lf_entries = gfs2_16_to_cpu(oleaf->lf_entries) - 1;
+			oleaf->lf_entries = gfs2_16_to_cpu(oleaf->lf_entries)-1;
 			oleaf->lf_entries = cpu_to_gfs2_16(oleaf->lf_entries);
 
 			if (!prev)
@@ -883,7 +885,8 @@ static int dir_double_exhash(struct gfs2_inode *dip)
 			*to++ = *from;
 		}
 
-		error = gfs2_jdata_write_mem(dip, (char *)buf + sdp->sd_hash_bsize,
+		error = gfs2_jdata_write_mem(dip,
+					     (char *)buf + sdp->sd_hash_bsize,
 					     block * sdp->sd_sb.sb_bsize,
 					     sdp->sd_sb.sb_bsize);
 		if (error != sdp->sd_sb.sb_bsize) {
@@ -1029,8 +1032,9 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 		*copied = TRUE;
 	}
 
-	/* Increment the *offset by one, so the next time we come into the do_filldir fxn, 
-	   we get the next entry instead of the last one in the current leaf */
+	/* Increment the *offset by one, so the next time we come into the
+	   do_filldir fxn, we get the next entry instead of the last one in the
+	   current leaf */
 
 	(*offset)++;
 
@@ -1145,14 +1149,12 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 		brelse(tmp_bh);
 	}
 
-	/*  Bail out if there's nothing to do  */
 	if (!entries)
 		return 0;
 
-	/*  Alloc arrays  */
-
 	if (leaves) {
-		larr = kmalloc(leaves * sizeof(struct buffer_head *), GFP_KERNEL);
+		larr = kmalloc(leaves * sizeof(struct buffer_head *),
+			       GFP_KERNEL);
 		if (!larr)
 			return -ENOMEM;
 	}
@@ -1162,8 +1164,6 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 		kfree(larr);
 		return -ENOMEM;
 	}
-
-	/*  Fill in arrays  */
 
 	leaf = (struct gfs2_leaf *)bh->b_data;
 	if (leaf->lf_entries) {
@@ -1223,12 +1223,8 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 		goto out;
 	}
 
-	/*  Do work  */
-
 	error = do_filldir_main(dip, offset, opaque, filldir, darr,
 				entries, copied);
-
-	/*  Clean up  */
 
  out:
 	kfree(darr);
@@ -1356,7 +1352,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 						 GFS2_METATYPE_LF,
 						 GFS2_FORMAT_LF);
 				gfs2_buffer_clear_tail(nbh,
-						      sizeof(struct gfs2_meta_header));
+					sizeof(struct gfs2_meta_header));
 
 				gfs2_trans_add_bh(dip->i_gl, bh);
 				leaf->lf_next = cpu_to_gfs2_64(bn);
@@ -1365,7 +1361,8 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 				nleaf->lf_depth = leaf->lf_depth;
 				nleaf->lf_dirent_format = cpu_to_gfs2_32(GFS2_FORMAT_DE);
 
-				gfs2_dirent_alloc(dip, nbh, filename->len, &dent);
+				gfs2_dirent_alloc(dip, nbh, filename->len,
+						  &dent);
 
 				dip->i_di.di_blocks++;
 
@@ -1376,7 +1373,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 			}
 		}
 
-		/*  If the gfs2_dirent_alloc() succeeded, it pinned the "bh".  */
+		/* If the gfs2_dirent_alloc() succeeded, it pinned the "bh" */
 
 		gfs2_inum_out(inum, (char *)&dent->de_inum);
 		dent->de_hash = cpu_to_gfs2_32(hash);
@@ -1498,8 +1495,8 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 
 		if (ht_offset_cur != ht_offset) {
 			error = gfs2_jdata_read_mem(dip, (char *)lp,
-						    ht_offset * sizeof(uint64_t),
-						    sdp->sd_hash_bsize);
+						ht_offset * sizeof(uint64_t),
+						sdp->sd_hash_bsize);
 			if (error != sdp->sd_hash_bsize) {
 				if (error >= 0)
 					error = -EIO;
@@ -1515,14 +1512,11 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		gfs2_leaf_in(&leaf, bh->b_data);
 
 		if (leaf.lf_next)
-			error = do_filldir_multi(dip, offset,
-						 opaque, filldir,
+			error = do_filldir_multi(dip, offset, opaque, filldir,
 						 bh, &copied);
 		else
-			error = do_filldir_single(dip, offset,
-						  opaque, filldir,
-						  bh, leaf.lf_entries,
-						  &copied);
+			error = do_filldir_single(dip, offset, opaque, filldir,
+						  bh, leaf.lf_entries, &copied);
 
 		brelse(bh);
 
@@ -1972,8 +1966,8 @@ static int foreach_leaf(struct gfs2_inode *dip, leaf_call_t lc, void *data)
 
 		if (ht_offset_cur != ht_offset) {
 			error = gfs2_jdata_read_mem(dip, (char *)lp,
-						    ht_offset * sizeof(uint64_t),
-						    sdp->sd_hash_bsize);
+						ht_offset * sizeof(uint64_t),
+						sdp->sd_hash_bsize);
 			if (error != sdp->sd_hash_bsize) {
 				if (error >= 0)
 					error = -EIO;
@@ -2079,8 +2073,8 @@ static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 		goto out_rlist;
 
 	error = gfs2_trans_begin(sdp,
-				 rg_blocks + (DIV_RU(size, sdp->sd_jbsize) + 1) +
-				 RES_DINODE + RES_STATFS + RES_QUOTA, l_blocks);
+			rg_blocks + (DIV_RU(size, sdp->sd_jbsize) + 1) +
+			RES_DINODE + RES_STATFS + RES_QUOTA, l_blocks);
 	if (error)
 		goto out_rg_gunlock;
 
@@ -2154,7 +2148,7 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 	if (error)
 		return error;
 
-	/*  Make this a regular file in case we crash.
+	/* Make this a regular file in case we crash.
 	   (We don't want to free these blocks a second time.)  */
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
@@ -2174,10 +2168,10 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
 }
 
 /**
- * gfs2_diradd_alloc_required - figure out if an entry addition is going to require an allocation
+ * gfs2_diradd_alloc_required - find if adding entry will require an allocation
  * @ip: the file being written to
  * @filname: the filename that's going to be added
- * @alloc_required: the int is set to TRUE if an alloc is required, FALSE otherwise
+ * @alloc_required: set to TRUE if an alloc is required, FALSE otherwise
  *
  * Returns: errno
  */
@@ -2287,3 +2281,4 @@ int gfs2_get_dir_meta(struct gfs2_inode *dip, struct gfs2_user_buffer *ub)
 {
 	return foreach_leaf(dip, do_gdm, ub);
 }
+

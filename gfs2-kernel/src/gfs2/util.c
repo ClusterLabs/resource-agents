@@ -294,14 +294,14 @@ int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide, const char *function,
 		   char *file, unsigned int line)
 {
 	return gfs2_lm_withdraw(sdp,
-			       "GFS2: fsid=%s: fatal: filesystem consistency error\n"
-			       "GFS2: fsid=%s:   function = %s\n"
-			       "GFS2: fsid=%s:   file = %s, line = %u\n"
-			       "GFS2: fsid=%s:   time = %lu\n",
-			       sdp->sd_fsname,
-			       sdp->sd_fsname, function,
-			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
+			"GFS2: fsid=%s:   function = %s\n"
+			"GFS2: fsid=%s:   file = %s, line = %u\n"
+			"GFS2: fsid=%s:   time = %lu\n",
+			sdp->sd_fsname,
+			sdp->sd_fsname, function,
+			sdp->sd_fsname, file, line,
+			sdp->sd_fsname, get_seconds());
 }
 
 /**
@@ -321,16 +321,17 @@ int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	return gfs2_lm_withdraw(sdp,
-			       "GFS2: fsid=%s: fatal: filesystem consistency error\n"
-			       "GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
-			       "GFS2: fsid=%s:   function = %s\n"
-			       "GFS2: fsid=%s:   file = %s, line = %u\n"
-			       "GFS2: fsid=%s:   time = %lu\n",
-			       sdp->sd_fsname,
-			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
-			       sdp->sd_fsname, function,
-			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
+			"GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+			"GFS2: fsid=%s:   function = %s\n"
+			"GFS2: fsid=%s:   file = %s, line = %u\n"
+			"GFS2: fsid=%s:   time = %lu\n",
+			sdp->sd_fsname,
+			sdp->sd_fsname,
+			ip->i_num.no_formal_ino, ip->i_num.no_addr,
+			sdp->sd_fsname, function,
+			sdp->sd_fsname, file, line,
+			sdp->sd_fsname, get_seconds());
 }
 
 /**
@@ -350,16 +351,16 @@ int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 {
         struct gfs2_sbd *sdp = rgd->rd_sbd;
 	return gfs2_lm_withdraw(sdp,
-			       "GFS2: fsid=%s: fatal: filesystem consistency error\n"
-			       "GFS2: fsid=%s:   RG = %"PRIu64"\n"
-			       "GFS2: fsid=%s:   function = %s\n"
-			       "GFS2: fsid=%s:   file = %s, line = %u\n"
-			       "GFS2: fsid=%s:   time = %lu\n",
-			       sdp->sd_fsname,
-			       sdp->sd_fsname, rgd->rd_ri.ri_addr,
-			       sdp->sd_fsname, function,
-			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
+			"GFS2: fsid=%s:   RG = %"PRIu64"\n"
+			"GFS2: fsid=%s:   function = %s\n"
+			"GFS2: fsid=%s:   file = %s, line = %u\n"
+			"GFS2: fsid=%s:   time = %lu\n",
+			sdp->sd_fsname,
+			sdp->sd_fsname, rgd->rd_ri.ri_addr,
+			sdp->sd_fsname, function,
+			sdp->sd_fsname, file, line,
+			sdp->sd_fsname, get_seconds());
 }
 
 /**
@@ -379,7 +380,7 @@ int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		       unsigned int line)
 {
 	int me;
-        me = gfs2_lm_withdraw(sdp,
+	me = gfs2_lm_withdraw(sdp,
 			     "GFS2: fsid=%s: fatal: invalid metadata block\n"
 			     "GFS2: fsid=%s:   bh = %"PRIu64" (%s)\n"
 			     "GFS2: fsid=%s:   function = %s\n"
@@ -412,17 +413,17 @@ int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 			   char *file, unsigned int line)
 {
 	int me;
-        me = gfs2_lm_withdraw(sdp,
-			     "GFS2: fsid=%s: fatal: invalid metadata block\n"
-			     "GFS2: fsid=%s:   bh = %"PRIu64" (type: exp=%u, found=%u)\n"
-			     "GFS2: fsid=%s:   function = %s\n"
-			     "GFS2: fsid=%s:   file = %s, line = %u\n"
-			     "GFS2: fsid=%s:   time = %lu\n",
-			     sdp->sd_fsname,
-			     sdp->sd_fsname, (uint64_t)bh->b_blocknr, type, t,
-			     sdp->sd_fsname, function,
-			     sdp->sd_fsname, file, line,
-			     sdp->sd_fsname, get_seconds());
+	me = gfs2_lm_withdraw(sdp,
+		"GFS2: fsid=%s: fatal: invalid metadata block\n"
+		"GFS2: fsid=%s:   bh = %"PRIu64" (type: exp=%u, found=%u)\n"
+		"GFS2: fsid=%s:   function = %s\n"
+		"GFS2: fsid=%s:   file = %s, line = %u\n"
+		"GFS2: fsid=%s:   time = %lu\n",
+		sdp->sd_fsname,
+		sdp->sd_fsname, (uint64_t)bh->b_blocknr, type, t,
+		sdp->sd_fsname, function,
+		sdp->sd_fsname, file, line,
+		sdp->sd_fsname, get_seconds());
 	return (me) ? -1 : -2;
 }
 
@@ -467,16 +468,17 @@ int gfs2_io_error_inode_i(struct gfs2_inode *ip, const char *function,
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	return gfs2_lm_withdraw(sdp,
-			       "GFS2: fsid=%s: fatal: I/O error\n"
-			       "GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
-			       "GFS2: fsid=%s:   function = %s\n"
-			       "GFS2: fsid=%s:   file = %s, line = %u\n"
-			       "GFS2: fsid=%s:   time = %lu\n",
-			       sdp->sd_fsname,
-			       sdp->sd_fsname, ip->i_num.no_formal_ino, ip->i_num.no_addr,
-			       sdp->sd_fsname, function,
-			       sdp->sd_fsname, file, line,
-			       sdp->sd_fsname, get_seconds());
+			"GFS2: fsid=%s: fatal: I/O error\n"
+			"GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+			"GFS2: fsid=%s:   function = %s\n"
+			"GFS2: fsid=%s:   file = %s, line = %u\n"
+			"GFS2: fsid=%s:   time = %lu\n",
+			sdp->sd_fsname,
+			sdp->sd_fsname,
+			ip->i_num.no_formal_ino, ip->i_num.no_addr,
+			sdp->sd_fsname, function,
+			sdp->sd_fsname, file, line,
+			sdp->sd_fsname, get_seconds());
 }
 
 /**

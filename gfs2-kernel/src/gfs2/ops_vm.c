@@ -198,8 +198,9 @@ static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
 	set_bit(GIF_PAGED, &ip->i_flags);
 	set_bit(GIF_SW_PAGED, &ip->i_flags);
 
-	error = gfs2_write_alloc_required(ip, (uint64_t)index << PAGE_CACHE_SHIFT,
-					 PAGE_CACHE_SIZE, &alloc_required);
+	error = gfs2_write_alloc_required(ip,
+					  (uint64_t)index << PAGE_CACHE_SHIFT,
+					  PAGE_CACHE_SIZE, &alloc_required);
 	if (error)
 		goto out;
 

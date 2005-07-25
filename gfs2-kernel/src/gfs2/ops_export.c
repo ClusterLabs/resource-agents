@@ -67,7 +67,8 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 		return NULL;
 	}
 
-	return gfs2_export_ops.find_exported_dentry(sb, &this, &parent, acceptable, context);
+	return gfs2_export_ops.find_exported_dentry(sb, &this, &parent,
+						    acceptable, context);
 }
 
 /**

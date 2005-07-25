@@ -352,12 +352,16 @@ static int gfs2_prepare_write(struct file *file, struct page *page,
 		return -EOPNOTSUPP;
 
 	if (gfs2_is_stuffed(ip)) {
-		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
+		uint64_t file_size;
+		file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
 
-		if (file_size > sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode)) {
-			error = gfs2_unstuff_dinode(ip, gfs2_unstuffer_page, page);
+		if (file_size > sdp->sd_sb.sb_bsize - 
+				sizeof(struct gfs2_dinode)) {
+			error = gfs2_unstuff_dinode(ip, gfs2_unstuffer_page,
+						    page);
 			if (!error)
-				error = block_prepare_write(page, from, to, get_block);
+				error = block_prepare_write(page, from, to,
+							    get_block);
 		} else if (!PageUptodate(page))
 			error = stuffed_readpage(ip, page);
 	} else
@@ -388,8 +392,10 @@ static int gfs2_commit_write(struct file *file, struct page *page,
 
 	if (gfs2_is_stuffed(ip)) {
 		struct buffer_head *dibh;
-		uint64_t file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
+		uint64_t file_size;
 		void *kaddr;
+
+		file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
 
 		error = gfs2_meta_inode_buffer(ip, &dibh);
 		if (error)
@@ -536,7 +542,8 @@ static int gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 	if (rw == WRITE && !get_transaction)
 		gb = get_blocks_noalloc;
 
-	return blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov, offset, nr_segs, gb, NULL);
+	return blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
+				  offset, nr_segs, gb, NULL);
 }
 
 struct address_space_operations gfs2_file_aops = {
@@ -549,3 +556,4 @@ struct address_space_operations gfs2_file_aops = {
 	.invalidatepage = gfs2_invalidatepage,
 	.direct_IO = gfs2_direct_IO,
 };
+

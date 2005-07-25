@@ -181,3 +181,4 @@ uint32_t gfs2_bitcount(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 
 	return count;
 }
+

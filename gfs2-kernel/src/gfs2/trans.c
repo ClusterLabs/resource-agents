@@ -70,11 +70,13 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 	if (blocks)
 		tr->tr_reserved += 1 + blocks;
 	if (revokes)
-		tr->tr_reserved += gfs2_struct2blk(sdp, revokes, sizeof(uint64_t));
+		tr->tr_reserved += gfs2_struct2blk(sdp, revokes,
+						   sizeof(uint64_t));
 	INIT_LIST_HEAD(&tr->tr_list_buf);
 
 	error = -ENOMEM;
-	tr->tr_t_gh = gfs2_holder_get(sdp->sd_trans_gl, LM_ST_SHARED, GL_NEVER_RECURSE);
+	tr->tr_t_gh = gfs2_holder_get(sdp->sd_trans_gl, LM_ST_SHARED,
+				      GL_NEVER_RECURSE);
 	if (!tr->tr_t_gh)
 		goto fail;
 
