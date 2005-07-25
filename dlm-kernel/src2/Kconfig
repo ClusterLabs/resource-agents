@@ -3,6 +3,7 @@ menu "Distributed Lock Manager"
 
 config DLM 
 	tristate "Distributed Lock Manager (DLM)"
+	depends on SYSFS
 	select IP_SCTP
 	help
 	A general purpose distributed lock manager for kernel or userspace
