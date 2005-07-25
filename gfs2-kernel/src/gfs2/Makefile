@@ -76,7 +76,6 @@ EXTRA_CFLAGS += -I$(obj)
 #EXTRA_CFLAGS += -DGFS2_KDBL
 
 all:
-	${top_srcdir}/../kdbl/scripts/build_debug gfs2 *.[ch] > gfs2_debug_const.h
 	rm -f linux lm_interface.h
 	ln -s . linux
 	ln -s ${top_srcdir}/../gfs-kernel/src/harness/lm_interface.h .
