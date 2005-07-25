@@ -2117,7 +2117,7 @@ void gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 
 	case LM_CB_NEED_RECOVERY:
 		gfs2_jdesc_make_dirty(sdp, *(unsigned int *)data);
-		if (test_bit(SDF_RECOVERD_RUN, &sdp->sd_flags))
+		if (sdp->sd_recoverd_process)
 			wake_up_process(sdp->sd_recoverd_process);
 		return;
 

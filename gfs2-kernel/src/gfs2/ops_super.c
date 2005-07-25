@@ -22,6 +22,7 @@
 #include <linux/statfs.h>
 #include <linux/seq_file.h>
 #include <linux/mount.h>
+#include <linux/kthread.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -84,46 +85,13 @@ static void gfs2_put_super(struct super_block *sb)
 		gfs2_glock_dq_uninit(&sdp->sd_freeze_gh);
 	up(&sdp->sd_freeze_lock);
 
-	/*  Kill off the inode thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_INODED_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_inoded_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
-
-	/*  Kill off the quota thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_QUOTAD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_quotad_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
-
-	/*  Kill off the log thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_LOGD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_logd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
-
-	/*  Kill off the recoverd thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_RECOVERD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_recoverd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
-
-	/*  Kill off the glockd threads  */
-	clear_bit(SDF_GLOCKD_RUN, &sdp->sd_flags);
-	wake_up(&sdp->sd_reclaim_wq);
+	kthread_stop(sdp->sd_inoded_process);
+	kthread_stop(sdp->sd_quotad_process);
+	kthread_stop(sdp->sd_logd_process);
+	kthread_stop(sdp->sd_recoverd_process);
 	while (sdp->sd_glockd_num--)
-		wait_for_completion(&sdp->sd_thread_completion);
-
-	/*  Kill off the scand thread  */
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_SCAND_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_scand_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+		kthread_stop(sdp->sd_glockd_process[sdp->sd_glockd_num]);
+	kthread_stop(sdp->sd_scand_process);
 
 	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_ro(sdp);

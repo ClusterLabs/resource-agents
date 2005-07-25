@@ -380,7 +380,7 @@ struct gfs2_jdesc {
 };
 
 #define GFS2_GLOCKD_DEFAULT	1
-#define GFS2_GLOCKD_MAX		32
+#define GFS2_GLOCKD_MAX		16
 
 #define GFS2_QUOTA_DEFAULT	GFS2_QUOTA_OFF
 #define GFS2_QUOTA_OFF		0
@@ -473,13 +473,7 @@ struct gfs2_gl_hash_bucket {
 #define SDF_JOURNAL_CHECKED	0
 #define SDF_JOURNAL_LIVE	1
 #define SDF_SHUTDOWN		2
-#define SDF_SCAND_RUN		3
-#define SDF_GLOCKD_RUN		4
-#define SDF_RECOVERD_RUN	5
-#define SDF_LOGD_RUN		6
-#define SDF_QUOTAD_RUN		7
-#define SDF_INODED_RUN		8
-#define SDF_NOATIME		9
+#define SDF_NOATIME		3
 
 #define GFS2_GL_HASH_SHIFT	13
 #define GFS2_GL_HASH_SIZE	(1 << GFS2_GL_HASH_SHIFT)
@@ -580,13 +574,12 @@ struct gfs2_sbd {
 	/* Daemon stuff */
 
 	struct task_struct *sd_scand_process;
-	unsigned int sd_glockd_num;
 	struct task_struct *sd_recoverd_process;
 	struct task_struct *sd_logd_process;
 	struct task_struct *sd_quotad_process;
 	struct task_struct *sd_inoded_process;
-	struct semaphore sd_thread_lock;
-	struct completion sd_thread_completion;
+	struct task_struct *sd_glockd_process[GFS2_GLOCKD_MAX];
+	unsigned int sd_glockd_num;
 
 	/* Unlinked inode stuff */
 

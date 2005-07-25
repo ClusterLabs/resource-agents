@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>
 #include <linux/vmalloc.h>
 #include <linux/blkdev.h>
+#include <linux/kthread.h>
 
 #include "gfs2.h"
 #include "daemon.h"
@@ -42,16 +43,6 @@
 #define UNDO TRUE
 
 #undef NO_DIAPER
-
-static __inline__ int do_thread(struct gfs2_sbd *sdp, int (*fn)(void *))
-{
-	int error = kernel_thread(fn, sdp, 0);
-	if (error >= 0) {
-		wait_for_completion(&sdp->sd_thread_completion);
-		error = 0;
-	}
-	return error;
-}
 
 static struct gfs2_sbd *init_sbd(struct super_block *sb)
 {
@@ -90,9 +81,6 @@ static struct gfs2_sbd *init_sbd(struct super_block *sb)
 	INIT_LIST_HEAD(&sdp->sd_jindex_list);
 	spin_lock_init(&sdp->sd_jindex_spin);
 	init_MUTEX(&sdp->sd_jindex_mutex);
-
-	init_MUTEX(&sdp->sd_thread_lock);
-	init_completion(&sdp->sd_thread_completion);
 
 	INIT_LIST_HEAD(&sdp->sd_unlinked_list);
 	spin_lock_init(&sdp->sd_unlinked_spin);
@@ -154,29 +142,32 @@ static void init_vfs(struct gfs2_sbd *sdp)
 static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 			int undo)
 {
+	struct task_struct *p;
 	int error = 0;
 
 	if (undo)
 		goto fail_trans;
 
-	/* Start up the scand thread */
-	error = do_thread(sdp, gfs2_scand);
+	p = kthread_run(gfs2_scand, sdp, "gfs2_scand");
+	error = IS_ERR(p);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start scand thread: %d\n",
 		       sdp->sd_fsname, error);
 		return error;
 	}
+	sdp->sd_scand_process = p;
 
-	/* Start up the glockd thread */
 	for (sdp->sd_glockd_num = 0;
 	     sdp->sd_glockd_num < sdp->sd_args.ar_num_glockd;
 	     sdp->sd_glockd_num++) {
-		error = do_thread(sdp, gfs2_glockd);
+		p = kthread_run(gfs2_glockd, sdp, "gfs2_glockd");
+		error = IS_ERR(p);
 		if (error) {
 			printk("GFS2: fsid=%s: can't start glockd thread: %d\n",
 			       sdp->sd_fsname, error);
 			goto fail;
 		}
+		sdp->sd_glockd_process[sdp->sd_glockd_num] = p;
 	}
 
 	/* Only one node may mount at a time */
@@ -237,16 +228,10 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	gfs2_glock_dq_uninit(mount_gh);
 
  fail:
-	clear_bit(SDF_GLOCKD_RUN, &sdp->sd_flags);
-	wake_up(&sdp->sd_reclaim_wq);
 	while (sdp->sd_glockd_num--)
-		wait_for_completion(&sdp->sd_thread_completion);
+		kthread_stop(sdp->sd_glockd_process[sdp->sd_glockd_num]);
 
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_SCAND_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_scand_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_scand_process);
 
 	return error;
 }
@@ -321,6 +306,7 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 static int init_journal(struct gfs2_sbd *sdp, int undo)
 {
 	struct gfs2_holder ji_gh;
+	struct task_struct *p;
 	int jindex = TRUE;
 	int error = 0;
 
@@ -441,14 +427,15 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	sdp->sd_journal_gh.gh_owner = NULL;
 	sdp->sd_jinode_gh.gh_owner = NULL;
 
-	/* Start up the journal recovery thread */
 
-	error = do_thread(sdp, gfs2_recoverd);
+	p = kthread_run(gfs2_recoverd, sdp, "gfs2_recoverd");
+	error = IS_ERR(p);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start recoverd thread: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_jinode_gh;
 	}
+	sdp->sd_recoverd_process = p;
 
 	/* Throw out of cache any data that we read in before replay. */
 
@@ -457,11 +444,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	return 0;
 
  fail_recoverd:
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_RECOVERD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_recoverd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_recoverd_process);
 
  fail_jinode_gh:
 	if (!sdp->sd_args.ar_spectator)
@@ -703,6 +686,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 
 static int init_threads(struct gfs2_sbd *sdp, int undo)
 {
+	struct task_struct *p;
 	int error = 0;
 
 	if (undo)
@@ -711,55 +695,46 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	sdp->sd_log_flush_time = jiffies;
 	sdp->sd_jindex_refresh_time = jiffies;
 
-	/* Start up the logd thread */
-	error = do_thread(sdp, gfs2_logd);
+	p = kthread_run(gfs2_logd, sdp, "gfs2_logd");
+	error = IS_ERR(p);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start logd thread: %d\n",
 		       sdp->sd_fsname, error);
 		return error;
 	}
+	sdp->sd_logd_process = p;
 
 	sdp->sd_statfs_sync_time = jiffies;
 	sdp->sd_quota_sync_time = jiffies;
 
-	/* Start up the quotad thread */
-	error = do_thread(sdp, gfs2_quotad);
+	p = kthread_run(gfs2_quotad, sdp, "gfs2_quotad");
+	error = IS_ERR(p);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start quotad thread: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail;
 	}
+	sdp->sd_quotad_process = p;
 
-	/* Start up the inoded thread */
-	error = do_thread(sdp, gfs2_inoded);
+	p = kthread_run(gfs2_inoded, sdp, "gfs2_inoded");
+	error = IS_ERR(p);
 	if (error) {
 		printk("GFS2: fsid=%s: can't start inoded thread: %d\n",
 		       sdp->sd_fsname, error);
 		goto fail_quotad;
 	}
+	sdp->sd_inoded_process = p;
 
 	return 0;
 
  fail_inoded:
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_INODED_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_inoded_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_inoded_process);
 
  fail_quotad:
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_QUOTAD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_quotad_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_quotad_process);
 
  fail:
-	down(&sdp->sd_thread_lock);
-	clear_bit(SDF_LOGD_RUN, &sdp->sd_flags);
-	wake_up_process(sdp->sd_logd_process);
-	up(&sdp->sd_thread_lock);
-	wait_for_completion(&sdp->sd_thread_completion);
+	kthread_stop(sdp->sd_logd_process);
 	
 	return error;
 }

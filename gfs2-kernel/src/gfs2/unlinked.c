@@ -18,6 +18,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <linux/kthread.h>
 
 #include "gfs2.h"
 #include "bmap.h"
@@ -303,7 +304,7 @@ int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 				return error;
 		}
 
-		if (!hits || !test_bit(SDF_INODED_RUN, &sdp->sd_flags))
+		if (!hits || kthread_should_stop())
 			break;
 
 		cond_resched();
