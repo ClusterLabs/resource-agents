@@ -61,7 +61,7 @@ void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
 }
 
 /**
- * do_list - Copy the list of mountes FSs to userspace
+ * do_list - Copy the list of mounted FSs to userspace
  * @user_buf:
  * @size:
  *
@@ -70,7 +70,6 @@ void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
 
 static ssize_t do_list(char *user_buf, size_t size)
 {
-	struct list_head *tmp;
 	struct gfs2_sbd *sdp = NULL;
 	unsigned int x;
 	char num[21];
@@ -80,8 +79,7 @@ static ssize_t do_list(char *user_buf, size_t size)
 	down(&gfs2_fs_lock);
 
 	x = 0;
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
+	list_for_each_entry(sdp, &gfs2_fs_list, sd_list) {
 		x += sprintf(num, "%lu", (unsigned long)sdp) +
 			strlen(sdp->sd_vfs->s_id) +
 			strlen(sdp->sd_fsname) + 3;
@@ -100,10 +98,11 @@ static ssize_t do_list(char *user_buf, size_t size)
 		goto out;
 
 	x = 0;
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
+	list_for_each_entry(sdp, &gfs2_fs_list, sd_list) {
 		x += sprintf(buf + x, "%lu %s %s\n",
-			     (unsigned long)sdp, sdp->sd_vfs->s_id, sdp->sd_fsname);
+			     (unsigned long)sdp,
+			     sdp->sd_vfs->s_id,
+			     sdp->sd_fsname);
 	}
 
 	if (copy_to_user(user_buf, buf, x))
@@ -143,6 +142,27 @@ static char *find_argument(char *p)
 }
 
 /**
+ * find_sdp - find a superblock with the given address
+ * @p:
+ *
+ * Returns: superblock-data pointer
+ */
+
+static struct gfs2_sbd *find_sdp(char *p)
+{
+	struct gfs2_sbd *sdp;
+	char num[21];
+
+	list_for_each_entry(sdp, &gfs2_fs_list, sd_list) {
+		sprintf(num, "%lu", (unsigned long)sdp);
+		if (strcmp(num, p) == 0)
+			return sdp;
+	}
+
+	return NULL;
+}
+
+/**
  * do_freeze - freeze a filesystem
  * @p: the freeze command
  *
@@ -151,9 +171,7 @@ static char *find_argument(char *p)
 
 static int do_freeze(char *p)
 {
-	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
-	char num[21];
 	int error = 0;
 
 	p = find_argument(p + 6);
@@ -162,14 +180,8 @@ static int do_freeze(char *p)
 
 	down(&gfs2_fs_lock);
 
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
-		sprintf(num, "%lu", (unsigned long)sdp);
-		if (strcmp(num, p) == 0)
-			break;
-	}
-
-	if (tmp == &gfs2_fs_list)
+	sdp = find_sdp(p);
+	if (!sdp)
 		error = -ENOENT;
 	else
 		error = gfs2_freeze_fs(sdp);
@@ -188,9 +200,7 @@ static int do_freeze(char *p)
 
 static int do_unfreeze(char *p)
 {
-	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
-	char num[21];
 	int error = 0;
 
 	p = find_argument(p + 8);
@@ -199,14 +209,8 @@ static int do_unfreeze(char *p)
 
 	down(&gfs2_fs_lock);
 
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
-		sprintf(num, "%lu", (unsigned long)sdp);
-		if (strcmp(num, p) == 0)
-			break;
-	}
-
-	if (tmp == &gfs2_fs_list)
+	sdp = find_sdp(p);
+	if (!sdp)
 		error = -ENOENT;
 	else
 		gfs2_unfreeze_fs(sdp);
@@ -255,9 +259,7 @@ static int do_margs(char *p)
 
 static int do_withdraw(char *p)
 {
-	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
-	char num[21];
 	int error = 0;
 
 	p = find_argument(p + 8);
@@ -266,14 +268,8 @@ static int do_withdraw(char *p)
 
 	down(&gfs2_fs_lock);
 
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
-		sprintf(num, "%lu", (unsigned long)sdp);
-		if (strcmp(num, p) == 0)
-			break;
-	}
-
-	if (tmp == &gfs2_fs_list)
+	sdp = find_sdp(p);
+	if (!sdp)
 		error = -ENOENT;
 	else 
 		gfs2_lm_withdraw(sdp,
@@ -296,9 +292,7 @@ static int do_withdraw(char *p)
 
 static int do_lockdump(char *p, char *buf, size_t size)
 {
-	struct list_head *tmp;
 	struct gfs2_sbd *sdp;
-	char num[21];
 	struct gfs2_user_buffer ub;
 	int error = 0;
 
@@ -308,14 +302,8 @@ static int do_lockdump(char *p, char *buf, size_t size)
 
 	down(&gfs2_fs_lock);
 
-	for (tmp = gfs2_fs_list.next; tmp != &gfs2_fs_list; tmp = tmp->next) {
-		sdp = list_entry(tmp, struct gfs2_sbd, sd_list);
-		sprintf(num, "%lu", (unsigned long)sdp);
-		if (strcmp(num, p) == 0)
-			break;
-	}
-
-	if (tmp == &gfs2_fs_list)
+	sdp = find_sdp(p);
+	if (!sdp)
 		error = -ENOENT;
 	else {
 		ub.ub_data = buf;

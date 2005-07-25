@@ -455,21 +455,20 @@ static void diaper_put(struct diaper_holder *dh)
 
 struct block_device *gfs2_diaper_get(struct block_device *real, int flags)
 {
-	struct list_head *tmp;
 	struct diaper_holder *dh, *dh_new = NULL;
+	int found;
 
 	for (;;) {
+		found = FALSE;
 		spin_lock(&diaper_lock);
-		for (tmp = diaper_list.next;
-		     tmp != &diaper_list;
-		     tmp = tmp->next) {
-			dh = list_entry(tmp, struct diaper_holder, dh_list);
+		list_for_each_entry(dh, &diaper_list, dh_list) {
 			if (dh->dh_real == real) {
 				dh->dh_count++;
+				found = TRUE;
 				break;
 			}
 		}
-		if (tmp == &diaper_list)
+		if (!found)
 			dh = NULL;
 		if (!dh && dh_new) {
 			dh = dh_new;
@@ -498,14 +497,10 @@ struct block_device *gfs2_diaper_get(struct block_device *real, int flags)
 
 void gfs2_diaper_put(struct block_device *diaper)
 {
-	struct list_head *tmp;
 	struct diaper_holder *dh;
 
 	spin_lock(&diaper_lock);
-	for (tmp = diaper_list.next;
-	     tmp != &diaper_list;
-	     tmp = tmp->next) {
-		dh = list_entry(tmp, struct diaper_holder, dh_list);
+	list_for_each_entry(dh, &diaper_list, dh_list) {
 		if (dh->dh_diaper == diaper) {
 			if (!--dh->dh_count) {
 				list_del(&dh->dh_list);
@@ -530,14 +525,10 @@ void gfs2_diaper_put(struct block_device *diaper)
 
 void gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
 {
-	struct list_head *tmp;
 	struct diaper_holder *dh;
 
 	spin_lock(&diaper_lock);
-	for (tmp = diaper_list.next;
-	     tmp != &diaper_list;
-	     tmp = tmp->next) {
-		dh = list_entry(tmp, struct diaper_holder, dh_list);
+	list_for_each_entry(dh, &diaper_list, dh_list) {
 		if (dh->dh_diaper == diaper) {
 			dh->dh_sbd = sdp;
 			spin_unlock(&diaper_lock);
@@ -558,22 +549,18 @@ void gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
 
 struct block_device *gfs2_diaper_2real(struct block_device *diaper)
 {
-        struct list_head *tmp;
-        struct diaper_holder *dh;
+	struct diaper_holder *dh;
 
-        spin_lock(&diaper_lock);
-        for (tmp = diaper_list.next;
-             tmp != &diaper_list;
-             tmp = tmp->next) {
-                dh = list_entry(tmp, struct diaper_holder, dh_list);
-                if (dh->dh_diaper == diaper) {
-                        spin_unlock(&diaper_lock);
+	spin_lock(&diaper_lock);
+	list_for_each_entry(dh, &diaper_list, dh_list) {
+		if (dh->dh_diaper == diaper) {
+			spin_unlock(&diaper_lock);
 			return dh->dh_real;
-                }
-        }
-        spin_unlock(&diaper_lock);
+		}
+	}
+	spin_unlock(&diaper_lock);
 
-        printk("GFS2: diaper: unknown 2real\n");
+	printk("GFS2: diaper: unknown 2real\n");
 	return NULL;
 }
 

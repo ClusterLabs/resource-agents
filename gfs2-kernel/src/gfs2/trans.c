@@ -210,26 +210,24 @@ void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 
 void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
-	struct list_head *head, *tmp;
-	struct gfs2_revoke *rv = NULL;
+	struct gfs2_revoke *rv;
+	int found = FALSE;
 
 	gfs2_log_lock(sdp);
 
-	for (head = &sdp->sd_log_le_revoke, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		rv = list_entry(tmp, struct gfs2_revoke, rv_le.le_list);
+	list_for_each_entry(rv, &sdp->sd_log_le_revoke, rv_le.le_list) {
 		if (rv->rv_blkno == blkno) {
-			list_del(tmp);
+			list_del(&rv->rv_le.le_list);
 			gfs2_assert_withdraw(sdp, sdp->sd_log_num_revoke);
 			sdp->sd_log_num_revoke--;
+			found = TRUE;
 			break;
 		}
 	}
 
 	gfs2_log_unlock(sdp);
 
-	if (tmp != head) {
+	if (found) {
 		kfree(rv);
 		get_transaction->tr_num_revoke_rm++;
 	}

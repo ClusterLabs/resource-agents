@@ -85,30 +85,30 @@ static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 
 struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 {
-	struct list_head *tmp, *head;
-	struct gfs2_unlinked *ul = NULL;
+	struct list_head *head;
+	struct gfs2_unlinked *ul;
+	int found = FALSE;
 
 	if (sdp->sd_vfs->s_flags & MS_RDONLY)
 		return NULL;
 
 	spin_lock(&sdp->sd_unlinked_spin);
 
-	for (head = &sdp->sd_unlinked_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		ul = list_entry(tmp, struct gfs2_unlinked, ul_list);
+	head = &sdp->sd_unlinked_list;
 
+	list_for_each_entry(ul, head, ul_list) {
 		if (test_bit(ULF_LOCKED, &ul->ul_flags))
 			continue;
 
 		list_move_tail(&ul->ul_list, head);
 		ul->ul_count++;
 		set_bit(ULF_LOCKED, &ul->ul_flags);
+		found = TRUE;
 
 		break;
 	}
 
-	if (tmp == head)
+	if (!found)
 		ul = NULL;
 
 	spin_unlock(&sdp->sd_unlinked_spin);

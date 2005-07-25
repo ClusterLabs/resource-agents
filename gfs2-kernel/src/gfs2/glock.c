@@ -155,14 +155,9 @@ static __inline__ int queue_empty(struct gfs2_glock *gl, struct list_head *head)
 static struct gfs2_glock *search_bucket(struct gfs2_gl_hash_bucket *bucket,
 					struct lm_lockname *name)
 {
-	struct list_head *tmp, *head;
 	struct gfs2_glock *gl;
 
-	for (head = &bucket->hb_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gl = list_entry(tmp, struct gfs2_glock, gl_list);
-
+	list_for_each_entry(gl, &bucket->hb_list, gl_list) {
 		if (test_bit(GLF_PLUG, &gl->gl_flags))
 			continue;
 		if (!lm_name_equal(&gl->gl_name, name))
@@ -479,17 +474,13 @@ static void handle_recurse(struct gfs2_holder *gh)
 {
 	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct list_head *tmp, *head, *next;
-	struct gfs2_holder *tmp_gh;
+	struct gfs2_holder *tmp_gh, *safe;
 	int found = FALSE;
 
 	if (gfs2_assert_warn(sdp, gh->gh_owner))
 		return;
 
-	for (head = &gl->gl_waiters3, tmp = head->next, next = tmp->next;
-	     tmp != head;
-	     tmp = next, next = tmp->next) {
-		tmp_gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry_safe(tmp_gh, safe, &gl->gl_waiters3, gh_list) {
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
@@ -522,17 +513,13 @@ static void do_unrecurse(struct gfs2_holder *gh)
 {
 	struct gfs2_glock *gl = gh->gh_gl;
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	struct list_head *tmp, *head;
 	struct gfs2_holder *tmp_gh, *last_gh = NULL;
 	int found = FALSE;
 
 	if (gfs2_assert_warn(sdp, gh->gh_owner))
 		return;
 
-	for (head = &gl->gl_waiters3, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		tmp_gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(tmp_gh, &gl->gl_waiters3, gh_list) {
 		if (tmp_gh->gh_owner != gh->gh_owner)
 			continue;
 
@@ -873,18 +860,11 @@ void gfs2_glmutex_unlock(struct gfs2_glock *gl)
 
 static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 {
-	struct list_head *tmp, *head;
 	struct gfs2_holder *gh, *new_gh = NULL;
 
  restart:
 	spin_lock(&gl->gl_spin);
-
-	/* If another queued demote request is for a different state,
-	   set its request to UNLOCKED */
-	for (head = &gl->gl_waiters2, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, &gl->gl_waiters2, gh_list) {
 		if (test_bit(HIF_DEMOTE, &gh->gh_iflags) &&
 		    gl->gl_req_gh != gh) {
 			if (gh->gh_state != state)
@@ -893,14 +873,9 @@ static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 		}
 	}
 
-	/* pass 2; add new holder to glock's demote request queue */
 	if (new_gh) {
 		list_add_tail(&new_gh->gh_list, &gl->gl_waiters2);
 		new_gh = NULL;
-
-	/* pass 1; set up a new holder struct for a demote request, then
-	   check again to see if another process added a demote request
-	   while we were preparing this one. */
 	} else {
 		spin_unlock(&gl->gl_spin);
 
@@ -1316,11 +1291,9 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 
 static __inline__ struct gfs2_holder *find_holder_by_owner(struct list_head *head, struct task_struct *owner)
 {
-	struct list_head *tmp;
 	struct gfs2_holder *gh;
 
-	for (tmp = head->next; tmp != head; tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, head, gh_list) {
 		if (gh->gh_owner == owner)
 			return gh;
 	}
@@ -2684,7 +2657,6 @@ static int dump_inode(struct gfs2_inode *ip, char *buf, unsigned int size,
 static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 		      unsigned int *count)
 {
-	struct list_head *head, *tmp;
 	struct gfs2_holder *gh;
 	unsigned int x;
 	int error = -ENOBUFS;
@@ -2720,34 +2692,22 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 		if (error)
 			goto out;
 	}
-	for (head = &gl->gl_holders, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, &gl->gl_holders, gh_list) {
 		error = dump_holder("Holder", gh, buf, size, count);
 		if (error)
 			goto out;
 	}
-	for (head = &gl->gl_waiters1, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, &gl->gl_waiters1, gh_list) {
 		error = dump_holder("Waiter1", gh, buf, size, count);
 		if (error)
 			goto out;
 	}
-	for (head = &gl->gl_waiters2, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, &gl->gl_waiters2, gh_list) {
 		error = dump_holder("Waiter2", gh, buf, size, count);
 		if (error)
 			goto out;
 	}
-	for (head = &gl->gl_waiters3, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		gh = list_entry(tmp, struct gfs2_holder, gh_list);
+	list_for_each_entry(gh, &gl->gl_waiters3, gh_list) {
 		error = dump_holder("Waiter3", gh, buf, size, count);
 		if (error)
 			goto out;
@@ -2784,7 +2744,6 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 {
 	struct gfs2_gl_hash_bucket *bucket;
-	struct list_head *tmp, *head;
 	struct gfs2_glock *gl;
 	char *buf = NULL;
 	unsigned int size = gfs2_tune_get(sdp, gt_lockdump_size);
@@ -2803,11 +2762,7 @@ int gfs2_dump_lockstate(struct gfs2_sbd *sdp, struct gfs2_user_buffer *ub)
 
 		read_lock(&bucket->hb_lock);
 
-		for (head = &bucket->hb_list, tmp = head->next;
-		     tmp != head;
-		     tmp = tmp->next) {
-			gl = list_entry(tmp, struct gfs2_glock, gl_list);
-
+		list_for_each_entry(gl, &bucket->hb_list, gl_list) {
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 

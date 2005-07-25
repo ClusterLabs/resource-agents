@@ -367,18 +367,17 @@ void gfs2_jindex_free(struct gfs2_sbd *sdp)
 
 static struct gfs2_jdesc *jdesc_find_i(struct list_head *head, unsigned int jid)
 {
-	struct list_head *tmp;
 	struct gfs2_jdesc *jd;
+	int found = FALSE;
 
-	for (tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
-		if (jd->jd_jid == jid)
+	list_for_each_entry(jd, head, jd_list) {
+		if (jd->jd_jid == jid) {
+			found = TRUE;
 			break;
+		}
 	}
 
-	if (tmp == head)
+	if (!found)
 		jd = NULL;
 
 	return jd;
@@ -408,22 +407,21 @@ void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 
 struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 {
-	struct list_head *tmp, *head;
-	struct gfs2_jdesc *jd = NULL;
+	struct gfs2_jdesc *jd;
+	int found = FALSE;
 
 	spin_lock(&sdp->sd_jindex_spin);
-	for (head = &sdp->sd_jindex_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
+
+	list_for_each_entry(jd, &sdp->sd_jindex_list, jd_list) {
 		if (jd->jd_dirty) {
 			jd->jd_dirty = FALSE;
+			found = TRUE;
 			break;
 		}
 	}
 	spin_unlock(&sdp->sd_jindex_spin);
 
-	if (tmp == head)
+	if (!found)
 		jd = NULL;
 
 	return jd;
@@ -865,7 +863,6 @@ struct lfcc {
 int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 {
        	struct gfs2_holder ji_gh;
-	struct list_head *head, *tmp;
 	struct gfs2_jdesc *jd;
 	struct lfcc *lfcc;
 	LIST_HEAD(list);
@@ -876,10 +873,7 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 	if (error)
 		return error;
 
-	for (head = &sdp->sd_jindex_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
+	list_for_each_entry(jd, &sdp->sd_jindex_list, jd_list) {
 		lfcc = kmalloc(sizeof(struct lfcc), GFP_KERNEL);
 		if (!lfcc) {
 			error = -ENOMEM;
@@ -898,8 +892,7 @@ int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 			       LM_FLAG_PRIORITY | GL_NEVER_RECURSE | GL_NOCACHE,
 			       t_gh);
 
-	for (tmp = head->next; tmp != head; tmp = tmp->next) {
-		jd = list_entry(tmp, struct gfs2_jdesc, jd_list);
+	list_for_each_entry(jd, &sdp->sd_jindex_list, jd_list) {
 		error = gfs2_jdesc_check(jd);
 		if (error)
 			break;

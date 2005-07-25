@@ -86,26 +86,23 @@ static int qd_get(struct gfs2_sbd *sdp, int user, uint32_t id, int create,
 		  struct gfs2_quota_data **qdp)
 {
 	struct gfs2_quota_data *qd = NULL, *new_qd = NULL;
-	struct list_head *tmp, *head;
-	int error;
+	int error, found;
 
 	*qdp = NULL;
 
 	for (;;) {
+		found = FALSE;
 		spin_lock(&sdp->sd_quota_spin);
-
-		for (head = &sdp->sd_quota_list, tmp = head->next;
-		     tmp != head;
-		     tmp = tmp->next) {
-			qd = list_entry(tmp, struct gfs2_quota_data, qd_list);
+		list_for_each_entry(qd, &sdp->sd_quota_list, qd_list) {
 			if (qd->qd_id == id &&
 			    !test_bit(QDF_USER, &qd->qd_flags) == !user) {
 				qd->qd_count++;
+				found = TRUE;
 				break;
 			}
 		}
 
-		if (tmp == head)
+		if (!found)
 			qd = NULL;
 
 		if (!qd && new_qd) {
@@ -282,9 +279,9 @@ static void bh_put(struct gfs2_quota_data *qd)
 
 static int qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 {
-	struct list_head *tmp, *head;
 	struct gfs2_quota_data *qd = NULL;
 	int error;
+	int found = FALSE;
 
 	*qdp = NULL;
 
@@ -293,11 +290,7 @@ static int qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 
 	spin_lock(&sdp->sd_quota_spin);
 
-	for (head = &sdp->sd_quota_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		qd = list_entry(tmp, struct gfs2_quota_data, qd_list);
-
+	list_for_each_entry(qd, &sdp->sd_quota_list, qd_list) {
 		if (test_bit(QDF_LOCKED, &qd->qd_flags) ||
 		    !test_bit(QDF_CHANGE, &qd->qd_flags) ||
 		    qd->qd_sync_gen >= sdp->sd_quota_sync_gen)
@@ -311,11 +304,12 @@ static int qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 		qd->qd_change_sync = qd->qd_change;
 		gfs2_assert_warn(sdp, qd->qd_slot_count);
 		qd->qd_slot_count++;
+		found = TRUE;
 
 		break;
 	}
 
-	if (tmp == head)
+	if (!found)
 		qd = NULL;
 
 	spin_unlock(&sdp->sd_quota_spin);
@@ -1148,15 +1142,11 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 
 void gfs2_quota_scan(struct gfs2_sbd *sdp)
 {
-	struct list_head *head, *tmp, *next;
-	struct gfs2_quota_data *qd;
+	struct gfs2_quota_data *qd, *safe;
 	LIST_HEAD(dead);
 
 	spin_lock(&sdp->sd_quota_spin);
-	for (head = &sdp->sd_quota_list, tmp = head->next, next = tmp->next;
-	     tmp != head;
-	     tmp = next, next = next->next) {
-		qd = list_entry(tmp, struct gfs2_quota_data, qd_list);
+	list_for_each_entry_safe(qd, safe, &sdp->sd_quota_list, qd_list) {
 		if (!qd->qd_count &&
 		    time_after_eq(jiffies, qd->qd_last_touched +
 				  gfs2_tune_get(sdp, gt_quota_cache_secs) * HZ)) {

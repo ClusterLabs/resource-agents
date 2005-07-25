@@ -113,15 +113,11 @@ static __inline__ int rgrp_contains_block(struct gfs2_rindex *ri,
 
 struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 {
-	struct list_head *tmp, *head;
-	struct gfs2_rgrpd *rgd = NULL;
+	struct gfs2_rgrpd *rgd;
 
 	spin_lock(&sdp->sd_rindex_spin);
 
-	for (head = &sdp->sd_rindex_mru_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		rgd = list_entry(tmp, struct gfs2_rgrpd, rd_list_mru);
+	list_for_each_entry(rgd, &sdp->sd_rindex_mru_list, rd_list_mru) {
 		if (rgrp_contains_block(&rgd->rd_ri, blk)) {
 			list_move(&rgd->rd_list_mru, &sdp->sd_rindex_mru_list);
 			spin_unlock(&sdp->sd_rindex_spin);
@@ -620,7 +616,6 @@ static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
 					    uint64_t rglast)
 {
-	struct list_head *tmp, *head;
 	struct gfs2_rgrpd *rgd = NULL;
 
 	spin_lock(&sdp->sd_rindex_spin);
@@ -631,10 +626,7 @@ static struct gfs2_rgrpd *recent_rgrp_first(struct gfs2_sbd *sdp,
 	if (!rglast)
 		goto first;
 
-	for (head = &sdp->sd_rindex_recent_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		rgd = list_entry(tmp, struct gfs2_rgrpd, rd_recent);
+	list_for_each_entry(rgd, &sdp->sd_rindex_recent_list, rd_recent) {
 		if (rgd->rd_ri.ri_addr == rglast)
 			goto out;
 	}
@@ -661,15 +653,14 @@ static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
 					   int remove)
 {
 	struct gfs2_sbd *sdp = cur_rgd->rd_sbd;
-	struct list_head *tmp, *head;
+	struct list_head *head;
 	struct gfs2_rgrpd *rgd;
 
 	spin_lock(&sdp->sd_rindex_spin);
 
-	for (head = &sdp->sd_rindex_recent_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		rgd = list_entry(tmp, struct gfs2_rgrpd, rd_recent);
+	head = &sdp->sd_rindex_recent_list;
+
+	list_for_each_entry(rgd, head, rd_recent) {
 		if (rgd == cur_rgd) {
 			if (cur_rgd->rd_recent.next != head)
 				rgd = list_entry(cur_rgd->rd_recent.next,
@@ -708,17 +699,13 @@ static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
 static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
 {
 	struct gfs2_sbd *sdp = new_rgd->rd_sbd;
-	struct list_head *tmp, *head;
-	struct gfs2_rgrpd *rgd = NULL;
+	struct gfs2_rgrpd *rgd;
 	unsigned int count = 0;
 	unsigned int max = sdp->sd_rgrps / gfs2_jindex_size(sdp);
 
 	spin_lock(&sdp->sd_rindex_spin);
 
-	for (head = &sdp->sd_rindex_recent_list, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		rgd = list_entry(tmp, struct gfs2_rgrpd, rd_recent);
+	list_for_each_entry(rgd, &sdp->sd_rindex_recent_list, rd_recent) {
 		if (rgd == new_rgd)
 			goto out;
 

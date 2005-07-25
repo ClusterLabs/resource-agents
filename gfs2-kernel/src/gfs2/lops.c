@@ -111,7 +111,7 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 {
 	struct buffer_head *bh;
 	struct gfs2_log_descriptor ld;
-	struct list_head *tmp, *head;
+	struct gfs2_bufdata *bd;
 
 	if (!sdp->sd_log_num_buf)
 		return;
@@ -130,14 +130,8 @@ static void buf_lo_before_commit(struct gfs2_sbd *sdp)
 	set_buffer_dirty(bh);
 	ll_rw_block(WRITE, 1, &bh);
 
-	for (head = &sdp->sd_log_le_buf, tmp = head->next;
-	     tmp != head;
-	     tmp = tmp->next) {
-		struct gfs2_bufdata *bd;
-		bd = list_entry(tmp, struct gfs2_bufdata, bd_le.le_list);
-
+	list_for_each_entry(bd, &sdp->sd_log_le_buf, bd_le.le_list) {
 		bh = gfs2_log_fake_buf(sdp, bd->bd_bh);
-
 		set_buffer_dirty(bh);
 		ll_rw_block(WRITE, 1, &bh);
 	}

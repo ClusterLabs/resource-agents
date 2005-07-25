@@ -25,8 +25,8 @@
 #undef kmalloc
 #undef kfree
 
-void * gmalloc_nofail_real(unsigned int size, int flags, char *file,
-			   unsigned int line)
+void *gmalloc_nofail_real(unsigned int size, int flags, char *file,
+			  unsigned int line)
 {
 	void *x;
 	for (;;) {
@@ -132,23 +132,23 @@ void gfs2_memory_add_i(void *data, char *file, unsigned int line)
 void gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 {
 	struct list_head *head = memory_bucket(data);
-	struct list_head *tmp;
-	struct gfs2_memory *gm = NULL;
+	struct gfs2_memory *gm;
+	int found = FALSE;
 
 	if (!data)
 		return;
 
 	spin_lock(&memory_lock);
-	for (tmp = head->next; tmp != head; tmp = tmp->next) {
-		gm = list_entry(tmp, struct gfs2_memory, gm_list);
+	list_for_each_entry(gm, head, gm_list) {
 		if (gm->gm_data == data) {
-			list_del(tmp);
+			list_del(gm->gm_list);
+			found = TRUE;
 			break;
 		}
 	}
 	spin_unlock(&memory_lock);
 
-	if (tmp == head)
+	if (!found)
 		printk("GFS2: freeing unalloced memory from (%s, %u)\n",
 		       file, line);
 	else

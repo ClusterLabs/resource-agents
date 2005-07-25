@@ -128,18 +128,15 @@ int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 static void drop_dentries(struct gfs2_inode *ip)
 {
 	struct inode *inode;
-	struct list_head *head, *tmp;
+	struct dentry *d;
 
 	inode = gfs2_ip2v(ip, NO_CREATE);
 	if (!inode)
 		return;
 
-	head = &inode->i_dentry;
-
  restart:
 	spin_lock(&dcache_lock);
-	for (tmp = head->next; tmp != head; tmp = tmp->next) {
-		struct dentry *d = list_entry(tmp, struct dentry, d_alias);
+	list_for_each_entry(d, &inode->i_dentry, d_alias) { 
 		if (d_unhashed(d))
 			continue;
 		dget_locked(d);
