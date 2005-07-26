@@ -235,14 +235,14 @@ static void process_complete(struct gdlm_lock *lp)
 	ls->fscb(ls->fsdata, LM_CB_ASYNC, &acb);
 }
 
-static __inline__ int no_work(struct gdlm_ls *ls)
+static __inline__ int no_work(struct gdlm_ls *ls, int blocking)
 {
 	int ret;
 
 	spin_lock(&ls->async_lock);
-	ret = list_empty(&ls->complete) &&
-	      list_empty(&ls->blocking) &&
-	      list_empty(&ls->submit);
+	ret = list_empty(&ls->complete) && list_empty(&ls->submit);
+	if (ret && blocking)
+		ret = list_empty(&ls->blocking);
 	spin_unlock(&ls->async_lock);
 
 	return ret;
@@ -265,13 +265,20 @@ static int gdlm_thread(void *data)
 {
 	struct gdlm_ls *ls = (struct gdlm_ls *) data;
 	struct gdlm_lock *lp = NULL;
+	int blist = 0;
 	uint8_t complete, blocking, submit, drop;
 	DECLARE_WAITQUEUE(wait, current);
+
+	/* Only thread1 is allowed to do blocking callbacks since gfs
+	   may wait for a completion callback within a blocking cb. */
+
+	if (current == ls->thread1)
+		blist = 1;
 
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		add_wait_queue(&ls->thread_wait, &wait);
-		if (no_work(ls))
+		if (no_work(ls, blist))
 			schedule();
 		remove_wait_queue(&ls->thread_wait, &wait);
 		set_current_state(TASK_RUNNING);
@@ -280,17 +287,17 @@ static int gdlm_thread(void *data)
 
 		spin_lock(&ls->async_lock);
 
-		if (!list_empty(&ls->complete)) {
-			lp = list_entry(ls->complete.next, struct gdlm_lock,
-					clist);
-			list_del_init(&lp->clist);
-			complete = 1;
-		} else if (!list_empty(&ls->blocking)) {
+		if (blist && !list_empty(&ls->blocking)) {
 			lp = list_entry(ls->blocking.next, struct gdlm_lock,
 					blist);
 			list_del_init(&lp->blist);
 			blocking = lp->bast_mode;
 			lp->bast_mode = 0;
+		} else if (!list_empty(&ls->complete)) {
+			lp = list_entry(ls->complete.next, struct gdlm_lock,
+					clist);
+			list_del_init(&lp->clist);
+			complete = 1;
 		} else if (!list_empty(&ls->submit)) {
 			lp = list_entry(ls->submit.next, struct gdlm_lock,
 					delay_list);
