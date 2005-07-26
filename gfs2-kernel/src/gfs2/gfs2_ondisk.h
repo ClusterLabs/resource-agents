@@ -1487,8 +1487,7 @@ static const uint32_t crc_32_tab[] =
  * Returns: the hash
  */
 
-uint32_t
-gfs2_disk_hash(const char *data, int len)
+uint32_t gfs2_disk_hash(const char *data, int len)
 {
 	uint32_t hash = 0xFFFFFFFF;
 

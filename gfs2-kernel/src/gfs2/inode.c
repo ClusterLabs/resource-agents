@@ -127,16 +127,15 @@ void gfs2_inode_attr_out(struct gfs2_inode *ip)
 /**
  * gfs2_ip2v - Get/Create a struct inode for a struct gfs2_inode
  * @ip: the struct gfs2_inode to get the struct inode for
- * @create: CREATE -- create a new struct inode if one does not already exist
- *          NO_CREATE -- return NULL if inode doesn't exist
+ * @create: create a new struct inode if one does not already exist
  *
  * Returns: A VFS inode, or NULL if NO_CREATE and none in existance
  *
  * If this function creates a new inode, it:
- *   Copies fields from the GFS2 on-disk (d)inode to the VFS inode
- *   Attaches the appropriate ops vectors to the VFS inode and address_space
- *   Attaches the VFS inode to the gfs2_inode
- *   Inserts the new inode in the VFS inode hash, while avoiding races
+ * Copies fields from the GFS2 on-disk (d)inode to the VFS inode
+ * Attaches the appropriate ops vectors to the VFS inode and address_space
+ * Attaches the VFS inode to the gfs2_inode
+ * Inserts the new inode in the VFS inode hash, while avoiding races
  */
 
 struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
@@ -160,7 +159,6 @@ struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
 
 	inode_attr_in(ip, tmp);
 
-	/* Attach GFS2-specific ops vectors */
 	if (S_ISREG(ip->i_di.di_mode)) {
 		tmp->i_op = &gfs2_file_iops;
 		tmp->i_fop = &gfs2_file_fops;
@@ -177,12 +175,6 @@ struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
 
 	set_v2ip(tmp, NULL);
 
-	/* Did another process successfully create an inode while we were
-	   preparing this (tmp) one?  If so, we can use that other one, and
-	   trash the one we were preparing. 
-	   The other process might not be done inserting the inode in the
-	   VFS hash table.  If so, we need to wait until it is done, then
-	   we can use it. */
 	for (;;) {
 		spin_lock(&ip->i_spin);
 		if (!ip->i_vnode)
@@ -223,7 +215,8 @@ static int iget_test(struct inode *inode, void *opaque)
 
 struct inode *gfs2_iget(struct super_block *sb, struct gfs2_inum *inum)
 {
-	return ilookup5(sb, (unsigned long)inum->no_formal_ino, iget_test, inum);
+	return ilookup5(sb, (unsigned long)inum->no_formal_ino,
+			iget_test, inum);
 }
 
 void gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type)
@@ -278,9 +271,8 @@ int gfs2_inode_refresh(struct gfs2_inode *ip)
 }
 
 /**
- * inode_create - create a struct gfs2_inode, acquire Inode-Open (iopen) glock,
- *      read dinode from disk
- * @i_gl: The (already held) glock covering the inode
+ * inode_create - create a struct gfs2_inode
+ * @i_gl: The glock covering the inode
  * @inum: The inode number
  * @io_gl: the iopen glock to acquire/hold (using holder in new gfs2_inode)
  * @io_state: the state the iopen glock should be acquired in
@@ -315,7 +307,6 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 
 	ip->i_greedy = gfs2_tune_get(sdp, gt_greedy_default);
 
-	/* Lock the iopen glock (may be recursive) */
 	error = gfs2_glock_nq_init(io_gl,
 				   io_state, GL_LOCAL_EXCL | GL_EXACT,
 				   &ip->i_iopen_gh);
@@ -323,7 +314,6 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 		goto fail;
 	ip->i_iopen_gh.gh_owner = NULL;
 
-	/* Assign the inode's glock as this iopen glock's protected object */
 	spin_lock(&io_gl->gl_spin);
 	gfs2_glock_hold(i_gl);
 	set_gl2gl(io_gl, i_gl);
@@ -354,8 +344,6 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
  * @create:
  * @ipp: pointer to put the returned inode in
  *
- * This *does not* read the inode in off of the disk.
- *
  * Returns: errno
  */
 
@@ -384,9 +372,7 @@ int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 	error = gfs2_glock_get(sdp, inum->no_addr, &gfs2_iopen_glops,
 			       CREATE, &io_gl);
 	if (!error) {
-		error = inode_create(i_gl, inum,
-				     io_gl, LM_ST_SHARED,
-				     ipp);
+		error = inode_create(i_gl, inum, io_gl, LM_ST_SHARED, ipp);
 		gfs2_glock_put(io_gl);
 	}
 
@@ -426,7 +412,7 @@ void gfs2_inode_put(struct gfs2_inode *ip)
  *
  * Also, unhold the iopen glock and release indirect addressing buffers.
  * This function must be called with a glocks held on the inode and 
- *   the associated iopen.
+ * the associated iopen.
  *
  */
 
@@ -439,7 +425,6 @@ void gfs2_inode_destroy(struct gfs2_inode *ip)
 	gfs2_assert_warn(sdp, !atomic_read(&ip->i_count));
 	gfs2_assert(sdp, get_gl2gl(io_gl) == i_gl,);
 
-	/* Unhold the iopen glock */
 	spin_lock(&io_gl->gl_spin);
 	set_gl2gl(io_gl, NULL);
 	gfs2_glock_put(i_gl);
@@ -447,7 +432,6 @@ void gfs2_inode_destroy(struct gfs2_inode *ip)
 
 	gfs2_glock_dq_uninit(&ip->i_iopen_gh);
 
-	/* Release indirect addressing buffers, destroy the GFS2 inode struct */
 	gfs2_meta_cache_flush(ip);
 	gfs2_memory_rm(ip);
 	kmem_cache_free(gfs2_inode_cachep, ip);
@@ -507,7 +491,6 @@ static int dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 
 	gfs2_trans_add_gl(ip->i_gl);
 
-	/* De-allocate on-disk dinode block to FREEMETA */
 	gfs2_free_di(rgd, ip);
 
 	error = gfs2_unlinked_ondisk_rm(sdp, ul);
@@ -536,11 +519,6 @@ static int dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
  * @inum: the inode number to deallocate
  * @io_gh: a holder for the iopen glock for this inode
  *
- * De-allocates all on-disk blocks, data and metadata, associated with an inode.
- * All metadata blocks become GFS2_BLKST_FREEMETA.
- * All data blocks become GFS2_BLKST_FREE.
- * Also de-allocates incore gfs2_inode structure.
- *
  * Returns: errno
  */
 
@@ -551,7 +529,6 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 	struct gfs2_holder i_gh;
 	int error;
 
-	/* Lock the inode as we blow it away */
 	error = gfs2_glock_nq_num(sdp,
 				  ul->ul_ut.ut_inum.no_addr, &gfs2_inode_glops,
 				  LM_ST_EXCLUSIVE, 0, &i_gh);
@@ -590,7 +567,6 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 	if (error)
 		goto out_iput;
 
-	/* Verify disk (d)inode, gfs2 inode, and VFS (v)inode are unused */
 	if (ip->i_di.di_nlink) {
 		if (gfs2_consist_inode(ip))
 			gfs2_dinode_print(&ip->i_di);
@@ -598,7 +574,6 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 		goto out_iput;
 	}
 
-	/* Free all on-disk directory leaves (if any) */
 	if (S_ISDIR(ip->i_di.di_mode) &&
 	    (ip->i_di.di_flags & GFS2_DIF_EXHASH)) {
 		error = gfs2_dir_exhash_dealloc(ip);
@@ -606,21 +581,18 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 			goto out_iput;
 	}
 
-	/* Free all on-disk extended attribute blocks */
 	if (ip->i_di.di_eattr) {
 		error = gfs2_ea_dealloc(ip);
 		if (error)
 			goto out_iput;
 	}
 
-	/* Free all data and meta blocks */
 	if (!gfs2_is_stuffed(ip)) {
 		error = gfs2_file_dealloc(ip);
 		if (error)
 			goto out_iput;
 	}
 
-	/* De-alloc the dinode block */
 	error = dinode_dealloc(ip, ul);
 	if (error)
 		goto out_iput;
@@ -638,8 +610,7 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 }
 
 /**
- * try_inode_dealloc - Try to deallocate an initialized on-disk inode (dinode)
- *      and all of its associated data and meta blocks
+ * try_inode_dealloc - Try to deallocate an inode and all its blocks
  * @sdp: the filesystem
  *
  * Returns: 0 on success, -errno on error, 1 on busy (inode open)
@@ -650,11 +621,8 @@ int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	struct gfs2_holder io_gh;
 	int error = 0;
 
-	/* If not busy (on this node), de-alloc GFS2 incore inode, releasing
-	   any indirect addressing buffers, and unholding iopen glock */
 	gfs2_try_toss_inode(sdp, &ul->ul_ut.ut_inum);
 
-	/* Does another process (cluster-wide) have this inode open? */
 	error = gfs2_glock_nq_num(sdp,
 				  ul->ul_ut.ut_inum.no_addr, &gfs2_iopen_glops,
 				  LM_ST_EXCLUSIVE, LM_FLAG_TRY_1CB, &io_gh);
@@ -667,13 +635,8 @@ int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 		return error;
 	}
 
-	/* Unlock here to prevent deadlock */
 	gfs2_glock_dq(&io_gh);
-
-	/* No other process in the entire cluster has this inode open;
-	   we can remove it and all of its associated blocks from disk */
 	error = inode_dealloc(sdp, ul, &io_gh);
-
 	gfs2_holder_uninit(&io_gh);
 
 	return error;
@@ -700,8 +663,9 @@ int inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	if (error)
 		goto out;
 
-	error = gfs2_trans_begin(sdp, RES_RG_BIT + RES_UNLINKED +
-				 RES_STATFS, 0);
+	error = gfs2_trans_begin(sdp,
+				 RES_RG_BIT + RES_UNLINKED + RES_STATFS,
+				 0);
 	if (error)
 		goto out_gunlock;
 
@@ -742,9 +706,8 @@ int gfs2_change_nlink(struct gfs2_inode *ip, int diff)
 
 	nlink = ip->i_di.di_nlink + diff;
 
-	/* Tricky.  If we are reducing the nlink count,
-	   but the new value ends up being bigger than the
-	   old one, we must have underflowed. */
+	/* If we are reducing the nlink count, but the new value ends up being
+	   bigger than the old one, we must have underflowed. */
 	if (diff < 0 && nlink > ip->i_di.di_nlink) {
 		if (gfs2_consist_inode(ip))
 			gfs2_dinode_print(&ip->i_di);
@@ -773,7 +736,7 @@ int gfs2_change_nlink(struct gfs2_inode *ip, int diff)
  * @i_gh: An uninitialized holder for the new inode glock
  *
  * There will always be a vnode (Linux VFS inode) for the d_gh inode unless
- *   @is_root is true.
+ * @is_root is true.
  *
  * Returns: errno
  */
@@ -1598,7 +1561,7 @@ int gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
  * atime is greater than an interval specified at mount (or default).
  *
  * Will not update if GFS2 mounted NOATIME (this is *the* place where NOATIME
- *   has an effect) or Read-Only.
+ * has an effect) or Read-Only.
  *
  * Returns: errno
  */
@@ -1618,7 +1581,6 @@ int gfs2_glock_nq_atime(struct gfs2_holder *gh)
 	    gfs2_assert_warn(sdp, gl->gl_ops == &gfs2_inode_glops))
 		return -EINVAL;
 
-	/* Save original request state of lock holder */
 	state = gh->gh_state;
 	flags = gh->gh_flags;
 
@@ -1692,10 +1654,6 @@ int gfs2_glock_nq_atime(struct gfs2_holder *gh)
  * glock_compare_atime - Compare two struct gfs2_glock structures for gfs2_sort
  * @arg_a: the first structure
  * @arg_b: the second structure
- *
- * Sort order determined by (in order of priority):
- * -- lock number
- * -- lock state (SHARED > EXCLUSIVE or GL_ATIME, which can demand EXCLUSIVE)
  *
  * Returns: 1 if A > B
  *         -1 if A < B

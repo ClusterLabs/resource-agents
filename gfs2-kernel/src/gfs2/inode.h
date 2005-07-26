@@ -74,3 +74,4 @@ static inline int gfs2_lookup_simple(struct gfs2_inode *dip, char *name,
 }
 
 #endif /* __INODE_DOT_H__ */
+

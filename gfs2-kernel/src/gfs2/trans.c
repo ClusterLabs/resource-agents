@@ -26,24 +26,6 @@
 #include "meta_io.h"
 #include "trans.h"
 
-/**
- * gfs2_trans_begin_i - Prepare to start a transaction
- * @sdp: The GFS2 superblock
- * @meta_blocks: Reserve this many metadata blocks in the log
- * @extra_blocks: Number of non-metadata blocks to reserve
- *
- * Allocate the struct gfs2_trans struct.
- * Grab a shared TRANSaction lock (protects this transaction from
- *   overlapping with unusual fs writes, e.g. journal replay, fs upgrade,
- *   while allowing simultaneous transaction writes throughout cluster).
- * Reserve space in the log.  @meta_blocks and @extra_blocks must indicate
- *   the worst case (maximum) size of the transaction.
- * Record this transaction as the *one* transaction being built by this
- *   Linux process, in current->journal_info.
- *
- * Returns: errno
- */
-
 int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 		       unsigned int revokes, char *file, unsigned int line)
 {
@@ -110,15 +92,6 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 	return error;
 }
 
-/**
- * gfs2_trans_end - End a transaction
- * @sdp: The GFS2 superblock
- *
- * If buffers were actually added to the transaction,
- * commit it.
- *
- */
-
 void gfs2_trans_end(struct gfs2_sbd *sdp)
 {
 	struct gfs2_trans *tr;
@@ -180,7 +153,6 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct gfs2_bufdata *bd;
 
-	/* Make sure GFS2 private info struct is attached to buffer head */
 	bd = get_v2bd(bh);
 	if (bd)
 		gfs2_assert(sdp, bd->bd_gl == gl,);
@@ -191,13 +163,6 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 
 	LO_ADD(sdp, &bd->bd_le);
 }
-
-/**
- * gfs2_trans_add_revoke -
- * @sdp:
- * @blkno:
- *
- */
 
 void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {

@@ -80,7 +80,7 @@ static struct block_device_operations diaper_fops = {
  * @bytes_done:
  * @error:
  *
- * Interrupt context, no ENTER/RETURN
+ * Interrupt context
  *
  * Returns: an integer thats usually discarded
  */

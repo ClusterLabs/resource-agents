@@ -625,16 +625,6 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to be pinned
  *
- * "Pinning" means keeping buffer from being written to its in-place location.
- * A buffer should be pinned from the time it is added to a new transaction,
- *   until after it has been written to the log.
- * If an earlier change to this buffer is still pinned, waiting to be written
- *   to on-disk log, we need to keep a "frozen" copy of the old data while this
- *   transaction is modifying the real data.  We keep the frozen copy until
- *   this transaction's incore_commit(), i.e. until the transaction has
- *   finished modifying the real data, at which point we can use the real
- *   buffer for logging, even if the frozen copy didn't get written to the log.
- *
  */
 
 void gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
@@ -669,26 +659,8 @@ void gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
  * gfs2_meta_unpin - Unpin a buffer
  * @sdp: the filesystem the buffer belongs to
  * @bh: The buffer to unpin
- * @tr: The transaction in the AIL that contains this buffer
- *      If NULL, don't attach buffer to any AIL list
- *      (i.e. when dropping a pin reference when merging a new transaction
- *       with an already existing incore transaction)
+ * @ai:
  *
- * Called for (meta) buffers, after they've been logged to on-disk journal.
- * Make a (meta) buffer writeable to in-place location on-disk, if recursive
- *   pin count is 1 (i.e. no other, later transaction is modifying this buffer).
- * Add buffer to AIL lists of 1) the latest transaction that's modified and
- *   logged (on-disk) the buffer, and of 2) the glock that protects the buffer.
- * A single buffer might have been modified by more than one transaction
- *   since the buffer's previous write to disk (in-place location).  We keep
- *   the buffer on only one transaction's AIL list, i.e. that of the latest
- *   transaction that's completed logging this buffer (no need to write it to
- *   in-place block multiple times for multiple transactions, only once with
- *   the most up-to-date data).
- * A single buffer will be protected by one and only one glock.  If buffer is 
- *   already on a (previous) transaction's AIL, we know that we're already
- *   on buffer's glock's AIL.
- * 
  */
 
 void gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
@@ -780,8 +752,7 @@ void gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
  * @ip: The GFS2 inode
  *
  * This releases buffers that are in the most-recently-used array of
- *   blocks used for indirect block addressing for this inode.
- * Don't confuse this with the meta-HEADER cache (mhc)!
+ * blocks used for indirect block addressing for this inode.
  */
 
 void gfs2_meta_cache_flush(struct gfs2_inode *ip)

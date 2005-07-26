@@ -55,9 +55,7 @@ int gfs2_scand(void *data)
  * @sdp: Pointer to GFS2 superblock
  *
  * One or more of these daemons run, reclaiming glocks on sd_reclaim_list.
- * sd_glockd_num says how many daemons are running now.
  * Number of daemons can be set by user, with num_glockd mount option.
- * See gfs2_scand()
  */
 
 int gfs2_glockd(void *data)

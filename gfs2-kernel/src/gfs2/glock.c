@@ -51,19 +51,6 @@ typedef void (*glock_examiner) (struct gfs2_glock * gl);
  * @flags: the modifier flags passed in by the caller
  *
  * Returns: TRUE if the locks are compatible, FALSE otherwise
- *
- * It's often possible that a holder B may request the lock in SHARED mode,
- * while another holder A (on this same node) has the lock in EXCLUSIVE mode
- * (node must hold the glock in EXCLUSIVE mode for this situation, of course).
- * This is okay to grant, in some cases, since both holders would have access
- * to the in-core up-to-date cached data that the EX holder would write to disk.
- * This is the default behavior.
- *
- * The EXACT flag disallows this behavior, though.  A SHARED request would
- * compatible only with a SHARED lock with this flag.
- *
- * The ANY flag provides broader permission to grant the lock to a holder,
- * whatever the requested state is, as long as the lock is locked in any mode.
  */
 
 static inline int relaxed_state_ok(unsigned int actual, unsigned requested,
@@ -177,9 +164,6 @@ static struct gfs2_glock *search_bucket(struct gfs2_gl_hash_bucket *bucket,
  * @sdp: The GFS2 superblock
  * @name: The lock name
  *
- * Figure out what bucket the lock is in, acquire the read lock on
- * it and call search_bucket().
- *
  * Returns: NULL, or the struct gfs2_glock with the requested number
  */
 
@@ -242,7 +226,6 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 	struct gfs2_gl_hash_bucket *bucket;
 	int error;
 
-	/* Look for pre-existing glock in hash table */
 	name.ln_number = number;
 	name.ln_type = glops->go_type;
 	bucket = &sdp->sd_gl_hash[gl_hash(&name)];
@@ -256,7 +239,6 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 		return 0;
 	}
 
-	/* None found; create a new one */
 	gl = kmem_cache_alloc(gfs2_glock_cachep, GFP_KERNEL);
 	if (!gl)
 		return -ENOMEM;
@@ -298,25 +280,19 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 		}
 	}
 
-	/* Ask lock module to find/create its structure for this lock
-	   (but this doesn't lock the inter-node lock yet) */
 	error = gfs2_lm_get_lock(sdp, &name, &gl->gl_lock);
 	if (error)
 		goto fail_aspace;
 
 	atomic_inc(&sdp->sd_glock_count);
 
-	/* Double-check, in case another process created the glock, and has
-	   put it in the hash table while we were preparing this one */
 	write_lock(&bucket->hb_lock);
 	tmp = search_bucket(bucket, &name);
 	if (tmp) {
-		/* Somebody beat us to it; forget the one we prepared */
 		write_unlock(&bucket->hb_lock);
 		glock_free(gl);
 		gl = tmp;
 	} else {
-		/* Add our glock to hash table */
 		list_add_tail(&gl->gl_list, &bucket->hb_list);
 		write_unlock(&bucket->hb_lock);
 	}
@@ -391,15 +367,8 @@ void gfs2_holder_init(struct gfs2_glock *gl, unsigned int state, int flags,
  * @flags: the modifier flags
  * @gh: the holder structure
  *
- * Preserve holder's associated glock and owning process.
- * Reset all holder state flags (we're starting a new request from scratch),
- *   except for HIF_ALLOCED.
- * Don't do glock_hold() again (it was done in gfs2_holder_init()).
  * Don't mess with the glock.
  *
- * Rules:
- *   Holder must have been gfs2_holder_init()d already
- *   Holder must *not* be in glock's holder list or wait queues now
  */
 
 void gfs2_holder_reinit(unsigned int state, int flags, struct gfs2_holder *gh)
@@ -466,7 +435,7 @@ void gfs2_holder_put(struct gfs2_holder *gh)
 
 /**
  * handle_recurse - put other holder structures (marked recursive)
-  *                 into the holders list
+ *                  into the holders list
  * @gh: the holder structure
  *
  */
@@ -504,9 +473,8 @@ static void handle_recurse(struct gfs2_holder *gh)
  * do_unrecurse - a recursive holder was just dropped of the waiters3 list
  * @gh: the holder
  *
- * If there is only one other recursive holder, clear its HIF_RECURSE bit
- *   (it's no longer a recursive request).
- * If there is more than one, leave them alone (they're recursive!).
+ * If there is only one other recursive holder, clear its HIF_RECURSE bit.
+ * If there is more than one, leave them alone.
  *
  */
 
@@ -527,7 +495,6 @@ static void do_unrecurse(struct gfs2_holder *gh)
 		gfs2_assert_warn(sdp,
 				 test_bit(HIF_RECURSE, &tmp_gh->gh_iflags));
 
-		/* found more than one */
 		if (found)
 			return;
 
@@ -535,7 +502,6 @@ static void do_unrecurse(struct gfs2_holder *gh)
 		last_gh = tmp_gh;
 	}
 
-	/* found just one */
 	if (!gfs2_assert_warn(sdp, found))
 		clear_bit(HIF_RECURSE, &last_gh->gh_iflags);
 }
@@ -544,10 +510,7 @@ static void do_unrecurse(struct gfs2_holder *gh)
  * rq_mutex - process a mutex request in the queue
  * @gh: the glock holder
  *
- * Returns: TRUE if the queue is blocked (always, since there can be only one
- *      holder of the mutex).
- *
- * See lock_on_glock()
+ * Returns: TRUE if the queue is blocked
  */
 
 static int rq_mutex(struct gfs2_holder *gh)
@@ -584,8 +547,6 @@ static int rq_promote(struct gfs2_holder *gh)
 			set_bit(GLF_LOCK, &gl->gl_flags);
 			spin_unlock(&gl->gl_spin);
 
-			/* If we notice a lot of glocks in reclaim list, free
-			   up memory for 2 of them before locking a new one */
 			if (atomic_read(&sdp->sd_reclaim_count) >
 			    gfs2_tune_get(sdp, gt_reclaim_limit) &&
 			    !(gh->gh_flags & LM_FLAG_PRIORITY)) {
@@ -632,20 +593,6 @@ static int rq_promote(struct gfs2_holder *gh)
  * @gh: the glock holder
  *
  * Returns: TRUE if the queue is blocked
- *
- * Unlock an inter-node lock, or change a lock state to less restrictive.
- * If the glock is already the same as the holder's requested state, or is
- *   UNLOCKED, no lock module request is required.
- * Otherwise, we need to ask lock module to unlock or change locked state
- *   of the glock.
- * If requested state is UNLOCKED, or current glock state is SHARED or
- *   DEFERRED (neither of which have a less restrictive state other than
- *   UNLOCK), we call go_drop_th() to unlock the lock.
- * Otherwise (i.e. requested is SHARED or DEFERRED, and current is EXCLUSIVE),
- *   we can continue to hold the lock, and just ask for a new state;
- *   we call go_xmote_th() to change state.
- *
- * Must be called with glock's gl->gl_spin locked.
  */
 
 static int rq_demote(struct gfs2_holder *gh)
@@ -672,10 +619,8 @@ static int rq_demote(struct gfs2_holder *gh)
 
 		if (gh->gh_state == LM_ST_UNLOCKED ||
 		    gl->gl_state != LM_ST_EXCLUSIVE)
-			/* Unlock */
 			glops->go_drop_th(gl);
 		else
-			/* Change state while holding lock */
 			glops->go_xmote_th(gl, gh->gh_state, gh->gh_flags);
 
 		spin_lock(&gl->gl_spin);
@@ -709,11 +654,9 @@ static int rq_greedy(struct gfs2_holder *gh)
 }
 
 /**
- * run_queue - process holder structures on the glock's wait queues
+ * run_queue - process holder structures on a glock
  * @gl: the glock
  *
- * Rules:
- *   Caller must hold gl->gl_spin.
  */
 
 static void run_queue(struct gfs2_glock *gl)
@@ -722,12 +665,9 @@ static void run_queue(struct gfs2_glock *gl)
 	int blocked = TRUE;
 
 	for (;;) {
-		/* Another process is manipulating the glock structure;
-		   we can't do anything now */
 		if (test_bit(GLF_LOCK, &gl->gl_flags))
 			break;
 
-		/* Waiting to manipulate the glock structure */
 		if (!list_empty(&gl->gl_waiters1)) {
 			gh = list_entry(gl->gl_waiters1.next,
 					struct gfs2_holder, gh_list);
@@ -737,7 +677,6 @@ static void run_queue(struct gfs2_glock *gl)
 			else
 				gfs2_assert_warn(gl->gl_sbd, FALSE);
 
-		/* Waiting to demote the lock, or drop greedy status */
 		} else if (!list_empty(&gl->gl_waiters2) &&
 			   !test_bit(GLF_SKIP_WAITERS2, &gl->gl_flags)) {
 			gh = list_entry(gl->gl_waiters2.next,
@@ -750,7 +689,6 @@ static void run_queue(struct gfs2_glock *gl)
 			else
 				gfs2_assert_warn(gl->gl_sbd, FALSE);
 
-		/* Waiting to promote the lock */
 		} else if (!list_empty(&gl->gl_waiters3)) {
 			gh = list_entry(gl->gl_waiters3.next,
 					struct gfs2_holder, gh_list);
@@ -769,14 +707,10 @@ static void run_queue(struct gfs2_glock *gl)
 }
 
 /**
- * gfs2_glmutex_lock - acquire a local lock on a glock (structure)
+ * gfs2_glmutex_lock - acquire a local lock on a glock
  * @gl: the glock
  *
  * Gives caller exclusive access to manipulate a glock structure.
- * Has nothing to do with inter-node lock state or GL_LOCAL_EXCL!
- *
- * If structure already locked, places temporary holder structure on glock's
- * wait-for-exclusive-access queue, and blocks until exclusive access granted.
  */
 
 void gfs2_glmutex_lock(struct gfs2_glock *gl)
@@ -798,15 +732,10 @@ void gfs2_glmutex_lock(struct gfs2_glock *gl)
 }
 
 /**
- * gfs2_glmutex_trylock - try to acquire a local lock on a glock (structure)
+ * gfs2_glmutex_trylock - try to acquire a local lock on a glock
  * @gl: the glock
  *
  * Returns: TRUE if the glock is acquired
- *
- * Tries to give caller exclusive access to manipulate a glock structure.
- * Has nothing to do with inter-node lock state or LOCAL_EXCL!
- *
- * If structure already locked, does not block to wait; returns FALSE.
  */
 
 int gfs2_glmutex_trylock(struct gfs2_glock *gl)
@@ -822,11 +751,9 @@ int gfs2_glmutex_trylock(struct gfs2_glock *gl)
 }
 
 /**
- * gfs2_glmutex_unlock - release a local lock on a glock (structure)
+ * gfs2_glmutex_unlock - release a local lock on a glock
  * @gl: the glock
  *
- * Caller is done manipulating glock structure.
- * Service any others waiting for exclusive access.
  */
 
 void gfs2_glmutex_unlock(struct gfs2_glock *gl)
@@ -842,21 +769,6 @@ void gfs2_glmutex_unlock(struct gfs2_glock *gl)
  * @gl: the glock
  * @state: the state the caller wants us to change to
  *
- * Called when we learn that another node needs a lock held by this node,
- *   or when this node simply wants to drop a lock as soon as it's done with
- *   it (NOCACHE flag), or dump a glock out of glock cache (reclaim it).
- *
- * We are told the @state that will satisfy the needs of the caller, so
- *   we can ask for a demote to that state.
- *
- * If another demote request is already on the queue for a different state, just
- *   set its request to UNLOCK (and don't bother queueing a request for us).
- *   This consolidates LM requests and moves the lock to the least restrictive
- *   state, so it will be compatible with whatever reason we were called.
- *   No need to be too smart here.  Demotes between the shared and deferred
- *   states will often fail, so don't even try.
- *
- * Otherwise, queue a demote request to the requested state.
  */
 
 static void handle_callback(struct gfs2_glock *gl, unsigned int state)
@@ -865,6 +777,7 @@ static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 
  restart:
 	spin_lock(&gl->gl_spin);
+
 	list_for_each_entry(gh, &gl->gl_waiters2, gh_list) {
 		if (test_bit(HIF_DEMOTE, &gh->gh_iflags) &&
 		    gl->gl_req_gh != gh) {
@@ -1048,10 +961,6 @@ static void xmote_bh(struct gfs2_glock *gl, unsigned int ret)
  * @state: the requested state
  * @flags: modifier flags to the lock call
  *
- * Used to acquire a new glock, or to change an already-acquired glock to
- *   more/less restrictive state (other than LM_ST_UNLOCKED).
- *
- * *Not* used to unlock a glock; use gfs2_glock_drop_th() for that.
  */
 
 void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
@@ -1068,7 +977,6 @@ void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 	gfs2_assert_warn(sdp, state != LM_ST_UNLOCKED);
 	gfs2_assert_warn(sdp, state != gl->gl_state);
 
-	/* Current state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
 			glops->go_sync(gl,
@@ -1080,9 +988,8 @@ void gfs2_glock_xmote_th(struct gfs2_glock *gl, unsigned int state, int flags)
 
 	atomic_inc(&sdp->sd_lm_lock_calls);
 
-	lck_ret = gfs2_lm_lock(sdp, gl->gl_lock,
-			      gl->gl_state, state,
-			      lck_flags);
+	lck_ret = gfs2_lm_lock(sdp, gl->gl_lock, gl->gl_state, state,
+			       lck_flags);
 
 	if (lck_ret & LM_OUT_ASYNC)
 		gfs2_assert_warn(sdp, lck_ret == LM_OUT_ASYNC);
@@ -1160,7 +1067,6 @@ void gfs2_glock_drop_th(struct gfs2_glock *gl)
 	gfs2_assert_warn(sdp, queue_empty(gl, &gl->gl_holders));
 	gfs2_assert_warn(sdp, gl->gl_state != LM_ST_UNLOCKED);
 
-	/* Leaving state EX, may need to sync log/data/metadata to disk */
 	if (gl->gl_state == LM_ST_EXCLUSIVE) {
 		if (glops->go_sync)
 			glops->go_sync(gl,
@@ -1330,22 +1236,9 @@ static int recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
 }
 
 /**
- * add_to_queue - Add a holder to the wait-for-promotion queue or holder list
- *       (according to recursion)
+ * add_to_queue - Add a holder to the wait queue (but look for recursion)
  * @gh: the holder structure to add
  *
- * If the hold requestor's process already has a granted lock (on holder list),
- *   and this new request is compatible, go ahead and grant it, adding this
- *   new holder to the glock's holder list. 
- *
- * If the hold requestor's process has earlier requested a lock, and is still
- *   waiting for it to be granted, and this new request is compatible with
- *   the earlier one, they can be handled at the same time when the request
- *   is finally granted.  Mark both (all) with RECURSE flags, and add new
- *   holder to wait-for-promotion queue.
- *
- * If there is no previous holder from this process (on holder list or wait-
- *   for-promotion queue), simply add new holder to wait-for-promotion queue.
  */
 
 static void add_to_queue(struct gfs2_holder *gh)
@@ -1356,14 +1249,11 @@ static void add_to_queue(struct gfs2_holder *gh)
 	if (!gh->gh_owner)
 		goto out;
 
-	/* Search through glock's holders list to see if this process
-	   already holds a granted lock. */
 	existing = find_holder_by_owner(&gl->gl_holders, gh->gh_owner);
 	if (existing) {
 		if (recurse_check(existing, gh, gl->gl_state))
 			return;
 
-		/* Grant the hold. */
 		list_add_tail(&gh->gh_list, &gl->gl_holders);
 		set_bit(HIF_HOLDER, &gh->gh_iflags);
 
@@ -1373,15 +1263,11 @@ static void add_to_queue(struct gfs2_holder *gh)
 		return;
 	}
 
-	/* Search through glock's wait-for-promotion list to
-	   see if this process already is waiting for a grant. */
 	existing = find_holder_by_owner(&gl->gl_waiters3, gh->gh_owner);
 	if (existing) {
 		if (recurse_check(existing, gh, existing->gh_state))
 			return;
 
-		/* Make sure they're marked, so when one gets granted,
-		   the other will too. */
 		set_bit(HIF_RECURSE, &gh->gh_iflags);
 		set_bit(HIF_RECURSE, &existing->gh_iflags);
 
@@ -1404,11 +1290,6 @@ static void add_to_queue(struct gfs2_holder *gh)
  * if (gh->gh_flags & GL_ASYNC), this never returns an error
  *
  * Returns: 0, GLR_TRYFAILED, or errno on failure
- *
- * Rules:
- *   @gh must not be already attached to a glock.
- *   Don't ask for UNLOCKED state (use gfs2_glock_dq() for that).
- *   LM_FLAG_ANY (liberal) and GL_EXACT (restrictive) are mutually exclusive.
  */
 
 int gfs2_glock_nq(struct gfs2_holder *gh)
@@ -1502,17 +1383,6 @@ int gfs2_glock_wait(struct gfs2_holder *gh)
  * gfs2_glock_dq - dequeue a struct gfs2_holder from a glock (release a glock)
  * @gh: the glock holder
  *
- * This releases a local process' hold on a glock, and services other waiters.
- * If this is the last holder on this node, calls glock operation go_unlock(),
- *    and go_sync() if requested by glock's GL_SYNC flag.
- * If glock's GL_NOCACHE flag is set, requests demotion to unlock the inter-
- *    node lock now, rather than caching the glock for later use.
- * Otherwise, this function does *not* release the glock at inter-node scope.
- *   The glock will stay in glock cache until:
- *   --  This node uses it again (extending residence in glock cache), or
- *   --  Another node asks (via callback) for the lock, or
- *   --  The glock sits unused in glock cache for a while, and the cleanup
- *         daemons (gfs2_scand and gfs2_glockd) reclaim it.
  */
 
 void gfs2_glock_dq(struct gfs2_holder *gh)
@@ -1526,7 +1396,6 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
 	if (gh->gh_flags & GL_SYNC)
 		set_bit(GLF_SYNC, &gl->gl_flags);
 
-	/* Don't cache glock; request demote to unlock at inter-node scope */
 	if (gh->gh_flags & GL_NOCACHE)
 		handle_callback(gl, LM_ST_UNLOCKED);
 
@@ -1535,19 +1404,15 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
 	spin_lock(&gl->gl_spin);
 	list_del_init(&gh->gh_list);
 
-	/* If last holder, do appropriate glock operations, set cache timer */
 	if (list_empty(&gl->gl_holders)) {
 		spin_unlock(&gl->gl_spin);
 
 		if (glops->go_unlock)
 			glops->go_unlock(gh);
 
-		/* Do "early" sync, if requested by holder */
 		if (test_bit(GLF_SYNC, &gl->gl_flags)) {
 			if (glops->go_sync)
-				glops->go_sync(gl,
-					       DIO_METADATA |
-					       DIO_DATA);
+				glops->go_sync(gl, DIO_METADATA | DIO_DATA);
 		}
 
 		gl->gl_stamp = jiffies;
@@ -1566,17 +1431,6 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
  * @state: the state to prefetch in 
  * @flags: flags passed to go_xmote_th()
  *
- * Bypass request queues of glock (i.e. no holder involved), and directly call
- *   go_xmote_th() to ask lock module for lock, to put in glock cache for
- *   later use.
- *
- * Will not prefetch the lock (no need to) if a process on this node is already
- *   interested in the lock, or if it's sitting in glock cache in a compatible
- *   state.
- *
- * Rules:
- *   Don't ask for UNLOCKED state (use gfs2_glock_dq() for that).
- *   LM_FLAG_ANY (liberal) and GL_EXACT (restrictive) are mutually exclusive.
  */
 
 void gfs2_glock_prefetch(struct gfs2_glock *gl, unsigned int state, int flags)
@@ -1585,7 +1439,6 @@ void gfs2_glock_prefetch(struct gfs2_glock *gl, unsigned int state, int flags)
 
 	spin_lock(&gl->gl_spin);
 
-	/* Should we prefetch? */
 	if (test_bit(GLF_LOCK, &gl->gl_flags) ||
 	    !list_empty(&gl->gl_holders) ||
 	    !list_empty(&gl->gl_waiters1) ||
@@ -1849,21 +1702,15 @@ int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 	if (!num_gh)
 		return 0;
 
-	/* For just one gh, do request synchronously */
 	if (num_gh == 1) {
 		ghs->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);
 		return gfs2_glock_nq(ghs);
 	}
 
-	/* using sizeof(struct gfs2_holder *) instead of sizeof(int), because
-	 * we're also using this memory for nq_m_sync and ints should never be
-	 * larger than pointers.... I hope
-	 */
 	e = kmalloc(num_gh * sizeof(struct gfs2_holder *), GFP_KERNEL);
 	if (!e)
 		return -ENOMEM;
 
-	/* Send off asynchronous requests */
 	for (x = 0; x < num_gh; x++) {
 		ghs[x].gh_flags |= LM_FLAG_TRY | GL_ASYNC;
 		error = gfs2_glock_nq(&ghs[x]);
@@ -1875,7 +1722,6 @@ int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 		}
 	}
 
-	/* Wait for all to complete */
 	for (x = 0; x < num_gh; x++) {
 		error = e[x] = glock_wait_internal(&ghs[x]);
 		if (error) {
@@ -1885,7 +1731,6 @@ int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 		}
 	}
 
-	/* If all good, done! */
 	if (!borked) {
 		kfree(e);
 		return 0;
@@ -2068,15 +1913,7 @@ void blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name,
  *
  * Called by the locking module when it wants to tell us something.
  * Either we need to drop a lock, one of our ASYNC requests completed, or
- *   another client expired (crashed/died) and we need to recover its journal.
- * If another node needs a lock held by this node, we queue a request to demote
- *   our lock to a state compatible with that needed by the other node.  
- *   For example, if the other node needs EXCLUSIVE, we request UNLOCKED.
- *   SHARED and DEFERRED modes can be shared with other nodes, so we request
- *   accordingly.
- * Once all incompatible holders on this node are done with the lock, the
- *   queued request will cause run_queue() to call the lock module to demote
- *   our lock to a compatible state, allowing the other node to grab the lock.
+ * a journal from another client needs to be recovered.
  */
 
 void gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
@@ -2130,15 +1967,10 @@ void gfs2_glock_cb(lm_fsdata_t *fsdata, unsigned int type, void *data)
 }
 
 /**
- * gfs2_try_toss_inode - try to remove a particular GFS2 inode struct from cache
+ * gfs2_try_toss_inode - try to remove a particular inode struct from cache
  * sdp: the filesystem
  * inum: the inode number
  *
- * Look for the glock protecting the inode of interest.
- * If no process is manipulating or holding the glock, see if the glock
- *   has a gfs2_inode attached.
- * If gfs2_inode has no references, unhold its iopen glock, release any
- *   indirect addressing buffers, and destroy the gfs2_inode.
  */
 
 void gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
@@ -2147,9 +1979,8 @@ void gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
 	struct gfs2_inode *ip;
 	int error;
 
-	error = gfs2_glock_get(sdp,
-			      inum->no_addr, &gfs2_inode_glops,
-			      NO_CREATE, &gl);
+	error = gfs2_glock_get(sdp, inum->no_addr, &gfs2_inode_glops,
+			       NO_CREATE, &gl);
 	if (error || !gl)
 		return;
 
@@ -2213,19 +2044,10 @@ void gfs2_iopen_go_callback(struct gfs2_glock *io_gl, unsigned int state)
 }
 
 /**
- * demote_ok - Check to see if it's ok to unlock a glock (to remove it
- *       from glock cache)
+ * demote_ok - Check to see if it's ok to unlock a glock
  * @gl: the glock
  *
- * Called when trying to reclaim glocks, once it's determined that the glock
- *   has no holders on this node.
- *
  * Returns: TRUE if it's ok
- *
- * It's not okay if:
- * --  glock is STICKY
- * --  PREFETCHed glock has not been given enough chance to be used
- * --  glock-type-specific test says "no"
  */
 
 static int demote_ok(struct gfs2_glock *gl)
@@ -2272,25 +2094,8 @@ void gfs2_glock_schedule_for_reclaim(struct gfs2_glock *gl)
  * @sdp: the filesystem
  *
  * Called from gfs2_glockd() glock reclaim daemon, or when promoting a
- *   (different) glock and we notice that there are a lot of glocks in the
- *   reclaim list.
- *
- * Remove glock from filesystem's reclaim list, update reclaim statistics.
- * If no holders (might have gotten added since glock was placed on reclaim
- *   list):
- *   --  Destroy any now-unused inode protected by glock
- *         (and release hold on iopen glock).
- *   --  Ask for demote to UNLOCKED to enable removal of glock from glock cache.
- *
- * If no further interest in glock struct, remove it from glock cache, and
- *   free it from memory.  (During normal operation, this is the only place
- *   that this is done).
- *
- * Glock-type-specific considerations for permission to demote are handled
- *   in demote_ok().  This includes how long to retain a glock in cache after it
- *   is no longer held by any process.
- *
- * Be sure and drop the reference acquired by gfs2_glock_schedule_for_reclaim().
+ * different glock and we notice that there are a lot of glocks in the
+ * reclaim list.
  *
  */
 
@@ -2301,13 +2106,11 @@ void gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 
 	spin_lock(&sdp->sd_reclaim_lock);
 
-	/* Nothing to reclaim?  Done! */
 	if (list_empty(&sdp->sd_reclaim_list)) {
 		spin_unlock(&sdp->sd_reclaim_lock);
 		return;
 	}
 
-	/* Remove next victim from reclaim list */
 	gl = list_entry(sdp->sd_reclaim_list.next,
 			struct gfs2_glock, gl_reclaim);
 	list_del_init(&gl->gl_reclaim);
@@ -2368,15 +2171,12 @@ static int examine_bucket(glock_examiner examiner, struct gfs2_sbd *sdp,
 	list_add(&plug.gl_list, &bucket->hb_list);
 	write_unlock(&bucket->hb_lock);
 
-	/* Look at each bucket entry */
 	for (;;) {
 		write_lock(&bucket->hb_lock);
 
-		/* Work back up list from plug */
 		for (;;) {
 			tmp = plug.gl_list.next;
 
-			/* Top of list; we're done */
 			if (tmp == &bucket->hb_list) {
 				list_del(&plug.gl_list);
 				entries = !list_empty(&bucket->hb_list);
@@ -2391,7 +2191,7 @@ static int examine_bucket(glock_examiner examiner, struct gfs2_sbd *sdp,
 			if (test_bit(GLF_PLUG, &gl->gl_flags))
 				continue;
 
-			/* glock_hold; examiner must glock_put() */
+			/* examiner must glock_put() */
 			atomic_inc(&gl->gl_count);
 
 			break;
@@ -2406,17 +2206,6 @@ static int examine_bucket(glock_examiner examiner, struct gfs2_sbd *sdp,
 /**
  * scan_glock - look at a glock and see if we can reclaim it
  * @gl: the glock to look at
- *
- * Called via examine_bucket() when trying to release glocks from glock cache,
- *   during normal operation (i.e. not unmount time).
- * 
- * Place glock on filesystem's reclaim list if, on this node:
- * --  No process is manipulating glock struct, and
- * --  No current holders, and either:
- *     --  GFS2 incore inode, protected by glock, is no longer in use, or
- *     --  Glock-type-specific demote_ok glops gives permission
- *
- * Be sure and drop the reference acquired by examine_bucket().
  *
  */
 
@@ -2450,14 +2239,6 @@ static void scan_glock(struct gfs2_glock *gl)
  * gfs2_scand_internal - Look for glocks and inodes to toss from memory
  * @sdp: the filesystem
  *
- * Invokes scan_glock() for each glock in each cache bucket.
- *
- * Steps of reclaiming a glock:
- * --  scan_glock() places eligible glocks on filesystem's reclaim list.
- * --  gfs2_reclaim_glock() processes list members, attaches demotion requests
- *     to wait queues of glocks still locked at inter-node scope.
- * --  Demote to UNLOCKED state (if not already unlocked).
- * --  gfs2_reclaim_lock() cleans up glock structure.
  */
 
 void gfs2_scand_internal(struct gfs2_sbd *sdp)
@@ -2473,16 +2254,6 @@ void gfs2_scand_internal(struct gfs2_sbd *sdp)
 /**
  * clear_glock - look at a glock and see if we can free it from glock cache
  * @gl: the glock to look at
- *
- * Called via examine_bucket() when unmounting the filesystem, or
- *   when inter-node lock manager requests DROPLOCKS because it is running
- *   out of capacity.
- *
- * Similar to gfs2_reclaim_glock(), except does *not*:
- *   --  Consult demote_ok() for permission
- *   --  Increment sdp->sd_reclaimed statistic
- *
- * Be sure and drop the reference acquired by examine_bucket().
  *
  */
 
@@ -2529,7 +2300,7 @@ static void clear_glock(struct gfs2_glock *gl)
  * @wait: wait until it's all gone
  *
  * Called when unmounting the filesystem, or when inter-node lock manager
- *   requests DROPLOCKS because it is running out of capacity.
+ * requests DROPLOCKS because it is running out of capacity.
  */
 
 void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)

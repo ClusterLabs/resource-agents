@@ -274,11 +274,6 @@ int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
  * @sdp: The GFS2 superblock
  * @ji_gh: the holder for the jindex glock
  *
- * This makes sure that we're using the latest copy of the journal index
- *   special directory (this describes all of the journals for this filesystem),
- *   which might have been updated if someone added journals
- *   (via gfs2_jadd utility).
- *
  * This is very similar to the gfs2_rindex_hold() function, except that
  * in general we hold the jindex lock for longer periods of time and
  * we grab it far less frequently (in general) then the rgrp lock.

@@ -104,10 +104,10 @@ static inline int rgrp_contains_block(struct gfs2_rindex *ri, uint64_t block)
  * @sdp: The GFS2 superblock
  * @n: The data block number
  *
- * Returns: The resource group, or NULL if not found
- *
  * Don't try to use this for non-allocatable block numbers (i.e. rgrp header
- *   or bitmap blocks); it's for allocatable (data/meta) blocks only.
+ * or bitmap blocks); it's for allocatable (data/meta) blocks only.
+ *
+ * Returns: The resource group, or NULL if not found
  */
 
 struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
@@ -367,8 +367,8 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
  * accessed in the exclusive mode (i.e. only when expanding the filesystem).
  *
  * This makes sure that we're using the latest copy of the resource index
- *   special file, which might have been updated if someone expanded the
- *   filesystem (via gfs2_grow utility), which adds new resource groups.
+ * special file, which might have been updated if someone expanded the
+ * filesystem (via gfs2_grow utility), which adds new resource groups.
  *
  * Returns: 0 on success, error code otherwise
  */
@@ -537,9 +537,6 @@ void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
  * gfs2_alloc_get - allocate a struct gfs2_alloc structure for an inode
  * @ip: the incore GFS2 inode structure
  *
- * Alloc and zero an in-place reservation structure,
- *   and attach it to the GFS2 incore inode.
- *
  * FIXME: Don't use kmalloc_nofail()
  *
  * Returns: the struct gfs2_alloc
@@ -688,11 +685,6 @@ static struct gfs2_rgrpd *recent_rgrp_next(struct gfs2_rgrpd *cur_rgd,
  * recent_rgrp_add - add an RG to tail of "recent" list
  * @new_rgd: The rgrp to add
  *
- * Before adding, make sure that:
- *   1) it's not already on the list
- *   2) there's still room for more entries
- * The capacity limit imposed on the "recent" list is basically a node's "share"
- *   of rgrps within a cluster, i.e. (total # rgrps) / (# nodes (journals))
  */
 
 static void recent_rgrp_add(struct gfs2_rgrpd *new_rgd)
@@ -861,12 +853,6 @@ static int get_local_rgrp(struct gfs2_inode *ip)
  * gfs2_inplace_reserve_i - Reserve space in the filesystem
  * @ip: the inode to reserve space for
  *
- * Acquire resource group locks to allow for the maximum allocation
- * described by "res".
- *
- * This should probably become more complex again, but for now, let's go
- * for simple (one resource group) reservations.
- *
  * Returns: errno
  */
 
@@ -965,12 +951,12 @@ unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
  * Set the found bits to @new_state to change block's allocation state.
  *
  * This function never fails, because we wouldn't call it unless we
- *   know (from reservation results, etc.) that a block is available.
+ * know (from reservation results, etc.) that a block is available.
  *
- * Scope of @goal and returned block is just within rgrp (32-bit),
- *   not the whole filesystem (64-bit).
+ * Scope of @goal and returned block is just within rgrp, not the whole
+ * filesystem.
  *
- * Returns:  the block # allocated (32-bit rgrp scope)
+ * Returns:  the block number allocated
  */
 
 static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
@@ -1019,7 +1005,6 @@ static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 	if (gfs2_assert_withdraw(rgd->rd_sbd, x <= length))
 		blk = 0;
 
-	/* Attach bitmap buffer to trans, modify bits to do block alloc */
 	gfs2_trans_add_bh(rgd->rd_gl, bi->bi_bh);
 	gfs2_setbit(rgd,
 		    bi->bi_bh->b_data + bi->bi_offset,
@@ -1029,27 +1014,17 @@ static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 			    bi->bi_clone + bi->bi_offset,
 			    bi->bi_len, blk, new_state);
 
-	/* Return allocated block #, rgrp scope (32-bit) */
 	return bi->bi_start * GFS2_NBBY + blk;
 }
 
 /**
  * rgblk_free - Change alloc state of given block(s)
  * @sdp: the filesystem
- * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
+ * @bstart: the start of a run of blocks to free
  * @blen: the length of the block run (all must lie within ONE RG!)
  * @new_state: GFS2_BLKST_XXX the after-allocation block state
  *
  * Returns:  Resource group containing the block(s)
- *
- * Find rgrp containing @bstart.
- * For each block in run:
- *   Find allocation bitmap buffer.
- *   Add bitmap buffer to transaction.
- *   Set bits to new state.
- * Typically used to free blocks to GFS2_BLKST_FREE or GFS2_BLKST_FREEMETA,
- *   but @new_state can be any GFS2_BLKST_XXX
- * 
  */
 
 static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
@@ -1060,7 +1035,6 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 	uint32_t length, rgrp_blk, buf_blk;
 	unsigned int buf;
 
-	/* Find rgrp */
 	rgd = gfs2_blk2rgrpd(sdp, bstart);
 	if (!rgd) {
 		if (gfs2_consist(sdp))
@@ -1071,11 +1045,9 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 
 	length = rgd->rd_ri.ri_length;
 
-	/* Convert blk # from filesystem scope (64-bit) to RG scope (32-bit) */
 	rgrp_blk = bstart - rgd->rd_ri.ri_data0;
 
 	while (blen--) {
-		/* Find bitmap buffer for this block */
 		for (buf = 0; buf < length; buf++) {
 			bi = rgd->rd_bits + buf;
 			if (rgrp_blk < (bi->bi_start + bi->bi_len) * GFS2_NBBY)
@@ -1084,7 +1056,6 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 
 		gfs2_assert(rgd->rd_sbd, buf < length,);
 
-		/* Find bits and set 'em */
 		buf_blk = rgrp_blk - bi->bi_start * GFS2_NBBY;
 		rgrp_blk++;
 
@@ -1210,25 +1181,20 @@ uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 	uint32_t blk;
 	uint64_t block;
 
-	/* Alloc the dinode; 32-bit "blk" is block offset within rgrp */
 	blk = rgblk_search(rgd, rgd->rd_last_alloc_meta,
 			   GFS2_BLKST_FREE, GFS2_BLKST_DINODE);
 
-	/* remember where we left off, for next time */
 	rgd->rd_last_alloc_meta = blk;
 
-	/* convert from rgrp scope (32-bit) to filesystem scope (64-bit) */
 	block = rgd->rd_ri.ri_data0 + blk;
 
 	gfs2_assert_withdraw(sdp, rgd->rd_rg.rg_free);
 	rgd->rd_rg.rg_free--;
 	rgd->rd_rg.rg_dinodes++;
 
-	/* Attach rgrp header to trans, update freemeta and useddi stats */
 	gfs2_trans_add_bh(rgd->rd_gl, rgd->rd_bits[0].bi_bh);
 	gfs2_rgrp_out(&rgd->rd_rg, rgd->rd_bits[0].bi_bh->b_data);
 
-	/* Update stats in in-place reservation struct */
 	al->al_alloced++;
 
 	gfs2_statfs_change(sdp, 0, -1, +1);
@@ -1244,12 +1210,9 @@ uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 /**
  * gfs2_free_data - free a contiguous run of data block(s)
  * @ip: the inode these blocks are being freed from
- * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
- * @blen: the length of the block run (all must lie within ONE RG!)
+ * @bstart: first block of a run of contiguous blocks
+ * @blen: the length of the block run
  *
- * Bitmap-deallocate the blocks (to FREE data state), add bitmap blks to trans
- * Update rgrp alloc statistics in rgrp header, add rgrp header buf to trans
- * Update quotas, add to trans.
  */
 
 void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
@@ -1276,12 +1239,9 @@ void gfs2_free_data(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 /**
  * gfs2_free_meta - free a contiguous run of data block(s)
  * @ip: the inode these blocks are being freed from
- * @bstart: first block (64-bit filesystem scope) of a run of contiguous blocks
- * @blen: the length of the block run (all must lie within ONE RG!)
+ * @bstart: first block of a run of contiguous blocks
+ * @blen: the length of the block run
  *
- * Bitmap-deallocate the blocks (to FREE data state), add bitmap blks to trans
- * Update rgrp alloc statistics in rgrp header, add rgrp header buf to trans
- * Update quotas, add to trans.
  */
 
 void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
@@ -1333,9 +1293,6 @@ void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
  * @rgd: the resource group that contains the dinode
  * @ip: the inode
  *
- * De-allocate the dinode to FREEMETA using block alloc bitmap.
- * Update rgrp's block usage statistics (used dinode--, free meta++).
- * Add rgrp header to transaction.
  */
 
 void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)

@@ -331,12 +331,6 @@ static int gfs2_readpage(struct file *file, struct page *page)
  * @to: To (byte range within page)
  *
  * Returns: errno
- *
- * Make sure file's inode is glocked; we shouldn't write without that!
- * If GFS2 dinode is currently stuffed (small enough that all data fits within
- *   the dinode block), and new file size is too large, unstuff it.
- * Use Linux VFS block_prepare_write() to write blocks, using GFS2' get_block()
- *   to find which blocks to write.
  */
 
 static int gfs2_prepare_write(struct file *file, struct page *page,

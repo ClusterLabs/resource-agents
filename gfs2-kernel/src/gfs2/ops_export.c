@@ -27,17 +27,6 @@
 #include "ops_export.h"
 #include "rgrp.h"
 
-/**
- * gfs2_decode_fh -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
-
 struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 	int fh_type, int (*acceptable)(void *context, struct dentry *dentry),
 	void *context)
@@ -70,17 +59,6 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 	return gfs2_export_ops.find_exported_dentry(sb, &this, &parent,
 						    acceptable, context);
 }
-
-/**
- * gfs2_encode_fh -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
 
 int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
 {
@@ -132,17 +110,6 @@ struct get_name_filldir {
 	char *name;
 };
 
-/**
- * get_name_filldir - 
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
-
 static int get_name_filldir(void *opaque, const char *name, unsigned int length,
 			    uint64_t offset, struct gfs2_inum *inum,
 			    unsigned int type)
@@ -157,17 +124,6 @@ static int get_name_filldir(void *opaque, const char *name, unsigned int length,
 
 	return 1;
 }
-
-/**
- * gfs2_get_name -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
 
 int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 {
@@ -208,17 +164,6 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 	return error;
 }
 
-/**
- * gfs2_get_parent -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
-
 struct dentry *gfs2_get_parent(struct dentry *child)
 {
 	struct gfs2_inode *dip = get_v2ip(child->d_inode);
@@ -248,17 +193,6 @@ struct dentry *gfs2_get_parent(struct dentry *child)
 
 	return dentry;
 }
-
-/**
- * gfs2_get_dentry -
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
 
 struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 {

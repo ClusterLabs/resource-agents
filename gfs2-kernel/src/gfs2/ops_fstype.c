@@ -170,7 +170,6 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 		sdp->sd_glockd_process[sdp->sd_glockd_num] = p;
 	}
 
-	/* Only one node may mount at a time */
 	error = gfs2_glock_nq_num(sdp,
 				  GFS2_MOUNT_LOCK, &gfs2_nondisk_glops,
 				  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP | GL_NOCACHE,
@@ -181,7 +180,6 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 		goto fail;
 	}
 
-	/* Show that cluster is alive */
 	error = gfs2_glock_nq_num(sdp,
 				  GFS2_LIVE_LOCK, &gfs2_nondisk_glops,
 				  LM_ST_SHARED,
@@ -193,7 +191,6 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 		goto fail_mount;
 	}
 
-	/* Get a handle on the rename lock */
 	error = gfs2_glock_get(sdp, GFS2_RENAME_LOCK, &gfs2_nondisk_glops,
 			       CREATE, &sdp->sd_rename_gl);
 	if (error) {
@@ -202,8 +199,6 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 		goto fail_live;
 	}
 
-	/* Get a handle on the transaction glock; we need this for disk format
-	   upgrade and journal replays, as well as normal operation. */
 	error = gfs2_glock_get(sdp, GFS2_TRANS_LOCK, &gfs2_trans_glops,
 			       CREATE, &sdp->sd_trans_gl);
 	if (error) {
@@ -247,8 +242,6 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 		return 0;
 	}
 	
-	/* Read the SuperBlock from disk, get enough info to enable us
-	   to read-in the journal index and replay all journals. */
 	error = gfs2_glock_nq_num(sdp,
 				 GFS2_SB_LOCK, &gfs2_meta_glops,
 				 LM_ST_SHARED, 0, &sb_gh);
@@ -265,8 +258,7 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 		goto out;
 	}
 
-	/* Set up the buffer cache and SB for real, now that we know block
-	   sizes, version #s, locations of important on-disk inodes, etc. */
+	/* Set up the buffer cache and SB for real */
 	error = -EINVAL;
 	if (sdp->sd_sb.sb_bsize < bdev_hardsect_size(sb->s_bdev)) {
 		printk("GFS2: fsid=%s: FS block size (%u) is too small "
@@ -344,8 +336,6 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		sdp->sd_jdesc = gfs2_jdesc_find(sdp, 0);
 		sdp->sd_log_blks_free = sdp->sd_jdesc->jd_blocks;
 	} else {
-		/* Discover this node's journal number (lock module tells us
-		   which one to use), and lock it */
 		if (sdp->sd_lockstruct.ls_jid >= gfs2_jindex_size(sdp)) {
 			printk("GFS2: fsid=%s: can't mount journal #%u\n",
 			       sdp->sd_fsname, sdp->sd_lockstruct.ls_jid);
@@ -391,9 +381,6 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	}
 
 	if (sdp->sd_lockstruct.ls_first) {
-		/* We're first node within cluster to mount this filesystem,
-		   replay ALL of the journals, then let lock module know
-		   that we're done. */
 		unsigned int x;
 		for (x = 0; x < sdp->sd_journals; x++) {
 			error = gfs2_recover_journal(gfs2_jdesc_find(sdp, x),
@@ -408,7 +395,6 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 
 		gfs2_lm_others_may_mount(sdp);
 	} else if (!sdp->sd_args.ar_spectator) {
-		/* We're not the first; replay only our own journal. */
 		error = gfs2_recover_journal(sdp->sd_jdesc, WAIT);
 		if (error) {
 			printk("GFS2: fsid=%s: "
@@ -427,7 +413,6 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	sdp->sd_journal_gh.gh_owner = NULL;
 	sdp->sd_jinode_gh.gh_owner = NULL;
 
-
 	p = kthread_run(gfs2_recoverd, sdp, "gfs2_recoverd");
 	error = IS_ERR(p);
 	if (error) {
@@ -436,10 +421,6 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		goto fail_jinode_gh;
 	}
 	sdp->sd_recoverd_process = p;
-
-	/* Throw out of cache any data that we read in before replay. */
-
-	/* Do stuff */
 
 	return 0;
 
@@ -740,31 +721,12 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 }
 
 /**
- * gfs2_read_super - Read in superblock
+ * fill_super - Read in superblock
  * @sb: The VFS superblock
  * @data: Mount options
  * @silent: Don't complain if it's not a GFS2 filesystem
  *
  * Returns: errno
- *
- * After cross-linking Linux VFS incore superblock and our GFS2 incore superblock
- *   (filesystem instance structures) to one another, we:
- * -- Init some of our GFS2 incore superblock, including some temporary
- *       block-size values (enough to read on-disk superblock).
- * -- Set up some things in Linux VFS superblock.
- * -- Mount a lock module, init glock system (incl. glock reclaim daemons),
- *       and init some important inter-node locks (MOUNT, LIVE, SuperBlock).
- * -- Read-in the GFS2 on-disk superblock (1st time, to get enough info
- *       to do filesystem upgrade and journal replay, incl. journal index).
- * -- Upgrade on-disk filesystem format (rarely needed).
- * -- Replay journal(s) (always; replay *all* journals if we're first-to-mount).
- * -- Read-in on-disk superblock and journal index special file again (2nd time,
- *       assumed 100% valid now after journal replay).
- * -- Read-in info on other special (hidden) files (root inode, resource index,
- *       quota inode, license inode).
- * -- Start other daemons (journal/log recovery, log tail, quota updates, inode
- *       reclaim) for periodic maintenance.
- * 
  */
 
 static int fill_super(struct super_block *sb, void *data, int silent)

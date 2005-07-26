@@ -104,9 +104,8 @@ unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
  *       bit 0 = alloc(1)/free(0), bit 1 = meta(1)/data(0)
  * 
  * Scope of @goal and returned block number is only within this bitmap buffer,
- *   not entire rgrp or filesystem.
- * @buffer will be offset from the actual beginning of a bitmap block buffer,
- *   skipping any header structures.
+ * not entire rgrp or filesystem.  @buffer will be offset from the actual
+ * beginning of a bitmap block buffer, skipping any header structures.
  *
  * Return: the block number (bitmap buffer scope) that was found
  */

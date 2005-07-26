@@ -29,3 +29,4 @@ void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb);
 void gfs2_quota_lvb_print(struct gfs2_quota_lvb *qb);
 
 #endif /* __LVB_DOT_H__ */
+

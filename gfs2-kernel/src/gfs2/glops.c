@@ -35,15 +35,9 @@
  * @gl: the glock
  * @flags: DIO_*
  *
- * Used for meta and rgrp glocks.
- *
- * Called when demoting (gfs2_glock_xmote_th()) or unlocking
- * (gfs2_glock_drop_th() an EX glock at inter-node scope.  We must flush
+ * Called when demoting or unlocking an EX glock.  We must flush
  * to disk all dirty buffers/pages relating to this glock, and must not
  * not return to caller to demote/unlock the glock until I/O is complete.
- *
- * This is *not* called from gfs2_glock_dq(), because GL_SYNC flag is not
- * currently used for anything but inode glocks.
  */
 
 static void meta_go_sync(struct gfs2_glock *gl, int flags)
@@ -78,46 +72,10 @@ static void meta_go_inval(struct gfs2_glock *gl, int flags)
 }
 
 /**
- * meta_go_demote_ok - Check to see if it's ok to unlock a meta glock
+ * meta_go_demote_ok - Check to see if it's ok to unlock a glock
  * @gl: the glock
  *
  * Returns: TRUE if we have no cached data; ok to demote meta glock
- *
- * Called when trying to dump (reclaim) a glock from the glock cache, after
- *   determining that there is currently no holder on this node for this glock,
- *   and before placing LM_ST_UNLOCKED request on glock's wait-for-demote queue.
- * Note that callbacks from other nodes that need a lock do *not*
- *   seek permission from this function before requesting a demote.
- *   Nor do glocks obtained with the following flags (see demote_ok()):
- *   --  GL_NOCACHE:  gets unlocked (and not cached) immediately after use
- *   --  GLF_STICKY:  equivalent to always getting "FALSE" from this function
- *   --  GLF_PREFETCH:  uses its own timeout
- *
- * For glocks that protect on-disk data (meta, inode, and rgrp glocks), disk
- *   accesses are slow, while lock manipulation is usually fast.  Releasing
- *   a lock means that we:
- *   --  Must sync memory-cached write data to disk immediately, before another
- *       node can be granted the lock (at which point that node must read the
- *       data from disk).
- *   --  Must invalidate memory-cached data that we had read from or written
- *       to disk.  Another node can change it if we don't have a lock, so it's
- *       now useless to us.
- *
- * Then, if we re-acquire the lock again in the future, we:
- *   --  Must (re-)read (perhaps unchanged) data from disk into memory.
- *
- * All of these are painful, so it pays to retain a glock in our glock cache
- *   as long as we have cached data (even though we have no active holders
- *   for this lock on this node currently), unless/until another node needs
- *   to change it.  This allows Linux block I/O to sync write data to disk in
- *   a "lazy" way, rather than forcing an immediate sync (and resultant WAIT),
- *   and retains current data in memory as long as possible.
- *
- * This also helps GFS2 respond to memory pressure.  There is no mechanism for
- *   the Linux virtual memory manager to directly call into GFS2 to ask it to
- *   drop locks.  So, we take a hint from what the VM does to the page cache.
- *   When that cache is trimmed (and we see no more pages relating to this
- *   glock), we trim the glock cache as well, by releasing this lock.
  */
 
 static int meta_go_demote_ok(struct gfs2_glock *gl)
@@ -126,13 +84,11 @@ static int meta_go_demote_ok(struct gfs2_glock *gl)
 }
 
 /**
- * inode_go_xmote_th - promote/demote (but don't unlock) an inode glock
+ * inode_go_xmote_th - promote/demote a glock
  * @gl: the glock
  * @state: the requested state
- * @flags: the flags passed into gfs2_glock()
+ * @flags:
  *
- * Acquire a new glock, or change an already-acquired glock to
- *   more/less restrictive state (other than LM_ST_UNLOCKED).
  */
 
 static void inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
@@ -144,15 +100,9 @@ static void inode_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 }
 
 /**
- * inode_go_xmote_bh - After promoting/demoting (but not unlocking)
- *      an inode glock
+ * inode_go_xmote_bh - After promoting/demoting a glock
  * @gl: the glock
  *
- * If we've just acquired the inter-node lock for an inode,
- *   read the dinode block from disk (but don't wait for I/O completion).
- * Exceptions (don't read if):
- *    Glock state is UNLOCKED.
- *    Glock's requesting holder's GL_SKIP flag is set.
  */
 
 static void inode_go_xmote_bh(struct gfs2_glock *gl)
@@ -171,12 +121,12 @@ static void inode_go_xmote_bh(struct gfs2_glock *gl)
 }
 
 /**
- * inode_go_drop_th - unlock an inode glock
+ * inode_go_drop_th - unlock a glock
  * @gl: the glock
  *
  * Invoked from rq_demote().
  * Another node needs the lock in EXCLUSIVE mode, or lock (unused for too long)
- *   is being purged from our node's glock cache; we're dropping lock.
+ * is being purged from our node's glock cache; we're dropping lock.
  */
 
 static void inode_go_drop_th(struct gfs2_glock *gl)
@@ -188,35 +138,8 @@ static void inode_go_drop_th(struct gfs2_glock *gl)
 /**
  * inode_go_sync - Sync the dirty data and/or metadata for an inode glock
  * @gl: the glock protecting the inode
- * @flags: DIO_METADATA -- sync inode's metadata
- *         DIO_DATA     -- sync inode's data
- *         DIO_INVISIBLE --  don't clear glock's DIRTY flag when done
+ * @flags:
  *
- * If DIO_INVISIBLE:
- *   1) Called from gfs2_glock_dq(), when releasing the last holder for an EX
- *   glock (but glock is still in our glock cache in EX state, and might
- *   stay there for a few minutes).  Holder had GL_SYNC flag set, asking
- *   for early sync (i.e. now, instead of later when we release the EX at
- *   inter-node scope).  GL_SYNC is currently used only for inodes in
- *   special cases, so inode is the only type of glock for which
- *   DIO_INVISIBLE would apply.
- *   2) Called from depend_sync_one() to sync deallocated inode metadata
- *   before it can be reallocated by another process or machine.  Since
- *   this call can happen at any time during the lifetime of the
- *   glock, don't clear the sync bit (more data might be dirtied
- *   momentarily).
- * Else (later):
- *   Called when demoting (gfs2_glock_xmote_th()) or unlocking
- *   (gfs2_glock_drop_th() an EX glock at inter-node scope.  We must flush
- *   to disk all dirty buffers/pages relating to this glock, and must not
- *   return to caller to demote/unlock the glock until I/O is complete.
- *
- * Syncs go in following order:
- *   Start data page writes
- *   Sync metadata to log (wait to complete I/O)
- *   Sync metadata to in-place location (wait to complete I/O)
- *   Wait for data page I/O to complete
- * 
  */
 
 static void inode_go_sync(struct gfs2_glock *gl, int flags)
@@ -267,12 +190,10 @@ static void inode_go_inval(struct gfs2_glock *gl, int flags)
  * inode_go_demote_ok - Check to see if it's ok to unlock an inode glock
  * @gl: the glock
  *
- * See comments for meta_go_demote_ok().
- *
  * While other glock types (meta, rgrp) that protect disk data can be retained
- *   indefinitely, GFS2 imposes a timeout (overridden when using no_lock lock
- *   module) for inode glocks, even if there is still data in page cache for
- *   this inode.
+ * indefinitely, GFS2 imposes a timeout (overridden when using lock_nolock
+ * module) for inode glocks, even if there is still data in page cache for
+ * this inode.
  *
  * Returns: TRUE if it's ok
  */
@@ -292,10 +213,9 @@ static int inode_go_demote_ok(struct gfs2_glock *gl)
 }
 
 /**
- * inode_go_lock - operation done after an inode lock is locked by
- *      a first holder on this node
+ * inode_go_lock - operation done after an inode lock is locked by a process
  * @gl: the glock
- * @flags: the flags passed into gfs2_glock()
+ * @flags:
  *
  * Returns: errno
  */
@@ -325,10 +245,10 @@ static int inode_go_lock(struct gfs2_holder *gh)
 }
 
 /**
- * inode_go_unlock - operation done when an inode lock is unlocked by
- *     a last holder on this node
+ * inode_go_unlock - operation done before an inode lock is unlocked by a
+ *		     process
  * @gl: the glock
- * @flags: the flags passed into gfs2_gunlock()
+ * @flags:
  *
  */
 
@@ -381,10 +301,6 @@ static void inode_greedy(struct gfs2_glock *gl)
  * rgrp_go_demote_ok - Check to see if it's ok to unlock a RG's glock
  * @gl: the glock
  *
- * See comments for meta_go_demote_ok().
- *
- * In addition to Linux page cache, we also check GFS2 meta-header-cache.
- *
  * Returns: TRUE if it's ok
  */
 
@@ -397,11 +313,9 @@ static int rgrp_go_demote_ok(struct gfs2_glock *gl)
  * rgrp_go_lock - operation done after an rgrp lock is locked by
  *    a first holder on this node.
  * @gl: the glock
- * @flags: the flags passed into gfs2_glock()
+ * @flags:
  *
  * Returns: errno
- *
- * Read rgrp's header and block allocation bitmaps from disk.
  */
 
 static int rgrp_go_lock(struct gfs2_holder *gh)
@@ -410,14 +324,11 @@ static int rgrp_go_lock(struct gfs2_holder *gh)
 }
 
 /**
- * rgrp_go_unlock - operation done when an rgrp lock is unlocked by
+ * rgrp_go_unlock - operation done before an rgrp lock is unlocked by
  *    a last holder on this node.
  * @gl: the glock
- * @flags: the flags passed into gfs2_gunlock()
+ * @flags:
  *
- * Release rgrp's bitmap buffers (read in when lock was first obtained).
- * Make sure rgrp's glock's Lock Value Block has up-to-date block usage stats,
- *   so other nodes can see them.
  */
 
 static void rgrp_go_unlock(struct gfs2_holder *gh)
@@ -426,13 +337,11 @@ static void rgrp_go_unlock(struct gfs2_holder *gh)
 }
 
 /**
- * trans_go_xmote_th - promote/demote (but don't unlock) the transaction glock
+ * trans_go_xmote_th - promote/demote the transaction glock
  * @gl: the glock
  * @state: the requested state
- * @flags: the flags passed into gfs2_glock()
+ * @flags:
  *
- * Acquire a new glock, or change an already-acquired glock to
- *   more/less restrictive state (other than LM_ST_UNLOCKED).
  */
 
 static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
@@ -450,8 +359,7 @@ static void trans_go_xmote_th(struct gfs2_glock *gl, unsigned int state,
 }
 
 /**
- * trans_go_xmote_bh - After promoting/demoting (but not unlocking)
- *       the transaction glock
+ * trans_go_xmote_bh - After promoting/demoting the transaction glock
  * @gl: the glock
  *
  */
@@ -486,10 +394,6 @@ static void trans_go_xmote_bh(struct gfs2_glock *gl)
  * trans_go_drop_th - unlock the transaction glock
  * @gl: the glock
  *
- * Invoked from rq_demote().
- * Another node needs the lock in EXCLUSIVE mode to quiesce the filesystem
- *   (for journal replay, etc.).
- *
  * We want to sync the device even with localcaching.  Remember
  * that localcaching journal replay only marks buffers dirty.
  */
@@ -509,8 +413,6 @@ static void trans_go_drop_th(struct gfs2_glock *gl)
 /**
  * quota_go_demote_ok - Check to see if it's ok to unlock a quota glock
  * @gl: the glock
- *
- * See comments for meta_go_demote_ok().
  *
  * Returns: TRUE if it's ok
  */

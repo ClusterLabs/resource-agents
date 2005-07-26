@@ -554,7 +554,8 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 		bottom = (uint64_t *)(bh->b_data + sizeof(struct gfs2_dinode)) +
 			sdp->sd_diptrs;
 	} else {
-		error = gfs2_meta_indirect_buffer(ip, height, block, FALSE, &bh);
+		error = gfs2_meta_indirect_buffer(ip, height, block, FALSE,
+						  &bh);
 		if (error)
 			return error;
 

@@ -300,10 +300,6 @@ static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
  * gfs2_clear_inode - Deallocate an inode when VFS is done with it
  * @inode: The VFS inode
  *
- * If there's a GFS2 incore inode structure attached to the VFS inode:
- * --  Detach them from one another.
- * --  Schedule reclaim of GFS2 inode struct, the glock protecting it, and
- *     the associated iopen glock.
  */
 
 static void gfs2_clear_inode(struct inode *inode)

@@ -116,17 +116,6 @@ static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
  (VM_MAYWRITE | VM_MAYSHARE)) ? \
  LM_ST_EXCLUSIVE : LM_ST_SHARED) \
 
-/**
- * functionname - summary
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
-
 static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 			    loff_t *offset, do_rw_t operation)
 {
@@ -237,17 +226,6 @@ static ssize_t walk_vm(struct file *file, char *buf, size_t size,
  do_locks:
 	return walk_vm_hard(file, buf, size, offset, operation);
 }
-
-/**
- * functionname - summary
- * @param1: description
- * @param2: description
- * @param3: description
- *
- * Function description
- *
- * Returns: what is returned
- */
 
 static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
 			     loff_t *offset)
@@ -1335,9 +1313,6 @@ static int gfs2_close(struct inode *inode, struct file *file)
  * @dentry: the dentry that points to the inode to sync
  *
  * Returns: errno
- *
- * Obtain a SHARED lock on the file, to force any node with an EXCLUSIVE lock
- *   to sync file's dirty data to disk, as it releases the EXCLUSIVE lock.
  */
 
 static int gfs2_fsync(struct file *file, struct dentry *dentry, int datasync)
