@@ -1724,8 +1724,8 @@ diff -up --recursive 2.6.11.3.clean/drivers/md/dm-ddraid.h 2.6.11.3/drivers/md/d
 +}
 diff -up --recursive 2.6.11.3.clean/drivers/md/dm-ddsnap.c 2.6.11.3/drivers/md/dm-ddsnap.c
 --- 2.6.11.3.clean/drivers/md/dm-ddsnap.c	2005-05-31 20:21:07.000000000 -0400
-+++ 2.6.11.3/drivers/md/dm-ddsnap.c	2005-05-31 21:50:09.000000000 -0400
-@@ -0,0 +1,1144 @@
++++ 2.6.11.3/drivers/md/dm-ddsnap.c	2005-07-25 23:53:05.000000000 -0400
+@@ -0,0 +1,1148 @@
 +#include <linux/fs.h>
 +#include <linux/slab.h>
 +#include <linux/mm.h>
@@ -2669,27 +2669,31 @@ diff -up --recursive 2.6.11.3.clean/drivers/md/dm-ddsnap.c 2.6.11.3/drivers/md/d
 + * Woohoo, we are going to instantiate a new cluster snapshot virtual
 + * device, what fun.
 + */
-+static int get_control_socket(char *sockname)
++static int get_unix_socket(char *name)
 +{
 +	mm_segment_t oldseg = get_fs();
 +	struct sockaddr_un addr = { .sun_family = AF_UNIX };
-+	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(sockname); // !!! check too long
++	int addr_len = sizeof(addr) - sizeof(addr.sun_path) + strlen(name); // !!! check too long
 +	int sock = sys_socket(AF_UNIX, SOCK_STREAM, 0), err = 0;
 +
-+	trace(warn("Connect to control socket %s", sockname);)
++	trace(warn("Connect to control socket %s", name);)
 +	if (sock <= 0)
 +		return sock;
-+	strncpy(addr.sun_path, sockname, sizeof(addr.sun_path));
-+	if (sockname[0] == '@')
++	strncpy(addr.sun_path, name, sizeof(addr.sun_path));
++	if (name[0] == '@')
 +		addr.sun_path[0] = 0;
 +
 +	set_fs(get_ds());
-+	while ((err = sys_connect(sock, (struct sockaddr *)&addr, addr_len)) == -ECONNREFUSED)
-+		break;
-+//		yield();
++	err = sys_connect(sock, (struct sockaddr *)&addr, addr_len);
 +	set_fs(oldseg);
-+
 +	return err? err: sock;
++}
++
++static int get_control_socket(char *name)
++{
++	char *end;
++	unsigned long n = simple_strtoul(name, &end, 10);
++	return (end - name == strlen(name)) ? n : get_unix_socket(name);
 +}
 +
 +/*
