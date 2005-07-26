@@ -14,8 +14,7 @@
 #ifndef __RECOVERY_DOT_H__
 #define __RECOVERY_DOT_H__
 
-static __inline__ void gfs2_replay_incr_blk(struct gfs2_sbd *sdp,
-					    unsigned int *blk)
+static inline void gfs2_replay_incr_blk(struct gfs2_sbd *sdp, unsigned int *blk)
 {
 	if (++*blk == sdp->sd_jdesc->jd_blocks)
 	        *blk = 0;
@@ -34,3 +33,4 @@ int gfs2_recover_journal(struct gfs2_jdesc *gfs2_jd, int wait);
 void gfs2_check_journals(struct gfs2_sbd *sdp);
 
 #endif /* __RECOVERY_DOT_H__ */
+

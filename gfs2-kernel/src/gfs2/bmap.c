@@ -341,9 +341,8 @@ static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
  * metadata tree.
  */
 
-static __inline__ uint64_t *metapointer(struct buffer_head *bh,
-					unsigned int height,
-					struct metapath *mp)
+static inline uint64_t *metapointer(struct buffer_head *bh,
+				    unsigned int height, struct metapath *mp)
 {
 	unsigned int head_size = (height > 0) ?
 		sizeof(struct gfs2_meta_header) : sizeof(struct gfs2_dinode);

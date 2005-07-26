@@ -20,7 +20,7 @@ int gfs2_check_sb(struct gfs2_sbd *sdp, struct gfs2_sb *sb, int silent);
 int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent);
 int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *gl_sb);
 
-static __inline__ unsigned int gfs2_jindex_size(struct gfs2_sbd *sdp)
+static inline unsigned int gfs2_jindex_size(struct gfs2_sbd *sdp)
 {
 	unsigned int x;
 	spin_lock(&sdp->sd_jindex_spin);
@@ -56,3 +56,4 @@ int gfs2_freeze_fs(struct gfs2_sbd *sdp);
 void gfs2_unfreeze_fs(struct gfs2_sbd *sdp);
 
 #endif /* __SUPER_DOT_H__ */
+

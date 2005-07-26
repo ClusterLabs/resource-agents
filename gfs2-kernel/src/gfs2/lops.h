@@ -68,9 +68,9 @@ do \
 } \
 while (0)
 
-static __inline__ int
-LO_SCAN_ELEMENTS(struct gfs2_jdesc *jd, unsigned int start,
-		 struct gfs2_log_descriptor *ld, unsigned int pass)
+static inline int LO_SCAN_ELEMENTS(struct gfs2_jdesc *jd, unsigned int start,
+				   struct gfs2_log_descriptor *ld,
+				   unsigned int pass)
 {
 	unsigned int x;
 	int error;
@@ -97,3 +97,4 @@ do \
 while (0)
 
 #endif /* __LOPS_DOT_H__ */
+

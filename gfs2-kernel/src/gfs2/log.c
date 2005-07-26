@@ -326,9 +326,9 @@ static uint64_t log_bmap(struct gfs2_sbd *sdp, unsigned int lbn)
  * Returns: the distance in blocks
  */
 
-static __inline__ unsigned int log_distance(struct gfs2_sbd *sdp,
-					    unsigned int newer,
-					    unsigned int older)
+static inline unsigned int log_distance(struct gfs2_sbd *sdp,
+					unsigned int newer,
+					unsigned int older)
 {
 	int dist;
 
@@ -359,7 +359,7 @@ static unsigned int current_tail(struct gfs2_sbd *sdp)
 	return tail;
 }
 
-static __inline__ void log_incr_head(struct gfs2_sbd *sdp)
+static inline void log_incr_head(struct gfs2_sbd *sdp)
 {
 	if (sdp->sd_log_flush_head == sdp->sd_log_tail)
 		gfs2_assert_withdraw(sdp,

@@ -66,8 +66,8 @@ typedef void (*glock_examiner) (struct gfs2_glock * gl);
  * whatever the requested state is, as long as the lock is locked in any mode.
  */
 
-static __inline__ int relaxed_state_ok(unsigned int actual, unsigned requested,
-				       int flags)
+static inline int relaxed_state_ok(unsigned int actual, unsigned requested,
+				   int flags)
 {
 	if (actual == requested)
 		return TRUE;
@@ -108,7 +108,7 @@ static unsigned int gl_hash(struct lm_lockname *name)
  *
  */
 
-static __inline__ void glock_hold(struct gfs2_glock *gl)
+static inline void glock_hold(struct gfs2_glock *gl)
 {
 	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
 	atomic_inc(&gl->gl_count);
@@ -120,7 +120,7 @@ static __inline__ void glock_hold(struct gfs2_glock *gl)
  *
  */
 
-static __inline__ void glock_put(struct gfs2_glock *gl)
+static inline void glock_put(struct gfs2_glock *gl)
 {
 	if (atomic_read(&gl->gl_count) == 1)
 		gfs2_glock_schedule_for_reclaim(gl);
@@ -136,7 +136,7 @@ static __inline__ void glock_put(struct gfs2_glock *gl)
  * Returns: TRUE if the queue is empty
  */
 
-static __inline__ int queue_empty(struct gfs2_glock *gl, struct list_head *head)
+static inline int queue_empty(struct gfs2_glock *gl, struct list_head *head)
 {
 	int empty;
 	spin_lock(&gl->gl_spin);
@@ -1288,7 +1288,8 @@ static int glock_wait_internal(struct gfs2_holder *gh)
 	return error;
 }
 
-static __inline__ struct gfs2_holder *find_holder_by_owner(struct list_head *head, struct task_struct *owner)
+static inline struct gfs2_holder *
+find_holder_by_owner(struct list_head *head, struct task_struct *owner)
 {
 	struct gfs2_holder *gh;
 

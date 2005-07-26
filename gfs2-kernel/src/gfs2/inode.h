@@ -14,12 +14,12 @@
 #ifndef __INODE_DOT_H__
 #define __INODE_DOT_H__
 
-static __inline__ int gfs2_is_stuffed(struct gfs2_inode *ip)
+static inline int gfs2_is_stuffed(struct gfs2_inode *ip)
 {
 	return !ip->i_di.di_height;
 }
 
-static __inline__ int gfs2_is_jdata(struct gfs2_inode *ip)
+static inline int gfs2_is_jdata(struct gfs2_inode *ip)
 {
 	return ip->i_di.di_flags & GFS2_DIF_JDATA;
 }
@@ -63,8 +63,8 @@ int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr);
 
 int gfs2_repermission(struct inode *inode, int mask, struct nameidata *nd);
 
-static __inline__ int gfs2_lookup_simple(struct gfs2_inode *dip, char *name,
-					 struct gfs2_inode **ipp)
+static inline int gfs2_lookup_simple(struct gfs2_inode *dip, char *name,
+				     struct gfs2_inode **ipp)
 {
 	struct qstr qstr;
 	memset(&qstr, 0, sizeof(struct qstr));

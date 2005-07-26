@@ -20,7 +20,7 @@
  *
  */
 
-static __inline__ void gfs2_log_lock(struct gfs2_sbd *sdp)
+static inline void gfs2_log_lock(struct gfs2_sbd *sdp)
 {
 	spin_lock(&sdp->sd_log_lock);
 }
@@ -31,13 +31,13 @@ static __inline__ void gfs2_log_lock(struct gfs2_sbd *sdp)
  *
  */
 
-static __inline__ void gfs2_log_unlock(struct gfs2_sbd *sdp)
+static inline void gfs2_log_unlock(struct gfs2_sbd *sdp)
 {
 	spin_unlock(&sdp->sd_log_lock);
 }
 
-static __inline__ void gfs2_log_pointers_init(struct gfs2_sbd *sdp,
-					      unsigned int value)
+static inline void gfs2_log_pointers_init(struct gfs2_sbd *sdp,
+					  unsigned int value)
 {
 	if (++value == sdp->sd_jdesc->jd_blocks) {
 		value = 0;

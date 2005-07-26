@@ -108,7 +108,7 @@ struct gfs2_memory {
 static spinlock_t memory_lock;
 static struct list_head memory_list[GFS2_MEMORY_HASH_SIZE];
 
-static __inline__ struct list_head *memory_bucket(void *data)
+static inline struct list_head *memory_bucket(void *data)
 {
 	return memory_list +
 		(gfs2_hash(&data, sizeof(void *)) &

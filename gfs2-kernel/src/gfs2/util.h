@@ -163,10 +163,10 @@ int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 		       const char *function,
 		       char *file, unsigned int line);
 
-static __inline__ int gfs2_meta_check_i(struct gfs2_sbd *sdp,
-					struct buffer_head *bh,
-					const char *function,
-					char *file, unsigned int line)
+static inline int gfs2_meta_check_i(struct gfs2_sbd *sdp,
+				    struct buffer_head *bh,
+				    const char *function,
+				    char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
@@ -200,11 +200,11 @@ int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 			   const char *function,
 			   char *file, unsigned int line);
 
-static __inline__ int gfs2_metatype_check_i(struct gfs2_sbd *sdp,
-					    struct buffer_head *bh,
-					    uint16_t type,
-					    const char *function,
-					    char *file, unsigned int line)
+static inline int gfs2_metatype_check_i(struct gfs2_sbd *sdp,
+					struct buffer_head *bh,
+					uint16_t type,
+					const char *function,
+					char *file, unsigned int line)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 	uint32_t magic = mh->mh_magic;
@@ -234,8 +234,8 @@ gfs2_metatype_check_i((sdp), (bh), (type), \
  *
  */
 
-static __inline__ void gfs2_metatype_set(struct buffer_head *bh, uint16_t type,
-					 uint16_t format)
+static inline void gfs2_metatype_set(struct buffer_head *bh, uint16_t type,
+				     uint16_t format)
 {
 	struct gfs2_meta_header *mh;
 	mh = (struct gfs2_meta_header *)bh->b_data;
@@ -319,8 +319,8 @@ struct gfs2_user_buffer {
 int gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh);
 
 
-static __inline__ unsigned int gfs2_tune_get_i(struct gfs2_tune *gt,
-					       unsigned int *p)
+static inline unsigned int gfs2_tune_get_i(struct gfs2_tune *gt,
+					   unsigned int *p)
 {
 	unsigned int x;
 	spin_lock(&gt->gt_spin);
@@ -347,7 +347,7 @@ void gfs2_icbit_munge(struct gfs2_sbd *sdp,
 		      unsigned char **bitmap, unsigned int bit,
 		      int new_value);
 
-static __inline__ uint64_t get_time(void)
+static inline uint64_t get_time(void)
 {
 	struct timeval tv;
 	do_gettimeofday(&tv);
@@ -355,3 +355,4 @@ static __inline__ uint64_t get_time(void)
 }
 
 #endif /* __UTIL_DOT_H__ */
+

@@ -41,14 +41,14 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf,
 		     uint64_t offset, unsigned int size,
 		     write_copy_fn_t copy_fn);
 
-static __inline__ int gfs2_jdata_read_mem(struct gfs2_inode *ip, char *buf,
-					  uint64_t offset, unsigned int size)
+static inline int gfs2_jdata_read_mem(struct gfs2_inode *ip, char *buf,
+				      uint64_t offset, unsigned int size)
 {
 	return gfs2_jdata_read(ip, buf, offset, size, gfs2_copy2mem);
 }
 
-static __inline__ int gfs2_jdata_write_mem(struct gfs2_inode *ip, char *buf,
-					   uint64_t offset, unsigned int size)
+static inline int gfs2_jdata_write_mem(struct gfs2_inode *ip, char *buf,
+				       uint64_t offset, unsigned int size)
 {
 	return gfs2_jdata_write(ip, buf, offset, size, gfs2_copy_from_mem);
 }
