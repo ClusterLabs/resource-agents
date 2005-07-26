@@ -18,6 +18,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <linux/delay.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -182,10 +183,8 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 
 	printk("GFS2: fsid=%s: waiting for outstanding I/O\n",
 	       sdp->sd_fsname);
-	while (atomic_read(&sdp->sd_bio_outstanding)) {
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ / 10);
-	}
+	while (atomic_read(&sdp->sd_bio_outstanding))
+		msleep(100);
 
 	printk("GFS2: fsid=%s: telling LM to withdraw\n",
 	       sdp->sd_fsname);

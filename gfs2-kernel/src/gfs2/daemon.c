@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include "gfs2.h"
 #include "daemon.h"
@@ -43,9 +44,7 @@ int gfs2_scand(void *data)
 
 	while (!kthread_should_stop()) {
 		gfs2_scand_internal(sdp);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_scand_secs) * HZ);
+		msleep_interruptible(gfs2_tune_get(sdp, gt_scand_secs) * 1000);
 	}
 
 	return 0;
@@ -94,9 +93,7 @@ int gfs2_recoverd(void *data)
 
 	while (!kthread_should_stop()) {
 		gfs2_check_journals(sdp);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_recoverd_secs) * HZ);
+		msleep_interruptible(gfs2_tune_get(sdp, gt_recoverd_secs)*1000);
 	}
 
 	return 0;
@@ -134,8 +131,7 @@ int gfs2_logd(void *data)
 			sdp->sd_jindex_refresh_time = jiffies;
 		}
 
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_logd_secs) * HZ);
+		msleep_interruptible(gfs2_tune_get(sdp, gt_logd_secs) * 1000);
 	}
 
 	return 0;
@@ -179,11 +175,8 @@ int gfs2_quotad(void *data)
 			sdp->sd_quota_sync_time = jiffies;
 		}
 
-		/* Clean up */
 		gfs2_quota_scan(sdp);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_quotad_secs) * HZ);
+		msleep_interruptible(gfs2_tune_get(sdp, gt_quotad_secs) * 1000);
 	}
 
 	return 0;
@@ -208,8 +201,7 @@ int gfs2_inoded(void *data)
 			printk("GFS2: fsid=%s: inoded: error = %d\n",
 			       sdp->sd_fsname, error);
 
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_inoded_secs) * HZ);
+		msleep_interruptible(gfs2_tune_get(sdp, gt_inoded_secs) * 1000);
 	}
 
 	return 0;

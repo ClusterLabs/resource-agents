@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
+#include <linux/delay.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -1200,13 +1201,11 @@ static void do_cancels(struct gfs2_holder *gh)
 		      (gl->gl_req_gh->gh_flags & GL_NOCANCEL))) {
 			spin_unlock(&gl->gl_spin);
 			gfs2_lm_cancel(gl->gl_sbd, gl->gl_lock);
-			set_current_state(TASK_UNINTERRUPTIBLE);
-			schedule_timeout(HZ / 10);
+			msleep(100);
 			spin_lock(&gl->gl_spin);
 		} else {
 			spin_unlock(&gl->gl_spin);
-			set_current_state(TASK_UNINTERRUPTIBLE);
-			schedule_timeout(HZ / 10);
+			msleep(100);
 			spin_lock(&gl->gl_spin);
 		}
 	}
@@ -1435,8 +1434,7 @@ int gfs2_glock_nq(struct gfs2_holder *gh)
 	if (!(gh->gh_flags & GL_ASYNC)) {
 		error = glock_wait_internal(gh);
 		if (error == GLR_CANCELED) {
-			set_current_state(TASK_UNINTERRUPTIBLE);
-			schedule_timeout(HZ);
+			msleep(1000);
 			goto restart;
 		}
 	}
@@ -1465,8 +1463,7 @@ int gfs2_glock_poll(struct gfs2_holder *gh)
 	else if (list_empty(&gh->gh_list)) {
 		if (gh->gh_error == GLR_CANCELED) {
 			spin_unlock(&gl->gl_spin);
-			set_current_state(TASK_UNINTERRUPTIBLE);
-			schedule_timeout(HZ);
+			msleep(1000);
 			if (gfs2_glock_nq(gh))
 				return TRUE;
 			return FALSE;
@@ -1492,8 +1489,7 @@ int gfs2_glock_wait(struct gfs2_holder *gh)
 
 	error = glock_wait_internal(gh);
 	if (error == GLR_CANCELED) {
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ);
+		msleep(1000);
 		gh->gh_flags &= ~GL_ASYNC;
 		error = gfs2_glock_nq(gh);
 	}

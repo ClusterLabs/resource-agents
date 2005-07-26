@@ -22,6 +22,7 @@
 #include <linux/pagemap.h>
 #include <linux/writeback.h>
 #include <linux/swap.h>
+#include <linux/delay.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -952,8 +953,7 @@ void gfs2_meta_syncfs(struct gfs2_sbd *sdp)
 		gfs2_ail1_start(sdp, DIO_ALL);
 		if (gfs2_ail1_empty(sdp, DIO_ALL))
 			break;
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ / 10);
+		msleep(100);
 	}
 }
 

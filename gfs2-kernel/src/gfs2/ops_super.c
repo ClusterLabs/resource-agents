@@ -23,6 +23,7 @@
 #include <linux/seq_file.h>
 #include <linux/mount.h>
 #include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -196,9 +197,7 @@ static void gfs2_write_super_lockfs(struct super_block *sb)
 		}
 
 		printk("GFS2: fsid=%s: retrying...\n", sdp->sd_fsname);
-
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		schedule_timeout(HZ);
+		msleep(1000);
 	}
 }
 
