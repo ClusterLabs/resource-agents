@@ -1,0 +1,31 @@
+diff -ur a/fs/Kconfig b/fs/Kconfig
+--- a/fs/Kconfig	2005-06-18 03:48:29.000000000 +0800
++++ b/fs/Kconfig	2005-07-27 15:51:21.647412904 +0800
+@@ -1715,6 +1715,19 @@
+ config RXRPC
+ 	tristate
+ 
++config GFS2_FS
++	tristate "GFS2 file system support"
++	help
++	  A cluster filesystem.
++
++	  Allows a cluster of computers to simultaneously use a block device
++	  that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
++	  and writes to the block device like a local filesystem, but also uses
++	  a lock module to allow the computers coordinate their I/O so
++	  filesystem consistency is maintained.  One of the nifty features of
++	  GFS is perfect consistency -- changes made to the filesystem on one
++	  machine show up immediately on all other machines in the cluster.
++
+ endmenu
+ 
+ menu "Partition Types"
+diff -ur a/fs/Makefile b/fs/Makefile
+--- a/fs/Makefile	2005-06-18 03:48:29.000000000 +0800
++++ b/fs/Makefile	2005-07-27 15:47:50.747474568 +0800
+@@ -95,3 +95,4 @@
+ obj-$(CONFIG_HOSTFS)		+= hostfs/
+ obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_DEBUG_FS)		+= debugfs/
++obj-$(CONFIG_GFS2_FS)		+= gfs2/
