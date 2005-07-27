@@ -141,7 +141,7 @@ void gfs2_memory_rm_i(void *data, char *file, unsigned int line)
 	spin_lock(&memory_lock);
 	list_for_each_entry(gm, head, gm_list) {
 		if (gm->gm_data == data) {
-			list_del(gm->gm_list);
+			list_del(&gm->gm_list);
 			found = TRUE;
 			break;
 		}
