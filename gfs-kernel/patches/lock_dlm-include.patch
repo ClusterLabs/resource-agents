@@ -1,0 +1,12 @@
+diff -ur a/fs/gfs2/locking/dlm/lock_dlm.h b/fs/gfs2/locking/dlm/lock_dlm.h
+--- a/fs/gfs2/locking/dlm/lock_dlm.h	2005-07-27 16:54:04.155424744 +0800
++++ b/fs/gfs2/locking/dlm/lock_dlm.h	2005-07-27 16:52:28.000000000 +0800
+@@ -27,7 +27,7 @@
+ #include <linux/kobject.h>
+ #include <net/sock.h>
+ 
+-#include "dlm.h"
++#include <linux/dlm.h>
+ #include "../harness/lm_interface.h"
+ 
+ /*
