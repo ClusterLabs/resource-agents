@@ -1151,7 +1151,7 @@ void gfs2_quota_scan(struct gfs2_sbd *sdp)
 		    time_after_eq(jiffies, qd->qd_last_touched +
 				  gfs2_tune_get(sdp, gt_quota_cache_secs) * HZ)) {
 			list_move(&qd->qd_list, &dead);
-			gfs2_assert_warn(sdp, &atomic_read(&sdp->sd_quota_count) > 0);
+			gfs2_assert_warn(sdp, atomic_read(&sdp->sd_quota_count) > 0);
 			atomic_dec(&sdp->sd_quota_count);
 		}
 	}
