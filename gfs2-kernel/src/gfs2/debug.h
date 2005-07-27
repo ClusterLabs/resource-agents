@@ -16,37 +16,34 @@
 
 #if defined(GFS2_MEMORY_SIMPLE) || defined(GFS2_MEMORY_BRUTE)
 
-void gfs2_memory_add_i(void *data, char *file, unsigned int line);
-void gfs2_memory_rm_i(void *data, char *file, unsigned int line);
-void *gmalloc(unsigned int size, int flags,
-	      char *file, unsigned int line);
-void *gmalloc_nofail(unsigned int size, int flags,
-		     char *file, unsigned int line);
-void gfree(void *data, char *file, unsigned int line);
 void gfs2_memory_init(void);
 void gfs2_memory_uninit(void);
+void gfs2_memory_add_i(void *data, char *file, unsigned int line);
+void gfs2_memory_rm_i(void *data, char *file, unsigned int line);
+void *gmalloc(unsigned int size, int flags, char *file, unsigned int line);
+void gfree(void *data, char *file, unsigned int line);
 
-#define gfs2_memory_add(data) \
-gfs2_memory_add_i((data), __FILE__, __LINE__)
-#define gfs2_memory_rm(data) \
-gfs2_memory_rm_i((data), __FILE__, __LINE__)
+#define gfs2_memory_add(data)	gfs2_memory_add_i((data), __FILE__, __LINE__)
+#define gfs2_memory_rm(data)	gfs2_memory_rm_i((data), __FILE__, __LINE__)
+#define kmalloc(size, flags)	gmalloc((size), (flags), __FILE__, __LINE__)
+#define kfree(data)		gfree((data), __FILE__, __LINE__)
 
-#define kmalloc(size, flags) \
-gmalloc((size), (flags), __FILE__, __LINE__)
+void *gmalloc_nofail(unsigned int size, int flags, char *file,
+		     unsigned int line);
 #define kmalloc_nofail(size, flags) \
-gmalloc_nofail((size), (flags), __FILE__, __LINE__)
-#define kfree(data) \
-gfree((data), __FILE__, __LINE__)
+	gmalloc_nofail((size), (flags), __FILE__, __LINE__)
 
 #else
-void *gmalloc_nofail_real(unsigned int size, int flags,
-			  char *file, unsigned int line);
-#define gfs2_memory_add(x) do {} while (0)
-#define gfs2_memory_rm(x) do {} while (0)
+#define gfs2_memory_init()	do {} while (0)
+#define gfs2_memory_uninit()	do {} while (0)
+#define gfs2_memory_add(x)	do {} while (0)
+#define gfs2_memory_rm(x)	do {} while (0)
+
+void *gmalloc_nofail_real(unsigned int size, int flags, char *file,
+			  unsigned int line);
 #define kmalloc_nofail(size, flags) \
-gmalloc_nofail_real((size), (flags), __FILE__, __LINE__)
-#define gfs2_memory_init() do {} while (0)
-#define gfs2_memory_uninit() do {} while (0)
+	gmalloc_nofail_real((size), (flags), __FILE__, __LINE__)
 #endif
 
 #endif /* __DEBUG_DOT_H__ */
+
