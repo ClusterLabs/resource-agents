@@ -44,7 +44,7 @@ typedef int (*gi_filler_t) (struct gfs2_inode *ip,
 			    unsigned int size,
 			    unsigned int *count);
 
-#define ARG_SIZE (32)
+#define ARG_SIZE 32
 
 /**
  * gi_skeleton - Setup a buffer that functions can print into
