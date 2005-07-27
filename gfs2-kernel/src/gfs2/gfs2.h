@@ -14,9 +14,9 @@
 #ifndef __GFS2_DOT_H__
 #define __GFS2_DOT_H__
 
-#include <linux/lm_interface.h>
 #include <linux/gfs2_ondisk.h>
 
+#include "locking/harness/lm_interface.h"
 #include "fixed_div64.h"
 #include "lvb.h"
 #include "incore.h"

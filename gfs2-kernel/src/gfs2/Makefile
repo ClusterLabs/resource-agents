@@ -73,9 +73,11 @@ EXTRA_CFLAGS += -I$(obj)
 #EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
 
 all:
-	rm -f linux lm_interface.h
+	rm -f linux
 	ln -s . linux
-	ln -s ${top_srcdir}/../gfs-kernel/src/harness/lm_interface.h .
+	rm -rf locking
+	mkdir -p locking/harness
+	ln -s ../../../../../gfs-kernel/src/harness/lm_interface.h locking/harness/.
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
 
 install: all
@@ -89,7 +91,7 @@ uninstall:
 	${UNINSTALL} gfs2_ondisk.h gfs2_ioctl.h ${incdir}/linux
 
 clean:
-	rm -rf linux *.o .*.o.cmd .gfs2.ko.cmd lm_interface.h \
+	rm -rf linux *.o .*.o.cmd .gfs2.ko.cmd locking/ \
 		gfs2.ko gfs2.mod.c .tmp_versions *~ gfs2_debug_const.h
 
 
