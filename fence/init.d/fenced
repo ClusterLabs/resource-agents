@@ -16,6 +16,22 @@ LOCK_FILE="/var/lock/subsys/fenced"
 start()
 {
 	echo -n "Starting fence domain:"
+
+	# If gulm is in ccs, don't start fenced
+	if ! [ -r /etc/cluster/cluster.conf ]
+	then
+		failure "/etc/cluster/cluster.conf not readable."
+		echo
+		return 1
+	elif grep -qE "<[[:space:]]*gulm([[:space:]]|[>]|$)" \
+		/etc/cluster/cluster.conf
+	then
+		warning "Skipping because of <gulm> section detected in " \
+			"/etc/cluster/cluster.conf"
+		echo
+		exit 0
+	fi
+
 	rtrn=1
 
 	fence_tool join -w > /dev/null 2>&1
@@ -29,10 +45,10 @@ start()
 		#> 	sleep 1;
 		#> done
 
-		success "fence_tool join"
+		success "startup"
 		echo
 	else
-		failure "fence_tool join"
+		failure "startup"
 		echo
 	fi
 		
@@ -43,17 +59,23 @@ start()
 stop()
 {
 	echo -n "Stopping fence domain:"
-	rtrn=1
 
-	fence_tool leave > /dev/null 2>&1
-	rtrn=$?
-	
-	if [ $rtrn -eq 0 ]
+	if pidof fenced &> /dev/null
 	then
-		success "fence_tool leave"
-		echo
+		fence_tool leave > /dev/null 2>&1
+		rtrn=$?
+	
+		if [ $rtrn -eq 0 ]
+		then
+			success "shutdown"
+			echo
+		else
+			failure "shutdown"
+			echo
+		fi
 	else
-		failure "fence_tool leave"
+		rtrn=0		
+		success "shutdown"
 		echo
 	fi
 		

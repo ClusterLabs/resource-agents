@@ -99,7 +99,7 @@ start()
 	then
 		# try to load the dlm module
 		modprobe dlm &>/dev/null
-		success
+		success "startup"
 		echo
 	else
 		failure "$errmsg"
@@ -131,7 +131,7 @@ stop()
 	
 	if [ $rtrn -eq 0 ]
 	then
-		success
+		success "shutdown"
 		echo
 	else
 		failure "failed to stop cman"

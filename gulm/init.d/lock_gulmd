@@ -175,7 +175,7 @@ start()
 
 	if gulm_tool getstats localhost &>/dev/null 
 	then
-		success
+		success "startup"
 		echo
 		return 0
 	fi
@@ -203,23 +203,23 @@ start()
 		rtrn=$?
 		if [ $rtrn = 0 ]
 		then
-			success
+			success "startup"
 		elif [ $rtrn = 3 ]
 		then
 			echo -n " waiting to be fenced "
 			gulm_shutdown
-			failure
+			failure "startup"
 			sts=1
 		else
 			echo -n " failed to login to master "
 			gulm_shutdown
-			failure
+			failure "startup"
 			sts=1
 		fi
 	else
 		echo -n " failed to start ltpx "
 		gulm_shutdown
-		failure
+		failure "startup"
 	fi
 	echo
 	return $sts
@@ -256,7 +256,7 @@ stop()
 			echo
 			return 1
 		else
-			success
+			success "shutdown"
 			echo
 			return 0
 		fi
@@ -336,11 +336,11 @@ stop()
 
 	if [ $do_shutdown -eq 1 ] && gulm_shutdown
 	then
-		success
+		success "shutdown"
 		echo
 		sts=0
 	else
-		failure
+		failure "shutdown"
 		echo
 		sts=1
 	fi

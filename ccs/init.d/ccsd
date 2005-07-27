@@ -23,12 +23,12 @@ start()
 	if ccsd $CCSD_OPTS 2> /dev/null
 	then
 		sleep 1 
-		success
+		success "startup"
 		echo 
 		return 0
 	fi
 
-	failure
+	failure "startup"
 	echo
 	return 1
 }
@@ -49,12 +49,12 @@ stop()
 			
 			sleep 1 
 		else
-			success
+			success "shutdown"
 			echo
 			return 0
 		fi
 	done
-	failure
+	failure "shutdown"
 	echo
 	return 1
 }
