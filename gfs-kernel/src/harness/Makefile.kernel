@@ -1,0 +1,3 @@
+obj-$(CONFIG_GFS2_FS) += lock_harness.o
+lock_harness-y := main.o
+

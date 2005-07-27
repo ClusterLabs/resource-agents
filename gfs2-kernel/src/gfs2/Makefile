@@ -2,7 +2,7 @@
 ###############################################################################
 ##
 ##  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-##  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+##  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 ##
 ##  This copyrighted material is made available to anyone wishing to use,
 ##  modify, copy, or redistribute it subject to the terms and conditions
@@ -17,8 +17,8 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 endif
 
-linux_orig = ${top_srcdir}/src/linux-orig
-linux_patched = ${top_srcdir}/src/linux-patched
+linux_orig = ${top_srcdir}/src/a
+linux_patched = ${top_srcdir}/src/b
 
 TARGET = gfs2.patch
 
@@ -104,10 +104,11 @@ pre:
 	rsync -a --delete ${linux_orig}/ ${linux_patched}/
 
 post:
-	( cd ${top_srcdir}/src ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
+	( cd ${top_srcdir}/src ; diff -urpN a b > ${TARGET} ; cat ../patches/gfs2-build.patch >> ${TARGET} ; exit 0 )
 
 add:
 	mkdir -p ${linux_patched}/fs/gfs2
 	cp *.[ch] ${linux_patched}/fs/gfs2
+	cp Makefile.kernel ${linux_patched}/fs/gfs2/Makefile
 	mv ${linux_patched}/fs/gfs2/gfs2_*.h ${linux_patched}/include/linux
 

@@ -1,0 +1,50 @@
+obj-$(CONFIG_GFS2_FS) += gfs2.o
+gfs2-y := \
+	acl.o \
+	bits.o \
+	bmap.o \
+	daemon.o \
+	debug.o \
+	diaper.o \
+	dir.o \
+	eaops.o \
+	eattr.o \
+	glock.o \
+	glops.o \
+	inode.o \
+	ioctl.o \
+	jdata.o \
+	lm.o \
+	log.o \
+	lops.o \
+	lvb.o \
+	main.o \
+	meta_io.o \
+	mount.o \
+	ondisk.o \
+	ops_address.o \
+	ops_dentry.o \
+	ops_export.o \
+	ops_file.o \
+	ops_fstype.o \
+	ops_inode.o \
+	ops_super.o \
+	ops_vm.o \
+	page.o \
+	proc.o \
+	quota.o \
+	resize.o \
+	recovery.o \
+	rgrp.o \
+	super.o \
+	trans.o \
+	unlinked.o \
+	util.o
+
+#EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
+#EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
+
+obj-$(CONFIG_GFS2_FS) += locking/harness/
+obj-$(CONFIG_GFS2_FS) += locking/nolock/
+obj-$(CONFIG_GFS2_FS) += locking/dlm/
+

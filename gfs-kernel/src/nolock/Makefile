@@ -17,8 +17,8 @@ include ${top_srcdir}/make/defines.mk
 UNINSTALL=${top_srcdir}/scripts/uninstall.pl
 endif
 
-linux_orig = ${top_srcdir}/src/linux-orig
-linux_patched = ${top_srcdir}/src/linux-patched
+linux_orig = ${top_srcdir}/src/a
+linux_patched = ${top_srcdir}/src/b
 
 
 TARGET = lock_nolock.patch
@@ -58,8 +58,10 @@ pre:
 	rsync -a --delete ${linux_orig}/ ${linux_patched}/
 
 post:
-	( cd ${top_srcdir}/src ; diff -urN linux-orig linux-patched > ${TARGET} ; exit 0 )
+	( cd ${top_srcdir}/src ; diff -urpN a b > ${TARGET} ; exit 0 )
 
 add:
-	mkdir -p ${linux_patched}/fs/gfs_locking/lock_nolock
-	cp *.[ch] ${linux_patched}/fs/gfs_locking/lock_nolock
+	mkdir -p ${linux_patched}/fs/gfs2/locking/nolock
+	cp *.[ch] ${linux_patched}/fs/gfs2/locking/nolock
+	cp Makefile.kernel ${linux_patched}/fs/gfs2/locking/nolock/Makefile
+
