@@ -30,7 +30,7 @@
  * http://oss.sgi.com/projects/GenInfo/SGIGPLNoticeExplan/
  *
  * Additional munging:
- * Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+ * Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
  */
 
 #ifndef __FIXED_DIV64_DOT_H__
