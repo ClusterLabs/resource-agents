@@ -22,7 +22,7 @@
 #
 # License:  GNU General Public License (GPL)
 #
-#set -x
+# Copyright:	(C) 2005 International Business Machines
 
 #######################################################################
 # Initialization:
@@ -40,15 +40,15 @@ exec_prefix=@exec_prefix@
 us=`uname -n`
 
 usage() {
-  echo "Usage: $0 {start|stop|status|meta-data}"
-  echo "$Id: MailTo.in,v 1.2 2005/07/15 09:19:46 sunjd Exp $"
+  echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
+  echo "$Id: MailTo.in,v 1.3 2005/07/27 08:26:57 sunjd Exp $"
 }
 
 meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="MailTo" version="0.9">
+<resource-agent name="MailTo">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -81,13 +81,14 @@ The subject of the email.
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
 </actions>
 </resource-agent>
 END
 }
 
 MailProgram() {
-	/usr/bin/mail -s "$1" "$email"  <<EOF
+	mail -s "$1" "$email"  <<EOF
         $Subject
  
         Command line was:
@@ -125,6 +126,35 @@ MailToStatus () {
 	return $OCF_NOT_RUNNING
 }
 
+MailToValidateAll () {
+
+# $email may be a list of mail addresses separated by "," and " " and "\t"
+# normalize it for ease of parse
+	local local_email=`echo $email | tr ",\t" " " | tr -s " "`
+
+#	ocf_log info "[$local_email]"
+	for item in "$local_email"
+	do
+	    case $item in
+		*?@?*)
+		;; #possible valid email address
+		*)
+		getent passwd $item >/dev/null
+		if [ $? -eq 0 ]; then
+		: OK, mail to $item@localhost.localdomain
+		else
+		    ocf_log err "Invalid email address [$email]"
+		    exit $OCF_ERR_ARGS
+		fi
+		;;
+	    esac
+	done
+
+# Any subject is OK
+
+	return $OCF_SUCCESS
+}
+
 # 
 # See how we were called.
 #
@@ -133,17 +163,27 @@ MailToStatus () {
 #
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
   exit $OCF_ERR_GENERIC
 fi
 
+case $1 in
+  meta-data)		meta_data
+			exit $OCF_SUCCESS
+			;;
+  usage)		usage
+			exit $OCF_SUCCESS
+			;;
+  *)			;;
+esac
+
 if 
   [ -z "$OCF_RESKEY_email" ]
 then
   ocf_log err "At least 1 Email address has to be given!"
-  usage
+#  usage
   exit $OCF_ERR_GENERIC
 fi
 
@@ -151,9 +191,6 @@ email=$OCF_RESKEY_email
 subject=$OCF_RESKEY_subject
 
 case $1 in
-  meta-data)		meta_data
-			exit $OCF_SUCCESS
-			;;
   start)		MailToStart
 			;;
   stop)			MailToStop
@@ -163,8 +200,7 @@ case $1 in
 	#
   status|monitor)	MailToStatus
 			;;
-  usage)		usage
-			exit $OCF_SUCCESS
+  validate-all)		MailToValidateAll
 			;;
   *)			usage
 			exit $OCF_ERR_UNIMPLEMENTED
