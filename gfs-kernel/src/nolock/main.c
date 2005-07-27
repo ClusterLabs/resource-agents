@@ -19,7 +19,7 @@
 #include <linux/fs.h>
 #include <linux/smp_lock.h>
 
-#include <../harness/lm_interface.h>
+#include "../harness/lm_interface.h"
 
 struct nolock_lockspace {
 	unsigned int nl_lvb_size;
