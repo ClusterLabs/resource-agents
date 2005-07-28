@@ -119,7 +119,7 @@ static ssize_t do_list(char *user_buf, size_t size)
 }
 
 /**
- * find_argument - 
+ * find_argument -
  * @p:
  *
  * Returns:
@@ -271,7 +271,7 @@ static int do_withdraw(char *p)
 	sdp = find_sdp(p);
 	if (!sdp)
 		error = -ENOENT;
-	else 
+	else
 		gfs2_lm_withdraw(sdp,
 				"GFS2: fsid=%s: withdrawing from cluster at user's request\n",
 				sdp->sd_fsname);

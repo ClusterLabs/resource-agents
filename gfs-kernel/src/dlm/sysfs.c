@@ -177,31 +177,31 @@ struct gdlm_attr {
 static struct gdlm_attr gdlm_attr_block = {
 	.attr  = {.name = "block", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_block_show,
-	.store = gdlm_block_store 
+	.store = gdlm_block_store
 };
 
 static struct gdlm_attr gdlm_attr_mounted = {
 	.attr  = {.name = "mounted", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_mounted_show,
-	.store = gdlm_mounted_store 
+	.store = gdlm_mounted_store
 };
 
 static struct gdlm_attr gdlm_attr_withdraw = {
 	.attr  = {.name = "withdraw", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_withdraw_show,
-	.store = gdlm_withdraw_store 
+	.store = gdlm_withdraw_store
 };
 
 static struct gdlm_attr gdlm_attr_jid = {
 	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_jid_show,
-	.store = gdlm_jid_store 
+	.store = gdlm_jid_store
 };
 
 static struct gdlm_attr gdlm_attr_first = {
 	.attr  = {.name = "first", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_first_show,
-	.store = gdlm_first_store 
+	.store = gdlm_first_store
 };
 
 static struct gdlm_attr gdlm_attr_first_done = {
@@ -212,7 +212,7 @@ static struct gdlm_attr gdlm_attr_first_done = {
 static struct gdlm_attr gdlm_attr_recover = {
 	.attr  = {.name = "recover", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_recover_show,
-	.store = gdlm_recover_store 
+	.store = gdlm_recover_store
 };
 
 static struct gdlm_attr gdlm_attr_recover_done = {

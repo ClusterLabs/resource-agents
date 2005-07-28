@@ -838,7 +838,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 }
 
 /**
- * gfs2_test_bdev_super - 
+ * gfs2_test_bdev_super -
  * @sb:
  * @data:
  *
@@ -871,7 +871,7 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 }
 #else
 /**
- * gfs2_get_sb - 
+ * gfs2_get_sb -
  * @fs_type:
  * @flags:
  * @dev_name:
@@ -938,7 +938,7 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 }
 
 /**
- * gfs2_kill_sb - 
+ * gfs2_kill_sb -
  * @sb:
  *
  * Rip off of kill_block_super().

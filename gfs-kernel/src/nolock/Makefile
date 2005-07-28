@@ -24,7 +24,7 @@ linux_patched = ${top_srcdir}/src/b
 TARGET = lock_nolock.patch
 
 PWD := $(shell pwd)
-  
+
 obj-m := lock_nolock.o
 lock_nolock-objs := main.o
 
@@ -35,7 +35,7 @@ all:
 	ln -s . linux
 	ln -s ${top_srcdir}/src/harness/lm_interface.h .
 	${MAKE} -C ${KERNEL_SRC} M=${PWD} modules USING_KBUILD=yes
- 
+
 install: all
 	install -d ${module_dir}/fs/gfs_locking/lock_nolock
 	install lock_nolock.ko ${module_dir}/fs/gfs_locking/lock_nolock

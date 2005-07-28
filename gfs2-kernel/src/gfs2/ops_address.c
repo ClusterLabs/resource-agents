@@ -95,7 +95,7 @@ static int get_block_noalloc(struct inode *inode, sector_t lblock,
 }
 
 /**
- * get_blocks - 
+ * get_blocks -
  * @inode:
  * @lblock:
  * @max_blocks:
@@ -134,7 +134,7 @@ static int get_blocks(struct inode *inode, sector_t lblock,
 }
 
 /**
- * get_blocks_noalloc - 
+ * get_blocks_noalloc -
  * @inode:
  * @lblock:
  * @max_blocks:
@@ -349,7 +349,7 @@ static int gfs2_prepare_write(struct file *file, struct page *page,
 		uint64_t file_size;
 		file_size = ((uint64_t)page->index << PAGE_CACHE_SHIFT) + to;
 
-		if (file_size > sdp->sd_sb.sb_bsize - 
+		if (file_size > sdp->sd_sb.sb_bsize -
 				sizeof(struct gfs2_dinode)) {
 			error = gfs2_unstuff_dinode(ip, gfs2_unstuffer_page,
 						    page);
@@ -508,7 +508,7 @@ int gfs2_invalidatepage(struct page *page, unsigned long offset)
 }
 
 /**
- * gfs2_direct_IO - 
+ * gfs2_direct_IO -
  * @rw:
  * @iocb:
  * @iov:

@@ -58,7 +58,7 @@ static void meta_go_sync(struct gfs2_glock *gl, int flags)
 /**
  * meta_go_inval - invalidate the metadata for this glock
  * @gl: the glock
- * @flags: 
+ * @flags:
  *
  */
 
@@ -169,7 +169,7 @@ static void inode_go_sync(struct gfs2_glock *gl, int flags)
 /**
  * inode_go_inval - prepare a inode glock to be released
  * @gl: the glock
- * @flags: 
+ * @flags:
  *
  */
 

@@ -80,7 +80,7 @@ int gfs2_unstuffer_sync(struct gfs2_inode *ip, struct buffer_head *dibh,
  * @unstuffer: the routine that handles unstuffing a non-zero length file
  * @private: private data for the unstuffer
  *
- * This routine unstuffs a dinode and returns it to a "normal" state such 
+ * This routine unstuffs a dinode and returns it to a "normal" state such
  * that the height can be grown in the traditional way.
  *
  * Returns: errno
@@ -334,7 +334,7 @@ static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
  * metapointer - Return pointer to start of metadata in a buffer
  * @bh: The buffer
  * @height: The metadata height (0 = dinode)
- * @mp: The metapath 
+ * @mp: The metapath
  *
  * Return a pointer to the block number of the next height of the metadata
  * tree given a buffer containing the pointer to the current height of the

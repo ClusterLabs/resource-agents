@@ -17,7 +17,7 @@
  * bits.  One bit indicates whether or not the block is used.  (1=used,
  * 0=free)  The other bit indicates whether or not the block contains a
  * dinode or not.  (1=dinode, 0=not-dinode) So, each byte represents
- * GFS2_NBBY (i.e. 4) blocks.  
+ * GFS2_NBBY (i.e. 4) blocks.
  */
 
 #include <linux/sched.h>
@@ -102,7 +102,7 @@ unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
  * @goal: start search at this block's bit-pair (within @buffer)
  * @old_state: GFS2_BLKST_XXX the state of the block we're looking for;
  *       bit 0 = alloc(1)/free(0), bit 1 = meta(1)/data(0)
- * 
+ *
  * Scope of @goal and returned block number is only within this bitmap buffer,
  * not entire rgrp or filesystem.  @buffer will be offset from the actual
  * beginning of a bitmap block buffer, skipping any header structures.

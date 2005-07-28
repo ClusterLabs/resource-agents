@@ -1285,11 +1285,11 @@ static int gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry,
 
 /**
  * gfs2_setxattr - Set (or create or replace) an inode's extended attribute
- * @dentry: 
- * @name: 
- * @data: 
- * @size: 
- * @flags: 
+ * @dentry:
+ * @name:
+ * @data:
+ * @size:
+ * @flags:
  *
  * Returns: errno
  */
@@ -1345,7 +1345,7 @@ ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
 }
 
 /**
- * gfs2_listxattr - 
+ * gfs2_listxattr -
  * @dentry:
  * @buffer:
  * @size:

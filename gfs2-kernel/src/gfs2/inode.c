@@ -411,7 +411,7 @@ void gfs2_inode_put(struct gfs2_inode *ip)
  * @ip: The GFS2 inode
  *
  * Also, unhold the iopen glock and release indirect addressing buffers.
- * This function must be called with a glocks held on the inode and 
+ * This function must be called with a glocks held on the inode and
  * the associated iopen.
  *
  */

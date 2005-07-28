@@ -136,7 +136,7 @@ static void drop_dentries(struct gfs2_inode *ip)
 
  restart:
 	spin_lock(&dcache_lock);
-	list_for_each_entry(d, &inode->i_dentry, d_alias) { 
+	list_for_each_entry(d, &inode->i_dentry, d_alias) {
 		if (d_unhashed(d))
 			continue;
 		dget_locked(d);

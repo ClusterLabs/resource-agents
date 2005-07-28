@@ -208,7 +208,7 @@ int gfs2_check_acl_locked(struct inode *inode, int mask)
 		posix_acl_release(acl);
 		return error;
 	}
-      
+
 	return -EAGAIN;
 }
 

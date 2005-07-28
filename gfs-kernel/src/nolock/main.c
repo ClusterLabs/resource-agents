@@ -220,7 +220,7 @@ static void nolock_sync_lvb(lm_lock_t *lock, char *lvb)
 }
 
 /**
- * nolock_plock_get - 
+ * nolock_plock_get -
  * @lockspace: the lockspace
  * @name:
  * @file:

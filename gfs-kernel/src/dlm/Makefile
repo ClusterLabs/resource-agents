@@ -24,7 +24,7 @@ linux_patched = ${top_srcdir}/src/b
 TARGET = lock_dlm.patch
 
 PWD := $(shell pwd)
- 
+
 obj-m := lock_dlm.o
 lock_dlm-objs := lock.o \
 	main.o \
@@ -43,10 +43,10 @@ all:
 install: all
 	install -d ${module_dir}/fs/gfs_locking/lock_dlm
 	install lock_dlm.ko ${module_dir}/fs/gfs_locking/lock_dlm
- 
+
 uninstall:
 	${UNINSTALL} lock_dlm.ko ${module_dir}/fs/gfs_locking/lock_dlm
- 
+
 clean:
 	rm -rf linux cluster lm_interface.h dlm.h cnxman.h \
 		cnxman-socket.h service.h .tmp_versions *.o \

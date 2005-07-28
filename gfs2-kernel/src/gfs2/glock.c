@@ -213,7 +213,7 @@ static void glock_free(struct gfs2_glock *gl)
  * @glp: the glock is returned here
  *
  * This does not lock a glock, just finds/creates structures for one.
- * 
+ *
  * Returns: errno
  */
 
@@ -336,7 +336,7 @@ void gfs2_glock_put(struct gfs2_glock *gl)
 
 /**
  * gfs2_holder_init - initialize a struct gfs2_holder in the default way
- * @gl: the glock 
+ * @gl: the glock
  * @state: the state we're requesting
  * @flags: the modifier flags
  * @gh: the holder structure
@@ -395,7 +395,7 @@ void gfs2_holder_uninit(struct gfs2_holder *gh)
 
 /**
  * gfs2_holder_get - get a struct gfs2_holder structure
- * @gl: the glock 
+ * @gl: the glock
  * @state: the state we're requesting
  * @flags: the modifier flags
  *
@@ -1052,7 +1052,7 @@ static void drop_bh(struct gfs2_glock *gl, unsigned int ret)
 }
 
 /**
- * gfs2_glock_drop_th - call into the lock module to unlock a lock 
+ * gfs2_glock_drop_th - call into the lock module to unlock a lock
  * @gl: the glock
  *
  */
@@ -1428,7 +1428,7 @@ void gfs2_glock_dq(struct gfs2_holder *gh)
 /**
  * gfs2_glock_prefetch - Try to prefetch a glock
  * @gl: the glock
- * @state: the state to prefetch in 
+ * @state: the state to prefetch in
  * @flags: flags passed to go_xmote_th()
  *
  */
@@ -1551,7 +1551,7 @@ int gfs2_glock_be_greedy(struct gfs2_glock *gl, unsigned int time)
 
 /**
  * gfs2_glock_nq_init - intialize a holder and enqueue it on a glock
- * @gl: the glock 
+ * @gl: the glock
  * @state: the state we're requesting
  * @flags: the modifier flags
  * @gh: the holder structure
@@ -1841,7 +1841,7 @@ int gfs2_lvb_hold(struct gfs2_glock *gl)
 /**
  * gfs2_lvb_unhold - detach a LVB from a glock
  * @gl: The glock in question
- * 
+ *
  */
 
 void gfs2_lvb_unhold(struct gfs2_glock *gl)
@@ -1863,7 +1863,7 @@ void gfs2_lvb_unhold(struct gfs2_glock *gl)
 /**
  * gfs2_lvb_sync - sync a LVB
  * @gl: The glock in question
- * 
+ *
  */
 
 void gfs2_lvb_sync(struct gfs2_glock *gl)
@@ -2004,7 +2004,7 @@ void gfs2_try_toss_inode(struct gfs2_sbd *sdp, struct gfs2_inum *inum)
 }
 
 /**
- * gfs2_iopen_go_callback - Try to kick the inode/vnode associated with an 
+ * gfs2_iopen_go_callback - Try to kick the inode/vnode associated with an
  *                          iopen glock from memory
  * @io_gl: the iopen glock
  * @state: the state into which the glock should be put
@@ -2148,7 +2148,7 @@ void gfs2_reclaim_glock(struct gfs2_sbd *sdp)
 
 /**
  * examine_bucket - Call a function for glock in a hash bucket
- * @examiner: the function 
+ * @examiner: the function
  * @sdp: the filesystem
  * @bucket: the bucket
  *

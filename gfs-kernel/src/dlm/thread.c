@@ -170,7 +170,7 @@ static void process_complete(struct gdlm_lock *lp)
 		return;
 	}
 
-	/* 
+	/*
 	 * A request is granted during dlm recovery.  It may be granted
 	 * because the locks of a failed node were cleared.  In that case,
 	 * there may be inconsistent data beneath this lock and we must wait
@@ -303,7 +303,7 @@ static int gdlm_thread(void *data)
 					delay_list);
 			list_del_init(&lp->delay_list);
 			submit = 1;
-		} 
+		}
 
 		drop = check_drop(ls);
 		spin_unlock(&ls->async_lock);

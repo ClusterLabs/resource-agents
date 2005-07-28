@@ -404,7 +404,7 @@ struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
  * gfs2_log_fake_buf - Build a fake buffer head to write metadata buffer to log
  * @sdp: the filesystem
  * @data: the data the buffer_head should point to
- * 
+ *
  * Returns: the log buffer descriptor
  */
 

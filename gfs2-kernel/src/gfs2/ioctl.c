@@ -95,7 +95,7 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
@@ -178,7 +178,7 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)
@@ -223,7 +223,7 @@ static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			     char *buf, unsigned int size, unsigned int *count)
@@ -255,7 +255,7 @@ static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
@@ -317,7 +317,7 @@ static unsigned int handle_roll(atomic_t *a)
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			   char *buf, unsigned int size, unsigned int *count)
@@ -417,7 +417,7 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
  * @count:
  *
  * Returns: errno
- */ 
+ */
 
 static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)

@@ -17,7 +17,7 @@
 *     __ACM Trans. on Database Systems__, Sept 1979.
 *
 *
-* Here's the layout of dirents which is essentially the same as that of ext2 
+* Here's the layout of dirents which is essentially the same as that of ext2
 * within a single block. The field de_name_len is the number of bytes
 * actually required for the name (no null terminator). The field de_rec_len
 * is the number of bytes allocated to the dirent. The offset of the next
@@ -38,10 +38,10 @@
 * There are two types of blocks in which dirents reside. In a stuffed dinode,
 * the dirents begin at offset sizeof(struct gfs2_dinode) from the beginning of
 * the block.  In leaves, they begin at offset sizeof(struct gfs2_leaf) from the
-* beginning of the leaf block. The dirents reside in leaves when 
-* 
+* beginning of the leaf block. The dirents reside in leaves when
+*
 * dip->i_di.di_flags & GFS2_DIF_EXHASH is true
-* 
+*
 * Otherwise, the dirents are "linear", within a single stuffed dinode block.
 *
 * When the dirents are in leaves, the actual contents of the directory file are
@@ -49,10 +49,10 @@
 * dirents are NOT in the directory file itself. There can be more than one block
 * pointer in the array that points to the same leaf. In fact, when a directory
 * is first converted from linear to exhash, all of the pointers point to the
-* same leaf. 
+* same leaf.
 *
 * When a leaf is completely full, the size of the hash table can be
-* doubled unless it is already at the maximum size which is hard coded into 
+* doubled unless it is already at the maximum size which is hard coded into
 * GFS2_DIR_MAX_DEPTH. After that, leaves are chained together in a linked list,
 * but never before the maximum hash table size has been reached.
 */
@@ -964,7 +964,7 @@ static int compare_dents(const void *a, const void *b)
  * @dip: The GFS2 inode
  * @offset: The offset in the file to read from
  * @opaque: opaque data to pass to filldir
- * @filldir: The function to pass entries to 
+ * @filldir: The function to pass entries to
  * @darr: an array of struct gfs2_dirent pointers to read
  * @entries: the number of entries in darr
  * @copied: pointer to int that's non-zero if a entry has been copied out
@@ -1046,7 +1046,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
  * @dip: The GFS2 inode
  * @offset: The offset in the file to read from
  * @opaque: opaque data to pass to filldir
- * @filldir: The function to pass entries to 
+ * @filldir: The function to pass entries to
  * @bh: the block
  * @entries: the number of entries in the block
  * @copied: pointer to int that's non-zero if a entry has been copied out
@@ -1104,7 +1104,7 @@ static int do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
  * @dip: The GFS2 inode
  * @offset: The offset in the file to read from
  * @opaque: opaque data to pass to filldir
- * @filldir: The function to pass entries to 
+ * @filldir: The function to pass entries to
  * @bh: the first leaf in the list
  * @copied: pointer to int that's non-zero if a entry has been copied out
  *
@@ -1403,7 +1403,7 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 }
 
 /**
- * dir_e_del - 
+ * dir_e_del -
  * @dip: The GFS2 inode
  * @filename:
  *
@@ -1454,10 +1454,10 @@ static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 }
 
 /**
- * dir_e_read - Reads the entries from a directory into a filldir buffer 
+ * dir_e_read - Reads the entries from a directory into a filldir buffer
  * @dip: dinode pointer
  * @offset: the hash of the last entry read shifted to the right once
- * @opaque: buffer for the filldir function to fill 
+ * @opaque: buffer for the filldir function to fill
  * @filldir: points to the filldir function to use
  *
  * Returns: errno
@@ -1673,7 +1673,7 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 }
 
 /**
- * dir_l_del - 
+ * dir_l_del -
  * @dip: The GFS2 inode
  * @filename:
  *

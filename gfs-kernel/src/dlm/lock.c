@@ -459,7 +459,7 @@ static void unhold_null_lock(struct gdlm_lock *lp)
 /* Acquire a NL lock because gfs requires the value block to remain
    intact on the resource while the lvb is "held" even if it's holding no locks
    on the resource. */
-      
+
 int gdlm_hold_lvb(lm_lock_t *lock, char **lvbp)
 {
 	struct gdlm_lock *lp = (struct gdlm_lock *) lock;

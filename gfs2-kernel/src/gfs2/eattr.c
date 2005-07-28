@@ -56,7 +56,7 @@ static int ea_calc_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er,
 }
 
 /**
- * ea_check_size - 
+ * ea_check_size -
  * @ip:
  * @er:
  *

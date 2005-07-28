@@ -40,7 +40,7 @@
 ((bh)->b_state & ((1ul << BH_Dirty) | (1ul << BH_Lock)))
 
 /**
- * aspace_get_block - 
+ * aspace_get_block -
  * @inode:
  * @lblock:
  * @bh_result:
@@ -133,7 +133,7 @@ static void stuck_releasepage(struct buffer_head *bh)
 }
 
 /**
- * gfs2_aspace_releasepage - free the metadata associated with a page 
+ * gfs2_aspace_releasepage - free the metadata associated with a page
  * @page: the page that's being released
  * @gfp_mask: passed from Linux VFS, ignored by us
  *

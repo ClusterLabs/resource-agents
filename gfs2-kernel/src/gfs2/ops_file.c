@@ -1405,7 +1405,7 @@ static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
 
 	if (gfs2_is_jdata(ip))
 		retval = -EOPNOTSUPP;
-	else 
+	else
 		retval = generic_file_sendfile(in_file, offset, count, actor,
 					       target);
 

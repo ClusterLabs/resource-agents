@@ -152,11 +152,11 @@ static int minor_get(void)
 {
 	int minor;
 	int error;
-      
+
 	for (;;) {
 		if (!idr_pre_get(&diaper_idr, GFP_KERNEL))
 			return -ENOMEM;
-      
+
 		spin_lock(&diaper_lock);
 		error = idr_get_new(&diaper_idr, NULL, &minor);
 		spin_unlock(&diaper_lock);
