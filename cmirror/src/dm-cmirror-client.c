@@ -763,7 +763,7 @@ static int cluster_resume(struct dirty_log *log){
 	return 0;
 }
 
-static uint32_t cluster_get_region_size(struct dirty_log *log)
+static sector_t cluster_get_region_size(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
 	return lc->region_size;
