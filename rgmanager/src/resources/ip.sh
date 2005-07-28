@@ -730,7 +730,8 @@ ip_op()
 		fi
 
 		[ -n "$4" ] || echo "$3 present on $dev"
-		if [ "${OCF_RESKEY_monitor_link}" != "yes" ]; then
+		if [ "${OCF_RESKEY_monitor_link}" = "no" ] ||
+		   [ "${OCF_RESKEY_monitor_link}" = "0" ]; then
 			return 0
 		fi
 
@@ -811,7 +812,7 @@ start)
 	exit $?
 	;;
 stop)
-	unset _monitor_link
+	unset OCF_RESKEY_monitor_link
 	if ip_op ${OCF_RESKEY_family} status ${OCF_RESKEY_address} quiet; then
 		ip_op ${OCF_RESKEY_family} del ${OCF_RESKEY_address}
 
