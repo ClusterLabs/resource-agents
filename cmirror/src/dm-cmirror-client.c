@@ -301,7 +301,7 @@ static int run_election(struct log_c *lc){
 		       lc->server_id);
 	} else {
 		/* ATTENTION -- what do we do with this ? */
-		DMWARN("Failed to recieve election results from server");
+		DMWARN("Failed to receive election results from server");
 		error = len;
 	}
 
@@ -424,8 +424,9 @@ static int _consult_server(struct log_c *lc, region_t region,
 	}
     
 	if(lr->u.lr_int_rtn == -EAGAIN){
-		DMWARN("server tells us to try again (%d).  Mirror suspended?",
-		       lr->lr_type);
+		DMWARN("Server (%u), request type %d, -EAGAIN."
+		       "  Mirror suspended?",
+		       lc->server_id, lr->lr_type);
 		*retry = 1;
 		goto fail;
 	}
@@ -584,6 +585,10 @@ static int consult_server(struct log_c *lc, region_t region,
 	return rtn;
 }
 
+static int mirror_set_count = 0;
+static int cluster_connect(void);
+static int cluster_disconnect(void);
+
 /*----------------------------------------------------------------
  * cluster log constructor
  *
@@ -633,13 +638,17 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 
 	lc->paranoid = paranoid;
 
-	atomic_set(&lc->suspend, 1);
 	atomic_set(&lc->in_sync, -1);
 
 	list_add(&lc->log_list, &log_list_head);
 	INIT_LIST_HEAD(&lc->region_users);
 
 	lc->server_id = 0xDEAD;
+
+	if ((error = cluster_connect())) {
+		DMWARN("Unable to connect to cluster infrastructure.");
+		goto fail;
+	}
 
 	error = sock_create(AF_INET, SOCK_DGRAM,
 			    0,
@@ -674,14 +683,21 @@ static int cluster_ctr(struct dirty_log *log, struct dm_target *ti,
 	return 0;
 
  fail:
-	/* ATTENTION -- if core is an option we must do appropriate */
-	disk_dtr(log);
+	if (lc->disk_bits)
+		disk_dtr(log);
+	else
+		core_dtr(log);
+
 	return error;
 }
 
 static void cluster_dtr(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
+	if (!list_empty(&clear_region_list))
+		DMERR("LEAVING WHILE REGION REQUESTS REMAIN.");
+
 	list_del_init(&lc->log_list);
 	if(lc->server_id == my_id)
 		consult_server(lc, 0, LRT_MASTER_LEAVING, NULL);
@@ -690,11 +706,16 @@ static void cluster_dtr(struct dirty_log *log)
 		disk_dtr(log);
 	else
 		core_dtr(log);
+
+	if (cluster_disconnect())
+		DMERR("Unable to disconnect from cluster infrastructure.\n");
+
 }
 
 static int cluster_presuspend(struct dirty_log *log)
 {
 	struct log_c *lc = (struct log_c *) log->context;
+
 	atomic_set(&lc->suspended, 1);
 
 	if (lc->disk_bits && lc->log_dev_failed)
@@ -704,10 +725,32 @@ static int cluster_presuspend(struct dirty_log *log)
 }
 
 static int cluster_postsuspend(struct dirty_log *log){
-	struct log_c *lc = (struct log_c *) log->context;
+	struct region_state *rs=NULL;
+	int retry = 0;
 
-	/* FLUSH ALL OUTSTANDING REQUESTS */
-	atomic_set(&lc->suspend, 1);
+	spin_lock(&region_state_lock);
+
+	while (!list_empty(&clear_region_list)) {
+		retry = 0;
+
+		rs = list_entry(clear_region_list.next,
+				struct region_state, rs_list);
+		list_del_init(&rs->rs_list);
+		clear_region_count--;
+		
+		_consult_server(rs->rs_lc, rs->rs_region,
+				LRT_CLEAR_REGION, NULL, &retry);
+
+		if(retry){
+			list_add(&rs->rs_list, &clear_region_list);
+			clear_region_count++;
+		} else {
+			DMERR("  Clear request pushed.");
+			mempool_free(rs, region_state_pool);
+		}
+	}
+		
+	spin_unlock(&region_state_lock);
 
 	return 0;
 }
@@ -716,7 +759,6 @@ static int cluster_resume(struct dirty_log *log){
 	struct log_c *lc = (struct log_c *) log->context;
 
 	atomic_set(&lc->suspended, 0);
-	atomic_set(&(lc->suspend), 0);
 
 	return 0;
 }
@@ -968,11 +1010,10 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 	int sz = 0;
 	int arg_count=2;
 	struct log_c *lc = (struct log_c *) log->context;
-	struct region_state *rs;
-	int i=0, j=0;
 
 	switch(status){
 	case STATUSTYPE_INFO:
+/*
 		spin_lock(&region_state_lock);
 		i = clear_region_count;
 		list_for_each_entry(rs, &marked_region_list, rs_list){
@@ -1006,7 +1047,7 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 		if(lc->server_id == my_id){
 			print_server_status(lc);
 		}
-
+*/
 		if(lc->sync != DEFAULTSYNC)
 			arg_count++;
 		if(lc->paranoid)
@@ -1044,25 +1085,15 @@ static int cluster_status(struct dirty_log *log, status_type_t status,
 static int clog_stop(void *data){
 	struct log_c *lc;
 
-	DMINFO("Cluster mirror 'stop' initiated");
-
-	DMINFO(" - Suspending client operations");
 	atomic_set(&suspend_client, 1);
 
-	DMINFO(" - Clearing mirror sync status");
-	list_for_each_entry(lc, &log_list_head, log_list){
-		DMINFO(" - Mirror status changed for <name>:: NOT IN SYNC");
+	list_for_each_entry(lc, &log_list_head, log_list) {
 		atomic_set(&lc->in_sync, 0);
 	}
 	
-	if(likely(!shutting_down)){
-		DMINFO(" - Suspending cluster log server");
+	if (likely(!shutting_down))
 		suspend_server();
-	} else {
-		DMINFO(" - Cluster mirror shutting down");
-	}
 
-	DMINFO("Cluster mirror 'stop' complete");
 	return 0;
 }
 
@@ -1072,7 +1103,6 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 	struct log_c *lc;
 	struct kcl_cluster_node node;
 
-	DMINFO("Cluster mirror 'start' initiated");
 	if(global_nodeids){
 		kfree(global_nodeids);
 	}
@@ -1105,21 +1135,13 @@ static int clog_start(void *data, uint32_t *nodeids, int count, int event_id, in
 		BUG();
 		break;
 	}
-	DMINFO(" - Resuming cluster log server");
 	resume_server();
-	DMINFO(" - Resuming cluster log server: done");
-	DMINFO("Cluster mirror 'start' complete");
 	return 0;
 }
 
 static void clog_finish(void *data, int event_id){
-	DMINFO("Cluster mirror 'finish' initiated");
-
-	DMINFO(" - Resuming client operations");
 	atomic_set(&suspend_client, 0);
 	wake_up_all(&suspend_client_queue);
-	DMINFO(" - Resuming client operations: done");
-	DMINFO("Cluster mirror 'finish' complete");
 }
 
 static struct kcl_service_ops clog_ops = {
@@ -1127,6 +1149,56 @@ static struct kcl_service_ops clog_ops = {
 	.start = clog_start,
 	.finish = clog_finish,
 };
+
+static int cluster_connect(void)
+{
+	int r;
+
+	if (mirror_set_count++)
+		return 0;
+
+	DMINFO("Cluster mirror log connecting to CMAN");
+
+	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
+				 1, NULL, &local_id);
+	if (r) {
+		DMWARN("Couldn't register cluster_log service");
+		return r;
+	}
+
+	r = start_server();
+	if(r){
+		DMWARN("Unable to start cluster log server daemon");
+		kcl_unregister_service(local_id);
+		return r;
+	}
+
+	r = kcl_join_service(local_id);
+
+	if(r){
+		DMWARN("couldn't join service group");
+		stop_server();
+		kcl_unregister_service(local_id);
+	}
+
+	return r;
+}
+
+static int cluster_disconnect(void)
+{
+	if (--mirror_set_count)
+		return 0;
+
+	DMINFO("Cluster mirror log disconnecting from CMAN");
+	/* By setting 'shutting_down', the server will not be suspended **
+	** when a stop is received */
+	shutting_down = 1;
+	kcl_leave_service(local_id);
+	stop_server();
+	kcl_unregister_service(local_id);
+
+	return 0;
+}
 
 static struct dirty_log_type _cluster_type = {
 	.name = "cluster",
@@ -1149,10 +1221,13 @@ static struct dirty_log_type _cluster_type = {
 	.status = cluster_status,
 };
 
-
+#define CMIRROR_RELEASE_NAME "0.1.0"
 static int __init cluster_dirty_log_init(void)
 {
-	int r=0;
+	int r = 0;
+
+        printk("dm-cmirror %s (built %s %s) installed\n",
+               CMIRROR_RELEASE_NAME, __DATE__, __TIME__);
 
 	INIT_LIST_HEAD(&clear_region_list);
 	INIT_LIST_HEAD(&marked_region_list);
@@ -1162,47 +1237,15 @@ static int __init cluster_dirty_log_init(void)
 					   region_state_free, NULL);
 	if(!region_state_pool){
 		DMWARN("couldn't create region state pool");
-		goto fail1;
+		return -ENOMEM;
 	}
 
 	init_waitqueue_head(&suspend_client_queue);
 
-
-	r = kcl_register_service("cluster_log", 11, SERVICE_LEVEL_GDLM, &clog_ops,
-				 1, NULL, &local_id);
-	if(r){
-		DMWARN("couldn't register service");
-		goto fail1;
-	}
-
-	r = start_server();
-	if(r){
-		DMWARN("unable to start cluster log server daemon");
-		goto fail2;
-	}
-
-	r = kcl_join_service(local_id);
-
-	if(r){
-		DMWARN("couldn't join service group");
-		goto fail3;
-	}
-
 	r = dm_register_dirty_log_type(&_cluster_type);
-	if (r) {
+	if (r)
 		DMWARN("couldn't register cluster dirty log type");
-		goto fail4;
-	}
 
-	return 0;
-
- fail4:
-	kcl_leave_service(local_id);
- fail3:
-	stop_server();
- fail2:
-	kcl_unregister_service(local_id);
- fail1:
 	return r;
 
 }
@@ -1215,13 +1258,6 @@ static void __exit cluster_dirty_log_exit(void)
 		BUG();
 	}
 	dm_unregister_dirty_log_type(&_cluster_type);
-
-	/* By setting 'shutting_down', the server will not be suspended **
-	** when a stop is recieved */
-	shutting_down = 1;
-	kcl_leave_service(local_id);
-	stop_server();
-	kcl_unregister_service(local_id);
 }
 
 module_init(cluster_dirty_log_init);

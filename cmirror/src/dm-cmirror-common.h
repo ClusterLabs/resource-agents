@@ -125,7 +125,6 @@ struct log_c {
 	char uuid[MAX_NAME_LEN];
 	int paranoid;
 	atomic_t in_sync;  /* like sync_count, except all or nothing */
-	atomic_t suspend;
 
 	struct list_head log_list;
 	struct list_head region_users;
@@ -141,7 +140,6 @@ do \
 	current->state = TASK_UNINTERRUPTIBLE; \
 	add_wait_queue(wq, &__wait_chan); \
 	if ((sleep_cond)){ \
-		printk("suspend_on:: " #wq "\n"); \
 		schedule(); \
 	} \
 	remove_wait_queue(wq, &__wait_chan); \

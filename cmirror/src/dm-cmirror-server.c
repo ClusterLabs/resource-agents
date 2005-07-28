@@ -549,6 +549,9 @@ static int server_get_resync_work(struct log_c *lc, struct log_request *lr, uint
 {
 	struct region_user *new;
 
+	if (my_id != who)
+		return 0;
+
 	new = mempool_alloc(region_user_pool, GFP_KERNEL);
 	if(!new){
 		return -ENOMEM;
@@ -575,6 +578,9 @@ static int server_complete_resync_work(struct log_c *lc, struct log_request *lr)
 	log_set_bit(lc, lc->sync_bits, lr->u.lr_region);
 	lc->sync_count++;
 
+	/* _must_ not be anyone else using */
+	log_set_bit(lc, lc->clean_bits, lr->u.lr_region);
+
 	info = (uint32_t)(lc->region_count - lc->sync_count);
 
 	if((info < 10001 && !(info%1000)) ||
@@ -593,6 +599,11 @@ static int server_complete_resync_work(struct log_c *lc, struct log_request *lr)
 	} else {
 		list_del(&ru->ru_list);
 		mempool_free(ru,region_user_pool);
+
+		/*ASSERT(!find_ru_by_region(lc, lr->u.lr_region));*/
+		if (write_bits(lc))
+			DMERR("Write bits failed on mirror log device: %s",
+			      lc->log_dev->name);
 	}
 	return 0;
 }
@@ -800,13 +811,7 @@ static int process_log_request(struct socket *sock){
   lr.u.lr_int_rtn = -ENXIO;
   goto reply;
   }
-*/				
-
-		if(atomic_read(&lc->suspend)){
-			lr.u.lr_int_rtn = -EAGAIN;
-			goto reply;
-		}
-
+*/
 		switch(lr.lr_type){
 		case LRT_IS_CLEAN:
 			error = server_is_clean(lc, &lr);
@@ -921,7 +926,6 @@ static int cluster_log_serverd(void *data){
   
 	for(;;){
 		if(!atomic_read(&server_run)){
-			DMINFO("Cluster log server recieved message to shut down.");
 			break;
 		}
 
@@ -964,7 +968,7 @@ static int cluster_log_serverd(void *data){
 		schedule();
 	}
 
-	DMINFO("Cluster log server thread is shutting down.");
+	DMINFO("Cluster log server is shutting down.");
 
 	sock_release(sock);
 	complete(&server_completion);
