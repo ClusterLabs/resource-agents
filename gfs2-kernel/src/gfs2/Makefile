@@ -113,4 +113,5 @@ add:
 	cp *.[ch] ${linux_patched}/fs/gfs2
 	cp Makefile.kernel ${linux_patched}/fs/gfs2/Makefile
 	mv ${linux_patched}/fs/gfs2/gfs2_*.h ${linux_patched}/include/linux
+	cp ../../../doc/gfs2.txt ${linux_patched}/Documentation/filesystems/gfs2.txt
 
