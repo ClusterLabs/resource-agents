@@ -500,7 +500,7 @@ static int gfs2_symlink(struct inode *dir, struct dentry *dentry,
 	/* Must be stuffed with a null terminator for gfs2_follow_link() */
 	size = strlen(symname);
 	if (size > sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode) - 1)
-	        return -ENAMETOOLONG;
+		return -ENAMETOOLONG;
 
 	gfs2_holder_init(dip->i_gl, 0, 0, ghs);
 
@@ -1305,7 +1305,7 @@ int gfs2_setxattr(struct dentry *dentry, const char *name,
 	memset(&er, 0, sizeof(struct gfs2_ea_request));
 	er.er_type = gfs2_ea_name2type(name, &er.er_name);
 	if (er.er_type == GFS2_EATYPE_UNUSED)
-	        return -EOPNOTSUPP;
+		return -EOPNOTSUPP;
 	er.er_data = (char *)data;
 	er.er_name_len = strlen(er.er_name);
 	er.er_data_len = size;
@@ -1336,7 +1336,7 @@ ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
 	memset(&er, 0, sizeof(struct gfs2_ea_request));
 	er.er_type = gfs2_ea_name2type(name, &er.er_name);
 	if (er.er_type == GFS2_EATYPE_UNUSED)
-	        return -EOPNOTSUPP;
+		return -EOPNOTSUPP;
 	er.er_data = data;
 	er.er_name_len = strlen(er.er_name);
 	er.er_data_len = size;
@@ -1383,7 +1383,7 @@ int gfs2_removexattr(struct dentry *dentry, const char *name)
 	memset(&er, 0, sizeof(struct gfs2_ea_request));
 	er.er_type = gfs2_ea_name2type(name, &er.er_name);
 	if (er.er_type == GFS2_EATYPE_UNUSED)
-	        return -EOPNOTSUPP;
+		return -EOPNOTSUPP;
 	er.er_name_len = strlen(er.er_name);
 
 	return gfs2_ea_remove(get_v2ip(dentry->d_inode), &er);

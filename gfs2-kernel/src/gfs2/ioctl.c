@@ -59,18 +59,18 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       gi_filler_t filler)
 {
 	unsigned int size = gfs2_tune_get(ip->i_sbd, gt_lockdump_size);
-        char *buf;
+	char *buf;
 	unsigned int count = 0;
-        int error;
+	int error;
 
 	if (size > gi->gi_size)
 		size = gi->gi_size;
 
-        buf = kmalloc(size, GFP_KERNEL);
-        if (!buf)
-                return -ENOMEM;
+	buf = kmalloc(size, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
 
-        error = filler(ip, gi, buf, size, &count);
+	error = filler(ip, gi, buf, size, &count);
 	if (error)
 		goto out;
 
@@ -87,7 +87,7 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 /**
  * gi_get_cookie - Return the "cookie" (identifying string) for a
- *                 filesystem mount
+ *		 filesystem mount
  * @ip:
  * @gi:
  * @buf:
@@ -100,18 +100,18 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
 {
-        int error = -ENOBUFS;
+	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
 		return -EINVAL;
 
 	gfs2_printf("version 0\n");
-        gfs2_printf("%lu", (unsigned long)ip->i_sbd);
+	gfs2_printf("%lu", (unsigned long)ip->i_sbd);
 
-        error = 0;
+	error = 0;
 
  out:
-        return error;
+	return error;
 }
 
 /**
@@ -159,7 +159,7 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	if (copy_to_user(gi->gi_data, sb,
 			 sizeof(struct gfs2_sb)))
-	        error = -EFAULT;
+		error = -EFAULT;
 	else
 		error = sizeof(struct gfs2_sb);
 
@@ -197,14 +197,14 @@ static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	gfs2_printf("spectator %d\n", args->ar_spectator);
 	gfs2_printf("ignore_local_fs %d\n", args->ar_ignore_local_fs);
 	gfs2_printf("localcaching %d\n", args->ar_localcaching);
-        gfs2_printf("localflocks %d\n", args->ar_localflocks);
-        gfs2_printf("oopses_ok %d\n", args->ar_oopses_ok);
+	gfs2_printf("localflocks %d\n", args->ar_localflocks);
+	gfs2_printf("oopses_ok %d\n", args->ar_oopses_ok);
 	gfs2_printf("debug %d\n", args->ar_debug);
-        gfs2_printf("upgrade %d\n", args->ar_upgrade);
+	gfs2_printf("upgrade %d\n", args->ar_upgrade);
 	gfs2_printf("num_glockd %u\n", args->ar_num_glockd);
-        gfs2_printf("posix_acl %d\n", args->ar_posix_acl);
+	gfs2_printf("posix_acl %d\n", args->ar_posix_acl);
 	gfs2_printf("quota %u\n", args->ar_quota);
-        gfs2_printf("suiddir %d\n", args->ar_suiddir);
+	gfs2_printf("suiddir %d\n", args->ar_suiddir);
 	gfs2_printf("data %d\n", args->ar_data);
 	gfs2_printf("noatime %d\n", !!test_bit(SDF_NOATIME, &sdp->sd_flags));
 
@@ -229,21 +229,21 @@ static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			     char *buf, unsigned int size, unsigned int *count)
 {
 	struct lm_lockstruct *ls = &ip->i_sbd->sd_lockstruct;
-        int error = -ENOBUFS;
+	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
 		return -EINVAL;
 
 	gfs2_printf("version 0\n");
-        gfs2_printf("jid %u\n", ls->ls_jid);
-        gfs2_printf("first %u\n", ls->ls_first);
-        gfs2_printf("lvb_size %u\n", ls->ls_lvb_size);
-        gfs2_printf("flags %d\n", ls->ls_flags);
+	gfs2_printf("jid %u\n", ls->ls_jid);
+	gfs2_printf("first %u\n", ls->ls_first);
+	gfs2_printf("lvb_size %u\n", ls->ls_lvb_size);
+	gfs2_printf("flags %d\n", ls->ls_flags);
 
 	error = 0;
 
  out:
-        return error;
+	return error;
 }
 
 /**
@@ -262,7 +262,7 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 {
        	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_statfs_change sc;
-        int error;
+	int error;
 
 	if (gi->gi_argc != 1)
 		return -EINVAL;
@@ -279,14 +279,14 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 	gfs2_printf("version 0\n");
 	gfs2_printf("bsize %u\n", sdp->sd_sb.sb_bsize);
-        gfs2_printf("total %"PRIu64"\n", sc.sc_total);
-        gfs2_printf("free %"PRIu64"\n", sc.sc_free);
-        gfs2_printf("dinodes %"PRIu64"\n", sc.sc_dinodes);
+	gfs2_printf("total %"PRIu64"\n", sc.sc_total);
+	gfs2_printf("free %"PRIu64"\n", sc.sc_free);
+	gfs2_printf("dinodes %"PRIu64"\n", sc.sc_dinodes);
 
 	error = 0;
 
  out:
-        return error;
+	return error;
 }
 
 /**
@@ -323,7 +323,7 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			   char *buf, unsigned int size, unsigned int *count)
 {
 	struct gfs2_sbd *sdp = ip->i_sbd;
-        int error = -ENOBUFS;
+	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
 		return -EINVAL;
@@ -402,10 +402,10 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		    handle_roll(&sdp->sd_bio_writes) >>
 		    (sdp->sd_sb.sb_bsize_shift - 9));
 
-        error = 0;
+	error = 0;
 
  out:
-        return error;
+	return error;
 }
 
 /**
@@ -423,7 +423,7 @@ static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)
 {
 	struct gfs2_tune *gt = &ip->i_sbd->sd_tune;
-        int error = -ENOBUFS;
+	int error = -ENOBUFS;
 
 	if (gi->gi_argc != 1)
 		return -EINVAL;
@@ -431,47 +431,47 @@ static int gi_get_tune(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	spin_lock(&gt->gt_spin);
 
 	gfs2_printf("version 0\n");
-        gfs2_printf("ilimit %u\n", gt->gt_ilimit);
-        gfs2_printf("ilimit_tries %u\n", gt->gt_ilimit_tries);
-        gfs2_printf("ilimit_min %u\n", gt->gt_ilimit_min);
-        gfs2_printf("demote_secs %u\n", gt->gt_demote_secs);
-        gfs2_printf("incore_log_blocks %u\n", gt->gt_incore_log_blocks);
+	gfs2_printf("ilimit %u\n", gt->gt_ilimit);
+	gfs2_printf("ilimit_tries %u\n", gt->gt_ilimit_tries);
+	gfs2_printf("ilimit_min %u\n", gt->gt_ilimit_min);
+	gfs2_printf("demote_secs %u\n", gt->gt_demote_secs);
+	gfs2_printf("incore_log_blocks %u\n", gt->gt_incore_log_blocks);
 	gfs2_printf("log_flush_secs %u\n", gt->gt_log_flush_secs);
-        gfs2_printf("jindex_refresh_secs %u\n", gt->gt_jindex_refresh_secs);
-        gfs2_printf("scand_secs %u\n", gt->gt_scand_secs);
-        gfs2_printf("recoverd_secs %u\n", gt->gt_recoverd_secs);
-        gfs2_printf("logd_secs %u\n", gt->gt_logd_secs);
-        gfs2_printf("quotad_secs %u\n", gt->gt_quotad_secs);
-        gfs2_printf("inoded_secs %u\n", gt->gt_inoded_secs);
-        gfs2_printf("quota_simul_sync %u\n", gt->gt_quota_simul_sync);
-        gfs2_printf("quota_warn_period %u\n", gt->gt_quota_warn_period);
-        gfs2_printf("quota_scale_num %u\n", gt->gt_quota_scale_num);
-        gfs2_printf("quota_scale_den %u\n", gt->gt_quota_scale_den);
+	gfs2_printf("jindex_refresh_secs %u\n", gt->gt_jindex_refresh_secs);
+	gfs2_printf("scand_secs %u\n", gt->gt_scand_secs);
+	gfs2_printf("recoverd_secs %u\n", gt->gt_recoverd_secs);
+	gfs2_printf("logd_secs %u\n", gt->gt_logd_secs);
+	gfs2_printf("quotad_secs %u\n", gt->gt_quotad_secs);
+	gfs2_printf("inoded_secs %u\n", gt->gt_inoded_secs);
+	gfs2_printf("quota_simul_sync %u\n", gt->gt_quota_simul_sync);
+	gfs2_printf("quota_warn_period %u\n", gt->gt_quota_warn_period);
+	gfs2_printf("quota_scale_num %u\n", gt->gt_quota_scale_num);
+	gfs2_printf("quota_scale_den %u\n", gt->gt_quota_scale_den);
 	gfs2_printf("quota_cache_secs %u\n", gt->gt_quota_cache_secs);
-        gfs2_printf("quota_quantum %u\n", gt->gt_quota_quantum);
-        gfs2_printf("atime_quantum %u\n", gt->gt_atime_quantum);
-        gfs2_printf("new_files_jdata %u\n", gt->gt_new_files_jdata);
-        gfs2_printf("new_files_directio %u\n", gt->gt_new_files_directio);
-        gfs2_printf("max_atomic_write %u\n", gt->gt_max_atomic_write);
-        gfs2_printf("max_readahead %u\n", gt->gt_max_readahead);
-        gfs2_printf("lockdump_size %u\n", gt->gt_lockdump_size);
-        gfs2_printf("stall_secs %u\n", gt->gt_stall_secs);
-        gfs2_printf("complain_secs %u\n", gt->gt_complain_secs);
-        gfs2_printf("reclaim_limit %u\n", gt->gt_reclaim_limit);
-        gfs2_printf("entries_per_readdir %u\n", gt->gt_entries_per_readdir);
-        gfs2_printf("prefetch_secs %u\n", gt->gt_prefetch_secs);
-        gfs2_printf("greedy_default %u\n", gt->gt_greedy_default);
-        gfs2_printf("greedy_quantum %u\n", gt->gt_greedy_quantum);
-        gfs2_printf("greedy_max %u\n", gt->gt_greedy_max);
-        gfs2_printf("statfs_quantum %u\n", gt->gt_statfs_quantum);
-        gfs2_printf("statfs_slow %u\n", gt->gt_statfs_slow);
+	gfs2_printf("quota_quantum %u\n", gt->gt_quota_quantum);
+	gfs2_printf("atime_quantum %u\n", gt->gt_atime_quantum);
+	gfs2_printf("new_files_jdata %u\n", gt->gt_new_files_jdata);
+	gfs2_printf("new_files_directio %u\n", gt->gt_new_files_directio);
+	gfs2_printf("max_atomic_write %u\n", gt->gt_max_atomic_write);
+	gfs2_printf("max_readahead %u\n", gt->gt_max_readahead);
+	gfs2_printf("lockdump_size %u\n", gt->gt_lockdump_size);
+	gfs2_printf("stall_secs %u\n", gt->gt_stall_secs);
+	gfs2_printf("complain_secs %u\n", gt->gt_complain_secs);
+	gfs2_printf("reclaim_limit %u\n", gt->gt_reclaim_limit);
+	gfs2_printf("entries_per_readdir %u\n", gt->gt_entries_per_readdir);
+	gfs2_printf("prefetch_secs %u\n", gt->gt_prefetch_secs);
+	gfs2_printf("greedy_default %u\n", gt->gt_greedy_default);
+	gfs2_printf("greedy_quantum %u\n", gt->gt_greedy_quantum);
+	gfs2_printf("greedy_max %u\n", gt->gt_greedy_max);
+	gfs2_printf("statfs_quantum %u\n", gt->gt_statfs_quantum);
+	gfs2_printf("statfs_slow %u\n", gt->gt_statfs_slow);
 
-        error = 0;
+	error = 0;
 
  out:
 	spin_unlock(&gt->gt_spin);
 
-        return error;
+	return error;
 }
 
 #define tune_set(f, v) \
@@ -496,7 +496,7 @@ static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	unsigned int x;
 
 	if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+		return -EACCES;
 	if (gi->gi_argc != 3)
 		return -EINVAL;
 
@@ -780,9 +780,9 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	else
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
-                return -EFAULT;
-        buf[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(buf, gi->gi_argv[2], ARG_SIZE) < 0)
+		return -EFAULT;
+	buf[ARG_SIZE - 1] = 0;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_EXCLUSIVE, 0, &i_gh);
 	if (error)
@@ -810,11 +810,11 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 			goto out;
 		flag = GFS2_DIF_IMMUTABLE;
 	} else if (strcmp(buf, "appendonly") == 0) {
-                /* The APPENDONLY flag can only be changed by
-                   the relevant capability. */
-                error = -EPERM;
-                if (!capable(CAP_LINUX_IMMUTABLE))
-                        goto out;
+		/* The APPENDONLY flag can only be changed by
+		   the relevant capability. */
+		error = -EPERM;
+		if (!capable(CAP_LINUX_IMMUTABLE))
+			goto out;
 		flag = GFS2_DIF_APPENDONLY;
 	} else if (strcmp(buf, "inherit_jdata") == 0) {
 		if (!S_ISDIR(ip->i_di.di_mode))
@@ -823,7 +823,7 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	} else if (strcmp(buf, "inherit_directio") == 0) {
 		if (S_ISDIR(ip->i_di.di_mode))
 			goto out;
-                flag = GFS2_DIF_INHERIT_DIRECTIO;
+		flag = GFS2_DIF_INHERIT_DIRECTIO;
 	} else
 		goto out;
 
@@ -875,8 +875,8 @@ static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	if (error)
 		return error;
 
-        error = -EACCES;
-        if (ip->i_di.di_uid == current->fsuid || capable(CAP_FOWNER)) {
+	error = -EACCES;
+	if (ip->i_di.di_uid == current->fsuid || capable(CAP_FOWNER)) {
 		error = 0;
 		if (!gfs2_is_stuffed(ip))
 			error = gfs2_block_map(ip, lblock, &new, &dblock, NULL);
@@ -918,9 +918,9 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	if (error)
 		return error;
 
-        error = -EACCES;
-        if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
-                goto out;
+	error = -EACCES;
+	if (ip->i_di.di_uid != current->fsuid && !capable(CAP_FOWNER))
+		goto out;
 
 	error = gfs2_get_file_meta(ip, &ub);
 	if (error)
@@ -949,7 +949,7 @@ static int gi_get_file_meta(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 
 /**
  * gi_do_file_flush - sync out all dirty data and
- *                    drop the cache (and lock) for a file.
+ *		    drop the cache (and lock) for a file.
  * @ip:
  * @gi:
  *
@@ -979,9 +979,9 @@ static struct gfs2_inode *gi2hip(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (gi->gi_argc != 2)
 		return ERR_PTR(-EINVAL);
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return ERR_PTR(-EFAULT);
-        buf[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+		return ERR_PTR(-EFAULT);
+	buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "jindex") == 0)
 		return sdp->sd_jindex;
@@ -1015,9 +1015,9 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (gi->gi_size != sizeof(struct gfs2_dinode))
 		return -EINVAL;
 
-        di = kmalloc(sizeof(struct gfs2_dinode), GFP_KERNEL);
-        if (!di)
-                return -ENOMEM;
+	di = kmalloc(sizeof(struct gfs2_dinode), GFP_KERNEL);
+	if (!di)
+		return -ENOMEM;
 
 	error = gfs2_glock_nq_init(ip->i_gl, LM_ST_SHARED, LM_FLAG_ANY, &i_gh);
 	if (error)
@@ -1025,11 +1025,11 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	memcpy(di, &ip->i_di, sizeof(struct gfs2_dinode));
 	gfs2_glock_dq_uninit(&i_gh);
 
-        if (copy_to_user(gi->gi_data, di,
-                         sizeof(struct gfs2_dinode)))
-                error = -EFAULT;
-        else
-                error = sizeof(struct gfs2_dinode);
+	if (copy_to_user(gi->gi_data, di,
+			 sizeof(struct gfs2_dinode)))
+		error = -EFAULT;
+	else
+		error = sizeof(struct gfs2_dinode);
 
  out:
 	kfree(di);
@@ -1051,8 +1051,8 @@ static int gi_do_hfile_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	struct gfs2_holder i_gh;
 	int error;
 
-        if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
@@ -1093,8 +1093,8 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	int alloc_required;
 	int error;
 
-        if (!capable(CAP_SYS_ADMIN))
-                return -EACCES;
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
 
 	ip = gi2hip(sdp, gi);
 	if (IS_ERR(ip))
@@ -1113,11 +1113,11 @@ static int gi_do_hfile_write(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (error)
 		return error;
 
-        if (!gfs2_is_jdata(ip)) {
-                gfs2_consist_inode(ip);
+	if (!gfs2_is_jdata(ip)) {
+		gfs2_consist_inode(ip);
 		error = -EIO;
 		goto out;
-        }
+	}
 
 	error = gfs2_write_alloc_required(ip, gi->gi_offset, gi->gi_size,
 					  &alloc_required);
@@ -1235,9 +1235,9 @@ static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (gi->gi_argc != 2)
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
-        buf[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+		return -EFAULT;
+	buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
 	case 'u':
@@ -1280,9 +1280,9 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (gi->gi_size != sizeof(struct gfs2_quota))
 		return -EINVAL;
 
-        if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
-        buf[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(buf, gi->gi_argv[1], ARG_SIZE) < 0)
+		return -EFAULT;
+	buf[ARG_SIZE - 1] = 0;
 
 	switch (buf[0]) {
 	case 'u':
@@ -1352,12 +1352,12 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	if (gi->gi_argc != 3)
 		return -EINVAL;
 
-        if (strncpy_from_user(new_dir, gi->gi_argv[1], ARG_SIZE) < 0)
-                return -EFAULT;
-        new_dir[ARG_SIZE - 1] = 0;
-        if (strncpy_from_user(new_name, gi->gi_argv[2], ARG_SIZE) < 0)
-                return -EFAULT;
-        new_name[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(new_dir, gi->gi_argv[1], ARG_SIZE) < 0)
+		return -EFAULT;
+	new_dir[ARG_SIZE - 1] = 0;
+	if (strncpy_from_user(new_name, gi->gi_argv[2], ARG_SIZE) < 0)
+		return -EFAULT;
+	new_name[ARG_SIZE - 1] = 0;
 
 	error = gfs2_lookup_simple(sdp->sd_root_dir, ".gfs2_admin", &old_dip);
 	if (error)
@@ -1431,19 +1431,19 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 	arg0[ARG_SIZE - 1] = 0;
 
 	if (strcmp(arg0, "get_cookie") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_cookie);
+		error = gi_skeleton(ip, &gi, gi_get_cookie);
 	else if (strcmp(arg0, "get_super") == 0)
 		error = gi_get_super(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "get_args") == 0)
 		error = gi_skeleton(ip, &gi, gi_get_args);
 	else if (strcmp(arg0, "get_lockstruct") == 0)
 		error = gi_skeleton(ip, &gi, gi_get_lockstruct);
-        else if (strcmp(arg0, "get_statfs") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_statfs);
-        else if (strcmp(arg0, "get_counters") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_counters);
-        else if (strcmp(arg0, "get_tune") == 0)
-                error = gi_skeleton(ip, &gi, gi_get_tune);
+	else if (strcmp(arg0, "get_statfs") == 0)
+		error = gi_skeleton(ip, &gi, gi_get_statfs);
+	else if (strcmp(arg0, "get_counters") == 0)
+		error = gi_skeleton(ip, &gi, gi_get_counters);
+	else if (strcmp(arg0, "get_tune") == 0)
+		error = gi_skeleton(ip, &gi, gi_get_tune);
 	else if (strcmp(arg0, "set_tune") == 0)
 		error = gi_set_tune(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "do_shrink") == 0)

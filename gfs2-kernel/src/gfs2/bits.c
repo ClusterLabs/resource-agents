@@ -87,7 +87,7 @@ unsigned char gfs2_testbit(struct gfs2_rgrpd *rgd, unsigned char *buffer,
 	bit = (block % GFS2_NBBY) * GFS2_BIT_SIZE;
 	end = buffer + buflen;
 
-        gfs2_assert(rgd->rd_sbd, byte < end,);
+	gfs2_assert(rgd->rd_sbd, byte < end,);
 
 	cur_state = (*byte >> bit) & GFS2_BIT_MASK;
 

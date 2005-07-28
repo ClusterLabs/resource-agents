@@ -270,7 +270,7 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 		return -EIO;
 	}
 	bi = rgd->rd_bits + (length - 1);
-        if ((bi->bi_start + bi->bi_len) * GFS2_NBBY != rgd->rd_ri.ri_data) {
+	if ((bi->bi_start + bi->bi_len) * GFS2_NBBY != rgd->rd_ri.ri_data) {
 		if (gfs2_consist_rgrpd(rgd)) {
 			gfs2_rindex_print(&rgd->rd_ri);
 			printk("GFS2: fsid=%s: start=%u len=%u offset=%u\n",
@@ -862,7 +862,7 @@ int gfs2_inplace_reserve_i(struct gfs2_inode *ip, char *file, unsigned int line)
 	struct gfs2_alloc *al = ip->i_alloc;
 	int error;
 
-        if (gfs2_assert_warn(sdp, al->al_requested))
+	if (gfs2_assert_warn(sdp, al->al_requested))
 		return -EINVAL;
 
 	error = gfs2_rindex_hold(sdp, &al->al_ri_gh);

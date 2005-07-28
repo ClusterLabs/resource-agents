@@ -51,11 +51,11 @@ int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 	if (error)
 		return error;
 
-        if (!gfs2_is_jdata(ip)) {
-                gfs2_consist_inode(ip);
+	if (!gfs2_is_jdata(ip)) {
+		gfs2_consist_inode(ip);
 		error = -EIO;
 		goto out;
-        }
+	}
 
 	error = gfs2_write_alloc_required(ip, ip->i_di.di_size, size,
 					  &alloc_required);

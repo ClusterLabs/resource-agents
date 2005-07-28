@@ -187,7 +187,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		return error;
 
 	sdp->sd_fsb2bb_shift = sdp->sd_sb.sb_bsize_shift -
-		               GFS2_BASIC_BLOCK_SHIFT;
+			       GFS2_BASIC_BLOCK_SHIFT;
 	sdp->sd_fsb2bb = 1 << sdp->sd_fsb2bb_shift;
 	sdp->sd_diptrs = (sdp->sd_sb.sb_bsize - 
 			  sizeof(struct gfs2_dinode)) / sizeof(uint64_t);
@@ -391,7 +391,7 @@ struct gfs2_jdesc *gfs2_jdesc_find(struct gfs2_sbd *sdp, unsigned int jid)
 
 void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 {
-        struct gfs2_jdesc *jd;
+	struct gfs2_jdesc *jd;
 
 	spin_lock(&sdp->sd_jindex_spin);
 	jd = jdesc_find_i(&sdp->sd_jindex_list, jid);
@@ -424,7 +424,7 @@ struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 
 int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 {
-        struct gfs2_inode *ip = jd->jd_inode;
+	struct gfs2_inode *ip = jd->jd_inode;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	int ar;
 	int error;

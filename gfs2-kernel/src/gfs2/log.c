@@ -673,7 +673,7 @@ void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 
 void gfs2_log_shutdown(struct gfs2_sbd *sdp)
 {
-        down(&sdp->sd_log_flush_lock);
+	down(&sdp->sd_log_flush_lock);
 
 	gfs2_assert_withdraw(sdp, !atomic_read(&sdp->sd_log_trans_count));
 	gfs2_assert_withdraw(sdp, !sdp->sd_log_blks_reserved);

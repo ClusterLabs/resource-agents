@@ -55,7 +55,7 @@ static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 	gfs2_trans_add_bh(ip->i_gl, bh);
 	gfs2_unlinked_tag_out(ut, bh->b_data +
 				  sizeof(struct gfs2_meta_header) +
-			          offset * sizeof(struct gfs2_unlinked_tag));
+				  offset * sizeof(struct gfs2_unlinked_tag));
 	up(&sdp->sd_unlinked_mutex);
 
  out:
@@ -210,7 +210,7 @@ int gfs2_unlinked_get(struct gfs2_sbd *sdp, struct gfs2_unlinked **ul)
 
 void gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
-        gfs2_assert_warn(sdp, test_and_clear_bit(ULF_LOCKED, &ul->ul_flags));
+	gfs2_assert_warn(sdp, test_and_clear_bit(ULF_LOCKED, &ul->ul_flags));
 
 	spin_lock(&sdp->sd_unlinked_spin);
 	gfs2_assert(sdp, ul->ul_count,);

@@ -371,7 +371,7 @@ void gdlm_cancel(lm_lock_t *lock)
 			   NULL, lp);
 
 	log_all("gdlm_cancel rv %d %x,%"PRIx64" flags %lx", error,
-	        lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
+		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	if (error == -EBUSY)
 		clear_bit(LFL_DLM_CANCEL, &lp->flags);

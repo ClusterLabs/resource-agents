@@ -1153,11 +1153,11 @@ static int gfs2_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case GFS2_IOCTL_IDENTIFY: {
-                unsigned int x = GFS2_MAGIC;
-                if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
-                        return -EFAULT;
+		unsigned int x = GFS2_MAGIC;
+		if (copy_to_user((unsigned int *)arg, &x, sizeof(unsigned int)))
+			return -EFAULT;
 		return 0;
-        }
+	}
 
 	case GFS2_IOCTL_SUPER:
 		return gfs2_ioctl_i(ip, (void *)arg);

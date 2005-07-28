@@ -254,7 +254,7 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 	struct buffer_head *bh;
 	unsigned int offset;
 	struct list_head *head = &sdp->sd_log_le_revoke;
-        struct gfs2_revoke *rv;
+	struct gfs2_revoke *rv;
 
 	if (!sdp->sd_log_num_revoke)
 		return;

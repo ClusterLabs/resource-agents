@@ -72,8 +72,8 @@ static void gfs2_put_super(struct super_block *sb)
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	int error;
 
-        if (!sdp)
-                return;
+	if (!sdp)
+		return;
 
 	atomic_inc(&sdp->sd_ops_super);
 

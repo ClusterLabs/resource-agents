@@ -148,14 +148,14 @@ static ssize_t gdlm_recover_done_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	ret = sprintf(buf, "%d\n", ls->recover_done);
-        return ret;
+	return ret;
 }
 
 static ssize_t gdlm_cluster_show(struct gdlm_ls *ls, char *buf)
 {
 	ssize_t ret;
 	ret = sprintf(buf, "%s\n", ls->clustername);
-        return ret;
+	return ret;
 }
 
 static ssize_t gdlm_options_show(struct gdlm_ls *ls, char *buf)
@@ -245,7 +245,7 @@ static struct attribute *gdlm_attrs[] = {
 };
 
 static ssize_t gdlm_attr_show(struct kobject *kobj, struct attribute *attr,
-			        char *buf)
+			      char *buf)
 {
 	struct gdlm_ls *ls = container_of(kobj, struct gdlm_ls, kobj);
 	struct gdlm_attr *a = container_of(attr, struct gdlm_attr, attr);
@@ -253,7 +253,7 @@ static ssize_t gdlm_attr_show(struct kobject *kobj, struct attribute *attr,
 }
 
 static ssize_t gdlm_attr_store(struct kobject *kobj, struct attribute *attr,
-			         const char *buf, size_t len)
+			       const char *buf, size_t len)
 {
 	struct gdlm_ls *ls = container_of(kobj, struct gdlm_ls, kobj);
 	struct gdlm_attr *a = container_of(attr, struct gdlm_attr, attr);

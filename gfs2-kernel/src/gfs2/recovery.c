@@ -34,7 +34,7 @@ int gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk,
 {
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
 	int new = FALSE;
-        uint64_t dblock;
+	uint64_t dblock;
 	uint32_t extlen;
 	int error;
 

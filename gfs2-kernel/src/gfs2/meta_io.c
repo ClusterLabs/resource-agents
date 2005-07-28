@@ -179,8 +179,8 @@ static int gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 		bd = get_v2bd(bh);
 		if (bd) {
 			gfs2_assert_warn(sdp, bd->bd_bh == bh);
-		        gfs2_assert_warn(sdp, list_empty(&bd->bd_list_tr));
-		        gfs2_assert_warn(sdp, list_empty(&bd->bd_le.le_list));
+			gfs2_assert_warn(sdp, list_empty(&bd->bd_list_tr));
+			gfs2_assert_warn(sdp, list_empty(&bd->bd_le.le_list));
 			gfs2_assert_warn(sdp, !bd->bd_ail);
 			gfs2_memory_rm(bd);
 			kmem_cache_free(gfs2_bufdata_cachep, bd);

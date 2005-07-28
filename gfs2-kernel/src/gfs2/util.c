@@ -132,8 +132,8 @@ uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash)
 #define SWAP(a, b, size) \
 do { \
 	register size_t __size = (size); \
-        register char *__a = (a), *__b = (b); \
-        do { \
+	register char *__a = (a), *__b = (b); \
+	do { \
 		char __tmp = *__a; \
 		*__a++ = *__b; \
 		*__b++ = __tmp; \
@@ -349,7 +349,7 @@ int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 			 const char *function, char *file, unsigned int line)
 {
-        struct gfs2_sbd *sdp = rgd->rd_sbd;
+	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	return gfs2_lm_withdraw(sdp,
 			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
 			"GFS2: fsid=%s:   RG = %"PRIu64"\n"

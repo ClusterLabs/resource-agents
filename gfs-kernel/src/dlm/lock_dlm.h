@@ -50,7 +50,7 @@ struct gdlm_strname {
 	unsigned short		namelen;
 };
 
-#define DFL_BLOCK_LOCKS         0
+#define DFL_BLOCK_LOCKS		0
 #define DFL_JOIN_DONE		1
 #define DFL_LEAVE_DONE		2
 #define DFL_TERMINATE		3
@@ -87,19 +87,19 @@ struct gdlm_ls {
 	int			drop_locks_period;
 };
 
-#define LFL_NOBLOCK             0
-#define LFL_NOCACHE             1
-#define LFL_DLM_UNLOCK          2
-#define LFL_DLM_CANCEL          3
-#define LFL_SYNC_LVB            4
-#define LFL_FORCE_PROMOTE       5
-#define LFL_REREQUEST           6
-#define LFL_ACTIVE              7
-#define LFL_INLOCK              8
-#define LFL_CANCEL              9
-#define LFL_NOBAST              10
-#define LFL_HEADQUE             11
-#define LFL_UNLOCK_DELETE       12
+#define LFL_NOBLOCK		0
+#define LFL_NOCACHE		1
+#define LFL_DLM_UNLOCK		2
+#define LFL_DLM_CANCEL		3
+#define LFL_SYNC_LVB		4
+#define LFL_FORCE_PROMOTE	5
+#define LFL_REREQUEST		6
+#define LFL_ACTIVE		7
+#define LFL_INLOCK		8
+#define LFL_CANCEL		9
+#define LFL_NOBAST		10
+#define LFL_HEADQUE		11
+#define LFL_UNLOCK_DELETE	12
 
 struct gdlm_lock {
 	struct gdlm_ls		*ls;
@@ -135,8 +135,8 @@ struct gdlm_lock {
   { \
     printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
            "lock_dlm:  assertion:  \"%s\"\n" \
-	   "lock_dlm:  time = %lu\n", \
-	   __LINE__, __FILE__, #x, jiffies); \
+           "lock_dlm:  time = %lu\n", \
+           __LINE__, __FILE__, #x, jiffies); \
     {do} \
     printk("\n"); \
     BUG(); \
