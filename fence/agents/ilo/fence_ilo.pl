@@ -165,11 +165,14 @@ sub close_socket
 }
 
 
+# power_off() -- power off the node
+#   return 0 on success, non-zero on failure
 sub power_off
 {
 	my $response = set_power_state ("N");
 	my @response = split /\n/,$response;
 	my $no_err=0;
+	my $agent_status = -1;
 
 	foreach my $line (@response)
 	{
@@ -198,18 +201,21 @@ sub power_off
 	# power off command.  
 	if ($agent_status<0)
 	{
-		$agent_status= ($no_err<5) ? 1 : 0;
+		$agent_status = ($no_err<5) ? 1 : 0;
 	} 
 
 	return $agent_status;
 }
 
 
+# power_on() -- power on the node
+#   return 0 on success, non-zero on failure
 sub power_on
 {
 	my $response = set_power_state ("Y");
 	my @response = split /\n/,$response;
 	my $no_err=0;
+	my $agent_status = -1;
 
 	foreach my $line (@response)
 	{
@@ -238,16 +244,21 @@ sub power_on
 	# power on command.  
 	if ($agent_status<0)
 	{
-		$agent_status= ($no_err<5) ? 1 : 0;
+		$agent_status = ($no_err<5) ? 1 : 0;
 	} 
 
 	return $agent_status;
 }
 
+# power_status() -- print the power status of the node
+#   return 0 on success, non-zero on failure 
+#   set $? to power status from ilo ("ON" or "OFF")
 sub power_status
 {
 	my $response = get_power_state ();
 	my @response = split /\n/,$response;
+	my $agent_status = -1;
+	my $power_status = "UNKNOWN";
 
 	foreach my $line (@response)
 	{
@@ -268,18 +279,19 @@ sub power_status
 		elsif ($line =~ /HOST POWER=\"(.*)\"/)
 		{
 			$agent_status = 0;
-			print "power is $1\n";
+			$power_status = $1;
 		}
 
 		# RIBCL VERSION=2.0   
 		elsif ($line =~ /HOST_POWER=\"(.*)\"/)
 		{
 			$agent_status = 0;
-			print "power is $1\n";
+			$power_status = $1;
 		}
 
 	}
-
+	$_ = $power_status;
+	print "power_status: reporting power is $_\n" if ($verbose);
 	return $agent_status;
 }
 
@@ -311,11 +323,30 @@ sub set_power_state
 		#> sendsock $socket, "<LOCFG VERSION=\"2.21\">\n";
 		sendsock $socket, "<RIBCL VERSION=\"2.0\">\n";
 	}
-	sendsock $socket, "    <LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
-	sendsock $socket, "        <SERVER_INFO MODE = \"write\">\n";
-	sendsock $socket, "            <SET_HOST_POWER HOST_POWER = \"$state\"/>\n";
-	sendsock $socket, "        </SERVER_INFO>\n";
-	sendsock $socket, "    </LOGIN>\n";
+	sendsock $socket, "<LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
+	sendsock $socket, "<SERVER_INFO MODE = \"write\">\n";
+
+	# As of firmware version 1.71 (RIBCL 2.21) The SET_HOST_POWER command
+	# is no longer available.  HOLD_PWR_BTN and PRESS_PWR_BTN are used 
+	# instead now :(
+	if ($ribcl_vers < 2.21 )
+	{
+		sendsock $socket, "<SET_HOST_POWER HOST_POWER = \"$state\"/>\n";
+	}
+	else
+	{
+		if ($state eq "Y" )
+		{ 
+			sendsock $socket, "<PRESS_PWR_BTN/>\n";
+		} 
+		else 
+		{
+			sendsock $socket, "<HOLD_PWR_BTN/>\n";
+		}
+	}
+
+	sendsock $socket, "</SERVER_INFO>\n";
+	sendsock $socket, "</LOGIN>\n";
 	sendsock $socket, "</RIBCL>\n";
 
 	# It seems the firmware can't handle the <LOCFG> tag
@@ -352,11 +383,11 @@ sub get_power_state
 		#> sendsock $socket, "<LOCFG VERSION=\"2.21\">\n";
 		sendsock $socket, "<RIBCL VERSION=\"2.0\">\n";
 	}
-	sendsock $socket, "    <LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
-	sendsock $socket, "        <SERVER_INFO MODE = \"read\">\n";
-	sendsock $socket, "            <GET_HOST_POWER_STATUS/>\n";
-	sendsock $socket, "        </SERVER_INFO>\n";
-	sendsock $socket, "    </LOGIN>\n";
+	sendsock $socket, "<LOGIN USER_LOGIN = \"$username\" PASSWORD = \"$passwd\">\n";
+	sendsock $socket, "<SERVER_INFO MODE = \"read\">\n";
+	sendsock $socket, "<GET_HOST_POWER_STATUS/>\n";
+	sendsock $socket, "</SERVER_INFO>\n";
+	sendsock $socket, "</LOGIN>\n";
 	sendsock $socket, "</RIBCL>\n";
 
 	# It seems the firmware can't handle the <LOCFG> tag
@@ -421,6 +452,10 @@ sub get_options_stdin
 		{
 			$passwd = $val;
 		}
+		elsif ($name eq "ribcl" )
+		{
+			$ribcl_vers = $val;
+		}
 		elsif ($name eq "verbose" )
 		{
 			$verbose = $val;
@@ -437,9 +472,10 @@ sub get_options_stdin
 # MAIN
 
 $action = "reboot";
+$ribcl_vers = undef; # undef = autodetect
 
 if (@ARGV > 0) {
-	getopts("a:hl:n:o:p:qvV") || fail_usage ;
+	getopts("a:hl:n:o:p:r:qvV") || fail_usage ;
 
 	usage if defined $opt_h;
 	version if defined $opt_V;
@@ -465,6 +501,8 @@ if (@ARGV > 0) {
 
 	$verbose = 1 if defined $opt_v;
 
+	$ribcl_vers = $opt_r if defined $opt_r;
+
 } else {
 	get_options_stdin();
 
@@ -484,48 +522,71 @@ $port = 443 unless defined $port;
 
 print "ssl module: $ssl_mod\n" if $verbose;
 
-$ribcl_vers = undef; # undef = autodetect
-$agent_status = -1;
 
 $_=$action;
 if (/on/)
 {
-	power_on;
+	fail "power_status: unexpected error\n" if power_status;
+
+	if (! /^on$/i)
+	{
+		fail "power_on: unexpected error\n" if power_on;
+		fail "power_status: unexpected error\n" if power_status;
+		fail "failed to turn on\n" unless (/^on$/i); 
+	}
+	else
+	{
+		print "power is already on\n" unless defined $quiet;
+	}
 }
 elsif (/off/)
 {
-	power_off;
+	fail "power_status: unexpected error\n" if power_status;
+
+	if (! /^off$/i)
+	{
+		fail "power_off: unexpected error\n" if power_off;
+		fail "power_status: unexpected error\n" if power_status;
+		fail "failed to turn off\n" unless (/^off$/i); 
+	}
+	else
+	{
+		print "power is already off\n" unless defined $quiet;
+	}
 }
 elsif (/reboot/)
 {
-	power_off;
-	fail "power_off: unexpected error\n" if ($agent_status < 0);
+	fail "power_status: unexpected error\n" if power_status;
 
-	$agent_status = -1;
-	power_on;
-	fail "power_on: unexpected error\n" if ($agent_status < 0);
+	if (! /^off$/i)
+	{
+		fail "power_off: unexpected error\n" if power_off;
+		fail "power_status: unexpected error\n" if power_status;
+		fail "failed to turn off\n" unless (/^off$/i); 
+	}
+
+	if (/^off$/i)
+	{
+		fail "power_on: unexpected error\n" if power_on;
+		fail "power_status: unexpected error\n" if power_status;
+		fail "failed to turn on\n" unless (/^on$/i); 
+	}
+	else
+	{
+		fail "unexpected power state: '$_'\n";
+	}
 }
 elsif (/status/)
 {
-	power_status;
+	fail "power_status: unexpected error\n" if power_status;
+	print "power is $_\n";
 }
 else
 {
 	fail "illegal action: '$_'\n";
 }
 
-# $agent_status should have been set at this point.
-fail "unexpected error" if ($agent_status < 0);
-
-if ($agent_status == 0)
-{
-	print "success\n" unless defined $quiet;
-	exit 0
-}
-else
-{
-	print "failure\n" unless defined $quiet;
-	exit 1
-}
+print "success\n" unless defined $quiet;
+exit 0
 
 ################################################################################
