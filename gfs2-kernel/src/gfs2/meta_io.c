@@ -223,7 +223,7 @@ struct inode *gfs2_aspace_get(struct gfs2_sbd *sdp)
 		mapping_set_gfp_mask(aspace->i_mapping, GFP_KERNEL);
 		aspace->i_mapping->a_ops = &aspace_aops;
 		aspace->i_size = ~0ULL;
-		get_v2ip(aspace) = NULL;
+		set_v2ip(aspace, NULL);
 		insert_inode_hash(aspace);
 	}
 
