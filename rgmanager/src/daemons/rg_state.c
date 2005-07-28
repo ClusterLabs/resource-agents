@@ -329,7 +329,7 @@ get_rg_state(char *name, rg_state_t *svcblk)
  * @return		0 = DO NOT stop service, return FAIL
  *			1 = STOP service - return whatever it returns.
  *			2 = DO NOT stop service, return 0 (success)
- *                      3 = DO NOT stop service, return FORWARD
+ *                      3 = DO NOT stop service, return RG_EFORWARD
  */
 int
 svc_advise_stop(rg_state_t *svcStatus, char *svcName, int req)
@@ -666,7 +666,7 @@ svc_start(char *svcName, int req)
  * Check status of a cluster service 
  *
  * @param svcName	Service name to check.
- * @return		FORWARD, FAIL, 0
+ * @return		RG_EFORWARD, FAIL, 0
  */
 int
 svc_status(char *svcName)
@@ -747,7 +747,7 @@ _svc_stop(char *svcName, int req, int recover, uint32_t newstate)
 		return SUCCESS;
 	case 3:
 		rg_unlock(svcName, lockp);
-		return FORWARD;
+		return RG_EFORWARD;
 	default:
 		break;
 	}
@@ -1040,8 +1040,8 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			svc_fail(svcName);
 			return FAIL;
 		}
-		if (ret == FORWARD)
-			return FORWARD;
+		if (ret == RG_EFORWARD)
+			return RG_EFORWARD;
 	}
 
 	allowed_nodes = member_list();
@@ -1118,10 +1118,10 @@ handle_relocate_req(char *svcName, int request, uint64_t preferred_target,
 			goto exhausted;
 
 		switch (relocate_service(svcName, request, target)) {
-		case FAIL:
+		case RG_EFAIL:
 			memb_mark_down(allowed_nodes, target);
 			continue;
-		case ABORT:
+		case RG_EABORT:
 			svc_report_failure(svcName);
 			cml_free(allowed_nodes);
 			return FAIL;
@@ -1238,7 +1238,7 @@ handle_start_req(char *svcName, int req, uint64_t *new_owner)
 		 * point, we can't determine the service's status - so
 		 * trying to start it on other nodes is right out.
 		 */
-		return ABORT;
+		return RG_EABORT;
 	}
 	
 	/*
@@ -1307,7 +1307,7 @@ handle_start_remote_req(char *svcName, int req)
 		return FAIL;
 
 	svc_fail(svcName);
-	return ABORT;
+	return RG_EABORT;
 }
 
 

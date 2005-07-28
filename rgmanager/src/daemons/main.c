@@ -45,6 +45,7 @@ void flag_shutdown(int sig);
 void hard_exit(void);
 int send_rg_states(int);
 int check_config_update(void);
+int svc_exists(char *);
 
 int shutdown_pending = 0, running = 1, need_reconfigure = 0;
 
@@ -336,8 +337,19 @@ dispatch_msg(int fd, uint64_t nodeid)
 		swab_SmMessageSt(&msg_sm);
 
 		if (rg_locked()) {
-			msg_sm.sm_data.d_ret = -EAGAIN;
+			msg_sm.sm_data.d_ret = RG_EAGAIN;
 			/* Encode before responding... */
+			swab_SmMessageSt(&msg_sm);
+
+			if (msg_send(fd, &msg_sm, sizeof (SmMessageSt)) !=
+		    	    sizeof (SmMessageSt))
+				clulog(LOG_ERR, "#40: Error replying to "
+				       "action request.\n");
+		}
+
+		if (!svc_exists(msg_sm.sm_data.d_svcName)) {
+			msg_sm.sm_data.d_ret = RG_ENOSERVICE;
+			/* No such service! */
 			swab_SmMessageSt(&msg_sm);
 
 			if (msg_send(fd, &msg_sm, sizeof (SmMessageSt)) !=

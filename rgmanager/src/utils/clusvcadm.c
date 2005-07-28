@@ -206,13 +206,29 @@ main(int argc, char **argv)
 
 	/* Decode */
 	swab_SmMessageSt(&msg);
-	if (msg.sm_data.d_ret == SUCCESS) {
+	switch (msg.sm_data.d_ret) {
+	case SUCCESS:
 		printf("success\n");
-	} else if (msg.sm_data.d_ret == ABORT) {
-		printf("cancelled by resource manager\n");
-	} else
+		break;
+	case RG_EFAIL:
 		printf("failed\n");
-
+		break;
+	case RG_EABORT:
+		printf("cancelled by resource manager\n");
+		break;
+	case RG_ENOSERVICE:
+		printf("failed: Service does not exist\n");
+		break;
+	case RG_EDEADLCK:
+		printf("failed: Operation would deadlock\n");
+		break;
+	case RG_EAGAIN:
+		printf("failed: Try again (resource groups locked)\n");
+		break;
+	default:
+		printf("failed: unknown reason %d\n", msg.sm_data.d_ret);
+		break;
+	}
 
 	return msg.sm_data.d_ret;
 }

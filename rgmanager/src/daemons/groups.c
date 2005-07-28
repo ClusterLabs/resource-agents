@@ -567,6 +567,31 @@ send_rg_states(int fd)
 }
 
 
+int
+svc_exists(char *svcname)
+{
+	resource_t *res;
+	int ret = 0;
+
+	pthread_rwlock_rdlock(&resource_lock);
+
+	list_do(&_resources, res) {
+		if (res->r_rule->rr_root == 0)
+			continue;
+
+		if (strcmp(res->r_attrs[0].ra_value, 
+			   svcname) == 0) {
+			ret = 1;
+			break;
+		}
+	} while (!list_done(&_resources, res));
+
+	pthread_rwlock_unlock(&resource_lock);
+
+	return ret;
+}
+
+
 void
 rg_doall(int request, int block, char *debugfmt)
 {

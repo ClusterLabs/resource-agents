@@ -152,6 +152,15 @@ void member_list_update(cluster_member_list_t *new_ml);
 cluster_member_list_t *member_list(void);
 uint64_t my_id(void);
 
+#define RG_EAGAIN	-6
+#define RG_EDEADLCK	-5
+#define RG_ENOSERVICE	-4
+#define RG_EFORWARD	-3
+#define RG_EABORT	-2
+#define RG_EFAIL	-1
+#define RG_ESUCCESS	0
+
+
 #define FORWARD -3
 #define ABORT -2
 #define FAIL -1

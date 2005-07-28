@@ -135,7 +135,7 @@ purge_all(request_t **list)
 		list_remove(list, curr);
 		dprintf("Removed request %d\n", curr->rr_request);
 		if (curr->rr_resp_fd != -1) {
-			send_response(ABORT, curr);
+			send_response(RG_EABORT, curr);
 		}
 		rq_free(curr);
 	}
@@ -237,7 +237,7 @@ resgroup_thread_main(void *arg)
 			error = handle_relocate_req(myname, RG_START_REMOTE,
    						    req->rr_target,
    						    &newowner);
-			if (error == FORWARD)
+			if (error == RG_EFORWARD)
 				ret = RG_NONE;
 			break;
 
@@ -277,7 +277,7 @@ resgroup_thread_main(void *arg)
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
 				pthread_mutex_unlock(&my_queue_mutex);
-			} else if (error == FORWARD) {
+			} else if (error == RG_EFORWARD) {
 				ret = RG_NONE;
 				break;
 			} else {
@@ -300,7 +300,7 @@ resgroup_thread_main(void *arg)
 				pthread_mutex_lock(&my_queue_mutex);
 				purge_status_checks(&my_queue);
 				pthread_mutex_unlock(&my_queue_mutex);
-			} else if (error == FORWARD) {
+			} else if (error == RG_EFORWARD) {
 				ret = RG_NONE;
 				break;
 			} else {
@@ -325,7 +325,7 @@ resgroup_thread_main(void *arg)
 							 &newowner);
 				break;
 
-			} else if (error == FORWARD) {
+			} else if (error == RG_EFORWARD) {
 				ret = RG_NONE;
 				break;
 			} else {
@@ -364,7 +364,7 @@ resgroup_thread_main(void *arg)
 		myself->rt_request = RG_NONE;
 		pthread_mutex_unlock(&reslist_mutex);
 
-		if (error == FORWARD)
+		if (error == RG_EFORWARD)
 			forward_request(req);
 		else
 			rq_free(req);
@@ -559,7 +559,7 @@ rt_enqueue_request(const char *resgroupname, int request, int response_fd,
 		case RG_START_RECOVER:
 		case RG_START:
 		case RG_ENABLE:
-			send_ret(response_fd, resgroup->rt_name, ABORT,
+			send_ret(response_fd, resgroup->rt_name, RG_EDEADLCK,
 				 request);
 			break;
 		}
