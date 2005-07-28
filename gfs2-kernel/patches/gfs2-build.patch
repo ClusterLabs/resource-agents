@@ -1,12 +1,22 @@
 diff -ur a/fs/Kconfig b/fs/Kconfig
 --- a/fs/Kconfig	2005-06-18 03:48:29.000000000 +0800
-+++ b/fs/Kconfig	2005-07-27 15:51:21.647412904 +0800
-@@ -1715,6 +1715,19 @@
++++ b/fs/Kconfig	2005-07-28 15:25:39.244913072 +0800
+@@ -301,7 +301,7 @@
+ # 	Never use this symbol for ifdefs.
+ #
+ 	bool
+-	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4
++	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4 || GFS2_FS
+ 	default y
+ 
+ source "fs/xfs/Kconfig"
+@@ -1715,6 +1715,20 @@
  config RXRPC
  	tristate
  
 +config GFS2_FS
 +	tristate "GFS2 file system support"
++	depends on DLM
 +	help
 +	  A cluster filesystem.
 +
@@ -23,7 +33,7 @@ diff -ur a/fs/Kconfig b/fs/Kconfig
  menu "Partition Types"
 diff -ur a/fs/Makefile b/fs/Makefile
 --- a/fs/Makefile	2005-06-18 03:48:29.000000000 +0800
-+++ b/fs/Makefile	2005-07-27 15:47:50.747474568 +0800
++++ b/fs/Makefile	2005-07-27 15:47:50.000000000 +0800
 @@ -95,3 +95,4 @@
  obj-$(CONFIG_HOSTFS)		+= hostfs/
  obj-$(CONFIG_HPPFS)		+= hppfs/
