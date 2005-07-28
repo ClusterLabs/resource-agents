@@ -178,7 +178,7 @@ Tunes GFS2 to alleviate memory pressure when rapidly aquiring many locks (e.g.
 several processes scanning through huge directory trees).  GFS2' glockd kernel
 daemon cleans up memory for no-longer-needed glocks.  Multiple instances
 of the daemon clean up faster than a single instance.  The default value is
-one daemon, with a maximum of 32.  Since this option was introduced, other
+one daemon, with a maximum of 16.  Since this option was introduced, other
 methods of rapid cleanup have been developed within GFS2, so this option may go
 away in the future.
 .TP
