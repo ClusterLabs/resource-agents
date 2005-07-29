@@ -855,6 +855,7 @@ main(int argc, char **argv)
 	memset(ip, 0, sizeof(ip));
 	memset(passwd, 0, sizeof(passwd));
 	memset(user, 0, sizeof(user));
+	memset(op, 0, sizeof(op));
 
 	if (argc > 1) {
 		/*
@@ -908,6 +909,9 @@ main(int argc, char **argv)
 	 */
 	if (strlen(ip) == 0)
 		fail_exit("no IP address specified");
+
+	if (!strlen(op))
+		snprintf(op,sizeof(op), "reboot");
 
 	if (strcasecmp(op, "off") && strcasecmp(op, "on") &&
 	    strcasecmp(op, "reboot")) {
