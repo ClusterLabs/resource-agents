@@ -1,0 +1,70 @@
+.\"  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
+.\"  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+.\"  
+.\"  This copyrighted material is made available to anyone wishing to use,
+.\"  modify, copy, or redistribute it subject to the terms and conditions
+.\"  of the GNU General Public License v.2.
+
+.TH fence_ipmilan 8
+
+.SH NAME
+fence_ipmilan - I/O Fencing agent for Bull machines controlled by IPMI over
+LAN.
+
+.SH SYNOPSIS
+.B
+fence_ipmilan
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
+fence_ipmilan is an I/O Fencing agent which can be used with Bull's NovaScale
+machines controlled by IPMI.  This agent calls Bull's support software
+provided by the NSMasterHW RPM available from Bull, but is known to work 
+using other versions of ipmitool (http://ipmitool.sf.net/).
+
+fence_ipmilan accepts options on the command line as well as from stdin.  
+fenced sends the options through stdin when it execs the agent.  fence_ipmilan
+can be run by itself with command line options which is useful for testing.
+
+.SH OPTIONS
+.TP
+\fB-i\fP \fIIPaddress\fP
+IP address or hostname of the IPMI controller.
+.TP
+\fB-h\fP
+Print out a help message describing available options, then exit.
+.TP
+\fB-l\fP \fIlogin\fP
+Login (if required) with administrative privileges.
+.TP
+\fB-o\fP \fIoption\fP
+Action to perform (on, off, reboot).
+.TP
+\fB-p\fP \fIpassword\fP
+Password (if required) for login.
+.TP
+\fB-q\fP
+Quiet operation.  Only print out error messages.
+.TP
+\fB-V\fP
+Print out a version message, then exit.
+.TP
+\fB-v\fP
+Verbose mode.
+
+.SH STDIN PARAMETERS
+.TP
+\fIipaddr = < hostname | ip >\fR
+IP address or hostname of the IPMI controller.
+.TP
+\fIlogin= < param >\fR
+Login (if required) with administrative privileges.
+.TP
+\fIoption = < param >\fR
+Action to perform (on, off, reboot).
+.TP
+\fIpasswd = < param >\fR
+Password (if required) for login.
+
+.SH SEE ALSO
+fence(8), fence_node(8)
