@@ -3,17 +3,17 @@ Global File System
 
 http://sources.redhat.com/cluster/
 
-GFS2 is a cluster file system. It allows a cluster of computers to
+GFS is a cluster file system. It allows a cluster of computers to
 simultaneously use a block device that is shared between them (with FC,
-iSCSI, NBD, etc).  GFS2 reads and writes to the block device like a local
+iSCSI, NBD, etc).  GFS reads and writes to the block device like a local
 file system, but also uses a lock module to allow the computers coordinate
 their I/O so file system consistency is maintained.  One of the nifty
-features of GFS2 is perfect consistency -- changes made to the file system
+features of GFS is perfect consistency -- changes made to the file system
 on one machine show up immediately on all other machines in the cluster.
 
-GFS2 uses interchangable inter-node locking mechanisms.  GFS2 plugs into
-one side of a module called "lock_harness" and different lock modules can
-plug into the other side of the harness.  Each gfs file system selects the
+GFS uses interchangable inter-node locking mechanisms.  GFS plugs into one
+side of a module called "lock_harness" and different lock modules can plug
+into the other side of the harness.  Each gfs file system selects the
 appropriate lock module at mount time.  Lock modules include:
 
   lock_nolock -- does no real locking and allows gfs to be used as a
