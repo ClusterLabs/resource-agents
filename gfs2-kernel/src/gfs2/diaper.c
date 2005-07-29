@@ -11,6 +11,37 @@
 *******************************************************************************
 ******************************************************************************/
 
+/*
+ * When a GFS node encounters a serious problem (a filesystem inconsistency or
+ * a fatal I/O error), it needs a way to gracefully stop accessing the
+ * filesystem.  This is more complicated to do for a cluster filesystem than a
+ * local filesystem.  Locks must be freed.  The node's journal must be replayed
+ * by another node in the cluster.  That journal replay shouldn't require the
+ * departing node to be fenced.
+ *
+ * GFS uses three tools to do this.
+ *
+ * 1) The diaper device is a block device within GFS that gets
+ *    transparently inserted between the real device the and rest of the
+ *    filesystem.  It creates a single function that touches all GFS disk
+ *    I/O as it goes by.  This allows GFS to easily keep a count of the
+ *    number of outstanding disk I/O requests.  It also allows GFS to
+ *    easily stop any new I/O from being sent to the disk.
+ *
+ * 2) The file lm.c contains wrappers for all the lock module calls.
+ *    They allow GFS to easily stop any new requests from being sent to
+ *    the lock module.
+ *
+ * 3) There is one lock module call, lm_withdraw, performs the action of
+ *    shutting down the filesystem mount on that node.  At that point,
+ *    the filesystem is making two guarantees: A) that it isn't currently
+ *    modifying the disk and never will again and B) it will never again
+ *    call back into the lock module.  The lock module then cleans up any
+ *    network I/O, frees any used memory, and tells the cluster that this
+ *    mount is leaving and all recovery steps *except fencing* should
+ *    occur.
+ */
+
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
