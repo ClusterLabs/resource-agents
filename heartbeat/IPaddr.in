@@ -1,5 +1,8 @@
 #!/bin/sh
 #
+# License:      GNU General Public License (GPL) 
+# Support:      linux-ha@lists.linux-ha.org
+#
 #	This script manages IP alias IP addresses
 #
 #	It can add an IP alias, or remove one.

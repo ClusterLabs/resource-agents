@@ -1,6 +1,9 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.5 2005/07/15 09:28:21 sunjd Exp $
+#	$Id: Delay.in,v 1.6 2005/07/29 07:36:15 sunjd Exp $
+#
+# Support:      linux-ha@lists.linux-ha.org
+# License:      GNU General Public License (GPL)
 #
 #	This script is a test resource for introducing delay.
 #
@@ -33,7 +36,7 @@ VLFILE="$VARLIB/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.5 2005/07/15 09:28:21 sunjd Exp $
+  	$Id: Delay.in,v 1.6 2005/07/29 07:36:15 sunjd Exp $
 	!
 }
 
