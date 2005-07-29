@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.413 $) dnl cvs revision
+AC_REVISION($Revision: 1.414 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -450,6 +450,12 @@ fi
 if test "X${PKGCONFIG}" != "X" && $PKGCONFIG --exists glib-2.0; then
 	GLIBCONFIG="$PKGCONFIG glib-2.0 "
 else
+	set -x
+	$PKGCONFIG --exists glib-2.0; echo $?
+	$PKGCONFIG --cflags glib-2.0; echo $?
+	$PKGCONFIG glib-2.0; echo $?
+	set +x
+        
 	FatalMissingThing "glib2-devel"              \
         "Package glib2-devel is missing." \
         "You can get the source from ftp://ftp.gtk.org/pub/gtk/" \
