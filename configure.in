@@ -3,13 +3,14 @@ dnl autoconf for heartbeat
 dnl	Started by David Lee <T.D.Lee@durham.ac.uk> December 2000
 dnl automake stuff
 dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
-
+dnl
+dnl License: GNU General Public License (GPL)
 
 dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.411 $) dnl cvs revision
+AC_REVISION($Revision: 1.412 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
