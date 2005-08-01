@@ -36,6 +36,12 @@ and for turning outlets on or off from scripts.
 \fB-a\fP \fIIPaddress\fR
 IP address or hostname of the switch.
 .TP
+\fB-c\fP \fIcmd_prompt\fR
+Force fence_drac to use cmd_prompt as the command prompt
+.TP
+\fB-d\fP \fIdracversion\fR
+Force fence_drac to treat the device as though it was for the specified drac version
+.TP
 \fB-D\fP \fIdumpfile\fR
 Debug file of the telnet interaction
 .TP
@@ -44,6 +50,9 @@ Print out a help message describing available options, then exit.
 .TP
 \fB-l\fP \fIlogin\fR
 Login name.
+.TP
+\fB-m\fP \fImodulename\fR
+The module name of the blade when using DRAC/MC firmware.
 .TP
 \fB-o\fP \fIaction\fR
 The action required.  reboot (default), off, on or status.
@@ -62,6 +71,12 @@ The action required.  reboot (default), off, on or status.
 \fIagent = < param >\fR
 This option is used by fence_node(8) and is ignored by fence_apc.
 .TP
+\fIcmd_prompt = < param >\fr
+Force fence_drac to use cmd_prompt as the command prompt
+.TP
+\fIdrac_version = < param >\fr 
+Force fence_drac to treat the device as though it was for the specified drac version.
+.TP
 \fIdebug = < dumpfile >\fR
 Debug file of the telnet interaction
 .TP
@@ -71,8 +86,12 @@ IP address or hostname of the switch.
 \fIlogin = < param >\fR
 Login name.
 .TP
+\fImodulename = < param >\fr
+The module name of the blade when using DRAC/MC firmware.
+.TP
 \fIpasswd = < param >\fR
 Password for login.
+.TP
 
 .SH SEE ALSO
 fence(8), fence_node(8)
