@@ -44,7 +44,9 @@ int gfs2_scand(void *data)
 
 	while (!kthread_should_stop()) {
 		gfs2_scand_internal(sdp);
-		msleep_interruptible(gfs2_tune_get(sdp, gt_scand_secs) * 1000);
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(gfs2_tune_get(sdp, gt_scand_secs) * HZ);
 	}
 
 	return 0;
@@ -91,7 +93,9 @@ int gfs2_recoverd(void *data)
 
 	while (!kthread_should_stop()) {
 		gfs2_check_journals(sdp);
-		msleep_interruptible(gfs2_tune_get(sdp, gt_recoverd_secs)*1000);
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(gfs2_tune_get(sdp, gt_recoverd_secs) * HZ);
 	}
 
 	return 0;
@@ -129,7 +133,8 @@ int gfs2_logd(void *data)
 			sdp->sd_jindex_refresh_time = jiffies;
 		}
 
-		msleep_interruptible(gfs2_tune_get(sdp, gt_logd_secs) * 1000);
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(gfs2_tune_get(sdp, gt_logd_secs) * HZ);
 	}
 
 	return 0;
@@ -174,7 +179,9 @@ int gfs2_quotad(void *data)
 		}
 
 		gfs2_quota_scan(sdp);
-		msleep_interruptible(gfs2_tune_get(sdp, gt_quotad_secs) * 1000);
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(gfs2_tune_get(sdp, gt_quotad_secs) * HZ);
 	}
 
 	return 0;
@@ -199,7 +206,8 @@ int gfs2_inoded(void *data)
 			printk("GFS2: fsid=%s: inoded: error = %d\n",
 			       sdp->sd_fsname, error);
 
-		msleep_interruptible(gfs2_tune_get(sdp, gt_inoded_secs) * 1000);
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(gfs2_tune_get(sdp, gt_inoded_secs) * HZ);
 	}
 
 	return 0;
