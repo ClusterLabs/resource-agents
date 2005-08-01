@@ -52,6 +52,37 @@ int init_journals(struct fsck_sb *sbp)
 	return 0;
 }
 
+/**
+ * block_mounters
+ *
+ * Change the lock protocol so nobody can mount the fs
+ *
+ */
+int block_mounters(struct fsck_sb *sbp, int block_em)
+{
+	if(block_em) {
+		/* verify it starts with lock_ */
+		if(!strncmp(sbp->sb.sb_lockproto, "lock_", 5)) {
+			/* Change lock_ to fsck_ */
+			memcpy(sbp->sb.sb_lockproto, "fsck_", 5);
+		}
+		/* FIXME: Need to do other verification in the else
+		 * case */
+	} else {
+		/* verify it starts with fsck_ */
+		/* verify it starts with lock_ */
+		if(!strncmp(sbp->sb.sb_lockproto, "fsck_", 5)) {
+			/* Change fsck_ to lock_ */
+			memcpy(sbp->sb.sb_lockproto, "lock_", 5);
+		}
+	}
+
+	if(write_sb(sbp)) {
+		stack;
+		return -1;
+	}
+	return 0;
+}
 
 
 /*
@@ -315,7 +346,7 @@ static int fill_super_block(struct fsck_sb *sdp)
  * init_sbp - initialize superblock pointer
  *
  */
-int init_sbp(struct fsck_sb *sbp)
+static int init_sbp(struct fsck_sb *sbp)
 {
 	if(sbp->opts->no) {
 		if ((sbp->diskfd = open(sbp->opts->device, O_RDONLY)) < 0) {
@@ -330,8 +361,18 @@ int init_sbp(struct fsck_sb *sbp)
 		}
 	}
 	if (fill_super_block(sbp)) {
+		stack;
 		return -1;
 	}
+
+	/* Change lock protocol to be fsck_* instead of lock_* */
+	if(!sbp->opts->no) {
+		if(block_mounters(sbp, 1)) {
+			log_err("Unable to block other mounters\n");
+			return -1;
+		}
+	}
+
 	/* verify various things */
 
 	if(init_journals(sbp)) {
@@ -342,11 +383,16 @@ int init_sbp(struct fsck_sb *sbp)
 	return 0;
 }
 
-void destroy_sbp(struct fsck_sb *sbp)
+static void destroy_sbp(struct fsck_sb *sbp)
 {
-	empty_super_block(sbp);
-	if(!sbp->opts->no)
+	if(!sbp->opts->no) {
+		if(block_mounters(sbp, 0)) {
+			log_warn("Unable to unblock other mounters - manual intevention required\n");
+			log_warn("Use 'gfs_tool sb <device> proto' to fix\n");
+		}
 		fsync(sbp->diskfd);
+	}
+	empty_super_block(sbp);
 	close(sbp->diskfd);
 }
 

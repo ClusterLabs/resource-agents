@@ -18,7 +18,7 @@ Current
  x 'Add in UI for interactive mode
  o Check hash of directory name against name given (Would be nice -
    not in old fsck, but can cause problems if it is not verified.)
- o Unstuffed EA blocks have type GFS_METATYPE_ED in 6.1, but
+ x Unstuffed EA blocks have type GFS_METATYPE_ED in 6.1, but
    GFS_METATYPE_EA in 6.0 - handle this.
 
 ---

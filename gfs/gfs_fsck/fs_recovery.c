@@ -37,6 +37,8 @@ static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
   srandom(time(NULL));
   sequence = jdesc->ji_nsegment / (RAND_MAX + 1.0) * random();
 
+  log_info("Clearing journal %d\n", jnum);
+
   for (seg = 0; seg < jdesc->ji_nsegment; seg++){
     memset(buf, 0, sdp->sb.sb_bsize);
     memset(&lh, 0, sizeof(struct gfs_log_header));
@@ -75,9 +77,13 @@ static int reconstruct_single_journal(struct fsck_sb *sdp, int jnum){
 int reconstruct_journals(struct fsck_sb *sdp){
   int i;
 
-  for(i=0; i < sdp->journals; i++)
+  log_warn("Clearing journals (this may take a while)\n");
+  for(i=0; i < sdp->journals; i++) {
+    if((i % 10) == 0)
+      log_at_notice(".");
     if(reconstruct_single_journal(sdp, i))
       return -1;
-
+  }
+  log_notice("Cleared journals\n");
   return 0;
 }

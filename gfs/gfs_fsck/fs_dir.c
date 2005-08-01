@@ -370,7 +370,7 @@ static int linked_leaf_search(struct fsck_inode *dip, identifier_t *id,
 	osi_buf_t *bh = NULL, *bh_next;
 	uint32 hsize, index;
 	uint32 hash;
-	int error;
+	int error = 0;
 
 	hsize = 1 << dip->i_di.di_depth;
 	if(hsize * sizeof(uint64) != dip->i_di.di_size){

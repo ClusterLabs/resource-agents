@@ -78,7 +78,7 @@ void relse_buf(struct fsck_sb *sdp, osi_buf_t *bh){
 	if(bh){
 		if(BH_DATA(bh)) {
 			free(BH_DATA(bh));
-			BH_DATA(bh) = NULL;
+			bh->b_data = NULL;
 		}
 		free(bh);
 		bh = NULL;

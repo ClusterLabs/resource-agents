@@ -77,7 +77,17 @@ static int check_data(struct fsck_inode *ip, uint64_t block, void *private)
 static int check_eattr_indir(struct fsck_inode *ip, uint64_t block,
 			     uint64_t parent, osi_buf_t **bh, void *private)
 {
+	struct fsck_sb *sbp = ip->i_sbd;
+	osi_buf_t *indir_bh = NULL;
+
 	inc_if_found(block, 0, private);
+	if(get_and_read_buf(sbp, block, &indir_bh, 0)){
+		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
+			 block);
+		return 1;
+	}
+
+	*bh = indir_bh;
 
 	return 0;
 }
@@ -85,8 +95,17 @@ static int check_eattr_indir(struct fsck_inode *ip, uint64_t block,
 static int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 			    uint64_t parent, osi_buf_t **bh, void *private)
 {
-	inc_if_found(block, 0, private);
+	struct fsck_sb *sbp = ip->i_sbd;
+	osi_buf_t *leaf_bh = NULL;
 
+	inc_if_found(block, 0, private);
+	if(get_and_read_buf(sbp, block, &leaf_bh, 0)){
+		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
+			 block);
+		return 1;
+	}
+
+	*bh = leaf_bh;
 	return 0;
 }
 
@@ -326,11 +345,14 @@ int find_block_ref(struct fsck_sb *sbp, uint64_t inode, struct blocks *b)
 		stack;
 		return -1;
 	}
+	log_info("Checking inode %"PRIu64"'s metatree for references to block %"PRIu64"\n",
+		 inode, b->block_no);
 	if(check_metatree(ip, &find_refs)) {
 		stack;
 		free_inode(&ip);
 		return -1;
 	}
+	log_info("Done checking metatree\n");
 
 	if (myfi.found) {
 		if(!(id = malloc(sizeof(*id)))) {
@@ -463,7 +485,9 @@ int pass1b(struct fsck_sb *sbp)
 	/* Rescan the fs looking for pointers to blocks that are in
 	 * the duplicate block map */
 	log_info("Scanning filesystem for inodes containing duplicate blocks...\n");
-	for(i = 0; i < sbp->last_fs_block; i++) {
+	log_debug("Filesystem has %"PRIu64" blocks total\n", sbp->last_fs_block);
+	for(i = 0; i < sbp->last_fs_block; i += 1) {
+		log_debug("Scanning block %"PRIu64" for inodes\n", i);
 		if(block_check(sbp->bl, i, &q)) {
 			stack;
 			return -1;

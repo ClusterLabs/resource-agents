@@ -300,3 +300,30 @@ int ri_update(struct fsck_sb *sdp)
 
 	return -1;
 }
+
+int write_sb(struct fsck_sb *sbp)
+{
+	int error = 0;
+	osi_buf_t *bh;
+
+	error = get_and_read_buf(sbp, GFS_SB_ADDR >> sbp->fsb2bb_shift,
+				 &bh, 0);
+	if (error){
+		log_crit("Unable to read superblock\n");
+		goto out;
+	}
+
+	gfs_sb_out(&sbp->sb, BH_DATA(bh));
+
+	/* FIXME: Should this set the BW_WAIT flag? */
+	if((error = write_buf(sbp, bh, 0))) {
+		stack;
+		goto out;
+	}
+
+	relse_buf(sbp, bh);
+out:
+	return error;
+
+}
+

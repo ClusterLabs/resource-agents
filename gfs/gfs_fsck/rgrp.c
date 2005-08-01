@@ -34,7 +34,7 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 	uint32 length = rgd->rd_ri.ri_length;
 	uint32 bytes_left, bytes;
 	int x;
-	rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t));
+
 	if(!(rgd->rd_bits = (fs_bitmap_t *)malloc(length * sizeof(fs_bitmap_t)))) {
 		log_err("Unable to allocate bitmap structure\n");
 		stack;
@@ -46,8 +46,6 @@ int fs_compute_bitstructs(struct fsck_rgrp *rgd)
 		return -1;
 	}
 	
-	memset(rgd->rd_bits, 0, length * sizeof(fs_bitmap_t));
-
 	bytes_left = rgd->rd_ri.ri_bitbytes;
 
 	for (x = 0; x < length; x++){

@@ -464,6 +464,8 @@ static int build_metalist(struct fsck_inode *ip, osi_list_t *mlp,
 			for (ptr = (uint64 *)(bh->b_data + head_size);
 			     (char *)ptr < (bh->b_data + bh->b_size);
 			     ptr++) {
+				nbh = NULL;
+
 				if (!*ptr)
 					continue;
 
@@ -481,9 +483,11 @@ static int build_metalist(struct fsck_inode *ip, osi_list_t *mlp,
 					continue;
 				}
 				if(!nbh) {
-					/* FIXME: error checking */
-					get_and_read_buf(ip->i_sbd, block,
-							 &nbh, 0);
+					if(get_and_read_buf(ip->i_sbd, block,
+							    &nbh, 0)) {
+						stack;
+						goto fail;
+					}
 				}
 				osi_list_add(&nbh->b_list, cur_list);
 			}

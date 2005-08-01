@@ -60,7 +60,8 @@ void print_msg(int priority, char *file, int line, const char *format, va_list a
 	return;
 }
 
-void print_fsck_log(int priority, char *file, int line, const char *format, ...)
+
+void print_fsck_log(int iif, int priority, char *file, int line, const char *format, ...)
 {
 
 	va_list args;
@@ -70,10 +71,9 @@ void print_fsck_log(int priority, char *file, int line, const char *format, ...)
 
 	transform = _(format);
 
-	if(_state.print_level >= priority) {
+	if((_state.print_level == priority) ||
+	   (!iif && (_state.print_level >= priority)))
 		print_msg(priority, file, line, transform, args);
-	}
-
 
 	va_end(args);
 }

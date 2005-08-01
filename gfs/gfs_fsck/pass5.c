@@ -196,21 +196,38 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 		block_status = convert_mark(q.block_type, count);
 
 		if(rg_status != block_status) {
-			log_err("ondisk and fsck bitmaps differ at block %"
-				PRIu64"\n", block);
 			log_debug("Ondisk is %u - FSCK thinks it is %u (%u)\n",
 				  rg_status, block_status, q.block_type);
-			if(query(sbp, "Fix bitmap for block %"PRIu64"? (y/n) ",
-				 block)) {
-				if(fs_set_bitmap(sbp, block, block_status)) {
-					log_err("Failed.\n");
+			if((rg_status == GFS_BLKST_FREEMETA) &&
+			   (block_status == GFS_BLKST_FREE)) {
+				log_info("Converting free metadata block at %"
+					 PRIu64" to a free data block\n", block);
+				if(!sbp->opts->no) {
+					if(fs_set_bitmap(sbp, block, block_status)) {
+						log_warn("Failed to convert free metadata block to free data block at %PRIu64.\n", block);
+					}
+					else {
+						log_info("Succeeded.\n");
+					}
 				}
-				else {
-					log_err("Succeeded.\n");
+			}
+			else {
+
+				log_err("ondisk and fsck bitmaps differ at"
+					" block %"PRIu64"\n", block);
+
+				if(query(sbp, "Fix bitmap for block %"
+					 PRIu64"? (y/n) ", block)) {
+					if(fs_set_bitmap(sbp, block, block_status)) {
+						log_err("Failed.\n");
+					}
+					else {
+						log_err("Succeeded.\n");
+					}
+				} else {
+					log_err("Bitmap at block %"PRIu64
+						" left inconsistent\n", block);
 				}
-			} else {
-				log_err("Bitmap at block %"PRIu64
-					" left inconsistent\n", block);
 			}
 		}
 		(*rg_block)++;
@@ -224,13 +241,19 @@ int check_block_status(struct fsck_sb *sbp, char *buffer, unsigned int buflen,
 	return 0;
 }
 
+#define FREE_COUNT       1
+#define USED_INODE_COUNT 2
+#define FREE_INODE_COUNT 4
+#define USED_META_COUNT  8
+#define FREE_META_COUNT  16
+#define CONVERT_FREEMETA_TO_FREE (FREE_COUNT | FREE_META_COUNT)
 
 int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
 {
-	int update = 0;
 	uint32_t i;
 	fs_bitmap_t *bits;
 	uint64_t rg_block = 0;
+	uint8_t bmap = 0;
 
 	for(i = 0; i < rgp->rd_ri.ri_length; i++) {
 		bits = &rgp->rd_bits[i];
@@ -243,42 +266,63 @@ int update_rgrp(struct fsck_rgrp *rgp, uint32_t *count)
 	}
 
 	/* Compare the rgrps counters with what we found */
-	/* actually adjust counters and write out to disk */
 	if(rgp->rd_rg.rg_free != count[0]) {
-		log_err("free count inconsistent: is %u should be %u\n",
-			rgp->rd_rg.rg_free, count[0] );
-		rgp->rd_rg.rg_free = count[0];
-		update = 1;
+		bmap |= FREE_COUNT;
 	}
 	if(rgp->rd_rg.rg_useddi != count[1]) {
-		log_err("used inode count inconsistent: is %u should be %u\n",
-			rgp->rd_rg.rg_useddi, count[1]);
-		rgp->rd_rg.rg_useddi = count[1];
-		update = 1;
+		bmap |= USED_INODE_COUNT;
 	}
 	if(rgp->rd_rg.rg_freedi != count[2]) {
-		log_err("free inode count inconsistent: is %u should be %u\n",
-			rgp->rd_rg.rg_freedi, count[2]);
-		rgp->rd_rg.rg_freedi = count[2];
-		update = 1;
+		bmap |= FREE_INODE_COUNT;
 	}
 	if(rgp->rd_rg.rg_usedmeta != count[3]) {
-		log_err("used meta count inconsistent: is %u should be %u\n",
-			rgp->rd_rg.rg_usedmeta, count[3]);
-		rgp->rd_rg.rg_usedmeta = count[3];
-		update = 1;
+		bmap |= USED_META_COUNT;
 	}
 	if(rgp->rd_rg.rg_freemeta != count[4]) {
-		log_err("free meta count inconsistent: is %u should be %u\n",
-			rgp->rd_rg.rg_freemeta, count[4]);
-		rgp->rd_rg.rg_freemeta = count[4];
-		update = 1;
+		bmap |= FREE_META_COUNT;
 	}
 
-	if(update) {
+	if(bmap && !(bmap & ~CONVERT_FREEMETA_TO_FREE)) {
+		log_notice("Converting %d unused metadata blocks to free data blocks...\n",
+			   rgp->rd_rg.rg_freemeta - count[4]);
+		rgp->rd_rg.rg_free = count[0];
+		rgp->rd_rg.rg_freemeta = count[4];
+		gfs_rgrp_out(&rgp->rd_rg, BH_DATA(rgp->rd_bh[0]));
+		if(!rgp->rd_sbd->opts->no) {
+			write_buf(rgp->rd_sbd, rgp->rd_bh[0], 0);
+		}
+	} else if(bmap) {
+		/* actually adjust counters and write out to disk */
+		if(bmap & FREE_COUNT) {
+			log_err("free count inconsistent: is %u should be %u\n",
+				rgp->rd_rg.rg_free, count[0] );
+			rgp->rd_rg.rg_free = count[0];
+		}
+		if(bmap & USED_INODE_COUNT) {
+			log_err("used inode count inconsistent: is %u should be %u\n",
+				rgp->rd_rg.rg_useddi, count[1]);
+			rgp->rd_rg.rg_useddi = count[1];
+		}
+		if(bmap & FREE_INODE_COUNT) {
+			log_err("free inode count inconsistent: is %u should be %u\n",
+				rgp->rd_rg.rg_freedi, count[2]);
+			rgp->rd_rg.rg_freedi = count[2];
+		}
+		if(bmap & USED_META_COUNT) {
+			log_err("used meta count inconsistent: is %u should be %u\n",
+				rgp->rd_rg.rg_usedmeta, count[3]);
+			rgp->rd_rg.rg_usedmeta = count[3];
+		}
+		if(bmap & FREE_META_COUNT) {
+			log_err("free meta count inconsistent: is %u should be %u\n",
+				rgp->rd_rg.rg_freemeta, count[4]);
+			rgp->rd_rg.rg_freemeta = count[4];
+		}
+
 		if(query(rgp->rd_sbd,
 			 "Update resource group counts? (y/n) ")) {
-		/* write out the rgrp */
+			log_warn("Resource group counts updated\n");
+			/* write out the rgrp */
 			gfs_rgrp_out(&rgp->rd_rg, BH_DATA(rgp->rd_bh[0]));
 			write_buf(rgp->rd_sbd, rgp->rd_bh[0], 0);
 		} else {

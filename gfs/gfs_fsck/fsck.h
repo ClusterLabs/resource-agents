@@ -30,6 +30,7 @@ struct options {
 
 int initialize(struct fsck_sb *sbp);
 void destroy(struct fsck_sb *sbp);
+int block_mounters(struct fsck_sb *sbp, int block_em);
 int pass1(struct fsck_sb *sbp);
 int pass1b(struct fsck_sb *sbp);
 int pass1c(struct fsck_sb *sbp);

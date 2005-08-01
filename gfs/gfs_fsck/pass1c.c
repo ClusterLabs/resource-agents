@@ -46,6 +46,7 @@ int check_eattr_indir(struct fsck_inode *ip, uint64_t block,
 	int *update = (int *) private;
 	struct fsck_sb *sbp = ip->i_sbd;
 	struct block_query q;
+	osi_buf_t *indir_bh;
 
 	if(check_range(sbp, block)) {
 		log_err("Extended attributes indirect block out of range...removing\n");
@@ -63,7 +64,15 @@ int check_eattr_indir(struct fsck_inode *ip, uint64_t block,
 		*update = 1;
 		return 1;
 	}
+	else if(get_and_read_buf(sbp, block, &indir_bh, 0)){
+		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
+			 block);
+		ip->i_di.di_eattr = 0;
+		*update = 1;
+		return 1;
+	}
 
+	*bh = indir_bh;
 	return 0;
 }
 int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
@@ -72,6 +81,7 @@ int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 	int *update = (int *) private;
 	struct fsck_sb *sbp = ip->i_sbd;
 	struct block_query q;
+	osi_buf_t *leaf_bh;
 
 	if(check_range(sbp, block)) {
 		log_err("Extended attributes block out of range...removing\n");
@@ -89,6 +99,15 @@ int check_eattr_leaf(struct fsck_inode *ip, uint64_t block,
 		*update = 1;
 		return 1;
 	}
+	else if(get_and_read_buf(sbp, block, &leaf_bh, 0)){
+		log_warn("Unable to read EA leaf block #%"PRIu64".\n",
+			 block);
+		ip->i_di.di_eattr = 0;
+		*update = 1;
+		return 1;
+	}
+
+	*bh = leaf_bh;
 
 	return 0;
 
@@ -200,7 +219,7 @@ int pass1c(struct fsck_sb *sbp)
 	while (!find_next_block_type(sbp->bl, eattr_block, &block_no)) {
 
 		log_info("EA in inode %"PRIu64"\n", block_no);
-		if(get_and_read_buf(sbp, eattr_block, &bh, 0)) {
+		if(get_and_read_buf(sbp, block_no, &bh, 0)) {
 			stack;
 			return -1;
 		}
