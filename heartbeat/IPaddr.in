@@ -750,6 +750,17 @@ ip_start() {
     yes) ($SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?" & ) >&2 ;;
     *)	  $SENDARP $ARGS || ocf_log err "Could not send gratuitous arps. rc=$?";;
   esac
+
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+  do
+    ip_monitor
+    if [ $? = $OCF_SUCCESS ]; then
+      return $OCF_SUCCESS
+    fi
+    sleep 1
+  done
+  return $OCF_ERR_GENERIC
+
 }
 
 ip_status() {
