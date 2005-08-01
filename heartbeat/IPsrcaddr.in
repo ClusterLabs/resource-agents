@@ -3,7 +3,7 @@
 #	Description:	IPsrcaddr - Preferred source address modification
 #
 #	Author:			John Sutton <john@scl.co.uk>
-#	Support:		linux-ha@muc.de
+#	Support:		linux-ha@lists.linux-ha.org
 #	License:		GNU General Public License (GPL)
 #	Copyright:		SCL Internet
 #
@@ -19,7 +19,7 @@
 #
 #	It can add a preferred source address, or remove one.
 #
-#	usage: IPsrcaddr {start|stop|status|monitor|meta-data}
+#	usage: IPsrcaddr {start|stop|status|monitor|validate-all|meta-data}
 #
 #	The "start" arg adds a preferred source address.
 #
@@ -58,7 +58,9 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 
 IPROUTE=@IP2UTIL@
-USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
+IFCONFIG=@IFCONFIG@
+IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
+USAGE="usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
 
   CMDSHOW="$IPROUTE route show   to exact 0/0"
 CMDCHANGE="$IPROUTE route change to "
@@ -71,7 +73,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="IPsrcaddr" version="0.9">
+<resource-agent name="IPsrcaddr">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -95,6 +97,7 @@ The IP address.
 <action name="stop" timeout="40" />
 <action name="stop" timeout="20" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
@@ -102,8 +105,8 @@ END
 }
 
 errorexit() {
-	ocf_log "err" "$*"
-	exit 1
+	ocf_log err "$*"
+	exit $OCF_ERR_GENERIC
 }
 
 #
@@ -171,8 +174,15 @@ srca_start() {
 
 srca_stop() {
 	srca_read $1
+	rc=$?
 
-	[ $? = 2 ] && errorexit "addresses don't match"
+	if [ $rc = 1 ]; then
+	# We do not have a preferred source address for now
+	  ocf_log info "No preferred source address defined, nothing to stop"
+	  exit $OCF_SUCCESS
+	fi
+	  
+	[ $rc = 2 ] && errorexit "The address you specified to stop does not match the preferred source address"
 
 	$CMDCHANGE $ROUTE_WO_SRC || \
 		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
@@ -180,68 +190,260 @@ srca_stop() {
 	return $?
 }
 
-#
-#	The only difference between status and monitor is that the latter
-#	returns an appropriate exit code whereas status always returns 0.
-#	The return code should conform to LSB exit codes.
-#
-
 srca_status() {
 	srca_read $1
 
 	case $? in
 		0)	echo "OK"
-			return 0;;
+			return $OCF_SUCCESS;;
 
 		1)	echo "No preferred source address defined"
-			return 3;;
+			return $OCF_NOT_RUNNING;;
 
 		2)	echo "Preferred source address has incorrect value"
-			return 4;;
+			return $OCF_ERR_GENERIC;;
 	esac
 }
 
-srca_monitor() {
-	srca_status $1
-
-	return $?
+# A not reliable IP address checking function, which only picks up those _obvious_ violations...
+#
+# It accepts IPv4 address in dotted quad notation, for example "192.168.1.1"
+#
+# 100% confidence whenever it reports "negative", 
+# but may get false "positive" answer. 
+# 
+CheckIP() {
+  ip="$1"
+  case $ip in
+    *[^0-9.]*) #got invalid char
+	false;;
+    .*|*.) #begin or end by ".", which is invalid
+	false;;
+    *..*) #consecutive ".", which is invalid
+	false;;
+    *.*.*.*.*) #four decimal dots, which is too many
+	false;;
+    *.*.*.*) #exactly three decimal dots, candidate, evaluate each field
+	local IFS=.
+	set -- $ip
+	if
+	    ( [ $1 -le 254 ] && [ $2 -le 254 ] && [ $3 -le 254 ] && [ $4 -le 254 ] )
+	then
+	    if [ $1 -eq 127 ]; then
+		ocf_log err "IP address [$ip] is a loopback address, thus can not be preferred source address"
+		exit $OCF_ERR_ARGS
+	    fi
+	else
+	    true
+	fi	   
+#	return $OCF_SUCCESS
+	;;
+    *) #less than three decimal dots
+	false;;
+  esac
+  return $? # This return is unnecessary, this comment too :)
 }
 
 #
-#	Add or remove the preferred source IP address to be used for packets
-#	originating on the localhost and leaving via the default route.
+#       Find out which interface or alias serves the given IP address
+#       The argument is an IP address, and its output
+#       is an (aliased) interface name (e.g., "eth0" and "eth0:0").
 #
+find_interface_solaris() {
+
+
+  $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
+  while read ifname linkstuff
+  do
+    : ifname = $ifname
+    read inet addr junk
+    : inet = $inet addr = $addr
+    while
+      read line && [ "X$line" != "X" ]
+    do
+      : Nothing
+    done
+
+    #  This doesn't look right for a box with multiple NICs.
+    #  It looks like it always selects the first interface on
+    #  a machine.  Yet, we appear to use the results for this case too...
+    ifname=`echo "$ifname" | sed s'%:*$%%'`
+
+    case $addr in
+      addr:$BASEIP)	echo $ifname; return $OCF_SUCCESS;;
+      $BASEIP)	echo $ifname; return $OCF_SUCCESS;;
+    esac
+  done
+  return $OCF_ERR_GENERIC
+}
+
+
+#
+#       Find out which interface or alias serves the given IP address
+#       The argument is an IP address, and its output
+#       is an (aliased) interface name (e.g., "eth0" and "eth0:0").
+#
+find_interface_generic() {
+
+  $IFCONFIG $IFCONFIG_A_OPT  |
+  while read ifname linkstuff
+  do
+    : Read gave us ifname = $ifname
+
+    read inet addr junk
+    : Read gave us inet = $inet addr = $addr
+
+    while
+      read line && [ "X$line" != "X" ]
+    do
+      : Nothing
+    done
+
+    case $SYSTYPE in
+      *BSD)
+		$IFCONFIG | grep "$BASEIP" -B4 | grep "UP," | cut -d ":" -f 1
+		return 0;;
+      *)
+    		: "comparing $BASEIP to $addr (from ifconfig)"
+		case $addr in
+		  addr:$BASEIP)	echo $ifname; return $OCF_SUCCESS;;
+		  $BASEIP)	echo $ifname; return $OCF_SUCCESS;;
+    		esac
+		continue;;
+    esac
+
+  done
+  return $OCF_ERR_GENERIC 
+}
+
+
+#
+#       Find out which interface or alias serves the given IP address
+#       The argument is an IP address, and its output
+#       is an (aliased) interface name (e.g., "eth0" and "eth0:0").
+#
+find_interface() {
+    case $SYSTYPE in
+	SunOS)
+	 	IF=`find_interface_solaris $BASEIP`
+        ;;
+      *)
+	 	IF=`find_interface_generic $BASEIP`
+       ;;
+       esac
+
+  echo $IF
+  return $OCF_SUCCESS;
+}
+
+
+ip_status() {
+
+  BASEIP="$1"
+  SYSTYPE="`uname -s`"
+  case "$SYSTYPE" in
+    Darwin)
+	# Treat Darwin the same as the other BSD variants (matched as *BSD)
+	SYSTYPE="${SYSTYPE}BSD"
+	;;
+    *)
+        ;;
+  esac
+
+
+  case $SYSTYPE in
+      *BSD)
+	  $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+	  if [ $? = 0 ]; then
+	      return $OCF_SUCCESS
+	  else
+	      return $OCF_NOT_RUNNING
+	  fi;;
+      
+      Linux|SunOS)		
+	  IF=`find_interface "$BASEIP"`
+#	  echo $IF
+	  if [ -z "$IF" ]; then
+	      return $OCF_NOT_RUNNING
+	  fi
+
+	  case $IF in
+	  	lo*)  
+		    ocf_log err "IP address [$BASEIP] is served by loopback, thus can not be preferred source address"
+		    exit $OCF_ERR_ARGS
+		    ;;
+		*)return $OCF_SUCCESS;;
+	  esac
+	  ;;
+	  
+      *)		
+	  if [ -z "$IF" ]; then
+	      return $OCF_NOT_RUNNING
+	  else
+	      return $OCF_SUCCESS
+	  fi;;
+  esac
+}
+
+
+srca_validate_all() {
+
+#	The IP address should be in good shape
+	if CheckIP "$ipaddress"; then
+	  : 
+	else
+	  ocf_log err "Invalid IP address [$ipaddress]"
+	  exit $OCF_ERR_ARGS
+	fi
+
+#	We should serve this IP address of course
+	if ip_status "$ipaddress"; then
+	  :
+	else
+	  ocf_log err "We are not serving [$ipaddress], hence can not make it a preferred source address"
+	  exit $OCF_ERR_ARGS
+	fi
+}
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
-if 
-  [ -z "$OCF_RESKEY_ipaddress" ]
-then
-  usage
-  exit 1
-fi
-
-ipaddress=$OCF_RESKEY_ipaddress
-
+# These operations do not require the OCF instance parameters to be set
 case $1 in
 	meta-data)	meta_data 
 			exit $OCF_SUCCESS
 			;;
+	usage)		usage
+			exit $OCF_SUCCESS
+			;;
+	*)	
+			;;
+esac
+
+if 
+  [ -z "$OCF_RESKEY_ipaddress" ]
+then
+#  usage
+  ocf_log err "Please set OCF_RESKEY_ipaddress to the preferred source IP address!"
+  exit $OCF_ERR_ARGS
+fi
+
+ipaddress="$OCF_RESKEY_ipaddress"
+
+case $1 in
 	start)		srca_start $ipaddress
 			;;
 	stop)		srca_stop $ipaddress
 			;;
 	status)		srca_status $ipaddress
 			;;
-	monitor)	srca_monitor $ipaddress
+	monitor)	srca_status $ipaddress
 			;;
-	usage)		usage
-			exit $OCF_SUCCESS
+	validate-all)	srca_validate_all
 			;;
 	*)		usage
 			exit $OCF_ERR_UNIMPLEMENTED
