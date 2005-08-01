@@ -27,12 +27,12 @@ static void queue_complete(struct gdlm_lock *lp)
 	wake_up(&ls->thread_wait);
 }
 
-static __inline__ void gdlm_ast(void *astarg)
+static inline void gdlm_ast(void *astarg)
 {
 	queue_complete((struct gdlm_lock *) astarg);
 }
 
-static __inline__ void gdlm_bast(void *astarg, int mode)
+static inline void gdlm_bast(void *astarg, int mode)
 {
 	struct gdlm_lock *lp = astarg;
 	struct gdlm_ls *ls = lp->ls;
@@ -109,9 +109,9 @@ static void check_cur_state(struct gdlm_lock *lp, unsigned int cur_state)
 		GDLM_ASSERT(lp->cur == cur, printk("%d, %d\n", lp->cur, cur););
 }
 
-static __inline__ unsigned int make_flags(struct gdlm_lock *lp,
-					  unsigned int gfs_flags,
-					  int16_t cur, int16_t req)
+static inline unsigned int make_flags(struct gdlm_lock *lp,
+				      unsigned int gfs_flags,
+				      int16_t cur, int16_t req)
 {
 	unsigned int lkf = 0;
 
@@ -154,8 +154,8 @@ static __inline__ unsigned int make_flags(struct gdlm_lock *lp,
 
 /* make_strname - convert GFS lock numbers to a string */
 
-static __inline__ void make_strname(struct lm_lockname *lockname,
-				    struct gdlm_strname *str)
+static inline void make_strname(struct lm_lockname *lockname,
+				struct gdlm_strname *str)
 {
 	sprintf(str->name, "%8x%16"PRIx64, lockname->ln_type,
 		lockname->ln_number);

@@ -235,7 +235,7 @@ static void process_complete(struct gdlm_lock *lp)
 	ls->fscb(ls->fsdata, LM_CB_ASYNC, &acb);
 }
 
-static __inline__ int no_work(struct gdlm_ls *ls, int blocking)
+static inline int no_work(struct gdlm_ls *ls, int blocking)
 {
 	int ret;
 
@@ -248,7 +248,7 @@ static __inline__ int no_work(struct gdlm_ls *ls, int blocking)
 	return ret;
 }
 
-static __inline__ int check_drop(struct gdlm_ls *ls)
+static inline int check_drop(struct gdlm_ls *ls)
 {
 	if (!ls->drop_locks_count)
 		return 0;
