@@ -25,7 +25,7 @@
 #define GFS2_TRANS_LOCK		2
 #define GFS2_RENAME_LOCK	3
 
-/* Format (version) numbers for various metadata types */
+/* Format numbers for various metadata types */
 
 #define GFS2_FORMAT_NONE	0
 #define GFS2_FORMAT_SB		100
@@ -42,7 +42,7 @@
 #define GFS2_FORMAT_ED		1200
 #define GFS2_FORMAT_UT		1300
 #define GFS2_FORMAT_QC		1400
-/* These are format number for entities contained in files */
+/* These are format numbers for entities contained in files */
 #define GFS2_FORMAT_RI		1500
 #define GFS2_FORMAT_DE		1600
 #define GFS2_FORMAT_QU		1700

@@ -190,11 +190,6 @@ static void inode_go_inval(struct gfs2_glock *gl, int flags)
  * inode_go_demote_ok - Check to see if it's ok to unlock an inode glock
  * @gl: the glock
  *
- * While other glock types (meta, rgrp) that protect disk data can be retained
- * indefinitely, GFS2 imposes a timeout (overridden when using lock_nolock
- * module) for inode glocks, even if there is still data in page cache for
- * this inode.
- *
  * Returns: TRUE if it's ok
  */
 

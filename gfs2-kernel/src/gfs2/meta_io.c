@@ -160,9 +160,8 @@ static int gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 
 		while (atomic_read(&bh->b_count)) {
 			if (atomic_read(&aspace->i_writecount)) {
-				if (time_after_eq(jiffies,
-						  t +
-						  gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
+				if (time_after_eq(jiffies, t +
+				    gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
 					stuck_releasepage(bh);
 					t = jiffies;
 				}
@@ -596,7 +595,6 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 
 	lock_page(bh->b_page);
 
-	/* If there's one attached already, we're done */
 	if (get_v2bd(bh)) {
 		unlock_page(bh->b_page);
 		return;
@@ -691,12 +689,11 @@ void gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 }
 
 /**
- * gfs2_meta_wipe - make inode's buffers so they aren't dirty/AILed anymore
+ * gfs2_meta_wipe - make inode's buffers so they aren't dirty/pinned anymore
  * @ip: the inode who owns the buffers
  * @bstart: the first buffer in the run
  * @blen: the number of buffers in the run
  *
- * Called when de-allocating a contiguous run of meta blocks within an rgrp.
  */
 
 void gfs2_meta_wipe(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
@@ -912,9 +909,6 @@ void gfs2_meta_ra(struct gfs2_glock *gl, uint64_t dblock, uint32_t extlen)
  * gfs2_meta_syncfs - sync all the buffers in a filesystem
  * @sdp: the filesystem
  *
- * Flush metadata blocks to on-disk journal, then
- * Flush metadata blocks (now in AIL) to on-disk in-place locations
- * Periodically keep checking until done (AIL empty)
  */
 
 void gfs2_meta_syncfs(struct gfs2_sbd *sdp)

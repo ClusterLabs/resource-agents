@@ -130,12 +130,6 @@ void gfs2_inode_attr_out(struct gfs2_inode *ip)
  * @create: create a new struct inode if one does not already exist
  *
  * Returns: A VFS inode, or NULL if NO_CREATE and none in existance
- *
- * If this function creates a new inode, it:
- * Copies fields from the GFS2 on-disk (d)inode to the VFS inode
- * Attaches the appropriate ops vectors to the VFS inode and address_space
- * Attaches the VFS inode to the gfs2_inode
- * Inserts the new inode in the VFS inode hash, while avoiding races
  */
 
 struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
@@ -410,10 +404,6 @@ void gfs2_inode_put(struct gfs2_inode *ip)
  * gfs2_inode_destroy - Destroy a GFS2 inode structure with no references on it
  * @ip: The GFS2 inode
  *
- * Also, unhold the iopen glock and release indirect addressing buffers.
- * This function must be called with a glocks held on the inode and
- * the associated iopen.
- *
  */
 
 void gfs2_inode_destroy(struct gfs2_inode *ip)
@@ -538,10 +528,7 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
 	/* We reacquire the iopen lock here to avoid a race with the NFS server
 	   calling gfs2_read_inode() with the inode number of a inode we're in
 	   the process of deallocating.  And we can't keep our hold on the lock
-	   from inode_dealloc_init() for deadlock reasons.  We do, however,
-	   overlap this iopen lock with the one to be acquired EX within
-	   inode_create(), below (recursive EX locks will be granted to same
-	   holder process, i.e. this process). */
+	   from inode_dealloc_init() for deadlock reasons. */
 
 	gfs2_holder_reinit(LM_ST_EXCLUSIVE, LM_FLAG_TRY, io_gh);
 	error = gfs2_glock_nq(io_gh);
@@ -1558,10 +1545,7 @@ int gfs2_readlinki(struct gfs2_inode *ip, char **buf, unsigned int *len)
  *
  * Tests atime (access time) for gfs2_read, gfs2_readdir and gfs2_mmap
  * Update if the difference between the current time and the inode's current
- * atime is greater than an interval specified at mount (or default).
- *
- * Will not update if GFS2 mounted NOATIME (this is *the* place where NOATIME
- * has an effect) or Read-Only.
+ * atime is greater than an interval specified at mount.
  *
  * Returns: errno
  */
@@ -1594,7 +1578,6 @@ int gfs2_glock_nq_atime(struct gfs2_holder *gh)
 
 	curtime = get_seconds();
 	if (curtime - ip->i_di.di_atime >= quantum) {
-		/* Get EX hold (force EX glock via !ANY) to write the dinode */
 		gfs2_glock_dq(gh);
 		gfs2_holder_reinit(LM_ST_EXCLUSIVE,
 				  gh->gh_flags & ~LM_FLAG_ANY,

@@ -225,7 +225,7 @@ struct gfs2_alloc {
 
 	uint32_t al_requested;
 
-	/* Filled in by gfs_inplace_reserve() */
+	/* Filled in by gfs2_inplace_reserve() */
 
 	char *al_file;
 	unsigned int al_line;
@@ -395,28 +395,14 @@ struct gfs2_args {
 	char ar_lockproto[GFS2_LOCKNAME_LEN]; /* Name of the Lock Protocol */
 	char ar_locktable[GFS2_LOCKNAME_LEN]; /* Name of the Lock Table */
 	char ar_hostdata[GFS2_LOCKNAME_LEN]; /* Host specific data */
-
 	int ar_spectator; /* Don't get a journal because we're always RO */
-
-	/*
-	 * GFS2 can invoke some flock and disk caching optimizations if it is
-	 * not in a cluster, i.e. is a local filesystem.  The chosen lock
-	 * module tells GFS2, at mount time, if it supports clustering.  The
-	 * nolock module is the only one that does not support clustering; it
-	 * sets LM_LSFLAG_LOCAL in the struct lm_lockstruct.  GFS2 can either
-	 * optimize, or ignore the opportunity.  The user controls behavior via
-	 * the following mount options.
-	 */
-
 	int ar_ignore_local_fs; /* Don't optimize even if local_fs is TRUE */
 	int ar_localflocks; /* Let the VFS do flock|fcntl locks for us */
 	int ar_localcaching; /* Local-style caching (dangerous on multihost) */
 	int ar_oopses_ok; /* Allow oopses */
-
 	int ar_debug; /* Oops on errors instead of trying to be graceful */
 	int ar_upgrade; /* Upgrade ondisk/multihost format */
-	unsigned int ar_num_glockd; /* number of glock cleanup daemons to run
-				       (more daemons => faster cleanup) */
+	unsigned int ar_num_glockd; /* Number of glockd threads */
 	int ar_posix_acl; /* Enable posix acls */
 	int ar_quota; /* off/account/on */
 	int ar_suiddir; /* suiddir support */
@@ -434,12 +420,11 @@ struct gfs2_tune {
 	unsigned int gt_log_flush_secs;
 	unsigned int gt_jindex_refresh_secs; /* Check for new journal index */
 
-	/* How often various daemons run (seconds) */
-	unsigned int gt_scand_secs; /* Find unused glocks and inodes */
-	unsigned int gt_recoverd_secs; /* Recover journal of crashed node */
-	unsigned int gt_logd_secs; /* Update log tail as AIL flushes */
-	unsigned int gt_quotad_secs; /* Sync changes to quota file, clean */
-	unsigned int gt_inoded_secs; /* Toss unused inodes */
+	unsigned int gt_scand_secs;
+	unsigned int gt_recoverd_secs;
+	unsigned int gt_logd_secs;
+	unsigned int gt_quotad_secs;
+	unsigned int gt_inoded_secs;
 
 	unsigned int gt_quota_simul_sync; /* Max quotavals to sync at once */
 	unsigned int gt_quota_warn_period; /* Secs between quota warn msgs */

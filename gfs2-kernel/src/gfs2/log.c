@@ -541,11 +541,6 @@ static void log_flush_commit(struct gfs2_sbd *sdp)
  * @sdp: the filesystem
  * @gl: The glock structure to flush.  If NULL, flush the whole incore log
  *
- * If a glock is provided, we flush, to on-disk log, all of the metadata for
- *   the one incore-committed (complete, but not-yet-flushed-to-log)
- *   transaction that the glock protects.
- * If NULL, we combine *all* of the filesystem's incore-committed
- *   transactions into one big transaction, and flush it to the log.
  */
 
 void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)

@@ -931,7 +931,6 @@ static int filldir_reg_func(void *opaque, const char *name, unsigned int length,
 	if (error)
 		return 1;
 
-	/* Prefetch locks */
 	if (fdr->fdr_prefetch && !(length == 1 && *name == '.')) {
 		gfs2_glock_prefetch_num(sdp,
 				       inum->no_addr, &gfs2_inode_glops,
@@ -1019,7 +1018,6 @@ static int filldir_bad_func(void *opaque, const char *name, unsigned int length,
 	fdb->fdb_entry_off++;
 	fdb->fdb_name_off += length;
 
-	/* Prefetch locks */
 	if (!(length == 1 && *name == '.')) {
 		gfs2_glock_prefetch_num(sdp,
 				       inum->no_addr, &gfs2_inode_glops,
@@ -1125,7 +1123,6 @@ static int gfs2_readdir(struct file *file, void *dirent, filldir_t filldir)
 
 	atomic_inc(&get_v2sdp(file->f_mapping->host->i_sb)->sd_ops_file);
 
-	/* Use "bad" one if we're called from NFS daemon */
 	if (strcmp(current->comm, "nfsd") != 0)
 		error = readdir_reg(file, dirent, filldir);
 	else

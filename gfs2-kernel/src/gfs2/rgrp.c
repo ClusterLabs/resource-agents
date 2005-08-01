@@ -104,9 +104,6 @@ static inline int rgrp_contains_block(struct gfs2_rindex *ri, uint64_t block)
  * @sdp: The GFS2 superblock
  * @n: The data block number
  *
- * Don't try to use this for non-allocatable block numbers (i.e. rgrp header
- * or bitmap blocks); it's for allocatable (data/meta) blocks only.
- *
  * Returns: The resource group, or NULL if not found
  */
 
