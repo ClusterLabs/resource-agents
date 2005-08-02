@@ -27,9 +27,13 @@
 #include "ops_export.h"
 #include "rgrp.h"
 
-struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
-	int fh_type, int (*acceptable)(void *context, struct dentry *dentry),
-	void *context)
+static struct dentry *gfs2_decode_fh(struct super_block *sb,
+				     __u32 *fh,
+				     int fh_len,
+				     int fh_type,
+				     int (*acceptable)(void *context,
+						       struct dentry *dentry),
+				     void *context)
 {
 	struct gfs2_inum this, parent;
 
@@ -60,7 +64,8 @@ struct dentry *gfs2_decode_fh(struct super_block *sb, __u32 *fh, int fh_len,
 						    acceptable, context);
 }
 
-int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len, int connectable)
+static int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
+			  int connectable)
 {
 	struct inode *inode = dentry->d_inode;
 	struct gfs2_inode *ip = get_v2ip(inode);
@@ -125,7 +130,8 @@ static int get_name_filldir(void *opaque, const char *name, unsigned int length,
 	return 1;
 }
 
-int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
+static int gfs2_get_name(struct dentry *parent, char *name,
+			 struct dentry *child)
 {
 	struct inode *dir = parent->d_inode;
 	struct inode *inode = child->d_inode;
@@ -164,7 +170,7 @@ int gfs2_get_name(struct dentry *parent, char *name, struct dentry *child)
 	return error;
 }
 
-struct dentry *gfs2_get_parent(struct dentry *child)
+static struct dentry *gfs2_get_parent(struct dentry *child)
 {
 	struct gfs2_inode *dip = get_v2ip(child->d_inode);
 	struct qstr dotdot = { .name = "..", .len = 2 };
@@ -194,7 +200,7 @@ struct dentry *gfs2_get_parent(struct dentry *child)
 	return dentry;
 }
 
-struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
+static struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 {
 	struct gfs2_sbd *sdp = get_v2sdp(sb);
 	struct gfs2_inum *inum = (struct gfs2_inum *)inum_p;

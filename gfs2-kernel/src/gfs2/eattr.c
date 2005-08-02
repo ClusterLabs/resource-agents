@@ -63,7 +63,7 @@ static int ea_calc_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er,
  * Returns: errno
  */
 
-int ea_check_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er)
+static int ea_check_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er)
 {
 	unsigned int size;
 
@@ -431,7 +431,7 @@ static int ea_remove_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
  * Returns: errno
  */
 
-int gfs2_ea_repack_i(struct gfs2_inode *ip)
+static int gfs2_ea_repack_i(struct gfs2_inode *ip)
 {
 	return -EOPNOTSUPP;
 }

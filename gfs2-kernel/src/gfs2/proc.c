@@ -28,11 +28,11 @@
 #include "proc.h"
 #include "super.h"
 
-struct list_head gfs2_fs_list;
-struct semaphore gfs2_fs_lock;
+static struct list_head gfs2_fs_list;
+static struct semaphore gfs2_fs_lock;
 char *gfs2_proc_margs;
 spinlock_t gfs2_proc_margs_lock;
-spinlock_t req_lock;
+static spinlock_t req_lock;
 
 /**
  * gfs2_proc_fs_add - Add a FS to the list of mounted FSs

@@ -603,7 +603,7 @@ static int inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul,
  * Returns: 0 on success, -errno on error, 1 on busy (inode open)
  */
 
-int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+static int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	struct gfs2_holder io_gh;
 	int error = 0;
@@ -629,7 +629,7 @@ int try_inode_dealloc(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	return error;
 }
 
-int inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
+static int inode_dealloc_uninit(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_holder ri_gh, rgd_gh;

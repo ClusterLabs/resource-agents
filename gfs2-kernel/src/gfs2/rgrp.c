@@ -159,7 +159,7 @@ struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
  *
  */
 
-void clear_rgrpdi(struct gfs2_sbd *sdp)
+static void clear_rgrpdi(struct gfs2_sbd *sdp)
 {
        	struct list_head *head;
 	struct gfs2_rgrpd *rgd;

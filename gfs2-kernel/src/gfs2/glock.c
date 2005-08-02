@@ -1885,8 +1885,8 @@ void gfs2_lvb_sync(struct gfs2_glock *gl)
  *
  */
 
-void blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name,
-		 unsigned int state)
+static void blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name,
+			unsigned int state)
 {
 	struct gfs2_glock *gl;
 

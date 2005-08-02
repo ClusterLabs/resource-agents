@@ -312,7 +312,7 @@ extern kmem_cache_t *gfs2_bufdata_cachep;
 
 
 struct gfs2_user_buffer {
-	char *ub_data;
+	char __user *ub_data;
 	unsigned int ub_size;
 	unsigned int ub_count;
 };

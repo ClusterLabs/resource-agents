@@ -1294,8 +1294,8 @@ static int gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry,
  * Returns: errno
  */
 
-int gfs2_setxattr(struct dentry *dentry, const char *name,
-		  const void *data, size_t size, int flags)
+static int gfs2_setxattr(struct dentry *dentry, const char *name,
+			 const void *data, size_t size, int flags)
 {
        	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 	struct gfs2_ea_request er;
@@ -1326,8 +1326,8 @@ int gfs2_setxattr(struct dentry *dentry, const char *name,
  * Returns: The number of bytes put into data, or -errno
  */
 
-ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
-		      void *data, size_t size)
+static ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
+			     void *data, size_t size)
 {
 	struct gfs2_ea_request er;
 
@@ -1353,7 +1353,7 @@ ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
  * Returns: The number of bytes put into data, or -errno
  */
 
-ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
+static ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
 	struct gfs2_ea_request er;
 
@@ -1374,7 +1374,7 @@ ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
  * Returns: errno
  */
 
-int gfs2_removexattr(struct dentry *dentry, const char *name)
+static int gfs2_removexattr(struct dentry *dentry, const char *name)
 {
 	struct gfs2_ea_request er;
 

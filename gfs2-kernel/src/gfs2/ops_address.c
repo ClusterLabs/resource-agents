@@ -478,7 +478,7 @@ static void discard_buffer(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	unlock_buffer(bh);
 }
 
-int gfs2_invalidatepage(struct page *page, unsigned long offset)
+static int gfs2_invalidatepage(struct page *page, unsigned long offset)
 {
        	struct gfs2_sbd *sdp = get_v2sdp(page->mapping->host->i_sb);
 	struct buffer_head *head, *bh, *next;

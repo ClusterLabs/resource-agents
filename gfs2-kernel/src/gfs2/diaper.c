@@ -81,7 +81,7 @@ static int diaper_major = 0;
 static LIST_HEAD(diaper_list);
 static spinlock_t diaper_lock;
 static DEFINE_IDR(diaper_idr);
-kmem_cache_t *diaper_slab;
+static kmem_cache_t *diaper_slab;
 
 /**
  * diaper_open -
@@ -238,7 +238,7 @@ static void gfs2_dummy_unlockfs(struct super_block *sb)
 	thaw_bdev(dh->dh_diaper, dh->dh_sbd->sd_vfs);
 }
 
-struct super_operations gfs2_dummy_sops = {
+static struct super_operations gfs2_dummy_sops = {
 	.write_super_lockfs = gfs2_dummy_write_super_lockfs,
 	.unlockfs = gfs2_dummy_unlockfs,
 };

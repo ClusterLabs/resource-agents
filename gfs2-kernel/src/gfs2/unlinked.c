@@ -85,7 +85,7 @@ static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	spin_unlock(&sdp->sd_unlinked_spin);
 }
 
-struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
+static struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 {
 	struct list_head *head;
 	struct gfs2_unlinked *ul;
@@ -125,7 +125,7 @@ struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
  * Returns: errno
  */
 
-void enforce_limit(struct gfs2_sbd *sdp)
+static void enforce_limit(struct gfs2_sbd *sdp)
 {
 	unsigned int tries = 0, min = 0;
 	int error;
@@ -150,7 +150,7 @@ void enforce_limit(struct gfs2_sbd *sdp)
 	}
 }
 
-struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
+static struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
 {
 	struct gfs2_unlinked *ul;
 

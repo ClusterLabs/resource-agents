@@ -882,8 +882,9 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
  * Returns: the new superblock
  */
 
-struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
-				const char *dev_name, void *data)
+static struct super_block *gfs2_get_sb(struct file_system_type *fs_type,
+				       int flags, const char *dev_name,
+				       void *data)
 {
 	struct block_device *real, *diaper;
 	struct super_block *sb;
@@ -945,7 +946,7 @@ struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
  *
  */
 
-void gfs2_kill_sb(struct super_block *sb)
+static void gfs2_kill_sb(struct super_block *sb)
 {
 	struct block_device *diaper = sb->s_bdev;
 	struct block_device *real = gfs2_diaper_2real(diaper);

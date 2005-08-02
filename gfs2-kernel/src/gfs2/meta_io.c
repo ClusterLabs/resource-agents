@@ -494,7 +494,7 @@ static struct buffer_head *getbuf(struct gfs2_sbd *sdp, struct inode *aspace,
 	return bh;
 }
 
-void meta_prep_new(struct buffer_head *bh)
+static void meta_prep_new(struct buffer_head *bh)
 {
 	struct gfs2_meta_header *mh = (struct gfs2_meta_header *)bh->b_data;
 
