@@ -1031,7 +1031,8 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
  * Returns: errno
  */
 
-static int gfs2_readlink(struct dentry *dentry, char *user_buf, int user_size)
+static int gfs2_readlink(struct dentry *dentry, char __user *user_buf,
+			 int user_size)
 {
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 	char array[GFS2_FAST_NAME_SIZE], *buf = array;
