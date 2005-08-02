@@ -68,7 +68,7 @@ void gfs2_proc_fs_del(struct gfs2_sbd *sdp)
  * @Returns: -errno, or the number of bytes copied to userspace
  */
 
-static ssize_t do_list(char *user_buf, size_t size)
+static ssize_t do_list(char __user *user_buf, size_t size)
 {
 	struct gfs2_sbd *sdp = NULL;
 	unsigned int x;
@@ -290,7 +290,7 @@ static int do_withdraw(char *p)
  * Returns: errno
  */
 
-static int do_lockdump(char *p, char *buf, size_t size)
+static int do_lockdump(char *p, char __user *buf, size_t size)
 {
 	struct gfs2_sbd *sdp;
 	struct gfs2_user_buffer ub;
@@ -330,8 +330,8 @@ static int do_lockdump(char *p, char *buf, size_t size)
  * Returns: -errno or the number of bytes taken
  */
 
-static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
-			       loff_t *offset)
+static ssize_t gfs2_proc_write(struct file *file, const char __user *buf,
+			       size_t size, loff_t *offset)
 {
 	char *p;
 
@@ -372,7 +372,7 @@ static ssize_t gfs2_proc_write(struct file *file, const char *buf, size_t size,
  * Returns: -errno or the number of bytes returned
  */
 
-static ssize_t gfs2_proc_read(struct file *file, char *buf, size_t size,
+static ssize_t gfs2_proc_read(struct file *file, char __user *buf, size_t size,
 			      loff_t *offset)
 {
 	char *p;

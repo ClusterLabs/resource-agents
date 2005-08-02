@@ -24,6 +24,8 @@ TARGET = gfs2.patch
 
 PWD := $(shell pwd)
 
+# CHECK = sparse -Wbitwise
+
 obj-m := gfs2.o
 gfs2-objs := \
 	acl.o \
