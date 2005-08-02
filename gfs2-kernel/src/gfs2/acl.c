@@ -121,8 +121,8 @@ int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
  * Returns: errno
  */
 
-int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
-	    struct gfs2_ea_location *el, char **data, unsigned int *len)
+static int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
+		   struct gfs2_ea_location *el, char **data, unsigned int *len)
 {
 	struct gfs2_ea_request er;
 	struct gfs2_ea_location el_this;
