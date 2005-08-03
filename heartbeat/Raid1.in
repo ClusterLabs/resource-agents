@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.2 2005/07/29 07:36:15 sunjd Exp $
+# $Id: Raid1.in,v 1.3 2005/08/03 05:53:38 sunjd Exp $
 #
 # License:      GNU General Public License (GPL)
 # Support:      linux-ha@lists.linux-ha.org
@@ -9,12 +9,11 @@
 #      Description: Manages a software Raid1 device on a shared storage medium.
 #  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
 # Original Release: 25 Oct 2000
-#          Support: linux-ha-dev@lists.tummy.com
 #     RAID patches: http://people.redhat.com/mingo/raid-patches/
 # Word to the Wise: http://lwn.net/2000/0810/a/raid-faq.php3
 #  Sympathetic Ear: mailto:linux-raid@vger.kernel.org
 #
-# usage: $0 {start|stop|status|monitor|meta-data}
+# usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
 #
 #	  OCF parameters are as below:
 #		OCF_RESKEY_raidconf
@@ -24,10 +23,6 @@
 #
 # in /etc/ha.d/haresources, use a line such as:
 # nodea  10.0.0.170 Raid1::/etc/raidtab.md0::/dev/md0 Filesystem::/dev/md0::/data1::ext2
-#
-# This script assumes you are running the so-called RAID v.90 patches vs.
-# the Linux 2.2 kernel (distributed with RedHat 6.2).   I have not used 
-# kernel version 2.4.   
 #
 # The "start" arg starts up the raid device
 # The "stop" arg stops it.  NOTE: all filesystems must be unmounted
@@ -108,18 +103,19 @@ RAIDSTART=@RAIDSTART@
 MOUNT=@MOUNT@
 UMOUNT=@UMOUNT@
 RAIDSTOP=@RAIDSTOP@
+MDADM=@MDADM@
 
 check_util () {
     if [ ! -x "$1" ] ; then
-	ocf_log "err" "setup problem: Couldn't find utility $1"
-	exit 1
+	ocf_log err "setup problem: Couldn't find utility $1"
+	exit $OCF_ERR_GENERIC
     fi
 }
 
 usage() {
 cat <<-EOT;
-	usage: $0 {start|stop|status|monitor|meta-data}
-	$Id: Raid1.in,v 1.2 2005/07/29 07:36:15 sunjd Exp $
+	usage: $0 {start|stop|status|monitor|validate-all|usage|meta-data}
+	$Id: Raid1.in,v 1.3 2005/08/03 05:53:38 sunjd Exp $
 EOT
 }
 
@@ -127,7 +123,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="RAID1" version="0.9">
+<resource-agent name="Raid1">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -159,6 +155,7 @@ The block device to use.
 <action name="stop" timeout="10" />
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
@@ -170,34 +167,58 @@ END
 #
 raid1_start() {
 	# See if the md device is already mounted.
-	# NOTE: this will not work right if you have more than 10 md devices!
-	$MOUNT | grep -e "^$MDDEV" >/dev/null
+	$MOUNT | grep -e "^$MDDEV\>" >/dev/null
 	if [ $? -ne 1 ] ; then
-	    ocf_log "err" "Device $MDDEV is already mounted!"
-	    return 1;
+	    ocf_log err "Device $MDDEV is already mounted!"
+	    return $OCF_ERR_GENERIC
 	fi
 	
+	if [ "running" = `raid1_status` ]; then
+	# We are already online, do not bother
+	    return $OCF_SUCCESS
+	fi
+
 	# Insert SCSI module
 	$MODPROBE scsi_hostadapter
 	if [ $? -ne 0 ] ; then
-	    ocf_log "warn" "Couldn't insert SCSI module."
+	    ocf_log warn "Couldn't insert SCSI module."
 	fi
 
 	# Insert raid personality module
 	$MODPROBE raid1
 	if [ $? -ne 0 ] ; then
-	    ocf_log "err" "Couldn't insert RAID1 module"
-	    return 1
+	# It is not fatal, chance is that we have raid1 builtin...
+	    ocf_log warn "Couldn't insert RAID1 module"
+#	    return 1
 	fi
-
-	# Run raidstart to start up the RAID array
-	$RAIDSTART --configfile $RAIDTAB_CONFIG $MDDEV
+	grep -q "^Personalities.*\[raid1\]" /proc/mdstat 2>/dev/null
 	if [ $? -ne 0 ] ; then
-		ocf_log "err" "Couldn't start RAID for $MDDEV"
-		return 1
+	    ocf_log err "We don't have RAID1 support! Exiting"
+	    return $OCF_ERR_GENERIC
 	fi
 
-	return 0
+	if [ $HAVE_RAIDTOOLS = "true" ]; then
+	    # Run raidstart to start up the RAID array
+	    $RAIDSTART --configfile $RAIDTAB_CONFIG $MDDEV
+	else
+	    # Run mdadm
+	    $MDADM --run $MDDEV --config=$RAIDTAB_CONFIG
+	fi
+
+
+	# We can't rely the exit status above, $MDADM will return 0 on some failures, see
+	#
+	#	# mdadm --run /dev/nosuchdevice
+	#	mdadm: error opening /dev/nosuchdevice: No such file or directory
+	#	# echo $?
+	#	0
+
+	if [ "running" = `raid1_status` ]; then
+	    return $OCF_SUCCESS
+	else
+	    ocf_log err "Couldn't start RAID for $MDDEV"
+	    return $OCF_ERR_GENERIC
+	fi
 }
 
 #
@@ -205,15 +226,15 @@ raid1_start() {
 #
 raid1_stop() {
 	# See if the MD device is online
-	grep -e "^$MD" /proc/mdstat >/dev/null
+	grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null
 	if [ $? -ne 0 ] ; then
-	        ocf_log "warn" "device $MD is not online according to kernel"
-		return 0
+	        ocf_log warn "device $MD is not online according to kernel"
+		return $OCF_SUCCESS
 	fi
 
 	# See if the MD device is mounted
 	# NOTE: this will not work right if you have more than 10 md devices!
-	$MOUNT | grep -e "^$MDDEV" >/dev/null
+	$MOUNT | grep -e "^$MDDEV\>" >/dev/null
 	if [ $? -ne 1 ] ; then
 		# Kill all processes open on filesystem
 		$FUSER -mk $MOUNTPOINT
@@ -227,25 +248,30 @@ raid1_stop() {
 		# Unmount the filesystem
 		$UMOUNT $MDDEV
 		if [ $? -ne 0 ] ; then
-			ocf_log "err" "Couldn't unmount filesystem for $MDDEV"
-			return 1
+			ocf_log err "Couldn't unmount filesystem for $MDDEV"
+			return $OCF_ERR_GENERIC
 		fi
 
-		$MOUNT | grep -e "^$MDDEV" >/dev/null
+		$MOUNT | grep -e "^$MDDEV\>" >/dev/null
 		if [ $? -ne 1 ] ; then
-		    ocf_log "err" "filesystem for $MDDEV still mounted"
-		    return 1
+		    ocf_log err "filesystem for $MDDEV still mounted"
+		    return $OCF_ERR_GENERIC
 		fi
 	fi
 
 	# Turn off raid
-	$RAIDSTOP --configfile /etc/raidtab.$MD $MDDEV
-	if [ $? -ne 0 ] ; then
-		ocf_log "err" "Couldn't stop RAID for $MDDEV"
-		return 1
+	if [ $HAVE_RAIDTOOLS = "true" ]; then
+		$RAIDSTOP --configfile /etc/raidtab.$MD $MDDEV
+	else
+		$MDADM --stop $MDDEV --config=$RAIDTAB_CONFIG
 	fi
 
-	return 0
+	if [ $? -ne 0 ] ; then
+		ocf_log err "Couldn't stop RAID for $MDDEV"
+		return $OCF_ERR_GENERIC
+	fi
+
+	return $OCF_SUCCESS
 }
 
 #
@@ -254,40 +280,95 @@ raid1_stop() {
 raid1_status() { 
 
 	# See if the MD device is online
-	grep -e "^$MD" /proc/mdstat >/dev/null
+	grep -e "^$MD[ \t:]" /proc/mdstat >/dev/null
 	if [ $? -ne 0 ] ; then
 	    echo "stopped"
+	    return $OCF_NOT_RUNNING
 	else
 	    echo "running"
+	    return $OCF_SUCCESS
 	fi
 
-	return 0
 }    
 
+raid1_validate_all() {
+	if [ $HAVE_RAIDTOOLS = "true" ]; then
+
+	    # $MDDEV should be an md device
+	    lsraid -a $MDDEV 2>&1 | grep -q -i "is not an md device"
+	    if [ $? -eq 0 ]; then
+		ocf_log err "$MDDEV is not an md device!"
+		exit $OCF_ERR_ARGS
+	    fi
+		
+	    COMMENT="\(#.*\)"
+	    grep -q "^[[:space:]]*raiddev[[:space:]]\+$MDDEV[[:space:]]*$COMMENT\?$" $RAIDTAB_CONFIG 2>/dev/null
+	    if [ $? -ne 0 ]; then
+		ocf_log err "Raid device $MDDEV does not appear in $RAIDTAB_CONFIG"
+		exit $OCF_ERR_GENERIC
+	    fi
+	else
+	    error=`$MDADM --query $MDDEV 2>&1`
+	    if [ $? -ne 0 ]; then
+		ocf_log err "$error"
+		exit $OCF_ERR_GENERIC
+	    fi
+	    echo $error | grep -q -i "^$MDDEV[ \t:].*is not an md array"
+	    if [ $? -eq 0 ]; then
+		ocf_log err "$MDDEV is not an md array!"
+		exit $OCF_ERR_ARGS
+	    fi
+	fi
+
+	return $OCF_SUCCESS
+}
+	
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
+
+case "$1" in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage) 
+	usage
+	exit $OCF_SUCCESS
+	;;
+  *)
+	;;
+esac
 
 #
 # Check the necessary enviroment virable's setting 
 # 
+
 RAIDTAB_CONFIG=$OCF_RESKEY_raidconf
 MDDEV=$OCF_RESKEY_raiddev
 
-if [ ! -f "$RAIDTAB_CONFIG" ] ; then
-	ocf_log "err" "Couldn't open file $RAIDTAB_CONFIG"
-	usage
-	exit 1
+if [ -z "$RAIDTAB_CONFIG" ] ; then
+	ocf_log err "Please set OCF_RESKEY_raidconf!"
+	exit $OCF_ERR_ARGS
+fi
+
+if [ ! -r "$RAIDTAB_CONFIG" ] ; then
+	ocf_log err "Configuration file [$RAIDTAB_CONFIG] does not exist, or can not be opend!"
+	exit $OCF_ERR_ARGS
+fi
+
+if [ -z "$MDDEV" ] ; then
+	ocf_log err "Please set OCF_RESKEY_raiddev to the Raid device you want to control!"
+	exit $OCF_ERR_ARGS
 fi
 
 if [ ! -b "$MDDEV" ] ; then
-	ocf_log "err" "Couldn't find MD device $MDDEV. Expected /dev/md* to exist"
-	usage
-	exit 1
+	ocf_log err "Couldn't find MD device $MDDEV. Expected /dev/md* to exist"
+	exit $OCF_ERR_ARGS
 fi
 
 # strip off the /dev/ prefix to get the name of the MD device
@@ -296,31 +377,39 @@ MD=`echo $MDDEV | sed -e 's/\/dev\///'`
 # Check to make sure the utilites are found
 check_util $MODPROBE
 check_util $FUSER
-check_util $RAIDSTART
+#check_util $RAIDSTART
 check_util $MOUNT
 check_util $UMOUNT
-check_util $RAIDSTOP
 
+HAVE_RAIDTOOLS=false
+
+if [ -z "$RAIDSTART" -o ! -x "$RAIDSTART" ]; then
+  ocf_log info "Raidstart not found, trying mdadm..."
+  check_util $MDADM
+else
+  check_util $RAIDSTOP
+  
+  HAVE_RAIDTOOLS=true
+  
+fi
+
+# At this stage,
+# [ $HAVE_RAIDTOOLS = false ] <=> we have $MDADM,
+# otherwise we have raidtools (raidstart and raidstop)
 
 # Look for how we are called 
 case "$1" in
-  meta-data)
-	meta_data
-	exit $OCF_SUCCESS
-	;;
   start)
 	raid1_start
 	;;
   stop)
 	raid1_stop
 	;;
-  status) 
+  status|monitor) 
 	raid1_status
 	;;
-
-  usage) 
-	usage
-	exit $OCF_SUCCESS
+  validate-all)
+	raid1_validate_all
 	;;
   *)
 	usage
