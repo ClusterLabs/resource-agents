@@ -212,7 +212,7 @@ static int ea_find_i(struct gfs2_inode *ip, struct buffer_head *bh,
 		     struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
 		     void *private)
 {
-	struct ea_find *ef = (struct ea_find *)private;
+	struct ea_find *ef = private;
 	struct gfs2_ea_request *er = ef->ef_er;
 
 	if (ea->ea_type == GFS2_EATYPE_UNUSED)
@@ -285,7 +285,7 @@ static int ea_dealloc_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 				struct gfs2_ea_header *ea,
 				struct gfs2_ea_header *prev, void *private)
 {
-	int *leave = (int *)private;
+	int *leave = private;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_holder rg_gh;
@@ -481,7 +481,7 @@ static int ea_list_i(struct gfs2_inode *ip, struct buffer_head *bh,
 		     struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
 		     void *private)
 {
-	struct ea_list *ei = (struct ea_list *)private;
+	struct ea_list *ei = private;
 	struct gfs2_ea_request *er = ei->ei_er;
 	unsigned int ea_size = GFS2_EA_STRLEN(ea);
 
@@ -1064,7 +1064,7 @@ static int ea_set_simple_noalloc(struct gfs2_inode *ip, struct buffer_head *bh,
 static int ea_set_simple_alloc(struct gfs2_inode *ip,
 			       struct gfs2_ea_request *er, void *private)
 {
-	struct ea_set *es = (struct ea_set *)private;
+	struct ea_set *es = private;
 	struct gfs2_ea_header *ea = es->es_ea;
 	int error;
 
@@ -1095,7 +1095,7 @@ static int ea_set_simple(struct gfs2_inode *ip, struct buffer_head *bh,
 			 struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
 			 void *private)
 {
-	struct ea_set *es = (struct ea_set *)private;
+	struct ea_set *es = private;
 	unsigned int size;
 	int stuffed;
 	int error;
