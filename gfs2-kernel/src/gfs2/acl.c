@@ -317,9 +317,10 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
  out:
 	gfs2_memory_rm(acl);
 	posix_acl_release(acl);
+        
 	kfree(er.er_data);
 
-       	return error;
+	return error;
 }
 
 /**
