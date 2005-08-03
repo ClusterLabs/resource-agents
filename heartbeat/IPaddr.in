@@ -47,7 +47,6 @@ export LC_ALL=C
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 HA_D=@sysconfdir@/ha.d
-CONF_D=@sysconfdir@/ha.d/conf
 . ${HA_D}/shellfuncs
 
 SYSTYPE="`uname -s`"
