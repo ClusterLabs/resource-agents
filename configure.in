@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.415 $) dnl cvs revision
+AC_REVISION($Revision: 1.416 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -272,6 +272,7 @@ AC_PATH_PROGS(FSCK, fsck)
 AC_PATH_PROGS(MODPROBE, modprobe)
 AC_PATH_PROGS(RAIDSTART, raidstart)
 AC_PATH_PROGS(RAIDSTOP, raidstop)
+AC_PATH_PROGS(MDADM, mdadm)
 AC_PATH_PROGS(LIBNETCONFIG, libnet-config)
 AC_PATH_PROGS(GETENT, getent)
 AC_PATH_PROGS(IP2UTIL, ip)
