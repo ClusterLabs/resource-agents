@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.416 $) dnl cvs revision
+AC_REVISION($Revision: 1.417 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1642,6 +1642,18 @@ AC_CHECK_HEADERS(time.h hbaapi.h, , [hbaping_build="no"],[[#if HAVE_TIME_H
 AC_CHECK_LIB(HBAAPI, HBA_SendScsiInquiry, , [hbaping_build="no"])
 AM_CONDITIONAL(HBAAPI_BUILD, test "x${hbaping_build}" = "xyes")
 
+dnl check if header file and lib are there for zlib
+zlib_installed="yes"
+AC_CHECK_HEADERS(zlib.h, , [zlib_installed="no"],)
+AC_CHECK_LIB(z, compress , , [zlib_intalled="no"])
+AM_CONDITIONAL(BUILD_ZLIB_COMPRESS_MODULE, test "x${zlib_installed}" = "xyes")
+
+
+dnl check if header file and lib are there for zlib
+bz2_installed="yes"
+AC_CHECK_HEADERS(bzlib.h, , [bz2_installed="no"],)
+AC_CHECK_LIB(bz2, BZ2_bzBuffToBuffCompress , , [bz2_intalled="no"])
+AM_CONDITIONAL(BUILD_BZ2_COMPRESS_MODULE, test "x${bz2_installed}" = "xyes")
 
 
 dnl **********************************************************************
@@ -2121,6 +2133,7 @@ dnl			lib/bindings/perl/cl_raw/Makefile.PL	\
 		lib/plugins/stonith/external/ssh		\
 		lib/plugins/stonith/external/riloe		\
 		lib/plugins/AppHBNotification/Makefile		\
+		lib/plugins/HBcompress/Makefile		\
 	lib/recoverymgr/Makefile				\
 	lib/stonith/Makefile					\
 	lib/fencing/Makefile					\
