@@ -34,7 +34,9 @@ endif
 IPv6addr_SOURCES        = IPv6addr.c
 
 IPv6addr_LDADD          = $(top_builddir)/lib/clplumbing/libplumb.la    \
-                        $(gliblib) @LIBNETLIBS@
+                        $(gliblib) @LIBNETLIBS@ \
+			$(top_builddir)/lib/pils/libpils.la
+
 
 
 ocf_SCRIPTS	     =  ocf-shellfuncs 	\
