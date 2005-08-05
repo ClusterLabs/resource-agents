@@ -20,6 +20,7 @@
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
 #include <linux/delay.h>
+#include <linux/sort.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -1662,7 +1663,7 @@ static int nq_m_sync(unsigned int num_gh, struct gfs2_holder *ghs,
 	for (x = 0; x < num_gh; x++)
 		p[x] = &ghs[x];
 
-	gfs2_sort(p, num_gh, sizeof(struct gfs2_holder *), glock_compare);
+	sort(p, num_gh, sizeof(struct gfs2_holder *), glock_compare, NULL);
 
 	for (x = 0; x < num_gh; x++) {
 		p[x]->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);

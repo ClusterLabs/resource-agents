@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/posix_acl.h>
+#include <linux/sort.h>
 
 #include "gfs2.h"
 #include "acl.h"
@@ -1634,7 +1635,7 @@ int gfs2_glock_nq_atime(struct gfs2_holder *gh)
 }
 
 /**
- * glock_compare_atime - Compare two struct gfs2_glock structures for gfs2_sort
+ * glock_compare_atime - Compare two struct gfs2_glock structures for sort
  * @arg_a: the first structure
  * @arg_b: the second structure
  *
@@ -1702,7 +1703,7 @@ int gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
 	for (x = 0; x < num_gh; x++)
 		p[x] = &ghs[x];
 
-	gfs2_sort(p, num_gh, sizeof(struct gfs2_holder *), glock_compare_atime);
+	sort(p, num_gh, sizeof(struct gfs2_holder *), glock_compare_atime,NULL);
 
 	for (x = 0; x < num_gh; x++) {
 		p[x]->gh_flags &= ~(LM_FLAG_TRY | GL_ASYNC);

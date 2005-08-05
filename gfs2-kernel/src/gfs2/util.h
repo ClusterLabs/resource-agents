@@ -20,9 +20,6 @@
 uint32_t gfs2_hash(const void *data, unsigned int len);
 uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash);
 
-void gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
-	       int (*compar) (const void *, const void *));
-
 
 /* Error handling */
 

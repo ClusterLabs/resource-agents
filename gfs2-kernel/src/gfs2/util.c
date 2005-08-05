@@ -108,57 +108,6 @@ uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash)
 	return hash_more_internal(data, len, hash);
 }
 
-/* Byte-wise swap two items of size SIZE. */
-
-#define SWAP(a, b, size) \
-do { \
-	register size_t __size = (size); \
-	register char *__a = (a), *__b = (b); \
-	do { \
-		char __tmp = *__a; \
-		*__a++ = *__b; \
-		*__b++ = __tmp; \
-	} while (__size-- > 1); \
-} while (0)
-
-/**
- * gfs2_sort - Sort base array using shell sort algorithm
- * @base: the input array
- * @num_elem: number of elements in array
- * @size: size of each element in array
- * @compar: fxn to compare array elements (returns negative
- *          for lt, 0 for eq, and positive for gt
- *
- * Sorts the array passed in using the compar fxn to compare elements using
- * the shell sort algorithm
- */
-
-void gfs2_sort(void *base, unsigned int num_elem, unsigned int size,
-	       int (*compar) (const void *, const void *))
-{
-	register char *pbase = (char *)base;
-	int i, j, k, h;
-	static int cols[16] = {1391376, 463792, 198768, 86961,
-			       33936, 13776, 4592, 1968,
-			       861, 336, 112, 48,
-			       21, 7, 3, 1};
-	
-	for (k = 0; k < 16; k++) {
-		h = cols[k];
-		for (i = h; i < num_elem; i++) {
-			j = i;
-			while (j >= h &&
-			       (*compar)((void *)(pbase + size * (j - h)),
-					 (void *)(pbase + size * j)) > 0) {
-				SWAP(pbase + size * j,
-				     pbase + size * (j - h),
-				     size);
-				j = j - h;
-			}
-		}
-	}
-}
-
 /**
  * gfs2_assert_i - Cause the machine to panic if @assertion is false
  * @sdp:

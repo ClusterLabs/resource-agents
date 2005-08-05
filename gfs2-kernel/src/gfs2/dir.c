@@ -64,6 +64,7 @@
 #include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
+#include <linux/sort.h>
 
 #include "gfs2.h"
 #include "dir.h"
@@ -989,7 +990,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 	int run = FALSE;
 	int error = 0;
 
-	gfs2_sort(darr, entries, sizeof(struct gfs2_dirent *), compare_dents);
+	sort(darr, entries, sizeof(struct gfs2_dirent *), compare_dents, NULL);
 
 	dent_next = darr[0];
 	off_next = gfs2_32_to_cpu(dent_next->de_hash);

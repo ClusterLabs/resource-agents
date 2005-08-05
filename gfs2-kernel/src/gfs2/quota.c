@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/tty.h>
+#include <linux/sort.h>
 
 #include "gfs2.h"
 #include "bmap.h"
@@ -557,7 +558,7 @@ static int do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 	if (!ghs)
 		return -ENOMEM;
 
-	gfs2_sort(qda, num_qd, sizeof(struct gfs2_quota_data *), sort_qd);
+	sort(qda, num_qd, sizeof(struct gfs2_quota_data *), sort_qd, NULL);
 	for (qx = 0; qx < num_qd; qx++) {
 		error = gfs2_glock_nq_init(qda[qx]->qd_gl,
 					   LM_ST_EXCLUSIVE,
@@ -754,8 +755,8 @@ int gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 	    sdp->sd_args.ar_quota != GFS2_QUOTA_ON)
 		return 0;
 
-	gfs2_sort(al->al_qd, al->al_qd_num,
-		 sizeof(struct gfs2_quota_data *), sort_qd);
+	sort(al->al_qd, al->al_qd_num, sizeof(struct gfs2_quota_data *),
+	     sort_qd, NULL);
 
 	for (x = 0; x < al->al_qd_num; x++) {
 		error = do_glock(al->al_qd[x], NO_FORCE, &al->al_qd_ghs[x]);
