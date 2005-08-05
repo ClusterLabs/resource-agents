@@ -37,8 +37,6 @@ static int __init init_gfs2_fs(void)
 {
 	int error;
 
-	gfs2_random_number = xtime.tv_nsec;
-
 	gfs2_memory_init();
 
 	error = gfs2_proc_init();

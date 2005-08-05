@@ -17,9 +17,6 @@
 
 /* Utility functions */
 
-extern uint32_t gfs2_random_number;
-uint32_t gfs2_random(void);
-
 uint32_t gfs2_hash(const void *data, unsigned int len);
 uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash);
 

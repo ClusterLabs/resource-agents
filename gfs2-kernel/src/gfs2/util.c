@@ -24,30 +24,11 @@
 #include "glock.h"
 #include "lm.h"
 
-uint32_t gfs2_random_number;
-
 unsigned long gfs2_malloc_warning = 0;
 
 kmem_cache_t *gfs2_glock_cachep = NULL;
 kmem_cache_t *gfs2_inode_cachep = NULL;
 kmem_cache_t *gfs2_bufdata_cachep = NULL;
-
-/**
- * gfs2_random - Generate a random 32-bit number
- *
- * Generate a semi-crappy 32-bit pseudo-random number without using
- * floating point.
- *
- * The PRNG is from "Numerical Recipes in C" (second edition), page 284.
- *
- * Returns: a 32-bit random number
- */
-
-uint32_t gfs2_random(void)
-{
-	gfs2_random_number = 0x0019660D * gfs2_random_number + 0x3C6EF35F;
-	return gfs2_random_number;
-}
 
 /**
  * hash_more_internal - hash an array of data
