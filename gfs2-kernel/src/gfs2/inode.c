@@ -284,7 +284,9 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 	struct gfs2_inode *ip;
 	int error = 0;
 
-	RETRY_MALLOC(ip = kmem_cache_alloc(gfs2_inode_cachep, GFP_KERNEL), ip);
+	ip = kmem_cache_alloc(gfs2_inode_cachep, GFP_KERNEL);
+	if (!ip)
+		return -ENOMEM;
 	memset(ip, 0, sizeof(struct gfs2_inode));
 
 	ip->i_num = *inum;
