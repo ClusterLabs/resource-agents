@@ -199,7 +199,6 @@ static void glock_free(struct gfs2_glock *gl)
 	if (aspace)
 		gfs2_aspace_put(aspace);
 
-	gfs2_memory_rm(gl);
 	kmem_cache_free(gfs2_glock_cachep, gl);
 
 	atomic_dec(&sdp->sd_glock_count);
@@ -243,7 +242,6 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 	gl = kmem_cache_alloc(gfs2_glock_cachep, GFP_KERNEL);
 	if (!gl)
 		return -ENOMEM;
-	gfs2_memory_add(gl);
 
 	memset(gl, 0, sizeof(struct gfs2_glock));
 
@@ -307,7 +305,6 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 		gfs2_aspace_put(gl->gl_aspace);
 
  fail:
-	gfs2_memory_rm(gl);
 	kmem_cache_free(gfs2_glock_cachep, gl);	
 
 	return error;

@@ -4,7 +4,6 @@ gfs2-y := \
 	bits.o \
 	bmap.o \
 	daemon.o \
-	debug.o \
 	diaper.o \
 	dir.o \
 	eaops.o \
@@ -40,9 +39,6 @@ gfs2-y := \
 	trans.o \
 	unlinked.o \
 	util.o
-
-#EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
-#EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
 
 obj-$(CONFIG_GFS2_FS) += locking/harness/
 obj-$(CONFIG_GFS2_FS) += locking/nolock/

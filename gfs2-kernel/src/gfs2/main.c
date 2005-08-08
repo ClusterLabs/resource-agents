@@ -37,11 +37,9 @@ static int __init init_gfs2_fs(void)
 {
 	int error;
 
-	gfs2_memory_init();
-
 	error = gfs2_proc_init();
 	if (error)
-		goto fail_debug;
+		goto fail;
 
 	error = gfs2_diaper_init();
 	if (error)
@@ -90,9 +88,7 @@ static int __init init_gfs2_fs(void)
  fail_proc:
 	gfs2_proc_uninit();
 
- fail_debug:
-	gfs2_memory_uninit();
-
+ fail:
 	return error;
 }
 
@@ -111,8 +107,6 @@ static void __exit exit_gfs2_fs(void)
 
 	gfs2_diaper_uninit();
 	gfs2_proc_uninit();
-
-	gfs2_memory_uninit();
 }
 
 MODULE_DESCRIPTION("Global File System");

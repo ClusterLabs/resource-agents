@@ -534,7 +534,7 @@ void gfs2_rgrp_repolish_clones(struct gfs2_rgrpd *rgd)
  * gfs2_alloc_get - allocate a struct gfs2_alloc structure for an inode
  * @ip: the incore GFS2 inode structure
  *
- * FIXME: Don't use kmalloc_nofail()
+ * FIXME: Don't use NOFAIL
  *
  * Returns: the struct gfs2_alloc
  */
@@ -545,7 +545,7 @@ struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 
 	gfs2_assert_warn(ip->i_sbd, !al);
 
-	al = kmalloc_nofail(sizeof(struct gfs2_alloc), GFP_KERNEL);
+	al = kmalloc(sizeof(struct gfs2_alloc), GFP_KERNEL | __GFP_NOFAIL);
 	memset(al, 0, sizeof(struct gfs2_alloc));
 
 	ip->i_alloc = al;
@@ -1057,8 +1057,8 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 		rgrp_blk++;
 
 		if (!bi->bi_clone) {
-			bi->bi_clone = kmalloc_nofail(bi->bi_bh->b_size,
-						      GFP_KERNEL);
+			bi->bi_clone = kmalloc(bi->bi_bh->b_size,
+					       GFP_KERNEL | __GFP_NOFAIL);
 			memcpy(bi->bi_clone + bi->bi_offset,
 			       bi->bi_bh->b_data + bi->bi_offset,
 			       bi->bi_len);
@@ -1307,7 +1307,7 @@ void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
  *
  * Figure out what RG a block belongs to and add that RG to the list
  *
- * FIXME: Don't use kmalloc_nofail()
+ * FIXME: Don't use NOFAIL
  *
  */
 
@@ -1337,8 +1337,8 @@ void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
 	if (rlist->rl_rgrps == rlist->rl_space) {
 		new_space = rlist->rl_space + 10;
 
-		tmp = kmalloc_nofail(new_space * sizeof(struct gfs2_rgrpd *),
-				     GFP_KERNEL);
+		tmp = kmalloc(new_space * sizeof(struct gfs2_rgrpd *),
+			      GFP_KERNEL | __GFP_NOFAIL);
 
 		if (rlist->rl_rgd) {
 			memcpy(tmp, rlist->rl_rgd,
@@ -1360,7 +1360,7 @@ void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
  * @state: the lock state to acquire the RG lock in
  * @flags: the modifier flags for the holder structures
  *
- * FIXME: Don't use kmalloc_nofail()
+ * FIXME: Don't use NOFAIL
  *
  */
 
@@ -1369,9 +1369,8 @@ void gfs2_rlist_alloc(struct gfs2_rgrp_list *rlist, unsigned int state,
 {
 	unsigned int x;
 
-	rlist->rl_ghs = kmalloc_nofail(rlist->rl_rgrps *
-				       sizeof(struct gfs2_holder),
-				       GFP_KERNEL);
+	rlist->rl_ghs = kmalloc(rlist->rl_rgrps * sizeof(struct gfs2_holder),
+				GFP_KERNEL | __GFP_NOFAIL);
 	for (x = 0; x < rlist->rl_rgrps; x++)
 		gfs2_holder_init(rlist->rl_rgd[x]->rd_gl,
 				state, flags,

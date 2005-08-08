@@ -285,7 +285,6 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 	int error = 0;
 
 	RETRY_MALLOC(ip = kmem_cache_alloc(gfs2_inode_cachep, GFP_KERNEL), ip);
-	gfs2_memory_add(ip);
 	memset(ip, 0, sizeof(struct gfs2_inode));
 
 	ip->i_num = *inum;
@@ -325,7 +324,6 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 
  fail:
 	gfs2_meta_cache_flush(ip);
-	gfs2_memory_rm(ip);
 	kmem_cache_free(gfs2_inode_cachep, ip);
 	*ipp = NULL;
 
@@ -424,7 +422,6 @@ void gfs2_inode_destroy(struct gfs2_inode *ip)
 	gfs2_glock_dq_uninit(&ip->i_iopen_gh);
 
 	gfs2_meta_cache_flush(ip);
-	gfs2_memory_rm(ip);
 	kmem_cache_free(gfs2_inode_cachep, ip);
 
 	set_gl2ip(i_gl, NULL);

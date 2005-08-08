@@ -66,7 +66,6 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 		*remove = TRUE;
 		return 0;
 	}
-	gfs2_memory_add(acl);
 
 	error = posix_acl_valid(acl);
 	if (error)
@@ -81,7 +80,6 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	}
 
  out:
-	gfs2_memory_rm(acl);
 	posix_acl_release(acl);
 
 	return error;
@@ -166,8 +164,6 @@ static int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 		*acl = posix_acl_from_xattr(er.er_data, er.er_data_len);
 		if (IS_ERR(*acl))
 			error = PTR_ERR(*acl);
-		else if (*acl)
-			gfs2_memory_add(*acl);
 	}
 
  out_kfree:
@@ -204,7 +200,6 @@ int gfs2_check_acl_locked(struct inode *inode, int mask)
 
 	if (acl) {
 		error = posix_acl_permission(inode, acl, mask);
-		gfs2_memory_rm(acl);
 		posix_acl_release(acl);
 		return error;
 	}
@@ -285,8 +280,6 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 		error = -ENOMEM;
 		if (!clone)
 			goto out;
-		gfs2_memory_add(clone);
-		gfs2_memory_rm(acl);
 		posix_acl_release(acl);
 		acl = clone;
 	}
@@ -315,11 +308,8 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 		munge_mode(ip, mode);
 
  out:
-	gfs2_memory_rm(acl);
 	posix_acl_release(acl);
-        
 	kfree(er.er_data);
-
 	return error;
 }
 
@@ -350,8 +340,6 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 		error = -ENOMEM;
 		if (!clone)
 			goto out;
-		gfs2_memory_add(clone);
-		gfs2_memory_rm(acl);
 		posix_acl_release(acl);
 		acl = clone;
 	}
@@ -363,7 +351,6 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 	}
 
  out:
-	gfs2_memory_rm(acl);
 	posix_acl_release(acl);
 	brelse(el.el_bh);
 	kfree(data);

@@ -21,7 +21,6 @@
 #include "lvb.h"
 #include "incore.h"
 #include "util.h"
-#include "debug.h"
 
 #ifndef TRUE
 #define TRUE 1

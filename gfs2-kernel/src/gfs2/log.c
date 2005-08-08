@@ -384,7 +384,7 @@ struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
 
-	lb = kmalloc_nofail(sizeof(struct gfs2_log_buf), GFP_KERNEL);
+	lb = kmalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
 	memset(lb, 0, sizeof(struct gfs2_log_buf));
 	list_add(&lb->lb_list, &sdp->sd_log_flush_list);
 
@@ -415,13 +415,12 @@ struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp,
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
 
-	lb = kmalloc_nofail(sizeof(struct gfs2_log_buf), GFP_KERNEL);
+	lb = kmalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
 	memset(lb, 0, sizeof(struct gfs2_log_buf));
 	list_add(&lb->lb_list, &sdp->sd_log_flush_list);
 	lb->lb_real = real;
 
 	bh = lb->lb_bh = alloc_buffer_head(GFP_NOFS | __GFP_NOFAIL);
-	gfs2_memory_add(bh);
 	atomic_set(&bh->b_count, 1);
 	bh->b_state = (1 << BH_Mapped) | (1 << BH_Uptodate);
 	set_bh_page(bh, virt_to_page(real->b_data),
@@ -526,7 +525,6 @@ static void log_flush_commit(struct gfs2_sbd *sdp)
 		if (lb->lb_real) {
 			while (atomic_read(&bh->b_count) != 1)  /* Grrrr... */
 				schedule();
-			gfs2_memory_rm(bh);
 			free_buffer_head(bh);
 		} else
 			brelse(bh);
@@ -549,7 +547,7 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 
 	atomic_inc(&sdp->sd_log_flush_incore);
 
-	ai = kmalloc_nofail(sizeof(struct gfs2_ail), GFP_KERNEL);
+	ai = kmalloc(sizeof(struct gfs2_ail), GFP_KERNEL | __GFP_NOFAIL);
 	memset(ai, 0, sizeof(struct gfs2_ail));
 	INIT_LIST_HEAD(&ai->ai_ail1_list);
 	INIT_LIST_HEAD(&ai->ai_ail2_list);

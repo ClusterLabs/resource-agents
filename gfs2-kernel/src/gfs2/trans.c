@@ -166,8 +166,8 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 
 void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
-	struct gfs2_revoke *rv = kmalloc_nofail(sizeof(struct gfs2_revoke),
-						GFP_KERNEL);
+	struct gfs2_revoke *rv = kmalloc(sizeof(struct gfs2_revoke),
+					 GFP_KERNEL | __GFP_NOFAIL);
 	INIT_LE(&rv->rv_le, &gfs2_revoke_lops);
 	rv->rv_blkno = blkno;
 	LO_ADD(sdp, &rv->rv_le);
@@ -209,8 +209,8 @@ void gfs2_trans_add_databuf(struct gfs2_sbd *sdp, struct buffer_head *bh)
 
 	db = get_v2db(bh);
 	if (!db) {
-		db = kmalloc_nofail(sizeof(struct gfs2_databuf),
-				    GFP_KERNEL);
+		db = kmalloc(sizeof(struct gfs2_databuf),
+			     GFP_KERNEL | __GFP_NOFAIL);
 		INIT_LE(&db->db_le, &gfs2_databuf_lops);
 		get_bh(bh);
 		db->db_bh = bh;

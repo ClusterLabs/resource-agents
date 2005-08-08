@@ -181,7 +181,6 @@ static int gfs2_aspace_releasepage(struct page *page, int gfp_mask)
 			gfs2_assert_warn(sdp, list_empty(&bd->bd_list_tr));
 			gfs2_assert_warn(sdp, list_empty(&bd->bd_le.le_list));
 			gfs2_assert_warn(sdp, !bd->bd_ail);
-			gfs2_memory_rm(bd);
 			kmem_cache_free(gfs2_bufdata_cachep, bd);
 			atomic_dec(&sdp->sd_bufdata_count);
 			set_v2bd(bh, NULL);
@@ -602,7 +601,6 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 
 	RETRY_MALLOC(bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL),
 		     bd);
-	gfs2_memory_add(bd);
 	atomic_inc(&gl->gl_sbd->sd_bufdata_count);
 
 	memset(bd, 0, sizeof(struct gfs2_bufdata));

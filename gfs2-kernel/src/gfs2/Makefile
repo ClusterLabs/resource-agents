@@ -32,7 +32,6 @@ gfs2-objs := \
 	bits.o \
 	bmap.o \
 	daemon.o \
-	debug.o \
 	diaper.o \
 	dir.o \
 	eaops.o \
@@ -70,9 +69,6 @@ gfs2-objs := \
 	util.o
 
 EXTRA_CFLAGS += -I$(obj)
-
-#EXTRA_CFLAGS += -DGFS2_MEMORY_SIMPLE
-#EXTRA_CFLAGS += -DGFS2_MEMORY_BRUTE
 
 all:
 	rm -f linux
