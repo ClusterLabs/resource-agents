@@ -251,7 +251,7 @@ static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 {
        	struct gfs2_sbd *sdp = dip->i_sbd;
-	struct posix_acl *acl = NULL;
+	struct posix_acl *acl = NULL, *clone;
 	struct gfs2_ea_request er;
 	mode_t mode = ip->i_di.di_mode;
 	int error;
@@ -275,14 +275,12 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 		return error;
 	}
 
-	{
-		struct posix_acl *clone = posix_acl_clone(acl, GFP_KERNEL);
-		error = -ENOMEM;
-		if (!clone)
-			goto out;
-		posix_acl_release(acl);
-		acl = clone;
-	}
+	clone = posix_acl_clone(acl, GFP_KERNEL);
+	error = -ENOMEM;
+	if (!clone)
+		goto out;
+	posix_acl_release(acl);
+	acl = clone;
 
 	if (S_ISDIR(ip->i_di.di_mode)) {
 		er.er_name = GFS2_POSIX_ACL_DEFAULT;
@@ -323,7 +321,7 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 
 int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 {
-	struct posix_acl *acl = NULL;
+	struct posix_acl *acl = NULL, *clone;
 	struct gfs2_ea_location el;
 	char *data;
 	unsigned int len;
@@ -335,14 +333,12 @@ int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 	if (!acl)
 		return gfs2_setattr_simple(ip, attr);
 
-	{
-		struct posix_acl *clone = posix_acl_clone(acl, GFP_KERNEL);
-		error = -ENOMEM;
-		if (!clone)
-			goto out;
-		posix_acl_release(acl);
-		acl = clone;
-	}
+	clone = posix_acl_clone(acl, GFP_KERNEL);
+	error = -ENOMEM;
+	if (!clone)
+		goto out;
+	posix_acl_release(acl);
+	acl = clone;
 
 	error = posix_acl_chmod_masq(acl, attr->ia_mode);
 	if (!error) {
