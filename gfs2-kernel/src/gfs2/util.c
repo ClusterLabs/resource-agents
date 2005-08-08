@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
+#include <linux/crc32.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -29,6 +30,11 @@ unsigned long gfs2_malloc_warning = 0;
 kmem_cache_t *gfs2_glock_cachep = NULL;
 kmem_cache_t *gfs2_inode_cachep = NULL;
 kmem_cache_t *gfs2_bufdata_cachep = NULL;
+
+uint32_t gfs2_disk_hash(const char *data, int len)
+{
+	return crc32_le(0xFFFFFFFF, data, len) ^ 0xFFFFFFFF;
+}
 
 /**
  * hash_more_internal - hash an array of data
