@@ -21,12 +21,6 @@
 
 #define printk printf
 
-#define ENTER(x)
-#define EXIT(x)
-#define RET(x) return
-#define RETURN(x, y) return y
-
 #define WANT_GFS2_CONVERSION_FUNCTIONS
 #include <linux/gfs2_ondisk.h>
-
 

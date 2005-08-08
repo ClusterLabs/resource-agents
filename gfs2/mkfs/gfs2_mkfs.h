@@ -271,4 +271,7 @@ void build_quota(struct gfs2_sbd *sdp);
 void build_root(struct gfs2_sbd *sdp);
 void do_init(struct gfs2_sbd *sdp);
 
+/* ondisk.c */
+uint32_t gfs2_disk_hash(const char *data, int len);
+
 #endif /* __GFS2_MKFS_DOT_H__ */
