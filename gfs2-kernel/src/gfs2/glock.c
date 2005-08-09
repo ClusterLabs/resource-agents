@@ -570,7 +570,8 @@ static int rq_promote(struct gfs2_holder *gh)
 		struct gfs2_holder *next_gh;
 		if (gh->gh_flags & GL_LOCAL_EXCL)
 			return TRUE;
-		next_gh = list_entry(gl->gl_holders.next, struct gfs2_holder, gh_list);
+		next_gh = list_entry(gl->gl_holders.next, struct gfs2_holder,
+				     gh_list);
 		if (next_gh->gh_flags & GL_LOCAL_EXCL)
 			 return TRUE;
 		recurse = test_bit(HIF_RECURSE, &gh->gh_iflags);
@@ -889,7 +890,7 @@ static void xmote_bh(struct gfs2_glock *gl, unsigned int ret)
 			gh->gh_error = 0;
 		else {
 			if (gfs2_assert_warn(sdp, gh->gh_flags &
-					     (LM_FLAG_TRY | LM_FLAG_TRY_1CB)) == -1)
+					(LM_FLAG_TRY | LM_FLAG_TRY_1CB)) == -1)
 				printk("GFS2: fsid=%s: ret = 0x%.8X\n",
 				       sdp->sd_fsname, ret);
 			gh->gh_error = GLR_TRYFAILED;
@@ -1801,7 +1802,8 @@ void gfs2_glock_prefetch_num(struct gfs2_sbd *sdp, uint64_t number,
 	struct gfs2_glock *gl;
 	int error;
 
-	if (atomic_read(&sdp->sd_reclaim_count) < gfs2_tune_get(sdp, gt_reclaim_limit)) {
+	if (atomic_read(&sdp->sd_reclaim_count) <
+	    gfs2_tune_get(sdp, gt_reclaim_limit)) {
 		error = gfs2_glock_get(sdp, number, glops, CREATE, &gl);
 		if (!error) {
 			gfs2_glock_prefetch(gl, state, flags);
@@ -2059,8 +2061,8 @@ static int demote_ok(struct gfs2_glock *gl)
 		demote = FALSE;
 	else if (test_bit(GLF_PREFETCH, &gl->gl_flags))
 		demote = time_after_eq(jiffies,
-				       gl->gl_stamp +
-				       gfs2_tune_get(sdp, gt_prefetch_secs) * HZ);
+				    gl->gl_stamp +
+				    gfs2_tune_get(sdp, gt_prefetch_secs) * HZ);
 	else if (glops->go_demote_ok)
 		demote = glops->go_demote_ok(gl);
 

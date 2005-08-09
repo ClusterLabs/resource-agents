@@ -130,7 +130,8 @@ static void enforce_limit(struct gfs2_sbd *sdp)
 	unsigned int tries = 0, min = 0;
 	int error;
 
-	if (atomic_read(&sdp->sd_unlinked_count) >= gfs2_tune_get(sdp, gt_ilimit)) {
+	if (atomic_read(&sdp->sd_unlinked_count) >=
+	    gfs2_tune_get(sdp, gt_ilimit)) {
 		tries = gfs2_tune_get(sdp, gt_ilimit_tries);
 		min = gfs2_tune_get(sdp, gt_ilimit_min);
 	}
@@ -297,7 +298,8 @@ int gfs2_unlinked_dealloc(struct gfs2_sbd *sdp)
 					strikes--;
 			} else if (error == 1) {
 				strikes++;
-				if (strikes >= atomic_read(&sdp->sd_unlinked_count)) {
+				if (strikes >=
+				    atomic_read(&sdp->sd_unlinked_count)) {
 					error = 0;
 					break;
 				}

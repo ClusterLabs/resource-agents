@@ -201,7 +201,8 @@ static int inode_go_demote_ok(struct gfs2_glock *gl)
 	if (!get_gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
 		demote = TRUE;
 	else if (!sdp->sd_args.ar_localcaching &&
-		 time_after_eq(jiffies, gl->gl_stamp + gfs2_tune_get(sdp, gt_demote_secs) * HZ))
+		 time_after_eq(jiffies, gl->gl_stamp +
+			       gfs2_tune_get(sdp, gt_demote_secs) * HZ))
 		demote = TRUE;
 
 	return demote;

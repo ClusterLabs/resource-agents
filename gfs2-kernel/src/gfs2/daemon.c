@@ -30,6 +30,12 @@
 #include "super.h"
 #include "unlinked.h"
 
+/* This uses schedule_timeout() instead of msleep() because it's good for
+   the daemons to wake up more often than the timeout when unmounting so
+   the user's unmount doesn't sit there forever.
+   
+   The kthread functions used to start these daemons block and flush signals. */
+
 /**
  * gfs2_scand - Look for cached glocks and inodes to toss from memory
  * @sdp: Pointer to GFS2 superblock

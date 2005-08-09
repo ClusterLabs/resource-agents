@@ -64,8 +64,7 @@ static int qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
 	qd->qd_slot = -1;
 
 	error = gfs2_glock_get(sdp, 2 * (uint64_t)id + !user,
-			      &gfs2_quota_glops, CREATE,
-			      &qd->qd_gl);
+			      &gfs2_quota_glops, CREATE, &qd->qd_gl);
 	if (error)
 		goto fail;
 
@@ -944,8 +943,7 @@ int gfs2_quota_sync(struct gfs2_sbd *sdp)
 
 	sdp->sd_quota_sync_gen++;
 
-	qda = kmalloc(max_qd * sizeof(struct gfs2_quota_data *),
-		      GFP_KERNEL);
+	qda = kmalloc(max_qd * sizeof(struct gfs2_quota_data *), GFP_KERNEL);
 	if (!qda)
 		return -ENOMEM;
 	memset(qda, 0, max_qd * sizeof(struct gfs2_quota_data *));
@@ -1056,8 +1054,7 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 	error = -ENOMEM;
 
 	sdp->sd_quota_bitmap = kmalloc(sdp->sd_quota_chunks *
-				       sizeof(unsigned char *),
-				       GFP_KERNEL);
+				       sizeof(unsigned char *), GFP_KERNEL);
 	if (!sdp->sd_quota_bitmap)
 		return error;
 	memset(sdp->sd_quota_bitmap, 0,
@@ -1150,9 +1147,10 @@ void gfs2_quota_scan(struct gfs2_sbd *sdp)
 	list_for_each_entry_safe(qd, safe, &sdp->sd_quota_list, qd_list) {
 		if (!qd->qd_count &&
 		    time_after_eq(jiffies, qd->qd_last_touched +
-				  gfs2_tune_get(sdp, gt_quota_cache_secs) * HZ)) {
+			        gfs2_tune_get(sdp, gt_quota_cache_secs) * HZ)) {
 			list_move(&qd->qd_list, &dead);
-			gfs2_assert_warn(sdp, atomic_read(&sdp->sd_quota_count) > 0);
+			gfs2_assert_warn(sdp,
+					 atomic_read(&sdp->sd_quota_count) > 0);
 			atomic_dec(&sdp->sd_quota_count);
 		}
 	}

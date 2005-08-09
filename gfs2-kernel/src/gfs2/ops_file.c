@@ -122,51 +122,45 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 	struct gfs2_holder *ghs;
 	unsigned int num_gh = 0;
 	ssize_t count;
+	struct super_block *sb = file->f_dentry->d_inode->i_sb;
+	struct mm_struct *mm = current->mm;
+	struct vm_area_struct *vma;
+	unsigned long start = (unsigned long)buf;
+	unsigned long end = start + size;
+	int dumping = (current->flags & PF_DUMPCORE);
+	unsigned int x = 0;
 
-	{
-		struct super_block *sb = file->f_dentry->d_inode->i_sb;
-		struct mm_struct *mm = current->mm;
-		struct vm_area_struct *vma;
-		unsigned long start = (unsigned long)buf;
-		unsigned long end = start + size;
-		int dumping = (current->flags & PF_DUMPCORE);
-		unsigned int x = 0;
-
-		for (vma = find_vma(mm, start); vma; vma = vma->vm_next) {
-			if (end <= vma->vm_start)
-				break;
-			if (vma->vm_file &&
-			    vma->vm_file->f_dentry->d_inode->i_sb == sb) {
-				num_gh++;
-			}
+	for (vma = find_vma(mm, start); vma; vma = vma->vm_next) {
+		if (end <= vma->vm_start)
+			break;
+		if (vma->vm_file &&
+		    vma->vm_file->f_dentry->d_inode->i_sb == sb) {
+			num_gh++;
 		}
+	}
 
-		ghs = kmalloc((num_gh + 1) * sizeof(struct gfs2_holder),
-			      GFP_KERNEL);
-		if (!ghs) {
-			if (!dumping)
-				up_read(&mm->mmap_sem);
-			return -ENOMEM;
-		}
-
-		for (vma = find_vma(mm, start); vma; vma = vma->vm_next) {
-			if (end <= vma->vm_start)
-				break;
-			if (vma->vm_file) {
-				struct inode *inode;
-				inode = vma->vm_file->f_dentry->d_inode;
-				if (inode->i_sb == sb)
-					gfs2_holder_init(get_v2ip(inode)->i_gl,
-							 vma2state(vma),
-							 0, &ghs[x++]);
-			}
-		}
-
+	ghs = kmalloc((num_gh + 1) * sizeof(struct gfs2_holder), GFP_KERNEL);
+	if (!ghs) {
 		if (!dumping)
 			up_read(&mm->mmap_sem);
-
-		gfs2_assert(get_v2sdp(sb), x == num_gh,);
+		return -ENOMEM;
 	}
+
+	for (vma = find_vma(mm, start); vma; vma = vma->vm_next) {
+		if (end <= vma->vm_start)
+			break;
+		if (vma->vm_file) {
+			struct inode *inode = vma->vm_file->f_dentry->d_inode;
+			if (inode->i_sb == sb)
+				gfs2_holder_init(get_v2ip(inode)->i_gl,
+						 vma2state(vma), 0, &ghs[x++]);
+		}
+	}
+
+	if (!dumping)
+		up_read(&mm->mmap_sem);
+
+	gfs2_assert(get_v2sdp(sb), x == num_gh,);
 
 	count = operation(file, buf, size, offset, num_gh, ghs);
 
@@ -195,6 +189,8 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 		       loff_t *offset, do_rw_t operation)
 {
+	struct gfs2_holder gh;
+
 	if (current->mm) {
 		struct super_block *sb = file->f_dentry->d_inode->i_sb;
 		struct mm_struct *mm = current->mm;
@@ -218,10 +214,7 @@ static ssize_t walk_vm(struct file *file, char *buf, size_t size,
 			up_read(&mm->mmap_sem);
 	}
 
-	{
-		struct gfs2_holder gh;
-		return operation(file, buf, size, offset, 0, &gh);
-	}
+	return operation(file, buf, size, offset, 0, &gh);
 
  do_locks:
 	return walk_vm_hard(file, buf, size, offset, operation);
