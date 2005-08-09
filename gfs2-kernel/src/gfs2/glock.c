@@ -21,6 +21,7 @@
 #include <asm/uaccess.h>
 #include <linux/delay.h>
 #include <linux/sort.h>
+#include <linux/jhash.h>
 
 #include "gfs2.h"
 #include "glock.h"
@@ -83,8 +84,8 @@ static unsigned int gl_hash(struct lm_lockname *name)
 {
 	unsigned int h;
 
-	h = gfs2_hash(&name->ln_number, sizeof(uint64_t));
-	h = gfs2_hash_more(&name->ln_type, sizeof(unsigned int), h);
+	h = jhash(&name->ln_number, sizeof(uint64_t), 0);
+	h = jhash(&name->ln_type, sizeof(unsigned int), h);
 	h &= GFS2_GL_HASH_MASK;
 
 	return h;

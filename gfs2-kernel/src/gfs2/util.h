@@ -18,8 +18,6 @@
 /* Utility functions */
 
 uint32_t gfs2_disk_hash(const char *data, int len);
-uint32_t gfs2_hash(const void *data, unsigned int len);
-uint32_t gfs2_hash_more(const void *data, unsigned int len, uint32_t hash);
 
 
 /* Error handling */
@@ -327,13 +325,6 @@ do { \
 void gfs2_icbit_munge(struct gfs2_sbd *sdp,
 		      unsigned char **bitmap, unsigned int bit,
 		      int new_value);
-
-static inline uint64_t get_time(void)
-{
-	struct timeval tv;
-	do_gettimeofday(&tv);
-	return ((uint64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
-}
 
 #endif /* __UTIL_DOT_H__ */
 
