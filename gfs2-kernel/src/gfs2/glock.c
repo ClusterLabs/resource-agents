@@ -396,6 +396,7 @@ void gfs2_holder_uninit(struct gfs2_holder *gh)
  * @gl: the glock
  * @state: the state we're requesting
  * @flags: the modifier flags
+ * @gfp_flags: __GFP_NOFAIL
  *
  * Figure out how big an impact this function has.  Either:
  * 1) Replace it with a cache of structures hanging off the struct gfs2_sbd
@@ -405,11 +406,11 @@ void gfs2_holder_uninit(struct gfs2_holder *gh)
  */
 
 struct gfs2_holder *gfs2_holder_get(struct gfs2_glock *gl, unsigned int state,
-				    int flags)
+				    int flags, int gfp_flags)
 {
 	struct gfs2_holder *gh;
 
-	gh = kmalloc(sizeof(struct gfs2_holder), GFP_KERNEL);
+	gh = kmalloc(sizeof(struct gfs2_holder), GFP_KERNEL | gfp_flags);
 	if (!gh)
 		return NULL;
 
@@ -791,10 +792,9 @@ static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 	} else {
 		spin_unlock(&gl->gl_spin);
 
-		RETRY_MALLOC(new_gh = gfs2_holder_get(gl, state,
-						      LM_FLAG_TRY |
-						      GL_NEVER_RECURSE),
-			     new_gh);
+		new_gh = gfs2_holder_get(gl, state,
+					 LM_FLAG_TRY | GL_NEVER_RECURSE,
+					 __GFP_NOFAIL),
 		set_bit(HIF_DEMOTE, &new_gh->gh_iflags);
 		set_bit(HIF_DEALLOC, &new_gh->gh_iflags);
 

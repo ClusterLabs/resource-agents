@@ -25,11 +25,9 @@
 #include "glock.h"
 #include "lm.h"
 
-unsigned long gfs2_malloc_warning = 0;
-
-kmem_cache_t *gfs2_glock_cachep = NULL;
-kmem_cache_t *gfs2_inode_cachep = NULL;
-kmem_cache_t *gfs2_bufdata_cachep = NULL;
+kmem_cache_t *gfs2_glock_cachep;
+kmem_cache_t *gfs2_inode_cachep;
+kmem_cache_t *gfs2_bufdata_cachep;
 
 uint32_t gfs2_disk_hash(const char *data, int len)
 {

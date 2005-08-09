@@ -287,20 +287,6 @@ gfs2_io_error_bh_i((sdp), (bh), __FUNCTION__, __FILE__, __LINE__);
 
 /* Memory stuff */
 
-extern unsigned long gfs2_malloc_warning;
-
-#define RETRY_MALLOC(do_this, until_this) \
-for (;;) { \
-	{ do_this; } \
-	if (until_this) \
-		break; \
-	if (time_after_eq(jiffies, gfs2_malloc_warning + 5 * HZ)) { \
-		printk("GFS2: out of memory: %s, %u\n", __FILE__, __LINE__); \
-		gfs2_malloc_warning = jiffies; \
-	} \
-	yield(); \
-}
-
 extern kmem_cache_t *gfs2_glock_cachep;
 extern kmem_cache_t *gfs2_inode_cachep;
 extern kmem_cache_t *gfs2_bufdata_cachep;

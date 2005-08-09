@@ -467,8 +467,12 @@ static struct buffer_head *getbuf(struct gfs2_sbd *sdp, struct inode *aspace,
 	bufnum = blkno - (index << shift);  /* block buf index within page */
 
 	if (create) {
-		RETRY_MALLOC(page = grab_cache_page(aspace->i_mapping, index),
-			     page);
+		for (;;) {
+			page = grab_cache_page(aspace->i_mapping, index);
+			if (page)
+				break;
+			yield();
+		}
 	} else {
 		page = find_lock_page(aspace->i_mapping, index);
 		if (!page)
@@ -599,8 +603,7 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 		return;
 	}
 
-	RETRY_MALLOC(bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL),
-		     bd);
+	bd = kmem_cache_alloc(gfs2_bufdata_cachep, GFP_KERNEL | __GFP_NOFAIL),
 	atomic_inc(&gl->gl_sbd->sd_bufdata_count);
 
 	memset(bd, 0, sizeof(struct gfs2_bufdata));
