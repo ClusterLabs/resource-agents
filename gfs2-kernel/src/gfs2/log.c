@@ -48,21 +48,21 @@
 
 #define PULL 1
 
+static inline int is_done(struct gfs2_sbd *sdp, atomic_t *a)
+{
+	int done;
+	gfs2_log_lock(sdp);
+	done = atomic_read(a) ? FALSE : TRUE;
+	gfs2_log_unlock(sdp);
+	return done;
+}
+
 static void do_lock_wait(struct gfs2_sbd *sdp, wait_queue_head_t *wq,
 			 atomic_t *a)
 {
-	DECLARE_WAITQUEUE(x, current);
-
-	while (atomic_read(a)) {
-		gfs2_log_unlock(sdp);
-		set_current_state(TASK_UNINTERRUPTIBLE);
-		add_wait_queue(wq, &x);
-		if (atomic_read(a))
-			schedule();
-		remove_wait_queue(wq, &x);
-		set_current_state(TASK_RUNNING);
-		gfs2_log_lock(sdp);
-	}
+	gfs2_log_unlock(sdp);
+	wait_event(*wq, is_done(sdp, a));
+	gfs2_log_lock(sdp);
 }
 
 static void lock_for_trans(struct gfs2_sbd *sdp)
