@@ -318,6 +318,7 @@ static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 	struct block_device *diaper;
 	unsigned int minor;
 	int error = -ENOMEM;
+	char buf[BDEVNAME_SIZE];
 
 	minor = minor_get();
 	if (minor < 0)
@@ -350,12 +351,8 @@ static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 
 	gd->major = diaper_major;
 	gd->first_minor = minor;
-	{
-		char buf[BDEVNAME_SIZE];
-		bdevname(real, buf);
-		snprintf(gd->disk_name, sizeof(gd->disk_name),
-			 "diapered_%s", buf);
-	}
+	bdevname(real, buf);
+	snprintf(gd->disk_name, sizeof(gd->disk_name), "diapered_%s", buf);
 	gd->fops = &diaper_fops;
 	gd->private_data = dh;
 	gd->capacity--;
