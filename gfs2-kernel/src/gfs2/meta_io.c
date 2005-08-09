@@ -39,30 +39,12 @@
 #define buffer_in_io(bh) \
 ((bh)->b_state & ((1ul << BH_Dirty) | (1ul << BH_Lock)))
 
-/**
- * aspace_get_block -
- * @inode:
- * @lblock:
- * @bh_result:
- * @create:
- *
- * Returns: errno
- */
-
 static int aspace_get_block(struct inode *inode, sector_t lblock,
 			    struct buffer_head *bh_result, int create)
 {
 	gfs2_assert_warn(get_v2sdp(inode->i_sb), FALSE);
 	return -EOPNOTSUPP;
 }
-
-/**
- * gfs2_aspace_writepage - write an aspace page
- * @page: the page
- * @wbc:
- *
- * Returns: errno
- */
 
 static int gfs2_aspace_writepage(struct page *page,
 				 struct writeback_control *wbc)
@@ -227,12 +209,6 @@ struct inode *gfs2_aspace_get(struct gfs2_sbd *sdp)
 
 	return aspace;
 }
-
-/**
- * gfs2_aspace_put - get rid of an aspace
- * @aspace:
- *
- */
 
 void gfs2_aspace_put(struct inode *aspace)
 {

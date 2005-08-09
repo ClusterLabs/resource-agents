@@ -94,17 +94,6 @@ static int get_block_noalloc(struct inode *inode, sector_t lblock,
 	return error;
 }
 
-/**
- * get_blocks -
- * @inode:
- * @lblock:
- * @max_blocks:
- * @bh_result:
- * @create:
- *
- * Returns: errno
- */
-
 static int get_blocks(struct inode *inode, sector_t lblock,
 		      unsigned long max_blocks, struct buffer_head *bh_result,
 		      int create)
@@ -132,17 +121,6 @@ static int get_blocks(struct inode *inode, sector_t lblock,
 
 	return 0;
 }
-
-/**
- * get_blocks_noalloc -
- * @inode:
- * @lblock:
- * @max_blocks:
- * @bh_result:
- * @create:
- *
- * Returns: errno
- */
 
 static int get_blocks_noalloc(struct inode *inode, sector_t lblock,
 			      unsigned long max_blocks,
@@ -506,17 +484,6 @@ static int gfs2_invalidatepage(struct page *page, unsigned long offset)
 
 	return ret;
 }
-
-/**
- * gfs2_direct_IO -
- * @rw:
- * @iocb:
- * @iov:
- * @offset:
- * @nr_segs:
- *
- * Returns: errno
- */
 
 static int gfs2_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 			  loff_t offset, unsigned long nr_segs)

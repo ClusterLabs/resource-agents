@@ -34,17 +34,6 @@
 #define ACL_ACCESS 1
 #define ACL_DEFAULT 0
 
-/**
- * gfs2_acl_validate_set -
- * @ip:
- * @access:
- * @er:
- * @mode:
- * @remove:
- *
- * Returns: errno
- */
-
 int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 		      struct gfs2_ea_request *er,
 		      int *remove, mode_t *mode)
@@ -85,14 +74,6 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	return error;
 }
 
-/**
- * gfs2_acl_validate_remove -
- * @ip:
- * @access:
- *
- * Returns: errno
- */
-
 int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
 {
 	if (!ip->i_sbd->sd_args.ar_posix_acl)
@@ -106,18 +87,6 @@ int gfs2_acl_validate_remove(struct gfs2_inode *ip, int access)
 
 	return 0;
 }
-
-/**
- * acl_get -
- * @ip:
- * @access:
- * @acl:
- * @el:
- * @data:
- * @len:
- *
- * Returns: errno
- */
 
 static int acl_get(struct gfs2_inode *ip, int access, struct posix_acl **acl,
 		   struct gfs2_ea_location *el, char **data, unsigned int *len)
@@ -311,14 +280,6 @@ int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 	kfree(er.er_data);
 	return error;
 }
-
-/**
- * gfs2_acl_chmod -
- * @ip:
- * @attr:
- *
- * Returns: errno
- */
 
 int gfs2_acl_chmod(struct gfs2_inode *ip, struct iattr *attr)
 {

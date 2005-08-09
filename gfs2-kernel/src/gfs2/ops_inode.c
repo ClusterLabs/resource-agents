@@ -1284,17 +1284,6 @@ static int gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	return error;
 }
 
-/**
- * gfs2_setxattr - Set (or create or replace) an inode's extended attribute
- * @dentry:
- * @name:
- * @data:
- * @size:
- * @flags:
- *
- * Returns: errno
- */
-
 static int gfs2_setxattr(struct dentry *dentry, const char *name,
 			 const void *data, size_t size, int flags)
 {
@@ -1317,16 +1306,6 @@ static int gfs2_setxattr(struct dentry *dentry, const char *name,
 	return gfs2_ea_set(ip, &er);
 }
 
-/**
- * gfs2_getxattr -
- * @dentry:
- * @name:
- * @data:
- * @size:
- *
- * Returns: The number of bytes put into data, or -errno
- */
-
 static ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
 			     void *data, size_t size)
 {
@@ -1345,15 +1324,6 @@ static ssize_t gfs2_getxattr(struct dentry *dentry, const char *name,
 	return gfs2_ea_get(get_v2ip(dentry->d_inode), &er);
 }
 
-/**
- * gfs2_listxattr -
- * @dentry:
- * @buffer:
- * @size:
- *
- * Returns: The number of bytes put into data, or -errno
- */
-
 static ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
 {
 	struct gfs2_ea_request er;
@@ -1366,14 +1336,6 @@ static ssize_t gfs2_listxattr(struct dentry *dentry, char *buffer, size_t size)
 
 	return gfs2_ea_list(get_v2ip(dentry->d_inode), &er);
 }
-
-/**
- * gfs2_removexattr -
- * @dentry:
- * @name:
- *
- * Returns: errno
- */
 
 static int gfs2_removexattr(struct dentry *dentry, const char *name)
 {

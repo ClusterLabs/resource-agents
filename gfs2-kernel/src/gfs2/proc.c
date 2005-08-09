@@ -118,13 +118,6 @@ static ssize_t do_list(char __user *user_buf, size_t size)
 	return error;
 }
 
-/**
- * find_argument -
- * @p:
- *
- * Returns:
- */
-
 static char *find_argument(char *p)
 {
 	char *p2;
@@ -410,14 +403,6 @@ static ssize_t gfs2_proc_read(struct file *file, char __user *buf, size_t size,
 
 	return error;
 }
-
-/**
- * gfs2_proc_close - free any mismatches writes
- * @inode:
- * @file:
- *
- * Returns: 0
- */
 
 static int gfs2_proc_close(struct inode *inode, struct file *file)
 {

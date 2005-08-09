@@ -1480,12 +1480,6 @@ void gfs2_glock_force_drop(struct gfs2_glock *gl)
 	gfs2_holder_uninit(&gh);
 }
 
-/**
- * greedy_work -
- * @data:
- *
- */
-
 static void greedy_work(void *data)
 {
 	struct greedy *gr = (struct greedy *)data;
@@ -1861,12 +1855,6 @@ void gfs2_lvb_unhold(struct gfs2_glock *gl)
 	glock_put(gl);
 }
 
-/**
- * gfs2_lvb_sync - sync a LVB
- * @gl: The glock in question
- *
- */
-
 void gfs2_lvb_sync(struct gfs2_glock *gl)
 {
 	gfs2_glmutex_lock(gl);
@@ -1877,14 +1865,6 @@ void gfs2_lvb_sync(struct gfs2_glock *gl)
 
 	gfs2_glmutex_unlock(gl);
 }
-
-/**
- * blocking_cb -
- * @sdp:
- * @name:
- * @state:
- *
- */
 
 static void blocking_cb(struct gfs2_sbd *sdp, struct lm_lockname *name,
 			unsigned int state)

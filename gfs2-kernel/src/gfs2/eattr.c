@@ -55,14 +55,6 @@ static int ea_calc_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er,
 	return FALSE;
 }
 
-/**
- * ea_check_size -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
 static int ea_check_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er)
 {
 	unsigned int size;
@@ -84,16 +76,6 @@ typedef int (*ea_call_t) (struct gfs2_inode *ip,
 			  struct gfs2_ea_header *ea,
 			  struct gfs2_ea_header *prev,
 			  void *private);
-
-/**
- * ea_foreach_i -
- * @ip:
- * @bh:
- * @eabc:
- * @data:
- *
- * Returns: errno
- */
 
 static int ea_foreach_i(struct gfs2_inode *ip, struct buffer_head *bh,
 			ea_call_t ea_call, void *data)
@@ -132,15 +114,6 @@ static int ea_foreach_i(struct gfs2_inode *ip, struct buffer_head *bh,
 	gfs2_consist_inode(ip);
 	return -EIO;
 }
-
-/**
- * ea_foreach -
- * @ip:
- * @ea_call:
- * @data:
- *
- * Returns: errno
- */
 
 static int ea_foreach(struct gfs2_inode *ip, ea_call_t ea_call, void *data)
 {
@@ -193,18 +166,6 @@ struct ea_find {
 	struct gfs2_ea_location *ef_el;
 };
 
-/**
- * ea_find_i -
- * @ip:
- * @bh:
- * @ea:
- * @prev:
- * @private:
- *
- * Returns: -errno on error, 1 if search is over,
- *          0 if search should continue
- */
-
 static int ea_find_i(struct gfs2_inode *ip, struct buffer_head *bh,
 		     struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
 		     void *private)
@@ -235,15 +196,6 @@ static int ea_find_i(struct gfs2_inode *ip, struct buffer_head *bh,
 
 	return 0;
 }
-
-/**
- * gfs2_ea_find - find a matching eattr
- * @ip:
- * @er:
- * @el:
- *
- * Returns: errno
- */
 
 int gfs2_ea_find(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 		 struct gfs2_ea_location *el)
@@ -376,17 +328,6 @@ static int ea_dealloc_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 	return error;
 }
 
-/**
- * ea_remove_unstuffed -
- * @ip:
- * @bh:
- * @ea:
- * @prev:
- * @leave:
- *
- * Returns: errno
- */
-
 static int ea_remove_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 			       struct gfs2_ea_header *ea,
 			       struct gfs2_ea_header *prev, int leave)
@@ -421,24 +362,10 @@ static int ea_remove_unstuffed(struct gfs2_inode *ip, struct buffer_head *bh,
 
 /******************************************************************************/
 
-/**
- * gfs2_ea_repack_i -
- * @ip:
- *
- * Returns: errno
- */
-
 static int gfs2_ea_repack_i(struct gfs2_inode *ip)
 {
 	return -EOPNOTSUPP;
 }
-
-/**
- * gfs2_ea_repack -
- * @ip:
- *
- * Returns: errno
- */
 
 int gfs2_ea_repack(struct gfs2_inode *ip)
 {
@@ -462,17 +389,6 @@ struct ea_list {
 	struct gfs2_ea_request *ei_er;
 	unsigned int ei_size;
 };
-
-/**
- * ea_list_i -
- * @ip:
- * @bh:
- * @ea:
- * @prev:
- * @private:
- *
- * Returns: errno
- */
 
 static int ea_list_i(struct gfs2_inode *ip, struct buffer_head *bh,
 		     struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
@@ -618,15 +534,6 @@ static int ea_get_unstuffed(struct gfs2_inode *ip, struct gfs2_ea_header *ea,
 
 	return error;
 }
-
-/**
- * gfs2_ea_get_copy -
- * @ip:
- * @el:
- * @data:
- *
- * Returns: errno
- */
 
 int gfs2_ea_get_copy(struct gfs2_inode *ip, struct gfs2_ea_location *el,
 		     char *data)
@@ -813,16 +720,6 @@ static int ea_write(struct gfs2_inode *ip, struct gfs2_ea_header *ea,
 typedef int (*ea_skeleton_call_t) (struct gfs2_inode *ip,
 				   struct gfs2_ea_request *er,
 				   void *private);
-/**
- * ea_alloc_skeleton -
- * @ip:
- * @er:
- * @blks:
- * @skeleton_call:
- * @private:
- *
- * Returns: errno
- */
 
 static int ea_alloc_skeleton(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 			     unsigned int blks,
@@ -888,15 +785,6 @@ static int ea_alloc_skeleton(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 	return error;
 }
 
-/**
- * ea_init_i - initializes a new eattr block
- * @ip:
- * @er:
- * @private:
- *
- * Returns: errno
- */
-
 static int ea_init_i(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 		     void *private)
 {
@@ -934,13 +822,6 @@ static int ea_init(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 	return ea_alloc_skeleton(ip, er, blks, ea_init_i, NULL);
 }
 
-/**
- * ea_split_ea -
- * @ea:
- *
- * Returns: the new ea
- */
-
 static struct gfs2_ea_header *ea_split_ea(struct gfs2_ea_header *ea)
 {
 	uint32_t ea_size = GFS2_EA_SIZE(ea);
@@ -956,13 +837,6 @@ static struct gfs2_ea_header *ea_split_ea(struct gfs2_ea_header *ea)
 
 	return new;
 }
-
-/**
- * ea_set_remove_stuffed -
- * @ip:
- * @ea:
- *
- */
 
 static void ea_set_remove_stuffed(struct gfs2_inode *ip,
 				  struct gfs2_ea_location *el)
@@ -997,15 +871,6 @@ struct ea_set {
 	struct buffer_head *es_bh;
 	struct gfs2_ea_header *es_ea;
 };
-
-/**
- * ea_set_simple_noalloc -
- * @ip:
- * @ea:
- * @es:
- *
- * Returns: errno
- */
 
 static int ea_set_simple_noalloc(struct gfs2_inode *ip, struct buffer_head *bh,
 				 struct gfs2_ea_header *ea, struct ea_set *es)
@@ -1047,15 +912,6 @@ static int ea_set_simple_noalloc(struct gfs2_inode *ip, struct buffer_head *bh,
 	return error;
 }
 
-/**
- * ea_set_simple_alloc -
- * @ip:
- * @er:
- * @private:
- *
- * Returns: errno
- */
-
 static int ea_set_simple_alloc(struct gfs2_inode *ip,
 			       struct gfs2_ea_request *er, void *private)
 {
@@ -1077,14 +933,6 @@ static int ea_set_simple_alloc(struct gfs2_inode *ip,
 
 	return 0;
 }
-
-/**
- * ea_set_simple -
- * @ip:
- * @el:
- *
- * Returns: errno
- */
 
 static int ea_set_simple(struct gfs2_inode *ip, struct buffer_head *bh,
 			 struct gfs2_ea_header *ea, struct gfs2_ea_header *prev,
@@ -1130,15 +978,6 @@ static int ea_set_simple(struct gfs2_inode *ip, struct buffer_head *bh,
 
 	return 1;
 }
-
-/**
- * ea_set_block -
- * @ip:
- * @er:
- * @private:
- *
- * Returns: errno
- */
 
 static int ea_set_block(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 			void *private)
@@ -1213,14 +1052,6 @@ static int ea_set_block(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 	return error;
 }
 
-/**
- * ea_set_i -
- * @ip:
- * @el:
- *
- * Returns: errno
- */
-
 static int ea_set_i(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 		    struct gfs2_ea_location *el)
 {
@@ -1246,14 +1077,6 @@ static int ea_set_i(struct gfs2_inode *ip, struct gfs2_ea_request *er,
 	return ea_alloc_skeleton(ip, er, blks, ea_set_block, el);
 }
 
-/**
- * ea_set_remove_unstuffed -
- * @ip:
- * @el:
- *
- * Returns: errno
- */
-
 static int ea_set_remove_unstuffed(struct gfs2_inode *ip,
 				   struct gfs2_ea_location *el)
 {
@@ -1265,14 +1088,6 @@ static int ea_set_remove_unstuffed(struct gfs2_inode *ip,
 
 	return ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev,FALSE);
 }
-
-/**
- * gfs2_ea_set_i -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
 
 int gfs2_ea_set_i(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
@@ -1313,14 +1128,6 @@ int gfs2_ea_set_i(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 	return error;
 }
 
-/**
- * gfs2_ea_set -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
 int gfs2_ea_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	struct gfs2_holder i_gh;
@@ -1350,15 +1157,6 @@ int gfs2_ea_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	return error;
 }
-
-/**
- * ea_remove_stuffed -
- * @ip:
- * @el:
- * @mode:
- *
- * Returns: errno
- */
 
 static int ea_remove_stuffed(struct gfs2_inode *ip, struct gfs2_ea_location *el)
 {
@@ -1396,14 +1194,6 @@ static int ea_remove_stuffed(struct gfs2_inode *ip, struct gfs2_ea_location *el)
 
 	return error;
 }
-
-/**
- * gfs2_ea_remove_i -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
 
 int gfs2_ea_remove_i(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
@@ -1459,15 +1249,6 @@ int gfs2_ea_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	return error;
 }
-
-/**
- * ea_acl_chmod_unstuffed -
- * @ip:
- * @ea:
- * @data:
- *
- * Returns: errno
- */
 
 static int ea_acl_chmod_unstuffed(struct gfs2_inode *ip,
 				  struct gfs2_ea_header *ea, char *data)
@@ -1537,16 +1318,6 @@ static int ea_acl_chmod_unstuffed(struct gfs2_inode *ip,
 	return error;
 }
 
-/**
- * gfs2_ea_acl_chmod -
- * @ip:
- * @el:
- * @attr:
- * @data:
- *
- * Returns: errno
- */
-
 int gfs2_ea_acl_chmod(struct gfs2_inode *ip, struct gfs2_ea_location *el,
 		      struct iattr *attr, char *data)
 {
@@ -1581,13 +1352,6 @@ int gfs2_ea_acl_chmod(struct gfs2_inode *ip, struct gfs2_ea_location *el,
 
 	return error;
 }
-
-/**
- * ea_dealloc_indirect -
- * @ip:
- *
- * Returns: errno
- */
 
 static int ea_dealloc_indirect(struct gfs2_inode *ip)
 {
@@ -1709,13 +1473,6 @@ static int ea_dealloc_indirect(struct gfs2_inode *ip)
 
 	return error;
 }
-
-/**
- * ea_dealloc_block -
- * @ip:
- *
- * Returns: errno
- */
 
 static int ea_dealloc_block(struct gfs2_inode *ip)
 {

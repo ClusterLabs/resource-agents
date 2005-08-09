@@ -55,14 +55,6 @@ unsigned int gfs2_ea_name2type(const char *name, char **truncated_name)
 	return type;
 }
 
-/**
- * user_eo_get -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
 static int user_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	struct inode *inode = ip->i_vnode;
@@ -72,14 +64,6 @@ static int user_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	return gfs2_ea_get_i(ip, er);
 }
-
-/**
- * user_eo_set -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
 
 static int user_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
@@ -96,14 +80,6 @@ static int user_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 	return gfs2_ea_set_i(ip, er);
 }
 
-/**
- * user_eo_remove -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
 static int user_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	struct inode *inode = ip->i_vnode;
@@ -119,14 +95,6 @@ static int user_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 	return gfs2_ea_remove_i(ip, er);
 }
 
-/**
- * system_eo_get -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
-
 static int system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	if (!GFS2_ACL_IS_ACCESS(er->er_name, er->er_name_len) &&
@@ -136,14 +104,6 @@ static int system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	return gfs2_ea_get_i(ip, er);
 }
-
-/**
- * system_eo_set -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
 
 static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
@@ -183,14 +143,6 @@ static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 	return -EPERM;
 }
-
-/**
- * system_eo_remove -
- * @ip:
- * @er:
- *
- * Returns: errno
- */
 
 static int system_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {

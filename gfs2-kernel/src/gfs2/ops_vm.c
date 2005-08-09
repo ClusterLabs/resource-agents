@@ -31,12 +31,6 @@
 #include "rgrp.h"
 #include "trans.h"
 
-/**
- * pfault_be_greedy -
- * @ip:
- *
- */
-
 static void pfault_be_greedy(struct gfs2_inode *ip)
 {
 	unsigned int time;
@@ -50,15 +44,6 @@ static void pfault_be_greedy(struct gfs2_inode *ip)
 	if (gfs2_glock_be_greedy(ip->i_gl, time))
 		gfs2_inode_put(ip);
 }
-
-/**
- * gfs2_private_nopage -
- * @area:
- * @address:
- * @type:
- *
- * Returns: the page
- */
 
 static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 					unsigned long address, int *type)
@@ -85,14 +70,6 @@ static struct page *gfs2_private_nopage(struct vm_area_struct *area,
 
 	return result;
 }
-
-/**
- * alloc_page_backing -
- * @ip:
- * @index:
- *
- * Returns: errno
- */
 
 static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 {
@@ -166,15 +143,6 @@ static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 
 	return error;
 }
-
-/**
- * gfs2_sharewrite_nopage -
- * @area:
- * @address:
- * @type:
- *
- * Returns: the page
- */
 
 static struct page *gfs2_sharewrite_nopage(struct vm_area_struct *area,
 					   unsigned long address, int *type)

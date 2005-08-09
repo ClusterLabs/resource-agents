@@ -32,13 +32,6 @@
 #define CPIN_64(s1, s2, member) {(s1->member) = gfs2_64_to_cpu((s2->member));}
 #define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_gfs2_64((s1->member));}
 
-/**
- * gfs2_quota_lvb_in - Read in quota data
- * @rb: the cpu-order structure
- * @lvb: the lvb
- *
- */
-
 void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 {
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
@@ -50,13 +43,6 @@ void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 	CPIN_64(qb, str, qb_value);
 }
 
-/**
- * gfs2_quota_lvb_out - Write out quota data
- * @rb: the cpu-order structure
- * @lvb: the lvb
- *
- */
-
 void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 {
 	struct gfs2_quota_lvb *str = (struct gfs2_quota_lvb *)lvb;
@@ -67,14 +53,6 @@ void gfs2_quota_lvb_out(struct gfs2_quota_lvb *qb, char *lvb)
 	CPOUT_64(qb, str, qb_warn);
 	CPOUT_64(qb, str, qb_value);
 }
-
-/**
- * gfs2_quota_lvb_print - Print out quota data
- * @rb: the cpu-order structure
- * @console - TRUE if this should be printed to the console,
- *            FALSE if it should be just printed to the incore debug
- *            buffer
- */
 
 void gfs2_quota_lvb_print(struct gfs2_quota_lvb *qb)
 {

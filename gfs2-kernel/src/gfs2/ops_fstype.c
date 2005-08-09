@@ -837,24 +837,10 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	return error;
 }
 
-/**
- * gfs2_test_bdev_super -
- * @sb:
- * @data:
- *
- */
-
 int gfs2_test_bdev_super(struct super_block *sb, void *data)
 {
 	return (void *)sb->s_bdev == data;
 }
-
-/**
- * gfs2_test_bdev_super -
- * @sb:
- * @data:
- *
- */
 
 int gfs2_set_bdev_super(struct super_block *sb, void *data)
 {

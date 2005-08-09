@@ -258,12 +258,6 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 	return 0;
 }
 
-/**
- * gfs2_do_upgrade - upgrade a filesystem
- * @sdp: The GFS2 superblock
- *
- */
-
 int gfs2_do_upgrade(struct gfs2_sbd *sdp, struct gfs2_glock *sb_gl)
 {
 	return 0;
@@ -447,13 +441,6 @@ int gfs2_jdesc_check(struct gfs2_jdesc *jd)
 
 	return error;
 }
-
-/**
- * gfs2_lookup_master_dir -
- * @sdp: The GFS2 superblock
- *
- * Returns: errno
- */
 
 int gfs2_lookup_master_dir(struct gfs2_sbd *sdp)
 {

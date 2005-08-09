@@ -11,26 +11,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-/*
-          What rolls down stairs
-             Alone or in pairs
-      Rolls over your neighbor's dog.
-         What's great for a snack
-           And fits on your back
-             It's log, log, log!
-             It's lo-og, lo-og,
-       It's big, it's heavy, it's wood.
-             It's lo-og, lo-og,
-       It's better than bad, it's good.
-           Everyone wants a log,
-         You're gonna love it, log
-         Come on and get your log,
-           Everyone needs a log...
-            LOG... FROM BLAMMO!
-
-                     -- The Ren and Stimpy Show
-*/
-
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/smp_lock.h>

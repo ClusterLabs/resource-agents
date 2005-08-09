@@ -361,16 +361,6 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 	return FALSE;
 }
 
-/**
- * leaf_search
- * @bh:
- * @filename:
- * @dent_out:
- * @dent_prev:
- *
- * Returns:
- */
-
 static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 		       struct qstr *filename, struct gfs2_dirent **dent_out,
 		       struct gfs2_dirent **dent_prev)
@@ -416,15 +406,6 @@ static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
 	return -ENOENT;
 }
 
-/**
- * get_leaf - Get leaf
- * @dip:
- * @leaf_no:
- * @bh_out:
- *
- * Returns: 0 on success, error code otherwise
- */
-
 static int get_leaf(struct gfs2_inode *dip, uint64_t leaf_no,
 		    struct buffer_head **bhp)
 {
@@ -463,15 +444,6 @@ static int get_leaf_nr(struct gfs2_inode *dip, uint32_t index,
 	return 0;
 }
 
-/**
- * get_first_leaf - Get first leaf
- * @dip: The GFS2 inode
- * @index:
- * @bh_out:
- *
- * Returns: 0 on success, error code otherwise
- */
-
 static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 			  struct buffer_head **bh_out)
 {
@@ -484,15 +456,6 @@ static int get_first_leaf(struct gfs2_inode *dip, uint32_t index,
 
 	return error;
 }
-
-/**
- * get_next_leaf - Get next leaf
- * @dip: The GFS2 inode
- * @bh_in: The buffer
- * @bh_out:
- *
- * Returns: 0 on success, error code otherwise
- */
 
 static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
 			 struct buffer_head **bh_out)
@@ -509,17 +472,6 @@ static int get_next_leaf(struct gfs2_inode *dip, struct buffer_head *bh_in,
 
 	return error;
 }
-
-/**
- * linked_leaf_search - Linked leaf search
- * @dip: The GFS2 inode
- * @filename: The filename to search for
- * @dent_out:
- * @dent_prev:
- * @bh_out:
- *
- * Returns: 0 on sucess, error code otherwise
- */
 
 static int linked_leaf_search(struct gfs2_inode *dip, struct qstr *filename,
 			      struct gfs2_dirent **dent_out,
@@ -1267,15 +1219,6 @@ static int dir_e_search(struct gfs2_inode *dip, struct qstr *filename,
 	return 0;
 }
 
-/**
- * dir_e_add -
- * @dip: The GFS2 inode
- * @filename:
- * @inode:
- * @type:
- *
- */
-
 static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 		     struct gfs2_inum *inum, unsigned int type)
 {
@@ -1403,14 +1346,6 @@ static int dir_e_add(struct gfs2_inode *dip, struct qstr *filename,
 	return -ENOENT;
 }
 
-/**
- * dir_e_del -
- * @dip: The GFS2 inode
- * @filename:
- *
- * Returns:
- */
-
 static int dir_e_del(struct gfs2_inode *dip, struct qstr *filename)
 {
 	struct buffer_head *bh, *dibh;
@@ -1537,15 +1472,6 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 	return error;
 }
 
-/**
- * dir_e_mvino -
- * @dip: The GFS2 inode
- * @filename:
- * @new_inode:
- *
- * Returns:
- */
-
 static int dir_e_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		       struct gfs2_inum *inum, unsigned int new_type)
 {
@@ -1620,16 +1546,6 @@ static int dir_l_search(struct gfs2_inode *dip, struct qstr *filename,
 	return error;
 }
 
-/**
- * dir_l_add -
- * @dip: The GFS2 inode
- * @filename:
- * @inode:
- * @type:
- *
- * Returns:
- */
-
 static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 		     struct gfs2_inum *inum, unsigned int type)
 {
@@ -1673,14 +1589,6 @@ static int dir_l_add(struct gfs2_inode *dip, struct qstr *filename,
 	return 0;
 }
 
-/**
- * dir_l_del -
- * @dip: The GFS2 inode
- * @filename:
- *
- * Returns:
- */
-
 static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 {
 	struct buffer_head *dibh;
@@ -1723,16 +1631,6 @@ static int dir_l_del(struct gfs2_inode *dip, struct qstr *filename)
 	return error;
 }
 
-/**
- * dir_l_read -
- * @dip:
- * @offset:
- * @opaque:
- * @filldir:
- *
- * Returns:
- */
-
 static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		      gfs2_filldir_t filldir)
 {
@@ -1763,15 +1661,6 @@ static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 
 	return error;
 }
-
-/**
- * dir_l_mvino -
- * @dip:
- * @filename:
- * @new_inode:
- *
- * Returns:
- */
 
 static int dir_l_mvino(struct gfs2_inode *dip, struct qstr *filename,
 		       struct gfs2_inum *inum, unsigned int new_type)
@@ -1881,17 +1770,7 @@ int gfs2_dir_del(struct gfs2_inode *dip, struct qstr *filename)
 	return error;
 }
 
-/**
- * gfs2_dir_read - Translate a GFS2 filename
- * @dip: The GFS2 inode
- * @offset:
- * @opaque:
- * @filldir:
- *
- * Returns: 0 on success, error code otherwise
- */
-
-int gfs2_dir_read(struct gfs2_inode *dip, uint64_t * offset, void *opaque,
+int gfs2_dir_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		  gfs2_filldir_t filldir)
 {
 	int error;

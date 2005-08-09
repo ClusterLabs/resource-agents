@@ -133,14 +133,6 @@ static int diaper_end_io(struct bio *bio, unsigned int bytes_done, int error)
 	return 0;
 }
 
-/**
- * diaper_make_request -
- * @q:
- * @bio:
- *
- * Returns: 0
- */
-
 static int diaper_make_request(request_queue_t *q, struct bio *bio)
 {
 	struct diaper_holder *dh = (struct diaper_holder *)q->queuedata;
@@ -173,12 +165,6 @@ static int diaper_make_request(request_queue_t *q, struct bio *bio)
 	return 0;
 }
 
-/**
- * minor_get -
- *
- * Returns: a unused minor number
- */
-
 static int minor_get(void)
 {
 	int minor;
@@ -200,12 +186,6 @@ static int minor_get(void)
 
 	return minor;
 }
-
-/**
- * minor_put - Free a used minor number
- * @minor:
- *
- */
 
 static void minor_put(int minor)
 {
@@ -443,12 +423,6 @@ static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 	return ERR_PTR(error);
 }
 
-/**
- * diaper_put - Do the work of destroying a diaper device
- * @dh:
- *
- */
-
 static void diaper_put(struct diaper_holder *dh)
 {
 	struct block_device *diaper = dh->dh_diaper;
@@ -547,13 +521,6 @@ void gfs2_diaper_put(struct block_device *diaper)
 	printk("GFS2: diaper: unknown undiaper\n");
 }
 
-/**
- * gfs2_diaper_register_sbd -
- * @diaper:
- * @sdp:
- *
- */
-
 void gfs2_diaper_register_sbd(struct block_device *diaper, struct gfs2_sbd *sdp)
 {
 	struct diaper_holder *dh;
@@ -595,12 +562,6 @@ struct block_device *gfs2_diaper_2real(struct block_device *diaper)
 	return NULL;
 }
 
-/**
- * gfs2_diaper_init -
- *
- * Returns: errno
- */
-
 int gfs2_diaper_init(void)
 {
 	spin_lock_init(&diaper_lock);
@@ -619,11 +580,6 @@ int gfs2_diaper_init(void)
 	
 	return 0;
 }
-
-/**
- * gfs2_diaper_uninit -
- *
- */
 
 void gfs2_diaper_uninit(void)
 {

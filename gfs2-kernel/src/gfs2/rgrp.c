@@ -153,12 +153,6 @@ struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
 	return list_entry(rgd->rd_list.next, struct gfs2_rgrpd, rd_list);
 }
 
-/**
- * clear_rgrpdi - Clear up rgrps
- * @sdp: The GFS2 superblock
- *
- */
-
 static void clear_rgrpdi(struct gfs2_sbd *sdp)
 {
        	struct list_head *head;
@@ -191,12 +185,6 @@ static void clear_rgrpdi(struct gfs2_sbd *sdp)
 		kfree(rgd);
 	}
 }
-
-/**
- * gfs2_clear_rgrpd - Clear up rgrps
- * @sdp: The GFS2 superblock
- *
- */
 
 void gfs2_clear_rgrpd(struct gfs2_sbd *sdp)
 {

@@ -1407,15 +1407,6 @@ static ssize_t gfs2_sendfile(struct file *in_file, loff_t *offset, size_t count,
 	return retval;
 }
 
-/**
- * do_flock - Acquire a flock on a file
- * @file:
- * @cmd:
- * @fl:
- *
- * Returns: errno
- */
-
 static int do_flock(struct file *file, int cmd, struct file_lock *fl)
 {
 	struct gfs2_file *fp = get_v2fp(file);
@@ -1465,13 +1456,6 @@ static int do_flock(struct file *file, int cmd, struct file_lock *fl)
 
 	return error;
 }
-
-/**
- * do_unflock - Release a flock on a file
- * @file: the file
- * @fl:
- *
- */
 
 static void do_unflock(struct file *file, struct file_lock *fl)
 {

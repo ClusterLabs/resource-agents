@@ -377,35 +377,17 @@ int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 	return error;
 }
 
-/**
- * gfs2_inode_hold - hold a struct gfs2_inode structure
- * @ip: The GFS2 inode
- *
- */
-
 void gfs2_inode_hold(struct gfs2_inode *ip)
 {
 	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
 	atomic_inc(&ip->i_count);
 }
 
-/**
- * gfs2_inode_put - put a struct gfs2_inode structure
- * @ip: The GFS2 inode
- *
- */
-
 void gfs2_inode_put(struct gfs2_inode *ip)
 {
 	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
 	atomic_dec(&ip->i_count);
 }
-
-/**
- * gfs2_inode_destroy - Destroy a GFS2 inode structure with no references on it
- * @ip: The GFS2 inode
- *
- */
 
 void gfs2_inode_destroy(struct gfs2_inode *ip)
 {
@@ -431,13 +413,6 @@ void gfs2_inode_destroy(struct gfs2_inode *ip)
 
 	atomic_dec(&sdp->sd_inode_count);
 }
-
-/**
- * dinode_dealloc - Put deallocate a dinode
- * @ip: The GFS2 inode
- *
- * Returns: errno
- */
 
 static int dinode_dealloc(struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {

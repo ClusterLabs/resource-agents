@@ -508,11 +508,17 @@ static void print_array(char *title, char *buf, int count)
 		printk("\n");
 }
 
-/**
- * gfs2_inum_in - Read in an inode number
- * @no: the cpu-order structure
- * @buf: the disk-order buffer
+/*
+ * gfs2_xxx_in - read in an xxx struct
+ * first arg: the cpu-order structure
+ * buf: the disk-order buffer
  *
+ * gfs2_xxx_out - write out an xxx struct
+ * first arg: the cpu-order structure
+ * buf: the disk-order buffer
+ *
+ * gfs2_xxx_print - print out an xxx struct
+ * first arg: the cpu-order structure
  */
 
 void gfs2_inum_in(struct gfs2_inum *no, char *buf)
@@ -523,13 +529,6 @@ void gfs2_inum_in(struct gfs2_inum *no, char *buf)
 	CPIN_64(no, str, no_addr);
 }
 
-/**
- * gfs2_inum_out - Write out an inode number
- * @no: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_inum_out(struct gfs2_inum *no, char *buf)
 {
 	struct gfs2_inum *str = (struct gfs2_inum *)buf;
@@ -538,24 +537,11 @@ void gfs2_inum_out(struct gfs2_inum *no, char *buf)
 	CPOUT_64(no, str, no_addr);
 }
 
-/**
- * gfs2_inum_print - Print out a inode number
- * @no: the cpu-order buffer
- *
- */
-
 void gfs2_inum_print(struct gfs2_inum *no)
 {
 	pv(no, no_formal_ino, "%"PRIu64);
 	pv(no, no_addr, "%"PRIu64);
 }
-
-/**
- * gfs2_meta_header_in - Read in a metadata header
- * @mh: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 {
@@ -567,15 +553,6 @@ void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
 	CPIN_64(mh, str, mh_blkno);
 }
 
-/**
- * gfs2_meta_header_in - Write out a metadata header
- * @mh: the cpu-order structure
- * @buf: the disk-order buffer
- *
- * Don't ever change the generation number in this routine.
- * It's done manually in increment_generation().
- */
-
 void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 {
 	struct gfs2_meta_header *str = (struct gfs2_meta_header *)buf;
@@ -586,12 +563,6 @@ void gfs2_meta_header_out(struct gfs2_meta_header *mh, char *buf)
 	CPOUT_64(mh, str, mh_blkno);
 }
 
-/**
- * gfs2_meta_header_print - Print out a metadata header
- * @mh: the cpu-order buffer
- *
- */
-
 void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 {
 	pv(mh, mh_magic, "0x%.8X");
@@ -599,13 +570,6 @@ void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 	pv(mh, mh_format, "%u");
 	pv(mh, mh_blkno, "%"PRIu64);
 }
-
-/**
- * gfs2_sb_in - Read in a superblock
- * @sb: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 {
@@ -625,13 +589,6 @@ void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
 	CPIN_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
 }
 
-/**
- * gfs2_sb_out - Write out a superblock
- * @sb: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 {
 	struct gfs2_sb *str = (struct gfs2_sb *)buf;
@@ -650,12 +607,6 @@ void gfs2_sb_out(struct gfs2_sb *sb, char *buf)
 	CPOUT_08(sb, str, sb_locktable, GFS2_LOCKNAME_LEN);
 }
 
-/**
- * gfs2_sb_print - Print out a superblock
- * @sb: the cpu-order buffer
- *
- */
-
 void gfs2_sb_print(struct gfs2_sb *sb)
 {
 	gfs2_meta_header_print(&sb->sb_header);
@@ -671,13 +622,6 @@ void gfs2_sb_print(struct gfs2_sb *sb)
 	pv(sb, sb_lockproto, "%s");
 	pv(sb, sb_locktable, "%s");
 }
-
-/**
- * gfs2_rindex_in - Read in a resource index structure
- * @ri: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
 {
@@ -695,13 +639,6 @@ void gfs2_rindex_in(struct gfs2_rindex *ri, char *buf)
 	CPIN_08(ri, str, ri_reserved, 32);
 }
 
-/**
- * gfs2_rindex_out - Write out a resource index structure
- * @ri: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 {
 	struct gfs2_rindex *str = (struct gfs2_rindex *)buf;
@@ -718,12 +655,6 @@ void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 	CPOUT_08(ri, str, ri_reserved, 32);
 }
 
-/**
- * gfs2_rindex_print - Print out a resource index structure
- * @ri: the cpu-order buffer
- *
- */
-
 void gfs2_rindex_print(struct gfs2_rindex *ri)
 {
 	pv(ri, ri_addr, "%"PRIu64);
@@ -738,13 +669,6 @@ void gfs2_rindex_print(struct gfs2_rindex *ri)
 	pa(ri, ri_reserved, 32);
 }
 
-/**
- * gfs2_rgrp_in - Read in a resource group header
- * @rg: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
 {
 	struct gfs2_rgrp *str = (struct gfs2_rgrp *)buf;
@@ -756,13 +680,6 @@ void gfs2_rgrp_in(struct gfs2_rgrp *rg, char *buf)
 
 	CPIN_08(rg, str, rg_reserved, 36);
 }
-
-/**
- * gfs2_rgrp_out - Write out a resource group header
- * @rg: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
 {
@@ -776,12 +693,6 @@ void gfs2_rgrp_out(struct gfs2_rgrp *rg, char *buf)
 	CPOUT_08(rg, str, rg_reserved, 36);
 }
 
-/**
- * gfs2_rgrp_print - Print out a resource group header
- * @rg: the cpu-order buffer
- *
- */
-
 void gfs2_rgrp_print(struct gfs2_rgrp *rg)
 {
 	gfs2_meta_header_print(&rg->rg_header);
@@ -792,13 +703,6 @@ void gfs2_rgrp_print(struct gfs2_rgrp *rg)
 	pa(rg, rg_reserved, 36);
 }
 
-/**
- * gfs2_quota_in - Read in a qu structures
- * @qu: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_quota_in(struct gfs2_quota *qu, char *buf)
 {
 	struct gfs2_quota *str = (struct gfs2_quota *)buf;
@@ -807,13 +711,6 @@ void gfs2_quota_in(struct gfs2_quota *qu, char *buf)
 	CPIN_64(qu, str, qu_warn);
 	CPIN_64(qu, str, qu_value);
 }
-
-/**
- * gfs2_quota_out - Write out a qu structure
- * @qu: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 {
@@ -824,25 +721,12 @@ void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 	CPOUT_64(qu, str, qu_value);
 }
 
-/**
- * gfs2_quota_print - Print out a qu structure
- * @qu: the cpu-order buffer
- *
- */
-
 void gfs2_quota_print(struct gfs2_quota *qu)
 {
 	pv(qu, qu_limit, "%"PRIu64);
 	pv(qu, qu_warn, "%"PRIu64);
 	pv(qu, qu_value, "%"PRId64);
 }
-
-/**
- * gfs2_dinode_in - Read in a di
- * @di: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
 {
@@ -878,13 +762,6 @@ void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
 	CPIN_08(di, str, di_reserved, 32);
 }
 
-/**
- * gfs2_dinode_out - Write out a di
- * @di: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
 {
 	struct gfs2_dinode *str = (struct gfs2_dinode *)buf;
@@ -919,12 +796,6 @@ void gfs2_dinode_out(struct gfs2_dinode *di, char *buf)
 	CPOUT_08(di, str, di_reserved, 32);
 }
 
-/**
- * gfs2_dinode_print - Print out a di
- * @di: the cpu-order buffer
- *
- */
-
 void gfs2_dinode_print(struct gfs2_dinode *di)
 {
 	gfs2_meta_header_print(&di->di_header);
@@ -957,13 +828,6 @@ void gfs2_dinode_print(struct gfs2_dinode *di)
 	pa(di, di_reserved, 32);
 }
 
-/**
- * gfs2_dirent_in - Read in a directory entry
- * @de: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 {
 	struct gfs2_dirent *str = (struct gfs2_dirent *)buf;
@@ -977,13 +841,6 @@ void gfs2_dirent_in(struct gfs2_dirent *de, char *buf)
 	CPIN_32(de, str, de_pad2);
 }
 
-/**
- * gfs2_dirent_out - Write out a directory entry
- * @de: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 {
 	struct gfs2_dirent *str = (struct gfs2_dirent *)buf;
@@ -996,13 +853,6 @@ void gfs2_dirent_out(struct gfs2_dirent *de, char *buf)
 	CPOUT_16(de, str, de_pad1);
 	CPOUT_32(de, str, de_pad2);
 }
-
-/**
- * gfs2_dirent_print - Print out a directory entry
- * @de: the cpu-order buffer
- * @name: the filename
- *
- */
 
 void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 {
@@ -1021,13 +871,6 @@ void gfs2_dirent_print(struct gfs2_dirent *de, char *name)
 	printk("  name = %s\n", buf);
 }
 
-/**
- * gfs2_leaf_in - Read in a directory lf header
- * @lf: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
 {
 	struct gfs2_leaf *str = (struct gfs2_leaf *)buf;
@@ -1040,13 +883,6 @@ void gfs2_leaf_in(struct gfs2_leaf *lf, char *buf)
 
 	CPIN_08(lf, str, lf_reserved, 32);
 }
-
-/**
- * gfs2_leaf_out - Write out a directory lf header
- * @lf: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
 {
@@ -1061,12 +897,6 @@ void gfs2_leaf_out(struct gfs2_leaf *lf, char *buf)
 	CPOUT_08(lf, str, lf_reserved, 32);
 }
 
-/**
- * gfs2_leaf_print - Print out a directory lf header
- * @lf: the cpu-order buffer
- *
- */
-
 void gfs2_leaf_print(struct gfs2_leaf *lf)
 {
 	gfs2_meta_header_print(&lf->lf_header);
@@ -1077,13 +907,6 @@ void gfs2_leaf_print(struct gfs2_leaf *lf)
 
 	pa(lf, lf_reserved, 32);
 }
-
-/**
- * gfs2_ea_header_in - Read in a Extended Attribute header
- * @qc: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
 {
@@ -1098,13 +921,6 @@ void gfs2_ea_header_in(struct gfs2_ea_header *ea, char *buf)
 	CPIN_32(ea, str, ea_pad);
 }
 
-/**
- * gfs2_ea_header_out - Write out a Extended Attribute header
- * @ea: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
 {
 	struct gfs2_ea_header *str = (struct gfs2_ea_header *)buf;
@@ -1117,12 +933,6 @@ void gfs2_ea_header_out(struct gfs2_ea_header *ea, char *buf)
 	str->ea_num_ptrs = ea->ea_num_ptrs;
 	CPOUT_32(ea, str, ea_pad);
 }
-
-/**
- * gfs2_ea_header_print - Print out a Extended Attribute header
- * @ea: the cpu-order buffer
- *
- */
 
 void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 {
@@ -1141,13 +951,6 @@ void gfs2_ea_header_print(struct gfs2_ea_header *ea, char *name)
 	printk("  name = %s\n", buf);
 }
 
-/**
- * gfs2_log_header_in - Read in a log header
- * @lh: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
 {
 	struct gfs2_log_header *str = (struct gfs2_log_header *)buf;
@@ -1159,13 +962,6 @@ void gfs2_log_header_in(struct gfs2_log_header *lh, char *buf)
 	CPIN_32(lh, str, lh_blkno);
 	CPIN_32(lh, str, lh_hash);
 }
-
-/**
- * gfs2_log_header_out - Write out a log header
- * @lh: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 {
@@ -1179,12 +975,6 @@ void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 	CPOUT_32(lh, str, lh_hash);
 }
 
-/**
- * gfs2_log_header_print - Print out a log header
- * @lh: the cpu-order buffer
- *
- */
-
 void gfs2_log_header_print(struct gfs2_log_header *lh)
 {
 	gfs2_meta_header_print(&lh->lh_header);
@@ -1194,13 +984,6 @@ void gfs2_log_header_print(struct gfs2_log_header *lh)
 	pv(lh, lh_blkno, "%u");
 	pv(lh, lh_hash, "0x%.8X");
 }
-
-/**
- * gfs2_log_descriptor_in - Read in a log descriptor
- * @ld: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
 {
@@ -1215,13 +998,6 @@ void gfs2_log_descriptor_in(struct gfs2_log_descriptor *ld, char *buf)
 	CPIN_08(ld, str, ld_reserved, 32);
 }
 
-/**
- * gfs2_log_descriptor_out - Write out a log descriptor
- * @ld: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
 {
 	struct gfs2_log_descriptor *str = (struct gfs2_log_descriptor *)buf;
@@ -1235,12 +1011,6 @@ void gfs2_log_descriptor_out(struct gfs2_log_descriptor *ld, char *buf)
 	CPOUT_08(ld, str, ld_reserved, 32);
 }
 
-/**
- * gfs2_log_descriptor_print - Print out a log descriptor
- * @ld: the cpu-order buffer
- *
- */
-
 void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 {
 	gfs2_meta_header_print(&ld->ld_header);
@@ -1252,13 +1022,6 @@ void gfs2_log_descriptor_print(struct gfs2_log_descriptor *ld)
 	pa(ld, ld_reserved, 32);
 }
 
-/**
- * gfs2_inum_range_in - Read in an inum range
- * @ir: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
 {
 	struct gfs2_inum_range *str = (struct gfs2_inum_range *)buf;
@@ -1266,13 +1029,6 @@ void gfs2_inum_range_in(struct gfs2_inum_range *ir, char *buf)
 	CPIN_64(ir, str, ir_start);
 	CPIN_64(ir, str, ir_length);
 }
-
-/**
- * gfs2_inum_range_out - Write out an inum range
- * @ir: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 {
@@ -1282,24 +1038,11 @@ void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 	CPOUT_64(ir, str, ir_length);
 }
 
-/**
- * gfs2_inum_range_print - Print out an inum range
- * @ir: the cpu-order structure
- *
- */
-
 void gfs2_inum_range_print(struct gfs2_inum_range *ir)
 {
 	pv(ir, ir_start, "%"PRIu64);
 	pv(ir, ir_length, "%"PRIu64);
 }
-
-/**
- * gfs2_statfs_change_in - Read in a statfs change
- * @sc: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
 {
@@ -1310,13 +1053,6 @@ void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
 	CPIN_64(sc, str, sc_dinodes);
 }
 
-/**
- * gfs2_statfs_change_out - Write out a statfs change
- * @sc: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
 {
 	struct gfs2_statfs_change *str = (struct gfs2_statfs_change *)buf;
@@ -1326,25 +1062,12 @@ void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
 	CPOUT_64(sc, str, sc_dinodes);
 }
 
-/**
- * gfs2_statfs_change_print - Print out a quota change
- * @sc: the cpu-order buffer
- *
- */
-
 void gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 {
 	pv(sc, sc_total, "%"PRId64);
 	pv(sc, sc_free, "%"PRId64);
 	pv(sc, sc_dinodes, "%"PRId64);
 }
-
-/**
- * gfs2_unlinked_tag_in - Read in an unlinked tag
- * @ut: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 {
@@ -1355,13 +1078,6 @@ void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
 	CPIN_32(ut, str, ut_pad);
 }
 
-/**
- * gfs2_unlinked_tag_out - Write out an unlinked tag
- * @ut: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 {
 	struct gfs2_unlinked_tag *str = (struct gfs2_unlinked_tag *)buf;
@@ -1371,25 +1087,12 @@ void gfs2_unlinked_tag_out(struct gfs2_unlinked_tag *ut, char *buf)
 	CPOUT_32(ut, str, ut_pad);
 }
 
-/**
- * gfs2_unlinked_tag_print - Print out an unlinked tag
- * @ut: the cpu-order structure
- *
- */
-
 void gfs2_unlinked_tag_print(struct gfs2_unlinked_tag *ut)
 {
 	gfs2_inum_print(&ut->ut_inum);
 	pv(ut, ut_flags, "%u");
 	pv(ut, ut_pad, "%u");
 }
-
-/**
- * gfs2_quota_change_in - Read in a quota change
- * @qc: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
 
 void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
 {
@@ -1400,13 +1103,6 @@ void gfs2_quota_change_in(struct gfs2_quota_change *qc, char *buf)
 	CPIN_32(qc, str, qc_id);
 }
 
-/**
- * gfs2_quota_change_out - Write out a quota change
- * @qc: the cpu-order structure
- * @buf: the disk-order buffer
- *
- */
-
 void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 {
 	struct gfs2_quota_change *str = (struct gfs2_quota_change *)buf;
@@ -1415,12 +1111,6 @@ void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 	CPOUT_32(qc, str, qc_flags);
 	CPOUT_32(qc, str, qc_id);
 }
-
-/**
- * gfs2_quota_change_print - Print out a quota change
- * @qc: the cpu-order buffer
- *
- */
 
 void gfs2_quota_change_print(struct gfs2_quota_change *qc)
 {

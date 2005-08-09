@@ -36,11 +36,6 @@ uint32_t gfs2_disk_hash(const char *data, int len)
 
 /**
  * gfs2_assert_i - Cause the machine to panic if @assertion is false
- * @sdp:
- * @assertion:
- * @function:
- * @file:
- * @line:
  *
  */
 
@@ -71,12 +66,6 @@ void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
 
 /**
  * gfs2_assert_withdraw_i - Cause the machine to withdraw if @assertion is false
- * @sdp:
- * @assertion:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          -2 if it was already withdrawn
  */
@@ -99,12 +88,6 @@ int gfs2_assert_withdraw_i(struct gfs2_sbd *sdp, char *assertion,
 
 /**
  * gfs2_assert_warn_i - Print a message to the console if @assertion is false
- * @sdp:
- * @assertion:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if we printed something
  *          -2 if we didn't
  */
@@ -136,12 +119,6 @@ int gfs2_assert_warn_i(struct gfs2_sbd *sdp, char *assertion,
 
 /**
  * gfs2_consist_i - Flag a filesystem consistency error and withdraw
- * @sdp:
- * @cluster_wide:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          0 if it was already withdrawn
  */
@@ -162,12 +139,6 @@ int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide, const char *function,
 
 /**
  * gfs2_consist_inode_i - Flag an inode consistency error and withdraw
- * @ip:
- * @cluster_wide:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          0 if it was already withdrawn
  */
@@ -192,12 +163,6 @@ int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 
 /**
  * gfs2_consist_rgrpd_i - Flag a RG consistency error and withdraw
- * @rgd:
- * @cluster_wide:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          0 if it was already withdrawn
  */
@@ -221,12 +186,6 @@ int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 
 /**
  * gfs2_meta_check_ii - Flag a magic number consistency error and withdraw
- * @sdp:
- * @bh:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          -2 if it was already withdrawn
  */
@@ -252,14 +211,6 @@ int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 
 /**
  * gfs2_metatype_check_ii - Flag a metadata type consistency error and withdraw
- * @sdp:
- * @bh:
- * @type:
- * @t:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          -2 if it was already withdrawn
  */
@@ -285,11 +236,6 @@ int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 
 /**
  * gfs2_io_error_i - Flag an I/O error and withdraw
- * @sdp:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          0 if it was already withdrawn
  */
@@ -309,42 +255,7 @@ int gfs2_io_error_i(struct gfs2_sbd *sdp, const char *function, char *file,
 }
 
 /**
- * gfs2_io_error_inode_i - Flag an inode I/O error and withdraw
- * @ip:
- * @function:
- * @file:
- * @line:
- *
- * Returns: -1 if this call withdrew the machine,
- *          0 if it was already withdrawn
- */
-
-int gfs2_io_error_inode_i(struct gfs2_inode *ip, const char *function,
-			  char *file, unsigned int line)
-{
-	struct gfs2_sbd *sdp = ip->i_sbd;
-	return gfs2_lm_withdraw(sdp,
-			"GFS2: fsid=%s: fatal: I/O error\n"
-			"GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
-			"GFS2: fsid=%s:   function = %s\n"
-			"GFS2: fsid=%s:   file = %s, line = %u\n"
-			"GFS2: fsid=%s:   time = %lu\n",
-			sdp->sd_fsname,
-			sdp->sd_fsname,
-			ip->i_num.no_formal_ino, ip->i_num.no_addr,
-			sdp->sd_fsname, function,
-			sdp->sd_fsname, file, line,
-			sdp->sd_fsname, get_seconds());
-}
-
-/**
  * gfs2_io_error_bh_i - Flag a buffer I/O error and withdraw
- * @sdp:
- * @bh:
- * @function:
- * @file:
- * @line:
- *
  * Returns: -1 if this call withdrew the machine,
  *          0 if it was already withdrawn
  */
@@ -394,16 +305,6 @@ int gfs2_add_bh_to_ub(struct gfs2_user_buffer *ub, struct buffer_head *bh)
 
 	return 0;
 }
-
-/**
- * gfs2_printf_i -
- * @buf:
- * @size:
- * @count:
- * @fmt:
- *
- * Returns: 0 on success, 1 on out of space
- */
 
 int gfs2_printf_i(char *buf, unsigned int size, unsigned int *count,
 		  char *fmt, ...)
