@@ -17,7 +17,6 @@
 #include <linux/gfs2_ondisk.h>
 
 #include "locking/harness/lm_interface.h"
-#include "fixed_div64.h"
 #include "lvb.h"
 #include "incore.h"
 #include "util.h"

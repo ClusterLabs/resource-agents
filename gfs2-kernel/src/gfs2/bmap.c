@@ -878,7 +878,9 @@ static int trunc_start(struct gfs2_inode *ip, uint64_t size,
 
 	} else {
 		if (journaled) {
-			if (do_mod(size, sdp->sd_jbsize))
+			uint64_t junk = size;
+			/* we're just interested in the modulus */
+			if (do_div(junk, sdp->sd_jbsize))
 				error = truncator_journaled(ip, size);
 		} else if (size & (uint64_t)(sdp->sd_sb.sb_bsize - 1))
 			error = truncator(ip, size);

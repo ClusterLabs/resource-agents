@@ -292,9 +292,10 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_rgrpd *rgd;
 	char buf[sizeof(struct gfs2_rindex)];
+	uint64_t junk = ip->i_di.di_size;
 	int error;
 
-	if (do_mod(ip->i_di.di_size, sizeof(struct gfs2_rindex))) {
+	if (do_div(junk, sizeof(struct gfs2_rindex))) {
 		gfs2_consist_inode(ip);
 		return -EIO;
 	}
