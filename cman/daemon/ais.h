@@ -10,11 +10,12 @@
 *******************************************************************************
 ******************************************************************************/
 
-extern int send_status_return(struct connection *con, uint32_t cmd, int status);
-extern int send_data_reply(struct connection *con, int nodeid, int port, char *data, int len);
-extern void set_cman_timeout(int secs);
-extern void notify_listeners(struct connection *con, int reason, int arg);
-extern void cman_set_realtime(void);
+extern uint64_t incarnation;
 
-extern volatile sig_atomic_t quit_threads;
-extern int num_connections;
+extern int comms_init_ais(unsigned short port);
+extern int ais_set_mcast(char *mcast);
+extern int ais_add_ifaddr(char *ifaddr);
+extern int comms_send_message(void *buf, int len,
+			      unsigned char toport, unsigned char fromport,
+			      int nodeid,
+			      unsigned int flags);

@@ -43,6 +43,8 @@
 #define CMAN_CMD_REG_QUORUMDEV      0x800000b5
 #define CMAN_CMD_UNREG_QUORUMDEV    0x800000b6
 #define CMAN_CMD_POLL_QUORUMDEV     0x800000b7
+#define CMAN_CMD_ADD_MCAST          0x800000b8
+#define CMAN_CMD_ADD_IFADDR         0x800000b9
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -96,19 +98,13 @@
 #define MSG_ALLINT    0x100000	/* Send out of all interfaces */
 #define MSG_REPLYEXP  0x200000	/* Reply is expected */
 #define MSG_BCASTSELF 0x400000	/* Broadcast message also gets sent to us */
+#define MSG_HEARTBEAT 0x800000  /* Message is visible to non-member nodes */
 
 typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
-	       NODESTATE_DEAD } nodestate_t;
+	       NODESTATE_DEAD, NODESTATE_LEAVING } nodestate_t;
 
 static const char CLIENT_SOCKNAME[]= "/var/run/cman_client";
 static const char ADMIN_SOCKNAME[]=  "/var/run/cman_admin";
-
-/* This is now just a convenient way to pass around
-   node/port pairs */
-struct sockaddr_cl {
-	unsigned char scl_port;
-	int           scl_nodeid;
-};
 
 /* This struct should be in front of all messages
    passed down the client and admin sockets */
@@ -149,6 +145,7 @@ struct cl_join_cluster_info {
 	unsigned int expected_votes;
 	unsigned int two_node;
 	unsigned int config_version;
+	unsigned short port;
 
         char cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 };
@@ -205,6 +202,11 @@ struct cl_cluster_info {
 	char name[MAX_CLUSTER_NAME_LEN+1];
 	uint16_t number;
 	uint32_t generation;
+};
+
+struct cl_set_votes {
+	int nodeid;
+	int newvotes;
 };
 
 /* Commands to the barrier cmd */

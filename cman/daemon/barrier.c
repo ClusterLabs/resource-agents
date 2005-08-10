@@ -20,7 +20,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/un.h>
@@ -32,23 +31,49 @@
 #include <sys/errno.h>
 
 #include "list.h"
+#include "aispoll.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
-#include "cnxman.h"
 #include "daemon.h"
+#include "commands.h"
 #include "logging.h"
-#include "membership.h"
 #include "config.h"
 #include "barrier.h"
+#include "ais.h"
+
+extern int we_are_a_cluster_member;
+extern poll_handle ais_poll_handle;
+
+/* A barrier */
+struct cl_barrier {
+	struct list list;
+
+	char name[MAX_BARRIER_NAME_LEN];
+	unsigned int flags;
+	enum { BARRIER_STATE_WAITING, BARRIER_STATE_INACTIVE,
+	       BARRIER_STATE_COMPLETE } state;
+	unsigned int expected_nodes;
+	unsigned int registered_nodes;
+	unsigned int got_nodes;
+	unsigned int completed_nodes;
+	unsigned int inuse;
+	unsigned int waitsent;
+	unsigned int phase;	/* Completion phase */
+	unsigned int endreason;	/* Reason we were woken, usually 0 */
+	unsigned int client_complete;
+	unsigned long timeout;	/* In seconds */
+
+	struct connection *con;
+	poll_timer_handle timer;
+};
 
 /* A list of all current barriers */
 static struct list barrier_list;
-static pthread_mutex_t barrier_list_lock;
 
 static void send_barrier_complete_msg(struct cl_barrier *barrier)
 {
 	if (barrier->timeout) {
-		del_timer(&barrier->timer);
+		poll_timer_delete(ais_poll_handle, barrier->timer);
 		barrier->timeout = 0;
 	}
 
@@ -85,14 +110,15 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 		barrier->completed_nodes++;	/* We have completed */
 		barrier->phase = 2;	/* Wait for complete phase II */
 
-		/* Send completion message, remember: we are in cnxman context
-		 * and must not block */
-		bmsg.cmd = CLUSTER_CMD_BARRIER;
+		bmsg.cmd = CLUSTER_MSG_BARRIER;
 		bmsg.subcmd = BARRIER_COMPLETE;
 		strcpy(bmsg.name, barrier->name);
 
 		P_BARRIER("Sending COMPLETE for %s\n", barrier->name);
-		send_or_queue_message((char *) &bmsg, sizeof (bmsg), NULL, 0);
+		comms_send_message((char *) &bmsg, sizeof (bmsg),
+				   0, 0,
+				   0,
+				   0);//TODO flags, use TOTEM_SAFE
 	}
 }
 
@@ -101,7 +127,6 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 static int check_barrier_complete_phase2(struct cl_barrier *barrier, int status)
 {
 	P_BARRIER("check_complete_phase2 for %s\n", barrier->name);
-	pthread_mutex_lock(&barrier->phase2_lock);
 
 	P_BARRIER("check_complete_phase2 status=%d, c_nodes=%d, e_nodes=%d, state=%d\n",
 		  status,barrier->completed_nodes, barrier->completed_nodes, barrier->state);
@@ -119,14 +144,11 @@ static int check_barrier_complete_phase2(struct cl_barrier *barrier, int status)
 		}
 		barrier->state = BARRIER_STATE_COMPLETE;
 	}
-	pthread_mutex_unlock(&barrier->phase2_lock);
 
 	/* Delete barrier if autodelete */
 	if (barrier->flags & BARRIER_ATTR_AUTODELETE) {
-		pthread_mutex_lock(&barrier_list_lock);
 		list_del(&barrier->list);
 		free(barrier);
-		pthread_mutex_unlock(&barrier_list_lock);
 		return 1;
 	}
 
@@ -149,18 +171,14 @@ static void barrier_timer_fn(void *arg)
 
 /* Process BARRIER messages from other nodes */
 void process_barrier_msg(struct cl_barriermsg *msg,
-				struct cluster_node *node)
+			 struct cluster_node *node)
 {
 	struct cl_barrier *barrier;
 
-	pthread_mutex_lock(&barrier_list_lock);
 	barrier = find_barrier(msg->name);
-	pthread_mutex_unlock(&barrier_list_lock);
 
-	/* Ignore other peoples messages, in_transition() is needed here so
-	 * that joining nodes will see their barrier messages before the
-	 * we_are_a_cluster_member is set */
-	if (!we_are_a_cluster_member && !in_transition())
+	/* Ignore other peoples' messages */
+	if (!we_are_a_cluster_member)
 		return;
 	if (!barrier)
 		return;
@@ -170,7 +188,6 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 
 	switch (msg->subcmd) {
 	case BARRIER_WAIT:
-		pthread_mutex_lock(&barrier->lock);
 		if (barrier->phase == 0)
 			barrier->phase = 1;
 
@@ -183,11 +200,9 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 			       msg->name, barrier->phase);
 
 		}
-		pthread_mutex_unlock(&barrier->lock);
 		break;
 
 	case BARRIER_COMPLETE:
-		pthread_mutex_lock(&barrier->lock);
 		barrier->completed_nodes++;
 
 		/* First node to get all the WAIT messages sends COMPLETE, so
@@ -203,7 +218,6 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 			if (check_barrier_complete_phase2(barrier, 0) == 1)
 				return;
 		}
-		pthread_mutex_unlock(&barrier->lock);
 		break;
 	}
 }
@@ -228,11 +242,9 @@ static int barrier_register(struct connection *con, char *name, unsigned int fla
 		return -EINVAL;
 
 	P_BARRIER("barrier_register %s, nodes = %d, flags =%x\n", name, nodes, flags);
-	pthread_mutex_lock(&barrier_list_lock);
 
 	/* See if it already exists */
 	if ((barrier = find_barrier(name))) {
-		pthread_mutex_unlock(&barrier_list_lock);
 		if (nodes != barrier->expected_nodes) {
 			log_msg(LOG_ERR, "Barrier registration failed for '%s', expected nodes=%d, requested=%d\n",
 			       name, barrier->expected_nodes, nodes);
@@ -248,7 +260,6 @@ static int barrier_register(struct connection *con, char *name, unsigned int fla
 	/* Build a new struct and add it to the list */
 	barrier = malloc(sizeof (struct cl_barrier));
 	if (barrier == NULL) {
-		pthread_mutex_unlock(&barrier_list_lock);
 		return -ENOMEM;
 	}
 	memset(barrier, 0, sizeof (*barrier));
@@ -261,12 +272,9 @@ static int barrier_register(struct connection *con, char *name, unsigned int fla
 	barrier->endreason = 0;
 	barrier->registered_nodes = 1;
 	barrier->con = con;
-	pthread_mutex_init(&barrier->phase2_lock, NULL);
 	barrier->state = BARRIER_STATE_INACTIVE;
-	pthread_mutex_init(&barrier->lock, NULL);
 
 	list_add(&barrier_list, &barrier->list);
-	pthread_mutex_unlock(&barrier_list_lock);
 
 	return 0;
 }
@@ -278,7 +286,6 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 
 	/* Can't disable a barrier */
 	if (!arg) {
-		pthread_mutex_unlock(&barrier->lock);
 		return -EINVAL;
 	}
 
@@ -288,7 +295,7 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		struct cl_barriermsg bmsg;
 
 		/* Send it to the rest of the cluster */
-		bmsg.cmd = CLUSTER_CMD_BARRIER;
+		bmsg.cmd = CLUSTER_MSG_BARRIER;
 		bmsg.subcmd = BARRIER_WAIT;
 		strcpy(bmsg.name, barrier->name);
 
@@ -299,23 +306,13 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 
 		/* Start the timer if one was wanted */
 		if (barrier->timeout) {
-			barrier->timer.callback = barrier_timer_fn;
-			barrier->timer.arg =  barrier;
-			add_timer(&barrier->timer, barrier->timeout, 0);
+			poll_timer_add(ais_poll_handle, barrier->timeout, barrier,
+				       barrier_timer_fn, &barrier->timer);
 		}
 
-		/* Barrier WAIT and COMPLETE messages are
-		 * always queued - that way they always get
-		 * sent out in the right order. If we don't do
-		 * this then one can get sent out in the
-		 * context of the user process and the other in
-		 * cnxman and COMPLETE may /just/ slide in
-		 * before WAIT if its in the queue
-		 */
 		P_BARRIER("Sending WAIT for %s\n", barrier->name);
-		status = send_or_queue_message(&bmsg, sizeof (bmsg), NULL, 0);
+		status = comms_send_message((char *)&bmsg, sizeof(bmsg), 0,0, 0, 0);
 		if (status < 0) {
-			pthread_mutex_unlock(&barrier->lock);
 			return status;
 		}
 
@@ -326,10 +323,8 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 			check_barrier_complete_phase1(barrier);
 	}
 	if (barrier && barrier->state == BARRIER_STATE_COMPLETE) {
-		pthread_mutex_unlock(&barrier->lock);
 		return barrier->endreason;
 	}
-	pthread_mutex_unlock(&barrier->lock);
 	return 0;	/* Nothing to propogate */
 }
 
@@ -338,16 +333,11 @@ static int barrier_setattr(char *name, unsigned int attr, unsigned long arg)
 	struct cl_barrier *barrier;
 
 	/* See if it already exists */
-	pthread_mutex_lock(&barrier_list_lock);
 	if (!(barrier = find_barrier(name))) {
-		pthread_mutex_unlock(&barrier_list_lock);
 		return -ENOENT;
 	}
-	pthread_mutex_unlock(&barrier_list_lock);
 
-	pthread_mutex_lock(&barrier->lock);
 	if (barrier->state == BARRIER_STATE_COMPLETE) {
-		pthread_mutex_unlock(&barrier->lock);
 		return 0;
 	}
 
@@ -357,7 +347,6 @@ static int barrier_setattr(char *name, unsigned int attr, unsigned long arg)
 			barrier->flags |= BARRIER_ATTR_AUTODELETE;
 		else
 			barrier->flags &= ~BARRIER_ATTR_AUTODELETE;
-		pthread_mutex_unlock(&barrier->lock);
 		return 0;
 		break;
 
@@ -365,15 +354,12 @@ static int barrier_setattr(char *name, unsigned int attr, unsigned long arg)
 		/* Can only change the timout of an inactive barrier */
 		if (barrier->state == BARRIER_STATE_WAITING
 		    || barrier->waitsent) {
-			pthread_mutex_unlock(&barrier->lock);
 			return -EINVAL;
 		}
 		barrier->timeout = arg;
-		pthread_mutex_unlock(&barrier->lock);
 		return 0;
 
 	case BARRIER_SETATTR_MULTISTEP:
-		pthread_mutex_unlock(&barrier->lock);
 		return -EINVAL;
 
 	case BARRIER_SETATTR_ENABLED:
@@ -389,7 +375,6 @@ static int barrier_setattr(char *name, unsigned int attr, unsigned long arg)
 		break;
 	}
 
-	pthread_mutex_unlock(&barrier->lock);
 	return 0;
 }
 
@@ -397,18 +382,14 @@ static int barrier_delete(char *name)
 {
 	struct cl_barrier *barrier;
 
-	pthread_mutex_lock(&barrier_list_lock);
-
 	/* See if it exists */
 	if (!(barrier = find_barrier(name))) {
-		pthread_mutex_unlock(&barrier_list_lock);
 		return -ENOENT;
 	}
 
 	/* Delete it */
 	list_del(&barrier->list);
 	free(barrier);
-	pthread_mutex_unlock(&barrier_list_lock);
 	return 0;
 }
 
@@ -416,33 +397,25 @@ static int barrier_wait(char *name)
 {
 	struct cl_barrier *barrier;
 
-	if (!cnxman_running)
-		return -ENOTCONN;
+	// TODO ??
+//	if (!cnxman_running)
+//		return -ENOTCONN;
 
 	/* Enable it */
 	barrier_setattr(name, BARRIER_SETATTR_ENABLED, 1L);
 
-	pthread_mutex_lock(&barrier_list_lock);
-
 	/* See if it still exists - enable may have deleted it! */
 	if (!(barrier = find_barrier(name))) {
-		pthread_mutex_unlock(&barrier_list_lock);
 		return -ENOENT;
 	}
 
-	pthread_mutex_lock(&barrier->lock);
-
-	pthread_mutex_unlock(&barrier_list_lock);
-
 	/* If it has already completed then return the status */
 	if (barrier->state == BARRIER_STATE_COMPLETE) {
-		pthread_mutex_unlock(&barrier->lock);
 		send_barrier_complete_msg(barrier);
 	}
 	else {
 		barrier->state = BARRIER_STATE_WAITING;
 	}
-	pthread_mutex_unlock(&barrier->lock);
 
 	/* User will wait */
 	return -EWOULDBLOCK;
@@ -459,7 +432,6 @@ void check_barrier_returns()
 	struct cl_barrier *barrier;
 	int status = 0;
 
-	pthread_mutex_lock(&barrier_list_lock);
 	list_iterate(blist, &barrier_list) {
 		barrier = list_item(blist, struct cl_barrier);
 
@@ -488,7 +460,6 @@ void check_barrier_returns()
 			}
 		}
 	}
-	pthread_mutex_unlock(&barrier_list_lock);
 }
 
 /* Remote command */
@@ -524,5 +495,4 @@ int do_cmd_barrier(struct connection *con, char *cmdbuf, int *retlen)
 void barrier_init()
 {
 	list_init(&barrier_list);
-	pthread_mutex_init(&barrier_list_lock, NULL);
 }

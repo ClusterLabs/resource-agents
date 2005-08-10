@@ -16,10 +16,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 #include "list.h"
+#include "logging.h"
 #include "cnxman-socket.h"
 #include "cnxman-private.h"
 
@@ -34,14 +36,23 @@ int init_log(int debug)
 	return 0;
 }
 
-
-void log_msg(int priority, const char *fmt, ...)
+/* This is always called by the libtotem routines so we prefix messages
+   with "totem:"
+*/
+void log_msg(int priority, char *fmt, ...)
 {
 	va_list va;
 
+	if (!priority)
+		return;
+
 	if (use_stderr)
 	{
-		fprintf(stderr, "cman: ");
+		time_t P;
+
+		time(&P);
+		fprintf(stderr, "%.15s ",  ctime(&P)+4);
+		fprintf(stderr, "totem: ");
 		va_start(va, fmt);
 		vfprintf(stderr, fmt, va);
 		va_end(va);
@@ -60,30 +71,41 @@ void init_debug(int subsystems)
 }
 
 #ifdef DEBUG
-void log_debug(int subsys, const char *fmt, ...)
+void log_debug(int subsys, int stamp, const char *fmt, ...)
 {
 	va_list va;
 	char newfmt[strlen(fmt)+10];
+	time_t P;
+
+	time(&P);
 
 	if (!(subsys_mask & subsys))
 		return;
 
-	switch(subsys)
+	if (stamp)
 	{
-	case CMAN_DEBUG_MEMB:
-		strcpy(newfmt, "memb: ");
-		break;
-	case CMAN_DEBUG_COMMS:
-		strcpy(newfmt, "comms: ");
-		break;
-	case CMAN_DEBUG_DAEMON:
-		strcpy(newfmt, "daemon: ");
-		break;
-	case CMAN_DEBUG_BARRIER:
-		strcpy(newfmt, "barrier: ");
-		break;
-	default:
-		break;
+		switch(subsys)
+		{
+		case CMAN_DEBUG_MEMB:
+			strcpy(newfmt, "memb: ");
+			break;
+		case CMAN_DEBUG_DAEMON:
+			strcpy(newfmt, "daemon: ");
+			break;
+		case CMAN_DEBUG_BARRIER:
+			strcpy(newfmt, "barrier: ");
+			break;
+		case CMAN_DEBUG_AIS:
+			strcpy(newfmt, "ais: ");
+			break;
+		default:
+			break;
+		}
+		fprintf(stderr, "%.15s ",  ctime(&P)+4);
+	}
+	else
+	{
+		newfmt[0] = '\0';
 	}
 	strcat(newfmt, fmt);
 

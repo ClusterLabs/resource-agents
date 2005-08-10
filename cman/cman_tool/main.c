@@ -2,7 +2,7 @@
 *******************************************************************************
 **
 **  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004 Red Hat, Inc.  All rights reserved.
+**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
 **
 **  This copyrighted material is made available to anyone wishing to use,
 **  modify, copy, or redistribute it subject to the terms and conditions
@@ -148,38 +148,17 @@ static void print_address(char *addr)
 static char *membership_state(char *buf, int buflen, int node_state, int master)
 {
 	switch (node_state) {
-	case 0:
-		strncpy(buf, "Starting", buflen);
-		break;
 	case 1:
-		strncpy(buf, "New-Cluster?", buflen);
-		break;
-	case 2:
 		strncpy(buf, "Joining", buflen);
 		break;
-	case 3:
-		strncpy(buf, "Join-Wait", buflen);
-		break;
-	case 4:
-		strncpy(buf, "Join-Ack", buflen);
-		break;
-	case 5:
-		snprintf(buf, buflen, "State-Transition: Master is %d", master);
-		break;
-	case 6:
-		strncpy(buf, "Transition-Complete", buflen);
-		break;
-	case 7:
+	case 2:
 		strncpy(buf, "Cluster-Member", buflen);
 		break;
-	case 8:
-		strncpy(buf, "Rejected", buflen);
-		break;
-	case 9:
+	case 3:
 		strncpy(buf, "Not-in-Cluster", buflen);
 		break;
-	case 10:
-		strncpy(buf, "Transition-Master", buflen);
+	case 4:
+		strncpy(buf, "Leaving", buflen);
 		break;
 	default:
 		sprintf(buf, "Unknown: code=%d", node_state);
@@ -273,13 +252,13 @@ static void show_nodes(void)
 	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
 		die("cman_get_nodes failed: %s", cman_error(errno));
 
-	printf("Node  Sts  Inc  Joined               Name\n");
+	printf("Node  Sts  Inc    Joined               Name\n");
 	for (i=0; i<numnodes; i++) {
 
 		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
 		strftime(jstring, sizeof(jstring), "%F %H:%M:%S", jtime);
 
-		printf("%4d   %c  %3d   %s  %s\n",
+		printf("%4d   %c  %5d   %s  %s\n",
 		       nodes[i].cn_nodeid, nodes[i].cn_member?'M':'X',
 		       nodes[i].cn_incarnation, jstring, nodes[i].cn_name);
 	}
@@ -377,10 +356,26 @@ static void set_votes(commandline_t *comline)
 {
 	cman_handle_t h;
 	int result;
+	int nodeid;
+	struct cman_node node;
+
 
 	h = open_cman_handle(1);
 
-	if ((result = cman_set_votes(h, comline->votes)))
+	if (!comline->num_nodenames) {
+		nodeid = 0; /* This node */
+	}
+	else {
+		/* Resolve node name into a number */
+		node.cn_nodeid = 0;
+		strcpy(node.cn_name, comline->nodenames[0]);
+		if (cman_get_node(h, node.cn_nodeid, &node))
+			die("Can't set votes for node %s : %s\n", node.cn_name, strerror(errno));
+		nodeid = node.cn_nodeid;
+	}
+
+	printf("PJC: setting votes on node %d\n", nodeid);
+	if ((result = cman_set_votes(h, comline->votes, nodeid)))
 		die("can't set votes: %s", cman_error(errno));
 
 	cman_finish(h);

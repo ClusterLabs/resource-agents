@@ -39,7 +39,7 @@
 #define DEFAULT_NEWCLUSTER_TIMEOUT 16   /* Time to send NEWCLUSTER messages */
 #define DEFAULT_MAX_RETRIES 5		/* Number of times we resend a message */
 
-#define DEFAULT_DEBUG_MASK 0            /* No debugging */
+#define DEFAULT_DEBUG_MASK 0xff            /* P_COMMS | P_MEMB | P_BARRIER */
 
 struct config_info cman_config = {
 	.joinwait_timeout = DEFAULT_JOIN_WAIT_TIME,

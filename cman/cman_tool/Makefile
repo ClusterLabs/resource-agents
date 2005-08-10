@@ -32,7 +32,7 @@ main.o: main.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 join.o: join.c cman_tool.h
-	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"${sbindir}\"
+	$(CC) $(CFLAGS) -c -o $@ $< -DSBINDIR=\"../daemon\" #-DSBINDIR=\"${sbindir}\"
 
 join_ccs.o: join_ccs.c cman_tool.h
 	$(CC) $(CFLAGS) -c -o $@ $<

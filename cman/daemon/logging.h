@@ -10,6 +10,34 @@
 *******************************************************************************
 ******************************************************************************/
 
-extern void log_msg(int priority, const char *fmt, ...);
+extern void log_msg(int priority, char *fmt, ...);
 extern void init_debug(int subsystems);
 extern int init_log(int debug);
+
+
+/* Debug macros */
+#ifdef DEBUG
+
+#define CMAN_DEBUG_NONE    1
+#define CMAN_DEBUG_BARRIER 2
+#define CMAN_DEBUG_MEMB    4
+#define CMAN_DEBUG_DAEMON  8
+#define CMAN_DEBUG_AIS    16
+
+extern void log_debug(int subsys, int stamp, const char *fmt, ...);
+
+#define P_BARRIER(fmt, args...) log_debug(CMAN_DEBUG_BARRIER, 1, fmt, ## args)
+#define P_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_MEMB, 1, fmt, ## args)
+#define C_MEMB(fmt, args...)    log_debug(CMAN_DEBUG_MEMB, 0, fmt, ## args)
+#define P_DAEMON(fmt, args...)  log_debug(CMAN_DEBUG_DAEMON, 1, fmt, ## args)
+#define P_AIS(fmt, args...)     log_debug(CMAN_DEBUG_AIS, 1, fmt, ## args)
+
+#else
+
+#define P_BARRIER(fmt, args...)
+#define P_MEMB(fmt, args...)
+#define C_MEMB(fmt, args...)
+#define P_DAEMON(fmt, args...)
+#define P_AIS(fmt, args...)
+
+#endif
