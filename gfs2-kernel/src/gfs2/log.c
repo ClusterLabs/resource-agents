@@ -551,12 +551,12 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 	sdp->sd_log_flush_wrapped = FALSE;
 	ai->ai_first = sdp->sd_log_flush_head;
 
-	LO_BEFORE_COMMIT(sdp);
+	lops_before_commit(sdp);
 	if (!list_empty(&sdp->sd_log_flush_list))
 		log_flush_commit(sdp);
 	else if (sdp->sd_log_tail != current_tail(sdp) && !sdp->sd_log_idle)
 		log_write_header(sdp, 0, PULL);
-	LO_AFTER_COMMIT(sdp, ai);
+	lops_after_commit(sdp, ai);
 
 	sdp->sd_log_head = sdp->sd_log_flush_head;
 	if (sdp->sd_log_flush_wrapped)
@@ -623,7 +623,7 @@ static void log_refund(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 {
 	log_refund(sdp, tr);
-	LO_INCORE_COMMIT(sdp, tr);
+	lops_incore_commit(sdp, tr);
 
 	sdp->sd_vfs->s_dirt = TRUE;
 	unlock_from_trans(sdp);

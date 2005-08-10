@@ -331,7 +331,7 @@ static int foreach_descriptor(struct gfs2_jdesc *jd, unsigned int start,
 		} else if (gfs2_metatype_check(sdp, bh, GFS2_METATYPE_LD))
 			return -EIO;
 
-		error = LO_SCAN_ELEMENTS(jd, start, &ld, pass);
+		error = lops_scan_elements(jd, start, &ld, pass);
 		if (error)
 			return error;
 
@@ -502,10 +502,10 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		       sdp->sd_fsname, jd->jd_jid);
 
 		for (pass = 0; pass < 2; pass++) {
-			LO_BEFORE_SCAN(jd, &head, pass);
+			lops_before_scan(jd, &head, pass);
 			error = foreach_descriptor(jd, head.lh_tail,
 						   head.lh_blkno, pass);
-			LO_AFTER_SCAN(jd, error, pass);
+			lops_after_scan(jd, error, pass);
 			if (error)
 				goto fail_gunlock_tr;
 		}

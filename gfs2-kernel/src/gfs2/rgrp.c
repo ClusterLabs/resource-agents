@@ -310,7 +310,7 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 		memset(rgd, 0, sizeof(struct gfs2_rgrpd));
 
 		init_MUTEX(&rgd->rd_mutex);
-		INIT_LE(&rgd->rd_le, &gfs2_rg_lops);
+		lops_init_le(&rgd->rd_le, &gfs2_rg_lops);
 		rgd->rd_sbd = sdp;
 
 		list_add_tail(&rgd->rd_list, &sdp->sd_rindex_list);

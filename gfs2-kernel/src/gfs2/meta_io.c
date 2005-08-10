@@ -588,7 +588,7 @@ void gfs2_meta_attach_bufdata(struct gfs2_glock *gl, struct buffer_head *bh)
 	bd->bd_gl = gl;
 
 	INIT_LIST_HEAD(&bd->bd_list_tr);
-	INIT_LE(&bd->bd_le, &gfs2_buf_lops);
+	lops_init_le(&bd->bd_le, &gfs2_buf_lops);
 
 	set_v2bd(bh, bd);
 

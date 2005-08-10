@@ -265,7 +265,7 @@ int gfs2_glock_get(struct gfs2_sbd *sdp, uint64_t number,
 
 	gl->gl_sbd = sdp;
 
-	INIT_LE(&gl->gl_le, &gfs2_glock_lops);
+	lops_init_le(&gl->gl_le, &gfs2_glock_lops);
 	INIT_LIST_HEAD(&gl->gl_ail_list);
 
 	/* If this glock protects actual on-disk data or metadata blocks,
