@@ -32,22 +32,22 @@ cmand:	${AISDIR}/trunk/exec/libtotem_pg.a daemon.o config.o logging.o ais.o comm
 	$(CC) $(CFLAGS) -o $@ $^ -L../lib -L${ccslibdir} -lccs -lcman -lpthread -Wl,-Bstatic -ltotem_pg -Wl,-Bdynamic
 
 daemon.o: daemon.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  cnxman.h daemon.h logging.h commands.h barrier.h config.h
+  daemon.h logging.h commands.h barrier.h config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 cnxman.o: cnxman.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  cnxman.h daemon.h barrier.h commands.h config.h logging.h
+  daemon.h barrier.h commands.h config.h logging.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 config.o: config.c config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 barrier.o: barrier.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  cnxman.h daemon.h logging.h config.h barrier.h
+  daemon.h logging.h config.h barrier.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 commands.o: commands.c list.h cnxman-socket.h cnxman-private.h xlate.h \
-  cnxman.h daemon.h barrier.h  logging.h config.h
+  daemon.h barrier.h  logging.h config.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 logging.o: logging.c list.h cnxman-socket.h cnxman-private.h xlate.h
