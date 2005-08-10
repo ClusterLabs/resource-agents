@@ -1053,10 +1053,9 @@ static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 	size = sizeof(struct filldir_bad) +
 	    entries * (sizeof(struct filldir_bad_entry) + GFS2_FAST_NAME_SIZE);
 
-	fdb = kmalloc(size, GFP_KERNEL);
+	fdb = kzalloc(size, GFP_KERNEL);
 	if (!fdb)
 		return -ENOMEM;
-	memset(fdb, 0, size);
 
 	fdb->fdb_sbd = sdp;
 	fdb->fdb_entry = (struct filldir_bad_entry *)(fdb + 1);
@@ -1220,10 +1219,9 @@ static int gfs2_open(struct inode *inode, struct file *file)
 
 	atomic_inc(&ip->i_sbd->sd_ops_file);
 
-	fp = kmalloc(sizeof(struct gfs2_file), GFP_KERNEL);
+	fp = kzalloc(sizeof(struct gfs2_file), GFP_KERNEL);
 	if (!fp)
 		return -ENOMEM;
-	memset(fp, 0, sizeof(struct gfs2_file));
 
 	init_MUTEX(&fp->f_fl_mutex);
 

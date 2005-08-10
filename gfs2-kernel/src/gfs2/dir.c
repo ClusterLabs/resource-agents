@@ -1912,10 +1912,9 @@ static int leaf_dealloc(struct gfs2_inode *dip, uint32_t index, uint32_t len,
 
 	memset(&rlist, 0, sizeof(struct gfs2_rgrp_list));
 
-	ht = kmalloc(size, GFP_KERNEL);
+	ht = kzalloc(size, GFP_KERNEL);
 	if (!ht)
 		return -ENOMEM;
-	memset(ht, 0, size);
 
 	gfs2_alloc_get(dip);
 

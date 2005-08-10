@@ -364,8 +364,7 @@ struct buffer_head *gfs2_log_get_buf(struct gfs2_sbd *sdp)
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
 
-	lb = kmalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
-	memset(lb, 0, sizeof(struct gfs2_log_buf));
+	lb = kzalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
 	list_add(&lb->lb_list, &sdp->sd_log_flush_list);
 
 	bh = lb->lb_bh = sb_getblk(sdp->sd_vfs, blkno);
@@ -395,8 +394,7 @@ struct buffer_head *gfs2_log_fake_buf(struct gfs2_sbd *sdp,
 	struct gfs2_log_buf *lb;
 	struct buffer_head *bh;
 
-	lb = kmalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
-	memset(lb, 0, sizeof(struct gfs2_log_buf));
+	lb = kzalloc(sizeof(struct gfs2_log_buf), GFP_KERNEL | __GFP_NOFAIL);
 	list_add(&lb->lb_list, &sdp->sd_log_flush_list);
 	lb->lb_real = real;
 
@@ -527,8 +525,7 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 
 	atomic_inc(&sdp->sd_log_flush_incore);
 
-	ai = kmalloc(sizeof(struct gfs2_ail), GFP_KERNEL | __GFP_NOFAIL);
-	memset(ai, 0, sizeof(struct gfs2_ail));
+	ai = kzalloc(sizeof(struct gfs2_ail), GFP_KERNEL | __GFP_NOFAIL);
 	INIT_LIST_HEAD(&ai->ai_ail1_list);
 	INIT_LIST_HEAD(&ai->ai_ail2_list);
 

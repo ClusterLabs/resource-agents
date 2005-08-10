@@ -210,11 +210,9 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 	uint32_t bytes_left, bytes;
 	int x;
 
-	rgd->rd_bits = kmalloc(length * sizeof(struct gfs2_bitmap),
-			       GFP_KERNEL);
+	rgd->rd_bits = kzalloc(length * sizeof(struct gfs2_bitmap), GFP_KERNEL);
 	if (!rgd->rd_bits)
 		return -ENOMEM;
-	memset(rgd->rd_bits, 0, length * sizeof(struct gfs2_bitmap));
 
 	bytes_left = rgd->rd_ri.ri_bitbytes;
 
@@ -303,11 +301,10 @@ static int gfs2_ri_update(struct gfs2_inode *ip)
 			goto fail;
 		}
 
-		rgd = kmalloc(sizeof(struct gfs2_rgrpd), GFP_KERNEL);
+		rgd = kzalloc(sizeof(struct gfs2_rgrpd), GFP_KERNEL);
 		error = -ENOMEM;
 		if (!rgd)
 			goto fail;
-		memset(rgd, 0, sizeof(struct gfs2_rgrpd));
 
 		init_MUTEX(&rgd->rd_mutex);
 		lops_init_le(&rgd->rd_le, &gfs2_rg_lops);
@@ -534,8 +531,7 @@ struct gfs2_alloc *gfs2_alloc_get(struct gfs2_inode *ip)
 
 	gfs2_assert_warn(ip->i_sbd, !al);
 
-	al = kmalloc(sizeof(struct gfs2_alloc), GFP_KERNEL | __GFP_NOFAIL);
-	memset(al, 0, sizeof(struct gfs2_alloc));
+	al = kzalloc(sizeof(struct gfs2_alloc), GFP_KERNEL | __GFP_NOFAIL);
 
 	ip->i_alloc = al;
 

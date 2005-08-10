@@ -52,10 +52,9 @@ static int qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
        	struct gfs2_quota_data *qd;
 	int error;
 
-	qd = kmalloc(sizeof(struct gfs2_quota_data), GFP_KERNEL);
+	qd = kzalloc(sizeof(struct gfs2_quota_data), GFP_KERNEL);
 	if (!qd)
 		return -ENOMEM;
-	memset(qd, 0, sizeof(struct gfs2_quota_data));
 
 	qd->qd_count = 1;
 	qd->qd_id = id;
@@ -943,10 +942,9 @@ int gfs2_quota_sync(struct gfs2_sbd *sdp)
 
 	sdp->sd_quota_sync_gen++;
 
-	qda = kmalloc(max_qd * sizeof(struct gfs2_quota_data *), GFP_KERNEL);
+	qda = kzalloc(max_qd * sizeof(struct gfs2_quota_data *), GFP_KERNEL);
 	if (!qda)
 		return -ENOMEM;
-	memset(qda, 0, max_qd * sizeof(struct gfs2_quota_data *));
 
 	do {
 		num_qd = 0;
@@ -1053,18 +1051,15 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 
 	error = -ENOMEM;
 
-	sdp->sd_quota_bitmap = kmalloc(sdp->sd_quota_chunks *
+	sdp->sd_quota_bitmap = kzalloc(sdp->sd_quota_chunks *
 				       sizeof(unsigned char *), GFP_KERNEL);
 	if (!sdp->sd_quota_bitmap)
 		return error;
-	memset(sdp->sd_quota_bitmap, 0,
-	       sdp->sd_quota_chunks * sizeof(unsigned char *));
 
 	for (x = 0; x < sdp->sd_quota_chunks; x++) {
-		sdp->sd_quota_bitmap[x] = kmalloc(PAGE_SIZE, GFP_KERNEL);
+		sdp->sd_quota_bitmap[x] = kzalloc(PAGE_SIZE, GFP_KERNEL);
 		if (!sdp->sd_quota_bitmap[x])
 			goto fail;
-		memset(sdp->sd_quota_bitmap[x], 0, PAGE_SIZE);
 	}
 
 	for (x = 0; x < blocks; x++) {

@@ -39,11 +39,10 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 		return -EINVAL;
 	}
 
-	tr = kmalloc(sizeof(struct gfs2_trans), GFP_KERNEL);
+	tr = kzalloc(sizeof(struct gfs2_trans), GFP_KERNEL);
 	if (!tr)
 		return -ENOMEM;
 
-	memset(tr, 0, sizeof(struct gfs2_trans));
 	tr->tr_file = file;
 	tr->tr_line = line;
 	tr->tr_blocks = blocks;

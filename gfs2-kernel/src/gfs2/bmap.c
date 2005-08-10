@@ -321,8 +321,7 @@ static struct metapath *find_metapath(struct gfs2_inode *ip, uint64_t block)
 	uint64_t b = block;
 	unsigned int i;
 
-	mp = kmalloc(sizeof(struct metapath), GFP_KERNEL | __GFP_NOFAIL);
-	memset(mp, 0, sizeof(struct metapath));
+	mp = kzalloc(sizeof(struct metapath), GFP_KERNEL | __GFP_NOFAIL);
 
 	for (i = ip->i_di.di_height; i--;)
 		mp->mp_list[i] = do_div(b, sdp->sd_inptrs);

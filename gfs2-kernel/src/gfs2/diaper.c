@@ -324,10 +324,9 @@ static struct diaper_holder *diaper_get(struct block_device *real, int flags)
 	if (minor < 0)
 		return ERR_PTR(error);
 
-	dh = kmalloc(sizeof(struct diaper_holder), GFP_KERNEL);
+	dh = kzalloc(sizeof(struct diaper_holder), GFP_KERNEL);
 	if (!dh)
 		goto fail;
-	memset(dh, 0, sizeof(struct diaper_holder));
 
 	gd = alloc_disk(1);
 	if (!gd)

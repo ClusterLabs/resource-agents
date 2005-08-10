@@ -155,9 +155,8 @@ static struct gfs2_unlinked *ul_alloc(struct gfs2_sbd *sdp)
 {
 	struct gfs2_unlinked *ul;
 
-	ul = kmalloc(sizeof(struct gfs2_unlinked), GFP_KERNEL);
+	ul = kzalloc(sizeof(struct gfs2_unlinked), GFP_KERNEL);
 	if (ul) {
-		memset(ul, 0, sizeof(struct gfs2_unlinked));
 		INIT_LIST_HEAD(&ul->ul_list);
 		ul->ul_count = 1;
 		set_bit(ULF_LOCKED, &ul->ul_flags);
@@ -337,19 +336,16 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 
 	error = -ENOMEM;
 
-	sdp->sd_unlinked_bitmap = kmalloc(sdp->sd_unlinked_chunks *
+	sdp->sd_unlinked_bitmap = kzalloc(sdp->sd_unlinked_chunks *
 					  sizeof(unsigned char *),
 					  GFP_KERNEL);
 	if (!sdp->sd_unlinked_bitmap)
 		return error;
-	memset(sdp->sd_unlinked_bitmap, 0,
-	       sdp->sd_unlinked_chunks * sizeof(unsigned char *));
 
 	for (x = 0; x < sdp->sd_unlinked_chunks; x++) {
-		sdp->sd_unlinked_bitmap[x] = kmalloc(PAGE_SIZE, GFP_KERNEL);
+		sdp->sd_unlinked_bitmap[x] = kzalloc(PAGE_SIZE, GFP_KERNEL);
 		if (!sdp->sd_unlinked_bitmap[x])
 			goto fail;
-		memset(sdp->sd_unlinked_bitmap[x], 0, PAGE_SIZE);
 	}
 
 	for (x = 0; x < blocks; x++) {

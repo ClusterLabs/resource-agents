@@ -307,10 +307,9 @@ int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 			break;
 
 		error = -ENOMEM;
-		jd = kmalloc(sizeof(struct gfs2_jdesc), GFP_KERNEL);
+		jd = kzalloc(sizeof(struct gfs2_jdesc), GFP_KERNEL);
 		if (!jd)
 			break;
-		memset(jd, 0, sizeof(struct gfs2_jdesc));
 
 		error = gfs2_lookupi(dip, &name, TRUE, &jd->jd_inode);
 		if (error) {
@@ -769,10 +768,9 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 	int error = 0, err;
 
 	memset(sc, 0, sizeof(struct gfs2_statfs_change));
-	gha = kmalloc(slots * sizeof(struct gfs2_holder), GFP_KERNEL);
+	gha = kzalloc(slots * sizeof(struct gfs2_holder), GFP_KERNEL);
 	if (!gha)
 		return -ENOMEM;
-	memset(gha, 0, slots * sizeof(struct gfs2_holder));
 
 	error = gfs2_rindex_hold(sdp, &ri_gh);
 	if (error)
