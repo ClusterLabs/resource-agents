@@ -234,10 +234,10 @@ static ssize_t do_jdata_read(struct file *file, char *buf, size_t size,
 		return -EFAULT;
 
 	if (!(file->f_flags & O_LARGEFILE)) {
-		if (*offset >= 0x7FFFFFFFull)
+		if (*offset >= MAX_NON_LFS)
 			return -EFBIG;
-		if (*offset + size > 0x7FFFFFFFull)
-			size = 0x7FFFFFFFull - *offset;
+		if (*offset + size > MAX_NON_LFS)
+			size = MAX_NON_LFS - *offset;
 	}
 
 	count = gfs2_jdata_read(ip, buf, *offset, size, gfs2_copy2user);
@@ -577,10 +577,10 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
 
 	if (!(file->f_flags & O_LARGEFILE)) {
 		error = -EFBIG;
-		if (*offset >= 0x7FFFFFFFull)
+		if (*offset >= MAX_NON_LFS)
 			goto out_gunlock;
-		if (*offset + size > 0x7FFFFFFFull)
-			size = 0x7FFFFFFFull - *offset;
+		if (*offset + size > MAX_NON_LFS)
+			size = MAX_NON_LFS - *offset;
 	}
 
 	if (gfs2_is_stuffed(ip) ||
@@ -833,10 +833,10 @@ static ssize_t do_write_buf(struct file *file, char *buf, size_t size,
 
 	if (!(file->f_flags & O_LARGEFILE)) {
 		error = -EFBIG;
-		if (*offset >= 0x7FFFFFFFull)
+		if (*offset >= MAX_NON_LFS)
 			goto out_gunlock;
-		if (*offset + size > 0x7FFFFFFFull)
-			size = 0x7FFFFFFFull - *offset;
+		if (*offset + size > MAX_NON_LFS)
+			size = MAX_NON_LFS - *offset;
 	}
 
 	/* split large writes into smaller atomic transactions */
@@ -1239,7 +1239,7 @@ static int gfs2_open(struct inode *inode, struct file *file)
 			goto fail;
 
 		if (!(file->f_flags & O_LARGEFILE) &&
-		    ip->i_di.di_size > 0x7FFFFFFFull) {
+		    ip->i_di.di_size > MAX_NON_LFS) {
 			error = -EFBIG;
 			goto fail_gunlock;
 		}
