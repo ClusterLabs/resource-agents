@@ -139,7 +139,7 @@ void gfs2_page_sync(struct gfs2_glock *gl, int flags)
 int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 			uint64_t block, void *private)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *inode = ip->i_vnode;
 	struct page *page = (struct page *)private;
 	struct buffer_head *bh;
@@ -198,7 +198,7 @@ int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 
 int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct inode *inode = ip->i_vnode;
 	struct page *page;
 	struct buffer_head *bh;
@@ -261,7 +261,7 @@ int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 void gfs2_page_add_databufs(struct gfs2_sbd *sdp, struct page *page,
 			    unsigned int from, unsigned int to)
 {
-       	struct buffer_head *head = page_buffers(page);
+	struct buffer_head *head = page_buffers(page);
 	unsigned int bsize = head->b_size;
 	struct buffer_head *bh;
 	unsigned int start, end;

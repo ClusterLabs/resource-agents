@@ -195,8 +195,8 @@ int gfs2_check_acl(struct inode *inode, int mask)
 
 static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
-       	struct buffer_head *dibh;
+	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct buffer_head *dibh;
 	int error;
 
 	error = gfs2_trans_begin(sdp, RES_DINODE, 0);
@@ -220,7 +220,7 @@ static int munge_mode(struct gfs2_inode *ip, mode_t mode)
 
 int gfs2_acl_create(struct gfs2_inode *dip, struct gfs2_inode *ip)
 {
-       	struct gfs2_sbd *sdp = dip->i_sbd;
+	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct posix_acl *acl = NULL, *clone;
 	struct gfs2_ea_request er;
 	mode_t mode = ip->i_di.di_mode;

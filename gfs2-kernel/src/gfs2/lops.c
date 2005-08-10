@@ -155,7 +155,7 @@ static void buf_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 static void buf_lo_before_scan(struct gfs2_jdesc *jd,
 			       struct gfs2_log_header *head, int pass)
 {
-       	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
+	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (pass != 0)
 		return;
@@ -302,9 +302,9 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 static void revoke_lo_before_scan(struct gfs2_jdesc *jd,
 				  struct gfs2_log_header *head, int pass)
 {
-       	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
+	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
-       	if (pass != 0)
+	if (pass != 0)
 		return;
 
 	sdp->sd_found_revokes = 0;
@@ -356,18 +356,18 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 		first = FALSE;
 	}
 
-       	return 0;
+	return 0;
 }
 
 static void revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 {
-       	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
+	struct gfs2_sbd *sdp = jd->jd_inode->i_sbd;
 
 	if (error) {
 		gfs2_revoke_clean(sdp);
 		return;
 	}
-       	if (pass != 1)
+	if (pass != 1)
 		return;
 
 	printk("GFS2: fsid=%s: jid=%u: Found %u revoke tags\n",

@@ -423,7 +423,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 
 void gfs2_unlinked_cleanup(struct gfs2_sbd *sdp)
 {
-       	struct list_head *head = &sdp->sd_unlinked_list;
+	struct list_head *head = &sdp->sd_unlinked_list;
 	struct gfs2_unlinked *ul;
 	unsigned int x;
 

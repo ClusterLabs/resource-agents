@@ -35,7 +35,7 @@
 int gfs2_resize_add_rgrps(struct gfs2_sbd *sdp, char __user *buf,
 			  unsigned int size)
 {
-       	unsigned int num = size / sizeof(struct gfs2_rindex);
+	unsigned int num = size / sizeof(struct gfs2_rindex);
 	struct gfs2_inode *ip = sdp->sd_rindex;
 	struct gfs2_alloc *al = NULL;
 	struct gfs2_holder i_gh;
@@ -154,7 +154,7 @@ int gfs2_rename2system(struct gfs2_inode *ip,
 		       struct gfs2_inode *old_dip, char *old_name,
 		       struct gfs2_inode *new_dip, char *new_name)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_holder ghs[3];
 	struct qstr old_qstr, new_qstr;
 	struct gfs2_inum inum;

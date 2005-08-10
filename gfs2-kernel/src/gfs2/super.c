@@ -604,7 +604,7 @@ int gfs2_statfs_init(struct gfs2_sbd *sdp)
 void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
 			int64_t dinodes)
 {
-       	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
+	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
 	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
 	struct buffer_head *l_bh;
 	int error;
@@ -631,7 +631,7 @@ void gfs2_statfs_change(struct gfs2_sbd *sdp, int64_t total, int64_t free,
 int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 {
 	struct gfs2_inode *m_ip = sdp->sd_statfs_inode;
-       	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
+	struct gfs2_inode *l_ip = sdp->sd_sc_inode;
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
 	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
 	struct gfs2_holder gh;
@@ -705,7 +705,7 @@ int gfs2_statfs_sync(struct gfs2_sbd *sdp)
 int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 {
 	struct gfs2_statfs_change *m_sc = &sdp->sd_statfs_master;
-       	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
+	struct gfs2_statfs_change *l_sc = &sdp->sd_statfs_local;
 
 	spin_lock(&sdp->sd_statfs_spin);
 
@@ -737,7 +737,7 @@ int gfs2_statfs_i(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 static int statfs_slow_fill(struct gfs2_rgrpd *rgd,
 			    struct gfs2_statfs_change *sc)
 {
-       	gfs2_rgrp_verify(rgd);
+	gfs2_rgrp_verify(rgd);
 	sc->sc_total += rgd->rd_ri.ri_data;
 	sc->sc_free += rgd->rd_rg.rg_free;
 	sc->sc_dinodes += rgd->rd_rg.rg_dinodes;
@@ -842,7 +842,7 @@ struct lfcc {
 
 int gfs2_lock_fs_check_clean(struct gfs2_sbd *sdp, struct gfs2_holder *t_gh)
 {
-       	struct gfs2_holder ji_gh;
+	struct gfs2_holder ji_gh;
 	struct gfs2_jdesc *jd;
 	struct lfcc *lfcc;
 	LIST_HEAD(list);

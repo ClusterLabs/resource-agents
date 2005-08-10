@@ -33,7 +33,7 @@
 
 int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 {
-       	struct gfs2_args *args = &sdp->sd_args;
+	struct gfs2_args *args = &sdp->sd_args;
 	char *data = data_arg;
 	char *options, *o, *v;
 	int error = 0;

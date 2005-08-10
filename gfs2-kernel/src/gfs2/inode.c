@@ -345,7 +345,7 @@ static int inode_create(struct gfs2_glock *i_gl, struct gfs2_inum *inum,
 int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 		   struct gfs2_inode **ipp)
 {
-       	struct gfs2_sbd *sdp = i_gl->gl_sbd;
+	struct gfs2_sbd *sdp = i_gl->gl_sbd;
 	struct gfs2_glock *io_gl;
 	int error = 0;
 
@@ -756,7 +756,7 @@ int gfs2_lookupi(struct gfs2_inode *dip, struct qstr *name, int is_root,
 
 static int pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 {
-       	struct gfs2_inode *ip = sdp->sd_ir_inode;
+	struct gfs2_inode *ip = sdp->sd_ir_inode;
 	struct buffer_head *bh;
 	struct gfs2_inum_range ir;
 	int error;
@@ -797,7 +797,7 @@ static int pick_formal_ino_1(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 
 static int pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 {
-       	struct gfs2_inode *ip = sdp->sd_ir_inode;
+	struct gfs2_inode *ip = sdp->sd_ir_inode;
 	struct gfs2_inode *m_ip = sdp->sd_inum_inode;
 	struct gfs2_holder gh;
 	struct buffer_head *bh;
@@ -862,7 +862,7 @@ static int pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 
 static int pick_formal_ino(struct gfs2_sbd *sdp, uint64_t *inum)
 {
-       	int error;
+	int error;
 
 	error = pick_formal_ino_1(sdp, inum);
 	if (error <= 0)
@@ -1022,7 +1022,7 @@ static void init_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
 static int make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
 		       unsigned int mode, struct gfs2_unlinked *ul)
 {
-       	struct gfs2_sbd *sdp = dip->i_sbd;
+	struct gfs2_sbd *sdp = dip->i_sbd;
 	unsigned int uid, gid;
 	int error;
 
@@ -1065,7 +1065,7 @@ static int make_dinode(struct gfs2_inode *dip, struct gfs2_glock *gl,
 static int link_dinode(struct gfs2_inode *dip, struct qstr *name,
 		       struct gfs2_inode *ip, struct gfs2_unlinked *ul)
 {
-       	struct gfs2_sbd *sdp = dip->i_sbd;
+	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_alloc *al;
 	int alloc_required;
 	struct buffer_head *dibh;

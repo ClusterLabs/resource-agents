@@ -311,7 +311,7 @@ int gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
 
 void gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 {
-       	struct list_head *head = &ai->ai_ail2_list;
+	struct list_head *head = &ai->ai_ail2_list;
 	struct gfs2_bufdata *bd;
 
 	while (!list_empty(head)) {
@@ -385,7 +385,7 @@ void gfs2_ail_empty_gl(struct gfs2_glock *gl)
 
 void gfs2_meta_inval(struct gfs2_glock *gl)
 {
-       	struct gfs2_sbd *sdp = gl->gl_sbd;
+	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct inode *aspace = gl->gl_aspace;
 	struct address_space *mapping = gl->gl_aspace->i_mapping;
 

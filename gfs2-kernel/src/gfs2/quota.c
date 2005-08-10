@@ -1170,7 +1170,7 @@ void gfs2_quota_cleanup(struct gfs2_sbd *sdp)
 {
 	struct list_head *head = &sdp->sd_quota_list;
 	struct gfs2_quota_data *qd;
-      	unsigned int x;
+	unsigned int x;
 
 	spin_lock(&sdp->sd_quota_spin);
 	while (!list_empty(head)) {
@@ -1205,7 +1205,7 @@ void gfs2_quota_cleanup(struct gfs2_sbd *sdp)
 
 	gfs2_assert_warn(sdp, !atomic_read(&sdp->sd_quota_count));
 
- 	if (sdp->sd_quota_bitmap) {
+	if (sdp->sd_quota_bitmap) {
 		for (x = 0; x < sdp->sd_quota_chunks; x++)
 			kfree(sdp->sd_quota_bitmap[x]);
 		kfree(sdp->sd_quota_bitmap);

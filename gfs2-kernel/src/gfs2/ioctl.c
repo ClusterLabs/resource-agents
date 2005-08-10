@@ -183,7 +183,7 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		       char *buf, unsigned int size, unsigned int *count)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_args *args = &sdp->sd_args;
 	int error = -ENOBUFS;
 
@@ -260,7 +260,7 @@ static int gi_get_lockstruct(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 			 char *buf, unsigned int size, unsigned int *count)
 {
-       	struct gfs2_sbd *sdp = ip->i_sbd;
+	struct gfs2_sbd *sdp = ip->i_sbd;
 	struct gfs2_statfs_change sc;
 	int error;
 
@@ -492,7 +492,7 @@ do { \
 static int gi_set_tune(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	struct gfs2_tune *gt = &sdp->sd_tune;
- 	char param[ARG_SIZE], value[ARG_SIZE];
+	char param[ARG_SIZE], value[ARG_SIZE];
 	unsigned int x;
 
 	if (!capable(CAP_SYS_ADMIN))

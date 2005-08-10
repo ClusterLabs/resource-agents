@@ -545,7 +545,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 
 static int init_per_node(struct gfs2_sbd *sdp, int undo)
 {
-       	struct gfs2_inode *pn = NULL;
+	struct gfs2_inode *pn = NULL;
 	char buf[30];
 	int error = 0;
 

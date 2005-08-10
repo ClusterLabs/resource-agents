@@ -1155,7 +1155,7 @@ static int gfs2_getattr(struct vfsmount *mnt, struct dentry *dentry,
 static int gfs2_setxattr(struct dentry *dentry, const char *name,
 			 const void *data, size_t size, int flags)
 {
-       	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
+	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 	struct gfs2_ea_request er;
 
 	atomic_inc(&ip->i_sbd->sd_ops_inode);

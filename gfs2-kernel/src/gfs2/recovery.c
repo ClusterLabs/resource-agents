@@ -107,7 +107,7 @@ int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 
 void gfs2_revoke_clean(struct gfs2_sbd *sdp)
 {
-       	struct list_head *head = &sdp->sd_revoke_list;
+	struct list_head *head = &sdp->sd_revoke_list;
 	struct gfs2_revoke_replay *rr;
 
 	while (!list_empty(head)) {

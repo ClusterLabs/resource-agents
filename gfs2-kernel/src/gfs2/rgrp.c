@@ -155,7 +155,7 @@ struct gfs2_rgrpd *gfs2_rgrpd_get_next(struct gfs2_rgrpd *rgd)
 
 static void clear_rgrpdi(struct gfs2_sbd *sdp)
 {
-       	struct list_head *head;
+	struct list_head *head;
 	struct gfs2_rgrpd *rgd;
 	struct gfs2_glock *gl;
 
@@ -475,7 +475,7 @@ void gfs2_rgrp_bh_hold(struct gfs2_rgrpd *rgd)
 
 void gfs2_rgrp_bh_put(struct gfs2_rgrpd *rgd)
 {
-       	struct gfs2_sbd *sdp = rgd->rd_sbd;
+	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	int x, length = rgd->rd_ri.ri_length;
 
 	spin_lock(&sdp->sd_rindex_spin);
@@ -570,7 +570,7 @@ void gfs2_alloc_put(struct gfs2_inode *ip)
 
 static int try_rgrp_fit(struct gfs2_rgrpd *rgd, struct gfs2_alloc *al)
 {
-       	struct gfs2_sbd *sdp = rgd->rd_sbd;
+	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	int ret = 0;
 
 	spin_lock(&sdp->sd_rindex_spin);
@@ -1157,7 +1157,7 @@ uint64_t gfs2_alloc_meta(struct gfs2_inode *ip)
 
 uint64_t gfs2_alloc_di(struct gfs2_inode *dip)
 {
-       	struct gfs2_sbd *sdp = dip->i_sbd;
+	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_alloc *al = dip->i_alloc;
 	struct gfs2_rgrpd *rgd = al->al_rgd;
 	uint32_t blk;
@@ -1250,7 +1250,7 @@ void gfs2_free_meta(struct gfs2_inode *ip, uint64_t bstart, uint32_t blen)
 
 void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 {
-       	struct gfs2_sbd *sdp = rgd->rd_sbd;
+	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	struct gfs2_rgrpd *tmp_rgd;
 
 	tmp_rgd = rgblk_free(sdp, blkno, 1, GFS2_BLKST_FREE);
@@ -1279,7 +1279,7 @@ void gfs2_free_uninit_di(struct gfs2_rgrpd *rgd, uint64_t blkno)
 
 void gfs2_free_di(struct gfs2_rgrpd *rgd, struct gfs2_inode *ip)
 {
-       	gfs2_free_uninit_di(rgd, ip->i_num.no_addr);
+	gfs2_free_uninit_di(rgd, ip->i_num.no_addr);
 	gfs2_quota_change(ip, -1, ip->i_di.di_uid, ip->i_di.di_gid);
 	gfs2_meta_wipe(ip, ip->i_num.no_addr, 1);
 }

@@ -904,7 +904,7 @@ static int trunc_start(struct gfs2_inode *ip, uint64_t size,
 static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 {
 	unsigned int height = ip->i_di.di_height;
- 	uint64_t lblock;
+	uint64_t lblock;
 	struct metapath *mp;
 	int error;
 
@@ -1025,7 +1025,7 @@ int gfs2_truncatei(struct gfs2_inode *ip, uint64_t size,
 {
 	int error;
 
-       	if (gfs2_assert_warn(ip->i_sbd, S_ISREG(ip->i_di.di_mode)))
+	if (gfs2_assert_warn(ip->i_sbd, S_ISREG(ip->i_di.di_mode)))
 		return -EINVAL;
 
 	if (size > ip->i_di.di_size)
