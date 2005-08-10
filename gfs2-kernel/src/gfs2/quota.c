@@ -49,7 +49,7 @@ static uint64_t qd2offset(struct gfs2_quota_data *qd)
 static int qd_alloc(struct gfs2_sbd *sdp, int user, uint32_t id,
 		    struct gfs2_quota_data **qdp)
 {
-       	struct gfs2_quota_data *qd;
+	struct gfs2_quota_data *qd;
 	int error;
 
 	qd = kzalloc(sizeof(struct gfs2_quota_data), GFP_KERNEL);
@@ -216,7 +216,7 @@ static void slot_put(struct gfs2_quota_data *qd)
 
 static int bh_get(struct gfs2_quota_data *qd)
 {
-       	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
+	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 	struct gfs2_inode *ip = sdp->sd_qc_inode;
 	unsigned int block, offset;
 	uint64_t dblock;
@@ -331,7 +331,7 @@ static int qd_fish(struct gfs2_sbd *sdp, struct gfs2_quota_data **qdp)
 
 static int qd_trylock(struct gfs2_quota_data *qd)
 {
-       	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
+	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
 	if (sdp->sd_vfs->s_flags & MS_RDONLY)
 		return FALSE;
@@ -546,7 +546,7 @@ static int do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 	struct gfs2_quota_data *qd;
 	uint64_t offset;
 	unsigned int nalloc = 0;
-       	struct gfs2_alloc *al = NULL;
+	struct gfs2_alloc *al = NULL;
 	int error;
 
 	gfs2_write_calc_reserv(ip, sizeof(struct gfs2_quota),
@@ -770,7 +770,7 @@ int gfs2_quota_lock(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 		gfs2_quota_unhold(ip);
 	}
 
-       	return error;
+	return error;
 }
 
 static int need_sync(struct gfs2_quota_data *qd)
@@ -841,18 +841,20 @@ void gfs2_quota_unlock(struct gfs2_inode *ip)
 	gfs2_quota_unhold(ip);
 }
 
+#define MAX_LINE 256
+
 static int print_message(struct gfs2_quota_data *qd, char *type)
 {
-       	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
+	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 	struct tty_struct *tty;
 	char *line;
 	int len;
 
-	line = kmalloc(256, GFP_KERNEL);
+	line = kmalloc(MAX_LINE, GFP_KERNEL);
 	if (!line)
 		return -ENOMEM;
 
-	len = snprintf(line, 256, "GFS2: fsid=%s: quota %s for %s %u\r\n",
+	len = snprintf(line, MAX_LINE, "GFS2: fsid=%s: quota %s for %s %u\r\n",
 		       sdp->sd_fsname, type,
 		       (test_bit(QDF_USER, &qd->qd_flags)) ? "user" : "group",
 		       qd->qd_id);
@@ -905,7 +907,7 @@ int gfs2_quota_check(struct gfs2_inode *ip, uint32_t uid, uint32_t gid)
 		}
 	}
 
-       	return error;
+	return error;
 }
 
 void gfs2_quota_change(struct gfs2_inode *ip, int64_t change,
@@ -972,7 +974,7 @@ int gfs2_quota_sync(struct gfs2_sbd *sdp)
 
 	kfree(qda);
 
-       	return error;
+	return error;
 }
 
 int gfs2_quota_refresh(struct gfs2_sbd *sdp, int user, uint32_t id)
@@ -1166,7 +1168,7 @@ void gfs2_quota_scan(struct gfs2_sbd *sdp)
 
 void gfs2_quota_cleanup(struct gfs2_sbd *sdp)
 {
-       	struct list_head *head = &sdp->sd_quota_list;
+	struct list_head *head = &sdp->sd_quota_list;
 	struct gfs2_quota_data *qd;
       	unsigned int x;
 
