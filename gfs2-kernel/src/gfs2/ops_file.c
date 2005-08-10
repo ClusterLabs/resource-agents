@@ -111,10 +111,13 @@ static loff_t gfs2_llseek(struct file *file, loff_t offset, int origin)
 	return error;
 }
 
-#define vma2state(vma) \
-((((vma)->vm_flags & (VM_MAYWRITE | VM_MAYSHARE)) == \
- (VM_MAYWRITE | VM_MAYSHARE)) ? \
- LM_ST_EXCLUSIVE : LM_ST_SHARED) \
+static inline unsigned int vma2state(struct vm_area_struct *vma)
+{
+	if ((vma->vm_flags & (VM_MAYWRITE | VM_MAYSHARE)) ==
+	    (VM_MAYWRITE | VM_MAYSHARE))
+		return LM_ST_EXCLUSIVE;
+	return LM_ST_SHARED;
+}
 
 static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 			    loff_t *offset, do_rw_t operation)
