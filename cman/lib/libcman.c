@@ -518,14 +518,14 @@ int cman_get_node(cman_handle_t handle, int nodeid, cman_node_t *node)
 	int status;
 	VALIDATE_HANDLE(h);
 
-	if (!node)
+	if (!node || strlen(node->cn_name) > sizeof(cman_node.name))
 	{
 		errno = EINVAL;
 		return -1;
 	}
 
 	cman_node.node_id = nodeid;
-	cman_node.name[0] = 0;/* Get by id */
+	strcpy(cman_node.name, node->cn_name);
 	status = info_call(h, CMAN_CMD_GETNODE, &cman_node, sizeof(struct cl_cluster_node),
 			   &cman_node, sizeof(struct cl_cluster_node));
 	if (status < 0)
@@ -637,9 +637,10 @@ int cman_kill_node(cman_handle_t handle, int nodeid)
 	return info_call(h, CMAN_CMD_KILLNODE, &nodeid, sizeof(nodeid), NULL, 0);
 }
 
-int cman_set_votes(cman_handle_t handle, int votes)
+int cman_set_votes(cman_handle_t handle, int votes, int nodeid)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
+	struct cl_set_votes newv;
 	VALIDATE_HANDLE(h);
 
 	if (!votes)
@@ -647,7 +648,9 @@ int cman_set_votes(cman_handle_t handle, int votes)
 		errno = EINVAL;
 		return -1;
 	}
-	return info_call(h, CMAN_CMD_SET_VOTES, &votes, sizeof(votes), NULL, 0);
+	newv.nodeid = nodeid;
+	newv.newvotes  = votes;
+	return info_call(h, CMAN_CMD_SET_VOTES, &newv, sizeof(newv), NULL, 0);
 }
 
 int cman_set_expected_votes(cman_handle_t handle, int evotes)
@@ -683,6 +686,33 @@ int cman_join_cluster(cman_handle_t handle, struct cman_join_info *jinfo)
 	}
 	return info_call(h, CMAN_CMD_JOIN_CLUSTER, jinfo, sizeof(*jinfo), NULL, 0);
 }
+
+int cman_set_mcast(cman_handle_t handle, char *mcast_addr)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!mcast_addr)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_ADD_MCAST, mcast_addr, strlen(mcast_addr)+1, NULL, 0);
+}
+
+int cman_set_interface(cman_handle_t handle, char *if_addr)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!if_addr)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_ADD_IFADDR, if_addr, strlen(if_addr)+1, NULL, 0);
+}
+
 
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo)
 {

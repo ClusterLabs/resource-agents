@@ -119,12 +119,13 @@ typedef struct cman_cluster
  * Passed into cman_join_cluster()
  */
 typedef struct cman_join_info {
-	unsigned char ji_votes;
-	unsigned int  ji_expected_votes;
-	unsigned int  ji_two_node;
-	unsigned int  ji_config_version;
+	unsigned char  ji_votes;
+	unsigned int   ji_expected_votes;
+	unsigned int   ji_two_node;
+	unsigned int   ji_config_version;
+	unsigned short ji_port;
 
-        char          ji_cluster_name[17];
+        char           ji_cluster_name[MAX_CLUSTER_NAME_LEN + 1];
 } cman_join_info_t;
 
 
@@ -203,14 +204,16 @@ int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxle
 
 /*
  * Admin functions. You will need privileges and have a handle created by cman_admin_init()
- * to use them. The first three are used to set up a node for joining.
+ * to use them. The first five are used to set up a node for joining.
  */
 int cman_set_nodename(cman_handle_t handle, char *name);
 int cman_set_nodeid(cman_handle_t handle, int nodeid);
+int cman_set_mcast(cman_handle_t handle, char *mcast_addr);
+int cman_set_interface(cman_handle_t handle, char *if_addr);
 int cman_join_cluster(cman_handle_t handle, struct cman_join_info *jinfo);
 int cman_set_version(cman_handle_t handle, cman_version_t *version);
 int cman_leave_cluster(cman_handle_t handle, int reason);
-int cman_set_votes(cman_handle_t handle, int votes);
+int cman_set_votes(cman_handle_t handle, int votes, int nodeid);
 int cman_set_expected_votes(cman_handle_t handle, int expected_votes);
 int cman_kill_node(cman_handle_t handle, int nodeid);
 
