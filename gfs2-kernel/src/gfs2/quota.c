@@ -552,7 +552,7 @@ static int do_sync(unsigned int num_qd, struct gfs2_quota_data **qda)
 	gfs2_write_calc_reserv(ip, sizeof(struct gfs2_quota),
 			      &data_blocks, &ind_blocks);
 
-	ghs = kmalloc(num_qd * sizeof(struct gfs2_holder), GFP_KERNEL);
+	ghs = kcalloc(num_qd, sizeof(struct gfs2_holder), GFP_KERNEL);
 	if (!ghs)
 		return -ENOMEM;
 
@@ -942,7 +942,7 @@ int gfs2_quota_sync(struct gfs2_sbd *sdp)
 
 	sdp->sd_quota_sync_gen++;
 
-	qda = kzalloc(max_qd * sizeof(struct gfs2_quota_data *), GFP_KERNEL);
+	qda = kcalloc(max_qd, sizeof(struct gfs2_quota_data *), GFP_KERNEL);
 	if (!qda)
 		return -ENOMEM;
 
@@ -1051,7 +1051,7 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 
 	error = -ENOMEM;
 
-	sdp->sd_quota_bitmap = kzalloc(sdp->sd_quota_chunks *
+	sdp->sd_quota_bitmap = kcalloc(sdp->sd_quota_chunks,
 				       sizeof(unsigned char *), GFP_KERNEL);
 	if (!sdp->sd_quota_bitmap)
 		return error;

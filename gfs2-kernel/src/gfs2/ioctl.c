@@ -1418,7 +1418,7 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		return -EFAULT;
 	if (!gi.gi_argc)
 		return -EINVAL;
-	argv = kmalloc(gi.gi_argc * sizeof(char *), GFP_KERNEL);
+	argv = kcalloc(gi.gi_argc, sizeof(char *), GFP_KERNEL);
 	if (!argv)
 		return -ENOMEM;
 	if (copy_from_user(argv, gi.gi_argv,

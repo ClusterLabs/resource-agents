@@ -1701,7 +1701,7 @@ int gfs2_glock_nq_m(unsigned int num_gh, struct gfs2_holder *ghs)
 		return gfs2_glock_nq(ghs);
 	}
 
-	e = kmalloc(num_gh * sizeof(struct gfs2_holder *), GFP_KERNEL);
+	e = kcalloc(num_gh, sizeof(struct gfs2_holder *), GFP_KERNEL);
 	if (!e)
 		return -ENOMEM;
 

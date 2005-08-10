@@ -336,7 +336,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 
 	error = -ENOMEM;
 
-	sdp->sd_unlinked_bitmap = kzalloc(sdp->sd_unlinked_chunks *
+	sdp->sd_unlinked_bitmap = kcalloc(sdp->sd_unlinked_chunks,
 					  sizeof(unsigned char *),
 					  GFP_KERNEL);
 	if (!sdp->sd_unlinked_bitmap)

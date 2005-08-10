@@ -686,7 +686,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 	   Don't bother distinguishing stuffed from non-stuffed.
 	   This code is complicated enough already. */
 
-	lp = kmalloc(half_len * sizeof(uint64_t), GFP_KERNEL | __GFP_NOFAIL);
+	lp = kcalloc(half_len, sizeof(uint64_t), GFP_KERNEL | __GFP_NOFAIL);
 
 	error = gfs2_jdata_read_mem(dip, (char *)lp, start * sizeof(uint64_t),
 				    half_len * sizeof(uint64_t));
@@ -818,7 +818,7 @@ static int dir_double_exhash(struct gfs2_inode *dip)
 
 	/*  Allocate both the "from" and "to" buffers in one big chunk  */
 
-	buf = kmalloc(3 * sdp->sd_hash_bsize, GFP_KERNEL | __GFP_NOFAIL);
+	buf = kcalloc(3, sdp->sd_hash_bsize, GFP_KERNEL | __GFP_NOFAIL);
 
 	for (block = dip->i_di.di_size >> sdp->sd_hash_bsize_shift; block--;) {
 		error = gfs2_jdata_read_mem(dip, (char *)buf,
@@ -1020,7 +1020,7 @@ static int do_filldir_single(struct gfs2_inode *dip, uint64_t *offset,
 	if (!entries)
 		return 0;
 
-	darr = kmalloc(entries * sizeof(struct gfs2_dirent *), GFP_KERNEL);
+	darr = kcalloc(entries, sizeof(struct gfs2_dirent *), GFP_KERNEL);
 	if (!darr)
 		return -ENOMEM;
 
@@ -1106,13 +1106,12 @@ static int do_filldir_multi(struct gfs2_inode *dip, uint64_t *offset,
 		return 0;
 
 	if (leaves) {
-		larr = kmalloc(leaves * sizeof(struct buffer_head *),
-			       GFP_KERNEL);
+		larr = kcalloc(leaves, sizeof(struct buffer_head *),GFP_KERNEL);
 		if (!larr)
 			return -ENOMEM;
 	}
 
-	darr = kmalloc(entries * sizeof(struct gfs2_dirent *), GFP_KERNEL);
+	darr = kcalloc(entries, sizeof(struct gfs2_dirent *), GFP_KERNEL);
 	if (!darr) {
 		kfree(larr);
 		return -ENOMEM;

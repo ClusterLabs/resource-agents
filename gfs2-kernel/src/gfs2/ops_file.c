@@ -141,7 +141,7 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 		}
 	}
 
-	ghs = kmalloc((num_gh + 1) * sizeof(struct gfs2_holder), GFP_KERNEL);
+	ghs = kcalloc((num_gh + 1), sizeof(struct gfs2_holder), GFP_KERNEL);
 	if (!ghs) {
 		if (!dumping)
 			up_read(&mm->mmap_sem);

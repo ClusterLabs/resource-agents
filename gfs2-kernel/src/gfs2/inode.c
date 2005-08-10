@@ -1670,7 +1670,7 @@ int gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
 		return error;
 	}
 
-	p = kmalloc(num_gh * sizeof(struct gfs2_holder *), GFP_KERNEL);
+	p = kcalloc(num_gh, sizeof(struct gfs2_holder *), GFP_KERNEL);
 	if (!p)
 		return -ENOMEM;
 
