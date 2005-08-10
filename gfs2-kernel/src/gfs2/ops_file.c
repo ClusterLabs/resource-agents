@@ -15,16 +15,15 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
-#include <asm/uaccess.h>
 #include <linux/pagemap.h>
 #include <linux/uio.h>
 #include <linux/blkdev.h>
 #include <linux/mm.h>
-#include <asm/uaccess.h>
 #include <linux/gfs2_ioctl.h>
+#include <asm/semaphore.h>
+#include <asm/uaccess.h>
 
 #include "gfs2.h"
 #include "bmap.h"

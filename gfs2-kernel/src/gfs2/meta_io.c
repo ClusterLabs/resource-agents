@@ -15,7 +15,6 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/mm.h>
@@ -23,6 +22,7 @@
 #include <linux/writeback.h>
 #include <linux/swap.h>
 #include <linux/delay.h>
+#include <asm/semaphore.h>
 
 #include "gfs2.h"
 #include "glock.h"

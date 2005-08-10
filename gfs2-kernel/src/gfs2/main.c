@@ -15,12 +15,12 @@
 #include <linux/slab.h>
 #include <linux/smp_lock.h>
 #include <linux/spinlock.h>
-#include <asm/semaphore.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <asm/semaphore.h>
 
 #include "gfs2.h"
 #include "diaper.h"
