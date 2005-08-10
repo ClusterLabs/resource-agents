@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.419 $) dnl cvs revision
+AC_REVISION($Revision: 1.420 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -818,7 +818,8 @@ AC_TRY_COMPILE([#include <OpenIPMI/ipmiif.h>],
   #endif ], 
   AC_MSG_RESULT("yes")
     AM_CONDITIONAL(USE_OPENIPMI, true),
-  AC_MSG_RESULT("no"))
+  AC_MSG_RESULT("no")
+    AM_CONDITIONAL(USE_OPENIPMI, false))
 
 AC_MSG_CHECKING(for special libxml2 includes)
 if test "x$XML2CONFIG" = "x"; then
