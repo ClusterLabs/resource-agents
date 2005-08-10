@@ -152,6 +152,9 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 	if (test_and_set_bit(SDF_SHUTDOWN, &sdp->sd_flags))
 		return 0;
 
+	/* FIXME: tell dm to reject further bio's on our device */
+	BUG();
+
 	va_start(args, fmt);
 	vprintk(fmt, args);
 	va_end(args);
@@ -162,8 +165,12 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 		BUG();
 
 	printk("GFS2: fsid=%s: waiting for outstanding I/O\n", sdp->sd_fsname);
+
+	/* FIXME: poll dm until there are no outstanding bio's on our device */
+	/*
 	while (atomic_read(&sdp->sd_bio_outstanding))
 		msleep(100);
+	*/
 
 	printk("GFS2: fsid=%s: telling LM to withdraw\n", sdp->sd_fsname);
 	lm_withdraw(&sdp->sd_lockstruct);

@@ -24,7 +24,6 @@
 
 #include "gfs2.h"
 #include "daemon.h"
-#include "diaper.h"
 #include "glock.h"
 #include "glops.h"
 #include "inode.h"
@@ -41,8 +40,6 @@
 
 #define DO FALSE
 #define UNDO TRUE
-
-#undef NO_DIAPER
 
 static struct gfs2_sbd *init_sbd(struct super_block *sb)
 {
@@ -280,9 +277,6 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 	sb_gh.gh_gl->gl_aspace->i_blkbits = sdp->sd_sb.sb_bsize_shift;
 
 	sb_set_blocksize(sb, sdp->sd_sb.sb_bsize);
-#ifndef NO_DIAPER
-	set_blocksize(gfs2_diaper_2real(sb->s_bdev), sdp->sd_sb.sb_bsize);
-#endif
 
 	error = gfs2_lookup_master_dir(sdp);
 	if (error)
@@ -741,9 +735,8 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 		return -ENOMEM;
 	}
 
-#ifndef NO_DIAPER
-	gfs2_diaper_register_sbd(sb->s_bdev, sdp);
-#endif
+	/* FIXME: do we need a reference from dm for sb->s_bdev that can be
+	   used later in gfs2_lm_withdraw() ? */
 
 	error = gfs2_mount_args(sdp, (char *)data, FALSE);
 	if (error) {
@@ -849,112 +842,17 @@ int gfs2_set_bdev_super(struct super_block *sb, void *data)
 	return 0;
 }
 
-#ifdef NO_DIAPER
 struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 				const char *dev_name, void *data)
 {
 	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
 }
-#else
-/**
- * gfs2_get_sb -
- * @fs_type:
- * @flags:
- * @dev_name:
- * @data:
- *
- * Rip off of get_sb_bdev().
- *
- * Returns: the new superblock
- */
-
-static struct super_block *gfs2_get_sb(struct file_system_type *fs_type,
-				       int flags, const char *dev_name,
-				       void *data)
-{
-	struct block_device *real, *diaper;
-	struct super_block *sb;
-	int error = 0;
-
-	real = open_bdev_excl(dev_name, flags, fs_type);
-	if (IS_ERR(real))
-		return (struct super_block *)real;
-
-	diaper = gfs2_diaper_get(real, flags);
-	if (IS_ERR(diaper)) {
-		close_bdev_excl(real);
-		return (struct super_block *)diaper;
-	}
-
-	down(&diaper->bd_mount_sem);
-	sb = sget(fs_type, gfs2_test_bdev_super, gfs2_set_bdev_super, diaper);
-	up(&diaper->bd_mount_sem);
-	if (IS_ERR(sb))
-		goto out;
-
-	if (sb->s_root) {
-		if ((flags ^ sb->s_flags) & MS_RDONLY) {
-			up_write(&sb->s_umount);
-			deactivate_super(sb);
-			sb = ERR_PTR(-EBUSY);
-		}
-		goto out;
-	} else {
-		char buf[BDEVNAME_SIZE];
-
-		sb->s_flags = flags;
-		strlcpy(sb->s_id, bdevname(real, buf), sizeof(sb->s_id));
-		sb->s_old_blocksize = block_size(real);
-		sb_set_blocksize(sb, sb->s_old_blocksize);
-		set_blocksize(real, sb->s_old_blocksize);
-		error = fill_super(sb, data, (flags & MS_VERBOSE) ? 1 : 0);
-		if (error) {
-			up_write(&sb->s_umount);
-			deactivate_super(sb);
-			sb = ERR_PTR(error);
-		} else
-			sb->s_flags |= MS_ACTIVE;
-	}
-
-	return sb;
-
- out:
-	gfs2_diaper_put(diaper);
-	close_bdev_excl(real);
-	return sb;
-}
-
-/**
- * gfs2_kill_sb -
- * @sb:
- *
- * Rip off of kill_block_super().
- *
- */
-
-static void gfs2_kill_sb(struct super_block *sb)
-{
-	struct block_device *diaper = sb->s_bdev;
-	struct block_device *real = gfs2_diaper_2real(diaper);
-	unsigned long bsize = sb->s_old_blocksize;
-
-	generic_shutdown_super(sb);
-	set_blocksize(diaper, bsize);
-	set_blocksize(real, bsize);
-	gfs2_diaper_put(diaper);
-	close_bdev_excl(real);
-}
-#endif
 
 struct file_system_type gfs2_fs_type = {
 	.name = "gfs2",
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = gfs2_get_sb,
-#ifdef NO_DIAPER
 	.kill_sb = kill_block_super,
-#else
-	.kill_sb = gfs2_kill_sb,
-#endif
 	.owner = THIS_MODULE,
 };
 

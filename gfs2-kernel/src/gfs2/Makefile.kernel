@@ -4,7 +4,6 @@ gfs2-y := \
 	bits.o \
 	bmap.o \
 	daemon.o \
-	diaper.o \
 	dir.o \
 	eaops.o \
 	eattr.o \

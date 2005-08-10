@@ -32,7 +32,6 @@ gfs2-objs := \
 	bits.o \
 	bmap.o \
 	daemon.o \
-	diaper.o \
 	dir.o \
 	eaops.o \
 	eattr.o \

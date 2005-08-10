@@ -23,7 +23,6 @@
 #include <asm/semaphore.h>
 
 #include "gfs2.h"
-#include "diaper.h"
 #include "ops_fstype.h"
 #include "proc.h"
 
@@ -39,11 +38,7 @@ static int __init init_gfs2_fs(void)
 
 	error = gfs2_proc_init();
 	if (error)
-		goto fail;
-
-	error = gfs2_diaper_init();
-	if (error)
-		goto fail_proc;
+		return error;
 
 	error = -ENOMEM;
 
@@ -51,29 +46,29 @@ static int __init init_gfs2_fs(void)
 					      sizeof(struct gfs2_glock),
 					      0, 0, NULL, NULL);
 	if (!gfs2_glock_cachep)
-		goto fail_diaper;
+		goto fail;
 
 	gfs2_inode_cachep = kmem_cache_create("gfs2_inode",
 					      sizeof(struct gfs2_inode),
 					      0, 0, NULL, NULL);
 	if (!gfs2_inode_cachep)
-		goto fail_diaper;
+		goto fail;
 
 	gfs2_bufdata_cachep = kmem_cache_create("gfs2_bufdata",
 						sizeof(struct gfs2_bufdata),
 					        0, 0, NULL, NULL);
 	if (!gfs2_bufdata_cachep)
-		goto fail_diaper;
+		goto fail;
 
 	error = register_filesystem(&gfs2_fs_type);
 	if (error)
-		goto fail_diaper;
+		goto fail;
 
 	printk("GFS2 (built %s %s) installed\n", __DATE__, __TIME__);
 
 	return 0;
 
- fail_diaper:
+ fail:
 	if (gfs2_bufdata_cachep)
 		kmem_cache_destroy(gfs2_bufdata_cachep);
 
@@ -83,12 +78,7 @@ static int __init init_gfs2_fs(void)
 	if (gfs2_glock_cachep)
 		kmem_cache_destroy(gfs2_glock_cachep);
 
-	gfs2_diaper_uninit();
-
- fail_proc:
 	gfs2_proc_uninit();
-
- fail:
 	return error;
 }
 
@@ -105,7 +95,6 @@ static void __exit exit_gfs2_fs(void)
 	kmem_cache_destroy(gfs2_inode_cachep);
 	kmem_cache_destroy(gfs2_glock_cachep);
 
-	gfs2_diaper_uninit();
 	gfs2_proc_uninit();
 }
 
