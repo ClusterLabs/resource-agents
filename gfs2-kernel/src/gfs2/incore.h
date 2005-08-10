@@ -178,7 +178,7 @@ struct gfs2_holder {
 
 struct gfs2_glock {
 	struct list_head gl_list;
-	unsigned long gl_flags;
+	unsigned long gl_flags;		/* GLF_... */
 	struct lm_lockname gl_name;
 	atomic_t gl_count;
 
@@ -247,7 +247,7 @@ struct gfs2_inode {
 	struct gfs2_inum i_num;
 
 	atomic_t i_count;
-	unsigned long i_flags;
+	unsigned long i_flags;		/* GIF_... */
 
 	uint64_t i_vn;
 	struct gfs2_dinode i_di;
@@ -273,7 +273,7 @@ struct gfs2_inode {
 #define GFF_DID_DIRECT_ALLOC	0
 
 struct gfs2_file {
-	unsigned long f_flags;
+	unsigned long f_flags;		/* GFF_... */
 
 	struct semaphore f_fl_mutex;
 	struct gfs2_holder f_fl_gh;
@@ -299,7 +299,7 @@ struct gfs2_unlinked {
 	struct list_head ul_list;
 	unsigned int ul_count;
 	struct gfs2_unlinked_tag ul_ut;
-	unsigned long ul_flags;
+	unsigned long ul_flags;		/* ULF_... */
 	unsigned int ul_slot;
 };
 
@@ -312,7 +312,7 @@ struct gfs2_quota_data {
 	unsigned int qd_count;
 
 	uint32_t qd_id;
-	unsigned long qd_flags;
+	unsigned long qd_flags;		/* QDF_... */
 
 	int64_t qd_change;
 	int64_t qd_change_sync;
@@ -466,7 +466,7 @@ struct gfs2_gl_hash_bucket {
 
 struct gfs2_sbd {
 	struct super_block *sd_vfs;
-	unsigned long sd_flags;
+	unsigned long sd_flags;	/* SDF_... */
 	struct gfs2_sb sd_sb;
 
 	/* Constants computed on mount */
