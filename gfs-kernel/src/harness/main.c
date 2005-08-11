@@ -1,15 +1,11 @@
-/******************************************************************************
-*******************************************************************************
-**
-**  Copyright (C) Sistina Software, Inc.  1997-2003  All rights reserved.
-**  Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
-**
-**  This copyrighted material is made available to anyone wishing to use,
-**  modify, copy, or redistribute it subject to the terms and conditions
-**  of the GNU General Public License v.2.
-**
-*******************************************************************************
-******************************************************************************/
+/*
+ * Copyright (C) Sistina Software, Inc.  1997-2003 All rights reserved.
+ * Copyright (C) 2004-2005 Red Hat, Inc.  All rights reserved.
+ *
+ * This copyrighted material is made available to anyone wishing to use,
+ * modify, copy, or redistribute it subject to the terms and conditions
+ * of the GNU General Public License v.2.
+ */
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -159,12 +155,6 @@ int lm_mount(char *proto_name, char *table_name, char *host_data,
 	return error;
 }
 
-/**
- * lm_unmount - unmount a lock module
- * @lockstruct: the lockstruct passed into mount
- *
- */
-
 void lm_unmount(struct lm_lockstruct *lockstruct)
 {
 	down(&lmh_lock);
@@ -189,12 +179,6 @@ void lm_withdraw(struct lm_lockstruct *lockstruct)
 	up(&lmh_lock);
 }
 
-/**
- * init_lmh - Initialize the lock module harness
- *
- * Returns: 0 on success, -EXXX on failure
- */
-
 int __init init_lmh(void)
 {
 	init_MUTEX(&lmh_lock);
@@ -202,12 +186,6 @@ int __init init_lmh(void)
 	printk("Lock_Harness (built %s %s) installed\n", __DATE__, __TIME__);
 	return 0;
 }
-
-/**
- * exit_lmh - cleanup the Lock Module Harness
- *
- * Returns: 0 on success, -EXXX on failure
- */
 
 void __exit exit_lmh(void)
 {
