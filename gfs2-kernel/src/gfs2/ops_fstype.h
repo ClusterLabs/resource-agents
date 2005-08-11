@@ -14,9 +14,6 @@
 #ifndef __OPS_FSTYPE_DOT_H__
 #define __OPS_FSTYPE_DOT_H__
 
-int gfs2_test_bdev_super(struct super_block *sb, void *data);
-int gfs2_set_bdev_super(struct super_block *sb, void *data);
-
 extern struct file_system_type gfs2_fs_type;
 
 #endif /* __OPS_FSTYPE_DOT_H__ */

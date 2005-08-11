@@ -830,18 +830,6 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	return error;
 }
 
-int gfs2_test_bdev_super(struct super_block *sb, void *data)
-{
-	return (void *)sb->s_bdev == data;
-}
-
-int gfs2_set_bdev_super(struct super_block *sb, void *data)
-{
-	sb->s_bdev = data;
-	sb->s_dev = sb->s_bdev->bd_dev;
-	return 0;
-}
-
 struct super_block *gfs2_get_sb(struct file_system_type *fs_type, int flags,
 				const char *dev_name, void *data)
 {
