@@ -48,6 +48,7 @@ static int wait_for_groupd(int nodeid)
 	cman_node_t cn;
 	int rv;
 
+	memset(&cn, 0, sizeof(cn));
 	while (1) {
 		if (cman_is_listening(ch, nodeid, GROUPD_PORT)) {
 			rv = 0;
@@ -296,6 +297,7 @@ int setup_member_message(void)
 
 	/* FIXME: wait here for us to be a member of the cluster */
 
+	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_print("cman_get_node us error %d %d", rv, errno);
