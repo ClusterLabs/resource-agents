@@ -731,9 +731,6 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 		return -ENOMEM;
 	}
 
-	/* FIXME: do we need a reference from dm for sb->s_bdev that can be
-	   used later in gfs2_lm_withdraw() ? */
-
 	error = gfs2_mount_args(sdp, (char *)data, FALSE);
 	if (error) {
 		printk("GFS2: can't parse mount arguments\n");
