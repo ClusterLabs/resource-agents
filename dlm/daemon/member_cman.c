@@ -173,7 +173,7 @@ int setup_member(void)
 	fd = cman_get_fd(ch);
 
 	/* FIXME: wait here for us to be a member of the cluster */
-
+	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_error("cman_get_node us error %d %d", rv, errno);
