@@ -258,6 +258,7 @@ static void do_process_joinconf(int nodeid, char *buf, int len)
 		}
 
 		us->state = NODESTATE_MEMBER;
+		cluster_members++;
 		we_are_a_cluster_member = 1;
 		P_MEMB("We are now a cluster member\n");
 	}
@@ -334,12 +335,10 @@ static void recalculate_quorum(int allow_decrease)
 static void copy_to_usernode(struct cluster_node *node,
 			     struct cl_cluster_node *unode)
 {
-	int i;
-	struct cluster_node_addr *current_addr;
-	struct cluster_node_addr *node_addr;
+	struct sockaddr_in *sin;
 
 	strcpy(unode->name, node->name);
-//	unode->jointime = node->join_time;
+	unode->jointime = node->join_time;
 	unode->size = sizeof(struct cl_cluster_node);
 	unode->votes = node->votes;
 	unode->state = node->state;
@@ -347,22 +346,12 @@ static void copy_to_usernode(struct cluster_node *node,
 	unode->node_id = node->node_id;
 	unode->leave_reason = node->leave_reason;
 	unode->incarnation = node->incarnation;
-#if 0 // TODO
-	/* Get the address that maps to our current interface */
-	i=0; /* i/f numbers start at 1 */
-	list_iterate_items(node_addr, &node->addr_list) {
-	        if (current_interface_num() == ++i) {
-		        current_addr = node_addr;
-			break;
-		}
-	}
 
-	/* If that failed then just use the first one */
-	if (!current_addr)
- 	        current_addr = (struct cluster_node_addr *)node->addr_list.n;
-
-	memcpy(unode->addr, current_addr->addr, sizeof(struct sockaddr_storage));
-#endif
+	// TODO: IPv6 support when I do it in AIS
+	sin = (struct sockaddr_in *)unode->addr;
+	sin->sin_family = AF_INET;
+	sin->sin_port = 0;
+	sin->sin_addr.s_addr = node->ais_nodeid;
 }
 
 
@@ -395,6 +384,7 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 	int total_votes = 0;
 	int max_expected = 0;
 	struct cluster_node *node;
+	struct sockaddr_in *sin;
 	char *ptr;
 
 	if (!we_are_a_cluster_member)
@@ -431,6 +421,11 @@ static int do_cmd_get_extrainfo(char *cmdbuf, char **retbuf, int retsize, int *r
 
 	ptr = einfo->addresses;
 //TODO	ptr = get_interface_addresses(ptr);
+	sin = (struct sockaddr_in *)ptr;
+	sin->sin_family = AF_INET;
+	sin->sin_port = 0;
+	sin->sin_addr.s_addr = us->ais_nodeid;
+	ptr += sizeof(struct sockaddr_in);
 
 	*retlen = ptr - outbuf;
 	return 0;
@@ -1421,6 +1416,7 @@ void add_ais_node(uint32_t ais_nodeid, uint64_t incarnation, int total_members)
 
 	node->incarnation = incarnation;
 	node->ais_nodeid = ais_nodeid;
+	gettimeofday(&node->join_time, NULL);
 
 	if (node->state == NODESTATE_DEAD)
 		node->state = NODESTATE_JOINING;
@@ -1483,7 +1479,7 @@ static struct cluster_node *get_lowest_node()
 	struct cluster_node *lnode;
 
 	list_iterate_items(node, &cluster_members_list) {
-		if (node->node_id && node->node_id < lowest) {
+		if (node->node_id && node->state == NODESTATE_MEMBER && node->node_id < lowest) {
 			lnode = node;
 			lowest = lnode->node_id;
 		}

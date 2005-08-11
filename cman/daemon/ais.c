@@ -154,9 +154,9 @@ static void confchg_fn(enum totem_configuration_type configuration_type,
 
 	/* Tell the cman membership layer */
 	for (i=0; i<left_list_entries; i++)
-		del_ais_node(left_list->s_addr);
+		del_ais_node(left_list[i].s_addr);
 	for (i=0; i<joined_list_entries; i++)
-		add_ais_node(joined_list->s_addr, incarnation, member_list_entries);
+		add_ais_node(joined_list[i].s_addr, incarnation, member_list_entries);
 }
 
 extern poll_handle ais_poll_handle; // From daemon.c
