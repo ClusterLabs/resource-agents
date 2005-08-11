@@ -185,7 +185,7 @@ static struct dentry *gfs2_get_parent(struct dentry *child)
 	if (error)
 		return ERR_PTR(error);
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -279,7 +279,7 @@ static struct dentry *gfs2_get_dentry(struct super_block *sb, void *inum_p)
 
 	gfs2_glock_dq_uninit(&i_gh);
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)

@@ -130,7 +130,7 @@ static void drop_dentries(struct gfs2_inode *ip)
 	struct inode *inode;
 	struct dentry *d;
 
-	inode = gfs2_ip2v(ip, NO_CREATE);
+	inode = gfs2_ip2v_lookup(ip);
 	if (!inode)
 		return;
 

@@ -96,7 +96,7 @@ void gfs2_inode_attr_in(struct gfs2_inode *ip)
 {
 	struct inode *inode;
 
-	inode = gfs2_ip2v(ip, NO_CREATE);
+	inode = gfs2_ip2v_lookup(ip);
 	if (inode) {
 		inode_attr_in(ip, inode);
 		iput(inode);
@@ -126,26 +126,39 @@ void gfs2_inode_attr_out(struct gfs2_inode *ip)
 }
 
 /**
- * gfs2_ip2v - Get/Create a struct inode for a struct gfs2_inode
+ * gfs2_ip2v_lookup - Get the struct inode for a struct gfs2_inode
  * @ip: the struct gfs2_inode to get the struct inode for
- * @create: create a new struct inode if one does not already exist
  *
- * Returns: A VFS inode, or NULL if NO_CREATE and none in existance
+ * Returns: A VFS inode, or NULL if none
  */
 
-struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create)
+struct inode *gfs2_ip2v_lookup(struct gfs2_inode *ip)
 {
-	struct inode *inode = NULL, *tmp;
+	struct inode *inode = NULL;
 
-	gfs2_assert_warn(ip->i_sbd,
-			 test_bit(GIF_MIN_INIT, &ip->i_flags));
+	gfs2_assert_warn(ip->i_sbd, test_bit(GIF_MIN_INIT, &ip->i_flags));
 
 	spin_lock(&ip->i_spin);
 	if (ip->i_vnode)
 		inode = igrab(ip->i_vnode);
 	spin_unlock(&ip->i_spin);
 
-	if (inode || !create)
+	return inode;
+}
+
+/**
+ * gfs2_ip2v - Get/Create a struct inode for a struct gfs2_inode
+ * @ip: the struct gfs2_inode to get the struct inode for
+ *
+ * Returns: A VFS inode, or NULL if no mem
+ */
+
+struct inode *gfs2_ip2v(struct gfs2_inode *ip)
+{
+	struct inode *inode, *tmp;
+
+	inode = gfs2_ip2v_lookup(ip);
+	if (inode)
 		return inode;
 
 	tmp = new_inode(ip->i_sbd->sd_vfs);
@@ -1710,7 +1723,7 @@ void gfs2_try_toss_vnode(struct gfs2_inode *ip)
 {
 	struct inode *inode;
 
-	inode = gfs2_ip2v(ip, NO_CREATE);
+	inode = gfs2_ip2v_lookup(ip);
 	if (!inode)
 		return;
 

@@ -26,7 +26,8 @@ static inline int gfs2_is_jdata(struct gfs2_inode *ip)
 
 void gfs2_inode_attr_in(struct gfs2_inode *ip);
 void gfs2_inode_attr_out(struct gfs2_inode *ip);
-struct inode *gfs2_ip2v(struct gfs2_inode *ip, int create);
+struct inode *gfs2_ip2v_lookup(struct gfs2_inode *ip);
+struct inode *gfs2_ip2v(struct gfs2_inode *ip);
 struct inode *gfs2_iget(struct super_block *sb, struct gfs2_inum *inum);
 
 void gfs2_inode_min_init(struct gfs2_inode *ip, unsigned int type);

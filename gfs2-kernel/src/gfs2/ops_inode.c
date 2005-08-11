@@ -93,7 +93,7 @@ static int gfs2_create(struct inode *dir, struct dentry *dentry,
 		}
 	}
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -132,7 +132,7 @@ static struct dentry *gfs2_lookup(struct inode *dir, struct dentry *dentry,
 
 	error = gfs2_lookupi(dip, &dentry->d_name, FALSE, &ip);
 	if (!error) {
-		inode = gfs2_ip2v(ip, CREATE);
+		inode = gfs2_ip2v(ip);
 		gfs2_inode_put(ip);
 		if (!inode)
 			return ERR_PTR(-ENOMEM);
@@ -399,7 +399,7 @@ static int gfs2_symlink(struct inode *dir, struct dentry *dentry,
 
 	gfs2_glock_dq_uninit_m(2, ghs);
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -486,7 +486,7 @@ static int gfs2_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 
 	gfs2_glock_dq_uninit_m(2, ghs);
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)
@@ -629,7 +629,7 @@ static int gfs2_mknod(struct inode *dir, struct dentry *dentry, int mode,
 
 	gfs2_glock_dq_uninit_m(2, ghs);
 
-	inode = gfs2_ip2v(ip, CREATE);
+	inode = gfs2_ip2v(ip);
 	gfs2_inode_put(ip);
 
 	if (!inode)
