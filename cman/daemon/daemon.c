@@ -149,6 +149,9 @@ static void remove_client(poll_handle handle, struct connection *con)
 	close(con->fd);
 	if (con->type == CON_CLIENT)
 		list_del(&con->list);
+
+	unbind_con(con);
+
 	free(con);
 	num_connections--;
 }

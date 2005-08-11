@@ -260,6 +260,7 @@ static void do_process_joinconf(int nodeid, char *buf, int len)
 		us->state = NODESTATE_MEMBER;
 		cluster_members++;
 		we_are_a_cluster_member = 1;
+		recalculate_quorum(0);
 		P_MEMB("We are now a cluster member\n");
 	}
 	else {
@@ -732,6 +733,8 @@ static int do_cmd_bind(struct connection *con, char *cmdbuf)
 	int ret = -EADDRINUSE;
 
 	memcpy(&port, cmdbuf, sizeof(int));
+
+	P_MEMB("requested bind to port %d, port_con = %p (us=%p)\n", port, port_array[port], con);
 
 	/* TODO: the kernel version caused a wait here. I don't
 	   think we really need it though */
