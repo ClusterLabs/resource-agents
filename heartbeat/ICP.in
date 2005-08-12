@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+# $Id: ICP.in,v 1.2 2005/08/12 05:44:24 sunjd Exp $
 # 
 # ICP
 #
@@ -8,7 +8,7 @@
 #
 #
 # Author:	Lars Marowsky-Bree <lmb@suse.de>
-# Support:	linux-ha-dev@lists.tummy.com
+# Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
 # Copyright:	(C) 2002 SuSE Linux AG
 #
@@ -53,9 +53,10 @@ usage() {
 	The 'stop' operation releses the given host drive.
 	The 'status' operation reports whether the host drive is reserved.
 	The 'monitor' operation reports whether the host drive is reserved.
+	The 'validate-all' operation reports whether OCF instance parameters are valid.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.1 2004/12/20 16:19:37 sunjd Exp $
+	$Id: ICP.in,v 1.2 2005/08/12 05:44:24 sunjd Exp $
 	!
 }
 
@@ -63,7 +64,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="ICP" version="0.9">
+<resource-agent name="ICP">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -95,6 +96,7 @@ The device name.
 <action name="stop" timeout="10" />
 <action name="status" depth="0" timeout="10" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="10" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 </actions>
 </resource-agent>
@@ -141,6 +143,7 @@ ICP_methods() {
 	status
 	monitor
 	methods
+	validate-all
 	meta-data
 	usage
 	!
@@ -152,31 +155,31 @@ ICP_status() {
         icp_out=$($ICPCLUCON -v -status $1)
         if [ $? -ne 0 ]; then
                 ocf_log "err" "Hostdrive not reserved by us."
-                return 1
+                return $OCF_ERR_GENERIC
         fi
 
         if expr match "$icp_out" \
                 '.*Drive is reserved by this host.*' >/dev/null 2>&1 ; then
                 ocf_log "info" "Volume $1 is reserved by us."
-                return 0
+                return $OCF_SUCCESS
         elif expr match "$icp_out" \
                 '.*Drive is not reserved by any host.*' >/dev/null 2>&1 ; then
                 ocf_log "err" "Volume $1 not reserved by any host."
-                return 1
+                return $OCF_NOT_RUNNING
         else
                 ocf_log "err" "Unknown output from icpclucon. Assuming we do not have a reservation:"
 		ocf_log "err" "$icp_out"
-                return 1
+                return $OCF_NOT_RUNNING
         fi
 }
 
 ICP_report_status() {
   if ICP_status $1 ; then
 	echo "$1: running"
-	return 0
+	return $OCF_SUCCESS
   else
 	echo "$1: not running"
-	return 1
+	return $OCF_NOT_RUNNING
   fi
 }
 
@@ -193,13 +196,13 @@ ICP_monitor() {
     : OK
   else
     ocf_log "err" "ICP host drive $1 is offline"
-    return 1
+    return $OCF_NOT_RUNNING
   fi
 
 }
 
 Clear_bufs() {
-    $BLOCKDEV --flushbufs $2
+    $BLOCKDEV --flushbufs $1
 }
 
 #
@@ -211,7 +214,7 @@ ICP_start() {
   run $ICPCLUCON -v -reserve $1
   if [ $? -ne 0 ]; then
   	ocf_log "info" "Forcing reservation of $1"
-	run $ICPCLUCON -v -force $1 || return 1
+	run $ICPCLUCON -v -force $1 || return $OCF_ERR_GENERIC
   fi
 
   if
@@ -220,10 +223,10 @@ ICP_start() {
     : OK
     # A reservation isn't as prompt as it should be
     sleep 3
-    return 0
+    return $OCF_SUCCESS
   else
     ocf_log "err" "ICP: $1 was not reserved correctly"
-    return 1
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -233,33 +236,69 @@ ICP_start() {
 ICP_stop() {
 
   ocf_log "info" "Releasing ICP host drive $1"
-  run $ICPCLUCON -v -release $1 || return 1
+  run $ICPCLUCON -v -release $1 || return $OCF_ERR_GENERIC
 
   ocf_log "info" "Verifying reservation"
   if ICP_status $1 ; then
     ocf_log "err" "ICP: $1 was not released correctly"
-    return 1
+    return $OCF_ERR_GENERIC
   fi
-  return 0
+  return $OCF_SUCCESS
 }
 
+ICP_validate_all() {
+  $ICPCLUCON -v -status $driveid >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+	ocf_log err "Invalid driveid $driveid"
+	exit $OCF_ERR_ARGS
+  fi
+
+  if [ ! -b $device ]; then
+	ocf_log err "Device $device is not a block device"
+	exit $OCF_ERR_ARGS
+  fi
+
+# Do not know how to check the association of $device with $driveid.
+
+  return $OCF_SUCCESS
+}
 
 #
 #	'main' starts here...
 #
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
+# These operations do not require OCF instance parameters to be set
+case "$1" in
+
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  methods)	ICP_methods
+		exit $OCF_SUCCESS;;
+  
+  usage)	usage
+		exit $OCF_SUCCESS;;
+
+  *)		;;
+esac
+
 if 
-  ( [ -z "$OCF_RESKEY_driveid" ] ||  [ -z "$OCF_RESKEY_device" ] )
+  [ -z "$OCF_RESKEY_driveid" ] 
 then
-  usage
-  exit 1
+  ocf_log err "Please specify OCF_RESKEY_driveid"
+  exit $OCF_ERR_ARGS
+fi
+
+if [ -z "$OCF_RESKEY_device" ]; then
+  ocf_log err "Please specify OCF_RESKEY_device"
+  exit $OCF_ERR_ARGS
 fi
 
 driveid=$OCF_RESKEY_driveid
@@ -267,9 +306,6 @@ device=$OCF_RESKEY_device
 
 # What kind of method was invoked?
 case "$1" in
-
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
 
   start)	ICP_start $driveid
 		Clear_bufs $device
@@ -285,11 +321,9 @@ case "$1" in
   monitor)	ICP_monitor $driveid
 		exit $?;;
 
-  methods)	ICP_methods
-		exit $OCF_SUCCESS;;
+  validate-all)	ICP_validate_all
+		exit $?;;
 
   *)		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
-
-exit 1
