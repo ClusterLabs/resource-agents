@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.3 2005/07/18 20:19:45 horms Exp $
+# $Id: WAS.in,v 1.4 2005/08/12 05:52:57 sunjd Exp $
 # 
 # WAS
 #
@@ -75,6 +75,7 @@ usage() {
 	The 'status' operation reports whether WAS is running
 	The 'monitor' operation reports whether the WAS seems to be working
 		(httpd also needs to be working for this case)
+	The 'validate-all' operation reports whether the OCF instance parameter (OCF_RESKEY_config or OCF_RESKEY_port) is valid
 	The 'methods' operation reports on the methods $0 supports
 
 	This is known to work with the Single Server edition of Websphere,
@@ -102,7 +103,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.3 2005/07/18 20:19:45 horms Exp $
+	$Id: WAS.in,v 1.4 2005/08/12 05:52:57 sunjd Exp $
 	!
 }
 
@@ -110,7 +111,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="WAS" version="0.9">
+<resource-agent name="WAS">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -142,6 +143,7 @@ The WAS-(snoop)-port-number.
 <action name="stop" timeout="300" />
 <action name="status" depth="0" timeout="30" interval="10" start-delay="10" />
 <action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />
 </actions>
@@ -304,8 +306,8 @@ WAS_methods() {
 	stop
 	status
 	methods
+	validate-all
 	meta-data
-	monitor
 	usage
 	!
   if
@@ -371,11 +373,11 @@ WAS_monitor() {
       : OK
     else
       ocf_log "err" "WAS: $1: no user-agent from snoop application"
-      rc=1
+      rc=$OCF_ERR_GENERIC
     fi
   else
     ocf_log "err" "WAS: $1: wget failure: $output"
-    rc=1
+    rc=$OCF_ERR_GENERIC
   fi
   rm -fr $tmpfile
   return $rc
@@ -417,14 +419,14 @@ WAS_start() {
       WAS_wait_4_start $STARTTIME "$@"
     then
       #true
-      return 0
+      return $OCF_SUCCESS
     else
       ocf_log "err" "WAS server $1 did not start correctly"
-      return 1
+      return $OCF_ERR_GENERIC
     fi
   else
     #false
-    return 1
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -444,7 +446,7 @@ WAS_wait_4_start() {
     if
       WAS_status "$@"
     then
-      return 0
+      return $OCF_SUCCESS
     else
       sleep 1
     fi
@@ -473,23 +475,78 @@ WAS_stop() {
   then
     ocf_log "err" "WAS: $1 did not stop correctly"
     #false
-    return 1
+    return $OCF_ERR_GENERIC
   else
     #true
-    return 0
+    return $OCF_SUCCESS
   fi
 }
 
+#
+#	Check if the port is valid, this function code is not decent, but works
+#
+CheckPort() {
+#	Examples of valid port: "1080", "1", "0080"
+#	Examples of invalid port: "1080bad", "0", "0000", ""
+  case "$1" in
+    *[^0-9]*) #got invalid char
+	false;;
+    *[1-9]*) #no invalid char, and has non-zero digit, so is a good port
+	true;;
+    *) #empty string, or string of 0's 
+	false;;
+  esac
+}
 
+WAS_validate_all() {
+  if [ -x $WASBIN/startServer.sh ]; then
+  # $arg should be config file
+	if [ ! -f "$arg" ]; then
+	    ocf_log err "Configuration file [$arg] does not exist"
+	    exit $OCF_ERR_ARGS
+	fi
+
+  # $arg should specify a valid port number at the very least
+	local WASPorts=`GetWASPorts $arg`
+	if [ -z "$WASPorts" ]; then
+	    ocf_log err "No port number specified in configuration file [$arg]"
+	    exit $OCF_ERR_CONFIGURED
+	fi
+
+	local port
+	local have_valid_port=false
+	for port in "$WASPorts"; do
+	    if CheckPort $port; then
+		have_valid_port=true
+		break
+	    fi
+	done
+	if [ "false" = "$have_valid_port" ]; then
+	    ocf_log err "No valid port number specified in configuration file [$arg]"
+	    exit $OCF_ERR_CONFIGURED
+	fi
+	   
+  elif [ -x $WASBIN/startupServer.sh ]; then
+  # $arg should be port number
+	if CheckPort "$arg"; then 
+	    ocf_log err "Port number is required but [$arg] is not valid port number"
+	    exit $OCF_ERR_ARGS
+	fi
+  else
+  # Do not know hot to validate_all
+	ocf_log warn "Do not know how to validate-all, assuming validation OK"
+	return $OCF_SUCCESS
+  fi
+}
 #
 #	'main' starts here...
 #
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
 
 #
@@ -506,9 +563,7 @@ then
   else
     arg=$DEFAULT_WASPORTS
   fi
-fi
-
-if
+elif
   [ ! -z $OCF_RESKEY_config ]  
 then
   arg=$OCF_RESKEY_config
@@ -523,7 +578,7 @@ then
     [0-9]*)	;;	# ignore port numbers...
     *)		ocf_log "err" "WAS configuration file $arg does not exist!"
   		usage
-  		exit 1;;
+  		exit $OCF_ERR_ARGS;;
   esac
 fi
   
@@ -546,6 +601,9 @@ case "$1" in
   monitor)	WAS_monitor $arg
 		exit $?;;
 
+  validate-all)	WAS_validate_all $arg
+		exit $?;;
+
   methods)	WAS_methods
 		exit $?;;
 
@@ -555,5 +613,3 @@ case "$1" in
   *)		usage
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
-
-exit 1
