@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.2 2005/07/15 07:28:08 sunjd Exp $
+# $Id: db2.in,v 1.3 2005/08/12 05:56:01 sunjd Exp $
 # 
 # db2
 #
@@ -9,7 +9,7 @@
 #
 #
 # Author:	Alan Robertson
-#		Support: linux-ha@lists.linux-ha.org
+# Support:	linux-ha@lists.linux-ha.org
 # License:	GNU General Public License (GPL)
 # Copyright:	(C) 2002 - 2005 International Business Machines, Inc.
 #
@@ -21,6 +21,8 @@
 #
 # See usage() function below for more details...
 #
+# OCF instance parameters:
+#	OCF_RESKEY_instance
 
 #######################################################################
 # Initialization:
@@ -29,16 +31,13 @@
 
 #######################################################################
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 SH=/bin/bash
 
 usage() {
-  methods=`db2_methods | grep -v methods`
+  methods=`db2_methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-! >&1
-	usage: $0 db2-database-owner-id ($methods)
-	usage: $0 methods
+	usage: $0 ($methods)
 
 	$0 manages a DB2 Universal Database instance as an HA resource.
 
@@ -46,9 +45,10 @@ usage() {
 	The 'stop' operation stops the database.
 	The 'status' operation reports whether the database is running
 	The 'monitor' operation reports whether the database seems to be working
+	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.2 2005/07/15 07:28:08 sunjd Exp $
+	$Id: db2.in,v 1.3 2005/08/12 05:56:01 sunjd Exp $
 	!
 }
 
@@ -56,7 +56,7 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="db2" version="0.9">
+<resource-agent name="db2">
 <version>1.0</version>
 
 <longdesc lang="en">
@@ -79,6 +79,7 @@ The instance of database.
 <action name="stop" timeout="120" />
 <action name="status" timeout="60" />
 <action name="monitor" depth="0" timeout="30" interval="10" start-delay="10" />
+<action name="validate-all" timeout="5" />
 <action name="meta-data" timeout="5" />
 <action name="methods" timeout="5" />
 </actions>
@@ -96,6 +97,7 @@ db2_methods() {
 	stop
 	status
 	monitor
+	validate-all
 	methods
 	meta-data
 	usage
@@ -179,7 +181,7 @@ db2_start() {
       SQL1026N*|*"is already active"*)
     		ocf_log info "DB2 UDB instance $1 already running: $output";;
 
-      *)	ocf_log err "$output"; return 1;;
+      *)	ocf_log err "$output"; return $OCF_ERR_GENERIC;;
     esac
   fi
   if
@@ -195,8 +197,8 @@ db2_start() {
     fi
     return $?
   else
-    echo "ERROR: DB2 UDB instance $1 not active!"
-    return 1
+    ocf_log err "DB2 UDB instance $1 not active!"
+    return $OCF_ERR_GENERIC
   fi
 }
 
@@ -205,7 +207,7 @@ db2_start() {
 #
 db2_stop() {
   # We ignore the instance, the info we need is already in $vars
-  rc=0
+  rc=$OCF_SUCCESS
   if
     output=`runasdb2 $db2adm/db2stop force`
   then
@@ -218,7 +220,7 @@ db2_stop() {
 		ocf_log info "$output";;
 
       *)	ocf_log err "DB2 UDB instance $1 stop failed: $output"
-		rc=1;;
+		rc=$OCF_ERR_GENERIC;;
     esac
   fi
   logasdb2 $db2db2 terminate
@@ -277,10 +279,11 @@ db2_monitor() {
     else
       ocf_log err "DB2 UDB instance $1 DB $DB is not working"
       ocf_log err "DB2 UDB message: $output"
-      return 1
+      return $OCF_ERR_GENERIC
     fi
   done
-  : ocf_log info "All DBs in DB2 UDB instance $1 appear to be working"
+  ocf_log info "All DBs in DB2 UDB instance $1 appear to be working"
+  return $OCF_SUCCESS
 }
 
 #
@@ -288,17 +291,31 @@ db2_monitor() {
 #
 
 if
-  ( [ $# -eq 0 ] || [ $# -gt 1 ] )
+  ( [ $# -ne 1 ] )
 then
   usage
-  exit 1
+  exit $OCF_ERR_ARGS
 fi
+
+# These operations don't require OCF instance parameters to be set
+case "$1" in
+  meta-data)	meta_data
+		exit $OCF_SUCCESS;;
+
+  usage) 	usage
+		exit $OCF_SUCCESS;;
+
+  methods)	db2_methods
+		exit $?;;
+
+  *);;
+esac
 
 if 
   [ -z "$OCF_RESKEY_instance" ]
 then
-  usage
-  exit 1
+  ocf_log err "Please set OCF_RESKEY_instance to the database instance !"
+  exit $OCF_ERR_ARGS
 fi
 
 instance=$OCF_RESKEY_instance
@@ -309,7 +326,7 @@ if
   [ $US != root -a $US != $instance ]
 then
   ocf_log err "$0 must be run as root or $instance"
-  exit 1
+  exit $OCF_ERR_PERM
 fi
 
 #
@@ -320,16 +337,12 @@ if
 then
   : DB2 info is OK!
 else
-  rc=$?
-  exit $rc
+  exit $OCF_ERR_GENERIC
 fi
 
 
 # What kind of method was invoked?
 case "$1" in
-
-  meta-data)	meta_data
-		exit $OCF_SUCCESS;;
 
   start)	db2_start $instance
 		exit $?;;
@@ -341,24 +354,19 @@ case "$1" in
 		  db2_status $instance
 		then
 		  echo DB2 UDB instance $instance is running
-		  exit 0
+		  exit $OCF_SUCCESS
 		else
 		  echo DB2 UDB instance $instance is stopped
-		  exit 1
+		  exit $OCF_NOT_RUNNING
 		fi
-		exit $?;;
 
   monitor)	db2_monitor $instance
 		exit $?;;
 
-  methods)	db2_methods
-		exit $?;;
-
-  usage)	usage
+  validate-all)	# OCF_RESKEY_instance has already checked within db2info(),
+		# just exit successfully here.
 		exit $OCF_SUCCESS;;
 
   *)		db2_methods
 		exit $OCF_ERR_UNIMPLEMENTED;;
 esac
-
-exit 1
