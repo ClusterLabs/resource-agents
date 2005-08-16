@@ -262,8 +262,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace,
 	ls->ls_low_nodeid = 0;
 	ls->ls_total_weight = 0;
 	ls->ls_node_array = NULL;
-	ls->ls_nodeids_next = NULL;
-	ls->ls_nodeids_next_count = 0;
 
 	memset(&ls->ls_stub_rsb, 0, sizeof(struct dlm_rsb));
 	ls->ls_stub_rsb.res_ls = ls;
@@ -320,6 +318,7 @@ static int new_lockspace(char *name, int namelen, void **lockspace,
 	if (error)
 		goto out_unreg;
 
+	ls->ls_global_id = dlm_lockspace_id(name);
 	*lockspace = ls;
 	return 0;
 

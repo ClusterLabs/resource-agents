@@ -27,8 +27,11 @@ struct dlm_config_info {
 
 extern struct dlm_config_info dlm_config;
 
-extern int dlm_config_init(void);
-extern void dlm_config_exit(void);
+int dlm_config_init(void);
+void dlm_config_exit(void);
+int dlm_node_weight(char *lsname, int nodeid);
+int dlm_nodeid_list(char *lsname, int **ids_out);
+uint32_t dlm_lockspace_id(char *lsname);
 
 #endif				/* __CONFIG_DOT_H__ */
 

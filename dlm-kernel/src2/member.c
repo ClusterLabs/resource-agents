@@ -11,13 +11,13 @@
 ******************************************************************************/
 
 #include "dlm_internal.h"
-#include "member_sysfs.h"
 #include "lockspace.h"
 #include "member.h"
 #include "recoverd.h"
 #include "recover.h"
 #include "lowcomms.h"
 #include "rcom.h"
+#include "config.h"
 
 /*
  * Following called by dlm_recoverd thread
@@ -56,7 +56,7 @@ static int dlm_add_member(struct dlm_ls *ls, int nodeid)
 		return -ENOMEM;
 
 	memb->nodeid = nodeid;
-	memb->weight = dlm_node_weight(nodeid);
+	memb->weight = dlm_node_weight(ls->ls_name, nodeid);
 	add_ordered_member(ls, memb);
 	ls->ls_num_nodes++;
 	return 0;
@@ -262,37 +262,31 @@ int dlm_ls_stop(struct dlm_ls *ls)
 
 int dlm_ls_start(struct dlm_ls *ls)
 {
-	struct dlm_recover *rv, *rv_old;
-	int error = 0;
+	struct dlm_recover *rv = NULL, *rv_old;
+	int *ids = NULL;
+	int error, count;
 
 	rv = kmalloc(sizeof(struct dlm_recover), GFP_KERNEL);
 	if (!rv)
 		return -ENOMEM;
 	memset(rv, 0, sizeof(struct dlm_recover));
 
+	error = count = dlm_nodeid_list(ls->ls_name, &ids);
+	if (error <= 0)
+		goto fail;
+
 	spin_lock(&ls->ls_recover_lock);
 
 	/* the lockspace needs to be stopped before it can be started */
-
 	if (!dlm_locking_stopped(ls)) {
 		spin_unlock(&ls->ls_recover_lock);
 		log_error(ls, "start ignored: lockspace running");
-		kfree(rv);
 		error = -EINVAL;
-		goto out;
+		goto fail;
 	}
 
-	if (!ls->ls_nodeids_next) {
-		spin_unlock(&ls->ls_recover_lock);
-		log_error(ls, "start ignored: existing nodeids_next");
-		kfree(rv);
-		error = -EINVAL;
-		goto out;
-	}
-
-	rv->nodeids = ls->ls_nodeids_next;
-	ls->ls_nodeids_next = NULL;
-	rv->node_count = ls->ls_nodeids_next_count;
+	rv->nodeids = ids;
+	rv->node_count = count;
 	rv->seq = ++ls->ls_recover_seq;
 	rv_old = ls->ls_recover_args;
 	ls->ls_recover_args = rv;
@@ -304,7 +298,11 @@ int dlm_ls_start(struct dlm_ls *ls)
 	}
 
 	dlm_recoverd_kick(ls);
- out:
+	return 0;
+
+ fail:
+	kfree(rv);
+	kfree(ids);
 	return error;
 }
 

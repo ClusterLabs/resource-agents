@@ -86,11 +86,9 @@ static int node_ioctl(struct inode *inode, struct file *file,
 	}
 
 	if (cmd == DLM_SET_NODE_CMD)
-		error = dlm_set_node(k_param->nodeid, k_param->weight,
-				     k_param->addr);
+		error = dlm_set_node(k_param->nodeid, k_param->addr);
 	else if (cmd == DLM_SET_LOCAL_CMD)
-		error = dlm_set_local(k_param->nodeid, k_param->weight,
-				      k_param->addr);
+		error = dlm_set_local(k_param->nodeid, k_param->addr);
 
 	kfree(k_param);
 	return error;

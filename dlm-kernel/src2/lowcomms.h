@@ -20,10 +20,9 @@ int dlm_lowcomms_start(void);
 void dlm_lowcomms_stop(void);
 void *dlm_lowcomms_get_buffer(int nodeid, int len, int allocation, char **ppc);
 void dlm_lowcomms_commit_buffer(void *mh);
-int dlm_set_node(int nodeid, int weight, char *addr_buf);
-int dlm_set_local(int nodeid, int weight, char *addr_buf);
+int dlm_set_node(int nodeid, char *addr_buf);
+int dlm_set_local(int nodeid, char *addr_buf);
 int dlm_our_nodeid(void);
-int dlm_node_weight(int nodeid);
 
 #endif				/* __LOWCOMMS_DOT_H__ */
 

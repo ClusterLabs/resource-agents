@@ -18,6 +18,7 @@
 #include "device.h"
 #include "memory.h"
 #include "lowcomms.h"
+#include "config.h"
 
 #ifdef CONFIG_DLM_DEBUG
 int dlm_register_debugfs(void);
@@ -50,9 +51,13 @@ static int __init init_dlm(void)
 	if (error)
 		goto out_node;
 
-	error = dlm_register_debugfs();
+	error = dlm_config_init();
 	if (error)
 		goto out_member;
+
+	error = dlm_register_debugfs();
+	if (error)
+		goto out_config;
 
 	error = dlm_lowcomms_init();
 	if (error)
@@ -64,6 +69,8 @@ static int __init init_dlm(void)
 
  out_debug:
 	dlm_unregister_debugfs();
+ out_config:
+	dlm_config_exit();
  out_member:
 	dlm_member_sysfs_exit();
  out_node:
@@ -78,6 +85,7 @@ static void __exit exit_dlm(void)
 {
 	dlm_lowcomms_exit();
 	dlm_member_sysfs_exit();
+	dlm_config_exit();
 	dlm_node_ioctl_exit();
 	dlm_memory_exit();
 	dlm_unregister_debugfs();

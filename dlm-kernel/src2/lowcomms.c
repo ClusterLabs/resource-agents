@@ -59,7 +59,6 @@
 
 static struct sockaddr_storage *local_addr[DLM_MAX_ADDR_COUNT];
 static int			local_nodeid;
-static int			local_weight;
 static int			local_count;
 static struct list_head		nodes;
 static struct semaphore		nodes_sem;
@@ -69,7 +68,6 @@ static struct semaphore		nodes_sem;
 struct dlm_node {
 	struct list_head	list;
 	int			nodeid;
-	int			weight;
 	struct sockaddr_storage	addr;
 };
 
@@ -253,20 +251,7 @@ static int nodeid_to_addr(int nodeid, struct sockaddr *retaddr)
 	return 0;
 }
 
-int dlm_node_weight(int nodeid)
-{
-	struct dlm_node *node;
-	int weight = -1;
-
-	down(&nodes_sem);
-	node = search_node(nodeid);
-	if (node)
-		weight = node->weight;
-	up(&nodes_sem);
-	return weight;
-}
-
-int dlm_set_node(int nodeid, int weight, char *addr_buf)
+int dlm_set_node(int nodeid, char *addr_buf)
 {
 	struct dlm_node *node;
 	int error;
@@ -275,13 +260,12 @@ int dlm_set_node(int nodeid, int weight, char *addr_buf)
 	error = _get_node(nodeid, &node);
 	if (!error) {
 		memcpy(&node->addr, addr_buf, sizeof(struct sockaddr_storage));
-		node->weight = weight;
 	}
 	up(&nodes_sem);
 	return error;
 }
 
-int dlm_set_local(int nodeid, int weight, char *addr_buf)
+int dlm_set_local(int nodeid, char *addr_buf)
 {
 	struct sockaddr_storage *addr;
 	int i;
@@ -291,7 +275,6 @@ int dlm_set_local(int nodeid, int weight, char *addr_buf)
 		return -EINVAL;
 	}
 	local_nodeid = nodeid;
-	local_weight = weight;
 
 	addr = kmalloc(sizeof(*addr), GFP_KERNEL);
 	if (!addr)
@@ -1335,7 +1318,6 @@ void dlm_lowcomms_exit(void)
 	for (i = 0; i < local_count; i++)
 		kfree(local_addr[i]);
 	local_nodeid = 0;
-	local_weight = 0;
 	local_count = 0;
 
 	list_for_each_entry_safe(node, safe, &nodes, list) {

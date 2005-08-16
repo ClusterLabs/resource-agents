@@ -40,84 +40,6 @@ static ssize_t dlm_event_store(struct dlm_ls *ls, const char *buf, size_t len)
 	return len;
 }
 
-static ssize_t dlm_id_show(struct dlm_ls *ls, char *buf)
-{
-	return sprintf(buf, "%u\n", ls->ls_global_id);
-}
-
-static ssize_t dlm_id_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	ls->ls_global_id = simple_strtol(buf, NULL, 0);
-	return len;
-}
-
-static ssize_t dlm_members_show(struct dlm_ls *ls, char *buf)
-{
-	struct dlm_member *memb;
-	ssize_t ret = 0;
-
-	if (!down_read_trylock(&ls->ls_in_recovery))
-		return -EBUSY;
-	list_for_each_entry(memb, &ls->ls_nodes, list)
-		ret += sprintf(buf+ret, "%u ", memb->nodeid);
-	ret += sprintf(buf+ret, "\n");
-	up_read(&ls->ls_in_recovery);
-	return ret;
-}
-
-static ssize_t dlm_members_store(struct dlm_ls *ls, const char *buf, size_t len)
-{
-	int *nodeids, id, count = 1, i;
-	ssize_t ret = len;
-	char *p, *t;
-
-	/* count number of id's in buf, assumes no trailing spaces */
-	for (i = 0; i < len; i++)
-		if (isspace(buf[i]))
-			count++;
-
-	nodeids = kmalloc(sizeof(int) * count, GFP_KERNEL);
-	if (!nodeids)
-		return -ENOMEM;
-
-	p = kmalloc(len+1, GFP_KERNEL);
-	if (!p) {
-		kfree(nodeids);
-		return -ENOMEM;
-	}
-	memcpy(p, buf, len);
-	p[len+1] = '\0';
-
-	for (i = 0; i < count; i++) {
-		if ((t = strsep(&p, " ")) == NULL)
-			break;
-		if (sscanf(t, "%u", &id) != 1)
-			break;
-		nodeids[i] = id;
-	}
-
-	if (i != count) {
-		kfree(nodeids);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	spin_lock(&ls->ls_recover_lock);
-	if (ls->ls_nodeids_next) {
-		kfree(nodeids);
-		ret = -EINVAL;
-		goto out_unlock;
-	}
-	ls->ls_nodeids_next = nodeids;
-	ls->ls_nodeids_next_count = count;
-
- out_unlock:
-	spin_unlock(&ls->ls_recover_lock);
- out:
-	kfree(p);
-	return ret;
-}
-
 struct dlm_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct dlm_ls *, char *);
@@ -134,23 +56,9 @@ static struct dlm_attr dlm_attr_event = {
 	.store = dlm_event_store
 };
 
-static struct dlm_attr dlm_attr_id = {
-	.attr  = {.name = "id", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_id_show,
-	.store = dlm_id_store
-};
-
-static struct dlm_attr dlm_attr_members = {
-	.attr  = {.name = "members", .mode = S_IRUGO | S_IWUSR},
-	.show  = dlm_members_show,
-	.store = dlm_members_store
-};
-
 static struct attribute *dlm_attrs[] = {
 	&dlm_attr_control.attr,
 	&dlm_attr_event.attr,
-	&dlm_attr_id.attr,
-	&dlm_attr_members.attr,
 	NULL,
 };
 
