@@ -51,25 +51,13 @@
 #include <linux/idr.h>
 
 #include "dlm_internal.h"
-#include "dlm_node.h"
 #include "lowcomms.h"
 #include "config.h"
-#include "member.h"
 #include "midcomms.h"
 
 static struct sockaddr_storage *local_addr[DLM_MAX_ADDR_COUNT];
-static int			local_nodeid;
 static int			local_count;
-static struct list_head		nodes;
-static struct semaphore		nodes_sem;
-
-/* One of these per configured node */
-
-struct dlm_node {
-	struct list_head	list;
-	int			nodeid;
-	struct sockaddr_storage	addr;
-};
+static int			local_nodeid;
 
 /* One of these per connected node */
 
@@ -160,141 +148,30 @@ static atomic_t accepting;
 static struct connection sctp_con;
 
 
-static struct dlm_node *search_node(int nodeid)
-{
-	struct dlm_node *node;
-
-	list_for_each_entry(node, &nodes, list) {
-		if (node->nodeid == nodeid)
-			goto out;
-	}
-	node = NULL;
- out:
-	return node;
-}
-
-static struct dlm_node *search_node_addr(struct sockaddr_storage *addr)
-{
-	struct dlm_node *node;
-
-	list_for_each_entry(node, &nodes, list) {
-		if (!memcmp(&node->addr, addr, sizeof(*addr)))
-			goto out;
-	}
-	node = NULL;
- out:
-	return node;
-}
-
-static int _get_node(int nodeid, struct dlm_node **node_ret)
-{
-	struct dlm_node *node;
-	int error = 0;
-
-	node = search_node(nodeid);
-	if (node)
-		goto out;
-
-	node = kmalloc(sizeof(struct dlm_node), GFP_KERNEL);
-	if (!node) {
-		error = -ENOMEM;
-		goto out;
-	}
-	memset(node, 0, sizeof(struct dlm_node));
-	node->nodeid = nodeid;
-	list_add_tail(&node->list, &nodes);
- out:
-	*node_ret = node;
-	return error;
-}
-
-static int addr_to_nodeid(struct sockaddr_storage *addr, int *nodeid)
-{
-	struct dlm_node *node;
-
-	down(&nodes_sem);
-	node = search_node_addr(addr);
-	up(&nodes_sem);
-	if (!node)
-		return -1;
-	*nodeid = node->nodeid;
-	return 0;
-}
-
 static int nodeid_to_addr(int nodeid, struct sockaddr *retaddr)
 {
-	struct dlm_node *node;
-	struct sockaddr_storage *addr;
+	struct sockaddr_storage addr;
+	int error;
 
 	if (!local_count)
 		return -1;
 
-	down(&nodes_sem);
-	node = search_node(nodeid);
-	up(&nodes_sem);
-	if (!node)
-		return -1;
-
-	addr = &node->addr;
+	error = dlm_nodeid_to_addr(nodeid, &addr);
+	if (error)
+		return error;
 
 	if (local_addr[0]->ss_family == AF_INET) {
-	        struct sockaddr_in *in4  = (struct sockaddr_in *) addr;
+	        struct sockaddr_in *in4  = (struct sockaddr_in *) &addr;
 		struct sockaddr_in *ret4 = (struct sockaddr_in *) retaddr;
 		ret4->sin_addr.s_addr = in4->sin_addr.s_addr;
 	} else {
-	        struct sockaddr_in6 *in6  = (struct sockaddr_in6 *) addr;
+	        struct sockaddr_in6 *in6  = (struct sockaddr_in6 *) &addr;
 		struct sockaddr_in6 *ret6 = (struct sockaddr_in6 *) retaddr;
 		memcpy(&ret6->sin6_addr, &in6->sin6_addr,
 		       sizeof(in6->sin6_addr));
 	}
 
 	return 0;
-}
-
-int dlm_set_node(int nodeid, char *addr_buf)
-{
-	struct dlm_node *node;
-	int error;
-
-	down(&nodes_sem);
-	error = _get_node(nodeid, &node);
-	if (!error) {
-		memcpy(&node->addr, addr_buf, sizeof(struct sockaddr_storage));
-	}
-	up(&nodes_sem);
-	return error;
-}
-
-int dlm_set_local(int nodeid, char *addr_buf)
-{
-	struct sockaddr_storage *addr;
-	int i;
-
-	if (local_count > DLM_MAX_ADDR_COUNT - 1) {
-		log_print("too many local addresses set %d", local_count);
-		return -EINVAL;
-	}
-	local_nodeid = nodeid;
-
-	addr = kmalloc(sizeof(*addr), GFP_KERNEL);
-	if (!addr)
-		return -ENOMEM;
-	memcpy(addr, addr_buf, sizeof(*addr));
-
-	for (i = 0; i < local_count; i++) {
-		if (!memcmp(local_addr[i], addr, sizeof(*addr))) {
-			kfree(addr);
-			goto out;
-		}
-	}
-	local_addr[local_count++] = addr;
- out:
-	return 0;
-}
-
-int dlm_our_nodeid(void)
-{
-	return local_nodeid;
 }
 
 static struct nodeinfo *nodeid2nodeinfo(int nodeid, int alloc)
@@ -538,7 +415,7 @@ static void process_sctp_notification(struct msghdr *msg, char *buf)
 				return;
 			}
 			make_sockaddr(&prim.ssp_addr, 0, &addr_len);
-			if (addr_to_nodeid(&prim.ssp_addr, &nodeid)) {
+			if (dlm_addr_to_nodeid(&prim.ssp_addr, &nodeid)) {
 				log_print("reject connect from unknown addr");
 				send_shutdown(prim.ssp_assoc_id);
 				return;
@@ -754,6 +631,24 @@ static int add_bind_addr(struct sockaddr_storage *addr, int addr_len, int num)
 	return result;
 }
 
+static void init_local(void)
+{
+	struct sockaddr_storage sas, *addr;
+	int i;
+
+	local_nodeid = dlm_our_nodeid();
+
+	for (i = 0; i < DLM_MAX_ADDR_COUNT - 1; i++) {
+		if (dlm_our_addr(&sas, i))
+			break;
+
+		addr = kmalloc(sizeof(*addr), GFP_KERNEL);
+		if (!addr)
+			break;
+		memcpy(addr, &sas, sizeof(*addr));
+		local_addr[local_count++] = addr;
+	}
+}
 
 /* Initialise SCTP socket and bind to all interfaces */
 static int init_sock(void)
@@ -765,8 +660,11 @@ static int init_sock(void)
 	int result = -EINVAL, num = 1, i, addr_len;
 
 	if (!local_count) {
-		log_print("no local IP address has been set");
-		goto out;
+		init_local();
+		if (!local_count) {
+			log_print("no local IP address has been set");
+			goto out;
+		}
 	}
 
 	result = sock_create_kern(local_addr[0]->ss_family, SOCK_SEQPACKET,
@@ -1305,24 +1203,16 @@ void dlm_lowcomms_stop(void)
 int dlm_lowcomms_init(void)
 {
 	init_waitqueue_head(&lowcomms_recv_wait);
-	INIT_LIST_HEAD(&nodes);
-	init_MUTEX(&nodes_sem);
 	return 0;
 }
 
 void dlm_lowcomms_exit(void)
 {
-	struct dlm_node *node, *safe;
 	int i;
 
 	for (i = 0; i < local_count; i++)
 		kfree(local_addr[i]);
-	local_nodeid = 0;
 	local_count = 0;
-
-	list_for_each_entry_safe(node, safe, &nodes, list) {
-		list_del(&node->list);
-		kfree(node);
-	}
+	local_nodeid = 0;
 }
 

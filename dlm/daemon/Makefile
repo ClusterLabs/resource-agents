@@ -34,7 +34,6 @@ copytobin: all
 dlm_controld:	main.o \
 		member_cman.o \
 		group.o \
-		ioctl.o \
 		action.o \
 		../../cman/lib/libcman.a \
 		../../group/lib/libgroup.a \
@@ -53,12 +52,6 @@ group.o: group.c
 action.o: action.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-ioctl.o: ioctl.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-ioctl.c:
-	ln -s ../dlm_tool/ioctl.c .
-
 install: dlm_controld
 	install -d ${sbindir}
 	install dlm_controld ${sbindir}
@@ -67,5 +60,5 @@ uninstall:
 	${UNINSTALL} dlm_controld ${sbindir}
 
 clean:
-	rm -f *.o dlm_controld ioctl.c
+	rm -f *.o dlm_controld
 

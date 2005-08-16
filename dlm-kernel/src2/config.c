@@ -15,6 +15,8 @@
 #include <linux/configfs.h>
 #include <net/sock.h>
 
+#include "dlm_internal.h"
+#include "lockspace.h"
 #include "config.h"
 
 /* FIXME: remove */
@@ -569,9 +571,23 @@ static ssize_t space_id_read(struct space *sp, char *buf)
 	return sprintf(buf, "%d\n", sp->id);
 }
 
+/* FIXME: would be nice of the dlm could query config.c for the id */
 static ssize_t space_id_write(struct space *sp, const char *buf, size_t len)
 {
+	struct dlm_ls *ls;
+	char *name = sp->group.cg_item.ci_name;
+
 	sp->id = simple_strtol(buf, NULL, 0);
+
+	ls = dlm_find_lockspace_name(name, strlen(name));
+	if (!ls) {
+		printk("space_id_write: no \"%s\" id %x\n", name, sp->id);
+		goto out;
+	}
+
+	ls->ls_global_id = sp->id;
+	dlm_put_lockspace(ls);
+ out:
 	return len;
 }
 
@@ -619,7 +635,7 @@ static ssize_t comm_local_write(struct comm *cm, const char *buf, size_t len)
 
 static ssize_t comm_addr_write(struct comm *cm, const char *buf, size_t len)
 {
-	if (len < sizeof(struct sockaddr_storage))
+	if (len != sizeof(struct sockaddr_storage))
 		return -EINVAL;
 	memcpy(&cm->addr, buf, len);
 	return len;
@@ -682,17 +698,41 @@ static void put_space(struct space *sp)
 	config_item_put(&sp->group.cg_item);
 }
 
-uint32_t dlm_lockspace_id(char *lsname)
+static struct comm *get_comm(int nodeid, struct sockaddr_storage *addr)
 {
-	struct space *sp;
-	uint32_t id = 0;
+	struct config_item *i;
+	struct comm *cm;
+	int found = 0;
 
-	sp = get_space(lsname);
-	if (sp) {
-		id = sp->id;
-		put_space(sp);
+	if (!comm_list)
+		return NULL;
+
+	list_for_each_entry(i, &comm_list->cg_children, ci_entry) {
+		cm = to_comm(i);
+
+		if (nodeid) {
+			if (cm->nodeid != nodeid)
+				continue;
+			found = 1;
+			break;
+		} else {
+			if (memcmp(&cm->addr, addr, sizeof(*addr)))
+				continue;
+			found = 1;
+			break;
+		}
 	}
-	return id;
+
+	if (found)
+		config_item_get(i);
+	else
+		cm = NULL;
+	return cm;
+}
+
+static void put_comm(struct comm *cm)
+{
+	config_item_put(&cm->item);
 }
 
 /* caller must free mem */
@@ -705,7 +745,7 @@ int dlm_nodeid_list(char *lsname, int **ids_out)
 
 	sp = get_space(lsname);
 	if (!sp)
-		return -ENOSPC;
+		return -EEXIST;
 
 	down(&sp->members_lock);
 	if (!sp->members_count) {
@@ -741,7 +781,7 @@ int dlm_node_weight(char *lsname, int nodeid)
 
 	sp = get_space(lsname);
 	if (!sp)
-		return -ENOSPC;
+		return -EEXIST;
 
 	down(&sp->members_lock);
 	list_for_each_entry(nd, &sp->members, list) {
@@ -755,22 +795,40 @@ int dlm_node_weight(char *lsname, int nodeid)
 	return weight;
 }
 
-#if 0
+int dlm_nodeid_to_addr(int nodeid, struct sockaddr_storage *addr)
+{
+	struct comm *cm = get_comm(nodeid, NULL);
+	if (!cm)
+		return -EEXIST;
+	memcpy(addr, &cm->addr, sizeof(*addr));
+	put_comm(cm);
+	return 0;
+}
+
+int dlm_addr_to_nodeid(struct sockaddr_storage *addr, int *nodeid)
+{
+	struct comm *cm = get_comm(0, addr);
+	if (!cm)
+		return -EEXIST;
+	*nodeid = cm->nodeid;
+	put_comm(cm);
+	return 0;
+}
+
 int dlm_our_nodeid(void)
 {
 	return local_comm ? local_comm->nodeid : 0;
 }
 
-int dlm_nodeid_to_addr(int nodeid, struct sockaddr_storage *addr_ret)
+/* FIXME: support multiple local addresses */
+int dlm_our_addr(struct sockaddr_storage *addr, int num)
 {
+	if (num || !local_comm)
+		return -1;
+	memcpy(addr, &local_comm->addr, sizeof(*addr));
 	return 0;
 }
 
-int dlm_addr_to_nodeid(struct sockaddr_storage *addr, int *nodeid_ret)
-{
-	return 0;
-}
-#endif
 
 /* Config file defaults */
 #define DEFAULT_TCP_PORT       21064

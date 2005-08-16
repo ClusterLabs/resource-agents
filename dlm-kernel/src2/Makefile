@@ -37,7 +37,6 @@ dlm-objs :=	ast.o \
 		member_sysfs.o \
 		memory.o \
 		midcomms.o \
-		node_ioctl.o \
 		rcom.o \
 		recover.o \
 		recoverd.o \
@@ -85,7 +84,6 @@ add:
 	(cd ${linux_patched}; patch -p1 --no-backup-if-mismatch < ../patches/dlm-include.patch)
 	mv ${linux_patched}/drivers/dlm/dlm.h ${linux_patched}/include/linux
 	mv ${linux_patched}/drivers/dlm/dlm_device.h ${linux_patched}/include/linux
-	mv ${linux_patched}/drivers/dlm/dlm_node.h ${linux_patched}/include/linux
 
 clean:
 	rm -rf cluster *.ko *.o *.mod.c *~ .*o.cmd .tmp_versions

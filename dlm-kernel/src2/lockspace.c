@@ -95,6 +95,11 @@ static struct dlm_ls *find_lockspace_name(char *name, int namelen)
 	return ls;
 }
 
+struct dlm_ls *dlm_find_lockspace_name(char *name, int namelen)
+{
+	return find_lockspace_name(name, namelen);
+}
+
 struct dlm_ls *dlm_find_lockspace_global(uint32_t id)
 {
 	struct dlm_ls *ls;
@@ -318,7 +323,6 @@ static int new_lockspace(char *name, int namelen, void **lockspace,
 	if (error)
 		goto out_unreg;
 
-	ls->ls_global_id = dlm_lockspace_id(name);
 	*lockspace = ls;
 	return 0;
 

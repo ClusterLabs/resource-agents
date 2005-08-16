@@ -33,8 +33,6 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "dlm_node.h"
-
 #include "dlm_daemon.h"
 
 static int dir_members[MAX_GROUP_MEMBERS];
@@ -43,63 +41,6 @@ static int dir_members_count;
 #define DLM_SYSFS_DIR "/sys/kernel/dlm"
 #define LS_DIR "/config/dlm/cluster/spaces"
 
-
-/*
- * ioctl interface only used for setting up addr/nodeid info
- * with set_local and set_node
- */
-
-int do_command(int op, struct dlm_node_ioctl *ni);
-
-static void init_ni(struct dlm_node_ioctl *ni)
-{
-	memset(ni, 0, sizeof(struct dlm_node_ioctl));
-
-	ni->version[0] = DLM_NODE_VERSION_MAJOR;
-	ni->version[1] = DLM_NODE_VERSION_MINOR;
-	ni->version[2] = DLM_NODE_VERSION_PATCH;
-}
-
-static void set_ipaddr(struct dlm_node_ioctl *ni, char *ip)
-{
-	struct sockaddr_in sin;
-	memset(&sin, 0, sizeof(sin));
-	sin.sin_family = AF_INET;
-	inet_pton(AF_INET, ip, &sin.sin_addr);
-	memcpy(ni->addr, &sin, sizeof(sin));
-}
-
-int set_node(int argc, char **argv)
-{
-	struct dlm_node_ioctl ni;
-
-	if (argc < 2 || argc > 3)
-		return -EINVAL;
-
-	init_ni(&ni);
-	ni.nodeid = atoi(argv[0]);
-	set_ipaddr(&ni, argv[1]);
-	if (argc > 2)
-		ni.weight = atoi(argv[2]);
-	else
-		ni.weight = 1;
-	return do_command(DLM_SET_NODE, &ni);
-}
-
-int set_local(int argc, char **argv)
-{
-	struct dlm_node_ioctl ni;
-
-	if (argc < 2 || argc > 3)
-		return -EINVAL;
-
-	init_ni(&ni);
-	ni.nodeid = atoi(argv[0]);
-	set_ipaddr(&ni, argv[1]);
-	if (argc > 2)
-		ni.weight = atoi(argv[2]);
-	return do_command(DLM_SET_LOCAL, &ni);
-}
 
 static int do_sysfs(char *name, char *file, char *val)
 {
@@ -165,6 +106,7 @@ static int update_dir_members(char *name)
 		dir_members[i++] = atoi(de->d_name);
 		log_error("dir_member %d", dir_members[i-1]);
 	}
+	closedir(d);
 
 	dir_members_count = i;
 	return 0;
@@ -195,6 +137,18 @@ static int create_path(char *path)
 			rv = 0;
 	}
 	return rv;
+}
+
+static int path_exists(const char *path)
+{
+	struct stat buf;
+
+	if (stat(path, &buf) < 0) {
+		if (errno != ENOENT)
+			log_error("%s: stat failed: %d", path, errno);
+		return 0;
+	}
+	return 1;
 }
 
 int set_members(char *name, int new_count, int *new_members)
@@ -257,8 +211,10 @@ int set_members(char *name, int new_count, int *new_members)
 		rv = write(fd, buf, strlen(buf));
 		if (rv < 0) {
 			log_error("%s: write failed: %d, %s", path, errno, buf);
+			close(fd);
 			return -1;
 		}
+		close(fd);
 
 		/* FIXME: remove weight handling from member_cman.c
 		   and put here */
@@ -266,18 +222,6 @@ int set_members(char *name, int new_count, int *new_members)
 
 	return 0;
 
-}
-
-static int path_exists(const char *path)
-{
-	struct stat buf;
-
-	if (stat(path, &buf) < 0) {
-		if (errno != ENOENT)
-			log_error("%s: stat failed: %d", path, errno);
-		return 0;
-	}
-	return 1;
 }
 
 int set_id(char *name, uint32_t id)
@@ -317,9 +261,119 @@ int set_id(char *name, uint32_t id)
 	rv = write(fd, buf, strlen(buf));
 	if (rv < 0) {
 		log_error("%s: write failed: %d, %s", path, errno, buf);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	return 0;
+}
+
+char *str_ip(char *addr)
+{
+	static char ip[256];
+	struct sockaddr_in *sin = (struct sockaddr_in *) addr;
+	memset(ip, 0, sizeof(ip));
+	inet_ntop(AF_INET, &sin->sin_addr, ip, 256);
+	return ip;
+}
+
+int set_node(int nodeid, char *addr, int local)
+{
+	char path[PATH_MAX];
+	char buf[32];
+	int rv, fd;
+
+	log_debug("set_node %d %s local %d", nodeid, str_ip(addr), local);
+
+	if (!path_exists("/config/dlm")) {
+		log_error("No /config/dlm, is the dlm loaded?");
 		return -1;
 	}
 
+	if (!path_exists("/config/dlm/cluster"))
+		create_path("/config/dlm/cluster");
+
+	/*
+	 * create comm dir for this node
+	 */
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d", nodeid);
+
+	rv = create_path(path);
+	if (rv)
+		return -1;
+
+	/*
+	 * set the nodeid
+	 */
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/nodeid", nodeid);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_error("%s: open failed: %d", path, errno);
+		return -1;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", nodeid);
+
+	rv = write(fd, buf, strlen(buf));
+	if (rv < 0) {
+		log_error("%s: write failed: %d, %s", path, errno, buf);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	/*
+	 * set the address
+	 */
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/addr", nodeid);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_error("%s: open failed: %d", path, errno);
+		return -1;
+	}
+
+	rv = write(fd, addr, sizeof(struct sockaddr_storage));
+	if (rv != sizeof(struct sockaddr_storage)) {
+		log_error("%s: write failed: %d %d", path, errno, rv);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	/*
+	 * set local
+	 */
+
+	if (!local)
+		goto out;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "/config/dlm/cluster/comms/%d/local", nodeid);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_error("%s: open failed: %d", path, errno);
+		return -1;
+	}
+
+	rv = write(fd, "1", strlen("1"));
+	if (rv < 0) {
+		log_error("%s: write failed: %d", path, errno);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+ out:
 	return 0;
 }
 

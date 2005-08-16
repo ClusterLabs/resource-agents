@@ -12,7 +12,6 @@ dlm-y :=			ast.o \
 				member_sysfs.o \
 				memory.o \
 				midcomms.o \
-				node_ioctl.o \
 				rcom.o \
 				recover.o \
 				recoverd.o \

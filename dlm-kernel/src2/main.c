@@ -28,9 +28,6 @@ static inline int dlm_register_debugfs(void) { return 0; }
 static inline void dlm_unregister_debugfs(void) { }
 #endif
 
-int dlm_node_ioctl_init(void);
-void dlm_node_ioctl_exit(void);
-
 static int __init init_dlm(void)
 {
 	int error;
@@ -43,13 +40,9 @@ static int __init init_dlm(void)
 	if (error)
 		goto out_mem;
 
-	error = dlm_node_ioctl_init();
-	if (error)
-		goto out_mem;
-
 	error = dlm_member_sysfs_init();
 	if (error)
-		goto out_node;
+		goto out_mem;
 
 	error = dlm_config_init();
 	if (error)
@@ -73,8 +66,6 @@ static int __init init_dlm(void)
 	dlm_config_exit();
  out_member:
 	dlm_member_sysfs_exit();
- out_node:
-	dlm_node_ioctl_exit();
  out_mem:
 	dlm_memory_exit();
  out:
@@ -86,7 +77,6 @@ static void __exit exit_dlm(void)
 	dlm_lowcomms_exit();
 	dlm_member_sysfs_exit();
 	dlm_config_exit();
-	dlm_node_ioctl_exit();
 	dlm_memory_exit();
 	dlm_unregister_debugfs();
 }

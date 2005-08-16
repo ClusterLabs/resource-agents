@@ -60,10 +60,9 @@ struct lockspace {
 };
 
 /* action.c */
-int set_local(int argc, char **argv);
-int set_node(int argc, char **argv);
 int set_control(int argc, char **argv);
 int set_event_done(int argc, char **argv);
+int set_node(int nodeid, char *addr, int local);
 int set_members(char *name, int new_count, int *new_members);
 int set_id(char *name, uint32_t id);
 
