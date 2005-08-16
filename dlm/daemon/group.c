@@ -99,7 +99,7 @@ char *str_members(void)
 int process_groupd(void)
 {
 	struct lockspace *ls;
-	char str_id[32], *str_memb;
+	char *str_memb;
 	char *argv[2];
 	int error = 0;
 
@@ -121,7 +121,7 @@ int process_groupd(void)
 
 		argv[0] = cb_name;
 		argv[1] = "0";
-		ls_control(2, argv);
+		set_control(2, argv);
 
 		group_stop_done(gh, cb_name);
 		break;
@@ -129,14 +129,11 @@ int process_groupd(void)
 	case DO_START:
 		str_memb = str_members();
 		log_debug("start %s \"%s\"", cb_name, str_memb);
-
-		argv[0] = cb_name;
-		argv[1] = str_memb;
-		ls_members(2, argv);
+		set_members(cb_name, cb_member_count, cb_members);
 
 		argv[0] = cb_name;
 		argv[1] = "1";
-		ls_control(2, argv);
+		set_control(2, argv);
 
 		group_start_done(gh, cb_name, cb_event_nr);
 
@@ -146,17 +143,12 @@ int process_groupd(void)
 		log_debug("join event done %s", cb_name);
 		argv[0] = cb_name;
 		argv[1] = "0";
-		ls_event_done(2, argv);
+		set_event_done(2, argv);
 		break;
 
 	case DO_SETID:
 		log_debug("set id %s %d", cb_name, cb_id);
-		memset(str_id, 0, sizeof(str_id));
-		sprintf(str_id, "%d", cb_id);
-
-		argv[0] = cb_name;
-		argv[1] = str_id;
-		ls_set_id(2, argv);
+		set_id(cb_name, cb_id);
 		break;
 
 	case DO_TERMINATE:
@@ -172,7 +164,7 @@ int process_groupd(void)
 			argv[1] = "0";
 			log_debug("leave event done %s", cb_name);
 		}
-		ls_event_done(2, argv);
+		set_event_done(2, argv);
 		list_del(&ls->list);
 		free(ls);
 		break;

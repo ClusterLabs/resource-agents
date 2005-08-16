@@ -59,9 +59,6 @@ ioctl.o: ioctl.c
 ioctl.c:
 	ln -s ../dlm_tool/ioctl.c .
 
-action.c:
-	ln -s ../dlm_tool/action.c .
-
 install: dlm_controld
 	install -d ${sbindir}
 	install dlm_controld ${sbindir}
@@ -70,5 +67,5 @@ uninstall:
 	${UNINSTALL} dlm_controld ${sbindir}
 
 clean:
-	rm -f *.o dlm_controld ioctl.c action.c
+	rm -f *.o dlm_controld ioctl.c
 
