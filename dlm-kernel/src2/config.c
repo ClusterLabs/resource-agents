@@ -650,7 +650,8 @@ static struct comm *get_comm(int nodeid, struct sockaddr_storage *addr)
 			found = 1;
 			break;
 		} else {
-			if (memcmp(&cm->addr, addr, sizeof(*addr)))
+			if (!cm->addr_count ||
+			    memcmp(cm->addr[0], addr, sizeof(*addr)))
 				continue;
 			found = 1;
 			break;
@@ -735,7 +736,9 @@ int dlm_nodeid_to_addr(int nodeid, struct sockaddr_storage *addr)
 	struct comm *cm = get_comm(nodeid, NULL);
 	if (!cm)
 		return -EEXIST;
-	memcpy(addr, &cm->addr, sizeof(*addr));
+	if (!cm->addr_count)
+		return -ENOENT;
+	memcpy(addr, cm->addr[0], sizeof(*addr));
 	put_comm(cm);
 	return 0;
 }
