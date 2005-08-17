@@ -14,7 +14,7 @@
 #include "member.h"
 #include "lock.h"
 #include "dir.h"
-#include "lowcomms.h"
+#include "config.h"
 
 struct rq_entry {
 	struct list_head list;
