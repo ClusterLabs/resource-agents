@@ -185,6 +185,8 @@ static int open_ccs(void)
 	return cd;
 }
 
+/* when not set in cluster.conf, a node's default weight is 1 */
+
 #define WEIGHT_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@weight"
 
 static int get_weight(int cd, int nodeid)
@@ -247,11 +249,11 @@ int set_members(char *name, int new_count, int *new_members)
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name, id);
 
-		log_debug("set_members unlink \"%s\"", path);
+		log_debug("set_members rmdir \"%s\"", path);
 
-		rv = unlink(path);
+		rv = rmdir(path);
 		if (rv) {
-			log_error("%s: unlink failed: %d", path, errno);
+			log_error("%s: rmdir failed: %d", path, errno);
 			goto out;
 		}
 	}
