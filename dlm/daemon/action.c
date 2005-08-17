@@ -34,6 +34,7 @@
 #include <dirent.h>
 
 #include "dlm_daemon.h"
+#include "ccs.h"
 
 static int dir_members[MAX_GROUP_MEMBERS];
 static int dir_members_count;
@@ -171,11 +172,49 @@ static int path_exists(const char *path)
 	return 1;
 }
 
+static int open_ccs(void)
+{
+	int i, cd;
+
+	while ((cd = ccs_connect()) < 0) {
+		sleep(1);
+		if (++i > 9 && !(i % 10))
+			log_error("connect to ccs error %d, "
+				  "check ccsd or cluster status", cd);
+	}
+	return cd;
+}
+
+#define WEIGHT_PATH "/cluster/clusternodes/clusternode[@name=\"%s\"]/@weight"
+
+static int get_weight(int cd, int nodeid)
+{
+	char path[PATH_MAX], *str, *name;
+	int error, w;
+
+	name = nodeid2name(nodeid);
+	if (!name) {
+		log_error("no name for nodeid %d", nodeid);
+		return 1;
+	}
+
+	memset(path, 0, PATH_MAX);
+	sprintf(path, WEIGHT_PATH, name);
+
+	error = ccs_get(cd, path, &str);
+	if (error || !str)
+		return 1;
+
+	w = atoi(str);
+	free(str);
+	return w;
+}
+
 int set_members(char *name, int new_count, int *new_members)
 {
 	char path[PATH_MAX];
 	char buf[32];
-	int i, fd, rv, id, old_count, *old_members;
+	int i, w, fd, rv, id, cd = 0, old_count, *old_members;
 
 	/*
 	 * create lockspace dir if it doesn't exist yet
@@ -213,7 +252,7 @@ int set_members(char *name, int new_count, int *new_members)
 		rv = unlink(path);
 		if (rv) {
 			log_error("%s: unlink failed: %d", path, errno);
-			return -1;
+			goto out;
 		}
 	}
 
@@ -222,6 +261,10 @@ int set_members(char *name, int new_count, int *new_members)
 		if (id_exists(id, old_count, old_members))
 			continue;
 
+		/*
+		 * create node's dir
+		 */
+
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d", LS_DIR, name, id);
 
@@ -229,16 +272,20 @@ int set_members(char *name, int new_count, int *new_members)
 
 		rv = create_path(path);
 		if (rv)
-			return -1;
+			goto out;
+
+		/*
+		 * set node's nodeid
+		 */
 
 		memset(path, 0, PATH_MAX);
 		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/nodeid", LS_DIR, name,
 			 id);
 
-		fd = open(path, O_WRONLY);
-		if (fd < 0) {
+		rv = fd = open(path, O_WRONLY);
+		if (rv < 0) {
 			log_error("%s: open failed: %d", path, errno);
-			return -1;
+			goto out;
 		}
 
 		memset(buf, 0, 32);
@@ -248,16 +295,46 @@ int set_members(char *name, int new_count, int *new_members)
 		if (rv < 0) {
 			log_error("%s: write failed: %d, %s", path, errno, buf);
 			close(fd);
-			return -1;
+			goto out;
 		}
 		close(fd);
 
-		/* FIXME: remove weight handling from member_cman.c
-		   and put here */
+		/*
+		 * set node's weight
+		 */
+
+		if (!cd)
+			cd = open_ccs();
+
+		w = get_weight(cd, id);
+
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/nodes/%d/weight", LS_DIR, name,
+			 id);
+
+		rv = fd = open(path, O_WRONLY);
+		if (rv < 0) {
+			log_error("%s: open failed: %d", path, errno);
+			goto out;
+		}
+
+		memset(buf, 0, 32);
+		snprintf(buf, 32, "%d", w);
+
+		rv = write(fd, buf, strlen(buf));
+		if (rv < 0) {
+			log_error("%s: write failed: %d, %s", path, errno, buf);
+			close(fd);
+			goto out;
+		}
+		close(fd);
 	}
 
-	return 0;
-
+	rv = 0;
+ out:
+	if (cd)
+		ccs_disconnect(cd);
+	return rv;
 }
 
 char *str_ip(char *addr)

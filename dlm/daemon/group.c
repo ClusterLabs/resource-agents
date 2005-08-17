@@ -99,7 +99,6 @@ char *str_members(void)
 int process_groupd(void)
 {
 	struct lockspace *ls;
-	char *str_memb;
 	int error = 0, val;
 
 	group_dispatch(gh);
@@ -124,18 +123,28 @@ int process_groupd(void)
 		break;
 
 	case DO_START:
-		str_memb = str_members();
-		log_debug("start %s \"%s\"", cb_name, str_memb);
+		log_debug("start %s \"%s\"", cb_name, str_members());
 
 		set_members(cb_name, cb_member_count, cb_members);
+
+		/* this causes the dlm to do a "start" using the
+		   members we just set */
+
 		set_control(cb_name, 1);
+
+		/* the dlm doesn't need/use a "finish" stage following
+		   start, so we can just do start_done immediately */
 
 		group_start_done(gh, cb_name, cb_event_nr);
 
 		if (!ls->joining)
 			break;
+
 		ls->joining = 0;
 		log_debug("join event done %s", cb_name);
+
+		/* this causes the dlm_new_lockspace() call (typically from
+		   mount) to complete */
 
 		set_event_done(cb_name, 0);
 		break;
@@ -163,7 +172,7 @@ int process_groupd(void)
 		break;
 
 	case DO_FINISH:
-		log_debug("finish %s ignored", cb_name);
+		log_debug("finish %s (unused)", cb_name);
 		break;
 
 	default:

@@ -69,6 +69,7 @@ int set_id(char *name, uint32_t id);
 /* member_xxx.c */
 int setup_member(void);
 int process_member(void);
+char *nodeid2name(int nodeid);
 
 /* group.c */
 int setup_groupd(void);

@@ -33,6 +33,16 @@ static cman_node_t *find_cluster_node(int nodeid)
 	return NULL;
 }
 
+char *nodeid2name(int nodeid)
+{
+	cman_node_t *cn;
+
+	cn = find_cluster_node(nodeid);
+	if (!cn)
+		return NULL;
+	return cn->cn_name;
+}
+
 static void process_member_cb(void)
 {
 	int i, rv, count;
