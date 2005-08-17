@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.420 $) dnl cvs revision
+AC_REVISION($Revision: 1.421 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1661,6 +1661,12 @@ bz2_installed="yes"
 AC_CHECK_HEADERS(bzlib.h, , [bz2_installed="no"],)
 AC_CHECK_LIB(bz2, BZ2_bzBuffToBuffCompress , , [bz2_intalled="no"])
 AM_CONDITIONAL(BUILD_BZ2_COMPRESS_MODULE, test "x${bz2_installed}" = "xyes")
+
+dnl check if header file and lib are there for openais module
+openais_installed="yes"
+AC_CHECK_HEADERS(evs.h, , [openais_installed="no"],)
+AC_CHECK_LIB(evs, evs_initialize , , [openais_intalled="no"])
+AM_CONDITIONAL(BUILD_OPENAIS_MODULE, test "x${openais_installed}" = "xyes")
 
 
 dnl **********************************************************************
