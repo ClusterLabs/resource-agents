@@ -455,7 +455,7 @@ static struct config_item *make_node(struct config_group *g, const char *name)
 
 	config_item_init_type_name(&nd->item, name, &node_type);
 	nd->nodeid = -1;
-	nd->weight = -1;
+	nd->weight = 1;  /* default weight of 1 if none is set */
 
 	down(&sp->members_lock);
 	list_add(&nd->list, &sp->members);
@@ -696,22 +696,23 @@ int dlm_node_weight(char *lsname, int nodeid)
 {
 	struct space *sp;
 	struct node *nd;
-	int weight = -1;
+	int w = -EEXIST;
 
 	sp = get_space(lsname);
 	if (!sp)
-		return -EEXIST;
+		goto out;
 
 	down(&sp->members_lock);
 	list_for_each_entry(nd, &sp->members, list) {
 		if (nd->nodeid != nodeid)
 			continue;
-		weight = nd->weight;
+		w = nd->weight;
 		break;
 	}
 	up(&sp->members_lock);
 	put_space(sp);
-	return weight;
+ out:
+	return w;
 }
 
 int dlm_nodeid_to_addr(int nodeid, struct sockaddr_storage *addr)

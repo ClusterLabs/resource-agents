@@ -50,13 +50,18 @@ static void add_ordered_member(struct dlm_ls *ls, struct dlm_member *new)
 static int dlm_add_member(struct dlm_ls *ls, int nodeid)
 {
 	struct dlm_member *memb;
+	int w;
 
 	memb = kmalloc(sizeof(struct dlm_member), GFP_KERNEL);
 	if (!memb)
 		return -ENOMEM;
 
+	w = dlm_node_weight(ls->ls_name, nodeid);
+	if (w < 0)
+		return w;
+
 	memb->nodeid = nodeid;
-	memb->weight = dlm_node_weight(ls->ls_name, nodeid);
+	memb->weight = w;
 	add_ordered_member(ls, memb);
 	ls->ls_num_nodes++;
 	return 0;
