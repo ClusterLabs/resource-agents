@@ -593,7 +593,7 @@ static int dlm_close(struct inode *inode, struct file *file)
 
 		if (lsinfo->ls_lockspace) {
 			if (test_bit(LS_FLAG_AUTOFREE, &lsinfo->ls_flags)) {
-				unregister_lockspace(lsinfo, 1); 
+				unregister_lockspace(lsinfo, 1);
 			}
 		} else {
 			kfree(lsinfo->ls_miscinfo.name);
@@ -1120,4 +1120,3 @@ MODULE_LICENSE("GPL");
 
 module_init(dlm_device_init);
 module_exit(dlm_device_exit);
-

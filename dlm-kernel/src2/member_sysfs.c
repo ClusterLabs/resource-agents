@@ -13,6 +13,7 @@
 #include "dlm_internal.h"
 #include "member.h"
 
+
 static ssize_t dlm_control_store(struct dlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
@@ -43,7 +44,7 @@ static ssize_t dlm_id_show(struct dlm_ls *ls, char *buf)
 {
 	return sprintf(buf, "%u\n", ls->ls_global_id);
 }
- 	 
+
 static ssize_t dlm_id_store(struct dlm_ls *ls, const char *buf, size_t len)
 {
 	ls->ls_global_id = simple_strtoul(buf, NULL, 0);

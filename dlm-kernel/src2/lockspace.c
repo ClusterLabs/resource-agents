@@ -495,7 +495,7 @@ static int release_lockspace(struct dlm_ls *ls, int force)
 	if (!ls_count)
 		threads_stop();
 	up(&ls_lock);
-	
+
 	module_put(THIS_MODULE);
 	return 0;
 }

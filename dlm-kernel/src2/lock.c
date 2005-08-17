@@ -1511,7 +1511,7 @@ static void confirm_master(struct dlm_rsb *r, int error)
 		r->res_first_lkid = 0;
 		process_lookup_list(r);
 		break;
-	
+
 	case -EAGAIN:
 		/* the remote master didn't queue our NOQUEUE request;
 		   make a waiting lkb the first_lkid */
@@ -2163,7 +2163,7 @@ static void send_args(struct dlm_rsb *r, struct dlm_lkb *lkb,
 
 	else if (lkb->lkb_lvbptr)
 		memcpy(ms->m_extra, lkb->lkb_lvbptr, r->res_ls->ls_lvblen);
-	
+
 }
 
 static int send_common(struct dlm_rsb *r, struct dlm_lkb *lkb, int mstype)
@@ -3172,7 +3172,7 @@ static void recover_convert_waiter(struct dlm_ls *ls, struct dlm_lkb *lkb)
 	} else if (lkb->lkb_rqmode >= lkb->lkb_grmode) {
 		lkb->lkb_flags |= DLM_IFL_RESEND;
 	}
-	
+
 	/* lkb->lkb_rqmode < lkb->lkb_grmode shouldn't happen since down
 	   conversions are async; there's no reply from the remote master */
 }

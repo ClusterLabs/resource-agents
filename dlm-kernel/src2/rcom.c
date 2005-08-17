@@ -199,7 +199,7 @@ static void receive_rcom_names(struct dlm_ls *ls, struct dlm_rcom *rc_in)
 		log_debug(ls, "ignoring RCOM_NAMES from %u", nodeid);
 		return;
 	}
-		
+
 	nodeid = rc_in->rc_header.h_nodeid;
 	inlen = rc_in->rc_header.h_length - sizeof(struct dlm_rcom);
 	outlen = dlm_config.buffer_size - sizeof(struct dlm_rcom);

@@ -380,7 +380,7 @@ void dlm_copy_master_names(struct dlm_ls *ls, char *inbuf, int inlen,
 		dir_nodeid = dlm_dir_nodeid(r);
 		if (dir_nodeid != nodeid)
 			continue;
-		
+
 		/*
 		 * The block ends when we can't fit the following in the
 		 * remaining buffer space:
