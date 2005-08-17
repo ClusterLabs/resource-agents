@@ -40,7 +40,6 @@
 #include "dlm.h"
 
 #define DLM_LOCKSPACE_LEN	64
-#define DLM_MAX_ADDR_COUNT	2
 
 #ifndef TRUE
 #define TRUE 1

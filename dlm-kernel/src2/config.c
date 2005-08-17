@@ -182,7 +182,8 @@ struct comm {
 	struct config_item item;
 	int nodeid;
 	int local;
-	struct sockaddr_storage addr;
+	int addr_count;
+	struct sockaddr_storage *addr[DLM_MAX_ADDR_COUNT];
 };
 
 struct nodes {
@@ -427,6 +428,7 @@ static struct config_item *make_comm(struct config_group *g, const char *name)
 	config_item_init_type_name(&cm->item, name, &comm_type);
 	cm->nodeid = -1;
 	cm->local = 0;
+	cm->addr_count = 0;
 	return &cm->item;
 }
 
@@ -435,6 +437,8 @@ static void drop_comm(struct config_group *g, struct config_item *i)
 	struct comm *cm = to_comm(i);
 	if (local_comm == cm)
 		local_comm = NULL;
+	while (cm->addr_count--)
+		kfree(cm->addr[cm->addr_count]);
 	config_item_put(i);
 }
 
@@ -555,9 +559,20 @@ static ssize_t comm_local_write(struct comm *cm, const char *buf, size_t len)
 
 static ssize_t comm_addr_write(struct comm *cm, const char *buf, size_t len)
 {
+	struct sockaddr_storage *addr;
+
 	if (len != sizeof(struct sockaddr_storage))
 		return -EINVAL;
-	memcpy(&cm->addr, buf, len);
+
+	if (cm->addr_count >= DLM_MAX_ADDR_COUNT)
+		return -ENOSPC;
+
+	addr = kzalloc(sizeof(*addr), GFP_KERNEL);
+	if (!addr)
+		return -ENOMEM;
+
+	memcpy(addr, buf, len);
+	cm->addr[cm->addr_count++] = addr;
 	return len;
 }
 
@@ -740,12 +755,14 @@ int dlm_our_nodeid(void)
 	return local_comm ? local_comm->nodeid : 0;
 }
 
-/* FIXME: support multiple local addresses */
+/* num 0 is first addr, num 1 is second addr */
 int dlm_our_addr(struct sockaddr_storage *addr, int num)
 {
-	if (num || !local_comm)
+	if (!local_comm)
 		return -1;
-	memcpy(addr, &local_comm->addr, sizeof(*addr));
+	if (num + 1 > local_comm->addr_count)
+		return -1;
+	memcpy(addr, local_comm->addr[num], sizeof(*addr));
 	return 0;
 }
 

@@ -14,6 +14,8 @@
 #ifndef __CONFIG_DOT_H__
 #define __CONFIG_DOT_H__
 
+#define DLM_MAX_ADDR_COUNT 3
+
 struct dlm_config_info {
 	int tcp_port;
 	int buffer_size;
