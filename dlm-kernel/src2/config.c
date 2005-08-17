@@ -15,8 +15,6 @@
 #include <linux/configfs.h>
 #include <net/sock.h>
 
-#include "dlm_internal.h"
-#include "lockspace.h"
 #include "config.h"
 
 /* FIXME: remove */
@@ -63,10 +61,6 @@ static struct config_item *make_node(struct config_group *, const char *);
 static void drop_node(struct config_group *, struct config_item *);
 static void release_node(struct config_item *);
 
-static ssize_t show_space(struct config_item *i, struct configfs_attribute *a,
-			  char *buf);
-static ssize_t store_space(struct config_item *i, struct configfs_attribute *a,
-			   const char *buf, size_t len);
 static ssize_t show_comm(struct config_item *i, struct configfs_attribute *a,
 			 char *buf);
 static ssize_t store_comm(struct config_item *i, struct configfs_attribute *a,
@@ -76,8 +70,6 @@ static ssize_t show_node(struct config_item *i, struct configfs_attribute *a,
 static ssize_t store_node(struct config_item *i, struct configfs_attribute *a,
 			  const char *buf, size_t len);
 
-static ssize_t space_id_read(struct space *sp, char *buf);
-static ssize_t space_id_write(struct space *sp, const char *buf, size_t len);
 static ssize_t comm_nodeid_read(struct comm *cm, char *buf);
 static ssize_t comm_nodeid_write(struct comm *cm, const char *buf, size_t len);
 static ssize_t comm_local_read(struct comm *cm, char *buf);
@@ -87,29 +79,6 @@ static ssize_t node_nodeid_read(struct node *nd, char *buf);
 static ssize_t node_nodeid_write(struct node *nd, const char *buf, size_t len);
 static ssize_t node_weight_read(struct node *nd, char *buf);
 static ssize_t node_weight_write(struct node *nd, const char *buf, size_t len);
-
-enum {
-	SPACE_ATTR_ID = 0,
-};
-
-struct space_attribute {
-	struct configfs_attribute attr;
-	ssize_t (*show)(struct space *, char *);
-	ssize_t (*store)(struct space *, const char *, size_t);
-};
-
-static struct space_attribute space_attr_id = {
-	.attr   = { .ca_owner = THIS_MODULE,
-                    .ca_name = "id",
-                    .ca_mode = S_IRUGO | S_IWUSR },
-	.show   = space_id_read,
-	.store  = space_id_write,
-};
-
-static struct configfs_attribute *space_attrs[] = {
-	[SPACE_ATTR_ID] = &space_attr_id.attr,
-	NULL,
-};
 
 enum {
 	COMM_ATTR_NODEID = 0,
@@ -203,7 +172,6 @@ struct space {
 	struct list_head members;
 	struct semaphore members_lock;
 	int members_count;
-	uint32_t id;
 };
 
 struct comms {
@@ -244,8 +212,6 @@ static struct configfs_group_operations spaces_ops = {
 
 static struct configfs_item_operations space_ops = {
 	.release = release_space,
-	.show_attribute = show_space,
-	.store_attribute = store_space,
 };
 
 static struct configfs_group_operations comms_ops = {
@@ -287,7 +253,6 @@ static struct config_item_type spaces_type = {
 
 static struct config_item_type space_type = {
 	.ct_item_ops = &space_ops,
-	.ct_attrs = space_attrs,
 	.ct_owner = THIS_MODULE,
 };
 
@@ -418,7 +383,6 @@ static struct config_group *make_space(struct config_group *g, const char *name)
 	INIT_LIST_HEAD(&sp->members);
 	init_MUTEX(&sp->members_lock);
 	sp->members_count = 0;
-	sp->id = -1;
 	return &sp->group;
 
  fail:
@@ -543,53 +507,9 @@ void dlm_config_exit(void)
 	configfs_unregister_subsystem(&clusters_root.subsys);
 }
 
-
 /*
  * Functions for user space to read/write attributes
  */
-
-static ssize_t show_space(struct config_item *i, struct configfs_attribute *a,
-			  char *buf)
-{
-	struct space *sp = to_space(i);
-	struct space_attribute *spa =
-			container_of(a, struct space_attribute, attr);
-	return spa->show ? spa->show(sp, buf) : 0;
-}
-
-static ssize_t store_space(struct config_item *i, struct configfs_attribute *a,
-			   const char *buf, size_t len)
-{
-	struct space *sp = to_space(i);
-	struct space_attribute *spa =
-		container_of(a, struct space_attribute, attr);
-	return spa->store ? spa->store(sp, buf, len) : -EINVAL;
-}
-
-static ssize_t space_id_read(struct space *sp, char *buf)
-{
-	return sprintf(buf, "%d\n", sp->id);
-}
-
-/* FIXME: would be nice of the dlm could query config.c for the id */
-static ssize_t space_id_write(struct space *sp, const char *buf, size_t len)
-{
-	struct dlm_ls *ls;
-	char *name = sp->group.cg_item.ci_name;
-
-	sp->id = simple_strtol(buf, NULL, 0);
-
-	ls = dlm_find_lockspace_name(name, strlen(name));
-	if (!ls) {
-		printk("space_id_write: no \"%s\" id %x\n", name, sp->id);
-		goto out;
-	}
-
-	ls->ls_global_id = sp->id;
-	dlm_put_lockspace(ls);
- out:
-	return len;
-}
 
 static ssize_t show_comm(struct config_item *i, struct configfs_attribute *a,
 			 char *buf)
@@ -680,7 +600,6 @@ static ssize_t node_weight_write(struct node *nd, const char *buf, size_t len)
 	nd->weight = simple_strtol(buf, NULL, 0);
 	return len;
 }
-
 
 /*
  * Functions for the dlm to get the info that's been configured
@@ -828,7 +747,6 @@ int dlm_our_addr(struct sockaddr_storage *addr, int num)
 	memcpy(addr, &local_comm->addr, sizeof(*addr));
 	return 0;
 }
-
 
 /* Config file defaults */
 #define DEFAULT_TCP_PORT       21064

@@ -13,7 +13,6 @@
 #include "dlm_internal.h"
 #include "member.h"
 
-
 static ssize_t dlm_control_store(struct dlm_ls *ls, const char *buf, size_t len)
 {
 	ssize_t ret = len;
@@ -40,6 +39,17 @@ static ssize_t dlm_event_store(struct dlm_ls *ls, const char *buf, size_t len)
 	return len;
 }
 
+static ssize_t dlm_id_show(struct dlm_ls *ls, char *buf)
+{
+	return sprintf(buf, "%u\n", ls->ls_global_id);
+}
+ 	 
+static ssize_t dlm_id_store(struct dlm_ls *ls, const char *buf, size_t len)
+{
+	ls->ls_global_id = simple_strtoul(buf, NULL, 0);
+	return len;
+}
+
 struct dlm_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct dlm_ls *, char *);
@@ -56,9 +66,16 @@ static struct dlm_attr dlm_attr_event = {
 	.store = dlm_event_store
 };
 
+static struct dlm_attr dlm_attr_id = {
+	.attr  = {.name = "id", .mode = S_IRUGO | S_IWUSR},
+	.show  = dlm_id_show,
+	.store = dlm_id_store
+};
+
 static struct attribute *dlm_attrs[] = {
 	&dlm_attr_control.attr,
 	&dlm_attr_event.attr,
+	&dlm_attr_id.attr,
 	NULL,
 };
 

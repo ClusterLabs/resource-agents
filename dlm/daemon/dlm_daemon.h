@@ -60,8 +60,8 @@ struct lockspace {
 };
 
 /* action.c */
-int set_control(int argc, char **argv);
-int set_event_done(int argc, char **argv);
+int set_control(char *name, int val);
+int set_event_done(char *name, int val);
 int set_node(int nodeid, char *addr, int local);
 int set_members(char *name, int new_count, int *new_members);
 int set_id(char *name, uint32_t id);
@@ -77,7 +77,6 @@ int process_groupd(void);
 /* main.c */
 struct lockspace *create_ls(char *name);
 struct lockspace *find_ls(char *name);
-void make_args(char *buf, int *argc, char **argv, char sep);
 
 #endif
 

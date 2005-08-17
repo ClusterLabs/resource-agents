@@ -100,8 +100,7 @@ int process_groupd(void)
 {
 	struct lockspace *ls;
 	char *str_memb;
-	char *argv[2];
-	int error = 0;
+	int error = 0, val;
 
 	group_dispatch(gh);
 
@@ -119,9 +118,7 @@ int process_groupd(void)
 	case DO_STOP:
 		log_debug("stop %s", cb_name);
 
-		argv[0] = cb_name;
-		argv[1] = "0";
-		set_control(2, argv);
+		set_control(cb_name, 0);
 
 		group_stop_done(gh, cb_name);
 		break;
@@ -129,11 +126,9 @@ int process_groupd(void)
 	case DO_START:
 		str_memb = str_members();
 		log_debug("start %s \"%s\"", cb_name, str_memb);
-		set_members(cb_name, cb_member_count, cb_members);
 
-		argv[0] = cb_name;
-		argv[1] = "1";
-		set_control(2, argv);
+		set_members(cb_name, cb_member_count, cb_members);
+		set_control(cb_name, 1);
 
 		group_start_done(gh, cb_name, cb_event_nr);
 
@@ -141,9 +136,8 @@ int process_groupd(void)
 			break;
 		ls->joining = 0;
 		log_debug("join event done %s", cb_name);
-		argv[0] = cb_name;
-		argv[1] = "0";
-		set_event_done(2, argv);
+
+		set_event_done(cb_name, 0);
 		break;
 
 	case DO_SETID:
@@ -154,17 +148,16 @@ int process_groupd(void)
 	case DO_TERMINATE:
 		log_debug("terminate %s", cb_name);
 
-		argv[0] = cb_name;
-
 		if (ls->joining) {
-			argv[1] = "-1";
+			val = -1;
 			ls->joining = 0;
 			log_debug("join event failed %s", cb_name);
 		} else {
-			argv[1] = "0";
+			val = 0;
 			log_debug("leave event done %s", cb_name);
 		}
-		set_event_done(2, argv);
+
+		set_event_done(cb_name, val);
 		list_del(&ls->list);
 		free(ls);
 		break;

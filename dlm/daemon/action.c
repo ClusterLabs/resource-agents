@@ -69,14 +69,34 @@ static int do_sysfs(char *name, char *file, char *val)
 	return rv;
 }
 
-int set_control(int argc, char **argv)
+int set_control(char *name, int val)
 {
-	return do_sysfs(argv[0], "control", argv[1]);
+	char buf[32];
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", val);
+
+	return do_sysfs(name, "control", buf);
 }
 
-int set_event_done(int argc, char **argv)
+int set_event_done(char *name, int val)
 {
-	return do_sysfs(argv[0], "event_done", argv[1]);
+	char buf[32];
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%d", val);
+
+	return do_sysfs(name, "event_done", buf);
+}
+
+int set_id(char *name, uint32_t id)
+{
+	char buf[32];
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, 32, "%u", id);
+
+	return do_sysfs(name, "id", buf);
 }
 
 static int update_dir_members(char *name)
@@ -157,6 +177,22 @@ int set_members(char *name, int new_count, int *new_members)
 	char buf[32];
 	int i, fd, rv, id, old_count, *old_members;
 
+	/*
+	 * create lockspace dir if it doesn't exist yet
+	 */
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/%s", LS_DIR, name);
+
+	if (!path_exists(path)) {
+		if (create_path(path))
+			return -1;
+	}
+
+	/*
+	 * remove/add lockspace members
+	 */
+
 	rv = update_dir_members(name);
 	if (rv)
 		return rv;
@@ -222,51 +258,6 @@ int set_members(char *name, int new_count, int *new_members)
 
 	return 0;
 
-}
-
-int set_id(char *name, uint32_t id)
-{
-	char path[PATH_MAX];
-	char buf[32];
-	int rv, fd;
-
-	if (!path_exists("/config/dlm")) {
-		log_error("No /config/dlm, is the dlm loaded?");
-		return -1;
-	}
-
-	create_path("/config/dlm/cluster");
-
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/%s", LS_DIR, name);
-
-	log_debug("set_id mkdir %s", path);
-
-	rv = create_path(path);
-	if (rv)
-		return -1;
-
-	memset(path, 0, PATH_MAX);
-	snprintf(path, PATH_MAX, "%s/%s/id", LS_DIR, name);
-
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
-		log_error("%s: open failed: %d", path, errno);
-		return -1;
-	}
-
-	memset(buf, 0, sizeof(buf));
-	snprintf(buf, 32, "%u", id);
-
-	rv = write(fd, buf, strlen(buf));
-	if (rv < 0) {
-		log_error("%s: write failed: %d, %s", path, errno, buf);
-		close(fd);
-		return -1;
-	}
-	close(fd);
-
-	return 0;
 }
 
 char *str_ip(char *addr)
