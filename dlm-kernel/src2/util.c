@@ -13,40 +13,6 @@
 #include "dlm_internal.h"
 #include "rcom.h"
 
-/**
- * dlm_hash - hash an array of data
- * @data: the data to be hashed
- * @len: the length of data to be hashed
- *
- * Copied from GFS which copied from...
- *
- * Take some data and convert it to a 32-bit hash.
- * This is the 32-bit FNV-1a hash from:
- * http://www.isthe.com/chongo/tech/comp/fnv/
- */
-
-static inline uint32_t hash_more_internal(const void *data, unsigned int len,
-					  uint32_t hash)
-{
-	unsigned char *p = (unsigned char *)data;
-	unsigned char *e = p + len;
-	uint32_t h = hash;
-
-	while (p < e) {
-		h ^= (uint32_t)(*p++);
-		h *= 0x01000193;
-	}
-
-	return h;
-}
-
-uint32_t dlm_hash(const void *data, int len)
-{
-	uint32_t h = 0x811C9DC5;
-	h = hash_more_internal(data, len, h);
-	return h;
-}
-
 static void header_out(struct dlm_header *hd)
 {
 	hd->h_version		= cpu_to_le32(hd->h_version);

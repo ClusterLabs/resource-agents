@@ -120,7 +120,7 @@ static inline uint32_t dir_hash(struct dlm_ls *ls, char *name, int len)
 {
 	uint32_t val;
 
-	val = dlm_hash(name, len);
+	val = jhash(name, len, 0);
 	val &= (ls->ls_dirtbl_size - 1);
 
 	return val;

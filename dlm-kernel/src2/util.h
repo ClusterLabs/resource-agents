@@ -13,8 +13,6 @@
 #ifndef __UTIL_DOT_H__
 #define __UTIL_DOT_H__
 
-uint32_t dlm_hash(const char *data, int len);
-
 void dlm_message_out(struct dlm_message *ms);
 void dlm_message_in(struct dlm_message *ms);
 void dlm_rcom_out(struct dlm_rcom *rc);

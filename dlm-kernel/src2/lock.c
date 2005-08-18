@@ -369,7 +369,7 @@ static int find_rsb(struct dlm_ls *ls, char *name, int namelen,
 	if (dlm_no_directory(ls))
 		flags |= R_CREATE;
 
-	hash = dlm_hash(name, namelen);
+	hash = jhash(name, namelen, 0);
 	bucket = hash & (ls->ls_rsbtbl_size - 1);
 
 	error = search_rsb(ls, name, namelen, bucket, flags, &r);

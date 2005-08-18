@@ -34,6 +34,7 @@
 #include <linux/kobject.h>
 #include <linux/kref.h>
 #include <linux/kernel.h>
+#include <linux/jhash.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
