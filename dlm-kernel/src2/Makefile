@@ -34,7 +34,6 @@ dlm-objs :=	ast.o \
 		lowcomms.o \
 		main.o \
 		member.o \
-		member_sysfs.o \
 		memory.o \
 		midcomms.o \
 		rcom.o \

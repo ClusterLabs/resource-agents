@@ -13,9 +13,7 @@
 
 #include "dlm_internal.h"
 #include "lockspace.h"
-#include "member_sysfs.h"
 #include "lock.h"
-#include "device.h"
 #include "memory.h"
 #include "lowcomms.h"
 #include "config.h"
@@ -40,13 +38,9 @@ static int __init init_dlm(void)
 	if (error)
 		goto out_mem;
 
-	error = dlm_member_sysfs_init();
-	if (error)
-		goto out_mem;
-
 	error = dlm_config_init();
 	if (error)
-		goto out_member;
+		goto out_lockspace;
 
 	error = dlm_register_debugfs();
 	if (error)
@@ -64,8 +58,8 @@ static int __init init_dlm(void)
 	dlm_unregister_debugfs();
  out_config:
 	dlm_config_exit();
- out_member:
-	dlm_member_sysfs_exit();
+ out_lockspace:
+	dlm_lockspace_exit();
  out_mem:
 	dlm_memory_exit();
  out:
@@ -75,9 +69,9 @@ static int __init init_dlm(void)
 static void __exit exit_dlm(void)
 {
 	dlm_lowcomms_exit();
-	dlm_member_sysfs_exit();
 	dlm_config_exit();
 	dlm_memory_exit();
+	dlm_lockspace_exit();
 	dlm_unregister_debugfs();
 }
 

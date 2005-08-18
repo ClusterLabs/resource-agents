@@ -221,7 +221,7 @@ int dlm_recover_members(struct dlm_ls *ls, struct dlm_recover *rv, int *neg_out)
 }
 
 /*
- * Following called from member_sysfs.c
+ * Following called from lockspace.c
  */
 
 int dlm_ls_stop(struct dlm_ls *ls)
