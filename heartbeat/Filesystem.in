@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.3 2005/07/29 07:36:15 sunjd Exp $
+# $Id: Filesystem.in,v 1.4 2005/08/18 13:54:42 andrew Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -100,7 +100,7 @@ usage() {
 
 cat <<-EOT;
 	usage: $0 {start|stop|status|monitor}
-	$Id: Filesystem.in,v 1.3 2005/07/29 07:36:15 sunjd Exp $
+	$Id: Filesystem.in,v 1.4 2005/08/18 13:54:42 andrew Exp $
 	EOT
 }
 
@@ -308,7 +308,7 @@ DEVICE=$OCF_RESKEY_device
 MOUNTPOINT=$OCF_RESKEY_directory
 FSTYPE=$OCF_RESKEY_fstype
 if [ ! -z "$OCF_RESKEY_options" ]; then
-	options = "-o $OCF_RESKEY_options"
+	options="-o $OCF_RESKEY_options"
 fi
 
 OP=$1
