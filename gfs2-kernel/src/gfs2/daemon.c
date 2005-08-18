@@ -43,12 +43,12 @@
 int gfs2_scand(void *data)
 {
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
+	unsigned long t;
 
 	while (!kthread_should_stop()) {
 		gfs2_scand_internal(sdp);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_scand_secs) * HZ);
+		t = gfs2_tune_get(sdp, gt_scand_secs) * HZ;
+		schedule_timeout_interruptible(t);
 	}
 
 	return 0;
@@ -92,12 +92,12 @@ int gfs2_glockd(void *data)
 int gfs2_recoverd(void *data)
 {
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
+	unsigned long t;
 
 	while (!kthread_should_stop()) {
 		gfs2_check_journals(sdp);
-
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_recoverd_secs) * HZ);
+		t = gfs2_tune_get(sdp,  gt_recoverd_secs) * HZ;
+		schedule_timeout_interruptible(t);
 	}
 
 	return 0;
@@ -115,28 +115,34 @@ int gfs2_logd(void *data)
 {
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
 	struct gfs2_holder ji_gh;
+	unsigned long t;
 
 	while (!kthread_should_stop()) {
 		/* Advance the log tail */
+
+		t = sdp->sd_log_flush_time +
+		    gfs2_tune_get(sdp, gt_log_flush_secs) * HZ;
+
 		gfs2_ail1_empty(sdp, DIO_ALL);
-		if (time_after_eq(jiffies,
-				  sdp->sd_log_flush_time +
-				  gfs2_tune_get(sdp, gt_log_flush_secs) * HZ)) {
+
+		if (time_after_eq(jiffies, t)) {
 			gfs2_log_flush(sdp);
 			sdp->sd_log_flush_time = jiffies;
 		}
 
 		/* Check for latest journal index */
-		if (time_after_eq(jiffies,
-				  sdp->sd_jindex_refresh_time +
-				  gfs2_tune_get(sdp, gt_jindex_refresh_secs) * HZ)) {
+
+		t = sdp->sd_jindex_refresh_time +
+		    gfs2_tune_get(sdp, gt_jindex_refresh_secs) * HZ;
+
+		if (time_after_eq(jiffies, t)) {
 			if (!gfs2_jindex_hold(sdp, &ji_gh))
 				gfs2_glock_dq_uninit(&ji_gh);
 			sdp->sd_jindex_refresh_time = jiffies;
 		}
 
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_logd_secs) * HZ);
+		t = gfs2_tune_get(sdp, gt_logd_secs) * HZ;
+		schedule_timeout_interruptible(t);
 	}
 
 	return 0;
@@ -151,13 +157,16 @@ int gfs2_logd(void *data)
 int gfs2_quotad(void *data)
 {
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
+	unsigned long t;
 	int error;
 
 	while (!kthread_should_stop()) {
 		/* Update the master statfs file */
-		if (time_after_eq(jiffies,
-				  sdp->sd_statfs_sync_time +
-				  gfs2_tune_get(sdp, gt_statfs_quantum) * HZ)) {
+
+		t = sdp->sd_statfs_sync_time +
+		    gfs2_tune_get(sdp, gt_statfs_quantum) * HZ;
+
+		if (time_after_eq(jiffies, t)) {
 			error = gfs2_statfs_sync(sdp);
 			if (error &&
 			    error != -EROFS &&
@@ -168,9 +177,11 @@ int gfs2_quotad(void *data)
 		}
 
 		/* Update quota file */
-		if (time_after_eq(jiffies,
-				  sdp->sd_quota_sync_time +
-				  gfs2_tune_get(sdp, gt_quota_quantum) * HZ)) {
+
+		t = sdp->sd_quota_sync_time +
+		    gfs2_tune_get(sdp, gt_quota_quantum) * HZ;
+
+		if (time_after_eq(jiffies, t)) {
 			error = gfs2_quota_sync(sdp);
 			if (error &&
 			    error != -EROFS &&
@@ -182,8 +193,8 @@ int gfs2_quotad(void *data)
 
 		gfs2_quota_scan(sdp);
 
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_quotad_secs) * HZ);
+		t = gfs2_tune_get(sdp, gt_quotad_secs) * HZ;
+		schedule_timeout_interruptible(t);
 	}
 
 	return 0;
@@ -198,6 +209,7 @@ int gfs2_quotad(void *data)
 int gfs2_inoded(void *data)
 {
 	struct gfs2_sbd *sdp = (struct gfs2_sbd *)data;
+	unsigned long t;
 	int error;
 
 	while (!kthread_should_stop()) {
@@ -208,8 +220,8 @@ int gfs2_inoded(void *data)
 			printk("GFS2: fsid=%s: inoded: error = %d\n",
 			       sdp->sd_fsname, error);
 
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(gfs2_tune_get(sdp, gt_inoded_secs) * HZ);
+		t = gfs2_tune_get(sdp, gt_inoded_secs) * HZ;
+		schedule_timeout_interruptible(t);
 	}
 
 	return 0;

@@ -34,15 +34,6 @@
 #define NO_FORCE 0
 #define FORCE 1
 
-/* FIXME: remove this */
-static inline void *kzalloc(size_t size, unsigned int flags)
-{
-	void *ret = kmalloc(size, flags);
-	if (ret)
-		memset(ret, 0, size);
-	return ret;
-}
-
 #if (BITS_PER_LONG == 64)
 #define PRIu64 "lu"
 #define PRId64 "ld"

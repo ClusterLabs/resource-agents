@@ -14,7 +14,6 @@
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
 #include <linux/xattr.h>
-#include <linux/xattr_acl.h>
 #include <asm/semaphore.h>
 #include <asm/uaccess.h>
 
