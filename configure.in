@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.422 $) dnl cvs revision
+AC_REVISION($Revision: 1.423 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -354,40 +354,6 @@ AC_CHECK_LIB(dl, dlopen)			dnl -ldl (for Linux)
 AC_CHECK_LIB(rt, sched_getscheduler)            dnl -lrt (for Tru64)
 AC_CHECK_LIB(gnugetopt, getopt_long)		dnl -lgnugetopt ( if available )
 
-dnl ************ curses **********************
-dnl A few OSes (e.g. Linux) deliver a default "ncurses" alongside "curses".
-dnl Many non-Linux deliver "curses"; sites may add "ncurses".
-dnl
-dnl However, the source-code recommendation for both is to #include "curses.h"
-dnl (i.e. "ncurses" still wants the include to be simple, no-'n', "curses.h").
-dnl
-dnl Andrew Beekhof (author of heartbeat code that uses this functionality)
-dnl wishes "ncurses" to take precedence.  So the following ordering has
-dnl been devised to implement this.
-dnl
-dnl Look first for the headers, then set the libraries accordingly.
-dnl (Normally autoconf suggests looking for libraries first.)
-dnl
-AC_CHECK_HEADERS(curses.h)
-AC_CHECK_HEADERS(ncurses.h)
-
-dnl Although n-library is preferred, only look for it if the n-header was found.
-CURSESLIBS=''
-if test "$ac_cv_header_ncurses_h" = "yes"; then
-  AC_CHECK_LIB(ncurses, printw,
-    [CURSESLIBS='-lncurses'; AC_DEFINE(HAVE_LIBNCURSES,1, have ncurses library)]
-  )
-fi
-
-dnl Only look for non-n-library if there was no n-library.
-if test X"$CURSESLIBS" = X"" -a "$ac_cv_header_curses_h" = "yes"; then
-  AC_CHECK_LIB(curses, printw,
-    [CURSESLIBS='-lcurses'; AC_DEFINE(HAVE_LIBCURSES,1, have curses library)]
-  )
-fi
-
-AC_SUBST(CURSESLIBS)
-dnl ************ curses **********************
 
 dnl ************ uuid **********************
 AC_ARG_WITH(uuid,
@@ -1183,6 +1149,42 @@ AC_SUBST(INCLTDL)
 AC_SUBST(LIBLTDL)
 AC_SUBST(LIBLTDL_DIR)
 
+dnl ************ curses **********************
+dnl A few OSes (e.g. Linux) deliver a default "ncurses" alongside "curses".
+dnl Many non-Linux deliver "curses"; sites may add "ncurses".
+dnl
+dnl However, the source-code recommendation for both is to #include "curses.h"
+dnl (i.e. "ncurses" still wants the include to be simple, no-'n', "curses.h").
+dnl
+dnl Andrew Beekhof (author of heartbeat code that uses this functionality)
+dnl wishes "ncurses" to take precedence.  So the following ordering has
+dnl been devised to implement this.
+dnl
+dnl Look first for the headers, then set the libraries accordingly.
+dnl (Normally autoconf suggests looking for libraries first.)
+dnl
+AC_CHECK_HEADERS(curses.h)
+AC_CHECK_HEADERS(ncurses.h)
+
+dnl Although n-library is preferred, only look for it if the n-header was found.
+CURSESLIBS=''
+if test "$ac_cv_header_ncurses_h" = "yes"; then
+  AC_CHECK_LIB(ncurses, printw,
+    [CURSESLIBS='-lncurses'; AC_DEFINE(HAVE_LIBNCURSES,1, have ncurses library)]
+  )
+fi
+
+dnl Only look for non-n-library if there was no n-library.
+if test X"$CURSESLIBS" = X"" -a "$ac_cv_header_curses_h" = "yes"; then
+  AC_CHECK_LIB(curses, printw,
+    [CURSESLIBS='-lcurses'; AC_DEFINE(HAVE_LIBCURSES,1, have curses library)]
+  )
+fi
+
+AC_SUBST(CURSESLIBS)
+
+dnl ************ curses **********************
+
 if test "$GCC" = yes; then
 dnl
 dnl We make sure warnings are carefully scrubbed out of the output if
@@ -1228,6 +1230,52 @@ dnl
           esac
           return $rc
 	}
+
+dnl ************ printw **********************
+
+	if test X"$CURSESLIBS" != X"" &&  cc_supports_flag -Wcast-qual \
+	  && cc_supports_flag -Werror; then 
+	dnl Check for printw() prototype compatibility
+	dnl FIXME: We can check che prototype compatibility only if $CC supports
+	dnl -Wcast-qual and -Werror	
+	  AC_MSG_CHECKING(whether printw() requires argument of "const char *")
+	  ac_save_LIBS=$LIBS
+	  LIBS="$CURSESLIBS  $LIBS"
+	  ac_save_CFLAGS=$CFLAGS
+	  CFLAGS="-Wcast-qual -Werror"
+
+	  AC_LINK_IFELSE(
+	    [AC_LANG_PROGRAM(
+	      [
+#if defined(HAVE_CURSES_H)
+#  include <curses.h>
+#elif defined(HAVE_NCURSES_H)
+#  include <ncurses.h>
+#endif
+	      ],
+	      [printw((const char *)"Test");]
+	    )], 
+	    [ac_cv_compatible_printw=yes],
+	    [ac_cv_compatible_printw=no]
+	  )
+
+	  LIBS=$ac_save_LIBS
+	  CFLAGS=$ac_save_CFLAGS
+
+	  AC_MSG_RESULT([$ac_cv_compatible_printw])
+
+	  if test "$ac_cv_compatible_printw" = no; then
+		AC_MSG_WARN([The printw() function of your ncurses or curses library is old, we will disable usage of the library. If you want to use this library anyway, please update to newer version of the library, ncurses 5.4 or later is recommended. You can get the library from http://www.gnu.org/software/ncurses/.])
+		AC_MSG_NOTICE([Disabling curses])
+		AC_DEFINE(HAVE_INCOMPATIBLE_PRINTW, 1, [Do we have incompatible printw() in curses library?])
+		dnl	AC_DEFINE(HAVE_CURSES_H, 0)
+		dnl	AC_DEFINE(HAVE_NCURSES_H, 0)
+	  fi
+	fi
+
+dnl ************ printw **********************
+
+
 	EXTRA_WARNINGS=""
 	# We had to eliminate -Wnested-externs because of libtool changes
         WARNLIST="all missing-prototypes 
