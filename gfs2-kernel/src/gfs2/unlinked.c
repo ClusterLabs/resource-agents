@@ -401,8 +401,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 	}
 
 	if (found)
-		printk("GFS2: fsid=%s: found %u unlinked inodes\n",
-		       sdp->sd_fsname, found);
+		fs_info(sdp, "found %u unlinked inodes\n", found);
 
 	return 0;
 

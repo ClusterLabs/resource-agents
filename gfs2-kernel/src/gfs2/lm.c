@@ -80,16 +80,15 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 			table = sb->sb_locktable;
 	}
 
-	printk("GFS2: Trying to join cluster \"%s\", \"%s\"\n",
-	       proto, table);
+	fs_info(sdp, "Trying to join cluster \"%s\", \"%s\"\n", proto, table);
 
 	error = lm_mount(proto, table, sdp->sd_args.ar_hostdata,
 			 gfs2_glock_cb, sdp,
 			 GFS2_MIN_LVB_SIZE, flags,
 			 &sdp->sd_lockstruct);
 	if (error) {
-		printk("GFS2: can't mount proto = %s, table = %s, hostdata = %s\n",
-		     proto, table, sdp->sd_args.ar_hostdata);
+		fs_info(sdp, "can't mount proto=%s, table=%s, hostdata=%s\n",
+			proto, table, sdp->sd_args.ar_hostdata);
 		goto out;
 	}
 
@@ -108,8 +107,7 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 			 (*table) ? table : sdp->sd_vfs->s_id,
 			 sdp->sd_lockstruct.ls_jid);
 
-	printk("GFS2: fsid=%s: Joined cluster. Now mounting FS...\n",
-	       sdp->sd_fsname);
+	fs_info(sdp, "Joined cluster. Now mounting FS...\n");
 
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
@@ -155,12 +153,11 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 	vprintk(fmt, args);
 	va_end(args);
 
-	printk("GFS2: fsid=%s: about to withdraw from the cluster\n",
-	       sdp->sd_fsname);
+	fs_err(sdp, "about to withdraw from the cluster\n");
 	if (sdp->sd_args.ar_debug)
 		BUG();
 
-	printk("GFS2: fsid=%s: waiting for outstanding I/O\n", sdp->sd_fsname);
+	fs_err(sdp, "waiting for outstanding I/O\n");
 
 	/* FIXME: poll dm until there are no outstanding bio's on our device */
 	/*
@@ -168,9 +165,9 @@ int gfs2_lm_withdraw(struct gfs2_sbd *sdp, char *fmt, ...)
 		msleep(100);
 	*/
 
-	printk("GFS2: fsid=%s: telling LM to withdraw\n", sdp->sd_fsname);
+	fs_err(sdp, "telling LM to withdraw\n");
 	lm_withdraw(&sdp->sd_lockstruct);
-	printk("GFS2: fsid=%s: withdrawn\n", sdp->sd_fsname);
+	fs_err(sdp, "withdrawn\n");
 
 	return -1;
 }

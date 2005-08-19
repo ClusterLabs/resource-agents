@@ -1121,8 +1121,7 @@ int gfs2_quota_init(struct gfs2_sbd *sdp)
 	}
 
 	if (found)
-		printk("GFS2: fsid=%s: found %u quota changes\n",
-		       sdp->sd_fsname, found);
+		fs_info(sdp, "found %u quota changes\n", found);
 
 	return 0;
 

@@ -418,8 +418,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	unsigned int pass;
 	int error;
 
-	printk("GFS2: fsid=%s: jid=%u: Trying to acquire journal lock...\n",
-	       sdp->sd_fsname, jd->jd_jid);
+	fs_info(sdp, "jid=%u: Trying to acquire journal lock...\n", jd->jd_jid);
 
 	/* Aquire the journal lock so we can do recovery */
 
@@ -434,8 +433,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		break;
 
 	case GLR_TRYFAILED:
-		printk("GFS2: fsid=%s: jid=%u: Busy\n",
-		       sdp->sd_fsname, jd->jd_jid);
+		fs_info(sdp, "jid=%u: Busy\n", jd->jd_jid);
 		error = 0;
 
 	default:
@@ -447,8 +445,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	if (error)
 		goto fail_gunlock_j;
 
-	printk("GFS2: fsid=%s: jid=%u: Looking at journal...\n",
-	       sdp->sd_fsname, jd->jd_jid);
+	fs_info(sdp, "jid=%u: Looking at journal...\n", jd->jd_jid);
 
 	error = gfs2_jdesc_check(jd);
 	if (error)
@@ -459,9 +456,8 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		goto fail_gunlock_ji;
 
 	if (!(head.lh_flags & GFS2_LOG_HEAD_UNMOUNT)) {
-		printk("GFS2: fsid=%s: jid=%u: "
-		       "Acquiring the transaction lock...\n",
-		       sdp->sd_fsname, jd->jd_jid);
+		fs_info(sdp, "jid=%u: Acquiring the transaction lock...\n",
+			jd->jd_jid);
 
 		t = jiffies;
 
@@ -487,15 +483,13 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 		}
 
 		if (ro) {
-			printk("GFS2: fsid=%s: jid=%u: "
-			       "Can't replay: read-only FS\n",
-			       sdp->sd_fsname, jd->jd_jid);
+			fs_warn(sdp, "jid=%u: Can't replay: read-only FS\n",
+				jd->jd_jid);
 			error = -EROFS;
 			goto fail_gunlock_tr;
 		}
 
-		printk("GFS2: fsid=%s: jid=%u: Replaying journal...\n",
-		       sdp->sd_fsname, jd->jd_jid);
+		fs_info(sdp, "jid=%u: Replaying journal...\n", jd->jd_jid);
 
 		for (pass = 0; pass < 2; pass++) {
 			lops_before_scan(jd, &head, pass);
@@ -514,8 +508,8 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 
 		t = DIV_RU(jiffies - t, HZ);
 		
-		printk("GFS2: fsid=%s: jid=%u: Journal replayed in %lus\n",
-		       sdp->sd_fsname, jd->jd_jid, t);
+		fs_info(sdp, "jid=%u: Journal replayed in %lus\n",
+			jd->jd_jid, t);
 	}
 
 	gfs2_glock_dq_uninit(&ji_gh);
@@ -524,8 +518,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 
 	gfs2_glock_dq_uninit(&j_gh);
 
-	printk("GFS2: fsid=%s: jid=%u: Done\n",
-	       sdp->sd_fsname, jd->jd_jid);
+	fs_info(sdp, "jid=%u: Done\n", jd->jd_jid);
 
 	return 0;
 
@@ -538,8 +531,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
  fail_gunlock_j:
 	gfs2_glock_dq_uninit(&j_gh);
 
-	printk("GFS2: fsid=%s: jid=%u: %s\n",
-	       sdp->sd_fsname, jd->jd_jid, (error) ? "Failed" : "Done");
+	fs_info(sdp, "jid=%u: %s\n", jd->jd_jid, (error) ? "Failed" : "Done");
 
  fail:
 	gfs2_lm_recovery_done(sdp, jd->jd_jid, LM_RD_GAVEUP);

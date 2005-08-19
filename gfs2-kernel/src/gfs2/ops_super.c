@@ -181,18 +181,15 @@ static void gfs2_write_super_lockfs(struct super_block *sb)
 
 		switch (error) {
 		case -EBUSY:
-			printk("GFS2: fsid=%s: "
-			       "waiting for recovery before freeze\n",
-			       sdp->sd_fsname);
+			fs_err(sdp, "waiting for recovery before freeze\n");
 			break;
 
 		default:
-			printk("GFS2: fsid=%s: error freezing FS: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "error freezing FS: %d\n", error);
 			break;
 		}
 
-		printk("GFS2: fsid=%s: retrying...\n", sdp->sd_fsname);
+		fs_err(sdp, "retrying...\n");
 		msleep(1000);
 	}
 }

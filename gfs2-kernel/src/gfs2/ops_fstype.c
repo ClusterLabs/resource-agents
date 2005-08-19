@@ -144,8 +144,7 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 	p = kthread_run(gfs2_scand, sdp, "gfs2_scand");
 	error = IS_ERR(p);
 	if (error) {
-		printk("GFS2: fsid=%s: can't start scand thread: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't start scand thread: %d\n", error);
 		return error;
 	}
 	sdp->sd_scand_process = p;
@@ -156,8 +155,7 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 		p = kthread_run(gfs2_glockd, sdp, "gfs2_glockd");
 		error = IS_ERR(p);
 		if (error) {
-			printk("GFS2: fsid=%s: can't start glockd thread: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "can't start glockd thread: %d\n", error);
 			goto fail;
 		}
 		sdp->sd_glockd_process[sdp->sd_glockd_num] = p;
@@ -168,8 +166,7 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 				  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP | GL_NOCACHE,
 				  mount_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't acquire mount glock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't acquire mount glock: %d\n", error);
 		goto fail;
 	}
 
@@ -179,24 +176,21 @@ static int init_locking(struct gfs2_sbd *sdp, struct gfs2_holder *mount_gh,
 				  LM_FLAG_NOEXP | GL_EXACT | GL_NEVER_RECURSE,
 				  &sdp->sd_live_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't acquire live glock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't acquire live glock: %d\n", error);
 		goto fail_mount;
 	}
 
 	error = gfs2_glock_get(sdp, GFS2_RENAME_LOCK, &gfs2_nondisk_glops,
 			       CREATE, &sdp->sd_rename_gl);
 	if (error) {
-		printk("GFS2: fsid=%s: can't create rename glock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't create rename glock: %d\n", error);
 		goto fail_live;
 	}
 
 	error = gfs2_glock_get(sdp, GFS2_TRANS_LOCK, &gfs2_trans_glops,
 			       CREATE, &sdp->sd_trans_gl);
 	if (error) {
-		printk("GFS2: fsid=%s: can't create transaction glock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't create transaction glock: %d\n", error);
 		goto fail_rename;
 	}
 	set_bit(GLF_STICKY, &sdp->sd_trans_gl->gl_flags);
@@ -239,31 +233,27 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 				 GFS2_SB_LOCK, &gfs2_meta_glops,
 				 LM_ST_SHARED, 0, &sb_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't acquire superblock glock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't acquire superblock glock: %d\n", error);
 		return error;
 	}
 
 	error = gfs2_read_sb(sdp, sb_gh.gh_gl, silent);
 	if (error) {
-		printk("GFS2: fsid=%s: can't read superblock: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read superblock: %d\n", error);
 		goto out;
 	}
 
 	/* Set up the buffer cache and SB for real */
 	error = -EINVAL;
 	if (sdp->sd_sb.sb_bsize < bdev_hardsect_size(sb->s_bdev)) {
-		printk("GFS2: fsid=%s: FS block size (%u) is too small "
-		       "for device block size (%u)\n",
-		       sdp->sd_fsname,
+		fs_err(sdp, "FS block size (%u) is too small for device "
+		       "block size (%u)\n",
 		       sdp->sd_sb.sb_bsize, bdev_hardsect_size(sb->s_bdev));
 		goto out;
 	}
 	if (sdp->sd_sb.sb_bsize > PAGE_SIZE) {
-		printk("GFS2: fsid=%s: FS block size (%u) is too big "
-		       "for machine page size (%u)\n",
-		       sdp->sd_fsname,
+		fs_err(sdp, "FS block size (%u) is too big for machine "
+		       "page size (%u)\n",
 		       sdp->sd_sb.sb_bsize, (unsigned int)PAGE_SIZE);
 		goto out;
 	}
@@ -276,8 +266,7 @@ static int init_sb(struct gfs2_sbd *sdp, int silent, int undo)
 
 	error = gfs2_lookup_master_dir(sdp);
 	if (error)
-		printk("GFS2: fsid=%s: can't read in master directory: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read in master directory: %d\n", error);
 
  out:
 	gfs2_glock_dq_uninit(&sb_gh);
@@ -300,8 +289,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "jindex",
 				   &sdp->sd_jindex);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lookup journal index: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't lookup journal index: %d\n", error);
 		return error;
 	}
 	set_bit(GLF_STICKY, &sdp->sd_jindex->i_gl->gl_flags);
@@ -310,15 +298,13 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 
 	error = gfs2_jindex_hold(sdp, &ji_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't read journal index: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read journal index: %d\n", error);
 		goto fail;
 	}
 
 	error = -EINVAL;
 	if (!gfs2_jindex_size(sdp)) {
-		printk("GFS2: fsid=%s: no journals!\n",
-		       sdp->sd_fsname);
+		fs_err(sdp, "no journals!\n");
 		goto fail_jindex;		
 	}
 
@@ -327,11 +313,9 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 		sdp->sd_log_blks_free = sdp->sd_jdesc->jd_blocks;
 	} else {
 		if (sdp->sd_lockstruct.ls_jid >= gfs2_jindex_size(sdp)) {
-			printk("GFS2: fsid=%s: can't mount journal #%u\n",
-			       sdp->sd_fsname, sdp->sd_lockstruct.ls_jid);
-			printk("GFS2: fsid=%s: "
-			       "there are only %u journals (0 - %u)\n",
-			       sdp->sd_fsname,
+			fs_err(sdp, "can't mount journal #%u\n",
+			       sdp->sd_lockstruct.ls_jid);
+			fs_err(sdp, "there are only %u journals (0 - %u)\n",
 			       gfs2_jindex_size(sdp),
 			       gfs2_jindex_size(sdp) - 1);
 			goto fail_jindex;
@@ -344,9 +328,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 					  LM_ST_EXCLUSIVE, LM_FLAG_NOEXP,
 					  &sdp->sd_journal_gh);
 		if (error) {
-			printk("GFS2: fsid=%s: "
-			       "can't acquire the journal glock: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "can't acquire journal glock: %d\n", error);
 			goto fail_jindex;
 		}
 
@@ -355,16 +337,15 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 					   LM_FLAG_NOEXP | GL_EXACT,
 					   &sdp->sd_jinode_gh);
 		if (error) {
-			printk("gfs2: fsid=%s: "
-			       "can't acquire out journal inode glock: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "can't acquire journal inode glock: %d\n",
+			       error);
 			goto fail_journal_gh;
 		}
 
 		error = gfs2_jdesc_check(sdp->sd_jdesc);
 		if (error) {
-			printk("GFS2: fsid=%s: my journal (%u) is bad: %d\n",
-			       sdp->sd_fsname, sdp->sd_jdesc->jd_jid, error);
+			fs_err(sdp, "my journal (%u) is bad: %d\n",
+			       sdp->sd_jdesc->jd_jid, error);
 			goto fail_jinode_gh;
 		}
 		sdp->sd_log_blks_free = sdp->sd_jdesc->jd_blocks;
@@ -376,9 +357,8 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 			error = gfs2_recover_journal(gfs2_jdesc_find(sdp, x),
 						     WAIT);
 			if (error) {
-				printk("GFS2: fsid=%s: "
-				       "error recovering journal %u: %d\n",
-				       sdp->sd_fsname, x, error);
+				fs_err(sdp, "error recovering journal %u: %d\n",
+				       x, error);
 				goto fail_jinode_gh;
 			}
 		}
@@ -387,9 +367,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	} else if (!sdp->sd_args.ar_spectator) {
 		error = gfs2_recover_journal(sdp->sd_jdesc, WAIT);
 		if (error) {
-			printk("GFS2: fsid=%s: "
-			       "error recovering my journal: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "error recovering my journal: %d\n", error);
 			goto fail_jinode_gh;
 		}
 	}
@@ -406,8 +384,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 	p = kthread_run(gfs2_recoverd, sdp, "gfs2_recoverd");
 	error = IS_ERR(p);
 	if (error) {
-		printk("GFS2: fsid=%s: can't start recoverd thread: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't start recoverd thread: %d\n", error);
 		goto fail_jinode_gh;
 	}
 	sdp->sd_recoverd_process = p;
@@ -449,8 +426,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "inum",
 				   &sdp->sd_inum_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't read in inum inode: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read in inum inode: %d\n", error);
 		return error;
 	}
 
@@ -458,8 +434,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "statfs",
 				   &sdp->sd_statfs_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't read in statfs inode: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read in statfs inode: %d\n", error);
 		goto fail;
 	}
 
@@ -467,8 +442,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "rindex",
 				   &sdp->sd_rindex);
 	if (error) {
-		printk("GFS2: fsid=%s: can't get resource index inode: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't get resource index inode: %d\n", error);
 		goto fail_statfs;
 	}
 	set_bit(GLF_STICKY, &sdp->sd_rindex->i_gl->gl_flags);
@@ -478,8 +452,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "quota",
 				   &sdp->sd_quota_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't get quota file inode: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't get quota file inode: %d\n", error);
 		goto fail_rindex;
 	}
 
@@ -487,15 +460,14 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "root",
 				   &sdp->sd_root_dir);
 	if (error) {
-		printk("GFS2: fsid=%s: can't read in root inode: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't read in root inode: %d\n", error);
 		goto fail_qinode;
 	}
 
 	/* Get the root inode/dentry */
 	inode = gfs2_ip2v(sdp->sd_root_dir);
 	if (!inode) {
-		printk("GFS2: fsid=%s: can't get root inode\n", sdp->sd_fsname);
+		fs_err(sdp, "can't get root inode\n");
 		error = -ENOMEM;
 		goto fail_rooti;
 	}
@@ -503,7 +475,7 @@ static int init_inodes(struct gfs2_sbd *sdp, int undo)
 	*dentry = d_alloc_root(inode);
 	if (!*dentry) {
 		iput(inode);
-		printk("GFS2: fsid=%s: can't get root dentry\n", sdp->sd_fsname);
+		fs_err(sdp, "can't get root dentry\n");
 		error = -ENOMEM;
 		goto fail_rooti;
 	}
@@ -547,40 +519,35 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 
 	error = gfs2_lookup_simple(sdp->sd_master_dir, "per_node", &pn);
 	if (error) {
-		printk("GFS2: fsid=%s: can't find per_node directory: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't find per_node directory: %d\n", error);
 		return error;
 	}
 
 	sprintf(buf, "inum_range%u", sdp->sd_jdesc->jd_jid);
 	error = gfs2_lookup_simple(pn, buf, &sdp->sd_ir_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't find local \"ir\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't find local \"ir\" file: %d\n", error);
 		goto fail;
 	}
 
 	sprintf(buf, "statfs_change%u", sdp->sd_jdesc->jd_jid);
 	error = gfs2_lookup_simple(pn, buf, &sdp->sd_sc_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't find local \"sc\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't find local \"sc\" file: %d\n", error);
 		goto fail_ir_i;
 	}
 
 	sprintf(buf, "unlinked_tag%u", sdp->sd_jdesc->jd_jid);
 	error = gfs2_lookup_simple(pn, buf, &sdp->sd_ut_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't find local \"ut\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't find local \"ut\" file: %d\n", error);
 		goto fail_sc_i;
 	}
 
 	sprintf(buf, "quota_change%u", sdp->sd_jdesc->jd_jid);
 	error = gfs2_lookup_simple(pn, buf, &sdp->sd_qc_inode);
 	if (error) {
-		printk("GFS2: fsid=%s: can't find local \"qc\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't find local \"qc\" file: %d\n", error);
 		goto fail_ut_i;
 	}
 
@@ -591,8 +558,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
 				   &sdp->sd_ir_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"ir\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't lock local \"ir\" file: %d\n", error);
 		goto fail_qc_i;
 	}
 
@@ -600,8 +566,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
 				   &sdp->sd_sc_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"sc\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't lock local \"sc\" file: %d\n", error);
 		goto fail_ir_gh;
 	}
 
@@ -609,8 +574,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
 				   &sdp->sd_ut_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"ut\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't lock local \"ut\" file: %d\n", error);
 		goto fail_sc_gh;
 	}
 
@@ -618,8 +582,7 @@ static int init_per_node(struct gfs2_sbd *sdp, int undo)
 				   LM_ST_EXCLUSIVE, GL_NEVER_RECURSE,
 				   &sdp->sd_qc_gh);
 	if (error) {
-		printk("GFS2: fsid=%s: can't lock local \"qc\" file: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't lock local \"qc\" file: %d\n", error);
 		goto fail_ut_gh;
 	}
 
@@ -669,8 +632,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	p = kthread_run(gfs2_logd, sdp, "gfs2_logd");
 	error = IS_ERR(p);
 	if (error) {
-		printk("GFS2: fsid=%s: can't start logd thread: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't start logd thread: %d\n", error);
 		return error;
 	}
 	sdp->sd_logd_process = p;
@@ -681,8 +643,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	p = kthread_run(gfs2_quotad, sdp, "gfs2_quotad");
 	error = IS_ERR(p);
 	if (error) {
-		printk("GFS2: fsid=%s: can't start quotad thread: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't start quotad thread: %d\n", error);
 		goto fail;
 	}
 	sdp->sd_quotad_process = p;
@@ -690,8 +651,7 @@ static int init_threads(struct gfs2_sbd *sdp, int undo)
 	p = kthread_run(gfs2_inoded, sdp, "gfs2_inoded");
 	error = IS_ERR(p);
 	if (error) {
-		printk("GFS2: fsid=%s: can't start inoded thread: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't start inoded thread: %d\n", error);
 		goto fail_quotad;
 	}
 	sdp->sd_inoded_process = p;
@@ -766,8 +726,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	error = gfs2_statfs_init(sdp);
 	if (error) {
-		printk("GFS2: fsid=%s: can't initialize statfs subsystem: %d\n",
-		       sdp->sd_fsname, error);
+		fs_err(sdp, "can't initialize statfs subsystem: %d\n", error);
 		goto fail_per_node;
 	}
 
@@ -781,8 +740,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_rw(sdp);
 		if (error) {
-			printk("GFS2: fsid=%s: can't make FS RW: %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "can't make FS RW: %d\n", error);
 			goto fail_proc;
 		}
 	}

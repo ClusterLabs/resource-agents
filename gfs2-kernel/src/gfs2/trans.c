@@ -30,8 +30,7 @@ int gfs2_trans_begin_i(struct gfs2_sbd *sdp, unsigned int blocks,
 
 	if (gfs2_assert_warn(sdp, !get_transaction) ||
 	    gfs2_assert_warn(sdp, blocks || revokes)) {
-		printk("GFS2: fsid=%s: (%s, %u)\n",
-		       sdp->sd_fsname, file, line);
+		fs_warn(sdp, "(%s, %u)\n", file, line);
 		return -EINVAL;
 	}
 
@@ -112,15 +111,15 @@ void gfs2_trans_end(struct gfs2_sbd *sdp)
 	}
 
 	if (gfs2_assert_withdraw(sdp, tr->tr_num_buf <= tr->tr_blocks))
-		printk("GFS2: fsid=%s: tr_num_buf = %u, tr_blocks = %u\n"
-		       "GFS2: fsid=%s: tr_file = %s, tr_line = %u\n",
-		       sdp->sd_fsname, tr->tr_num_buf, tr->tr_blocks,
-		       sdp->sd_fsname, tr->tr_file, tr->tr_line);
+		fs_err(sdp, "tr_num_buf = %u, tr_blocks = %u "
+		       "tr_file = %s, tr_line = %u\n",
+		       tr->tr_num_buf, tr->tr_blocks,
+		       tr->tr_file, tr->tr_line);
 	if (gfs2_assert_withdraw(sdp, tr->tr_num_revoke <= tr->tr_revokes))
-		printk("GFS2: fsid=%s: tr_num_revoke = %u, tr_revokes = %u\n"
-		       "GFS2: fsid=%s: tr_file = %s, tr_line = %u\n",
-		       sdp->sd_fsname, tr->tr_num_revoke, tr->tr_revokes,
-		       sdp->sd_fsname, tr->tr_file, tr->tr_line);
+		fs_err(sdp, "tr_num_revoke = %u, tr_revokes = %u "
+		       "tr_file = %s, tr_line = %u\n",
+		       tr->tr_num_revoke, tr->tr_revokes,
+		       tr->tr_file, tr->tr_line);
 
 	gfs2_log_commit(sdp, tr);
 

@@ -169,8 +169,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 			       DIO_FORCE | DIO_START | DIO_WAIT, &bh);
 	if (error) {
 		if (!silent)
-			printk("GFS2: fsid=%s: can't read superblock\n",
-			       sdp->sd_fsname);
+			fs_err(sdp, "can't read superblock\n");
 		return error;
 	}
 

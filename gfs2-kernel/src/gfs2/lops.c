@@ -223,10 +223,8 @@ static void buf_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 
 	gfs2_meta_sync(jd->jd_inode->i_gl, DIO_START | DIO_WAIT);
 
-	printk("GFS2: fsid=%s: jid=%u: Replayed %u of %u blocks\n",
-	       sdp->sd_fsname, jd->jd_jid,
-	       sdp->sd_replayed_blocks,
-	       sdp->sd_found_blocks);
+	fs_info(sdp, "jid=%u: Replayed %u of %u blocks\n",
+	        jd->jd_jid, sdp->sd_replayed_blocks, sdp->sd_found_blocks);
 }
 
 static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
@@ -366,9 +364,8 @@ static void revoke_lo_after_scan(struct gfs2_jdesc *jd, int error, int pass)
 	if (pass != 1)
 		return;
 
-	printk("GFS2: fsid=%s: jid=%u: Found %u revoke tags\n",
-	       sdp->sd_fsname, jd->jd_jid,
-	       sdp->sd_found_revokes);
+	fs_info(sdp, "jid=%u: Found %u revoke tags\n",
+	        jd->jd_jid, sdp->sd_found_revokes);
 
 	gfs2_revoke_clean(sdp);
 }

@@ -58,55 +58,42 @@ static void stuck_releasepage(struct buffer_head *bh)
 {
 	struct gfs2_sbd *sdp = get_v2sdp(bh->b_page->mapping->host->i_sb);
 	struct gfs2_bufdata *bd = get_v2bd(bh);
+	struct gfs2_glock *gl;
 
-	printk("GFS2: fsid=%s: stuck in gfs2_releasepage()\n", sdp->sd_fsname);
-	printk("GFS2: fsid=%s: blkno = %"PRIu64", bh->b_count = %d\n",
-	       sdp->sd_fsname,
-	       (uint64_t)bh->b_blocknr,
-	       atomic_read(&bh->b_count));
-	printk("GFS2: fsid=%s: pinned = %u\n",
-	       sdp->sd_fsname, buffer_pinned(bh));
-	printk("GFS2: fsid=%s: get_v2bd(bh) = %s\n",
-	       sdp->sd_fsname,
-	       (bd) ? "!NULL" : "NULL");
+	fs_warn(sdp, "stuck in gfs2_releasepage()\n");
+	fs_warn(sdp, "blkno = %"PRIu64", bh->b_count = %d\n",
+		(uint64_t)bh->b_blocknr, atomic_read(&bh->b_count));
+	fs_warn(sdp, "pinned = %u\n", buffer_pinned(bh));
+	fs_warn(sdp, "get_v2bd(bh) = %s\n", (bd) ? "!NULL" : "NULL");
 
-	if (bd) {
-		struct gfs2_glock *gl = bd->bd_gl;
+	if (!bd)
+		return;
 
-		printk("GFS2: fsid=%s: gl = (%u, %"PRIu64")\n",
-		       sdp->sd_fsname,
-		       gl->gl_name.ln_type,
-		       gl->gl_name.ln_number);
-		printk("GFS2: fsid=%s: bd_list_tr = %s, bd_le.le_list = %s\n",
-		       sdp->sd_fsname,
-		       (list_empty(&bd->bd_list_tr)) ? "no" : "yes",
-		       (list_empty(&bd->bd_le.le_list)) ? "no" : "yes");
+	gl = bd->bd_gl;
 
-		if (gl->gl_ops == &gfs2_inode_glops) {
-			struct gfs2_inode *ip = get_gl2ip(gl);
+	fs_warn(sdp, "gl = (%u, %"PRIu64")\n", 
+		gl->gl_name.ln_type, gl->gl_name.ln_number);
 
-			if (ip) {
-				unsigned int x;
+	fs_warn(sdp, "bd_list_tr = %s, bd_le.le_list = %s\n",
+		(list_empty(&bd->bd_list_tr)) ? "no" : "yes",
+		(list_empty(&bd->bd_le.le_list)) ? "no" : "yes");
 
-				printk("GFS2: fsid=%s: "
-				       "ip = %"PRIu64"/%"PRIu64"\n",
-				       sdp->sd_fsname,
-				       ip->i_num.no_formal_ino,
-				       ip->i_num.no_addr);
-				printk("GFS2: fsid=%s: "
-				       "ip->i_count = %d, ip->i_vnode = %s\n",
-				       sdp->sd_fsname,
-				       atomic_read(&ip->i_count),
-				       (ip->i_vnode) ? "!NULL" : "NULL");
+	if (gl->gl_ops == &gfs2_inode_glops) {
+		struct gfs2_inode *ip = get_gl2ip(gl);
+		unsigned int x;
 
-				for (x = 0; x < GFS2_MAX_META_HEIGHT; x++)
-					printk("GFS2: fsid=%s: "
-					       "ip->i_cache[%u] = %s\n",
-					       sdp->sd_fsname, x,
-					       (ip->i_cache[x]) ? "!NULL" :
-					                          "NULL");
-			}
-		}
+		if (!ip)
+			return;
+
+		fs_warn(sdp, "ip = %"PRIu64"/%"PRIu64"\n",
+			ip->i_num.no_formal_ino, ip->i_num.no_addr);
+		fs_warn(sdp, "ip->i_count = %d, ip->i_vnode = %s\n",
+			atomic_read(&ip->i_count),
+			(ip->i_vnode) ? "!NULL" : "NULL");
+
+		for (x = 0; x < GFS2_MAX_META_HEIGHT; x++)
+			fs_warn(sdp, "ip->i_cache[%u] = %s\n",
+				x, (ip->i_cache[x]) ? "!NULL" : "NULL");
 	}
 }
 

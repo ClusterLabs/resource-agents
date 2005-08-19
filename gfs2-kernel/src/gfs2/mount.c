@@ -133,8 +133,8 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 			if (remount && x != args->ar_num_glockd)
 				goto cant_remount;
 			if (!x || x > GFS2_GLOCKD_MAX) {
-				printk("GFS2: 0 < num_glockd <= %u  (not %u)\n",
-				       GFS2_GLOCKD_MAX, x);
+				fs_info(sdp, "0 < num_glockd <= %u  (not %u)\n",
+				        GFS2_GLOCKD_MAX, x);
 				error = -EINVAL;
 				break;
 			}
@@ -159,7 +159,7 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 			else if (!strcmp(v, "on"))
 				args->ar_quota = GFS2_QUOTA_ON;
 			else {
-				printk("GFS2: invalid value for quota\n");
+				fs_info(sdp, "invalid value for quota\n");
 				error = -EINVAL;
 				break;
 			}
@@ -178,20 +178,20 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 			else if (!strcmp(v, "ordered"))
 				args->ar_data = GFS2_DATA_ORDERED;
 			else {
-				printk("GFS2: invalid value for data\n");
+				fs_info(sdp, "invalid value for data\n");
 				error = -EINVAL;
 				break;
 			}
 
 		} else {
-			printk("GFS2: unknown option: %s\n", o);
+			fs_info(sdp, "unknown option: %s\n", o);
 			error = -EINVAL;
 			break;
 		}
 	}
 
 	if (error)
-		printk("GFS2: invalid mount option(s)\n");
+		fs_info(sdp, "invalid mount option(s)\n");
 
 	if (data != data_arg)
 		kfree(data);
@@ -199,11 +199,11 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 	return error;
 
  need_value:
-	printk("GFS2: need value for option %s\n", o);
+	fs_info(sdp, "need value for option %s\n", o);
 	return -EINVAL;
 
  cant_remount:
-	printk("GFS2: can't remount with option %s\n", o);
+	fs_info(sdp, "can't remount with option %s\n", o);
 	return -EINVAL;
 }
 

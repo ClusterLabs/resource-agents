@@ -13,6 +13,19 @@
 uint32_t gfs2_disk_hash(const char *data, int len);
 
 
+#define fs_printk(level, fs, fmt, arg...) \
+	printk(level "GFS2: fsid=%s: " fmt , (fs)->sd_fsname , ## arg)
+
+#define fs_info(fs, fmt, arg...) \
+	fs_printk(KERN_INFO , fs , fmt , ## arg)
+
+#define fs_warn(fs, fmt, arg...) \
+	fs_printk(KERN_WARNING , fs , fmt , ## arg)
+
+#define fs_err(fs, fmt, arg...) \
+	fs_printk(KERN_ERR, fs , fmt , ## arg)
+
+
 void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
 		   char *file, unsigned int line) __attribute__ ((noreturn));
 

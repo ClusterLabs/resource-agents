@@ -887,8 +887,7 @@ static void xmote_bh(struct gfs2_glock *gl, unsigned int ret)
 		else {
 			if (gfs2_assert_warn(sdp, gh->gh_flags &
 					(LM_FLAG_TRY | LM_FLAG_TRY_1CB)) == -1)
-				printk("GFS2: fsid=%s: ret = 0x%.8X\n",
-				       sdp->sd_fsname, ret);
+				fs_warn(sdp, "ret = 0x%.8X\n", ret);
 			gh->gh_error = GLR_TRYFAILED;
 		}
 		spin_unlock(&gl->gl_spin);
@@ -925,8 +924,7 @@ static void xmote_bh(struct gfs2_glock *gl, unsigned int ret)
 
 	} else {
 		if (gfs2_assert_withdraw(sdp, FALSE) == -1)
-			printk("GFS2: fsid=%s: ret = 0x%.8X\n",
-			       sdp->sd_fsname, ret);
+			fs_err(sdp, "ret = 0x%.8X\n", ret);
 	}
 
 	if (glops->go_xmote_bh)
@@ -2301,8 +2299,8 @@ void gfs2_gl_hash_clear(struct gfs2_sbd *sdp, int wait)
 
 		if (time_after_eq(jiffies,
 				  t + gfs2_tune_get(sdp, gt_stall_secs) * HZ)) {
-			printk("GFS2: fsid=%s: Unmount seems to be stalled. Dumping lock state...\n",
-			       sdp->sd_fsname);
+			fs_warn(sdp, "Unmount seems to be stalled. "
+				     "Dumping lock state...\n");
 			gfs2_dump_lockstate(sdp, NULL);
 			t = jiffies;
 		}

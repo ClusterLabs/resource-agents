@@ -56,8 +56,8 @@ void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 
 	if (count[0] != rgd->rd_rg.rg_free) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: free data mismatch:  %u != %u\n",
-			       sdp->sd_fsname, count[0], rgd->rd_rg.rg_free);
+			fs_err(sdp, "free data mismatch:  %u != %u\n",
+			       count[0], rgd->rd_rg.rg_free);
 		return;
 	}
 
@@ -66,24 +66,22 @@ void gfs2_rgrp_verify(struct gfs2_rgrpd *rgd)
 		rgd->rd_rg.rg_dinodes;
 	if (count[1] != tmp) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: used data mismatch:  %u != %u\n",
-			       sdp->sd_fsname, count[1], tmp);
+			fs_err(sdp, "used data mismatch:  %u != %u\n",
+			       count[1], tmp);
 		return;
 	}
 
 	if (count[2]) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: "
-			       "free metadata mismatch:  %u != 0\n",
-			       sdp->sd_fsname, count[2]);
+			fs_err(sdp, "free metadata mismatch:  %u != 0\n",
+			       count[2]);
 		return;
 	}
 
 	if (count[3] != rgd->rd_rg.rg_dinodes) {
 		if (gfs2_consist_rgrpd(rgd))
-			printk("GFS2: fsid=%s: "
-			       "used metadata mismatch:  %u != %u\n",
-			       sdp->sd_fsname, count[3], rgd->rd_rg.rg_dinodes);
+			fs_err(sdp, "used metadata mismatch:  %u != %u\n",
+			       count[3], rgd->rd_rg.rg_dinodes);
 		return;
 	}
 }
@@ -252,8 +250,7 @@ static int compute_bitstructs(struct gfs2_rgrpd *rgd)
 	if ((bi->bi_start + bi->bi_len) * GFS2_NBBY != rgd->rd_ri.ri_data) {
 		if (gfs2_consist_rgrpd(rgd)) {
 			gfs2_rindex_print(&rgd->rd_ri);
-			printk("GFS2: fsid=%s: start=%u len=%u offset=%u\n",
-			       sdp->sd_fsname,
+			fs_err(sdp, "start=%u len=%u offset=%u\n",
 			       bi->bi_start, bi->bi_len, bi->bi_offset);
 		}
 		return -EIO;
@@ -872,10 +869,10 @@ void gfs2_inplace_release(struct gfs2_inode *ip)
 	struct gfs2_alloc *al = ip->i_alloc;
 
 	if (gfs2_assert_warn(sdp, al->al_alloced <= al->al_requested) == -1)
-		printk("GFS2: fsid=%s: al_alloced = %u, al_requested = %u\n"
-		       "GFS2: fsid=%s: al_file = %s, al_line = %u\n",
-		       sdp->sd_fsname, al->al_alloced, al->al_requested,
-		       sdp->sd_fsname, al->al_file, al->al_line);
+		fs_warn(sdp, "al_alloced = %u, al_requested = %u "
+			     "al_file = %s, al_line = %u\n",
+		             al->al_alloced, al->al_requested, al->al_file,
+			     al->al_line);
 
 	al->al_rgd = NULL;
 	gfs2_glock_dq_uninit(&al->al_rgd_gh);
@@ -1016,8 +1013,7 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 	rgd = gfs2_blk2rgrpd(sdp, bstart);
 	if (!rgd) {
 		if (gfs2_consist(sdp))
-			printk("GFS2: fsid=%s: block = %"PRIu64"\n",
-			       sdp->sd_fsname, bstart);
+			fs_err(sdp, "block = %"PRIu64"\n", bstart);
 		return NULL;
 	}
 
@@ -1306,8 +1302,7 @@ void gfs2_rlist_add(struct gfs2_sbd *sdp, struct gfs2_rgrp_list *rlist,
 	rgd = gfs2_blk2rgrpd(sdp, block);
 	if (!rgd) {
 		if (gfs2_consist(sdp))
-			printk("GFS2: fsid=%s: block = %"PRIu64"\n",
-			       sdp->sd_fsname, block);
+			fs_err(sdp, "block = %"PRIu64"\n", block);
 		return;
 	}
 

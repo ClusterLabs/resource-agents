@@ -171,8 +171,7 @@ int gfs2_quotad(void *data)
 			if (error &&
 			    error != -EROFS &&
 			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-				printk("GFS2: fsid=%s: quotad: (1) error=%d\n",
-				       sdp->sd_fsname, error);
+				fs_err(sdp, "quotad: (1) error=%d\n", error);
 			sdp->sd_statfs_sync_time = jiffies;
 		}
 
@@ -186,8 +185,7 @@ int gfs2_quotad(void *data)
 			if (error &&
 			    error != -EROFS &&
 			    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-				printk("GFS2: fsid=%s: quotad: (2) error=%d\n",
-				       sdp->sd_fsname, error);
+				fs_err(sdp, "quotad: (2) error=%d\n", error);
 			sdp->sd_quota_sync_time = jiffies;
 		}
 
@@ -217,8 +215,7 @@ int gfs2_inoded(void *data)
 		if (error &&
 		    error != -EROFS &&
 		    !test_bit(SDF_SHUTDOWN, &sdp->sd_flags))
-			printk("GFS2: fsid=%s: inoded: error = %d\n",
-			       sdp->sd_fsname, error);
+			fs_err(sdp, "inoded: error = %d\n", error);
 
 		t = gfs2_tune_get(sdp, gt_inoded_secs) * HZ;
 		schedule_timeout_interruptible(t);

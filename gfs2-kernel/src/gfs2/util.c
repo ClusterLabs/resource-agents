@@ -39,7 +39,8 @@ void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
 		   char *file, unsigned int line)
 {
 	if (sdp->sd_args.ar_oopses_ok) {
-		printk("GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
+		printk(KERN_ERR
+		       "GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
 		       "GFS2: fsid=%s:   function = %s\n"
 		       "GFS2: fsid=%s:   file = %s, line = %u\n"
 		       "GFS2: fsid=%s:   time = %lu\n",
@@ -96,7 +97,8 @@ int gfs2_assert_warn_i(struct gfs2_sbd *sdp, char *assertion,
 			gfs2_tune_get(sdp, gt_complain_secs) * HZ))
 		return -2;
 
-	printk("GFS2: fsid=%s: warning: assertion \"%s\" failed\n"
+	printk(KERN_WARNING
+	       "GFS2: fsid=%s: warning: assertion \"%s\" failed\n"
 	       "GFS2: fsid=%s:   function = %s\n"
 	       "GFS2: fsid=%s:   file = %s, line = %u\n"
 	       "GFS2: fsid=%s:   time = %lu\n",
