@@ -804,22 +804,26 @@ ip_monitor() {
   case $SYSTYPE in
         Linux)
             # -c count -t timetolive -q(uiet) -n(umeric) -W timeout
-            PINGARGS="-c 1 -q -n -W $TIMEOUT $BASEIP"
+            PINGARGS="-c 1 -q -n $BASEIP"
             ;;
         SunOS)
             PINGARGS="$BASEIP $TIMEOUT"
             ;;
         *)
-            PINGARGS="-c 1 @PING_TIMEOUT_OPT@ -q $BASEIP"
+            PINGARGS="-c 1 -q $BASEIP"
             ;;
   esac
   for j in 1 2 3
     do
     if
-	@PING@ $PINGARGS >/dev/null 2>&1
-	then
 	ip_status
-	return $?
+    then
+	@PING@ $PINGARGS >/dev/null 2>&1
+	if
+	    [ $? -eq 0 ]
+	then
+	    return $OCF_SUCCESS
+	fi
     fi
   done
 
