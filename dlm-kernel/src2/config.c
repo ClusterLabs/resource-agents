@@ -627,11 +627,13 @@ static void put_space(struct space *sp)
 static struct comm *get_comm(int nodeid, struct sockaddr_storage *addr)
 {
 	struct config_item *i;
-	struct comm *cm;
+	struct comm *cm = NULL;
 	int found = 0;
 
 	if (!comm_list)
 		return NULL;
+
+	down(&clusters_root.subsys.su_sem);
 
 	list_for_each_entry(i, &comm_list->cg_children, ci_entry) {
 		cm = to_comm(i);
@@ -649,6 +651,7 @@ static struct comm *get_comm(int nodeid, struct sockaddr_storage *addr)
 			break;
 		}
 	}
+	up(&clusters_root.subsys.su_sem);
 
 	if (found)
 		config_item_get(i);
