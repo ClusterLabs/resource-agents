@@ -84,6 +84,7 @@
  *
  */
 
+#include <config.h>
 #include <sys/types.h>
 #include <netinet/icmp6.h>
 #include <libgen.h>
@@ -92,8 +93,7 @@
 #include <libnet.h>
 
 
-#define PIDDIR "/var/run/"
-#define PIDFILE_BASE PIDDIR "/IPv6addr-"
+#define PIDFILE_BASE HA_VARRUNDIR  "/IPv6addr-"
 
 /*
 0	No error, action succeeded completely
@@ -192,15 +192,17 @@ main(int argc, char* argv[])
 		return OCF_SUCCESS;
 	}
 
-	/* check the OCF_RESKEY_ipv6addr parameter, should be a IPv6 address */
+	/* check the OCF_RESKEY_ipv6addr parameter, should be an IPv6 address */
 	ipv6addr = getenv("OCF_RESKEY_ipv6addr");
 	if (ipv6addr == NULL) {
+		cl_log(LOG_ERR, "Please set OCF_RESKEY_ipv6addr to the IPv6 address you want to manage.");
 		usage(argv[0]);
 		return OCF_ERR_ARGS;
 	}
 	if ((cp = strchr(ipv6addr, '/'))) {
 		prefix_len = atol(cp + 1);
 		if ((prefix_len < 0) || (prefix_len > 128)) {
+			cl_log(LOG_ERR, "Invalid prefix_len [%s], should be an integer in [0, 128]", cp+1);
 			usage(argv[0]);
 			return OCF_ERR_ARGS;
 		}
@@ -210,6 +212,7 @@ main(int argc, char* argv[])
 	}
 
 	if (inet_pton(AF_INET6, ipv6addr, &addr6) <= 0) {
+		cl_log(LOG_ERR, "Invalid IPv6 address [%s]", ipv6addr);
 		usage(argv[0]);
 		return OCF_ERR_ARGS;
 	}
@@ -223,7 +226,7 @@ main(int argc, char* argv[])
 	/* create the pid file so we can make sure that only one IPv6addr
 	 * for this address is running
 	 */
-	if (snprintf(pid_file, sizeof(pid_file), "%s%s", PIDFILE_BASE, argv[1])
+	if (snprintf(pid_file, sizeof(pid_file), "%s%s", PIDFILE_BASE, ipv6addr)
 		>= (int)sizeof(pid_file)) {
 		cl_log(LOG_ERR, "Pid file truncated");
 		return OCF_ERR_GENERIC;
@@ -248,7 +251,8 @@ main(int argc, char* argv[])
 	}else if (0 ==strncmp(RECOVER_CMD,argv[1], strlen(RECOVER_CMD))) {
 		ret = OCF_ERR_UNIMPLEMENTED;
 	}else if (0 ==strncmp(VALIDATE_CMD,argv[1], strlen(VALIDATE_CMD))) {
-		ret = OCF_ERR_UNIMPLEMENTED;
+	/* ipv6addr has been validated by inet_pton, hence a valid IPv6 address */
+		ret = OCF_SUCCESS;
 	}else if (0 ==strncmp(ADVT_CMD,argv[1], strlen(MONITOR_CMD))) {
 		ret = advt_addr6(&addr6, prefix_len);
 	}else{
@@ -665,7 +669,7 @@ is_addr6_available(struct in6_addr* addr6)
 
 static void usage(const char* self)
 {
-	printf("usage: %s ipv6-address {start|stop|status|monitor}\n",self);
+	printf("usage: %s {start|stop|status|monitor|validate-all|meta-data}\n",self);
 	return;
 }
 
@@ -844,15 +848,19 @@ meta_data_addr6(void)
 	const char* meta_data=
 	"<?xml version=\"1.0\"?>\n"
 	"<!DOCTYPE resource-agent SYSTEM \"ra-api-1.dtd\">\n"
-	"<resource-agent name=\"IPv6addr\" version=\"0.1\">\n"
+	"<resource-agent name=\"IPv6addr\">\n"
 	"  <version>1.0</version>\n"
+	"  <longdesc lang=\"en\">\n"
+	"   This script manages IPv6 alias IPv6 addresses,It can add an IP6\n"
+	"   alias, or remove one.\n"
+	"  </longdesc>\n"
+	"  <shortdesc lang=\"en\">manages IPv6 alias</shortdesc>\n"
 	"  <parameters>\n"
 	"    <parameter name=\"ipv6addr\" unique=\"0\">\n"
 	"      <longdesc lang=\"en\">\n"
-	"        This script manages IPv6 alias IPv6 addresses,It can add an IP6\n"
-	"        alias, or remove one.\n"
+	"	The IPv6 address this RA will manage \n"
 	"      </longdesc>\n"
-	"      <shortdesc lang=\"en\">manages IPv6 alias</shortdesc>\n"
+	"      <shortdesc lang=\"en\">IPv6 address</shortdesc>\n"
 	"      <content type=\"string\" default=\"\" />\n"
 	"    </parameter>\n"
 	"  </parameters>\n"
@@ -861,9 +869,10 @@ meta_data_addr6(void)
 	"    <action name=\"stop\"    timeout=\"15\" />\n"
 	"    <action name=\"status\"  timeout=\"15\" interval=\"15\" start-delay=\"15\" />\n"
 	"    <action name=\"monitor\" timeout=\"15\" interval=\"15\" start-delay=\"15\" />\n"
+	"    <action name=\"validate-all\"  timeout=\"5\" />\n"
 	"    <action name=\"meta-data\"  timeout=\"5\" />\n"
 	"  </actions>\n"
 	"</resource-agent>\n";
 	printf("%s\n",meta_data);
-	return 0;
+	return OCF_SUCCESS;
 }
