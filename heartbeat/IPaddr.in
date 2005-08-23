@@ -216,14 +216,13 @@ ip_init() {
         # $FINDIF can deal with the condition of empty intermediate parameters.
         #
         NICINFO=`$FINDIF "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
-	if [ x"$NIC" = "x" ]; then
+	if [ $? -eq 0 ]; then
             NIC=`echo "$NICINFO" | cut -f1`
-	fi
-	if [ x"$NETMASK" = "x" ]; then
-            NETMASK=`echo "$NICINFO" | cut -f2-`
-	fi
-	if [ x"$BRDCAST" = "x" ]; then
+            NETMASK=`echo "$NICINFO" | cut -f2`
             BRDCAST=`echo "$NICINFO" | cut -f3`
+	else
+	    ocf_log err "Failed: $FINDIF $BASEIP/$NETMASK/$NIC/$BRDCAST . Parameter error."
+  	    exit $OCF_ERR_GENERIC
 	fi
 
 	if [ -z ${OCF_RESKEY_lvs_support} ]; then
