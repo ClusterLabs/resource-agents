@@ -713,6 +713,19 @@ int cman_set_interface(cman_handle_t handle, char *if_addr)
 	return info_call(h, CMAN_CMD_ADD_IFADDR, if_addr, strlen(if_addr)+1, NULL, 0);
 }
 
+int cman_set_commskey(cman_handle_t handle, char *keyfile)
+{
+	struct cman_handle *h = (struct cman_handle *)handle;
+	VALIDATE_HANDLE(h);
+
+	if (!keyfile)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return info_call(h, CMAN_CMD_ADD_KEYFILE, keyfile, strlen(keyfile)+1, NULL, 0);
+}
+
 
 int cman_get_cluster(cman_handle_t handle, cman_cluster_t *clinfo)
 {

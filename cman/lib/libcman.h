@@ -204,12 +204,13 @@ int cman_get_extra_info(cman_handle_t handle, cman_extra_info_t *info, int maxle
 
 /*
  * Admin functions. You will need privileges and have a handle created by cman_admin_init()
- * to use them. The first five are used to set up a node for joining.
+ * to use them. The first six are used to set up a node for joining.
  */
 int cman_set_nodename(cman_handle_t handle, char *name);
 int cman_set_nodeid(cman_handle_t handle, int nodeid);
 int cman_set_mcast(cman_handle_t handle, char *mcast_addr);
 int cman_set_interface(cman_handle_t handle, char *if_addr);
+int cman_set_commskey(cman_handle_t handle, char *keyfile);
 int cman_join_cluster(cman_handle_t handle, struct cman_join_info *jinfo);
 int cman_set_version(cman_handle_t handle, cman_version_t *version);
 int cman_leave_cluster(cman_handle_t handle, int reason);
