@@ -19,7 +19,7 @@
 #include "libcman.h"
 #include "cman_tool.h"
 
-#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:XVwqh?d")
+#define OPTION_STRING		("m:n:v:e:2p:c:r:i:N:t:o:k:XVwqh?d")
 #define OP_JOIN			1
 #define OP_LEAVE		2
 #define OP_EXPECTED		3
@@ -47,7 +47,6 @@ static void print_usage(void)
 
 	printf("join\n");
 	printf("  -m <addr>      * Multicast address to use (combines with -i)\n");
-	printf("  -i <ifname>    * Interfaces for above multicast addresses\n");
 	printf("  -v <votes>       Number of votes this node has (default 1)\n");
 	printf("  -e <votes>       Number of expected votes for the cluster (no default)\n");
 	printf("  -c <clustername> Name of the cluster to join\n");
@@ -60,6 +59,7 @@ static void print_usage(void)
 	printf("  -w               Wait until node has joined a cluster\n");
 	printf("  -q               Wait until the cluster is quorate\n");
 	printf("  -t               Maximum time (in seconds) to wait\n");
+	printf("  -k               Private key file\n");
 	printf("  options with marked * can be specified multiple times for multi-path systems\n");
 
 	printf("\n");
@@ -374,7 +374,6 @@ static void set_votes(commandline_t *comline)
 		nodeid = node.cn_nodeid;
 	}
 
-	printf("PJC: setting votes on node %d\n", nodeid);
 	if ((result = cman_set_votes(h, comline->votes, nodeid)))
 		die("can't set votes: %s", cman_error(errno));
 
@@ -486,17 +485,6 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		switch (optchar) {
 
-		case 'i':
-			i = comline->num_interfaces;
-			if (i >= MAX_INTERFACES)
-				die("maximum of %d interfaces allowed",
-				    MAX_INTERFACES);
-			comline->interfaces[i] = strdup(optarg);
-			if (!comline->interfaces[i])
-				die("no memory");
-			comline->num_interfaces++;
-			break;
-
 		case 'm':
 		        i = comline->num_multicasts;
 			if (i >= MAX_INTERFACES)
@@ -523,6 +511,10 @@ static void decode_arguments(int argc, char *argv[], commandline_t *comline)
 
 		case 'o':
 			comline->override_nodename = strdup(optarg);
+			break;
+
+		case 'k':
+			comline->key_filename = strdup(optarg);
 			break;
 
 		case 'r':
@@ -693,18 +685,6 @@ static void check_arguments(commandline_t *comline)
 
 		comline->nodenames[0] = strdup(utsname.nodename);
 		comline->num_nodenames++;
-	}
-
-	if (!comline->num_interfaces) {
-	        comline->interfaces[0] = strdup("eth0");
-		if (!comline->interfaces[0])
-			die("no memory");
-	}
-
-	if (comline->num_multicasts != comline->num_interfaces) {
-	        die("Number of multicast addresses (%d) must match number of "
-		    "interfaces (%d)", comline->num_multicasts,
-		    comline->num_interfaces);
 	}
 
 	if (comline->num_nodenames && comline->num_multicasts &&

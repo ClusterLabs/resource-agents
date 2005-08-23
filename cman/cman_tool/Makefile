@@ -18,6 +18,8 @@ include ${top_srcdir}/make/defines.mk
 CFLAGS+= -g -I${ccsincdir} -I${incdir} -I${top_srcdir}/config \
 	-DCMAN_RELEASE_NAME=\"${RELEASE}\" -I../lib
 
+CFLAGS+=-DDEBUG
+
 TARGET=cman_tool
 
 all: ${TARGET}

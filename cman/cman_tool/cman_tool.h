@@ -69,6 +69,7 @@ struct commandline
 	char *nodenames[MAX_INTERFACES];
         char *interfaces[MAX_INTERFACES];
 	char *override_nodename;
+	char *key_filename;
 	int votes;
 	int expected_votes;
 	int two_node;

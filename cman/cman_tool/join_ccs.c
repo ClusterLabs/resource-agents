@@ -29,6 +29,7 @@
 #define TWO_NODE_PATH		"/cluster/cman/@two_node"
 #define MCAST_ADDR_PATH		"/cluster/cman/multicast/@addr"
 #define PORT_PATH		"/cluster/cman/@port"
+#define KEY_PATH		"/cluster/cman/@commskey"
 
 #define NODEI_NAME_PATH		"/cluster/clusternodes/clusternode[%d]/@name"
 #define NODE_NAME_PATH		"/cluster/clusternodes/clusternode[@name=\"%s\"]/@name"
@@ -339,6 +340,15 @@ int get_ccs_join_info(commandline_t *comline)
 		if (!error) {
 			comline->port = atoi(str);
 			free(str);
+		}
+	}
+
+	/* optional security key filename */
+
+	if (!comline->key_filename) {
+		error = ccs_get(cd, KEY_PATH, &str);
+		if (!error) {
+			comline->key_filename = str;
 		}
 	}
 
