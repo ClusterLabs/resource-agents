@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.423 $) dnl cvs revision
+AC_REVISION($Revision: 1.424 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -772,9 +772,6 @@ dnl	These next two are used to help us figure out whether to include
 dnl	some optional STONITH plugins...
 dnl
 AC_CHECK_HEADERS(vacmclient_api.h)
-AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
-#include <ucd-snmp/asn1.h>])
-AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
 AC_CHECK_HEADERS(curl/curl.h)
 
 AC_MSG_CHECKING(For libOpenIPMI version 2 or greater)
@@ -809,26 +806,33 @@ dnl	Could check for the libraries, but if you have the headers,
 dnl	you're a dolt for not having installed the libs ;-)
 dnl
 AM_CONDITIONAL(USE_VACM, test "$ac_cv_header_vacmclient_api_h" = yes)
-AM_CONDITIONAL(USE_APC_SNMP, test "$ac_cv_header_ucd_snmp_snmp_h" = yes -o "$ac_cv_header_net_snmp_net_snmp_config_h" = yes)
 AM_CONDITIONAL(USE_DRAC3, test "$ac_cv_header_curl_curl_h" = yes -a "$ac_cv_header_libxml_xpath_h" = yes -a "$ac_cv_header_openssl_md5_h" = yes)
 
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent  Enable SNMP subagent],
-                     [], [enable_snmp_subagent=try])
+dnl
+dnl    SNMP checks
+dnl
 
 SNMPLIB=""
+SNMPAGENTLIB=""
 SNMPCONFIG=""
-if test "$ac_cv_header_net_snmp_net_snmp_config_h" = yes; then
+ENABLE_SNMP="yes"
+
+AC_CHECK_HEADERS(ucd-snmp/snmp.h,[],[],[#include <sys/types.h>
+#include <ucd-snmp/asn1.h>])
+AC_CHECK_HEADERS(net-snmp/net-snmp-config.h)
+
+if test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
 	AC_PATH_PROGS(SNMPCONFIG, net-snmp-config)
 	if test "X${SNMPCONFIG}" = "X"; then
 		AC_MSG_RESULT(You need the net snmp development package to continue.)
-		enable_snmp_subagent="no"
+		ENABLE_SNMP="no"
 	else
-		AC_MSG_CHECKING(for special snmp libraries: )
+		AC_MSG_CHECKING(for special snmp libraries)
 		SNMPLIB=`net-snmp-config --netsnmp-libs`
+		SNMPAGENTLIB=`net-snmp-config --agent-libs`
 		AC_MSG_RESULT($SNMPLIB)
 	fi
-elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
+elif test "x${ac_cv_header_ucd_snmp_snmp_h}" = "xyes"; then
 	# UCD SNMP
 	# ucd-snmp-config does not seem to exist, so just 
 	# rely on people having their LDFLAGS set to the path where
@@ -836,15 +840,73 @@ elif test "$ac_cv_header_ucd_snmp_snmp_h" = yes; then
 	if test "X${SNMPLIB}" = "X"; then
 		AC_CHECK_LIB(ucdsnmp, init_snmp, SNMPLIB="-lucdsnmp")
 	fi
+	SNMPAGENTLIB="$SNMPLIB"
 	if test "X${SNMPLIB}" = "X"; then
-		enable_snmp_subagent="no"
+		ENABLE_SNMP="no"
 		AC_MSG_RESULT("Could not find ucdsnmp libary."
 			"Please make sure that libsnmp or libucdsnmp"
 			"are in your libaray path. Or the path to LDFLAGS")
 	fi
+else
+	ENABLE_SNMP="no"
 fi
+
+if test "$ENABLE_SNMP" = "no" -o "x${enable_snmp_subagent}" != "xyes"; then
+        enable_snmp_subagent="no"
+fi
+
+check_snmp_libs ()
+{
+	OLDLIBS="$LIBS"
+	for x in $@; do
+		LIBS="$LIBS $x"
+		case $x in
+			-L*|-lnetsnmp*)
+			;;
+			*)
+				AC_MSG_CHECKING(snmp libraries: $LIBS)
+				AC_LINK_IFELSE([AC_LANG_PROGRAM([], [1;])], ,
+					AC_MSG_ERROR($x not available))
+				AC_MSG_RESULT(ok)
+			;;
+		esac
+	done
+	LIBS="$OLDLIBS"
+}
+
+if test "$ENABLE_SNMP" = "yes"; then
+	check_snmp_libs $SNMPLIB
+fi
+if test "$enable_snmp_subagent" = "yes"; then
+	check_snmp_libs $SNMPAGENTLIB
+fi
+
+AC_ARG_WITH(mibsdir, 
+	[  --with-mibsdir=DIR      directory for mib files. ],
+	[ MIBS_DIR="$withval" ])
+
+if test "x${enable_snmp_subagent}"  = "xyes" -a "X${MIBS_DIR}" = "X"; then
+	AC_MSG_CHECKING(which MIB directory to use)
+	for mibs_dir in /usr/share/snmp/mibs \
+			/usr/local/share/snmp/mibs; do 
+		if test -d "$mibs_dir"; then
+			MIBS_DIR="$mibs_dir"
+		fi
+	done
+	if test "X${MIBS_DIR}" = "X"; then
+		AC_MSG_ERROR(Could not find mibs directory, 
+			please specify with --with-mibsdir);
+	fi
+	AC_MSG_RESULT($MIBS_DIR);
+fi
+AC_SUBST(MIBS_DIR)
+
 AC_SUBST(SNMPCONFIG)
 AC_SUBST(SNMPLIB)
+AC_SUBST(SNMPAGENTLIB)
+AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
+AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
+
 
 if test x"$VERSION" \> x"1.9"; then
 	AC_DEFINE(HAVE_NEW_HB_API, 1, [have new heartbeat api])
@@ -1345,31 +1407,6 @@ dnl Add any system specific options here.
 	CC_WARNINGS="$EXTRA_WARNINGS $FATAL_WARNINGS $ANSI" 
 	NON_FATAL_CC_WARNINGS="$EXTRA_WARNINGS"
 fi
-
-AC_MSG_CHECKING(SNMP Subagent info)
-AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
-
-if test "x${enable_snmp_subagent}" != "xno" ;  then
-	if test "x${enable_snmp_subagent}" = "xyes" ;  then
-	  echo "Enabling SNMP Sub Agent"
-	else
-	  echo "Trying to enable SNMP Sub Agent"
-	fi
-	LIB_SNMP
-	dnl Will have set: enable_snmp_subagent={yes|no}
-
-	AC_MSG_CHECKING(SNMP Subagent result)
-	AC_MSG_RESULT(SNMP subagent flag: ${enable_snmp_subagent})
-fi
-
-if test "x${enable_snmp_subagent}" != "xno" ;  then
-	SNMP_SUBAGENT_ENABLED=1
-else
-	SNMP_SUBAGENT_ENABLED=0
-fi
-AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
-AC_SUBST(SNMP_SUBAGENT_ENABLED)
-AC_SUBST(SNMP_LIBS)
 
 AC_MSG_CHECKING(which init (rc) directory to use)
 INITDIR=""
@@ -2119,7 +2156,6 @@ dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(heartbeat.spec 					\
 Makefile						        \
 README							        \
-config/Makefile					        	\
 logd/Makefile							\
 cts/Makefile					        	\
 	cts/CM_fs.py						\
@@ -2339,10 +2375,10 @@ AC_MSG_RESULT([  HA user user id      = "${HA_CCMUID}"])
 
 AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
-    AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
-    AC_MSG_RESULT([  SNMP libraries       = "${SNMP_LIBS}"])
     AC_MSG_RESULT([  SNMP MIB directory   = "${MIBS_DIR}"])
 fi
+AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
+AC_MSG_RESULT([  SNMP libraries       = "${SNMPLIB}"])
 
 AC_MSG_RESULT([  Build New CRM        = "${enable_crm}"])
 AC_MSG_RESULT([  Build New LRM        = "${enable_lrm}"])
