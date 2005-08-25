@@ -371,9 +371,9 @@ int cman_dispatch(cman_handle_t handle, int flags)
 {
 	struct cman_handle *h = (struct cman_handle *)handle;
 	int len;
+	int offset;
 	int recv_flags = 0;
 	char buf[PIPE_BUF];
-	struct sock_header *header = (struct sock_header *)buf;
 	VALIDATE_HANDLE(h);
 
 	if (!(flags & CMAN_DISPATCH_BLOCKING))
@@ -381,6 +381,10 @@ int cman_dispatch(cman_handle_t handle, int flags)
 
 	do
 	{
+		int res;
+		char *bufptr = buf;
+		struct sock_header *header = (struct sock_header *)buf;
+
 		/* First, drain any waiting queues */
 		if (h->saved_reply_msg && !(flags & CMAN_DISPATCH_IGNORE_REPLY))
 		{
@@ -428,10 +432,20 @@ int cman_dispatch(cman_handle_t handle, int flags)
 		if (len < 0)
 			return -1;
 
-		/* Read the rest */
-		if (len != header->length)
+		offset = len;
+
+		/* It's too big! */
+		if (header->length > sizeof(buf))
 		{
-			len = read(h->fd, buf+len, header->length-len);
+			bufptr = malloc(header->length);
+			memcpy(bufptr, buf, sizeof(*header));
+			header = (struct sock_header *)bufptr;
+		}
+
+		/* Read the rest */
+		while (offset < header->length)
+		{
+			len = read(h->fd, bufptr+offset, header->length-offset);
 			if (len == 0) {
 				errno = EHOSTDOWN;
 				return -1;
@@ -443,11 +457,16 @@ int cman_dispatch(cman_handle_t handle, int flags)
 
 			if (len < 0)
 				return -1;
+			offset += len;
 		}
 
-		if (process_cman_message(h, flags, header))
-			break;
+		res = process_cman_message(h, flags, header);
+		if (bufptr != buf)
+			free(bufptr);
 
+		if (res)
+			break;
+	
 	} while ( flags & CMAN_DISPATCH_ALL &&
 		  (len < 0 && errno == EAGAIN) );
 
