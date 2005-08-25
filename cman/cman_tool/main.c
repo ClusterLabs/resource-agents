@@ -252,7 +252,7 @@ static void show_nodes(void)
 	if (cman_get_nodes(h, count, &numnodes, nodes) < 0)
 		die("cman_get_nodes failed: %s", cman_error(errno));
 
-	printf("Node  Sts  Inc    Joined               Name\n");
+	printf("Node  Sts   Inc   Joined               Name\n");
 	for (i=0; i<numnodes; i++) {
 
 		jtime = localtime(&nodes[i].cn_jointime.tv_sec);
