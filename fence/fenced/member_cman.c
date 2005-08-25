@@ -86,6 +86,7 @@ int setup_member(void)
 
 	/* FIXME: wait here for us to be a member of the cluster */
 
+	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_error("cman_get_node us error %d %d", rv, errno);
@@ -154,6 +155,7 @@ fd_node_t *get_new_node(fd_t *fd, int nodeid, char *in_name)
 	int rv;
 
 	if (!name) {
+		memset(&cn, 0, sizeof(cn));
 		rv = cman_get_node(ch, nodeid, &cn);
 		name = cn.cn_name;
 	}

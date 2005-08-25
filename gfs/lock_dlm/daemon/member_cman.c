@@ -86,6 +86,7 @@ int setup_member(void)
 
 	clustername = cluster.ci_name;
 
+	memset(&node, 0, sizeof(node));
 	rv = cman_get_node(ch, CMAN_NODEID_US, &node);
 	if (rv < 0) {
 		log_error("cman_get_node error %d %d", rv, errno);
