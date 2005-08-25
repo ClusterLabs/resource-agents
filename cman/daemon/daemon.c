@@ -63,6 +63,9 @@ static LIST_INIT(client_list);
 volatile sig_atomic_t quit_threads=0;
 
 int num_connections = 0;
+poll_handle ais_poll_handle;
+
+static int process_client(poll_handle handle, int fd, int revent, void *data, unsigned int *prio);
 
 /* None of our threads is CPU intensive, but if they don't run when they are supposed
    to, the node can get kicked out of the cluster.
@@ -138,6 +141,7 @@ static int send_reply_message(struct connection *con, struct sock_header *msg)
 		memcpy(qm->buf, msg, msg->length);
 		list_add(&con->write_msgs, &qm->list);
 		P_DAEMON("queued last message\n");
+		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN | POLLOUT, process_client, 0);
 	}
 	return 0;
 }
@@ -177,6 +181,11 @@ static void send_queued_reply(struct connection *con)
 		{
 			break;
 		}
+	}
+	if (list_empty(&con->write_msgs)) {
+		/* Remove POLLOUT callback */
+		P_DAEMON("Removing POLLOUT from fd %d\n", con->fd);
+		poll_dispatch_modify(ais_poll_handle, con->fd, POLLIN, process_client, 0);
 	}
 }
 
@@ -337,7 +346,7 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 		newcon->port = 0;
 		list_init(&newcon->write_msgs);
 
-		poll_dispatch_add(handle, client_fd, POLLIN | POLLOUT, newcon, process_client, 0);
+		poll_dispatch_add(handle, client_fd, POLLIN, newcon, process_client, 0);
 		num_connections++;
 		if (newcon->type == CON_CLIENT)
 			list_add(&client_list, &newcon->list);
@@ -478,7 +487,6 @@ static void sigint_handler(int ignored)
 	quit_threads = 1;
 }
 
-poll_handle ais_poll_handle;
 
 int main(int argc, char *argv[])
 {
@@ -526,11 +534,6 @@ int main(int argc, char *argv[])
 
 	if (!no_fork)
 		be_daemon();
-
-	if (wait_debug) {
-		fprintf(stderr, "w specified, waiting for debugger\n");
-		pause();
-	}
 
 	/* Shutdown trap */
 	sa.sa_handler = sigint_handler;
