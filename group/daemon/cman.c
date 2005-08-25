@@ -48,13 +48,13 @@ static int wait_for_groupd(int nodeid)
 	cman_node_t cn;
 	int rv;
 
-	memset(&cn, 0, sizeof(cn));
 	while (1) {
 		if (cman_is_listening(ch, nodeid, GROUPD_PORT)) {
 			rv = 0;
 			break;
 		}
 
+		memset(&cn, 0, sizeof(cn));
 		rv = cman_get_node(ch, nodeid, &cn);
 		if (rv < 0) {
 			log_print("no status for new node %d", nodeid);
@@ -171,7 +171,6 @@ static void process_member(void)
 	/* FIXME: PORTCLOSED indicates the failure of a remote groupd.
 	   We should treat this like the complete failure of that node */
 
- retry:
 	rv = cman_get_cluster(ch, &info1);
 	if (rv < 0) {
 		log_print("cman_get_cluster error %d %d", rv, errno);
@@ -189,6 +188,7 @@ static void process_member(void)
 		return;
 	}
 
+#if 0
 	rv = cman_get_cluster(ch, &info2);
 	if (rv < 0) {
 		log_print("cman_get_cluster error %d %d", rv, errno);
@@ -201,6 +201,7 @@ static void process_member(void)
 		sleep(1);
 		goto retry;
 	}
+#endif
 
 	cluster_generation = info1.ci_generation;
 	gd_quorate = quorate;
