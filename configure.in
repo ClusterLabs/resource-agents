@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.425 $) dnl cvs revision
+AC_REVISION($Revision: 1.426 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -982,6 +982,9 @@ dnl ************************************************************************
 dnl  checks for typedefs
 dnl
 
+dnl if not known on this system, #define size_t unsigned
+AC_TYPE_SIZE_T
+
 dnl 
 dnl Check poll.h for nfds_t (Linux Only), if not define it as an unsigned long int.
 dnl 
@@ -1136,6 +1139,16 @@ AC_STRUCT_TIMEZONE
 if check_for_type_member "struct tm" "tm_gmtoff" "#include <time.h>"; then
 	 AC_DEFINE(HAVE_TM_GMTOFF,1,[Do we have structure member tm_gmtoff?])
 fi
+
+dnl **********************************************************************
+dnl      Check the size of the integer types
+dnl      So we can have integers of known sizes as needed
+dnl
+AC_CHECK_SIZEOF(char)
+AC_CHECK_SIZEOF(short)
+AC_CHECK_SIZEOF(int)
+AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(long long)
 
 AC_ARG_ENABLE([all],
 [  --enable-all Activate ALL features
@@ -1761,19 +1774,6 @@ AC_CHECK_HEADERS(evs.h, , [openais_installed="no"],)
 AC_CHECK_LIB(evs, evs_initialize , , [openais_intalled="no"])
 AM_CONDITIONAL(BUILD_OPENAIS_MODULE, test "x${openais_installed}" = "xyes")
 
-
-dnl **********************************************************************
-dnl      Check the size of the integer types
-dnl      So we can have integers of known sizes as needed
-dnl
-AC_CHECK_SIZEOF(char)
-AC_CHECK_SIZEOF(short)
-AC_CHECK_SIZEOF(int)
-AC_CHECK_SIZEOF(long)
-AC_CHECK_SIZEOF(long long)
-
-dnl if not known on this system, #define size_t unsigned
-AC_TYPE_SIZE_T
 
 AC_MSG_CHECKING(if clock_t is long enough)
 if test $ac_cv_sizeof_long -ge 8; then
