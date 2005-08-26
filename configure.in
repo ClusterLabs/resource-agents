@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.426 $) dnl cvs revision
+AC_REVISION($Revision: 1.427 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -1247,7 +1247,9 @@ dnl Look first for the headers, then set the libraries accordingly.
 dnl (Normally autoconf suggests looking for libraries first.)
 dnl
 AC_CHECK_HEADERS(curses.h)
+AC_CHECK_HEADERS(curses/curses.h)
 AC_CHECK_HEADERS(ncurses.h)
+AC_CHECK_HEADERS(ncurses/ncurses.h)
 
 dnl Although n-library is preferred, only look for it if the n-header was found.
 CURSESLIBS=''
@@ -1257,8 +1259,21 @@ if test "$ac_cv_header_ncurses_h" = "yes"; then
   )
 fi
 
+if test "$ac_cv_header_ncurses_ncurses_h" = "yes"; then
+  AC_CHECK_LIB(ncurses, printw,
+    [CURSESLIBS='-lncurses'; AC_DEFINE(HAVE_LIBNCURSES,1, have ncurses library)]
+  )
+fi
+
 dnl Only look for non-n-library if there was no n-library.
 if test X"$CURSESLIBS" = X"" -a "$ac_cv_header_curses_h" = "yes"; then
+  AC_CHECK_LIB(curses, printw,
+    [CURSESLIBS='-lcurses'; AC_DEFINE(HAVE_LIBCURSES,1, have curses library)]
+  )
+fi
+
+dnl Only look for non-n-library if there was no n-library.
+if test X"$CURSESLIBS" = X"" -a "$ac_cv_header_curses_curses_h" = "yes"; then
   AC_CHECK_LIB(curses, printw,
     [CURSESLIBS='-lcurses'; AC_DEFINE(HAVE_LIBCURSES,1, have curses library)]
   )
