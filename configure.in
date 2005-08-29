@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.427 $) dnl cvs revision
+AC_REVISION($Revision: 1.428 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -853,6 +853,9 @@ fi
 
 if test "$ENABLE_SNMP" = "no" -o "x${enable_snmp_subagent}" != "xyes"; then
         enable_snmp_subagent="no"
+	RPM_ENABLE_SNMP_SUBAGENT="0"
+else
+	RPM_ENABLE_SNMP_SUBAGENT="1"
 fi
 
 check_snmp_libs ()
@@ -904,6 +907,7 @@ AC_SUBST(MIBS_DIR)
 AC_SUBST(SNMPCONFIG)
 AC_SUBST(SNMPLIB)
 AC_SUBST(SNMPAGENTLIB)
+AC_SUBST(RPM_ENABLE_SNMP_SUBAGENT)
 AM_CONDITIONAL(USE_APC_SNMP, test "$ENABLE_SNMP" = "yes")
 AM_CONDITIONAL(SNMP_SUBAGENT_BUILD, test "x${enable_snmp_subagent}" = "xyes")
 
