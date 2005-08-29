@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.6 2005/07/29 07:36:15 sunjd Exp $
+#	$Id: Delay.in,v 1.7 2005/08/29 02:04:18 sunjd Exp $
 #
 # Support:      linux-ha@lists.linux-ha.org
 # License:      GNU General Public License (GPL)
@@ -30,13 +30,13 @@
 
 #######################################################################
 
-VARLIB=@localstatedir@/lib/@HB_PKG@
-VLFILE="$VARLIB/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+VLFILE="$HA_VARRUNDIR/rsctmp/Delay-${OCF_RESOURCE_INSTANCE}"
 
 usage() {
   cat <<-!
 	usage: $0 {start|stop|status|monitor|meta-data|validate-all}
-  	$Id: Delay.in,v 1.6 2005/07/29 07:36:15 sunjd Exp $
+  	$Id: Delay.in,v 1.7 2005/08/29 02:04:18 sunjd Exp $
 	!
 }
 

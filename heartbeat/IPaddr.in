@@ -31,13 +31,13 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
-VARLIB=@localstatedir@/lib/@HB_PKG@
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$VARLIB/rsctmp/IPaddr
-SENDARPPIDDIR=$VARLIB/rsctmp/send_arp
+VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
+SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
 ROUTE=@ROUTE@
 USAGE="usage: $0 {start|stop|status|monitor|meta-data}";
 

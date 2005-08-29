@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr2.in,v 1.8 2005/07/15 07:58:59 sunjd Exp $
+#	$Id: IPaddr2.in,v 1.9 2005/08/29 02:06:09 sunjd Exp $
 #
 #       OCF Resource Agent compliant IPaddr2 script.
 #
@@ -49,13 +49,14 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
+HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
 IP2UTIL="@IP2UTIL@"
 IPTABLES="@IPTABLES@"
 MODPROBE="@MODPROBE@"
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$VARLIB/rsctmp/IPaddr
-SENDARPPIDDIR=$VARLIB/rsctmp/send_arp
+VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
+SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
 
 #######################################################################
 
