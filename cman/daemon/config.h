@@ -14,22 +14,27 @@
 #ifndef __CONFIG_DOT_H__
 #define __CONFIG_DOT_H__
 
-struct config_info {
-	int joinwait_timeout;
-	int joinconf_timeout;
-	int join_timeout;
-	int hello_timer;
-	int deadnode_timeout;
-	int transition_timeout;
-	int transition_restarts;
-	int max_nodes;
-	int sm_debug_size;
-        int newcluster_timeout;
-	int max_retries;
-	int debug_mask;
+struct config_entry {
+	char *name;
+	int value;
 };
 
-extern struct config_info cman_config;
+
+extern struct config_entry cman_config[];
+
+/* Indexes into the array */
+#define TOKEN_RETRANSMITS_BEFORE_LOSS_CONST     0
+#define TOKEN_TIMEOUT                           1
+#define TOKEN_RETRANSMIT_TIMEOUT                2
+#define TOKEN_HOLD_TIMEOUT                      3
+#define JOIN_TIMEOUT                            4
+#define CONSENSUS_TIMEOUT                       5
+#define MERGE_TIMEOUT                           6
+#define DOWNCHECK_TIMEOUT                       7
+#define FAIL_TO_RECV_CONST                      8
+#define SEQNO_UNCHANGED_CONST                   9
+#define DEBUG_MASK                             10
+
 
 extern void init_config(void);
 #endif				/* __CONFIG_DOT_H__ */

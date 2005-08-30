@@ -18,48 +18,41 @@
 
 /* Config file defaults */
 
-#define DEFAULT_JOIN_WAIT_TIME   16	/* Time to wait while sending JOINREQ
-					 * messages. Should be at least twice
-					 * the HELLO timer, probably 3x */
-#define DEFAULT_JOIN_TIMEOUT     30	/* How long we wait after getting a
-					 * JOINACK to regarding that node as
-					 * dead */
-#define DEFAULT_HELLO_TIMER       5	/* Period between HELLO messages */
-#define DEFAULT_DEADNODE_TIMER   21	/* If we don't get a message from a
-					 * node in this period kill it */
-#define DEFAULT_TRANSITION_TIMER 15	/* Maximum time a state transition
-					 * should take */
-#define DEFAULT_JOINCONF_TIMER    5	/* Time allowed to a node to respond to
-					 * a JOINCONF message */
-#define DEFAULT_MAX_NODES       128	/* Max allowed nodes */
-#define DEFAULT_TRANSITION_RESTARTS  10	/* Maximum number of transition
-					 * restarts before we die */
-#define DEFAULT_SM_DEBUG_SIZE	256	/* Size in bytes of SM debug buffer */
+#define HZ 100
 
-#define DEFAULT_NEWCLUSTER_TIMEOUT 16   /* Time to send NEWCLUSTER messages */
-#define DEFAULT_MAX_RETRIES 5		/* Number of times we resend a message */
+/* Copied from totemconfig.c */
+#define DEF_TOKEN_RETRANSMITS_BEFORE_LOSS_CONST     4
+#define DEF_TOKEN_TIMEOUT                           1000
+#define DEF_TOKEN_RETRANSMIT_TIMEOUT                (int)(TOKEN_TIMEOUT / (TOKEN_RETRANSMITS_BEFORE_LOSS_CONST + 0.2))
+#define DEF_TOKEN_HOLD_TIMEOUT                      (int)(TOKEN_RETRANSMIT_TIMEOUT * 0.8 - (1000/HZ))
+#define DEF_JOIN_TIMEOUT                            100
+#define DEF_CONSENSUS_TIMEOUT                       200
+#define DEF_MERGE_TIMEOUT                           200
+#define DEF_DOWNCHECK_TIMEOUT                       1000
+#define DEF_FAIL_TO_RECV_CONST                      10
+#define DEF_SEQNO_UNCHANGED_CONST                   3000
+#define DEF_DEBUG_MASK                              0xff
 
-#define DEFAULT_DEBUG_MASK 0xff            /* P_COMMS | P_MEMB | P_BARRIER */
+struct config_entry cman_config[] = {
+	[TOKEN_RETRANSMITS_BEFORE_LOSS_CONST] = { .name = "token_retransmits", .value = DEF_TOKEN_RETRANSMITS_BEFORE_LOSS_CONST},
+	[TOKEN_TIMEOUT] = { .name = "token_timeout", .value = DEF_TOKEN_TIMEOUT},
+        [TOKEN_RETRANSMIT_TIMEOUT] = { .name = "token_retransmit_timeout", .value = DEF_TOKEN_RETRANSMIT_TIMEOUT},
+        [TOKEN_HOLD_TIMEOUT] = { .name = "token_hold_timeout", .value = DEF_TOKEN_HOLD_TIMEOUT},
+	[JOIN_TIMEOUT] = { .name = "join_timeout", .value = DEF_JOIN_TIMEOUT},
+	[CONSENSUS_TIMEOUT] = { .name = "consensus_timeout", .value = DEF_CONSENSUS_TIMEOUT},
+	[MERGE_TIMEOUT] = { .name = "merge_timeout", .value = DEF_MERGE_TIMEOUT},
+	[DOWNCHECK_TIMEOUT] = { .name = "downcheck_timeout", .value = DEF_DOWNCHECK_TIMEOUT},
+	[FAIL_TO_RECV_CONST] = { .name = "fail_to_recv_const", .value = DEF_FAIL_TO_RECV_CONST},
+	[SEQNO_UNCHANGED_CONST] = { .name = "seqno_unchanged_const", .value = DEF_SEQNO_UNCHANGED_CONST},
+	[DEBUG_MASK] = { .name = "debug_mask", .value = DEF_DEBUG_MASK},
 
-struct config_info cman_config = {
-	.joinwait_timeout = DEFAULT_JOIN_WAIT_TIME,
-	.joinconf_timeout = DEFAULT_JOINCONF_TIMER,
-	.join_timeout = DEFAULT_JOIN_TIMEOUT,
-	.hello_timer = DEFAULT_HELLO_TIMER,
-	.deadnode_timeout = DEFAULT_DEADNODE_TIMER,
-	.transition_timeout = DEFAULT_TRANSITION_TIMER,
-	.transition_restarts = DEFAULT_TRANSITION_RESTARTS,
-	.max_nodes = DEFAULT_MAX_NODES,
-	.sm_debug_size = DEFAULT_SM_DEBUG_SIZE,
-	.newcluster_timeout = DEFAULT_NEWCLUSTER_TIMEOUT,
-	.max_retries = DEFAULT_MAX_RETRIES,
-	.debug_mask = DEFAULT_DEBUG_MASK,
 };
 
 #define CCS_CMAN_PREFIX "/cluster/cman/config/@"
 void init_config()
 {
 	int cd;
+	int i;
 	int error;
 	char *str;
 
@@ -67,72 +60,19 @@ void init_config()
 	if (cd < 0)
 		return;
 
-	error = ccs_get(cd, CCS_CMAN_PREFIX "joinwait_timeout", &str);
-	if (!error)
-	{
-		cman_config.joinwait_timeout = atoi(str);
-		free(str);
-	}
 
-	error = ccs_get(cd, CCS_CMAN_PREFIX "joinconf_timeout", &str);
-	if (!error)
+	for (i=0; i<sizeof(cman_config)/sizeof(struct config_entry); i++)
 	{
-		cman_config.joinconf_timeout = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "join_timeout", &str);
-	if (!error)
-	{
-		cman_config.join_timeout = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "hello_timer", &str);
-	if (!error)
-	{
-		cman_config.hello_timer = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "deadnode_timeout", &str);
-	if (!error)
-	{
-		cman_config.deadnode_timeout = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "transition_timeout", &str);
-	if (!error)
-	{
-		cman_config.transition_timeout = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "transition_restarts", &str);
-	if (!error)
-	{
-		cman_config.transition_restarts = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "max_nodes", &str);
-	if (!error)
-	{
-		cman_config.max_nodes = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "newcluster_timeout", &str);
-	if (!error)
-	{
-		cman_config.newcluster_timeout = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "max_retries", &str);
-	if (!error)
-	{
-		cman_config.max_retries = atoi(str);
-		free(str);
-	}
-	error = ccs_get(cd, CCS_CMAN_PREFIX "debug_mask", &str);
-	if (!error)
-	{
-		cman_config.debug_mask = atoi(str);
-		free(str);
+		char keyname[1024];
+
+		sprintf(keyname, CCS_CMAN_PREFIX "%s", cman_config[i].name);
+
+		error = ccs_get(cd, keyname, &str);
+		if (!error)
+		{
+			cman_config[i].value = atoi(str);
+			free(str);
+		}
 	}
 	ccs_disconnect(cd);
 }

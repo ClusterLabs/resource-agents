@@ -495,7 +495,7 @@ int main(int argc, char *argv[])
 
 	init_config();
 	init_log(no_fork);
-	init_debug(cman_config.debug_mask);
+	init_debug(cman_config[DEBUG_MASK].value);
 
 	log_msg(LOG_INFO, "CMAN %s (built %s %s) started\n",
 		CMAN_RELEASE_NAME, __DATE__, __TIME__);

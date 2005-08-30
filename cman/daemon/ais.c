@@ -21,26 +21,12 @@
 #include "totempg.h"
 #include "aispoll.h"
 #include "logging.h"
+
+#include "config.h"
 extern int our_nodeid();
 
 /* DLM Currently maxes out at 3 ! */
 #define MAX_INTERFACES 16
-
-// PJC TODO What should this be ??
-#define HZ 100
-
-/* Copied from totemconfig.c */
-#define TOKEN_RETRANSMITS_BEFORE_LOSS_CONST     4
-#define TOKEN_TIMEOUT                           1000
-#define TOKEN_RETRANSMIT_TIMEOUT                (int)(TOKEN_TIMEOUT / (TOKEN_RETRANSMITS_BEFORE_LOSS_CONST + 0.2))
-#define TOKEN_HOLD_TIMEOUT                      (int)(TOKEN_RETRANSMIT_TIMEOUT * 0.8 - (1000/HZ))
-#define JOIN_TIMEOUT                            100
-#define CONSENSUS_TIMEOUT                       200
-#define MERGE_TIMEOUT                           200
-#define DOWNCHECK_TIMEOUT                       1000
-#define FAIL_TO_RECV_CONST                      10
-#define SEQNO_UNCHANGED_CONST                   3000
-
 
 static int initial_msg_sent;
 
@@ -190,16 +176,16 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	char *errstring;
 
 	/* AIS doesn't like these to disappear */
-	static struct totem_config cman_config;
+	static struct totem_config ais_config;
 	static totemsrp_handle totemsrp_handle_in;
 
 	P_AIS("comms_init_ais()\n");
 
 	if (key_filename)
 	{
-		cman_config.secauth = 1;
+		ais_config.secauth = 1;
 		P_AIS("Reading key from file %s\n", key_filename);
-		if (totem_config_keyread (key_filename, &cman_config, &errstring))
+		if (totem_config_keyread (key_filename, &ais_config, &errstring))
 		{
 			P_AIS("Unable to read key from file %s: %s\n", key_filename, errstring);
 			log_msg(LOG_ERR, "Unable to read key from file %s: %s\n", key_filename, errstring);
@@ -208,61 +194,48 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	}
 	else
 	{
-		cman_config.secauth = 0;
-		cman_config.private_key_len = 0;
+		ais_config.secauth = 0;
+		ais_config.private_key_len = 0;
 	}
 
-	cman_config.interfaces = ifaddrs;
-	cman_config.interface_count = num_interfaces;
-	cman_config.ip_port = htons(port);
+	ais_config.interfaces = ifaddrs;
+	ais_config.interface_count = num_interfaces;
+	ais_config.ip_port = htons(port);
 
-	totemip_copy(&cman_config.mcast_addr, &mcast_addr);
-	cman_config.node_id = our_nodeid();
+	totemip_copy(&ais_config.mcast_addr, &mcast_addr);
+	ais_config.node_id = our_nodeid();
 
-	cman_config.totem_logging_configuration.log_printf = log_msg;
-	cman_config.totem_logging_configuration.log_level_security = 5;
-	cman_config.totem_logging_configuration.log_level_error = 4;
-	cman_config.totem_logging_configuration.log_level_warning = 3;
-	cman_config.totem_logging_configuration.log_level_notice = 2;
-	cman_config.totem_logging_configuration.log_level_debug = 1;
+	ais_config.totem_logging_configuration.log_printf = log_msg;
+	ais_config.totem_logging_configuration.log_level_security = 5;
+	ais_config.totem_logging_configuration.log_level_error = 4;
+	ais_config.totem_logging_configuration.log_level_warning = 3;
+	ais_config.totem_logging_configuration.log_level_notice = 2;
+	ais_config.totem_logging_configuration.log_level_debug = 1;
 
-        /* Set defaults - this is mostly nicked from totem_config.c */
-	cman_config.token_retransmits_before_loss_const = TOKEN_RETRANSMITS_BEFORE_LOSS_CONST;
-	cman_config.token_timeout = TOKEN_TIMEOUT;
-	cman_config.token_retransmits_before_loss_const = TOKEN_RETRANSMITS_BEFORE_LOSS_CONST;
-	cman_config.token_retransmit_timeout =
-		(int)(cman_config.token_timeout /
-		      (cman_config.token_retransmits_before_loss_const + 0.2));
-	cman_config.token_hold_timeout =
-		(int)(cman_config.token_retransmit_timeout * 0.8 -
-		      (1000/HZ));
-
-	cman_config.token_retransmit_timeout =
-		(int)(cman_config.token_timeout /
-		      (cman_config.token_retransmits_before_loss_const + 0.2));
-	cman_config.token_hold_timeout =
-		(int)(cman_config.token_retransmit_timeout * 0.8 -
-		      (1000/HZ));
-	cman_config.token_hold_timeout = TOKEN_HOLD_TIMEOUT;
-	cman_config.join_timeout = JOIN_TIMEOUT;
-	cman_config.consensus_timeout = CONSENSUS_TIMEOUT;
-	cman_config.merge_timeout = MERGE_TIMEOUT;
-	cman_config.downcheck_timeout = DOWNCHECK_TIMEOUT;
-	cman_config.fail_to_recv_const = FAIL_TO_RECV_CONST;
-	cman_config.seqno_unchanged_const = SEQNO_UNCHANGED_CONST;
-	cman_config.net_mtu = 1500;
-	cman_config.threads = 0;//2;
+        /* Set defaults */
+	ais_config.token_retransmits_before_loss_const = cman_config[TOKEN_RETRANSMITS_BEFORE_LOSS_CONST].value;
+	ais_config.token_timeout = cman_config[TOKEN_TIMEOUT].value;
+	ais_config.token_retransmit_timeout = cman_config[TOKEN_RETRANSMIT_TIMEOUT].value;
+	ais_config.token_hold_timeout = cman_config[TOKEN_HOLD_TIMEOUT].value;
+	ais_config.join_timeout = cman_config[JOIN_TIMEOUT].value;
+	ais_config.consensus_timeout = cman_config[CONSENSUS_TIMEOUT].value;
+	ais_config.merge_timeout = cman_config[MERGE_TIMEOUT].value;
+	ais_config.downcheck_timeout = cman_config[DOWNCHECK_TIMEOUT].value;
+	ais_config.fail_to_recv_const = cman_config[FAIL_TO_RECV_CONST].value;
+	ais_config.seqno_unchanged_const = cman_config[SEQNO_UNCHANGED_CONST].value;
+	ais_config.net_mtu = 1500;
+	ais_config.threads = 0;//2;
 
 	// TEMP clear it all
-	cman_config.totem_logging_configuration.log_level_security =
-	cman_config.totem_logging_configuration.log_level_error =
-	cman_config.totem_logging_configuration.log_level_warning =
-	cman_config.totem_logging_configuration.log_level_notice =
-	cman_config.totem_logging_configuration.log_level_debug = 1;
+	ais_config.totem_logging_configuration.log_level_security =
+	ais_config.totem_logging_configuration.log_level_error =
+	ais_config.totem_logging_configuration.log_level_warning =
+	ais_config.totem_logging_configuration.log_level_notice =
+	ais_config.totem_logging_configuration.log_level_debug = 1;
 
         totempg_initialize(ais_poll_handle,
 			   &totemsrp_handle_in,
-			   &cman_config,
+			   &ais_config,
 			   deliver_fn, confchg_fn);
 
 	return 0;
