@@ -934,7 +934,7 @@ static int gfs2_readlink(struct dentry *dentry, char __user *user_buf,
  * Returns: 0 on success or error code
  */
 
-static int gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
+static void *gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	struct gfs2_inode *ip = get_v2ip(dentry->d_inode);
 	char array[GFS2_FAST_NAME_SIZE], *buf = array;
@@ -950,7 +950,7 @@ static int gfs2_follow_link(struct dentry *dentry, struct nameidata *nd)
 			kfree(buf);
 	}
 
-	return error;
+	return ERR_PTR(error);
 }
 
 /**
