@@ -46,15 +46,6 @@ struct queued_reply
 	char buf[1];
 };
 
-/* Events queued by membership thread to be delivered by daemon thread */
-struct queued_event
-{
-	struct list list;
-	int event;
-	int arg;
-};
-static LIST_INIT(event_list);
-
 /* We need to keep these in a list so we can notify of
    cluster events */
 static LIST_INIT(client_list);
@@ -339,8 +330,10 @@ static int process_rendezvous(poll_handle handle, int fd, int revent, void *data
 	client_fd = accept(fd, (struct sockaddr *) &socka, &sl);
 	if (client_fd >= 0) {
 		struct connection *newcon = malloc(sizeof(struct connection));
-		if (!con)
-			return 0; // TODO error?
+		if (!con) {
+			close(client_fd);
+			return 0; /* returning -1 will remove us */
+		}
 
 		newcon->fd = client_fd;
 		newcon->type = con->type;
@@ -463,24 +456,6 @@ void notify_listeners(struct connection *con, int event, int arg)
 void wake_daemon(void)
 {
 	P_DAEMON("Wake daemon called\n");
-}
-
-// TODO Called when ???
-static void send_queued_events()
-{
-	struct queued_event *qe;
-
-	if (!list_empty(&event_list)) {
-		struct list *tmp, *tmp1;
-
-		P_DAEMON("Sending queued events\n");
-		list_iterate_safe(tmp, tmp1, &event_list) {
-			qe = list_item(tmp, struct queued_event);
-			notify_listeners(NULL, qe->event, qe->arg);
-			list_del(&qe->list);
-			free(qe);
-		}
-	}
 }
 
 static void sigint_handler(int ignored)
