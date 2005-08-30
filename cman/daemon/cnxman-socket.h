@@ -45,6 +45,7 @@
 #define CMAN_CMD_POLL_QUORUMDEV     0x800000b7
 #define CMAN_CMD_ADD_MCAST          0x800000b8
 #define CMAN_CMD_ADD_IFADDR         0x800000b9
+#define CMAN_CMD_ADD_KEYFILE        0x800000ba
 
 #define CMAN_CMD_DATA               0x00000100
 #define CMAN_CMD_BIND               0x00000101
@@ -92,6 +93,7 @@
 
 /* Sendmsg flags, these are above the normal sendmsg flags so they don't
  * interfere */
+#if 0
 #define MSG_NOACK     0x010000	/* Don't need an ACK for this message */
 #define MSG_QUEUE     0x020000	/* Queue the message for sending later */
 #define MSG_MULTICAST 0x080000	/* Message was sent to all nodes in the cluster */
@@ -99,6 +101,9 @@
 #define MSG_REPLYEXP  0x200000	/* Reply is expected */
 #define MSG_BCASTSELF 0x400000	/* Broadcast message also gets sent to us */
 #define MSG_HEARTBEAT 0x800000  /* Message is visible to non-member nodes */
+#endif
+#define MSG_TOTEM_AGREED 0x1000000
+#define MSG_TOTEM_SAFE   0x2000000
 
 typedef enum { NODESTATE_JOINING=1, NODESTATE_MEMBER,
 	       NODESTATE_DEAD, NODESTATE_LEAVING } nodestate_t;

@@ -155,6 +155,7 @@ static void remove_client(poll_handle handle, struct connection *con)
 		list_del(&con->list);
 
 	unbind_con(con);
+	remove_barriers(con);
 
 	free(con);
 	num_connections--;

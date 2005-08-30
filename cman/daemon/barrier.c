@@ -53,7 +53,6 @@ struct cl_barrier {
 	enum { BARRIER_STATE_WAITING, BARRIER_STATE_INACTIVE,
 	       BARRIER_STATE_COMPLETE } state;
 	unsigned int expected_nodes;
-	unsigned int registered_nodes;
 	unsigned int got_nodes;
 	unsigned int completed_nodes;
 	unsigned int inuse;
@@ -78,12 +77,12 @@ static void send_barrier_complete_msg(struct cl_barrier *barrier)
 	}
 
 	if (!barrier->client_complete) {
-		send_status_return(barrier->con, CMAN_CMD_BARRIER, barrier->endreason);
+		if (barrier->con)
+			send_status_return(barrier->con, CMAN_CMD_BARRIER, barrier->endreason);
 		barrier->client_complete = 1;
 	}
 }
 
-/* MUST be called with the barrier list lock held */
 static struct cl_barrier *find_barrier(char *name)
 {
 	struct list *blist;
@@ -107,7 +106,6 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 
 		struct cl_barriermsg bmsg;
 
-		barrier->completed_nodes++;	/* We have completed */
 		barrier->phase = 2;	/* Wait for complete phase II */
 
 		bmsg.cmd = CLUSTER_MSG_BARRIER;
@@ -118,7 +116,7 @@ static void check_barrier_complete_phase1(struct cl_barrier *barrier)
 		comms_send_message((char *) &bmsg, sizeof (bmsg),
 				   0, 0,
 				   0,
-				   0);//TODO flags, use TOTEM_SAFE
+				   MSG_TOTEM_SAFE);
 	}
 }
 
@@ -129,7 +127,7 @@ static int check_barrier_complete_phase2(struct cl_barrier *barrier, int status)
 	P_BARRIER("check_complete_phase2 for %s\n", barrier->name);
 
 	P_BARRIER("check_complete_phase2 status=%d, c_nodes=%d, e_nodes=%d, state=%d\n",
-		  status,barrier->completed_nodes, barrier->completed_nodes, barrier->state);
+		  status,barrier->completed_nodes, barrier->expected_nodes, barrier->state);
 
 	if (barrier->state != BARRIER_STATE_COMPLETE &&
 	    (status == -ETIMEDOUT ||
@@ -169,6 +167,29 @@ static void barrier_timer_fn(void *arg)
 	check_barrier_complete_phase2(barrier, -ETIMEDOUT);
 }
 
+static struct cl_barrier *alloc_barrier(char *name, int nodes)
+{
+	struct cl_barrier *barrier;
+
+	/* Build a new struct and add it to the list */
+	barrier = malloc(sizeof (struct cl_barrier));
+	if (barrier == NULL) {
+		return NULL;
+	}
+	memset(barrier, 0, sizeof (*barrier));
+
+	strcpy(barrier->name, name);
+	barrier->flags = 0;
+	barrier->expected_nodes = nodes;
+	barrier->got_nodes = 0;
+	barrier->completed_nodes = 0;
+	barrier->endreason = 0;
+	barrier->state = BARRIER_STATE_INACTIVE;
+
+	list_add(&barrier_list, &barrier->list);
+	return barrier;
+}
+
 /* Process BARRIER messages from other nodes */
 void process_barrier_msg(struct cl_barriermsg *msg,
 			 struct cluster_node *node)
@@ -180,14 +201,18 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 	/* Ignore other peoples' messages */
 	if (!we_are_a_cluster_member)
 		return;
-	if (!barrier)
-		return;
 
 	P_BARRIER("Got %d for %s, from node %s\n", msg->subcmd, msg->name,
 		  node ? node->name : "unknown");
 
 	switch (msg->subcmd) {
 	case BARRIER_WAIT:
+		if (!barrier) {
+			barrier = alloc_barrier(msg->name, msg->nodes);
+			if (!barrier)
+				return;
+		}
+
 		if (barrier->phase == 0)
 			barrier->phase = 1;
 
@@ -203,6 +228,8 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 		break;
 
 	case BARRIER_COMPLETE:
+		if (!barrier)
+			return;
 		barrier->completed_nodes++;
 
 		/* First node to get all the WAIT messages sends COMPLETE, so
@@ -221,7 +248,6 @@ void process_barrier_msg(struct cl_barriermsg *msg,
 		break;
 	}
 }
-
 
 
 /* Barrier API */
@@ -257,25 +283,12 @@ static int barrier_register(struct connection *con, char *name, unsigned int fla
 		}
 	}
 
-	/* Build a new struct and add it to the list */
-	barrier = malloc(sizeof (struct cl_barrier));
-	if (barrier == NULL) {
+	barrier = alloc_barrier(name, nodes);
+	if (!barrier)
 		return -ENOMEM;
-	}
-	memset(barrier, 0, sizeof (*barrier));
 
-	strcpy(barrier->name, name);
 	barrier->flags = flags;
-	barrier->expected_nodes = nodes;
-	barrier->got_nodes = 0;
-	barrier->completed_nodes = 0;
-	barrier->endreason = 0;
-	barrier->registered_nodes = 1;
 	barrier->con = con;
-	barrier->state = BARRIER_STATE_INACTIVE;
-
-	list_add(&barrier_list, &barrier->list);
-
 	return 0;
 }
 
@@ -297,12 +310,11 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		/* Send it to the rest of the cluster */
 		bmsg.cmd = CLUSTER_MSG_BARRIER;
 		bmsg.subcmd = BARRIER_WAIT;
+		bmsg.nodes = barrier->expected_nodes;
 		strcpy(bmsg.name, barrier->name);
 
 		barrier->waitsent = 1;
 		barrier->phase = 1;
-
-		barrier->got_nodes++;
 
 		/* Start the timer if one was wanted */
 		if (barrier->timeout) {
@@ -311,16 +323,10 @@ static int barrier_setattr_enabled(struct cl_barrier *barrier,
 		}
 
 		P_BARRIER("Sending WAIT for %s\n", barrier->name);
-		status = comms_send_message((char *)&bmsg, sizeof(bmsg), 0,0, 0, 0);
+		status = comms_send_message((char *)&bmsg, sizeof(bmsg), 0,0, 0, MSG_TOTEM_SAFE);
 		if (status < 0) {
 			return status;
 		}
-
-		/* It might have been reached now */
-		if (barrier
-		    && barrier->state != BARRIER_STATE_COMPLETE
-		    && barrier->phase == 1)
-			check_barrier_complete_phase1(barrier);
 	}
 	if (barrier && barrier->state == BARRIER_STATE_COMPLETE) {
 		return barrier->endreason;
@@ -397,10 +403,6 @@ static int barrier_wait(char *name)
 {
 	struct cl_barrier *barrier;
 
-	// TODO ??
-//	if (!cnxman_running)
-//		return -ENOTCONN;
-
 	/* Enable it */
 	barrier_setattr(name, BARRIER_SETATTR_ENABLED, 1L);
 
@@ -440,11 +442,8 @@ void check_barrier_returns()
 
 			/* Check for a dynamic member barrier */
 			if (barrier->expected_nodes == 0) {
-				if (barrier->registered_nodes ==
-				    cluster_members) {
-					status = 0;
-					wakeit = 1;
-				}
+				status = 0;
+				wakeit = 1;
 			}
 			else {
 				status = ESRCH;
@@ -491,6 +490,21 @@ int do_cmd_barrier(struct connection *con, char *cmdbuf, int *retlen)
 	}
 }
 
+/* Remove any barriers associated with this connection */
+void remove_barriers(struct connection *con)
+{
+	struct list *blist, *tmp;
+	struct cl_barrier *bar;
+
+	list_iterate_safe(blist, tmp, &barrier_list) {
+		bar = list_item(blist, struct cl_barrier);
+
+		if (con == bar->con) {
+			list_del(&bar->list);
+			free(bar);
+		}
+	}
+}
 
 void barrier_init()
 {

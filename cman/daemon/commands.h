@@ -17,7 +17,7 @@ extern void process_cnxman_message(char *data, int len, char *addr, int addrlen,
 
 extern int send_to_userport(unsigned char fromport, unsigned char toport,
 			    int nodeid, int tgtnodeid,
-			    uint32_t ais_nodeid,
+			    struct totem_ip_address *ais_node,
 			    char *recv_buf, int len,
 			    int endian_conv);
 extern void clean_dead_listeners(void);
@@ -27,8 +27,8 @@ extern int process_command(struct connection *con, int cmd, char *cmdbuf,
 			   char **retbuf, int *retlen, int retsize, int offset);
 extern int send_joinreq(void);
 
-extern void add_ais_node(uint32_t ais_nodeid, uint64_t incarnation, int total_members);
-extern void del_ais_node(uint32_t ais_nodeid);
+extern void add_ais_node(struct totem_ip_address *ais_node, uint64_t incarnation, int total_members);
+extern void del_ais_node(struct totem_ip_address *ais_node);
 
 extern int config_version;
 extern int cluster_members;

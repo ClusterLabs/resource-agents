@@ -742,7 +742,7 @@ int cman_set_commskey(cman_handle_t handle, char *keyfile)
 		errno = EINVAL;
 		return -1;
 	}
-	/* return info_call(h, CMAN_CMD_ADD_KEYFILE, keyfile, strlen(keyfile)+1, NULL, 0); */
+	return info_call(h, CMAN_CMD_ADD_KEYFILE, keyfile, strlen(keyfile)+1, NULL, 0);
 	return -1;
 }
 

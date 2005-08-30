@@ -12,7 +12,7 @@
 
 extern uint64_t incarnation;
 
-extern int comms_init_ais(unsigned short port);
+extern int comms_init_ais(unsigned short port, char *key_filename);
 extern int ais_set_mcast(char *mcast);
 extern int ais_add_ifaddr(char *ifaddr);
 extern int comms_send_message(void *buf, int len,

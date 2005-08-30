@@ -14,6 +14,10 @@
 #ifndef __CNXMAN_PRIVATE_H
 #define __CNXMAN_PRIVATE_H
 
+// TODO move this
+#include "totemip.h"
+
+
 /* Protocol Version triplet */
 #define CNXMAN_MAJOR_VERSION 6
 #define CNXMAN_MINOR_VERSION 0
@@ -74,10 +78,7 @@ struct cl_new_dead_node {
 struct cl_barriermsg {
 	unsigned char  cmd;	/* CLUSTER_CMD_BARRIER */
 	unsigned char  subcmd;	/* BARRIER sub command */
-
-	/* These fields are redundant but are included for backwards compatibility */
 	unsigned short pad;
-        unsigned int   flags;
         unsigned int   nodes;
 
 	char name[MAX_BARRIER_NAME_LEN];
@@ -103,7 +104,7 @@ struct cl_nodemsg {
 struct cl_killmsg {
 	unsigned char cmd;
 	unsigned char pad1;
-	uint16_t pad2;
+	uint16_t reason;
 	int wanted_nodeid;
 };
 
@@ -137,7 +138,7 @@ struct cl_joinconf_node
 	unsigned int expected_votes;
 	unsigned int votes;
 	nodestate_t  state;
-	uint32_t     ais_nodeid;
+	struct totem_ip_address ais_node;
 	unsigned char port_bits[32];
 	char         name[64]; // TODO This is a waste of bandwidth
 };
@@ -170,7 +171,7 @@ struct cluster_node {
 	struct list addr_list;
 	int us;			/* This node is us */
 	unsigned int node_id;	/* Unique node ID */
-	uint32_t     ais_nodeid;
+	struct totem_ip_address ais_node;
 	nodestate_t state;
 	struct timeval join_time;
 
@@ -195,6 +196,10 @@ struct cluster_node {
 #define CLUSTER_MSG_LEAVE       7
 #define CLUSTER_MSG_RECONFIGURE 8
 #define CLUSTER_MSG_JOINCONF    9
+
+/* Kill reasons */
+#define CLUSTER_KILL_REJECTED   1
+#define CLUSTER_KILL_CMANTOOL   2
 
 #define MAX_ADDR_PRINTED_LEN (address_length*3 + 1)
 
