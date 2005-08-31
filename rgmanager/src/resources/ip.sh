@@ -381,7 +381,7 @@ ipv6_find_interface()
 	while read idx dev ifaddr; do
 
 		isSlave $dev
-		if [ $? -ne $NO ]; then
+		if [ $? -ne 2 ]; then
 			continue
 		fi
 
@@ -465,21 +465,21 @@ isSlave()
 
 	if [ -z "$intf" ]; then
 		logAndPrint $LOG_ERR "usage: isSlave <I/F>"
-		return $FAIL
+		return 1
 	fi
 
 	line=$(/sbin/ip link list dev $intf)
 	if [ $? -ne 0 ]; then
 		logAndPrint $LOG_ERR "$intf not found"
-		return $FAIL
+		return 1
 	fi
 
 	if [ "$line" = "${line/<*SLAVE*>/}" ]; then
-		return $NO
+		return 2
 	fi
 
 	# Yes, it is a slave device.  Ignore.
-	return $YES
+	return 0
 }
 
 ethernet_link_up()
@@ -560,7 +560,7 @@ ipv4_find_interface()
 	while read idx dev ifaddr; do
 
 		isSlave $dev
-		if [ $? -ne $NO ]; then
+		if [ $? -ne 2 ]; then
 			continue
 		fi
 
