@@ -1044,7 +1044,8 @@ static int setattr_chown(struct inode *inode, struct iattr *attr)
 	if (error)
 		goto out_end_trans;
 
-	inode_setattr(inode, attr);
+	error = inode_setattr(inode, attr);
+	gfs2_assert_warn(sdp, !error);
 	gfs2_inode_attr_out(ip);
 
 	gfs2_trans_add_bh(ip->i_gl, dibh);

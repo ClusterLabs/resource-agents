@@ -1772,7 +1772,8 @@ int gfs2_setattr_simple(struct gfs2_inode *ip, struct iattr *attr)
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {
-		inode_setattr(ip->i_vnode, attr);
+		error = inode_setattr(ip->i_vnode, attr);
+		gfs2_assert_warn(ip->i_sbd, !error);
 		gfs2_inode_attr_out(ip);
 
 		gfs2_trans_add_bh(ip->i_gl, dibh);

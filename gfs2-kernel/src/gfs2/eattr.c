@@ -1336,7 +1336,8 @@ int gfs2_ea_acl_chmod(struct gfs2_inode *ip, struct gfs2_ea_location *el,
 
 	error = gfs2_meta_inode_buffer(ip, &dibh);
 	if (!error) {
-		inode_setattr(ip->i_vnode, attr);
+		error = inode_setattr(ip->i_vnode, attr);
+		gfs2_assert_warn(ip->i_sbd, !error);
 		gfs2_inode_attr_out(ip);
 		gfs2_trans_add_bh(ip->i_gl, dibh);
 		gfs2_dinode_out(&ip->i_di, dibh->b_data);
