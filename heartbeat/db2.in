@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.3 2005/08/12 05:56:01 sunjd Exp $
+# $Id: db2.in,v 1.4 2005/08/31 17:42:49 alan Exp $
 # 
 # db2
 #
@@ -48,7 +48,7 @@ usage() {
 	The 'validate-all' operation reports whether the parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.3 2005/08/12 05:56:01 sunjd Exp $
+	$Id: db2.in,v 1.4 2005/08/31 17:42:49 alan Exp $
 	!
 }
 
@@ -239,7 +239,7 @@ db2_stop() {
 #
 db2_status() {
   # We ignore the instance, the info we need is already in $vars
-  pscount=`runasdb2 $db2bin/db2_local_ps | grep ' db2[^ ]*$' | wc -l`
+  pscount=`runasdb2 $db2bin/db2_local_ps | cut -c9- |  grep ' db2[^ ]' | wc -l`
   test $pscount -ge 5
 }
 
