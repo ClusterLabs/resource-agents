@@ -78,31 +78,18 @@ void
 do_freeze(int argc, char **argv)
 {
 	char *command = argv[optind - 1];
-	char *cookie;
-	int fd;
-	char buf[256];
-	int x;
+	char *name;
 
 	if (optind == argc)
-		die("Usage: gfs2_tool %s <mountpoint>\n",
-		    command);
+		die("Usage: gfs2_tool %s <mountpoint>\n", command);
 
-	cookie = mp2cookie(argv[optind], FALSE);
-	x = sprintf(buf, "%s %s\n", command, cookie);
+	name = mp2fsname(argv[optind]);
 
-	fd = open("/proc/fs/gfs2", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs2: %s\n",
-		    strerror(errno));
+	if (strcmp(command, "freeze") == 0)
+		do_sysfs(name, "freeze", 1);
+	else if (strcmp(command, "unfreeze") == 0)
+		do_sysfs(name, "freeze", 0);
 
-	if (write(fd, buf, x) != x)
-		die("can't write %s command: %s\n",
-		    command, strerror(errno));
-	if (read(fd, buf, 256))
-		die("can't %s %s: %s\n",
-		    command, argv[optind], strerror(errno));
-
-	close(fd);
 	sync();
 }
 
@@ -116,64 +103,7 @@ do_freeze(int argc, char **argv)
 void
 print_lockdump(int argc, char **argv)
 {
-	int fd;
-	char *mp, *cookie;
-	unsigned int size = 4194304;
-	char *data;
-	char command[256];
-	int retry = TRUE;
-	int x, count;
-
-
-	if (optind < argc)
-		mp = argv[optind++];
-	else
-		die("Usage: gfs2_tool lockdump <mountpoint> [buffersize]\n");
-
-	if (optind < argc) {
-		sscanf(argv[optind++], "%u", &size);
-		retry = FALSE;
-	}
-
-	cookie = mp2cookie(mp, FALSE);
-	x = sprintf(command, "lockdump %s\n", cookie);
-
-
-	fd = open("/proc/fs/gfs2", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs2: %s\n",
-		    strerror(errno));
-
-	for (;;) {
-		data = malloc(size);
-		if (!data)
-			die("out of memory\n");
-
-		if (write(fd, command, x) != x)
-			die("can't write lockdump command: %s\n",
-			    strerror(errno));
-		count = read(fd, data, size);
-		if (count >= 0)
-			break;
-
-		if (errno == ENOMEM) {
-			if (retry) {
-				free(data);
-				size += 4194304;
-				continue;
-			} else
-				die("%u bytes isn't enough memory\n", size);
-		}
-		die("error doing lockdump: %s\n",
-		    strerror(errno));
-	}
-
-	close(fd);
-
-
-	write(STDOUT_FILENO, data, count);
-
-	free(data);
+	die("lockdump not implemented\n");
 }
 
 /**
@@ -186,32 +116,7 @@ print_lockdump(int argc, char **argv)
 void
 margs(int argc, char **argv)
 {
-	int fd;
-	char *buf;
-	unsigned int x;
-
-	if (optind == argc)
-		die("Usage: gfs2_tool margs <mountarguments>\n");
-
-	x = strlen(argv[optind]) + 7;
-	buf = malloc(x + 1);
-	if (!buf)
-		die("out of memory\n");
-	sprintf(buf, "margs %s\n", argv[optind]);
-
-	fd = open("/proc/fs/gfs2", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs2: %s\n",
-		    strerror(errno));
- 
-	if (write(fd, buf, x) != x)
-		die("can't write margs command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, x))
-		die("can't set mount args: %s\n",
-		    strerror(errno));
-
-	close(fd);
+	die("margs not implemented\n");
 }
 
 /**
@@ -679,28 +584,13 @@ do_shrink(int argc, char **argv)
 void
 do_withdraw(int argc, char **argv)
 {
-	char *cookie;
-	int fd;
-	char buf[256];
-	int x;
+	char *name;
 
 	if (optind == argc)
 		die("Usage: gfs2_tool withdraw <mountpoint>\n");
 
-	cookie = mp2cookie(argv[optind], FALSE);
-	x = sprintf(buf, "withdraw %s\n", cookie);
+	name = mp2fsname(argv[optind]);
 
-	fd = open("/proc/fs/gfs2", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs2: %s\n",
-		    strerror(errno));
-
-	if (write(fd, buf, x) != x)
-		die("can't write withdraw command: %s\n",
-		    strerror(errno));
-	if (read(fd, buf, 256))
-		die("can't withdraw %s: %s\n",
-		    argv[optind], strerror(errno));
-
-	close(fd);
+	do_sysfs(name, "withdraw", 1);
 }
+

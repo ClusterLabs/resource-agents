@@ -94,10 +94,11 @@ void set_tune(int argc, char **argv);
 void check_for_gfs2(int fd, char *path);
 char *get_list(void);
 char **str2lines(char *str);
-char *mp2cookie(char *mp, int ioctl_ok);
+char *mp2fsname(char *mp);
 char *name2value(char *str, char *name);
 uint32_t name2u32(char *str, char *name);
 uint64_t name2u64(char *str, char *name);
+void do_sysfs(char *fsname, char *filename, int val);
 
 
 #endif /* __GFS2_TOOL_DOT_H__ */

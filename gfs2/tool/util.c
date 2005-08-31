@@ -24,12 +24,103 @@
 #include <limits.h>
 #include <errno.h>
 #include <libgen.h>
+#include <dirent.h>
+#include <string.h>
 
 #define __user
 #include <linux/gfs2_ioctl.h>
 #include <linux/gfs2_ondisk.h>
 
 #include "gfs2_tool.h"
+
+#define SYS_BASE "/sys/kernel/gfs2"
+
+void do_sysfs(char *fsname, char *filename, int val)
+{
+	char path[PATH_MAX];
+	char buf[32];
+	int fd, rv;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s/%s/%s", SYS_BASE, fsname, filename);
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0)
+		die("can't open %s: %s\n", path, strerror(errno));
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%d", val);
+
+	rv = write(fd, buf, strlen(buf) + 1);
+	if (rv < 0)
+		die("can't write to %s: %s", path, strerror(errno));
+}
+
+/**
+ * get_list - Get the list of GFS2 filesystems
+ *
+ * Returns: a NULL terminated string
+ */
+
+#define LIST_SIZE 1048576
+
+char *
+get_list(void)
+{
+	char path[PATH_MAX];
+	char s_id[PATH_MAX];
+	char *list, *p;
+	int rv, fd, x = 0, total = 0;
+	DIR *d;
+	struct dirent *de;
+
+	list = malloc(LIST_SIZE);
+	if (!list)
+		die("out of memory\n");
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", SYS_BASE);
+
+	d = opendir(path);
+	if (!d)
+		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/id", SYS_BASE, de->d_name);
+
+		fd = open(path, O_RDONLY);
+		if (fd < 0)
+			die("can't open %s: %s\n", path, strerror(errno));
+
+		memset(s_id, 0, PATH_MAX);
+
+		rv = read(fd, s_id, sizeof(s_id));
+		if (rv < 0)
+			die("can't read %s: %s\n", path, strerror(errno));
+
+		close(fd);
+
+		p = strstr(s_id, "\n");
+		if (p)
+			*p = '\0';
+
+		total += strlen(s_id) + strlen(de->d_name) + 2;
+		if (total > LIST_SIZE)
+			break;
+
+		x += sprintf(list + x, "%s %s\n", s_id, de->d_name);
+
+	}
+
+	closedir(d);
+
+	return list;
+}
+
 
 /**
  * check_for_gfs2 - Check to see if a descriptor is a file on a GFS2 filesystem
@@ -48,45 +139,6 @@ check_for_gfs2(int fd, char *path)
 	if (error || magic != GFS2_MAGIC)
 		die("%s is not a GFS2 file/filesystem\n",
 		    path);
-}
-
-/**
- * get_list - Get the list of GFS2 filesystems
- *
- * Returns: a NULL terminated string
- */
-
-#define LIST_SIZE (1048576)
-
-char *
-get_list(void)
-{
-	char *list;
-	int fd;
-	int x;
-
-	list = malloc(LIST_SIZE);
-	if (!list)
-		die("out of memory\n");
-
-	fd = open("/proc/fs/gfs2", O_RDWR);
-	if (fd < 0)
-		die("can't open /proc/fs/gfs2: %s\n",
-		    strerror(errno));
-
-	if (write(fd, "list", 4) != 4)
-		die("can't write list command: %s\n",
-		    strerror(errno));
-	x = read(fd, list, LIST_SIZE - 1);
-	if (x < 0)
-		die("can't get list of filesystems: %s\n",
-		    strerror(errno));
-
-	close(fd);
-
-	list[x] = 0;
-
-	return list;
 }
 
 /**
@@ -133,7 +185,7 @@ do_basename(char *device)
 {
 	FILE *file;
 	int found = FALSE;
-	char line[256], major_name[256];
+	char line[PATH_MAX], major_name[PATH_MAX];
 	unsigned int major_number;
 	struct stat st;
 
@@ -141,7 +193,7 @@ do_basename(char *device)
 	if (!file)
 		goto punt;
 
-	while (fgets(line, 256, file)) {
+	while (fgets(line, PATH_MAX, file)) {
 		if (sscanf(line, "%u %s", &major_number, major_name) != 2)
 			continue;
 		if (strcmp(major_name, "device-mapper") != 0)
@@ -167,37 +219,20 @@ do_basename(char *device)
 	return basename(device);
 }
 
-/**
- * mp2cookie - Find the cookie for a filesystem given its mountpoint
- * @mp:
- * @ioctl_ok: If this is FALSE, it's not acceptable to open() the mountpoint
- *
- * Returns: the cookie
- */
-
 char *
-mp2cookie(char *mp, int ioctl_ok)
+mp2devname(char *mp)
 {
-	char *cookie;
-	char *list, **lines;
 	FILE *file;
-	char line[256], device[256];
-	char *dev = NULL;
-	unsigned int x;
-
-	cookie = malloc(256);
-	if (!cookie)
-		die("out of memory\n");
-	list = get_list();
-	lines = str2lines(list);
+	char line[PATH_MAX];
+	static char device[PATH_MAX];
+	char *name = NULL;
 
 	file = fopen("/proc/mounts", "r");
 	if (!file)
-		die("can't open /proc/mounts: %s\n",
-		    strerror(errno));
+		die("can't open /proc/mounts: %s\n", strerror(errno));
 
-	while (fgets(line, 256, file)) {
-		char path[256], type[256];
+	while (fgets(line, PATH_MAX, file)) {
+		char path[PATH_MAX], type[PATH_MAX];
 
 		if (sscanf(line, "%s %s %s", device, path, type) != 3)
 			continue;
@@ -206,52 +241,132 @@ mp2cookie(char *mp, int ioctl_ok)
 		if (strcmp(type, "gfs2"))
 			die("%s is not a GFS2 filesystem\n", mp);
 
-		dev = do_basename(device);
+		name = do_basename(device);
 
 		break;
 	}
 
 	fclose(file);
 
-	for (x = 0; *lines[x]; x++) {
-		char s_id[256];
-		sscanf(lines[x], "%s %s", cookie, s_id);
-		if (dev) {
-			if (strcmp(s_id, dev) == 0)
-				return cookie;
-		} else {
-			if (strcmp(cookie, mp) == 0)
-				return cookie;
-		}
-	}
+	return name;
+}
 
-	if (ioctl_ok) {
-		struct gfs2_ioctl gi;
-		char *argv[] = { "get_cookie" };
-		int fd;
+/* Iterate through gfs2 dirs looking for one where the "id"
+   attribute matches devname and return the associated fsname:
+   /sys/kernel/gfs2/<fsname>/fsname
+   /sys/kernel/gfs2/<fsname>/id
 
-		gi.gi_argc = 1;
-		gi.gi_argv = argv;
-		gi.gi_data = cookie;
-		gi.gi_size = 256;
+   The "id" attribute is the superblock id (s_id) from the kernel.
+   It often matches the device node the fs was mounted from (as
+   displayed in /proc/mounts), but not always.  
+*/
 
-		fd = open(mp, O_RDONLY);
+char *
+devname2fsname(char *devname)
+{
+	char path[PATH_MAX];
+	char s_id[PATH_MAX];
+	char *fsname = NULL;
+	int rv, fd;
+	DIR *d;
+	struct dirent *de;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", SYS_BASE);
+
+	d = opendir(path);
+	if (!d)
+		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		memset(path, 0, PATH_MAX);
+		snprintf(path, PATH_MAX, "%s/%s/id", SYS_BASE, de->d_name);
+
+		fd = open(path, O_RDONLY);
 		if (fd < 0)
-			die("can't open %s: %s\n",
-			    mp, strerror(errno));
+			die("can't open %s: %s\n", path, strerror(errno));
 
-		check_for_gfs2(fd, mp);
+		memset(s_id, 0, PATH_MAX);
 
-		if (ioctl(fd, GFS2_IOCTL_SUPER, &gi) < 0)
-			die("can't get cookie for %s: %s\n",
-			    mp, strerror(errno));
+		rv = read(fd, s_id, sizeof(s_id));
+		if (rv < 0)
+			die("can't read %s: %s\n", path, strerror(errno));
 
 		close(fd);
 
-		return cookie;
+		if (strcmp(s_id, devname) == 0) {
+			fsname = strdup(de->d_name);
+			break;
+		}
 	}
 
-	die("unknown mountpoint %s\n", mp);
+	closedir(d);
+
+	return fsname;
+}
+
+/* The fsname can be substituted for the mountpoint on the command line.
+   This is necessary when we can't resolve a devname from /proc/mounts
+   to a fsname. */
+
+int is_fsname(char *name)
+{
+	char path[PATH_MAX];
+	int rv = 0;
+	DIR *d;
+	struct dirent *de;
+
+	memset(path, 0, PATH_MAX);
+	snprintf(path, PATH_MAX, "%s", SYS_BASE);
+
+	d = opendir(path);
+	if (!d)
+		die("can't open %s: %s\n", SYS_BASE, strerror(errno));
+
+	while ((de = readdir(d))) {
+		if (de->d_name[0] == '.')
+			continue;
+
+		if (strcmp(de->d_name, name) == 0) {
+			rv = 1;
+			break;
+		}
+	}
+
+	closedir(d);
+
+	return rv;
+}
+
+/**
+ * mp2fsname - Find the name for a filesystem given its mountpoint
+ * @mp:
+ *
+ * Returns: the fsname
+ */
+
+char *
+mp2fsname(char *mp)
+{
+	char *devname = NULL, *fsname = NULL;
+
+	devname = mp2devname(mp);
+
+	if (devname) {
+		fsname = devname2fsname(devname);
+		if (fsname)
+			return fsname;
+		die("unknown mountpoint %s, no fsname for %s\n", mp, devname);
+	} else {
+		if (is_fsname(mp))
+			return mp;
+		die("unknown mountpoint %s, no device found\n", mp);
+	}
+
+	return NULL;
 }
 
 /**
@@ -266,7 +381,7 @@ char *
 name2value(char *str_in, char *name)
 {
 	char str[strlen(str_in) + 1];
-	static char value[256];
+	static char value[PATH_MAX];
 	char **lines;
 	unsigned int x;
 	unsigned int len = strlen(name);
