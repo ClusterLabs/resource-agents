@@ -29,11 +29,11 @@
 #include "mount.h"
 #include "ops_super.h"
 #include "page.h"
-#include "proc.h"
 #include "quota.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
+#include "sys.h"
 
 /**
  * gfs2_write_inode - Make sure the inode is stable on the disk
@@ -73,7 +73,7 @@ static void gfs2_put_super(struct super_block *sb)
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	gfs2_proc_fs_del(sdp);
+	gfs2_sys_fs_del(sdp);
 
 	/*  Unfreeze the filesystem, if we need to  */
 

@@ -462,6 +462,7 @@ struct gfs2_gl_hash_bucket {
 
 struct gfs2_sbd {
 	struct super_block *sd_vfs;
+	struct kobject sd_kobj;
 	unsigned long sd_flags;	/* SDF_... */
 	struct gfs2_sb sd_sb;
 

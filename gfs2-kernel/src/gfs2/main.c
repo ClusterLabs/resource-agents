@@ -13,14 +13,13 @@
 #include <linux/spinlock.h>
 #include <linux/completion.h>
 #include <linux/buffer_head.h>
-#include <linux/proc_fs.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <asm/semaphore.h>
 
 #include "gfs2.h"
 #include "ops_fstype.h"
-#include "proc.h"
+#include "sys.h"
 
 /**
  * init_gfs2_fs - Register GFS2 as a filesystem
@@ -32,7 +31,7 @@ static int __init init_gfs2_fs(void)
 {
 	int error;
 
-	error = gfs2_proc_init();
+	error = gfs2_sys_init();
 	if (error)
 		return error;
 
@@ -74,7 +73,7 @@ static int __init init_gfs2_fs(void)
 	if (gfs2_glock_cachep)
 		kmem_cache_destroy(gfs2_glock_cachep);
 
-	gfs2_proc_uninit();
+	gfs2_sys_uninit();
 	return error;
 }
 
@@ -91,7 +90,7 @@ static void __exit exit_gfs2_fs(void)
 	kmem_cache_destroy(gfs2_inode_cachep);
 	kmem_cache_destroy(gfs2_glock_cachep);
 
-	gfs2_proc_uninit();
+	gfs2_sys_uninit();
 }
 
 MODULE_DESCRIPTION("Global File System");

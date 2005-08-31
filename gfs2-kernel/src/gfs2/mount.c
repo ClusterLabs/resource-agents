@@ -17,7 +17,7 @@
 
 #include "gfs2.h"
 #include "mount.h"
-#include "proc.h"
+#include "sys.h"
 
 /**
  * gfs2_mount_args - Parse mount options
@@ -36,12 +36,12 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 
 	if (!remount) {
 		/*  If someone preloaded options, use those instead  */
-		spin_lock(&gfs2_proc_margs_lock);
-		if (gfs2_proc_margs) {
-			data = gfs2_proc_margs;
-			gfs2_proc_margs = NULL;
+		spin_lock(&gfs2_sys_margs_lock);
+		if (gfs2_sys_margs) {
+			data = gfs2_sys_margs;
+			gfs2_sys_margs = NULL;
 		}
-		spin_unlock(&gfs2_proc_margs_lock);
+		spin_unlock(&gfs2_sys_margs_lock);
 
 		/*  Set some defaults  */
 		args->ar_num_glockd = GFS2_GLOCKD_DEFAULT;

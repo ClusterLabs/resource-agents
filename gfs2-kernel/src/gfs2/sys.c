@@ -23,6 +23,9 @@
 #include "sys.h"
 #include "super.h"
 
+char *gfs2_sys_margs;
+spinlock_t gfs2_sys_margs_lock;
+
 static ssize_t gfs2_id_show(struct gfs2_sbd *sdp, char *buf)
 {
 	return sprintf(buf, "%s\n", sdp->sd_vfs->s_id);
@@ -53,7 +56,7 @@ static ssize_t gfs2_freeze_store(struct gfs2_sbd *sdp, const char *buf,
 
 	switch (n) {
 	case 0:
-		error = gfs2_unfreeze_fs(sdp);
+		gfs2_unfreeze_fs(sdp);
 		break;
 	case 1:
 		error = gfs2_freeze_fs(sdp);
@@ -77,10 +80,19 @@ static ssize_t gfs2_withdraw_show(struct gfs2_sbd *sdp, char *buf)
 static ssize_t gfs2_withdraw_store(struct gfs2_sbd *sdp, const char *buf,
 				   size_t len)
 {
+	ssize_t ret = len;
+	int n = simple_strtol(buf, NULL, 0);
+
+	if (n != 1) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	gfs2_lm_withdraw(sdp,
 		"GFS2: fsid=%s: withdrawing from cluster at user's request\n",
 		sdp->sd_fsname);
-	return len;
+ out:
+	return ret;
 }
 
 struct gfs2_attr {
@@ -176,11 +188,14 @@ void gfs2_sys_fs_del(struct gfs2_sbd *sdp)
 
 int gfs2_sys_init(void)
 {
+	gfs2_sys_margs = NULL;
+	spin_lock_init(&gfs2_sys_margs_lock);
 	return kset_register(&gfs2_kset);
 }
 
 void gfs2_sys_uninit(void)
 {
+	kfree(gfs2_sys_margs);
 	kset_unregister(&gfs2_kset);
 }
 

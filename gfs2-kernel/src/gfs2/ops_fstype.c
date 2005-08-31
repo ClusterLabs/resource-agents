@@ -28,11 +28,11 @@
 #include "ops_export.h"
 #include "ops_fstype.h"
 #include "ops_super.h"
-#include "proc.h"
 #include "recovery.h"
 #include "rgrp.h"
 #include "super.h"
 #include "unlinked.h"
+#include "sys.h"
 
 #define DO FALSE
 #define UNDO TRUE
@@ -734,14 +734,16 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	if (error)
 		goto fail_per_node;
 
-	gfs2_proc_fs_add(sdp);
+	error = gfs2_sys_fs_add(sdp);
+	if (error)
+		goto fail_threads;
 
 	/* Make the FS read/write */
 	if (!(sb->s_flags & MS_RDONLY)) {
 		error = gfs2_make_fs_rw(sdp);
 		if (error) {
 			fs_err(sdp, "can't make FS RW: %d\n", error);
-			goto fail_proc;
+			goto fail_sys;
 		}
 	}
 
@@ -749,8 +751,10 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 
 	return 0;
 
- fail_proc:
-	gfs2_proc_fs_del(sdp);
+ fail_sys:
+	gfs2_sys_fs_del(sdp);
+
+ fail_threads:
 	init_threads(sdp, UNDO);
 
  fail_per_node:

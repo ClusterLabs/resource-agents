@@ -57,12 +57,12 @@ gfs2-objs := \
 	ops_super.o \
 	ops_vm.o \
 	page.o \
-	proc.o \
 	quota.o \
 	resize.o \
 	recovery.o \
 	rgrp.o \
 	super.o \
+	sys.o \
 	trans.o \
 	unlinked.o \
 	util.o
