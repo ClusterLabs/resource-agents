@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.428 $) dnl cvs revision
+AC_REVISION($Revision: 1.429 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -460,6 +460,13 @@ else
         *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
         *)	libnet=$LIBNETLIBS;;
       esac
+      AC_CHECK_HEADERS(libnet.h)
+      if test "$ac_cv_header_libnet_h" = no; then
+        FatalMissingThing "libnet" "You need libnet (headers) to continue."			\
+		"You can get libnet from http://www.packetfactory.net/libnet"		\
+		"Note that some RPMs split libnet up into libnet and libnet-devel."	\
+		"In this case you have to install libnet-devel"
+      fi
 fi
 
 AC_SUBST(LIBNETDEFINES)
