@@ -60,6 +60,7 @@ ${AISDIR}/${AISDIR}.tar.gz:
 
 ${AISDIR}/trunk: ${AISDIR}/${AISDIR}.tar.gz
 	cd ${AISDIR} && tar -xzf ${AISDIR}.tar.gz
+	touch ${AISDIR}/trunk
 
 ${AISDIR}/trunk/exec/libtotem_pg.a: ${AISDIR}/trunk
 	cd ${AISDIR}/trunk && make
