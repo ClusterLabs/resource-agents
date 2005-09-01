@@ -182,67 +182,20 @@ struct gdlm_attr {
 	ssize_t (*store)(struct gdlm_ls *, const char *, size_t);
 };
 
-static struct gdlm_attr gdlm_attr_block = {
-	.attr  = {.name = "block", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_block_show,
-	.store = gdlm_block_store
-};
+#define GDLM_ATTR(_name,_mode,_show,_store) \
+static struct gdlm_attr gdlm_attr_##_name = __ATTR(_name,_mode,_show,_store)
 
-static struct gdlm_attr gdlm_attr_mounted = {
-	.attr  = {.name = "mounted", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_mounted_show,
-	.store = gdlm_mounted_store
-};
-
-static struct gdlm_attr gdlm_attr_withdraw = {
-	.attr  = {.name = "withdraw", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_withdraw_show,
-	.store = gdlm_withdraw_store
-};
-
-static struct gdlm_attr gdlm_attr_id = {
-	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_id_show,
-	.store = gdlm_id_store
-};
-
-static struct gdlm_attr gdlm_attr_jid = {
-	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_jid_show,
-	.store = gdlm_jid_store
-};
-
-static struct gdlm_attr gdlm_attr_first = {
-	.attr  = {.name = "first", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_first_show,
-	.store = gdlm_first_store
-};
-
-static struct gdlm_attr gdlm_attr_first_done = {
-	.attr  = {.name = "first_done", .mode = S_IRUGO},
-	.show  = gdlm_first_done_show,
-};
-
-static struct gdlm_attr gdlm_attr_recover = {
-	.attr  = {.name = "recover", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_recover_show,
-	.store = gdlm_recover_store
-};
-
-static struct gdlm_attr gdlm_attr_recover_done = {
-	.attr  = {.name = "recover_done", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_recover_done_show,
-};
-
-static struct gdlm_attr gdlm_attr_cluster = {
-	.attr  = {.name = "cluster", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_cluster_show,
-};
-
-static struct gdlm_attr gdlm_attr_options = {
-	.attr  = {.name = "options", .mode = S_IRUGO | S_IWUSR},
-	.show  = gdlm_options_show,
-};
+GDLM_ATTR(block, S_IRUGO | S_IWUSR, gdlm_block_show, gdlm_block_store);
+GDLM_ATTR(mounted, S_IRUGO | S_IWUSR, gdlm_mounted_show, gdlm_mounted_store);
+GDLM_ATTR(withdraw, S_IRUGO | S_IWUSR, gdlm_withdraw_show, gdlm_withdraw_store);
+GDLM_ATTR(id, S_IRUGO | S_IWUSR, gdlm_id_show, gdlm_id_store);
+GDLM_ATTR(jid, S_IRUGO | S_IWUSR, gdlm_jid_show, gdlm_jid_store);
+GDLM_ATTR(first, S_IRUGO | S_IWUSR, gdlm_first_show, gdlm_first_store);
+GDLM_ATTR(first_done, S_IRUGO, gdlm_first_done_show, NULL);
+GDLM_ATTR(recover, S_IRUGO | S_IWUSR, gdlm_recover_show, gdlm_recover_store);
+GDLM_ATTR(recover_done, S_IRUGO, gdlm_recover_done_show, NULL);
+GDLM_ATTR(cluster, S_IRUGO, gdlm_cluster_show, NULL);
+GDLM_ATTR(options, S_IRUGO, gdlm_options_show, NULL);
 
 static struct attribute *gdlm_attrs[] = {
 	&gdlm_attr_block.attr,

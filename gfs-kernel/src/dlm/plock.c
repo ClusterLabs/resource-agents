@@ -8,6 +8,7 @@
 
 #include "lock_dlm.h"
 #include "lock_dlm_plock.h"
+#include "configfs.h"
 
 #include <linux/miscdevice.h>
 
