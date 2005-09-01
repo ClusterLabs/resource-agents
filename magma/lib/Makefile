@@ -96,11 +96,11 @@ libmagmamsg.so.$(RELEASE_MAJOR): libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR
 
 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): global.o plugin.o \
 			localinfo.o ip_lookup.o memberlist.o clist.o
-	${CC} -shared -o libmagma.so.$(RELEASE_MAJOR) -o $@ $^
+	${CC} -shared -o libmagma.so.$(RELEASE_MAJOR) -o $@ $^ -lpthread -ldl
 
 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): plugin.o localinfo.o \
 			ip_lookup.o memberlist.o
-	${CC} -shared -o libmagma_nt.so.$(RELEASE_MAJOR) -o $@ $^
+	${CC} -shared -o libmagma_nt.so.$(RELEASE_MAJOR) -o $@ $^ -ldl
 
 libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o fdops.o libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
 	${CC} -shared -o libmagmamsg.so.$(RELEASE_MAJOR) -o $@ $^ -Wl,-Bdynamic -L. -lmagma -lpthread -ldl
