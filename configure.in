@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.430 $) dnl cvs revision
+AC_REVISION($Revision: 1.431 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -460,6 +460,10 @@ else
         *-l*)	libnet=`echo $LIBNETLIBS | sed 's%.*-l%%'`;;
         *)	libnet=$LIBNETLIBS;;
       esac
+
+      dnl Add any libnet definitions to the compiler flags.
+      CPPFLAGS="$CPPFLAGS $LIBNETDEFINES"
+
       AC_CHECK_HEADERS(libnet.h)
       if test "$ac_cv_header_libnet_h" = no; then
         FatalMissingThing "libnet" "You need libnet (headers) to continue."			\
