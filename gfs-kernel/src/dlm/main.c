@@ -32,6 +32,13 @@ int __init init_lock_dlm(void)
 		return error;
 	}
 
+	error = gdlm_plock_init();
+	if (error) {
+		gdlm_sysfs_exit();
+		lm_unregister_proto(&gdlm_ops);
+		return error;
+	}
+
 	gdlm_drop_count = GDLM_DROP_COUNT;
 	gdlm_drop_period = GDLM_DROP_PERIOD;
 
@@ -41,8 +48,9 @@ int __init init_lock_dlm(void)
 
 void __exit exit_lock_dlm(void)
 {
-	lm_unregister_proto(&gdlm_ops);
+	gdlm_plock_exit();
 	gdlm_sysfs_exit();
+	lm_unregister_proto(&gdlm_ops);
 }
 
 module_init(init_lock_dlm);

@@ -58,9 +58,9 @@ static void process_complete(struct gdlm_lock *lp)
 	memset(&acb, 0, sizeof(acb));
 
 	if (lp->lksb.sb_status == -DLM_ECANCEL) {
-		log_all("complete dlm cancel %x,%"PRIx64" flags %lx",
-			lp->lockname.ln_type, lp->lockname.ln_number,
-			lp->flags);
+		log_info("complete dlm cancel %x,%"PRIx64" flags %lx",
+		 	 lp->lockname.ln_type, lp->lockname.ln_number,
+			 lp->flags);
 
 		lp->req = lp->cur;
 		acb.lc_ret |= LM_OUT_CANCELED;
@@ -71,9 +71,9 @@ static void process_complete(struct gdlm_lock *lp)
 
 	if (test_and_clear_bit(LFL_DLM_UNLOCK, &lp->flags)) {
 		if (lp->lksb.sb_status != -DLM_EUNLOCK) {
-			log_all("unlock sb_status %d %x,%"PRIx64" flags %lx",
-				lp->lksb.sb_status, lp->lockname.ln_type,
-				lp->lockname.ln_number, lp->flags);
+			log_info("unlock sb_status %d %x,%"PRIx64" flags %lx",
+				 lp->lksb.sb_status, lp->lockname.ln_type,
+				 lp->lockname.ln_number, lp->flags);
 			return;
 		}
 
@@ -104,8 +104,8 @@ static void process_complete(struct gdlm_lock *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_CANCEL, &lp->flags)) {
-		log_all("complete internal cancel %x,%"PRIx64"",
-			lp->lockname.ln_type, lp->lockname.ln_number);
+		log_info("complete internal cancel %x,%"PRIx64"",
+		 	 lp->lockname.ln_type, lp->lockname.ln_number);
 		lp->req = lp->cur;
 		acb.lc_ret |= LM_OUT_CANCELED;
 		goto out;
@@ -126,9 +126,9 @@ static void process_complete(struct gdlm_lock *lp)
 		}
 
 		/* this could only happen with cancels I think */
-		log_all("ast sb_status %d %x,%"PRIx64" flags %lx",
-			lp->lksb.sb_status, lp->lockname.ln_type,
-			lp->lockname.ln_number, lp->flags);
+		log_info("ast sb_status %d %x,%"PRIx64" flags %lx",
+			 lp->lksb.sb_status, lp->lockname.ln_type,
+			 lp->lockname.ln_number, lp->flags);
 		return;
 	}
 
@@ -330,7 +330,7 @@ int gdlm_init_threads(struct gdlm_ls *ls)
 	p = kthread_run(gdlm_thread, ls, "lock_dlm1");
 	error = IS_ERR(p);
 	if (error) {
-		log_all("can't start lock_dlm1 thread %d", error);
+		log_error("can't start lock_dlm1 thread %d", error);
 		return error;
 	}
 	ls->thread1 = p;
@@ -338,7 +338,7 @@ int gdlm_init_threads(struct gdlm_ls *ls)
 	p = kthread_run(gdlm_thread, ls, "lock_dlm2");
 	error = IS_ERR(p);
 	if (error) {
-		log_all("can't start lock_dlm2 thread %d", error);
+		log_error("can't start lock_dlm2 thread %d", error);
 		kthread_stop(ls->thread1);
 		return error;
 	}

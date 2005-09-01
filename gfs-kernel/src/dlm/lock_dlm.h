@@ -21,6 +21,8 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/kobject.h>
+#include <linux/fcntl.h>
+#include <linux/wait.h>
 #include <net/sock.h>
 
 #include "dlm.h"
@@ -54,6 +56,7 @@ struct gdlm_strname {
 #define DFL_WITHDRAW		5
 
 struct gdlm_ls {
+	uint32_t		fsid;
 	int			jid;
 	int			first;
 	int			first_done;
@@ -140,9 +143,10 @@ struct gdlm_lock {
   } \
 }
 
-#define log_debug(fmt, args...)
-#define log_all(fmt, args...)
-#define log_error(fmt, args...)
+#define log_print(lev, fmt, arg...) printk(lev "lock_dlm: " fmt "\n" , ## arg)
+#define log_info(fmt, arg...)  log_print(KERN_INFO , fmt , ## arg)
+#define log_debug(fmt, arg...) log_print(KERN_DEBUG , fmt , ## arg)
+#define log_error(fmt, arg...) log_print(KERN_ERR , fmt , ## arg)
 
 /* sysfs.c */
 
@@ -178,5 +182,15 @@ int gdlm_hold_lvb(lm_lock_t *, char **);
 void gdlm_unhold_lvb(lm_lock_t *, char *);
 void gdlm_sync_lvb(lm_lock_t *, char *);
 
+/* plock.c */
+
+int gdlm_plock_init(void);
+void gdlm_plock_exit(void);
+int gdlm_plock(lm_lockspace_t *, struct lm_lockname *, struct file *, int,
+		struct file_lock *);
+int gdlm_plock_get(lm_lockspace_t *, struct lm_lockname *, struct file *,
+		struct file_lock *);
+int gdlm_punlock(lm_lockspace_t *, struct lm_lockname *, struct file *,
+		struct file_lock *);
 #endif
 

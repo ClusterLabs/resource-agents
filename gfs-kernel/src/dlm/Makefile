@@ -30,7 +30,8 @@ lock_dlm-objs := lock.o \
 	main.o \
 	mount.o \
 	thread.o \
-	sysfs.o
+	sysfs.o \
+	plock.o
 
 EXTRA_CFLAGS += -I$(obj)
 

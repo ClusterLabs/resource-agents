@@ -154,7 +154,7 @@ static void gdlm_unmount(lm_lockspace_t *lockspace)
 	gdlm_release_threads(ls);
 	rv = gdlm_release_all_locks(ls);
 	if (rv)
-		log_all("lm_dlm_unmount: %d stray locks freed", rv);
+		log_info("lm_dlm_unmount: %d stray locks freed", rv);
  out:
 	kfree(ls);
 }
@@ -193,24 +193,6 @@ static void gdlm_withdraw(lm_lockspace_t *lockspace)
 
 	/* userspace leaves the mount group, we don't need to wait for
 	   that to complete */
-}
-
-int gdlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
-		   struct file *file, struct file_lock *fl)
-{
-	return -ENOSYS;
-}
-
-int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-		   struct file *file, struct file_lock *fl)
-{
-	return -ENOSYS;
-}
-
-int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
-	       struct file *file, int cmd, struct file_lock *fl)
-{
-	return -ENOSYS;
 }
 
 struct lm_lockops gdlm_ops = {

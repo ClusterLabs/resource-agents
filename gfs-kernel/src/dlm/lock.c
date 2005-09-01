@@ -333,8 +333,8 @@ void gdlm_cancel(lm_lock_t *lock)
 	if (test_bit(LFL_DLM_CANCEL, &lp->flags))
 		return;
 
-	log_all("gdlm_cancel %x,%"PRIx64" flags %lx",
-		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
+	log_info("gdlm_cancel %x,%"PRIx64" flags %lx",
+		 lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	spin_lock(&ls->async_lock);
 	if (!list_empty(&lp->delay_list)) {
@@ -352,9 +352,9 @@ void gdlm_cancel(lm_lock_t *lock)
 
 	if (!test_bit(LFL_ACTIVE, &lp->flags) ||
 	    test_bit(LFL_DLM_UNLOCK, &lp->flags))	{
-		log_all("gdlm_cancel skip %x,%"PRIx64" flags %lx",
-			lp->lockname.ln_type, lp->lockname.ln_number,
-			lp->flags);
+		log_info("gdlm_cancel skip %x,%"PRIx64" flags %lx",
+		 	 lp->lockname.ln_type, lp->lockname.ln_number,
+			 lp->flags);
 		return;
 	}
 
@@ -366,8 +366,8 @@ void gdlm_cancel(lm_lock_t *lock)
 	error = dlm_unlock(ls->dlm_lockspace, lp->lksb.sb_lkid, DLM_LKF_CANCEL,
 			   NULL, lp);
 
-	log_all("gdlm_cancel rv %d %x,%"PRIx64" flags %lx", error,
-		lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
+	log_info("gdlm_cancel rv %d %x,%"PRIx64" flags %lx", error,
+		 lp->lockname.ln_type, lp->lockname.ln_number, lp->flags);
 
 	if (error == -EBUSY)
 		clear_bit(LFL_DLM_CANCEL, &lp->flags);
