@@ -28,7 +28,7 @@ TARGETS=libmagma.a \
 
 INCLUDE=-I.
 CFLAGS+=-g -Werror -Wstrict-prototypes -Wshadow \
-	-fPIC -DPLUGINDIR=\"${libdir}/magma\" \
+	-fPIC -DPLUGINDIR=\"${plugindir}\" \
 	-D_GNU_SOURCE
 
 all: $(TARGETS)
@@ -44,7 +44,7 @@ install: all
 	# Install high level magma libraries
 	#
 	install -m 0644 libmagma.a $(slibdir)
-	install -m 0644 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
+	install -m 0755 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma.so; cd -
 
@@ -52,7 +52,7 @@ install: all
 	# Install low-overhead, non-pthread magma libraries
 	#
 	install -m 0644 libmagma_nt.a $(slibdir)
-	install -m 0644 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
+	install -m 0755 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma_nt.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagma_nt.so; cd -
 
@@ -60,7 +60,7 @@ install: all
 	# Install high level TCP messaging libraries
 	#
 	install -m 0644 libmagmamsg.a $(slibdir)
-	install -m 0644 libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
+	install -m 0755 libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) $(libdir)
 	cd $(libdir); ln -snf libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagmamsg.so.$(RELEASE_MAJOR); cd -
 	cd $(libdir); ln -snf libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR) libmagmamsg.so; cd -
 
@@ -96,14 +96,14 @@ libmagmamsg.so.$(RELEASE_MAJOR): libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR
 
 libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): global.o plugin.o \
 			localinfo.o ip_lookup.o memberlist.o clist.o
-	${LD} -shared -soname libmagma.so.$(RELEASE_MAJOR) -o $@ $^ -lc
+	${CC} -shared -o libmagma.so.$(RELEASE_MAJOR) -o $@ $^
 
 libmagma_nt.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): plugin.o localinfo.o \
 			ip_lookup.o memberlist.o
-	${LD} -shared -soname libmagma_nt.so.$(RELEASE_MAJOR) -o $@ $^ -lc
+	${CC} -shared -o libmagma_nt.so.$(RELEASE_MAJOR) -o $@ $^
 
-libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o fdops.o
-	${LD} -shared -soname libmagmamsg.so.$(RELEASE_MAJOR) -o $@ $^ -lc
+libmagmamsg.so.$(RELEASE_MAJOR).$(RELEASE_MINOR): message.o fdops.o libmagma.so.$(RELEASE_MAJOR).$(RELEASE_MINOR)
+	${CC} -shared -o libmagmamsg.so.$(RELEASE_MAJOR) -o $@ $^ -Wl,-Bdynamic -L. -lmagma -lpthread -ldl
 
 libmagma.a: global.o plugin.o localinfo.o ip_lookup.o \
 		        memberlist.o clist.o
