@@ -19,6 +19,7 @@ static int groupd_fd;
 static int uevent_fd;
 static int member_fd;
 static int libdlm_fd;
+static int plocks_fd;
 
 extern struct list_head mounts;
 
@@ -28,6 +29,8 @@ int setup_groupd(void);
 int process_groupd(void);
 int setup_libdlm(void);
 int process_libdlm(void);
+int setup_plocks(void);
+int process_plocks(void);
 
 int do_mount(char *name);
 int do_unmount(char *name);
@@ -117,6 +120,8 @@ int setup_uevent(void)
 		return rv;
 	}
 
+	log_debug("uevent %d", s);
+
 	return s;
 }
 
@@ -154,7 +159,13 @@ int loop(void)
 	pollfd[3].fd = libdlm_fd;
 	pollfd[3].events = POLLIN;
 
-	maxi = 3;
+	rv = plocks_fd = setup_plocks();
+	if (rv < 0)
+		goto out;
+	pollfd[4].fd = plocks_fd;
+	pollfd[4].events = POLLIN;
+
+	maxi = 4;
 
 	for (;;) {
 		rv = poll(pollfd, maxi + 1, -1);
@@ -171,6 +182,8 @@ int loop(void)
 					process_member();
 				else if (pollfd[i].fd == libdlm_fd)
 					process_libdlm();
+				else if (pollfd[i].fd == plocks_fd)
+					process_plocks();
 			}
 
 			if (pollfd[i].revents & POLLHUP) {

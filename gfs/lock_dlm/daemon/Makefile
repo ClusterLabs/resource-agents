@@ -21,7 +21,8 @@ CFLAGS+= -g \
 	-I../../include/ \
 	-I../../../group/lib/ \
 	-I../../../cman/lib/ \
-	-I../../../dlm/lib
+	-I../../../dlm/lib/ \
+	-I../../../gfs-kernel/src/dlm/
 
 TARGET=lock_dlmd
 
@@ -33,6 +34,7 @@ copytobin: all
 lock_dlmd: 	main.o \
 		member_cman.o \
 		group.o \
+		plock.o \
 		recover.o \
 		withdraw.o \
 		../../../cman/lib/libcman.a \
@@ -53,6 +55,9 @@ withdraw.o: withdraw.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 group.o: group.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+plock.o: plock.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 install: lock_dlmd 
