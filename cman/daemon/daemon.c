@@ -442,12 +442,13 @@ void notify_listeners(struct connection *con, int event, int arg)
 	msg.reason = event;
 	msg.arg = arg;
 
-	/* If there's just one recipient then it doesn't matter who sends it */
+	/* Unicast message */
 	if (con) {
 		send_reply_message(con, (struct sock_header *)&msg);
 		return;
 	}
 
+	/* Broadcast message */
 	list_iterate_items(thiscon, &client_list) {
 		send_reply_message(thiscon, (struct sock_header *)&msg);
 	}

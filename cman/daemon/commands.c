@@ -1482,7 +1482,6 @@ static void process_internal_message(char *data, int len, int nodeid, struct tot
 		break;
 
 	case CLUSTER_MSG_BARRIER:
-		// TODO test barriers & maybe slim them down now we have VS
 		barriermsg = (struct cl_barriermsg *)data;
 		if (node)
 			process_barrier_msg(barriermsg, node);

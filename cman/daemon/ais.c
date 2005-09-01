@@ -55,7 +55,7 @@ int ais_set_mcast(char *mcast)
 	ret = totemip_parse(&mcast_addr, mcast);
 
 	if (num_interfaces && mcast_addr.family != ifaddrs[0].bindnet.family) {
-		P_AIS("new address is not same family as multicast address\n");
+		P_AIS("multicast address is not same family as host address\n");
 		ret = -EINVAL;
 	}
 	return ret;
@@ -185,7 +185,7 @@ int comms_init_ais(unsigned short port, char *key_filename)
 	{
 		ais_config.secauth = 1;
 		P_AIS("Reading key from file %s\n", key_filename);
-		if (totem_config_keyread (key_filename, &ais_config, &errstring))
+		if (totem_config_keyread ((unsigned char*)key_filename, &ais_config, &errstring))
 		{
 			P_AIS("Unable to read key from file %s: %s\n", key_filename, errstring);
 			log_msg(LOG_ERR, "Unable to read key from file %s: %s\n", key_filename, errstring);
