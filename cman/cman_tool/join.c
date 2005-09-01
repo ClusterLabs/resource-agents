@@ -103,6 +103,8 @@ int join(commandline_t *comline)
 		}
 	}
 
+	if (!comline->nodeid)
+		die("TEMPORARY: node IDs must be statically assigned at the moment");
 	/*
 	 * Setup the interface/multicast
 	 */
