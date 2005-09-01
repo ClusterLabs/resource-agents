@@ -1,41 +1,33 @@
 diff -ur a/fs/Kconfig b/fs/Kconfig
---- a/fs/Kconfig	2005-06-18 03:48:29.000000000 +0800
-+++ b/fs/Kconfig	2005-07-28 15:25:39.244913072 +0800
-@@ -301,7 +301,7 @@
- # 	Never use this symbol for ifdefs.
- #
- 	bool
--	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4
-+	depends on EXT2_FS_POSIX_ACL || EXT3_FS_POSIX_ACL || JFS_POSIX_ACL || REISERFS_FS_POSIX_ACL || NFSD_V4 || GFS2_FS
- 	default y
- 
- source "fs/xfs/Kconfig"
-@@ -1715,6 +1715,20 @@
- config RXRPC
- 	tristate
+--- a/fs/Kconfig	2005-09-01 16:59:28.038753408 +0800
++++ b/fs/Kconfig	2005-09-01 17:09:39.810749928 +0800
+@@ -360,6 +360,21 @@
+ 	          - POSIX ACLs
+ 	          - readpages / writepages (not user visible)
  
 +config GFS2_FS
 +	tristate "GFS2 file system support"
 +	depends on DLM
++	select FS_POSIX_ACL
 +	help
-+	  A cluster filesystem.
++	A cluster filesystem.
 +
-+	  Allows a cluster of computers to simultaneously use a block device
-+	  that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
-+	  and writes to the block device like a local filesystem, but also uses
-+	  a lock module to allow the computers coordinate their I/O so
-+	  filesystem consistency is maintained.  One of the nifty features of
-+	  GFS is perfect consistency -- changes made to the filesystem on one
-+	  machine show up immediately on all other machines in the cluster.
++	Allows a cluster of computers to simultaneously use a block device
++	that is shared between them (with FC, iSCSI, NBD, etc...).  GFS reads
++	and writes to the block device like a local filesystem, but also uses
++	a lock module to allow the computers coordinate their I/O so
++	filesystem consistency is maintained.  One of the nifty features of
++	GFS is perfect consistency -- changes made to the filesystem on one
++	machine show up immediately on all other machines in the cluster.
 +
- endmenu
- 
- menu "Partition Types"
+ config MINIX_FS
+ 	tristate "Minix fs support"
+ 	help
 diff -ur a/fs/Makefile b/fs/Makefile
---- a/fs/Makefile	2005-06-18 03:48:29.000000000 +0800
-+++ b/fs/Makefile	2005-07-27 15:47:50.000000000 +0800
-@@ -95,3 +95,4 @@
- obj-$(CONFIG_HOSTFS)		+= hostfs/
- obj-$(CONFIG_HPPFS)		+= hppfs/
- obj-$(CONFIG_DEBUG_FS)		+= debugfs/
+--- a/fs/Makefile	2005-09-01 16:59:28.042752800 +0800
++++ b/fs/Makefile	2005-09-01 17:10:11.211976216 +0800
+@@ -105,3 +105,4 @@
+ obj-$(CONFIG_OCFS2_FS)		+= ocfs2/
+ obj-$(CONFIG_RELAYFS_FS)	+= relayfs/
+ obj-$(CONFIG_9P_FS)		+= 9p/
 +obj-$(CONFIG_GFS2_FS)		+= gfs2/
