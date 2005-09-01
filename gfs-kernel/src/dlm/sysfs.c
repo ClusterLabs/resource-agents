@@ -102,9 +102,20 @@ static ssize_t gdlm_withdraw_store(struct gdlm_ls *ls, const char *buf, size_t l
 	return ret;
 }
 
+static ssize_t gdlm_id_show(struct gdlm_ls *ls, char *buf)
+{
+	return sprintf(buf, "%u\n", ls->id);
+}
+
+static ssize_t gdlm_id_store(struct gdlm_ls *ls, const char *buf, size_t len)
+{
+	ls->id = simple_strtoul(buf, NULL, 0);
+	return len;
+}
+
 static ssize_t gdlm_jid_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", ls->jid);
+	return sprintf(buf, "%d\n", ls->jid);
 }
 
 static ssize_t gdlm_jid_store(struct gdlm_ls *ls, const char *buf, size_t len)
@@ -115,7 +126,7 @@ static ssize_t gdlm_jid_store(struct gdlm_ls *ls, const char *buf, size_t len)
 
 static ssize_t gdlm_first_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", ls->first);
+	return sprintf(buf, "%d\n", ls->first);
 }
 
 static ssize_t gdlm_first_store(struct gdlm_ls *ls, const char *buf, size_t len)
@@ -131,7 +142,7 @@ static ssize_t gdlm_first_done_show(struct gdlm_ls *ls, char *buf)
 
 static ssize_t gdlm_recover_show(struct gdlm_ls *ls, char *buf)
 {
-	return sprintf(buf, "%u\n", ls->recover_jid);
+	return sprintf(buf, "%d\n", ls->recover_jid);
 }
 
 static ssize_t gdlm_recover_store(struct gdlm_ls *ls, const char *buf, size_t len)
@@ -189,6 +200,12 @@ static struct gdlm_attr gdlm_attr_withdraw = {
 	.store = gdlm_withdraw_store
 };
 
+static struct gdlm_attr gdlm_attr_id = {
+	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
+	.show  = gdlm_id_show,
+	.store = gdlm_id_store
+};
+
 static struct gdlm_attr gdlm_attr_jid = {
 	.attr  = {.name = "jid", .mode = S_IRUGO | S_IWUSR},
 	.show  = gdlm_jid_show,
@@ -231,6 +248,7 @@ static struct attribute *gdlm_attrs[] = {
 	&gdlm_attr_block.attr,
 	&gdlm_attr_mounted.attr,
 	&gdlm_attr_withdraw.attr,
+	&gdlm_attr_id.attr,
 	&gdlm_attr_jid.attr,
 	&gdlm_attr_first.attr,
 	&gdlm_attr_first_done.attr,

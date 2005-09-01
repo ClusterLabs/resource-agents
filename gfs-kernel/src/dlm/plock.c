@@ -17,8 +17,6 @@ static struct list_head recv_list;
 static wait_queue_head_t send_wq;
 static wait_queue_head_t recv_wq;
 
-/* FIXME: add fsid attribute in sysfs */
-
 struct plock_op {
 	struct list_head list;
 	int done;
@@ -67,7 +65,7 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	op->info.pid		= (uint32_t) fl->fl_owner;
 	op->info.ex		= (fl->fl_type == F_WRLCK);
 	op->info.wait		= IS_SETLKW(cmd);
-	op->info.fsid		= ls->fsid;
+	op->info.fsid		= ls->id;
 	op->info.number		= name->ln_number;
 	op->info.start		= fl->fl_start;
 	op->info.end		= fl->fl_end;
@@ -121,7 +119,7 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	set_version(&op->info);
 	op->info.optype		= GDLM_PLOCK_OP_UNLOCK;
 	op->info.pid		= (uint32_t) fl->fl_owner;
-	op->info.fsid		= ls->fsid;
+	op->info.fsid		= ls->id;
 	op->info.number		= name->ln_number;
 	op->info.start		= fl->fl_start;
 	op->info.end		= fl->fl_end;

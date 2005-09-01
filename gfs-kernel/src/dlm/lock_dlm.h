@@ -56,7 +56,7 @@ struct gdlm_strname {
 #define DFL_WITHDRAW		5
 
 struct gdlm_ls {
-	uint32_t		fsid;
+	uint32_t		id;
 	int			jid;
 	int			first;
 	int			first_done;
@@ -145,8 +145,12 @@ struct gdlm_lock {
 
 #define log_print(lev, fmt, arg...) printk(lev "lock_dlm: " fmt "\n" , ## arg)
 #define log_info(fmt, arg...)  log_print(KERN_INFO , fmt , ## arg)
-#define log_debug(fmt, arg...) log_print(KERN_DEBUG , fmt , ## arg)
 #define log_error(fmt, arg...) log_print(KERN_ERR , fmt , ## arg)
+#ifdef LOCK_DLM_LOG_DEBUG
+#define log_debug(fmt, arg...) log_print(KERN_DEBUG , fmt , ## arg)
+#else
+#define log_debug(fmt, arg...)
+#endif
 
 /* sysfs.c */
 
