@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.429 $) dnl cvs revision
+AC_REVISION($Revision: 1.430 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -378,9 +378,9 @@ ossp)
   ;;
 no)	# Do not define anything; so use inbuilt (replace) implementation.
   ;;
-any)	# Default: use any implementation.
+any)	# Default: try to discover an implementation that we can use.
   AC_CHECK_LIB(uuid, uuid_parse)	dnl e2fsprogs
-  AC_CHECK_LIB(uuid, uuid_create)	dnl ossp
+dnl  AC_CHECK_LIB(uuid, uuid_create)	dnl ossp
   ;;
 *)
   AC_MSG_ERROR([An invalid uuid library was explicitly requested])
