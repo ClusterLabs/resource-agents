@@ -20,7 +20,6 @@
 #include <linux/buffer_head.h>
 #include <asm/uaccess.h>
 #include <linux/xattr.h>
-#include <linux/xattr_acl.h>
 
 #include "gfs.h"
 #include "acl.h"

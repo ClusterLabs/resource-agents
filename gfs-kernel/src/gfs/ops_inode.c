@@ -1199,7 +1199,7 @@ gfs_readlink(struct dentry *dentry, char *user_buf, int user_size)
  * Returns: 0 on success or error code
  */
 
-static int
+static void *
 gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
 	ENTER(GFN_FOLLOW_LINK)
@@ -1217,7 +1217,7 @@ gfs_follow_link(struct dentry *dentry, struct nameidata *nd)
 			kfree(buf);
 	}
 
-	RETURN(GFN_FOLLOW_LINK, error);
+	RETURN(GFN_FOLLOW_LINK, ERR_PTR(error));
 }
 
 /**

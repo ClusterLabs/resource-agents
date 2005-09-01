@@ -20,7 +20,6 @@
 #include <linux/buffer_head.h>
 #include <linux/posix_acl.h>
 #include <linux/posix_acl_xattr.h>
-#include <linux/xattr_acl.h>
 
 #include "gfs.h"
 #include "acl.h"
