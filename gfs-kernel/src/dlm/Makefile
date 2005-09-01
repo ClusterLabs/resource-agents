@@ -68,7 +68,8 @@ post:
 
 add:
 	mkdir -p ${linux_patched}/fs/gfs2/locking/dlm
-	cp lock.c main.c mount.c sysfs.c thread.c lock_dlm.h ${linux_patched}/fs/gfs2/locking/dlm
-	(cd ${linux_patched}; patch -p1 --no-backup-if-mismatch < ../../patches/lock_dlm-include.patch)
+	cp lock.c main.c mount.c plock.c sysfs.c thread.c lock_dlm.h ${linux_patched}/fs/gfs2/locking/dlm
+	cp lock_dlm_plock.h ${linux_patched}/include/linux
 	cp Makefile.kernel ${linux_patched}/fs/gfs2/locking/dlm/Makefile
+	(cd ${linux_patched}; patch -p1 --no-backup-if-mismatch < ../../patches/lock_dlm-include.patch)
 
