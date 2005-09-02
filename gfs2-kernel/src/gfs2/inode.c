@@ -837,13 +837,13 @@ static int pick_formal_ino_2(struct gfs2_sbd *sdp, uint64_t *formal_ino)
 			goto out_brelse;
 
 		x = *(uint64_t *)(m_bh->b_data + sizeof(struct gfs2_dinode));
-		x = y = gfs2_64_to_cpu(x);
+		x = y = le64_to_cpu(x);
 		ir.ir_start = x;
 		ir.ir_length = GFS2_INUM_QUANTUM;
 		x += GFS2_INUM_QUANTUM;
 		if (x < y)
 			gfs2_consist_inode(m_ip);
-		x = cpu_to_gfs2_64(x);
+		x = cpu_to_le64(x);
 		gfs2_trans_add_bh(m_ip->i_gl, m_bh);
 		*(uint64_t *)(m_bh->b_data + sizeof(struct gfs2_dinode)) = x;
 

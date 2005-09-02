@@ -505,13 +505,13 @@ static void do_qc(struct gfs2_quota_data *qd, int64_t change)
 		qc->qc_change = 0;
 		qc->qc_flags = 0;
 		if (test_bit(QDF_USER, &qd->qd_flags))
-			qc->qc_flags = cpu_to_gfs2_32(GFS2_QCF_USER);
-		qc->qc_id = cpu_to_gfs2_32(qd->qd_id);
+			qc->qc_flags = cpu_to_le32(GFS2_QCF_USER);
+		qc->qc_id = cpu_to_le32(qd->qd_id);
 	}
 
 	x = qc->qc_change;
-	x = gfs2_64_to_cpu(x) + change;
-	qc->qc_change = cpu_to_gfs2_64(x);
+	x = le64_to_cpu(x) + change;
+	qc->qc_change = cpu_to_le64(x);
 
 	spin_lock(&sdp->sd_quota_spin);
 	qd->qd_change = x;

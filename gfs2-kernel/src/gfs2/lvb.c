@@ -21,12 +21,12 @@
 
 #define CPIN_08(s1, s2, member, count) {memcpy((s1->member), (s2->member), (count));}
 #define CPOUT_08(s1, s2, member, count) {memcpy((s2->member), (s1->member), (count));}
-#define CPIN_16(s1, s2, member) {(s1->member) = gfs2_16_to_cpu((s2->member));}
-#define CPOUT_16(s1, s2, member) {(s2->member) = cpu_to_gfs2_16((s1->member));}
-#define CPIN_32(s1, s2, member) {(s1->member) = gfs2_32_to_cpu((s2->member));}
-#define CPOUT_32(s1, s2, member) {(s2->member) = cpu_to_gfs2_32((s1->member));}
-#define CPIN_64(s1, s2, member) {(s1->member) = gfs2_64_to_cpu((s2->member));}
-#define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_gfs2_64((s1->member));}
+#define CPIN_16(s1, s2, member) {(s1->member) = le16_to_cpu((s2->member));}
+#define CPOUT_16(s1, s2, member) {(s2->member) = cpu_to_le16((s1->member));}
+#define CPIN_32(s1, s2, member) {(s1->member) = le32_to_cpu((s2->member));}
+#define CPOUT_32(s1, s2, member) {(s2->member) = cpu_to_le32((s1->member));}
+#define CPIN_64(s1, s2, member) {(s1->member) = le64_to_cpu((s2->member));}
+#define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_le64((s1->member));}
 
 void gfs2_quota_lvb_in(struct gfs2_quota_lvb *qb, char *lvb)
 {

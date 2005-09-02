@@ -461,7 +461,7 @@ static void log_write_header(struct gfs2_sbd *sdp, uint32_t flags, int pull)
 	lh.lh_blkno = sdp->sd_log_flush_head;
 	gfs2_log_header_out(&lh, bh->b_data);
 	hash = gfs2_disk_hash(bh->b_data, sizeof(struct gfs2_log_header));
-	((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_gfs2_32(hash);
+	((struct gfs2_log_header *)bh->b_data)->lh_hash = cpu_to_le32(hash);
 
 	set_buffer_dirty(bh);
 	if (sync_dirty_buffer(bh))

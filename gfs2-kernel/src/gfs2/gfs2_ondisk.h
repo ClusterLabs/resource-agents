@@ -384,32 +384,6 @@ struct gfs2_quota_change {
 	uint32_t qc_id;
 };
 
-/* Endian functions */
-
-#undef GFS2_ENDIAN_BIG
-
-#ifdef GFS2_ENDIAN_BIG
-
-#define gfs2_16_to_cpu be16_to_cpu
-#define gfs2_32_to_cpu be32_to_cpu
-#define gfs2_64_to_cpu be64_to_cpu
-
-#define cpu_to_gfs2_16 cpu_to_be16
-#define cpu_to_gfs2_32 cpu_to_be32
-#define cpu_to_gfs2_64 cpu_to_be64
-
-#else /* GFS2_ENDIAN_BIG */
-
-#define gfs2_16_to_cpu le16_to_cpu
-#define gfs2_32_to_cpu le32_to_cpu
-#define gfs2_64_to_cpu le64_to_cpu
-
-#define cpu_to_gfs2_16 cpu_to_le16
-#define cpu_to_gfs2_32 cpu_to_le32
-#define cpu_to_gfs2_64 cpu_to_le64
-
-#endif /* GFS2_ENDIAN_BIG */
-
 /* Translation functions */
 
 void gfs2_inum_in(struct gfs2_inum *no, char *buf);
@@ -472,12 +446,12 @@ void gfs2_quota_change_print(struct gfs2_quota_change *qc);
 
 #define CPIN_08(s1, s2, member, count) {memcpy((s1->member), (s2->member), (count));}
 #define CPOUT_08(s1, s2, member, count) {memcpy((s2->member), (s1->member), (count));}
-#define CPIN_16(s1, s2, member) {(s1->member) = gfs2_16_to_cpu((s2->member));}
-#define CPOUT_16(s1, s2, member) {(s2->member) = cpu_to_gfs2_16((s1->member));}
-#define CPIN_32(s1, s2, member) {(s1->member) = gfs2_32_to_cpu((s2->member));}
-#define CPOUT_32(s1, s2, member) {(s2->member) = cpu_to_gfs2_32((s1->member));}
-#define CPIN_64(s1, s2, member) {(s1->member) = gfs2_64_to_cpu((s2->member));}
-#define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_gfs2_64((s1->member));}
+#define CPIN_16(s1, s2, member) {(s1->member) = le16_to_cpu((s2->member));}
+#define CPOUT_16(s1, s2, member) {(s2->member) = cpu_to_le16((s1->member));}
+#define CPIN_32(s1, s2, member) {(s1->member) = le32_to_cpu((s2->member));}
+#define CPOUT_32(s1, s2, member) {(s2->member) = cpu_to_le32((s1->member));}
+#define CPIN_64(s1, s2, member) {(s1->member) = le64_to_cpu((s2->member));}
+#define CPOUT_64(s1, s2, member) {(s2->member) = cpu_to_le64((s1->member));}
 
 #define pv(struct, member, fmt) printk("  "#member" = "fmt"\n", struct->member);
 #define pa(struct, member, count) print_array(#member, struct->member, count);

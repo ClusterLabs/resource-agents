@@ -42,15 +42,15 @@ static struct dentry *gfs2_decode_fh(struct super_block *sb,
 
 	switch (fh_type) {
 	case 8:
-		parent.no_formal_ino = ((uint64_t)gfs2_32_to_cpu(fh[4])) << 32;
-		parent.no_formal_ino |= gfs2_32_to_cpu(fh[5]);
-		parent.no_addr = ((uint64_t)gfs2_32_to_cpu(fh[6])) << 32;
-		parent.no_addr |= gfs2_32_to_cpu(fh[7]);
+		parent.no_formal_ino = ((uint64_t)le32_to_cpu(fh[4])) << 32;
+		parent.no_formal_ino |= le32_to_cpu(fh[5]);
+		parent.no_addr = ((uint64_t)le32_to_cpu(fh[6])) << 32;
+		parent.no_addr |= le32_to_cpu(fh[7]);
 	case 4:
-		this.no_formal_ino = ((uint64_t)gfs2_32_to_cpu(fh[0])) << 32;
-		this.no_formal_ino |= gfs2_32_to_cpu(fh[1]);
-		this.no_addr = ((uint64_t)gfs2_32_to_cpu(fh[2])) << 32;
-		this.no_addr |= gfs2_32_to_cpu(fh[3]);
+		this.no_formal_ino = ((uint64_t)le32_to_cpu(fh[0])) << 32;
+		this.no_formal_ino |= le32_to_cpu(fh[1]);
+		this.no_addr = ((uint64_t)le32_to_cpu(fh[2])) << 32;
+		this.no_addr |= le32_to_cpu(fh[3]);
 		break;
 	default:
 		return NULL;
@@ -73,13 +73,13 @@ static int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 		return 255;
 
 	fh[0] = ip->i_num.no_formal_ino >> 32;
-	fh[0] = cpu_to_gfs2_32(fh[0]);
+	fh[0] = cpu_to_le32(fh[0]);
 	fh[1] = ip->i_num.no_formal_ino & 0xFFFFFFFF;
-	fh[1] = cpu_to_gfs2_32(fh[1]);
+	fh[1] = cpu_to_le32(fh[1]);
 	fh[2] = ip->i_num.no_addr >> 32;
-	fh[2] = cpu_to_gfs2_32(fh[2]);
+	fh[2] = cpu_to_le32(fh[2]);
 	fh[3] = ip->i_num.no_addr & 0xFFFFFFFF;
-	fh[3] = cpu_to_gfs2_32(fh[3]);
+	fh[3] = cpu_to_le32(fh[3]);
 	*len = 4;
 
 	if (!connectable || ip == sdp->sd_root_dir)
@@ -92,13 +92,13 @@ static int gfs2_encode_fh(struct dentry *dentry, __u32 *fh, int *len,
 	spin_unlock(&dentry->d_lock);
 
 	fh[4] = ip->i_num.no_formal_ino >> 32;
-	fh[4] = cpu_to_gfs2_32(fh[4]);
+	fh[4] = cpu_to_le32(fh[4]);
 	fh[5] = ip->i_num.no_formal_ino & 0xFFFFFFFF;
-	fh[5] = cpu_to_gfs2_32(fh[5]);
+	fh[5] = cpu_to_le32(fh[5]);
 	fh[6] = ip->i_num.no_addr >> 32;
-	fh[6] = cpu_to_gfs2_32(fh[6]);
+	fh[6] = cpu_to_le32(fh[6]);
 	fh[7] = ip->i_num.no_addr & 0xFFFFFFFF;
-	fh[7] = cpu_to_gfs2_32(fh[7]);
+	fh[7] = cpu_to_le32(fh[7]);
 	*len = 8;
 
 	gfs2_inode_put(ip);

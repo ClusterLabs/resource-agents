@@ -181,7 +181,7 @@ static int buf_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 			return error;
 
 		blkno = ((struct gfs2_meta_header *)bh_log->b_data)->mh_blkno;
-		blkno = gfs2_64_to_cpu(blkno);
+		blkno = le64_to_cpu(blkno);
 
 		sdp->sd_found_blocks++;
 
@@ -282,7 +282,7 @@ static void revoke_lo_before_commit(struct gfs2_sbd *sdp)
 			offset = sizeof(struct gfs2_meta_header);
 		}
 
-		*(uint64_t *)(bh->b_data + offset) = cpu_to_gfs2_64(rv->rv_blkno);
+		*(uint64_t *)(bh->b_data + offset) = cpu_to_le64(rv->rv_blkno);
 		kfree(rv);
 
 		offset += sizeof(uint64_t);
@@ -332,7 +332,7 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 
 		while (offset + sizeof(uint64_t) <= sdp->sd_sb.sb_bsize) {
 			blkno = *(uint64_t *)(bh->b_data + offset);
-			blkno = gfs2_64_to_cpu(blkno);
+			blkno = le64_to_cpu(blkno);
 
 			error = gfs2_revoke_add(sdp, blkno, start);
 			if (error < 0)
