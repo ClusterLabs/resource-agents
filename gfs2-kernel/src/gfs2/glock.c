@@ -2369,7 +2369,7 @@ static int dump_inode(struct gfs2_inode *ip, char *buf, unsigned int size,
 	int error = -ENOBUFS;
 
 	gfs2_printf("  Inode:\n");
-	gfs2_printf("    num = %"PRIu64"/%"PRIu64"\n",
+	gfs2_printf("    num = %llu %llu\n",
 		    ip->i_num.no_formal_ino, ip->i_num.no_addr);
 	gfs2_printf("    type = %u\n", IF2DT(ip->i_di.di_mode));
 	gfs2_printf("    i_count = %d\n", atomic_read(&ip->i_count));
@@ -2405,7 +2405,7 @@ static int dump_glock(struct gfs2_glock *gl, char *buf, unsigned int size,
 
 	spin_lock(&gl->gl_spin);
 
-	gfs2_printf("Glock (%u, %"PRIu64")\n",
+	gfs2_printf("Glock (%u, %llu)\n",
 		    gl->gl_name.ln_type,
 		    gl->gl_name.ln_number);
 	gfs2_printf("  gl_flags =");

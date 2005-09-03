@@ -34,18 +34,6 @@
 #define NO_FORCE 0
 #define FORCE 1
 
-#if (BITS_PER_LONG == 64)
-#define PRIu64 "lu"
-#define PRId64 "ld"
-#define PRIx64 "lx"
-#define PRIX64 "lX"
-#else
-#define PRIu64 "Lu"
-#define PRId64 "Ld"
-#define PRIx64 "Lx"
-#define PRIX64 "LX"
-#endif
-
 /*  Divide num by den.  Round up if there is a remainder.  */
 #define DIV_RU(num, den) (((num) + (den) - 1) / (den))
 #define MAKE_MULT8(x) (((x) + 7) & ~7)

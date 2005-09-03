@@ -60,7 +60,7 @@ static void stuck_releasepage(struct buffer_head *bh)
 	struct gfs2_glock *gl;
 
 	fs_warn(sdp, "stuck in gfs2_releasepage()\n");
-	fs_warn(sdp, "blkno = %"PRIu64", bh->b_count = %d\n",
+	fs_warn(sdp, "blkno = %llu, bh->b_count = %d\n",
 		(uint64_t)bh->b_blocknr, atomic_read(&bh->b_count));
 	fs_warn(sdp, "pinned = %u\n", buffer_pinned(bh));
 	fs_warn(sdp, "get_v2bd(bh) = %s\n", (bd) ? "!NULL" : "NULL");
@@ -70,7 +70,7 @@ static void stuck_releasepage(struct buffer_head *bh)
 
 	gl = bd->bd_gl;
 
-	fs_warn(sdp, "gl = (%u, %"PRIu64")\n", 
+	fs_warn(sdp, "gl = (%u, %llu)\n", 
 		gl->gl_name.ln_type, gl->gl_name.ln_number);
 
 	fs_warn(sdp, "bd_list_tr = %s, bd_le.le_list = %s\n",
@@ -84,7 +84,7 @@ static void stuck_releasepage(struct buffer_head *bh)
 		if (!ip)
 			return;
 
-		fs_warn(sdp, "ip = %"PRIu64"/%"PRIu64"\n",
+		fs_warn(sdp, "ip = %llu %llu\n",
 			ip->i_num.no_formal_ino, ip->i_num.no_addr);
 		fs_warn(sdp, "ip->i_count = %d, ip->i_vnode = %s\n",
 			atomic_read(&ip->i_count),

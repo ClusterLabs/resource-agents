@@ -273,9 +273,9 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 
 	gfs2_printf("version 0\n");
 	gfs2_printf("bsize %u\n", sdp->sd_sb.sb_bsize);
-	gfs2_printf("total %"PRIu64"\n", sc.sc_total);
-	gfs2_printf("free %"PRIu64"\n", sc.sc_free);
-	gfs2_printf("dinodes %"PRIu64"\n", sc.sc_dinodes);
+	gfs2_printf("total %lld\n", sc.sc_total);
+	gfs2_printf("free %lld\n", sc.sc_free);
+	gfs2_printf("dinodes %lld\n", sc.sc_dinodes);
 
 	error = 0;
 
@@ -351,7 +351,7 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		    sdp->sd_jdesc->jd_blocks);
 	gfs2_printf("sd_reclaim_count:glocks on reclaim list::%d\n",
 		    atomic_read(&sdp->sd_reclaim_count));
-	gfs2_printf("sd_log_wraps:log wraps::%"PRIu64"\n",
+	gfs2_printf("sd_log_wraps:log wraps::%llu\n",
 		    sdp->sd_log_wraps);
 	gfs2_printf("sd_bio_outstanding:outstanding BIO calls::%u\n",
 		    atomic_read(&sdp->sd_bio_outstanding));

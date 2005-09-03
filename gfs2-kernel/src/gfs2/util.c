@@ -134,7 +134,7 @@ int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	return gfs2_lm_withdraw(sdp,
 			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
-			"GFS2: fsid=%s:   inode = %"PRIu64"/%"PRIu64"\n"
+			"GFS2: fsid=%s:   inode = %llu %llu\n"
 			"GFS2: fsid=%s:   function = %s\n"
 			"GFS2: fsid=%s:   file = %s, line = %u\n"
 			"GFS2: fsid=%s:   time = %lu\n",
@@ -158,7 +158,7 @@ int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 	struct gfs2_sbd *sdp = rgd->rd_sbd;
 	return gfs2_lm_withdraw(sdp,
 			"GFS2: fsid=%s: fatal: filesystem consistency error\n"
-			"GFS2: fsid=%s:   RG = %"PRIu64"\n"
+			"GFS2: fsid=%s:   RG = %llu\n"
 			"GFS2: fsid=%s:   function = %s\n"
 			"GFS2: fsid=%s:   file = %s, line = %u\n"
 			"GFS2: fsid=%s:   time = %lu\n",
@@ -182,7 +182,7 @@ int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 	int me;
 	me = gfs2_lm_withdraw(sdp,
 			     "GFS2: fsid=%s: fatal: invalid metadata block\n"
-			     "GFS2: fsid=%s:   bh = %"PRIu64" (%s)\n"
+			     "GFS2: fsid=%s:   bh = %llu (%s)\n"
 			     "GFS2: fsid=%s:   function = %s\n"
 			     "GFS2: fsid=%s:   file = %s, line = %u\n"
 			     "GFS2: fsid=%s:   time = %lu\n",
@@ -207,7 +207,7 @@ int gfs2_metatype_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,
 	int me;
 	me = gfs2_lm_withdraw(sdp,
 		"GFS2: fsid=%s: fatal: invalid metadata block\n"
-		"GFS2: fsid=%s:   bh = %"PRIu64" (type: exp=%u, found=%u)\n"
+		"GFS2: fsid=%s:   bh = %llu (type: exp=%u, found=%u)\n"
 		"GFS2: fsid=%s:   function = %s\n"
 		"GFS2: fsid=%s:   file = %s, line = %u\n"
 		"GFS2: fsid=%s:   time = %lu\n",
@@ -250,7 +250,7 @@ int gfs2_io_error_bh_i(struct gfs2_sbd *sdp, struct buffer_head *bh,
 {
 	return gfs2_lm_withdraw(sdp,
 			       "GFS2: fsid=%s: fatal: I/O error\n"
-			       "GFS2: fsid=%s:   block = %"PRIu64"\n"
+			       "GFS2: fsid=%s:   block = %llu\n"
 			       "GFS2: fsid=%s:   function = %s\n"
 			       "GFS2: fsid=%s:   file = %s, line = %u\n"
 			       "GFS2: fsid=%s:   time = %lu\n",

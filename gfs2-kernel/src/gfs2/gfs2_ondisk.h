@@ -509,8 +509,8 @@ void gfs2_inum_out(struct gfs2_inum *no, char *buf)
 
 void gfs2_inum_print(struct gfs2_inum *no)
 {
-	pv(no, no_formal_ino, "%"PRIu64);
-	pv(no, no_addr, "%"PRIu64);
+	pv(no, no_formal_ino, "%llu");
+	pv(no, no_addr, "%llu");
 }
 
 void gfs2_meta_header_in(struct gfs2_meta_header *mh, char *buf)
@@ -538,7 +538,7 @@ void gfs2_meta_header_print(struct gfs2_meta_header *mh)
 	pv(mh, mh_magic, "0x%.8X");
 	pv(mh, mh_type, "%u");
 	pv(mh, mh_format, "%u");
-	pv(mh, mh_blkno, "%"PRIu64);
+	pv(mh, mh_blkno, "%llu");
 }
 
 void gfs2_sb_in(struct gfs2_sb *sb, char *buf)
@@ -627,11 +627,11 @@ void gfs2_rindex_out(struct gfs2_rindex *ri, char *buf)
 
 void gfs2_rindex_print(struct gfs2_rindex *ri)
 {
-	pv(ri, ri_addr, "%"PRIu64);
+	pv(ri, ri_addr, "%llu");
 	pv(ri, ri_length, "%u");
 	pv(ri, ri_pad, "%u");
 
-	pv(ri, ri_data0, "%"PRIu64);
+	pv(ri, ri_data0, "%llu");
 	pv(ri, ri_data, "%u");
 
 	pv(ri, ri_bitbytes, "%u");
@@ -693,9 +693,9 @@ void gfs2_quota_out(struct gfs2_quota *qu, char *buf)
 
 void gfs2_quota_print(struct gfs2_quota *qu)
 {
-	pv(qu, qu_limit, "%"PRIu64);
-	pv(qu, qu_warn, "%"PRIu64);
-	pv(qu, qu_value, "%"PRId64);
+	pv(qu, qu_limit, "%llu");
+	pv(qu, qu_warn, "%llu");
+	pv(qu, qu_value, "%lld");
 }
 
 void gfs2_dinode_in(struct gfs2_dinode *di, char *buf)
@@ -775,16 +775,16 @@ void gfs2_dinode_print(struct gfs2_dinode *di)
 	pv(di, di_uid, "%u");
 	pv(di, di_gid, "%u");
 	pv(di, di_nlink, "%u");
-	pv(di, di_size, "%"PRIu64);
-	pv(di, di_blocks, "%"PRIu64);
-	pv(di, di_atime, "%"PRId64);
-	pv(di, di_mtime, "%"PRId64);
-	pv(di, di_ctime, "%"PRId64);
+	pv(di, di_size, "%llu");
+	pv(di, di_blocks, "%llu");
+	pv(di, di_atime, "%lld");
+	pv(di, di_mtime, "%lld");
+	pv(di, di_ctime, "%lld");
 	pv(di, di_major, "%u");
 	pv(di, di_minor, "%u");
 
-	pv(di, di_goal_meta, "%"PRIu64);
-	pv(di, di_goal_data, "%"PRIu64);
+	pv(di, di_goal_meta, "%llu");
+	pv(di, di_goal_data, "%llu");
 
 	pv(di, di_flags, "0x%.8X");
 	pv(di, di_payload_format, "%u");
@@ -793,7 +793,7 @@ void gfs2_dinode_print(struct gfs2_dinode *di)
 	pv(di, di_depth, "%u");
 	pv(di, di_entries, "%u");
 
-	pv(di, di_eattr, "%"PRIu64);
+	pv(di, di_eattr, "%llu");
 
 	pa(di, di_reserved, 32);
 }
@@ -873,7 +873,7 @@ void gfs2_leaf_print(struct gfs2_leaf *lf)
 	pv(lf, lf_depth, "%u");
 	pv(lf, lf_entries, "%u");
 	pv(lf, lf_dirent_format, "%u");
-	pv(lf, lf_next, "%"PRIu64);
+	pv(lf, lf_next, "%llu");
 
 	pa(lf, lf_reserved, 32);
 }
@@ -948,7 +948,7 @@ void gfs2_log_header_out(struct gfs2_log_header *lh, char *buf)
 void gfs2_log_header_print(struct gfs2_log_header *lh)
 {
 	gfs2_meta_header_print(&lh->lh_header);
-	pv(lh, lh_sequence, "%"PRIu64);
+	pv(lh, lh_sequence, "%llu");
 	pv(lh, lh_flags, "0x%.8X");
 	pv(lh, lh_tail, "%u");
 	pv(lh, lh_blkno, "%u");
@@ -1010,8 +1010,8 @@ void gfs2_inum_range_out(struct gfs2_inum_range *ir, char *buf)
 
 void gfs2_inum_range_print(struct gfs2_inum_range *ir)
 {
-	pv(ir, ir_start, "%"PRIu64);
-	pv(ir, ir_length, "%"PRIu64);
+	pv(ir, ir_start, "%llu");
+	pv(ir, ir_length, "%llu");
 }
 
 void gfs2_statfs_change_in(struct gfs2_statfs_change *sc, char *buf)
@@ -1034,9 +1034,9 @@ void gfs2_statfs_change_out(struct gfs2_statfs_change *sc, char *buf)
 
 void gfs2_statfs_change_print(struct gfs2_statfs_change *sc)
 {
-	pv(sc, sc_total, "%"PRId64);
-	pv(sc, sc_free, "%"PRId64);
-	pv(sc, sc_dinodes, "%"PRId64);
+	pv(sc, sc_total, "%lld");
+	pv(sc, sc_free, "%lld");
+	pv(sc, sc_dinodes, "%lld");
 }
 
 void gfs2_unlinked_tag_in(struct gfs2_unlinked_tag *ut, char *buf)
@@ -1084,7 +1084,7 @@ void gfs2_quota_change_out(struct gfs2_quota_change *qc, char *buf)
 
 void gfs2_quota_change_print(struct gfs2_quota_change *qc)
 {
-	pv(qc, qc_change, "%"PRId64);
+	pv(qc, qc_change, "%lld");
 	pv(qc, qc_flags, "0x%.8X");
 	pv(qc, qc_id, "%u");
 }
