@@ -62,9 +62,9 @@ Options loaded via "gfs2_tool margs" have a lifetime of only one GFS2
 mount.  If you wish to mount another GFS2 filesystem, you must set
 another group of options with "gfs2_tool margs".
 
-The options oopses_ok, debug, acl, quota, suiddir, and data can be
+The options debug, acl, quota, suiddir, and data can be
 changed after mount using the "mount -o remount,option /mountpoint" command.
-The options oopses_ok, debug, acl, and suiddir support the "no"
+The options debug, acl, and suiddir support the "no"
 prefix.  For example, "noacl" turns off what "acl" turns on.
 
 If you have trouble mounting GFS2, check the syslog (e.g. /var/log/messages)
@@ -136,19 +136,6 @@ so it can allow the kernel VFS layer to do all flock and fcntl file locking.
 When running in cluster mode, these file locks require inter-node locks,
 and require the support of GFS2.  When running locally, better performance
 is achieved by letting VFS handle the whole job.
-
-This is turned on automatically by the lock_nolock module,
-but can be overridden by using the \fBignore_local_fs\fP option.
-.TP
-\fBoopses_ok\fP
-When GFS2 detects certain errors (mostly some type of memory
-corruption) it will panic the machine rather than risk corrupting the
-ondisk state.  Using this option will cause GFS2 to oops instead of
-panic.  This may produce more useful debugging information than a
-panic will.  The downside of this option is that an oops on one machine of
-a cluster filesystem may cause the filesystem to stall on all machines
-in the cluster.  (Panics don't have this "feature".)  Use this option
-with care.
 
 This is turned on automatically by the lock_nolock module,
 but can be overridden by using the \fBignore_local_fs\fP option.
