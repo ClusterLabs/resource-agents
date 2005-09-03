@@ -29,10 +29,9 @@ uint32_t gfs2_disk_hash(const char *data, int len);
 void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
 		   char *file, unsigned int line) __attribute__ ((noreturn));
 
-#define gfs2_assert(sdp, assertion, todo) \
+#define gfs2_assert(sdp, assertion) \
 do { \
 	if (unlikely(!(assertion))) { \
-		{todo} \
 		gfs2_assert_i((sdp), #assertion, \
 			      __FUNCTION__, __FILE__, __LINE__); \
 	} \

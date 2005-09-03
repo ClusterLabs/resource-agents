@@ -64,7 +64,7 @@ static void ul_hash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_spin);
 	list_add(&ul->ul_list, &sdp->sd_unlinked_list);
-	gfs2_assert(sdp, ul->ul_count,);
+	gfs2_assert(sdp, ul->ul_count);
 	ul->ul_count++;
 	atomic_inc(&sdp->sd_unlinked_count);
 	spin_unlock(&sdp->sd_unlinked_spin);
@@ -74,7 +74,7 @@ static void ul_unhash(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 {
 	spin_lock(&sdp->sd_unlinked_spin);
 	list_del_init(&ul->ul_list);
-	gfs2_assert(sdp, ul->ul_count > 1,);
+	gfs2_assert(sdp, ul->ul_count > 1);
 	ul->ul_count--;
 	gfs2_assert_warn(sdp, atomic_read(&sdp->sd_unlinked_count) > 0);
 	atomic_dec(&sdp->sd_unlinked_count);
@@ -209,7 +209,7 @@ void gfs2_unlinked_put(struct gfs2_sbd *sdp, struct gfs2_unlinked *ul)
 	gfs2_assert_warn(sdp, test_and_clear_bit(ULF_LOCKED, &ul->ul_flags));
 
 	spin_lock(&sdp->sd_unlinked_spin);
-	gfs2_assert(sdp, ul->ul_count,);
+	gfs2_assert(sdp, ul->ul_count);
 	ul->ul_count--;
 	if (!ul->ul_count) {
 		gfs2_icbit_munge(sdp, sdp->sd_unlinked_bitmap, ul->ul_slot, 0);

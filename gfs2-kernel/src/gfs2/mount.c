@@ -92,40 +92,39 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 				goto cant_remount;
 			args->ar_spectator = TRUE;
 			sdp->sd_vfs->s_flags |= MS_RDONLY;
+		}
 
-		} else if (!strcmp(o, "ignore_local_fs")) {
+		else if (!strcmp(o, "ignore_local_fs")) {
 			if (remount && !args->ar_ignore_local_fs)
 				goto cant_remount;
 			args->ar_ignore_local_fs = TRUE;
+		}
 
-		} else if (!strcmp(o, "localflocks")) {
+		else if (!strcmp(o, "localflocks")) {
 			if (remount && !args->ar_localflocks)
 				goto cant_remount;
 			args->ar_localflocks = TRUE;
+		}
 
-		} else if (!strcmp(o, "localcaching")) {
+		else if (!strcmp(o, "localcaching")) {
 			if (remount && !args->ar_localcaching)
 				goto cant_remount;
 			args->ar_localcaching = TRUE;
+		}
 
-		} else if (!strcmp(o, "oopses_ok"))
-			args->ar_oopses_ok = TRUE;
-
-		else if (!strcmp(o, "nooopses_ok"))
-			args->ar_oopses_ok = FALSE;
-
-		else if (!strcmp(o, "debug")) {
+		else if (!strcmp(o, "debug"))
 			args->ar_debug = TRUE;
 
-		} else if (!strcmp(o, "nodebug"))
+		else if (!strcmp(o, "nodebug"))
 			args->ar_debug = FALSE;
 
 		else if (!strcmp(o, "upgrade")) {
 			if (remount && !args->ar_upgrade)
 				goto cant_remount;
 			args->ar_upgrade = TRUE;
+		}
 
-		} else if (!strcmp(o, "num_glockd")) {
+		else if (!strcmp(o, "num_glockd")) {
 			unsigned int x;
 			if (!v)
 				goto need_value;
@@ -144,12 +143,14 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 		else if (!strcmp(o, "acl")) {
 			args->ar_posix_acl = TRUE;
 			sdp->sd_vfs->s_flags |= MS_POSIXACL;
+		}
 
-		} else if (!strcmp(o, "noacl")) {
+		else if (!strcmp(o, "noacl")) {
 			args->ar_posix_acl = FALSE;
 			sdp->sd_vfs->s_flags &= ~MS_POSIXACL;
+		}
 
-		} else if (!strcmp(o, "quota")) {
+		else if (!strcmp(o, "quota")) {
 			if (!v)
 				goto need_value;
 			if (!strcmp(v, "off"))
@@ -163,8 +164,9 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 				error = -EINVAL;
 				break;
 			}
+		}
 
-		} else if (!strcmp(o, "suiddir"))
+		else if (!strcmp(o, "suiddir"))
 			args->ar_suiddir = TRUE;
 
 		else if (!strcmp(o, "nosuiddir"))
@@ -182,8 +184,9 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 				error = -EINVAL;
 				break;
 			}
+		}
 
-		} else {
+		else {
 			fs_info(sdp, "unknown option: %s\n", o);
 			error = -EINVAL;
 			break;

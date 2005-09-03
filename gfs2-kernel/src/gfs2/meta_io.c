@@ -222,7 +222,7 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 			bd = list_entry(tmp, struct gfs2_bufdata, bd_ail_st_list);
 			bh = bd->bd_bh;
 
-			gfs2_assert(sdp, bd->bd_ail == ai,);
+			gfs2_assert(sdp, bd->bd_ail == ai);
 
 			if (!buffer_busy(bh)) {
 				if (!buffer_uptodate(bh))
@@ -267,7 +267,7 @@ int gfs2_ail1_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai, int flags)
 		bd = list_entry(tmp, struct gfs2_bufdata, bd_ail_st_list);
 		bh = bd->bd_bh;
 
-		gfs2_assert(sdp, bd->bd_ail == ai,);
+		gfs2_assert(sdp, bd->bd_ail == ai);
 
 		if (buffer_busy(bh)) {
 			if (flags & DIO_ALL)
@@ -300,7 +300,7 @@ void gfs2_ail2_empty_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	while (!list_empty(head)) {
 		bd = list_entry(head->prev, struct gfs2_bufdata,
 				bd_ail_st_list);
-		gfs2_assert(sdp, bd->bd_ail == ai,);
+		gfs2_assert(sdp, bd->bd_ail == ai);
 		bd->bd_ail = NULL;
 		list_del(&bd->bd_ail_st_list);
 		list_del(&bd->bd_ail_gl_list);

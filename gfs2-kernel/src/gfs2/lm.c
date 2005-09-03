@@ -116,9 +116,6 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 
 		/* Force local read ahead and caching */
 		sdp->sd_args.ar_localcaching = TRUE;
-
-		/* Allow the machine to oops */
-		sdp->sd_args.ar_oopses_ok = TRUE;
 	}
 
  out:

@@ -149,7 +149,7 @@ void gfs2_trans_add_bh(struct gfs2_glock *gl, struct buffer_head *bh)
 
 	bd = get_v2bd(bh);
 	if (bd)
-		gfs2_assert(sdp, bd->bd_gl == gl,);
+		gfs2_assert(sdp, bd->bd_gl == gl);
 	else {
 		gfs2_meta_attach_bufdata(gl, bh);
 		bd = get_v2bd(bh);

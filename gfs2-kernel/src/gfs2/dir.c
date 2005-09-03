@@ -561,7 +561,7 @@ static int dir_make_exhash(struct gfs2_inode *dip)
 
 	leaf = (struct gfs2_leaf *)bh->b_data;
 
-	gfs2_assert(sdp, dip->i_di.di_entries < (1 << 16),);
+	gfs2_assert(sdp, dip->i_di.di_entries < (1 << 16));
 
 	leaf->lf_dirent_format = cpu_to_le32(GFS2_FORMAT_DE);
 	leaf->lf_entries = cpu_to_le16(dip->i_di.di_entries);

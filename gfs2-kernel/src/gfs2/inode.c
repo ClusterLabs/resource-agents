@@ -388,13 +388,13 @@ int gfs2_inode_get(struct gfs2_glock *i_gl, struct gfs2_inum *inum, int create,
 
 void gfs2_inode_hold(struct gfs2_inode *ip)
 {
-	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
+	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0);
 	atomic_inc(&ip->i_count);
 }
 
 void gfs2_inode_put(struct gfs2_inode *ip)
 {
-	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0,);
+	gfs2_assert(ip->i_sbd, atomic_read(&ip->i_count) > 0);
 	atomic_dec(&ip->i_count);
 }
 
@@ -405,7 +405,7 @@ void gfs2_inode_destroy(struct gfs2_inode *ip)
 	struct gfs2_glock *i_gl = ip->i_gl;
 
 	gfs2_assert_warn(sdp, !atomic_read(&ip->i_count));
-	gfs2_assert(sdp, get_gl2gl(io_gl) == i_gl,);
+	gfs2_assert(sdp, get_gl2gl(io_gl) == i_gl);
 
 	spin_lock(&io_gl->gl_spin);
 	set_gl2gl(io_gl, NULL);

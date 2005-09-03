@@ -129,7 +129,7 @@ static void qd_hold(struct gfs2_quota_data *qd)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
 	spin_lock(&sdp->sd_quota_spin);
-	gfs2_assert(sdp, qd->qd_count,);
+	gfs2_assert(sdp, qd->qd_count);
 	qd->qd_count++;
 	spin_unlock(&sdp->sd_quota_spin);
 }
@@ -138,7 +138,7 @@ static void qd_put(struct gfs2_quota_data *qd)
 {
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 	spin_lock(&sdp->sd_quota_spin);
-	gfs2_assert(sdp, qd->qd_count,);
+	gfs2_assert(sdp, qd->qd_count);
 	if (!--qd->qd_count)
 		qd->qd_last_touched = jiffies;
 	spin_unlock(&sdp->sd_quota_spin);
@@ -192,7 +192,7 @@ static void slot_hold(struct gfs2_quota_data *qd)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
 	spin_lock(&sdp->sd_quota_spin);
-	gfs2_assert(sdp, qd->qd_slot_count,);
+	gfs2_assert(sdp, qd->qd_slot_count);
 	qd->qd_slot_count++;
 	spin_unlock(&sdp->sd_quota_spin);
 }
@@ -202,7 +202,7 @@ static void slot_put(struct gfs2_quota_data *qd)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
 	spin_lock(&sdp->sd_quota_spin);
-	gfs2_assert(sdp, qd->qd_slot_count,);
+	gfs2_assert(sdp, qd->qd_slot_count);
 	if (!--qd->qd_slot_count) {
 		gfs2_icbit_munge(sdp, sdp->sd_quota_bitmap, qd->qd_slot, 0);
 		qd->qd_slot = -1;
@@ -263,7 +263,7 @@ static void bh_put(struct gfs2_quota_data *qd)
 	struct gfs2_sbd *sdp = qd->qd_gl->gl_sbd;
 
 	down(&sdp->sd_quota_mutex);
-	gfs2_assert(sdp, qd->qd_bh_count,);
+	gfs2_assert(sdp, qd->qd_bh_count);
 	if (!--qd->qd_bh_count) {
 		brelse(qd->qd_bh);
 		qd->qd_bh = NULL;

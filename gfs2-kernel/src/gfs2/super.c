@@ -173,7 +173,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		return error;
 	}
 
-	gfs2_assert(sdp, sizeof(struct gfs2_sb) <= bh->b_size,);
+	gfs2_assert(sdp, sizeof(struct gfs2_sb) <= bh->b_size);
 	gfs2_sb_in(&sdp->sd_sb, bh->b_data);
 	brelse(bh);
 
@@ -230,7 +230,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		sdp->sd_heightsize[x] = space;
 	}
 	sdp->sd_max_height = x;
-	gfs2_assert(sdp, sdp->sd_max_height <= GFS2_MAX_META_HEIGHT,);
+	gfs2_assert(sdp, sdp->sd_max_height <= GFS2_MAX_META_HEIGHT);
 
 	sdp->sd_jheightsize[0] = sdp->sd_sb.sb_bsize -
 				 sizeof(struct gfs2_dinode);
@@ -248,7 +248,7 @@ int gfs2_read_sb(struct gfs2_sbd *sdp, struct gfs2_glock *gl, int silent)
 		sdp->sd_jheightsize[x] = space;
 	}
 	sdp->sd_max_jheight = x;
-	gfs2_assert(sdp, sdp->sd_max_jheight <= GFS2_MAX_META_HEIGHT,);
+	gfs2_assert(sdp, sdp->sd_max_jheight <= GFS2_MAX_META_HEIGHT);
 
 	return 0;
 }

@@ -129,7 +129,7 @@ struct gfs2_rgrpd *gfs2_blk2rgrpd(struct gfs2_sbd *sdp, uint64_t blk)
 
 struct gfs2_rgrpd *gfs2_rgrpd_get_first(struct gfs2_sbd *sdp)
 {
-	gfs2_assert(sdp, !list_empty(&sdp->sd_rindex_list),);
+	gfs2_assert(sdp, !list_empty(&sdp->sd_rindex_list));
 	return list_entry(sdp->sd_rindex_list.next, struct gfs2_rgrpd, rd_list);
 }
 
@@ -903,7 +903,7 @@ unsigned char gfs2_get_block_type(struct gfs2_rgrpd *rgd, uint64_t block)
 			break;
 	}
 
-	gfs2_assert(rgd->rd_sbd, buf < length,);
+	gfs2_assert(rgd->rd_sbd, buf < length);
 	buf_block = rgrp_block - bi->bi_start * GFS2_NBBY;
 
 	type = gfs2_testbit(rgd,
@@ -949,7 +949,7 @@ static uint32_t rgblk_search(struct gfs2_rgrpd *rgd, uint32_t goal,
 			break;
 	}
 
-	gfs2_assert(rgd->rd_sbd, buf < length,);
+	gfs2_assert(rgd->rd_sbd, buf < length);
 
 	/* Convert scope of "goal" from rgrp-wide to within found bit block */
 	goal -= bi->bi_start * GFS2_NBBY;
@@ -1028,7 +1028,7 @@ static struct gfs2_rgrpd *rgblk_free(struct gfs2_sbd *sdp, uint64_t bstart,
 				break;
 		}
 
-		gfs2_assert(rgd->rd_sbd, buf < length,);
+		gfs2_assert(rgd->rd_sbd, buf < length);
 
 		buf_blk = rgrp_blk - bi->bi_start * GFS2_NBBY;
 		rgrp_blk++;

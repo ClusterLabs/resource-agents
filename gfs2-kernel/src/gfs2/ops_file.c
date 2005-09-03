@@ -158,7 +158,7 @@ static ssize_t walk_vm_hard(struct file *file, char *buf, size_t size,
 	if (!dumping)
 		up_read(&mm->mmap_sem);
 
-	gfs2_assert(get_v2sdp(sb), x == num_gh,);
+	gfs2_assert(get_v2sdp(sb), x == num_gh);
 
 	count = operation(file, buf, size, offset, num_gh, ghs);
 

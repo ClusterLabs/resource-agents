@@ -95,7 +95,7 @@ static unsigned int gl_hash(struct lm_lockname *name)
 
 static inline void glock_hold(struct gfs2_glock *gl)
 {
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
+	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0);
 	atomic_inc(&gl->gl_count);
 }
 
@@ -109,7 +109,7 @@ static inline void glock_put(struct gfs2_glock *gl)
 {
 	if (atomic_read(&gl->gl_count) == 1)
 		gfs2_glock_schedule_for_reclaim(gl);
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0,);
+	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_count) > 0);
 	atomic_dec(&gl->gl_count);
 }
 
@@ -1838,7 +1838,7 @@ void gfs2_lvb_unhold(struct gfs2_glock *gl)
 	glock_hold(gl);
 	gfs2_glmutex_lock(gl);
 
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_lvb_count) > 0,);
+	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_lvb_count) > 0);
 	if (atomic_dec_and_test(&gl->gl_lvb_count)) {
 		gfs2_lm_unhold_lvb(gl->gl_sbd, gl->gl_lock, gl->gl_lvb);
 		gl->gl_lvb = NULL;
@@ -1853,7 +1853,7 @@ void gfs2_lvb_sync(struct gfs2_glock *gl)
 {
 	gfs2_glmutex_lock(gl);
 
-	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_lvb_count),);
+	gfs2_assert(gl->gl_sbd, atomic_read(&gl->gl_lvb_count));
 	if (!gfs2_assert_warn(gl->gl_sbd, gfs2_glock_is_held_excl(gl)))
 		gfs2_lm_sync_lvb(gl->gl_sbd, gl->gl_lock, gl->gl_lvb);
 

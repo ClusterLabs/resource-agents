@@ -395,7 +395,6 @@ struct gfs2_args {
 	int ar_ignore_local_fs; /* Don't optimize even if local_fs is TRUE */
 	int ar_localflocks; /* Let the VFS do flock|fcntl locks for us */
 	int ar_localcaching; /* Local-style caching (dangerous on multihost) */
-	int ar_oopses_ok; /* Allow oopses */
 	int ar_debug; /* Oops on errors instead of trying to be graceful */
 	int ar_upgrade; /* Upgrade ondisk/multihost format */
 	unsigned int ar_num_glockd; /* Number of glockd threads */

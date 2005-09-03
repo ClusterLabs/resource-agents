@@ -341,8 +341,6 @@ static int gfs2_show_options(struct seq_file *s, struct vfsmount *mnt)
 		seq_printf(s, ",localflocks");
 	if (args->ar_localcaching)
 		seq_printf(s, ",localcaching");
-	if (args->ar_oopses_ok)
-		seq_printf(s, ",oopses_ok");
 	if (args->ar_debug)
 		seq_printf(s, ",debug");
 	if (args->ar_upgrade)

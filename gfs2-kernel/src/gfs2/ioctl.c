@@ -194,7 +194,6 @@ static int gi_get_args(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 	gfs2_printf("ignore_local_fs %d\n", args->ar_ignore_local_fs);
 	gfs2_printf("localcaching %d\n", args->ar_localcaching);
 	gfs2_printf("localflocks %d\n", args->ar_localflocks);
-	gfs2_printf("oopses_ok %d\n", args->ar_oopses_ok);
 	gfs2_printf("debug %d\n", args->ar_debug);
 	gfs2_printf("upgrade %d\n", args->ar_upgrade);
 	gfs2_printf("num_glockd %u\n", args->ar_num_glockd);

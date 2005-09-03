@@ -36,20 +36,8 @@ uint32_t gfs2_disk_hash(const char *data, int len)
  */
 
 void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
-		   char *file, unsigned int line)
+                   char *file, unsigned int line)
 {
-	if (sdp->sd_args.ar_oopses_ok) {
-		printk(KERN_ERR
-		       "GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
-		       "GFS2: fsid=%s:   function = %s\n"
-		       "GFS2: fsid=%s:   file = %s, line = %u\n"
-		       "GFS2: fsid=%s:   time = %lu\n",
-		       sdp->sd_fsname, assertion,
-		       sdp->sd_fsname, function,
-		       sdp->sd_fsname, file, line,
-		       sdp->sd_fsname, get_seconds());
-		BUG();
-	}
 	dump_stack();
 	panic("GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
 	      "GFS2: fsid=%s:   function = %s\n"
