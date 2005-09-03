@@ -119,19 +119,6 @@ Mount options (from the gfs2_mount man page)
               This  is turned on automatically by the lock_nolock module, but
               can be overridden by using the ignore_local_fs option.
 
-       oopses_ok
-              When GFS2 detects certain errors (mostly some  type  of  memory
-              corruption) it will panic the machine rather than risk corrupt-
-              ing the ondisk state.  Using this option  will  cause  GFS2  to
-              oops  instead of panic.  This may produce more useful debugging
-              information than a panic will.  The downside of this option  is
-              that  an  oops on one machine of a cluster filesystem may cause
-              the filesystem to stall on all machines in the cluster.   (Pan-
-              ics don't have this "feature".)  Use this option with care.
-
-              This  is turned on automatically by the lock_nolock module, but
-              can be overridden by using the ignore_local_fs option.
-
        debug  Causes GFS2 to oops when encountering an error that would cause
               the  mount  to  withdraw  or  print an assertion warning.  This
               option should probably not be used in a production system.

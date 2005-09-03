@@ -179,7 +179,6 @@ do_df_one(char *path)
 	printf("\n");
 	printf("  Local flocks = %s\n", (name2u32(args, "localflocks")) ? "TRUE" : "FALSE");
 	printf("  Local caching = %s\n", (name2u32(args, "localcaching")) ? "TRUE" : "FALSE");
-	printf("  Oopses OK = %s\n", (name2u32(args, "oopses_ok")) ? "TRUE" : "FALSE");
 	printf("\n");
 	printf("  %-15s%-15s%-15s%-15s%-15s\n", "Type", "Total", "Used", "Free", "use%");
 	printf("  ------------------------------------------------------------------------\n");
