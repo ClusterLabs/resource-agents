@@ -284,25 +284,6 @@ static int gi_get_statfs(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 }
 
 /**
- * handle_roll - Read a atomic_t as an unsigned int
- * @a: a counter
- *
- * if @a is negative, reset it to zero
- *
- * Returns: the value of the counter
- */
-
-static unsigned int handle_roll(atomic_t *a)
-{
-	int x = atomic_read(a);
-	if (x < 0) {
-		atomic_set(a, 0);
-		return 0;
-	}
-	return (unsigned int)x;
-}
-
-/**
  * gi_get_counters - Return usage counters
  * @ip:
  * @gi:
@@ -323,77 +304,111 @@ static int gi_get_counters(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 		return -EINVAL;
 
 	gfs2_printf("version 0\n");
-	gfs2_printf("sd_glock_count:locks::%d\n",
-		    atomic_read(&sdp->sd_glock_count));
-	gfs2_printf("sd_glock_held_count:locks held::%d\n",
-		    atomic_read(&sdp->sd_glock_held_count));
-	gfs2_printf("sd_inode_count:incore inodes::%d\n",
-		    atomic_read(&sdp->sd_inode_count));
-	gfs2_printf("sd_bufdata_count:metadata buffers::%d\n",
-		    atomic_read(&sdp->sd_bufdata_count));
-	gfs2_printf("sd_unlinked_count:unlinked inodes::%d\n",
-		    atomic_read(&sdp->sd_unlinked_count));
-	gfs2_printf("sd_quota_count:quota IDs::%d\n",
-		    atomic_read(&sdp->sd_quota_count));
+	gfs2_printf("sd_glock_count:locks::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_glock_count));
+
+	gfs2_printf("sd_glock_held_count:locks held::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_glock_held_count));
+
+	gfs2_printf("sd_inode_count:incore inodes::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_inode_count));
+
+	gfs2_printf("sd_bufdata_count:metadata buffers::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_bufdata_count));
+
+	gfs2_printf("sd_unlinked_count:unlinked inodes::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_unlinked_count));
+
+	gfs2_printf("sd_quota_count:quota IDs::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_quota_count));
+
 	gfs2_printf("sd_log_num_gl:Glocks in current transaction::%u\n",
 		    sdp->sd_log_num_gl);
+
 	gfs2_printf("sd_log_num_buf:Blocks in current transaction::%u\n",
 		    sdp->sd_log_num_buf);
+
 	gfs2_printf("sd_log_num_revoke:Revokes in current transaction::%u\n",
 		    sdp->sd_log_num_revoke);
+
 	gfs2_printf("sd_log_num_rg:RGs in current transaction::%u\n",
 		    sdp->sd_log_num_rg);
+
 	gfs2_printf("sd_log_num_databuf:Databufs in current transaction::%u\n",
 		    sdp->sd_log_num_databuf);
+
 	gfs2_printf("sd_log_blks_free:log blks free::%u\n",
 		    sdp->sd_log_blks_free);
+
 	gfs2_printf("jd_blocks:log blocks total::%u\n",
 		    sdp->sd_jdesc->jd_blocks);
-	gfs2_printf("sd_reclaim_count:glocks on reclaim list::%d\n",
-		    atomic_read(&sdp->sd_reclaim_count));
+
+	gfs2_printf("sd_reclaim_count:glocks on reclaim list::%u\n",
+		    (unsigned int)atomic_read(&sdp->sd_reclaim_count));
+
 	gfs2_printf("sd_log_wraps:log wraps::%llu\n",
 		    sdp->sd_log_wraps);
+
 	gfs2_printf("sd_bio_outstanding:outstanding BIO calls::%u\n",
-		    atomic_read(&sdp->sd_bio_outstanding));
+		    (unsigned int)atomic_read(&sdp->sd_bio_outstanding));
+
 	gfs2_printf("sd_fh2dentry_misses:fh2dentry misses:diff:%u\n",
-		    handle_roll(&sdp->sd_fh2dentry_misses));
+		    (unsigned int)atomic_read(&sdp->sd_fh2dentry_misses));
+
 	gfs2_printf("sd_reclaimed:glocks reclaimed:diff:%u\n",
-		    handle_roll(&sdp->sd_reclaimed));
+		    (unsigned int)atomic_read(&sdp->sd_reclaimed));
+
 	gfs2_printf("sd_log_flush_incore:log incore flushes:diff:%u\n",
-		    handle_roll(&sdp->sd_log_flush_incore));
+		    (unsigned int)atomic_read(&sdp->sd_log_flush_incore));
+
 	gfs2_printf("sd_log_flush_ondisk:log ondisk flushes:diff:%u\n",
-		    handle_roll(&sdp->sd_log_flush_ondisk));
+		    (unsigned int)atomic_read(&sdp->sd_log_flush_ondisk));
+
 	gfs2_printf("sd_glock_nq_calls:glock nq calls:diff:%u\n",
-		    handle_roll(&sdp->sd_glock_nq_calls));
+		    (unsigned int)atomic_read(&sdp->sd_glock_nq_calls));
+
 	gfs2_printf("sd_glock_dq_calls:glock dq calls:diff:%u\n",
-		    handle_roll(&sdp->sd_glock_dq_calls));
+		    (unsigned int)atomic_read(&sdp->sd_glock_dq_calls));
+
 	gfs2_printf("sd_glock_prefetch_calls:glock prefetch calls:diff:%u\n",
-		    handle_roll(&sdp->sd_glock_prefetch_calls));
+		    (unsigned int)atomic_read(&sdp->sd_glock_prefetch_calls));
+
 	gfs2_printf("sd_lm_lock_calls:lm_lock calls:diff:%u\n",
-		    handle_roll(&sdp->sd_lm_lock_calls));
+		    (unsigned int)atomic_read(&sdp->sd_lm_lock_calls));
+
 	gfs2_printf("sd_lm_unlock_calls:lm_unlock calls:diff:%u\n",
-		    handle_roll(&sdp->sd_lm_unlock_calls));
+		    (unsigned int)atomic_read(&sdp->sd_lm_unlock_calls));
+
 	gfs2_printf("sd_lm_callbacks:lm callbacks:diff:%u\n",
-		    handle_roll(&sdp->sd_lm_callbacks));
+		    (unsigned int)atomic_read(&sdp->sd_lm_callbacks));
+
 	gfs2_printf("sd_ops_address:address operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_address));
+		    (unsigned int)atomic_read(&sdp->sd_ops_address));
+
 	gfs2_printf("sd_ops_dentry:dentry operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_dentry));
+		    (unsigned int)atomic_read(&sdp->sd_ops_dentry));
+
 	gfs2_printf("sd_ops_export:export operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_export));
+		    (unsigned int)atomic_read(&sdp->sd_ops_export));
+
 	gfs2_printf("sd_ops_file:file operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_file));
+		    (unsigned int)atomic_read(&sdp->sd_ops_file));
+
 	gfs2_printf("sd_ops_inode:inode operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_inode));
+		    (unsigned int)atomic_read(&sdp->sd_ops_inode));
+
 	gfs2_printf("sd_ops_super:super operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_super));
+		    (unsigned int)atomic_read(&sdp->sd_ops_super));
+
 	gfs2_printf("sd_ops_vm:vm operations:diff:%u\n",
-		    handle_roll(&sdp->sd_ops_vm));
+		    (unsigned int)atomic_read(&sdp->sd_ops_vm));
+
 	gfs2_printf("sd_bio_reads:block I/O reads:diff:%u\n",
-		    handle_roll(&sdp->sd_bio_reads) >>
+		    (unsigned int)atomic_read(&sdp->sd_bio_reads) >>
 		    (sdp->sd_sb.sb_bsize_shift - 9));
+
 	gfs2_printf("sd_bio_writes:block I/O writes:diff:%u\n",
-		    handle_roll(&sdp->sd_bio_writes) >>
+		    (unsigned int)atomic_read(&sdp->sd_bio_writes) >>
 		    (sdp->sd_sb.sb_bsize_shift - 9));
 
 	error = 0;
