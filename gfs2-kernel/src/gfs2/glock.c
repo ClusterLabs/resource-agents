@@ -406,7 +406,7 @@ struct gfs2_holder *gfs2_holder_get(struct gfs2_glock *gl, unsigned int state,
 {
 	struct gfs2_holder *gh;
 
-	gh = kmalloc(sizeof(struct gfs2_holder), GFP_KERNEL | gfp_flags);
+	gh = kmalloc(sizeof(struct gfs2_holder), gfp_flags);
 	if (!gh)
 		return NULL;
 
@@ -791,7 +791,7 @@ static void handle_callback(struct gfs2_glock *gl, unsigned int state)
 
 		new_gh = gfs2_holder_get(gl, state,
 					 LM_FLAG_TRY | GL_NEVER_RECURSE,
-					 __GFP_NOFAIL),
+					 GFP_KERNEL | __GFP_NOFAIL),
 		set_bit(HIF_DEMOTE, &new_gh->gh_iflags);
 		set_bit(HIF_DEALLOC, &new_gh->gh_iflags);
 
