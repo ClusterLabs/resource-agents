@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.431 $) dnl cvs revision
+AC_REVISION($Revision: 1.432 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -154,6 +154,10 @@ AC_DEFINE_UNQUOTED(HA_LIBDIR,"$HA_LIBDIR", lib directory)
 HA_VARRUNDIR="${localstatedir}/run"
 AC_SUBST(HA_VARRUNDIR)
 AC_DEFINE_UNQUOTED(HA_VARRUNDIR,"$HA_VARRUNDIR", var run directory)
+
+HA_VARLOCKDIR="${localstatedir}/lock"
+AC_SUBST(HA_VARLOCKDIR)
+AC_DEFINE_UNQUOTED(HA_VARLOCKDIR,"$HA_VARLOCKDIR", var lock directory)
 
 HA_VARLIBDIR="${localstatedir}/lib"
 AC_SUBST(HA_VARLIBDIR)
