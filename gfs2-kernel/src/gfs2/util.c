@@ -29,6 +29,12 @@ uint32_t gfs2_disk_hash(const char *data, int len)
 	return crc32_le(0xFFFFFFFF, data, len) ^ 0xFFFFFFFF;
 }
 
+void gfs2_assert_i(struct gfs2_sbd *sdp)
+{
+	printk(KERN_EMERG "GFS2: fsid=%s: fatal assertion failed\n",
+	       sdp->sd_fsname);
+}
+
 /**
  * gfs2_assert_withdraw_i - Cause the machine to withdraw if @assertion is false
  * Returns: -1 if this call withdrew the machine,
