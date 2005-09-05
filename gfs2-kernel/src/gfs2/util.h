@@ -26,14 +26,11 @@ uint32_t gfs2_disk_hash(const char *data, int len);
 	fs_printk(KERN_ERR, fs , fmt , ## arg)
 
 
-void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
-		   char *file, unsigned int line) __attribute__ ((noreturn));
-
 #define gfs2_assert(sdp, assertion) \
 do { \
 	if (unlikely(!(assertion))) { \
-		gfs2_assert_i((sdp), #assertion, \
-			      __FUNCTION__, __FILE__, __LINE__); \
+		printk(KERN_ERR "GFS2: fsid=%s\n", (sdp)->sd_fsname); \
+		BUG(); \
 	} \
 } while (0)
 

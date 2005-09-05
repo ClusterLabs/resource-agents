@@ -30,20 +30,6 @@ uint32_t gfs2_disk_hash(const char *data, int len)
 }
 
 /**
- * gfs2_assert_i - Cause the machine to panic if @assertion is false
- *
- */
-
-void gfs2_assert_i(struct gfs2_sbd *sdp, char *assertion, const char *function,
-                   char *file, unsigned int line)
-{
-	panic("GFS2: fsid=%s: fatal: assertion \"%s\" failed\n"
-	      "GFS2: fsid=%s:   function = %s, file = %s, line = %u\n",
-	      sdp->sd_fsname, assertion,
-	      sdp->sd_fsname, function, file, line);
-}
-
-/**
  * gfs2_assert_withdraw_i - Cause the machine to withdraw if @assertion is false
  * Returns: -1 if this call withdrew the machine,
  *          -2 if it was already withdrawn
