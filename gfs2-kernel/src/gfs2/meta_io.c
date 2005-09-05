@@ -37,7 +37,7 @@
 static int aspace_get_block(struct inode *inode, sector_t lblock,
 			    struct buffer_head *bh_result, int create)
 {
-	gfs2_assert_warn(get_v2sdp(inode->i_sb), FALSE);
+	gfs2_assert_warn(get_v2sdp(inode->i_sb), 0);
 	return -EOPNOTSUPP;
 }
 
@@ -213,7 +213,7 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 	int retry;
 
 	do {
-		retry = FALSE;
+		retry = 0;
 
 		for (head = &ai->ai_ail1_list, tmp = head->prev, prev = tmp->prev;
 		     tmp != head;
@@ -241,7 +241,7 @@ void gfs2_ail1_start_one(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 			ll_rw_block(WRITE, 1, &bh);
 			gfs2_log_lock(sdp);
 
-			retry = TRUE;
+			retry = 1;
 			break;
 		}
 	} while (retry);
@@ -406,7 +406,7 @@ void gfs2_meta_sync(struct gfs2_glock *gl, int flags)
  * @sdp: the filesystem
  * @aspace: the address space
  * @blkno: the block number (filesystem scope)
- * @create: TRUE if the buffer should be created
+ * @create: 1 if the buffer should be created
  *
  * Returns: the buffer
  */
@@ -591,7 +591,7 @@ void gfs2_meta_pin(struct gfs2_sbd *sdp, struct buffer_head *bh)
 	gfs2_assert_withdraw(sdp, test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags));
 
 	if (test_set_buffer_pinned(bh))
-		gfs2_assert_withdraw(sdp, FALSE);
+		gfs2_assert_withdraw(sdp, 0);
 
 	wait_on_buffer(bh);
 
@@ -628,7 +628,7 @@ void gfs2_meta_unpin(struct gfs2_sbd *sdp, struct buffer_head *bh,
 	gfs2_assert_withdraw(sdp, buffer_uptodate(bh));
 
 	if (!buffer_pinned(bh))
-		gfs2_assert_withdraw(sdp, FALSE);
+		gfs2_assert_withdraw(sdp, 0);
 
 	mark_buffer_dirty(bh);
 	clear_buffer_pinned(bh);

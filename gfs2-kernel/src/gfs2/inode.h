@@ -67,7 +67,7 @@ static inline int gfs2_lookup_simple(struct gfs2_inode *dip, char *name,
 	memset(&qstr, 0, sizeof(struct qstr));
 	qstr.name = name;
 	qstr.len = strlen(name);
-	return gfs2_lookupi(dip, &qstr, TRUE, ipp);
+	return gfs2_lookupi(dip, &qstr, 1, ipp);
 }
 
 #endif /* __INODE_DOT_H__ */

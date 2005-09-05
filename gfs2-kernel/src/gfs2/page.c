@@ -138,13 +138,13 @@ int gfs2_unstuffer_page(struct gfs2_inode *ip, struct buffer_head *dibh,
 	struct inode *inode = ip->i_vnode;
 	struct page *page = (struct page *)private;
 	struct buffer_head *bh;
-	int release = FALSE;
+	int release = 0;
 
 	if (!page || page->index) {
 		page = grab_cache_page(inode->i_mapping, 0);
 		if (!page)
 			return -ENOMEM;
-		release = TRUE;
+		release = 1;
 	}
 
 	if (!PageUptodate(page)) {
@@ -202,7 +202,7 @@ int gfs2_truncator_page(struct gfs2_inode *ip, uint64_t size)
 	unsigned long index;
 	unsigned int offset;
 	unsigned int bufnum;
-	int new = FALSE;
+	int new = 0;
 	int error;
 
 	lbn = size >> inode->i_blkbits;

@@ -34,7 +34,7 @@
  * @er:
  * @size:
  *
- * Returns: TRUE if the EA should be stuffed
+ * Returns: 1 if the EA should be stuffed
  */
 
 static int ea_calc_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er,
@@ -42,11 +42,11 @@ static int ea_calc_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er,
 {
 	*size = GFS2_EAREQ_SIZE_STUFFED(er);
 	if (*size <= sdp->sd_jbsize)
-		return TRUE;
+		return 1;
 
 	*size = GFS2_EAREQ_SIZE_UNSTUFFED(sdp, er);
 
-	return FALSE;
+	return 0;
 }
 
 static int ea_check_size(struct gfs2_sbd *sdp, struct gfs2_ea_request *er)
@@ -943,13 +943,13 @@ static int ea_set_simple(struct gfs2_inode *ip, struct buffer_head *bh,
 		if (GFS2_EA_REC_LEN(ea) < size)
 			return 0;
 		if (!GFS2_EA_IS_STUFFED(ea)) {
-			error = ea_remove_unstuffed(ip, bh, ea, prev, TRUE);
+			error = ea_remove_unstuffed(ip, bh, ea, prev, 1);
 			if (error)
 				return error;
 		}
-		es->ea_split = FALSE;
+		es->ea_split = 0;
 	} else if (GFS2_EA_REC_LEN(ea) - GFS2_EA_SIZE(ea) >= size)
-		es->ea_split = TRUE;
+		es->ea_split = 1;
 	else
 		return 0;
 
@@ -1080,7 +1080,7 @@ static int ea_set_remove_unstuffed(struct gfs2_inode *ip,
 				     GFS2_EA2NEXT(el->el_prev) == el->el_ea);
 	}
 
-	return ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev,FALSE);
+	return ea_remove_unstuffed(ip, el->el_bh, el->el_ea, el->el_prev,0);
 }
 
 int gfs2_ea_set_i(struct gfs2_inode *ip, struct gfs2_ea_request *er)
@@ -1207,7 +1207,7 @@ int gfs2_ea_remove_i(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 		error = ea_remove_stuffed(ip, &el);
 	else
 		error = ea_remove_unstuffed(ip, el.el_bh, el.el_ea, el.el_prev,
-					    FALSE);
+					    0);
 
 	brelse(el.el_bh);
 

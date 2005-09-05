@@ -53,7 +53,7 @@ static int gfs2_create(struct inode *dir, struct dentry *dentry,
 	struct gfs2_sbd *sdp = dip->i_sbd;
 	struct gfs2_holder ghs[2];
 	struct inode *inode;
-	int new = TRUE;
+	int new = 1;
 	int error;
 
 	atomic_inc(&sdp->sd_ops_inode);
@@ -77,9 +77,9 @@ static int gfs2_create(struct inode *dir, struct dentry *dentry,
 			return error;
 		}
 
-		error = gfs2_lookupi(dip, &dentry->d_name, FALSE, &ip);
+		error = gfs2_lookupi(dip, &dentry->d_name, 0, &ip);
 		if (!error) {
-			new = FALSE;
+			new = 0;
 			gfs2_holder_uninit(ghs);
 			break;
 		} else if (error != -ENOENT) {
@@ -125,7 +125,7 @@ static struct dentry *gfs2_lookup(struct inode *dir, struct dentry *dentry,
 	if (!sdp->sd_args.ar_localcaching)
 		dentry->d_op = &gfs2_dops;
 
-	error = gfs2_lookupi(dip, &dentry->d_name, FALSE, &ip);
+	error = gfs2_lookupi(dip, &dentry->d_name, 0, &ip);
 	if (!error) {
 		inode = gfs2_ip2v(ip);
 		gfs2_inode_put(ip);
@@ -657,7 +657,7 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
 	struct gfs2_unlinked *ul;
 	struct gfs2_holder ghs[4], r_gh;
 	unsigned int num_gh;
-	int dir_rename = FALSE;
+	int dir_rename = 0;
 	int alloc_required;
 	unsigned int x;
 	int error;
@@ -677,7 +677,7 @@ static int gfs2_rename(struct inode *odir, struct dentry *odentry,
 	/* Make sure we aren't trying to move a dirctory into it's subdir */
 
 	if (S_ISDIR(ip->i_di.di_mode) && odip != ndip) {
-		dir_rename = TRUE;
+		dir_rename = 1;
 
 		error = gfs2_glock_nq_init(sdp->sd_rename_gl,
 					   LM_ST_EXCLUSIVE, 0,

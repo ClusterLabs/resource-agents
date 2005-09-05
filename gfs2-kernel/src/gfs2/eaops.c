@@ -101,7 +101,7 @@ static int system_eo_get(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 
 static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
-	int remove = FALSE;
+	int remove = 0;
 	int error;
 
 	if (GFS2_ACL_IS_ACCESS(er->er_name, er->er_name_len)) {
@@ -109,7 +109,7 @@ static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 			er->er_mode = ip->i_di.di_mode;
 			er->er_flags |= GFS2_ERF_MODE;
 		}
-		error = gfs2_acl_validate_set(ip, TRUE, er,
+		error = gfs2_acl_validate_set(ip, 1, er,
 					      &remove, &er->er_mode);
 		if (error)
 			return error;
@@ -121,7 +121,7 @@ static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 		return 0;
 
 	} else if (GFS2_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
-		error = gfs2_acl_validate_set(ip, FALSE, er,
+		error = gfs2_acl_validate_set(ip, 0, er,
 					      &remove, NULL);
 		if (error)
 			return error;
@@ -141,12 +141,12 @@ static int system_eo_set(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 static int system_eo_remove(struct gfs2_inode *ip, struct gfs2_ea_request *er)
 {
 	if (GFS2_ACL_IS_ACCESS(er->er_name, er->er_name_len)) {
-		int error = gfs2_acl_validate_remove(ip, TRUE);
+		int error = gfs2_acl_validate_remove(ip, 1);
 		if (error)
 			return error;
 
 	} else if (GFS2_ACL_IS_DEFAULT(er->er_name, er->er_name_len)) {
-		int error = gfs2_acl_validate_remove(ip, FALSE);
+		int error = gfs2_acl_validate_remove(ip, 0);
 		if (error)
 			return error;
 

@@ -92,18 +92,18 @@ typedef int (*leaf_call_t) (struct gfs2_inode *dip,
  * @file2: The second filename
  * @len_of_file2: The length of the second file
  *
- * This routine compares two filenames and returns TRUE if they are equal.
+ * This routine compares two filenames and returns 1 if they are equal.
  *
- * Returns: TRUE (!=0) if the files are the same, otherwise FALSE (0).
+ * Returns: 1 if the files are the same, otherwise 0.
  */
 
 int gfs2_filecmp(struct qstr *file1, char *file2, int len_of_file2)
 {
 	if (file1->len != len_of_file2)
-		return FALSE;
+		return 0;
 	if (memcmp(file1->name, file2, file1->len))
-		return FALSE;
-	return TRUE;
+		return 0;
+	return 1;
 }
 
 /**
@@ -316,7 +316,7 @@ int gfs2_dirent_alloc(struct gfs2_inode *dip, struct buffer_head *bh,
  * @bh: The buffer
  * @name_len: The length of the name
  *
- * Returns: TRUE if it can fit, FALSE otherwise
+ * Returns: 1 if it can fit, 0 otherwise
  */
 
 static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
@@ -340,7 +340,7 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 	}
 
 	if (!entries)
-		return TRUE;
+		return 1;
 
 	do {
 		uint32_t cur_rec_len, cur_name_len;
@@ -350,10 +350,10 @@ static int dirent_fits(struct gfs2_inode *dip, struct buffer_head *bh,
 
 		if ((!dent->de_inum.no_addr && cur_rec_len >= rec_len) ||
 		    (cur_rec_len >= GFS2_DIRENT_SIZE(cur_name_len) + rec_len))
-			return TRUE;
+			return 1;
 	} while (dirent_next(dip, bh, &dent) == 0);
 
-	return FALSE;
+	return 0;
 }
 
 static int leaf_search(struct gfs2_inode *dip, struct buffer_head *bh,
@@ -637,7 +637,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 	uint32_t start, len, half_len, divider;
 	uint64_t bn, *lp;
 	uint32_t name_len;
-	int x, moved = FALSE;
+	int x, moved = 0;
 	int error;
 
 	/*  Allocate the new leaf block  */
@@ -744,7 +744,7 @@ static int dir_split_leaf(struct gfs2_inode *dip, uint32_t index,
 			if (!prev)
 				prev = dent;
 
-			moved = TRUE;
+			moved = 1;
 		} else
 			prev = dent;
 
@@ -934,7 +934,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 	struct gfs2_inum inum;
 	uint64_t off, off_next;
 	unsigned int x, y;
-	int run = FALSE;
+	int run = 0;
 	int error = 0;
 
 	sort(darr, entries, sizeof(struct gfs2_dirent *), compare_dents, NULL);
@@ -959,9 +959,9 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 			if (off_next == off) {
 				if (*copied && !run)
 					return 1;
-				run = TRUE;
+				run = 1;
 			} else
-				run = FALSE;
+				run = 0;
 		} else {
 			if (off < *offset)
 				continue;
@@ -977,7 +977,7 @@ static int do_filldir_main(struct gfs2_inode *dip, uint64_t *offset,
 		if (error)
 			return 1;
 
-		*copied = TRUE;
+		*copied = 1;
 	}
 
 	/* Increment the *offset by one, so the next time we come into the
@@ -1403,7 +1403,7 @@ static int dir_e_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 	uint32_t ht_offset, lp_offset, ht_offset_cur = -1;
 	uint32_t hash, index;
 	uint64_t *lp;
-	int copied = FALSE;
+	int copied = 0;
 	int error = 0;
 
 	hsize = 1 << dip->i_di.di_depth;
@@ -1629,7 +1629,7 @@ static int dir_l_read(struct gfs2_inode *dip, uint64_t *offset, void *opaque,
 		      gfs2_filldir_t filldir)
 {
 	struct buffer_head *dibh;
-	int copied = FALSE;
+	int copied = 0;
 	int error;
 
 	if (!gfs2_is_stuffed(dip)) {
@@ -2044,7 +2044,7 @@ int gfs2_dir_exhash_dealloc(struct gfs2_inode *dip)
  * gfs2_diradd_alloc_required - find if adding entry will require an allocation
  * @ip: the file being written to
  * @filname: the filename that's going to be added
- * @alloc_required: set to TRUE if an alloc is required, FALSE otherwise
+ * @alloc_required: set to 1 if an alloc is required, 0 otherwise
  *
  * Returns: errno
  */
@@ -2056,7 +2056,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 	uint32_t hsize, hash, index;
 	int error = 0;
 
-	*alloc_required = FALSE;
+	*alloc_required = 0;
 
 	if (dip->i_di.di_flags & GFS2_DIF_EXHASH) {
 		hsize = 1 << dip->i_di.di_depth;
@@ -2082,7 +2082,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 
 			error = get_next_leaf(dip, bh, &bh_next);
 			if (error == -ENOENT) {
-				*alloc_required = TRUE;
+				*alloc_required = 1;
 				error = 0;
 				break;
 			}
@@ -2096,7 +2096,7 @@ int gfs2_diradd_alloc_required(struct gfs2_inode *dip, struct qstr *filename,
 			return error;
 
 		if (!dirent_fits(dip, bh, filename->len))
-			*alloc_required = TRUE;
+			*alloc_required = 1;
 
 		brelse(bh);
 	}

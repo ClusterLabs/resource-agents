@@ -305,7 +305,7 @@ int gfs2_jindex_hold(struct gfs2_sbd *sdp, struct gfs2_holder *ji_gh)
 		if (!jd)
 			break;
 
-		error = gfs2_lookupi(dip, &name, TRUE, &jd->jd_inode);
+		error = gfs2_lookupi(dip, &name, 1, &jd->jd_inode);
 		if (error) {
 			kfree(jd);
 			break;
@@ -350,11 +350,11 @@ void gfs2_jindex_free(struct gfs2_sbd *sdp)
 static struct gfs2_jdesc *jdesc_find_i(struct list_head *head, unsigned int jid)
 {
 	struct gfs2_jdesc *jd;
-	int found = FALSE;
+	int found = 0;
 
 	list_for_each_entry(jd, head, jd_list) {
 		if (jd->jd_jid == jid) {
-			found = TRUE;
+			found = 1;
 			break;
 		}
 	}
@@ -383,21 +383,21 @@ void gfs2_jdesc_make_dirty(struct gfs2_sbd *sdp, unsigned int jid)
 	spin_lock(&sdp->sd_jindex_spin);
 	jd = jdesc_find_i(&sdp->sd_jindex_list, jid);
 	if (jd)
-		jd->jd_dirty = TRUE;
+		jd->jd_dirty = 1;
 	spin_unlock(&sdp->sd_jindex_spin);
 }
 
 struct gfs2_jdesc *gfs2_jdesc_find_dirty(struct gfs2_sbd *sdp)
 {
 	struct gfs2_jdesc *jd;
-	int found = FALSE;
+	int found = 0;
 
 	spin_lock(&sdp->sd_jindex_spin);
 
 	list_for_each_entry(jd, &sdp->sd_jindex_list, jd_list) {
 		if (jd->jd_dirty) {
-			jd->jd_dirty = FALSE;
-			found = TRUE;
+			jd->jd_dirty = 0;
+			found = 1;
 			break;
 		}
 	}
@@ -773,7 +773,7 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 	rgd_next = gfs2_rgrpd_get_first(sdp);
 
 	for (;;) {
-		done = TRUE;
+		done = 1;
 
 		for (x = 0; x < slots; x++) {
 			gh = gha + x;
@@ -791,14 +791,14 @@ int gfs2_statfs_slow(struct gfs2_sbd *sdp, struct gfs2_statfs_change *sc)
 			}
 
 			if (gh->gh_gl)
-				done = FALSE;
+				done = 0;
 			else if (rgd_next && !error) {
 				error = gfs2_glock_nq_init(rgd_next->rd_gl,
 							   LM_ST_SHARED,
 							   GL_ASYNC,
 							   gh);
 				rgd_next = gfs2_rgrpd_get_next(rgd_next);
-				done = FALSE;
+				done = 0;
 			}
 
 			if (signal_pending(current))

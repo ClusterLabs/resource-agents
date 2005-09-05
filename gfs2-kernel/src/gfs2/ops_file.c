@@ -581,7 +581,7 @@ static ssize_t do_write_direct(struct file *file, char *buf, size_t size,
 	if (gfs2_is_stuffed(ip) ||
 	    *offset + size > ip->i_di.di_size ||
 	    ((ip->i_di.di_mode & (S_ISUID | S_ISGID)) && !capable(CAP_FSETID)))
-		alloc_required = TRUE;
+		alloc_required = 1;
 	else {
 		error = gfs2_write_alloc_required(ip, *offset, size,
 						 &alloc_required);
@@ -951,7 +951,7 @@ static int readdir_reg(struct file *file, void *dirent, filldir_t filldir)
 	int error;
 
 	fdr.fdr_sbd = dip->i_sbd;
-	fdr.fdr_prefetch = TRUE;
+	fdr.fdr_prefetch = 1;
 	fdr.fdr_filldir = filldir;
 	fdr.fdr_opaque = dirent;
 
@@ -1071,7 +1071,7 @@ static int readdir_bad(struct file *file, void *dirent, filldir_t filldir)
 	gfs2_glock_dq_uninit(&d_gh);
 
 	fdr.fdr_sbd = sdp;
-	fdr.fdr_prefetch = FALSE;
+	fdr.fdr_prefetch = 0;
 	fdr.fdr_filldir = filldir;
 	fdr.fdr_opaque = dirent;
 

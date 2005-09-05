@@ -33,8 +33,8 @@
 #include "unlinked.h"
 #include "sys.h"
 
-#define DO FALSE
-#define UNDO TRUE
+#define DO 0
+#define UNDO 1
 
 static struct gfs2_sbd *init_sbd(struct super_block *sb)
 {
@@ -277,11 +277,11 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 {
 	struct gfs2_holder ji_gh;
 	struct task_struct *p;
-	int jindex = TRUE;
+	int jindex = 1;
 	int error = 0;
 
 	if (undo) {
-		jindex = FALSE;
+		jindex = 0;
 		goto fail_recoverd;
 	}
 
@@ -373,7 +373,7 @@ static int init_journal(struct gfs2_sbd *sdp, int undo)
 
 	set_bit(SDF_JOURNAL_CHECKED, &sdp->sd_flags);
 	gfs2_glock_dq_uninit(&ji_gh);
-	jindex = FALSE;
+	jindex = 0;
 
 	/* Disown my Journal glock */
 
@@ -690,7 +690,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 		return -ENOMEM;
 	}
 
-	error = gfs2_mount_args(sdp, (char *)data, FALSE);
+	error = gfs2_mount_args(sdp, (char *)data, 0);
 	if (error) {
 		printk("GFS2: can't parse mount arguments\n");
 		goto fail;
@@ -766,7 +766,7 @@ static int fill_super(struct super_block *sb, void *data, int silent)
 	init_journal(sdp, UNDO);
 
  fail_sb:
-	init_sb(sdp, FALSE, UNDO);
+	init_sb(sdp, 0, UNDO);
 
  fail_locking:
 	init_locking(sdp, &mount_gh, UNDO);

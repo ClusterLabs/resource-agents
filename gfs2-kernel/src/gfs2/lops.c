@@ -27,7 +27,7 @@ static void glock_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	struct gfs2_glock *gl;
 
-	get_transaction->tr_touched = TRUE;
+	get_transaction->tr_touched = 1;
 
 	if (!list_empty(&le->le_list))
 		return;
@@ -69,7 +69,7 @@ static void buf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 		return;
 
 	tr = get_transaction;
-	tr->tr_touched = TRUE;
+	tr->tr_touched = 1;
 	tr->tr_num_buf++;
 	list_add(&bd->bd_list_tr, &tr->tr_list_buf);
 
@@ -231,7 +231,7 @@ static void revoke_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 	struct gfs2_trans *tr;
 
 	tr = get_transaction;
-	tr->tr_touched = TRUE;
+	tr->tr_touched = 1;
 	tr->tr_num_revoke++;
 
 	gfs2_log_lock(sdp);
@@ -313,7 +313,7 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 	struct buffer_head *bh;
 	unsigned int offset;
 	uint64_t blkno;
-	int first = TRUE;
+	int first = 1;
 	int error;
 
 	if (pass != 0 || ld->ld_type != GFS2_LOG_DESC_REVOKE)
@@ -346,7 +346,7 @@ static int revoke_lo_scan_elements(struct gfs2_jdesc *jd, unsigned int start,
 
 		brelse(bh);
 		offset = sizeof(struct gfs2_meta_header);
-		first = FALSE;
+		first = 0;
 	}
 
 	return 0;
@@ -373,7 +373,7 @@ static void rg_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
 	struct gfs2_rgrpd *rgd;
 
-	get_transaction->tr_touched = TRUE;
+	get_transaction->tr_touched = 1;
 
 	if (!list_empty(&le->le_list))
 		return;
@@ -405,7 +405,7 @@ static void rg_lo_after_commit(struct gfs2_sbd *sdp, struct gfs2_ail *ai)
 
 static void databuf_lo_add(struct gfs2_sbd *sdp, struct gfs2_log_element *le)
 {
-	get_transaction->tr_touched = TRUE;
+	get_transaction->tr_touched = 1;
 
 	gfs2_log_lock(sdp);
 	sdp->sd_log_num_databuf++;

@@ -169,7 +169,7 @@ void gfs2_trans_add_revoke(struct gfs2_sbd *sdp, uint64_t blkno)
 void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 {
 	struct gfs2_revoke *rv;
-	int found = FALSE;
+	int found = 0;
 
 	gfs2_log_lock(sdp);
 
@@ -178,7 +178,7 @@ void gfs2_trans_add_unrevoke(struct gfs2_sbd *sdp, uint64_t blkno)
 			list_del(&rv->rv_le.le_list);
 			gfs2_assert_withdraw(sdp, sdp->sd_log_num_revoke);
 			sdp->sd_log_num_revoke--;
-			found = TRUE;
+			found = 1;
 			break;
 		}
 	}

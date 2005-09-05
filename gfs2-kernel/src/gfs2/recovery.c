@@ -28,7 +28,7 @@ int gfs2_replay_read_block(struct gfs2_jdesc *jd, unsigned int blk,
 			   struct buffer_head **bh)
 {
 	struct gfs2_glock *gl = jd->jd_inode->i_gl;
-	int new = FALSE;
+	int new = 0;
 	uint64_t dblock;
 	uint32_t extlen;
 	int error;
@@ -51,11 +51,11 @@ int gfs2_revoke_add(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
 	struct list_head *head = &sdp->sd_revoke_list;
 	struct gfs2_revoke_replay *rr;
-	int found = FALSE;
+	int found = 0;
 
 	list_for_each_entry(rr, head, rr_list) {
 		if (rr->rr_blkno == blkno) {
-			found = TRUE;
+			found = 1;
 			break;
 		}
 	}
@@ -80,11 +80,11 @@ int gfs2_revoke_check(struct gfs2_sbd *sdp, uint64_t blkno, unsigned int where)
 {
 	struct gfs2_revoke_replay *rr;
 	int wrap, a, b, revoke;
-	int found = FALSE;
+	int found = 0;
 
 	list_for_each_entry(rr, &sdp->sd_revoke_list, rr_list) {
 		if (rr->rr_blkno == blkno) {
-			found = TRUE;
+			found = 1;
 			break;
 		}
 	}
@@ -352,7 +352,7 @@ static int clean_journal(struct gfs2_jdesc *jd, struct gfs2_log_header *head)
 	struct gfs2_inode *ip = jd->jd_inode;
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	unsigned int lblock;
-	int new = FALSE;
+	int new = 0;
 	uint64_t dblock;
 	struct gfs2_log_header lh;
 	uint32_t hash;
@@ -413,7 +413,7 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 	struct gfs2_log_header head;
 	struct gfs2_holder j_gh, ji_gh, t_gh;
 	unsigned long t;
-	int ro = FALSE;
+	int ro = 0;
 	unsigned int pass;
 	int error;
 
@@ -475,10 +475,10 @@ int gfs2_recover_journal(struct gfs2_jdesc *jd, int wait)
 
 		if (test_bit(SDF_JOURNAL_CHECKED, &sdp->sd_flags)) {
 			if (!test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags))
-				ro = TRUE;
+				ro = 1;
 		} else {
 			if (sdp->sd_vfs->s_flags & MS_RDONLY)
-				ro = TRUE;
+				ro = 1;
 		}
 
 		if (ro) {

@@ -171,7 +171,7 @@ int gfs2_jdata_read(struct gfs2_inode *ip, char *buf, uint64_t offset,
 			amount = sdp->sd_sb.sb_bsize - o;
 
 		if (!extlen) {
-			new = FALSE;
+			new = 0;
 			error = gfs2_block_map(ip, lblock, &new,
 					       &dblock, &extlen);
 			if (error)
@@ -330,7 +330,7 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 			amount = sdp->sd_sb.sb_bsize - o;
 
 		if (!extlen) {
-			new = TRUE;
+			new = 1;
 			error = gfs2_block_map(ip, lblock, &new,
 					       &dblock, &extlen);
 			if (error)
@@ -341,7 +341,7 @@ int gfs2_jdata_write(struct gfs2_inode *ip, char *buf, uint64_t offset,
 		}
 
 		error = gfs2_jdata_get_buffer(ip, dblock,
-				(amount == sdp->sd_jbsize) ? TRUE : new,
+				(amount == sdp->sd_jbsize) ? 1 : new,
 				&bh);
 		if (error)
 			goto fail;

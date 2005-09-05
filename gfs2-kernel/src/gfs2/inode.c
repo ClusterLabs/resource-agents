@@ -702,7 +702,7 @@ int gfs2_change_nlink(struct gfs2_inode *ip, int diff)
  * gfs2_lookupi - Look up a filename in a directory and return its inode
  * @d_gh: An initialized holder for the directory glock
  * @name: The name of the inode to look for
- * @is_root: If TRUE, ignore the caller's permissions
+ * @is_root: If 1, ignore the caller's permissions
  * @i_gh: An uninitialized holder for the new inode glock
  *
  * There will always be a vnode (Linux VFS inode) for the d_gh inode unless
@@ -1451,7 +1451,7 @@ int gfs2_ok_to_move(struct gfs2_inode *this, struct gfs2_inode *to)
 			break;
 		}
 
-		error = gfs2_lookupi(to, &dotdot, TRUE, &tmp);
+		error = gfs2_lookupi(to, &dotdot, 1, &tmp);
 		if (error)
 			break;
 
@@ -1711,7 +1711,7 @@ int gfs2_glock_nq_m_atime(unsigned int num_gh, struct gfs2_holder *ghs)
  * gfs2_try_toss_vnode - See if we can toss a vnode from memory
  * @ip: the inode
  *
- * Returns:  TRUE if the vnode was tossed
+ * Returns:  1 if the vnode was tossed
  */
 
 void gfs2_try_toss_vnode(struct gfs2_inode *ip)

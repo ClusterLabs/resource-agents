@@ -35,7 +35,7 @@ static inline int gfs2_glock_is_locked_by_me(struct gfs2_glock *gl)
 {
 	struct list_head *tmp, *head;
 	struct gfs2_holder *gh;
-	int locked = FALSE;
+	int locked = 0;
 
 	/* Look in glock's list of holders for one with current task as owner */
 	spin_lock(&gl->gl_spin);
@@ -44,7 +44,7 @@ static inline int gfs2_glock_is_locked_by_me(struct gfs2_glock *gl)
 	     tmp = tmp->next) {
 		gh = list_entry(tmp, struct gfs2_holder, gh_list);
 		if (gh->gh_owner == current) {
-			locked = TRUE;
+			locked = 1;
 			break;
 		}
 	}

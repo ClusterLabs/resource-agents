@@ -768,9 +768,9 @@ static int gi_set_file_flag(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	buf[ARG_SIZE - 1] = 0;
 
 	if (strcmp(buf, "set") == 0)
-		set = TRUE;
+		set = 1;
 	else if (strcmp(buf, "clear") == 0)
-		set = FALSE;
+		set = 0;
 	else
 		return -EINVAL;
 
@@ -853,7 +853,7 @@ static int gi_get_bmap(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 {
 	struct gfs2_holder gh;
 	uint64_t lblock, dblock = 0;
-	int new = FALSE;
+	int new = 0;
 	int error;
 
 	if (gi->gi_argc != 1)
@@ -1235,10 +1235,10 @@ static int gi_do_quota_refresh(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	switch (buf[0]) {
 	case 'u':
-		user = TRUE;
+		user = 1;
 		break;
 	case 'g':
-		user = FALSE;
+		user = 0;
 		break;
 	default:
 		return -EINVAL;
@@ -1280,10 +1280,10 @@ static int gi_do_quota_read(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	switch (buf[0]) {
 	case 'u':
-		user = TRUE;
+		user = 1;
 		break;
 	case 'g':
-		user = FALSE;
+		user = 0;
 		break;
 	default:
 		return -EINVAL;
@@ -1338,7 +1338,7 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 {
 	char new_dir[ARG_SIZE], new_name[ARG_SIZE];
 	struct gfs2_inode *old_dip, *ip, *new_dip;
-	int put_new_dip = FALSE;
+	int put_new_dip = 0;
 	int error;
 
 	if (!capable(CAP_SYS_ADMIN))
@@ -1370,7 +1370,7 @@ static int gi_rename2system(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 					   &new_dip);
 		if (error)
 			goto out2;
-		put_new_dip = TRUE;
+		put_new_dip = 1;
 	} else if (!strcmp(new_dir, "jindex"))
 		new_dip = sdp->sd_jindex;
 	else {

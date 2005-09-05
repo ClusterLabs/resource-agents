@@ -24,7 +24,7 @@
  * gfs2_lm_mount - mount a locking protocol
  * @sdp: the filesystem
  * @args: mount arguements
- * @silent: if TRUE, don't complain if the FS isn't a GFS2 fs
+ * @silent: if 1, don't complain if the FS isn't a GFS2 fs
  *
  * Returns: errno
  */
@@ -111,10 +111,10 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 	if ((sdp->sd_lockstruct.ls_flags & LM_LSFLAG_LOCAL) &&
 	    !sdp->sd_args.ar_ignore_local_fs) {
 		/* Force local [p|f]locks */
-		sdp->sd_args.ar_localflocks = TRUE;
+		sdp->sd_args.ar_localflocks = 1;
 
 		/* Force local read ahead and caching */
-		sdp->sd_args.ar_localcaching = TRUE;
+		sdp->sd_args.ar_localcaching = 1;
 	}
 
  out:

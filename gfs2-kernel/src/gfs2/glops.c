@@ -70,7 +70,7 @@ static void meta_go_inval(struct gfs2_glock *gl, int flags)
  * meta_go_demote_ok - Check to see if it's ok to unlock a glock
  * @gl: the glock
  *
- * Returns: TRUE if we have no cached data; ok to demote meta glock
+ * Returns: 1 if we have no cached data; ok to demote meta glock
  */
 
 static int meta_go_demote_ok(struct gfs2_glock *gl)
@@ -185,20 +185,20 @@ static void inode_go_inval(struct gfs2_glock *gl, int flags)
  * inode_go_demote_ok - Check to see if it's ok to unlock an inode glock
  * @gl: the glock
  *
- * Returns: TRUE if it's ok
+ * Returns: 1 if it's ok
  */
 
 static int inode_go_demote_ok(struct gfs2_glock *gl)
 {
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	int demote = FALSE;
+	int demote = 0;
 
 	if (!get_gl2ip(gl) && !gl->gl_aspace->i_mapping->nrpages)
-		demote = TRUE;
+		demote = 1;
 	else if (!sdp->sd_args.ar_localcaching &&
 		 time_after_eq(jiffies, gl->gl_stamp +
 			       gfs2_tune_get(sdp, gt_demote_secs) * HZ))
-		demote = TRUE;
+		demote = 1;
 
 	return demote;
 }
@@ -292,7 +292,7 @@ static void inode_greedy(struct gfs2_glock *gl)
  * rgrp_go_demote_ok - Check to see if it's ok to unlock a RG's glock
  * @gl: the glock
  *
- * Returns: TRUE if it's ok
+ * Returns: 1 if it's ok
  */
 
 static int rgrp_go_demote_ok(struct gfs2_glock *gl)
@@ -405,7 +405,7 @@ static void trans_go_drop_th(struct gfs2_glock *gl)
  * quota_go_demote_ok - Check to see if it's ok to unlock a quota glock
  * @gl: the glock
  *
- * Returns: TRUE if it's ok
+ * Returns: 1 if it's ok
  */
 
 static int quota_go_demote_ok(struct gfs2_glock *gl)

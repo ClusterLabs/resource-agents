@@ -392,7 +392,7 @@ struct gfs2_args {
 	char ar_locktable[GFS2_LOCKNAME_LEN]; /* Name of the Lock Table */
 	char ar_hostdata[GFS2_LOCKNAME_LEN]; /* Host specific data */
 	int ar_spectator; /* Don't get a journal because we're always RO */
-	int ar_ignore_local_fs; /* Don't optimize even if local_fs is TRUE */
+	int ar_ignore_local_fs; /* Don't optimize even if local_fs is 1 */
 	int ar_localflocks; /* Let the VFS do flock|fcntl locks for us */
 	int ar_localcaching; /* Local-style caching (dangerous on multihost) */
 	int ar_debug; /* Oops on errors instead of trying to be graceful */

@@ -261,7 +261,7 @@ static int gfs2_remount_fs(struct super_block *sb, int *flags, char *data)
 
 	atomic_inc(&sdp->sd_ops_super);
 
-	error = gfs2_mount_args(sdp, data, TRUE);
+	error = gfs2_mount_args(sdp, data, 1);
 	if (error)
 		return error;
 

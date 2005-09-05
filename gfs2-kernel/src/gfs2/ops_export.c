@@ -176,7 +176,7 @@ static struct dentry *gfs2_get_parent(struct dentry *child)
 
 	atomic_inc(&dip->i_sbd->sd_ops_export);
 
-	error = gfs2_lookupi(dip, &dotdot, TRUE, &ip);
+	error = gfs2_lookupi(dip, &dotdot, 1, &ip);
 	if (error)
 		return ERR_PTR(error);
 

@@ -28,7 +28,7 @@ static int munge_ondisk(struct gfs2_sbd *sdp, unsigned int slot,
 	struct gfs2_inode *ip = sdp->sd_ut_inode;
 	unsigned int block, offset;
 	uint64_t dblock;
-	int new = FALSE;
+	int new = 0;
 	struct buffer_head *bh;
 	int error;
 
@@ -84,7 +84,7 @@ static struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 {
 	struct list_head *head;
 	struct gfs2_unlinked *ul;
-	int found = FALSE;
+	int found = 0;
 
 	if (sdp->sd_vfs->s_flags & MS_RDONLY)
 		return NULL;
@@ -100,7 +100,7 @@ static struct gfs2_unlinked *ul_fish(struct gfs2_sbd *sdp)
 		list_move_tail(&ul->ul_list, head);
 		ul->ul_count++;
 		set_bit(ULF_LOCKED, &ul->ul_flags);
-		found = TRUE;
+		found = 1;
 
 		break;
 	}
@@ -348,7 +348,7 @@ int gfs2_unlinked_init(struct gfs2_sbd *sdp)
 		unsigned int y;
 
 		if (!extlen) {
-			int new = FALSE;
+			int new = 0;
 			error = gfs2_block_map(ip, x, &new, &dblock, &extlen);
 			if (error)
 				goto fail;

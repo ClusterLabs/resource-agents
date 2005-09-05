@@ -17,14 +17,6 @@
 #include "incore.h"
 #include "util.h"
 
-#ifndef TRUE
-#define TRUE 1
-#endif
-
-#ifndef FALSE
-#define FALSE 0
-#endif
-
 #define NO_CREATE 0
 #define CREATE 1
 

@@ -112,7 +112,7 @@ static int alloc_page_backing(struct gfs2_inode *ip, struct page *page)
 	for (x = 0; x < blocks; ) {
 		uint64_t dblock;
 		unsigned int extlen;
-		int new = TRUE;
+		int new = 1;
 
 		error = gfs2_block_map(ip, lblock, &new, &dblock, &extlen);
 		if (error)

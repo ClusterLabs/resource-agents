@@ -27,7 +27,7 @@ static inline int is_done(struct gfs2_sbd *sdp, atomic_t *a)
 {
 	int done;
 	gfs2_log_lock(sdp);
-	done = atomic_read(a) ? FALSE : TRUE;
+	done = atomic_read(a) ? 0 : 1;
 	gfs2_log_unlock(sdp);
 	return done;
 }
@@ -279,7 +279,7 @@ void gfs2_log_release(struct gfs2_sbd *sdp, unsigned int blks)
 
 static uint64_t log_bmap(struct gfs2_sbd *sdp, unsigned int lbn)
 {
-	int new = FALSE;
+	int new = 0;
 	uint64_t dbn;
 	int error;
 
@@ -342,7 +342,7 @@ static inline void log_incr_head(struct gfs2_sbd *sdp)
 
 	if (++sdp->sd_log_flush_head == sdp->sd_jdesc->jd_blocks) {
 		sdp->sd_log_flush_head = 0;
-		sdp->sd_log_flush_wrapped = TRUE;
+		sdp->sd_log_flush_wrapped = 1;
 	}
 }
 
@@ -540,7 +540,7 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 	}
 
 	sdp->sd_log_flush_head = sdp->sd_log_head;
-	sdp->sd_log_flush_wrapped = FALSE;
+	sdp->sd_log_flush_wrapped = 0;
 	ai->ai_first = sdp->sd_log_flush_head;
 
 	lops_before_commit(sdp);
@@ -566,7 +566,7 @@ void gfs2_log_flush_i(struct gfs2_sbd *sdp, struct gfs2_glock *gl)
 	gfs2_log_unlock(sdp);
 
 	up(&sdp->sd_log_flush_lock);
-	sdp->sd_vfs->s_dirt = FALSE;
+	sdp->sd_vfs->s_dirt = 0;
 	gfs2_unlock_from_flush(sdp);
 
 	kfree(ai);
@@ -617,7 +617,7 @@ void gfs2_log_commit(struct gfs2_sbd *sdp, struct gfs2_trans *tr)
 	log_refund(sdp, tr);
 	lops_incore_commit(sdp, tr);
 
-	sdp->sd_vfs->s_dirt = TRUE;
+	sdp->sd_vfs->s_dirt = 1;
 	unlock_from_trans(sdp);
 
 	kfree(tr);
@@ -650,7 +650,7 @@ void gfs2_log_shutdown(struct gfs2_sbd *sdp)
 	gfs2_assert_withdraw(sdp, list_empty(&sdp->sd_ail1_list));
 
 	sdp->sd_log_flush_head = sdp->sd_log_head;
-	sdp->sd_log_flush_wrapped = FALSE;
+	sdp->sd_log_flush_wrapped = 0;
 
 	log_write_header(sdp, GFS2_LOG_HEAD_UNMOUNT, 0);
 

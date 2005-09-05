@@ -58,21 +58,21 @@ int gfs2_consist_i(struct gfs2_sbd *sdp, int cluster_wide,
 		   const char *function, char *file, unsigned int line);
 
 #define gfs2_consist(sdp) \
-gfs2_consist_i((sdp), FALSE, __FUNCTION__, __FILE__, __LINE__)
+gfs2_consist_i((sdp), 0, __FUNCTION__, __FILE__, __LINE__)
 
 
 int gfs2_consist_inode_i(struct gfs2_inode *ip, int cluster_wide,
 			 const char *function, char *file, unsigned int line);
 
 #define gfs2_consist_inode(ip) \
-gfs2_consist_inode_i((ip), FALSE, __FUNCTION__, __FILE__, __LINE__)
+gfs2_consist_inode_i((ip), 0, __FUNCTION__, __FILE__, __LINE__)
 
 
 int gfs2_consist_rgrpd_i(struct gfs2_rgrpd *rgd, int cluster_wide,
 			 const char *function, char *file, unsigned int line);
 
 #define gfs2_consist_rgrpd(rgd) \
-gfs2_consist_rgrpd_i((rgd), FALSE, __FUNCTION__, __FILE__, __LINE__)
+gfs2_consist_rgrpd_i((rgd), 0, __FUNCTION__, __FILE__, __LINE__)
 
 
 int gfs2_meta_check_ii(struct gfs2_sbd *sdp, struct buffer_head *bh,

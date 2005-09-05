@@ -46,7 +46,7 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	if (IS_ERR(acl))
 		return PTR_ERR(acl);
 	if (!acl) {
-		*remove = TRUE;
+		*remove = 1;
 		return 0;
 	}
 
@@ -57,7 +57,7 @@ int gfs2_acl_validate_set(struct gfs2_inode *ip, int access,
 	if (access) {
 		error = posix_acl_equiv_mode(acl, mode);
 		if (!error)
-			*remove = TRUE;
+			*remove = 1;
 		else if (error > 0)
 			error = 0;
 	}

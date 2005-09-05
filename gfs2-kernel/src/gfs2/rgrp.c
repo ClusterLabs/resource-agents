@@ -763,11 +763,11 @@ static int get_local_rgrp(struct gfs2_inode *ip)
 			if (try_rgrp_fit(rgd, al))
 				goto out;
 			gfs2_glock_dq_uninit(&al->al_rgd_gh);
-			rgd = recent_rgrp_next(rgd, TRUE);
+			rgd = recent_rgrp_next(rgd, 1);
 			break;
 
 		case GLR_TRYFAILED:
-			rgd = recent_rgrp_next(rgd, FALSE);
+			rgd = recent_rgrp_next(rgd, 0);
 			break;
 
 		default:

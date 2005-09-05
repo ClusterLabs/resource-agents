@@ -102,7 +102,7 @@ int gfs2_unstuff_dinode(struct gfs2_inode *ip, gfs2_unstuffer_t unstuffer,
 		if (journaled) {
 			block = gfs2_alloc_meta(ip);
 
-			error = gfs2_jdata_get_buffer(ip, block, TRUE, &bh);
+			error = gfs2_jdata_get_buffer(ip, block, 1, &bh);
 			if (error)
 				goto out_brelse;
 			gfs2_buffer_copy_tail(bh,
@@ -204,11 +204,11 @@ static int build_height(struct gfs2_inode *ip, int height)
 		if (error)
 			return error;
 
-		new_block = FALSE;
+		new_block = 0;
 		bp = (uint64_t *)(dibh->b_data + sizeof(struct gfs2_dinode));
 		for (x = 0; x < sdp->sd_diptrs; x++, bp++)
 			if (*bp) {
-				new_block = TRUE;
+				new_block = 1;
 				break;
 			}
 
@@ -475,7 +475,7 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
 
 			while (++mp->mp_list[end_of_metadata] < nptrs) {
 				lookup_block(ip, bh, end_of_metadata, mp,
-					     FALSE, &tmp_new, &tmp_dblock);
+					     0, &tmp_new, &tmp_dblock);
 
 				if (*dblock + *extlen != tmp_dblock)
 					break;
@@ -515,12 +515,12 @@ int gfs2_block_map(struct gfs2_inode *ip, uint64_t lblock, int *new,
  * @mp: the path through the metadata to the point to start
  * @height: the height the recursion is at
  * @block: the indirect block to look at
- * @first: TRUE if this is the first block
+ * @first: 1 if this is the first block
  * @bc: the call to make for each piece of metadata
  * @data: data opaque to this function to pass to @bc
  *
  * When this is first called @height and @block should be zero and
- * @first should be TRUE.
+ * @first should be 1.
  *
  * Returns: errno
  */
@@ -548,8 +548,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 		bottom = (uint64_t *)(bh->b_data + sizeof(struct gfs2_dinode)) +
 			sdp->sd_diptrs;
 	} else {
-		error = gfs2_meta_indirect_buffer(ip, height, block, FALSE,
-						  &bh);
+		error = gfs2_meta_indirect_buffer(ip, height, block, 0, &bh);
 		if (error)
 			return error;
 
@@ -564,7 +563,7 @@ static int recursive_scan(struct gfs2_inode *ip, struct buffer_head *dibh,
 		goto out;
 
 	if (height < ip->i_di.di_height - 1)
-		for (; top < bottom; top++, first = FALSE) {
+		for (; top < bottom; top++, first = 0) {
 			if (!*top)
 				continue;
 
@@ -612,14 +611,14 @@ static int do_strip(struct gfs2_inode *ip, struct buffer_head *dibh,
 	int error;
 
 	if (!*top)
-		sm->sm_first = FALSE;
+		sm->sm_first = 0;
 
 	if (height != sm->sm_height)
 		return 0;
 
 	if (sm->sm_first) {
 		top++;
-		sm->sm_first = FALSE;
+		sm->sm_first = 0;
 	}
 
 	metadata = (height != ip->i_di.di_height - 1) || gfs2_is_jdata(ip);
@@ -823,7 +822,7 @@ static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 	uint64_t lbn, dbn;
 	uint32_t off;
 	struct buffer_head *bh;
-	int new = FALSE;
+	int new = 0;
 	int error;
 
 	lbn = size;
@@ -833,7 +832,7 @@ static int truncator_journaled(struct gfs2_inode *ip, uint64_t size)
 	if (error || !dbn)
 		return error;
 
-	error = gfs2_jdata_get_buffer(ip, dbn, FALSE, &bh);
+	error = gfs2_jdata_get_buffer(ip, dbn, 0, &bh);
 	if (error)
 		return error;
 
@@ -923,7 +922,7 @@ static int trunc_dealloc(struct gfs2_inode *ip, uint64_t size)
 		sm.sm_first = !!size;
 		sm.sm_height = height;
 
-		error = recursive_scan(ip, NULL, mp, 0, 0, TRUE, do_strip, &sm);
+		error = recursive_scan(ip, NULL, mp, 0, 0, 1, do_strip, &sm);
 		if (error)
 			break;
 	}
@@ -1079,7 +1078,7 @@ void gfs2_write_calc_reserv(struct gfs2_inode *ip, unsigned int len,
  * @ip: the file being written to
  * @offset: the offset to write to
  * @len: the number of bytes being written
- * @alloc_required: set to TRUE if an alloc is required, FALSE otherwise
+ * @alloc_required: set to 1 if an alloc is required, 0 otherwise
  *
  * Returns: errno
  */
@@ -1090,10 +1089,10 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 	struct gfs2_sbd *sdp = ip->i_sbd;
 	uint64_t lblock, lblock_stop, dblock;
 	uint32_t extlen;
-	int new = FALSE;
+	int new = 0;
 	int error = 0;
 
-	*alloc_required = FALSE;
+	*alloc_required = 0;
 
 	if (!len)
 		return 0;
@@ -1101,7 +1100,7 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 	if (gfs2_is_stuffed(ip)) {
 		if (offset + len >
 		    sdp->sd_sb.sb_bsize - sizeof(struct gfs2_dinode))
-			*alloc_required = TRUE;
+			*alloc_required = 1;
 		return 0;
 	}
 
@@ -1123,7 +1122,7 @@ int gfs2_write_alloc_required(struct gfs2_inode *ip, uint64_t offset,
 			return error;
 
 		if (!dblock) {
-			*alloc_required = TRUE;
+			*alloc_required = 1;
 			return 0;
 		}
 	}
@@ -1203,7 +1202,7 @@ int gfs2_get_file_meta(struct gfs2_inode *ip, struct gfs2_user_buffer *ub)
 		}
 	} else {
 		struct metapath *mp = find_metapath(ip, 0);
-		error = recursive_scan(ip, NULL, mp, 0, 0, TRUE, do_gfm, ub);
+		error = recursive_scan(ip, NULL, mp, 0, 0, 1, do_gfm, ub);
 		kfree(mp);
 	}
 

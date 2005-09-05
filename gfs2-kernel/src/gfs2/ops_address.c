@@ -73,7 +73,7 @@ static int get_block_noalloc(struct inode *inode, sector_t lblock,
 			     struct buffer_head *bh_result, int create)
 {
 	struct gfs2_inode *ip = get_v2ip(inode);
-	int new = FALSE;
+	int new = 0;
 	uint64_t dblock;
 	int error;
 
@@ -122,7 +122,7 @@ static int get_blocks_noalloc(struct inode *inode, sector_t lblock,
 			      struct buffer_head *bh_result, int create)
 {
 	struct gfs2_inode *ip = get_v2ip(inode);
-	int new = FALSE;
+	int new = 0;
 	uint64_t dblock;
 	uint32_t extlen;
 	int error;

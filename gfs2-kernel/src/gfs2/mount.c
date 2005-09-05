@@ -89,38 +89,38 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 		else if (!strcmp(o, "spectator")) {
 			if (remount && !args->ar_spectator)
 				goto cant_remount;
-			args->ar_spectator = TRUE;
+			args->ar_spectator = 1;
 			sdp->sd_vfs->s_flags |= MS_RDONLY;
 		}
 
 		else if (!strcmp(o, "ignore_local_fs")) {
 			if (remount && !args->ar_ignore_local_fs)
 				goto cant_remount;
-			args->ar_ignore_local_fs = TRUE;
+			args->ar_ignore_local_fs = 1;
 		}
 
 		else if (!strcmp(o, "localflocks")) {
 			if (remount && !args->ar_localflocks)
 				goto cant_remount;
-			args->ar_localflocks = TRUE;
+			args->ar_localflocks = 1;
 		}
 
 		else if (!strcmp(o, "localcaching")) {
 			if (remount && !args->ar_localcaching)
 				goto cant_remount;
-			args->ar_localcaching = TRUE;
+			args->ar_localcaching = 1;
 		}
 
 		else if (!strcmp(o, "debug"))
-			args->ar_debug = TRUE;
+			args->ar_debug = 1;
 
 		else if (!strcmp(o, "nodebug"))
-			args->ar_debug = FALSE;
+			args->ar_debug = 0;
 
 		else if (!strcmp(o, "upgrade")) {
 			if (remount && !args->ar_upgrade)
 				goto cant_remount;
-			args->ar_upgrade = TRUE;
+			args->ar_upgrade = 1;
 		}
 
 		else if (!strcmp(o, "num_glockd")) {
@@ -140,12 +140,12 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 		}
 
 		else if (!strcmp(o, "acl")) {
-			args->ar_posix_acl = TRUE;
+			args->ar_posix_acl = 1;
 			sdp->sd_vfs->s_flags |= MS_POSIXACL;
 		}
 
 		else if (!strcmp(o, "noacl")) {
-			args->ar_posix_acl = FALSE;
+			args->ar_posix_acl = 0;
 			sdp->sd_vfs->s_flags &= ~MS_POSIXACL;
 		}
 
@@ -166,10 +166,10 @@ int gfs2_mount_args(struct gfs2_sbd *sdp, char *data_arg, int remount)
 		}
 
 		else if (!strcmp(o, "suiddir"))
-			args->ar_suiddir = TRUE;
+			args->ar_suiddir = 1;
 
 		else if (!strcmp(o, "nosuiddir"))
-			args->ar_suiddir = FALSE;
+			args->ar_suiddir = 0;
 
 		else if (!strcmp(o, "data")) {
 			if (!v)
