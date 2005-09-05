@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.432 $) dnl cvs revision
+AC_REVISION($Revision: 1.433 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -843,7 +843,7 @@ if test "x${ac_cv_header_net_snmp_net_snmp_config_h}" = "xyes"; then
 		ENABLE_SNMP="no"
 	else
 		AC_MSG_CHECKING(for special snmp libraries)
-		SNMPLIB=`net-snmp-config --netsnmp-libs`
+		SNMPLIB=`net-snmp-config --libs`
 		SNMPAGENTLIB=`net-snmp-config --agent-libs`
 		AC_MSG_RESULT($SNMPLIB)
 	fi
@@ -876,19 +876,11 @@ fi
 check_snmp_libs ()
 {
 	OLDLIBS="$LIBS"
-	for x in $@; do
-		LIBS="$LIBS $x"
-		case $x in
-			-L*|-lnetsnmp*)
-			;;
-			*)
-				AC_MSG_CHECKING(snmp libraries: $LIBS)
-				AC_LINK_IFELSE([AC_LANG_PROGRAM([], [1;])], ,
-					AC_MSG_ERROR($x not available))
-				AC_MSG_RESULT(ok)
-			;;
-		esac
-	done
+	LIBS="$LIBS $@"
+	AC_MSG_CHECKING(snmp libraries: $LIBS)
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([], [1;])], ,
+			AC_MSG_ERROR($@ not available))
+			AC_MSG_RESULT(ok)
 	LIBS="$OLDLIBS"
 }
 
@@ -2418,9 +2410,10 @@ AC_MSG_RESULT([  HA user user id      = "${HA_CCMUID}"])
 AC_MSG_RESULT([  Build snmp subagent  = "${enable_snmp_subagent}"])
 if test "x${enable_snmp_subagent}" = "xyes"; then
     AC_MSG_RESULT([  SNMP MIB directory   = "${MIBS_DIR}"])
+    AC_MSG_RESULT([  SNMP agent libraries = "${SNMPAGENTLIB}"])
 fi
-AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
 AC_MSG_RESULT([  SNMP libraries       = "${SNMPLIB}"])
+AC_MSG_RESULT([  ucd_snmp_devel name  = "${UCDSNMPDEVEL}"])
 
 AC_MSG_RESULT([  Build New CRM        = "${enable_crm}"])
 AC_MSG_RESULT([  Build New LRM        = "${enable_lrm}"])
