@@ -123,8 +123,7 @@ static int gi_get_super(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 
 	gfs2_glock_dq_uninit(&sb_gh);
 
-	if (copy_to_user(gi->gi_data, sb,
-			 sizeof(struct gfs2_sb)))
+	if (copy_to_user(gi->gi_data, sb, sizeof(struct gfs2_sb)))
 		error = -EFAULT;
 	else
 		error = sizeof(struct gfs2_sb);
@@ -717,8 +716,7 @@ static int gi_get_file_stat(struct gfs2_inode *ip, struct gfs2_ioctl *gi)
 	memcpy(di, &ip->i_di, sizeof(struct gfs2_dinode));
 	gfs2_glock_dq_uninit(&i_gh);
 
-	if (copy_to_user(gi->gi_data, di,
-			 sizeof(struct gfs2_dinode)))
+	if (copy_to_user(gi->gi_data, di, sizeof(struct gfs2_dinode)))
 		error = -EFAULT;
 	else
 		error = sizeof(struct gfs2_dinode);
@@ -1005,8 +1003,7 @@ static int gi_get_hfile_stat(struct gfs2_sbd *sdp, struct gfs2_ioctl *gi)
 	memcpy(di, &ip->i_di, sizeof(struct gfs2_dinode));
 	gfs2_glock_dq_uninit(&i_gh);
 
-	if (copy_to_user(gi->gi_data, di,
-			 sizeof(struct gfs2_dinode)))
+	if (copy_to_user(gi->gi_data, di, sizeof(struct gfs2_dinode)))
 		error = -EFAULT;
 	else
 		error = sizeof(struct gfs2_dinode);
@@ -1401,8 +1398,7 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 	argv = kcalloc(gi.gi_argc, sizeof(char *), GFP_KERNEL);
 	if (!argv)
 		return -ENOMEM;
-	if (copy_from_user(argv, gi.gi_argv,
-			   gi.gi_argc * sizeof(char *)))
+	if (copy_from_user(argv, gi.gi_argv, gi.gi_argc * sizeof(char *)))
 		goto out;
 	gi.gi_argv = argv;
 
