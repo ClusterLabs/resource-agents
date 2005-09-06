@@ -99,10 +99,10 @@ int gfs2_lm_mount(struct gfs2_sbd *sdp, int silent)
 	}
 
 	if (sdp->sd_args.ar_spectator)
-		snprintf(sdp->sd_fsname, 256, "%s.s",
+		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.s",
 			 (*table) ? table : sdp->sd_vfs->s_id);
 	else
-		snprintf(sdp->sd_fsname, 256, "%s.%u",
+		snprintf(sdp->sd_fsname, GFS2_FSNAME_LEN, "%s.%u",
 			 (*table) ? table : sdp->sd_vfs->s_id,
 			 sdp->sd_lockstruct.ls_jid);
 

@@ -472,6 +472,7 @@ enum {
 #define GFS2_GL_HASH_SHIFT	13
 #define GFS2_GL_HASH_SIZE	(1 << GFS2_GL_HASH_SHIFT)
 #define GFS2_GL_HASH_MASK	(GFS2_GL_HASH_SIZE - 1)
+#define GFS2_FSNAME_LEN		256
 
 struct gfs2_sbd {
 	struct super_block *sd_vfs;
@@ -691,7 +692,7 @@ struct gfs2_sbd {
 	atomic_t sd_ops_super;
 	atomic_t sd_ops_vm;
 
-	char sd_fsname[256];
+	char sd_fsname[GFS2_FSNAME_LEN];
 
 	/* Debugging crud */
 
