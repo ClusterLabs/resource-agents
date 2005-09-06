@@ -1181,8 +1181,7 @@ find_holder_by_owner(struct list_head *head, struct task_struct *owner)
 /**
  * recurse_check -
  *
- * Make sure the new holder is compatible
- * with the pre-existing one.
+ * Make sure the new holder is compatible with the pre-existing one.
  *
  */
 
@@ -1190,20 +1189,24 @@ static int recurse_check(struct gfs2_holder *existing, struct gfs2_holder *new,
 			 unsigned int state)
 {
 	struct gfs2_sbd *sdp = existing->gh_gl->gl_sbd;
-	int error = 0;
 
 	if (gfs2_assert_warn(sdp, (new->gh_flags & LM_FLAG_ANY) ||
-			     !(existing->gh_flags & LM_FLAG_ANY)) ||
-	    gfs2_assert_warn(sdp, (existing->gh_flags & GL_LOCAL_EXCL) ||
-			     !(new->gh_flags & GL_LOCAL_EXCL)) ||
-	    gfs2_assert_warn(sdp, relaxed_state_ok(state,
-						   new->gh_state,
-						   new->gh_flags))) {
-		set_bit(HIF_ABORTED, &new->gh_iflags);
-		error = -EINVAL;
-	}
+			          !(existing->gh_flags & LM_FLAG_ANY)))
+		goto fail;
 
-	return error;
+	if (gfs2_assert_warn(sdp, (existing->gh_flags & GL_LOCAL_EXCL) ||
+				  !(new->gh_flags & GL_LOCAL_EXCL)))
+		goto fail;
+
+	if (gfs2_assert_warn(sdp, relaxed_state_ok(state, new->gh_state,
+						   new->gh_flags)))
+		goto fail;
+
+	return 0;
+
+ fail:
+	set_bit(HIF_ABORTED, &new->gh_iflags);
+	return -EINVAL;
 }
 
 /**
