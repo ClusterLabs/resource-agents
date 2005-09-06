@@ -22,11 +22,6 @@ static void queue_submit(struct gdlm_lock *lp)
 	wake_up(&ls->thread_wait);
 }
 
-static void process_submit(struct gdlm_lock *lp)
-{
-	gdlm_do_lock(lp, NULL);
-}
-
 static void process_blocking(struct gdlm_lock *lp, int bast_mode)
 {
 	struct gdlm_ls *ls = lp->ls;
@@ -313,7 +308,7 @@ static int gdlm_thread(void *data)
 			process_blocking(lp, blocking);
 
 		else if (submit)
-			process_submit(lp);
+			gdlm_do_lock(lp, NULL);
 
 		if (drop)
 			ls->fscb(ls->fsdata, LM_CB_DROPLOCKS, NULL);

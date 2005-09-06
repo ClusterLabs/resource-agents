@@ -47,6 +47,16 @@ static int check_version(struct gdlm_plock_info *info)
 	return 0;
 }
 
+static void send_op(struct plock_op *op)
+{
+	set_version(&op->info);
+	INIT_LIST_HEAD(&op->list);
+	spin_lock(&ops_lock);
+	list_add_tail(&op->list, &send_list);
+	spin_unlock(&ops_lock);
+	wake_up(&send_wq);
+}
+
 int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	       struct file *file, int cmd, struct file_lock *fl)
 {
@@ -60,7 +70,6 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 
 	log_debug("en plock %x,%llx", name->ln_type, name->ln_number);
 
-	set_version(&op->info);
 	op->info.optype		= GDLM_PLOCK_OP_LOCK;
 	op->info.pid		= (uint32_t) fl->fl_owner;
 	op->info.ex		= (fl->fl_type == F_WRLCK);
@@ -70,12 +79,7 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	op->info.start		= fl->fl_start;
 	op->info.end		= fl->fl_end;
 
-	INIT_LIST_HEAD(&op->list);
-	spin_lock(&ops_lock);
-	list_add_tail(&op->list, &send_list);
-	spin_unlock(&ops_lock);
-	wake_up(&send_wq);
-
+	send_op(op);
 	wait_event(recv_wq, (op->done != 0));
 
 	spin_lock(&ops_lock);
@@ -116,7 +120,6 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		log_error("gdlm_punlock: vfs unlock error %x,%llx",
 			  name->ln_type, name->ln_number);
 
-	set_version(&op->info);
 	op->info.optype		= GDLM_PLOCK_OP_UNLOCK;
 	op->info.pid		= (uint32_t) fl->fl_owner;
 	op->info.fsid		= ls->id;
@@ -124,17 +127,12 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	op->info.start		= fl->fl_start;
 	op->info.end		= fl->fl_end;
 
-	INIT_LIST_HEAD(&op->list);
-	spin_lock(&ops_lock);
-	list_add_tail(&op->list, &send_list);
-	spin_unlock(&ops_lock);
-	wake_up(&send_wq);
-
+	send_op(op);
 	wait_event(recv_wq, (op->done != 0));
 
 	spin_lock(&ops_lock);
 	if (!list_empty(&op->list)) {
-		printk("plock op on list\n");
+		printk("punlock op on list\n");
 		list_del(&op->list);
 	}
 	spin_unlock(&ops_lock);
@@ -150,7 +148,49 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 int gdlm_plock_get(lm_lockspace_t *lockspace, struct lm_lockname *name,
 		   struct file *file, struct file_lock *fl)
 {
-	return -ENOSYS;
+	struct gdlm_ls *ls = (struct gdlm_ls *) lockspace;
+	struct plock_op *op;
+	int rv;
+
+	op = kzalloc(sizeof(*op), GFP_KERNEL);
+	if (!op)
+		return -ENOMEM;
+
+	log_debug("en get %x,%llx", name->ln_type, name->ln_number);
+
+	op->info.optype		= GDLM_PLOCK_OP_GET;
+	op->info.pid		= (uint32_t) fl->fl_owner;
+	op->info.ex		= (fl->fl_type == F_WRLCK);
+	op->info.fsid		= ls->id;
+	op->info.number		= name->ln_number;
+	op->info.start		= fl->fl_start;
+	op->info.end		= fl->fl_end;
+
+	send_op(op);
+	wait_event(recv_wq, (op->done != 0));
+
+	spin_lock(&ops_lock);
+	if (!list_empty(&op->list)) {
+		printk("plock_get op on list\n");
+		list_del(&op->list);
+	}
+	spin_unlock(&ops_lock);
+
+	log_debug("ex get done %d rv %d", op->done, op->info.rv);
+
+	rv = op->info.rv;
+
+	if (rv == 0)
+		fl->fl_type = F_UNLCK;
+	else if (rv > 0) {
+		fl->fl_type = (op->info.ex) ? F_WRLCK : F_RDLCK;
+		fl->fl_pid = op->info.pid;
+		fl->fl_start = op->info.start;
+		fl->fl_end = op->info.end;
+	}
+
+	kfree(op);
+	return rv;
 }
 
 /* a read copies out one plock request from the send list */
