@@ -136,19 +136,21 @@ struct gfs2_glock_operations {
 	int go_type;
 };
 
-/* Actions */
-#define HIF_MUTEX		0
-#define HIF_PROMOTE		1
-#define HIF_DEMOTE		2
-#define HIF_GREEDY		3
+enum {
+	/* Actions */
+	HIF_MUTEX		= 0,
+	HIF_PROMOTE		= 1,
+	HIF_DEMOTE		= 2,
+	HIF_GREEDY		= 3,
 
-/* States */
-#define HIF_ALLOCED		4
-#define HIF_DEALLOC		5
-#define HIF_HOLDER		6
-#define HIF_FIRST		7
-#define HIF_RECURSE		8
-#define HIF_ABORTED		9
+	/* States */
+	HIF_ALLOCED		= 4,
+	HIF_DEALLOC		= 5,
+	HIF_HOLDER		= 6,
+	HIF_FIRST		= 7,
+	HIF_RECURSE		= 8,
+	HIF_ABORTED		= 9,
+};
 
 struct gfs2_holder {
 	struct list_head gh_list;
@@ -163,14 +165,16 @@ struct gfs2_holder {
 	struct completion gh_wait;
 };
 
-#define GLF_PLUG		0
-#define GLF_LOCK		1
-#define GLF_STICKY		2
-#define GLF_PREFETCH		3
-#define GLF_SYNC		4
-#define GLF_DIRTY		5
-#define GLF_SKIP_WAITERS2	6
-#define GLF_GREEDY		7
+enum {
+	GLF_PLUG		= 0,
+	GLF_LOCK		= 1,
+	GLF_STICKY		= 2,
+	GLF_PREFETCH		= 3,
+	GLF_SYNC		= 4,
+	GLF_DIRTY		= 5,
+	GLF_SKIP_WAITERS2	= 6,
+	GLF_GREEDY		= 7,
+};
 
 struct gfs2_glock {
 	struct list_head gl_list;
@@ -234,10 +238,12 @@ struct gfs2_alloc {
 	uint32_t al_alloced;
 };
 
-#define GIF_MIN_INIT		0
-#define GIF_QD_LOCKED		1
-#define GIF_PAGED		2
-#define GIF_SW_PAGED		3
+enum {
+	GIF_MIN_INIT		= 0,
+	GIF_QD_LOCKED		= 1,
+	GIF_PAGED		= 2,
+	GIF_SW_PAGED		= 3,
+};
 
 struct gfs2_inode {
 	struct gfs2_inum i_num;
@@ -266,7 +272,9 @@ struct gfs2_inode {
 	struct buffer_head *i_cache[GFS2_MAX_META_HEIGHT];
 };
 
-#define GFF_DID_DIRECT_ALLOC	0
+enum {
+	GFF_DID_DIRECT_ALLOC	= 0,
+};
 
 struct gfs2_file {
 	unsigned long f_flags;		/* GFF_... */
@@ -289,7 +297,9 @@ struct gfs2_revoke_replay {
 	unsigned int rr_where;
 };
 
-#define ULF_LOCKED		0
+enum {
+	ULF_LOCKED		= 0,
+};
 
 struct gfs2_unlinked {
 	struct list_head ul_list;
@@ -299,9 +309,11 @@ struct gfs2_unlinked {
 	unsigned int ul_slot;
 };
 
-#define QDF_USER		0
-#define QDF_CHANGE		1
-#define QDF_LOCKED		2
+enum {
+	QDF_USER		= 0,
+	QDF_CHANGE		= 1,
+	QDF_LOCKED		= 2,
+};
 
 struct gfs2_quota_data {
 	struct list_head qd_list;
@@ -450,10 +462,12 @@ struct gfs2_gl_hash_bucket {
 	struct list_head hb_list;
 };
 
-#define SDF_JOURNAL_CHECKED	0
-#define SDF_JOURNAL_LIVE	1
-#define SDF_SHUTDOWN		2
-#define SDF_NOATIME		3
+enum {
+	SDF_JOURNAL_CHECKED	= 0,
+	SDF_JOURNAL_LIVE	= 1,
+	SDF_SHUTDOWN		= 2,
+	SDF_NOATIME		= 3,
+};
 
 #define GFS2_GL_HASH_SHIFT	13
 #define GFS2_GL_HASH_SIZE	(1 << GFS2_GL_HASH_SHIFT)
