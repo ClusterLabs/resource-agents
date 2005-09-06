@@ -163,11 +163,10 @@ int gdlm_create_lp(struct gdlm_ls *ls, struct lm_lockname *name,
 {
 	struct gdlm_lock *lp;
 
-	lp = kmalloc(sizeof(struct gdlm_lock), GFP_KERNEL);
+	lp = kzalloc(sizeof(struct gdlm_lock), GFP_KERNEL);
 	if (!lp)
 		return -ENOMEM;
 
-	memset(lp, 0, sizeof(struct gdlm_lock));
 	lp->lockname = *name;
 	lp->ls = ls;
 	lp->cur = DLM_LOCK_IV;
@@ -375,11 +374,9 @@ int gdlm_add_lvb(struct gdlm_lock *lp)
 {
 	char *lvb;
 
-	lvb = kmalloc(GDLM_LVB_SIZE, GFP_KERNEL);
+	lvb = kzalloc(GDLM_LVB_SIZE, GFP_KERNEL);
 	if (!lvb)
 		return -ENOMEM;
-
-	memset(lvb, 0, GDLM_LVB_SIZE);
 
 	lp->lksb.sb_lvbptr = lvb;
 	lp->lvb = lvb;

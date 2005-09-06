@@ -20,27 +20,21 @@ static struct gdlm_ls *init_gdlm(lm_callback_t cb, lm_fsdata_t *fsdata,
 	struct gdlm_ls *ls;
 	char buf[256], *p;
 
-	ls = kmalloc(sizeof(struct gdlm_ls), GFP_KERNEL);
+	ls = kzalloc(sizeof(struct gdlm_ls), GFP_KERNEL);
 	if (!ls)
 		return NULL;
 
-	memset(ls, 0, sizeof(struct gdlm_ls));
-
 	ls->drop_locks_count = gdlm_drop_count;
 	ls->drop_locks_period = gdlm_drop_period;
-
 	ls->fscb = cb;
 	ls->fsdata = fsdata;
 	ls->fsflags = flags;
-
 	spin_lock_init(&ls->async_lock);
-
 	INIT_LIST_HEAD(&ls->complete);
 	INIT_LIST_HEAD(&ls->blocking);
 	INIT_LIST_HEAD(&ls->delayed);
 	INIT_LIST_HEAD(&ls->submit);
 	INIT_LIST_HEAD(&ls->all_locks);
-
 	init_waitqueue_head(&ls->thread_wait);
 	init_waitqueue_head(&ls->wait_control);
 	ls->thread1 = NULL;
@@ -53,15 +47,15 @@ static struct gdlm_ls *init_gdlm(lm_callback_t cb, lm_fsdata_t *fsdata,
 
 	p = strstr(buf, ":");
 	if (!p) {
-		printk("lock_dlm: invalid table_name \"%s\"\n", table_name);
+		log_info("invalid table_name \"%s\"", table_name);
 		kfree(ls);
 		return NULL;
 	}
 	*p = '\0';
 	p++;
 
-	strncpy(ls->clustername, buf, 128);
-	strncpy(ls->fsname, p, 128);
+	strncpy(ls->clustername, buf, GDLM_NAME_LEN);
+	strncpy(ls->fsname, p, GDLM_NAME_LEN);
 
 	return ls;
 }
@@ -154,7 +148,7 @@ static void gdlm_unmount(lm_lockspace_t *lockspace)
 	gdlm_release_threads(ls);
 	rv = gdlm_release_all_locks(ls);
 	if (rv)
-		log_info("lm_dlm_unmount: %d stray locks freed", rv);
+		log_info("gdlm_unmount: %d stray locks freed", rv);
  out:
 	kfree(ls);
 }

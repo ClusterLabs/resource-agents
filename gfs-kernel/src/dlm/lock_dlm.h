@@ -38,6 +38,7 @@
 #define GDLM_LVB_SIZE		32
 #define GDLM_DROP_COUNT		50000
 #define GDLM_DROP_PERIOD	60
+#define GDLM_NAME_LEN		128
 
 /* GFS uses 12 bytes to identify a resource (32 bit type + 64 bit number).
    We sprintf these numbers into a 24 byte string of hex values to make them
@@ -64,8 +65,8 @@ struct gdlm_ls {
 	int			first_done;
 	unsigned long		flags;
 	struct kobject		kobj;
-	char			clustername[128];
-	char			fsname[128];
+	char			clustername[GDLM_NAME_LEN];
+	char			fsname[GDLM_NAME_LEN];
 	int			fsflags;
 	dlm_lockspace_t		*dlm_lockspace;
 	lm_callback_t		fscb;
