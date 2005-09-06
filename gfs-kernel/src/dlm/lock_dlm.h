@@ -122,12 +122,6 @@ struct gdlm_lock {
 	struct gdlm_lock	*hold_null;	/* NL lock for hold_lvb */
 };
 
-#if (BITS_PER_LONG == 64)
-#define PRIx64 "lx"
-#else
-#define PRIx64 "Lx"
-#endif
-
 #define GDLM_ASSERT(x, do) \
 { \
   if (!(x)) \

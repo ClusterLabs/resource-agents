@@ -58,7 +58,7 @@ static void process_complete(struct gdlm_lock *lp)
 	memset(&acb, 0, sizeof(acb));
 
 	if (lp->lksb.sb_status == -DLM_ECANCEL) {
-		log_info("complete dlm cancel %x,%"PRIx64" flags %lx",
+		log_info("complete dlm cancel %x,%llx flags %lx",
 		 	 lp->lockname.ln_type, lp->lockname.ln_number,
 			 lp->flags);
 
@@ -71,7 +71,7 @@ static void process_complete(struct gdlm_lock *lp)
 
 	if (test_and_clear_bit(LFL_DLM_UNLOCK, &lp->flags)) {
 		if (lp->lksb.sb_status != -DLM_EUNLOCK) {
-			log_info("unlock sb_status %d %x,%"PRIx64" flags %lx",
+			log_info("unlock sb_status %d %x,%llx flags %lx",
 				 lp->lksb.sb_status, lp->lockname.ln_type,
 				 lp->lockname.ln_number, lp->flags);
 			return;
@@ -104,7 +104,7 @@ static void process_complete(struct gdlm_lock *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_CANCEL, &lp->flags)) {
-		log_info("complete internal cancel %x,%"PRIx64"",
+		log_info("complete internal cancel %x,%llx",
 		 	 lp->lockname.ln_type, lp->lockname.ln_number);
 		lp->req = lp->cur;
 		acb.lc_ret |= LM_OUT_CANCELED;
@@ -126,7 +126,7 @@ static void process_complete(struct gdlm_lock *lp)
 		}
 
 		/* this could only happen with cancels I think */
-		log_info("ast sb_status %d %x,%"PRIx64" flags %lx",
+		log_info("ast sb_status %d %x,%llx flags %lx",
 			 lp->lksb.sb_status, lp->lockname.ln_type,
 			 lp->lockname.ln_number, lp->flags);
 		return;
@@ -185,7 +185,7 @@ static void process_complete(struct gdlm_lock *lp)
 		lp->lkf |= DLM_LKF_CONVERT;
 		lp->lkf &= ~DLM_LKF_CONVDEADLK;
 
-		log_debug("rereq %x,%"PRIx64" id %x %d,%d",
+		log_debug("rereq %x,%llx id %x %d,%d",
 			  lp->lockname.ln_type, lp->lockname.ln_number,
 			  lp->lksb.sb_lkid, lp->cur, lp->req);
 

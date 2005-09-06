@@ -58,7 +58,7 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (!op)
 		return -ENOMEM;
 
-	log_debug("en plock %x,%"PRIx64"", name->ln_type, name->ln_number);
+	log_debug("en plock %x,%llx", name->ln_type, name->ln_number);
 
 	set_version(&op->info);
 	op->info.optype		= GDLM_PLOCK_OP_LOCK;
@@ -91,7 +91,7 @@ int gdlm_plock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 
 	if (!rv) {
 		if (posix_lock_file_wait(file, fl) < 0)
-			log_error("gdlm_plock: vfs lock error %x,%"PRIx64"",
+			log_error("gdlm_plock: vfs lock error %x,%llx",
 				  name->ln_type, name->ln_number);
 	}
 
@@ -110,10 +110,10 @@ int gdlm_punlock(lm_lockspace_t *lockspace, struct lm_lockname *name,
 	if (!op)
 		return -ENOMEM;
 
-	log_debug("en punlock %x,%"PRIx64"", name->ln_type, name->ln_number);
+	log_debug("en punlock %x,%llx", name->ln_type, name->ln_number);
 
 	if (posix_lock_file_wait(file, fl) < 0)
-		log_error("gdlm_punlock: vfs unlock error %x,%"PRIx64"",
+		log_error("gdlm_punlock: vfs unlock error %x,%llx",
 			  name->ln_type, name->ln_number);
 
 	set_version(&op->info);
@@ -174,7 +174,7 @@ static ssize_t dev_read(struct file *file, char __user *u, size_t count,
 	if (!op)
 		return -EAGAIN;
 
-	log_debug("send %"PRIx64" op %d ex %d wait %d", info.number,
+	log_debug("send %llx op %d ex %d wait %d", info.number,
 		  info.optype, info.ex, info.wait);
 
 	if (copy_to_user(u, &info, sizeof(info)))
@@ -200,7 +200,7 @@ static ssize_t dev_write(struct file *file, const char __user *u, size_t count,
 	if (check_version(&info))
 		return -EINVAL;
 
-	log_debug("recv %"PRIx64" op %d ex %d wait %d", info.number,
+	log_debug("recv %llx op %d ex %d wait %d", info.number,
 		  info.optype, info.ex, info.wait);
 
 	spin_lock(&ops_lock);
@@ -219,7 +219,7 @@ static ssize_t dev_write(struct file *file, const char __user *u, size_t count,
 	if (found)
 		wake_up(&recv_wq);
 	else
-		printk("gdlm dev_write no op %x %"PRIx64"\n", info.fsid,
+		printk("gdlm dev_write no op %x %llx\n", info.fsid,
 			info.number);
 	return count;
 }
