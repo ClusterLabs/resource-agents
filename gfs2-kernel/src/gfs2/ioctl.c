@@ -81,35 +81,6 @@ static int gi_skeleton(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
 }
 
 /**
- * gi_get_cookie - Return the "cookie" (identifying string) for a
- *		 filesystem mount
- * @ip:
- * @gi:
- * @buf:
- * @size:
- * @count:
- *
- * Returns: errno
- */
-
-static int gi_get_cookie(struct gfs2_inode *ip, struct gfs2_ioctl *gi,
-			 char *buf, unsigned int size, unsigned int *count)
-{
-	int error = -ENOBUFS;
-
-	if (gi->gi_argc != 1)
-		return -EINVAL;
-
-	gfs2_printf("version 0\n");
-	gfs2_printf("%lu", (unsigned long)ip->i_sbd);
-
-	error = 0;
-
- out:
-	return error;
-}
-
-/**
  * gi_get_super - Return the "struct gfs2_sb" for a filesystem
  * @sdp:
  * @gi:
@@ -1439,9 +1410,7 @@ int gfs2_ioctl_i(struct gfs2_inode *ip, void *arg)
 		goto out;
 	arg0[ARG_SIZE - 1] = 0;
 
-	if (strcmp(arg0, "get_cookie") == 0)
-		error = gi_skeleton(ip, &gi, gi_get_cookie);
-	else if (strcmp(arg0, "get_super") == 0)
+	if (strcmp(arg0, "get_super") == 0)
 		error = gi_get_super(ip->i_sbd, &gi);
 	else if (strcmp(arg0, "get_args") == 0)
 		error = gi_skeleton(ip, &gi, gi_get_args);
