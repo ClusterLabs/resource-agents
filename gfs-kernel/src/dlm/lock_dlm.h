@@ -48,12 +48,14 @@ struct gdlm_strname {
 	unsigned short		namelen;
 };
 
-#define DFL_BLOCK_LOCKS		0
-#define DFL_JOIN_DONE		1
-#define DFL_LEAVE_DONE		2
-#define DFL_TERMINATE		3
-#define DFL_SPECTATOR		4
-#define DFL_WITHDRAW		5
+enum {
+	DFL_BLOCK_LOCKS		= 0,
+	DFL_JOIN_DONE		= 1,
+	DFL_LEAVE_DONE		= 2,
+	DFL_TERMINATE		= 3,
+	DFL_SPECTATOR		= 4,
+	DFL_WITHDRAW		= 5,
+};
 
 struct gdlm_ls {
 	uint32_t		id;
@@ -86,19 +88,21 @@ struct gdlm_ls {
 	int			drop_locks_period;
 };
 
-#define LFL_NOBLOCK		0
-#define LFL_NOCACHE		1
-#define LFL_DLM_UNLOCK		2
-#define LFL_DLM_CANCEL		3
-#define LFL_SYNC_LVB		4
-#define LFL_FORCE_PROMOTE	5
-#define LFL_REREQUEST		6
-#define LFL_ACTIVE		7
-#define LFL_INLOCK		8
-#define LFL_CANCEL		9
-#define LFL_NOBAST		10
-#define LFL_HEADQUE		11
-#define LFL_UNLOCK_DELETE	12
+enum {
+	LFL_NOBLOCK		= 0,
+	LFL_NOCACHE		= 1,
+	LFL_DLM_UNLOCK		= 2,
+	LFL_DLM_CANCEL		= 3,
+	LFL_SYNC_LVB		= 4,
+	LFL_FORCE_PROMOTE	= 5,
+	LFL_REREQUEST		= 6,
+	LFL_ACTIVE		= 7,
+	LFL_INLOCK		= 8,
+	LFL_CANCEL		= 9,
+	LFL_NOBAST		= 10,
+	LFL_HEADQUE		= 11,
+	LFL_UNLOCK_DELETE	= 12,
+};
 
 struct gdlm_lock {
 	struct gdlm_ls		*ls;
@@ -122,20 +126,15 @@ struct gdlm_lock {
 	struct gdlm_lock	*hold_null;	/* NL lock for hold_lvb */
 };
 
-#define GDLM_ASSERT(x, do) \
-{ \
-  if (!(x)) \
-  { \
-    printk("\nlock_dlm:  Assertion failed on line %d of file %s\n" \
-           "lock_dlm:  assertion:  \"%s\"\n" \
-           "lock_dlm:  time = %lu\n", \
-           __LINE__, __FILE__, #x, jiffies); \
-    {do} \
-    printk("\n"); \
-    BUG(); \
-    panic("lock_dlm:  Record message above and reboot.\n"); \
-  } \
-}
+#define gdlm_assert(assertion, fmt, args...)                                  \
+do {                                                                          \
+	if (unlikely(!(assertion))) {                                         \
+		printk(KERN_EMERG "lock_dlm: fatal assertion failed \"%s\"\n" \
+				  "lock_dlm:  " fmt "\n",                     \
+				  #assertion, ##args);                        \
+		BUG();                                                        \
+	}                                                                     \
+} while (0)
 
 #define log_print(lev, fmt, arg...) printk(lev "lock_dlm: " fmt "\n" , ## arg)
 #define log_info(fmt, arg...)  log_print(KERN_INFO , fmt , ## arg)

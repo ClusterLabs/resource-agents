@@ -30,7 +30,7 @@ static void process_submit(struct gdlm_lock *lp)
 static void process_blocking(struct gdlm_lock *lp, int bast_mode)
 {
 	struct gdlm_ls *ls = lp->ls;
-	unsigned int cb;
+	unsigned int cb = 0;
 
 	switch (gdlm_make_lmstate(bast_mode)) {
 	case LM_ST_EXCLUSIVE:
@@ -43,7 +43,7 @@ static void process_blocking(struct gdlm_lock *lp, int bast_mode)
 		cb = LM_CB_NEED_S;
 		break;
 	default:
-		GDLM_ASSERT(0, printk("unknown bast mode %u\n",lp->bast_mode););
+		gdlm_assert(0, "unknown bast mode %u", lp->bast_mode);
 	}
 
 	ls->fscb(ls->fsdata, cb, &lp->lockname);
@@ -148,8 +148,10 @@ static void process_complete(struct gdlm_lock *lp)
 	 */
 
 	if (test_and_clear_bit(LFL_REREQUEST, &lp->flags)) {
-		GDLM_ASSERT(lp->req == DLM_LOCK_NL,);
-		GDLM_ASSERT(lp->prev_req > DLM_LOCK_NL,);
+		gdlm_assert(lp->req == DLM_LOCK_NL, "%x,%llx",
+			    lp->lockname.ln_type, lp->lockname.ln_number);
+		gdlm_assert(lp->prev_req > DLM_LOCK_NL, "%x,%llx",
+			    lp->lockname.ln_type, lp->lockname.ln_number);
 
 		lp->cur = DLM_LOCK_NL;
 		lp->req = lp->prev_req;
