@@ -10,7 +10,7 @@ dnl Initialiase, with sanity check of a unique file in the hierarchy
 AC_INIT(heartbeat.spec.in)
 
 AC_CONFIG_AUX_DIR(.)
-AC_REVISION($Revision: 1.433 $) dnl cvs revision
+AC_REVISION($Revision: 1.434 $) dnl cvs revision
 AC_CANONICAL_HOST
 
 
@@ -878,9 +878,10 @@ check_snmp_libs ()
 	OLDLIBS="$LIBS"
 	LIBS="$LIBS $@"
 	AC_MSG_CHECKING(snmp libraries: $LIBS)
-		AC_LINK_IFELSE([AC_LANG_PROGRAM([], [1;])], ,
-			AC_MSG_ERROR($@ not available))
-			AC_MSG_RESULT(ok)
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], ,
+		AC_MSG_ERROR(cannot link with requested libraries. Reported errors follow:
+			$(cat conftest.err)))
+	AC_MSG_RESULT(ok)
 	LIBS="$OLDLIBS"
 }
 
